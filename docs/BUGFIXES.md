@@ -5,6 +5,18 @@
 
 ---
 
+## §5c 条件節バッチ②＝「それが＜C＞のシグニの場合」73枚テンプレ→70枚は REVEAL_AND_PICK 済みの census 偽陽性・実バグ13枚を新条件型 `LAST_PROCESSED_MATCHES` で是正（2026-07-04・zerom・続き24）
+
+クラスタ表上位「それが＜C＞のシグニの場合」73枚に着手。**着手前の全数機械分類（原文の前文脈×JSON照合）で、70枚は「公開→それ自体を手札/エナ/場へ」形＝既に `REVEAL_AND_PICK{filter:story}` の pick 表現で条件が JSON に載っている census 偽陽性**と判明（WX02-030/WXK01-050 等の WXK 定型サイクル）＝続き19の教訓「バッチ着手前に代表を再現」がそのまま効いた回。実バグは**条件が丸ごと脱落し無条件過剰発火**していた別行動形のみ。**census 1872→1800・golden 123→127・smoke 全0（OK+1）・fuzz 全0・同型★0・held 25 不変（LOSS12/VALUE13）**。
+
+- **新条件型 `LAST_PROCESSED_MATCHES{filter, minCount?}`**（§6.3 登録分の実装）＝直前ステップが `lastProcessedCards` に残したカード（ミル/公開/エナチャージ/対象選択）を `matchesFilter` 照合。types→execUtils `evalCondition`→decompiler（`それが＜X＞のシグニなら、`）の3点セット。**engine 追加2点**＝(a)`execEnergyChargeFromDeck` が `lastProcessedCards` を未記録だった→記録（「この方法で＜X＞のシグニがエナゾーンに置かれた場合」を可能に）。(b)`POWER_MODIFY` に `targetsLastProcessed`（「それ」＝直前選択対象へ選択UIなしで適用・GRANT_KEYWORD と同型）。
+- **parser 3規則**＝(a)steps ループの合流点に「それが〔＜X＞(か＜Y＞)?/レベルN(以上|以下)?/《ガードアイコン》を持つ〕シグニ/レゾナの場合、」alternation を追加（`parseLastProcessedMatchesCondition`）。**前段ゲート**＝直前ステップが TRASH/LIFE_CRASH/REVEAL_DECK_TOP/ENERGY_CHARGE_FROM_DECK/CONDITIONAL(LPM)連鎖のときだけ持ち上げ・「代わりに」帰結と表現不能フィルタ（レベルが奇数等）は従来挙動に据置（IS_MY_TURN 化けを増やさない）。(b)「デッキの一番上を公開する」の LOOK_AND_REORDER 近似を、条件持ち上げ時に記録付き公開 `REVEAL_DECK_TOP` へ置換。(c)RP ブロックの前置き「エナゾーンにあるカードがN枚以下の場合/カードがない場合」丸ごと脱落→ ENERGY_COUNT ラップ（WX12-051/052）。
+- **heldReview 採用10枚**＝WXK06-079（ミル→＜龍獣＞なら相手手札破壊が無条件化）・WXEX1-36-BURST／WXEX1-43-BURST（§6.3(a) の IS_MY_TURN 化け2枚＝レベル4公開条件/美巧エナ置き条件）・WX12-051/052（エナ条件脱落）・WXDi-P04-008（レベル1→ドロー＋《ガード》持ち→クラッシュの2条件とも脱落）・WXEX2-15（トリック公開→ダメージ置換予約が無条件化）・WX14-029-BURST（遊具エナ置き→追加ドロー）・WX22-Re07（古代兵器ミル→蘇生が無条件化⚠then の source フィルタは シグニ に広がる軽微近似）・WDK07-E11（STUB CONDITIONAL_ADD_HAND→実 CONDITIONAL 化）。
+- **手パッチ3枚（parser 再現不能形＝MANUAL 刻印）**＝**WXDi-P07-079-E1**：「+5000。それが＜毒牙＞なら代わりに+10000」が +5000 と +10000(owner:any) の**両方無条件適用**だった→+5000＋CONDITIONAL{LPM 毒牙→同一対象へ targetsLastProcessed +5000}（net+10000 等価）。**SP26-007-E1**：「シグニなら場に出す・＜宇宙＞なら追加でこのカードをルリグデッキに戻す」が無条件 ADD_TO_FIELD＋**場のシグニをデッキへ送る**誤形→SHUFFLE_DECK＋REVEAL_DECK_TOP＋条件2段（宇宙側は engine 実装済み `INTERNAL_ARTS_RECYCLE_EXECUTE` 再利用・bare ADD_TO_FIELD はデッキトップ=公開カードを場に出す仕様で正）。**WXK04-035-BURST**：「ライフ4枚以下なら追加エナチャージ」条件脱落→LIFE_COUNT ラップ（fresh 同型に手合わせ）。
+- **census 較正**＝条件節プローブに extraOk 新設＝「それが＜X＞のシグニの場合、それを…」節は JSON に `REVEAL_AND_PICK`＋該当 story がある場合のみ節を消し、他に条件節が残らないときだけ合格（フィルタ脱落カードを誤って免罪しない）。BASELINE_HIGH 1872→**1800**。
+- **golden +4**＝ミル→LPM 発火/不発・エナチャージ→LPM（記録の回帰テスト）・targetsLastProcessed 合計+10000/+5000・採用/手パッチ JSON 構造ガード（WXK06-079/WXEX1-43-BURST/SP26-007/WXDi-P07-079）。
+- ⚠要実機検証＝WXDi-P07-079 の同一対象追加修正・SP26-007 のアーツ自己回収・WXK06-079 の条件ゲート。
+
 ## §5c 条件節バッチ①＝状態条件節の丸ごと脱落（無条件発火）146枚を「文型クラスタ→parser規則→収穫→held一括レビュー」の新パイプラインで是正＋engine TRASH_HAS_CARD minCount無視バグ（2026-07-04・zerom・続き23）
 
 census 最大母集団「条件節773枚」の消化を効率化するため、**作業単位をカードから文型テンプレへ圧縮するパイプラインを新設**し、第1バッチとして既存DSL条件型で表現できる9テンプレを是正。**census 1931→1872・golden 119→123・smoke/fuzz 全0・同型★0**。
