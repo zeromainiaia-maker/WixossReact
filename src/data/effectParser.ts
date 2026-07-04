@@ -1533,7 +1533,12 @@ function parseActionText(text: string): EffectAction {
       const prevIsRevealLook = lar?.type === 'LOOK_AND_REORDER' && lar.count === 1 && lar.private === false &&
         lar.reorder === false && !lar.canTrash && lar.destination?.position === 'top';
       const prevIsEnergyPlace = prevStep?.type === 'ENERGY_CHARGE_FROM_DECK';
-      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevStep?.type === 'REVEAL_DECK_TOP';
+      // 「それが〜の場合」が連続する形（WXDi-P04-008「それがレベル1なら引く。それが《ガード》持ちならクラッシュ」）：
+      // 直前の CONDITIONAL(LAST_PROCESSED_MATCHES) は公開カードの記録を消費しない（then の DRAW 等は
+      // lastProcessedCards を上書きしない）ため、その前の公開ステップの記録が生きている＝記録扱い。
+      const prevIsLpmChain = prevStep?.type === 'CONDITIONAL' &&
+        (prevStep as import('../types/effects').ConditionalAction).condition?.type === 'LAST_PROCESSED_MATCHES';
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
