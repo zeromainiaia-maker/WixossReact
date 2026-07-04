@@ -1982,9 +1982,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- アップ状態のシグニをトラッシュに置く ----
+  // ⚠TRASH: バニッシュ（エナ送り）ではない（続き19是正・LB 11効果がBANISH化していた）
   if (t.includes('アップ状態のシグニ') && t.includes('トラッシュに置く')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'BANISH', target: parseSigniTarget(t, owner) };
+    return { type: 'TRASH', target: parseSigniTarget(t, owner) };
   }
 
   // ---- このシグニは覚醒する ----
