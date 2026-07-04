@@ -434,7 +434,9 @@ function main(): void {
   {
     const VERB: Array<[string, RegExp]> = [
       ['BANISH', /バニッシュ/],
-      ['FREEZE', /凍結/],
+      // FREEZE は「アップフェイズにアップしない」（WX19-077）の正当エンコードでもある
+      // （CONTINUOUS FREEZE＝BattleScreen useEffect の calcContinuousSigniMutations が常時再凍結）
+      ['FREEZE', /凍結|アップしない/],
       ['EXILE', /除外/],
       ['GAIN_COIN', /コイン/],
       ['LIFE_CRASH', /クラッシュ|ダメージ/],
