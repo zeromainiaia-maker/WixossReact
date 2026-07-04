@@ -67,7 +67,7 @@ let replaced = 0; const done: string[] = [];
 for (const f of files) {
   const p = join(root, 'public/data', f);
   const raw = fs.readFileSync(p, 'utf8');
-  const eol = (raw.match(/(\r?\n)$/) || [, ''])[1];
+  const eol = (raw.match(/(\r?\n)$/) ?? ['', ''])[1];
   const body = eol ? raw.slice(0, -eol.length) : raw;
   const data = JSON.parse(body) as Record<string, Array<{ effectId?: string; action?: unknown }>>;
   if (JSON.stringify(data) !== body) { console.error(`⚠ ${f} 往復不安定 中断`); process.exit(1); }
