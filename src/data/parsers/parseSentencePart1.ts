@@ -1607,12 +1607,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction;
   }
   // ---- それを場からトラッシュに置く ----
+  // ⚠BANISH ではない: バニッシュ＝エナ送り／トラッシュに置く＝トラッシュ送り（行き先も誘発も別・続き19是正）
   if (t.match(/^それを場からトラッシュに置く$/) || t.match(/^それをトラッシュに置く$/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
   }
   // ---- それらを場からトラッシュに置く ----
   if (t.match(/^それらを場からトラッシュに置く$/) || t.match(/^それらをトラッシュに置く$/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 'ALL' } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'any', count: 'ALL' } };
   }
 
   // ---- 残りをシャッフルして/好きな順番でデッキへ（LOOK/REVEALの後続フラグメント）----
