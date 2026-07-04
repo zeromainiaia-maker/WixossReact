@@ -28,7 +28,7 @@ import * as path from 'path';
 // LAST_PROCESSED_MATCHES新設で実バグ13枚是正（採用10＋手パッチ3）＝1872→1800。
 // 2026-07-05 続き25: 「次にダメージを受ける場合」46枚＝A11 PND済み偽陽性（キー較正）＋A2 27 damageSource復元（純改善36自動採用）＋
 // B7 置換ミルが即時自傷化の実バグ→REPLACE_NEXT_DAMAGE_WITH_MILL新設（採用9＋WXDi-D07-007手パッチ）＝1800→1769。
-const BASELINE_HIGH = 1763;
+const BASELINE_HIGH = 1751;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
