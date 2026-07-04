@@ -984,6 +984,45 @@ function parseSingleSentence(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // ---- 状態条件節の CONDITIONAL 持ち上げ（2026-07-04 続き23・census文型クラスタバッチ①）----
+  // 文頭または「〜対象とし、」の直後に現れる盤面状態の条件節を既存 Condition 型でエンコードする
+  // （従来は語彙が無く条件丸ごと脱落＝無条件発火の過剰効果。docs/_census_clusters.txt 上位テンプレ）。
+  // engine（evalCondition）・decompiler 対応済みの条件型のみ扱う。「あなたのターンの場合」は
+  // engine 側 IS_MY_TURN がプレースホルダ常時真のため対象外。「場に《X》がいる」は X がルリグの
+  // 可能性があり HAS_CARD_IN_FIELD はシグニゾーンのみ走査＝偽陰性を作るため対象外（据置）。
+  {
+    const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+      [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
+        g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
+      [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
+        g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
+      [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
+        g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+      [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
+        g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+      [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
+        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+      [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある場合/,
+        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+      [/あなたの場にクロス状態のシグニがある場合/,
+        () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+      [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
+        g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+      [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
+        g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+    ];
+    const t0 = text.trim();
+    for (const [re, mk] of CLAUSES) {
+      const m = t0.match(new RegExp('^((?:[^。「」]*?対象とし、)?)' + re.source + '、(.+)$', 's'));
+      if (m) {
+        return {
+          type: 'CONDITIONAL',
+          condition: mk(m.slice(2, m.length - 1)),
+          then: parseSingleSentence(m[1] + m[m.length - 1]),
+        } as import('../types/effects').ConditionalAction;
+      }
+    }
+  }
   // 「（ターン終了時まで|次のあなたのターン）、あなたの（すべての）＜X＞(と＜Y＞)*のシグニは【K】を得る」
   // → 期間つき全シグニへのキーワード付与（ストリップ前に期間/クラスフィルタを抽出）
   {
