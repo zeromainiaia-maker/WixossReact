@@ -32,48 +32,6 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK09-015
   ~ [0].action.steps[1].type : "EXILE" → "TRASH"
   ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
 
-## +CONDITIONAL +TRASH_HAS_CARD ［3枚］
-WXK02-060 WXK09-042 WXK09-044
---- WXK02-060
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュに＜武勇＞のシグニが５枚以上ある場合、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－3000する。,-
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "黒"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "TRASH_HAS_CARD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "武勇"
-  + [0].action.steps[0].condition.minCount = 5
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  + [0].action.steps[0].then.costColors[0] = "黒"
---- WXK09-042
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュに＜天使＞のシグニが５枚以上ある場合、《青》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－3000する。,-
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "青"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "TRASH_HAS_CARD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "天使"
-  + [0].action.steps[0].condition.minCount = 5
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  + [0].action.steps[0].then.costColors[0] = "青"
---- WXK09-044
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュに＜天使＞のシグニが３枚以上ある場合、《青》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－2000する。,：カードを１枚引く。
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "青"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "TRASH_HAS_CARD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "天使"
-  + [0].action.steps[0].condition.minCount = 3
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
-  + [0].action.steps[0].then.costColors[0] = "青"
-
 ## +TRASH +TRASH_CARD -EXILE×2 -SEQUENCE -SIGNI×2 ［2枚］
 WX21-027 WX24-P3-TK1A
 --- WX21-027
@@ -124,31 +82,19 @@ WXDi-P13-089
   ~ [2].action.type : "EXILE" → "TRASH"
   ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
 
-## -CONDITIONAL -LIFE_COUNT ［1枚］
-WXDi-P16-009
---- WXDi-P16-009
-  原文: 【自】：このルリグがアタックしたとき、あなたのシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋10000する。【出】：カードを１枚引き【エナチャージ１】をする。【起】《ゲーム１回》《白×0》：クラフトの《インビンシブル・ストーリー》１枚をルリグデッキに加える。あなたのライフクロスが２枚以下の場合、このターン、そのピースの使用コストは《無
-  - [2].action.steps[1].condition.type = "LIFE_COUNT"
-  - [2].action.steps[1].condition.owner = "self"
-  - [2].action.steps[1].condition.operator = "lte"
-  - [2].action.steps[1].condition.value = 2
-  - [2].action.steps[1].then.type = "STUB"
-  - [2].action.steps[1].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
-  ~ [2].action.steps[1].type : "CONDITIONAL" → "STUB"
-  + [2].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
-
-## -CONDITIONAL -HAND_COUNT ［1枚］
-WXDi-P16-011
---- WXDi-P16-011
-  原文: 【自】：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。【出】：カードを１枚引き【エナチャージ１】をする。【起】《ゲーム１回》《青×0》：クラフトの《インビンシブル・ストーリー》１枚をルリグデッキに加える。対戦相手の手札が２枚以下の場合、このターン、そのピースの使用コストは《無×1》減る。,-
-  - [2].action.steps[1].condition.type = "HAND_COUNT"
-  - [2].action.steps[1].condition.owner = "opponent"
-  - [2].action.steps[1].condition.operator = "lte"
-  - [2].action.steps[1].condition.value = 2
-  - [2].action.steps[1].then.type = "STUB"
-  - [2].action.steps[1].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
-  ~ [2].action.steps[1].type : "CONDITIONAL" → "STUB"
-  + [2].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
+WX25-CD1-17
+--- WX25-CD1-17
+  原文: 【出】：あなたの場に他の＜ブルアカ＞のシグニがある場合、このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る。【絆自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、あなたのエナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それの基本パワーを3000にする。,：どちらか１
+  - [0].action.steps[0].id = "CONDITIONAL_COST_REDUCTION_BY_FIELD"
+  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[0].condition.owner = "self"
+  + [0].action.steps[0].condition.filter.cardType = "シグニ"
+  + [0].action.steps[0].condition.filter.story = "ブルアカ"
+  + [0].action.steps[0].condition.excludeSelf = true
+  + [0].action.steps[0].then.type = "STUB"
+  + [0].action.steps[0].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
 
 ## +CONDITIONAL +LIFE_COUNT +TRASH +TRASH_CARD -EXILE -SIGNI ［1枚］
 WXK04-035
