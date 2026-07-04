@@ -7325,6 +7325,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevented: true,
       };
     }
+    // REPLACE_NEXT_DAMAGE_WITH_MILL: ダメージを「デッキ上N枚トラッシュ」で置き換え（WXDi-P15-041 等）。
+    // デッキがN枚未満のエントリは置き換え不可（原文注記「デッキが2枚以下の場合は置き換えられない」）＝スキップ。
+    {
+      const drm = state.damage_replace_mill ?? [];
+      const di = drm.findIndex(n => state.deck.length >= n);
+      if (di >= 0) {
+        const n = drm[di];
+        const milled = state.deck.slice(0, n);
+        appendBattleLogs([`ダメージ置換：代わりにデッキの上から${n}枚をトラッシュに置く`]);
+        return {
+          newState: {
+            ...state,
+            deck: state.deck.slice(n),
+            trash: [...state.trash, ...milled],
+            damage_replace_mill: drm.filter((_, i) => i !== di),
+          },
+          crashed: null,
+          prevented: true,
+        };
+      }
+    }
     if (state.life_cloth.length === 0) return { newState: state, crashed: null };
     const crashed = state.life_cloth[state.life_cloth.length - 1];
     return {
