@@ -1014,7 +1014,10 @@ function parseSingleSentence(text: string): EffectAction {
     const t0 = text.trim();
     for (const [re, mk] of CLAUSES) {
       const m = t0.match(new RegExp('^((?:[^。「」]*?対象とし、)?)' + re.source + '、(.+)$', 's'));
-      if (m) {
+      // 「〜の場合、代わりに〜」（昇格置換）は then だけのラップだと「基本＋条件時追加」の誤近似になり、
+      // 既存 STUB（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済みハンドラ）も横取りして退化させる
+      // ＝ else 表現が要る別系統として据置（本規則の対象外）
+      if (m && !m[m.length - 1].startsWith('代わりに')) {
         return {
           type: 'CONDITIONAL',
           condition: mk(m.slice(2, m.length - 1)),
