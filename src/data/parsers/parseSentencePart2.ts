@@ -146,8 +146,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 無色ではないすべてのシグニをトラッシュ ----
+  // ⚠TRASH（バニッシュ＝エナ送りではない）＋ nonColorless フィルタ（従来は無フィルタ＝無色も巻き込む過剰・続き19是正）
   if (t.match(/無色ではないすべてのシグニをトラッシュに置く/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 'ALL' } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ', nonColorless: true } } };
   }
 
   // ---- 対戦相手の場にあるすべての【チャーム】をトラッシュに置く ----
