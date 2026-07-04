@@ -666,4 +666,74 @@ function main(): void {
   }
 }
 
+// ---- --clusters: 高シグナルの文型テンプレート・クラスタ表（2026-07-04 続き23）----
+// 消化の作業単位を「カード」から「文型」へ圧縮する入口。パターンごとに高シグナルIDの
+// マッチ節（条件節は「〜場合、」節・他は文単位）を抽出し、数値→N・《名前》→《X》・
+// ＜クラス＞→＜C＞・「引用」→「Q」・色→色 に正規化して同型テンプレートに束ねる。
+// 実測（続き23・条件節773枚）: 443テンプレ・上位30で304枚（40%）・上位80で459枚（60%）。
+// カスタム節（数値不一致/小さい数/逆方向/構造）は節アンカーが無い粗い網のため対象外。
+function writeClusters(
+  corpus: Corpus,
+  missByPattern: Array<{ name: string; re: RegExp; pre?: (t: string) => string; src?: 'all' | 'eff'; ids: string[] }>,
+): void {
+  const norm = (s: string) => s
+    .replace(/《[^》]*》/g, '《X》')
+    .replace(/＜[^＞]*＞/g, '＜C＞')
+    .replace(/「[^」]*」/g, '「Q」')
+    .replace(/[０-９\d]+/g, 'N')
+    .replace(/[白赤青緑黒]/g, '色');
+  interface Row { pattern: string; tpl: string; ids: Set<string> }
+  const allRows: Row[] = [];
+  const out: string[] = [
+    '# 語彙センサス文型クラスタ表（高シグナルのマッチ節をテンプレート正規化・枚数順）',
+    '# 生成: npx tsx scripts/vocabCensus.ts --clusters（npm run census:clusters）',
+    '# 行形式: 枚数<TAB>テンプレート<TAB>カードID…（テンプレ単位でparser規則→build:effects収穫のバッチを組む）',
+    '',
+  ];
+  for (const { name, re, pre, src, ids } of missByPattern) {
+    if (!ids.length) continue;
+    const clusters = new Map<string, Set<string>>();
+    const add = (tpl: string, id: string): void => {
+      if (!clusters.has(tpl)) clusters.set(tpl, new Set());
+      clusters.get(tpl)!.add(id);
+    };
+    for (const id of ids) {
+      let t = (src === 'eff' ? corpus.eff : corpus.all).get(id) ?? '';
+      if (pre) t = pre(t);
+      const clauses: string[] = [];
+      if (name.startsWith('条件節')) {
+        // 条件節は「〜場合、」の前置節だけを切り出す（読点で刈って前文の残りを落とす）
+        for (const m of t.matchAll(/([^。「」『』]{0,60}?場合)[、,]/g)) {
+          clauses.push(m[1].split(/[、,]/).pop() ?? m[1]);
+        }
+      } else {
+        const g = new RegExp(re.source, re.flags.includes('g') ? re.flags : re.flags + 'g');
+        for (const m of t.matchAll(g)) {
+          // マッチ位置を含む文（。区切り・前後50字まで）を節として採用
+          const idx = m.index ?? 0;
+          const start = Math.max(t.lastIndexOf('。', idx) + 1, idx - 50);
+          let end = t.indexOf('。', idx + m[0].length);
+          if (end < 0) end = t.length;
+          end = Math.min(end, idx + m[0].length + 50);
+          clauses.push(t.slice(start, end));
+        }
+      }
+      if (!clauses.length) { add('（節抽出不可）', id); continue; }
+      for (const c of clauses) add(norm(c), id);
+    }
+    const sorted = [...clusters.entries()].sort((a, b) => b[1].size - a[1].size);
+    out.push(`## ${name}（高シグナル ${ids.length}枚 → テンプレ ${clusters.size}）`);
+    for (const [tpl, set] of sorted) {
+      out.push(`${set.size}\t${tpl}\t${[...set].sort().join(' ')}`);
+      allRows.push({ pattern: name, tpl, ids: set });
+    }
+    out.push('');
+  }
+  fs.writeFileSync(CLUSTERS_OUT, out.join('\n') + '\n', 'utf8');
+  allRows.sort((a, b) => b.ids.size - a.ids.size);
+  console.log('\n=== 文型クラスタ 上位30（全パターン横断・枚数順） ===');
+  for (const r of allRows.slice(0, 30)) console.log(String(r.ids.size).padStart(4), `[${r.pattern}]`, r.tpl);
+  console.log(`\nクラスタ明細: docs/_census_clusters.txt（テンプレ総数 ${allRows.length}）`);
+}
+
 main();
