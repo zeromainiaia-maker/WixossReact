@@ -33,5 +33,20 @@ for (const effs of Object.values(j)) {
   }
 }
 if (hits !== 2) throw new Error(`WXDi-D07-007 patch: expected 2 hits, got ${hits}`);
+
+// WXDi-P07-079-BURST: 「シグニによって」の damageSource 復元（続き24で E1 を MANUAL 化した
+// カードはカード単位で harvest 温存されるため、parser 収穫が届かない＝手で合わせる）
+let hitB = 0;
+for (const effs of Object.values(j)) {
+  for (const e of effs) {
+    if (e.effectId === 'WXDi-P07-079-BURST') {
+      const steps = e.action?.steps ?? [];
+      for (const s of steps) {
+        if (s.type === 'PREVENT_NEXT_DAMAGE') { s.damageSource = 'signi'; hitB++; }
+      }
+    }
+  }
+}
+if (hitB !== 1) throw new Error(`WXDi-P07-079-BURST damageSource: expected 1 hit, got ${hitB}`);
 writeFileSync(p, JSON.stringify(j), 'utf-8');
-console.log('patched WXDi-D07-007 E1/E2');
+console.log('patched WXDi-D07-007 E1/E2 + WXDi-P07-079-BURST damageSource');
