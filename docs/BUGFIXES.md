@@ -5,6 +5,21 @@
 
 ---
 
+## §5c 条件節バッチ③＝「次にダメージを受ける場合」46枚→A11 偽陽性・A2 27 damageSource復元・B7 は置換シールドが即時自傷ミル化の実バグ＝`REPLACE_NEXT_DAMAGE_WITH_MILL` 機構新設（2026-07-05・zerom・続き25）
+
+クラスタ表の「次にあなたが（シグニ/ルリグによって）ダメージを受ける場合」3テンプレ（17+17+12=46枚）を全数機械分類してから着手（続き24の型）。**census 1800→1769・golden 127→129・smoke 全0・fuzz 全0・同型★0・parserWorklist held 25→24（LOSS12/VALUE12）**。
+
+- **分類結果**＝A:11枚は `PREVENT_NEXT_DAMAGE`（PND）で正エンコード済み（census 条件節/代わりにプローブのキー表に PND が無かっただけ＝キー較正）。A2:27枚は PND あり・`damageSource`（シグニ/ルリグ限定）欠落＝逆翻訳の原文不一致のみ（engine は源を区別しない文書化済み近似）。**B:7枚は「代わりにあなたのデッキの上からカードを3枚トラッシュに置く」の置換シールドが、出た瞬間の即時自ミルに化けていた実バグ**（シールド効果ゼロ＋無条件自傷。防御札が自傷札になっていた）。
+- **B の根本原因＝parser 規則の順序**＝part1 の deck-mill 規則（`デッキの上からカードをN枚トラッシュに置く`・アンカーなし）が「代わりに…」ごと飲み込んで即時 TRASH DECK_CARD を返していた。**置換ミル規則を part1 の mill 規則より前に配置**して解決。
+- **機構新設 `REPLACE_NEXT_DAMAGE_WITH_MILL{millCount, damageSource?}`**＝executor が `PlayerState.damage_replace_mill`（ミル枚数キュー）へ予約→**消費は `crashOneLife`（シグニアタック/効果ダメージ）とルリグアタック応答経路の2箇所**（バリア→PND→置換ミルの順・デッキがN枚未満のエントリは原文注記「デッキが2枚以下の場合は置き換えられない」どおり置換不可＝ダメージ通過）。ターン境界リセット3箇所（PvP通常/PvP確認後/CPU）に `damage_replace_mill: undefined` を追加。
+- **A2 の parser**＝part2 の PND 規則に damageSource 抽出を追加（「次にあなたが（シグニ|ルリグ）によって」）→ build:effects の**純粋上位集合として36件自動採用**（heldReview 不要）。
+- **採用9枚**＝WXDi-P15-041（×3効果）・WX24-P1-010（リコレクト追加）・WX25-P1-106-BURST（§6.3 の「PREVENT_DAMAGE 合流」登録分＝解消）・WX25-P2-099・WX25-P3-053・WX25-P3-104-BURST・WX26-CP1-010（そうした場合ゲート付き）・WX26-CP1-097・**WX25-P1-010**（置換ミル化＋**「対戦相手のデッキ8枚ミル」の owner が self＝自デッキ削り実害も同時是正**・レガシー held からも脱出）。
+- **手パッチ MANUAL 2箇所**＝**WXDi-D07-007 E1/E2**（「次とその次に」2回シールド＋防御成功ごとのルリグ【自】付与→PND count2/1＋log-only STUB `LRIG_GRANT_MILL_PER_PREVENTED_DAMAGE`＝防御成功イベントのトリガーが無いため §6.3 登録・旧は即時5枚自ミル）・**WXDi-P07-079-BURST** の damageSource:signi（続き24で E1 を MANUAL 化したカードは harvest 温存＝手で合わせ）。
+- **census 較正**＝条件節キーに PREVENT_NEXT_DAMAGE/REPLACE_NEXT_DAMAGE・「代わりに」キーに PREVENT_NEXT_DAMAGE を追加。BASELINE_HIGH 1800→**1769**。
+- **golden +2**＝置換ミル予約のキュー積み上げ・構造ガード（WXDi-P15-041 ×3置換/即時ミル消滅・WXDi-D07-007 PND2・WX25-P1-008 両source保持）。
+- **残**＝WX24-P4-006（「それより低いレベルを持つシグニによって」＝動的ダメージ源フィルタ）・「あなたがブーストしていた場合」条件（WX25-P1-010 の8枚ミル前段等・ブースト機構）・防御成功イベントトリガー（D07-007 の付与部）＝§6.3。
+- ⚠要実機検証＝crashOneLife/ルリグアタック応答の置換ミル消費・デッキ枚数不足時の通過・ターン境界リセット。
+
 ## §5c 条件節バッチ②＝「それが＜C＞のシグニの場合」73枚テンプレ→70枚は REVEAL_AND_PICK 済みの census 偽陽性・実バグ13枚を新条件型 `LAST_PROCESSED_MATCHES` で是正（2026-07-04・zerom・続き24）
 
 クラスタ表上位「それが＜C＞のシグニの場合」73枚に着手。**着手前の全数機械分類（原文の前文脈×JSON照合）で、70枚は「公開→それ自体を手札/エナ/場へ」形＝既に `REVEAL_AND_PICK{filter:story}` の pick 表現で条件が JSON に載っている census 偽陽性**と判明（WX02-030/WXK01-050 等の WXK 定型サイクル）＝続き19の教訓「バッチ着手前に代表を再現」がそのまま効いた回。実バグは**条件が丸ごと脱落し無条件過剰発火**していた別行動形のみ。**census 1872→1800・golden 123→127・smoke 全0（OK+1）・fuzz 全0・同型★0・held 25 不変（LOSS12/VALUE13）**。
