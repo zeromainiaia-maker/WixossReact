@@ -1532,9 +1532,14 @@ function parseActionText(text: string): EffectAction {
         const enhancedText = cm.rest.slice('代わりに'.length);
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
         if (!perTarget) {
+          const base = steps[steps.length - 1];
           const then = parseSingleSentence(enhancedText);
-          if (!JSON.stringify(then).includes('"UNKNOWN"')) {
-            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: steps[steps.length - 1] };
+          // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
+          // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
+          const core = (a: EffectAction): string => a.type === 'CONDITIONAL' ? core((a as ConditionalAction).then)
+            : a.type === 'SEQUENCE' ? (((a as SequenceAction).steps.at(-1)?.type) ?? 'SEQUENCE') : a.type;
+          if (!JSON.stringify(then).includes('"UNKNOWN"') && core(then) === core(base)) {
+            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
             continue;
           }
         }
