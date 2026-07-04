@@ -65,9 +65,17 @@ export function checkActiveCondition(
         if (!matchesFilter(c, cond.filter)) return;
         if (!matchesStateFilter(state, zi, cond.filter)) return;
         if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
-        matched++;
         else matched++;
       });
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen はシグニ専用）
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+        for (const ln of lrigZoneTops(state.field)) {
+          if (ln && matchesFilter(cardMap.get(ln), cond.filter)) {
+            if (distinctNameSet) distinctNameSet.add(cardMap.get(ln)?.CardName ?? ln);
+            else matched++;
+          }
+        }
+      }
       return (distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
     }
 
