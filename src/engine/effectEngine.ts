@@ -472,6 +472,11 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   return true;
 }
 
+// センタールリグ＋左右アシストルリグの各グロウスタック頂点（execUtils.lrigZoneTops と同義）
+function lrigZoneTops(field: PlayerState['field']): (string | undefined)[] {
+  return [field.lrig?.at(-1), field.assist_lrig_l?.at(-1), field.assist_lrig_r?.at(-1)];
+}
+
 // ===== ゾーン状態フィルタ判定（zoneIdx ベース） =====
 
 export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: TargetFilter | undefined): boolean {
