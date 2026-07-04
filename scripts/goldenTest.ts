@@ -1048,6 +1048,84 @@ test('census条件節バッチ①: 採用JSONの構造（条件持ち上げ＋�
   ok(s3.includes('"LRIG_STORY"') && s3.includes('"story":"ミュウ"'), 'WXK07-032: センタールリグ＜ミュウ＞条件が居るはず');
 });
 
+// ── LAST_PROCESSED_MATCHES（2026-07-04 続き24）: 「それが＜X＞のシグニの場合」条件型 ──
+// ミル/公開/エナチャージ/対象選択が lastProcessedCards に残したカードを filter 照合する。
+
+// ミル前段（WXK06-079「デッキ一番上をトラッシュ。それが＜龍獣＞なら相手手札1枚破壊」型）
+test('LAST_PROCESSED_MATCHES: ミル結果が＜龍獣＞なら発火・違えば不発', () => {
+  const ryu = [...cardMap.values()].find(c => isSigni(c) && (c.CardClass ?? '').includes('龍獣'))?.CardNum;
+  const non = [...cardMap.values()].find(c => isSigni(c) && !(c.CardClass ?? '').includes('龍獣'))?.CardNum;
+  ok(!!ryu && !!non, '龍獣/非龍獣シグニが見つかるはず');
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '龍獣' } },
+      then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
+  ] } as unknown as EffectAction;
+  const ctx1 = mkCtx({}, { hand: 3 });
+  ctx1.ownerState.deck = [ryu!, ...ctx1.ownerState.deck];
+  eq(run(act, ctx1).otherState.hand.length, 2, '龍獣ミルで相手手札-1のはず');
+  const ctx2 = mkCtx({}, { hand: 3 });
+  ctx2.ownerState.deck = [non!, ...ctx2.ownerState.deck];
+  eq(run(act, ctx2).otherState.hand.length, 3, '非龍獣ミルなら不発のはず');
+});
+
+// エナチャージ前段（WX14-029-BURST「デッキ一番上をエナへ。それが＜遊具＞なら追加で1枚引く」型）
+// ＝ execEnergyChargeFromDeck が lastProcessedCards を記録するようになった回帰テスト
+test('LAST_PROCESSED_MATCHES: エナに置いたカードが＜遊具＞なら追加ドロー', () => {
+  const toy = [...cardMap.values()].find(c => isSigni(c) && (c.CardClass ?? '').includes('遊具'))?.CardNum;
+  const non = [...cardMap.values()].find(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具'))?.CardNum;
+  ok(!!toy && !!non, '遊具/非遊具シグニが見つかるはず');
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '遊具' } },
+      then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as unknown as EffectAction;
+  const ctx1 = mkCtx({}, {});
+  ctx1.ownerState.deck = [toy!, ...ctx1.ownerState.deck];
+  const h1 = ctx1.ownerState.hand.length;
+  const r1 = run(act, ctx1);
+  eq(r1.ownerState.energy.length, 1, 'エナ+1のはず');
+  eq(r1.ownerState.hand.length, h1 + 1, '遊具チャージで追加ドローのはず');
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.deck = [non!, ...ctx2.ownerState.deck];
+  const h2 = ctx2.ownerState.hand.length;
+  eq(run(act, ctx2).ownerState.hand.length, h2, '非遊具チャージなら不発のはず');
+});
+
+// targetsLastProcessed（WXDi-P07-079「+5000。それが＜毒牙＞なら代わりに+10000」＝+5000+条件時追加+5000）
+test('POWER_MODIFY targetsLastProcessed: 選択した＜毒牙＞に合計+10000・非毒牙は+5000のみ', () => {
+  const doku = [...cardMap.values()].find(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙'))?.CardNum;
+  const non = [...cardMap.values()].find(c => isSigni(c) && !(c.CardClass ?? '').includes('毒牙'))?.CardNum;
+  ok(!!doku && !!non, '毒牙/非毒牙シグニが見つかるはず');
+  const act = { type: 'SEQUENCE', steps: [
+    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, delta: 5000 },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '毒牙' } },
+      then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, delta: 5000, targetsLastProcessed: true } },
+  ] } as unknown as EffectAction;
+  const sum = (r: ExecResult, cn: string) =>
+    ((r as { ownerState: PlayerState }).ownerState.temp_power_mods ?? []).filter(m => m.cardNum === cn).reduce((s, m) => s + m.delta, 0);
+  const ctx1 = mkCtx({}, {});
+  ctx1.ownerState.field.signi = [[doku!], null, null];
+  eq(sum(run(act, ctx1), doku!), 10000, '毒牙は合計+10000のはず');
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.field.signi = [[non!], null, null];
+  eq(sum(run(act, ctx2), non!), 5000, '非毒牙は+5000のみのはず');
+});
+
+// 採用/手パッチJSONの構造ガード（再harvestで旧形＝無条件過剰発火に戻ったら即FAIL）
+test('LPMバッチ: 採用JSONの構造固定（WXK06-079/WXEX1-43/SP26-007/WXDi-P07-079）', () => {
+  const s1 = JSON.stringify(effectsMap.get('WXK06-079') ?? []);
+  ok(s1.includes('"LAST_PROCESSED_MATCHES"') && s1.includes('"story":"龍獣"'), 'WXK06-079: 龍獣条件がCONDITIONALに居るはず');
+  const burst43 = (effectsMap.get('WXEX1-43') ?? []).find(e => e.effectType === 'LIFE_BURST');
+  const s2 = JSON.stringify(burst43 ?? {});
+  ok(s2.includes('"LAST_PROCESSED_MATCHES"') && s2.includes('"story":"美巧"') && !s2.includes('IS_MY_TURN'),
+    'WXEX1-43-BURST: 美巧エナ置き条件（IS_MY_TURN化け解消）のはず');
+  const s3 = JSON.stringify(effectsMap.get('SP26-007') ?? []);
+  ok(s3.includes('INTERNAL_ARTS_RECYCLE_EXECUTE') && !s3.includes('TRANSFER_TO_DECK'), 'SP26-007: 宇宙条件→自己ルリグデッキ回収のはず');
+  const s4 = JSON.stringify(effectsMap.get('WXDi-P07-079') ?? []);
+  ok(s4.includes('"targetsLastProcessed":true') && !s4.includes('10000'), 'WXDi-P07-079: 同一対象への条件時+5000追加形のはず');
+});
+
 // POWER_MODIFY_PER_TRASH_COUNT 選択経路: applyDirectAction に PER_* case が無く選択後 no-op だった回帰テスト
 // （WXK02-061「トラッシュの＜武勇＞5枚につき-1000」等。thenAction を POWER_MODIFY に変換して修正）
 test('POWER_MODIFY_PER_TRASH_COUNT: 選択対象にトラッシュ枚数比例の修正が適用される', () => {
