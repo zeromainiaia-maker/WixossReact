@@ -106,7 +106,7 @@
 - ⚠**decompile再生成は Bash の `>` を使う**（PowerShell `>` は UTF-16 で下流破壊）。
 
 ### 📌 次の一手（推奨順）
-> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 106/106・smoke/fuzz 全0・同型★0。
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 117/117・smoke/fuzz 全0・同型★0・census 1941/1941。
 >
 > **現在の主作業＝BEHAVIOR_AUDIT 段階4（キューから欠落no-opバグ潰し）**。手順＝**キューは古くなるのでまず `npx tsx scripts/behaviorAudit.ts --queue > docs/_behavior_queue.txt` で再生成**→`node scratchpad/_bqTriage.mjs`（要review キュー109を高シグナル選別）→ `npm run audit -- --id <CardNum>` で原文｜逆翻訳｜盤面差分｜ログを目視→「真no-op（engine未実装/誤配線）／シナリオ空振り（＝`behaviorAudit.ts` のシナリオビルダーを拡充して偽陽性を消す）／STUB未実装」に仕分け→バグは §3 ワークフロー（JSON直パッチ＋engine/decompilerセット＋golden1件＋smoke/golden/fuzz）で修正。**engine を触ったら smoke/golden/fuzz 必須**。残る高シグナル19の主な内訳＝トリガー主語系（audit はトリガー条件を模擬しない＝WX04-082/099/102 等は逆翻訳照合で判定）・CHOOSE 分岐・出現条件レゾナ（WX09-012/WX12-010）・§6.3 既登録の機構待ち（WX25-P2-009 等）＝逓減域。詳細 [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md)。§6（未実装action型 worklist・対戦相手シグニ離脱トリガー3枚）も残タスク。
 >
