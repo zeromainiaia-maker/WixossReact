@@ -872,6 +872,24 @@ export function collectRefreshTriggers(
       });
     }
   }
+  // INSTALL_DELAYED_TRIGGER（B3）: controller に設置された「このターン、…がリフレッシュをした場合」
+  // 遅延トリガーを収集する（WX11-024。refreshedOwner で発生源限定・省略=any）。
+  for (const dt of controllerState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_REFRESH') continue;
+    const owner = dt.trigger.refreshedOwner ?? 'any';
+    const relevant = owner === 'self' ? refreshedByController
+      : owner === 'opponent' ? refreshedByOpp
+      : refreshedByController + refreshedByOpp;
+    if (relevant <= 0) continue;
+    entries.push({
+      id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: 'このターンの遅延トリガー（リフレッシュ時）',
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_REFRESH'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    });
+  }
   return { entries, usedOncePerTurnIds };
 }
 
