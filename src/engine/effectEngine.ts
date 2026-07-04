@@ -65,6 +65,7 @@ export function checkActiveCondition(
         if (!matchesFilter(c, cond.filter)) return;
         if (!matchesStateFilter(state, zi, cond.filter)) return;
         if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
+        matched++;
         else matched++;
       });
       return (distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
