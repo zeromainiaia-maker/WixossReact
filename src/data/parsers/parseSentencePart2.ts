@@ -966,6 +966,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DISCARD_BY_POWER_MATCH' } as StubAction;
   }
 
+  // ---- このターン次にダメージを受ける場合、代わりにデッキ上N枚トラッシュ（置換ミル・WXDi-P15-041/WX24-P1-010 等）----
+  {
+    const rm = t.match(/このターン、?次にあなたが(シグニ|ルリグ)?(?:によって)?ダメージを受ける場合、代わりにあなたのデッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
+    if (rm) {
+      return { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: parseNum(rm[2]),
+        ...(rm[1] ? { damageSource: rm[1] === 'ルリグ' ? 'lrig' : 'signi' } : {}) } as import('../../types/effects').ReplaceNextDamageWithMillAction;
+    }
+  }
+
   // ---- このターン次にダメージを受ける場合代わりに受けない（シグニ/ルリグ/効果指定含む）----
   if (t.match(/このターン.*次にあなたが(?:シグニ|ルリグ|[^から]*)?(?:から|によって|で)?ダメージを受ける場合.*代わりにダメージを受けない/) ||
       t.match(/このターン.*あなたは.*(?:シグニ|ルリグ|対戦相手の効果)によってダメージを受けない/) ||
