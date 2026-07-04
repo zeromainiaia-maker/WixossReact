@@ -24,7 +24,9 @@ for (const r of rows){ if(!r.CardNum)continue; const eff=mergeManualEffects(r.Ca
 
 function leafMap(o:any,pre='',out=new Map<string,any>()):Map<string,any>{ if(Array.isArray(o))o.forEach((v,i)=>leafMap(v,`${pre}[${i}]`,out)); else if(o&&typeof o==='object')for(const k of Object.keys(o))leafMap(o[k],`${pre}.${k}`,out); else out.set(pre,o); return out; }
 
-let replaced=0, skippedCards:string[]=[], touched=new Set<string>();
+let replaced=0;
+const skippedCards:string[]=[];
+const touched=new Set<string>();
 for (const [id, effs] of fresh) {
   const file = fileOf.get(id); if(!file) continue;
   const j = jsons.get(file)!;
