@@ -760,9 +760,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- 対戦相手の色か色のシグニをトラッシュ/エナ（色フィルター付き）----
   {
-    const colorBanishM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/);
+    // ⚠TRASH＋色フィルタ: 従来は BANISH（エナ送り）かつ色フィルタ無し＝二重の誤り（続き19是正）
+    const colorBanishM = t.match(/対戦相手の([白赤青緑黒])か([白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*トラッシュに置く/);
     if (colorBanishM) {
-      return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorBanishM[2]) } } as BanishAction;
+      return { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorBanishM[3]),
+        filter: { cardType: 'シグニ', color: [colorBanishM[1], colorBanishM[2]] } } } as TrashAction;
     }
     const colorEnergyM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*エナゾーンに置く/);
     if (colorEnergyM) {
