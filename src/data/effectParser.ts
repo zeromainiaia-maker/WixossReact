@@ -1521,6 +1521,26 @@ function parseActionText(text: string): EffectAction {
     const clean = s.trim();
     if (!clean) continue;
 
+    // 「＜盤面状態条件＞の場合、代わりに＜enhanced＞」= 昇格置換（else付きCONDITIONAL）。（2026-07-05 続き28）
+    // 直前ステップ（base）を else に、enhanced を then にして CONDITIONAL で前ステップを置換する。
+    // 従来は条件が脱落し base+enhanced の二重適用/値すり替えの実バグだった（WX24-D3-15/WD08-006等）。
+    // ⚠自己完結しない per-target 形（enhanced が「対象とし」なしで「それ」を参照＝base のターゲット共有が
+    //   要る）と、条件が STATE_CONDITION_CLAUSES で表現できない形（多段閾値の値のみ等）は据置。
+    if (steps.length > 0) {
+      const cm = matchLeadingStateCondition(clean);
+      if (cm && cm.rest.startsWith('代わりに')) {
+        const enhancedText = cm.rest.slice('代わりに'.length);
+        const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
+        if (!perTarget) {
+          const then = parseSingleSentence(enhancedText);
+          if (!JSON.stringify(then).includes('"UNKNOWN"')) {
+            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: steps[steps.length - 1] };
+            continue;
+          }
+        }
+      }
+    }
+
     // 「そうしなかった場合、」= 直前が OPPONENT_PAY_OPTIONAL の場合、その else アクションを IS_MY_TURN CONDITIONAL でラップ
     const notThenM = clean.match(/^そうしなかった場合、/);
     if (notThenM && steps.length > 0) {
