@@ -721,11 +721,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
-      return st(cond.owner).trash.some(n => {
+      // minCount: フィルタ一致カードがN枚以上（省略=1。「トラッシュに＜武勇＞のシグニが10枚以上ある場合」等）
+      const matched = st(cond.owner).trash.filter(n => {
         const c = ctx.cardMap.get(n);
         if (!c) return false;
         return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
-      });
+      }).length;
+      return matched >= (cond.minCount ?? 1);
     }
     case 'DECK_TOP_MATCHES': {
       const topNum = st(cond.owner).deck[0];
