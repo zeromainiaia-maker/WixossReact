@@ -5,6 +5,17 @@
 
 ---
 
+## §5c「代わりに」B系統＝「＜条件＞の場合、代わりに＜enhanced＞」の else付きCONDITIONAL 昇格置換を parser 実装＝15枚の二重適用/値すり替え実バグ是正（2026-07-05・zerom・続き28後半）
+
+「代わりに」B系統94枚（＜条件＞の場合、代わりに＜enhanced＞）を機械分類＝現JSONは**条件が脱落し base+enhanced の二重適用（WX24-D3-15＝−3000と−5000両掛け・WXDi-P03-088）または base を捨てて enhanced値のみ（WD08-006＝無条件−8000）の実バグ**。**census 1763→1751（−12）・golden 131→132・smoke 全0・fuzz 全0・同型★0・held 24（working-tree）**。
+
+- **parser 実装**＝(1)盤面状態条件節テンプレを module-level `STATE_CONDITION_CLAUSES`＋`matchLeadingStateCondition` に抽出（LIFE/HAND/ENERGY_COUNT・TRASH_HAS_CARD・HAS_CARD_IN_FIELD・SELF_POWER_GTE・LRIG_STORY・SUBSCRIBER_COUNT）。(2)SEQUENCE 組み立てループで「＜cond＞の場合、代わりに＜enhanced＞」を検出→**直前ステップ（base）を `else`、enhanced を `then` にした CONDITIONAL で前ステップを置換**（engine execConditional は else 実装済み）。
+- **ガード2種が肝**＝(a)**per-target 据置**＝enhanced が「対象とし」なしで「それ」を参照（base のターゲット共有が要る「それのパワーを－N」型）は据置。(b)**コアaction型一致必須**＝文脈欠落（「デッキから」等）で then が別アクションに縮退する誤マージを防ぐ（WX11-011＝enhanced が SHUFFLE_DECK に縮退→除外）。core は CONDITIONAL/SEQUENCE を再帰的に剥がして比較。
+- **採用15枚**＝WD10-018/WX25-P1-078/WXDi-P05-053/WXDi-P10-069（HAS_CARD_IN_FIELD）・WXDi-P01-054/P12-067/P16-052（SELF_POWER_GTE）・WDK16-06S/WXK08-035/WXK08-057（SUBSCRIBER_COUNT）・WX24-D3-19/WX26-CP1-071（HAND_COUNT）・WX24-D1-19（LIFE_COUNT）・WDK03-006（LRIG_STORY）・WX25-CP1-046（SELF_POWER_GTE・Sランサー昇格）。WXDi-P05-053/WX26-CP1-071 は base 自体も条件付き＝**入れ子 else**（3体→強/else 2体→弱）で正エンコード。
+- **decompiler**＝CONDITIONAL else は「〜なら…、そうでなければ…」で描画（既存対応）。
+- **golden +1**＝else の一方のみ実行（条件成立→then/不成立→else・二重適用しない）。
+- **残＝B系統の per-target「それのパワー－N」型・多段閾値の値のみ型（WD08-006/WXDi-P03-088/WXK11-075）・表現不能条件**＝次バッチ（ターゲット共有機構・前段条件の subject 引き継ぎが要る）。
+
 ## §5c「代わりに」バッチ着手＝ena→trash置換16枚を機械分類→15枚が BANISH_REDIRECT 済みの census 偽陽性（キー較正）＋1枚実バグ是正（2026-07-05・zerom・続き28）
 
 「代わりに(置換)」高シグナル121枚を全数機械分類し、サブ系統に分割＝**A:エナ→トラッシュ置換16／B:条件+代わりに（enhanced・else要）94／C:コスト代替6／D:バニッシュされない3／E:リコレクト2**。最もクリーンな **A（ena→trash置換）から着手→16枚中15枚が `BANISH_REDIRECT` で正エンコード済みの偽陽性**（続き24「それが＜C＞70/73偽陽性」と同型）。**census 1765→1763・golden 131・smoke 全0・fuzz 全0・同型★0・parserWorklist held 24 不変**。
