@@ -487,6 +487,15 @@ test('Stage2 ON_REFRESH: refreshedOwner=any はどちらのリフレッシュで
   eq(has(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXDi-P04-043-E1'), true, '自リフレッシュで発火');
   eq(has(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WXDi-P04-043-E1'), false, '0回は非発火');
 });
+test('B3 遅延トリガー ON_REFRESH: 相手リフレッシュで発火・自リフレッシュ/未設置は非発火（WX11-024）', () => {
+  const dt = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_REFRESH', refreshedOwner: 'opponent' }, effect: { type: 'FORCE_END_TURN' } } as import('../src/types/effects').InstallDelayedTriggerAction;
+  const host: PlayerState = { ...mkState({}), delayed_triggers: [dt] };
+  const guest = mkState({});
+  const fired = collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries;
+  eq(fired.some(e => e.effectId === 'DELAYED_TRIGGER' && (e.effect.action as { type?: string }).type === 'FORCE_END_TURN'), true, '相手リフレッシュで発火');
+  eq(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '自リフレッシュは非発火');
+  eq(collectRefreshTriggers(trigCtx(HOST), HOST, mkState({}), guest, 0, 1).entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '未設置は非発火');
+});
 test('Stage2 ON_OPP_POWER_DECREASED: decreaseOnOpp>0 で発火＋delta動的注入（WX13-036-E1）', () => {
   const host = mkState({ signi: ['WX13-036', null, null] }); const guest = mkState({});
   const e = collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000);
