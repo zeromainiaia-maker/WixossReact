@@ -971,7 +971,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
       t.match(/このターン.*あなたは.*(?:シグニ|ルリグ|対戦相手の効果)によってダメージを受けない/) ||
       t.match(/それはこのアタックでダメージを与えない/) ||
       t.match(/このターン、あなたは対戦相手の効果によってダメージを受けない/)) {
-    return { type: 'PREVENT_NEXT_DAMAGE', count: 1 } as PreventNextDamageAction;
+    // 「シグニ/ルリグによって」のダメージ源限定を damageSource に保持（逆翻訳の原文一致用。
+    // engine は現状ダメージ源を区別しない文書化済み近似＝型コメント参照。§5c 続き25・27枚）
+    const srcM = t.match(/次にあなたが(シグニ|ルリグ)によってダメージを受ける場合/);
+    return { type: 'PREVENT_NEXT_DAMAGE', count: 1, ...(srcM ? { damageSource: srcM[1] === 'ルリグ' ? 'lrig' : 'signi' } : {}) } as PreventNextDamageAction;
   }
 
   // ---- 代わりに＋Nする（前の効果に続く）----
