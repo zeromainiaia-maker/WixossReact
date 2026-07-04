@@ -5,6 +5,19 @@
 
 ---
 
+## §5c 条件節バッチ④＝「あなたの場に《X》がいる場合」13枚→全13が条件丸ごと脱落の実バグ＝HAS_CARD_IN_FIELD にルリグゾーン走査を追加し25効果を条件ゲート化（2026-07-05・zerom・続き26）
+
+クラスタ表の「あなたの場に《X》がいる場合」テンプレ（13枚）を全数機械分類。**《X》はほぼルリグ名**（《ロストコード・ピルルク》《デウス・スリーNEO》等）で、従来 `HAS_CARD_IN_FIELD` はシグニゾーンしか走査せず据置扱いだった（parser CLAUSES 表のコメントで対象外と明記されていた）。**census 1769→1765・golden 129→130・smoke 全0・fuzz 全0・同型★0・parserWorklist held 24 不変（LOSS12/VALUE12）**。
+
+- **分類結果＝13枚すべてが偽陽性ゼロの実バグ**＝JSON に `HAS_CARD_IN_FIELD` も名前参照も無く条件が丸ごと脱落＝アタックフェイズ開始時等に**無条件発火する過剰効果**（本来は指定ルリグが場にいるときだけ発火）。
+- **engine＝`HAS_CARD_IN_FIELD` にルリグゾーン走査を追加**（3評価サイト＝`execUtils.evalCondition`・`effectEngine` の checkActiveCondition/evalCondition）。センタールリグ＋左右アシストルリグの各グロウスタック頂点（`lrigZoneTops`）を `matchesFilter` で照合。`cardName` フィルタ（部分一致・既存実装）で照合するため、既存のシグニ条件（`cardType:'シグニ'` 等）はルリグに当たらず無影響。`crossState`/`isFrozen`（シグニゾーン専用状態フィルタ）指定時はルリグを走査しない（偽陽性防止）。
+- **parser CLAUSES に1規則追加**＝`あなたの場に《X》がいる場合` → `HAS_CARD_IN_FIELD{owner:self, filter:{cardName:X}}`（状態条件節の CONDITIONAL 持ち上げブロック）。据置コメントを対応済みに更新。
+- **decompiler**＝`cardName` のみのフィルタは「シグニ」を付けず「場に《X》がいる」と描画（従来は「《X》シグニがいる」＝ルリグに不適）。
+- **採用25枚**＝build:effects の純条件ラップ（旧アクションを `then` に、条件ゲートを付与）を heldReview の署名グループ `+CONDITIONAL +HAS_CARD_IN_FIELD`（26枚）から**25枚を一括採用**。13枚のテンプレ本体に加え、【起】/mid-card 位置や OPTIONAL_COST STUB を `then` に温存するカード（SPDi43-06/08/09/32・WDK06-R01・WX24-P1-042/044/046・WX24-P2-047/054・WX24-P3-047/052・WX25-P1-056・WX25-P2-054/056/060/063・WX25-P3-056/058・WXDi-P12-047/050/054・WXDi-P13-055・WXDi-P15-048・WXDi-P16-051）も同型のため採用。
+- **不採用1枚＝WX25-CD1-17**＝専用 STUB `CONDITIONAL_COST_REDUCTION_BY_FIELD`（条件込みで意味を持つ）が汎用 STUB `ARTS_COST_REDUCTION_BY_EFFECT`（しかも原文はルリグ【起】コスト減でアーツではない）に化ける**別STUB id化**＝レガシードリフトとして据置。
+- **golden +1**＝ルリグ名 `HAS_CARD_IN_FIELD` の発火/不発ゲート。
+- **既知の残ギャップ**＝WX24-P1-044 は「引くか、対戦相手は手札を捨てる」の選択肢が旧エンコードから脱落済み（条件ゲートは正しく追加＝悪化なし・選択肢欠落は別系統）。
+
 ## §5c 条件節バッチ③＝「次にダメージを受ける場合」46枚→A11 偽陽性・A2 27 damageSource復元・B7 は置換シールドが即時自傷ミル化の実バグ＝`REPLACE_NEXT_DAMAGE_WITH_MILL` 機構新設（2026-07-05・zerom・続き25）
 
 クラスタ表の「次にあなたが（シグニ/ルリグによって）ダメージを受ける場合」3テンプレ（17+17+12=46枚）を全数機械分類してから着手（続き24の型）。**census 1800→1769・golden 127→129・smoke 全0・fuzz 全0・同型★0・parserWorklist held 25→24（LOSS12/VALUE12）**。
