@@ -228,7 +228,8 @@ export type Condition =
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
   | { type: 'LAST_PROCESSED_HAS_BURST' }                     // lastProcessedCards[0] が【ライフバースト】を持つ場合
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
-  | { type: 'LAST_PROCESSED_SHARE_COLOR' };                  // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
+  | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
+  | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number };  // lastProcessedCards（直前のミル/公開/選択/エナ置き結果）に filter 一致が minCount（省略=1）枚以上（「それが＜X＞のシグニの場合」WXK06-079／「この方法で＜X＞のシグニがエナゾーンに置かれた場合」WXEX1-43-BURST）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
