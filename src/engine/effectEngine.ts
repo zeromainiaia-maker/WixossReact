@@ -635,12 +635,18 @@ function evalConditionForContinuous(
     case 'HAS_CARD_IN_FIELD': {
       const hcifState = st(cond.owner);
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
-      return hcifState.field.signi.some((stack, zi) => {
+      const signiMatch = hcifState.field.signi.some((stack, zi) => {
         if (!stack?.length) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
         return matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter);
       });
+      if (signiMatch) return true;
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen はシグニ専用）
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+        return lrigZoneTops(hcifState.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter));
+      }
+      return false;
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = oppTrashColorLoss && cond.owner === 'self';
