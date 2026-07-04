@@ -3913,6 +3913,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
     }
+    case 'REPLACE_NEXT_DAMAGE_WITH_MILL': {
+      // 「次にダメージを受ける場合、代わりにデッキ上N枚をトラッシュ」の予約（消費は crashOneLife／ルリグアタック応答）
+      const rdm = action as import('../types/effects').ReplaceNextDamageWithMillAction;
+      const newOwner = { ...ctx.ownerState, damage_replace_mill: [...(ctx.ownerState.damage_replace_mill ?? []), rdm.millCount] };
+      return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次のダメージを代わりにデッキ上${rdm.millCount}枚トラッシュで置き換え（予約）`));
+    }
     case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);
     case 'POWER_MODIFY_BY_SOURCE':         return execPowerModifyBySource(action as import('../types/effects').PowerModifyBySourceAction, ctx);
