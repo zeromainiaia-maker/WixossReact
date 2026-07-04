@@ -88,6 +88,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ATTACK', until: 'PERMANENT' };
   }
 
+  // ---- センタールリグが＜X＞でないかぎり、手札にあるこのシグニは【ガード】を失う（WX12-025/034/036）----
+  // engine のガード可否判定は Guard 列直読みが分散しており未配線（§6.3）。表現はクリーンSTUBで保持。
+  if (t.match(/センタールリグが＜[^＞]+＞でないかぎり、手札にあるこのシグニは【ガード】を失う/)) {
+    return { type: 'STUB', id: 'GUARD_LOSS_UNLESS_LRIG' } as StubAction;
+  }
+
   // ---- バニッシュ先変更（ルリグデッキ→ルリグトラッシュ: レゾナ系）----
   if (t.match(/このシグニがバニッシュされる場合、ルリグデッキに戻る代わりにルリグトラッシュに置かれる/)) {
     return { type: 'STUB', id: 'BANISH_TO_LRIG_TRASH_INSTEAD' } as StubAction;
