@@ -812,7 +812,9 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
     deck: state.deck.slice(count),
     energy: [...state.energy, ...took],
   };
-  return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${count}`));
+  // エナに置いたカードを lastProcessedCards に記録（「この方法で＜X＞のシグニがエナゾーンに置かれた場合」
+  // ＝後続 LAST_PROCESSED_MATCHES の参照用。WXEX1-43-BURST）
+  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${count}`), lastProcessedCards: took });
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
