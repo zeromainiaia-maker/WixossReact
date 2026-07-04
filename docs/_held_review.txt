@@ -3,6 +3,50 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［26枚］
+SPDi43-06 SPDi43-08 SPDi43-09 SPDi43-32 WDK06-R01 WX24-P1-042 WX24-P1-044 WX24-P1-046 WX24-P2-047 WX24-P2-054 WX24-P3-047 WX24-P3-052 WX25-CD1-17 WX25-P1-056 WX25-P2-054 WX25-P2-056 WX25-P2-060 WX25-P2-063 WX25-P3-056 WX25-P3-058 WXDi-P12-047 WXDi-P12-050 WXDi-P12-054 WXDi-P13-055 WXDi-P15-048 WXDi-P16-051
+--- SPDi43-06
+  原文: 【自】：このシグニがアタックしたとき、対戦相手は《無》《無》を支払ってもよい。そうした場合、このアタックを無効にする。【起】アップ状態の他のシグニ１体をダウンする：あなたの場に《ゆかゆか☆さんさんきらきら》がいる場合、次の対戦相手のターン終了時まで、このシグニは【アサシン】か【シャドウ】を得る。,-
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "self"
+  - [1].action.target.count = 1
+  - [1].action.keyword = "アサシン"
+  - [1].action.duration = "UNTIL_END_OF_TURN"
+  ~ [1].action.type : "GRANT_KEYWORD" → "CONDITIONAL"
+  + [1].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [1].action.condition.owner = "self"
+  + [1].action.condition.filter.cardName = "ゆかゆか☆さんさんきらきら"
+  + [1].action.then.type = "GRANT_KEYWORD"
+  + [1].action.then.target.type = "SIGNI"
+  + [1].action.then.target.owner = "self"
+  …（他 3 行）
+--- SPDi43-08
+  原文: 【常】《自分ターン》：このシグニに【ソウル】が付いているかぎり、このシグニのパワーは＋5000される。【自】：あなたのアタックフェイズ開始時、あなたの場に《エクス・スリーNEO》がいる場合、《赤》を支払ってもよい。そうした場合、以下の２つから１つを選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②このシグニのパワーが150
+  - [1].action.steps[0].id = "OPTIONAL_COST"
+  - [1].action.steps[0].costColors[0] = "赤"
+  ~ [1].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [1].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
+  + [1].action.steps[0].condition.owner = "self"
+  + [1].action.steps[0].condition.filter.cardName = "エクス・スリーNEO"
+  + [1].action.steps[0].then.type = "STUB"
+  + [1].action.steps[0].then.id = "OPTIONAL_COST"
+  + [1].action.steps[0].then.costColors[0] = "赤"
+--- SPDi43-09
+  原文: 【常】：このシグニは【ソウル】が付いているかぎり、【シャドウ】を得る。【自】：あなたのアタックフェイズ開始時、あなたの場に《デウス・スリーNEO》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失い、それのパワーを－5000する。,-
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.until = "UNTIL_END_OF_TURN"
+  ~ [1].action.type : "REMOVE_ABILITIES" → "CONDITIONAL"
+  + [1].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [1].action.condition.owner = "self"
+  + [1].action.condition.filter.cardName = "デウス・スリーNEO"
+  + [1].action.then.type = "REMOVE_ABILITIES"
+  + [1].action.then.target.type = "SIGNI"
+  + [1].action.then.target.owner = "opponent"
+  + [1].action.then.target.count = 1
+  …（他 1 行）
+
 ## （type増減なし＝値/構造変更） ［12枚］
 WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05-043 WXEX1-35 WXEX2-21 WXK11-008 WXK11-058
 --- WX10-005
@@ -14,32 +58,6 @@ WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05
 --- WX14-054
   原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
   - [0].action.owner = "opponent"
-
-## +REPLACE_NEXT_DAMAGE_WITH_MILL -DECK_CARD -TRASH ［8枚］
-WX24-P1-010 WX25-P1-010 WX25-P1-106 WX25-P2-099 WX25-P3-053 WX25-P3-104 WX26-CP1-010 WX26-CP1-097
---- WX24-P1-010
-  原文: あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。それの【出】能力は発動しない。《リコレクトアイコン》［４枚以上］追加で、このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシュに置く。,-
-  - [0].action.steps[3].target.type = "DECK_CARD"
-  - [0].action.steps[3].target.owner = "self"
-  - [0].action.steps[3].target.count = 3
-  ~ [0].action.steps[3].type : "TRASH" → "REPLACE_NEXT_DAMAGE_WITH_MILL"
-  + [0].action.steps[3].millCount = 3
---- WX25-P1-010
-  原文: ブースト―《黒》《無》このターン、次にあなたがシグニによってダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシュに置く。あなたがブーストしていた場合、対戦相手のデッキの上からカードを８枚トラッシュに置く。,-
-  - [0].action.steps[0].target.type = "DECK_CARD"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 3
-  ~ [0].action.steps[0].type : "TRASH" → "REPLACE_NEXT_DAMAGE_WITH_MILL"
-  + [0].action.steps[0].millCount = 3
-  + [0].action.steps[0].damageSource = "signi"
-  ~ [0].action.steps[1].target.owner : "self" → "opponent"
---- WX25-P1-106
-  原文: 【自】：このシグニがアタックしたとき、このターンにあなたがアーツを使用していた場合、対戦相手のデッキの上からカードを３枚トラッシュに置く。,：このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシュに置く。
-  - [1].action.target.type = "DECK_CARD"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 3
-  ~ [1].action.type : "TRASH" → "REPLACE_NEXT_DAMAGE_WITH_MILL"
-  + [1].action.millCount = 3
 
 ## +TRASH +TRASH_CARD -EXILE -SIGNI ［5枚］
 WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
@@ -107,38 +125,6 @@ WXDi-P13-089
   ~ [1].action.target.type : "SIGNI" → "TRASH_CARD"
   ~ [2].action.type : "EXILE" → "TRASH"
   ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
-
-## +REPLACE_NEXT_DAMAGE_WITH_MILL×3 -DECK_CARD×3 -TRASH×3 ［1枚］
-WXDi-P15-041
---- WXDi-P15-041
-  原文: 【出】：このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシュに置く。【出】手札を２枚捨てる：このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシュに置く。【出】《黒》《無》：このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードを３枚トラッシ
-  - [0].action.target.type = "DECK_CARD"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 3
-  - [1].action.target.type = "DECK_CARD"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 3
-  - [2].action.target.type = "DECK_CARD"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = 3
-  ~ [0].action.type : "TRASH" → "REPLACE_NEXT_DAMAGE_WITH_MILL"
-  + [0].action.millCount = 3
-  ~ [1].action.type : "TRASH" → "REPLACE_NEXT_DAMAGE_WITH_MILL"
-  …（他 3 行）
-
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
-WX25-CD1-17
---- WX25-CD1-17
-  原文: 【出】：あなたの場に他の＜ブルアカ＞のシグニがある場合、このターン、次にあなたが使用するルリグの【起】能力の使用コストは《無》減る。【絆自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、あなたのエナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それの基本パワーを3000にする。,：どちらか１
-  - [0].action.steps[0].id = "CONDITIONAL_COST_REDUCTION_BY_FIELD"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "ブルアカ"
-  + [0].action.steps[0].condition.excludeSelf = true
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
 
 ## +BANISH +CHOOSE +GRANT_EFFECT×2 +POWER_MODIFY +SEQUENCE×3 +SIGNI×5 +STUB×4 +UP ［1枚］
 WXK09-TK-01A
