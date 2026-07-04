@@ -882,7 +882,7 @@ export function collectRefreshTriggers(
       : refreshedByController + refreshedByOpp;
     if (relevant <= 0) continue;
     entries.push({
-      id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      id: ctx.genId(), playerId: controllerId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: 'このターンの遅延トリガー（リフレッシュ時）',
       effect: {
         effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_REFRESH'],
