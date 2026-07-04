@@ -4,6 +4,7 @@ import Papa from 'papaparse';
 import { parseCardEffects } from '../src/data/effectParser';
 import type { CardData } from '../src/types';
 
+const DRY = process.argv.includes('--dry');
 const root = process.cwd();
 const cardMap = new Map<string, CardData>();
 for (let i = 1; i <= 11; i++) {
@@ -17,10 +18,10 @@ const isMillTrash = (s: unknown) => {
   const n = s as Record<string, unknown>;
   return n?.type === 'TRASH' && (n.target as Record<string, unknown>)?.type === 'DECK_CARD';
 };
-
-// From parser: for each effectId, find the new condition that sits in a SEQUENCE right after a MILL step.
 const targets = 'PR-442 WD08-015 WDK10-017 WX09-Re19 WX20-075 WX24-P3-075 WX24-P3-088 WXK02-063 WXK06-031 WXK10-088 WXDi-CP01-045 WXDi-P10-071 WXDi-P11-082 WXK03-039 WXDi-P13-003A'.split(' ');
-const wanted = new Map<string, unknown>(); // effectId -> newCondition
+
+// From parser: effectId -> new condition (that sits after a MILL step)
+const wanted = new Map<string, unknown>();
 function scanSeq(action: unknown, effectId: string) {
   if (!action || typeof action !== 'object') return;
   const a = action as Record<string, unknown>;
@@ -28,25 +29,22 @@ function scanSeq(action: unknown, effectId: string) {
     const steps = a.steps as Record<string, unknown>[];
     for (let k = 0; k < steps.length - 1; k++) {
       if (isMillTrash(steps[k]) && steps[k + 1]?.type === 'CONDITIONAL') {
-        const c = (steps[k + 1].condition as Record<string, unknown>);
+        const c = steps[k + 1].condition as Record<string, unknown>;
         if (c && NEW_TYPES.has(c.type as string)) wanted.set(effectId, c);
       }
     }
     steps.forEach(s => scanSeq(s, effectId));
   }
-  for (const v of Object.values(a)) { if (v && typeof v === 'object') scanSeq(v, effectId); }
+  for (const v of Object.values(a)) if (v && typeof v === 'object' && !Array.isArray(v)) scanSeq(v, effectId);
 }
 for (const id of targets) {
   const card = cardMap.get(id);
   if (!card) { console.log('NO CARD', id); continue; }
   for (const e of parseCardEffects(card)) scanSeq((e as { action?: unknown }).action, (e as { effectId?: string }).effectId ?? '');
 }
-console.log('parser-derived conditions:', wanted.size);
+console.log('parser conditions:', wanted.size, '/', targets.length);
 
-// Inject into curated JSON: for each effectId, find the SEQUENCE with MILL followed by CONDITIONAL(IS_MY_TURN), replace.
-const files = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
-let replaced = 0;
-const notFound: string[] = [];
+// inject
 function injectSeq(action: unknown, newCond: unknown): number {
   if (!action || typeof action !== 'object') return 0;
   const a = action as Record<string, unknown>;
@@ -61,28 +59,28 @@ function injectSeq(action: unknown, newCond: unknown): number {
     }
     for (const s of steps) cnt += injectSeq(s, newCond);
   }
-  for (const v of Object.values(a)) { if (v && typeof v === 'object' && !Array.isArray(v)) cnt += injectSeq(v, newCond); }
+  for (const v of Object.values(a)) if (v && typeof v === 'object' && !Array.isArray(v)) cnt += injectSeq(v, newCond);
   return cnt;
 }
+const files = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
+let replaced = 0; const done: string[] = [];
 for (const f of files) {
-  const path = join(root, 'public/data', f);
-  const j = JSON.parse(fs.readFileSync(path, 'utf8')) as Record<string, Array<{ effectId?: string; action?: unknown }>>;
+  const p = join(root, 'public/data', f);
+  const raw = fs.readFileSync(p, 'utf8');
+  const eol = (raw.match(/(\r?\n)$/) || [, ''])[1];
+  const body = eol ? raw.slice(0, -eol.length) : raw;
+  const data = JSON.parse(body) as Record<string, Array<{ effectId?: string; action?: unknown }>>;
+  if (JSON.stringify(data) !== body) { console.error(`⚠ ${f} 往復不安定 中断`); process.exit(1); }
   let changed = false;
-  for (const [effectId, newCond] of wanted) {
-    const cardId = effectId.replace(/-E\d.*$/, '').replace(/-BURST$/, '');
-    // find the card that owns this effectId (may differ from effectId prefix for some)
-    for (const [cid, effs] of Object.entries(j)) {
-      if (!cid || !targets.includes(cid)) continue;
-      for (const e of effs) {
-        if (e.effectId !== effectId) continue;
-        const n = injectSeq(e.action, newCond);
-        if (n > 0) { replaced += n; changed = true; }
-      }
+  for (const [cid, effs] of Object.entries(data)) {
+    if (!targets.includes(cid)) continue;
+    for (const e of effs) {
+      if (!e.effectId || !wanted.has(e.effectId)) continue;
+      const n = injectSeq(e.action, wanted.get(e.effectId));
+      if (n > 0) { replaced += n; changed = true; done.push(`${e.effectId}=${(wanted.get(e.effectId) as { type: string }).type}`); }
     }
-    void cardId;
   }
-  if (changed) fs.writeFileSync(path, JSON.stringify(j, null, 1) + '\n', 'utf8');
+  if (changed && !DRY) fs.writeFileSync(p, JSON.stringify(data) + eol, 'utf8');
 }
-console.log('replaced IS_MY_TURN conditionals:', replaced);
-for (const id of targets) if (![...wanted.keys()].some(k => k.startsWith(id))) notFound.push(id);
-if (notFound.length) console.log('WARN no parser cond for:', notFound.join(', '));
+console.log('replaced:', replaced);
+console.log(done.join('\n'));
