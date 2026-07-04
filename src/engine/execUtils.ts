@@ -146,6 +146,12 @@ export function splitColors(col: string | undefined): string[] {
   return [...col].filter(c => '白赤青緑黒'.includes(c));
 }
 
+// センタールリグ＋左右アシストルリグの各グロウスタック頂点（現在のルリグ）を返す。
+// HAS_CARD_IN_FIELD の「場に《X》がいる」でルリグ名を照合するために使う。
+export function lrigZoneTops(field: PlayerState['field']): (string | undefined)[] {
+  return [field.lrig?.at(-1), field.assist_lrig_l?.at(-1), field.assist_lrig_r?.at(-1)];
+}
+
 export function ownerState(owner: Owner, ctx: ExecCtx): PlayerState {
   return owner === 'self' ? ctx.ownerState : ctx.otherState;
 }
