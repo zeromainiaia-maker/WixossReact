@@ -927,6 +927,30 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
   return null;
 }
 
+// 「（その後、）それが〔＜X＞(か＜Y＞)?の／レベルNの〕シグニの場合、」→ LAST_PROCESSED_MATCHES。
+// 直前ステップが lastProcessedCards を記録する（ミル/公開/エナチャージ）ときだけ呼ぶこと（呼び出し側でゲート）。
+// 「レベルが奇数の」等の表現不能フィルタは null（呼び出し側で従来挙動に据置＝IS_MY_TURN化けを増やさない）。
+// prevIsEnergyPlace: 直前がエナチャージ系＝「この方法で＜X＞のシグニがエナゾーンに置かれた場合」も抽出（WXEX1-43-BURST）。
+function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = false): Condition | null {
+  const sg = clause.match(/^(?:その後、)?それが(.+?)の場合、$/);
+  if (sg) {
+    const desc = sg[1];
+    if (desc === 'シグニ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' } };
+    if (desc === 'レゾナ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', isResona: true } };
+    const sm = desc.match(/^(?:レベル[０-９\d]+(?:以上|以下)?の)?(?:＜[^＞]+＞(?:か＜[^＞]+＞)?の)?シグニ$/);
+    if (sm) {
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc) };
+      if (Object.keys(filter).length > 1) return { type: 'LAST_PROCESSED_MATCHES', filter };
+    }
+    return null;
+  }
+  if (prevIsEnergyPlace) {
+    const ep = clause.match(/この方法で＜([^＞]+)＞のシグニがエナゾーンに置かれた場合、$/);
+    if (ep) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: ep[1] } };
+  }
+  return null;
+}
+
 // ===== アクションパース（1文） =====
 
 
