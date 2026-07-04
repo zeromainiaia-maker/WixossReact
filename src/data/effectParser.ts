@@ -1503,18 +1503,39 @@ function parseActionText(text: string): EffectAction {
       continue;
     }
 
-    // 「そうした場合、」「この方法で...た場合、」「《色》を支払った場合、」はCONDITIONALとして前のステップと結合
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|(?:《[^》]+》)+を支払った場合、)/);
+    // 「そうした場合、」「この方法で...た場合、」「《色》を支払った場合、」「それが〜の場合、」はCONDITIONALとして前のステップと結合
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|(?:《[^》]+》)+を支払った場合、|それが[^、。]+の場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
-      const thenAction = parseSingleSentence(rest);
+      // 先頭「それが」形は新設 alternation（従来は thenM 非マッチ＝parseSingleSentence 直行だった）。
+      // 「代わりに」帰結（昇格置換＝else 表現が要る）と表現不能フィルタは従来挙動に据置する。
+      const soreGaOnly = /^それが/.test(thenM[0]);
       // トラッシュ枚数/クラス条件は直前ステップが lastProcessedCards を残す trash 系
       //（デッキミル TRASH DECK_CARD／場・手札・エナの TRASH／LIFE_CRASH）のときだけ抽出する。
       // search/optional-cost/grant 等が前段の場合は誤抽出になるため IS_MY_TURN 据置（§5c）。
       const prevStep = steps[steps.length - 1] as { type?: string };
       const prevSetsProcessed = prevStep?.type === 'TRASH' || prevStep?.type === 'LIFE_CRASH';
-      const condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed) ?? { type: 'IS_MY_TURN' as const };
-      steps.push({ type: 'CONDITIONAL', condition, then: thenAction });
+      // 「それが〜の場合」（LAST_PROCESSED_MATCHES）の前段ゲート＝lastProcessedCards を記録するステップ。
+      // 「デッキの一番上を公開する」は LOOK_AND_REORDER(1枚・並べ替えなし・公開・デッキ上) に近似されている
+      // ため、条件持ち上げ時に記録付き公開 REVEAL_DECK_TOP へ置換する（WXEX1-36-BURST）。
+      const lar = prevStep as Partial<import('../types/effects').LookAndReorderAction> & { type?: string };
+      const prevIsRevealLook = lar?.type === 'LOOK_AND_REORDER' && lar.count === 1 && lar.private === false &&
+        lar.reorder === false && !lar.canTrash && lar.destination?.position === 'top';
+      const prevIsEnergyPlace = prevStep?.type === 'ENERGY_CHARGE_FROM_DECK';
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevStep?.type === 'REVEAL_DECK_TOP';
+      let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
+      if (!condition && prevRecords && !rest.startsWith('代わりに')) {
+        condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
+      }
+      if (soreGaOnly && condition?.type !== 'LAST_PROCESSED_MATCHES') {
+        // 新設 alternation で持ち上げできない形（レベルが奇数の等・前段非記録・代わりに）＝従来どおり全文パース
+        steps.push(parseSingleSentence(clean));
+        continue;
+      }
+      if (condition?.type === 'LAST_PROCESSED_MATCHES' && prevIsRevealLook) {
+        steps[steps.length - 1] = { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 };
+      }
+      steps.push({ type: 'CONDITIONAL', condition: condition ?? { type: 'IS_MY_TURN' as const }, then: parseSingleSentence(rest) });
     } else {
       steps.push(parseSingleSentence(clean));
     }
