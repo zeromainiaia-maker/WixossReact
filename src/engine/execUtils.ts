@@ -708,7 +708,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
-      const matched = fst.field.signi.filter((stack, zoneIdx) => {
+      let matched = fst.field.signi.filter((stack, zoneIdx) => {
         if (!stack || stack.length === 0) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && srcNum && top === srcNum) return false;
