@@ -936,7 +936,7 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
   if (sg) {
     const desc = sg[1];
     if (desc === 'シグニ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' } };
-    if (desc === 'レゾナ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', isResona: true } };
+    if (desc === 'レゾナ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } };
     const sm = desc.match(/^(?:レベル[０-９\d]+(?:以上|以下)?の)?(?:＜[^＞]+＞(?:か＜[^＞]+＞)?の)?シグニ$/);
     if (sm) {
       const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc) };
