@@ -990,8 +990,6 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
   [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
-  [/あなたの場に《([^》]+)》がいる場合/,
-    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
   [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
   [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある場合/,
