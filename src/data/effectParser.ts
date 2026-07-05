@@ -1590,8 +1590,16 @@ function parseActionText(text: string): EffectAction {
       // 「N枚以上ある場合、追加で<X>」＝置換ではなく追加ボーナス＝CONDITIONAL を新ステップとして積む
       // （WXDi-CP02-062「ブルアカ5枚→−5000。10枚以上ある場合、追加で3枚ミル」。続き29）
       if (cm && cm.rest.startsWith('追加で')) {
-        const bonus = parseSingleSentence(cm.rest.slice('追加で'.length));
+        const bonusText = cm.rest.slice('追加で'.length);
+        const bonus = parseSingleSentence(bonusText);
         if (!JSON.stringify(bonus).includes('"UNKNOWN"')) {
+          // 「ターン終了時まで、」先頭文は再帰先のプレフィックス除去で PERMANENT 化する＝復元
+          // （parseSingleSentence の CONDITIONAL 持ち上げと同じ補正）
+          if (/^ターン終了時まで、/.test(bonusText)) {
+            const t = bonus as { duration?: string; until?: string };
+            if (t.until === 'PERMANENT') t.until = 'UNTIL_END_OF_TURN';
+            else if (t.duration === 'PERMANENT') t.duration = 'UNTIL_END_OF_TURN';
+          }
           steps.push({ type: 'CONDITIONAL', condition: cm.condition, then: bonus });
           continue;
         }

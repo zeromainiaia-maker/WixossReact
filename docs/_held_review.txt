@@ -3,8 +3,20 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［13枚］
-WDK11-012 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-080 WXDi-CP02-081 WXDi-D02-23 WXDi-P00-078 WXDi-P05-063 WXDi-P11-056 WXK10-036
+## （type増減なし＝値/構造変更） ［13枚］
+SP26-008 WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05-043 WXEX1-35 WXEX2-21 WXK11-008 WXK11-058
+--- SP26-008
+  原文: このアーツの使用コストはあなたのセンタールリグのレベル１につき《赤×1》減る。あなたの赤のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。あなたのライフクロスが２枚以下の場合、追加でターン終了時まで、それは【ダブルクラッシュ】を得る。あなたのライフクロスが０枚の場合、追加でターン終了時まで、それは「【自】《ターン１回》：このシグニがアタック
+  ~ [0].action.steps[2].then.duration : "UNTIL_END_OF_TURN" → "PERMANENT"
+--- WX10-005
+  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.choices[1].action.owner = "opponent"
+--- WX12-021
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
+  - [2].action.steps[1].owner = "opponent"
+
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［12枚］
+WDK11-012 WX12-026 WX20-059 WX20-081 WX24-P4-089 WXDi-CP02-080 WXDi-CP02-081 WXDi-D02-23 WXDi-P00-078 WXDi-P05-063 WXDi-P11-056 WXK10-036
 --- WDK11-012
   原文: 【出】：対戦相手のシグニ１体を対象とし、あなたの場に《ＧＦ　イザベラ》がある場合、それを手札に戻す。,-
   - [0].action.target.type = "SIGNI"
@@ -50,18 +62,6 @@ WDK11-012 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-080 WXDi-
   + [0].action.condition.filter.cardName = "イリスアゲート"
   + [0].action.then.type = "TRANSFER_TO_HAND"
   …（他 6 行）
-
-## （type増減なし＝値/構造変更） ［12枚］
-WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05-043 WXEX1-35 WXEX2-21 WXK11-008 WXK11-058
---- WX10-005
-  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
-  - [0].action.choices[1].action.owner = "opponent"
---- WX12-021
-  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
-  - [2].action.steps[1].owner = "opponent"
---- WX14-054
-  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
-  - [0].action.owner = "opponent"
 
 ## +BANISH×2 +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI×2 ［12枚］
 PR-378 WD17-018 WD18-018 WD23-040-A WX12-Re13 WX12-Re21 WX14-037 WX14-048 WX16-Re01 WX16-Re10 WX17-Re04 WXEX1-63
@@ -159,54 +159,6 @@ WDK03-020 WDK04-020 WDK05-R20 WDK07-E20 WDK07-Y20 WDK09-022 WDK10-022 WDK11-022 
   + [0].action.choices[0].action.type = "SEQUENCE"
   …（他 20 行）
 
-## +CONDITIONAL +TRASH_HAS_CARD ［10枚］
-WX09-028 WX20-025 WX20-035 WX20-049 WX20-060 WX20-067 WX22-031 WX24-D5-19 WX26-CP1-093 WXDi-CP02-062
---- WX09-028
-  原文: 【自】：対戦相手があなたのシグニの効果によって手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、それをバニッシュする。【出】：あなたのトラッシュからスペル１枚を対象とし、あなたのトラッシュにカード名に《Ｖ・Ａ・Ｃ》を含むカードがある場合、それを手札に加える。,-
-  - [1].action.source.type = "TRASH_CARD"
-  - [1].action.source.owner = "self"
-  - [1].action.source.count = 1
-  - [1].action.source.upToCount = false
-  - [1].action.source.filter.cardType = "スペル"
-  ~ [1].action.type : "TRANSFER_TO_HAND" → "CONDITIONAL"
-  + [1].action.condition.type = "TRASH_HAS_CARD"
-  + [1].action.condition.owner = "self"
-  + [1].action.condition.filter.cardName = "Ｖ・Ａ・Ｃ"
-  + [1].action.then.type = "TRANSFER_TO_HAND"
-  + [1].action.then.source.type = "TRASH_CARD"
-  + [1].action.then.source.owner = "self"
-  …（他 3 行）
---- WX20-025
-  原文: 【常】：あなたの他のシグニは対戦相手の効果によってダウンしない。【自】：あなたのメインフェイズの間、対戦相手の中央のシグニゾーンにあるシグニがバニッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：対戦相手の中央のシグニゾーンにあるパワー12000以下のシグニ１体を対象とし、あなたのトラッシュにカード名に《ガーネットスター》を含むカー
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "opponent"
-  - [2].action.target.count = 1
-  - [2].action.target.filter.cardType = "シグニ"
-  - [2].action.target.filter.powerRange.max = 12000
-  - [2].action.target.upToCount = false
-  ~ [2].action.type : "BANISH" → "CONDITIONAL"
-  + [2].action.condition.type = "TRASH_HAS_CARD"
-  + [2].action.condition.owner = "self"
-  + [2].action.condition.filter.cardName = "ガーネットスター"
-  + [2].action.then.type = "BANISH"
-  + [2].action.then.target.type = "SIGNI"
-  …（他 5 行）
---- WX20-035
-  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。【出】《白》：対戦相手のシグニ１体を対象とし、あなたのトラッシュにカード名に《スノークイーン》を含むカードがある場合、それを手札に戻す。,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.upToCount = false
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.optional = false
-  ~ [1].action.type : "BOUNCE" → "CONDITIONAL"
-  + [1].action.condition.type = "TRASH_HAS_CARD"
-  + [1].action.condition.owner = "self"
-  + [1].action.condition.filter.cardName = "スノークイーン"
-  + [1].action.then.type = "BOUNCE"
-  + [1].action.then.target.type = "SIGNI"
-  …（他 5 行）
-
 ## +CONDITIONAL +HAS_CARD_IN_FIELD -SEQUENCE ［9枚］
 WX07-078 WX20-076 WX24-P4-068 WX24-P4-075 WX25-P2-098 WXDi-CP01-043 WXDi-P00-073 WXK03-032-CB WXK03-041-CB
 --- WX07-078
@@ -254,6 +206,54 @@ WX07-078 WX20-076 WX24-P4-068 WX24-P4-075 WX25-P2-098 WXDi-CP01-043 WXDi-P00-073
   - [0].action.steps[1].target.count = 1
   - [0].action.steps[1].target.filter.cardType = "シグニ"
   …（他 22 行）
+
+## +CONDITIONAL +TRASH_HAS_CARD ［9枚］
+WX09-028 WX20-025 WX20-035 WX20-049 WX20-060 WX20-067 WX22-031 WX24-D5-19 WX26-CP1-093
+--- WX09-028
+  原文: 【自】：対戦相手があなたのシグニの効果によって手札を１枚捨てたとき、対戦相手のシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、それをバニッシュする。【出】：あなたのトラッシュからスペル１枚を対象とし、あなたのトラッシュにカード名に《Ｖ・Ａ・Ｃ》を含むカードがある場合、それを手札に加える。,-
+  - [1].action.source.type = "TRASH_CARD"
+  - [1].action.source.owner = "self"
+  - [1].action.source.count = 1
+  - [1].action.source.upToCount = false
+  - [1].action.source.filter.cardType = "スペル"
+  ~ [1].action.type : "TRANSFER_TO_HAND" → "CONDITIONAL"
+  + [1].action.condition.type = "TRASH_HAS_CARD"
+  + [1].action.condition.owner = "self"
+  + [1].action.condition.filter.cardName = "Ｖ・Ａ・Ｃ"
+  + [1].action.then.type = "TRANSFER_TO_HAND"
+  + [1].action.then.source.type = "TRASH_CARD"
+  + [1].action.then.source.owner = "self"
+  …（他 3 行）
+--- WX20-025
+  原文: 【常】：あなたの他のシグニは対戦相手の効果によってダウンしない。【自】：あなたのメインフェイズの間、対戦相手の中央のシグニゾーンにあるシグニがバニッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：対戦相手の中央のシグニゾーンにあるパワー12000以下のシグニ１体を対象とし、あなたのトラッシュにカード名に《ガーネットスター》を含むカー
+  - [2].action.target.type = "SIGNI"
+  - [2].action.target.owner = "opponent"
+  - [2].action.target.count = 1
+  - [2].action.target.filter.cardType = "シグニ"
+  - [2].action.target.filter.powerRange.max = 12000
+  - [2].action.target.upToCount = false
+  ~ [2].action.type : "BANISH" → "CONDITIONAL"
+  + [2].action.condition.type = "TRASH_HAS_CARD"
+  + [2].action.condition.owner = "self"
+  + [2].action.condition.filter.cardName = "ガーネットスター"
+  + [2].action.then.type = "BANISH"
+  + [2].action.then.target.type = "SIGNI"
+  …（他 5 行）
+--- WX20-035
+  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。【出】《白》：対戦相手のシグニ１体を対象とし、あなたのトラッシュにカード名に《スノークイーン》を含むカードがある場合、それを手札に戻す。,-
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.target.upToCount = false
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.optional = false
+  ~ [1].action.type : "BOUNCE" → "CONDITIONAL"
+  + [1].action.condition.type = "TRASH_HAS_CARD"
+  + [1].action.condition.owner = "self"
+  + [1].action.condition.filter.cardName = "スノークイーン"
+  + [1].action.then.type = "BOUNCE"
+  + [1].action.then.target.type = "SIGNI"
+  …（他 5 行）
 
 ## +TRASH +TRASH_CARD -EXILE -SIGNI ［5枚］
 WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
@@ -751,6 +751,32 @@ WXDi-P13-089
   ~ [2].action.type : "EXILE" → "TRASH"
   ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
 
+## -CONDITIONAL -LIFE_COUNT ［1枚］
+WXDi-P16-009
+--- WXDi-P16-009
+  原文: 【自】：このルリグがアタックしたとき、あなたのシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋10000する。【出】：カードを１枚引き【エナチャージ１】をする。【起】《ゲーム１回》《白×0》：クラフトの《インビンシブル・ストーリー》１枚をルリグデッキに加える。あなたのライフクロスが２枚以下の場合、このターン、そのピースの使用コストは《無
+  - [2].action.steps[1].condition.type = "LIFE_COUNT"
+  - [2].action.steps[1].condition.owner = "self"
+  - [2].action.steps[1].condition.operator = "lte"
+  - [2].action.steps[1].condition.value = 2
+  - [2].action.steps[1].then.type = "STUB"
+  - [2].action.steps[1].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
+  ~ [2].action.steps[1].type : "CONDITIONAL" → "STUB"
+  + [2].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+
+## -CONDITIONAL -HAND_COUNT ［1枚］
+WXDi-P16-011
+--- WXDi-P16-011
+  原文: 【自】：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。【出】：カードを１枚引き【エナチャージ１】をする。【起】《ゲーム１回》《青×0》：クラフトの《インビンシブル・ストーリー》１枚をルリグデッキに加える。対戦相手の手札が２枚以下の場合、このターン、そのピースの使用コストは《無×1》減る。,-
+  - [2].action.steps[1].condition.type = "HAND_COUNT"
+  - [2].action.steps[1].condition.owner = "opponent"
+  - [2].action.steps[1].condition.operator = "lte"
+  - [2].action.steps[1].condition.value = 2
+  - [2].action.steps[1].then.type = "STUB"
+  - [2].action.steps[1].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
+  ~ [2].action.steps[1].type : "CONDITIONAL" → "STUB"
+  + [2].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+
 ## +BANISH +CHOOSE +CONDITIONAL×2 +IS_MY_TURN +LIFE_COUNT +SEQUENCE +SIGNI +STUB ［1枚］
 WXDi-P16-049
 --- WXDi-P16-049
@@ -768,6 +794,24 @@ WXDi-P16-049
   + [0].action.choices[0].action.type = "BANISH"
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 24 行）
+
+## +CONDITIONAL×2 +TRASH_HAS_CARD×2 ［1枚］
+WXDi-CP02-062
+--- WXDi-CP02-062
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのトラッシュに＜ブルアカ＞のカードが５枚以上ある場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。１０枚以上ある場合、追加で対戦相手のデッキの上からカードを３枚トラッシュに置く。【絆出】《黒》：対戦相手のシグニ１体を対象とし、このターン、あなたの効果によってそれのパワーが－され
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "opponent"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.story = "ブルアカ"
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[0].delta = -5000
+  - [0].action.steps[1].target.type = "DECK_CARD"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 3
+  ~ [0].action.steps[0].type : "POWER_MODIFY" → "CONDITIONAL"
+  + [0].action.steps[0].condition.type = "TRASH_HAS_CARD"
+  …（他 19 行）
 
 ## +CHOOSE +GAIN_BOND +LOOK_AND_REORDER -SEQUENCE -SIGNI -STUB -TRANSFER_TO_DECK ［1枚］
 WXDi-CP02-103
