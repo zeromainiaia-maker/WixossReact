@@ -34,7 +34,7 @@ node scripts/semanticAuditTriage.mjs <同じdir> [cardNum...]
 
 ### 派生した系統バグ（全域スキャン済み・修正待ち worklist）
 
-パイロットの個別指摘から正規表現＋JSON走査で全域展開したもの（`scratchpad/_auditSystematicScan.mjs`）:
+パイロットの個別指摘から正規表現＋JSON走査で全域展開したもの（`scripts/archive/scratchpad/_auditSystematicScan.mjs`）:
 
 1. **相手デッキ削りの owner 取り違え＝確定76枚**（＋自分ミル文も持つ要精査10枚）
    原文「対戦相手のデッキの上から…トラッシュに置く」が `TRASH { target: { type:'DECK_CARD', owner:'self' } }` になっており、**自分のデッキを削る**。
