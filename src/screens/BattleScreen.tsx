@@ -49,6 +49,8 @@ import { StackOrderModal } from './battle/modals/StackOrderModal';
 import { SigniSummonZoneModal } from './battle/modals/SigniSummonZoneModal';
 import { RemoveZoneModal } from './battle/modals/RemoveZoneModal';
 import { LifeBurstCheckModal } from './battle/modals/LifeBurstCheckModal';
+import { EndDiscardModal } from './battle/modals/EndDiscardModal';
+import { BanishSubstituteModal } from './battle/modals/BanishSubstituteModal';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
@@ -11558,126 +11560,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       )}
 
       {/* エンドフェイズ：手札上限超過時の捨て選択 */}
-      {pendingEndDiscard !== null && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 4200,
-          backgroundColor: 'rgba(0,0,0,0.88)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 16,
-        }}>
-          <div style={{
-            backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
-            padding: '20px 16px', width: 'min(96vw, 420px)',
-            display: 'flex', flexDirection: 'column', gap: 14,
-          }}>
-            <p style={{ color: C.accent, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-              手札上限超過
-            </p>
-            <p style={{ color: C.textDimmer, fontSize: 12, margin: 0, textAlign: 'center' }}>
-              手札が{my.hand.length}枚あります。{pendingEndDiscard}枚捨ててください（上限{my.hand.length - pendingEndDiscard}枚）。
-            </p>
-            <p style={{ color: C.text, fontSize: 12, margin: 0, textAlign: 'center' }}>
-              捨てるカードを選択: {selectedEndDiscard.size} / {pendingEndDiscard}枚
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', maxHeight: 220, overflowY: 'auto' }}>
-              {my.hand.map((num, i) => {
-                const c = battleCardMap.get(num);
-                const isSel = selectedEndDiscard.has(i);
-                return (
-                  <div key={i}
-                    onClick={() => setSelectedEndDiscard(prev => {
-                      const next = new Set(prev);
-                      if (next.has(i)) { next.delete(i); return next; }
-                      if (next.size >= pendingEndDiscard) return prev;
-                      next.add(i); return next;
-                    })}
-                    onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
-                    onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
-                    onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
-                    onContextMenu={e => e.preventDefault()}
-                    style={{ position: 'relative', width: 52, height: 73, borderRadius: 4, flexShrink: 0,
-                      border: isSel ? '2px solid #e53935' : C.borderCard,
-                      cursor: 'pointer', overflow: 'hidden' }}>
-                    {c ? (
-                      <img src={c.ImgURL} alt={c.CardName} draggable={false}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
-                      </div>
-                    )}
-                    {isSel && (
-                      <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(229,57,53,0.45)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <span style={{ color: '#fff', fontSize: 20, fontWeight: 'bold' }}>✓</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-            <button
-              onClick={confirmEndDiscard}
-              disabled={loading || selectedEndDiscard.size !== pendingEndDiscard}
-              style={{ padding: '11px 0', borderRadius: 8, border: 'none',
-                backgroundColor: selectedEndDiscard.size === pendingEndDiscard ? '#e53935' : C.disabled,
-                color: '#fff', fontSize: 14, fontWeight: 'bold',
-                cursor: selectedEndDiscard.size === pendingEndDiscard ? 'pointer' : 'default' }}>
-              {selectedEndDiscard.size === pendingEndDiscard ? `${pendingEndDiscard}枚捨てて終了` : `あと${pendingEndDiscard - selectedEndDiscard.size}枚選択してください`}
-            </button>
-          </div>
-        </div>,
-        document.body,
-      )}
+      <EndDiscardModal ctx={modalCtx} pendingEndDiscard={pendingEndDiscard} selectedEndDiscard={selectedEndDiscard} setSelectedEndDiscard={setSelectedEndDiscard} confirmEndDiscard={confirmEndDiscard} />
 
       {/* F-3 身代わりバニッシュ選択（防御側＝自分のシグニがバニッシュされる場合の任意置換） */}
-      {my.pending_banish_substitute && createPortal(
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 4600,
-          backgroundColor: 'rgba(0,0,0,0.92)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-        }}>
-          {(() => {
-            const pend = my.pending_banish_substitute!;
-            const victimName = battleCardMap.get(pend.victimNum)?.CardName ?? pend.victimNum;
-            return (
-              <div style={{
-                backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
-                padding: '24px 20px', width: 'min(92vw, 360px)',
-                display: 'flex', flexDirection: 'column', gap: 14, textAlign: 'center',
-              }}>
-                <p style={{ color: C.life, fontSize: 15, fontWeight: 'bold', margin: 0 }}>身代わりバニッシュ</p>
-                <p style={{ color: C.textSub, fontSize: 13, margin: 0 }}>
-                  《{victimName}》がバニッシュされます。身代わりの方法を選べます。
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {pend.options.map((opt, i) => {
-                    const label = opt.kind === 'sacrifice'
-                      ? `《${battleCardMap.get(opt.sacrificeNum)?.CardName ?? opt.sacrificeNum}》を代わりにバニッシュ`
-                      : opt.costType === 'discardSpell'
-                        ? `手札からスペル${opt.amount}枚を捨てて回避`
-                        : `《${battleCardMap.get(opt.sourceNum)?.CardName ?? opt.sourceNum}》の下からスペル${opt.amount}枚をトラッシュして回避`;
-                    return (
-                      <button key={i} onClick={() => handleBanishSubstituteChoice(i)} disabled={loading}
-                        style={{ padding: '11px 0', borderRadius: 8, border: 'none', backgroundColor: '#e53935',
-                          color: '#fff', fontSize: 14, fontWeight: 'bold', cursor: loading ? 'default' : 'pointer' }}>
-                        {label}
-                      </button>
-                    );
-                  })}
-                  <button onClick={() => handleBanishSubstituteChoice(null)} disabled={loading}
-                    style={{ padding: '11px 0', borderRadius: 8, border: C.borderUI, backgroundColor: C.bgButton,
-                      color: C.textSub, fontSize: 14, cursor: loading ? 'default' : 'pointer' }}>
-                    身代わりしない（{victimName}をバニッシュ）
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-        </div>,
-        document.body,
-      )}
+      <BanishSubstituteModal ctx={modalCtx} handleBanishSubstituteChoice={handleBanishSubstituteChoice} />
 
       {/* ライフバースト確認＋カード拡大＋相手クラッシュ確認 */}
       <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
