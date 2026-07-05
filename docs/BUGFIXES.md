@@ -5,6 +5,20 @@
 
 ---
 
+## §5c「代わりに」B系統残＝per-target値すり替え・多段閾値のsubject引き継ぎ・CHOOSE平坦化復元を parser 実装＝64枚採用＋WXK02-037手パッチ（2026-07-05・zerom・続き29）
+
+「代わりに」高シグナル94枚を再機械分類（B1:per-target値のみ17／B2:多段閾値・裸条件／D:置換ルール9／E:リコレクト2／F:その他59）し、PLAN指定の B1・B2 を機構実装。**census 1751→1720（−31）・golden 132→134・smoke 全0（OK+1/SKIP−1）・fuzz 全0・同型★0・lint 0 errors**。
+
+- **parser 3機構（effectParser.ts の「代わりに」昇格置換ブロックを拡張）**＝(1)**per-target 値すり替え**：enhanced が「(ターン終了時まで、)それのパワーを±Nする」のみの形は、base のコア POWER_MODIFY をターゲット指定ごと複製し delta だけ差し替えて then に（ターゲット共有＝同一対象へ条件時の値を適用。SEQUENCE base は対象選択が then に載らないため除外ガード）。(2)**裸の多段閾値の subject 引き継ぎ**：「N枚以上ある場合、代わりに/追加で〜」は前段 CONDITIONAL の数量条件（TRASH_COUNT/TRASH_HAS_CARD/LRIG_TRASH_COUNT/HAS_CARD_IN_FIELD/ENERGY_COUNT/HAND_COUNT/LIFE_COUNT）を複製し数値だけ差し替え（「追加で」帰結は置換でなく CONDITIONAL 積み増し・duration復元付き）。(3)**CHOOSE 平坦化復元**：text 先頭が「以下のNつからMつ選ぶ」ヘッダのとき、選択肢が複数文でも（2文目以降が①フィルタを生き残っても）CHOOSE を組む＝従来は選択構造ごと消えて最後の1文に平坦化（WD08-006 は3択が−8000単発化していた）。⚠選択数変更型「代わりにNつまで選ぶ」（CONDITIONAL_MULTI_CHOOSE_BY_CENTER・リコレクト）は据置ガード。
+- **STATE_CONDITION_CLAUSES_V2 新設（両テーブル共有の条件テンプレ8種）**＝トラッシュ＜C＞のカードN枚／レベルNのシグニN枚／色のカードN枚／カード名《X》含む・場にカード名《X》含むシグニ・ルリグトラッシュN枚（LRIG_TRASH_COUNT）・このシグニがトラッシュから場に出た（THIS_CARD_FROM_TRASH）・場にレベルN以上のルリグ（HAS_CARD_IN_FIELD ルリグゾーン走査＝続き26の機構を流用）。既存《X》がいる規則を「いる|ある」両対応に。engine は全条件型実装済み＝配線不要。
+- **ガード2種追加**＝コスト減文ガードを「このカードの使用コストは…になる」形に拡張（WX05-038）＋**ガードC**＝COST_REDUCTION系STUBを then に持つ持ち上げ禁止（コスト計算側がトップレベル走査で収集＝CONDITIONAL に包むと無効化。WX25-CD1-17）。
+- **採用64枚**＝B1値すり替え（WXDi-CP01-047/051・WX24-D3-15・WXK09-068・WX07-078・WX25-P2-098・WXDi-CP01-043・WXDi-P00-073・WX25-P1-108・WDK02-014・WX26-CP1-093）・B2多段閾値（WD08-006・WXDi-P03-088・WXK11-075）・自己完結置換（WX24-P4-068/075・WX20-076・WX24-D5-15・WXK03-032-CB/041-CB）・条件持ち上げ（WDK11-012・WX12-026・WX09-028・WX20-025/035/049/059/060/067/081・WX22-031・WX24-D5-19・WX24-P4-089・WXDi-CP02-062=5枚/10枚両ゲート・WXDi-CP02-080/081・WXDi-D02-23・WXDi-P00-078・WXDi-P05-063・WXDi-P11-056・WXK10-036）・**CHOOSE復元23枚**（WDK03/04-020・WDK05-R20・WDK07-E20/Y20・WDK09〜17-022 の11枚サイクル＋PR-378・WD17/18-018・WD23-040-A・WX12-Re13/Re21・WX14-037/048・WX16-Re01/Re10・WX17-Re04・WXEX1-63 の12枚系統＝①コスト付き効果＋②の択が構造ごと消えていた実バグ）。
+- **手パッチ MANUAL 1枚＝WXK02-037**（トリガー条件抽出が「代わりに」文より先に THIS_CARD_FROM_TRASH を effect-level に先取り＝parser再現不能）＝E1 を CONDITIONAL{THIS_CARD_FROM_TRASH, then:-4000, else:-2000} に（旧: 効果丸ごと条件付き＋UNKNOWN残り＝トラッシュ以外から出ると全シグニ−2000も不発）＋BURST の LIFE_COUNT≦4 条件脱落復元。
+- **decompiler 3点**＝LRIG_TRASH_COUNT の cardType フォールバック「カード」・HAS_CARD_IN_FIELD ルリグ描画（「場にレベルN以上のルリグがいる」）・カード名含む描画（「トラッシュにカード名に《X》を含むカードがある」）。
+- **golden +2**＝多段閾値入れ子else（LRIG_TRASH_COUNT 8/4/3枚の3水準実行）・採用JSON構造ガード5枚（WXDi-CP01-047/WD08-006/WXK11-075/WXK02-037/WDK03-020）。
+- **不採用（据置）**＝WX20-065（手札1枚以下条件が fresh でも脱落＝別系統・要調査）・WX20-043（triggerBurst 喪失）・WX19-064（③にトラップアイコン文が混入＝UNKNOWN）・WD20-018/WX22-Re03（②が複雑）・アンコール4枚（WXK10-010/012/013/WXDi-P13-045）・-EXILE系7枚（レガシードリフト）・type増減なし12枚。**B1残（条件語彙なし）**＝WDK17-014/WX25-P2-101（コスト参照）・WX14-070/WX25-P2-108/WX25-P3-116/WXDi-P11-067/WXK06-071（ターン中イベント）・WX25-P2-102/107/109（それに【チャーム】＝選択後条件）・WXK09-057（傀儡状態フィルタ）＝§6.3。
+- ⚠要実機検証＝per-target値すり替えの同一対象適用・WD08-006 の3択UI・CHOOSE復元23枚の択動作・WXK02-037。
+
 ## §5c「代わりに」B系統＝「＜条件＞の場合、代わりに＜enhanced＞」の else付きCONDITIONAL 昇格置換を parser 実装＝15枚の二重適用/値すり替え実バグ是正（2026-07-05・zerom・続き28後半）
 
 「代わりに」B系統94枚（＜条件＞の場合、代わりに＜enhanced＞）を機械分類＝現JSONは**条件が脱落し base+enhanced の二重適用（WX24-D3-15＝−3000と−5000両掛け・WXDi-P03-088）または base を捨てて enhanced値のみ（WD08-006＝無条件−8000）の実バグ**。**census 1763→1751（−12）・golden 131→132・smoke 全0・fuzz 全0・同型★0・held 24（working-tree）**。
