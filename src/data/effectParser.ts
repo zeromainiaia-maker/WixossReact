@@ -954,6 +954,28 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
 // ===== アクションパース（1文） =====
 
 
+// 続き29追加分（「代わりに」B系統残バッチ・2026-07-05）。STATE_CONDITION_CLAUSES と
+// parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
+// （engine evalCondition・decompiler 対応済みの条件型のみ）。
+const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  [/あなたのトラッシュに＜([^＞]+)＞のカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { story: g[0] }, minCount: parseNum(g[1]) })],
+  [/あなたのトラッシュにレベル([０-９\d]+)のシグニが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]) }, minCount: parseNum(g[1]) })],
+  [/あなたのトラッシュに(白|赤|青|緑|黒)のカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { color: g[0] }, minCount: parseNum(g[1]) })],
+  [/あなたのトラッシュにカード名に《([^》]+)》を含むカードがある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[0] } })],
+  [/あなたの場にカード名に《([^》]+)》を含むシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } })],
+  [/あなたのルリグトラッシュにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'LRIG_TRASH_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+  [/このシグニがトラッシュから場に出(?:てい)?た場合/,
+    () => ({ type: 'THIS_CARD_FROM_TRASH' })],
+  [/あなたの場にレベル([０-９\d]+)以上のルリグがいる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', level: { min: parseNum(g[0]) } } })],
+];
+
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
 // parseSingleSentence の CONDITIONAL 持ち上げと、SEQUENCE 組み立て時の「代わりに」昇格置換の
 // 両方から使う（engine evalCondition・decompiler 対応済みの条件型のみ）。
