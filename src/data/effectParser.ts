@@ -1002,6 +1002,7 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
   [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
     g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+  ...STATE_CONDITION_CLAUSES_V2,
 ];
 
 // text 先頭が STATE_CONDITION_CLAUSES のいずれかの条件節「〜の場合、」で始まれば、その Condition と
