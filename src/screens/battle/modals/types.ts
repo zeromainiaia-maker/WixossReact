@@ -18,4 +18,10 @@ export interface BattleModalCtx {
   myColorSubs: { from: string[]; to: string }[];
   pickLongPressTimer: MutableRefObject<ReturnType<typeof setTimeout> | null>;
   setExpandedPickImgUrl: Dispatch<SetStateAction<string | null>>;
+  activeCostMods: { forMy: ActiveCostMod[]; forOp: ActiveCostMod[] };
+  myEnergyExtraColors: Map<string, string>;
+  myEnergyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
+  myLrigNameAliases: string[];
+  myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
+  isActionBlocked: (actionId: string) => boolean;
 }
