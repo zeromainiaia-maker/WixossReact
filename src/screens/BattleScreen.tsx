@@ -39,6 +39,8 @@ import { SigniActivatedModal } from './battle/modals/SigniActivatedModal';
 import { SigniOnPlayCostModal } from './battle/modals/SigniOnPlayCostModal';
 import { LrigGrantedModal } from './battle/modals/LrigGrantedModal';
 import { EffectInteractionModal } from './battle/modals/EffectInteractionModal';
+import { KeyUseModal } from './battle/modals/KeyUseModal';
+import { KeyActivatedModal } from './battle/modals/KeyActivatedModal';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
