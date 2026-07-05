@@ -1099,6 +1099,7 @@ function parseSingleSentence(text: string): EffectAction {
         g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
       [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
         g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+      ...STATE_CONDITION_CLAUSES_V2,
     ];
     const t0 = text.trim();
     for (const [re, mk] of CLAUSES) {
