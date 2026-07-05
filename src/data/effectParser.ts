@@ -1576,7 +1576,8 @@ function parseActionText(text: string): EffectAction {
       let cm = matchLeadingStateCondition(clean);
       if (!cm) {
         // (a) 裸の多段閾値: 前段が数量条件の CONDITIONAL のときだけ、その条件の複製に新数値を入れて引き継ぐ
-        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上ある場合、(代わりに.+)$/s);
+        // （帰結は「代わりに」＝昇格置換 か「追加で」＝追加ボーナスの CONDITIONAL 積み増し）
+        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上ある場合、((?:代わりに|追加で).+)$/s);
         const prev = steps[steps.length - 1] as import('../types/effects').ConditionalAction;
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
             ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT'].includes(prev.condition.type)) {
@@ -1584,6 +1585,15 @@ function parseActionText(text: string): EffectAction {
           if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD') cond.minCount = parseNum(bm[1]);
           else cond.value = parseNum(bm[1]);
           cm = { condition: cond, rest: bm[2] };
+        }
+      }
+      // 「N枚以上ある場合、追加で<X>」＝置換ではなく追加ボーナス＝CONDITIONAL を新ステップとして積む
+      // （WXDi-CP02-062「ブルアカ5枚→−5000。10枚以上ある場合、追加で3枚ミル」。続き29）
+      if (cm && cm.rest.startsWith('追加で')) {
+        const bonus = parseSingleSentence(cm.rest.slice('追加で'.length));
+        if (!JSON.stringify(bonus).includes('"UNKNOWN"')) {
+          steps.push({ type: 'CONDITIONAL', condition: cm.condition, then: bonus });
+          continue;
         }
       }
       if (cm && cm.rest.startsWith('代わりに')) {
