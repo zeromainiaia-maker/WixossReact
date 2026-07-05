@@ -1,5 +1,4 @@
 ﻿import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
