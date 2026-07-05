@@ -9,6 +9,12 @@ WixossカードゲームのReactクローン実装。
 - **CSV の順番を必ず維持する**（スクリプト内の `sorted` ロジックで対応済み）
 - `scripts/addWX01.mjs` などのWEL化スクリプトは削除済み（WEL化は廃止）
 
+## ディレクトリ規約（2026-07-05整理）
+- `scripts/` — **現役ツールのみ**（package.json の npm scripts・CI・docs の現行ワークフローから参照される約27本）。ここに one-off を溜めない。
+- `scripts/archive/` — **適用済み one-off スクリプト・過去レポートの保管庫**（旧ルート散在分と旧 `scratchpad/` の中身＝`scripts/archive/scratchpad/`）。実行しない歴史記録。BUGFIXES.md 等の過去ログ内パスは移動先に更新済み。
+- **使い捨ての調査・検証スクリプトは `tmp_*` 名で作業**（gitignore済み・`/scratchpad/` も廃止済みで無視される）。記録に残す価値があるものだけ、適用後に `scripts/archive/` へ移して BUGFIXES.md から参照する。
+- **ルート直下にスクリプトやレポートを作らない**。置いてよいのは設定類（package.json / tsconfig* / vite / eslint / .env* 等）・`index.html`・`verify.html`（viteの追加エントリ）・`CLAUDE.md` / `README.md` のみ。
+
 ## 検証コマンド（共同開発者・必読）
 実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §12`。
 - `npm run typecheck` — 型チェック（CIと同じ／必須）
