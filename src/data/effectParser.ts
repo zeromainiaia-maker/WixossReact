@@ -1079,7 +1079,7 @@ function parseSingleSentence(text: string): EffectAction {
   // （2026-07-05 続き26）＝cardName フィルタで照合する。
   {
     const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
-      [/あなたの場に《([^》]+)》がいる場合/,
+      [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
       [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
         g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
