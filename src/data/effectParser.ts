@@ -1548,21 +1548,46 @@ function parseActionText(text: string): EffectAction {
     // 「＜盤面状態条件＞の場合、代わりに＜enhanced＞」= 昇格置換（else付きCONDITIONAL）。（2026-07-05 続き28）
     // 直前ステップ（base）を else に、enhanced を then にして CONDITIONAL で前ステップを置換する。
     // 従来は条件が脱落し base+enhanced の二重適用/値すり替えの実バグだった（WX24-D3-15/WD08-006等）。
-    // ⚠自己完結しない per-target 形（enhanced が「対象とし」なしで「それ」を参照＝base のターゲット共有が
-    //   要る）と、条件が STATE_CONDITION_CLAUSES で表現できない形（多段閾値の値のみ等）は据置。
+    // 続き29拡張＝(a)裸の多段閾値「N枚以上ある場合、代わりに〜」は前段 CONDITIONAL の同一 subject 条件の
+    // 数値だけ差し替えて引き継ぐ（WD08-006/WXDi-P03-088/WXK11-075）。(b)per-target 値のみ形
+    // 「代わりに(ターン終了時まで、)それのパワーを－Nする」は base のコア POWER_MODIFY をターゲット指定
+    // ごと複製し delta だけ差し替えて then にする（ターゲット共有・WXDi-CP01-047 等17枚の系統）。
+    // ⚠条件が表現できない形（コスト参照・ターン中イベント等）は据置。
     if (steps.length > 0) {
-      const cm = matchLeadingStateCondition(clean);
+      let cm = matchLeadingStateCondition(clean);
+      if (!cm) {
+        // (a) 裸の多段閾値: 前段が数量条件の CONDITIONAL のときだけ、その条件の複製に新数値を入れて引き継ぐ
+        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上ある場合、(代わりに.+)$/s);
+        const prev = steps[steps.length - 1] as import('../types/effects').ConditionalAction;
+        if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
+            ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT'].includes(prev.condition.type)) {
+          const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number };
+          if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD') cond.minCount = parseNum(bm[1]);
+          else cond.value = parseNum(bm[1]);
+          cm = { condition: cond, rest: bm[2] };
+        }
+      }
       if (cm && cm.rest.startsWith('代わりに')) {
         const enhancedText = cm.rest.slice('代わりに'.length);
+        const base = steps[steps.length - 1];
+        const coreOf = (a: EffectAction): EffectAction => a.type === 'CONDITIONAL' ? coreOf((a as import('../types/effects').ConditionalAction).then)
+          : a.type === 'SEQUENCE' ? (((a as SequenceAction).steps.at(-1)) ?? a) : a;
+        // (b) per-target 値のみ形（SEQUENCE base は対象選択が then に載らないため除外）
+        const vm = enhancedText.match(/^(?:ターン終了時まで、)?(?:それら?のパワーを(?:それぞれ)?)?([－\-＋+])([０-９\d]+)する。?$/);
+        const baseCore = coreOf(base);
+        if (vm && (base.type === 'POWER_MODIFY' || base.type === 'CONDITIONAL') &&
+            baseCore.type === 'POWER_MODIFY' && typeof (baseCore as import('../types/effects').PowerModifyAction).delta === 'number') {
+          const thenPM = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').PowerModifyAction;
+          thenPM.delta = ((vm[1] === '－' || vm[1] === '-') ? -1 : 1) * parseNum(vm[2]);
+          steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenPM, else: base };
+          continue;
+        }
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
         if (!perTarget) {
-          const base = steps[steps.length - 1];
           const then = parseSingleSentence(enhancedText);
           // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
           // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
-          const core = (a: EffectAction): string => a.type === 'CONDITIONAL' ? core((a as import('../types/effects').ConditionalAction).then)
-            : a.type === 'SEQUENCE' ? (((a as SequenceAction).steps.at(-1)?.type) ?? 'SEQUENCE') : a.type;
-          if (!JSON.stringify(then).includes('"UNKNOWN"') && core(then) === core(base)) {
+          if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(then).type === coreOf(base).type) {
             steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
             continue;
           }
