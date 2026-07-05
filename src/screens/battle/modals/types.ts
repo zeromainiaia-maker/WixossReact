@@ -37,4 +37,5 @@ export interface BattleModalCtx {
   myLrigNameAliases: string[];
   myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
   isActionBlocked: (actionId: string) => boolean;
+  specificCardCostReductions: { targetCardName: string; colorlessReduction: number }[];
 }
