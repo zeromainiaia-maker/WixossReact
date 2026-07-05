@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
-import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost } from '../../../engine/effectEngine';
+import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import type { BattleModalCtx } from './types';
 
