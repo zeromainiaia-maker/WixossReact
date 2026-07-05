@@ -46,6 +46,7 @@ import { AssistActivatedModal } from './battle/modals/AssistActivatedModal';
 import { EnergyActivatedModal } from './battle/modals/EnergyActivatedModal';
 import { GuardResponseDialog } from './battle/modals/GuardResponseDialog';
 import { StackOrderModal } from './battle/modals/StackOrderModal';
+import { SigniSummonZoneModal } from './battle/modals/SigniSummonZoneModal';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
