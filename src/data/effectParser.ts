@@ -1370,6 +1370,17 @@ function parseActionText(text: string): EffectAction {
     };
   }
 
+  // text 先頭が「以下のNつからMつ選ぶ」ヘッダで①②③④選択肢を持つ場合、残存文の数に関わらず CHOOSE を組む。
+  // 選択肢が複数文のとき（③「…－5000する。２０枚以上ある場合、代わりに…」等）2文目以降が①フィルタを
+  // 生き残って単文/複文パスに落ち、選択構造ごと消えて平坦化していた（WD08-006。2026-07-05 続き29）。
+  {
+    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
+    if (headM && /[①②③④]/.test(text)) {
+      const chosen = buildChoose(text, parseNum(headM[1]));
+      if (chosen) return chosen;
+    }
+  }
+
   if (sentences.length === 0) {
     // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
     const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
