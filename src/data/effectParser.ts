@@ -980,6 +980,8 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
 // parseSingleSentence の CONDITIONAL 持ち上げと、SEQUENCE 組み立て時の「代わりに」昇格置換の
 // 両方から使う（engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+  [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
   [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
   [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
