@@ -1109,10 +1109,12 @@ function parseSingleSentence(text: string): EffectAction {
       // ＝ else 表現が要る別系統として据置（本規則の対象外）
       if (m && !m[m.length - 1].startsWith('代わりに')) {
         const rest = m[m.length - 1];
-        // ガードA: コスト減文（「〜の場合、このアーツの使用コストは…減る」）は全文STUB
-        // （ARTS_COST_REDUCTION_BY_CENTER_LRIG＝条件込みでengine実装済み）に委ねる＝横取りしない
+        // ガードA: コスト減文（「〜の場合、このアーツの使用コストは…減る/になる」）は全文STUB
+        // （ARTS_COST_REDUCTION_BY_CENTER_LRIG 等＝条件込みでengine実装済み・トップレベル収集）に
+        // 委ねる＝横取りしない（CONDITIONAL に包むと収集から隠れる。WX05-038「このカードの使用コストは
+        // 《青×1》になる」は続き29で本ガードに追加）
         // ⚠「このターン、そのピースの使用コストは…」（WXDi-P16-009）は対象外＝先頭形に限定
-        if (/^この(アーツ|スペル)の使用コスト.*減る/.test(rest)) continue;
+        if (/^この(アーツ|スペル|カード)の使用コスト.*(減る|になる)/.test(rest)) continue;
         const then = parseSingleSentence(m[1] + rest);
         // ガードB: rest 単体では UNKNOWN に退化する文は、全文対象のSTUB規則
         // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
