@@ -8,7 +8,7 @@ import type { BattleModalCtx } from './types';
 
 interface GuardResponseDialogProps {
   ctx: BattleModalCtx;
-  contBlocked: { forSelf: string[] };
+  contBlocked: ContinuousBlockResult;
   myHandGuardClasses: string[];
   isHost: boolean;
   performGuardResponse: (handIndex: number | null, p: {
