@@ -1029,6 +1029,50 @@ test('CONDITIONAL else: 条件成立でthen・不成立でelseの一方のみ実
   eq(run(act, c2).ownerState.hand.length, h2 + 1, 'ライフ5ならelse(1枚)のみ');
 });
 
+// 多段閾値の入れ子else（続き29・代わりにB系統残）: 「N枚以上ある場合、〜する。M枚以上ある場合、代わりに〜」
+// ＝CONDITIONAL{高閾値, then:強, else: CONDITIONAL{低閾値, then:弱}}。LRIG_TRASH_COUNT の executor 評価も兼ねる。
+test('多段閾値入れ子else: ルリグトラッシュ8枚でthen・4枚で内側then・3枚で不発', () => {
+  const anyCards = [...cardMap.keys()].slice(0, 8);
+  const act = { type: 'CONDITIONAL', condition: { type: 'LRIG_TRASH_COUNT', operator: 'gte', value: 8 },
+    then: { type: 'DRAW', owner: 'self', count: 3 },
+    else: { type: 'CONDITIONAL', condition: { type: 'LRIG_TRASH_COUNT', operator: 'gte', value: 4 },
+      then: { type: 'DRAW', owner: 'self', count: 1 } } } as unknown as EffectAction;
+  const c1 = mkCtx({}, {}); c1.ownerState.lrig_trash = anyCards.slice(0, 8);
+  const h1 = c1.ownerState.hand.length;
+  eq(run(act, c1).ownerState.hand.length, h1 + 3, 'ルリグトラッシュ8枚なら外側then(3枚)');
+  const c2 = mkCtx({}, {}); c2.ownerState.lrig_trash = anyCards.slice(0, 4);
+  const h2 = c2.ownerState.hand.length;
+  eq(run(act, c2).ownerState.hand.length, h2 + 1, '4枚なら内側then(1枚)');
+  const c3 = mkCtx({}, {}); c3.ownerState.lrig_trash = anyCards.slice(0, 3);
+  const h3 = c3.ownerState.hand.length;
+  eq(run(act, c3).ownerState.hand.length, h3, '3枚なら不発');
+});
+
+// census「代わりに」B系統残バッチの採用JSON構造ガード（続き29）: per-target値すり替え・多段閾値・CHOOSE復元
+test('census代わりにB系統残: 採用JSONの構造（値すり替え・多段閾値・CHOOSE復元）', () => {
+  // per-target 値すり替え（WXDi-CP01-047: バーチャル10枚→同一対象−5000/else−3000）
+  const s1 = JSON.stringify(effectsMap.get('WXDi-CP01-047') ?? []);
+  ok(s1.includes('"minCount":10') && s1.includes('"delta":-5000') && s1.includes('"delta":-3000') && s1.includes('"else"'),
+    'WXDi-CP01-047: 10枚条件のthen/else値すり替えのはず');
+  // 多段閾値の入れ子（WD08-006: トラッシュ20枚→−8000/else 10枚→−5000・CHOOSE 3択も復元）
+  const s2 = JSON.stringify(effectsMap.get('WD08-006') ?? []);
+  ok(s2.includes('"CHOOSE"') && s2.includes('"from_count":3'), 'WD08-006: 3択CHOOSEが復元されているはず');
+  ok(s2.includes('"value":20') && s2.includes('"value":10') && s2.includes('"delta":-8000') && s2.includes('"delta":-5000'),
+    'WD08-006: 20枚/10枚の入れ子閾値のはず');
+  // ルリグトラッシュ多段閾値（WXK11-075: 8枚→−12000/else 4枚→−7000）
+  const s3 = JSON.stringify(effectsMap.get('WXK11-075') ?? []);
+  ok(s3.includes('"LRIG_TRASH_COUNT"') && s3.includes('"value":8') && s3.includes('"delta":-12000'),
+    'WXK11-075: ルリグトラッシュ8枚閾値のはず');
+  // THIS_CARD_FROM_TRASH のelse分岐（WXK02-037: トラッシュから出たら−4000/else−2000・手パッチMANUAL）
+  const s4 = JSON.stringify(effectsMap.get('WXK02-037') ?? []);
+  ok(s4.includes('"THIS_CARD_FROM_TRASH"') && s4.includes('"delta":-4000') && s4.includes('"delta":-2000') && s4.includes('"else"'),
+    'WXK02-037: トラッシュ出のthen/else値すり替えのはず');
+  // CHOOSE 平坦化復元（WDK03-020: ①コスト付き効果＋②エナチャージの2択が構造ごと消えていた）
+  const s5 = JSON.stringify(effectsMap.get('WDK03-020') ?? []);
+  ok(s5.includes('"CHOOSE"') && s5.includes('"from_count":2') && s5.includes('"ENERGY_CHARGE_FROM_DECK"'),
+    'WDK03-020: 2択CHOOSE（エナチャージ択を含む）が復元されているはず');
+});
+
 // IS_BETTING条件: 「あなたがベットしていた場合、追加で〜」（続き27・ベット追加ボーナス9枚バッチ）
 // ベット宣言（is_betting_this_effect）時のみ追加効果が発火する。BattleScreen が raw text からベットを提示。
 test('IS_BETTING条件: ベット宣言時に発火・非ベット時は不発', () => {
