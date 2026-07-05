@@ -44,6 +44,7 @@ import { KeyActivatedModal } from './battle/modals/KeyActivatedModal';
 import { AssistGrowModal } from './battle/modals/AssistGrowModal';
 import { AssistActivatedModal } from './battle/modals/AssistActivatedModal';
 import { EnergyActivatedModal } from './battle/modals/EnergyActivatedModal';
+import { GuardResponseDialog } from './battle/modals/GuardResponseDialog';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
