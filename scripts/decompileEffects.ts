@@ -249,6 +249,12 @@ function condJa(c?: any): string {
       // 「場に《X》がいる」（X はルリグ名等の特定カード名）＝名前のみのフィルタは「シグニ」を付けない
       if (c.filter?.cardName && !c.filter?.cardType && !c.filter?.story && !c.filter?.color)
         return `${ownerJa(c.owner)}場に《${c.filter.cardName}》がいる`;
+      // 「場にレベルN以上のルリグがいる」（ルリグゾーン走査・WX24-P4-061/068）
+      if (c.filter?.cardType === 'ルリグ')
+        return `${ownerJa(c.owner)}場に${filterJa(c.filter)}ルリグがいる`;
+      // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
+      if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
+        return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}シグニが${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
