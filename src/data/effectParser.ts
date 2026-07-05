@@ -1119,6 +1119,10 @@ function parseSingleSentence(text: string): EffectAction {
         // ガードB: rest 単体では UNKNOWN に退化する文は、全文対象のSTUB規則
         // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
         if (JSON.stringify(then).includes('"UNKNOWN"')) continue;
+        // ガードC: コスト減STUB（COST_REDUCTION系）はコスト計算側がトップレベル走査で収集する＝
+        // CONDITIONAL に包むと収集から隠れて無効化するため持ち上げない（WX25-CD1-17 等。続き29）
+        const thenStub = then as import('../types/effects').StubAction;
+        if (thenStub.type === 'STUB' && typeof thenStub.id === 'string' && thenStub.id.includes('COST_REDUCTION')) continue;
         // rest 先頭の「ターン終了時まで、」は再帰先の ^プレフィックス除去で消え PERMANENT 化する
         // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
         if (/^(追加で)?ターン終了時まで、/.test(rest)) {
