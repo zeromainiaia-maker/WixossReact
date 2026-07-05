@@ -58,6 +58,7 @@ import { TrashActivatedModal } from './battle/modals/TrashActivatedModal';
 import { GuardBarrierActModal } from './battle/modals/GuardBarrierActModal';
 import { NegateEscapeModal } from './battle/modals/NegateEscapeModal';
 import { SpellCutinOverlays } from './battle/modals/SpellCutinOverlays';
+import { EndConfirmModal } from './battle/modals/EndConfirmModal';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
