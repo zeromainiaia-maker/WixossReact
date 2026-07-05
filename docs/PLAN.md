@@ -118,10 +118,10 @@
 - ⚠**decompile再生成は Bash の `>` を使う**（PowerShell `>` は UTF-16 で下流破壊）。
 
 ### 📌 次の一手（推奨順）
-> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 132/132・smoke/fuzz 全0・同型★0・census 1751/1751・parserWorklist held 24（LOSS12/VALUE12）。
+> まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 134/134・smoke/fuzz 全0・同型★0・census 1720/1720。
 >
 > **現在の主作業＝§5c census文型バッチの継続消化（続き23確立のパイプライン・cold startはこの5行）**：
-> ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝**「代わりに」B系統の残**＝per-target「それのパワー－N」型（ターゲット共有機構）・多段閾値の値のみ型（前段条件の subject 引き継ぎ）。続き28で A:ena→trash16（偽陽性15＝BANISH_REDIRECT較正済）・B自己完結enhanced型15枚（else付きCONDITIONAL 昇格置換 `matchLeadingStateCondition`）は消化・残 C コスト代替6/D バニッシュされない3/E リコレクト2 は少数テール。機構待ちは §6.3 へ送る。⚠着手前に続き24-28の型＝**全数機械分類で偽陽性を先に切る**：「それが＜C＞73枚」70枚・「次にダメージ46枚」38枚・「代わりにena→trash16枚」15枚が既存表現済みの偽陽性だった。「場に《X》13枚」続き26・「ベット9枚」続き27は偽陽性0＝全実バグ。**B系統も機械分類で更にサブ分割してから着手**）
+> ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝**(a) CHOOSE平坦化復元の残 約35枚**＝続き29の parser 修正で `npm run build:effects` → `node scripts/heldReview.mjs` に one-off の CHOOSE 復元が挙がる＝1枚ずつ spot-check して採用（-EXILE系・STUB退化・type増減なしは据置）。**(b)「代わりに」残テール**＝C コスト代替6／D 置換ルール9（バニッシュされない系＝置換機構要）／E リコレクト2／B1残10枚（コスト参照・ターン中イベント・それにチャーム・傀儡状態＝条件語彙が無い §6.3）。続き28-29で A:ena→trash・B:条件+代わりに94（自己完結15＋per-target値すり替え＋多段閾値＋CHOOSE復元64）は消化済み。機構待ちは §6.3 へ送る。⚠着手前に続き24-29の型＝**全数機械分類で偽陽性を先に切る**）
 > ② parser（`src/data/effectParser.ts` の「状態条件節の CONDITIONAL 持ち上げ」CLAUSES 表がテンプレ追加の定位置）に規則を足す。**engine/decompiler 対応済みの条件型のみ**・既存STUB全文規則の横取りに注意（ガード3種の実装コメント参照）
 > ③ `npm run build:effects` → ④ `node scripts/heldReview.mjs` でdiff署名グループをspot-check→`--adopt ID群` で一括採用（**STUB退化・「代わりに」・別STUB id化は採用しない**）
 > ⑤ golden 1件/テンプレ追加 → 全ゲート＋decompileシート再生成（⚠Bashの`>`）＋同型★0 → `BASELINE_HIGH`/本§更新 → commit/push
