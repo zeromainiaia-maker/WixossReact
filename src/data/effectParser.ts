@@ -1375,9 +1375,11 @@ function parseActionText(text: string): EffectAction {
   // text 先頭が「以下のNつからMつ選ぶ」ヘッダで①②③④選択肢を持つ場合、残存文の数に関わらず CHOOSE を組む。
   // 選択肢が複数文のとき（③「…－5000する。２０枚以上ある場合、代わりに…」等）2文目以降が①フィルタを
   // 生き残って単文/複文パスに落ち、選択構造ごと消えて平坦化していた（WD08-006。2026-07-05 続き29）。
+  // ⚠選択数変更型「〜の場合、代わりにNつまで選ぶ」（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済み
+  // STUB・リコレクトの選択数変更を含む）は選択数の条件分岐が要る＝素の CHOOSE に退化させない（据置）。
   {
     const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
-    if (headM && /[①②③④]/.test(text)) {
+    if (headM && /[①②③④]/.test(text) && !/代わりに[^。①②③④]*選ぶ/.test(text)) {
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
     }

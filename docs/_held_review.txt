@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［14枚］
-WDK11-012 WX05-038 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-080 WXDi-CP02-081 WXDi-D02-23 WXDi-P00-078 WXDi-P05-063 WXDi-P11-056 WXK10-036
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［13枚］
+WDK11-012 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-080 WXDi-CP02-081 WXDi-D02-23 WXDi-P00-078 WXDi-P05-063 WXDi-P11-056 WXK10-036
 --- WDK11-012
   原文: 【出】：対戦相手のシグニ１体を対象とし、あなたの場に《ＧＦ　イザベラ》がある場合、それを手札に戻す。,-
   - [0].action.target.type = "SIGNI"
@@ -20,15 +20,6 @@ WDK11-012 WX05-038 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-
   + [0].action.then.type = "BOUNCE"
   + [0].action.then.target.type = "SIGNI"
   …（他 5 行）
---- WX05-038
-  原文: あなたの場に《幻水姫　スパイラル・カーミラ》がある場合、このカードの使用コストは《青×1》になる。対戦相手のシグニ１体を対象とし、あなたの手札が４枚以上ある場合、それをバニッシュする。,：カードを１枚引く。その後、手札から《幻水姫　スパイラル・カーミラ》１枚を公開してもよい。そうした場合、追加でカードを１枚引く。
-  - [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardName = "幻水姫　スパイラル・カーミラ"
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "ARTS_COST_REDUCTION_BY_EFFECT"
 --- WX12-026
   原文: 【出】：あなたのデッキの一番上を公開する。それがレベル４のシグニの場合、それを手札に加える。【出】《白》：対戦相手のシグニ１体を対象とし、あなたの場にカード名に《ローメイル》を含むシグニがある場合、それを手札に戻す。【出】手札からカード名に《ローメイル》を含むシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、それを手札に戻す。,-
   - [1].action.target.type = "SIGNI"
@@ -43,6 +34,21 @@ WDK11-012 WX05-038 WX12-026 WX20-059 WX20-081 WX24-P4-089 WX25-CD1-17 WXDi-CP02-
   + [1].action.condition.filter.cardType = "シグニ"
   + [1].action.condition.filter.cardName = "ローメイル"
   + [1].action.then.type = "BOUNCE"
+  …（他 6 行）
+--- WX20-059
+  原文: 【出】《赤》：あなたのトラッシュから赤のスペル１枚を対象とし、あなたの場にカード名に《イリスアゲート》を含むシグニがある場合、それを手札に加える。【出】：あなたの手札からコストの合計が１以下の赤のスペル１枚をコストを支払わずに使用してもよい。,-
+  - [0].action.source.type = "TRASH_CARD"
+  - [0].action.source.owner = "self"
+  - [0].action.source.count = 1
+  - [0].action.source.upToCount = false
+  - [0].action.source.filter.cardType = "シグニ"
+  - [0].action.source.filter.color = "赤"
+  ~ [0].action.type : "TRANSFER_TO_HAND" → "CONDITIONAL"
+  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.filter.cardType = "シグニ"
+  + [0].action.condition.filter.cardName = "イリスアゲート"
+  + [0].action.then.type = "TRANSFER_TO_HAND"
   …（他 6 行）
 
 ## （type増減なし＝値/構造変更） ［12枚］
