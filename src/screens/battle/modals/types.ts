@@ -3,6 +3,7 @@
 import type { MutableRefObject, Dispatch, SetStateAction } from 'react';
 import type { PlayerState, CardData } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
+import type { ActiveCostMod } from '../../../engine/effectEngine';
 
 export interface BattleModalCtx {
   my: PlayerState;
