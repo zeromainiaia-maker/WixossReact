@@ -4477,9 +4477,9 @@ export function collectGrantedFromLayer(
   const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   type GrantAction = import('../types/effects').GrantFieldSigniAbilityAction;
 
-  // 1) 場のシグニから付与宣言を収集（付与先オーナーごとに分ける）
-  const selfGrants: GrantAction[] = [];   // targetOwner 省略/self: 自分の場へ付与
-  const oppGrants: GrantAction[] = [];    // targetOwner:'opponent': 対戦相手の場へ付与
+  // 1) 場のシグニから付与宣言を収集（付与先オーナーごとに分ける）。thisCardOnly の判定に付与元 top を保持。
+  const selfGrants: Array<{ g: GrantAction; src: string }> = [];   // targetOwner 省略/self: 自分の場へ付与
+  const oppGrants: Array<{ g: GrantAction; src: string }> = [];    // targetOwner:'opponent': 対戦相手の場へ付与
   for (let zi = 0; zi < 3; zi++) {
     const top = ownerState.field.signi[zi]?.at(-1);
     if (!top) continue;
@@ -4488,19 +4488,20 @@ export function collectGrantedFromLayer(
       if (eff.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
       const g = eff.action as GrantAction;
-      (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push(g);
+      (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
     }
   }
   if (selfGrants.length === 0 && oppGrants.length === 0) return result;
 
-  // 2) フィルタに合う付与先の場のシグニへ付与
-  const apply = (grants: GrantAction[], tgtState: PlayerState) => {
+  // 2) フィルタに合う付与先の場のシグニへ付与（thisCardOnly は付与元自身のみ）
+  const apply = (grants: Array<{ g: GrantAction; src: string }>, tgtState: PlayerState) => {
     if (grants.length === 0) return;
     for (let zi = 0; zi < 3; zi++) {
       const top = tgtState.field.signi[zi]?.at(-1);
       if (!top) continue;
       const card = cardMap.get(baseNum(top));
-      for (const g of grants) {
+      for (const { g, src } of grants) {
+        if (g.thisCardOnly && top !== src) continue;
         if (g.filter && !matchesFilter(card, g.filter)) continue;
         result.set(top, [...(result.get(top) ?? []), ...g.abilities]);
       }
