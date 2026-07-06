@@ -10073,12 +10073,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return {
           label: `【起】${costLabel}`,
           color: C.coin,
-          onClick: () => {
-            setPendingSigniActivated({ cardNum: topNum, effect: eff });
-            setSelectedSigniActivatedCost(new Set());
-            setSelectedSigniActivatedDiscardVar(new Set());
-            setSelectedSigniActivatedFieldTrash(new Set());
-          },
+          onClick: () => { openSigniActivated({ cardNum: topNum, effect: eff }); },
         };
       });
     }
