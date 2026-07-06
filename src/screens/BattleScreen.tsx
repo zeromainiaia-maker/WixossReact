@@ -160,6 +160,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost,
     pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost,
     selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard,
+    openAssistGrow, closeAssistGrow, openAssistActivated, closeAssistActivated,
   } = useAssistModals();
   // ライフクロスクラッシュ時のカード拡大
   // エンドフェイズ手札捨て選択UI
