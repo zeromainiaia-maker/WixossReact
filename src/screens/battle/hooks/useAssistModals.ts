@@ -24,7 +24,7 @@ const initialState: AssistModalsState = {
 };
 
 export function useAssistModals() {
-  const [state, set] = useDomainState<AssistModalsState>(initialState);
+  const [state, set, patch] = useDomainState<AssistModalsState>(initialState);
   return {
     ...state,
     setShowAssistGrowModal: set.showAssistGrowModal,
@@ -34,5 +34,17 @@ export function useAssistModals() {
     setPendingAssistActivated: set.pendingAssistActivated,
     setSelectedAssistActivatedCost: set.selectedAssistActivatedCost,
     setSelectedAssistActivatedDiscard: set.selectedAssistActivatedDiscard,
+    /** アシストグロウモーダルを指定サイドで開く（候補・コスト選択は白紙化） */
+    openAssistGrow: (side: 'l' | 'r') =>
+      patch({ pendingAssistSide: side, pendingAssistGrowCard: null, selectedAssistGrowCost: new Set(), showAssistGrowModal: true }),
+    /** アシストグロウモーダルを閉じて選択をリセット */
+    closeAssistGrow: () =>
+      patch({ showAssistGrowModal: false, pendingAssistGrowCard: null, pendingAssistSide: null, selectedAssistGrowCost: new Set() }),
+    /** アシスト【起】モーダルを開く（コスト選択は白紙化） */
+    openAssistActivated: (pending: NonNullable<AssistModalsState['pendingAssistActivated']>) =>
+      patch({ pendingAssistActivated: pending, selectedAssistActivatedCost: new Set() }),
+    /** アシスト【起】モーダルを閉じて選択をリセット */
+    closeAssistActivated: () =>
+      patch({ pendingAssistActivated: null, selectedAssistActivatedCost: new Set(), selectedAssistActivatedDiscard: new Set() }),
   };
 }
