@@ -152,10 +152,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost,
     selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard,
   } = useAssistModals();
-  // シグニ起動効果: energyTrash（エナゾーンから指定カードをトラッシュ）選択インデックス
-  const [selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash] = useState<Set<number>>(new Set());
-  // シグニ起動効果: trashExile（トラッシュからカードをゲーム除外）選択インデックス
-  const [selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile] = useState<Set<number>>(new Set());
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動
   const [pendingLrigGranted, setPendingLrigGranted] = useState<{ sourceCardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
