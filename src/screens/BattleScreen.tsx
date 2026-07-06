@@ -125,6 +125,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard,
     negateEscape, setNegateEscape, selectedNegateEscape, setSelectedNegateEscape,
+    openGuardBarrierAct, closeGuardBarrierAct, openNegateEscape, closeNegateEscape,
   } = useGuardResponses();
   const {
     pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
