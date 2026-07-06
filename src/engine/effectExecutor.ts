@@ -4947,13 +4947,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'GRANT_EFFECT': {
       const geA = action as GrantEffectAction;
+      const geEff = geA.effect;
+      if (!geEff) return done(ctx); // rawText 未展開（PARTIAL 温存）＝no-op
       let geOwner: Owner | null = null;
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'self';
       else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'opponent';
       if (!geOwner) return done(ctx);
       const geS = ownerState(geOwner, ctx);
       const geGranted = { ...(geS.granted_effects ?? {}) };
-      geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geA.effect];
+      geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geEff];
       return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
