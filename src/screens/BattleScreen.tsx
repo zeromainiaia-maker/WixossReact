@@ -60,6 +60,7 @@ import { SpellCutinOverlays } from './battle/modals/SpellCutinOverlays';
 import { EndConfirmModal } from './battle/modals/EndConfirmModal';
 import { FinishedPopup } from './battle/modals/FinishedPopup';
 import { SystemOverlays } from './battle/modals/SystemOverlays';
+import { useGrowModal } from './battle/hooks/useGrowModal';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
