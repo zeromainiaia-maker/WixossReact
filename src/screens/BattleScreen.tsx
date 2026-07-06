@@ -105,7 +105,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   } = useArtsModal();
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones } = useRemoveZone();
-  const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost } = useSpellCast();
+  const {
+    pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost,
+    openSpellCast, closeSpellCast, toggleSpellCost,
+  } = useSpellCast();
   // 手札【起】／トラッシュ自己起動／エナACTIVATED／ルリグ付与【起】
   const {
     pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost,
