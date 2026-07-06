@@ -124,7 +124,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard,
     negateEscape, setNegateEscape, selectedNegateEscape, setSelectedNegateEscape,
   } = useGuardResponses();
-  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed } = useCutin();
+  const {
+    pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
+    selectedCutinExceed, setSelectedCutinExceed, closeCutin, toggleCutinCost,
+  } = useCutin();
   // シグニ起動効果
   const {
     pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost,
