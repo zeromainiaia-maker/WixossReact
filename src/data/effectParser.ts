@@ -2577,9 +2577,10 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   // GRANT_LRIG_ABILITY: rawText から付与能力を展開（parseSpellEffect と同処理。アーツ/ピース経路の展開漏れ是正）
-  const glaUnknownSub = expandGrantLrigAbilities(action, card.CardNum)
-    // GRANT_EFFECT の rawText 展開（アーツ経路）
-    || expandGrantEffectRawTexts(action, card.CardNum);
+  const glaSub = expandGrantLrigAbilities(action, card.CardNum);
+  // GRANT_EFFECT の rawText 展開（アーツ経路）。短絡で展開が飛ばないよう両方を必ず評価する
+  const geSub = expandGrantEffectRawTexts(action, card.CardNum);
+  const glaUnknownSub = glaSub || geSub;
   // 後置文「このアーツによってあなたのルリグが得た能力は、使用タイミング《…》を得る」を granted abilities の timing に反映
   if (/得た能力は、?使用タイミング《メインフェイズアイコン》《アタックフェイズアイコン》を得る/.test(stripped)) {
     const applyTiming = (a: EffectAction) => {
