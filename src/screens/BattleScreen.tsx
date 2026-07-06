@@ -138,6 +138,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile,
     selectedSigniActivatedBeat, setSelectedSigniActivatedBeat,
     signiActCharmTrashVar, setSigniActCharmTrashVar,
+    openSigniActivated, closeSigniActivated,
   } = useSigniActivated();
   // シグニ出現時コスト付き任意【出】効果（＋OPTIONAL_COST エナ選択）
   const {
