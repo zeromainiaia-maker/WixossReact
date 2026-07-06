@@ -104,33 +104,6 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
   }
 
-  // ---- 引用能力付与（【常】自己付与形/場全体常時付与形）: 「(このシグニは)?「【自/常/起/出】…」を得る」→ GRANT_FIELD_SIGNI_ABILITY ----
-  // 「【常】：<cond>かぎり、このシグニは「Q」を得る」（thisCardOnly＝付与元自身のみ）と
-  // 「【常】：あなたの<C>シグニは「Q」を得る」（場全体常時付与）を CONTINUOUS 収集型で正エンコード。
-  // collectGrantedFromLayer が activeCondition 評価のうえ augmented effectsMap へ合成し、
-  // 付与された【自】/【常】/【起】をトリガー/常時/UI 収集が拾う（§5c 続き34）。
-  // 引用内は effectParser の expandGrantFieldRawText が parseBlock で展開する（rawText 一時保持・
-  // 展開不能なら PARTIAL 温存＝engine は空 abilities を no-op）。durational な対象付与（それは/を対象とし）は
-  // 上の R1 GRANT_EFFECT が扱う（durationプレフィックスで自然に区別される）。
-  {
-    const qfSelf = t.match(/^(?:このシグニは)?「(【[自常起出]】.+)」を得る。?$/s);
-    if (qfSelf && !/」と「|」か「/.test(qfSelf[1])) {
-      return { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [], rawText: qfSelf[1] } as EffectAction;
-    }
-    const qfField = t.match(/^(あなたの|対戦相手の)((?:[白赤青緑黒]の|＜[^＞]+＞[かの]?|他の|レベル[０-９\d]+の|すべての|感染状態の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
-    if (qfField && !/」と「|」か「/.test(qfField[3])) {
-      const owner: Owner = qfField[1] === '対戦相手の' ? 'opponent' : 'self';
-      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(qfField[2]), ...parseColorFilter(qfField[2]), ...parseLevelFilter(qfField[2]) };
-      return {
-        type: 'GRANT_FIELD_SIGNI_ABILITY',
-        ...(owner === 'opponent' ? { targetOwner: 'opponent' as Owner } : {}),
-        filter,
-        abilities: [],
-        rawText: qfField[3],
-      } as EffectAction;
-    }
-  }
-
   // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
   if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
