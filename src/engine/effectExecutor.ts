@@ -1633,6 +1633,8 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
       `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に${effectLabel}を付与`);
   }
 
+  // LRIG は選択UIを出さず自動付与（execGrantKeyword と同様）
+  if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
