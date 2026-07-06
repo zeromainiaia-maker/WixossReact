@@ -26,7 +26,7 @@ const initialState: KeyModalsState = {
 };
 
 export function useKeyModals() {
-  const [state, set] = useDomainState<KeyModalsState>(initialState);
+  const [state, set, patch] = useDomainState<KeyModalsState>(initialState);
   return {
     ...state,
     setShowKeyModal: set.showKeyModal,
@@ -36,5 +36,17 @@ export function useKeyModals() {
     setSelectedKeyActivatedCost: set.selectedKeyActivatedCost,
     setSelectedKeyActivatedDiscard: set.selectedKeyActivatedDiscard,
     setKeySubstituteEnabled: set.keySubstituteEnabled,
+    /** キーピース使用モーダルを開く（コスト選択は白紙化） */
+    openKeyModal: (card: CardData) =>
+      patch({ pendingKeyCard: card, selectedKeyCost: new Set(), showKeyModal: true }),
+    /** キーピース使用モーダルを閉じて選択をリセット */
+    closeKeyModal: () =>
+      patch({ showKeyModal: false, pendingKeyCard: null, selectedKeyCost: new Set() }),
+    /** キー【起】モーダルを開く（コスト選択は白紙化） */
+    openKeyActivated: (pending: NonNullable<KeyModalsState['pendingKeyActivated']>) =>
+      patch({ pendingKeyActivated: pending, selectedKeyActivatedCost: new Set() }),
+    /** キー【起】モーダルを閉じて選択をリセット */
+    closeKeyActivated: () =>
+      patch({ pendingKeyActivated: null, selectedKeyActivatedCost: new Set(), selectedKeyActivatedDiscard: new Set() }),
   };
 }
