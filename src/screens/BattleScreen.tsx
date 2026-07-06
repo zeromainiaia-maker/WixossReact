@@ -10605,7 +10605,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           <button onClick={() => {
               // SELF_SIGNI_TRASH 封じ（WX04-046-E1等）: リムーブ不可。警告を表示
               if (isActionBlocked('SELF_SIGNI_TRASH')) { setShowRemoveBlockedWarn(true); return; }
-              setShowRemoveModal(true); setSelectedRemoveZones(new Set());
+              openRemoveZone();
             }}
             disabled={loading}
             style={{ padding: '4px 10px', borderRadius: 4, border: 'none', fontSize: 11, fontWeight: 'bold',
