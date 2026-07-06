@@ -7517,7 +7517,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
     const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
     appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
-    setNegateEscape(null); setSelectedNegateEscape(new Set());
+    closeNegateEscape();
     // 無効化を解除した状態でアタックを再実行（performSigniAttack 冒頭の negated_attacks 判定を通過する）
     await performSigniAttack(zoneIndex, {
       attacker: newMy, defender: newOp,
@@ -7538,7 +7538,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
       const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
       appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}のアタックは無効化された`]);
-      setNegateEscape(null); setSelectedNegateEscape(new Set());
+      closeNegateEscape();
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
       await supabase.from('battle_states').update({ [myKey]: newMy, [opKey]: newOp }).eq('room_id', roomId);
