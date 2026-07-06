@@ -2522,6 +2522,42 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
   return hasUnknownSub;
 }
 
+// GRANT_EFFECT の rawText（引用「…」の原文）を parseBlock で CardEffect へ展開する（§5c 続き30）。
+// SEQUENCE/CONDITIONAL/CHOOSE 内の GRANT_EFFECT も対象。引用が単一ブロックかつ AUTO でパースできた
+// 場合のみ effect に設定して rawText を削除。展開できなければ rawText を温存して true（=PARTIAL相当）を
+// 返す（engine は effect 無し GRANT_EFFECT を no-op ガード・decompiler は rawText を表示）。
+function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boolean {
+  let hasUnknownSub = false;
+  const walk = (a: EffectAction) => {
+    if (a.type === 'GRANT_EFFECT') {
+      const ge = a as import('../types/effects').GrantEffectAction;
+      if (ge.rawText && !ge.effect) {
+        const cleanRaw = ge.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
+        const subs = splitEffectBlocks(cleanRaw)
+          .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
+          .filter((e): e is CardEffect => e !== null);
+        if (subs.length === 1 && subs[0].parseStatus === 'AUTO') {
+          ge.effect = subs[0];
+          delete ge.rawText;
+        } else {
+          // 複数ブロック引用 or パース不全＝据置（採用ゲートで PARTIAL として弾かれる）
+          hasUnknownSub = true;
+        }
+      }
+    } else if (a.type === 'SEQUENCE') {
+      (a as SequenceAction).steps.forEach(walk);
+    } else if (a.type === 'CONDITIONAL') {
+      const c = a as import('../types/effects').ConditionalAction;
+      walk(c.then);
+      if (c.else) walk(c.else);
+    } else if (a.type === 'CHOOSE') {
+      for (const ch of (a as ChooseAction).choices ?? []) walk(ch.action);
+    }
+  };
+  walk(action);
+  return hasUnknownSub;
+}
+
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
