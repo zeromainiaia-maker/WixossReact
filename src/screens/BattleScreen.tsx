@@ -81,11 +81,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [showMustAttackWarning, setShowMustAttackWarning] = useState(false);
   const [showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm] = useState(false);
   const [showUpkeepPayConfirm, setShowUpkeepPayConfirm] = useState(false);
-  const [showGrowModal, setShowGrowModal] = useState(false);
-  // GROW_FREE（ゲット・グロウ等）の発動中。'same'=現センターと同レベルへ、'plus1'=通常の+1。null=通常グロウ。
-  const [freeGrowFilter, setFreeGrowFilter] = useState<'same' | 'plus1' | null>(null);
-  const [pendingGrowCard, setPendingGrowCard] = useState<CardData | null>(null);
-  const [selectedGrowCost, setSelectedGrowCost] = useState<Set<number>>(new Set());
+  const {
+    showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
+    pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
+  } = useGrowModal();
   const [showArtsModal, setShowArtsModal] = useState(false);
   const [pendingArtsCard, setPendingArtsCard] = useState<CardData | null>(null);
   const [pendingArtsEffectiveCost, setPendingArtsEffectiveCost] = useState<string | null>(null);
