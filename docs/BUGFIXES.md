@@ -5,6 +5,14 @@
 
 ---
 
+## held「値/構造変更」群の owner 誤り是正＝「対戦相手のデッキ削り」が自分のデッキ削りになっていた実バグ3枚を修正（2026-07-06・続き31）
+
+held（要レビュー）の最大署名グループ「（type増減なし＝値/構造変更）12枚」を fresh-vs-curated 精密diff＋**原文直接照合**で全数機械分類。**curated の owner が誤りで parser（fresh）が正しい3枚を採用**＝いずれも原文「**対戦相手の**デッキの上からカードをN枚トラッシュに置く」なのに curated が `DECK_CARD owner:self`＝**自分のデッキを削るミルバグ**（自滅デッキアウトの危険）。`heldReview --adopt` で1フィールド是正（他フィールドは fresh==curated＝安全な単点置換）。**全ゲート緑**＝typecheck・golden 138・smoke 全0（OK10316）・fuzz 全0・同型★0（sheet3,9再生成）・census 1684（owner修正は語彙計器の対象外で数値不変）。
+
+- **採用3枚**＝WX24-P4-034（黒白赤青緑コンボで相手デッキ8枚ミル）・WX24-P4-049（トラッシュしたシグニのレベル合計ぶん相手デッキミル）・WXEX2-21（トラッシュの＜悪魔＞数ぶん相手デッキミル）。既知の「then owner=self 化」系統（WX24-P3-088 等・[[decompile-engine-parity]]）と同型で、build:effects 非破壊化以降 held に滞留していた分。
+- **原文照合で fresh を弾いた例（据置）**＝WXDi-P05-043＝fresh が「**あなたの**トラッシュのスペルをゲームから除外」を opponent 化する誤り（curated self が正）。WX18-034/WXEX1-35＝「**この**シグニは効果を受けない」の GRANT_PROTECTION を fresh が count:'ALL'（全シグニ）化する誤り（curated count:1 が正）。WX25-P2-062＝「ターン終了時まで」を fresh が PERMANENT 化する誤り。owner:opponent→undefined 系5枚（WX10-005/WX12-021/WX14-054/WXK11-008/WXK11-058＝「対戦相手は自分の…トラッシュ」の owner を fresh が脱落）も curated が正で据置。
+- **parser/engine 変更なし**（parser は既に正しい owner を産出＝curated データの陳腐化のみ）＝golden 追加対象なし。⚠**held の committed `_held_fresh.json` は古くなりうる**（本セッション開始時、既に GRANT 化済みの WX21-043/WX24-P2-046 が旧 curated=TRASH の diff で held に残存していた＝バッチ①で GRANT 採用済みなのに滞留）。**採用判断は必ず「build:effects 再生成→fresh-vs-live-curated 精密diff＋decompile対原文照合」で毎回検証する**（heldReview の diff 表示や census:clusters の枚数を鵜呑みにしない）。
+
 ## §5c(3)構造平坦化系＝「引用能力付与の平坦化」バッチ①＝対象付与/ルリグ自己付与/全体付与を GRANT_EFFECT/GRANT_LRIG_ABILITY で正エンコード＝68枚採用（2026-07-06・続き30）
 
 引用付与159枚を全数機械分類（TGT対象付与61/LRIGSELF19/CONTSELF_COND18/ALL7/SIGNISELF/OTHER）。**「＜対象＞を対象とし、ターン終了時まで、それは「【自】…」を得る」の引用内末尾節が汎用規則に飲まれ即時実行へ平坦化**（WX24-P1-057＝付与スペルが即時バウンス化・WX24-P2-046＝ルリグ【出】が即時に相手デッキ10枚ミル等の重過剰効果）していた系統を parser 3規則＋rawText展開機構で是正。**census 1720→1686（−34・引用付与カテゴリ159→107）・golden 134→138・smoke 全0（OK10316）・fuzz 全0・同型★0・lint 0 errors**。
