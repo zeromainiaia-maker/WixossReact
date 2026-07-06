@@ -883,6 +883,26 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6c: 「このシグニ{は/が}中央のシグニゾーンにあるかぎり、」（engine checkActiveCondition 実装済み）
+  const centerKagiriM = text.match(/^このシグニ[はが]中央のシグニゾーンにあるかぎり、/);
+  if (centerKagiriM) {
+    return {
+      condition: { type: 'IS_SELF_IN_CENTER_ZONE' } as ActiveCondition,
+      rest: text.slice(centerKagiriM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン6d: 「このシグニ{は/が}覚醒状態であるかぎり、」（engine checkActiveCondition 実装済み）
+  const awakenKagiriM = text.match(/^このシグニ[はが]覚醒状態であるかぎり、/);
+  if (awakenKagiriM) {
+    return {
+      condition: { type: 'IS_SELF_AWAKENED' } as ActiveCondition,
+      rest: text.slice(awakenKagiriM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // それ以外の「〜かぎり、」パターン（複雑な条件→未解析、句点を越えない）
   const genericKagiriM = text.match(/^[^。]+かぎり、/);
   if (genericKagiriM && genericKagiriM[0].length < 60) {
