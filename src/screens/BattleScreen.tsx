@@ -9418,8 +9418,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeGuardBarrierAct = async (handIndex: number) => {
     if (loading) return;
     setLoading(true);
-    setPendingGuardBarrierAct(false);
-    setSelectedBarrierGuardCard(null);
+    closeGuardBarrierAct();
     try {
       const cardNum = my.hand[handIndex];
       const newHand = my.hand.filter((_, i) => i !== handIndex);
