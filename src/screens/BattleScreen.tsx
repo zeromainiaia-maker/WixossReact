@@ -101,12 +101,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost } = useSpellCast();
-  // v0.277: 手札から発動する【起】
-  const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedHandActivatedCost, setSelectedHandActivatedCost] = useState<Set<number>>(new Set());
-  // トラッシュ自己起動（「このシグニをトラッシュから場に出す」等）
-  const [pendingTrashActivated, setPendingTrashActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedTrashActivatedCost, setSelectedTrashActivatedCost] = useState<Set<number>>(new Set());
+  // 手札【起】／トラッシュ自己起動／エナACTIVATED／ルリグ付与【起】
+  const {
+    pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost,
+    pendingTrashActivated, setPendingTrashActivated, selectedTrashActivatedCost, setSelectedTrashActivatedCost,
+    pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost,
+    pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost,
+    selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard,
+    selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash,
+    selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile,
+  } = useActivatedModals();
   // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
   const [pendingGuardBarrierAct, setPendingGuardBarrierAct] = useState(false);
   const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
