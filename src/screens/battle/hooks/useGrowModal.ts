@@ -19,12 +19,25 @@ const initialState: GrowModalState = {
 };
 
 export function useGrowModal() {
-  const [state, set] = useDomainState<GrowModalState>(initialState);
+  const [state, set, patch] = useDomainState<GrowModalState>(initialState);
   return {
     ...state,
     setShowGrowModal: set.showGrowModal,
     setFreeGrowFilter: set.freeGrowFilter,
     setPendingGrowCard: set.pendingGrowCard,
     setSelectedGrowCost: set.selectedGrowCost,
+    /** GROW_FREE（ゲット・グロウ等）でモーダルを開く（選択状態は白紙化） */
+    openFreeGrow: (filter: 'same' | 'plus1') =>
+      patch({ freeGrowFilter: filter, pendingGrowCard: null, selectedGrowCost: new Set(), showGrowModal: true }),
+    /** モーダルを閉じて選択状態・フリーグロウを全リセット */
+    closeGrowModal: () =>
+      patch({ showGrowModal: false, pendingGrowCard: null, selectedGrowCost: new Set(), freeGrowFilter: null }),
+    /** コスト支払いエナの選択トグル */
+    toggleGrowCost: (idx: number) =>
+      set.selectedGrowCost((prev) => {
+        const next = new Set(prev);
+        if (next.has(idx)) next.delete(idx); else next.add(idx);
+        return next;
+      }),
   };
 }
