@@ -155,27 +155,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   } = useAssistModals();
   // ライフクロスクラッシュ時のカード拡大
   // エンドフェイズ手札捨て選択UI
-  const [pendingEndDiscard, setPendingEndDiscard] = useState<number | null>(null);
-  const [selectedEndDiscard, setSelectedEndDiscard] = useState<Set<number>>(new Set());
-  const [burstCardZoomed, setBurstCardZoomed] = useState(false);
-  const [opCheckCardZoomed, setOpCheckCardZoomed] = useState(false); // 相手ライフクラッシュ拡大
-  const [cutinSpellZoomed, setCutinSpellZoomed] = useState(false);   // スペルカットイン画面の拡大
-  // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE
-  const [effectSelectedNums, setEffectSelectedNums] = useState<string[]>([]);
-  // REARRANGE_SIGNI: 各ゾーン（新配置）に割り当てたシグニ instance id（null=空き）
-  const [rearrangeSlots, setRearrangeSlots] = useState<(string | null)[]>([null, null, null]);
-  // カード選択UI長押し拡大
-  const [expandedPickImgUrl, setExpandedPickImgUrl] = useState<string | null>(null);
+  // エンドフェイズ手札捨て／カード拡大表示
+  const { pendingEndDiscard, setPendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard } = useEndDiscard();
+  const {
+    burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed,
+    cutinSpellZoomed, setCutinSpellZoomed,
+  } = useZoomOverlays();
+  // 効果インタラクション：SELECT_TARGET / SEARCH / CHOOSE / LOOK_AND_REORDER / スタック整列
+  const {
+    effectSelectedNums, setEffectSelectedNums, rearrangeSlots, setRearrangeSlots,
+    expandedPickImgUrl, setExpandedPickImgUrl, stackOrderIds, setStackOrderIds,
+    lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash,
+    lookReorderBottom, setLookReorderBottom, selectedMultiChoiceIds, setSelectedMultiChoiceIds,
+  } = useEffectInteraction();
   const pickLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // 効果スタック整列UI：自分の pending エントリの id を並べた配列
-  const [stackOrderIds, setStackOrderIds] = useState<string[]>([]);
-  // LOOK_AND_REORDER インタラクション：現在の並び順
-  const [lookReorderOrder, setLookReorderOrder] = useState<string[]>([]);
-  // LOOK_AND_REORDER：トラッシュに置くカード（canTrash 時のみ。「好きな枚数をトラッシュに置き」）
-  const [lookReorderTrash, setLookReorderTrash] = useState<Set<string>>(new Set());
-  // LOOK_AND_REORDER：デッキ下へ置くカード（split_top_bottom 時のみ。「残りを一番下に置く」。未選択=一番上）
-  const [lookReorderBottom, setLookReorderBottom] = useState<Set<string>>(new Set());
-  const [selectedMultiChoiceIds, setSelectedMultiChoiceIds] = useState<Set<string>>(new Set());
   // アシストルリグセットアップ（センタールリグ選択後の中間状態）
   const [pendingLrigSetup, setPendingLrigSetup] = useState<{
     centerCardNum: string;
