@@ -5,7 +5,15 @@
 
 ---
 
-## §5c「代わりに」B系統残＝per-target値すり替え・多段閾値のsubject引き継ぎ・CHOOSE平坦化復元を parser 実装＝64枚採用＋WXK02-037手パッチ（2026-07-05・zerom・続き29）
+## verifyBattleDrive のシナリオ間状態汚染を解消＝バッチ実行の既知FAIL 2種（lrigundermoved/keywordgained）の真因是正（2026-07-06）
+
+バッチ実行でのみ FAIL する既知2シナリオ（分離実行は PASS）の真因を特定し、`scripts/verifyBattleDrive.mjs` の `injectScenario` に2段のリセットを実装。**バッチ13本で lrigundermoved / keywordgained とも PASS に転じた**（deckshuffle に一過性フレーク1回あり・ペア再実行/再バッチで PASS 確認）。
+
+- **真因1（主因）＝`game_logs` 残留**：注入は host/guest_state と top-level（effect_stack 等）だけを上書きし、ログ列は前シナリオ分が累積。盤面ログ行「アーツ使用: ビカム・ユー」（wxk02029 の残留）が body テキストに残るため、`clickTextOrBtn(['使用'])` が**ボタンより先にログ行に部分一致**（`txt:使用`）して空クリックを全周続け、アーツを開く `zone-card-0` フォールバックへ一度も到達しない → lrigundermoved FAIL。→ 注入 PATCH に `game_logs: []` を追加（findLog のシナリオ跨ぎ偽陽性も同時に防止）。
+- **真因2（連鎖）＝keywordgained は独立バグではない**：lrigundermoved がモーダルを開いたままスタックした状態が Escape×3 で閉じず、次シナリオの手札クリックが CardModal を開けない（全周 `なし`）。上流の真因1修正で共倒れ解消。
+- **併せて揮発フィールドのリセットを注入前に追加**（分離実行と同じ初期条件にする）：keyword_grants（＋until_opp_turn/field系）・granted_effects（＋until_opp_turn）・temp_power_mods・temp_level_mods・power_mods_until_opp_turn・actions_done・blocked_actions・free_grow_this_turn・deck_shuffled_count。**これ単独では2種FAILは直らなかった**（PLAN 旧診断「grants 残留が観測値に混入」は不正確だった）が、deckshuffle→deckshufflespell の temp_power_mods 残留による**偽 PASS 経路**（前シナリオの +5000 が判定値に残る）を塞ぐ実質修正。
+- 教訓：バッチFAILの診断は**フルログ必須**（`tail` パイプは exit code も途中ログも失う）。テキスト部分一致クリックはログパネルを掴み得る＝シナリオ判定・操作は testid/role ボタン優先。
+
 
 「代わりに」高シグナル94枚を再機械分類（B1:per-target値のみ17／B2:多段閾値・裸条件／D:置換ルール9／E:リコレクト2／F:その他59）し、PLAN指定の B1・B2 を機構実装。**census 1751→1720（−31）・golden 132→134・smoke 全0（OK+1/SKIP−1）・fuzz 全0・同型★0・lint 0 errors**。
 
