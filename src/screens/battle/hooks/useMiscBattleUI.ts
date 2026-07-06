@@ -61,8 +61,16 @@ export interface EndDiscardState {
 }
 
 export function useEndDiscard() {
-  const [state, set] = useDomainState<EndDiscardState>({ pendingEndDiscard: null, selectedEndDiscard: new Set() });
-  return { ...state, setPendingEndDiscard: set.pendingEndDiscard, setSelectedEndDiscard: set.selectedEndDiscard };
+  const [state, set, patch] = useDomainState<EndDiscardState>({ pendingEndDiscard: null, selectedEndDiscard: new Set() });
+  return {
+    ...state,
+    setPendingEndDiscard: set.pendingEndDiscard,
+    setSelectedEndDiscard: set.selectedEndDiscard,
+    /** エンド手札捨てUIを開く（捨てる枚数を指定・選択は白紙化） */
+    openEndDiscard: (count: number) => patch({ pendingEndDiscard: count, selectedEndDiscard: new Set() }),
+    /** エンド手札捨てUIを閉じる */
+    closeEndDiscard: () => patch({ pendingEndDiscard: null, selectedEndDiscard: new Set() }),
+  };
 }
 
 // カード拡大表示（ライフバースト確認・相手ライフクラッシュ・スペルカットイン）
