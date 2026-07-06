@@ -10392,7 +10392,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         result.push({
           label: `【起】${costLabel}（${cardName}）`,
           color: C.coin,
-          onClick: () => { setPendingKeyActivated({ cardNum: keyNum, effect: eff }); setSelectedKeyActivatedCost(new Set()); },
+          onClick: () => { openKeyActivated({ cardNum: keyNum, effect: eff }); },
         });
       }
     }
