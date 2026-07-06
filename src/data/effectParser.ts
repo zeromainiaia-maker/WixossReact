@@ -2393,6 +2393,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
     const hasUnknownSub = expandGrantLrigAbilities(resolvedAction, cardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
+  } else
+  // GRANT_FIELD_SIGNI_ABILITY: rawText（引用能力原文）を parseBlock で abilities へ展開（§5c 続き34）。
+  // 付与能力の effectId は `{cardNum}-E{N}-G` とする（GRANT_ACCE と同慣例）。
+  if (resolvedAction.type === 'GRANT_FIELD_SIGNI_ABILITY' &&
+      (resolvedAction as GrantFieldSigniAbilityAction).rawText !== undefined) {
+    const gfa = resolvedAction as GrantFieldSigniAbilityAction;
+    const raw = gfa.rawText ?? '';
+    const subBlocks = splitEffectBlocks(raw.replace(/^[『「]/, '').replace(/[』」]$/, ''));
+    gfa.abilities = subBlocks
+      .map((b, si) => {
+        const e = parseBlock(cardNum, b, index);
+        if (e) e.effectId = `${cardNum}-E${index + 1}-G${si > 0 ? si + 1 : ''}`;
+        return e;
+      })
+      .filter((e): e is import('../types/effects').CardEffect => e !== null);
+    delete gfa.rawText;
+    const hasUnknownSub = gfa.abilities.length === 0 || gfa.abilities.some(e => e.parseStatus === 'UNKNOWN' || e.parseStatus === 'PARTIAL');
+    parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   } else if (resolvedAction.type === 'UNKNOWN') {
     parseStatus = 'UNKNOWN';
   } else if (resolvedAction.type === 'SEQUENCE') {
