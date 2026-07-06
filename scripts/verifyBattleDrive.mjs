@@ -739,6 +739,24 @@ async function injectScenario(page, spec) {
       o[parts[parts.length - 1]] = val;
     };
     const hs = row.host_state, gs = row.guest_state;
+    // シナリオ間の状態汚染対策：前シナリオが残した揮発フィールド（付与キーワード・一時パワー修正・
+    // 使用済みアクション等）を注入前に既定値へ戻し、バッチ実行を分離実行と同じ初期条件にする。
+    // spec が同名フィールドを持つ場合はこの後の setPath が上書きする。
+    for (const s of [hs, gs]) {
+      s.keyword_grants = {};
+      s.keyword_grants_until_opp_turn = {};
+      s.field_keyword_grants_next_turn = [];
+      s.field_keyword_grants_active = [];
+      s.granted_effects = {};
+      s.granted_effects_until_opp_turn = {};
+      s.temp_power_mods = [];
+      s.temp_level_mods = [];
+      s.power_mods_until_opp_turn = [];
+      s.actions_done = [];
+      s.blocked_actions = [];
+      s.free_grow_this_turn = false;
+      s.deck_shuffled_count = 0;
+    }
     for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
     for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
     if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)];
