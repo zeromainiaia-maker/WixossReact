@@ -42,6 +42,15 @@ export function useGuardResponses() {
     setSelectedBarrierGuardCard: set.selectedBarrierGuardCard,
     setNegateEscape: set.negateEscape,
     setSelectedNegateEscape: set.selectedNegateEscape,
+    /** バリア【起】の応答UIを開く（ガードカード選択は白紙化） */
+    openGuardBarrierAct: () => patch({ pendingGuardBarrierAct: true, selectedBarrierGuardCard: null }),
+    /** バリア【起】の応答UIを閉じる */
+    closeGuardBarrierAct: () => patch({ pendingGuardBarrierAct: false, selectedBarrierGuardCard: null }),
+    /** G154 回避（手札N枚捨て）の選択UIを開く（捨て札選択は白紙化） */
+    openNegateEscape: (v: NonNullable<GuardResponsesState['negateEscape']>) =>
+      patch({ negateEscape: v, selectedNegateEscape: new Set() }),
+    /** G154 回避の選択UIを閉じる */
+    closeNegateEscape: () => patch({ negateEscape: null, selectedNegateEscape: new Set() }),
   };
 }
 
