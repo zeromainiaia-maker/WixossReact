@@ -10238,7 +10238,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrigActionsMA.push({
             label: '【起】ガードシグニ捨て→ルリグバリア',
             color: '#4db6e0',
-            onClick: () => { setPendingGuardBarrierAct(true); setSelectedBarrierGuardCard(null); },
+            onClick: () => { openGuardBarrierAct(); },
           });
         }
       }
