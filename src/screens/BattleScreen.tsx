@@ -6250,10 +6250,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           label: '使用',
           color: C.coin,
           onClick: () => {
-            setPendingArtsCard(cardData);
-            setPendingArtsEffectiveCost(effectiveCostStr ?? (specificReduction ? reducedArtsCost : null));
-            setSelectedArtsCost(new Set());
-            setShowArtsModal(true);
+            openArtsModal(cardData, effectiveCostStr ?? (specificReduction ? reducedArtsCost : null));
           },
         });
       }
