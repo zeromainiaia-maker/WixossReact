@@ -10655,7 +10655,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 });
                 return (
                   <button key={cardNum + effect.effectId}
-                    onClick={() => { setPendingEnergyActivated({ cardNum, effect }); setSelectedEnergyActivatedCost(new Set()); }}
+                    onClick={() => { openEnergyActivated({ cardNum, effect }); }}
                     disabled={alreadyDone || !hasTarget || loading}
                     style={{ padding: '4px 8px', borderRadius: 4, border: 'none', fontSize: 10, fontWeight: 'bold',
                       backgroundColor: (alreadyDone || !hasTarget) ? C.disabled : '#4caf50',
