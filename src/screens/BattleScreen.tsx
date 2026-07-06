@@ -10169,9 +10169,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             label: `【起】${lrigActLabel}`,
             color: isSongFrag ? '#cc66ff' : C.coin,
             onClick: () => {
-              setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
-              setSelectedLrigGrantedCost(new Set());
-              setSelectedLrigGrantedHandDiscard(new Set());
+              openLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
             },
           });
         }
@@ -10232,9 +10230,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             label: `【起】${costLabel}`,
             color: C.coin,
             onClick: () => {
-              setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
-              setSelectedLrigGrantedCost(new Set());
-              setSelectedLrigGrantedHandDiscard(new Set());
+              openLrigGranted({ sourceCardNum: lrigTopMA, effect: eff });
             },
           };
         });
