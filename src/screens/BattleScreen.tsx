@@ -10276,9 +10276,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             label: `【起】${buildCostLabelAA(eff)}`,
             color: C.coin,
             onClick: () => {
-              setPendingLrigGranted({ sourceCardNum: lrigTopAA, effect: eff });
-              setSelectedLrigGrantedCost(new Set());
-              setSelectedLrigGrantedHandDiscard(new Set());
+              openLrigGranted({ sourceCardNum: lrigTopAA, effect: eff });
             },
           });
         }
