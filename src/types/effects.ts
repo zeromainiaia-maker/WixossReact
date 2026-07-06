@@ -817,7 +817,8 @@ export interface GrantKeywordAction {
 export interface GrantEffectAction {
   type: 'GRANT_EFFECT';
   target: EffectTarget;
-  effect: CardEffect;      // 付与するエフェクト（AUTO/ACTIVATED/CONTINUOUSなど）
+  effect?: CardEffect;     // 付与するエフェクト（AUTO/ACTIVATED/CONTINUOUSなど）。rawText からパース後に展開される
+  rawText?: string;        // 引用「…」の原文（パース中の一時フィールド。expandGrantEffectRawTexts が effect へ展開後に削除）
   duration: EffectDuration;
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
 }
