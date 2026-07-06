@@ -1341,6 +1341,15 @@ function parseActionText(text: string): EffectAction {
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
+  // ---- センタールリグ自身への能力付与（「(ターン終了時まで、)このルリグは「...」を得る」＝ルリグ【起】/【出】の自己付与・§5c 続き30）----
+  // GRANT_LRIG_ABILITY の省略デフォルト＝ターン終了時まで。「次の対戦相手のターン終了時まで」は表現語彙が無いため据置。
+  {
+    const quotedSelfLrigM = text.match(/(?:ターン終了時まで、)?このルリグは[「『]([\s\S]+?)[」』]を得る/);
+    if (quotedSelfLrigM && !text.includes('次の対戦相手のターン終了時まで、このルリグは')) {
+      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedSelfLrigM[1].trim(),
+        ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
+    }
+  }
   // ---- アクセホストへの能力付与（GRANT_ACCE_HOST_ABILITY）----
   // 「これにアクセされている[＜X＞の|《Y》の]シグニは「...」を得る」（引用能力）/「...は【ランサー】等を得る」（キーワード）。
   // splitSentences で引用内の「。」により wrapper が壊れる前に最優先で捕捉する（さもないと内側の能力が単独効果として漏れ出す）。
