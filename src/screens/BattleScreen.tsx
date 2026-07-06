@@ -115,11 +115,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
   const [selectedCutinExceed, setSelectedCutinExceed] = useState<Set<number>>(new Set());
   // シグニ起動効果
-  const [pendingSigniActivated, setPendingSigniActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedSigniActivatedCost, setSelectedSigniActivatedCost] = useState<Set<number>>(new Set());
-  const [selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard] = useState<Set<number>>(new Set());
-  // 起動能力 fieldTrash コスト（場のシグニを場からトラッシュ）のゾーン選択
-  const [selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash] = useState<Set<number>>(new Set());
+  const {
+    pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost,
+    selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard,
+    selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar,
+    selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash,
+    selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash,
+    selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile,
+    selectedSigniActivatedBeat, setSelectedSigniActivatedBeat,
+    signiActCharmTrashVar, setSigniActCharmTrashVar,
+  } = useSigniActivated();
   // エナゾーンのACTIVATED能力（アクセカード発動）
   const [pendingEnergyActivated, setPendingEnergyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedEnergyActivatedCost, setSelectedEnergyActivatedCost] = useState<Set<number>>(new Set());
