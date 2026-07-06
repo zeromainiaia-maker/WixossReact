@@ -2630,6 +2630,8 @@ function parseSpellEffect(card: CardData): CardEffect | null {
     const hasUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   }
+  // GRANT_EFFECT の rawText 展開（スペル経路・SEQUENCE/CONDITIONAL/CHOOSE 内も対象）
+  if (expandGrantEffectRawTexts(action, card.CardNum) && parseStatus === 'AUTO') parseStatus = 'PARTIAL';
   return {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
