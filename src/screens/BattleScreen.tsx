@@ -76,16 +76,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [cpuDeckData, setCpuDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showEndConfirm, setShowEndConfirm] = useState(false);
-  const [showSetupLeaveConfirm, setShowSetupLeaveConfirm] = useState(false);
   const [mulliganSelected, setMulliganSelected] = useState<Set<number>>(new Set());
   const [pendingSigniSummon, setPendingSigniSummon] = useState<{ cardNum: string; handIndex: number } | null>(null);
-  const [showEnergySkipConfirm, setShowEnergySkipConfirm] = useState(false);
-  const [showGrowSkipConfirm, setShowGrowSkipConfirm] = useState(false);
-  const [showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm] = useState(false);
-  const [showMustAttackWarning, setShowMustAttackWarning] = useState(false);
-  const [showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm] = useState(false);
-  const [showUpkeepPayConfirm, setShowUpkeepPayConfirm] = useState(false);
+  const {
+    showEndConfirm, setShowEndConfirm, showSetupLeaveConfirm, setShowSetupLeaveConfirm,
+    showEnergySkipConfirm, setShowEnergySkipConfirm, showGrowSkipConfirm, setShowGrowSkipConfirm,
+    showSigniAttackSkipConfirm, setShowSigniAttackSkipConfirm, showMustAttackWarning, setShowMustAttackWarning,
+    showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm, showUpkeepPayConfirm, setShowUpkeepPayConfirm,
+    showRemoveBlockedWarn, setShowRemoveBlockedWarn,
+  } = usePhaseConfirms();
   const {
     showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
     pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
