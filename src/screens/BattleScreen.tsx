@@ -95,6 +95,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
     pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
+    openFreeGrow, closeGrowModal, toggleGrowCost,
   } = useGrowModal();
   const {
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
