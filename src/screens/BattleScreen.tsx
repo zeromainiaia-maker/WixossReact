@@ -152,6 +152,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost,
     pendingKeyActivated, setPendingKeyActivated, selectedKeyActivatedCost, setSelectedKeyActivatedCost,
     selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard, keySubstituteEnabled, setKeySubstituteEnabled,
+    openKeyModal, closeKeyModal, openKeyActivated, closeKeyActivated,
   } = useKeyModals();
   // アシストルリグ
   const {
