@@ -9801,11 +9801,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
     if (loading) return;
     setLoading(true);
-    setPendingLrigGranted(null);
-    setSelectedLrigGrantedCost(new Set());
-    setSelectedLrigGrantedHandDiscard(new Set());
-    setSelectedLrigGrantedEnergyTrash(new Set());
-    setSelectedLrigGrantedTrashExile(new Set());
+    closeLrigGranted();
     try {
       // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
       const exceedCost = effect.cost?.exceed ?? 0;
