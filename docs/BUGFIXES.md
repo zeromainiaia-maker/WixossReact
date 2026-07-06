@@ -5,6 +5,17 @@
 
 ---
 
+## §5b B層：REVEAL_AND_PICK残タスク(c)＝ピック結果の色に応じた条件トレイル4枚を是正（2026-07-07・続き35・Sonnet 5・同日第4ラウンド）
+
+続き33で持ち越された残37件のうち分類(c)「ピック結果の色に応じた条件トレイル」＝「デッキ上N枚見て＜クラス＞のカードをM枚まで手札に加える。その後、この方法で特定色のカードを1枚以上手札に加えた場合、追加効果」型4枚（WX25-CP1-025/027/031・WX25-P3-047）を是正。curatedはいずれも公開/ピック部分・追加効果部分の両方が欠落した bare `LOOK_AND_REORDER` だった（続き33/続き35第3ラウンドと同根の実バグ）。
+
+- **共通パターン**＝`SEQUENCE[REVEAL_AND_PICK{filter:{cardClass:'ブルアカ'},pickCount:2,pickUpTo:true,pickNoun:'カード',then:ADD_TO_HAND,remainder:{deck,bottom}}, CONDITIONAL{condition:{type:'LAST_PROCESSED_MATCHES',filter:{color:<色>,cardClass:'ブルアカ'},minCount:1},then:<追加効果>}]`。`LAST_PROCESSED_MATCHES` は直前ステップで手札に加えたカード（`lastProcessedCards`）に対するfilter一致枚数を判定する既存condition型（続き33でも動作確認済みの経路）。
+- **採用3枚（同型バリエーション）**＝**WX25-CP1-025**（白→対戦相手のパワー10000以下シグニ1体を`BOUNCE`）・**WX25-CP1-027**（青→対戦相手のパワー12000以下シグニ1体を`BANISH`。原文の「対戦相手が手札を２枚捨てないかぎり」というescape節は `BanishAction` に対応フィールドが存在せず、同一パターンの既存カードWX25-P1-040でも同節が省略されている前例に倣い今回も省略＝既存の corpus 慣行を踏襲）・**WX25-CP1-031**（黒→対戦相手のシグニ1体に `POWER_MODIFY{delta:-10000,duration:'UNTIL_END_OF_TURN'}`）。
+- **採用1枚（複合条件バリエーション）**＝**WX25-P3-047**（「この方法で手札に加えたカード１枚が赤で、もう１枚が緑の場合」＝2色同時条件。`CONDITIONAL{condition:{type:'AND',conditions:[{type:'LAST_PROCESSED_MATCHES',filter:{color:'赤'},minCount:1},{type:'LAST_PROCESSED_MATCHES',filter:{color:'緑'},minCount:1}]}}` で表現＝`Condition`型の既存 `AND` 複合条件（`execUtils.ts`実装済み）を活用。「残りをシャッフルしてデッキの一番下に置く」の shuffle 部分は `remainder` に shuffle フラグが存在しないため、`REVEAL_AND_PICK` の後段に明示的な `SHUFFLE_DECK` ステップを追加して表現）。
+- 4枚とも手パッチのため `parseStatus:'MANUAL'` を刻印。
+- **検証**＝typecheck緑・golden 141（変化なし）・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet9再生成）・**census 1663→1659**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。**parser/engine変更なし**。
+- **次の一手**＝同じ4色セットの**WX25-CP1-029（緑）は今回未着手**＝「あなたの手札からレベル2以下の＜ブルアカ＞のシグニを1枚まで場に出す。ターン終了時まで、この方法で場に出たシグニのパワーを＋3000し、そのシグニは【ランサー】を得る」という「新たに場に出したシグニそのものへのバフ」を表現する必要があり、`POWER_MODIFY`/`GRANT_KEYWORD` の `targetsLastProcessed` フィールド（`lastProcessedCards` を無選択ターゲットにする機構）が `ADD_TO_FIELD` の結果を正しく `lastProcessedCards` にセットするかの検証が追加で必要＝次回Sonnetの継続候補。分類(b)2段/複合ピック（WXDi-P06-053/WX26-CP1-019/WX25-P1-035）・(d)CHOOSE内包（WXDi-P10-004/WX26-CP1-100）も未着手。
+
 ## §5b B層：REVEAL_AND_PICK残タスク(a)＝エクシード等の追加条件でpickCountが変わるカード3枚を是正＋PAID_ADDITIONAL_COST機構の限界を特定（2026-07-07・続き35・Sonnet 5・同日第3ラウンド）
 
 続き33で持ち越された「デッキ上N枚見てpickする」型の残37件のうち、分類(a)「エクシード等条件でpickCount分岐」4件（WXDi-P03-005/WXDi-CP01-001/WX24-P4-061/WX24-D1-25）に着手。いずれも curated は原文の「公開して手札に加える（pick）」部分が丸ごと欠落し、無関係な `LOOK_AND_REORDER`＋`TRANSFER_TO_DECK`（自分のシグニをデッキに戻す）に誤エンコードされていた＝続き33と同根の実バグ。
