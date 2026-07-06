@@ -2370,6 +2370,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     const seq = resolvedAction as SequenceAction;
     if (seq.steps.some(s => s.type === 'UNKNOWN')) parseStatus = 'PARTIAL';
   }
+  // GRANT_EFFECT の rawText 展開（SEQUENCE/CONDITIONAL/CHOOSE 内も対象）
+  if (expandGrantEffectRawTexts(resolvedAction, cardNum) && parseStatus === 'AUTO') parseStatus = 'PARTIAL';
 
   // ALT_COST_OPP_TURN をアクション列から抽出して CardEffect フィールドに昇格
   let altCostOppTurn: import('../types/effects').EnergyCost[] | undefined;
