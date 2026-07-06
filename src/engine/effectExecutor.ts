@@ -1570,6 +1570,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 }
 
 function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
+  // rawText 未展開（パース失敗の PARTIAL 温存）＝付与内容が無いので no-op
+  if (!a.effect) return done(ctx);
   // targetsLastProcessed:「それ」= 直前に選択/処理したシグニ(lastProcessedCards)へ付与（WX04-094。選択UIを出さず同一対象に付与）
   if (a.targetsLastProcessed) {
     const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
