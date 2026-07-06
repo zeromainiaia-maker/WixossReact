@@ -33,7 +33,12 @@ import * as path from 'path';
 // 2026-07-06 続き30: 引用能力付与の平坦化バッチ①68枚採用＝1720→1686。
 // 2026-07-06 続き31: held owner是正3枚採用（語彙計器対象外で不変）＝1686→1684（未反映分を実数更新）。
 // 2026-07-06 続き33(Sonnet): B層データ欠落補完＝REVEAL_AND_PICK/LOOK_AND_REORDER pick脱落16枚是正＝1684→1670。
-const BASELINE_HIGH = 1667;
+// 2026-07-07 続き34(Opus): 引用付与CONTSELF_COND機構新設＝GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}採用4枚＝1670→1667。
+// 2026-07-07 続き35(Sonnet): Opusバッチ後の再収穫＝IS_SELF_IN_CENTER_ZONE単一条件で正しく拾えた4枚採用
+// （WXDi-P04-057/074・WDK07-Y14・WXK09-059＝ON_ATTACK等トリガー構造が正しく捕捉された分。複合条件脱落
+// （WX06-035/WX15-054等）・GRANT_PROTECTION等価変換のcount退化（WXEX1-35）・条件型が別種で未対応
+// （WX13-058/WXDi-P13-052/WXK06-023）は原文照合で弾いて held に温存）＝1667→1665。
+const BASELINE_HIGH = 1665;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
