@@ -9,8 +9,14 @@ export interface RemoveZoneState {
 }
 
 export function useRemoveZone() {
-  const [state, set] = useDomainState<RemoveZoneState>({ showRemoveModal: false, selectedRemoveZones: new Set() });
-  return { ...state, setShowRemoveModal: set.showRemoveModal, setSelectedRemoveZones: set.selectedRemoveZones };
+  const [state, set, patch] = useDomainState<RemoveZoneState>({ showRemoveModal: false, selectedRemoveZones: new Set() });
+  return {
+    ...state,
+    setShowRemoveModal: set.showRemoveModal,
+    setSelectedRemoveZones: set.selectedRemoveZones,
+    /** リムーブモーダルを開く（ゾーン選択は白紙化） */
+    openRemoveZone: () => patch({ showRemoveModal: true, selectedRemoveZones: new Set() }),
+  };
 }
 
 // ガード応答（GuardBarrierActModal＝WX25-P2-001 付与【起】／NegateEscapeModal＝G154 BURST 回避）
