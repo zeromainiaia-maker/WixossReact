@@ -77,6 +77,26 @@
   - **リファクタ Stage2/3**（BattleScreen コントローラ設計）。
   - BEHAVIOR_AUDIT の**真no-op vs シナリオ空振りの最終仕分け**とengine修正。
 
+#### 現在の割付（2026-07-06・続き32時点の残作業を具体タスクに切り分け）
+> ⚠**前提＝Sonnet 向け単点消化パイプライン（held/behavior-audit）は現在プラトー**（続き32で新規採用0を確認）。**Opus が語彙・機構を1バッチ開く→Sonnet が heldReview 再収穫＋ゲート＋簿記で消化する交互サイクル**で回す。トークン節約のため、下記 Sonnet 在庫があるうちは Sonnet で開始し、切れたら Opus に切り替える。
+
+**Opus 4.8 のタスク（推奨順）**：
+1. **§5c 引用付与の残107 の語彙拡充**＝(a)CONTSELF_COND 18（【常】…かぎり自己付与の語彙設計）(b)OTHER 約30（場全体常時付与＝GRANT_FIELD_SIGNI_ABILITY 化）(c)**内側トリガー語彙拡充**（triggerScope／「このシグニ」自己参照）→除外27を再収穫。＝続き31-32 指名の本丸。
+2. **held 残署名の系統別本実装**（GRANT_EFFECT quote展開・CHOOSE平坦化・WX20-043 型の条件持ち上げ）。⚠着手前に必ず全数機械分類（続き24-29の型）。
+3. **「代わりに」残テールの機構系**＝D:置換ルール9（バニッシュされない系＝置換機構）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）。
+4. **§6.1 未実装action型 残11種27効果**の engine 実装（PLAY_FREE_FROM_TRASH／STACK_SPELL／PREVENT_DAMAGE／COST_SUBSTITUTE／SELF_TRASH_PREVENT／COLOR_INHERIT／GRANT_FIELD_SHADOW）。
+5. **§6.3 大型機構**＝ゲーム除外（ルリグデッキピース含む＝WXDi-P04-016-E3 の修正とセット）・canCardGuard 共通ヘルパー統一→ガード喪失配線・多段閾値 nested CONDITIONAL・スペル被破棄【自】トリガー収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査。
+6. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ）。
+7. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
+
+**Sonnet 5 のタスク（今すぐ回せる在庫）**：
+1. **§5b 逆翻訳テール＝engine実装済みSTUB id の意味文化**（COPY_LRIG_NAME_ABILITY 16 ほか・decompiler に原文意味文を1行足すだけ・engine不変・ゲートは同型★0＋原文照合のみで軽い）。
+2. **B層 JSONデータ欠落補完**（REVEAL_AND_PICK／LOOK_AND_REORDER の pick 部分脱落＝WXDi-P04-047 等・effectId アンカー直パッチ＋原文照合。engine 対応済み語彙のみ）。
+3. **§7 実機検証のシナリオ横展開**（`verifyBattleDrive.mjs` の scenarios に1行追加式＝R30-R46・C1 follow-up の確認。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 の該当項目に記録してバトン）。
+4. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
+5. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
+6. **Opus バッチ後の再収穫サイクル**（`build:effects`→`heldReview` spot-check→採用→全ゲート→シート再生成→BASELINE/PLAN簿記→commit）＝上記⚠必須ガードレール4点をプロンプトに固定。**Opus の語彙拡充が入るまで §5c 再収穫には着手しない**（プラトー確認済みのため空振りになる）。
+
 ---
 
 ## 4. 現在地とバトン（直近セッション）
