@@ -33,9 +33,19 @@ const initialState: SigniActivatedState = {
 };
 
 export function useSigniActivated() {
-  const [state, set] = useDomainState<SigniActivatedState>(initialState);
+  const [state, set, patch] = useDomainState<SigniActivatedState>(initialState);
   return {
     ...state,
+    /** シグニ【起】モーダルを開く（コスト・可変捨て・場トラッシュ選択を白紙化） */
+    openSigniActivated: (pending: NonNullable<SigniActivatedState['pendingSigniActivated']>) =>
+      patch({
+        pendingSigniActivated: pending,
+        selectedSigniActivatedCost: new Set(),
+        selectedSigniActivatedDiscardVar: new Set(),
+        selectedSigniActivatedFieldTrash: new Set(),
+      }),
+    /** シグニ【起】モーダルを閉じて選択を全リセット（keySubstituteEnabled はキー側で別途） */
+    closeSigniActivated: () => patch({ ...initialState, selectedSigniActivatedCost: new Set(), selectedSigniActivatedDiscard: new Set(), selectedSigniActivatedDiscardVar: new Set(), selectedSigniActivatedFieldTrash: new Set(), selectedSigniActivatedEnergyTrash: new Set(), selectedSigniActivatedTrashExile: new Set(), selectedSigniActivatedBeat: new Set() }),
     setPendingSigniActivated: set.pendingSigniActivated,
     setSelectedSigniActivatedCost: set.selectedSigniActivatedCost,
     setSelectedSigniActivatedDiscard: set.selectedSigniActivatedDiscard,
