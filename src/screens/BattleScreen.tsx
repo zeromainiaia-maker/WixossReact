@@ -70,6 +70,8 @@ import { useSigniOnPlayCost } from './battle/hooks/useSigniOnPlayCost';
 import { useSigniActivated } from './battle/hooks/useSigniActivated';
 import { useActivatedModals } from './battle/hooks/useActivatedModals';
 import { useCutin } from './battle/hooks/useCutin';
+import { useEffectInteraction } from './battle/hooks/useEffectInteraction';
+import { useRemoveZone, useGuardResponses, useEndDiscard, useZoomOverlays } from './battle/hooks/useMiscBattleUI';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
