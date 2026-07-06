@@ -1164,6 +1164,20 @@ function parseSingleSentence(text: string): EffectAction {
       return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter }, keyword: m[3], duration: dur };
     }
   }
+  // 「ターン終了時まで、あなたの/対戦相手の(感染状態の)すべての(＜X＞の/レベルNの)シグニは「【自/出/起】…」を得る」
+  // → GRANT_EFFECT count:'ALL'（引用は expandGrantEffectRawTexts が parseBlock で展開・§5c 続き30）。
+  // 期間プレフィックス必須＝【常】の場全体付与（duration無し）はここでは扱わない（GRANT_FIELD_SIGNI_ABILITY の領分）。
+  {
+    const m = text.trim().replace(/。$/, '').match(/^ターン終了時まで、(あなたの|対戦相手の)(.*?)すべての(.*?)シグニは「(【[自出起]】.+)」を得る$/s);
+    if (m && !/」と「|」か「/.test(m[4])) {
+      const owner: Owner = m[1] === '対戦相手の' ? 'opponent' : 'self';
+      const seg = m[2] + m[3];
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(seg), ...parseLevelFilter(seg), ...parseColorFilter(seg) };
+      if (seg.includes('感染状態')) filter.infected = true;
+      return { type: 'GRANT_EFFECT', target: { type: 'SIGNI', owner, count: 'ALL', filter },
+        duration: 'UNTIL_END_OF_TURN', rawText: m[4] } as EffectAction;
+    }
+  }
   // タイミング・期間プレフィックスを除去（既にパースブロックで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
