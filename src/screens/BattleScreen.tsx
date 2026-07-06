@@ -6169,7 +6169,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       actions.push({
         label: energyTotal > 0 ? `【起】トラッシュから出す（エナ${energyTotal}）` : '【起】トラッシュから出す',
         color: '#ff6b35',
-        onClick: () => { setPendingTrashActivated({ cardNum, effect: eff }); setSelectedTrashActivatedCost(new Set()); },
+        onClick: () => { openTrashActivated({ cardNum, effect: eff }); },
       });
     }
     return actions;
