@@ -1614,9 +1614,9 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
     const key = untilOppTurn ? 'granted_effects_until_opp_turn' : 'granted_effects';
     const granted = { ...(s[key] ?? {}) };
     for (const n of selected) {
-      granted[n] = [...(granted[n] ?? []), a.effect];
+      granted[n] = [...(granted[n] ?? []), grantEff];
     }
-    const effectLabel = (a.effect as { effectType?: string })?.effectType ?? '効果';
+    const effectLabel = (grantEff as { effectType?: string })?.effectType ?? '効果';
     return addLog(setOwnerState(tgt.owner, { ...s, [key]: granted }, c),
       `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に${effectLabel}を付与`);
   }
