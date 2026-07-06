@@ -124,7 +124,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ガード応答（バリア【起】／G154 BURST 回避）
   const {
     pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard,
-    negateEscape, setNegateEscape, selectedNegateEscape, setSelectedNegateEscape,
+    negateEscape, selectedNegateEscape, setSelectedNegateEscape,
     openGuardBarrierAct, closeGuardBarrierAct, openNegateEscape, closeNegateEscape,
   } = useGuardResponses();
   const {
