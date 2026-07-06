@@ -68,6 +68,8 @@ import { useAssistModals } from './battle/hooks/useAssistModals';
 import { usePhaseConfirms } from './battle/hooks/usePhaseConfirms';
 import { useSigniOnPlayCost } from './battle/hooks/useSigniOnPlayCost';
 import { useSigniActivated } from './battle/hooks/useSigniActivated';
+import { useActivatedModals } from './battle/hooks/useActivatedModals';
+import { useCutin } from './battle/hooks/useCutin';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
