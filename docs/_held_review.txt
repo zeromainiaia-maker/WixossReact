@@ -3,8 +3,20 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +GRANT_FIELD_SIGNI_ABILITY ［10枚］
-WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P04-057 WXDi-P04-074 WXDi-P13-052 WXEX1-35 WXEX1-76 WXK09-059
+## （type増減なし＝値/構造変更） ［8枚］
+WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-P05-043 WXK11-008 WXK11-058
+--- WX10-005
+  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.choices[1].action.owner = "opponent"
+--- WX12-021
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
+  - [2].action.steps[1].owner = "opponent"
+--- WX14-054
+  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
+  - [0].action.owner = "opponent"
+
+## +GRANT_FIELD_SIGNI_ABILITY ［7枚］
+WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P13-052 WXEX1-35 WXEX1-76
 --- WX06-032
   原文: 【常】：あなたのセンタールリグが緑で、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【自】：このシグニがアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。」を得る。,-
   - [0].action.owner = "self"
@@ -49,66 +61,6 @@ WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P04-057 WXDi-P04-074 WXDi-P13-052 WXEX1
   + [0].action.abilities[0].duration = "INSTANT"
   + [0].action.abilities[0].mandatory = false
   + [0].action.abilities[0].parseStatus = "AUTO"
-
-## （type増減なし＝値/構造変更） ［8枚］
-WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-P05-043 WXK11-008 WXK11-058
---- WX10-005
-  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
-  - [0].action.choices[1].action.owner = "opponent"
---- WX12-021
-  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
-  - [2].action.steps[1].owner = "opponent"
---- WX14-054
-  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
-  - [0].action.owner = "opponent"
-
-## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE ［5枚］
-WDK07-Y14 WX20-036-CB WXDi-D09-P20 WXK05-053 WXK06-023
---- WDK07-Y14
-  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、あなたの場に＜植物＞のシグニが３体ある場合、【エナチャージ２】をする。」を得る。【自】：このシグニが開花したとき、カードを１枚引く。,：カードを１枚引く。
-  - [0].action.owner = "self"
-  - [0].action.count = 2
-  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WDK07-Y14-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.abilities[0].action.owner = "self"
-  + [0].action.abilities[0].action.count = 2
-  + [0].action.abilities[0].duration = "INSTANT"
-  …（他 3 行）
---- WX20-036-CB
-  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【常】：あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを＋3000する。」を得る。【自】：このシグニがバニッシュされたとき、《赤》《赤》を支払ってもよい。そうした場合、このシグニをエナゾーンからダウン状態で場に出す。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "any"
-  - [0].action.target.count = 1
-  - [0].action.delta = 3000
-  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WX20-036-CB-E1-G"
-  + [0].action.abilities[0].effectType = "CONTINUOUS"
-  + [0].action.abilities[0].action.type = "POWER_MODIFY"
-  + [0].action.abilities[0].action.target.type = "SIGNI"
-  + [0].action.abilities[0].action.target.owner = "any"
-  …（他 5 行）
---- WXDi-D09-P20
-  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、カードを１枚引くか対戦相手は手札を１枚捨てる。」を得る。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
-  ~ [0].action.type : "DRAW" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WXDi-D09-P20-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "DRAW"
-  + [0].action.abilities[0].action.owner = "self"
-  + [0].action.abilities[0].action.count = 1
-  + [0].action.abilities[0].duration = "INSTANT"
-  …（他 3 行）
 
 ## +GRANT_LRIG_ABILITY ［5枚］
 SPDi43-11 SPDi43-12 WXDi-D06-010 WXDi-P13-008 WXEX2-03
@@ -221,6 +173,54 @@ SPDi01-132 WX14-006A WXDi-P02-018 WXK02-023
   + [0].action.effect.action.target.type = "SIGNI"
   + [0].action.effect.action.target.owner = "self"
   …（他 6 行）
+
+## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE ［4枚］
+WX20-036-CB WXDi-D09-P20 WXK05-053 WXK06-023
+--- WX20-036-CB
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【常】：あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを＋3000する。」を得る。【自】：このシグニがバニッシュされたとき、《赤》《赤》を支払ってもよい。そうした場合、このシグニをエナゾーンからダウン状態で場に出す。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "any"
+  - [0].action.target.count = 1
+  - [0].action.delta = 3000
+  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
+  ~ [0].action.type : "POWER_MODIFY" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WX20-036-CB-E1-G"
+  + [0].action.abilities[0].effectType = "CONTINUOUS"
+  + [0].action.abilities[0].action.type = "POWER_MODIFY"
+  + [0].action.abilities[0].action.target.type = "SIGNI"
+  + [0].action.abilities[0].action.target.owner = "any"
+  …（他 5 行）
+--- WXDi-D09-P20
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、カードを１枚引くか対戦相手は手札を１枚捨てる。」を得る。,-
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
+  ~ [0].action.type : "DRAW" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXDi-D09-P20-E1-G"
+  + [0].action.abilities[0].effectType = "AUTO"
+  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
+  + [0].action.abilities[0].action.type = "DRAW"
+  + [0].action.abilities[0].action.owner = "self"
+  + [0].action.abilities[0].action.count = 1
+  + [0].action.abilities[0].duration = "INSTANT"
+  …（他 3 行）
+--- WXK05-053
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、同じシグニゾーンに【シード】がある場合、【エナチャージ１】をする。」を得る。,-
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  + [0].activeCondition.type = "IS_SELF_IN_CENTER_ZONE"
+  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXK05-053-E1-G"
+  + [0].action.abilities[0].effectType = "AUTO"
+  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
+  + [0].action.abilities[0].action.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.abilities[0].action.owner = "self"
+  + [0].action.abilities[0].action.count = 1
+  + [0].action.abilities[0].duration = "INSTANT"
+  …（他 3 行）
 
 ## +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB×2 ［4枚］
 WXDi-P13-045 WXK10-010 WXK10-012 WXK10-013
