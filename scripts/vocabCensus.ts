@@ -38,7 +38,11 @@ import * as path from 'path';
 // （WXDi-P04-057/074・WDK07-Y14・WXK09-059＝ON_ATTACK等トリガー構造が正しく捕捉された分。複合条件脱落
 // （WX06-035/WX15-054等）・GRANT_PROTECTION等価変換のcount退化（WXEX1-35）・条件型が別種で未対応
 // （WX13-058/WXDi-P13-052/WXK06-023）は原文照合で弾いて held に温存）＝1667→1665。
-const BASELINE_HIGH = 1665;
+// 2026-07-07 続き35(Sonnet)第2ラウンド: 同バッチの続き＝WXDi-P06-046/SPDi01-132/WXK02-023 追加採用3枚
+// （census高シグナルパターン対象外のため数値不変＝1665のまま）。
+// 2026-07-07 続き35(Sonnet)第3ラウンド: B層REVEAL_AND_PICK残タスク＝WXDi-CP01-001/WX24-P4-061/WX24-D1-25の
+// LOOK_AND_REORDER+TRANSFER_TO_DECK誤エンコードをREVEAL_AND_PICKへ手パッチ（MANUAL刻印）＝1665→1663。
+const BASELINE_HIGH = 1663;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
