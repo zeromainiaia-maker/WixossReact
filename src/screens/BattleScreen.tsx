@@ -128,32 +128,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // エナゾーンのACTIVATED能力（アクセカード発動）
   const [pendingEnergyActivated, setPendingEnergyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedEnergyActivatedCost, setSelectedEnergyActivatedCost] = useState<Set<number>>(new Set());
-  // 任意コスト支払い（OPTIONAL_COST）のエナ選択
-  const [selectedOptCost, setSelectedOptCost] = useState<Set<number>>(new Set());
-  // シグニ出現時コスト付き任意【出】効果
-  const [pendingSigniOnPlayCost, setPendingSigniOnPlayCost] = useState<{
-    cardNum: string;
-    costEffect: import('../types/effects').CardEffect;
-    placedState: PlayerState;
-    mandatoryEntries: StackEntry[];
-    remainingCostEffects?: import('../types/effects').CardEffect[]; // 2つ目以降のコスト付き任意【出】（1効果ずつモーダルを連鎖）
-    placedZone?: number; // 召喚したゾーン（fieldTrashのexcludeSelf / handToUnderSelfの行き先に使用。グロウ経路はundefined）
-  } | null>(null);
-  const [selectedSigniOnPlayCost, setSelectedSigniOnPlayCost] = useState<Set<number>>(new Set());
-  const [selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard] = useState<Set<number>>(new Set());
-  // エナゾーンからのカード指定コスト（cost.energyTrash）の選択
-  const [selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash] = useState<Set<number>>(new Set());
-  // 場のシグニをトラッシュするコスト（cost.fieldTrash）のゾーン選択
-  const [selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash] = useState<Set<number>>(new Set());
-  // 「シグニを【ビート】にする」コスト（cost.beat_signi）の「他の/任意」beat対象ゾーン選択（自動近似の代替）
-  const [selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat] = useState<Set<number>>(new Set());
-  const [selectedSigniActivatedBeat, setSelectedSigniActivatedBeat] = useState<Set<number>>(new Set());
-  // ルリグデッキからアーツを選択するコスト（trashArtsFromLrigDeck）
-  const [selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash] = useState<string | null>(null);
-  // 可変チャームトラッシュコスト - ON_PLAY効果用
-  const [signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar] = useState<number>(0);
-  // 可変チャームトラッシュコスト - シグニ起動効果用
-  const [signiActCharmTrashVar, setSigniActCharmTrashVar] = useState<number>(0);
+  // シグニ出現時コスト付き任意【出】効果（＋OPTIONAL_COST エナ選択）
+  const {
+    pendingSigniOnPlayCost, setPendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost,
+    selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard,
+    selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash,
+    selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash,
+    selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat,
+    selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash,
+    signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar,
+    selectedOptCost, setSelectedOptCost,
+  } = useSigniOnPlayCost();
   // キーピース
   const {
     showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost,
