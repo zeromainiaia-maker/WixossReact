@@ -9011,15 +9011,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (dzi >= 0 && (my.field.signi_down?.[dzi] ?? false)) return;
     }
     setLoading(true);
-    setPendingSigniActivated(null);
-    setSelectedSigniActivatedCost(new Set());
-    setSelectedSigniActivatedDiscard(new Set());
-    setSelectedSigniActivatedDiscardVar(new Set());
-    setSelectedSigniActivatedEnergyTrash(new Set());
-    setSelectedSigniActivatedTrashExile(new Set());
-    setSelectedSigniActivatedFieldTrash(new Set());
-    setSelectedSigniActivatedBeat(new Set());
-    setSigniActCharmTrashVar(0);
+    closeSigniActivated();
     setKeySubstituteEnabled(false);
     try {
       // エナコストを支払う（色コスト + energyTrash指定コスト）
