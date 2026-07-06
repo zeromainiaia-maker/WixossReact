@@ -1317,6 +1317,49 @@ test('引用付与バッチ: 採用JSONの構造固定（WX24-P1-057/WD18-006/WX
   ok(s3.includes('"GRANT_EFFECT"') && s3.includes('"type":"LRIG"'), 'WXK10-014: ルリグ対象付与のはず');
 });
 
+// CONTINUOUS 引用能力付与（GRANT_FIELD_SIGNI_ABILITY thisCardOnly・§5c 続き34）
+test('GRANT_FIELD_SIGNI_ABILITY thisCardOnly: 付与元自身のみへ付与（他シグニは付与されない）', () => {
+  const srcInst = fresh(), otherInst = fresh();
+  const granted = { effectId: 'g', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true } as unknown as CardEffect;
+  const contEff = { effectId: 'c', effectType: 'CONTINUOUS',
+    action: { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [granted] },
+    duration: 'PERMANENT', mandatory: true } as unknown as CardEffect;
+  const localMap = new Map<string, CardEffect[]>([[srcInst, [contEff]]]);
+  const st = mkState({ signi: [srcInst, otherInst, null] });
+  const res = collectGrantedFromLayer(st, mkState({}), true, localMap, cardMap as Map<string, CardData>);
+  ok(res.has(srcInst), 'thisCardOnly は付与元自身に付与されるべき');
+  ok(!res.has(otherInst), 'thisCardOnly は他のシグニには付与されないべき');
+});
+test('GRANT_FIELD_SIGNI_ABILITY: activeCondition が偽なら付与されない', () => {
+  const srcInst = fresh();
+  const granted = { effectId: 'g', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true } as unknown as CardEffect;
+  const contEff = { effectId: 'c', effectType: 'CONTINUOUS',
+    activeCondition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: 'gte', value: 99 },
+    action: { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [granted] },
+    duration: 'PERMANENT', mandatory: true } as unknown as CardEffect;
+  const localMap = new Map<string, CardEffect[]>([[srcInst, [contEff]]]);
+  const st = mkState({ signi: [srcInst, null, null], hand: 3 });
+  const res = collectGrantedFromLayer(st, mkState({}), true, localMap, cardMap as Map<string, CardData>);
+  ok(!res.has(srcInst), '条件不成立なら付与されないべき');
+});
+// 採用JSONの構造ガード（再harvestで旧形＝有害な無条件CONTINUOUSの平坦化に戻ったら即FAIL・§5c 続き34）
+test('引用付与バッチ2: CONTINUOUS自己付与の構造固定（WX12-028/WX13-057/WXDi-P05-047/WXDi-P09-073）', () => {
+  const s1 = JSON.stringify(effectsMap.get('WX12-028') ?? []);
+  ok(s1.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s1.includes('"thisCardOnly":true') && s1.includes('ON_OPP_LIFE_CRASHED') && s1.includes('HAS_CARD_IN_FIELD'),
+    'WX12-028: 龍獣条件つきクラッシュ時トラッシュ付与のはず');
+  const s2 = JSON.stringify(effectsMap.get('WX13-057') ?? []);
+  ok(s2.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s2.includes('IS_SELF_IN_CENTER_ZONE') && s2.includes('ON_ATTACK_SIGNI'),
+    'WX13-057: 中央ゾーン条件つきアタック時-5000付与のはず');
+  const s3 = JSON.stringify(effectsMap.get('WXDi-P05-047') ?? []);
+  ok(s3.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s3.includes('"minCount":10') && s3.includes('ON_ATTACK_SIGNI'),
+    'WXDi-P05-047: トラッシュ天使10枚条件つきアタック時ドロー付与のはず');
+  const s4 = JSON.stringify(effectsMap.get('WXDi-P09-073') ?? []);
+  ok(s4.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s4.includes('IS_SELF_AWAKENED') && s4.includes('ON_TURN_END'),
+    'WXDi-P09-073: 覚醒条件つきターン終了時エナチャージ付与のはず');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
