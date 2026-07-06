@@ -5588,10 +5588,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeAssistGrow = async (card: CardData, side: 'l' | 'r', costIndices: Set<number>) => {
     if (!isMyTurn || loading) return;
     setLoading(true);
-    setShowAssistGrowModal(false);
-    setPendingAssistGrowCard(null);
-    setPendingAssistSide(null);
-    setSelectedAssistGrowCost(new Set());
+    closeAssistGrow();
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
