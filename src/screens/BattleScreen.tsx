@@ -6442,8 +6442,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // escapeDiscard（G154 BURST）: アタック側が手札をN枚捨てれば無効化を回避できる。手札が足りればモーダルで選択させる。
         const escapeCount = op.negated_attacks_escape?.[myTopNum];
         if (escapeCount && my.hand.length >= escapeCount) {
-          setNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount });
-          setSelectedNegateEscape(new Set());
+          openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount });
           setLoading(false);
           return; // アタックを保留してプレイヤーの選択を待つ
         }
