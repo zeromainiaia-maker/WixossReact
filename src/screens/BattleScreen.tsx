@@ -173,7 +173,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // エンドフェイズ手札捨て選択UI
   // エンドフェイズ手札捨て／カード拡大表示
   const {
-    pendingEndDiscard, setPendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard,
+    pendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard,
     openEndDiscard, closeEndDiscard,
   } = useEndDiscard();
   const {
