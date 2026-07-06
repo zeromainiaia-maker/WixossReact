@@ -100,8 +100,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore,
   } = useArtsModal();
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
-  const [showRemoveModal, setShowRemoveModal] = useState(false);
-  const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
+  const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones } = useRemoveZone();
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost } = useSpellCast();
   // 手札【起】／トラッシュ自己起動／エナACTIVATED／ルリグ付与【起】
   const {
