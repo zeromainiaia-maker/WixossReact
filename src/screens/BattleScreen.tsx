@@ -153,14 +153,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost,
     selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard,
   } = useAssistModals();
-  // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動
-  const [pendingLrigGranted, setPendingLrigGranted] = useState<{ sourceCardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedLrigGrantedCost, setSelectedLrigGrantedCost] = useState<Set<number>>(new Set());
-  const [selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard] = useState<Set<number>>(new Set());
-  // ルリグ起動付与能力: energyTrash選択インデックス
-  const [selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash] = useState<Set<number>>(new Set());
-  // ルリグ起動付与能力: trashExile選択インデックス
-  const [selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile] = useState<Set<number>>(new Set());
   // ライフクロスクラッシュ時のカード拡大
   // エンドフェイズ手札捨て選択UI
   const [pendingEndDiscard, setPendingEndDiscard] = useState<number | null>(null);
