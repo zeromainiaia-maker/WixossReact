@@ -5197,22 +5197,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   })();
 
-  const toggleGrowCostCard = (idx: number) => {
-    setSelectedGrowCost(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  };
-
   const executeGrow = async (card: CardData, costIndices: Set<number>) => {
     if (!isMyTurn || loading) return;
     setLoading(true);
-    setShowGrowModal(false);
-    setPendingGrowCard(null);
-    setSelectedGrowCost(new Set());
     const wasFreeGrow = freeGrowFilter !== null;
-    setFreeGrowFilter(null);
+    closeGrowModal();
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
