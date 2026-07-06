@@ -5940,10 +5940,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (result.done && spellIsOwnerTurn) {
         const growFree = findGrowFreeAction(spellEff.action);
         if (growFree) {
-          setFreeGrowFilter(growFree.levelFilter === 'same' ? 'same' : 'plus1');
-          setPendingGrowCard(null);
-          setSelectedGrowCost(new Set());
-          setShowGrowModal(true);
+          openFreeGrow(growFree.levelFilter === 'same' ? 'same' : 'plus1');
         }
       }
     } finally {
