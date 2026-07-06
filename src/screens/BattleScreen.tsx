@@ -5771,9 +5771,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleCutinPass = async () => {
     if (!bs.pending_spell || loading) return;
     setLoading(true);
-    setPendingCutinCard(null);
-    setSelectedCutinCost(new Set());
-    setSelectedCutinExceed(new Set());
+    closeCutin();
     try {
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
