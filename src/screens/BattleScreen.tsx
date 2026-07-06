@@ -117,9 +117,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避するか選択（NEGATE_ATTACK escapeDiscard）
   const [negateEscape, setNegateEscape] = useState<{ zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null>(null);
   const [selectedNegateEscape, setSelectedNegateEscape] = useState<Set<number>>(new Set());
-  const [pendingCutinCard, setPendingCutinCard] = useState<CutinCandidate | null>(null);
-  const [selectedCutinCost, setSelectedCutinCost] = useState<Set<number>>(new Set());
-  const [selectedCutinExceed, setSelectedCutinExceed] = useState<Set<number>>(new Set());
+  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed } = useCutin();
   // シグニ起動効果
   const {
     pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost,
