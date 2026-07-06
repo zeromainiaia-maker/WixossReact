@@ -151,22 +151,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 可変チャームトラッシュコスト - シグニ起動効果用
   const [signiActCharmTrashVar, setSigniActCharmTrashVar] = useState<number>(0);
   // キーピース
-  const [showKeyModal, setShowKeyModal] = useState(false);
-  const [pendingKeyCard, setPendingKeyCard] = useState<CardData | null>(null);
-  const [selectedKeyCost, setSelectedKeyCost] = useState<Set<number>>(new Set());
-  const [pendingKeyActivated, setPendingKeyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedKeyActivatedCost, setSelectedKeyActivatedCost] = useState<Set<number>>(new Set());
-  const [selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard] = useState<Set<number>>(new Set());
-  // キーピース代替コスト（ENERGY_SUBSTITUTE_TRASH_KEY）
-  const [keySubstituteEnabled, setKeySubstituteEnabled] = useState(false);
+  const {
+    showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost,
+    pendingKeyActivated, setPendingKeyActivated, selectedKeyActivatedCost, setSelectedKeyActivatedCost,
+    selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard, keySubstituteEnabled, setKeySubstituteEnabled,
+  } = useKeyModals();
   // アシストルリグ
-  const [showAssistGrowModal, setShowAssistGrowModal] = useState(false);
-  const [pendingAssistGrowCard, setPendingAssistGrowCard] = useState<CardData | null>(null);
-  const [pendingAssistSide, setPendingAssistSide] = useState<'l' | 'r' | null>(null);
-  const [selectedAssistGrowCost, setSelectedAssistGrowCost] = useState<Set<number>>(new Set());
-  const [pendingAssistActivated, setPendingAssistActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedAssistActivatedCost, setSelectedAssistActivatedCost] = useState<Set<number>>(new Set());
-  const [selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard] = useState<Set<number>>(new Set());
+  const {
+    showAssistGrowModal, setShowAssistGrowModal, pendingAssistGrowCard, setPendingAssistGrowCard,
+    pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost,
+    pendingAssistActivated, setPendingAssistActivated, selectedAssistActivatedCost, setSelectedAssistActivatedCost,
+    selectedAssistActivatedDiscard, setSelectedAssistActivatedDiscard,
+  } = useAssistModals();
   // シグニ起動効果: energyTrash（エナゾーンから指定カードをトラッシュ）選択インデックス
   const [selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash] = useState<Set<number>>(new Set());
   // シグニ起動効果: trashExile（トラッシュからカードをゲーム除外）選択インデックス
