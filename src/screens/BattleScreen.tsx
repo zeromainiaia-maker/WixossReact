@@ -2714,8 +2714,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               end_turn_effects_resolved: true,
             } })
             .eq('room_id', roomId);
-          setPendingEndDiscard(myHandEND.length - handLimitEND);
-          setSelectedEndDiscard(new Set());
+          openEndDiscard(myHandEND.length - handLimitEND);
           return; // ユーザー選択後に confirmEndDiscard で処理
         }
 
