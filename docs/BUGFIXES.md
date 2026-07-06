@@ -5,6 +5,16 @@
 
 ---
 
+## §5b B層：JSONデータ欠落補完＝REVEAL_AND_PICK/LOOK_AND_REORDER の pick部分脱落16枚を是正（2026-07-06・続き33・Sonnet 5）
+
+「デッキ上からN枚見る。その中から＜X＞を1/2枚まで公開し手札に加え、残りを…デッキの一番下に置く」型の効果が pick 部分（公開→手札加え）を欠いた `LOOK_AND_REORDER`（単なる見る→並べ替えのみ）に誤エンコードされ、手札に加わらない実バグ16枚を `REVEAL_AND_PICK` へ effectId アンカーで手パッチ。原文照合で全数走査した61件のうち、19件は既に正エンコード済み・5件は別系統（`LOOK_PICK_CHAIN`/CHOOSE内包・多段ピース等）で今回対象外・37件が LOOK_AND_REORDER 誤エンコードと判明。うち構造が単純（filter1種＋pick1回・派生アクションなし）な16件のみ今回採用し、残りは複雑度に応じて次回以降へ持ち越し（後述）。
+
+- **採用16枚**＝WXK04-004-E2（＜水獣＞2枚まで）・WXDi-D08-022（シグニ2枚まで）・WXDi-D02-17AT（白の＜バーチャル＞2枚まで）・WXDi-P00-024（黒の＜バーチャル＞2枚まで）・WXDi-P00-043 E1+BURST（特定カード名1枚／シグニ2枚まで）・WXDi-P05-021（`noGuard`カード2枚まで）・WXDi-P05-025（シグニ2枚まで）・WXDi-P08-023（シグニ1枚まで）・WXDi-P09-027（`colorMatchesLrig`シグニ2枚まで）・WXDi-P09-030-E3（シグニ2枚まで）・WXDi-P12-062（`isDisona`シグニ2枚まで）・WXDi-P04-047／WX24-P4-069／WX25-P2-066（＜天使＞/スペル1枚まで＋「この方法で手札に加えた場合、手札を1枚捨てる」トレイル＝`CONDITIONAL{LAST_PROCESSED_COUNT_GTE:1}→TRASH{HAND_CARD,1}` で合成。REVEAL_AND_PICK の SEARCH interaction 再開時に `lastProcessedCards=picked` が後続 SEQUENCE ステップへ引き継がれることを `resumeSearch`/`execSequence` のコードで確認済み）・WX25-P2-046（`colorMatchesLrig`カード2枚まで＋既存 STUB `PLACE_LIMIT_UPPER` を後続ステップに追加＝リミットアッパー設置も欠落していた複合ケース）。
+- **decompiler側の副修正1点**＝`REVEAL_AND_PICK` の pick 名詞は `pickNoun` 明示指定がない限り常に「シグニ」固定（`filterJa` は cardType を見ない）。`filter:{cardType:'スペル'}` だけでは逆翻訳が「スペル」にならず「シグニ」に化けるため、WX24-P4-069/WX25-P2-066 に `pickNoun:'スペル'` を追加。
+- **全てMANUAL刻印**（`parseStatus:'MANUAL'`）＝手書きJSONパッチは build:effects 再生成での消失を防ぐため必須（[[wixoss-autocommit-and-worklist]]）。parser/engine 変更なし＝既存語彙（REVEAL_AND_PICK・noGuard・isDisona・colorMatchesLrig・LAST_PROCESSED_COUNT_GTE・PLACE_LIMIT_UPPER）の組み合わせのみ。
+- **検証**＝typecheck緑・golden 138（既存語彙のみのため追加なし）・smoke 全0（OK10316）・fuzz 全0・同型★0（sheet3,7,8,9再生成・★逆翻訳割れ0）・**census 1684→1670**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。
+- **今回対象外（次回以降・複雑度別）**＝(a) WXDi-P03-005/WXDi-CP01-001＝エクシード4条件でpickCount/後続アクションが分岐（`WXDi-D04-021`と同型のCONDITIONAL/elseパターンで対応可能）。(b) WX24-P4-061/WX24-D1-25＝レベル/リコレクト条件での代替pick（同上パターン）。(c) WXDi-P06-053/WX26-CP1-019＝2色2段の別filterピック（`LOOK_PICK_CHAIN`の2 stage化で対応可能）。(d) WX25-P1-035＝トラッシュ1枚+ピック2枚の複合（`LOOK_PICK_CHAIN`）。(e) WX25-P3-047/WX25-CP1-025〜031＝ピックしたカードの色に応じた条件分岐トレイル（`LAST_PROCESSED_MATCHES{filter:{color}}`で対応可能だが要個別検証）。(f) WXDi-P10-004/WX26-CP1-100の一部＝CHOOSE内包で構造がより複雑。(g) **要調査の別件**＝WX24-P2-033/037/039・WX25-P2-035・WX25-P3-042（アーツ）は pick 欠落に加え、JSON内に原文と無関係な `TRANSFER_TO_DECK`（自分のシグニ1体をデッキ下へ）という筋の通らないステップが混入（decompile確認済み・原文に対応する記述なし）＝pick欠落とは別種の既存バグの疑い。退化の見極めが要るため今回は触らず、調査要としてここに記録。
+
 ## held「値/構造変更」群の owner 誤り是正＝「対戦相手のデッキ削り」が自分のデッキ削りになっていた実バグ3枚を修正（2026-07-06・続き31）
 
 held（要レビュー）の最大署名グループ「（type増減なし＝値/構造変更）12枚」を fresh-vs-curated 精密diff＋**原文直接照合**で全数機械分類。**curated の owner が誤りで parser（fresh）が正しい3枚を採用**＝いずれも原文「**対戦相手の**デッキの上からカードをN枚トラッシュに置く」なのに curated が `DECK_CARD owner:self`＝**自分のデッキを削るミルバグ**（自滅デッキアウトの危険）。`heldReview --adopt` で1フィールド是正（他フィールドは fresh==curated＝安全な単点置換）。**全ゲート緑**＝typecheck・golden 138・smoke 全0（OK10316）・fuzz 全0・同型★0（sheet3,9再生成）・census 1684（owner修正は語彙計器の対象外で数値不変）。
