@@ -118,6 +118,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard,
     selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash,
     selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile,
+    openHandActivated, closeHandActivated, openTrashActivated, closeTrashActivated,
+    openEnergyActivated, closeEnergyActivated, openLrigGranted, closeLrigGranted,
   } = useActivatedModals();
   // ガード応答（バリア【起】／G154 BURST 回避）
   const {
