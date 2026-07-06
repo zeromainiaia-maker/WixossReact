@@ -30,7 +30,7 @@ export interface GuardResponsesState {
 }
 
 export function useGuardResponses() {
-  const [state, set] = useDomainState<GuardResponsesState>({
+  const [state, set, patch] = useDomainState<GuardResponsesState>({
     pendingGuardBarrierAct: false,
     selectedBarrierGuardCard: null,
     negateEscape: null,
