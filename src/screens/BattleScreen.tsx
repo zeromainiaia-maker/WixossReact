@@ -5407,24 +5407,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const toggleArtsCostCard = (idx: number) => {
-    setSelectedArtsCost(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  };
-
   const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
-    setShowArtsModal(false);
-    setPendingArtsCard(null);
-    setSelectedArtsCost(new Set());
-    setSelectedArtsDiscard(new Set());
-    setBetAmount(0);
-    setIsEncore(false);
+    closeArtsModal();
     setKeySubstituteEnabled(false);
     try {
       const cardNum = card.CardNum;
