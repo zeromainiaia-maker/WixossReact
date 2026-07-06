@@ -149,7 +149,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat,
     selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash,
     signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar,
-    selectedOptCost, setSelectedOptCost,
+    selectedOptCost, setSelectedOptCost, closeSigniOnPlayCost,
   } = useSigniOnPlayCost();
   // キーピース
   const {
