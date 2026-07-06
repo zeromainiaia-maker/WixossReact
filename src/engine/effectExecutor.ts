@@ -1585,7 +1585,7 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(owner, cur);
       const granted = { ...(s[key] ?? {}) };
       granted[cn] = [...(granted[cn] ?? []), grantEff];
-      const effectLabel = (a.effect as { effectType?: string })?.effectType ?? '効果';
+      const effectLabel = (grantEff as { effectType?: string })?.effectType ?? '効果';
       cur = addLog(setOwnerState(owner, { ...s, [key]: granted }, cur),
         `${cur.cardMap.get(cn)?.CardName ?? cn}に${effectLabel}を付与`);
     }
