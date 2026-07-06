@@ -5942,21 +5942,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const toggleCutinCostCard = (idx: number) => {
-    setSelectedCutinCost(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  };
-
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
   const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>) => {
     if (!bs.pending_spell || loading) return;
     setLoading(true);
-    setPendingCutinCard(null);
-    setSelectedCutinCost(new Set());
-    setSelectedCutinExceed(new Set());
+    closeCutin();
     try {
       const { card: cutinCard, instanceId: cutinInstanceId, source, handIdx } = candidate;
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
