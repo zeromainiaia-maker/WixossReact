@@ -73,6 +73,37 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
   }
 
+  // ---- 引用能力付与（対象付与形）: 「<対象>を対象とし、(その後、)(期間、)それ(ら)は「【自/出/起】…」を得る」→ GRANT_EFFECT ----
+  // granted_effects 経由で augmented effectsMap（BattleScreen）に乗り、トリガー/常時収集が付与能力を拾う。
+  // 引用内は effectParser の expandGrantEffectRawTexts が parseBlock で CardEffect へ展開する（rawText 一時保持・
+  // 展開不能なら PARTIAL 温存＝engine は effect 無し GRANT_EFFECT を no-op ガード）。
+  // 従来は引用内の末尾節が下方の汎用規則に飲まれ即時実行へ平坦化していた（WX24-P1-057 スペルが即時バウンス化 等・§5c 続き30）。
+  // 【常】引用は既存の GRANT_KEYWORD 引用規則（本ファイル下方）の管轄＝ここでは扱わない。
+  {
+    const qgM = t.match(/^(.+?を?対象とし、)(?:その後、)?(ターン終了時まで、|次の対戦相手のターン終了時まで、)それ(?:ら)?は「(【[自出起]】.+)」を得る$/s);
+    if (qgM && !/」と「|」か「/.test(qgM[3])) {
+      const pre = qgM[1];
+      // 表現できない対象修飾（アイコン持ち・ゾーン位置条件・「AとB」複合対象）は据置＝従来規則へ
+      if (!/アイコン|同じシグニゾーン|体と[あ対]/.test(pre)) {
+        const owner: Owner = /対戦相手の/.test(pre) ? 'opponent' : 'self';
+        const dur: EffectDuration = qgM[2].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+        let target: EffectTarget | null = null;
+        if (/ルリグかシグニ/.test(pre)) {
+          const cm = pre.match(/([０-９\d]+)体(まで)?を?対象とし、$/);
+          target = { type: 'CENTER_LRIG_OR_SIGNI', owner, count: cm ? parseNum(cm[1]) : 1, ...(cm?.[2] ? { upToCount: true } : {}) };
+        } else if (/シグニ/.test(pre)) {
+          target = parseSigniTarget(pre, owner);
+          // parseSigniTarget はカード名フィルタを扱わない＝《名前》指定（WXDi-P08-061 等）をここで合成
+          const nameF = parseNameFilter(pre);
+          if (Object.keys(nameF).length > 0) target = { ...target, filter: { ...target.filter, ...nameF } };
+        } else if (/ルリグ/.test(pre)) {
+          target = { type: 'LRIG', owner, count: 1 };
+        }
+        if (target) return { type: 'GRANT_EFFECT', target, duration: dur, rawText: qgM[3] } as EffectAction;
+      }
+    }
+  }
+
   // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
   if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
