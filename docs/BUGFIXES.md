@@ -5,6 +5,15 @@
 
 ---
 
+## §5b B層：REVEAL_AND_PICK残タスク(a)＝エクシード等の追加条件でpickCountが変わるカード3枚を是正＋PAID_ADDITIONAL_COST機構の限界を特定（2026-07-07・続き35・Sonnet 5・同日第3ラウンド）
+
+続き33で持ち越された「デッキ上N枚見てpickする」型の残37件のうち、分類(a)「エクシード等条件でpickCount分岐」4件（WXDi-P03-005/WXDi-CP01-001/WX24-P4-061/WX24-D1-25）に着手。いずれも curated は原文の「公開して手札に加える（pick）」部分が丸ごと欠落し、無関係な `LOOK_AND_REORDER`＋`TRANSFER_TO_DECK`（自分のシグニをデッキに戻す）に誤エンコードされていた＝続き33と同根の実バグ。
+
+- **採用3枚**＝**WXDi-CP01-001**（「このピースを使用する際、使用コストとして追加でエクシード４を支払ってもよい」＝既存の `STUB{id:'OPTIONAL_COST'}` → `CONDITIONAL{condition:{type:'PAID_ADDITIONAL_COST'},then:...}` という SEQUENCE 構造（`effectExecutor.ts` の「Pattern④ 追加コスト強化」が処理）はそのまま活かし、中間ステップだけ正しい `REVEAL_AND_PICK{revealCount:5,filter:{cardType:'シグニ',cardClass:'バーチャル'},pickCount:2,pickUpTo:true,then:ADD_TO_HAND,remainder:{deck,bottom}}` に差し替え。追加コストを支払った場合の「【エナチャージ１】をする」ボーナスは既存構造のまま維持）・**WX24-P4-061**（「あなたの場にレベル4以上のルリグがいる場合、代わりに」を `CONDITIONAL{condition:{type:'LRIG_LEVEL',owner:'self',operator:'gte',value:4}}` の then/else に配置＝レベル制限なしpick2 vs レベル2以下pick2。WXDi-D04-021と同型のCONDITIONAL/elseパターンを適用）・**WX24-D1-25**（同型。「《リコレクトアイコン》［５枚以上］代わりに」の条件は curated が既に `{type:'LRIG_TRASH_COUNT',cardType:'アーツ',operator:'gte',value:5,excludeSource:true}`＝リコレクト判定用の正しい既存表現（`excludeSource:true` は使用中カード自身を除外する専用フラグ）を持っていたため据え置き、then/elseのアクションだけ `REVEAL_AND_PICK` に是正）。3枚とも手パッチのため `parseStatus:'MANUAL'` を刻印。
+- **見送り1枚＝WXDi-P03-005**（「追加でエクシード４を支払っていた場合、代わりにその中から…２枚まで…」＝pickCountを1→2に**置換**する意味論）。engineの `PAID_ADDITIONAL_COST` 条件は `effectExecutor.ts` の「Pattern④」が処理するが、これは「base steps を再実行した上で `then` を追加実行する」という**加算**専用の設計（`isAdditional` 分岐で `payAction4 = SEQUENCE[...baseSteps, conditional4.then]`）。同一のリビール5枚に対して pickCount だけを差し替えたい本カードの意味論には構造的に合わず、base stepsとして `REVEAL_AND_PICK{pickCount:1}` を置くと「pay」時に**deckの新しい上5枚を再度公開してさらに1枚pick**という誤動作になってしまう。parser/engine変更なしの制約内では正しく表現できないため見送り＝Opus向けの新規発見事項（`PAID_ADDITIONAL_COST` に「置換モード」を追加する engine 拡張が必要）。
+- **検証**＝typecheck緑・golden 141（変化なし）・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet8,9再生成）・**census 1665→1663**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。**parser/engine変更なし**（既存語彙のみでのJSON手パッチ）。
+- **次の一手**＝続き33の残り分類(b)2段/複合ピック（WXDi-P06-053/WX26-CP1-019/WX25-P1-035＝`LOOK_PICK_CHAIN`化）・(c)ピック結果色条件トレイル（WX25-P3-047/WX25-CP1-025〜031）・(d)CHOOSE内包（WXDi-P10-004/WX26-CP1-100）は次回Sonnetの継続候補。WXDi-P03-005はOpus分担。
+
 ## §5c(3)引用能力付与バッチ③＋④＝続き34のCONTSELF_COND機構後の再収穫・第2ラウンド＝3枚追加採用＋engineコード読解でtriggerScope誤デフォルト等3系統の実バグを特定（2026-07-07・続き35・Sonnet 5・同日第2ラウンド）
 
 前段（バッチ③・4枚採用）に続き、held残り90枚のうち関連グループをさらに vet。今回は原文照合だけでなく `triggerCollect.ts`/`effectEngine.ts` のengineコードを読み込み、fresh側の構造的な正しさを裏付けた上で3枚を追加採用。
