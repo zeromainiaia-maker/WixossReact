@@ -6215,7 +6215,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions.push({
           label: '使用',
           color: C.accent,
-          onClick: () => { setPendingSpellCast({ cardNum, handIndex: -1, fromLrigDeck: true }); setSelectedSpellCost(new Set()); setBetAmount(0); },
+          onClick: () => { openSpellCast({ cardNum, handIndex: -1, fromLrigDeck: true }); setBetAmount(0); },
         });
       }
       return actions;
