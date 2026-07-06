@@ -2383,7 +2383,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (parsedConds.length === 0) activeCondition = undefined;
     else if (parsedConds.length === 1) activeCondition = parsedConds[0];
     else activeCondition = { type: 'AND', conditions: parsedConds };
-    resolvedAction = parseActionText(remaining || actionText);
+    // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
+    resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
     // 一部条件が解析済みで残りが未解析の場合のみPARTIAL
     // 全条件がundefinedの場合はAUTO（activeCondition=undefinedで動作は同じ）
     if (anyFound && anyFailed && parsedConds.length > 0) parseStatus = 'PARTIAL';
