@@ -10440,7 +10440,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions.push({
           label: `【起】${costLabel}`,
           color: C.coin,
-          onClick: () => { setPendingAssistActivated({ cardNum: topNum, effect: eff }); setSelectedAssistActivatedCost(new Set()); },
+          onClick: () => { openAssistActivated({ cardNum: topNum, effect: eff }); },
         });
       });
     }
