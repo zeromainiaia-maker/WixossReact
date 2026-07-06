@@ -34,7 +34,7 @@ export function useDomainState<S extends object>(
   const setters = useMemo(() => {
     const out = {} as DomainSetters<S>;
     for (const k of Object.keys(initial) as (keyof S)[]) {
-      out[k] = ((value: SetStateAction<S[typeof k]>) => dispatch({ field: k, value })) as DomainSetters<S>[typeof k];
+      out[k] = ((value: SetStateAction<S[typeof k]>) => dispatch({ field: k, value } as FieldAction<S>)) as DomainSetters<S>[typeof k];
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
