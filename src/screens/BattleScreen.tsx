@@ -5485,9 +5485,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
     if (loading) return;
     setLoading(true);
-    setShowKeyModal(false);
-    setPendingKeyCard(null);
-    setSelectedKeyCost(new Set());
+    closeKeyModal();
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
