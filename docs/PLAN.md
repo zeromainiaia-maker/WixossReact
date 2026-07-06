@@ -62,6 +62,21 @@
 - 逆翻訳器: `scripts/decompileEffects.ts`、グルーピング: `scripts/group{Similar,BySentence}.mjs`（`--all` で全10シート統合）
 - 監査: `scripts/behaviorAudit.ts`（`npm run audit`/`audit:html`/`audit:queue`）
 
+### モデル分担（Sonnet 5 / Opus 4.8）
+**判断軸＝「コーディング難度」ではなく「意味的退化を見極める検証規律が要るか」**。ゲート（smoke/golden/fuzz/同型★0/census baseline・CI）は**モデル非依存の自動ガード**でクラッシュ・構造破壊は必ず捕まるが、**「全ゲート通過なのに意味が間違っている」退化はゲートを素通りする**（PLAN が警告する「無検証置換で約90枚退化の前例」の失敗モード）。ここの見極めだけがモデル依存。
+
+- **Sonnet 5 で回せる（定型消化・データ単点修正）**：
+  - §5c の**パイプライン機械実行**（`build:effects`→`heldReview`→ゲート→シート再生成→commit の定型サイクル）。
+  - **owner/値/duration の単点修正バッチ**（parser/engine 変更なし・原文照合が素直なもの。続き31 の「対戦相手のデッキ削り」owner是正が典型）。
+  - BEHAVIOR_AUDIT の**キュー再生成＋トリアージの一次選別**（真no-op候補の抽出まで）。
+  - ⚠**必須ガードレール**をプロンプトに固定：①**採用前に必ず `build:effects` 再生成→fresh vs live-curated 精密diff＋decompile対原文照合。`heldReview` の diff 表示・`census:clusters` の枚数は古くなりうるので鵜呑みにしない**（続き31で committed `_held_fresh.json` が古く、採用済みの WX21-043/WX24-P2-046 が旧 diff で held 残存していた）。②**1バッチ＝parser/engine 変更なしに限定**。③採用後 `git show`/機械diff で「意図した数枚のみ変更」を確認。④**「curated が正・fresh が誤り」の据置系**（EXILE→TRASH＝ゲーム除外を正しく温存・owner:opponent→undefined 脱落・「このシグニ」→ALL 化・「あなたのトラッシュ」→opponent 化）は**触らせない**明示。
+
+- **Opus 4.8 で行う（機構・語彙の新規実装＋退化の見極め）**：
+  - **parser/engine への新規語彙・機構**（§10 大型機構・§6.3 worklist・**内側トリガー語彙拡充＝triggerScope/自己参照**＝引用付与残107 の本丸）。共有パーサ変更は回帰面が広い。
+  - **意味的退化の見極めが要るバッチ**（「代わりに」置換・CHOOSE平坦化復元・条件節持ち上げ等、fresh が退化しうる系。全数機械分類→偽陽性を先に切る判断）。
+  - **リファクタ Stage2/3**（BattleScreen コントローラ設計）。
+  - BEHAVIOR_AUDIT の**真no-op vs シナリオ空振りの最終仕分け**とengine修正。
+
 ---
 
 ## 4. 現在地とバトン（直近セッション）
