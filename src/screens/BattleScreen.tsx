@@ -5530,9 +5530,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {
     if (loading) return;
     setLoading(true);
-    setPendingKeyActivated(null);
-    setSelectedKeyActivatedCost(new Set());
-    setSelectedKeyActivatedDiscard(new Set());
+    closeKeyActivated();
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
