@@ -62,6 +62,9 @@ import { FinishedPopup } from './battle/modals/FinishedPopup';
 import { SystemOverlays } from './battle/modals/SystemOverlays';
 import { useGrowModal } from './battle/hooks/useGrowModal';
 import { useArtsModal } from './battle/hooks/useArtsModal';
+import { useSpellCast } from './battle/hooks/useSpellCast';
+import { useKeyModals } from './battle/hooks/useKeyModals';
+import { useAssistModals } from './battle/hooks/useAssistModals';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
