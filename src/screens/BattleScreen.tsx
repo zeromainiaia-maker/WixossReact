@@ -3149,8 +3149,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .update({ [stateKey]: newMyState, ...update })
         .eq('room_id', roomId);
 
-      setPendingEndDiscard(null);
-      setSelectedEndDiscard(new Set());
+      closeEndDiscard();
     } finally {
       setLoading(false);
     }
