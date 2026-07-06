@@ -6139,7 +6139,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actionList.push({
           label: `【起】${costLabel}`,
           color: '#ff6b35',
-          onClick: () => { setPendingHandActivated({ cardNum, handIndex, effect: eff }); setSelectedHandActivatedCost(new Set()); },
+          onClick: () => { openHandActivated({ cardNum, handIndex, effect: eff }); },
         });
       }
     }
