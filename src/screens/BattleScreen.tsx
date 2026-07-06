@@ -10414,10 +10414,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: 'グロウ',
         color: '#6644aa',
         onClick: () => {
-          setPendingAssistSide(side);
-          setPendingAssistGrowCard(null);
-          setSelectedAssistGrowCost(new Set());
-          setShowAssistGrowModal(true);
+          openAssistGrow(side);
         },
       });
     }
