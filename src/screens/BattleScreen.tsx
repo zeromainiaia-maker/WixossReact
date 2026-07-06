@@ -9271,8 +9271,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ) => {
     if (loading) return;
     setLoading(true);
-    setPendingEnergyActivated(null);
-    setSelectedEnergyActivatedCost(new Set());
+    closeEnergyActivated();
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
       // アクセカードがエナから取り除かれるのはATTACH_ACCE実行時（effectExecutor側）
