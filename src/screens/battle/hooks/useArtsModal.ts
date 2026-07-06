@@ -25,7 +25,7 @@ const initialState: ArtsModalState = {
 };
 
 export function useArtsModal() {
-  const [state, set] = useDomainState<ArtsModalState>(initialState);
+  const [state, set, patch] = useDomainState<ArtsModalState>(initialState);
   return {
     ...state,
     setShowArtsModal: set.showArtsModal,
@@ -35,5 +35,21 @@ export function useArtsModal() {
     setSelectedArtsDiscard: set.selectedArtsDiscard,
     setBetAmount: set.betAmount,
     setIsEncore: set.isEncore,
+    /** アーツ詳細（Phase2）を開く：対象カード＋減額後実効コストをセットし選択を白紙化 */
+    openArtsModal: (card: CardData, effectiveCost: string | null) =>
+      patch({ pendingArtsCard: card, pendingArtsEffectiveCost: effectiveCost, selectedArtsCost: new Set(), showArtsModal: true }),
+    /** モーダルを閉じて選択・ベット・アンコールを全リセット（keySubstituteEnabled はキー側で別途） */
+    closeArtsModal: () =>
+      patch({
+        showArtsModal: false, pendingArtsCard: null, selectedArtsCost: new Set(),
+        selectedArtsDiscard: new Set(), betAmount: 0, isEncore: false,
+      }),
+    /** コスト支払いエナの選択トグル */
+    toggleArtsCost: (idx: number) =>
+      set.selectedArtsCost((prev) => {
+        const next = new Set(prev);
+        if (next.has(idx)) next.delete(idx); else next.add(idx);
+        return next;
+      }),
   };
 }
