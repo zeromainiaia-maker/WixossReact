@@ -105,8 +105,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // トラッシュ自己起動（「このシグニをトラッシュから場に出す」等）
   const [pendingTrashActivated, setPendingTrashActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
   const [selectedTrashActivatedCost, setSelectedTrashActivatedCost] = useState<Set<number>>(new Set());
-  // v0.278: 可変枚数手札捨てコスト（WDK13-011用）
-  const [selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar] = useState<Set<number>>(new Set());
   // v0.278: WX25-P2-001 付与【起】（ガードシグニ捨て→ルリグバリア）
   const [pendingGuardBarrierAct, setPendingGuardBarrierAct] = useState(false);
   const [selectedBarrierGuardCard, setSelectedBarrierGuardCard] = useState<number | null>(null);
