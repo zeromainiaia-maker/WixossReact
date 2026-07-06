@@ -38,9 +38,33 @@ const initialState: ActivatedModalsState = {
 };
 
 export function useActivatedModals() {
-  const [state, set] = useDomainState<ActivatedModalsState>(initialState);
+  const [state, set, patch] = useDomainState<ActivatedModalsState>(initialState);
   return {
     ...state,
+    /** 手札【起】モーダルを開く（コスト選択は白紙化） */
+    openHandActivated: (pending: NonNullable<ActivatedModalsState['pendingHandActivated']>) =>
+      patch({ pendingHandActivated: pending, selectedHandActivatedCost: new Set() }),
+    closeHandActivated: () =>
+      patch({ pendingHandActivated: null, selectedHandActivatedCost: new Set() }),
+    /** トラッシュ自己起動モーダルを開く（コスト選択は白紙化） */
+    openTrashActivated: (pending: NonNullable<ActivatedModalsState['pendingTrashActivated']>) =>
+      patch({ pendingTrashActivated: pending, selectedTrashActivatedCost: new Set() }),
+    closeTrashActivated: () =>
+      patch({ pendingTrashActivated: null, selectedTrashActivatedCost: new Set() }),
+    /** エナACTIVATED（アクセ発動）モーダルを開く（コスト選択は白紙化） */
+    openEnergyActivated: (pending: NonNullable<ActivatedModalsState['pendingEnergyActivated']>) =>
+      patch({ pendingEnergyActivated: pending, selectedEnergyActivatedCost: new Set() }),
+    closeEnergyActivated: () =>
+      patch({ pendingEnergyActivated: null, selectedEnergyActivatedCost: new Set() }),
+    /** ルリグ付与【起】モーダルを開く（コスト・手札捨て選択は白紙化） */
+    openLrigGranted: (pending: NonNullable<ActivatedModalsState['pendingLrigGranted']>) =>
+      patch({ pendingLrigGranted: pending, selectedLrigGrantedCost: new Set(), selectedLrigGrantedHandDiscard: new Set() }),
+    /** ルリグ付与【起】モーダルを閉じて選択を全リセット */
+    closeLrigGranted: () =>
+      patch({
+        pendingLrigGranted: null, selectedLrigGrantedCost: new Set(), selectedLrigGrantedHandDiscard: new Set(),
+        selectedLrigGrantedEnergyTrash: new Set(), selectedLrigGrantedTrashExile: new Set(),
+      }),
     setPendingHandActivated: set.pendingHandActivated,
     setSelectedHandActivatedCost: set.selectedHandActivatedCost,
     setPendingTrashActivated: set.pendingTrashActivated,
