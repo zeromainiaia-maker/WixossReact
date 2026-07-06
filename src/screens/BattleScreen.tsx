@@ -5712,8 +5712,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     setLoading(true);
-    setPendingSpellCast(null);
-    setSelectedSpellCost(new Set());
+    closeSpellCast();
     setBetAmount(0);
     try {
       const paidNums = [...costIndices].map(i => my.energy[i]);
