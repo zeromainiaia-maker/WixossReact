@@ -129,9 +129,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniActivatedBeat, setSelectedSigniActivatedBeat,
     signiActCharmTrashVar, setSigniActCharmTrashVar,
   } = useSigniActivated();
-  // エナゾーンのACTIVATED能力（アクセカード発動）
-  const [pendingEnergyActivated, setPendingEnergyActivated] = useState<{ cardNum: string; effect: import('../types/effects').CardEffect } | null>(null);
-  const [selectedEnergyActivatedCost, setSelectedEnergyActivatedCost] = useState<Set<number>>(new Set());
   // シグニ出現時コスト付き任意【出】効果（＋OPTIONAL_COST エナ選択）
   const {
     pendingSigniOnPlayCost, setPendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost,
