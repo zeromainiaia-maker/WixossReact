@@ -86,13 +86,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showGrowModal, setShowGrowModal, freeGrowFilter, setFreeGrowFilter,
     pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost,
   } = useGrowModal();
-  const [showArtsModal, setShowArtsModal] = useState(false);
-  const [pendingArtsCard, setPendingArtsCard] = useState<CardData | null>(null);
-  const [pendingArtsEffectiveCost, setPendingArtsEffectiveCost] = useState<string | null>(null);
-  const [selectedArtsCost, setSelectedArtsCost] = useState<Set<number>>(new Set());
-  const [selectedArtsDiscard, setSelectedArtsDiscard] = useState<Set<number>>(new Set());
-  const [betAmount, setBetAmount] = useState(0); // ベットで支払うコイン枚数（0=ベットしない）。固定/段階(or)/可変(好きな枚数)を統一表現
-  const [isEncore, setIsEncore] = useState(false);
+  const {
+    showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
+    pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost,
+    selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore,
+  } = useArtsModal();
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
