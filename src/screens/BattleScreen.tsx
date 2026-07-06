@@ -172,7 +172,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ライフクロスクラッシュ時のカード拡大
   // エンドフェイズ手札捨て選択UI
   // エンドフェイズ手札捨て／カード拡大表示
-  const { pendingEndDiscard, setPendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard } = useEndDiscard();
+  const {
+    pendingEndDiscard, setPendingEndDiscard, selectedEndDiscard, setSelectedEndDiscard,
+    openEndDiscard, closeEndDiscard,
+  } = useEndDiscard();
   const {
     burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed,
     cutinSpellZoomed, setCutinSpellZoomed,
