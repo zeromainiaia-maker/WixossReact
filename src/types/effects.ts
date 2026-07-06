@@ -867,6 +867,8 @@ export interface GrantFieldSigniAbilityAction {
   filter?: TargetFilter;   // 付与先フィルタ（例: story:'怪異'。省略時は自分の全シグニ）
   abilities: CardEffect[]; // 付与する能力（付与先シグニ自身の能力として扱われる）
   targetOwner?: Owner;     // 付与先のオーナー（省略時 self。'opponent' = 対戦相手の場のシグニへ付与）
+  thisCardOnly?: boolean;  // true = 付与元カード自身のみへ付与（「【常】：…かぎり、このシグニは「Q」を得る」型）
+  rawText?: string;        // パース中一時フィールド（引用能力原文。expandGrantFieldRawText が abilities へ展開後 delete）
 }
 
 // このカードが場にあるかぎり、フィルタに合う場のシグニ全員へ【シャドウ（X）】キーワードを付与する（CONTINUOUS宣言型）
