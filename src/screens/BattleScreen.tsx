@@ -5690,14 +5690,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const toggleSpellCostCard = (idx: number) => {
-    setSelectedSpellCost(prev => {
-      const next = new Set(prev);
-      if (next.has(idx)) next.delete(idx); else next.add(idx);
-      return next;
-    });
-  };
-
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
   const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0) => {
