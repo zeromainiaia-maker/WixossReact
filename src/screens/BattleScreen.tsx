@@ -66,6 +66,8 @@ import { useSpellCast } from './battle/hooks/useSpellCast';
 import { useKeyModals } from './battle/hooks/useKeyModals';
 import { useAssistModals } from './battle/hooks/useAssistModals';
 import { usePhaseConfirms } from './battle/hooks/usePhaseConfirms';
+import { useSigniOnPlayCost } from './battle/hooks/useSigniOnPlayCost';
+import { useSigniActivated } from './battle/hooks/useSigniActivated';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
