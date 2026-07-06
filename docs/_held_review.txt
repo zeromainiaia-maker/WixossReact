@@ -3,56 +3,20 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +GRANT_EFFECT +SIGNI ［44枚］
-SPDi01-132 WD18-006 WDK17-012 WX14-006A WX21-043 WX24-D5-08 WX24-P1-057 WX24-P1-071 WX24-P2-004 WX24-P2-073 WX24-P3-010 WX24-P4-001 WX24-P4-029 WX24-P4-035 WX25-CP1-088 WX25-P1-051 WX25-P2-004 WX25-P2-006 WX25-P2-038 WX25-P2-044 WX25-P3-083 WX25-P3-091 WX25-P3-098 WX26-CP1-005 WX26-CP1-010 WX26-CP1-082 WXDi-P01-058 WXDi-P01-073 WXDi-P02-018 WXDi-P02-041 WXDi-P05-017 WXDi-P06-024 WXDi-P06-077 WXDi-P08-058 WXDi-P08-060 WXDi-P08-061 WXDi-P09-006 WXDi-P09-069 WXDi-P10-049 WXDi-P13-035 WXDi-P14-057 WXK02-023 WXK08-056 WXK09-055
---- SPDi01-132
-  原文: 【起】このシグニを場からトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニのレベル１につき－1000する。」を得る。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
-  - [0].action.id = "GRANT_QUOTED_AUTO_ABILITY"
-  ~ [0].action.type : "STUB" → "GRANT_EFFECT"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.upToCount = false
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "SPDi01-132-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "STUB"
-  …（他 5 行）
---- WD18-006
-  原文: ターン終了時まで、あなたのすべての＜調理＞のシグニは「【自】：このシグニがアタックしたとき、自身よりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。」を得る。,-
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "BANISH" → "GRANT_EFFECT"
-  ~ [0].action.target.owner : "opponent" → "self"
-  ~ [0].action.target.count : 1 → "ALL"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WD18-006-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "BANISH"
-  + [0].action.effect.action.target.type = "SIGNI"
-  + [0].action.effect.action.target.owner = "opponent"
-  + [0].action.effect.action.target.count = 1
-  …（他 6 行）
---- WDK17-012
-  原文: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：ターン終了時、このシグニをバニッシュする。」を得る。【起】《ダウン》：対戦相手のトラッシュからシグニ１枚を対象とし、それを傀儡状態であなたの場に出す。,-
-  ~ [0].action.type : "BANISH" → "GRANT_EFFECT"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WDK17-012-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_TURN_END"
-  + [0].action.effect.action.type = "BANISH"
-  + [0].action.effect.action.target.type = "SIGNI"
-  + [0].action.effect.action.target.owner = "self"
-  + [0].action.effect.action.target.count = 1
-  + [0].action.effect.action.target.filter.cardType = "シグニ"
-  + [0].action.effect.action.target.filter.thisCardOnly = true
-  + [0].action.effect.duration = "INSTANT"
-  …（他 2 行）
+## （type増減なし＝値/構造変更） ［12枚］
+WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05-043 WXEX1-35 WXEX2-21 WXK11-008 WXK11-058
+--- WX10-005
+  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.choices[1].action.owner = "opponent"
+--- WX12-021
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
+  - [2].action.steps[1].owner = "opponent"
+--- WX14-054
+  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
+  - [0].action.owner = "opponent"
 
-## +GRANT_LRIG_ABILITY ［15枚］
-SPDi43-11 SPDi43-12 SPDi43-13 WDK12-001 WX24-P2-046 WX25-P2-049 WXDi-CP01-006 WXDi-CP01-023 WXDi-D06-010 WXDi-D08-004 WXDi-P06-013 WXDi-P09-005 WXDi-P11-038 WXDi-P13-008 WXEX2-03
+## +GRANT_LRIG_ABILITY ［6枚］
+SPDi43-11 SPDi43-12 WX24-P2-046 WXDi-D06-010 WXDi-P13-008 WXEX2-03
 --- SPDi43-11
   原文: 【起】《ダウン》：対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】《ゲーム１回》バイブスMAX《白×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによってカードが合計１枚以上あなたの手札に移動したとき、このルリグをアップする。」を得る。,-
   - [1].action.target.type = "LRIG"
@@ -83,81 +47,69 @@ SPDi43-11 SPDi43-12 SPDi43-13 WDK12-001 WX24-P2-046 WX25-P2-049 WXDi-CP01-006 WX
   + [1].action.abilities[0].action.target.count = 1
   + [1].action.abilities[0].duration = "INSTANT"
   …（他 4 行）
---- SPDi43-13
-  原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【Ｓランサー】を得る。【起】《ゲーム１回》バイブスMAX《緑×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによってあなたのエナゾーンにカードが合計１枚以上置かれたとき、このルリグをアップする。」を得る。,-
-  - [1].action.target.type = "LRIG"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  ~ [1].action.type : "UP" → "GRANT_LRIG_ABILITY"
-  + [1].action.abilities[0].effectId = "SPDi43-13-sub-E1"
-  + [1].action.abilities[0].effectType = "AUTO"
-  + [1].action.abilities[0].timing[0] = "ON_ENERGY_CHARGE"
-  + [1].action.abilities[0].action.type = "UP"
-  + [1].action.abilities[0].action.target.type = "LRIG"
-  + [1].action.abilities[0].action.target.owner = "self"
-  + [1].action.abilities[0].action.target.count = 1
-  + [1].action.abilities[0].duration = "INSTANT"
-  …（他 5 行）
-
-## （type増減なし＝値/構造変更） ［12枚］
-WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05-043 WXEX1-35 WXEX2-21 WXK11-008 WXK11-058
---- WX10-005
-  原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
-  - [0].action.choices[1].action.owner = "opponent"
---- WX12-021
-  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
-  - [2].action.steps[1].owner = "opponent"
---- WX14-054
-  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
-  - [0].action.owner = "opponent"
-
-## +GRANT_EFFECT +LRIG ［5枚］
-WX24-D1-05 WX25-CP1-001 WXDi-D09-H07 WXK10-014 WXK10-020
---- WX24-D1-05
-  原文: あなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】：このルリグがアタックしたとき、このルリグをアップし、ターン終了時まで、このルリグは能力を失う。」を得る。このターン、対戦相手は追加で《無》を支払わないかぎり【ガード】ができない。,-
-  - [0].action.steps[0].until = "UNTIL_END_OF_TURN"
-  ~ [0].action.steps[0].type : "REMOVE_ABILITIES" → "GRANT_EFFECT"
-  ~ [0].action.steps[0].target.type : "SIGNI" → "LRIG"
-  + [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  + [0].action.steps[0].effect.effectId = "WX24-D1-05-sub-E1"
-  + [0].action.steps[0].effect.effectType = "AUTO"
-  + [0].action.steps[0].effect.timing[0] = "ON_ATTACK_LRIG"
-  + [0].action.steps[0].effect.action.type = "REMOVE_ABILITIES"
-  + [0].action.steps[0].effect.action.target.type = "SIGNI"
-  + [0].action.steps[0].effect.action.target.owner = "self"
-  + [0].action.steps[0].effect.action.target.count = 1
-  + [0].action.steps[0].effect.action.until = "UNTIL_END_OF_TURN"
+--- WX24-P2-046
+  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ１体がアタックしたとき、対戦相手のデッキの上からカードを１０枚トラッシュに置く。」を得る。,-
+  - [0].action.target.type = "DECK_CARD"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 10
+  ~ [0].action.type : "TRASH" → "GRANT_LRIG_ABILITY"
+  + [0].action.abilities[0].effectId = "WX24-P2-046-sub-E1"
+  + [0].action.abilities[0].effectType = "AUTO"
+  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
+  + [0].action.abilities[0].action.type = "TRASH"
+  + [0].action.abilities[0].action.target.type = "DECK_CARD"
+  + [0].action.abilities[0].action.target.owner = "opponent"
+  + [0].action.abilities[0].action.target.count = 10
+  + [0].action.abilities[0].duration = "INSTANT"
   …（他 3 行）
---- WX25-CP1-001
-  原文: あなたのデッキの上からカードを７枚見る。その中から＜ブルアカ＞のカードを２枚まで公開し手札に加え、残りをシャッフルしてデッキの一番下に置く。その後、この方法でカード２枚を手札に加えた場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。《リコレクトアイコン》［４枚以上］追加であなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：この
-  - [0].action.steps[2].owner = "opponent"
-  - [0].action.steps[2].count = 1
-  - [0].action.steps[2].triggerBurst = true
-  ~ [0].action.steps[2].type : "LIFE_CRASH" → "GRANT_EFFECT"
-  + [0].action.steps[2].target.type = "LRIG"
-  + [0].action.steps[2].target.owner = "self"
-  + [0].action.steps[2].target.count = 1
-  + [0].action.steps[2].duration = "UNTIL_END_OF_TURN"
-  + [0].action.steps[2].effect.effectId = "WX25-CP1-001-sub-E1"
-  + [0].action.steps[2].effect.effectType = "AUTO"
-  + [0].action.steps[2].effect.timing[0] = "ON_ATTACK_LRIG"
-  + [0].action.steps[2].effect.action.type = "LIFE_CRASH"
-  …（他 7 行）
---- WXDi-D09-H07
-  原文: 【出】：あなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このルリグがアタックしたとき、このルリグをアップし、ターン終了時まで、このルリグは能力を失う。」を得る。,-
-  - [0].action.until = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "REMOVE_ABILITIES" → "GRANT_EFFECT"
-  ~ [0].action.target.type : "SIGNI" → "LRIG"
+
+## +GRANT_EFFECT +SIGNI ［5枚］
+SPDi01-132 WX14-006A WX21-043 WXDi-P02-018 WXK02-023
+--- SPDi01-132
+  原文: 【起】このシグニを場からトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニのレベル１につき－1000する。」を得る。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
+  - [0].action.id = "GRANT_QUOTED_AUTO_ABILITY"
+  ~ [0].action.type : "STUB" → "GRANT_EFFECT"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.upToCount = false
   + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-D09-H07-sub-E1"
+  + [0].action.effect.effectId = "SPDi01-132-sub-E1"
   + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_LRIG"
-  + [0].action.effect.action.type = "REMOVE_ABILITIES"
+  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
+  + [0].action.effect.action.type = "STUB"
+  …（他 5 行）
+--- WX14-006A
+  原文: 【出現条件】《メインフェイズアイコン》合計３枚のレゾナではない＜遊具＞のシグニをあなたの手札とエナゾーンと場からトラッシュに置く【自】：あなたのシグニ１体がアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：ターン終了時まで、あなたのすべての＜遊具＞のシグニは「【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニを
+  - [1].action.target.filter.thisCardOnly = true
+  ~ [1].action.type : "UP" → "GRANT_EFFECT"
+  ~ [1].action.target.count : 1 → "ALL"
+  + [1].action.target.filter.cardType = "シグニ"
+  + [1].action.target.filter.story = "遊具"
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WX14-006A-sub-E1"
+  + [1].action.effect.effectType = "AUTO"
+  + [1].action.effect.timing[0] = "ON_PLAY"
+  + [1].action.effect.action.type = "UP"
+  + [1].action.effect.action.target.type = "SIGNI"
+  + [1].action.effect.action.target.owner = "self"
+  …（他 5 行）
+--- WX21-043
+  原文: 【出】：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【自】：ターン終了時、このシグニを場からトラッシュに置く。」を得る。【起】手札から＜毒牙＞のシグニを１枚捨て、このシグニを場からトラッシュに置く：あなたの＜毒牙＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。,-
+  - [0].action.target.filter.levelRange.max = 3
+  ~ [0].action.type : "TRASH" → "GRANT_EFFECT"
+  + [0].action.target.filter.level.max = 3
+  + [0].action.target.upToCount = false
+  + [0].action.duration = "UNTIL_END_OF_TURN"
+  + [0].action.effect.effectId = "WX21-043-sub-E1"
+  + [0].action.effect.effectType = "AUTO"
+  + [0].action.effect.timing[0] = "ON_TURN_END"
+  + [0].action.effect.action.type = "TRASH"
   + [0].action.effect.action.target.type = "SIGNI"
   + [0].action.effect.action.target.owner = "self"
   + [0].action.effect.action.target.count = 1
-  + [0].action.effect.action.until = "UNTIL_END_OF_TURN"
-  …（他 4 行）
+  …（他 3 行）
 
 ## +TRASH +TRASH_CARD -EXILE -SIGNI ［5枚］
 WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
@@ -223,54 +175,6 @@ WXDi-P13-045 WXK10-010 WXK10-012 WXK10-013
   + [0].action.choices[0].action.id = "PREVENT_OPP_UPKEEP"
   + [0].action.choices[1].choiceId = "c1"
   …（他 12 行）
-
-## +GRANT_EFFECT×2 +SIGNI×2 ［3枚］
-WX24-P2-044 WXDi-P04-027 WXDi-P15-047
---- WX24-P2-044
-  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、《無》《無》《無》を支払わないかぎり、このシグニをバニッシュする。」を得る。【出】《赤》《無》《無》《無》《無》：対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらは「【自】：このシグニがアタックしたとき、《無》《無》《無》を支払わないかぎり、こ
-  ~ [0].action.type : "BANISH" → "GRANT_EFFECT"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WX24-P2-044-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "BANISH"
-  + [0].action.effect.action.target.type = "SIGNI"
-  + [0].action.effect.action.target.owner = "self"
-  + [0].action.effect.action.target.count = 1
-  + [0].action.effect.action.target.filter.cardType = "シグニ"
-  + [0].action.effect.action.target.filter.thisCardOnly = true
-  + [0].action.effect.duration = "INSTANT"
-  …（他 18 行）
---- WXDi-P04-027
-  原文: 【出】：対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－20000する。」を得る。【出】《黒》《無》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－20000する。」を得
-  - [0].action.target.filter.thisCardOnly = true
-  - [0].action.delta = -20000
-  - [1].action.delta = -20000
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_EFFECT"
-  ~ [0].action.target.owner : "self" → "opponent"
-  ~ [0].action.target.count : 1 → 2
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.upToCount = true
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P04-027-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  …（他 25 行）
---- WXDi-P15-047
-  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－20000する。」を得る。【出】《黒》《無》《無》《無》《無》：対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－20000
-  - [0].action.delta = -20000
-  - [1].action.target.filter.thisCardOnly = true
-  - [1].action.delta = -20000
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_EFFECT"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P15-047-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "POWER_MODIFY"
-  + [0].action.effect.action.target.type = "SIGNI"
-  + [0].action.effect.action.target.owner = "self"
-  + [0].action.effect.action.target.count = 1
-  …（他 25 行）
 
 ## +TRASH +TRASH_CARD -EXILE×2 -SEQUENCE -SIGNI×2 ［2枚］
 WX21-027 WX24-P3-TK1A
@@ -500,60 +404,6 @@ WXEX2-20
   + [2].action.abilities[0].mandatory = true
   …（他 3 行）
 
-## +CONDITIONAL +GRANT_LRIG_ABILITY +IS_MY_TURN +LIFE_CRASH +SEQUENCE ［1枚］
-WXDi-D03-004
---- WXDi-D03-004
-  原文: 【チーム】＜NoLimit＞【チーム常】：アタックしているあなたのシグニのパワーを＋2000する。【出】：カードを１枚引き、【エナチャージ１】をする。【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つ
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "opponent"
-  - [2].action.target.count = 1
-  - [2].action.target.filter.cardType = "シグニ"
-  - [2].action.target.filter.level = 2
-  - [2].action.target.filter.isUp = true
-  - [2].action.target.upToCount = false
-  ~ [2].action.type : "DOWN" → "GRANT_LRIG_ABILITY"
-  + [2].action.abilities[0].effectId = "WXDi-D03-004-sub-E1"
-  + [2].action.abilities[0].effectType = "AUTO"
-  + [2].action.abilities[0].timing[0] = "ON_ATTACK_LRIG"
-  + [2].action.abilities[0].action.type = "SEQUENCE"
-  …（他 18 行）
-
-## +CONDITIONAL +GRANT_LRIG_ABILITY +IS_MY_TURN +LRIG +SEQUENCE +UP ［1枚］
-WXDi-D04-004
---- WXDi-D04-004
-  原文: 【チーム】＜CardJockey＞【チーム出】：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りをトラッシュに置く。【起】《ゲーム１回》《白×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、あなたのアップ状態のレ
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.filter.level = 2
-  - [1].action.target.filter.isUp = true
-  - [1].action.target.upToCount = false
-  ~ [1].action.type : "DOWN" → "GRANT_LRIG_ABILITY"
-  + [1].action.abilities[0].effectId = "WXDi-D04-004-sub-E1"
-  + [1].action.abilities[0].effectType = "AUTO"
-  + [1].action.abilities[0].timing[0] = "ON_ATTACK_LRIG"
-  + [1].action.abilities[0].action.type = "SEQUENCE"
-  …（他 18 行）
-
-## +CONDITIONAL +GRANT_EFFECT +HAND_CARD +IS_MY_TURN +SEQUENCE +SIGNI +TRASH ［1枚］
-WXDi-P01-062
---- WXDi-P01-062
-  原文: 【出】：対戦相手の凍結状態のシグニ１体を対象とし、ターン終了時まで、それは「【自】：ターン終了時、このシグニをバニッシュする。そうした場合、あなたは手札を１枚捨てる。」を得る。,-
-  ~ [0].action.type : "BANISH" → "GRANT_EFFECT"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P01-062-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_TURN_END"
-  + [0].action.effect.action.type = "SEQUENCE"
-  + [0].action.effect.action.steps[0].type = "BANISH"
-  + [0].action.effect.action.steps[0].target.type = "SIGNI"
-  + [0].action.effect.action.steps[0].target.owner = "self"
-  + [0].action.effect.action.steps[0].target.count = 1
-  + [0].action.effect.action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.effect.action.steps[0].target.filter.thisCardOnly = true
-  …（他 9 行）
-
 ## +CHOOSE +DRAW +ENERGY_CHARGE_FROM_DECK +SEQUENCE ［1枚］
 WXDi-P02-005
 --- WXDi-P02-005
@@ -571,24 +421,6 @@ WXDi-P02-005
   + [0].action.choices[0].label = "選択肢1"
   + [0].action.choices[0].action.type = "SEQUENCE"
   …（他 15 行）
-
-## +GRANT_LRIG_ABILITY +LRIG +UP -DOWN -SIGNI ［1枚］
-WXDi-P02-016
---- WXDi-P02-016
-  原文: 【チーム】＜CardJockey＞【チーム起】《ダウン》：対戦相手のセンタールリグがレベル３以上の場合、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。【出】：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【起】アップ状態のレベル２のルリグ１体をダウンする：このルリ
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = 1
-  - [2].action.target.filter.cardType = "シグニ"
-  - [2].action.target.filter.level = 2
-  - [2].action.target.filter.isUp = true
-  - [2].action.target.upToCount = false
-  ~ [2].action.type : "DOWN" → "GRANT_LRIG_ABILITY"
-  + [2].action.abilities[0].effectId = "WXDi-P02-016-sub-E1"
-  + [2].action.abilities[0].effectType = "ACTIVATED"
-  + [2].action.abilities[0].timing[0] = "MAIN"
-  + [2].action.abilities[0].cost.lrigDown.count = 1
-  …（他 8 行）
 
 ## +GRANT_EFFECT +SIGNI -STUB ［1枚］
 WXDi-P02-034
@@ -737,24 +569,6 @@ WXDi-P09-062
   + [0].action.choose_count = 1
   …（他 26 行）
 
-## +ADD_TO_LIFE +GRANT_EFFECT +LRIG +SEQUENCE ［1枚］
-WXDi-P10-030
---- WXDi-P10-030
-  原文: 【出】：あなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このルリグがアタックしたとき、あなたのシグニを２体まで場からトラッシュに置く。その後、あなたのトラッシュからこの方法でトラッシュに置いたシグニ１体につき【ライフバースト】を持たないカード１枚を対象とし、それらをライフクロスに加える。」を得る。,-
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = true
-  ~ [0].action.type : "TRASH" → "GRANT_EFFECT"
-  ~ [0].action.target.type : "SIGNI" → "LRIG"
-  ~ [0].action.target.count : 2 → 1
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P10-030-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_LRIG"
-  + [0].action.effect.action.type = "SEQUENCE"
-  + [0].action.effect.action.steps[0].type = "TRASH"
-  + [0].action.effect.action.steps[0].target.type = "SIGNI"
-  …（他 12 行）
-
 ## +BLOCK_ACTION +GRANT_EFFECT +REARRANGE_SIGNI +SEQUENCE +SIGNI×3 -STUB ［1枚］
 WXDi-P11-007
 --- WXDi-P11-007
@@ -899,24 +713,6 @@ WXDi-CP02-033
   + [0].action.abilities[0].action.steps[0].id = "TRAP_OPERATION"
   …（他 11 行）
 
-## +GRANT_LRIG_ABILITY -SEQUENCE -TRANSFER_TO_HAND -TRASH_CARD ［1枚］
-WXDi-CP02-050
---- WXDi-CP02-050
-  原文: 【出】《無》：ターン終了時まで、このルリグは「【自】《ターン１回》：あなたのシグニ１体が対戦相手のライフクロス１枚をクラッシュしたとき、そのシグニをアップし、ターン終了時まで、そのシグニは能力を失う。」を得る。【絆出】：あなたのトラッシュから＜ブルアカ＞のカード１枚を対象とし、それを手札に加える。,-
-  - [0].action.steps[0].type = "REMOVE_ABILITIES"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].until = "UNTIL_END_OF_TURN"
-  - [0].action.steps[1].type = "TRANSFER_TO_HAND"
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.story = "ブルアカ"
-  ~ [0].action.type : "SEQUENCE" → "GRANT_LRIG_ABILITY"
-  …（他 13 行）
-
 ## +CHOOSE +GAIN_BOND +LOOK_AND_REORDER -SEQUENCE -SIGNI -STUB -TRANSFER_TO_DECK ［1枚］
 WXDi-CP02-103
 --- WXDi-CP02-103
@@ -1024,24 +820,6 @@ WX24-P2-007
   + [0].action.steps[1].effect.action.steps[0].type = "STUB"
   + [0].action.steps[1].effect.action.steps[0].id = "OPTIONAL_COST"
   …（他 27 行）
-
-## +CONDITIONAL +DECK_CARD +DOWN +ENERGY_CHARGE +GRANT_EFFECT +IS_MY_TURN +SEQUENCE +SIGNI -SEND_TO_ENERGY ［1枚］
-WX24-P2-087
---- WX24-P2-087
-  原文: あなたの＜植物＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：あなたのアタックフェイズ開始時、パワーがこのシグニのパワー以下の対戦相手のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、それをエナゾーンに置く。」を得る。,：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加
-  ~ [0].action.type : "SEND_TO_ENERGY" → "GRANT_EFFECT"
-  ~ [0].action.target.owner : "opponent" → "self"
-  + [0].action.target.filter.story = "植物"
-  + [0].action.target.upToCount = false
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WX24-P2-087-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_PHASE_START"
-  + [0].action.effect.action.type = "SEQUENCE"
-  + [0].action.effect.action.steps[0].type = "DOWN"
-  + [0].action.effect.action.steps[0].target.type = "SIGNI"
-  + [0].action.effect.action.steps[0].target.owner = "opponent"
-  …（他 14 行）
 
 ## +CHOOSE +SEQUENCE +STUB +TRANSFER_TO_HAND +TRASH_CARD ［1枚］
 WX24-P2-094
@@ -1151,42 +929,6 @@ WX25-P2-097
   + [0].action.choices[0].action.type = "LOOK_AND_REORDER"
   …（他 19 行）
 
-## +GRANT_EFFECT +POWER_MODIFY +SEQUENCE +SIGNI×2 ［1枚］
-WX25-P2-109
---- WX25-P2-109
-  原文: あなたの＜凶蟲＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－10000する。」を得る。,：対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それの
-  - [0].action.target.filter.hasCharm = true
-  - [0].action.delta = -8000
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_EFFECT"
-  ~ [0].action.target.owner : "opponent" → "self"
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WX25-P2-109-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "SEQUENCE"
-  + [0].action.effect.action.steps[0].type = "POWER_MODIFY"
-  + [0].action.effect.action.steps[0].target.type = "SIGNI"
-  + [0].action.effect.action.steps[0].target.owner = "opponent"
-  …（他 13 行）
-
-## +GRANT_LRIG_ABILITY -CONDITIONAL -DOWN -IS_MY_TURN -SEQUENCE -SIGNI ［1枚］
-WX25-P3-019
---- WX25-P3-019
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の＜天使＞のシグニ２体をダウンし《赤》を支払ってもよい。そうした場合、ターン終了時まで、このルリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手が自分のルリグデッキからカード１枚をルリグトラッシュに置かないかぎり、対戦相手にダメージを与える。」を得る。【起】《ゲーム１回》行こう、てっ
-  - [0].action.steps[0].type = "DOWN"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 2
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.story = "天使"
-  - [0].action.steps[0].target.filter.isUp = true
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "LIFE_CRASH"
-  - [0].action.steps[1].then.owner = "opponent"
-  …（他 15 行）
-
 ## +BOUNCE +GRANT_EFFECT +SEQUENCE +SIGNI +STUB -TRASH ［1枚］
 WX25-P3-073
 --- WX25-P3-073
@@ -1276,42 +1018,6 @@ WX25-CP1-028
   + [0].action.choices[0].action.type = "DOWN"
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 17 行）
-
-## +CHOOSE +CONDITIONAL +GRANT_EFFECT +IS_MY_TURN +POWER_MODIFY +SEQUENCE +SIGNI×2 +STUB ［1枚］
-WX25-CP1-032
---- WX25-CP1-032
-  原文: 以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－20000する。」を得る。②対戦相手のシグニを２体まで対象とし、あなたのエナゾーンから＜ブルアカ＞のカード２枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それらは「【自】：このシグ
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.thisCardOnly = true
-  - [0].action.delta = -20000
-  ~ [0].action.type : "POWER_MODIFY" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 2
-  + [0].action.choices[0].choiceId = "c0"
-  + [0].action.choices[0].label = "選択肢1"
-  + [0].action.choices[0].action.type = "GRANT_EFFECT"
-  + [0].action.choices[0].action.target.type = "SIGNI"
-  …（他 31 行）
-
-## +GRANT_EFFECT +HAND_CARD +SIGNI +TRASH -STUB ［1枚］
-WX25-CP1-067
---- WX25-CP1-067
-  原文: 【自】：対戦相手のアタックフェイズ開始時、手札から＜ブルアカ＞のカードを１枚捨ててもよい。そうした場合、ターン終了時まで、対戦相手のすべてのシグニは「【自】：このシグニがアタックしたとき、あなたは手札を１枚捨てる。」を得る。【絆常】：このシグニのパワーは＋4000される。,-
-  - [0].action.steps[1].then.id = "GRANT_QUOTED_AUTO_ABILITY"
-  ~ [0].action.steps[1].then.type : "STUB" → "GRANT_EFFECT"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = "ALL"
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.duration = "UNTIL_END_OF_TURN"
-  + [0].action.steps[1].then.effect.effectId = "WX25-CP1-067-sub-E1"
-  + [0].action.steps[1].then.effect.effectType = "AUTO"
-  + [0].action.steps[1].then.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.steps[1].then.effect.action.type = "TRASH"
-  + [0].action.steps[1].then.effect.action.target.type = "HAND_CARD"
-  …（他 6 行）
 
 ## +ADD_TO_HAND×2 +BOUNCE +CHOOSE +POWER_MODIFY +REVEAL_AND_PICK×2 +SEQUENCE×2 +SIGNI×2 -LOOK_AND_REORDER ［1枚］
 WX26-CP1-019
@@ -1551,24 +1257,6 @@ WXK11-077
   + [0].action.duration = "UNTIL_END_OF_TURN"
   + [0].action.rawText = "【自】《ターン１回》：このルリグがアタックしたとき、あなたのシグニ３体を対象とし、それらを場からトラッシュに置いてもよい。その後、この方法でシグニ３体をトラッシュに置いた場合、あなたのトラッシュから対戦相手の選んだカード１枚をライフクロスに加える。"
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
-
-## +BANISH +CHOOSE +GRANT_EFFECT×2 +POWER_MODIFY +SEQUENCE×3 +SIGNI×5 +STUB×4 +UP ［1枚］
-WXK09-TK-01A
---- WXK09-TK-01A
-  原文: このターン、あなたは《改造素材》を使用できない。以下の３つから１つを選ぶ。①あなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋4000する。②あなたの＜電機＞のシグニ１体を対象とし、《緑》を支払ってもよい。そうした場合、ターン終了時まで、それは「【起】《ダウン》：このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシ
-  - [0].action.steps[1].id = "DO_THREE_THINGS"
-  ~ [0].action.steps[1].type : "STUB" → "CHOOSE"
-  + [0].action.steps[1].choose_count = 1
-  + [0].action.steps[1].from_count = 3
-  + [0].action.steps[1].choices[0].choiceId = "c0"
-  + [0].action.steps[1].choices[0].label = "＜電機＞シグニのパワー+4000"
-  + [0].action.steps[1].choices[0].action.type = "SEQUENCE"
-  + [0].action.steps[1].choices[0].action.steps[0].type = "POWER_MODIFY"
-  + [0].action.steps[1].choices[0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[1].choices[0].action.steps[0].target.owner = "self"
-  + [0].action.steps[1].choices[0].action.steps[0].target.count = 1
-  + [0].action.steps[1].choices[0].action.steps[0].target.upToCount = false
-  …（他 66 行）
 
 ## +ADD_TO_FIELD +BANISH×2 +CHOOSE +CONDITIONAL×2 +IS_MY_TURN×2 +LOOK_AND_REORDER×2 +SEQUENCE×2 +SIGNI×2 +TRANSFER_TO_DECK +TRASH_CARD -ADD_TO_HAND -REVEAL_AND_PICK ［1枚］
 WD22-036-G
