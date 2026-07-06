@@ -42,9 +42,21 @@ const initialState: SigniOnPlayCostState = {
 };
 
 export function useSigniOnPlayCost() {
-  const [state, set] = useDomainState<SigniOnPlayCostState>(initialState);
+  const [state, set, patch] = useDomainState<SigniOnPlayCostState>(initialState);
   return {
     ...state,
+    /** 【出】コストモーダルを閉じて選択を全リセット（⚠selectedOptCost は OPTIONAL_COST 側の独立状態＝触らない） */
+    closeSigniOnPlayCost: () =>
+      patch({
+        pendingSigniOnPlayCost: null,
+        selectedSigniOnPlayCost: new Set(),
+        selectedSigniOnPlayDiscard: new Set(),
+        selectedSigniOnPlayEnergyTrash: new Set(),
+        selectedSigniOnPlayFieldTrash: new Set(),
+        selectedSigniOnPlayBeat: new Set(),
+        selectedSigniOnPlayArtsTrash: null,
+        signiOnPlayCharmTrashVar: 0,
+      }),
     setPendingSigniOnPlayCost: set.pendingSigniOnPlayCost,
     setSelectedSigniOnPlayCost: set.selectedSigniOnPlayCost,
     setSelectedSigniOnPlayDiscard: set.selectedSigniOnPlayDiscard,
