@@ -5,6 +5,17 @@
 
 ---
 
+## §5c(3)引用能力付与バッチ②＝【常】条件つき自己付与（CONTSELF_COND）を GRANT_FIELD_SIGNI_ABILITY{thisCardOnly} で正エンコード＝4枚採用＋機構新設（2026-07-07・続き34・Opus 4.8）
+
+「【常】：＜条件＞かぎり、このシグニは「【自】…」を得る」型（引用能力の**条件つき自己付与**）が、引用内トリガー能力を**無条件の即時CONTINUOUS実行に平坦化**していた実バグ系統を是正。WX12-028（他の龍獣がいるかぎり→**無条件で毎フレーム相手エナtrash**）・WXDi-P05-047（トラッシュ天使10枚→**無条件DRAW**）・WXDi-P09-073（覚醒中→**無条件エナチャージ**・覚醒条件も脱落）・WX13-057（中央ゾーン→**相手シグニに恒久-5000**）＝いずれも防御/牽制札が過剰効果札に化けていた。
+
+- **機構（新設1＋既存活用）**＝`GrantFieldSigniAbilityAction` に **`thisCardOnly?`**（付与元カード自身のみへ付与）と `rawText?`（パース中一時フィールド）を追加。engine は `collectGrantedFromLayer` の付与ループで付与元 top を保持し、`thisCardOnly` 時は `top===src` のシグニのみへ付与（既存の場全体付与ロジックに1分岐追加）。付与された【自】/【常】/【起】は既存の augmented effectsMap 経路（BattleScreen `collectGrantedFromLayer`）でトリガー/常時/UI 収集が拾う＝**配線済み**（MANUAL の WX13-034/WX21-052 と同じ付与→収集パス）。
+- **parser 3点**＝(1)**`parseContinuousQuotedGrant`**（effectParser・**CONTINUOUS 効果限定で呼ぶ**）＝「(このシグニは)?「Q」を得る」→ `GRANT_FIELD_SIGNI_ABILITY{thisCardOnly,rawText}`／「あなたの<C>シグニは「Q」を得る」→ `{filter,rawText}`（場全体常時付与）。durational な対象付与（それは/を対象とし＝R1 GRANT_EFFECT）や 【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」（GRANT_EFFECT 系の管轄・durationプレフィックスで自然に除外）と競合しない。⚠**GRANT_FIELD_SIGNI_ABILITY は CONTINUOUS 収集専用**のため ACTIVATED/AUTO で使うと no-op＝CONTINUOUS 限定スコープが肝。(2)rawText→abilities 展開分岐（`parseBlock`・GRANT_ACCE と同慣例で effectId `-E{N}-G`）。(3)**parseActiveCondition に2条件追加**＝`IS_SELF_IN_CENTER_ZONE`（「このシグニ{は/が}中央のシグニゾーンにあるかぎり」）・`IS_SELF_AWAKENED`（「〜覚醒状態であるかぎり」）＝engine checkActiveCondition 実装済みだが parser 未対応で generic fallback が**無条件化**していた（条件脱落＝過剰効果の温床）。
+- **decompiler**＝`thisCardOnly` 時は「このシグニは『Q』を得る」描画。
+- **採用は厳格な原文照合で4枚のみ**＝専用 vet（外側条件脱落／内側STUB/UNKNOWN/PARTIAL／内側条件「場合/かぎり」脱落／非self主語トリガーのtriggerScope未設定）で 106高シグナル中13候補まで絞り、さらに手照合で除外＝WX06-032等の**複合条件脱落**（センタールリグ色＋中央の「AでBかぎり」形はparse不能→無条件化）・WXK05-053/WXDi-D09-P20等の**引用内の条件/選択肢脱落**・WXDi-P08-051の**REVEAL_AND_PICK→LOOK_AND_REORDER化**（続き33既知）・WXK07-037の**トリガーON_PLAY誤り**・WX20-036-CBの**効果耐性脱落＋owner誤り**・WXEX1-76/WXDi-P06-046の**GRANT_PROTECTION等価変換**（旧が既に正で回帰リスク）を全て弾いた。採用4枚はいずれも「有害な無条件CONTINUOUS→正しいAUTOトリガー付与＋条件ゲート」で引用内も厳密一致。
+- **検証**＝typecheck緑・**golden 138→141**（thisCardOnly 付与元限定・activeCondition 偽で不付与・採用4枚の構造ガード）・smoke 全0（OK10316）・fuzz 全0・lint 0 errors・同型★0（sheet2,7,8再生成・★逆翻訳割れ0）・**census 1670→1667**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。
+- **次の一手（本機構で拡張可能な残）**＝(a)**複合条件のparse拡充**（「Xで、Yかぎり」の逐次AND抽出＝WX06-032/WX06-035等）。(b)**引用内 CHOOSE/REVEAL_AND_PICK/色フィルタ の展開品質**（WXDi-P04-057/074・WXDi-D09-P20＝parseBlock 側の課題）。(c)**場全体常時付与（ALLGRANT）**＝「【常】：あなたの＜C＞シグニは「Q」を得る」は本parser規則が既に GRANT_FIELD_SIGNI_ABILITY{filter} を産出＝WX21-056等の内側STUB解消とセットで次バッチ収穫可能。(d)durational 自己付与（【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」）は GRANT_EFFECT{target:self} 化が別途要（本機構の対象外）。⚠**要実機検証**＝付与された【自】トリガーの実発火（WX12-028クラッシュ時・WXDi-P05-047/WX13-057アタック時・WXDi-P09-073ターン終了時）。
+
 ## §5b B層：JSONデータ欠落補完＝REVEAL_AND_PICK/LOOK_AND_REORDER の pick部分脱落16枚を是正（2026-07-06・続き33・Sonnet 5）
 
 「デッキ上からN枚見る。その中から＜X＞を1/2枚まで公開し手札に加え、残りを…デッキの一番下に置く」型の効果が pick 部分（公開→手札加え）を欠いた `LOOK_AND_REORDER`（単なる見る→並べ替えのみ）に誤エンコードされ、手札に加わらない実バグ16枚を `REVEAL_AND_PICK` へ effectId アンカーで手パッチ。原文照合で全数走査した61件のうち、19件は既に正エンコード済み・5件は別系統（`LOOK_PICK_CHAIN`/CHOOSE内包・多段ピース等）で今回対象外・37件が LOOK_AND_REORDER 誤エンコードと判明。うち構造が単純（filter1種＋pick1回・派生アクションなし）な16件のみ今回採用し、残りは複雑度に応じて次回以降へ持ち越し（後述）。
