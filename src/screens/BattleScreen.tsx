@@ -6260,7 +6260,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions.push({
           label: 'キーにセット',
           color: '#cc8800',
-          onClick: () => { setPendingKeyCard(cardData); setSelectedKeyCost(new Set()); setShowKeyModal(true); },
+          onClick: () => { openKeyModal(cardData); },
         });
       }
     }
