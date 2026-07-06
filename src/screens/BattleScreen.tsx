@@ -9576,14 +9576,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ) => {
     if (loading) return;
     setLoading(true);
-    setPendingSigniOnPlayCost(null);
-    setSelectedSigniOnPlayCost(new Set());
-    setSelectedSigniOnPlayDiscard(new Set());
-    setSelectedSigniOnPlayEnergyTrash(new Set());
-    setSelectedSigniOnPlayFieldTrash(new Set());
-    setSelectedSigniOnPlayBeat(new Set());
-    setSelectedSigniOnPlayArtsTrash(null);
-    setSigniOnPlayCharmTrashVar(0);
+    closeSigniOnPlayCost();
     try {
       const cost = costEffect.cost;
       // エナ消費はplacedState基準（チェーン2回目以降は前回の支払い結果を引き継ぐ）
@@ -9798,14 +9791,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ) => {
     if (loading) return;
     setLoading(true);
-    setPendingSigniOnPlayCost(null);
-    setSelectedSigniOnPlayCost(new Set());
-    setSelectedSigniOnPlayDiscard(new Set());
-    setSelectedSigniOnPlayEnergyTrash(new Set());
-    setSelectedSigniOnPlayFieldTrash(new Set());
-    setSelectedSigniOnPlayBeat(new Set());
-    setSelectedSigniOnPlayArtsTrash(null);
-    setSigniOnPlayCharmTrashVar(0);
+    closeSigniOnPlayCost();
     try {
       await finishOrChainSigniOnPlayCost(cardNum, placedState, mandatoryEntries, remainingCostEffects, placedZone);
     } finally {
