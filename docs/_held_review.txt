@@ -15,8 +15,8 @@ WX10-005 WX12-021 WX14-054 WX18-034 WX24-P4-034 WX24-P4-049 WX25-P2-062 WXDi-P05
   原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
   - [0].action.owner = "opponent"
 
-## +GRANT_LRIG_ABILITY ［6枚］
-SPDi43-11 SPDi43-12 WX24-P2-046 WXDi-D06-010 WXDi-P13-008 WXEX2-03
+## +GRANT_LRIG_ABILITY ［5枚］
+SPDi43-11 SPDi43-12 WXDi-D06-010 WXDi-P13-008 WXEX2-03
 --- SPDi43-11
   原文: 【起】《ダウン》：対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】《ゲーム１回》バイブスMAX《白×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによってカードが合計１枚以上あなたの手札に移動したとき、このルリグをアップする。」を得る。,-
   - [1].action.target.type = "LRIG"
@@ -47,24 +47,40 @@ SPDi43-11 SPDi43-12 WX24-P2-046 WXDi-D06-010 WXDi-P13-008 WXEX2-03
   + [1].action.abilities[0].action.target.count = 1
   + [1].action.abilities[0].duration = "INSTANT"
   …（他 4 行）
---- WX24-P2-046
-  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ１体がアタックしたとき、対戦相手のデッキの上からカードを１０枚トラッシュに置く。」を得る。,-
-  - [0].action.target.type = "DECK_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 10
-  ~ [0].action.type : "TRASH" → "GRANT_LRIG_ABILITY"
-  + [0].action.abilities[0].effectId = "WX24-P2-046-sub-E1"
+--- WXDi-D06-010
+  原文: 【出】：ターン終了時まで、このルリグは「【自】《ターン２回》：対戦相手のシグニかルリグがアタックしたとき、そのアタックを無効にする。」を得る。,-
+  - [0].action.id = "GRANT_QUOTED_AUTO_ABILITY"
+  ~ [0].action.type : "STUB" → "GRANT_LRIG_ABILITY"
+  + [0].action.abilities[0].effectId = "WXDi-D06-010-sub-E1"
   + [0].action.abilities[0].effectType = "AUTO"
   + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "TRASH"
-  + [0].action.abilities[0].action.target.type = "DECK_CARD"
-  + [0].action.abilities[0].action.target.owner = "opponent"
-  + [0].action.abilities[0].action.target.count = 10
+  + [0].action.abilities[0].action.type = "STUB"
+  + [0].action.abilities[0].action.id = "NEGATE_THAT_ATTACK"
   + [0].action.abilities[0].duration = "INSTANT"
-  …（他 3 行）
+  + [0].action.abilities[0].mandatory = true
+  + [0].action.abilities[0].parseStatus = "AUTO"
+  + [0].action.abilities[0].usageLimit = "twice_per_turn"
+  + [0].action.rawText = "【自】《ターン２回》：対戦相手のシグニかルリグがアタックしたとき、そのアタックを無効にする。"
 
-## +GRANT_EFFECT +SIGNI ［5枚］
-SPDi01-132 WX14-006A WX21-043 WXDi-P02-018 WXK02-023
+## +TRASH +TRASH_CARD -EXILE -SIGNI ［5枚］
+WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
+--- WXDi-CP02-TK03B
+  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。【自】：対戦相手のターン終了時、このシグニをゲームから除外する。,-
+  - [2].action.target.filter.thisCardOnly = true
+  ~ [2].action.type : "EXILE" → "TRASH"
+  ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
+  ~ [2].action.target.owner : "self" → "opponent"
+--- WXDi-P11-010B
+  原文: 【自】：このルリグが《夢限　-Q-》から《夢限　-A-》になったとき、カードを５枚引き【エナチャージ５】をする。【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをゲームから除外する。,-
+  ~ [1].action.type : "EXILE" → "TRASH"
+  ~ [1].action.target.type : "SIGNI" → "TRASH_CARD"
+--- WXDi-P16-001B
+  原文: 【出】：このルリグの下からカード１枚をルリグトラッシュに置く。対戦相手のシグニ１体を対象とし、それをゲームから除外する。【起】《ターン２回》《無》：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。,-
+  ~ [0].action.steps[1].type : "EXILE" → "TRASH"
+  ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
+
+## +GRANT_EFFECT +SIGNI ［4枚］
+SPDi01-132 WX14-006A WXDi-P02-018 WXK02-023
 --- SPDi01-132
   原文: 【起】このシグニを場からトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニのレベル１につき－1000する。」を得る。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
   - [0].action.id = "GRANT_QUOTED_AUTO_ABILITY"
@@ -95,38 +111,21 @@ SPDi01-132 WX14-006A WX21-043 WXDi-P02-018 WXK02-023
   + [1].action.effect.action.target.type = "SIGNI"
   + [1].action.effect.action.target.owner = "self"
   …（他 5 行）
---- WX21-043
-  原文: 【出】：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【自】：ターン終了時、このシグニを場からトラッシュに置く。」を得る。【起】手札から＜毒牙＞のシグニを１枚捨て、このシグニを場からトラッシュに置く：あなたの＜毒牙＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。,-
-  - [0].action.target.filter.levelRange.max = 3
-  ~ [0].action.type : "TRASH" → "GRANT_EFFECT"
-  + [0].action.target.filter.level.max = 3
+--- WXDi-P02-018
+  原文: 【出】：あなたのレベル１のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、このシグニをアップする。」を得る。,-
+  - [0].action.target.filter.thisCardOnly = true
+  ~ [0].action.type : "UP" → "GRANT_EFFECT"
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.level = 1
   + [0].action.target.upToCount = false
   + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WX21-043-sub-E1"
+  + [0].action.effect.effectId = "WXDi-P02-018-sub-E1"
   + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_TURN_END"
-  + [0].action.effect.action.type = "TRASH"
+  + [0].action.effect.timing[0] = "ON_PLAY"
+  + [0].action.effect.action.type = "UP"
   + [0].action.effect.action.target.type = "SIGNI"
   + [0].action.effect.action.target.owner = "self"
-  + [0].action.effect.action.target.count = 1
-  …（他 3 行）
-
-## +TRASH +TRASH_CARD -EXILE -SIGNI ［5枚］
-WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
---- WXDi-CP02-TK03B
-  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。【自】：対戦相手のターン終了時、このシグニをゲームから除外する。,-
-  - [2].action.target.filter.thisCardOnly = true
-  ~ [2].action.type : "EXILE" → "TRASH"
-  ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
-  ~ [2].action.target.owner : "self" → "opponent"
---- WXDi-P11-010B
-  原文: 【自】：このルリグが《夢限　-Q-》から《夢限　-A-》になったとき、カードを５枚引き【エナチャージ５】をする。【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをゲームから除外する。,-
-  ~ [1].action.type : "EXILE" → "TRASH"
-  ~ [1].action.target.type : "SIGNI" → "TRASH_CARD"
---- WXDi-P16-001B
-  原文: 【出】：このルリグの下からカード１枚をルリグトラッシュに置く。対戦相手のシグニ１体を対象とし、それをゲームから除外する。【起】《ターン２回》《無》：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。,-
-  ~ [0].action.steps[1].type : "EXILE" → "TRASH"
-  ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
+  …（他 6 行）
 
 ## +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB×2 ［4枚］
 WXDi-P13-045 WXK10-010 WXK10-012 WXK10-013
