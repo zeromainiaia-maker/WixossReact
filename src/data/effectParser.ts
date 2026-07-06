@@ -1251,6 +1251,34 @@ function splitSentences(text: string): string[] {
   return result.filter(s => s.trim() && s !== '。');
 }
 
+// ===== CONTINUOUS 引用能力付与（【常】自己付与形/場全体常時付与形）=====
+// 「【常】：<cond>かぎり、このシグニは「Q」を得る」（thisCardOnly＝付与元自身のみ）と
+// 「【常】：あなたの<C>シグニは「Q」を得る」（場全体常時付与）を GRANT_FIELD_SIGNI_ABILITY で正エンコード。
+// collectGrantedFromLayer が activeCondition 評価のうえ augmented effectsMap へ合成し、付与された
+// 【自】/【常】/【起】をトリガー/常時/UI 収集が拾う（§5c 続き34）。引用内は下流の展開分岐が parseBlock で
+// abilities へ展開する（rawText 一時保持・展開不能なら PARTIAL）。
+// ⚠ CONTINUOUS 効果でのみ呼ぶこと（GRANT_FIELD_SIGNI_ABILITY は CONTINUOUS 収集専用。
+//   durational な 【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」は GRANT_EFFECT 系の管轄で本関数の対象外）。
+function parseContinuousQuotedGrant(text: string): EffectAction | null {
+  const qfSelf = text.match(/^(?:このシグニは)?「(【[自常起出]】.+)」を得る。?$/s);
+  if (qfSelf && !/」と「|」か「/.test(qfSelf[1])) {
+    return { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [], rawText: qfSelf[1] } as GrantFieldSigniAbilityAction;
+  }
+  const qfField = text.match(/^(あなたの|対戦相手の)((?:[白赤青緑黒]の|＜[^＞]+＞[かの]?|他の|レベル[０-９\d]+の|すべての|感染状態の)*)シグニは「(【[自常起出]】.+)」を得る。?$/s);
+  if (qfField && !/」と「|」か「/.test(qfField[3])) {
+    const owner: Owner = qfField[1] === '対戦相手の' ? 'opponent' : 'self';
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(qfField[2]), ...parseColorFilter(qfField[2]), ...parseLevelFilter(qfField[2]) };
+    return {
+      type: 'GRANT_FIELD_SIGNI_ABILITY',
+      ...(owner === 'opponent' ? { targetOwner: 'opponent' as Owner } : {}),
+      filter,
+      abilities: [],
+      rawText: qfField[3],
+    } as GrantFieldSigniAbilityAction;
+  }
+  return null;
+}
+
 // ===== アクションテキスト全体パース =====
 
 function parseActionText(text: string): EffectAction {
