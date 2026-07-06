@@ -21,6 +21,7 @@ import type {
   AddToEnergyAction,
   GrantLrigAbilityAction,
   GrantAcceHostAbilityAction,
+  GrantFieldSigniAbilityAction,
   LookAndReorderAction,
   StubAction,
   Condition,
