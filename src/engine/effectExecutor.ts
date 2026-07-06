@@ -1593,7 +1593,19 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   }
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // LRIG / CENTER_LRIG_OR_SIGNI 対象（execGrantKeyword と同ロジック。fieldCandidates はシグニ限定のため）
+  let cands: string[];
+  if (tgt.type === 'LRIG') {
+    // ルリグ対象：センタールリグトップへ直接付与（ユーザー選択不要）
+    const lrigTop = state.field.lrig.at(-1);
+    cands = lrigTop ? [lrigTop] : [];
+  } else if (tgt.type === 'CENTER_LRIG_OR_SIGNI') {
+    const lrigTop = state.field.lrig.at(-1);
+    const signiCands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+  } else {
+    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  }
   // thisCardOnly: 効果元自身のみへ付与（「このシグニ/このルリグは『…』を得る」。WXDi-CP02-084・WXDi-P16-039等）
   // シグニだけでなくセンタールリグ・アシストルリグも対象にする（アシストルリグの【出】が自身に能力を付与するケース）。
   if (tgt.filter?.thisCardOnly) {
