@@ -97,8 +97,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const [showRemoveModal, setShowRemoveModal] = useState(false);
   const [selectedRemoveZones, setSelectedRemoveZones] = useState<Set<number>>(new Set());
-  // SELF_SIGNI_TRASH（リムーブ封じ。WX04-046-E1等）で押下時に出す警告
-  const [showRemoveBlockedWarn, setShowRemoveBlockedWarn] = useState(false);
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost } = useSpellCast();
   // v0.277: 手札から発動する【起】
   const [pendingHandActivated, setPendingHandActivated] = useState<{ cardNum: string; handIndex: number; effect: import('../types/effects').CardEffect } | null>(null);
