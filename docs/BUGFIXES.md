@@ -5,6 +5,19 @@
 
 ---
 
+## §5c(3)引用能力付与バッチ③＋④＝続き34のCONTSELF_COND機構後の再収穫・第2ラウンド＝3枚追加採用＋engineコード読解でtriggerScope誤デフォルト等3系統の実バグを特定（2026-07-07・続き35・Sonnet 5・同日第2ラウンド）
+
+前段（バッチ③・4枚採用）に続き、held残り90枚のうち関連グループをさらに vet。今回は原文照合だけでなく `triggerCollect.ts`/`effectEngine.ts` のengineコードを読み込み、fresh側の構造的な正しさを裏付けた上で3枚を追加採用。
+
+- **追加採用3枚**＝**WXDi-P06-046**（「あなたのライフクロスが0枚であるかぎり」の単一ゲート条件下で、内側の「対戦相手のターンの間」制限を既存 `activeCondition:{type:'TURN_OWNER',owner:'opponent'}` で正しく表現。curated は旧来この内側条件を欠落させ**常時保護**に過剰化していた実バグを是正）・**SPDi01-132**（curated は効果全体が無機能の `STUB:GRANT_QUOTED_AUTO_ABILITY` プレースホルダだったのに対し、fresh はコスト（`trash_self`）・対象（自分のシグニ1体）・トリガー（`ON_ATTACK_SIGNI`）を正しく構造化し、パワー計算式のみ既存STUB `POWER_MOD_PER_COUNT` として誠実に未実装表示＝機能面で明確な改善）・**WXK02-023**（curated の E2 は「コスト支払い時に即座にこのシグニをUPする」という誤り（本来は「対象シグニに、アタック時UPする能力をターン終了時まで付与する」）を是正。E1/E3は無変更）。
+- **除外6グループ・除外理由をengineコードで裏付け**：
+  1. **トリガースコープ誤り（新規発見）**＝WX21-056/WX21-061。「【常】：あなたの＜天使＞のシグニは『【自】：対戦相手のターン終了時、…』を得る」の granted ability について、fresh は `timing:['ON_TURN_END']` のみで `triggerScope` を設定しない。`src/engine/triggerCollect.ts` の `collectTurnTriggers` を読むと `if ((eff.triggerScope ?? 'self') !== 'self') continue;` でフィルタしており、`triggerScope` 省略時は**カード所有者自身のターン終了時にしか発火しない**＝原文の「対戦相手のターン終了時」と真逆のタイミングで発動する実バグ。採用すると新たな誤りを持ち込むため見送り。
+  2. **追加ゲート条件の脱落**＝WXK08-034。「このシグニがアタックしたとき、**あなたのすべてのシグニがダウン状態の場合**、《白》を支払ってもよい」の太字部分の条件が fresh から丸ごと消えており、本来よりゆるい条件で発動してしまう。
+  3. **granted sub-ability の timing が `ON_PLAY` に誤デフォルト（新規発見・系統バグ）**＝GRANT_LRIG_ABILITY系5枚（SPDi43-11/SPDi43-12/WXDi-D06-010/WXDi-P13-008/WXEX2-03）全て。原文の実トリガーは「カードが合計1枚以上手札に移動したとき」「対戦相手のエナからカードがトラッシュに置かれたとき」「《ディソナアイコン》のスペルを使用したとき」等それぞれ異なるが、parser が該当トリガーを解析できない場合 `timing:['ON_PLAY']` に一律フォールバックしてしまう。`rawText` には正しい原文が保持されているため実装時の参照は可能だが、現状のまま採用すると全カードが「LRIGが場に出たとき」という誤ったタイミングで発火する。
+  4. **複合条件・別種条件の脱落（既知系統の再確認）**＝WX14-006A/WXDi-P02-018（granted ability 側のトリガーも `ON_PLAY` 誤デフォルトの同根バグを併発）・WXDi-P03-060/WXDi-P14-062（パワー閾値条件）・WXK08-023（「登録者数100万人×中央ゾーン」の複合AND条件）。
+- **検証**＝typecheck緑・golden 141（変化なし）・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet3,4,5,7,10再生成）・**census 1665のまま変化なし**（追加3枚は census の高シグナル検出パターン対象外・回帰なし確認済み）。**parser/engine変更なし**（既存語彙のみでのJSON採用）。
+- **次の一手（Opus向け新規発見）**＝(a)`GRANT_LRIG_ABILITY`/`GRANT_FIELD_SIGNI_ABILITY` などで granted sub-ability の timing を解析できない場合の**フォールバック先を `ON_PLAY` 固定から「未確定 `UNKNOWN` timing＋rawText保持」に変更**すべき（`ON_PLAY` 固定は「LRIGが場に出たとき」という誤った具体的意味を持ってしまい、単なる仮置きとして扱えない）。(b)AUTO タイミングの `triggerScope` 省略時、granted元カードの原文が「対戦相手の」を明示する場合は `any_opp` を推定する仕組みが要る（現状は暗黙に `'self'`）。
+
 ## §5c(3)引用能力付与バッチ③＝続き34のCONTSELF_COND機構後の再収穫＝IS_SELF_IN_CENTER_ZONE単一条件4枚を追加採用（2026-07-07・続き35・Sonnet 5）
 
 続き34で新設された `GRANT_FIELD_SIGNI_ABILITY{thisCardOnly}` + `IS_SELF_IN_CENTER_ZONE`/`IS_SELF_AWAKENED` 機構により、held に残っていた「【常】：（このシグニは）中央のシグニゾーンにあるかぎり、「【自】：…」を得る」型（単一条件）が新たに正しくパースできるようになったため、`build:effects`→`heldReview.mjs` で再収穫。curated 側はこれらを「常時PERMANENT効果」に誤平坦化していた（ON_ATTACK等のトリガー構造と条件ゲートの両方が脱落）。
