@@ -10201,9 +10201,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               color: '#9966cc',
               onClick: () => {
                 const inheritedEff = { ...eff, effectId: inheritedId, sourceCardNum: lrigTopMA };
-                setPendingLrigGranted({ sourceCardNum: lrigTopMA, effect: inheritedEff });
-                setSelectedLrigGrantedCost(new Set());
-                setSelectedLrigGrantedHandDiscard(new Set());
+                openLrigGranted({ sourceCardNum: lrigTopMA, effect: inheritedEff });
               },
             });
           }
