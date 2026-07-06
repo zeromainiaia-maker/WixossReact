@@ -101,6 +101,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
     pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost,
     selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore,
+    openArtsModal, closeArtsModal, toggleArtsCost,
   } = useArtsModal();
   const [closeZoneSignal, setCloseZoneSignal] = useState(0);
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones } = useRemoveZone();
