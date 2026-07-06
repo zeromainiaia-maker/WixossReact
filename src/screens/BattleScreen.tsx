@@ -9310,8 +9310,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeHandActivated = async (cardNum: string, handIndex: number, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
     if (loading) return;
     setLoading(true);
-    setPendingHandActivated(null);
-    setSelectedHandActivatedCost(new Set());
+    closeHandActivated();
     try {
       // エナコスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
