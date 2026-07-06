@@ -30,7 +30,9 @@ import * as path from 'path';
 // B7 置換ミルが即時自傷化の実バグ→REPLACE_NEXT_DAMAGE_WITH_MILL新設（採用9＋WXDi-D07-007手パッチ）＝1800→1769。
 // 2026-07-05 続き29: 「代わりに」B系統残＝per-target値すり替え・多段閾値のsubject引き継ぎ・CHOOSE平坦化復元
 // （parser新規則＋heldReview採用64枚＋WXK02-037手パッチ）＝1751→1720。
-const BASELINE_HIGH = 1686;
+// 2026-07-06 続き30: 引用能力付与の平坦化バッチ①68枚採用＝1720→1686。
+// 2026-07-06 続き31: held owner是正3枚採用（語彙計器対象外で不変）＝1686→1684（未反映分を実数更新）。
+const BASELINE_HIGH = 1684;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
