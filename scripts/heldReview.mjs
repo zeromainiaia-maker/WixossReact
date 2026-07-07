@@ -107,13 +107,17 @@ const leafDiff = (oldE, newE, limit = 12) => {
 
 // ---- グループ構築 ----
 const groups = new Map(); // sig -> ids[]
+let alreadyAdopted = 0;   // fresh == curated ＝採用済み（stale held の残骸）はレビュー対象から外す
 for (const id of Object.keys(heldFresh)) {
   const ex = existing.get(id);
   if (!ex) continue;
-  const sig = signature(JSON.stringify(ex), JSON.stringify(heldFresh[id]));
+  const exS = JSON.stringify(ex), frS = JSON.stringify(heldFresh[id]);
+  if (exS === frS) { alreadyAdopted++; continue; }
+  const sig = signature(exS, frS);
   if (!groups.has(sig)) groups.set(sig, []);
   groups.get(sig).push(id);
 }
+if (alreadyAdopted) console.log(`（curated と一致＝採用済み ${alreadyAdopted}枚をレビュー対象から除外）`);
 const sorted = [...groups.entries()].sort((a, b) => b[1].length - a[1].length);
 
 // ---- --adopt / --adopt-sig ----
