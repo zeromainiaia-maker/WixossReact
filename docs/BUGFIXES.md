@@ -5,6 +5,18 @@
 
 ---
 
+## 開発インフラ＝decompile 再生成のシェル非依存化・UTF-16 混入ガード・heldReview staleness ガード・regen/gates 一括コマンド（2026-07-07・続き37）
+
+カード修正ではなく、PLAN/CLAUDE.md に「⚠罠」として繰り返し警告されていたワークフロー事故経路を構造的に除去（engine/JSON 無変更）。
+
+- **`scripts/decompileEffects.ts` に `--sheets` モード新設**＝全10シートを `docs/decompile_sheet<N>.txt` へ UTF-8 で直接 writeFileSync（出力ロジックは `renderCards()` に関数化し stdout 経路と共用・旧 Bash リダイレクト出力とコンテンツ同一を git diff ゼロで確認）。**「PowerShell の `>` が UTF-16LE を書いて下流を静かに壊す」事故はリダイレクト自体を廃止して根絶**。1プロセスで全シート処理＝10回起動より速い。
+- **`npm run regen` 新設**＝`--sheets` → `genReviewRepr` → `groupSimilar --all` → `groupBySentence --all` の再生成チェーンを1コマンド化。
+- **UTF-16 混入ガード**＝`genReviewRepr.mjs`/`groupSimilar.mjs`/`groupBySentence.mjs` が入力テキストに NUL（UTF-16 を utf-8 読みした痕跡）を検出したら即 exit 1＋復旧手順を表示（UTF-16 ファイルで発火テスト済み）。
+- **`scripts/heldReview.mjs` の staleness ガード**＝`docs/_held_fresh.json` より `src/data/*.ts`（parser）・`public/data/CardData_*.csv`・`scripts/buildEffectsJson.ts` の mtime が新しければエラー停止（`--stale-ok` で明示無視可）。**続き31で実害が出た「stale held の旧 diff を信じて誤読」の再発防止**。あわせて **fresh==curated（採用済み）エントリを自動除外**（導入時点で held 130枚中9枚が採用済み残骸→レビュー対象から除外し件数表示）。
+- **`npm run gates` 新設**＝typecheck→golden→smoke→fuzz→census→lint の全ゲート一括（CI と同等をローカル1コマンドで）。
+- ドキュメント更新＝CLAUDE.md「検証コマンド」・PLAN §3 ワークフロー⑤⑥・§4 ⚠注意書き・§5c⑤・timing 配線パターン⑦⑧を新コマンドへ差し替え。
+- 検証＝`npm run gates` 全緑（lint 0 errors）・`npm run regen` 後の git diff ゼロ（同型★0 維持・census 1628 維持）。
+
 ## §6.3 dual-pick（二目的）＝「＜C＞シグニをM枚手札＋K枚場に、残りデッキ下」を LOOK_PICK_CHAIN[hand,field] で正エンコード＝9枚是正（2026-07-07・続き36・Opus 4.8・第6バッチ）
 
 第5バッチの姉妹テンプレ「デッキ上5枚見る→＜C＞シグニ1枚まで**手札**＋＜C＞シグニ1枚まで**場**→残りデッキ下」（9枚）。現状は bare `LOOK_AND_REORDER`（両picks 脱落）。既存の段階ピック機構 `LOOK_PICK_CHAIN`（stages に filter/pickCount/then＝'hand'|'field' 対応済み・engine 実装済み）を使い、engine 追加なしで正エンコード。
