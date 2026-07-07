@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 動的比較（自己参照）残＝先頭「〜対象とし、」designation の比較を後続「それを〈除去〉」ターゲットへ引き継ぐ post-pass＝6枚の過剰効果を是正（2026-07-08・続き44・Opus 4.8）
+
+続き43で確立した自己参照機構の**残（follow-up）**＝「このシグニよりパワーの低い対戦相手のシグニ1体を**対象とし**、《赤》を支払ってもよい。そうした場合、**それを**バニッシュする」型。**対象選択が先頭 designation 文にあり、除去アクションの target 文（「それをバニッシュする」等）には比較語が残らない**ため `parseSigniTarget` 経由の比較パーサが届かず、比較フィルタが全数脱落（比較なしで全シグニ対象＝**過剰効果**）していた。続き43で「残」として列挙した WXK05-059/WXK10-062/WXK09-052/WXK10-040 を含む系統。[[vocab-census-overfire-blindspot]]
+
+- **parser**（`src/data/effectParser.ts`）＝`parseActionText` を薄いラッパ化し、内側 `parseActionTextInner` の結果に **`applyLeadingSelfComparison(text, action)`** を全 return 横断で適用（単文早期return も多段SEQUENCEも同経路）。先頭 designation `(?:この|その)シグニより〔cmp〕対戦相手のシグニN体を対象とし、` を検出し、`parseSelfComparison(text)`＋`parseTriggerComparison(text)` で基準を厳密に切って後続の **opponent-signi ターゲット（BANISH/SEND_TO_ENERGY/BOUNCE 等）の filter へ比較キーを刻む**（冪等＝既存の動的キーがあれば据置・最初の1ターゲットのみ）。
+- **基準の切り分け（重要）**＝「そのシグニ」は自身とは限らない：**①「このシグニより」＝効果元自身（powerLtSelf 等・sourceCardNum 基準）**＝WXK05-059/WXK10-062（BANISH・STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` コスト後）・WXK09-052（SEND_TO_ENERGY 単文）・WXK10-040（nested CONDITIONAL 内 BANISH・E1が MANUAL で harvest保護のため JSON 手パッチ）。**②「そのシグニより」＝トリガー主語（powerLtTrigger 等・triggeringCardNum 基準）**＝WXK07-030（「**あなたのシグニ1体**がアタックしたとき、そのシグニより」＝アタッカーが別シグニでも正しい・ON_ATTACK）・WXK11-041（「【チャーム】が付いているシグニがバニッシュされたとき、そのシグニより」＝被バニッシュ・ON_BANISH）。**③「…する。その後、そのシグニより」＝直前の公開/場出しカード（lastProcessed）＝`parseTriggerComparison` が「その後」で {} を返し据置**＝WXK10-031（デッキ公開）・WXDi-P08-031（手札から場に出す）は**別機構（lastProcessed 参照）へ保留**。
+- **engine 不変**＝続き43で `resolveDynamicFilter` に sourceCardNum/triggeringCardNum を全配線済みのため今回は parser のみ。BANISH（`effectExecutor.ts:150`）・SEND_TO_ENERGY（`:305`）とも triggeringCardNum を渡し解決可。
+- **採用6枚**＝`build:effects` 自動収穫5（WXK05-059/WXK10-062/WXK09-052＝powerLtSelf、WXK07-030/WXK11-041＝powerLtTrigger）＋WXK10-040 は MANUAL 保護カードのため JSON 手パッチ（parser fresh と一致・parity）。⚠初回ビルドで誤って「その」も powerLtSelf 化しWXK07-030/WXK11-041/WXK10-031/WXDi-P08-031 に誤キーが自動commitされたのを、基準切り分け修正後に誤キー除去→再harvest で是正（WXK10-031/WXDi-P08-031 は空へ戻し lastProcessed 保留）。DB 全18枚の designation カードを機械照合し既存処理9枚（WX22-019/WXK04-029/WXK11-020/WX09-014 等）は無傷・WXDi-P10-042 は引用付与内「このシグニ」＝被付与シグニで source と異なるため MANUAL 温存が正。
+- **decompiler**＝続き43の powerLtSelf/powerLtTrigger レンダラ（`decompileEffects.ts:115/119`）で描画（「対戦相手のこのシグニよりパワーの低いシグニ1体をバニッシュする」＝語順は filter 前置整形だが比較語は完全描画・原文の「それ」は designation 非描画のため inline 展開）。
+- **検証**＝typecheck・**golden 161→162（+1＝designation 動的比較の この/その/その後 分岐を shipped JSON で assert）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（regen 済）・**census 1624/1624**（対象6枚は「STUB/MANUAL格納（要個別確認）」バケツで高シグナル23=1624計上外＝実数不変・原文一致は同型★0 で担保）。**トリガー参照2枚（WXK07-030 ON_ATTACK/WXK11-041 ON_BANISH）は engine の triggeringCardNum 経路の実機検証推奨**（golden で resolveDynamicFilter 解決自体は担保・未配線でも silently no-op＝過剰効果残で回帰なし）。
+
 ## §5c 動的比較（自己参照）機構＝「このシグニ/自身より〔パワー/レベル〕の〔低い/高い〕」を powerLtSelf/powerGtSelf/levelLtSelf でエンコード＝8枚の過剰効果を是正（2026-07-07・続き43・Opus 4.8）
 
 census「動的比較35枚」（§4 Opus タスク2）の**自己参照サブファミリ**を1機構として確立。「このシグニよりパワーの低い対戦相手のシグニ1体を対象とし、それをバニッシュする」等の**効果元シグニ自身を基準にした比較フィルタが JSON で全数脱落**（35枚を機械分類＝`dyn=[]`／STUB でもない＝比較なしで全シグニを対象にする**過剰効果**）していたのを是正。[[vocab-census-overfire-blindspot]]
