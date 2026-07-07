@@ -268,6 +268,31 @@ test('levelLtTrigger: トリガー元レベル未満のみ対象（trigger L2→
   eq(tops(r.otherState)[0], null, 'L1（<2）が除去される');
   ok(tops(r.otherState)[1] !== null, '同値 L2 は残る');
 });
+// ── 続き44: 先頭「（この/その）シグニより…対象とし、…それを〈除去〉」designation の動的比較を後続ターゲットへ引き継ぐ ──
+// 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）や別文（cost/条件）に分かれ、除去アクション文（「それを
+// バニッシュする」等）に比較語が残らず全数脱落していた過剰効果群。基準を厳密に切る（この=自身/その=トリガー主語/その後=lastProcessed据置）。
+test('designation 動的比較: この→powerLtSelf / その→powerLtTrigger / その後→据置（applyLeadingSelfComparison）', () => {
+  const KEYS = ['powerLtSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf', 'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger'];
+  const dynKeys = (id: string): string => {
+    const found = new Set<string>();
+    const walk = (a: unknown): void => {
+      if (!a || typeof a !== 'object') return;
+      const o = a as Record<string, unknown>;
+      const tgt = o.target as { filter?: Record<string, unknown> } | undefined;
+      if (tgt?.filter) for (const k of KEYS) if (k in tgt.filter) found.add(k);
+      for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); }
+    };
+    (effectsMap.get(id) ?? []).forEach(e => walk(e));
+    return [...found].sort().join(',');
+  };
+  eq(dynKeys('WXK05-059'), 'powerLtSelf', 'WXK05-059 この→powerLtSelf（BANISH・STUBコスト後）');
+  eq(dynKeys('WXK09-052'), 'powerLtSelf', 'WXK09-052 この→powerLtSelf（SEND_TO_ENERGY 単文）');
+  eq(dynKeys('WXK10-040'), 'powerLtSelf', 'WXK10-040 この→powerLtSelf（MANUAL保護カードの手パッチ）');
+  eq(dynKeys('WXK07-030'), 'powerLtTrigger', 'WXK07-030 その＝アタッカー→powerLtTrigger');
+  eq(dynKeys('WXK11-041'), 'powerLtTrigger', 'WXK11-041 その＝被バニッシュ→powerLtTrigger');
+  eq(dynKeys('WXK10-031'), '', 'WXK10-031 その後＝公開カード(lastProcessed)は据置（別機構）');
+  eq(dynKeys('WXDi-P08-031'), '', 'WXDi-P08-031 その後＝場に出したシグニ(lastProcessed)は据置（別機構）');
+});
 test('levelGtTrigger: トリガー元レベル超過のみ対象（trigger L1→L2除去・L1残存・WX24-P1-015）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, SIGNI_L1);
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelGtTrigger: true } } } as EffectAction, ctx);
