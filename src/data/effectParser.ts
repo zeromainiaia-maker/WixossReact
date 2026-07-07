@@ -1457,6 +1457,37 @@ function parseActionText(text: string): EffectAction {
     }
   }
 
+  // ---- デッキ上N枚見て「＜C＞シグニをM枚まで手札に加え、＜C＞シグニをK枚まで場に出し、残りをデッキ下」＝
+  //      二目的 dual-pick＝LOOK_PICK_CHAIN[hand ステージ, field ステージ]。後続「この方法で場に出たシグニは…」等が
+  //      付く札は前後を parseActionText で解析し SEQUENCE[prefix, LPC, suffix] に組む（bare LOOK_AND_REORDER 化を防ぐ）。
+  {
+    const dp = text.match(/デッキの上からカードを([０-９\d]+)枚見る。\s*その中から(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで(?:公開し)?手札に加え、(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで場に出し、残り[^。]*?(デッキの一番下|トラッシュ)[^。]*?。/);
+    if (dp && dp.index !== undefined) {
+      const remainder: { location: 'deck' | 'trash'; position: 'top' | 'bottom' | 'any' } =
+        dp[5].includes('トラッシュ') ? { location: 'trash', position: 'any' } : { location: 'deck', position: 'bottom' };
+      const handFilter: TargetFilter = { cardType: 'シグニ', ...(dp[2] ? parseStoryFilter(`＜${dp[2]}＞`) : {}) };
+      const fieldFilter: TargetFilter = { cardType: 'シグニ', ...(dp[4] ? parseStoryFilter(`＜${dp[4]}＞`) : (dp[2] ? parseStoryFilter(`＜${dp[2]}＞`) : {})) };
+      const lpc: EffectAction = {
+        type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(dp[1]),
+        stages: [
+          { filter: handFilter, pickCount: parseNum(dp[3]), then: 'hand' },
+          { filter: fieldFilter, pickCount: parseNum(dp[5] ? dp[5] : '1'), then: 'field' },
+        ],
+        remainder,
+      } as unknown as EffectAction;
+      // 場ステージの pickCount は dp[5] ではなく「場に出し」直前の枚数（dp のグループ番号を訂正）
+      (lpc as unknown as { stages: { pickCount: number }[] }).stages[1].pickCount = parseNum(dp[4] !== undefined ? '' : '') || 1;
+      const before = text.slice(0, dp.index).trim().replace(/。$/, '');
+      const after = text.slice(dp.index + dp[0].length).trim();
+      const steps: EffectAction[] = [];
+      const pushFlatDp = (a: EffectAction) => { if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') steps.push(st); } else if (a.type !== 'UNKNOWN') steps.push(a); };
+      if (before) pushFlatDp(parseActionText(before));
+      steps.push(lpc);
+      if (after) pushFlatDp(parseActionText(after));
+      return steps.length === 1 ? steps[0] : { type: 'SEQUENCE', steps } as SequenceAction;
+    }
+  }
+
   // ---- デッキ上N枚見て「（＜C＞の）シグニM枚を公開し手札に加えるか場に出し、残りをデッキ下」＝REVEAL_AND_PICK（handOrField）----
   // 2文（「…見る。その中から…」）にまたがるため splitSentences 前に全文で捕捉する（22枚の系統・pick 脱落を防ぐ）。
   {
