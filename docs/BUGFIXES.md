@@ -5,6 +5,17 @@
 
 ---
 
+## §5c(3) 引用付与の残＝自己犠牲コスト機構 `OPTIONAL_TRASH_SELF` 新設＝本丸 WX21-056/061＋WX06-CB03 の mis-parse 是正（2026-07-07・続き36・Opus 4.8・第3バッチ）
+
+「このシグニを場からトラッシュに置いてもよい。そうした場合、X」（任意の自己犠牲→そうした場合）が、`parseSentencePart3.ts:1738` の雑な STUB マッピングで**エナトラッシュ用の `OPTIONAL_TRASH_ENERGY_CLASS` に誤ルーティング**され、engine 実行時は「エナから該当クラスを探す」no-op になっていた（WX06-CB03＝curated で active bug）。本丸 WX21-056/061 は curated 側で granted 能力ごと即時 CONTINUOUS へ平坦化（トリガー・任意コスト・そうした場合が全脱落）。engine 走査（41枚が `OPTIONAL_TRASH_ENERGY_CLASS` を使うが self-trash 由来はこの3枚のみと確認）。
+
+- **engine 新設 `OPTIONAL_TRASH_SELF`**（`effectExecutor.ts` 任意コスト STUB ディスパッチ・OTEC の隣）＝`SEQUENCE[STUB, CONDITIONAL{IS_MY_TURN}]` の確立パターンに乗せ、pay=`SEQUENCE[TRASH{filter:{thisCardOnly}}, conditional.then]`／skip=`conditional.else` の CHOOSE を提示。自シグニが場に無ければ支払い不可（cont へ）。TRASH の thisCardOnly は既存の execTrash 自己犠牲経路（`sourceCardNum` 限定）を再利用＝engine 追加は薄い。
+- **parser 1点**（`parseSentencePart3.ts:1738`）＝旧「対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい→OTEC」を **`/このシグニを場からトラッシュに置いてもよい/`（トリガー非依存）→ `OPTIONAL_TRASH_SELF`** に是正。`対象` を含む文（selfTrashCost 付き BANISH＝対象選択のコスト・別経路）は除外ガード。
+- **decompiler**＝`OPTIONAL_TRASH_SELF` → 「このシグニを場からトラッシュに置いてもよい」（兄弟 CONDITIONAL が「そうした場合、X」を担う）。
+- **採用3枚**＝WX06-CB03（top-level ON_TURN_END any_opp）・WX21-056/061（field-wide GRANT_FIELD_SIGNI_ABILITY{filter:天使}＋granted 内 ON_TURN_END any_opp・第1バッチの triggerScope 推定と合わせて完全一致）。逆翻訳が原文と完全一致（「…このシグニを場からトラッシュに置いてもよい。そうした場合、…」）。field-wide 付与のため各＜天使＞シグニが自身を犠牲にできる意味論も正しい。
+- **golden +3**＝(1)3枚の OPTIONAL_TRASH_SELF 構造固定（OTEC 誤マップへの退化検出）(2)pay 挙動＝自シグニがトラッシュされ then(draw2) が走る（autopilot で pay 選択）。
+- **検証**＝typecheck 緑・golden **145/145**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成）・**census 1650→1648**（`BASELINE_HIGH`／PLAN §恒久指標 実数更新）。
+
 ## §5c(3) 引用付与の残＝複合活性条件「センタールリグ色 かつ 中央ゾーン」の AND 抽出＝4枚採用（WX06-032/035/WX10-068/WX15-054）＋WX06-026自動採用（2026-07-07・続き36・Opus 4.8・第2バッチ）
 
 続き34-35 で「単一条件」の中央ゾーン付与（IS_SELF_IN_CENTER_ZONE）は消化済みだが、**複合条件「あなたのセンタールリグが＜色＞で、このシグニが中央のシグニゾーンにあるかぎり」は `parseActiveCondition` の generic フォールバックに飲まれ条件が丸ごと脱落＝無条件付与の過剰効果**になっていた（curated 側は granted 能力ごと即時アクションへ平坦化＝WX06-032 は「アタック時エナチャージ付与」が「無条件で即エナチャージ」に化けていた）。BUGFIXES 続き34 が名指しした未対応系統。
