@@ -4428,7 +4428,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const kgInlinePE = collectKeywordGainedInline(kgAfterHostPE, kgAfterGuestPE);
         if (kgInlinePE.entries.length > 0) { update.host_state = kgInlinePE.hostState; update.guest_state = kgInlinePE.guestState; }
 
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries, ...kgInlinePE.entries];
+        // ON_SIGNI_FROZEN（R38・WXDi-P04-065 等）: FREEZE 付与は SELECT_TARGET で単体対象を選ぶ形が大半で resume 経路で
+        // 完結し中央 diff(3798) を通らないため、ここで拾う（続き40 の R38 実機FAIL修正）。
+        const fzAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
+        const fzAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
+        const fzInlinePE = collectFreezeInline(fzAfterHostPE, fzAfterGuestPE);
+        if (fzInlinePE.entries.length > 0) { update.host_state = fzInlinePE.hostState; update.guest_state = fzInlinePE.guestState; }
+
+        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries, ...kgInlinePE.entries, ...fzInlinePE.entries];
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
