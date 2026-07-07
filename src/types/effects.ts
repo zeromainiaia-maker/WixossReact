@@ -1511,6 +1511,7 @@ export interface MILLAction {
   owner: Owner;
   count: number;
   useDeclaredCount?: boolean;
+  countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）
 }
 
 export interface GainBondAction {
