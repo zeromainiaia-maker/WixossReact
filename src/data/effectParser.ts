@@ -2037,6 +2037,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : /ターン終了時(?!まで)/.test(actionText) ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
              : ['ON_PLAY'];
+      // ON_TURN_END / ON_TURN_START: トリガー元ターンの所有者を triggerScope に抽出（actionText 非改変）。
+      //   「対戦相手のターン終了/開始時」= any_opp（能力保持シグニが相手のターン境界に反応。collectTurnTriggers の
+      //     相手フィールド any_opp/any 分岐が拾う）／「あなたの/自分のターン…」or 無指定 = self（既定）。
+      //   ⚠ 引用付与（GRANT_FIELD_SIGNI_ABILITY/GRANT_EFFECT）の granted サブ能力も parseBlock 経由で本抽出を通る＝
+      //     「対戦相手のターン終了時…を得る」型（WX21-056/061 等）の triggerScope 欠落（既定 self で誤発火）を是正。
+      if (timing[0] === 'ON_TURN_END' || timing[0] === 'ON_TURN_START') {
+        if (/対戦相手のターン(?:終了|開始)時/.test(actionText)) extractedTriggerScope = 'any_opp';
+      }
       // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
       if (timing[0] === 'ON_ATTACK_SIGNI') {
         const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
