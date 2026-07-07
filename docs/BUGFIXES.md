@@ -5,6 +5,16 @@
 
 ---
 
+## §5b B層：REVEAL_AND_PICK残タスク(c)の最後の1枚＝WX25-CP1-029（緑）＝ADD_TO_FIELD結果へのtargetsLastProcessedバフで是正・4色セット完遂（2026-07-07・続き35・Sonnet 5・同日第5ラウンド）
+
+前段（同日第4ラウンド）の白/青/黒3枚に続き、同じ「デッキ上5枚見て＜ブルアカ＞のカードを2枚まで手札に加え、特定色を含んでいればボーナス」4色セットの残り1枚（緑）を是正。緑バリエーションのみボーナス効果が「対象を選んでの即時効果」ではなく「新たに場に出したシグニ自身へのターン限定バフ」であるため構造がやや複雑で前ラウンドでは見送っていた。
+
+- **事前検証**＝`effectExecutor.ts` の `resumeSelectTarget`（`SELECT_TARGET`インタラクション解決部）を読み、`cur = { ...cur, lastProcessedCards: selected };` が `thenAction` の種類を問わず常に実行されることを確認＝`ADD_TO_FIELD`（`execAddToField` → `selectOrInteract` → `SELECT_TARGET` → `resumeSelectTarget`）で手札から場に出したシグニも正しく `lastProcessedCards` に記録される。`POWER_MODIFY`/`GRANT_KEYWORD` の `targetsLastProcessed` フィールド（WX03-046/WXDi-P07-079/WX04-094で確立済みの機構）と組み合わせれば「新たに場に出した1枚への無選択バフ」が素直に表現できると判断。
+- **採用**＝`CONDITIONAL{condition:{type:'LAST_PROCESSED_MATCHES',filter:{color:'緑',cardClass:'ブルアカ'},minCount:1}}` の `then` に `SEQUENCE[{type:'ADD_TO_FIELD',source:{type:'HAND_CARD',owner:'self',count:1,upToCount:true,filter:{cardType:'シグニ',cardClass:'ブルアカ',level:{max:2}}}}, {type:'POWER_MODIFY',target:{type:'SIGNI',owner:'self',count:1},targetsLastProcessed:true,delta:3000,duration:'UNTIL_END_OF_TURN'}, {type:'GRANT_KEYWORD',target:{type:'SIGNI',owner:'self',count:1},targetsLastProcessed:true,keyword:'ランサー',duration:'UNTIL_END_OF_TURN'}]` を配置。`parseStatus:'MANUAL'` を刻印。
+- **検証**＝typecheck緑・golden 141・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet9再生成）・**census 1659→1658**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。**parser/engine変更なし**。
+- これで4色セット（WX25-CP1-025/027/029/031＋関連のWX25-P3-047）は全5枚が是正完了。
+- **次の一手**＝分類(b)2段/複合ピック（WXDi-P06-053/WX26-CP1-019/WX25-P1-035）・(d)CHOOSE内包（WXDi-P10-004/WX26-CP1-100）が次回Sonnetの継続候補。
+
 ## §5b B層：REVEAL_AND_PICK残タスク(c)＝ピック結果の色に応じた条件トレイル4枚を是正（2026-07-07・続き35・Sonnet 5・同日第4ラウンド）
 
 続き33で持ち越された残37件のうち分類(c)「ピック結果の色に応じた条件トレイル」＝「デッキ上N枚見て＜クラス＞のカードをM枚まで手札に加える。その後、この方法で特定色のカードを1枚以上手札に加えた場合、追加効果」型4枚（WX25-CP1-025/027/031・WX25-P3-047）を是正。curatedはいずれも公開/ピック部分・追加効果部分の両方が欠落した bare `LOOK_AND_REORDER` だった（続き33/続き35第3ラウンドと同根の実バグ）。
