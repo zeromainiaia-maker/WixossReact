@@ -1364,6 +1364,26 @@ test('引用付与バッチ2: CONTINUOUS自己付与の構造固定（WX12-028/W
   ok(s4.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s4.includes('IS_SELF_AWAKENED') && s4.includes('ON_TURN_END'),
     'WXDi-P09-073: 覚醒条件つきターン終了時エナチャージ付与のはず');
 });
+// 複合活性条件（センタールリグ色 AND 中央ゾーン）つき引用付与の構造固定（続き36・無条件平坦化への退化を防ぐ）
+test('引用付与: 複合条件 AND[LRIG_COLOR, IS_SELF_IN_CENTER_ZONE]（WX06-032/035/WX10-068/WX15-054）', () => {
+  for (const [num, color] of [['WX06-032', '緑'], ['WX06-035', '黒'], ['WX10-068', '青'], ['WX15-054', '緑']] as const) {
+    const s = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(s.includes('"GRANT_FIELD_SIGNI_ABILITY"') && s.includes('"type":"AND"') && s.includes('"LRIG_COLOR"') && s.includes(`"color":"${color}"`) && s.includes('IS_SELF_IN_CENTER_ZONE'),
+      `${num}: センタールリグ${color} AND 中央ゾーン条件つき付与のはず（無条件平坦化に戻っていない）`);
+  }
+});
+// checkActiveCondition の AND: 両条件成立でのみ true（LRIG_COLOR＋中央ゾーン）
+test('checkActiveCondition AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE]: 両成立でのみ true', () => {
+  const cond = { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: '緑' }, { type: 'IS_SELF_IN_CENTER_ZONE' }] } as unknown as import('../src/types/effects').ActiveCondition;
+  const srcInst = fresh();
+  const me = mkState({ signi: [null, srcInst, null] }); me.field.lrig = ['WX15-004']; // 緑ルリグ（中央ゾーン=index1）
+  const op = mkState({});
+  // 中央ゾーン(index1)に居て緑ルリグ → true
+  eq(checkActiveCondition(cond, me, op, true, cardMap as Map<string, CardData>, srcInst), true, '緑ルリグ＋中央ゾーンで true');
+  // 端ゾーンに移すと中央ゾーン条件が偽 → false
+  const me2 = mkState({ signi: [srcInst, null, null] }); me2.field.lrig = ['WX15-004'];
+  eq(checkActiveCondition(cond, me2, op, true, cardMap as Map<string, CardData>, srcInst), false, '端ゾーンなら false');
+});
 
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
