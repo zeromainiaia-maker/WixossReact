@@ -1053,7 +1053,34 @@ function matchLeadingStateCondition(text: string): { condition: Condition; rest:
   return null;
 }
 
+// 文が最上級句（「最も…パワー/レベル」）を含むとき、その文で組み立てた action の SIGNI target.filter へ
+// superlative を注入する（BANISH/BOUNCE/POWER_MODIFY/GRANT_KEYWORD 等 target 経路が多岐にわたるため中央で一括）。
+// parseSuperlative は「最も[大きい/高い/小さい/低い]パワー/レベル」等でのみ非nullなので誤爆しない。
+function injectSuperlativeIntoSigniTargets(action: EffectAction, sup: { key: 'power' | 'level'; dir: 'max' | 'min' }): void {
+  if (!action || typeof action !== 'object') return;
+  const withTarget = action as unknown as { target?: { type?: string; filter?: TargetFilter } };
+  if (withTarget.target?.type === 'SIGNI') {
+    withTarget.target.filter = withTarget.target.filter ?? { cardType: 'シグニ' };
+    if (!withTarget.target.filter.superlative) withTarget.target.filter.superlative = sup;
+  }
+  if (action.type === 'SEQUENCE') (action as SequenceAction).steps.forEach(s => injectSuperlativeIntoSigniTargets(s, sup));
+  else if (action.type === 'CONDITIONAL') {
+    const c = action as import('../types/effects').ConditionalAction;
+    injectSuperlativeIntoSigniTargets(c.then, sup);
+    if (c.else) injectSuperlativeIntoSigniTargets(c.else, sup);
+  } else if (action.type === 'CHOOSE') {
+    (action as import('../types/effects').ChooseAction).choices.forEach(ch => ch.action && injectSuperlativeIntoSigniTargets(ch.action, sup));
+  }
+}
+
 function parseSingleSentence(text: string): EffectAction {
+  const action = parseSingleSentenceInner(text);
+  const sup = parseSuperlative(text);
+  if (sup) injectSuperlativeIntoSigniTargets(action, sup);
+  return action;
+}
+
+function parseSingleSentenceInner(text: string): EffectAction {
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
   // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
   // 「それら」を全シグニ BANISH と誤解しないよう、プレフィックス除去前に検出する。
