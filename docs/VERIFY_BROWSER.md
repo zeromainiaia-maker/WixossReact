@@ -129,8 +129,11 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 **⚠バッチ実行時のみのFAILを観測**＝13シナリオ一括実行では `lrigundermoved`・`keywordgained`・`powerzero` の3件がFAIL（banishbyeffect以降の「自分ターン系」末尾に連鎖）。個別再実行（`node scripts/verifyBattleDrive.mjs lrigundermoved keywordgained` および `powerzero` 単体）では**全てPASS**＝3件とも実装は正しく、**既存コードに既に注釈されていた「バッチ実行時のみの状態汚染」**（`game_logs` クリアだけでは防げないclient側の残留モーダル/state）が今回さらに後続シナリオへ連鎖することを確認。根本修正は別途follow-up（driver側のテスト分離強化が必要・カード/engineのバグではない）。
 
+### ✅ ON_SIGNI_FROZEN（R38・§7）resume経路取りこぼしを修正・実機PASS（2026-07-07・続き41・Opus 4.8）
+続き40（下記）で発見した R38 実バグを修正。`handleEffectInteraction` の pendingEntries ブロックに、既存の resume-経路取りこぼし対策 inline collector（`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`）と同型の **`collectFreezeInline`** を追加配線（`detectNewlyFrozen`→`collectFreezeTriggers`→once_per_turn の `actions_done` 反映）。`node scripts/verifyBattleDrive.mjs freezetrigger` が **PASS**（`freeze=true watcher=true`・`guest.signiFrozen=[true,false,false]`・「羅菌 プランクトンの【自】効果（凍結時）」→「小剣 ククリのパワー-1000」を実UIで確認）。golden 151/0・smoke 全0・fuzz 全0・typecheck 緑。driver 側の pass 条件も凍結の ground-truth（`guest.signiFrozen`）+watcher ログへ変更し `order` に復帰。以下は発見時の記録（続き40）。
+
 ### ⚠ ON_SIGNI_FROZEN（R38・§7）の実機検証で resume 経路の取りこぼしを発見（2026-07-07・続き40・Sonnet 5）
-`freezetrigger`（WX01-081→WXDi-P04-065）を新設し実機検証した結果、**❌FAIL＝実バグを確認**。
+`freezetrigger`（WX01-081→WXDi-P04-065）を新設し実機検証した結果、**❌FAIL＝実バグを確認**（→続き41で修正済み・上記）。
 
 - 盤面：host に watcher WXDi-P04-065（羅菌 プランクトン・ON_SIGNI_FROZEN・any_opp・targetsTriggerSource で凍結された相手シグニに-1000）を配置、center lrig を WD03-003（コード・ピルルク・Ｍ＝WX01-081「ピルルク限定」を満たす）に設定。手札の WX01-081（コードアート Ｔ・Ｖ・【出】ON_PLAY・mandatory・コストなしで相手シグニ1体を凍結）を召喚→SELECT_TARGETで相手シグニ（WD01-013）を指定。
 - **ground truth は正しい**＝`guest.field.signi_frozen` が `[true,false,false]` に変化＝FREEZE自体はengine内で正しく適用されている。
