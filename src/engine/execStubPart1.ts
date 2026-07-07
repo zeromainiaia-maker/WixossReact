@@ -2415,7 +2415,8 @@ export function execStubPart1(
     }
     const nonHitRU = revealedRU.filter(cn => cn !== hitCardRU);
     let newStateRU = { ...stateRU, deck: deckRU.filter(cn => !revealedRU.includes(cn)) };
-    if (toTrashRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
+    if (toTrashAllRU && revealedRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...revealedRU] };
+    else if (toTrashRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
     if (toBottomRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...nonHitRU] };
     const newCtxRU = isOpp
       ? { ...ctx, otherState: newStateRU, lastProcessedCards: hitCardRU ? [hitCardRU] : [] }
