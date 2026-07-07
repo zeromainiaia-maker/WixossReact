@@ -5,6 +5,17 @@
 
 ---
 
+## §5c(3) 引用付与の残＝複合活性条件「センタールリグ色 かつ 中央ゾーン」の AND 抽出＝4枚採用（WX06-032/035/WX10-068/WX15-054）＋WX06-026自動採用（2026-07-07・続き36・Opus 4.8・第2バッチ）
+
+続き34-35 で「単一条件」の中央ゾーン付与（IS_SELF_IN_CENTER_ZONE）は消化済みだが、**複合条件「あなたのセンタールリグが＜色＞で、このシグニが中央のシグニゾーンにあるかぎり」は `parseActiveCondition` の generic フォールバックに飲まれ条件が丸ごと脱落＝無条件付与の過剰効果**になっていた（curated 側は granted 能力ごと即時アクションへ平坦化＝WX06-032 は「アタック時エナチャージ付与」が「無条件で即エナチャージ」に化けていた）。BUGFIXES 続き34 が名指しした未対応系統。
+
+- **parser 1点**（`parseActiveCondition`・generic フォールバック直前）＝`/^あなたのセンタールリグが([白赤青緑黒])で、このシグニ[はが](中央のシグニゾーンにある|覚醒状態である)かぎり、/` → `activeCondition: AND[{LRIG_COLOR,owner:self,color}, {IS_SELF_IN_CENTER_ZONE|IS_SELF_AWAKENED}]`。**engine `checkActiveCondition` は AND / LRIG_COLOR を実装済み**（新規engine不要）。part2 が既知の自己状態のときのみ AND 化し、未知の第1条件（「ライフが1枚以下で」等・WX10-063型）は generic に落として据置（誤ったANDを作らない）。
+- **decompiler**＝AND 条件は既存の条件レンダラで「《あなたのセンタールリグが緑かつこのシグニが中央ゾーンにあるかぎり》」と原文一致描画（追加改修なし）。
+- **採用4枚**＝いずれも committed が「無条件の即時アクションへ平坦化」＝過剰効果で、fresh が「AND 条件つき GRANT_FIELD_SIGNI_ABILITY＋正しい granted トリガー（ON_ATTACK_SIGNI/ON_OPP_LIFE_CRASHED）」に是正＝内側まで全 AUTO。WX10-068 の内側 STUB `DECLARE_CARD_NAME` は engine 実装済み（`execStubPart1.ts:164`）のため採用。**WX06-026** は同パターンで action が GRANT_KEYWORD＝条件追加が純上位集合となり **build:effects が自動採用**（無条件→条件ゲート化）。
+- **据置**＝WX06-022（SEQUENCE 基本パワー化＝別parse経路で activeCondition 未付与・既存の miss）・WX06-029/WX10-063（MANUAL＝build:effects が温存・平坦化のまま）。いずれも本変更で悪化せず（既存状態維持）＝別途 Opus 継続。
+- **golden +2**＝(1)採用4枚の AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE] 構造固定（無条件平坦化への退化検出）(2)`checkActiveCondition` の AND が両条件成立でのみ true（緑ルリグ＋中央ゾーン）。
+- **検証**＝typecheck 緑・golden **143/143**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成）・**census 1654→1650**（`BASELINE_HIGH`／PLAN §恒久指標 実数更新）。
+
 ## §5c(3) 引用付与の残＝内側トリガー語彙拡充バッチ＝「対戦相手のターン終了/開始時」triggerScope:any_opp 推定を parser に新設＝27枚の潜在誤発火バグを是正（2026-07-07・続き36・Opus 4.8）
 
 続き34-35で確立した引用付与機構（`parseContinuousQuotedGrant`＋`GRANT_FIELD_SIGNI_ABILITY`）の「次の一手」＝**granted サブ能力の triggerScope 欠落是正**（BUGFIXES 続き35 の Opus 向け新規発見(b)）に着手。granted 内 `【自】：対戦相手のターン終了時、…` が triggerScope 省略＝engine 既定 `self` で**能力保持シグニ自身のターン終了時に発火**（原文と真逆のタイミング＝WX21-056/061 で発見）していた。engine（`collectTurnTriggers`）は既に相手フィールドの any_opp/any 分岐を実装済みで、**欠けていたのは parser の triggerScope 抽出だけ**だった。
