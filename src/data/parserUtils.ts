@@ -126,6 +126,20 @@ export function parseLevelLteLastProcessed(text: string): Partial<TargetFilter> 
   return /この方法で[^。]{0,20}?シグニのレベル以下/.test(text) ? { levelLteLastProcessed: true } : {};
 }
 
+// 「(この|自身)シグニより〔パワーの低い/高い・低いレベル/レベルの高い〕」＝効果元シグニ自身を基準にした動的比較。
+// resolveDynamicFilter が sourceCardNum の実効パワー/レベルで powerRange/level へ解決する。
+// ⚠自己参照（このシグニ/自身）に限定＝「その/あなたのいずれか/表記されている/センタールリグ」等の別基準は対象外
+//   （それらは lastProcessed/trigger/printed 等の別機構）。過剰マッチ防止のため名詞句スパンに対して呼ぶこと。
+export function parseSelfComparison(text: string): Partial<TargetFilter> {
+  const m = text.match(/(?:このシグニ|自身)より(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
+  if (!m) return {};
+  const kind = m[1];
+  if (kind === 'パワーの低い') return { powerLtSelf: true };
+  if (kind === 'パワーの高い') return { powerGtSelf: true };
+  if (/低いレベル|レベルの低い/.test(kind)) return { levelLtSelf: true };
+  return { levelGtSelf: true };
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };
