@@ -302,7 +302,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     }
   }
   // 動的フィルタ（powerLteLastProcessed / levelLteLastProcessed＝「この方法で処理したシグニのパワー/レベル以下」等）を解決
-  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
   const allCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
@@ -411,7 +411,7 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
-  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
   const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
