@@ -588,9 +588,14 @@ test('ARTS_USED_THIS_TURN 条件: turn_arts_used で発火ゲート（WX25-P3-11
   const hostUsed = { ...host, turn_arts_used: true };
   eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX25-P3-112-E1'), true, 'アーツ使用済みで発火');
 });
-test('Stage2 ON_TURN_START: self シグニが発火（WXDi-P05-039-E1）', () => {
-  const host = mkState({ signi: ['WXDi-P05-039', null, null] }); const guest = mkState({});
-  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WXDi-P05-039-E1'), true, 'ターン開始で発火');
+test('Stage2 ON_TURN_START: any_opp シグニが対戦相手のターン開始時に発火（WXDi-P05-039-E1）', () => {
+  // 原文「対戦相手のターン開始時、…」＝triggerScope:any_opp。ホストのターン開始＝WXDi-P05-039 を持つ
+  // ゲスト視点では「対戦相手のターン開始時」＝相手フィールド any_opp 分岐が発火。
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P05-039', null, null] });
+  const e = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest);
+  eq(has(e, 'WXDi-P05-039-E1'), true, '対戦相手のターン開始時に発火');
+  // ゲスト自身のターン開始（自ターン）では any_opp ゲートで非発火。
+  eq(has(collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_TURN_START', guest, host), 'WXDi-P05-039-E1'), false, '自ターンは非発火');
 });
 test('Stage2 ON_TURN_START: ルリグの自イベントが発火（WX20-001-E1）', () => {
   const host = mkState({}); host.field.lrig = ['WX20-001']; const guest = mkState({});
