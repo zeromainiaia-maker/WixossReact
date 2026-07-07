@@ -929,6 +929,28 @@ function parseActiveCondition(text: string): ConditionParseResult {
   return { condition: undefined, rest: text, conditionFound: false };
 }
 
+// ── 無言フォールバックの刻印（PLAN §5c 死角(d)対応・2026-07-07） ──
+// parser が「原文の条件/ステップを黙って落とす近似」を行った箇所で markSilentFallback(理由) を呼ぶ。
+// 効果1件のトップレベル action パース直後に consumeSilentFallbacks() で回収し、parseStatus 'AUTO' を
+// 'PARTIAL' へ降格＋計器ログへ記録する（build:effects が docs/_partial_report.txt に書き出す）。
+// ⚠意図的な慣例エンコードは刻印しない：「そうした場合、」の常時true IS_MY_TURN（§9-9・engine特別処理あり）・
+// 「代わりに」REPLACEモード・OPPONENT_PAY_OPTIONAL の else ラップ・「あなたのターンの間」正抽出。
+let _silentFallbacks: string[] = [];
+function markSilentFallback(reason: string): void { _silentFallbacks.push(reason); }
+function consumeSilentFallbacks(): string[] {
+  if (_silentFallbacks.length === 0) return [];
+  const v = _silentFallbacks;
+  _silentFallbacks = [];
+  return v;
+}
+export interface SilentFallbackEntry { effectId: string; reasons: string[] }
+const _silentFallbackLog: SilentFallbackEntry[] = [];
+export function getSilentFallbackLog(): readonly SilentFallbackEntry[] { return _silentFallbackLog; }
+function logSilentFallbacks(effectId: string, reasons: string[]): void {
+  // 実行時アプリでも parser が呼ばれうるため、ログは上限付き（計器用途は build:effects 内で完結する）
+  if (reasons.length > 0 && _silentFallbackLog.length < 100000) _silentFallbackLog.push({ effectId, reasons });
+}
+
 // 「この方法で…トラッシュに置かれた場合、」の条件文を解析する。
 // 該当しない場合は null（呼び出し側で IS_MY_TURN にフォールバック）。
 // prevIsDeckMill: 直前ステップが「デッキの上からトラッシュ（TRASH DECK_CARD）」か。
