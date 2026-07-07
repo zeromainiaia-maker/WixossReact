@@ -100,7 +100,7 @@ const PATTERNS: Pattern[] = [
     keys: ['powerLtSelf', 'powerLteSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf',
       'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger', 'powerLtAnyAlly', 'powerLtPrinted', 'powerGtPrinted',
       'powerBelowLeftCard', 'levelBelowLeftCard',
-      'powerLteLastProcessed', 'levelLteLastProcessed', 'levelLteDiscardSigni',
+      'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelLteDiscardSigni',
       'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER'],
   },
   {
