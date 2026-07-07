@@ -5,6 +5,18 @@
 
 ---
 
+## §6.3 REVEAL_AND_PICK「手札に加えるか場に出し」機構＝handOrField 対話選択＋公開カード消失バグ修正＝30枚是正（2026-07-07・続き36・Opus 4.8・第5バッチ）
+
+census 最大の単一テンプレ「その中からシグニN枚を公開し手札に加えるか場に出し、残りをデッキの一番下に置く」（22枚＋変種）を機構実装。**現状は pick 部分が脱落し bare `LOOK_AND_REORDER`（プレイヤーは1枚も取れない）**。加えて engine の REVEAL_AND_PICK 自体に**公開カード消失バグ**（デッキを slice するが未pick/非対象の公開カードを復元できず消失＝probe で6枚→4枚を確認）があり、本バッチで両方を修正。
+
+- **engine 3点**＝(1)**`execRevealAndPick` のデッキ非スライス化**＝公開カードをデッキに残し、resumeSearch が picked を各領域へ、未pick を revealRemainder で指定場所へ移す（消失防止）。(2)**resumeSearch に `revealRemainder` 処理追加**＝公開した全カード（`revealRemainder.cards`＝pickable の部分集合 `visibleCards` とは別）からピックしなかった分をデッキ下/トラッシュ/エナへ移動。(3)**`handOrField` 処理追加**＝picked シグニを「手札に加える or 場に出す」の CHOOSE で1枚ずつ処理（pickCount 1）。手札分岐は新設 `INTERNAL_PICK_TO_HAND`（指定カードをデッキ→手札）、場分岐は既存 `PLACE_SIGNI_ON_FIELD`。
+- **型**＝`RevealAndPickAction.handOrField?`／SEARCH pending に `revealRemainder`・`handOrField`。
+- **parser 1点**（`parseActionText`・splitSentences 前の全文捕捉）＝「デッキの上からカードをN枚見る。その中から(＜C＞の)?シグニM枚を(公開し)?手札に加えるか場に出し」→ `REVEAL_AND_PICK{revealCount,filter,pickCount,handOrField:true,remainder}`。2文にまたがるため文分割前に捕捉（bare LOOK_AND_REORDER 化を防ぐ）。
+- **decompiler**＝handOrField 時「その中から[filter]をN枚手札に加えるか場に出す」。
+- **採用30枚**＝29枚を heldReview 一括採用（committed の bare LOOK_AND_REORDER→REVEAL_AND_PICK の1効果差のみ・全 AUTO）＋WX26-CP1-100 は E1 に無関係な既存 held ドリフト（続き35見送りの TRANSFER_TO_DECK→CHOOSE）があるため **BURST のみ effectId 外科パッチ**。corpus 全走査で handOrField 保持は30枚のみ＝原文「手札に加えるか場に出し」と1:1（誤爆0）。
+- **golden +4**＝(1)REVEAL_AND_PICK remainder で公開カード消失なし（deck+hand 保存＝旧実装は2枚ロスト）(2)handOrField が手札/場の CHOOSE を提示し消失なし。engine probe で hand/handOrField→hand/handOrField→field の3経路とも 6枚保持を確認。
+- **検証**＝typecheck 緑・golden **149/149**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成・逆翻訳が原文一致）・**census 1645→1637**（`BASELINE_HIGH`／PLAN §恒久指標 実数更新）。**engine/parser/decompiler 全変更＝smoke/golden/fuzz 実施**。⚠既存の全 REVEAL_AND_PICK-with-remainder カードにも消失バグ修正が波及（無回帰を smoke/fuzz で確認）。
+
 ## §5c(7) 最上級フィルタ `TargetFilter.superlative` 新設＝「最も×パワー/レベルを持つシグニ」6枚を是正（2026-07-07・続き36・Opus 4.8・第4バッチ）
 
 census クラスタ「最上級（最も×パワー/レベル）6枚」（PLAN §5c(7) 明記）を機構実装。「対戦相手のシグニのうち、最も大きいパワーを持つシグニ」等が superlative 制約なしで対象過大（over-effect）になっていた。

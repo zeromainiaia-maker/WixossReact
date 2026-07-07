@@ -51,7 +51,7 @@ import * as path from 'path';
 // 2026-07-07 続き35(Sonnet)第7ラウンド: B層残タスク(d)CHOOSE内包＝WXDi-P10-004のCHOOSE選択肢1を
 // REVEAL_AND_PICK+ADD_TO_FIELDへ手パッチ（MANUAL刻印）＝1655→1654。WX26-CP1-100は
 // 「トラッシュ→エナゾーンの対象指定移動」という未実装engineメカニズムが要るため見送り（Opus向け）。
-const BASELINE_HIGH = 1645;
+const BASELINE_HIGH = 1637;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
