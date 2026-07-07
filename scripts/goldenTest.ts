@@ -268,6 +268,12 @@ test('levelLtTrigger: トリガー元レベル未満のみ対象（trigger L2→
   eq(tops(r.otherState)[0], null, 'L1（<2）が除去される');
   ok(tops(r.otherState)[1] !== null, '同値 L2 は残る');
 });
+test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
+  const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, '敵P3000（<自最大12000）が除去される');
+  ok(tops(r.otherState)[1] !== null, '敵P12000（=最大・より低くない）は残る');
+});
 // ── 続き44: 先頭「（この/その）シグニより…対象とし、…それを〈除去〉」designation の動的比較を後続ターゲットへ引き継ぐ ──
 // 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）や別文（cost/条件）に分かれ、除去アクション文（「それを
 // バニッシュする」等）に比較語が残らず全数脱落していた過剰効果群。基準を厳密に切る（この=自身/その=トリガー主語/その後=lastProcessed据置）。
