@@ -604,6 +604,54 @@ const scenarios = {
     },
   },
 
+  // ⑭ WX01-081→WXDi-P04-065: R38（§7）ON_SIGNI_FROZEN の実機検証。
+  //    WX01-081【出】（ON_PLAY・mandatory・相手シグニ1体を凍結・「ピルルク限定」＝center lrigをピルルク系に）を
+  //    召喚→SELECT_TARGETで相手シグニを指定→FREEZE適用→collectFreezeTriggers が watcher（WXDi-P04-065・
+  //    any_opp・targetsTriggerSource）を発火→凍結されたそのシグニにパワー-1000。
+  freezetrigger: {
+    title: 'WX01-081→WXDi-P04-065（ON_SIGNI_FROZEN＝相手シグニ凍結時 自身targetに-1000）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],                    // コード・ピルルク・Ｍ Lv2（「ピルルク限定」を満たす）
+        'field.signi': [['WXDi-P04-065#1'], null, null], // watcher（羅菌 プランクトン・any_opp・P1000）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null],     // 凍結対象（小剣 ククリ P3000）
+      },
+      handPrepend: ['WX01-081#1'],                        // コードアート Ｔ・Ｖ（【出】相手シグニ1体を凍結・コストなし）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/freezetrigger-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) { // SELECT_TARGET（凍結対象＝guest の WD01-013）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        const freezeLog = await H.findLog(/をフリーズ/);
+        const watcherLog = await H.findLog(/羅菌.*プランクトン.*凍結時|の【自】効果（凍結時）/);
+        H.log(`  fz[${s}] -> ${did ?? 'なし'} | freeze=${!!freezeLog} watcher=${!!watcherLog}`);
+        if (freezeLog && watcherLog) {
+          return { pass: true, detail: `ON_SIGNI_FROZEN 発火→ログ「${freezeLog}」「${watcherLog}」を確認` };
+        }
+      }
+      return { pass: false, detail: '凍結ログ／watcher発火ログ未確認' };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
