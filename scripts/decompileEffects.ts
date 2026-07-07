@@ -1865,19 +1865,38 @@ function effJa(e: Eff): string {
 }
 
 // ── 対象カードの決定 ──
+// CardData_Sheet<N>.csv の全カードを CSV 順で対象にする（引数長制限回避）
+function sheetTargets(n: string): string[] {
+  const p = join(root, 'public/data', `CardData_Sheet${n}.csv`);
+  const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
+  const { data } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
+  return data.map(r => r.CardNum?.trim()).filter((x): x is string => !!x);
+}
+
 const args = process.argv.slice(2);
+
+// --sheets: 全シートを docs/decompile_sheet<N>.txt へ UTF-8 直書き（シェルのリダイレクト不要）
+if (args[0] === '--sheets') {
+  const nums = readdirSync(join(root, 'public/data'))
+    .map(f => f.match(/^CardData_Sheet(\d+)\.csv$/)?.[1])
+    .filter((x): x is string => !!x)
+    .sort((a, b) => Number(a) - Number(b));
+  for (const n of nums) {
+    const t = sheetTargets(n);
+    writeFileSync(join(root, 'docs', `decompile_sheet${n}.txt`), renderCards(t), 'utf-8');
+    console.log(`docs/decompile_sheet${n}.txt … ${t.length}枚`);
+  }
+  console.log(`全${nums.length}シート再生成（UTF-8直書き）。下流は npm run regen が一括で回す。`);
+  process.exit(0);
+}
+
 let targets: string[] = [];
 if (args.includes('--manual')) {
   // manualEffects.ts に登場するカード番号を抽出
   const src = readFileSync(join(root, 'src/data/manualEffects.ts'), 'utf-8');
   targets = [...src.matchAll(/'([A-Z0-9]+-[A-Za-z0-9-]+)':\s*\[/g)].map(m => m[1]);
 } else if (args[0] === '--sheet') {
-  // CardData_Sheet<N>.csv の全カードを CSV 順で対象にする（引数長制限回避）
-  const n = args[1] ?? '1';
-  const p = join(root, 'public/data', `CardData_Sheet${n}.csv`);
-  const text = readFileSync(p, 'utf-8').replace(/^﻿/, '');
-  const { data } = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: true });
-  targets = data.map(r => r.CardNum?.trim()).filter((x): x is string => !!x);
+  targets = sheetTargets(args[1] ?? '1');
 } else if (args[0] === '--file') {
   // 改行/空白区切りのカード番号ファイル
   targets = readFileSync(args[1], 'utf-8').split(/\s+/).map(s => s.trim()).filter(Boolean);
