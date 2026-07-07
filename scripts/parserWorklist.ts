@@ -50,13 +50,16 @@ function lossCat(path:string):string{
 const LOSS_PRIORITY=['timing（トリガー種別の取りこぼし）','effectType','triggerCondition/Scope/Filter','activeCondition','action.type（アクション種別）','filter.cardType','filter.story','filter.color','filter（その他）','upToCount','duration','count','optional/mandatory','then/steps（後続処理の欠落）','cost','owner'];
 
 type Rec={id:string;track:'LOSS'|'VALUE'|'ADD/OTHER';bucket:string};
+// parseStatus は比較から除外（無言フォールバック刻印 AUTO→PARTIAL のメタ差分を held に数えない。2026-07-07）
+const stripPS=(effs:any[])=>effs.map((x:any)=>{const{parseStatus:_ps,...rest}=x??{};return rest;});
 const recs:Rec[]=[];
 for(const [id,e] of existing){
   const f=fresh.get(id); if(!f)continue;
-  if(JSON.stringify(e)===JSON.stringify(f))continue;
+  const eN=stripPS(e), fN=stripPS(f);
+  if(JSON.stringify(eN)===JSON.stringify(fN))continue;
   if(e.some(x=>PRESERVE.has(x?.parseStatus)))continue;
-  if(isPureSuperset(e,f))continue;
-  const em=leafMap(e),fm=leafMap(f);
+  if(isPureSuperset(eN,fN))continue;
+  const em=leafMap(eN),fm=leafMap(fN);
   const lost:string[]=[],changed:string[]=[];
   for(const[p,v]of em){ if(!fm.has(p))lost.push(p); else if(JSON.stringify(fm.get(p))!==JSON.stringify(v))changed.push(p); }
   if(lost.length){
