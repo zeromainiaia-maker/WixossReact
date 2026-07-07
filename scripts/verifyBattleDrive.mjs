@@ -551,15 +551,17 @@ const scenarios = {
 
   // ⑪ ON_SIGNI_POWER_ZERO_OR_LESS（R37・§7・WX21-067）: 【自】《ターン1回》＝対戦相手のシグニのパワーが０以下に
   //    なったとき、カードを１枚引く（triggerScope any_opp）。トリガー源＝WD11-013【出】（mandatory・コストなし・
-  //    対戦相手シグニ1体に-1000＝ちょうど power1000 の相手シグニ WX01-083 を0化）。⚠初回試行は WD22-037-UG
-  //    （-12000）を使ったが「シグニの効果によって場に出た場合」限定の裏面UG型カードは通常召喚ボタン自体が出ない
-  //    UI仕様と判明（本カードでは再現不可）ため、通常召喚可能な単純カードに差し替え。-1000到達→クライアント側の
-  //    checkAndBanishPowerZero（useEffect常時監視）が対象をバニッシュ＋collectPowerZeroTriggers を発火させる経路。
+  //    対戦相手シグニ1体に-1000＝ちょうど power1000 の相手シグニ WX01-083 を0化）。⚠試行錯誤の教訓＝(1)WD22-037-UG
+  //    （-12000）は「シグニの効果によって場に出た場合」限定の裏面UG型カードで通常召喚ボタン自体が出ないUI仕様と判明。
+  //    (2)WD11-013 は「ミュウ限定」＝ホストのセンタールリグがミュウでないと同様に召喚ボタンが出ない（Team制限が
+  //    実際に summon UI をゲートする＝当初の想定「デッキ構築のみ制約」は誤り）。→センターを ミュウ の WX08-004
+  //    （Lv4/Limit11）に変更して解決。-1000到達→クライアント側の checkAndBanishPowerZero（useEffect常時監視）が
+  //    対象をバニッシュ＋collectPowerZeroTriggers を発火させる経路。
   powerzero: {
     title: 'WD11-013→WX21-067（ON_SIGNI_POWER_ZERO_OR_LESS＝相手シグニ0以下化でドロー）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD01-001#1'],                  // 任意センター（タマ Lv4/Limit11＝Lv1+Lv2=3に十分）
+        'field.lrig': ['WX08-004#1'],                  // ミュウ Lv4/Limit11（WD11-013「ミュウ限定」を満たす・Lv1+Lv2=3に十分）
         'field.signi': [['WX21-067#1'], null, null],   // watcher（アイン＝テトロド）
         'actions_done': [],
       },
