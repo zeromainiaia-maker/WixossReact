@@ -2690,25 +2690,16 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     return done(ctx);
   }
 
-  // 一時的にデッキ上部を除去
-  const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
-  const newCtx = setOwnerState(a.owner, newS, ctx);
-
-  return needsInteraction(newCtx, {
+  // デッキはスライスせず公開カードを残す（resumeSearch が picked を各領域へ、未pick公開カードを
+  // revealRemainder で指定場所へ移す＝公開カードの消失を防ぐ）。旧実装は deck.slice で公開分を除去し
+  // 未pick/非対象カードを復元できず消失させていた（実バグ）。
+  return needsInteraction(setOwnerState(a.owner, state, ctx), {
     type: 'SEARCH',
     visibleCards: pickable,
     maxPick,
     thenAction: a.then,
-    afterAction: a.remainder
-      ? {
-          type: 'LOOK_AND_REORDER',
-          source: { location: 'deck', owner: a.owner },
-          count: 0, // placeholder: remainder handled separately
-          private: true,
-          reorder: false,
-          destination: { location: a.remainder.location, owner: a.owner, position: a.remainder.position },
-        }
-      : undefined,
+    ...(a.handOrField ? { handOrField: true } : {}),
+    ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position } } : {}),
   });
 }
 
