@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 動的比較 別基準＝`powerLtAnyAlly`「あなたのいずれかのシグニよりパワーの低い」＝自分の場の最大パワー基準＝2枚の過剰効果を是正（2026-07-08・続き45・Opus 4.8）
+
+続き43-44の自己参照/トリガー参照に続く**別基準サブファミリ**。「あなたのいずれかのシグニよりパワーの低い対戦相手のシグニ1体を対象とし、それをバニッシュする」＝**自分の場のシグニのいずれか（＝最大実効パワー）を基準にした比較**が JSON で脱落し全シグニ対象になっていた過剰効果。DB 全2枚（WXDi-P01-020／WXDi-P07-031＝いずれも同一パターン・両方 census 高シグナル計上）。[[vocab-census-overfire-blindspot]]
+
+- **型**（`src/types/effects.ts`）＝`powerLtAnyAlly?: boolean` 新設（「いずれか…より低い」＝いずれか1体より低ければ可＝最大値未満）。
+- **parser**（`src/data/parserUtils.ts`）＝`parseAnyAllyComparison`（「あなたのいずれかのシグニよりパワーの低い」→`{powerLtAnyAlly:true}`）を新設し **`parseSigniTarget` に配線**（parseSelfComparison/parseTriggerComparison と同じ中心の1箇所）。2枚とも「対象とし、それをバニッシュする」単一フラグメントが parseSigniTarget を通るため designation post-pass 不要。過剰語彙を作らないため「パワーの低い」のみ実装。
+- **engine**（`src/engine/effectExecutor.ts` `resolveDynamicFilter`）＝`ownerState.field.signi` の各スタック最上位の実効パワー（`effectivePowers` ?? 表記）の**最大 -1 を `powerRange.max` へ解決**。参照不能（場に自シグニ無し）なら制限なしへフォールバック（既存の self/trigger と同じ慣例）。
+- **decompiler**（`scripts/decompileEffects.ts`）＝`powerLtAnyAlly`→「あなたのいずれかのシグニよりパワーの低い」レンダラ追加（原文一致・同型★0 維持）。
+- **census**（`scripts/vocabCensus.ts`）＝動的比較パターンの `keys` に `powerLtAnyAlly` 追加＋`BASELINE_HIGH` 1624→1623。**WXDi-P07-031 は完全解消／WXDi-P01-020 は powerLtAnyAlly は入ったが別カテゴリ「トリガー:アタックしたとき」の未対応で残存**（動的比較の修正自体は両方完了・census -1 は正）。
+- **検証**＝typecheck・**golden 162→163（+1＝powerLtAnyAlly の engine 解決を strict 境界で assert）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**・**census 1624→1623（-1）**＝`build:effects` 自動収穫2枚（純改善・collateral 0）。engine 実カード配線（ON_PLAY コスト付き ACT）は既存 BANISH 経路のため実機リスク低。
+
 ## §5c 動的比較（自己参照）残＝先頭「〜対象とし、」designation の比較を後続「それを〈除去〉」ターゲットへ引き継ぐ post-pass＝6枚の過剰効果を是正（2026-07-08・続き44・Opus 4.8）
 
 続き43で確立した自己参照機構の**残（follow-up）**＝「このシグニよりパワーの低い対戦相手のシグニ1体を**対象とし**、《赤》を支払ってもよい。そうした場合、**それを**バニッシュする」型。**対象選択が先頭 designation 文にあり、除去アクションの target 文（「それをバニッシュする」等）には比較語が残らない**ため `parseSigniTarget` 経由の比較パーサが届かず、比較フィルタが全数脱落（比較なしで全シグニ対象＝**過剰効果**）していた。続き43で「残」として列挙した WXK05-059/WXK10-062/WXK09-052/WXK10-040 を含む系統。[[vocab-census-overfire-blindspot]]
