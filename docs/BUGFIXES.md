@@ -5,6 +5,17 @@
 
 ---
 
+## §5b B層：REVEAL_AND_PICK残タスク(b)＝2段/複合ピック3枚をLOOK_PICK_CHAINで是正・WX26-CP1-019はCHOOSE構造ごと再構築（2026-07-07・続き35・Sonnet 5・同日第6ラウンド）
+
+続き33で持ち越された残37件のうち分類(b)「2段/複合ピック」3枚（WXDi-P06-053/WX26-CP1-019/WX25-P1-035）を是正。いずれも「デッキ上N枚見て、異なる条件のカードをそれぞれ別々の行き先（手札/エナ/トラッシュ）へピックする」型で、既存の `LOOK_PICK_CHAIN{owner,revealCount,stages:[{filter?,pickCount,then}],remainder}` 機構（WXDi-P02-020等で確立済み・1回の公開に対し複数段のピックを順次処理）を適用。
+
+- **WXDi-P06-053**（【出】《無》《無》《無》：「その中から赤のシグニを1枚までと、白か青か緑か黒のシグニを1枚まで公開し手札に加え」＝両方とも手札行きの2段ピック。curatedは公開/ピックが両方消失した bare `LOOK_AND_REORDER` だった。`stages:[{filter:{cardType:'シグニ',color:'赤'},pickCount:1,then:'hand'},{filter:{cardType:'シグニ',color:['白','青','緑','黒']},pickCount:1,then:'hand'}]`。色フィルタの配列はOR判定＝既存の `TargetFilter.color?: string | string[]` 仕様を活用）。
+- **WX25-P1-035**（「その中からカードを1枚までトラッシュに置き、＜天使＞のシグニを2枚まで公開し手札に加え」＝行き先違いの2段ピック。既存のBOUNCEステップ（「対戦相手のパワー8000以下のシグニ1体を手札に戻す」）はそのまま残し、後続の誤った`LOOK_AND_REORDER`+`TRANSFER_TO_DECK`2ステップだけ `LOOK_PICK_CHAIN{stages:[{pickCount:1,then:'trash',pickNoun:'カード'},{filter:{cardType:'シグニ',cardClass:'天使'},pickCount:2,then:'hand'}]}` に差し替え）。
+- **WX26-CP1-019**（最重症）＝原文は「以下の２つから１つを選ぶ」というCHOOSE構造で、各選択肢が「対象効果（手札に戻す／パワー-10000）＋プリオケのピック2段（1枚までエナゾーンへ、色指定1枚まで手札へ）」を含む複合効果だったが、curatedはこのCHOOSE構造自体が完全に消失し、対象効果もピックも存在しない裸の `LOOK_AND_REORDER` 1個だけという最も重度の欠落だった。`CHOOSE{choose_count:1,from_count:2,choices:[{action:SEQUENCE[BOUNCE{opponent power<=10000},LOOK_PICK_CHAIN{プリオケ→energy,白のプリオケ→hand}]},{action:SEQUENCE[POWER_MODIFY{opponent,delta:-10000,duration:UNTIL_END_OF_TURN},LOOK_PICK_CHAIN{プリオケ→energy,黒のプリオケ→hand}]}]}` として新規構築。
+- 3枚とも手パッチのため `parseStatus:'MANUAL'` を刻印。
+- **検証**＝typecheck緑・golden 141・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet7,9再生成）・**census 1658→1655**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。**parser/engine変更なし**（既存の`LOOK_PICK_CHAIN`機構のみ活用）。
+- **次の一手**＝これで続き33由来のB層残タスク(a)(b)(c)は完了。残る(d)CHOOSE内包（WXDi-P10-004/WX26-CP1-100一部）が次回Sonnetの継続候補。
+
 ## §5b B層：REVEAL_AND_PICK残タスク(c)の最後の1枚＝WX25-CP1-029（緑）＝ADD_TO_FIELD結果へのtargetsLastProcessedバフで是正・4色セット完遂（2026-07-07・続き35・Sonnet 5・同日第5ラウンド）
 
 前段（同日第4ラウンド）の白/青/黒3枚に続き、同じ「デッキ上5枚見て＜ブルアカ＞のカードを2枚まで手札に加え、特定色を含んでいればボーナス」4色セットの残り1枚（緑）を是正。緑バリエーションのみボーナス効果が「対象を選んでの即時効果」ではなく「新たに場に出したシグニ自身へのターン限定バフ」であるため構造がやや複雑で前ラウンドでは見送っていた。
