@@ -576,7 +576,7 @@ export function fieldCandidates(
   allColorSigniNums?: Set<string>,
   fieldSigniExtraColors?: Map<string, string[]>,
 ): string[] {
-  return state.field.signi.flatMap((stack, zoneIdx) => {
+  const baseCands = state.field.signi.flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const cardNum = stack[stack.length - 1];
     // ゾーン状態に依存するフィルター（infected / hasAcce / hasCharm）
