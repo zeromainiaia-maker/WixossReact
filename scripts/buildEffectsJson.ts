@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
-import { parseCardEffects } from '../src/data/effectParser';
+import { parseCardEffects, getSilentFallbackLog } from '../src/data/effectParser';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import type { CardData } from '../src/types';
 
