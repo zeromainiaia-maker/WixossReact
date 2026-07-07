@@ -2496,6 +2496,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       const toHWE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
       activeCondition = { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: parseInt(toHWE(eichiCostM[1])) } as ActiveCondition;
       const resolvedEichi = parseActionText(actionText);
+      const eichiFb = consumeSilentFallbacks();
+      logSilentFallbacks(`${cardNum}-E${index + 1}`, eichiFb);
       return {
         effectId: `${cardNum}-E${index + 1}`,
         effectType: 'CONTINUOUS',
@@ -2503,7 +2505,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         action: resolvedEichi,
         duration: 'PERMANENT',
         mandatory: true,
-        parseStatus: 'AUTO',
+        parseStatus: eichiFb.length > 0 ? 'PARTIAL' : 'AUTO',
       };
     }
     // 複数条件を繰り返しパースして AND で結合する
