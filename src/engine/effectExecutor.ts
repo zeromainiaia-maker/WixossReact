@@ -147,16 +147,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     : tgt.filter?.levelEqualsVar === 'field_trash_level'
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_field_trash_level ?? -1 }
     : tgt.filter;
-  // colorMatchesLrig / levelLteFieldVirusCount等の動的フィルタを解決（activatorはctx.ownerState固定）
-  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers);
-  // powerLteSelf / powerLtSelf: 効果元シグニの実効パワーを基準に powerRange.max へ解決
-  if (resolvedFilter && (resolvedFilter.powerLteSelf || resolvedFilter.powerLtSelf) && ctx.sourceCardNum) {
-    const selfPower = ctx.effectivePowers?.get(ctx.sourceCardNum)
-      ?? parseInt(ctx.cardMap.get(ctx.sourceCardNum)?.Power ?? '0', 10);
-    const maxP = resolvedFilter.powerLtSelf ? selfPower - 1 : selfPower;
-    const { powerLteSelf: _a, powerLtSelf: _b, ...rest } = resolvedFilter;
-    resolvedFilter = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: maxP } };
-  }
+  // colorMatchesLrig / levelLteFieldVirusCount / powerLtSelf等の動的フィルタを解決（activatorはctx.ownerState固定）
+  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
   // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
   // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
