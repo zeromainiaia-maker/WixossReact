@@ -2538,6 +2538,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
     resolvedAction = parseActionText(actionText);
   }
+  // 無言フォールバック刻印をここで回収（以降のサブ展開 parseBlock は各自の効果内で回収する）
+  const silentFb = consumeSilentFallbacks();
 
   // GRANT_ACCE_HOST_ABILITY: rawText から付与能力を展開（引用「…」ブロック or 引用符なしキーワード）。
   // 既存JSONの慣例に合わせ、付与能力の effectId は `{cardNum}-E{N}-G` とする。
