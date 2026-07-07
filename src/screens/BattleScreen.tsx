@@ -2515,6 +2515,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectFreezeTriggers(mkTrigCtx(), frozenByOwner, hostState, guestState);
 
+  // ON_SIGNI_FROZEN をスタックを経由しないインライン解決（対象選択を伴う効果が resume 経路＝handleEffectInteraction
+  // で完結する場合）で検出する共有ヘルパー。resolveStackNext の中央 diff（3798）はスタック解決のみを通るため、
+  // FREEZE 付与の大半（SELECT_TARGET で単体対象を凍結）はここを呼んで ON_SIGNI_FROZEN を拾う（続き40 R38 実機FAIL修正）。
+  // before は bs.host_state/guest_state。entries と once_per_turn の actions_done を反映した host/guest を返す。
+  const collectFreezeInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    let h = afterHost, g = afterGuest;
+    const frozenHost = detectNewlyFrozen(bs.host_state, afterHost);
+    const frozenGuest = detectNewlyFrozen(bs.guest_state, afterGuest);
+    if (frozenHost.length === 0 && frozenGuest.length === 0) return { entries: [], hostState: h, guestState: g };
+    const fz = collectFreezeTriggers(
+      [{ ownerId: bs.host_id, nums: frozenHost }, { ownerId: bs.guest_id, nums: frozenGuest }],
+      afterHost, afterGuest,
+    );
+    if (fz.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...fz.usedHostIds] };
+    if (fz.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...fz.usedGuestIds] };
+    return { entries: fz.entries, hostState: h, guestState: g };
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
