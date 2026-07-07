@@ -1676,6 +1676,8 @@ function effJa(e: Eff): string {
     if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
     // ON_MAIN_PHASE_START の triggerScope:any_opp（「対戦相手のメインフェイズ開始時」WXDi-P00-034）
     if (t === 'ON_MAIN_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のメインフェイズ開始時';
+    // ON_TURN_END/ON_TURN_START の triggerScope:any_opp（「対戦相手のターン終了/開始時」WX11-032/WX20-073 等）
+    if ((t === 'ON_TURN_END' || t === 'ON_TURN_START') && e.triggerScope === 'any_opp') s = `対戦相手の${s}`;
     // ON_LRIG_GROW の主語（triggerScope/excludeSelf）を反映（any_opp＝対戦相手／excludeSelf＝他の）
     if (t === 'ON_LRIG_GROW') {
       s = e.triggerScope === 'any_opp' ? '対戦相手のルリグがグロウしたとき'
