@@ -82,7 +82,7 @@ const STATE_KEYS = new Set([
   'powerLteSelf', 'powerLtSelf', 'frontOfSelf', 'frontOfGateZone', 'inGateZone', 'thisCardOnly',
   'excludeSelf', 'isTriggerSource', 'centerZoneOnly', 'acceHost', 'hasIcon',
   'levelBelowLeftCard', 'powerBelowLeftCard', 'underLeftCard', 'levelLteFieldVirusCount',
-  'powerLteLastProcessed', 'levelLteLastProcessed', 'levelEqLastProcessed', 'levelLteDiscardSigni',
+  'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelEqLastProcessed', 'levelLteDiscardSigni',
   'powerLteRevealedSigniLevelSum', 'levelEqDiscardLevelSum', 'levelEqualsVar',
   'colorMatchesLrig', 'colorNotMatchesLrig',
 ]);
