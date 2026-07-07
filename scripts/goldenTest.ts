@@ -268,6 +268,12 @@ test('levelLtTrigger: トリガー元レベル未満のみ対象（trigger L2→
   eq(tops(r.otherState)[0], null, 'L1（<2）が除去される');
   ok(tops(r.otherState)[1] !== null, '同値 L2 は残る');
 });
+test('levelGtTrigger: トリガー元レベル超過のみ対象（trigger L1→L2除去・L1残存・WX24-P1-015）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, SIGNI_L1);
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelGtTrigger: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[1], null, 'L2（>1）が除去される');
+  ok(tops(r.otherState)[0] !== null, '同値 L1 は残る');
+});
 test('REVEAL_AND_PICK remainder: 公開カードが消失しない（続き36 修正・deck+hand 保存）', () => {
   const ctx = mkCtx({ deckTop: [SIGNI, SIGNI_L2, SIGNI_P3000] }, {});
   const before = ctx.ownerState.deck.length + ctx.ownerState.hand.length;
