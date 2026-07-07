@@ -250,6 +250,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   Object.assign(filter, parseSelfComparison(text));
   // 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」= トリガー元シグニ基準（被バニッシュ/場に出た/アタッカー）
   Object.assign(filter, parseTriggerComparison(text));
+  // 「その後、そのシグニより〔パワー/レベル〕の低い」= 直前に処理したシグニ基準（この効果内で場に出た/公開した＝lastProcessed）
+  Object.assign(filter, parseLastProcessedComparison(text));
   // 「あなたのいずれかのシグニよりパワーの低い」= 自分の場のシグニの最大パワー基準（WXDi-P01-020/WXDi-P07-031）
   Object.assign(filter, parseAnyAllyComparison(text));
   // 「表記されているパワーよりパワーの低い/高い」= 各候補の実効パワー vs 自身の表記パワー（WX25-CP1-093/WXK10-027）
