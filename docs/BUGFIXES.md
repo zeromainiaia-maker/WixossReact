@@ -5,6 +5,15 @@
 
 ---
 
+## §7 実機検証シナリオ横展開＝ON_SIGNI_POWER_ZERO_OR_LESS（R37）の新規シナリオ追加＋実UI確認（2026-07-07・続き39・Sonnet 5・同日第2件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `powerzero`（WD11-013→WX21-067）を追加。R37「対戦相手のシグニのパワーが0以下になったとき」の①発火自体を実UIで確認。カード修正・engine変更なし＝ドライバスクリプトへのシナリオ追加＋観測記録のみ。
+
+- **カード選定の試行錯誤**＝(1) 当初 WD22-037-UG（-12000・裏面UG型）を使おうとしたが「シグニの効果によって場に出た場合」限定カードは通常召喚ボタンがUIに出ないと判明（手動召喚不可）。(2) 次点 WD11-013（-1000・ミュウ限定）も、ホストのセンタールリグがミュウでないと同様に召喚ボタンが出ないと判明＝**Team制限（○○限定）は実際に summon UI をゲートする**ことを確認（従来の想定「デッキ構築時の制約のみ」は誤り）。センタールリグをミュウの WX08-004 に変更して解決。
+- **単体実行でPASS**＝ホスト場の WX21-067（アイン＝テトロド）を待機させ、WD11-013 を召喚→SELECT_TARGETで power1000 の相手シグニ（WX01-083）を指定→-1000到達→クライアント側 `checkAndBanishPowerZero` がバニッシュ＋`collectPowerZeroTriggers` を発火。盤面ログ「1枚ドロー／[自分] アイン＝テトロドの【自】効果（パワー0以下時）」で確認。
+- **バッチ実行時のみのFAILを観測・切り分け**＝13シナリオ一括実行では `lrigundermoved`・`keywordgained`・`powerzero` の3件がFAIL（banishbyeffect以降の「自分ターン系」末尾に連鎖）。個別再実行では3件とも**全てPASS**＝カード/engineのバグではなく、既存コードに既に注釈されていた「バッチ実行時のみの状態汚染」（`game_logs`クリアだけでは防げないclient側の残留モーダル/state）がさらに後続シナリオへ連鎖することを確認。根本修正はdriver側のテスト分離強化が必要＝別途follow-up（`scripts/verifyBattleDrive.mjs`・`docs/VERIFY_BROWSER.md`にコメント追記済み）。
+- ドキュメント更新＝[VERIFY_BROWSER.md](./VERIFY_BROWSER.md)・[PLAN.md](./PLAN.md) §7 R37 を更新。engine/JSON無変更のためgates再実行は不要（実機ドライバのみ）。
+
 ## §7 実機検証フォローアップ＝ON_DECK_SHUFFLED スペル経路（deckshufflespell）の実 UI 確認完了（2026-07-07・続き39・Sonnet 5）
 
 VERIFY_BROWSER.md に「未完」として残っていた follow-up を実行してクローズ。カード修正・engine変更なし＝観測結果の記録のみ。
