@@ -1139,7 +1139,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
           targetsLastProcessed: true,
         } as PowerModifyAction;
       }
-      // (C) 未実装機構（引用複合能力付与・レベル比例ミル等）は honest STUB に温存
+      // (C) レベル比例ミル：「のレベル１につき〈相手/自分〉のデッキの上からカードを１枚トラッシュに置く」＝場出しシグニ
+      //     （lastProcessedCards）のレベル合計枚数だけデッキトップをトラッシュ（WX24-P3-039）。1:1 比のみ実装（他比率は STUB）。
+      const millM = body.match(/^のレベル[１1]につき(対戦相手|あなた)のデッキの上からカードを[１1]枚トラッシュに置く$/);
+      if (millM) {
+        return { type: 'MILL', owner: millM[1] === '対戦相手' ? 'opponent' : 'self', count: 0, countIsLastProcessedLevelSum: true } as EffectAction;
+      }
+      // (D) 未実装機構（引用複合能力付与・非1:1レベル比例等）は honest STUB に温存
       return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: trimmed } as StubAction;
     }
   }
