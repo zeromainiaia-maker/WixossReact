@@ -216,6 +216,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (sup) filter.superlative = sup;
   // 「このシグニ/自身より〔パワー/レベル〕の〔低い/高い〕」= 効果元シグニ基準の動的比較（過剰効果の温床＝比較脱落を防ぐ）
   Object.assign(filter, parseSelfComparison(text));
+  // 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」= トリガー元シグニ基準（被バニッシュ/場に出た/アタッカー）
+  Object.assign(filter, parseTriggerComparison(text));
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
