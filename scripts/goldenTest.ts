@@ -56,6 +56,8 @@ const SIGNI_P3000 = findCard(c => isSigni(c) && c.Power === '3000');
 const SIGNI_P12000 = findCard(c => isSigni(c) && c.Power === '12000');
 const SIGNI_L1 = findCard(c => isSigni(c) && c.Level === '1');
 const SIGNI_L2 = findCard(c => isSigni(c) && c.Level === '2');
+const SIGNI_L3 = findCard(c => isSigni(c) && c.Level === '3');
+const SIGNI_L4 = findCard(c => isSigni(c) && c.Level === '4');
 // engine は cardMap.get(インスタンスID) で照合するため、インスタンスID＝素のCardNum（#suffixなし）を使う。
 // 重複でゾーン間が混ざらないよう、全シグニから distinct に払い出すカーソル方式。
 const POOL = [...cardMap.values()].filter(isSigni).map(c => c.CardNum);
