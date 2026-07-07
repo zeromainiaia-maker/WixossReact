@@ -199,6 +199,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   // 「（〜の）シグニのうち、最も[大きい/小さい/高い/低い]パワー/レベルを持つ」= superlative（集合単位の極値フィルタ）
   const sup = parseSuperlative(text);
   if (sup) filter.superlative = sup;
+  // 「このシグニ/自身より〔パワー/レベル〕の〔低い/高い〕」= 効果元シグニ基準の動的比較（過剰効果の温床＝比較脱落を防ぐ）
+  Object.assign(filter, parseSelfComparison(text));
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
