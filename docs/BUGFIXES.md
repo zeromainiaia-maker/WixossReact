@@ -5,6 +5,15 @@
 
 ---
 
+## §5b B層：REVEAL_AND_PICK残タスク(d)＝CHOOSE内包の最終ラウンド＝WXDi-P10-004採用・WX26-CP1-100は未実装engineメカニズムのため見送り（2026-07-07・続き35・Sonnet 5・同日第7ラウンド）
+
+続き33で持ち越された残37件のうち最後の分類(d)「CHOOSE内包でより複雑」2件（WXDi-P10-004/WX26-CP1-100）に着手。これで続き33由来のB層タスクは(a)(b)(c)(d)すべて着手完了。
+
+- **採用＝WXDi-P10-004**（「以下の３つから２つまで選ぶ」CHOOSEの選択肢①「デッキ上5枚見て＜プリパラ＞のシグニ2枚まで手札に加え、残りをデッキ下へ。その後、手札から＜プリパラ＞のシグニを好きな枚数場に出す」が、公開/ピック/場出しがすべて消失した bare `LOOK_AND_REORDER` になっていた。`SEQUENCE[REVEAL_AND_PICK{revealCount:5,filter:{cardType:'シグニ',cardClass:'プリパラ'},pickCount:2,pickUpTo:true,then:ADD_TO_HAND,remainder:{deck,bottom}}, ADD_TO_FIELD{source:{type:'HAND_CARD',count:'ALL',filter:{cardType:'シグニ',cardClass:'プリパラ'}}}]` に是正。「好きな枚数」＝`count:'ALL'`（`execAddToField`は`count==='ALL'`で候補全件へ適用し、空きゾーン切れで自然に打ち止めになる）。選択肢②③は既に正しくエンコード済みだったため無変更。`parseStatus:'MANUAL'`刻印）。
+- **見送り＝WX26-CP1-100**（「以下の２つから１つを選ぶ」の選択肢②「あなたのトラッシュからレベル1の＜プリオケ＞のシグニを2枚まで対象とし、それらをエナゾーンに置く」＝トラッシュを対象とした直接エナゾーン送り。`SEND_TO_ENERGY`アクションの実装（`effectExecutor.ts` `execSendToEnergy`）を確認したところ`fieldCandidates`のみを候補とし、フィールドのシグニしか対象にできない＝トラッシュ由来のカードを対象にできない。corpus全体を「トラッシュから...を対象とし...エナゾーンに置く」で検索しても既存の正しい実装例が1件も見つからず＝engineにこのメカニズムが未実装と判断。加えてカード自体に「【常】：このカードはすべての領域で＜プリオケ＞として扱う」という別効果も欠落していたが、こちらは`STUB{type:'STUB',id:'TREAT_AS_CLASS_ALL_ZONES'}`（CONTINUOUS）で表現可能なことを確認済み（`effectEngine.ts`の`collectTreatAsClassAllZones`が`EffectText`を`/すべての領域で＜(.+?)＞として扱う/`で正規表現照合してクラス名を動的取得する既存機構）。BURSTの「その中からシグニ1枚を公開し手札に加えるか場に出し」（ピック後の行き先選択）も要検証で未着手。以上、トラッシュ→エナゾーン送りのengine拡張が前提のため全体を見送り＝Opus向け新規発見事項。
+- **検証**＝typecheck緑・golden 141・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・同型★0（sheet8再生成）・**census 1655→1654**（`BASELINE_HIGH`／PLAN §恒久指標を実数更新済み）。**parser/engine変更なし**。
+- **これで続き33由来のB層REVEAL_AND_PICK/LOOK_AND_REORDER残タスクは一区切り**＝残るはWXDi-P03-005（続き35第3ラウンドで発見・PAID_ADDITIONAL_COST置換モード拡張が前提）とWX26-CP1-100（トラッシュ→エナゾーン対象指定移動の新規action型が前提）のみ、いずれもOpus分担。
+
 ## §5b B層：REVEAL_AND_PICK残タスク(b)＝2段/複合ピック3枚をLOOK_PICK_CHAINで是正・WX26-CP1-019はCHOOSE構造ごと再構築（2026-07-07・続き35・Sonnet 5・同日第6ラウンド）
 
 続き33で持ち越された残37件のうち分類(b)「2段/複合ピック」3枚（WXDi-P06-053/WX26-CP1-019/WX25-P1-035）を是正。いずれも「デッキ上N枚見て、異なる条件のカードをそれぞれ別々の行き先（手札/エナ/トラッシュ）へピックする」型で、既存の `LOOK_PICK_CHAIN{owner,revealCount,stages:[{filter?,pickCount,then}],remainder}` 機構（WXDi-P02-020等で確立済み・1回の公開に対し複数段のピックを順次処理）を適用。
