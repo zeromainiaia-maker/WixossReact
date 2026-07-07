@@ -1457,6 +1457,27 @@ function parseActionText(text: string): EffectAction {
     }
   }
 
+  // ---- デッキ上N枚見て「（＜C＞の）シグニM枚を公開し手札に加えるか場に出し、残りをデッキ下」＝REVEAL_AND_PICK（handOrField）----
+  // 2文（「…見る。その中から…」）にまたがるため splitSentences 前に全文で捕捉する（22枚の系統・pick 脱落を防ぐ）。
+  {
+    const m = text.match(/デッキの上からカードを([０-９\d]+)枚(?:見る|公開する)。?\s*その中から(?:(＜[^＞]+＞)の)?シグニ([０-９\d]+)枚(まで)?を?(?:公開し)?手札に加えるか場に出し/);
+    if (m) {
+      const remainder: { location: 'deck' | 'trash'; position: 'top' | 'bottom' | 'any' } =
+        /残り[^。]*トラッシュ/.test(text) ? { location: 'trash', position: 'any' }
+        : { location: 'deck', position: 'bottom' };
+      return {
+        type: 'REVEAL_AND_PICK', owner: 'self',
+        revealCount: parseNum(m[1]),
+        filter: { cardType: 'シグニ', ...(m[2] ? parseStoryFilter(m[2]) : {}) },
+        pickCount: parseNum(m[3]),
+        ...(m[4] ? { pickUpTo: true } : {}),
+        handOrField: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder,
+      } as EffectAction;
+    }
+  }
+
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
     if (!c) return false;
