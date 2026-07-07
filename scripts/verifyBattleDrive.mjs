@@ -607,9 +607,18 @@ const scenarios = {
   // ⑭ WX01-081→WXDi-P04-065: R38（§7）ON_SIGNI_FROZEN の実機検証。
   //    WX01-081【出】（ON_PLAY・mandatory・相手シグニ1体を凍結・「ピルルク限定」＝center lrigをピルルク系に）を
   //    召喚→SELECT_TARGETで相手シグニを指定→FREEZE適用→collectFreezeTriggers が watcher（WXDi-P04-065・
-  //    any_opp・targetsTriggerSource）を発火→凍結されたそのシグニにパワー-1000。
+  //    any_opp・targetsTriggerSource）を発火→凍結されたそのシグニにパワー-1000…のはずだが、
+  //    ⚠2026-07-07・続き40で実機確認＝**現状FAIL（既知バグ・engine未配線）**。
+  //    ground truth（guest.field.signi_frozen）は [true,false,false] に正しく変化する＝FREEZE自体は適用される。
+  //    しかし collectFreezeTriggers/detectNewlyFrozen（BattleScreen.tsx:3798）は resolveStackNext の中央diffにしか
+  //    配線されておらず、本シナリオのように SELECT_TARGET を要する ON_PLAY 効果が resume 経路（handleEffectInteraction）
+  //    で完結するケース（=effect_stackを使わない大半のケース）では一度も呼ばれない＝watcher無発火。
+  //    同様の resume 経路の取りこぼしは ON_DECK_SHUFFLED/ON_SIGNI_BANISH_OPPONENT_BY_EFFECT/ON_LRIG_UNDER_MOVED/
+  //    ON_KEYWORD_GAINED は既に collectXxxInline で対策済み（handleEffectInteraction 4386-4408行）だが
+  //    ON_SIGNI_FROZEN だけこのリストに入っていない＝機構修正待ち（§6.3/§7・Opus担当・同型のinline collector追加で直る想定）。
+  //    default `order` には含めない（既存スイートを壊さないため）。修正後に `freezetrigger` を単体実行して再検証する。
   freezetrigger: {
-    title: 'WX01-081→WXDi-P04-065（ON_SIGNI_FROZEN＝相手シグニ凍結時 自身targetに-1000）',
+    title: 'WX01-081→WXDi-P04-065（ON_SIGNI_FROZEN＝相手シグニ凍結時 自身targetに-1000・⚠既知FAIL＝resume経路未配線）',
     spec: {
       hostSet: {
         'field.lrig': ['WD03-003#1'],                    // コード・ピルルク・Ｍ Lv2（「ピルルク限定」を満たす）
