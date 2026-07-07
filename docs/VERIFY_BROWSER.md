@@ -122,6 +122,14 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 ### 併せて直した潜在バグ（盤面直接注入のロード漏れ）
 `BattleScreen.tsx` の `battleCardNums` が `field.signi`/`check`/`key_piece`/`charms` 等を **instanceId（`CardNum#N`）のまま** Set に入れていたため、base CardNum でフィルタする `battleCardMap` に載らなかった（通常は deck/hand 経由で base が載るので顕在化しなかったが、**デッキ外カードを盤面へ直接注入すると未ロード→パワー0扱いでバニッシュ**された）。これらを `getCardNum` で base 化して登録するよう修正。効果生成シグニのロードも確実になる。回帰：typecheck/golden 95/golden 0FAIL・smoke 全0・fuzz 全0。
 
+### ✅ ON_SIGNI_POWER_ZERO_OR_LESS（R37・§7）の実機検証を追加（2026-07-07・続き39・Sonnet 5）
+`powerzero`（WD11-013→WX21-067）を新設。ホスト場の WX21-067（アイン＝テトロド・【自】《ターン1回》対戦相手のシグニのパワーが0以下になったとき1枚ドロー）を待機させ、WD11-013（【出】・mandatory・コストなし・対戦相手シグニ1体を-1000）を召喚→SELECT_TARGETでpower1000の相手シグニ（WX01-083）を指定→-1000到達→クライアント側の `checkAndBanishPowerZero`（useEffect常時監視）がバニッシュ＋`collectPowerZeroTriggers` を発火。**単体実行でPASS**（盤面ログに「1枚ドロー／[自分] アイン＝テトロドの【自】効果（パワー0以下時）」と明記＝R37の①「相手シグニ0化で発火」を実機確認）。
+
+**⚠試行錯誤の教訓（カード選定）**＝(1) 最初に候補にした WD22-037-UG（死之遊魔 †ルーレット†・-12000）は「シグニの効果によってこのシグニが場に出た場合」限定の裏面UG型カードで、**通常召喚ボタン自体がUIに出ない**（手動召喚不可の特殊カード種別）。(2) 次点候補 WD11-013 も「ミュウ限定」（Team制限）で、センタールリグがミュウでないと同様に召喚ボタンが出ないと判明＝**Team制限は実際に summon UI をゲートする**（従来「デッキ構築時の制約のみで実戦には影響しない」という想定は誤りだった＝センタールリグをミュウの WX08-004 に変更して解決）。今後 verifyBattleDrive 用にカードを選ぶ際は、Team欄が「-」の無制限カードを優先するか、制限に合わせたLrigを注入すること。
+
+**⚠バッチ実行時のみのFAILを観測**＝13シナリオ一括実行では `lrigundermoved`・`keywordgained`・`powerzero` の3件がFAIL（banishbyeffect以降の「自分ターン系」末尾に連鎖）。個別再実行（`node scripts/verifyBattleDrive.mjs lrigundermoved keywordgained` および `powerzero` 単体）では**全てPASS**＝3件とも実装は正しく、**既存コードに既に注釈されていた「バッチ実行時のみの状態汚染」**（`game_logs` クリアだけでは防げないclient側の残留モーダル/state）が今回さらに後続シナリオへ連鎖することを確認。根本修正は別途follow-up（driver側のテスト分離強化が必要・カード/engineのバグではない）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
+- ⚠一括実行（引数なし）は末尾の一部シナリオでバッチ限定の状態汚染が起き得る＝FAILが出たら該当シナリオを単体（`node scripts/verifyBattleDrive.mjs <id>`）で再実行して切り分けること。
