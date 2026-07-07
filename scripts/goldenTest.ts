@@ -293,6 +293,25 @@ test('powerLtPrinted/powerGtPrinted: 実効パワーと表記パワーの per-ca
     ok(tops(r.otherState)[1] !== null, 'P12000（実効=表記・増強していない）は残る');
   }
 });
+// ── 個別機構: 「その後、そのシグニより〔パワー/レベル〕の低い」= 直前に処理したシグニ(lastProcessedCards[0])基準 ──
+// WXDi-P08-031（手札からシグニを場に出す→そのシグニよりパワーの低い敵をバニッシュ）/ WXK10-031（デッキ公開シグニ→より低いレベルの敵を手札へ）。
+test('powerLtLastProcessed: 直前処理シグニ(P12000)未満のみ対象（敵P3000除去・P12000残存）', () => {
+  const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }), lastProcessedCards: [SIGNI_P12000] } as ExecCtx;
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtLastProcessed: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'P3000（<12000）が除去される');
+  ok(tops(r.otherState)[1] !== null, '同値 P12000 は残る（より低い＝strict）');
+});
+test('powerLtLastProcessed: 参照不能（lastProcessed空）なら対象なし＝何も除去されない', () => {
+  const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }), lastProcessedCards: [] } as ExecCtx;
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtLastProcessed: true } } } as EffectAction, ctx);
+  ok(tops(r.otherState)[0] !== null && tops(r.otherState)[1] !== null, '「そのシグニ」不在→到達不能 range で空ヒット（Lte の制限なしフォールバックと異なる）');
+});
+test('levelLtLastProcessed: 直前処理シグニ(L2)未満のみ対象（敵L1除去・L2残存）', () => {
+  const ctx = { ...mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }), lastProcessedCards: [SIGNI_L2] } as ExecCtx;
+  const r = run({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLtLastProcessed: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'L1（<2）が除去される');
+  ok(tops(r.otherState)[1] !== null, '同値 L2 は残る');
+});
 // ── 続き44: 先頭「（この/その）シグニより…対象とし、…それを〈除去〉」designation の動的比較を後続ターゲットへ引き継ぐ ──
 // 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）や別文（cost/条件）に分かれ、除去アクション文（「それを
 // バニッシュする」等）に比較語が残らず全数脱落していた過剰効果群。基準を厳密に切る（この=自身/その=トリガー主語/その後=lastProcessed据置）。
