@@ -2044,6 +2044,31 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           });
         }
 
+        // OPTIONAL_TRASH_SELF: 「このシグニを場からトラッシュに置いてもよい。そうした場合、X」＝
+        //   効果元シグニ自身を任意でトラッシュ（コスト）→ 支払ったら conditional.then（X）。
+        //   pay=SEQUENCE[自トラッシュ, then] / skip=conditional.else。自シグニが場にないと支払い不可。
+        //   （旧: line 1738 が self-trash を誤って OPTIONAL_TRASH_ENERGY_CLASS へ流し、エナを探す no-op になっていた）
+        if (stub.id === 'OPTIONAL_TRASH_SELF') {
+          const selfNumOTS = cur.sourceCardNum;
+          const onFieldOTS = !!selfNumOTS && cur.ownerState.field.signi.some(s => s?.at(-1) === selfNumOTS);
+          if (!onFieldOTS) {
+            if (cont) return executeAction(cont, cur);
+            return done(addLog(cur, 'このシグニが場にない（OPTIONAL_TRASH_SELF）'));
+          }
+          const trashSelfActionOTS: EffectAction = {
+            type: 'TRASH',
+            target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
+          } as EffectAction;
+          const payActionOTS: EffectAction = { type: 'SEQUENCE', steps: [trashSelfActionOTS, conditional.then] } as SequenceAction;
+          const optsOTS = [
+            { id: 'pay', label: 'このシグニをトラッシュして発動', action: payActionOTS, available: true },
+            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          ];
+          return needsInteraction(addLog(cur, 'このシグニを場からトラッシュに置きますか？'), {
+            type: 'CHOOSE', options: optsOTS, count: 1, ...(cont ? { continuation: cont } : {}),
+          });
+        }
+
         // OPTIONAL_DISCARD_HAND_CLASS: 手札から＜X＞のシグニ1枚を任意で捨てる → そうした場合 conditional.then（G253）
         // クラスは EffectText から解釈（OPTIONAL_TRASH_ENERGY_CLASS の手札版）。
         if (stub.id === 'OPTIONAL_DISCARD_HAND_CLASS') {
