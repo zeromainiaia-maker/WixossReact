@@ -144,14 +144,15 @@ export function parseSelfComparison(text: string): Partial<TargetFilter> {
 // resolveDynamicFilter が triggeringCardNum の表記パワー/レベルで解決する。
 // ⚠「その後、そのシグニ」＝直前処理カード（lastProcessed・別機構）は除外。leftCard（「場を離れたとき…手札から」）は
 //   ADD_TO_FIELD hand ビルダーが levelBelowLeftCard で別処理し parseSigniTarget を通らないため衝突しない。
-export function parseTriggerComparison(text: string): Partial<TargetFilter> {
+export function parseTriggerComparison(text: string, opts?: { allowPlacement?: boolean }): Partial<TargetFilter> {
   if (/その後/.test(text)) return {}; // lastProcessed（「その後、そのシグニ」）は別機構
   const m = text.match(/そのシグニより(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
   // 「そのシグニより…を場に出す」＝比較対象自体を場に出す placement（leftCard 手札→場＝levelBelowLeftCard の領分・
-  // 「ダウン状態で場に出す」の別アクション mis-parse への spurious マッチ含む＝WX14-009）は除外。
+  // 「ダウン状態で場に出す」の別アクション mis-parse への spurious マッチ含む＝WX14-009）は parseSigniTarget では除外。
   // ⚠マッチ位置より後方のみ判定（トリガー句「シグニが場に出たとき」の 場に出 は誤除外しない）。
-  if (/場に出/.test(text.slice(m.index ?? 0))) return {};
+  // allowPlacement＝trash→field ビルダー等 placement 自体が目的の呼び出しでは、選ぶシグニ側を絞る比較なので適用する。
+  if (!opts?.allowPlacement && /場に出/.test(text.slice(m.index ?? 0))) return {};
   const kind = m[1];
   if (kind === 'パワーの低い') return { powerLtTrigger: true };
   if (kind === 'パワーの高い') return {}; // powerGtTrigger 該当カードなし（過剰語彙を作らない）
