@@ -491,7 +491,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // reorder無し／行き先不明＝見るだけ（canTrash は補助注記）
       return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
     }
-    case 'MILL': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
+    case 'MILL':
+      if (a.countIsLastProcessedLevelSum) return `この方法で場に出たシグニのレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
+      return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする${a.conditional ? '（そうした場合）' : ''}`;
