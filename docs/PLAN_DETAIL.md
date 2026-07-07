@@ -1,0 +1,41 @@
+# PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
+
+> [PLAN.md](./PLAN.md)（現在地・生きている worklist）から 2026-07-07 に追い出した歴史記録。**cold start で読む必要はない**（PLAN §4 → DESIGN.md の順でよい）。過去セッションの要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)、個別修正は [BUGFIXES.md](./BUGFIXES.md)。
+
+---
+
+## §5c 語彙センサス消化バッチの履歴（優先順・続き18改訂の原文）
+
+- **優先順（続き18改訂）**＝(1) **条件節781→バッチ①146枚済（続き23・状態条件9テンプレ＝場に他の＜C＞/＜C＞N体/クロス状態/手札・エナ・ライフ・トラッシュ枚数/センタールリグ＜C＞/登録者数）**。~~「それが＜C＞のシグニの場合」73枚~~ **✅続き24で消化**（70枚=REVEAL_AND_PICK済み偽陽性のextraOk較正＋実バグ13枚=LAST_PROCESSED_MATCHES新設・採用10+MANUAL3）。~~「次にダメージを受ける場合」46枚~~ **✅続き25で消化**（A11 PND済み偽陽性キー較正＋A2 27 damageSource純改善36自動採用＋B7 実バグ=REPLACE_NEXT_DAMAGE_WITH_MILL新設・採用9+MANUAL）。~~「場に《X》がいる」13枚~~ **✅続き26で消化**（全13が条件丸ごと脱落の実バグ＝偽陽性0・HAS_CARD_IN_FIELD にルリグゾーン走査を追加し25効果を条件ゲート化・採用25/不採用1）。~~「ベットしていた場合」9枚~~ **✅続き27で消化**（全9が IS_BETTING 脱落の過剰効果＝追加ボーナス無条件発火・parser規則で採用9・「ベットしていた場合」9→2/「機構:ベット」10→2）。残りの上位テンプレ＝**「代わりに」B系統の残**（per-target「それのパワー－N」型・多段閾値の値のみ型）＝`docs/_census_clusters.txt` 枚数順で継続。**続き28で「代わりに」を機械分類**＝A:ena→trash16（偽陽性15＝BANISH_REDIRECTキー較正済・実バグWXDi-D04-016のみ）✅・**B:条件+代わりに94→自己完結enhanced型15枚を else付きCONDITIONAL で消化✅**（`matchLeadingStateCondition`＋SEQUENCE組み立ての昇格置換・per-targetとコア型不一致は据置）・C:コスト代替6・D:バニッシュされない3・E:リコレクト2。**~~B残＝per-target「それのパワー－N」・多段閾値の値のみ~~ ✅続き29で消化**（per-target値すり替え＋裸閾値subject引き継ぎ＋CHOOSE平坦化復元の3機構＝64枚採用＋WXK02-037手パッチ。残＝C6/D9/E2/B1残10（条件語彙なし§6.3）＋CHOOSE復元held約35枚）。(2) **幻覚/取り違え系（続き19でほぼ消化済み）**＝逆action・逆数値は BANISH残0/LIFE_CRASH残0/FREEZE1（WX19-077）/逆数値0 まで消化（LIFE_CRASH族7効果・トラッシュ→BANISH族 parser5規則+curated37ノード・詳細 BUGFIXES）。残＝WX16-021（置換ルール→即時LIFE_CRASH幻覚＝置換機構要・§6.3）・BURST内IS_MY_TURN残7（§6.3登録済み）。~~BURST↔E1誤配置5・アーツタイミング5・マーカー構造43・FREEZE1~~ **✅続き20で消化**（マーカー構造はブロック分割の系統根本原因＝70超効果復元・残は【自】2＝スペル被破棄トリガー機構待ち §6.3）。(3) **構造平坦化系**＝~~引用付与平坦化161~~ **バッチ①✅続き30で68枚採用**（対象付与/ルリグ自己付与/ALL付与＝GRANT_EFFECT+rawText展開・残107＝CONTSELF_COND18/OTHER約30/内側品質不全27＝トリガー語彙拡充で再収穫可・held 103 が計器）・代わりに183・IS_MY_TURN誤変換65・遅延13・「Nまで」120。(4) 除去系の対象フィルタ脱落（クラス339=`story`・色105・パワー閾値83・レベル閾値90・凍結13・ダウン/アップ38・数値不一致153・小さい数390=粗い網）。(5) トリガー種別（約220）・コスト脱落（コイン24+場トラ25+エナトラ12+他）・ゾーン行き先67・機構census（ライズ31/チーム25/アンコール22/エクシード16等）・公開128・次相手ターン99・相手選ぶ31・制限58・キーワード86。(6) 制限/様相（ターン1回28・ゲーム1回3・任意→強制23）・保護/付与系（同一性46・共通色66・能力なし10）。(7) 語彙自体が無い系統＝最上級（6枚・`TargetFilter` に `superlative:{key,dir}` 新設）・**正面32**（`frontOfSelf` はあるが使用3件＝parser 未配線疑い）・動的比較の残36・合計制約27・**出現条件35＝機構1本の欠落（parser が除去+engine強制なし）**は §3「機構実装の型」で新語彙＋engineセット実装。
+
+### 進め方（続き23改訂の原文・現在は `/census-batch` スキルへ定型化済み）
+
+- **進め方（続き23改訂＝文型バッチ・パイプライン）**＝①`npm run census:clusters` でクラスタ表（`docs/_census_clusters.txt`）を再生成し枚数順に系統テンプレを選ぶ→②テンプレの条件/構造が既存DSL型（engine/decompiler対応済み）で表現できるか確認（できない＝機構待ちとして §6.3 へ枚数付きで送る）→③parser 規則を追加（**JSON手パッチではなく parser を source of truth に**）→④`npm run build:effects`（純粋上位集合は自動採用・構造変更は held 落ち）→⑤`node scripts/heldReview.mjs` で diff署名グループごとに spot-check→`--adopt`/`--adopt-sig` で一括採用（**STUB退化・「代わりに」昇格・別STUB id 化は採用しない**＝レガシードリフトとして据置）→⑥golden 1件/テンプレ＋全ゲート→BASELINE_HIGH 更新。旧手順（census明細から手パッチ）は廃止＝parserWorklist held を増やさない。
+
+## §5b 逆翻訳機レンダラ是正の完了項目（BUGFIXES①〜⑤）
+
+- ~~① REVEAL_AND_PICK 文法崩れ~~ **✅是正（2026-06-30・BUGFIXES①）**＝then フル節の二重主語崩壊を配置系/別効果系の2形に。
+- ~~② LOOK_AND_REORDER 行き先欠落~~ **✅是正（BUGFIXES②）**＝destination（一番下に置く/上に戻す）を描画・513枚。
+- ~~③ CHOOSE 圧縮~~ **✅是正（BUGFIXES③）**＝「次から」→「以下のNつからMつ（まで）を選ぶ」。
+- ~~④ BLOCK_ACTION 英語ID漏れ~~ **✅是正（BUGFIXES④）**＝「は「ATTACK」ことができない（END_OF_TURN）」108件→0。制限/許可/特殊の3分類。
+- ~~⑤ timing/icon 英語漏れ~~ **✅是正（BUGFIXES⑤）**＝TRAP_ICON→【トラップアイコン】/SONG_ICON→【歌のカケラ】/ON_BLOOM/血晶武装 等。
+
+## §6.1 未実装action型の実装済み項目
+
+- ~~`LEVEL_MODIFY`(9)~~ **✅実装済**（temp_level_mods＋実効レベル・BUGFIXES上部）。
+- ~~`LOOK_AT_DECK_AND_LIFE`(3)~~ **✅実装済（2026-07-03）**＝覗き＝情報開示のみ（盤面不変が正しい）・log-only。
+- ~~`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15）~~ **✅実装済（2026-07-03・BUGFIXES上部）**。
+- ~~`NAME_BAN`（2・WX10-023）~~ **✅実装済（2026-07-04・続き14）**＝`blocked_card_names_game`（ゲーム内持続）＋targetSelf反転是正。
+- ~~`GROW_COST_REDUCTION`（CONT6）~~ **✅実装（2026-07-03・BUGFIXES上部）**＝pure `collectGrowCostReductions`（golden済）＋人間/CPU/アシストグロウ全経路に減額配線。⚠要実機検証(C2)。
+- ~~`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT）~~ **✅実装済（2026-07-03・続き13）**＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加（golden済・⚠要実機検証）。
+
+## §11 大型機構オーナー表の完了行
+
+| 機構 | 影響 | リスク | 状態 |
+|---|---|---|---|
+| ~~`SET_TRAP` 設置アクション~~ | 中（~30枚） | 中 | **✅完了**＝engineは既存（`signi_traps`ゾーン）。decompilerで9系統トラップSTUBを原文【トラップ】語彙描画（生STUB残0）。 |
+| ~~動的閾値フィルタ~~ | 小（WX17-028等） | 中 | **✅完了**＝`REVEAL_DECK_TOP`＋`TRASH_REVEALED`アクション＋動的閾値フィルタ新設。 |
+| ~~遅延条件トリガー~~ | 小（WX25-CP1-069等） | 中 | **✅完了**＝`INSTALL_DELAYED_TRIGGER`機構新設。 |
+| ~~《相手ターン》/《自分ターン》AUTOトリガー基盤~~ | — | — | **実装済** |
+| ~~【ビート】機構（Phase1-7）~~ | 44枚 | — | **完了**。残はトラッシュ版選択ピッカーのみ（低優先） |
+| ~~傀儡場出しの汎用化~~ / ~~`levelLteLastProcessed`~~ | — | — | **実装済** |
