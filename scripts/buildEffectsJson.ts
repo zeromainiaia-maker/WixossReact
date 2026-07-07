@@ -130,8 +130,13 @@ for (const r of rows) {
 //   - それ以外（損失/値変更/混在）→ existing 温存し、レポートに記録（人が後でレビュー）
 const report: Record<string, string[]> = {
   adopted_new: [], adopted_gain: [], preserved_manual: [],
-  preserved_emptyFresh: [], preserved_held: [],
+  preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [],
 };
+// parseStatus 以外が同一か（無言フォールバック刻印＝AUTO→PARTIAL のメタ差分だけで
+// held キュー/parserWorklist を汚さないためのガード。2026-07-07）
+const stripParseStatus = (effs: any[]) => effs.map(e => { const { parseStatus: _ps, ...rest } = e ?? {}; return rest; });
+const equalIgnoringParseStatus = (a: any[], b: any[]) =>
+  JSON.stringify(stripParseStatus(a)) === JSON.stringify(stripParseStatus(b));
 const allIds = new Set<string>([...existingEffects.keys(), ...Object.keys(result)]);
 // held（温存＝要レビュー）カードの fresh 出力を保存＝scripts/heldReview.mjs のレビュー/採用の入力
 const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
