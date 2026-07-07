@@ -619,6 +619,15 @@ export function fieldCandidates(
     if (filter?.centerZoneOnly !== undefined) {
       if (filter.centerZoneOnly !== (zoneIdx === 1)) return [];
     }
+    // 表記パワー比較（per-candidate）: 実効パワー vs 自身の表記パワー。低い=低下中／高い=増強中。
+    // 表記が数値でない（∞等）シグニは比較不能＝対象外。
+    if (filter?.powerLtPrinted || filter?.powerGtPrinted) {
+      const printed = parseInt(cardMap.get(cardNum)?.Power ?? '', 10);
+      if (Number.isNaN(printed)) return [];
+      const eff = effectivePowers?.get(cardNum) ?? printed;
+      if (filter.powerLtPrinted && !(eff < printed)) return [];
+      if (filter.powerGtPrinted && !(eff > printed)) return [];
+    }
     // card_class_overridesによるクラス上書きを考慮してフィルター適用
     const classOverride = state.card_class_overrides?.[cardNum];
     // ACCE_SIGNI_ALL_COLOR / ALL_COLOR / ALL_ZONE_BLACK: 全色を持つシグニは色フィルターをバイパス
