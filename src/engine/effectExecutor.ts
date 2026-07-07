@@ -892,6 +892,7 @@ function resolveDynamicFilter(
   lastProcessedCards?: string[],
   effectivePowers?: Map<string, number>,
   sourceCardNum?: string,
+  triggeringCardNum?: string,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
@@ -913,6 +914,24 @@ function resolveDynamicFilter(
       ? (result.levelGtSelf
           ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: selfLevel + 1 } }
           : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: selfLevel - 1 } })
+      : rest;
+  }
+  // powerLtTrigger: トリガー元シグニ（被バニッシュ/場に出た/アタッカー）のパワーを基準に powerRange.max へ解決
+  // （「そのシグニよりパワーの低い」。被バニッシュ等 場外のシグニは cardMap の表記パワーで参照）
+  if (result.powerLtTrigger && triggeringCardNum) {
+    const trigPower = effectivePowers?.get(triggeringCardNum)
+      ?? parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Power ?? '0', 10);
+    const { powerLtTrigger: _pt, ...rest } = result;
+    result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: trigPower - 1 } };
+  }
+  // levelLtTrigger / levelGtTrigger: トリガー元シグニのレベルを基準に level へ解決（「そのシグニより低い/高いレベルを持つ」）
+  if ((result.levelLtTrigger || result.levelGtTrigger) && triggeringCardNum) {
+    const trigLevel = parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Level ?? '', 10);
+    const { levelLtTrigger: _lt, levelGtTrigger: _gt, ...rest } = result;
+    result = !isNaN(trigLevel)
+      ? (result.levelGtTrigger
+          ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: trigLevel + 1 } }
+          : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: trigLevel - 1 } })
       : rest;
   }
   if (result.powerLteLastProcessed) {
