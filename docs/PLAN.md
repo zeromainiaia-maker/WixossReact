@@ -114,7 +114,7 @@
 - **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）＝**高シグナル欠落 1628枚（2026-07-07 続き36・履歴 …→1769→1765→1763→1751→1720→1686→1684→1670→1667→1665→1663→1659→1658→1655→1654→1650→1648→1645→1637→1628・明細 `docs/_vocab_census.txt`）**。この数字から増えたら回帰（スクリプトが exit 1）。JSON手パッチでフィルタ語彙を足せば自然に減る＝減ったら `BASELINE_HIGH` とここを実数更新。DSLに新語彙を足したらキー表（PATTERNS）にも追加する。状態系の残（凍結13・ダウン/アップ38）はコスト節/条件/CONT型（別パス・§6.3）。**消化の入口は `npm run census:clusters`＝文型テンプレのクラスタ表（`docs/_census_clusters.txt`・枚数順）から系統バッチを選び、parser規則→`npm run build:effects`→`node scripts/heldReview.mjs` で署名グループごとに一括採用する（続き23確立・手順詳細は §5c）。**
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
-- ⚠**decompile再生成は Bash の `>` を使う**（PowerShell `>` は UTF-16 で下流破壊）。
+- **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
 > まず `npm install` → `npm run typecheck && npm run golden && npm run smoke && npm run fuzz` が全部緑になることを確認（CIでも自動実行される）。これが回れば環境OK。現状＝golden 134/134・smoke/fuzz 全0・同型★0・census 1720/1720。
