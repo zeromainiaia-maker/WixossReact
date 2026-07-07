@@ -2393,6 +2393,9 @@ export function execStubPart1(
     const declaredNameRU = ctx.ownerState.declared_card_name ?? null;
     const toTrashRestRU = !!txtRU.match(/残りをトラッシュに置く/);
     const toBottomRestRU = !!txtRU.match(/残り.*デッキの一番下/);
+    // 「公開したカードをトラッシュに置く」＝ヒットシグニを含む公開カード全てをトラッシュへ（WXK10-031）。
+    // ヒットシグニはレベル参照（lastProcessedCards）としてのみ使い、物理的にはトラッシュに置く。未対応だと deck から除去され行き場を失い消失していた。
+    const toTrashAllRU = !!txtRU.match(/公開したカードをトラッシュに置く/);
     // デッキを先頭から公開していく
     const deckRU = [...stateRU.deck];
     const revealedRU: string[] = [];
