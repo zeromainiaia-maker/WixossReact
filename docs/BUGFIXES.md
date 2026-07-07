@@ -5,6 +5,17 @@
 
 ---
 
+## §7 実機検証シナリオ横展開＝ON_SIGNI_FROZEN（R38）で実バグを発見（未修正・Opus引き継ぎ）（2026-07-07・続き40・Sonnet 5）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `freezetrigger`（WX01-081→WXDi-P04-065）を追加し実機検証。**発見した事象自体はまだ修正していない**＝観測結果の記録とOpusへの引き継ぎのみ（PLAN §3運用ルール「発見したバグの修正自体はOpusに回す」に従う）。
+
+- **シナリオ**：host に watcher WXDi-P04-065（ON_SIGNI_FROZEN・any_opp・targetsTriggerSourceで凍結された相手シグニに-1000）を配置、WX01-081（【出】ON_PLAY・mandatory・相手シグニ1体を凍結・コストなし）を召喚→SELECT_TARGETで相手シグニを指定。
+- **結果＝FAIL**：`guest.field.signi_frozen` は正しく `[true,false,false]` に変化する（FREEZE自体はengine内で正しく適用）が、watcherが一度も発火しない。`effect_stack` は終始0のまま＝この解決は`resolveStackNext`を一切通らず`handleEffectInteraction`（SELECT_TARGET resume）だけで完結していた。
+- **原因を特定**：`collectFreezeTriggers`/`detectNewlyFrozen`の呼び出しは`BattleScreen.tsx:3798`（`resolveStackNext`内の中央diffブロック）の1箇所のみ。一方`handleEffectInteraction`（4386-4408行）には`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`という「resume経路の取りこぼし対策」inline collectorが既に4つ実装済みだが、**ON_SIGNI_FROZEN用だけこのリストに入っていない**。FREEZEを付与するカードの大半はSELECT_TARGETで単体対象を選ぶ形＝実戦でもこのwatcherはほぼ発火しないと推定される。
+- **修正方針（未着手）**：既存4つと同型の`collectFreezeInline`を`handleEffectInteraction`に追加する横展開で直る見込み（新規機構ではない・低リスク）。詳細は [PLAN.md](./PLAN.md) §6.3「ON_SIGNI_FROZEN のresume経路取りこぼし」。
+- `freezetrigger`は既定`order`から除外（既存スイートの全緑を維持）。修正後に`node scripts/verifyBattleDrive.mjs freezetrigger`で単体再検証してからorderへ戻す。
+- ドキュメント更新＝[VERIFY_BROWSER.md](./VERIFY_BROWSER.md)・[PLAN.md](./PLAN.md) §4/§6.3/§7。engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
 ## §7 実機検証シナリオ横展開＝ON_SIGNI_POWER_ZERO_OR_LESS（R37）の新規シナリオ追加＋実UI確認（2026-07-07・続き39・Sonnet 5・同日第2件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `powerzero`（WD11-013→WX21-067）を追加。R37「対戦相手のシグニのパワーが0以下になったとき」の①発火自体を実UIで確認。カード修正・engine変更なし＝ドライバスクリプトへのシナリオ追加＋観測記録のみ。
