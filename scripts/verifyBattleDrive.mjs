@@ -650,12 +650,14 @@ const scenarios = {
           }
         }
         if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
-        const freezeLog = await H.findLog(/をフリーズ/);
         const watcherLog = await H.findLog(/羅菌.*プランクトン.*凍結時|の【自】効果（凍結時）/);
         const st = await H.queryState();
-        H.log(`  fz[${s}] -> ${did ?? 'なし'} | freeze=${!!freezeLog} watcher=${!!watcherLog} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} phase=${st?.turnPhase ?? '-'} gFrozen=${JSON.stringify(st?.guest?.signiFrozen)} logTail=${JSON.stringify((st?.logTail ?? []).slice(-4))}`);
-        if (freezeLog && watcherLog) {
-          return { pass: true, detail: `ON_SIGNI_FROZEN 発火→ログ「${freezeLog}」「${watcherLog}」を確認` };
+        // 凍結の ground-truth は state（guest.signiFrozen に true）＝ログ文字列は経路により出ない/表記揺れがあり脆いため状態で判定。
+        const gFrozen = st?.guest?.signiFrozen;
+        const frozeApplied = Array.isArray(gFrozen) && gFrozen.some(Boolean);
+        H.log(`  fz[${s}] -> ${did ?? 'なし'} | freeze=${frozeApplied} watcher=${!!watcherLog} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} phase=${st?.turnPhase ?? '-'} gFrozen=${JSON.stringify(gFrozen)} logTail=${JSON.stringify((st?.logTail ?? []).slice(-4))}`);
+        if (frozeApplied && watcherLog) {
+          return { pass: true, detail: `ON_SIGNI_FROZEN 発火→ guest.signiFrozen=${JSON.stringify(gFrozen)}・watcher「${watcherLog}」を確認` };
         }
       }
       return { pass: false, detail: '凍結ログ／watcher発火ログ未確認' };
