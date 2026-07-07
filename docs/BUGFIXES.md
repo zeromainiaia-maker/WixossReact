@@ -5,6 +5,18 @@
 
 ---
 
+## §5c(7) 最上級フィルタ `TargetFilter.superlative` 新設＝「最も×パワー/レベルを持つシグニ」6枚を是正（2026-07-07・続き36・Opus 4.8・第4バッチ）
+
+census クラスタ「最上級（最も×パワー/レベル）6枚」（PLAN §5c(7) 明記）を機構実装。「対戦相手のシグニのうち、最も大きいパワーを持つシグニ」等が superlative 制約なしで対象過大（over-effect）になっていた。
+
+- **型**（`effects.ts`）＝`TargetFilter.superlative?: { key:'power'|'level'; dir:'max'|'min' }`（集合単位の極値フィルタ・同値は全残し＝「すべて」対応）。
+- **engine**（`execUtils.ts` `fieldCandidates`）＝per-card フィルタ後に集合ポストフィルタを追加＝候補のうち極値の power/level を持つもののみ残す。power は実効値（`effectivePowers`）優先→表記値、level は `temp_level_mods` 適用済み実効レベル。
+- **parser 2点**＝(1)`parseSuperlative`（`parserUtils.ts`）＝「最も[大きい/高い/小さい/低い]パワー/レベル」「最もパワー/レベルの[高い/低い]」両形→`{key,dir}`。(2)`parseSigniTarget` からの呼び出し＋**中央後処理 `injectSuperlativeIntoSigniTargets`**（`parseSingleSentence` を薄くラップ）＝文が最上級句を含めばその文で組み立てた action の SIGNI target へ superlative を注入。BANISH/BOUNCE/POWER_MODIFY/GRANT_KEYWORD 等 target 経路が多岐にわたるため中央で一括（個別 target parser を触らずに全経路カバー）。`parseSuperlative` は最上級句でのみ非null＝誤爆なし。
+- **decompiler**＝`filterJa` に「最も◯◯の高い/低い」描画。
+- **是正6枚**（全て純上位集合＝superlative 追加のみ→自動採用）＝WX08-024（最も小さいパワー・min）／SP07-010・WXDi-P08-009（最も大きい/高いパワー・max・すべて）／WXDi-CP01-026・WXDi-CP02-070・WX25-CP1-051（最もパワーの低い・min）。corpus 全走査で superlative 保持は6枚のみ＝原文の最上級句と1:1（誤注入0）。⚠WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落は superlative とは別の既存パース課題（本バッチは superlative 追加のみで悪化なし）。
+- **golden +2**＝BANISH+superlative{power,max}/{power,min} で対象が極値シグニのみに絞られる（P12000/P3000 盤面・autopilot）。
+- **検証**＝typecheck 緑・golden **147/147**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成）・**census 1648→1645**（`BASELINE_HIGH`／PLAN §恒久指標 実数更新）。
+
 ## §5c(3) 引用付与の残＝自己犠牲コスト機構 `OPTIONAL_TRASH_SELF` 新設＝本丸 WX21-056/061＋WX06-CB03 の mis-parse 是正（2026-07-07・続き36・Opus 4.8・第3バッチ）
 
 「このシグニを場からトラッシュに置いてもよい。そうした場合、X」（任意の自己犠牲→そうした場合）が、`parseSentencePart3.ts:1738` の雑な STUB マッピングで**エナトラッシュ用の `OPTIONAL_TRASH_ENERGY_CLASS` に誤ルーティング**され、engine 実行時は「エナから該当クラスを探す」no-op になっていた（WX06-CB03＝curated で active bug）。本丸 WX21-056/061 は curated 側で granted 能力ごと即時 CONTINUOUS へ平坦化（トリガー・任意コスト・そうした場合が全脱落）。engine 走査（41枚が `OPTIONAL_TRASH_ENERGY_CLASS` を使うが self-trash 由来はこの3枚のみと確認）。
