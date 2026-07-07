@@ -645,6 +645,25 @@ export function fieldCandidates(
     }
     return [cardNum];
   });
+  // superlative: 候補集合のうち最大/最小のパワー/レベルを持つもののみ残す（同値は全て＝「すべて」対応）。
+  //   パワーは実効値（effectivePowers）優先→表記値。レベルは temp_level_mods 適用済み実効レベル。
+  if (!filter?.superlative || baseCands.length <= 1) return baseCands;
+  const { key, dir } = filter.superlative;
+  const metric = (num: string): number => {
+    if (key === 'power') {
+      const ep = effectivePowers?.get(num);
+      if (ep !== undefined) return ep;
+      const p = parseInt(cardMap.get(num)?.Power ?? '', 10);
+      return Number.isNaN(p) ? 0 : p;
+    }
+    const base = parseInt(cardMap.get(num)?.Level ?? '', 10);
+    const lvBase = Number.isNaN(base) ? 0 : base;
+    const mods = (state.temp_level_mods ?? []).filter(m => m.cardNum === num).reduce((s, m) => s + m.delta, 0);
+    return Math.max(0, lvBase + mods);
+  };
+  const vals = baseCands.map(metric);
+  const ext = dir === 'max' ? Math.max(...vals) : Math.min(...vals);
+  return baseCands.filter((_, i) => vals[i] === ext);
 }
 
 export function handCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {
