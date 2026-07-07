@@ -1672,7 +1672,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     // 該当フラグが無ければ no-op。lastProcessedCards を渡して「この方法で処理したシグニのレベル/パワー以下」を解決可能にする。
     const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers) };
+    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum) };
   }
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド
