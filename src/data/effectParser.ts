@@ -2688,6 +2688,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else if (costStr.includes('《ゲーム１回》')) usageLimit = 'once_per_game';
   }
 
+  // 無言フォールバックがあった効果は AUTO を PARTIAL に降格（UNKNOWN/既存PARTIALはそのまま）
+  if (silentFb.length > 0) {
+    logSilentFallbacks(`${cardNum}-E${index + 1}`, silentFb);
+    if (parseStatus === 'AUTO') parseStatus = 'PARTIAL';
+  }
+
   return {
     effectId: `${cardNum}-E${index + 1}`,
     effectType,
