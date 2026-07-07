@@ -5,7 +5,7 @@
 
 ---
 
-## §6.3 `GRANT_TO_PLACED_SIGNI` 一次実装＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N」を targetsLastProcessed で実アクション化＝3枚採用（2026-07-07・続き42・Opus 4.8）
+## §6.3 `GRANT_TO_PLACED_SIGNI` 実装＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N／レベル比例ミル」を targetsLastProcessed で実アクション化＝4枚採用（2026-07-07・続き42・Opus 4.8）
 
 続き36 から3セッション連続で持ち越していた Opus 筆頭タスク。dual-pick/reveal-pick が場に出したシグニ（`lastProcessedCards`）へ「この方法/効果で場に出たシグニは…」で付与する系統を、engine 既存の `targetsLastProcessed` 機構（`GRANT_KEYWORD`/`POWER_MODIFY`/`GRANT_EFFECT` で実装済み・選択UIなしで lastProcessedCards へ適用）へ parser で振り分けて honest STUB を実アクション化。
 
