@@ -1909,7 +1909,7 @@ if (args.includes('--manual')) {
   targets = args;
 }
 if (targets.length === 0) {
-  console.log('使い方: npx tsx scripts/decompileEffects.ts <CardNum...> | --manual | --grep <語>');
+  console.log('使い方: npx tsx scripts/decompileEffects.ts <CardNum...> | --manual | --grep <語> | --sheet <N> | --sheets | --file <path>');
   process.exit(0);
 }
 
