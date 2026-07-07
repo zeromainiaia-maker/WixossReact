@@ -550,21 +550,23 @@ const scenarios = {
   },
 
   // ⑪ ON_SIGNI_POWER_ZERO_OR_LESS（R37・§7・WX21-067）: 【自】《ターン1回》＝対戦相手のシグニのパワーが０以下に
-  //    なったとき、カードを１枚引く（triggerScope any_opp）。トリガー源＝WD22-037-UG【出】（mandatory・コストなし・
-  //    対戦相手シグニ1体に-12000＝任意の低〜中パワー相手シグニを確実に0以下化）。-12000到達→クライアント側の
+  //    なったとき、カードを１枚引く（triggerScope any_opp）。トリガー源＝WD11-013【出】（mandatory・コストなし・
+  //    対戦相手シグニ1体に-1000＝ちょうど power1000 の相手シグニ WX01-083 を0化）。⚠初回試行は WD22-037-UG
+  //    （-12000）を使ったが「シグニの効果によって場に出た場合」限定の裏面UG型カードは通常召喚ボタン自体が出ない
+  //    UI仕様と判明（本カードでは再現不可）ため、通常召喚可能な単純カードに差し替え。-1000到達→クライアント側の
   //    checkAndBanishPowerZero（useEffect常時監視）が対象をバニッシュ＋collectPowerZeroTriggers を発火させる経路。
   powerzero: {
-    title: 'WD22-037-UG→WX21-067（ON_SIGNI_POWER_ZERO_OR_LESS＝相手シグニ0以下化でドロー）',
+    title: 'WD11-013→WX21-067（ON_SIGNI_POWER_ZERO_OR_LESS＝相手シグニ0以下化でドロー）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD01-001#1'],                  // 任意センター（タマ Lv4/Limit11＝Lv1+Lv4=5に十分）
+        'field.lrig': ['WD01-001#1'],                  // 任意センター（タマ Lv4/Limit11＝Lv1+Lv2=3に十分）
         'field.signi': [['WX21-067#1'], null, null],   // watcher（アイン＝テトロド）
         'actions_done': [],
       },
       guestSet: {
-        'field.signi': [['WD01-013#1'], null, null],   // バニッシュ対象（小剣 ククリ・P3000≪12000）
+        'field.signi': [['WX01-083#1'], null, null],   // バニッシュ対象（P1000＝-1000でちょうど0化）
       },
-      handPrepend: ['WD22-037-UG#1'],                  // 死之遊魔 †ルーレット†（【出】対戦相手シグニ-12000・コストなし）
+      handPrepend: ['WD11-013#1'],                     // 幻蟲 モンチョウ（【出】対戦相手シグニ-1000・コストなし）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
