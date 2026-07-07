@@ -1081,6 +1081,14 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // 「（ターン終了時まで、）この方法/効果で場に出たシグニ/レゾナは「Q」/【K】を得る」＝直前に場出しした
+  // カード（lastProcessedCards＝dual-pick の field ピック等）への付与。汎用 targetsLastProcessed 付与機構は
+  // 未実装のため honest な STUB（decompiler が rawText＝value から原文描画・engine no-op）で表現し、
+  // 汎用パーサの誤抽出（REMOVE_ABILITIES/GRANT_KEYWORD:any/内側action漏れ）を防ぐ。§6.3 機構待ち。
+  {
+    const m = text.trim().match(/^(?:ターン終了時まで、|次の対戦相手のターン(?:終了時まで|の間)、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?は.+を得る。?$/s);
+    if (m) return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: text.trim() } as StubAction;
+  }
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
   // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
   // 「それら」を全シグニ BANISH と誤解しないよう、プレフィックス除去前に検出する。
