@@ -155,7 +155,7 @@ for (const id of allIds) {
   report.preserved_held.push(id);
 }
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
-console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length}`);
+console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {
   const lines: string[] = [];
