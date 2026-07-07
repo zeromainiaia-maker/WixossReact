@@ -140,6 +140,13 @@ export function parseSelfComparison(text: string): Partial<TargetFilter> {
   return { levelGtSelf: true };
 }
 
+// 「あなたのいずれかのシグニより〔パワー〕の〔低い〕」＝自分の場のシグニのいずれか（＝最大値）を基準にした動的比較。
+// 「いずれか…より低い」＝いずれか1体より低ければ可＝最大実効パワー未満。resolveDynamicFilter が ownerState.field.signi の最大で解決。
+// 該当2枚（WXDi-P01-020/WXDi-P07-031）は「パワーの低い」のみ＝過剰語彙を作らない。
+export function parseAnyAllyComparison(text: string): Partial<TargetFilter> {
+  return /あなたのいずれかのシグニよりパワーの低い/.test(text) ? { powerLtAnyAlly: true } : {};
+}
+
 // 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」＝トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）基準の動的比較。
 // resolveDynamicFilter が triggeringCardNum の表記パワー/レベルで解決する。
 // ⚠「その後、そのシグニ」＝直前処理カード（lastProcessed・別機構）は除外。leftCard（「場を離れたとき…手札から」）は
