@@ -18,7 +18,7 @@
     "census": "tsx scripts/vocabCensus.ts",
     "census:clusters": "tsx scripts/vocabCensus.ts --clusters",
     "regen": "tsx scripts/decompileEffects.ts --sheets && node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all",
-    "gates": "npm run typecheck && npm run golden && npm run smoke && npm run fuzz && npm run census && npm run lint",
+    "gates": "node scripts/runGates.mjs",
     "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint .",
     "preview": "vite preview"
