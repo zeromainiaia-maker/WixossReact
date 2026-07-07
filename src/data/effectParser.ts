@@ -2880,6 +2880,8 @@ function parseBurstEffect(card: CardData): CardEffect | null {
   const raw = stripRuleParens(card.BurstText).replace(/^：/, '').trim();
   if (!raw) return null;
   const action = parseActionText(raw);
+  const burstFb = consumeSilentFallbacks();
+  logSilentFallbacks(`${card.CardNum}-BURST`, burstFb);
   return {
     effectId: `${card.CardNum}-BURST`,
     effectType: 'LIFE_BURST',
@@ -2887,7 +2889,7 @@ function parseBurstEffect(card: CardData): CardEffect | null {
     action,
     duration: 'INSTANT',
     mandatory: false,
-    parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+    parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : burstFb.length > 0 ? 'PARTIAL' : 'AUTO',
   };
 }
 
