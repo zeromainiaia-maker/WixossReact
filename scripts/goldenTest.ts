@@ -1376,12 +1376,12 @@ test('引用付与: 複合条件 AND[LRIG_COLOR, IS_SELF_IN_CENTER_ZONE]（WX06-
 test('checkActiveCondition AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE]: 両成立でのみ true', () => {
   const cond = { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: '緑' }, { type: 'IS_SELF_IN_CENTER_ZONE' }] } as unknown as import('../src/types/effects').ActiveCondition;
   const srcInst = fresh();
-  const me = mkState({ signi: [null, srcInst, null] }); me.field.lrig = ['WX15-004']; // 緑ルリグ（中央ゾーン=index1）
+  const me = mkState({ signi: [null, srcInst, null] }); me.field.lrig = ['WD04-001']; // 緑ルリグ（中央ゾーン=index1）
   const op = mkState({});
   // 中央ゾーン(index1)に居て緑ルリグ → true
   eq(checkActiveCondition(cond, me, op, true, cardMap as Map<string, CardData>, srcInst), true, '緑ルリグ＋中央ゾーンで true');
   // 端ゾーンに移すと中央ゾーン条件が偽 → false
-  const me2 = mkState({ signi: [srcInst, null, null] }); me2.field.lrig = ['WX15-004'];
+  const me2 = mkState({ signi: [srcInst, null, null] }); me2.field.lrig = ['WD04-001'];
   eq(checkActiveCondition(cond, me2, op, true, cardMap as Map<string, CardData>, srcInst), false, '端ゾーンなら false');
 });
 
