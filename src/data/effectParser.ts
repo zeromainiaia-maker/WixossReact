@@ -29,7 +29,7 @@ import type {
   PowerModifyAction,
 } from '../types/effects';
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison,
+  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison,
 } from './parserUtils';
 import { parseSentencePart1 } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
