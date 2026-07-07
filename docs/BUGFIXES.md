@@ -5,6 +5,16 @@
 
 ---
 
+## §6.3 `GRANT_TO_PLACED_SIGNI` 一次実装＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N」を targetsLastProcessed で実アクション化＝3枚採用（2026-07-07・続き42・Opus 4.8）
+
+続き36 から3セッション連続で持ち越していた Opus 筆頭タスク。dual-pick/reveal-pick が場に出したシグニ（`lastProcessedCards`）へ「この方法/効果で場に出たシグニは…」で付与する系統を、engine 既存の `targetsLastProcessed` 機構（`GRANT_KEYWORD`/`POWER_MODIFY`/`GRANT_EFFECT` で実装済み・選択UIなしで lastProcessedCards へ適用）へ parser で振り分けて honest STUB を実アクション化。
+
+- **parser**（`src/data/effectParser.ts` `parseSingleSentenceInner`）＝旧「全文を `GRANT_TO_PLACED_SIGNI` STUB 化」の分岐を、duration 前置（`ターン終了時まで`→UNTIL_END_OF_TURN／`次の対戦相手のターン終了時まで`→UNTIL_OPP_TURN_END）を捕捉しつつ本体を3分岐に：**(A)単一キーワード**「は【K】を得る」（引用「」・入れ子（）の変種キーワードは除外）→`GRANT_KEYWORD{targetsLastProcessed}`、**(B)パワー修整**「のパワーを＋N」→`POWER_MODIFY{targetsLastProcessed}`、**(C)引用複合能力「「…」を得る」・レベル比例「のレベル…」等は honest STUB 温存**。⚠greedy `.+` が末尾句点を拾う罠を `body.replace(/。+$/,'')` で回避。
+- **採用**＝`build:effects`→`heldReview --adopt WX25-P1-044,WX25-P2-039,WX24-P3-037`。**WX25-P1-044/WX25-P2-039**＝アサシン付与（UNTIL_END_OF_TURN）、**WX24-P3-037**＝+3000（UNTIL_OPP_TURN_END＝`power_mods_until_opp_turn`）。副次＝**WX24-P1-026**（ランサー）は既存 JSON 手パッチと parser fresh が一致＝parser/JSON parity 回復（held 減）。corpus 全走査で新 (A)(B) 分岐の発火は上記4枚のみ＝誤爆0。
+- **残（honest STUB 温存）**＝WX24-P1-017／WX25-P3-038（引用【自】能力付与＝GRANT_QUOTED_AUTO_ABILITY 系の内側ability parse 待ち）・WX24-P3-039（レベル比例ミル＝lastProcessed レベル総和スケール機構 待ち）。§6.3 に登録。
+- **golden +3**＝GRANT_KEYWORD targetsLastProcessed→placed signi アサシン付与／POWER_MODIFY targetsLastProcessed UNTIL_OPP_TURN_END→power_mods_until_opp_turn／3枚の構造固定（STUB 非退行）。
+- **検証**＝typecheck・golden **154/151→154**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（regen 済・逆翻訳は targetsLastProcessed の確立表記「そしてそれは【K】を得る（…）」で原文と意味一致）。**census 1628→1631（+3）**＝回帰ではなく、STUB を外したことで blanket STUB 免除（`js.includes('STUB')`）を失い、アサシン等キーワードのリマインダ文（「正面のシグニがパワーNN以下の場合…」）＋「Nまで場に出す」pick 語彙が高シグナルに顕在化した**偽陽性**（実効果は全て表現済み）＝`BASELINE_HIGH` を実数更新（`scripts/vocabCensus.ts` にコメント記載）。
+
 ## §7 ON_SIGNI_FROZEN（R38）resume経路取りこぼしを修正＝`collectFreezeInline` 追加で実機PASS（2026-07-07・続き41・Opus 4.8）
 
 続き40（Sonnet）が発見・引き継いだ R38 実バグを修正。**FREEZE を付与する ON_PLAY 効果（SELECT_TARGET で単体対象を選ぶ大半のケース）が resume 経路（`handleEffectInteraction`）で完結し `resolveStackNext` の中央 diff を通らないため、`ON_SIGNI_FROZEN` watcher が無発火だった**問題を、既存の resume-経路取りこぼし対策 inline collector（`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`）と同型の `collectFreezeInline` を追加して解消。
