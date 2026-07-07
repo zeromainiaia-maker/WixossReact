@@ -1329,6 +1329,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準。resolveDynamicFilter が解決
+      ...parseTriggerComparison(t, { allowPlacement: true }), // 「そのシグニより低い/高いレベル」＝トリガー元基準（被バニッシュ/被トラッシュ/場に出た）
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
