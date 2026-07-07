@@ -24,6 +24,30 @@ if (!existsSync(HELD_PATH)) {
   console.error('docs/_held_fresh.json が無い。先に npm run build:effects を実行する。');
   process.exit(1);
 }
+
+// ── staleness ガード（続き31の罠対策）──
+// _held_fresh.json は parser ソース・CSV から build:effects で生成される。生成後に
+// parser/CSV が変わると diff 表示も採用内容も古いまま＝誤採用の原因。mtime で検出する。
+// 意図的に古い held を使う場合のみ --stale-ok で無視できる。
+if (!process.argv.includes('--stale-ok')) {
+  const heldM = statSync(HELD_PATH).mtimeMs;
+  const stale = [];
+  const check = (dir, re) => {
+    if (!existsSync(dir)) return;
+    for (const f of readdirSync(dir)) {
+      if (re.test(f) && statSync(join(dir, f)).mtimeMs > heldM) stale.push(join(dir, f));
+    }
+  };
+  check(join(root, 'src', 'data'), /\.ts$/);          // effectParser*.ts ほか parser ソース
+  check(DATA_DIR, /^CardData_.*\.csv$/);              // 原文 CSV
+  if (statSync(join(root, 'scripts', 'buildEffectsJson.ts')).mtimeMs > heldM) stale.push('scripts/buildEffectsJson.ts');
+  if (stale.length) {
+    console.error('⚠ docs/_held_fresh.json が古い（生成後に以下が更新されている）。先に npm run build:effects を実行する。無視する場合は --stale-ok。');
+    for (const f of stale.slice(0, 10)) console.error('  - ' + f);
+    process.exit(1);
+  }
+}
+
 const heldFresh = JSON.parse(readFileSync(HELD_PATH, 'utf-8'));
 
 const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
