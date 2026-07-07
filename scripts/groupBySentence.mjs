@@ -24,7 +24,7 @@ const text = allMode
   : readFileSync(arg1, 'utf-8');
 
 // UTF-16 混入検出（PowerShell の > で decompile シートを書くと UTF-16LE になり下流が静かに壊れる）
-if (text.includes('0000')) {
+if (text.includes(String.fromCharCode(0))) {
   console.error('⚠ 入力に UTF-16 の混入を検出（PowerShell の > で再生成した可能性）。npm run regen で UTF-8 直書き再生成すること。');
   process.exit(1);
 }
