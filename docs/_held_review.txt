@@ -15,53 +15,6 @@ WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-CP02-TK01A WXDi-P05-043 WXK
   原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
   - [0].action.owner = "opponent"
 
-## +GRANT_FIELD_SIGNI_ABILITY ［7枚］
-WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P13-052 WXEX1-35 WXEX1-76
---- WX06-032
-  原文: 【常】：あなたのセンタールリグが緑で、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【自】：このシグニがアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。」を得る。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WX06-032-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.abilities[0].action.owner = "self"
-  + [0].action.abilities[0].action.count = 1
-  + [0].action.abilities[0].duration = "INSTANT"
-  + [0].action.abilities[0].mandatory = true
-  …（他 2 行）
---- WX06-035
-  原文: 【常】：あなたのセンタールリグが黒で、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。」を得る。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  - [0].action.delta = -3000
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WX06-035-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "POWER_MODIFY"
-  …（他 10 行）
---- WX13-058
-  原文: 【常】：あなたの場にカード名に《ダイオ姫》を含むシグニがあるかぎり、このシグニは「【起】《ダウン》：このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに２倍－される。」を得る。【起】このシグニを場からトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのセンタールリグのレベル１につき－1000
-  - [0].action.id = "GRANT_QUOTED_ACTIVATE_ABILITY"
-  ~ [0].action.type : "STUB" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WX13-058-E1-G"
-  + [0].action.abilities[0].effectType = "ACTIVATED"
-  + [0].action.abilities[0].timing[0] = "MAIN"
-  + [0].action.abilities[0].cost.down_self = true
-  + [0].action.abilities[0].action.type = "STUB"
-  + [0].action.abilities[0].action.id = "DOUBLE_POWER_MINUS"
-  + [0].action.abilities[0].duration = "INSTANT"
-  + [0].action.abilities[0].mandatory = false
-  + [0].action.abilities[0].parseStatus = "AUTO"
-
 ## +GRANT_LRIG_ABILITY ［5枚］
 SPDi43-11 SPDi43-12 WXDi-D06-010 WXDi-P13-008 WXEX2-03
 --- SPDi43-11
@@ -125,6 +78,50 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
   原文: 【出】：このルリグの下からカード１枚をルリグトラッシュに置く。対戦相手のシグニ１体を対象とし、それをゲームから除外する。【起】《ターン２回》《無》：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。,-
   ~ [0].action.steps[1].type : "EXILE" → "TRASH"
   ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
+
+## +GRANT_FIELD_SIGNI_ABILITY ［4枚］
+WX13-058 WXDi-P13-052 WXEX1-35 WXEX1-76
+--- WX13-058
+  原文: 【常】：あなたの場にカード名に《ダイオ姫》を含むシグニがあるかぎり、このシグニは「【起】《ダウン》：このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに２倍－される。」を得る。【起】このシグニを場からトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのセンタールリグのレベル１につき－1000
+  - [0].action.id = "GRANT_QUOTED_ACTIVATE_ABILITY"
+  ~ [0].action.type : "STUB" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WX13-058-E1-G"
+  + [0].action.abilities[0].effectType = "ACTIVATED"
+  + [0].action.abilities[0].timing[0] = "MAIN"
+  + [0].action.abilities[0].cost.down_self = true
+  + [0].action.abilities[0].action.type = "STUB"
+  + [0].action.abilities[0].action.id = "DOUBLE_POWER_MINUS"
+  + [0].action.abilities[0].duration = "INSTANT"
+  + [0].action.abilities[0].mandatory = false
+  + [0].action.abilities[0].parseStatus = "AUTO"
+--- WXDi-P13-052
+  原文: 【常】：このシグニはパワーが30000以上であるかぎり、「【常】：このシグニは対戦相手の効果によって新たに能力を得られない。」を得る。【自】：このシグニがアタックしたとき、あなたの場に《散散　緑姫》がいる場合、パワーがこのシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《無》：ターン終了時まで、このシグニのパワーを＋50
+  - [0].action.id = "GRANT_ABILITY_INNER_TEXT"
+  ~ [0].action.type : "STUB" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXDi-P13-052-E1-G"
+  + [0].action.abilities[0].effectType = "CONTINUOUS"
+  + [0].action.abilities[0].action.type = "STUB"
+  + [0].action.abilities[0].action.id = "PREVENT_ABILITY_GAIN_BY_OPP"
+  + [0].action.abilities[0].duration = "PERMANENT"
+  + [0].action.abilities[0].mandatory = true
+  + [0].action.abilities[0].parseStatus = "AUTO"
+--- WXEX1-35
+  原文: 【ライズ】あなたのレベル３以下の赤のシグニ１体にトラッシュにあるそれぞれレベルの異なる赤のシグニ３枚を重ね、その上に置く【常】：このシグニはあなたの場に《ライズアイコン》を持つシグニが３体あるかぎり、「【常】：対戦相手のアーツの効果を受けない。」を得る。【自】《ターン１回》：このシグニがアタックしたとき、この下からカード２枚をトラッシュに置いてもよい。そうし
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.from[0] = "アーツ"
+  - [0].action.sourceOwner = "opponent"
+  - [0].action.duration = "PERMANENT"
+  ~ [0].action.type : "GRANT_PROTECTION" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXEX1-35-E1-G"
+  + [0].action.abilities[0].effectType = "CONTINUOUS"
+  + [0].action.abilities[0].action.type = "GRANT_PROTECTION"
+  + [0].action.abilities[0].action.target.type = "SIGNI"
+  …（他 8 行）
 
 ## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE ［4枚］
 WX20-036-CB WXDi-D09-P20 WXK05-053 WXK06-023
@@ -221,54 +218,6 @@ WXDi-P13-045 WXK10-010 WXK10-012 WXK10-013
   + [0].action.choices[0].action.id = "PREVENT_OPP_UPKEEP"
   + [0].action.choices[1].choiceId = "c1"
   …（他 12 行）
-
-## +CONDITIONAL +GRANT_FIELD_SIGNI_ABILITY +IS_MY_TURN +SEQUENCE +STUB ［3枚］
-WX21-056 WX21-061 WXK08-034
---- WX21-056
-  原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、カードを２枚引く。」を得る。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 2
-  ~ [0].action.type : "DRAW" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.filter.cardType = "シグニ"
-  + [0].action.filter.story = "天使"
-  + [0].action.abilities[0].effectId = "WX21-056-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_TURN_END"
-  + [0].action.abilities[0].action.type = "SEQUENCE"
-  + [0].action.abilities[0].action.steps[0].type = "STUB"
-  + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_ENERGY_CLASS"
-  + [0].action.abilities[0].action.steps[1].type = "CONDITIONAL"
-  …（他 8 行）
---- WX21-061
-  原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。」を得る。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 2
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.filter.cardType = "シグニ"
-  + [0].action.filter.story = "天使"
-  + [0].action.abilities[0].effectId = "WX21-061-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_TURN_END"
-  + [0].action.abilities[0].action.type = "SEQUENCE"
-  + [0].action.abilities[0].action.steps[0].type = "STUB"
-  + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_ENERGY_CLASS"
-  + [0].action.abilities[0].action.steps[1].type = "CONDITIONAL"
-  …（他 8 行）
---- WXK08-034
-  原文: 【常】：あなたの登録者数が８０万人を達成しているかぎり、このシグニは「【自】《ターン１回》：このシグニがアタックしたとき、あなたのすべてのシグニがダウン状態の場合、《白》を支払ってもよい。そうした場合、このシグニをアップする。」を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.thisCardOnly = true
-  ~ [0].action.type : "UP" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WXK08-034-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "SEQUENCE"
-  + [0].action.abilities[0].action.steps[0].type = "STUB"
-  + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_COST"
-  …（他 13 行）
 
 ## +GRANT_EFFECT +SIGNI ［2枚］
 WX14-006A WXDi-P02-018
@@ -398,24 +347,6 @@ WXDi-P03-060 WXDi-P14-062
   + [0].action.abilities[0].mandatory = true
   + [0].action.abilities[0].parseStatus = "UNKNOWN"
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
-
-## +GRANT_FIELD_SIGNI_ABILITY +LOOK_AND_REORDER +SEQUENCE +STUB ［1枚］
-WX10-068
---- WX10-068
-  原文: 【常】：あなたのセンタールリグが青で、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【自】：このシグニがアタックしたとき、カード名１つを宣言する。対戦相手はデッキの一番上を公開する。それが宣言されたカードである場合、あなたはカードを２枚引く。」を得る。,：カードを１枚引き、対戦相手のデッキの一番上と対戦相手のライフクロスの一番上を見る。
-  - [0].action.owner = "self"
-  - [0].action.count = 2
-  ~ [0].action.type : "DRAW" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WX10-068-E1-G"
-  + [0].action.abilities[0].effectType = "AUTO"
-  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.abilities[0].action.type = "SEQUENCE"
-  + [0].action.abilities[0].action.steps[0].type = "STUB"
-  + [0].action.abilities[0].action.steps[0].id = "DECLARE_CARD_NAME"
-  + [0].action.abilities[0].action.steps[1].type = "LOOK_AND_REORDER"
-  + [0].action.abilities[0].action.steps[1].source.location = "deck"
-  …（他 14 行）
 
 ## +BANISH +CHOOSE +DRAW +SEQUENCE +SIGNI ［1枚］
 WX14-011
@@ -1513,6 +1444,24 @@ WXK08-026
   + [1].action.choices[0].action.keyword = "アサシン"
   + [1].action.choices[0].action.duration = "PERMANENT"
   …（他 8 行）
+
+## +CONDITIONAL +GRANT_FIELD_SIGNI_ABILITY +IS_MY_TURN +SEQUENCE +STUB ［1枚］
+WXK08-034
+--- WXK08-034
+  原文: 【常】：あなたの登録者数が８０万人を達成しているかぎり、このシグニは「【自】《ターン１回》：このシグニがアタックしたとき、あなたのすべてのシグニがダウン状態の場合、《白》を支払ってもよい。そうした場合、このシグニをアップする。」を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.thisCardOnly = true
+  ~ [0].action.type : "UP" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXK08-034-E1-G"
+  + [0].action.abilities[0].effectType = "AUTO"
+  + [0].action.abilities[0].timing[0] = "ON_ATTACK_SIGNI"
+  + [0].action.abilities[0].action.type = "SEQUENCE"
+  + [0].action.abilities[0].action.steps[0].type = "STUB"
+  + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_COST"
+  …（他 13 行）
 
 ## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE +SEQUENCE +SIGNI +UP ［1枚］
 WXK09-040

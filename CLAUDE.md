@@ -18,6 +18,8 @@ WixossカードゲームのReactクローン実装。
 
 ## 検証コマンド（共同開発者・必読）
 実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §12`。
+- `npm run gates` — **全ゲート一括**（typecheck→golden→smoke→fuzz→census→lint）。engine/parser/decompiler を触ったらこれ1本でよい
+- `npm run regen` — **decompileシート全10枚＋下流（genReviewRepr/groupSimilar/groupBySentence）を一括再生成（UTF-8直書き）**。旧手順の「⚠Bash の `>` で1枚ずつリダイレクト」は不要（PowerShell の `>` が UTF-16 を書いて下流を壊す事故を構造的に回避。下流3スクリプトには UTF-16 混入ガードもあり、混入時は即 exit 1）
 - `npm run typecheck` — 型チェック（CIと同じ／必須）
 - `npm run smoke` — 全効果10582件を自動実行し CRASH/HANG/INVARIANT 検出（現状 全0）
 - `npm run golden` — DSLアクション型＋C1トリガー収集の結果を assert（現状 123/123 PASS）
