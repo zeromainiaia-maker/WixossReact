@@ -146,6 +146,8 @@ for (const id of allIds) {
   if (!existing) { report.adopted_new.push(id); continue; }              // fresh は既に result[id]
   if (!fresh || fresh.length === 0) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_emptyFresh.push(id); continue; }
   if (JSON.stringify(existing) === JSON.stringify(fresh)) continue;       // 変化なし
+  // parseStatus だけの差分（AUTO→PARTIAL 刻印等）＝実体は同一。existing 温存（held に落とさない）
+  if (equalIgnoringParseStatus(existing, fresh)) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_metaOnly.push(id); continue; }
   if (existing.some(e => PRESERVE_STATUSES.has(e?.parseStatus))) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_manual.push(id); continue; }
   if (isPureSuperset(existing, fresh)) { report.adopted_gain.push(id); continue; } // fresh をそのまま採用
   heldFresh[id] = fresh;
