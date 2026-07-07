@@ -1128,7 +1128,7 @@ export function execStubPart1(
   // INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし）
   // INTERNAL_PICK_TO_HAND: 公開中のカード（stub.value）をデッキ/トラッシュ/エナから手札へ（handOrField の手札分岐）。
   if (stub.id === 'INTERNAL_PICK_TO_HAND') {
-    const card = stub.value;
+    const card = stub.value != null ? String(stub.value) : '';
     if (!card) return done(ctx);
     let s = { ...ctx.ownerState };
     const di = s.deck.indexOf(card);
