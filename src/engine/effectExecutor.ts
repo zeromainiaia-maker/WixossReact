@@ -955,6 +955,16 @@ function resolveDynamicFilter(
       ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw } }
       : rest;
   }
+  // powerLtLastProcessed: 直前に処理したシグニ（場に出た/公開した＝lastProcessedCards[0]）の実効パワー"未満"（「その後、そのシグニよりパワーの低い」）。
+  // Lte と異なり、参照不能（配置0体・非シグニ等）なら到達不能 powerRange で空ヒット＝対象なし（「そのシグニ」が存在しないため）。
+  if (result.powerLtLastProcessed) {
+    const { powerLtLastProcessed: _plt, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const pw = ref ? (effectivePowers?.get(ref) ?? parseInt(cardMap.get(getCardNum(ref))?.Power ?? '0', 10)) : undefined;
+    result = (pw !== undefined && !isNaN(pw))
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: pw - 1 } }
+      : { ...rest, powerRange: { min: 1, max: 0 } };
+  }
   if (result.levelLteLastProcessed) {
     const { levelLteLastProcessed: _l, ...rest } = result;
     const ref = lastProcessedCards?.[0];
@@ -962,6 +972,16 @@ function resolveDynamicFilter(
     result = !isNaN(lvl)
       ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl } }
       : rest;
+  }
+  // levelLtLastProcessed: 直前に処理したシグニのレベル"未満"（「その後、そのシグニより低いレベルを持つ」）。
+  // 参照不能なら到達不能 level で空ヒット＝対象なし。
+  if (result.levelLtLastProcessed) {
+    const { levelLtLastProcessed: _llt, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const lvl = ref ? parseInt(cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+    result = !isNaN(lvl)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl - 1 } }
+      : { ...rest, level: { min: 99, max: -1 } };
   }
   if (result.levelEqLastProcessed) {
     const { levelEqLastProcessed: _le, ...rest } = result;
