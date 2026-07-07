@@ -140,6 +140,21 @@ export function parseSelfComparison(text: string): Partial<TargetFilter> {
   return { levelGtSelf: true };
 }
 
+// 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」＝トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）基準の動的比較。
+// resolveDynamicFilter が triggeringCardNum の表記パワー/レベルで解決する。
+// ⚠「その後、そのシグニ」＝直前処理カード（lastProcessed・別機構）は除外。leftCard（「場を離れたとき…手札から」）は
+//   ADD_TO_FIELD hand ビルダーが levelBelowLeftCard で別処理し parseSigniTarget を通らないため衝突しない。
+export function parseTriggerComparison(text: string): Partial<TargetFilter> {
+  if (/その後/.test(text)) return {}; // lastProcessed（「その後、そのシグニ」）は別機構
+  const m = text.match(/そのシグニより(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
+  if (!m) return {};
+  const kind = m[1];
+  if (kind === 'パワーの低い') return { powerLtTrigger: true };
+  if (kind === 'パワーの高い') return {}; // powerGtTrigger 該当カードなし（過剰語彙を作らない）
+  if (/低いレベル|レベルの低い/.test(kind)) return { levelLtTrigger: true };
+  return { levelGtTrigger: true };
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };
