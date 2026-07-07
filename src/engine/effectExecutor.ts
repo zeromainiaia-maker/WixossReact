@@ -899,9 +899,30 @@ function resolveDynamicFilter(
   otherSt?: import('../types').PlayerState,
   lastProcessedCards?: string[],
   effectivePowers?: Map<string, number>,
+  sourceCardNum?: string,
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
+  // powerLteSelf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
+  // （「このシグニ/自身よりパワーの低い・高い」。参照不能ならフラグを外すだけ＝制限なしにフォールバック）
+  if ((result.powerLteSelf || result.powerLtSelf || result.powerGtSelf) && sourceCardNum) {
+    const selfPower = effectivePowers?.get(sourceCardNum)
+      ?? parseInt(cardMap.get(getCardNum(sourceCardNum))?.Power ?? '0', 10);
+    const { powerLteSelf: _pa, powerLtSelf: _pb, powerGtSelf: _pc, ...rest } = result;
+    result = result.powerGtSelf
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), min: selfPower + 1 } }
+      : { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtSelf ? selfPower - 1 : selfPower } };
+  }
+  // levelLtSelf / levelGtSelf: 効果元シグニのレベルを基準に level へ解決（「このシグニより低い/高いレベルを持つ」）
+  if ((result.levelLtSelf || result.levelGtSelf) && sourceCardNum) {
+    const selfLevel = parseInt(cardMap.get(getCardNum(sourceCardNum))?.Level ?? '', 10);
+    const { levelLtSelf: _la, levelGtSelf: _lb, ...rest } = result;
+    result = !isNaN(selfLevel)
+      ? (result.levelGtSelf
+          ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: selfLevel + 1 } }
+          : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: selfLevel - 1 } })
+      : rest;
+  }
   if (result.powerLteLastProcessed) {
     const { powerLteLastProcessed: _p, ...rest } = result;
     const ref = lastProcessedCards?.[0];
