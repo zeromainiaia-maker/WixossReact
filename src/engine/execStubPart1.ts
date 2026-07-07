@@ -1126,6 +1126,17 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン敗北無効'));
   }
   // INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし）
+  // INTERNAL_PICK_TO_HAND: 公開中のカード（stub.value）をデッキ/トラッシュ/エナから手札へ（handOrField の手札分岐）。
+  if (stub.id === 'INTERNAL_PICK_TO_HAND') {
+    const card = stub.value;
+    if (!card) return done(ctx);
+    let s = { ...ctx.ownerState };
+    const di = s.deck.indexOf(card);
+    if (di >= 0) { const dk = [...s.deck]; dk.splice(di, 1); s = { ...s, deck: dk }; }
+    else { const ti = s.trash.indexOf(card); if (ti >= 0) { const t = [...s.trash]; t.splice(ti, 1); s = { ...s, trash: t }; } }
+    s = { ...s, hand: [...s.hand, card] };
+    return done(addLog({ ...ctx, ownerState: s, lastProcessedCards: [card] }, `${ctx.cardMap.get(card)?.CardName ?? card}を手札に加える`));
+  }
   if (stub.id === 'INTERNAL_TRASH_TO_LIFE') {
     if (ctx.ownerState.trash.length === 0) return done(addLog(ctx, 'トラッシュが空（INTERNAL_TRASH_TO_LIFE）'));
     const cardNum = ctx.ownerState.trash[ctx.ownerState.trash.length - 1];
