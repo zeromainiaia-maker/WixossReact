@@ -129,6 +129,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 **⚠バッチ実行時のみのFAILを観測**＝13シナリオ一括実行では `lrigundermoved`・`keywordgained`・`powerzero` の3件がFAIL（banishbyeffect以降の「自分ターン系」末尾に連鎖）。個別再実行（`node scripts/verifyBattleDrive.mjs lrigundermoved keywordgained` および `powerzero` 単体）では**全てPASS**＝3件とも実装は正しく、**既存コードに既に注釈されていた「バッチ実行時のみの状態汚染」**（`game_logs` クリアだけでは防げないclient側の残留モーダル/state）が今回さらに後続シナリオへ連鎖することを確認。根本修正は別途follow-up（driver側のテスト分離強化が必要・カード/engineのバグではない）。
 
+### ⚠ ON_SIGNI_FROZEN（R38・§7）の実機検証で resume 経路の取りこぼしを発見（2026-07-07・続き40・Sonnet 5）
+`freezetrigger`（WX01-081→WXDi-P04-065）を新設し実機検証した結果、**❌FAIL＝実バグを確認**。
+
+- 盤面：host に watcher WXDi-P04-065（羅菌 プランクトン・ON_SIGNI_FROZEN・any_opp・targetsTriggerSource で凍結された相手シグニに-1000）を配置、center lrig を WD03-003（コード・ピルルク・Ｍ＝WX01-081「ピルルク限定」を満たす）に設定。手札の WX01-081（コードアート Ｔ・Ｖ・【出】ON_PLAY・mandatory・コストなしで相手シグニ1体を凍結）を召喚→SELECT_TARGETで相手シグニ（WD01-013）を指定。
+- **ground truth は正しい**＝`guest.field.signi_frozen` が `[true,false,false]` に変化＝FREEZE自体はengine内で正しく適用されている。
+- **しかしwatcherが一度も発火しない**＝盤面ログに「羅菌 プランクトンの【自】効果（凍結時）」が一切出ない。`effect_stack` は終始0のまま＝この解決は`resolveStackNext`（中央diffの置き場所）を一切通らず、`handleEffectInteraction`（SELECT_TARGET resume）だけで完結していた。
+- **原因**＝`collectFreezeTriggers`/`detectNewlyFrozen`の呼び出しは`BattleScreen.tsx:3798`（`resolveStackNext`内の中央diffブロック）の1箇所のみ。同ブロックにある他の収集（mill/refresh/energy-to-trash等）と同じ場所にしかない。一方`handleEffectInteraction`（4386-4408行）には`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`という「resume 経路の取りこぼし対策」inline collectorが既に4つ実装されているが、**ON_SIGNI_FROZEN用だけこのリストに入っていない**＝機構修正の抜け。
+- **影響範囲**＝FREEZE を付与するカードの大半はSELECT_TARGETで単体対象を選ぶ形（ALL対象などの例外を除く）＝resume経路を通るのが通常ケース。つまりWX08-039/WXEX2-02/WXDi-P04-065のwatcherは実戦でもほぼ発火しないと推定される。
+- **再現**：`node scripts/verifyBattleDrive.mjs freezetrigger`（既定 `order` からは除外済み＝既存スイートの全緑を壊さないため。修正後に単体実行で再検証してから戻す）。
+- **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectKeywordGainedInline`等と同型の`collectFreezeInline`を`handleEffectInteraction`に追加するだけの横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
