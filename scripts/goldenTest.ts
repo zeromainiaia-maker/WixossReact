@@ -294,6 +294,15 @@ test('GRANT_TO_PLACED_SIGNI 構造固定（P1-044/P2-039=GRANT_KEYWORD アサシ
   }
   const s2 = JSON.stringify(effectsMap.get('WX24-P3-037') ?? []);
   ok(s2.includes('"POWER_MODIFY"') && s2.includes('"targetsLastProcessed":true') && s2.includes('"UNTIL_OPP_TURN_END"') && !s2.includes('GRANT_TO_PLACED_SIGNI'), 'WX24-P3-037: POWER_MODIFY targetsLastProcessed UNTIL_OPP_TURN_END のはず');
+  const s3 = JSON.stringify(effectsMap.get('WX24-P3-039') ?? []);
+  ok(s3.includes('"MILL"') && s3.includes('"countIsLastProcessedLevelSum":true') && !s3.includes('GRANT_TO_PLACED_SIGNI'), 'WX24-P3-039: MILL countIsLastProcessedLevelSum のはず');
+});
+test('GRANT_TO_PLACED_SIGNI(C): MILL countIsLastProcessedLevelSum が場出しシグニのレベル合計だけ相手デッキをミル（WX24-P3-039）', () => {
+  const ctx = { ...mkCtx({}, { deckTop: [SIGNI, SIGNI, SIGNI, SIGNI] }), lastProcessedCards: [SIGNI_L2] } as ExecCtx; // レベル2
+  const beforeDeck = ctx.otherState.deck.length, beforeTrash = ctx.otherState.trash.length;
+  const r = run({ type: 'MILL', owner: 'opponent', count: 0, countIsLastProcessedLevelSum: true } as EffectAction, ctx);
+  eq(r.otherState.deck.length, beforeDeck - 2, 'レベル2分=2枚デッキ減');
+  eq(r.otherState.trash.length, beforeTrash + 2, '相手トラッシュ+2');
 });
 test('EXILE 相手シグニ1: 場から消去(トラッシュ/エナに行かない=ゲーム除外)', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
