@@ -644,7 +644,7 @@ const scenarios = {
         const freezeLog = await H.findLog(/をフリーズ/);
         const watcherLog = await H.findLog(/羅菌.*プランクトン.*凍結時|の【自】効果（凍結時）/);
         const st = await H.queryState();
-        H.log(`  fz[${s}] -> ${did ?? 'なし'} | freeze=${!!freezeLog} watcher=${!!watcherLog} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} phase=${st?.turnPhase ?? '-'} logTail=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+        H.log(`  fz[${s}] -> ${did ?? 'なし'} | freeze=${!!freezeLog} watcher=${!!watcherLog} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} phase=${st?.turnPhase ?? '-'} gFrozen=${JSON.stringify(st?.guest?.signiFrozen)} logTail=${JSON.stringify((st?.logTail ?? []).slice(-4))}`);
         if (freezeLog && watcherLog) {
           return { pass: true, detail: `ON_SIGNI_FROZEN 発火→ログ「${freezeLog}」「${watcherLog}」を確認` };
         }
