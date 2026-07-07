@@ -230,6 +230,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   Object.assign(filter, parseSelfComparison(text));
   // 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」= トリガー元シグニ基準（被バニッシュ/場に出た/アタッカー）
   Object.assign(filter, parseTriggerComparison(text));
+  // 「あなたのいずれかのシグニよりパワーの低い」= 自分の場のシグニの最大パワー基準（WXDi-P01-020/WXDi-P07-031）
+  Object.assign(filter, parseAnyAllyComparison(text));
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
 }
 
