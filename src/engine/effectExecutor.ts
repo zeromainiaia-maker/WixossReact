@@ -2670,7 +2670,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
   const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
-  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers);
+  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
   let pickable = rapFilter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), rapFilter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 「レベル参照上書き」カードも対象に含める
