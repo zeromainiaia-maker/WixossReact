@@ -1328,6 +1328,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),
+      ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準。resolveDynamicFilter が解決
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
