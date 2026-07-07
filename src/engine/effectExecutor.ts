@@ -694,7 +694,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // colorNotMatchesLrig 等の動的フィルタを対象オーナーのルリグ基準で解決（WX21-035①）
     const ownerSt = tgt.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const otherSt = tgt.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt);
+    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
     const cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
