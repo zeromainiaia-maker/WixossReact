@@ -273,7 +273,7 @@
 - **placedFront（R41）**：WXDi-P03-043。要確認＝①相手が正面ゾーンにシグニを配置したときのみ発火②正面以外の配置では非発火。
 - **opp-draw（R40）**：WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423。⚠近似＝「自分の効果で」発生源限定なし。
 - **outsideDrawPhase（R39）**：WXDi-D09-P19/WXDi-P05-062。要確認＝①メイン/アタックフェイズの効果ドローで発火②ドローフェイズの通常ドローでは非発火。
-- **凍結トリガー（R38）**：WX08-039/WXEX2-02/WXDi-P04-065。要確認＝①FREEZE効果で相手シグニが凍結したとき発火②《ターン1回》が複数同時凍結でも1回。
+- **凍結トリガー（R38）**：WX08-039/WXEX2-02/WXDi-P04-065。**①を実機確認した結果＝❌FAIL・実バグを確認済み（2026-07-07・続き40）**＝`verifyBattleDrive.mjs freezetrigger`（WX01-081→WXDi-P04-065・既定orderには含めず単体実行）。FREEZE自体は正しく適用される（`guest.field.signi_frozen`が`[true,false,false]`に変化）が、`collectFreezeTriggers`/`detectNewlyFrozen`（`BattleScreen.tsx:3798`）が`resolveStackNext`の中央diffにしか配線されておらず、SELECT_TARGETを要するON_PLAY効果がresume経路（`handleEffectInteraction`）で完結する大半のケースでwatcherが無発火＝未検出。詳細・修正方針は §6.3「ON_SIGNI_FROZEN のresume経路取りこぼし」。②《ターン1回》は上記バグ修正後に再検証。
 - **パワー0以下トリガー（R37）**：WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009。**①は実機確認済み（2026-07-07・続き39）**＝`verifyBattleDrive.mjs powerzero`（WD11-013→WX21-067）で相手シグニ0化→WX21-067がドロー、盤面ログ「アイン＝テトロドの【自】効果（パワー0以下時）」を確認。残＝②《ターン1回》が複数同時0化でも1回③連鎖再発火（他4枚の個別確認も含め未検証）。
 - **手札捨て/トラッシュ flatten（R36）**：WDA-F02-17-E3／WXDi-CP02-082（自ターンE1／相手ターンE2の出し分け）。
 - **drawBySourceStory（R31）**：WX20-026-E3（自＜凶蟲＞シグニの効果ドローで相手シグニ−4000）。
