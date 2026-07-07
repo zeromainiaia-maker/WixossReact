@@ -1023,6 +1023,8 @@ try {
         lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
         lrigTop: (s.field?.lrig ?? []).at(-1) ?? null,
         lrigDeck: (s.lrig_deck ?? []).length,
+        signiFrozen: s.field?.signi_frozen ?? null,
+        fieldSigni: s.field?.signi ?? null,
       });
       return {
         host: sideOf(hs),
