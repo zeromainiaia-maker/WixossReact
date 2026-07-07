@@ -46,7 +46,9 @@ import * as path from 'path';
 // WX25-P3-047の4枚をLAST_PROCESSED_MATCHES条件で手パッチ（MANUAL刻印）＝1663→1659。
 // 2026-07-07 続き35(Sonnet)第5ラウンド: 同4色セット最後の1枚＝WX25-CP1-029（緑）＝ADD_TO_FIELD結果への
 // targetsLastProcessedバフ（POWER_MODIFY+GRANT_KEYWORD）で是正（MANUAL刻印）＝1659→1658。
-const BASELINE_HIGH = 1658;
+// 2026-07-07 続き35(Sonnet)第6ラウンド: B層残タスク(b)2段/複合ピック＝WXDi-P06-053/WX25-P1-035/
+// WX26-CP1-019をLOOK_PICK_CHAINへ手パッチ（MANUAL刻印）＝1658→1655。
+const BASELINE_HIGH = 1655;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
