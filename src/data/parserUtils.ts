@@ -147,6 +147,15 @@ export function parseAnyAllyComparison(text: string): Partial<TargetFilter> {
   return /あなたのいずれかのシグニよりパワーの低い/.test(text) ? { powerLtAnyAlly: true } : {};
 }
 
+// 「表記されているパワーよりパワーの〔低い/高い〕」＝各候補の実効パワーと自身の表記パワーの per-candidate 比較。
+// 低い＝パワー低下中／高い＝パワー増強中。fieldCandidates が候補ごとに判定（静的 range では表せない）。
+// 実装済み STUB（SIGNI_GRANT_CHOSEN_ABILITY 等・「高い」）は据置し、フィルタ脱落の plain 過剰効果のみ拾う。
+export function parsePrintedComparison(text: string): Partial<TargetFilter> {
+  if (/表記されているパワーよりパワーの低い/.test(text)) return { powerLtPrinted: true };
+  if (/表記されているパワーよりパワーの高い/.test(text)) return { powerGtPrinted: true };
+  return {};
+}
+
 // 「そのシグニより〔パワー/レベル〕の〔低い/高い〕」＝トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）基準の動的比較。
 // resolveDynamicFilter が triggeringCardNum の表記パワー/レベルで解決する。
 // ⚠「その後、そのシグニ」＝直前処理カード（lastProcessed・別機構）は除外。leftCard（「場を離れたとき…手札から」）は
