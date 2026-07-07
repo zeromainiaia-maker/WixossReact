@@ -5,6 +5,14 @@
 
 ---
 
+## §7 実機検証フォローアップ＝ON_DECK_SHUFFLED スペル経路（deckshufflespell）の実 UI 確認完了（2026-07-07・続き39・Sonnet 5）
+
+VERIFY_BROWSER.md に「未完」として残っていた follow-up を実行してクローズ。カード修正・engine変更なし＝観測結果の記録のみ。
+
+- `npm run build` → `node scripts/verifyBattleDrive.mjs deckshufflespell` を再実行 → **PASS**（ログ「スペル経路 ON_DECK_SHUFFLED 発火→PR-470A#1 に +5000 反映確認（temp_power_mods・shuffled=1）」）。
+- SEARCHER（WX02-060）発動→対象ピッカー選択→決定、の経路で `handleEffectInteraction` 側の ON_DECK_SHUFFLED 検出（`collectDeckShuffleInline`）が機能することを確認。前回セッションで報告された非決定性（診断ログ非表示・handleCutinPass到達可否不明）は再発せず、安定 PASS。
+- ドキュメント更新＝[VERIFY_BROWSER.md](./VERIFY_BROWSER.md) の「スペル経路は実UI未確認」注記を確認済みへ更新。engine/JSON 無変更のため gates 再実行は不要（実機ドライバのみ）。
+
 ## 開発インフラ＝decompile 再生成のシェル非依存化・UTF-16 混入ガード・heldReview staleness ガード・regen/gates 一括コマンド（2026-07-07・続き37）
 
 カード修正ではなく、PLAN/CLAUDE.md に「⚠罠」として繰り返し警告されていたワークフロー事故経路を構造的に除去（engine/JSON 無変更）。
