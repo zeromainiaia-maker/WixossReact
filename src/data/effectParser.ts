@@ -3022,6 +3022,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const raw = stripRuleParens(trapM[1]).trim();
       if (raw) {
         const action = parseActionText(raw);
+        const trapFb = consumeSilentFallbacks();
+        logSilentFallbacks(`${card.CardNum}-TRAP`, trapFb);
         effects.push({
           effectId: `${card.CardNum}-TRAP`,
           effectType: 'TRAP_ICON',
@@ -3029,7 +3031,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
           action,
           duration: 'INSTANT',
           mandatory: false,
-          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : trapFb.length > 0 ? 'PARTIAL' : 'AUTO',
         });
       }
     }
