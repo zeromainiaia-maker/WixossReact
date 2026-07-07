@@ -25,6 +25,8 @@ import type {
   LookAndReorderAction,
   StubAction,
   Condition,
+  GrantKeywordAction,
+  PowerModifyAction,
 } from '../types/effects';
 import {
   parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative,
