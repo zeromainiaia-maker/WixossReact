@@ -1393,10 +1393,10 @@ function parseActionText(text: string): EffectAction {
       // 末尾のルール注釈（丸括弧）を除去してから bonus を取り出す
       const bonusText = text.slice(iconIdx + head[0].length).trim().replace(/（[^（）]*）\s*$/, '').trim();
       const recoCond = { type: 'LRIG_TRASH_COUNT' as const, cardType: 'アーツ' as const, operator: 'gte' as const, value: minArts, excludeSource: true };
-      // SEQUENCE を平坦化しつつ UNKNOWN ステップを除去して push するヘルパー
+      // SEQUENCE を平坦化しつつ UNKNOWN ステップを除去して push するヘルパー（除去＝無言脱落として刻印）
       const pushFlat = (arr: EffectAction[], a: EffectAction) => {
-        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') arr.push(st); }
-        else if (a.type !== 'UNKNOWN') arr.push(a);
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') arr.push(st); else markSilentFallback('リコレクト分割:UNKNOWNステップ除去'); }
+        else if (a.type !== 'UNKNOWN') arr.push(a); else markSilentFallback('リコレクト分割:UNKNOWNアクション除去');
       };
 
       const baseAction = baseText ? parseActionText(baseText) : null;
