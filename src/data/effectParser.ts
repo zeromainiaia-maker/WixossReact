@@ -2852,7 +2852,9 @@ function parseSpellEffect(card: CardData): CardEffect | null {
   const stripped = stripRuleParens(card.EffectText);
   const { cleaned, condition } = extractUseCondition(stripped);
   const action = parseActionText(condition ? cleaned : stripped);
-  let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO';
+  const spellFb = consumeSilentFallbacks();
+  logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
+  let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';
   // GRANT_LRIG_ABILITY: rawText から付与能力（サブブロック）をパース（parseBlock と同じ処理）
   if (action.type === 'GRANT_LRIG_ABILITY') {
     const hasUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
