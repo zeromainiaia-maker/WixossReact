@@ -97,7 +97,9 @@ const PATTERNS: Pattern[] = [
   {
     name: '動的比較(〜より高い/低い)',
     re: /より[^。]{0,6}(高い|低い|大きい|小さい)/,
-    keys: ['powerLtSelf', 'powerLteSelf', 'powerBelowLeftCard', 'levelBelowLeftCard',
+    keys: ['powerLtSelf', 'powerLteSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf',
+      'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger',
+      'powerBelowLeftCard', 'levelBelowLeftCard',
       'powerLteLastProcessed', 'levelLteLastProcessed', 'levelLteDiscardSigni',
       'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER'],
   },
