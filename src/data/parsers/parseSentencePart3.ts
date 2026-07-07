@@ -1734,9 +1734,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GROW', until: 'NEXT_TURN' } as BlockActionAction;
   }
 
-  // ---- 対戦相手のターン終了時、このシグニをトラッシュに置いてもよい ----
-  if (t.match(/対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい/)) {
-    return { type: 'STUB', id: 'OPTIONAL_TRASH_ENERGY_CLASS' } as StubAction;
+  // ---- このシグニを場からトラッシュに置いてもよい（任意の自己犠牲コスト。「そうした場合、X」が兄弟 CONDITIONAL）----
+  //   engine OPTIONAL_TRASH_SELF が pay=自トラッシュ+then / skip で解決（WX06-CB03/WX21-056/061）。
+  //   「対象」を含む文（selfTrashCost 付き BANISH＝対象選択のコストとして自トラッシュ）は別経路のため除外。
+  if (t.match(/このシグニを場からトラッシュに置いてもよい/) && !t.includes('対象')) {
+    return { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' } as StubAction;
   }
 
   // ---- トリガーした能力の処理順説明（ルール説明）----
