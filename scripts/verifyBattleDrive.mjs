@@ -924,9 +924,10 @@ function startDev() {
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
-// ⚠ freezetrigger は既知バグ（ON_SIGNI_FROZEN が resume 経路未配線）で恒常FAILのため既定 order には含めない。
-// 修正後の再検証は `node scripts/verifyBattleDrive.mjs freezetrigger` で単体実行する。
-const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'ontargeted', 'banishbyeffect', 'lrigundermoved', 'keywordgained', 'powerzero', 'wd07012', 'cpugrow', 'cpugrowblocked']; // 自分ターン系→CPUターンの順
+// freezetrigger は続き41（Opus）で ON_SIGNI_FROZEN の resume 経路を配線して修正・単体PASS確認済み＝既定 order に復帰。
+// ⚠バッチ末尾の「自分ターン系」は既知の batch 限定状態汚染で FAIL しうる（driver 側の分離強化は別 follow-up）＝
+// FAIL が出たら該当を単体（`node scripts/verifyBattleDrive.mjs <id>`）で再実行して切り分けること。
+const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'ontargeted', 'banishbyeffect', 'lrigundermoved', 'keywordgained', 'powerzero', 'freezetrigger', 'wd07012', 'cpugrow', 'cpugrowblocked']; // 自分ターン系→CPUターンの順
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
