@@ -1836,7 +1836,7 @@ function effJa(e: Eff): string {
     return s;
   }).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_LRIG_GROW') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';
