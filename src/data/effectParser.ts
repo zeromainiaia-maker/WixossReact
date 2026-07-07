@@ -1086,7 +1086,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // 未実装のため honest な STUB（decompiler が rawText＝value から原文描画・engine no-op）で表現し、
   // 汎用パーサの誤抽出（REMOVE_ABILITIES/GRANT_KEYWORD:any/内側action漏れ）を防ぐ。§6.3 機構待ち。
   {
-    const m = text.trim().match(/^(?:ターン終了時まで、|次の対戦相手のターン(?:終了時まで|の間)、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?は.+を得る。?$/s);
+    const m = text.trim().match(/^(?:ターン終了時まで、|次の対戦相手のターン(?:終了時まで|の間)、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?(?:は.+を得る|の(?:パワー|レベル).+)。?$/s);
     if (m) return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: text.trim() } as StubAction;
   }
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
