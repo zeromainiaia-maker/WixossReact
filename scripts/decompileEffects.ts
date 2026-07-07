@@ -13,7 +13,7 @@
  *   npx tsx scripts/decompileEffects.ts --grep ゲート          # 原文に語を含むカード
  */
 
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
