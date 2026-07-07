@@ -274,6 +274,25 @@ test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P120
   eq(tops(r.otherState)[0], null, '敵P3000（<自最大12000）が除去される');
   ok(tops(r.otherState)[1] !== null, '敵P12000（=最大・より低くない）は残る');
 });
+// ── 続き46: 表記パワー比較（per-candidate）＝「表記されているパワーよりパワーの低い/高い」= 実効 vs 自身の表記 ──
+test('powerLtPrinted/powerGtPrinted: 実効パワーと表記パワーの per-candidate 比較（WX25-CP1-093/WXK10-027）', () => {
+  // 低い＝低下中のみ対象：P3000を実効1000に低下→対象／P12000は実効=表記→非対象
+  {
+    const ep = new Map<string, number>([[SIGNI_P3000, 1000], [SIGNI_P12000, 12000]]);
+    const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }), effectivePowers: ep } as ExecCtx;
+    const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtPrinted: true } } } as EffectAction, ctx);
+    eq(tops(r.otherState)[0], null, 'P3000（実効1000<表記3000）が除去される');
+    ok(tops(r.otherState)[1] !== null, 'P12000（実効=表記・低下していない）は残る');
+  }
+  // 高い＝増強中のみ対象：P3000を実効8000に増強→対象／P12000は実効=表記→非対象
+  {
+    const ep = new Map<string, number>([[SIGNI_P3000, 8000], [SIGNI_P12000, 12000]]);
+    const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }), effectivePowers: ep } as ExecCtx;
+    const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerGtPrinted: true } } } as EffectAction, ctx);
+    eq(tops(r.otherState)[0], null, 'P3000（実効8000>表記3000）が除去される');
+    ok(tops(r.otherState)[1] !== null, 'P12000（実効=表記・増強していない）は残る');
+  }
+});
 // ── 続き44: 先頭「（この/その）シグニより…対象とし、…それを〈除去〉」designation の動的比較を後続ターゲットへ引き継ぐ ──
 // 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）や別文（cost/条件）に分かれ、除去アクション文（「それを
 // バニッシュする」等）に比較語が残らず全数脱落していた過剰効果群。基準を厳密に切る（この=自身/その=トリガー主語/その後=lastProcessed据置）。
