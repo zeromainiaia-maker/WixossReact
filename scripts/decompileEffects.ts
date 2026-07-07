@@ -663,7 +663,8 @@ function actionJa(a?: Action, effectType?: string): string {
           : '、残りを戻す';
       // 配置系（公開カードを手札/場/エナ/トラッシュ等へ）＝「その中から[filter]を[pickN][動詞]」
       const placeVerb =
-        (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
+        a.handOrField ? '手札に加えるか場に出す'
+        : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
         : a.then?.type === 'ADD_TO_FIELD' ? '場に出す'
         : a.then?.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
         : a.then?.type === 'TRASH' ? 'トラッシュに置く'
