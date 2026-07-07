@@ -989,6 +989,8 @@ function actionJa(a?: Action, effectType?: string): string {
         const n = m?.[3] ? numJa(parseInt(m[3].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
         return `あなたのエナゾーンから${cls}${kind}${n}枚をトラッシュに置いてもよい`;
       }
+      // OPTIONAL_TRASH_SELF: 「このシグニを場からトラッシュに置いてもよい」（任意の自己犠牲。兄弟 CONDITIONAL が「そうした場合」）。
+      if (a.id === 'OPTIONAL_TRASH_SELF') return 'このシグニを場からトラッシュに置いてもよい';
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
       // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
       if (a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' || a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
