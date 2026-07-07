@@ -1135,7 +1135,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const addToFieldOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
     cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
     if (src.filter?.thisCardOnly) {
@@ -1143,7 +1143,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
     cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
@@ -1152,7 +1152,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'DECK_CARD') {
     // 「デッキの一番上を見る。それが〈filter〉の場合、場に出してもよい」（G141）。
     // デッキ上から count 枚を対象に filter で絞る。一致しなければ候補なし＝何も起きない。
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
     const topCount = src.count === 'ALL' ? state.deck.length : resolveNum(src.count);
     const pool = state.deck.slice(0, topCount);
     cands = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter, undefined, undefined, ctx.treatAsClassAllZones));
