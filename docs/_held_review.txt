@@ -316,7 +316,7 @@ WD20-018 WX22-Re03
   - [0].action.steps[0].then.steps[1].owner = "self"
   - [0].action.steps[0].afterSearch.type = "SHUFFLE_DECK"
   - [0].action.steps[0].afterSearch.owner = "self"
-  …（他 54 行）
+  …（他 55 行）
 
 ## +GRANT_FIELD_SIGNI_ABILITY +UNKNOWN -STUB ［2枚］
 WXDi-P03-060 WXDi-P14-062
@@ -346,6 +346,33 @@ WXDi-P03-060 WXDi-P14-062
   + [0].action.abilities[0].duration = "INSTANT"
   + [0].action.abilities[0].mandatory = true
   + [0].action.abilities[0].parseStatus = "UNKNOWN"
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+
+## +GRANT_KEYWORD +SIGNI -STUB ［2枚］
+WX25-P1-044 WX25-P2-039
+--- WX25-P1-044
+  原文: あなたのデッキの上からカードを５枚見る。その中から＜怪異＞のシグニを１枚まで公開し手札に加え、＜怪異＞のシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。ターン終了時まで、この効果で場に出たシグニは【アサシン】を得る。】を持つシグニがアタックすると、正面のシグニがパワー10000以下の場合、バトルをせず対戦相手にダメージを与える）,-
+  - [0].action.steps[1].id = "GRANT_TO_PLACED_SIGNI"
+  - [0].action.steps[1].value = "ターン終了時まで、この効果で場に出たシグニは【アサシン】を得る。"
+  ~ [0].action.steps[1].type : "STUB" → "GRANT_KEYWORD"
+  + [0].action.steps[1].target.type = "SIGNI"
+  + [0].action.steps[1].target.owner = "self"
+  + [0].action.steps[1].target.count = "ALL"
+  + [0].action.steps[1].keyword = "アサシン"
+  + [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  + [0].action.steps[1].targetsLastProcessed = true
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+--- WX25-P2-039
+  原文: あなたのデッキの上からカードを５枚見る。その中から＜武勇＞のシグニを１枚まで公開し手札に加え、＜武勇＞のシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。ターン終了時まで、この方法で場に出たシグニは【アサシン】を得る。】を持つシグニがアタックすると、正面のシグニが凍結状態でパワー12000以下の場合、バトルをせず対戦相手にダメージを与える）,
+  - [0].action.steps[1].id = "GRANT_TO_PLACED_SIGNI"
+  - [0].action.steps[1].value = "ターン終了時まで、この方法で場に出たシグニは【アサシン】を得る。"
+  ~ [0].action.steps[1].type : "STUB" → "GRANT_KEYWORD"
+  + [0].action.steps[1].target.type = "SIGNI"
+  + [0].action.steps[1].target.owner = "self"
+  + [0].action.steps[1].target.count = "ALL"
+  + [0].action.steps[1].keyword = "アサシン"
+  + [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  + [0].action.steps[1].targetsLastProcessed = true
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
 
 ## +BANISH +CHOOSE +DRAW +SEQUENCE +SIGNI ［1枚］
@@ -1074,6 +1101,22 @@ WX24-P3-036
   + [0].action.from_count = 2
   + [0].action.choices[0].choiceId = "c0"
   …（他 23 行）
+
+## +POWER_MODIFY +SIGNI -STUB ［1枚］
+WX24-P3-037
+--- WX24-P3-037
+  原文: 対戦相手のパワー8000以下のシグニ１体を対象とし、それをエナゾーンに置く。あなたのデッキの上からカードを５枚見る。その中から＜美巧＞のシグニを１枚まで公開し手札に加え、＜美巧＞のシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。次の対戦相手のターン終了時まで、この効果で場に出たシグニのパワーを＋3000する。,-
+  - [0].action.steps[2].id = "GRANT_TO_PLACED_SIGNI"
+  - [0].action.steps[2].value = "次の対戦相手のターン終了時まで、この効果で場に出たシグニのパワーを＋3000する。"
+  ~ [0].action.steps[2].type : "STUB" → "POWER_MODIFY"
+  + [0].action.steps[2].target.type = "SIGNI"
+  + [0].action.steps[2].target.owner = "self"
+  + [0].action.steps[2].target.count = "ALL"
+  + [0].action.steps[2].target.filter.cardType = "シグニ"
+  + [0].action.steps[2].delta = 3000
+  + [0].action.steps[2].duration = "UNTIL_OPP_TURN_END"
+  + [0].action.steps[2].targetsLastProcessed = true
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
 
 ## +ADD_TO_LIFE +CHOOSE +CONDITIONAL +IS_MY_TURN +LIFE_CLOTH_CARD +SEQUENCE +TRANSFER_TO_HAND ［1枚］
 WX24-P4-019

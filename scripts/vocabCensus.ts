@@ -51,7 +51,13 @@ import * as path from 'path';
 // 2026-07-07 続き35(Sonnet)第7ラウンド: B層残タスク(d)CHOOSE内包＝WXDi-P10-004のCHOOSE選択肢1を
 // REVEAL_AND_PICK+ADD_TO_FIELDへ手パッチ（MANUAL刻印）＝1655→1654。WX26-CP1-100は
 // 「トラッシュ→エナゾーンの対象指定移動」という未実装engineメカニズムが要るため見送り（Opus向け）。
-const BASELINE_HIGH = 1628;
+// 2026-07-07 続き41(Opus): GRANT_TO_PLACED_SIGNI 実装＝「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を
+// parser で GRANT_KEYWORD/POWER_MODIFY{targetsLastProcessed} へ振り分け、WX25-P1-044/WX25-P2-039/WX24-P3-037 を
+// STUB から実アクションへ採用。⚠この3枚は STUB を外したことで census の blanket STUB 免除（js.includes('STUB')）
+// を失い、アサシン等キーワードのリマインダ文（「正面のシグニがパワーNN以下の場合…」）＋「Nまで場に出す」pick の
+// 語彙が高シグナルに顕在化＝1628→1631（+3）。いずれもキーワード付与/LOOK_PICK_CHAIN/SEND_TO_ENERGY で正しく
+// 表現済みの偽陽性（リマインダ文・pick 上限）で、実効果の脱落ではない＝ベースラインを実数更新。
+const BASELINE_HIGH = 1631;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
