@@ -904,6 +904,22 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6e: 複合条件「あなたのセンタールリグが<色>で、このシグニ{は/が}{中央のシグニゾーンにある|覚醒状態である}かぎり、」
+  //   → AND[LRIG_COLOR, IS_SELF_IN_CENTER_ZONE|IS_SELF_AWAKENED]（WX06-032/035/WX15-054 等・引用付与の外側条件。
+  //   engine checkActiveCondition は AND / LRIG_COLOR 実装済み）。generic フォールバック（下）に飲まれると条件脱落＝
+  //   無条件付与の過剰効果になるため、その前に複合を捕捉する。part2 が既知の自己状態のときのみ AND 化。
+  const compoundLrigColorM = text.match(/^あなたのセンタールリグが([白赤青緑黒])で、このシグニ[はが](中央のシグニゾーンにある|覚醒状態である)かぎり、/);
+  if (compoundLrigColorM) {
+    const inner: ActiveCondition = compoundLrigColorM[2].startsWith('中央')
+      ? { type: 'IS_SELF_IN_CENTER_ZONE' }
+      : { type: 'IS_SELF_AWAKENED' };
+    return {
+      condition: { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: compoundLrigColorM[1] }, inner] } as ActiveCondition,
+      rest: text.slice(compoundLrigColorM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // それ以外の「〜かぎり、」パターン（複雑な条件→未解析、句点を越えない）
   const genericKagiriM = text.match(/^[^。]+かぎり、/);
   if (genericKagiriM && genericKagiriM[0].length < 60) {

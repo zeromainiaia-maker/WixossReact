@@ -3,17 +3,17 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［40枚］
-WX10-005 WX12-021 WX14-042 WX14-054 WX18-034 WX24-D1-11 WX24-P2-059 WX24-P2-062 WX24-P2-064 WX24-P3-048 WX24-P3-059 WX24-P3-061 WX24-P3-080 WX24-P3-084 WX24-P4-056 WX24-P4-060 WX25-CP1-043 WX25-CP1-051 WX25-CP1-072 WX25-CP1-087 WX25-P1-065 WX25-P1-070 WX25-P2-062 WX25-P2-064 WX25-P2-069 WX26-CP1-061 WX26-CP1-063 WX26-CP1-066 WX26-CP1-092 WXDi-CP01-026 WXDi-CP02-053 WXDi-CP02-063 WXDi-CP02-067 WXDi-CP02-070 WXDi-P03-036 WXDi-P05-043 WXDi-P10-045 WXDi-P11-068 WXK11-008 WXK11-058
+## （type増減なし＝値/構造変更） ［9枚］
+WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-CP02-TK01A WXDi-P05-043 WXK11-008 WXK11-058
 --- WX10-005
   原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
   - [0].action.choices[1].action.owner = "opponent"
 --- WX12-021
   原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
   - [2].action.steps[1].owner = "opponent"
---- WX14-042
-  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュす
-  - [1].triggerScope = "any_opp"
+--- WX14-054
+  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
+  - [0].action.owner = "opponent"
 
 ## +GRANT_FIELD_SIGNI_ABILITY ［7枚］
 WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P13-052 WXEX1-35 WXEX1-76
@@ -117,7 +117,6 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
   ~ [2].action.type : "EXILE" → "TRASH"
   ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
   ~ [2].action.target.owner : "self" → "opponent"
-  + [2].triggerScope = "any_opp"
 --- WXDi-P11-010B
   原文: 【自】：このルリグが《夢限　-Q-》から《夢限　-A-》になったとき、カードを５枚引き【エナチャージ５】をする。【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをゲームから除外する。,-
   ~ [1].action.type : "EXILE" → "TRASH"
@@ -335,7 +334,7 @@ WX21-027 WX24-P3-TK1A
   ~ [2].action.type : "SEQUENCE" → "TRASH"
   + [2].action.target.type = "TRASH_CARD"
   + [2].action.target.owner = "opponent"
-  …（他 2 行）
+  …（他 1 行）
 
 ## +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI×2 +TRASH ［2枚］
 WD20-018 WX22-Re03
