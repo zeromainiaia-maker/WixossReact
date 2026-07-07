@@ -993,6 +993,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // OPTIONAL_TRASH_SELF: 「このシグニを場からトラッシュに置いてもよい」（任意の自己犠牲。兄弟 CONDITIONAL が「そうした場合」）。
       if (a.id === 'OPTIONAL_TRASH_SELF') return 'このシグニを場からトラッシュに置いてもよい';
+      // GRANT_TO_PLACED_SIGNI: 「この方法で場に出たシグニは…を得る」（value に原文を保持）。
+      if (a.id === 'GRANT_TO_PLACED_SIGNI') return a.value ?? 'この方法で場に出たシグニは能力を得る';
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
       // STUB。decompiler は JSON に選択肢を持たないため、原文の選択肢をそのまま反映する（＝engine 挙動と一致）。
       if (a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER' || a.id === 'CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE') {
