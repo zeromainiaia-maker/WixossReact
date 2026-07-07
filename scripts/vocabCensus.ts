@@ -48,7 +48,10 @@ import * as path from 'path';
 // targetsLastProcessedバフ（POWER_MODIFY+GRANT_KEYWORD）で是正（MANUAL刻印）＝1659→1658。
 // 2026-07-07 続き35(Sonnet)第6ラウンド: B層残タスク(b)2段/複合ピック＝WXDi-P06-053/WX25-P1-035/
 // WX26-CP1-019をLOOK_PICK_CHAINへ手パッチ（MANUAL刻印）＝1658→1655。
-const BASELINE_HIGH = 1655;
+// 2026-07-07 続き35(Sonnet)第7ラウンド: B層残タスク(d)CHOOSE内包＝WXDi-P10-004のCHOOSE選択肢1を
+// REVEAL_AND_PICK+ADD_TO_FIELDへ手パッチ（MANUAL刻印）＝1655→1654。WX26-CP1-100は
+// 「トラッシュ→エナゾーンの対象指定移動」という未実装engineメカニズムが要るため見送り（Opus向け）。
+const BASELINE_HIGH = 1654;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
