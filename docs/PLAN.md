@@ -91,8 +91,8 @@
 7. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
 
 **Sonnet 5 のタスク（今すぐ回せる在庫）**：
-1. **§5b 逆翻訳テール＝engine実装済みSTUB id の意味文化**（COPY_LRIG_NAME_ABILITY 16 ほか・decompiler に原文意味文を1行足すだけ・engine不変・ゲートは同型★0＋原文照合のみで軽い）。
-2. **B層 JSONデータ欠落補完**（REVEAL_AND_PICK／LOOK_AND_REORDER の pick 部分脱落＝WXDi-P04-047 等・effectId アンカー直パッチ＋原文照合。engine 対応済み語彙のみ）。
+1. ~~§5b 逆翻訳テール＝engine実装済みSTUB id の意味文化~~ **✅是正済（2026-07-07再確認・§5b参照）**。
+2. ~~B層 JSONデータ欠落補完~~ **✅是正済（2026-07-07再確認・§5b参照・残例外は§6.3でOpus機構待ち）**。
 3. **§7 実機検証のシナリオ横展開**（`verifyBattleDrive.mjs` の scenarios に1行追加式＝R30-R46・C1 follow-up の確認。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 の該当項目に記録してバトン）。
 4. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
 5. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
