@@ -1913,28 +1913,34 @@ if (targets.length === 0) {
   process.exit(0);
 }
 
-// ── 出力 ──
-for (const id of targets) {
-  const card = cardMap.get(id);
-  const effs = effectsMap.get(id);
-  console.log('\n' + '='.repeat(78));
-  console.log(`${id}  ${card?.CardName ?? '(名称不明)'}  [${card?.Type ?? '?'} ${card?.CardClass ?? ''}]`);
-  console.log('-'.repeat(78));
-  console.log('【原文 EffectText】');
-  console.log('  ' + (card?.EffectText ?? '(なし)').replace(/。/g, '。\n  '));
-  if (card?.BurstText && card.BurstText !== '-') {
-    console.log('【原文 BurstText】');
-    console.log('  ' + card.BurstText.replace(/。/g, '。\n  '));
+// ── 出力（stdout 出力と --sheets のファイル直書きで共用。1 push = 旧 console.log 1行） ──
+function renderCards(ids: string[]): string {
+  const out: string[] = [];
+  for (const id of ids) {
+    const card = cardMap.get(id);
+    const effs = effectsMap.get(id);
+    out.push('\n' + '='.repeat(78));
+    out.push(`${id}  ${card?.CardName ?? '(名称不明)'}  [${card?.Type ?? '?'} ${card?.CardClass ?? ''}]`);
+    out.push('-'.repeat(78));
+    out.push('【原文 EffectText】');
+    out.push('  ' + (card?.EffectText ?? '(なし)').replace(/。/g, '。\n  '));
+    if (card?.BurstText && card.BurstText !== '-') {
+      out.push('【原文 BurstText】');
+      out.push('  ' + card.BurstText.replace(/。/g, '。\n  '));
+    }
+    out.push('\n【JSON 逆翻訳】');
+    if (!effs) { out.push('  (effects.json に登録なし)'); continue; }
+    currentCardText = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+    // グロウ条件（EffectText の【グロウ】〜【 を runtime checkGrowCondition が評価。JSON効果には含まれないため別途表示）
+    const growCondM = (card?.EffectText ?? '').match(/【グロウ】([^【]*)/);
+    if (growCondM && growCondM[1].trim()) {
+      out.push(`  【グロウ条件】${growCondM[1].trim()}（runtime checkGrowCondition で評価）`);
+    }
+    for (const e of effs) out.push(`  ${e.effectId}: ${effJa(e)}`);
   }
-  console.log('\n【JSON 逆翻訳】');
-  if (!effs) { console.log('  (effects.json に登録なし)'); continue; }
-  currentCardText = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
-  // グロウ条件（EffectText の【グロウ】〜【 を runtime checkGrowCondition が評価。JSON効果には含まれないため別途表示）
-  const growCondM = (card?.EffectText ?? '').match(/【グロウ】([^【]*)/);
-  if (growCondM && growCondM[1].trim()) {
-    console.log(`  【グロウ条件】${growCondM[1].trim()}（runtime checkGrowCondition で評価）`);
-  }
-  for (const e of effs) console.log(`  ${e.effectId}: ${effJa(e)}`);
+  out.push('\n' + '='.repeat(78));
+  out.push(`${ids.length}枚を表示。逆翻訳は JSON 宣言の和文化（近似/STUBは明示）。原文との食い違いは要確認シグナル。`);
+  return out.join('\n') + '\n';
 }
-console.log('\n' + '='.repeat(78));
-console.log(`${targets.length}枚を表示。逆翻訳は JSON 宣言の和文化（近似/STUBは明示）。原文との食い違いは要確認シグナル。`);
+
+process.stdout.write(renderCards(targets));
