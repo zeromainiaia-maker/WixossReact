@@ -51,7 +51,7 @@ import type {
   SendToEnergyAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, toHalf,
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
