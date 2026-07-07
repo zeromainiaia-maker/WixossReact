@@ -5,6 +5,17 @@
 
 ---
 
+## §5c(3) 引用付与の残＝内側トリガー語彙拡充バッチ＝「対戦相手のターン終了/開始時」triggerScope:any_opp 推定を parser に新設＝27枚の潜在誤発火バグを是正（2026-07-07・続き36・Opus 4.8）
+
+続き34-35で確立した引用付与機構（`parseContinuousQuotedGrant`＋`GRANT_FIELD_SIGNI_ABILITY`）の「次の一手」＝**granted サブ能力の triggerScope 欠落是正**（BUGFIXES 続き35 の Opus 向け新規発見(b)）に着手。granted 内 `【自】：対戦相手のターン終了時、…` が triggerScope 省略＝engine 既定 `self` で**能力保持シグニ自身のターン終了時に発火**（原文と真逆のタイミング＝WX21-056/061 で発見）していた。engine（`collectTurnTriggers`）は既に相手フィールドの any_opp/any 分岐を実装済みで、**欠けていたのは parser の triggerScope 抽出だけ**だった。
+
+- **parser 1点**（`effectParser.ts` timing 判定直後）＝`timing[0]` が `ON_TURN_END`/`ON_TURN_START` かつ actionText が **`/対戦相手のターン(?:終了|開始)時(?:に)?[、,]/`** にマッチ（＝トリガー句。直後が読点）したとき `extractedTriggerScope='any_opp'`。**トリガー句限定が肝**＝「対戦相手のターン終了時**まで**」（別効果の duration・後続が「まで」で読点なし）を誤爆させない（初版の緩い regex `/対戦相手のターン終了時/` は WX24-P2-059「あなたのターン終了時…次の対戦相手のターン終了時まで、それは…」等 **31枚を誤って any_opp 化**＝duration 句を拾っていた＝読点アンカーで是正）。granted サブ能力も `parseBlock` 経由で本抽出を通るため引用付与型にも自動適用。
+- **decompiler 2点**＝(1)`ON_TURN_END`/`ON_TURN_START` かつ triggerScope any_opp のとき `対戦相手の` を前置（`対戦相手のターン終了時`）。(2)`〔範囲:any_opp〕` フォールバック注記の除外リストに両 timing を追加（ON_MAIN_PHASE_START と同様）。
+- **是正 27枚**＝build:effects が純上位集合（triggerScope 追加＝無損失）として 60枚を自動採用→**修正版 parser で全数再検証し 31枚の誤爆（duration 句由来）を fresh へ revert・WXDi-P03-036-E2 の誤 any_opp を除去**。さらに build:effects が温存する MANUAL/held カード（EXILE ゲーム除外系 TK・WXK05-041 等）6枚は any_opp が伝播しないため **effectId アンカーで triggerScope のみ外科的に付与**（EXILE→TRASH 退化・MANUAL 構造を触らない）。corpus 全走査で「対戦相手のターン…時、」トリガー43枚のうち top-level ON_TURN 効果を持つ全カードが any_opp 保持を確認（取りこぼし0）。
+- **golden**＝旧テスト「ON_TURN_START: self シグニが発火（WXDi-P05-039-E1）」は**旧バグ（self 誤発火）を固定化**していた（原文は「対戦相手のターン開始時」）＝any_opp 意味論（相手ターン開始時に発火＋自ターンは非発火）へ書き換え。
+- **検証**＝typecheck 緑・golden **141/141**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成）・**census 1654 不変**（triggerScope は census 計測次元外）。**parser/engine/decompiler をすべて触ったため smoke/golden/fuzz 実施**。
+- **未採用（次バッチ・Opus）**＝WX21-056/061 の引用付与本体は granted 内「このシグニを場からトラッシュに置いてもよい」が `OPTIONAL_TRASH_ENERGY_CLASS` STUB に mis-parse（内側STUB＝vet除外）＝**self-trash 任意コストの parse 修正**が要る。WX06-032/035 等の複合条件「Xで、Yかぎり」AND抽出・引用内 CHOOSE/選択肢展開は続き34 既知の残（過剰効果リスクで保留）。
+
 ## §5b B層：REVEAL_AND_PICK残タスク(d)＝CHOOSE内包の最終ラウンド＝WXDi-P10-004採用・WX26-CP1-100は未実装engineメカニズムのため見送り（2026-07-07・続き35・Sonnet 5・同日第7ラウンド）
 
 続き33で持ち越された残37件のうち最後の分類(d)「CHOOSE内包でより複雑」2件（WXDi-P10-004/WX26-CP1-100）に着手。これで続き33由来のB層タスクは(a)(b)(c)(d)すべて着手完了。
