@@ -270,6 +270,31 @@ test('dual-pick 構造固定（WX24-P1-017/WX25-P3-038 が LOOK_PICK_CHAIN[hand,
     ok(s.includes('LOOK_PICK_CHAIN') && s.includes('"then":"hand"') && s.includes('"then":"field"'), `${num}: dual-pick LOOK_PICK_CHAIN[hand,field] のはず`);
   }
 });
+// GRANT_TO_PLACED_SIGNI（続き41）：「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を targetsLastProcessed で
+// 場出しシグニ(lastProcessedCards)へ付与する。engine 機構は既存だが本ラウンドで parser を実装して STUB を実アクション化。
+test('GRANT_TO_PLACED_SIGNI(A): GRANT_KEYWORD targetsLastProcessed が場出しシグニ(lastProcessed)へ アサシン付与（WX25-P1-044/P2-039）', () => {
+  const placed = SIGNI;
+  const ctx = { ...mkCtx({ signi: [placed, null, null] }, {}, placed), lastProcessedCards: [placed] } as ExecCtx;
+  const r = run({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN', targetsLastProcessed: true } as EffectAction, ctx);
+  const g = (r.ownerState.keyword_grants ?? {})[placed] ?? [];
+  ok(g.includes('アサシン'), `keyword_grants[placed]=${JSON.stringify(g)}`);
+});
+test('GRANT_TO_PLACED_SIGNI(B): POWER_MODIFY targetsLastProcessed が場出しシグニへ +3000（次相手ターン終了時まで＝power_mods_until_opp_turn・WX24-P3-037）', () => {
+  const placed = SIGNI;
+  const ctx = { ...mkCtx({ signi: [placed, null, null] }, {}, placed), lastProcessedCards: [placed] } as ExecCtx;
+  const r = run({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } }, delta: 3000, duration: 'UNTIL_OPP_TURN_END', targetsLastProcessed: true } as EffectAction, ctx);
+  const mods = r.ownerState.power_mods_until_opp_turn ?? [];
+  ok(mods.some(m => m.cardNum === placed && m.delta === 3000), `power_mods_until_opp_turn=${JSON.stringify(mods)}`);
+  eq((r.ownerState.temp_power_mods ?? []).length, 0, 'UNTIL_OPP_TURN_END は temp_power_mods に入れない');
+});
+test('GRANT_TO_PLACED_SIGNI 構造固定（P1-044/P2-039=GRANT_KEYWORD アサシン・P3-037=POWER_MODIFY・いずれも targetsLastProcessed で STUB に戻っていない）', () => {
+  for (const num of ['WX25-P1-044', 'WX25-P2-039']) {
+    const s = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(s.includes('"GRANT_KEYWORD"') && s.includes('"targetsLastProcessed":true') && s.includes('アサシン') && !s.includes('GRANT_TO_PLACED_SIGNI'), `${num}: GRANT_KEYWORD targetsLastProcessed アサシン のはず`);
+  }
+  const s2 = JSON.stringify(effectsMap.get('WX24-P3-037') ?? []);
+  ok(s2.includes('"POWER_MODIFY"') && s2.includes('"targetsLastProcessed":true') && s2.includes('"UNTIL_OPP_TURN_END"') && !s2.includes('GRANT_TO_PLACED_SIGNI'), 'WX24-P3-037: POWER_MODIFY targetsLastProcessed UNTIL_OPP_TURN_END のはず');
+});
 test('EXILE 相手シグニ1: 場から消去(トラッシュ/エナに行かない=ゲーム除外)', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const before = ctx.otherState.trash.length + ctx.otherState.energy.length;
