@@ -11,7 +11,7 @@
 //   node scripts/heldReview.mjs --adopt-sig "署名"  … その署名グループ全カードを一括採用
 // 採用後は必ず npm run typecheck / golden / smoke / fuzz / census を回す（§3ワークフロー）。
 // 前提: 直前に npm run build:effects を実行済み（docs/_held_fresh.json が最新であること）。
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
