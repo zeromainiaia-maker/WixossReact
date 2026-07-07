@@ -939,6 +939,7 @@ function resolveDynamicFilter(
   if (result.powerLtAnyAlly) {
     const { powerLtAnyAlly: _pa, ...rest } = result;
     const allyPowers = ownerSt.field.signi
+      .map(stack => stack?.at(-1))
       .filter((n): n is string => !!n)
       .map(n => effectivePowers?.get(n) ?? parseInt(cardMap.get(getCardNum(n))?.Power ?? '0', 10));
     const maxAlly = allyPowers.length ? Math.max(...allyPowers) : undefined;
