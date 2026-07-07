@@ -78,25 +78,27 @@
   - **リファクタ Stage2/3**（BattleScreen コントローラ設計）。
   - BEHAVIOR_AUDIT の**真no-op vs シナリオ空振りの最終仕分け**とengine修正。
 
-#### 現在の割付（2026-07-06・続き32時点の残作業を具体タスクに切り分け）
-> ⚠**前提＝Sonnet 向け単点消化パイプライン（held/behavior-audit）は現在プラトー**（続き32で新規採用0を確認）。**Opus が語彙・機構を1バッチ開く→Sonnet が heldReview 再収穫＋ゲート＋簿記で消化する交互サイクル**で回す。トークン節約のため、下記 Sonnet 在庫があるうちは Sonnet で開始し、切れたら Opus に切り替える。
+#### 現在の割付（2026-07-07・続き39時点に更新。旧・続き32版は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の履歴で追える）
+> 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。
 
-**Opus 4.8 のタスク（推奨順）**：
-1. **§5c 引用付与の残107 の語彙拡充**＝(a)CONTSELF_COND 18（【常】…かぎり自己付与の語彙設計）(b)OTHER 約30（場全体常時付与＝GRANT_FIELD_SIGNI_ABILITY 化）(c)**内側トリガー語彙拡充**（triggerScope／「このシグニ」自己参照）→除外27を再収穫。＝続き31-32 指名の本丸。
-2. **held 残署名の系統別本実装**（GRANT_EFFECT quote展開・CHOOSE平坦化・WX20-043 型の条件持ち上げ）。⚠着手前に必ず全数機械分類（続き24-29の型）。
-3. **「代わりに」残テールの機構系**＝D:置換ルール9（バニッシュされない系＝置換機構）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）。
-4. **§6.1 未実装action型 残11種27効果**の engine 実装（PLAY_FREE_FROM_TRASH／STACK_SPELL／PREVENT_DAMAGE／COST_SUBSTITUTE／SELF_TRASH_PREVENT／COLOR_INHERIT／GRANT_FIELD_SHADOW）。
-5. **§6.3 大型機構**＝ゲーム除外（ルリグデッキピース含む＝WXDi-P04-016-E3 の修正とセット）・canCardGuard 共通ヘルパー統一→ガード喪失配線・多段閾値 nested CONDITIONAL・スペル被破棄【自】トリガー収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査。
-6. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ）。
-7. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
+**Opus 4.8 のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
+1. **`GRANT_TO_PLACED_SIGNI` の実装**（「この方法で場に出たシグニは…を得る」＝targetsLastProcessed 機構・§6.3）＝続き36 dual-pick/reveal-pick の honest STUB を実装へ。**続き36から3セッション連続で持ち越し中の筆頭**。
+2. **census「動的比較 35枚」**（「〜より高い/低い」＝heterogeneous・per-card）。
+3. **引用内 CHOOSE**（WXDi-D09-P20）＋引用付与の内側品質不全27の再収穫（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）。
+4. **CHOOSE平坦化復元の採用待ち held 約35枚**（続き29 parser修正の採用バックログ・意味的退化の見極めが要る。⚠着手前に必ず全数機械分類＝続き24-29の型）。
+5. **持ち越し済みの engine/parser 拡張の小口**＝WXDi-P03-005（PAID_ADDITIONAL_COST の「置換モード」拡張）・WX26-CP1-100（SEND_TO_ENERGY のトラッシュ対象化）・GRANT_LRIG_ABILITY系5枚の parser ON_PLAY 誤デフォルト修正・WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落・続き33発見の原文無関係 `TRANSFER_TO_DECK` 混入5枚（WX24-P2-033等）。
+6. **「代わりに」残テールの機構系**＝D:置換ルール9（バニッシュされない系＝置換機構）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）。
+7. **§6.1 未実装action型 残**の engine 実装＋**§6.3 大型機構**（ゲーム除外＝WXDi-P04-016-E3 とセット・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査）。
+8. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ）。
+9. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
 
-**Sonnet 5 のタスク（今すぐ回せる在庫）**：
-1. ~~§5b 逆翻訳テール＝engine実装済みSTUB id の意味文化~~ **✅是正済（2026-07-07再確認・§5b参照）**。
-2. ~~B層 JSONデータ欠落補完~~ **✅是正済（2026-07-07再確認・§5b参照・残例外は§6.3でOpus機構待ち）**。
-3. **§7 実機検証のシナリオ横展開**（`verifyBattleDrive.mjs` の scenarios に1行追加式＝R30-R46・C1 follow-up の確認。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 の該当項目に記録してバトン）。
-4. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
-5. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
-6. **Opus バッチ後の再収穫サイクル**（`build:effects`→`heldReview` spot-check→採用→全ゲート→シート再生成→BASELINE/PLAN簿記→commit）＝上記⚠必須ガードレール4点をプロンプトに固定。**Opus の語彙拡充が入るまで §5c 再収穫には着手しない**（プラトー確認済みのため空振りになる）。
+**Sonnet 5 のタスク（今すぐ回せる在庫・定型消化とデータ単点）**：
+1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝R30/R31/R36/R38-R46・ON_LRIG_ATTACK_STEP_START 全体未検証。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 とバトンに記録）。
+2. **verifyBattleDrive のバッチ実行時状態汚染の根本修正**（driver 側のテスト分離強化＝engine/JSON 非依存。続き39後半で13件一括実行時のみ3件FAIL→個別再実行は全PASSを確認済み）。
+3. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
+4. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
+5. **Opus バッチ着地後の再収穫サイクル**（`/census-batch` スキル準拠＝`build:effects`→`heldReview` spot-check→採用→全ゲート→`regen`→BASELINE/PLAN簿記→commit。⚠必須ガードレール4点は上記リスト参照）。**Opus 1〜4 のいずれかが着地するまでは §5c 再収穫に着手しない**（現在プラトー＝空振りになる。続き34着地→続き35収穫の型を踏襲）。
+- ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opus タスク5へ移管済み）**。
 
 ---
 
