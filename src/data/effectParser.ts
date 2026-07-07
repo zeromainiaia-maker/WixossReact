@@ -2832,6 +2832,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       action = { ...seq, steps: seq.steps.filter(s => s.type !== 'ALT_COST_OPP_TURN') };
     }
   }
+  logSilentFallbacks(`${card.CardNum}-E1`, artsFb);
   return {
     effectId: `${card.CardNum}-E1`,
     effectType: 'ACTIVATED',
@@ -2842,7 +2843,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     action,
     duration: 'INSTANT',
     mandatory: false,
-    parseStatus: hasUnknown ? (action.type === 'UNKNOWN' ? 'UNKNOWN' : 'PARTIAL') : (glaUnknownSub ? 'PARTIAL' : 'AUTO'),
+    parseStatus: hasUnknown ? (action.type === 'UNKNOWN' ? 'UNKNOWN' : 'PARTIAL') : (glaUnknownSub || artsFb.length > 0 ? 'PARTIAL' : 'AUTO'),
   };
 }
 
