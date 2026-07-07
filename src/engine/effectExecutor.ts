@@ -3422,7 +3422,11 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
 }
 
 function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
-  const count = a.useDeclaredCount
+  // countIsLastProcessedLevelSum: 「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」＝直前ステップ
+  // （LOOK_PICK_CHAIN の field 配置等）が lastProcessedCards に残したシグニのレベル合計を枚数にする（WX24-P3-039）。
+  const count = a.countIsLastProcessedLevelSum
+    ? (ctx.lastProcessedCards ?? []).reduce((sum, cn) => sum + (parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10) || 0), 0)
+    : a.useDeclaredCount
     ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
     : a.count;
   const state = ownerState(a.owner, ctx);
