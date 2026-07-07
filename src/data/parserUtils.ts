@@ -182,7 +182,22 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (text.includes('凍結状態')) filter.isFrozen = true;
   // 「あなたの他の（＜X＞の）シグニ」= 効果元シグニ自身を対象から除外（execTrash等が filter.excludeSelf を尊重）
   if (/他の[^。、]*シグニ/.test(text)) filter.excludeSelf = true;
+  // 「（〜の）シグニのうち、最も[大きい/小さい/高い/低い]パワー/レベルを持つ」= superlative（集合単位の極値フィルタ）
+  const sup = parseSuperlative(text);
+  if (sup) filter.superlative = sup;
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
+}
+
+// 「最も[大きい/高い/小さい/低い](パワー|レベル)」or「最も(パワー|レベル)の[高い/低い]」→ superlative {key,dir}。
+export function parseSuperlative(text: string): { key: 'power' | 'level'; dir: 'max' | 'min' } | null {
+  if (!text.includes('最も')) return null;
+  const m = text.match(/最も(?:(大きい|高い|小さい|低い)(パワー|レベル)|(パワー|レベル)の(?:最も)?(高い|大きい|低い|小さい))/);
+  if (!m) return null;
+  const keyJa = m[2] ?? m[3];
+  const dirJa = m[1] ?? m[4];
+  const key: 'power' | 'level' = keyJa === 'レベル' ? 'level' : 'power';
+  const dir: 'max' | 'min' = (dirJa === '大きい' || dirJa === '高い') ? 'max' : 'min';
+  return { key, dir };
 }
 
 
