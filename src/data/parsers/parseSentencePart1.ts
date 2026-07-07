@@ -1700,6 +1700,29 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
+  // ---- デッキ上N枚見て「（＜C＞の）シグニM枚を公開し手札に加えるか場に出し、残りをデッキ下」＝
+  //      REVEAL_AND_PICK（handOrField＝ピックしたシグニを手札 or 場の対話選択・remainder は消失しない）。
+  //      deckLookM（bare LOOK_AND_REORDER）に飲まれると pick が脱落するため、その前に捕捉する（22枚の系統）。
+  {
+    const m = t.match(/デッキの上からカードを([０-９\d]+)枚(?:見る|公開する)。?\s*その中から(?:(＜[^＞]+＞)の)?シグニ([０-９\d]+)枚(まで)?を?(?:公開し)?手札に加えるか場に出し/);
+    if (m) {
+      const remainder: { location: 'deck' | 'trash'; position: 'top' | 'bottom' | 'any' } =
+        /残り[^。]*トラッシュ/.test(t) ? { location: 'trash', position: 'any' }
+        : { location: 'deck', position: 'bottom' };
+      return {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: parseNum(m[1]),
+        filter: { cardType: 'シグニ', ...(m[2] ? parseStoryFilter(m[2]) : {}) },
+        pickCount: parseNum(m[3]),
+        ...(m[4] ? { pickUpTo: true } : {}),
+        handOrField: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' }, // handOrField 時は engine 側で無視（フォールバック）
+        remainder,
+      } as EffectAction;
+    }
+  }
+
   const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る|公開し)/);
   if (deckLookM) {
     return {
