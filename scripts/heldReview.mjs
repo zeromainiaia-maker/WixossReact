@@ -9,8 +9,11 @@
 //   node scripts/heldReview.mjs                     … レビュー表を docs/_held_review.txt へ出力
 //   node scripts/heldReview.mjs --adopt ID1,ID2,…   … 指定カードの fresh を effects_*.json に採用
 //   node scripts/heldReview.mjs --adopt-sig "署名"  … その署名グループ全カードを一括採用
-// 採用後は必ず npm run typecheck / golden / smoke / fuzz / census を回す（§3ワークフロー）。
+// 採用後は必ず npm run gates（typecheck/golden/smoke/fuzz/census/lint 一括）を回す（§3ワークフロー）。
 // 前提: 直前に npm run build:effects を実行済み（docs/_held_fresh.json が最新であること）。
+//   → 2026-07-07 から mtime で自動検査する（parser ソース/CSV が _held_fresh.json より新しければ
+//     エラーで停止＝続き31の stale-held 誤読の再発防止。意図的に無視する場合のみ --stale-ok）。
+//   → fresh == curated（採用済み）のエントリは自動的にレビュー対象から除外して件数を表示する。
 import { readFileSync, writeFileSync, readdirSync, existsSync, statSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
