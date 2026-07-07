@@ -1514,7 +1514,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       const kwSelfSigni = t.includes('あなたのシグニ') || /あなたの(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
       const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
       // 単体シグニ付与に付くクラス/色/レベルフィルタ（＜鉱石＞か＜宝石＞か＜ウェポン＞ 等）
-      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t) };
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
