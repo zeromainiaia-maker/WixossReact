@@ -5,6 +5,16 @@
 
 ---
 
+## §5c 動的比較 別基準＝`powerLtPrinted`/`powerGtPrinted`「表記されているパワーより〜」＝per-candidate 実効/表記比較＝2枚の過剰効果を是正（2026-07-08・続き46・Opus 4.8）
+
+「表記されているパワーよりパワーの低い/高い対戦相手（あなた）のシグニ1体を対象とし…」＝**各候補の実効パワーと自身の表記パワーの比較**（低い＝パワー低下中／高い＝増強中）が JSON で脱落し全シグニ対象になっていた過剰効果。DB 全5枚のうち **3枚（WX24-P4-054/WXDi-P08-072/WXK09-050）は bespoke STUB で per-candidate 比較を実装済み**（`execStubPart1.ts` の `SIGNI_GRANT_CHOSEN_ABILITY` 等・census 免除）で据置し、**plain な過剰効果の2枚のみ汎用フィルタ化**（WX25-CP1-093＝低い・POWER_MODIFY／WXK10-027＝高い・GRANT_KEYWORD ランサー）。[[vocab-census-overfire-blindspot]]
+
+- **型**（`src/types/effects.ts`）＝`powerLtPrinted`/`powerGtPrinted` 新設（静的 range では表せない per-candidate 比較）。
+- **parser**（`src/data/parserUtils.ts`）＝`parsePrintedComparison`（表記より低い→powerLtPrinted／高い→powerGtPrinted）を新設し **`parseSigniTarget` に配線**（WX25-CP1-093 の POWER_MODIFY 経路）。加えて **GRANT_KEYWORD ビルダー**（`parseSentencePart1.ts:1517` の `kwSigniFilter`）にも配線（WXK10-027-E2「あなたの緑の表記より高いシグニは【ランサー】を得る」＝parseSigniTarget を通らない別経路）。
+- **engine**（`src/engine/execUtils.ts` `fieldCandidates`）＝per-candidate ループに `powerLtPrinted`/`powerGtPrinted` 判定を追加（`実効(effectivePowers ?? 表記)` vs `表記(cardMap.Power)`＝低い/高い。表記が非数値〔∞等〕なら対象外）。resolveDynamicFilter ではなく候補フィルタ層＝各候補が自身の表記と比較されるため。
+- **decompiler**（`scripts/decompileEffects.ts`）＋**census keys**（`vocabCensus.ts`）に追加。
+- **検証**＝typecheck・**golden 163→164（+1＝powerLt/GtPrinted の per-candidate 判定を実効≠表記の境界で assert）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**・**census 1623/1623**（2枚は動的比較カテゴリからは外れたが別カテゴリ〔トリガー:アタックしたとき／パワー閾値／数値不一致〕の未対応で dedup 総数は不変＝過剰効果自体は是正済み）。`build:effects` 自動収穫2枚（純改善・collateral 0）。engine 配線は既存 BANISH/POWER_MODIFY/GRANT 経路のため実機リスク低。
+
 ## §5c 動的比較 別基準＝`powerLtAnyAlly`「あなたのいずれかのシグニよりパワーの低い」＝自分の場の最大パワー基準＝2枚の過剰効果を是正（2026-07-08・続き45・Opus 4.8）
 
 続き43-44の自己参照/トリガー参照に続く**別基準サブファミリ**。「あなたのいずれかのシグニよりパワーの低い対戦相手のシグニ1体を対象とし、それをバニッシュする」＝**自分の場のシグニのいずれか（＝最大実効パワー）を基準にした比較**が JSON で脱落し全シグニ対象になっていた過剰効果。DB 全2枚（WXDi-P01-020／WXDi-P07-031＝いずれも同一パターン・両方 census 高シグナル計上）。[[vocab-census-overfire-blindspot]]
