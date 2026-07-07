@@ -43,3 +43,9 @@ WixossカードゲームのReactクローン実装。
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
 - 引き継ぎ（HANDOFF）は廃止。残作業・設計判断は `PLAN.md`、修正記録は `BUGFIXES.md` に集約する。
+
+## 定型ワークフローはスキルで（2026-07-07新設）
+`.claude/skills/` に定型作業のスキルがある。**該当作業はスキルの手順・ガードレールに従う**（散文の記憶に頼らない）：
+- `/census-batch` — §5c census文型バッチ1巡（clusters選定→parser規則→build:effects→heldReview採用→ゲート→簿記。必須ガードレール込み）
+- `/audit-card <CardNum>` — BEHAVIOR_AUDIT 1カード監査1巡（目視照合→3分類仕分け→修正→ゲート→簿記）
+- `/baton` — セッション終了時のバトン簿記（PLAN §4 進捗サマリの入れ替え・PLAN_PROGRESS.md への退避）
