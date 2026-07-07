@@ -116,6 +116,9 @@ function filterJa(f?: any): string {
   if (f.powerGtSelf) parts.push('このシグニよりパワーの高い');
   if (f.levelLtSelf) parts.push('このシグニより低いレベルを持つ');
   if (f.levelGtSelf) parts.push('このシグニよりレベルの高い');
+  if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
+  if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
+  if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
