@@ -176,6 +176,17 @@ export function parseTriggerComparison(text: string, opts?: { allowPlacement?: b
   return { levelGtTrigger: true };
 }
 
+// 「その後、そのシグニより〔パワーの低い/低いレベル〕」＝直前に処理したシグニ（この効果内で場に出た/公開した＝lastProcessed）基準の動的比較。
+// トリガー元シグニ（parseTriggerComparison）と語は同じ「そのシグニより」だが、「その後」＝同一効果内の先行アクションで生じたシグニを指す（別機構）。
+// resolveDynamicFilter が lastProcessedCards[0] のパワー/レベルで powerRange.max:N-1 / level.max:N-1 へ解決（参照不能なら空ヒット）。
+// 該当2枚（WXDi-P08-031＝場出し→powerLt／WXK10-031＝公開→levelLt）はいずれも「低い」のみ＝過剰語彙を作らない。
+export function parseLastProcessedComparison(text: string): Partial<TargetFilter> {
+  if (!/その後/.test(text)) return {}; // 「その後」＝lastProcessed 文脈のマーカー（トリガー参照と切り分け）
+  const m = text.match(/そのシグニより(パワーの低い|(?:低いレベルを持つ|レベルの低い))/);
+  if (!m) return {};
+  return m[1] === 'パワーの低い' ? { powerLtLastProcessed: true } : { levelLtLastProcessed: true };
+}
+
 export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   if (text.includes('シグニ')) return { cardType: 'シグニ' };
   if (text.includes('スペル')) return { cardType: 'スペル' };
