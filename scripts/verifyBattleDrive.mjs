@@ -913,7 +913,7 @@ function startDev() {
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
 const requested = process.argv.slice(2).filter(a => !a.startsWith('-'));
-const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'ontargeted', 'banishbyeffect', 'lrigundermoved', 'keywordgained', 'powerzero', 'wd07012', 'cpugrow', 'cpugrowblocked']; // 自分ターン系→CPUターンの順
+const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'deckshufflespell', 'ontargeted', 'banishbyeffect', 'lrigundermoved', 'keywordgained', 'powerzero', 'freezetrigger', 'wd07012', 'cpugrow', 'cpugrowblocked']; // 自分ターン系→CPUターンの順
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
