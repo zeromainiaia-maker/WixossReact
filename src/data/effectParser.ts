@@ -3000,6 +3000,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const raw = stripRuleParens(songM[1]).trim();
       if (raw) {
         const action = parseActionText(raw);
+        const songFb = consumeSilentFallbacks();
+        logSilentFallbacks(`${card.CardNum}-SONG`, songFb);
         effects.push({
           effectId: `${card.CardNum}-SONG`,
           effectType: 'SONG_ICON',
@@ -3007,7 +3009,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
           action,
           duration: 'INSTANT',
           mandatory: false,
-          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : 'AUTO',
+          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : songFb.length > 0 ? 'PARTIAL' : 'AUTO',
         });
       }
     }
