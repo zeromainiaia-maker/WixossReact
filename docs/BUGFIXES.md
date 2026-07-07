@@ -5,6 +5,16 @@
 
 ---
 
+## §6.3 dual-pick（二目的）＝「＜C＞シグニをM枚手札＋K枚場に、残りデッキ下」を LOOK_PICK_CHAIN[hand,field] で正エンコード＝9枚是正（2026-07-07・続き36・Opus 4.8・第6バッチ）
+
+第5バッチの姉妹テンプレ「デッキ上5枚見る→＜C＞シグニ1枚まで**手札**＋＜C＞シグニ1枚まで**場**→残りデッキ下」（9枚）。現状は bare `LOOK_AND_REORDER`（両picks 脱落）。既存の段階ピック機構 `LOOK_PICK_CHAIN`（stages に filter/pickCount/then＝'hand'|'field' 対応済み・engine 実装済み）を使い、engine 追加なしで正エンコード。
+
+- **parser 2点**＝(1)`parseActionText`（splitSentences 前・全文捕捉）＝「デッキの上からカードをN枚見る。その中から(＜C＞の)?シグニをM枚まで(公開し)?手札に加え、(＜C＞の)?シグニをK枚まで場に出し、残り(デッキの一番下\|トラッシュ)」→ `LOOK_PICK_CHAIN{stages:[{hand},{field}]}`。前後（prefix のエナ送り/パワー減・suffix の付与）は `parseActionText` で解析し `SEQUENCE[prefix, LPC, suffix]` に組む。(2)**`GRANT_TO_PLACED_SIGNI` STUB 新設**（`parseSingleSentenceInner` 先頭）＝「（ターン終了時まで、）この(方法\|効果)で場に出た(シグニ\|レゾナ)は「Q」/【K】を得る／のパワー±N／のレベル…」を **honest な STUB（value に原文保持）** で表現。汎用 targetsLastProcessed 付与機構は未実装のため、汎用パーサの誤抽出（REMOVE_ABILITIES/GRANT_KEYWORD:any/内側action漏れ／POWER_MODIFY:any）を防ぐ＝**mis-parse（dropped より悪い）を回避**。§6.3 機構待ち。
+- **decompiler**＝handOrField の姉妹描画（LOOK_PICK_CHAIN の既存レンダラが hand/field ステージを描画）＋`GRANT_TO_PLACED_SIGNI` は value（原文）を描画。
+- **採用9枚**＝WX24-P1-017/P2-035/P3-037/P3-039・WX25-P1-044/P2-039/P2-041/P3-038/P3-045。全て AUTO・逆翻訳が原文一致（placed-STUB が原文再現）。prefix 付き2枚（WX24-P3-037 エナ送り／P3-039 パワー減）も正しく SEQUENCE 化。suffix が「その後、あなたの＜C＞シグニに付与」型の2枚（WX25-P2-041/P3-045）は既存 GRANT_EFFECT で正解析。corpus 全走査で `GRANT_TO_PLACED_SIGNI` 保持は6枚のみ＝原文と1:1（誤爆・退化0）。
+- **golden +2**＝(1)LOOK_PICK_CHAIN dual-pick で手札1・場1・消失なし（autopilot）(2)dual-pick 構造固定（bare LOOK_AND_REORDER 退化検出）。
+- **検証**＝typecheck 緑・golden **151/151**・smoke 全0（OK10317）・fuzz 全0・lint 0 errors・**同型★0**（全10シート再生成・逆翻訳原文一致）・**census 1637→1628**（`BASELINE_HIGH`／PLAN §恒久指標 実数更新）。⚠**残＝GRANT_TO_PLACED_SIGNI の実装**（この方法で場に出たシグニへの実付与・targetsLastProcessed 機構＝§6.3）。
+
 ## §6.3 REVEAL_AND_PICK「手札に加えるか場に出し」機構＝handOrField 対話選択＋公開カード消失バグ修正＝30枚是正（2026-07-07・続き36・Opus 4.8・第5バッチ）
 
 census 最大の単一テンプレ「その中からシグニN枚を公開し手札に加えるか場に出し、残りをデッキの一番下に置く」（22枚＋変種）を機構実装。**現状は pick 部分が脱落し bare `LOOK_AND_REORDER`（プレイヤーは1枚も取れない）**。加えて engine の REVEAL_AND_PICK 自体に**公開カード消失バグ**（デッキを slice するが未pick/非対象の公開カードを復元できず消失＝probe で6枚→4枚を確認）があり、本バッチで両方を修正。
