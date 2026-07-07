@@ -3,17 +3,17 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［8枚］
-WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-P05-043 WXK11-008 WXK11-058
+## （type増減なし＝値/構造変更） ［40枚］
+WX10-005 WX12-021 WX14-042 WX14-054 WX18-034 WX24-D1-11 WX24-P2-059 WX24-P2-062 WX24-P2-064 WX24-P3-048 WX24-P3-059 WX24-P3-061 WX24-P3-080 WX24-P3-084 WX24-P4-056 WX24-P4-060 WX25-CP1-043 WX25-CP1-051 WX25-CP1-072 WX25-CP1-087 WX25-P1-065 WX25-P1-070 WX25-P2-062 WX25-P2-064 WX25-P2-069 WX26-CP1-061 WX26-CP1-063 WX26-CP1-066 WX26-CP1-092 WXDi-CP01-026 WXDi-CP02-053 WXDi-CP02-063 WXDi-CP02-067 WXDi-CP02-070 WXDi-P03-036 WXDi-P05-043 WXDi-P10-045 WXDi-P11-068 WXK11-008 WXK11-058
 --- WX10-005
   原文: 【チェイン】《赤》《緑》以下の３つから２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンのカードが４枚になるように、エナゾーンからカードをトラッシュに置く。③あなたのデッキの一番上のカードをライフクロスに加える。,-
   - [0].action.choices[1].action.owner = "opponent"
 --- WX12-021
   原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜龍獣＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番上に置く。【起】《緑》《赤》《無》：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。この能力は対戦相手のセンタールリグがレベル４以上の場合にしか使用できない。,：対戦相手のパワー10000以下のシグニ１
   - [2].action.steps[1].owner = "opponent"
---- WX14-054
-  原文: 【起】《ダウン》：対戦相手は自分のエナゾーンのカードが７枚になるように、エナゾーンからカードをトラッシュに置く。,-
-  - [0].action.owner = "opponent"
+--- WX14-042
+  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュす
+  - [1].triggerScope = "any_opp"
 
 ## +GRANT_FIELD_SIGNI_ABILITY ［7枚］
 WX06-032 WX06-035 WX13-058 WX15-054 WXDi-P13-052 WXEX1-35 WXEX1-76
@@ -117,6 +117,7 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
   ~ [2].action.type : "EXILE" → "TRASH"
   ~ [2].action.target.type : "SIGNI" → "TRASH_CARD"
   ~ [2].action.target.owner : "self" → "opponent"
+  + [2].triggerScope = "any_opp"
 --- WXDi-P11-010B
   原文: 【自】：このルリグが《夢限　-Q-》から《夢限　-A-》になったとき、カードを５枚引き【エナチャージ５】をする。【起】《ターン１回》《無》：対戦相手のシグニ１体を対象とし、それをゲームから除外する。,-
   ~ [1].action.type : "EXILE" → "TRASH"
@@ -125,54 +126,6 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
   原文: 【出】：このルリグの下からカード１枚をルリグトラッシュに置く。対戦相手のシグニ１体を対象とし、それをゲームから除外する。【起】《ターン２回》《無》：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。,-
   ~ [0].action.steps[1].type : "EXILE" → "TRASH"
   ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
-
-## +GRANT_EFFECT +SIGNI ［4枚］
-SPDi01-132 WX14-006A WXDi-P02-018 WXK02-023
---- SPDi01-132
-  原文: 【起】このシグニを場からトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをこのシグニのレベル１につき－1000する。」を得る。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
-  - [0].action.id = "GRANT_QUOTED_AUTO_ABILITY"
-  ~ [0].action.type : "STUB" → "GRANT_EFFECT"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.upToCount = false
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "SPDi01-132-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "STUB"
-  …（他 5 行）
---- WX14-006A
-  原文: 【出現条件】《メインフェイズアイコン》合計３枚のレゾナではない＜遊具＞のシグニをあなたの手札とエナゾーンと場からトラッシュに置く【自】：あなたのシグニ１体がアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：ターン終了時まで、あなたのすべての＜遊具＞のシグニは「【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニを
-  - [1].action.target.filter.thisCardOnly = true
-  ~ [1].action.type : "UP" → "GRANT_EFFECT"
-  ~ [1].action.target.count : 1 → "ALL"
-  + [1].action.target.filter.cardType = "シグニ"
-  + [1].action.target.filter.story = "遊具"
-  + [1].action.duration = "UNTIL_END_OF_TURN"
-  + [1].action.effect.effectId = "WX14-006A-sub-E1"
-  + [1].action.effect.effectType = "AUTO"
-  + [1].action.effect.timing[0] = "ON_PLAY"
-  + [1].action.effect.action.type = "UP"
-  + [1].action.effect.action.target.type = "SIGNI"
-  + [1].action.effect.action.target.owner = "self"
-  …（他 5 行）
---- WXDi-P02-018
-  原文: 【出】：あなたのレベル１のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、このシグニをアップする。」を得る。,-
-  - [0].action.target.filter.thisCardOnly = true
-  ~ [0].action.type : "UP" → "GRANT_EFFECT"
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.level = 1
-  + [0].action.target.upToCount = false
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P02-018-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_PLAY"
-  + [0].action.effect.action.type = "UP"
-  + [0].action.effect.action.target.type = "SIGNI"
-  + [0].action.effect.action.target.owner = "self"
-  …（他 6 行）
 
 ## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE ［4枚］
 WX20-036-CB WXDi-D09-P20 WXK05-053 WXK06-023
@@ -286,7 +239,7 @@ WX21-056 WX21-061 WXK08-034
   + [0].action.abilities[0].action.steps[0].type = "STUB"
   + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_ENERGY_CLASS"
   + [0].action.abilities[0].action.steps[1].type = "CONDITIONAL"
-  …（他 7 行）
+  …（他 8 行）
 --- WX21-061
   原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。」を得る。,-
   - [0].action.owner = "self"
@@ -301,7 +254,7 @@ WX21-056 WX21-061 WXK08-034
   + [0].action.abilities[0].action.steps[0].type = "STUB"
   + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_ENERGY_CLASS"
   + [0].action.abilities[0].action.steps[1].type = "CONDITIONAL"
-  …（他 7 行）
+  …（他 8 行）
 --- WXK08-034
   原文: 【常】：あなたの登録者数が８０万人を達成しているかぎり、このシグニは「【自】《ターン１回》：このシグニがアタックしたとき、あなたのすべてのシグニがダウン状態の場合、《白》を支払ってもよい。そうした場合、このシグニをアップする。」を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
   - [0].action.target.type = "SIGNI"
@@ -317,6 +270,39 @@ WX21-056 WX21-061 WXK08-034
   + [0].action.abilities[0].action.steps[0].type = "STUB"
   + [0].action.abilities[0].action.steps[0].id = "OPTIONAL_COST"
   …（他 13 行）
+
+## +GRANT_EFFECT +SIGNI ［2枚］
+WX14-006A WXDi-P02-018
+--- WX14-006A
+  原文: 【出現条件】《メインフェイズアイコン》合計３枚のレゾナではない＜遊具＞のシグニをあなたの手札とエナゾーンと場からトラッシュに置く【自】：あなたのシグニ１体がアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：ターン終了時まで、あなたのすべての＜遊具＞のシグニは「【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニを
+  - [1].action.target.filter.thisCardOnly = true
+  ~ [1].action.type : "UP" → "GRANT_EFFECT"
+  ~ [1].action.target.count : 1 → "ALL"
+  + [1].action.target.filter.cardType = "シグニ"
+  + [1].action.target.filter.story = "遊具"
+  + [1].action.duration = "UNTIL_END_OF_TURN"
+  + [1].action.effect.effectId = "WX14-006A-sub-E1"
+  + [1].action.effect.effectType = "AUTO"
+  + [1].action.effect.timing[0] = "ON_PLAY"
+  + [1].action.effect.action.type = "UP"
+  + [1].action.effect.action.target.type = "SIGNI"
+  + [1].action.effect.action.target.owner = "self"
+  …（他 5 行）
+--- WXDi-P02-018
+  原文: 【出】：あなたのレベル１のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、このシグニをアップする。」を得る。,-
+  - [0].action.target.filter.thisCardOnly = true
+  ~ [0].action.type : "UP" → "GRANT_EFFECT"
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.level = 1
+  + [0].action.target.upToCount = false
+  + [0].action.duration = "UNTIL_END_OF_TURN"
+  + [0].action.effect.effectId = "WXDi-P02-018-sub-E1"
+  + [0].action.effect.effectType = "AUTO"
+  + [0].action.effect.timing[0] = "ON_PLAY"
+  + [0].action.effect.action.type = "UP"
+  + [0].action.effect.action.target.type = "SIGNI"
+  + [0].action.effect.action.target.owner = "self"
+  …（他 6 行）
 
 ## +TRASH +TRASH_CARD -EXILE×2 -SEQUENCE -SIGNI×2 ［2枚］
 WX21-027 WX24-P3-TK1A
@@ -349,7 +335,7 @@ WX21-027 WX24-P3-TK1A
   ~ [2].action.type : "SEQUENCE" → "TRASH"
   + [2].action.target.type = "TRASH_CARD"
   + [2].action.target.owner = "opponent"
-  …（他 1 行）
+  …（他 2 行）
 
 ## +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI×2 +TRASH ［2枚］
 WD20-018 WX22-Re03
@@ -413,39 +399,6 @@ WXDi-P03-060 WXDi-P14-062
   + [0].action.abilities[0].mandatory = true
   + [0].action.abilities[0].parseStatus = "UNKNOWN"
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
-
-## +GRANT_FIELD_SIGNI_ABILITY +TURN_OWNER ［2枚］
-WXDi-P06-046 WXK08-023
---- WXDi-P06-046
-  原文: 【常】：あなたのライフクロスが２枚以下であるかぎり、このシグニのパワーは＋4000される。【常】：あなたのライフクロスが０枚であるかぎり、このシグニは「【常】：対戦相手のターンの間、対戦相手の効果によってバニッシュされない。」を得る。,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  - [1].action.from[0] = "BANISH"
-  - [1].action.sourceOwner = "opponent"
-  - [1].action.duration = "PERMANENT"
-  ~ [1].action.type : "GRANT_PROTECTION" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [1].action.thisCardOnly = true
-  + [1].action.abilities[0].effectId = "WXDi-P06-046-E2-G"
-  + [1].action.abilities[0].effectType = "CONTINUOUS"
-  + [1].action.abilities[0].activeCondition.type = "TURN_OWNER"
-  + [1].action.abilities[0].activeCondition.owner = "opponent"
-  …（他 10 行）
---- WXK08-023
-  原文: 【常】：あなたの登録者数が１００万人を達成していて、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【常】：あなたのターンの間、バニッシュされない。」を得る。【出】《白》：対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】《ターン１回》《白》《無》：あなたのデッキから《コードＶＬ　物述有栖》以外の＜電機＞のシグニ１枚を探して場に出し、デッキを
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.from[0] = "BANISH"
-  - [0].action.sourceOwner = "opponent"
-  - [0].action.duration = "PERMANENT"
-  ~ [0].action.type : "GRANT_PROTECTION" → "GRANT_FIELD_SIGNI_ABILITY"
-  + [0].action.thisCardOnly = true
-  + [0].action.abilities[0].effectId = "WXK08-023-E1-G"
-  + [0].action.abilities[0].effectType = "CONTINUOUS"
-  + [0].action.abilities[0].activeCondition.type = "TURN_OWNER"
-  + [0].action.abilities[0].activeCondition.owner = "self"
-  …（他 10 行）
 
 ## +GRANT_FIELD_SIGNI_ABILITY +LOOK_AND_REORDER +SEQUENCE +STUB ［1枚］
 WX10-068
@@ -1364,24 +1317,6 @@ WX25-CP1-028
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 17 行）
 
-## +ADD_TO_HAND×2 +BOUNCE +CHOOSE +POWER_MODIFY +REVEAL_AND_PICK×2 +SEQUENCE×2 +SIGNI×2 -LOOK_AND_REORDER ［1枚］
-WX26-CP1-019
---- WX26-CP1-019
-  原文: 以下の２つから１つを選ぶ。①対戦相手のパワー10000以下のシグニ１体を対象とし、それを手札に戻す。あなたのデッキの上からカードを５枚見る。その中から＜プリオケ＞のカードを１枚までエナゾーンに置き、白の＜プリオケ＞のカードを１枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。②対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－1
-  - [0].action.source.location = "deck"
-  - [0].action.source.owner = "self"
-  - [0].action.count = 5
-  - [0].action.private = true
-  - [0].action.reorder = true
-  - [0].action.canTrash = false
-  - [0].action.destination.location = "deck"
-  - [0].action.destination.owner = "self"
-  - [0].action.destination.position = "bottom"
-  ~ [0].action.type : "LOOK_AND_REORDER" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 2
-  …（他 37 行）
-
 ## +ADD_TO_FIELD +CHOOSE +CONDITIONAL +HAND_CARD +HAS_CARD_IN_FIELD +SEQUENCE +STUB ［1枚］
 WX26-CP1-023
 --- WX26-CP1-023
@@ -1543,6 +1478,24 @@ WXK07-051
   ~ [0].action.type : "LOOK_AND_REORDER" → "GRANT_FIELD_SIGNI_ABILITY"
   + [0].action.thisCardOnly = true
   …（他 29 行）
+
+## +GRANT_FIELD_SIGNI_ABILITY +TURN_OWNER ［1枚］
+WXK08-023
+--- WXK08-023
+  原文: 【常】：あなたの登録者数が１００万人を達成していて、このシグニが中央のシグニゾーンにあるかぎり、このシグニは「【常】：あなたのターンの間、バニッシュされない。」を得る。【出】《白》：対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】《ターン１回》《白》《無》：あなたのデッキから《コードＶＬ　物述有栖》以外の＜電機＞のシグニ１枚を探して場に出し、デッキを
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.from[0] = "BANISH"
+  - [0].action.sourceOwner = "opponent"
+  - [0].action.duration = "PERMANENT"
+  ~ [0].action.type : "GRANT_PROTECTION" → "GRANT_FIELD_SIGNI_ABILITY"
+  + [0].action.thisCardOnly = true
+  + [0].action.abilities[0].effectId = "WXK08-023-E1-G"
+  + [0].action.abilities[0].effectType = "CONTINUOUS"
+  + [0].action.abilities[0].activeCondition.type = "TURN_OWNER"
+  + [0].action.abilities[0].activeCondition.owner = "self"
+  …（他 10 行）
 
 ## +CHOOSE +GRANT_KEYWORD×2 +SIGNI×2 -STUB ［1枚］
 WXK08-026
