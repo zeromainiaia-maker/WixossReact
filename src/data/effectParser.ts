@@ -1116,7 +1116,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     const m = trimmed.match(/^(?:(ターン終了時まで)、|(次の対戦相手のターン(?:終了時まで|の間))、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?(は.+を得る|の(?:パワー|レベル).+)。?$/s);
     if (m) {
       const duration: EffectDuration = m[2] ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
-      const body = m[3];
+      const body = m[3].replace(/。+$/, ''); // 末尾の句点（greedy `.+` が拾う）を落として下の完全一致 regex を安定させる
       // (A) 単一キーワード付与：「は【KEYWORD】を得る」（引用「」・入れ子（）を含む複合能力/変種キーワードは STUB へ）
       const kwM = body.match(/^は【([^】「」（）]+)】を得る$/);
       if (kwM) {
