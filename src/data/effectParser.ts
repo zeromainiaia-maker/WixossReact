@@ -1916,6 +1916,11 @@ function parseActionText(text: string): EffectAction {
       if (condition?.type === 'LAST_PROCESSED_MATCHES' && prevIsRevealLook) {
         steps[steps.length - 1] = { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 };
       }
+      // 具体的な条件節（この方法で…た場合/《色》を支払った場合/それが〜の場合）を抽出できず常時true化
+      // ＝条件の無言脱落。「そうした場合、」だけは慣例エンコード（§9-9）のため刻印しない。
+      if (!condition && !/^(?:その後、)?そうした場合、$/.test(thenM[0])) {
+        markSilentFallback(`IS_MY_TURN化:${thenM[0]}`);
+      }
       steps.push({ type: 'CONDITIONAL', condition: condition ?? { type: 'IS_MY_TURN' as const }, then: parseSingleSentence(rest) });
     } else {
       steps.push(parseSingleSentence(clean));
