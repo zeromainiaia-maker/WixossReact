@@ -57,7 +57,7 @@ import * as path from 'path';
 // を失い、アサシン等キーワードのリマインダ文（「正面のシグニがパワーNN以下の場合…」）＋「Nまで場に出す」pick の
 // 語彙が高シグナルに顕在化＝1628→1631（+3）。いずれもキーワード付与/LOOK_PICK_CHAIN/SEND_TO_ENERGY で正しく
 // 表現済みの偽陽性（リマインダ文・pick 上限）で、実効果の脱落ではない＝ベースラインを実数更新。
-const BASELINE_HIGH = 1626;
+const BASELINE_HIGH = 1625;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
