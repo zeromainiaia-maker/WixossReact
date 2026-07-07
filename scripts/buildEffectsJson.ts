@@ -170,8 +170,32 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   section('温存：手修正(MANUAL/PARTIAL)', report.preserved_manual);
   section('温存：要レビュー（再生成で損失/値変更/混在＝パーサー改善候補）', report.preserved_held);
   section('温存：パーサーが効果0（既存維持）', report.preserved_emptyFresh);
+  section('温存：parseStatusのみ差（PARTIAL刻印＝実体同一）', report.preserved_metaOnly);
   writeFileSync(join(root, 'docs', 'effects_merge_report.md'), lines.join('\n'), 'utf-8');
   console.log('レポート: docs/effects_merge_report.md');
+}
+
+// ── 無言フォールバック刻印の計器レポート（PLAN §5c 死角(d)・2026-07-07） ──
+// parser が「条件/ステップを黙って落とす近似」をした効果の一覧。カテゴリ別件数が逓減計器。
+{
+  const log = getSilentFallbackLog();
+  const byCat = new Map<string, number>();
+  for (const e of log) for (const r of e.reasons) {
+    const cat = r.split(':')[0];
+    byCat.set(cat, (byCat.get(cat) ?? 0) + 1);
+  }
+  const lines: string[] = [];
+  lines.push('# 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）', '');
+  lines.push(`生成: ${new Date().toISOString()} / 刻印効果 ${log.length}件`, '');
+  lines.push('## カテゴリ別件数', '');
+  for (const [cat, n] of [...byCat.entries()].sort((a, b) => b[1] - a[1])) lines.push(`- ${cat}: ${n}`);
+  lines.push('', '## 明細（effectId → 理由）', '');
+  for (const e of [...log].sort((a, b) => a.effectId.localeCompare(b.effectId))) {
+    lines.push(`${e.effectId}\t${e.reasons.join(' / ')}`);
+  }
+  lines.push('');
+  writeFileSync(join(root, 'docs', '_partial_report.txt'), lines.join('\n'), 'utf-8');
+  console.log(`無言フォールバック刻印: ${log.length}効果（明細 docs/_partial_report.txt）`);
 }
 
 const total = Object.values(result).flat().length;
