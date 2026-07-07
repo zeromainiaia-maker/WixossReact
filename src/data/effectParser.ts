@@ -2043,7 +2043,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   ⚠ 引用付与（GRANT_FIELD_SIGNI_ABILITY/GRANT_EFFECT）の granted サブ能力も parseBlock 経由で本抽出を通る＝
       //     「対戦相手のターン終了時…を得る」型（WX21-056/061 等）の triggerScope 欠落（既定 self で誤発火）を是正。
       if (timing[0] === 'ON_TURN_END' || timing[0] === 'ON_TURN_START') {
-        if (/対戦相手のターン(?:終了|開始)時/.test(actionText)) extractedTriggerScope = 'any_opp';
+        // トリガー句限定（直後が読点＝トリガー）。「対戦相手のターン終了時まで」（持続期間）は
+        // 別効果の duration であり誤爆させない（WX24-P2-059＝トリガーは「あなたのターン終了時」self）。
+        if (/対戦相手のターン(?:終了|開始)時(?:に)?[、,]/.test(actionText)) extractedTriggerScope = 'any_opp';
       }
       // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
       if (timing[0] === 'ON_ATTACK_SIGNI') {
