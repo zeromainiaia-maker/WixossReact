@@ -82,7 +82,7 @@
 > 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。
 
 **Opus 4.8 のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
-1. ~~**`GRANT_TO_PLACED_SIGNI` の実装**（「この方法で場に出たシグニは…を得る」＝targetsLastProcessed 機構・§6.3）~~ **✅続き42（Opus）で一次完了**＝parser で「この方法/効果で場に出たシグニは【K】を得る／のパワーを＋N」を `GRANT_KEYWORD`/`POWER_MODIFY`{targetsLastProcessed}（engine 機構は既存）へ振り分け、WX25-P1-044/WX25-P2-039（アサシン）・WX24-P3-037（+3000・次相手ターン終了時まで）を STUB から実アクション化。**残＝引用複合能力付与2枚（WX24-P1-017/WX25-P3-038＝「「【自】…」を得る」＝GRANT_QUOTED_AUTO_ABILITY 系の内側ability parse が要る）＋レベル比例ミル1枚（WX24-P3-039＝「レベル１につき…トラッシュ」＝別スケール機構）は honest STUB 温存**（§6.3）。詳細 BUGFIXES 最上部。
+1. ~~**`GRANT_TO_PLACED_SIGNI` の実装**（「この方法で場に出たシグニは…を得る」＝targetsLastProcessed 機構・§6.3）~~ **✅続き42（Opus）で完了（4枚）**＝parser で「この方法/効果で場に出たシグニは【K】を得る／のパワーを＋N／レベル１につき…ミル」を `GRANT_KEYWORD`/`POWER_MODIFY`{targetsLastProcessed}（engine 既存）＋新設 `MILL{countIsLastProcessedLevelSum}` へ振り分け、WX25-P1-044/WX25-P2-039（アサシン）・WX24-P3-037（+3000・次相手ターン終了時まで）・WX24-P3-039（レベル合計ミル）を STUB から実アクション化。**残＝引用複合能力付与2枚のみ（WX24-P1-017/WX25-P3-038＝「「【自】…」を得る」＝GRANT_QUOTED_AUTO_ABILITY 系の内側ability parse が要る）は honest STUB 温存**（§6.3）。詳細 BUGFIXES 最上部。
 2. **census「動的比較 35枚」**（「〜より高い/低い」＝heterogeneous・per-card）。
 3. **引用内 CHOOSE**（WXDi-D09-P20）＋引用付与の内側品質不全27の再収穫（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）。
 4. **CHOOSE平坦化復元の採用待ち held 約35枚**（続き29 parser修正の採用バックログ・意味的退化の見極めが要る。⚠着手前に必ず全数機械分類＝続き24-29の型）。
