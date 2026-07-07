@@ -11,6 +11,10 @@
  *   npx tsx scripts/decompileEffects.ts WX12-024 WX20-055      # 指定カード
  *   npx tsx scripts/decompileEffects.ts --manual               # manualEffects 登録カードのみ
  *   npx tsx scripts/decompileEffects.ts --grep ゲート          # 原文に語を含むカード
+ *   npx tsx scripts/decompileEffects.ts --sheets               # 全シートを docs/decompile_sheet<N>.txt へ直接書き出し
+ *     （UTF-8 でファイル直書き＝シェルの > を使わない。PowerShell の > が UTF-16 を書いて
+ *       下流の genReviewRepr/groupSimilar/groupBySentence を壊す事故を構造的に防ぐ。
+ *       下流までまとめて回すなら npm run regen）
  */
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
