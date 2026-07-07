@@ -1395,14 +1395,17 @@ function parseContinuousQuotedGrant(text: string): EffectAction | null {
 // 「（この/その）シグニより〔パワー/レベル〕の〔低い/高い〕対戦相手のシグニN体を対象とし、…それを〈除去〉」形（続き44・§4タスク2 残）。
 // 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST/OPTIONAL_COST）や別文（cost/条件）に分かれ、
 // 除去アクションの target 文（「それをバニッシュする」等）には比較語が残らないため parseSigniTarget 経由の
-// parseSelfComparison が届かず、自己比較フィルタが全数脱落していた（過剰効果＝比較なしで全シグニ対象）。
-// 先頭 designation を検出し、後続の opponent-signi ターゲット（BANISH/SEND_TO_ENERGY 等）へ powerLtSelf 等を刻む。
-// 「その」も対象カード（WXK07-030/WXK11-041）は ON_ATTACK/ON_BANISH の主語＝自身のため powerLtSelf（sourceCardNum 基準）で正しい。
+// 比較パーサが届かず、動的比較フィルタが全数脱落していた（過剰効果＝比較なしで全シグニ対象）。
+// 先頭 designation を検出し、後続の opponent-signi ターゲット（BANISH/SEND_TO_ENERGY/BOUNCE 等）へ比較キーを刻む。
+// ⚠「その」は自身とは限らない＝基準を厳密に切る：
+//   ・「このシグニより」＝効果元自身（parseSelfComparison→powerLtSelf 等・sourceCardNum 基準）
+//   ・「そのシグニより」＝トリガー主語＝アタッカー/被バニッシュ等（parseTriggerComparison→powerLtTrigger 等・triggeringCardNum 基準）。
+//     WXK07-030「あなたのシグニ1体がアタックしたとき、そのシグニより」＝別シグニでも正しい／WXK11-041「…がバニッシュされたとき、そのシグニより」。
+//   ・「…公開する。その後、そのシグニより」＝公開カード（lastProcessed）＝parseTriggerComparison が「その後」で {} を返し据置（WXK10-031・別機構）。
 // parseActionText の全 return を横断して1箇所で適用（単文早期return も多段SEQUENCEも同じ経路に乗る）。冪等（既存の動的キーがあれば据置）。
 function applyLeadingSelfComparison(text: string, action: EffectAction): EffectAction {
-  const desM = text.match(/(?:この|その)シグニより(?:パワーの低い|パワーの高い|低いレベルを持つ|レベルの低い|高いレベルを持つ|レベルの高い)対戦相手のシグニ[０-９\d]*体を対象とし、/);
-  if (!desM) return action;
-  const selfFilter = parseSelfComparison(desM[0].replace(/^その/, 'この'));
+  if (!/(?:この|その)シグニより(?:パワーの低い|パワーの高い|低いレベルを持つ|レベルの低い|高いレベルを持つ|レベルの高い)対戦相手のシグニ[０-９\d]*体を対象とし、/.test(text)) return action;
+  const selfFilter = { ...parseSelfComparison(text), ...parseTriggerComparison(text) };
   if (Object.keys(selfFilter).length === 0) return action;
   const DYN = ['powerLtSelf', 'powerGtSelf', 'powerLteSelf', 'levelLtSelf', 'levelGtSelf', 'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger'];
   let stamped = false;
