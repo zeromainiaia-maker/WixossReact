@@ -337,6 +337,9 @@ export interface TargetFilter {
   powerGtSelf?: boolean;  // 効果元シグニの実効パワーより高い（「このシグニよりパワーの高い」。resolveDynamicFilterがpowerRange.min:N+1へ解決。WXK04-029）
   levelLtSelf?: boolean;  // 効果元シグニのレベルより低い（「このシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WXK11-018）
   levelGtSelf?: boolean;  // 効果元シグニのレベルより高い（「このシグニよりレベルの高い」。resolveDynamicFilterがlevel.min:N+1へ解決）
+  powerLtTrigger?: boolean; // トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）よりパワーが低い（「そのシグニよりパワーの低い」。resolveDynamicFilterがpowerRange.max:N-1へ解決。WXK11-020）
+  levelLtTrigger?: boolean; // トリガー元シグニのレベルより低い（「そのシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WX09-014）
+  levelGtTrigger?: boolean; // トリガー元シグニのレベルより高い（「そのシグニより高いレベルを持つ」。resolveDynamicFilterがlevel.min:N+1へ解決。WX24-P1-015）
   superlative?: { key: 'power' | 'level'; dir: 'max' | 'min' }; // 候補集合のうち最大/最小のパワー/レベルを持つもののみ（「対戦相手のシグニのうち最も大きいパワーを持つシグニ」WXDi-P08-009 等）。fieldCandidates が集合単位でポストフィルタ（同値は全て残す＝「すべて」対応）
   frontOfSelf?: boolean;  // 効果元シグニの正面のシグニ（execBanishが対象ゾーン 2-zi を解決）
   frontOfGateZone?: boolean; // THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニ（own_gate_zones の各 zi に対し相手ゾーン 2-zi。execTransferToDeck が解決）
