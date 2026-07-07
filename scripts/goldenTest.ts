@@ -1372,6 +1372,27 @@ test('引用付与: 複合条件 AND[LRIG_COLOR, IS_SELF_IN_CENTER_ZONE]（WX06-
       `${num}: センタールリグ${color} AND 中央ゾーン条件つき付与のはず（無条件平坦化に戻っていない）`);
   }
 });
+// OPTIONAL_TRASH_SELF（自己犠牲コスト）の構造固定＋pay挙動（続き36・OPTIONAL_TRASH_ENERGY_CLASS 誤マップからの是正）
+test('OPTIONAL_TRASH_SELF: 構造固定（WX06-CB03/WX21-056/061 が誤エナSTUBに戻っていない）', () => {
+  for (const num of ['WX06-CB03', 'WX21-056', 'WX21-061']) {
+    const s = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(s.includes('OPTIONAL_TRASH_SELF'), `${num}: 自トラッシュ任意コストのはず`);
+    ok(!s.includes('OPTIONAL_TRASH_ENERGY_CLASS'), `${num}: エナトラッシュ誤STUBが無いこと`);
+  }
+});
+test('OPTIONAL_TRASH_SELF: pay で自シグニがトラッシュされ then(draw2) が走る', () => {
+  const src = 'WD01-009'; // 実在シグニ（execTrash の cardType:シグニ フィルタを通す）
+  const ctx = mkCtx({ signi: [src, null, null], hand: 2 }, {}, src);
+  const h0 = ctx.ownerState.hand.length;
+  const eff = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] } as unknown as EffectAction;
+  const r = run(eff, ctx);
+  eq(tops(r.ownerState)[0], null, '自シグニが場から除かれる');
+  ok(r.ownerState.trash.includes(src), '自シグニがトラッシュにある');
+  eq(r.ownerState.hand.length, h0 + 2, 'そうした場合 draw 2 が走る');
+});
 // checkActiveCondition の AND: 両条件成立でのみ true（LRIG_COLOR＋中央ゾーン）
 test('checkActiveCondition AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE]: 両成立でのみ true', () => {
   const cond = { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: '緑' }, { type: 'IS_SELF_IN_CENTER_ZONE' }] } as unknown as import('../src/types/effects').ActiveCondition;
