@@ -116,6 +116,7 @@ function filterJa(f?: any): string {
   if (f.powerGtSelf) parts.push('このシグニよりパワーの高い');
   if (f.levelLtSelf) parts.push('このシグニより低いレベルを持つ');
   if (f.levelGtSelf) parts.push('このシグニよりレベルの高い');
+  if (f.powerLtAnyAlly) parts.push('あなたのいずれかのシグニよりパワーの低い');
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
