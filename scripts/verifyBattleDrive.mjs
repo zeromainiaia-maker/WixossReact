@@ -593,7 +593,7 @@ const scenarios = {
         if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const done = (st?.host?.actionsDone ?? []).includes('WX21-067-E1');
-        const banished = await H.findLog(/(ククリ|小剣|WD01-013).*バニッシュ|パワー0以下/);
+        const banished = await H.findLog(/(クマノミン|WX01-083).*バニッシュ|パワー0以下/);
         H.log(`  pz[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} gTrash=${st?.guest?.trash ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${done} banishLog=${!!banished}`);
         if (done || (st?.host?.hand ?? 0) > hHand0) return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WX21-067 がドロー（手札 ${hHand0}→${st.host.hand}・actions_done=${done}）` };
       }
