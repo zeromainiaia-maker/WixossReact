@@ -1105,13 +1105,43 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
-  // 「（ターン終了時まで、）この方法/効果で場に出たシグニ/レゾナは「Q」/【K】を得る」＝直前に場出しした
-  // カード（lastProcessedCards＝dual-pick の field ピック等）への付与。汎用 targetsLastProcessed 付与機構は
-  // 未実装のため honest な STUB（decompiler が rawText＝value から原文描画・engine no-op）で表現し、
-  // 汎用パーサの誤抽出（REMOVE_ABILITIES/GRANT_KEYWORD:any/内側action漏れ）を防ぐ。§6.3 機構待ち。
+  // 「（ターン終了時まで、）この方法/効果で場に出たシグニ/レゾナは「Q」/【K】を得る／のパワーを＋N」＝直前に
+  // 場出ししたカード（lastProcessedCards＝dual-pick の field ピック等）への付与。engine の targetsLastProcessed
+  // 機構（GRANT_KEYWORD/POWER_MODIFY/GRANT_EFFECT で実装済＝選択UIなしで lastProcessedCards へ適用）へ振り分ける。
+  // (A)単一キーワード付与・(B)パワー修整 は実装済み機構で正エンコード。(C)引用複合能力「「…」を得る」・レベル比例
+  // ミル「のレベル１につき…」等は未実装機構のため honest STUB（decompiler が value=原文描画・engine no-op）に温存し、
+  // 汎用パーサの誤抽出（REMOVE_ABILITIES/GRANT_KEYWORD:any/内側action漏れ）を防ぐ。§6.3。
   {
-    const m = text.trim().match(/^(?:ターン終了時まで、|次の対戦相手のターン(?:終了時まで|の間)、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?(?:は.+を得る|の(?:パワー|レベル).+)。?$/s);
-    if (m) return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: text.trim() } as StubAction;
+    const trimmed = text.trim();
+    const m = trimmed.match(/^(?:(ターン終了時まで)、|(次の対戦相手のターン(?:終了時まで|の間))、)?この(?:方法|効果)で場に出た(?:シグニ|レゾナ)(?:[０-９\d]+体)?(は.+を得る|の(?:パワー|レベル).+)。?$/s);
+    if (m) {
+      const duration: EffectDuration = m[2] ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+      const body = m[3];
+      // (A) 単一キーワード付与：「は【KEYWORD】を得る」（引用「」・入れ子（）を含む複合能力/変種キーワードは STUB へ）
+      const kwM = body.match(/^は【([^】「」（）]+)】を得る$/);
+      if (kwM) {
+        return {
+          type: 'GRANT_KEYWORD',
+          target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+          keyword: kwM[1],
+          duration,
+          targetsLastProcessed: true,
+        } as GrantKeywordAction;
+      }
+      // (B) パワー修整：「のパワーを＋N（する）」（＋のみ。レベル比例ミル・複合「し、…」は本 regex 非一致で STUB へ）
+      const pwM = body.match(/^のパワーを[＋+]([０-９\d]+)(?:する)?$/);
+      if (pwM) {
+        return {
+          type: 'POWER_MODIFY',
+          target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } },
+          delta: parseNum(pwM[1]),
+          duration,
+          targetsLastProcessed: true,
+        } as PowerModifyAction;
+      }
+      // (C) 未実装機構（引用複合能力付与・レベル比例ミル等）は honest STUB に温存
+      return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: trimmed } as StubAction;
+    }
   }
   // 一時召喚の後始末: 「（ターン終了時、）それら?を（場から）トラッシュに置く」＝直前に出したカードを
   // ターン終了時にトラッシュ（lastProcessedCards を turn_end_field_trash_targets へ）。
