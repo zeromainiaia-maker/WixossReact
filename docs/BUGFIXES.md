@@ -5,6 +5,18 @@
 
 ---
 
+## §5c 動的比較（自己参照）機構＝「このシグニ/自身より〔パワー/レベル〕の〔低い/高い〕」を powerLtSelf/powerGtSelf/levelLtSelf でエンコード＝8枚の過剰効果を是正（2026-07-07・続き43・Opus 4.8）
+
+census「動的比較35枚」（§4 Opus タスク2）の**自己参照サブファミリ**を1機構として確立。「このシグニよりパワーの低い対戦相手のシグニ1体を対象とし、それをバニッシュする」等の**効果元シグニ自身を基準にした比較フィルタが JSON で全数脱落**（35枚を機械分類＝`dyn=[]`／STUB でもない＝比較なしで全シグニを対象にする**過剰効果**）していたのを是正。[[vocab-census-overfire-blindspot]]
+
+- **型**（`src/types/effects.ts`）：既存 `powerLtSelf`/`powerLteSelf` に加え **`powerGtSelf`（→powerRange.min:N+1）・`levelLtSelf`（→level.max:N-1）・`levelGtSelf`（→level.min:N+1）** を新設（mirror family）。
+- **engine**（`src/engine/effectExecutor.ts`）：自己参照解決を **`execBanish` 限定インライン → 中心の `resolveDynamicFilter` に集約**（`sourceCardNum` を新引数で受け取り、全10呼び出し箇所に `ctx.sourceCardNum`／`ctx.effectivePowers` を配線）。これで BANISH だけでなく TRASH/DOWN/SEND_TO_ENERGY/ADD_TO_FIELD/SEARCH 等**全ターゲット系アクションで自己比較が効く**（従来は execBanish のみ・他は silently 無視のバグ）。
+- **parser**（`src/data/parserUtils.ts`）：`parseSelfComparison` を新設し `parseSigniTarget` に配線。**「このシグニ／自身より」限定**（「その/あなたのいずれか/表記されている/センタールリグ」等の別基準＝lastProcessed/trigger/printed の別機構は対象外）。条件文脈（WXK11-048「それがこのシグニよりパワーの低いシグニの場合」・WX17-075 トリガー・WX10-036 CONT かぎり）は parseSigniTarget を通らないため誤爆なし。
+- **decompiler**（`scripts/decompileEffects.ts`）：powerGtSelf/levelLtSelf/levelGtSelf のレンダラ追加（原文一致・同型★0 維持）。
+- **採用8枚**（`build:effects` 自動採用7＋WX22-Re01 は effect[0] の MANUAL カップリングで held 抑止のため parser 出力に合わせて JSON parity パッチ1）：**powerLtSelf**＝WX22-019・WX22-Re01・WXDi-P00-051・WXK10-028・WXK10-068・WXK11-055・WD18-006、**powerGtSelf**＝WXK04-029。精密 semantic diff で**全8枚が純粋な自己参照追加（collateral 0）**を確認。WX13-034/WXK10-074 は HEAD で既に powerLtSelf 済み＝parity 維持（変化なし）。
+- **検証**：typecheck・**golden +3（powerLtSelf/powerGtSelf/levelLtSelf の engine 解決を strict 同値境界で assert）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**・**census 1631→1626（-5）**＝`BASELINE_HIGH` 実数更新。
+- **残（follow-up）**＝自己参照でも `parseSigniTarget` を通らない別経路5枚は未収穫（**STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` 内ターゲット**＝WXK05-059/WXK10-062・**SEND_TO_ENERGY 経路**＝WXK09-052・**nested CONDITIONAL 内 BANISH の前置ターゲット文**＝WXK10-040・**energy→field / trash→field フィルタビルダー**＝WXDi-P03-078/WXK11-018）。**別基準サブファミリ**＝lastProcessed（そのシグニ/場に出たそれ/この方法でトラッシュに置いた）・trigger（そのシグニ＝バニッシュされた/場に出た）・printed（表記されているパワー）・opp/own センタールリグ・「あなたのいずれかのシグニ」も未着手（§4 Opus タスク2 の残）。
+
 ## §6.3 `GRANT_TO_PLACED_SIGNI` 実装＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N／レベル比例ミル」を targetsLastProcessed で実アクション化＝4枚採用（2026-07-07・続き42・Opus 4.8）
 
 続き36 から3セッション連続で持ち越していた Opus 筆頭タスク。dual-pick/reveal-pick が場に出したシグニ（`lastProcessedCards`）へ「この方法/効果で場に出たシグニは…」で付与する系統を、engine 既存の `targetsLastProcessed` 機構（`GRANT_KEYWORD`/`POWER_MODIFY`/`GRANT_EFFECT` で実装済み・選択UIなしで lastProcessedCards へ適用）へ parser で振り分けて honest STUB を実アクション化。
