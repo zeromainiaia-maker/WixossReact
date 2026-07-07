@@ -4112,6 +4112,42 @@ export function resumeSearch(
   if (!pending.thenAction) {
     pending = { ...pending, thenAction: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction };
   }
+  // revealRemainder: 公開したがピックしなかった全カード（非対象カード含む）を指定場所へ移す（REVEAL_AND_PICK）。
+  //   デッキ非スライス設計＝picked も未pick も公開時点でデッキに残っており、ここで未pick分を先に退避する。
+  if (pending.revealRemainder) {
+    const rr = pending.revealRemainder;
+    const rest = rr.cards.filter(n => !picked.includes(n));
+    let s = { ...cur.ownerState };
+    let deck = [...s.deck];
+    const moved: string[] = [];
+    for (const cn of rest) { const di = deck.indexOf(cn); if (di >= 0) { deck.splice(di, 1); moved.push(cn); } }
+    if (rr.location === 'deck') deck = rr.position === 'bottom' ? [...deck, ...moved] : [...moved, ...deck];
+    s = { ...s, deck,
+      ...(rr.location === 'trash' ? { trash: [...s.trash, ...moved] } : {}),
+      ...(rr.location === 'energy' ? { energy: [...s.energy, ...moved] } : {}) };
+    const destJa = rr.location === 'deck' ? (rr.position === 'bottom' ? 'デッキの一番下' : 'デッキの上') : rr.location === 'trash' ? 'トラッシュ' : 'エナゾーン';
+    cur = moved.length > 0 ? addLog({ ...cur, ownerState: s }, `残り${moved.length}枚を${destJa}へ`) : { ...cur, ownerState: s };
+  }
+  // handOrField: ピックしたシグニを「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」）。
+  //   対象カードは pickCount 1（シグニ1枚）＝1回の CHOOSE。余剰（防御）は手札へ。
+  if (pending.handOrField && picked.length > 0) {
+    const ownerHF = (pending.thenAction as { owner?: Owner }).owner ?? 'self';
+    const card = picked[0];
+    const hasEmptyHF = cur.ownerState.field.signi.some(z => !z || z.length === 0);
+    const contPartsHF: EffectAction[] = [];
+    for (const extra of picked.slice(1)) contPartsHF.push({ type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: extra } as EffectAction);
+    if (pending.afterAction) contPartsHF.push(pending.afterAction);
+    if (pending.continuation) contPartsHF.push(pending.continuation);
+    const contHF: EffectAction | undefined = contPartsHF.length === 0 ? undefined
+      : contPartsHF.length === 1 ? contPartsHF[0] : { type: 'SEQUENCE', steps: contPartsHF } as SequenceAction;
+    const optsHF = [
+      { id: 'hand', label: '手札に加える', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: card } as EffectAction },
+      { id: 'field', label: '場に出す', available: hasEmptyHF, action: { type: 'PLACE_SIGNI_ON_FIELD', owner: ownerHF, cardNums: [card] } as EffectAction },
+    ];
+    return needsInteraction(addLog(cur, `${cur.cardMap.get(getCardNum(card))?.CardName ?? card}を手札に加えるか場に出すか選択`), {
+      type: 'CHOOSE', options: optsHF, count: 1, ...(contHF ? { continuation: contHF } : {}),
+    });
+  }
   // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
   // afterAction（シャッフル等）と外側 continuation は全配置後に実行する。
   if (pending.thenAction.type === 'ADD_TO_FIELD' && picked.length > 0) {
