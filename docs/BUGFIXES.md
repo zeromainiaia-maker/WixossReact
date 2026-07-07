@@ -5,6 +5,15 @@
 
 ---
 
+## §7 ON_SIGNI_FROZEN（R38）resume経路取りこぼしを修正＝`collectFreezeInline` 追加で実機PASS（2026-07-07・続き41・Opus 4.8）
+
+続き40（Sonnet）が発見・引き継いだ R38 実バグを修正。**FREEZE を付与する ON_PLAY 効果（SELECT_TARGET で単体対象を選ぶ大半のケース）が resume 経路（`handleEffectInteraction`）で完結し `resolveStackNext` の中央 diff を通らないため、`ON_SIGNI_FROZEN` watcher が無発火だった**問題を、既存の resume-経路取りこぼし対策 inline collector（`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`）と同型の `collectFreezeInline` を追加して解消。
+
+- **修正**（`src/screens/BattleScreen.tsx`）＝(1)`collectFreezeTriggers` ラッパ直後に `collectFreezeInline(afterHost, afterGuest)` を新設（`detectNewlyFrozen` で両プレイヤーの新規凍結を検出→`collectFreezeTriggers` で watcher 収集→`usedHostIds/usedGuestIds` を `actions_done` に反映し `{entries, hostState, guestState}` を返す）。(2)`handleEffectInteraction` の pendingEntries ブロック（旧 4386-4410）に他4つと同型で配線し、`fzInlinePE.entries` を `pendingEntries` に合流。**新規機構ではなく既存パターンの適用漏れの是正**＝engine/parser の共有ロジックは不変。
+- **検証**＝`node scripts/verifyBattleDrive.mjs freezetrigger` が **PASS**（`freeze=true watcher=true`・`guest.signiFrozen=[true,false,false]`・ログ「羅菌 プランクトンの【自】効果（凍結時）」→「小剣 ククリのパワー-1000」を実UIで確認）。golden 151/0・smoke 全0（10582件）・fuzz 全0・typecheck 緑。
+- **driver 側**＝`freezetrigger` の pass 条件を「凍結ログ文字列（`/をフリーズ/`＝経路により未出力で脆い）」から**凍結の ground-truth（`guest.signiFrozen` に true）＋watcher ログ**へ変更（`scripts/verifyBattleDrive.mjs`）。既定 `order` に復帰（バッチ末尾の自分ターン系は既知の batch 限定状態汚染で FAIL しうる＝単体再実行で切り分け・driver 分離強化は別 follow-up）。
+- **推定影響**＝WX08-039／WXEX2-02／WXDi-P04-065（ON_SIGNI_FROZEN watcher 3枚）が実戦でも発火するようになった。⚠ALL 対象凍結など resume を通らない経路は従来通り中央 diff で拾う（二重発火は各収集の once_per_turn / `detectNewlyFrozen` の before=`bs.host_state` 基準で回避）。
+
 ## §7 実機検証シナリオ横展開＝ON_SIGNI_FROZEN（R38）で実バグを発見（未修正・Opus引き継ぎ）（2026-07-07・続き40・Sonnet 5）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `freezetrigger`（WX01-081→WXDi-P04-065）を追加し実機検証。**発見した事象自体はまだ修正していない**＝観測結果の記録とOpusへの引き継ぎのみ（PLAN §3運用ルール「発見したバグの修正自体はOpusに回す」に従う）。
