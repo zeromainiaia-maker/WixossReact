@@ -934,6 +934,18 @@ function resolveDynamicFilter(
           : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: trigLevel - 1 } })
       : rest;
   }
+  // powerLtAnyAlly: 自分の場のシグニのいずれか（＝最大実効パワー）よりパワーが低い（「あなたのいずれかのシグニよりパワーの低い」。
+  // 「いずれか…より低い」＝いずれか1体より低ければ可＝最大値未満）→ powerRange.max:maxAlly-1 へ解決。参照不能（場に自シグニ無し）なら制限なしへフォールバック
+  if (result.powerLtAnyAlly) {
+    const { powerLtAnyAlly: _pa, ...rest } = result;
+    const allyPowers = ownerSt.field.signi
+      .filter((n): n is string => !!n)
+      .map(n => effectivePowers?.get(n) ?? parseInt(cardMap.get(getCardNum(n))?.Power ?? '0', 10));
+    const maxAlly = allyPowers.length ? Math.max(...allyPowers) : undefined;
+    result = (maxAlly !== undefined && maxAlly > 0)
+      ? { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: maxAlly - 1 } }
+      : rest;
+  }
   if (result.powerLteLastProcessed) {
     const { powerLteLastProcessed: _p, ...rest } = result;
     const ref = lastProcessedCards?.[0];
