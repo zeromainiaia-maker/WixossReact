@@ -367,7 +367,9 @@ export interface TargetFilter {
   underLeftCard?: boolean;      // 場を離れたカードの下にあったカード → cardNames:[...] に解決（フンババ）
   levelLteFieldVirusCount?: boolean; // レベルが場（両プレイヤー）にある【ウィルス】の数以下 → level:{max:N}に解決（WX16-005）
   powerLteLastProcessed?: boolean; // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー以下 → powerRange.max に解決（「ダウンしたそのシグニのパワー以下」WD04-018）
+  powerLtLastProcessed?: boolean;  // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー未満 → powerRange.max:N-1 に解決（「その後、そのシグニよりパワーの低い」＝場に出たシグニ基準。参照不能なら空ヒット。WXDi-P08-031）
   levelLteLastProcessed?: boolean; // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル以下 → level.max に解決（「この方法で場に出たシグニのレベル以下」WX25-P1-039 等）
+  levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）
   levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
   levelLteDiscardSigni?: boolean; // レベルが handDiscardSigni コストで捨てたシグニ（caster.last_discarded_signi_level）のレベル以下 → level.max に解決（「この方法で捨てたシグニのレベル以下」WX22-046/WXK10-044 等）
   // B2 動的閾値: パワーが「この方法で公開したシグニのレベルの合計×N」以下 → powerRange.max に解決（数値=乗数N。WX17-028「×1000」）。
