@@ -101,13 +101,13 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 > グロウ系シナリオの肝＝**フェイズドリフト対策**：注入後の数秒で `turn_phase` が GROW→MAIN に流れ「グロウ」ボタン（`turn_phase==='GROW'` 限定表示）が消えるレースがある。`H.openGrow(candidateRe)` が **GROW フェイズを再 PATCH しながらグロウ→グロウ先候補クリックを最大5回リトライ**して安定化する（`H.repatchTop` でトップレベル列を再注入）。
 
-### 🔎 ON_DECK_SHUFFLED のシャッフル源依存（engine 修正を投入・スペル経路は実 UI 未確認）
-`deckshuffle` は**シグニ【出】源（WX12-Re20 ベルフェーゴ）では PASS**＝既定スイートで検証済み（スタック解決経路＝中央 diff `resolveStackNext`/`BattleScreen.tsx:4767` を通る）。一方 **スペル源（SEARCHER WX02-060）はカットイン解決経路（`handleCutinPass`）/ pending 効果 resume（`handleEffectInteraction`）で解決され、これらは中央 diff を通らないため ON_DECK_SHUFFLED が未発火**だった。
+### ✅ ON_DECK_SHUFFLED のシャッフル源依存＝スペル経路も実 UI 確認完了（2026-07-07再実行）
+`deckshuffle` は**シグニ【出】源（WX12-Re20 ベルフェーゴ）では PASS**＝既定スイートで検証済み（スタック解決経路＝中央 diff `resolveStackNext`/`BattleScreen.tsx:4767` を通る）。**スペル源（SEARCHER WX02-060）はカットイン解決経路（`handleCutinPass`）/ pending 効果 resume（`handleEffectInteraction`）で解決され、これらは中央 diff を通らないため ON_DECK_SHUFFLED が未発火**だった。
 
 **投入した修正**＝`collectDeckShuffleInline`（共有ヘルパー）を新設し、`handleCutinPass` と `handleEffectInteraction` の done 分岐に ON_DECK_SHUFFLED 検出を追加（既存の ON_PLAY/ON_BANISH 検出と同型・`bs.host_state` vs after の deck_shuffled_count 比較）。
 - **engine 層は検証済**＝診断スクリプト（`_diagShuffle.ts`・実行後削除）で SEARCHER の afterSearch が deck_shuffled_count を 0→1 にし、`detectDeckShuffled`=true、`collectDeckShuffledTriggers` が PR-470A を返すことを確認。
 - **回帰緑**＝修正投入後に typecheck・golden 95・smoke 全0・fuzz 全0（診断ログ追加前の状態で確認済。診断ログは撤去済＝同一状態）。
-- **⚠ スペル経路の実 UI 確認は未完**＝`deckshufflespell`（既定スイート外）はまだ +5000 を観測できていない。診断 console.error が盤面に出ず非決定的で、`handleCutinPass` の到達可否を切り分け切れなかった（途中でツール障害によりUI再実行が不能に）。**follow-up＝`node scripts/verifyBattleDrive.mjs deckshufflespell` を再実行し、必要なら handleCutinPass/resume のどちらで SEARCHER が解決するか（result.done 有無＝検索ピッカーの有無）を確認**。スペル発動の安定セレクタ `spellcost-energy-{i}` は追加済み（「発動する」は exact 一致で取る＝CardModal「発動」と区別）。
+- **✅スペル経路の実 UI 確認も完了（2026-07-07・Sonnet follow-up 実行）**＝`node scripts/verifyBattleDrive.mjs deckshufflespell` 再実行で **PASS**（ログ「スペル経路 ON_DECK_SHUFFLED 発火→PR-470A#1 に +5000 反映確認（temp_power_mods・shuffled=1）」）。SEARCHER 発動→ピッカー選択→対象決定の経路で `handleEffectInteraction` 側の検出が機能することを確認。前回の非決定性（診断ログ非表示）は再発せず、`order` 配列（既定実行対象）に含まれる現状のままで安定 PASS。follow-up クローズ。
 
 ### このセッションで足した安定セレクタ（通常表示に影響なし）
 | testid | 場所 | 用途 |
