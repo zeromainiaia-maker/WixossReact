@@ -549,6 +549,57 @@ const scenarios = {
     },
   },
 
+  // ⑪ ON_SIGNI_POWER_ZERO_OR_LESS（R37・§7・WX21-067）: 【自】《ターン1回》＝対戦相手のシグニのパワーが０以下に
+  //    なったとき、カードを１枚引く（triggerScope any_opp）。トリガー源＝WD22-037-UG【出】（mandatory・コストなし・
+  //    対戦相手シグニ1体に-12000＝任意の低〜中パワー相手シグニを確実に0以下化）。-12000到達→クライアント側の
+  //    checkAndBanishPowerZero（useEffect常時監視）が対象をバニッシュ＋collectPowerZeroTriggers を発火させる経路。
+  powerzero: {
+    title: 'WD22-037-UG→WX21-067（ON_SIGNI_POWER_ZERO_OR_LESS＝相手シグニ0以下化でドロー）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],                  // 任意センター（タマ Lv4/Limit11＝Lv1+Lv4=5に十分）
+        'field.signi': [['WX21-067#1'], null, null],   // watcher（アイン＝テトロド）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null],   // バニッシュ対象（小剣 ククリ・P3000≪12000）
+      },
+      handPrepend: ['WD22-037-UG#1'],                  // 死之遊魔 †ルーレット†（【出】対戦相手シグニ-12000・コストなし）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const hHand0 = before?.host?.hand ?? 0;
+      H.log('開始時 自手札:', hHand0);
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/powerzero-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) { // SELECT_TARGET（-12000 対象＝guest の WD01-013）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const done = (st?.host?.actionsDone ?? []).includes('WX21-067-E1');
+        const banished = await H.findLog(/(ククリ|小剣|WD01-013).*バニッシュ|パワー0以下/);
+        H.log(`  pz[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} gTrash=${st?.guest?.trash ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${done} banishLog=${!!banished}`);
+        if (done || (st?.host?.hand ?? 0) > hHand0) return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WX21-067 がドロー（手札 ${hHand0}→${st.host.hand}・actions_done=${done}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 未確認（hHand ${hHand0}→${fin?.host?.hand ?? '-'} gTrash=${fin?.guest?.trash ?? '-'} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'}）` };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
