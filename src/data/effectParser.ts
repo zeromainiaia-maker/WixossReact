@@ -2800,6 +2800,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   let action = (isBet && /以下の[^。]*から[^。]*選ぶ/.test(stripped))
     ? ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction)
     : parseActionText(condition ? cleaned : stripped);
+  const artsFb = consumeSilentFallbacks();
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
   // GRANT_LRIG_ABILITY: rawText から付与能力を展開（parseSpellEffect と同処理。アーツ/ピース経路の展開漏れ是正）
