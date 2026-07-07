@@ -146,6 +146,9 @@ export function parseSelfComparison(text: string): Partial<TargetFilter> {
 //   ADD_TO_FIELD hand ビルダーが levelBelowLeftCard で別処理し parseSigniTarget を通らないため衝突しない。
 export function parseTriggerComparison(text: string): Partial<TargetFilter> {
   if (/その後/.test(text)) return {}; // lastProcessed（「その後、そのシグニ」）は別機構
+  // 「場に出す」placement 文脈は leftCard（場を離れたとき手札から…場に出す＝levelBelowLeftCard）の領分。
+  // parseSigniTarget が「ダウン状態で場に出す」等の別アクションを parse する際の spurious マッチも防ぐ（WX14-009）。
+  if (/場に出/.test(text)) return {};
   const m = text.match(/そのシグニより(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
   const kind = m[1];
