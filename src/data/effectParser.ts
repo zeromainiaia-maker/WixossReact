@@ -1509,7 +1509,7 @@ function parseActionText(text: string): EffectAction {
       const before = text.slice(0, dp.index).trim().replace(/。$/, '');
       const after = text.slice(dp.index + dp[0].length).trim();
       const steps: EffectAction[] = [];
-      const pushFlatDp = (a: EffectAction) => { if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') steps.push(st); } else if (a.type !== 'UNKNOWN') steps.push(a); };
+      const pushFlatDp = (a: EffectAction) => { if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') steps.push(st); else markSilentFallback('multi-dest分割:UNKNOWNステップ除去'); } else if (a.type !== 'UNKNOWN') steps.push(a); else markSilentFallback('multi-dest分割:UNKNOWNアクション除去'); };
       if (before) pushFlatDp(parseActionText(before));
       steps.push(lpc);
       if (after) pushFlatDp(parseActionText(after));
