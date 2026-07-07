@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 動的比較 個別機構＝`powerLtLastProcessed`/`levelLtLastProcessed`「その後、そのシグニより〜の低い」＝lastProcessed基準＝2枚を実装（WXDi-P08-031/WXK10-031）（2026-07-08・続き47・Opus 4.8）
+
+続き43-46の動的比較サブファミリの**個別機構待ち2枚**を消化。「（先行アクションで場に出た/公開した）**そのシグニより〔パワー/レベル〕の低い**対戦相手のシグニ1体を対象とし…」＝**直前に処理したシグニ（lastProcessedCards[0]）を基準にした strict-less-than 比較**。self/trigger と語は同じ「そのシグニより」だが **「その後」＝同一効果内の先行アクションで生じたシグニ**を指す別機構（parser の `parseTriggerComparison` は「その後」を検出して据置済み＝ここに嵌る穴）。[[vocab-census-overfire-blindspot]] [[banish-vs-ener-send]]
+
+- **型**（`src/types/effects.ts`）＝`powerLtLastProcessed`/`levelLtLastProcessed` 新設（既存 `powerLteLastProcessed`/`levelLteLastProcessed`＝≤ の strict 版＝-1）。
+- **engine**（`effectExecutor.ts` `resolveDynamicFilter`）＝lastProcessedCards[0] のパワー/レベルで `powerRange.max:N-1` / `level.max:N-1` へ解決。**Lte と違い参照不能（配置0体・非シグニ・公開ヒットなし）なら到達不能 range で空ヒット＝対象なし**（「そのシグニ」が存在しないため。`levelEqLastProcessed` と同じ安全側フォールバック）。
+- **parser**（`src/data/parserUtils.ts`）＝`parseLastProcessedComparison`（「その後」マーカー＋「そのシグニより〔パワーの低い/低いレベル〕」→ powerLt/levelLtLastProcessed）を新設し **`parseSigniTarget` に配線**（parseTriggerComparison の直後・過剰語彙を作らず「低い」のみ）。→ **WXDi-P08-031（手札からシグニを場に出す→そのシグニよりパワーの低い敵をバニッシュ）が AUTO で powerLtLastProcessed を獲得**（ADD_TO_FIELD の配置シグニ＝`resumeSelectTarget`/`execPlaceSigniOnField` が既に lastProcessedCards にセット済み＝engine 変更不要）。
+- **WXK10-031**（讃の宙遊 チキュウゴマ）＝AUTOパースが構造崩れ（「手札に戻す」BOUNCE を TRASH 誤訳・比較脱落・「公開したカードをトラッシュ」欠落）のため **MANUAL 化**（`manualEffects.ts`・E2 数字宣言は AUTO 維持）。E1＝`OPTIONAL_COST《無》→ DECK_REVEAL_UNTIL → BOUNCE{levelLtLastProcessed}`。engine 2点を追補：**(a)** `DECK_REVEAL_UNTIL`（execStubPart1.ts）に **「公開したカードをトラッシュに置く」→ヒットシグニ含む公開カード全てをトラッシュ**（`toTrashAllRU`）を追加（未対応だと deck から除去され行き場を失い**消失**していた実バグ）、**(b)** `resumeOptionalCost`/`resumeChoose` の continuation 実行が `...ctx` で **lastProcessedCards を捨てていた**のを `result.lastProcessedCards` 継承へ修正（「支払ってもよい。そうした場合…その後そのシグニ」で公開シグニ参照が消えるバグ・SEQUENCE 直列は line2369 で既に継承済み）。
+- **decompiler**（`decompileEffects.ts`）＋**census keys**（`vocabCensus.ts`・動的比較 keys）＋**behaviorAudit STATE_KEYS** に追加。
+- **検証**＝typecheck・**golden 164→169（+5＝powerLt/levelLtLastProcessed の strict 境界・参照不能空ヒット・WXK10-031 機構統合〔公開→トラッシュ→levelLt バウンス〕・実効果定義を任意コスト pay 経由で駆動する回帰ガード）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**・**census 1623/1623**（両カードとも過剰効果は是正済みだが別カテゴリ〔WXDi-P08-031＝原文DRAW脱落／WXK10-031＝BURST語系〕で dedup 総数は不変）。**次の一手**＝WXDi-P08-031 の「カードを3枚引き」DRAW 脱落は別系統（原文DRAW→JSON無・line475 の系統的 compound-sentence パーサ欠落・数百枚）で本タスク外。
+
 ## §5c 動的比較 別基準＝`powerLtPrinted`/`powerGtPrinted`「表記されているパワーより〜」＝per-candidate 実効/表記比較＝2枚の過剰効果を是正（2026-07-08・続き46・Opus 4.8）
 
 「表記されているパワーよりパワーの低い/高い対戦相手（あなた）のシグニ1体を対象とし…」＝**各候補の実効パワーと自身の表記パワーの比較**（低い＝パワー低下中／高い＝増強中）が JSON で脱落し全シグニ対象になっていた過剰効果。DB 全5枚のうち **3枚（WX24-P4-054/WXDi-P08-072/WXK09-050）は bespoke STUB で per-candidate 比較を実装済み**（`execStubPart1.ts` の `SIGNI_GRANT_CHOSEN_ABILITY` 等・census 免除）で据置し、**plain な過剰効果の2枚のみ汎用フィルタ化**（WX25-CP1-093＝低い・POWER_MODIFY／WXK10-027＝高い・GRANT_KEYWORD ランサー）。[[vocab-census-overfire-blindspot]]
