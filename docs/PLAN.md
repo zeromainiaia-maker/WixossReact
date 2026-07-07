@@ -123,7 +123,7 @@
 > ① `npm run census:clusters` → `docs/_census_clusters.txt` を枚数順に見てテンプレを選ぶ（未処理上位＝**(a) CHOOSE平坦化復元の残 約35枚**＝続き29の parser 修正で `npm run build:effects` → `node scripts/heldReview.mjs` に one-off の CHOOSE 復元が挙がる＝1枚ずつ spot-check して採用（-EXILE系・STUB退化・type増減なしは据置）。**(b)「代わりに」残テール**＝C コスト代替6／D 置換ルール9（バニッシュされない系＝置換機構要）／E リコレクト2／B1残10枚（コスト参照・ターン中イベント・それにチャーム・傀儡状態＝条件語彙が無い §6.3）。続き28-29で A:ena→trash・B:条件+代わりに94（自己完結15＋per-target値すり替え＋多段閾値＋CHOOSE復元64）は消化済み。機構待ちは §6.3 へ送る。⚠着手前に続き24-29の型＝**全数機械分類で偽陽性を先に切る**）
 > ② parser（`src/data/effectParser.ts` の「状態条件節の CONDITIONAL 持ち上げ」CLAUSES 表がテンプレ追加の定位置）に規則を足す。**engine/decompiler 対応済みの条件型のみ**・既存STUB全文規則の横取りに注意（ガード3種の実装コメント参照）
 > ③ `npm run build:effects` → ④ `node scripts/heldReview.mjs` でdiff署名グループをspot-check→`--adopt ID群` で一括採用（**STUB退化・「代わりに」・別STUB id化は採用しない**）
-> ⑤ golden 1件/テンプレ追加 → 全ゲート＋decompileシート再生成（⚠Bashの`>`）＋同型★0 → `BASELINE_HIGH`/本§更新 → commit/push
+> ⑤ golden 1件/テンプレ追加 → `npm run gates`＋`npm run regen`＋同型★0 → `BASELINE_HIGH`/本§更新 → commit/push
 >
 > **並行の主作業＝BEHAVIOR_AUDIT 段階4（キューから欠落no-opバグ潰し）**。手順＝**キューは古くなるのでまず `npx tsx scripts/behaviorAudit.ts --queue > docs/_behavior_queue.txt` で再生成**→`node scripts/_bqTriage.mjs`（要review キュー109を高シグナル選別）→ `npm run audit -- --id <CardNum>` で原文｜逆翻訳｜盤面差分｜ログを目視→「真no-op（engine未実装/誤配線）／シナリオ空振り（＝`behaviorAudit.ts` のシナリオビルダーを拡充して偽陽性を消す）／STUB未実装」に仕分け→バグは §3 ワークフロー（JSON直パッチ＋engine/decompilerセット＋golden1件＋smoke/golden/fuzz）で修正。**engine を触ったら smoke/golden/fuzz 必須**。残る高シグナル19の主な内訳＝トリガー主語系（audit はトリガー条件を模擬しない＝WX04-082/099/102 等は逆翻訳照合で判定）・CHOOSE 分岐・出現条件レゾナ（WX09-012/WX12-010）・§6.3 既登録の機構待ち（WX25-P2-009 等）＝逓減域。詳細 [BEHAVIOR_AUDIT.md](./BEHAVIOR_AUDIT.md)。§6（未実装action型 worklist・対戦相手シグニ離脱トリガー3枚）も残タスク。
 >
