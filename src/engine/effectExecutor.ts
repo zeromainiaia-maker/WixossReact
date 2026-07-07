@@ -148,7 +148,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_field_trash_level ?? -1 }
     : tgt.filter;
   // colorMatchesLrig / levelLteFieldVirusCount / powerLtSelf等の動的フィルタを解決（activatorはctx.ownerState固定）
-  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
   // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
@@ -302,7 +302,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     }
   }
   // 動的フィルタ（powerLteLastProcessed / levelLteLastProcessed＝「この方法で処理したシグニのパワー/レベル以下」等）を解決
-  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   const allCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
@@ -411,7 +411,7 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
-  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
@@ -694,7 +694,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // colorNotMatchesLrig 等の動的フィルタを対象オーナーのルリグ基準で解決（WX21-035①）
     const ownerSt = tgt.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const otherSt = tgt.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     const cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
@@ -1000,7 +1000,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     } else {
-      const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+      const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
       cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
@@ -1154,7 +1154,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const addToFieldOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
     if (src.filter?.thisCardOnly) {
@@ -1162,7 +1162,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
@@ -1171,7 +1171,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'DECK_CARD') {
     // 「デッキの一番上を見る。それが〈filter〉の場合、場に出してもよい」（G141）。
     // デッキ上から count 枚を対象に filter で絞る。一致しなければ候補なし＝何も起きない。
-    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+    const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     const topCount = src.count === 'ALL' ? state.deck.length : resolveNum(src.count);
     const pool = state.deck.slice(0, topCount);
     cands = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter, undefined, undefined, ctx.treatAsClassAllZones));
@@ -1691,7 +1691,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     // 該当フラグが無ければ no-op。lastProcessedCards を渡して「この方法で処理したシグニのレベル/パワー以下」を解決可能にする。
     const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum) };
+    resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum) };
   }
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド
@@ -2689,7 +2689,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
   const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
-  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum);
+  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   let pickable = rapFilter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), rapFilter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 「レベル参照上書き」カードも対象に含める
