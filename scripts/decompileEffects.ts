@@ -122,6 +122,7 @@ function filterJa(f?: any): string {
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
+  if (f.levelLtOppLrig) parts.push('対戦相手のセンタールリグより低いレベルを持つ');
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');
