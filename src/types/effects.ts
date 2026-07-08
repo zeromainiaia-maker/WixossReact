@@ -175,6 +175,7 @@ export type Condition =
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner } // このターンに owner がアーツを使用していた場合（turn_arts_used。WX25-P1-106）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜空獣＞と＜地獣＞が合計3体ある場合」=minCount:3。WX04-094）
+  | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // minCount: フィルタ一致カードがN枚以上あるか（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」=minCount:2。G090）
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
