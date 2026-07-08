@@ -63,7 +63,10 @@ import * as path from 'path';
 // 2026-07-09 続き49: 「あなたの場にあるすべてのシグニが＜C＞/《ディソナアイコン》の場合」CONDITIONAL 持ち上げ
 // （新設 ALL_FIELD_SIGNI_MATCH・空盤面 false）20枚採用＝1621→1616（dedup -5・SEQUENCE 下流の そうした場合/nested 条件が
 // 残るカードは高シグナル継続）。《ディソナアイコン》は isDisona（Story='Dissona'）でエンコード（カード名ではない）。
-const BASELINE_HIGH = 1616;
+// 2026-07-09 続き52: 「制限『できない』」パターンに extraOk 較正＝「しか使用/発動できない」の使用条件（useCondition・
+// eff.condition で表現・extractUseCondition が解析済み）41枚の偽陽性をクリア＝1616→1588（dedup -28）。真バグ0を機械確認済み
+// （使用制限で condition 無しは0枚）。残17枚は effect-restriction（アタック/場に出せない等＝BLOCK 表現要）で継続。
+const BASELINE_HIGH = 1588;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
