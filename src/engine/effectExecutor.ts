@@ -1597,7 +1597,9 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       .filter(n => !abilityGainBlocked.has(n));
     cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
   } else {
-    cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
+    // 動的フィルタ（levelLtOppLrig/levelLtSelf 等）を具体値へ解決してから候補を絞る（付与も除去系と同じ resolve 経路に乗せる）
+    const gkResolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    cands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
     // thisCardOnly: 効果元シグニ自身のみへ付与（「このシグニは【X】を得る」）
     if (tgt.filter?.thisCardOnly) {
