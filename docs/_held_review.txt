@@ -252,35 +252,6 @@ WX14-006A WXDi-P02-018
   + [0].action.effect.action.target.owner = "self"
   …（他 6 行）
 
-## +CONDITIONAL +LAST_PROCESSED_MATCHES ［2枚］
-WX21-011 WX21-014
---- WX21-011
-  原文: 対戦相手のシグニ１体を対象とし、それをダウンする。それが白か赤のシグニの場合、追加でカードを２枚引く。,-
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 2
-  ~ [0].action.steps[1].type : "DRAW" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.color[0] = "白"
-  + [0].action.steps[1].condition.filter.color[1] = "赤"
-  + [0].action.steps[1].then.type = "DRAW"
-  + [0].action.steps[1].then.owner = "self"
-  + [0].action.steps[1].then.count = 2
---- WX21-014
-  原文: 対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。それが赤か青のシグニの場合、追加であなたのデッキの一番上のカードをライフクロスに加える。,-
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 1
-  - [0].action.steps[1].fromTop = true
-  ~ [0].action.steps[1].type : "ADD_TO_LIFE" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.color[0] = "赤"
-  + [0].action.steps[1].condition.filter.color[1] = "青"
-  + [0].action.steps[1].then.type = "ADD_TO_LIFE"
-  + [0].action.steps[1].then.owner = "self"
-  + [0].action.steps[1].then.count = 1
-  + [0].action.steps[1].then.fromTop = true
-
 ## +TRASH +TRASH_CARD -EXILE×2 -SEQUENCE -SIGNI×2 ［2枚］
 WX21-027 WX24-P3-TK1A
 --- WX21-027
@@ -876,6 +847,24 @@ WXDi-P14-041
   + [0].activeCondition.conditions[0].type = "TURN_OWNER"
   + [0].activeCondition.conditions[0].owner = "opponent"
   + [0].activeCondition.conditions[1].type = "IS_SELF_AWAKENED"
+
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
+WXDi-P14-054
+--- WXDi-P14-054
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にレベル３の覚醒状態のシグニがある場合、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカード１枚を対象とし、それをトラッシュに置く。,：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+  - [0].action.target.type = "ENERGY_CARD"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  ~ [0].action.type : "TRASH" → "CONDITIONAL"
+  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.filter.cardType = "シグニ"
+  + [0].action.condition.filter.level = 3
+  + [0].action.condition.filter.isAwakened = true
+  + [0].action.then.type = "TRASH"
+  + [0].action.then.target.type = "ENERGY_CARD"
+  + [0].action.then.target.owner = "opponent"
+  …（他 1 行）
 
 ## +GRANT_EFFECT +SEQUENCE +SIGNI +STUB ［1枚］
 WXDi-P14-061
