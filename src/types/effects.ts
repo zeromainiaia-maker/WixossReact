@@ -342,6 +342,7 @@ export interface TargetFilter {
   powerLtTrigger?: boolean; // トリガー元シグニ（triggeringCardNum＝被バニッシュ/場に出た/アタッカー）よりパワーが低い（「そのシグニよりパワーの低い」。resolveDynamicFilterがpowerRange.max:N-1へ解決。WXK11-020）
   levelLtTrigger?: boolean; // トリガー元シグニのレベルより低い（「そのシグニより低いレベルを持つ」。resolveDynamicFilterがlevel.max:N-1へ解決。WX09-014）
   levelGtTrigger?: boolean; // トリガー元シグニのレベルより高い（「そのシグニより高いレベルを持つ」。resolveDynamicFilterがlevel.min:N+1へ解決。WX24-P1-015）
+  levelLtOppLrig?: boolean; // 対戦相手のセンタールリグのレベルより低い（「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニ」。resolveDynamicFilterがotherState中央ルリグのレベル-1をlevel.maxへ解決。参照不能なら制限なしへフォールバック。WX19-042）
   powerLtAnyAlly?: boolean; // 自分の場のシグニのいずれか（＝最大実効パワー）より低い（「あなたのいずれかのシグニよりパワーの低い」。resolveDynamicFilterがownerState.field.signiの最大実効パワー-1をpowerRange.maxへ解決。WXDi-P01-020/WXDi-P07-031）
   powerLtPrinted?: boolean; // 各候補の実効パワーが自身の表記パワーより低い＝パワー低下中（「表記されているパワーよりパワーの低い」。fieldCandidatesがper-candidateで判定。WX25-CP1-093）
   powerGtPrinted?: boolean; // 各候補の実効パワーが自身の表記パワーより高い＝パワー増強中（「表記されているパワーよりパワーの高い」。fieldCandidatesがper-candidateで判定。WXK10-027）
