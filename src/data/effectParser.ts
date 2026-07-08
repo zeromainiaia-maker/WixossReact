@@ -1240,6 +1240,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
       [/このシグニが覚醒状態の場合/,
         () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
+      // 「このシグニが〔アップ/ダウン〕状態の場合、〜」＝効果元シグニの向き状態ゲート（engine THIS_CARD_IS_UP/DOWN
+      // 実装済＝execUtils.ts・signi_down 参照）。従来は語彙が無く無条件発火の過剰効果（WX15-055/056・WXDi-P02-038 等）。
+      [/このシグニがアップ状態の場合/,
+        () => ({ type: 'THIS_CARD_IS_UP' })],
+      [/このシグニがダウン状態の場合/,
+        () => ({ type: 'THIS_CARD_IS_DOWN' })],
       [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
         g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
       [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
