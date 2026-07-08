@@ -356,6 +356,34 @@ test('ALL_FIELD_SIGNI_MATCH: 場の全シグニが同クラスのときのみ th
     ok(tops(r.otherState)[0] !== null, '空盤面→敵シグニは残る（vacuous true にしない）');
   }
 });
+// ── 続き53: 「あなたの場にレベルNの覚醒状態のシグニがある場合」CONDITIONAL 持ち上げ（HAS_CARD_IN_FIELD の
+// isAwakened 状態フィルタ）＝場に該当レベルの覚醒シグニが居るときのみ then 発火（WXDi-P14-054/058/066）。
+// 覚醒あり→発火／覚醒なし→no-op／レベル不一致→no-op（無条件発火の過剰効果の回帰ガード）。
+test('HAS_CARD_IN_FIELD isAwakened: レベル3の覚醒シグニが居るときのみ then 発火（覚醒→発火／非覚醒→不変／Lv不一致→不変）', () => {
+  const cond = { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: 3, isAwakened: true } },
+    then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } } as EffectAction;
+  // Lv3 シグニが覚醒状態 → 発火
+  {
+    const ctx = mkCtx({ signi: [SIGNI_L3, null, null] }, { signi: [SIGNI_P3000, null, null] });
+    ctx.ownerState.awakened_signi = [SIGNI_L3];
+    const r = run(cond, ctx);
+    eq(tops(r.otherState)[0], null, 'Lv3覚醒シグニ有→敵シグニがバニッシュされる');
+  }
+  // Lv3 シグニは居るが非覚醒 → no-op（過剰効果の回帰ガード）
+  {
+    const ctx = mkCtx({ signi: [SIGNI_L3, null, null] }, { signi: [SIGNI_P3000, null, null] });
+    ctx.ownerState.awakened_signi = [];
+    const r = run(cond, ctx);
+    ok(tops(r.otherState)[0] !== null, 'Lv3居るが非覚醒→敵シグニは残る（無条件発火しない）');
+  }
+  // 覚醒だがレベル不一致（Lv2）→ no-op
+  {
+    const ctx = mkCtx({ signi: [SIGNI_L2, null, null] }, { signi: [SIGNI_P3000, null, null] });
+    ctx.ownerState.awakened_signi = [SIGNI_L2];
+    const r = run(cond, ctx);
+    ok(tops(r.otherState)[0] !== null, 'Lv2覚醒→レベル不一致で敵シグニは残る');
+  }
+});
 test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
   const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);
