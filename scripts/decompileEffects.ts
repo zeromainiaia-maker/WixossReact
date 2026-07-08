@@ -301,6 +301,10 @@ function condJa(c?: any): string {
     case 'CENTER_LRIG_IS_UP': return 'あなたのセンタールリグがアップ状態';
     case 'THIS_CARD_IS_ARMORED': return 'このシグニが血晶武装状態';
     case 'THIS_CARD_IS_AWAKENED': return 'このシグニが覚醒状態';
+    case 'ALL_FIELD_SIGNI_MATCH': {
+      const cls = c.filter?.story ? `＜${c.filter.story}＞` : c.filter?.cardName ? `《${c.filter.cardName}》` : filterJa(c.filter);
+      return `${ownerJa(c.owner)}場にあるすべてのシグニが${cls}`;
+    }
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
     case 'THIS_CARD_HAS_UNDER': return 'このシグニの下にカードがある';
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
