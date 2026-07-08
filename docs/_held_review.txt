@@ -252,6 +252,35 @@ WX14-006A WXDi-P02-018
   + [0].action.effect.action.target.owner = "self"
   …（他 6 行）
 
+## +CONDITIONAL +LAST_PROCESSED_MATCHES ［2枚］
+WX21-011 WX21-014
+--- WX21-011
+  原文: 対戦相手のシグニ１体を対象とし、それをダウンする。それが白か赤のシグニの場合、追加でカードを２枚引く。,-
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 2
+  ~ [0].action.steps[1].type : "DRAW" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.color[0] = "白"
+  + [0].action.steps[1].condition.filter.color[1] = "赤"
+  + [0].action.steps[1].then.type = "DRAW"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 2
+--- WX21-014
+  原文: 対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。それが赤か青のシグニの場合、追加であなたのデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 1
+  - [0].action.steps[1].fromTop = true
+  ~ [0].action.steps[1].type : "ADD_TO_LIFE" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.color[0] = "赤"
+  + [0].action.steps[1].condition.filter.color[1] = "青"
+  + [0].action.steps[1].then.type = "ADD_TO_LIFE"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 1
+  + [0].action.steps[1].then.fromTop = true
+
 ## +TRASH +TRASH_CARD -EXILE×2 -SEQUENCE -SIGNI×2 ［2枚］
 WX21-027 WX24-P3-TK1A
 --- WX21-027
@@ -317,31 +346,6 @@ WD20-018 WX22-Re03
   - [0].action.steps[0].afterSearch.type = "SHUFFLE_DECK"
   - [0].action.steps[0].afterSearch.owner = "self"
   …（他 55 行）
-
-## +CONDITIONAL +THIS_CARD_IS_UP ［2枚］
-WXDi-P02-038 WXDi-P04-036
---- WXDi-P02-038
-  原文: 【ハーモニー】白のルリグ１体【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカード１枚を対象とし、それをトラッシュに置く。【自】：あなたのターン終了時、このターンにあなたの効果によって対戦相手のエナゾーンからカードが２枚以上トラッシュに置かれていた場合、カードを１枚引
-  - [0].action.target.type = "ENERGY_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  ~ [0].action.type : "TRASH" → "CONDITIONAL"
-  + [0].action.condition.type = "THIS_CARD_IS_UP"
-  + [0].action.then.type = "TRASH"
-  + [0].action.then.target.type = "ENERGY_CARD"
-  + [0].action.then.target.owner = "opponent"
-  + [0].action.then.target.count = 1
---- WXDi-P04-036
-  原文: 【ハーモニー】ルリグ２体【常】：あなたのルリグデッキにあるカードが１枚以下であるかぎり、このシグニのパワーは＋3000される。【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、手札を３枚捨ててもよい。そうした場合、それをバニッシュする。,-
-  - [1].action.steps[0].target.type = "HAND_CARD"
-  - [1].action.steps[0].target.owner = "self"
-  - [1].action.steps[0].target.count = 3
-  ~ [1].action.steps[0].type : "TRASH" → "CONDITIONAL"
-  + [1].action.steps[0].condition.type = "THIS_CARD_IS_UP"
-  + [1].action.steps[0].then.type = "TRASH"
-  + [1].action.steps[0].then.target.type = "HAND_CARD"
-  + [1].action.steps[0].then.target.owner = "self"
-  + [1].action.steps[0].then.target.count = 3
 
 ## +GRANT_FIELD_SIGNI_ABILITY +UNKNOWN -STUB ［2枚］
 WXDi-P03-060 WXDi-P14-062
@@ -498,6 +502,21 @@ WX20-Re20
   + [0].action.choices[0].action.from.location = "deck"
   + [0].action.choices[0].action.from.owner = "self"
   …（他 20 行）
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES +SIGNI +TRASH -STUB ［1枚］
+WX21-007
+--- WX21-007
+  原文: 対戦相手のレベル４以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。それが緑か黒のシグニの場合、追加でそれをトラッシュに置く。,-
+  - [0].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
+  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.color[0] = "緑"
+  + [0].action.steps[1].condition.filter.color[1] = "黒"
+  + [0].action.steps[1].then.type = "TRASH"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "any"
+  + [0].action.steps[1].then.target.count = 1
 
 ## +CHOOSE +DOWN +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +SEQUENCE +SIGNI×2 ［1枚］
 WX21-020
