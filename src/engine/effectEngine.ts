@@ -67,8 +67,8 @@ export function checkActiveCondition(
         if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
         else matched++;
       });
-      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen はシグニ専用）
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
         for (const ln of lrigZoneTops(state.field)) {
           if (ln && matchesFilter(cardMap.get(ln), cond.filter)) {
             if (distinctNameSet) distinctNameSet.add(cardMap.get(ln)?.CardName ?? ln);
