@@ -5,6 +5,18 @@
 
 ---
 
+## §5c 条件節「それが〔色/＜C＞〕のシグニの場合、追加で〜」＝CONDITIONAL{LAST_PROCESSED_MATCHES}持ち上げ＝2枚（2026-07-09・続き51・Opus 4.8）
+
+「対象処理→それが〔属性〕の場合、追加で〔ボーナス〕」型で、**直前に処理した対象カードの属性ゲートが脱落**し追加効果が無条件発火していた過剰効果を是正。engine 既存の `LAST_PROCESSED_MATCHES{filter}`（`execUtils.ts:1067`・lastProcessedCards 照合）へ parser で持ち上げ。[[vocab-census-overfire-blindspot]] [[banish-vs-ener-send]]
+
+- **parser**（`src/data/effectParser.ts` `parseSingleSentenceInner`）＝新規則「`(その後、)?それが〔色(か色)?/＜C＞(か＜C＞)?〕の(シグニ|カード)の場合、追加で〜`」→ `CONDITIONAL{LAST_PROCESSED_MATCHES{color|story}, then:parse(追加で以降)}`。色は OR（白か赤→`color:['白','赤']`）、＜C＞も OR。**⚠「追加で」を必須にして REVEAL_AND_PICK（「デッキ公開→それが〜の場合、それを手札に加える」＝filter で表現済み）と厳密に区別＝偽陽性回避**（REVEAL 系は「それを〜」で「追加で」を持たない）。
+- **lastProcessedCards 伝播の確認**＝直前の対象アクション（DOWN/SEND_TO_ENERGY/BANISH 等）が lastProcessedCards をセット（`effectExecutor.ts:280/430/1384 等`）→ SEQUENCE step 間で伝播（`:2389`）→ **SELECT_TARGET の continuation にも伝播**（`resumeSelectTarget:4132→4150` が `lastProcessedCards:selected` を継承して continuation 実行）。owner:self の TRASH/DOWN のみリセット（`:2369/2375`）だが本系統は opponent 対象のため非リセット。
+- **採用2枚**＝WX21-011（敵シグニをダウン→それが白か赤なら2ドロー）・WX21-014（敵シグニをエナ送り→それが赤か青ならデッキトップをライフに加える）。
+- **不採用**＝WX21-007（「それをトラッシュ」の「それ」＝付与した同一シグニ〔lastProcessed〕だが `parseSingleSentence` が `owner:any` 汎用対象に誤パース＝honest STUB より悪化・targetsLastProcessed 解決が別途要）・WX21-016（「その後、それが青か緑…」が既存の「その後」→CONDITIONAL{IS_MY_TURN} 変換に先取りされ本規則に届かない＝IS_MY_TURN 常時真で over-fire 継続・別途）・SP26-007（既に条件表現済み）。
+- **検証**＝typecheck・**golden 172→173（+1＝DOWN した敵シグニの色で追加効果がゲートされる＝lastProcessedCards 伝播の end-to-end 回帰ガード：白→2ドロー／赤→ドローなし）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（「そしてそれが《白・赤》のシグニなら、…」で描画）・**census 1616/1616**（2枚は census 高シグナル計上外・条件脱落自体は是正・BASELINE 変更なし）。偽陽性0（held の新規署名は本2枚＋不採用WX21-007のみ）。
+
+---
+
 ## §5c 条件節「このシグニが〔アップ/ダウン〕状態の場合」＝CONDITIONAL{THIS_CARD_IS_UP/DOWN}持ち上げ＝2枚（2026-07-09・続き50・Opus 4.8）
 
 続き48（覚醒）と同じ自己状態条件ファミリ。「このシグニがアップ状態の場合、〜」の向き状態ゲートが脱落していたのを、engine 既存の `THIS_CARD_IS_UP`/`THIS_CARD_IS_DOWN`（`execUtils.ts:845/852`・`signi_down` 参照）・decompiler（既存）へ **parser の CONDITIONAL 持ち上げ規則を追加**して是正（局所 CLAUSES 表に2行）。**採用2枚**＝WXDi-P02-038（アップ→対戦相手エナトラッシュ）・WXDi-P04-036（アップ→手札3枚捨ててもよい）。他のアップ札（WX15-055/056＝「正面のシグニがバニッシュされたとき」複合トリガーで別処理・ターン終了時公開系）は捕捉外。ダウンは該当0（WX18-052 は「しか発動しない」＝使用条件で別パターン）。**検証**＝typecheck・**golden 171→172（+1＝アップ札はアップ中のみ・ダウン札はダウン中のみ発火の相互 no-op 回帰ガード）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**・**census 1616/1616**（2枚とも別の高シグナル語彙〔WXDi-P02-038＝共通色フィルタ脱落 等〕が残り dedup 不変だが条件脱落自体は是正）。
