@@ -1227,6 +1227,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       [/あなたの場にクロス状態のシグニがある場合/,
         () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+      // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合、〜」＝場の全シグニ同クラス/同名ゲート
+      // （engine ALL_FIELD_SIGNI_MATCH 実装済＝execUtils/effectEngine・空盤面 false）。従来は語彙が無く
+      // アタックフェイズ開始時に無条件発火の過剰効果（WX25-CP1-042/WX26-CP1-048 等・census 条件節クラスタ）。
+      [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
+        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+      [/あなたの場にあるすべてのシグニが《([^》]+)》の場合/,
+        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } })],
       // 「このシグニが覚醒状態の場合、〜」＝効果元シグニの覚醒状態ゲート（engine THIS_CARD_IS_AWAKENED
       // 実装済＝execUtils.ts・awakened_signi 参照）。従来は語彙が無くアタックフェイズ開始時に無条件発火の
       // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
