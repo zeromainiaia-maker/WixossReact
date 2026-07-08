@@ -142,6 +142,7 @@ function filterJa(f?: any): string {
   if (f.isDown) parts.push('ダウン状態の');
   if (f.isUp) parts.push('アップ状態の');
   if (f.isFrozen) parts.push('凍結状態の');
+  if (f.isAwakened) parts.push('覚醒状態の');
   if (f.crossState) parts.push('クロス状態の');
   if (f.hasCharm) parts.push('チャームのある');
   if (f.hasAcce) parts.push('アクセのある');
