@@ -1227,6 +1227,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       [/あなたの場にクロス状態のシグニがある場合/,
         () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+      // 「このシグニが覚醒状態の場合、〜」＝効果元シグニの覚醒状態ゲート（engine THIS_CARD_IS_AWAKENED
+      // 実装済＝execUtils.ts・awakened_signi 参照）。従来は語彙が無くアタックフェイズ開始時に無条件発火の
+      // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
+      [/このシグニが覚醒状態の場合/,
+        () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
       [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
         g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
       [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
