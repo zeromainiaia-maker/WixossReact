@@ -1232,8 +1232,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // アタックフェイズ開始時に無条件発火の過剰効果（WX25-CP1-042/WX26-CP1-048 等・census 条件節クラスタ）。
       [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
         g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+      // 《ディソナアイコン》は Story='Dissona'（isDisona フラグ・matchesFilter/execUtils 慣例）＝カード名ではない。
       [/あなたの場にあるすべてのシグニが《([^》]+)》の場合/,
-        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', cardName: g[0] } })],
+        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: g[0] === 'ディソナアイコン' ? { cardType: 'シグニ', isDisona: true } : { cardType: 'シグニ', cardName: g[0] } })],
       // 「このシグニが覚醒状態の場合、〜」＝効果元シグニの覚醒状態ゲート（engine THIS_CARD_IS_AWAKENED
       // 実装済＝execUtils.ts・awakened_signi 参照）。従来は語彙が無くアタックフェイズ開始時に無条件発火の
       // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
