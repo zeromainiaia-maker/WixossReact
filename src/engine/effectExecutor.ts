@@ -934,6 +934,17 @@ function resolveDynamicFilter(
           : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: trigLevel - 1 } })
       : rest;
   }
+  // levelLtOppLrig: 対戦相手のセンタールリグのレベルより低いレベルを持つ（「対戦相手のセンタールリグより低いレベルを持つ、
+  // あなたの＜X＞のシグニ」＝WX19-042）→ level.max:oppLrigLevel-1 へ解決。opp 中央ルリグ（otherSt.field.lrig 頂点）が
+  // 参照不能/レベル非数値なら制限なしへフォールバック（フラグを外すだけ）。
+  if (result.levelLtOppLrig) {
+    const { levelLtOppLrig: _lo, ...rest } = result;
+    const opLrig = otherSt?.field.lrig.at(-1);
+    const opLv = opLrig ? parseInt(cardMap.get(getCardNum(opLrig))?.Level ?? '', 10) : NaN;
+    result = !isNaN(opLv)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: opLv - 1 } }
+      : rest;
+  }
   // powerLtAnyAlly: 自分の場のシグニのいずれか（＝最大実効パワー）よりパワーが低い（「あなたのいずれかのシグニよりパワーの低い」。
   // 「いずれか…より低い」＝いずれか1体より低ければ可＝最大値未満）→ powerRange.max:maxAlly-1 へ解決。参照不能（場に自シグニ無し）なら制限なしへフォールバック
   if (result.powerLtAnyAlly) {
