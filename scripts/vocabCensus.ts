@@ -294,7 +294,20 @@ const PATTERNS: Pattern[] = [
   // BANISH_REDIRECT は「エナゾーンに置かれる代わりにトラッシュに置かれる」の正当な置換表現（続き28較正・
   // 16枚中15枚が BANISH_REDIRECT で正エンコード済みの偽陽性だった＝キー漏れ）
   { name: '代わりに(置換)', re: /代わりに/, keys: ['CONDITIONAL', 'REPLACE', 'instead', 'IS_MY_TURN', 'PAID_ADDITIONAL', 'PREVENT_NEXT_DAMAGE', 'BANISH_REDIRECT'] },
-  { name: '制限「できない」', re: /(場に出すことができない|使用できない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/, keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block'] },
+  {
+    name: '制限「できない」', re: /(場に出すことができない|使用できない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/,
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block'],
+    // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
+    // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
+    // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を
+    // 含まない）で JSON に condition があれば covered とみなす＝2026-07-09 続き52 較正（41枚の偽陽性・真バグ0を
+    // 機械確認済み）。effect-restriction（アタックできない等）14枚は BLOCK 表現が要る別課題として高シグナル継続。
+    extraOk: (js, t) => {
+      const useRestrict = /しか(?:使用|発動)できない|しか(?:使用|発動)しない/.test(t);
+      const otherBlock = /(場に出すことができない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/.test(t);
+      return useRestrict && !otherBlock && /"condition":\{/.test(js);
+    },
+  },
   { name: '見ないで(blind)', re: /見ないで/, keys: ['"blind"', 'blind'] },
   { name: '無作為に(blind)', re: /無作為に/, keys: ['"blind"', 'random', 'RANDOM'] },
   { name: 'シグニの下に置く', re: /の下に置/, keys: ['UNDER', 'under'] },
