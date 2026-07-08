@@ -291,6 +291,29 @@ test('THIS_CARD_IS_AWAKENED: 覚醒中のみ then 発火（覚醒→敵バニッ
     ok(tops(r.otherState)[0] !== null, '非覚醒→敵シグニは残る（無条件発火しない）');
   }
 });
+// ── 続き49: 「あなたの場にあるすべてのシグニが＜C＞の場合」CONDITIONAL 持ち上げ（ALL_FIELD_SIGNI_MATCH）＝
+// 場の全シグニ同クラスでゲート（WX25-CP1-042 等）。全一致＝発火／1体でも非一致＝no-op／空盤面＝no-op。
+test('ALL_FIELD_SIGNI_MATCH: 場の全シグニが同クラスのときのみ then 発火（全一致→発火／混在→不変／空→不変）', () => {
+  const GEM = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('宝石'));
+  const NONGEM = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('宝石'));
+  const cond = { type: 'CONDITIONAL', condition: { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: '宝石' } },
+    then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } } as EffectAction;
+  // 全シグニが＜宝石＞ → 発火
+  {
+    const r = run(cond, mkCtx({ signi: [GEM, GEM, null] }, { signi: [SIGNI_P3000, null, null] }));
+    eq(tops(r.otherState)[0], null, '全＜宝石＞→敵シグニがバニッシュされる');
+  }
+  // 1体が非＜宝石＞ → no-op（過剰効果の回帰ガード）
+  {
+    const r = run(cond, mkCtx({ signi: [GEM, NONGEM, null] }, { signi: [SIGNI_P3000, null, null] }));
+    ok(tops(r.otherState)[0] !== null, '混在→敵シグニは残る（無条件発火しない）');
+  }
+  // 空盤面 → no-op（1体以上必須＝空振り発火しない）
+  {
+    const r = run(cond, mkCtx({ signi: [null, null, null] }, { signi: [SIGNI_P3000, null, null] }));
+    ok(tops(r.otherState)[0] !== null, '空盤面→敵シグニは残る（vacuous true にしない）');
+  }
+});
 test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
   const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);
