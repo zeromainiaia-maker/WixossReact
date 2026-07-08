@@ -652,8 +652,8 @@ function evalConditionForContinuous(
         return matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter);
       });
       if (signiMatch) return true;
-      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen はシグニ専用）
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
         return lrigZoneTops(hcifState.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter));
       }
       return false;
