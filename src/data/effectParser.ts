@@ -1190,6 +1190,27 @@ function parseSingleSentenceInner(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「(その後、)それが〔色/＜C＞〕のシグニの場合、追加で〜」→ CONDITIONAL(LAST_PROCESSED_MATCHES{filter})。
+  // ＝直前の対象処理アクション（DOWN/SEND_TO_ENERGY/BANISH/GRANT 等が lastProcessedCards をセット・SEQUENCE で
+  //   step 間伝播・SELECT_TARGET の continuation にも伝播）で処理したカードが filter 一致なら追加効果を実行する。
+  //   ⚠「追加で」を必須にして REVEAL_AND_PICK（「デッキ公開→それが〜の場合、それを手札に加える」＝filter で表現済み）
+  //   と厳密に区別＝偽陽性回避。色は OR（「白か赤」）、＜C＞クラスも OR（「＜鉱石＞か＜宝石＞」）。
+  {
+    const m = text.trim().match(/^(?:その後、)?それが((?:[白赤青緑黒](?:か[白赤青緑黒])?)|(?:＜[^＞]+＞(?:か＜[^＞]+＞)?))の(?:シグニ|カード)の場合、追加で(.+)/s);
+    if (m) {
+      const sM = m[1].match(/^＜([^＞]+)＞(?:か＜([^＞]+)＞)?$/);
+      const cM = m[1].match(/^([白赤青緑黒])(?:か([白赤青緑黒]))?$/);
+      const filt: TargetFilter | null = sM ? { story: sM[2] ? [sM[1], sM[2]] : sM[1] }
+        : cM ? { color: cM[2] ? [cM[1], cM[2]] : cM[1] } : null;
+      if (filt) {
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', ...filt } },
+          then: parseSingleSentence(m[2]),
+        } as import('../types/effects').ConditionalAction;
+      }
+    }
+  }
   // 「あなたの場に＜X＞(か＜Y＞)*のシグニがある場合、〜」→ CONDITIONAL(HAS_CARD_IN_FIELD)
   {
     const m = text.trim().match(/^(あなた|対戦相手)の場に((?:＜[^＞]+＞(?:か)?)+)のシグニがある場合、(.+)/s);
