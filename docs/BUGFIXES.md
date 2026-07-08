@@ -5,6 +5,19 @@
 
 ---
 
+## §4タスク2 動的比較＝「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニ」mis-parse 是正（`levelLtOppLrig` 新設・WX19-042）（2026-07-09・続き54・Opus 4.8）
+
+WX19-042「【出】：対戦相手のセンタールリグより低いレベルを持つ、あなたの＜空獣＞か＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る」が、**先頭修飾句「対戦相手のセンタールリグ…」に釣られて対象が LRIG に誤パースされ、【ランサー】が自ルリグに誤付与**（本来の self シグニ対象＋動的レベルフィルタが丸ごと脱落）していた mis-parse を是正。PLAN §4 タスク2「動的比較 lrig相対」の先頭項目。[[banish-vs-ener-send]]
+
+- **型**（`effects.ts`）＝`TargetFilter.levelLtOppLrig`（対戦相手中央ルリグのレベル未満）。既存の levelLtSelf/levelLtTrigger と同族の resolve 系動的フィルタ。
+- **engine**＝`resolveDynamicFilter`（`effectExecutor.ts`）に解決ブロック追加＝`otherSt.field.lrig` 頂点（＝相手中央ルリグ）のレベル-1 を `level.max` へ。参照不能/非数値なら制限なしへフォールバック（フラグ除去のみ）。**加えて `execGrantKeyword` の SIGNI 候補算出を `fieldCandidates` 直呼びから `resolveDynamicFilter`→`fieldCandidates` へ変更**＝付与も除去系と同じ resolve 経路に乗せた（従来 GRANT_KEYWORD は resolve 系動的フィルタが未解決＝levelLtSelf 等も含め付与時は効いていなかった。per-candidate 系〔powerGtPrinted 続き46〕は fieldCandidates 内で従来どおり）。
+- **parser**（`effectParser.ts` `parseSingleSentenceInner` 冒頭）＝**先頭修飾句「対戦相手のセンタールリグより低いレベルを持つ、」を剥がしてから残りを解析→最初の self シグニ対象へ `levelLtOppLrig` を刻む**（剥がさないと汎用ターゲット解析が LRIG に誤選択するため strip が要）。剥がした結果は正しく `GRANT_KEYWORD{target:SIGNI owner:self, filter:{story:['空獣','地獣'], levelLtOppLrig}}` に解析される。
+- **decompiler** `filterJa` に「対戦相手のセンタールリグより低いレベルを持つ」描画追加。
+- **採用1枚**＝WX19-042（heldReview 署名 `+SIGNI -LRIG ［1枚］`＝target が LRIG→SIGNI に是正・collateral 0）。
+- **検証**＝typecheck・**golden 174→175（+1＝相手ルリグLv3→自Lv2に付与/自Lv4は非付与＝resolveDynamicFilter の end-to-end ガード）**・smoke 全0（10582・execGrantKeyword の resolve 経路変更でクラッシュなし）・fuzz 全0・lint 0 errors・**同型★0**・**census 1574/1574**（mis-parse 是正は census 高シグナル計上外・BASELINE 変更なし）。
+
+---
+
 ## §5c 条件節「あなたの場にレベルNの覚醒状態のシグニがある場合」＋トリガー句後の条件節脱落＝CONDITIONAL持ち上げ32枚（2026-07-09・続き53・Opus 4.8）
 
 「このシグニがアタックしたとき／アタックフェイズ開始時、〜がある/いる場合、〜」型で、**盤面の条件節が丸ごと脱落**しアタックのたびに無条件発火していた過剰効果を系統的に是正。2つの独立した gap を同時に塞いだ。[[vocab-census-overfire-blindspot]]
