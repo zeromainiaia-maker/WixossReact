@@ -1261,6 +1261,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
       [/このシグニが覚醒状態の場合/,
         () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
+      // 「あなたの場にレベルNの覚醒状態のシグニがある場合、〜」＝場に覚醒状態のシグニが居る盤面ゲート
+      // （engine HAS_CARD_IN_FIELD の isAwakened 状態フィルタ実装済＝execUtils/matchesStateFilter・
+      // awakened_signi 参照）。従来は語彙が無くアタック時/アタックフェイズ開始時に無条件発火の過剰効果
+      // （WXDi-P14-054/058/066）。
+      [/あなたの場にレベル([０-９\d]+)の覚醒状態のシグニがある場合/,
+        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]), isAwakened: true } })],
       // 「このシグニが〔アップ/ダウン〕状態の場合、〜」＝効果元シグニの向き状態ゲート（engine THIS_CARD_IS_UP/DOWN
       // 実装済＝execUtils.ts・signi_down 参照）。従来は語彙が無く無条件発火の過剰効果（WX15-055/056・WXDi-P02-038 等）。
       [/このシグニがアップ状態の場合/,
