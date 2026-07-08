@@ -1105,6 +1105,32 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  // 「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニN体を対象とし、…」＝相手中央ルリグの
+  // レベルを基準にした動的レベルフィルタ（levelLtOppLrig）。この先頭修飾句を剥がさないと汎用ターゲット解析が
+  // 「対戦相手のセンタールリグ」に釣られて対象を LRIG に誤選択し、本来の self シグニ対象と動的フィルタが丸ごと
+  // 脱落する（WX19-042＝【ランサー】が自ルリグに誤付与）。剥がして残りを解析→最初の self シグニ対象へ
+  // levelLtOppLrig を刻む（resolveDynamicFilter が level.max へ解決・engine 実装済み）。
+  {
+    const m = text.trim().match(/^対戦相手のセンタールリグより低いレベルを持つ、(.+)$/s);
+    if (m) {
+      const inner = parseSingleSentence(m[1]);
+      let stamped = false;
+      const walk = (a: EffectAction | undefined | null): void => {
+        if (stamped || !a || typeof a !== 'object') return;
+        const tgt = (a as { target?: { type?: string; owner?: string; filter?: Record<string, unknown> } }).target;
+        if (tgt && tgt.type === 'SIGNI' && tgt.owner === 'self') {
+          tgt.filter = tgt.filter ?? { cardType: 'シグニ' };
+          tgt.filter.levelLtOppLrig = true;
+          stamped = true;
+          return;
+        }
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { walk(st); if (stamped) return; }
+        else if (a.type === 'CONDITIONAL') { const c = a as import('../types/effects').ConditionalAction; walk(c.then); if (!stamped && c.else) walk(c.else); }
+      };
+      walk(inner);
+      if (stamped) return inner;
+    }
+  }
   // 「（ターン終了時まで、）この方法/効果で場に出たシグニ/レゾナは「Q」/【K】を得る／のパワーを＋N」＝直前に
   // 場出ししたカード（lastProcessedCards＝dual-pick の field ピック等）への付与。engine の targetsLastProcessed
   // 機構（GRANT_KEYWORD/POWER_MODIFY/GRANT_EFFECT で実装済＝選択UIなしで lastProcessedCards へ適用）へ振り分ける。
