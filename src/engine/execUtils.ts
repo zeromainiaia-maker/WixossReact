@@ -758,7 +758,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen) {
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
         for (const ln of lrigZoneTops(fst.field)) {
           if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matched++;
         }
