@@ -5,6 +5,17 @@
 
 ---
 
+## §5c census 較正＝「制限『できない』」の使用条件（useCondition）41枚の偽陽性クリア（2026-07-09・続き52・Opus 4.8）
+
+census「制限『できない』」高シグナル58枚を機械分類した結果、**41枚は「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition）で、`eff.condition` に既に正しく表現されている偽陽性**と判明（`extractUseCondition`→`parseUseCondition` が LRIG_STORY／SELF_POWER_GTE／HAS_CARD_IN_FIELD{crossState} 等へ解析済み）。census pattern の keys（BLOCK/PREVENT/NEGATE 等）が useCondition を計上しないため過剰計上していた。REVEAL_AND_PICK extraOk（続き24）と同型の**census-only 較正**（カード JSON/parser/engine 不変・ゲームプレイ影響なし）。[[vocab-census-overfire-blindspot]]
+
+- **機械分類（58枚）**＝使用制限+condition有（偽陽性）**41**／使用制限+condition無（真バグ）**0**（`extractUseCondition` は完璧に機能）／効果制限〔アタック/ガード/場に出せない等＝BLOCK 表現要〕**14**／その他3。代表 WX18-041（LRIG_STORY:イオナ）・WX05-029（SELF_POWER_GTE:12000）・WX07-018（HAS_CARD_IN_FIELD crossState）を JSON 目視で正確性確認。
+- **実装**（`scripts/vocabCensus.ts`）＝「制限『できない』」pattern に `extraOk` 追加＝`t`（原文）が「しか使用/発動できない」を含み**かつ効果制限（場に出せない/アタック/ガード/選べない/引けない/出せない）を含まず**、`js` に `condition` があれば covered。**使用制限で condition 無しのカードは残り高シグナル**（真バグを masking しない安全設計＝真バグ0を機械確認済み）。
+- **効果**＝制限「できない」高シグナル 58→17（41枚クリア）・**census 総数 1616→1588（dedup -28・41枚のうち一部は別パターンでも高シグナルのため dedup 差）**。`BASELINE_HIGH` 実数更新。残17枚＝effect-restriction（「対戦相手はシグニをN体までしか場に出せない」等の BLOCK 機構要）で別課題として継続。
+- **検証**＝census 1588/1588（PASS）・golden 173/smoke 全0/fuzz 全0/lint 0 errors/同型★0（census-only のため JSON/decompile 不変・全ゲート緑を確認）。
+
+---
+
 ## §5c 条件節「それが〔色/＜C＞〕のシグニの場合、追加で〜」＝CONDITIONAL{LAST_PROCESSED_MATCHES}持ち上げ＝2枚（2026-07-09・続き51・Opus 4.8）
 
 「対象処理→それが〔属性〕の場合、追加で〔ボーナス〕」型で、**直前に処理した対象カードの属性ゲートが脱落**し追加効果が無条件発火していた過剰効果を是正。engine 既存の `LAST_PROCESSED_MATCHES{filter}`（`execUtils.ts:1067`・lastProcessedCards 照合）へ parser で持ち上げ。[[vocab-census-overfire-blindspot]] [[banish-vs-ener-send]]
