@@ -270,6 +270,27 @@ test('levelLtTrigger: トリガー元レベル未満のみ対象（trigger L2→
   eq(tops(r.otherState)[0], null, 'L1（<2）が除去される');
   ok(tops(r.otherState)[1] !== null, '同値 L2 は残る');
 });
+// ── 続き48: 「このシグニが覚醒状態の場合」CONDITIONAL 持ち上げ（THIS_CARD_IS_AWAKENED）＝アタックフェイズ
+// 開始時の効果を覚醒状態でゲート（PR-Di038/039・WXDi-P14-045/047/049・WX25-P2-072/075）。覚醒＝発火／非覚醒＝no-op。
+test('THIS_CARD_IS_AWAKENED: 覚醒中のみ then 発火（覚醒→敵バニッシュ／非覚醒→不変・PR-Di039）', () => {
+  const SRC = 'AWAKEN-SRC';
+  const cond = { type: 'CONDITIONAL', condition: { type: 'THIS_CARD_IS_AWAKENED' },
+    then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } } as EffectAction;
+  // 覚醒状態: awakened_signi に source を含む → then が発火
+  {
+    const base = mkCtx({ signi: [SRC, null, null] }, { signi: [SIGNI_P3000, null, null] }, SRC);
+    const ctx = { ...base, ownerState: { ...base.ownerState, awakened_signi: [SRC] } } as ExecCtx;
+    const r = run(cond, ctx);
+    eq(tops(r.otherState)[0], null, '覚醒中→敵シグニがバニッシュされる');
+  }
+  // 非覚醒: awakened_signi 空 → then スキップ（過剰効果の回帰ガード）
+  {
+    const base = mkCtx({ signi: [SRC, null, null] }, { signi: [SIGNI_P3000, null, null] }, SRC);
+    const ctx = { ...base, ownerState: { ...base.ownerState, awakened_signi: [] } } as ExecCtx;
+    const r = run(cond, ctx);
+    ok(tops(r.otherState)[0] !== null, '非覚醒→敵シグニは残る（無条件発火しない）');
+  }
+});
 test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
   const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);
