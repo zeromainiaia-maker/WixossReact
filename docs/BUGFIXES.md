@@ -5,6 +5,19 @@
 
 ---
 
+## §5c 条件節「あなたの場にあるすべてのシグニが＜C＞/《ディソナアイコン》の場合」＝新設 `ALL_FIELD_SIGNI_MATCH` で CONDITIONAL 持ち上げ＝20枚の過剰効果を是正（2026-07-09・続き49・Opus 4.8）
+
+続き48（覚醒条件）に続く census 文型クラスタ「条件節」の系統。「【自】：あなたのアタックフェイズ開始時、**あなたの場にあるすべてのシグニが＜C＞の場合**、〜」型で、**場の全シグニが同クラス**という盤面ゲートが JSON から全数脱落し無条件発火の過剰効果になっていた。**新 condition 型を1本実装**（続き48 は engine 既存条件の parser 配線のみだったのに対し、今回は型＋engine 実装から新設）。[[vocab-census-overfire-blindspot]]
+
+- **型**（`src/types/effects.ts`）＝`ALL_FIELD_SIGNI_MATCH{owner, filter}` 新設。**場の全シグニ（各スタック頂点）が filter 一致かつ1体以上**（空盤面は false＝軍勢が居ないのに空振り発火しない）。
+- **engine**（`execUtils.ts` evalCondition＋`effectEngine.ts` evalConditionForContinuous の2評価器）＝`field.signi` 各スタック頂点を集め、`length>0 && every(matchesFilter)`。CONT 用 evalConditionForContinuous にも同型分岐を追加（将来 CONT activeCondition で使われた際の default:true 過剰発火を予防・現20枚は全て AUTO 経路）。`checkActiveCondition`（別 union ActiveCondition）は対象外。
+- **parser**（`src/data/effectParser.ts`）＝局所 CLAUSES 表（続き23）に2変種を追加：`＜C＞`→`{story:g[0]}`（`matchesFilter` は `CardClass.includes(story)`＝既存 ＜C＞ 慣例）、`《X》`→**《ディソナアイコン》は `isDisona:true`（Story='Dissona'・execUtils.ts:1265 の慣例）**・その他は cardName。**⚠《ディソナアイコン》をカード名として cardName 化すると matchesFilter で永久 false＝逆に発火しなくなる逆バグ**を回避（DB の《X》全4枚がディソナ）。
+- **decompiler**（`decompileEffects.ts` condJa）＝`ALL_FIELD_SIGNI_MATCH`→「〔owner〕場にあるすべてのシグニが〔＜C＞／《ディソナアイコン》／《X》〕」（isDisona 優先）。汎用 CONDITIONAL 描画で「〜なら、」を後続。
+- **採用20枚**（`build:effects`→`heldReview --adopt`・署名 `+ALL_FIELD_SIGNI_MATCH +CONDITIONAL` 単一＝**純加算で構造的退化なし**）＝WX25-CP1-038/042/044・WX26-CP1-048/052/054/058・WXDi-CP01-032・WXDi-CP02-055/058/075/076/080・WXDi-P12-007/009/080・WXDi-P13-010/063/067/073（story: ブルアカ/プリオケ/バーチャル・または isDisona）。配置＝top-level（全体ゲート・大半）／SEQUENCE step[0]（原文で条件を持つ文＝残りは「そうした場合」IS_MY_TURN 連鎖 or reminder）／CHOOSE 分岐（WXDi-P13-067/WXDi-CP02-080 の該当分岐）。**⚠SEQUENCE 型の下流ステップ（「そうした場合」IS_MY_TURN 常時真連鎖・WXDi-CP01-032 の「レベル合計7の場合」nested 条件脱落 等）は本変更と独立の既存の不完全さ＝別課題**（step[0] のゲートは正しく追加・「この方法で／それ」参照で step[0] が空振りなら下流も自然に no-op 化）。**《無》を払ってもよい系の OPTIONAL_COST STUB は本20枚に無し**（discard は plain TRASH＝続き48 WX25-P2-095 のような engine 結合破壊リスクなし）。
+- **検証**＝typecheck・**golden 170→171（+1＝全一致→発火／混在→no-op／空盤面→no-op の3分岐 assert）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（regen 済・《ディソナアイコン》/＜C＞描画が原文一致）・**census 1621→1616（-5・SEQUENCE 下流条件が残るカードは高シグナル継続）**＝`BASELINE_HIGH` 実数更新。engine 配線は既存 evalCondition 経路のため実機リスク低。
+
+---
+
 ## §5c 条件節「このシグニが覚醒状態の場合」＝CONDITIONAL{THIS_CARD_IS_AWAKENED}持ち上げ＝7枚の過剰効果を是正（2026-07-08・続き48・Opus 4.8）
 
 census 文型クラスタ「条件節(〜の場合)」の未処理系統。「【自】：あなたのアタックフェイズ開始時、**このシグニが覚醒状態の場合**、〜」型で、覚醒状態ゲートが JSON から全数脱落し、アタックフェイズ開始時に**無条件発火する過剰効果**になっていたのを是正。engine の `THIS_CARD_IS_AWAKENED` 条件（`execUtils.ts:858`・`awakened_signi` 参照）・decompiler（`THIS_CARD_IS_AWAKENED`→「このシグニが覚醒状態」）は既に実装済みで、**parser の CONDITIONAL 持ち上げ規則が無かっただけ**。[[vocab-census-overfire-blindspot]]
