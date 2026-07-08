@@ -57,7 +57,10 @@ import * as path from 'path';
 // を失い、アサシン等キーワードのリマインダ文（「正面のシグニがパワーNN以下の場合…」）＋「Nまで場に出す」pick の
 // 語彙が高シグナルに顕在化＝1628→1631（+3）。いずれもキーワード付与/LOOK_PICK_CHAIN/SEND_TO_ENERGY で正しく
 // 表現済みの偽陽性（リマインダ文・pick 上限）で、実効果の脱落ではない＝ベースラインを実数更新。
-const BASELINE_HIGH = 1623;
+// 2026-07-08 続き48: 「このシグニが覚醒状態の場合」CONDITIONAL 持ち上げ（THIS_CARD_IS_AWAKENED）7枚採用＝1623→1621。
+// PR-Di038/039・WXDi-P14-045/047/049・WX25-P2-072/075 のアタックフェイズ開始時効果を覚醒ゲート化（過剰効果是正）。
+// dedup -2（CHOOSE 札 WX25-P2-072/075 は別分岐の条件〔①赤スペル使用歴 等〕が残り高シグナル継続）。
+const BASELINE_HIGH = 1621;
 
 const DATA_DIR = path.join(process.cwd(), 'public', 'data');
 const OUT_PATH = path.join(process.cwd(), 'docs', '_vocab_census.txt');
