@@ -291,6 +291,27 @@ test('THIS_CARD_IS_AWAKENED: 覚醒中のみ then 発火（覚醒→敵バニッ
     ok(tops(r.otherState)[0] !== null, '非覚醒→敵シグニは残る（無条件発火しない）');
   }
 });
+// ── 続き50: 「このシグニが〔アップ/ダウン〕状態の場合」CONDITIONAL 持ち上げ（THIS_CARD_IS_UP/DOWN）＝
+// 効果元シグニの向き状態でゲート（WXDi-P02-038/P04-036 等）。アップ札はダウン時 no-op／ダウン札はアップ時 no-op。
+test('THIS_CARD_IS_UP/DOWN: 効果元の向き状態でゲート（アップ札はアップ中のみ・ダウン札はダウン中のみ発火）', () => {
+  const SRC = 'DIR-SRC';
+  const mkCond = (t: string) => ({ type: 'CONDITIONAL', condition: { type: t },
+    then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } } as EffectAction);
+  // signi_down[0]=false（アップ）: UP札→発火／DOWN札→no-op
+  {
+    const base = mkCtx({ signi: [SRC, null, null] }, { signi: [SIGNI_P3000, null, null] }, SRC);
+    const up = { ...base, ownerState: { ...base.ownerState, field: { ...base.ownerState.field, signi_down: [false, false, false] } } } as ExecCtx;
+    eq(tops(run(mkCond('THIS_CARD_IS_UP'), up).otherState)[0], null, 'アップ中→UP札が発火（敵バニッシュ）');
+    ok(tops(run(mkCond('THIS_CARD_IS_DOWN'), up).otherState)[0] !== null, 'アップ中→DOWN札は no-op');
+  }
+  // signi_down[0]=true（ダウン）: DOWN札→発火／UP札→no-op
+  {
+    const base = mkCtx({ signi: [SRC, null, null] }, { signi: [SIGNI_P3000, null, null] }, SRC);
+    const dn = { ...base, ownerState: { ...base.ownerState, field: { ...base.ownerState.field, signi_down: [true, false, false] } } } as ExecCtx;
+    eq(tops(run(mkCond('THIS_CARD_IS_DOWN'), dn).otherState)[0], null, 'ダウン中→DOWN札が発火（敵バニッシュ）');
+    ok(tops(run(mkCond('THIS_CARD_IS_UP'), dn).otherState)[0] !== null, 'ダウン中→UP札は no-op（無条件発火しない）');
+  }
+});
 // ── 続き49: 「あなたの場にあるすべてのシグニが＜C＞の場合」CONDITIONAL 持ち上げ（ALL_FIELD_SIGNI_MATCH）＝
 // 場の全シグニ同クラスでゲート（WX25-CP1-042 等）。全一致＝発火／1体でも非一致＝no-op／空盤面＝no-op。
 test('ALL_FIELD_SIGNI_MATCH: 場の全シグニが同クラスのときのみ then 発火（全一致→発火／混在→不変／空→不変）', () => {

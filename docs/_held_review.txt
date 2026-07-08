@@ -3,50 +3,6 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## +ALL_FIELD_SIGNI_MATCH +CONDITIONAL ［20枚］
-WX25-CP1-038 WX25-CP1-042 WX25-CP1-044 WX26-CP1-048 WX26-CP1-052 WX26-CP1-054 WX26-CP1-058 WXDi-CP01-032 WXDi-CP02-055 WXDi-CP02-058 WXDi-CP02-075 WXDi-CP02-076 WXDi-CP02-080 WXDi-P12-007 WXDi-P12-009 WXDi-P12-080 WXDi-P13-010 WXDi-P13-063 WXDi-P13-067 WXDi-P13-073
---- WX25-CP1-038
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、対戦相手のシグニ１体を対象とし、それのパワーが5000以下の場合、それを手札に戻す。このターン終了時、それを場からトラッシュに置く。【起】《ダウン》：あなたのデッキの一番上を公開する。そのカードが＜ブルアカ＞の場合、カードを１枚引く。【絆出】：ターン終了時まで、対戦相
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = "ALL"
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].optional = false
-  ~ [0].action.steps[0].type : "BOUNCE" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "ALL_FIELD_SIGNI_MATCH"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "ブルアカ"
-  + [0].action.steps[0].then.type = "BOUNCE"
-  …（他 6 行）
---- WX25-CP1-042
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、対戦相手は手札を１枚捨てる。【自】《ターン１回》：あなたのルリグアタックステップ開始時、このターンにあなたの青の＜ブルアカ＞のシグニがクラッシュした対戦相手のライフクロス１枚につき対戦相手は手札を１枚捨てる。【絆出】手札から＜ブルアカ＞のカードを１枚捨てる：対戦相手の
-  - [0].action.target.type = "HAND_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  ~ [0].action.type : "TRASH" → "CONDITIONAL"
-  + [0].action.condition.type = "ALL_FIELD_SIGNI_MATCH"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "ブルアカ"
-  + [0].action.then.type = "TRASH"
-  + [0].action.then.target.type = "HAND_CARD"
-  + [0].action.then.target.owner = "opponent"
-  + [0].action.then.target.count = 1
---- WX25-CP1-044
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、【エナチャージ１】をする。【自】：あなたのアタックフェイズ開始時、あなたの他の緑の＜ブルアカ＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000し、それは「【常】：対戦相手の効果によって新たに能力を得られない。」を得る。【絆起】《ダウン》：【エナチャー
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
-  + [0].action.condition.type = "ALL_FIELD_SIGNI_MATCH"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "ブルアカ"
-  + [0].action.then.type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 1
-
 ## （type増減なし＝値/構造変更） ［9枚］
 WX10-005 WX12-021 WX14-054 WX18-034 WX25-P2-062 WXDi-CP02-TK01A WXDi-P05-043 WXK11-008 WXK11-058
 --- WX10-005
@@ -361,6 +317,31 @@ WD20-018 WX22-Re03
   - [0].action.steps[0].afterSearch.type = "SHUFFLE_DECK"
   - [0].action.steps[0].afterSearch.owner = "self"
   …（他 55 行）
+
+## +CONDITIONAL +THIS_CARD_IS_UP ［2枚］
+WXDi-P02-038 WXDi-P04-036
+--- WXDi-P02-038
+  原文: 【ハーモニー】白のルリグ１体【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカード１枚を対象とし、それをトラッシュに置く。【自】：あなたのターン終了時、このターンにあなたの効果によって対戦相手のエナゾーンからカードが２枚以上トラッシュに置かれていた場合、カードを１枚引
+  - [0].action.target.type = "ENERGY_CARD"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  ~ [0].action.type : "TRASH" → "CONDITIONAL"
+  + [0].action.condition.type = "THIS_CARD_IS_UP"
+  + [0].action.then.type = "TRASH"
+  + [0].action.then.target.type = "ENERGY_CARD"
+  + [0].action.then.target.owner = "opponent"
+  + [0].action.then.target.count = 1
+--- WXDi-P04-036
+  原文: 【ハーモニー】ルリグ２体【常】：あなたのルリグデッキにあるカードが１枚以下であるかぎり、このシグニのパワーは＋3000される。【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、手札を３枚捨ててもよい。そうした場合、それをバニッシュする。,-
+  - [1].action.steps[0].target.type = "HAND_CARD"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 3
+  ~ [1].action.steps[0].type : "TRASH" → "CONDITIONAL"
+  + [1].action.steps[0].condition.type = "THIS_CARD_IS_UP"
+  + [1].action.steps[0].then.type = "TRASH"
+  + [1].action.steps[0].then.target.type = "HAND_CARD"
+  + [1].action.steps[0].then.target.owner = "self"
+  + [1].action.steps[0].then.target.count = 3
 
 ## +GRANT_FIELD_SIGNI_ABILITY +UNKNOWN -STUB ［2枚］
 WXDi-P03-060 WXDi-P14-062
