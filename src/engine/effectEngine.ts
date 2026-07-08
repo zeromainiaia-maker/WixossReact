@@ -653,6 +653,13 @@ function evalConditionForContinuous(
       }
       return false;
     }
+    case 'ALL_FIELD_SIGNI_MATCH': {
+      // 「場のすべてのシグニが＜C＞/《X》」＝各スタック頂点が全て filter 一致（1体以上必須）。CONT ゲート用（execUtils と同実装）。
+      const afTops = st(cond.owner).field.signi
+        .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
+        .filter((n): n is string => n !== null);
+      return afTops.length > 0 && afTops.every(top => matchesFilter(cardMap.get(top), cond.filter));
+    }
     case 'TRASH_HAS_CARD': {
       const stripCC = oppTrashColorLoss && cond.owner === 'self';
       const matched = st(cond.owner).trash.filter(n => {
