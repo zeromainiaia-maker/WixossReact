@@ -5,6 +5,18 @@
 
 ---
 
+## §5c 条件節「あなたの場にレベルNの覚醒状態のシグニがある場合」＋トリガー句後の条件節脱落＝CONDITIONAL持ち上げ32枚（2026-07-09・続き53・Opus 4.8）
+
+「このシグニがアタックしたとき／アタックフェイズ開始時、〜がある/いる場合、〜」型で、**盤面の条件節が丸ごと脱落**しアタックのたびに無条件発火していた過剰効果を系統的に是正。2つの独立した gap を同時に塞いだ。[[vocab-census-overfire-blindspot]]
+
+- **gap①＝覚醒状態フィルタの語彙欠落**（本題3枚）。「あなたの場にレベル３の覚醒状態のシグニがある場合」を表す語彙が無く脱落。新規に `TargetFilter.isAwakened`（`effects.ts`）を追加＝場に覚醒状態（`ownerState.awakened_signi` に CardNum）のシグニが居るかの状態フィルタ。engine は **HAS_CARD_IN_FIELD の isAwakened 判定を2評価器へ**＝`execUtils.ts` evalCondition の inline（isFrozen と同型・`awakened_signi.includes(top)`）＋`effectEngine.ts matchesStateFilter`（共有ヘルパー＝ゾーンindexから頂点CardNumを引いて照合。effectEngine の2つの HAS_CARD_IN_FIELD 経路をカバー）。**ルリグゾーン走査ガードに isAwakened を追加**（3箇所＝crossState/isFrozen と同様シグニ専用状態のためルリグを覚醒判定に混ぜない）。parser 局所 CLAUSES 表に `あなたの場にレベル([０-９\d]+)の覚醒状態のシグニがある場合` → `HAS_CARD_IN_FIELD{filter:{level:N,isAwakened:true}}`。decompiler `filterJa` に「覚醒状態の」描画。**該当**＝WXDi-P14-054/058/066。
+- **gap②＝CLAUSES 持ち上げがトリガー句の後ろで発火しない**（横展開29枚）。状態条件節の CONDITIONAL 持ち上げループの先頭プレフィックス正規表現が `(?:…対象とし、)?` のみを許容し、`このシグニがアタックしたとき、` は**本ループより後（`:1378`）で除去される**ため、ON_ATTACK_SIGNI カードでは条件節が文頭に来ず素通りしていた（ON_ATTACK_PHASE_START はプレフィックスが上流で除去され成立していた＝054 のみ成立の非対称の原因）。先頭プレフィックスに `このシグニがアタックしたとき` を許容＝`^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき)、)?)`。m[1] は `then` へ再prepend され parseSingleSentence が同プレフィックスを除去するので整合。これで既存全 CLAUSES（HAS_CARD_IN_FIELD 場・トラッシュ・ALL_FIELD_SIGNI_MATCH・HAND/ENERGY_COUNT 等）がトリガー句後でも一律に効く。
+- **採用32枚**（heldReview 精密diff＋原文照合で全数検証・純加算 CONDITIONAL ラップ）＝gap① 3枚＋gap② の「場に《X》/他の＜C＞がいる/ある場合」「トラッシュに〜N枚以上」「相手エナN枚以上」「全シグニが＜C＞/《ディソナ》」「手札N枚以下」系。数値・owner・filter を全数機械照合し原文一致を確認。
+- **不採用**＝**WXDi-P11-048**（複合条件「黒10枚以上**あり**相手エナ2枚以上ある場合」＝AND を単一 clause が `TRASH_HAS_CARD{minCount:20}` へ誤パース＝数値も後半条件も誤り＝honest over-fire より悪化）。「あり」複合は本batchの対象外。SEQUENCE-nested の OPTIONAL_COST 系（step[0] にコスト・step[1] が「そうした場合」→IS_MY_TURN 近似）は field 条件が step[0] のコスト提示を正しくゲート＝**curated 比で純改善**（step[1] の IS_MY_TURN 常時真は既存の別課題・退化ではない）ため採用。
+- **検証**＝typecheck・**golden 173→174（+1＝Lv3覚醒シグニ有→then発火／非覚醒→no-op／Lv不一致→no-op の相互ガード。`awakened_signi` を直接セット）**・smoke 全0（10582・nested STUB-in-CONDITIONAL もクラッシュなし）・fuzz 全0・lint 0 errors・**同型★0**（「レベル3の覚醒状態のシグニがいるなら」で描画）・**census 1588→1574（-14）**＝`BASELINE_HIGH` 実数更新。
+
+---
+
 ## §5c census 較正＝「制限『できない』」の使用条件（useCondition）41枚の偽陽性クリア（2026-07-09・続き52・Opus 4.8）
 
 census「制限『できない』」高シグナル58枚を機械分類した結果、**41枚は「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition）で、`eff.condition` に既に正しく表現されている偽陽性**と判明（`extractUseCondition`→`parseUseCondition` が LRIG_STORY／SELF_POWER_GTE／HAS_CARD_IN_FIELD{crossState} 等へ解析済み）。census pattern の keys（BLOCK/PREVENT/NEGATE 等）が useCondition を計上しないため過剰計上していた。REVEAL_AND_PICK extraOk（続き24）と同型の**census-only 較正**（カード JSON/parser/engine 不変・ゲームプレイ影響なし）。[[vocab-census-overfire-blindspot]]
