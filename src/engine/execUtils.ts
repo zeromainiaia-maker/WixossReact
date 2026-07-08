@@ -761,6 +761,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       return matched >= (cond.minCount ?? 1);
     }
+    case 'ALL_FIELD_SIGNI_MATCH': {
+      // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（各スタック頂点）が filter 一致。
+      // 空盤面は false（1体以上を要求＝軍勢が居ないのに空振り発火しない）。ルリグは対象外（シグニのみ）。
+      const fst2 = st(cond.owner);
+      const tops = fst2.field.signi
+        .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
+        .filter((n): n is string => n !== null);
+      if (tops.length === 0) return false;
+      return tops.every(top => matchesFilter(ctx.cardMap.get(top), cond.filter));
+    }
     case 'TRASH_HAS_CARD': {
       const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
       // minCount: フィルタ一致カードがN枚以上（省略=1。「トラッシュに＜武勇＞のシグニが10枚以上ある場合」等）
