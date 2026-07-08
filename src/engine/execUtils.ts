@@ -749,6 +749,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           const isFrozen = (fst.field.signi_frozen?.[zoneIdx] ?? false);
           if (cond.filter.isFrozen !== isFrozen) return false;
         }
+        if (cond.filter?.isAwakened !== undefined) {
+          const isAwk = (fst.awakened_signi ?? []).includes(top);
+          if (cond.filter.isAwakened !== isAwk) return false;
+        }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       }).length;
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
