@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 条件節「このシグニが覚醒状態の場合」＝CONDITIONAL{THIS_CARD_IS_AWAKENED}持ち上げ＝7枚の過剰効果を是正（2026-07-08・続き48・Opus 4.8）
+
+census 文型クラスタ「条件節(〜の場合)」の未処理系統。「【自】：あなたのアタックフェイズ開始時、**このシグニが覚醒状態の場合**、〜」型で、覚醒状態ゲートが JSON から全数脱落し、アタックフェイズ開始時に**無条件発火する過剰効果**になっていたのを是正。engine の `THIS_CARD_IS_AWAKENED` 条件（`execUtils.ts:858`・`awakened_signi` 参照）・decompiler（`THIS_CARD_IS_AWAKENED`→「このシグニが覚醒状態」）は既に実装済みで、**parser の CONDITIONAL 持ち上げ規則が無かっただけ**。[[vocab-census-overfire-blindspot]]
+
+- **parser**（`src/data/effectParser.ts`）＝`parseSingleSentenceInner` の「状態条件節の CONDITIONAL 持ち上げ」局所 CLAUSES 表（続き23 確立）に `[/このシグニが覚醒状態の場合/, () => ({ type: 'THIS_CARD_IS_AWAKENED' })]` を1行追加。**モジュール共有の STATE_CONDITION_CLAUSES ではなく局所 CLAUSES 表限定**にし、「代わりに」置換昇格パスへ波及させない（WX25-P2-078「覚醒状態の場合、代わりに…」は rest ガード `!startsWith('代わりに')` で従来どおり除外）。
+- **採用7枚**（`build:effects`→`heldReview --adopt`）＝**PR-Di038**（覚醒中→次相手ターン終了時まで自全シグニ＋2000。⚠effect-level duration は UNTIL_END_OF_TURN のまま＝「次の対戦相手のターン終了時まで」の duration under-representation は**別・既存の脱落**で本バッチ対象外）・**PR-Di039**（自→敵1体パワー－3000）・**WXDi-P14-045**（敵手札から《ガード》非所持1枚を捨てさせる）・**WXDi-P14-047**（エナチャージ2）・**WXDi-P14-049**（敵1体パワー－8000）・**WX25-P2-072**（CHOOSE 分岐②のみ＝分岐①「他の＜電機＞がある場合」は既に CONDITIONAL{HAS_CARD_IN_FIELD}・不変）・**WX25-P2-075**（CHOOSE 分岐②のみ＝分岐①「このターンに赤スペル使用歴」は turn-history 条件で別途脱落継続）。CHOOSE 分岐の CONDITIONAL 化は「覚醒でなければ選んでも no-op」＝原文「②覚醒状態の場合、…」の正しい意味。
+- **除外＝WX25-P2-095**（原文「覚醒状態の場合、《無》を支払ってもよい。そうした場合バニッシュ」）＝覚醒条件は**SEQUENCE 全体**を包むべきだが、文分割で step[0] の `OPTIONAL_COST` STUB だけを CONDITIONAL で包む誤構造になり、かつ **engine の OPTIONAL_COST+CONDITIONAL(IS_MY_TURN) 結合検出（`effectExecutor.ts:2249` が STUB を直接の SEQUENCE ステップとして期待）が壊れる**ため不採用（held 温存・SEQUENCE レベル条件化＋power≥12000 フィルタ脱落とセットで別途）。
+- **検証**＝typecheck・**golden 169→170（+1＝THIS_CARD_IS_AWAKENED が覚醒中のみ then 発火・非覚醒は no-op の過剰効果回帰ガード）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（regen 済・「このシグニが覚醒状態なら、〜」＝続き23 の汎用 CONDITIONAL 描画で一貫）・**census 1623→1621（-2）**＝CHOOSE 2枚は別分岐条件が残り dedup 減は2。`BASELINE_HIGH` 実数更新。engine 配線は既存 evalCondition の THIS_CARD_IS_AWAKENED 経路のため実機リスク低。
+
+---
+
 ## §5c 動的比較 個別機構＝`powerLtLastProcessed`/`levelLtLastProcessed`「その後、そのシグニより〜の低い」＝lastProcessed基準＝2枚を実装（WXDi-P08-031/WXK10-031）（2026-07-08・続き47・Opus 4.8）
 
 続き43-46の動的比較サブファミリの**個別機構待ち2枚**を消化。「（先行アクションで場に出た/公開した）**そのシグニより〔パワー/レベル〕の低い**対戦相手のシグニ1体を対象とし…」＝**直前に処理したシグニ（lastProcessedCards[0]）を基準にした strict-less-than 比較**。self/trigger と語は同じ「そのシグニより」だが **「その後」＝同一効果内の先行アクションで生じたシグニ**を指す別機構（parser の `parseTriggerComparison` は「その後」を検出して据置済み＝ここに嵌る穴）。[[vocab-census-overfire-blindspot]] [[banish-vs-ener-send]]
