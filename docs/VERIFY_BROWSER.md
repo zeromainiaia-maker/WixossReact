@@ -165,6 +165,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **再現**：`node scripts/verifyBattleDrive.mjs energyToTrash`（既定 `order` からは除外済み）。
 - **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectPowerDecreaseInline`と合わせて`collectEnergyToTrashInline`を追加。その後、系統的懸念リストの横断監査→影響ありなら一括是正。
 
+### ✅ placedFront（R41）＋drawBySourceStory（R31）をPASSで確認＝resume経路取りこぼしの機構原因をコード読解で確定（2026-07-09・続き58・Sonnet 5・同日第3-4件）
+
+上記2件のFAIL（R43/R46）に続き、`placedFront`（WD01-013→WXDi-P03-043）と`drawBySourceStory`（WX20-026自己完結）を追加検証したところ**両方ともPASS**。この違いを手がかりに`BattleScreen.tsx:3428`の`resolveStackNext`本体を実際に読んで、なぜ一部だけ穴があるのかを機構レベルで確定できた。
+
+- **placedFront**：guest中央ゾーンに watcher WXDi-P03-043 を配置、host が自分の通常召喚（`handleSummonSigni`）で中央ゾーンへ召喚（正面はindex i↔2-iのミラー対応）。**PASS**＝召喚直後に`host.temp_power_mods`が`WD01-013#1:-3000`になる。
+- **drawBySourceStory**：host に WX20-026（大幻蟲 §アノマリス§）を配置しATTACK_SIGNIへ注入。「アタック」→E1/E2（同一カードの2つのON_ATTACK_SIGNIトリガー）の発動順序確定モーダル→E2のDRAW実行→E3（ON_DRAW・drawBySourceStory:'凶蟲'）がSELECT_TARGETで発火。**PASS**＝ログに「大幻蟲　§アノマリス§ の【自】効果（ドロー時）」を確認。
+- **🆕 機構原因の確定**＝`resolveStackNext`は`executeEffect`の戻り値`result.done`で分岐（3538行）。`done===true`の場合のみ3556-4150行のtrigger収集ブロックが走り、`done===false`（SELECT_TARGET/CHOOSEで中断）の場合は`pending_effect`を保存して即returnし収集ブロックは実行されない。**「watcher収集がこのdoneブランチにしかなく、かつ原因アクション自体がSELECT_TARGET/CHOOSEを要する」の2条件が揃うtrigger種別だけがこの穴の影響を受ける**＝R43/R46は該当（原因のPOWER_MODIFY/TRASHが単体対象選択を要する）、R41は`handleSummonSigni`がresolveStackNextを経由しない別経路のため無関係、R31は原因のDRAWが対象選択不要なため無関係。
+- **副産物**＝①ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM共有ループの盤面ログ文言が「相手シグニアタック時」固定になる表示バグ（機能に影響なし）。②同一カードに2つのON_ATTACK_SIGNIトリガーがあると「発動順序を決めてください」モーダルが挟まる（driverのクリック列に`発動順序を確定`を追加して対応）。
+- 両シナリオとも`order`配列に復帰済み。
+- **今後の活用**＝この理論で影響範囲を機械的に絞り込める＝残る系統的懸念候補（`collectCharmToTrashTriggers`=R42・`collectRefreshTriggers`・`collectMoveToDeckTriggers`・`collectMillTriggers`・`collectAllyPlayOrOppDiscardTriggers`・`collectMaterialUsedOnSigniTriggers`・`collectOppArtsUseTriggers`系）は原因アクションがSELECT_TARGET/CHOOSEを要するか個別確認すれば影響有無が判定できる。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
