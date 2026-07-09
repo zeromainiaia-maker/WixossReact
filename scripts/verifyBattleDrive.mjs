@@ -1448,7 +1448,7 @@ const scenarios = {
     },
     async drive(page, H) {
       const before = await H.queryState();
-      H.log('開始時 host.deck/trash:', before?.host, '(hand:', before?.host?.hand, ')');
+      H.log('開始時 host.hand:', before?.host?.hand, 'trash:', before?.host?.trash);
       await H.ensureMain();
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;
