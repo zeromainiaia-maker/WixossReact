@@ -271,7 +271,7 @@
 > R5-R58 で timing flatten の表現バグ（`timing:ON_TURN_END`だが原文トリガーは「〜したとき」＝ターン終了時に付与即失効の実質no-op）はすべて解消（`npx tsx scripts/parserWorklist.ts` で VALUE=0・LOSS=0・同型★0）。**残る作業は表現ではなく engine 配線の実機検証のみ**＝下記R30-R46系トリガーの個別確認、および上記C1 timingのfollow-up。診断＝`npx tsx scripts/archive/_flattenList.ts`（0枚を確認）。詳細な系統別の直し方・分類は `BUGFIXES.md` のR5〜R58エントリを参照。
 
 **残る実機検証項目（R30-R46・engine配線済みだが実機PvP/CPU未検証）**：
-- **ON_OPP_POWER_DECREASED（R46・毒牙）**：WX13-036/WXEX2-52。要確認＝①自効果で相手シグニを-N000したとき、このシグニが+N000される（減少量と一致）②複数同時減少時の合算挙動③相手自身の自己弱体では発火すべきでない（現状は近似で発火しうる）。
+- **ON_OPP_POWER_DECREASED（R46・毒牙）**：WX13-036/WXEX2-52。**①実機FAIL＝実バグ発見（2026-07-09・続き58・Sonnet・未修正・Opus引き継ぎ）**＝`verifyBattleDrive.mjs oppPowerDecreased`（WD11-013→WX13-036）でSELECT_TARGET resume経路がON_SIGNI_FROZEN(R38)と同型の取りこぼし＝watcher無発火（詳細 §6.3・BUGFIXES続き58）。**Opus修正後に再検証すべき残**＝②複数同時減少時の合算挙動③相手自身の自己弱体では発火すべきでない（現状は近似で発火しうる）。
 - **ON_ACCE_ATTACH host条件/ON_REFRESH/ON_LEAVE_FIELD leftToZone（R45）**：①WXK05-041（アクセがレベル4以上のシグニに付いたとき）②WXDi-P04-043（いずれかがリフレッシュ）③WXK02-041（シグニが場→手札に戻った）。
 - **ON_EXCEED_COST 場シグニ（R44）**：WXDi-P06-078。要確認＝①ルリグ起動でエクシードコスト支払時に発火（自ターン・once_per_turn）②対象選択CHOOSEで相手シグニ1体に-5000が実際に適用される③カットインexceedでは未発火（近似）。
 - **ON_ENERGY_TO_TRASH（R43）**：WD15-015。要確認＝①自効果で相手エナをトラッシュに送ったとき発火②自エナ・相手効果による相手エナトラッシュでは非発火（「自効果」限定は近似で未判定）。
