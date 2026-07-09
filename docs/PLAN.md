@@ -78,7 +78,7 @@
   - **リファクタ Stage2/3**（BattleScreen コントローラ設計）。
   - BEHAVIOR_AUDIT の**真no-op vs シナリオ空振りの最終仕分け**とengine修正。
 
-#### 現在の割付（2026-07-07・続き39時点に更新。旧・続き32版は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の履歴で追える）
+#### 現在の割付（2026-07-09・続き57時点に更新。旧版（続き32/39）は git 履歴と [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) で追える。消化済み割付の詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
 > 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。
 
 **Opus 4.8 のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
