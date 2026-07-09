@@ -275,7 +275,7 @@
 - **ON_ACCE_ATTACH host条件/ON_REFRESH/ON_LEAVE_FIELD leftToZone（R45）**：①WXK05-041（アクセがレベル4以上のシグニに付いたとき）②WXDi-P04-043（いずれかがリフレッシュ）③WXK02-041（シグニが場→手札に戻った）。
 - **ON_EXCEED_COST 場シグニ（R44）**：WXDi-P06-078。要確認＝①ルリグ起動でエクシードコスト支払時に発火（自ターン・once_per_turn）②対象選択CHOOSEで相手シグニ1体に-5000が実際に適用される③カットインexceedでは未発火（近似）。
 - **ON_ENERGY_TO_TRASH（R43）**：WD15-015。**①実機FAIL＝実バグ発見（2026-07-09・続き58・Sonnet・未修正・Opus引き継ぎ）**＝`verifyBattleDrive.mjs energyToTrash`（WD15-014→WD15-015）でON_OPP_POWER_DECREASED(R46)と同型のresume経路取りこぼし＝watcher無発火（詳細 §6.3・BUGFIXES続き58）。**Opus修正後に再検証すべき残**＝②自エナ・相手効果による相手エナトラッシュでは非発火（「自効果」限定は近似で未判定）。
-- **ON_CHARM_TO_TRASH（R42）**：WX16-Re05。要確認＝①効果でチャーム付きシグニが離脱/チャーム除去されトラッシュに行ったとき発火②**バトルバニッシュでhostが離脱したとき**（効果解決経路外＝未検出の可能性）。
+- **ON_CHARM_TO_TRASH（R42）**：WX16-Re05。要確認＝①効果でチャーム付きシグニが離脱/チャーム除去されトラッシュに行ったとき発火②**バトルバニッシュでhostが離脱したとき**（効果解決経路外＝未検出の可能性）。⚠**R43/R46と同じresume経路取りこぼしの疑いあり（未実機検証・§6.3の系統的懸念リスト参照）**＝`collectCharmToTrashTriggers`も中央diffのみ配線で resume用inline版が無い。次にこのR42を検証する際は①の前提でFAILする可能性を考慮すること。
 - **placedFront（R41）**：WXDi-P03-043。要確認＝①相手が正面ゾーンにシグニを配置したときのみ発火②正面以外の配置では非発火。
 - **opp-draw（R40）**：WXDi-P04-038/WXDi-P15-091/WD22-029-G/PR-423。⚠近似＝「自分の効果で」発生源限定なし。
 - **outsideDrawPhase（R39）**：WXDi-D09-P19/WXDi-P05-062。要確認＝①メイン/アタックフェイズの効果ドローで発火②ドローフェイズの通常ドローでは非発火。
