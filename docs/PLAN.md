@@ -100,7 +100,7 @@
 2. **verifyBattleDrive のバッチ実行時状態汚染の根本修正**（driver 側のテスト分離強化＝engine/JSON 非依存。続き39後半で13件一括実行時のみ3件FAIL→個別再実行は全PASSを確認済み）。
 3. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
 4. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
-5. **Opus バッチ着地後の再収穫サイクル**（`/census-batch` スキル準拠＝`build:effects`→`heldReview` spot-check→採用→全ゲート→`regen`→BASELINE/PLAN簿記→commit。⚠必須ガードレール4点は上記リスト参照）。**Opus 1〜4 のいずれかが着地するまでは §5c 再収穫に着手しない**（現在プラトー＝空振りになる。続き34着地→続き35収穫の型を踏襲）。
+5. **Opus バッチ着地後の再収穫サイクル**（`/census-batch` スキル準拠＝`build:effects`→`heldReview` spot-check→採用→全ゲート→`regen`→BASELINE/PLAN簿記→commit。⚠必須ガードレール4点は上記リスト参照）。**Opus タスク1〜6 のいずれかが着地するまでは §5c 再収穫に着手しない**（現在プラトー＝空振りになる。続き34着地→続き35収穫の型を踏襲）。
 - ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opus タスク5へ移管済み）**。
 
 ---
