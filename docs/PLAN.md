@@ -96,7 +96,7 @@
 - ~~`GRANT_TO_PLACED_SIGNI` の実装~~ **✅続き42（Opus）で完了（4枚）**。残の引用複合能力付与2枚（WX24-P1-017/WX25-P3-038）はタスク4へ統合（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)・BUGFIXES）。
 
 **Sonnet 5 のタスク（今すぐ回せる在庫・定型消化とデータ単点）**：
-1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝R30/R31/R36/R38-R46・ON_LRIG_ATTACK_STEP_START 全体未検証。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 とバトンに記録）。
+1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝R30-R46（毒牙/ACCE_ATTACH/EXCEED_COST/ENERGY_TO_TRASH/CHARM_TO_TRASH 等）・ON_COIN_PAID/ON_LRIG_GROW/ON_TARGETED の follow-up 項目・ON_LRIG_ATTACK_STEP_START の残3点（《ターン1回》回数制限・原文の厳密スケーリング近似・CPUターン配線。初回検証は続き57でPASS済み）。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 とバトンに記録）。
 2. **verifyBattleDrive のバッチ実行時状態汚染の根本修正**（driver 側のテスト分離強化＝engine/JSON 非依存。続き39後半で13件一括実行時のみ3件FAIL→個別再実行は全PASSを確認済み）。
 3. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
 4. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
