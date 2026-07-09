@@ -5,6 +5,21 @@
 
 ---
 
+## §7 実機検証＝ON_ENERGY_TO_TRASH（R43）で同型のresume経路取りこぼしを発見＋系統的懸念に格上げ（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5・同日第2件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `energyToTrash`（WD15-014→WD15-015）を追加し実機検証。**2件連続で同根の実バグを確認**したため、個別カードのバグではなく「resume経路のinline collectorが一部trigger種別にしか実装されていない」という**構造的ギャップ**として報告を格上げする。
+
+- **対象**＝WD15-015-E1「【自】：あなたの効果によって対戦相手のエナゾーンからカードが１枚トラッシュに置かれたとき、ターン終了時まで、このシグニは【ダブルクラッシュ】を持つ」（`ON_ENERGY_TO_TRASH`）。
+- **盤面**：host に watcher WD15-015 を配置、center lrig を WX04-002（遊月・四戎＝ユヅキ・WD15-014「ユヅキ限定」を満たす）。手札の WD15-014（【出】ON_PLAY・mandatory・コストなしで相手エナ1枚をトラッシュ）を召喚→SELECT_TARGETで相手エナ（WD01-013）を指定。
+- **結果＝FAIL**：`guest.trash` は正しく0→1に増える（TRASH自体はengine内で正しく適用）が、watcher WD15-015 は【ダブルクラッシュ】を一度も得ない（`host.keywordGrants` は終始 `[]`）。`effect_stack` は終始0のまま＝`resolveStackNext`を一切通らず`handleEffectInteraction`（SELECT_TARGET resume）だけで完結。
+- **原因はON_OPP_POWER_DECREASED（本日1件目・上記）と完全に同一パターン**＝`collectEnergyToTrashTriggers`（`triggerCollect.ts:808`）は`BattleScreen.tsx:3717-3739`の中央diffにしか配線されておらず、`handleEffectInteraction`のinline collector 5種（`collectDeckShuffleInline`/`collectBanishOppByEffectInline`/`collectLrigUnderMovedInline`/`collectKeywordGainedInline`/`collectFreezeInline`）には入っていない。
+- **🆕 系統的懸念（静的解析・未実機検証）**＝`BattleScreen.tsx`の中央diffブロック（`resolveStackNext`内・約3559-4150行）には他にも同型で「resume経路のinline版が無い」collectorが並んでいる：`collectMillTriggers`（ON_CARD_MILLED_FROM_DECK）・`collectCharmToTrashTriggers`（ON_CHARM_TO_TRASH＝**R42と同一対象**）・`collectRefreshTriggers`（ON_REFRESH）・`collectMoveToDeckTriggers`（ON_CARD_MOVED_TO_DECK）・`collectDrawTriggers`/`collectOppDrawTriggers`（ON_DRAW/ON_OPP_DRAW）・`collectAllyPlayOrOppDiscardTriggers`・`collectMaterialUsedOnSigniTriggers`・`collectOppArtsUseTriggers`/`collectArtsUseTriggers`。**これらはSELECT_TARGET等の対象選択を伴わない・resumeを経由しない解決が主流の可能性もあり実際に影響するかは未確認**＝一つずつ実機/コード追跡での要検証（Opus判断）。対して`ON_BANISH`/`ON_BLOOM`/`ON_BLOOD_CRYSTAL_ARMOR`/`ON_LEAVE_FIELD`/`ON_DECK_SHUFFLED`/`ON_SIGNI_BANISH_OPPONENT_BY_EFFECT`/`ON_LRIG_UNDER_MOVED`/`ON_KEYWORD_GAINED`/`ON_SIGNI_FROZEN`は既にresume経路にも配線済み（対策済み9種）。
+- **再現**：`node scripts/verifyBattleDrive.mjs energyToTrash`（既定`order`からは除外済み）。
+- **修正方針（未着手・Opus担当＝PLAN.md §6.3参照）**：まず`collectPowerDecreaseInline`／`collectEnergyToTrashInline`の2つを既存5種と同型で追加。その後、上記「系統的懸念」リストの各trigger種別についても同じ抜けが無いか横断監査し、影響があるものは同型のinline collectorで一括是正するのが本筋（個別カード単位ではなく機構単位の修正）。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝ON_OPP_POWER_DECREASED（R46・毒牙）で resume経路取りこぼしの実バグを発見（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `oppPowerDecreased`（WD11-013→WX13-036）を追加し実機検証。**発見した事象自体はまだ修正していない**＝観測結果の記録とOpusへの引き継ぎのみ（PLAN §3運用ルール「発見したバグの修正自体はOpusに回す」に従う）。ON_SIGNI_FROZEN（R38・続き40/41）と**同型のバグ**。
