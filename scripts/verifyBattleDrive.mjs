@@ -1384,10 +1384,6 @@ const scenarios = {
       for (let s = 0; s < 24; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/handDiscard-${s}.png`, fullPage: true });
-        if (s === 0) {
-          const dbgSt = await H.queryState();
-          H.log('DEBUG lrigTop:', dbgSt?.host?.lrigTop, 'lrigUnder:', dbgSt?.host?.lrigUnder, 'turnPhase:', dbgSt?.turnPhase, 'activeUser:', dbgSt?.activeUser);
-        }
         let did = null;
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
