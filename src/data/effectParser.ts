@@ -1412,20 +1412,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
-  const parsed =
+  return (
     parseSentencePart1(t) ??
     parseSentencePart2(t) ??
     parseSentencePart3(t) ??
     parseSentencePart4(t) ??
-    { type: 'UNKNOWN', raw: t } as UnknownAction;
-  // 「ターン終了時まで、」プレフィックス除去で PERMANENT に潰れた action 内 duration/until を復元する
-  // （1341-1344・1956-1959 の CONDITIONAL/bonus 復元と同じ idiom を先頭付与形にも適用）。
-  if (hadUntilEndOfTurn) {
-    const r = parsed as { duration?: string; until?: string };
-    if (r.until === 'PERMANENT') r.until = 'UNTIL_END_OF_TURN';
-    else if (r.duration === 'PERMANENT') r.duration = 'UNTIL_END_OF_TURN';
-  }
-  return parsed;
+    { type: 'UNKNOWN', raw: t } as UnknownAction
+  );
 }
 
 // ===== 文分割 =====
