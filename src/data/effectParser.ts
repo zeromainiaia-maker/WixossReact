@@ -1392,10 +1392,6 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
   // タイミング・期間プレフィックスを除去（既にパースブロックで処理済み）
-  // 「ターン終了時まで、」を落とすと下流の付与/パワー修正が action 内 duration を既定 PERMANENT に潰す。
-  // 効果レベル duration とは別に action 内 duration/until を持つ付与系（GRANT_KEYWORD 等）を後段で
-  // UNTIL_END_OF_TURN に復元するため、除去前にプレフィックスの有無を控える（続き56発見・WX25-P2-062）。
-  const hadUntilEndOfTurn = /^ターン終了時まで、/.test(text.trim().replace(/。$/, ''));
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
     .replace(/^あなたのターン終了時、/, '')
