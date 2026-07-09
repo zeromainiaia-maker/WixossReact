@@ -5,6 +5,18 @@
 
 ---
 
+## §3 動的比較 lrig相対の残＝WXK07-025-E2「より低い場合」condition脱落を parser修正＋完全形MANUAL化（census 1574→1573）（2026-07-09・続き59・Opus 4.8・第2件）
+
+続き55（Opus）が defer した WXK07-025-E2 を消化。原文「【自】：このシグニがアタックしたとき、あなたのセンタールリグのレベルが対戦相手のセンタールリグ**より低い場合**、カードを１枚引き、ターン終了時まで、このシグニのパワーを＋7000する」が curated では**condition と DRAW を両方落とした裸の `POWER_MODIFY`**（毎アタック無条件発火＋ドロー消失＝過剰効果）だった。2つの独立バグを分離特定。
+
+- **① condition脱落の根本原因（parser修正）**＝`effectParser.ts:1307` の CLAUSES 条件節正規表現が `対戦相手のセンタールリグ(以下|より低い|より高い|以上)**の場合**` とハードコードしていたが、日本語では「以下/以上」は「〜**の**場合」・「より低い/より高い」は「〜場合」（の無し）＝**「より低い場合」に「の場合」がマッチせず条件が持ち上がらなかった**。続き55 が LRIG_LEVEL_CMP_OPP を新設した際、検証カード（WXK07-025-E1・WXK10-068-E2）が両方「以下**の場合**」だったため の無しケースが露出していなかった。**修正**＝`(以下|より低い|より高い|以上)**の?**場合`（の を optional 化）。blast radius＝held 118→119（**WXK07-025 のみ**・auto-adopt 変更ゼロ＝クリーンかつ narrow）。
+- **② DRAW脱落（systematic のため本カードは MANUAL 温存）**＝condition が持ち上がった後の then「カードを１枚引き、ターン終了時まで、パワー＋7000」を `parseSingleSentence` 直呼び（CLAUSES then 経路）で処理する際、先頭 DRAW が後続の汎用 POWER_MODIFY 規則に飲まれて脱落する（top-level の `parseActionTextInner` drawAndM は通らない）。`parseSingleSentenceInner` に「カードをN枚引き、X」SEQUENCE 化を足すと **19枚に波及し入れ子SEQUENCE（SEQUENCE内SEQUENCE）を量産**（WX24-P1-013/WXDi-P05-068/WX14-062 等＝要flatten＋各カードverifyの systematic バッチ）ため見送り。**本カードは完全形 `CONDITIONAL{lt, SEQUENCE[DRAW 1, POWER_MODIFY +7000 thisCardOnly]}` を parseStatus:MANUAL で温存**（[[effects-json-hand-maintained]]・「手書き効果は MANUAL 刻印必須」に従い直パッチ）。
+- **成果**＝WXK07-025 un-held（MANUAL 温存）・held 119→118・**逆翻訳が原文完全一致**（「…より低いなら、あなたのカードを1枚引く。そしてこのシグニのパワーを＋7000する」）・**census 1574→1573**（LRIG比較条件が計上され高シグナル欠落-1・`BASELINE_HIGH` を 1573 に締め）。
+- **残（follow-up）**＝(a)「カードをN枚引き、X」の parseSingleSentence 直呼び経路での DRAW 脱落＝flatten込みの systematic バッチ（19枚・入れ子SEQUENCE回避）。(b)続き55 defer の WXK07-025-E2 は本件で消化・WXK08-005-E1（「…より低いかぎり、キーは《アイコン》を得る」＝CONTINUOUS activeCondition＋キー付与）は別機構で未着手。
+- **検証**＝`npm run typecheck` 緑・`npm run gates` 全緑（golden/smoke/fuzz/census 1573/lint 0 errors）・`npm run regen` で同型★0維持・isolated parse 4パターンで condition/draw の分離を確認。
+
+---
+
 ## §5c parser回帰の原因調査＝続き56発見の4系統×8枚を全解明・EQUALIZE owner欠落／EXILE owner反転をparser修正（held 124→118）／duration・triggerScopeは誤診と判定（2026-07-09・続き59・Opus 4.8）
 
 続き56（Sonnet）が held に残置し「現行parser規則のどこかで owner/duration/triggerScope が後段の汎用ルールに上書きされている疑い」として Opus に申し送った4系統を、8枚を fresh 実parse（`tmp_investigate56.ts`）で原文照合し全解明した。**うち2系統は真の parser バグでその場修正、2系統は engine/decompiler の観点から誤診と判明**。
