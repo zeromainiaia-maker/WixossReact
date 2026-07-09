@@ -1306,6 +1306,49 @@ const scenarios = {
       return { pass: false, detail: 'GROW通過を確認できず（判断到達せず・inconclusive）' };
     },
   },
+
+  // ㉒ WXDi-P15-091: 【自】ON_DRAW（triggerScope:any_opp）＝§7 R40「opp-draw」の実機検証。
+  //    対戦相手が効果でカードを引いたとき、あなたも1枚引く（《ターン1回》）。
+  //    ドロー源＝guest（CPU）の WX12-047（【自】このシグニがアタックしたとき、カードを1枚引く＝条件なし単純DRAW）。
+  //    CPU自動アタック（wd07012/wxk10068banishと同型・クリック不要）でguestが効果ドロー
+  //    → resolveStackNext中央diff（cards_drawn_by_effect_this_turnの増加検出）→collectOppDrawTriggersがhostのwatcherを発火。
+  //    原因アクション（DRAW・対象選択なし）はSELECT_TARGET等の対話を要さないためresolveStackNextのdoneブランチで
+  //    正常収集される想定（R31 drawBySourceStoryと同型＝resume経路取りこぼしの穴とは無関係）。
+  oppDraw: {
+    title: 'WXDi-P15-091→WX12-047（ON_DRAW any_opp＝対戦相手が効果でカードを引いたとき、自分も1枚引く）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P15-091#1'], null, null], // watcher（羅石　ラブラドライト・自陣）
+        'cards_drawn_by_effect_this_turn': 0,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX12-047#1'], null, null], // CPUアタッカー（幻水　ヤリイカ・アタック時ドロー条件なし）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+        'cards_drawn_by_effect_this_turn': 0,
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'guest.hand:', before?.guest?.hand);
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/oppdraw-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/ラブラドライト.*対戦相手ドロー時|の【自】効果（対戦相手ドロー時）/);
+        H.log(`  oppdraw[${s}] hHand=${st?.host?.hand ?? '-'}(開始${before?.host?.hand}) gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) stack=${st?.stackLen ?? '-'} watcher=${!!watcherLog}`);
+        if (watcherLog) {
+          return { pass: true, detail: `ON_DRAW any_opp 発火→host が1枚ドロー確認（hHand ${before?.host?.hand}→${st.host.hand}）・watcher「${watcherLog}」` };
+        }
+        // ガード/応答プロンプトが出たら拒否（保険）
+        await H.clickTextOrBtn(['ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_DRAW any_opp 発火ログ未確認（hHand=${fin?.host?.hand ?? '-'}（開始${before?.host?.hand}）pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
