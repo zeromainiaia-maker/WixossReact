@@ -5,6 +5,18 @@
 
 ---
 
+## §7 実機検証＝WXK10-068（LRIG_LEVEL_CMP_OPP）の CONDITIONAL BANISH を実UIで確認＋verifyBattleDrive 新シナリオ追加（2026-07-09・続き56・Sonnet 5）
+
+続き55（Opus）で着地した動的比較 lrig相対ファミリ（`LRIG_LEVEL_CMP_OPP`）の実機検証。golden はエンジン単体の条件分岐を保証するが、§7 の役割は「実UI・CPU戦を通した総合動作」の確認＝`scripts/verifyBattleDrive.mjs` に新シナリオ `wxk10068banish` を追加。
+
+- **対象**＝WXK10-068-E2「【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、それをバニッシュする。」自Lv2（WD03-003）≦相手Lv3（WD03-002）で条件成立、E1（`POWER_MODIFY_PER_LRIG_LEVEL`）込みの実効パワー4000で対象（WD01-013・P3000）が `powerLtSelf` を満たす構成。
+- **判別方法**＝対象カードの filter が「自分より弱い相手」を要求する都合上、通常バトルでも同じ相手シグニが負けうる（confound）。**バトル比較ログ「（Ｐ）vs（Ｐ）」の有無で、effect起因のBANISH（execBanish／主語なし「〜をバニッシュ」ログ）とbattle起因のバニッシュ（`handleSigniAttack` 側「Xが Yをバニッシュ」ログ）を判別**＝vs行が出る前に対象が消滅＝`effectivelyEmpty` 化でバトル自体がスキップされた証拠。
+- **実機PASS**＝盤面ログ「[自分] 羅原　Ｃ３H８ の【自】効果（シグニアタック時）」→ SELECT_TARGET ピッカー→確定→guest zone0（WD01-013）消滅・vs行なし。
+- **ハーネス側の教訓（2件・既存の型に合流）**：①`getByRole('button',{name:'アタック',exact:false})` はヘッダー常設の「ルリグアタックへ」ボタン（部分一致で"アタック"を含む）を誤って先にヒットする＝**アタック宣言ボタンは `exact:true` 必須**（他のラベルでも部分一致は誤爆リスクあり）。②注入直後に `turn_phase` が MAIN 等へ巻き戻るレースは `openGrow` と同型＝ATTACK_SIGNI 系シナリオでもループ内で毎周 `turnPhase` を確認し `repatchTop` で再アサートする必要がある（本シナリオで新規に確立・以後 ATTACK_SIGNI 系シナリオのテンプレとして再利用可）。
+- `order` 配列に追加済み（`npm run` 系の一括実行では走らないが `node scripts/verifyBattleDrive.mjs`（無引数）の既定バッテリーに合流）。
+
+---
+
 ## §5c 再収穫サイクル＝held 96署名グループを全数レビュー・採用0（EQUALIZE_ENERGY 等の parser 回帰4系統を発見・全件差し戻し）（2026-07-09・続き56・Sonnet 5）
 
 続き55（Opus）着地後の再収穫サイクル。`node scripts/heldReview.mjs`＝held 126枚／署名グループ96件。**モデル分担どおり、構造変更を伴う95グループ（CHOOSE平坦化復元・GRANT_FIELD/LRIG_ABILITY の引用能力ラップ化・EXILE→TRASH変換等＝意味的退化の見極めが要るバッチ）は Opus 分担のため触らず held のまま温存**。Sonnet の担当範囲＝残る唯一の非構造グループ「（type増減なし＝値/構造変更）」9枚のみを原文照合。
