@@ -2202,10 +2202,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- エナゾーンをN枚に均等化 ----
+  // 主語で調整対象プレイヤーを決める：「対戦相手は自分の…」＝相手のみ（owner:'opponent'）／
+  // 「各プレイヤーは自分の…」＝両方（owner未指定）／「あなたは自分の…」＝自分のみ。
+  // 従来は主語を無視して owner を落としていたため、execEqualizeEnergy が「両プレイヤー」既定になり
+  // 自分のエナまで巻き込む過剰効果だった（WX10-005②/WX12-021-BURST/WX14-054/WXK11-008/WXK11-058・続き56発見）。
   {
-    const equalizeM = t.match(/自分のエナゾーンのカードが([０-９\d]+)枚になるように/);
+    const equalizeM = t.match(/(?:(対戦相手|各プレイヤー|あなた)は)?自分のエナゾーンのカードが([０-９\d]+)枚になるように/);
     if (equalizeM) {
-      return { type: 'EQUALIZE_ENERGY', targetCount: parseNum(equalizeM[1]) } as EqualizeEnergyAction;
+      const subj = equalizeM[1];
+      const owner: Owner | undefined = subj === '対戦相手' ? 'opponent' : subj === 'あなた' ? 'self' : undefined;
+      return { type: 'EQUALIZE_ENERGY', targetCount: parseNum(equalizeM[2]), ...(owner ? { owner } : {}) } as EqualizeEnergyAction;
     }
   }
 
