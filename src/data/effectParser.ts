@@ -1414,23 +1414,6 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
-  // 「カードをN枚引き、X」連用形＝DRAW + 後続 を SEQUENCE 化（parseActionTextInner の top-level drawAndM と同型）。
-  // parseSingleSentence を直呼びする経路（CLAUSES 条件持ち上げの then・splitSentences の各文・CHOOSE 選択肢等）では
-  // top-level drawAndM を通らず、先頭 DRAW が後続の汎用規則（POWER_MODIFY 等）に飲まれて脱落していた
-  // （WX18-083/WXK07-025-E2 等19枚＝原文の「カードを１枚引き」が消える過剰でなく過少バグ）。後続がパース可能な
-  // ときだけ分割し、後続が SEQUENCE なら平坦化する（入れ子 SEQUENCE は既存37効果で許容済みだが immediate は展開）。
-  const drawAndSeqM = t.match(/^カードを([０-９\d]+)枚引き、(.+)$/s);
-  if (drawAndSeqM) {
-    const rest = parseSingleSentence(drawAndSeqM[2]);
-    if (rest.type !== 'UNKNOWN') {
-      const restSteps = rest.type === 'SEQUENCE' ? (rest as SequenceAction).steps : [rest];
-      return { type: 'SEQUENCE', steps: [
-        { type: 'DRAW', owner: 'self', count: parseNum(drawAndSeqM[1]) },
-        ...restSteps,
-      ] } as SequenceAction;
-    }
-  }
-
   return (
     parseSentencePart1(t) ??
     parseSentencePart2(t) ??
