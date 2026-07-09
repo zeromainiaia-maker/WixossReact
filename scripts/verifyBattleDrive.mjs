@@ -1362,6 +1362,7 @@ const scenarios = {
     title: 'WDA-F02-17→WXK10-065（ON_TRASH self・fromZones:hand＝このカードが手札から捨てられたとき）',
     spec: {
       hostSet: {
+        'field.lrig': ['WD01-001#1'],             // 任意センター（Lv4/Limit11＝Lv1召喚に十分）
         'field.signi': [null, null, null],
         'hand': ['WDA-F02-17#1', 'WXK10-065#1'], // index0=watcher兼原因カード自身／index1=捨てさせる側（【出】手札1枚捨てる）
         'energy': ['WD03-013#1', 'WD05-013#1'],  // 任意コスト《青》《黒》用
