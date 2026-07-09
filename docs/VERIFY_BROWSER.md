@@ -186,6 +186,10 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - `order`配列からは除外（FAIL）。
 - **修正方針への示唆**＝この反例により、`collectFreezeInline`型の個別inline collector追加という対症療法はSEQUENCE構造次第で同じcollectorが再FAILしうる（本件が実例）ため不十分と判明＝根本修正（`result.done`に関わらず両経路から共通で呼べる収集関数への統合）を優先すべき。
 
+### ✅ ON_LEAVE_FIELD leftToZone（R45③）をPASSで確認＝対話ありでも問題ない対照実験（2026-07-09・続き58・Sonnet 5・同日第6件）
+
+`leaveFieldToHand`（WX21-057→WXK02-041）を追加検証したところ**PASS**。ON_LEAVE_FIELDは既に`resolveStackNext`中央diff（3616行）と`handleEffectInteraction`resume（4395行）の両方に配線済み（§6.3「対策済み9種」の1つ）のため、原因アクション（BOUNCE・SELECT_TARGET対話あり）に関わらず正常に発火することを確認した。watcher WXK02-041（讃の遊 オエカキボード）をzone0、原因カードWX21-057（小罠 ツララ）をsummon-zone-1へ配置しBOUNCE対象をpick-1（自分自身）に選択→ログ「讃の遊　オエカキボード の【自】効果（味方が場を離れたとき）」を確認。`order`配列に復帰済み。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
