@@ -1414,13 +1414,30 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
-  return (
+  const result =
     parseSentencePart1(t) ??
     parseSentencePart2(t) ??
     parseSentencePart3(t) ??
     parseSentencePart4(t) ??
-    { type: 'UNKNOWN', raw: t } as UnknownAction
-  );
+    { type: 'UNKNOWN', raw: t } as UnknownAction;
+
+  // 「カードをN枚引き、X」で下流パーサが先頭 DRAW を落としていた場合のみ DRAW を前置する。
+  // ⚠isolation で rest を再parse しない（＝続き59で revert した eager split の敗因＝複合ハンドラ
+  //   「カードを引き、手札からデッキへ置く」=SEQUENCE[DRAW,TRANSFER_TO_DECK] の preempt や、単独 fragment の
+  //   mis-parse を回避）。全文の parseSentencePart 結果が「既に先頭 DRAW を含む＝複合ハンドラが正しく処理済み」
+  //   なら触らず、含まない＝X だけ解析され DRAW が飲まれた場合のみ DRAW を積む。UNKNOWN は悪化させない。
+  const leadDrawM = t.match(/^カードを([０-９\d]+)枚引き、/);
+  if (leadDrawM && result.type !== 'UNKNOWN') {
+    const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
+    const hasLeadingDraw = steps0[0]?.type === 'DRAW';
+    if (!hasLeadingDraw) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'self', count: parseNum(leadDrawM[1]) },
+        ...steps0,
+      ] } as SequenceAction;
+    }
+  }
+  return result;
 }
 
 // ===== 文分割 =====
