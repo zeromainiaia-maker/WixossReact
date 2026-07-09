@@ -84,7 +84,7 @@
 **Opus のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
 1. ~~続き56発見の4系統×8枚の原因調査~~ **✅続き59（Opus）で全解明**＝EQUALIZE_ENERGY owner欠落（真バグ5枚・parser修正）／EXILE owner反転（真バグ1枚・parser修正）は是正して held 124→118。duration「反転」（WX25-P2-062）と triggerScope欠落（WXDi-CP02-TK01A）は誤診と判定（前者は engine機能同一だが逆翻訳注記の退化＝held温存が正／後者は fresh が triggerScope保持済み・held は STUB機構待ちが理由）。詳細 BUGFIXES 続き59。**残＝派生課題**＝durational付与の**先頭位置「ターン終了時まで」で action内duration が落ち decompileの期間注記（（ターン終了時まで））が脱落する約102枚**（engine非依存の逆翻訳忠実性・§5b decompileテール・一括置換禁止＝母集団を機械抽出→系統確立→各カードverify）。
 2. **effect-restriction（配置数制限）**（WXK11-074等・§6 BLOCK機構・実機検証必須）。
-3. **census「動的比較」の残**＝(b)opp/own センタールリグ（WX19-042 は target が LRIG に誤パース＝mis-parse 修正が先／WXK11-003）・デッキ相対 SEARCH（WDK13-013/WXEX2-28/WXEX2-37/WXK10-033）・条件文（WXK07-025/WXK08-005）・lrig相対（WXEX2-25-E3・WXK07-025-E2 の DRAW+condition 復元）＝いずれも別機構。自己参照/トリガー参照/designation/anyAlly/printed/lastProcessed 系は続き43-47で✅消化済み（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)・BUGFIXES）。
+3. **census「動的比較」の残**＝(b)opp/own センタールリグ（WX19-042 は target が LRIG に誤パース＝mis-parse 修正が先／WXK11-003）・デッキ相対 SEARCH（WDK13-013/WXEX2-28/WXEX2-37/WXK10-033）・条件文（WXK08-005）・lrig相対（WXEX2-25-E3）＝いずれも別機構。~~WXK07-025-E2 の DRAW+condition 復元~~ **✅続き59（Opus）で消化**（`の?場合` parser修正＋完全形MANUAL・BUGFIXES続き59第2件。DRAW脱落の parseSingleSentence 直呼び経路 systematic〔19枚・入れ子SEQUENCE〕は follow-up）。自己参照/トリガー参照/designation/anyAlly/printed/lastProcessed 系は続き43-47で✅消化済み（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)・BUGFIXES）。
 4. **引用内 CHOOSE**（WXDi-D09-P20）＋ GRANT_QUOTED_AUTO_ABILITY の内側 ability parse（WX24-P1-017/WX25-P3-038＝「「【自】…」を得る」）＋引用付与の内側品質不全27の再収穫（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）。
 5. **§5c census 条件節の残**（ARTS_USED拡張・「代わりに」WX25-P2-068/070・「あり」複合条件WXDi-P11-048）。
 6. **CHOOSE平坦化復元の採用待ち held 約35枚**（続き29 parser修正の採用バックログ・意味的退化の見極めが要る。⚠着手前に必ず全数機械分類＝続き24-29の型）。
