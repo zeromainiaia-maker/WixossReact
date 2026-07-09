@@ -912,6 +912,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const opLv = parseInt(ctx.cardMap.get(opLrig)?.Level ?? '-2', 10);
       return myLv === opLv;
     }
+    case 'LRIG_LEVEL_CMP_OPP': {
+      // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合
+      const myLrig = s.field.lrig.at(-1);
+      const opLrig = o.field.lrig.at(-1);
+      if (!myLrig || !opLrig) return false;
+      const myLv = parseInt(ctx.cardMap.get(myLrig)?.Level ?? '', 10);
+      const opLv = parseInt(ctx.cardMap.get(opLrig)?.Level ?? '', 10);
+      if (isNaN(myLv) || isNaN(opLv)) return false;
+      return cond.operator === 'lt' ? myLv < opLv
+        : cond.operator === 'lte' ? myLv <= opLv
+        : cond.operator === 'gt' ? myLv > opLv
+        : myLv >= opLv;
+    }
     case 'LRIG_NAME_CONTAINS': {
       const lrig = st(cond.owner).field.lrig.at(-1);
       if (!lrig) return false;
