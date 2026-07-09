@@ -1349,6 +1349,74 @@ const scenarios = {
       return { pass: false, detail: `ON_DRAW any_opp 発火ログ未確認（hHand=${fin?.host?.hand ?? '-'}（開始${before?.host?.hand}）pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ㉓ WDA-F02-17: 【自】ON_TRASH（triggerScope:self・triggerCondition.fromZones:['hand']）＝§7 R36「手札捨て/トラッシュ
+  //    flatten」の実機検証。「このカードが手札からトラッシュに置かれたとき」＝自己参照トリガー。
+  //    原因＝WXK10-065（【出】：あなたは手札を1枚捨てる＝TRASH HAND_CARD self count1・SELECT_TARGET要）で
+  //    手札に残った WDA-F02-17 自身を選んで捨てさせる。
+  //    ⚠この TRASH アクション自体が SELECT_TARGET（手札からどれを捨てるか）を要するため、続き58が確立した理論
+  //    （「そのstack entry解決中に対話が挟まると resolveStackNext の done ブランチを通らず収集を逃す」）どおりなら
+  //    collectAnyZoneTrashSelfTriggers（handleEffectInteraction 側に inline 版なし）が resume 経路で取りこぼす
+  //    可能性がある＝R43/R46/R39と同型の新規インスタンスかどうかを実機で確認する回。
+  handDiscard: {
+    title: 'WDA-F02-17→WXK10-065（ON_TRASH self・fromZones:hand＝このカードが手札から捨てられたとき）',
+    spec: {
+      hostSet: {
+        'field.signi': [null, null, null],
+        'hand': ['WDA-F02-17#1', 'WXK10-065#1'], // index0=watcher兼原因カード自身／index1=捨てさせる側（【出】手札1枚捨てる）
+        'energy': ['WD03-013#1', 'WD05-013#1'],  // 任意コスト《青》《黒》用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null], // POWER_MODIFY -5000 の対象候補
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand);
+      await H.ensureMain();
+      H.log('手札クリック(WXK10-065):', await H.clickTestId('my-hand-card-1') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/handDiscard-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0');
+        // 任意コスト《青》《黒》：optcost-energy 2枚→pay
+        if (!did) {
+          const oc0 = page.getByTestId('optcost-energy-0').first();
+          if (await oc0.count() && await oc0.isVisible().catch(() => false)) {
+            for (const i of [0, 1]) { const e = page.getByTestId(`optcost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) await e.click().catch(() => {}); }
+            await page.waitForTimeout(200);
+            const pay = page.getByTestId('optcost-pay').first();
+            if (await pay.count() && await pay.isEnabled().catch(() => false)) { await pay.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+        }
+        if (!did) { // SELECT_TARGET（WXK10-065の手札捨て対象＝残る手札1枚＝WDA-F02-17自身／POWER_MODIFY対象も同パターンで拾う）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/コオニの左目.*トラッシュ時|の【トラッシュ時】効果（手札／エナから）/);
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
+        H.log(`  hd[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'}(開始${before?.host?.hand}) hTrash=${st?.host?.trash ?? '-'} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        if (debuffed || watcherLog) {
+          return { pass: true, detail: `ON_TRASH(self,fromZones:hand) 発火→対戦相手 WD01-013 に-5000（gPowerMods=${(st.guest.powerMods).join(',')}）・watcher「${watcherLog}」` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_TRASH(self,fromZones:hand) 未確認（hHand=${fin?.host?.hand ?? '-'}（開始${before?.host?.hand}） hTrash=${fin?.host?.trash ?? '-'} gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
