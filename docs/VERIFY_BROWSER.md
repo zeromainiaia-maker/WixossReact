@@ -190,6 +190,15 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 `leaveFieldToHand`（WX21-057→WXK02-041）を追加検証したところ**PASS**。ON_LEAVE_FIELDは既に`resolveStackNext`中央diff（3616行）と`handleEffectInteraction`resume（4395行）の両方に配線済み（§6.3「対策済み9種」の1つ）のため、原因アクション（BOUNCE・SELECT_TARGET対話あり）に関わらず正常に発火することを確認した。watcher WXK02-041（讃の遊 オエカキボード）をzone0、原因カードWX21-057（小罠 ツララ）をsummon-zone-1へ配置しBOUNCE対象をpick-1（自分自身）に選択→ログ「讃の遊　オエカキボード の【自】効果（味方が場を離れたとき）」を確認。`order`配列に復帰済み。
 
+### ✅ opp-draw（R40）をPASSで確認＝対戦相手が効果で引いたときの反応系watcherも問題なし（2026-07-09・続き60・Sonnet 5）
+
+`oppDraw`（WXDi-P15-091→WX12-047）を新設し実機検証したところ**PASS**。host に watcher WXDi-P15-091（羅石　ラブラドライト・ON_DRAW・triggerScope:any_opp・《ターン1回》対戦相手が効果でカードを引いたとき自分も1枚引く）を配置、guest（CPU）に WX12-047（幻水　ヤリイカ・【自】このシグニがアタックしたとき条件なしでカードを1枚引く）を配置し、CPU自動アタック（`wd07012`と同型・クリック不要）で発火させた。
+
+- **ground truth も watcher も両方確認**＝ログ「[相手] 幻水　ヤリイカ の【自】効果（シグニアタック時）」→「1枚ドロー」（guest自身の効果ドロー）→「[自分] 羅石　ラブラドライト の【自】効果（対戦相手ドロー時）」→「1枚ドロー」（host側watcherのドロー）。`hHand` が5→6に増加。2回連続PASSで安定。
+- **機構的にR31(drawBySourceStory)と同型**＝原因アクション（WX12-047のDRAW）はSELECT_TARGET等の対話を要さないため`resolveStackNext`の`done`ブランチで`collectOppDrawTriggers`が正常収集される＝R43/R46/R39のresume経路取りこぼしの穴とは無関係（対話が挟まらないON_DRAW系はR31と同じく安全という理論をany_opp側でも追加確認）。
+- **ハマりどころ**＝WX12-047の攻撃は host 側に前方ブロッカーが無かったため素通りしてライフクロスクラッシュが発生し、「ライフクロスクラッシュ」確認モーダル（バーストなし→「エナに送る」ボタン）が挟まった。このボタンをdriverのクリック候補に追加していないと、モーダルで停止したまま`resolveStackNext`（ON_DRAWの収集箇所）に到達せずFAILする（最初の試行はこれで無発火FAILだった）。`clickTextOrBtn`に`'エナに送る'`を追加して解消。
+- `order`配列に追加済み（末尾）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
