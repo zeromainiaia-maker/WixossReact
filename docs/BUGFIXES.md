@@ -5,6 +5,17 @@
 
 ---
 
+## §5c 再収穫サイクル＝held 96署名グループを全数レビュー・採用0（EQUALIZE_ENERGY 等の parser 回帰4系統を発見・全件差し戻し）（2026-07-09・続き56・Sonnet 5）
+
+続き55（Opus）着地後の再収穫サイクル。`node scripts/heldReview.mjs`＝held 126枚／署名グループ96件。**モデル分担どおり、構造変更を伴う95グループ（CHOOSE平坦化復元・GRANT_FIELD/LRIG_ABILITY の引用能力ラップ化・EXILE→TRASH変換等＝意味的退化の見極めが要るバッチ）は Opus 分担のため触らず held のまま温存**。Sonnet の担当範囲＝残る唯一の非構造グループ「（type増減なし＝値/構造変更）」9枚のみを原文照合。
+
+- **結果＝9枚とも採用しない（held のまま）**。内訳＝**5枚が同一系統の parser 回帰**（WX10-005選択肢②・WX12-021 LB・WX14-054・WXK11-008・WXK11-058＝いずれも原文「対戦相手は自分のエナゾーンのカードがN枚になるように、エナゾーンからカードをトラッシュに置く」＝対戦相手のみ限定なのに、現行 parser の fresh 出力は `EQUALIZE_ENERGY{targetCount:N}` から `owner` を欠落＝`execEqualizeEnergy`（`effectExecutor.ts:737`）は「owner未指定＝各プレイヤー（両方）」なので、このまま採用すると**自分のエナも巻き込んで調整される誤動作**になるところだった）。**WXDi-P05-043**＝原文「あなたのトラッシュにあるスペルを２枚までゲームから除外する」＝exile元は自分のトラッシュのはずが、fresh は該当 EXILE ステップの `target.owner` を `self`→`opponent` に誤反転。**WX25-P2-062**＝原文「ターン終了時まで、このシグニは【アサシン】を得る」の `duration` が fresh で `UNTIL_END_OF_TURN`→`PERMANENT` に誤変化。**WXDi-CP02-TK01A**＝原文「対戦相手のターン終了時、このシグニをゲームから除外する」に必要な `triggerScope:"any_opp"` を fresh が欠落（curated は正しく保持）。残り**WXK11-058 系と同型のWX18-034**は `target.count 1→"ALL"` の非本質差分（CONT保護は count 無視で機能等価・既知の非一貫性 [[vocab-census-overfire-blindspot]]）＝据置で実害なし。
+- **⚠ヒヤリハット**：作業中、上記5枚の `owner` 欠落を「fresh が owner を新たに正しく補完した」と誤読し（heldReview の leaf diff は `oldE→newE` で `-` はcurated側にしか無い＝fresh が失う変更を意味するのに、逆＝fresh が追加する変更と取り違えた）、一度 `--adopt` して `npm run gates`（全緑）まで走らせてしまった。**`npm run regen` の decompile 差分で「対戦相手のエナゾーンの…」→「各プレイヤーのエナゾーンの…」という文面変化に気付いて誤りを検出**＝gates が全緑でも「意味が退化」はゲートを素通りする実例（PLAN §3 が警告する失敗モードそのもの）。`git checkout` で3つの `effects_*.json` と再生成された decompile シート／`grouped_sentence_all.txt` を丸ごと差し戻し、コミット前に発見・是正。**教訓＝heldReview の `-`/`+` は必ず「curated(旧)→fresh(新)」方向で読む。`-`＝fresh が失う（採用注意）、`+`＝fresh が足す（採用候補）**。[[effects-json-hand-maintained]]
+- **Opus への申し送り**＝上記 EQUALIZE_ENERGY owner 欠落・EXILE owner 反転・duration 反転・triggerScope 欠落の4系統は、**現行 parser 規則のどこかで owner/duration/triggerScope が後段の汎用ルールに上書きされて失われている**可能性＝該当カード群（5+1+1+1=8枚）の parser 規則を辿って原因箇所の特定が要る（本セッションでは修正せず、held に残置のまま次回送り）。
+- **検証**＝`npm run typecheck` 緑（作業開始前後とも）。誤採用は commit 前に検出・全差し戻し＝**リポジトリの実差分はゼロ**（`git status` clean）。
+
+---
+
 ## §4タスク2 動的比較＝「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い〕の場合」condition 脱落是正（`LRIG_LEVEL_CMP_OPP` 新設・2枚）（2026-07-09・続き55・Opus 4.8）
 
 続き54（levelLtOppLrig）に続く lrig 相対比較ファミリ。「このシグニがアタックしたとき、…あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、…」型で**自/相手中央ルリグのレベル比較 condition が脱落**し、アタックのたびに無条件発火していた過剰効果を是正。[[vocab-census-overfire-blindspot]]
