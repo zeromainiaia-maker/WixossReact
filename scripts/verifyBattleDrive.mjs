@@ -753,6 +753,55 @@ const scenarios = {
     },
   },
 
+  // ⑯ WX25-CP1-042: ON_LRIG_ATTACK_STEP_START（§7・全体未検証だった宿題）。
+  //    【自】《ターン１回》：あなたのルリグアタックステップ開始時、…対戦相手は手札を１枚捨てる（+ブルアカ-5000は
+  //    パース近似・厳密スケーリングは別課題＝§7既存の注記どおり、ここでは「フェイズ遷移でE2が発火すること」だけを見る）。
+  //    ATTACK_SIGNI→ATTACK_LRIG のフェイズ進行ボタン（PHASE_BTN.ATTACK_SIGNI='ルリグアタックへ'）で
+  //    collectLrigAttackStepStartTriggers 相当が発火するかを実UIで確認する。
+  lrigattackstepstart: {
+    title: 'WX25-CP1-042（ON_LRIG_ATTACK_STEP_START＝ルリグアタックステップ開始時 相手手札1捨て）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX25-CP1-042#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'phase:', before?.turnPhase);
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigattackstepstart-${s}.png`, fullPage: true });
+        let did = null;
+        // 注入直後の turn_phase 巻き戻りレース対策（openGrow/wxk10068banish と同型）。
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase === 'MAIN' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = 'repatch:ATTACK_SIGNI';
+        }
+        if (!did) did = await H.clickTextOrBtn(['ルリグアタックへ']);
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        const handDropped = typeof before?.guest?.hand === 'number' && typeof st?.guest?.hand === 'number' && st.guest.hand < before.guest.hand;
+        const fired = (st?.host?.actionsDone ?? []).includes('WX25-CP1-042-E2') || handDropped;
+        H.log(`  las[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase ?? '-'} gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) done=${(st?.host?.actionsDone ?? []).join(',')} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify((st?.logTail ?? []).slice(-3))}`);
+        if (fired && st?.turnPhase !== 'ATTACK_SIGNI') {
+          return { pass: true, detail: `ON_LRIG_ATTACK_STEP_START 発火→WX25-CP1-042-E2 が相手手札を1枚トラッシュ（gHand ${before?.guest?.hand}→${st.guest.hand}・phase=${st.turnPhase}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `E2発火未確認（gHand ${before?.guest?.hand}→${fin?.guest?.hand ?? '-'}・phase=${fin?.turnPhase ?? '-'}）` };
+    },
+  },
+
   // ④ WXDi-P03-039: 【自】ON_LRIG_GROW（any_ally）＝自分のルリグがグロウしたとき、《無》を払えば相手シグニ1体をバニッシュ。
   //    C1 配線（executeGrow→collectLrigGrowTriggers）を実 UI で検証。グロウは通常UI操作＝最も駆動しやすいトリガー。
   //    free_grow_this_turn でグロウコスト0化→グロウ即実行→ON_LRIG_GROW 発火→OPTIONAL_COST(無)払い→相手バニッシュ。
