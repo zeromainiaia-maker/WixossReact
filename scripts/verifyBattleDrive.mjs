@@ -787,9 +787,11 @@ const scenarios = {
           await page.waitForTimeout(600);
           did = 'repatch:ATTACK_SIGNI';
         }
-        if (!did) did = await H.clickTextOrBtn(['ルリグアタックへ']);
-        // 「まだ攻撃していないシグニがいます」確認ダイアログ（handleSigniAttack未実行のシグニがいる場合）
+        // 「まだ攻撃していないシグニがいます」確認ダイアログ（handleSigniAttack未実行のシグニがいる場合）＝
+        // header の「ルリグアタックへ」ボタンより優先（モーダル表示中は isVisible() が occlusion を見ないため
+        // header ボタンが先に誤ヒットし続けるのを防ぐ）。
         if (!did) did = await H.clickTextOrBtn(['このまま進む']);
+        if (!did) did = await H.clickTextOrBtn(['ルリグアタックへ']);
         if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
         const st = await H.queryState();
         const handDropped = typeof before?.guest?.hand === 'number' && typeof st?.guest?.hand === 'number' && st.guest.hand < before.guest.hand;
