@@ -788,6 +788,8 @@ const scenarios = {
           did = 'repatch:ATTACK_SIGNI';
         }
         if (!did) did = await H.clickTextOrBtn(['ルリグアタックへ']);
+        // 「まだ攻撃していないシグニがいます」確認ダイアログ（handleSigniAttack未実行のシグニがいる場合）
+        if (!did) did = await H.clickTextOrBtn(['このまま進む']);
         if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
         const st = await H.queryState();
         const handDropped = typeof before?.guest?.hand === 'number' && typeof st?.guest?.hand === 'number' && st.guest.hand < before.guest.hand;
