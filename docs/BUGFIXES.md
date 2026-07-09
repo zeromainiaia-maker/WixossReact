@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証＝placedFront（R41）を実UIで確認＋resume経路取りこぼしの対照実験（2026-07-09・続き58・Sonnet 5・同日第3件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `placedFront`（WD01-013→WXDi-P03-043）を追加。R41「対戦相手のシグニがこのシグニの正面に配置されたとき」の①発火自体を実UIで確認＝**PASS**。同日の2件（R43/R46）と対照的に、こちらは resume経路取りこぼしの影響を受けない別経路であることも確認できた。
+
+- **対象**＝WXDi-P03-043-E3（コードラビリンス ギロッポン）「【自】対戦相手のシグニ１体がこのシグニの正面に配置されたとき：それのパワーを－3000する」（`placedFront`・`triggerScope:any_opp`）。
+- **盤面**：guest 中央ゾーン（zone1）に watcher WXDi-P03-043 を配置。host は無効果の素シグニ WD01-013（小剣 ククリ・Lv1・団体制限なし）を手札から**host自身の中央ゾーン（zone1）へ通常召喚**（正面判定は index i(watcher側)↔2-i(召喚側) のミラー対応・`triggerCollect.ts:1486`＝zone1同士は自己対応）。
+- **結果＝PASS**：召喚直後（SELECT_TARGET等の resume を経由せず）に `host.temp_power_mods` が `WD01-013#1:-3000` になり、盤面ログにも watcher の発火が記録された。
+- **なぜR43/R46と違って直るのか**＝`collectFieldTriggers('ON_PLAY', ...)` は`handleSummonSigni`（host自身の通常召喚ハンドラ・`BattleScreen.tsx:4912`）から**直接**呼ばれており、`resolveStackNext`の中央diffにも`handleEffectInteraction`のresumeにも依存しない第三の経路。**「resume経由の効果解決だけが取りこぼす」という仮説を裏付ける対照データ**＝全collectorが同じ穴を持つわけではないことが分かった。
+- **⚠副産物の発見（低優先・機能への影響なし）**＝盤面ログの表示文言が「の【自】効果（相手シグニアタック時）」固定＝`triggerCollect.ts:1489-1493`の any/any_opp 共有ループが ON_ATTACK_SIGNI 用ラベルを ON_PLAY（placedFront含む）/ON_BANISH/ON_BLOOM でも使い回している表示バグ。判定はログではなく`temp_power_mods`のground truthで行ったため実害なし。
+- `order`配列に追加済み（PASS）。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝ON_ENERGY_TO_TRASH（R43）で同型のresume経路取りこぼしを発見＋系統的懸念に格上げ（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5・同日第2件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `energyToTrash`（WD15-014→WD15-015）を追加し実機検証。**2件連続で同根の実バグを確認**したため、個別カードのバグではなく「resume経路のinline collectorが一部trigger種別にしか実装されていない」という**構造的ギャップ**として報告を格上げする。
