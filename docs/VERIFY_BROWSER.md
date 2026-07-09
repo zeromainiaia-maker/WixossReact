@@ -199,6 +199,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **ハマりどころ**＝WX12-047の攻撃は host 側に前方ブロッカーが無かったため素通りしてライフクロスクラッシュが発生し、「ライフクロスクラッシュ」確認モーダル（バーストなし→「エナに送る」ボタン）が挟まった。このボタンをdriverのクリック候補に追加していないと、モーダルで停止したまま`resolveStackNext`（ON_DRAWの収集箇所）に到達せずFAILする（最初の試行はこれで無発火FAILだった）。`clickTextOrBtn`に`'エナに送る'`を追加して解消。
 - `order`配列に追加済み（末尾）。
 
+### ⚠ 手札捨て/トラッシュ flatten（R36）で resume経路取りこぼしの新規インスタンスを発見（2026-07-09・続き60・Sonnet 5・未修正・Opus引き継ぎ）
+
+`handDiscard`（WDA-F02-17→WXK10-065）を新設し実機検証した結果、**❌FAIL＝続き58のresume経路取りこぼし理論の新規インスタンスを確認**（2回連続再現）。
+
+- **盤面**：host の手札に WDA-F02-17（幻蟲 §アメンボ§・【自】ON_TRASH・triggerScope:self・fromZones:['hand']＝このカード自身が手札から捨てられたとき任意コスト《青》《黒》で相手シグニに-5000）と WXK10-065（小装 クワナゴウ・【出】「あなたは手札を1枚捨てる」）を配置。WXK10-065を召喚すると残る手札はWDA-F02-17のみ＝これを選ばせて捨てさせた。
+- **ハマりどころ**＝host中央ルリグを未設定だと注入直後の**Lv0/Limit0初期ルリグ**のままになり「召喚」ボタン自体が出ない（`canFitSomewhere`が`1<=0`でfalse）。`'field.lrig':['WD01-001#1']`を明示設定して解消（カード側の問題ではなく盤面注入の不備だった）。
+- **結果＝FAIL（ground truthは正しい）**：召喚→SELECT_TARGET（pick-0）→決定で`hHand`2→0・`hTrash`0→1と正しく解決したが、watcherが一度も発火しない（`gPowerMods`変化なし・`stack`終始0）。
+- **原因**＝WXK10-065のTRASH HAND_CARDアクション自体が`selectOrInteract`（`execUtils.ts:1206`）経由でSELECT_TARGETを要求する（候補1件でも自動解決しない仕様）。対話ありのまま解決するため`resolveStackNext`の`done===false`分岐に落ち、`collectAnyZoneTrashSelfTriggers`（`triggerCollect.ts:312`・中央diffのみ配線・resume側にinline版なし）が呼ばれない＝R43/R46/R39と同型。
+- **系統的懸念に追加**＝`collectDeckTrashSelfTriggers`（ON_TRASH self・fromZones:deck）も同型の疑いで未検証。
+- `order`配列からは除外（FAIL・Opus修正待ち）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
