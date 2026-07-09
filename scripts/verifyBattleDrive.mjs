@@ -1419,6 +1419,76 @@ const scenarios = {
       return { pass: false, detail: `ON_TRASH(self,fromZones:hand) 未確認（hHand=${fin?.host?.hand ?? '-'}（開始${before?.host?.hand}） hTrash=${fin?.host?.trash ?? '-'} gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ㉔ WXDi-P04-043: 【自】ON_REFRESH（triggerCondition.refreshedOwner:'any'）＝§7 R45②「いずれかのプレイヤーが
+  //    リフレッシュしたとき」の実機検証。host のデッキを空（trashは1枚）にしておき、WX15-073（【出】E1=対戦相手
+  //    パワー1000以下シグニをバニッシュ・E2=カードを1枚引く＝ともに無条件mandatory）を召喚。
+  //    guestの唯一のシグニをP3000にしておけばE1のBANISH候補は0件（<=1000でない）で自動no-op、E2のDRAWも
+  //    デッキ0枚のため0枚ドローでいずれも対話なし即done＝`applyRefreshOnDone`（`BattleScreen.tsx:3506`・
+  //    resolveStackNext先頭）がそのまま同一done分岐内でリフレッシュを適用でき、続く中央diff（`countRefresh`）が
+  //    正常にON_REFRESH watcherを収集できる想定（対話が挟まらない＝resume経路取りこぼしの穴の対象外のはず）。
+  refreshTrigger: {
+    title: 'WXDi-P04-043→WX15-073（ON_REFRESH refreshedOwner:any＝リフレッシュ時 任意コストで相手に-10000）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],                     // 任意センター（Lv4/Limit11）
+        'field.signi': [null, ['WXDi-P04-043#1'], null],  // watcher（幻竜姫 ドラゴンメイド・zone1）／zone0は召喚用に空ける
+        'hand': ['WX15-073#1'],                           // 勝利の円卓 アルスラ（E1バニッシュ候補なし＋E2ドロー0枚で対話なし即done）
+        'deck': [],                                       // リフレッシュ条件＝デッキ0枚
+        'trash': ['WD02-013#1'],                          // リフレッシュ元（トラッシュ非空）
+        'energy': ['WD05-013#1'],                         // 任意コスト《黒》用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null],      // P3000（E1のpower<=1000フィルタに非該当＝BANISH候補0で自動no-op）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.deck/trash:', before?.host, '(hand:', before?.host?.hand, ')');
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/refreshTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0');
+        // 任意コスト《黒》：optcost-energy 1枚→pay
+        if (!did) {
+          const oc0 = page.getByTestId('optcost-energy-0').first();
+          if (await oc0.count() && await oc0.isVisible().catch(() => false)) {
+            await oc0.click().catch(() => {});
+            await page.waitForTimeout(200);
+            const pay = page.getByTestId('optcost-pay').first();
+            if (await pay.count() && await pay.isEnabled().catch(() => false)) { await pay.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+        }
+        if (!did) { // 万一 SELECT_TARGET が挟まった場合の保険
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', 'OK', 'はい', 'エナに送る']);
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/ドラゴンメイド.*リフレッシュ時|の【自】効果（リフレッシュ時）/);
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
+        H.log(`  rf[${s}] -> ${did ?? 'なし'} | hDeck=${JSON.stringify(st?.host)} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        if (debuffed || watcherLog) {
+          return { pass: true, detail: `ON_REFRESH(refreshedOwner:any) 発火→対戦相手 WD01-013 に-10000（gPowerMods=${(st.guest.powerMods).join(',')}）・watcher「${watcherLog}」` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_REFRESH(refreshedOwner:any) 未確認（gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
