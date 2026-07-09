@@ -694,18 +694,19 @@ const scenarios = {
       const before = await H.queryState();
       H.log('開始時 guest:', JSON.stringify(before?.guest));
       H.log('開始時 host:', JSON.stringify(before?.host));
-      let attacked = false;
+      let modalOpened = false;
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxk10068banish-${s}.png`, fullPage: true });
         let did = null;
-        if (!attacked) {
+        // 「アタック」完全一致（ヘッダーの「ルリグアタックへ」が部分一致で誤爆するため exact:true 限定）
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+          await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+        }
+        if (!did && !modalOpened) {
           const opened = await H.clickTestId('my-signi-zone-0');
-          if (opened) {
-            await page.waitForTimeout(500);
-            const atk = await H.clickTextOrBtn(['アタック']);
-            if (atk) { did = atk; attacked = true; } else did = opened;
-          }
+          if (opened) { did = opened; modalOpened = true; }
         }
         if (!did) { // SELECT_TARGET（バニッシュ対象＝guest の WD01-013・候補1のみ）
           const pick0 = page.getByTestId('pick-0').first();
