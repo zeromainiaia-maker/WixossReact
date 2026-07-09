@@ -703,14 +703,25 @@ const scenarios = {
       H.log('開始時 guest:', JSON.stringify(before?.guest));
       H.log('開始時 host:', JSON.stringify(before?.host));
       let modalOpened = false;
-      for (let s = 0; s < 18; s++) {
+      for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxk10068banish-${s}.png`, fullPage: true });
         let did = null;
+        // 注入後に turn_phase が MAIN 等へ巻き戻るレース（openGrow と同型）＝ATTACK_SIGNI へ再アサート。
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
         // 「アタック」完全一致（ヘッダーの「ルリグアタックへ」が部分一致で誤爆するため exact:true 限定）
-        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
-        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
-          await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+          }
         }
         if (!did && !modalOpened) {
           const opened = await H.clickTestId('my-signi-zone-0');
