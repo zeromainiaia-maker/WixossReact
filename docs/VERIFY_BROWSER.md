@@ -154,6 +154,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **再現**：`node scripts/verifyBattleDrive.mjs oppPowerDecreased`（既定 `order` からは除外済み＝既存スイートの全緑を壊さないため。修正後に単体実行で再検証してから戻す）。
 - **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectFreezeInline`等と同型の`collectPowerDecreaseInline`を`handleEffectInteraction`に追加するだけの横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ）。
 
+### ⚠ ON_ENERGY_TO_TRASH（R43・§7）で同型を確認＝2件連続で系統的懸念に格上げ（2026-07-09・続き58・Sonnet 5・同日第2件）
+`energyToTrash`（WD15-014→WD15-015）を新設し実機検証した結果、**❌FAIL＝上記ON_OPP_POWER_DECREASEDと完全に同型の実バグを確認**（未修正）。同日2件連続で同根のバグが出たため、個別カード対応ではなく機構単位の懸念として扱う。
+
+- 盤面：host に watcher WD15-015（幻竜 アメリカワニ・ON_ENERGY_TO_TRASH・「あなたの効果で対戦相手のエナがトラッシュに置かれたとき【ダブルクラッシュ】」）を配置、center lrig を WX04-002（遊月・四戎＝ユヅキ・WD15-014「ユヅキ限定」を満たす）。手札の WD15-014（【出】ON_PLAY・mandatory・コストなしで相手エナ1枚をトラッシュ）を召喚→SELECT_TARGETで相手エナ（WD01-013）を指定。
+- **ground truth は正しい**＝`guest.trash` が0→1に増える＝TRASH自体はengine内で正しく適用されている。
+- **しかしwatcherが一度も発火しない**＝`host.keywordGrants` は終始 `[]`。`effect_stack` は終始0のまま＝この解決も`resolveStackNext`を一切通らず`handleEffectInteraction`（SELECT_TARGET resume）だけで完結していた。
+- **原因**＝`collectEnergyToTrashTriggers`（`src/engine/triggerCollect.ts:808`）も`collectPowerDecreaseTriggers`と同じく`BattleScreen.tsx:3717-3739`（中央diffブロック）にしか配線されておらず、resumeの5種inline collectorには入っていない。
+- **🆕 系統的懸念**＝2件連続で同根と判明したため、`BattleScreen.tsx`中央diffブロック（3559-4150行付近）にある他のcollector（`collectMillTriggers`/`collectCharmToTrashTriggers`＝**R42と同一対象**/`collectRefreshTriggers`/`collectMoveToDeckTriggers`/`collectDrawTriggers`系/`collectAllyPlayOrOppDiscardTriggers`/`collectMaterialUsedOnSigniTriggers`/`collectOppArtsUseTriggers`系）も同型の抜けが無いか横断監査すべき（未実機検証・静的解析のみでの示唆）。
+- **再現**：`node scripts/verifyBattleDrive.mjs energyToTrash`（既定 `order` からは除外済み）。
+- **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectPowerDecreaseInline`と合わせて`collectEnergyToTrashInline`を追加。その後、系統的懸念リストの横断監査→影響ありなら一括是正。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
