@@ -143,6 +143,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **再現**：`node scripts/verifyBattleDrive.mjs freezetrigger`（既定 `order` からは除外済み＝既存スイートの全緑を壊さないため。修正後に単体実行で再検証してから戻す）。
 - **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectKeywordGainedInline`等と同型の`collectFreezeInline`を`handleEffectInteraction`に追加するだけの横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ）。
 
+### ⚠ ON_OPP_POWER_DECREASED（R46・§7）の実機検証で resume 経路の取りこぼしを発見（2026-07-09・続き58・Sonnet 5）
+`oppPowerDecreased`（WD11-013→WX13-036）を新設し実機検証した結果、**❌FAIL＝実バグを確認**（ON_SIGNI_FROZEN・R38・続き40と同型・未修正）。
+
+- 盤面：host に watcher WX13-036（フィア＝パトラ・ON_OPP_POWER_DECREASED・`deltaFromOppPowerDecrease`＝相手パワーが減った値と同じだけ自身+）を配置、center lrig を WX08-004（ミュウ＝WD11-013「ミュウ限定」を満たす・`powerzero`シナリオと同構成）。手札の WD11-013（【出】ON_PLAY・mandatory・コストなしで相手シグニ1体に-1000）を召喚→SELECT_TARGETで相手シグニ（WX01-083）を指定。
+- **ground truth は正しい**＝`guest.temp_power_mods` が `WX01-083#1:-1000` になる＝POWER_MODIFY自体はengine内で正しく適用されている。
+- **しかしwatcherが一度も発火しない**＝`host.temp_power_mods` は終始 `[]`。`effect_stack` は終始0のまま＝この解決は`resolveStackNext`（中央diffの置き場所）を一切通らず、`handleEffectInteraction`（SELECT_TARGET resume）だけで完結していた。
+- **原因**＝`collectPowerDecreaseTriggers`（`src/engine/triggerCollect.ts:900`）の呼び出しは`BattleScreen.tsx:3765-3789`（`resolveStackNext`内の中央diffブロック）の1箇所のみ。一方`handleEffectInteraction`（4384-4436行）には`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`／`collectFreezeInline`という「resume 経路の取りこぼし対策」inline collectorが既に5つ実装されているが、**ON_OPP_POWER_DECREASED用だけこのリストに入っていない**＝R38と同じ機構修正の抜け。
+- **影響範囲**＝WD11-013のように単体対象へのPOWER_MODIFYはSELECT_TARGETで完結しresume経路を通るのが通常ケース＝WX13-036/WXEX2-52のwatcherは実戦でもほぼ発火しないと推定される。
+- **再現**：`node scripts/verifyBattleDrive.mjs oppPowerDecreased`（既定 `order` からは除外済み＝既存スイートの全緑を壊さないため。修正後に単体実行で再検証してから戻す）。
+- **修正方針**（未着手・Opus担当＝PLAN.md §6.3参照）：`collectFreezeInline`等と同型の`collectPowerDecreaseInline`を`handleEffectInteraction`に追加するだけの横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
