@@ -5,6 +5,22 @@
 
 ---
 
+## §7 実機検証＝drawBySourceStory（R31）を実UIで確認＋resume経路取りこぼし理論の機構原因をコード読解で確定（2026-07-09・続き58・Sonnet 5・同日第4件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `drawBySourceStory`（WX20-026自己完結＝アタックで自ドロー→自分の別効果が反応）を追加。R31の①発火自体を実UIで確認＝**PASS**。加えて、同日3件（R38型2件FAIL＋R41 PASS）の観測から立てていた「SELECT_TARGET等のresumeを経由する解決だけがtrigger収集を落とす」という仮説を、**`BattleScreen.tsx`の`resolveStackNext`本体を実際に読んで機構レベルで確定**できた。
+
+- **対象**＝WX20-026（大幻蟲 §アノマリス§）E2「このシグニがアタックしたとき：カードを１枚引く」（原因アクション）→E3「あなたの場にある＜凶蟲＞のシグニの効果であなたがカードを１枚引いたとき：対戦相手のシグニ１体のパワーを－4000する」（`ON_DRAW`・`drawBySourceStory:'凶蟲'`）。
+- **盤面**：host に WX20-026 を配置しATTACK_SIGNIへ注入。guest に対象用シグニ WD01-013 を配置。「アタック」クリック→E1/E2の発動順序確定モーダル（同カード内2つのON_ATTACK_SIGNIトリガーの順序選択・想定外の追加ステップとして今回新規発見）→E2のDRAW実行→E3がSELECT_TARGETで発火。
+- **結果＝PASS**：盤面ログに「大幻蟲　§アノマリス§ の【自】効果（ドロー時）」が記録され、E3がSELECT_TARGET状態に正しく遷移した（host.hand 5→6の推移も一致）。
+- **🆕 機構原因の特定（コード読解・推測ではない）**＝`resolveStackNext`（`BattleScreen.tsx:3428`）は`executeEffect`の戻り値`result.done`で分岐する。`done===true`（対象選択なしで完結）の場合のみ3556〜4150行のtrigger収集ブロックが走る。`done===false`（SELECT_TARGET/CHOOSEで中断）の場合は`pending_effect`を保存して即returnし（3538-3555行）、**収集ブロックは一切実行されない**。ユーザーが対象を選び`handleEffectInteraction`で再開しても、そちらのpendingEntriesブロック（4384-4436）にはinline collectorが5種類しかない。**結論＝「watcher収集がresolveStackNextのdoneブランチにしかなく、かつ原因アクション自体がSELECT_TARGET/CHOOSEを要する」の2条件が揃うtrigger種別だけがこの穴の影響を受ける。**
+- **理論の対照実験2件（本日）**＝(1) R41 placedFront＝原因が`handleSummonSigni`の通常召喚（`resolveStackNext`を経由しない第三の経路）→穴と無関係→PASS。(2) R31 drawBySourceStory（本エントリ）＝原因アクション（E2のDRAW）が対象選択不要→`done=true`のままelse節に到達→正常収集→PASS。**2件ともFAIL（R43/R46）とは異なる経路である点が理論と一致**。
+- **副産物の発見**＝同一カードに2つのON_ATTACK_SIGNIトリガーがある場合（WX20-026のE1/E2）、「効果の発動順序を決めてください」モーダルが挟まることを新規確認（driverの安定クリック列に追加が必要だった今回限りの学び・既存スキルには影響なし）。
+- **再現**：`node scripts/verifyBattleDrive.mjs drawBySourceStory`（`order`配列に追加済み・PASS）。
+- **今後の活用**＝この理論により「影響を受けるtrigger種別」を機械的に判定できるようになった＝候補リスト（`collectMillTriggers`/`collectCharmToTrashTriggers`=R42/`collectRefreshTriggers`/`collectMoveToDeckTriggers`/`collectAllyPlayOrOppDiscardTriggers`/`collectMaterialUsedOnSigniTriggers`/`collectOppArtsUseTriggers`系）は、それぞれの原因アクションがSELECT_TARGET/CHOOSEを要するかを個別確認するだけで影響有無が判定できる（詳細PLAN.md §6.3）。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝placedFront（R41）を実UIで確認＋resume経路取りこぼしの対照実験（2026-07-09・続き58・Sonnet 5・同日第3件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `placedFront`（WD01-013→WXDi-P03-043）を追加。R41「対戦相手のシグニがこのシグニの正面に配置されたとき」の①発火自体を実UIで確認＝**PASS**。同日の2件（R43/R46）と対照的に、こちらは resume経路取りこぼしの影響を受けない別経路であることも確認できた。
