@@ -5,6 +5,20 @@
 
 ---
 
+## §4タスク2 動的比較＝「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い〕の場合」condition 脱落是正（`LRIG_LEVEL_CMP_OPP` 新設・2枚）（2026-07-09・続き55・Opus 4.8）
+
+続き54（levelLtOppLrig）に続く lrig 相対比較ファミリ。「このシグニがアタックしたとき、…あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、…」型で**自/相手中央ルリグのレベル比較 condition が脱落**し、アタックのたびに無条件発火していた過剰効果を是正。[[vocab-census-overfire-blindspot]]
+
+- **型**（`effects.ts`）＝`LRIG_LEVEL_CMP_OPP{operator:'lt'|'lte'|'gt'|'gte'}`＝既存 `LRIG_LEVEL_EQ_OPP`（＝同値）の不等号版。
+- **engine**（`execUtils.ts` evalCondition）＝`LRIG_LEVEL_EQ_OPP` と同型＝自中央ルリグ（`s.field.lrig` 頂点）と相手中央ルリグ（`o.field.lrig` 頂点）のレベルを operator で比較。非数値/不在は false。
+- **parser**（`effectParser.ts` 局所 CLAUSES 表）＝「あなたのセンタールリグのレベルが対戦相手のセンタールリグ(以下|より低い|より高い|以上)の場合」→ `LRIG_LEVEL_CMP_OPP`。続き53 の「トリガー句後の条件節持ち上げ」拡張により `このシグニがアタックしたとき、…対象とし、<cond>、` の mid-sentence 条件も拾える。
+- **decompiler** condJa に描画追加。
+- **採用2枚**＝WXK07-025-E1（自≤相手→敵パワー3000以下バニッシュ）・WXK10-068-E2（自≤相手→自身よりパワー低い敵バニッシュ・`powerLtSelf` を then に温存）。
+- **未消化（別課題として defer）**＝**WXK07-025-E2**（「…より低い場合、カードを１枚引き、…このシグニのパワーを＋7000する」＝アタック時セルフパワー+N の特化ハンドラが CLAUSES ループより前に early-return し、condition と DRAW を飲み込む＝連用形「引き、」の SEQUENCE 化と condition 持ち上げが別途要る）。**WXK08-005-E1**（「…より低いかぎり、このキーは《アイコン》を得る」＝CONTINUOUS activeCondition＋キー能力付与で別機構）。
+- **検証**＝typecheck・**golden 175→176（+1＝自≤相手→発火/自>相手→no-op）**・smoke 全0（10582）・fuzz 全0・lint 0 errors・**同型★0**（「自分のセンタールリグのレベルが対戦相手のセンタールリグ以下なら」で描画）・**census 1574/1574**（2枚とも census 高シグナル計上外・条件脱落は是正・BASELINE 変更なし）。
+
+---
+
 ## §4タスク2 動的比較＝「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニ」mis-parse 是正（`levelLtOppLrig` 新設・WX19-042）（2026-07-09・続き54・Opus 4.8）
 
 WX19-042「【出】：対戦相手のセンタールリグより低いレベルを持つ、あなたの＜空獣＞か＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る」が、**先頭修飾句「対戦相手のセンタールリグ…」に釣られて対象が LRIG に誤パースされ、【ランサー】が自ルリグに誤付与**（本来の self シグニ対象＋動的レベルフィルタが丸ごと脱落）していた mis-parse を是正。PLAN §4 タスク2「動的比較 lrig相対」の先頭項目。[[banish-vs-ener-send]]
