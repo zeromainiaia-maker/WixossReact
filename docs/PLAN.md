@@ -277,7 +277,7 @@
 
 **残る実機検証項目（R30-R46・engine配線済みだが実機PvP/CPU未検証）**：
 - **ON_OPP_POWER_DECREASED（R46・毒牙）**：WX13-036/WXEX2-52。**①実機FAIL＝実バグ発見（2026-07-09・続き58・Sonnet・未修正・Opus引き継ぎ）**＝`verifyBattleDrive.mjs oppPowerDecreased`（WD11-013→WX13-036）でSELECT_TARGET resume経路がON_SIGNI_FROZEN(R38)と同型の取りこぼし＝watcher無発火（詳細 §6.3・BUGFIXES続き58）。**Opus修正後に再検証すべき残**＝②複数同時減少時の合算挙動③相手自身の自己弱体では発火すべきでない（現状は近似で発火しうる）。
-- **ON_ACCE_ATTACH host条件/ON_REFRESH/ON_LEAVE_FIELD leftToZone（R45）**：①WXK05-041（アクセがレベル4以上のシグニに付いたとき）②WXDi-P04-043（いずれかがリフレッシュ）③WXK02-041（シグニが場→手札に戻った）。
+- **ON_ACCE_ATTACH host条件/ON_REFRESH/ON_LEAVE_FIELD leftToZone（R45）**：①WXK05-041（アクセがレベル4以上のシグニに付いたとき）②WXDi-P04-043（いずれかがリフレッシュ）③WXK02-041（シグニが場→手札に戻った）。**③実機PASS＝✅確認済み（2026-07-09・続き58・Sonnet）**＝`verifyBattleDrive.mjs leaveFieldToHand`（WX21-057→WXK02-041）。ON_LEAVE_FIELDは§6.3の「対策済み9種」の1つ＝原因のBOUNCE（自分のシグニ1体を対象・SELECT_TARGET要）に対話が挟まってもPASS＝R38/R43/R46/R39の穴とは無関係と対照確認。`order`復帰済み。**残＝未検証のまま**（①②）。
 - **ON_EXCEED_COST 場シグニ（R44）**：WXDi-P06-078。要確認＝①ルリグ起動でエクシードコスト支払時に発火（自ターン・once_per_turn）②対象選択CHOOSEで相手シグニ1体に-5000が実際に適用される③カットインexceedでは未発火（近似）。
 - **ON_ENERGY_TO_TRASH（R43）**：WD15-015。**①実機FAIL＝実バグ発見（2026-07-09・続き58・Sonnet・未修正・Opus引き継ぎ）**＝`verifyBattleDrive.mjs energyToTrash`（WD15-014→WD15-015）でON_OPP_POWER_DECREASED(R46)と同型のresume経路取りこぼし＝watcher無発火（詳細 §6.3・BUGFIXES続き58）。**Opus修正後に再検証すべき残**＝②自エナ・相手効果による相手エナトラッシュでは非発火（「自効果」限定は近似で未判定）。
 - **ON_CHARM_TO_TRASH（R42）**：WX16-Re05。要確認＝①効果でチャーム付きシグニが離脱/チャーム除去されトラッシュに行ったとき発火②**バトルバニッシュでhostが離脱したとき**（効果解決経路外＝未検出の可能性）。⚠**R43/R46と同じresume経路取りこぼしの疑いあり（未実機検証・§6.3の系統的懸念リスト参照）**＝`collectCharmToTrashTriggers`も中央diffのみ配線で resume用inline版が無い。次にこのR42を検証する際は①の前提でFAILする可能性を考慮すること。
