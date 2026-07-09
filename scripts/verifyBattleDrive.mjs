@@ -1354,10 +1354,11 @@ const scenarios = {
   //    flatten」の実機検証。「このカードが手札からトラッシュに置かれたとき」＝自己参照トリガー。
   //    原因＝WXK10-065（【出】：あなたは手札を1枚捨てる＝TRASH HAND_CARD self count1・SELECT_TARGET要）で
   //    手札に残った WDA-F02-17 自身を選んで捨てさせる。
-  //    ⚠この TRASH アクション自体が SELECT_TARGET（手札からどれを捨てるか）を要するため、続き58が確立した理論
-  //    （「そのstack entry解決中に対話が挟まると resolveStackNext の done ブランチを通らず収集を逃す」）どおりなら
-  //    collectAnyZoneTrashSelfTriggers（handleEffectInteraction 側に inline 版なし）が resume 経路で取りこぼす
-  //    可能性がある＝R43/R46/R39と同型の新規インスタンスかどうかを実機で確認する回。
+  //    ❌実機FAIL＝実バグ確認済み（2026-07-09・続き60・Sonnet・未修正・Opus引き継ぎ）＝ground truth（hHand 2→0・
+  //    hTrash 0→1）は正しいが watcher が一度も発火しない。原因＝WXK10-065 自身の TRASH HAND_CARD アクションが
+  //    SELECT_TARGET を要し resume 経路（handleEffectInteraction）で完結する＝続き58が確立した理論どおり
+  //    collectAnyZoneTrashSelfTriggers（resolveStackNext 中央diffのみ配線・resume側にinline版なし）が取りこぼす。
+  //    R43/R46/R39と同型の新規インスタンス（§6.3系統的懸念に追加）。既定 order からは除外（Opus修正待ち）。
   handDiscard: {
     title: 'WDA-F02-17→WXK10-065（ON_TRASH self・fromZones:hand＝このカードが手札から捨てられたとき）',
     spec: {
