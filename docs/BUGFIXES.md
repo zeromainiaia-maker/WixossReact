@@ -5,6 +5,18 @@
 
 ---
 
+## §7 実機検証＝WX25-CP1-042（ON_LRIG_ATTACK_STEP_START）が「全体が未検証」の宿題を消化・verifyBattleDrive 新シナリオ追加（2026-07-09・続き57・Sonnet 5）
+
+PLAN §7 に「⚠全体が未検証（既定シナリオに未追加）」と明記されていた `ON_LRIG_ATTACK_STEP_START`（尾刃カンナ WX25-CP1-042-E2）の実機検証。`scripts/verifyBattleDrive.mjs` に新シナリオ `lrigattackstepstart` を追加。
+
+- **対象**＝WX25-CP1-042-E2「【自】《ターン１回》：あなたのルリグアタックステップ開始時、…対戦相手は手札を１枚捨てる」（+ブルアカ-5000はパース近似・厳密スケーリングは別課題で本セッションのスコープ外）。ATTACK_SIGNI フェイズに直接注入→「ルリグアタックへ」ボタンでATTACK_LRIGへ遷移させ、フェイズ境界のトリガー収集が実際に発火するかを確認。
+- **ハーネス側のハマりどころ2件（新規発見・記録）**：①`handlePhaseAdvance` は ATTACK_SIGNI で未攻撃のアップ状態シグニが残っていると`doPhaseAdvance()`を呼ばず「まだ攻撃していないシグニがいます／このまま進みますか？」の確認モーダル（`PhaseConfirmDialogs.tsx`）を出すだけで止まる＝**盤面にシグニを置いてATTACK_SIGNIへ直接注入するシナリオは全て「このまま進む」ボタンのハンドリングが要る**。②`getByRole('button',{name,exact:false}).isVisible()` は**要素のオクルージョン（他モーダルに覆われているか）を見ない**＝ヘッダー常設の「ルリグアタックへ」ボタンは確認モーダル表示中も"visible"判定され続け、優先順位を誤ると同じボタンを延々クリックし続けてモーダルの確認ボタンに辿り着けない（今回の初回FAILの原因）。**モーダル固有の確認ボタンを常に先にチェックする**のが安全（続き56のATTACK_SIGNI系レース対策＝毎周`repatchTop`と組み合わせて再利用可能な型として確立）。
+- **実機PASS（2回連続）**＝盤面ログ「[自分] 尾刃カンナ の【自】効果（ルリグアタックステップ開始時）」→SELECT_TARGET→相手手札5→4枚（1枚トラッシュ）を確認。
+- **残＝未検証のまま**：②《ターン1回》の回数制限・パース近似（原文「クラッシュしたライフ1枚につき1捨て」の厳密スケーリング）・CPUターンのルリグアタックステップ（follow-up）。
+- `order` 配列に追加済み。
+
+---
+
 ## §7 実機検証＝WXK10-068（LRIG_LEVEL_CMP_OPP）の CONDITIONAL BANISH を実UIで確認＋verifyBattleDrive 新シナリオ追加（2026-07-09・続き56・Sonnet 5）
 
 続き55（Opus）で着地した動的比較 lrig相対ファミリ（`LRIG_LEVEL_CMP_OPP`）の実機検証。golden はエンジン単体の条件分岐を保証するが、§7 の役割は「実UI・CPU戦を通した総合動作」の確認＝`scripts/verifyBattleDrive.mjs` に新シナリオ `wxk10068banish` を追加。
