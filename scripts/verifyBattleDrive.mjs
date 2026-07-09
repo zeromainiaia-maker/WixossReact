@@ -691,7 +691,15 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
     },
     async drive(page, H) {
-      const before = await H.queryState();
+      // 注入直後、CPU側の自ターン処理（グロウ等）が非同期で残っていて guest_state を上書きする競合がある
+      // （ensureMain/openGrow と同型の既知レース）。guest zone0 が期待値になるまで再注入して確認する。
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1'); r++) {
+        H.log(`再注入(${r})… guest zone0=${JSON.stringify(before?.guest?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
       H.log('開始時 guest:', JSON.stringify(before?.guest));
       H.log('開始時 host:', JSON.stringify(before?.host));
       let modalOpened = false;
