@@ -176,6 +176,16 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - 両シナリオとも`order`配列に復帰済み。
 - **今後の活用**＝この理論で影響範囲を機械的に絞り込める＝残る系統的懸念候補（`collectCharmToTrashTriggers`=R42・`collectRefreshTriggers`・`collectMoveToDeckTriggers`・`collectMillTriggers`・`collectAllyPlayOrOppDiscardTriggers`・`collectMaterialUsedOnSigniTriggers`・`collectOppArtsUseTriggers`系）は原因アクションがSELECT_TARGET/CHOOSEを要するか個別確認すれば影響有無が判定できる。
 
+### ⚠ outsideDrawPhase（R39）で理論の反例＝精緻化（2026-07-09・続き58・Sonnet 5・同日第5件）
+
+上記理論（「原因アクション自体が対象選択を要するか」）の検証として`outsideDrawPhase`（WXDi-D09-P19自己完結）を追加したところ、**❌FAIL＝理論の反例が出現**＝R31（drawBySourceStory）と**全く同じ`collectDrawTriggers`**なのに今回は無発火。
+
+- **盤面**：host に WXDi-D09-P19（蒼天 アウドムラ）を配置しMAIN注入。「アタックフェイズへ」でON_ATTACK_PHASE_START発火→E2「【自】あなたのアタックフェイズ開始時：手札を1枚トラッシュに置く。そうした場合、カードを1枚引く」（`SEQUENCE[TRASH(手札1枚選択), CONDITIONAL→DRAW]`）が実行→E1「【自】ドローフェイズ以外であなたがカードを１枚引いたとき：全シグニ+1000」（`ON_DRAW`・`outsideDrawPhase:true`）が反応するはず。
+- **結果＝FAIL**：`host.hand`は5→（一時4）→5と正常にTRASH+DRAWが完了した（ground truthは正しい）が、E1の`+1000`は一度も適用されなかった。
+- **🆕 理論を精緻化**＝R31の原因アクション（単純DRAW）は対話不要でそのまま`done=true`。対してR39の原因アクション（`SEQUENCE`内にTRASHという対話ステップを含む）はSEQUENCE先頭のTRASHで一旦中断する。**つまり真の分岐条件は「原因アクション自体が対象選択を要するか」ではなく『そのstack entryの解決中に（SEQUENCE内のどのステップであれ）一度でも対話が挟まったか』**＝同一collectorでもカードのSEQUENCE構造次第で結果が変わる。
+- `order`配列からは除外（FAIL）。
+- **修正方針への示唆**＝この反例により、`collectFreezeInline`型の個別inline collector追加という対症療法はSEQUENCE構造次第で同じcollectorが再FAILしうる（本件が実例）ため不十分と判明＝根本修正（`result.done`に関わらず両経路から共通で呼べる収集関数への統合）を優先すべき。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
