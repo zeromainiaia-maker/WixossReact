@@ -1301,6 +1301,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
         () => ({ type: 'THIS_CARD_IS_DOWN' })],
       [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
         g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+      // 「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い/より高い/以上〕の場合」＝
+      // 自/相手中央ルリグのレベル比較（engine LRIG_LEVEL_CMP_OPP 実装済＝execUtils・EQ の不等号版）。
+      // 従来は語彙が無くアタック時に無条件発火の過剰効果（WXK07-025-E1/E2・WXK10-068-E2）。
+      [/あなたのセンタールリグのレベルが対戦相手のセンタールリグ(以下|より低い|より高い|以上)の場合/,
+        g => ({ type: 'LRIG_LEVEL_CMP_OPP', operator: g[0] === '以下' ? 'lte' : g[0] === 'より低い' ? 'lt' : g[0] === 'より高い' ? 'gt' : 'gte' })],
       [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
         g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
       ...STATE_CONDITION_CLAUSES_V2,
