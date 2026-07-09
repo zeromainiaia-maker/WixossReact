@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証 手札捨て/トラッシュ flatten（R36）＝ON_TRASH self・fromZones:hand で resume経路取りこぼしの新規インスタンスを発見（2026-07-09・続き60・Sonnet 5・未修正・Opus引き継ぎ）
+
+`verifyBattleDrive.mjs` に新シナリオ `handDiscard`（WDA-F02-17→WXK10-065）を追加し、PLAN §7 で「⚠未検証」だった手札捨て/トラッシュ flatten（R36）系を実機検証。**❌FAIL＝続き58が確立した resume 経路取りこぼし理論（R43/R46/R39）の新規インスタンスを確認（2回連続再現）**。
+
+- **盤面**：host の手札に WDA-F02-17（幻蟲 §アメンボ§・【自】ON_TRASH・triggerScope:self・triggerCondition:{fromZones:['hand']}＝このカード自身が手札からトラッシュに置かれたとき、任意コスト《青》《黒》で対戦相手シグニ1体に-5000）と WXK10-065（小装 クワナゴウ・【出】「あなたは手札を1枚捨てる」＝`TRASH{target:HAND_CARD,owner:self,count:1}`）を配置。WXK10-065 を召喚すると手札に残るのは WDA-F02-17 のみ＝これを選んで捨てさせた。
+- **ハマりどころ①**＝host の中央ルリグを明示的に設定しなかったため、デフォルトのログイン直後の**Lv0/Limit0の初期ルリグ**のままとなり、`getMyHandCardActions` の `canFitSomewhere`（`fieldSigniTotal+signiLevel <= lrigLimit`）が `1 <= 0` で false＝**召喚ボタン自体が一切表示されない**（FAILの初期原因はカード側でなく盤面注入不備）。`'field.lrig':['WD01-001#1']`（Lv4/Limit11・他シナリオでも汎用利用済み）を明示設定して解消。
+- **結果＝FAIL（ground truthは正しい）**：召喚→SELECT_TARGET（pick-0）→決定、で `hHand` 2→0・`hTrash` 0→1 と正しく解決（WXK10-065自身が場に出て手札が1減り、続けてWDA-F02-17自身がその効果で捨てられて0になる）。**しかし watcher が一度も発火しない**＝`gPowerMods` 変化なし・`stack` は終始0のまま。
+- **原因**＝WXK10-065 の TRASH HAND_CARD アクション自体が `selectOrInteract` 経由で SELECT_TARGET を要求する（`execUtils.ts:1206` の `selectOrInteract` は候補数に関わらず必ず `needsInteraction` を返す＝候補1件でも自動解決しない）。この対話ありのままエントリが解決するため `resolveStackNext` の `done===false` 分岐に落ち、`collectAnyZoneTrashSelfTriggers`（`triggerCollect.ts:312`・`resolveStackNext` 中央diffのみ配線・`handleEffectInteraction` 側に inline 版なし）が一切呼ばれない＝続き58の理論（「stack entry解決中に対話が挟まると収集を逃す」）どおりの新規インスタンス。
+- **系統的懸念に追加**＝同型の `collectDeckTrashSelfTriggers`（ON_TRASH self・fromZones:deck）も同じ中央diffのみ配線のため、デッキミルの対話有無次第で同様に取りこぼす可能性（未検証）。
+- **再現**：`node scripts/verifyBattleDrive.mjs handDiscard`（既定 `order` からは除外済み）。
+- **修正方針（未着手・Opus担当＝PLAN.md §6.3参照）**：続き58と同じ根本修正（`result.done`に関わらず両経路から共通で呼べる収集関数への統合）が本筋。個別 inline 追加は場当たり的。
+
+---
+
 ## §7 実機検証 opp-draw（R40）を実UIで確認＝ON_DRAW（triggerScope:any_opp）は対話なしDRAWなら安全（2026-07-09・続き60・Sonnet 5）
 
 `verifyBattleDrive.mjs` に新シナリオ `oppDraw`（WXDi-P15-091→WX12-047）を追加し、PLAN §7 で「⚠未検証」だった opp-draw（R40）系を実機検証。**✅PASS（2回連続）**。
