@@ -5,6 +5,21 @@
 
 ---
 
+## §7 実機検証＝ON_OPP_POWER_DECREASED（R46・毒牙）で resume経路取りこぼしの実バグを発見（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `oppPowerDecreased`（WD11-013→WX13-036）を追加し実機検証。**発見した事象自体はまだ修正していない**＝観測結果の記録とOpusへの引き継ぎのみ（PLAN §3運用ルール「発見したバグの修正自体はOpusに回す」に従う）。ON_SIGNI_FROZEN（R38・続き40/41）と**同型のバグ**。
+
+- **対象**＝WX13-036（フィア＝パトラ）-E1「【自】：あなたの効果によって対戦相手のシグニのパワーが減ったとき、ターン終了時まで、このシグニのパワーを減った値と同じだけ＋する」（`ON_OPP_POWER_DECREASED`・`deltaFromOppPowerDecrease`）。WXEX2-52（フィア＝キョゲン）も同一timingで同根。
+- **盤面**：host に watcher WX13-036 を配置、center lrig を WX08-004（ミュウ・WD11-013「ミュウ限定」を満たす・`powerzero`シナリオで確立済みの構成を流用）。手札の WD11-013（【出】ON_PLAY・mandatory・コストなしで相手シグニ1体に-1000）を召喚→SELECT_TARGETで相手シグニ（WX01-083）を指定。
+- **結果＝FAIL**：`guest.temp_power_mods` は正しく `WX01-083#1:-1000` になる（POWER_MODIFY自体はengine内で正しく適用）が、watcher WX13-036 のパワーは一度も上がらない（`host.temp_power_mods` は終始 `[]`）。`effect_stack` は終始0のまま＝この解決は`resolveStackNext`の中央diffを一切通らず`handleEffectInteraction`（SELECT_TARGET resume）だけで完結していた。
+- **原因**＝`collectPowerDecreaseTriggers`（`src/engine/triggerCollect.ts:900`）の呼び出しは`BattleScreen.tsx:3765-3789`（`resolveStackNext`内の中央diffブロック・mill/refresh/energy-to-trash等と同じ場所）の1箇所のみ。一方`handleEffectInteraction`のpendingEntriesブロック（4384-4436行）には`collectDeckShuffleInline`／`collectBanishOppByEffectInline`／`collectLrigUnderMovedInline`／`collectKeywordGainedInline`／`collectFreezeInline`という「resume経路の取りこぼし対策」inline collectorが既に5つ実装されているが、**ON_OPP_POWER_DECREASED用だけこのリストに入っていない**＝R38と同じ機構修正の抜け。
+- **影響範囲**＝WD11-013のように単体対象へのPOWER_MODIFYはSELECT_TARGETで完結しresume経路を通るのが通常ケース＝WX13-036/WXEX2-52のwatcherは実戦でもほぼ発火しないと推定される。
+- **再現**：`node scripts/verifyBattleDrive.mjs oppPowerDecreased`（既定`order`からは除外済み＝既存スイートの全緑を壊さないため。修正後に単体実行で再検証してから戻す）。
+- **修正方針（未着手・Opus担当＝PLAN.md §6.3参照）**：`collectFreezeInline`等と同型の`collectPowerDecreaseInline`を`handleEffectInteraction`に追加するだけの横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ・低リスク）。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝WX25-CP1-042（ON_LRIG_ATTACK_STEP_START）が「全体が未検証」の宿題を消化・verifyBattleDrive 新シナリオ追加（2026-07-09・続き57・Sonnet 5）
 
 PLAN §7 に「⚠全体が未検証（既定シナリオに未追加）」と明記されていた `ON_LRIG_ATTACK_STEP_START`（尾刃カンナ WX25-CP1-042-E2）の実機検証。`scripts/verifyBattleDrive.mjs` に新シナリオ `lrigattackstepstart` を追加。
