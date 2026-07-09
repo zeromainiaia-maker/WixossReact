@@ -5,6 +5,18 @@
 
 ---
 
+## §5c parser回帰の原因調査＝続き56発見の4系統×8枚を全解明・EQUALIZE owner欠落／EXILE owner反転をparser修正（held 124→118）／duration・triggerScopeは誤診と判定（2026-07-09・続き59・Opus 4.8）
+
+続き56（Sonnet）が held に残置し「現行parser規則のどこかで owner/duration/triggerScope が後段の汎用ルールに上書きされている疑い」として Opus に申し送った4系統を、8枚を fresh 実parse（`tmp_investigate56.ts`）で原文照合し全解明した。**うち2系統は真の parser バグでその場修正、2系統は engine/decompiler の観点から誤診と判明**。
+
+- **① EQUALIZE_ENERGY owner欠落（真バグ・5枚 WX10-005②/WX12-021-BURST/WX14-054/WXK11-008/WXK11-058）**＝`parseSentencePart1.ts` の均等化規則の正規表現が主語を捨てていた（`/自分のエナゾーンのカードが(N)枚になるように/`）。原文「**対戦相手は**自分のエナゾーンのカードがN枚になるように…」＝相手のみ限定なのに owner を落とし、`execEqualizeEnergy`（`effectExecutor.ts:737`＝owner未指定は両プレイヤー）が**自分のエナまで巻き込む過剰効果**になっていた。**修正**＝正規表現に主語を捕捉させ `対戦相手→owner:'opponent'`／`各プレイヤー→owner未指定(両方・WX09-Re12の唯一例)`／`あなた→'self'`。CSV全7出現を機械走査して主語パターンを網羅確認済み。
+- **② EXILE owner反転（真バグ・1枚 WXDi-P05-043）**＝「ゲームから除外」規則の owner判定 `t.includes('対戦相手') ? 'opponent' : 'self'` が粗く、原文「**対戦相手のシグニ1体を対象とし、あなたのトラッシュにあるスペルを2枚まで**ゲームから除外」で別節（パワー修正対象の相手シグニ）の主語を拾い、除外元「あなたのトラッシュ」を opponent に誤反転していた。**修正**＝除外元ゾーンの所有者を優先判定（`/(あなた|自分|対戦相手)の(トラッシュ|手札|エナゾーン)/`）。
+- **③ duration「反転」（誤診→held据置が正・1枚 WX25-P2-062）**＝fresh が GRANT_KEYWORD の action内 duration を UNTIL_END_OF_TURN→PERMANENT にする件。**engine 観点では無害**＝`execGrantKeyword`（`effectExecutor.ts:1541/1564/1614`）は `UNTIL_OPP_TURN_END` 以外を全て同一の `keyword_grants`（ターン終了時クリア）に入れるため PERMANENT と UNTIL_END_OF_TURN は機能的に完全同一。**だが decompiler は action内 duration を読んで「（ターン終了時まで）」注記を描画する**ため、PERMANENT 化すると逆翻訳が原文の「ターン終了時まで」を落とす退化になる（curated=UNTIL_END_OF_TURN が正・held据置が正しい）。**根本原因**＝`parseActionTextInner`（`effectParser.ts:1395`）が先頭「ターン終了時まで、」を除去してから下流の GRANT_KEYWORD 規則（`t.includes('ターン終了時まで')`で判定）に渡すため、**先頭位置**の期間句だけ落ちる（文中位置は捕捉され UNTIL_END_OF_TURN になる＝同カテゴリのアサシン付与8枚は held でない）。⚠一般的な復元（除去前にフラグ保持→PERMANENT復元）を試したところ**curated が action=PERMANENT 慣例の約102枚と衝突し held が 124→219 に激増**（PLAN §3 警告「無検証置換で約90枚退化」の失敗モード）＝curated 自体が action内 duration について PERMANENT/UNTIL_END_OF_TURN 不統一。**结论＝engine非依存の逆翻訳忠実性の系統課題**（durational付与の先頭期間句を全カード faithful に描画する≒約102枚の systematic バッチ・§5b decompile テール）として別項へ切り出し、本カードは held のまま温存（正しい状態）。
+- **④ triggerScope欠落（誤診・1枚 WXDi-CP02-TK01A）**＝fresh を実parseすると E3（対戦相手のターン終了時にゲーム除外）の `triggerScope:"any_opp"` は**正しく保持されている**（欠落していない）。続き56 の観測は stale `_held_fresh.json` 由来と判断。TK01A が held なのは E1/E2/E3 の curated STUB（`REDIRECT_ATTACK_TO_SELF_ZONE`/`BATTLE_LEAVE_REPLACE_WITH_DOWN`/`REMOVE_SELF_SIGNI_FROM_GAME`＝機構待ち）を fresh が UNKNOWN/DOWN/TRASH に退化させるためで、これは正しい held（触らない）。
+- **検証**＝真ベースライン比較（修正前コミット eaf08f7d の parser で build して held 集合を diff）で **held 124→118・新規 held 回帰ゼロ・①②の6枚のみ un-held** を機械確認。JSON実差分ゼロ（curated は既に正しくfresh がそれに一致しただけ＝engine/runtime 挙動は不変）。`npm run gates` 全緑（golden/smoke/fuzz/census 1574維持/lint 0 errors）・`npm run regen` で同型★0 維持・WX25-P2-062 の逆翻訳「（ターン終了時まで）」も維持を確認。[[effects-json-hand-maintained]] [[decompile-engine-parity]]
+
+---
+
 ## §7 実機検証＝ON_LEAVE_FIELD leftToZone（R45③）を実UIで確認＝対話ありでもPASSする対照実験（2026-07-09・続き58・Sonnet 5・同日第6件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `leaveFieldToHand`（WX21-057→WXK02-041）を追加。R45③の①発火自体を実UIで確認＝**PASS**。ON_LEAVE_FIELDは事前に`§6.3`で「resolveStackNext中央diffとhandleEffectInteraction resumeの両方に既に配線済み（対策済み9種の1つ）」と判明していたため、原因アクションに対話（SELECT_TARGET）が挟まってもR38/R43/R46/R39のような穴に落ちないことを確認する対照実験として実施した。
