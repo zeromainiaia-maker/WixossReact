@@ -1809,7 +1809,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- ゲームから除外する ----
   if (t.match(/ゲームから除外する/)) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // 除外元ゾーンの所有者で owner を決める（「あなたのトラッシュ」=self／「対戦相手のトラッシュ」=opponent）。
+    // 文頭に別主語（「対戦相手のシグニ１体を対象とし、」＝パワー修正対象）があっても除外元ゾーンを優先する。
+    // 従来は素の t.includes('対戦相手') が別節の主語を拾い、self トラッシュ除外を opponent に誤反転していた
+    // （WXDi-P05-043「あなたのトラッシュにあるスペルを…除外」・続き56発見）。
+    const zoneOwnerM = t.match(/(あなた|自分|対戦相手)の(?:トラッシュ|手札|エナゾーン)/);
+    const owner: Owner = zoneOwnerM
+      ? (zoneOwnerM[1] === '対戦相手' ? 'opponent' : 'self')
+      : (t.includes('対戦相手') ? 'opponent' : 'self');
     const isHand = t.includes('手札');
     const isEnergy = t.includes('エナゾーン');
     if (isHand && isEnergy) {
