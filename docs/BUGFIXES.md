@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証＝outsideDrawPhase（R39）で同型バグを確認＋理論を精緻化（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5・同日第5件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `outsideDrawPhase`（WXDi-D09-P19自己完結）を追加。R39の①発火自体を実UIで確認しようとした結果、**❌FAIL＝R43/R46と同型のバグを確認**。同日先に確立した「原因アクション自体がSELECT_TARGET/CHOOSEを要するか」という理論の**反例**が出たため、理論を「そのstack entryの解決中に一度でも対話が挟まったか」へ精緻化した。
+
+- **対象**＝WXDi-D09-P19（蒼天 アウドムラ）E2「【自】あなたのアタックフェイズ開始時：手札を1枚トラッシュに置く。そうした場合、カードを1枚引く」（原因アクション＝`SEQUENCE[TRASH(手札1枚選択), CONDITIONAL→DRAW]`）→E1「【自】ドローフェイズ以外であなたがカードを１枚引いたとき：《twice_per_turn》あなたの全シグニ+1000」（`ON_DRAW`・`outsideDrawPhase:true`）。
+- **盤面**：host に WXDi-D09-P19 を1枚配置（原因＝反応＝同一カード）、MAIN注入→「アタックフェイズへ」でON_ATTACK_PHASE_START発火→E2のSEQUENCE開始→TRASHがSELECT_TARGETで手札選択を要求→選択→DRAW実行。
+- **結果＝FAIL**：`host.hand`は5→（一時的に4）→5と推移（TRASH-1・DRAW+1で最終的に相殺・ground truthとして正常にSEQUENCE完了）したが、E1の`+1000`は一度も適用されず（`host.temp_power_mods`は終始`[]`）。`effect_stack`は終始0のまま＝この解決も`resolveStackNext`のdoneブランチを通らず`handleEffectInteraction`（TRASHのSELECT_TARGET resume）だけで完結。
+- **🆕 理論の反例→精緻化**＝R31（drawBySourceStory）は**同じ`collectDrawTriggers`**で確認PASSしていた。違いは、R31の原因アクション（E2＝単純DRAW）は対話不要でそのまま`done=true`、対してR39の原因アクション（E2＝SEQUENCE内にTRASHという対話ステップを含む）はSEQUENCE先頭のTRASHで一旦中断する点。**つまり「原因アクション自体が対象選択を要するか」ではなく、『そのstack entryの解決中に（SEQUENCE内のどのステップであれ）一度でも対話が挟まったか』が真の分岐条件**＝同一collectorでもカードのSEQUENCE構造次第で結果が変わる（カード単位でなく解決経路単位のバグ、という理解をさらに補強）。
+- **再現**：`node scripts/verifyBattleDrive.mjs outsideDrawPhase`（既定`order`からは除外済み）。
+- **修正方針（未着手・Opus担当＝PLAN.md §6.3参照）**：`collectXxxInline`を個別追加する対症療法はSEQUENCE構造次第で同じcollectorが再FAILしうる（本件が実例）ため対症療法止まり。根本修正は**`result.done`に関わらず両経路（`resolveStackNext`のdoneブランチ／`handleEffectInteraction`のresume完了時）から共通で呼べる収集関数への統合リファクタ**が本筋。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝drawBySourceStory（R31）を実UIで確認＋resume経路取りこぼし理論の機構原因をコード読解で確定（2026-07-09・続き58・Sonnet 5・同日第4件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `drawBySourceStory`（WX20-026自己完結＝アタックで自ドロー→自分の別効果が反応）を追加。R31の①発火自体を実UIで確認＝**PASS**。加えて、同日3件（R38型2件FAIL＋R41 PASS）の観測から立てていた「SELECT_TARGET等のresumeを経由する解決だけがtrigger収集を落とす」という仮説を、**`BattleScreen.tsx`の`resolveStackNext`本体を実際に読んで機構レベルで確定**できた。
