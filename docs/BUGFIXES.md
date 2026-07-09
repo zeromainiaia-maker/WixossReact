@@ -5,6 +5,18 @@
 
 ---
 
+## §7 実機検証 opp-draw（R40）を実UIで確認＝ON_DRAW（triggerScope:any_opp）は対話なしDRAWなら安全（2026-07-09・続き60・Sonnet 5）
+
+`verifyBattleDrive.mjs` に新シナリオ `oppDraw`（WXDi-P15-091→WX12-047）を追加し、PLAN §7 で「⚠未検証」だった opp-draw（R40）系を実機検証。**✅PASS（2回連続）**。
+
+- **盤面**：host に watcher WXDi-P15-091（羅石　ラブラドライト・【自】ON_DRAW・triggerScope:any_opp・triggerCondition:{drawByEffect:true}・usageLimit:once_per_turn＝対戦相手が効果でカードを引いたとき自分も1枚引く）を配置。guest（CPU）に WX12-047（幻水　ヤリイカ・【自】このシグニがアタックしたとき条件なしでカードを1枚引く）を配置し、CPU自動アタック（`wd07012`と同型・クリック不要）でguest自身の効果ドローを発生させた。
+- **結果＝PASS**：ログ「[CPU]幻水　ヤリイカ がアタック」→「[相手]幻水　ヤリイカ の【自】効果（シグニアタック時）」→「1枚ドロー」（guest自身）→「[自分]羅石　ラブラドライト の【自】効果（対戦相手ドロー時）」→「1枚ドロー」（hostのwatcher）。`hHand` 5→6 で ground truth と watcher 発火の両方を確認。
+- **機構的位置づけ**＝`collectOppDrawTriggers`（`triggerCollect.ts:684`）は`resolveStackNext`中央diff（`cards_drawn_by_effect_this_turn`の増加検出＝`BattleScreen.tsx:3642/3655`）にのみ配線されているが、原因アクション（WX12-047のDRAW）はSELECT_TARGET等の対話を要さないため`result.done=true`のまま`resolveStackNext`のdoneブランチに到達し正常収集される＝続き58で確立した「対話が挟まると取りこぼす」resume経路の穴（R43/R46/R39）とは無関係と確認（R31 drawBySourceStoryのany_opp版として安全パターンを追加実証）。
+- **ハマりどころ**＝WX12-047の攻撃は host に前方ブロッカーが無く素通りしてライフクロスクラッシュが発生し、「ライフクロスクラッシュ」確認モーダル（バーストなし→「エナに送る」ボタン）が挟まった。このボタンを`clickTextOrBtn`候補に入れていないと、モーダルで停止したまま`resolveStackNext`に到達せず無発火FAILする（初回試行はこれでFAIL）。`'エナに送る'`を追加して解消。
+- `order`配列に追加済み（末尾）。**検証**＝単体2回連続PASS・`npm run typecheck`緑（engine/parser不変＝script(`verifyBattleDrive.mjs`)とdocsのみの変更のためgates再実行不要）。
+
+---
+
 ## §3 動的比較 lrig相対の残＝WXK07-025-E2「より低い場合」condition脱落を parser修正＋完全形MANUAL化（census 1574→1573）（2026-07-09・続き59・Opus 4.8・第2件）
 
 続き55（Opus）が defer した WXK07-025-E2 を消化。原文「【自】：このシグニがアタックしたとき、あなたのセンタールリグのレベルが対戦相手のセンタールリグ**より低い場合**、カードを１枚引き、ターン終了時まで、このシグニのパワーを＋7000する」が curated では**condition と DRAW を両方落とした裸の `POWER_MODIFY`**（毎アタック無条件発火＋ドロー消失＝過剰効果）だった。2つの独立バグを分離特定。
