@@ -210,6 +210,16 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **系統的懸念に追加**＝`collectDeckTrashSelfTriggers`（ON_TRASH self・fromZones:deck）も同型の疑いで未検証。
 - `order`配列からは除外（FAIL・Opus修正待ち）。
 
+### ✅ ON_REFRESH（R45②）をPASSで確認＝対話なしDRAW/no-op経由のリフレッシュも問題なし（2026-07-10・続き60・Sonnet 5）
+
+`refreshTrigger`（WXDi-P04-043→WX15-073）を新設し実機検証したところ**PASS（3回連続）**。host に watcher WXDi-P04-043（幻竜姫 ドラゴンメイド・ON_REFRESH・triggerCondition:{refreshedOwner:'any'}・任意コスト《黒》で対戦相手シグニに-10000）を配置、host のデッキを**残り1枚**（trash1枚）にしてWX15-073（勝利の円卓 アルスラ・E1バニッシュ候補0件で即done・E2ドローがデッキ最後の1枚を引いてちょうど0枚化）を召喚して発火させた。
+
+- **結果**：ログ「1枚ドロー」→「リフレッシュ（デッキを再構築）」→「幻竜姫　ドラゴンメイドの【自】効果（リフレッシュ時）」を3回連続確認。
+- **機構的にR31/oppDrawと同型**＝`applyRefreshOnDone`（`BattleScreen.tsx:3506`）は`resolveStackNext`冒頭で`executeEffect`直後に呼ばれ、E1/E2とも対話不要で`done=true`のまま完結するため、リフレッシュ適用と直後の中央diff（`countRefresh`）が同一呼び出し内で完結し`collectRefreshTriggers`が正常収集される＝resume経路取りこぼしとは無関係。
+- **⚠重要な罠（当初デッキ0枚で試して発覚）**＝デッキを最初から0枚にすると、E1（バニッシュ0件の即done）の時点で既に「デッキ0枚＋トラッシュ非空」が成立し1回目のリフレッシュが発火→続くE2解決後の2回目リフレッシュで「同ターン中2回目のリフレッシュは強制終了」ルール（`BattleScreen.tsx:3511`）が発動しターンが即終了、watcher収集の機会を失う（ログ「ターンが強制終了されました」で確認）。デッキを**残り1枚**にしてE2が引くまでリフレッシュを起こさない設計に変更して解消＝リフレッシュ関連の実機シナリオを組む際は「デッキを空にする」のではなく「ちょうど1回だけ0枚化させる」よう調整すること。
+- **ハマりどころ**＝POWER_MODIFY対象選択（相手シグニ1体・候補1件）は選択操作なしで「決定 (1/1)」ボタンが最初からready表示される＝`pick-0`クリックだけでなく「決定」ボタンを直接押す分岐も必要。
+- `order`配列に追加済み（末尾）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
