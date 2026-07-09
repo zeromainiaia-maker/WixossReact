@@ -1469,16 +1469,18 @@ const scenarios = {
             if (await pay.count() && await pay.isEnabled().catch(() => false)) { await pay.click().catch(() => {}); did = 'optcost-pay'; }
           }
         }
-        if (!did) { // 万一 SELECT_TARGET が挟まった場合の保険
+        if (!did) { // POWER_MODIFY対象選択（相手シグニ1体・候補1件は決定ボタンが最初からready）
           const pick0 = page.getByTestId('pick-0').first();
-          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
-            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          const confirmBtn = page.getByRole('button', { name: /決定 \(1\// }).first();
+          if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+            await confirmBtn.click().catch(() => {}); did = 'btn:決定(1/1)';
+          } else if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            await pick0.click().catch(() => {}); did = 'pick:pick-0';
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定']);
         const st = await H.queryState();
-        const watcherLog = await H.findLog(/ドラゴンメイド.*リフレッシュ時|の【自】効果（リフレッシュ時）/);
+        const watcherLog = await H.findLog(/ドラゴンメイド.*リフレッシュ時|の【自】効果（リフレッシュ時）/) || (st?.logTail ?? []).find(l => /の【自】効果（リフレッシュ時）/.test(l));
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
         H.log(`  rf[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} hTrash=${st?.host?.trash ?? '-'} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog} logTail=${JSON.stringify(st?.logTail?.slice(-8))}`);
         if (debuffed || watcherLog) {
