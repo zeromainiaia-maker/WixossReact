@@ -1383,6 +1383,7 @@ const scenarios = {
       for (let s = 0; s < 24; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/handDiscard-${s}.png`, fullPage: true });
+        if (s === 0) H.log('DEBUG fullBody:', (await H.fullBody()).replace(/\n/g, ' | '));
         let did = null;
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
