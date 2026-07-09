@@ -351,39 +351,6 @@ WXDi-P03-060 WXDi-P14-062
   + [0].action.abilities[0].parseStatus = "UNKNOWN"
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
 
-## +CONDITIONAL +LRIG_LEVEL_CMP_OPP ［2枚］
-WXK07-025 WXK10-068
---- WXK07-025
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、それをバニッシュする。【自】：このシグニがアタックしたとき、あなたのセンタールリグのレベルが対戦相手のセンタールリグより低い場合、カードを１枚引き、ターン終了時まで、このシグニのパワーを＋7000する。
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.filter.powerRange.max = 3000
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "BANISH" → "CONDITIONAL"
-  + [0].action.condition.type = "LRIG_LEVEL_CMP_OPP"
-  + [0].action.condition.operator = "lte"
-  + [0].action.then.type = "BANISH"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "opponent"
-  …（他 4 行）
---- WXK10-068
-  原文: 【常】：このシグニのパワーは対戦相手のセンタールリグのレベル１につき＋1000される。【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、それをバニッシュする。,：【エナチャージ１】
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.filter.powerLtSelf = true
-  - [1].action.target.upToCount = false
-  ~ [1].action.type : "BANISH" → "CONDITIONAL"
-  + [1].action.condition.type = "LRIG_LEVEL_CMP_OPP"
-  + [1].action.condition.operator = "lte"
-  + [1].action.then.type = "BANISH"
-  + [1].action.then.target.type = "SIGNI"
-  + [1].action.then.target.owner = "opponent"
-  …（他 4 行）
-
 ## +BANISH +CHOOSE +DRAW +SEQUENCE +SIGNI ［1枚］
 WX14-011
 --- WX14-011
