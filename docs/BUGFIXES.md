@@ -5,6 +5,19 @@
 
 ---
 
+## §7 実機検証＝ON_LEAVE_FIELD leftToZone（R45③）を実UIで確認＝対話ありでもPASSする対照実験（2026-07-09・続き58・Sonnet 5・同日第6件）
+
+`scripts/verifyBattleDrive.mjs` に新シナリオ `leaveFieldToHand`（WX21-057→WXK02-041）を追加。R45③の①発火自体を実UIで確認＝**PASS**。ON_LEAVE_FIELDは事前に`§6.3`で「resolveStackNext中央diffとhandleEffectInteraction resumeの両方に既に配線済み（対策済み9種の1つ）」と判明していたため、原因アクションに対話（SELECT_TARGET）が挟まってもR38/R43/R46/R39のような穴に落ちないことを確認する対照実験として実施した。
+
+- **対象**＝WXK02-041（讃の遊 オエカキボード）E2「【自】シグニ１体が場から手札に戻ったとき：あなたの＜遊具＞のシグニ1体のパワーを＋2000する」（`ON_LEAVE_FIELD`・`triggerScope:any`・`leftToZone:'hand'`）。原因＝WX21-057（小罠 ツララ）E2「このシグニが場に出たとき：あなたのシグニ1体を手札に戻す」（JSON上は`BOUNCE{type:SIGNI,owner:self,count:1}`＝原文の「【トラップ】を対象」とは異なる別件のmis-parseだが今回の検証には支障なし）。
+- **盤面**：host に watcher WXK02-041 をzone0固定配置、WX21-057をsummon-zone-1へ強制召喚。E2のBOUNCE対象選択で候補2体（zone0=watcher自身／zone1=WX21-057自身）のうちpick-1（WX21-057自身）を選択＝watcherを誤って巻き込まないよう配慮。
+- **結果＝PASS**：盤面ログに「讃の遊　オエカキボード の【自】効果（味方が場を離れたとき）」を確認。WX21-057がバウンスされ手札に戻った直後にwatcherが正しく反応した（原因アクションのSELECT_TARGET対話を挟んでも問題なし）。
+- **意義**＝R38/R43/R46/R39は「原因の解決中に対話が挟まると、その完了がresolveStackNextのdoneブランチを通らずtrigger収集を逃す」という穴だったが、ON_LEAVE_FIELDはこの穴に対する**修正済みの前例**（続き20台の作業で既に両経路に配線されている）＝これがあるからこそ対症療法（`collectXxxInline`追加）でも実用上直せることの裏付けにもなる。
+- `order`配列に復帰済み（PASS）。
+- engineは変更していないためgates再実行は不要（`npm run typecheck`のみ確認済み）。
+
+---
+
 ## §7 実機検証＝outsideDrawPhase（R39）で同型バグを確認＋理論を精緻化（未修正・Opus引き継ぎ）（2026-07-09・続き58・Sonnet 5・同日第5件）
 
 `scripts/verifyBattleDrive.mjs` に新シナリオ `outsideDrawPhase`（WXDi-D09-P19自己完結）を追加。R39の①発火自体を実UIで確認しようとした結果、**❌FAIL＝R43/R46と同型のバグを確認**。同日先に確立した「原因アクション自体がSELECT_TARGET/CHOOSEを要するか」という理論の**反例**が出たため、理論を「そのstack entryの解決中に一度でも対話が挟まったか」へ精緻化した。
