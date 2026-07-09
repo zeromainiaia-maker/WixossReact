@@ -692,7 +692,8 @@ const scenarios = {
     },
     async drive(page, H) {
       const before = await H.queryState();
-      H.log('開始時 guest zone0:', JSON.stringify(before?.guest?.fieldSigni?.[0]));
+      H.log('開始時 guest:', JSON.stringify(before?.guest));
+      H.log('開始時 host:', JSON.stringify(before?.host));
       let attacked = false;
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
