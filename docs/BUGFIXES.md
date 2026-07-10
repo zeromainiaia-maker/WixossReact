@@ -5,6 +5,18 @@
 
 ---
 
+## effect-restriction（配置数制限）機構を実装＝「対戦相手はシグニをN体までしか場に出せない」5枚（§6・タスクB・2026-07-11・続き63・Opus 4.8・要実機検証→✅PASS）
+
+「（このターン、）対戦相手はシグニをN体までしか場に出せない（すでにN体超→トラッシュ）」（WXK11-074/WX07-006/WX12-008/WXDi-P05-024/WXK05-009）を実装。5枚とも E1 が `ADD_TO_FIELD` に誤パースされ完全 no-op だった（原文は配置制限なのに「場に出す」に誤マッチ）。
+
+- **機構（§3「機構実装の型」）**＝①`PlayerState.signi_deploy_count_limit?:number`（`types/index.ts`・このターンの配置数上限フラグ）②engine＝`execStubPart3.ts` の `DEPLOY_RESTRICT` stub に count分岐を追加＝原文から N を読み、相手（otherState）に上限フラグを立て、**超過分を即トラッシュ**（`removeFromField` でチャーム/アクセ/ソウルも処理・末尾ゾーンから＝相手選択の近似）③CONT版（WX07-006 レゾナ【常】）用に `collectDeployCountLimit`（`effectEngine.ts`・相手場/ルリグの CONT DEPLOY_RESTRICT を走査し N を返す）④配置ブロック＝`handleSummonSigni`（人間）＋CPU召喚（`cpuFieldSigniLimit` に min 合成）＋`SigniSummonZoneModal`（UI・「配置数制限」表示）でフラグ＋CONTの小さい方を上限に、場のシグニ数が上限以上なら新規配置不可（ライズは対象外）⑤ターン境界リセット3+1箇所（PvP通常/確認後の incoming `opState`・FORCE_END_TURN `nextStateUpd`・CPU `nextHuSt`）で「このターン」フラグをクリア。
+- **parser**＝`parseSentencePart1.ts` に「シグニをN体までしか…場に出(せない/すことができない)」→ `DEPLOY_RESTRICT` stub 規則を bare `ADD_TO_FIELD`（「場に出す」誤マッチ）の前に先取り追加。**JSON は5枚の E1 action を effectId アンカーで直接パッチ**（`ADD_TO_FIELD`→`STUB:DEPLOY_RESTRICT`・build:effects 不使用）。fresh parse が curated と一致することを確認（held 不増）。
+- **decompiler**＝`decompileEffects.ts` の DEPLOY_RESTRICT に count パターン抽出を追加（「新たに…出せない」に加え「対戦相手はシグニをN体までしか…場に出せない（補足）」も原文抽出）。5枚とも原文一致・同型★0 維持。
+- **engine 挙動＝PERMANENT/UNTIL不問**（フラグは「このターン」）。⚠WX12-008 の timing は原文「エクシードのコストとしてルリグトラッシュに置かれたとき」だが JSON は ON_PLAY のまま（timing 誤パースは別課題・action のみ是正）。
+- **検証**＝golden +1（177・相手3体→2体トラッシュ＋フラグ=2）／smoke CRASH0（10582）／fuzz 0／**census 1572→1567**（5枚解消・BASELINE_HIGH 更新）／同型★0／typecheck・lint 0 errors。**実機検証＝`verifyBattleDrive.mjs deployRestrict`（WXK11-074 を host が召喚→【出】《黒》《無》コスト払い→guest シグニ 3→2・trash 0→1）✅PASS**（既定 order に追加）。STUBS.md 再生成（DEPLOY_RESTRICT 8枚）。
+
+---
+
 ## durational付与の「ターン終了時まで」期間注記の逆翻訳復元＝decompiler側で原文照合し112枚是正（§5b・タスクA・2026-07-11・続き62・Opus 4.8）
 
 付与系 action（GRANT_KEYWORD／REMOVE_ABILITIES）の action内 duration/until が curated JSON で落ちている（PERMANENT/未設定）ため、decompile が原文の「ターン終了時まで」を注記（（ターン終了時まで））できず脱落していた系統課題（§5b decompileテール・母集団 `docs/_duration_lead_population.txt`）を、**engine/JSON 不変の decompiler 側修正で是正**（続き59 で確認済みのとおり parser 側の一般復元は curated=PERMANENT慣例と衝突し held 激増＝JSONは触らない）。
