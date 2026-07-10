@@ -4785,12 +4785,13 @@ export function collectDeployCountLimit(
   ];
   let cap: number | undefined;
   for (const cn of candidates) {
-    for (const eff of (effectsMap.get(cn) ?? [])) {
+    const base = getCardNum(cn);
+    for (const eff of (effectsMap.get(base) ?? effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'DEPLOY_RESTRICT') continue;
-      const txt = cardMap.get(getCardNum(cn))?.EffectText ?? '';
+      const txt = cardMap.get(base)?.EffectText ?? '';
       const m = txt.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
       if (!m) continue;
       const n = parseInt(m[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
