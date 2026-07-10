@@ -69,7 +69,14 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                 const overLimit = afterTotal > lrigLimit;
                 // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合
                 const overPowerLimit = my.signi_deploy_power_limit !== undefined && signiPower >= my.signi_deploy_power_limit;
-                const isDisabled = loading || overLimit || overPowerLimit || forcedBlocked ||
+                // DEPLOY_RESTRICT（配置数制限）: フラグ（このターン）＋相手場の CONT レゾナ の小さい方が場のシグニ数以下なら新規配置不可
+                const contCountCap = collectDeployCountLimit(op, my, battleCardMap, effectsMap, !isMyTurn);
+                const countCap = my.signi_deploy_count_limit !== undefined
+                  ? (contCountCap !== undefined ? Math.min(my.signi_deploy_count_limit, contCountCap) : my.signi_deploy_count_limit)
+                  : contCountCap;
+                const overCountLimit = !pendingRiseFilter && countCap !== undefined
+                  && my.field.signi.filter(s => s && s.length > 0).length >= countCap;
+                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked ||
                   (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
                   <button key={zi} data-testid={`summon-zone-${zi}`}
