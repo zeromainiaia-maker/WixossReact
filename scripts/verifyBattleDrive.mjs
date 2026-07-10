@@ -461,7 +461,7 @@ const scenarios = {
       // ⚠guest側注入が稀に競合で上書きされる（原因未特定）＝クリック開始前に再確認・再PATCHで安定化。
       for (let r = 0; r < 4; r++) {
         const st0 = await H.queryState();
-        const ok = st0?.guest?.fieldSigni?.[0]?.[0] === 'WD05-009#1' && st0?.guest?.fieldSigni?.[1]?.[0] === 'WD01-013#1';
+        const ok = st0?.guest?.fieldSigni?.[0]?.[0] === 'WD05-009#1' && st0?.guest?.fieldSigni?.[1]?.[0] === 'WX01-053#1';
         H.log(`注入確認(試行${r}): guest.fieldSigni=${JSON.stringify(st0?.guest?.fieldSigni)} ok=${ok}`);
         if (ok) break;
         await injectScenario(page, scenarios.charmToTrash.spec);
