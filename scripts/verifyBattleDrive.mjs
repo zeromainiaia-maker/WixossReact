@@ -630,6 +630,10 @@ const scenarios = {
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
           if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
         }
+        // 発動順序モーダル（WX11-004-E2＋WXDi-P06-078-E1が同時収集される）＝順序確定ボタン
+        const orderLog = await H.findLog(/エクシードコスト支払い時/);
+        if (orderLog) fired = true;
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定']);
         const promptLog = await H.findLog(/任意コスト：対象シグニを選んで発動しますか/);
         if (promptLog) fired = true;
         if (!did && fired) { // ON_EXCEED_COST発火済み＝スキップして完走
