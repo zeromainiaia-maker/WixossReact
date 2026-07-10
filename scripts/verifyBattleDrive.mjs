@@ -497,7 +497,7 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
-        const debuffed = (st?.guest?.powerMods ?? []).some(m => /^WD01-013#1:-4000$/.test(m));
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => /^WX01-053#1:-4000$/.test(m));
         H.log(`  ch[${s}] -> ${did ?? 'なし'} | gTrash=${st?.guest?.trash ?? '-'} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (debuffed) return { pass: true, detail: `ON_CHARM_TO_TRASH 発火→watcher が対戦相手シグニに-4000（gPowerMods=${(st.guest.powerMods).join(',')}・gTrash=${st.guest.trash}）` };
       }
