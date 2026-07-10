@@ -593,6 +593,61 @@ const scenarios = {
     },
   },
 
+  // ⑧''' ON_EXCEED_COST 場シグニ（R44・§7・WXDi-P06-078）: 【自】《ターン１回》＝あなたのターンの間、あなたが
+  //    エクシードのコストを支払ったとき、対戦相手のシグニ１体を対象とし《黒》を払ってもよい（STUB
+  //    TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）。払えばターン終了時までそれのパワー-5000。
+  //    エクシード源＝WX11-004（コード・ピルルク　Λ・Restriction無し・【起】《ターン１回》エクシード１：
+  //    カードを２枚引く＝MAIN専用の【起】が1つだけなのでボタンの取り違えが起きない）。
+  exceedCost: {
+    title: 'WX11-004→WXDi-P06-078（ON_EXCEED_COST 場シグニ＝エクシード支払い時 対戦相手-5000・R44）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1', 'WX11-004#1'],   // 下1枚(WD01-001)＋センターWX11-004（エクシード1を支払える）
+        'field.signi': [['WXDi-P06-078#1'], null, null], // watcher（凶将 カラサワ）
+        'energy': ['WD05-009#1'],                      // 黒エナ（任意コスト用）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-053#1'], null, null],   // 任意コスト発動時のPOWER_MODIFY対象候補
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const lrigImg = page.getByAltText('コード・ピルルク　Λ', { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+      else H.log('LRIGクリック: 見つからず');
+      let fired = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exceedCost-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) { // 【起】エクシード１ボタン（MAIN専用の【起】は1つだけ）
+          const actBtn = page.getByRole('button', { name: /【起】エクシード/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】エクシード'; }
+        }
+        if (!did) { // LrigGrantedModal「発動」
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        const promptLog = await H.findLog(/任意コスト：対象シグニを選んで発動しますか/);
+        if (promptLog) fired = true;
+        if (!did && fired) { // ON_EXCEED_COST発火済み＝スキップして完走
+          did = await H.clickTextOrBtn(['スキップ']);
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+        const st = await H.queryState();
+        H.log(`  exc[${s}] -> ${did ?? 'なし'} | hand=${st?.host?.hand ?? '-'} fired=${fired} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (fired && (st?.host?.actionsDone ?? []).includes('WXDi-P06-078-E1')) {
+          return { pass: true, detail: `ON_EXCEED_COST 発火→WXDi-P06-078-E1 が actions_done に記録（hand=${st.host.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      if (fired) return { pass: true, detail: `ON_EXCEED_COST 発火（任意コストプロンプト確認・hand=${fin?.host?.hand}）` };
+      return { pass: false, detail: `ON_EXCEED_COST 発火未確認（hand=${fin?.host?.hand ?? '-'} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'}）` };
+    },
+  },
+
   // ⑨ ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 【自】＝あなたのターンの間、ルリグの下からカードが移動したとき（once_per_turn）。
   //    トリガー源＝アーツ WX05-007 ラスト・セレクト（タマ/イオナ限定・《白》《黒》：センタールリグの下から4枚をルリグトラッシュへ＋
   //    対戦相手シグニ1体トラッシュ）。guest シグニ場を空にすると TRASH 対象0→SEQUENCE が一気に done=true となり
