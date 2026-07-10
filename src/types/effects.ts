@@ -1443,6 +1443,8 @@ export interface AttachAcceAction {
   fromHand?: boolean;           // trueなら手札からアクセ（デコレ能力）
   signiFilter?: TargetFilter;   // アクセカードのフィルター（手札から選ぶ場合に使用）
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
+  _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー
+  _pickedAcceCard?: string;         // 内部: fromHand step1で選んだアクセカード（step2ホスト選択のthenActionへ引き渡す）
 }
 
 // 血晶武装：手札・トラッシュ・デッキから同名カードをシグニの下に重ねる
