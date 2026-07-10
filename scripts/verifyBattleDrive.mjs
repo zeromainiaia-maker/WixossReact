@@ -457,6 +457,8 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      const before = await H.queryState();
+      H.log('注入直後 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni));
       await H.ensureMain();
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;
