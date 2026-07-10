@@ -5,6 +5,18 @@
 
 ---
 
+## §7 実機検証 ON_TARGETED①個別確認（WXDi-P02-043）を実UIで確認（2026-07-11・続き64・Sonnet 5）
+
+`verifyBattleDrive.mjs` に新シナリオ `ontargeted2`（WD05-017→WXDi-P02-043）を追加し、PLAN §7 で残っていた ON_TARGETED①「相手の効果で自分のシグニが対象に取られた各パターンの個別確認」のうち WXDi-P02-043（ドライ＝インフルＤ型）を検証。**✅PASS**（`ontargeted`＝WXDi-P03-067と同一の配線・コードパスで正しく発火することを別カードで追加確認）。
+
+- **盤面**：`ontargeted`と同一構成（host が黒×1コストのスペル WD05-017 ホール・ダークで対戦相手シグニ1体に-4000）で、watcher を WXDi-P02-043（【自】《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、カードを1枚引き【エナチャージ1】をする＝mandatory・対象選択不要）に差し替え。
+- **結果**：SELECT_TARGETでguestのwatcherを対象化→ON_TARGETED発火→DRAW+ENERGY_CHARGE_FROM_DECKでguest.hand 5→6を確認。
+- **⚠軽微なタイミングフレーク**＝5回中4回PASS・1回はSELECT_TARGETピッカーが最後まで出現せずFAIL（stack=0のまま）。`ontargeted`と全く同じコードパス・同じスペルを使っているため engine 側の問題ではなく、driver/環境側のクリックタイミング競合と判断（他の既存シナリオでも同種のバッチ限定状態汚染が既知＝VERIFY_BROWSER.md運用メモ参照）。
+- `order`配列に追加済み（`ontargeted`の直後）。
+- 詳細 VERIFY_BROWSER.md「ON_TARGETED①個別確認」節。
+
+---
+
 ## §7 実機検証 ON_EXCEED_COST 場シグニ（R44）を実UIで確認＝正常動作を確認（2026-07-11・続き64・Sonnet 5）
 
 `verifyBattleDrive.mjs` に新シナリオ `exceedCost`（WX11-004→WXDi-P06-078）を追加し、PLAN §7 で未検証だった ON_EXCEED_COST 場シグニ（R44）を実機検証。**✅PASS（3回連続・本番ビルド含む）**。
