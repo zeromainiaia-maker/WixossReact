@@ -3404,6 +3404,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
         opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
         turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
+        signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
