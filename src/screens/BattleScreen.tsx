@@ -3013,6 +3013,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           granted_effects:    {},   // ターン内付与能力をリセット
           blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
+          signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
