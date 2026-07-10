@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証 ON_ACCE_ATTACH host条件（R45①）で `execAttachAcce` fromHand経路の実バグを発見（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
+
+`verifyBattleDrive.mjs` に新シナリオ `acceAttach`（WXK04-003デコレ→WXK05-041）を追加し、PLAN §7 で未検証だった ON_ACCE_ATTACH host条件（R45①）を実機検証。**❌FAIL＝`execAttachAcce` の `fromHand` 分岐（`effectExecutor.ts:3774`）に実装バグを発見**（未修正）。
+
+- **背景**＝【デコレ】キーワード（青×0・ターン1回・手札の＜調理＞シグニ1枚を場の＜調理＞シグニの【アクセ】にする起動能力）は、`manualEffects.ts` の既存コメントが「パーサーが【デコレ】を非効果キーワード接頭辞として除去するためどのカードにも登録されておらず、`execAttachAcce` の `fromHand` パスが到達不能の死にコードだった」と明記していた箇所＝＜調理＞のエルドラ9枚に `ATTACH_ACCE(fromHand:true)` の ACTIVATED 能力を追記して配線した（過去セッション）。**今回が `fromHand` 経路の初の実UI駆動**であり、その場で実装バグが露呈した。
+- **盤面**：host センターに WXK04-003（エルドラ　オーバークロック・デコレ持ち・Lv4/Limit11）、host 場に WXK05-026（コードオーダー　ＢＣＰＩＣ・＜調理＞Lv4・ACCE未装着）、host 手札に WXK05-041（コードイート　ミント・＜調理＞Lv1・ACCE予定カード＝watcher本体）を配置。LRIG をクリック→【起】コストなしボタン（後述の表示バグにより同文言が2つ並ぶため末尾を選択）→「発動」→手札からACCEするシグニを選択（候補1件＝WXK05-041）→決定。
+- **結果＝FAIL**：ここで `actions_done` に `WXK04-003-DECORE` が記録され完了扱いになるが、**`field.signi_acce` は終始 `null` のまま**（ホストシグニ＝WXK05-026を選ぶはずの2段目のSELECT_TARGETが一度も現れない）。ON_ACCE_ATTACH は当然発火しない。
+- **原因（コード読解で特定）**＝`execAttachAcce` の `fromHand` 分岐は、1段目 `SELECT_TARGET`（`self_hand` スコープ・候補＝手札の＜調理＞シグニ）の `thenAction` に「`{...a, fromHand:false}`＝まだ2段目の interaction を生成する必要があるフルの ATTACH_ACCE アクション」を渡している。しかし SELECT_TARGET の resume 解決側（`applyDirectAction`・`effectExecutor.ts:4141` から呼ばれる `case 'ATTACH_ACCE'`＝`effectExecutor.ts:4889`）は、**「渡された `cardNum`＝ユーザーが選んだ候補＝ホストシグニ」という前提**で実装されている（`zoneIdx = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum)`）。1段目で選ばれた候補は実際には「手札から選んだACCEカード自身」であり、当然ホスト場には存在しないため `zoneIdx < 0` となり `return done(ctx)` で即終了する。**`thenAction` に「まだ interaction を要するアクション」を渡すという設計が、resume 機構（1候補選択→即 terminal 実行という前提）と根本的に噛み合っていない**。
+- **修正方針（未着手・Opus担当）**＝`fromHand` 分岐を「1段目 SELECT_TARGET 解決後に選択済みACCEカードを `ctx.lastProcessedCards` 等へ積んでから、改めて `execAttachAcce` の非 `fromHand` 経路（2段目のホスト選択 `needsInteraction`）を明示的に呼び出す」形へ作り替える必要がある（`thenAction` に完結しないアクションを渡す現行設計を廃止）。
+- **副次的な発見（低優先・別途報告）**＝WXK04-003 は【起】能力を2つ持つ（コイン×1のE2＝ゲーム1回の「サプライズ」／青×0のDECORE）が、`getMyLrigFieldActions`（`BattleScreen.tsx:9872`）の costPartsMA 組み立てが `eff.cost?.coin` を考慮していないため、**E2（コイン×1のはず）のボタンラベルも「【起】コストなし」になってしまう表示バグ**（両者が同文言で並び区別できない）。
+- **再現**：`node scripts/verifyBattleDrive.mjs acceAttach`（`order` 配列には追加せず＝Opus修正待ち）。単体2回連続で同一FAILを確認済み。
+
+---
+
 ## §7 実機検証 ON_CHARM_TO_TRASH（R42）を実UIで確認＝続き61の collectBoardDiffTriggers 統合で既に解消済みだったことを確認（2026-07-11・続き64・Sonnet 5）
 
 `verifyBattleDrive.mjs` に新シナリオ `charmToTrash`（WX19-023→WX16-Re05）を追加し、PLAN §7 で「続き61で統合ヘルパー配線済み＝実機検証可」だった ON_CHARM_TO_TRASH（R42）を実機検証。**✅PASS**（続き61で R43/R46/R39/R36 向けに投入された `collectBoardDiffTriggers` 統合修正が、同じ中央diffブロックにあった `collectCharmToTrashTriggers` も一緒にカバーしていたことを実機で確認＝追加修正不要）。
