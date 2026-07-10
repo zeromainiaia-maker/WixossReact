@@ -2536,6 +2536,262 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries: fz.entries, hostState: h, guestState: g };
   };
 
+  // === 盤面差分トリガーの統合収集（続き61・Opus）===
+  // resolveStackNext の中央 diff（result.done===true 分岐）と handleEffectInteraction の resume 完了分岐の
+  // 双方から呼べる「盤面 before/after を比べてトリガーを収集する」共通関数。
+  // 【背景】従来、この収集は resolveStackNext の else 節（result.done===true）にのみ全種そろっており、
+  // 対象選択(SELECT_TARGET/CHOOSE)を挟んで resume 経路で完了する効果では大半のトリガーが取りこぼされていた
+  // （§6.3・続き58/60 で ON_OPP_POWER_DECREASED/ON_ENERGY_TO_TRASH/ON_DRAW〔SEQUENCE内対話〕/ON_TRASH self を実機FAILで確認）。
+  // resume 側には collectFreezeInline 等 5 種の場当たり的 inline 版しかなく、SEQUENCE 構造次第で同 collector が
+  // 再度 FAIL する対症療法だった。本関数に全 collector を集約し両経路から呼ぶことで解決経路に依らず一貫させる。
+  // before は bs.host_state/guest_state。afterHost/afterGuest（result 状態）を受け取り、entries（積むトリガー）と
+  // once_per_turn の actions_done を反映した host/guest を返す（呼び出し側で update.host_state/guest_state と effect_stack へ反映）。
+  // meta.causeOwnerId＝この効果のオーナー（entry.playerId/pe.sourcePlayerId・「対戦相手の効果によって」判定と
+  // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT の発生源側判定に使用）。meta.causeSourceCardNum＝発生源カード
+  // （entry.cardNum/pe.sourceCardNum・banisher 照合と ON_PLAY の placeSourceIsSigni 判定に使用）。
+  // ⚠この関数は「盤面差分だけで判定できる」トリガーのみを含む。action 型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD の
+  // 【出】積み・ON_ARTS_USE/ON_OPP_ARTS_USE・FORCE_END_TURN）は entry.effect / entryCardType に依存するため
+  // resolveStackNext 側に inline 据置（resume 経路では pending_effect に元 action 型が無いため再現不能・従来同様）。
+  const collectBoardDiffTriggers = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+    meta: { causeOwnerId: string; causeSourceCardNum: string },
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    const { causeOwnerId, causeSourceCardNum } = meta;
+    const beforeHost = bs.host_state, beforeGuest = bs.guest_state;
+    let h = afterHost, g = afterGuest;
+    const entries: StackEntry[] = [];
+    const useHost  = (used: string[]) => { if (used.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...used] }; };
+    const useGuest = (used: string[]) => { if (used.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...used] }; };
+
+    // ON_BANISH: バニッシュされたシグニ
+    for (const cardNum of detectBanishedSigni(beforeHost, h)) {
+      entries.push(...collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost));
+    }
+    for (const cardNum of detectBanishedSigni(beforeGuest, g)) {
+      entries.push(...collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest));
+    }
+
+    // ON_TRASH: トラッシュに移動したシグニ。原因owner=causeOwnerId と所有者が異なれば「対戦相手の効果によって」。
+    const hostTrashedByOpp  = causeOwnerId === bs.guest_id;
+    const guestTrashedByOpp = causeOwnerId === bs.host_id;
+    for (const cardNum of detectTrashedSigni(beforeHost, h)) {
+      entries.push(...collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp));
+    }
+    for (const cardNum of detectTrashedSigni(beforeGuest, g)) {
+      entries.push(...collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp));
+    }
+    // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
+    for (const cardNum of detectDeckTrashed(beforeHost, h)) {
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp));
+    }
+    for (const cardNum of detectDeckTrashed(beforeGuest, g)) {
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
+    }
+    // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）
+    for (const cardNum of detectHandTrashed(beforeHost, h)) {
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand'));
+    }
+    for (const cardNum of detectHandTrashed(beforeGuest, g)) {
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand'));
+    }
+    for (const cardNum of detectEnergyTrashed(beforeHost, h)) {
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy'));
+    }
+    for (const cardNum of detectEnergyTrashed(beforeGuest, g)) {
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy'));
+    }
+
+    // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）
+    for (const { cardNum, under } of detectLeftFieldSigni(beforeHost, h)) {
+      entries.push(...collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g));
+    }
+    for (const { cardNum, under } of detectLeftFieldSigni(beforeGuest, g)) {
+      entries.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g));
+    }
+
+    // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn 増加を検出）
+    if ((h.cards_drawn_by_effect_this_turn ?? 0) > (beforeHost.cards_drawn_by_effect_this_turn ?? 0)) {
+      const dt = collectDrawTriggers(bs.host_id, h, g);
+      entries.push(...dt.entries); useHost(dt.usedOncePerTurnIds);
+      const odt = collectOppDrawTriggers(bs.guest_id, g, h);
+      entries.push(...odt.entries); useGuest(odt.usedOncePerTurnIds);
+    }
+    if ((g.cards_drawn_by_effect_this_turn ?? 0) > (beforeGuest.cards_drawn_by_effect_this_turn ?? 0)) {
+      const dt = collectDrawTriggers(bs.guest_id, g, h);
+      entries.push(...dt.entries); useGuest(dt.usedOncePerTurnIds);
+      const odt = collectOppDrawTriggers(bs.host_id, h, g);
+      entries.push(...odt.entries); useHost(odt.usedOncePerTurnIds);
+    }
+
+    // ON_CARD_MILLED_FROM_DECK: デッキ→トラッシュ（ミル）が起きた場合
+    const milledHost  = countMilledFromDeck(beforeHost, h);
+    const milledGuest = countMilledFromDeck(beforeGuest, g);
+    if (milledHost > 0 || milledGuest > 0) {
+      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest);
+      entries.push(...mtH.entries); useHost(mtH.usedOncePerTurnIds);
+      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost);
+      entries.push(...mtG.entries); useGuest(mtG.usedOncePerTurnIds);
+    }
+
+    // ON_CHARM_TO_TRASH: 【チャーム】が場→トラッシュに置かれた場合
+    const charmHost  = countCharmsToTrash(beforeHost, h);
+    const charmGuest = countCharmsToTrash(beforeGuest, g);
+    if (charmHost > 0 || charmGuest > 0) {
+      const chH = collectCharmToTrashTriggers(bs.host_id, h, g, charmHost, charmGuest);
+      entries.push(...chH.entries); useHost(chH.usedOncePerTurnIds);
+      const chG = collectCharmToTrashTriggers(bs.guest_id, g, h, charmGuest, charmHost);
+      entries.push(...chG.entries); useGuest(chG.usedOncePerTurnIds);
+    }
+
+    // ON_ENERGY_TO_TRASH: エナゾーン→トラッシュが起きた場合
+    const energyTrashHost  = countEnergyToTrash(beforeHost, h);
+    const energyTrashGuest = countEnergyToTrash(beforeGuest, g);
+    if (energyTrashHost > 0 || energyTrashGuest > 0) {
+      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest);
+      entries.push(...etH.entries); useHost(etH.usedOncePerTurnIds);
+      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost);
+      entries.push(...etG.entries); useGuest(etG.usedOncePerTurnIds);
+    }
+
+    // ON_REFRESH: いずれかのプレイヤーがリフレッシュした場合
+    const refreshHost  = countRefresh(beforeHost, h);
+    const refreshGuest = countRefresh(beforeGuest, g);
+    if (refreshHost > 0 || refreshGuest > 0) {
+      const rfH = collectRefreshTriggers(bs.host_id, h, g, refreshHost, refreshGuest);
+      entries.push(...rfH.entries); useHost(rfH.usedOncePerTurnIds);
+      const rfG = collectRefreshTriggers(bs.guest_id, g, h, refreshGuest, refreshHost);
+      entries.push(...rfG.entries); useGuest(rfG.usedOncePerTurnIds);
+    }
+
+    // ON_OPP_POWER_DECREASED（毒牙）: シグニのパワーが減った場合、減らした側（controller）が反応
+    const decOnHost  = detectPowerDecrease(beforeHost, h);
+    const decOnGuest = detectPowerDecrease(beforeGuest, g);
+    if (decOnHost > 0 || decOnGuest > 0) {
+      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest);
+      entries.push(...dpH.entries); useHost(dpH.usedOncePerTurnIds);
+      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost);
+      entries.push(...dpG.entries); useGuest(dpG.usedOncePerTurnIds);
+    }
+
+    // ON_CARD_MOVED_TO_DECK: 他領域→デッキ移動が起きた場合
+    const movedHost = countMovedToDeck(beforeHost, h, false);
+    const movedGuest = countMovedToDeck(beforeGuest, g, false);
+    const movedHostFromTrash = countMovedToDeck(beforeHost, h, true);
+    const movedGuestFromTrash = countMovedToDeck(beforeGuest, g, true);
+    if (movedHost > 0 || movedGuest > 0) {
+      const mvH = collectMoveToDeckTriggers(bs.host_id, h, g, movedHost, movedHostFromTrash, movedGuest);
+      entries.push(...mvH.entries); useHost(mvH.usedOncePerTurnIds);
+      const mvG = collectMoveToDeckTriggers(bs.guest_id, g, h, movedGuest, movedGuestFromTrash, movedHost);
+      entries.push(...mvG.entries); useGuest(mvG.usedOncePerTurnIds);
+    }
+
+    // ON_SIGNI_FROZEN: 新たに凍結状態になったシグニ
+    { const fz = collectFreezeInline(h, g); entries.push(...fz.entries); h = fz.hostState; g = fz.guestState; }
+
+    // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064）: 「あなたのターンの間」＝ターンプレイヤーを controller として、
+    // 味方シグニが場に出た（play枝）か相手手札がトラッシュに置かれた（discard枝・⚠自効果限定は近似）場合に発火。
+    {
+      const apTurnIsHost = causeOwnerId === bs.host_id ? undefined : undefined; // placeholder（下で active から判定）
+      void apTurnIsHost;
+      const turnIsHost = (bs.active_user_id ?? bs.host_id) === bs.host_id;
+      const apTurnBefore = turnIsHost ? beforeHost : beforeGuest;
+      const apTurnAfter = turnIsHost ? h : g;
+      const apOppBefore = turnIsHost ? beforeGuest : beforeHost;
+      const apOppAfter = turnIsHost ? g : h;
+      const allyPlaced = detectPlacedSigni(apTurnBefore, apTurnAfter);
+      const oppDiscarded = detectHandTrashed(apOppBefore, apOppAfter).length;
+      if (allyPlaced.length > 0 || oppDiscarded > 0) {
+        const turnPlayerId = turnIsHost ? bs.host_id : bs.guest_id;
+        const ap = collectAllyPlayOrOppDiscardTriggers(turnPlayerId, apTurnAfter, allyPlaced, oppDiscarded);
+        entries.push(...ap.entries);
+        if (turnIsHost) useHost(ap.usedOncePerTurnIds); else useGuest(ap.usedOncePerTurnIds);
+      }
+    }
+
+    // ON_MATERIAL_USED（self/any_ally・改造素材機構）: MARK_MATERIAL_TARGET が material_used_targets を積んだ場合、
+    // 対象シグニ所有者の「このシグニに/他の味方に使用されたとき」を発火し、処理後に material_used_targets をクリア。
+    for (const muIsHost of [true, false]) {
+      const muOwnerId = muIsHost ? bs.host_id : bs.guest_id;
+      const muBefore = (muIsHost ? beforeHost : beforeGuest)?.material_used_targets ?? [];
+      const muAfterState = muIsHost ? h : g;
+      const muAfter = muAfterState.material_used_targets ?? [];
+      const beforeSetMU = new Set(muBefore);
+      const newTargets = muAfter.filter(n => !beforeSetMU.has(n));
+      if (newTargets.length > 0) {
+        const mu = collectMaterialUsedOnSigniTriggers(newTargets, muOwnerId, muAfterState);
+        const cleared = { ...muAfterState, material_used_targets: [],
+          actions_done: [...(muAfterState.actions_done ?? []), ...mu.usedOncePerTurnIds] };
+        if (muIsHost) h = cleared; else g = cleared;
+        entries.push(...mu.entries);
+      }
+    }
+
+    // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 対戦相手シグニがバニッシュされ、かつ発生源
+    // （causeSourceCardNum）が発生源側プレイヤーの場シグニの場合、その側の any_ally【自】を発火。
+    { const bn = collectBanishOppByEffectInline(causeSourceCardNum, causeOwnerId, h, g); entries.push(...bn.entries); h = bn.hostState; g = bn.guestState; }
+
+    // ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）
+    { const lu = collectLrigUnderMovedInline(h, g); entries.push(...lu.entries); h = lu.hostState; g = lu.guestState; }
+
+    // ON_DECK_SHUFFLED（C1・PR-470A）
+    { const ds = collectDeckShuffleInline(h, g); entries.push(...ds.entries); h = ds.hostState; g = ds.guestState; }
+
+    // ON_KEYWORD_GAINED（C1・WXDi-P04-035）
+    { const kg = collectKeywordGainedInline(h, g); entries.push(...kg.entries); h = kg.hostState; g = kg.guestState; }
+
+    // ON_PLAY（any_ally/any・効果配置）＋ON_BLOOM: 効果で新たに場に出たシグニに対する場の他シグニの反応（G144/G145/WX11-054）と、
+    // 開花したシグニ自身＋場の他シグニの開花監視。出たシグニ自身の ON_PLAY は各配置経路が個別収集済み。
+    // 場出しした効果元（causeSourceCardNum）がシグニかで bySigniEffect 発火可否を判定。開花は「場に出た」扱いでないため ON_PLAY 除外。
+    const placeSourceIsSigni = battleCardMap.get(causeSourceCardNum)?.Type === 'シグニ';
+    const hostBloomedSE  = detectBloomedSigni(beforeHost, h);
+    const guestBloomedSE = detectBloomedSigni(beforeGuest, g);
+    const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE]);
+    const hostTrashBefore = new Set(beforeHost?.trash ?? []);
+    const guestTrashBefore = new Set(beforeGuest?.trash ?? []);
+    for (const placedNum of detectPlacedSigni(beforeHost, h)) {
+      if (bloomedSetSE.has(placedNum)) continue;
+      entries.push(...collectFieldTriggers('ON_PLAY', placedNum, h, g, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: hostTrashBefore.has(placedNum) }));
+    }
+    for (const placedNum of detectPlacedSigni(beforeGuest, g)) {
+      if (bloomedSetSE.has(placedNum)) continue;
+      entries.push(...collectFieldTriggers('ON_PLAY', placedNum, g, h, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: guestTrashBefore.has(placedNum) }));
+    }
+    for (const bloomedNum of hostBloomedSE) {
+      entries.push(...collectBloomTriggers(bloomedNum, h, g, bs.host_id));
+    }
+    for (const bloomedNum of guestBloomedSE) {
+      entries.push(...collectBloomTriggers(bloomedNum, g, h, bs.guest_id));
+    }
+
+    // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカード
+    for (const [ownerId, before, after] of [[bs.host_id, beforeHost, h], [bs.guest_id, beforeGuest, g]] as const) {
+      for (const cardNum of detectEnergyFromTrash(before, after)) {
+        for (const eff of (effectsMap.get(cardNum) ?? [])) {
+          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_FROM_TRASH')) continue;
+          entries.push({
+            id: generateUUID(),
+            playerId: ownerId,
+            cardNum,
+            effectId: eff.effectId,
+            label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} の【自】効果（トラッシュからエナ時）`,
+            effect: eff,
+          });
+        }
+      }
+    }
+
+    // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニ
+    for (const cardNum of detectNewlyArmored(beforeHost, h)) {
+      entries.push(...collectArmorTriggers(cardNum, bs.host_id, h, g));
+    }
+    for (const cardNum of detectNewlyArmored(beforeGuest, g)) {
+      entries.push(...collectArmorTriggers(cardNum, bs.guest_id, h, g));
+    }
+
+    return { entries, hostState: h, guestState: g };
+  };
+
   // フェイズ進行（実処理）。upkeepPay: UPKEEP_OR_NO_UPのコストを支払ってアップする場合に指定
   const doPhaseAdvance = async (upkeepPay?: 'energy' | 'discard') => {
     // いずれかのチェックゾーンにカードがある間はフェーズ移動不可
