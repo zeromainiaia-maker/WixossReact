@@ -640,12 +640,14 @@ const scenarios = {
         }
         const st = await H.queryState();
         H.log(`  acce[${s}] -> ${did ?? 'なし'} | fieldAcce=${JSON.stringify(st?.host?.fieldAcce)} fired=${fired} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
-        if (fired && (st?.host?.actionsDone ?? []).includes('WXK05-041-E2')) {
-          return { pass: true, detail: `ON_ACCE_ATTACH 発火→WXK05-041-E2 が actions_done に記録（fieldAcce=${JSON.stringify(st.host.fieldAcce)}）` };
+        // WXK05-041-E2 が actions_done に載る＝host-Lv4条件(accedHostMinLevel:4)を通過して初めて queue される
+        //  ＝ON_ACCE_ATTACH host条件(R45①)の発火の決定的証明（任意コストの発動/スキップ有無に依らない）。
+        if ((st?.host?.actionsDone ?? []).includes('WXK05-041-E2')) {
+          return { pass: true, detail: `ON_ACCE_ATTACH(host条件Lv4≤) 発火→WXK05-041-E2 が actions_done に記録（fieldAcce=${JSON.stringify(st.host.fieldAcce)}${fired ? '・任意コストプロンプト確認' : ''}）` };
         }
       }
       const fin = await H.queryState();
-      if (fired) return { pass: true, detail: `ON_ACCE_ATTACH 発火（任意コストプロンプト確認・fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)}）` };
+      if ((fin?.host?.actionsDone ?? []).includes('WXK05-041-E2')) return { pass: true, detail: `ON_ACCE_ATTACH(host条件Lv4≤) 発火（WXK05-041-E2 が actions_done・fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)}）` };
       return { pass: false, detail: `ON_ACCE_ATTACH 発火未確認（fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'}）` };
     },
   },
