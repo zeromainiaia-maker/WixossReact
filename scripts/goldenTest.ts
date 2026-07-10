@@ -217,6 +217,15 @@ test('SEND_TO_ENERGY 相手シグニ1: エナへ', () => {
   const r = run({ type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq(tops(r.otherState)[0], null, '除去'); eq(r.otherState.energy.length, 6, 'エナ+1');
 });
+test('DEPLOY_RESTRICT 配置数制限: 相手3体→超過1体トラッシュ＋配置数上限フラグ=2（WXK11-074）', () => {
+  // 「このターン、対戦相手はシグニを2体までしか場に出せない（すでに3体以上→2体になるようにトラッシュ）」
+  const ctx = mkCtx({}, { signi: [fresh(), fresh(), fresh()], trash: 0 }, 'WXK11-074');
+  const r = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as unknown as EffectAction, ctx);
+  const cnt = r.otherState.field.signi.filter(s => s && s.length > 0).length;
+  eq(cnt, 2, '相手シグニが2体になる');
+  eq(r.otherState.signi_deploy_count_limit, 2, '配置数上限フラグ=2');
+  eq(r.otherState.trash.length, 1, '超過1体をトラッシュ');
+});
 test('LEVEL_MODIFY 相手シグニ-1: temp_level_mods に記録＆レベルフィルタに反映', () => {
   // レベル2のシグニに -1 → レベル1扱いになり「レベル1以下」フィルタで対象化される
   const ctx = mkCtx({}, { signi: [SIGNI_L2, null, null] });
