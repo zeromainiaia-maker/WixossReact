@@ -512,6 +512,22 @@ const scenarios = {
   //    アクセ付与手段＝【デコレ】キーワード（青×0・ターン1回の起動能力・WXK04-003の-DECORE追記＝manualEffects.ts）。
   //    センターに WXK04-003（エルドラ オーバークロック・デコレ持ち）、場に WXK05-026（コードオーダー BCPIC・
   //    Lv4・＜調理＞・ACCE未装着）を注入、手札の WXK05-041（＜調理＞・Lv1）をデコレでACCEとして付ける。
+  //    ❌FAIL＝続き64（Sonnet）で実バグを発見（未修正・Opus引き継ぎ）＝手札からアクセカードを選択・確定した
+  //    ところで actions_done に WXK04-003-DECORE が記録され完了してしまい、signi_acce が終始 null のまま
+  //    （ホストシグニを選ぶ2段目のSELECT_TARGETが一度も現れない）。原因＝`execAttachAcce`のfromHandブランチ
+  //    （effectExecutor.ts:3774）は step1(SELECT_TARGET self_hand) の thenAction に「ATTACH_ACCE（fromHand:false）」
+  //    という*まだinteractionを要する*アクションを渡しているが、SELECT_TARGET解決側（`applyDirectAction`・
+  //    effectExecutor.ts:4141/4889 の case 'ATTACH_ACCE'）は「渡された cardNum＝ユーザーが選んだ候補（＝手札
+  //    から選んだACCEカード自身）」を**ホストシグニ**として扱ってしまう（`zoneIdx = tgtState.field.signi.findIndex(
+  //    ...cardNum)` が手札カードNumでは当然ヒットせず zoneIdx<0 → done(ctx) で即終了）。つまり thenAction に
+  //    「まだ2段目のinteractionを生成するアクション」を渡す設計自体が resume 機構（1候補選択→即terminal実行の
+  //    前提）と噛み合っていない＝fromHand経路そのものが機能しない実装バグ。manualEffects.tsのコメントが指す
+  //    「デコレ起動能力はどのカードにも登録されておらずfromHandパスが死にコードだった」に対する追加修正
+  //    （ATTACH_ACCE(fromHand:true)を9枚のエルドラに配線）がこの経路を初めて実UIで走らせた結果、根本のchaining
+  //    バグが露呈した形。修正方針（未着手）＝fromHandブランチをselectOrInteractの2段chainではなく、1回目の
+  //    SELECT_TARGET解決後に`ctx.lastProcessedCards`へ選択済みACCEカードを積んでから改めてexecAttachAcceの
+  //    非fromHand経路（2段目のホスト選択needsInteraction）を明示的に呼び出す形へ作り替える必要がある（Opus担当）。
+  //    `order`配列には追加していない（FAIL）。再現：`node scripts/verifyBattleDrive.mjs acceAttach`単体。
   acceAttach: {
     title: 'WXK04-003デコレ→WXK05-041（ON_ACCE_ATTACH host条件＝Lv4以上に付いたとき・R45①）',
     spec: {
