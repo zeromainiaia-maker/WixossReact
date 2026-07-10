@@ -8168,6 +8168,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
       const nextHuSt = { ...huSt,
         turn_arts_used: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         field: {
         ...huSt.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
