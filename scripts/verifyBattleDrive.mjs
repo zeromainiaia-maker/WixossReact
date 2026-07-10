@@ -539,9 +539,15 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/acceAttach-${s}.png`, fullPage: true });
         let did = null;
-        if (!did) { // 【起】ボタン（デコレ＝コストなし。WXK04-003にはコイン×1の別【起】もあるため厳密一致で区別）
-          const actBtn = page.getByRole('button', { name: '【起】コストなし', exact: true }).first();
-          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】コストなし'; }
+        if (!did) { // 【起】ボタン（デコレ＝コストなし。WXK04-003にはコイン×1の別【起】もあり、コストラベルにcoinが
+          // 出ないため両方「【起】コストなし」表記になる＝表示バグ（低優先・別途報告）。lrigActionsMAの並び順は
+          // E1(AUTO)/E2(コイン・ゲーム1回)/DECORE(追記)のため、同文言ボタンの後方（nth(1)）がDECORE側。
+          const actBtns = page.getByRole('button', { name: '【起】コストなし', exact: true });
+          const actCnt = await actBtns.count();
+          if (actCnt > 0) {
+            const actBtn = actCnt > 1 ? actBtns.nth(actCnt - 1) : actBtns.first();
+            if (await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = `btn:【起】コストなし(${actCnt}件中末尾)`; }
+          }
         }
         if (!did) { // LrigGrantedModal「発動」（コスト0なので即enabled）
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
