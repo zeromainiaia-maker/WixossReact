@@ -389,7 +389,6 @@ const scenarios = {
       },
       guestSet: {
         'field.signi': [['WXDi-P02-043#1'], null, null], // watcher（ドライ＝インフルＤ型）
-        'deck': ['WD01-013#g1', 'WD01-013#g2', 'WD01-013#g3'], // ENERGY_CHARGE_FROM_DECK用に十分な残数
       },
       handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
