@@ -4118,84 +4118,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         update.pending_effect = null;
 
-        // ON_BANISH: バニッシュされたシグニを検出してスタックに追加
-        const hostBanished  = detectBanishedSigni(bs.host_state, hostState);
-        const guestBanished = detectBanishedSigni(bs.guest_state, guestState);
-        const banishEntries: StackEntry[] = [];
-        for (const cardNum of hostBanished) {
-          banishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState));
-        }
-        for (const cardNum of guestBanished) {
-          banishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState));
-        }
-
-        // ON_BLOOM: 開花してシグニになったカードを検出し、開花トリガーを収集する（pending_effect経由の場合）。
-        // ルール上「開花」は「場に出た」扱いではないため ON_PLAY（出現時）は発火させない。
-        const hostBloomedPE  = detectBloomedSigni(bs.host_state, hostState);
-        const guestBloomedPE = detectBloomedSigni(bs.guest_state, guestState);
-        const bloomOnPlayPE: StackEntry[] = [];
-        for (const bloomedNum of hostBloomedPE) {
-          bloomOnPlayPE.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
-        }
-        for (const bloomedNum of guestBloomedPE) {
-          bloomOnPlayPE.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
-        }
-
-        // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニを検出してトリガー収集
-        const hostNewArmored  = detectNewlyArmored(bs.host_state,  hostState);
-        const guestNewArmored = detectNewlyArmored(bs.guest_state, guestState);
-        const armorEntries: StackEntry[] = [];
-        for (const cardNum of hostNewArmored) {
-          armorEntries.push(...collectArmorTriggers(cardNum, bs.host_id, hostState, guestState));
-        }
-        for (const cardNum of guestNewArmored) {
-          armorEntries.push(...collectArmorTriggers(cardNum, bs.guest_id, hostState, guestState));
-        }
-
-        // ON_LEAVE_FIELD: 場を離れたシグニのトリガー
-        const hostLeftPE  = detectLeftFieldSigni(bs.host_state, hostState);
-        const guestLeftPE = detectLeftFieldSigni(bs.guest_state, guestState);
-        const leaveEntriesPE: StackEntry[] = [];
-        for (const { cardNum, under } of hostLeftPE) {
-          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, under, bs.host_id, hostState, guestState));
-        }
-        for (const { cardNum, under } of guestLeftPE) {
-          leaveEntriesPE.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, hostState, guestState));
-        }
-
-        // ON_DECK_SHUFFLED: この pending 解決でデッキがシャッフルされた場合（spell SEARCH の afterSearch 等）。
-        // スタック解決を経由しない resume 経路は中央 diff(resolveStackNext) を通らないためここで拾う。
-        const dsInlinePE = collectDeckShuffleInline(hostState, guestState);
-        if (dsInlinePE.entries.length > 0) { update.host_state = dsInlinePE.hostState; update.guest_state = dsInlinePE.guestState; }
-
-        // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 対象選択を伴う効果（[出]バニッシュ等）は resume 経路で
-        // 解決され中央 diff(4760) を通らないため、ここで発生源（pe.sourceCardNum）基準に拾う。
-        const beAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
-        const beAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
-        const bnInlinePE = collectBanishOppByEffectInline(pe.sourceCardNum, pe.sourcePlayerId, beAfterHostPE, beAfterGuestPE);
-        if (bnInlinePE.entries.length > 0) { update.host_state = bnInlinePE.hostState; update.guest_state = bnInlinePE.guestState; }
-
-        // ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 同上（resume 経路の取りこぼし対策）。
-        const luAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
-        const luAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
-        const luInlinePE = collectLrigUnderMovedInline(luAfterHostPE, luAfterGuestPE);
-        if (luInlinePE.entries.length > 0) { update.host_state = luInlinePE.hostState; update.guest_state = luInlinePE.guestState; }
-
-        // ON_KEYWORD_GAINED（C1・WXDi-P04-035）: キーワード付与は対象選択を伴い resume 経路で完了することが多い（WX07-036→
-        // ダブルクラッシュ付与等）ため、ここでも拾う。
-        const kgAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
-        const kgAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
-        const kgInlinePE = collectKeywordGainedInline(kgAfterHostPE, kgAfterGuestPE);
-        if (kgInlinePE.entries.length > 0) { update.host_state = kgInlinePE.hostState; update.guest_state = kgInlinePE.guestState; }
-
-        // ON_SIGNI_FROZEN（R38・WXDi-P04-065 等）: FREEZE 付与は SELECT_TARGET で単体対象を選ぶ形が大半で resume 経路で
-        // 完結し中央 diff(3798) を通らないため、ここで拾う（続き40 の R38 実機FAIL修正）。
-        const fzAfterHostPE  = (update.host_state  as PlayerState) ?? hostState;
-        const fzAfterGuestPE = (update.guest_state as PlayerState) ?? guestState;
-        const fzInlinePE = collectFreezeInline(fzAfterHostPE, fzAfterGuestPE);
-        if (fzInlinePE.entries.length > 0) { update.host_state = fzInlinePE.hostState; update.guest_state = fzInlinePE.guestState; }
-
-        const pendingEntries = [...banishEntries, ...bloomOnPlayPE, ...armorEntries, ...leaveEntriesPE, ...dsInlinePE.entries, ...bnInlinePE.entries, ...luInlinePE.entries, ...kgInlinePE.entries, ...fzInlinePE.entries];
+        // === 盤面差分トリガーの統合収集（続き61・Opus）===
+        // resolveStackNext の中央 diff と同一の collectBoardDiffTriggers を呼び、resume 経路（対象選択/CHOOSE を挟んで
+        // 完了した効果）でも全トリガー種別を取りこぼさず収集する（従来は banish/bloom/armor/leave/ds/bn/lu/kg/fz の 9 種のみで、
+        // ON_OPP_POWER_DECREASED/ON_ENERGY_TO_TRASH/ON_DRAW〔SEQUENCE内対話〕/ON_TRASH self 等を取りこぼしていた・§6.3 続き58/60）。
+        const bd = collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: pe.sourcePlayerId, causeSourceCardNum: pe.sourceCardNum });
+        update.host_state = bd.hostState;
+        update.guest_state = bd.guestState;
+        const pendingEntries = bd.entries;
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;

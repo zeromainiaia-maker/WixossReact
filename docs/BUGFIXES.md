@@ -5,6 +5,19 @@
 
 ---
 
+## resume経路トリガー取りこぼしの根本修正＝盤面差分トリガー収集を `collectBoardDiffTriggers` に統合（4シナリオFAIL→PASS・2026-07-10・続き61・Opus 4.8）
+
+続き58/60（Sonnet）が実機で確認した「対象選択(SELECT_TARGET/CHOOSE)を挟んで resume 経路（`handleEffectInteraction`）で完了する効果では大半のトリガーが取りこぼされる」系統的バグ（R43/R46/R39/R36＝4シナリオ実機FAIL）を、**場当たり的 inline 追加ではなく収集関数の統合リファクタで根本修正**（PLAN §6.3 の修正方針どおり）。
+
+- **原因の再確認**＝`resolveStackNext`（`BattleScreen.tsx`）は `executeEffect` の戻り値 `result.done` で分岐し、**`done===true` の else 節でのみ**約20種の盤面差分トリガー（ON_BANISH/TRASH/DRAW/MILL/CHARM/ENERGY_TO_TRASH/REFRESH/OPP_POWER_DECREASED/MOVED_TO_DECK/FROZEN/ALLY_PLAY/MATERIAL_USED/BANISH_OPP_BY_EFFECT/LRIG_UNDER_MOVED/DECK_SHUFFLED/KEYWORD_GAINED/ON_PLAY+BLOOM/ENERGY_FROM_TRASH/ARMOR）を収集していた。`done===false`（対話中断）は `pending_effect` を保存して即 return し、後で `handleEffectInteraction`（resume）が完了させるが、そちらの done 分岐には `banish/bloom/armor/leave/deckShuffle/banishOppByEffect/lrigUnderMoved/keywordGained/freeze` の **9種の inline 版しか無かった**。残りの trigger 種別は「解決経路にたとえ1度でも対話が挟まれば」取りこぼす（R39＝SEQUENCE内の先行TRASHが対話を要するため、同じ `collectDrawTriggers` でもカードのSEQUENCE構造次第でFAILする＝解決経路単位のバグ）。
+- **修正**＝両経路で共通に呼べる component-closure ヘルパー `collectBoardDiffTriggers(afterHost, afterGuest, {causeOwnerId, causeSourceCardNum})` を新設（`BattleScreen.tsx`・`collectFreezeInline` の直後）。上記全種の盤面差分トリガーを before(`bs.host_state`/`guest_state`) vs after(result 状態) の比較で収集し、`entries`＋once_per_turn を反映した `host/guest` を返す。`resolveStackNext` の else 節の当該ブロック（509行）と `handleEffectInteraction` の resume done 分岐（91行の inline 群）を**双方このヘルパー1呼び出しに置換**。中央 diff 側は order を厳密保存（既存挙動不変）。action型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD の【出】積み・ON_ARTS_USE/ON_OPP_ARTS_USE・FORCE_END_TURN）は `entry.effect`/`entryCardType` 依存かつ resume の `pending_effect` に元 action 型が無いため再現不能＝従来どおり `resolveStackNext` に inline 据置。
+- **二重発火なし**＝1解決ステップは done=true（中央diff）か done=false（resume で完了時に収集）かの排他で、多段でも各ステップの diff は最新の `bs.*` 基準＝重複計上しない。
+- **実機検証（`verifyBattleDrive.mjs`・ライブ）**＝FAILだった4シナリオが全て**PASS に反転**：`oppPowerDecreased`（R46・watcher「フィア＝パトラ（相手パワー減少時）」）／`energyToTrash`（R43・WD15-015が【ダブルクラッシュ】取得）／`outsideDrawPhase`（R39・SEQUENCE内TRASH対話を挟むDRAW→WXDi-D09-P19+1000）／`handDiscard`（R36・ON_TRASH self hand→対戦相手-5000）。**回帰なし**＝`freezetrigger`/`drawBySourceStory`/`leaveFieldToHand`/`banishbyeffect`/`refreshTrigger`/`keywordgained` を再実行し全PASS維持。
+- **ゲート**＝`npm run gates` 全緑（typecheck／golden 176／smoke CRASH0／fuzz 0／census baseline 1572 不変／lint 0 errors）。
+- **副次効果**＝resume 経路の ON_BANISH 収集が 4引数→5引数（`prevOwnerState` 付き＝アクセ付与ON_BANISH復元の情報が乗る）に格上げ（中央diffと同一の完全形に統一）。残る follow-up＝`handleSelectZoneForEffect`/`handleSelectSigniZoneForEffect`（SELECT_ZONE で終わる効果の最終resume）は元々収集器を持たず本ヘルパー未配線＝別種の取りこぼし可能性（今回スコープ外・低頻度）。
+
+---
+
 ## §7 実機検証 ON_REFRESH（R45②）を実UIで確認＝対話なしDRAW/no-op経由のリフレッシュはresume経路取りこぼしと無関係（2026-07-10・続き60・Sonnet 5）
 
 `verifyBattleDrive.mjs` に新シナリオ `refreshTrigger`（WXDi-P04-043→WX15-073）を追加し、PLAN §7 で「⚠未検証」だったON_REFRESH（R45②）を実機検証。**✅PASS（3回連続）**。
