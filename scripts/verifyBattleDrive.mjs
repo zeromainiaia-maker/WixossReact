@@ -620,6 +620,11 @@ const scenarios = {
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
           if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
         }
+        if (!did) { // ホストWXK04-003自身のON_ACCE_ATTACH（E1・CHOOSE3択）が先に積まれる。
+          // 対象不要の「選択肢2」(DRAW)を選んで解決→スタック次段のWXK05-041-E2(R45①)へ進める。
+          const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
+          if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = 'choose:選択肢2(DRAW)'; }
+        }
         if (!did) { // SELECT_TARGET①（手札からACCEするシグニ＝WXK05-041のみ候補）／②（ホストシグニ＝WXK05-026のみ候補）
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
