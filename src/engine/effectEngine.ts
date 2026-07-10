@@ -4767,6 +4767,40 @@ export function collectCenterZoneDeployRestrict(
 }
 
 /**
+ * DEPLOY_RESTRICT（配置数制限・CONTINUOUS）: 「対戦相手はシグニをN体までしか場に出せない」を
+ * 持つシグニ/ルリグが opponentState の場にある場合、myState（配置しようとする側）のシグニ配置数上限 N を返す。
+ * WX07-006（レゾナ・【常】）等の恒久版。AUTO版（このターン限定）は PlayerState.signi_deploy_count_limit フラグで別途処理。
+ * 見つからなければ undefined。cap は原文 EffectText の「N体まで」から読む（DEPLOY_RESTRICT stub と同じ text ベース）。
+ */
+export function collectDeployCountLimit(
+  opponentState: PlayerState,
+  myState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  isOpponentTurn: boolean,
+): number | undefined {
+  const candidates: string[] = [
+    ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
+    ...(opponentState.field.lrig?.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
+  ];
+  let cap: number | undefined;
+  for (const cn of candidates) {
+    for (const eff of (effectsMap.get(cn) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'DEPLOY_RESTRICT') continue;
+      const txt = cardMap.get(getCardNum(cn))?.EffectText ?? '';
+      const m = txt.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
+      if (!m) continue;
+      const n = parseInt(m[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)));
+      cap = cap === undefined ? n : Math.min(cap, n);
+    }
+  }
+  return cap;
+}
+
+/**
  * FORCE_PLACE_FRONT (CONTINUOUS): 「対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない」。
  * opponentState = この能力を持つシグニのプレイヤー（配置を強制する側）
  * myState       = シグニを配置しようとしているプレイヤー（強制される側）
