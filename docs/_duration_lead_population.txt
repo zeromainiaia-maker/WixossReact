@@ -1,5 +1,8 @@
 # durational付与 先頭/文中「ターン終了時まで」action内duration脱落 母集団（精密・機械抽出）
-# 生成: tmp_extractDurationLead.mjs
+# ✅是正済（続き62・Opus）＝decompiler側 restoreLeadDuration で112枚が期間注記を獲得。engine/JSON不変・同型★0・全ゲート緑。
+#   下記母集団132のうち34は抽出の偽陽性（恒久【常】/【ライズ】付与 or 期間句がPOWER_MODIFYに帰属）で正しく無注記。詳細 BUGFIXES/PLAN §5b。
+#   このファイルは当時の抽出記録（履歴保存）。再生成は scripts/archive/extractDurationLeadPopulation.mjs。
+# 生成: scripts/archive/extractDurationLeadPopulation.mjs
 # 条件 = (症状) decompile 原文count>逆翻訳count  AND  (原因) 付与系action〔GRANT_KEYWORD/GRANT_EFFECT/REMOVE_ABILITIES/SET_BASE_LEVEL/LRIG_LIMIT_MODIFY〕のaction内 duration/until が end-of-turn でない
 # 該当カード 132（うち MANUAL効果を含む 8 / AUTO のみ 124）
 # 型別（延べ・effect単位）: GRANT_KEYWORD=115 / REMOVE_ABILITIES=23
