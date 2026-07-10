@@ -1986,7 +1986,12 @@ function renderCards(ids: string[]): string {
     if (growCondM && growCondM[1].trim()) {
       out.push(`  【グロウ条件】${growCondM[1].trim()}（runtime checkGrowCondition で評価）`);
     }
-    for (const e of effs) out.push(`  ${e.effectId}: ${effJa(e)}`);
+    for (const e of effs) {
+      // restoreLeadDuration の探索範囲を当該効果の原文セクションに絞る（BURST は BurstText・他は EffectText）。
+      currentEffectText = /BURST/.test(e.effectId) ? (card?.BurstText ?? '') : (card?.EffectText ?? '');
+      out.push(`  ${e.effectId}: ${effJa(e)}`);
+    }
+    currentEffectText = '';
   }
   out.push('\n' + '='.repeat(78));
   out.push(`${ids.length}枚を表示。逆翻訳は JSON 宣言の和文化（近似/STUBは明示）。原文との食い違いは要確認シグナル。`);
