@@ -91,8 +91,8 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
                     <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (forcedBlocked ? ' (正面強制)' : isOccupied ? ' (使用中)' : '')}</span>
-                    <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit) ? C.danger : C.textDim }}>
-                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (forcedBlocked ? '正面のみ' : isOccupied ? '—' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
+                    <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit || overCountLimit) ? C.danger : C.textDim }}>
+                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (forcedBlocked ? '正面のみ' : isOccupied ? '—' : overCountLimit ? '配置数制限' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
                     </span>
                   </button>
                 );
