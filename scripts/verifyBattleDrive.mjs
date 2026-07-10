@@ -457,8 +457,17 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      // ⚠guest側注入が稀に競合で上書きされる（原因未特定）＝クリック開始前に再確認・再PATCHで安定化。
+      for (let r = 0; r < 4; r++) {
+        const st0 = await H.queryState();
+        const ok = st0?.guest?.fieldSigni?.[0]?.[0] === 'WD05-009#1' && st0?.guest?.fieldSigni?.[1]?.[0] === 'WD01-013#1';
+        H.log(`注入確認(試行${r}): guest.fieldSigni=${JSON.stringify(st0?.guest?.fieldSigni)} ok=${ok}`);
+        if (ok) break;
+        await injectScenario(page, scenarios.charmToTrash.spec);
+        await page.waitForTimeout(1200);
+      }
       const before = await H.queryState();
-      H.log('注入直後 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni));
+      H.log('注入確定 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni));
       await H.ensureMain();
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;
