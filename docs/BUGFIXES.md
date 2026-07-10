@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証 ON_CHARM_TO_TRASH（R42）を実UIで確認＝続き61の collectBoardDiffTriggers 統合で既に解消済みだったことを確認（2026-07-11・続き64・Sonnet 5）
+
+`verifyBattleDrive.mjs` に新シナリオ `charmToTrash`（WX19-023→WX16-Re05）を追加し、PLAN §7 で「続き61で統合ヘルパー配線済み＝実機検証可」だった ON_CHARM_TO_TRASH（R42）を実機検証。**✅PASS**（続き61で R43/R46/R39/R36 向けに投入された `collectBoardDiffTriggers` 統合修正が、同じ中央diffブロックにあった `collectCharmToTrashTriggers` も一緒にカバーしていたことを実機で確認＝追加修正不要）。
+
+- **盤面**：host に watcher WX16-Re05（幻蟲 ヘイケ・triggerScope any・mandatory・チャームがトラッシュに置かれたとき対戦相手シグニ1体に-4000）とタマ（WD01-001・Lv4/Limit11）を配置。guest zone0 に WD05-009（P12000）＋チャーム（`field.signi_charms` 直接注入）、guest zone1 にバニッシュ対象外の P15000（WX01-053・Restriction無し）を配置（banish候補を1件に固定し、pick順の表示位置依存を排除）。手札の WX19-023（弩砲 チタイクウ・【出】《無》で相手P12000以下を無条件バニッシュ）を召喚して guest zone0 をバニッシュ。
+- **結果＝PASS**：banish 解決（SELECT_TARGET 経由＝resume 経路）で WD05-009 がバニッシュされ、その所持チャームが guest.trash へ（`gTrash` 0→1）。同じ resume 解決の中で `collectCharmToTrashTriggers` が発火し、watcher の `POWER_MODIFY` が guest zone1（WX01-053）への-4000 として2段目の SELECT_TARGET で確定（`gPowerMods=WX01-053#1:-4000`）。
+- **副次的な学び＝「バニッシュ＝トラッシュ行き」は誤解**：`banishDestination`（`execUtils.ts:93`）のデフォルト分岐は、バニッシュされたシグニ自身を**持ち主のエナゾーン**へ送る（Wixossのルール通り。`banish_redirect` 系フラグがある場合のみトラッシュ/手札/デッキ下へリダイレクト）。トラッシュに乗るのは**外れたチャーム/アクセ**（`removeFromField` の `extraTrash`）のみ＝今回 `gTrash` が2ではなく1で正しい。
+- **シナリオ設計の教訓**＝バニッシュ対象候補が2件以上あると SELECT_TARGET ピッカーの表示順（テストID pick-0/pick-1）が配列インデックス順と一致しない（ミラー表示の影響と推定・未解明）。当初 guest zone1 にも banish 対象になりうる P3000 カードを置いていたため pick-0 が意図と異なる方（チャームなし側）を選び FAIL した。**banish 候補を意図的に1件だけに絞る**（対象外カードの power を条件外に設定）ことで表示順非依存の決定的シナリオにできる。
+- **その他の安定化**＝guest側盤面注入が稀に競合（原因未特定・CPU側の初期化書き込みとの競合と推定）で反映されないことがあり、クリック開始前に `queryState` で確認→未反映なら `injectScenario` を再PATCHするリトライ（最大4回）を追加して安定化。
+- `order` 配列に追加済み（`banishbyeffect` の直後）。単体3回連続PASS確認。engine/parser 変更なし（テストハーネスのみ）＝typecheck/golden/smoke/fuzz 回帰不要。
+- **残＝未検証のまま**（R42の②＝バトルバニッシュでhostが離脱したとき＝効果解決経路外の発火。§7参照）。
+
+---
+
 ## effect-restriction（配置数制限）機構を実装＝「対戦相手はシグニをN体までしか場に出せない」5枚（§6・タスクB・2026-07-11・続き63・Opus 4.8・要実機検証→✅PASS）
 
 「（このターン、）対戦相手はシグニをN体までしか場に出せない（すでにN体超→トラッシュ）」（WXK11-074/WX07-006/WX12-008/WXDi-P05-024/WXK05-009）を実装。5枚とも E1 が `ADD_TO_FIELD` に誤パースされ完全 no-op だった（原文は配置制限なのに「場に出す」に誤マッチ）。
