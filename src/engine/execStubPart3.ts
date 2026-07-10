@@ -1379,6 +1379,26 @@ export function execStubPart3(
     const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDR = srcDR ? (srcDR.EffectText ?? '') : '';
     const toHWDR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // 「対戦相手はシグニをN体までしか(新たに)場に出せない」→ 相手に配置数上限を設定。
+    // （すでに場にN体超がある場合は、超過分をトラッシュに置く＝相手が選ぶルールの近似で末尾ゾーンから自動トラッシュ）。
+    const countCapM = txtDR.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
+    if (countCapM) {
+      const cap = parseInt(toHWDR(countCapM[1]));
+      let other = ctx.otherState;
+      const tops = other.field.signi.map(s => s?.at(-1)).filter((x): x is string => !!x);
+      let trashedN = 0;
+      if (tops.length > cap) {
+        // 超過分（末尾ゾーン側）を即トラッシュ。removeFromField でチャーム/アクセ/ソウルも正しく処理。
+        for (const cn of tops.slice(cap)) {
+          other = removeFromField(cn, other);
+          other = { ...other, trash: [...other.trash, cn] };
+          trashedN++;
+        }
+      }
+      other = { ...other, signi_deploy_count_limit: cap };
+      return done(addLog({ ...ctx, otherState: other },
+        `対戦相手はシグニを${cap}体までしか場に出せない${trashedN > 0 ? `（超過${trashedN}体をトラッシュ）` : ''}`));
+    }
     // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー上限を設定
     const powerCapM = txtDR.match(/パワー([０-９\d万]+)以上.*(?:新たに)?場に出せない/);
     if (powerCapM) {
