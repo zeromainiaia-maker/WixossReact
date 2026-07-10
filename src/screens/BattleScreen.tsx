@@ -3963,6 +3963,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             free_grow_this_turn: nextState.free_grow_next_turn ? true : nextState.free_grow_this_turn,
             free_grow_next_turn: undefined,
             signi_played_from_trash: undefined, // トラッシュ出自マーカーをターン開始時にクリア
+            signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
             field: {
               ...nextState.field,
               signi_down:   newSigniDown,
