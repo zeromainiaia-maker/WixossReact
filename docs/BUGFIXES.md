@@ -5,6 +5,17 @@
 
 ---
 
+## 【デコレ】fromHandアクセ装着の2バグを修正＝execAttachAcce の2段chaining実装＋battleCardNums への signi_acce 走査追加（R45① ON_ACCE_ATTACH host条件を実UIでPASS・2026-07-11・続き65・Opus 4.8）
+
+続き64（Sonnet）が実機で発見・Opusへ登録した「`execAttachAcce` fromHand経路の実装バグ」（§3タスク7(b)）を修正。実UI駆動（`verifyBattleDrive.mjs acceAttach`）で追うと**2つの独立バグ**が連鎖しており、両方直して初めて【デコレ】キーワード（手札の＜調理＞シグニを場のシグニの【アクセ】にする起動能力）が機能し、R45①（ON_ACCE_ATTACH host条件＝Lv4以上のシグニに付いたとき）が発火するようになった。**実機 acceAttach ✅PASS（2回連続・deterministic）**。
+
+- **バグ①＝`execAttachAcce` fromHand の2段選択が resume 機構と噛み合わない（engine・`effectExecutor.ts`）**。fromHand は「step1＝手札からアクセカード選択／step2＝ホストシグニ選択」の2段 interaction が要るが、旧実装は step1 の `SELECT_TARGET.thenAction` に「まだ2段目の interaction を要する未完結の ATTACH_ACCE」を渡していた。resume 解決側 `applyDirectAction` の `case 'ATTACH_ACCE'` は「渡された cardNum＝ユーザーが選んだ候補＝**ホストシグニ**」前提のため、step1 で選ばれた「手札のアクセカード」を誤ってホスト扱いし `zoneIdx<0 → done(ctx)` で無添付終了していた（`field.signi_acce` 終始 null）。**修正**＝AttachAcceAction に内部フィールド `_selectingAcceFromHand`（step1 の thenAction マーカー）・`_pickedAcceCard`（step1 で選んだアクセカードを step2 の thenAction へ載せる）を追加。step1 完了時に `applyDirectAction` の ATTACH_ACCE ケースが「cardNum＝アクセカード」と解釈してホスト選択の SELECT_TARGET を再発行し、選んだアクセカードを **action 自体（`_pickedAcceCard`）に埋め込んで** step2 へ確実に引き渡す（`ctx.lastProcessedCards` の interaction 境界越え persistence に依存しない設計）。step2 で `acceCardNum = _pickedAcceCard ?? ctx.sourceCardNum ?? lastProcessedCards[0]`。
+- **バグ②＝装着済みアクセカードが effectsMap から脱落し自身の ON_ACCE_ATTACH を検出できない（`BattleScreen.tsx`・`battleCardNums`）**。バグ①修正後、実機で `fieldAcce=["WXK05-041#1",...]` の装着は成功するのに WXK05-041-E2 が発火しない現象が残った。原因＝`battleCardNums` の `addState` が `signi_charms`/`signi_soul`/`signi_seeds` は走査するのに **`signi_acce` を走査していなかった**（583行のコメントも「addStateが走査しない」と明記し3枚のアクセクラフトを個別 hardcode で補っていた）。手札から装着されたアクセカードは hand から外れ signi_acce に移るため battleCardNums から脱落 → `buildEffectsMap(battleCards)` から消え → `effectsMap.get(装着アクセ)` が空 → `checkAndFireOnAcceTriggersForOwner` のアクセカード自身ブロック（9231-）が能力を見つけられない。**修正**＝`addState` に `(s.field.signi_acce ?? []).forEach(n => n && nums.add(getCardNum(n)))` を追加（signi_charms 系と同列）。これで装着アクセカードの ON_ACCE_ATTACH・CONTINUOUS 付与等が effectsMap に載る。hardcode 3枚（WXDi-P09-TK01A等）は将来的に不要になるが今回は温存。
+- **検証**＝golden +1（178・`ATTACH_ACCE fromHand` 手札→ホスト装着で signi_acce設定・手札-1・acce_just_done セットを assert）／`npm run gates` 全緑（typecheck／smoke CRASH0／fuzz0／census 1567不変／lint 0 errors）／同型無影響。**実機 `verifyBattleDrive.mjs acceAttach`（WXK04-003デコレ→WXK05-041 を WXK05-026〔Lv4〕に装着→WXK04-003-E1〔ルリグON_ACCE_ATTACH〕と WXK05-041-E2〔アクセ自身・accedHostMinLevel:4〕が両方 actions_done 記録）✅PASS**＝既定 order に追加。driver に CHOOSE 3択（WXK04-003-E1）の「選択肢2(DRAW)」クリックと actions_done ベースの成功判定を追加。
+- **残（別課題・低優先）**＝WXK04-003 は【起】能力を2つ持つ（コイン×1のE2／青×0のDECORE）が `getMyLrigFieldActions` の costParts が `eff.cost?.coin` を見ないため両方「【起】コストなし」表記になる**ボタンラベル表示バグ**（§3タスク7に既登録）。§3タスク7(a) WXEX2-50 owner誤パースは未着手（今回のスコープ外）。
+
+---
+
 ## §7 実機検証 ON_TARGETED①個別確認（WXDi-P02-043）を実UIで確認（2026-07-11・続き64・Sonnet 5）
 
 `verifyBattleDrive.mjs` に新シナリオ `ontargeted2`（WD05-017→WXDi-P02-043）を追加し、PLAN §7 で残っていた ON_TARGETED①「相手の効果で自分のシグニが対象に取られた各パターンの個別確認」のうち WXDi-P02-043（ドライ＝インフルＤ型）を検証。**✅PASS**（`ontargeted`＝WXDi-P03-067と同一の配線・コードパスで正しく発火することを別カードで追加確認）。
