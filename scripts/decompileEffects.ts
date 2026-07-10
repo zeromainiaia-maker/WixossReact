@@ -1526,6 +1526,9 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // 場出し制限（DEPLOY_RESTRICT）＝「…新たに(場に)出せない(。（補足）)」をカード別に原文抽出（先頭の【】：は timing 側で描画済のため除外）。
       if (a.id === 'DEPLOY_RESTRICT') {
+        // 配置数制限：「(このターン、)対戦相手はシグニをN体までしか場に出(せない/すことができない)(。（補足＝トラッシュ処理）)」
+        const mc = currentCardText.match(/(?:このターン、)?対戦相手は[^。：]*?シグニを[０-９\d]+体までしか[^。]*?場に出(?:せない|すことができない)(?:。（[^）]*）)?/);
+        if (mc) return mc[0];
         const m = currentCardText.match(/[^。：]*新たに[^。]*出せない(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
