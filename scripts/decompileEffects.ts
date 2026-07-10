@@ -561,12 +561,15 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.from?.owner)}デッキから${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
-      const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
-        : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
-        : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
       // ランサー:N → 「ランサー（パワーN以下のシグニ）」（hasKeyword は 'ランサー:' プレフィックスで検出）
       const kw = typeof a.keyword === 'string' && a.keyword.startsWith('ランサー:')
         ? `ランサー（パワー${a.keyword.slice('ランサー:'.length)}以下のシグニ）` : a.keyword;
+      const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/^ランサー:.*/, 'ランサー') : String(a.keyword ?? '');
+      const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
+        : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
+        // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）
+        : restoreLeadDuration(new RegExp(`【${kwBase}】[^。]*?(?:得る|持つ)`));
       // thisCardOnly: このシグニ自身が持つキーワード（「このシグニは【X】を持つ」）
       if (a.target?.filter?.thisCardOnly) return `このシグニは【${kw}】を持つ${durJa}`;
       // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
