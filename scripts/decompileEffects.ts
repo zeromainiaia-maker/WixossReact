@@ -608,7 +608,11 @@ function actionJa(a?: Action, effectType?: string): string {
         : (timingJa[a.trigger?.timing] ?? a.trigger?.timing ?? '');
       return `このターン、${subjIDT}${trigJaIDT}、${actionJa(a.effect)}`;
     }
-    case 'REMOVE_ABILITIES': return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : ''}`;
+    case 'REMOVE_ABILITIES': {
+      // action内 until が curated JSON で落ちている場合、原文の「能力を失い/失う」文から期間注記を復元（§5b・タスクA）
+      const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
+      return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
+    }
     case 'GRANT_PROTECTION': {
       // CONTINUOUS の self/any count≠ALL（filter/subjectFilterなし）は engine 上「このシグニのみ」に解決される
       const protThisOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && a.target
