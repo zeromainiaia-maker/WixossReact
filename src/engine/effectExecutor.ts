@@ -3783,15 +3783,17 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
       return card && card.Type === 'シグニ' && (!a.signiFilter || matchesFilter(card, a.signiFilter));
     });
     if (handCands.length === 0) return done(addLog(ctx, 'アクセ可能な手札シグニなし'));
-    // ステップ1: 手札からアクセカードを選択 → ステップ2: ホストシグニ選択へ
-    const selectHostAction: AttachAcceAction = { ...a, fromHand: false };
+    // ステップ1: 手札からアクセカードを選択（cardNum=選ばれたアクセカード） → ステップ2: ホストシグニ選択へ
+    // thenAction には _selectingAcceFromHand マーカーを付け、applyDirectAction の ATTACH_ACCE ケースで
+    // 「選ばれた cardNum＝アクセカード」として扱い、続けてホスト選択の SELECT_TARGET を再発行する。
+    const pickAcceAction: AttachAcceAction = { ...a, fromHand: false, _selectingAcceFromHand: true };
     return needsInteraction(addLog(ctx, '手札からアクセするシグニを選択'), {
       type: 'SELECT_TARGET',
       candidates: handCands,
       count: 1,
       optional: false,
       targetScope: 'self_hand',
-      thenAction: selectHostAction as import('../types/effects').EffectAction,
+      thenAction: pickAcceAction as import('../types/effects').EffectAction,
     });
   }
 
