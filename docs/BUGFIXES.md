@@ -17,8 +17,6 @@
 
 ---
 
-## §7 実機検証 ON_CHARM_TO_TRASH（R42）を実UIで確認＝続き61のcollectBoardDiffTriggers統合で既に解消済みだったことを確認（2026-07-11・続き64・Sonnet 5）
-
 ## §7 実機検証 ON_ACCE_ATTACH host条件（R45①）で `execAttachAcce` fromHand経路の実バグを発見（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
 
 `verifyBattleDrive.mjs` に新シナリオ `acceAttach`（WXK04-003デコレ→WXK05-041）を追加し、PLAN §7 で未検証だった ON_ACCE_ATTACH host条件（R45①）を実機検証。**❌FAIL＝`execAttachAcce` の `fromHand` 分岐（`effectExecutor.ts:3774`）に実装バグを発見**（未修正）。
