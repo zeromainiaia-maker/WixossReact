@@ -2692,8 +2692,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064）: 「あなたのターンの間」＝ターンプレイヤーを controller として、
     // 味方シグニが場に出た（play枝）か相手手札がトラッシュに置かれた（discard枝・⚠自効果限定は近似）場合に発火。
     {
-      const apTurnIsHost = causeOwnerId === bs.host_id ? undefined : undefined; // placeholder（下で active から判定）
-      void apTurnIsHost;
       const turnIsHost = (bs.active_user_id ?? bs.host_id) === bs.host_id;
       const apTurnBefore = turnIsHost ? beforeHost : beforeGuest;
       const apTurnAfter = turnIsHost ? h : g;
