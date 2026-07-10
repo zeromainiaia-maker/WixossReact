@@ -439,7 +439,8 @@ const scenarios = {
   //    続き61（Opus）で resume経路取りこぼしを collectBoardDiffTriggers に統合済み＝R43/R46/R39/R36と
   //    同型のバグが塞がれているはず。guest zone0（WD05-009・P12000）に charm を直接注入（field.signi_charms）→
   //    WX19-023【出】《無》で無条件バニッシュ（≤12000・SELECT_TARGET経由＝resume経路）→シグニとcharmが
-  //    まとめて guest.trash へ→watcher発火→残る guest zone1（WD01-013）に-4000。
+  //    まとめて guest.trash へ→watcher発火→残る guest zone1（WX01-053・P15000＝バニッシュ対象外なのでピッカー
+  //    候補が常に1件に確定し zone順/表示順に依存しない）に-4000。
   charmToTrash: {
     title: 'WX19-023→WX16-Re05（ON_CHARM_TO_TRASH＝チャームトラッシュ時 対戦相手-4000・R42）',
     spec: {
@@ -450,7 +451,7 @@ const scenarios = {
         'actions_done': [],
       },
       guestSet: {
-        'field.signi': [['WD05-009#1'], ['WD01-013#1'], null], // zone0=バニッシュ対象(charm付き)／zone1=watcherのPOWER_MODIFY対象
+        'field.signi': [['WD05-009#1'], ['WX01-053#1'], null], // zone0=バニッシュ対象(charm付き・P12000≤12000で唯一の候補)／zone1=watcherのPOWER_MODIFY対象(P15000・バニッシュ対象外)
         'field.signi_charms': ['WD03-002#1', null, null],      // zone0 に charm 注入（既知カードのCardNumを流用）
       },
       handPrepend: ['WX19-023#1'],                         // 弩砲 チタイクウ（[出]《無》無条件バニッシュ≤12000）
