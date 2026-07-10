@@ -376,6 +376,59 @@ const scenarios = {
     },
   },
 
+  // ⑦' ON_TARGETED①個別確認（§7・WXDi-P02-043）: ドライ＝インフルＤ型【自】《ターン1回》このシグニが対戦相手の
+  //    能力/効果の対象になったとき、カードを1枚引き【エナチャージ1】をする（mandatory・対象選択不要）。
+  //    `ontargeted`（WXDi-P03-067）と同型だが watcher カードを差し替えて個別確認（PLAN §7 残①）。
+  ontargeted2: {
+    title: 'WD05-017→WXDi-P02-043（ON_TARGETED①個別確認＝ドロー＋エナチャージ）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ）
+        'energy': ['WD05-009#1', 'WD05-009#2'],       // 黒×1 コスト用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-P02-043#1'], null, null], // watcher（ドライ＝インフルＤ型）
+        'deck': ['WD01-013#g1', 'WD01-013#g2', 'WD01-013#g3'], // ENERGY_CHARGE_FROM_DECK用に十分な残数
+      },
+      handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const gHand0 = before?.guest?.hand ?? 0;
+      H.log('guest 初期手札:', gHand0);
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/ontargeted2-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) { // スペルコスト：黒エナ選択→発動する
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) { // SELECT_TARGET ピッカー（pick-0 = guest の watcher）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        H.log(`  tgt2[${s}] -> ${did ?? 'なし'} | gHand=${st?.guest?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if ((st?.guest?.hand ?? 0) > gHand0) return { pass: true, detail: `ON_TARGETED 発火→watcher(WXDi-P02-043) がドロー＋エナチャージ（手札 ${gHand0}→${st.guest.hand}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_TARGETED ドロー未確認（gHand ${gHand0}→${fin?.guest?.hand ?? '-'} stack=${fin?.stackLen ?? '-'}）` };
+    },
+  },
+
   // ⑧ ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 弩炎 フレイスロ少佐【自】＝味方＜ウェポン＞シグニが
   //    効果で対戦相手シグニをバニッシュしたとき、自分のシグニ1体に【ダブルクラッシュ】付与（any_ally・triggerFilter story=ウェポン）。
   //    配線＝resolveStackNext 中央 diff/4761（banisher が場の自シグニ＋対戦相手バニッシュ検出）。
