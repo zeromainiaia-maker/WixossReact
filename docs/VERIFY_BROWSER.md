@@ -231,6 +231,29 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **⚠guest側盤面注入の稀な競合**＝原因未特定だがguestSetの`field.signi`注入が反映されないままクリックを始めるとFAILする（CPU側の初期化書き込みとの競合と推定）。クリック開始前に`queryState`で確認し、未反映なら`injectScenario`を再PATCHするリトライ（最大4回）で安定化。同様の設計が必要な他シナリオにも応用できる。
 - `order`配列に追加済み（`banishbyeffect`の直後）。単体3回連続PASS。**残＝未検証**＝R42②（バトルバニッシュでhostが離脱したとき＝効果解決経路外の発火）。
 
+### ⚠ R30（ON_PLAY any_opp・WXK10-022-E1）＝自然発火経路がparserバグでブロック中と判明（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
+
+R30（「あなたのターンの間、対戦相手のシグニ１体が場に出たとき」＝WXK10-022-E1）を実機検証しようとしたが、**カード全体を検索してもこのトリガーを自然に起こせるカードは1枚（WXEX2-50 大幻蟲エンマコロギ）しかなく、そのカードのJSONがparser誤生成でブロックされているため検証不能**と判明（シナリオ未作成）。
+
+- WXEX2-50 の【起】《ターン１回》《黒×0》：原文「対戦相手のトラッシュからシグニ１枚を対象とし、それを**対戦相手の場に**出す。その後、あなたのトラッシュから…＜凶蟲＞のシグニ１枚を対象とし、それを場に出す。」＝1文目は明確に「対戦相手のトラッシュ→対戦相手の場」（あなたの効果で相手に本来出させたくないカードを押し付ける珍しい効果）。
+- しかし `effects_WX.json`（`WXEX2-50-E3` step1）は `{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self",...}}`＝owner/source.owner ともに `self` になっている＝parser が「対戦相手の」を読み落として通常の「あなたの場に出す」パターンにフォールバックしたとみられる。
+- **影響**＝この1枚の誤パースにより「あなたのターン中に相手シグニが場に出る」という珍しいイベントが**現在の実装済みカード全体で一度も起こり得ない**＝R30 watcher（WXK10-022-E1）は実戦でも発火機会がない。
+- 修正方針（未着手・Opus担当）＝`parseSentencePart1.ts`（or 該当のADD_TO_FIELDパーサー規則）に「それを対戦相手の場に出す」の destination owner 判定を追加。修正後に WXEX2-50 を使った `verifyBattleDrive.mjs` シナリオを新設してR30を検証する。
+- 詳細 BUGFIXES 最上部。
+
+### ⚠ R45①（ON_ACCE_ATTACH host条件・WXK05-041）＝`execAttachAcce` fromHand経路の実装バグを発見（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
+
+`acceAttach`（WXK04-003デコレ→WXK05-041）を新設し実機検証した結果、**❌FAIL＝実装バグを確認**（未修正・2回連続再現）。
+
+- **盤面**：host センターに WXK04-003（エルドラ　オーバークロック・【デコレ】キーワード持ち・Lv4/Limit11）、host 場に WXK05-026（コードオーダー　ＢＣＰＩＣ・＜調理＞Lv4・ACCE未装着）、host 手札に WXK05-041（コードイート　ミント・＜調理＞Lv1・watcher本体）を配置。LRIGクリック（`img`が`pointerEvents:none`のため`click({force:true})`が必要）→【起】ボタン（後述の表示バグで同文言が2件並ぶため末尾を選択）→「発動」→手札からACCEするシグニを選択（候補1件）→決定。
+- **結果＝FAIL**：ここで `actions_done` に `WXK04-003-DECORE` が記録され完了扱いになるが、`field.signi_acce` は終始 `null` のまま＝ホストシグニ（WXK05-026）を選ぶはずの2段目SELECT_TARGETが一度も現れない。ON_ACCE_ATTACHは当然発火しない。
+- **原因**＝`execAttachAcce`（`effectExecutor.ts:3774`）の `fromHand` 分岐は、1段目 `SELECT_TARGET`（`self_hand`スコープ）の `thenAction` に「まだ2段目のinteractionを要するフルのATTACH_ACCEアクション」を渡しているが、SELECT_TARGET解決側（`applyDirectAction`・`effectExecutor.ts:4141`→`case 'ATTACH_ACCE'`・`effectExecutor.ts:4889`）は「渡された`cardNum`＝ユーザーが選んだ候補＝**ホストシグニ**」という前提で実装されている。1段目で選ばれた候補は実際には「手札から選んだACCEカード自身」であり当然ホスト場に存在しないため`zoneIdx<0`となり即終了する。**`thenAction`に未完結のアクションを渡す設計がresume機構（1候補選択→即terminal実行）と根本的に噛み合っていない**。
+- **背景**＝`manualEffects.ts`の既存コメントが「【デコレ】はparserが除去するためどのカードにも登録されておらずfromHandパスが死にコードだった」と明記していた箇所＝過去セッションでATTACH_ACCE(fromHand:true)を＜調理＞のエルドラ9枚に配線した。**今回が`fromHand`経路の初の実UI駆動**であり、その場で根本バグが露呈した。
+- **副次的な発見（低優先）**＝WXK04-003は【起】能力を2つ持つ（コイン×1のE2＝ゲーム1回「サプライズ」／青×0のDECORE）が、`getMyLrigFieldActions`（`BattleScreen.tsx:9872`）のコストラベル組み立てが`eff.cost?.coin`を考慮しないため**E2のボタンラベルも「【起】コストなし」になり2つの【起】ボタンが同文言で区別不能**（driverは`nth(count-1)`で後方＝DECOREを選ぶ回避策で対応）。
+- 修正方針（未着手・Opus担当）＝`fromHand`分岐を「1段目解決後に選択済みACCEカードを`ctx.lastProcessedCards`等へ積み、改めて`execAttachAcce`の非`fromHand`経路（2段目needsInteraction）を明示的に呼ぶ」形へ作り替える。
+- **再現**：`node scripts/verifyBattleDrive.mjs acceAttach`（`order`配列には追加せず）。
+- 詳細 BUGFIXES 最上部。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
