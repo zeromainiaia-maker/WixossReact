@@ -4785,7 +4785,8 @@ export function collectDeployCountLimit(
   ];
   let cap: number | undefined;
   for (const cn of candidates) {
-    const base = getCardNum(cn);
+    const base = cn.split('#')[0]; // instance id（CARDNUM#N）→ base cardNum
+
     for (const eff of (effectsMap.get(base) ?? effectsMap.get(cn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, opponentState, myState, isOpponentTurn, cardMap, cn)) continue;
