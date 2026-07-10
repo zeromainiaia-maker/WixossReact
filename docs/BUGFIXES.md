@@ -5,6 +5,20 @@
 
 ---
 
+## §7 実機検証 ON_EXCEED_COST 場シグニ（R44）を実UIで確認＝正常動作を確認（2026-07-11・続き64・Sonnet 5）
+
+`verifyBattleDrive.mjs` に新シナリオ `exceedCost`（WX11-004→WXDi-P06-078）を追加し、PLAN §7 で未検証だった ON_EXCEED_COST 場シグニ（R44）を実機検証。**✅PASS（3回連続・本番ビルド含む）**。
+
+- **盤面**：host センターに WX11-004（コード・ピルルク　Λ・Restriction無し・【起】《ターン１回》エクシード１：カードを２枚引く＝MAIN専用の【起】が1つだけなのでボタンの取り違えが起きない）、下1枚に WD01-001（エクシード1を支払うため field.lrig を2要素に）、host 場に watcher WXDi-P06-078（凶将　カラサワ・【自】《ターン1回》あなたがエクシードのコストを支払ったとき対戦相手シグニ1体に任意コスト《黒》で-5000）を配置。
+- **結果**：LRIGクリック→【起】エクシード１ボタン→「発動」（コスト自動控除）→**「効果の発動順序を決めてください」モーダルに「コード・ピルルク　Λ の【起】効果」と「凶将　カラサク【自】エクシードコスト支払い時」の2件が並ぶ**＝ON_EXCEED_COSTが正しく発火したことを確認（`executeLrigGranted` がエクシードで支払われたカードを検出し、同じスタックへ両エントリを積む挙動＝`BattleScreen.tsx:9665`の実装通り）。「発動順序を確定」クリックで完了。
+- **ハマりどころ**＝発動順序モーダルの「発動順序を確定」ボタンをdriverのクリック候補に含めていないと、モーダルで停止したまま検出できずFAILする（初回試行はこれで無発火FAILだった＝coinpaid/deckshuffle等の既存シナリオと同じ罠）。
+- `order`配列に追加済み（`charmToTrash`の直後）。
+- 詳細 VERIFY_BROWSER.md「ON_EXCEED_COST（R44）」節。
+
+---
+
+## §7 実機検証 ON_CHARM_TO_TRASH（R42）を実UIで確認＝続き61のcollectBoardDiffTriggers統合で既に解消済みだったことを確認（2026-07-11・続き64・Sonnet 5）
+
 ## §7 実機検証 ON_ACCE_ATTACH host条件（R45①）で `execAttachAcce` fromHand経路の実バグを発見（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
 
 `verifyBattleDrive.mjs` に新シナリオ `acceAttach`（WXK04-003デコレ→WXK05-041）を追加し、PLAN §7 で未検証だった ON_ACCE_ATTACH host条件（R45①）を実機検証。**❌FAIL＝`execAttachAcce` の `fromHand` 分岐（`effectExecutor.ts:3774`）に実装バグを発見**（未修正）。
