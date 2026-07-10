@@ -1,8 +1,12 @@
 # durational付与 先頭/文中「ターン終了時まで」action内duration脱落 母集団（精密・機械抽出）
 # 生成: tmp_extractDurationLead.mjs
 # 条件 = (症状) decompile 原文count>逆翻訳count  AND  (原因) 付与系action〔GRANT_KEYWORD/GRANT_EFFECT/REMOVE_ABILITIES/SET_BASE_LEVEL/LRIG_LIMIT_MODIFY〕のaction内 duration/until が end-of-turn でない
-# 該当カード 132
+# 該当カード 132（うち MANUAL効果を含む 8 / AUTO のみ 124）
 # 型別（延べ・effect単位）: GRANT_KEYWORD=115 / REMOVE_ABILITIES=23
+# drop分布: drop1=110 / drop2=21 / drop3=1
+# 修正方針（次セッション用・engine非依存）＝decompiler が action内 duration を落としたカードで原文に「ターン終了時まで」があれば注記を復元する系（§5b）。
+#   ⚠一括置換禁止（続き59＝parser側で先頭duration一般復元を試すと curated=PERMANENT慣例と衝突し held 124→219 激増）。系統確立→各カードverify で。
+#   MANUAL効果はJSON手編集での duration 追記が素直（原文照合の上で）。AUTO効果は parser/decompiler 側の系統修正候補。
 
 cardId	drop(orig/dec)	該当effect[脱落型;MANUAL]
 WD15-010	1(1/0)	WD15-010-E1[GRANT_KEYWORD]
