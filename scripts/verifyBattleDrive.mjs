@@ -506,6 +506,70 @@ const scenarios = {
     },
   },
 
+  // ⑧'' ON_ACCE_ATTACH host条件（R45①・§7・WXK05-041）: 【自】《ターン１回》＝このカードが【アクセ】として
+  //    レベル４以上のシグニに付いたとき、対戦相手のシグニ１体を対象とし、自ターンなら《青》を払ってもよい。
+  //    払えばターン終了時までそれのパワー-12000（STUB TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST＝CHOOSE pay/skip）。
+  //    アクセ付与手段＝【デコレ】キーワード（青×0・ターン1回の起動能力・WXK04-003の-DECORE追記＝manualEffects.ts）。
+  //    センターに WXK04-003（エルドラ オーバークロック・デコレ持ち）、場に WXK05-026（コードオーダー BCPIC・
+  //    Lv4・＜調理＞・ACCE未装着）を注入、手札の WXK05-041（＜調理＞・Lv1）をデコレでACCEとして付ける。
+  acceAttach: {
+    title: 'WXK04-003デコレ→WXK05-041（ON_ACCE_ATTACH host条件＝Lv4以上に付いたとき・R45①）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK04-003#1'],                    // エルドラ オーバークロック Lv4/Limit11（デコレ持ち）
+        'field.signi': [['WXK05-026#1'], null, null],     // コードオーダー BCPIC（＜調理＞Lv4・ACCE未装着）
+        'energy': ['WD03-009#1'],                          // 青エナ（任意コスト用）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null],       // 任意コスト発動時のPOWER_MODIFY対象候補
+      },
+      handPrepend: ['WXK05-041#1'],                        // コードイート ミント（＜調理＞Lv1・ACCEにするカード）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click().catch(() => {}); H.log('LRIGクリック: OK'); }
+      else H.log('LRIGクリック: 見つからず');
+      let fired = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/acceAttach-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) { // 【起】ボタン（デコレ・コストなし）
+          const actBtn = page.getByRole('button', { name: /【起】/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        if (!did) { // LrigGrantedModal「発動」（コスト0なので即enabled）
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        if (!did) { // SELECT_TARGET①（手札からACCEするシグニ＝WXK05-041のみ候補）／②（ホストシグニ＝WXK05-026のみ候補）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+        const promptLog = await H.findLog(/任意コスト：対象シグニを選んで発動しますか/);
+        if (promptLog) fired = true;
+        if (!did && fired) { // ON_ACCE_ATTACH発火済み＝スキップして完走
+          did = await H.clickTextOrBtn(['スキップ']);
+        }
+        const st = await H.queryState();
+        H.log(`  acce[${s}] -> ${did ?? 'なし'} | fieldAcce=${JSON.stringify(st?.host?.fieldAcce)} fired=${fired} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (fired && (st?.host?.actionsDone ?? []).includes('WXK05-041-E2')) {
+          return { pass: true, detail: `ON_ACCE_ATTACH 発火→WXK05-041-E2 が actions_done に記録（fieldAcce=${JSON.stringify(st.host.fieldAcce)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      if (fired) return { pass: true, detail: `ON_ACCE_ATTACH 発火（任意コストプロンプト確認・fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)}）` };
+      return { pass: false, detail: `ON_ACCE_ATTACH 発火未確認（fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'}）` };
+    },
+  },
+
   // ⑨ ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 【自】＝あなたのターンの間、ルリグの下からカードが移動したとき（once_per_turn）。
   //    トリガー源＝アーツ WX05-007 ラスト・セレクト（タマ/イオナ限定・《白》《黒》：センタールリグの下から4枚をルリグトラッシュへ＋
   //    対戦相手シグニ1体トラッシュ）。guest シグニ場を空にすると TRASH 対象0→SEQUENCE が一気に done=true となり
