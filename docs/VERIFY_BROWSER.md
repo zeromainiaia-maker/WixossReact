@@ -220,6 +220,17 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **ハマりどころ**＝POWER_MODIFY対象選択（相手シグニ1体・候補1件）は選択操作なしで「決定 (1/1)」ボタンが最初からready表示される＝`pick-0`クリックだけでなく「決定」ボタンを直接押す分岐も必要。
 - `order`配列に追加済み（末尾）。
 
+### ✅ ON_CHARM_TO_TRASH（R42）をPASSで確認＝続き61のcollectBoardDiffTriggers統合が既にカバー済みだった（2026-07-11・続き64・Sonnet 5）
+
+`charmToTrash`（WX19-023→WX16-Re05）を新設し実機検証したところ**PASS**。PLAN §7 で「続き61で統合ヘルパー配線済み＝実機検証可」だった項目＝追加修正なしで解消済みと確認できた。
+
+- **盤面**：host に watcher WX16-Re05（幻蟲 ヘイケ・【自】ON_CHARM_TO_TRASH・triggerScope any・mandatory・チャームがトラッシュに置かれたとき対戦相手シグニ1体に-4000）とセンタールリグ WD01-001（タマ・WX19-023「タマ限定」を満たす）を配置。guest zone0 に WD05-009（P12000）＋`field.signi_charms`直接注入でチャーム、guest zone1 にバニッシュ対象外の WX01-053（P15000・Restriction無し）を配置（≤12000のバニッシュ候補を1件に固定）。手札の WX19-023（弩砲 チタイクウ・【出】《無》で対戦相手P12000以下を無条件バニッシュ）を召喚。
+- **結果**：SELECT_TARGET（resume経路）でguest zone0(WD05-009)をバニッシュ→そのチャームがguest.trashへ（`gTrash`0→1）→同じresume解決内でwatcherが発火→2段目のSELECT_TARGETでguest zone1(WX01-053)へ-4000確定（`gPowerMods=WX01-053#1:-4000`）。
+- **🔎 副次的な学び＝「バニッシュ＝トラッシュ行き」は誤解**＝`banishDestination`（`execUtils.ts:93`）のデフォルト分岐はバニッシュされたシグニ自身を**持ち主のエナゾーン**へ送る（`banish_redirect`系フラグがある場合のみトラッシュ/手札/デッキ下へリダイレクト＝Wixossのルール通り）。トラッシュに乗るのは外れた**チャーム/アクセ**（`removeFromField`の`extraTrash`）のみ＝`gTrash`が2ではなく1で正しい。
+- **⚠シナリオ設計の罠**＝banish対象候補が2件以上あるとSELECT_TARGETピッカーのtestid順（pick-0/pick-1）が配列インデックス順と一致しない（表示のミラー処理の影響と推定・未解明）。当初guest zone1にもバニッシュ対象になりうるP3000カードを置いたところpick-0が意図と異なる方（チャームなし側）を選びFAILした＝**banish候補を意図的に1件に絞る**（対象外カードのpowerを条件外に設定）ことで表示順非依存の決定的シナリオになる。
+- **⚠guest側盤面注入の稀な競合**＝原因未特定だがguestSetの`field.signi`注入が反映されないままクリックを始めるとFAILする（CPU側の初期化書き込みとの競合と推定）。クリック開始前に`queryState`で確認し、未反映なら`injectScenario`を再PATCHするリトライ（最大4回）で安定化。同様の設計が必要な他シナリオにも応用できる。
+- `order`配列に追加済み（`banishbyeffect`の直後）。単体3回連続PASS。**残＝未検証**＝R42②（バトルバニッシュでhostが離脱したとき＝効果解決経路外の発火）。
+
 ### 運用メモ
 - 触ったら `npm run typecheck` ＋（engine/BattleScreen を変えたら）`npm run smoke/golden/fuzz`。実機 driver は `npm run build` してから `node scripts/verifyBattleDrive.mjs`。
 - スクショは `scratchpad-verify/{シナリオid}-inj.png` / `-final.png` と各手 `{id}-{n}.png`。
