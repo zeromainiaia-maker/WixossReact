@@ -532,7 +532,7 @@ const scenarios = {
       const alts = await page.evaluate(() => [...document.querySelectorAll('img')].map(i => i.alt).filter(Boolean));
       H.log('DOM上のimg alt一覧:', JSON.stringify(alts));
       const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
-      if (await lrigImg.count()) { await lrigImg.click().catch(() => {}); H.log('LRIGクリック: OK'); }
+      if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
       else H.log('LRIGクリック: 見つからず');
       let fired = false;
       for (let s = 0; s < 24; s++) {
