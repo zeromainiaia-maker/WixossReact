@@ -4549,6 +4549,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardPwr = parsePowerVal(battleCardMap.get(my.hand[handIndex])?.Power);
       if (cardPwr >= my.signi_deploy_power_limit) return;
     }
+    // DEPLOY_RESTRICT（配置数制限）: 「シグニをN体までしか場に出せない」→ 場のシグニ数が上限以上なら新規配置不可。
+    // フラグ（AUTO・自ターン）と相手場の CONT レゾナ（WX07-006）の小さい方を採用。ライズ（上乗せ）は新規配置でないため対象外。
+    if (!riseFilter) {
+      const contCountCap = collectDeployCountLimit(op, my, battleCardMap, effectsMap, !isMyTurn);
+      const countCap = my.signi_deploy_count_limit !== undefined
+        ? (contCountCap !== undefined ? Math.min(my.signi_deploy_count_limit, contCountCap) : my.signi_deploy_count_limit)
+        : contCountCap;
+      if (countCap !== undefined) {
+        const fieldSigniCount = my.field.signi.filter(s => s && s.length > 0).length;
+        if (existingZoneStack.length === 0 && fieldSigniCount >= countCap) return;
+      }
+    }
     // FORCE_PLACE_FRONT: 相手の該当シグニの正面に配置を強制（正面が空いている場合のみ）。ライズは上乗せのため対象外。
     if (!riseFilter) {
       const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
