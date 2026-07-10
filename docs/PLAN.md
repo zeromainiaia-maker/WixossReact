@@ -292,7 +292,7 @@
 - **パワー0以下トリガー（R37）**：WX20-Re03/WX21-067/WX22-013/WXDi-P01-043/WXDi-P14-009。**①は実機確認済み（2026-07-07・続き39）**＝`verifyBattleDrive.mjs powerzero`（WD11-013→WX21-067）で相手シグニ0化→WX21-067がドロー、盤面ログ「アイン＝テトロドの【自】効果（パワー0以下時）」を確認。残＝②《ターン1回》が複数同時0化でも1回③連鎖再発火（他4枚の個別確認も含め未検証）。
 - **手札捨て/トラッシュ flatten（R36）**：WDA-F02-17-E3／WXDi-CP02-082（自ターンE1／相手ターンE2の出し分け）。**①実機PASS＝✅続き61（Opus）で修正確認**＝ON_TRASH(self,fromZones:hand)のresume経路取りこぼしを `collectBoardDiffTriggers` 統合で解消。`verifyBattleDrive.mjs handDiscard`（WXK10-065の【出】手札1枚捨てでWDA-F02-17自身を選ばせる）で対戦相手-5000・watcher「幻蟲　§アメンボ§（手札／エナから）」発火。**残＝未検証**＝②WXDi-CP02-082（相手ターンE2の出し分け）。
 - **drawBySourceStory（R31）**：WX20-026-E3（自＜凶蟲＞シグニの効果ドローで相手シグニ−4000）。**①実機PASS＝✅確認済み（2026-07-09・続き58・Sonnet）**＝`verifyBattleDrive.mjs drawBySourceStory`（ATTACK_SIGNI→E2のDRAW→E3のcollectDrawTriggers発火）。R41(placedFront)に続く「resume経路取りこぼし仮説」の対照実験＝**原因アクション（DRAW）がSELECT_TARGET等の中断を要さないため`resolveStackNext`の`result.done`分岐内で正常に収集される**ことを確認（§6.3のresume経路取りこぼし機構解説を参照）。`order`配列に復帰済み。**残＝未検証のまま**（原文の「他の＜凶蟲＞がいる場合」条件がJSON側で欠落し無条件発火＝census系の別件過剰効果・今回の検証対象外）。
-- **ON_PLAY any_opp + targetsTriggerSource（R30）**：WXK10-022-E1。
+- **ON_PLAY any_opp + targetsTriggerSource（R30）**：WXK10-022-E1。⚠**続き64（Sonnet）で実機検証を試みたが自然発火経路がブロック中と判明**＝「あなたのターンの間、対戦相手のシグニが場に出たとき」を実際に起こせるカードはカード全体で唯一 WXEX2-50（大幻蟲　エンマコロギ）のみ（原文「対戦相手のトラッシュからシグニ１枚を対象とし、それを**対戦相手の場に**出す」）だが、そのJSON（WXEX2-50-E3 step1）は `ADD_TO_FIELD.owner`/`source.owner` がともに `"self"` に誤パースされている（原文は対戦相手のトラッシュ→対戦相手の場のはずが、自分のトラッシュ→自分の場になっている）。**parser修正待ち（Opus・§3リストへ登録）＝修正後にWXEX2-50で実機検証**。
 
 **その他の実機検証待ち**：
 - **B4引用付与の実発火**：「あなたの〜シグニ1体を対象とし、ターン終了時まで、それは『【自】このシグニがアタックしたとき〜』を得る」型（WX24-P2-018等）の付与先アタック時実発火。⚠permanent/相手シグニ付与は未対応＝log-only据置。
