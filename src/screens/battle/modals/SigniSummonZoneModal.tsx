@@ -3,7 +3,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../../../engine/execUtils';
-import { collectForcePlaceFrontZones } from '../../../engine/effectEngine';
+import { collectForcePlaceFrontZones, collectDeployCountLimit } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { parsePowerVal } from '../battleUtils';
 import type { BattleModalCtx } from './types';
