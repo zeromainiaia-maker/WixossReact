@@ -539,9 +539,9 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/acceAttach-${s}.png`, fullPage: true });
         let did = null;
-        if (!did) { // 【起】ボタン（デコレ・コストなし）
-          const actBtn = page.getByRole('button', { name: /【起】/ }).first();
-          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+        if (!did) { // 【起】ボタン（デコレ＝コストなし。WXK04-003にはコイン×1の別【起】もあるため厳密一致で区別）
+          const actBtn = page.getByRole('button', { name: '【起】コストなし', exact: true }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】コストなし'; }
         }
         if (!did) { // LrigGrantedModal「発動」（コスト0なので即enabled）
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
