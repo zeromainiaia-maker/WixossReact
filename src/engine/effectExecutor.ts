@@ -4889,15 +4889,36 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場に出す`));
     }
     case 'ATTACH_ACCE': {
-      // cardNum = SELECT_TARGET で選ばれたシグニ
       const acceAction = action as import('../types/effects').AttachAcceAction;
       const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
       const srcState = ownerState(acceAction.sourceOwner, ctx);
-      // cardNum = SELECT_TARGETで選ばれたホストシグニ
+      // fromHand step1完了: cardNum = 手札から選んだアクセカード。続けてホストシグニ選択(step2)を発行する。
+      if (acceAction._selectingAcceFromHand) {
+        const acce = tgtState.field.signi_acce ?? [null, null, null];
+        const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
+          if (!stack || stack.length === 0) return [];
+          if (acce[i] !== null) return [];
+          const top = stack[stack.length - 1];
+          if (acceAction.targetFilter && !matchesFilter(ctx.cardMap.get(top), acceAction.targetFilter)) return [];
+          return [top];
+        });
+        if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
+        const scope: TargetScope = acceAction.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
+        // 選んだアクセカード(cardNum)を _pickedAcceCard に載せ、step2 の thenAction へ確実に引き渡す
+        return needsInteraction(addLog(ctx, 'どのシグニにアクセしますか？'), {
+          type: 'SELECT_TARGET',
+          candidates: hostCands,
+          count: 1,
+          optional: false,
+          targetScope: scope,
+          thenAction: { ...acceAction, _selectingAcceFromHand: false, _pickedAcceCard: cardNum } as import('../types/effects').EffectAction,
+        });
+      }
+      // step2 / エナ経路: cardNum = SELECT_TARGETで選ばれたホストシグニ
       const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
-      // acceカード = sourceCardNum（エナゾーンからの場合）または lastProcessedCards[0]（手札選択後）
-      const acceCardNum = ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
+      // acceカード = _pickedAcceCard（手札選択後）／sourceCardNum（エナゾーンからの場合）／lastProcessedCards[0]
+      const acceCardNum = acceAction._pickedAcceCard ?? ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
       if (!acceCardNum) return done(ctx);
       // エナゾーンまたは手札からアクセカードを除去
       let newSrc = { ...srcState };
