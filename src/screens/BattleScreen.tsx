@@ -9234,7 +9234,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ON_ACCE_ATTACH（アクセカード自身）: 「このカードが【アクセ】としてシグニに付いたとき」（SPK01-11 ラズベリー）
     const hostZoneAcce = state.field.signi.findIndex(s => s?.at(-1) === acceHostCardNum);
     const attachedAcceNum = hostZoneAcce >= 0 ? (state.field.signi_acce?.[hostZoneAcce] ?? null) : null;
-    console.error(`[ACCE-DBG] acceHostCardNum=${acceHostCardNum} hostZoneAcce=${hostZoneAcce} attachedAcceNum=${attachedAcceNum} signiTops=${JSON.stringify(state.field.signi.map(s=>s?.at(-1)??null))} acce=${JSON.stringify(state.field.signi_acce)} effs=${JSON.stringify((effectsMap.get(attachedAcceNum??'')??[]).map(e=>[e.effectId,e.timing,e.triggerCondition]))}`);
     if (attachedAcceNum) {
       for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
