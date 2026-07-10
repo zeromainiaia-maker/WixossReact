@@ -5,6 +5,18 @@
 
 ---
 
+## durational付与の「ターン終了時まで」期間注記の逆翻訳復元＝decompiler側で原文照合し112枚是正（§5b・タスクA・2026-07-11・続き62・Opus 4.8）
+
+付与系 action（GRANT_KEYWORD／REMOVE_ABILITIES）の action内 duration/until が curated JSON で落ちている（PERMANENT/未設定）ため、decompile が原文の「ターン終了時まで」を注記（（ターン終了時まで））できず脱落していた系統課題（§5b decompileテール・母集団 `docs/_duration_lead_population.txt`）を、**engine/JSON 不変の decompiler 側修正で是正**（続き59 で確認済みのとおり parser 側の一般復元は curated=PERMANENT慣例と衝突し held 激増＝JSONは触らない）。
+
+- **原因**＝`parseActionTextInner`（`effectParser.ts:1398`）が先頭「ターン終了時まで、」を strip して下流の付与規則（`t.includes('ターン終了時まで')` 判定）に渡さず、action内 duration が落ちる。「対象とし、ターン終了時まで、」等の文中位置も一部構文で落ちる。engine では PERMANENT と UNTIL_END_OF_TURN は機能同一（`execGrantKeyword` がターン終了時クリア）＝挙動バグではなく逆翻訳忠実性のみの課題。
+- **修正**＝`decompileEffects.ts` に `restoreLeadDuration(anchor)` を新設。action内 duration が end-of-turn 値でないとき、**当該効果の原文セクション**（本文 or バースト＝`currentEffectText`）を「。／改行」で文分割し、付与を表すアンカー（GRANT_KEYWORD＝`【<keyword>[^】]*】…(得る|持つ)`／REMOVE_ABILITIES＝`能力を(失い|失う|得られない)`）を含む文に限って期間句を探し、`次の(対戦相手|相手)の?ターン終了時まで`→（次の相手ターン終了時まで）／`ターン終了時まで`→（ターン終了時まで）を復元する。**GRANT_KEYWORD（550行）と REMOVE_ABILITIES（594行）の2レンダラに配線**。
+- **精度対策3点**＝①**文スコープ**（同カードの別文の期間句を流用しない）②**本文/バーストスコープ**（`currentEffectText` を effectId で本文/バーストに絞る＝WX05-034 の本文「ターン終了時まで…【ダブルクラッシュ】」とバースト「このターンと次のターンの間…【ダブルクラッシュ】」の取り違えを防止）③**括弧付きキーワード変種対応**（`【アサシン（パワー3000以下のシグニ）】`＝`【<kw>[^】]*】`で拾う）④**`次の相手`優先判定**（`次の対戦相手のターン終了時まで`を UNTIL_OPP_TURN_END として先に判定）。
+- **検証**＝`npm run regen` 後に BASE コミットと decompile_sheet 全10枚を機械diff。**112枚が期間注記を獲得**。追加行を全数確認＝すべて原文の当該付与文に「ターン終了時まで」ありで正当（CHOOSE入れ子・複数付与・括弧付きキーワード・`次の相手`混在＝WXDi-CP01-026 も正）。母集団132のうち fix 対象外だった34枚は**抽出の偽陽性**（付与が恒久【常】/【ライズ】か、原文の「ターン終了時まで」が POWER_MODIFY 側に属す）＝正しく無注記。母集団外で新規に是正された分は count ベース抽出の過少計上（CHOOSE入れ子等）。誤注記（原文と異なる期間）ゼロを確認。
+- **ゲート**＝engine/JSON 不変のため §3「逆翻訳ゲート」＝**同型★0 維持**＋原文照合。加えて `npm run gates` 全緑（typecheck／golden 176／smoke 0／fuzz 0／census 1572不変／lint 0 errors）で無影響を確認。母集団抽出 `scripts/archive/extractDurationLeadPopulation.mjs`・明細 `docs/_duration_lead_population.txt`。
+
+---
+
 ## resume経路トリガー取りこぼしの根本修正＝盤面差分トリガー収集を `collectBoardDiffTriggers` に統合（4シナリオFAIL→PASS・2026-07-10・続き61・Opus 4.8）
 
 続き58/60（Sonnet）が実機で確認した「対象選択(SELECT_TARGET/CHOOSE)を挟んで resume 経路（`handleEffectInteraction`）で完了する効果では大半のトリガーが取りこぼされる」系統的バグ（R43/R46/R39/R36＝4シナリオ実機FAIL）を、**場当たり的 inline 追加ではなく収集関数の統合リファクタで根本修正**（PLAN §6.3 の修正方針どおり）。
