@@ -73,14 +73,20 @@ const stubDescMap = new Map<string, string>();
 // ── 部品の和文化 ──
 // 現在和文化中のカードの原文（STUB等で原文からパラメータを補完する用。出力ループでカードごとに設定）
 let currentCardText = '';
+// restoreLeadDuration 用に、いま和文化中の効果に対応する原文セクション（本文 or バースト）だけを保持する。
+// カード全体（currentCardText）だと本文とバーストで同キーワードを別 duration で付与するカード（WX05-034＝本文
+// 「ターン終了時まで…【ダブルクラッシュ】」／バースト「このターンと次のターンの間…【ダブルクラッシュ】」）で
+// 期間句を取り違えるため、効果ごとに本文／バーストへ絞る（出力ループで effectId により設定）。
+let currentEffectText = '';
 
 // §5b Opusタスク(A)：付与系 action の action内 duration が curated JSON で落ちている（PERMANENT/未設定）場合に、
 // 原文の該当付与文へ期間句（ターン終了時まで／次の相手のターン終了時まで）があれば注記を復元する。
 // 原文をカードの「。／改行」区切り文に分け、付与を表すアンカー（例：【ダブルクラッシュ】…得る、能力を失い）を含む文に
-// 限って期間句を探すため、同カードの別効果の期間句を誤って流用しない（文スコープ）。engine/JSON 不変・decompile 忠実性のみ。
+// 限って期間句を探すため、同カードの別効果の期間句を誤って流用しない（文スコープ＋本文/バーストスコープ）。engine/JSON 不変。
 // 母集団＝docs/_duration_lead_population.txt（抽出 scripts/archive/extractDurationLeadPopulation.mjs）。
 function restoreLeadDuration(anchor: RegExp): string {
-  for (const sent of currentCardText.split(/[。\n]/)) {
+  const scope = currentEffectText || currentCardText;
+  for (const sent of scope.split(/[。\n]/)) {
     if (!anchor.test(sent)) continue;
     if (/次の(?:対戦相手|相手)の?ターン終了時まで/.test(sent)) return '（次の相手ターン終了時まで）';
     if (/ターン終了時まで/.test(sent)) return '（ターン終了時まで）';
