@@ -1361,6 +1361,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
   }
 
+  // ---- 対戦相手はシグニをN体までしか場に出せない（配置数制限・DEPLOY_RESTRICT）----
+  // 「（このターン、）対戦相手はシグニをN体までしか場に出すことができない」（WXK11-074/WX12-008/WXDi-P05-024/WXK05-009・【常】版 WX07-006）。
+  // engine（execStubPart3 の DEPLOY_RESTRICT）が原文から N を読み、配置数上限フラグ＋超過分の即トラッシュを処理する。
+  // 下の bare ADD_TO_FIELD（「場に出す」を含むため）に誤マッチするのを防ぐため、ここで先取りする。
+  if (/シグニを[０-９\d]+体までしか/.test(t) && /場に出(?:せない|すことができない)/.test(t)) {
+    return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
+  }
+
   // ---- 場に出す（デッキ上から / 手札から など）----
   if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
     return { type: 'ADD_TO_FIELD', owner: 'self' };
