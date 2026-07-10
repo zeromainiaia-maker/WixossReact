@@ -546,6 +546,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (s.field.signi_charms ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.signi_soul   ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.signi_seeds  ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      // signi_acce: 手札/エナから装着されたアクセカード自身のロードに必須（装着でhand/energyから外れるため
+      //   これを走査しないと自身のON_ACCE_ATTACH能力等がeffectsMapから脱落する。WXK05-041デコレ）。
+      (s.field.signi_acce   ?? []).forEach(n => n && nums.add(getCardNum(n)));
       addAll(s.field.free_zone);
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
