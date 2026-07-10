@@ -1845,6 +1845,7 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         signiFrozen: s.field?.signi_frozen ?? null,
         fieldSigni: s.field?.signi ?? null,
+        fieldAcce: s.field?.signi_acce ?? null,
       });
       return {
         host: sideOf(hs),
