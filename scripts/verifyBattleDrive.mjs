@@ -529,8 +529,7 @@ const scenarios = {
     },
     async drive(page, H) {
       await H.ensureMain();
-      const alts = await page.evaluate(() => [...document.querySelectorAll('img')].map(i => i.alt).filter(Boolean));
-      H.log('DOM上のimg alt一覧:', JSON.stringify(alts));
+      // LRIGカードのimgはpointerEvents:noneなので通常clickは黙って失敗する＝force:trueで親divへ到達させる。
       const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
       if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
       else H.log('LRIGクリック: 見つからず');
