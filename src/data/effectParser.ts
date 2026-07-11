@@ -2450,6 +2450,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/あなたのエナゾーンに[^、。]*置かれたとき/) ? ['ON_ENERGY_CHARGE']
              : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
+             // 「（あなた/対戦相手/いずれかのプレイヤー）が（[色]の）スペルを使用したとき」（16件・§3 Opusタスク16）。
+             // engine 配線済み＝スペル解決時に使用者の場（ルリグ＋シグニ）を走査（triggerFilter.color／usageLimit 対応）。
+             // 続き75で triggerScope any_opp/any（相手/いずれかのプレイヤーの使用に反応）も engine に配線した。
+             // ⚠「あなたが対戦相手のスペルを使用したとき」＝奪って使う側＝使用者は自分（self）。
+             : /スペルを使用したとき/.test(actionText) ? ['ON_SPELL_USE']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
