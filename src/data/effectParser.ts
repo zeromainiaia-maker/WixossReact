@@ -1863,6 +1863,13 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
     if (headM && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
+      // ⚠「…それは**選んだ能力を得る**。①【アサシン】②【ランサー】」型（WXK10-018）は、選択肢が
+      //   **付与される能力名**であって実行するアクションではない＝素の CHOOSE に組むと「②【ランサー】」が
+      //   別アクション（DRAW 等）に誤マッチする幻覚になる（§3 Opusタスク10 パターンC）。
+      //   engine 実装済みの STUB `GRANT_CHOSEN_ABILITY`（原文を実行時に解析して能力選択→付与）に委ねる。
+      if (/選んだ能力を得る/.test(text)) {
+        return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY' } as unknown as EffectAction;
+      }
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
     }
