@@ -2606,7 +2606,7 @@ const scenarios = {
       hostSet: {
         'field.lrig': ['WD03-003#1'],
         'lrig_deck': ['WXK10-012#1'],       // 停空飛翔（緑×0・②任意緑でLRIGアタック無効）
-        'energy': ['WD04-010#1'],           // 緑×1（任意コスト用）
+        'energy': ['WD04-010#1', 'WD04-010#2'], // 緑×2（アーツコスト選択UIが×0でも1枚要求する可能性への保険＋②の任意コスト用）
         'actions_done': [],
       },
       guestSet: {
