@@ -1531,6 +1531,37 @@ function applyLeadingSelfComparison(text: string, action: EffectAction): EffectA
   return action;
 }
 
+// 「AかB」トップレベル動作選択（プレイヤーが2動作から1つを選ぶ）→ CHOOSE(2択・§4タスク4 引用内CHOOSE）。
+// DRAW を確実な錨にする：形A「カードをN枚引くか、B」／形B「AかカードをN枚引く」（「か」は「カードをN枚引く」に隣接）。
+//  ・形A は先頭が「カードを…引く」＝命令形（トリガー主語「あなたが引くか…とき」は先頭が別語で除外）。
+//  ・両動作が非UNKNOWNに解けたときのみ CHOOSE 化（片方でも解けなければ従来動作＝据置）。
+//  ・トリガー/条件構造（「とき」「そうした場合」）を含む場合は 2択でなく条件/連鎖なので除外。
+function parseDrawOrChoice(text: string): ChooseAction | null {
+  const t = text.replace(/。$/, '').trim();
+  if (/とき|そうした場合/.test(t)) return null;
+  let aText: string | null = null;
+  let bText: string | null = null;
+  const mA = t.match(/^カードを([０-９\d]+)枚引くか、?(.+)$/);
+  if (mA) { aText = `カードを${mA[1]}枚引く`; bText = mA[2]; }
+  else {
+    const mB = t.match(/^(.+?)か、?カードを([０-９\d]+)枚引く$/);
+    if (mB) { aText = mB[1]; bText = `カードを${mB[2]}枚引く`; }
+  }
+  if (!aText || !bText) return null;
+  const aAction = parseActionText(aText);
+  const bAction = parseActionText(bText);
+  if (aAction.type === 'UNKNOWN' || bAction.type === 'UNKNOWN') return null;
+  return {
+    type: 'CHOOSE',
+    choose_count: 1,
+    from_count: 2,
+    choices: [
+      { choiceId: 'c0', label: '選択肢1', action: aAction },
+      { choiceId: 'c1', label: '選択肢2', action: bAction },
+    ],
+  };
+}
+
 function parseActionText(text: string): EffectAction {
   return applyLeadingSelfComparison(text, parseActionTextInner(text));
 }
