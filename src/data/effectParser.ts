@@ -2565,6 +2565,37 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_HAND_DISCARDED') {
         if (/いずれかのプレイヤーが手札を/.test(actionText)) extractedTriggerScope = 'any';
       }
+      // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
+      //   「あなたのシグニN体に」＝any_ally＝あなたの場のシグニ全体が反応）。
+      if (timing[0] === 'ON_ACCE') {
+        if (/あなたのシグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)) extractedTriggerScope = 'any_ally';
+      }
+      // ON_REFRESH: リフレッシュした側を triggerCondition.refreshedOwner に抽出（省略時 engine 既定 = any）。
+      if (timing[0] === 'ON_REFRESH') {
+        const ro = /あなたがリフレッシュしたとき/.test(actionText) ? 'self'
+          : /対戦相手がリフレッシュしたとき/.test(actionText) ? 'opponent'
+          : /いずれかのプレイヤーがリフレッシュしたとき/.test(actionText) ? 'any' : undefined;
+        if (ro) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), refreshedOwner: ro };
+      }
+      // ON_ENERGY_TO_TRASH: どちらのエナゾーンから置かれたかを triggerCondition.energyTrashedOwner に抽出。
+      if (timing[0] === 'ON_ENERGY_TO_TRASH') {
+        const eo = /対戦相手のエナゾーンから/.test(actionText) ? 'opponent'
+          : /あなたのエナゾーンから/.test(actionText) ? 'self' : undefined;
+        if (eo) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), energyTrashedOwner: eo };
+      }
+      // ON_SIGNI_FROZEN: 凍結されたシグニの持ち主で scope を決める（「対戦相手の」＝any_opp〔engine 既定〕／「あなたの」＝any_ally）。
+      if (timing[0] === 'ON_SIGNI_FROZEN') {
+        if (/あなたのシグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(actionText)) extractedTriggerScope = 'any_ally';
+      }
+      // ON_OPP_POWER_DECREASED: 発生源の限定（「＜X＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似。
+      //   その分だけ過剰発火しうる（自分の別効果でパワーを減らしても発火する）ので計器に刻む。
+      if (timing[0] === 'ON_OPP_POWER_DECREASED' && /(?:＜[^＞]+＞の|他の)シグニの効果によって/.test(actionText)) {
+        markSilentFallback('ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似');
+      }
+      // ON_DISCARDED_AS_COST: どの能力のコストとして捨てられたかの限定は engine が未表現＝落とす近似。
+      if (timing[0] === 'ON_DISCARDED_AS_COST' && /(?:＜[^＞]+＞の)?シグニの【[^】]+】/.test(actionText)) {
+        markSilentFallback('ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似');
+      }
       // ON_SPELL_USE: 使用者（主語）を triggerScope に、スペルの色を triggerFilter.color に抽出。
       //   「あなたが…」＝self（既定）／「対戦相手が…」＝any_opp／「いずれかのプレイヤーが…」＝any。
       //   ⚠「あなたが**対戦相手のスペル**を使用したとき」は使用者が自分＝self（「対戦相手が」より先に判定しない）。
