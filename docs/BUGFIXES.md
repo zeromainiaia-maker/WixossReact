@@ -5,6 +5,28 @@
 
 ---
 
+## §3 Sonnetタスク2＝CHOOSE平坦化復元 held の全数機械分類＝54枚を精査→採用1枚（WXK10-013）・53枚をOpusタスク10へ系統別に整理（2026-07-11・続き71・Sonnet 5）
+
+§3 Sonnetタスク2「CHOOSE平坦化復元 held約38枚の全数機械分類」。`npm run build:effects`→`node scripts/heldReview.mjs` の held（121枚・99署名グループ）から、fresh側でCHOOSE出現数が増加している＝CHOOSE平坦化復元の候補になりうるカードを機械抽出すると**54枚**（`tmp_chooseAudit.mjs`・一時スクリプト）。各カードについて①原文の「以下のNつからMつ選ぶ」の選択肢数と fresh の `from_count` が一致するか②各 choices[i] の中身（target owner/type・STUB id・欠落条件）が原文と対応するかを1枚ずつ精査した。
+
+**結果＝ほとんどが「構造の外形（CHOOSEへの復元）は正しい方向だが中身に個別の欠陥がある」グレー**。件数メトリクスを信じず1枚ずつ照合したところ、明白に採用可能と判断できたのは **WXK10-013（1枚）のみ**採用（`heldReview --adopt WXK10-013`）。残る53枚は以下の系統的欠陥パターンに整理してOpusタスク10へ引き継ぐ（Sonnetは分類のみ・採用判断はOpus）。
+
+- **パターンA＝5択が4択に潰れる（末尾2択の融合＋コスト増加STUBの脱落）**＝PR-K056（「⑤カードを1枚引く」が「④手札1枚捨て」に吸収され消失＋`ARTS_COST_REDUCTION_BY_EFFECT`脱落）・WXK10-002（同型＝④⑤が1つのSEQUENCEに融合）。5択CHOOSEの①②③④⑤分割ロジックに末尾2択を誤結合する共通原因の疑い。
+- **パターンB＝LRIG対象がSIGNI型に誤解決（センタールリグを対象とすべき箇所）**＝WX17-020（③「対戦相手のセンタールリグを凍結する」がFREEZE target.type:SIGNIに）・WXK10-012（②「対戦相手のセンタールリグがアタックしたとき」のNEGATE_ATTACK targetがSIGNIに）。CHOOSE内の choices[i].action 生成経路でLRIG/SIGNIのtarget.type解決が既存の非CHOOSE経路と食い違っている可能性。
+- **パターンC＝STUB idが原文と無関係（誤マッチ）**＝WXK10-010（①「対戦相手は自分の効果でカードを引けない」がSTUB `LRIG_GROW_RESTRICT`＝ルリグ成長制限という無関係の語彙に）・WDK17-008（①「ルリグタイプを追加で得る」＋「このアーツをルリグデッキに戻す」がSTUB `LRIG_GROW_RESTRICT`＋`TRANSFER_TO_DECK`{SIGNI,self}という原文と無関係な組み合わせに）・WXK10-018（②「【ランサー】を得る」がGRANT_KEYWORDでなくDRAW(1)に＝別クローズの内容が混入）。
+- **パターンD＝条件ゲートの脱落（既存バグの温存、新規回帰ではない）**＝WD20-018（②「あなたのライフクロスが0枚の場合」ゲートが脱落し無条件TRASH ALLに）・WXDi-P13-045（①②ともBOUNCE target.owner="self"のまま＝「対戦相手のシグニ」のはずが自分のシグニ。curated側で既に同じ値だったため今回のdiffでは新規回帰ではないが、CHOOSE化しても中身は誤ったまま）。
+- **パターンE＝WX14-011は続き18で既報告済みの要注意カード（owner逆転＋原文にない効果への変質）を今回も確認**＝②のENERGY_CHARGE_FROM_DECK owner="self"（相手のはず）・「対戦相手はカードを1枚引く」の欠落・①の対象2枚→1枚・EXILE→TRASH誤り。既知バグとして変わらず。
+- **パターンF（未分類・要個別精査）**＝残り約40枚は STUB（`OPTIONAL_TRASH_ENERGY_CLASS`/`TARGET_AND_DISCARD_HAND`/`OPTIONAL_COST`等）自体は複数カードで一貫使用され妥当に見えるが、個々の choices の欠落条件・target owner を1枚ずつ確認しないと確証が持てない中程度リスクのグループ（WX21-020/WX22-Re03/WX24-P1-001/003/007/065/WX24-P2-094/WX24-P3-036/WX25-CP1-026/028/WX25-P2-076/084/097/WX25-P3-082/095/WX26-CP1-023/100/WXDi-CP02-103/WXDi-P02-005/WXDi-P05-003/077/WXDi-P07-049/WXDi-P08-074/081/WXDi-P09-062/WXDi-P16-049/WXK01-041/WXK05-010/WXK07-034/WXK08-026/WXK09-050/WXK10-104/WD22-036-G/WDK01-008/WDK06-C20/WDK13-022/SP26-001）。特にWX25-CP1-026/028は「ルリグかシグニ」の複合対象がSIGNI単独に狭まっている疑いがありパターンBと同根の可能性。
+- **既知の据置3枚（続き69で確認済み・今回も再確認）**＝WX20-078・SPK01-14はCHOOSE化される部分（「引くか」nested choice）以外の**カード全体の構造がそもそも原文と無関係に破綻**（①②③の選択肢自体がJSONに存在しない）ため、今回のdiffで直る範囲では全く不十分。WX19-062は宣言一致条件の別欠落が残る。3枚とも既存の分類どおり据置＝別途フルパース修正が要る。
+
+**採用1枚の詳細＝WXK10-013**（クリミナル・リタッチ）：「①対戦相手のターンの場合、対戦相手は自分の効果によってシグニを新たに場に出せない。②対戦相手のシグニ1体を対象とし黒を支払ってもよい。そうした場合、ターン終了時までパワー-7000」の2択。両選択肢とも既存STUB（`BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN`／`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`＝ともに`execStubPart1/3.ts`で実装済み）を正しく組み合わせ、target owner/type・条件とも原文一致。decompile も原文を忠実に反映（同型★0維持）。
+
+**検証**＝typecheck/golden(187)/smoke(全0)/fuzz(全0)/census(**1558→1557**・BASELINE_HIGH更新済み)/lint 0 errors 全緑。`npm run regen` で同型★0・★逆翻訳割れ0を確認。**変更範囲＝JSON1枚のみ（parser/engine不変）**。
+
+同一署名グループ内の他2枚（WXK10-012はパターンB・WXDi-P13-045はパターンD）は本採用に含めない（グループ一括採用は誤り＝1枚ずつ照合が必須なことを再確認）。
+
+---
+
 ## §7 R30実機検証で新規バグ発見＝多段インタラクションSEQUENCE途中ラウンドの盤面差分トリガーが永久に見逃される（未修正・2026-07-11・続き70・Sonnet 5）
 
 §3 Sonnetタスク1（§7実機検証の横展開）。R30「ON_PLAY any_opp + targetsTriggerSource」（WXK10-022-E1）は続き66（Opus）の owner誤パース是正で発火経路（WXEX2-50経由）が開通済みだったため、`scripts/verifyBattleDrive.mjs` に `onPlayAnyOpp` シナリオを新設して実機検証した。
