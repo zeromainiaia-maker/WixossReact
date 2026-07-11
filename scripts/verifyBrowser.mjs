@@ -1,12 +1,26 @@
 // 実機ブラウザ検証ドライバ：vite dev を起動し、/verify.html を Chromium で開いて
 // engine 検証ハーネスの結果（window.__verifyResults）を取得＋全画面スクショを保存する。
 // 使い方: node scripts/verifyBrowser.mjs  （exit 0=全PASS / 1=FAIL）
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 
 const SHOT_DIR = process.env.SHOT_DIR || 'scratchpad-verify';
 mkdirSync(SHOT_DIR, { recursive: true });
+
+// ⚠ Windows では proc.kill() は shell(cmd.exe) だけを殺し、孫の vite(node) が孤児で残る。
+//    しかも根が死んだ後の taskkill /T は子孫を辿れない＝旧実装（proc.kill()→非同期taskkill）は
+//    実行のたびに dev server を1個リークしていた。必ず「proc.kill() より先に」同期 taskkill する。
+let treeKilled = false;
+function killTree(proc) {
+  if (!proc || treeKilled) return;
+  treeKilled = true;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    try { proc.kill(); } catch { /* noop */ }
+  }
+}
 
 function startDev() {
   return new Promise((resolve, reject) => {
