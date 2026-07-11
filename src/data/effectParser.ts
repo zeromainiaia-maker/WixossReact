@@ -2369,6 +2369,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
              // 「あなたの＜X＞のシグニが効果によって対戦相手のシグニをバニッシュしたとき」（WX07-036）。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線。トリガー文非除去・scope/filter は下で抽出
              : actionText.match(/効果によって対戦相手のシグニ[^。]{0,4}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']
+             // 「（このシグニ／あなたの[他の][＜X＞の]シグニ）がバトルによって（対戦相手の）シグニN体をバニッシュしたとき」
+             // ＝バトル勝利トリガー。**engine 配線済み**（BattleScreen の resolvePendingSigniBattleFor が
+             // ON_SIGNI_BANISH_OPPONENT を triggerScope/usageLimit/condition 込みで収集する `battleBanishEntries`）。
+             // 従来 parser がこの語彙を持たず **ON_PLAY へ誤フォールバック**していたため、31枚が「バトルでバニッシュ
+             // したとき」ではなく「場に出たとき」に発火する幻覚になっていた（続き75で是正）。scope は下で抽出。
+             : actionText.match(/バトルによって(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
              : actionText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
