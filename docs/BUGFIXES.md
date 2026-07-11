@@ -5,6 +5,27 @@
 
 ---
 
+## 🆕 timing 語彙センサス（`npm run census:timing`）を新設＝「engine 実装済みなのに parser に語彙が無い」穴を機械検出（+17枚採用）（2026-07-12・続き75・Opus 4.8・同日第4件）
+
+同日第3件で見つけた `ON_SIGNI_BANISH_OPPONENT` の穴（**engine は完全配線済みなのに parser に timing 語彙が無く、31枚が `ON_PLAY`＝「場に出たとき」へ誤フォールバック**）は、**同型の穴が他にもある**ことを示唆していた。そこで**計器化して機械的に洗い出せる**ようにした。
+
+### 計器①（静的）＝engine↔parser の timing ギャップ
+型定義の全 timing（74種）に対し「engine/BattleScreen が参照する」集合と「parser が生成する」集合を突き合わせると、**29種が「engine 実装済み・parser 非生成（MANUAL カードでしか使われていない）」**＝同型の穴の候補と判明（ON_MAIN_PHASE_START／ON_SPELL_USE／ON_EXCEED_COST／ON_RISE／ON_SIGNI_BECOMES_DRIVE／ON_HAND_DISCARDED／ON_ARTS_USE／ON_BECOME_BEAT 等）。
+
+### 計器②（動的・恒久）＝`npm run census:timing`（`scripts/timingCensus.ts` 新設）
+**parser に timing フォールバック計器を追加**（`getTimingFallbackLog()`・`parseStatus` は変えない純粋な観測）。**【自】ブロックで timing 判定が全て外れて `ON_PLAY` へ落ちた効果**を記録し、原文のトリガー句でクラスタリングして枚数順に出す（`docs/_timing_census.txt`）。
+- **初回計測＝376効果 / 180クラスタ**。上位＝`あなたのメインフェイズ開始時`29／**`このシグニが対戦相手のシグニN体をバニッシュしたとき`19**／`あなたがスペルを使用したとき`16／`エクシードのコストとしてルリグトラッシュに置かれたとき`13／`ライズされたとき`11／`ドライブ状態になったとき`11／`手札からトラッシュに置かれたとき`10／`ガードステップ以外で手札を捨てたとき`8／`アーツを使用したとき`7／`【ビート】になったとき`7 …。**上位のほぼ全てが計器①の「engine 実装済み・parser 非生成」と一致**＝parser に regex を1本足すだけで直る高効率な残作業が可視化された。
+
+### 今回の消化＝`ON_SIGNI_BANISH_OPPONENT` の取りこぼし19件（第3件の続き）
+最上位クラスタのうち**同日第3件で直したのと同じ timing**（＝「バトルによって」が明記されない表記）を消化。**効果によるバニッシュは必ず「効果によって」と明記される**ため、明記が無ければバトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体をバニッシュしたとき」等）。timing 抽出に2本目の regex を追加し、triggerScope 抽出も同表記に対応（「このシグニが」＝self／「あなたの[他の][＜X＞の]シグニが」＝any_ally）。**計測 376→353 効果**。
+- **影響23枚を全数機械測定→17枚採用**（クリーン15＝timing/scope のみ＋WXK07-027＋WX14-006A＝curated の誤った素の UP →引用付与へ改善）。**MANUAL 5枚は温存**（WX20-069/WD12-012/013/014/015＝curated は既に手修正で同値 timing を持つ）。**WX24-P3-TK1A は採用しない**＝`EXILE`→`TRASH` の**既知の据置系退化**（PLAN §3 が「curated が正・fresh が誤り」と明記）が混入するため。
+- ⚠**action 側の既存誤りは別系統として残る**＝WX10-048 は action がトリガー句の「対戦相手のシグニ1体をバニッシュ」を誤読している（原文は「**この**シグニをバニッシュしてもよい」）。before/after で action は不変＝**本修正が持ち込んだものではない**（トリガー句を actionText に残す設計に由来する既存バグ。トリガー句除去は WXEX2-40 の退化を招くため採らない＝第3件参照）。WX11-031 の「合計3体バニッシュしていた場合」条件脱落も同様に既存。**§5b/§6 のテールへ**。
+
+### 検証
+`npm run gates` 全緑（golden 192/192〔ON_SIGNI_BANISH_OPPONENT の構造固定に「バトルによって」非明記版の回帰ガードを追加〕・smoke/fuzz 全0・**census 1557 維持**・lint 0 errors）／`npm run regen` で**同型★0・★逆翻訳割れ0**維持・逆翻訳は原文一致。**curated が動いたのは意図した17枚のみ**（HEAD とのカード単位機械diffで確認）。
+
+---
+
 ## §3 Opusタスク1＝引用付与の内側 parse＋**「バトルによってバニッシュしたとき」timing 語彙の欠落を発見・修正（31枚が ON_PLAY へ誤フォールバック）**（2026-07-12・続き75・Opus 4.8・同日第3件）
 
 §3 Opusタスク1「GRANT_QUOTED_AUTO_ABILITY の内側 ability parse」。着手して**より重い系統バグを発見**したため、そちらを主に修正した。
