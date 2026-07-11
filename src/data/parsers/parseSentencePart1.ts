@@ -1169,7 +1169,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
         { type: 'FREEZE', target: parseSigniTarget(t, owner) },
       ]};
     }
-    if (t.includes('センタールリグ')) {
+    // ⚠「**センタールリグではない**対戦相手のルリグ1体」（WXDi-P14-040-E2）＝アシストルリグが対象。
+    //   engine の 'LRIG' はセンタールリグ固定でアシスト対象の受け皿が無いため、ここでは拾わない（据置＝§6.3 機構待ち）。
+    if (t.includes('センタールリグ') && !t.includes('センタールリグではない')) {
       return { type: 'FREEZE', target: { type: 'LRIG', owner, count: 1 } };
     }
     return { type: 'FREEZE', target: parseSigniTarget(t, owner) };
