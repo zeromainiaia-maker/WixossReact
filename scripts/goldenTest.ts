@@ -624,6 +624,15 @@ test('ON_MAIN_PHASE_START 構造固定（メインフェイズ開始時が ON_PL
   ok(!!e1, 'WX12-031（「あなたのメインフェイズ開始時」）: ON_MAIN_PHASE_START のはず（ON_PLAY ではない）');
   eq(e1?.triggerScope ?? 'self', 'self', 'WX12-031: scope=self（あなたの）');
 });
+// ON_SPELL_USE（「（あなた/対戦相手）が[色の]スペルを使用したとき」・§3 Opusタスク16）。engine はスペル解決時に
+// 使用者の場を走査（色フィルタ・usageLimit 対応）＝配線済みで、parser に語彙が無く ON_PLAY へ化けていた回帰ガード。
+test('ON_SPELL_USE 構造固定（スペル使用時が ON_PLAY に化けていない・色フィルタも原文どおり）', () => {
+  const e1 = (effectsMap.get('WX10-030') ?? []).find(e => e.timing?.includes('ON_SPELL_USE'));
+  ok(!!e1, 'WX10-030: ON_SPELL_USE のはず（ON_PLAY ではない）');
+  // 「あなたが緑のスペルを使用したとき」＝triggerFilter.color で使用スペルの色を絞る（WXK11-024＝緑）
+  const e2 = (effectsMap.get('WXK11-024') ?? []).find(e => e.timing?.includes('ON_SPELL_USE'));
+  eq(e2?.triggerFilter?.color, '緑', 'WXK11-024: triggerFilter.color=緑');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
