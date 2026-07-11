@@ -10048,6 +10048,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const costPartsILT: string[] = [];
             if (exceedILT > 0) costPartsILT.push(`エクシード${exceedILT}`);
             if (energyCostILT > 0) costPartsILT.push(`エナ${energyCostILT}`);
+            if (eff.cost?.coin) costPartsILT.push(`コイン${eff.cost.coin}`);
             const costLabelILT = costPartsILT.join('・') || 'コストなし';
             const trashLrigName = battleCardMap.get(trashLrigCn)?.CardName ?? trashLrigCn;
             lrigActionsMA.push({
