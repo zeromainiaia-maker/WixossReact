@@ -9280,6 +9280,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   //   【アクセ】が付いたとき」（WXK04-051/WXK05-064）は従来どおり自フィールド全体が反応する。
   const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
     const triggerEntries: StackEntry[] = [];
+    const usedOncePerTurnIdsAcce: string[] = [];
+    // 《ターン1回》《ターン2回》の使用制限（actions_done ＋ 本収集内で積んだ分の両方を数える）。
+    const acceLimitOk = (eff: import('../types/effects').CardEffect): boolean => {
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+      if (max === Infinity) return true;
+      const used = (state.actions_done ?? []).filter(id => id === eff.effectId).length
+        + usedOncePerTurnIdsAcce.filter(id => id === eff.effectId).length;
+      if (used >= max) return false;
+      usedOncePerTurnIdsAcce.push(eff.effectId);
+      return true;
+    };
     for (const stack of state.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
@@ -9289,6 +9300,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const acceScope = eff.triggerScope ?? 'self';
         if (acceScope === 'self' && topNum !== acceHostCardNum) continue;
         if (eff.condition && !evalUseCondition(eff.condition, state, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
+        if (!acceLimitOk(eff)) continue;
         const card = battleCardMap.get(topNum);
         triggerEntries.push({
           id: generateUUID(),
@@ -9304,7 +9316,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // また「あなたのシグニ１体がアクセされたとき」系のWX15-059等
 
     // ON_ACCE_ATTACH（ルリグ）: 「あなたのシグニ１体に【アクセ】が付いたとき」（WXK04-003 オーバークロック）
-    const usedOncePerTurnIdsAcce: string[] = [];
     const myLrigAcce = state.field.lrig.at(-1);
     if (myLrigAcce) {
       for (const eff of (effectsMap.get(myLrigAcce) ?? [])) {
