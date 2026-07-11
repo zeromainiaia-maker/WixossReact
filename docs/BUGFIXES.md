@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化①＝`ON_MAIN_PHASE_START`（最大クラスタ29件）＝「メインフェイズ開始時」が ON_PLAY に化けていた（+30枚）（2026-07-12・続き75・Opus 4.8・同日第5件）
+
+新設した timing センサス（同日第4件）の**最大クラスタ「あなたのメインフェイズ開始時」29件**を消化。**engine は元から完全配線済み**（`collectTurnTriggers` を GROW→MAIN 移行時に呼ぶ・`triggerScope` self/any_opp も評価）で、**parser に timing 語彙が無いだけ**だった＝「メインフェイズ開始時に発動する」はずの効果が **`ON_PLAY`（＝場に出たとき）に化け、召喚しただけで発火**していた。
+
+- **parser**＝timing 抽出に `ON_MAIN_PHASE_START` を追加＋scope 抽出（「対戦相手のメインフェイズ開始時」＝any_ally/any_opp・1件）。⚠**「次の（次の）あなたのメインフェイズ開始時」は除外**＝これは**遅延トリガー**（今設置して次ターンに発火する別機構・2件）であり、その場で発火する ON_MAIN_PHASE_START とは別物。
+- **engine 不変**（既存の収集関数がそのまま拾う）。**計測 353→323 効果**。
+- **影響31枚を全数機械diff→27枚を `heldReview --adopt`**。残る4枚のうち**3枚は timing だけを effectId アンカーで外科パッチ**した＝fresh 全体を採用すると**本件と無関係の退化が混入する**ため：**WX15-002**（別効果が `PREVENT_DAMAGE`→`GRANT_LRIG_ABILITY` に作り替わる）・**WXK09-015**（`EXILE`→`TRASH` の既知据置系）・**WX20-Re18**（MANUAL 含みカード＝build:effects が丸ごと温存し held に出ない）。**WXDi-P00-034 は触らない**（curated は既に MANUAL で正しい timing を持ち、fresh 採用は MANUAL→AUTO 降格になるだけ）。
+- **curated が動いたのは意図した30枚のみ**（採用27＋直パッチ3・HEAD とのカード単位機械diffで確認）。
+- **検証**＝`npm run gates` 全緑（**golden 193/193**〔+1＝ON_MAIN_PHASE_START 構造固定〕・smoke/fuzz 全0・**census 1557 維持**・lint 0 errors）／`regen` で**同型★0・★逆翻訳割れ0**維持・逆翻訳が原文一致（「【自】あなたのメインフェイズ開始時：…」）。
+
+---
+
 ## 🆕 timing 語彙センサス（`npm run census:timing`）を新設＝「engine 実装済みなのに parser に語彙が無い」穴を機械検出（+17枚採用）（2026-07-12・続き75・Opus 4.8・同日第4件）
 
 同日第3件で見つけた `ON_SIGNI_BANISH_OPPONENT` の穴（**engine は完全配線済みなのに parser に timing 語彙が無く、31枚が `ON_PLAY`＝「場に出たとき」へ誤フォールバック**）は、**同型の穴が他にもある**ことを示唆していた。そこで**計器化して機械的に洗い出せる**ようにした。
