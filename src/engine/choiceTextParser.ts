@@ -31,9 +31,12 @@ export interface ParsedChoiceOption {
 
 const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 
+// ⚠5択カード（PR-K056/WXK10-002/WXK04-002/WXK05-048/WD21-007/SPK01-13）があるため **⑤まで**扱う。
+//   従来は ④ 止まりで、①の除外クラスにも ⑤ が無かったため **⑤の文が④に吸収されて選択肢が1つ消えていた**。
 const CHOICE_PATTERNS = [
-  { m: /①([^②③④]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
+  { m: /①([^②③④⑤]+)/, idx: 0 }, { m: /②([^③④⑤]+)/, idx: 1 },
   { m: /③([^④⑤]+)/, idx: 2 }, { m: /④([^⑤]+)/, idx: 3 },
+  { m: /⑤([\s\S]+)/, idx: 4 },
 ];
 
 /** 選択肢1つ分のテキストをアクションに変換（解析不可ならnull） */
