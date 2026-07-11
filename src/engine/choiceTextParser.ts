@@ -354,7 +354,7 @@ export function parseChoiceOptionsFromText(txt: string, idPrefix = 'choice'): Pa
     if (action) {
       options.push({
         id: `${idPrefix}_${idx}`,
-        label: `${'①②③④'[idx]}${choiceTxt.slice(0, 20)}...`,
+        label: `${'①②③④⑤'[idx]}${choiceTxt.slice(0, 20)}...`,
         action,
         available: true,
       });
