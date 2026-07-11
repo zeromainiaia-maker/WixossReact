@@ -672,6 +672,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand_discarded_just: picked.length > 0 ? [...(state.hand_discarded_just ?? []), ...picked] : state.hand_discarded_just,
         turn_hand_discarded_count: tgt.owner === 'self' && picked.length > 0
           ? (state.turn_hand_discarded_count ?? 0) + picked.length : state.turn_hand_discarded_count,
+        // 「見ないで選ぶ」経路でも相手効果による手札喪失としてカウントする（HAND_TRASHED_BY_OPP）。
+        hand_trashed_by_opp_this_turn: tgt.owner === 'opponent' && picked.length > 0
+          ? (state.hand_trashed_by_opp_this_turn ?? 0) + picked.length : state.hand_trashed_by_opp_this_turn,
       };
       return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `手札からランダム${count}枚をトラッシュへ`), lastProcessedCards: picked });
     }
