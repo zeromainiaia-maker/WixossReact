@@ -3178,6 +3178,10 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
     const lrigTop = state.field.lrig.at(-1);
     const signiCands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     cands = lrigTop ? [lrigTop, ...signiCands] : signiCands;
+  } else if (a.target.type === 'LRIG') {
+    // 「対戦相手のセンタールリグがアタックしたとき、そのアタックを無効にする」（WXK10-012②）＝ルリグ単独対象。
+    const lrigTop = state.field.lrig.at(-1);
+    cands = lrigTop ? [lrigTop] : [];
   } else {
     cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   }
