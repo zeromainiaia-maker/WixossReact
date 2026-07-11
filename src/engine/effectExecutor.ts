@@ -876,12 +876,25 @@ function resolveDiscardLevelFilter(
   filter: import('../types/effects').TargetFilter | undefined,
   casterState: import('../types').PlayerState,
 ): import('../types/effects').TargetFilter | undefined {
-  if (!filter?.levelLteDiscardSigni) return filter;
-  const { levelLteDiscardSigni: _x, ...rest } = filter;
+  if (!filter) return filter;
+  if (!filter.levelLteDiscardSigni && !filter.levelLtDiscardSigni
+      && filter.levelEqDiscardSigniOffset === undefined && !filter.classMatchesDiscardSigni) return filter;
+  const { levelLteDiscardSigni: _x, levelLtDiscardSigni: _y, levelEqDiscardSigniOffset: offset,
+    classMatchesDiscardSigni: _z, ...rest } = filter;
+  let out: import('../types/effects').TargetFilter = { ...rest };
   const lvl = casterState.last_discarded_signi_level;
-  return (lvl != null && !isNaN(lvl))
-    ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl } }
-    : rest;
+  const lvlOk = lvl != null && !isNaN(lvl);
+  // レベル関係: ≤（Lte）/ <（Lt）/ ＝捨てレベル+offset（Eq）。参照不能なら制限なしへフォールバック
+  if (filter.levelLteDiscardSigni && lvlOk) out = { ...out, level: { ...(typeof out.level === 'object' ? out.level : {}), max: lvl } };
+  if (filter.levelLtDiscardSigni && lvlOk) out = { ...out, level: { ...(typeof out.level === 'object' ? out.level : {}), max: lvl - 1 } };
+  if (offset !== undefined && lvlOk) out = { ...out, level: lvl + offset };
+  // クラス関係: 捨てたシグニと共通するクラス（CardClass の「：」以降トークンを OR 展開して story へ）
+  if (filter.classMatchesDiscardSigni) {
+    const cc = casterState.last_discarded_signi_class ?? '';
+    const tokens = cc.split(/[/／]/).map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean);
+    if (tokens.length > 0) out = { ...out, story: tokens.length === 1 ? tokens[0] : tokens };
+  }
+  return out;
 }
 
 function resolveDynamicFilter(
