@@ -21,7 +21,8 @@
     "gates": "node scripts/runGates.mjs",
     "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "census:timing": "tsx scripts/timingCensus.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
