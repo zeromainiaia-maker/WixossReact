@@ -1907,6 +1907,10 @@ function effJa(e: Eff): string {
       const clsStr = Array.isArray(cls) ? cls.join('か') : cls;
       s = `あなたが手札から＜${clsStr}＞のカードを捨てたとき`;
     }
+    // ON_HAND_DISCARDED の triggerFilter.isDisona（「《ディソナアイコン》のカードを捨てたとき」WXDi-P12-048/071）
+    if (t === 'ON_HAND_DISCARDED' && e.triggerFilter?.isDisona) {
+      s = 'あなたが《ディソナアイコン》のカードを１枚捨てたとき';
+    }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
       s = s.replace('あなたが手札を捨てたとき', 'いずれかのプレイヤーが手札を捨てたとき');
