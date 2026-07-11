@@ -2639,6 +2639,7 @@ try {
       const sideOf = (s) => ({
         hand: (s.hand ?? []).length,
         trash: (s.trash ?? []).length,
+        energy: (s.energy ?? []).length,
         deck_shuffled_count: s.deck_shuffled_count ?? 0,
         powerMods: (s.temp_power_mods ?? []).map(m => `${m.cardNum}:${m.delta}`),
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
