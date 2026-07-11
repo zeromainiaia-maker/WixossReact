@@ -1294,6 +1294,10 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
       [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
         g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
+      // ⚠「以上/以下」が付かない**ちょうどN枚**（WD20-018②「あなたのライフクロスが０枚の場合」）はこの表に
+      //   無く、条件ゲートごと脱落して**無条件に自分の全シグニをトラッシュする**過剰効果になっていた（タスク10 パターンD）。
+      [/あなたのライフクロスが([０-９\d]+)枚の場合/,
+        g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
       [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
         g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
       [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
