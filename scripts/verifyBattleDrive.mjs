@@ -943,6 +943,75 @@ const scenarios = {
     },
   },
 
+  // ON_ACCE の triggerScope（続き76）: 「**この**シグニに【アクセ】が付いたとき」は **アクセが付いた当のシグニ**
+  //   でのみ発火する（scope 既定 self）。従来 engine は自フィールドの全シグニを無条件に走査していたため、
+  //   別のシグニにアクセを付けただけで発火する**過剰発火**だった。
+  //   盤面＝zone0: WDK07-E17（ON_ACCE self・「【エナチャージ１】をする」＝観測が最も単純）／zone1: WXK05-026（Lv4）。
+  //   判定＝アクセがどちらのゾーンに載ったかを fieldAcce で読み、**載った側が WDK07-E17 のときだけエナ+1**であること
+  //   （＝pick の並び順に依存せず、どちらに転んでも scope 規則を検証できる。修正前はどちらでも +1 になる）。
+  acceSelfScope: {
+    title: 'WDK07-E17（ON_ACCE scope=self）＝自分に付いたときだけ発火・他シグニへのアクセでは非発火（続き76）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK04-003#1'],                              // エルドラ オーバークロック（デコレ＝アクセ付与源）
+        'field.signi': [['WDK07-E17#1'], ['WXK05-026#1'], null],    // zone0=watcher（ON_ACCE self）/ zone1=別のホスト候補
+        'energy': [],                                               // エナ0から開始＝【エナチャージ１】の観測を明確に
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [['WD01-013#1'], null, null] },
+      handPrepend: ['WXK05-041#1'],                                 // アクセにするカード（＜調理＞Lv1）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      const energy0 = before?.host?.energy ?? 0;
+      const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
+      if (await lrigImg.count()) await lrigImg.click({ force: true }).catch(() => {});
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        let did = null;
+        const actBtns = page.getByRole('button', { name: '【起】コストなし', exact: true });
+        const actCnt = await actBtns.count();
+        if (actCnt > 0) {
+          const actBtn = actCnt > 1 ? actBtns.nth(actCnt - 1) : actBtns.first();
+          if (await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        if (!did) {
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        if (!did) { // WXK04-003 自身の ON_ACCE_ATTACH（CHOOSE3択）＝対象不要の選択肢2(DRAW)で解決
+          const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
+          if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = 'choose:選択肢2'; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'スキップ']);
+        const st = await H.queryState();
+        const acce = st?.host?.fieldAcce ?? [null, null, null];
+        H.log(`  acceScope[${s}] -> ${did ?? 'なし'} | fieldAcce=${JSON.stringify(acce)} energy=${st?.host?.energy}(開始${energy0}) stack=${st?.stackLen ?? '-'}`);
+        const attachedZone = acce.findIndex(a => a);
+        if (attachedZone < 0) continue;                       // まだアクセが載っていない
+        if (st?.stackLen) continue;                           // 効果解決待ちなら続行
+        const delta = (st?.host?.energy ?? 0) - energy0;
+        const expected = attachedZone === 0 ? 1 : 0;          // zone0 = WDK07-E17（watcher 自身）
+        const who = attachedZone === 0 ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
+        if (delta === expected) {
+          return { pass: true, detail: `アクセは${who}に装着 → ON_ACCE(scope=self) は${expected ? '発火' : '非発火'}＝エナ ${energy0}→${st.host.energy}（期待 +${expected}）` };
+        }
+        return { pass: false, detail: `アクセは${who}に装着なのにエナ +${delta}（期待 +${expected}）＝scope=self が効いていない（fieldAcce=${JSON.stringify(acce)}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `アクセ装着に到達せず（fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)} energy=${fin?.host?.energy} stack=${fin?.stackLen ?? '-'}）` };
+    },
+  },
+
   // ⑧''' ON_EXCEED_COST 場シグニ（R44・§7・WXDi-P06-078）: 【自】《ターン１回》＝あなたのターンの間、あなたが
   //    エクシードのコストを支払ったとき、対戦相手のシグニ１体を対象とし《黒》を払ってもよい（STUB
   //    TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）。払えばターン終了時までそれのパワー-5000。
