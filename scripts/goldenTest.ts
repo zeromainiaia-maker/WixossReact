@@ -611,6 +611,10 @@ test('ON_SIGNI_BANISH_OPPONENT 構造固定（バトル勝利トリガーが ON_
   ok(!!e2, 'WXEX2-40: ON_SIGNI_BANISH_OPPONENT のはず');
   eq(e2?.triggerScope, 'any_ally', 'WXEX2-40: scope=any_ally（あなたの＜水獣＞のシグニが）');
   eq(e2?.triggerFilter?.story, '水獣', 'WXEX2-40: triggerFilter.story=水獣');
+  // 「バトルによって」が明記されない表記も同じ timing（効果バニッシュは必ず「効果によって」と明記されるため）。
+  const e3 = (effectsMap.get('WX10-048') ?? []).find(e => e.timing?.includes('ON_SIGNI_BANISH_OPPONENT'));
+  ok(!!e3, 'WX10-048（「このシグニが対戦相手のシグニ1体をバニッシュしたとき」）: ON_SIGNI_BANISH_OPPONENT のはず');
+  eq(e3?.triggerScope ?? 'self', 'self', 'WX10-048: scope=self');
 });
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
