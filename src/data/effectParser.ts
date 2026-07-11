@@ -2456,7 +2456,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : actionText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
-             : actionText.match(/あなたのエナゾーンに[^、。]*置かれたとき/) ? ['ON_ENERGY_CHARGE']
+             // 「あなたが【エナチャージ】をしたとき」（2件・続き76）も同じ受け皿（engine はエナゾーンが1枚増えたことを
+             //   スナップショット差分で検知＝所有者自身の場のシグニが反応する）。
+             //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
+             //     エナが増えた側の場しか走査しない）＝拾わない（§6.3 機構待ち）。
+             : actionText.match(/あなたのエナゾーンに[^、。]*置かれたとき|あなたが【エナチャージ】をしたとき/) ? ['ON_ENERGY_CHARGE']
+             // 「対戦相手の場に【ウィルス】Nつが置かれたとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_OPP_VIRUS_PLACED）。
+             : actionText.match(/対戦相手の場に【ウィルス】[０-９\d]*つ?が置かれたとき/) ? ['ON_OPP_VIRUS_PLACED']
+             // 「あなたの効果N つによって対戦相手のカードがN枚以上デッキに移動したとき」（2件）。engine 配線済み
+             //   （collectMoveToDeckTriggers＝triggerCondition.movedToDeckOwner／movedToDeckMinCount）。cond は下で抽出。
+             : actionText.match(/カードが[０-９\d]+枚以上デッキに移動したとき/) ? ['ON_CARD_MOVED_TO_DECK']
              : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              // 「（あなた/対戦相手/いずれかのプレイヤー）が（[色]の）スペルを使用したとき」（16件・§3 Opusタスク16）。
