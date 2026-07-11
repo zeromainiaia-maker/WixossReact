@@ -2573,6 +2573,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_ACCE') {
         if (/あなたのシグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_OPP_ARTS_USE: 「対戦相手が**使用**したとき」と既存の「対戦相手のアーツの**効果を受けた**とき」は
+      //   engine の受け皿は同じだが原文が違う＝逆翻訳の描画を分けるため any_opp を刻む（engine は scope を見ない）。
+      if (timing[0] === 'ON_OPP_ARTS_USE' && /対戦相手がアーツを使用したとき/.test(actionText)) {
+        extractedTriggerScope = 'any_opp';
+      }
       // ON_REFRESH: リフレッシュした側を triggerCondition.refreshedOwner に抽出（省略時 engine 既定 = any）。
       if (timing[0] === 'ON_REFRESH') {
         const ro = /あなたがリフレッシュしたとき/.test(actionText) ? 'self'
