@@ -3247,6 +3247,31 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     const hasUnknownSub = expandGrantLrigAbilities(resolvedAction, cardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   } else
+  // GRANT_FIELD_SIGNI_ABILITY: rawStages（多段「<条件>かぎり、「Q」を得る。」＝WX24-P1-043）を段ごとに
+  // parseBlock し、各段の activeCondition（THIS_CARD_HAS_UNDER{filter} 等）を CardEffect へ注入して展開。
+  if (resolvedAction.type === 'GRANT_FIELD_SIGNI_ABILITY' &&
+      (resolvedAction as GrantFieldSigniAbilityAction).rawStages !== undefined) {
+    const gfa = resolvedAction as GrantFieldSigniAbilityAction;
+    gfa.abilities = (gfa.rawStages ?? [])
+      .map((st, si) => {
+        const e = parseBlock(cardNum, st.rawText.replace(/^[『「]/, '').replace(/[』」]$/, ''), index);
+        if (e) {
+          e.effectId = `${cardNum}-E${index + 1}-G${si > 0 ? si + 1 : ''}`;
+          if (st.activeCondition) {
+            e.activeCondition = e.activeCondition
+              ? { type: 'AND', conditions: [st.activeCondition, e.activeCondition] }
+              : st.activeCondition;
+          }
+        }
+        return e;
+      })
+      .filter((e): e is import('../types/effects').CardEffect => e !== null);
+    const stageCount = (gfa.rawStages ?? []).length;
+    delete gfa.rawStages;
+    const hasUnknownStage = gfa.abilities.length < stageCount
+      || gfa.abilities.some(e => e.parseStatus === 'UNKNOWN' || e.parseStatus === 'PARTIAL');
+    parseStatus = hasUnknownStage ? 'PARTIAL' : 'AUTO';
+  } else
   // GRANT_FIELD_SIGNI_ABILITY: rawText（引用能力原文）を parseBlock で abilities へ展開（§5c 続き34）。
   // 付与能力の effectId は `{cardNum}-E{N}-G` とする（GRANT_ACCE と同慣例）。
   if (resolvedAction.type === 'GRANT_FIELD_SIGNI_ABILITY' &&
