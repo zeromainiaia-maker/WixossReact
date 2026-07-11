@@ -34,11 +34,14 @@ function startDev() {
     proc.stdout.on('data', onData);
     proc.stderr.on('data', onData);
     proc.on('error', reject);
-    setTimeout(() => { if (!url) reject(new Error('dev server 起動タイムアウト')); }, 30000);
+    setTimeout(() => { if (!url) { killTree(proc); reject(new Error('dev server 起動タイムアウト')); } }, 30000);
   });
 }
 
 const { proc, url } = await startDev();
+// 異常終了（例外・Ctrl+C）でも dev server を残さない保険（'exit' ハンドラは同期処理のみ可）
+process.on('exit', () => killTree(proc));
+process.on('SIGINT', () => process.exit(130));
 console.log(`dev server: ${url}`);
 let exitCode = 0;
 try {
