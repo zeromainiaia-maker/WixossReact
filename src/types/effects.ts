@@ -893,6 +893,7 @@ export interface GrantFieldSigniAbilityAction {
   targetOwner?: Owner;     // 付与先のオーナー（省略時 self。'opponent' = 対戦相手の場のシグニへ付与）
   thisCardOnly?: boolean;  // true = 付与元カード自身のみへ付与（「【常】：…かぎり、このシグニは「Q」を得る」型）
   rawText?: string;        // パース中一時フィールド（引用能力原文。expandGrantFieldRawText が abilities へ展開後 delete）
+  rawStages?: Array<{ activeCondition?: ActiveCondition; rawText: string }>; // パース中一時フィールド（多段「<条件>かぎり、「Q」を得る。」＝段ごとの条件付き引用原文。展開時に各 CardEffect の activeCondition へ注入して delete。WX24-P1-043）
 }
 
 // このカードが場にあるかぎり、フィルタに合う場のシグニ全員へ【シャドウ（X）】キーワードを付与する（CONTINUOUS宣言型）
