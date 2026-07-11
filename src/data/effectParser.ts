@@ -1105,17 +1105,6 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
-  // 「このシグニをアップし、<残り>」＝2動作の複合文（＝「アップ＋ターン終了時まで能力を失う」＝再攻撃コンボの定番・6枚）。
-  // 従来は先頭の「アップ」が無言脱落し、残り（能力喪失）だけが実行されていた＝**デメリットだけ適用される**過少パース
-  // （WX24-P1-017 の引用付与の内側／WXDi-P15-056／WXDi-CP02-051 等）。SEQUENCE に正エンコードする（続き75）。
-  {
-    const m = text.trim().match(/^この(?:シグニ|カード)をアップし[、,]\s*(.+)$/s);
-    if (m) {
-      const rest = parseSingleSentence(m[1]);
-      const up: EffectAction = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
-      return { type: 'SEQUENCE', steps: [up, rest] } as EffectAction;
-    }
-  }
   // 「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニN体を対象とし、…」＝相手中央ルリグの
   // レベルを基準にした動的レベルフィルタ（levelLtOppLrig）。この先頭修飾句を剥がさないと汎用ターゲット解析が
   // 「対戦相手のセンタールリグ」に釣られて対象を LRIG に誤選択し、本来の self シグニ対象と動的フィルタが丸ごと
