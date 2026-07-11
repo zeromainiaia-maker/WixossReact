@@ -486,7 +486,9 @@ const scenarios = {
         const grants = st?.guest?.keywordGrants ?? [];
         const onSelf  = grants.find(g => /シャドウ/.test(g) && /WXDi-P11-040/.test(g));  // watcher 自身＝excludeSelf 違反
         const onOther = grants.find(g => /シャドウ/.test(g) && !/WXDi-P11-040/.test(g)); // 他の味方＝原文どおり
-        H.log(`  p11040[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${grants.join(',') || '-'}`);
+        // powerMods＝ホール・ダーク(-4000)がどのシグニに当たったか＝「watcher を対象に取れたか」の確認用
+        // （scope:self なので watcher 自身が対象にならないと ON_TARGETED は発火しない）
+        H.log(`  p11040[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${grants.join(',') || '-'} pmods=${(st?.guest?.powerMods ?? []).join(',') || '-'}`);
         if (onSelf) return { pass: false, detail: `excludeSelf 違反＝watcher自身に【シャドウ】が付与された「${onSelf}」（原文は「あなたの他のシグニ1体」）` };
         if (onOther) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→excludeSelf 適用＝watcher自身ではなく他の味方に【シャドウ】付与「${onOther}」` };
       }
