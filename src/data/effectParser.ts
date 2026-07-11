@@ -1509,7 +1509,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
       for (const [re, fin] of CONJ_FIN) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
       const left = parseSingleSentence(leftText);
       const right = parseSingleSentence(conjM[2]);
-      if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN') {
+      // ⚠右半分が STUB に解ける場合は **その STUB が文全体（左の動作を含む）を実装している**ことが多く、
+      //   分割すると二重実行になる（WXDi-P00-018＝`DRAW_DISCARD_COUNT_PLUS_N` は「手札をすべて捨て」を内包）。
+      if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN' && right.type !== 'STUB') {
         return { type: 'SEQUENCE', steps: [left, right] } as SequenceAction;
       }
     }
