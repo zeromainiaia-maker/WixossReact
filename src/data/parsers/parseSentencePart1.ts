@@ -248,8 +248,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    // 「このシグニは【常】能力を失う」＝自己参照（thisCardOnly）。同一文にトリガー句（「このシグニが対戦相手の、
+    // 能力か効果の対象になったとき」WX25-P2-055）が残っていると下の owner 判定が「対戦相手」を拾って
+    // 相手シグニの能力を消す真逆の効果になる（続き72の実機観測・続き75で修正）ため、先に自己参照を確定させる。
+    if (/このシグニは(?:【[常自起出]】)?能力を失/.test(t)) {
+      return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, until: dur } as RemoveAbilitiesAction;
+    }
+    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const all = t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
     return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: all ? 'ALL' : 1 }, until: dur } as RemoveAbilitiesAction;
   }
