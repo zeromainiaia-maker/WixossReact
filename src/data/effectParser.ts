@@ -1438,7 +1438,21 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^対戦相手がアーツを使用したとき、/, '')
     .replace(/^あなたの[^、「」]{2,30}が場に出たとき、/, '')
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
+    // 「…がバトルによって（対戦相手の）シグニN体をバニッシュしたとき、」＝ON_SIGNI_BANISH_OPPONENT のトリガー句
+    // （続き75で timing 語彙を追加）。除去しないと後続の action 解析が主語「対戦相手のシグニ」に引きずられる。
+    .replace(/^[^、。「」]{2,60}がバトルによって(?:対戦相手の)?シグニ[^、。]{0,6}をバニッシュしたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
+
+  // 「このシグニをアップし、<残り>」＝2動作の複合文（「アップ＋ターン終了時まで能力を失う」＝再攻撃コンボの定番・6枚）。
+  // 従来は先頭の「アップ」が無言脱落し、残り（能力喪失）だけが実行されていた＝**デメリットだけ適用される**過少パース
+  // （WX24-P1-017 の引用付与の内側／WXDi-P15-056／WXDi-CP02-051 等）。SEQUENCE に正エンコードする（続き75）。
+  {
+    const upThenM = t.match(/^この(?:シグニ|カード)をアップし[、,]\s*(.+)$/s);
+    if (upThenM) {
+      const up: EffectAction = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
+      return { type: 'SEQUENCE', steps: [up, parseSingleSentence(upThenM[1])] } as EffectAction;
+    }
+  }
 
   // トップレベル動作選択「（カードをN枚）引くか<B>」→ CHOOSE（§4タスク4）。
   // 【自】/【起】のトリガー句除去後にここへ届く単文も拾う（parseActionTextInner 冒頭と同じルール）。
