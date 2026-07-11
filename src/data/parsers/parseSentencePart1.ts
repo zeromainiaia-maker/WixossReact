@@ -1546,6 +1546,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
         : kwSelfSigni ? { type: 'SIGNI', owner: 'self', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : kwOppSigni ? { type: 'SIGNI', owner: 'opponent', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : { type: 'SIGNI', owner: 'any', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) };
+      // 「あなたの他のシグニ1体を対象とし」＝効果元シグニ自身を対象から除外（WXDi-P11-040）。
+      // 未表現だと他に味方シグニが居ないとき自分自身に付与される（続き72の実機観測・続き75で engine の
+      // excludeSelf 実装とセットで修正）。対象節に隣接する「他の」だけを見る（他 action の「他のシグニ」に反応しない）。
+      const kwExcludeSelf = /(?:あなた|対戦相手)の他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t);
+      const kwTarget: EffectTarget = kwExcludeSelf && target.type === 'SIGNI'
+        ? { ...target, filter: { ...(target.filter ?? {}), excludeSelf: true } }
+        : target;
       // 「【X】と【Y】を得る」「【X】【Y】を持つ」複合付与 → SEQUENCE
       // 「を得る/を持つ」直前に隣接するキーワード連続（と/・接続のみ）に限定し、
       // 文境界を跨いだ無関係キーワードの巻き込みを防ぐ
@@ -1557,11 +1564,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
         if (runKw.length >= 2) {
           return {
             type: 'SEQUENCE',
-            steps: runKw.map(k => ({ type: 'GRANT_KEYWORD', target, keyword: k, duration: dur })),
+            steps: runKw.map(k => ({ type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur })),
           };
         }
       }
-      return { type: 'GRANT_KEYWORD', target, keyword: kwM[1], duration: dur };
+      return { type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwM[1], duration: dur };
     }
   }
 
