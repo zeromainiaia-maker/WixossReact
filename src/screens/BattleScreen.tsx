@@ -7081,6 +7081,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 !(eff.timing?.includes('ON_SIGNI_BANISH_BATTLE') || eff.timing?.includes('ON_SIGNI_BANISH_OPPONENT'))) continue;
             const scopeBB = eff.triggerScope ?? 'self';
             if (scopeBB === 'self' && topNumBB !== myTopNum) continue;
+            // any_ally の triggerFilter（「あなたの＜水獣＞のシグニが…」WXEX2-40）＝バニッシュを行ったシグニ
+            // （＝アタッカー myTopNum）がフィルタに一致するか。excludeSelf は「あなたの他の…」＝能力保持シグニ自身が
+            // バニッシュした場合は発火しない（続き75で parser が triggerScope/triggerFilter を出すようになったのに合わせて配線）。
+            if (scopeBB !== 'self') {
+              if (eff.triggerFilter?.excludeSelf && topNumBB === myTopNum) continue;
+              if (eff.triggerFilter && !matchesFilter(battleCardMap.get(getCardNum(myTopNum)), eff.triggerFilter)) continue;
+            }
             // condition を持つAUTOは条件を満たす場合のみ収集（例: WXK04-044 血晶武装中のみアップ）
             if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, topNumBB, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
