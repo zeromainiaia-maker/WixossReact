@@ -1167,11 +1167,21 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- ダウン ----
   if (t.includes('ダウンする') || t.match(/をダウン/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    if (t.includes('センタールリグ') && t.includes('シグニ')) {
-      // 「センタールリグかシグニ１体」→ OR選択（CENTER_LRIG_OR_SIGNI）
-      if (t.match(/センタールリグか.*シグニ|センタールリグまたは.*シグニ/)) {
-        return { type: 'DOWN', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 } };
+    // 「（センター）ルリグ**か**シグニN体」「ルリグ**と**シグニを合計N体まで」→ OR選択（CENTER_LRIG_OR_SIGNI）。
+    // ⚠「センター」が付かない表記（WX25-CP1-028①「対戦相手のルリグかシグニ1体を対象とし、それをダウンする」）は
+    //   下の分岐に入らず **シグニ限定**に潰れていた（§3 Opusタスク10 パターンB の同根）。
+    {
+      const lsM = t.match(/(?:センター)?ルリグ(?:か|または)[^。]{0,6}シグニ(?:を?([０-９\d]+)体(まで)?)?/)
+               ?? t.match(/(?:センター)?ルリグと[^。]{0,6}シグニを合計([０-９\d]+)体(まで)?/);
+      if (lsM && !t.includes('すべて')) {
+        return { type: 'DOWN', target: {
+          type: 'CENTER_LRIG_OR_SIGNI', owner,
+          count: lsM[1] ? parseNum(lsM[1]) : 1,
+          ...(lsM[2] ? { upToCount: true } : {}),
+        } };
       }
+    }
+    if (t.includes('センタールリグ') && t.includes('シグニ')) {
       // 「センタールリグとすべてのシグニをダウン」のような複合ダウン（AND）
       const signiTgt = parseSigniTarget(t, owner);
       return { type: 'SEQUENCE', steps: [
