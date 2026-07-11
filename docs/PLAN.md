@@ -101,6 +101,8 @@
     - **engine が既に配線済みなら parser に regex 1本＋triggerScope 抽出を足すだけで直る**（続き75で `ON_SIGNI_BANISH_OPPONENT` ＝計50枚を実証）。**手順**＝①クラスタ選定→②engine の収集関数で triggerScope/条件の扱いを確認→③parser に timing 抽出＋scope 抽出→④`build:effects`→**全数機械diff で分類**（MANUAL温存・`EXILE`→`TRASH` 等の据置系を除外）→`heldReview --adopt`→⑤golden 1件→`npm run gates`→`npm run regen`。
     - ⚠**トリガー句は actionText から除去しない**＝既存の全文 STUB 規則がトリガー句込みでマッチする前提で書かれており、除去すると別 STUB へ誤マッチして退化する（WXEX2-40 で実測）。
     - ⚠**timing を直しても action 側の既存誤りは残ることがある**（WX10-048＝action がトリガー句の「バニッシュ」を誤読・WX11-031＝条件節の脱落）。これらは別系統（§5b/§6 テール）＝timing 是正の可否とは切り離して判断する。
+    - ⚠**fresh 全体の採用が退化を伴う枚数は「timing だけ effectId アンカーで外科パッチ」する**（続き75で3枚＝`PREVENT_DAMAGE`→`GRANT_LRIG_ABILITY` の作り替え・`EXILE`→`TRASH` 据置系・MANUAL 含みで held に出ないカード）。**timing 是正だけは取りこぼさない**のがコツ。
+    - ⚠**「次の（次の）あなたの◯◯時」は遅延トリガー＝別機構**（今設置して次ターンに発火）。その場で発火する timing と混ぜない（ON_MAIN_PHASE_START で2件除外した）。
 
 **Sonnet 5 のタスク（今すぐ回せる在庫・定型消化とデータ単点）**：
 1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝**R30**＝WXK10-022-E1（発火経路は続き66で開通済み＝WXEX2-50-E3 発動→watcher 確認）・**ON_TARGETED 残3枚**（WXDi-P11-040/WX25-P2-055/WXDi-D09-H14）＋②turnOwner:opponent ゲート③《ターン1回》・**R42②**（バトルバニッシュ経路）・**R43②**（自エナ/相手効果では非発火）・**R44②③**・**R46②③**・**R38②③**（《ターン1回》・複数同時凍結）・**R37②③**（他4枚個別確認含む）・**R36②**（WXDi-CP02-082 相手ターン出し分け）・**R39②**・**R40②**・**R41②**・**ON_COIN_PAID③④**・**ON_LRIG_GROW②③④**・**ON_LRIG_ATTACK_STEP_START②**（《ターン1回》）・**B4引用付与の実発火**（WX24-P2-018等）・**B2**（WX17-028）・**B3**（WX25-CP1-069）・**機構④誤parse 3枚**（WXDi-P07-044/WX25-P3-062-E2）・**クラフトトークンの実機配置**（§6.4）。**発見したバグの修正自体は Opusタスク12 に回す**＝観測結果を §7 とバトンに記録）。
