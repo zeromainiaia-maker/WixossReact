@@ -1937,7 +1937,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const kwAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
       const kwCountM = t.match(/シグニ([０-９\d]+)体/);
       const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwTargetFilter }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
     // 引用内が「【常】：…【シャドウ（X）】を得る。」のみの場合はシャドウ付与へ平坦化
     // （シャドウスコープは encodeShadowScopesInText 済 → 【シャドウ:{...}】）
