@@ -1889,11 +1889,12 @@ function effJa(e: Eff): string {
       s = 'あなたのシグニ１体に【アクセ】が付いたとき';
     }
     // ON_OPP_ARTS_USE の主語（既定＝「効果を受けたとき」／any_opp＝「対戦相手が使用したとき」／
-    //   ON_ARTS_USE と併記＝「あなたか対戦相手が使用したとき」WX16-003）
+    //   ON_ARTS_USE と併記＝「あなたか対戦相手が使用したとき」WX16-003＝1文にまとめる＝ON_ARTS_USE 側は空にする）
     if (t === 'ON_OPP_ARTS_USE') {
       if (e.timing?.includes('ON_ARTS_USE')) s = 'あなたか対戦相手がアーツを使用したとき';
       else if (e.triggerScope === 'any_opp') s = '対戦相手がアーツを使用したとき';
     }
+    if (t === 'ON_ARTS_USE' && e.timing?.includes('ON_OPP_ARTS_USE')) s = '';
     // ON_SIGNI_FROZEN の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた）
     if (t === 'ON_SIGNI_FROZEN') {
       const sc = e.triggerScope ?? 'any_opp';
