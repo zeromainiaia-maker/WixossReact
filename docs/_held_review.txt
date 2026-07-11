@@ -67,53 +67,18 @@ WXDi-CP02-TK03B WXDi-P11-010B WXDi-P16-001B WXK04-035 WXK09-015
   ~ [0].action.steps[1].type : "EXILE" → "TRASH"
   ~ [0].action.steps[1].target.type : "SIGNI" → "TRASH_CARD"
 
-## +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB×2 ［4枚］
-WXDi-P13-045 WXK10-010 WXK10-012 WXK10-013
---- WXDi-P13-045
-  原文: 【自】：あなたのアタックフェイズ開始時、以下の２つから１つを選ぶ。①対戦相手のパワー8000以下のシグニ１体を対象とし、手札から《ディソナアイコン》のカードを１枚捨ててもよい。そうした場合、それを手札に戻す。②対戦相手のシグニ１体を対象とし、手札から《ガードアイコン》を持つシグニを１枚捨ててもよい。そうした場合、それを手札に戻す。【起】《無》：このターン、対
-  - [0].action.steps[0].type = "BOUNCE"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].optional = false
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "BOUNCE"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  …（他 35 行）
---- WXK10-010
-  原文: アンコール－《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。①このターン、対戦相手は自分の効果によって、カードを引いたりカードを手札に加えることができない。②対戦相手のシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、それをダウンする。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "DOWN" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 2
-  + [0].action.choices[0].choiceId = "c0"
-  + [0].action.choices[0].label = "選択肢1"
-  + [0].action.choices[0].action.type = "STUB"
-  + [0].action.choices[0].action.id = "LRIG_GROW_RESTRICT"
-  …（他 14 行）
---- WXK10-012
-  原文: アンコール－《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。①このターン、対戦相手のセンタールリグとシグニはアップしない。②《緑》を支払ってもよい。そうした場合、このターン、対戦相手のセンタールリグがアタックしたとき、そのアタックを無効にする。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "NEGATE_ATTACK" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 2
-  + [0].action.choices[0].choiceId = "c0"
-  + [0].action.choices[0].label = "選択肢1"
-  + [0].action.choices[0].action.type = "STUB"
-  + [0].action.choices[0].action.id = "PREVENT_OPP_UPKEEP"
-  + [0].action.choices[1].choiceId = "c1"
-  …（他 12 行）
+## （type増減なし＝値/構造変更） ［4枚］
+WX18-034 WX25-P2-055 WX25-P2-062 WXDi-CP02-TK01A
+--- WX18-034
+  原文: 【常】：このシグニはアクセされているかぎり、対戦相手のルリグの効果を受けない。【出】：あなたのデッキの上からカードを３枚公開する。その中から《アクセアイコン》を持つすべてのシグニをエナゾーンに置き、残りをトラッシュに置く。【起】《緑》《緑》《緑》：ターン終了時まで、あなたのすべての＜調理＞のシグニは【ランサー】を得る。,：【エナチャージ２】
+  ~ [0].action.target.count : 1 → "ALL"
+--- WX25-P2-055
+  原文: 【常】：このシグニはバニッシュされない。【自】《ターン１回》：このシグニが対戦相手の、能力か効果の対象になったとき、ターン終了時まで、このシグニは【常】能力を失う。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。
+  ~ [1].action.target.owner : "opponent" → "self"
+  + [1].action.target.filter.thisCardOnly = true
+--- WX25-P2-062
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、ターン終了時まで、このシグニは【アサシン】を得る。【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのルリグトラッシュにあるアーツ１枚につき－1000する。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時ま
+  ~ [0].action.duration : "UNTIL_END_OF_TURN" → "PERMANENT"
 
 ## +GRANT_FIELD_SIGNI_ABILITY ［3枚］
 WX13-058 WXEX1-35 WXEX1-76
@@ -162,18 +127,6 @@ WX13-058 WXEX1-35 WXEX1-76
   + [1].action.abilities[0].action.target.type = "SIGNI"
   …（他 8 行）
 
-## （type増減なし＝値/構造変更） ［3枚］
-WX18-034 WX25-P2-062 WXDi-CP02-TK01A
---- WX18-034
-  原文: 【常】：このシグニはアクセされているかぎり、対戦相手のルリグの効果を受けない。【出】：あなたのデッキの上からカードを３枚公開する。その中から《アクセアイコン》を持つすべてのシグニをエナゾーンに置き、残りをトラッシュに置く。【起】《緑》《緑》《緑》：ターン終了時まで、あなたのすべての＜調理＞のシグニは【ランサー】を得る。,：【エナチャージ２】
-  ~ [0].action.target.count : 1 → "ALL"
---- WX25-P2-062
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、ターン終了時まで、このシグニは【アサシン】を得る。【出】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのルリグトラッシュにあるアーツ１枚につき－1000する。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時ま
-  ~ [0].action.duration : "UNTIL_END_OF_TURN" → "PERMANENT"
---- WXDi-CP02-TK01A
-  原文: 【常】：対戦相手のシグニが正面にアタックする場合、代わりにこのシグニのあるシグニゾーンにアタックする。【常】：アップ状態のこのシグニがバトルか対戦相手の効果によって場を離れる場合、代わりにこのシグニをダウンしてもよい。【自】：対戦相手のターン終了時、このシグニをゲームから除外する。,-
-  - [2].triggerScope = "any_opp"
-
 ## +GRANT_FIELD_SIGNI_ABILITY +IS_SELF_IN_CENTER_ZONE ［3枚］
 WX20-036-CB WXK05-053 WXK06-023
 --- WX20-036-CB
@@ -221,6 +174,54 @@ WX20-036-CB WXK05-053 WXK06-023
   + [0].action.abilities[0].action.owner = "opponent"
   + [0].action.abilities[0].action.count = 1
   …（他 4 行）
+
+## +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB×2 ［3枚］
+WXDi-P13-045 WXK10-010 WXK10-012
+--- WXDi-P13-045
+  原文: 【自】：あなたのアタックフェイズ開始時、以下の２つから１つを選ぶ。①対戦相手のパワー8000以下のシグニ１体を対象とし、手札から《ディソナアイコン》のカードを１枚捨ててもよい。そうした場合、それを手札に戻す。②対戦相手のシグニ１体を対象とし、手札から《ガードアイコン》を持つシグニを１枚捨ててもよい。そうした場合、それを手札に戻す。【起】《無》：このターン、対
+  - [0].action.steps[0].type = "BOUNCE"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].optional = false
+  - [0].action.steps[1].type = "CONDITIONAL"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BOUNCE"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  …（他 35 行）
+--- WXK10-010
+  原文: アンコール－《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。①このターン、対戦相手は自分の効果によって、カードを引いたりカードを手札に加えることができない。②対戦相手のシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、それをダウンする。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "DOWN" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "STUB"
+  + [0].action.choices[0].action.id = "LRIG_GROW_RESTRICT"
+  …（他 14 行）
+--- WXK10-012
+  原文: アンコール－《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。①このターン、対戦相手のセンタールリグとシグニはアップしない。②《緑》を支払ってもよい。そうした場合、このターン、対戦相手のセンタールリグがアタックしたとき、そのアタックを無効にする。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "NEGATE_ATTACK" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "STUB"
+  + [0].action.choices[0].action.id = "PREVENT_OPP_UPKEEP"
+  + [0].action.choices[1].choiceId = "c1"
+  …（他 12 行）
 
 ## +GRANT_EFFECT +SIGNI ［2枚］
 WX14-006A WXDi-P02-018
