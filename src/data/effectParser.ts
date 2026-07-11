@@ -2510,10 +2510,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_LRIG_GROW（「あなた/対戦相手の[他の]ルリグがグロウしたとき」）：主語の所有者を triggerScope に抽出（actionText 非改変）。
       if (timing[0] === 'ON_LRIG_GROW') {
-        if (/対戦相手の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerScope = 'any_opp';
+        // 「あなたのターンの間、対戦相手のルリグがグロウしたとき」（WXDi-P13-047）の前置きを turnOwner へ落とす
+        // （ON_LEAVE_FIELD と同型）。未抽出だと相手が自分のターンに通常グロウするだけで毎回誤発火する（続き73の実機観測）。
+        const growScan = actionText.replace(/^(対戦相手|あなた)のターンの間、/, (_m, who) => {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: who === '対戦相手' ? 'opponent' : 'self' };
+          return '';
+        });
+        if (/対戦相手の(?:センター)?ルリグがグロウしたとき/.test(growScan)) extractedTriggerScope = 'any_opp';
         else {
           extractedTriggerScope = 'any_ally';
-          if (/あなたの他の(?:センター)?ルリグがグロウしたとき/.test(actionText)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+          if (/あなたの他の(?:センター)?ルリグがグロウしたとき/.test(growScan)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
       }
       // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜X＞のシグニが効果によって…バニッシュしたとき」WX07-036）：主語を triggerScope:any_ally＋triggerFilter に抽出（actionText 非改変）。
