@@ -5,6 +5,22 @@
 
 ---
 
+## §3 Opusタスク12（残1件）＝多段インタラクションSEQUENCE の「途中ラウンドの盤面差分トリガー」見逃しを修正＝R30 実機PASS（2026-07-12・続き75・Opus 4.8・同日第2件）
+
+続き70（Sonnet）が §7 R30（`onPlayAnyOpp`）の実機検証で発見し「設計判断が要る」として Opus へ引き継いでいた最後の1件。**Opusタスク12 はこれで全消化**。
+
+**症状**＝WXEX2-50【起】の SEQUENCE（①対戦相手のトラッシュのシグニを**対戦相手の場**に出す→②その後、自分のトラッシュの＜凶蟲＞を自分の場に出す）を実UIで発動すると、ground truth（①②とも正しいゾーンへ配置）は正しいのに、watcher（WXK10-022-E1＝ON_PLAY any_opp・targetsTriggerSource＝場に出た相手シグニの能力を奪う）が**一度も発火しない**。
+
+**原因**（続き70のコード読解どおり）＝`handleEffectInteraction` の `!result.done` 分岐（＝SEQUENCE の途中ラウンドで、次のインタラクションをまだ待つ状態）は `host_state`/`guest_state` を DB へコミットするのに、**ON_BANISH だけを特例で収集**していて `collectBoardDiffTriggers`（続き61で導入した統合収集）を呼んでいなかった。そのため step1 の配置は一度も diff 評価されないまま `bs.guest_state` へ取り込まれ、step2 が `done` で完了した時点の `collectBoardDiffTriggers` では **before に step1 の変化が既に含まれる＝差分ゼロ**となり、watcher が永久に見逃されていた。続き58/61 が直した「1ラウンドで完了する効果の resume 取りこぼし」とは別系統＝**2ラウンド以上を要する SEQUENCE の「途中ラウンド」が対象**。
+
+**修正**＝`!result.done` 分岐の ON_BANISH 特例（`detectBanishedSigni`＋`collectBanishTriggers` の手組み）を、**done 分岐と同一の `collectBoardDiffTriggers` 呼び出しに置き換えた**（`usedOncePerTurnIds` 書き戻し＝`update.host_state`/`guest_state` の差し替え込み）。これで「盤面変化が確定したその場で diff 評価してスタックへ積む」形になり、次ラウンドの before に取り込まれて差分が消える問題が**構造的に**解消する。
+- **設計判断＝「pending_effect が残ったままスタックへ積んでよいか」**＝**よい**。従来の ON_BANISH 特例が既に同じことをしており（pending 解決後にスタックが処理される）、新しい実行順序を持ち込むわけではない。差分ベースライン（`bs.host_state`/`bs.guest_state`）はこのハンドラが DB へ書く前の値なので、途中ラウンドでも正しい before になる。二重収集も起きない（コミット後は before 側に含まれるため、次ラウンドは step2 の差分だけを見る）。
+- **副次的な利得**＝ON_BANISH 以外の全トリガー種別（ON_TRASH／ON_DRAW／ON_ENERGY_TO_TRASH／ON_CHARM_TO_TRASH／ON_LEAVE_FIELD／ON_OPP_POWER_DECREASED 等）が、多段 SEQUENCE の途中ラウンドでも拾われるようになった（従来は BANISH 以外すべて取りこぼし）。
+
+**検証**＝`npm run gates` 全緑（typecheck・golden 190/190・smoke 全0・fuzz 全0・census 1557 維持・lint 0 errors）。実機＝`onPlayAnyOpp` **FAIL→PASS（2回連続・`gAbilitiesRemoved=["WD01-010#1"]`）**＝既定 `order` に追加。**二重発火の回帰確認**＝盤面差分トリガーが絡む既存8シナリオ（`banishbyeffect`／`freezetrigger`／`powerzero`／`charmToTrash`／`wxk10068banish`／`oppPowerDecreased`／`energyToTrash`／`deployRestrict`）を回して全PASS（`deployRestrict` はバッチ実行時のみ FAIL したが単体では PASS＝§3 Sonnetタスク3 に登録済みの既知のバッチ状態汚染であり本修正の回帰ではない）。
+
+---
+
 ## §3 Opusタスク12＝Sonnet が積んだ実機バグ5件を一括修正（engine 2＋parser 3・実機7シナリオPASS・2026-07-12・続き75・Opus 4.8）
 
 続き70〜74 で Sonnet が §7 実機検証中に発見し「修正せず観測のみ記録」して Opusタスク12（常設受け口）へ積んだ5件を消化した。**5件すべて実機（`verifyBattleDrive.mjs`）で PASS を確認**。残る1件（続き70の多段SEQUENCE盤面差分トリガー見逃し）は設計判断が要るため別バッチへ。
