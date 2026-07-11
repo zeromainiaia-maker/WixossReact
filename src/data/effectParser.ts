@@ -1298,6 +1298,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
       //   無く、条件ゲートごと脱落して**無条件に自分の全シグニをトラッシュする**過剰効果になっていた（タスク10 パターンD）。
       [/あなたのライフクロスが([０-９\d]+)枚の場合/,
         g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+      // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
+      // （WXDi-P02-005／WXDi-P07-023／SPK16-13E）。engine に状態カウンタを新設（§3 Opusタスク10 パターンF-2）。
+      // ⚠これが無いと「代わりに」の置換ゲートが立たず、**SEQUENCE に化けて両方実行**される（1枚引く→3枚引く＝計4枚）。
+      [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+        g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+      [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+        g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
       [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
         g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
       [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,

@@ -3019,6 +3019,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
+          hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
+          energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
           delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
@@ -3346,6 +3348,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
         cards_drawn_by_effect_this_turn: 0,
+        hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
+        energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
