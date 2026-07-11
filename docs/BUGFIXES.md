@@ -5,6 +5,16 @@
 
 ---
 
+## WXK04-003 ボタンラベル表示バグ修正（2026-07-12・続き81・Sonnet 5・PLAN §3 Sonnetタスク10）
+
+`getMyLrigFieldActions`（`src/screens/BattleScreen.tsx`）のACTIVATED能力ラベル生成で`eff.cost?.coin`が一切考慮されておらず、《コインアイコン》コストの起動効果が常に「【起】コストなし」と誤表記されていた。
+
+- **修正箇所＝3箇所（own/継承/付与のcostParts）**＝`costPartsMA`（own lrig ACTIVATED・10009行目付近）・`costPartsILT`（`INHERIT_LRIG_TRASH_ABILITIES`継承・10047行目付近）・`costParts`（付与ACTIVATED・10076行目付近）に`if (eff.cost?.coin) ...push(\`コイン${eff.cost.coin}\`)`を追加。シグニ場の`getMySigniZoneActions`側costLabel（9903-9918行目）にも同型の欠落があるが今回は`getMyLrigFieldActions`のみ修正（PLAN記載スコープ厳守）。
+- **実UI検証＝WXK04-003（エルドラ　オーバークロック・E2「【起】《ゲーム1回》サプライズ《コインアイコン》」）で確認**＝`node scripts/verifyBattleDrive.mjs wxk04003Label`（新規シナリオ）。**副産物の発見＝WXK04-003は実は2つの【起】ボタンを持つ**＝(1)E2サプライズ（今回の修正対象＝「コストなし」→「コイン1」）と(2)`manualEffects.ts`の`WXK04-003-DECORE`（【デコレ】ACCE付与・`cost:{energy:[{color:'青',count:0}]}`＝正当な無コスト）。修正前はどちらも「コストなし」と表示され区別がつかなかった（PLANの「2能力が両方コストなし」の記述はこれ）が、修正後は「コイン1」/「コストなし」の2ボタンが正しく共存する（デコレ側は元から正しいので「コストなし」表記自体は残る＝正解）。
+- **検証**＝UI表示のみの変更（engine/parser不変）につき`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑）＋実UIブラウザ駆動PASSで確認。
+
+---
+
 ## §7 実機検証＝残3シナリオを検証・driver側3件のバグ修正＋engine実バグ1件を発見・記録（2026-07-12・続き81・Sonnet 5）
 
 続き79が残した`exileHandBlind`/`delayedAttackTrigger`/`trashCounterOpp`の3シナリオを再実行。全FAILだったが、原因を1件ずつ切り分けた結果、**3件ともテストドライバ（`verifyBattleDrive.mjs`）側の不具合**で、実装側の真バグは別途1件（後述）だった。
