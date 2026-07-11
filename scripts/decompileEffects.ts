@@ -1884,6 +1884,16 @@ function effJa(e: Eff): string {
       const who = sc === 'any_ally' ? 'あなたの' : sc === 'any_opp' ? '対戦相手の' : '';
       s = `${who}【チャーム】１枚が場からいずれかのトラッシュに置かれたとき`;
     }
+    // ON_ACCE の triggerScope を主語に反映（self=このシグニに／any_ally=あなたのシグニ1体に）
+    if (t === 'ON_ACCE' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')) {
+      s = 'あなたのシグニ１体に【アクセ】が付いたとき';
+    }
+    // ON_OPP_ARTS_USE の主語（既定＝「効果を受けたとき」／any_opp＝「対戦相手が使用したとき」／
+    //   ON_ARTS_USE と併記＝「あなたか対戦相手が使用したとき」WX16-003）
+    if (t === 'ON_OPP_ARTS_USE') {
+      if (e.timing?.includes('ON_ARTS_USE')) s = 'あなたか対戦相手がアーツを使用したとき';
+      else if (e.triggerScope === 'any_opp') s = '対戦相手がアーツを使用したとき';
+    }
     // ON_SIGNI_FROZEN の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた）
     if (t === 'ON_SIGNI_FROZEN') {
       const sc = e.triggerScope ?? 'any_opp';
