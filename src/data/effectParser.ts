@@ -2526,6 +2526,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (beatM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
       }
+      // ON_HAND_DISCARDED: 主語で scope を決める（「あなたが」＝self 既定／「いずれかのプレイヤーが」＝any）。
+      if (timing[0] === 'ON_HAND_DISCARDED') {
+        if (/いずれかのプレイヤーが手札を/.test(actionText)) extractedTriggerScope = 'any';
+      }
       // ON_SPELL_USE: 使用者（主語）を triggerScope に、スペルの色を triggerFilter.color に抽出。
       //   「あなたが…」＝self（既定）／「対戦相手が…」＝any_opp／「いずれかのプレイヤーが…」＝any。
       //   ⚠「あなたが**対戦相手のスペル**を使用したとき」は使用者が自分＝self（「対戦相手が」より先に判定しない）。
