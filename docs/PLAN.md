@@ -174,6 +174,7 @@
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
 - **🆕 セッション（2026-07-12・続き75・Opus 4.8・**Opusタスク12を全6件消化して在庫ゼロ化→続けてタスク1の第1弾**・実機11シナリオ全PASS・golden 192・census 1557維持）**
+  - **【最後⑦】§3 Opusタスク16 の消化⑨＝`ON_HAND_DISCARDED`（+5枚）＝前回の「engine 未対応だから見送り」判断が誤りだったと判明**＝「ガードステップ以外で」は **engine が構造的に担保**していた（ガード時は `hand_discarded_just`/`asCost` が立たず、そもそも収集経路に入らない＝doc コメントに明記）。条件語彙は不要で parser に timing を足すだけでよかった。**MANUAL 9枚は全て curated が既に正しい timing を保持**（機械確認）。
   - **【最後⑥】§3 Opusタスク16 の消化⑧＝`ON_TRASH`「手札から」単独（+15枚・census 1542→1537）**＝**語彙が無いのではなく既存 regex の穴**（「手札か**デッキ**から」しか書かれておらず「手札から」単独が抜けていた）。timing regex と `fromZones` 抽出 regex の両方に追加（engine 不変）。**副次的に `mandatory` も是正**＝トリガー句が除去されるようになり「〜してもよい」が optional として正しく検出された（従来は**強制効果**になっていた）。
   - **【最後⑤】§3 Opusタスク16 の消化⑤⑥⑦＝`ON_SIGNI_BECOMES_DRIVE`・`ON_BECOME_BEAT`・`ON_ARTS_USE`（+10枚・census 1546→1542）**＝engine 不変・parser のみ。MANUAL 21枚は全て curated が既に正しい timing を保持（機械確認）＝温存。**WXK07-037 は timing 語彙が入ったことで引用付与の内側まで解けた**（STUB→`GRANT_FIELD_SIGNI_ABILITY`＋内側 `ON_ARTS_USE`）＝**タスク16 の副次効果でタスク1（引用付与）も前進**。⏸`ON_HAND_DISCARDED` は「ガードステップ以外で」条件が engine 未対応のため見送り（過剰発火になる）。
   - **【最後④】§3 Opusタスク16 の消化③④＝`ON_EXCEED_COST`（13件→11枚）・`ON_RISE`（11件→6枚）**＝どちらも engine 配線済み・**parser に regex 1本ずつ（engine 不変）**。MANUAL 7枚は curated が既に正しい timing を持ち温存が正解。⚠`ON_RISE` は「《X》に**ライズされたとき**」＝下敷き側の反応（主語が違う別機構）を拾わないよう「**この**シグニがライズされたとき」に限定。**census 1554→1546**。
