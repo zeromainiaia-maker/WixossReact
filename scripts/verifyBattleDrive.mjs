@@ -2892,7 +2892,7 @@ const scenarios = {
     title: 'WX14-040-E3（execTrashカウンタ＝対戦相手の手札トラッシュでhand_trashed_by_opp_this_turn加算）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD03-003#1'],
+        'field.lrig': ['WD01-001#1'],        // タマ Lv4/Limit11（WX14-040がLv4のため、Lv2のWD03-003では召喚不可＝要Lv4以上センター）
         'field.signi': [null, null, null],
         'energy': ['WD03-009#1'],           // 青×1（E3コスト。E1白/E2赤/E4黒は払えずスキップされる想定）
         'actions_done': [],
