@@ -2616,6 +2616,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
         }
       }
+      // ON_CARD_MOVED_TO_DECK: デッキに移動したカードの持ち主と枚数閾値を triggerCondition に抽出。
+      if (timing[0] === 'ON_CARD_MOVED_TO_DECK') {
+        const dm = actionText.match(/(あなた|対戦相手)のカードが([０-９\d]+)枚以上デッキに移動したとき/);
+        extractedTriggerCondObj = {
+          ...(extractedTriggerCondObj ?? {}),
+          movedToDeckOwner: dm?.[1] === '対戦相手' ? 'opponent' : dm?.[1] === 'あなた' ? 'self' : 'any',
+          movedToDeckMinCount: dm ? parseInt(toHalf(dm[2]), 10) : 1,
+        };
+      }
       // ON_PLAY + placedFront（「対戦相手のシグニN体がこのシグニの正面に配置されたとき」）: 相手の配置に反応（any_opp）。
       if (timing[0] === 'ON_PLAY' && /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(actionText)) {
         extractedTriggerScope = 'any_opp';
