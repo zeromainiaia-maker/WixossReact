@@ -3531,8 +3531,37 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       if (e) effects.push(e);
     }
   } else if (baseType === 'スペル') {
-    const e = parseSpellEffect(card);
-    if (e) effects.push(e);
+    // スペルも「」『』外側の【自】：セクションを分離する（アーツと同じ）。
+    // ⚠従来は分離しておらず、**後続の独立した【自】能力がスペル本体の最後の選択肢に流入**していた
+    //   （WXK01-041＝選択肢③「相手の全シグニを凍結する」に、別能力の「トラッシュから手札に戻す」が
+    //    連結されていた＝§3 Opusタスク10 パターンF-3）。「」内の【自】は付与能力なので除外する。
+    const rawSp = card.EffectText ?? '';
+    let spAutoIdx = -1;
+    {
+      let depth = 0;
+      for (let ci = 0; ci < rawSp.length; ci++) {
+        const ch = rawSp[ci];
+        if (ch === '「' || ch === '『') depth++;
+        else if (ch === '」' || ch === '』') depth--;
+        else if (depth === 0 && rawSp.startsWith('【自】：', ci)) { spAutoIdx = ci; break; }
+      }
+    }
+    if (spAutoIdx >= 0) {
+      const mainPart = rawSp.slice(0, spAutoIdx).trim();
+      if (mainPart) {
+        const e = parseSpellEffect({ ...card, EffectText: mainPart });
+        if (e) effects.push(e);
+      }
+      const autoPart = stripRuleParens(rawSp.slice(spAutoIdx));
+      const autoEffect = parseBlock(card.CardNum, autoPart, effects.length);
+      if (autoEffect) {
+        autoEffect.effectId = `${card.CardNum}-E${effects.length + 1}`;
+        effects.push(autoEffect);
+      }
+    } else {
+      const e = parseSpellEffect(card);
+      if (e) effects.push(e);
+    }
   } else {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
