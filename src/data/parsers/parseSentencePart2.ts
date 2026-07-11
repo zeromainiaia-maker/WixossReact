@@ -1905,6 +1905,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CENTER_LRIG_GAIN_AUTO_ABILITY' } as StubAction;
   }
 
+  // 「あなたの他の（＜X＞の）シグニN体を対象とし」＝効果元自身を除外（WXDi-P11-040＝他に味方が居ないと
+  // 自分自身に付与されてしまう実機バグ・続き75で excludeSelf を engine 実装＋ここで付与）。対象節に隣接する
+  // 「他の」だけを見る（「他のシグニをトラッシュして、このシグニが【ランサー】を得る」等の巻き添えを避ける）。
+  const kwOtherTarget = /(?:あなた|対戦相手)の他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t);
+  const kwTargetFilter = kwOtherTarget ? { filter: { excludeSelf: true } } : {};
+
   // ---- 【キーワード】を得る（文脈依存owner/count）----
   {
     const kwBracketM = t.match(/【(ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ|バニッシュ耐性|シールド|チャーム)】を得る/);
@@ -1914,7 +1920,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const kwAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
       const kwCountM = t.match(/シグニ([０-９\d]+)体/);
       const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount }, keyword: kwBracketM[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwTargetFilter }, keyword: kwBracketM[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
   }
 
