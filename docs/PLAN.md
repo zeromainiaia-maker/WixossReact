@@ -159,7 +159,7 @@
 | 7 | BET系38件の表現描画 | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ◎今すぐ |
 | 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ◎今すぐ（単点是正は parser/engine 変更なしの範囲厳守） |
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
-| 10 | WXK04-003 ボタンラベル | UI表示単点（BattleScreen） | S | ◎今すぐ（低優先） |
+| 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
 | 11 | checkAllEffects／verifyEffects 精査 | 計器＋分析 | S | ◎今すぐ（低優先） |
 | 12 | 英語ID漏れ367の系統分類 | 分析のみ（修正しない） | S〜M | ◎今すぐ（完了が Opus13 を楽にする） |
 
