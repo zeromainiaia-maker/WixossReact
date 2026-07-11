@@ -1479,7 +1479,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- あなたのシグニの効果で対戦相手のパワーが減ったとき、自身パワーUP ----
-  if (t.match(/対戦相手のシグニのパワーが減ったとき.*このシグニのパワーを減った値/)) {
+  // 「対戦相手のシグニ**１体**のパワーが減ったとき」（WX25-P3-062）も同型＝体数表記を許す。
+  // これが無いと下流（parseSentencePart4）の全文規則が **POWER_COPY_FROM_DOWNED**（＝「**ダウンした**シグニの
+  // パワーを加算」＝意味の違う別実装）へ誤ルーティングする。
+  if (t.match(/対戦相手のシグニ(?:[０-９\d]+体)?のパワーが減ったとき.*このシグニのパワーを減った値/)) {
     return { type: 'STUB', id: 'REACTIVE_POWER_UP' } as StubAction;
   }
 
