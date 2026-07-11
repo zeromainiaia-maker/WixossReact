@@ -4523,10 +4523,17 @@ export function collectGrantedFromLayer(
     if (!top) continue;
     for (const eff of (effectsMap.get(top) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (eff.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
-      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
-      const g = eff.action as GrantAction;
-      (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
+      // SEQUENCE 直下も走査する（「パワーは＋Nされ、このシグニは「Q」を得る」＝
+      // SEQUENCE[POWER_MODIFY, GRANT_FIELD_SIGNI_ABILITY] の連用中止形。WXDi-P11-046 等）
+      const actions = eff.action.type === 'SEQUENCE'
+        ? (eff.action as import('../types/effects').SequenceAction).steps
+        : [eff.action];
+      for (const act of actions) {
+        if (act.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+        if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
+        const g = act as GrantAction;
+        (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
+      }
     }
   }
   if (selfGrants.length === 0 && oppGrants.length === 0) return result;
