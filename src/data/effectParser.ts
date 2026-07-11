@@ -1491,10 +1491,18 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ガード＝①「〜を対象とし、」「〜として、」は**対象指定の節**であって並列動作ではない（split しない）
   //        ②「とき」「場合」「代わりに」を含む文は条件/トリガー構造なので触らない
   //        ③**両半分が非UNKNOWNに解けたときだけ** SEQUENCE 化（片方でも解けなければ従来動作＝据置）。
+  // ⚠左半分は**連用形**（「バニッシュ**し**」「捨て」）で終わるため、そのままでは各規則（終止形前提）に
+  //   当たらない＝**終止形へ正規化してから**パースする。
   {
+    const CONJ_FIN: Array<[RegExp, string]> = [
+      [/バニッシュし$/, 'バニッシュする'], [/ダウンし$/, 'ダウンする'], [/アップし$/, 'アップする'],
+      [/凍結し$/, '凍結する'], [/捨て$/, '捨てる'], [/場に出し$/, '場に出す'],
+    ];
     const conjM = t.match(/^(.*?(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|場に出し))、(.+)$/s);
     if (conjM && !/対象とし、|として、|とき|場合|代わりに/.test(t)) {
-      const left = parseSingleSentence(conjM[1]);
+      let leftText = conjM[1];
+      for (const [re, fin] of CONJ_FIN) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
+      const left = parseSingleSentence(leftText);
       const right = parseSingleSentence(conjM[2]);
       if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN') {
         return { type: 'SEQUENCE', steps: [left, right] } as SequenceAction;
