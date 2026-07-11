@@ -2488,7 +2488,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // （BattleScreen の performGuardResponse・同関数の doc コメント参照）ので、条件語彙は不要。
              // ⚠「（あなたの効果によって）対戦相手が手札を捨てたとき」は主語が相手＝engine に専用 scope が無く
              //   'any'（いずれかが捨てたとき）に倒すと自分の手札捨てでも発火する過剰効果になるため**拾わない**。
-             : /(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(actionText) ? ['ON_HAND_DISCARDED']
+             // 「あなたが（手札から）（＜X＞の/《ディソナアイコン》の）シグニ/カードをN枚捨てたとき」（6件・続き76）
+             //   ＝捨てたカードの種別限定は engine の `triggerFilter`（collectHandDiscardTriggers の matchesTrigFilter）で
+             //   評価される。filter は下で抽出。
+             : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(actionText)
+                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚捨てたとき/.test(actionText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
              //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
