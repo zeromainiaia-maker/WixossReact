@@ -8846,6 +8846,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_level: discardedCards.length > 0
           ? (() => { const lv = parseInt(battleCardMap.get(discardedCards[0])?.Level ?? '', 10); return isNaN(lv) ? my.last_discarded_signi_level : lv; })()
           : my.last_discarded_signi_level,
+        // classMatchesDiscardSigni: 捨てたシグニのCardClassを記録（「それと共通するクラスを持つ」WXK10-033）
+        last_discarded_signi_class: discardedCards.length > 0
+          ? (battleCardMap.get(discardedCards[0])?.CardClass ?? my.last_discarded_signi_class)
+          : my.last_discarded_signi_class,
       };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (effect.cost?.trashExile?.self) {
