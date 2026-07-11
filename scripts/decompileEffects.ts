@@ -1658,7 +1658,7 @@ const timingJa: Record<string, string> = {
   ON_ACCE: 'このシグニに【アクセ】が付いたとき',
   ON_SELF_REVEAL_FROM_HAND: 'あなたが自分の効果によって手札からカードを公開したとき',
   ON_BANISH: 'このシグニがバニッシュされたとき', ON_TRASH: 'このカードがトラッシュに置かれたとき',
-  ON_SIGNI_BANISH_OPPONENT: 'このシグニが対戦相手のシグニをバニッシュしたとき',
+  ON_SIGNI_BANISH_OPPONENT: 'このシグニがバトルによって対戦相手のシグニをバニッシュしたとき',
   ON_SIGNI_BANISH_BATTLE: 'このシグニがバトルで対戦相手のシグニをバニッシュしたとき',
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
