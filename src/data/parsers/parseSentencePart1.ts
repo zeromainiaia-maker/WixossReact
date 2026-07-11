@@ -783,7 +783,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
-  if (drawM && !t.includes('体につき')) return { type: 'DRAW', owner: 'self', count: parseNum(drawM[1]) };
+  if (drawM && !t.includes('体につき')) {
+    // ⚠主語が「**対戦相手は**カードをN枚引く」（WX14-011②）でも owner:'self' に固定していたため、
+    //   **相手にドローさせるデメリット**が自分のドローに化けていた（§3 Opusタスク10 パターンE）。
+    const drawOwner: Owner = /対戦相手は(?:[^。]{0,10})?カードを?[０-９\d]+枚引/.test(t) ? 'opponent' : 'self';
+    return { type: 'DRAW', owner: drawOwner, count: parseNum(drawM[1]) };
+  }
 
   // ---- 対戦相手のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション。ENERGY_CHARGE=デッキ等からチャージとは無関係）----
   {
