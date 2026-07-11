@@ -2464,6 +2464,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // **ライズされたシグニ自身**（self）の AUTO を収集。
              // ⚠「《X》にライズされたとき」（2件）は**下敷きになった側**の反応＝別機構なので拾わない（self とは主語が違う）。
              : /このシグニがライズされたとき/.test(actionText) ? ['ON_RISE']
+             // 「（この/あなたの）シグニがドライブ状態になったとき」（15件・§3 Opusタスク16）。engine 配線済み
+             // （collectSigniBecomesDriveTriggers＝triggerScope self/any_ally/any を評価）。scope は下で抽出。
+             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?がドライブ状態になったとき/.test(actionText) ? ['ON_SIGNI_BECOMES_DRIVE']
+             // 「（この/あなたの他の）カードが【ビート】になったとき」（8件）。engine 配線済み（self＝なったカード自身／
+             // any_ally＝オーナーの場のシグニ）。scope は下で抽出。
+             : /(?:この|あなたの(?:他の)?)カードが【ビート】になったとき/.test(actionText) ? ['ON_BECOME_BEAT']
+             // 「あなたが（あなたのターンに）アーツを使用したとき」（7件）。engine 配線済み＝**使用者(caster)側のみ**
+             // （collectArtsUseTriggers は triggerScope self 限定）。⚠「対戦相手がアーツを使用したとき」は engine の
+             //   受け皿が別（ON_OPP_ARTS_USE 系）＝ここでは拾わない（誤って self 扱いにすると発火主体が逆になる）。
+             : /あなた(?:のターンにあなた)?がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
