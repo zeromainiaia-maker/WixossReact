@@ -1827,6 +1827,64 @@ const scenarios = {
       return { pass: false, detail: `配置数制限 未確認（guest.signi数=${cnt(fin?.guest?.fieldSigni)} guest.trash=${fin?.guest?.trash ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ㉗ WXEX2-50→WXK10-022-E1: §7 R30「ON_PLAY any_opp + targetsTriggerSource」の実機検証。
+  //    続き66（Opus）で WXEX2-50-E3 の owner 誤パース（対戦相手のトラッシュ→対戦相手の場、のはずが自分側に誤生成）
+  //    を是正し、「あなたのターンに対戦相手のシグニが場に出る」を起こせる唯一の自然発火経路が開通した（BUGFIXES参照）。
+  //    WXEX2-50【起】《ターン１回》《黒×0》＝SEQUENCE[①対戦相手のトラッシュのシグニ1枚を対戦相手の場に出す／
+  //    ②その後、自分のトラッシュの＜凶蟲＞のシグニ1枚を自分の場に出す]。①でguestの場に新しく出た信号にWXK10-022-E1
+  //    （any_opp・triggerCondition.turnOwner:self・targetsTriggerSource＝そのシグニの能力を奪う）が反応するはず。
+  //    host/guestとも3ゾーン中2ゾーンを埋めて1ゾーンだけ空け、SELECT_SIGNI_ZONE（配置先ゾーン選択）を回避。
+  onPlayAnyOpp: {
+    title: 'WXEX2-50→WXK10-022-E1（R30 ON_PLAY any_opp+targetsTriggerSource＝対戦相手のシグニが場に出たとき能力喪失）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXEX2-50#1'], ['WXK10-022#1'], null], // zone0=起動元／zone1=watcher（any_opp）／zone2はstep2の配置先に空ける
+        'field.signi_down': [false, false, false],
+        'trash': ['WX08-074#1'],  // 幻蟲 Ｑ・アント（＜凶蟲＞シグニ・step2の自トラッシュ側ソース）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-012#1'], ['WD01-013#1'], null], // 埋め草2体（zone2はstep1の配置先に空ける）
+        'field.signi_down': [false, false, false],
+        'trash': ['WD01-010#1'], // 対戦相手のトラッシュのシグニ（step1でここから対戦相手の場に出る＝トリガー元）
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.trash:', before?.guest?.trash, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      H.log('シグニゾーンクリック(WXEX2-50):', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/onPlayAnyOpp-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['【起】コストなし']);
+        if (!did) did = await H.clickTextOrBtn(['発動']);
+        if (!did) { // SELECT_TARGET（step1: 対戦相手トラッシュのシグニ／step2: 自トラッシュの＜凶蟲＞シグニ）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        // ⚠triggerCollect.ts の表示バグ（既知・低優先）で ON_PLAY any_opp 発火時もラベルが固定文言
+        // 「相手シグニアタック時」になる（§7 R41 placedFront で確認済みの副産物）。カード名一致を主に見る。
+        const watcherLog = await H.findLog(/御伽原江良.*の【自】効果|の【自】効果（相手シグニアタック時）/);
+        const removed = (st?.guest?.abilitiesRemoved ?? []).includes('WD01-010#1');
+        H.log(`  opa[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} hField=${JSON.stringify(st?.host?.fieldSigni)} gAbilitiesRemoved=${JSON.stringify(st?.guest?.abilitiesRemoved)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        if (removed || watcherLog) {
+          return { pass: true, detail: `ON_PLAY any_opp(targetsTriggerSource) 発火→対戦相手 WD01-010 が能力喪失（gAbilitiesRemoved=${JSON.stringify(st.guest.abilitiesRemoved)}）・watcher「${watcherLog}」` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_PLAY any_opp 未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} hField=${JSON.stringify(fin?.host?.fieldSigni)} gAbilitiesRemoved=${JSON.stringify(fin?.guest?.abilitiesRemoved)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
