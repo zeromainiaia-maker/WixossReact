@@ -2526,6 +2526,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   collectArtsUseTriggers）と両方を持たせる（片方だけだと自分のアーツ使用を取りこぼす）。
              : /あなたか対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE', 'ON_OPP_ARTS_USE']
              : /対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_OPP_ARTS_USE']
+             // 「（効果N つによって）（あなた/対戦相手）のデッキからカードが（N枚以上）トラッシュに置かれたとき」（6件）。
+             // engine 配線済み（collectMillTriggers＝triggerCondition.milledDeckOwner／milledMinCount）。
+             // ⚠ON_TRASH の regex は「デッキから」の直後が「トラッシュに置かれたとき」でないと当たらないので競合しない。
+             : /の(?:デッキ|山札)からカード(?:が[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(actionText) ? ['ON_CARD_MILLED_FROM_DECK']
+             // 「あなたが自分の効果によって手札からカードをN枚以上公開したとき」（6件）。engine 配線済み
+             // （BattleScreen＝場のシグニ自身が反応。G198）。
+             : /あなたが自分の効果によって手札からカードを[０-９\d]+枚以上公開したとき/.test(actionText) ? ['ON_SELF_REVEAL_FROM_HAND']
+             // 「対戦相手のシグニN体がこのシグニの正面に配置されたとき」（3件）。engine 配線済み
+             // （collectFieldTriggers の `triggerCondition.placedFront`＝正面ゾーン一致を判定）。timing は ON_PLAY のまま。
+             : /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(actionText) ? ['ON_PLAY']
+             // 「（あなたの）シグニN体が場から手札に戻ったとき」（4件）。engine 配線済み
+             // （collectLeaveFieldTriggers の `triggerCondition.leftToZone:'hand'`＝離れたカードが手札に在中する場合のみ）。
+             : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText) ? ['ON_LEAVE_FIELD']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
