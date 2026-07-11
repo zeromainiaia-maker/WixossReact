@@ -5,6 +5,20 @@
 
 ---
 
+## §3 Sonnetタスク1＝§7実機検証＝ON_TARGETED③（usageLimit）で実バグを発見・根本原因を特定（2026-07-12・続き74・Sonnet 5・未修正・Opus引き継ぎ・同日第2件）
+
+PLAN §7「ON_TARGETED」残③「usageLimit《ターン1回》が複数対象でも1回」。`ontargetedUsageLimit`シナリオを新設し、`ontargeted2`と同じ watcher（WXDi-P02-043・【自】《ターン1回》対象になったときドロー+エナチャージ）に対し、WD05-017を同一ターン内に2回発動して2回対象化した。
+
+**結果＝❌FAIL（2回連続再現）**＝1回目の対象化でguest.handが5→6（正常発火）。**2回目の対象化でもguest.handが6→7に増加**＝once_per_turnガードが機能せず毎回発火してしまう。
+
+**コード読解で根本原因を確定**＝`collectTargetedTriggers`（`src/engine/triggerCollect.ts:41-89`）は75行目で `eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)` の判定自体は行っているが、**発火した効果IDを`actions_done`へ書き戻す`usedOncePerTurnIds`を返り値に含んでいない**（`StackEntry[]`のみを返す設計）。他の同種コレクター（`collectKeywordGrantedTriggers`/`collectDeckShuffledTriggers`/`collectBanishTriggers`/`collectLrigUnderMovedTriggers`等）は全て`usedOncePerTurnIds`を返し、`BattleScreen.tsx`の呼び出し元（2356-2430行付近）が `actions_done: [...(h.actions_done ?? []), ...xx.usedOncePerTurnIds]` の形で書き戻している。**ON_TARGETEDの呼び出し元（`BattleScreen.tsx:4093`）だけがこのパターンに倣っておらず**、`targetedEntries`をスタックに積むのみで`actions_done`を更新しない＝1回目の発火が記録として残らず、2回目以降も毎回ガードが素通りする。
+
+**影響**＝usageLimit《ターン1回》が明記されたON_TARGETED系カード全般に及ぶ（相手に何度対象を取られても毎ターン1回しか反応しないはずが、実際は毎回反応してしまう）。
+
+**修正はせず、根本原因まで特定した状態で観測結果を記録してOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。**修正方針**＝`collectTargetedTriggers`の戻り値を`{entries, usedOncePerTurnIds}`形式へ拡張し、呼び出し元で他コレクターと同型の`actions_done`書き戻しを追加する（新規機構ではなく既存パターンの適用漏れ）。`ontargetedUsageLimit`は`order`配列には追加していない（FAIL）。**変更範囲＝`scripts/verifyBattleDrive.mjs`のみ**＝engine/parser不変のため typecheck のみ確認。詳細な盤面・クリック列・ログは [VERIFY_BROWSER.md](./VERIFY_BROWSER.md) 参照。
+
+---
+
 ## §3 Sonnetタスク1＝§7実機検証＝ON_CHARM_TO_TRASH（R42②・バトルバニッシュ経路）で実バグを発見（2026-07-12・続き74・Sonnet 5・未修正・Opus引き継ぎ）
 
 PLAN §7「ON_CHARM_TO_TRASH」残②「バトルバニッシュでhostが離脱したとき（効果解決経路外＝未検出の可能性）」。既存の`charmToTrash`シナリオ（PASS済み）は効果（WX19-023の無条件バニッシュ）経由のみを検証済みだったため、**戦闘（アタックの力比べ）でチャーム付きシグニが負けてバニッシュされる経路**を新たに `charmToTrashBattle` シナリオで検証した。
