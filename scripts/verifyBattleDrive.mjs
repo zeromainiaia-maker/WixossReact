@@ -596,11 +596,18 @@ const scenarios = {
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
         const st = await H.queryState();
         H.log(`  p2055[${s}] -> ${did ?? 'なし'} | hAbilRem=${JSON.stringify(st?.host?.abilitiesRemoved)} gAbilRem=${JSON.stringify(st?.guest?.abilitiesRemoved)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // 原文は自己参照（「このシグニは【常】能力を失う」）＝watcher 自身（guest 側）が能力喪失するのが正。
+        // host 側（＝watcher の対戦相手）が能力を失ったら parser owner 誤りの回帰＝FAIL（続き72発見・続き75修正）。
         const hHit = (st?.host?.abilitiesRemoved ?? []).length > 0;
         const gHit = (st?.guest?.abilitiesRemoved ?? []).length > 0;
-        if (hHit || gHit) {
-          const side = gHit ? 'guest(self・原文通り)' : 'host(opponent・JSON owner通りだが原文と不一致の疑い)';
-          return { pass: true, detail: `ON_TARGETED(WX25-P2-055) 発火→REMOVE_ABILITIES 適用先=${side}（hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)} gAbilRem=${JSON.stringify(st.guest.abilitiesRemoved)}）` };
+        if (hHit) {
+          return { pass: false, detail: `owner 誤り回帰＝host(watcherの対戦相手)が能力喪失（hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)}）。原文は「このシグニは能力を失う」＝自己参照` };
+        }
+        if (gHit) {
+          const self = (st.guest.abilitiesRemoved ?? []).some(n => /WX25-P2-055/.test(n));
+          return self
+            ? { pass: true, detail: `ON_TARGETED(WX25-P2-055) 発火→自己参照どおり watcher 自身が能力喪失（gAbilRem=${JSON.stringify(st.guest.abilitiesRemoved)}）` }
+            : { pass: false, detail: `guest 側だが watcher 自身ではない別シグニが能力喪失（gAbilRem=${JSON.stringify(st.guest.abilitiesRemoved)}）＝thisCardOnly 未適用の疑い` };
         }
       }
       const fin = await H.queryState();
