@@ -985,6 +985,10 @@ const scenarios = {
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
           if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
         }
+        if (!did) { // トリガー2件同時＝StackOrderModal（発動順序）。順序は問わないのでそのまま確定する。
+          const ord = page.getByRole('button', { name: '発動順序を確定', exact: true }).first();
+          if (await ord.count() && await ord.isVisible().catch(() => false) && await ord.isEnabled().catch(() => false)) { await ord.click().catch(() => {}); did = 'btn:発動順序を確定'; }
+        }
         if (!did) { // WXK04-003 自身の ON_ACCE_ATTACH（CHOOSE3択）＝対象不要の選択肢2(DRAW)で解決
           const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
           if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = 'choose:選択肢2'; }
