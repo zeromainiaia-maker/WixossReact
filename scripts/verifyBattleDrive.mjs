@@ -2897,7 +2897,8 @@ const scenarios = {
         let did = null;
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
-        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        // 「召喚」確認ボタンを挟まずゾーン選択へ直行するカードもあるため summoned 未確定でも試す
+        if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
         // E1(白)/E2(赤)/E4(黒) は払えるエナが無いのでスキップ、E3(青)だけ支払う（モーダル文言のコスト色で判別）
         if (!did) {
           const payBtn = page.getByTestId('optcost-pay').first();
