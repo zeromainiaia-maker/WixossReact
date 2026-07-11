@@ -2617,12 +2617,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
       }
       // ON_CARD_MOVED_TO_DECK: デッキに移動したカードの持ち主と枚数閾値を triggerCondition に抽出。
+      //   「あなたの**トラッシュから**カードがN枚以上デッキに移動したとき」（WX22-014）は fromTrash 限定（engine が別カウンタで数える）。
       if (timing[0] === 'ON_CARD_MOVED_TO_DECK') {
-        const dm = actionText.match(/(あなた|対戦相手)のカードが([０-９\d]+)枚以上デッキに移動したとき/);
+        const cnt = actionText.match(/カードが([０-９\d]+)枚以上デッキに移動したとき/);
+        const fromTrash = /あなたのトラッシュから[^。]{0,12}デッキに移動したとき/.test(actionText);
+        const owner = /対戦相手の(?:カード|トラッシュ)/.test(actionText) ? 'opponent'
+          : (fromTrash || /あなたのカード/.test(actionText)) ? 'self' : 'any';
         extractedTriggerCondObj = {
           ...(extractedTriggerCondObj ?? {}),
-          movedToDeckOwner: dm?.[1] === '対戦相手' ? 'opponent' : dm?.[1] === 'あなた' ? 'self' : 'any',
-          movedToDeckMinCount: dm ? parseInt(toHalf(dm[2]), 10) : 1,
+          movedToDeckOwner: owner,
+          movedToDeckMinCount: cnt ? parseInt(toHalf(cnt[1]), 10) : 1,
+          ...(fromTrash ? { movedToDeckFromTrash: true } : {}),
         };
       }
       // ON_PLAY + placedFront（「対戦相手のシグニN体がこのシグニの正面に配置されたとき」）: 相手の配置に反応（any_opp）。
