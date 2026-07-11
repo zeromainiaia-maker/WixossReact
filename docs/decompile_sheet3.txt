@@ -2258,7 +2258,7 @@ WXEX2-12  アロス・ピルルク　ＡＣＲＯ  [ルリグ ピルルク]
 
 【JSON 逆翻訳】
   WXEX2-12-E1: 【常】[STUB:能力付与系（CONTINUOUS効果はeffectEngineで処理、AUTO/ACTIVATEDでも来た場合のフォールバック） GRANT_UNDER_SIGNI_*/GRANT_UNDER_LRIG_*/GRANT_LRIG_TRAS…]
-  WXEX2-12-E2: 【自】このシグニが場に出たとき：《once_per_turn》あなたのカードを1枚引く
+  WXEX2-12-E2: 【自】ガードステップ以外であなたが手札を捨てたとき：《once_per_turn》あなたのカードを1枚引く
   WXEX2-12-E3: 【起】（メイン起動）：〈手札から《青》のシグニ1枚を捨てる〉対戦相手の手札を1枚トラッシュに置く（相手が選ぶ）
   WXEX2-12-E4: 【起】（メイン起動）：〈エクシード5〉[STUB:CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択]。そして[STUB:CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択]
 

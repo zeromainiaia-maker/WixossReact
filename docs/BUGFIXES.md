@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化⑨＝`ON_HAND_DISCARDED`（+5枚）＝**「engine 未対応」という前回の見送り判断が誤りだった**（2026-07-12・続き75・Opus 4.8・同日第10件）
+
+同日第8件で「原文の『**ガードステップ以外で**』が engine 未対応（`triggerCondition` に相当語彙が無い）＝timing だけ直すと過剰発火になる」として**見送った**クラスタ。engine を読み直したところ**判断が誤りだった**と判明。
+
+- **`collectHandDiscardTriggers` の doc コメントに明記**＝「**ガードによる手札捨ては `hand_discarded_just` / `asCost` のどちらも立たない**（`performGuardResponse` 参照）ため、**「ガードステップ以外で」は構造的に担保される**」。つまりガード時にはそもそもこのトリガー収集経路に入らない＝**条件語彙は不要**で、parser に timing を足すだけで原文どおりに動く。
+- **教訓**＝「engine 未対応だから見送る」と判断する前に、**その条件が別の形で（構造的に）担保されていないか**を必ず確認する。今回は doc コメント1行で解決した。
+- **parser**＝「（ガードステップ以外で）（あなた／いずれかのプレイヤー）が手札をN枚捨てたとき」を `ON_HAND_DISCARDED` に。scope＝self（既定）／any（「いずれかのプレイヤー」）。⚠**「（あなたの効果によって）対戦相手が手札を捨てたとき」は拾わない**＝主語が相手で engine に専用 scope が無く、`any`（いずれかが捨てたとき）に倒すと**自分の手札捨てでも発火する過剰効果**になるため。
+- **計測 223→209 効果**。**影響14枚→5枚採用**（**MANUAL 9枚は全て curated が既に `ON_HAND_DISCARDED` を保持**＝機械確認・温存が正解）。
+- **検証**＝`npm run gates` 全緑（**golden 198/198**〔+1〕・smoke/fuzz 全0・census 1537 維持・lint 0 errors）／`regen` で**同型★0・★逆翻訳割れ0**維持。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化⑧＝`ON_TRASH`「手札から」**単独**が regex から抜けていた（+15枚・census 1542→1537）（2026-07-12・続き75・Opus 4.8・同日第9件）
 
 「このカードが**手札から**トラッシュに置かれたとき」（11件）が `ON_PLAY` へ誤フォールバックしていた。原因は**既存の ON_TRASH regex が「手札か**デッキ**から」「デッキから」「場から」「いずれかの領域から」しかカバーしておらず、「手札から」単独が抜けていた**こと（語彙が無いのではなく**regex の穴**）。engine は `triggerCondition.fromZones` で領域を判定する（`collectAnyZoneTrashSelfTriggers`）ので、**timing regex と fromZones 抽出 regex の両方**に「手札」単独を追加した（engine 不変）。
