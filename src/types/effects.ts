@@ -632,7 +632,8 @@ export interface PowerSetAction {
 // 選択したカードを lastProcessedCards に記録（「それらが共通する色を持つ場合」等の後続条件参照用。WDK10-008）。
 export interface ExileAction {
   type: 'EXILE';
-  target: EffectTarget; // TRASH_CARD など除外元
+  target: EffectTarget; // TRASH_CARD / SIGNI / HAND_CARD など除外元
+  blind?: boolean;      // 「見ないで選び」（伏せたまま選ぶ＝相手が選ぶ。WX14-011①）
 }
 
 export interface TrashAction {
