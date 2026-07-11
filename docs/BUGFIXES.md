@@ -5,6 +5,23 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化 第3弾＝**engine 配線済みの残り4系統（9枚）＝これで「parser 語彙だけ足りない」大物は打ち止め**（2026-07-12・続き76・Opus 4.8）
+
+| timing | 枚数 | 原文 | engine の受け皿 |
+|---|---|---|---|
+| `ON_OPP_VIRUS_PLACED` | 2 | 「対戦相手の場に【ウィルス】1つが置かれたとき」 | `collectSelfEventTriggers` |
+| `ON_ENERGY_CHARGE` | 2 | 「あなたが【エナチャージ】をしたとき」 | エナゾーンのスナップショット差分ウォッチャー |
+| `ON_CARD_MOVED_TO_DECK` | 3 | 「あなたの効果1つによって（対戦相手のカード／あなたのトラッシュからカード）がN枚以上デッキに移動したとき」 | `collectMoveToDeckTriggers`（`movedToDeckOwner` / `movedToDeckMinCount` / `movedToDeckFromTrash`） |
+| `ON_TARGETED` | 2 | 「このシグニが対戦相手の**シグニの**、能力か効果の対象になったとき」 | 既存の `ON_TARGETED`（regex が「対戦相手の、」しか見ておらず「シグニの」を挟む表記を取りこぼしていた） |
+
+**parser 全数機械測定＝7枚**（ON_TARGETED の2枚は既に正しい timing を出していた）＝**全て timing/条件のみの変化**。curated MANUAL は今回も**すべて正しい timing・条件を保持**していた（`movedToDeckFromTrash` まで一致）。唯一 WXK04-028-E2 だけ curated が `ON_PLAY` のままだったので timing を外科パッチ（同カードに MANUAL 効果があり `build:effects` がカード丸ごと温存するため）。
+
+⚠**「対戦相手のエナゾーンにカードN枚が置かれたとき」（2枚）は拾わない**＝engine のエナチャージ・ウォッチャーは **エナが増えた側の場のシグニしか走査しない**ため、相手のエナ増加に自分の場が反応する受け皿が無い（§6.3 機構待ちへ）。
+
+**検証**＝`npm run gates` 全緑（**golden 204/204**・**census 1529→1528**）／`regen` で同型★0・逆翻訳が原文一致／**timing フォールバック 143→134**。engine 不変。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化 第2弾＝**engine 配線済みの残クラスタ5系統を開通（31枚）**（2026-07-12・続き76・Opus 4.8）
 
 第1弾（9種35枚）に続き、`npm run census:timing` の残（174効果）から **engine に受け皿があるのに parser が語彙を持たない**クラスタを5系統さらに開通した。

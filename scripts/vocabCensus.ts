@@ -66,7 +66,8 @@ import * as path from 'path';
 // 2026-07-09 続き52: 「制限『できない』」パターンに extraOk 較正＝「しか使用/発動できない」の使用条件（useCondition・
 // eff.condition で表現・extractUseCondition が解析済み）41枚の偽陽性をクリア＝1616→1588（dedup -28）。真バグ0を機械確認済み
 // （使用制限で condition 無しは0枚）。残17枚は effect-restriction（アタック/場に出せない等＝BLOCK 表現要）で継続。
-const BASELINE_HIGH = 1529; // 続き76(第2弾): timing 語彙追加（ON_CARD_MILLED_FROM_DECK/ON_SELF_REVEAL_FROM_HAND/placedFront/leftToZone:hand/ON_HAND_DISCARDED の triggerFilter）で 1532→1529。§3 Opusタスク16
+const BASELINE_HIGH = 1528; // 続き76(第3弾): timing 語彙追加（ON_OPP_VIRUS_PLACED/ON_ENERGY_CHARGE「【エナチャージ】をしたとき」/ON_CARD_MOVED_TO_DECK/ON_TARGETED「シグニの能力で対象化」）で 1529→1528。§3 Opusタスク16
+// 続き76(第2弾): timing 語彙追加（ON_CARD_MILLED_FROM_DECK/ON_SELF_REVEAL_FROM_HAND/placedFront/leftToZone:hand/ON_HAND_DISCARDED の triggerFilter）で 1532→1529。§3 Opusタスク16
 // 続き76(第1弾): timing 語彙追加（ON_ACCE/ON_ACCE_ATTACH/ON_REFRESH/ON_ENERGY_TO_TRASH/ON_SIGNI_FROZEN/ON_OPP_POWER_DECREASED/ON_DISCARDED_AS_COST/ON_GUARD/ON_OPP_ARTS_USE）で 1537→1532
 // 続き75: timing 語彙追加（ON_SIGNI_BANISH_OPPONENT/ON_MAIN_PHASE_START/ON_SPELL_USE/ON_EXCEED_COST/ON_RISE/ON_SIGNI_BECOMES_DRIVE/ON_ARTS_USE/ON_TRASH「手札から」）で 1557→1537
 
