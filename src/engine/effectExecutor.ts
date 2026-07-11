@@ -4792,6 +4792,18 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       // トラッシュからの除外（owner優先、なければ両者を探索）
       const owners: Owner[] = exTgt.owner === 'opponent' ? ['opponent'] : exTgt.owner === 'self' ? ['self'] : ['self', 'opponent'];
+      // 手札からの除外（WX14-011①）＝**トラッシュを経由せず**手札から消す。
+      if (exTgt.type === 'HAND_CARD') {
+        for (const o of owners) {
+          const s = ownerState(o, ctx);
+          const hi = s.hand.indexOf(cardNum);
+          if (hi >= 0) {
+            const newHand = [...s.hand]; newHand.splice(hi, 1);
+            return done(addLog(setOwnerState(o, { ...s, hand: newHand }, ctx),
+              `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札からゲームから除外`));
+          }
+        }
+      }
       for (const o of owners) {
         const s = ownerState(o, ctx);
         const ti = s.trash.indexOf(cardNum);
