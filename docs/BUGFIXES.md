@@ -5,6 +5,19 @@
 
 ---
 
+## デッキ相対SEARCH＝「この方法で捨てたシグニより±Nレベル/共通クラス」の動的比較を実装（3枚・§3タスク3・2026-07-11・続き68・Opus 4.8）
+
+§3タスク3「動的比較」の残＝デッキ相対 SEARCH のうち「この方法で捨てた（handDiscardSigniコストの）シグニ」を基準にレベル/クラスを絞る3枚が、SEARCH の filter からその制約を落として「デッキから任意のシグニをサーチ」の過少パースになっていた。
+
+- **対象**＝WDK13-013-E1（捨てたシグニより**レベルが1つ高い**）／WXK10-033-E2（捨てたシグニより**レベルが2つ高い**、**それと共通するクラスを持つ**）／WXEX2-37-E3（捨てたシグニより**低いレベル**の＜宇宙＞を2枚まで）。いずれも `handDiscardSigni` コストで捨てたシグニが動的基準。
+- **既存インフラ拡張**＝`caster.last_discarded_signi_level`（捨てシグニのレベル）＋`levelLteDiscardSigni`（≤）は既存（WX22-046/WXK10-044）。これに合わせて **①型**＝`last_discarded_signi_class`（捨てシグニの CardClass 記録）＋フィルタ `levelLtDiscardSigni`（<）・`levelEqDiscardSigniOffset:N`（＝捨てレベル+N）・`classMatchesDiscardSigni`（捨てクラスと共通）を追加。**②記録**＝`BattleScreen.tsx` のコスト支払い（`last_discarded_signi_level` セット箇所）で `last_discarded_signi_class` も記録。**③解決**＝`resolveDiscardLevelFilter`（`effectExecutor.ts`）を4フィルタ対応に拡張（Lt→level.max=lvl-1／Eq→level=lvl+offset／classMatch→CardClassの「：」以降トークンをOR展開して story へ）。
+- **配線バグも修正**＝`resolveDiscardLevelFilter` は ADD_TO_FIELD 経路（execAddToField・1060行）でしか呼ばれておらず **execSearch が呼んでいなかった**（既存 levelLteDiscardSigni は ADD_TO_FIELD 系カードでしか効いていなかった）。`execSearch` の filter 解決（resolveDynamicFilter の前）に `resolveDiscardLevelFilter(resolvedFilter, ctx.ownerState)` を追加＝SEARCH 経路でも捨てシグニ基準が効くようになった。
+- **表現**＝3枚を `manualEffects.ts` に MANUAL 追記（SEARCH filter に新フィルタを付与）→`build:effects`→`heldReview --adopt WDK13-013,WXK10-033,WXEX2-37`。decompiler にも3フィルタの原文語（「捨てたシグニより低いレベルを持つ」「レベルがNつ高い」「共通するクラスを持つ」）を追加。
+- **検証**＝golden +2（183・①levelEqDiscardSigniOffset:1 で捨レベル2→レベル3のみサーチ/レベル2・4は残る ②levelLtDiscardSigni で捨レベル3→レベル1・2がサーチされレベル4は残る＝deckを固定3枚にして決定論化）／`npm run gates` 全緑（smoke0/fuzz0/lint 0 errors／**census 1566→1563**＝3枚解消・BASELINE更新）／`npm run regen` 同型★0維持・decompile 3枚ともレベル/クラス制約を描画。
+- **残**＝同クラスタの WXEX2-28-E3（「デッキから＜ウェポン＞を場に出す。その後、**それより**レベルの高い＜ウェポン＞を場に出す」＝直前配置シグニ基準＝last-processed相対で別フィルタ〔levelGtLastProcessed 相当〕）は未対応（別系・follow-up）。
+
+---
+
 ## WXEX2-25-E3 lrig相対の動的比較を実装＝相手センタールリグへ「このルリグより低いレベルのシグニに-8000」を付与（§3タスク3・2026-07-11・続き67・Opus 4.8）
 
 §3タスク3「動的比較 lrig相対の残」。WXEX2-25-E3（原文「【起】《アタックフェイズ》《コイン》：対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは『【常】：**このルリグより低いレベルを持つ**あなたのシグニのパワーを－8000する。』を得る。」）が、引用付与構造を丸ごと落として `POWER_MODIFY owner:self ALL -8000`（＝**自分の全シグニに-8000する有害な誤パース**）になっていた。
