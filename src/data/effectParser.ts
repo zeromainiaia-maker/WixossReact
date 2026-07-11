@@ -2489,6 +2489,36 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ⚠「（あなたの効果によって）対戦相手が手札を捨てたとき」は主語が相手＝engine に専用 scope が無く
              //   'any'（いずれかが捨てたとき）に倒すと自分の手札捨てでも発火する過剰効果になるため**拾わない**。
              : /(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(actionText) ? ['ON_HAND_DISCARDED']
+             // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
+             // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
+             //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
+             //   ルリグ＝ON_ACCE_ATTACH（ルリグ監視の別ループ）。scope は下で抽出。
+             // ⚠「このカードが【アクセ】としてシグニに付いたとき」（アクセカード自身の反応）は別＝この regex に当たらない。
+             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)
+                 ? (_parsingBaseType === 'ルリグ' ? ['ON_ACCE_ATTACH'] : ['ON_ACCE'])
+             // 「（あなた／対戦相手／いずれかのプレイヤー）がリフレッシュしたとき」（6件）。engine 配線済み
+             // （collectRefreshTriggers＝triggerCondition.refreshedOwner で発生源を判定）。owner は下で抽出。
+             : /(?:あなた|対戦相手|いずれかのプレイヤー)がリフレッシュしたとき/.test(actionText) ? ['ON_REFRESH']
+             // 「あなたの効果によって（対戦相手の）エナゾーンからカードN枚がトラッシュに置かれたとき」（3件）。
+             // engine 配線済み（collectEnergyToTrashTriggers＝triggerCondition.energyTrashedOwner で発生源エナを判定）。
+             // ⚠「あなたの効果によって」限定は engine 側で未表現＝既知の近似（engine の doc コメント参照）。
+             : /エナゾーンからカード[^。]{0,8}がトラッシュに置かれたとき/.test(actionText) ? ['ON_ENERGY_TO_TRASH']
+             // 「（対戦相手／あなた）のシグニN体が凍結状態になったとき」（3件）。engine 配線済み
+             // （collectFreezeTriggers＝triggerScope any_opp 既定／any_ally／any）。scope は下で抽出。
+             : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(actionText) ? ['ON_SIGNI_FROZEN']
+             // 「あなたの[＜X＞の]シグニの効果によって対戦相手のシグニ[N体]のパワーが減ったとき」（4件・毒牙）。
+             // engine 配線済み（collectPowerDecreaseTriggers＝temp_power_mods の新規負 delta を set-diff で検出）。
+             // ⚠発生源フィルタ（「＜毒牙＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似（下で刻印）。
+             : /対戦相手のシグニ(?:[０-９\d]+体)?のパワーが減ったとき/.test(actionText) ? ['ON_OPP_POWER_DECREASED']
+             // 「あなたの＜X＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき」（4件）。
+             // engine 配線済み（collectHandDiscardTriggers の asCost 分岐＝捨てられたカード自身の AUTO を発火）。
+             // ⚠「どの能力のコストとして捨てられたか」のフィルタは engine が未表現＝落とす近似（下で刻印）。
+             : /能力のコストとしてこのカードが捨てられたとき/.test(actionText) ? ['ON_DISCARDED_AS_COST']
+             // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
+             : /あなたが【ガード】したとき/.test(actionText) ? ['ON_GUARD']
+             // 「対戦相手がアーツを使用したとき」（3件）。engine 配線済み（collectOppArtsUseTriggers＝相手のアーツ使用に
+             // 自分の場が反応）。既存の「対戦相手のアーツの効果を受けたとき」と同じ受け皿。
+             : /対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_OPP_ARTS_USE']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
