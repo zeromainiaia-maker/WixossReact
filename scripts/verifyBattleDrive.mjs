@@ -337,6 +337,9 @@ const scenarios = {
       },
       guestSet: {
         'field.signi': [['WXDi-P03-067#1'], null, null], // watcher（発生源 host の対戦相手＝guest 側）
+        // watcher は guest 側なので《ターン1回》の消費記録も guest 側に載る。続き75で ON_TARGETED の usageLimit が
+        // 実際に actions_done へ書き戻されるようになったため、クリアしないと実行間の持ち越しで非発火になる。
+        'actions_done': [],
       },
       handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
