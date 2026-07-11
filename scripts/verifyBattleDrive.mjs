@@ -3059,6 +3059,21 @@ function buildFirst() {
   });
 }
 
+// ⚠ Windows では proc.kill() は shell(cmd.exe) だけを殺し、孫の vite(node) が孤児で残る。
+//    しかも根が死んだ後の taskkill /T は子孫を辿れない＝旧実装（proc.kill()→非同期taskkill）は
+//    実行のたびに preview server を1個リークしていた（ポート4173〜が毎回1つずつ埋まる原因）。
+//    必ず「proc.kill() より先に」同期 taskkill する。
+let treeKilled = false;
+function killTree(proc) {
+  if (!proc || treeKilled) return;
+  treeKilled = true;
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+  } else {
+    try { proc.kill(); } catch { /* noop */ }
+  }
+}
+
 function startDev() {
   return new Promise((resolve, reject) => {
     const proc = spawn('npm', ['run', 'preview'], { shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
