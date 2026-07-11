@@ -948,6 +948,18 @@ function consumeSilentFallbacks(): string[] {
 export interface SilentFallbackEntry { effectId: string; reasons: string[] }
 const _silentFallbackLog: SilentFallbackEntry[] = [];
 export function getSilentFallbackLog(): readonly SilentFallbackEntry[] { return _silentFallbackLog; }
+
+// ── timing フォールバック計器（続き75で新設）──
+// 【自】ブロックで timing 判定が**全て外れて** ON_PLAY へ落ちた効果を記録する。原文に「…したとき」がある
+// のに ON_PLAY になったなら、それは「場に出たとき」ではない別トリガーの取りこぼし＝**parser の timing 語彙欠落**。
+// この穴で ON_SIGNI_BANISH_OPPONENT（「バトルによってバニッシュしたとき」）の31枚が「召喚しただけで発火する」
+// 幻覚になっていた（続き75で是正）。⚠parseStatus は変えない（純粋な観測計器）。集計は `npm run census:timing`。
+export interface TimingFallbackEntry { effectId: string; text: string }
+const _timingFallbackLog: TimingFallbackEntry[] = [];
+export function getTimingFallbackLog(): readonly TimingFallbackEntry[] { return _timingFallbackLog; }
+function logTimingFallback(effectId: string, text: string): void {
+  if (_timingFallbackLog.length < 100000) _timingFallbackLog.push({ effectId, text });
+}
 function logSilentFallbacks(effectId: string, reasons: string[]): void {
   // 実行時アプリでも parser が呼ばれうるため、ログは上限付き（計器用途は build:effects 内で完結する）
   if (reasons.length > 0 && _silentFallbackLog.length < 100000) _silentFallbackLog.push({ effectId, reasons });
