@@ -1605,6 +1605,15 @@ function parseActionTextInner(text: string): EffectAction {
       // ここに来た場合は分割を諦め、以降の通常パースに委ねる
     }
   }
+  // ---- トップレベル動作選択「（カードをN枚）引くか<B>」→ CHOOSE（§4タスク4 引用内CHOOSE） ----
+  // プレイヤーが2つの動作から1つを選ぶ「AかB」を CHOOSE(2択) で正エンコード。従来は先頭動詞だけ拾い
+  // もう片方を無言脱落させていた（WXDi-D09-P20 引用内・WXDi-P02-011「引くか【エナチャージ】」等 約19効果）。
+  // DRAW を錨にする（「引く」は動詞終止形で節境界が明確）。行き先選択（「（それを）加えるか場に出す」＝
+  // 単一カードの destination 二択）は別系統＝対象/公開文脈が先行するため本ルールでは扱わない（下流で処理）。
+  {
+    const drawChoose = parseDrawOrChoice(text);
+    if (drawChoose) return drawChoose;
+  }
   // ---- ARTS_SELF_RECYCLE_ON_TRIGGER: コスト支払いでルリグトラッシュ→ルリグデッキへ戻す ----
   if (text.match(/《[^》]+》を支払ってもよい。そうした場合、このカードを(?:あなたの)?ルリグトラッシュからルリグデッキに戻す/))
     return { type: 'STUB', id: 'ARTS_SELF_RECYCLE_ON_TRIGGER' } as import('../types/effects').StubAction;
