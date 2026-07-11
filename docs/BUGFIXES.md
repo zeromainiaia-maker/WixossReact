@@ -5,6 +5,19 @@
 
 ---
 
+## WXEX2-50-E3 owner誤パース是正＝「対戦相手のトラッシュから…対戦相手の場に出す」を owner:opponent に（R30 ON_PLAY any_opp の発火経路を開通・§3タスク7(a)・2026-07-11・続き66・Opus 4.8）
+
+続き64（Sonnet）がOpusへ登録した §3タスク7(a)。WXEX2-50-E3 step1（原文「対戦相手のトラッシュからシグニ１枚を対象とし、それを**対戦相手の場に出す**」）が `ADD_TO_FIELD.owner`／`source.owner` ともに `self` に誤生成され、「あなたのトラッシュから自分の場に出す」に化けていた。これは**カード全体で唯一の「あなたのターンに対戦相手のシグニが場に出る」自然発火経路**であり、R30（ON_PLAY any_opp＝対戦相手のシグニが場に出たときのwatcher・WXK10-022-E1）の実機検証がこのカードでブロックされていた（続き64）。
+
+- **原因**＝`parseSentencePart1.ts` の「トラッシュからシグニを場に出す」ハンドラ（1324-）が `owner:'self'`／`source.owner:'self'` をハードコードし、原文の「対戦相手の場に出す」を検出していなかった。
+- **engineの制約を踏まえた設計**＝`execAddToField`（`effectExecutor.ts:1194`）はトラッシュ候補を **`ownerState(tgtOwner)` から取る**（`src.owner` は候補選択に不使用＝cross-owner非対応）。よって「相手トラッシュ→相手の場」は `owner:'opponent'` に揃えれば正しく動く（tgtOwner=opponent のトラッシュから取り相手の場へ配置）。一方「対戦相手のトラッシュ→**傀儡状態であなたの場**に出す」系12枚（WXK09-034/063/096・WXK10-055/091・WDK17-001/007/012/013/017・WXEX2-23等）は相手トラッシュ→自分の場の**cross-owner**で engine 未対応（傀儡機構＝§6.3 別課題）＝source owner を opponent に変えても挙動不変で held増だけになるため**据置**。
+- **修正**＝ハンドラに `const toOppField = /対戦相手の(?:場|シグニゾーン)に出/.test(t)` を追加し、真のとき `owner`／`source.owner` を `opponent` に、偽（既定「あなたの場」）は従来どおり `self`。現行カードで `対戦相手の(場|シグニゾーン)に出` を含むのは WXEX2-50 のみ＝この1枚だけに作用し傀儡系は不変。step2（「あなたのトラッシュから…場に出す」）は self 維持。
+- **採用**＝`build:effects`→`heldReview --adopt WXEX2-50`（fresh=curated 同期・held 120→119・WXEX2-50 は held から外れる）。他カードの held は不変。
+- **検証**＝golden +1（179・ADD_TO_FIELD owner:opponent で相手トラッシュのシグニが相手の場に配置・自分の場には出ないことを assert）／`npm run gates` 全緑（typecheck／smoke CRASH0／fuzz0／**census 1567不変**／lint 0 errors）／`npm run regen`＝**同型★0 維持**・decompile step1 が「**対戦相手の**シグニ(トラッシュ)…場に出す」と owner を原文忠実に反映（旧「あなたのシグニ」から是正）。
+- **残（副次・別課題）**＝step2 のレベル制約「この方法で場に出たシグニ以下のレベル」は未反映（step1で配置したカードのレベルを参照する動的フィルタ＝別途）。実機 R30 検証（WXEX2-50→WXK10-022-E1 watcher）は §7 Sonnet タスク（発火経路は本修正で開通済み）。
+
+---
+
 ## 【デコレ】fromHandアクセ装着の2バグを修正＝execAttachAcce の2段chaining実装＋battleCardNums への signi_acce 走査追加（R45① ON_ACCE_ATTACH host条件を実UIでPASS・2026-07-11・続き65・Opus 4.8）
 
 続き64（Sonnet）が実機で発見・Opusへ登録した「`execAttachAcce` fromHand経路の実装バグ」（§3タスク7(b)）を修正。実UI駆動（`verifyBattleDrive.mjs acceAttach`）で追うと**2つの独立バグ**が連鎖しており、両方直して初めて【デコレ】キーワード（手札の＜調理＞シグニを場のシグニの【アクセ】にする起動能力）が機能し、R45①（ON_ACCE_ATTACH host条件＝Lv4以上のシグニに付いたとき）が発火するようになった。**実機 acceAttach ✅PASS（2回連続・deterministic）**。
