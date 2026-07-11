@@ -93,7 +93,7 @@
 9. **§6.2 semantic audit 系統残の機構対応**＝系統①(b)「あなたか対戦相手」`owner:'any'` 選択18枚（engine/decompiler の選択対応・opponent への flip 禁止）・(c)混在10枚のノード単位判別・系統②残（SEQUENCE内 GRANT_PROTECTION＝WX08-017・LAYER付与＝WX15-031・広域24件の subjectFilter/新機構）。
 10. **CHOOSE平坦化復元 held の最終見極め＋採用**（🆕続き71＝Sonnetタスク2 の全数機械分類54枚が完了＝WXK10-013採用済み・残53枚を系統別パターンA〜Fに整理済み＝詳細 BUGFIXES 続き71。**パターンA=5→4択融合**〔PR-K056/WXK10-002〕・**パターンB=LRIG/SIGNI型混同**〔WX17-020/WXK10-012・WX25-CP1-026/028も疑い〕・**パターンC=STUB誤マッチ**〔WXK10-010/WDK17-008/WXK10-018〕・**パターンD=条件ゲート脱落**〔WD20-018/WXDi-P13-045〕・**パターンE=WX14-011既知owner逆転**・**パターンF=要個別精査40枚**。既知据置3枚〔WX20-078/SPK01-14/WX19-062〕はカード全体の構造破綻で今回のCHOOSE化では不十分＝別途フルパース要）。
 11. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ WX09-012/WX12-010）。
-12. **Sonnet が積んだ engine/parser バグの修正（常設受け口）**＝Sonnetタスク1（実機検証）・4（一次トリアージ）・8（semantic audit）の観測結果を受けて修正する。
+12. **Sonnet が積んだ engine/parser バグの修正（常設受け口）**＝Sonnetタスク1（実機検証）・4（一次トリアージ）・8（semantic audit）の観測結果を受けて修正する。**🆕続き75（Opus）で積まれていた5件を消化＝✅ON_TARGETED usageLimit（engine・毎回発火）／✅ON_CHARM_TO_TRASH バトルバニッシュ経路（engine・実戦最頻経路が未配線）／✅GRANT_KEYWORD「他の」excludeSelf（parser＋engine・自分自身に付与）／✅REMOVE_ABILITIES owner 真逆（parser・WX25-P2-055）／✅ON_LRIG_GROW turnOwner ゲート未実装（parser・毎回誤発火。横展開で WXDi-P03-039/P03-046/P05-010 も是正）。実機10シナリオ全PASS・詳細 BUGFIXES 続き75。** **残1件＝続き70の「多段インタラクションSEQUENCE 途中ラウンドの盤面差分トリガー見逃し」**（`handleEffectInteraction` の `!result.done` 分岐が `collectBoardDiffTriggers` を呼ばない＝stack 未確定時点でどこまで確定的に積んでよいかの設計が要る。再現＝`node scripts/verifyBattleDrive.mjs onPlayAnyOpp`）。
 13. **§5b 残367件の混線テール**＝effect構造そのものが原文とズレたカードの effects JSON 再parse（1カードずつ手修正→逆翻訳原文一致→ゲート。**原文コピーでの一括潰しは禁止**）。
 14. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
 15. **（大型・任意）§8 CPU AI のメインフェイズ拡張**（アーツ/スペル/起動効果の能動使用・グロウ判断。先に DESIGN §4「CPU は対人戦と同じ処理」の統一を完遂してから）。
