@@ -4535,6 +4535,24 @@ export function execStubPart3(
       `【シグニバリア】+${countGSB}（フリーゾーンに設置）`));
   }
 
+  // LOSE_SIGNI_BARRIER / LOSE_LRIG_BARRIER: 対戦相手は【○バリア】Nつを失う
+  // （相手フリーゾーンのバリアトークンを取り除く。WX24-P1-043 の引用付与内側【自】）
+  if (stub.id === 'LOSE_SIGNI_BARRIER' || stub.id === 'LOSE_LRIG_BARRIER') {
+    const kindLB = stub.id === 'LOSE_SIGNI_BARRIER' ? SIGNI_BARRIER_CARD : LRIG_BARRIER_CARD;
+    const labelLB = stub.id === 'LOSE_SIGNI_BARRIER' ? 'シグニバリア' : 'ルリグバリア';
+    const countLB = (stub as { count?: number }).count ?? 1;
+    const fzLB = [...(ctx.otherState.field.free_zone ?? [])];
+    let removedLB = 0;
+    for (let i = fzLB.length - 1; i >= 0 && removedLB < countLB; i--) {
+      const base = fzLB[i].includes('#') ? fzLB[i].slice(0, fzLB[i].indexOf('#')) : fzLB[i];
+      if (base === kindLB) { fzLB.splice(i, 1); removedLB++; }
+    }
+    if (removedLB === 0) return done(addLog(ctx, `対戦相手に【${labelLB}】がない（失うものなし）`));
+    const newOtherLB: PlayerState = { ...ctx.otherState, field: { ...ctx.otherState.field, free_zone: fzLB } };
+    return done(addLog({ ...ctx, otherState: newOtherLB },
+      `対戦相手は【${labelLB}】${removedLB}つを失った`));
+  }
+
   // EVDIVA_PER_LRIG_COLOR: WX25-P3-050 エビディバ!!!!! 場の色別ルリグ数ぶんに各効果を行う。
   // 白=【ルリグバリア】/青=ドロー3/緑=エナチャージ3/黒=相手デッキ10トラッシュ（決定的）。
   // 赤=対象選択を伴うバニッシュのため未実装（ログのみ）。
