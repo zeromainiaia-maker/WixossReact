@@ -5,6 +5,30 @@
 
 ---
 
+## §3 Opusタスク12＝Sonnet観測8件（続き77）の parser/engine 弱点を全て修正＋held 148枚採用（2026-07-12・続き78・Fable 5）
+
+続き77で「観測のみ登録」された在庫8件を根治し、副産物として3つの**新規系統バグ**（引用跨ぎ条件消費・連用中止の先頭脱落・先頭duration句のPERMANENT化）を発見・横展開修正。**採用計148枚（自動1＋手動147）・golden 223→230（+7）・census 1494→1483・同型★0維持・全ゲート緑**。
+
+**(a) EXILE→TRASH誤変換（7枚系統）**＝「（対戦相手の）シグニN体を対象とし、それ（とこのシグニ）をゲームから除外する」が parser に無く、汎用フォールバックで `TRASH{TRASH_CARD}`（トラッシュ→トラッシュの完全no-op）に化け、owner も別節の「対戦相手」を拾って誤反転していた。`parseSentencePart1.ts` の「ゲームから除外する」ブロックに①場シグニ対象EXILE（A1形5枚）②対象+自身の複合EXILE（A2形＝SEQUENCE[対象→自身]・WX21-027/WX24-P3-TK1A）③自己単独EXILE（クラフトトークン「対戦相手のターン終了時、」形＝TK01A/TK02A/TK03B）を追加。⚠遅延形（「ターン終了時に、または…」＝WX16-040系）と「代わりに」形（WXK05-024）はガードで除外＝機構待ちの従来近似のまま。**修正後は7枚中5枚で fresh==curated（差分消滅）**・WX24-P3-TK1A は道連れだった E2 timing是正（ON_PLAY→ON_SIGNI_BANISH_OPPONENT）を採用・WXDi-P13-089-E3（curated側も TRASH no-op だった）を EXILE に是正。
+
+**(b) 条件ドロップ3枚**＝①WXDi-P16-009/011：CONDITIONAL持ち上げの**ガードCが実行時マーカーSTUB `ARTS_COST_REDUCTION_BY_EFFECT` まで巻き込んで**持ち上げを止め、LIFE_COUNT/HAND_COUNT条件が脱落していた→同IDのみ例外化（execStubPart1で no-op・トップレベル収集なしを確認済み。実コスト減は `costs.ts` が原文テキスト参照＝JSON非依存）。②WXDi-CP02-TK01A：manualEffects 定義自体に `triggerScope:'any_opp'` が欠けていた→追加。
+
+**(c) 多段「あるかぎり」付与の消失2枚 → 機構1本+系統2本の新設**：
+- **真因1＝`parseActiveCondition` の genericKagiri（`^[^。]+かぎり、`）が引用「…」を跨いで消費**し、「パワーは＋3000され、このシグニは「【常】：…」の引用前本文ごと無言消失していた（WXDi-P11-046）→`^[^。「」]+かぎり、` に制限。
+- **真因2＝qfSelf の貪欲マッチが多段引用を1つの rawText に丸呑み**（WX24-P1-043＝2/3段目消失）→`parseMultiStageUnderGrant` 新設（条件抽出ループより**前**に呼ぶ）＝段ごとに `THIS_CARD_HAS_UNDER{filter:{level:N}}` を刻んだ `rawStages` へ分解し、展開時に各付与 CardEffect の activeCondition へ注入。**型**＝`THIS_CARD_HAS_UNDER` に `filter?: TargetFilter` 追加（effectEngine.checkActiveCondition／execUtils.evalCondition の両評価器で下カードを matchesFilter）。**新STUB**＝`LOSE_SIGNI_BARRIER`/`LOSE_LRIG_BARRIER`（相手フリーゾーンのバリアトークン除去・execStubPart3）＋主語省略形「【常】：対戦相手の効果によって…」への「このシグニは」補完で全段 AUTO 化。
+- **系統＝連用中止「このシグニのパワーは＋Nされ、<B>」**（コーパス全数48枚・従来は＋N か <B> の**どちらか**が無言脱落）→`parseContinuousQuotedGrant` に SEQUENCE[POWER_MODIFY, <B>] 分解を追加（<B> が UNKNOWN なら分割せず退化防止）。engine 側は `collectGrantedFromLayer` が **SEQUENCE 直下の GRANT_FIELD_SIGNI_ABILITY も走査**するよう拡張（CONT POWER_MODIFY は既存 extractPowerModifies が SEQUENCE 対応済み）。＋エナ色枚数条件パターン新設（「エナゾーンに<色>のカードがN枚以上あるかぎり」→ENERGY_HAS_CARD{color,minCount}＝WXDi-P14-063 が純上位集合で自動採用）。
+- decompiler＝THIS_CARD_HAS_UNDER(filter)/ENERGY_HAS_CARD(色のみ→「カード」)/LOSE_*_BARRIER の描画追加。
+
+**(d) inner duration誤変換（WX25-P2-062）**＝先頭「ターン終了時まで、」を Inner の共通プレフィックス除去が食い、action内 duration が PERMANENT 化→`parseSingleSentence` 層に `restoreLeadUntilEndOfTurn` を新設（upThen 分割の既存インライン復元を共通化・置換）。**母集団112枚**が duration 復元（fresh の全diffが PERMANENT→UNTIL_END_OF_TURN のみであることを機械分類で確認して一括採用）。
+
+**(e) GRANT_CHOSEN_ABILITY 汎用ハンドラ（execStubPart2）の点検**＝使用カードを全列挙（WXK04-002/WXK10-018＝無フィルタ対象で汎用が正・WX22-Re04＝FROM_PLAY別経路・WXK09-050＝Part1固有ハンドラ）。**実欠陥は WXK08-026**：`GRANT_CHOSEN_ABILITY_SELF`（「**このシグニ**は選んだ能力を得る」）なのに自シグニ全体から SELECT_TARGET していた→効果元自動対象化。＋将来の過剰許容防止に「あなたの＜X＞のシグニN体を対象とし」のクラス限定を SELECT_TARGET 候補へ適用。
+
+**採用148枚の内訳と検証**＝held 151枚を**全数機械分類**（A=duration復元のみ112／B=連用中止SEQUENCE化26〔旧葉の全値が steps 配下に温存されることを機械検証・追加は原文どおりのキーワード/保護/STUB〕／C=個別13）→A+B+α計147枚を `heldReview --adopt`・1枚（WXDi-P14-063）は純上位集合で自動採用。**据置4枚**＝WXK09-050（GRANT_CHOSEN_ABILITY へのid変更＝Part1固有フィルタからの経路退化・既知）・SP27-002（E3 で引用内「正面のシグニのパワーが15000以上であるかぎり」条件が脱落＝genericKagiri が isTimingMarker で無言消費する残系統）・WXDi-P10-035（引用内 BOUNCE の target.owner=self が疑わしい＝要精査）・WXDi-P04-016（既知の無改善＝ルリグデッキのピース除外機構待ち・§6.3）。
+
+**検証**＝`npm run gates` 全緑（**golden 230/230**〔+7＝EXILE 4形・条件持ち上げ・duration復元・多段かぎり・連用中止・THIS_CARD_HAS_UNDER filter・LOSE_SIGNI_BARRIER〕・**census 1494→1483**・smoke/fuzz 全0）／`npm run regen` で同型★0維持・WX24-P1-043/WXDi-P11-046 の逆翻訳が条件・段・付与まで原文一致。
+
+---
+
 ## §3 Sonnetタスク3＝driverバッチ状態汚染の部分修正＋Sonnetタスク6採用の退化1件を発見・自己修正（2026-07-12・続き77・Sonnet 5）
 
 **(1) driver汚染対策＝ゾーン単位フィールドマーカーの一括初期化を追加**（`scripts/verifyBattleDrive.mjs` の `injectScenario`）。従来は `keyword_grants`/`granted_effects`/`temp_power_mods`/`actions_done` 等の揮発フィールドのみシナリオ間で既定値へリセットしていたが、**`field.signi_acce`（アクセ）等のゾーン付随マーカーは各シナリオが手動で個別クリアする運用**だった（続き76の `acceSelfScope` 等）。これを一般化し、`field.signi_down`/`signi_frozen`/`lrig_down`/`lrig_frozen`/`lrig_attacked`/`signi_charms`/`signi_acce`/`signi_virus`/`signi_chokkin`/`signi_soul`/`signi_traps`/`signi_magic_boxes`/`signi_seeds`/`signi_armor`/`puppet_signi`/`cross_state`/`heaven_state` を注入前に一括で既定値へ戻す（`field.signi`/`field.lrig` 自体は全シナリオが `hostSet` で毎回明示するため対象外）。**検証＝`freezetrigger`→`acceSelfScope`→`acceOtherScope` の3連続実行と、既定 order 全40件中の該当シナリオが期待どおりPASS**（アクセ/凍結のゾーン跨ぎ残骸なし）。
