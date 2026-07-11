@@ -2779,9 +2779,11 @@ const scenarios = {
         if (!did) {
           const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
           if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false)) {
-            const e0 = page.getByTestId('onplaycost-energy-0').first();
-            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; }
-            else if (await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = '発動(onplaycost)'; }
+            if (await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = '発動(onplaycost)'; }
+            else {
+              const e0 = page.getByTestId('onplaycost-energy-0').first();
+              if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; }
+            }
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
