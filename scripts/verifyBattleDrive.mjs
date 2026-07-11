@@ -2856,6 +2856,12 @@ const scenarios = {
         H.log(`  install[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} delayed=${(st?.host?.delayedTriggers ?? []).length}`);
         if (installed) break;
       }
+      // installed確定はqueryState経由で1イテレーション遅れて検出するため、直前のイテレーションで
+      // 「まだinstalled==falseだった」判定のまま実行された centerLrig 画像クリックのフォールバックが
+      // （ボタン非表示＝使用済みonce_per_gameのため）CardStackModal（カード拡大表示）を開いたまま残る。
+      // このモーダルは全画面固定オーバーレイ＝後続の「アタックフェイズへ」クリックを吸収してしまうため、
+      // フェイズ進行前に明示的に閉じる（無ければ何も起きない）。
+      await H.clickTextOrBtn(['タップして閉じる']);
       if (!installed) {
         const fin = await H.queryState();
         return { pass: false, detail: `遅延トリガー設置を確認できず（hand=${fin?.host?.hand ?? '-'} delayed=${JSON.stringify(fin?.host?.delayedTriggers)}）` };
