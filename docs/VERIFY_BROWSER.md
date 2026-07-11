@@ -249,6 +249,16 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 - **⚠軽微なタイミングフレーク**＝5回中4回PASS・1回はSELECT_TARGETピッカーが最後まで出現せずFAIL（stack=0のまま）。`ontargeted`と全く同じコードパス・同じスペルを使っているためengine側の問題ではなく、driver/環境側のクリックタイミング競合と判断（他の既存シナリオでも同種のバッチ限定状態汚染が既知＝下記運用メモ参照）。
 - `order`配列に追加済み（`ontargeted`の直後）。**残＝未検証**＝残る3枚（WXDi-P11-040/WX25-P2-055/WXDi-D09-H14）の個別確認。
 
+### ✅ ON_TARGETED残り3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を個別確認＝全PASS＋2件の実データ疑義を発見（2026-07-12・続き72・Sonnet 5）
+
+`ontargeted3`/`ontargeted4`/`ontargeted5` を新設し、PLAN §7 の ON_TARGETED① 残タスク3枚をすべて検証した。3件とも**単体実行でPASS**（バッチ実行時は `ontargeted3` のみ既知の状態汚染でFAILしたが単体では安定再現）。`order`配列に3件とも追加済み（`ontargeted2`の直後）。
+
+- **`ontargeted3`（WXDi-P11-040 大罠 パントマイム）**：【自】《相手ターン》《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、あなたの他のシグニ1体を対象とし【シャドウ】を得る。guest に watcher 1枚だけ配置（他allyなし）して検証したところ、SELECT_TARGET解決後 `guest.keyword_grants` に `WXDi-P11-040#1:シャドウ` が付与＝**watcher自身にシャドウが付与された**。原文は「あなたの**他の**シグニ」＝自分自身を除外するはずだが、`effects_WXDi.json` の `WXDi-P11-040-E2` action.target は `{"type":"SIGNI","owner":"self","count":1}` で excludeSelf 相当のフィルタが無い＝**parser/JSONでexcludeSelfが実装されていない疑い**（他にally候補がいない特殊な盤面でのみ顕在化＝実戦では通常他のシグニがいるため気付きにくい）。修正はせず観測結果のみ記録。
+- **`ontargeted4`（WXDi-D09-H14 羅婚石 ダイヤブライド）**：【自】《ターン1回》あなたの赤のシグニ1体が対戦相手の能力/効果の対象になったとき、対戦相手は自分のエナから1枚選びトラッシュに置く（`triggerScope:any_ally`・`triggerFilter:{color:赤}`）。watcher（赤）単独配置で自己対象化により発火＝`host.trash` が0→1（host自身のエナ1枚がトラッシュ）で確認。**問題なし＝正しく機能**。
+- **`ontargeted5`（WX25-P2-055 轟砲 パワードスーツ）**：【自】《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、ターン終了時までこのシグニは【常】能力を失う（原文は自己参照）。`effects_WX24_26.json` の `WX25-P2-055-E2` action.target.owner は `'opponent'`＝host側にも1枚だけ候補シグニ（`WD05-009#9`）を置いて観測したところ、SELECT_TARGET解決後 `host.abilities_removed` に `WD05-009#9` が追加＝**host（＝watcherの対戦相手）側が能力喪失した**。guest（watcher自身）側は変化なし。**JSONのowner:'opponent'通りに動いているが、原文の「このシグニは」という自己参照とは一致しない＝parser誤りの疑いが濃厚**（本来 `owner:'self'` であるべき）。修正はせず観測結果のみ記録。
+
+**⚠上記2件（ontargeted3のexcludeSelf・ontargeted5のowner）は修正せずOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。
+
 ### ⚠ R30（ON_PLAY any_opp・WXK10-022-E1）＝自然発火経路がparserバグでブロック中と判明（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
 
 R30（「あなたのターンの間、対戦相手のシグニ１体が場に出たとき」＝WXK10-022-E1）を実機検証しようとしたが、**カード全体を検索してもこのトリガーを自然に起こせるカードは1枚（WXEX2-50 大幻蟲エンマコロギ）しかなく、そのカードのJSONがparser誤生成でブロックされているため検証不能**と判明（シナリオ未作成）。
