@@ -1618,6 +1618,11 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     if (tgt.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     }
+    // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他のシグニ1体を対象とし…【シャドウ】を得る」WXDi-P11-040）。
+    // 未実装だと他に味方シグニが居ないとき自分自身に付いてしまう（続き72の実機観測・続き75で修正）。
+    if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
+      cands = cands.filter(n => n !== ctx.sourceCardNum);
+    }
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
