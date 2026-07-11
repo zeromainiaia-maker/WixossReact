@@ -2046,6 +2046,15 @@ test('parse センタールリグ対象: 凍結／アタック無効が LRIG に
   const asst = parseCardEffects({ CardNum: 'TEST-LASST', Type: 'アーツ', EffectText: 'センタールリグではない対戦相手のルリグ１体を対象とし、それを凍結する。' } as unknown as CardData)[0];
   ok((asst.action as unknown as { target?: { type: string } }).target?.type !== 'LRIG', 'アシストルリグはセンター扱いにしない');
 });
+test('parse 「ルリグかシグニ」（センター表記なし）も CENTER_LRIG_OR_SIGNI（パターンB 同根）', () => {
+  const d1 = parseCardEffects({ CardNum: 'TEST-LS1', Type: 'アーツ', EffectText: '対戦相手のルリグかシグニ１体を対象とし、それをダウンする。' } as unknown as CardData)[0];
+  eq((d1.action as unknown as { target: { type: string } }).target.type, 'CENTER_LRIG_OR_SIGNI', '「ルリグかシグニ」（従来はシグニ限定に潰れていた）');
+  const d2 = parseCardEffects({ CardNum: 'TEST-LS2', Type: 'アーツ', EffectText: '対戦相手のルリグとシグニを合計２体まで対象とし、それらをダウンする。' } as unknown as CardData)[0];
+  const t2 = (d2.action as unknown as { target: { type: string; count: number; upToCount?: boolean } }).target;
+  eq(t2.type, 'CENTER_LRIG_OR_SIGNI', '「ルリグとシグニを合計N体まで」');
+  eq(t2.count, 2, '2体');
+  eq(t2.upToCount, true, 'まで＝upToCount');
+});
 test('FREEZE(LRIG) 実行: 相手センタールリグが lrig_frozen になる', () => {
   const ctx = mkCtx({}, {});
   const r = run({ type: 'FREEZE', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as unknown as EffectAction, ctx);
