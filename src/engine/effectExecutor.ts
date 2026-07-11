@@ -1750,6 +1750,9 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     // 該当フラグが無ければ no-op。lastProcessedCards を渡して「この方法で処理したシグニのレベル/パワー以下」を解決可能にする。
     const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
+    // 「この方法で捨てたシグニ」基準のレベル/クラス相対（levelLt/LteDiscardSigni・levelEqDiscardSigniOffset・
+    // classMatchesDiscardSigni）は常にキャスター（ctx.ownerState＝コスト支払者）の記録値で解決する。WDK13-013/WXK10-033/WXEX2-37。
+    resolvedFilter = { ...resolveDiscardLevelFilter(resolvedFilter, ctx.ownerState) };
     resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum) };
   }
 
