@@ -598,6 +598,75 @@ const scenarios = {
     },
   },
 
+  // ⑦''''' ON_TARGETED③個別確認（§7・WXDi-P02-043）: usageLimit《ターン1回》が同一ターン内で複数回
+  //    対象化されても2回目以降は発火しないことの検証。`ontargeted2`と同じ watcher（ドライ＝インフルＤ型・
+  //    mandatory・対象選択不要のDRAW+ENERGY_CHARGE）を使い、WD05-017（黒×1・対戦相手シグニ-4000）を
+  //    2枚手札に用意して同一ターン内に2回発動＝同じwatcherを2回対象化する。1回目でguest.handが+1され、
+  //    2回目は once_per_turn ガードにより増えないはず。
+  ontargetedUsageLimit: {
+    title: 'WD05-017×2→WXDi-P02-043（ON_TARGETED③＝同一ターン内2回対象化でも発火は1回のみ）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ）
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3', 'WD05-009#4'], // 黒×1コスト×2回分
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-P02-043#1'], null, null], // watcher（ドライ＝インフルＤ型・唯一の対象候補）
+      },
+      handPrepend: ['WD05-017#1', 'WD05-017#2'],          // ホール・ダーク×2（同一ターン内に2回発動）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const gHand0 = before?.guest?.hand ?? 0;
+      H.log('guest 初期手札:', gHand0);
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      const castOnce = async (label) => {
+        await H.ensureMain();
+        H.log(`[${label}] スペル手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
+        for (let s = 0; s < 20; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/ontargetedUsageLimit-${label}-${s}.png`, fullPage: true });
+          let did = await clickExact('発動');
+          if (!did) {
+            const e0 = page.getByTestId('spellcost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) {
+              const cast = await clickExact('発動する');
+              if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+            }
+          }
+          if (!did) {
+            const pick0 = page.getByTestId('pick-0').first();
+            if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+          const st = await H.queryState();
+          H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | gHand=${st?.guest?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+          // 発動完了の判定＝pendingSpell/pendingEffect/stackが全て解消
+          if (!st?.pendingSpell && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && s > 2) return st;
+        }
+        return await H.queryState();
+      };
+      const afterFirst = await castOnce('cast1');
+      const gHand1 = afterFirst?.guest?.hand ?? gHand0;
+      H.log(`1回目終了後 guest.hand=${gHand1}（開始${gHand0}）`);
+      if (gHand1 <= gHand0) {
+        return { pass: false, detail: `1回目のON_TARGETEDが未発火（gHand ${gHand0}→${gHand1}）＝usageLimit検証の前提が崩れた` };
+      }
+      const afterSecond = await castOnce('cast2');
+      const gHand2 = afterSecond?.guest?.hand ?? gHand1;
+      H.log(`2回目終了後 guest.hand=${gHand2}（1回目後${gHand1}）`);
+      if (gHand2 === gHand1) {
+        return { pass: true, detail: `usageLimit《ターン1回》が正しく機能＝1回目でgHand ${gHand0}→${gHand1}・2回目の対象化では増えず（${gHand1}→${gHand2}）` };
+      }
+      return { pass: false, detail: `【要注意】usageLimit未機能の疑い＝2回目の対象化でもgHandが増加（${gHand1}→${gHand2}）＝once_per_turnガードが同一ターン内2回目の対象化で効いていない` };
+    },
+  },
+
   // ⑧ ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 弩炎 フレイスロ少佐【自】＝味方＜ウェポン＞シグニが
   //    効果で対戦相手シグニをバニッシュしたとき、自分のシグニ1体に【ダブルクラッシュ】付与（any_ally・triggerFilter story=ウェポン）。
   //    配線＝resolveStackNext 中央 diff/4761（banisher が場の自シグニ＋対戦相手バニッシュ検出）。
