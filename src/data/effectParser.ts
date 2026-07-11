@@ -2476,6 +2476,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 別効果の duration であり誤爆させない（WX24-P2-059＝トリガーは「あなたのターン終了時」self）。
         if (/対戦相手のターン(?:終了|開始)時(?:に)?[、,]/.test(actionText)) extractedTriggerScope = 'any_opp';
       }
+      // ON_MAIN_PHASE_START も同じく主語で scope を決める（「対戦相手のメインフェイズ開始時」＝any_opp・1件）。
+      if (timing[0] === 'ON_MAIN_PHASE_START') {
+        if (/対戦相手のメインフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any_opp';
+      }
       // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
       if (timing[0] === 'ON_ATTACK_SIGNI') {
         const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
