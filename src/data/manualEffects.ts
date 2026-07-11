@@ -2522,6 +2522,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectType: 'AUTO',
       timing: ['ON_TURN_END'],
       activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
+      // 「対戦相手のターン終了時」＝相手のターン境界に反応（curated JSON は any_opp を持つ。
+      // ここに無いと build:effects の fresh が triggerScope を落とす＝続き77 Sonnet観測(c)）
+      triggerScope: 'any_opp',
       action: { type: 'STUB', id: 'REMOVE_SELF_SIGNI_FROM_GAME' } as import('../types/effects').StubAction,
       duration: 'INSTANT',
       mandatory: true,
