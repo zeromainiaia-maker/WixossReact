@@ -1,12 +1,14 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-11T10:44:21.436Z / 刻印効果 142件
+生成: 2026-07-11T10:59:23.350Z / 刻印効果 148件
 
 ## カテゴリ別件数
 
 - IS_MY_TURN化: 125
 - multi-dest分割: 11
 - リコレクト分割: 8
+- ON_DISCARDED_AS_COST: 4
+- ON_OPP_POWER_DECREASED: 2
 
 ## 明細（effectId → 理由）
 
@@ -86,8 +88,14 @@ WX25-P1-039-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P1-044-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P2-039-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P2-041-E1	multi-dest分割:UNKNOWNアクション除去
+WX25-P3-032-E1	ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似
 WX25-P3-038-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P3-045-E1	multi-dest分割:UNKNOWNアクション除去
+WX25-P3-062-E1	ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似
+WX25-P3-071-E2	ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似
+WX25-P3-077-E2	ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似
+WX25-P3-084-E2	ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似
+WX25-P3-088-E2	ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似
 WX26-CP1-058-E1	IS_MY_TURN化:その後、この方法であなたのデッキから＜プリオケ＞のカードが３枚以上トラッシュに置かれた場合、
 WX26-CP1-066-E1	IS_MY_TURN化:その後、このシグニのパワーが15000以上の場合、
 WX26-CP1-092-E1	IS_MY_TURN化:この方法で＜プリオケ＞のカードが１枚以上トラッシュに置かれた場合、
