@@ -1628,29 +1628,31 @@ function splitSentences(text: string): string[] {
 // abilities へ展開する（rawText 一時保持・展開不能なら PARTIAL）。
 // ⚠ CONTINUOUS 効果でのみ呼ぶこと（GRANT_FIELD_SIGNI_ABILITY は CONTINUOUS 収集専用。
 //   durational な 【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」は GRANT_EFFECT 系の管轄で本関数の対象外）。
-function parseContinuousQuotedGrant(text: string): EffectAction | null {
-  if (process.env.PCQG_DEBUG) console.error('[PCQG]', JSON.stringify(text.slice(0, 80)));
-  // ---- 多段「（このシグニは）下にレベルNのシグニがあるかぎり、「Q」を得る。」（WX24-P1-043＝ライズ3段付与）----
-  // 従来は下の qfSelf の貪欲マッチが3つの引用を1つの rawText へ丸呑みして展開不能（1段目のみ UNKNOWN で残存・
-  // 2/3段目消失＝続き77 Sonnet観測(b)）。段ごとに THIS_CARD_HAS_UNDER{filter:{level:N}} を付与した
-  // rawStages に分解し、展開時（parseBlock 後）に各 CardEffect の activeCondition へ注入する。
-  {
-    const stageRe = /(?:このシグニは)?(下に)?レベル([０-９\d]+)のシグニがあるかぎり、「(【[自常起出]】[\s\S]*?)」を得る。?/g;
-    const stages = [...text.matchAll(stageRe)];
-    if (stages.length >= 2 && stages[0][1] === '下に') {
-      // 全文が段マッチで尽きる（他の文を無言脱落させない）ことを確認
-      const leftover = stages.reduce((acc, m) => acc.replace(m[0], ''), text).trim();
-      if (leftover === '') {
-        return {
-          type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [],
-          rawStages: stages.map(m => ({
-            activeCondition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: parseNum(m[2]) } } as ActiveCondition,
-            rawText: m[3].trim(),
-          })),
-        } as GrantFieldSigniAbilityAction;
-      }
+// ---- 多段「（このシグニは）下にレベルNのシグニがあるかぎり、「Q」を得る。」（WX24-P1-043＝ライズ3段付与）----
+// 従来は genericKagiri（条件抽出ループ）が1段目条件を無言消費し、qfSelf の貪欲マッチが残り3引用を
+// 1つの rawText へ丸呑みして展開不能（1段目のみ UNKNOWN で残存・2/3段目消失＝続き77 Sonnet観測(b)）。
+// 段ごとに THIS_CARD_HAS_UNDER{filter:{level:N}} を付与した rawStages に分解し、展開時（parseBlock 後）に
+// 各 CardEffect の activeCondition へ注入する。⚠条件抽出ループより**前**に呼ぶこと（1段目条件が要る）。
+function parseMultiStageUnderGrant(text: string): EffectAction | null {
+  const stageRe = /(?:このシグニは)?(下に)?レベル([０-９\d]+)のシグニがあるかぎり、「(【[自常起出]】[\s\S]*?)」を得る。?/g;
+  const stages = [...text.matchAll(stageRe)];
+  if (stages.length >= 2 && stages[0][1] === '下に') {
+    // 全文が段マッチで尽きる（他の文を無言脱落させない）ことを確認
+    const leftover = stages.reduce((acc, m) => acc.replace(m[0], ''), text).trim();
+    if (leftover === '') {
+      return {
+        type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [],
+        rawStages: stages.map(m => ({
+          activeCondition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: parseNum(m[2]) } } as ActiveCondition,
+          rawText: m[3].trim(),
+        })),
+      } as GrantFieldSigniAbilityAction;
     }
   }
+  return null;
+}
+
+function parseContinuousQuotedGrant(text: string): EffectAction | null {
   // ---- 連用中止「このシグニのパワーは＋Nされ、<B>」＝パワー修正＋残りの複合（WXDi-P11-046 等）----
   // 従来は先頭のパワー修正が無言脱落し <B> だけが残る（＋3000 消失＝続き77 Sonnet観測(b)）。
   // CONT の POWER_MODIFY 収集（extractPowerModifies）は SEQUENCE を再帰するため SEQUENCE 化で正しく効く。
