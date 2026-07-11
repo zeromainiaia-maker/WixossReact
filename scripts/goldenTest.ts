@@ -659,6 +659,12 @@ test('ON_TRASH「手札から」単独 構造固定（ON_PLAY に化けていな
   ok(!!e, 'WX15-036（「このカードが手札からトラッシュに置かれたとき」）: ON_TRASH のはず');
   eq(JSON.stringify(e?.triggerCondition?.fromZones), '["hand"]', 'WX15-036: fromZones=["hand"]');
 });
+// ON_HAND_DISCARDED（「（ガードステップ以外で）あなたが手札を捨てたとき」）。engine 配線済みで、
+// 「ガードステップ以外で」は engine 側が構造的に担保する（ガードの手札捨てでは hand_discarded_just が立たない）。
+test('ON_HAND_DISCARDED 構造固定（手札捨て時が ON_PLAY に化けていない）', () => {
+  const e = (effectsMap.get('WXK09-069') ?? []).find(x => x.timing?.includes('ON_HAND_DISCARDED'));
+  ok(!!e, 'WXK09-069（「あなたが手札を捨てたとき」）: ON_HAND_DISCARDED のはず');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
