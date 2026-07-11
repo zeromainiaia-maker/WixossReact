@@ -1589,7 +1589,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- スペル使用禁止（対戦相手 or 自分）----
   if (t.match(/対戦相手はスペルを使用できない/)) {
-    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'PERMANENT';
+    // ⚠「このターン、」の判定が抜けており **恒久のスペルロック**（PERMANENT）に化けていた（WXK10-002②）。
+    //   すぐ上の USE_ARTS 側と同じ3分岐に揃える。
+    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN'
+      : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_SPELL', until };
   }
   if (t.match(/このターン、あなたはスペルを使用できない/)) {
