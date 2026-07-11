@@ -1616,6 +1616,45 @@ function splitSentences(text: string): string[] {
 // ⚠ CONTINUOUS 効果でのみ呼ぶこと（GRANT_FIELD_SIGNI_ABILITY は CONTINUOUS 収集専用。
 //   durational な 【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」は GRANT_EFFECT 系の管轄で本関数の対象外）。
 function parseContinuousQuotedGrant(text: string): EffectAction | null {
+  // ---- 多段「（このシグニは）下にレベルNのシグニがあるかぎり、「Q」を得る。」（WX24-P1-043＝ライズ3段付与）----
+  // 従来は下の qfSelf の貪欲マッチが3つの引用を1つの rawText へ丸呑みして展開不能（1段目のみ UNKNOWN で残存・
+  // 2/3段目消失＝続き77 Sonnet観測(b)）。段ごとに THIS_CARD_HAS_UNDER{filter:{level:N}} を付与した
+  // rawStages に分解し、展開時（parseBlock 後）に各 CardEffect の activeCondition へ注入する。
+  {
+    const stageRe = /(?:このシグニは)?(下に)?レベル([０-９\d]+)のシグニがあるかぎり、「(【[自常起出]】[\s\S]*?)」を得る。?/g;
+    const stages = [...text.matchAll(stageRe)];
+    if (stages.length >= 2 && stages[0][1] === '下に') {
+      // 全文が段マッチで尽きる（他の文を無言脱落させない）ことを確認
+      const leftover = stages.reduce((acc, m) => acc.replace(m[0], ''), text).trim();
+      if (leftover === '') {
+        return {
+          type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [],
+          rawStages: stages.map(m => ({
+            activeCondition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: parseNum(m[2]) } } as ActiveCondition,
+            rawText: m[3].trim(),
+          })),
+        } as GrantFieldSigniAbilityAction;
+      }
+    }
+  }
+  // ---- 連用中止「このシグニのパワーは＋Nされ、<B>」＝パワー修正＋残りの複合（WXDi-P11-046 等）----
+  // 従来は先頭のパワー修正が無言脱落し <B> だけが残る（＋3000 消失＝続き77 Sonnet観測(b)）。
+  // CONT の POWER_MODIFY 収集（extractPowerModifies）は SEQUENCE を再帰するため SEQUENCE 化で正しく効く。
+  // <B> が UNKNOWN に落ちる場合は分割せず従来経路へ委ねる（退化防止）。
+  {
+    const renyoM = text.match(/^このシグニのパワーは([＋+－-])([０-９\d]+)され、(.+)$/s);
+    if (renyoM) {
+      const rest = renyoM[3].trim();
+      const restAction = parseContinuousQuotedGrant(rest) ?? parseActionText(rest);
+      if (restAction.type !== 'UNKNOWN' && !JSON.stringify(restAction).includes('"UNKNOWN"')) {
+        const sign = (renyoM[1] === '－' || renyoM[1] === '-') ? -1 : 1;
+        return { type: 'SEQUENCE', steps: [
+          { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: sign * parseNum(renyoM[2]) },
+          restAction,
+        ] } as SequenceAction;
+      }
+    }
+  }
   const qfSelf = text.match(/^(?:このシグニは)?「(【[自常起出]】.+)」を得る。?$/s);
   if (qfSelf && !/」と「|」か「/.test(qfSelf[1])) {
     return { type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [], rawText: qfSelf[1] } as GrantFieldSigniAbilityAction;
