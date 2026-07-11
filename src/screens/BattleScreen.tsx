@@ -9273,7 +9273,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  // ON_ACCE トリガー: ATTACH_ACCE 完了後にホストシグニのON_ACCE AUTO効果を発火
+  // ON_ACCE トリガー: ATTACH_ACCE 完了後に自フィールドのシグニの ON_ACCE AUTO効果を発火
+  // ⚠triggerScope で主語を絞る（既定 self）＝「**この**シグニに【アクセ】が付いたとき」（WXK05-066/067 等）は
+  //   アクセが付いた当のシグニ（acceHostCardNum）でのみ発火する。従来は場の全シグニを無条件に走査していたため、
+  //   別のシグニにアクセを付けただけで発火する過剰発火だった。'any_ally'/'any'＝「**あなたの**シグニ1体に
+  //   【アクセ】が付いたとき」（WXK04-051/WXK05-064）は従来どおり自フィールド全体が反応する。
   const checkAndFireOnAcceTriggersForOwner = async (state: PlayerState, acceHostCardNum: string) => {
     const triggerEntries: StackEntry[] = [];
     for (const stack of state.field.signi) {
@@ -9282,6 +9286,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO') continue;
         if (!eff.timing?.includes('ON_ACCE')) continue;
+        const acceScope = eff.triggerScope ?? 'self';
+        if (acceScope === 'self' && topNum !== acceHostCardNum) continue;
         if (eff.condition && !evalUseCondition(eff.condition, state, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
         const card = battleCardMap.get(topNum);
         triggerEntries.push({
