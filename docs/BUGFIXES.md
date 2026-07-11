@@ -5,6 +5,28 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化 第2弾＝**engine 配線済みの残クラスタ5系統を開通（31枚）**（2026-07-12・続き76・Opus 4.8）
+
+第1弾（9種35枚）に続き、`npm run census:timing` の残（174効果）から **engine に受け皿があるのに parser が語彙を持たない**クラスタを5系統さらに開通した。
+
+| timing / 条件 | 枚数 | 原文 | engine の受け皿 |
+|---|---|---|---|
+| `ON_CARD_MILLED_FROM_DECK` | 10 | 「（効果Nつによって）（あなた/対戦相手/いずれかのプレイヤー）のデッキからカードがN枚以上トラッシュに置かれたとき」 | `collectMillTriggers`（`milledDeckOwner` / `milledMinCount`） |
+| `ON_SELF_REVEAL_FROM_HAND` | 6 | 「あなたが自分の効果によって手札からカードをN枚以上公開したとき」 | BattleScreen の場シグニ走査（G198） |
+| `ON_PLAY` + `placedFront` | 3 | 「対戦相手のシグニN体がこのシグニの正面に配置されたとき」 | `collectFieldTriggers` の `placedFront`（正面ゾーン一致） |
+| `ON_LEAVE_FIELD` + `leftToZone:'hand'` | 4 | 「（あなたの）シグニN体が場から手札に戻ったとき」 | `collectLeaveFieldTriggers`（離れたカードが手札に在中する場合のみ） |
+| `ON_HAND_DISCARDED` + `triggerFilter` | 8 | 「あなたが（手札から）（＜X＞の/《ディソナアイコン》の）シグニ/カードをN枚捨てたとき」 | `collectHandDiscardTriggers` の `matchesTrigFilter` |
+
+**parser 全数機械測定＝31枚**（変更前後を全6712枚でダンプし正規形比較）＝**30枚が timing/scope/条件/フィルタのみの変化**。残る1枚（WDK05-T11）は既存の「ON_LEAVE_FIELD ＋『してもよい』＝任意トリガー」規則が効いて `mandatory` が true→false になったもの（意図どおり）。
+
+**🔎 知見＝MANUAL カードの curated が「正解の答案」になる**。今回 build:effects が温存した19枚を fresh と突き合わせたところ、**ほぼ全て curated が既に同一の timing / triggerCondition を持っていた**（`milledDeckOwner`・`milledMinCount`・`placedFront`・`leftToZone`・`triggerFilter`）＝**手修正の慣例と regex の出力が一致していることの機械的な裏取り**になる。逆に食い違った2点はどちらも parser 側の取りこぼしで、curated が正しかった：
+- **「いずれかのプレイヤーのデッキから」を `self` に倒していた**（WX24-P4-088）→ `milledDeckOwner:'any'` を追加。
+- **《ディソナアイコン》のフィルタ表現**＝curated の慣例は `isDisona:true`（`story:'Dissona'` ではない）→ parser をそちらへ揃え、decompiler にも描画を追加。
+
+**検証**＝`npm run gates` 全緑（**golden 203/203**〔+1＝5系統の parser assert〕・smoke/fuzz 全0・**census 1532→1529**・lint 0 errors）／`regen` で同型★0・逆翻訳が原文一致／**timing フォールバック 174→143**（第1弾と合わせて 209→143）。engine 不変（parser/decompiler のみ）で、実機3シナリオ（handDiscard・acceSelfScope・acceOtherScope）に回帰なし。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化⑩〜⑱＝**engine 配線済みなのに parser に語彙が無かった timing を9種まとめて開通（35枚）＋ON_ACCE の過剰発火とSTUB誤ルーティングを是正**（2026-07-12・続き76・Opus 4.8）
 
 `npm run census:timing` の残テール（209効果 / 147クラスタ）から、**engine に収集関数があるのに parser が一度も生成していない** timing を静的ギャップと突き合わせて9種抽出し、まとめて開通した。すべて **ON_PLAY（＝「場に出たとき」）へ黙って誤フォールバック**しており、**召喚しただけで発火する幻覚**になっていた。
