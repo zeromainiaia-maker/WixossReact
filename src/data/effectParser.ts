@@ -1491,19 +1491,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
     const upThenM = t.match(/^(?:[^。]{2,60}たとき[、,])?この(?:シグニ|カード)をアップし[、,]\s*(.+)$/s);
     if (upThenM) {
       const restText = upThenM[1];
+      // 「ターン終了時まで、」が残り文の先頭へ回るケースの期間復元は parseSingleSentence 側の
+      // restoreLeadUntilEndOfTurn が共通処理する（旧・ここでのインライン復元は共通化に伴い削除）。
       const rest = parseSingleSentence(restText);
-      // ⚠「ターン終了時まで、」は分割後に残り文の**先頭**へ回るため、parseSingleSentence 側の共通プレフィックス
-      //   除去（`^ターン終了時まで、`）に食われて期間判定が PERMANENT へ化ける。分割前の文脈を知っているここで復元する。
-      if (/^ターン終了時まで[、,]/.test(restText.trim())) {
-        const restoreUntilEndOfTurn = (a: EffectAction | undefined): void => {
-          if (!a || typeof a !== 'object') return;
-          const ra = a as { type: string; until?: string; duration?: string; steps?: EffectAction[] };
-          if (ra.until === 'PERMANENT') ra.until = 'UNTIL_END_OF_TURN';
-          if (ra.duration === 'PERMANENT') ra.duration = 'UNTIL_END_OF_TURN';
-          if (ra.type === 'SEQUENCE') ra.steps?.forEach(restoreUntilEndOfTurn);
-        };
-        restoreUntilEndOfTurn(rest);
-      }
       const up: EffectAction = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
       return { type: 'SEQUENCE', steps: [up, rest] } as EffectAction;
     }
