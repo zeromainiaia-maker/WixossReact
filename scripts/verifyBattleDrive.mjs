@@ -1026,6 +1026,25 @@ const scenarios = {
     },
   },
 
+  // acceSelfScope の**負のケース**＝watcher を zone1 に置き、アクセを zone0（別シグニ）に載せる。
+  //   scope=self なので watcher は**発火しない**（エナが増えない）ことを確認する＝修正前はここで +1 になっていた
+  //   （＝別のシグニにアクセを付けただけで「このシグニに付いたとき」が発火する過剰発火）。drive は同じものを共有。
+  acceOtherScope: {
+    title: 'WDK07-E17（ON_ACCE scope=self）＝別シグニへのアクセでは非発火（過剰発火の回帰ガード・続き76）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK04-003#1'],
+        'field.signi': [['WXK05-026#1'], ['WDK07-E17#1'], null],  // zone0=別シグニ（アクセ先）/ zone1=watcher
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: { 'field.signi': [['WD01-013#1'], null, null] },
+      handPrepend: ['WXK05-041#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    drive: (page, H) => scenarios.acceSelfScope.drive(page, H),
+  },
+
   // ⑧''' ON_EXCEED_COST 場シグニ（R44・§7・WXDi-P06-078）: 【自】《ターン１回》＝あなたのターンの間、あなたが
   //    エクシードのコストを支払ったとき、対戦相手のシグニ１体を対象とし《黒》を払ってもよい（STUB
   //    TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）。払えばターン終了時までそれのパワー-5000。
