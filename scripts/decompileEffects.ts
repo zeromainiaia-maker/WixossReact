@@ -337,7 +337,7 @@ function condJa(c?: any): string {
       return `${ownerJa(c.owner)}場にあるすべてのシグニが${cls}`;
     }
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
-    case 'THIS_CARD_HAS_UNDER': return 'このシグニの下にカードがある';
+    case 'THIS_CARD_HAS_UNDER': return c.filter ? `このシグニの下に${filterJa(c.filter)}シグニがある` : 'このシグニの下にカードがある';
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
     case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
