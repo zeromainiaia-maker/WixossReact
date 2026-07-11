@@ -2460,6 +2460,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // （`exceedPaidCards` 走査。※`triggerCondition.exceedCostPaidByPlayer` を持つ「あなたが支払ったとき」変種は
              //  場のシグニ側で発火する別経路＝そちらは MANUAL 管理）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
              : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(actionText) ? ['ON_EXCEED_COST']
+             // 「このシグニがライズされたとき」（11件・§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
+             // **ライズされたシグニ自身**（self）の AUTO を収集。
+             // ⚠「《X》にライズされたとき」（2件）は**下敷きになった側**の反応＝別機構なので拾わない（self とは主語が違う）。
+             : /このシグニがライズされたとき/.test(actionText) ? ['ON_RISE']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
