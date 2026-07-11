@@ -2504,6 +2504,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_MAIN_PHASE_START') {
         if (/対戦相手のメインフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any_opp';
       }
+      // ON_SIGNI_BECOMES_DRIVE / ON_BECOME_BEAT: 主語で scope を決める。
+      //   「このシグニ/このカードが…」＝self（既定）／「あなたの[他の]シグニ・カードが…」＝any_ally（「他の」は excludeSelf）。
+      if (timing[0] === 'ON_SIGNI_BECOMES_DRIVE') {
+        if (/あなたのシグニ(?:[０-９\d]+体)?がドライブ状態になったとき/.test(actionText)) extractedTriggerScope = 'any_ally';
+      }
+      if (timing[0] === 'ON_BECOME_BEAT') {
+        const beatM = actionText.match(/あなたの(他の)?カードが【ビート】になったとき/);
+        if (beatM) {
+          extractedTriggerScope = 'any_ally';
+          if (beatM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+        }
+      }
       // ON_SPELL_USE: 使用者（主語）を triggerScope に、スペルの色を triggerFilter.color に抽出。
       //   「あなたが…」＝self（既定）／「対戦相手が…」＝any_opp／「いずれかのプレイヤーが…」＝any。
       //   ⚠「あなたが**対戦相手のスペル**を使用したとき」は使用者が自分＝self（「対戦相手が」より先に判定しない）。
