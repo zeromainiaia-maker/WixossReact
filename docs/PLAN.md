@@ -91,7 +91,7 @@
 7. **§6.1 未実装action型 残11種27効果の engine 実装**（instant層＝PLAY_FREE_FROM_TRASH／STACK_SPELL／PREVENT_DAMAGE・CONT層＝COST_SUBSTITUTE／SELF_TRASH_PREVENT／COLOR_INHERIT／GRANT_FIELD_SHADOW）。
 8. **§6.3 大型機構**（ゲーム除外＝WXDi-P04-016-E3 とセット・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査）。
 9. **§6.2 semantic audit 系統残の機構対応**＝系統①(b)「あなたか対戦相手」`owner:'any'` 選択18枚（engine/decompiler の選択対応・opponent への flip 禁止）・(c)混在10枚のノード単位判別・系統②残（SEQUENCE内 GRANT_PROTECTION＝WX08-017・LAYER付与＝WX15-031・広域24件の subjectFilter/新機構）。
-10. **CHOOSE平坦化復元 held 約38枚の最終見極め＋採用**（続き29 parser修正の採用バックログ＋続き69追加の3枚〔WX20-078/SPK01-14/WX19-062〕。Sonnetタスク2 の全数機械分類を受けて、グレー判定と採用実行だけ Opus が行う）。
+10. **CHOOSE平坦化復元 held の最終見極め＋採用**（🆕続き71＝Sonnetタスク2 の全数機械分類54枚が完了＝WXK10-013採用済み・残53枚を系統別パターンA〜Fに整理済み＝詳細 BUGFIXES 続き71。**パターンA=5→4択融合**〔PR-K056/WXK10-002〕・**パターンB=LRIG/SIGNI型混同**〔WX17-020/WXK10-012・WX25-CP1-026/028も疑い〕・**パターンC=STUB誤マッチ**〔WXK10-010/WDK17-008/WXK10-018〕・**パターンD=条件ゲート脱落**〔WD20-018/WXDi-P13-045〕・**パターンE=WX14-011既知owner逆転**・**パターンF=要個別精査40枚**。既知据置3枚〔WX20-078/SPK01-14/WX19-062〕はカード全体の構造破綻で今回のCHOOSE化では不十分＝別途フルパース要）。
 11. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ WX09-012/WX12-010）。
 12. **Sonnet が積んだ engine/parser バグの修正（常設受け口）**＝Sonnetタスク1（実機検証）・4（一次トリアージ）・8（semantic audit）の観測結果を受けて修正する。
 13. **§5b 残367件の混線テール**＝effect構造そのものが原文とズレたカードの effects JSON 再parse（1カードずつ手修正→逆翻訳原文一致→ゲート。**原文コピーでの一括潰しは禁止**）。
