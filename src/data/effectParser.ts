@@ -1644,7 +1644,9 @@ function parseMultiStageUnderGrant(text: string): EffectAction | null {
         type: 'GRANT_FIELD_SIGNI_ABILITY', thisCardOnly: true, abilities: [],
         rawStages: stages.map(m => ({
           activeCondition: { type: 'THIS_CARD_HAS_UNDER', filter: { cardType: 'シグニ', level: parseNum(m[2]) } } as ActiveCondition,
-          rawText: m[3].trim(),
+          // 主語省略形「【常】：対戦相手の効果によってダウンしない」は既存規則（part2）が
+          // 「このシグニは…」主語を要求するため、省略された主語を補って渡す
+          rawText: m[3].trim().replace(/^(【[自常起出]】(?:《[^》]*》)?：)(対戦相手の効果によって)/, '$1このシグニは$2'),
         })),
       } as GrantFieldSigniAbilityAction;
     }
