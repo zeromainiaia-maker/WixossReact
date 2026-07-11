@@ -798,6 +798,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン5a3: 「あなたのエナゾーンに<色>のカードがN枚以上あるかぎり、」（色指定エナ枚数条件。
+  // WXDi-P11-046 の引用付与内側「緑のカードが３枚以上あるかぎり」＝続き77観測(b)）
+  const enaColorCountM = text.match(/^あなたのエナゾーンに([白赤青緑黒])のカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (enaColorCountM) {
+    return {
+      condition: { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { color: enaColorCountM[1] }, minCount: parseNum(enaColorCountM[2]) },
+      rest: text.slice(enaColorCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン5b: 「あなたのエナゾーンにあるカードが対戦相手よりN枚以上多いかぎり、」
   const enaDiffM = text.match(/^あなたのエナゾーンにあるカードが対戦相手より([０-９\d]+)枚以上多いかぎり、/);
   if (enaDiffM) {
