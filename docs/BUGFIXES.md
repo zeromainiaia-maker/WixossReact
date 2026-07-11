@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化②＝`ON_SPELL_USE`（16件）＋**相手側 watcher の engine 未配線も是正**（+18枚・census 1557→1554）（2026-07-12・続き75・Opus 4.8・同日第6件）
+
+timing センサスの次の上位クラスタ「（あなた/対戦相手）が[色の]スペルを使用したとき」16件を消化。**engine はスペル解決時に使用者（caster）の場（ルリグ＋シグニ）を走査する形で配線済み**（`triggerFilter.color` の色フィルタ・`usageLimit` 対応）だったが、**parser に timing 語彙が無く `ON_PLAY` へ誤フォールバック**していた。
+
+- **parser**＝timing 抽出に `ON_SPELL_USE` を追加＋主語から triggerScope（「あなたが」＝self／「対戦相手が」＝any_opp／「いずれかのプレイヤーが」＝any）＋`triggerFilter.color`（「緑のスペルを使用したとき」等）を抽出。⚠**「あなたが対戦相手のスペルを使用したとき」は使用者が自分＝self**（「対戦相手が」の判定に先に食われないよう主語をアンカーする）。
+- **🆕 engine も1箇所拡張**（乖離を作らない規律）＝従来は**使用者の場しか走査しておらず、使用者の対戦相手の場にある watcher は一度も発火しなかった**。`triggerScope:any_opp`／`any` の watcher を相手側の場から収集する経路を追加（色フィルタ・usageLimit・condition・`actions_done` 書き戻しは使用者側と同型）。parser が新語彙を出すのに合わせた配線＝**「逆翻訳を直したらエンジン実装までセット」（§3）の履行**。
+- **計測 323→294 効果**。**影響27枚を全数機械diff→18枚採用**。**MANUAL 7枚は温存が正解**（WX09-Re11／WXEX1-33／WXEX2-72／WXK11-033／WXDi-P04-085／WXDi-P13-056／WX25-P2-034＝**curated は既に手修正で `ON_SPELL_USE` を持っている**ことを確認）。**WXDi-P13-008 は不採用**＝本件と無関係の構造変更（`POWER_MODIFY`→`GRANT_LRIG_ABILITY`）が混入するため。
+- **curated が動いたのは意図した18枚のみ**（HEAD とのカード単位機械diffで確認）。
+- **検証**＝`npm run gates` 全緑（**golden 194/194**〔+1＝ON_SPELL_USE 構造固定・色フィルタ〕・smoke/fuzz 全0・**census 1557→1554**〔3枚が語彙獲得＝`BASELINE_HIGH` 更新〕・lint 0 errors）／`regen` で**同型★0・★逆翻訳割れ0**維持・逆翻訳が原文一致（「【自】あなたが緑のスペルを使用したとき：《once_per_turn》…」）。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化①＝`ON_MAIN_PHASE_START`（最大クラスタ29件）＝「メインフェイズ開始時」が ON_PLAY に化けていた（+30枚）（2026-07-12・続き75・Opus 4.8・同日第5件）
 
 新設した timing センサス（同日第4件）の**最大クラスタ「あなたのメインフェイズ開始時」29件**を消化。**engine は元から完全配線済み**（`collectTurnTriggers` を GROW→MAIN 移行時に呼ぶ・`triggerScope` self/any_opp も評価）で、**parser に timing 語彙が無いだけ**だった＝「メインフェイズ開始時に発動する」はずの効果が **`ON_PLAY`（＝場に出たとき）に化け、召喚しただけで発火**していた。
