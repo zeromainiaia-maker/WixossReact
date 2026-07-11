@@ -5,6 +5,47 @@
 
 ---
 
+## §3 Opusタスク12＝Sonnet が積んだ実機バグ5件を一括修正（engine 2＋parser 3・実機7シナリオPASS・2026-07-12・続き75・Opus 4.8）
+
+続き70〜74 で Sonnet が §7 実機検証中に発見し「修正せず観測のみ記録」して Opusタスク12（常設受け口）へ積んだ5件を消化した。**5件すべて実機（`verifyBattleDrive.mjs`）で PASS を確認**。残る1件（続き70の多段SEQUENCE盤面差分トリガー見逃し）は設計判断が要るため別バッチへ。
+
+### ① ON_TARGETED の usageLimit《ターン1回》が毎回発火していた（engine・続き74発見）
+`collectTargetedTriggers`（`src/engine/triggerCollect.ts:41`）は `usageLimit` の判定はしていたが、**発火した effectId を返さない**（`StackEntry[]` のみを返す）設計で、呼び出し元（`BattleScreen.tsx` の SELECT_TARGET 確定経路）が `actions_done` へ書き戻せず、1回目の発火が記録されないため同一ターン内に何度でも再発火していた。他コレクター（`collectCharmToTrashTriggers` 等）は全て `usedOncePerTurnIds` を返して呼び出し元が書き戻す**既存パターン**があり、ON_TARGETED だけが倣っていなかった適用漏れ。
+- **修正**＝戻り値を `{ entries, usedHostIds, usedGuestIds }` へ拡張し、共通の `mkLimitOk`（`twice_per_turn` も扱う）を使う形に統一。呼び出し元で watcher 側の `actions_done` へ後乗せ（done/not-done どちらの分岐でも `update` の最新 state に対して適用）。
+- **golden +1**（消費IDを返し2回目は非発火）／実機 `ontargetedUsageLimit` **FAIL→PASS**（1回目 gHand+1・2回目は増えず）。
+
+### ② ON_CHARM_TO_TRASH がバトルバニッシュ経路で発火しなかった（engine・続き74発見）
+チャームは効果によるバニッシュ（`collectBoardDiffTriggers` を通る `resolveStackNext`/`handleEffectInteraction`）では正しく発火していたが、**戦闘（力比べ）でチャーム付きシグニがバニッシュされる経路**＝`resolvePendingSigniBattleFor` は独自のトリガーリストを組み立てており `collectCharmToTrashTriggers` を一度も呼んでいなかった。**実戦で最頻の経路**（通常の戦闘でチャームが手放される）で ON_CHARM_TO_TRASH 系カードが全く機能しない実害の大きいバグ。
+- **修正**＝`resolvePendingSigniBattleFor` のトリガー組み立て（`allTriggers`）に、バトル前後（`myS`/`opS` → `final*State`）の `countCharmsToTrash` diff に対する `collectCharmToTrashTriggers` 収集を追加（`usedOncePerTurnIds` の書き戻し込み・効果banish経路と同型）。
+- 実機 `charmToTrashBattle` **FAIL→PASS**（バトルバニッシュで watcher が発火・-4000 適用）。
+
+### ③ GRANT_KEYWORD の「あなたの**他の**シグニ」が自分自身に付与されていた（parser＋engine・続き72発見）
+WXDi-P11-040（大罠 パントマイム）の「あなたの他のシグニ1体を対象とし…【シャドウ】を得る」で、**parser が `excludeSelf` を出さず**、かつ **engine（`execGrantKeyword`）が `filter.excludeSelf` を見ていなかった**（`thisCardOnly` のみ実装）ため、他に味方シグニが居ないと効果元自身に付与されていた。
+- **修正**＝parser（`parseSentencePart1.ts` の汎用キーワード付与＋`parseSentencePart2.ts` の3規則）に「対象節に隣接する『他の』」（`/(?:あなた|対戦相手)の他の(?:＜X＞の)?シグニN体を対象とし/`）を見て `filter.excludeSelf` を付与。engine は `execGrantKeyword` の候補解決から `ctx.sourceCardNum` を除外。
+- **golden +1**／実機 `ontargeted3` **PASS**（watcher 自身には付かず、他の味方に【シャドウ】＝`WX01-053#1:シャドウ`）。⚠シナリオ側も「他の味方」を1枚足し、**スペルの対象選択で watcher 側（pick-1）を選ぶ**よう修正（ピッカーの並びが zone 順と一致しないため pick-0 だと watcher が対象にならず ON_TARGETED(scope:self) が発火しない）。
+
+### ④ REMOVE_ABILITIES の owner が原文と真逆だった（parser・続き72発見）
+WX25-P2-055（轟砲 パワードスーツ）の原文は「…対象になったとき、ターン終了時まで、**このシグニは**【常】能力を失う」＝**自己参照**。ところが parser の能力消去規則（`parseSentencePart1.ts:250`）が `t.includes('対戦相手')` でオーナーを決めており、**同一文に残るトリガー句「このシグニが対戦相手の、能力か効果の対象になったとき」の「対戦相手」を拾って** `owner:'opponent'` に化けていた＝**相手シグニの能力を消す真逆の効果**として実行されていた。
+- **修正**＝オーナー判定の前に自己参照（`/このシグニは(?:【[常自起出]】)?能力を失/`）を確定させ `owner:'self' + filter.thisCardOnly` を返す（`execRemoveAbilities` は `thisCardOnly` を実装済み＝engine 不変）。
+- ⚠**引用付与文はガード**＝「…「【自】…このシグニは能力を失う。」を得る」（WXDi-P10-001/WXDi-P09-038）の内側は「付与される能力の中身」であって効果元自身ではないため、`/「[^」]*」を得る/` を含む文には自己参照ルールを効かせない（引用付与の平坦化は §3 Opusタスク1 の担当＝従来動作を据え置き）。これを入れないと WXDi-P10-001 の `count:'ALL'` が `count:1` に潰れる退化が起きる（全数機械分類で検出）。
+- 実機 `ontargeted5` **PASS**（原文どおり watcher 自身が能力喪失＝`gAbilRem=["WX25-P2-055#1"]`。従来は host 側＝対戦相手が能力喪失していた）。
+
+### ⑤ ON_LRIG_GROW の「あなたのターンの間」ゲートが未実装だった（parser・続き73発見）
+WXDi-P13-047 の原文「【自】《ターン1回》：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」に対し、parser が前置きのターン条件を抽出しておらず `triggerCondition.turnOwner` が JSON に無かった。**相手は基本的に自分のターンにしかグロウしない**ため、本来ほぼ常に不成立のはずの効果が**毎回誤発火**していた（過剰効果）。
+- **修正**＝`effectParser.ts` の ON_LRIG_GROW スコープ抽出に、ON_LEAVE_FIELD と同型の「`^(対戦相手|あなた)のターンの間、`前置き→`turnOwner`」処理を追加（engine の `collectLrigGrowTriggers` は `triggerCondition.turnOwner` を既に評価済み＝engine 不変）。
+- **横展開で3枚も同時是正**＝WXDi-P03-039（あなたのターン＋あなたのルリグ）・WXDi-P03-046（続き73でSonnetが検証した もう1枚）・WXDi-P05-010（E1=self／E2=opponent の2本立て）。
+- **golden：既存1件を更新＋回帰1件を追加**（既存「any_opp 相手グロウで発火」は turnOwner ゲートで非発火になったため、原文どおり *watcher のターン中に相手がグロウ* する形＝`trigCtx(GUEST)` へ修正。加えて「相手ターン中の相手グロウでは非発火」を新規追加）。
+- 実機 `lrigGrowAnyOpp`・`lrigGrowAnyOppP03046` とも**判定を反転して PASS**（CPUグロウを `lrigUnder` 0→1 で確認した上で非発火＝ゲート成立）。従来はこの2シナリオが「バグのある挙動」を PASS 判定していた。
+
+### データ反映と検証
+- **parser 修正の影響枚数を全数機械測定**（変更前後の parser 出力を全5973枚でダンプ比較）＝**13枚**（excludeSelf 7／turnOwner 4／thisCardOnly 2）。全13枚を原文照合し、意図した3系統のみが動いたことを確認（引用付与ガードを入れる前は15枚で、うち WXDi-P10-001 に `ALL`→`1` の退化があったためガードを追加して 13枚へ）。
+- **JSON 反映**＝`build:effects`（収穫マージ）で無損失な10枚を自動採用／`heldReview --adopt WX25-P2-055`（owner 変更＝値変更のため held）／MANUAL 温存カード2枚（WXEX2-37・WXDi-CP02-051）は `effectId` アンカーで外科的パッチ。**curated が動いたのは意図した13枚のみ**（HEAD とのカード単位機械diffで確認）。
+- **ゲート**＝`npm run gates` 全緑（typecheck・**golden 190/190**〔+3〕・smoke 全0・fuzz 全0・**census 1557/1557 維持**・lint 0 errors）／`npm run regen` で同型★0・★逆翻訳割れ0 維持。逆翻訳も原文一致（「あなたの**他の**シグニ1体に【シャドウ】」「【自】**《自分ターン》**対戦相手のルリグがグロウしたとき」「**このシグニは**能力を失い」）。
+- **実機**＝`ontargeted`／`ontargeted2`／`ontargeted3`／`ontargeted4`／`ontargeted5`／`ontargetedUsageLimit`／`charmToTrash`／`charmToTrashBattle`／`lrigGrowAnyOpp`／`lrigGrowAnyOppP03046` の**10シナリオ全PASS**（バッチ実行でも回帰なし）。`ontargetedUsageLimit`・`charmToTrashBattle` を既定 `order` に追加。
+- ⚠**driver 側の副作用に注意**＝usageLimit が実際に効くようになったため、watcher が guest 側の ON_TARGETED 系シナリオは注入時に **`guestSet` の `actions_done` をクリアしないと2回目以降の実行で非発火になる**（従来は書き戻しが無く毎回発火していたので露見しなかった）。該当6シナリオに `'actions_done': []` を追加済み。
+
+---
+
 ## §3 Sonnetタスク1＝§7実機検証＝ON_TARGETED③（usageLimit）で実バグを発見・根本原因を特定（2026-07-12・続き74・Sonnet 5・未修正・Opus引き継ぎ・同日第2件）
 
 PLAN §7「ON_TARGETED」残③「usageLimit《ターン1回》が複数対象でも1回」。`ontargetedUsageLimit`シナリオを新設し、`ontargeted2`と同じ watcher（WXDi-P02-043・【自】《ターン1回》対象になったときドロー+エナチャージ）に対し、WD05-017を同一ターン内に2回発動して2回対象化した。
