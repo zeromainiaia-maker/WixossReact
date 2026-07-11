@@ -2732,13 +2732,17 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
+        // choseに転じた直後（このイテレーションでchoose:選択肢1をクリックした時点）のtrashを基準値として確定。
+        // t0はアーツのコスト支払い（エナ1枚消費→トラッシュ1枚）より前の値なので、それをそのままEXILE判定に使うと
+        // コスト支払いの正常なtrash+1をEXILE→TRASH退行と誤検知する（コストの動きとEXILE効果自体の動きは無関係）。
+        if (chose && t1 === null) t1 = st?.host?.trash ?? t0;
         H.log(`  exile[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} hTrash=${st?.host?.trash ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
         if (chose && st && st.host.hand === h0 + 2) {
-          // 4枚引き→2枚除外＝差し引き+2。トラッシュが増えていなければ TRASH ではなく EXILE。
-          if (st.host.trash === t0) {
-            return { pass: true, detail: `execExile(HAND_CARD,blind) 発火→4枚引き後2枚がゲーム除外（hand ${h0}→${st.host.hand}・trash不変=${t0}）` };
+          // 4枚引き→2枚除外＝差し引き+2。トラッシュがコスト支払い後から不変なら TRASH ではなく EXILE。
+          if (st.host.trash === t1) {
+            return { pass: true, detail: `execExile(HAND_CARD,blind) 発火→4枚引き後2枚がゲーム除外（hand ${h0}→${st.host.hand}・trash コスト支払い後不変=${t1}）` };
           }
-          return { pass: false, detail: `EXILE→TRASH退行の疑い＝trashが増加（trash ${t0}→${st.host.trash}）` };
+          return { pass: false, detail: `EXILE→TRASH退行の疑い＝trashが増加（コスト支払い後基準 ${t1}→${st.host.trash}）` };
         }
       }
       const fin = await H.queryState();
