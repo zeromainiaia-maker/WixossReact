@@ -75,8 +75,6 @@ try {
   console.error('検証ドライバ失敗:', e.message);
   exitCode = 2;
 } finally {
-  proc.kill();
-  // 子の vite プロセスツリーを確実に終了（Windows）
-  try { spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { shell: true }); } catch { /* noop */ }
+  killTree(proc);
 }
 process.exit(exitCode);
