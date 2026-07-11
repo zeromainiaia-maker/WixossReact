@@ -1502,7 +1502,8 @@ function parseSingleSentenceInner(text: string): EffectAction {
     // ⚠SEARCH 文（「デッキから…を探して場に出し、デッキをシャッフルする」）は **1つの SEARCH アクション**であって
     //   並列動作ではない（分割すると SEARCH が丸ごと壊れて ADD_TO_FIELD だけになる＝デッキ検索が消える）。
     //   同様に「公開し」「手札に加え」を含む探索文も触らない。
-    const isSearchLike = /探して|デッキから[^。]{0,30}(?:場に出し|手札に加え|公開し)/.test(t);
+    //   「（デッキの上から見た/公開した）**その中から**…場に出し、**残りを**…」も1つの REVEAL_AND_PICK 系アクション。
+    const isSearchLike = /探して|デッキから[^。]{0,30}(?:場に出し|手札に加え|公開し)|その中から|残りを/.test(t);
     if (conjM && !isSearchLike && !/対象とし、|として、|とき|場合|代わりに/.test(t)) {
       let leftText = conjM[1];
       for (const [re, fin] of CONJ_FIN) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
