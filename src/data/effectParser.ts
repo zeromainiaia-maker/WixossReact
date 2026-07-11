@@ -1644,8 +1644,8 @@ function parseActionTextInner(text: string): EffectAction {
       // → CHOOSE(choose_count=M) に recollectArts(thenChooseCount=K) を付与（条件達成で選択数が増える）。
       const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
       const chooseRecoM = text.match(/《リコレクトアイコン》［([０-９\d]+)枚以上］代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
-      if (chooseHeadM && chooseRecoM && /[①②③④]/.test(text)) {
-        const items = [...text.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+      if (chooseHeadM && chooseRecoM && /[①②③④⑤]/.test(text)) {
+        const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
         if (items.length >= 2) {
           return {
             type: 'CHOOSE',
@@ -1834,14 +1834,14 @@ function parseActionTextInner(text: string): EffectAction {
     // 「」を得る」などのフラグメントをスキップ（引用符付き能力の末尾切れ）
     if (c.startsWith('」') || c === '」を得る' || c === '」を持つ') return false;
     // 数字+丸括弧で始まる選択肢番号行（①②③④）はスキップ（CHOOSE ヘッダと対にあるため）
-    if (/^[①②③④]/.test(c)) return false;
+    if (/^[①②③④⑤]/.test(c)) return false;
     // 「どちらか/以下のN/から選ぶ」などCHOOSEヘッダ文はスキップ
     if (/^(?:どちらか|以下の?[０-９\d２-４]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
   });
   // CHOOSEパターン共通ヘルパー
   function buildChoose(rawText: string, chooseCount: number): ChooseAction | null {
-    const items = [...rawText.matchAll(/[①②③④]([^①②③④]+?)(?=[①②③④]|$)/gs)];
+    const items = [...rawText.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
     if (items.length < 2) return null;
     return {
       type: 'CHOOSE',
@@ -1862,7 +1862,7 @@ function parseActionTextInner(text: string): EffectAction {
   // STUB・リコレクトの選択数変更を含む）は選択数の条件分岐が要る＝素の CHOOSE に退化させない（据置）。
   {
     const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
-    if (headM && /[①②③④]/.test(text) && !/代わりに[^。①②③④]*選ぶ/.test(text)) {
+    if (headM && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
     }
@@ -1888,7 +1888,7 @@ function parseActionTextInner(text: string): EffectAction {
     // ---- 「どちらか/いずれか選ぶ。①...②...」パターン：フィルタで選択肢行が消えたが元textにある場合 ----
     // 残存 sentence が「①②③④」に続く選択肢の内容テキストで、元のテキストが選択肢構造の場合のみ適用
     if (
-      /[①②③④]/.test(text) &&
+      /[①②③④⑤]/.test(text) &&
       /(?:どちらか|いずれか)[１-９\d０-９]*つ?を?選ぶ/.test(text) &&
       // 残存 sentence が「その中から」「残りを」等、選択肢後続テキストの典型パターンで始まる場合
       /^(?:その中から|残りを|以下の)/.test(s.trim())

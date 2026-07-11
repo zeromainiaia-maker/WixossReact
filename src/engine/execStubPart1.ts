@@ -2106,7 +2106,7 @@ export function execStubPart1(
         act = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction as EffectAction;
 
       if (act) {
-        optsCMCLG.push({ id: `cmclg_${idx}`, label: `${'①②③④'[idx]}${choiceTxtCMCLG.slice(0, 20)}...`, action: act, available: true });
+        optsCMCLG.push({ id: `cmclg_${idx}`, label: `${'①②③④⑤'[idx]}${choiceTxtCMCLG.slice(0, 20)}...`, action: act, available: true });
       }
     }
     if (optsCMCLG.length === 0) {
