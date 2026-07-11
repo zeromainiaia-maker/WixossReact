@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き78・Fable 5（Opus側）・Opusタスク12＝Sonnet観測8件を全消化＋新規系統3本を発見・横展開・held 148枚採用＋4枚据置・golden 223→230・census 1494→1483・同型★0維持・全ゲート緑）**
+  - **在庫8件の根治**＝(a)EXILE→TRASH誤変換7枚（parser に場シグニEXILE 3形を新設＝5枚は fresh==curated 化・WX24-P3-TK1A の timing是正と WXDi-P13-089 の no-op是正を採用）・(b)条件ドロップ3枚（**ガードCが実行時マーカーSTUB `ARTS_COST_REDUCTION_BY_EFFECT` まで巻き込んでいた**→同IDのみ例外化／TK01A は manualEffects 定義の triggerScope 欠落）・(c)多段「あるかぎり」2枚・(d)inner duration 1枚・(e)GRANT_CHOSEN_ABILITY 汎用ハンドラ点検（実欠陥は WXK08-026 の `_SELF` 誤対象選択→効果元自動化＋クラス限定適用を追加）。
+  - **🔎 新規系統3本を発見して横展開修正**＝①**`parseActiveCondition` の genericKagiri（`^[^。]+かぎり、`）が引用「…」を跨いで消費**し引用前の本文ごと無言消失（→`[^。「」]` に制限）②**連用中止「このシグニのパワーは＋Nされ、<B>」**（全数48枚・従来は＋Nか<B>のどちらかが脱落）→SEQUENCE 分解＋`collectGrantedFromLayer` の SEQUENCE 直下走査を engine に追加③**先頭「ターン終了時まで、」句の strip で action 内 duration が PERMANENT 化**（母集団112枚）→`parseSingleSentence` 層の共通復元 `restoreLeadUntilEndOfTurn` 新設。
+  - **機構の新設**＝`THIS_CARD_HAS_UNDER` に `filter?: TargetFilter`（「下にレベルNのシグニがあるかぎり」＝両評価器＋decompiler 対応）・`GRANT_FIELD_SIGNI_ABILITY.rawStages`（多段条件付き引用付与の段ごと activeCondition 注入）・STUB `LOSE_SIGNI_BARRIER`/`LOSE_LRIG_BARRIER`（engine 実装＋golden）・エナ色枚数条件（`ENERGY_HAS_CARD{color,minCount}`＝WXDi-P14-063 が純上位集合で自動採用）。
+  - **採用は held 151枚の全数機械分類で実施**（A=duration復元のみ112／B=連用中止SEQUENCE化26＝旧葉の全値温存を機械検証／C=個別13）＝計148枚採用。**据置4枚**＝WXK09-050（dispatch設計）・SP27-002（genericKagiri の isTimingMarker 無言消費で引用内条件が脱落する残系統）・WXDi-P10-035（引用内 BOUNCE owner 要精査）・WXDi-P04-016（既知の機構待ち）→**タスク12の新在庫3件として登録済み**。詳細 BUGFIXES 続き78。
+  - **検証**＝`npm run gates` 全緑（golden 230/230〔+7〕・census 1494→1483・smoke/fuzz 全0）／`npm run regen` で同型★0維持・WX24-P1-043/WXDi-P11-046 の逆翻訳が条件・段・付与まで原文一致。`BASELINE_HIGH` と§恒久指標を実数更新。
+  - **次の一手＝Sonnet で再収穫後の実機検証（タスク1＝execFreeze/execNegateAttack LRIG 分岐等・未着手のまま）or Opus でタスク11（BEHAVIOR_AUDIT 高シグナル22 仕分け）/タスク1第2弾/タスク2**。⚠今回の採用148枚は JSON 静的diff＋機械分類での検証＝**続き77の教訓（実機との組み合わせ）に従い、Sonnetタスク1 での実機スイープを推奨**（特に連用中止B群26枚の付与能力発火）。
+
 - **セッション（2026-07-12・続き77・Sonnet 5・**Sonnetタスク6＝§5c 再収穫サイクル完了**・held 99枚中85枚採用＋14枚は退化確認で据置・golden 223維持・census 1514→1494）**
   - **held 99枚の全数精査＝`heldReview.mjs` の3枚spot-check表示だけだと truncate（表示上限12行）で情報喪失が隠れることを実測で発見**＝WX24-P1-043（「レベル1/2/3のシグニがあるかぎり」の3段階付与のうち fresh は1段目しか残さず2/3段目が消える）と WXDi-P11-046（「パワー+3000され、かつ『ダウンしない』を得る」のうち fresh は後半だけ残り+3000部分が消える）が、3枚spot-check表示上は「他4行/他13行」で隠れていた。**→ 全99枚の完全（非truncate）leaf diffを生成し直して1枚ずつ照合**（`docs/_held_full_diff.txt` を一時生成・適用後に削除）。
   - **採用85枚**＝続き76で新設/強化された機構（`GRANT_LRIG_ABILITY`/`GRANT_FIELD_SIGNI_ABILITY` への引用付与構造化・CHOOSE平坦化復元・`IS_SELF_IN_CENTER_ZONE`/`IS_SELF_AWAKENED` の activeCondition付与・条件節CONDITIONAL持ち上げ）が正しく再着地したもの。decompile差分をカード単位で確認（例：WX18-034「このシグニは」→「あなたのすべてのシグニは」＝原文「すべてのシグニ」に是正／WX19-062が単発DRAWから「以下の2つから1つを選ぶ」構造に復元）。
