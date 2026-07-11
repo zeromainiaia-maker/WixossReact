@@ -2454,7 +2454,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 実トリガーの「ターン終了時、/に」のみ ON_TURN_END とする。
              : /ターン終了時(?!まで)/.test(actionText) ? ['ON_TURN_END']
              : actionText.includes('ターン開始時') ? ['ON_TURN_START']
-             : ['ON_PLAY'];
+             // ⚠ここに落ちる＝【自】なのに timing 判定が全て外れて ON_PLAY（「場に出たとき」）になった。原文に
+             //   「…とき/…時」があるならそれは別トリガーの取りこぼし＝timing 語彙の欠落。計器に刻む（parseStatus は不変）。
+             : (logTimingFallback(`${cardNum}-E${index + 1}`, actionText), ['ON_PLAY']);
       // ON_TURN_END / ON_TURN_START: トリガー元ターンの所有者を triggerScope に抽出（actionText 非改変）。
       //   「対戦相手のターン終了/開始時」= any_opp（能力保持シグニが相手のターン境界に反応。collectTurnTriggers の
       //     相手フィールド any_opp/any 分岐が拾う）／「あなたの/自分のターン…」or 無指定 = self（既定）。
