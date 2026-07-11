@@ -118,7 +118,7 @@
 7. **§5b Z-2＝BET系38件の表現描画**（BET_MECHANIC 19＋BET_CONDITION 11＋BET_ALTERNATIVE 8。decompiler に原文抽出の意味文を足すだけ＝engine 不変・ゲートは同型★0＋原文照合のみで軽い。**⚠原文コピーの一括潰しは禁止＝1カードずつ照合**・engine 側の不足は §6.3 へ登録して Opus に回す）。
 8. **semantic audit のパイプライン実行＋データ単点修正**（パイロット findings 真バグ39件のうち owner/値/duration の単点是正＝parser/engine 変更なしのもののみ・stub群2,306枚へのスケールアップ実行＝`semanticAudit{Extract,Run,Triage}.mjs` 回し。意味判定が割れるもの・機構が要るものは Opusタスク12 へ）。
 9. **smoke SKIP 268 の解消**（autopilot の対話カバレッジ拡張＝REVEAL_CARDS/DECLARE_BOND 等・`scripts/smokeTest.ts` 側のみ＝engine 不変・§6.4）。
-10. **WXK04-003 のボタンラベル表示バグ**（【起】2能力が両方「【起】コストなし」表記＝`getMyLrigFieldActions` の costParts が `eff.cost?.coin` 非考慮。UI表示単点・低優先）。
+10. ~~**WXK04-003 のボタンラベル表示バグ**~~ **✅完了（続き81・Sonnet）**＝`getMyLrigFieldActions` 内3箇所（own/継承/付与のcostParts）に `eff.cost?.coin` 考慮を追加。E2「サプライズ《コインアイコン》」が「【起】コストなし」→「【起】コイン1」に是正。実UI検証＝`node scripts/verifyBattleDrive.mjs wxk04003Label` PASS（もう一方のボタン＝`WXK04-003-DECORE`〔manualEffects.ts・【デコレ】ACCE付与〕はcost count:0で元から正当な「コストなし」＝2ボタン共存が正解と判明）。詳細 BUGFIXES 続き81。
 11. **`checkAllEffects` の `MANDATORY_SUSPICIOUS` 一次精査＋`verifyEffects`「定義なし」誤検出（注釈・トークン）の除外改善**（§6.4。実バグ判定が要るものは Opusタスク12 へ）。
 12. **§5b 英語ID漏れ残367件の系統分類**（grep 走査で母集団を機械抽出→混線の系統リスト化まで。JSON再構造化の本修正は Opusタスク13）。
 - ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opusタスク5 へ移管済み）**。
