@@ -1386,8 +1386,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
         if (JSON.stringify(then).includes('"UNKNOWN"')) continue;
         // ガードC: コスト減STUB（COST_REDUCTION系）はコスト計算側がトップレベル走査で収集する＝
         // CONDITIONAL に包むと収集から隠れて無効化するため持ち上げない（WX25-CD1-17 等。続き29）
+        // ⚠例外＝ARTS_COST_REDUCTION_BY_EFFECT は実行時マーカー（execStubPart1 で no-op・トップレベル収集なし）
+        //   ＝CONDITIONAL に包んでも失うものが無く、包まないと条件節ごと脱落する
+        //   （WXDi-P16-009 LIFE_COUNT／WXDi-P16-011 HAND_COUNT＝続き77 Sonnet観測(c)）。
         const thenStub = then as import('../types/effects').StubAction;
-        if (thenStub.type === 'STUB' && typeof thenStub.id === 'string' && thenStub.id.includes('COST_REDUCTION')) continue;
+        if (thenStub.type === 'STUB' && typeof thenStub.id === 'string' && thenStub.id.includes('COST_REDUCTION')
+            && thenStub.id !== 'ARTS_COST_REDUCTION_BY_EFFECT') continue;
         // rest 先頭の「ターン終了時まで、」は再帰先の ^プレフィックス除去で消え PERMANENT 化する
         // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
         if (/^(追加で)?ターン終了時まで、/.test(rest)) {
