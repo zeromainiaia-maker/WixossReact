@@ -480,6 +480,8 @@ const scenarios = {
       const fin = await H.queryState();
       const log = await H.findLog(/シャドウ/);
       if (log) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→ログで【シャドウ】確認「${log}」` };
+      H.log('=== 全ログ末尾(-25) ===');
+      for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
       return { pass: false, detail: `【シャドウ】付与 未確認（grants=${(fin?.guest?.keywordGrants ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
