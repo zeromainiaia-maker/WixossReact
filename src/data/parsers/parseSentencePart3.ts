@@ -954,19 +954,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPP_CHOOSE_YOUR_HAND_DISCARD' } as StubAction;
   }
 
-  // ---- 対戦相手はあなたの手札をN枚見ないで選び、あなたはそれらをゲームから除外する（WX14-011①）----
-  // ⚠従来は「手札を1枚トラッシュに置く」に化けており、**枚数（2枚）も除外（EXILE）も落ちていた**
-  //   （§3 Opusタスク10 パターンE）。engine は execExile の HAND_CARD 分岐＋blind で実行する。
-  {
-    const exM = t.match(/対戦相手はあなたの手札を([０-９\d]+)枚見ないで選び、あなたはそれ(?:ら)?をゲームから除外する/);
-    if (exM) {
-      return {
-        type: 'EXILE',
-        target: { type: 'HAND_CARD', owner: 'self', count: parseNum(exM[1]) },
-        blind: true,
-      } as unknown as EffectAction;
-    }
-  }
 
   // ---- その中から特定ストーリーのカードを公開して手札に加え残りをデッキ下に置く ----
   if (t.match(/その中から.+のカード[０-９\d]+枚を公開し手札に加え、残りをシャッフルしてデッキの一番下に置く/)) {
