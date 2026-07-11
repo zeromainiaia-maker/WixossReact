@@ -2718,6 +2718,7 @@ const scenarios = {
           const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
           if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
         }
+        if (chose && t1 === null) { const stNow = await H.queryState(); t1 = stNow?.host?.trash ?? t0; }
         // EXILE(HAND_CARD,blind) の「手札からカードを2枚選んでください」ピッカー（pick-0/pick-1）→決定(2/2)。
         // ⚠pick-N はクリックのたびに選択トグルするdiv＝一度選んだ後は同じidxを再クリックしない
         // （picked0/picked1 フラグで管理。件数だけを見る「決定(2/」チェックでは0選択の状態と区別できない）
