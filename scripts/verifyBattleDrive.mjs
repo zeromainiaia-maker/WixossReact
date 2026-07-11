@@ -1971,7 +1971,9 @@ const scenarios = {
         await page.waitForTimeout(1200);
         const before = await H.queryState();
         const gTrash0 = before?.guest?.trash ?? 0;
+        const under0 = before?.guest?.lrigUnder ?? 0;
         let overwritten = false;
+        let grew = false;
         for (let s = 0; s < 14; s++) {
           await page.waitForTimeout(1000);
           await page.screenshot({ path: `${SHOT}/lrigGrowAnyOpp-a${attempt}-${s}.png`, fullPage: true });
@@ -1987,16 +1989,24 @@ const scenarios = {
           if (st.error) continue;
           const g = st.guest ?? {};
           const watcherLog = await H.findLog(/LOVIT|ディソナ|の【自】効果（ルリグがグロウしたとき）/);
+          if ((g.lrigUnder ?? 0) > under0) grew = true; // CPU が実際にグロウした（＝トリガー機会が発生した）
+          // 原文＝「【自】《ターン1回》：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」。
+          // 本シナリオは CPU(guest) 自身のターン中のグロウ＝watcher(host) から見て「あなたのターン」ではない
+          // ＝turnOwner:self ゲートにより **非発火が正しい**。発火したら続き73発見バグの回帰（続き75で修正）。
           if ((g.trash ?? 0) > gTrash0) {
-            return { pass: true, detail: `ON_LRIG_GROW any_opp 発火→guestエナ1枚トラッシュ確認（gTrash ${gTrash0}→${g.trash}・log「${watcherLog ?? '—'}」）＝turnOwnerゲート未実装（guest自身のターン中のグロウでも発火）` };
+            return { pass: false, detail: `turnOwner:self ゲート違反＝相手ターン中の相手グロウで誤発火（gTrash ${gTrash0}→${g.trash}・log「${watcherLog ?? '—'}」）。原文は「あなたのターンの間」限定` };
           }
           if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  lrigGrowAnyOpp[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
           if (s % 3 === 0 || did) H.log(`  lrigGrowAnyOpp[a${attempt}.${s}] -> ${did ?? 'なし'} | phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} gTrash=${g.trash} pEff=${st.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
         }
+        if (grew) {
+          const fin = await H.queryState();
+          return { pass: true, detail: `turnOwner:self ゲート成立＝CPU(相手)自身のターンのグロウでは非発火（CPUグロウ確認 under ${under0}→${fin?.guest?.lrigUnder} ・gTrash ${gTrash0} のまま）。発火経路自体は golden「ON_LRIG_GROW: any_opp 相手グロウで発火」でカバー` };
+        }
         if (!overwritten) break;
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `ON_LRIG_GROW any_opp 未確認（guest=${JSON.stringify(fin?.guest)}）` };
+      return { pass: false, detail: `CPUグロウ自体が発生せず検証空振り（guest=${JSON.stringify(fin?.guest)}）` };
     },
   },
 
