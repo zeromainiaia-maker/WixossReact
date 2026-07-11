@@ -1485,6 +1485,23 @@ function parseSingleSentenceInner(text: string): EffectAction {
     if (drawChoose) return drawChoose;
   }
 
+  // 連用中止形の並列動作「Aし、Bする」→ SEQUENCE（§3 Opusタスク10 パターンF-1）。
+  // ⚠従来は**先頭の動作が無言脱落**して後半だけが残っていた（「シグニ1体をバニッシュ**し**、シグニ1体を
+  //   ダウンする」→ DOWN だけ／「手札をすべて捨て、カードを4枚引く」→ DRAW だけ）。
+  // ガード＝①「〜を対象とし、」「〜として、」は**対象指定の節**であって並列動作ではない（split しない）
+  //        ②「とき」「場合」「代わりに」を含む文は条件/トリガー構造なので触らない
+  //        ③**両半分が非UNKNOWNに解けたときだけ** SEQUENCE 化（片方でも解けなければ従来動作＝据置）。
+  {
+    const conjM = t.match(/^(.*?(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|場に出し))、(.+)$/s);
+    if (conjM && !/対象とし、|として、|とき|場合|代わりに/.test(t)) {
+      const left = parseSingleSentence(conjM[1]);
+      const right = parseSingleSentence(conjM[2]);
+      if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN') {
+        return { type: 'SEQUENCE', steps: [left, right] } as SequenceAction;
+      }
+    }
+  }
+
   const result =
     parseSentencePart1(t) ??
     parseSentencePart2(t) ??
