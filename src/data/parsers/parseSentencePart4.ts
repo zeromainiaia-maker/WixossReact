@@ -1838,8 +1838,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ACCE_OP' } as StubAction;
 
   // ---- パワー減少量コピー（毒牙等） ----
+  // ⚠これは「**減った値**と同じだけ＋」＝REACTIVE_POWER_UP（相手の temp_power_mods のマイナス分を自分に加算）。
+  //   POWER_COPY_FROM_DOWNED は「**この方法でダウンした**シグニのパワーと同じだけ＋」（WXDi-P16-052）という
+  //   別の効果の実装で、ここへ流すと「ダウンしたシグニを探す」処理になり原文と無関係の挙動になる（誤ルーティング）。
   if (t.match(/パワーが減ったとき.*このシグニのパワーを減った値と同じだけ/))
-    return { type: 'STUB', id: 'POWER_COPY_FROM_DOWNED' } as StubAction;
+    return { type: 'STUB', id: 'REACTIVE_POWER_UP' } as StubAction;
 
   // ---- センタールリグは選んだ能力を得る ----
   if (t.match(/センタールリグは選んだ能力を得る/))
