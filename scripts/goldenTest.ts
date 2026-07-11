@@ -597,6 +597,39 @@ test('GRANT_TO_PLACED_SIGNI 構造固定（P1-044/P2-039=GRANT_KEYWORD アサシ
   const s3 = JSON.stringify(effectsMap.get('WX24-P3-039') ?? []);
   ok(s3.includes('"MILL"') && s3.includes('"countIsLastProcessedLevelSum":true') && !s3.includes('GRANT_TO_PLACED_SIGNI'), 'WX24-P3-039: MILL countIsLastProcessedLevelSum のはず');
 });
+// ON_SIGNI_BANISH_OPPONENT（「…がバトルによって…をバニッシュしたとき」＝バトル勝利トリガー・続き75）。
+// engine（BattleScreen の battleBanishEntries）は元から配線済みだったが parser がこの語彙を持たず、
+// 31枚が ON_PLAY（「場に出たとき」）へ誤フォールバックしていた＝実質「召喚しただけで発火する」幻覚の回帰ガード。
+test('ON_SIGNI_BANISH_OPPONENT 構造固定（バトル勝利トリガーが ON_PLAY に化けていない・scope も原文どおり）', () => {
+  // 「このシグニがバトルによって対戦相手のシグニ1体をバニッシュしたとき、【エナチャージ1】」＝self
+  const e1 = (effectsMap.get('WXDi-P05-070') ?? []).find(e => e.timing?.includes('ON_SIGNI_BANISH_OPPONENT'));
+  ok(!!e1, 'WXDi-P05-070: ON_SIGNI_BANISH_OPPONENT のはず（ON_PLAY ではない）');
+  eq(e1?.triggerScope ?? 'self', 'self', 'WXDi-P05-070: scope=self（このシグニが）');
+  ok(!JSON.stringify(e1).includes('ON_PLAY'), 'WXDi-P05-070: ON_PLAY へ戻っていない');
+  // 「あなたの＜水獣＞のシグニがバトルによって…バニッシュしたとき」＝any_ally + triggerFilter{story:水獣}
+  const e2 = (effectsMap.get('WXEX2-40') ?? []).find(e => e.timing?.includes('ON_SIGNI_BANISH_OPPONENT'));
+  ok(!!e2, 'WXEX2-40: ON_SIGNI_BANISH_OPPONENT のはず');
+  eq(e2?.triggerScope, 'any_ally', 'WXEX2-40: scope=any_ally（あなたの＜水獣＞のシグニが）');
+  eq(e2?.triggerFilter?.story, '水獣', 'WXEX2-40: triggerFilter.story=水獣');
+});
+// 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
+// GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
+// 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
+test('引用付与の内側 parse（WX24-P1-017）：GRANT_EFFECT targetsLastProcessed＋内側 AUTO が原文どおり', () => {
+  const effs = effectsMap.get('WX24-P1-017') ?? [];
+  const s = JSON.stringify(effs);
+  ok(!s.includes('GRANT_TO_PLACED_SIGNI'), 'STUB GRANT_TO_PLACED_SIGNI に戻っていない');
+  const seq = effs[0]?.action as { steps?: EffectAction[] };
+  const ge = (seq.steps ?? []).find(x => x.type === 'GRANT_EFFECT') as { effect?: CardEffect; targetsLastProcessed?: boolean } | undefined;
+  ok(!!ge, 'GRANT_EFFECT ステップがある');
+  eq(ge?.targetsLastProcessed, true, 'targetsLastProcessed（この方法で場に出たシグニ）');
+  const inner = ge?.effect;
+  ok(!!inner, '内側 ability が展開されている（rawText のままではない）');
+  ok(!!inner?.timing?.includes('ON_SIGNI_BANISH_OPPONENT'), `内側 timing=ON_SIGNI_BANISH_OPPONENT got=${JSON.stringify(inner?.timing)}`);
+  const ia = JSON.stringify(inner?.action);
+  ok(ia.includes('"UP"'), `内側に UP（このシグニをアップし）が含まれる got=${ia}`);
+  ok(ia.includes('"REMOVE_ABILITIES"') && ia.includes('"UNTIL_END_OF_TURN"'), `内側 REMOVE_ABILITIES は UNTIL_END_OF_TURN got=${ia}`);
+});
 test('GRANT_TO_PLACED_SIGNI(C): MILL countIsLastProcessedLevelSum が場出しシグニのレベル合計だけ相手デッキをミル（WX24-P3-039）', () => {
   const ctx = { ...mkCtx({}, { deckTop: [SIGNI, SIGNI, SIGNI, SIGNI] }), lastProcessedCards: [SIGNI_L2] } as ExecCtx; // レベル2
   const beforeDeck = ctx.otherState.deck.length, beforeTrash = ctx.otherState.trash.length;
