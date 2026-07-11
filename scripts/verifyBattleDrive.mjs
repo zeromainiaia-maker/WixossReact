@@ -3080,7 +3080,7 @@ function startDev() {
     let url = null;
     const onData = (b) => { const s = b.toString().replace(/\x1b\[[0-9;]*m/g, ''); const m = s.match(/(http:\/\/localhost:\d+)/); if (m && !url) { url = m[1]; resolve({ proc, url }); } };
     proc.stdout.on('data', onData); proc.stderr.on('data', onData); proc.on('error', reject);
-    setTimeout(() => { if (!url) reject(new Error('preview起動タイムアウト')); }, 30000);
+    setTimeout(() => { if (!url) { killTree(proc); reject(new Error('preview起動タイムアウト')); } }, 30000);
   });
 }
 
