@@ -2477,6 +2477,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // （collectArtsUseTriggers は triggerScope self 限定）。⚠「対戦相手がアーツを使用したとき」は engine の
              //   受け皿が別（ON_OPP_ARTS_USE 系）＝ここでは拾わない（誤って self 扱いにすると発火主体が逆になる）。
              : /あなた(?:のターンにあなた)?がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE']
+             // 「（ガードステップ以外で）（あなた／いずれかのプレイヤー）が手札をN枚捨てたとき」（9件・§3 Opusタスク16）。
+             // engine 配線済み（collectHandDiscardTriggers）。**「ガードステップ以外で」は engine 側で構造的に担保**
+             // されている＝ガードによる手札捨ては `hand_discarded_just`/`asCost` のどちらも立たない
+             // （BattleScreen の performGuardResponse・同関数の doc コメント参照）ので、条件語彙は不要。
+             // ⚠「（あなたの効果によって）対戦相手が手札を捨てたとき」は主語が相手＝engine に専用 scope が無く
+             //   'any'（いずれかが捨てたとき）に倒すと自分の手札捨てでも発火する過剰効果になるため**拾わない**。
+             : /(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(actionText) ? ['ON_HAND_DISCARDED']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
