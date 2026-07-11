@@ -1,6 +1,6 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-11T11:16:04.629Z / 刻印効果 148件
+生成: 2026-07-11T11:56:56.868Z / 刻印効果 149件
 
 ## カテゴリ別件数
 
@@ -9,6 +9,7 @@
 - リコレクト分割: 8
 - ON_DISCARDED_AS_COST: 4
 - ON_OPP_POWER_DECREASED: 2
+- ON_CARD_MILLED_FROM_DECK: 1
 
 ## 明細（effectId → 理由）
 
@@ -69,6 +70,7 @@ WX24-P1-017-E1	multi-dest分割:UNKNOWNアクション除去
 WX24-P1-026-E1	multi-dest分割:UNKNOWNアクション除去
 WX24-P2-035-E1	multi-dest分割:UNKNOWNアクション除去
 WX24-P2-048-E1	IS_MY_TURN化:この方法でカードを６枚以上捨てた場合、
+WX24-P3-030-E1	ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似
 WX24-P3-037-E1	multi-dest分割:UNKNOWNステップ除去
 WX24-P3-039-E1	multi-dest分割:UNKNOWNステップ除去
 WX24-P3-047-E2	IS_MY_TURN化:その後、そのカードが＜宇宙＞のシグニの場合、
