@@ -968,6 +968,7 @@ const scenarios = {
       const energy0 = before?.host?.energy ?? 0;
       const lrigImg = page.getByAltText('エルドラ　オーバークロック', { exact: false }).first();
       if (await lrigImg.count()) await lrigImg.click({ force: true }).catch(() => {});
+      let attachedAt = null;
       for (let s = 0; s < 24; s++) {
         await page.waitForTimeout(900);
         let did = null;
