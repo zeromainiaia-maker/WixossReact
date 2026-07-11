@@ -2599,7 +2599,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         extractedTriggerCondObj = {
           ...(extractedTriggerCondObj ?? {}),
           milledDeckOwner: mo,
-          milledMinCount: mc ? toHalf(mc[1]) : 1,
+          milledMinCount: mc ? parseInt(toHalf(mc[1]), 10) : 1,
         };
         if (/(?:＜[^＞]+＞の)シグニの効果/.test(actionText)) {
           markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
