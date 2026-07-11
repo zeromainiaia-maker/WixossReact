@@ -82,7 +82,7 @@
 > 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。**Sonnet が作業中に見つけた engine/parser バグはその場で直さず Opusタスク12 へ登録**。
 
 **Opus のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
-1. **GRANT_QUOTED_AUTO_ABILITY の内側 ability parse**（WX24-P1-017/WX25-P3-038＝GRANT_TO_PLACED_SIGNI STUB「「【自】…」を得る」＝**場に出したシグニへの一時付与**機構）＋**引用付与の内側品質不全27の再収穫**（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）＝引用付与残107 の本丸。
+1. **GRANT_QUOTED_AUTO_ABILITY の内側 ability parse**（引用付与残107 の本丸）。**🆕続き75で第1弾を消化＝✅**(a)**`GRANT_TO_PLACED_SIGNI` STUB（WX24-P1-017/WX25-P3-038）を `GRANT_EFFECT{targetsLastProcessed, rawText}` へ振り分け**＝`expandGrantEffectRawTexts`（内側 parseBlock 展開）＋`execGrantEffect`（lastProcessedCards へ適用）＋`granted_effects`（ターン終了時失効）の**既存3機構が噛み合って engine 新規実装ゼロで動く**ことを確認。(b)**内側トリガー語彙の欠落を発見・修正＝「…がバトルによってシグニをバニッシュしたとき」が parser に無く、31枚が `ON_PLAY`（場に出たとき）へ誤フォールバックしていた**（engine は最初から配線済みだった＝`battleBanishEntries`）。(c)**「このシグニをアップし、<残り>」複合文で先頭の UP が無言脱落**していた（6枚＝再攻撃コンボの定番でデメリットだけ適用されていた）。計24枚採用・golden 192・census 1557 維持。詳細 BUGFIXES 続き75。**残＝(i) WX25-P3-038 の内側「代わりに」置換（＝タスク6の置換機構と合流）・(ii) 引用付与の内側品質不全の再収穫（他の内側トリガー語彙・`GRANT_LRIG_ABILITY` の ON_PLAY 誤デフォルト＝タスク5）**。
 2. **census「動的比較」の残**＝WXEX2-28（直前配置シグニ基準＝last-processed相対で別系）・条件文（WXK08-005）・opp/own センタールリグ（WXK11-003）。自己参照/トリガー参照/designation/anyAlly/printed/lastProcessed/デッキ相対SEARCH/lrig相対 は続き43-47・67-68で✅消化済み（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
 3. **DRAW脱落の parseSingleSentence 直呼び経路 systematic**（19枚・入れ子SEQUENCE＝続き59 の follow-up）。
 4. **§5c census 条件節の残**（ARTS_USED拡張・「代わりに」WX25-P2-068/070・「あり」複合条件WXDi-P11-048）。
