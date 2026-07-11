@@ -2696,6 +2696,7 @@ const scenarios = {
       await page.waitForTimeout(700);
       H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
       let chose = false;
+      let picked0 = false, picked1 = false;
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exilehandblind-${s}.png`, fullPage: true });
