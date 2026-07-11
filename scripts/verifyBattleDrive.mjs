@@ -1754,6 +1754,61 @@ const scenarios = {
     },
   },
 
+  // ⑬' WXDi-P13-047: 【自】《ターン1回》ON_LRIG_GROW（triggerScope:any_opp）＝§7 ON_LRIG_GROW残②
+  //    「相手のグロウでany_oppが発火する経路」の実機検証。原文「あなたのターンの間、対戦相手のルリグが
+  //    グロウしたとき」＝turnOwner:host限定のはずだが effects_WXDi.json の WXDi-P13-047-E2 に
+  //    turnOwner系のtriggerCondition/activeConditionが無い＝要検証。host にwatcherを配置し、
+  //    guest（CPU）がGROWフェイズで自然グロウ（cpugrowと同型のretry-on-overwrite）→host watcherの
+  //    TRASH(ENERGY_CARD,owner:opponent)がguestのエナ1枚をトラッシュするのを観測する
+  //    （guest自身のターン中のグロウ＝原文の「あなたのターンの間」条件を満たさないはずの盤面）。
+  lrigGrowAnyOpp: {
+    title: 'WXDi-P13-047（ON_LRIG_GROW any_opp＝相手グロウで発火・turnOwnerゲート検証）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P13-047#1'], null, null], // watcher（幻獣神 LOVIT//ディソナ）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],              // CPU center Lv2 ピルルク・Ｍ
+        'lrig_deck': ['WD03-002#1'],               // grow target Lv3 ピルルク・Ｇ（青×2・条件なし・同クラス）
+        'energy': ['WD03-013#1', 'WD03-013#2', 'WD03-013#3'], // 青×2（GrowCost支払い分）＋トラッシュされる1枚
+        'field.signi': [null, null, null],
+        'hand': [],
+        'actions_done': [],
+        'coins': 0,
+      },
+      top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // cpugrowと同型：直前のCPU自然ターンを止めてから再注入して観測する（順序非依存）。
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2500);
+        await injectScenario(page, scenarios.lrigGrowAnyOpp.spec);
+        await page.waitForTimeout(1200);
+        const before = await H.queryState();
+        const gTrash0 = before?.guest?.trash ?? 0;
+        let overwritten = false;
+        for (let s = 0; s < 14; s++) {
+          await page.waitForTimeout(1000);
+          await page.screenshot({ path: `${SHOT}/lrigGrowAnyOpp-a${attempt}-${s}.png`, fullPage: true });
+          const st = await H.queryState();
+          if (st.error) continue;
+          const g = st.guest ?? {};
+          const watcherLog = await H.findLog(/LOVIT|ディソナ|の【自】効果（ルリグがグロウしたとき）/);
+          if ((g.trash ?? 0) > gTrash0) {
+            return { pass: true, detail: `ON_LRIG_GROW any_opp 発火→guestエナ1枚トラッシュ確認（gTrash ${gTrash0}→${g.trash}・log「${watcherLog ?? '—'}」）＝turnOwnerゲート未実装（guest自身のターン中のグロウでも発火）` };
+          }
+          if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  lrigGrowAnyOpp[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
+          if (s % 3 === 0) H.log(`  lrigGrowAnyOpp[a${attempt}.${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} gTrash=${g.trash} watcher=${!!watcherLog}`);
+        }
+        if (!overwritten) break;
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_LRIG_GROW any_opp 未確認（guest=${JSON.stringify(fin?.guest)}）` };
+    },
+  },
+
   // ㉒ WXDi-P15-091: 【自】ON_DRAW（triggerScope:any_opp）＝§7 R40「opp-draw」の実機検証。
   //    対戦相手が効果でカードを引いたとき、あなたも1枚引く（《ターン1回》）。
   //    ドロー源＝guest（CPU）の WX12-047（【自】このシグニがアタックしたとき、カードを1枚引く＝条件なし単純DRAW）。
