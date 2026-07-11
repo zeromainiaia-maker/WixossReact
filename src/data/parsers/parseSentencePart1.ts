@@ -763,6 +763,19 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(ecM[1]) };
   }
 
+  // ---- 「対戦相手はカードをN枚引き、（対戦相手は）デッキの一番上のカードをエナゾーンに置く」（WX14-011②）----
+  // ⚠先頭の「対戦相手のドロー」が無言脱落し、後続のエナ置きだけ（しかも owner:self）が残っていた
+  //   ＝**相手を回復させるデメリットが自分の利益に化ける**（§3 Opusタスク10 パターンE）。
+  {
+    const oppDrawEcM = t.match(/対戦相手はカードを([０-９\d]+)枚引き、[^。]*デッキの一番上のカードをエナゾーンに置く/);
+    if (oppDrawEcM) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'opponent', count: parseNum(oppDrawEcM[1]) },
+        { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'opponent', count: 1 },
+      ] };
+    }
+  }
+
   // ---- ドロー：まず「引き、捨てる」複合パターンを先にチェック ----
   const drawDiscardM = t.match(/カードを([０-９\d]+)枚引き、手札を([０-９\d]+)枚捨てる/);
   if (drawDiscardM) {
