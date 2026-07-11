@@ -452,6 +452,7 @@ const scenarios = {
       guestSet: {
         // zone0=watcher（大罠 パントマイム）／zone1=他の味方＝excludeSelf の付与先（ここに付けば正・watcherに付けば誤）
         'field.signi': [['WXDi-P11-040#1'], ['WX01-053#1'], null],
+        'actions_done': [], // 《ターン1回》消費のクリア（続き75で usageLimit が実機で効くようになった＝持ち越し防止）
       },
       handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
