@@ -1485,6 +1485,27 @@ function parseSingleSentenceInner(text: string): EffectAction {
     if (drawChoose) return drawChoose;
   }
 
+  // 「**次の**あなたのアタックフェイズ開始時、<効果>」＝**遅延トリガー**（§3 Opusタスク10 パターンF-4）。
+  // ⚠従来は遅延句が無言脱落して**その場で即時実行**されていた（アタックフェイズを待たずに発動する過剰効果）。
+  // engine 実装済みの `INSTALL_DELAYED_TRIGGER`（B3・duration:'THIS_TURN'）に載せる＝collectTurnTriggers が
+  // ON_ATTACK_PHASE_START で delayed_triggers を収集する（続き76で配線）。
+  // ⚠「次の対戦相手のターン終了時**まで**」は**持続期間**であってトリガーではない（読点必須で除外される）。
+  // ⚠相手ターンに設置すると delayed_triggers はターン終了でクリアされる＝次の自ターンまで残らない既知の近似。
+  {
+    const delayM = t.match(/^次のあなたのアタックフェイズ開始時[、,]\s*(.+)$/s);
+    if (delayM) {
+      const inner = parseSingleSentence(delayM[1]);
+      if (inner.type !== 'UNKNOWN') {
+        return {
+          type: 'INSTALL_DELAYED_TRIGGER',
+          duration: 'THIS_TURN',
+          trigger: { timing: 'ON_ATTACK_PHASE_START' },
+          effect: inner,
+        } as unknown as EffectAction;
+      }
+    }
+  }
+
   // 連用中止形の並列動作「Aし、Bする」→ SEQUENCE（§3 Opusタスク10 パターンF-1）。
   // ⚠従来は**先頭の動作が無言脱落**して後半だけが残っていた（「シグニ1体をバニッシュ**し**、シグニ1体を
   //   ダウンする」→ DOWN だけ／「手札をすべて捨て、カードを4枚引く」→ DRAW だけ）。
