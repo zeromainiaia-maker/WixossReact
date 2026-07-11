@@ -1651,7 +1651,8 @@ function resolveContSelfLevel(
   const hostLv = parseInt(cardMap.get(hostNum)?.Level ?? '', 10);
   if (isNaN(hostLv)) return rest;
   if (levelLtSelf) return { ...rest, level: { max: hostLv - 1 } };
-  return { ...rest, level: { min: hostLv + 1 } };
+  if (levelGtSelf) return { ...rest, level: { min: hostLv + 1 } };
+  return rest;
 }
 
 function applyDeltaToState(
