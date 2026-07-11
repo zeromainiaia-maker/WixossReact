@@ -1158,6 +1158,20 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- 凍結 ----
   if (t.includes('凍結する')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // ⚠ルリグ対象を見ておらず、「対戦相手のセンタールリグ1体を対象とし、それを凍結する」（WX17-020③）が
+    //   **シグニの凍結**に化けていた（§3 Opusタスク10 パターンB）。すぐ上の DOWN 規則と同じ3分岐に揃える。
+    if (t.includes('センタールリグ') && t.includes('シグニ')) {
+      if (t.match(/センタールリグか.*シグニ|センタールリグまたは.*シグニ/)) {
+        return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 } };
+      }
+      return { type: 'SEQUENCE', steps: [
+        { type: 'FREEZE', target: { type: 'LRIG', owner, count: 1 } },
+        { type: 'FREEZE', target: parseSigniTarget(t, owner) },
+      ]};
+    }
+    if (t.includes('センタールリグ')) {
+      return { type: 'FREEZE', target: { type: 'LRIG', owner, count: 1 } };
+    }
     return { type: 'FREEZE', target: parseSigniTarget(t, owner) };
   }
 
