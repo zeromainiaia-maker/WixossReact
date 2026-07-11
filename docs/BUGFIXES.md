@@ -5,6 +5,16 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化⑧＝`ON_TRASH`「手札から」**単独**が regex から抜けていた（+15枚・census 1542→1537）（2026-07-12・続き75・Opus 4.8・同日第9件）
+
+「このカードが**手札から**トラッシュに置かれたとき」（11件）が `ON_PLAY` へ誤フォールバックしていた。原因は**既存の ON_TRASH regex が「手札か**デッキ**から」「デッキから」「場から」「いずれかの領域から」しかカバーしておらず、「手札から」単独が抜けていた**こと（語彙が無いのではなく**regex の穴**）。engine は `triggerCondition.fromZones` で領域を判定する（`collectAnyZoneTrashSelfTriggers`）ので、**timing regex と fromZones 抽出 regex の両方**に「手札」単独を追加した（engine 不変）。
+
+- **副次的に `mandatory` も正しくなった**＝トリガー句が除去されるようになったことで、残り文の「〜してもよい」が optional として正しく検出され `mandatory: true → false` に是正された（従来はトリガー句が残って optional 検出が効かず**強制効果**になっていた）。逆翻訳＝「【自】このカードが手札からトラッシュに置かれたとき：このシグニをトラッシュから場に出す（してもよい）」＝原文一致。
+- **計測 239→223 効果**。**影響16枚→15枚採用**（MANUAL の WDA-F02-17 のみ不採用＝MANUAL→AUTO 降格で手修正が巻き戻るため）。**curated が動いたのは意図した15枚のみ**。
+- **検証**＝`npm run gates` 全緑（**golden 197/197**〔+1＝ON_TRASH「手札から」＋fromZones 固定〕・smoke/fuzz 全0・**census 1542→1537**・lint 0 errors）／`regen` で**同型★0・★逆翻訳割れ0**維持。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化⑤⑥⑦＝`ON_SIGNI_BECOMES_DRIVE`・`ON_BECOME_BEAT`・`ON_ARTS_USE`（+10枚・census 1546→1542）（2026-07-12・続き75・Opus 4.8・同日第8件）
 
 センサス上位を3つまとめて消化（engine 不変・parser のみ）。**計測 270→239 効果**。
