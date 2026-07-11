@@ -2371,8 +2371,11 @@ const scenarios = {
   //    `beforeGuest = bs.guest_state` は既に step1 の変化を含んでしまっている＝diffがゼロになり watcher が
   //    永久に見逃される。続き58/61 が修正した「1回のインタラクションで完了する効果の resume 取りこぼし」とは
   //    別系統＝**2ラウンド以上インタラクションを要する SEQUENCE の「途中ラウンドで完了した盤面変化」が対象**。
-  //    根本修正には `!result.done` 分岐でも collectBoardDiffTriggers 相当を呼ぶ（ただし stack 未確定の点を考慮した
-  //    差分ベースラインの取り方）が要る＝Opus引き継ぎ。既定 order には含めない（FAIL のため）。
+  //    ✅続き75（Opus）で修正＝`!result.done` 分岐の「ON_BANISH だけの特例収集」を done 分岐と同じ
+  //    `collectBoardDiffTriggers`（統合収集）に置き換えた。途中ラウンドで確定した盤面変化をその場で diff 評価して
+  //    スタックへ積むため、次ラウンドの before に取り込まれて差分が消える問題が構造的に解消する（pending 中に
+  //    スタックへ積む点は従来の ON_BANISH 特例と同じ扱い＝新しい実行順序は持ち込まない）。実機2回連続PASS＝
+  //    既定 order に追加済み。
   onPlayAnyOpp: {
     title: 'WXEX2-50→WXK10-022-E1（R30 ON_PLAY any_opp+targetsTriggerSource＝対戦相手のシグニが場に出たとき能力喪失）',
     spec: {
