@@ -1835,6 +1835,21 @@ const scenarios = {
   //    ②その後、自分のトラッシュの＜凶蟲＞のシグニ1枚を自分の場に出す]。①でguestの場に新しく出た信号にWXK10-022-E1
   //    （any_opp・triggerCondition.turnOwner:self・targetsTriggerSource＝そのシグニの能力を奪う）が反応するはず。
   //    host/guestとも3ゾーン中2ゾーンを埋めて1ゾーンだけ空け、SELECT_SIGNI_ZONE（配置先ゾーン選択）を回避。
+  //
+  //    ❌実機FAIL＝新規バグを発見（2026-07-11・続き70・Sonnet・未修正・Opus引き継ぎ＝Opusタスク12）。
+  //    ground truth は正しい（gField 2ゾーン目まで埋まり guest に WD01-010#1 が配置・host にも WX08-074#1 が配置）が、
+  //    watcher（WXK10-022-E1）が一度も発火せず guest.abilities_removed は空のまま。
+  //    コード読解で確定した原因＝`handleEffectInteraction`（BattleScreen.tsx:4097）の `!result.done` 分岐
+  //    （SEQUENCE途中でまだ次のインタラクションが要る場合＝本カードの step1完了→step2のSELECT_TARGET待ち）は
+  //    host_state/guest_state を DB へコミットするが、`collectBoardDiffTriggers`（続き61で導入）を一切呼ばない
+  //    （BANISH検出のみの特例処理・4107-4124行）。そのため step1 の配置（guestへのWD01-010追加）は一度も
+  //    diff評価されないまま `bs.guest_state`（React側の実データ）へ反映され、続く step2 の SELECT_TARGET が
+  //    `result.done===true` で完了した時点（4125-4132行）で `collectBoardDiffTriggers` が呼ばれても、その
+  //    `beforeGuest = bs.guest_state` は既に step1 の変化を含んでしまっている＝diffがゼロになり watcher が
+  //    永久に見逃される。続き58/61 が修正した「1回のインタラクションで完了する効果の resume 取りこぼし」とは
+  //    別系統＝**2ラウンド以上インタラクションを要する SEQUENCE の「途中ラウンドで完了した盤面変化」が対象**。
+  //    根本修正には `!result.done` 分岐でも collectBoardDiffTriggers 相当を呼ぶ（ただし stack 未確定の点を考慮した
+  //    差分ベースラインの取り方）が要る＝Opus引き継ぎ。既定 order には含めない（FAIL のため）。
   onPlayAnyOpp: {
     title: 'WXEX2-50→WXK10-022-E1（R30 ON_PLAY any_opp+targetsTriggerSource＝対戦相手のシグニが場に出たとき能力喪失）',
     spec: {
