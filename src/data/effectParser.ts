@@ -2624,7 +2624,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           const cls = hdM[1];
           const f: Record<string, unknown> = {};
           if (cls?.startsWith('＜')) f.story = cls.slice(1, -2);        // 「＜アーム＞の」→ アーム
-          else if (cls) f.story = 'Dissona';                            // 《ディソナアイコン》の（CSV Story==='Dissona'）
+          else if (cls) f.isDisona = true;                              // 《ディソナアイコン》の（curated の慣例＝isDisona）
           if (hdM[2] === 'シグニ') f.cardType = 'シグニ';
           if (Object.keys(f).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...f };
         }
