@@ -2648,6 +2648,15 @@ const scenarios = {
             if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
           }
         }
+        // NEGATE_ATTACK 自体の SELECT_TARGET（候補1体＝相手センタールリグ。ラベルは「シグニゾーンから」と
+        // 誤表示されるが scope='opp_field' の汎用テンプレ文言のため無視してよい＝pick-0で吸収）
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const negated = (st?.guest?.negatedAttacks ?? []).some(n => /WD03-002/.test(n));
