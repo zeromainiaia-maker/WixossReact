@@ -1171,7 +1171,22 @@ function parseSingleSentenceInner(text: string): EffectAction {
       if (millM) {
         return { type: 'MILL', owner: millM[1] === '対戦相手' ? 'opponent' : 'self', count: 0, countIsLastProcessedLevelSum: true } as EffectAction;
       }
-      // (D) 未実装機構（引用複合能力付与・非1:1レベル比例等）は honest STUB に温存
+      // (C') 引用複合能力付与：「は「【自】…」を得る」＝場に出したシグニ（lastProcessedCards）へ引用能力を一時付与
+      //      （WX24-P1-017／WX25-P3-038）。GRANT_EFFECT の rawText に載せると expandGrantEffectRawTexts が
+      //      parseBlock で内側を CardEffect へ展開し（AUTO のときだけ effect に入る／失敗時は rawText 温存＝PARTIAL）、
+      //      engine は既存の targetsLastProcessed 経路で granted_effects（instanceId 単位・ターン終了時失効）へ積む。
+      //      ＝新規 engine 機構は不要（続き75・§3 Opusタスク1）。
+      const quotedM = body.match(/^は「(.+)」を得る$/s);
+      if (quotedM) {
+        return {
+          type: 'GRANT_EFFECT',
+          target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+          rawText: quotedM[1],
+          duration,
+          targetsLastProcessed: true,
+        } as EffectAction;
+      }
+      // (D) 未実装機構（非1:1レベル比例等）は honest STUB に温存
       return { type: 'STUB', id: 'GRANT_TO_PLACED_SIGNI', value: trimmed } as StubAction;
     }
   }
