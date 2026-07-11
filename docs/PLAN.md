@@ -141,7 +141,7 @@
 | 9 | semantic audit 機構対応 | engine＋decompiler | M | ◎今すぐ |
 | 10 | CHOOSE held 最終見極め | JSON採用（退化見極め） | S〜M | ◎今すぐ（**Sonnetタスク2 の分類完了・続き71**＝パターンA〜F整理済み） |
 | 11 | BEHAVIOR_AUDIT 高シグナル19 仕分け | 仕分け＋engine修正 | M | ◎今すぐ（Sonnetタスク4 の再生成があると楽） |
-| 12 | Sonnet 発見バグの修正（常設） | 可変 | 可変 | ⏳**在庫ゼロ**（積まれていた6件は✅続き75で全消化）。Sonnet の次の観測結果待ち |
+| 12 | Sonnet 発見バグの修正（常設） | 可変 | 可変 | ◎**在庫7件**（続き77・EXILE→TRASH誤変換5枚＋多段条件付与消失2枚＋条件ドロップ3枚＋inner duration誤変換1枚。詳細は上のOpusタスク12本文） |
 | 13 | §5b 混線テール367 | JSON再parse（1カードずつ） | L（低優先） | ◎今すぐ（逓減テール＝他が尽きたら） |
 | 14 | リファクタ Stage2→3 | BattleScreen構造 | L | ◎今すぐ（独立・他と並行可） |
 | 15 | CPU AI メインフェイズ | 新規設計（BattleScreen＋engine） | L（特大） | ⏳DESIGN §4 の CPU/対人統一が先（実質 14 の後） |
