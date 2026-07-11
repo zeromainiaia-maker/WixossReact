@@ -20,7 +20,7 @@
     "regen": "tsx scripts/decompileEffects.ts --sheets && node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all",
     "gates": "node scripts/runGates.mjs",
     "verify:browser": "node scripts/verifyBrowser.mjs",
-    "lint": "eslint .",
+    "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "preview": "vite preview",
     "census:timing": "tsx scripts/timingCensus.ts"
   },
