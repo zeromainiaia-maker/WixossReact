@@ -493,6 +493,7 @@ function actionJa(a?: Action, effectType?: string): string {
         GUARD_MAX_LV1: 'レベル１以下のシグニで【ガード】ができない',
         DRAW_LIMIT_1: 'ドローフェイズにカードを１枚しか引くことができない',
         DRAW_OUTSIDE_DRAW_PHASE: '自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたり手札に加えることができない',
+        DRAW_OR_ADD_TO_HAND_BY_EFFECT: '自分の効果によって、カードを引いたりカードを手札に加えることができない',
         ARTS_LIMIT_1: '各ターンに一度しかアーツを使用できない',
         USE_SPELL_COST_0: 'コストの合計が０のスペルを使用できない',
         PLAY_SIGNI_POWER_12000_OR_MORE: '手札からパワー12000以上のシグニを場に出せない',
