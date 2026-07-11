@@ -625,6 +625,7 @@ const scenarios = {
       const castOnce = async (label) => {
         await H.ensureMain();
         H.log(`[${label}] スペル手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
+        let settledOnce = false;
         for (let s = 0; s < 20; s++) {
           await page.waitForTimeout(900);
           await page.screenshot({ path: `${SHOT}/ontargetedUsageLimit-${label}-${s}.png`, fullPage: true });
