@@ -3204,6 +3204,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         parseStatus: eichiFb.length > 0 ? 'PARTIAL' : 'AUTO',
       };
     }
+    // 多段「下にレベルNのシグニがあるかぎり、「Q」を得る。」は条件抽出ループより**前**に丸ごと取る
+    // （1段目条件を genericKagiri に消費させない。WX24-P1-043＝続き77 Sonnet観測(b)）
+    const multiStage = parseMultiStageUnderGrant(actionText);
+    if (multiStage) {
+      resolvedAction = multiStage;
+    } else {
     // 複数条件を繰り返しパースして AND で結合する
     let remaining = actionText;
     const parsedConds: ActiveCondition[] = [];
@@ -3225,6 +3231,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     // 一部条件が解析済みで残りが未解析の場合のみPARTIAL
     // 全条件がundefinedの場合はAUTO（activeCondition=undefinedで動作は同じ）
     if (anyFound && anyFailed && parsedConds.length > 0) parseStatus = 'PARTIAL';
+    }
   } else {
     // 使用条件（「この能力は〜にしか使用できない」）を抽出してからパース
     const extracted = extractUseCondition(actionText);
