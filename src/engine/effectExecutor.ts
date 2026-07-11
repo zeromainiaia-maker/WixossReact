@@ -695,6 +695,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         hand_discarded_just: toTrash.length > 0 ? [...(s.hand_discarded_just ?? []), ...toTrash] : s.hand_discarded_just,
         turn_hand_discarded_count: tgt.owner === 'self' && toTrash.length > 0
           ? (s.turn_hand_discarded_count ?? 0) + toTrash.length : s.turn_hand_discarded_count,
+        // 「このターンに**対戦相手の効果によって**あなたの手札からカードがトラッシュに移動していた場合」条件用
+        // （HAND_TRASHED_BY_OPP・WXDi-P02-005）。tgt.owner==='opponent' ＝ **実行者から見た相手**の手札を捨てさせた
+        // ＝その相手から見れば「対戦相手の効果で捨てられた」。ターン境界で 0 にリセットされる。
+        hand_trashed_by_opp_this_turn: tgt.owner === 'opponent' && toTrash.length > 0
+          ? (s.hand_trashed_by_opp_this_turn ?? 0) + toTrash.length : s.hand_trashed_by_opp_this_turn,
       };
       return addLog(setOwnerState(tgt.owner, newS, c),
         `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
