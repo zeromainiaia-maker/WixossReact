@@ -646,8 +646,15 @@ const scenarios = {
           if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
           const st = await H.queryState();
           H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | gHand=${st?.guest?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
-          // 発動完了の判定＝pendingSpell/pendingEffect/stackが全て解消
-          if (!st?.pendingSpell && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && s > 2) return st;
+          // 発動完了の判定＝pendingSpell/pendingEffect/stackが全て解消した状態が2回連続で観測できたら
+          // （state反映の1tick遅延を吸収するため即リターンせずもう一拍待つ）確定。
+          const settled = !st?.pendingSpell && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && s > 2;
+          if (settled) {
+            if (settledOnce) return st;
+            settledOnce = true;
+          } else {
+            settledOnce = false;
+          }
         }
         return await H.queryState();
       };
