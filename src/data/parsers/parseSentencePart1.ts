@@ -1220,7 +1220,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ((t.includes('デッキの一番上のカードをエナゾーンに置')) ||
        (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置')))) {
     const cM = t.match(/カードを([０-９\d]+)枚/);
-    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: cM ? parseNum(cM[1]) : 1 };
+    // ⚠主語が「**対戦相手は**デッキの一番上のカードをエナゾーンに置く」（WX14-011②）でも owner:'self' に
+    //   固定していたため、**相手を回復させる効果が自分のエナ加速に化けていた**（§3 Opusタスク10 パターンE）。
+    const ecOwner: Owner = /対戦相手は[^。]*エナゾーンに置/.test(t) ? 'opponent' : 'self';
+    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: ecOwner, count: cM ? parseNum(cM[1]) : 1 };
   }
 
   // ---- トラッシュ → 手札 ----
