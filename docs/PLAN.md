@@ -97,6 +97,10 @@
 13. **§5b 残367件の混線テール**＝effect構造そのものが原文とズレたカードの effects JSON 再parse（1カードずつ手修正→逆翻訳原文一致→ゲート。**原文コピーでの一括潰しは禁止**）。
 14. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
 15. **（大型・任意）§8 CPU AI のメインフェイズ拡張**（アーツ/スペル/起動効果の能動使用・グロウ判断。先に DESIGN §4「CPU は対人戦と同じ処理」の統一を完遂してから）。
+16. **🆕 timing 語彙センサスの消化（`npm run census:timing`・続き75新設）＝いま最も費用対効果が高い新worklist（実質タスク1と2の間に置く優先度）**。**「engine に収集関数があるのに parser がその timing を一度も生成していない」穴**を機械検出する計器。**静的ギャップ＝29種**（ON_MAIN_PHASE_START／ON_SPELL_USE／ON_EXCEED_COST／ON_RISE／ON_SIGNI_BECOMES_DRIVE／ON_HAND_DISCARDED／ON_ARTS_USE／ON_BECOME_BEAT 等が MANUAL でしか使われていない）。**動的計測＝353効果 / 176クラスタ**が `ON_PLAY`（＝「場に出たとき」）へ誤フォールバック中（明細 `docs/_timing_census.txt`）＝**召喚しただけで発火する幻覚**。上位＝`メインフェイズ開始時`29／`スペルを使用したとき`16／`エクシードのコストとして…`13／`ライズされたとき`11／`ドライブ状態になったとき`11／`手札からトラッシュに置かれたとき`10／`ガードステップ以外で手札を捨てたとき`8。
+    - **engine が既に配線済みなら parser に regex 1本＋triggerScope 抽出を足すだけで直る**（続き75で `ON_SIGNI_BANISH_OPPONENT` ＝計50枚を実証）。**手順**＝①クラスタ選定→②engine の収集関数で triggerScope/条件の扱いを確認→③parser に timing 抽出＋scope 抽出→④`build:effects`→**全数機械diff で分類**（MANUAL温存・`EXILE`→`TRASH` 等の据置系を除外）→`heldReview --adopt`→⑤golden 1件→`npm run gates`→`npm run regen`。
+    - ⚠**トリガー句は actionText から除去しない**＝既存の全文 STUB 規則がトリガー句込みでマッチする前提で書かれており、除去すると別 STUB へ誤マッチして退化する（WXEX2-40 で実測）。
+    - ⚠**timing を直しても action 側の既存誤りは残ることがある**（WX10-048＝action がトリガー句の「バニッシュ」を誤読・WX11-031＝条件節の脱落）。これらは別系統（§5b/§6 テール）＝timing 是正の可否とは切り離して判断する。
 
 **Sonnet 5 のタスク（今すぐ回せる在庫・定型消化とデータ単点）**：
 1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝**R30**＝WXK10-022-E1（発火経路は続き66で開通済み＝WXEX2-50-E3 発動→watcher 確認）・**ON_TARGETED 残3枚**（WXDi-P11-040/WX25-P2-055/WXDi-D09-H14）＋②turnOwner:opponent ゲート③《ターン1回》・**R42②**（バトルバニッシュ経路）・**R43②**（自エナ/相手効果では非発火）・**R44②③**・**R46②③**・**R38②③**（《ターン1回》・複数同時凍結）・**R37②③**（他4枚個別確認含む）・**R36②**（WXDi-CP02-082 相手ターン出し分け）・**R39②**・**R40②**・**R41②**・**ON_COIN_PAID③④**・**ON_LRIG_GROW②③④**・**ON_LRIG_ATTACK_STEP_START②**（《ターン1回》）・**B4引用付与の実発火**（WX24-P2-018等）・**B2**（WX17-028）・**B3**（WX25-CP1-069）・**機構④誤parse 3枚**（WXDi-P07-044/WX25-P3-062-E2）・**クラフトトークンの実機配置**（§6.4）。**発見したバグの修正自体は Opusタスク12 に回す**＝観測結果を §7 とバトンに記録）。
