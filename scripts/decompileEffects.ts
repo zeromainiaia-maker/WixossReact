@@ -1666,7 +1666,7 @@ const timingJa: Record<string, string> = {
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
   ON_HEAVEN: 'ヘブンヘブン（すべてのクロスシグニがダウン状態でアタックしたとき）',
-  ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたがガードしたとき',
+  ON_SPELL_USE: 'あなたがスペルを使用したとき', ON_GUARD: 'あなたが【ガード】したとき',
   ON_ARTS_USE: 'あなたがアーツを使用したとき',
   ON_RISE: 'このシグニがライズされたとき',
   MAIN: '（メイン起動）', ATTACK: '（アタックフェイズ起動）', ATTACK_ARTS: '（アタックフェイズ起動）', ON_LIFE_BURST: '【ライフバースト】',
