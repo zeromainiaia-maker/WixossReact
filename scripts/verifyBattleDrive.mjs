@@ -429,12 +429,16 @@ const scenarios = {
   },
 
   // ⑦'' ON_TARGETED残②個別確認（§7・WXDi-P11-040）: 大罠 パントマイム【自】《相手ターン》《ターン1回》この
-  //    シグニが対戦相手の能力/効果の対象になったとき、あなたの他のシグニ1体を対象とし、ターン終了時まで
+  //    シグニが対戦相手の能力/効果の対象になったとき、**あなたの他のシグニ**1体を対象とし、ターン終了時まで
   //    【シャドウ】を得る（mandatory・turnOwner:opponent＝watcher所有者から見て相手ターン＝host主導の
-  //    ontargeted系と同じ盤面で自然に満たす）。guestに watcher 1枚のみ配置＝JSON上「他の」除外
-  //    （excludeSelf）が実装されているか未知数のため、候補が watcher 自身しかない状態で挙動を観測する。
+  //    ontargeted系と同じ盤面で自然に満たす）。
+  //    続き72（Sonnet）は guest に watcher 1枚のみ置いて検証し「watcher自身に付与される」＝原文の「他の」除外
+  //    （excludeSelf）が parser/engine 双方で未実装であることを発見（Opusタスク12へ登録）。
+  //    続き75（Opus）で parser（filter.excludeSelf 付与）＋engine（execGrantKeyword が excludeSelf を適用）を
+  //    実装したため、本シナリオは **guest に「他の味方」を1枚足して**「watcher自身には付かず、他の味方に付く」
+  //    ことを PASS 条件とする形へ更新した（自身に付いたら FAIL＝excludeSelf の回帰ガード）。
   ontargeted3: {
-    title: 'WD05-017→WXDi-P11-040（ON_TARGETED残②＝相手ターン限定・シャドウ付与）',
+    title: 'WD05-017→WXDi-P11-040（ON_TARGETED残②＝相手ターン限定・シャドウを「他の」味方へ付与＝excludeSelf）',
     spec: {
       hostSet: {
         'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ）
@@ -442,7 +446,8 @@ const scenarios = {
         'actions_done': [],
       },
       guestSet: {
-        'field.signi': [['WXDi-P11-040#1'], null, null], // watcher（大罠 パントマイム・他ally無し＝excludeSelf挙動の観測用）
+        // zone0=watcher（大罠 パントマイム）／zone1=他の味方＝excludeSelf の付与先（ここに付けば正・watcherに付けば誤）
+        'field.signi': [['WXDi-P11-040#1'], ['WX01-053#1'], null],
       },
       handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
