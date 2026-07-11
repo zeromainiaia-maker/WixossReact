@@ -295,6 +295,18 @@ export function parseSentencePart1(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'SELF_SIGNI_TRASH', until: 'PERMANENT' };
   }
 
+  // ---- 効果によるドロー／手札加え禁止（WXK10-010①）----
+  // 「このターン、対戦相手は自分の効果によって、カードを引いたりカードを手札に加えることができない」
+  // ⚠従来はこの文が STUB `LRIG_GROW_RESTRICT`（＝ルリグのグロウ制限＝原文と無関係）へ誤マッチしていた
+  //   （§3 Opusタスク10 パターンC）。engine は execDraw/execTransferToHand で blocked_actions を見る。
+  if (t.match(/対戦相手は自分の効果によって[、,]?\s*カードを引いたり[^。]*手札に加えることができない/)) {
+    return {
+      type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+      actionId: 'DRAW_OR_ADD_TO_HAND_BY_EFFECT',
+      until: t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT',
+    };
+  }
+
   // ---- フェーズ外ドロー禁止 ----
   if (t.match(/グロウフェイズとドローフェイズ以外でカードを引いたり.*できない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'DRAW_OUTSIDE_DRAW_PHASE', until: 'END_OF_TURN' };
