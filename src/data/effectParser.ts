@@ -1121,10 +1121,23 @@ function injectSuperlativeIntoSigniTargets(action: EffectAction, sup: { key: 'po
   }
 }
 
+// 先頭「ターン終了時まで、」で始まる文の action 内 duration/until を復元する。
+// Inner の共通プレフィックス除去（`^ターン終了時まで、`）で期間句が消え、GRANT_KEYWORD 等の
+// action 内 duration が PERMANENT に化けるため（WX25-P2-062 の内側 duration＝続き77 Sonnet観測(d)）、
+// 句の有無を知っているこの層で PERMANENT→UNTIL_END_OF_TURN に戻す（upThen 分割の既存復元と同方式）。
+function restoreLeadUntilEndOfTurn(a: EffectAction | undefined): void {
+  if (!a || typeof a !== 'object') return;
+  const ra = a as { type: string; until?: string; duration?: string; steps?: EffectAction[] };
+  if (ra.until === 'PERMANENT') ra.until = 'UNTIL_END_OF_TURN';
+  if (ra.duration === 'PERMANENT') ra.duration = 'UNTIL_END_OF_TURN';
+  if (ra.type === 'SEQUENCE') ra.steps?.forEach(restoreLeadUntilEndOfTurn);
+}
+
 function parseSingleSentence(text: string): EffectAction {
   const action = parseSingleSentenceInner(text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
+  if (/^ターン終了時まで[、,]/.test(text.trim())) restoreLeadUntilEndOfTurn(action);
   return action;
 }
 
