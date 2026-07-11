@@ -267,10 +267,16 @@ export function checkActiveCondition(
       return (ownerState.turn_hand_discarded_count ?? 0) >= cond.value;
 
     case 'THIS_CARD_HAS_UNDER': {
-      // このシグニの下にカードがあるかぎり
+      // このシグニの下にカードがあるかぎり（filter 指定時は下カードのいずれかがフィルタ一致
+      // ＝「下にレベルNのシグニがあるかぎり」等。WX24-P1-043）
       if (!sourceCardNum) return false;
       const stack = ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
-      return !!stack && stack.length > 1;
+      if (!stack || stack.length <= 1) return false;
+      if (!cond.filter) return true;
+      return stack.slice(0, -1).some(cn => {
+        const base = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
+        return matchesFilter(cardMap.get(base), cond.filter);
+      });
     }
 
     case 'SELF_HAS_KEYWORD':
