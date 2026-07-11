@@ -5,6 +5,19 @@
 
 ---
 
+## 引用内CHOOSE＝「（カードをN枚）引くか<B>」トップレベル動作選択を CHOOSE(2択) で正エンコード（26枚・§3タスク4・2026-07-11・続き69・Opus 4.8）
+
+§3タスク4「引用内CHOOSE」の本命。プレイヤーが2つの動作から1つを選ぶ「AかB」（例「カードを１枚引く**か**【エナチャージ１】をする」「引く**か**対戦相手は手札を１枚捨てる」）を、従来パーサは**先頭の動詞だけ拾いもう片方を無言脱落**させていた（WXDi-P02-011＝エナチャージだけ／引く-捨てる＝ドローだけ、と半分が消える過少パース）。約58箇所の「引くか」系のうち top-level 動作選択の系統を CHOOSE に正エンコード。
+
+- **本命**＝WXDi-D09-P20（【常】中央ゾーン限定で「【自】アタック時、引く**か**相手が手札を捨てる」を得る＝引用付与の**内側** CHOOSE）。parseContinuousQuotedGrant→GRANT_FIELD_SIGNI_ABILITY の内側 ability も本ルールが拾い、grant＋IS_SELF_IN_CENTER_ZONE 条件＋内側CHOOSE の完全形になった。
+- **パーサ**＝`parseDrawOrChoice(text)` を新設（`effectParser.ts`）。DRAW を確実な錨に**形A**「カードをN枚引くか、B」／**形B**「AかカードをN枚引く」（「か」は「カードをN枚引く」に隣接必須）を検出し、両動作が**非UNKNOWNに解けたときのみ** `CHOOSE(choose_count:1, 2択)` を返す（片方でも解けなければ従来動作＝据置）。**誤検出防止**＝「とき」「そうした場合」を含む文（トリガー条件・連鎖）は除外（WX24-P4-017「あなたがカードを引く**か**、相手が捨てた**とき**」＝トリガー主語の「か」を選択に化けさせない・golden で固定）。呼び出しは **2経路**＝`parseActionTextInner` 冒頭（parseActionText 経路）と `parseSingleSentenceInner` のトリガー句除去直後（【自】/【起】単文経路＝WXDi-D09-P20 内側はこちら）。
+- **engine 不変**＝CHOOSE 実行（`execChoose`・各選択肢の action を dispatch）は既存機構。エンコードのみの変更。
+- **採用**＝`build:effects`→`heldReview --adopt`（26枚）。原文照合で全26枚が「AかB→2択」を忠実に表現（「見ないで選び捨てさせる」→blind:true、「エナゾーンに置くか引く」逆順、count 2/3 等も正）。**held残置3枚**＝WX20-078（①②③の3択喪失）・SPK01-14（①②の2択喪失）・WX19-062（「宣言カード一致なら」条件喪失）は私の変更**外**の既存 degradation（curated と fresh の差分は CHOOSE のみ）が残るため未採用＝CHOOSE平坦化復元backlog（§3タスク6）へ。
+- **検証**＝golden +4（187・①「引くか【エナチャージ】」→CHOOSE[DRAW,ENERGY] ②「引くか相手が捨てる」→CHOOSE[DRAW,相手discard] ③トリガー主語「か」は非CHOOSE ④CHOOSE選択肢2実行でエナ+1）／`npm run gates` 全緑（smoke0/fuzz0/lint 0 errors／**census 1563→1558**＝5枚が語彙獲得・BASELINE更新）／`npm run regen` 同型★0維持・decompile は「以下の2つから1つを選ぶ【…引く / …】」と原文忠実描画。
+- **残（タスク4の続き）**＝GRANT_QUOTED_AUTO_ABILITY の内側 ability parse（WX24-P1-017/WX25-P3-038＝GRANT_TO_PLACED_SIGNI STUB の引用「【自】…」を得る／WXDi-D09-P20 とは別機構＝場に出したシグニへの一時付与）は次の一手。
+
+---
+
 ## デッキ相対SEARCH＝「この方法で捨てたシグニより±Nレベル/共通クラス」の動的比較を実装（3枚・§3タスク3・2026-07-11・続き68・Opus 4.8）
 
 §3タスク3「動的比較」の残＝デッキ相対 SEARCH のうち「この方法で捨てた（handDiscardSigniコストの）シグニ」を基準にレベル/クラスを絞る3枚が、SEARCH の filter からその制約を落として「デッキから任意のシグニをサーチ」の過少パースになっていた。
