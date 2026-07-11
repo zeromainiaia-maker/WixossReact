@@ -4115,15 +4115,25 @@ export function execStubPart2(
     const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
     const toHWGCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    // _SELF は「このシグニは選んだ能力を得る」＝対象選択なしで効果元自身（WXK08-026。
+    // 従来は自シグニ全体から SELECT_TARGET していた＝対象の過剰許容・続き77 Opusタスク12(e)）
+    const selfTargetGCA = stub.id === 'GRANT_CHOSEN_ABILITY_SELF' && ctx.sourceCardNum
+      && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)
+      ? ctx.sourceCardNum : undefined;
     // 自フィールドシグニが対象（lastProcessedCardsに対象シグニを設定）
-    const targetFromLP = (ctx.lastProcessedCards ?? []).find(cn =>
+    const targetFromLP = selfTargetGCA ?? (ctx.lastProcessedCards ?? []).find(cn =>
       ctx.ownerState.field.signi.some(s => s?.at(-1) === cn)
     );
     if (!targetFromLP) {
-      // SELECT_TARGET: 自フィールドシグニを選択してから能力付与へ
+      // SELECT_TARGET: 自フィールドシグニを選択してから能力付与へ。
+      // 原文に「あなたの＜X＞のシグニ１体を対象とし」のクラス限定があれば候補に適用する
+      // （フィルタ無視の過剰許容を防ぐ＝続き77 Opusタスク12(e)。パワー比較条件等の複雑形は
+      //  カード固有ハンドラ（execStubPart1 の SIGNI_GRANT_CHOSEN_ABILITY＝WXK09-050）の管轄）
+      const tgtClassGCA = txtGCA.match(/あなたの＜([^＞]+)＞のシグニ[０-９\d]+体を対象とし/)?.[1];
       const fieldCandsGCA = [0,1,2]
         .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
-        .filter((cn): cn is string => !!cn);
+        .filter((cn): cn is string => !!cn)
+        .filter(cn => !tgtClassGCA || (ctx.cardMap.get(cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn)?.CardClass ?? '').includes(tgtClassGCA));
       if (fieldCandsGCA.length === 0) return done(addLog(ctx, '能力付与対象なし（自シグニなし）'));
       const noopGCA: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
       const contGCA: StubAction = { type: 'STUB', id: stub.id };
