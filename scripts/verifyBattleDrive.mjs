@@ -1817,6 +1817,67 @@ const scenarios = {
     },
   },
 
+  // ⑬'' WXDi-P03-046: 【自】ON_LRIG_GROW（triggerScope:any_opp・usageLimit無し）＝§7 ON_LRIG_GROW残②の
+  //    もう1枚。lrigGrowAnyOpp（WXDi-P13-047）と同じ any_opp 機構だが、action が
+  //    TRANSFER_TO_HAND(source:TRASH_CARD,owner:self,filter:{cardType:シグニ,color:黒}) という
+  //    SELECT_TARGET を要しうるアクション＝R38/R43/R46/R39と同型の「resume経路取りこぼし」バグ有無を検証する
+  //    対象。host.trash に黒シグニ（WD05-009）を1枚だけ仕込み候補を1件に固定＝target解決の曖昧さを排除。
+  lrigGrowAnyOppP03046: {
+    title: 'WXDi-P03-046（ON_LRIG_GROW any_opp＝相手グロウでトラッシュの黒シグニを手札に回収）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P03-046#1'], null, null], // watcher（羅原姫 Ａｃ）
+        'trash': ['WD05-009#1'],                          // 黒シグニ1枚のみ（候補固定）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],              // CPU center Lv2 ピルルク・Ｍ
+        'lrig_deck': ['WD03-002#1'],               // grow target Lv3 ピルルク・Ｇ（青×2・条件なし・同クラス）
+        'energy': ['WD03-013#1', 'WD03-013#2'],    // 青×2（GrowCost支払い分）
+        'field.signi': [null, null, null],
+        'hand': [],
+        'actions_done': [],
+        'coins': 0,
+      },
+      top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      // lrigGrowAnyOppと同型：直前のCPU自然ターンを止めてから再注入して観測する（順序非依存）。
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2500);
+        await injectScenario(page, scenarios.lrigGrowAnyOppP03046.spec);
+        await page.waitForTimeout(1200);
+        const before = await H.queryState();
+        const hHand0 = before?.host?.hand ?? 0;
+        let overwritten = false;
+        for (let s = 0; s < 14; s++) {
+          await page.waitForTimeout(1000);
+          await page.screenshot({ path: `${SHOT}/lrigGrowAnyOppP03046-a${attempt}-${s}.png`, fullPage: true });
+          let did = null;
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '確定']);
+          const st = await H.queryState();
+          if (st.error) continue;
+          const g = st.guest ?? {};
+          const watcherLog = await H.findLog(/羅原姫|Ａｃ|の【自】効果（ルリグがグロウしたとき）/);
+          if ((st.host?.hand ?? 0) > hHand0) {
+            return { pass: true, detail: `ON_LRIG_GROW any_opp 発火→host手札に黒シグニ回収確認（hHand ${hHand0}→${st.host.hand}・hTrash=${st.host.trash}・log「${watcherLog ?? '—'}」）` };
+          }
+          if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  p03046[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
+          if (s % 3 === 0 || did) H.log(`  p03046[a${attempt}.${s}] -> ${did ?? 'なし'} | phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} hHand=${st.host?.hand} hTrash=${st.host?.trash} stack=${st.stackLen} pEff=${st.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        }
+        if (!overwritten) break;
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_LRIG_GROW any_opp(WXDi-P03-046) 未確認（host=${JSON.stringify(fin?.host)} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ㉒ WXDi-P15-091: 【自】ON_DRAW（triggerScope:any_opp）＝§7 R40「opp-draw」の実機検証。
   //    対戦相手が効果でカードを引いたとき、あなたも1枚引く（《ターン1回》）。
   //    ドロー源＝guest（CPU）の WX12-047（【自】このシグニがアタックしたとき、カードを1枚引く＝条件なし単純DRAW）。
