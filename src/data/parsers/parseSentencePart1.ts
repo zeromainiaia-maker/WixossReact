@@ -252,7 +252,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // 「このシグニは【常】能力を失う」＝自己参照（thisCardOnly）。同一文にトリガー句（「このシグニが対戦相手の、
     // 能力か効果の対象になったとき」WX25-P2-055）が残っていると下の owner 判定が「対戦相手」を拾って
     // 相手シグニの能力を消す真逆の効果になる（続き72の実機観測・続き75で修正）ため、先に自己参照を確定させる。
-    if (/このシグニは(?:【[常自起出]】)?能力を失/.test(t)) {
+    // ⚠引用付与文（「…このシグニは能力を失う。」を得る＝WXDi-P10-001/WXDi-P09-038）の内側は「付与される能力の
+    // 中身」であって効果元自身ではない。引用付与の平坦化は別機構（§3 Opusタスク1）の担当なので従来動作に据え置く。
+    const isQuotedGrant = /「[^」]*」を得る/.test(t);
+    if (!isQuotedGrant && /このシグニは(?:【[常自起出]】)?能力を失/.test(t)) {
       return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, until: dur } as RemoveAbilitiesAction;
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
