@@ -2585,6 +2585,32 @@ async function injectScenario(page, spec) {
       s.blocked_actions = [];
       s.free_grow_this_turn = false;
       s.deck_shuffled_count = 0;
+      // ⚠続き77（Sonnet・§3タスク3）＝ゾーン単位の状態マーカー（field.*）も同種の汚染源だった。
+      // 従来は field.signi_acce のみ各シナリオの hostSet 側で個別に手動クリアしていたが（続き76の acceSelfScope 等）、
+      // signi_down/signi_frozen/lrig_frozen 等の**他のゾーン配列も同じ理屈で残留しうる**（前シナリオの盤面が
+      // 残したダウン/凍結/アクセ/チャーム等のマーカーが、新シナリオが同じゾーンに置いた**別のカード**に誤って
+      // 引き継がれる）。field.signi/field.lrig 自体（配置カード）は全シナリオが hostSet で毎回明示するため対象外だが、
+      // それ以外のゾーン付随マーカーは spec が言及しないことが多く、根本修正としてここで一括初期化する
+      // （spec.hostSet/guestSet が同名パスを持てばこの後の setPath が上書きするので安全）。
+      if (s.field) {
+        s.field.signi_down = [false, false, false];
+        s.field.signi_frozen = [false, false, false];
+        s.field.lrig_down = false;
+        s.field.lrig_frozen = false;
+        s.field.lrig_attacked = false;
+        s.field.signi_charms = [null, null, null];
+        s.field.signi_acce = [null, null, null];
+        s.field.signi_virus = [0, 0, 0];
+        s.field.signi_chokkin = [0, 0, 0];
+        s.field.signi_soul = [null, null, null];
+        s.field.signi_traps = [null, null, null];
+        s.field.signi_magic_boxes = [null, null, null];
+        s.field.signi_seeds = [null, null, null];
+        s.field.signi_armor = [false, false, false];
+        s.field.puppet_signi = [];
+        s.field.cross_state = [false, false, false];
+        s.field.heaven_state = [false, false, false];
+      }
     }
     for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
     for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
