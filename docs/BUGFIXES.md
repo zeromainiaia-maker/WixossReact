@@ -5,6 +5,21 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化⑤⑥⑦＝`ON_SIGNI_BECOMES_DRIVE`・`ON_BECOME_BEAT`・`ON_ARTS_USE`（+10枚・census 1546→1542）（2026-07-12・続き75・Opus 4.8・同日第8件）
+
+センサス上位を3つまとめて消化（engine 不変・parser のみ）。**計測 270→239 効果**。
+
+- **`ON_SIGNI_BECOMES_DRIVE`（15件）**＝「（この/あなたの）シグニがドライブ状態になったとき」。scope 抽出＝「このシグニが」self／「あなたのシグニ1体が」any_ally。
+- **`ON_BECOME_BEAT`（8件）**＝「（この/あなたの他の）カードが【ビート】になったとき」。scope＝self／any_ally（「他の」＝excludeSelf）。**該当カードは全て MANUAL**（curated が既に正しい timing を保持）＝**採用0枚**だが、parser 語彙が入ったことで今後の再生成でも保たれる（golden で固定）。
+- **`ON_ARTS_USE`（7件）**＝「あなたが（あなたのターンに）アーツを使用したとき」。⚠**engine（`collectArtsUseTriggers`）は使用者(caster)側の `triggerScope:self` しか収集しない**ため、**「対戦相手がアーツを使用したとき」は拾わない**（誤って self 扱いにすると発火主体が逆になる。engine の受け皿は `ON_OPP_ARTS_USE` 系＝別途）。
+- **⏸ `ON_HAND_DISCARDED`（8件）は今回見送り**＝原文の「**ガードステップ以外で**」という条件が engine 未対応（`triggerCondition` に相当語彙が無い）。timing だけ直すと**ガードステップの手札捨てでも発火する過剰効果**になるため、条件語彙とセットで対応する（§3 Opusタスク16 に注記）。
+
+**影響31枚→10枚採用**。**MANUAL 21枚は全て curated が既に正しい timing を保持**（機械確認）＝温存が正解。**WXK07-037 は純粋な改善として採用**＝timing 語彙が入ったことで**引用付与の内側まで解けた**（STUB `GRANT_QUOTED_AUTO_ABILITY` → `GRANT_FIELD_SIGNI_ABILITY`＋`IS_SELF_IN_CENTER_ZONE` 条件＋内側 `ON_ARTS_USE`）＝**タスク16 の副次効果でタスク1（引用付与）も前進**。逆翻訳＝「【常】《このシグニが中央ゾーンにあるかぎり》このシグニは『【自】あなたがアーツを使用したとき：あなたのシグニ1体に【ダブルクラッシュ】を与える（ターン終了時まで）』を得る」＝原文一致。
+
+**検証**＝`npm run gates` 全緑（**golden 196/196**〔+1〕・smoke/fuzz 全0・**census 1546→1542**・lint 0 errors）／`regen` で**同型★0・★逆翻訳割れ0**維持。**curated が動いたのは意図した10枚のみ**。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化③④＝`ON_EXCEED_COST`（13件）・`ON_RISE`（11件）（+17枚・census 1554→1546）（2026-07-12・続き75・Opus 4.8・同日第7件）
 
 センサスの上位クラスタを2つ続けて消化。**どちらも engine は配線済みで parser に語彙が無いだけ**という同じ構図（`ON_PLAY`＝「場に出たとき」へ誤フォールバック）。**engine 不変・parser に regex 1本ずつ**。
