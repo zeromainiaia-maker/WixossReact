@@ -428,6 +428,174 @@ const scenarios = {
     },
   },
 
+  // ⑦'' ON_TARGETED残②個別確認（§7・WXDi-P11-040）: 大罠 パントマイム【自】《相手ターン》《ターン1回》この
+  //    シグニが対戦相手の能力/効果の対象になったとき、あなたの他のシグニ1体を対象とし、ターン終了時まで
+  //    【シャドウ】を得る（mandatory・turnOwner:opponent＝watcher所有者から見て相手ターン＝host主導の
+  //    ontargeted系と同じ盤面で自然に満たす）。guestに watcher 1枚のみ配置＝JSON上「他の」除外
+  //    （excludeSelf）が実装されているか未知数のため、候補が watcher 自身しかない状態で挙動を観測する。
+  ontargeted3: {
+    title: 'WD05-017→WXDi-P11-040（ON_TARGETED残②＝相手ターン限定・シャドウ付与）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ）
+        'energy': ['WD05-009#1', 'WD05-009#2'],       // 黒×1 コスト用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-P11-040#1'], null, null], // watcher（大罠 パントマイム・他ally無し＝excludeSelf挙動の観測用）
+      },
+      handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('guest 初期 keywordGrants:', JSON.stringify(before?.guest?.keywordGrants));
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/ontargeted3-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) { // スペルコスト：黒エナ選択→発動する
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) { // SELECT_TARGET ピッカー（①=WD05-017 の対象＝watcher／②=GRANT_KEYWORD の対象）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        const shadow = (st?.guest?.keywordGrants ?? []).find(g => /シャドウ/.test(g));
+        H.log(`  p11040[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${(st?.guest?.keywordGrants ?? []).join(',') || '-'}`);
+        if (shadow) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→watcher(guest)自身に【シャドウ】付与確認「${shadow}」（excludeSelf未実装の疑い＝要フォローアップ）` };
+      }
+      const fin = await H.queryState();
+      const log = await H.findLog(/シャドウ/);
+      if (log) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→ログで【シャドウ】確認「${log}」` };
+      return { pass: false, detail: `【シャドウ】付与 未確認（grants=${(fin?.guest?.keywordGrants ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ⑦''' ON_TARGETED残③個別確認（§7・WXDi-D09-H14）: 羅婚石 ダイヤブライド【自】《ターン1回》あなたの赤の
+  //    シグニ1体が対戦相手の能力/効果の対象になったとき、対戦相手は自分のエナゾーンからカード1枚を選び
+  //    トラッシュに置く（mandatory・triggerScope:any_ally・triggerFilter color:赤＝watcher自身が赤なので
+  //    自己対象化でも発火するはず）。host エナを3枚（コスト2枚＋トラッシュされる1枚）注入して観測。
+  ontargeted4: {
+    title: 'WD05-017→WXDi-D09-H14（ON_TARGETED残③＝any_ally赤フィルタ・相手エナトラッシュ）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ）
+        'energy': ['WD05-009#1', 'WD05-009#2', 'WD05-009#3'], // 黒×1 コスト用2枚＋トラッシュされる1枚
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-D09-H14#1'], null, null], // watcher（羅婚石 ダイヤブライド・赤・単独配置）
+      },
+      handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const hTrash0 = before?.host?.trash ?? 0;
+      H.log('host 初期トラッシュ:', hTrash0);
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/ontargeted4-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) { // スペルコスト：黒エナ選択→発動する
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) { // SELECT_TARGET ピッカー（WD05-017 の対象＝watcher。エナトラッシュはCPU/guest側が自動選択の想定）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        H.log(`  d09h14[${s}] -> ${did ?? 'なし'} | hTrash=${st?.host?.trash ?? '-'} stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if ((st?.host?.trash ?? 0) > hTrash0) return { pass: true, detail: `ON_TARGETED(WXDi-D09-H14) 発火→host エナ1枚トラッシュ確認（trash ${hTrash0}→${st.host.trash}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `host エナトラッシュ 未確認（hTrash ${hTrash0}→${fin?.host?.trash ?? '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ⑦'''' ON_TARGETED残④個別確認（§7・WX25-P2-055）: 轟砲 パワードスーツ【常】バニッシュされない＋【自】
+  //    《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、ターン終了時までこのシグニは【常】
+  //    能力を失う（mandatory・原文は自己参照＝self対象のはずだが effects_WX24_26.json の E2 target.owner は
+  //    'opponent' とコードされている＝要検証。host側にも1枚だけ候補signi（コスト用placeholder）を置き、
+  //    guest.abilitiesRemoved と host.abilitiesRemoved のどちらに反映されるかを観測してparser owner誤りの
+  //    有無を確定する。
+  ontargeted5: {
+    title: 'WD05-017→WX25-P2-055（ON_TARGETED残④＝REMOVE_ABILITIES owner検証）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WD05-009#9'], null, null], // 盤面 valid 化（任意の自シグニ・REMOVE_ABILITIESの候補にもなりうる）
+        'energy': ['WD05-009#1', 'WD05-009#2'],       // 黒×1 コスト用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX25-P2-055#1'], null, null], // watcher（轟砲 パワードスーツ・単独配置）
+      },
+      handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('初期 abilitiesRemoved host:', JSON.stringify(before?.host?.abilitiesRemoved), 'guest:', JSON.stringify(before?.guest?.abilitiesRemoved));
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/ontargeted5-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+        const st = await H.queryState();
+        H.log(`  p2055[${s}] -> ${did ?? 'なし'} | hAbilRem=${JSON.stringify(st?.host?.abilitiesRemoved)} gAbilRem=${JSON.stringify(st?.guest?.abilitiesRemoved)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        const hHit = (st?.host?.abilitiesRemoved ?? []).length > 0;
+        const gHit = (st?.guest?.abilitiesRemoved ?? []).length > 0;
+        if (hHit || gHit) {
+          const side = gHit ? 'guest(self・原文通り)' : 'host(opponent・JSON owner通りだが原文と不一致の疑い)';
+          return { pass: true, detail: `ON_TARGETED(WX25-P2-055) 発火→REMOVE_ABILITIES 適用先=${side}（hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)} gAbilRem=${JSON.stringify(st.guest.abilitiesRemoved)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `REMOVE_ABILITIES 未確認（hAbilRem=${JSON.stringify(fin?.host?.abilitiesRemoved)} gAbilRem=${JSON.stringify(fin?.guest?.abilitiesRemoved)} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑧ ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（C1・WX07-036）: 弩炎 フレイスロ少佐【自】＝味方＜ウェポン＞シグニが
   //    効果で対戦相手シグニをバニッシュしたとき、自分のシグニ1体に【ダブルクラッシュ】付与（any_ally・triggerFilter story=ウェポン）。
   //    配線＝resolveStackNext 中央 diff/4761（banisher が場の自シグニ＋対戦相手バニッシュ検出）。
