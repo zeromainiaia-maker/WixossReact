@@ -2775,13 +2775,13 @@ const scenarios = {
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
         // 「召喚」確認ボタンを挟まずゾーン選択へ直行するカードもあるため summoned 未確定でも試す
         if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-        // ON_PLAY任意コスト《無》：エナ選択→支払う（＝ドロー試行のトリガー）
+        // SigniOnPlayCostModal「【出】効果を発動しますか？」：エナ1枚選択→発動（＝ドロー試行のトリガー）
         if (!did) {
-          const payBtn = page.getByTestId('optcost-pay').first();
-          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
-            await H.clickTestId('optcost-energy-0');
-            await page.waitForTimeout(300);
-            if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false)) {
+            const e0 = page.getByTestId('onplaycost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; }
+            else if (await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = '発動(onplaycost)'; }
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
