@@ -5,6 +5,24 @@
 
 ---
 
+## §3 Sonnetタスク6＝§5c再収穫サイクル（held 99枚中85枚採用・14枚は退化を確認して据置）（2026-07-12・続き77・Sonnet 5）
+
+続き76（Opus）で parser を大幅に触った（timing 語彙19系統＋タスク10 パターンA〜F）ため、`npm run build:effects` の held（要レビュー＝99枚）が入れ替わっていた。`node scripts/heldReview.mjs` の署名グループ表（3枚spot-check）だけでは**12行の表示上限で情報喪失が隠れる**ケースを2件実際に踏んだため、**全99枚の完全（非truncate）leaf diffを一時生成して1枚ずつ精査**（`heldReview.mjs`のロジックを流用したワンオフ集計）。
+
+**採用85枚**＝GRANT_QUOTED_AUTO_ABILITY→`GRANT_LRIG_ABILITY`/`GRANT_FIELD_SIGNI_ABILITY`（引用付与の構造化）・CHOOSE平坦化復元（続き76のタスク10で直したparser規則の再収穫）・`IS_SELF_IN_CENTER_ZONE`/`IS_SELF_AWAKENED`のactiveCondition付与・条件節CONDITIONAL持ち上げ、が中心。
+
+**据置14枚＝退化を確認**（CLAUDE.md §3ガードレール④の「curated正・fresh誤り」据置パターンに実測で複数該当。Opusタスク12へ観測登録）：
+- **EXILE→TRASH の逆行7枚**＝WXDi-CP02-TK03B・WXDi-P11-010B・WXDi-P16-001B・WXK04-035・WXK09-015・WX21-027・WX24-P3-TK1A。「ゲームから除外する」原文がTRASHに誤変換される既知パターン（WXDi-CP02-TK03B・WX21-027は owner/target まで誤る＝self除外がopponent-trashに化ける）。WX24-P3-TK1Aは同カード内の別 index でtiming是正（`ON_PLAY`→`ON_SIGNI_BANISH_OPPONENT`）も混在するが、heldReviewはカード単位採用のためEXILE退化を道連れにできず全体据置。
+- **条件ドロップ2枚**＝WXDi-P16-009（`LIFE_COUNT`条件が消えて無条件実行に）・WXDi-P16-011（`HAND_COUNT`条件が同様に消失）。
+- **triggerScope脱落1枚**＝WXDi-CP02-TK01A（curatedの`any_opp`がfreshで消える）。
+- **複数効果の一部欠落2枚**＝WX24-P1-043（「レベル1/2/3のシグニがあるかぎり」の3段階付与のうちfreshは1段目しか`abilities[]`に残らず2/3段目が消滅）・WXDi-P11-046（「パワー+3000され、かつ『ダウンしない』を得る」のうちfreshは後半のみ残り+3000部分が消滅）。
+- **inner durationの誤変換1枚**＝WX25-P2-062（`GRANT_KEYWORD`内側の`action.duration`が原文「ターン終了時まで」に反しfreshで`PERMANENT`化。外側durationは正しいまま内側だけ誤る）。
+- **無改善1枚**＝WXDi-P04-016（「ルリグデッキのピース1枚をゲームから除外する」箇所、curated/freshとも`TRASH`型・owner:opponentのまま＝どちらも原文と食い違い、fresh採用でも実益なし）。
+
+**検証**＝`npm run gates`全緑（**golden 223維持**・**census 1514→1494**〔高シグナル欠落20枚減〕・smoke/fuzz全0）／`npm run regen`で**同型★逆翻訳割れグループ0維持**・decompile差分は採用した85枚のみに限定されることを`git diff docs/decompile_sheet*.txt`で確認（例：WX18-034「このシグニは」→「あなたのすべてのシグニは」＝原文「すべてのシグニ」に是正／WX19-062が単発DRAWから「以下の2つから1つを選ぶ」のCHOOSE構造に復元）。`scripts/vocabCensus.ts`の`BASELINE_HIGH`とPLAN.md §恒久指標を1514→1494へ実数更新。
+
+---
+
 ## §3 Opusタスク10 パターンF-2＝**「代わりに」の条件語彙が無く、置換ゲートが立たずに両方実行されていた（機構1本を新設）**（2026-07-12・続き76・Opus 4.8）
 
 「X。**このターンに対戦相手の効果によってあなたの手札からカードが1枚以上トラッシュに移動していた場合、代わりに Y**」という**置換**が、条件を表現する語彙が無いために**CONDITIONAL 置換に昇格できず SEQUENCE に化けて両方実行**されていた（WXDi-P02-005＝**1枚引く → 3枚引く ＝ 計4枚**の過剰効果）。
