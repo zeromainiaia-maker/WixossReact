@@ -571,6 +571,7 @@ const scenarios = {
       },
       guestSet: {
         'field.signi': [['WX25-P2-055#1'], null, null], // watcher（轟砲 パワードスーツ・単独配置）
+        'actions_done': [], // 《ターン1回》消費のクリア（続き75で usageLimit が実機で効くようになった＝持ち越し防止）
       },
       handPrepend: ['WD05-017#1'],                   // ホール・ダーク（黒×1・対戦相手シグニ-4000）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
