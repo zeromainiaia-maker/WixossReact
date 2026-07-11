@@ -1,10 +1,8 @@
 # timing 語彙センサス＝【自】が ON_PLAY へ誤フォールバックした効果のクラスタ表
 # 生成: npm run census:timing（scripts/timingCensus.ts）
 # 上位＝parser に timing 語彙が無い候補。engine に収集関数が既にあれば regex 1本で直る（続き75の ON_SIGNI_BANISH_OPPONENT が実例＝31枚）。
-# 総数: 281 効果 / 164 クラスタ
+# 総数: 270 効果 / 163 クラスタ
 
-  11  このシグニがライズされたとき
-      例: WX15-043-E1, WX16-037-E1, WX16-038-E2, WX16-039-E1, WX17-054-E1, WX20-056-E1, WXK02-077-E1, WD17-011-E1
   11  このシグニがドライブ状態になったとき
       例: WX22-020-E1, WXEX2-63-E1, WXK01-074-E2, WXK01-077-E1, WXK01-078-E1, WXK03-022-E1, WXK03-058-E1, WXK03-061-E1
   10  このカードが手札からトラッシュに置かれたとき
