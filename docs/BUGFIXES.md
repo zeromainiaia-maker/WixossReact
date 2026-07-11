@@ -5,6 +5,22 @@
 
 ---
 
+## §7 実機検証＝続き76/78で新規実装された6機構のうち3件を実機PASS確認（2026-07-12・続き79・Sonnet 5）
+
+続き76（パターンB＝FREEZE/NEGATE_ATTACKのLRIG対象）・続き76（パターンC＝BLOCK_ACTION(DRAW_OR_ADD_TO_HAND_BY_EFFECT)）の各engine実装について、`scripts/verifyBattleDrive.mjs`にシナリオを追加し実UIブラウザ駆動で検証した。
+
+- **✅ PASS 3件**
+  - **`freezeLrig`（WX17-020）**＝アーツ選択肢③「対戦相手のセンタールリグを凍結する」→`guest.field.lrig_frozen=true`を確認。`execFreeze`のLRIG対象分岐が実ディスパッチで正しく動作。
+  - **`negateAttackLrig`（WXK10-012）**＝アーツ選択肢②「対戦相手のセンタールリグがアタックしたとき、そのアタックを無効にする」→`guest.negated_attacks`に対象lrigのcardNumが載ることを確認。`execNegateAttack`のLRIG対象分岐が正しく動作（`cands = [state.field.lrig.at(-1)]`の単一候補パス）。
+  - **`blockDrawByEffect`（WXK10-010①を模した`blocked_actions`直接注入＋WXDi-P01-061の自己ドロー効果）**＝`state.blocked_actions.includes('DRAW_OR_ADD_TO_HAND_BY_EFFECT')`が立った状態で自己効果のドローが「効果によるドローは封じられている」ログとともに実際に阻止されることを確認。`execDraw`のBLOCK_ACTIONチェックが実ディスパッチで正しく動作。
+- **⏳ 残3件は未検証**（コード実装済み・次回再実行で確認予定）＝`exileHandBlind`（WX14-011・EXILE HAND_CARD+blind）・`delayedAttackTrigger`（WX24-P1-012・遅延トリガー収集）・`trashCounterOpp`（WX14-040-E3・execTrashカウンタ書き込み側）。exileHandBlindは手札2枚ピッカーのクリックがトグル式（同じ要素を2回押すと選択解除される）ことに気づかず無限ループしていたバグを特定・修正済み。delayedAttackTrigger/trashCounterOppは前セッションで見つけた「ArtsModal等ローカルReact state駆動のモーダルはシナリオ間のDB注入では閉じない」問題（下記）が絡んでいる可能性があり要再検証。
+- **🔎 副産物の発見＝ローカルReact state駆動のモーダル（ArtsModal/SigniOnPlayCostModal/LrigGrantedModal等）はシナリオ間の`injectScenario`（battle_statesへのREST PATCH）では閉じられない**。`pending_effect`駆動のSELECT_TARGET系モーダルはサーバ状態リセットで正しく閉じるが、`showArtsModal`/`pendingArtsCard`のようなクライアントローカルuseStateは残留し**次のシナリオの操作を誤爆させる**（前シナリオが正しく完走しないと後続シナリオが巻き添えでFAILする）。回避策は「各シナリオのdrive関数が必ず自力でモーダルを閉じ切るまで書く」以外に無い＝`H.closeModals()`（Escape×3）は当てにならない。
+- **⚠️ 環境の異常＝ビルド+ログイン+CPU戦セットアップだけで毎回15〜30分かかる**（想定は数分）。調査中に`npm run preview`の子プロセスが正常終了せずポート4173〜4222に**50個**積み上がっていることを発見（1回の実行ごとに新規ポートが1つ増える）。原因調査はOpusへ引き継ぎ（詳細はPLAN.md §4該当セッション記録）。
+
+**検証**＝実UIブラウザ駆動（`node scripts/verifyBattleDrive.mjs freezeLrig negateAttackLrig blockDrawByEffect`）で3件PASSを再現確認。engine/parserコード変更なし（検証のみ）につき`npm run gates`は対象外。
+
+---
+
 ## §3 Opusタスク12＝Sonnet観測8件（続き77）の parser/engine 弱点を全て修正＋held 148枚採用（2026-07-12・続き78・Fable 5）
 
 続き77で「観測のみ登録」された在庫8件を根治し、副産物として3つの**新規系統バグ**（引用跨ぎ条件消費・連用中止の先頭脱落・先頭duration句のPERMANENT化）を発見・横展開修正。**採用計148枚（自動1＋手動147）・golden 223→230（+7）・census 1494→1483・同型★0維持・全ゲート緑**。
