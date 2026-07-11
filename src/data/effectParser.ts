@@ -3288,6 +3288,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
 
   const baseType = card.Type?.split('/')[0] ?? '';
+  _parsingBaseType = baseType;
   if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
     // 「」『』外側にある【自】：セクションを分離してパース（ARTS_SELF_RECYCLE_ON_TRIGGER等）
     // 「」内の【自】は付与能力なので除外する
