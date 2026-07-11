@@ -2691,7 +2691,18 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exilehandblind-${s}.png`, fullPage: true });
         let did = null;
-        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        // ArtsModal Phase2（コスト選択）：「アーツ使用」は赤エナ1枚選択まで disabled のまま＝先にエナ選択
+        if (!chose) {
+          const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+          if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+            if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+            else {
+              const e0 = page.getByTestId('artscost-energy-0').first();
+              if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+            }
+          }
+        }
+        if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
         if (!did && !chose) {
           const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
           if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
