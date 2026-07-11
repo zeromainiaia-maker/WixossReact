@@ -1892,6 +1892,19 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- ゲームから除外する ----
   if (t.match(/ゲームから除外する/)) {
+    // 「対戦相手はあなたの手札をN枚**見ないで選び**、あなたはそれらをゲームから除外する」（WX14-011①）。
+    // ⚠下の汎用規則は手札除外を **TRASH**（＝トラッシュ行き）にしてしまい、枚数も 1 に潰れていた
+    //   （§3 Opusタスク10 パターンE）。engine は execExile の HAND_CARD 分岐＋blind で実行する。
+    {
+      const blindExileM = t.match(/対戦相手はあなたの手札を([０-９\d]+)枚見ないで選び、あなたはそれ(?:ら)?をゲームから除外する/);
+      if (blindExileM) {
+        return {
+          type: 'EXILE',
+          target: { type: 'HAND_CARD', owner: 'self', count: parseNum(blindExileM[1]) },
+          blind: true,
+        } as unknown as EffectAction;
+      }
+    }
     // 除外元ゾーンの所有者で owner を決める（「あなたのトラッシュ」=self／「対戦相手のトラッシュ」=opponent）。
     // 文頭に別主語（「対戦相手のシグニ１体を対象とし、」＝パワー修正対象）があっても除外元ゾーンを優先する。
     // 従来は素の t.includes('対戦相手') が別節の主語を拾い、self トラッシュ除外を opponent に誤反転していた
