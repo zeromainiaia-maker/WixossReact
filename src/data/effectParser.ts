@@ -2456,6 +2456,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : actionText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
+             // 「（対戦相手／あなた）のシグニN体のパワーが0以下になったとき」（6件・続き76）。engine 配線済み
+             //   （collectPowerZeroTriggers＝パワー0以下でバニッシュされる際に triggerScope で watcher を絞る）。
+             //   ⚠engine は「0以下」専用（閾値付きの「N以下」は受け皿が無い）＝0 に限定してマッチする。scope は下で抽出。
+             : actionText.match(/シグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/) ? ['ON_SIGNI_POWER_ZERO_OR_LESS']
              // 「あなたが【エナチャージ】をしたとき」（2件・続き76）も同じ受け皿（engine はエナゾーンが1枚増えたことを
              //   スナップショット差分で検知＝所有者自身の場のシグニが反応する）。
              //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
