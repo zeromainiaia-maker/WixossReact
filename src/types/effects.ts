@@ -195,7 +195,7 @@ export type Condition =
   | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
-  | { type: 'THIS_CARD_HAS_UNDER' }                           // このシグニの下にカードがある場合
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter }    // このシグニの下にカードがある場合（filter=下カードの条件）
   | { type: 'LRIG_LEVEL_EQ_OPP' }                             // 自分のセンタールリグのレベルが対戦相手のセンタールリグと同じ場合
   | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' } // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合（WXK07-025/WXK10-068。EQ の不等号版）
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string } // センタールリグのカード名が name を含む場合
