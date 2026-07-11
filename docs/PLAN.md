@@ -120,7 +120,7 @@
 
 | # | タスク | 種別（触る層） | 規模 | 着手条件 |
 |---|---|---|---|---|
-| 1 | 引用内側 parse＋再収穫27 | parser語彙＋engine機構 | M | ◎今すぐ（推奨・本丸） |
+| 1 | 引用内側 parse＋再収穫27 | parser語彙＋engine機構 | M | ◎今すぐ（**第1弾は✅続き75**＝GRANT_TO_PLACED_SIGNI＋バトルバニッシュ timing 31枚＋UP脱落6枚。残＝内側「代わりに」・他の内側トリガー語彙） |
 | 2 | 動的比較の残3枚 | parser語彙（＋engine解決器） | S〜M | ◎今すぐ |
 | 3 | DRAW脱落 systematic 19枚 | parser修正 | S | ◎今すぐ |
 | 4 | §5c 条件節の残 | parser語彙 | S〜M | ◎今すぐ |
