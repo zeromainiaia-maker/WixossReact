@@ -1306,6 +1306,12 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return a.id === 'GAIN_SIGNI_BARRIER' ? '【シグニバリア】１つを得る' : '【ルリグバリア】１つを得る';
       }
+      // バリア喪失（LOSE_SIGNI_BARRIER/LOSE_LRIG_BARRIER・engine実装済み）＝「対戦相手は【○バリア】１つを失う」（WX24-P1-043）
+      if (a.id === 'LOSE_SIGNI_BARRIER' || a.id === 'LOSE_LRIG_BARRIER') {
+        const kw = a.id === 'LOSE_SIGNI_BARRIER' ? 'シグニバリア' : 'ルリグバリア';
+        const n = (a as { count?: number }).count;
+        return `対戦相手は【${kw}】${numJa(n ?? 1)}つを失う`;
+      }
       // 全領域で色を失う（LOSE_COLOR_ALL_ZONES・CONTINUOUS・engine実装済み）＝
       // 「（あなたの場に＜X＞のルリグがN体いないかぎり、）このカードはすべての領域で色を失う」。
       // 条件は 【常】に前置描画されないため条件ごと currentCardText から抽出。
