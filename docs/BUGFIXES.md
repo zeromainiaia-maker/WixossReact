@@ -5,6 +5,42 @@
 
 ---
 
+## §3 Opusタスク16＝timing センサス消化⑩〜⑱＝**engine 配線済みなのに parser に語彙が無かった timing を9種まとめて開通（35枚）＋ON_ACCE の過剰発火とSTUB誤ルーティングを是正**（2026-07-12・続き76・Opus 4.8）
+
+`npm run census:timing` の残テール（209効果 / 147クラスタ）から、**engine に収集関数があるのに parser が一度も生成していない** timing を静的ギャップと突き合わせて9種抽出し、まとめて開通した。すべて **ON_PLAY（＝「場に出たとき」）へ黙って誤フォールバック**しており、**召喚しただけで発火する幻覚**になっていた。
+
+### 開通した timing（すべて engine 配線済み＝parser に regex ＋ scope/条件の抽出を足すだけ）
+| timing | 枚数 | 原文 | 主語の表現 |
+|---|---|---|---|
+| `ON_ACCE` / `ON_ACCE_ATTACH` | 8 | 「（この/あなたの）シグニに【アクセ】が付いたとき」 | **カード種別で受け皿が変わる**＝シグニ＝`ON_ACCE`（場のシグニ走査）／ルリグ＝`ON_ACCE_ATTACH`（ルリグ監視の別ループ） |
+| `ON_REFRESH` | 6 | 「（あなた/対戦相手/いずれかのプレイヤー）がリフレッシュしたとき」 | `triggerCondition.refreshedOwner` |
+| `ON_ENERGY_TO_TRASH` | 3 | 「あなたの効果によって対戦相手のエナゾーンからカードN枚がトラッシュに置かれたとき」 | `triggerCondition.energyTrashedOwner` |
+| `ON_SIGNI_FROZEN` | 3 | 「対戦相手のシグニN体が凍結状態になったとき」 | `triggerScope`（any_opp 既定） |
+| `ON_OPP_POWER_DECREASED` | 4 | 「（＜毒牙＞のシグニの効果によって）対戦相手のシグニのパワーが減ったとき」 | 発生源フィルタは engine 未表現＝`markSilentFallback` で PARTIAL 刻印 |
+| `ON_DISCARDED_AS_COST` | 4 | 「＜X＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき」 | コスト元の能力フィルタは engine 未表現＝PARTIAL 刻印 |
+| `ON_GUARD` | 2 | 「あなたが【ガード】したとき」 | — |
+| `ON_OPP_ARTS_USE` | 4 | 「（あなたか）対戦相手がアーツを使用したとき」 | 「**あなたか**対戦相手が」（WX16-003）は**両方の使用で発火**＝`['ON_ARTS_USE','ON_OPP_ARTS_USE']` の2本立てにする（片方だけだと自分のアーツ使用を取りこぼす） |
+
+**parser 影響を全数機械測定＝35枚**（変更前後の parser 出力を全6712枚でダンプし、`timing`/`triggerScope`/`triggerCondition`/`parseStatus` を除いた正規形で比較）＝**34枚が timing/scope のみの変化・action 構造の退化ゼロ・既存 timing の横取りゼロ**。残る1枚（WX25-P3-062）は下記の STUB 誤ルーティング是正による意図した action 変更。
+
+**JSON 反映**＝heldReview で19枚採用＋**MANUAL を含むカード4枚は timing だけ effectId アンカーで外科パッチ**（`build:effects` は **MANUAL を含むカードを丸ごと温存する**ため、同じカードの AUTO 効果の誤 timing が直らない＝WXEX2-69-E1／WX05-021-E2／WXDi-P07-093-E2／WX25-P3-062-E1）＋curated MANUAL のスコープ整合2枚。**curated が動いたのは意図した25枚のみ**（カード単位の機械diffで確認）。
+
+### 同時に見つけて直した engine / データの実バグ
+- **`ON_ACCE` が自フィールドの全シグニで発火していた（過剰発火）**＝`checkAndFireOnAcceTriggersForOwner` が場のシグニを無条件に走査しており、「**この**シグニに【アクセ】が付いたとき」でも**別のシグニにアクセを付けただけで発火**していた。`triggerScope`（既定 `self`）で **アクセが付いた当のシグニ**に限定。あわせて **同ループに《ターン1回/2回》の使用制限判定が無かった**ので追加（新たに《ターン1回》の ON_ACCE カードが入るため）。
+- **WX15-059（コードイート　フラポテ）が一度も発火しない no-op だった**＝シグニなのに curated が `ON_ACCE_ATTACH` を持っていたが、engine の `ON_ACCE_ATTACH` は**ルリグとアクセカード自身しか走査しない**。正しい受け皿の `ON_ACCE` + `triggerScope:'any_ally'` へ是正。
+- **「減った値と同じだけ＋」が意味の違う STUB へ誤ルーティングされていた**＝`POWER_COPY_FROM_DOWNED` は「この方法で**ダウンした**シグニのパワーと同じだけ＋」（WXDi-P16-052）の実装。`REACTIVE_POWER_UP` の regex が「対戦相手のシグニ**１体**の」という体数表記を許していなかったため、WX25-P3-062 が下流の全文規則で **ダウン系の実装**に落ちていた（原文と無関係の挙動）。regex を是正し、curated の action も同文型の WX13-036 / WXEX2-52 と同じ canonical encoding（`POWER_MODIFY` + `deltaFromOppPowerDecrease`）へ揃えた。
+- **golden が「バグのある encoding」を正例にしていた**＝`Stage2 ON_TURN_END` テストが WX05-021-E2 を使っていたが、そのカードの原文は「エナゾーンからトラッシュに置かれたとき」で、`ON_TURN_END` は今回是正した誤フォールバックそのものだった。原文が本当に「あなたのターン終了時」の WX10-030-E1 へ差し替え。
+
+### 検証
+`npm run gates` 全緑（**golden 202/202**〔+5：新 timing 語彙の parser assert 4件＋STUB 誤ルーティングの回帰ガード1件〕・smoke/fuzz 全0・**census 1537→1532**・lint 0 errors）／`npm run regen` で同型★0・逆翻訳が原文一致／**timing フォールバック 209→174**。
+**実機8シナリオ全PASS**＝既存の `acceAttach`・`refreshTrigger`・`energyToTrash`・`oppPowerDecreased`・`freezetrigger`・`handDiscard` に回帰なし＋新規2件（`acceSelfScope`＝watcher 自身に付いたら発火／`acceOtherScope`＝別シグニに付けても**非発火**＝過剰発火の回帰ガード）。両方とも既定 order に追加。
+
+### ⚠driver の知見2点
+- **トリガーが2件同時に積まれると `StackOrderModal`（発動順序を確定）が出る**＝押さないと `orderTurnDone:false` のままスタックの `queue` が空で**解決が始まらない**（`isReadyToResolve`）。既存の acce シナリオはトリガー1件で整列UIを踏んでいなかったため、この分岐が未カバーだった。**「トリガーが収集された（actions_done に載った）」ことと「効果が解決された」ことは別**＝PASS 条件を actions_done だけに置くと解決漏れを見逃す。
+- **盤面注入は `field.signi_acce` を明示的にクリアしないと前シナリオの装着が残る**（バッチ実行時の状態汚染。判定が別ゾーンの残骸を拾って誤診する）。
+
+---
+
 ## §3 Opusタスク16＝timing センサス消化⑨＝`ON_HAND_DISCARDED`（+5枚）＝**「engine 未対応」という前回の見送り判断が誤りだった**（2026-07-12・続き75・Opus 4.8・同日第10件）
 
 同日第8件で「原文の『**ガードステップ以外で**』が engine 未対応（`triggerCondition` に相当語彙が無い）＝timing だけ直すと過剰発火になる」として**見送った**クラスタ。engine を読み直したところ**判断が誤りだった**と判明。
