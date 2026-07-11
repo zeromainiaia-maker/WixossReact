@@ -2043,7 +2043,9 @@ const scenarios = {
         await page.waitForTimeout(1200);
         const before = await H.queryState();
         const hHand0 = before?.host?.hand ?? 0;
+        const under0 = before?.guest?.lrigUnder ?? 0;
         let overwritten = false;
+        let grew = false;
         for (let s = 0; s < 14; s++) {
           await page.waitForTimeout(1000);
           await page.screenshot({ path: `${SHOT}/lrigGrowAnyOppP03046-a${attempt}-${s}.png`, fullPage: true });
@@ -2058,16 +2060,23 @@ const scenarios = {
           if (st.error) continue;
           const g = st.guest ?? {};
           const watcherLog = await H.findLog(/羅原姫|Ａｃ|の【自】効果（ルリグがグロウしたとき）/);
+          if ((g.lrigUnder ?? 0) > under0) grew = true; // CPU が実際にグロウした
+          // 原文＝「【自】：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」＝lrigGrowAnyOpp と同じ
+          // turnOwner:self ゲート（続き75で parser 実装）。CPU 自身のターンのグロウでは非発火が正しい。
           if ((st.host?.hand ?? 0) > hHand0) {
-            return { pass: true, detail: `ON_LRIG_GROW any_opp 発火→host手札に黒シグニ回収確認（hHand ${hHand0}→${st.host.hand}・hTrash=${st.host.trash}・log「${watcherLog ?? '—'}」）` };
+            return { pass: false, detail: `turnOwner:self ゲート違反＝相手ターン中の相手グロウで誤発火（hHand ${hHand0}→${st.host.hand}・log「${watcherLog ?? '—'}」）。原文は「あなたのターンの間」限定` };
           }
           if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  p03046[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
           if (s % 3 === 0 || did) H.log(`  p03046[a${attempt}.${s}] -> ${did ?? 'なし'} | phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} hHand=${st.host?.hand} hTrash=${st.host?.trash} stack=${st.stackLen} pEff=${st.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
         }
+        if (grew) {
+          const fin = await H.queryState();
+          return { pass: true, detail: `turnOwner:self ゲート成立＝CPU(相手)自身のターンのグロウでは非発火（CPUグロウ確認 under ${under0}→${fin?.guest?.lrigUnder} ・hHand ${hHand0} のまま）` };
+        }
         if (!overwritten) break;
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `ON_LRIG_GROW any_opp(WXDi-P03-046) 未確認（host=${JSON.stringify(fin?.host)} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `CPUグロウ自体が発生せず検証空振り（host=${JSON.stringify(fin?.host)} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
