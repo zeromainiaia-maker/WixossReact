@@ -425,6 +425,8 @@ export interface PlayerState {
   last_discarded_signi_power?: number;
   // levelLteDiscardSigni: handDiscardSigniコストで捨てたシグニのレベルを記録（「この方法で捨てたシグニのレベル以下」WX22-046/WXK10-044 等）
   last_discarded_signi_level?: number;
+  // classMatchesDiscardSigni: handDiscardSigniコストで捨てたシグニのCardClassを記録（「それと共通するクラスを持つ」WXK10-033）
+  last_discarded_signi_class?: string;
   // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
   is_betting_this_effect?: boolean;
   // ベットで実際に支払ったコイン枚数（可変ベット「好きな枚数」・段階ベット「or」のスケール用）。is_betting_this_effect と同時に設定/クリア
