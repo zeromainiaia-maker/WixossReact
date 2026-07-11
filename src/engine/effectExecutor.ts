@@ -1052,6 +1052,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   const src = a.source;
   const tgtOwner = src.owner;
   const state = ownerState(tgtOwner, ctx);
+  // 上記 execDraw と同じブロック（「カードを**手札に加える**ことができない」側）。
+  if (state.blocked_actions?.includes('DRAW_OR_ADD_TO_HAND_BY_EFFECT')) {
+    return done(addLog(ctx, '効果で手札に加えることは封じられている'));
+  }
   const ownerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
 
