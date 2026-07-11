@@ -1915,6 +1915,35 @@ export function parseSentencePart1(t: string): EffectAction | null {
         } as unknown as EffectAction;
       }
     }
+    // 「（対戦相手の）シグニN体を対象とし、それ（とこのシグニ）をゲームから除外する」＝場のシグニ除外。
+    // execExile は SIGNI 対応済み（effectExecutor「場のシグニをゲームから除外」）。従来は下の汎用フォール
+    // バックで TRASH{TRASH_CARD}（トラッシュ→トラッシュの完全no-op）に化け、owner も別節の「対戦相手」を
+    // 拾って誤っていた（続き77 Sonnet観測(a)＝WXK04-035/WXK09-015/WXDi-P11-010B/WXDi-P16-001B/
+    // WXDi-P13-089＋複合形 WX21-027/WX24-P3-TK1A の7枚）。
+    {
+      const fieldExileM = t.match(/(対戦相手の|あなたの)?シグニ([０-９\d]+)体を対象とし、(それとこのシグニ|このシグニとそれ|それら?)をゲームから除外する/);
+      if (fieldExileM) {
+        const owner: Owner = fieldExileM[1] === 'あなたの' ? 'self' : 'opponent';
+        const exTarget: EffectAction = { type: 'EXILE', target: { type: 'SIGNI', owner, count: parseNum(fieldExileM[2]) } };
+        if (fieldExileM[3] === 'それ' || fieldExileM[3] === 'それら') return exTarget;
+        // 「このシグニとそれ／それとこのシグニ」＝対象と自身の両方を除外（対象→自身の順＝curated 準拠）
+        return { type: 'SEQUENCE', steps: [
+          exTarget,
+          { type: 'EXILE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+        ] };
+      }
+      // 「このシグニをゲームから除外する」（単独）＝場の効果元シグニ自身の除外（クラフトトークンの
+      // 「対戦相手のターン終了時、〜」等＝WXDi-CP02-TK01A/TK02A/TK03B）。
+      // ⚠遅延形「ターン終了時に、または場から離れる場合に」（WX16-040 等＝遅延トリガー機構待ち・§6.3）と
+      //   「場を離れる場合、代わりに」（WXK05-024＝置換ルール機構待ち）は対象外＝従来近似のまま。
+      //   丸括弧のルール注釈（「（クラフトであるシグニは場を離れると…）」）はガード判定から除いて誤除外を防ぐ。
+      const tNoNote = t.replace(/（[^（）]*）/g, '');
+      if (/このシグニをゲームから除外する/.test(tNoNote)
+          && !/代わりに|ターン終了時に、または|場(?:から|を)離れる場合/.test(tNoNote)
+          && !/場にあるこのシグニをゲームから除外する/.test(tNoNote)) {
+        return { type: 'EXILE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
+      }
+    }
     // 除外元ゾーンの所有者で owner を決める（「あなたのトラッシュ」=self／「対戦相手のトラッシュ」=opponent）。
     // 文頭に別主語（「対戦相手のシグニ１体を対象とし、」＝パワー修正対象）があっても除外元ゾーンを優先する。
     // 従来は素の t.includes('対戦相手') が別節の主語を拾い、self トラッシュ除外を opponent に誤反転していた
