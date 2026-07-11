@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Sonnetタスク1＝§7実機検証＝ON_LRIG_GROW②（相手のグロウでany_opp発火・WXDi-P13-047）を検証・turnOwnerゲート未実装を発見（2026-07-12・続き73・Sonnet 5）
+
+PLAN §7「ON_LRIG_GROW」残②「相手のグロウでany_oppが発火する経路」。`scripts/verifyBattleDrive.mjs` に `lrigGrowAnyOpp`（WXDi-P13-047）を新設。host に watcher（【自】《ターン1回》ON_LRIG_GROW・triggerScope:any_opp・対戦相手のエナ1枚をトラッシュ）を配置し、guest（CPU）を既存 `cpugrow` と同型構成でGROWフェイズに注入してCPU自動グロウさせる形で検証した。
+
+**結果＝PASS（2回連続・単体／隣接シナリオ`cpugrow`/`cpugrowblocked`/`wxk10068banish`とのバッチ実行でも確認）**＝CPUがLv2→Lv3へ自然グロウした直後、host画面にSELECT_TARGETピッカーが出現（host自身がwatcherの効果解決を担当）→決定クリックで `guest.trash` が0→1（guestのエナ1枚がトラッシュ）。盤面ログ「[自分] 幻獣神　LOVIT//ディソナ の【自】効果（グロウ時）」で発火を確認。
+
+**🆕 turnOwnerゲート未実装を発見**＝原文「【自】《ターン１回》：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」に対し、`effects_WXDi.json` の `WXDi-P13-047-E2` には turnOwner系の `triggerCondition`/`activeCondition` が無い。本検証は `guest（対戦相手）自身のターン中のグロウ`（＝原文条件を満たさないはずの盤面）だが、それでも発火した＝**「あなたのターンの間」ゲートが実装されておらず、相手が自分のターンで通常グロウするだけで毎回誤発火する過剰発火バグの疑い**（実戦では相手は基本的に自分のターンにしかグロウしないため、この効果は本来ほぼ常に不成立のはずが、現状は常に成立してしまう）。
+
+**修正はせず、観測結果のみ記録してOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。**変更範囲＝`scripts/verifyBattleDrive.mjs`のみ**（1シナリオ追加＋`order`配列更新）＝engine/parser不変のため typecheck のみ確認・smoke/golden/fuzz再実行不要。詳細な盤面・クリック列・ログは [VERIFY_BROWSER.md](./VERIFY_BROWSER.md) 参照。
+
+---
+
 ## §3 Sonnetタスク1＝§7実機検証＝ON_TARGETED残3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を全数検証・2件の実データ疑義を発見（2026-07-12・続き72・Sonnet 5）
 
 PLAN §7「ON_TARGETED（対象になったとき）」の残タスク①（続き64のWXDi-P02-043に続く残る3枚の個別確認）。`scripts/verifyBattleDrive.mjs` に `ontargeted3`/`ontargeted4`/`ontargeted5` を新設し、いずれも既存 `ontargeted`（WD05-017 ホール・ダーク＝黒×1で対戦相手シグニ-4000）で watcher を対象化する同一配線を踏襲。**3件とも単体実行でPASS**（`ontargeted3` はバッチ実行時のみ既存の状態汚染で1回FAILしたが単体では複数回安定再現＝新規バグではない）。`order`配列に3件とも追加（`ontargeted2`の直後）。
