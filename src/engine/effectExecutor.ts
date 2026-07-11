@@ -729,6 +729,10 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...s,
         energy: s.energy.filter(n => !selected.includes(n)),
         trash: [...s.trash, ...selected],
+        // 「このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに移動していた場合」条件用
+        // （ENERGY_TRASHED_BY_OPP・WXDi-P02-005②）。上の手札版と同じ考え方。
+        energy_trashed_by_opp_this_turn: tgt.owner === 'opponent' && selected.length > 0
+          ? (s.energy_trashed_by_opp_this_turn ?? 0) + selected.length : s.energy_trashed_by_opp_this_turn,
       };
       return addLog(setOwnerState(tgt.owner, newS, c),
         `エナから${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
