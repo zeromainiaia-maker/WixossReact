@@ -401,6 +401,17 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
   }
+  // 手札をゲームから除外（「対戦相手はあなたの手札をN枚見ないで選び、あなたはそれらをゲームから除外する」WX14-011①）。
+  // ⚠従来 HAND_CARD 分岐が無く **no-op** に落ちていた。`blind`（＝相手が伏せたまま選ぶ）は
+  //   selectOrInteract の blind フラグで表現する（OPP_CHOOSE_YOUR_HAND_DISCARD と同じ慣例）。
+  if (tgt.type === 'HAND_CARD') {
+    const hstate = ownerState(tgt.owner, ctx);
+    const hcands = hstate.hand;
+    if (hcands.length === 0) return done({ ...addLog(ctx, '除外できる手札がない'), lastProcessedCards: [] });
+    const hcount = tgt.count === 'ALL' ? hcands.length : Math.min(resolveNum(tgt.count), hcands.length);
+    const hscope: TargetScope = tgt.owner === 'self' ? 'self_hand' : 'opp_hand';
+    return selectOrInteract(hcands, hcount, tgt.upToCount ?? false, hscope, a, undefined, ctx, !!a.blind);
+  }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
   const state = ownerState(tgt.owner, ctx);
   const cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
