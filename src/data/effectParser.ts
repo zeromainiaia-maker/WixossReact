@@ -2485,6 +2485,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_MAIN_PHASE_START') {
         if (/対戦相手のメインフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any_opp';
       }
+      // ON_SPELL_USE: 使用者（主語）を triggerScope に、スペルの色を triggerFilter.color に抽出。
+      //   「あなたが…」＝self（既定）／「対戦相手が…」＝any_opp／「いずれかのプレイヤーが…」＝any。
+      //   ⚠「あなたが**対戦相手のスペル**を使用したとき」は使用者が自分＝self（「対戦相手が」より先に判定しない）。
+      if (timing[0] === 'ON_SPELL_USE') {
+        if (/対戦相手が(?:[^。]{0,8}の)?スペルを使用したとき/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else if (/いずれかのプレイヤーが(?:[^。]{0,8}の)?スペルを使用したとき/.test(actionText)) extractedTriggerScope = 'any';
+        const colM = actionText.match(/([白赤青緑黒])のスペルを使用したとき/);
+        if (colM) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), color: colM[1] };
+      }
       // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
       if (timing[0] === 'ON_ATTACK_SIGNI') {
         const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
