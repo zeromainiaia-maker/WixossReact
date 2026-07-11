@@ -5,6 +5,19 @@
 
 ---
 
+## WXEX2-25-E3 lrig相対の動的比較を実装＝相手センタールリグへ「このルリグより低いレベルのシグニに-8000」を付与（§3タスク3・2026-07-11・続き67・Opus 4.8）
+
+§3タスク3「動的比較 lrig相対の残」。WXEX2-25-E3（原文「【起】《アタックフェイズ》《コイン》：対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは『【常】：**このルリグより低いレベルを持つ**あなたのシグニのパワーを－8000する。』を得る。」）が、引用付与構造を丸ごと落として `POWER_MODIFY owner:self ALL -8000`（＝**自分の全シグニに-8000する有害な誤パース**）になっていた。
+
+- **正しい意味**＝相手センタールリグに CONT POWER_MODIFY を付与。付与先LRIG視点で「あなたのシグニ」＝相手自身のシグニ、「このルリグより低いレベル」＝付与先LRIG（相手センタールリグ）のレベル未満。実質「相手は自分のLRIGレベル未満のシグニが全て-8000される」デバフを相手に押し付ける効果。
+- **機構の既存インフラ活用**＝`GRANT_EFFECT`（target LRIG owner:opponent）は `execGrantEffect` が相手センタールリグトップの `granted_effects[lrigTop]` に格納し、BattleScreen の effectsMap が相手分 granted も merge するため、`calcFieldPowers`（`applyEffects` を両視点で呼ぶ＝相手LRIG も効果源候補）が付与CONTを拾う。
+- **engine追加（唯一の新規実装）**＝`calcFieldPowers` の CONT POWER_MODIFY パスは `applyDeltaToState`→`matchesFilter` に生フィルタを渡すため動的マーカー `levelLtSelf`（「このシグニ/このルリグより低いレベル」）が無視されていた。効果元 `topNum`（＝CONT を持つカード＝ここでは付与先LRIG）のレベル基準で level 制約へ解決する `resolveContSelfLevel(filter, hostNum, cardMap)` を新設し、ALL対象の applyDeltaToState 直前で解決（`levelLtSelf`→`level.max=hostLv-1`／`levelGtSelf`→`level.min=hostLv+1`／参照不能→制限なし）。**既存で CONT POWER_MODIFY×levelLtSelf を使うカードは0件＝回帰リスクなし**。相手は自分のターン中グロウ不可＝付与期間中LRIGレベル不変で静的解決と等価。
+- **表現**＝WXEX2-25-E3 を `manualEffects.ts` に MANUAL 追記（GRANT_EFFECT→相手LRIG・CONT POWER_MODIFY owner:self ALL・filter levelLtSelf・-8000・UNTIL_END_OF_TURN）。`build:effects`→`heldReview --adopt WXEX2-25`（curated が MANUAL化＝以降 buildEffectsJson が温存）。E1（ON_PLAY any_opp+unless discard）・E2（それぞれレベル異なる欠落）の別課題は今回スコープ外＝現状パース維持（MANUAL化でカード全体温存される点は許容）。
+- **検証**＝golden +2（181・①相手LRIG(Lv4)付与の levelLtSelf が Lv3シグニに-8000/Lv4シグニは不変＝`calcFieldPowers` 差分で isolate ②GRANT_EFFECT→相手LRIG で granted_effects に格納）／`npm run gates` 全緑（typecheck／smoke0／fuzz0／lint 0 errors／**census 1567→1566**＝BASELINE_HIGH 更新）／`npm run regen` 同型★0維持・decompile E3 が「対戦相手のルリグ1体は『【常】…より低いレベルを持つシグニのパワーを－8000する』を得る」と引用付与＋レベル比較を構造化（旧＝自分全シグニ-8000 の誤りから是正）。
+- **残（副次・低優先）**＝decompiler の levelLtSelf 描画が「このシグニより」固定で、host が LRIG のときは「このルリグより」が原文に忠実（同型★0 は維持＝機能影響なし）。
+
+---
+
 ## WXEX2-50-E3 owner誤パース是正＝「対戦相手のトラッシュから…対戦相手の場に出す」を owner:opponent に（R30 ON_PLAY any_opp の発火経路を開通・§3タスク7(a)・2026-07-11・続き66・Opus 4.8）
 
 続き64（Sonnet）がOpusへ登録した §3タスク7(a)。WXEX2-50-E3 step1（原文「対戦相手のトラッシュからシグニ１枚を対象とし、それを**対戦相手の場に出す**」）が `ADD_TO_FIELD.owner`／`source.owner` ともに `self` に誤生成され、「あなたのトラッシュから自分の場に出す」に化けていた。これは**カード全体で唯一の「あなたのターンに対戦相手のシグニが場に出る」自然発火経路**であり、R30（ON_PLAY any_opp＝対戦相手のシグニが場に出たときのwatcher・WXK10-022-E1）の実機検証がこのカードでブロックされていた（続き64）。
