@@ -474,11 +474,27 @@ const scenarios = {
             if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
           }
         }
-        if (!did) { // SELECT_TARGET ピッカー（①=WD05-017 の対象＝watcher／②=GRANT_KEYWORD の対象）
-          const pick0 = page.getByTestId('pick-0').first();
-          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        if (!did) {
+          // SELECT_TARGET ピッカーは2回出る：
+          //   ① WD05-017（ホール・ダーク）の対象＝**watcher を選ばないと ON_TARGETED(scope:self) が発火しない**。
+          //      guest の場は2体（watcher + 他の味方）で、ピッカーの並びは zone 順と一致せず pick-0 が「他の味方」
+          //      side になる（実測）。そこで①では pick-1 を選ぶ（＝watcher 側）。
+          //   ② GRANT_KEYWORD の対象＝excludeSelf により候補は「他の味方」1体のみ＝pick-0。
+          // ①が済んだか（＝スペルの -4000 が誰かに乗ったか）は powerMods の有無で判定する。
+          const pre = await H.queryState();
+          const spellResolved = (pre?.guest?.powerMods ?? []).length > 0;
+          const wantId = spellResolved ? 'pick-0' : 'pick-1';
+          const pick = page.getByTestId(wantId).first();
+          if (await pick.count() && await pick.isVisible().catch(() => false)) {
             const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            if (!confirmReady) { await pick.click().catch(() => {}); did = 'pick:' + wantId; }
+          }
+          if (!did) { // フォールバック（候補が1体しかない等で目当ての pick が無い場合）
+            const p0 = page.getByTestId('pick-0').first();
+            if (await p0.count() && await p0.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await p0.click().catch(() => {}); did = 'pick:pick-0(fallback)'; }
+            }
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
