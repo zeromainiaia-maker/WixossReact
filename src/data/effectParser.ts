@@ -923,7 +923,9 @@ function parseActiveCondition(text: string): ConditionParseResult {
   }
 
   // それ以外の「〜かぎり、」パターン（複雑な条件→未解析、句点を越えない）
-  const genericKagiriM = text.match(/^[^。]+かぎり、/);
+  // ⚠引用「」も越えない＝引用内の「…かぎり、」は付与能力側の条件であり、跨いで消費すると
+  //   引用前の本文（「パワーは＋3000され、このシグニは」等）まで無言消失する（WXDi-P11-046＝続き77観測(b)）
+  const genericKagiriM = text.match(/^[^。「」]+かぎり、/);
   if (genericKagiriM && genericKagiriM[0].length < 60) {
     return { condition: undefined, rest: text.slice(genericKagiriM[0].length), conditionFound: true, isTimingMarker: true };
   }
