@@ -1635,6 +1635,23 @@ export function calcFieldPowers(
   return powers;
 }
 
+// CONT POWER_MODIFY の「このシグニ/このルリグより低い/高いレベル」（levelLtSelf/levelGtSelf）を
+// 効果元カード（hostNum＝CONT を持つシグニ/ルリグ）のレベル基準で level 制約へ解決する。
+// applyDeltaToState は matchesFilter に生フィルタを渡し動的マーカーを無視するため、ここで解決しておく。
+// 参照不能（レベル非数値）ならレベル制限なしへフォールバック（動的フィルタの既存慣例）。WXEX2-25-E3。
+function resolveContSelfLevel(
+  filter: TargetFilter | undefined,
+  hostNum: string,
+  cardMap: Map<string, CardData>,
+): TargetFilter | undefined {
+  if (!filter || (!filter.levelLtSelf && !filter.levelGtSelf)) return filter;
+  const { levelLtSelf, levelGtSelf, ...rest } = filter;
+  const hostLv = parseInt(cardMap.get(hostNum)?.Level ?? '', 10);
+  if (isNaN(hostLv)) return rest;
+  if (levelLtSelf) return { ...rest, level: { max: hostLv - 1 } };
+  return { ...rest, level: { min: hostLv + 1 } };
+}
+
 function applyDeltaToState(
   state: PlayerState,
   delta: number,
