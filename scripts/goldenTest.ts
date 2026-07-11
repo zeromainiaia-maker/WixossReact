@@ -15,6 +15,7 @@ import type { CardData, PlayerState, StackEntry } from '../src/types';
 import type { CardEffect, EffectAction } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
+import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition } from '../src/engine/effectEngine';
 import {
   executeEffect,
