@@ -5,6 +5,23 @@
 
 ---
 
+## §7 実機検証＝残3シナリオを検証・driver側3件のバグ修正＋engine実バグ1件を発見・記録（2026-07-12・続き81・Sonnet 5）
+
+続き79が残した`exileHandBlind`/`delayedAttackTrigger`/`trashCounterOpp`の3シナリオを再実行。全FAILだったが、原因を1件ずつ切り分けた結果、**3件ともテストドライバ（`verifyBattleDrive.mjs`）側の不具合**で、実装側の真バグは別途1件（後述）だった。
+
+- **✅ `exileHandBlind`＝PASS（driver修正）**＝trashの基準値`t0`をアーツのコスト支払い（エナ1枚消費→トラッシュへ）**より前**に取得していたため、コスト支払いの正常な`trash+1`をEXILE→TRASH退行と誤検知していた。`chose`（選択肢1クリック）直後の値を新基準`t1`として捕捉し比較するよう修正。EXILE機構自体（`execExile(HAND_CARD,blind)`）は元から正しく動作していた（除外した2枚はtrashに計上されない）。
+- **✅ `delayedAttackTrigger`＝PASS（driver修正2件）**：
+  1. センタールリグ画像`img[alt=...]`は`pointerEvents:'none'`（クリックは親div側`StackSlot`が受ける設計＝`src/components/BoardComponents.tsx:344-348`）。通常の`.click()`はPlaywrightの「receives events」actionability検査に毎回失敗し既定30秒タイムアウトで空振り（14回試行×最大30秒が9分超の実行時間の主因）。`{force:true, timeout:3000}`で修正。
+  2. 【起】ボタンが一度使用済み（`usageLimit:'once_per_game'`）になると次のループでフォールバックの画像クリックが`CardStackModal`（カード拡大表示）を開いてしまい、後続の「アタックフェイズへ」クリックを全画面固定オーバーレイ（`zIndex:3000`）が吸収して空振りさせていた。install loop終了直後に「タップして閉じる」を明示クリックして閉じるよう追加。
+- **✅ `H.closeModals()` の恒久修正（driver・汎用フィックス）**＝`CardModal`/`CardStackModal`（`src/components/BoardComponents.tsx`）はEscapeキー非対応（`onClose`は背景divの`onClick`のみ）と判明。続き79は「`closeModals()`は当てにならない」と記録するに留めていたが、今回は**Escapeに加えて「タップして閉じる」系テキストのクリックを追加**して根治した（`page.getByText(/タップ.{0,4}閉じる/)`）。シナリオ間で前シナリオの残留モーダルが次シナリオをブロックする問題（`trashCounterOpp`が`delayedAttackTrigger`の残留モーダルで最初からブロックされていた実例で確認）を解消。
+- **✅ `trashCounterOpp`＝lrigレベル不足のシナリオ設定ミスをdriver側で修正**＝召喚したいシグニ`WX14-040`（Lv4）に対し、center lrigが`WD03-003`（Lv2）のままだったため合法召喚できず「召喚」ボタン自体が出ていなかった。`WD01-001`（Lv4/Limit11）に変更。
+- **🆕 engine実バグを発見・記録（Opusタスク12へ登録・未修正）**＝`trashCounterOpp`はdriver修正後も実行自体は正常に進む（`guest.hand`が5→4に減り、対戦相手の手札トラッシュは実際に発生）が、**`guest.hand_trashed_by_opp_this_turn`カウンタだけが最後まで0のまま**。原因を`src/engine/effectExecutor.ts`のコードリーディングで特定＝`TRASH{HAND_CARD}`は2つの実装経路を持ち、**count:'ALL'等の即時適用パス（`applyTrashHand`・655行目付近）は`hand_discarded_just`/`turn_hand_discarded_count`/`hand_trashed_by_opp_this_turn`の3フィールドを正しく更新するが、count:1等でSELECT_TARGET経由する再開パス（`resumeSelectTarget`→`applyDirectAction`のTRASH/HAND_CARD分岐・4781-4792行目付近）はこの3フィールドの更新を一切していない**（hand/trashの移動のみ）。WX14-040-E3（今回のシナリオ）に限らず、**`TRASH{type:HAND_CARD, count:1}`（またはSELECT_TARGET経由で1枚ずつ解決されるcount:N）を使う全カード**がこの穴の影響を受ける＝ON_HAND_DISCARDEDトリガー不発火・`turn_hand_discarded_count`条件の不成立・`HAND_TRASHED_BY_OPP`条件（「代わりに」置換の起点・WXDi-P02-005等）の不成立、の3種の潜在バグを併発しうる。修正は`applyDirectAction`のTRASH/HAND_CARD分岐に`applyTrashHand`と同じ3フィールド更新ロジックを追加するだけの見込みだが、影響範囲の精査（該当カード母集団の洗い出し・ENERGY_CARD/SIGNI分岐にも同型の欠落がないかの点検）が要るためOpusタスク12へ登録。再現＝`node scripts/verifyBattleDrive.mjs trashCounterOpp`（現状FAILのまま・既定order外）。
+- **既定orderへの追加**＝`exileHandBlind`・`delayedAttackTrigger`を追加（2回連続PASS確認）。`trashCounterOpp`は上記engineバグ修正待ちのため既定order外のまま。
+
+**検証**＝`node scripts/verifyBattleDrive.mjs exileHandBlind delayedAttackTrigger trashCounterOpp`を計3回実行（修正を都度反映）。最終実行で`exileHandBlind`/`delayedAttackTrigger`がPASS・実行時間は9分18秒→2分4秒に短縮（pointer-events force-clickタイムアウト解消が主因）。driverのみの変更につき`npm run gates`は対象外（`npm run typecheck`のみ実行しdriverスクリプトの構文エラー無きことを確認）。
+
+---
+
 ## 実行環境の遅延根治＝preview server リークの後始末順序バグ修正＋残留50プロセス掃除＋ゲート高速化（2026-07-12・続き80・Fable 5）
 
 続き79で観測された「ビルド+ログイン+CPU戦セットアップに毎回15〜30分・ポート4173〜4222に preview 50個常駐」の真因を確定し恒久修正した。
