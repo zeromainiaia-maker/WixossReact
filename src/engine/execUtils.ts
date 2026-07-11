@@ -903,10 +903,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'FIELD_HAS_GATE':
       return (st(cond.owner).own_gate_zones ?? []).length > 0;
     case 'THIS_CARD_HAS_UNDER': {
+      // filter 指定時は下カードのいずれかがフィルタ一致（「下にレベルNのシグニがあるかぎり」等。WX24-P1-043）
       const src = ctx.sourceCardNum;
       if (!src) return false;
       const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
-      return !!stack && stack.length > 1;
+      if (!stack || stack.length <= 1) return false;
+      if (!cond.filter) return true;
+      return stack.slice(0, -1).some(cn => {
+        const base = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
+        return matchesFilter(ctx.cardMap.get(base), cond.filter);
+      });
     }
     case 'LRIG_LEVEL_EQ_OPP': {
       const myLrig = s.field.lrig.at(-1);
