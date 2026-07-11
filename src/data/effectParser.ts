@@ -2590,6 +2590,44 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_ACCE') {
         if (/あなたのシグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_CARD_MILLED_FROM_DECK: 削られたデッキの持ち主と枚数閾値を triggerCondition に抽出。
+      //   ⚠「あなたの＜X＞のシグニの効果1つによって」の**発生源フィルタ**は engine が未表現＝落とす近似（下で刻印）。
+      if (timing[0] === 'ON_CARD_MILLED_FROM_DECK') {
+        const mo = /対戦相手の(?:デッキ|山札)からカード/.test(actionText) ? 'opponent' : 'self';
+        const mc = actionText.match(/カードが([０-９\d]+)枚以上トラッシュに置かれたとき/)
+                ?? actionText.match(/カード([０-９\d]+)枚がトラッシュに置かれたとき/);
+        extractedTriggerCondObj = {
+          ...(extractedTriggerCondObj ?? {}),
+          milledDeckOwner: mo,
+          milledMinCount: mc ? toHalf(mc[1]) : 1,
+        };
+        if (/(?:＜[^＞]+＞の)シグニの効果/.test(actionText)) {
+          markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
+        }
+      }
+      // ON_PLAY + placedFront（「対戦相手のシグニN体がこのシグニの正面に配置されたとき」）: 相手の配置に反応（any_opp）。
+      if (timing[0] === 'ON_PLAY' && /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(actionText)) {
+        extractedTriggerScope = 'any_opp';
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFront: true };
+      }
+      // ON_LEAVE_FIELD + leftToZone:'hand'（「シグニN体が場から手札に戻ったとき」）: 主語で scope を決める
+      //   （「あなたのシグニ」＝any_ally／主語なしの「シグニ1体が」＝any＝どちらの場のシグニでも反応）。
+      if (timing[0] === 'ON_LEAVE_FIELD' && /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), leftToZone: 'hand' };
+        extractedTriggerScope = /あなたのシグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText) ? 'any_ally' : 'any';
+      }
+      // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）＝「＜X＞のシグニ」「《ディソナアイコン》のカード」「シグニ」。
+      if (timing[0] === 'ON_HAND_DISCARDED') {
+        const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚捨てたとき/);
+        if (hdM) {
+          const cls = hdM[1];
+          const f: Record<string, unknown> = {};
+          if (cls?.startsWith('＜')) f.story = cls.slice(1, -2);        // 「＜アーム＞の」→ アーム
+          else if (cls) f.story = 'Dissona';                            // 《ディソナアイコン》の（CSV Story==='Dissona'）
+          if (hdM[2] === 'シグニ') f.cardType = 'シグニ';
+          if (Object.keys(f).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...f };
+        }
+      }
       // ON_OPP_ARTS_USE: 「対戦相手が**使用**したとき」と既存の「対戦相手のアーツの**効果を受けた**とき」は
       //   engine の受け皿は同じだが原文が違う＝逆翻訳の描画を分けるため any_opp を刻む（engine は scope を見ない）。
       if (timing[0] === 'ON_OPP_ARTS_USE' && /対戦相手がアーツを使用したとき/.test(actionText)) {
