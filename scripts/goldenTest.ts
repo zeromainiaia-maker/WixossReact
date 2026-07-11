@@ -640,6 +640,16 @@ test('ON_EXCEED_COST / ON_RISE 構造固定（ON_PLAY に化けていない）',
   const ri = (effectsMap.get('WX15-043') ?? []).find(e => e.timing?.includes('ON_RISE'));
   ok(!!ri, 'WX15-043（「このシグニがライズされたとき」）: ON_RISE のはず');
 });
+// ON_SIGNI_BECOMES_DRIVE / ON_BECOME_BEAT / ON_ARTS_USE（§3 Opusタスク16）。3つとも engine 配線済みで
+// parser に語彙が無く ON_PLAY へ化けていた回帰ガード。⚠ON_ARTS_USE は engine が使用者(self)側しか収集しない。
+test('ON_SIGNI_BECOMES_DRIVE / ON_BECOME_BEAT / ON_ARTS_USE 構造固定（ON_PLAY に化けていない）', () => {
+  const dr = (effectsMap.get('WXK01-042') ?? []).find(e => e.timing?.includes('ON_SIGNI_BECOMES_DRIVE'));
+  ok(!!dr, 'WXK01-042（「ドライブ状態になったとき」）: ON_SIGNI_BECOMES_DRIVE のはず');
+  const bt = (effectsMap.get('WXK03-022') ?? []).find(e => e.timing?.includes('ON_BECOME_BEAT'));
+  ok(!!bt, 'WXK03-022（「【ビート】になったとき」）: ON_BECOME_BEAT のはず');
+  const ar = (effectsMap.get('WX22-020') ?? []).find(e => e.timing?.includes('ON_ARTS_USE'));
+  ok(!!ar, 'WX22-020（「あなたがアーツを使用したとき」）: ON_ARTS_USE のはず');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
