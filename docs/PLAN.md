@@ -78,30 +78,40 @@
   - **リファクタ Stage2/3**（BattleScreen コントローラ設計）。
   - BEHAVIOR_AUDIT の**真no-op vs シナリオ空振りの最終仕分け**とengine修正。
 
-#### 現在の割付（2026-07-09・続き57時点に更新。旧版（続き32/39）は git 履歴と [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) で追える。消化済み割付の詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)）
-> 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。
+#### 現在の割付（2026-07-11・続き69後に全面再割付＝残作業を §5b/§6/§7/§8 から総ざらい。旧版は git 履歴と [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) で追える。消化済み割付の詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)＝続き42-47・続き56-69 の2セクション）
+> 運用＝**セッション開始時に、下のどちらのリストから取るかでモデルを決める**。トークン節約のため Sonnet 在庫があるうちは Sonnet で回し、Opus は「機構・語彙を新しく開く」バッチに集中投入する。**Opus が1バッチ開く→Sonnet が再収穫＋ゲート＋簿記で消化する交互サイクル**（続き34→35 で実証済み）。定型作業は必ずスキル（`/census-batch`・`/audit-card`・`/baton`）の手順に従う。**Sonnet が作業中に見つけた engine/parser バグはその場で直さず Opusタスク12 へ登録**。
 
 **Opus のタスク（推奨順・機構/語彙の新規実装と退化見極め）**：
-1. ~~続き56発見の4系統×8枚の原因調査~~ **✅続き59（Opus）で全解明**＝EQUALIZE_ENERGY owner欠落（真バグ5枚・parser修正）／EXILE owner反転（真バグ1枚・parser修正）は是正して held 124→118。duration「反転」（WX25-P2-062）と triggerScope欠落（WXDi-CP02-TK01A）は誤診と判定（前者は engine機能同一だが逆翻訳注記の退化＝held温存が正／後者は fresh が triggerScope保持済み・held は STUB機構待ちが理由）。詳細 BUGFIXES 続き59。**残＝派生課題**＝durational付与の**先頭位置「ターン終了時まで」で action内duration が落ち decompileの期間注記（（ターン終了時まで））が脱落する約102枚**（engine非依存の逆翻訳忠実性・§5b decompileテール・一括置換禁止＝母集団を機械抽出→系統確立→各カードverify）。
-2. ~~**effect-restriction（配置数制限）**（WXK11-074等・§6 BLOCK機構・実機検証必須）~~ **✅続き63（Opus）で実装＝「対戦相手はシグニをN体までしか場に出せない」5枚（WXK11-074/WX07-006/WX12-008/WXDi-P05-024/WXK05-009）。signi_deploy_count_limit フラグ＋CONT collectDeployCountLimit＋超過即トラッシュ＋配置ブロック（人間/CPU/UI）＋ターン境界リセット。census 1572→1567・golden 177・実機 deployRestrict PASS。詳細 BUGFIXES 最上部。**
-3. **census「動的比較」の残**＝(b)opp/own センタールリグ（~~WX19-042~~ **✅既に正しくパース済み**＝filter `levelLtOppLrig`・target は self シグニ／WXK11-003）・~~デッキ相対 SEARCH（WDK13-013/WXEX2-28/WXEX2-37/WXK10-033）~~ **✅続き68（Opus）で3枚実装**＝「この方法で捨てたシグニより±Nレベル/共通クラス」を `resolveDiscardLevelFilter` 拡張（levelLtDiscardSigni/levelEqDiscardSigniOffset/classMatchesDiscardSigni）＋execSearch への配線追加（従来 SEARCH経路で未解決だった）。census 1566→1563・golden183。**残＝WXEX2-28（直前配置シグニ基準＝last-processed相対で別系）**。・条件文（WXK08-005）・~~lrig相対（WXEX2-25-E3）~~ **✅続き67（Opus）で実装**＝GRANT_EFFECT で相手センタールリグへ CONT POWER_MODIFY(levelLtSelf) 付与＋`calcFieldPowers` に `resolveContSelfLevel`（host=付与先LRIG基準で levelLtSelf/Gt を解決）追加。census 1567→1566・golden181・同型★0。詳細 BUGFIXES 最上部。残＝別機構。~~WXK07-025-E2 の DRAW+condition 復元~~ **✅続き59（Opus）で消化**（`の?場合` parser修正＋完全形MANUAL・BUGFIXES続き59第2件。DRAW脱落の parseSingleSentence 直呼び経路 systematic〔19枚・入れ子SEQUENCE〕は follow-up）。自己参照/トリガー参照/designation/anyAlly/printed/lastProcessed 系は続き43-47で✅消化済み（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)・BUGFIXES）。
-4. ~~**引用内 CHOOSE**（WXDi-D09-P20）~~ **✅続き69（Opus）で消化**＝「（カードをN枚）引くか<B>」トップレベル動作選択を `parseDrawOrChoice` で CHOOSE(2択) 化＝26枚 adopt（census 1563→1558・golden 187・同型★0・BUGFIXES最上部）。WXDi-D09-P20 は引用付与の内側 CHOOSE も開通。**残**＝GRANT_QUOTED_AUTO_ABILITY の内側 ability parse（WX24-P1-017/WX25-P3-038＝GRANT_TO_PLACED_SIGNI STUB「「【自】…」を得る」＝**場に出したシグニへの一時付与**機構＝引用内CHOOSEとは別）＋引用付与の内側品質不全27の再収穫（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）。
-5. **§5c census 条件節の残**（ARTS_USED拡張・「代わりに」WX25-P2-068/070・「あり」複合条件WXDi-P11-048）。
-6. **CHOOSE平坦化復元の採用待ち held 約35枚**（続き29 parser修正の採用バックログ・意味的退化の見極めが要る。⚠着手前に必ず全数機械分類＝続き24-29の型）。
-7. **持ち越し済みの engine/parser 拡張の小口**＝WXDi-P03-005（PAID_ADDITIONAL_COST の「置換モード」拡張）・WX26-CP1-100（SEND_TO_ENERGY のトラッシュ対象化）・GRANT_LRIG_ABILITY系5枚の parser ON_PLAY 誤デフォルト修正・WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落・続き33発見の原文無関係 `TRANSFER_TO_DECK` 混入5枚（WX24-P2-033等）・SEQUENCE下流「そうした場合」IS_MY_TURN常時真連鎖の精緻化・PR-Di038 duration・WX25-P2-095。**続き64（Sonnet）発見の2件を追加**＝**(a) WXEX2-50-E3 step1 owner誤パース**（原文「対戦相手のトラッシュから…それを対戦相手の場に出す」が `ADD_TO_FIELD.owner`/`source.owner` ともに `self` に誤生成＝カード全体で唯一の「あなたのターンに対戦相手のシグニが場に出る」自然発火経路がブロックされ R30 (ON_PLAY any_opp) の実機検証がこのカードでは不能）。~~**(b) `execAttachAcce` fromHand経路の実装バグ**~~ **✅続き65（Opus）で修正**＝2段chaining（`_selectingAcceFromHand`/`_pickedAcceCard`）実装＋`battleCardNums.addState` への `signi_acce` 走査追加（装着アクセが effectsMap から脱落し自身の ON_ACCE_ATTACH が発火しない第2バグも同時解消）。実機 acceAttach ✅PASS（既定orderに追加）。詳細 BUGFIXES 最上部。~~**残 (a) WXEX2-50-E3 step1 owner誤パース**~~ **✅続き66（Opus）で修正**＝parser の「トラッシュから場に出す」ハンドラに「対戦相手の場に出す」検出を追加し owner/source.owner を opponent に是正（engine cross-owner非対応を踏まえ field owner と source owner を一致・傀儡系12枚は据置）。adopt で held 120→119・census1567不変・同型★0・golden179。**R30 の発火経路は開通（実機 R30 検証は §7 Sonnet タスク）**。詳細 BUGFIXES 最上部。**副次(低優先)**＝WXK04-003 の【起】2能力が両方「【起】コストなし」表記になるボタンラベル表示バグ（`getMyLrigFieldActions` の costParts が `eff.cost?.coin` 非考慮）。
-8. **「代わりに」残テールの機構系**＝D:置換ルール9（バニッシュされない系＝置換機構）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）。
-9. **§6.1 未実装action型 残**の engine 実装＋**§6.3 大型機構**（ゲーム除外＝WXDi-P04-016-E3 とセット・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査）。
-10. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ）。
-11. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
-- ~~`GRANT_TO_PLACED_SIGNI` の実装~~ **✅続き42（Opus）で完了（4枚）**。残の引用複合能力付与2枚（WX24-P1-017/WX25-P3-038）はタスク4へ統合（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)・BUGFIXES）。
+1. **GRANT_QUOTED_AUTO_ABILITY の内側 ability parse**（WX24-P1-017/WX25-P3-038＝GRANT_TO_PLACED_SIGNI STUB「「【自】…」を得る」＝**場に出したシグニへの一時付与**機構）＋**引用付与の内側品質不全27の再収穫**（内側トリガー語彙拡充＝triggerScope／「このシグニ」自己参照）＝引用付与残107 の本丸。
+2. **census「動的比較」の残**＝WXEX2-28（直前配置シグニ基準＝last-processed相対で別系）・条件文（WXK08-005）・opp/own センタールリグ（WXK11-003）。自己参照/トリガー参照/designation/anyAlly/printed/lastProcessed/デッキ相対SEARCH/lrig相対 は続き43-47・67-68で✅消化済み（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md)）。
+3. **DRAW脱落の parseSingleSentence 直呼び経路 systematic**（19枚・入れ子SEQUENCE＝続き59 の follow-up）。
+4. **§5c census 条件節の残**（ARTS_USED拡張・「代わりに」WX25-P2-068/070・「あり」複合条件WXDi-P11-048）。
+5. **持ち越し済みの engine/parser 拡張の小口**＝WXDi-P03-005（PAID_ADDITIONAL_COST の「置換モード」拡張）・WX26-CP1-100（SEND_TO_ENERGY のトラッシュ対象化）・GRANT_LRIG_ABILITY系5枚の parser ON_PLAY 誤デフォルト修正・WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落・続き33発見の原文無関係 `TRANSFER_TO_DECK` 混入5枚（WX24-P2-033等）・SEQUENCE下流「そうした場合」IS_MY_TURN常時真連鎖の精緻化・PR-Di038 duration・WX25-P2-095・WXEX2-50-E3 step2 のレベル制約未反映・WX12-008 exceed-cost timing・WXK10-033-E1 据置確認・WXEX2-25-E3 の decompiler levelLtSelf 描画固定。
+6. **「代わりに」残テールの機構系**＝D:置換ルール9（バニッシュされない系＝置換機構）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）＋WX16-021（置換ルール→即時LIFE_CRASH幻覚＝同じ置換機構）。
+7. **§6.1 未実装action型 残11種27効果の engine 実装**（instant層＝PLAY_FREE_FROM_TRASH／STACK_SPELL／PREVENT_DAMAGE・CONT層＝COST_SUBSTITUTE／SELF_TRASH_PREVENT／COLOR_INHERIT／GRANT_FIELD_SHADOW）。
+8. **§6.3 大型機構**（ゲーム除外＝WXDi-P04-016-E3 とセット・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査）。
+9. **§6.2 semantic audit 系統残の機構対応**＝系統①(b)「あなたか対戦相手」`owner:'any'` 選択18枚（engine/decompiler の選択対応・opponent への flip 禁止）・(c)混在10枚のノード単位判別・系統②残（SEQUENCE内 GRANT_PROTECTION＝WX08-017・LAYER付与＝WX15-031・広域24件の subjectFilter/新機構）。
+10. **CHOOSE平坦化復元 held 約38枚の最終見極め＋採用**（続き29 parser修正の採用バックログ＋続き69追加の3枚〔WX20-078/SPK01-14/WX19-062〕。Sonnetタスク2 の全数機械分類を受けて、グレー判定と採用実行だけ Opus が行う）。
+11. **BEHAVIOR_AUDIT 高シグナル19 の最終仕分け＋engine修正**（トリガー主語系・CHOOSE分岐・出現条件レゾナ WX09-012/WX12-010）。
+12. **Sonnet が積んだ engine/parser バグの修正（常設受け口）**＝Sonnetタスク1（実機検証）・4（一次トリアージ）・8（semantic audit）の観測結果を受けて修正する。
+13. **§5b 残367件の混線テール**＝effect構造そのものが原文とズレたカードの effects JSON 再parse（1カードずつ手修正→逆翻訳原文一致→ゲート。**原文コピーでの一括潰しは禁止**）。
+14. **リファクタ Stage2 残（useState 11本）→Stage3 純粋バトルコントローラ設計**。
+15. **（大型・任意）§8 CPU AI のメインフェイズ拡張**（アーツ/スペル/起動効果の能動使用・グロウ判断。先に DESIGN §4「CPU は対人戦と同じ処理」の統一を完遂してから）。
 
 **Sonnet 5 のタスク（今すぐ回せる在庫・定型消化とデータ単点）**：
-1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝R30-R46（毒牙/ACCE_ATTACH/EXCEED_COST/ENERGY_TO_TRASH/CHARM_TO_TRASH 等）・ON_COIN_PAID/ON_LRIG_GROW/ON_TARGETED の follow-up 項目・ON_LRIG_ATTACK_STEP_START の残3点（《ターン1回》回数制限・原文の厳密スケーリング近似・CPUターン配線。初回検証は続き57でPASS済み）。**発見したバグの修正自体は Opus に回す**＝観測結果を §7 とバトンに記録）。
-2. **verifyBattleDrive のバッチ実行時状態汚染の根本修正**（driver 側のテスト分離強化＝engine/JSON 非依存。続き39後半で13件一括実行時のみ3件FAIL→個別再実行は全PASSを確認済み）。
-3. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
-4. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opus）。
-5. **Opus バッチ着地後の再収穫サイクル**（`/census-batch` スキル準拠＝`build:effects`→`heldReview` spot-check→採用→全ゲート→`regen`→BASELINE/PLAN簿記→commit。⚠必須ガードレール4点は上記リスト参照）。**Opus タスク1〜6 のいずれかが着地するまでは §5c 再収穫に着手しない**（現在プラトー＝空振りになる。続き34着地→続き35収穫の型を踏襲）。
-- ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opus タスク5へ移管済み）**。
+1. **§7 実機検証のシナリオ横展開の継続**（`verifyBattleDrive.mjs` の scenarios に1件追加式。残＝**R30**＝WXK10-022-E1（発火経路は続き66で開通済み＝WXEX2-50-E3 発動→watcher 確認）・**ON_TARGETED 残3枚**（WXDi-P11-040/WX25-P2-055/WXDi-D09-H14）＋②turnOwner:opponent ゲート③《ターン1回》・**R42②**（バトルバニッシュ経路）・**R43②**（自エナ/相手効果では非発火）・**R44②③**・**R46②③**・**R38②③**（《ターン1回》・複数同時凍結）・**R37②③**（他4枚個別確認含む）・**R36②**（WXDi-CP02-082 相手ターン出し分け）・**R39②**・**R40②**・**R41②**・**ON_COIN_PAID③④**・**ON_LRIG_GROW②③④**・**ON_LRIG_ATTACK_STEP_START②**（《ターン1回》）・**B4引用付与の実発火**（WX24-P2-018等）・**B2**（WX17-028）・**B3**（WX25-CP1-069）・**機構④誤parse 3枚**（WXDi-P07-044/WX25-P3-062-E2）・**クラフトトークンの実機配置**（§6.4）。**発見したバグの修正自体は Opusタスク12 に回す**＝観測結果を §7 とバトンに記録）。
+2. **CHOOSE平坦化復元 held 約38枚の全数機械分類**（続き24-29の型で偽陽性を先に切る→明白な純改善のみ採用・判定グレーは Opusタスク10 へ残す。⚠据置系4種〔EXILE→TRASH・owner脱落・「このシグニ」ALL化・トラッシュowner反転〕は触らない）。
+3. **verifyBattleDrive のバッチ実行時状態汚染の根本修正**（driver 側のテスト分離強化＝engine/JSON 非依存。続き39後半で13件一括実行時のみ3件FAIL→個別再実行は全PASSを確認済み）。
+4. **BEHAVIOR_AUDIT キュー再生成＋一次トリアージ**（`--queue` 再生成→`_bqTriage`→真no-op候補の抽出まで。仕分け確定と修正は Opusタスク11/12）。
+5. **golden 型網羅の追加**（未カバー DSL action型の洗い出し→1型1テスト・§6.4）。
+6. **Opus バッチ着地後の再収穫サイクル**（`/census-batch` スキル準拠＝`build:effects`→`heldReview` spot-check→採用→全ゲート→`regen`→BASELINE/PLAN簿記→commit。⚠必須ガードレール4点は上記リスト参照）。**Opus タスク1〜6 のいずれかが着地するまでは §5c 再収穫に着手しない**（現在プラトー＝空振りになる。続き34着地→続き35収穫の型を踏襲）。
+7. **§5b Z-2＝BET系38件の表現描画**（BET_MECHANIC 19＋BET_CONDITION 11＋BET_ALTERNATIVE 8。decompiler に原文抽出の意味文を足すだけ＝engine 不変・ゲートは同型★0＋原文照合のみで軽い。**⚠原文コピーの一括潰しは禁止＝1カードずつ照合**・engine 側の不足は §6.3 へ登録して Opus に回す）。
+8. **semantic audit のパイプライン実行＋データ単点修正**（パイロット findings 真バグ39件のうち owner/値/duration の単点是正＝parser/engine 変更なしのもののみ・stub群2,306枚へのスケールアップ実行＝`semanticAudit{Extract,Run,Triage}.mjs` 回し。意味判定が割れるもの・機構が要るものは Opusタスク12 へ）。
+9. **smoke SKIP 268 の解消**（autopilot の対話カバレッジ拡張＝REVEAL_CARDS/DECLARE_BOND 等・`scripts/smokeTest.ts` 側のみ＝engine 不変・§6.4）。
+10. **WXK04-003 のボタンラベル表示バグ**（【起】2能力が両方「【起】コストなし」表記＝`getMyLrigFieldActions` の costParts が `eff.cost?.coin` 非考慮。UI表示単点・低優先）。
+11. **`checkAllEffects` の `MANDATORY_SUSPICIOUS` 一次精査＋`verifyEffects`「定義なし」誤検出（注釈・トークン）の除外改善**（§6.4。実バグ判定が要るものは Opusタスク12 へ）。
+12. **§5b 英語ID漏れ残367件の系統分類**（grep 走査で母集団を機械抽出→混線の系統リスト化まで。JSON再構造化の本修正は Opusタスク13）。
+- ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opusタスク5 へ移管済み）**。
 
 ---
 
