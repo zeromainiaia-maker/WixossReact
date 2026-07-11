@@ -1310,6 +1310,23 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
 }
 
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
+  // LRIG 対象（「対戦相手のセンタールリグ1体を対象とし、それを凍結する」WX17-020③）。
+  // `lrig_frozen` は PlayerState/UI/BattleScreen 側に既にあり（アップフェイズでアップしない）、
+  // STUB からは設定されていたが FREEZE アクションが LRIG 対象を扱っていなかった＝execDown の LRIG 分岐と同型で対応する。
+  if (a.target.type === 'LRIG') {
+    const lstate = ownerState(a.target.owner, ctx);
+    const lrigTopId = lstate.field.lrig?.at(-1);
+    if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
+      return done(addLog(ctx, 'センタールリグは効果を受けない（凍結無効）'));
+    }
+    const lrigName = ctx.cardMap.get(lrigTopId ? getCardNum(lrigTopId) : '')?.CardName ?? 'ルリグ';
+    const newS: PlayerState = {
+      ...lstate,
+      field: { ...lstate.field, lrig_frozen: true, ...(a.down ? { lrig_down: true } : {}) },
+    };
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx),
+      `${lrigName}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`));
+  }
   const state = ownerState(a.target.owner, ctx);
   // isTriggerSource: トリガー元カード（ctx.triggeringCardNum＝アタッカー等）のみを対象（「アタックしたそのシグニ」WX04-082-E1）
   let freezeFilter = a.target.filter;
