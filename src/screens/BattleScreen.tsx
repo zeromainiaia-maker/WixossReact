@@ -4083,6 +4083,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 対象＝効果発生源の対戦相手側に置かれていたシグニ（対象選択前の盤面で所有者を判定）。
       // CPU所有効果のSELECT_TARGETも本関数を通る（自動応答経由）ため、人間/CPU双方をここでカバー。
       let targetedEntries: StackEntry[] = [];
+      let targetedUsedHostIds: string[] = [];
+      let targetedUsedGuestIds: string[] = [];
       if (inter.type === 'SELECT_TARGET') {
         const sourceIsHost = pe.sourcePlayerId === bs.host_id;
         const oppOfSourceId = sourceIsHost ? bs.guest_id : bs.host_id;
@@ -4090,7 +4092,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const targetedNums = selectedOrChoiceId.filter(n =>
           beforeOppOfSource.field.signi.some(s => s?.at(-1) === n));
         if (targetedNums.length > 0) {
-          targetedEntries = collectTargetedTriggers(targetedNums, oppOfSourceId, hostState, guestState);
+          const tt = collectTargetedTriggers(targetedNums, oppOfSourceId, hostState, guestState);
+          targetedEntries = tt.entries;
+          targetedUsedHostIds = tt.usedHostIds;
+          targetedUsedGuestIds = tt.usedGuestIds;
         }
       }
 
