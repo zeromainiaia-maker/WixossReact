@@ -2951,7 +2951,9 @@ const scenarios = {
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
-  //    修正後「【起】コイン1」と表示されることを実UIで確認する（UI表示のみ・engine/parser不変）。
+  //    ⚠WXK04-003はもう1つ manualEffects.ts の WXK04-003-DECORE（【デコレ】ACCE付与・cost energy count:0＝
+  //    正当な無コスト）も持つため、修正後は2ボタン中「コイン1」表記が1つ増える形が正解（「コストなし」表記が
+  //    0件になるわけではない＝デコレ側は元から正しい）。
   wxk04003Label: {
     title: 'WXK04-003 ボタンラベル表示バグ＝getMyLrigFieldActionsのcostPartsがeff.cost.coinを非考慮',
     spec: {
@@ -2972,15 +2974,16 @@ const scenarios = {
       }
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${SHOT}/wxk04003label.png`, fullPage: true });
+      // 「コイン1」＝E2サプライズ（修正対象）・「コストなし」＝WXK04-003-DECORE（【デコレ】ACCE付与・cost count:0で正当）
       const coinBtn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
-      const noCostBtn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+      const decoreBtn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
       const hasCoinLabel = await coinBtn.count() > 0 && await coinBtn.isVisible().catch(() => false);
-      const hasNoCostLabel = await noCostBtn.count() > 0 && await noCostBtn.isVisible().catch(() => false);
-      H.log(`  ラベル確認: 【起】コイン1=${hasCoinLabel} / 【起】コストなし=${hasNoCostLabel}`);
-      if (hasCoinLabel && !hasNoCostLabel) {
-        return { pass: true, detail: '修正確認＝「【起】コイン1」表記（旧「コストなし」誤表記は解消）' };
+      const hasDecoreLabel = await decoreBtn.count() > 0 && await decoreBtn.isVisible().catch(() => false);
+      H.log(`  ラベル確認: 【起】コイン1(サプライズ)=${hasCoinLabel} / 【起】コストなし(デコレ)=${hasDecoreLabel}`);
+      if (hasCoinLabel && hasDecoreLabel) {
+        return { pass: true, detail: '修正確認＝サプライズが「【起】コイン1」表記（旧「コストなし」誤表記は解消）・デコレは元から正当な「コストなし」のまま2ボタン共存' };
       }
-      return { pass: false, detail: `ラベル未確認（コイン1=${hasCoinLabel}／コストなし=${hasNoCostLabel}）` };
+      return { pass: false, detail: `ラベル未確認（コイン1=${hasCoinLabel}／デコレのコストなし=${hasDecoreLabel}）` };
     },
   },
 };
