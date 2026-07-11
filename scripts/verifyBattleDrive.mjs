@@ -2716,6 +2716,16 @@ const scenarios = {
           const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
           if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
         }
+        // EXILE(HAND_CARD,blind) の「手札からカードを2枚選んでください」ピッカー（pick-0/pick-1）→決定(2/2)
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            await pick0.click().catch(() => {});
+            const pick1 = page.getByTestId('pick-1').first();
+            if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); }
+            did = 'pick:0+1';
+          }
+        }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         H.log(`  exile[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} hTrash=${st?.host?.trash ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
