@@ -1334,7 +1334,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
-    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+    // owner検出: 「（対戦相手の）トラッシュから…それを対戦相手の場に出す」＝相手フィールドへ配置。
+    //   engine の execAddToField はトラッシュ候補を tgtOwner の state から取る（cross-owner非対応）ため、
+    //   配置先が相手の場のとき source（相手トラッシュ）も owner を opponent に揃える（WXEX2-50-E3 step1）。
+    //   「傀儡状態であなたの場に出す」系（相手トラッシュ→自分の場）は engine 側 cross-owner 未対応で
+    //   source owner を変えても挙動不変＝held増だけになるため据置＝self（傀儡機構は §6.3 別課題）。
+    const toOppField = /対戦相手の(?:場|シグニゾーン)に出/.test(t);
+    const placeOwner: Owner = toOppField ? 'opponent' : 'self';
+    return { type: 'ADD_TO_FIELD', owner: placeOwner, source: { type: 'TRASH_CARD', owner: placeOwner, count, upToCount: !!upToM, filter } };
   }
 
   // ---- ルリグデッキからレゾナを出現条件無視で場に出す ----
