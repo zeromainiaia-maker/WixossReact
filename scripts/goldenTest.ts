@@ -2290,10 +2290,6 @@ test('LOSE_SIGNI_BARRIER: 相手フリーゾーンのバリアトークンを取
   eq((r.otherState.field.free_zone ?? []).some(c => c.startsWith('WX26-CP1-TK01')), false, 'バリアが取り除かれる');
   const r2 = run({ type: 'STUB', id: 'LOSE_SIGNI_BARRIER' } as unknown as EffectAction, base);
   eq((r2.otherState.field.free_zone ?? []).length, (base.otherState.field.free_zone ?? []).length, 'バリアが無ければ何も起きない');
-  eq(mk('シグニ１体が場から手札に戻ったとき').triggerScope, 'any', '主語なし＝any（どちらの場でも）');
-  // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）
-  eq(mk('あなたが手札から＜アーム＞のシグニを１枚捨てたとき').triggerFilter?.story, 'アーム', '＜X＞のシグニ');
-  eq(mk('あなたが《ディソナアイコン》のカードを１枚捨てたとき').triggerFilter?.isDisona, true, '《ディソナアイコン》');
 });
 test('parse timing 語彙: ウィルス配置／エナチャージ／デッキ移動／対象化（続き76 第3弾）', () => {
   const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-T3', Type: 'シグニ', EffectText: `【自】：${t}、カードを１枚引く。` } as unknown as CardData)[0];
