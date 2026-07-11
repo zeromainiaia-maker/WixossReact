@@ -1951,7 +1951,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       // 引用内の 【常】：対戦相手のターンの間 は外側の継続期間に依存
       const swDur: EffectDuration = (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
         : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount, ...kwTargetFilter }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
     }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
