@@ -10013,6 +10013,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const costPartsMA: string[] = [];
           if (exceedCostMA > 0) costPartsMA.push(`エクシード${exceedCostMA}`);
           if (energyTotalMA > 0) costPartsMA.push(`エナ${energyTotalMA}`);
+          if (eff.cost?.coin) costPartsMA.push(`コイン${eff.cost.coin}`);
           if (hdSigniMA) costPartsMA.push(`手札${fmtHandDiscardSigniLabel(hdSigniMA)}シグニ×${hdSigniMA.count}`);
           if (dgMA) costPartsMA.push(`手札${dgMA.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')}`);
           if (eff.cost?.discardAll) costPartsMA.push('手札すべて捨て');
