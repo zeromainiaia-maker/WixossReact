@@ -5,6 +5,24 @@
 
 ---
 
+## §3 Opusタスク10 パターンF-2＝**「代わりに」の条件語彙が無く、置換ゲートが立たずに両方実行されていた（機構1本を新設）**（2026-07-12・続き76・Opus 4.8）
+
+「X。**このターンに対戦相手の効果によってあなたの手札からカードが1枚以上トラッシュに移動していた場合、代わりに Y**」という**置換**が、条件を表現する語彙が無いために**CONDITIONAL 置換に昇格できず SEQUENCE に化けて両方実行**されていた（WXDi-P02-005＝**1枚引く → 3枚引く ＝ 計4枚**の過剰効果）。
+
+**PLAN §3「機構実装の型」に沿って6ステップで実装**（parser だけでは動かない＝engine に状態が要る典型）
+1. **状態**（`src/types/index.ts`）＝`hand_trashed_by_opp_this_turn` / `energy_trashed_by_opp_this_turn`（ターン累計カウンタ）。
+2. **条件型**（`src/types/effects.ts`）＝`HAND_TRASHED_BY_OPP` / `ENERGY_TRASHED_BY_OPP`。
+3. **evalCondition**（`execUtils.ts`）＝カウンタと比較。
+4. **カウント**（`effectExecutor.ts` の `execTrash`）＝**`tgt.owner === 'opponent'`（＝実行者から見た相手の手札/エナを捨てさせた）を、その相手から見た「対戦相手の効果で捨てられた」として加算**。通常経路と「見ないで選ぶ」（blind）経路の両方。
+5. **ターン境界リセット**（`BattleScreen.tsx` の2箇所）。
+6. **parser の条件節テンプレ表**＝⚠**2つある**（`STATE_CONDITION_CLAUSES`〔`matchLeadingStateCondition` が使う＝**「代わりに」昇格置換のゲート**〕と `parseSingleSentenceInner` の `CLAUSES`）。**片方だけだと置換が立たない**（実際に最初は後者だけ足して SEQUENCE のままだった）。+ decompiler の描画。
+
+**parser 全数機械測定＝2枚**（WXDi-P02-005／WXDi-P07-023）＝どちらも `SEQUENCE`→`CONDITIONAL{then/else}` の**置換**に是正。**2枚とも採用**。SPK16-13E は BET_MECHANIC STUB（実行時に原文を解析）のため対象外。
+
+**検証**＝`npm run gates` 全緑（**golden 223/223**〔+3＝条件のパース・engine の置換実行・execTrash のカウント〕・**census 1516→1514**・smoke/fuzz 全0）／`regen` で同型★0・逆翻訳が原文一致（「…移動していたなら3枚引く、**そうでなければ**1枚引く」と置換で描画）。
+
+---
+
 ## §3 Opusタスク10 パターンF-4＝**「次のあなたのアタックフェイズ開始時、…」の遅延句が落ちて即時実行されていた（9枚）**（2026-07-12・続き76・Opus 4.8）
 
 「**次の**あなたのアタックフェイズ開始時、<効果>」という**遅延トリガー**の句が parser で無言脱落し、**その場で即時実行**されていた（アタックフェイズを待たずに発動する過剰効果＝アサシン付与やドローが前倒しで走る）。
