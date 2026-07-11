@@ -2620,6 +2620,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
         }
       }
+      // ON_SIGNI_POWER_ZERO_OR_LESS: 0以下になったシグニの持ち主で scope を決める（engine 既定は 'any'）。
+      if (timing[0] === 'ON_SIGNI_POWER_ZERO_OR_LESS') {
+        if (/対戦相手のシグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else if (/あなたのシグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/.test(actionText)) extractedTriggerScope = 'any_ally';
+        else if (/このシグニのパワーが[0０]以下になったとき/.test(actionText)) extractedTriggerScope = 'self';
+      }
       // ON_CARD_MOVED_TO_DECK: デッキに移動したカードの持ち主と枚数閾値を triggerCondition に抽出。
       //   「あなたの**トラッシュから**カードがN枚以上デッキに移動したとき」（WX22-014）は fromTrash 限定（engine が別カウンタで数える）。
       if (timing[0] === 'ON_CARD_MOVED_TO_DECK') {
