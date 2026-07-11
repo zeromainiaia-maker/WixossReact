@@ -3097,6 +3097,9 @@ if (runIds.length === 0) { console.error('シナリオ指定が不正:', request
 
 await buildFirst();
 const { proc, url } = await startDev();
+// 異常終了（例外・Ctrl+C）でも preview server を残さない保険（'exit' ハンドラは同期処理のみ可）
+process.on('exit', () => killTree(proc));
+process.on('SIGINT', () => process.exit(130));
 console.log(`dev: ${url} / 実行シナリオ: ${runIds.join(', ')}`);
 let code = 0;
 const results = [];
