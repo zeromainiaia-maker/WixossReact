@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Sonnetタスク1＝§7実機検証＝ON_LRIG_GROW②のもう1枚（WXDi-P03-046）を検証・resume経路取りこぼしバグには非該当と確認（2026-07-12・続き73・Sonnet 5・同日第2件）
+
+同じ続き73セッションで、ON_LRIG_GROW残②のもう1枚 WXDi-P03-046（羅原姫 Ａｃ）を検証。action が `TRANSFER_TO_HAND(source:TRASH_CARD,owner:self,filter:{cardType:シグニ,color:黒})`＝SELECT_TARGETを要しうるため、R38/R43/R46/R39と同型の「resume経路取りこぼし」バグ（原因アクションがSELECT_TARGET/CHOOSEを要し、かつwatcher収集が`resolveStackNext`の`done`ブランチにしかない場合に`handleEffectInteraction`経由で収集が漏れる）に該当するかを確認する目的で選んだ。
+
+`lrigGrowAnyOppP03046` を新設。host に watcher と黒シグニ1枚（trash候補固定）を配置し、guestを`cpugrow`と同型でGROW注入。**結果＝PASS（2回連続）**＝CPUグロウ直後にhost画面へSELECT_TARGETが出現→決定で`host.trash`1→0・`host.hand`5→6。
+
+**🔎 系統的懸念には非該当と判明**＝本カードは「原因アクション（CPUの自動グロウ）が対話不要で完了」し、watcher自身の効果解決（TRANSFER_TO_HAND）は独立した新規SELECT_TARGETとしてhost画面に提示される＝「既存のresume interactionに割り込む」形ではないため、この種別のトリガーはR38/R43/R46/R39の穴の影響を受けない。ON_LRIG_GROW系のresume取りこぼしリスクは今回の検証範囲では確認されなかった。
+
+`order`配列に追加済み（`lrigGrowAnyOpp`の直後）。**変更範囲＝`scripts/verifyBattleDrive.mjs`のみ**＝engine/parser不変のため typecheck のみ確認。詳細 [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)。
+
+---
+
 ## §3 Sonnetタスク1＝§7実機検証＝ON_LRIG_GROW②（相手のグロウでany_opp発火・WXDi-P13-047）を検証・turnOwnerゲート未実装を発見（2026-07-12・続き73・Sonnet 5）
 
 PLAN §7「ON_LRIG_GROW」残②「相手のグロウでany_oppが発火する経路」。`scripts/verifyBattleDrive.mjs` に `lrigGrowAnyOpp`（WXDi-P13-047）を新設。host に watcher（【自】《ターン1回》ON_LRIG_GROW・triggerScope:any_opp・対戦相手のエナ1枚をトラッシュ）を配置し、guest（CPU）を既存 `cpugrow` と同型構成でGROWフェイズに注入してCPU自動グロウさせる形で検証した。
