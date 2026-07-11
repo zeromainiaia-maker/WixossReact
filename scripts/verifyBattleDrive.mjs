@@ -1007,16 +1007,18 @@ const scenarios = {
         // ON_ACCE は acce_just_done を見る useEffect で**後追い**でスタックに積まれる＝装着直後に判定しない。
         // 装着を検知したらクリック列（決定/OK）を回し続け、盤面が整定してから判定する。
         if (acce.some(a => a)) attachedAt ??= s;
-        if (attachedAt !== null && s >= attachedAt + 5) break;
+        if (attachedAt !== null && s >= attachedAt + 8) break;
       }
       const fin = await H.queryState();
       const acce = fin?.host?.fieldAcce ?? [null, null, null];
       for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
       const attachedZone = acce.findIndex(a => a);
       if (attachedZone < 0) return { pass: false, detail: `アクセ装着に到達せず（fieldAcce=${JSON.stringify(acce)} energy=${fin?.host?.energy} stack=${fin?.stackLen ?? '-'}）` };
+      // watcher（WDK07-E17）が今どのゾーンに居るかを盤面から引く＝pick の並び順に依存しない判定にする。
+      const watcherZone = (fin?.host?.fieldSigni ?? []).findIndex(st => st?.at(-1)?.startsWith('WDK07-E17'));
       const delta = (fin?.host?.energy ?? 0) - energy0;
-      const expected = attachedZone === 0 ? 1 : 0;            // zone0 = WDK07-E17（watcher 自身）
-      const who = attachedZone === 0 ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
+      const expected = attachedZone === watcherZone ? 1 : 0;  // watcher 自身に付いたときだけ発火（scope=self）
+      const who = attachedZone === watcherZone ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
       if (delta === expected) {
         return { pass: true, detail: `アクセは${who}に装着 → ON_ACCE(scope=self) は${expected ? '発火' : '非発火'}＝エナ ${energy0}→${fin?.host?.energy}（期待 +${expected}）` };
       }
