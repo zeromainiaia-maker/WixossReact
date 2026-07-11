@@ -4109,23 +4109,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...(nextRespondPlayerId ? { respondPlayerId: nextRespondPlayerId } : {}),
           interaction: result.pending,
         } satisfies PendingEffect;
-        // 中間ステップでバニッシュが発生した場合（BANISH後にSELECT_VIRUS_ZONE等が続く場合）、
-        // ON_BANISHトリガーをここで検出してスタックに積む。
-        // （result.done=falseブランチでは後続ハンドラにバニッシュ検出がないため）
-        const midHostBanished  = detectBanishedSigni(bs.host_state, hostState);
-        const midGuestBanished = detectBanishedSigni(bs.guest_state, guestState);
-        const midBanishEntries: StackEntry[] = [];
-        for (const cardNum of midHostBanished) {
-          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.host_id, hostState, guestState, bs.host_state));
-        }
-        for (const cardNum of midGuestBanished) {
-          midBanishEntries.push(...collectBanishTriggers(cardNum, bs.guest_id, hostState, guestState, bs.guest_state));
-        }
-        if (midBanishEntries.length > 0) {
+        // === 途中ラウンドの盤面差分トリガー（続き75・Opus）===
+        // 複数ラウンドのインタラクションを要する SEQUENCE（例 WXEX2-50＝①相手トラッシュ→相手の場に出す→
+        // ②自トラッシュ→自分の場に出す）では、step1 で確定した盤面変化がここ（!result.done）で DB へコミットされる。
+        // 従来はこの分岐で ON_BANISH だけを特例収集しており、それ以外のトリガー（ON_PLAY any_opp 等）は
+        // 一度も diff 評価されないまま bs.host_state/bs.guest_state に取り込まれ、次ラウンドが done で完了した時点の
+        // collectBoardDiffTriggers では before に step1 の変化が既に含まれる＝**差分ゼロで永久に見逃されていた**
+        // （続き70で R30/WXK10-022-E1 が実機FAIL）。done 分岐と同じ統合収集をここでも行う。
+        // ⚠ pending_effect が残ったままスタックに積むが、これは従来の ON_BANISH 特例と同じ扱い（pending 解決後に
+        //    スタックが処理される）＝新しい実行順序を持ち込むものではない。
+        const midBd = collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: pe.sourcePlayerId, causeSourceCardNum: pe.sourceCardNum });
+        update.host_state = midBd.hostState;
+        update.guest_state = midBd.guestState;
+        if (midBd.entries.length > 0) {
           const existingMidStack = bs.effect_stack ?? null;
           update.effect_stack = existingMidStack
-            ? pushToStack(existingMidStack, midBanishEntries)
-            : initStack(bs.active_user_id ?? user.id, midBanishEntries);
+            ? pushToStack(existingMidStack, midBd.entries)
+            : initStack(bs.active_user_id ?? user.id, midBd.entries);
         }
       } else {
         update.pending_effect = null;
