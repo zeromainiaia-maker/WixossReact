@@ -3162,7 +3162,16 @@ try {
     },
     // モーダル/オーバーレイを閉じてからシナリオ間で盤面を切り替える。
     closeModals: async () => {
-      for (let k = 0; k < 3; k++) { await page.keyboard.press('Escape').catch(() => {}); await page.waitForTimeout(300); }
+      // CardModal/CardStackModal（カード拡大表示＝LRIG/シグニ/キー等クリックで開く）はEscapeキー非対応
+      // （onCloseは背景divのonClickのみ）＝Escape連打だけでは閉じられず、前シナリオの開きっぱなしモーダルが
+      // 次シナリオの最初のスクショ/クリックまで残留する（trashCounterOpp が delayedAttackTrigger の残留
+      // モーダルでブロックされた実例あり）。「タップして閉じる」文言クリックで背景へフォールバックする。
+      for (let k = 0; k < 3; k++) {
+        await page.keyboard.press('Escape').catch(() => {});
+        const closeTx = page.getByText(/タップ.{0,4}閉じる/).first();
+        if (await closeTx.count() && await closeTx.isVisible().catch(() => false)) { await closeTx.click().catch(() => {}); }
+        await page.waitForTimeout(300);
+      }
     },
     // トップレベル列（turn_phase/active_user_id 等）を再 PATCH（フェイズドリフト対策）。
     repatchTop: (fields) => page.evaluate(async ({ SUPA_URL, ANON, CPU_PLAYER_ID, fields }) => {
