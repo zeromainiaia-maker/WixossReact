@@ -1,0 +1,606 @@
+===== WX17-020 =====
+[
+ {
+  "effectId": "WX17-020-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 3,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 2
+       },
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 1
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DOWN",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 1
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "FREEZE",
+        "target": {
+         "type": "LRIG",
+         "owner": "opponent",
+         "count": 1
+        }
+       },
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 1
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WXK10-012 =====
+[
+ {
+  "effectId": "WXK10-012-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK",
+   "SPELL_CUTIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "STUB",
+      "id": "PREVENT_OPP_UPKEEP"
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "OPTIONAL_COST",
+        "costColors": [
+         "緑"
+        ]
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "NEGATE_ATTACK",
+         "target": {
+          "type": "LRIG",
+          "owner": "opponent",
+          "count": 1,
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WX14-011 =====
+[
+ {
+  "effectId": "WX14-011-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 4
+       },
+       {
+        "type": "EXILE",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 2
+        },
+        "blind": true
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "SEQUENCE",
+        "steps": [
+         {
+          "type": "DRAW",
+          "owner": "opponent",
+          "count": 1
+         },
+         {
+          "type": "ENERGY_CHARGE_FROM_DECK",
+          "owner": "opponent",
+          "count": 1
+         }
+        ]
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WXK10-010 =====
+[
+ {
+  "effectId": "WXK10-010-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK",
+   "SPELL_CUTIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "BLOCK_ACTION",
+      "target": {
+       "type": "PLAYER",
+       "owner": "opponent",
+       "count": 1
+      },
+      "actionId": "DRAW_OR_ADD_TO_HAND_BY_EFFECT",
+      "until": "END_OF_TURN"
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "STUB",
+        "id": "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST",
+        "costColors": [
+         "青"
+        ]
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "DOWN",
+         "target": {
+          "type": "SIGNI",
+          "owner": "self",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ"
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WXDi-P02-005 =====
+[
+ {
+  "effectId": "WXDi-P02-005-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "CONDITIONAL",
+      "condition": {
+       "type": "HAND_TRASHED_BY_OPP",
+       "owner": "self",
+       "operator": "gte",
+       "value": 1
+      },
+      "then": {
+       "type": "DRAW",
+       "owner": "self",
+       "count": 3
+      },
+      "else": {
+       "type": "DRAW",
+       "owner": "self",
+       "count": 1
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "CONDITIONAL",
+      "condition": {
+       "type": "ENERGY_TRASHED_BY_OPP",
+       "owner": "self",
+       "operator": "gte",
+       "value": 1
+      },
+      "then": {
+       "type": "ENERGY_CHARGE_FROM_DECK",
+       "owner": "self",
+       "count": 3
+      },
+      "else": {
+       "type": "ENERGY_CHARGE_FROM_DECK",
+       "owner": "self",
+       "count": 1
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WX24-P1-012 =====
+[
+ {
+  "effectId": "WX24-P1-012-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_LRIG"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "STUB",
+     "id": "OPTIONAL_COST",
+     "costColors": [
+      "赤",
+      "無"
+     ]
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "BLOCK_ACTION",
+      "target": {
+       "type": "PLAYER",
+       "owner": "opponent",
+       "count": 1
+      },
+      "actionId": "GUARD",
+      "until": "END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WX24-P1-012-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 4
+    },
+    {
+     "type": "INSTALL_DELAYED_TRIGGER",
+     "duration": "THIS_TURN",
+     "trigger": {
+      "timing": "ON_ATTACK_PHASE_START"
+     },
+     "effect": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": "ALL"
+        }
+       },
+       {
+        "type": "ENERGY_CHARGE_FROM_DECK",
+        "owner": "self",
+        "count": 1
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+===== WXK09-046 =====
+[
+ {
+  "effectId": "WXK09-046-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "INSTALL_DELAYED_TRIGGER",
+      "duration": "THIS_TURN",
+      "trigger": {
+       "timing": "ON_ATTACK_PHASE_START"
+      },
+      "effect": {
+       "type": "DRAW",
+       "owner": "self",
+       "count": 2
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "INSTALL_DELAYED_TRIGGER",
+      "duration": "THIS_TURN",
+      "trigger": {
+       "timing": "ON_ATTACK_PHASE_START"
+      },
+      "effect": {
+       "type": "CONDITIONAL",
+       "condition": {
+        "type": "TRASH_HAS_CARD",
+        "owner": "self",
+        "filter": {
+         "cardType": "シグニ",
+         "story": "天使"
+        },
+        "minCount": 10
+       },
+       "then": {
+        "type": "DRAW",
+        "owner": "self",
+        "count": 3
+       }
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+===== WXDi-P01-061 =====
+[
+ {
+  "effectId": "WXDi-P01-061-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]

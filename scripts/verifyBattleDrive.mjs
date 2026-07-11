@@ -2782,6 +2782,12 @@ try {
         fieldSigni: s.field?.signi ?? null,
         fieldAcce: s.field?.signi_acce ?? null,
         abilitiesRemoved: s.abilities_removed ?? [],
+        lrigFrozen: s.field?.lrig_frozen ?? false,
+        negatedAttacks: s.negated_attacks ?? [],
+        blockedActions: s.blocked_actions ?? [],
+        handTrashedByOpp: s.hand_trashed_by_opp_this_turn ?? 0,
+        energyTrashedByOpp: s.energy_trashed_by_opp_this_turn ?? 0,
+        delayedTriggers: s.delayed_triggers ?? [],
       });
       return {
         host: sideOf(hs),
