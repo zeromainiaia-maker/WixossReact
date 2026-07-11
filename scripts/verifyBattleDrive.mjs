@@ -2901,18 +2901,21 @@ const scenarios = {
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
         // 「召喚」確認ボタンを挟まずゾーン選択へ直行するカードもあるため summoned 未確定でも試す
         if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-        // E1(白)/E2(赤)/E4(黒) は払えるエナが無いのでスキップ、E3(青)だけ支払う（モーダル文言のコスト色で判別）
+        // SigniOnPlayCostModal「【出】効果を発動しますか？」×4（E1白/E2赤/E3青/E4黒が順に提示される）。
+        // E1/E2/E4 は払えるエナが無いのでスキップ、E3(青)だけエナ選択→発動（モーダル文言のコスト色で判別）
         if (!did) {
-          const payBtn = page.getByTestId('optcost-pay').first();
-          const skipBtn = page.getByTestId('optcost-skip').first();
-          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false)) {
             const bodyTxt = await H.fullBody();
-            if (/コスト:\s*《青》/.test(bodyTxt)) {
-              await H.clickTestId('optcost-energy-0');
-              await page.waitForTimeout(300);
-              if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay(青)'; }
-            } else if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
-              await skipBtn.click().catch(() => {}); did = 'optcost-skip';
+            if (/コスト:[^\n]*《青》/.test(bodyTxt)) {
+              if (await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = '発動(青)'; }
+              else {
+                const e0 = page.getByTestId('onplaycost-energy-0').first();
+                if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'onplaycost-energy-0'; }
+              }
+            } else {
+              const skipBtn = page.getByRole('button', { name: 'スキップ', exact: true }).first();
+              if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'スキップ'; }
             }
           }
         }
