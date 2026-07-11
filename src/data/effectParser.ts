@@ -2455,6 +2455,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 続き75で triggerScope any_opp/any（相手/いずれかのプレイヤーの使用に反応）も engine に配線した。
              // ⚠「あなたが対戦相手のスペルを使用したとき」＝奪って使う側＝使用者は自分（self）。
              : /スペルを使用したとき/.test(actionText) ? ['ON_SPELL_USE']
+             // 「このカードがエクシードのコストとしてルリグトラッシュに置かれたとき」（13件・§3 Opusタスク16）。
+             // engine 配線済み＝エクシード支払い時に「ルリグトラッシュへ置かれたカード自身」の AUTO を発火
+             // （`exceedPaidCards` 走査。※`triggerCondition.exceedCostPaidByPlayer` を持つ「あなたが支払ったとき」変種は
+             //  場のシグニ側で発火する別経路＝そちらは MANUAL 管理）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
+             : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(actionText) ? ['ON_EXCEED_COST']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
