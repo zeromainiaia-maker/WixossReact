@@ -5626,6 +5626,44 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         if (usedIdsSU.length > 0) casterAfter = { ...casterAfter, actions_done: [...(casterAfter.actions_done ?? []), ...usedIdsSU] };
       }
+      // ON_SPELL_USE（相手側 watcher）＝「対戦相手がスペルを使用したとき」（triggerScope:any_opp）／
+      // 「いずれかのプレイヤーがスペルを使用したとき」（any）。従来は使用者(caster)の場しか走査しておらず、
+      // **使用者の対戦相手の場にある watcher が一度も発火しなかった**（続き75で parser が語彙を出すのに合わせて配線）。
+      {
+        const oppOfCasterId = caster_id === bs.host_id ? bs.guest_id : bs.host_id;
+        const usedSpellColorOpp = battleCardMap.get(card_num)?.Color ?? '';
+        const oppWatchSources = [
+          result.otherState.field.lrig.at(-1),
+          ...result.otherState.field.signi.map(stack => stack?.at(-1)),
+        ].filter((n): n is string => !!n);
+        const usedIdsSUOpp: string[] = [];
+        for (const srcNum of oppWatchSources) {
+          for (const eff of (effectsMap.get(srcNum) ?? [])) {
+            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
+            const scopeSU = eff.triggerScope ?? 'self';
+            if (scopeSU !== 'any_opp' && scopeSU !== 'any') continue; // self は使用者側でのみ発火（上のブロック）
+            if (eff.triggerFilter?.color) {
+              const wantColors = Array.isArray(eff.triggerFilter.color) ? eff.triggerFilter.color : [eff.triggerFilter.color];
+              if (!wantColors.some(c => usedSpellColorOpp.includes(c))) continue;
+            }
+            if (eff.usageLimit === 'once_per_turn' &&
+                ((result.otherState.actions_done?.includes(eff.effectId)) || usedIdsSUOpp.includes(eff.effectId))) continue;
+            if (eff.condition && !evalUseCondition(eff.condition, result.otherState, casterAfter, battleCardMap, srcNum, bs.turn_phase, spellPowers)) continue;
+            if (eff.usageLimit === 'once_per_turn') usedIdsSUOpp.push(eff.effectId);
+            spellUseEntries.push({
+              id: generateUUID(),
+              playerId: oppOfCasterId,
+              cardNum: srcNum,
+              effectId: eff.effectId,
+              label: `${battleCardMap.get(srcNum)?.CardName ?? srcNum}【自】スペル使用時（対戦相手の使用）`,
+              effect: eff,
+            });
+          }
+        }
+        if (usedIdsSUOpp.length > 0) {
+          result = { ...result, otherState: { ...result.otherState, actions_done: [...(result.otherState.actions_done ?? []), ...usedIdsSUOpp] } };
+        }
+      }
       // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: スペル効果で場に出したシグニの【出】(ON_PLAY) を積む。
       // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ スペル解決後にスタックへ積み、整列UIで順番を選べる。
       if (result.done && (spellEff.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
