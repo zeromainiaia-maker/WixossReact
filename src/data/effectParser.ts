@@ -2743,7 +2743,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/レゾナの出現条件のために/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
         }
-        const m = actionText.match(/((?:手札か)?デッキ|場|いずれかの領域)からトラッシュに置かれたとき[、,]\s*(.+)/s);
+        const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域)からトラッシュに置かれたとき[、,]\s*(.+)/s);
         if (m) {
           // 出自ゾーンを fromZones に記録（「デッキから」=deck／「場から」=field／「手札かデッキから」=hand+deck）。
           const zoneStr = m[1];
