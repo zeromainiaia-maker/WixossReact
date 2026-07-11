@@ -2559,7 +2559,18 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/freezelrig-${s}.png`, fullPage: true });
         let did = null;
-        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        // ArtsModal Phase2（コスト選択）：「アーツ使用」は青エナ1枚選択まで disabled のまま＝先にエナ選択
+        if (!chose) {
+          const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+          if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+            if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+            else {
+              const e0 = page.getByTestId('artscost-energy-0').first();
+              if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+            }
+          }
+        }
+        if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
         if (!did && !chose) {
           const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
           if (await c3.count() && await c3.isVisible().catch(() => false)) { await c3.click().catch(() => {}); did = 'choose:選択肢3'; chose = true; }
