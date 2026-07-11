@@ -2585,6 +2585,11 @@ async function injectScenario(page, spec) {
       s.blocked_actions = [];
       s.free_grow_this_turn = false;
       s.deck_shuffled_count = 0;
+      s.hand_trashed_by_opp_this_turn = 0;
+      s.energy_trashed_by_opp_this_turn = 0;
+      s.negated_attacks = [];
+      s.negated_attacks_escape = {};
+      s.delayed_triggers = [];
       // ⚠続き77（Sonnet・§3タスク3）＝ゾーン単位の状態マーカー（field.*）も同種の汚染源だった。
       // 従来は field.signi_acce のみ各シナリオの hostSet 側で個別に手動クリアしていたが（続き76の acceSelfScope 等）、
       // signi_down/signi_frozen/lrig_frozen 等の**他のゾーン配列も同じ理屈で残留しうる**（前シナリオの盤面が
