@@ -329,6 +329,11 @@ export interface PlayerState {
   // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
   // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
   cards_drawn_by_effect_this_turn?: number;
+  // このターンに**対戦相手の効果によって**このプレイヤーの手札／エナゾーンからトラッシュへ移動した累計枚数。
+  // 「このターンに対戦相手の効果によってあなたの手札からカードが1枚以上トラッシュに移動していた場合」条件
+  // （HAND_TRASHED_BY_OPP / ENERGY_TRASHED_BY_OPP）用＝WXDi-P02-005/WXDi-P07-023/SPK16-13E。ターン境界で0へリセット。
+  hand_trashed_by_opp_this_turn?: number;
+  energy_trashed_by_opp_this_turn?: number;
   // 直近の効果ドロー（execDraw 経由）の原因カード番号。triggerCondition.drawBySourceStory（WX20-026-E3）の発火判定用。
   // ドローフェイズの通常ドロー（drawCards 経由）では undefined にクリアし、効果ドロー（execDraw）が原因カードを上書きする。
   last_effect_draw_source?: string;
