@@ -5,6 +5,22 @@
 
 ---
 
+## §3 Sonnetタスク1＝§7実機検証＝ON_CHARM_TO_TRASH（R42②・バトルバニッシュ経路）で実バグを発見（2026-07-12・続き74・Sonnet 5・未修正・Opus引き継ぎ）
+
+PLAN §7「ON_CHARM_TO_TRASH」残②「バトルバニッシュでhostが離脱したとき（効果解決経路外＝未検出の可能性）」。既存の`charmToTrash`シナリオ（PASS済み）は効果（WX19-023の無条件バニッシュ）経由のみを検証済みだったため、**戦闘（アタックの力比べ）でチャーム付きシグニが負けてバニッシュされる経路**を新たに `charmToTrashBattle` シナリオで検証した。
+
+**事前のコード読解で仮説を確認**＝バトル解決は `resolvePendingSigniBattleFor`（`BattleScreen.tsx:6344`）が独自のトリガーリスト（`banishEntries`/`battleBanishEntries`/`trashEntriesSA`等・同7176行）を構築し、`collectCharmToTrashTriggers` を呼び出す `collectBoardDiffTriggers` は `resolveStackNext`（効果スタック解決）と `handleEffectInteraction`（resume経路）の2箇所からしか呼ばれない＝バトル解決経路には一切配線されていない。
+
+**盤面**：host zone0（WD05-009・P12000・攻撃者）／host zone1（WX16-Re05・watcher・any scope・P5000）。guest zone1（WX01-053・P15000・watcherの-4000対象で唯一の残存候補）／guest zone2（WD01-013・P3000・チャーム付き・host zone0の正面）。host zone0→guest zone2へ通常アタック。
+
+**結果＝❌FAIL（2回連続再現）＝仮説どおりの実バグを確認**＝アタック後、力比べ（host 12000≥guest 3000）でWD01-013が場から消滅しバトルバニッシュが成立、`guest.trash` が0→1でチャームは正しくトラッシュへ（ground truth正常）。**しかし watcher（WX16-Re05）のON_CHARM_TO_TRASHが一度も発火せず**（`guest.powerMods` 終始空）。
+
+**影響**＝実戦で最も頻繁に起こる経路（通常の戦闘でチャームが手放されるケース）でON_CHARM_TO_TRASH系のカードが機能しない、実害の大きいバグ。既存の`charmToTrash`（効果banish経路）はPASSしているため、効果起因のバニッシュでは問題なく発火する。
+
+**修正はせず、観測結果のみ記録してOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。**修正方針の示唆**＝`resolvePendingSigniBattleFor`（`BattleScreen.tsx:7176`付近の`allTriggers`組み立て）に `collectCharmToTrashTriggers` 呼び出しを追加する横展開で直る見込み（新規機構ではなく既存パターンの適用漏れ）。`charmToTrashBattle` は `order`配列には追加していない（FAIL）。**変更範囲＝`scripts/verifyBattleDrive.mjs`のみ**＝engine/parser不変のため typecheck のみ確認。詳細な盤面・クリック列・ログは [VERIFY_BROWSER.md](./VERIFY_BROWSER.md) 参照。
+
+---
+
 ## §3 Sonnetタスク1＝§7実機検証＝ON_LRIG_GROW②のもう1枚（WXDi-P03-046）を検証・resume経路取りこぼしバグには非該当と確認（2026-07-12・続き73・Sonnet 5・同日第2件）
 
 同じ続き73セッションで、ON_LRIG_GROW残②のもう1枚 WXDi-P03-046（羅原姫 Ａｃ）を検証。action が `TRANSFER_TO_HAND(source:TRASH_CARD,owner:self,filter:{cardType:シグニ,color:黒})`＝SELECT_TARGETを要しうるため、R38/R43/R46/R39と同型の「resume経路取りこぼし」バグ（原因アクションがSELECT_TARGET/CHOOSEを要し、かつwatcher収集が`resolveStackNext`の`done`ブランチにしかない場合に`handleEffectInteraction`経由で収集が漏れる）に該当するかを確認する目的で選んだ。
