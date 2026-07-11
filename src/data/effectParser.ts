@@ -2451,6 +2451,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
+             // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
+             // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
+             // 無いため ON_PLAY（＝「場に出たとき」）へ誤フォールバックしていた＝召喚しただけで発火する幻覚。
+             // ⚠「次の（次の）あなたのメインフェイズ開始時」＝**遅延トリガー**（設置して次ターンに発火）は別機構なので除外。
+             : (/メインフェイズ開始時/.test(actionText) && !/次の(?:次の)?あなたのメインフェイズ開始時/.test(actionText)) ? ['ON_MAIN_PHASE_START']
              : actionText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
              // 「あなたがカードをN枚引いたとき」= ドロー時トリガー（G089）。「ターン終了時まで」より先に判定する。
              : /(?:あなたが)?カードを[０-９\d]+枚引いたとき/.test(actionText) ? ['ON_DRAW']
