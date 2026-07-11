@@ -1800,6 +1800,23 @@ test('ADD_TO_FIELD owner:opponent: 相手トラッシュのシグニを相手の
   ok(!r.ownerState.field.signi.some(s => s?.at(-1) === SIG), '自分の場には配置されない');
 });
 
+// GRANT_EFFECT→相手LRIGへCONT POWER_MODIFY(levelLtSelf)付与＝lrig相対の動的比較（WXEX2-25-E3・続き67）
+// resolveContSelfLevel が host=付与先LRIG のレベル基準で「このルリグより低いレベル」を解決することを検証。
+test('lrig相対 CONT POWER_MODIFY: 相手LRIG(Lv4)付与の levelLtSelf が Lv未満シグニのみ-8000（WXEX2-25-E3）', () => {
+  const LRIG4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const me = mkState({});
+  const op = mkState({ signi: [SIGNI_L3, SIGNI_L4, null] }); op.field.lrig = [LRIG4];
+  const grantEff = { effectId: 'g', effectType: 'CONTINUOUS',
+    action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', levelLtSelf: true } }, delta: -8000 },
+    duration: 'PERMANENT', mandatory: true } as unknown as CardEffect;
+  const cm = cardMap as Map<string, CardData>;
+  const p0 = calcFieldPowers(me, op, true, effectsMap, cm);
+  const em = new Map(effectsMap); em.set(LRIG4, [...(effectsMap.get(LRIG4) ?? []), grantEff]);
+  const p1 = calcFieldPowers(me, op, true, em, cm);
+  eq((p1.get(SIGNI_L3) ?? 0) - (p0.get(SIGNI_L3) ?? 0), -8000, 'Lv3(<Lv4)に-8000');
+  eq((p1.get(SIGNI_L4) ?? 0) - (p0.get(SIGNI_L4) ?? 0), 0, 'Lv4(≥Lv4)は不変');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
