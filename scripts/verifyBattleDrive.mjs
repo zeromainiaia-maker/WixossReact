@@ -1004,6 +1004,7 @@ const scenarios = {
       }
       const fin = await H.queryState();
       const acce = fin?.host?.fieldAcce ?? [null, null, null];
+      for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
       const attachedZone = acce.findIndex(a => a);
       if (attachedZone < 0) return { pass: false, detail: `アクセ装着に到達せず（fieldAcce=${JSON.stringify(acce)} energy=${fin?.host?.energy} stack=${fin?.stackLen ?? '-'}）` };
       const delta = (fin?.host?.energy ?? 0) - energy0;
