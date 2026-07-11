@@ -1056,12 +1056,16 @@ test('Stage2 ON_BLOOM: self 開花シグニ自身＋場の any_ally が発火（
 });
 
 // Stage2⑪: 最後の collect = collectTurnTriggers（ターン/フェイズ境界）を pure 化→自動検証。
-test('Stage2 ON_TURN_END: self シグニが発火・timing 不一致は非発火（WX05-021-E2）', () => {
-  const host = mkState({ signi: ['WX05-021', null, null] }); const guest = mkState({});
+// ⚠元は WX05-021-E2 を正例にしていたが、そのカードの原文は「あなたの効果によって対戦相手のエナゾーンから
+//   カード1枚がトラッシュに置かれたとき」＝ON_ENERGY_TO_TRASH であり、ON_TURN_END は parser の timing 語彙欠落に
+//   よる誤フォールバックだった（続き76で是正）。テストが**バグのある encoding を正例にしていた**ので、原文が本当に
+//   「あなたのターン終了時」の WX10-030-E1（羅石　イリスアゲート）へ差し替える。
+test('Stage2 ON_TURN_END: self シグニが発火・timing 不一致は非発火（WX10-030-E1）', () => {
+  const host = mkState({ signi: ['WX10-030', null, null] }); const guest = mkState({});
   const e = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_END', host, guest);
-  eq(has(e, 'WX05-021-E2'), true, 'ターン終了で発火');
-  eq(e.find(x => x.effectId === 'WX05-021-E2')?.playerId, HOST, 'playerId=自分');
-  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX05-021-E2'), false, 'timing不一致は非発火');
+  eq(has(e, 'WX10-030-E1'), true, 'ターン終了で発火');
+  eq(e.find(x => x.effectId === 'WX10-030-E1')?.playerId, HOST, 'playerId=自分');
+  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX10-030-E1'), false, 'timing不一致は非発火');
 });
 test('ARTS_USED_THIS_TURN 条件: turn_arts_used で発火ゲート（WX25-P3-112-E1）', () => {
   // 「あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、…」＝ turn_arts_used が無ければ非発火
