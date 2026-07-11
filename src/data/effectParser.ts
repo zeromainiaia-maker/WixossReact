@@ -1055,6 +1055,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
 const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
+  // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
+  // ＝「代わりに」昇格置換のゲート（§3 Opusタスク10 パターンF-2）。この表は matchLeadingStateCondition が使う＝
+  // ここに無いと「代わりに」が置換にならず **SEQUENCE で両方実行**される（WXDi-P02-005＝1枚引く→3枚引く＝計4枚）。
+  [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+    g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+  [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+    g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
   [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
   // ⚠「以上/以下」が付かない**ちょうどN枚**（WD20-018②「あなたのライフクロスが０枚の場合」）が上の規則に
