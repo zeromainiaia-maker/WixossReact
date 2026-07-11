@@ -637,6 +637,8 @@ const scenarios = {
       },
       guestSet: {
         'field.signi': [['WXDi-P02-043#1'], null, null], // watcher（ドライ＝インフルＤ型・唯一の対象候補）
+        // ⚠必須：1回目の発火→2回目の非発火 を見るシナリオなので、開始時に《ターン1回》の消費記録を必ずクリアする。
+        'actions_done': [],
       },
       handPrepend: ['WD05-017#1', 'WD05-017#2'],          // ホール・ダーク×2（同一ターン内に2回発動）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
