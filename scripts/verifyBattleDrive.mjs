@@ -2530,6 +2530,343 @@ const scenarios = {
       return { pass: false, detail: `ON_PLAY any_opp 未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} hField=${JSON.stringify(fin?.host?.fieldSigni)} gAbilitiesRemoved=${JSON.stringify(fin?.guest?.abilitiesRemoved)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ⑭ WX17-020（FREEZE LRIG＝パターンB・続き76新規実装・未実機検証）: 【起】アーツ「以下の3つから1つを
+  //    選ぶ」選択肢③「対戦相手のセンタールリグ１体を対象とし、それを凍結する。手札を１枚捨てる。」
+  //    execFreeze の LRIG 対象分岐（effectExecutor.ts execFreeze）を検証。
+  freezeLrig: {
+    title: 'WX17-020（FREEZE LRIG＝パターンB・センタールリグ凍結）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],       // 自センター（アーツ使用の土台）
+        'lrig_deck': ['WX17-020#1'],        // エニー・チョイス（青×1・③でLRIG凍結）
+        'energy': ['WD03-009#1'],           // 青×1（アーツコスト）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],       // 対戦相手センター（凍結対象）
+      },
+      handPrepend: ['WD01-013#1', 'WD01-013#2'], // ③後半「手札を1枚捨てる」用の余剰手札
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let chose = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/freezelrig-${s}.png`, fullPage: true });
+        let did = null;
+        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        if (!did && !chose) {
+          const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
+          if (await c3.count() && await c3.isVisible().catch(() => false)) { await c3.click().catch(() => {}); did = 'choose:選択肢3'; chose = true; }
+        }
+        // FREEZE対象（候補1体のみ）／TRASH{HAND_CARD}（捨てるカードを選ぶ）どちらもpick-0で吸収
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        H.log(`  freeze[${s}] -> ${did ?? 'なし'} | gLrigFrozen=${st?.guest?.lrigFrozen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (st?.guest?.lrigFrozen) {
+          return { pass: true, detail: 'execFreeze(LRIG) 発火→対戦相手センタールリグが凍結（guest.field.lrig_frozen=true）' };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `センタールリグ凍結 未確認（gLrigFrozen=${fin?.guest?.lrigFrozen} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ⑮ WXK10-012（NEGATE_ATTACK LRIG＝パターンB・続き76新規実装・未実機検証）: 【起】アーツ「以下の2つから
+  //    1つを選ぶ」選択肢②「《緑》を支払ってもよい。そうした場合、このターン、対戦相手のセンタールリグが
+  //    アタックしたとき、そのアタックを無効にする。」execNegateAttack の LRIG 分岐を検証。実装は即時
+  //    negated_attacks フラグを立てる形（effectExecutor.ts execNegateAttack）＝実際のアタック解決を待たずに
+  //    queryState で確認できる。
+  negateAttackLrig: {
+    title: 'WXK10-012（NEGATE_ATTACK LRIG＝パターンB・対戦相手センタールリグのアタック無効化フラグ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'lrig_deck': ['WXK10-012#1'],       // 停空飛翔（緑×0・②任意緑でLRIGアタック無効）
+        'energy': ['WD04-010#1'],           // 緑×1（任意コスト用）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],       // 対戦相手センター（アタック無効化の対象）
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 }, // CardData.Timing=アタックフェイズのみ
+    },
+    async drive(page, H) {
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let chose = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/negateattacklrig-${s}.png`, fullPage: true });
+        let did = null;
+        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        if (!did && !chose) {
+          const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
+          if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = 'choose:選択肢2'; chose = true; }
+        }
+        // STUB OPTIONAL_COST（緑）：エナ選択→支払う
+        if (!did) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+            await H.clickTestId('optcost-energy-0');
+            await page.waitForTimeout(300);
+            if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const negated = (st?.guest?.negatedAttacks ?? []).some(n => /WD03-002/.test(n));
+        H.log(`  negate[${s}] -> ${did ?? 'なし'} | gNegated=${JSON.stringify(st?.guest?.negatedAttacks)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (negated) {
+          return { pass: true, detail: `execNegateAttack(LRIG) 発火→対戦相手センタールリグのアタックが無効化フラグ済み（negated_attacks=${JSON.stringify(st.guest.negatedAttacks)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `NEGATE_ATTACK(LRIG) 未確認（gNegated=${JSON.stringify(fin?.guest?.negatedAttacks)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ⑯ WX14-011（EXILE HAND_CARD+blind＝続き75新規実装・未実機検証）: 【起】アーツ「以下の2つから1つを
+  //    選ぶ」選択肢①「カードを4枚引く。その後、対戦相手はあなたの手札を2枚見ないで選び、あなたはそれらを
+  //    ゲームから除外する。」execExile の HAND_CARD＋blind 分岐＝トラッシュではなくゲーム除外になること
+  //    （host.trashが増えないこと）を検証。blind＝CPU(guest)が見ないで自動選択（BattleScreen自動応答）。
+  exileHandBlind: {
+    title: 'WX14-011（EXILE HAND_CARD+blind＝4枚引き→CPUが見ないで2枚ゲーム除外）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'lrig_deck': ['WX14-011#1'],        // 炎得火失（赤×1・①4枚引き→手札2枚を除外）
+        'energy': ['WD02-010#1'],           // 赤×1（アーツコスト）
+        'actions_done': [],
+      },
+      handPrepend: ['WD01-013#1', 'WD01-013#2'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const h0 = before?.host?.hand ?? 0;
+      const t0 = before?.host?.trash ?? 0;
+      H.log('開始時 host.hand:', h0, 'host.trash:', t0);
+      await H.ensureMain();
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let chose = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exilehandblind-${s}.png`, fullPage: true });
+        let did = null;
+        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        if (!did && !chose) {
+          const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
+          if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        H.log(`  exile[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} hTrash=${st?.host?.trash ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+        if (chose && st && st.host.hand === h0 + 2) {
+          // 4枚引き→2枚除外＝差し引き+2。トラッシュが増えていなければ TRASH ではなく EXILE。
+          if (st.host.trash === t0) {
+            return { pass: true, detail: `execExile(HAND_CARD,blind) 発火→4枚引き後2枚がゲーム除外（hand ${h0}→${st.host.hand}・trash不変=${t0}）` };
+          }
+          return { pass: false, detail: `EXILE→TRASH退行の疑い＝trashが増加（trash ${t0}→${st.host.trash}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `EXILE完走未確認（hand ${h0}→${fin?.host?.hand ?? '-'} trash ${t0}→${fin?.host?.trash ?? '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // ⑰ WXK10-010 BLOCK_ACTION(DRAW_OR_ADD_TO_HAND_BY_EFFECT)＝続き76新規実装・未実機検証。WXK10-010①は
+  //    「対戦相手」を封じる効果（CPUに対して打っても対話を起こせない）なので、封じられている状態を直接
+  //    盤面注入し（blocked_actions:['DRAW_OR_ADD_TO_HAND_BY_EFFECT']＝WXK10-010①解決後と同じ状態）、
+  //    host自身がWXDi-P01-061（【出】《無》：カードを1枚引く）を使ってもドローできないこと＝execDraw の
+  //    blocked_actions チェック（effectExecutor.ts execDraw）の実ディスパッチを検証する。
+  blockDrawByEffect: {
+    title: 'WXK10-010 BLOCK_ACTION(DRAW_OR_ADD_TO_HAND_BY_EFFECT)＝封じられた状態で自己ドロー効果が不発',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'energy': ['WD01-013#1'],           // 無コスト（任意色で可）
+        'blocked_actions': ['DRAW_OR_ADD_TO_HAND_BY_EFFECT'], // WXK10-010①解決後の状態を模擬
+        'actions_done': [],
+      },
+      handPrepend: ['WXDi-P01-061#1'],      // 蒼天　カロン（【出】《無》：カードを1枚引く・任意コスト）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const h0 = before?.host?.hand ?? 0;
+      H.log('開始時 host.hand:', h0, 'blockedActions:', JSON.stringify(before?.host?.blockedActions));
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/blockdraw-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        // ON_PLAY任意コスト《無》：エナ選択→支払う（＝ドロー試行のトリガー）
+        if (!did) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+            await H.clickTestId('optcost-energy-0');
+            await page.waitForTimeout(300);
+            if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
+        const st = await H.queryState();
+        const blockedLog = await H.findLog(/効果によるドローは封じられている/);
+        H.log(`  block[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} blocked=${JSON.stringify(st?.host?.blockedActions)} blockedLog=${!!blockedLog}`);
+        if (blockedLog) {
+          return { pass: true, detail: `execDraw の BLOCK_ACTION 発火→ドロー封じログ確認「${blockedLog}」（hand=${st.host.hand}）` };
+        }
+        if (summoned && st && st.host.hand === h0) {
+          return { pass: false, detail: `BLOCK_ACTION 未適用の疑い＝封じられているはずのドローが成立（召喚で-1後、hand が元の${h0}まで回復）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `BLOCK_ACTION 確認未完了（hand ${h0}→${fin?.host?.hand ?? '-'} blockedLog未検出）` };
+    },
+  },
+
+  // ⑱ WX24-P1-012（遅延トリガー＝パターンF-4・続き76新規実装・未実機検証）: 【起】《ゲーム1回》アンビション
+  //    「カードを4枚引く。次のあなたのアタックフェイズ開始時、手札をすべて捨て、この方法で捨てたカード
+  //    1枚につき【エナチャージ1】をする。」collectTurnTriggers の遅延トリガー収集（ON_ATTACK_PHASE_START）を
+  //    検証＝MAINフェイズでの即時実行ではなく、実際にアタックフェイズへ進めた瞬間に発火することを確認する。
+  delayedAttackTrigger: {
+    title: 'WX24-P1-012（遅延トリガー＝次のアタックフェイズ開始時まで待って発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX24-P1-012#1'],    // 閃花繚乱　花代・参（センターに直接注入）
+        'actions_done': [],
+        'game_actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const h0 = before?.host?.hand ?? 0;
+      const e0 = before?.host?.energy ?? 0;
+      H.log('開始時 host.hand:', h0, 'energy:', e0);
+      let installed = false;
+      let h1 = null;
+      for (let s = 0; s < 14; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/delayedtrigger-${s}.png`, fullPage: true });
+        let did = null;
+        if (!installed) {
+          const lrigImg = page.locator('img[alt="閃花繚乱　花代・参"]').first();
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click().catch(() => {}); did = 'click:centerLrig'; }
+        }
+        if (!did && !installed) did = await H.clickTextOrBtn(['【起】コストなし']);
+        if (!did && !installed) did = await H.clickTextOrBtn(['発動']);
+        const st = await H.queryState();
+        if (!installed && (st?.host?.hand ?? 0) >= h0 + 4 && (st?.host?.delayedTriggers?.length ?? 0) > 0) {
+          installed = true;
+          h1 = st.host.hand;
+          H.log(`  遅延トリガー設置確認: hand=${h1}（+4）・delayedTriggers=${JSON.stringify(st.host.delayedTriggers)}`);
+        }
+        H.log(`  install[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} delayed=${(st?.host?.delayedTriggers ?? []).length}`);
+        if (installed) break;
+      }
+      if (!installed) {
+        const fin = await H.queryState();
+        return { pass: false, detail: `遅延トリガー設置を確認できず（hand=${fin?.host?.hand ?? '-'} delayed=${JSON.stringify(fin?.host?.delayedTriggers)}）` };
+      }
+      // 設置直後（MAIN中）に即時実行されていないこと＝手札がまだ全部残っている（過去の即時化バグの回帰ガード）
+      const stillMain = await H.queryState();
+      if ((stillMain?.host?.hand ?? 0) < h1) {
+        return { pass: false, detail: `遅延のはずが即時実行された疑い＝MAIN中に手札が減少（hand ${h1}→${stillMain.host.hand}）` };
+      }
+      // アタックフェイズへ進める→遅延トリガー発火（手札全捨て＋捨てた枚数分エナチャージ）
+      const adv = await H.clickTextOrBtn(['アタックフェイズへ']);
+      H.log('フェイズ進行:', adv ?? '見つからず');
+      for (let s = 0; s < 12; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/delayedtrigger-fire-${s}.png`, fullPage: true });
+        await H.clickTextOrBtn(['発動順序を確定', '確定']);
+        const st = await H.queryState();
+        H.log(`  fire[${s}] -> hHand=${st?.host?.hand ?? '-'} hEnergy=${st?.host?.energy ?? '-'} phase=${st?.turnPhase ?? '-'}`);
+        if ((st?.host?.hand ?? -1) === 0 && (st?.host?.energy ?? 0) > e0) {
+          return { pass: true, detail: `collectTurnTriggers の遅延トリガー発火確認（アタックフェイズ移行後に手札全捨て＋エナチャージ・hand ${h1}→0・energy ${e0}→${st.host.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `遅延トリガー発火 未確認（hand=${fin?.host?.hand ?? '-'} energy=${fin?.host?.energy ?? '-'} phase=${fin?.turnPhase ?? '-'}）` };
+    },
+  },
+
+  // ⑲ WX14-040-E3（execTrashのカウンタ＝続き76新規実装・未実機検証）: 【出】《青》：対戦相手は手札を1枚
+  //    捨てる。TRASH{HAND_CARD,owner:opponent}が実ディスパッチで解決されたとき、対象側（guest）の
+  //    hand_trashed_by_opp_this_turn カウンタが加算されること（execTrash・effectExecutor.ts）を検証。
+  //    このカウンタはWXDi-P02-005等の「代わりに」置換の起点（条件評価側＝CONDITIONALの読みはgolden済み・
+  //    ここでは書き込み側＝実UIディスパッチ経由でのカウント加算を確認する）。
+  trashCounterOpp: {
+    title: 'WX14-040-E3（execTrashカウンタ＝対戦相手の手札トラッシュでhand_trashed_by_opp_this_turn加算）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'energy': ['WD03-009#1'],           // 青×1（E3コスト。E1白/E2赤/E4黒は払えずスキップされる想定）
+        'actions_done': [],
+      },
+      handPrepend: ['WX14-040#1'],          // 羅植　ヤシ（Lv4・クラス制限なし・E3のみ青コスト所持）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/trashcounter-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        // E1(白)/E2(赤)/E4(黒) は払えるエナが無いのでスキップ、E3(青)だけ支払う（モーダル文言のコスト色で判別）
+        if (!did) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          const skipBtn = page.getByTestId('optcost-skip').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+            const bodyTxt = await H.fullBody();
+            if (/コスト:\s*《青》/.test(bodyTxt)) {
+              await H.clickTestId('optcost-energy-0');
+              await page.waitForTimeout(300);
+              if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay(青)'; }
+            } else if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
+              await skipBtn.click().catch(() => {}); did = 'optcost-skip';
+            }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
+        const st = await H.queryState();
+        H.log(`  trashctr[${s}] -> ${did ?? 'なし'} | gHandTrashedByOpp=${st?.guest?.handTrashedByOpp ?? '-'} gHand=${st?.guest?.hand ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if ((st?.guest?.handTrashedByOpp ?? 0) >= 1) {
+          return { pass: true, detail: `execTrash カウンタ加算確認→guest.hand_trashed_by_opp_this_turn=${st.guest.handTrashedByOpp}（「代わりに」置換の起点条件が実ディスパッチで成立）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `execTrash カウンタ未確認（handTrashedByOpp=${fin?.guest?.handTrashedByOpp ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
