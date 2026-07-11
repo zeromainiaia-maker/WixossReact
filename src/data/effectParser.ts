@@ -2592,7 +2592,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_SIGNI_BANISH_OPPONENT（「…がバトルによって…をバニッシュしたとき」）：主語を triggerScope に抽出。
       //   「このシグニが」＝self（既定・バニッシュしたアタッカー自身のみ）／「あなたの[他の][＜X＞の]シグニが」＝any_ally（＋triggerFilter）。
       if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT') {
-        const subjM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ[^。]{0,6}がバトルによって/);
+        // 「あなたの[他の][＜X＞の]シグニが（バトルによって／対戦相手の）…」＝any_ally。「このシグニが」＝self。
+        const subjM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(?:バトルによって|対戦相手の)/);
         if (subjM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
