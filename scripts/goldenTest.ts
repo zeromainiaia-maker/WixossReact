@@ -1829,6 +1829,25 @@ test('GRANT_EFFECT→相手LRIG: 相手のgranted_effectsに付与格納（WXEX2
   ok(granted.some(e => e.effectId === 'WXEX2-25-E3-GRANT'), '相手LRIGのgranted_effectsに付与格納');
 });
 
+// デッキ相対SEARCH: 捨てたシグニ基準のレベルフィルタ（§3タスク3 動的比較・続き68）
+const searchAct = (filter: object, maxCount = 1) => ({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter, maxCount,
+  then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } });
+test('SEARCH levelEqDiscardSigniOffset:1: 捨てレベル2→レベル3のみサーチ対象（WDK13-013）', () => {
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, deck: [SIGNI_L2, SIGNI_L3, SIGNI_L4], last_discarded_signi_level: 2 } } as ExecCtx;
+  const r = run(searchAct({ cardType: 'シグニ', levelEqDiscardSigniOffset: 1 }) as unknown as EffectAction, ctx);
+  ok(r.ownerState.hand.includes(SIGNI_L3), 'レベル3(=2+1)を手札に');
+  ok(!r.ownerState.deck.includes(SIGNI_L3), 'レベル3がデッキから抜けた');
+  ok(r.ownerState.deck.includes(SIGNI_L2) && r.ownerState.deck.includes(SIGNI_L4), 'レベル2/4はサーチ対象外で残る');
+});
+test('SEARCH levelLtDiscardSigni: 捨てレベル3→レベル<3(=1,2)のみサーチ対象（WXEX2-37）', () => {
+  const base = mkCtx({}, {});
+  const ctx = { ...base, ownerState: { ...base.ownerState, deck: [SIGNI_L4, SIGNI_L2, SIGNI_L1], last_discarded_signi_level: 3 } } as ExecCtx;
+  const r = run(searchAct({ cardType: 'シグニ', levelLtDiscardSigni: true }, 2) as unknown as EffectAction, ctx);
+  ok(!r.ownerState.deck.includes(SIGNI_L2) && !r.ownerState.deck.includes(SIGNI_L1), 'レベル1/2(<3)はサーチ対象で抜ける');
+  ok(r.ownerState.deck.includes(SIGNI_L4), 'レベル4(≥3)はサーチ対象外で残る');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
