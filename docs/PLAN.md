@@ -129,7 +129,7 @@
 | 7 | §6.1 未実装action型 7種 | engine実装 | M（1型ずつ分割可） | ◎今すぐ |
 | 8 | §6.3 大型機構 | engine機構＋parser | L（項目ごと独立・分割可） | ◎今すぐ |
 | 9 | semantic audit 機構対応 | engine＋decompiler | M | ◎今すぐ |
-| 10 | CHOOSE held 最終見極め | JSON採用（退化見極め） | S〜M | ⏳**Sonnetタスク2 の分類完了後** |
+| 10 | CHOOSE held 最終見極め | JSON採用（退化見極め） | S〜M | ◎今すぐ（**Sonnetタスク2 の分類完了・続き71**＝パターンA〜F整理済み） |
 | 11 | BEHAVIOR_AUDIT 高シグナル19 仕分け | 仕分け＋engine修正 | M | ◎今すぐ（Sonnetタスク4 の再生成があると楽） |
 | 12 | Sonnet 発見バグの修正（常設） | 可変 | 可変 | ⏳**Sonnet の観測結果待ち**（積まれ次第最優先で消化） |
 | 13 | §5b 混線テール367 | JSON再parse（1カードずつ） | L（低優先） | ◎今すぐ（逓減テール＝他が尽きたら） |
