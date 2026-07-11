@@ -173,6 +173,10 @@ export type Condition =
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致するエナゾーンのカード枚数（「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
+  // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
+  // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
+  | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
+  | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner } // このターンに owner がアーツを使用していた場合（turn_arts_used。WX25-P1-106）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜空獣＞と＜地獣＞が合計3体ある場合」=minCount:3。WX04-094）
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
