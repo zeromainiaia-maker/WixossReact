@@ -5,6 +5,18 @@
 
 ---
 
+## §3 Sonnetタスク1＝§7実機検証＝ON_TARGETED残3枚（WXDi-P11-040/WXDi-D09-H14/WX25-P2-055）を全数検証・2件の実データ疑義を発見（2026-07-12・続き72・Sonnet 5）
+
+PLAN §7「ON_TARGETED（対象になったとき）」の残タスク①（続き64のWXDi-P02-043に続く残る3枚の個別確認）。`scripts/verifyBattleDrive.mjs` に `ontargeted3`/`ontargeted4`/`ontargeted5` を新設し、いずれも既存 `ontargeted`（WD05-017 ホール・ダーク＝黒×1で対戦相手シグニ-4000）で watcher を対象化する同一配線を踏襲。**3件とも単体実行でPASS**（`ontargeted3` はバッチ実行時のみ既存の状態汚染で1回FAILしたが単体では複数回安定再現＝新規バグではない）。`order`配列に3件とも追加（`ontargeted2`の直後）。
+
+- **`ontargeted3`（WXDi-P11-040 大罠 パントマイム）**＝【自】《相手ターン》《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、あなたの**他の**シグニ1体を対象とし【シャドウ】を得る。guestにwatcher1枚のみ（他ally無し）で検証したところ、SELECT_TARGET解決後 `guest.keyword_grants` に `WXDi-P11-040#1:シャドウ`＝**watcher自身に付与**された。`effects_WXDi.json` の `WXDi-P11-040-E2` action.target は `{"type":"SIGNI","owner":"self","count":1}` でexcludeSelf相当のフィルタが無い＝**原文の「他の」除外がparser/JSONに実装されていない**。実戦では通常ほかにシグニがいるため顕在化しにくいが、excludeSelf非対応の疑いを確認。
+- **`ontargeted4`（WXDi-D09-H14 羅婚石 ダイヤブライド）**＝【自】《ターン1回》あなたの赤のシグニ1体が対戦相手の能力/効果の対象になったとき、対戦相手は自分のエナから1枚選びトラッシュに置く（`triggerScope:any_ally`・`triggerFilter:{color:赤}`）。watcher（赤）単独配置の自己対象化で発火＝`host.trash` 0→1（host自身のエナ1枚トラッシュ）を確認。**正しく機能＝問題なし**。
+- **`ontargeted5`（WX25-P2-055 轟砲 パワードスーツ）**＝【自】《ターン1回》このシグニが対戦相手の能力/効果の対象になったとき、ターン終了時までこのシグニは【常】能力を失う（原文は自己参照）。`effects_WX24_26.json` の `WX25-P2-055-E2` action.target.owner は `'opponent'`。host側にも候補シグニ（`WD05-009#9`）を1枚置いて観測したところ、SELECT_TARGET解決後 `host.abilities_removed` に `WD05-009#9` が追加＝**JSON通りhost（watcherの対戦相手）側が能力喪失**。原文の自己参照とは一致せず＝**target.ownerが`'opponent'`ではなく`'self'`であるべきparser誤りの疑いが濃厚**。
+
+**いずれも本セッションでは修正せず、観測結果のみ記録してOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。**変更範囲＝`scripts/verifyBattleDrive.mjs`のみ**（3シナリオ追加＋`order`配列更新）＝engine/parser不変のため typecheck のみ確認・smoke/golden/fuzz再実行不要。詳細な盤面・クリック列・ログは [VERIFY_BROWSER.md](./VERIFY_BROWSER.md) 参照。
+
+---
+
 ## §3 Sonnetタスク2＝CHOOSE平坦化復元 held の全数機械分類＝54枚を精査→採用1枚（WXK10-013）・53枚をOpusタスク10へ系統別に整理（2026-07-11・続き71・Sonnet 5）
 
 §3 Sonnetタスク2「CHOOSE平坦化復元 held約38枚の全数機械分類」。`npm run build:effects`→`node scripts/heldReview.mjs` の held（121枚・99署名グループ）から、fresh側でCHOOSE出現数が増加している＝CHOOSE平坦化復元の候補になりうるカードを機械抽出すると**54枚**（`tmp_chooseAudit.mjs`・一時スクリプト）。各カードについて①原文の「以下のNつからMつ選ぶ」の選択肢数と fresh の `from_count` が一致するか②各 choices[i] の中身（target owner/type・STUB id・欠落条件）が原文と対応するかを1枚ずつ精査した。
