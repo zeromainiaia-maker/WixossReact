@@ -2051,6 +2051,7 @@ try {
         signiFrozen: s.field?.signi_frozen ?? null,
         fieldSigni: s.field?.signi ?? null,
         fieldAcce: s.field?.signi_acce ?? null,
+        abilitiesRemoved: s.abilities_removed ?? [],
       });
       return {
         host: sideOf(hs),
