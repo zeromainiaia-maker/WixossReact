@@ -86,6 +86,12 @@ function execLookAtDeckAndLife(a: import('../types/effects').LookAtDeckAndLifeAc
 
 function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
+  // BLOCK_ACTION 'DRAW_OR_ADD_TO_HAND_BY_EFFECT'（WXK10-010①「このターン、対戦相手は自分の効果によって
+  //   カードを引いたりカードを手札に加えることができない」）＝**効果によるドロー**を封じる。
+  //   ドローフェイズの通常ドローは drawCards 経由でここを通らないので影響しない。
+  if (state.blocked_actions?.includes('DRAW_OR_ADD_TO_HAND_BY_EFFECT')) {
+    return done(addLog(ctx, '効果によるドローは封じられている'));
+  }
   // untilHandCount: 手札が N 枚になるまで（差の分だけ）引く。N 枚以上なら引かない（WX05-003）
   // addLastProcessedCount: 直前の選択枚数（捨てた枚数等）を count に加算（VARIABLE_DISCARD_AND_DRAW 用）
   const count = a.untilHandCount !== undefined
