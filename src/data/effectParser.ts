@@ -2516,8 +2516,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : /能力のコストとしてこのカードが捨てられたとき/.test(actionText) ? ['ON_DISCARDED_AS_COST']
              // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
              : /あなたが【ガード】したとき/.test(actionText) ? ['ON_GUARD']
-             // 「対戦相手がアーツを使用したとき」（3件）。engine 配線済み（collectOppArtsUseTriggers＝相手のアーツ使用に
-             // 自分の場が反応）。既存の「対戦相手のアーツの効果を受けたとき」と同じ受け皿。
+             // 「（あなたか）対戦相手がアーツを使用したとき」（4件）。engine 配線済み（collectOppArtsUseTriggers＝相手の
+             // アーツ使用に自分の場が反応）。既存の「対戦相手のアーツの効果を受けたとき」と同じ受け皿。
+             // ⚠「**あなたか**対戦相手が」（WX16-003）は**どちらの使用でも**発火する＝ON_ARTS_USE（使用者側・
+             //   collectArtsUseTriggers）と両方を持たせる（片方だけだと自分のアーツ使用を取りこぼす）。
+             : /あなたか対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE', 'ON_OPP_ARTS_USE']
              : /対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_OPP_ARTS_USE']
              : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
