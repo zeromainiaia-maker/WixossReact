@@ -2301,6 +2301,11 @@ function stripKeywordPrefixes(text: string): string {
 
 // ===== 単一ブロックパース =====
 
+// パース中のカードの基本種別（'ルリグ'/'シグニ'/…）。timing 判定で「同じ原文でも主体がルリグかシグニかで
+// engine の受け皿が違う」ケースに使う（【アクセ】が付いたとき＝ルリグは ON_ACCE_ATTACH〔ルリグ監視〕・
+// シグニは ON_ACCE〔場のシグニ〕。引用付与の内側 parseBlock も外側カードの種別を引き継ぐ）。
+let _parsingBaseType = '';
+
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
   const typeM = block.match(/^【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
