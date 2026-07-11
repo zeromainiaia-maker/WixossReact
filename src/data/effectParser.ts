@@ -1867,8 +1867,11 @@ function parseActionTextInner(text: string): EffectAction {
       //   **付与される能力名**であって実行するアクションではない＝素の CHOOSE に組むと「②【ランサー】」が
       //   別アクション（DRAW 等）に誤マッチする幻覚になる（§3 Opusタスク10 パターンC）。
       //   engine 実装済みの STUB `GRANT_CHOSEN_ABILITY`（原文を実行時に解析して能力選択→付与）に委ねる。
+      //   ⚠付与先で id を使い分ける（engine 側は3つとも同一分岐で処理するが curated の慣例に揃える）＝
+      //     「**このシグニ**は選んだ能力を得る」＝`_SELF`／それ以外（対象シグニに付与）＝`GRANT_CHOSEN_ABILITY`。
       if (/選んだ能力を得る/.test(text)) {
-        return { type: 'STUB', id: 'GRANT_CHOSEN_ABILITY' } as unknown as EffectAction;
+        const selfGrant = /この(?:シグニ|カード)は[^。]*選んだ能力を得る/.test(text);
+        return { type: 'STUB', id: selfGrant ? 'GRANT_CHOSEN_ABILITY_SELF' : 'GRANT_CHOSEN_ABILITY' } as unknown as EffectAction;
       }
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
