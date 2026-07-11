@@ -71,6 +71,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
       if (barrierM[3]) return { type: 'SEQUENCE', steps: [first, mkBarrier(barrierM[3], barrierM[4])] };
       return first;
     }
+    // ---- 対戦相手は【シグニバリア】/【ルリグバリア】N つを失う（WX24-P1-043 の引用付与内側）----
+    // engine 実装＝LOSE_SIGNI_BARRIER/LOSE_LRIG_BARRIER stub（相手フリーゾーンのバリアトークンを取り除く）
+    const barrierLossM = t.match(/^対戦相手は【(シグニバリア|ルリグバリア)】([０-９\d]+)?つ?を失う。?$/);
+    if (barrierLossM) {
+      const id = barrierLossM[1] === 'シグニバリア' ? 'LOSE_SIGNI_BARRIER' : 'LOSE_LRIG_BARRIER';
+      const n = barrierLossM[2] ? parseNum(barrierLossM[2]) : 1;
+      return n !== 1 ? { type: 'STUB', id, count: n } : { type: 'STUB', id };
+    }
   }
 
   // ---- 引用能力付与（対象付与形）: 「<対象>を対象とし、(その後、)(期間、)それ(ら)は「【自/出/起】…」を得る」→ GRANT_EFFECT ----
