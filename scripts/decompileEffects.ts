@@ -150,6 +150,9 @@ function filterJa(f?: any): string {
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
   if (f.levelEqLastProcessed) parts.push('この方法で【ビート】にしたシグニと同じレベルの');
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
+  if (f.levelLtDiscardSigni) parts.push('この方法で捨てたシグニより低いレベルを持つ');
+  if (f.levelEqDiscardSigniOffset !== undefined) parts.push(`この方法で捨てたシグニよりレベルが${f.levelEqDiscardSigniOffset}つ高い`);
+  if (f.classMatchesDiscardSigni) parts.push('この方法で捨てたシグニと共通するクラスを持つ');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
   if (f.hasRiseIcon) parts.push('《ライズアイコン》を持つ');
