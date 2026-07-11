@@ -1200,6 +1200,95 @@ const scenarios = {
     },
   },
 
+  // ⑮' WX16-Re05: ON_CHARM_TO_TRASH（R42②・§7）＝バトルバニッシュ（効果ではなく戦闘の力比べ）で
+  //    チャーム付きシグニが離脱したときも watcher が発火するかの検証。既存の`charmToTrash`は効果
+  //    （WX19-023の無条件バニッシュ）経由のみを確認済み。バトルバニッシュは`resolvePendingSigniBattleFor`
+  //    （BattleScreen.tsx:6344）が独自のトリガーリスト（banishEntries/battleBanishEntries/…）を構築し、
+  //    `collectBoardDiffTriggers`（=collectCharmToTrashTriggersの呼び出し元・resolveStackNext/
+  //    handleEffectInteractionのみで使用）を一切呼ばない＝コード読解では**発火しない疑いが濃厚**。
+  //    host zone0（WD05-009・P12000）でguest zone2（WD01-013・P3000・charm付き）へ通常アタック→
+  //    力比べでWD01-013敗北・banish＋charmがguest.trashへ（ground truth）→
+  //    watcher（host zone1・any scope）がguest zone1（WX01-053・P15000・唯一の残存候補）へ-4000するか観測。
+  charmToTrashBattle: {
+    title: 'WD05-009アタック→WX16-Re05（ON_CHARM_TO_TRASH＝バトルバニッシュ経路・R42②）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD05-009#1'], ['WX16-Re05#1'], null], // zone0=攻撃者P12000／zone1=watcher（any・P5000）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WX01-053#1'], ['WD01-013#1']], // zone1=watcherの-4000対象(P15000・唯一の残存候補)／zone2=防御側(charm付き・P3000・host zone0の正面)
+        'field.signi_charms': [null, null, 'WD03-002#1'],       // zone2にcharm注入
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[2] ?? []).includes?.('WD01-013#1'); r++) {
+        H.log(`再注入(${r})… guest zone2=${JSON.stringify(before?.guest?.fieldSigni?.[2])}`);
+        await injectScenario(page, scenarios.charmToTrashBattle.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      const gTrash0 = before?.guest?.trash ?? 0;
+      H.log('開始時 guest:', JSON.stringify(before?.guest), 'gTrash0=', gTrash0);
+      let modalOpened = false;
+      let battleConfirmed = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/charmToTrashBattle-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) { // SELECT_TARGET（watcherの-4000対象＝guest zone1・候補1のみ）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        const gZone2 = st?.guest?.fieldSigni?.[2];
+        const battleBanished = Array.isArray(before?.guest?.fieldSigni?.[2]) && before.guest.fieldSigni[2].includes('WD01-013#1')
+          && !(Array.isArray(gZone2) && gZone2.includes('WD01-013#1'));
+        const chatTrashed = (st?.guest?.trash ?? 0) > gTrash0;
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => /^WX01-053#1:-4000$/.test(m));
+        if (battleBanished && chatTrashed) battleConfirmed = true;
+        H.log(`  chb[${s}] -> ${did ?? 'なし'} | modalOpened=${modalOpened} gZone2=${JSON.stringify(gZone2)} battleBanished=${battleBanished} gTrash=${st?.guest?.trash ?? '-'}(開始${gTrash0}) gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (debuffed) {
+          return { pass: true, detail: `ON_CHARM_TO_TRASH 発火→バトルバニッシュ経路でもwatcherが対戦相手に-4000（gTrash ${gTrash0}→${st.guest.trash}）` };
+        }
+        if (battleConfirmed && s > 8) {
+          // ground truth（バトルバニッシュ＋charmトラッシュ）は成立したが、猶予を与えてもwatcherが発火しない＝真の未発火。
+          return { pass: false, detail: `【要注意】ground truth確認済み（バトルバニッシュでWD01-013消滅・gTrash ${gTrash0}→${st.guest.trash}）だがON_CHARM_TO_TRASH watcherが未発火＝効果banish経路(collectBoardDiffTriggers)のみ配線されバトルbanish経路(resolvePendingSigniBattleFor)に collectCharmToTrashTriggers が呼ばれていない疑い` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `バトルバニッシュ自体が未確認（gZone2=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} gTrash=${fin?.guest?.trash ?? '-'}(開始${gTrash0}) pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑯ WX25-CP1-042: ON_LRIG_ATTACK_STEP_START（§7・全体未検証だった宿題）。
   //    【自】《ターン１回》：あなたのルリグアタックステップ開始時、…対戦相手は手札を１枚捨てる（+ブルアカ-5000は
   //    パース近似・厳密スケーリングは別課題＝§7既存の注記どおり、ここでは「フェイズ遷移でE2が発火すること」だけを見る）。
