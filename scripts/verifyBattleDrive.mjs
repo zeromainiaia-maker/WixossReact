@@ -999,7 +999,16 @@ const scenarios = {
         const attachedZone = acce.findIndex(a => a);
         if (attachedZone < 0) continue;                       // まだアクセが載っていない
         if (st?.stackLen) continue;                           // 効果解決待ちなら続行
-        const delta = (st?.host?.energy ?? 0) - energy0;
+        // ON_ACCE は acce_just_done を見る useEffect で**後追い**発火する＝装着直後に判定すると取りこぼす。
+        // 盤面が整定する（エナが動くか、動かないまま安定する）まで待ってから判定する。
+        let settled = await H.queryState();
+        for (let w = 0; w < 6; w++) {
+          await page.waitForTimeout(900);
+          const nxt = await H.queryState();
+          if (!nxt?.stackLen && nxt?.host?.energy === settled?.host?.energy) { settled = nxt; break; }
+          settled = nxt;
+        }
+        const delta = (settled?.host?.energy ?? 0) - energy0;
         const expected = attachedZone === 0 ? 1 : 0;          // zone0 = WDK07-E17（watcher 自身）
         const who = attachedZone === 0 ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
         if (delta === expected) {
