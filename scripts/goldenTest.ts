@@ -652,6 +652,13 @@ test('ON_SIGNI_BECOMES_DRIVE / ON_BECOME_BEAT / ON_ARTS_USE 構造固定（ON_PL
   const bt = (effectsMap.get('WXK08-045') ?? []).find(e => e.timing?.includes('ON_BECOME_BEAT'));
   ok(!!bt, 'WXK08-045（「このカードが【ビート】になったとき」）: ON_BECOME_BEAT のはず');
 });
+// ON_TRASH の「手札から」単独（11件）。既存 regex は「手札か**デッキ**から」しか拾えず ON_PLAY へ化けていた。
+// engine は triggerCondition.fromZones で領域を判定する（collectAnyZoneTrashSelfTriggers）＝fromZones もセットで固定。
+test('ON_TRASH「手札から」単独 構造固定（ON_PLAY に化けていない・fromZones=hand）', () => {
+  const e = (effectsMap.get('WX15-036') ?? []).find(x => x.timing?.includes('ON_TRASH'));
+  ok(!!e, 'WX15-036（「このカードが手札からトラッシュに置かれたとき」）: ON_TRASH のはず');
+  eq(JSON.stringify(e?.triggerCondition?.fromZones), '["hand"]', 'WX15-036: fromZones=["hand"]');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
