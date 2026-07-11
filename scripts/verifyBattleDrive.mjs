@@ -943,19 +943,17 @@ const scenarios = {
     },
   },
 
-  // ⚠既知FAILの witness（続き76・既定 order には入れない）＝**ON_ACCE トリガーが実際には解決されない**。
-  //   本来の意図＝「**この**シグニに【アクセ】が付いたとき」は アクセが付いた当のシグニでのみ発火する
-  //   （scope 既定 self）ことの実機確認。盤面＝zone0: WDK07-E17（ON_ACCE self・【エナチャージ１】＝観測が最も単純）／
-  //   zone1: WXK05-026（Lv4）。判定＝アクセが載ったゾーンを fieldAcce で読み、**載った側が WDK07-E17 のときだけエナ+1**。
-  //   実測＝アクセは WDK07-E17 に載るのに **エナが増えない**。さらに **ON_ACCE_ATTACH（WXK04-003-E1・CHOOSE3択）の
-  //   モーダルも出ず、ログも残らない**のに actions_done には WXK04-003-E1 が載る＝**トリガーは収集され
-  //   effect_stack へ書かれたのに、その後クロバーされて解決されていない**（収集は成功・解決が消える）。
-  //   ⚠既存の `acceAttach` シナリオが PASS しているのは、判定条件が **actions_done への記録＝収集**だけを見ており、
-  //   **効果が実際に解決されたか**を見ていないため＝PASS 条件が弱い（同じ穴を通り抜けていた）。
-  //   engine 側の原因調査は §3 Opusタスク12（＝BattleScreen の acce useEffect と effect_stack 書き込みの競合）。
-  //   ⚠scope フィルタを外した A/B（`if (false && …)`）でも同じく非発火＝**続き76 の engine 変更が原因ではない**（先行バグ）。
+  // ON_ACCE の triggerScope（続き76）: 「**この**シグニに【アクセ】が付いたとき」は **アクセが付いた当のシグニ**
+  //   でのみ発火する（scope 既定 self）。従来 engine は自フィールドの全シグニを無条件に走査していたため、
+  //   別のシグニにアクセを付けただけで発火する**過剰発火**だった。
+  //   盤面＝zone0: WDK07-E17（ON_ACCE self・「【エナチャージ１】をする」＝観測が最も単純）／zone1: WXK05-026（Lv4）。
+  //   判定＝アクセがどちらのゾーンに載ったかを fieldAcce で読み、**載った側が WDK07-E17 のときだけエナ+1**であること
+  //   （＝pick の並び順に依存せず、どちらに転んでも scope 規則を検証できる。修正前はどちらでも +1 になる）。
+  // ⚠トリガーが2件（WDK07-E17-E1 と ルリグの WXK04-003-E1）同時に積まれるため **StackOrderModal（発動順序の確定）**
+  //   が出る＝これを押さないとスタックは `orderTurnDone:false` のまま **queue が空**で解決が始まらない（isReadyToResolve）。
+  //   既存の acceAttach シナリオはトリガーが1件で整列UIが出ないため、この分岐を踏んでいなかった。
   acceSelfScope: {
-    title: '⚠既知FAIL: WDK07-E17（ON_ACCE scope=self）＝ON_ACCE が収集されるのに解決されない（続き76で発見）',
+    title: 'WDK07-E17（ON_ACCE scope=self）＝自分に付いたときだけ発火・他シグニへのアクセでは非発火（続き76）',
     spec: {
       hostSet: {
         'field.lrig': ['WXK04-003#1'],                              // エルドラ オーバークロック（デコレ＝アクセ付与源）
