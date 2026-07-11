@@ -1414,6 +1414,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^[^、。「」]{2,60}ライズされたとき、/, '')
     .replace(/^[^、。「」]{2,60}アタックしたとき、/, '');
 
+  // トップレベル動作選択「（カードをN枚）引くか<B>」→ CHOOSE（§4タスク4）。
+  // 【自】/【起】のトリガー句除去後にここへ届く単文も拾う（parseActionTextInner 冒頭と同じルール）。
+  {
+    const drawChoose = parseDrawOrChoice(t);
+    if (drawChoose) return drawChoose;
+  }
+
   const result =
     parseSentencePart1(t) ??
     parseSentencePart2(t) ??
