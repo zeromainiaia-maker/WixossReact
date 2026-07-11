@@ -2623,7 +2623,18 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/negateattacklrig-${s}.png`, fullPage: true });
         let did = null;
-        if (!chose) did = await H.clickTextOrBtn(['アーツ使用', '使用']);
+        // ArtsModal Phase2（コスト選択）：緑×0だが「アーツ使用」が disabled のままなら先にエナ選択で解消
+        if (!chose) {
+          const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+          if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+            if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+            else {
+              const e0 = page.getByTestId('artscost-energy-0').first();
+              if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+            }
+          }
+        }
+        if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
         if (!did && !chose) {
           const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
           if (await c2.count() && await c2.isVisible().catch(() => false)) { await c2.click().catch(() => {}); did = 'choose:選択肢2'; chose = true; }
