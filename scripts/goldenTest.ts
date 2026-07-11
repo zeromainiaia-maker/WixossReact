@@ -616,6 +616,14 @@ test('ON_SIGNI_BANISH_OPPONENT 構造固定（バトル勝利トリガーが ON_
   ok(!!e3, 'WX10-048（「このシグニが対戦相手のシグニ1体をバニッシュしたとき」）: ON_SIGNI_BANISH_OPPONENT のはず');
   eq(e3?.triggerScope ?? 'self', 'self', 'WX10-048: scope=self');
 });
+// ON_MAIN_PHASE_START（「あなた/対戦相手のメインフェイズ開始時」・§3 Opusタスク16 の最大クラスタ29件）。
+// engine（collectTurnTriggers・GROW→MAIN 移行）は元から配線済みで parser に語彙が無いだけだった＝
+// ON_PLAY（「場に出たとき」）へ誤フォールバックしていた回帰ガード。
+test('ON_MAIN_PHASE_START 構造固定（メインフェイズ開始時が ON_PLAY に化けていない・scope も原文どおり）', () => {
+  const e1 = (effectsMap.get('WX12-031') ?? []).find(e => e.timing?.includes('ON_MAIN_PHASE_START'));
+  ok(!!e1, 'WX12-031（「あなたのメインフェイズ開始時」）: ON_MAIN_PHASE_START のはず（ON_PLAY ではない）');
+  eq(e1?.triggerScope ?? 'self', 'self', 'WX12-031: scope=self（あなたの）');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
