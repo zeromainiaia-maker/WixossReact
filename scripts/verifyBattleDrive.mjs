@@ -8,7 +8,7 @@
 //   node scripts/verifyBattleDrive.mjs wd07012 wxk09050
 //
 // 前提: verify-accounts.json / .env.local / デッキ「VERIFY_DECK」。詳細は docs/VERIFY_BROWSER.md。
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
 import { readFileSync, mkdirSync } from 'node:fs';
 
