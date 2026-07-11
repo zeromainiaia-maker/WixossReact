@@ -3295,6 +3295,26 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     const seq = resolvedAction as SequenceAction;
     if (seq.steps.some(s => s.type === 'UNKNOWN')) parseStatus = 'PARTIAL';
   }
+  // SEQUENCE 内の GRANT_FIELD_SIGNI_ABILITY rawText 展開（連用中止形「パワーは＋Nされ、…「Q」を得る」＝
+  // SEQUENCE[POWER_MODIFY, GRANT]。WXDi-P11-046 等。collectGrantedFromLayer も SEQUENCE 直下を走査する）
+  if (resolvedAction.type === 'SEQUENCE') {
+    for (const stp of (resolvedAction as SequenceAction).steps) {
+      if (stp.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+      const g = stp as GrantFieldSigniAbilityAction;
+      if (g.rawText === undefined) continue;
+      const subBlocks = splitEffectBlocks((g.rawText ?? '').replace(/^[『「]/, '').replace(/[』」]$/, ''));
+      g.abilities = subBlocks
+        .map((b, si) => {
+          const e = parseBlock(cardNum, b, index);
+          if (e) e.effectId = `${cardNum}-E${index + 1}-G${si > 0 ? si + 1 : ''}`;
+          return e;
+        })
+        .filter((e): e is import('../types/effects').CardEffect => e !== null);
+      delete g.rawText;
+      if ((g.abilities.length === 0 || g.abilities.some(e => e.parseStatus === 'UNKNOWN' || e.parseStatus === 'PARTIAL'))
+          && parseStatus === 'AUTO') parseStatus = 'PARTIAL';
+    }
+  }
   // GRANT_EFFECT の rawText 展開（SEQUENCE/CONDITIONAL/CHOOSE 内も対象）
   if (expandGrantEffectRawTexts(resolvedAction, cardNum) && parseStatus === 'AUTO') parseStatus = 'PARTIAL';
 
