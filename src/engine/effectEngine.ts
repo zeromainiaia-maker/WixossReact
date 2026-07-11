@@ -1242,16 +1242,18 @@ export function calcFieldPowers(
 
           // PREVENT_OPP_POWER_PLUS: otherState（相手）のCONTによる正デルタをブロック
           const effectiveDelta = (blockOwnerPosDelta && delta > 0) ? 0 : delta;
+          // levelLtSelf/levelGtSelf（このシグニ/このルリグより低い/高いレベル）を効果元(topNum)基準で解決
+          const contFilter = resolveContSelfLevel(target.filter, topNum, cardMap);
           if (effectiveDelta === 0 && delta !== 0) { /* ブロックされた正デルタ */ }
           else {
             if (targetIsOwner) {
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
-              applyDeltaToState(ownerState, ownerDelta, target.filter, cardMap, powers,
+              applyDeltaToState(ownerState, ownerDelta, contFilter, cardMap, powers,
                 undefined, undefined, mod.excludeSelf ? topNum : undefined);
             }
             if (targetIsOther) {
-              applyDeltaToState(otherState, effectiveDelta, target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+              applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtected, dblOtherMult);
             }
           }
         }
