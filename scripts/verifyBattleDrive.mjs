@@ -1792,6 +1792,14 @@ const scenarios = {
         for (let s = 0; s < 14; s++) {
           await page.waitForTimeout(1000);
           await page.screenshot({ path: `${SHOT}/lrigGrowAnyOpp-a${attempt}-${s}.png`, fullPage: true });
+          // watcher の TRASH(ENERGY_CARD) が host 側画面の SELECT_TARGET を要する経路の保険（pick-0→決定）。
+          let did = null;
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '確定']);
           const st = await H.queryState();
           if (st.error) continue;
           const g = st.guest ?? {};
@@ -1800,7 +1808,7 @@ const scenarios = {
             return { pass: true, detail: `ON_LRIG_GROW any_opp 発火→guestエナ1枚トラッシュ確認（gTrash ${gTrash0}→${g.trash}・log「${watcherLog ?? '—'}」）＝turnOwnerゲート未実装（guest自身のターン中のグロウでも発火）` };
           }
           if (g.lrigTop && /#g/.test(g.lrigTop)) { H.log(`  lrigGrowAnyOpp[a${attempt}] CPU自然ターンで上書き（lrigTop=${g.lrigTop}）→再注入`); overwritten = true; break; }
-          if (s % 3 === 0) H.log(`  lrigGrowAnyOpp[a${attempt}.${s}] phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} gTrash=${g.trash} watcher=${!!watcherLog}`);
+          if (s % 3 === 0 || did) H.log(`  lrigGrowAnyOpp[a${attempt}.${s}] -> ${did ?? 'なし'} | phase=${st.turnPhase} lrigTop=${g.lrigTop} under=${g.lrigUnder} gTrash=${g.trash} pEff=${st.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
         }
         if (!overwritten) break;
       }
