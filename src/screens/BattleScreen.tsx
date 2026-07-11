@@ -7185,11 +7185,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // 傀儡の離場回収（バトルでバニッシュ等で場を離れた傀儡を持ち主のトラッシュへ。WDK17-007）
       const sweptBattle = sweepPuppets(newMyState, newOpState);
-      const finalMyState = sweptBattle.a;
-      const finalOpState = sweptBattle.b;
+      let finalMyState = sweptBattle.a;
+      let finalOpState = sweptBattle.b;
+
+      // ON_CHARM_TO_TRASH（続き74発見・続き75修正）: バトルバニッシュでチャーム持ちシグニが場を離れると
+      // チャームがトラッシュに置かれるが、本経路は効果解決の中央 diff（collectBoardDiffTriggers）を通らないため
+      // 従来はここでのみ発生する「戦闘によるチャーム喪失」が一度も収集されなかった（実戦で最頻の経路）。
+      // 効果banish経路と同型の収集を、バトル前後（myS/opS → final*State）の diff に対して行う。
+      const charmEntries: StackEntry[] = [];
+      const charmsFromMy = countCharmsToTrash(myS, finalMyState);
+      const charmsFromOp = countCharmsToTrash(opS, finalOpState);
+      if (charmsFromMy > 0 || charmsFromOp > 0) {
+        const chMy = collectCharmToTrashTriggers(attackerId, finalMyState, finalOpState, charmsFromMy, charmsFromOp);
+        charmEntries.push(...chMy.entries);
+        if (chMy.usedOncePerTurnIds.length > 0) {
+          finalMyState = { ...finalMyState, actions_done: [...(finalMyState.actions_done ?? []), ...chMy.usedOncePerTurnIds] };
+        }
+        const chOp = collectCharmToTrashTriggers(defenderId, finalOpState, finalMyState, charmsFromOp, charmsFromMy);
+        charmEntries.push(...chOp.entries);
+        if (chOp.usedOncePerTurnIds.length > 0) {
+          finalOpState = { ...finalOpState, actions_done: [...(finalOpState.actions_done ?? []), ...chOp.usedOncePerTurnIds] };
+        }
+      }
 
       // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
-      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries];
+      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries, ...charmEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
