@@ -4161,6 +4161,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(baseStack, targetedEntries)
           : initStack(turnPlayerId, targetedEntries);
       }
+      // 《ターン1回》の消費を watcher 側の actions_done へ書き戻す（他コレクターと同型・続き75）。
+      // done 分岐では collectBoardDiffTriggers が update.host_state/guest_state を差し替えているため、
+      // update 側の最新 state（無ければ collect 時の state）に対して後乗せする。
+      if (targetedUsedHostIds.length > 0) {
+        const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+        update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...targetedUsedHostIds] };
+      }
+      if (targetedUsedGuestIds.length > 0) {
+        const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+        update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...targetedUsedGuestIds] };
+      }
 
       await supabase.from('battle_states').update(update).eq('room_id', roomId);
       await flushBattleLogs();
