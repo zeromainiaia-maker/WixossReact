@@ -996,28 +996,22 @@ const scenarios = {
         const st = await H.queryState();
         const acce = st?.host?.fieldAcce ?? [null, null, null];
         H.log(`  acceScope[${s}] -> ${did ?? 'なし'} | fieldAcce=${JSON.stringify(acce)} energy=${st?.host?.energy}(開始${energy0}) stack=${st?.stackLen ?? '-'}`);
-        const attachedZone = acce.findIndex(a => a);
-        if (attachedZone < 0) continue;                       // まだアクセが載っていない
-        if (st?.stackLen) continue;                           // 効果解決待ちなら続行
-        // ON_ACCE は acce_just_done を見る useEffect で**後追い**発火する＝装着直後に判定すると取りこぼす。
-        // 盤面が整定する（エナが動くか、動かないまま安定する）まで待ってから判定する。
-        let settled = await H.queryState();
-        for (let w = 0; w < 6; w++) {
-          await page.waitForTimeout(900);
-          const nxt = await H.queryState();
-          if (!nxt?.stackLen && nxt?.host?.energy === settled?.host?.energy) { settled = nxt; break; }
-          settled = nxt;
-        }
-        const delta = (settled?.host?.energy ?? 0) - energy0;
-        const expected = attachedZone === 0 ? 1 : 0;          // zone0 = WDK07-E17（watcher 自身）
-        const who = attachedZone === 0 ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
-        if (delta === expected) {
-          return { pass: true, detail: `アクセは${who}に装着 → ON_ACCE(scope=self) は${expected ? '発火' : '非発火'}＝エナ ${energy0}→${st.host.energy}（期待 +${expected}）` };
-        }
-        return { pass: false, detail: `アクセは${who}に装着なのにエナ +${delta}（期待 +${expected}）＝scope=self が効いていない（fieldAcce=${JSON.stringify(acce)}）` };
+        // ON_ACCE は acce_just_done を見る useEffect で**後追い**でスタックに積まれる＝装着直後に判定しない。
+        // 装着を検知したらクリック列（決定/OK）を回し続け、盤面が整定してから判定する。
+        if (acce.some(a => a)) attachedAt ??= s;
+        if (attachedAt !== null && s >= attachedAt + 5) break;
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `アクセ装着に到達せず（fieldAcce=${JSON.stringify(fin?.host?.fieldAcce)} energy=${fin?.host?.energy} stack=${fin?.stackLen ?? '-'}）` };
+      const acce = fin?.host?.fieldAcce ?? [null, null, null];
+      const attachedZone = acce.findIndex(a => a);
+      if (attachedZone < 0) return { pass: false, detail: `アクセ装着に到達せず（fieldAcce=${JSON.stringify(acce)} energy=${fin?.host?.energy} stack=${fin?.stackLen ?? '-'}）` };
+      const delta = (fin?.host?.energy ?? 0) - energy0;
+      const expected = attachedZone === 0 ? 1 : 0;            // zone0 = WDK07-E17（watcher 自身）
+      const who = attachedZone === 0 ? 'watcher自身(WDK07-E17)' : '別シグニ(WXK05-026)';
+      if (delta === expected) {
+        return { pass: true, detail: `アクセは${who}に装着 → ON_ACCE(scope=self) は${expected ? '発火' : '非発火'}＝エナ ${energy0}→${fin?.host?.energy}（期待 +${expected}）` };
+      }
+      return { pass: false, detail: `アクセは${who}に装着・エナ +${delta}（期待 +${expected}）＝ON_ACCE(scope=self) が原文どおりに動いていない（fieldAcce=${JSON.stringify(acce)} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'}）` };
     },
   },
 
