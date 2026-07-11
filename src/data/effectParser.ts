@@ -1616,6 +1616,7 @@ function splitSentences(text: string): string[] {
 // ⚠ CONTINUOUS 効果でのみ呼ぶこと（GRANT_FIELD_SIGNI_ABILITY は CONTINUOUS 収集専用。
 //   durational な 【起】/【自】「ターン終了時まで、このシグニは「Q」を得る」は GRANT_EFFECT 系の管轄で本関数の対象外）。
 function parseContinuousQuotedGrant(text: string): EffectAction | null {
+  if (process.env.PCQG_DEBUG) console.error('[PCQG]', JSON.stringify(text.slice(0, 80)));
   // ---- 多段「（このシグニは）下にレベルNのシグニがあるかぎり、「Q」を得る。」（WX24-P1-043＝ライズ3段付与）----
   // 従来は下の qfSelf の貪欲マッチが3つの引用を1つの rawText へ丸呑みして展開不能（1段目のみ UNKNOWN で残存・
   // 2/3段目消失＝続き77 Sonnet観測(b)）。段ごとに THIS_CARD_HAS_UNDER{filter:{level:N}} を付与した
