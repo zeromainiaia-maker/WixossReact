@@ -37,6 +37,8 @@ const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
  *   any_ally: watcher 自分側のシグニが対象に取られ triggerFilter（色等）に一致する場合
  *   any_opp/any: 対戦相手側 / いずれか
  * triggerCondition.turnOwner・condition・usageLimit（《ターン1回》）も評価。
+ * usageLimit を消費した effectId は usedHostIds/usedGuestIds で返す（呼び出し元が watcher 側の
+ * actions_done へ書き戻す責務を持つ＝他コレクターと同型。返さないと同一ターン内に何度でも再発火する）。
  */
 export function collectTargetedTriggers(
   ctx: TrigCtx,
@@ -44,8 +46,10 @@ export function collectTargetedTriggers(
   targetedOwnerId: string,
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
   const targetedSet = new Set(targetedNums);
   for (const watcherIsHost of [true, false]) {
     const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
@@ -53,6 +57,7 @@ export function collectTargetedTriggers(
     const otherState = watcherIsHost ? afterGuestState : afterHostState;
     const targetedIsWatcherOwn = targetedOwnerId === watcherId;
     const watcherIsTurn = ctx.activeUserId === watcherId;
+    const limitOk = mkLimitOk(watcherState.actions_done, watcherIsHost ? usedHostIds : usedGuestIds);
     for (const stack of watcherState.field.signi) {
       if (!stack?.length) continue;
       const topNum = stack[stack.length - 1];
