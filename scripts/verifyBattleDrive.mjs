@@ -3306,7 +3306,7 @@ try {
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
   await browser.close();
 } catch (e) { console.error('失敗:', e.message); code = 2; }
-finally { proc.kill(); try { spawn('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { shell: true }); } catch {} }
+finally { killTree(proc); }
 
 console.log('\n========== 結果サマリ ==========');
 for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}  — ${r.detail}`);
