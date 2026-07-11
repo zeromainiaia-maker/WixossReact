@@ -259,6 +259,15 @@ node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 
 **⚠上記2件（ontargeted3のexcludeSelf・ontargeted5のowner）は修正せずOpusタスク12（Sonnet発見バグの修正・常設受け口）へ登録**（PLAN §3・§7参照）。
 
+### ✅ ON_LRIG_GROW②（相手のグロウでany_opp発火・WXDi-P13-047）をPASSで確認＋turnOwnerゲート未実装を発見（2026-07-12・続き73・Sonnet 5）
+
+PLAN §7「ON_LRIG_GROW」残②「相手のグロウでany_oppが発火する経路」。`lrigGrowAnyOpp`（WXDi-P13-047）を新設し実機検証したところ**PASS（2回連続・単体／隣接シナリオとのバッチ実行でも確認）**。
+
+- **盤面**：host に watcher WXDi-P13-047（幻獣神 LOVIT//ディソナ・【自】《ターン1回》ON_LRIG_GROW・triggerScope:any_opp・対戦相手のエナ1枚をトラッシュ）を配置。guest（CPU）は `cpugrow` と同型構成（center Lv2 ピルルク・Ｍ→grow先 Lv3 ピルルク・Ｇ・青エナ3枚＝グロウ支払い2枚＋トラッシュされる1枚）で `top:{active:'cpu', turn_phase:'GROW'}` に注入し、CPU自動グロウ（`cpuTurnAction`のGROW分岐）に任せた。
+- **結果**：CPUがLv2→Lv3へ自然グロウした直後、host画面にSELECT_TARGETピッカー（`pick-0`）が出現＝host自身がwatcherの効果解決を担当することを確認→決定クリックで `guest.trash` が0→1（guestのエナ1枚がトラッシュ）。盤面ログ「[自分] 幻獣神　LOVIT//ディソナ の【自】効果（グロウ時）」で発火を確認。
+- **🆕 turnOwnerゲート未実装を発見**＝原文「【自】《ターン１回》：**あなたのターンの間**、対戦相手のルリグがグロウしたとき…」に対し、`effects_WXDi.json` の `WXDi-P13-047-E2` には turnOwner系の `triggerCondition`/`activeCondition` が無い。本シナリオは `top.active:'cpu'`＝**guest（対戦相手）自身のターン中のグロウ**（＝原文条件を満たさないはずの盤面）だが、それでも発火した＝**「あなたのターンの間」ゲートが実装されておらず、相手が自分のターンで通常グロウするだけで毎回誤発火する過剰発火バグの疑い**（実戦では相手は基本的に自分のターンにしかグロウしないため、この効果は実際にはほぼ常に「不成立」であるべきだが、現状は常に成立してしまう）。
+- **修正はせず観測結果のみ記録してOpusタスク12へ登録**（PLAN §3・§7参照）。`order`配列に追加済み（`cpugrowblocked`の直後）。
+
 ### ⚠ R30（ON_PLAY any_opp・WXK10-022-E1）＝自然発火経路がparserバグでブロック中と判明（2026-07-11・続き64・Sonnet 5・未修正・Opus引き継ぎ）
 
 R30（「あなたのターンの間、対戦相手のシグニ１体が場に出たとき」＝WXK10-022-E1）を実機検証しようとしたが、**カード全体を検索してもこのトリガーを自然に起こせるカードは1枚（WXEX2-50 大幻蟲エンマコロギ）しかなく、そのカードのJSONがparser誤生成でブロックされているため検証不能**と判明（シナリオ未作成）。
