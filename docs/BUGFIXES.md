@@ -5,6 +5,22 @@
 
 ---
 
+## §3 Sonnetタスク3＝driverバッチ状態汚染の部分修正＋Sonnetタスク6採用の退化1件を発見・自己修正（2026-07-12・続き77・Sonnet 5）
+
+**(1) driver汚染対策＝ゾーン単位フィールドマーカーの一括初期化を追加**（`scripts/verifyBattleDrive.mjs` の `injectScenario`）。従来は `keyword_grants`/`granted_effects`/`temp_power_mods`/`actions_done` 等の揮発フィールドのみシナリオ間で既定値へリセットしていたが、**`field.signi_acce`（アクセ）等のゾーン付随マーカーは各シナリオが手動で個別クリアする運用**だった（続き76の `acceSelfScope` 等）。これを一般化し、`field.signi_down`/`signi_frozen`/`lrig_down`/`lrig_frozen`/`lrig_attacked`/`signi_charms`/`signi_acce`/`signi_virus`/`signi_chokkin`/`signi_soul`/`signi_traps`/`signi_magic_boxes`/`signi_seeds`/`signi_armor`/`puppet_signi`/`cross_state`/`heaven_state` を注入前に一括で既定値へ戻す（`field.signi`/`field.lrig` 自体は全シナリオが `hostSet` で毎回明示するため対象外）。**検証＝`freezetrigger`→`acceSelfScope`→`acceOtherScope` の3連続実行と、既定 order 全40件中の該当シナリオが期待どおりPASS**（アクセ/凍結のゾーン跨ぎ残骸なし）。
+**(2) ⚠未解決＝長尺バッチ（30件超の連続実行）でのカスケードFAILは本修正では直らない**＝既定 order 全40件を通しで回すと `lrigundermoved` 以降で多数FAIL（`freezetrigger`/`energyToTrash`/`keywordgained` 等）するが、**同じ3件を個別に切り出して実行するとすべてPASS**＝根本原因は(1)で直したサーバ側 `battle_states` の残留ではなく、**続き39で既に指摘されていた「client側の残留モーダル/state」（別原因）**の可能性が高い。今回は追加の切り分け止まり＝**Sonnetタスク3は部分完了**（signi_acce等のゾーンマーカー汚染は解消／30件超連続実行のカスケードFAILは持ち越し）。
+
+**(3) Sonnetタスク6（続き77）で採用した held 85枚のうち WXK09-050 が実機退化＝JSONレベルの精査だけでは検出できなかった**。この検証（Sonnetタスク1着手）で発見・自己修正：
+- **症状**＝WXK09-050【出】CHOOSE（「表記より高いパワーの＜電機＞シグニ１体を対象とし、選んだ能力を得る」）で、対象フィルタ（＜電機＞クラス・実パワー>表記パワー）が効かなくなり、**フィールドの任意のシグニを対象に選べてしまう**過剰許容に。
+- **原因**＝Task10 パターンC（続き76）で「選んだ能力を得る」型は `STUB GRANT_CHOSEN_ABILITY` に委譲する規則が入り、held の再収穫でこのカードの `action.id` が `SIGNI_GRANT_CHOSEN_ABILITY`→`GRANT_CHOSEN_ABILITY` に変わっていた。**engine 側は同じSTUB id文字列に対して2つのハンドラを持つ**＝`execStubPart1.ts`（`SIGNI_GRANT_CHOSEN_ABILITY` 専用・このカード固有の対象フィルタをハードコード実装）と `execStubPart2.ts`（`GRANT_CHOSEN_ABILITY`/`GRANT_CHOSEN_ABILITY_SELF`/`SIGNI_GRANT_CHOSEN_ABILITY` 共通の汎用実装・**対象フィルタなしで自陣シグニ全体からSELECT_TARGET**）。dispatch は Part1 が先に判定するため、id文字列を変えると**フィルタ精度が高い専用ハンドラから、フィルタなしの汎用ハンドラへ意図せず経路が変わる**。
+- **対応＝WXK09-050 のみ `SIGNI_GRANT_CHOSEN_ABILITY` に差し戻し**（held採用の誤りを自己修正・parser/engine 変更なし）。`npm run gates` 全緑（golden 223・census 1494維持）／実機再検証PASS（「盤面ログに『ダウンしない（ターン終了時まで）』を確認」）。
+- **⚠Opusタスク12へ観測登録＝engine `GRANT_CHOSEN_ABILITY` 汎用ハンドラ（execStubPart2.ts）が原文の対象フィルタ（クラス/パワー条件等）を一切適用しない**。WXK09-050 は専用ハンドラに戻したため実害なしだが、**他に `GRANT_CHOSEN_ABILITY` を汎用ハンドラ経由で使っているカードで同種の過剰許容がないか要点検**（parser側で `GRANT_CHOSEN_ABILITY`/`GRANT_CHOSEN_ABILITY_SELF` を新規に生成する規則を追加する際は要注意）。
+- **🔎 教訓＝JSONのdiffだけでは「STUB id文字列の変更が別ハンドラへの経路変更を意味する」ことは分からない**＝engine 側の dispatch を実際に踏む実機検証（§7）でしか見つからない退化がある。§5c再収穫（Task6）の採用可否判定は**held review の静的diffが唯一の防波堤ではない**＝実機検証との組み合わせが要る。
+
+**検証＝`npm run gates` 全緑（golden 223・census 1494維持・smoke/fuzz全0）**。実機＝`freezetrigger`/`acceSelfScope`/`acceOtherScope`/`energyToTrash`/`keywordgained`/`wxk09050` 個別PASS確認。
+
+---
+
 ## §3 Sonnetタスク6＝§5c再収穫サイクル（held 99枚中85枚採用・14枚は退化を確認して据置）（2026-07-12・続き77・Sonnet 5）
 
 続き76（Opus）で parser を大幅に触った（timing 語彙19系統＋タスク10 パターンA〜F）ため、`npm run build:effects` の held（要レビュー＝99枚）が入れ替わっていた。`node scripts/heldReview.mjs` の署名グループ表（3枚spot-check）だけでは**12行の表示上限で情報喪失が隠れる**ケースを2件実際に踏んだため、**全99枚の完全（非truncate）leaf diffを一時生成して1枚ずつ精査**（`heldReview.mjs`のロジックを流用したワンオフ集計）。
