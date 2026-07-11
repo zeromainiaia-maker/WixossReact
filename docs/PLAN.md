@@ -155,7 +155,7 @@
 | 3 | driver バッチ状態汚染修正 | scripts（engine/JSON 非依存） | M | ◎今すぐ |
 | 4 | BEHAVIOR_AUDIT キュー再生成＋一次トリアージ | 計器実行＋分析 | S | ◎今すぐ（完了が Opus11 を楽にする） |
 | 5 | golden 型網羅追加 | テスト（scripts） | S（1型1テストずつ） | ◎今すぐ |
-| 6 | §5c 再収穫サイクル | JSON採用（/census-batch 準拠） | S | ⏳**Opusタスク1〜6 のいずれか着地後** |
+| 6 | ~~§5c 再収穫サイクル~~ | JSON採用（/census-batch 準拠） | S | ✅完了（続き77・held99枚中85枚採用・census 1514→1494。詳細 BUGFIXES 続き77） |
 | 7 | BET系38件の表現描画 | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ◎今すぐ |
 | 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ◎今すぐ（単点是正は parser/engine 変更なしの範囲厳守） |
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
