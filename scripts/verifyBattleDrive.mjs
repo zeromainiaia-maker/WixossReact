@@ -2826,12 +2826,14 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/delayedtrigger-${s}.png`, fullPage: true });
         let did = null;
-        if (!installed) {
+        // アクションボタンを優先（先にモーダルが開いていれば再度センターLRIG画像を押すと開閉トグルで
+        // 空振りになるため、ボタン非検出のときだけ画像クリックへフォールバックする）
+        if (!installed) did = await H.clickTextOrBtn(['【起】コストなし']);
+        if (!did && !installed) did = await H.clickTextOrBtn(['発動']);
+        if (!did && !installed) {
           const lrigImg = page.locator('img[alt="閃花繚乱　花代・参"]').first();
           if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click().catch(() => {}); did = 'click:centerLrig'; }
         }
-        if (!did && !installed) did = await H.clickTextOrBtn(['【起】コストなし']);
-        if (!did && !installed) did = await H.clickTextOrBtn(['発動']);
         const st = await H.queryState();
         if (!installed && (st?.host?.hand ?? 0) >= h0 + 4 && (st?.host?.delayedTriggers?.length ?? 0) > 0) {
           installed = true;
