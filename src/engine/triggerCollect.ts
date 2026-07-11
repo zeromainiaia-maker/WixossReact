@@ -1693,6 +1693,21 @@ export function collectTurnTriggers(
     });
   }
 
+  // INSTALL_DELAYED_TRIGGER（B3）: 「**次の**あなたのアタックフェイズ開始時、…」等のターン境界/フェイズ遅延トリガー
+  // （§3 Opusタスク10 パターンF-4）。従来 delayed_triggers を見ていたのは ON_REFRESH だけで、フェイズ系の
+  // 遅延は parser 側で遅延句が落ちて**即時実行**になっていた（＝アタックフェイズを待たずにその場で発動する過剰効果）。
+  for (const dt of myState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== timing) continue;
+    entries.push({
+      id: ctx.genId(), playerId: meId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `このターンの遅延トリガー（${labelSuffix}）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: [timing],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    });
+  }
+
   return entries;
 }
 
