@@ -478,16 +478,21 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
         const st = await H.queryState();
-        const shadow = (st?.guest?.keywordGrants ?? []).find(g => /シャドウ/.test(g));
-        H.log(`  p11040[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${(st?.guest?.keywordGrants ?? []).join(',') || '-'}`);
-        if (shadow) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→watcher(guest)自身に【シャドウ】付与確認「${shadow}」（excludeSelf未実装の疑い＝要フォローアップ）` };
+        const grants = st?.guest?.keywordGrants ?? [];
+        const onSelf  = grants.find(g => /シャドウ/.test(g) && /WXDi-P11-040/.test(g));  // watcher 自身＝excludeSelf 違反
+        const onOther = grants.find(g => /シャドウ/.test(g) && !/WXDi-P11-040/.test(g)); // 他の味方＝原文どおり
+        H.log(`  p11040[${s}] -> ${did ?? 'なし'} | stack=${st?.stackLen ?? '-'} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} grants=${grants.join(',') || '-'}`);
+        if (onSelf) return { pass: false, detail: `excludeSelf 違反＝watcher自身に【シャドウ】が付与された「${onSelf}」（原文は「あなたの他のシグニ1体」）` };
+        if (onOther) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→excludeSelf 適用＝watcher自身ではなく他の味方に【シャドウ】付与「${onOther}」` };
       }
       const fin = await H.queryState();
-      const log = await H.findLog(/シャドウ/);
-      if (log) return { pass: true, detail: `ON_TARGETED(WXDi-P11-040) 発火→ログで【シャドウ】確認「${log}」` };
+      const finGrants = fin?.guest?.keywordGrants ?? [];
+      if (finGrants.some(g => /シャドウ/.test(g) && /WXDi-P11-040/.test(g))) {
+        return { pass: false, detail: `excludeSelf 違反＝watcher自身に付与（grants=${finGrants.join(',')}）` };
+      }
       H.log('=== 全ログ末尾(-25) ===');
       for (const l of (fin?.logTail ?? [])) H.log('   LOG:', l);
-      return { pass: false, detail: `【シャドウ】付与 未確認（grants=${(fin?.guest?.keywordGrants ?? []).join(',') || '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `【シャドウ】付与 未確認（grants=${finGrants.join(',') || '-'} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
