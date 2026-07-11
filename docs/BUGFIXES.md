@@ -5,6 +5,26 @@
 
 ---
 
+## 実行環境の遅延根治＝preview server リークの後始末順序バグ修正＋残留50プロセス掃除＋ゲート高速化（2026-07-12・続き80・Fable 5）
+
+続き79で観測された「ビルド+ログイン+CPU戦セットアップに毎回15〜30分・ポート4173〜4222に preview 50個常駐」の真因を確定し恒久修正した。
+
+- **真因＝`scripts/verifyBattleDrive.mjs`/`scripts/verifyBrowser.mjs` 末尾の後始末の順序バグ（Windows固有）**。旧実装 `finally { proc.kill(); spawn('taskkill', ['/pid', pid, '/T', '/F']) }` は：
+  1. `proc.kill()` が `shell:true` spawn のツリーの**根（cmd.exe）だけ**を先に殺す（Windowsは親が死んでも子孫は死なない）
+  2. 直後の `taskkill /T` は**既に死んだPID**を指すため子孫（npm→vite preview の node）を列挙できず何もしない
+  3. さらに fire-and-forget の `spawn` を await せず直後に `process.exit()`
+  
+  → **1実行につき preview（node・約100MB）が1個ずつ確実にリーク**。50実行分が蓄積して node 104個・約4.9GB RAM 占有・`dist/` を50プロセスが開いたまま `vite build` が上書きする状態となり、セットアップ15〜30分の遅延を生んでいた。
+- **修正＝`killTree()` 新設（両スクリプト）**：`proc.kill()` を廃止し、**根が生きているうちに `spawnSync('taskkill', ['/pid', pid, '/T', '/F'])` を同期で完走**させる（POSIXでは従来どおり `proc.kill()`）。加えて `startDev()` の起動タイムアウト経路（旧実装は reject だけしてリーク）と、例外・Ctrl+C 経路（`process.on('exit')` 保険＋SIGINT→exit ルーティング）も封鎖。二重kill防止フラグ付き。
+- **掃除**＝残留していたポート4173〜4222の node 50個を `taskkill /T /F` で一括終了（node 104→4・対象ポート残0・約4.9GB解放）。
+- **副産物＝開発ゲートの恒久高速化（gates 37秒→約3秒）**：
+  - typecheck 11.2秒→0.7秒＝`tsc -b -v` が「output file 'src/App.js' does not exist」で**無変更でも毎回フルチェック**していた（noEmit プロジェクトに `incremental` が無く up-to-date 判定が出力.js の存在に依存する）→ `tsconfig.app.json`/`tsconfig.node.json` に `"incremental": true` を追加（buildinfo は既存の `node_modules/.tmp/` 指定を利用）。
+  - lint 24.6秒→1.7秒＝`eslint . --cache --cache-location node_modules/.cache/eslint/`（package.json）。警告143件はキャッシュヒット時も同一報告・設定変更時は自動無効化・CI はコールド実行のままで影響なし。
+
+**検証**＝①type error 注入で typecheck が cold/warm とも exit 1・除去で exit 0（incremental がゲートを甘くしないことを確認）②`node scripts/verifyBrowser.mjs` 実走＝全PASS・終了後の残ポート0・node増加0（killTree の実動確認）③`npm run gates` 全緑（typecheck 0.4s/golden 1.0s/smoke 1.5s/fuzz 1.3s/census 1.3s/lint 1.7s＝計2.8s）。
+
+---
+
 ## §7 実機検証＝続き76/78で新規実装された6機構のうち3件を実機PASS確認（2026-07-12・続き79・Sonnet 5）
 
 続き76（パターンB＝FREEZE/NEGATE_ATTACKのLRIG対象）・続き76（パターンC＝BLOCK_ACTION(DRAW_OR_ADD_TO_HAND_BY_EFFECT)）の各engine実装について、`scripts/verifyBattleDrive.mjs`にシナリオを追加し実UIブラウザ駆動で検証した。
