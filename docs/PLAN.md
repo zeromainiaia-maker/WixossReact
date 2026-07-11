@@ -173,12 +173,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き80・Fable 5（Opus側）・実行環境の遅延原因を調査・恒久修正＝続き79で引き継いだ「preview 50個常駐・毎回15〜30分」問題の根治＋開発ゲート高速化）**
-  - **✅ 真因確定＝`verifyBattleDrive.mjs`/`verifyBrowser.mjs` 末尾の後始末の順序バグ**：`finally { proc.kill(); spawn('taskkill', [...,'/T','/F']) }` は Windows では①`proc.kill()` が**ツリーの根（cmd.exe）だけ**を先に殺す（Windowsは親が死んでも子は死なない）→②直後の `taskkill /T` は**既に死んだPID**を指すので子孫（vite preview の node）を辿れず失敗→③しかも fire-and-forget spawn の直後に `process.exit()`、の三重欠陥＝**実行のたびに preview server が1個ずつ確実にリークする**構造だった（続き79の仮説を実証）。
-  - **✅ 恒久修正（両スクリプト共通）**＝`killTree()` 新設：**`proc.kill()` を廃止し、根が生きているうちに `spawnSync('taskkill', ['/pid', pid, '/T', '/F'])` を同期で完走**させる。加えて (a)`startDev()` の30秒起動タイムアウト時にも killTree（旧実装はここでもリーク）(b)`process.on('exit')` 保険＋SIGINT→exit ルーティングで例外・Ctrl+C 経路も封鎖 (c)二重kill防止フラグ。**検証＝`node scripts/verifyBrowser.mjs` 実走で全PASS＆終了後の残ポート0・node増加0を確認**。
-  - **✅ 残留50プロセスの掃除実施**＝ポート4173〜4222を握る node 50個（**計約4.9GB RAM占有**）を `taskkill /T /F` で一括終了→**node 104個→4個・対象ポート残0**。ビルド遅延の実体は「50個の preview が `dist/` を開いたまま＋メモリ/プロセス圧」だったので、次回の実機検証セットアップは本来の数分に戻るはず（**Sonnetタスク1再開時に所要時間を実測して確認すること**）。
-  - **✅ 副産物＝開発ゲートの恒久高速化（gates 37秒→約3秒）**：①typecheck＝`tsc -b` が「出力 `src/App.js` が無い」判定で**毎回フルビルド扱い**になっていた（noEmitプロジェクトに `incremental` が無く up-to-date 判定が出力.js の存在に依存）→`tsconfig.app.json`/`tsconfig.node.json` に `"incremental": true` 追加で**11.2秒→0.7秒**（エラー時は warm でも exit 1 を確認済み＝ゲートの安全性維持）。②lint＝`eslint . --cache --cache-location node_modules/.cache/eslint/` で**24.6秒→1.7秒**（警告143件はキャッシュからも同一報告・CIはコールドのまま影響なし）。
-  - **次の一手＝Sonnet で残3シナリオ（`exileHandBlind`/`delayedAttackTrigger`/`trashCounterOpp`）の再実行・PASS確認 → `order`配列への追加・BUGFIXES.md記帳・commit**。コードは概ね完成しており再実行で確認するだけの状態（`node scripts/verifyBattleDrive.mjs exileHandBlind delayedAttackTrigger trashCounterOpp`）。`delayedAttackTrigger`は原因未確定なのでスクショ（`scratchpad-verify/delayedtrigger-*.png`）を先に見ること。⚠環境が軽くなったので続き79の「盤面表示乱れ」も残留プロセス起因だった可能性あり＝まず素直に再実行してみる価値がある。
+- **🆕 セッション（2026-07-12・続き81・Sonnet 5・Sonnetタスク1＝続き80で引き継いだ残3シナリオ〔exileHandBlind/delayedAttackTrigger/trashCounterOpp〕を再実行・原因切り分け・driver修正・engine実バグ1件を発見してOpusタスク12へ登録）**
+  - **✅ `exileHandBlind`/`delayedAttackTrigger`＝PASS化（driver側の不具合3件を修正）**＝(1)`exileHandBlind`のtrash基準値がコスト支払い前の値を見ていた（コスト支払いのtrash+1を退行と誤検知）。(2)`delayedAttackTrigger`のセンターLRIG画像クリックが`pointerEvents:'none'`で常に30秒タイムアウト（`{force:true}`で解消）。(3)使用済み後のフォールバッククリックが開いた`CardStackModal`が後続のフェイズ進行クリックをブロック。3件ともengine実装自体は正しく動作しており真バグではなかった。
+  - **✅ `H.closeModals()` を恒久修正**＝続き79が「Escape×3は当てにならない」と記録した問題を根治＝`CardModal`/`CardStackModal`はEscape非対応（背景divのonClickのみ）と判明したため「タップして閉じる」テキストクリックを追加。シナリオ間の残留モーダル汚染（`trashCounterOpp`が前シナリオの残留モーダルでブロックされていた実例）を解消。
+  - **✅ `trashCounterOpp`＝driverのシナリオ設定ミス（lrigレベル不足）を修正し実行は正常化したが、real engine bugを発見**＝`resumeSelectTarget`→`applyDirectAction`のTRASH/HAND_CARD分岐が`hand_trashed_by_opp_this_turn`等3フィールドの更新を欠く（`count:'ALL'`の即時適用パス`applyTrashHand`にはあるロジックが、`count:1`等でSELECT_TARGET経由する再開パスに丸ごと抜けている）＝**`TRASH{HAND_CARD,count:1}`を使う全カードが影響対象**。修正はせずOpusタスク12へ登録（PLAN §3・詳細 BUGFIXES）。`trashCounterOpp`は既定order外のまま。
+  - **既定orderに追加**＝`exileHandBlind`・`delayedAttackTrigger`（2回連続PASS確認）。実行時間は9分18秒→2分4秒に短縮（force-clickタイムアウト解消が主因）。
+  - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等）から次を選ぶ**。
 
 
 
