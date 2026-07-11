@@ -695,17 +695,28 @@ const trigCtx = (activeUserId: string | null, meId?: string): TrigCtx => ({
 test('C1 ON_TARGETED: self-scope 対象シグニ自身が発火（相手ターン）', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
   // host のターン中に guest のシグニが対象に取られた＝guest 視点で相手ターン（turnOwner:opponent 成立）
-  const e = collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest);
+  const e = collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest).entries;
   eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXDi-P11-040-E2', 'effectId'); eq(e[0].playerId, GUEST, 'player');
 });
 test('C1 ON_TARGETED: turnOwner:opponent ゲート（自ターンは非発火）', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
   // guest 自身のターンでは turnOwner:opponent を満たさず非発火
-  eq(collectTargetedTriggers(trigCtx(GUEST), ['WXDi-P11-040'], GUEST, host, guest).length, 0, '自ターン非発火');
+  eq(collectTargetedTriggers(trigCtx(GUEST), ['WXDi-P11-040'], GUEST, host, guest).entries.length, 0, '自ターン非発火');
 });
 test('C1 ON_TARGETED: 対象でないシグニは非発火', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
-  eq(collectTargetedTriggers(trigCtx(HOST), [SIGNI], GUEST, host, guest).length, 0, '別カード対象');
+  eq(collectTargetedTriggers(trigCtx(HOST), [SIGNI], GUEST, host, guest).entries.length, 0, '別カード対象');
+});
+test('C1 ON_TARGETED: usageLimit《ターン1回》は消費IDを返し2回目は非発火（続き74発見・続き75修正）', () => {
+  const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
+  // 1回目＝発火し、消費した effectId を usedGuestIds で返す（呼び出し元が actions_done へ書き戻す）
+  const r1 = collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest);
+  eq(r1.entries.length, 1, '1回目発火');
+  eq(r1.usedGuestIds.includes('WXDi-P11-040-E2'), true, '消費IDを返す');
+  eq(r1.usedHostIds.length, 0, 'host側は消費なし');
+  // 2回目＝actions_done に書き戻された後は同一ターン内で再発火しない
+  const guest2 = mkState({ signi: ['WXDi-P11-040', null, null], actions_done: r1.usedGuestIds });
+  eq(collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest2).entries.length, 0, '2回目非発火');
 });
 test('C1 ON_LRIG_GROW: any_opp 相手グロウで発火', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P13-047', null, null] });
