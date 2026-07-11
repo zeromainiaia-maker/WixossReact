@@ -2947,6 +2947,41 @@ const scenarios = {
       return { pass: false, detail: `execTrash カウンタ未確認（handTrashedByOpp=${fin?.guest?.handTrashedByOpp ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
+  //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
+  //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
+  //    修正後「【起】コイン1」と表示されることを実UIで確認する（UI表示のみ・engine/parser不変）。
+  wxk04003Label: {
+    title: 'WXK04-003 ボタンラベル表示バグ＝getMyLrigFieldActionsのcostPartsがeff.cost.coinを非考慮',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK04-003#1'],
+        'actions_done': [],
+        'game_actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      await page.waitForTimeout(700);
+      const lrigImg = page.locator('img[alt="エルドラ　オーバークロック"]').first();
+      if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) {
+        await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {});
+      }
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/wxk04003label.png`, fullPage: true });
+      const coinBtn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
+      const noCostBtn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+      const hasCoinLabel = await coinBtn.count() > 0 && await coinBtn.isVisible().catch(() => false);
+      const hasNoCostLabel = await noCostBtn.count() > 0 && await noCostBtn.isVisible().catch(() => false);
+      H.log(`  ラベル確認: 【起】コイン1=${hasCoinLabel} / 【起】コストなし=${hasNoCostLabel}`);
+      if (hasCoinLabel && !hasNoCostLabel) {
+        return { pass: true, detail: '修正確認＝「【起】コイン1」表記（旧「コストなし」誤表記は解消）' };
+      }
+      return { pass: false, detail: `ラベル未確認（コイン1=${hasCoinLabel}／コストなし=${hasNoCostLabel}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
