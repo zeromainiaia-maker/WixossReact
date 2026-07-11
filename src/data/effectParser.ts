@@ -2427,7 +2427,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
              : actionText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
-             : actionText.match(/対戦相手の[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
+             // 「対戦相手の**シグニの**、能力か効果の対象になったとき」（WXDi-P03-056/WXDi-P13-089）も同じ受け皿。
+             : actionText.match(/対戦相手の(?:シグニの)?[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
              // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
              : actionText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
              // 「あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき」（WXDi-P04-035）。⚠engine未配線。トリガー文非除去
