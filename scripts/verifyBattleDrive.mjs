@@ -2959,6 +2959,7 @@ const scenarios = {
         'field.lrig': ['WXK04-003#1'],
         'actions_done': [],
         'game_actions_done': [],
+        'lrig_granted_auto_effects': [],
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
