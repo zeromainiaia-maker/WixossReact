@@ -715,7 +715,7 @@ test('C1 ON_TARGETED: usageLimit《ターン1回》は消費IDを返し2回目�
   eq(r1.usedGuestIds.includes('WXDi-P11-040-E2'), true, '消費IDを返す');
   eq(r1.usedHostIds.length, 0, 'host側は消費なし');
   // 2回目＝actions_done に書き戻された後は同一ターン内で再発火しない
-  const guest2 = mkState({ signi: ['WXDi-P11-040', null, null], actions_done: r1.usedGuestIds });
+  const guest2 = { ...mkState({ signi: ['WXDi-P11-040', null, null] }), actions_done: r1.usedGuestIds };
   eq(collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host, guest2).entries.length, 0, '2回目非発火');
 });
 test('C1 ON_LRIG_GROW: any_opp 相手グロウで発火', () => {
