@@ -2766,13 +2766,15 @@ const scenarios = {
       await H.ensureMain();
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;
+      let played = false; // 手札がh0未満に一度でも減ったこと＝カードが場に出たことの確認（早すぎるFAIL判定を防ぐ）
       for (let s = 0; s < 16; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/blockdraw-${s}.png`, fullPage: true });
         let did = null;
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
-        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        // 「召喚」確認ボタンを挟まずゾーン選択へ直行するカードもあるため summoned 未確定でも試す
+        if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
         // ON_PLAY任意コスト《無》：エナ選択→支払う（＝ドロー試行のトリガー）
         if (!did) {
           const payBtn = page.getByTestId('optcost-pay').first();
@@ -2789,7 +2791,8 @@ const scenarios = {
         if (blockedLog) {
           return { pass: true, detail: `execDraw の BLOCK_ACTION 発火→ドロー封じログ確認「${blockedLog}」（hand=${st.host.hand}）` };
         }
-        if (summoned && st && st.host.hand === h0) {
+        if (st && st.host.hand < h0) played = true; // カードが手札を離れたことを確認してから回復チェックに入る
+        if (played && st && st.host.hand === h0) {
           return { pass: false, detail: `BLOCK_ACTION 未適用の疑い＝封じられているはずのドローが成立（召喚で-1後、hand が元の${h0}まで回復）` };
         }
       }
