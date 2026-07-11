@@ -178,7 +178,8 @@
   - **✅ `H.closeModals()` を恒久修正**＝続き79が「Escape×3は当てにならない」と記録した問題を根治＝`CardModal`/`CardStackModal`はEscape非対応（背景divのonClickのみ）と判明したため「タップして閉じる」テキストクリックを追加。シナリオ間の残留モーダル汚染（`trashCounterOpp`が前シナリオの残留モーダルでブロックされていた実例）を解消。
   - **✅ `trashCounterOpp`＝driverのシナリオ設定ミス（lrigレベル不足）を修正し実行は正常化したが、real engine bugを発見**＝`resumeSelectTarget`→`applyDirectAction`のTRASH/HAND_CARD分岐が`hand_trashed_by_opp_this_turn`等3フィールドの更新を欠く（`count:'ALL'`の即時適用パス`applyTrashHand`にはあるロジックが、`count:1`等でSELECT_TARGET経由する再開パスに丸ごと抜けている）＝**`TRASH{HAND_CARD,count:1}`を使う全カードが影響対象**。修正はせずOpusタスク12へ登録（PLAN §3・詳細 BUGFIXES）。`trashCounterOpp`は既定order外のまま。
   - **既定orderに追加**＝`exileHandBlind`・`delayedAttackTrigger`（2回連続PASS確認）。実行時間は9分18秒→2分4秒に短縮（force-clickタイムアウト解消が主因）。
-  - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等）から次を選ぶ**。
+  - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
+  - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
 
 
 
