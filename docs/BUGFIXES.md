@@ -5,6 +5,34 @@
 
 ---
 
+## §3 Opusタスク1＝引用付与の内側 parse＋**「バトルによってバニッシュしたとき」timing 語彙の欠落を発見・修正（31枚が ON_PLAY へ誤フォールバック）**（2026-07-12・続き75・Opus 4.8・同日第3件）
+
+§3 Opusタスク1「GRANT_QUOTED_AUTO_ABILITY の内側 ability parse」。着手して**より重い系統バグを発見**したため、そちらを主に修正した。
+
+### ⓪（発見）「…がバトルによって（対戦相手の）シグニをバニッシュしたとき」を parser が知らず ON_PLAY に化けていた
+**engine は最初から完全配線済み**だった（`BattleScreen` の `resolvePendingSigniBattleFor` が `battleBanishEntries` として `ON_SIGNI_BANISH_OPPONENT`/`ON_SIGNI_BANISH_BATTLE` を triggerScope・usageLimit・condition 込みで収集する）。ところが **parser にこの timing 語彙が無く**、`ON_SIGNI_BANISH_OPPONENT` は MANUAL カードでしか使われていなかった。結果、原文に「バトルによって…をバニッシュしたとき」を持つカードの AUTO 効果が **timing:ON_PLAY（＝「このシグニが場に出たとき」）へ黙って誤フォールバック**していた＝**召喚しただけで発火する幻覚**（31枚が該当）。
+- **修正**＝parser の 【自】timing 抽出に `ON_SIGNI_BANISH_OPPONENT` を追加し、主語から triggerScope を抽出（「このシグニが」＝self／「あなたの[他の][＜X＞の]シグニが」＝any_ally＋triggerFilter{story/excludeSelf}）。**engine 側は triggerFilter/excludeSelf の判定だけ追加**（parser が出すようになった語彙に合わせて配線＝乖離を作らない）。
+- ⚠**トリガー句は「除去しない」**（重要）。当初は他 timing と同様に actionText からトリガー句を除去したが、**既存の全文 STUB 規則がトリガー句込みでマッチする前提**で書かれており（`BATTLE_BANISH_LIFE_BURST` ＝「あなたの.*シグニがバトルによって.*バニッシュしたとき.*ライフバースト」）、除去すると残り文が別 STUB（`TRAP_OPERATION`）へ誤マッチして**退化した**（WXEX2-40 で実測）。PLAN §5c が警告する「既存STUB全文規則の横取り」そのもの。除去をやめ、下記の複合文ルールをトリガー句を跨いで拾う形にして解決した。
+
+### ①「このシグニをアップし、<残り>」複合文で**先頭の「アップ」が無言脱落**していた（6枚）
+「このシグニをアップし、ターン終了時まで、このシグニは能力を失う」＝**再攻撃コンボの定番**（アップして再度アタックできる代わりに能力を失う）だが、parser は先頭の「アップ」を落として**能力喪失（デメリット）だけを実行**していた。SEQUENCE[UP(thisCardOnly), 残り] に正エンコード。
+- ⚠副作用の是正＝分割すると「ターン終了時まで、」が残り文の**先頭**へ回り、共通のプレフィックス除去に食われて期間が `PERMANENT` に化ける。分割元の文脈を持つ位置で `UNTIL_END_OF_TURN` を復元する。
+
+### ②「この方法で場に出たシグニは「【自】…」を得る」＝引用付与の内側 parse（本来のタスク1・WX24-P1-017／WX25-P3-038）
+STUB `GRANT_TO_PLACED_SIGNI`（engine no-op・decompiler は原文コピー）を **`GRANT_EFFECT{targetsLastProcessed:true, rawText}`** に振り分けた。**新規 engine 機構は不要**＝既存の3つが噛み合う：(a) `expandGrantEffectRawTexts` が引用内を `parseBlock` で `CardEffect` へ展開、(b) `execGrantEffect` の `targetsLastProcessed` が `lastProcessedCards`（＝LOOK_PICK_CHAIN の field ステージが場に出したシグニ）へ適用、(c) `granted_effects`（instanceId 単位・ターン終了時失効）に積むと effectsMap マージ経由でトリガー収集が拾う。
+- **WX24-P1-017 の内側が原文どおり完全に解けた**＝`timing:ON_SIGNI_BANISH_OPPONENT` / `triggerScope:self` / `SEQUENCE[UP(thisCardOnly), REMOVE_ABILITIES(thisCardOnly, UNTIL_END_OF_TURN)]`（⓪と①の両方が効いて初めて成立）。WX25-P3-038 は内側の「代わりに」置換が未実装のため rawText 温存＝PARTIAL（engine no-op のまま＝従来と機能同値だが構造は正しい方向）。
+
+### データ反映（採用24枚・退化5枚を除外）
+parser 変更の影響を全数機械測定（変更前後の parser 出力を全5973枚でダンプ比較）＝**29枚**。1枚ずつ leaf diff を分類し、
+- **クリーン18枚**（timing/triggerScope/triggerFilter のみ＝原文照合済み）＋**構造改善6枚**（WX24-P1-017／WX25-P3-038＝STUB→GRANT_EFFECT・WXDi-P02-018＝curated の誤った素の UP →引用付与・WXDi-P11-007／WXDi-P12-041＝STUB `GRANT_QUOTED_AUTO_ABILITY` →構造展開・WXDi-P09-038＝UP 追加）を **`heldReview --adopt` で採用（計24枚）**。
+- **MANUAL 温存5枚は採用しない**（WXK10-055／WXDi-CP02-051／WXDi-CP02-072／WX24-P2-049／WX24-P4-058）＝これらの curated は既に手修正で `ON_SIGNI_BANISH_BATTLE`（engine が同様に収集する**同値 timing**）を持っており、fresh を採用すると **MANUAL→AUTO 降格で手修正が巻き戻る**（`POWER_PLUS_BANISHED_POWER` STUB が UNKNOWN 化する等の明確な退化を leaf diff で確認）。build:effects は MANUAL/PARTIAL を温存する設計なので**放置が正解**。
+- **curated が動いたのは意図した24枚のみ**（HEAD とのカード単位機械diffで確認）。
+
+### 検証
+`npm run gates` 全緑（typecheck・**golden 192/192**〔+2＝ON_SIGNI_BANISH_OPPONENT 構造固定／引用付与の内側 parse 固定〕・smoke 全0・fuzz 全0・**census 1557 維持**・lint 0 errors）。`npm run regen` で**同型★0・★逆翻訳割れ0**維持。decompiler の timing ラベルに「バトルによって」を補い、逆翻訳が原文一致（例＝「【自】このシグニが**バトルによって**対戦相手のシグニをバニッシュしたとき：あなたのデッキの上から1枚をエナゾーンに置く」／WX24-P1-017 は STUB の原文コピーから「それは『【自】…このシグニをアップする。そしてこのシグニは能力を失い…』を得る」という**構造を反映した文**へ）。
+
+---
+
 ## §3 Opusタスク12（残1件）＝多段インタラクションSEQUENCE の「途中ラウンドの盤面差分トリガー」見逃しを修正＝R30 実機PASS（2026-07-12・続き75・Opus 4.8・同日第2件）
 
 続き70（Sonnet）が §7 R30（`onPlayAnyOpp`）の実機検証で発見し「設計判断が要る」として Opus へ引き継いでいた最後の1件。**Opusタスク12 はこれで全消化**。
