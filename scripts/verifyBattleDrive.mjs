@@ -2841,8 +2841,11 @@ const scenarios = {
         if (!installed) did = await H.clickTextOrBtn(['【起】コストなし']);
         if (!did && !installed) did = await H.clickTextOrBtn(['発動']);
         if (!did && !installed) {
+          // カード画像はpointerEvents:'none'（クリックは親divのStackSlotが受ける設計）＝
+          // 通常のclick()はPlaywrightの「receives events」判定に毎回失敗し既定30秒タイムアウトで空振りする。
+          // force:trueでactionability検査を飛ばし、実座標クリックを親divへ届かせる。
           const lrigImg = page.locator('img[alt="閃花繚乱　花代・参"]').first();
-          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click().catch(() => {}); did = 'click:centerLrig'; }
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; }
         }
         const st = await H.queryState();
         if (!installed && (st?.host?.hand ?? 0) >= h0 + 4 && (st?.host?.delayedTriggers?.length ?? 0) > 0) {
