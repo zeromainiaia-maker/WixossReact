@@ -5,6 +5,20 @@
 
 ---
 
+## §7 R30実機検証で新規バグ発見＝多段インタラクションSEQUENCE途中ラウンドの盤面差分トリガーが永久に見逃される（未修正・2026-07-11・続き70・Sonnet 5）
+
+§3 Sonnetタスク1（§7実機検証の横展開）。R30「ON_PLAY any_opp + targetsTriggerSource」（WXK10-022-E1）は続き66（Opus）の owner誤パース是正で発火経路（WXEX2-50経由）が開通済みだったため、`scripts/verifyBattleDrive.mjs` に `onPlayAnyOpp` シナリオを新設して実機検証した。
+
+**結果＝❌FAIL（新規バグ・未修正）**。WXEX2-50【起】《黒×0》＝SEQUENCE[①対戦相手のトラッシュのシグニ1枚を対戦相手の場に出す／②その後、自分のトラッシュの＜凶蟲＞のシグニ1枚を自分の場に出す]を実UIで発動すると、ground truth（①②とも正しいゾーンへ正しく配置＝`gField`/`hField`実測で確認）は正しいのに、watcher（WXK10-022-E1・any_opp・targetsTriggerSource＝場に出た相手シグニの能力を奪う）が一度も発火せず、`guest.abilities_removed` が最後まで空のまま。
+
+**コード読解で確定した原因**（推測ではない）＝`handleEffectInteraction`（`BattleScreen.tsx:4097`）の `!result.done` 分岐（SEQUENCE途中でまだ次のインタラクションが要る場合＝本カードのstep1完了→step2のSELECT_TARGET待ちの瞬間）は `host_state`/`guest_state` を DB へコミットするが、`collectBoardDiffTriggers`（続き61で導入・盤面差分トリガーの統合収集）を一切呼ばない（4107-4124行はBANISH検出のみの特例処理）。そのため step1 の配置（guestへのWD01-010#1追加）は一度も diff 評価されないまま `bs.guest_state`（Reactの実データ・realtime経由）へ反映される。続く step2 の SELECT_TARGET が `result.done===true` で完了した時点（4125-4132行）で `collectBoardDiffTriggers(hostState, guestState, ...)` が呼ばれるが、その内部の `beforeGuest = bs.guest_state`（`BattleScreen.tsx:2564`）は**既に step1 の変化を含んでしまっている**＝diffがゼロになり watcher が永久に見逃される。
+
+**続き58/61が修正した「1ラウンドのインタラクションで完了する効果のresume取りこぼし」とは別系統**＝今回は「**2ラウンド以上インタラクションを要するSEQUENCEの、途中ラウンドで完了した盤面変化**」が対象。`!result.done`分岐でも盤面差分トリガーを評価する必要があるが、まだstack未確定（次のインタラクション待ち）の時点でどこまで確定的にトリガーを積んでよいか設計が要る＝Opus引き継ぎ（PLAN §3 Opusタスク12へ登録）。
+
+再現＝`node scripts/verifyBattleDrive.mjs onPlayAnyOpp`（新設・詳細な設計意図と原因分析は同ファイルのシナリオ直上コメント）。**既定 `order` には含めていない**（FAILのため）。PLAN §7 R30 セクション更新済み。
+
+---
+
 ## 引用内CHOOSE＝「（カードをN枚）引くか<B>」トップレベル動作選択を CHOOSE(2択) で正エンコード（26枚・§3タスク4・2026-07-11・続き69・Opus 4.8）
 
 §3タスク4「引用内CHOOSE」の本命。プレイヤーが2つの動作から1つを選ぶ「AかB」（例「カードを１枚引く**か**【エナチャージ１】をする」「引く**か**対戦相手は手札を１枚捨てる」）を、従来パーサは**先頭の動詞だけ拾いもう片方を無言脱落**させていた（WXDi-P02-011＝エナチャージだけ／引く-捨てる＝ドローだけ、と半分が消える過少パース）。約58箇所の「引くか」系のうち top-level 動作選択の系統を CHOOSE に正エンコード。
