@@ -2716,14 +2716,17 @@ const scenarios = {
           const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
           if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
         }
-        // EXILE(HAND_CARD,blind) の「手札からカードを2枚選んでください」ピッカー（pick-0/pick-1）→決定(2/2)
+        // EXILE(HAND_CARD,blind) の「手札からカードを2枚選んでください」ピッカー（pick-0/pick-1）→決定(2/2)。
+        // ⚠クリックはトグル式＝「決定 (2/2)」が既に有効ならもう選ばない（再クリックで選択解除してしまう）
         if (!did) {
-          const pick0 = page.getByTestId('pick-0').first();
-          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
-            await pick0.click().catch(() => {});
-            const pick1 = page.getByTestId('pick-1').first();
-            if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); }
-            did = 'pick:0+1';
+          const confirmReady = await page.getByRole('button', { name: /決定 \(2\// }).count();
+          if (!confirmReady) {
+            const pick0 = page.getByTestId('pick-0').first();
+            if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            if (!did) {
+              const pick1 = page.getByTestId('pick-1').first();
+              if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; }
+            }
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
