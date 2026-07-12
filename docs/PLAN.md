@@ -120,7 +120,7 @@
 9. ~~**smoke SKIP 268 の解消**~~ **⏳部分完了（続き93・Sonnet）**＝DECLARE_BOND/REVEAL_CARDS 5件は`scripts/smokeTest.ts`のautopilotに2ケース追加して解消（SKIP 263→258・engine不変）。**残258件は全て「autopilot loop: SELECT_TARGET」＝`applyDirectAction`の型対応漏れ（Opusタスク12(vi-2)へ登録済み）が真因でscripts側では解消不可**＝Opus着地待ち。
 10. ~~**WXK04-003 のボタンラベル表示バグ**~~ **✅完了（続き81・Sonnet）**＝`getMyLrigFieldActions` の costParts 3箇所に `eff.cost?.coin` 考慮を追加しE2ラベルを是正（実UI `wxk04003Label` PASS）。詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3・BUGFIXES 続き81。
 11. ~~`checkAllEffects` の `MANDATORY_SUSPICIOUS` 一次精査~~ **✅完了（続き89-92・Sonnet）**＝MANDATORY_SUSPICIOUS 38件精査で単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件修正（census 1483→1479）・構造的バグ14件をOpusタスク12へ登録・verifyEffects「定義なし」は現状0件でクローズ。診断は `scripts/_checkAllEffects.mjs` に常設。詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3・BUGFIXES 続き89-92。
-12. ~~**§5b 英語ID漏れ残367件の系統分類**~~ **✅完了（続き87・Sonnet）**＝PLAN記載の「367件」は古い数字で現状（実測823カード・タグ出現968・distinct id 316種）と大きく乖離していた（BEHAVIOR_AUDIT等の主作業でカードが増減し続けているため）。新設の`scripts/_stubLeakScan.mjs`で機械抽出→キーワードベースで16テーマ（デッキ操作系/パワー修正系/手札系/トラッシュ系/対戦相手コスト系/エナ系/ライフ系/シグニ配置系/ルリグ系/能力付与系/ガード・アタック制限系/ソウル・アーツ系/ウィルス系/色・クラス系/ゲーム除外系/チャーム系）に分類し`docs/_stub_leak_classification.txt`へ出力。上位＝デッキ操作系184枚／パワー修正系165枚／手札系102枚。JSON/engineは無変更（分析のみ・JSON再構造化の本修正はOpusタスク13）。詳細 BUGFIXES 続き87。
+12. ~~**§5b 英語ID漏れ残367件の系統分類**~~ **✅完了（続き87・Sonnet）**＝実測823カードを16テーマに機械分類（`scripts/_stubLeakScan.mjs`・`docs/_stub_leak_classification.txt`。上位＝デッキ操作系184／パワー修正系165／手札系102）。JSON再構造化の本修正はOpusタスク13。詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3・BUGFIXES 続き87。
 - ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opusタスク5 へ移管済み）**。
 
 #### 分類マトリクス（2026-07-11新設・タスク番号は上のリストと同一）
