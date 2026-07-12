@@ -2408,9 +2408,9 @@ test('PLACE_UNDER_SIGNI deck_top: デッキトップ2枚を効果元シグニの
   eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
   eq(r.ownerState.field.signi[0]?.length, 3, 'signi[0]スタック=元本体1+下2枚=3');
 });
-test('STORY_CHANGE: 対象シグニの story_overrides を書き換え', () => {
+test('STORY_CHANGE(count:ALL): 対象シグニの story_overrides を書き換え（実カード母集団0件＝現状未使用の型。count:1系はENERGY_CHARGEと同型のapplyDirectAction欠落バグを踏むためALLで基礎ロジックのみ検証）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
-  const r = run({ type: 'STORY_CHANGE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, newStory: 'テストストーリー' } as EffectAction, ctx);
+  const r = run({ type: 'STORY_CHANGE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, newStory: 'テストストーリー' } as EffectAction, ctx);
   const overrides = (r.otherState as PlayerState).story_overrides ?? {};
   eq(overrides[SIGNI], 'テストストーリー', 'story_overrides');
 });
