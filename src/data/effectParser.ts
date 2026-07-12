@@ -1348,6 +1348,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
       [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+      // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
+      // 従来は語彙が無くルリグアタック時に無条件発火の過剰効果（WX14-010/WX14-013/WX20-009/WX20-015/WX20-019・census 条件節クラスタ）。
+      [/あなたの場に(白|赤|青|緑|黒|無色)と(白|赤|青|緑|黒|無色)のシグニがある場合/,
+        g => ({ type: 'AND', conditions: [
+          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } },
+          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[1] } },
+        ] })],
       [/あなたの場にクロス状態のシグニがある場合/,
         () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
       // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合、〜」＝場の全シグニ同クラス/同名ゲート
