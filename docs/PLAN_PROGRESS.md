@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き97・Sonnet 5・§7 R41②placedFront負例を実機確認）**
+  - **✅ R41「placedFront」②（正面以外の配置では非発火）を実機PASS（2回連続）＝engine正常動作**＝`placedFrontNegative`シナリオ新設。**設計上の注意点**＝watcher（WXDi-P03-043）自身のE1が「対戦相手は可能ならこのシグニの正面に配置しなければならない」を`BLOCK_ACTION FORCE_PLACE_FRONT`で実装しているため、正面ゾーンが空いていると他ゾーンへの召喚UIが選択不可（グレーアウト）になり①と同じ盤面では②を再現できない＝正面ゾーンを別カードで埋めて「正面配置不可能」状態を作ってから検証。`order`配列に追加。R41は①②とも完了。詳細 BUGFIXES 続き97。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目（R43②自エナ/相手効果での非発火＝コード上「あなたの効果」限定が既に近似と判明済みのため検証価値低・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082＝いずれも新規UI操作パターンが要り着手保留中）。Opusタスク12(vi-2)(vi-3)(vi-4)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚の再検証も。
+
 - **セッション（2026-07-12・続き96・Sonnet 5・`triggerCollect.ts`のLRIGゾーン走査漏れを横断棚卸し）**
   - **✅ 続き95で見つけたLRIG走査漏れバグが孤立事例でなく系統的パターンと確定＝6コレクタ関数・実カード20枚が影響対象**＝`ownFieldSources`（signi+lrig両方を返す共通ヘルパー）を使わず`field.signi`のみ手書き走査しているコレクタを機械抽出し、該当timing×scopeの実カードのうちLRIGタイプを`scratchpad-verify/tmp_lrigGapScan.mjs`で洗い出し。`collectFieldTriggers`（ON_ATTACK_SIGNI3枚・ON_BANISH1枚）・`collectTurnTriggers`（ON_ATTACK_PHASE_START11枚）・`collectOppArtsUseTriggers`（ON_OPP_ARTS_USE1枚・姉妹関数`collectArtsUseTriggers`はlrig対応済みで非対称）・`collectHandDiscardTriggers`（ON_HAND_DISCARDED4枚）が該当＝いずれも「同timingの自分側は正しくlrigを見ているのに相手側走査だけ漏れている」等の非対称な実装漏れ。カード名一覧・他6コレクタの潜在的（実害0件）な同型の穴もBUGFIXES続き96に記録。Opusタスク12(vi-4)へ登録。
   - **分析専用（JSON/engine無変更）**。修正方針は(vi-3)と同じ単純パターンの見込みだが個別確認が要るためOpus送り。
