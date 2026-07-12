@@ -5,6 +5,18 @@
 
 ---
 
+## golden 型網羅の追加（続き）＝9型追加＋`POWER_MODIFY_PER_DECK_COUNT`未実装バグの発見（2026-07-12・続き84・Sonnet 5・PLAN §3 Sonnetタスク5）
+
+続き82/83に続き、未カバーだった9型（DRAW_PER_FIELD_COUNT／ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT／PLACE_UNDER_SIGNI(source:hand)経由のPLACE_UNDER_SOURCE_SIGNI／FORCE_SIGNI_ATTACK／TAKE_FROM_UNDER_SIGNI／BLOCK_CARD_USE／ADD_CRAFT_TO_LRIG_DECK／ENERGY_CHARGE_BY_FIELD_COUNT／PLACE_VIRUS）にテストを追加（golden 255→264）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
+
+- **未カバー型の洗い出し方法を改善**＝続き82/83時点の簡易チェック（`goldenSrc.includes("'TYPE'")`）はテスト名にクォート無しで型名を書くと拾えない（実際にはPOWER_MODIFY_PER_STACK等13型は既にテスト済みなのに「未カバー」と誤表示）偽陽性があったため、単語境界（`\b`）でのマッチに直して再計測＝121型中46型が真に未カバーと確定。
+- **golden化を見送った型を精査**＝(a) **PLAN §6.1に「未実装action型」と明記済みの15型**（GRANT_SIGNI_ABOVE_ABILITY／GRANT_FIELD_SHADOW／GRANT_ACCE_HOST_ABILITY／GRANT_SOUL_HOST_ABILITY／PREVENT_DAMAGE／BANISH_SUBSTITUTE／STACK_SPELL／COLOR_INHERIT／CONDITIONAL_DISCARD／PLAY_FREE_FROM_TRASH／POWER_THRESHOLD_TRASH／POWER_FLIP／SELF_TRASH_PREVENT／COST_SUBSTITUTE／FORCE_FRONT_SIGNI_ATTACK）は`effectExecutor.ts`/`effectEngine.ts`に該当caseが0件（`grep -c "case 'TYPE'"`で確認）＝engine未実装につきgoldenテストを書く対象外（Opusの機構実装完了後に追加すべき）。(b) **COUNTER_SPELL／LRIG_LIMIT_MODIFY／RECOLLECT_GATE（トップレベルaction時）／UNKNOWN／ALT_COST_OPP_TURN**はcaseは存在するが中身がログ出力のみのno-opプレースホルダ（実処理はBattleScreen側UI/別経路）＝「ログ文言が出ることを確認するテスト」は価値が低いため見送り。
+- **🔎 新規バグ1件発見＝`POWER_MODIFY_PER_DECK_COUNT`（実カード1件のみ＝PR-442・CONTINUOUS）が`effectEngine.ts`のCONTINUOUS計算層に一切実装が無い**。`effectExecutor.ts:4079`の`case 'POWER_MODIFY_PER_DECK_COUNT': return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'))`というコメントは実装が存在するかのように書かれているが、`effectEngine.ts`を`grep -i deck_count`しても該当実装が無い（隣接する`POWER_MODIFY_PER_STACK`/`PER_LEVEL_SUM`/`PER_LRIG_LEVEL`等はすべて`calcFieldPowers`内に`extractPowerModifiesPerXxx`ヘルパーと処理ブロックがあるのに、この型だけ欠落）。実害＝PR-442「デッキ10枚につきパワー+4000」の効果が常に無効化されている。母集団1枚のみで優先度は低いが、修正はせずOpusタスク12(vi)へ登録（PLAN §3）。
+- **見送った型＝`BLOOD_CRYSTAL_ARMOR`**＝`execBloodCrystalArmor`の「同名カードの別コピーが手札/トラッシュにあるか」判定が、場の自己インスタンスと文字列完全一致で除外する設計（`n !== fieldSelf`）のため、instance IDにsuffixが無い`goldenTest.ts`の`mkState`（素の`CardNum`をそのままインスタンスIDとして使う簡易モデル）では「同名の別コピー」を作れず検証不能。実カードにも同名重複（reprint）が0件で代替カードでも回避できないと確認。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・golden 264）。
+
+---
+
 ## golden 型網羅の追加（続き）＝POWER_MODIFY_PER_*/BY_* 系13型（2026-07-12・続き83・Sonnet 5・PLAN §3 Sonnetタスク5）
 
 続き82に続き、未カバーだったPOWER_MODIFY_PER_*/BY_*系13型（PER_STACK／PER_LEVEL_SUM／PER_LRIG_LEVEL／PER_LIFE_COUNT／PER_VIRUS_COUNT／PER_ENERGY_COLOR／PER_CHARM／PER_FIELD／BY_TARGET_LEVEL／BY_SOURCE／PER_TRASHED_LEVEL／PER_HAND_COUNT／MULTIPLY）にテストを追加（golden 242→255）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
