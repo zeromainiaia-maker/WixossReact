@@ -4243,8 +4243,8 @@ export function execStubPart3(
     for (const stack of ctx.ownerState.field.signi) {
       const cn = stack?.at(-1);
       if (!cn || cn === selfNum) continue;
-      const story = ctx.ownerState.story_overrides?.[cn] ?? ctx.cardMap.get(cn)?.Story ?? '';
-      if (story.includes('原子')) cands.push(cn);
+      const cls = ctx.ownerState.card_class_overrides?.[cn] ?? ctx.cardMap.get(cn)?.CardClass ?? '';
+      if (cls.includes('原子')) cands.push(cn);
     }
     if (cands.length < 2 && selfNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === selfNum)) {
       const removed = removeFromField(selfNum, ctx.ownerState);
