@@ -5,6 +5,19 @@
 
 ---
 
+## §7実機検証R-series残4項目（R43②・ON_LRIG_GROW③・R36②・R44③）を全決着＝コード読解＋golden追加、ドキュメントバグ1件を訂正（2026-07-12・続き101・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+続き100までで残っていた §7 の4つの未検証follow-upを、重いPlaywright実機駆動ではなく**コード読解＋既存/新規goldenテスト**で決着させた。いずれも「順序」「ターン分岐」系はUIクリック列の観測で確認しづらく、pure関数への直接テストの方が高確度・低コストと判断。
+
+- **R43②（ON_ENERGY_TO_TRASH「あなたの効果によって」限定）＝既存の近似が確定**。`collectEnergyToTrashTriggers`（`src/engine/triggerCollect.ts:813`）は`triggerCondition.energyTrashedOwner`（self/opponent/any）で「どちらのエナプールが減ったか」のみを判定し「誰の効果で減ったか」は追跡しない設計（関数docに`⚠「あなたの効果」限定は近似で未表現`と既記載）。相手が相手自身の効果で相手自身のエナをトラッシュしても`owner:opponent`条件文だけで発火する過剰発火が実装上確定できるため、実機検証を追加せず§6.3相当の機構待ち（発生源追跡）へ位置づけを統一。JSON/engine変更なし。
+- **ON_LRIG_GROW③（any_opp watcherの発火順序）＝ドキュメントバグを発見・訂正**。`BattleScreen.tsx`の`executeGrow`内コメントが「any_opp（opp側）が先に解決され、グロウ先ルリグ自身の【出】（ターンプレイヤー側）より先に処理される」と記載していたが、`src/engine/effectStack.ts`の`buildQueue`は`return [...turn, ...opp]`＝**ターンプレイヤー側が先・相手側が後**（既存golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」`t1,o1`で確認済みの汎用機構）。`collectLrigGrowTriggers`が返すany_opp watcherのエントリはplayerId=非ターンプレイヤー側なので必ず`pendingOpp`に入り後で解決される＝**実装は正しく、コメントが逆だった**。コメントを実装に合わせて訂正（`BattleScreen.tsx:5075-5080`付近・機能変更なし）。実害カードなし（WXDi-P13-047のE2は相手エナトラッシュのみで順序依存の相互作用がない）。ON_LRIG_GROWは①②③が決着し、④（`collectLrigGrowTriggers`のusageLimit書き戻し漏れ＝続き100発見）のみOpusタスク12(vi-5)待ちで残る。
+- **R36②（WXDi-CP02-082 自ターンE1／相手ターンE2の出し分け）＝goldenテスト新設で確定**。`collectHandDiscardTriggers`（`triggerCollect.ts:1254`）の1287行目`if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }`分岐を、`trigCtx(HOST)`（discarder自身のターン）と`trigCtx(GUEST)`（discarderのターンでない＝相手ターン）の両方で直接呼び出して検証＝自ターンはE1（turnOwner:self）のみ、相手ターンはE2（turnOwner:opponent）のみが排他的に発火することを確認。`scripts/goldenTest.ts`に`Stage2 ON_HAND_DISCARDED: turnOwner:self/opponent 分岐（WXDi-CP02-082・PLAN §7 R36②検証）`を追加（golden 277→278）。①で確認済みのresume経路取りこぼし修正（続き61の`collectBoardDiffTriggers`統合）はturnOwnerに関わらず同一経路を通るため、相手ターン中にCPUへ手札を捨てさせる重いフルシナリオは不要と判断。
+- **R44③（カットインexceedでは未発火）＝既存の近似が確定**。`handleCutinUse`のfield/signi経路（`BattleScreen.tsx:5789-5810`）はエクシードコストの支払い状態更新（`lrig_trash`への移動等）のみを行い、ON_EXCEED_COST収集関数（`exceedPaidCards`/`triggerCondition.exceedCostPaidByPlayer`系）を一切呼ばない。型定義コメント（`src/types/effects.ts:1645`）に既に「⚠ルリグ起動のエクシード支払い経路のみ検出（アーツ/スペルのカットイン exceed は未検出の近似）」と明記済み。実カード母集団は現状このパターンに該当するカードなし。
+
+検証＝`npm run gates`全緑（typecheck／golden 278／smoke CRASH0・SKIP258／fuzz 0／census 1479=ベースライン維持／lint 0 error）。engine/JSON変更なし・BattleScreen.tsxのコメント訂正1箇所のみ（機能不変）。
+
+---
+
 ## CardClass を `Story` で誤照合していた4件＝＜原子＞＜調理＞判定が常に不成立・ライズのディソナ条件が常に不成立（2026-07-12・Opus 4.8）
 
 **背景＝2つのフィールドの実態**。CSVには `CardClass`（＜迷宮＞＜アーム＞＜原子＞…）と `Story` の2列があるが、**`Story` 列は実データで `-`(6568件) と `Dissona`(98件) の2値しか取らない**（`awk` で全10シート集計）。一方 `TargetFilter.story` は `matchesFilter`（execUtils.ts:243-247）で **`cardClass` と完全に同一処理＝CardClass に includes でマッチ**する旧名エイリアスであり、「Dissona 専用」ではない。ディソナ判定は別フィールド `isDisona`（Story==='Dissona' を見る・execUtils.ts:288）が正。
