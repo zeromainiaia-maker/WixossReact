@@ -2592,6 +2592,96 @@ test('PLACE_VIRUS: 相手の空きゾーンにウィルスを配置（WX15-004�
   eq(r.otherState.field.signi_virus?.[2], 1, 'zone2にウィルス配置');
 });
 
+// ── §3 Sonnetタスク5続き（続き85・golden型網羅の残り・機構待ち15型/no-opプレースホルダ5型を除いた実質最終バッチ）──
+test('PLACE_SIGNI_ON_FIELD: 複数カードを1枚ずつ場に配置（SEARCH→ADD_TO_FIELD経路の内部機構）', () => {
+  const ctx = mkCtx({}, {});
+  const cardA = SIGNI, cardB = SIGNI_P3000;
+  const r = run({ type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [cardA, cardB] } as EffectAction, ctx);
+  const t = tops(r.ownerState);
+  ok(t.includes(cardA) && t.includes(cardB), `field tops (${JSON.stringify(t)})`);
+});
+test('REVEAL_UNTIL_BANISH_SAME_LEVEL: デッキから＜宇宙＞が出るまで公開→そのレベルの相手シグニをバニッシュ（WX17-038）', () => {
+  const ctx = mkCtx({ deckTop: ['WX07-034'] }, { signi: [SIGNI_L3, null, null] }); // 宇宙Lv3
+  const r = run({ type: 'REVEAL_UNTIL_BANISH_SAME_LEVEL', revealClass: '宇宙', banishOwner: 'opponent' } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'Lv3の相手シグニがバニッシュされた');
+});
+test('REVEAL_UNTIL_TO_HAND: デッキから＜美巧＞が出るまで公開→手札へ・残りはシャッフルしてデッキ下（WX04-050）', () => {
+  const ctx = mkCtx({ deckTop: [SIGNI, SIGNI_P3000, 'WX04-035'] }, {}); // WX04-035=美巧
+  const h0 = ctx.ownerState.hand.length;
+  const r = run({ type: 'REVEAL_UNTIL_TO_HAND', owner: 'self', revealClass: '美巧', restDest: 'deck_bottom_shuffled' } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 + 1, '手札+1');
+  ok(r.ownerState.hand.includes('WX04-035'), '見つけた美巧が手札に');
+});
+test('REVEAL_UNTIL_TO_FIELD repeat:3: デッキから見つけたシグニを繰り返し場に出す（WX04-093）', () => {
+  const ctx = mkCtx({ deckTop: [SIGNI, SIGNI_P3000, SIGNI_L2] }, {});
+  const r = run({ type: 'REVEAL_UNTIL_TO_FIELD', owner: 'self', repeat: 3 } as EffectAction, ctx);
+  const t = tops(r.ownerState);
+  eq(t.filter(x => x !== null).length, 3, `場に3体配置 (${JSON.stringify(t)})`);
+});
+test('PLACE_LRIGS_UNDER_CENTER: ルリグトラッシュのルリグをセンタールリグの下へ（WX05-001系）', () => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.lrig_trash = ['WD03-002'];
+  ctx.ownerState.field.lrig = ['WD03-003'];
+  const r = run({ type: 'PLACE_LRIGS_UNDER_CENTER', owner: 'self' } as EffectAction, ctx);
+  eq(r.ownerState.lrig_trash.length, 0, 'lrig_trash空');
+  eq(JSON.stringify(r.ownerState.field.lrig), JSON.stringify(['WD03-002', 'WD03-003']), 'センタールリグの下に追加');
+});
+test('calcActiveCostMods: CONTINUOUS COST_REDUCTION/COST_INCREASEを収集（WX01-031/WX04-033）', () => {
+  const my = mkState({ signi: ['WX01-031', 'WX04-033', null] });
+  const op = mkState({});
+  const { forMy, forOp } = calcActiveCostMods(my, op, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(forMy.some(m => m.direction === 'decrease' && m.targetCardType === 'スペル' && m.cardColor === '青'), `forMy decrease (${JSON.stringify(forMy)})`);
+  ok(forOp.some(m => m.direction === 'increase' && m.targetCardType === 'スペル'), `forOp increase (${JSON.stringify(forOp)})`);
+});
+test('ATTACH_CHARM optional: デッキトップをこのシグニのチャームにする（WX04-052-E2）', () => {
+  const src = 'WX04-052';
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const deckTop = ctx.ownerState.deck[0];
+  const r = run({ type: 'ATTACH_CHARM', optional: true, charm: { type: 'DECK_CARD', owner: 'self', count: 1 }, to: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction, ctx);
+  eq(r.ownerState.field.signi_charms?.[0], deckTop, 'デッキトップがチャームとして付与');
+});
+test('collectCharmShieldSigni: CONTINUOUS CHARM_PROTECTIONでチャーム付き＜悪魔＞シグニがチャーム盾対象になる（WX04-052-E1）', () => {
+  const st = mkState({ signi: ['WX04-052', 'WD05-009', null] }); // WD05-009=悪魔
+  st.field.signi_charms = [null, 'CHARM-A', null];
+  const shielded = collectCharmShieldSigni(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok(shielded.has('WD05-009'), `shielded (${JSON.stringify([...shielded])})`);
+});
+test('collectCharmShieldSigni: チャーム無しは盾対象外', () => {
+  const st = mkState({ signi: ['WX04-052', 'WD05-009', null] });
+  const shielded = collectCharmShieldSigni(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(shielded.size, 0, 'no charm=no shield');
+});
+test('MUTUAL_DISCARD_AND_DRAW drawMax: 両者手札全捨て→多い方の枚数だけ両者ドロー（WX03-030）', () => {
+  const ctx = mkCtx({ hand: 3 }, { hand: 5 });
+  const r = run({ type: 'MUTUAL_DISCARD_AND_DRAW', drawMax: true } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, 5, '自分も相手の多い方=5枚ドロー');
+  eq(r.otherState.hand.length, 5, '相手も5枚ドロー');
+});
+test('BANISH_REDIRECT: banish_redirect フラグを立てる（WX01-027）', () => {
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN' } as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).banish_redirect, true, 'banish_redirect');
+});
+test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新配置に反映（WX04-041-E2）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
+  const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done, 'REARRANGE_SIGNI で対話待ち');
+  const pending = (result as { pending: { owner: string; signiNums: string[] } }).pending;
+  eq(pending.owner, 'opponent', '相手場が対象');
+  const reversed = [...pending.signiNums].reverse();
+  const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  const r2 = resumeRearrangeSigni(reversed, pending as never, c);
+  eq(JSON.stringify(tops(r2.otherState)), JSON.stringify(reversed), '新しい並び順が反映される');
+});
+test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLevelを上書き（WX04-049・条件成立時のみ）', () => {
+  const st = mkState({ signi: ['WX04-049', 'WD04-009', null] }); // WD04-009=空獣/地獣
+  const overridden = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, st, mkState({}), effectsMap, true);
+  eq(overridden.get('WX04-049')?.Level, '2', '基本レベルが2に上書き');
+  const noCond = mkState({ signi: ['WX04-049', null, null] });
+  const notOverridden = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, noCond, mkState({}), effectsMap, true);
+  eq(notOverridden.get('WX04-049')?.Level, cardMap.get('WX04-049')?.Level, '条件不成立なら元のまま');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
