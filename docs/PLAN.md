@@ -160,7 +160,7 @@
 | 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ⏳**部分完了（続き88）**＝系統①の残27件を全分類し単点是正ゼロを確定。stub群スケールアップ（`claude -p`要）は未着手 |
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
 | 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
-| 11 | checkAllEffects／verifyEffects 精査 | 計器＋分析＋JSON単点 | S | ⏳部分完了（続き89-90・MANDATORY_SUSPICIOUS単点是正16件修正・census 1480）。残22件はoptionalフィールド無/構造的でOpus送り確定。残タスク＝EFFECT_TYPE_MISSING_CONTINUOUS20件・verifyEffects改善 |
+| 11 | checkAllEffects／verifyEffects 精査 | 計器＋分析＋JSON単点 | S | ⏳部分完了（続き89-91・MANDATORY_SUSPICIOUS単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件を修正・census 1479）。残22件はoptionalフィールド無/構造的でOpus送り確定。残タスク＝verifyEffects「定義なし」誤検出改善のみ |
 | 12 | ~~英語ID漏れの系統分類~~ | 分析のみ（修正しない） | S〜M | ✅完了（続き87・実測823カードを16テーマに分類・`docs/_stub_leak_classification.txt`） |
 
 **依存の要点（交互サイクルの回し方）**＝待ち関係は3本だけ：**Sonnet2→Opus10**（CHOOSE分類→採用）／**Opus1〜6→Sonnet6**（新語彙着地→再収穫）／**Sonnet1・4・8→Opus12**（観測→修正）。それ以外の組はすべて独立＝どの順で取っても衝突しない（バトン式なので同時作業はしない・§11 の「着手中」宣言は大型機構のみ必須）。
