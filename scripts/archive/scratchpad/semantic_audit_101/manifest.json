@@ -1,0 +1,870 @@
+{
+ "seed": 202607,
+ "perGroup": 100,
+ "batchSize": 10,
+ "population": {
+  "stubOrManual": 2398,
+  "cleanAuto": 3577,
+  "textNoJson": 56
+ },
+ "textNoJson": [
+  "WXDi-D01-018",
+  "WXDi-D01-019",
+  "WXDi-D02-26",
+  "WXDi-D02-27",
+  "WXDi-D03-018",
+  "WXDi-D03-019",
+  "WXDi-D04-018",
+  "WXDi-D04-019",
+  "WXDi-D05-018",
+  "WXDi-D05-019",
+  "WXDi-D06-018",
+  "WXDi-D06-019",
+  "WXDi-D07-020",
+  "WXDi-P00-085",
+  "WXDi-P00-088",
+  "WXDi-P01-089",
+  "WXDi-P01-090",
+  "WXDi-P01-095",
+  "WXDi-P01-098",
+  "WXDi-P04-087",
+  "WXDi-P04-088",
+  "WXDi-P04-090",
+  "WXDi-P04-091",
+  "WXDi-P04-092",
+  "WXDi-P05-087",
+  "WXDi-P05-088",
+  "WXDi-P05-089",
+  "WXDi-P05-090",
+  "WXDi-P05-091",
+  "WXDi-P05-092",
+  "WXDi-P06-086",
+  "WXDi-P06-087",
+  "WXDi-P06-088",
+  "WXDi-P06-089",
+  "WXDi-P06-090",
+  "WXDi-P06-091",
+  "WXDi-P07-096",
+  "WXDi-P07-097",
+  "WXDi-P07-098",
+  "WXDi-P07-099",
+  "WXDi-P13-023",
+  "WX24-P4-090",
+  "WX24-P4-091",
+  "WX24-P4-092",
+  "WX24-P4-093",
+  "WX24-P4-094",
+  "WX24-P4-095",
+  "WX24-P4-096",
+  "WX24-P4-097",
+  "WX24-P4-098",
+  "WX24-P4-099",
+  "WX25-P2-111",
+  "WX25-P3-108",
+  "WX24-D1-TK1",
+  "WX24-P1-TK2A",
+  "WX26-CP1-TK01"
+ ],
+ "picked": [
+  {
+   "num": "WX05-028",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P00-034",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-049",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-077",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P04-006",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P13-002",
+   "group": "stub"
+  },
+  {
+   "num": "WX24-P3-090",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-081",
+   "group": "stub"
+  },
+  {
+   "num": "WX04-096",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-047",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-084",
+   "group": "stub"
+  },
+  {
+   "num": "WX04-032",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P08-072",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-D04-016",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-005",
+   "group": "stub"
+  },
+  {
+   "num": "WX24-P4-047",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-Re04",
+   "group": "stub"
+  },
+  {
+   "num": "WD22-029-G",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P16-077",
+   "group": "stub"
+  },
+  {
+   "num": "WXK08-032",
+   "group": "stub"
+  },
+  {
+   "num": "WDK16-02T",
+   "group": "stub"
+  },
+  {
+   "num": "WDK01-007",
+   "group": "stub"
+  },
+  {
+   "num": "SP27-016",
+   "group": "stub"
+  },
+  {
+   "num": "WXK04-050",
+   "group": "stub"
+  },
+  {
+   "num": "WX10-008",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-010",
+   "group": "stub"
+  },
+  {
+   "num": "WDK07-Y17",
+   "group": "stub"
+  },
+  {
+   "num": "WX18-009",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P15-076",
+   "group": "stub"
+  },
+  {
+   "num": "WX13-089",
+   "group": "stub"
+  },
+  {
+   "num": "WX07-006",
+   "group": "stub"
+  },
+  {
+   "num": "SPK01-11",
+   "group": "stub"
+  },
+  {
+   "num": "WXEX1-37",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-078",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-061",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P07-066",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P00-063",
+   "group": "stub"
+  },
+  {
+   "num": "WX09-020",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-001",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P03-016",
+   "group": "stub"
+  },
+  {
+   "num": "WXK01-037",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P15-071",
+   "group": "stub"
+  },
+  {
+   "num": "WXEX2-30",
+   "group": "stub"
+  },
+  {
+   "num": "WXK01-044",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P14-060",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P14-064",
+   "group": "stub"
+  },
+  {
+   "num": "WX07-029",
+   "group": "stub"
+  },
+  {
+   "num": "WX16-039",
+   "group": "stub"
+  },
+  {
+   "num": "WX16-044",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-CP02-089",
+   "group": "stub"
+  },
+  {
+   "num": "WXK10-075",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-018",
+   "group": "stub"
+  },
+  {
+   "num": "WX04-093",
+   "group": "stub"
+  },
+  {
+   "num": "WX15-002",
+   "group": "stub"
+  },
+  {
+   "num": "WX10-078",
+   "group": "stub"
+  },
+  {
+   "num": "WDK08-L08",
+   "group": "stub"
+  },
+  {
+   "num": "WXEX1-24",
+   "group": "stub"
+  },
+  {
+   "num": "WX04-094",
+   "group": "stub"
+  },
+  {
+   "num": "PR-Di017A",
+   "group": "stub"
+  },
+  {
+   "num": "WX07-033",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P3-071",
+   "group": "stub"
+  },
+  {
+   "num": "WXK01-060",
+   "group": "stub"
+  },
+  {
+   "num": "WDK08-Y01",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-069",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P14-007",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P15-009",
+   "group": "stub"
+  },
+  {
+   "num": "WXK06-049",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-D01-020",
+   "group": "stub"
+  },
+  {
+   "num": "WX12-024",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-034",
+   "group": "stub"
+  },
+  {
+   "num": "WX21-001",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-039",
+   "group": "stub"
+  },
+  {
+   "num": "WXEX1-65",
+   "group": "stub"
+  },
+  {
+   "num": "WDK02-001",
+   "group": "stub"
+  },
+  {
+   "num": "WX26-CP1-036",
+   "group": "stub"
+  },
+  {
+   "num": "WXK04-060",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-D09-H17",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P09-078",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P06-050",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-D09-P19",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P14-061",
+   "group": "stub"
+  },
+  {
+   "num": "WX09-041",
+   "group": "stub"
+  },
+  {
+   "num": "WX04-081",
+   "group": "stub"
+  },
+  {
+   "num": "WX13-002",
+   "group": "stub"
+  },
+  {
+   "num": "WX25-P2-059",
+   "group": "stub"
+  },
+  {
+   "num": "WX10-020",
+   "group": "stub"
+  },
+  {
+   "num": "WDK16-01T",
+   "group": "stub"
+  },
+  {
+   "num": "WXK03-020",
+   "group": "stub"
+  },
+  {
+   "num": "WD12-012",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P16-060",
+   "group": "stub"
+  },
+  {
+   "num": "WX15-072",
+   "group": "stub"
+  },
+  {
+   "num": "WX17-Re03",
+   "group": "stub"
+  },
+  {
+   "num": "WDK13-012",
+   "group": "stub"
+  },
+  {
+   "num": "WXK04-014",
+   "group": "stub"
+  },
+  {
+   "num": "WXK08-007",
+   "group": "stub"
+  },
+  {
+   "num": "WXK07-106",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P09-005",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-CP01-041",
+   "group": "stub"
+  },
+  {
+   "num": "WXDi-P09-063",
+   "group": "stub"
+  },
+  {
+   "num": "WX16-074",
+   "group": "stub"
+  },
+  {
+   "num": "WD14-015",
+   "group": "clean"
+  },
+  {
+   "num": "WX20-010",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-P2-096",
+   "group": "clean"
+  },
+  {
+   "num": "WX24-P1-016",
+   "group": "clean"
+  },
+  {
+   "num": "WX15-112",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P00-048",
+   "group": "clean"
+  },
+  {
+   "num": "WDK07-Y11",
+   "group": "clean"
+  },
+  {
+   "num": "WX18-058",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-P3-106",
+   "group": "clean"
+  },
+  {
+   "num": "WXK06-045",
+   "group": "clean"
+  },
+  {
+   "num": "WD12-018",
+   "group": "clean"
+  },
+  {
+   "num": "WX24-D2-15",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P03-038",
+   "group": "clean"
+  },
+  {
+   "num": "WD18-002",
+   "group": "clean"
+  },
+  {
+   "num": "WXK07-066",
+   "group": "clean"
+  },
+  {
+   "num": "WX17-009",
+   "group": "clean"
+  },
+  {
+   "num": "WX19-023",
+   "group": "clean"
+  },
+  {
+   "num": "WX24-P1-021",
+   "group": "clean"
+  },
+  {
+   "num": "WX22-044",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P14-089",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-CP1-035",
+   "group": "clean"
+  },
+  {
+   "num": "WX24-P1-024",
+   "group": "clean"
+  },
+  {
+   "num": "WDK07-Y14",
+   "group": "clean"
+  },
+  {
+   "num": "WX13-006B",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P14-036",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-P1-086",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P11-066",
+   "group": "clean"
+  },
+  {
+   "num": "WXK08-038",
+   "group": "clean"
+  },
+  {
+   "num": "WXEX2-45",
+   "group": "clean"
+  },
+  {
+   "num": "WX13-078",
+   "group": "clean"
+  },
+  {
+   "num": "WX21-023",
+   "group": "clean"
+  },
+  {
+   "num": "WX19-072",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P15-004",
+   "group": "clean"
+  },
+  {
+   "num": "PR-K073",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P09-006",
+   "group": "clean"
+  },
+  {
+   "num": "WD22-002-U",
+   "group": "clean"
+  },
+  {
+   "num": "WX24-P4-010",
+   "group": "clean"
+  },
+  {
+   "num": "WX11-038",
+   "group": "clean"
+  },
+  {
+   "num": "WX17-045",
+   "group": "clean"
+  },
+  {
+   "num": "WD01-009",
+   "group": "clean"
+  },
+  {
+   "num": "WXK01-077",
+   "group": "clean"
+  },
+  {
+   "num": "WXK01-017",
+   "group": "clean"
+  },
+  {
+   "num": "WD19-008",
+   "group": "clean"
+  },
+  {
+   "num": "WXK08-076",
+   "group": "clean"
+  },
+  {
+   "num": "WXEX1-45",
+   "group": "clean"
+  },
+  {
+   "num": "WX10-061",
+   "group": "clean"
+  },
+  {
+   "num": "WDK13-008",
+   "group": "clean"
+  },
+  {
+   "num": "WX07-066",
+   "group": "clean"
+  },
+  {
+   "num": "WXEX1-57",
+   "group": "clean"
+  },
+  {
+   "num": "WX09-Re04",
+   "group": "clean"
+  },
+  {
+   "num": "WX12-006",
+   "group": "clean"
+  },
+  {
+   "num": "WX08-065",
+   "group": "clean"
+  },
+  {
+   "num": "WX14-070",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-P1-053",
+   "group": "clean"
+  },
+  {
+   "num": "WDK07-Y12",
+   "group": "clean"
+  },
+  {
+   "num": "WX08-040",
+   "group": "clean"
+  },
+  {
+   "num": "WX07-037",
+   "group": "clean"
+  },
+  {
+   "num": "WXK05-055",
+   "group": "clean"
+  },
+  {
+   "num": "WX12-053",
+   "group": "clean"
+  },
+  {
+   "num": "WDK09-002",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P12-080",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P02-026",
+   "group": "clean"
+  },
+  {
+   "num": "WX14-020",
+   "group": "clean"
+  },
+  {
+   "num": "WX08-034",
+   "group": "clean"
+  },
+  {
+   "num": "WD20-015",
+   "group": "clean"
+  },
+  {
+   "num": "WXK11-055",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P02-050",
+   "group": "clean"
+  },
+  {
+   "num": "WX01-022",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P01-030",
+   "group": "clean"
+  },
+  {
+   "num": "WX25-P1-108",
+   "group": "clean"
+  },
+  {
+   "num": "WXK05-063",
+   "group": "clean"
+  },
+  {
+   "num": "WXEX1-35",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P03-032",
+   "group": "clean"
+  },
+  {
+   "num": "WXK09-011",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P14-087",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-CP02-043",
+   "group": "clean"
+  },
+  {
+   "num": "WX07-078",
+   "group": "clean"
+  },
+  {
+   "num": "WX07-044",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P03-001",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-CP02-085",
+   "group": "clean"
+  },
+  {
+   "num": "WD14-012",
+   "group": "clean"
+  },
+  {
+   "num": "WXK03-047",
+   "group": "clean"
+  },
+  {
+   "num": "WX15-101",
+   "group": "clean"
+  },
+  {
+   "num": "WX10-057",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P11-007",
+   "group": "clean"
+  },
+  {
+   "num": "WX01-015",
+   "group": "clean"
+  },
+  {
+   "num": "WX11-063",
+   "group": "clean"
+  },
+  {
+   "num": "WX20-040",
+   "group": "clean"
+  },
+  {
+   "num": "WD22-037-UG",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P01-074",
+   "group": "clean"
+  },
+  {
+   "num": "WXK08-014",
+   "group": "clean"
+  },
+  {
+   "num": "SPDi43-12",
+   "group": "clean"
+  },
+  {
+   "num": "WXDi-P10-077",
+   "group": "clean"
+  },
+  {
+   "num": "WXEX1-50",
+   "group": "clean"
+  },
+  {
+   "num": "WX17-025",
+   "group": "clean"
+  },
+  {
+   "num": "WXK06-031",
+   "group": "clean"
+  },
+  {
+   "num": "WXK06-054",
+   "group": "clean"
+  },
+  {
+   "num": "WX19-025",
+   "group": "clean"
+  },
+  {
+   "num": "WX18-082",
+   "group": "clean"
+  },
+  {
+   "num": "WX02-046",
+   "group": "clean"
+  }
+ ]
+}
