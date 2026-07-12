@@ -5,6 +5,21 @@
 
 ---
 
+## §7実機検証R30/R38/R46の②③番手を決着＋`collectFieldTriggers`のusageLimit未実装バグ（32枚）を新規発見（2026-07-12・続き104・Sonnet 5・PLAN §3 Sonnetタスク1／Opusタスク12）
+
+続き101に続き、重いPlaywright実機駆動ではなくコード読解＋既存/新規goldenテストで§7の残項目を決着させた（golden 278→283）。JSON/engine変更なし・テスト追加のみ。
+
+- **R30②（WXK10-022-E1のturnOwner:selfゲート）＝正しく機能していることを確認・決着**。`collectFieldTriggers`（`triggerCollect.ts:1387`）自体はtriggerCondition.turnOwnerを一切見ない設計だが、これは意図的な二段構え＝`effectStack.ts`の`turnGateOk`（8-13行目）が`entry.effect.triggerCondition.turnOwner`と`entry.playerId`（watcher所有者）・`turnPlayerId`（現在の手番）を比較して**`initStack`/`pushToStack`の全エントリに中央集権的にゲートをかける**設計と判明。goldenテスト新設＝`collectFieldTriggers`の生出力を`initStack`に通し、①通常の相手ターン召喚（HOSTのターンにHOSTが召喚・GUEST視点は相手ターン）ではturnOwner:selfゲートで除外される、②WXEX2-50型の特殊召喚（GUESTのターン中にHOSTのシグニが場に出る）ではゲートを通過して発火する、の両方を確認。**バグではなく設計どおり**。
+- **🆕 R30③の調査から新規バグを発見＝`collectFieldTriggers`（ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM・any/any_ally/any_opp scope）が`usageLimit`を一切実装していない**。WXK10-022-E1自体は`usageLimit`フィールドを持たないため③はこのカードには非該当だったが、調査のため関数全体（`triggerCollect.ts:1387-1519`）を読解した結果、`mkLimitOk`/`actions_done`チェックが1箇所も存在しないことを確認（`effectStack.ts`にも代替の中央集権チェックは無い＝turnOwnerとは異なりusageLimitは各collector内で個別実装する設計だが、この関数だけ丸ごと欠落）。ON_BANISHは別の`collectBanishTriggers`（usageLimit実装済み）が処理するため対象外。**機械抽出で実カード32枚が影響**（`usageLimit:once_per_turn`または`twice_per_turn`を持つON_PLAY/ON_ATTACK_SIGNI/ON_BLOOMのany系トリガー）＝WX10-017/WX11-054/WX11-058/WX11-062/WX19-051/WX19-052/WX19-053/WX21-048/WX21-Re09/WX22-Re01/WXEX1-04/WXEX1-16/WX24-P1-013/WX24-P1-046/WX24-P2-030/WX24-P2-072/WX24-P4-087/WX25-P1-018/WX25-P2-030/WXDi-D09-P17/WXDi-P03-050/WXDi-P03-086/WXDi-P07-044/WXDi-P07-047/WXDi-P09-080/WXK05-021/WXK10-048/WXK10-059/WD12-011/WD22-007-G/WDK17-001/SPDi44-08。**実害＝「味方のシグニが場に出るたびに◯◯（ターンに1回）」型の効果が、同一ターン内に複数体召喚すると毎回発火する**（過剰効果）。修正はせずOpusタスク12へ新規登録（既存の(vi-5)usageLimit書き戻し漏れ系＝collectCoinPaidTriggers等とは別系統＝あちらは「書き戻し漏れ」、こちらは「そもそもチェック自体が無い」というより根本的な欠落）。
+- **R46②（ON_OPP_POWER_DECREASED＝複数同時減少時の合算）＝正しく合算されることを確認・決着**。`detectPowerDecrease`（`boardDiff.ts:159`）は`before.length`以降に追加された全ての負delta`temp_power_mods`エントリを合算する設計＝2体同時にパワー減少しても正しく合計される。goldenテスト新設で2件の負delta（-2000, -3000）が5000に合算されること、その合算値が`collectPowerDecreaseTriggers`の`deltaFromOppPowerDecrease`へそのまま注入されることを確認。
+- **R46③（相手の自己弱体では発火すべきでない）＝既知の近似を確定・goldenで現状挙動を固定**。`collectPowerDecreaseTriggers`へ渡される`decreaseOnOpp`（`BattleScreen.tsx:2670-2678`）は「相手側の総パワー減少量」のみを見ており、**それが watcher 側の効果によるものか相手自身の効果（自己弱体）によるものかを一切区別しない**。原文「対戦相手のシグニのパワーを減少させたとき」は本来「あなたの効果で」限定のはずだが、相手が相手自身の効果で自分のシグニを弱体化しても同じ経路で発火する＝過剰発火の近似。goldenテストで現状挙動（発火してしまう）を明示的に固定し、コメントで「修正時（発生源追跡機構の実装時）はこのテストの期待値を更新すること」と明記。修正はせず§6.3相当（発生源追跡）としてOpusへ位置づけ済み（続き101のON_ENERGY_TO_TRASH②と同型の近似）。
+- **R38③（凍結トリガー＝複数同時凍結の合算）＝正しく合算されることを確認・決着**。`collectFreezeTriggers`（`triggerCollect.ts:985`）は`frozenByOwner[].nums`の各カードごとに候補を積み、usageLimitの`max`でキャップする設計。goldenテストで①usageLimit(once_per_turn)ありなら2体同時凍結でも1件のみ（正しく抑制）、②usageLimitを外すと2体分=2件（合算ロジック自体は正しく複数候補を数える）ことを両方確認。
+- **ON_TARGETED②（turnOwner:opponentゲート）＝既に golden でカバー済みと判明**（`goldenTest.ts`の「C1 ON_TARGETED: turnOwner:opponent ゲート（自ターンは非発火）」・続き75で実装済み）。PLAN記載が古いままだった＝ドキュメント訂正のみ。
+- **outsideDrawPhase②（ドローフェイズの通常ドローでは非発火）＝既に golden でカバー済みと判明**（`goldenTest.ts`の「Stage2 ON_DRAW: outsideDrawPhase はドローフェイズ通常ドローで非発火」）。`collectDrawTriggers`の`isDrawPhaseDraw`引数が`BattleScreen.tsx:2856`（ターン開始時ドロー処理）で`true`固定で渡されていることをコード読解で確認＝実装は正しい。PLAN記載が古いままだった＝ドキュメント訂正のみ。
+- **検証**＝`npm run gates`全緑（typecheck／golden 278→283／smoke CRASH0・SKIP258／fuzz 0／census 1477=ベースライン維持／同型★0）。JSON/engine変更なし・`scripts/goldenTest.ts`へのテスト追加のみ。
+
+---
+
 ## BLOCK_ACTION(SIGNI,ATTACK) 過剰ブロックバグの全数調査＝41件確定・filter無視も判明（2026-07-12・続き103・Sonnet 5・PLAN §3 Opusタスク12(ix)）
 
 続き102が「サンプル11枚超・全数調査未実施」として据置していた`execBlockAction`（`effectExecutor.ts:1536`）のSIGNI/ATTACK分岐の過剰ブロックバグを、機械抽出で全数確定した。**分析専用（JSON/engine変更なし）**＝CLAUDE.mdの運用ルール通り、発見したバグはその場で直さずOpusタスク12へ登録。
