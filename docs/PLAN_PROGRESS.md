@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き94・Sonnet 5・Sonnetタスク1＝§7 R37「他4枚」個別確認を2枚追加）**
+  - **✅ R37（パワー0以下トリガー）「他4枚の個別確認」のうちsigni watcher 2枚を実機PASS**＝`powerzeroWX20Re03`（WX20-Re03）・`powerzeroWXDiP01043`（WXDi-P01-043）を`powerzero`と同型（watcherのみ差し替え）で新設。ともにENERGY_CHARGE_FROM_DECK・`host.energy`増加で確認・単体実行で2回連続PASS。後者は`wxk10068banish`と同型のguest_state注入レース（バッチ実行時のみ再現）があり`order`配列には追加せず単体実行専用として残す。詳細 BUGFIXES 続き94。
+  - **残＝WX22-013（ルリグ・CHOOSE選択）・WXDi-P14-009（ルリグ・turnOwner:self条件）は未着手**（LRIG watcher特有の手順検討が必要）。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝WX22-013/WXDi-P14-009、または残る「②未検証」項目多数（R37②③・R43②自エナ/相手効果での非発火・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082 等）から1件ずつ消化。Opusタスク12(vi-2)着地後はSonnetタスク9残258件の再測定も。
+
 - **セッション（2026-07-12・続き93・Sonnet 5・Sonnetタスク9＝smoke SKIP分析・部分完了＋Opusタスク12へ新規登録）**
   - **✅ smoke SKIP 263件を`detail`別に分類＝258件「autopilot loop: SELECT_TARGET」／4件DECLARE_BOND／1件REVEAL_CARDS の2種混在と判明**。後者5件は`scripts/smokeTest.ts`のautopilotに`resumeDeclareBond`/`resumeRevealCards`を追加して解消（SKIP 263→**258**・engine不変）。`npm run gates`全緑（golden 277・fuzz全0・census 1479維持）。
   - **🔎 残258件を機械分類＝真因は`applyDirectAction`にcaseが無い6つのaction型**（続き82/83既知の`ENERGY_CHARGE`/`POWER_MODIFY_PER_LRIG_LEVEL`/`POWER_MODIFY_PER_FIELD`に加え、**新規発見＝`TRANSFER_TO_DECK`125件・`GRANT_PROTECTION`69件・`POWER_SET`10件**）。実UIでは「同じ対象選択を無限に繰り返し要求されターンが進まない」実害バグ＝Opusタスク12(vi-2)へ登録（詳細 BUGFIXES 続き93）。CLAUDE.mdの運用ルールに従いSonnetでは修正せず。
