@@ -1332,6 +1332,7 @@ const scenarios = {
       hostSet: {
         'field.lrig': ['WX08-004#1'],                     // ミュウ Lv4/Limit11
         'field.signi': [['WXDi-P01-043#1'], null, null],  // watcher（大装 ダークエナジェ）
+        'energy': [],
         'actions_done': [],
       },
       guestSet: {
