@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き100・Sonnet 5・usageLimit書き戻し漏れバグを横断棚卸し）**
+  - **✅ 続き99のON_COIN_PAIDバグが孤立事例でなく系統的パターンと確定＝あと3コレクタ・実カード28枚が同じ穴（続き99の3枚と合わせ計31枚）**＝`collectBanishTriggers`（ON_BANISH・18枚・最多）・`collectPowerZeroTriggers`（ON_SIGNI_POWER_ZERO_OR_LESS・6枚・続き95/96のLRIGゾーン走査漏れとは別軸の追加バグ）・`collectLrigGrowTriggers`（ON_LRIG_GROW・4枚・PLAN記載の④「2回目グロウで再発火しないか」が長年未検証だった理由が判明）。修正パターンは全コレクタ共通（`{entries, usedIds}`化）。Opusタスク12(vi-5)へ追記登録（詳細・カード名一覧 BUGFIXES 続き100）。
+  - **分析専用（JSON/engine無変更）**。実機検証は続き99のON_COIN_PAID1件のみ・残りはコード読解ベース（同一パターンにつき費用対効果を考慮し見送り）。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③・R36②WXDi-CP02-082・R44③カットイン経路）。Opusタスク12(vi-2)〜(vi-5)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚・usageLimit棚卸しの31枚の再検証も。
+
 - **セッション（2026-07-12・続き99・Sonnet 5・§7 ON_COIN_PAID③検証＝表示バグ修正+engineバグ発見）**
   - **✅ 表示バグ修正＝`getMySigniFieldActions`相当のcostLabelが`eff.cost?.coin`未考慮で「【起】コストなし」と誤表示（WXK04-003のLRIG版と同型・シグニ版が取り残されていた）**＝`` `コイン${eff.cost.coin}` `` を追加。UI表示のみでロジック不変のためSonnetの裁量で修正（続き81の前例踏襲）。`npm run gates`全緑。
   - **🔎 engineバグを発見（未修正）＝`collectCoinPaidTriggers`がusageLimit用`actions_done`書き戻しを一切行わずON_COIN_PAIDの《ターン1回/2回》が実質ノーガード**＝`coinPaidTwice`シナリオ（WXDi-P15-069・twice_per_turn）で同一ターン内3回目の支払いでも発火することを2回連続再現確認。Opusタスク12(vi-5)へ登録。`coinPaidTwice`は意図的FAILシナリオとして`order`配列に追加しない。詳細 BUGFIXES 続き99。
