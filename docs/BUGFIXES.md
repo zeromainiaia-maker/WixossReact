@@ -5,6 +5,18 @@
 
 ---
 
+## §5b 英語ID漏れの系統分類（分析専用・2026-07-12・続き87・Sonnet 5・PLAN §3 Sonnetタスク12）
+
+`docs/decompile_sheet*.txt`の逆翻訳に残る英語ID漏れ（`[STUB:xxx]`／`[アクション:xxx]`／`[条件:xxx]`／`[未実装/UNKNOWN...]`）を機械抽出し、系統（テーマ）別に分類。**JSON/engineは無変更・分析のみ**（JSON再構造化の本修正はOpusタスク13）。
+
+- **母集団を再計測＝PLAN記載の「367件」は古い数字で現状と大きく乖離**＝実測は該当カード823枚・タグ出現968件・distinct id 316種。BEHAVIOR_AUDIT等の主作業でカード母集団（effects JSON）が継続的に増減しているため、PLANに書かれた過去の件数メトリクスは経年で陳腐化する（PLAN §3の「件数メトリクスを信じない」原則どおり）。
+- **新設スクリプト`scripts/_stubLeakScan.mjs`**＝decompile_sheet群を走査し、カードごとの逆翻訳セクションから漏れタグを抽出→STUB id（またはアクション/条件id）ごとに出現数・該当カード集合を集計→id/説明文に含まれるキーワードで16テーマへ機械分類。`node scripts/_stubLeakScan.mjs > docs/_stub_leak_classification.txt`で再生成可能（他の`_bqTriage.mjs`/`_dropTriage.mjs`と同じ「npm scriptに登録しない診断ツール」の慣例に合わせた）。
+- **16テーマの内訳（該当カード数の多い順）**＝デッキ操作系184／パワー修正系165／手札系102／トラッシュ系75／対戦相手コスト・条件系63／エナゾーン系50／ライフクロス系48／シグニ配置・移動系48／ルリグ・センタールリグ・リミット系36／能力付与・喪失系31／ガード・アタック制限系26／ソウル・アーツ・リコレクト系15／ウィルス系10／色・クラス系4／ゲーム除外・バニッシュ系3／チャーム系1／その他・個別対応54。上位3テーマ（デッキ操作・パワー修正・手札）で823枚中約半数を占める＝Opusタスク13の優先着手候補。
+- **併せて「日本語グロス無し（stubDescMapに説明が一切無い純粋な生id）」を別枠で確認＝現状わずか6 id・7枚のみ**（`STUB:TRIGGER_LIFE_BURST`／`REMOVE_VIRUS_TARGET_ZONE`／`DRAW_IF_POWER_ZERO_TEMP`／`POWER_PLUS_BANISHED_POWER`／`OPP_LRIG_DECK_TO_LRIG_TRASH`／`VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE`）。残り大半（316id中310id・968件中960件）は`stubDescMap`（STUBS.md由来）の日本語説明が既に付いているが`[STUB:説明文]`の角括弧タグのまま表示されており、自然な地の文への組み込み（JSON再構造化）が必要＝これがOpusタスク13の本体。
+- **検証**＝分析のみのためゲート不要（`npm run gates`で無関係の回帰が無いことのみ確認・全緑）。
+
+---
+
 ## §5b Z-2＝BET系STUBの表現描画（2026-07-12・続き86・Sonnet 5・PLAN §3 Sonnetタスク7）
 
 `BET_MECHANIC`／`BET_ALTERNATIVE`／`BET_CONDITION`の3種STUB（現存19効果＝11＋7＋1。PLAN記載の「19+11+8=38」は古い数字で現状と不一致＝本セッションで実測し直した）を`decompileEffects.ts`に原文抽出規則を追加して意味文化。engine/effects JSONは無変更（同型★0・census 1483とも維持）。
