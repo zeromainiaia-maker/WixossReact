@@ -1407,20 +1407,21 @@ const scenarios = {
       const gHand0 = before?.guest?.hand ?? 0;
       H.log('guest 初期手札:', gHand0);
 
-      const afterFirst = await runFreeze('freeze1', 'pick-0');
+      const afterFirst = await runFreeze('freeze1', 'pick-0', [false, false, false]);
       const gHand1 = afterFirst?.guest?.hand ?? gHand0;
-      const frozen1 = afterFirst?.guest?.signiFrozen;
+      const frozen1 = afterFirst?.guest?.signiFrozen ?? [false, false, false];
       H.log(`1回目凍結後 guest.hand=${gHand1}（開始${gHand0}）frozen=${JSON.stringify(frozen1)}`);
       if (gHand1 >= gHand0) {
         return { pass: false, detail: `1回目のON_SIGNI_FROZENが未発火（gHand ${gHand0}→${gHand1}）＝usageLimit検証の前提が崩れた` };
       }
 
-      const afterSecond = await runFreeze('freeze2', 'pick-1');
+      const afterSecond = await runFreeze('freeze2', 'pick-1', frozen1);
       const gHand2 = afterSecond?.guest?.hand ?? gHand1;
       const frozen2 = afterSecond?.guest?.signiFrozen;
       H.log(`2回目凍結後 guest.hand=${gHand2}（1回目後${gHand1}）frozen=${JSON.stringify(frozen2)}`);
-      if (!Array.isArray(frozen2) || !frozen2[1]) {
-        return { pass: false, detail: `2体目（zone1）が新規凍結されなかった（frozen=${JSON.stringify(frozen2)}）＝usageLimit検証の前提が崩れた` };
+      const newlyFrozenIdx = Array.isArray(frozen2) ? frozen2.findIndex((v, i) => v && !frozen1[i]) : -1;
+      if (newlyFrozenIdx < 0) {
+        return { pass: false, detail: `2体目が新規凍結されなかった（frozen1=${JSON.stringify(frozen1)}→frozen2=${JSON.stringify(frozen2)}）＝usageLimit検証の前提が崩れた` };
       }
       if (gHand2 === gHand1) {
         return { pass: true, detail: `usageLimit《ターン1回》が正しく機能＝1回目でgHand ${gHand0}→${gHand1}・2体目の新規凍結（zone1）でも増えず（${gHand1}→${gHand2}）` };
