@@ -5,6 +5,24 @@
 
 ---
 
+## `triggerCollect.ts` のLRIGゾーン走査漏れを横断的に棚卸し＝6コレクタ・20枚のLRIGカードが影響対象と確定（分析専用・2026-07-12・続き96・Sonnet 5・PLAN §3 Sonnetタスク1の副産物）
+
+続き95で見つけた「`collectPowerZeroTriggers`がLRIGゾーンを走査しない」バグが**孤立事例ではなく複数のトリガーコレクタに共通する系統的な実装漏れ**であることが判明したため、`src/engine/triggerCollect.ts`全体を棚卸しした。
+
+- **手法**＝`ownFieldSources(state)`（`field.signi`最上段＋`field.lrig`最上段の両方を返す共通ヘルパー・多くのコレクタが正しく使用）を**使わず**、`for (const stack of xxxState.field.signi)`と手書きで走査しているコレクタ関数を機械抽出→各関数がどのtiming/scopeを扱うか読解→そのtiming×scopeに該当する実カードのうちLRIGタイプのみを`scratchpad-verify/tmp_lrigGapScan.mjs`で機械抽出。
+- **確定した欠陥箇所＝6コレクタ関数**（いずれも「watcherがLRIGだと該当timingで構造的に絶対発火しない」）：
+  - `collectPowerZeroTriggers`（ON_SIGNI_POWER_ZERO_OR_LESS）＝**続き95で実機確認済み**（WX22-013／WXDi-P14-009）。
+  - `collectFieldTriggers`のON_ATTACK_SIGNI/ON_BANISH/ON_BLOOM分岐（自分側any_ally/any・相手側any_opp/any。⚠ON_PLAYの自分側だけは`myLrigWatcher`で例外的に手当て済み＝非対称な実装漏れ）＝**ON_ATTACK_SIGNI該当3枚**：WX12-001（永らえし者 タウィル＝フェム）・WX14-003（紡ぐ者）・WXDi-P08-007（ゆかゆか☆さ～ん）。
+  - `collectTurnTriggers`の相手フィールド走査分岐（ON_TURN_START/ON_TURN_END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_START・any_opp/any。⚠自分側は`myLrigNum`で正しく手当て済み＝ここも非対称）＝**ON_ATTACK_PHASE_START該当11枚**：WX12-002（紅蓮乙女 遊月・肆）・WX19-002（カーニバル ―ＭＡＩＳ―）・WX21-001（ドーナ ＦＩＦＴＨ）・WX21-006（遠かりし使 リワト＝フィーラ）・WX22-010（アイヤイ★ロイヤルフラッシュ）・WXEX1-02（星占の巫女 リメンバ・ラストナイト）・WXEX1-13（うるとらあーや！Ⅳ）・WXEX2-03（神性なる極門 ウトゥルス）・WXEX2-06（ドーナ ＦＯＵＲＴＨ＋＋＋）・WXEX2-24（ミュウ＝フラッター）・WDK09-001（奏世の鍵主 ウムル＝フィーラ）。
+  - `collectOppArtsUseTriggers`（ON_OPP_ARTS_USE・self）＝**該当1枚**：WX16-003（ママ♥４ MODE２）。**対照＝姉妹関数`collectArtsUseTriggers`（ON_ARTS_USE・自分がアーツ使用時）は`casterState.field.lrig.at(-1)`を明示的に含めており正しい**＝非対称な実装漏れの傍証。
+  - `collectHandDiscardTriggers`の自分側走査分岐（ON_HAND_DISCARDED・self）＝**該当4枚**：WXEX2-12（アロス・ピルルク ＡＣＲＯ）・WXDi-P11-006（アロス・ピルルク MIRA）・WXDi-P14-007（アロス・ピルルク kl）・WX25-CP1-016（月雪ミヤコ[自走式閃光ドローン]）。
+  - `collectFieldTriggers`のON_BANISH相手側分岐（any_opp）＝**該当1枚**：WXEX2-26（ナナシ 其ノ四ノ華）。
+  - （`collectTargetedTriggers`/`collectTrashTriggers`/`collectBanishTriggers`/`collectArmorTriggers`/`collectCoinPaidTriggers`/`collectAllyPlayOrOppDiscardTriggers`も同型の signi-only 走査を持つが、該当timing×scopeの実カードにLRIGタイプが0件だったため現状は潜在バグのまま実害なし＝将来カードで再発しうる設計上の穴として記録のみ）。
+- **修正はせずOpusタスク12へ登録**（PLAN §3・CLAUDE.mdの運用ルールに従いSonnetでは修正しない）。**修正方針＝各コレクタの該当走査を`ownFieldSources(state)`ベースに置き換える**（`collectPowerZeroTriggers`と同じ単純パターン。ただし関数ごとに「own側/opp側どちらが漏れているか」「scope条件」が異なるため個別確認が要る）。
+- **検証**＝分析のみ・JSON/engine無変更。`scratchpad-verify/tmp_lrigGapScan.mjs`はgitignore対象の使い捨てスクリプト（適用済みone-offのため`scripts/archive/`への昇格はせず）。
+
+---
+
 ## §7 R37「他4枚」残り2枚（LRIG watcher）の実機検証で新規engineバグを発見＝`collectPowerZeroTriggers`がLRIGゾーンを走査していない（2026-07-12・続き95・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 R37の残タスク（WX22-013・WXDi-P14-009＝ともにLRIGカードのON_SIGNI_POWER_ZERO_OR_LESS watcher）を実機検証する`powerzeroWX22013`/`powerzeroWXDiP14009`を新設したところ、**呼び水（WXDi-P02-084の【出】-1000）でguest側シグニが正しく0化・バニッシュされるところまでは実機ログで確認できたが、watcherが2枚とも一度も発火しなかった**。
