@@ -5,6 +5,19 @@
 
 ---
 
+## golden 型網羅の追加＋`applyDirectAction` ENERGY_CHARGE/STORY_CHANGE欠落バグの発見（2026-07-12・続き82・Sonnet 5・PLAN §3 Sonnetタスク5）
+
+121のDSLアクション型のうちgoldenTest.tsで未カバーだった73型を機械抽出し、うち12型（POWER_SET／ENERGY_CHARGE／ADD_TO_ENERGY／ADD_TO_BEAT／ADD_TO_LIFE／NEGATE_ATTACK／AWAKEN_SIGNI／PLACE_UNDER_SIGNI／STORY_CHANGE／GAIN_BOND／REMOVE_CHARM／DISCARD_BOTH）に1テストずつ追加（golden 230→242）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
+
+- **テスト作成中、ENERGY_CHARGE/POWER_SET/STORY_CHANGEの3型がgolden上で`autopilot hang`（無限ループ）になり調査**＝原因は`applyDirectAction`（`src/engine/effectExecutor.ts:4696`）に`ENERGY_CHARGE`/`STORY_CHANGE`のcaseが無いこと。`default`節が`executeAction(action, {...ctx, lastProcessedCards:[cardNum]})`で選択済みcardNumを無視して**元のアクションを丸ごと再実行**してしまう。
+- **実カードへの実害を`tmp_repro_energycharge.ts`（一時調査スクリプト・確認後削除済み）で再現確認**＝実カード母集団81件が使う`SEARCH→then:ENERGY_CHARGE{target:{type:'DECK_CARD'}}`パターン（WX07-017/WX08-003/WX08-072/WX10-003等）で、`resumeSearch`が選んだデッキ札は消えないまま`applyDirectAction`のdefault経由で`execEnergyCharge`が再実行され、`target.type==='DECK_CARD'`が`else`分岐（`fieldCandidates`）に落ちて**選んだデッキ札ではなく場のシグニを選ぶSELECT_TARGET**にすり替わる。外部SELECT_TARGET経由（`count:1`等）で直接使う構成では、選択のたび同じSELECT_TARGETが再発行され続けautopilotが無限ループすることも実測。
+- **POWER_SETは無関係と判明**＝実カード217件はすべてCONTINUOUS＋`target:{owner:'self',count:1}`で、`effectEngine.ts`の`calcFieldPowers`（1184行目付近）が宣言的に処理する別経路のため、`effectExecutor.ts`側の`execPowerSet`（instant層）は実カードから到達しない。goldenテストはCONTINUOUS経路（`calcFieldPowers`直呼び・WX01-054）に書き直して対応。
+- **STORY_CHANGEは実カード母集団0件**（全JSON+manualEffectsをgrepして確認）で現状無害。goldenテストは`count:'ALL'`（`selectOrInteract`を通らず`applyStory`を直接呼ぶ経路）で基礎ロジックのみ検証する形にして`applyDirectAction`欠落バグを回避。
+- **修正はせずOpusタスク12(v)へ登録**（PLAN §3・CLAUDE.mdの運用ルールに従い、Sonnetが発見したengine/parserバグはその場で直さず次のOpusセッションへ回す）。ENERGY_CHARGEのgoldenテスト自体は`count:'ALL'`（`selectOrInteract`をバイパス）に書いて既存ロジックの正しさのみ検証し、バグの再現手順はPLAN側に記録した。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・golden 242）。
+
+---
+
 ## WXK04-003 ボタンラベル表示バグ修正（2026-07-12・続き81・Sonnet 5・PLAN §3 Sonnetタスク10）
 
 `getMyLrigFieldActions`（`src/screens/BattleScreen.tsx`）のACTIVATED能力ラベル生成で`eff.cost?.coin`が一切考慮されておらず、《コインアイコン》コストの起動効果が常に「【起】コストなし」と誤表記されていた。
