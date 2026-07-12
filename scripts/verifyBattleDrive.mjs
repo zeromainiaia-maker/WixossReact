@@ -1335,6 +1335,76 @@ const scenarios = {
     },
   },
 
+  // R38②《ターン1回》回数制限＝ON_SIGNI_FROZEN watcher（WX08-039-E1・usageLimit:once_per_turn）が
+  // 同一ターン内に2体を別々に凍結しても2回目は発火しないことを確認（PLAN §7 R38 残項目）。
+  // WX01-081（コストなし・ピルルク限定・【出】相手シグニ1体凍結）を2枚召喚し、guestの別々の2体を凍結する。
+  freezetriggerUsageLimit: {
+    title: 'WX01-081×2→WX08-039（ON_SIGNI_FROZEN③＝同一ターン内2体を別々に凍結しても発火は1回のみ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],                     // コード・ピルルク・Ｍ Lv2（WX01-081の「ピルルク限定」を満たす）
+        'field.signi': [['WX08-039#1'], null, null],      // watcher（コードアート Ｍ・Ｍ・ON_SIGNI_FROZEN《ターン1回》→対戦相手手札1捨て）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], ['WD01-013#2'], null], // 凍結対象2体（小剣 ククリ×2・別インスタンス）
+      },
+      handPrepend: ['WX01-081#1', 'WX01-081#2'],           // コードアート Ｔ・Ｖ×2枚（1枚ずつ召喚して別々に凍結）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const runFreeze = async (label, pickTestId) => {
+        await H.ensureMain();
+        H.log(`[${label}] 手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
+        let summoned = false;
+        for (let s = 0; s < 20; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/freezetriggerUsageLimit-${label}-${s}.png`, fullPage: true });
+          let did = null;
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+          if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+          if (!did) { // SELECT_TARGET（凍結対象＝guestの該当ゾーン）
+            const pick = page.getByTestId(pickTestId).first();
+            if (await pick.count() && await pick.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await pick.click().catch(() => {}); did = `pick:${pickTestId}`; }
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+          const st = await H.queryState();
+          const gFrozen = st?.guest?.signiFrozen;
+          H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | gFrozen=${JSON.stringify(gFrozen)} gHand=${st?.guest?.hand ?? '-'} hActionsDone=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+          if (Array.isArray(gFrozen) && gFrozen.some(Boolean) && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) return st;
+        }
+        return await H.queryState();
+      };
+      const before = await H.queryState();
+      const gHand0 = before?.guest?.hand ?? 0;
+      H.log('guest 初期手札:', gHand0);
+
+      const afterFirst = await runFreeze('freeze1', 'pick-0');
+      const gHand1 = afterFirst?.guest?.hand ?? gHand0;
+      const frozen1 = afterFirst?.guest?.signiFrozen;
+      H.log(`1回目凍結後 guest.hand=${gHand1}（開始${gHand0}）frozen=${JSON.stringify(frozen1)}`);
+      if (gHand1 >= gHand0) {
+        return { pass: false, detail: `1回目のON_SIGNI_FROZENが未発火（gHand ${gHand0}→${gHand1}）＝usageLimit検証の前提が崩れた` };
+      }
+
+      const afterSecond = await runFreeze('freeze2', 'pick-1');
+      const gHand2 = afterSecond?.guest?.hand ?? gHand1;
+      const frozen2 = afterSecond?.guest?.signiFrozen;
+      H.log(`2回目凍結後 guest.hand=${gHand2}（1回目後${gHand1}）frozen=${JSON.stringify(frozen2)}`);
+      if (!Array.isArray(frozen2) || !frozen2[1]) {
+        return { pass: false, detail: `2体目（zone1）が新規凍結されなかった（frozen=${JSON.stringify(frozen2)}）＝usageLimit検証の前提が崩れた` };
+      }
+      if (gHand2 === gHand1) {
+        return { pass: true, detail: `usageLimit《ターン1回》が正しく機能＝1回目でgHand ${gHand0}→${gHand1}・2体目の新規凍結（zone1）でも増えず（${gHand1}→${gHand2}）` };
+      }
+      return { pass: false, detail: `【要注意】usageLimit未機能の疑い＝2体目の新規凍結でもgHandが増加（${gHand1}→${gHand2}）＝once_per_turnガードが同一ターン内2回目の凍結で効いていない` };
+    },
+  },
+
   // ⑮ WXK10-068: §4タスク2 動的比較＝LRIG_LEVEL_CMP_OPP（続き55・§7 実機検証）。
   //    【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、
   //    あなたのセンタールリグのレベルが対戦相手のセンタールリグ以下の場合、それをバニッシュする。
