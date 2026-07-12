@@ -66,7 +66,7 @@ import * as path from 'path';
 // 2026-07-09 続き52: 「制限『できない』」パターンに extraOk 較正＝「しか使用/発動できない」の使用条件（useCondition・
 // eff.condition で表現・extractUseCondition が解析済み）41枚の偽陽性をクリア＝1616→1588（dedup -28）。真バグ0を機械確認済み
 // （使用制限で condition 無しは0枚）。残17枚は effect-restriction（アタック/場に出せない等＝BLOCK 表現要）で継続。
-const BASELINE_HIGH = 1479; // 続き91(Sonnet・タスク11続き): checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS の真バグ5件（パワー/キーワード付与欠落・クラス扱い機構の初適用）を修正で 1480→1479
+const BASELINE_HIGH = 1477; // 続き101(Sonnet): semantic audit スケールアップ（119枚精査）で見つかった単点是正可能なJSONバグ21件を修正（owner/filter/duration/thisCardOnly等の既存語彙のみ・parser/engine不変）で 1479→1477
 // 続き77(Sonnet・§5c再収穫): held 85枚採用（GRANT_LRIG/FIELD_SIGNI_ABILITY・CHOOSE復元・IS_SELF_IN_CENTER_ZONE等）で 1514→1494
 // 続き76(タスク10 パターンF-2): 相手効果による手札/エナ喪失の条件語彙を新設（2枚）で 1516→1514
 // 続き76(タスク10 パターンF-4): 「次のあなたのアタックフェイズ開始時」の遅延トリガー化（9枚）で 1519→1516
