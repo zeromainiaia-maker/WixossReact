@@ -5,6 +5,18 @@
 
 ---
 
+## §5b Z-2＝BET系STUBの表現描画（2026-07-12・続き86・Sonnet 5・PLAN §3 Sonnetタスク7）
+
+`BET_MECHANIC`／`BET_ALTERNATIVE`／`BET_CONDITION`の3種STUB（現存19効果＝11＋7＋1。PLAN記載の「19+11+8=38」は古い数字で現状と不一致＝本セッションで実測し直した）を`decompileEffects.ts`に原文抽出規則を追加して意味文化。engine/effects JSONは無変更（同型★0・census 1483とも維持）。
+
+- **`BET_MECHANIC`（11効果）＝この STUB がその効果の action 全体を占め、他の構造化データが一切無い**（例＝WX16-005「【起】：〈《黒×1》〉ベット―《コインアイコン》《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①…②…③…」がまるごと`{type:'STUB',id:'BET_MECHANIC'}`のみ）。実カード11件すべてでEffectText全体が「ベット―」から始まりSTUB１つがその全文に対応することを確認したため、`/ベット―[\s\S]*/`で「ベット―」以降の残り全文を原文抽出＝原文と完全一致。
+- **`BET_ALTERNATIVE`／`BET_CONDITION`（計8効果）＝SEQUENCE内の1ステップとして他の構造化アクション（TRANSFER_TO_HAND等）と共存し、「あなたがベットしていた場合、…。」の一文だけを表す**。共通regex`/あなたがベットしていた場合、[^。]*(?:。（[^）]*）)?/`で対応（末尾の句点は含めずSEQUENCE結合側の付与に委ねる＝既存の`ABILITY_CHECK_ELSE_TRASH`等と同じ慣例。直後に（補足）括弧が続く場合はその括弧ごと含める＝`PLACE_MAGIC_BOX`と同じ扱い）。
+- **一度末尾の句点を含めて実装→SEQUENCE内で二重句点「。。」の表示崩れを発見→修正**＝`WXK07-106`（STUB後に他のSEQUENCEステップが続くカード）で「代わりに２回行う。。そして…」という二重句点を確認。原因はSEQUENCE結合ロジックが各ステップの後に「。」を自動付与するため、抽出テキスト自身が末尾に「。」を含むと二重になる。regexを「末尾の句点は含めない（補足括弧が続く場合のみ含める）」に修正して解消（他の既存STUB原文抽出パターンと同じ慣例に揃えた）。
+- **`WX17-003`は残存する部分的未対応を確認（今回のスコープ外）**＝「同じ選択肢を２回選んでもよい」等の①②③選択肢リスト自体がJSON構造に一切表現されておらず（`CHOOSE_SAME_OPTION_TWICE`/`CHOOSE_SAME_OPTION_MULTIPLE`という別STUBのままで`parseStatus:'PARTIAL'`）、`BET_ALTERNATIVE`の一文だけ意味文化しても全体としては不完全なまま＝JSON再構造化（CHOOSEアクションへの組み直し）を要する別課題（§5b混線テールへ）。`WXDi-P07-059`も同様に他2つのSTUB（`DECLARE_COLOR`/`GRANT_ABILITY_UNTIL_OPP_TURN`）が未対応のまま残る。
+- **検証**＝19件すべてを`docs/decompile_sheet*.txt`再生成後に原文と目視照合（15件は完全一致・2件＝上記の既知PARTIAL残・2件は元々短文で問題なし）。`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑）＋`node scripts/groupSimilar.mjs --all`で同型★0維持を確認。
+
+---
+
 ## golden 型網羅の追加＝完了（残15型・2026-07-12・続き85・Sonnet 5・PLAN §3 Sonnetタスク5）
 
 続き82-84に続き、残っていた15型（PLACE_SIGNI_ON_FIELD／REVEAL_UNTIL_BANISH_SAME_LEVEL／REVEAL_UNTIL_TO_HAND／REVEAL_UNTIL_TO_FIELD／PLACE_LRIGS_UNDER_CENTER／COST_REDUCTION・COST_INCREASE／ATTACH_CHARM／CHARM_PROTECTION／MUTUAL_DISCARD_AND_DRAW／BANISH_REDIRECT／REARRANGE_SIGNI／SET_BASE_LEVEL）にテストを追加（golden 264→277）。これで golden 型網羅タスクは実質完了（続き82起点の106から+171）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
