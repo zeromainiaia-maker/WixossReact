@@ -1385,7 +1385,18 @@ const scenarios = {
           const st = await H.queryState();
           const gFrozen = st?.guest?.signiFrozen;
           H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | gFrozen=${JSON.stringify(gFrozen)} gHand=${st?.guest?.hand ?? '-'} hActionsDone=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
-          if (Array.isArray(gFrozen) && gFrozen.some(Boolean) && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) return st;
+          const settled = Array.isArray(gFrozen) && gFrozen.some(Boolean) && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+          // ⚠凍結自体は即時反映されるが、watcher（ON_SIGNI_FROZEN）の対戦相手手札トラッシュはCPU(guest)側の
+          // 自動応答を挟むため1tick遅れうる＝settled検出後もさらに2拍待って gHand が安定するのを確認してから返す
+          // （ontargetedUsageLimit の castOnce と同型の「2連続settled」パターン）。
+          if (settled) {
+            await page.waitForTimeout(900);
+            const st2 = await H.queryState();
+            await page.waitForTimeout(900);
+            const st3 = await H.queryState();
+            H.log(`  [${label}][settle+] gHand ${st?.guest?.hand}→${st2?.guest?.hand}→${st3?.guest?.hand} hActionsDone=${JSON.stringify(st3?.host?.actionsDone)}`);
+            return st3;
+          }
         }
         return await H.queryState();
       };
