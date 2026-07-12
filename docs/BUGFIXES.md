@@ -5,6 +5,17 @@
 
 ---
 
+## §7 R37「他4枚」残り2枚（LRIG watcher）の実機検証で新規engineバグを発見＝`collectPowerZeroTriggers`がLRIGゾーンを走査していない（2026-07-12・続き95・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+R37の残タスク（WX22-013・WXDi-P14-009＝ともにLRIGカードのON_SIGNI_POWER_ZERO_OR_LESS watcher）を実機検証する`powerzeroWX22013`/`powerzeroWXDiP14009`を新設したところ、**呼び水（WXDi-P02-084の【出】-1000）でguest側シグニが正しく0化・バニッシュされるところまでは実機ログで確認できたが、watcherが2枚とも一度も発火しなかった**。
+
+- **原因をコード読解で特定＝`collectPowerZeroTriggers`（`src/engine/triggerCollect.ts:195`）が`watcherState.field.signi`しか走査していない**（208行目`for (const stack of watcherState.field.signi)`）。他の大半のトリガーコレクタ（`collectFreezeTriggers`・`collectDrawTriggers`等）は共通ヘルパー`ownFieldSources(state)`（`field.signi`の各ゾーン最上段＋`field.lrig`の最上段を両方含む）を呼んでいるのに対し、この関数だけ`ownFieldSources`を使わず`field.signi`のみを手書きで走査＝**LRIGがwatcherの場合、構造的に一度もマッチせず絶対発火しない**。
+- **影響範囲を全数確認＝ON_SIGNI_POWER_ZERO_OR_LESSを持つ6枚中、LRIGタイプは`WX22-013`と`WXDi-P14-009`の2枚のみ**（残り4枚＝WX20-Re03/WX21-067/WXDi-P01-043/WXDi-CP01-048はシグニタイプで正常動作・続き39/94で実機確認済み）。**この2枚は印刷テキストどおりの能力が一切機能していない実害バグ**（WX22-013「【自】《ターン1回》：対戦相手のシグニのパワーが0以下になったとき、…」・WXDi-P14-009「【自】《ターン1回》：あなたのターンの間、対戦相手のシグニ1体のパワーが0以下になったとき、…」）。
+- **修正はせずOpusタスク12へ登録**（PLAN §3・CLAUDE.mdの運用ルールに従いSonnetでは修正しない）。修正パターンは軽微＝`collectPowerZeroTriggers`の走査を`ownFieldSources(watcherState)`ベースに置き換えるだけの見込み（他の該当バグ同様、コード整合の問題）。
+- **検証**＝`npm run typecheck`緑。engine/JSON無変更（driverスクリプトのみ・新規シナリオ2件を追加）。呼び水カード自体の動作（-1000適用・0以下バニッシュ）は実機ログで確認済み＝バグの切り分けは明確。
+
+---
+
 ## §7 R37「パワー0以下トリガー」他4枚のうち2枚を個別実機確認（2026-07-12・続き94・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 R37（ON_SIGNI_POWER_ZERO_OR_LESS）は①WX21-067のみ実機確認済みで、他4枚（WX20-Re03/WX22-013/WXDi-P01-043/WXDi-P14-009）は個別未検証のまま残っていた。既存`powerzero`シナリオ（watcherのみ差し替え）で2枚を追加確認。
