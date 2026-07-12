@@ -996,6 +996,20 @@ test('Stage2 ON_SIGNI_FROZEN: any_opp は相手シグニ凍結で発火・自シ
   eq(has(collectFreezeTriggers(trigCtx(HOST), [{ ownerId: GUEST, nums: [SIGNI] }], host, guest).entries, 'WX08-039-E1'), true, '相手凍結で発火');
   eq(has(collectFreezeTriggers(trigCtx(HOST), [{ ownerId: HOST, nums: [SIGNI] }], host, guest).entries, 'WX08-039-E1'), false, '自凍結は非発火');
 });
+test('Stage2 ON_SIGNI_FROZEN: 複数同時凍結は凍結カード数だけ候補が積まれ、usageLimit once_per_turnが合算を1件に抑える（WX08-039-E1・PLAN §7 R38③検証）', () => {
+  const host = mkState({ signi: ['WX08-039', null, null] }); const guest = mkState({});
+  // 同一ターン内に相手シグニ2体が同時凍結＝nums に2件。usageLimitが無ければ2エントリ積まれるはずの合算ロジックを、
+  // once_per_turn の actions_done 反映後は1件しか積めないことで確認する（呼び出し側の実際の書き戻しと同じ2段階呼び出し）。
+  const r1 = collectFreezeTriggers(trigCtx(HOST), [{ ownerId: GUEST, nums: [SIGNI, SIGNI_P3000] }], host, guest);
+  eq(r1.entries.filter(e => e.effectId === 'WX08-039-E1').length, 1, '2体同時凍結でもusageLimitで1件のみ（合算は正しく抑制される）');
+  eq(r1.usedHostIds.includes('WX08-039-E1'), true, '消費IDを返す');
+  // usageLimit を外した場合（比較対象）は2体分＝2エントリ積まれることを確認＝合算ロジック自体は正しく複数候補を数えている
+  const effNoLimit = effectsMap.get('WX08-039')!.map(e => e.effectId === 'WX08-039-E1' ? { ...e, usageLimit: undefined } : e);
+  const effectsMapNoLimit = new Map(effectsMap); effectsMapNoLimit.set('WX08-039', effNoLimit);
+  const ctxNoLimit = { ...trigCtx(HOST), effectsMap: effectsMapNoLimit };
+  const r2 = collectFreezeTriggers(ctxNoLimit, [{ ownerId: GUEST, nums: [SIGNI, SIGNI_P3000] }], host, guest);
+  eq(r2.entries.filter(e => e.effectId === 'WX08-039-E1').length, 2, 'usageLimitを外すと2体分=2エントリ（合算ロジック自体は正しい）');
+});
 
 // Stage2⑨: クリーン系7ファミリ（selfEvent/zoneMoved/driveBecame/beatBecame/handDiscard/oppArtsUse/artsUse）を pure 化→自動検証。
 const PURIPARA = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('プリパラ'));
