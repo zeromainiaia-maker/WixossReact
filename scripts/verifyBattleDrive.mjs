@@ -1106,6 +1106,73 @@ const scenarios = {
     },
   },
 
+  // ON_COIN_PAID③＝WXDi-P15-069自身の【起】《コインアイコン》×2（usageLimit無し・何度でも発動可）を
+  // 同一ターン内に3回発動し、watcher（同カードのE1・ON_COIN_PAID・usageLimit:twice_per_turn）が
+  // 3回目だけ発火しない（powerModsが+2000×2のまま増えない）ことを確認する。
+  // UI操作＝my-signi-zone-0クリック→StackModalの「【起】コイン2」ボタン→SigniActivatedModalの「発動」ボタン
+  // （このカードの起動コストはコインのみでエナ選択等が不要＝canAffordが直ちに満たされる）。
+  coinPaidTwice: {
+    title: 'WXDi-P15-069（ON_COIN_PAID③＝usageLimit:twice_per_turnが3回目の支払いで発火しない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P15-069#1'], null, null], // watcher兼コイン支払い元
+        'coins': 6, // 【起】コイン2×3回分
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const payOnce = async (label) => {
+        let modalOpened = false;
+        for (let s = 0; s < 15; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/coinPaidTwice-${label}-${s}.png`, fullPage: true });
+          let did = null;
+          if (!modalOpened) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+          if (!did) {
+            const actBtn = page.getByRole('button', { name: /【起】.*コイン/ }).first();
+            if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】コイン'; }
+          }
+          if (!did) {
+            const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+          }
+          const st = await H.queryState();
+          H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | coins=${st?.host?.coins ?? '-'} pmods=${(st?.host?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+          if (!did && modalOpened && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
+            // 発動完了（モーダルが閉じ保留なし）と判断してこの回を終える
+            await page.waitForTimeout(600);
+            return await H.queryState();
+          }
+        }
+        return await H.queryState();
+      };
+      const before = await H.queryState();
+      H.log('開始時 coins:', before?.host?.coins);
+      const after1 = await payOnce('pay1');
+      const n1 = (after1?.host?.powerMods ?? []).filter(m => m.startsWith('WXDi-P15-069#1:')).length;
+      H.log(`1回目後 pmods件数=${n1} coins=${after1?.host?.coins}`);
+      const after2 = await payOnce('pay2');
+      const n2 = (after2?.host?.powerMods ?? []).filter(m => m.startsWith('WXDi-P15-069#1:')).length;
+      H.log(`2回目後 pmods件数=${n2} coins=${after2?.host?.coins}`);
+      if (n2 <= n1) {
+        return { pass: false, detail: `2回目のON_COIN_PAIDが未発火（pmods ${n1}→${n2}）＝usageLimit検証の前提が崩れた` };
+      }
+      const after3 = await payOnce('pay3');
+      const n3 = (after3?.host?.powerMods ?? []).filter(m => m.startsWith('WXDi-P15-069#1:')).length;
+      H.log(`3回目後 pmods件数=${n3} coins=${after3?.host?.coins}`);
+      if (n3 > n2) {
+        return { pass: false, detail: `【要注意】usageLimit未機能の疑い＝3回目の支払いでも発火（pmods ${n2}→${n3}）＝twice_per_turnガードが同一ターン内3回目で効いていない` };
+      }
+      return { pass: true, detail: `usageLimit《ターン2回》が正しく機能＝1→2回目で発火（pmods ${n1}→${n2}）・3回目は発火せず（${n2}→${n3}・coins=${after3?.host?.coins}）` };
+    },
+  },
+
   // R44②＝exceedCostと同じ盤面だが、任意コストプロンプトを「スキップ」せず実際に《黒》を支払って
   // 対象選択CHOOSEまで進め、相手シグニ（WX01-053）に-5000が実際に適用されることを確認する。
   exceedCostPay: {
