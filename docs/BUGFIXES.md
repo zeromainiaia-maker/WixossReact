@@ -5,6 +5,17 @@
 
 ---
 
+## 「対象のパワーN以下のシグニ…手札を1枚捨ててもよい。そうした場合、バニッシュする」型9枚＝強制discard化＋パワー閾値フィルタ脱落を是正（2026-07-12・続き105・Sonnet 5・PLAN §3 census文型バッチ・単点修正）
+
+census文型クラスタ「パワー閾値(NN以上/以下)」の中に、LIFE_BURSTを中心に7枚が全く同一の burst テキスト「：対戦相手のパワー12000以下のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、それをバニッシュする。」を持つ塊を発見。派生2枚（BURSTのみのWXDi-P03-059・AUTO本体のWX24-P4-050＝閾値8000）を合わせて計9枚が同型の二重バグ。
+
+- **バグ①＝「捨ててもよい」（任意コスト）が`TRASH`の`optional`未設定で強制discard化**していた。**バグ②＝「パワーN以下の」という対象制限がBANISHの`target.filter`から丸ごと脱落**していて、対戦相手の場の任意のシグニをバニッシュできてしまっていた（強い方への過剰効果）。
+- **修正＝`TRASH.optional`（`src/types/effects.ts:649`＝「捨ててもよい。スキップ時は後続のCONDITIONAL(IS_MY_TURN)=『そうした場合』を実行しない」で既にengine実装済み）に`true`を設定＋`BANISH`の`target.filter`へ`powerRange:{max:N}`を追加**＝parser/engine変更なしの既存idiomをそのまま踏襲（同型の正しい実装例＝WXDi-D08-013／WXDi-P14-084が既存）。`scratchpad/patchOptionalDiscardBanish.mjs`でJSON直接パッチ（`effects_WXDi.json`8件＋`effects_WX24_26.json`1件・機械diffで意図した9件のみの変更を確認）。
+- **golden追加**＝WX24-P4-050で、辞退時（0枚選択）はBANISHへ進まず手札も減らないこと、パワー閾値超の相手シグニしかいない場合はBANISH候補0件で無害に完了すること（過剰効果なら対話待ちのまま残る）の両方を確認（golden 284→285）。
+- **検証**＝`npm run gates`全緑（typecheck／golden285／smoke SKIP258・CRASH0／fuzz0／census**1471→1467**／同型★0）。`BASELINE_HIGH`更新済み。
+
+---
+
 ## CHOOSE選択肢②「あなたの場に(色)の＜C＞のシグニがある場合」の条件節が丸ごと脱落／一部は対象フィルタへ誤混入していた6枚を是正（2026-07-12・続き105・Sonnet 5・PLAN §3 census文型バッチ・単点修正）
 
 census文型クラスタ「条件節(〜の場合)」の中に、CHOOSEの選択肢を強化するタイプの盤面条件（「①基本効果。②あなたの場に(色)の＜C＞のシグニがある場合、より強い効果。」）を持つ6枚を発見。
