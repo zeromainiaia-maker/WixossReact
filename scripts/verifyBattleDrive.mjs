@@ -1276,6 +1276,103 @@ const scenarios = {
     },
   },
 
+  // R37「他4枚の個別確認」①のうち signi watcher 2枚（WX20-Re03/WXDi-P01-043）＝powerzero と同型・watcherのみ差し替え。
+  powerzeroWX20Re03: {
+    title: 'WD11-013→WX20-Re03（R37他4枚①＝ON_SIGNI_POWER_ZERO_OR_LESS・エナチャージ1）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX08-004#1'],                  // ミュウ Lv4/Limit11（WD11-013「ミュウ限定」を満たす）
+        'field.signi': [['WX20-Re03#1'], null, null],  // watcher（ドライ＝ラッカー）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-083#1'], null, null],   // バニッシュ対象（P1000＝-1000でちょうど0化）
+      },
+      handPrepend: ['WD11-013#1'],                     // 幻蟲 モンチョウ（【出】対戦相手シグニ-1000・コストなし）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const hEnergy0 = before?.host?.energy ?? 0;
+      H.log('開始時 自エナ:', hEnergy0);
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/powerzeroWX20Re03-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const doneFlag = (st?.host?.actionsDone ?? []).includes('WX20-Re03-E1');
+        H.log(`  pz20re03[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${doneFlag}`);
+        if (doneFlag && (st?.host?.energy ?? 0) > hEnergy0) {
+          return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WX20-Re03 がエナチャージ（hEnergy ${hEnergy0}→${st.host.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 未確認（hEnergy ${hEnergy0}→${fin?.host?.energy ?? '-'} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'}）` };
+    },
+  },
+
+  powerzeroWXDiP01043: {
+    title: 'WD11-013→WXDi-P01-043（R37他4枚①＝ON_SIGNI_POWER_ZERO_OR_LESS・エナチャージ1）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX08-004#1'],                     // ミュウ Lv4/Limit11
+        'field.signi': [['WXDi-P01-043#1'], null, null],  // watcher（大装 ダークエナジェ）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-083#1'], null, null],
+      },
+      handPrepend: ['WD11-013#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      const hEnergy0 = before?.host?.energy ?? 0;
+      H.log('開始時 自エナ:', hEnergy0);
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/powerzeroWXDiP01043-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const doneFlag = (st?.host?.actionsDone ?? []).includes('WXDi-P01-043-E1');
+        H.log(`  pzP01043[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${doneFlag}`);
+        if (doneFlag && (st?.host?.energy ?? 0) > hEnergy0) {
+          return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WXDi-P01-043 がエナチャージ（hEnergy ${hEnergy0}→${st.host.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 未確認（hEnergy ${hEnergy0}→${fin?.host?.energy ?? '-'} actions=${(fin?.host?.actionsDone ?? []).join(',') || '-'}）` };
+    },
+  },
+
   // ⑭ WX01-081→WXDi-P04-065: R38（§7）ON_SIGNI_FROZEN の実機検証。
   //    WX01-081【出】（ON_PLAY・mandatory・相手シグニ1体を凍結・「ピルルク限定」＝center lrigをピルルク系に）を
   //    召喚→SELECT_TARGETで相手シグニを指定→FREEZE適用→collectFreezeTriggers が watcher（WXDi-P04-065・
