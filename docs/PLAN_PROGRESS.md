@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き102・Sonnet 5・semantic audit スケールアップ第1弾＝119枚精査・単点是正21件）**
+  - **✅ Sonnetタスク8「stub群2,306枚へのスケールアップ」に着手＝`claude -p`が使える環境と確認し実行**＝`semanticAuditExtract.mjs --per-group 100 --seed 202607`（200枚サンプル・20バッチ）→`semanticAuditRun.mjs --model sonnet`。**20バッチ中12バッチ（119枚）完了時点で`claude -p`のセッション上限（429・21:10 JSTリセット）に到達し中断**＝findings 125件を確保。findings/manifestは`scripts/archive/scratchpad/semantic_audit_101/`に保存（残り8バッチはリセット後に同コマンドで再開可・済みバッチはスキップされる）。
+  - **✅ 単点是正21件をJSON直パッチ**（parser/engine変更なし・owner/filter/duration/optional/usageLimit等の既存語彙のみ）＝WD12-018・WX12-018・WX17-009・WD22-029-G・WX18-009・WXK06-049・WXEX2-30・WX07-029・WXDi-P00-034・WXK03-020・WXEX1-65・WXK01-037・WXDi-CP02-089・WX24-P4-047・WXK01-044・WX21-001・WX13-002・WX25-P2-059・WXDi-P08-072（詳細・全effectId BUGFIXES続き102）。census 1479→1477・golden 278・全ゲート緑・同型★0維持。
+  - **⚠ 適用中に判明した罠＝POWER_MODIFYのdurationはaction自身のフィールドで判定される**（outer effect.durationとは別物）＝WXDi-P08-072-E2/WX25-P2-059-E2で当初outer側だけ直して機能面で無修正だったことに気づき、action側にも`duration:'UNTIL_OPP_TURN_END'`を追加して再修正・decompilerで注記表示を確認。
+  - **🆕 新規engineバグを発見しOpusタスク12へ登録＝`execBlockAction`の`SIGNI+ATTACK`分岐が`target.count`/`upToCount`を一切読まず、対象選択ステップが無いカードは対象オーナーの全シグニを無差別ブロックする**（`effectExecutor.ts:1536-1550`）。WX18-009他サンプルで11枚超の同型カードを確認（原文はすべて「シグニN体を対象とし」の選択式なのに実装は「全ブロック」フォールバック＝過剰効果）。全数調査は未実施。
+  - **登録のみ・未修正（Opusタスク12/6.2/6.3へ）**＝STUB id意味不一致6枚・「代わりに」置換構造3枚・動的レベル比較2枚・イベントトリガー誤変換1枚・丸ごと欠落した処理7枚超・その他個別2枚。詳細一覧は`scripts/archive/scratchpad/semantic_audit_101/findings_compact.txt`（125件）参照。
+  - **次の一手＝** (a) `claude -p`上限リセット後（21:10 JST）に残り8バッチ（81枚）を再開して精査継続、(b) 今回発見のBLOCK_ACTION(SIGNI,ATTACK)バグの全数調査（`target.count!==1`以外も含め全カード走査）、(c) 未着手ならPLAN §3 Sonnetタスク1系（R-series②③番手・Opus12着地待ち分）の再検証。
+
 - **セッション（2026-07-12・続き101・Sonnet 5・§7実機検証R-seriesの残4項目を全決着）**
   - **✅ R43②（ON_ENERGY_TO_TRASH「自効果」限定近似）＝コード読解で確定・確定のみで browser 検証は見送り**＝`collectEnergyToTrashTriggers`はエナ**プール**の増減（self/opponent/any）しか見ず「誰の効果か」は追跡しない設計（関数doc既記載）＝相手が相手自身の効果で相手自身のエナを捨てても発火する過剰発火が実装上確定。§6.3相当の機構待ちへ位置づけ統一。
   - **✅ ON_LRIG_GROW③（any_opp発火順序）＝コード読解＋既存golden「ターンプレイヤー→相手の順でキュー構築」で確定＝`BattleScreen.tsx`のコメントが実装と逆を記載していたドキュメントバグと判明**＝実際は「グロウ先ルリグ自身の【出】（ターンプレイヤー側）が先、any_opp watcher（相手側）が後」。コメントを実装に合わせて訂正（機能変更なし）。ON_LRIG_GROWは①②③決着・④（usageLimit書き戻し漏れ）のみOpusタスク12(vi-5)待ちで残置。
