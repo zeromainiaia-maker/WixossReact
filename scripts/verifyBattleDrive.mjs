@@ -3566,41 +3566,33 @@ async function injectScenario(page, spec) {
       o[parts[parts.length - 1]] = val;
     };
     const hs = row.host_state, gs = row.guest_state;
-    // シナリオ間の状態汚染対策：前シナリオが残した揮発フィールド（付与キーワード・一時パワー修正・
-    // 使用済みアクション等）を注入前に既定値へ戻し、バッチ実行を分離実行と同じ初期条件にする。
-    // spec が同名フィールドを持つ場合はこの後の setPath が上書きする。
+    // シナリオ間の状態汚染対策（続き77で field.* まで拡張→続き105で全面書き換え）。
+    // ⚠続き105（Sonnet・§3タスク3）＝個別フィールドの列挙方式は根本的に脆いと判明。
+    // PlayerState（src/types/index.ts）は deck/hand/energy/trash/life_cloth/lrig_deck/lrig_trash/coins/field の
+    // 「盤面の物理配置」9フィールドを除き、残り約170個がすべて「ターン中/ゲーム中の一時状態」の任意フィールドで、
+    // 新しい効果機構が実装されるたびに増え続ける。列挙リストは追加のたびに手で追随しない限り必ず漏れる
+    // （実例＝abilities_removed が未列挙のまま残り、47シナリオ一括実行の後半7件が前シナリオの
+    // gAbilitiesRemoved 残留で FAIL した＝続き105で機械確認・詳細 BUGFIXES 続き105）。
+    // 根本修正＝「盤面の物理配置」だけをホワイトリストで引き継ぎ、それ以外の全トップレベルフィールドを
+    // 注入前に削除する（列挙ではなく除外方式＝将来の新規フィールドも自動的にカバーされる）。
+    // spec.hostSet/guestSet が同名フィールドを持てばこの後の setPath が上書きするので安全。
+    const CORE_TOP_FIELDS = new Set(['deck', 'lrig_deck', 'hand', 'life_cloth', 'trash', 'lrig_trash', 'energy', 'coins', 'field']);
+    // field 配下も同じ理屈＝実際のカード配置（lrig/signi 本体・アシストルリグ・フリーゾーン・ビートゾーン・
+    // キー/ピース）だけを引き継ぎ、ダウン/凍結/チャーム/アクセ等のステータスマーカーは全部リセットする。
+    const CORE_FIELD_KEYS = new Set(['lrig', 'signi', 'assist_lrig_l', 'assist_lrig_r', 'check', 'key_piece', 'key_piece_extra', 'free_zone', 'beat_zone']);
     for (const s of [hs, gs]) {
-      s.keyword_grants = {};
-      s.keyword_grants_until_opp_turn = {};
-      s.field_keyword_grants_next_turn = [];
-      s.field_keyword_grants_active = [];
-      s.granted_effects = {};
-      s.granted_effects_until_opp_turn = {};
-      s.temp_power_mods = [];
-      s.temp_level_mods = [];
-      s.power_mods_until_opp_turn = [];
-      s.actions_done = [];
-      s.blocked_actions = [];
-      s.free_grow_this_turn = false;
-      s.deck_shuffled_count = 0;
-      s.hand_trashed_by_opp_this_turn = 0;
-      s.energy_trashed_by_opp_this_turn = 0;
-      s.negated_attacks = [];
-      s.negated_attacks_escape = {};
-      s.delayed_triggers = [];
-      // ⚠続き77（Sonnet・§3タスク3）＝ゾーン単位の状態マーカー（field.*）も同種の汚染源だった。
-      // 従来は field.signi_acce のみ各シナリオの hostSet 側で個別に手動クリアしていたが（続き76の acceSelfScope 等）、
-      // signi_down/signi_frozen/lrig_frozen 等の**他のゾーン配列も同じ理屈で残留しうる**（前シナリオの盤面が
-      // 残したダウン/凍結/アクセ/チャーム等のマーカーが、新シナリオが同じゾーンに置いた**別のカード**に誤って
-      // 引き継がれる）。field.signi/field.lrig 自体（配置カード）は全シナリオが hostSet で毎回明示するため対象外だが、
-      // それ以外のゾーン付随マーカーは spec が言及しないことが多く、根本修正としてここで一括初期化する
-      // （spec.hostSet/guestSet が同名パスを持てばこの後の setPath が上書きするので安全）。
+      for (const k of Object.keys(s)) { if (!CORE_TOP_FIELDS.has(k)) delete s[k]; }
       if (s.field) {
+        for (const k of Object.keys(s.field)) { if (!CORE_FIELD_KEYS.has(k)) delete s.field[k]; }
+        // 削除しただけだと undefined になり、配列前提でインデックスアクセスするUI/engineコードが壊れうるため
+        // ゾーン単位マーカーは既定値で明示的に張り直す（続き77の対象＋続き105で assist_lrig_*_down を追加）。
         s.field.signi_down = [false, false, false];
         s.field.signi_frozen = [false, false, false];
         s.field.lrig_down = false;
         s.field.lrig_frozen = false;
         s.field.lrig_attacked = false;
+        s.field.assist_lrig_l_down = false;
+        s.field.assist_lrig_r_down = false;
         s.field.signi_charms = [null, null, null];
         s.field.signi_acce = [null, null, null];
         s.field.signi_virus = [0, 0, 0];
