@@ -133,6 +133,13 @@ function autopilot(first: ExecResult, baseCtx: ExecCtx): { status: string; detai
           result = resumeRearrangeSigni(arr, pending as never, ctx);
           break;
         }
+        case 'DECLARE_BOND': {
+          const deckCards = (p.deckCards as string[]) ?? [];
+          if (deckCards.length === 0) return { status: 'SKIP', detail: 'DECLARE_BOND no deckCards' };
+          result = resumeDeclareBond(deckCards[0], pending as never, ctx);
+          break;
+        }
+        case 'REVEAL_CARDS': result = resumeRevealCards(pending as never, ctx); break;
         default:
           return { status: 'SKIP', detail: `unhandled pending: ${pending.type}` };
       }
