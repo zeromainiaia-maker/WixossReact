@@ -3890,7 +3890,17 @@ try {
     const inj = await injectScenario(page, sc.spec);
     console.log('注入:', JSON.stringify(inj));
     if (inj.error) { results.push({ id, pass: false, detail: '注入失敗: ' + inj.error }); continue; }
-    await page.waitForTimeout(2500);
+    // ⚠続き105（Sonnet・§3タスク3）＝injectScenario の DB リセット（host_state/guest_state のホワイトリスト化）
+    // だけでは、前シナリオの BattleScreen インスタンスが持つ React state・setInterval/setTimeout・
+    // Supabase Realtime購読等の**クライアント側の残留状態**は消えないと機械的に切り分け済み
+    // （47件一括→7件小バッチでは再現する不定期FAILが、完全新規ログインでの単独実行では再現しなかった＝
+    // DB起因ではなくクライアントランタイム起因。詳細 BUGFIXES 続き105）。
+    // 根本修正＝毎シナリオ直前に reload してコンポーネントツリーを丸ごと再マウントする。
+    // App.tsx の起動時ロジック（PLAYING ルームを検出して自動的に BattleScreen へ復帰＝
+    // gotoMatchmaking の初回セットアップと同じ経路）を再利用するため、直前の injectScenario の
+    // DB書き込みはそのまま活きる（reload後の初回フェッチで注入済みの盤面を読む）。
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
     await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
     let r;
     try { r = await sc.drive(page, H); }
