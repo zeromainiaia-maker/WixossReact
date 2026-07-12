@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き95・Sonnet 5・Sonnetタスク1＝§7 R37「他4枚」完了＋新規engineバグ発見）**
+  - **✅ R37「他4枚の個別確認」を完了＝LRIG watcher 2枚（WX22-013・WXDi-P14-009）の検証で新規engineバグを確定**＝`collectPowerZeroTriggers`（`triggerCollect.ts:195`）が`field.lrig`を走査していないため**LRIGカードのON_SIGNI_POWER_ZERO_OR_LESS能力が印刷テキストどおり一切機能していない**（他コレクタが使う`ownFieldSources`未使用の設計漏れ）。`powerzeroWX22013`/`powerzeroWXDiP14009`シナリオで呼び水の-1000適用は正常・watcher非発火を確認。Opusタスク12(vi-3)へ登録（詳細 BUGFIXES 続き95）。
+  - **R37は①②③とも全カード実機検証を終えた状態に到達**（signi watcher4枚は正常動作確認済み・LRIG watcher2枚は実バグとして切り分け完了・②《ターン1回》③連鎖再発火はOpus修正後に再検証）。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目多数（R43②自エナ/相手効果での非発火・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082 等）から1件ずつ消化。Opusタスク12(vi-2)(vi-3)着地後はSonnetタスク9残258件の再測定・R37 LRIG2枚の再検証も。
+
 - **セッション（2026-07-12・続き94・Sonnet 5・Sonnetタスク1＝§7 R37「他4枚」個別確認を2枚追加）**
   - **✅ R37（パワー0以下トリガー）「他4枚の個別確認」のうちsigni watcher 2枚を実機PASS**＝`powerzeroWX20Re03`（WX20-Re03）・`powerzeroWXDiP01043`（WXDi-P01-043）を`powerzero`と同型（watcherのみ差し替え）で新設。ともにENERGY_CHARGE_FROM_DECK・`host.energy`増加で確認・単体実行で2回連続PASS。後者は`wxk10068banish`と同型のguest_state注入レース（バッチ実行時のみ再現）があり`order`配列には追加せず単体実行専用として残す。詳細 BUGFIXES 続き94。
   - **残＝WX22-013（ルリグ・CHOOSE選択）・WXDi-P14-009（ルリグ・turnOwner:self条件）は未着手**（LRIG watcher特有の手順検討が必要）。
