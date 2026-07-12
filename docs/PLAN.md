@@ -120,7 +120,7 @@
 9. **smoke SKIP 268 の解消**（autopilot の対話カバレッジ拡張＝REVEAL_CARDS/DECLARE_BOND 等・`scripts/smokeTest.ts` 側のみ＝engine 不変・§6.4）。
 10. ~~**WXK04-003 のボタンラベル表示バグ**~~ **✅完了（続き81・Sonnet）**＝`getMyLrigFieldActions` 内3箇所（own/継承/付与のcostParts）に `eff.cost?.coin` 考慮を追加。E2「サプライズ《コインアイコン》」が「【起】コストなし」→「【起】コイン1」に是正。実UI検証＝`node scripts/verifyBattleDrive.mjs wxk04003Label` PASS（もう一方のボタン＝`WXK04-003-DECORE`〔manualEffects.ts・【デコレ】ACCE付与〕はcost count:0で元から正当な「コストなし」＝2ボタン共存が正解と判明）。詳細 BUGFIXES 続き81。
 11. **`checkAllEffects` の `MANDATORY_SUSPICIOUS` 一次精査＋`verifyEffects`「定義なし」誤検出（注釈・トークン）の除外改善**（§6.4。実バグ判定が要るものは Opusタスク12 へ）。
-12. **§5b 英語ID漏れ残367件の系統分類**（grep 走査で母集団を機械抽出→混線の系統リスト化まで。JSON再構造化の本修正は Opusタスク13）。
+12. ~~**§5b 英語ID漏れ残367件の系統分類**~~ **✅完了（続き87・Sonnet）**＝PLAN記載の「367件」は古い数字で現状（実測823カード・タグ出現968・distinct id 316種）と大きく乖離していた（BEHAVIOR_AUDIT等の主作業でカードが増減し続けているため）。新設の`scripts/_stubLeakScan.mjs`で機械抽出→キーワードベースで16テーマ（デッキ操作系/パワー修正系/手札系/トラッシュ系/対戦相手コスト系/エナ系/ライフ系/シグニ配置系/ルリグ系/能力付与系/ガード・アタック制限系/ソウル・アーツ系/ウィルス系/色・クラス系/ゲーム除外系/チャーム系）に分類し`docs/_stub_leak_classification.txt`へ出力。上位＝デッキ操作系184枚／パワー修正系165枚／手札系102枚。JSON/engineは無変更（分析のみ・JSON再構造化の本修正はOpusタスク13）。詳細 BUGFIXES 続き87。
 - ~~§5b 逆翻訳テール＝STUB id 意味文化／B層 JSONデータ欠落補完~~ **✅完了（続き33-36・2026-07-07再確認・§5b参照。残例外は Opusタスク5 へ移管済み）**。
 
 #### 分類マトリクス（2026-07-11新設・タスク番号は上のリストと同一）
