@@ -3809,6 +3809,7 @@ try {
         handTrashedByOpp: s.hand_trashed_by_opp_this_turn ?? 0,
         energyTrashedByOpp: s.energy_trashed_by_opp_this_turn ?? 0,
         delayedTriggers: s.delayed_triggers ?? [],
+        coins: s.coins ?? 0,
       });
       return {
         host: sideOf(hs),
