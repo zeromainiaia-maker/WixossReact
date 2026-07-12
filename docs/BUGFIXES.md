@@ -5,6 +5,16 @@
 
 ---
 
+## golden 型網羅の追加（続き）＝POWER_MODIFY_PER_*/BY_* 系13型（2026-07-12・続き83・Sonnet 5・PLAN §3 Sonnetタスク5）
+
+続き82に続き、未カバーだったPOWER_MODIFY_PER_*/BY_*系13型（PER_STACK／PER_LEVEL_SUM／PER_LRIG_LEVEL／PER_LIFE_COUNT／PER_VIRUS_COUNT／PER_ENERGY_COLOR／PER_CHARM／PER_FIELD／BY_TARGET_LEVEL／BY_SOURCE／PER_TRASHED_LEVEL／PER_HAND_COUNT／MULTIPLY）にテストを追加（golden 242→255）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
+
+- **各型の実カード使用パターンを`effects_*.json`から実測してテスト方式を分岐**＝(a) CONTINUOUS宣言型（実カードが100%または大半CONTINUOUSのPER_STACK/PER_LEVEL_SUM/PER_LIFE_COUNT/PER_VIRUS_COUNT/PER_ENERGY_COLOR）は`effectEngine.ts`の`calcFieldPowers`を直接呼んで検証（`POWER_MODIFY_PER_ENERGY`の既存テストと同型）。(b) 内部で`POWER_MODIFY`/`POWER_MODIFY_BY_TARGET_LEVEL`など**applyDirectAction対応済みのアクションへ委譲する型**（`execPowerModifyBySource`/`execPowerModifyPerTrashedLevel`/`execPowerModifyPerHandCount`は`executeAction`/`execPowerModify`へ直接委譲、`execPowerModifyPerCharm`の`trashed_this_effect`分岐も同様、`execPowerMultiply`は`applyDirectAction`に自身のcaseあり）は、続き82で発見した`applyDirectAction`欠落バグを踏まないため実カード同型（`count:1`の外部SELECT_TARGET経由）で検証できることを確認。
+- **PER_LRIG_LEVEL（実カード7/11がACTIVATED・target count:1）とPER_FIELD（target count:'ALL'が大半）は`applyDirectAction`に自身のcaseが無く**、count:1のSELECT_TARGET経由だと続き82と同じ`autopilot hang`を踏むため`count:'ALL'`（`selectOrInteract`をバイパスする分岐）に迂回してテストを書いた。PLAN §3 Opusタスク12(v)の「影響範囲の精査」対象に追記済み＝この2型もENERGY_CHARGE/STORY_CHANGEと同じ穴を持つ。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・golden 255）。
+
+---
+
 ## golden 型網羅の追加＋`applyDirectAction` ENERGY_CHARGE/STORY_CHANGE欠落バグの発見（2026-07-12・続き82・Sonnet 5・PLAN §3 Sonnetタスク5）
 
 121のDSLアクション型のうちgoldenTest.tsで未カバーだった73型を機械抽出し、うち12型（POWER_SET／ENERGY_CHARGE／ADD_TO_ENERGY／ADD_TO_BEAT／ADD_TO_LIFE／NEGATE_ATTACK／AWAKEN_SIGNI／PLACE_UNDER_SIGNI／STORY_CHANGE／GAIN_BOND／REMOVE_CHARM／DISCARD_BOTH）に1テストずつ追加（golden 230→242）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
