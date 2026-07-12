@@ -173,15 +173,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き81・Sonnet 5・Sonnetタスク1＝続き80で引き継いだ残3シナリオ〔exileHandBlind/delayedAttackTrigger/trashCounterOpp〕を再実行・原因切り分け・driver修正・engine実バグ1件を発見してOpusタスク12へ登録）**
-  - **✅ `exileHandBlind`/`delayedAttackTrigger`＝PASS化（driver側の不具合3件を修正）**＝(1)`exileHandBlind`のtrash基準値がコスト支払い前の値を見ていた（コスト支払いのtrash+1を退行と誤検知）。(2)`delayedAttackTrigger`のセンターLRIG画像クリックが`pointerEvents:'none'`で常に30秒タイムアウト（`{force:true}`で解消）。(3)使用済み後のフォールバッククリックが開いた`CardStackModal`が後続のフェイズ進行クリックをブロック。3件ともengine実装自体は正しく動作しており真バグではなかった。
-  - **✅ `H.closeModals()` を恒久修正**＝続き79が「Escape×3は当てにならない」と記録した問題を根治＝`CardModal`/`CardStackModal`はEscape非対応（背景divのonClickのみ）と判明したため「タップして閉じる」テキストクリックを追加。シナリオ間の残留モーダル汚染（`trashCounterOpp`が前シナリオの残留モーダルでブロックされていた実例）を解消。
-  - **✅ `trashCounterOpp`＝driverのシナリオ設定ミス（lrigレベル不足）を修正し実行は正常化したが、real engine bugを発見**＝`resumeSelectTarget`→`applyDirectAction`のTRASH/HAND_CARD分岐が`hand_trashed_by_opp_this_turn`等3フィールドの更新を欠く（`count:'ALL'`の即時適用パス`applyTrashHand`にはあるロジックが、`count:1`等でSELECT_TARGET経由する再開パスに丸ごと抜けている）＝**`TRASH{HAND_CARD,count:1}`を使う全カードが影響対象**。修正はせずOpusタスク12へ登録（PLAN §3・詳細 BUGFIXES）。`trashCounterOpp`は既定order外のまま。
-  - **既定orderに追加**＝`exileHandBlind`・`delayedAttackTrigger`（2回連続PASS確認）。実行時間は9分18秒→2分4秒に短縮（force-clickタイムアウト解消が主因）。
-  - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
-  - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
-
-
+- **🆕 セッション（2026-07-12・続き82・Sonnet 5・Sonnetタスク5＝golden型網羅の追加）**
+  - **✅ 121のDSLアクション型のうち未カバー73型を機械抽出**（`goldenTest.ts`の文字列含有チェックで洗い出し）→**12型に1テストずつ追加**（POWER_SET／ENERGY_CHARGE／ADD_TO_ENERGY／ADD_TO_BEAT／ADD_TO_LIFE／NEGATE_ATTACK／AWAKEN_SIGNI／PLACE_UNDER_SIGNI／STORY_CHANGE／GAIN_BOND／REMOVE_CHARM／DISCARD_BOTH）。golden 230→242、全ゲート緑、census 1483・同型★0とも維持（engine/parser/JSON は無変更）。
+  - **🔎 テスト作成中に実バグ1件を発見＝`applyDirectAction`（`effectExecutor.ts:4696`）に`ENERGY_CHARGE`/`STORY_CHANGE`等のcaseが無く、`default`節が選んだcardNumを無視して元アクションを再実行してしまう**。実カード母集団81件（`SEARCH→then:ENERGY_CHARGE{target:DECK_CARD}`パターン＝WX07-017/WX08-003等）が影響対象＝探し当てたデッキ札は消えず場のシグニ選択SELECT_TARGETにすり替わる。外部SELECT_TARGET経由（`count:1`等）だとautopilotが無限ループすることも実測（`goldenTest.ts`で`autopilot hang`）。**その場では直さずOpusタスク12(v)へ登録**（PLAN §3・修正はせず`count:'ALL'`で基礎ロジックのみ検証する形に迂回してgolden追加を完了）。`POWER_SET`はCONTINUOUS専用でeffectEngine側の別経路のため無関係と確認済み・`STORY_CHANGE`は実カード母集団0件で現状無害。
+  - **次の一手＝Opusタスク12(v)（`applyDirectAction`のENERGY_CHARGE/STORY_CHANGE等ケース欠落の修正＋影響範囲の全数点検）。Sonnet側はgolden型網羅の残61型、またはPLAN §3 Sonnetタスクリストの他項目（BET系表現描画・semantic audit・§7実機検証R-series残項目等）から次を選ぶ**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
