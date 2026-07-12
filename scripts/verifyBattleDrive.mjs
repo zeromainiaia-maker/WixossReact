@@ -1147,6 +1147,14 @@ const scenarios = {
             if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
           }
           if (!did) did = await H.clickTextOrBtn(['発動順序を確定']); // ON_COIN_PAID watcherと【起】効果の発動順序モーダル
+          if (!did) { // SELECT_TARGET（POWER_MODIFY対象＝自身1体のみ・候補1択）
+            const pick0 = page.getByTestId('pick-0').first();
+            if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
           const st = await H.queryState();
           H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | coins=${st?.host?.coins ?? '-'} pmods=${(st?.host?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
           if (!did && modalOpened && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
