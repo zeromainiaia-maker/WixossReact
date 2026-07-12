@@ -2063,13 +2063,14 @@ const scenarios = {
   },
 
   // R41②placedFront負例＝正面以外（guest zone1の正面=host zone1）にWD01-013を配置しても発火**しない**ことを確認。
-  // placedFront（①正例）と同じ盤面・watcherだが召喚先をhost zone0（=guest zone2の正面・watcherの正面ではない）に変える。
+  // WXDi-P03-043-E1（BLOCK_ACTION FORCE_PLACE_FRONT・「可能ならば」正面配置を強制）があるため、
+  // host zone1をあらかじめ埋めて「正面配置が不可能」にしないとzone0/2が選択肢に出ない（実測で確認済み）。
   placedFrontNegative: {
     title: 'WD01-013→WXDi-P03-043（placedFront②負例＝正面以外への配置では非発火）',
     spec: {
       hostSet: {
         'field.lrig': ['WD03-003#1'],
-        'field.signi': [null, null, null],
+        'field.signi': [null, ['WX01-083#2'], null], // zone1を埋めて正面配置を不可能にする（FORCE_PLACE_FRONTの「可能ならば」を回避）
         'actions_done': [],
       },
       guestSet: {
