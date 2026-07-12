@@ -1090,6 +1090,23 @@ test('Stage2 ON_PLAY field: any_opp 相手シグニが召喚に反応（WXK10-02
   eq(has(e, 'WXK10-022-E1'), true, 'any_opp発火');
   eq(e.find(x => x.effectId === 'WXK10-022-E1')?.playerId, GUEST, 'playerId=相手');
 });
+test('Stage2 ON_PLAY field: WXK10-022-E1のturnOwner:selfは収集後段のturnGateOk（effectStack.initStack）で正しくゲートされる（PLAN §7 R30②検証）', () => {
+  // collectFieldTriggers 自体はturnOwnerを見ない設計（WXK10-022-E1のエントリは常にplayerId=GUESTで積まれる）が、
+  // それを initStack に渡す際、effectStack.ts の turnGateOk が entry.effect.triggerCondition.turnOwner と
+  // entry.playerId(=GUEST) vs turnPlayerId を比較して中央集権的にゲートする設計（R36等と同型の二段構え）。
+  const host = mkState({}); const guest = mkState({ signi: ['WXK10-022', null, null] });
+  const e = collectFieldTriggers(trigCtx(HOST), 'ON_PLAY', SIGNI, host, guest, HOST);
+  // ケース1＝HOSTのターン中にHOSTがシグニを召喚（通常の対戦相手召喚）＝GUEST視点では「相手(HOST)のターン」＝
+  //   turnOwner:'self' を満たさない→turnGateOk で除外されるはず。
+  const stackDuringHostTurn = initStack(HOST, e);
+  const allEntriesHostTurn = [...stackDuringHostTurn.pendingTurn, ...stackDuringHostTurn.pendingOpp];
+  eq(has(allEntriesHostTurn, 'WXK10-022-E1'), false, '通常の相手ターン召喚では turnOwner:self ゲートで除外される（過剰発火なし）');
+  // ケース2＝GUESTのターン中にHOSTのシグニが場に出た（WXEX2-50【起】のような相手ターン中の特殊召喚）＝
+  //   GUEST視点で「あなたのターン」＝turnOwner:'self' を満たす→通過するはず。
+  const stackDuringGuestTurn = initStack(GUEST, e);
+  const allEntriesGuestTurn = [...stackDuringGuestTurn.pendingTurn, ...stackDuringGuestTurn.pendingOpp];
+  eq(has(allEntriesGuestTurn, 'WXK10-022-E1'), true, '相手ターン中の特殊召喚では turnOwner:self ゲートを通過する（原文どおり発火）');
+});
 test('Stage2 ON_PLAY field: any_ally triggerFilter(story:毒牙) 一致時のみ発火（WX06-021-E1）', () => {
   const guest = mkState({});
   const host = mkState({ signi: ['WX06-021', DOKUGA, null] });
