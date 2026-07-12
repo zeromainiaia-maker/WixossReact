@@ -2435,6 +2435,99 @@ test('DISCARD_BOTH 各1枚: 両プレイヤーの手札-1・トラッシュ+1', 
   eq(r.ownerState.hand.length, hs0 - 1, '自手札-1'); eq(r.otherState.hand.length, ho0 - 1, '相手手札-1');
 });
 
+// ── §3 Sonnetタスク5続き（続き83・POWER_MODIFY_PER_*/BY_* 系13型）──
+// ⚠一部の型（LRIG_LEVEL/FIELD等）は target.count が非'ALL'だとselectOrInteract→applyDirectActionの
+// 欠落caseに落ちる続き82発見バグ（Opusタスク12(v)）を踏むため、実カードにない構成のみ count:'ALL' に迂回。
+// POWER_MODIFY/POWER_MODIFY_BY_TARGET_LEVEL等へ委譲する型（BY_SOURCE/PER_TRASHED_LEVEL/PER_HAND_COUNT/
+// PER_CHARM(trashed_this_effect)/MULTIPLY）は委譲先が対応済みのためcount:1のSELECT_TARGET経路でも安全。
+test('POWER_MODIFY_PER_STACK: CONTINUOUS＝下段カード枚数×deltaPerCard（WX05-023）', () => {
+  const base = parseInt(cardMap.get('WX05-023')?.Power || '0');
+  const st = mkState({});
+  st.field.signi[0] = ['UNDER1', 'UNDER2', 'WX05-023'];
+  const p = calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(p.get('WX05-023'), base + 4000, '下2枚×2000');
+});
+test('POWER_MODIFY_PER_LEVEL_SUM: CONTINUOUS＝場の他＜龍獣＞のレベル合計×deltaPerLevel（WX05-058・excludeSelf）', () => {
+  const base = parseInt(cardMap.get('WX05-058')?.Power || '0');
+  const st = mkState({ signi: ['WX05-058', 'WX04-068', 'WX04-072'] }); // 龍獣 Lv2+Lv1=3
+  const p = calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(p.get('WX05-058'), base + 3000, '他＜龍獣＞レベル合計3×1000');
+});
+test('POWER_MODIFY_PER_LRIG_LEVEL(count:ALL): 自センタールリグLv×deltaPerLevelを相手全シグニに適用（WX04-101系）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
+  ctx.ownerState.field.lrig = ['WD03-002']; // Lv3
+  const r = run({ type: 'POWER_MODIFY_PER_LRIG_LEVEL', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, deltaPerLevel: -1000, lrigOwner: 'self' } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  eq(mods.filter(m => m.delta === -3000).length, 2, `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_LIFE_COUNT: CONTINUOUS＝自ライフクロス枚数×deltaPerLife（WX24-P3-052）', () => {
+  const base = parseInt(cardMap.get('WX24-P3-052')?.Power || '0');
+  const p = calcFieldPowers(mkState({ signi: ['WX24-P3-052', null, null], life: 3 }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(p.get('WX24-P3-052'), base - 6000, 'ライフ3枚×-2000');
+});
+test('POWER_MODIFY_PER_VIRUS_COUNT: CONTINUOUS＝相手場のウィルス数×deltaPerVirus（WX16-032）', () => {
+  const base = parseInt(cardMap.get('WX16-032')?.Power || '0');
+  const other = mkState({});
+  other.field.signi_virus = [1, 1, 0];
+  const p = calcFieldPowers(mkState({ signi: ['WX16-032', null, null] }), other, true, effectsMap, cardMap as Map<string, CardData>);
+  eq(p.get('WX16-032'), base + 2000, '相手ウィルス2×1000');
+});
+test('POWER_MODIFY_PER_ENERGY_COLOR: CONTINUOUS＝自エナの色種類数×deltaPerColor（WX14-063）', () => {
+  const base = parseInt(cardMap.get('WX14-063')?.Power || '0');
+  const oneColor = (col: string) => [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.Color || '').includes(col))!.CardNum;
+  const st = mkState({ signi: ['WX14-063', null, null] });
+  st.energy = [oneColor('白'), oneColor('赤'), oneColor('青')];
+  const p = calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(p.get('WX14-063'), base + 3000, 'エナ3色×1000');
+});
+test('POWER_MODIFY_PER_CHARM(trashed_this_effect): 自チャームをトラッシュしその枚数×deltaPerCharmをPOWER_MODIFYへ委譲（WX07-045）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+  ctx.ownerState.field.signi_charms = ['CHARM-A', null, null];
+  const t0 = ctx.ownerState.trash.length;
+  const r = run({ type: 'POWER_MODIFY_PER_CHARM', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerCharm: -7000, sourceOwner: 'self', sourceLocation: 'trashed_this_effect' } as EffectAction, ctx);
+  eq(r.ownerState.trash.length, t0 + 1, '自チャーム1枚をトラッシュ');
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.delta === -7000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_FIELD(count:ALL): 自場の＜毒牙＞数×deltaPerUnitを相手全シグニに適用（WX04-037）', () => {
+  const ctx = mkCtx({ signi: ['WX04-037', 'WX04-053', null] }, { signi: [SIGNI, SIGNI_P3000, null] });
+  const r = run({ type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, deltaPerUnit: -1000, countFilter: { cardType: 'シグニ', story: '毒牙' }, countOwner: 'self' } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  eq(mods.filter(m => m.delta === -2000).length, 2, `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_BY_TARGET_LEVEL: 対象自身のレベル×deltaPerLevel（WX06-021 BURST）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI_L3, null, null] });
+  const r = run({ type: 'POWER_MODIFY_BY_TARGET_LEVEL', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerLevel: -3000 } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI_L3 && m.delta === -9000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_BY_SOURCE: 効果元のパワー×multiplierをPOWER_MODIFYへ委譲（WXK10-075）', () => {
+  const src = SIGNI_P12000;
+  const ctx = mkCtx({ signi: [src, null, null] }, { signi: [SIGNI_P3000, null, null] }, src);
+  const r = run({ type: 'POWER_MODIFY_BY_SOURCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, basis: 'power', multiplier: -1 } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI_P3000 && m.delta === -12000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_TRASHED_LEVEL: 直前トラッシュ札のレベル合計×deltaPerLevelをPOWER_MODIFYへ委譲（WX09-021）', () => {
+  const ctx = { ...mkCtx({}, { signi: [SIGNI_P3000, null, null] }), lastProcessedCards: [SIGNI_L2] } as ExecCtx;
+  const r = run({ type: 'POWER_MODIFY_PER_TRASHED_LEVEL', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerLevel: -2000 } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI_P3000 && m.delta === -4000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_HAND_COUNT: 自手札枚数×deltaPerCardをPOWER_MODIFYへ委譲（WXDi-P16-070）', () => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null], hand: 3 }, {});
+  const r = run({ type: 'POWER_MODIFY_PER_HAND_COUNT', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, deltaPerCard: 1000, handOwner: 'self' } as EffectAction, ctx);
+  const mods = (r.ownerState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI && m.delta === 3000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MULTIPLY: パワーを2倍に（delta=現在パワー×(multiplier-1)・WX10-077）', () => {
+  const src = SIGNI_P3000;
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const r = run({ type: 'POWER_MULTIPLY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, multiplier: 2 } as EffectAction, ctx);
+  const mods = (r.ownerState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === src && m.delta === 3000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
