@@ -5,6 +5,21 @@
 
 ---
 
+## usageLimit書き戻し漏れ（続き99のON_COIN_PAIDバグ）を横断棚卸し＝あと3コレクタ・28枚が同型の穴（分析専用・2026-07-12・続き100・Sonnet 5・PLAN §3 Sonnetタスク1の副産物）
+
+続き99で見つけた「`collectCoinPaidTriggers`がusageLimit判定用の`actions_done`書き戻しを一切行わない」バグが、**同じ設計ミスを持つ他のコレクタにも横展開できるか**を`triggerCollect.ts`全関数の返り値型を機械チェックして棚卸しした。
+
+- **手法**＝usageLimitの分岐（`eff.usageLimit === 'once_per_turn'`等）を持つのに、戻り値が`{entries, usedIds}`系ではなく素の`StackEntry[]`のコレクタを抽出→呼び出し元（`BattleScreen.tsx`）が書き戻しをしているか確認。
+- **確定した同型バグ＝3コレクタ・実カード28枚が追加で影響対象**（続き99のON_COIN_PAID・3枚と合わせ計31枚）：
+  - **`collectBanishTriggers`（ON_BANISH）＝18枚**（最多。呼び出し元5箇所いずれも書き戻しなし）：WX18-002／WX22-011／WXEX1-18／WXDi-P03-042／WXDi-P09-041／WXDi-P09-060／WXDi-P10-075／WXDi-P15-090／WXDi-P16-074／WX25-P1-084／WX25-P1-086／WX25-P2-057／WX24-D2-19／WXK03-027／WXK07-074／WXK11-018／WXK11-020／WXK11-041。
+  - **`collectPowerZeroTriggers`（ON_SIGNI_POWER_ZERO_OR_LESS）＝6枚**（続き95/96で見つけたLRIGゾーン走査漏れとは別軸の追加バグ＝**シグニタイプのwatcherでも usageLimit が機能しない**。WX20-Re03/WX21-067/WXDi-P01-043は続き37/94で①発火のみ確認済みで②の複数回発火抑制は未検証だった＝今回のコード読解で②も壊れていると判明）。
+  - **`collectLrigGrowTriggers`（ON_LRIG_GROW）＝4枚**（WXDi-P03-039/WXDi-P05-010×2/WXK11-012。PLAN §7 ON_LRIG_GROW④「2回目グロウで再発火しないか」が長らく未検証だった理由がこれで判明＝そもそもガード自体が機能していない）。
+- **修正パターンは続き99と同一**＝各コレクタを`{entries, usedIds}`形式に変更し、呼び出し元（`collectBanishTriggers`5箇所・`collectPowerZeroTriggers`1箇所・`collectLrigGrowTriggers`2箇所）で`actions_done`への書き戻しを追加。
+- **修正はせずOpusタスク12(vi-5)に追記登録**（続き99の単発発見から範囲を拡大）。CLAUDE.mdの運用ルールに従いSonnetでは修正しない。
+- **検証**＝分析のみ（JSON/engine無変更）。個別カードの実機再現は続き99のON_COIN_PAID（`coinPaidTwice`）で確認済みの設計欠陥がコードパターンとして同一であることをもって根拠とし、残り28枚は同一パターンの機械抽出＋コード読解で確定（実機検証は費用対効果が低いため今回は見送り）。
+
+---
+
 ## §7 ON_COIN_PAID③《ターン2回》検証で2件発見＝表示バグ1件を修正・engineバグ1件をOpusへ登録（2026-07-12・続き99・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 ON_COIN_PAID③（`usageLimit:'twice_per_turn'`が3回目の支払いで発火しないこと）を`coinPaidTwice`シナリオ（WXDi-P15-069自身の【起】《コイン》×2を同一ターン内に3回発動）で検証。
