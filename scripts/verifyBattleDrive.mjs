@@ -2089,7 +2089,7 @@ const scenarios = {
         let did = null;
         const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
         if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
-        if (!did && summoned) did = await H.clickTestId('summon-zone-0'); // 正面ではないゾーン（guest zone1=watcherの正面はhost zone1）
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-2'); // 正面ではないゾーン（host zone1は埋まっているため選択肢に出ない）
         if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1');
