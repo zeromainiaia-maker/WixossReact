@@ -319,7 +319,8 @@ export interface TargetFilter {
   powerRange?: { min?: number; max?: number };
   costMax?:   number;  // 使用コストの合計（《色×N》の合計、コインを除く）がこの値以下（「コストの合計が1以下のスペル」WX04-071 等）
   costMin?:   number;  // 使用コストの合計がこの値以上（costMin と costMax を同値にすると「コストの合計がちょうどN」WX04-084 等）
-  story?:     string | string[];  // Dissona専用。シグニクラスには cardClass を使う
+  story?:     string | string[];  // ＜クラス＞フィルターの旧名（matchesFilter で cardClass と同一＝CSVの CardClass に includes でマッチ）。新規コードは cardClass を使う。
+                                  // CSVの Story 列は '-' か 'Dissona' の2値しか取らないため、ここに 'Dissona' を入れても一致しない → ディソナ判定は isDisona を使う
   cardClass?: string | string[]; // ＜クラス＞フィルター（CSVのCardClassフィールドに対してincludesでマッチ）
   cardClassExclude?: string | string[]; // ＜クラス＞除外（「＜天使＞ではないシグニ」等。CardClassにincludesでマッチしたら除外）WX03-002
   hasGuard?:  boolean;
