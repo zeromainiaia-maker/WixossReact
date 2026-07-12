@@ -1342,7 +1342,7 @@ const scenarios = {
     title: 'WX01-081×2→WX08-039（ON_SIGNI_FROZEN③＝同一ターン内2体を別々に凍結しても発火は1回のみ）',
     spec: {
       hostSet: {
-        'field.lrig': ['WD03-003#1'],                     // コード・ピルルク・Ｍ Lv2（WX01-081の「ピルルク限定」を満たす）
+        'field.lrig': ['WD03-002#1'],                     // コード・ピルルク・Ｇ Lv3/Limit8（WX01-081の「ピルルク限定」を満たしつつ、watcher(Lv4)+2枚(各Lv1)=6≤8のリミット余裕を確保）
         'field.signi': [['WX08-039#1'], null, null],      // watcher（コードアート Ｍ・Ｍ・ON_SIGNI_FROZEN《ターン1回》→対戦相手手札1捨て）
         'actions_done': [],
       },
