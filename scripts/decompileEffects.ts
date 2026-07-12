@@ -1595,6 +1595,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/ベット―[\s\S]*/);
         if (m) return m[0];
       }
+      // すべての領域でクラス扱い（TREAT_AS_CLASS_ALL_ZONES）＝「このカードはすべての領域で＜X＞として扱う」を原文抽出
+      // （collectTreatAsClassAllZones が同じ正規表現でクラス名を実行時に読み取るため、抽出パターンを合わせてある）。
+      if (a.id === 'TREAT_AS_CLASS_ALL_ZONES') {
+        const m = currentCardText.match(/[^。]*すべての領域で＜.+?＞として扱う/);
+        if (m) return m[0];
+      }
       // ベット時の代替効果（BET_ALTERNATIVE／BET_CONDITION）＝「あなたがベットしていた場合、…。」の一文を原文抽出
       // （BET_ALTERNATIVEは「代わりに」を伴う言い回し、BET_CONDITIONは「Xの代わりにYまで」等の言い回し＝どちらも
       // 「あなたがベットしていた場合、」で始まり最初の句点までが該当文。直後の（補足）括弧があれば含める）。
