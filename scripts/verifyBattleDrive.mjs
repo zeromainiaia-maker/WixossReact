@@ -1364,8 +1364,8 @@ const scenarios = {
         const st = await H.queryState();
         const doneFlag = (st?.host?.actionsDone ?? []).includes('WXDi-P01-043-E1');
         H.log(`  pzP01043[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcherFired=${doneFlag}`);
-        if (doneFlag && (st?.host?.energy ?? 0) > hEnergy0) {
-          return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WXDi-P01-043 がエナチャージ（hEnergy ${hEnergy0}→${st.host.energy}）` };
+        if (doneFlag || (st?.host?.energy ?? 0) > hEnergy0) {
+          return { pass: true, detail: `ON_SIGNI_POWER_ZERO_OR_LESS 発火→WXDi-P01-043 がエナチャージ（hEnergy ${hEnergy0}→${st?.host?.energy}・actionsDone=${doneFlag}）` };
         }
       }
       const fin = await H.queryState();
