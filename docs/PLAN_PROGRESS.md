@@ -14,6 +14,12 @@
   - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
   - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
 
+- **セッション（2026-07-12・続き90・Sonnet 5・Sonnetタスク11＝checkAllEffects MANDATORY_SUSPICIOUS 一次精査の続き）**
+  - **✅ 残り24件（「ダウンしてもよい」以外のパターン）を精査し、単点是正できる9件を追加修正**＝続き89の7件と合わせて計16件修正（38→22件）。census 1482→**1480**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。修正内容＝`DOWN.optional`欠落2件（続き89の検索パターン「このシグニ」限定で見落としていた亜種）・`ADD_TO_FIELD.optional`欠落2件・owner誤り訂正2件（DOWN対象が相手/自分逆・エナチャージの主体が相手/自分逆）・filter未限定1件（任意のシグニでなく特定カード名指定に是正）・1枚に合成された2能力の両方にoptional追加1件。
+  - **🔎 見送り＝`REVEAL`/`LIFE_CRASH`/`ENERGY_CHARGE_FROM_DECK`は`optional`フィールドを型定義に持たない**（`src/types/effects.ts`で確認済み）＝該当する「してもよい」は単点修正不可・engine拡張が前提。
+  - **🔎 残る複雑ケース7件をOpusタスク12(viii)へ登録**＝出自条件+色条件+owner+optionalの複合欠落（WX26-CP1-048）・遅延トリガー+二分岐結果が丸ごと未実装（WXDi-P10-034）・アイコンフィルタ欠落（WX16-038）・値選択がCHOOSE化されていない（WX16-070）・`TRANSFER_TO_DECK`に`optional`フィールド自体が無い（WX17-028）・2条件ADD_TO_FIELDの構造不備（WDK16-13/WXK08-033）・第1能力が丸ごと未実装（WX25-CP1-062）。詳細 BUGFIXES 続き90。
+  - **MANDATORY_SUSPICIOUS残り22件は単点是正不可と確定**（optionalフィールド無 or 構造的複合バグ）＝Opus送り確定。次の一手＝**EFFECT_TYPE_MISSING_CONTINUOUS 20件・`verifyEffects`「定義なし」誤検出改善は未着手のまま持ち越し。またはPLAN §3 Sonnetタスクリストの他項目（§7実機検証R-series残項目等）。Opusタスク6/12(vii)(viii)の着地待ち**。
+
 - **セッション（2026-07-12・続き89・Sonnet 5・Sonnetタスク11＝checkAllEffects MANDATORY_SUSPICIOUS 一次精査・部分完了）**
   - **✅ `checkAllEffects.mjs`（archive内で実行パス破損＝`scripts/_checkAllEffects.mjs`として再実行可能な形で常設化）を再実行し62件検出**（EFFECT_TYPE_MISSING_CONTINUOUS 20／MANDATORY_SUSPICIOUS 38／OPTIONAL_SUSPICIOUS 2／POWER_VALUE_MISMATCH 1／MILL_COUNT_MISMATCH 1）。MANDATORY_SUSPICIOUS 38件のうち「アップ状態のこのシグニをダウンしてもよい」系14件を全件精査。
   - **✅ 単点是正7件を修正＝`DownAction.optional`（既存フィールド）欠落で「してもよい」の任意ダウンが強制実行されていた**（WD12-013/015の既存正パターンが新規カードで再発）＝WX24-P1-069／WX24-P3-077／WXDi-P06-049／WXDi-P16-078／WX25-P2-085（`optional:true`追加）・WXDi-P09-054／WXDi-P15-092（`optional:true`追加＋後続CHOOSEを`CONDITIONAL{IS_MY_TURN}`で包む）。census 1483→**1482**（`vocabCensus.ts`のBASELINE_HIGHも更新）・golden/smoke/fuzz全緑・同型★0維持。
