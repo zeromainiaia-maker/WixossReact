@@ -5,6 +5,16 @@
 
 ---
 
+## checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS 一次精査＝真バグ5件を修正（2026-07-12・続き91・Sonnet 5・PLAN §3 Sonnetタスク11）
+
+`scripts/_checkAllEffects.mjs`のEFFECT_TYPE_MISSING_CONTINUOUS 20件を全件精査。census 高シグナル 1480→**1479**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。EFFECT_TYPE_MISSING_CONTINUOUS残＝20→15件。
+
+- **母集団20件中15件は誤検知と確認＝JSON変更不要**＝原文「【常】：〜であるかぎり、このシグニは「【自】：…」を得る」パターンの大半は、`effectType:'CONTINUOUS'`でラップした能力付与ではなく、**`effectType:'AUTO'`に`condition`（または`activeCondition`）フィールドで同じ条件ゲートを直接埋め込む**形で実装されており（`WX06-029`/`WX10-063`/`WX11-063`等でparseStatus:MANUAL・意図的に選ばれた表現）、実行時の挙動は等価（条件不成立時はトリガー自体が発火しない）。`checkAllEffects.mjs`のヒューリスティックはこの代替表現を認識できず機械的に誤検知していた。
+- **修正した5件＝「常に…を得る」の片方（能力付与）だけが上記の条件ゲートAUTOとして実装され、もう片方（パワー修正/キーワード付与/クラス扱い）が丸ごと欠落していた真バグ**＝(1)**WXK10-039**＝原文「【常】：【アサシン】」という無条件の印字キーワードがJSONに一切表現されていなかった（`hasKeyword()`は`CONTINUOUS`+`GRANT_KEYWORD`の自己付与を見る設計＝このカードのアサシン能力が実際に機能していなかった）。既存の同型カード`WX10-036`と同じ形で`CONTINUOUS GRANT_KEYWORD{self,thisCardOnly,アサシン,PERMANENT}`を追加。(2)**PR-426**＝「ライフクロス1枚以下＋中央ゾーンであるかぎりパワー+4000され、能力を得る」のうち能力部分（BANISH）はAUTO+conditionで実装済みだったが「パワー+4000」が欠落＝`CONTINUOUS POWER_MODIFY`（同じactiveCondition）を追加。(3)**WX05-021**＝「パワー20000以上であるかぎり【ダブルクラッシュ】と能力を得る」のうちダブルクラッシュのキーワード付与が欠落＝`CONTINUOUS GRANT_KEYWORD`（activeCondition:SELF_POWER_GTE 20000）を追加。(4)**WXDi-P07-060**＝「覚醒状態であるかぎりパワー+2000され能力を得る」のうちパワー部分が欠落＝`CONTINUOUS POWER_MODIFY`（activeCondition:THIS_CARD_IS_AWAKENED）を追加。(5)**WXDi-CP02-103**＝原文「【常】：このカードはすべての領域で＜ブルアカ＞として扱う」がJSONに一切無い＝engine側`collectTreatAsClassAllZones`（`effectEngine.ts`）が`{CONTINUOUS,STUB:TREAT_AS_CLASS_ALL_ZONES}`＋原文からのクラス名正規表現抽出という機構を既に持っているにもかかわらず**実カード母集団が0件で一度も使われていなかった**（初適用）。追加した上で`decompileEffects.ts`にもこのSTUB idの原文抽出規則を新設（同じ正規表現でクラス名を読む設計に合わせた）。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・census 1480→1479で改善）＋`node scripts/groupSimilar.mjs --all`で同型★0維持を確認。smoke効果総数10587→10592（追加した5効果を反映）。
+
+---
+
 ## checkAllEffects MANDATORY_SUSPICIOUS 一次精査（続き）＝残り9件を修正（2026-07-12・続き90・Sonnet 5・PLAN §3 Sonnetタスク11）
 
 続き89に続き、MANDATORY_SUSPICIOUS 38件のうち残っていた24件（「アップ状態のこのシグニをダウンしてもよい」以外のパターン）を精査し、既存の`optional`/owner系フィールドだけで直せる9件を修正。census 高シグナル 1482→**1480**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。MANDATORY_SUSPICIOUS残＝38→22件。
