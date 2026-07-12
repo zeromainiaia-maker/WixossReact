@@ -5,6 +5,17 @@
 
 ---
 
+## §7 R44②（ON_EXCEED_COST・任意コスト支払い→対象へ実際に-5000が適用される）を実機確認＝正常動作（2026-07-12・続き98・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+`exceedCost`（①正例＝発火自体の確認・任意コストはスキップして完走）の残項目②を`exceedCostPay`シナリオとして新設・実機PASS（2回連続）。
+
+- **UI操作パターン＝`EffectInteractionModal.tsx`の`optcost-energy-N`（支払うエナ選択）→`optcost-pay`（対象選択して発動ボタン）→通常のSELECT_TARGETピッカー**という3段階。既存の`exceedCost`は「スキップ」ボタンのみ押していたため②の経路（実際に支払って対象に効果を適用する）は未踏だった。
+- **結果＝engineは正しく動作**＝《黒》を支払うと`WXDi-P06-078-E1`のSELECT_TARGETが発行され、対象（guestのWX01-053）に`POWER_MODIFY -5000`が正しく適用される。
+- `order`配列に`exceedCostPay`を追加（`exceedCost`の直後）。**残＝③カットインexceedでは未発火（近似）は引き続き未検証**。
+- **検証**＝`npm run typecheck`緑。engine/JSON無変更（driverスクリプトのみ）。
+
+---
+
 ## §7 placedFront②（正面以外への配置では非発火）を実機確認＝正常動作（2026-07-12・続き97・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 `placedFront`（①正例）の残項目②（「正面以外の配置では非発火」）を`placedFrontNegative`シナリオとして新設・実機PASS（2回連続）。
