@@ -173,11 +173,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き90・Sonnet 5・Sonnetタスク11＝checkAllEffects MANDATORY_SUSPICIOUS 一次精査の続き）**
-  - **✅ 残り24件（「ダウンしてもよい」以外のパターン）を精査し、単点是正できる9件を追加修正**＝続き89の7件と合わせて計16件修正（38→22件）。census 1482→**1480**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。修正内容＝`DOWN.optional`欠落2件（続き89の検索パターン「このシグニ」限定で見落としていた亜種）・`ADD_TO_FIELD.optional`欠落2件・owner誤り訂正2件（DOWN対象が相手/自分逆・エナチャージの主体が相手/自分逆）・filter未限定1件（任意のシグニでなく特定カード名指定に是正）・1枚に合成された2能力の両方にoptional追加1件。
-  - **🔎 見送り＝`REVEAL`/`LIFE_CRASH`/`ENERGY_CHARGE_FROM_DECK`は`optional`フィールドを型定義に持たない**（`src/types/effects.ts`で確認済み）＝該当する「してもよい」は単点修正不可・engine拡張が前提。
-  - **🔎 残る複雑ケース7件をOpusタスク12(viii)へ登録**＝出自条件+色条件+owner+optionalの複合欠落（WX26-CP1-048）・遅延トリガー+二分岐結果が丸ごと未実装（WXDi-P10-034）・アイコンフィルタ欠落（WX16-038）・値選択がCHOOSE化されていない（WX16-070）・`TRANSFER_TO_DECK`に`optional`フィールド自体が無い（WX17-028）・2条件ADD_TO_FIELDの構造不備（WDK16-13/WXK08-033）・第1能力が丸ごと未実装（WX25-CP1-062）。詳細 BUGFIXES 続き90。
-  - **MANDATORY_SUSPICIOUS残り22件は単点是正不可と確定**（optionalフィールド無 or 構造的複合バグ）＝Opus送り確定。次の一手＝**EFFECT_TYPE_MISSING_CONTINUOUS 20件・`verifyEffects`「定義なし」誤検出改善は未着手のまま持ち越し。またはPLAN §3 Sonnetタスクリストの他項目（§7実機検証R-series残項目等）。Opusタスク6/12(vii)(viii)の着地待ち**。
+- **🆕 セッション（2026-07-12・続き91・Sonnet 5・Sonnetタスク11＝checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS 一次精査・ほぼ完了）**
+  - **✅ EFFECT_TYPE_MISSING_CONTINUOUS 20件を全件精査**＝15件は「AUTOにcondition/activeConditionで条件ゲートを直接埋め込む」実行時等価な代替表現＝**checkAllEffects.mjsのヒューリスティックの誤検知と確認**（JSON変更不要）。**真バグ5件を発見・修正**＝WXK10-039（印字キーワード【アサシン】が丸ごと未実装＝`hasKeyword()`の自己付与検査を通らず能力が機能していなかった）・PR-426／WX05-021／WXDi-P07-060（「常に…を得る」の片方＝パワー修正/キーワード付与が欠落。能力付与側だけがcondition-gated AUTOとして実装済みだった）・WXDi-CP02-103（「すべての領域でクラス扱い」＝`collectTreatAsClassAllZones`機構が実カード母集団0件で初適用。`decompileEffects.ts`にも新規STUB idの原文抽出規則を追加）。census 1480→**1479**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持・smoke効果総数10587→10592。詳細 BUGFIXES 続き91。
+  - **checkAllEffects一次精査タスクはこれでほぼ完了**（MANDATORY_SUSPICIOUS単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件＝計21件修正）。残＝`verifyEffects`「定義なし」誤検出改善のみ未着手。
+  - **次の一手＝`verifyEffects`「定義なし」誤検出改善（未着手）。またはPLAN §3 Sonnetタスクリストの他項目（§7実機検証R-series残項目等）。Opusタスク6/12(vii)(viii)の着地待ち**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
