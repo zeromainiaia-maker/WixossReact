@@ -173,13 +173,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き105・Sonnet 5・verifyBattleDrive バッチ実行時状態汚染の根本原因を特定・修正）**
+- **🆕 セッション（2026-07-12・続き105・Sonnet 5・verifyBattleDrive状態汚染の根本修正＋census文型バッチ「CHOOSE選択肢②条件」6枚是正）**
   - **✅ PLAN §3 Sonnetタスク3「バッチ実行時状態汚染」に着手＝2つの根本原因を機械的に切り分けて修正**（`scripts/verifyBattleDrive.mjs`のみ・engine/JSON無変更）。
   - **原因①（DB側）＝`injectScenario`のシナリオ間リセットが18個の手動列挙方式で、PlayerStateの任意フィールド約170個中150個超が漏れていた**＝実例＝`abilities_removed`が未列挙で残留し、`ontargeted5`のマーカーが後続シナリオの`guest_state`に残り続けていた。**修正＝「盤面の物理配置」9フィールドだけを引き継ぐホワイトリスト方式（除外方式）へ書き換え**＝将来追加される新規フィールドも自動的にカバーされる構造に変更。
   - **原因②（クライアント側）＝1ブラウザセッションでの長時間連続実行によるReact state/タイマー/Realtime購読の蓄積**＝原因①修正だけでは47件一括実行のFAILが解消しなかったため、7件小バッチ→完全新規ログイン単独実行の2段階で切り分け、6件（`lrigGrowAnyOpp`/`lrigattackstepstart`/`blockDrawByEffect`/`exileHandBlind`/`onPlayAnyOpp`/`delayedAttackTrigger`）が単独実行では全PASSすることを確認＝クライアントランタイム起因と確定。**修正＝各シナリオ直前に`page.reload()`を追加**（`App.tsx`のPLAYINGルーム自動復帰ロジックで再マウント）。
-  - **効果測定**＝修正前47件一括＝PASS40/FAIL7→両修正後＝PASS43/FAIL6（残存FAILは実行のたびに対象が入れ替わる低頻度フレーク）。**`oppDraw`のみ完全単独実行でも再現＝バッチ汚染と無関係の別要因**（CPU挙動依存とみられ未解明のまま・本タスクのスコープ外として現状維持）。
-  - **検証方法**＝実ブラウザ（Chromium）＋実Supabaseでの47シナリオ一括実行を計3回（修正前・DB修正のみ・DB+reload修正）比較、および該当シナリオの完全単独実行で切り分け。JSON/engine変更なしのため`npm run gates`は対象外（無変更）。詳細 BUGFIXES 続き105。
-  - **次の一手＝** (a) §7の残＝B4引用付与実発火・B2/B3・ビート機構Phase1-7・機構④誤parse3枚・F-3身代わり対話等の「その他の実機検証待ち」リスト（PLAN §7下部）、(b) Opusタスク12着地を待つ間は §5c census文型バッチへ切替も可、(c) semantic audit残り8バッチ再開は続き103が指摘した前提崩れ（prompts/raw消失）への対処が先、(d) `oppDraw`の単独実行でも再現するFAILの深掘り（優先度低・CPU自動アタックのタイミング依存の可能性）。
+  - **効果測定**＝修正前47件一括＝PASS40/FAIL7→両修正後＝PASS43/FAIL6（残存FAILは実行のたびに対象が入れ替わる低頻度フレーク）。**`oppDraw`のみ完全単独実行でも再現＝バッチ汚染と無関係の別要因**（CPU挙動依存とみられ未解明のまま・本タスクのスコープ外として現状維持）。詳細 BUGFIXES 続き105。
+  - **✅ 続いて §5c census文型バッチへ切替＝「条件節(〜の場合)」クラスタからCHOOSE選択肢②型の6枚を発見・是正**＝「①基本効果。②あなたの場に(色)の＜C＞のシグニがある場合、より強い効果。」型で、3枚は条件節が丸ごと脱落・3枚はさらに深刻＝条件の色/ストーリーが誤って選択肢アクションの対象フィルタへ混入し「対戦相手の白のプリオケシグニを対象」等の別効果に化けていた（WX25-P3-092／WX26-CP1-011/013/015/017/018）。**`ChoiceOption.condition`（選択肢の選択可否ゲート・`execChoose`で配線済みの既存語彙）で是正＝parser/engine変更なし**。副産物＝decompilerがCHOOSE選択肢の`condition`を描画しない欠落も発見し合わせて修正（`scripts/decompileEffects.ts`）。golden 283→284・census 1477→1471（`BASELINE_HIGH`更新済み）。⚠**「あなたのターンの場合」クラスタ（9枚）は着手せず据置＝engine の`IS_MY_TURN`がプレースホルダ常時真のため、CLAUSES追加は見た目だけの無意味な変更になる**（parser内コメントで既に対象外と明記済みと確認・engine拡張が要る＝Opus）。詳細 BUGFIXES 続き105。
+  - **次の一手＝** (a) §5c census文型バッチの継続（`npm run census:clusters`で次のクラスタを選定。同種の「CHOOSE選択肢②」型が他にも無いか横展開の余地あり）、(b) §7の残＝B4引用付与実発火・B2/B3・ビート機構Phase1-7・機構④誤parse3枚・F-3身代わり対話等の「その他の実機検証待ち」リスト（PLAN §7下部）、(c) semantic audit残り8バッチ再開は続き103が指摘した前提崩れ（prompts/raw消失）への対処が先、(d) `oppDraw`の単独実行でも再現するFAILの深掘り（優先度低）。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
