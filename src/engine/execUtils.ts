@@ -1288,8 +1288,8 @@ export function getRiseFilter(effectText: string): TargetFilter | null {
   const classM = cond.match(/＜([^＞]+)＞/);
   if (classM) filter.story = classM[1];
 
-  // 《ディソナアイコン》→ Story=Dissona
-  if (cond.includes('《ディソナアイコン》')) filter.story = 'Dissona';
+  // 《ディソナアイコン》→ CSVの Story==='Dissona'（filter.story は CardClass 照合なのでここでは使えない）
+  if (cond.includes('《ディソナアイコン》')) filter.isDisona = true;
 
   // 色フィルター（「赤の」「青の」等）
   const colorM = cond.match(/^あなたの(白|赤|青|緑|黒)の/);
