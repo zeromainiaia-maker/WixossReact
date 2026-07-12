@@ -1589,6 +1589,19 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/次の対戦相手のアップフェイズに、対戦相手が[^。]*?支払わないかぎり、対戦相手のセンタールリグはアップしない/);
         if (m) return m[0];
       }
+      // ベット機構（BET_MECHANIC）＝この STUB がアクション全体を占める（構造化なし）ので「ベット―」以降の全文を原文抽出。
+      // §5b Z-2（PLAN.md）。engine 側は §6.3 の機構待ちに登録済み・ここは表現のみ。
+      if (a.id === 'BET_MECHANIC') {
+        const m = currentCardText.match(/ベット―[\s\S]*/);
+        if (m) return m[0];
+      }
+      // ベット時の代替効果（BET_ALTERNATIVE／BET_CONDITION）＝「あなたがベットしていた場合、…。」の一文を原文抽出
+      // （BET_ALTERNATIVEは「代わりに」を伴う言い回し、BET_CONDITIONは「Xの代わりにYまで」等の言い回し＝どちらも
+      // 「あなたがベットしていた場合、」で始まり最初の句点までが該当文。直後の（補足）括弧があれば含める）。
+      if (a.id === 'BET_ALTERNATIVE' || a.id === 'BET_CONDITION') {
+        const m = currentCardText.match(/あなたがベットしていた場合、[^。]*。(?:（[^）]*）)?/);
+        if (m) return m[0];
+      }
       // 能力なしならトラッシュ（ABILITY_CHECK_ELSE_TRASH）＝「それが能力を持たない場合、代わりにそれをトラッシュに置く」を原文抽出。
       if (a.id === 'ABILITY_CHECK_ELSE_TRASH') {
         const m = currentCardText.match(/それが能力を持たない場合、代わりにそれをトラッシュに置く/);
