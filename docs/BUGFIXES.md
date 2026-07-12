@@ -5,6 +5,17 @@
 
 ---
 
+## §7 ON_COIN_PAID③《ターン2回》検証で2件発見＝表示バグ1件を修正・engineバグ1件をOpusへ登録（2026-07-12・続き99・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+ON_COIN_PAID③（`usageLimit:'twice_per_turn'`が3回目の支払いで発火しないこと）を`coinPaidTwice`シナリオ（WXDi-P15-069自身の【起】《コイン》×2を同一ターン内に3回発動）で検証。
+
+- **✅ 表示バグを修正＝`getMySigniFieldActions`相当のcostLabel構築（`BattleScreen.tsx:9903`）が`eff.cost?.coin`を考慮しておらず、コインのみコストの起動効果ボタンが「【起】コストなし」と誤表示されていた**（実際のコスト要求はSigniActivatedModal側では正しく機能しており、機能面のバグではなく表示のみ）。**続き81でLRIG版（`getMyLrigFieldActions`・WXK04-003）に対して同じ修正が既に適用されていたのに、シグニ版には未適用のまま取り残されていた非対称の見落とし**。`` `コイン${eff.cost.coin}` `` を追加して修正（既存の他箇所と同じ表記統一）。`npm run gates`全緑（golden 277・fuzz全0・census 1479維持）で確認＝UI表示のみの変更でロジック不変のためSonnetの裁量で修正（続き81のWXK04-003と同じ前例に基づく判断）。
+- **🔎 engineバグを発見（未修正・Opus送り）＝`collectCoinPaidTriggers`（`triggerCollect.ts:153`）がON_COIN_PAIDの`usageLimit`（once_per_turn/twice_per_turn）判定に使う`actions_done`を一切書き戻していない**＝他の大半のusageLimit付きコレクタ（`collectFreezeTriggers`/`collectTargetedTriggers`等）は`{entries, usedIds}`の形で戻り値を返し呼び出し側が`actions_done`へ永続化する設計だが、`collectCoinPaidTriggers`は`StackEntry[]`のみを返し、6箇所の呼び出し元（`BattleScreen.tsx:5080/5222/5279/7987/9081/9627`）はいずれも配列をそのまま`push`するだけでusageLimit分の書き戻しを一切行っていない。**実機で確認＝同一ターン内に3回コインを支払うと、`twice_per_turn`のはずのWXDi-P15-069-E1が3回とも発火**（`host.powerMods`に`+2000`が3件・本来は2件で打ち止めのはず）。ON_COIN_PAIDのusageLimitを持つ全カード（WXDi-P15-055/WXDi-P15-069/WXDi-P16-057等）が影響対象＝**印刷された《ターン1回》《ターン2回》の回数制限が実質machine上ノーガード**という実害バグ。修正はせずOpusタスク12へ登録（CLAUDE.mdの運用ルールに従いSonnetでは修正しない）。
+- `coinPaidTwice`シナリオは意図的にバグを再現するFAILシナリオとして`order`配列には追加しない（`trashCounterOpp`と同型の扱い）。
+- **検証**＝`npm run gates`全緑。`node scripts/verifyBattleDrive.mjs coinPaidTwice`を2回連続実行し同じ結果（3回目も発火）を再現確認＝決定論的なバグと確定。
+
+---
+
 ## §7 R44②（ON_EXCEED_COST・任意コスト支払い→対象へ実際に-5000が適用される）を実機確認＝正常動作（2026-07-12・続き98・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 `exceedCost`（①正例＝発火自体の確認・任意コストはスキップして完走）の残項目②を`exceedCostPay`シナリオとして新設・実機PASS（2回連続）。
