@@ -231,7 +231,7 @@
 
 ### 5b. 逆翻訳機の出力品質（低優先のテール・大半消化済み）
 
-**目標＝英語ID漏れ残（367件）の解消＋B層データ欠落の解消。** 手法は BUGFIXES ⑥〜⑨ で確立済み（engine 実装済みSTUBなら `decompileEffects.ts` に原文抽出/意味文を足すだけ・engine 不変・ゲートは同型★0＋原文照合のみで軽い）。**2026-07-03時点でBEHAVIOR_AUDITに主作業の座を譲ったため、手が空いたときのサブタスク位置づけ。**
+**目標＝英語ID漏れの解消＋B層データ欠落の解消。** 手法は BUGFIXES ⑥〜⑨ で確立済み（engine 実装済みSTUBなら `decompileEffects.ts` に原文抽出/意味文を足すだけ・engine 不変・ゲートは同型★0＋原文照合のみで軽い）。**2026-07-03時点でBEHAVIOR_AUDITに主作業の座を譲ったため、手が空いたときのサブタスク位置づけ。**⚠**「367件」という数字は古い（2026-07-12続き87で実測823カードと判明＝BEHAVIOR_AUDIT等の主作業でカード母集団が増減し続けているため。件数メトリクスを信じない §3の原則どおり）。系統別内訳は`docs/_stub_leak_classification.txt`（`node scripts/_stubLeakScan.mjs`で再生成）参照。**
 
 - ~~**🆕 durational付与の「ターン終了時まで」action内duration脱落＝期間注記の逆翻訳脱落（Opusタスク(A)・母集団132枚）**~~ **✅続き62（Opus）で是正＝decompiler側 `restoreLeadDuration`（原文の当該効果セクションを文スコープで照合し期間注記復元・GRANT_KEYWORD/REMOVE_ABILITIES の2レンダラに配線）で112枚が期間注記を獲得。engine/JSON 不変（parser/JSONは触らず＝held激増を回避）・同型★0維持・全ゲート緑・誤注記ゼロ。母集団132のうち34は抽出の偽陽性（恒久付与 or POWER_MODIFYが期間句の帰属先）で正しく無注記。詳細 BUGFIXES 最上部。** 原因＝`parseActionTextInner`（`effectParser.ts:1398`）の先頭「ターン終了時まで、」strip で action内 duration が PERMANENT/missing に落ちる（engine では PERMANENT と機能同一のため挙動不変）。
 - ~~①REVEAL_AND_PICK 文法崩れ／②LOOK_AND_REORDER 行き先欠落／③CHOOSE 圧縮／④BLOCK_ACTION 英語ID漏れ／⑤timing/icon 英語漏れ~~ **✅全て是正済（BUGFIXES①〜⑤・詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §5b）**。
