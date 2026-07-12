@@ -156,7 +156,7 @@
 | 4 | ~~BEHAVIOR_AUDIT キュー再生成＋一次トリアージ~~ | 計器実行＋分析 | S | ✅完了（続き77・210/9288→263/9293・高シグナル22件抽出。Opus11へ） |
 | 5 | ~~golden 型網羅追加~~ | テスト（scripts） | S（1型1テストずつ） | ✅実質完了（続き82-85・golden 106→277・残22型はOpus機構待ち/no-op placeholderのみ） |
 | 6 | ~~§5c 再収穫サイクル~~ | JSON採用（/census-batch 準拠） | S | ✅完了（続き77・held99枚中85枚採用・census 1514→1494。詳細 BUGFIXES 続き77） |
-| 7 | BET系38件の表現描画 | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ◎今すぐ |
+| 7 | ~~BET系の表現描画~~ | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ✅完了（続き86・実測19件を全消化） |
 | 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ◎今すぐ（単点是正は parser/engine 変更なしの範囲厳守） |
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
 | 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
