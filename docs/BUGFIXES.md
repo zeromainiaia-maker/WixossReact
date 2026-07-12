@@ -5,6 +5,19 @@
 
 ---
 
+## checkAllEffects MANDATORY_SUSPICIOUS 一次精査＝DOWN{optional欠落}7件を修正（2026-07-12・続き89・Sonnet 5・PLAN §3 Sonnetタスク11）
+
+`scripts/archive/checkAllEffects.mjs`（実行パス問題があり`scripts/_checkAllEffects.mjs`として復元・再実行可能な診断ツールとして常設化）を再実行し検出62件（EFFECT_TYPE_MISSING_CONTINUOUS 20／MANDATORY_SUSPICIOUS 38／OPTIONAL_SUSPICIOUS 2／POWER_VALUE_MISMATCH 1／MILL_COUNT_MISMATCH 1）を取得。**MANDATORY_SUSPICIOUS 38件のうち「アップ状態のこのシグニをダウンしてもよい」系14件を1つずつ原文とJSON構造を突き合わせ、単点是正できる真バグ7件を確定・修正**。census 高シグナル 1483→**1482**（`vocabCensus.ts`のBASELINE_HIGHも更新）・golden/smoke/fuzz全緑・同型★0維持。
+
+- **修正した7件＝`DownAction.optional`（既存フィールド）が欠落し、本来「してもよい」の任意ダウンが強制実行されていた**（WD12-013/015に既に正しい前例があるのに新規カードで再発していたパターン）＝WX24-P1-069／WX24-P3-077／WXDi-P06-049／WXDi-P16-078（`optional:true`追加のみ）・WX25-P2-085（CHOOSE内の該当choiceのDOWNへ追加）・WXDi-P09-054／WXDi-P15-092（`optional:true`追加＋後続CHOOSEを`CONDITIONAL{IS_MY_TURN}`で包む＝「そうした場合」ゲートがJSONに存在せずダウンを辞退しても選択が強制実行されるバグも併発していたため）。修正は`tmp_fixDownOptional.mjs`（effectIdアンカー・適用後削除）。
+- **同じ「ダウンしてもよい」パターンで発見した構造的バグ7件はOpus送り（単点是正の範囲を超えるため未修正）**＝(a) **WX25-P1-055／WXDi-P04-059**＝原文は「対象を選ぶ→自身を任意でダウン→そうした場合対象をバニッシュ」の3段構成なのに、JSONは`DOWN`のtargetに対象選択のフィルタ（`owner:opponent,powerRange`等）を誤って流用し、自分をダウンする代わりに**相手シグニをダウンするだけ**になっている（バニッシュも対象フィルタなしで別物と化）。(b) **WX25-P3-089**＝同型の対象/自己混同＝`DOWN`が「他の＜迷宮＞のシグニ」フィルタを持ち自分ではなくその対象をダウンしようとしており、かつ本来「対象への能力付与」であるべき後続が`DRAW`に化けている。(c) **WXDi-P13-074**＝ダウン対象フィルタに原文の「《ディソナアイコン》」条件が欠落（アイコンフィルタ機構の要否を要確認）。(d) **WXDi-CP01-040**＝「公開したカードが＜バーチャル＞の場合のみ引く」という条件が欠落し無条件ドロー。(e) **WXDi-P15-084**＝原文は「対象ルリグへターン終了時までの能力付与」だがJSONは即時`TRASH`に化けている（GRANT_EFFECT等への再構成が要る）。(f) **WX25-P2-112**＝ダウン対象が`SIGNI`だが原文は「ルリグ」＋トラッシュ対象の色フィルタ（「ダウンしたルリグと共通する色」）も欠落。詳細はPLAN §6.4/§3 Opusタスク12へ追記。
+- **POWER_VALUE_MISMATCH（WX06-006）＝「代わりに」置換パターンの機構欠落と判明**＝原文「対戦相手のシグニ1体に-12000。センタールリグが黒でライフクロス2枚以下の場合、**代わりに**2体まで-15000」に対し、JSONは条件チェックなしで両方の`POWER_MODIFY`を無条件連続実行（条件不成立時でも-15000が過剰発動）。既存の「代わりに」置換機構（PLAN §3 Opusタスク6）が必要で単点修正不可のため未修正・Opus送り。
+- **MILL_COUNT_MISMATCH（WX24-P3-039）＝ヒューリスティックの誤検知と確認・修正不要**＝`MILL{count:0,countIsLastProcessedLevelSum:true}`は`execMill`が実行時に`lastProcessedCards`のレベル合計から動的算出する正しい実装（`count:0`は使われないプレースホルダ）。`checkAllEffects.mjs`がこの動的countパターンを認識せず静的値0とCSVを比較して誤検知していただけ＝JSON変更不要。
+- **残作業＝MANDATORY_SUSPICIOUS の残り24件（「ダウンしてもよい」以外のパターン）とEFFECT_TYPE_MISSING_CONTINUOUS 20件は未着手**（時間の都合で今回は「ダウンしてもよい」クラスタに絞った）。`verifyEffects.ts`の「定義なし」誤検出改善は未着手。次回セッションへ持ち越し。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・census 1483→1482で改善）＋`node scripts/groupSimilar.mjs --all`で同型★0維持を確認。
+
+---
+
 ## semantic audit §6.2 系統①「相手デッキ削りowner取り違え」の残27件を精査＝単点是正ゼロ・全件を再分類（分析専用・2026-07-12・続き88・Sonnet 5・PLAN §3 Sonnetタスク8）
 
 `scripts/archive/scratchpad/_auditSystematicScan.mjs`を再実行し、系統①「対戦相手のデッキの上から…トラッシュ」なのに`TRASH{DECK_CARD,owner:'self'}`のカードを再抽出（27件＝PLAN記載の残(b)18+(c)10と近い数字）。**JSON/engineは無変更**（1カードずつ原文とJSON構造を突き合わせて分類しただけ・単点是正できる真バグは0件だった）。
