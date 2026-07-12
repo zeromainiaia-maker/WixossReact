@@ -1363,7 +1363,7 @@ const scenarios = {
         preCheck = await H.queryState();
       }
       H.log('開始時 guest.fieldSigni:', JSON.stringify(preCheck?.guest?.fieldSigni));
-      const runFreeze = async (label, pickTestId) => {
+      const runFreeze = async (label, pickTestId, alreadyFrozen) => {
         await H.ensureMain();
         H.log(`[${label}] 手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
         let summoned = false;
@@ -1385,7 +1385,10 @@ const scenarios = {
           const st = await H.queryState();
           const gFrozen = st?.guest?.signiFrozen;
           H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | gFrozen=${JSON.stringify(gFrozen)} gHand=${st?.guest?.hand ?? '-'} hActionsDone=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
-          const settled = Array.isArray(gFrozen) && gFrozen.some(Boolean) && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+          // ⚠「summonedになってから」かつ「alreadyFrozenに無かったゾーンが新たにtrueになった」場合のみ
+          // この回の凍結が完了したとみなす（前回の残留frozen状態だけで早期returnしないためのガード）。
+          const newlyFrozen = Array.isArray(gFrozen) && gFrozen.some((v, i) => v && !alreadyFrozen[i]);
+          const settled = summoned && newlyFrozen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
           // ⚠凍結自体は即時反映されるが、watcher（ON_SIGNI_FROZEN）の対戦相手手札トラッシュはCPU(guest)側の
           // 自動応答を挟むため1tick遅れうる＝settled検出後もさらに2拍待って gHand が安定するのを確認してから返す
           // （ontargetedUsageLimit の castOnce と同型の「2連続settled」パターン）。
