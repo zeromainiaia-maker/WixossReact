@@ -1424,7 +1424,7 @@ const scenarios = {
         return { pass: false, detail: `2体目が新規凍結されなかった（frozen1=${JSON.stringify(frozen1)}→frozen2=${JSON.stringify(frozen2)}）＝usageLimit検証の前提が崩れた` };
       }
       if (gHand2 === gHand1) {
-        return { pass: true, detail: `usageLimit《ターン1回》が正しく機能＝1回目でgHand ${gHand0}→${gHand1}・2体目の新規凍結（zone1）でも増えず（${gHand1}→${gHand2}）` };
+        return { pass: true, detail: `usageLimit《ターン1回》が正しく機能＝1回目でgHand ${gHand0}→${gHand1}・2体目の新規凍結（zone${newlyFrozenIdx}）でも増えず（${gHand1}→${gHand2}）` };
       }
       return { pass: false, detail: `【要注意】usageLimit未機能の疑い＝2体目の新規凍結でもgHandが増加（${gHand1}→${gHand2}）＝once_per_turnガードが同一ターン内2回目の凍結で効いていない` };
     },
