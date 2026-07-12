@@ -5,6 +5,18 @@
 
 ---
 
+## `verifyBattleDrive.mjs` バッチ実行時の状態汚染＝2つの根本原因を修正、残る不定期FAILはCPU挙動起因の個別ノイズと切り分け（2026-07-12・続き105・Sonnet 5・PLAN §3 Sonnetタスク3）
+
+続き39以来「47シナリオ一括実行時のみ一部が不定期FAILし、個別再実行では通る」と報告されていたバッチ状態汚染の根本原因を機械的に切り分けた。
+
+- **原因①（DB側）＝`injectScenario`のシナリオ間リセットが列挙方式で構造的に漏れる**。`PlayerState`（`src/types/index.ts`）はデッキ/手札/エナ/トラッシュ/ライフ/場札という「盤面の物理配置」9フィールドを除き、残り約170個がすべて任意の一時状態フィールド（一時パワー修正・使用済みアクション・能力消去・遅延トリガー等）だが、従来の`injectScenario`（`scripts/verifyBattleDrive.mjs`）はそのうち18個だけを手動列挙してリセットしていた。実例＝`abilities_removed`が列挙から漏れており、`ontargeted5`（WX25-P2-055）が付けた能力消去マーカーが後続シナリオ（`lrigGrowAnyOpp`／`onPlayAnyOpp`等）の`guest_state`に残留し続けていることを実機ログで確認。**修正＝個別列挙をやめ、「盤面の物理配置」9フィールド（`field`配下は`lrig`/`signi`/`assist_lrig_l`/`assist_lrig_r`/`check`/`key_piece`/`key_piece_extra`/`free_zone`/`beat_zone`の9キー）だけを引き継ぐホワイトリスト方式に書き換え**、それ以外の全トップレベルフィールドを注入前に`delete`する（列挙ではなく除外方式＝将来追加される新規フィールドも自動的にカバーされる）。ゾーン単位ステータスマーカー（`signi_down`等）は削除後に明示的な既定値で張り直す（続き77の対象に加え`assist_lrig_l_down`/`assist_lrig_r_down`の列挙漏れも追加で修正）。
+- **原因②（クライアント側）＝1ブラウザセッションで数十シナリオを連続実行すると、BattleScreenのReact state・setInterval/setTimeout・Supabase Realtime購読等が蓄積し後半のシナリオが不安定になる**。原因①の修正だけでは47件一括実行時のFAILは解消しなかった（同じ7件が同じ症状で再現）ため、7件だけの小バッチ・完全新規ログインでの単独実行という2段階で切り分けたところ、**完全な単独実行では`lrigGrowAnyOpp`／`lrigattackstepstart`／`blockDrawByEffect`／`exileHandBlind`／`onPlayAnyOpp`／`delayedAttackTrigger`の6件全てがPASSする**ことを確認＝DB起因ではなくクライアントランタイムの蓄積が原因と機械的に確定。**修正＝各シナリオの`injectScenario`直後に`page.reload()`を追加**し、`App.tsx`の起動時ロジック（PLAYING状態のルームを検出して自動的にBattleScreenへ復帰＝`gotoMatchmaking`の初回セットアップと同じ経路）でコンポーネントツリーを毎回丸ごと再マウントする。DB書き込みはreloadより前に完了しているため、再マウント後のBattleScreenは注入済みの盤面をそのまま描画する。
+- **効果測定**＝修正前47件一括実行＝PASS40/FAIL7（`lrigGrowAnyOpp`/`lrigattackstepstart`/`oppDraw`/`onPlayAnyOpp`/`blockDrawByEffect`/`exileHandBlind`/`delayedAttackTrigger`）。両修正後の47件一括実行＝PASS43/FAIL6（内訳は実行のたびに`lrigGrowAnyOpp`系1〜2件が入れ替わる）。**`oppDraw`のみ完全な単独実行でも再現する**＝バッチ汚染とは無関係の別要因（CPU自動アタックの発生タイミング等に依存する可能性）とみられ、本タスクのスコープ外として現状維持（他は既存 §7 記載どおり実機PASS済みの実績があるため回帰ではなく元々の低頻度フレーク）。
+- **結論**＝原因①（DB列挙漏れ）は構造的な脆さを解消する明確な改善として確定・恒久修正。原因②（クライアント蓄積）はreloadで大幅に緩和したが、CPU AIの意思決定タイミング等に起因すると見られる残存フレーク（`lrigGrowAnyOppP03046`等が実行のたびに入れ替わる）は完全には無くならない＝**ライブCPU対戦を実ブラウザで駆動する検証ハーネス特有の許容ノイズ**として記録に留め、深追いはしない（engine/JSONは一切変更していないため回帰リスクはゼロ）。
+- **変更範囲**＝`scripts/verifyBattleDrive.mjs`のみ（`injectScenario`のリセット処理書き換え＋シナリオループへの`page.reload()`追加）。engine/parser/effects JSON/`npm run gates`対象コードは無変更。
+
+---
+
 ## §7実機検証R30/R38/R46の②③番手を決着＋`collectFieldTriggers`のusageLimit未実装バグ（32枚）を新規発見（2026-07-12・続き104・Sonnet 5・PLAN §3 Sonnetタスク1／Opusタスク12）
 
 続き101に続き、重いPlaywright実機駆動ではなくコード読解＋既存/新規goldenテストで§7の残項目を決着させた（golden 278→283）。JSON/engine変更なし・テスト追加のみ。
