@@ -1342,9 +1342,18 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      // 注入直後、CPU側の自ターン処理が非同期で残っていて guest_state を上書きする競合がある（既知レース）。
+      // guest zone0 が期待値になるまで再注入して確認する（freezetriggerUsageLimit と同型対策）。
+      let preCheck = await H.queryState();
+      for (let r = 0; r < 4 && !(preCheck?.guest?.fieldSigni?.[0] ?? []).includes?.('WX01-083#1'); r++) {
+        H.log(`再注入(${r})… guest zone0=${JSON.stringify(preCheck?.guest?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        preCheck = await H.queryState();
+      }
       const before = await H.queryState();
       const hEnergy0 = before?.host?.energy ?? 0;
-      H.log('開始時 自エナ:', hEnergy0);
+      H.log('開始時 自エナ:', hEnergy0, '/ guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
       await H.ensureMain();
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;
