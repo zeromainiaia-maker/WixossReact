@@ -157,7 +157,7 @@
 | 5 | ~~golden 型網羅追加~~ | テスト（scripts） | S（1型1テストずつ） | ✅実質完了（続き82-85・golden 106→277・残22型はOpus機構待ち/no-op placeholderのみ） |
 | 6 | ~~§5c 再収穫サイクル~~ | JSON採用（/census-batch 準拠） | S | ✅完了（続き77・held99枚中85枚採用・census 1514→1494。詳細 BUGFIXES 続き77） |
 | 7 | ~~BET系の表現描画~~ | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ✅完了（続き86・実測19件を全消化） |
-| 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ◎今すぐ（単点是正は parser/engine 変更なしの範囲厳守） |
+| 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ⏳**部分完了（続き88）**＝系統①の残27件を全分類し単点是正ゼロを確定。stub群スケールアップ（`claude -p`要）は未着手 |
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
 | 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
 | 11 | checkAllEffects／verifyEffects 精査 | 計器＋分析 | S | ◎今すぐ（低優先） |
