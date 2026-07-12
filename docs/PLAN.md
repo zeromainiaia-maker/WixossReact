@@ -173,13 +173,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き101・Sonnet 5・§7実機検証R-seriesの残4項目を全決着）**
-  - **✅ R43②（ON_ENERGY_TO_TRASH「自効果」限定近似）＝コード読解で確定・確定のみで browser 検証は見送り**＝`collectEnergyToTrashTriggers`はエナ**プール**の増減（self/opponent/any）しか見ず「誰の効果か」は追跡しない設計（関数doc既記載）＝相手が相手自身の効果で相手自身のエナを捨てても発火する過剰発火が実装上確定。§6.3相当の機構待ちへ位置づけ統一。
-  - **✅ ON_LRIG_GROW③（any_opp発火順序）＝コード読解＋既存golden「ターンプレイヤー→相手の順でキュー構築」で確定＝`BattleScreen.tsx`のコメントが実装と逆を記載していたドキュメントバグと判明**＝実際は「グロウ先ルリグ自身の【出】（ターンプレイヤー側）が先、any_opp watcher（相手側）が後」。コメントを実装に合わせて訂正（機能変更なし）。ON_LRIG_GROWは①②③決着・④（usageLimit書き戻し漏れ）のみOpusタスク12(vi-5)待ちで残置。
-  - **✅ R36②（WXDi-CP02-082 自ターンE1／相手ターンE2の出し分け）＝goldenテスト新設で確定**＝`collectHandDiscardTriggers`のturnOwner分岐を`trigCtx(HOST)`/`trigCtx(GUEST)`で直接検証しE1/E2が正しく排他的に発火することを確認（golden 277→278）。
-  - **✅ R44③（カットインexceed未発火近似）＝コード読解で確定**＝`handleCutinUse`のfield/signi経路がON_EXCEED_COST収集関数を一切呼ばない設計で、型定義コメントに既に「未検出の近似」と明記済み。実カード母集団は現状該当0件。
-  - **本セッションの手法＝重い実機ブラウザ駆動ではなく既存golden機構＋コード読解で4項目とも即断**（順序/ターン分岐系はUIクリック列で観測しづらく、pure関数への直接テストの方が高確度・低コスト）。engine変更はコメント訂正1箇所のみ（`executeGrow`内・機能不変）。`npm run gates`全緑（golden278・census1479維持）。
-  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）は主要項目を出し切った**＝残るは Opus 側修正待ちの再検証（Opusタスク12(vi-2)〜(vi-5)着地後にSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸し20枚・usageLimit棚卸し31枚・ON_OPP_POWER_DECREASED②/③・outsideDrawPhase②等の②③番手項目）。それまでは §5c census文型バッチ or BEHAVIOR_AUDIT高シグナル22の仕分けへ切替を検討。
+- **🆕 セッション（2026-07-12・続き102・Sonnet 5・semantic audit スケールアップ第1弾＝119枚精査・単点是正21件）**
+  - **✅ Sonnetタスク8「stub群2,306枚へのスケールアップ」に着手＝`claude -p`が使える環境と確認し実行**＝`semanticAuditExtract.mjs --per-group 100 --seed 202607`（200枚サンプル・20バッチ）→`semanticAuditRun.mjs --model sonnet`。**20バッチ中12バッチ（119枚）完了時点で`claude -p`のセッション上限（429・21:10 JSTリセット）に到達し中断**＝findings 125件を確保。findings/manifestは`scripts/archive/scratchpad/semantic_audit_101/`に保存（残り8バッチはリセット後に同コマンドで再開可・済みバッチはスキップされる）。
+  - **✅ 単点是正21件をJSON直パッチ**（parser/engine変更なし・owner/filter/duration/optional/usageLimit等の既存語彙のみ）＝WD12-018・WX12-018・WX17-009・WD22-029-G・WX18-009・WXK06-049・WXEX2-30・WX07-029・WXDi-P00-034・WXK03-020・WXEX1-65・WXK01-037・WXDi-CP02-089・WX24-P4-047・WXK01-044・WX21-001・WX13-002・WX25-P2-059・WXDi-P08-072（詳細・全effectId BUGFIXES続き102）。census 1479→1477・golden 278・全ゲート緑・同型★0維持。
+  - **⚠ 適用中に判明した罠＝POWER_MODIFYのdurationはaction自身のフィールドで判定される**（outer effect.durationとは別物）＝WXDi-P08-072-E2/WX25-P2-059-E2で当初outer側だけ直して機能面で無修正だったことに気づき、action側にも`duration:'UNTIL_OPP_TURN_END'`を追加して再修正・decompilerで注記表示を確認。
+  - **🆕 新規engineバグを発見しOpusタスク12へ登録＝`execBlockAction`の`SIGNI+ATTACK`分岐が`target.count`/`upToCount`を一切読まず、対象選択ステップが無いカードは対象オーナーの全シグニを無差別ブロックする**（`effectExecutor.ts:1536-1550`）。WX18-009他サンプルで11枚超の同型カードを確認（原文はすべて「シグニN体を対象とし」の選択式なのに実装は「全ブロック」フォールバック＝過剰効果）。全数調査は未実施。
+  - **登録のみ・未修正（Opusタスク12/6.2/6.3へ）**＝STUB id意味不一致6枚・「代わりに」置換構造3枚・動的レベル比較2枚・イベントトリガー誤変換1枚・丸ごと欠落した処理7枚超・その他個別2枚。詳細一覧は`scripts/archive/scratchpad/semantic_audit_101/findings_compact.txt`（125件）参照。
+  - **次の一手＝** (a) `claude -p`上限リセット後（21:10 JST）に残り8バッチ（81枚）を再開して精査継続、(b) 今回発見のBLOCK_ACTION(SIGNI,ATTACK)バグの全数調査（`target.count!==1`以外も含め全カード走査）、(c) 未着手ならPLAN §3 Sonnetタスク1系（R-series②③番手・Opus12着地待ち分）の再検証。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
