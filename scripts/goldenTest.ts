@@ -2528,6 +2528,70 @@ test('POWER_MULTIPLY: パワーを2倍に（delta=現在パワー×(multiplier-1
   ok(mods.some(m => m.cardNum === src && m.delta === 3000), `temp_power_mods (${JSON.stringify(mods)})`);
 });
 
+// ── §3 Sonnetタスク5続き（続き84・9型）──
+// ⚠POWER_MODIFY_PER_DECK_COUNT（実カード1件＝PR-442・CONTINUOUS）はeffectEngine.ts側にcalc実装が
+// 一切無く、executorのcaseも「effectEngine処理」とコメントするだけの無言no-opと確認＝テストせずOpusタスク12へ登録。
+// BLOOD_CRYSTAL_ARMORは「同名カードの別コピー」判定がこのテストハーネス（suffix無しのCardNum直値）では
+// 表現できず（本物のengineは instance ID に#suffixがある）、見送り。
+test('DRAW_PER_FIELD_COUNT: 自場の該当シグニ数×drawPerUnit枚ドロー（WX02-061）', () => {
+  const ctx = mkCtx({ signi: ['WD03-009', 'WD03-010', null], hand: 5 }, {});
+  const h0 = ctx.ownerState.hand.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'DRAW_PER_FIELD_COUNT', drawPerUnit: 1, countFilter: { cardType: 'シグニ', story: ['電機', '水獣'] }, countOwner: 'self' } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 + 2, '手札+2'); eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
+});
+test('ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT: 自場の該当シグニ数×chargePerUnit枚をデッキからエナへ（WX02-066）', () => {
+  const ctx = mkCtx({ signi: ['WD04-009', 'WD04-010', null] }, {});
+  const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT', chargePerUnit: 1, countFilter: { cardType: 'シグニ', story: ['空獣', '地獣', '植物'] }, countOwner: 'self', owner: 'self' } as EffectAction, ctx);
+  eq(r.ownerState.energy.length, e0 + 2, 'エナ+2'); eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
+});
+test('PLACE_UNDER_SIGNI source:hand→PLACE_UNDER_SOURCE_SIGNI: 手札から選んで効果元シグニの下に置く', () => {
+  const src = SIGNI;
+  const ctx = mkCtx({ signi: [src, null, null], hand: 3 }, {}, src);
+  const h0 = ctx.ownerState.hand.length;
+  const r = run({ type: 'PLACE_UNDER_SIGNI', source: 'hand', count: 1 } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 - 1, '手札-1');
+  eq(r.ownerState.field.signi[0]?.length, 2, 'signi[0]スタック=元本体1+下1枚=2');
+});
+test('FORCE_SIGNI_ATTACK: 対象プレイヤーの場シグニは可能ならアタックしなければならない（WX14-018）', () => {
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'FORCE_SIGNI_ATTACK', targetOwner: 'opponent' } as EffectAction, ctx);
+  eq((r.otherState as PlayerState).must_attack_signi, true, 'must_attack_signi');
+});
+test('TAKE_FROM_UNDER_SIGNI fromThis: 効果元シグニの下から1枚を手札へ（WX05-023）', () => {
+  const src = 'WX05-023';
+  const ctx = mkCtx({}, {}, src);
+  ctx.ownerState.field.signi[0] = ['UNDER1', src];
+  const h0 = ctx.ownerState.hand.length;
+  const r = run({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'hand', count: 1, upToCount: false, fromThis: true } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 + 1, '手札+1');
+  eq(r.ownerState.field.signi[0]?.length, 1, '下1枚が取られてスタック=1');
+});
+test('BLOCK_CARD_USE: 指定カード名を blocked_card_names へ登録（WX26-CP1-101）', () => {
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'BLOCK_CARD_USE', cardName: '力を貸して！' } as EffectAction, ctx);
+  ok((r.ownerState.blocked_card_names ?? []).includes('力を貸して！'), `blocked_card_names (${JSON.stringify(r.ownerState.blocked_card_names)})`);
+});
+test('ADD_CRAFT_TO_LRIG_DECK: 名前一致するクラフトカードを lrig_deck 先頭へ count 枚追加（WXK09-016系）', () => {
+  const ctx = mkCtx({}, {});
+  const d0 = ctx.ownerState.lrig_deck.length;
+  const r = run({ type: 'ADD_CRAFT_TO_LRIG_DECK', owner: 'self', cardName: '改造素材', count: 1 } as EffectAction, ctx);
+  eq(r.ownerState.lrig_deck.length, d0 + 1, 'lrig_deck+1');
+  eq(r.ownerState.lrig_deck[0], 'WXK09-TK-01A', '追加したクラフトのCardNum');
+});
+test('ENERGY_CHARGE_BY_FIELD_COUNT: 自場シグニ数+bonus枚をデッキからエナへ（WX10-035 BURST）', () => {
+  const ctx = mkCtx({ signi: [SIGNI, SIGNI_P3000, null] }, {});
+  const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'ENERGY_CHARGE_BY_FIELD_COUNT', owner: 'self', bonus: 1 } as EffectAction, ctx);
+  eq(r.ownerState.energy.length, e0 + 3, 'エナ+3（場2体+bonus1）'); eq(r.ownerState.deck.length, d0 - 3, 'デッキ-3');
+});
+test('PLACE_VIRUS: 相手の空きゾーンにウィルスを配置（WX15-004）', () => {
+  const ctx = mkCtx({}, {});
+  ctx.otherState.field.signi_virus = [1, 1, 0];
+  const r = run({ type: 'PLACE_VIRUS', targetOwner: 'opponent', zoneCount: 1, virusCount: 1 } as EffectAction, ctx);
+  eq(r.otherState.field.signi_virus?.[2], 1, 'zone2にウィルス配置');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
