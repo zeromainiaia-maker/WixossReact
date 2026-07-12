@@ -5,6 +5,20 @@
 
 ---
 
+## verifyEffects「定義なし」誤検出の再調査＝現状0件で再現せず（分析のみ・2026-07-12・続き92・Sonnet 5・PLAN §3 Sonnetタスク11残）＋§7 R38②《ターン1回》実機検証を追加消化
+
+`scripts/verifyEffects.ts` の「定義なし」誤検出改善（続き89から持ち越しの未着手項目）を調査。全12シート（Sheet1-10・TK・Variants）を再走査した結果、**「定義なし」issueは現状0件**（誤検出も真陽性も無し）＝既存の除外フィルタ（`isGuardOnly`/`isReminderOnly`/`isToken`）が正しく機能しており、再現しない。JSON側の欠落（EFFECT_TYPE_MISSING_CONTINUOUS等）は別診断（`_checkAllEffects.mjs`）が既に消化済みで、こちらとは無関係。**JSON/engine/verifyEffects.tsとも無変更**（読み取り調査のみ）。このタスク項目はクローズ（再発したら再調査）。
+
+続けて `docs/PLAN.md §7` の実機検証残項目からSonnetタスク1（主力在庫）に着手＝**R38「凍結トリガー」②《ターン1回》回数制限**（WX08-039/WXEX2-02/WXDi-P04-065・いずれも`usageLimit:'once_per_turn'`）を`scripts/verifyBattleDrive.mjs`に新規シナリオ`freezetriggerUsageLimit`として追加・実機PASS（2回連続）。
+
+- **シナリオ設計**＝WX01-081（コストなし・ピルルク限定・【出】相手レベル1シグニ1体凍結）を同一ターン内に2枚召喚し、guestの別々の2体（WD01-013×2）を個別に凍結。host側watcherにWX08-039（ON_SIGNI_FROZEN・《ターン1回》→対戦相手手札1枚トラッシュ）を配置し、1回目の凍結でgHandが減ること・2体目の新規凍結（前回とは別ゾーン）でもgHandが増えないことを確認。
+- **エンジン側は無変更**＝コード読解で`triggerCollect.ts`の`collectFreezeTriggers`が`usageLimit`（once_per_turn/twice_per_turn）を`actions_done`+ラウンド内`usedIds`で正しくゲートし、`BattleScreen.tsx`の`collectFreezeInline`（`collectBoardDiffTriggers`統合経由）が`usedHostIds`/`usedGuestIds`を`actions_done`へ書き戻す配線を事前確認済み＝続き75で修正済みのON_TARGETED usageLimitと同型の設計で、既に正しく実装されていた。
+- **ドライバ側で3件の罠を踏んだ**（いずれもテストシナリオ設計のバグ・engine/parserは無関係）＝(a) 2回目の凍結判定が「前回の残留frozen状態」だけで早期returnし、実際には2回目の召喚が一度も走らないまま「PASS」と誤判定していた＝`alreadyFrozen`スナップショットと比較して「新規に true になったゾーン」だけを完了条件にするガードを追加。(b) watcherのTRASH{HAND_CARD}適用はCPU(guest)側の自動応答を1tick挟むため、凍結ground-truth検出直後に即returnすると手札減少を観測し損ねる＝検出後さらに2拍（1.8秒）待って安定させてから最終状態を取得するよう変更。(c) **host LRIGのリミット不足で2枚目の召喚アクション自体が生成されない**＝host lrigを当初WD03-003（Lv2・Limit5）にしていたため、watcher(Lv4)+1枚目(Lv1)=5で早くもリミット上限に達し、`getMyHandCardActions`の`canFitSomewhere`判定が2枚目召喚で`false`を返し「召喚」ボタンが一切生成されない（手札カードクリックは`CardSlot`が常にプレビューモーダルを開くだけの実装＝`actions`が空だとボタン無しのモーダルのみ表示）＝host lrigをWD03-002（Lv3・Limit8）に変更してリミット余裕（6≤8）を確保して解決。
+- **`order`配列に`freezetriggerUsageLimit`を追加**（`freezetrigger`の直後）。既存シナリオは無変更。
+- **検証**＝`npm run typecheck`緑。engine/JSON無変更のためsmoke/golden/fuzz対象外（driverスクリプトのみの変更）。`node scripts/verifyBattleDrive.mjs freezetriggerUsageLimit`を2回連続実行してPASSを確認。
+
+---
+
 ## checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS 一次精査＝真バグ5件を修正（2026-07-12・続き91・Sonnet 5・PLAN §3 Sonnetタスク11）
 
 `scripts/_checkAllEffects.mjs`のEFFECT_TYPE_MISSING_CONTINUOUS 20件を全件精査。census 高シグナル 1480→**1479**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。EFFECT_TYPE_MISSING_CONTINUOUS残＝20→15件。
