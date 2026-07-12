@@ -173,10 +173,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き100・Sonnet 5・usageLimit書き戻し漏れバグを横断棚卸し）**
-  - **✅ 続き99のON_COIN_PAIDバグが孤立事例でなく系統的パターンと確定＝あと3コレクタ・実カード28枚が同じ穴（続き99の3枚と合わせ計31枚）**＝`collectBanishTriggers`（ON_BANISH・18枚・最多）・`collectPowerZeroTriggers`（ON_SIGNI_POWER_ZERO_OR_LESS・6枚・続き95/96のLRIGゾーン走査漏れとは別軸の追加バグ）・`collectLrigGrowTriggers`（ON_LRIG_GROW・4枚・PLAN記載の④「2回目グロウで再発火しないか」が長年未検証だった理由が判明）。修正パターンは全コレクタ共通（`{entries, usedIds}`化）。Opusタスク12(vi-5)へ追記登録（詳細・カード名一覧 BUGFIXES 続き100）。
-  - **分析専用（JSON/engine無変更）**。実機検証は続き99のON_COIN_PAID1件のみ・残りはコード読解ベース（同一パターンにつき費用対効果を考慮し見送り）。
-  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③・R36②WXDi-CP02-082・R44③カットイン経路）。Opusタスク12(vi-2)〜(vi-5)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚・usageLimit棚卸しの31枚の再検証も。
+- **🆕 セッション（2026-07-12・続き101・Sonnet 5・§7実機検証R-seriesの残4項目を全決着）**
+  - **✅ R43②（ON_ENERGY_TO_TRASH「自効果」限定近似）＝コード読解で確定・確定のみで browser 検証は見送り**＝`collectEnergyToTrashTriggers`はエナ**プール**の増減（self/opponent/any）しか見ず「誰の効果か」は追跡しない設計（関数doc既記載）＝相手が相手自身の効果で相手自身のエナを捨てても発火する過剰発火が実装上確定。§6.3相当の機構待ちへ位置づけ統一。
+  - **✅ ON_LRIG_GROW③（any_opp発火順序）＝コード読解＋既存golden「ターンプレイヤー→相手の順でキュー構築」で確定＝`BattleScreen.tsx`のコメントが実装と逆を記載していたドキュメントバグと判明**＝実際は「グロウ先ルリグ自身の【出】（ターンプレイヤー側）が先、any_opp watcher（相手側）が後」。コメントを実装に合わせて訂正（機能変更なし）。ON_LRIG_GROWは①②③決着・④（usageLimit書き戻し漏れ）のみOpusタスク12(vi-5)待ちで残置。
+  - **✅ R36②（WXDi-CP02-082 自ターンE1／相手ターンE2の出し分け）＝goldenテスト新設で確定**＝`collectHandDiscardTriggers`のturnOwner分岐を`trigCtx(HOST)`/`trigCtx(GUEST)`で直接検証しE1/E2が正しく排他的に発火することを確認（golden 277→278）。
+  - **✅ R44③（カットインexceed未発火近似）＝コード読解で確定**＝`handleCutinUse`のfield/signi経路がON_EXCEED_COST収集関数を一切呼ばない設計で、型定義コメントに既に「未検出の近似」と明記済み。実カード母集団は現状該当0件。
+  - **本セッションの手法＝重い実機ブラウザ駆動ではなく既存golden機構＋コード読解で4項目とも即断**（順序/ターン分岐系はUIクリック列で観測しづらく、pure関数への直接テストの方が高確度・低コスト）。engine変更はコメント訂正1箇所のみ（`executeGrow`内・機能不変）。`npm run gates`全緑（golden278・census1479維持）。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）は主要項目を出し切った**＝残るは Opus 側修正待ちの再検証（Opusタスク12(vi-2)〜(vi-5)着地後にSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸し20枚・usageLimit棚卸し31枚・ON_OPP_POWER_DECREASED②/③・outsideDrawPhase②等の②③番手項目）。それまでは §5c census文型バッチ or BEHAVIOR_AUDIT高シグナル22の仕分けへ切替を検討。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
