@@ -66,7 +66,7 @@ import * as path from 'path';
 // 2026-07-09 続き52: 「制限『できない』」パターンに extraOk 較正＝「しか使用/発動できない」の使用条件（useCondition・
 // eff.condition で表現・extractUseCondition が解析済み）41枚の偽陽性をクリア＝1616→1588（dedup -28）。真バグ0を機械確認済み
 // （使用制限で condition 無しは0枚）。残17枚は effect-restriction（アタック/場に出せない等＝BLOCK 表現要）で継続。
-const BASELINE_HIGH = 1467; // 続き105(Sonnet): CHOOSE選択肢②「あなたの場に(色)の＜C＞のシグニがある場合」の条件節が丸ごと脱落（+一部は誤ってtarget.filterへ混入）していた6枚を ChoiceOption.condition（既存の選択可否ゲート語彙・engine/parser不変）で是正して1477→1471。続けて「対象のパワーN以下のシグニ…捨ててもよい。そうした場合、バニッシュ」型（LIFE_BURST中心）9枚のTRASH.optional欠落＋パワー閾値フィルタ脱落を既存idiom（optional:true+CONDITIONAL(IS_MY_TURN)+powerRange。WXDi-D08-013等の既存実装済みパターンを踏襲）で是正して1471→1467
+const BASELINE_HIGH = 1461; // 続き105(Sonnet): CHOOSE選択肢②「あなたの場に(色)の＜C＞のシグニがある場合」の条件節が丸ごと脱落（+一部は誤ってtarget.filterへ混入）していた6枚を ChoiceOption.condition（既存の選択可否ゲート語彙・engine/parser不変）で是正して1477→1471。続けて「対象のパワーN以下のシグニ…捨ててもよい。そうした場合、バニッシュ」型（LIFE_BURST中心）9枚のTRASH.optional欠落＋パワー閾値フィルタ脱落を既存idiom（optional:true+CONDITIONAL(IS_MY_TURN)+powerRange。WXDi-D08-013等の既存実装済みパターンを踏襲）で是正して1471→1467。続けて「あなたの場に(色)と(色)のシグニがある場合」CLAUSES新設＋「このルリグがアタックしたとき」プレフィックス未対応（既存CLAUSES複数が阻害されていた構造欠陥）を修正し10枚是正で1467→1461
 // 続き77(Sonnet・§5c再収穫): held 85枚採用（GRANT_LRIG/FIELD_SIGNI_ABILITY・CHOOSE復元・IS_SELF_IN_CENTER_ZONE等）で 1514→1494
 // 続き76(タスク10 パターンF-2): 相手効果による手札/エナ喪失の条件語彙を新設（2枚）で 1516→1514
 // 続き76(タスク10 パターンF-4): 「次のあなたのアタックフェイズ開始時」の遅延トリガー化（9枚）で 1519→1516
