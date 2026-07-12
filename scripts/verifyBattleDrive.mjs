@@ -1143,10 +1143,16 @@ const scenarios = {
         const orderLog = await H.findLog(/エクシードコスト支払い時/);
         if (orderLog) fired = true;
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定']);
-        const promptLog = await H.findLog(/任意コスト：対象シグニを選んで発動しますか/);
-        if (promptLog) { fired = true; paidPrompted = true; }
-        if (!did && paidPrompted) { // 任意コストプロンプト：スキップせず支払う側を選ぶ
-          did = await H.clickTextOrBtn(['発動する', 'はい', '支払う']);
+        const promptTitle = page.getByText('凶将　カラサワの効果').first();
+        if (await promptTitle.count() && await promptTitle.isVisible().catch(() => false)) { fired = true; paidPrompted = true; }
+        if (!did && paidPrompted) { // 任意コストプロンプト：エナ（黒）を選択→対象選択して発動
+          const e0 = page.getByTestId('optcost-energy-0').first();
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+            await payBtn.click().catch(() => {}); did = 'btn:optcost-pay';
+          } else if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            await e0.click().catch(() => {}); did = 'tid:optcost-energy-0';
+          }
         }
         if (!did) { // SELECT_TARGET（-5000対象＝guestのWX01-053）
           const pick0 = page.getByTestId('pick-0').first();
