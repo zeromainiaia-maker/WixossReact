@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き104・Sonnet 5・§7実機検証R30/R38/R46の②③番手を決着＋新規バグ発見）**
+  - **✅ PLAN §3 Sonnetタスク1「§7実機検証」の残②③番手を、続き101と同じ「コード読解＋既存/新規golden」方式で決着**（golden 278→283・重いPlaywright実機駆動は使わず）。
+  - **R30②（WXK10-022-E1のturnOwner:selfゲート）＝バグではなく設計どおりと確認**＝`collectFieldTriggers`自体はturnOwnerを見ないが、`effectStack.ts`の`turnGateOk`（`initStack`/`pushToStack`）が中央集権的にゲートする二段構え設計と判明。golden新設で通常召喚（ゲート除外）とWXEX2-50型の相手ターン中特殊召喚（ゲート通過）の両方を確認。
+  - **🆕 R30③の調査から新規バグを発見＝`collectFieldTriggers`（ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOMのany系トリガー全般）が`usageLimit`を一切実装していない**＝実カード32枚が影響（カード名一覧はPLAN §3 Opusタスク12(x)）。「味方シグニが場に出るたびに◯◯（ターンに1回）」型が同一ターン複数召喚で毎回発火する過剰効果。Opusタスク12へ新規登録（(vi-4)続き96のLRIGゾーン走査漏れとは別軸のバグ）。
+  - **R46②（複数同時パワー減少の合算）＝正しく合算されると確認**（`detectPowerDecrease`）。**R46③（相手の自己弱体でも発火する近似）＝既知の近似と確定・goldenで現状挙動を固定**（発生源追跡機構待ち＝Opus/§6.3）。
+  - **R38③（複数同時凍結の合算）＝`collectFreezeTriggers`が正しくusageLimitでキャップすると確認**（golden新設）。
+  - **ON_TARGETED②・outsideDrawPhase②＝既に golden でカバー済みと判明**（PLAN記載が古いままだった＝ドキュメント訂正のみ）。
+  - **JSON/engine変更なし**（`scripts/goldenTest.ts`へのテスト追加5件のみ）。`npm run gates`全緑（typecheck／golden 278→283／smoke SKIP258・CRASH0／fuzz0／census1477維持／同型★0）。詳細 BUGFIXES 続き104。
+
 - **セッション（2026-07-12・続き103・Sonnet 5・BLOCK_ACTION(SIGNI,ATTACK) 全数調査＝Opusタスク12登録を精緻化）**
   - **✅ 続き102が「全数調査は未実施」としていたBLOCK_ACTION(SIGNI,ATTACK)過剰ブロックバグを機械抽出で全数確定**＝`scratchpad-verify/tmp_blockActionScan.mjs`（`public/data/effects_*.json`全5シートをSEQUENCE/CONDITIONAL/actions配列に沿って順序どおり走査し、BLOCK_ACTIONより前に対象選択しうるアクション型が無いか判定）。**総ヒット48件（重複effectId含む）中41件が過剰ブロック疑い**（`count!=='ALL'`かつ前段に選択ステップ無し）＝WDK07-Y08/WDK11-007(×2)/WDK16-09(×3)/PR-402/WX05-023/WX13-043/WX17-034/WX18-009/WX24-P1-037/WX24-P1-038/WX24-P2-002/WX24-P2-010/WX24-P3-002/WX24-P3-049(×2)/WX25-P2-002/WX25-P2-047/WX25-P3-002/WX25-CP1-050/WX24-D1-08/WX24-D2-08/WXDi-P03-027/WXDi-P03-051-BURST/WXDi-P05-023(×2)/WXDi-P06-047/WXDi-P11-005/WXDi-P11-046/WXDi-P11-055/WXDi-P15-035/WXDi-P16-034/WXDi-CP01-013/WXDi-P11-TK02/WXK05-047/WXK06-010/WXK11-006/WXK11-007/WXK11-027（続き102で採用済みのWX18-009-E1含む）。安全側7件（`count:'ALL'`または前段に選択ステップあり＝WDK16-05S/WX06-002/WX11-012/WX22-003/WX26-CP1-002/WXDi-P08-053/WXK06-001）。
   - **🆕 サンプル原文照合で想定より深いバグと判明＝この分岐は`target.filter`も一切読んでいない（233件のBLOCK_ACTION全ノードでfilter使用0件）**。「このシグニはアタックできない」（自己1体のみ制限＝WX05-023/WX13-043/WXK05-047等）と「対戦相手のシグニN体を対象とし…アタックできない」（選択式＝WX18-009等）は原文の意味が異なるが、現行JSONはどちらも`target.filter`が空＝`thisCardOnly:true`（`execBanish`等が既に使う自己参照慣例）を含め一切表現されておらず、engineもそれを読まない。**根本原因は1つ＝`count`/`upToCount`/`filter`をすべて無視し`lastProcessedCards`空時は対象オーナーの場の全シグニへ無差別付与するフォールバックのみ実装**という構造欠陥で、「自己1体のみ」系と「選択N体」系の両方を同時に過剰効果化している。
