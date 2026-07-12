@@ -5,6 +5,25 @@
 
 ---
 
+## smoke SKIP 268→258の内訳を分析＝DECLARE_BOND/REVEAL_CARDS 5件を解消＋残258件の根本原因（`applyDirectAction`の未対応6型）をOpusタスク12へ登録（2026-07-12・続き93・Sonnet 5・PLAN §3 Sonnetタスク9）
+
+`npm run smoke --verbose`のSKIP 263件を`detail`別に集計＝**258件が「autopilot loop: SELECT_TARGET」（同一候補セットで5回ループ検出）・4件がDECLARE_BOND・1件がREVEAL_CARDS（unhandled pending）**という全く異なる2種類の原因が混在していたと判明。
+
+- **✅ DECLARE_BOND/REVEAL_CARDS 5件＝`scripts/smokeTest.ts`のオートパイロットに2ケース追加して解消**（engine不変・スクリプト側のみ）＝`resumeDeclareBond`（`deckCards[0]`を自動選択）・`resumeRevealCards`（continuationをそのまま実行）を新規importして`switch`に追加。SKIP 263→**258**（DECLARE_BOND/REVEAL_CARDS分のみ解消）。`npm run gates`全緑（golden 277・smoke SKIP258・fuzz全0・census 1479維持・lint warning変化なし）。
+- **🔎 残258件の「autopilot loop: SELECT_TARGET」を`scratchpad-verify/tmp_skipTypeAnalysis.mjs`で機械分類＝真因は`applyDirectAction`（`effectExecutor.ts:4696`）にcaseが無い6つのaction型**（Opusタスク12(v)(vi)が既に指摘していた`ENERGY_CHARGE`/`POWER_MODIFY_PER_LRIG_LEVEL`/`POWER_MODIFY_PER_FIELD`の実カード母集団を拡張し、**新たに`TRANSFER_TO_DECK`・`GRANT_PROTECTION`・`POWER_SET`の3型も同型の穴**と確定）＝
+  - **`TRANSFER_TO_DECK`＝125件（最多）**：`SELECT_TARGET`で対象1体を選ぶ構成（例 WX04-030-E1/WX05-050-E1）が軒並み該当。
+  - **`GRANT_PROTECTION`＝69件**（トップレベルaction・count≠'ALL'の母集団は73カード）：単体保護付与（例 WX06-022-E1のGRANT_PROTECTIONステップ）。
+  - **`ENERGY_CHARGE`＝39件**：続き82/83で発見済みの型（例 WX08-072-E1のSEARCH→then:ENERGY_CHARGEパターン）。
+  - **`POWER_MODIFY_PER_FIELD`＝11件**（続き83で発見済み）。
+  - **`POWER_SET`＝10件（新規発見）**：例 WX06-022-E1のSEQUENCE先頭ステップ（`target.count:1`）。
+  - **`POWER_MODIFY_PER_LRIG_LEVEL`＝9件**（続き83で発見済み）。
+  - （分析スクリプトが誤って「LOOK_AND_REORDER」10件も候補に含めていたが、WX14-046-E1等で目視確認＝これは`resumeLookAndReorder`という独立pendingとして既に正しく処理されており誤検知＝実際の犯人は同一SEQUENCE内で共存する`TRANSFER_TO_DECK`側。集計から除外）。
+  - 全て**`applyDirectAction`のswitchに専用caseが無いため`default`節が`executeAction(action, {...ctx, lastProcessedCards:[cardNum]})`で元のtarget/sourceフィルタを使って同一のSELECT_TARGETを再発行し続ける**という同一の設計欠陥（続き82/83で確定済みの原因と同じ）。**smokeのオートパイロットは5回ループでSKIP扱いにして切り上げているが、実UIでは「同じ対象選択を永遠に繰り返し要求され続けてターンが進まない」という実害あるフリーズ相当のバグ**（プレイヤー体感としては操作不能に見える）。
+  - **修正はせずOpusタスク12へ追加登録**（PLAN §3・母集団と優先順位を明記）。CLAUDE.mdの運用ルール（Sonnetが発見したengine/parserバグはその場で直さずOpusへ回す）に従う。
+- **検証**＝DECLARE_BOND/REVEAL_CARDS追加分は`npm run gates`全緑で確認。分析スクリプト（`tmp_skipTypeAnalysis.mjs`）はJSON読み取りのみでJSON/engine自体は無変更。
+
+---
+
 ## verifyEffects「定義なし」誤検出の再調査＝現状0件で再現せず（分析のみ・2026-07-12・続き92・Sonnet 5・PLAN §3 Sonnetタスク11残）＋§7 R38②《ターン1回》実機検証を追加消化
 
 `scripts/verifyEffects.ts` の「定義なし」誤検出改善（続き89から持ち越しの未着手項目）を調査。全12シート（Sheet1-10・TK・Variants）を再走査した結果、**「定義なし」issueは現状0件**（誤検出も真陽性も無し）＝既存の除外フィルタ（`isGuardOnly`/`isReminderOnly`/`isToken`）が正しく機能しており、再現しない。JSON側の欠落（EFFECT_TYPE_MISSING_CONTINUOUS等）は別診断（`_checkAllEffects.mjs`）が既に消化済みで、こちらとは無関係。**JSON/engine/verifyEffects.tsとも無変更**（読み取り調査のみ）。このタスク項目はクローズ（再発したら再調査）。
