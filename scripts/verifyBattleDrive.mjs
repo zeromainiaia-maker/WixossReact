@@ -1365,25 +1365,27 @@ const scenarios = {
       H.log('開始時 guest.fieldSigni:', JSON.stringify(preCheck?.guest?.fieldSigni));
       const runFreeze = async (label, pickTestId, alreadyFrozen) => {
         await H.ensureMain();
-        let handClicks = 0;
-        const clickHand = async () => { handClicks++; return await H.clickTestId('my-hand-card-0'); };
-        H.log(`[${label}] 手札クリック:`, await clickHand() ?? '見つからず');
+        H.log(`[${label}] 手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
         let summoned = false;
+        let reclicked = false;
         for (let s = 0; s < 24; s++) {
           await page.waitForTimeout(900);
           await page.screenshot({ path: `${SHOT}/freezetriggerUsageLimit-${label}-${s}.png`, fullPage: true });
           let did = null;
-          // 手札カードのプレビューモーダル（「タップして閉じる」）が選択の代わりに開くことがある（非決定的）。
-          // 閉じるとカード選択も解除されるため、上限2回まで（初回+1回）再クリックして選択し直す。
-          const closeTx = page.getByText(/タップ.{0,4}閉じる/).first();
-          if (!summoned && await closeTx.count() && await closeTx.isVisible().catch(() => false)) {
-            await closeTx.click().catch(() => {});
-            did = 'closeModal';
-            if (handClicks < 2) { await page.waitForTimeout(400); did += '+' + (await clickHand() ?? 'reclick失敗'); }
-          }
           const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-          if (!did && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
           if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+          // 手札カードのプレビューモーダル（「タップして閉じる」）が選択の代わりに開くことがある（非決定的）。
+          // 召喚ボタンにも zone にも進めないまま数tick経過したら、閉じて1回だけ選び直す。
+          if (!did && !summoned && !reclicked && s >= 3) {
+            const closeTx = page.getByText(/タップ.{0,4}閉じる/).first();
+            if (await closeTx.count() && await closeTx.isVisible().catch(() => false)) {
+              await closeTx.click().catch(() => {});
+              await page.waitForTimeout(400);
+              did = 'closeModal+' + (await H.clickTestId('my-hand-card-0') ?? 'reclick失敗');
+              reclicked = true;
+            }
+          }
           if (!did) { // SELECT_TARGET（凍結対象＝guestの該当ゾーン）
             const pick = page.getByTestId(pickTestId).first();
             if (await pick.count() && await pick.isVisible().catch(() => false)) {
