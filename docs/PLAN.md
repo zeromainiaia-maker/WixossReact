@@ -173,10 +173,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き99・Sonnet 5・§7 ON_COIN_PAID③検証＝表示バグ修正+engineバグ発見）**
-  - **✅ 表示バグ修正＝`getMySigniFieldActions`相当のcostLabelが`eff.cost?.coin`未考慮で「【起】コストなし」と誤表示（WXK04-003のLRIG版と同型・シグニ版が取り残されていた）**＝`` `コイン${eff.cost.coin}` `` を追加。UI表示のみでロジック不変のためSonnetの裁量で修正（続き81の前例踏襲）。`npm run gates`全緑。
-  - **🔎 engineバグを発見（未修正）＝`collectCoinPaidTriggers`がusageLimit用`actions_done`書き戻しを一切行わずON_COIN_PAIDの《ターン1回/2回》が実質ノーガード**＝`coinPaidTwice`シナリオ（WXDi-P15-069・twice_per_turn）で同一ターン内3回目の支払いでも発火することを2回連続再現確認。Opusタスク12(vi-5)へ登録。`coinPaidTwice`は意図的FAILシナリオとして`order`配列に追加しない。詳細 BUGFIXES 続き99。
-  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③④・R36②WXDi-CP02-082・R44③カットイン経路）。Opusタスク12(vi-2)〜(vi-5)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚・ON_COIN_PAID③の再検証も。
+- **🆕 セッション（2026-07-12・続き100・Sonnet 5・usageLimit書き戻し漏れバグを横断棚卸し）**
+  - **✅ 続き99のON_COIN_PAIDバグが孤立事例でなく系統的パターンと確定＝あと3コレクタ・実カード28枚が同じ穴（続き99の3枚と合わせ計31枚）**＝`collectBanishTriggers`（ON_BANISH・18枚・最多）・`collectPowerZeroTriggers`（ON_SIGNI_POWER_ZERO_OR_LESS・6枚・続き95/96のLRIGゾーン走査漏れとは別軸の追加バグ）・`collectLrigGrowTriggers`（ON_LRIG_GROW・4枚・PLAN記載の④「2回目グロウで再発火しないか」が長年未検証だった理由が判明）。修正パターンは全コレクタ共通（`{entries, usedIds}`化）。Opusタスク12(vi-5)へ追記登録（詳細・カード名一覧 BUGFIXES 続き100）。
+  - **分析専用（JSON/engine無変更）**。実機検証は続き99のON_COIN_PAID1件のみ・残りはコード読解ベース（同一パターンにつき費用対効果を考慮し見送り）。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③・R36②WXDi-CP02-082・R44③カットイン経路）。Opusタスク12(vi-2)〜(vi-5)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚・usageLimit棚卸しの31枚の再検証も。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
