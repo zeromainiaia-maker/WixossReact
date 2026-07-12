@@ -2062,6 +2062,62 @@ const scenarios = {
     },
   },
 
+  // R41②placedFront負例＝正面以外（guest zone1の正面=host zone1）にWD01-013を配置しても発火**しない**ことを確認。
+  // placedFront（①正例）と同じ盤面・watcherだが召喚先をhost zone0（=guest zone2の正面・watcherの正面ではない）に変える。
+  placedFrontNegative: {
+    title: 'WD01-013→WXDi-P03-043（placedFront②負例＝正面以外への配置では非発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WXDi-P03-043#1'], null], // watcher（コードラビリンス ギロッポン・中央＝host zone1が正面）
+      },
+      handPrepend: ['WD01-013#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/placedFrontNegative-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0'); // 正面ではないゾーン（guest zone1=watcherの正面はhost zone1）
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1');
+        const watcherLog = await H.findLog(/ギロッポン.*相手シグニアタック時|の【自】効果（相手シグニアタック時）/);
+        const debuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
+        H.log(`  pfn[${s}] -> ${did ?? 'なし'} | placed=${placed} hPowerMods=${(st?.host?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        if (debuffed || watcherLog) {
+          return { pass: false, detail: `【要注意】正面以外への配置でも発火した（hPowerMods=${(st.host.powerMods).join(',')}・watcher「${watcherLog}」）＝placedFrontの正面判定ゲートが機能していない疑い` };
+        }
+        if (placed && summoned && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
+          // 召喚完了・保留なし・数tick経過を待ってから確定判定（settled後さらに2拍待つ）
+          await page.waitForTimeout(900);
+          const st2 = await H.queryState();
+          await page.waitForTimeout(900);
+          const st3 = await H.queryState();
+          const debuffed3 = (st3?.host?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
+          const watcherLog3 = await H.findLog(/ギロッポン.*相手シグニアタック時|の【自】効果（相手シグニアタック時）/);
+          H.log(`  pfn[settle+] hPowerMods=${(st3?.host?.powerMods ?? []).join(',') || '-'} watcher=${!!watcherLog3}`);
+          if (debuffed3 || watcherLog3) {
+            return { pass: false, detail: `【要注意】正面以外への配置でも発火した（settle後確認・hPowerMods=${(st3.host.powerMods).join(',')}）＝placedFrontの正面判定ゲートが機能していない疑い` };
+          }
+          return { pass: true, detail: `placedFront②正しく非発火＝正面以外（host zone0）へ配置してもwatcher（WXDi-P03-043）は反応しない（hPowerMods=${(st3?.host?.powerMods ?? []).join(',') || 'なし'}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `判定不能（召喚完了を確認できなかった＝hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WX20-026: R31（§7）drawBySourceStory の実機検証。R41(placedFront)と同じ「対照実験」枠＝この効果の
   //    原因アクション（E2のDRAW・対象選択なし）は resolveStackNext 内で result.done=true のまま完結するため、
   //    R38/R43/R46（SELECT_TARGETで中断しresume経路に落ちる）の穴には該当しないはず、という予測を検証する。
