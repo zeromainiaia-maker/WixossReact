@@ -683,7 +683,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // choice.condition＝「あなたの場に〜がある場合、」等の選択肢自体の選択可否ゲート（続き105・execChoose の available 判定に対応）。
       const chOpts = (a.choices || []).map((c: any) => {
         const body = actionJa(c.action);
-        return c.condition ? `${condJa(c.condition)}の場合、${body}` : body;
+        return c.condition ? `${condJa(c.condition)}場合、${body}` : body;
       }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
       const cntCh = a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
