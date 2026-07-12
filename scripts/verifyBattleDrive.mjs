@@ -1293,6 +1293,13 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      let preCheck = await H.queryState();
+      for (let r = 0; r < 4 && !(preCheck?.guest?.fieldSigni?.[0] ?? []).includes?.('WX01-083#1'); r++) {
+        H.log(`再注入(${r})… guest zone0=${JSON.stringify(preCheck?.guest?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        preCheck = await H.queryState();
+      }
       const before = await H.queryState();
       const hEnergy0 = before?.host?.energy ?? 0;
       H.log('開始時 自エナ:', hEnergy0);
