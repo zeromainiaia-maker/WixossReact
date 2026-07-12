@@ -173,10 +173,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き92・Sonnet 5・verifyEffects「定義なし」再調査＋Sonnetタスク1＝§7 R38②実機検証）**
-  - **✅ `verifyEffects.ts`「定義なし」誤検出＝全12シート再走査で現状0件と確認（クローズ）**＝既存の除外フィルタ（ガードのみ/注釈のみ/トークン）が正しく機能。JSON/engine/verifyEffects.tsとも無変更（読み取り調査のみ）。checkAllEffects一次精査タスク（Sonnetタスク11）はこれで完全クローズ。
-  - **✅ §7 R38「凍結トリガー」②《ターン1回》回数制限を実機検証＝PASS（2回連続）**＝`scripts/verifyBattleDrive.mjs`に`freezetriggerUsageLimit`シナリオを新設（WX01-081×2召喚→guest2体を別々に凍結→watcher WX08-039〔ON_SIGNI_FROZEN・usageLimit:once_per_turn〕が1回目のみ発火しgHandが1回しか減らないことを確認）。**engine側は無変更**＝`collectFreezeTriggers`/`collectFreezeInline`が続き75のON_TARGETED usageLimit修正と同型の設計で最初から正しく実装済みと判明。ドライバ側の罠3件（早期return判定・CPU応答の1tick遅延・host lrigのリミット不足で2枚目の召喚ボタンが生成されない）を解消してPASS化。`order`配列に追加。詳細 BUGFIXES 続き92。
-  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目多数（R37③連鎖再発火・R43②自エナ/相手効果での非発火・ON_TARGETED②turnOwner:opponentゲート・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082 等）から1件ずつ`freezetriggerUsageLimit`と同型の手順（シナリオ追加→ground truth確認→`order`追加→BUGFIXES/PLAN簿記）で消化。またはSonnetタスク9（smoke SKIP 268解消）。
+- **🆕 セッション（2026-07-12・続き93・Sonnet 5・Sonnetタスク9＝smoke SKIP分析・部分完了＋Opusタスク12へ新規登録）**
+  - **✅ smoke SKIP 263件を`detail`別に分類＝258件「autopilot loop: SELECT_TARGET」／4件DECLARE_BOND／1件REVEAL_CARDS の2種混在と判明**。後者5件は`scripts/smokeTest.ts`のautopilotに`resumeDeclareBond`/`resumeRevealCards`を追加して解消（SKIP 263→**258**・engine不変）。`npm run gates`全緑（golden 277・fuzz全0・census 1479維持）。
+  - **🔎 残258件を機械分類＝真因は`applyDirectAction`にcaseが無い6つのaction型**（続き82/83既知の`ENERGY_CHARGE`/`POWER_MODIFY_PER_LRIG_LEVEL`/`POWER_MODIFY_PER_FIELD`に加え、**新規発見＝`TRANSFER_TO_DECK`125件・`GRANT_PROTECTION`69件・`POWER_SET`10件**）。実UIでは「同じ対象選択を無限に繰り返し要求されターンが進まない」実害バグ＝Opusタスク12(vi-2)へ登録（詳細 BUGFIXES 続き93）。CLAUDE.mdの運用ルールに従いSonnetでは修正せず。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目多数（R37③連鎖再発火・R43②自エナ/相手効果での非発火・ON_TARGETED②turnOwner:opponentゲート・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082 等）から1件ずつ`freezetriggerUsageLimit`（続き92）と同型の手順で消化。Opusタスク12(vi-2)着地後はSonnetタスク9残258件の再測定も。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
