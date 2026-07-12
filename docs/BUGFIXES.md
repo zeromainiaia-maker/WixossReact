@@ -5,6 +5,17 @@
 
 ---
 
+## checkAllEffects MANDATORY_SUSPICIOUS 一次精査（続き）＝残り9件を修正（2026-07-12・続き90・Sonnet 5・PLAN §3 Sonnetタスク11）
+
+続き89に続き、MANDATORY_SUSPICIOUS 38件のうち残っていた24件（「アップ状態のこのシグニをダウンしてもよい」以外のパターン）を精査し、既存の`optional`/owner系フィールドだけで直せる9件を修正。census 高シグナル 1482→**1480**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持。MANDATORY_SUSPICIOUS残＝38→22件。
+
+- **修正した9件**＝(1)**WX25-CP1-062／WXDi-P05-032**＝続き89と同型の`DOWN.optional`欠落（検索パターンが「このシグニ」限定だったため続き89で見落としていた「白のシグニ」等の亜種）。(2)**WXDi-P03-071／WXK08-059**＝`ADD_TO_FIELD.optional`欠落（「〜を場に出してもよい」）。(3)**WX25-CP1-082**＝`DOWN`の`target.owner`が`opponent`になっていたのを`self`に訂正＋`optional:true`追加（原文「あなたの他のアップ状態の＜ブルアカ＞のシグニ1体をダウンしてもよい」＝自分の場を対象にすべきところ相手の場を誤ダウンしていた実バグ）。(4)**WXDi-P06-011**＝outer`TRASH`に`optional:true`追加＋内側`ENERGY_CHARGE_FROM_DECK`の`owner`を`self`→`opponent`に訂正（原文「対戦相手は【エナチャージ1】をしてもよい」なのに自分がエナチャージしていた実バグ）。(5)**WXDi-P11-078**＝`ADD_TO_FIELD.source.filter`を汎用`{cardType:'シグニ'}`から原文が指定する`{cardName:'融合の儀　タウィル//メモリア'}`へ限定＋`optional:true`追加（「そのカードが《融合の儀　タウィル//メモリア》の場合」という名前条件が丸ごと欠落し任意のシグニを場に出せてしまっていた）。(6)**WXDi-CP02-075**＝1枚のカードに2つの「してもよい」独立能力が1つのSEQUENCEへ合成されており、両方に`optional`が無かったため2箇所（`TRASH`と`DOWN`）へ追加。
+- **見送った項目＝`REVEAL`/`LIFE_CRASH`/`ENERGY_CHARGE_FROM_DECK`は`optional`フィールドを持たない**（`src/types/effects.ts`で確認）＝WXDi-P02-037（ライフクロス1枚クラッシュしてもよい）・WXDi-P10-045（手札公開してもよい）は型定義にフィールドが無く単点修正不可（engine拡張が要る）。
+- **未着手のまま残る複雑ケース＝Opusタスク12へ登録**（詳細はPLAN §3 Opusタスク12(vii)追記）＝WX26-CP1-048（複数条件+owner混同）・WXDi-P10-034（次メインフェイズの遅延トリガー+分岐）・WX16-038（アイコン条件フィルタ欠落）・WX16-070（値の選択がCHOOSE化されていない）・WX17-028（`TRANSFER_TO_DECK`に`optional`フィールド自体が無い）・WDK16-13/WXK08-033（2条件のADD_TO_FIELDが構造不備）・WX25-CP1-062の欠落している第1能力（手札を1枚捨ててもよい→パワー+4000の付与が丸ごと未実装）。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・census 1482→1480で改善）＋`node scripts/groupSimilar.mjs --all`で同型★0維持を確認。
+
+---
+
 ## checkAllEffects MANDATORY_SUSPICIOUS 一次精査＝DOWN{optional欠落}7件を修正（2026-07-12・続き89・Sonnet 5・PLAN §3 Sonnetタスク11）
 
 `scripts/archive/checkAllEffects.mjs`（実行パス問題があり`scripts/_checkAllEffects.mjs`として復元・再実行可能な診断ツールとして常設化）を再実行し検出62件（EFFECT_TYPE_MISSING_CONTINUOUS 20／MANDATORY_SUSPICIOUS 38／OPTIONAL_SUSPICIOUS 2／POWER_VALUE_MISMATCH 1／MILL_COUNT_MISMATCH 1）を取得。**MANDATORY_SUSPICIOUS 38件のうち「アップ状態のこのシグニをダウンしてもよい」系14件を1つずつ原文とJSON構造を突き合わせ、単点是正できる真バグ7件を確定・修正**。census 高シグナル 1483→**1482**（`vocabCensus.ts`のBASELINE_HIGHも更新）・golden/smoke/fuzz全緑・同型★0維持。
