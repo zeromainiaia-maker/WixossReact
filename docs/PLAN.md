@@ -173,15 +173,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き104・Sonnet 5・§7実機検証R30/R38/R46の②③番手を決着＋新規バグ発見）**
-  - **✅ PLAN §3 Sonnetタスク1「§7実機検証」の残②③番手を、続き101と同じ「コード読解＋既存/新規golden」方式で決着**（golden 278→283・重いPlaywright実機駆動は使わず）。
-  - **R30②（WXK10-022-E1のturnOwner:selfゲート）＝バグではなく設計どおりと確認**＝`collectFieldTriggers`自体はturnOwnerを見ないが、`effectStack.ts`の`turnGateOk`（`initStack`/`pushToStack`）が中央集権的にゲートする二段構え設計と判明。golden新設で通常召喚（ゲート除外）とWXEX2-50型の相手ターン中特殊召喚（ゲート通過）の両方を確認。
-  - **🆕 R30③の調査から新規バグを発見＝`collectFieldTriggers`（ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOMのany系トリガー全般）が`usageLimit`を一切実装していない**＝実カード32枚が影響（カード名一覧はPLAN §3 Opusタスク12(x)）。「味方シグニが場に出るたびに◯◯（ターンに1回）」型が同一ターン複数召喚で毎回発火する過剰効果。Opusタスク12へ新規登録（(vi-4)続き96のLRIGゾーン走査漏れとは別軸のバグ）。
-  - **R46②（複数同時パワー減少の合算）＝正しく合算されると確認**（`detectPowerDecrease`）。**R46③（相手の自己弱体でも発火する近似）＝既知の近似と確定・goldenで現状挙動を固定**（発生源追跡機構待ち＝Opus/§6.3）。
-  - **R38③（複数同時凍結の合算）＝`collectFreezeTriggers`が正しくusageLimitでキャップすると確認**（golden新設）。
-  - **ON_TARGETED②・outsideDrawPhase②＝既に golden でカバー済みと判明**（PLAN記載が古いままだった＝ドキュメント訂正のみ）。
-  - **JSON/engine変更なし**（`scripts/goldenTest.ts`へのテスト追加5件のみ）。`npm run gates`全緑（typecheck／golden 278→283／smoke SKIP258・CRASH0／fuzz0／census1477維持／同型★0）。詳細 BUGFIXES 続き104。
-  - **次の一手＝** (a) §7の残＝B4引用付与実発火・B2/B3・ビート機構Phase1-7・機構④誤parse3枚・F-3身代わり対話等の「その他の実機検証待ち」リスト（PLAN §7下部）、(b) Opusタスク12着地を待つ間は §5c census文型バッチへ切替も可、(c) semantic audit残り8バッチ再開は続き103が指摘した前提崩れ（prompts/raw消失）への対処が先。
+- **🆕 セッション（2026-07-12・続き105・Sonnet 5・verifyBattleDrive バッチ実行時状態汚染の根本原因を特定・修正）**
+  - **✅ PLAN §3 Sonnetタスク3「バッチ実行時状態汚染」に着手＝2つの根本原因を機械的に切り分けて修正**（`scripts/verifyBattleDrive.mjs`のみ・engine/JSON無変更）。
+  - **原因①（DB側）＝`injectScenario`のシナリオ間リセットが18個の手動列挙方式で、PlayerStateの任意フィールド約170個中150個超が漏れていた**＝実例＝`abilities_removed`が未列挙で残留し、`ontargeted5`のマーカーが後続シナリオの`guest_state`に残り続けていた。**修正＝「盤面の物理配置」9フィールドだけを引き継ぐホワイトリスト方式（除外方式）へ書き換え**＝将来追加される新規フィールドも自動的にカバーされる構造に変更。
+  - **原因②（クライアント側）＝1ブラウザセッションでの長時間連続実行によるReact state/タイマー/Realtime購読の蓄積**＝原因①修正だけでは47件一括実行のFAILが解消しなかったため、7件小バッチ→完全新規ログイン単独実行の2段階で切り分け、6件（`lrigGrowAnyOpp`/`lrigattackstepstart`/`blockDrawByEffect`/`exileHandBlind`/`onPlayAnyOpp`/`delayedAttackTrigger`）が単独実行では全PASSすることを確認＝クライアントランタイム起因と確定。**修正＝各シナリオ直前に`page.reload()`を追加**（`App.tsx`のPLAYINGルーム自動復帰ロジックで再マウント）。
+  - **効果測定**＝修正前47件一括＝PASS40/FAIL7→両修正後＝PASS43/FAIL6（残存FAILは実行のたびに対象が入れ替わる低頻度フレーク）。**`oppDraw`のみ完全単独実行でも再現＝バッチ汚染と無関係の別要因**（CPU挙動依存とみられ未解明のまま・本タスクのスコープ外として現状維持）。
+  - **検証方法**＝実ブラウザ（Chromium）＋実Supabaseでの47シナリオ一括実行を計3回（修正前・DB修正のみ・DB+reload修正）比較、および該当シナリオの完全単独実行で切り分け。JSON/engine変更なしのため`npm run gates`は対象外（無変更）。詳細 BUGFIXES 続き105。
+  - **次の一手＝** (a) §7の残＝B4引用付与実発火・B2/B3・ビート機構Phase1-7・機構④誤parse3枚・F-3身代わり対話等の「その他の実機検証待ち」リスト（PLAN §7下部）、(b) Opusタスク12着地を待つ間は §5c census文型バッチへ切替も可、(c) semantic audit残り8バッチ再開は続き103が指摘した前提崩れ（prompts/raw消失）への対処が先、(d) `oppDraw`の単独実行でも再現するFAILの深掘り（優先度低・CPU自動アタックのタイミング依存の可能性）。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
