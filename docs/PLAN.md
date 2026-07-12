@@ -161,7 +161,7 @@
 | 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | M | ◎今すぐ |
 | 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
 | 11 | checkAllEffects／verifyEffects 精査 | 計器＋分析 | S | ◎今すぐ（低優先） |
-| 12 | 英語ID漏れ367の系統分類 | 分析のみ（修正しない） | S〜M | ◎今すぐ（完了が Opus13 を楽にする） |
+| 12 | ~~英語ID漏れの系統分類~~ | 分析のみ（修正しない） | S〜M | ✅完了（続き87・実測823カードを16テーマに分類・`docs/_stub_leak_classification.txt`） |
 
 **依存の要点（交互サイクルの回し方）**＝待ち関係は3本だけ：**Sonnet2→Opus10**（CHOOSE分類→採用）／**Opus1〜6→Sonnet6**（新語彙着地→再収穫）／**Sonnet1・4・8→Opus12**（観測→修正）。それ以外の組はすべて独立＝どの順で取っても衝突しない（バトン式なので同時作業はしない・§11 の「着手中」宣言は大型機構のみ必須）。
 
