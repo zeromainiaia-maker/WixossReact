@@ -5,6 +5,18 @@
 
 ---
 
+## CHOOSE選択肢②「あなたの場に(色)の＜C＞のシグニがある場合」の条件節が丸ごと脱落／一部は対象フィルタへ誤混入していた6枚を是正（2026-07-12・続き105・Sonnet 5・PLAN §3 census文型バッチ・単点修正）
+
+census文型クラスタ「条件節(〜の場合)」の中に、CHOOSEの選択肢を強化するタイプの盤面条件（「①基本効果。②あなたの場に(色)の＜C＞のシグニがある場合、より強い効果。」）を持つ6枚を発見。
+
+- **バグの実体は2種類**。(a) WX25-P3-092／WX26-CP1-015／WX26-CP1-017 は選択肢②の条件節が単純に**丸ごと脱落**（`ENERGY_CHARGE_FROM_DECK`等が無条件で選べていた）。(b) WX26-CP1-011／WX26-CP1-013／WX26-CP1-018 はより深刻＝条件節の色/ストーリーが誤って**選択肢アクションの対象フィルタ（`target.filter.color`/`target.filter.story`）へ混入**していた＝「あなたの場に白の＜プリオケ＞のシグニがある場合、対戦相手のパワー10000以下のシグニを対象とし…」が「対戦相手の**白の＜プリオケ＞**のパワー10000以下のシグニを対象とし…」という全く別の効果（対象を白プリオケに限定＝ほぼ選べない）に化けていた。
+- **修正＝`ChoiceOption.condition`（`src/types/effects.ts:804`＝「この選択肢を選べる条件（なければ常に選択可）」・`execChoose`の`available: ch.condition ? evalCondition(ch.condition, ctx) : true`で既に配線済みの選択可否ゲート）を使う**＝parser/engine変更なしの既存語彙のみで表現可能と確認（`HAS_CARD_IN_FIELD`は`color`+`story`同時フィルタに対応済み）。(a)系は選択肢②の`action`に`condition`を追加するだけ、(b)系は追加に加えて誤混入した`target.filter.color`/`story`を削除。`scratchpad/patchProkoke.mjs`でJSON直接パッチ（`public/data/effects_WX24_26.json`・機械diffで意図した6件のみの変更を確認）。
+- **副産物＝decompilerがCHOOSE選択肢の`condition`を一切描画しない欠落を発見**（`scripts/decompileEffects.ts`の`case 'CHOOSE'`は`c.action`しか見ていなかった）＝修正しても逆翻訳に条件が出ず原文照合できないため、`condJa(c.condition)`を選択肢ラベルの前に付与するよう追加修正（[[decompile-engine-parity]]）。
+- **golden追加**＝WX25-P3-092を使い、場に対応する赤の＜龍獣＞シグニが無い/ある両条件で選択肢②の`available`が正しく切り替わることを確認（golden 283→284）。
+- **検証**＝`npm run gates`全緑（typecheck／golden284／smoke SKIP258・CRASH0／fuzz0／census**1477→1471**／同型★0）。`BASELINE_HIGH`更新済み。
+
+---
+
 ## `verifyBattleDrive.mjs` バッチ実行時の状態汚染＝2つの根本原因を修正、残る不定期FAILはCPU挙動起因の個別ノイズと切り分け（2026-07-12・続き105・Sonnet 5・PLAN §3 Sonnetタスク3）
 
 続き39以来「47シナリオ一括実行時のみ一部が不定期FAILし、個別再実行では通る」と報告されていたバッチ状態汚染の根本原因を機械的に切り分けた。
