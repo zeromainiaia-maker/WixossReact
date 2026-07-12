@@ -1599,7 +1599,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // （BET_ALTERNATIVEは「代わりに」を伴う言い回し、BET_CONDITIONは「Xの代わりにYまで」等の言い回し＝どちらも
       // 「あなたがベットしていた場合、」で始まり最初の句点までが該当文。直後の（補足）括弧があれば含める）。
       if (a.id === 'BET_ALTERNATIVE' || a.id === 'BET_CONDITION') {
-        const m = currentCardText.match(/あなたがベットしていた場合、[^。]*。(?:（[^）]*）)?/);
+        // 末尾の句点は含めない（呼び出し側のSEQUENCE結合が付与する慣例＝他STUBの原文抽出と同じ）。
+        // ただし直後に（補足）括弧が続く場合は句点ごと含めて残す（PLACE_MAGIC_BOX 等と同じ扱い）。
+        const m = currentCardText.match(/あなたがベットしていた場合、[^。]*(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
       // 能力なしならトラッシュ（ABILITY_CHECK_ELSE_TRASH）＝「それが能力を持たない場合、代わりにそれをトラッシュに置く」を原文抽出。
