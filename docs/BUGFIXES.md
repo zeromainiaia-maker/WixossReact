@@ -5,6 +5,17 @@
 
 ---
 
+## §7 R37「パワー0以下トリガー」他4枚のうち2枚を個別実機確認（2026-07-12・続き94・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+R37（ON_SIGNI_POWER_ZERO_OR_LESS）は①WX21-067のみ実機確認済みで、他4枚（WX20-Re03/WX22-013/WXDi-P01-043/WXDi-P14-009）は個別未検証のまま残っていた。既存`powerzero`シナリオ（watcherのみ差し替え）で2枚を追加確認。
+
+- **`powerzeroWX20Re03`＝PASS（2回連続）**＝WX20-Re03（ドライ＝ラッカー・ENERGY_CHARGE_FROM_DECK・triggerScope:any_opp・usageLimit:once_per_turn）。ground truth＝`host.energy`が0→1。
+- **`powerzeroWXDiP01043`＝PASS（2回連続・要individual実行）**＝WXDi-P01-043（大装 ダークエナジェ・同型ENERGY_CHARGE_FROM_DECK）。ground truth同上。**バッチ実行（他シナリオと連続）だとguest_state注入がCPU側の非同期処理で上書きされ、guest.field.signiが空のままWD11-013の対象0件no-opに終わりFAILする＝`wxk10068banish`と同型の既知レース**。`freezetriggerUsageLimit`と同型の再注入リトライガードを追加したが、それでも他シナリオ直後だと再現する場合がある＝**`order`配列には追加せず、単体実行専用として残す**（VERIFY_BROWSER.mdの既存方針どおり）。
+- 残るWX22-013（ルリグ・CHOOSE選択）・WXDi-P14-009（ルリグ・turnOwner:self条件付き）はLRIG watcherかつCHOOSE/追加条件を伴い個別の手順検討が必要＝未着手のまま持ち越し。
+- **検証**＝`npm run typecheck`緑。engine/JSON無変更（driverスクリプトのみ）。
+
+---
+
 ## smoke SKIP 268→258の内訳を分析＝DECLARE_BOND/REVEAL_CARDS 5件を解消＋残258件の根本原因（`applyDirectAction`の未対応6型）をOpusタスク12へ登録（2026-07-12・続き93・Sonnet 5・PLAN §3 Sonnetタスク9）
 
 `npm run smoke --verbose`のSKIP 263件を`detail`別に集計＝**258件が「autopilot loop: SELECT_TARGET」（同一候補セットで5回ループ検出）・4件がDECLARE_BOND・1件がREVEAL_CARDS（unhandled pending）**という全く異なる2種類の原因が混在していたと判明。
