@@ -173,12 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き87・Sonnet 5・Sonnetタスク12＝§5b 英語ID漏れの系統分類・完了）**
-  - **✅ `docs/decompile_sheet*.txt`の逆翻訳に残る英語ID漏れを機械抽出し16テーマに分類**＝新設`scripts/_stubLeakScan.mjs`で走査→`docs/_stub_leak_classification.txt`へ出力（分析専用・JSON/engine無変更）。
-  - **🔎 母集団を実測し直したところPLAN記載の「367件」は古い数字と判明**＝現状は該当カード823枚・タグ出現968件・distinct id 316種（BEHAVIOR_AUDIT等の主作業でJSONが継続的に変化しているため。件数メトリクスは経年で陳腐化する＝PLAN §3の原則どおり）。BET系の「19+11+8=38」（続き86で発見）に続き2件目の同種の数字ドリフト。
-  - **16テーマの内訳（該当カード数の多い順）**＝デッキ操作系184／パワー修正系165／手札系102／トラッシュ系75／対戦相手コスト系63／エナ系50／ライフ系48／シグニ配置系48／ルリグ系36／能力付与系31／ガード・アタック制限系26／ソウル・アーツ系15／ウィルス系10／色・クラス系4／ゲーム除外系3／チャーム系1／その他54。上位3テーマで823枚中約半数を占める＝Opusタスク13の優先着手候補として提示。
-  - **副次的な発見＝「日本語グロス無しの純粋な生id」は現状わずか6id・7枚のみ**（`TRIGGER_LIFE_BURST`等）。残り大半（316id中310id）は`stubDescMap`由来の日本語説明が既に付いているが`[STUB:説明文]`の角括弧タグのままで、自然な地の文への組み込み（JSON再構造化）が要る＝これがOpusタスク13の本体であることを明確化。
-  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（semantic audit実行＋単点修正・§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。またはOpusタスク12(v)(vi)・13の着地待ち**。
+- **🆕 セッション（2026-07-12・続き88・Sonnet 5・Sonnetタスク8＝semantic audit 系統①の残27件を最終分類・完了）**
+  - **✅ 系統①「相手デッキ削りowner取り違え」の残27件を`_auditSystematicScan.mjs`で再抽出し1件ずつノード単位で分類＝単点是正できる残件はゼロと確定**（JSON/engine無変更・分析のみ）。過去のパイロットfindings.jsonlは消失済みで`semanticAuditTriage.mjs`は使えなかったため、既存の再現可能スクリプトで代替。
+  - **17件＝「あなたか対戦相手」選択パターン**（`owner:'any'`+CHOOSE化が要る＝Opus送り）・**9件＝誤検知（既に正しい実装）**（スキャンがカード単位判定のため無関係の正しい`owner:self`ノードを拾っていただけ＝修正不要）・**1件（WXDi-P07-007）＝別の構造的バグの疑い**（対戦相手の２択自体がSTUB化され未実装）。
+  - **🔎 Opusの作業を軽くする発見＝`WXDi-P04-082`に「あなたか対戦相手」選択の正しい実装パターンが既存**（`CHOOSE{choices:[TRASH(self),TRASH(opponent)]}`）＝新規engine機構なしで17件へ横展開できるテンプレートを提示。詳細 BUGFIXES 続き88。
+  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。stub群2,306枚へのsemantic auditスケールアップは`claude -p`呼び出しを要するため要件確認が先。またはOpusタスク12(v)(vi)・13・系統①CHOOSE化17件の着地待ち**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
