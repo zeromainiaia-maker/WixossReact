@@ -4435,8 +4435,8 @@ export function execStubPart3(
     const lastCharged = ctx.ownerState.energy.at(-1);
     if (!lastCharged) return done(addLog(ctx, 'エナにカードなし（DRAW_IF_CHARGED_CLASS）'));
     const card = ctx.cardMap.get(lastCharged);
-    const story = ctx.ownerState.story_overrides?.[lastCharged] ?? card?.Story ?? '';
-    if (!story.includes('調理')) {
+    const cls = ctx.ownerState.card_class_overrides?.[lastCharged] ?? card?.CardClass ?? '';
+    if (!cls.includes('調理')) {
       return done(addLog(ctx, `${card?.CardName ?? lastCharged}は＜調理＞でないためドローしない`));
     }
     const drawAct: DrawAction = { type: 'DRAW', owner: 'self', count: 1 };
