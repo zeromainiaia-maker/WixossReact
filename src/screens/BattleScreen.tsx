@@ -5073,8 +5073,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (suppressLrigPlay) appendBattleLogs(['センタールリグの【出】能力は抑制されました']);
 
       // ON_LRIG_GROW（C1 配線）: センターグロウ実行者＝user.id のグロウに反応する【自】を収集。
-      // any_opp（対戦相手のルリグがグロウ）は非ターンプレイヤー側＝effect_stack の opp 側が先に解決され、
-      // グロウ先ルリグの【出】（ON_PLAY・ターンプレイヤー）より先に処理される（WXDi-P13-047 の注記と整合）。
+      // any_opp（対戦相手のルリグがグロウ）は非ターンプレイヤー側＝effect_stack の opp 側は
+      // buildQueue（effectStack.ts）で `[...turn, ...opp]` の順に並ぶため、グロウ先ルリグ自身の
+      // 【出】（ON_PLAY・ターンプレイヤー側）が先に解決され any_opp watcher は後で処理される
+      // （2026-07-12・PLAN §7 ON_LRIG_GROW③検証で訂正＝旧コメントは順序を逆に記載していた誤り。
+      // golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」参照）。
       const growTriggerEntries = collectLrigGrowTriggers(user.id, newMyState, op);
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
       const growCoinPaidEntries = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : [];
