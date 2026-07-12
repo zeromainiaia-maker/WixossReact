@@ -141,7 +141,7 @@
 | 9 | semantic audit 機構対応 | engine＋decompiler | M | ◎今すぐ |
 | 10 | CHOOSE held 最終見極め | JSON採用（退化見極め） | S〜M | ◎今すぐ（**Sonnetタスク2 の分類完了・続き71**＝パターンA〜F整理済み） |
 | 11 | BEHAVIOR_AUDIT 高シグナル22 仕分け | 仕分け＋engine修正 | M | ◎今すぐ（続き77でキュー再生成済み・詳細は上のOpusタスク11本文） |
-| 12 | Sonnet 発見バグの修正（常設） | 可変 | 可変 | ◎**在庫5件**（✅続き78で旧8件全消化。新規＝SP27-002 genericKagiri無言消費系統・WXDi-P10-035 引用内BOUNCE owner精査・WXK09-050 dispatch設計・続き81 applyDirectAction TRASH/HAND_CARD 3フィールド欠落・🆕続き93 applyDirectAction 未対応6型〔TRANSFER_TO_DECK/GRANT_PROTECTION/ENERGY_CHARGE/POWER_SET/POWER_MODIFY_PER_FIELD/POWER_MODIFY_PER_LRIG_LEVEL＝smoke SKIP258件の真因・実UIフリーズ相当〕。詳細は上のOpusタスク12本文） |
+| 12 | Sonnet 発見バグの修正（常設） | 可変 | 可変 | ◎**在庫6件**（✅続き78で旧8件全消化。新規＝SP27-002 genericKagiri無言消費系統・WXDi-P10-035 引用内BOUNCE owner精査・WXK09-050 dispatch設計・続き81 applyDirectAction TRASH/HAND_CARD 3フィールド欠落・続き93 applyDirectAction 未対応6型〔TRANSFER_TO_DECK/GRANT_PROTECTION/ENERGY_CHARGE/POWER_SET/POWER_MODIFY_PER_FIELD/POWER_MODIFY_PER_LRIG_LEVEL＝smoke SKIP258件の真因・実UIフリーズ相当〕・🆕続き95 `collectPowerZeroTriggers`がfield.lrigを走査せずLRIG watcher（WX22-013/WXDi-P14-009）が絶対発火しない。詳細は上のOpusタスク12本文） |
 | 13 | §5b 混線テール367 | JSON再parse（1カードずつ） | L（低優先） | ◎今すぐ（逓減テール＝他が尽きたら） |
 | 14 | リファクタ Stage2→3 | BattleScreen構造 | L | ◎今すぐ（独立・他と並行可） |
 | 15 | CPU AI メインフェイズ | 新規設計（BattleScreen＋engine） | L（特大） | ⏳DESIGN §4 の CPU/対人統一が先（実質 14 の後） |
