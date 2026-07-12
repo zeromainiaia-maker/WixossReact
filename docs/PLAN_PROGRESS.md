@@ -14,6 +14,12 @@
   - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
   - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
 
+- **セッション（2026-07-12・続き88・Sonnet 5・Sonnetタスク8＝semantic audit 系統①の残27件を最終分類・完了）**
+  - **✅ 系統①「相手デッキ削りowner取り違え」の残27件を`_auditSystematicScan.mjs`で再抽出し1件ずつノード単位で分類＝単点是正できる残件はゼロと確定**（JSON/engine無変更・分析のみ）。過去のパイロットfindings.jsonlは消失済みで`semanticAuditTriage.mjs`は使えなかったため、既存の再現可能スクリプトで代替。
+  - **17件＝「あなたか対戦相手」選択パターン**（`owner:'any'`+CHOOSE化が要る＝Opus送り）・**9件＝誤検知（既に正しい実装）**（スキャンがカード単位判定のため無関係の正しい`owner:self`ノードを拾っていただけ＝修正不要）・**1件（WXDi-P07-007）＝別の構造的バグの疑い**（対戦相手の２択自体がSTUB化され未実装）。
+  - **🔎 Opusの作業を軽くする発見＝`WXDi-P04-082`に「あなたか対戦相手」選択の正しい実装パターンが既存**（`CHOOSE{choices:[TRASH(self),TRASH(opponent)]}`）＝新規engine機構なしで17件へ横展開できるテンプレートを提示。詳細 BUGFIXES 続き88。
+  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。stub群2,306枚へのsemantic auditスケールアップは`claude -p`呼び出しを要するため要件確認が先。またはOpusタスク12(v)(vi)・13・系統①CHOOSE化17件の着地待ち**。
+
 - **セッション（2026-07-12・続き87・Sonnet 5・Sonnetタスク12＝§5b 英語ID漏れの系統分類・完了）**
   - **✅ `docs/decompile_sheet*.txt`の逆翻訳に残る英語ID漏れを機械抽出し16テーマに分類**＝新設`scripts/_stubLeakScan.mjs`で走査→`docs/_stub_leak_classification.txt`へ出力（分析専用・JSON/engine無変更）。
   - **🔎 母集団を実測し直したところPLAN記載の「367件」は古い数字と判明**＝現状は該当カード823枚・タグ出現968件・distinct id 316種（BEHAVIOR_AUDIT等の主作業でJSONが継続的に変化しているため。件数メトリクスは経年で陳腐化する＝PLAN §3の原則どおり）。BET系の「19+11+8=38」（続き86で発見）に続き2件目の同種の数字ドリフト。
