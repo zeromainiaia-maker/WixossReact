@@ -173,10 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き85・Sonnet 5・Sonnetタスク5＝golden型網羅の追加・完了）**
-  - **✅ 残り15型を追加して golden 型網羅を実質完了**（PLACE_SIGNI_ON_FIELD／REVEAL_UNTIL_BANISH_SAME_LEVEL／REVEAL_UNTIL_TO_HAND／REVEAL_UNTIL_TO_FIELD／PLACE_LRIGS_UNDER_CENTER／COST_REDUCTION・COST_INCREASE（`calcActiveCostMods`経由）／ATTACH_CHARM／CHARM_PROTECTION（`collectCharmShieldSigni`経由・2テスト）／MUTUAL_DISCARD_AND_DRAW／BANISH_REDIRECT／REARRANGE_SIGNI（`resumeRearrangeSigni`を新規importして手動駆動）／SET_BASE_LEVEL（`applyContinuousBaseLevelOverride`経由））。golden 264→277（続き82起点の106から+171）、全ゲート緑、census 1483・同型★0とも維持（engine/parser/JSON は無変更）。
-  - **残22型を精査し「これ以上Sonnetがテストを足す価値が無い」と判定して打ち止め**＝(a) PLAN §6.1既記載の未実装15型（`grep -c "case 'TYPE'"`でengineにcase自体が0件と確認済み＝Opus機構実装が前提）(b) no-opプレースホルダ5型（COUNTER_SPELL/LRIG_LIMIT_MODIFY/RECOLLECT_GATE(トップレベル)/UNKNOWN/ALT_COST_OPP_TURN＝ログ出力のみで実処理は別経路・「ログ文言が出る」テストは価値が薄い）(c) PLAY_FREE（`source:'opp_hand'`の実例はSTUB `PLAY_FREE`委譲で複合が深く、`source:'hand'`は「ADD_TO_HANDへ委譲する暫定プレースホルダ」とコード自身が明記＝どちらも意味のあるgoldenにならず見送り）(d) GROW_FREE（no-op placeholder）。
-  - **次の一手＝golden型網羅は打ち止め。PLAN §3 Sonnetタスクリストの他項目（BET系表現描画・semantic audit実行＋単点修正・§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。またはOpusタスク12(v)(vi)の修正着地待ち**。
+- **🆕 セッション（2026-07-12・続き86・Sonnet 5・Sonnetタスク7＝§5b Z-2 BET系の表現描画・完了）**
+  - **✅ `BET_MECHANIC`／`BET_ALTERNATIVE`／`BET_CONDITION`の現存全19効果（実測＝11／7／1。PLAN記載の「19+11+8=38」は古い数字で不一致だったため実測し直した）に`decompileEffects.ts`の原文抽出規則を追加し意味文化**。`BET_MECHANIC`はSTUBがaction全体を占める（他の構造化データなし）ため`/ベット―[\s\S]*/`で残り全文を抽出。`BET_ALTERNATIVE`/`BET_CONDITION`はSEQUENCE内の1ステップとして「あなたがベットしていた場合、…。」の一文のみを表すため専用regexで抽出。engine/effects JSONは無変更（同型★0・census 1483とも維持）。
+  - **🔎 実装中に二重句点「。。」の表示崩れを自己発見して修正**＝最初、抽出テキストの末尾に句点を含めて実装したところ、SEQUENCE内で後続ステップがあるカード（WXK07-106）で「代わりに２回行う。。そして…」という二重句点が出ることを確認。原因はSEQUENCE結合ロジックが各ステップ後に「。」を自動付与するため。regexを「末尾の句点は含めない（既存の`ABILITY_CHECK_ELSE_TRASH`等と同じ慣例）」に修正して解消。
+  - **19件すべてを目視照合＝15件完全一致・2件（WX17-003/WXDi-P07-059）は他の未対応STUB（CHOOSE_SAME_OPTION系／DECLARE_COLOR等）が残るため部分改善どまりと確認**（それらは§5b混線テールへ・今回のスコープ外）。詳細 BUGFIXES 続き86。
+  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（semantic audit実行＋単点修正・§7実機検証R-series残項目・checkAllEffects/verifyEffects精査・英語ID漏れ367系統分類等）から次を選ぶ。またはOpusタスク12(v)(vi)の修正着地待ち**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
