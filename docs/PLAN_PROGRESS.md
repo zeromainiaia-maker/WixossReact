@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き98・Sonnet 5・§7 R44②ON_EXCEED_COST任意コスト支払いを実機確認）**
+  - **✅ R44「ON_EXCEED_COST」②（任意コスト支払い→対象へ実際に-5000適用）を実機PASS（2回連続）＝engine正常動作**＝`exceedCostPay`シナリオ新設。UI操作パターン＝`EffectInteractionModal`の`optcost-energy-N`（支払うエナ選択）→`optcost-pay`（発動）→通常SELECT_TARGETピッカーの3段階。`order`配列に追加。**残＝③カットインexceedでは未発火（近似）のみ未検証**。詳細 BUGFIXES 続き98。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082＝いずれも新規UI操作パターンが要り着手保留中・R44③カットイン経路）。Opusタスク12(vi-2)(vi-3)(vi-4)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚の再検証も。
+
 - **セッション（2026-07-12・続き97・Sonnet 5・§7 R41②placedFront負例を実機確認）**
   - **✅ R41「placedFront」②（正面以外の配置では非発火）を実機PASS（2回連続）＝engine正常動作**＝`placedFrontNegative`シナリオ新設。**設計上の注意点**＝watcher（WXDi-P03-043）自身のE1が「対戦相手は可能ならこのシグニの正面に配置しなければならない」を`BLOCK_ACTION FORCE_PLACE_FRONT`で実装しているため、正面ゾーンが空いていると他ゾーンへの召喚UIが選択不可（グレーアウト）になり①と同じ盤面では②を再現できない＝正面ゾーンを別カードで埋めて「正面配置不可能」状態を作ってから検証。`order`配列に追加。R41は①②とも完了。詳細 BUGFIXES 続き97。
   - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目（R43②自エナ/相手効果での非発火＝コード上「あなたの効果」限定が既に近似と判明済みのため検証価値低・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082＝いずれも新規UI操作パターンが要り着手保留中）。Opusタスク12(vi-2)(vi-3)(vi-4)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚の再検証も。
