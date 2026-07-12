@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き91・Sonnet 5・Sonnetタスク11＝checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS 一次精査・ほぼ完了）**
+  - **✅ EFFECT_TYPE_MISSING_CONTINUOUS 20件を全件精査**＝15件は「AUTOにcondition/activeConditionで条件ゲートを直接埋め込む」実行時等価な代替表現＝**checkAllEffects.mjsのヒューリスティックの誤検知と確認**（JSON変更不要）。**真バグ5件を発見・修正**＝WXK10-039（印字キーワード【アサシン】が丸ごと未実装＝`hasKeyword()`の自己付与検査を通らず能力が機能していなかった）・PR-426／WX05-021／WXDi-P07-060（「常に…を得る」の片方＝パワー修正/キーワード付与が欠落。能力付与側だけがcondition-gated AUTOとして実装済みだった）・WXDi-CP02-103（「すべての領域でクラス扱い」＝`collectTreatAsClassAllZones`機構が実カード母集団0件で初適用。`decompileEffects.ts`にも新規STUB idの原文抽出規則を追加）。census 1480→**1479**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持・smoke効果総数10587→10592。詳細 BUGFIXES 続き91。
+  - **checkAllEffects一次精査タスクはこれでほぼ完了**（MANDATORY_SUSPICIOUS単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件＝計21件修正）。残＝`verifyEffects`「定義なし」誤検出改善のみ未着手。
+  - **次の一手＝`verifyEffects`「定義なし」誤検出改善（未着手）。またはPLAN §3 Sonnetタスクリストの他項目（§7実機検証R-series残項目等）。Opusタスク6/12(vii)(viii)の着地待ち**。
+
 - **🆕 セッション（2026-07-12・続き81・Sonnet 5・Sonnetタスク1＝続き80で引き継いだ残3シナリオ〔exileHandBlind/delayedAttackTrigger/trashCounterOpp〕を再実行・原因切り分け・driver修正・engine実バグ1件を発見してOpusタスク12へ登録）**
   - **✅ `exileHandBlind`/`delayedAttackTrigger`＝PASS化（driver側の不具合3件を修正）**＝(1)`exileHandBlind`のtrash基準値がコスト支払い前の値を見ていた（コスト支払いのtrash+1を退行と誤検知）。(2)`delayedAttackTrigger`のセンターLRIG画像クリックが`pointerEvents:'none'`で常に30秒タイムアウト（`{force:true}`で解消）。(3)使用済み後のフォールバッククリックが開いた`CardStackModal`が後続のフェイズ進行クリックをブロック。3件ともengine実装自体は正しく動作しており真バグではなかった。
   - **✅ `H.closeModals()` を恒久修正**＝続き79が「Escape×3は当てにならない」と記録した問題を根治＝`CardModal`/`CardStackModal`はEscape非対応（背景divのonClickのみ）と判明したため「タップして閉じる」テキストクリックを追加。シナリオ間の残留モーダル汚染（`trashCounterOpp`が前シナリオの残留モーダルでブロックされていた実例）を解消。
