@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き92・Sonnet 5・verifyEffects「定義なし」再調査＋Sonnetタスク1＝§7 R38②実機検証）**
+  - **✅ `verifyEffects.ts`「定義なし」誤検出＝全12シート再走査で現状0件と確認（クローズ）**＝既存の除外フィルタ（ガードのみ/注釈のみ/トークン）が正しく機能。JSON/engine/verifyEffects.tsとも無変更（読み取り調査のみ）。checkAllEffects一次精査タスク（Sonnetタスク11）はこれで完全クローズ。
+  - **✅ §7 R38「凍結トリガー」②《ターン1回》回数制限を実機検証＝PASS（2回連続）**＝`scripts/verifyBattleDrive.mjs`に`freezetriggerUsageLimit`シナリオを新設（WX01-081×2召喚→guest2体を別々に凍結→watcher WX08-039〔ON_SIGNI_FROZEN・usageLimit:once_per_turn〕が1回目のみ発火しgHandが1回しか減らないことを確認）。**engine側は無変更**＝`collectFreezeTriggers`/`collectFreezeInline`が続き75のON_TARGETED usageLimit修正と同型の設計で最初から正しく実装済みと判明。ドライバ側の罠3件（早期return判定・CPU応答の1tick遅延・host lrigのリミット不足で2枚目の召喚ボタンが生成されない）を解消してPASS化。`order`配列に追加。詳細 BUGFIXES 続き92。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る「②未検証」項目多数（R37③連鎖再発火・R43②自エナ/相手効果での非発火・ON_TARGETED②turnOwner:opponentゲート・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082 等）から1件ずつ`freezetriggerUsageLimit`と同型の手順（シナリオ追加→ground truth確認→`order`追加→BUGFIXES/PLAN簿記）で消化。またはSonnetタスク9（smoke SKIP 268解消）。
+
 - **セッション（2026-07-12・続き91・Sonnet 5・Sonnetタスク11＝checkAllEffects EFFECT_TYPE_MISSING_CONTINUOUS 一次精査・ほぼ完了）**
   - **✅ EFFECT_TYPE_MISSING_CONTINUOUS 20件を全件精査**＝15件は「AUTOにcondition/activeConditionで条件ゲートを直接埋め込む」実行時等価な代替表現＝**checkAllEffects.mjsのヒューリスティックの誤検知と確認**（JSON変更不要）。**真バグ5件を発見・修正**＝WXK10-039（印字キーワード【アサシン】が丸ごと未実装＝`hasKeyword()`の自己付与検査を通らず能力が機能していなかった）・PR-426／WX05-021／WXDi-P07-060（「常に…を得る」の片方＝パワー修正/キーワード付与が欠落。能力付与側だけがcondition-gated AUTOとして実装済みだった）・WXDi-CP02-103（「すべての領域でクラス扱い」＝`collectTreatAsClassAllZones`機構が実カード母集団0件で初適用。`decompileEffects.ts`にも新規STUB idの原文抽出規則を追加）。census 1480→**1479**（`vocabCensus.ts`のBASELINE_HIGH更新）・golden/smoke/fuzz全緑・同型★0維持・smoke効果総数10587→10592。詳細 BUGFIXES 続き91。
   - **checkAllEffects一次精査タスクはこれでほぼ完了**（MANDATORY_SUSPICIOUS単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件＝計21件修正）。残＝`verifyEffects`「定義なし」誤検出改善のみ未着手。
