@@ -1365,7 +1365,6 @@ const scenarios = {
       H.log('開始時 guest.fieldSigni:', JSON.stringify(preCheck?.guest?.fieldSigni));
       const runFreeze = async (label, pickTestId, alreadyFrozen) => {
         await H.ensureMain();
-        await H.closeModals();
         let handClicks = 0;
         const clickHand = async () => { handClicks++; return await H.clickTestId('my-hand-card-0'); };
         H.log(`[${label}] 手札クリック:`, await clickHand() ?? '見つからず');
