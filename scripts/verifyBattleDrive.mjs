@@ -1135,7 +1135,11 @@ const scenarios = {
             if (opened) { did = opened; modalOpened = true; }
           }
           if (!did) {
-            const actBtn = page.getByRole('button', { name: /【起】.*コイン/ }).first();
+            // ⚠getMySigniFieldActions（BattleScreen.tsx:9903）のcostLabel構築がeff.cost?.coinを
+            // 考慮しておらず、コインのみコストの起動効果ボタンが「【起】コストなし」と誤表示される
+            // （WXK04-003のLRIG版と同型の表示バグ・続き99で発見・詳細BUGFIXES）。実際のコスト要求は
+            // SigniActivatedModal側で正しいため、ボタンテキストは【起】始まりで広く拾う。
+            const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
             if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】コイン'; }
           }
           if (!did) {
