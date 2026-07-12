@@ -14,6 +14,13 @@
   - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
   - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
 
+- **セッション（2026-07-12・続き87・Sonnet 5・Sonnetタスク12＝§5b 英語ID漏れの系統分類・完了）**
+  - **✅ `docs/decompile_sheet*.txt`の逆翻訳に残る英語ID漏れを機械抽出し16テーマに分類**＝新設`scripts/_stubLeakScan.mjs`で走査→`docs/_stub_leak_classification.txt`へ出力（分析専用・JSON/engine無変更）。
+  - **🔎 母集団を実測し直したところPLAN記載の「367件」は古い数字と判明**＝現状は該当カード823枚・タグ出現968件・distinct id 316種（BEHAVIOR_AUDIT等の主作業でJSONが継続的に変化しているため。件数メトリクスは経年で陳腐化する＝PLAN §3の原則どおり）。BET系の「19+11+8=38」（続き86で発見）に続き2件目の同種の数字ドリフト。
+  - **16テーマの内訳（該当カード数の多い順）**＝デッキ操作系184／パワー修正系165／手札系102／トラッシュ系75／対戦相手コスト系63／エナ系50／ライフ系48／シグニ配置系48／ルリグ系36／能力付与系31／ガード・アタック制限系26／ソウル・アーツ系15／ウィルス系10／色・クラス系4／ゲーム除外系3／チャーム系1／その他54。上位3テーマで823枚中約半数を占める＝Opusタスク13の優先着手候補として提示。
+  - **副次的な発見＝「日本語グロス無しの純粋な生id」は現状わずか6id・7枚のみ**（`TRIGGER_LIFE_BURST`等）。残り大半（316id中310id）は`stubDescMap`由来の日本語説明が既に付いているが`[STUB:説明文]`の角括弧タグのままで、自然な地の文への組み込み（JSON再構造化）が要る＝これがOpusタスク13の本体であることを明確化。
+  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（semantic audit実行＋単点修正・§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。またはOpusタスク12(v)(vi)・13の着地待ち**。
+
 - **セッション（2026-07-12・続き86・Sonnet 5・Sonnetタスク7＝§5b Z-2 BET系の表現描画・完了）**
   - **✅ `BET_MECHANIC`／`BET_ALTERNATIVE`／`BET_CONDITION`の現存全19効果（実測＝11／7／1。PLAN記載の「19+11+8=38」は古い数字で不一致だったため実測し直した）に`decompileEffects.ts`の原文抽出規則を追加し意味文化**。`BET_MECHANIC`はSTUBがaction全体を占める（他の構造化データなし）ため`/ベット―[\s\S]*/`で残り全文を抽出。`BET_ALTERNATIVE`/`BET_CONDITION`はSEQUENCE内の1ステップとして「あなたがベットしていた場合、…。」の一文のみを表すため専用regexで抽出。engine/effects JSONは無変更（同型★0・census 1483とも維持）。
   - **🔎 実装中に二重句点「。。」の表示崩れを自己発見して修正**＝最初、抽出テキストの末尾に句点を含めて実装したところ、SEQUENCE内で後続ステップがあるカード（WXK07-106）で「代わりに２回行う。。そして…」という二重句点が出ることを確認。原因はSEQUENCE結合ロジックが各ステップ後に「。」を自動付与するため。regexを「末尾の句点は含めない（既存の`ABILITY_CHECK_ELSE_TRASH`等と同じ慣例）」に修正して解消。
