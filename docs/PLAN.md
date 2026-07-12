@@ -270,7 +270,7 @@
 - [~] **系統①：相手デッキ削りの owner 取り違え**。**(a) 純・相手のみ58枚＝✅是正済（2026-07-03）**。**✅続き88（Sonnet）で(b)(c)を再実測・ノード単位で全27件を最終分類＝単点是正できる残件はゼロと確定**。(b)「あなたか対戦相手」選択17件（WX07-005/WXDi-D07-019/WXDi-D07-022(E1+BURST)/WXDi-P01-044/WXDi-P04-043/WXDi-P05-043/WXDi-P07-087/WXDi-P13-002/WX24-P3-057/WX24-P3-091/WX24-P4-025/WX25-P3-028/WX26-CP1-058/WX26-CP1-098/WXK09-034/WXK09-057/WXK11-076）＝`owner:'any'`＋CHOOSE化が要る。**🔎正しい実装パターンが`WXDi-P04-082`に既存**（`CHOOSE{choices:[TRASH(self),TRASH(opponent)]}`）＝Opusはこれをテンプレートに17件へ横展開すれば新規engine機構は不要。(c)混在の誤検知9件（WXEX2-21/WXDi-P04-082/WXDi-P11-082/WXDi-P15-055/WX24-P3-088/WX24-P4-034/WX24-P4-049/WX25-CP1-007）＝スキャンがカード単位判定のため無関係の正しい`owner:self`ノードを誤検知していただけ＝**修正不要（既に正しい）**。WXDi-P07-007は「対戦相手が２択から選ぶ」構造自体がSTUB化（`OPP_CHOOSES_FOR_YOU`）されており別課題。詳細 BUGFIXES 続き88。
 - [~] **系統②：GRANT_PROTECTION `count:'ALL'`＋subjectFilter無し＝48件**。**単体保護24件は `count:'ALL'→1` 是正済（2026-07-03）**。genuineな残ギャップは(a)SEQUENCE内GRANT_PROTECTION（WX08-017）(b)LAYER付与型（WX15-031）。残る**広域24件**（「あなたのシグニは…」）はsubjectFilter/新機構が要る別課題。
 - [ ] **パイロット findings の個別修正**（真バグ39件・要追精査3件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ標準ワークフロー。
-- [ ] **スケールアップ**＝stub群全2,306枚へ拡大（SEMANTIC_AUDIT.md「スケールアップの進め方」）。
+- [~] **スケールアップ**＝stub群全2,306枚へ拡大（SEMANTIC_AUDIT.md「スケールアップの進め方」）。**続き102（Sonnet）で着手＝stub100+clean100=200枚サンプル中119枚を`claude -p`セッション上限まで精査（findings125件・単点是正21件はBUGFIXES続き102）。残り約2,180枚＋当該サンプルの残り8バッチ（81枚）が未精査＝`claude -p`上限リセット後に`scripts/archive/scratchpad/semantic_audit_101/`のfindings/manifestを参照しつつ再開**。
 
 ### 6.3 残・大型機構（個別カード・機構待ち）
 
