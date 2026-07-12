@@ -9903,6 +9903,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const costLabel = eff.cost
           ? [
               energyTotal > 0 ? `エナ${energyTotal}` : null,
+              eff.cost.coin ? `コイン${eff.cost.coin}` : null,
               eff.cost.discard ? `手札${eff.cost.discard}枚トラッシュ` : null,
               eff.cost.discardAll ? '手札すべて捨て' : null,
               eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
