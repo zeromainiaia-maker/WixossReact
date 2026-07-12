@@ -1398,10 +1398,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
     const t0 = text.trim();
     for (const [re, mk] of CLAUSES) {
       // 先頭の任意プレフィックス（m[1]）は「…対象とし、」に加えトリガー句「このシグニがアタックしたとき、」
-      // も許容する（ON_ATTACK_SIGNI のトリガー除去は本ループより後の 1365 行で行われるため、ここでは
-      // 条件節の前に居残っている＝素の先頭マッチが外れる）。m[1] は then へ再prependされ parseSingleSentence
-      // が同プレフィックスを除去するので整合する（WXDi-P14-058/066）。
-      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき)、)?)' + re.source + '、(.+)$', 's'));
+      // 「このルリグがアタックしたとき、」も許容する（ON_ATTACK_SIGNI/ON_ATTACK_LRIG のトリガー除去は本ループ
+      // より後の 1365 行で行われるため、ここでは条件節の前に居残っている＝素の先頭マッチが外れる）。
+      // 「このルリグがアタックしたとき」は続き105で追加＝WX14-010等「あなたの場に(色)と(色)のシグニがある場合」
+      // クラスタが未マッチだった原因（プレフィックス未対応で条件節ごと無条件発火の過剰効果になっていた）。
+      // m[1] は then へ再prependされ parseSingleSentence が同プレフィックスを除去するので整合する（WXDi-P14-058/066）。
+      const m = t0.match(new RegExp('^((?:[^。「」]*?(?:対象とし|このシグニがアタックしたとき|このルリグがアタックしたとき)、)?)' + re.source + '、(.+)$', 's'));
       // 「〜の場合、代わりに〜」（昇格置換）は then だけのラップだと「基本＋条件時追加」の誤近似になり、
       // 既存 STUB（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済みハンドラ）も横取りして退化させる
       // ＝ else 表現が要る別系統として据置（本規則の対象外）
