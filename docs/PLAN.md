@@ -173,9 +173,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き98・Sonnet 5・§7 R44②ON_EXCEED_COST任意コスト支払いを実機確認）**
-  - **✅ R44「ON_EXCEED_COST」②（任意コスト支払い→対象へ実際に-5000適用）を実機PASS（2回連続）＝engine正常動作**＝`exceedCostPay`シナリオ新設。UI操作パターン＝`EffectInteractionModal`の`optcost-energy-N`（支払うエナ選択）→`optcost-pay`（発動）→通常SELECT_TARGETピッカーの3段階。`order`配列に追加。**残＝③カットインexceedでは未発火（近似）のみ未検証**。詳細 BUGFIXES 続き98。
-  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③④・ON_COIN_PAID③④・R36②WXDi-CP02-082＝いずれも新規UI操作パターンが要り着手保留中・R44③カットイン経路）。Opusタスク12(vi-2)(vi-3)(vi-4)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚の再検証も。
+- **🆕 セッション（2026-07-12・続き99・Sonnet 5・§7 ON_COIN_PAID③検証＝表示バグ修正+engineバグ発見）**
+  - **✅ 表示バグ修正＝`getMySigniFieldActions`相当のcostLabelが`eff.cost?.coin`未考慮で「【起】コストなし」と誤表示（WXK04-003のLRIG版と同型・シグニ版が取り残されていた）**＝`` `コイン${eff.cost.coin}` `` を追加。UI表示のみでロジック不変のためSonnetの裁量で修正（続き81の前例踏襲）。`npm run gates`全緑。
+  - **🔎 engineバグを発見（未修正）＝`collectCoinPaidTriggers`がusageLimit用`actions_done`書き戻しを一切行わずON_COIN_PAIDの《ターン1回/2回》が実質ノーガード**＝`coinPaidTwice`シナリオ（WXDi-P15-069・twice_per_turn）で同一ターン内3回目の支払いでも発火することを2回連続再現確認。Opusタスク12(vi-5)へ登録。`coinPaidTwice`は意図的FAILシナリオとして`order`配列に追加しない。詳細 BUGFIXES 続き99。
+  - **次の一手＝PLAN §3 Sonnetタスク1（§7実機検証R-series）の続き**＝残る項目（R43②・ON_LRIG_GROW③④・R36②WXDi-CP02-082・R44③カットイン経路）。Opusタスク12(vi-2)〜(vi-5)着地後はSonnetタスク9残258件・R37 LRIG2枚・LRIG棚卸しの20枚・ON_COIN_PAID③の再検証も。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
