@@ -680,7 +680,11 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'CHOOSE': {
       // 原文「以下の[N]つから[M]つ（まで）を選ぶ。①…②…」に合わせる（N=from_count）。区切りは規約の「 / 」。
-      const chOpts = (a.choices || []).map((c: any) => actionJa(c.action)).filter((s: string) => s !== '');
+      // choice.condition＝「あなたの場に〜がある場合、」等の選択肢自体の選択可否ゲート（続き105・execChoose の available 判定に対応）。
+      const chOpts = (a.choices || []).map((c: any) => {
+        const body = actionJa(c.action);
+        return c.condition ? `${condJa(c.condition)}の場合、${body}` : body;
+      }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
       const cntCh = a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
       return `以下の${numJa(totalCh)}つから${cntCh}【${chOpts.join(' / ')}】`;
