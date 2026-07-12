@@ -1106,6 +1106,69 @@ const scenarios = {
     },
   },
 
+  // R44②＝exceedCostと同じ盤面だが、任意コストプロンプトを「スキップ」せず実際に《黒》を支払って
+  // 対象選択CHOOSEまで進め、相手シグニ（WX01-053）に-5000が実際に適用されることを確認する。
+  exceedCostPay: {
+    title: 'WX11-004→WXDi-P06-078（ON_EXCEED_COST残②＝任意コスト支払い→対象へ-5000が実際に適用される）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1', 'WX11-004#1'],
+        'field.signi': [['WXDi-P06-078#1'], null, null],
+        'energy': ['WD05-009#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-053#1'], null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const lrigImg = page.getByAltText('コード・ピルルク　Λ', { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+      let fired = false;
+      let paidPrompted = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exceedCostPay-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) {
+          const actBtn = page.getByRole('button', { name: /【起】エクシード/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】エクシード'; }
+        }
+        if (!did) {
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        const orderLog = await H.findLog(/エクシードコスト支払い時/);
+        if (orderLog) fired = true;
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定']);
+        const promptLog = await H.findLog(/任意コスト：対象シグニを選んで発動しますか/);
+        if (promptLog) { fired = true; paidPrompted = true; }
+        if (!did && paidPrompted) { // 任意コストプロンプト：スキップせず支払う側を選ぶ
+          did = await H.clickTextOrBtn(['発動する', 'はい', '支払う']);
+        }
+        if (!did) { // SELECT_TARGET（-5000対象＝guestのWX01-053）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+        const st = await H.queryState();
+        const pmods = st?.guest?.powerMods ?? [];
+        const debuffed = pmods.some(m => m.startsWith('WX01-053#1:') && parseInt(m.split(':')[1], 10) < 0);
+        H.log(`  excpay[${s}] -> ${did ?? 'なし'} | fired=${fired} paidPrompted=${paidPrompted} pmods=${pmods.join(',') || '-'} hEnergy=${st?.host?.energy ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (debuffed) {
+          return { pass: true, detail: `ON_EXCEED_COST②＝任意コスト支払い後、対象（WX01-053）へ-5000が実際に適用された（pmods=${pmods.join(',')}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `対象への-5000未確認（fired=${fired} paidPrompted=${paidPrompted} pmods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} hEnergy=${fin?.host?.energy ?? '-'}）` };
+    },
+  },
+
   // ⑨ ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 【自】＝あなたのターンの間、ルリグの下からカードが移動したとき（once_per_turn）。
   //    トリガー源＝アーツ WX05-007 ラスト・セレクト（タマ/イオナ限定・《白》《黒》：センタールリグの下から4枚をルリグトラッシュへ＋
   //    対戦相手シグニ1体トラッシュ）。guest シグニ場を空にすると TRASH 対象0→SEQUENCE が一気に done=true となり
