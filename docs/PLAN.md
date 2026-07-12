@@ -173,11 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-12・続き88・Sonnet 5・Sonnetタスク8＝semantic audit 系統①の残27件を最終分類・完了）**
-  - **✅ 系統①「相手デッキ削りowner取り違え」の残27件を`_auditSystematicScan.mjs`で再抽出し1件ずつノード単位で分類＝単点是正できる残件はゼロと確定**（JSON/engine無変更・分析のみ）。過去のパイロットfindings.jsonlは消失済みで`semanticAuditTriage.mjs`は使えなかったため、既存の再現可能スクリプトで代替。
-  - **17件＝「あなたか対戦相手」選択パターン**（`owner:'any'`+CHOOSE化が要る＝Opus送り）・**9件＝誤検知（既に正しい実装）**（スキャンがカード単位判定のため無関係の正しい`owner:self`ノードを拾っていただけ＝修正不要）・**1件（WXDi-P07-007）＝別の構造的バグの疑い**（対戦相手の２択自体がSTUB化され未実装）。
-  - **🔎 Opusの作業を軽くする発見＝`WXDi-P04-082`に「あなたか対戦相手」選択の正しい実装パターンが既存**（`CHOOSE{choices:[TRASH(self),TRASH(opponent)]}`）＝新規engine機構なしで17件へ横展開できるテンプレートを提示。詳細 BUGFIXES 続き88。
-  - **次の一手＝PLAN §3 Sonnetタスクリストの残り（§7実機検証R-series残項目・checkAllEffects/verifyEffects精査等）から次を選ぶ。stub群2,306枚へのsemantic auditスケールアップは`claude -p`呼び出しを要するため要件確認が先。またはOpusタスク12(v)(vi)・13・系統①CHOOSE化17件の着地待ち**。
+- **🆕 セッション（2026-07-12・続き89・Sonnet 5・Sonnetタスク11＝checkAllEffects MANDATORY_SUSPICIOUS 一次精査・部分完了）**
+  - **✅ `checkAllEffects.mjs`（archive内で実行パス破損＝`scripts/_checkAllEffects.mjs`として再実行可能な形で常設化）を再実行し62件検出**（EFFECT_TYPE_MISSING_CONTINUOUS 20／MANDATORY_SUSPICIOUS 38／OPTIONAL_SUSPICIOUS 2／POWER_VALUE_MISMATCH 1／MILL_COUNT_MISMATCH 1）。MANDATORY_SUSPICIOUS 38件のうち「アップ状態のこのシグニをダウンしてもよい」系14件を全件精査。
+  - **✅ 単点是正7件を修正＝`DownAction.optional`（既存フィールド）欠落で「してもよい」の任意ダウンが強制実行されていた**（WD12-013/015の既存正パターンが新規カードで再発）＝WX24-P1-069／WX24-P3-077／WXDi-P06-049／WXDi-P16-078／WX25-P2-085（`optional:true`追加）・WXDi-P09-054／WXDi-P15-092（`optional:true`追加＋後続CHOOSEを`CONDITIONAL{IS_MY_TURN}`で包む）。census 1483→**1482**（`vocabCensus.ts`のBASELINE_HIGHも更新）・golden/smoke/fuzz全緑・同型★0維持。
+  - **🔎 同クラスタで発見した構造的バグ7件はOpusタスク12(vii)へ登録**（単点是正の範囲を超えるため未修正）＝対象/自己混同でDOWNが誤って相手側をダウンする2件（WX25-P1-055／WXDi-P04-059）・同型の対象混同1件（WX25-P3-089）・アイコンフィルタ欠落1件（WXDi-P13-074）・条件欠落1件（WXDi-CP01-040）・即時アクション化1件（WXDi-P15-084）・SIGNI/LRIG型混同+色フィルタ欠落1件（WX25-P2-112）。POWER_VALUE_MISMATCH（WX06-006）は「代わりに」置換機構欠落と判明しOpusタスク6へ。MILL_COUNT_MISMATCH（WX24-P3-039）は動的count(`countIsLastProcessedLevelSum`)をヒューリスティックが認識できない誤検知と確認・修正不要。詳細 BUGFIXES 続き89。
+  - **次の一手＝MANDATORY_SUSPICIOUS残り24件・EFFECT_TYPE_MISSING_CONTINUOUS 20件・`verifyEffects`「定義なし」誤検出改善は未着手のまま持ち越し。またはPLAN §3 Sonnetタスクリストの他項目（§7実機検証R-series残項目等）。Opusタスク6/12(vii)の着地待ち**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
