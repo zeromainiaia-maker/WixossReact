@@ -1146,6 +1146,7 @@ const scenarios = {
             const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
             if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
           }
+          if (!did) did = await H.clickTextOrBtn(['発動順序を確定']); // ON_COIN_PAID watcherと【起】効果の発動順序モーダル
           const st = await H.queryState();
           H.log(`  [${label}][${s}] -> ${did ?? 'なし'} | coins=${st?.host?.coins ?? '-'} pmods=${(st?.host?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
           if (!did && modalOpened && (st?.stackLen ?? 0) === 0 && !st?.pendingEffect) {
