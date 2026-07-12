@@ -2092,7 +2092,7 @@ const scenarios = {
         if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-2'); // 正面ではないゾーン（host zone1は埋まっているため選択肢に出ない）
         if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
-        const placed = (st?.host?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1');
+        const placed = (st?.host?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1') || (st?.host?.fieldSigni?.[2] ?? []).includes?.('WD01-013#1');
         const watcherLog = await H.findLog(/ギロッポン.*相手シグニアタック時|の【自】効果（相手シグニアタック時）/);
         const debuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
         H.log(`  pfn[${s}] -> ${did ?? 'なし'} | placed=${placed} hPowerMods=${(st?.host?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
