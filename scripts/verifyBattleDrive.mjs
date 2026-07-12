@@ -1283,6 +1283,7 @@ const scenarios = {
       hostSet: {
         'field.lrig': ['WX08-004#1'],                  // ミュウ Lv4/Limit11（WD11-013「ミュウ限定」を満たす）
         'field.signi': [['WX20-Re03#1'], null, null],  // watcher（ドライ＝ラッカー）
+        'energy': [],
         'actions_done': [],
       },
       guestSet: {
