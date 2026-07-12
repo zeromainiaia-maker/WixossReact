@@ -5,6 +5,17 @@
 
 ---
 
+## golden 型網羅の追加＝完了（残15型・2026-07-12・続き85・Sonnet 5・PLAN §3 Sonnetタスク5）
+
+続き82-84に続き、残っていた15型（PLACE_SIGNI_ON_FIELD／REVEAL_UNTIL_BANISH_SAME_LEVEL／REVEAL_UNTIL_TO_HAND／REVEAL_UNTIL_TO_FIELD／PLACE_LRIGS_UNDER_CENTER／COST_REDUCTION・COST_INCREASE／ATTACH_CHARM／CHARM_PROTECTION／MUTUAL_DISCARD_AND_DRAW／BANISH_REDIRECT／REARRANGE_SIGNI／SET_BASE_LEVEL）にテストを追加（golden 264→277）。これで golden 型網羅タスクは実質完了（続き82起点の106から+171）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
+
+- **CONTINUOUS型は専用の公開関数を直接呼んで検証**＝COST_REDUCTION/COST_INCREASEは`effectEngine.ts`の`calcActiveCostMods`（BattleScreenがスペル/アーツ使用コスト計算時に呼ぶ関数）、CHARM_PROTECTIONは`collectCharmShieldSigni`（バニッシュ経路が参照するチャーム盾判定）、SET_BASE_LEVELは`applyContinuousBaseLevelOverride`（cardMapのLevelを書き換えてすべてのレベル参照に反映する関数）を`import`に追加して直接呼び出し。いずれも`POWER_MODIFY_PER_ENERGY`の既存テスト（`calcFieldPowers`直呼び）と同型の手法。
+- **REARRANGE_SIGNIは新しいpending型を要するためrun()ハーネスを使わず手動駆動**＝`resumeRearrangeSigni`を新規importし、`executeEffect`→`pending`取得→`resumeRearrangeSigni`呼び出しの3段を手で書いた（既存の`run()`オートパイロットはSELECT_TARGET/SEARCH/CHOOSE/LOOK_AND_REORDER/SELECT_ZONE系のみ対応でREARRANGE_SIGNIは非対応のため）。
+- **見送った型を最終確定**＝(a) PLAN §6.1に「未実装action型」と明記済みの15型は`grep -c "case 'TYPE'" src/engine/effectExecutor.ts src/engine/effectEngine.ts`で該当caseが0件であることを再確認し、engineが未実装のためgoldenテストを書く対象外（Opus機構実装完了後に追加すべき）。(b) COUNTER_SPELL／LRIG_LIMIT_MODIFY／RECOLLECT_GATE（トップレベルaction時）／UNKNOWN／ALT_COST_OPP_TURNはcaseが存在するがログ出力のみのno-opプレースホルダ（実処理はBattleScreen側UI/別経路）＝「ログ文言が出ることを確認するテスト」は正しさの担保にならないため見送り。(c) PLAY_FREEは`source:'opp_hand'`の唯一の実カード（WX04-003）がSTUB `PLAY_FREE`への委譲で「選んだカードの本体効果を実際に実行する」複合処理のため意味のあるgoldenが組みづらく、他のsource（hand/lrig_deck/opp_trash）はコード自身が「従来どおりのプレースホルダー（暫定）」とコメントしている近似実装＝どちらも見送り。(d) GROW_FREEはno-opプレースホルダ（実処理はBattleScreen側）。
+- **検証**＝`npm run gates`（typecheck/golden/smoke/fuzz/census/lint 全緑・golden 277）。
+
+---
+
 ## golden 型網羅の追加（続き）＝9型追加＋`POWER_MODIFY_PER_DECK_COUNT`未実装バグの発見（2026-07-12・続き84・Sonnet 5・PLAN §3 Sonnetタスク5）
 
 続き82/83に続き、未カバーだった9型（DRAW_PER_FIELD_COUNT／ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT／PLACE_UNDER_SIGNI(source:hand)経由のPLACE_UNDER_SOURCE_SIGNI／FORCE_SIGNI_ATTACK／TAKE_FROM_UNDER_SIGNI／BLOCK_CARD_USE／ADD_CRAFT_TO_LRIG_DECK／ENERGY_CHARGE_BY_FIELD_COUNT／PLACE_VIRUS）にテストを追加（golden 255→264）。engine/parser/JSONは無変更（census 1483・同型★0とも維持）。
