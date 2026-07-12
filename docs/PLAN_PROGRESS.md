@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-12・続き81・Sonnet 5・Sonnetタスク1＝続き80で引き継いだ残3シナリオ〔exileHandBlind/delayedAttackTrigger/trashCounterOpp〕を再実行・原因切り分け・driver修正・engine実バグ1件を発見してOpusタスク12へ登録）**
+  - **✅ `exileHandBlind`/`delayedAttackTrigger`＝PASS化（driver側の不具合3件を修正）**＝(1)`exileHandBlind`のtrash基準値がコスト支払い前の値を見ていた（コスト支払いのtrash+1を退行と誤検知）。(2)`delayedAttackTrigger`のセンターLRIG画像クリックが`pointerEvents:'none'`で常に30秒タイムアウト（`{force:true}`で解消）。(3)使用済み後のフォールバッククリックが開いた`CardStackModal`が後続のフェイズ進行クリックをブロック。3件ともengine実装自体は正しく動作しており真バグではなかった。
+  - **✅ `H.closeModals()` を恒久修正**＝続き79が「Escape×3は当てにならない」と記録した問題を根治＝`CardModal`/`CardStackModal`はEscape非対応（背景divのonClickのみ）と判明したため「タップして閉じる」テキストクリックを追加。シナリオ間の残留モーダル汚染（`trashCounterOpp`が前シナリオの残留モーダルでブロックされていた実例）を解消。
+  - **✅ `trashCounterOpp`＝driverのシナリオ設定ミス（lrigレベル不足）を修正し実行は正常化したが、real engine bugを発見**＝`resumeSelectTarget`→`applyDirectAction`のTRASH/HAND_CARD分岐が`hand_trashed_by_opp_this_turn`等3フィールドの更新を欠く（`count:'ALL'`の即時適用パス`applyTrashHand`にはあるロジックが、`count:1`等でSELECT_TARGET経由する再開パスに丸ごと抜けている）＝**`TRASH{HAND_CARD,count:1}`を使う全カードが影響対象**。修正はせずOpusタスク12へ登録（PLAN §3・詳細 BUGFIXES）。`trashCounterOpp`は既定order外のまま。
+  - **既定orderに追加**＝`exileHandBlind`・`delayedAttackTrigger`（2回連続PASS確認）。実行時間は9分18秒→2分4秒に短縮（force-clickタイムアウト解消が主因）。
+  - **✅ Sonnetタスク10＝WXK04-003ボタンラベル表示バグも同セッションで完了**＝`getMyLrigFieldActions`の3箇所に`eff.cost?.coin`考慮を追加（「コストなし」→「コイン1」）。実UI検証で新たに「同カードが2つの【起】ボタンを持つ」（サプライズ＋`manualEffects.ts`の`WXK04-003-DECORE`）ことを発見＝デコレ側はcost count:0で元から正当な「コストなし」と判明・2ボタン共存が正解。`wxk04003Label`シナリオPASS。詳細 BUGFIXES 続き81。
+  - **次の一手＝Opusタスク12（`applyDirectAction`のTRASH/HAND_CARD分岐修正＋影響範囲精査＝ENERGY_CARD/SIGNI分岐の同型欠落点検も）。Sonnet側はPLAN §3 Sonnetタスクリストの他項目（golden型網羅・BET系表現描画・semantic audit等・または§7実機検証R-series残項目の継続）から次を選ぶ**。
+
 - **セッション（2026-07-12・続き80・Fable 5（Opus側）・実行環境の遅延原因を調査・恒久修正＝続き79で引き継いだ「preview 50個常駐・毎回15〜30分」問題の根治＋開発ゲート高速化）**
   - **✅ 真因確定＝`verifyBattleDrive.mjs`/`verifyBrowser.mjs` 末尾の後始末の順序バグ**：`finally { proc.kill(); spawn('taskkill', [...,'/T','/F']) }` は Windows では①`proc.kill()` が**ツリーの根（cmd.exe）だけ**を先に殺す（Windowsは親が死んでも子は死なない）→②直後の `taskkill /T` は**既に死んだPID**を指すので子孫（vite preview の node）を辿れず失敗→③しかも fire-and-forget spawn の直後に `process.exit()`、の三重欠陥＝**実行のたびに preview server が1個ずつ確実にリークする**構造だった（続き79の仮説を実証）。
   - **✅ 恒久修正（両スクリプト共通）**＝`killTree()` 新設：**`proc.kill()` を廃止し、根が生きているうちに `spawnSync('taskkill', ['/pid', pid, '/T', '/F'])` を同期で完走**させる。加えて (a)`startDev()` の30秒起動タイムアウト時にも killTree（旧実装はここでもリーク）(b)`process.on('exit')` 保険＋SIGINT→exit ルーティングで例外・Ctrl+C 経路も封鎖 (c)二重kill防止フラグ。**検証＝`node scripts/verifyBrowser.mjs` 実走で全PASS＆終了後の残ポート0・node増加0を確認**。
