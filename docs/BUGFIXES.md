@@ -5,6 +5,21 @@
 
 ---
 
+## BLOCK_ACTION(SIGNI,ATTACK) 過剰ブロックバグの全数調査＝41件確定・filter無視も判明（2026-07-12・続き103・Sonnet 5・PLAN §3 Opusタスク12(ix)）
+
+続き102が「サンプル11枚超・全数調査未実施」として据置していた`execBlockAction`（`effectExecutor.ts:1536`）のSIGNI/ATTACK分岐の過剰ブロックバグを、機械抽出で全数確定した。**分析専用（JSON/engine変更なし）**＝CLAUDE.mdの運用ルール通り、発見したバグはその場で直さずOpusタスク12へ登録。
+
+- **手法**＝`scratchpad-verify/tmp_blockActionScan.mjs`（新規・gitignore対象）で`public/data/effects_*.json`全5シートを走査。SEQUENCE の`steps`配列を順序どおりたどり、各BLOCK_ACTIONノードより**前**に対象選択をしうるアクション型（BANISH/BOUNCE/TRASH/DOWN/UP/POWER_MODIFY等の選択系）が無いかを判定。CONDITIONAL/actions配列も再帰的に辿る。
+- **結果＝総ヒット48件（同一effectId内に複数BLOCK_ACTIONを持つカードあり）中41件が過剰ブロック疑い**（`count!=='ALL'`かつ前段に選択ステップ無し）。安全側7件（`count:'ALL'`または前段に選択ステップあり）。
+  - 過剰ブロック疑い41件：WDK07-Y08-E1／WDK11-007-E1（2ノード）／WDK16-09-E1（3ノード）／PR-402-E1／WX05-023-E1／WX13-043-E1／WX17-034-E1／WX18-009-E1／WX24-P1-037-E2／WX24-P1-038-E2／WX24-P2-002-E1／WX24-P2-010-E1／WX24-P3-002-E1／WX24-P3-049-E1・E2／WX25-P2-002-E1／WX25-P2-047-E1／WX25-P3-002-E1／WX25-CP1-050-E1／WX24-D1-08-E1／WX24-D2-08-E1／WXDi-P03-027-E2／WXDi-P03-051-BURST／WXDi-P05-023-E1・E2／WXDi-P06-047-E1／WXDi-P11-005-E3／WXDi-P11-046-E2／WXDi-P11-055-E1／WXDi-P15-035-E1／WXDi-P16-034-E2／WXDi-CP01-013-E1／WXDi-P11-TK02-E2／WXK05-047-E1／WXK06-010-E1／WXK11-006-E2／WXK11-007-E1／WXK11-027-E1。
+  - 安全側7件：WDK16-05S-E3／WX06-002-E1／WX11-012-E1／WX22-003-E1／WX26-CP1-002-E1／WXDi-P08-053-E1／WXK06-001-E1。
+- **🆕 サンプル原文照合でバグの射程が想定より広いと判明＝この分岐は`target.filter`も一切読んでいない**（全233件のBLOCK_ACTIONノードを走査し`target.filter`使用0件を確認）。原文照合の結果、41件は少なくとも2つの異なる意味パターンを含むと分かった：(a) 「このシグニはアタックできない」＝**このカード自身のみ**の制限（WX05-023／WX13-043／WXK05-047等の【常】。`execBanish`等が既に使う`filter.thisCardOnly:true`の自己参照慣例が本来必要だが、現行JSONにはfilter自体が無い）。(b) 「対戦相手のシグニN体を対象とし」＝**選択式**（WX18-009等）。**現行engineはどちらのパターンも同じフォールバック（`lastProcessedCards`空時は対象オーナーの場の全シグニへ無差別付与）に落ちるため、(a)は「自分の場の全シグニがアタック不可」に、(b)は「対戦相手の全シグニがアタック不可」に、それぞれ過剰効果化している**。根本原因は1つ＝`count`/`upToCount`/`filter`をすべて無視する設計。
+- **修正方針（Opus送り）**＝`execBlockAction`のSIGNI/ATTACK分岐に(a)`matchesFilter`によるfilter適用（`thisCardOnly`含む）と(b)`selectOrInteract`ベースのN体選択（または前段でlastProcessedCardsをpopulateする設計）の両方を追加する機構実装が要る。JSON側も自己1体制限系のカードには`filter:{thisCardOnly:true}`を足す必要がある（parser側の対応も要検討）。
+- **検証**＝分析のみのため`npm run gates`は無変更だが確認実行＝全緑（typecheck／golden 278／smoke CRASH0・SKIP258／fuzz 0／census 1477=ベースライン維持／同型★0）。
+- **⚠ 副産物＝続き102が案内した「semantic audit残り8バッチの再開手順」の前提を精査したところ崩れていた**＝`scripts/archive/scratchpad/semantic_audit_101/`にアーカイブされているのは`findings.jsonl`/`findings_compact.txt`/`manifest.json`のみで、バッチ完了判定（スキップ）に使う`prompts/`・`raw/`は元の作業ディレクトリ（gitignore対象のscratchpad）ごと既に消失している。**このまま同コマンドで再開すると「済みバッチをスキップ」ではなく20バッチ全部が未完了扱いで再実行され、119枚分の重複コストとfindings重複が発生する**。次回再開時は`--batches 13,14,...,20`のように未処理番号を明示するか、実行後に`findings_compact.txt`と突き合わせて重複除去する後処理を用意すること。
+
+---
+
 ## semantic audit スケールアップ（119枚精査）＝真バグ21件を単点是正・BLOCK_ACTION(SIGNI,ATTACK)の新規engineバグを発見（2026-07-12・続き102・Sonnet 5・PLAN §3 Sonnetタスク8）
 
 **stub群2,306枚へのスケールアップ**（続き88で「`claude -p`要・未実行」と据置していたもの）の第1弾。`scripts/semanticAuditExtract.mjs --per-group 100 --seed 202607`（stub100+clean100=200枚）→`semanticAuditRun.mjs --model sonnet`で実行。**20バッチ中12バッチ（119枚）完了時点でセッション上限（429・21:10 JSTリセット）に到達し中断**＝findings 125件を確保（残り8バッチは上限リセット後に同コマンドで再開可能・済みバッチはスキップされる）。findings/manifest は `scripts/archive/scratchpad/semantic_audit_101/` に保存（再開・追精査用）。
