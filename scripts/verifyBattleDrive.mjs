@@ -1353,6 +1353,16 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      // 注入直後、CPU側の自ターン処理が非同期で残っていて guest_state を上書きする競合がある
+      // （wxk10068banish と同型の既知レース）。guest zone0/zone1 が期待値になるまで再注入して確認する。
+      let preCheck = await H.queryState();
+      for (let r = 0; r < 4 && !((preCheck?.guest?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1') && (preCheck?.guest?.fieldSigni?.[1] ?? []).includes?.('WD01-013#2')); r++) {
+        H.log(`再注入(${r})… guest zone0/1=${JSON.stringify(preCheck?.guest?.fieldSigni)}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        preCheck = await H.queryState();
+      }
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(preCheck?.guest?.fieldSigni));
       const runFreeze = async (label, pickTestId) => {
         await H.ensureMain();
         H.log(`[${label}] 手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
