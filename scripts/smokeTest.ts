@@ -21,6 +21,7 @@ import {
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone,
   resumeSelectSigniZone, resumeRearrangeSigni,
+  resumeDeclareBond, resumeRevealCards,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 
