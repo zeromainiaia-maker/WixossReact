@@ -1366,20 +1366,25 @@ const scenarios = {
       const runFreeze = async (label, pickTestId, alreadyFrozen) => {
         await H.ensureMain();
         await H.closeModals();
-        H.log(`[${label}] 手札クリック:`, await H.clickTestId('my-hand-card-0') ?? '見つからず');
+        let handClicks = 0;
+        const clickHand = async () => { handClicks++; return await H.clickTestId('my-hand-card-0'); };
+        H.log(`[${label}] 手札クリック:`, await clickHand() ?? '見つからず');
         let summoned = false;
         for (let s = 0; s < 24; s++) {
           await page.waitForTimeout(900);
           await page.screenshot({ path: `${SHOT}/freezetriggerUsageLimit-${label}-${s}.png`, fullPage: true });
           let did = null;
-          // 手札カードのプレビューモーダル（「タップして閉じる」）が残留/再出現していれば先に閉じる
-          // （閉じないと 召喚 ボタン等が背後に隠れてクリックできない）。
+          // 手札カードのプレビューモーダル（「タップして閉じる」）が選択の代わりに開くことがある（非決定的）。
+          // 閉じるとカード選択も解除されるため、上限2回まで（初回+1回）再クリックして選択し直す。
           const closeTx = page.getByText(/タップ.{0,4}閉じる/).first();
-          if (await closeTx.count() && await closeTx.isVisible().catch(() => false)) { await closeTx.click().catch(() => {}); did = 'closeModal'; }
+          if (!summoned && await closeTx.count() && await closeTx.isVisible().catch(() => false)) {
+            await closeTx.click().catch(() => {});
+            did = 'closeModal';
+            if (handClicks < 2) { await page.waitForTimeout(400); did += '+' + (await clickHand() ?? 'reclick失敗'); }
+          }
           const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
           if (!did && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
           if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
-          if (!did && !summoned) did = await H.clickTestId('my-hand-card-0');
           if (!did) { // SELECT_TARGET（凍結対象＝guestの該当ゾーン）
             const pick = page.getByTestId(pickTestId).first();
             if (await pick.count() && await pick.isVisible().catch(() => false)) {
