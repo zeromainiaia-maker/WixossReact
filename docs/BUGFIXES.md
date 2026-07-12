@@ -5,6 +5,17 @@
 
 ---
 
+## §7 placedFront②（正面以外への配置では非発火）を実機確認＝正常動作（2026-07-12・続き97・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+`placedFront`（①正例）の残項目②（「正面以外の配置では非発火」）を`placedFrontNegative`シナリオとして新設・実機PASS（2回連続）。
+
+- **設計の落とし穴＝WXDi-P03-043自身のE1（`BLOCK_ACTION`・`FORCE_PLACE_FRONT`・「対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない」）により、正面ゾーンが空いていると他ゾーンへの召喚UIがそもそも選択不可（「正面のみ」表示でグレーアウト）になる**＝①と同じ盤面のまま召喚先ゾーンを変えるだけでは②を再現できない（実測で確認）。host zone1（正面）をあらかじめ別カードで埋めて「正面配置が不可能」な状態を作ることで初めてzone0/zone2への召喚が選択可能になった。
+- **結果＝engineは正しく動作**＝正面以外（host zone0）へ配置してもwatcher（WXDi-P03-043-E3・`triggerCondition.placedFront:true`）は発火せず、`host.powerMods`に変化なし。バグではなく正常系の確認。
+- `order`配列に`placedFrontNegative`を追加（`placedFront`の直後）。
+- **検証**＝`npm run typecheck`緑。engine/JSON無変更（driverスクリプトのみ）。
+
+---
+
 ## `triggerCollect.ts` のLRIGゾーン走査漏れを横断的に棚卸し＝6コレクタ・20枚のLRIGカードが影響対象と確定（分析専用・2026-07-12・続き96・Sonnet 5・PLAN §3 Sonnetタスク1の副産物）
 
 続き95で見つけた「`collectPowerZeroTriggers`がLRIGゾーンを走査しない」バグが**孤立事例ではなく複数のトリガーコレクタに共通する系統的な実装漏れ**であることが判明したため、`src/engine/triggerCollect.ts`全体を棚卸しした。
