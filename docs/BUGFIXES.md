@@ -5,6 +5,23 @@
 
 ---
 
+## CardClass を `Story` で誤照合していた4件＝＜原子＞＜調理＞判定が常に不成立・ライズのディソナ条件が常に不成立（2026-07-12・Opus 4.8）
+
+**背景＝2つのフィールドの実態**。CSVには `CardClass`（＜迷宮＞＜アーム＞＜原子＞…）と `Story` の2列があるが、**`Story` 列は実データで `-`(6568件) と `Dissona`(98件) の2値しか取らない**（`awk` で全10シート集計）。一方 `TargetFilter.story` は `matchesFilter`（execUtils.ts:243-247）で **`cardClass` と完全に同一処理＝CardClass に includes でマッチ**する旧名エイリアスであり、「Dissona 専用」ではない。ディソナ判定は別フィールド `isDisona`（Story==='Dissona' を見る・execUtils.ts:288）が正。
+
+型定義のコメントが `story?: // Dissona専用` と**実装と真逆の説明**をしていたのが混乱の源で、両方向の誤用を生んでいた。
+
+- **クラス名を `Story` に照合＝常に false（効果が永久に不発）** — `Story` にクラス名が入ることはないため:
+  - `execStubPart3.ts` SELF_TRASH_UNLESS_TRASH_OTHERS（WXK10-039【出】）: 他の＜原子＞候補が**常に0体**→「＜原子＞2体をトラッシュ」の選択肢が出ず、**必ず自分をトラッシュする**枝に落ちていた（2箇所＝本体と INTERNAL_STUTO_SELECT_OTHERS）
+  - `execStubPart3.ts` DRAW_IF_CHARGED_CLASS（WDK07-E01）: チャージされたカードが＜調理＞か判定できず**常にドローしない**
+  - → いずれも `ownerState.card_class_overrides?.[cn] ?? cardMap.get(cn)?.CardClass` に修正（クラス上書き効果も尊重する `matchesFilter` と同じ解決順）
+- **逆に Story値 `'Dissona'` を `filter.story` に入れていた＝CardClass 照合され常に false** — `execUtils.ts` `getRiseFilter`（【ライズ】条件）で `filter.story = 'Dissona'` としていたため、《ディソナアイコン》を要求するライズ条件が**常に不成立**。`filter.isDisona = true` に修正。
+- **型コメントを実態に合わせて修正**（`types/effects.ts`）＝「story は cardClass の旧名（CardClass照合）／新規コードは cardClass／ディソナは isDisona」。同種の再発を防ぐ。
+- なお `CardClass?.includes(x) || Story?.includes(x) || CardName?.includes(x)` 形式の OR フォールバック（effectEngine 3099/3191/3242・execStubPart1:1902・execStubPart2:1540・execStubPart3:4082/4098・effectEngine:2220 のTeam判定）は **CardClass を先に見ているため挙動は正しい**（Story の枝が死んでいるだけ）＝無害と判断し変更せず。
+- 検証: `npm run gates` 全緑（typecheck / golden 123 / smoke CRASH0 / fuzz 0 / census 1479=ベースライン / lint 0 error）。
+
+---
+
 ## usageLimit書き戻し漏れ（続き99のON_COIN_PAIDバグ）を横断棚卸し＝あと3コレクタ・28枚が同型の穴（分析専用・2026-07-12・続き100・Sonnet 5・PLAN §3 Sonnetタスク1の副産物）
 
 続き99で見つけた「`collectCoinPaidTriggers`がusageLimit判定用の`actions_done`書き戻しを一切行わない」バグが、**同じ設計ミスを持つ他のコレクタにも横展開できるか**を`triggerCollect.ts`全関数の返り値型を機械チェックして棚卸しした。
