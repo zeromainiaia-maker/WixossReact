@@ -736,7 +736,7 @@ function main(): void {
       const bs = JSON.stringify(burstEffs), os = JSON.stringify(otherEffs);
       if (bs.includes('STUB') || bs.includes('MANUAL')) { missStub.push(id); continue; }
       for (const [re, act] of VB) {
-        if (re.test(bt) && !bs.includes(act) && os.includes(act)) { missHigh.push(`${id}(${act})`); highAll.add(id); break; }
+        if (re.test(bt) && !bs.includes(act) && os.includes(act)) { missHigh.push(`${id}(${act})`); highAll.add(`${id}-BURST`); break; }
       }
     }
     pushSection('BURST動詞がBURST効果に無くE側にある', hits, missHigh, missStub);
