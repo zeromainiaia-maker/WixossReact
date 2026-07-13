@@ -4474,12 +4474,14 @@ try {
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
     await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
+    const t0 = Date.now();
     let r;
     try { r = await sc.drive(page, H); }
     catch (e) { r = { pass: false, detail: 'drive例外: ' + e.message }; }
+    const sec = Math.round((Date.now() - t0) / 1000);
     await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
-    console.log(`--- ${id}: ${r.pass ? 'PASS' : 'FAIL'} : ${r.detail}`);
-    results.push({ id, ...r });
+    console.log(`--- ${id}: ${r.pass ? 'PASS' : 'FAIL'} (${sec}s) : ${r.detail}`);
+    results.push({ id, ...r, sec });
   }
 
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
