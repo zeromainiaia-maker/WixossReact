@@ -4370,52 +4370,60 @@ try {
   await page.waitForFunction(() => ![...document.querySelectorAll('input')].some(i => i.placeholder === 'ユーザーネーム'), { timeout: 15000 });
   await page.waitForTimeout(1500);
 
-  const cleaned = await cleanupRooms(page);
-  console.log(`残ルーム掃除: ${cleaned}件削除`);
+  // ── ルーム再利用判定（2026-07-14）＝健全な PLAYING ルームが残っていればマッチング〜マリガンを省略 ──
+  const reusable = process.env.FRESH === '1' ? null : await findReusableRoom(page);
+  const reuseRoom = !!(reusable && !reusable.worn);
+  if (reuseRoom) {
+    console.log(`既存 PLAYING ルームを再利用: ${reusable.roomId}（hostLife=${reusable.hostLife} hostDeck=${reusable.hostDeck}）＝マッチング/セットアップをスキップ（新規作成は FRESH=1）`);
+  } else {
+    if (reusable?.worn) console.log(`既存ルームは消耗のため破棄→新規作成（hostLife=${reusable.hostLife} hostDeck=${reusable.hostDeck} guestLife=${reusable.guestLife} guestDeck=${reusable.guestDeck}）`);
+    const cleaned = await cleanupRooms(page);
+    console.log(`残ルーム掃除: ${cleaned}件削除`);
 
-  // ── オンライン対戦→CPU対戦→PLAYING 到達 ──
-  await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
-  await page.reload({ waitUntil: 'networkidle' });
-  await page.waitForTimeout(3000);
-  await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
-  await page.waitForTimeout(500);
-  const clickText = async (text, timeout = 4000) => { const el = page.getByText(text, { exact: false }).first(); await el.waitFor({ state: 'visible', timeout }); await el.click(); };
-  await clickText('VERIFY_DECK');
-  await page.waitForTimeout(400);
-  await page.getByRole('button', { name: '次へ' }).click();
-  await page.waitForTimeout(600);
-  await page.getByRole('button', { name: 'CPU対戦' }).click();
-  await page.waitForTimeout(600);
-  await page.getByRole('button', { name: '対戦開始' }).click();
-  await page.waitForTimeout(3500);
-  console.log('battle enter:', await bodyText());
+    // ── オンライン対戦→CPU対戦→PLAYING 到達 ──
+    await page.evaluate(() => sessionStorage.setItem('gotoMatchmaking', '1'));
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(3000);
+    await page.getByText('使用デッキを選択', { exact: false }).waitFor({ state: 'visible', timeout: 20000 });
+    await page.waitForTimeout(500);
+    const clickText = async (text, timeout = 4000) => { const el = page.getByText(text, { exact: false }).first(); await el.waitFor({ state: 'visible', timeout }); await el.click(); };
+    await clickText('VERIFY_DECK');
+    await page.waitForTimeout(400);
+    await page.getByRole('button', { name: '次へ' }).click();
+    await page.waitForTimeout(600);
+    await page.getByRole('button', { name: 'CPU対戦' }).click();
+    await page.waitForTimeout(600);
+    await page.getByRole('button', { name: '対戦開始' }).click();
+    await page.waitForTimeout(3500);
+    console.log('battle enter:', await bodyText());
 
-  // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）
-  const hands = ['グー', 'チョキ', 'パー'];
-  let handIdx = 0;
-  for (let i = 0; i < 40; i++) {
-    const txt = await bodyText();
-    if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ|アタックフェイズ/.test(txt)) { console.log(`PLAYING 到達（${i}周目）`); break; }
-    let clicked = null;
-    if (/相手の選択を待って|結果|移行中|準備中|待っています/.test(txt)) { clicked = '(待機)'; }
-    else if (/出す手を選んで/.test(txt)) {
-      const hh = hands[handIdx++ % 3];
-      const el = page.getByRole('button', { name: hh }).first();
-      if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + hh; }
-      await page.waitForTimeout(2500);
-    } else if (/ルリグを配置|ルリグを選/.test(txt)) {
-      const btn = page.locator('button', { hasText: 'WD03-005' }).first();
-      if (await btn.count()) { await btn.click().catch(() => {}); clicked = 'ルリグ(WD03-005)'; }
-      else { const b2 = page.locator('button', { hasText: 'コード・ピルルク' }).first(); if (await b2.count()) { await b2.click().catch(() => {}); clicked = 'ルリグ(名前)'; } }
-    } else {
-      for (const t of ['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']) {
-        const el = page.getByRole('button', { name: t }).first();
-        if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); clicked = t; break; }
+    // セットアップ自動進行（じゃんけん→ルリグ選択→マリガン→ゲーム開始）
+    const hands = ['グー', 'チョキ', 'パー'];
+    let handIdx = 0;
+    for (let i = 0; i < 40; i++) {
+      const txt = await bodyText();
+      if (/メインフェイズ|あなたのターン|ターン[0-9]|エナチャージ|グロウフェイズ|アタックフェイズ/.test(txt)) { console.log(`PLAYING 到達（${i}周目）`); break; }
+      let clicked = null;
+      if (/相手の選択を待って|結果|移行中|準備中|待っています/.test(txt)) { clicked = '(待機)'; }
+      else if (/出す手を選んで/.test(txt)) {
+        const hh = hands[handIdx++ % 3];
+        const el = page.getByRole('button', { name: hh }).first();
+        if (await el.count()) { await el.click().catch(() => {}); clicked = 'じゃんけん:' + hh; }
+        await page.waitForTimeout(2500);
+      } else if (/ルリグを配置|ルリグを選/.test(txt)) {
+        const btn = page.locator('button', { hasText: 'WD03-005' }).first();
+        if (await btn.count()) { await btn.click().catch(() => {}); clicked = 'ルリグ(WD03-005)'; }
+        else { const b2 = page.locator('button', { hasText: 'コード・ピルルク' }).first(); if (await b2.count()) { await b2.click().catch(() => {}); clicked = 'ルリグ(名前)'; } }
+      } else {
+        for (const t of ['この手札でOK', '引き直さない', 'キープ', 'この手札で', 'ゲーム開始', '開始', '決定', 'OK', '完了']) {
+          const el = page.getByRole('button', { name: t }).first();
+          if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); clicked = t; break; }
+        }
       }
+      await page.waitForTimeout(1500);
     }
-    await page.waitForTimeout(1500);
+    await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
   }
-  await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
 
   // ── シナリオを順に実行 ──
   for (const id of runIds) {
