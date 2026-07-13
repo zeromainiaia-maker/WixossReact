@@ -3667,7 +3667,7 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const frozen = !!st?.guest?.signiFrozen?.[0];
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#8:') && parseInt(m.split(':')[1], 10) < 0);
