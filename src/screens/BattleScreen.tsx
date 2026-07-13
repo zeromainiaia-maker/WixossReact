@@ -5083,7 +5083,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」参照）。
       const growTriggerEntries = collectLrigGrowTriggers(user.id, newMyState, op);
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
-      const growCoinPaidEntries = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : [];
+      const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const growCoinPaidEntries = growCoin.entries;
+      newMyState = applyCoinPaidUsed(newMyState, growCoin); // 《ターン1回/2回》消化を actions_done に永続化
+
 
       // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
