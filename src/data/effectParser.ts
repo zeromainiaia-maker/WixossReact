@@ -1611,7 +1611,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   「カードを引き、手札からデッキへ置く」=SEQUENCE[DRAW,TRANSFER_TO_DECK] の preempt や、単独 fragment の
   //   mis-parse を回避）。全文の parseSentencePart 結果が「既に先頭 DRAW を含む＝複合ハンドラが正しく処理済み」
   //   なら触らず、含まない＝X だけ解析され DRAW が飲まれた場合のみ DRAW を積む。UNKNOWN は悪化させない。
-  const leadDrawM = t.match(/^カードを([０-９\d]+)枚引き、/);
+  // 「その後、」プレフィックスも許容（続き107・非先頭の連用ドロー＝SP24-009「その後、5枚引き、ライフに加える」等。
+  // splitSentences 各文が parseSingleSentence 経由で来るため、SEQUENCE 内の後続文でも安全網が効く）。
+  const leadDrawM = t.match(/^(?:その後、)?カードを([０-９\d]+)枚引き、/);
   if (leadDrawM && result.type !== 'UNKNOWN') {
     const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
     const hasLeadingDraw = steps0[0]?.type === 'DRAW';
