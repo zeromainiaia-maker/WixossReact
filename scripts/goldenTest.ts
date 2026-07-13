@@ -2547,6 +2547,23 @@ test('NEGATE_ATTACK 相手シグニ1: negated_attacks に記録', () => {
   const neg = (r.otherState as PlayerState).negated_attacks ?? [];
   ok(neg.includes(SIGNI), `negated_attacks (${JSON.stringify(neg)})`);
 });
+// Opusタスク12(ix)：execBlockAction SIGNI/ATTACK が count/filter を無視し全ブロックしていた回帰（続き103・続き106修正）。
+const blockedCount = (st: PlayerState) => Object.keys(st.keyword_grants ?? {}).filter(k => (st.keyword_grants?.[k] ?? []).includes('アタックできない')).length;
+test('BLOCK_ACTION SIGNI/ATTACK count:2（選択）: 相手シグニ2体のみアタック不可（従来は全ブロック・WX18-009系）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_P12000] });
+  const r = run({ type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 2, upToCount: true, filter: { cardType: 'シグニ' } }, actionId: 'ATTACK', until: 'END_OF_TURN' } as EffectAction, ctx);
+  eq(blockedCount(r.ownerState as PlayerState), 2, '3体中2体のみブロック（全ブロックしない）');
+});
+test('BLOCK_ACTION SIGNI/ATTACK count:1（選択）: 相手シグニ1体のみアタック不可', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
+  const r = run({ type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, actionId: 'ATTACK', until: 'END_OF_TURN' } as EffectAction, ctx);
+  eq(blockedCount(r.ownerState as PlayerState), 1, '2体中1体のみブロック');
+});
+test('BLOCK_ACTION SIGNI/ATTACK count:ALL: 相手全シグニがアタック不可', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
+  const r = run({ type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, actionId: 'ATTACK', until: 'END_OF_TURN' } as EffectAction, ctx);
+  eq(blockedCount(r.ownerState as PlayerState), 2, '全2体ブロック');
+});
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
