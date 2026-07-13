@@ -3630,7 +3630,7 @@ const scenarios = {
     spec: {
       hostSet: {
         'field.lrig': ['WD08-001#1'],
-        'field.signi': [['WXDi-P07-044#1'], null, null], // watcher（大幻蟲 アロス・ピルルク）
+        'field.signi': [['WXDi-P07-044#1'], null, ['WD01-012#9']], // watcher（大幻蟲 アロス・ピルルク）＋zone2を埋めてzone1だけ空け、SELECT_SIGNI_ZONE（配置先選択）を回避
         'field.signi_down': [false, false, false],
         'field.lrig_down': false,
         'trash': ['WD01-013#9'], // 場に出す対象（小剣 ククリ・任意のシグニでよい）
