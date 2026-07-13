@@ -777,7 +777,7 @@ function main(): void {
     pushSection('アーツ:JSON過剰タイミング(使えすぎ側)', hits, over, []);
   }
 
-  detail.push(`# 高シグナル欠落カード総数（重複除外）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
+  detail.push(`# 高シグナル欠落 効果総数（重複除外・effectId単位）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
 
   if (CLUSTERS_MODE) writeClusters(units, missByPattern);
