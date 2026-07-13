@@ -505,16 +505,14 @@ function main(): void {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, t] of texts) {
-      const nums = [...zen2han(t.replace(/《[^》]*》/g, '')).matchAll(/\d{4,5}/g)].map(m => m[0]);
+    for (const u of units) {
+      const nums = [...zen2han(u.text.replace(/《[^》]*》/g, '')).matchAll(/\d{4,5}/g)].map(m => m[0]);
       if (nums.length === 0) continue;
-      const js = jsonStr.get(id);
-      if (!js) continue;
       hits++;
-      const missing = [...new Set(nums.filter(n => !js.includes(n)))];
+      const missing = [...new Set(nums.filter(n => !u.js.includes(n)))];
       if (missing.length === 0) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(`${id}(${missing.join('/')})`); highAll.add(id); }
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }
     pushSection('数値不一致(4-5桁がJSONに不在)', hits, missHigh, missStub);
   }
