@@ -5,6 +5,17 @@
 
 ---
 
+## 色別 ARTS_USED_THIS_TURN 機構を新設＝「このターンにあなたが(色)のアーツを使用していた場合」条件脱落の4枚を是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク4）
+
+原文「このターンにあなたが白/赤/青/緑のアーツを使用していた場合、〜」の条件節が JSON で丸ごと脱落し、条件を満たさなくても無条件発火していた真バグ4枚（WX24-D1-11 白／D2-11 赤／D3-11 青／D4-11 緑）を、既存の色なし `ARTS_USED_THIS_TURN` 機構を**色別へ拡張**して是正。既存 parser 規則が `このターンにあなたがアーツを使用していた場合`（色なし）しか見ておらず、「(色)の」が挟まると一切 match せず条件が落ちていた。
+
+- **新規機構**＝(1)`PlayerState.turn_arts_used_colors?: string[]`（このターンに使用したアーツの色）。(2)Condition `ARTS_USED_THIS_TURN` に `color?: string` を追加。(3)`evalUseCondition`（`execUtils.ts`）＝color 指定時は `turn_arts_used_colors.includes(color)` を判定。(4)`executeArts`（`BattleScreen.tsx`）でアーツの `Color` を色トークン抽出して記録。(5)ターン境界6箇所の `turn_arts_used` リセットに `turn_arts_used_colors` を併記。(6)parser に色付き規則を色なし規則より先に追加（`このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合`→`ARTS_USED_THIS_TURN{color}`）。
+- **JSON パッチ**＝4枚の effect に `condition:{type:'ARTS_USED_THIS_TURN',owner:'self',color:C}` を timing 直後（parser 出力と同じキー順）へ挿入。decompiler の condition レンダラも color 表示に対応（原文「白のアーツ」等を再現）。
+- **⚠5枚目の WX25-P3-116（黒）は対象外**＝「パワー-3000する。黒のアーツを使用していた場合、代わりに-5000する」の**「代わりに」置換パターン**（Opusタスク6の機構が前提）で、単純条件ゲートではない。
+- **検証**＝`npm run gates` 全緑（typecheck／golden 303→**304**＝`collectTurnTriggers` で白使用時のみ WX24-D1-11-E1 が発火・別色/未使用は非発火・複数色に白を含めば発火を回帰固定／smoke SKIP 1・CRASH/HANG 0／fuzz 0／**census 1461→1458**・BASELINE_HIGH 更新）＋`npm run regen` で同型★0維持・逆翻訳が原文どおり色を表示。
+
+---
+
 ## 「あなたか対戦相手のデッキをN枚トラッシュ」17枚の選択脱落を CHOOSE 化で是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク9／§6.2 系統①(b)）
 
 原文「あなたか対戦相手のデッキの上からカードをN枚トラッシュに置く」（プレイヤーがどちらのデッキを削るか選ぶ）が、JSON で `TRASH{DECK_CARD, owner:'self', count:N}` にハードコードされ**選択が丸ごと脱落**して常に自分のデッキだけを削っていた17枚（18ノード）を是正。テンプレは既存の `WXDi-P04-082`（`CHOOSE{choices:[TRASH(self_deck), TRASH(opponent_deck)]}`）＝**engine 機構は既存（`execChoose`＋`TRASH DECK_CARD`）で新規実装ゼロ**。
