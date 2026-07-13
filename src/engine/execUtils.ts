@@ -735,8 +735,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).hand_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ENERGY_TRASHED_BY_OPP':
       return cmp(st(cond.owner).energy_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
-    case 'ARTS_USED_THIS_TURN':
-      return st(cond.owner).turn_arts_used === true;
+    case 'ARTS_USED_THIS_TURN': {
+      const artsSt = st(cond.owner);
+      // color 指定時は当該色のアーツを使用していた場合のみ（turn_arts_used_colors）
+      if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
+      return artsSt.turn_arts_used === true;
+    }
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
