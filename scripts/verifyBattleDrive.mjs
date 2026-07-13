@@ -3578,9 +3578,12 @@ const scenarios = {
       H.log('開始時 guest.hand:', before?.guest?.hand, 'host.hand:', before?.host?.hand);
       let modalOpened = false;
       let attacked = false;
+      let lastPhase = null;
       for (let s = 0; s < 26; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/installDelayedTriggerFire-${s}.png`, fullPage: true });
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase !== lastPhase) { modalOpened = false; lastPhase = phaseChk?.turnPhase; }
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
         if (!did) {
@@ -3596,7 +3599,7 @@ const scenarios = {
           const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
           if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
         }
-        if (!did && !modalOpened && !attacked) {
+        if (!did && !modalOpened && !attacked && phaseChk?.turnPhase === 'ATTACK_SIGNI') {
           const opened = await H.clickTestId('my-signi-zone-0');
           if (opened) { did = opened; modalOpened = true; }
         }
