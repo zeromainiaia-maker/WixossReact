@@ -173,13 +173,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き114・Fable 5・Sonnet実機検証ワークフローの高速化＝`verifyBattleDrive.mjs` driverインフラ改修。engine/parser/JSON変更なし）**
-  - **✅ Sonnetのmethodologyメモ（続き112-113・`scratchpad-verify/verification-methodology.md`「Fableに相談したいこと」4点）に実装で回答**。既存54シナリオのクリック列・判定は無改変＝driverインフラのみ。**詳細と新手順は [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)「⚡高速化＋シナリオ作成の型（2026-07-14）」を正とする**。
-  - **✅ 1試行の固定費を削減**＝(a) build自動スキップ（distとsrc/public/設定類のmtime比較＝シナリオ追加＝`scripts/`のみの変更ならbuild不要・「古いdistの罠」も構造的に解消・`SKIP_BUILD=0/1`で強制）(b) **健全なPLAYINGルームの再利用**（host/guestともlife≥4・deck≥10ならマッチング〜マリガンの30〜60秒をスキップ・消耗ルームは自動破棄→新規＝自己回復・`FRESH=1`で強制新規＝**不可解FAILの切り分け手段**）(c) バッチ実行はスクショno-op化（`-final`のみ保存・`SHOTS=1/0`）(d) 結果行に所要秒`(NNs)`表示。**実測＝debugイテレーションのdriveが2〜7秒**（wxk04003Label 2s／craftTokenPlace 5s／4件バッチ各4-7s 全PASS）。
-  - **✅ preflight静的チェック新設**＝ブラウザ起動前0秒でCardData CSVからlrigレベル不足・Limit超過・Team/「○○限定」制限・`field.lrig`未設定・空きシグニゾーン2以上（SELECT_SIGNI_ZONE要）を`⚠ preflight[id]:`警告（実行は止めない）。craftTokenPlaceの「空きゾーン2」罠（続き113でSonnetが5試行を溶かした原因）を事前的中で確認。
-  - **✅ 新規シナリオ用ヘルパー3種**＝`H.clickBtn`（isEnabled検査＋click失敗を握りつぶさずログ）・`H.clickModalImage`（`.last()`戦略内蔵＝手札ストリップalt衝突封じ）・`H.stdStep`（定石チェーン共通化）。**新規シナリオの型＝「カード固有クリック＋`stdStep()`で締める」**。
-  - 検証＝再利用経路・FRESH経路（じゃんけん〜マリガン込み）・バッチ経路の3経路で実機PASS・`npm run gates`全緑（census 2225維持）。
-  - **次の一手＝（続き113から継続）PLAN §3 Sonnetタスク1の残＝クラフトトークンの実機配置検証の残り5枚（WXDi-CP02-087/WXDi-P03-078/WXDi-P05-068/WXK07-105/WX22-001-E3）・ビート機構Phase1-7・F-3身代わり対話・G144/G145**（B4本体はOpusタスク12(xiii)の修正待ちで一時停止）。**Sonnetは次回から新手順で回す**（手動build不要・preflight警告を先に読む・新規シナリオは新ヘルパーの型で書く・不可解FAILは`FRESH=1`切り分け）。Opus側は戦略②「純P1の系統バッチ消化」の継続（`npm run census:clusters`上位＝「Nまで」上限選択164・条件節611・クラス指定395等）。
+- **🆕 セッション（2026-07-14・続き114・Sonnet 5・PLAN §3 Sonnetタスク1＝クラフトトークンの実機配置検証の残5枚を検証・`resumeSelectTarget`のcontinuation欠落という真バグを発見）**
+  - **✅ 新手順（続き114・Fable 5のdriverインフラ改修）を使って`verifyBattleDrive.mjs`に4シナリオ新設**＝`craftEnergyCP02087`/`craftTurnEndP03078`/`craftHandSpellP05068`/`craftArtsBetK07105`。手動build不要・preflight警告（「空きシグニゾーンが3」を事前的中）・`H.stdStep`/`H.clickBtn`の型に沿って実装。SELECT_SIGNI_ZONE汎用ヘルパー`H.clickZone()`を新設（既存`H`共通ヘルパー束に追加）。
+  - **✅ 3枚は実機PASS**＝WXDi-CP02-087（ON_PLAY→ADD_TO_FIELD source:ENERGY_CARD）・WXDi-P03-078（ON_TURN_END経由でのpowerLtSelf動的フィルタ解決）・WXDi-P05-068（スペル入れ子SEQUENCE内のDRAW×2＋ADD_TO_FIELD source:HAND_CARD）＝いずれもPLAN旧注記の懸念（エナ枚数条件／動的フィルタ／先頭ドロー脱落）に反し正常動作。既定orderに追加。
+  - **🐛 WXK07-105（ベット分岐）は実機FAIL→真因確定＝Opusタスク12(xiv)へ登録**＝`effectExecutor.ts`の`resumeSelectTarget`（4246-4253行目）が、ADD_TO_FIELDがSELECT_TARGET経由で解決される際に`thenAction`がさらにSELECT_SIGNI_ZONEを要求すると`pending.continuation`（外側SEQUENCEの残りステップ）を握り潰す構造的バグ。WXDi-CP02-087のGRANT_KEYWORD（絆常付与）も同じ穴で無発火することを`keywordGrants=[]`で実証（4周待っても不変）。WXDi-P05-068も同型の後続ステップを持つため疑い濃厚（未確認のまま）。修正はせず診断のみ。詳細 BUGFIXES 続き114。
+  - WX22-001-E3はSTUB`GRANT_LEAVE_PLACE_PENDING`未実装（engine側ハンドラなし）と判明し検証対象外＝§6.4「機構待ち」として温存。
+  - engine/parser/effects JSON変更なし（driverスクリプト＋PLAN.md/BUGFIXES.mdのみ）。`npm run gates`全緑（census 2225維持・回帰なし）。
+  - **次の一手＝Opus側でresumeSelectTargetのcontinuation欠落修正（PLAN §3 Opusタスク12(xiv)・影響範囲の機械抽出も含む）。Sonnet側はPLAN §3 Sonnetタスク1の残＝ビート機構Phase1-7・F-3身代わり対話・G144/G145**（B4本体はOpusタスク12(xiii)の修正待ちで一時停止）。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
