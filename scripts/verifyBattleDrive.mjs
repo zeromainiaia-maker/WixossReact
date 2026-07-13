@@ -3934,6 +3934,7 @@ const scenarios = {
           }
         }
         if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.clickZone();
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-CP02-054')));
@@ -3976,6 +3977,7 @@ const scenarios = {
         await page.screenshot({ path: `${SHOT}/craftTurnEndP03078-${s}.png`, fullPage: true });
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['ターン終了']);
+        if (!did) did = await H.clickZone();
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD04-014')));
@@ -4023,6 +4025,7 @@ const scenarios = {
             if (!did) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
           }
         }
+        if (!did) did = await H.clickZone();
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P05-037')));
@@ -4076,13 +4079,21 @@ const scenarios = {
           if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
             if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
             else {
+              // ⚠artscost-energy-N はクリックでトグルする（選択/解除）＝毎周 index0 だけを見て
+              // 「未選択なら押す」と判定すると選択済みでも再クリックしてしまい解除→再選択…と無限往復する
+              // （実測・K07105続き114）。未選択のエナだけ拾えないため、他シナリオ（lrigundermoved 等）と
+              // 同型＝両方まとめて1回だけクリックしてから即submit判定する“単発完結”パターンに合わせる。
               for (const i of [0, 1]) {
                 const e = page.getByTestId(`artscost-energy-${i}`).first();
-                if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `artscost-energy-${i}`; break; }
+                if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); }
               }
+              await page.waitForTimeout(300);
+              if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit,after両エナ選択)'; }
+              else did = 'artscost:両エナクリック';
             }
           }
         }
+        if (!did) did = await H.clickZone();
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placedCount = (st?.host?.fieldSigni ?? []).flat().filter(n => n?.startsWith('WD01-013')).length;
