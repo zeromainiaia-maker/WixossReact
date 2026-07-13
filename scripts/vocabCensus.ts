@@ -709,13 +709,12 @@ function main(): void {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, js] of jsonStr) {
-      if (!js.includes('IS_MY_TURN')) continue;
+    for (const u of units) {
+      if (!u.js.includes('IS_MY_TURN')) continue;
       hits++;
-      const t = texts.get(id) ?? '';
-      if (/そう(した|しなかった)場合|支払わなかった場合|捨てなかった場合|しなければ|代わりに|あなたのターンの間|しない場合/.test(t)) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(id); highAll.add(id); }
+      if (/そう(した|しなかった)場合|支払わなかった場合|捨てなかった場合|しなければ|代わりに|あなたのターンの間|しない場合/.test(u.text)) continue;
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(u.effectId); highAll.add(u.effectId); }
     }
     pushSection('IS_MY_TURN誤変換疑い(該当句なし)', hits, missHigh, missStub);
   }
