@@ -1084,8 +1084,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     () => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self' })],
   // 「あなたの場に(色)の＜C＞のシグニがある場合」（WX25-P2-086/105 の①）／「あなたの場に＜C＞のシグニがある場合」
   // （census 条件節クラスタ6効果）＝枚数指定なしの存在ゲート。N体/他の付き変種は先行エントリが先にマッチする。
-  // 「のシグニ」省略形（WX22-002「赤の＜天使＞がある場合」等の5色分岐）も許容する
+  // 「のシグニ」省略形（「あなたの場に赤の＜天使＞がある場合」）も許容する
   [/あなたの場に(白|赤|青|緑|黒)の＜([^＞]+)＞(?:のシグニ)?がある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0], story: g[1] } })],
+  // 「あなたの場に」まで省いた文頭の楕円形「(色)の＜C＞がある場合、X」（WX22-002 の5色分岐＝直前節の
+  // 「あなたの場に…がある場合」を引き継ぐ省略記法）。lifting/matchLeadingStateCondition とも ^ アンカーで
+  // 文頭形のみマッチ＝「このシグニの下に白の＜天使＞がある場合」等の別ゾーン文脈は前置語で外れる。
+  [/(白|赤|青|緑|黒)の＜([^＞]+)＞がある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0], story: g[1] } })],
   [/あなたの場に＜([^＞]+)＞のシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
