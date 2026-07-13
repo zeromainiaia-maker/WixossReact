@@ -3207,7 +3207,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   // 「このターンにあなたが(色)のアーツを使用していた場合」= 色別 ARTS_USED_THIS_TURN 条件に昇格（WX24-D1-11〜D4-11）。
   // 色なし版の規則より先に評価する（色なし規則は「(色)の」が挟まると match しないため従来は条件が丸ごと脱落していた）。
-  const artsColorMatch = actionText && actionText.match(/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/);
+  // ⚠直後が「代わりに」の場合は効果全体のゲートではなく per-target 置換（基本を強化で置換）＝ここで hoist すると
+  //   基本効果まで条件付きになり、かつ SEQUENCE 両実行の過剰効果になる（WX25-P3-116）。hoist せず actionText に
+  //   残し、SEQUENCE 組み立ての「代わりに」昇格置換（matchLeadingStateCondition + STATE_CONDITION_CLAUSES の
+  //   ARTS_USED_THIS_TURN エントリ）に委ねる。
+  const artsColorMatch = actionText
+    && !/このターンにあなたが(?:白|赤|青|緑|黒)のアーツを使用していた場合、?代わりに/.test(actionText)
+    && actionText.match(/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/);
   if (artsColorMatch) {
     const artsColorCond = { type: 'ARTS_USED_THIS_TURN', owner: 'self', color: artsColorMatch[1] } as const;
     extractedTriggerCondition = extractedTriggerCondition
