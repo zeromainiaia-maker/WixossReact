@@ -3846,14 +3846,19 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText))).forEach((block, i) => {
         if (layerM && block.startsWith('《レイヤーアイコン》')) {
           const e = parseBlock(card.CardNum, block.replace(/^《レイヤーアイコン》/, ''), i);
-          if (e) layerAbilities.push({ ...e, effectId: `${card.CardNum}-LAYER-E${layerAbilities.length + 1}` });
+          if (e) {
+            const lid = `${card.CardNum}-LAYER-E${layerAbilities.length + 1}`;
+            logSourceText(lid, block);
+            layerAbilities.push({ ...e, effectId: lid });
+          }
           return;
         }
         const e = parseBlock(card.CardNum, block, i);
-        if (e) effects.push(e);
+        if (e) { logSourceText(e.effectId, block); effects.push(e); }
       });
 
       if (layerM && layerAbilities.length > 0) {
+        logSourceText(`${card.CardNum}-LAYER`, layerM[0]);
         effects.unshift({
           effectId: `${card.CardNum}-LAYER`,
           effectType: 'CONTINUOUS',
