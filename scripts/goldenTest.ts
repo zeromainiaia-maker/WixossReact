@@ -532,6 +532,41 @@ test('designation 動的比較: この→powerLtSelf / その→powerLtTrigger /
   eq(dynKeys('WXK10-031'), '', 'WXK10-031 その後＝公開カード(lastProcessed)は据置（別機構）');
   eq(dynKeys('WXDi-P08-031'), '', 'WXDi-P08-031 その後＝場に出したシグニ(lastProcessed)は据置（別機構）');
 });
+test('designation owner継承: 「対戦相手の…を対象とし…そうした場合、それを〈除去〉」の最終ターゲットが opponent＋フィルタ継承（applyLeadingOpponentDesignation・続き111）', () => {
+  // 末尾（「それを…」）アクションの target/source を辿る（CONDITIONAL.then / SEQUENCE 末尾を降下）。
+  const findFinal = (a: unknown): Record<string, unknown> | null => {
+    if (!a || typeof a !== 'object') return null;
+    const o = a as Record<string, unknown>;
+    if (o.type === 'CONDITIONAL') return findFinal(o.then) ?? (o.then as Record<string, unknown>);
+    if (o.type === 'SEQUENCE') { const st = o.steps as unknown[]; for (let i = st.length - 1; i >= 0; i--) { const f = findFinal(st[i]); if (f) return f; } return null; }
+    return o;
+  };
+  const finalTgt = (id: string): { owner?: string; filter?: Record<string, unknown> } => {
+    const fin = findFinal((effectsMap.get(id) ?? []).map(e => (e as { action: unknown }).action).find(a => a));
+    return (fin?.target ?? fin?.source ?? {}) as { owner?: string; filter?: Record<string, unknown> };
+  };
+  // plain BOUNCE（旧: owner:self → opponent）
+  eq(finalTgt('WX07-001').owner, 'opponent', 'WX07-001 それを手札に戻す＝対戦相手のシグニ（旧 self 誤り）');
+  // TRANSFER_TO_DECK＋レベルフィルタ継承
+  const k = finalTgt('PR-K043');
+  eq(k.owner, 'opponent', 'PR-K043 それをデッキ下＝opponent');
+  eq(JSON.stringify(k.filter?.level), JSON.stringify({ max: 3 }), 'PR-K043 レベル3以下フィルタ継承');
+  // BOUNCE＋パワーフィルタ継承
+  const p = finalTgt('WX24-P2-060');
+  eq(p.owner, 'opponent', 'WX24-P2-060 それを手札に戻す＝opponent');
+  eq(JSON.stringify(p.filter?.powerRange), JSON.stringify({ max: 5000 }), 'WX24-P2-060 パワー5000以下フィルタ継承');
+  // TRASH（旧: owner:any → opponent）＝自シグニに当たらないこと
+  eq(finalTgt('PR-322').owner, 'opponent', 'PR-322 それをトラッシュ＝any→opponent（自シグニを対象化しない）');
+  // CHOOSE 内分岐でも owner:self/any が残らない（WXDi-P13-045・WX24-P2-048）
+  const selfInCard = (id: string): number => {
+    let n = 0; const walk = (a: unknown): void => { if (!a || typeof a !== 'object') return; const o = a as Record<string, unknown>;
+      const t = (o.target ?? o.source) as { type?: string; owner?: string } | undefined;
+      if (t?.type === 'SIGNI' && (t.owner === 'self' || t.owner === 'any')) n++;
+      for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); } };
+    (effectsMap.get(id) ?? []).forEach(e => walk((e as { action: unknown }).action)); return n; };
+  eq(selfInCard('WXDi-P13-045'), 0, 'WXDi-P13-045 CHOOSE両分岐とも opponent（self/any 残存なし）');
+  eq(selfInCard('WX24-P2-048'), 0, 'WX24-P2-048 CHOOSE分岐 opponent（self/any 残存なし）');
+});
 test('levelGtTrigger: トリガー元レベル超過のみ対象（trigger L1→L2除去・L1残存・WX24-P1-015）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, SIGNI_L1);
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelGtTrigger: true } } } as EffectAction, ctx);
