@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-13・続き111・Opus 4.8・戦略②「純P1の系統バッチ消化」＝「対戦相手の…を対象とし…そうした場合、それを〈除去〉」慣用形の owner 継承漏れを88カードで是正・census 2229→2225）**
+  - **✅ 系統バグ＝「対戦相手の〔レベル/パワー/状態〕シグニ１体を対象とし、〈コスト〉。そうした場合、それを〈手札に戻す/デッキ下/トラッシュ/…〉」（原文345枚の頻出慣用形）で、対象指定文と最終アクション文が別文に割れ、最終アクションの owner が designation を継承せず default（BOUNCE→self・TRASH→any・TRANSFER_TO_DECK→self）に脱落**＝**自分のシグニをバウンス/デッキ送りできる過剰・誤効果**＋designation のレベル/パワー/状態フィルタも脱落。
+  - **修正＝`applyLeadingSelfComparison`（続き44・動的比較の後続ターゲット刻み）と同型の `applyLeadingOpponentDesignation` を `parseActionText` に追加**。先頭 designation を `parseSigniTarget` で解決し末尾（「それ」参照）ターゲットへ owner:opponent＋欠落フィルタを刻む。**⚠単一「対象とし」限定・冪等・engine/decompiler 不変（owner/filter は全層配線済み＝「parser の継承漏れ」型）**。
+  - **反映＝fresh 全カード snapshot 機械diff で「owner:self/any→opponent＋フィルタ追加のみ・件数/削除/構造変化ゼロ」を確認 → curated には同ロジックを `_effect_srctext.json` 経由で外科適用（held全採用の手修正喪失を回避）82枚＋CHOOSE内分岐6枚を fresh から位置整合コピー＝計88枚**。手修正が既に正しい6枚は温存。golden 309→**310**・全ゲート緑・同型★0・census 2229→**2225**。詳細 BUGFIXES 続き111。
+  - **⚠テール＝PR-Di017B は curated が最終アクション自体を欠く別issue**（STUB `TARGET_ONLY`+`OPTIONAL_COST` で「それをトラッシュに置く」action が丸ごと不在）＝owner継承でなく action 欠落の §5b/§6 送り。
+
 - **🆕 セッション（2026-07-13・続き110・Fable 5・戦略②「純P1の系統バッチ消化」開始＝効果単位クラスタ上位2系統35効果を是正・census 2264→2229）**
   - **✅ バッチ1＝「対戦相手のアップ状態のシグニ…パワー−15000」BURST 21効果**：`parseSentencePart1.ts` のパワー修整対象分岐が「アップ状態の」等の状態接頭辞を許容せず default `{owner:'any', フィルタ無し}` へ落ちていた＝**owner脱落＋isUp脱落の二重過剰効果**。接頭辞群に アップ/ダウン/凍結状態 を追加し `parseSigniTarget` へ委譲する parser 1行（isUp は全層配線済み＝「既存 regex の穴」型）。held 流入17枚ちょうど（git 機械diff で巻き添えゼロ確認）採用＋手修正温存4枚を effectId 外科パッチ＝21/21。census 2264→2243。詳細 BUGFIXES 続き110（第1エントリ）。
   - **✅ バッチ2＝`SPELL_USED_THIS_TURN` 機構新設（ARTS_USED と同型・engine 状態新設なし＝既存 `actions_done` 'USE_SPELL' 参照）で「このターンにあなたがスペルを使用していた場合」条件丸ごと脱落11効果を是正**（hoist 8・「代わりに」置換1＝SEQUENCE両実行→CONDITIONAL{then/else}・CHOOSE選択肢別条件2）＋V2 表へ「あなたの場に(色)の＜C＞のシグニがある場合」等を追加し8枚収穫。census 2243→**2229**・golden 306→**309**。詳細 BUGFIXES 続き110（第2エントリ）。
