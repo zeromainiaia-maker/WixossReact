@@ -5,6 +5,20 @@
 
 ---
 
+## §7実機検証の横展開＝B2（WX17-028 REVEAL_DECK_TOP＋動的閾値）・B3（WX25-CP1-069 INSTALL_DELAYED_TRIGGER実発火）を新規検証・両方実機PASS（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+**PLAN §7「その他の実機検証待ち」に残っていたB2・B3を`verifyBattleDrive.mjs`へ新規シナリオとして追加し実機検証。**
+
+- **B2＝`revealDeckTopBanish`（WX17-028）**：【出】《赤×0》「デッキの上から4枚公開→公開シグニのレベル合計×1000以下の対戦相手シグニ1体をバニッシュ→公開したカードをトラッシュ」。WX17-028がレベル4のため、当初使ったLv3lrig（WXK09-018）では`getMyHandCardActions`の`levelOk=signiLevel<=currentLrigLevel`判定に落ちて「召喚」アクション自体が出ない（`CardModal`の`actions.length===0`でボタンが描画されずカード拡大表示のみになる）事故で1回FAIL→**WD02-001（Lv4・Limit11）に変更して解決**。デッキ上4枚をWD01-013（Lv1）×4に固定してレベル合計4＝閾値4000とし、guestのWD01-013（P3000）を確実にバニッシュ対象化。**バニッシュ結果の確認は「トラッシュ増加」ではなく「エナゾーン増加」で行う**（WIXOSSルール上バニッシュされたシグニは所有者のエナゾーンへ入る＝トラッシュではない。最初trash増加を条件にしてFALSE NEGATIVEになった）。2回連続PASS（gField zone0消滅・gEnergy 0→1/1→2）＝`order`配列に追加。
+- **B3＝`installDelayedTriggerFire`（WX25-CP1-069）**：【自】アタックフェイズ開始時「手札を1枚捨ててもよい。そうした場合、このターン、あなたの青の＜ブルアカ＞のシグニが対戦相手のライフクロス1枚をクラッシュしたとき、対戦相手は手札を1枚捨てる」。既存の`delayedAttackTrigger`（WX24-P1-012）は「設置されること」までしか確認していなかった＝本カードで「設置→同ターン内の実イベントで実際に発火するか」の一気通貫を初めて検証。
+  - **クリック列の発見**＝MAIN→「アタックフェイズへ」で最初に着地するのは`ATTACK_ARTS`（自分のアーツステップ）で`ATTACK_SIGNI`ではない＝ここでWX25-CP1-069のON_ATTACK_PHASE_START（手札1枚捨てSELECT_TARGET＋設置）が発火。続けて「アーツ終了→相手へ」で`ATTACK_ARTS_OP`（相手アーツステップ・CPU側は自動で素通り）を経て`ATTACK_SIGNI`に到達して初めてシグニの「アタック」ボタンが出る（3段階のフェイズ遷移が必要だった）。
+  - **crasherFilter近似の活用**＝コード読解で`BattleScreen.tsx:8704-8715`の`INSTALL_DELAYED_TRIGGER`収集ロジックが「クラッシュを実際に起こしたシグニ」を追跡せず「op（ターンプレイヤー）の場に該当フィルタのシグニがいるか」で代用判定する近似だと既に判明済み（PLAN B3欄に明記）。WX25-CP1-069自身が青+＜ブルアカ＞なので**このカード自身でguestライフを直接攻撃するだけで近似条件も満たせる**＝別途アタッカー役の2枚目のカードは不要と判断し、盤面を単純化（host signiは1体のみ）。
+  - guestの`life_cloth`を2枚に設定（1枚だとクラッシュで0枚化＝試合終了し観測ウィンドウが潰れるため）。
+  - 2回連続PASS（設置ログ「このターンの遅延トリガーを設置 コードアート Ａ・Ｃ・Ｇをトラッシュへ」→ライフクラッシュ後にgHand 5→4）＝`order`配列に追加。
+- 両シナリオとも既存engine/parserへの変更は無し（検証のみ）。詳細はPLAN.md §7・`scripts/verifyBattleDrive.mjs`の`revealDeckTopBanish`/`installDelayedTriggerFire`コメント参照。
+
+---
+
 ## smoke SKIP残り1件の根本原因を特定＝WXEX1-19-E2「トラッシュから3枚選んでエナ/手札/デッキ下に分配」がresumeSelectTargetの「thenActionを選択カードへ個別適用」設計と構造的に非互換（自己再帰STUB）＝実プレイでも無限ループ確定・Opusタスク12へ登録（2026-07-13・続き112・Sonnet 5・PLAN Sonnetタスク9）
 
 **PLAN §3 Sonnetタスク9「smoke SKIP 268 解消・残1件の最終確認」を実施**。`npx tsx scripts/smokeTest.ts --verbose` で唯一のSKIPを特定＝`WXEX1-19-E2`（原文「【起】《ターン１回》《コインアイコン》：あなたのトラッシュから、対象のカード１枚をエナゾーンに置き、対象のカード１枚を手札に加え、対象のカード１枚をデッキの一番下に置く。」・JSON側は`STUB{id:'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH'}`）で `autopilot loop: SELECT_TARGET` として検出。
