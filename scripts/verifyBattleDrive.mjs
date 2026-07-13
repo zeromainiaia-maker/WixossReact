@@ -3490,6 +3490,61 @@ const scenarios = {
     },
   },
 
+  // ㉘ WX17-028（続き112・Sonnet・PLAN §7「その他の実機検証待ち」B2）＝REVEAL_DECK_TOP＋動的閾値
+  //    （powerLteRevealedSigniLevelSum）の実機検証。【出】《赤×0》：デッキの上から4枚公開→公開シグニの
+  //    レベル合計×1000以下の対戦相手シグニ1体をバニッシュ→公開したカードをトラッシュ。
+  //    デッキ上4枚を WD01-013（Lv1）×4 にしてレベル合計4＝閾値4000に固定し、guest の WD01-013（P3000）を
+  //    確実にバニッシュ対象にする。デッキは4枚ちょうどだと TRASH_REVEALED 後に0枚化しリフレッシュが誤って
+  //    絡むため、後続にダミー4枚（WD01-012）を足して残り4枚を確保（refreshTrigger の罠と同型の回避）。
+  revealDeckTopBanish: {
+    title: 'WX17-028（B2 REVEAL_DECK_TOP＋動的閾値＝公開シグニのレベル合計×1000以下の相手シグニをバニッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK09-018#1'],  // コード・ピルルク　ｍＶ Lv3 Limit6（wxk09050と同型＝Lv4シグニ召喚を許容）
+        'field.signi': [null, null, null],
+        'deck': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5', 'WD01-012#2', 'WD01-012#3', 'WD01-012#4', 'WD01-012#5'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null], // 小剣 ククリ Lv1 P3000（閾値4000以下でバニッシュ対象）
+      },
+      handPrepend: ['WX17-028#1'],
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.trash:', before?.guest?.trash, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/revealDeckTopBanish-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const banished = (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.trash ?? 0) > (before?.guest?.trash ?? 0);
+        H.log(`  rdt[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banished) {
+          return { pass: true, detail: `REVEAL_DECK_TOP+動的閾値バニッシュ 発火→guest WD01-013 がバニッシュ（gTrash ${before.guest.trash}→${st.guest.trash}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `バニッシュ未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gTrash=${fin?.guest?.trash} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
