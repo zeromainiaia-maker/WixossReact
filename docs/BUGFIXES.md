@@ -5,6 +5,21 @@
 
 ---
 
+## `applyDirectAction` の型対応漏れ6型を修正＝SELECT_TARGET/SEARCH解決後の no-op・無限再入・別対象すり替えを解消（smoke SKIP 258→1）（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-2)/(v)/(vi)）
+
+`applyDirectAction`（`effectExecutor.ts:4696`）は SELECT_TARGET/SEARCH で選ばれた単一 `cardNum` に thenAction を適用する分岐だが、`case` の無い型が `default` 節で `executeAction(action, {lastProcessedCards:[cardNum]})` として**元アクションを丸ごと再実行**してしまい、選んだ `cardNum` を無視して元の `target`（`DECK_CARD` 等）を素通しで再評価していた。結果＝(a) 同一 SELECT_TARGET を無限に再発行し autopilot が hang（実UIでは対象選択を延々と要求されターン進行不能＝フリーズ相当）／(b) 選んだデッキ/トラッシュ札を無視して場のシグニ選択へすり替わり、選んだ札は消えたまま別効果に化ける。**smoke の「autopilot loop: SELECT_TARGET」258件の真因**（続き93 で機械分類・`applyDirectAction` に case が無く `default` が同一 SELECT_TARGET を再発行し続ける同一の設計欠陥）。
+
+- **新設4 case（選択済み単一 `cardNum` へ直接適用）**＝
+  - **`ENERGY_CHARGE`**（実カード81件・`SEARCH→then:ENERGY_CHARGE{target:DECK_CARD}`＝「デッキから探して見つけた札をエナへ」が主形）＝カードが在る領域（手札/トラッシュ/デッキ/場）から除去してエナゾーンへ。
+  - **`TRANSFER_TO_DECK`**（125件・最多）＝場/手札/トラッシュ/エナから除去し `execTransferToDeck` の `insertToDeck` と同じ配置（shuffle/bottom/top）でデッキへ戻す。
+  - **`GRANT_PROTECTION`**（69ノード・73カード）＝`execGrantProtection` の `applyProtection` と同じ `PROTECTION:...` キーワードを `keyword_grants`（or `keyword_grants_until_opp_turn`）へ付与。
+  - **`POWER_SET`**（10件）＝`delta = value - 表記パワー` を `temp_power_mods` へ（同 cardNum の既存 mod は置換）。owner:'any' は場の所在で解決。
+- **thenAction 書き換え2型（既存idiom＝`execPowerModifyPerLevelSum` に倣う）**＝`execPowerModifyPerField`／`execPowerModifyPerLrigLevel` の選択経路（count≠'ALL'）は、選択前に delta が確定するため、`selectOrInteract` へ元アクションではなく**解決済み `POWER_MODIFY{delta}` を thenAction として渡す**よう変更＝applyDirectAction の既存 `POWER_MODIFY` case が処理し、PER_* case 欠落による default 再入（無限再発行）を回避。
+- **golden 追加7件**（`ENERGY_CHARGE` count:1選択・`SEARCH→DECK_CARD`・`TRANSFER_TO_DECK` SIGNI count:1・`GRANT_PROTECTION` SIGNI count:1・`POWER_SET` SIGNI count:1・`POWER_MODIFY_PER_FIELD` count:1・`POWER_MODIFY_PER_LRIG_LEVEL` count:1＝いずれも修正前は autopilot hang/誤対象になる経路）。golden 286→293。
+- **検証**＝`npm run gates` 全緑（typecheck／golden293／**smoke SKIP 258→1**・CRASH/HANG/INVARIANT 0／fuzz 0／census 1461維持・退化なし／lint 0 error）。engine のみ変更・JSON/parser/decompiler 不変＝同型★0・regen 不要。**Sonnetタスク9（smoke SKIP 258 解消）のブロッカーを除去**。
+
+---
+
 ## CLAUSES新設「あなたの場に(色)と(色)のシグニがある場合」＋「このルリグがアタックしたとき」プレフィックス構造欠陥の修正＝計10枚是正（2026-07-12・続き105・Sonnet 5・PLAN §3 census文型バッチ）
 
 census文型クラスタ「あなたの場に色と色のシグニがある場合」（ルリグのアタック時トリガー5枚＝WX14-010/WX14-013/WX20-009/WX20-015/WX20-019）を発見。「①基本効果」なしの単純な条件ゲート（このルリグがアタックしたとき、＜色1＞と＜色2＞のシグニが両方揃っていればカードを引いて1枚捨てる）が**条件節ごと丸ごと脱落**し、ルリグアタックのたびに無条件でドロー+ディスカードが発動する過剰効果になっていた。
