@@ -1637,6 +1637,24 @@ export function collectTurnTriggers(
     }
   }
 
+  // 相手のセンタールリグ（any_opp/any でこちらのターンにも反応する印刷【自】）。
+  // 相手フィールド走査が signi のみで LRIG が構造的に発火しなかった（続き96・ON_ATTACK_PHASE_START の
+  // WX12-002/WX19-002/WX21-001 等11枚）。own側ルリグと同じく activeCondition で発火可否を担保する。
+  const opLrigNumTurn = opState.field.lrig.at(-1);
+  if (opLrigNumTurn) {
+    for (const eff of (ctx.effectsMap.get(opLrigNumTurn) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp' && scope !== 'any') continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opState, myState, false, ctx.cardMap, opLrigNumTurn)) continue;
+      const cardName = ctx.cardMap.get(opLrigNumTurn)?.CardName ?? opLrigNumTurn;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: opLrigNumTurn, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
   // 自分のルリグトラッシュ（ARTS_SELF_RECYCLE_ON_TRIGGER）
   for (const artsNum of (myState.lrig_trash ?? [])) {
     for (const eff of (ctx.effectsMap.get(artsNum) ?? [])) {
