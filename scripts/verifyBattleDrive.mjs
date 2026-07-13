@@ -3856,7 +3856,10 @@ const scenarios = {
         // ⚠クリックはトグル式（選択→再クリックで解除）なので一度だけ押す
         if (!did && !discardPicked) {
           const discardImg = page.locator('img[alt="天童アリス"]').first();
-          if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) { await discardImg.click().catch(() => {}); did = 'pick:天童アリス(discard)'; discardPicked = true; }
+          if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) {
+            await discardImg.click({ force: true, timeout: 3000 }).catch(() => {});
+            discardPicked = true; did = 'pick:天童アリス(discard,force)';
+          }
         }
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
