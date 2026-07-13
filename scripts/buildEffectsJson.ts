@@ -200,6 +200,16 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   console.log(`無言フォールバック刻印: ${log.length}効果（明細 docs/_partial_report.txt）`);
 }
 
+// ── effectId → 原文ブロック 対応表（語彙センサスの効果単位判定の基盤・続き109）──
+// 「原文のこの一節は、この効果のJSONで表現されているか」を効果単位で突き合わせるための対応表。
+// カード単位判定（同カード別効果に語彙があれば合格）の死角(b)を消す。
+// ⚠parser 由来の effectId のみ（manualEffects 追加分は載らない＝センサス側はカード全文へ fallback）。
+{
+  const src = Object.fromEntries([...getSourceTextLog()].sort((a, b) => a[0].localeCompare(b[0])));
+  writeFileSync(join(root, 'docs', '_effect_srctext.json'), JSON.stringify(src), 'utf-8');
+  console.log(`原文ブロック対応表: ${Object.keys(src).length}効果（docs/_effect_srctext.json）`);
+}
+
 const total = Object.values(result).flat().length;
 console.log(`効果あり: ${parsed}枚 / 合計${total}効果 / UNKNOWN: ${unknown}件`);
 
