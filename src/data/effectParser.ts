@@ -1464,7 +1464,18 @@ function parseSingleSentenceInner(text: string): EffectAction {
         const then = parseSingleSentence(m[1] + rest);
         // ガードB: rest 単体では UNKNOWN に退化する文は、全文対象のSTUB規則
         // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
-        if (JSON.stringify(then).includes('"UNKNOWN"')) continue;
+        const thenS = JSON.stringify(then);
+        if (thenS.includes('"UNKNOWN"')) continue;
+        // ガードD: OPTIONAL_COST 系 STUB（支払う/スキップ選択）は effectExecutor が SEQUENCE の**直接ステップ**
+        // としてインターセプトし、後続の CONDITIONAL(IS_MY_TURN/PAID_ADDITIONAL_COST) と組で支払フローを
+        // 生成する（Pattern ④/⑤・effectExecutor.ts:2353）＝CONDITIONAL に包むと選択フローが丸ごと壊れる
+        // （WX24-P1-011/012・続き110）。条件付与は効果レベル hoist の領分＝持ち上げない。
+        if (/"id":"(?:OPTIONAL_COST|TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST|OPTIONAL_TRASH_ENERGY_CLASS)"/.test(thenS)) continue;
+        // ガードE: COUNTER_SPELL はスペルカットイン UI が findCounterSpellMaxCost（SEQUENCE/CHOOSE のみ再帰・
+        // CONDITIONAL 非対応）で maxCost を読み、打ち消し自体も UI 側で無条件実行＝CONDITIONAL に包むと
+        // maxCost ゲートが失われ条件も効かない（WX17-031・続き110）。条件は effect.condition
+        // （カットイン候補収集が evalUseCondition で評価済み＝BattleScreen:4934/4963）の領分＝持ち上げない。
+        if (thenS.includes('"COUNTER_SPELL"')) continue;
         // ガードC: コスト減STUB（COST_REDUCTION系）はコスト計算側がトップレベル走査で収集する＝
         // CONDITIONAL に包むと収集から隠れて無効化するため持ち上げない（WX25-CD1-17 等。続き29）
         // ⚠例外＝ARTS_COST_REDUCTION_BY_EFFECT は実行時マーカー（execStubPart1 で no-op・トップレベル収集なし）
