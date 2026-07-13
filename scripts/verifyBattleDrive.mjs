@@ -3938,9 +3938,17 @@ const scenarios = {
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-CP02-054')));
-        H.log(`  ce87[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  ce87[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'} kwGrants=${JSON.stringify(st?.host?.keywordGrants)}`);
         if (placed) {
-          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+          // 続き114の診断用＝GRANT_KEYWORD（SEQUENCE後続ステップ）が発火するかも数周待って確認する。
+          for (let k = 0; k < 4; k++) {
+            await page.waitForTimeout(900);
+            if (!(await H.clickZone())) await H.stdStep();
+            const st2 = await H.queryState();
+            H.log(`    (追跡)ce87 kw[${k}] pEff=${st2?.pendingEffect ?? '-'} kwGrants=${JSON.stringify(st2?.host?.keywordGrants)}`);
+          }
+          const stFin = await H.queryState();
+          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(stFin.host.fieldSigni)} kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）` };
         }
       }
       const fin = await H.queryState();
