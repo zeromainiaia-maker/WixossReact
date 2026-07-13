@@ -1326,9 +1326,9 @@ export function collectOppArtsUseTriggers(
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   const meId = ctx.meId ?? ctx.hostId;
-  for (const stack of myState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  // ownFieldSources = 場シグニ＋センタールリグ。signi のみ走査だと LRIG watcher が発火しなかった
+  // （続き96・ON_OPP_ARTS_USE self の WX16-003）。姉妹関数 collectArtsUseTriggers は元から lrig 対応済み。
+  for (const topNum of ownFieldSources(myState)) {
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes('ON_OPP_ARTS_USE')) continue;
