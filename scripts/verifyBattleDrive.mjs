@@ -3941,6 +3941,93 @@ const scenarios = {
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ── preflight 静的チェック（2026-07-14）＝「1試行15〜40秒を回してから気づく」定番FAILを実行前に警告する。
+//    CardData CSV から Level/Limit/Team/Restriction を引き、シナリオ spec だけで機械判定できる罠
+//    （lrigレベル不足・Limit超過・Team/限定制限・空きゾーン2以上）を洗う。警告のみ＝実行は止めない。
+function splitCsvLine(line) {
+  const out = []; let cur = ''; let q = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (q) { if (c === '"') { if (line[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"') q = true;
+    else if (c === ',') { out.push(cur); cur = ''; }
+    else cur += c;
+  }
+  out.push(cur);
+  return out;
+}
+function loadCardDb() {
+  const db = new Map();
+  for (const f of readdirSync('public/data').filter((n) => /^CardData_.*\.csv$/.test(n))) {
+    for (const line of readFileSync(join('public/data', f), 'utf-8').split(/\r?\n/).slice(1)) {
+      const c = splitCsvLine(line);
+      // EffectText 内改行の継続行はここで弾く（CardNum 形式でない行は無視）
+      if (c.length < 13 || !/^[A-Za-z0-9][A-Za-z0-9-]+$/.test(c[0])) continue;
+      db.set(c[0], {
+        name: c[1], type: c[3], cardClass: c[4], level: Number(c[6]) || 0,
+        limit: Number(c[9]) || 0, restriction: c[11] ?? '-', team: c[12] ?? '-',
+      });
+    }
+  }
+  return db;
+}
+function preflightScenario(sc, db) {
+  const warns = [];
+  const strip = (n) => String(n).split('#')[0];
+  const hostSet = sc.spec?.hostSet ?? {};
+  const lrigArr = hostSet['field.lrig'];
+  const lrigNum = Array.isArray(lrigArr) && lrigArr.length ? strip(lrigArr.at(-1)) : null;
+  const lrig = lrigNum ? db.get(lrigNum) : null;
+  const fieldSigni = hostSet['field.signi'];
+  const fieldLevelSum = Array.isArray(fieldSigni)
+    ? fieldSigni.flatMap((z) => (Array.isArray(z) ? z : [])).reduce((a, n) => a + (db.get(strip(n))?.level ?? 0), 0)
+    : 0;
+  const emptyZones = Array.isArray(fieldSigni) ? fieldSigni.filter((z) => !z || z.length === 0).length : 0;
+  const handSigni = (sc.spec?.handPrepend ?? []).map((n) => [strip(n), db.get(strip(n))]).filter(([, c]) => c?.type === 'シグニ');
+  for (const [num, c] of handSigni) {
+    if (!lrig) warns.push(`手札に シグニ ${num} があるが hostSet['field.lrig'] 未設定＝初期Lv0ルリグのままだと召喚ボタンが出ない`);
+    else {
+      if (c.level > lrig.level) warns.push(`${num}(Lv${c.level}) > ルリグ ${lrigNum}(Lv${lrig.level})＝レベル要件で召喚ボタンが出ない`);
+      if (fieldLevelSum + c.level > lrig.limit) warns.push(`Limit超過の可能性: 場Lv合計${fieldLevelSum}+${num}(Lv${c.level}) > Limit${lrig.limit}`);
+      if (c.team && c.team !== '-' && !(lrig.cardClass ?? '').includes(c.team) && !(lrig.name ?? '').includes(c.team)) {
+        warns.push(`${num} は Team「${c.team}」＝センタールリグ ${lrigNum}(${lrig.cardClass}) が合わないと召喚ボタンが出ない`);
+      }
+      const lim = (c.restriction ?? '').match(/^(.+?)限定/)?.[1];
+      if (lim && !(lrig.cardClass ?? '').includes(lim) && !(lrig.name ?? '').includes(lim)) {
+        warns.push(`${num} は「${c.restriction}」＝センタールリグ ${lrigNum}(${lrig.cardClass}) が条件を満たすか確認`);
+      }
+    }
+    if (emptyZones >= 2) warns.push(`空きシグニゾーンが${emptyZones}＝召喚/ADD_TO_FIELD 後に SELECT_SIGNI_ZONE（「ゾーンN」ボタンのクリック）が要る`);
+  }
+  return warns;
+}
+
+// ── 既存 PLAYING ルームの再利用判定（2026-07-14）＝マッチング〜マリガンの30〜60秒を毎試行やり直さない。
+//    injectScenario が毎回 host/guest state をホワイトリスト方式で全リセット＋シナリオ直前 reload で
+//    クライアントも再マウントするため、ルーム自体は使い回せる。ただしライフ/デッキが消耗したルームは
+//    試合終了・デッキ枯渇の事故になるため再利用せず新規作成に落とす（自己回復）。FRESH=1 で強制新規。
+async function findReusableRoom(page) {
+  return await page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find((k) => /^sb-.*-auth-token$/.test(k));
+    if (!key) return null;
+    const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+    const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id; if (!roomId) return null;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state`, { headers: h });
+    const row = (await r2.json())?.[0]; if (!row) return null;
+    const hs = row.host_state ?? {}, gs = row.guest_state ?? {};
+    const stat = {
+      roomId,
+      hostLife: (hs.life_cloth ?? []).length, hostDeck: (hs.deck ?? []).length,
+      guestLife: (gs.life_cloth ?? []).length, guestDeck: (gs.deck ?? []).length,
+    };
+    stat.worn = stat.hostLife < 4 || stat.guestLife < 4 || stat.hostDeck < 10 || stat.guestDeck < 10;
+    return stat;
+  }, { SUPA_URL, ANON });
+}
+
 async function cleanupRooms(page) {
   return await page.evaluate(async ({ SUPA_URL, ANON }) => {
     const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
