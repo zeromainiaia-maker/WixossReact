@@ -803,10 +803,13 @@ function main(): void {
 // ＜クラス＞→＜C＞・「引用」→「Q」・色→色 に正規化して同型テンプレートに束ねる。
 // 実測（続き23・条件節773枚）: 443テンプレ・上位30で304枚（40%）・上位80で459枚（60%）。
 // カスタム節（数値不一致/小さい数/逆方向/構造）は節アンカーが無い粗い網のため対象外。
+// ⚠2026-07-13 続き109: ids は effectId（`WX01-001-E1` 等）＝節抽出も効果ブロック原文から行う。
+// 採用（heldReview）はカード単位なので、バッチを組むときは effectId から末尾の -E\d+/-BURST 等を落として CardNum にする。
 function writeClusters(
-  corpus: Corpus,
+  units: Unit[],
   missByPattern: Array<{ name: string; re: RegExp; pre?: (t: string) => string; src?: 'all' | 'eff'; ids: string[] }>,
 ): void {
+  const textOf = new Map(units.map(u => [u.effectId, u.text]));
   const norm = (s: string) => s
     .replace(/《[^》]*》/g, '《X》')
     .replace(/＜[^＞]*＞/g, '＜C＞')
