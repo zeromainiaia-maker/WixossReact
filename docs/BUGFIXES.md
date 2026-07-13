@@ -5,6 +5,18 @@
 
 ---
 
+## `collectCoinPaidTriggers` の usageLimit 書き戻し欠落を修正＝ON_COIN_PAID《ターン1回/2回》のノーガードを解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-5)）
+
+続き99（Sonnet）が実機 `coinPaidTwice` で確認した「`collectCoinPaidTriggers`（`triggerCollect.ts:153`）が usageLimit 判定用の `actions_done` 書き戻しを一切行わず、ON_COIN_PAID の《ターン1回》《ターン2回》が実質ノーガード」バグを修正。他の大半の usageLimit 付きコレクタ（`collectTargetedTriggers`/`collectDrawTriggers` 等）は `{entries, usedIds}` を返し呼び出し側が `actions_done` へ永続化する設計だが、この関数だけ `StackEntry[]` のみを返し**6箇所の呼び出し元がいずれも書き戻していなかった**ため、同一ターン内で何度でも再発火していた（WXDi-P15-069＝twice_per_turn が3回目のコイン支払いでも発火）。
+
+- **engine（`triggerCollect.ts`）**＝返り値を `{ entries, usedIds }` へ変更し、手書きの `doneCount` チェックを共通ヘルパー `mkLimitOk(afterPayerState.actions_done, usedIds)` へ置換（チェックと usedIds への push を一体化）。ON_COIN_PAID は payer 側のみ発火する一面コレクタなので単一 `usedIds` で足りる。
+- **呼び出し元（`BattleScreen.tsx`・6サイト）**＝グロウ/アーツ(ベット・アンコール)/キープレイ/シグニ【起】/シグニ【出】/CPUグロウの各コイン支払サイトで、collector の `usedIds` を payer 状態の `actions_done` へ書き戻してからコミットするよう修正。ヘルパー `applyCoinPaidUsed(st, coin)` を新設して統一（既存の `collectMaterialUsedByPlayerTriggers` の書き戻し先例と同型）。アーツサイトは後続の改造素材書き戻しが coin 分を上書きしないよう基底状態を差し替え。
+- **golden 追加/更新**＝既存2テストを新シグネチャ（`.entries`/`.usedIds`）へ更新＋**twice_per_turn 書き戻し回帰テスト新設**（WXDi-P15-069＝1回目/2回目は発火・`actions_done` に2回消化後の3回目は非発火）。golden 298→299。
+- **検証**＝`npm run gates` 全緑（typecheck／golden299／smoke SKIP 1・CRASH/HANG/INVARIANT 0／**fuzz 0**・distinct効果 2658／census 1461維持）。
+- **残（同型 usageLimit 欠落・別コレクタ）**＝続き100 が挙げた `collectBanishTriggers`（ON_BANISH・18枚）・`collectPowerZeroTriggers`（6枚）・`collectLrigGrowTriggers`（4枚）は**二面コレクタ（usedHostIds/usedGuestIds が要る）で本修正の対象外**＝Opusタスク12(vi-5) に残置（次セッション）。
+
+---
+
 ## `triggerCollect.ts` の LRIGゾーン走査漏れを5コレクタで根治＝LRIG watcher が構造的に絶対発火しなかったバグを解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-3)/(vi-4)）
 
 続き95/96（Sonnet）で棚卸しされた「複数のトリガーコレクタが `field.signi` のみ走査し `field.lrig`（センタールリグ最上段）を欠く系統的な実装漏れ」を修正。多くのコレクタが使う共通ヘルパー `ownFieldSources(state)`（signi 最上段＋lrig 最上段の両方を返す）を使わず手書き走査していた5コレクタで、**LRIG が watcher の該当 timing が一度もマッチせず印刷能力が完全に機能していなかった**（実カード20枚超）。
