@@ -3754,6 +3754,67 @@ const scenarios = {
     },
   },
 
+  // ㉜ WX24-P2-018（続き112・Sonnet・PLAN §7「B4引用付与の実発火」調査）＝
+  //    【自】：あなたのアタックフェイズ開始時、あなたの＜龍獣＞のシグニ1体を対象とし、《赤》を支払ってもよい。
+  //    そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手が《無無無》を
+  //    支払わないかぎり、ターン終了時まで、このシグニは【アサシン】を得る。」を得る。
+  //    ⚠コード読解で発見した疑義（未確定・実機で確認する）＝WX24-P2-018はルリグカードだが、JSONの
+  //    E1（GRANT_QUOTED_AUTO_ABILITYの起点）は`timing:["ON_ATTACK_SIGNI"]`（triggerScope省略＝自身が
+  //    「アタックしたとき」の意）で登録されている。しかし`BattleScreen.tsx:6276`の自己スコープON_ATTACK_SIGNI
+  //    収集（`effectsMap.get(myTopNum)`）はシグニアタック解決の中で「アタックした**シグニ自身**」の効果のみを
+  //    見る＝**ルリグの効果はこの経路を一切通らない**（ルリグの攻撃はATTACK_LRIGフェイズの別コードパス）。
+  //    原文は「アタックフェイズ**開始時**」＝`ON_ATTACK_PHASE_START`が正しいtimingのはずで、
+  //    `ON_ATTACK_SIGNI`は誤りの疑いが濃厚＝**E1が一度も発火しない可能性**。
+  wx24p2018GrantFire: {
+    title: 'WX24-P2-018（B4＝引用付与の起点E1が発火するか。timing疑義の実機確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX24-P2-018#1'],
+        'field.signi': [['WX04-072#1'], null, null], // 幻竜 エキドナ（＜龍獣＞・付与対象候補）
+        'field.signi_down': [false, false, false],
+        'energy': ['WX04-068#1'], // 幻竜 ワイバーン（赤・OPTIONAL_COST支払い用）
+        'actions_done': [],
+        'game_actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null],
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.keywordGrants:', JSON.stringify(before?.host?.keywordGrants));
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wx24p2018GrantFire-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) {
+          const payBtn = page.getByRole('button', { name: /支払|エナ.*選択して発動/ }).first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払(pay)'; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const granted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WX04-072#1:') && g.includes('アサシン'));
+        H.log(`  w2018[${s}] -> ${did ?? 'なし'} | hKwGrants=${(st?.host?.keywordGrants ?? []).join(',') || '-'} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (granted) {
+          return { pass: true, detail: `E1発火→WX04-072に【アサシン】付与確認（hKwGrants=${(st.host.keywordGrants).join(',')}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `E1発火未確認（hKwGrants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）＝timing ON_ATTACK_SIGNI（ルリグの自己スコープでは収集経路が無い疑い）を裏付ける結果` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
