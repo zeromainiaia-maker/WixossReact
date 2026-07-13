@@ -3791,6 +3791,7 @@ const scenarios = {
         await page.screenshot({ path: `${SHOT}/wx24p2018GrantFire-${s}.png`, fullPage: true });
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了']);
         if (!did) {
           const payBtn = page.getByRole('button', { name: /支払|エナ.*選択して発動/ }).first();
           if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払(pay)'; }
