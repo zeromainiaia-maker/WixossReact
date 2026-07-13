@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-2)/(v)/(vi)＝`applyDirectAction` の型対応漏れ6型を修正・smoke SKIP 258→1）**
+  - `applyDirectAction`（`effectExecutor.ts:4696`）の型対応漏れを根治＝SELECT_TARGET/SEARCH で選ばれた単一 `cardNum` に thenAction を適用する分岐で `case` の無い型が `default` で元アクションを丸ごと再実行（同一 SELECT_TARGET 無限再発行＝UIフリーズ相当）。新設4 case（`ENERGY_CHARGE`/`TRANSFER_TO_DECK`/`GRANT_PROTECTION`/`POWER_SET`）＋thenAction 書き換え2型（`POWER_MODIFY_PER_FIELD`/`PER_LRIG_LEVEL`）。golden 286→293・smoke SKIP 258→1。
+  - 第2バッチ＝`triggerCollect.ts` の LRIGゾーン走査漏れを5コレクタで根治（`ownFieldSources` 未使用で `field.lrig` を欠き LRIG watcher が絶対非発火）。golden 293→298。
+  - 第3バッチ＝`collectCoinPaidTriggers` の usageLimit 書き戻し欠落を修正（ON_COIN_PAID《ターン1回/2回》ノーガード）。golden 298→299。残＝二面コレクタ3種（`collectBanishTriggers`18/`collectPowerZeroTriggers`6/`collectLrigGrowTriggers`4）。
+  - 第4/5バッチ＝`execBlockAction` の SIGNI/ATTACK 分岐 count/filter 無視の全ブロック是正＋CONTINUOUS「このシグニはアタックできない」の `calcContinuousBlockedActions` 拾い漏れ是正。golden 299→303。
+  - 第6バッチ＝§6.2 系統①(b)「あなたか対戦相手のデッキN枚トラッシュ」17枚を `CHOOSE{self_deck,opp_deck}` 化（常に自デッキだけ削る過少を是正）。
+  - 第7バッチ＝色別 ARTS_USED_THIS_TURN 機構新設（`turn_arts_used_colors` state＋Condition.color＋parser規則）でWX24-D1〜D4-11の4枚是正。census 1461→1458。
+  - 第8バッチ＝「代わりに」置換の五面4枚（WX06-003/004/005/006）＝`STATE_CONDITION_CLAUSES` に `AND[LRIG_COLOR,LIFE_COUNT]` 追加で SEQUENCE 両実行の過剰効果を CONDITIONAL 化。golden 304→305・census 1458→1454。詳細 BUGFIXES 続き106。
+
 - **セッション（2026-07-12・続き105・Sonnet 5・verifyBattleDrive状態汚染の根本修正＋census文型バッチ「CHOOSE選択肢②条件」6枚是正）**
   - **✅ PLAN §3 Sonnetタスク3「バッチ実行時状態汚染」に着手＝2つの根本原因を機械的に切り分けて修正**（`scripts/verifyBattleDrive.mjs`のみ・engine/JSON無変更）。
   - **原因①（DB側）＝`injectScenario`のシナリオ間リセットが18個の手動列挙方式で、PlayerStateの任意フィールド約170個中150個超が漏れていた**＝実例＝`abilities_removed`が未列挙で残留し、`ontargeted5`のマーカーが後続シナリオの`guest_state`に残り続けていた。**修正＝「盤面の物理配置」9フィールドだけを引き継ぐホワイトリスト方式（除外方式）へ書き換え**。
