@@ -780,11 +780,13 @@ function main(): void {
   detail.push(`# 高シグナル欠落カード総数（重複除外）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
 
-  if (CLUSTERS_MODE) writeClusters(corpus, missByPattern);
+  if (CLUSTERS_MODE) writeClusters(units, missByPattern);
 
+  const fbCount = units.filter(u => u.fallback).length;
   console.log('パターン | 原文該当 | 高シグナル欠落 | STUB・MANUAL格納(要確認)');
   for (const row of summary) console.log(row);
-  console.log(`\n高シグナル欠落カード総数(重複除外): ${highAll.size} ／ ベースライン: ${BASELINE_HIGH}`);
+  console.log(`\n効果単位判定: ${units.length}効果（うち原文ブロック対応なし＝カード全文fallback ${fbCount}件）`);
+  console.log(`高シグナル欠落 効果総数(重複除外): ${highAll.size} ／ ベースライン: ${BASELINE_HIGH}`);
   console.log(`明細: docs/_vocab_census.txt`);
 
   if (highAll.size > BASELINE_HIGH) {
