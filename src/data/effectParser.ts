@@ -1113,6 +1113,11 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // then のみ CONDITIONAL で処理するため、ここは matchLeadingStateCondition 経由の「代わりに」置換専用（§3 Opusタスク6）。
   [/あなたがベットしていた場合/,
     () => ({ type: 'IS_BETTING' })],
+  // 「このターンにあなたが(色)のアーツを使用していた場合、代わりに＜enhanced＞」＝色別ARTS_USED_THIS_TURN の置換
+  // （WX25-P3-116＝-3000基本／黒アーツ使用時 代わりに-5000）。効果全体の hoist（line 3210）は「代わりに」時は
+  // スキップし、ここで per-target 値すり替えの置換ゲートとして拾う（engine/decompiler は color 付き実装済み・続き106）。
+  [/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/,
+    g => ({ type: 'ARTS_USED_THIS_TURN', owner: 'self', color: g[0] })],
   ...STATE_CONDITION_CLAUSES_V2,
 ];
 
