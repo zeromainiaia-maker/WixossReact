@@ -692,18 +692,12 @@ function main(): void {
       }
       return Object.values(node).some(hasBadImt);
     };
-    for (const [id, effs] of jsonObj) {
-      if (!Array.isArray(effs)) continue;
-      for (const e of effs as Array<{ effectType?: string; effectId?: string }>) {
-        if (e?.effectType !== 'LIFE_BURST') continue;
-        const s = JSON.stringify(e);
-        if (!s.includes('IS_MY_TURN')) continue;
-        if (!hasBadImt((e as { action?: unknown }).action)) continue;
-        hits++;
-        if (s.includes('STUB') || s.includes('MANUAL')) missStub.push(e.effectId ?? id);
-        else { missHigh.push(e.effectId ?? id); highAll.add(id); }
-        break;
-      }
+    for (const u of units) {
+      if (!u.isBurst || !u.js.includes('IS_MY_TURN')) continue;
+      if (!hasBadImt((u.obj as { action?: unknown }).action)) continue;
+      hits++;
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(u.effectId); highAll.add(u.effectId); }
     }
     pushSection('BURST内IS_MY_TURN(TRASH前段以外=条件化け)', hits, missHigh, missStub);
   }
