@@ -3165,6 +3165,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.replace(/、?このシグニのパワーが[０-９\d]+以上の場合、/, '、').replace(/^、/, '');
   }
 
+  // 「このターンにあなたが(色)のアーツを使用していた場合」= 色別 ARTS_USED_THIS_TURN 条件に昇格（WX24-D1-11〜D4-11）。
+  // 色なし版の規則より先に評価する（色なし規則は「(色)の」が挟まると match しないため従来は条件が丸ごと脱落していた）。
+  const artsColorMatch = actionText && actionText.match(/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/);
+  if (artsColorMatch) {
+    const artsColorCond = { type: 'ARTS_USED_THIS_TURN', owner: 'self', color: artsColorMatch[1] } as const;
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, artsColorCond] }
+      : artsColorCond;
+    actionText = actionText.replace(/、?このターンにあなたが(?:白|赤|青|緑|黒)のアーツを使用していた場合(?:、)?/, '、').replace(/^、/, '');
+  }
+
   // 「このターンにあなたがアーツを使用していた場合」= ARTS_USED_THIS_TURN 条件に昇格（WX25-P1-106 等11枚の系統）。
   // アクション文中から条件節を除去し、発動条件に昇格する（turn_arts_used フラグを evalCondition が参照）。
   if (actionText && /このターンにあなたがアーツを使用していた場合/.test(actionText)) {
