@@ -3877,6 +3877,13 @@ const scenarios = {
             await activateBtn.click().catch(() => {}); did = 'btn:発動(enabled)';
           }
         }
+        // SELECT_SIGNI_ZONE（配置先ゾーン選択）＝「ゾーン2」ボタン（zone1・空き）をクリック
+        if (!did) {
+          const zoneBtn = page.getByRole('button', { name: /^ゾーン2/ }).first();
+          if (await zoneBtn.count() && await zoneBtn.isVisible().catch(() => false) && await zoneBtn.isEnabled().catch(() => false)) {
+            await zoneBtn.click().catch(() => {}); did = 'btn:ゾーン2';
+          }
+        }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n.startsWith('WX25-CP1-TK1A')));
