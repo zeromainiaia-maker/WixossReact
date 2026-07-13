@@ -3914,6 +3914,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         const action = parseActionText(raw);
         const trapFb = consumeSilentFallbacks();
         logSilentFallbacks(`${card.CardNum}-TRAP`, trapFb);
+        logSourceText(`${card.CardNum}-TRAP`, trapM[0]);
         effects.push({
           effectId: `${card.CardNum}-TRAP`,
           effectType: 'TRAP_ICON',
