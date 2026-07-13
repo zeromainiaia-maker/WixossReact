@@ -3615,6 +3615,72 @@ const scenarios = {
     },
   },
 
+  // ㉚ WXDi-P07-044-E2（続き112・Sonnet・PLAN §7「機構④誤parse3枚」実機検証）＝
+  //    【自】《自分ターン》あなたのシグニが効果によって場に出たとき：対戦相手のシグニ1体を凍結し、
+  //    パワーを-2000する（triggerScope:any_ally・triggerCondition.byEffect:true+turnOwner:self）。
+  //    続き（旧セッション）で誤parseを是正済み（BUGFIXES「機構④誤parse3枚の是正」参照）だが実機未検証のまま
+  //    残っていた＝ADD_TO_FIELD（手札以外からの場出し＝byEffect）が実際にこのwatcherを発火させるかを確認する。
+  //    トリガー源＝WD08-001（混沌の鍵主 ウムル＝フィーラ・Lv4Limit11ルリグ）の【起】《ダウン》
+  //    「あなたのトラッシュからシグニ1枚を対象とし、それを場に出す」で自トラッシュのシグニを場に出す。
+  //    ⚠WD08-001はE2（【起】《ターン1回》《黒×0》デッキ上3枚トラッシュ）とE3（【起】《ダウン》場出し）の
+  //    両方がcostPartsMAの分岐（energyTotal>0/coin/discard系のみ）に引っかからず両方「【起】コストなし」と
+  //    表示され区別不能＝ボタンをnth(1)（2番目＝JSON順でE3）で指定して回避（表示バグは別途・軽微・据置）。
+  installByEffectFreeze: {
+    title: 'WD08-001→WXDi-P07-044-E2（機構④＝any_ally+byEffect ADD_TO_FIELD で凍結+パワー-2000）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD08-001#1'],
+        'field.signi': [['WXDi-P07-044#1'], null, null], // watcher（大幻蟲 アロス・ピルルク）
+        'field.signi_down': [false, false, false],
+        'field.lrig_down': false,
+        'trash': ['WD01-013#9'], // 場に出す対象（小剣 ククリ・任意のシグニでよい）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#8'], null, null], // 凍結+パワー-2000の対象
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.signiFrozen:', JSON.stringify(before?.guest?.signiFrozen), 'guest.powerMods:', JSON.stringify(before?.guest?.powerMods));
+      await H.ensureMain();
+      let opened = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/installByEffectFreeze-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !opened) {
+          const lrigImg = page.locator('img[alt="混沌の鍵主　ウムル＝フィーラ"]').first();
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
+        }
+        if (!did && opened) {
+          const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).nth(1);
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】コストなし(2番目=E3)'; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const frozen = !!st?.guest?.signiFrozen?.[0];
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#8:') && parseInt(m.split(':')[1], 10) < 0);
+        H.log(`  ibef[${s}] -> ${did ?? 'なし'} | gFrozen=${JSON.stringify(st?.guest?.signiFrozen)} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (frozen || debuffed) {
+          return { pass: true, detail: `機構④(any_ally+byEffect ADD_TO_FIELD) 発火→guest WD01-013#8 が凍結/パワー-2000（gFrozen=${JSON.stringify(st.guest.signiFrozen)} gPowerMods=${(st.guest.powerMods).join(',')}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `発火未確認（gFrozen=${JSON.stringify(fin?.guest?.signiFrozen)} gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
