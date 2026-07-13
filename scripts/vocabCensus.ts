@@ -286,7 +286,12 @@ const PATTERNS: Pattern[] = [
   { name: 'トリガー:エナチャージしたとき', re: /【?エナチャージ】?を?した?とき/, keys: ['ON_ENERGY_CHARGE'], src: 'eff' },
   { name: 'コスト:《ダウン》', re: /《ダウン》/, keys: ['down_self', 'lrigDown', 'fieldDown', '"down"', 'ダウン》'], src: 'eff' },
   { name: 'コスト:エクシードN', re: /《?エクシード[０-９\d]/, keys: ['exceed', 'エクシード'], src: 'eff' },
-  { name: 'コスト:《コイン》', re: /《コイン/, keys: ['coin', 'COIN', 'コイン'], src: 'eff' },
+  { name: 'コスト:《コイン》', re: /《コイン/, keys: ['coin', 'COIN', 'コイン'], src: 'eff',
+    // 「ベット―《コイン》…」プレフィックスの《コイン》はベット宣言コスト（機構:ベットで別途計測・
+    // is_betting_this_effect は BattleScreen が raw text から立てる＝JSON cost には載らない設計）。
+    // これを「コスト:《コイン》」で二重計測しない＝原文の《コイン》がベット―プレフィックスのみに現れ、
+    // かつ JSON がベット（IS_BETTING/BET_*）を表現していれば covered とみなす（§3 Opusタスク6・betChoose 機構）。
+    extraOk: (js, t) => !/《コイン/.test(t.replace(/ベット[―─](?:《[^》]+》)*/g, '')) && /BET/.test(js) },
   { name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff' },
   { name: 'コスト:エナからトラッシュ', re: /エナゾーンから[^。：]{0,18}(トラッシュに置く|支払う)：?/, keys: ['energyTrash', 'ENERGY'], src: 'eff' },
   { name: 'コスト:場からトラッシュ', re: /場から[^。：]{0,18}トラッシュに置く：/, keys: ['fieldTrash', 'trash_self', 'beat', 'fieldTo'], src: 'eff' },
