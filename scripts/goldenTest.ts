@@ -597,6 +597,18 @@ test('GRANT_TO_PLACED_SIGNI 構造固定（P1-044/P2-039=GRANT_KEYWORD アサシ
   const s3 = JSON.stringify(effectsMap.get('WX24-P3-039') ?? []);
   ok(s3.includes('"MILL"') && s3.includes('"countIsLastProcessedLevelSum":true') && !s3.includes('GRANT_TO_PLACED_SIGNI'), 'WX24-P3-039: MILL countIsLastProcessedLevelSum のはず');
 });
+// アップ状態フィルタ（続き110）：「対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する」
+// （BURST 21枚）が parseSentencePart1 のパワー修整対象分岐で「アップ状態の」接頭辞を許容せず
+// default {owner:'any', filter無し} に落ちていた＝owner脱落＋isUp脱落の過剰効果の回帰ガード。
+// WX24-D5-25＝fresh採用17枚の代表・WXDi-D06-021＝手修正温存カードへの effectId 外科パッチ4枚の代表。
+test('アップ状態フィルタ 構造固定（対戦相手のアップ状態のシグニ−15000 BURST が owner:any/フィルタ無しに戻っていない）', () => {
+  for (const num of ['WX24-D5-25', 'WXDi-D06-021']) {
+    const effs = (effectsMap.get(num) ?? []) as { effectId?: string }[];
+    const b = effs.find(e => String(e.effectId).endsWith('-BURST'));
+    const s = JSON.stringify(b ?? {});
+    ok(s.includes('"isUp":true') && s.includes('"owner":"opponent"'), `${num}-BURST: owner:opponent + isUp:true のはず（実際 ${s.slice(0, 160)}）`);
+  }
+});
 // ON_SIGNI_BANISH_OPPONENT（「…がバトルによって…をバニッシュしたとき」＝バトル勝利トリガー・続き75）。
 // engine（BattleScreen の battleBanishEntries）は元から配線済みだったが parser がこの語彙を持たず、
 // 31枚が ON_PLAY（「場に出たとき」）へ誤フォールバックしていた＝実質「召喚しただけで発火する」幻覚の回帰ガード。
