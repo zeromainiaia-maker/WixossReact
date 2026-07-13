@@ -5,6 +5,22 @@
 
 ---
 
+## SPELL_USED_THIS_TURN 機構新設＝「このターンにあなたがスペルを使用していた場合」条件の丸ごと脱落11効果＋クラス存在条件8枚を是正・lifting ガードD/E 新設（2026-07-13・続き110 第2バッチ・Fable 5・戦略②）
+
+**効果単位 census 上位クラスタ「このターンにあなたがスペルを使用していた場合」（9＋②選択肢2＝11効果）**。従来 parser はこの節を全文 STUB（CONDITIONAL_POWER_BONUS）か無言消費で落とし、**アタック/フェイズ開始のたび無条件発火する過剰効果**だった。
+
+- **機構＝ARTS_USED_THIS_TURN（続き106）と同型**：`Condition` に `SPELL_USED_THIS_TURN{owner}` を新設。**engine の状態は新設せず、既存の `actions_done` の 'USE_SPELL' マーカーを参照**（`handleUseSpell` が積み・自ターン開始時リセット・firstSpellExtra 等の既存機能と同一判定源）＝evalCondition 1 case のみ。decompiler 1行。
+- **parser 3経路**：(a) **効果レベル hoist**（トリガー直後の節→`extractedTriggerCondition`。⚠「代わりに」直後と①②③選択肢内はスキップするガード付き）＝8効果（うち6枚＋SPDi43-17 は純改善で自動採用）。(b) **`STATE_CONDITION_CLAUSES_V2` にエントリ追加**＝「代わりに」置換ゲート（WX25-P2-108＝SEQUENCE両実行(-3000&-5000・2つ目owner:any)→`CONDITIONAL{then:-5000,else:-3000}`）と選択肢内条件（WX25-P2-086/105＝①黒/青＜電機＞条件・②スペル条件とも脱落していた）の両方が同エントリで解決。(c) 手修正温存2枚（WXDi-P12-066＝BURST退化を含む混在diffのため・WXDi-P13-050＝MANUAL枠。後者は**②【エナチャージ1】が LOOK_AND_REORDER に化けていた幻覚**も併せて）effectId 外科パッチ。**⚠WXDi-P14-025（対戦相手スペル条件＋DOWN→BANISH の動詞すり替え置換）は機構外＝据置**（perTarget 置換は POWER_MODIFY 値のみ対応）。
+- **ついでに V2 へ「あなたの場に(色)の＜C＞のシグニがある場合」「あなたの場に＜C＞のシグニがある場合」（枚数なし存在ゲート）を追加**＝8枚収穫（WD17-009「代わりに」置換化・WX19-035/WXDi-P11-057＝条件が target.filter に混入していたのを分離・WX22-002 5色分岐・WX22-040・WX20-042-CB・WX25-P3-095・WXEX2-44）。WD17-009 は enhanced 側 BANISH の owner が原文主語省略で self に誤デフォルト＝採用後に opponent へ外科パッチ。**⚠文頭楕円形「(色)の＜C＞がある場合」は撤回**＝直前節のゾーンを引き継ぐ文脈依存（WX22-002 は場だが WXDi-P03-038 は**このシグニの下**）で固定エンコード不可（WX22-002 の残り4節は楕円形のため白のみ是正）。
+- **🆕 lifting ガードD/E 新設（横断バグの発見）**：
+  - **ガードD**＝`OPTIONAL_COST` 系 STUB は effectExecutor が **SEQUENCE の直接ステップ**としてインターセプトし後続 CONDITIONAL(IS_MY_TURN/PAID_ADDITIONAL_COST) と組で支払フローを生成する（Pattern ④/⑤・`effectExecutor.ts:2353`）＝CONDITIONAL に包むと **pay/skip どちらでも後続が実行される**（standalone ハンドラは両選択肢 noop）。
+  - **ガードE**＝`COUNTER_SPELL` はカットイン UI が `findCounterSpellMaxCost`（SEQUENCE/CHOOSE のみ再帰）で maxCost を読み打ち消しも UI 側で無条件実行＝包むと maxCost ゲート喪失。正しい置き場は `effect.condition`（カットイン候補収集が evalUseCondition で評価済み）。
+  - ガード追加により**既存 curated の包み形27枚が held に浮上**（SPDi43-08 等＝旧世代 lifting の産物・「条件は効くが skip が無効」の既存潜在バグ）＝**採用せず PLAN §3 Opusタスク12 (xi) へ登録**（正しい解＝効果レベル condition への再エンコード機構）。WX17-031/WX24-P1-011/012 の fresh 退化もガードで阻止。
+- **検証**＝golden 307→**309**（発火ゲート＋構造固定）・smoke/fuzz 全0・**census 2243→2229**（BASELINE_HIGH 更新）・同型★0・逆翻訳原文一致（「このターンにあなたがスペルを使用していたなら、−5000する、そうでなければ−3000する」等）。
+- **テール（新規発見・別系統）**＝WXEX1-38 の action 誤り（「手札を1枚見ないで選びデッキの一番上に置く」→ `TRANSFER_TO_DECK{SIGNI}` に化けている）・WXEX2-44 の then 誤り（「エナゾーンからすべてのカードを手札に戻す」→場シグニ BOUNCE）・WX20-042-CB の BURST 対象 owner:self 疑義。いずれも条件付与自体は正しく net 改善のため採用済み・action 是正は §5b/§6 テール。
+
+---
+
 ## 「対戦相手のアップ状態のシグニ」対象フィルタ脱落21効果＝owner:any＋isUp欠落の過剰効果を是正（2026-07-13・続き110・Fable 5・PLAN §4 全カード完成戦略②の初回バッチ）
 
 **効果単位 census（続き109）の最上位クラスタ**＝「：対戦相手の**アップ状態の**シグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する」（BURST 12効果）＋①選択肢型9効果＝**計21効果**。
