@@ -3260,6 +3260,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.replace(/、?このターンにあなたがアーツを使用していた場合(?:、)?/, '、').replace(/^、/, '');
   }
 
+  // 「このターンにあなたがスペルを使用していた場合」= SPELL_USED_THIS_TURN 条件に昇格（WX24-P1-068 等8枚の系統・続き110）。
+  // ⚠(a) 直後が「代わりに」の場合は per-target 置換（WX25-P2-108）＝hoist せず STATE_CONDITION_CLAUSES_V2 の
+  //     置換ゲート（matchLeadingStateCondition）に委ねる（色別 ARTS_USED と同じ扱い）。
+  // ⚠(b) 節が①②③の選択肢内にある場合（WX25-P2-086/105＝②の選択肢別条件）は効果全体のゲートではない＝
+  //     hoist せず、選択肢 action の parseSingleSentence CONDITIONAL 持ち上げ（STATE_CONDITION_CLAUSES_V2）に委ねる。
+  if (actionText) {
+    const spellCondIdx = actionText.indexOf('このターンにあなたがスペルを使用していた場合');
+    const spellCondInChoice = spellCondIdx >= 0 && /[①②③④⑤]/.test(actionText.slice(0, spellCondIdx));
+    if (spellCondIdx >= 0 && !spellCondInChoice
+        && !/このターンにあなたがスペルを使用していた場合、?代わりに/.test(actionText)) {
+      const spellCond = { type: 'SPELL_USED_THIS_TURN', owner: 'self' } as const;
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, spellCond] }
+        : spellCond;
+      actionText = actionText.replace(/、?このターンにあなたがスペルを使用していた場合(?:、)?/, '、').replace(/^、/, '');
+    }
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
