@@ -4125,7 +4125,11 @@ const scenarios = {
       }
       const fin = await H.queryState();
       const finCount = (fin?.host?.fieldSigni ?? []).flat().filter(n => n?.startsWith('WD01-013')).length;
-      return { pass: false, detail: `2体配置未確認（配置済み${finCount}体・hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      // ⚠続き114で確定した真因＝1体目のADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE経由）が解決した時点で
+      // `resumeSelectTarget`（effectExecutor.ts:4246-4253）が外側SEQUENCEのpending.continuation
+      // （＝CONDITIONAL{IS_BETTING,then:2体目のADD_TO_FIELD}）を握り潰す＝ベット自体は成立（coins 2→0で確認済み）
+      // しているのに2体目が絶対に場に出ない。CP02-087のGRANT_KEYWORD欠落と同一の構造的バグ。Opusタスク12へ登録。
+      return { pass: false, detail: `2体配置未確認（配置済み${finCount}体・1体目は正常配置・ベットは成立(coins→0)・pEff=${fin?.pendingEffect ?? '-'}）＝resumeSelectTargetのcontinuation欠落でCONDITIONAL(IS_BETTING)以降が無言no-op化する真バグを確認（Opusタスク12へ登録）` };
     },
   },
 
