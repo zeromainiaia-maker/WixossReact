@@ -5,6 +5,18 @@
 
 ---
 
+## `execBlockAction` の SIGNI/ATTACK 分岐が count/filter を無視し全ブロックしていたのを修正＝過剰「アタックできない」を解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(ix)）
+
+続き102/103（Sonnet）が全数調査した「`execBlockAction`（`effectExecutor.ts:1536`）の `target.type==='SIGNI' && actionId==='ATTACK'` 分岐が `target.count`/`upToCount`/`target.filter` を一切読まず、`lastProcessedCards` が空なら**対象オーナーの場の全シグニ**へ無差別に『アタックできない』を付与するフォールバックしか持たない」構造欠陥を修正。
+
+- **調査で判明した射程の切り分け**＝41件の疑いのうち、`owner:self, count:1`（WX05-023/WX13-043/WXK05-047/WX17-034/PR-402 等＝「このシグニはアタックできない」）は**すべて `effectType:CONTINUOUS` で `execBlockAction` を通らない**（effectEngine の連続効果計算が別途処理）＝本修正の対象外。`execBlockAction` を実際に通るのは **ACTIVATED/AUTO の `count:N`（owner opponent/any）**＝「対戦相手のシグニN体を対象とし、それはアタックできない」型（WX18-009 の count:2・WX24-P2-002/WXDi-P05-023/WDK07-Y08 等の count:1）で、これらが選択せず相手の全シグニをブロックしていた過剰効果。
+- **修正（`execBlockAction` の当該分岐のみ）**＝(a)`ctx.lastProcessedCards` が確定済みならそれへ付与（前段選択・選択解決後の再入経路）、(b)`fieldCandidates` で `target.filter`（`thisCardOnly`＝効果元自身のみ・`excludeSelf` 含む）を適用、(c)`count` が数値なら `selectOrInteract` で N 体選択（`upToCount` 尊重）、(d)`count:'ALL'` は全候補へ付与。**選択解決後は既存の `lastProcessedCards` 経路が個別付与するため applyDirectAction への追加は不要**（execBlockAction は直接付与し再選択を出さないので無限ループにならない）。付与先は従来どおり効果元 `ctx.ownerState.keyword_grants`（`effectEngine.ts:2134-2137` の判定が host/guest 両者の keyword_grants を攻撃シグニの cardNum で参照するため相手シグニへの付与も効果元側に置いてよい）。
+- **golden 追加3件**＝count:2（3体中2体のみブロック）・count:1（2体中1体）・count:'ALL'（全ブロック）。golden 299→302。
+- **検証**＝`npm run gates` 全緑（typecheck／golden302／**smoke SKIP 1**・CRASH/HANG/INVARIANT 0／fuzz 0／census 1461維持）。engine のみ変更・JSON/parser/decompiler 不変＝regen 不要。
+- **⚠残（別バグ）**＝`owner:self, count:1` の CONTINUOUS「このシグニはアタックできない」は `calcContinuousBlockedActions`（`effectEngine.ts:1918`）が `actionId==='ATTACK_SIGNI_SELF'` か `target.owner==='opponent'` しか拾わず、`actionId:'ATTACK', owner:'self'` の形を**拾っていない疑い**（本セッションでは未修正＝execBlockAction とは別経路の連続効果バグとして残置。要 continuous 側の別調査）。
+
+---
+
 ## `collectCoinPaidTriggers` の usageLimit 書き戻し欠落を修正＝ON_COIN_PAID《ターン1回/2回》のノーガードを解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-5)）
 
 続き99（Sonnet）が実機 `coinPaidTwice` で確認した「`collectCoinPaidTriggers`（`triggerCollect.ts:153`）が usageLimit 判定用の `actions_done` 書き戻しを一切行わず、ON_COIN_PAID の《ターン1回》《ターン2回》が実質ノーガード」バグを修正。他の大半の usageLimit 付きコレクタ（`collectTargetedTriggers`/`collectDrawTriggers` 等）は `{entries, usedIds}` を返し呼び出し側が `actions_done` へ永続化する設計だが、この関数だけ `StackEntry[]` のみを返し**6箇所の呼び出し元がいずれも書き戻していなかった**ため、同一ターン内で何度でも再発火していた（WXDi-P15-069＝twice_per_turn が3回目のコイン支払いでも発火）。
