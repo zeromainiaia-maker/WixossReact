@@ -173,12 +173,15 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-13・続き111・Opus 4.8・戦略②「純P1の系統バッチ消化」＝「対戦相手の…を対象とし…そうした場合、それを〈除去〉」慣用形の owner 継承漏れを88カードで是正・census 2229→2225）**
-  - **✅ 系統バグ＝「対戦相手の〔レベル/パワー/状態〕シグニ１体を対象とし、〈コスト〉。そうした場合、それを〈手札に戻す/デッキ下/トラッシュ/…〉」（原文345枚の頻出慣用形）で、対象指定文と最終アクション文が別文に割れ、最終アクションの owner が designation を継承せず default（BOUNCE→self・TRASH→any・TRANSFER_TO_DECK→self）に脱落**＝**自分のシグニをバウンス/デッキ送りできる過剰・誤効果**＋designation のレベル/パワー/状態フィルタも脱落。
-  - **修正＝`applyLeadingSelfComparison`（続き44・動的比較の後続ターゲット刻み）と同型の `applyLeadingOpponentDesignation` を `parseActionText` に追加**。先頭 designation を `parseSigniTarget` で解決し末尾（「それ」参照）ターゲットへ owner:opponent＋欠落フィルタを刻む。**⚠単一「対象とし」限定・冪等・engine/decompiler 不変（owner/filter は全層配線済み＝「parser の継承漏れ」型）**。
-  - **反映＝fresh 全カード snapshot 機械diff で「owner:self/any→opponent＋フィルタ追加のみ・件数/削除/構造変化ゼロ」を確認 → curated には同ロジックを `_effect_srctext.json` 経由で外科適用（held全採用の手修正喪失を回避）82枚＋CHOOSE内分岐6枚を fresh から位置整合コピー＝計88枚**。手修正が既に正しい6枚は温存。golden 309→**310**・全ゲート緑・同型★0・census 2229→**2225**。詳細 BUGFIXES 続き111。
-  - **⚠テール＝PR-Di017B は curated が最終アクション自体を欠く別issue**（STUB `TARGET_ONLY`+`OPTIONAL_COST` で「それをトラッシュに置く」action が丸ごと不在）＝owner継承でなく action 欠落の §5b/§6 送り。
-  - **次の一手＝戦略②の継続**。入口＝`npm run census:clusters` の上位から次の系統を取る（残上位＝**「Nまで」上限選択164・条件節611〔⚠多くは IS_MY_TURN プレースホルダ常時真＝engine拡張が先の混在〕・クラス指定395・色フィルタ133・公開し105・次相手ターン終了時まで122・レベル閾値110**）。**⚠今回の学び＝owner継承漏れは census 語彙シグナルに乗らない（census 4減でも実挙動バグ88枚を是正）＝census数だけで系統の価値を測らない**。採用はカード単位（effectId→CardNum 変換）・手修正温存カードは外科パッチで取りこぼさない・`_effect_srctext.json` は build:effects の副産物（CSV/parser 変更後は再生成必須）。
+- **🆕 セッション（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク9/1＝smoke SKIP残り1件の根本原因確定＋§7実機検証横展開でB2/B3/機構④誤parse3枚を全消化）**
+  - **✅ タスク9＝smoke SKIP残り1件（`WXEX1-19-E2` TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）を診断確定・修正はOpusタスク12(xii)へ登録**＝`resumeSelectTarget`の「選択カードへthenActionを1枚ずつ個別適用」設計と、このSTUBの「自分自身を再帰thenActionにして3枚一括受け取りを期待する」設計が構造的に非互換＝**実プレイでも無限ループ確定**（母数1枚のみ）。詳細BUGFIXES続き112。
+  - **✅ タスク1＝§7実機検証の横展開でB2/B3/機構④誤parse3枚（計4シナリオ）を新規実装・全て2回連続PASS＝`verifyBattleDrive.mjs`の既定orderに追加**：
+    - `revealDeckTopBanish`（B2＝WX17-028 REVEAL_DECK_TOP+動的閾値バニッシュ）＝lrigをLv4Limit11（WD02-001）に変更しレベル制約回避＋バニッシュ確認は「トラッシュ」でなく「エナゾーン」増加で行う（WIXOSSルール）よう是正して実機PASS。
+    - `installDelayedTriggerFire`（B3＝WX25-CP1-069 INSTALL_DELAYED_TRIGGER実発火）＝MAIN→ATTACK_ARTS→ATTACK_ARTS_OP→ATTACK_SIGNIの3段階フェイズ遷移＋crasherFilter近似（クラッシュ源追跡なし・場に該当シグニがいるかで代用＝既知）を活用しWX25-CP1-069自身でライフ直接攻撃・設置→同ターン内発火の一気通貫を確認。
+    - `installByEffectFreeze`（機構④＝WXDi-P07-044-E2 any_ally+byEffect ADD_TO_FIELD watcher）＝WD08-001の【起】《ダウン》場出しでトリガー。**副産物＝WD08-001のLRIG【起】能力2種が`getMyLrigFieldActions`のcostPartsMA分岐未対応でどちらも「【起】コストなし」表示となり区別不能という軽微なUI表示バグを発見**（WXK04-003と同型・down_self/energy0が未対応・実害低のため据置）。
+    - `optionalTrashEnergyClassAttack`（機構④＝WX25-P3-062-E2 OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELD lrig名条件）＝「そうした場合」がCONDITIONAL(IS_MY_TURN)で書かれているのは誤parseではなく`effectExecutor.ts:2353`の`optIds`インターセプト機構の正しい利用と判明（Opusタスク12(xi)と同型パターン）。
+  - **engine/parser/JSON変更なし（検証専用セッション）**＝全ゲート変わらず緑（golden 310・smoke SKIP 1→診断確定のみ・fuzz 0・census 2225維持）。詳細BUGFIXES続き112（3エントリ）。
+  - **次の一手＝PLAN §3 Sonnetタスク1の残＝B4引用付与の実発火（WX24-P2-018等）・クラフトトークンの実機配置（§6.4）・ビート機構Phase1-7・F-3身代わり対話・G144/G145**。Opus側は戦略②「純P1の系統バッチ消化」の継続（`npm run census:clusters`上位＝「Nまで」上限選択164・条件節611・クラス指定395等）。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
