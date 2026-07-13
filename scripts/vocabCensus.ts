@@ -78,7 +78,11 @@ import * as path from 'path';
 // ⚠2026-07-13 続き109(Opus): 判定粒度を**カード単位→効果単位**に切替（上のヘッダ参照）。
 // ベースラインも「高シグナル欠落カード数 1447」→「高シグナル欠落**効果**数 2264」へ一括切替（併記期間なし）。
 // 数字が飛んだのは退化ではなく計測仕様の変更＝旧網が救っていた真の欠落が顕在化したもの（抜き取り5/5が真バグ）。
-const BASELINE_HIGH = 2264;
+const BASELINE_HIGH = 2243;
+// 2243 // 続き110(Fable): 「対戦相手のアップ状態のシグニN体を対象とし、ターン終了時まで、パワー－N」BURST 21効果
+//   ＝parseSentencePart1 のパワー修整対象分岐が「アップ状態の」等の状態接頭辞を許容せず default {owner:'any',filter無し}
+//   に落ちていた（owner脱落＋isUp脱落の過剰効果）。状態接頭辞を parseSigniTarget 委譲分岐へ追加（アップ/ダウン/凍結状態）。
+//   fresh採用17枚＋手修正温存4枚（WXDi-D06-021/P09-083/P11-083/P15-075）は effectId 外科パッチ。2264→2243。
 // 以下は旧・カード単位ベースライン（1447）の履歴。効果単位への切替前の消化記録として残す。
 // 旧BASELINE 1447 // 続き107(Opus): WX25-P3-116＝「黒アーツ使用時 代わりに-5000」の色別ARTS_USED_THIS_TURN置換を STATE_CONDITION_CLAUSES に追加＋line3210 hoist を「代わりに」時スキップ＝効果全体が条件付き化＋SEQUENCE両実行(-3000&-5000)だった過剰効果を CONDITIONAL{ARTS_USED{黒},then:-5000,else:-3000} へ是正。1448→1447。以下同続き107: ベット「代わりに」置換機構＝(1)STATE_CONDITION_CLAUSESに IS_BETTING を追加し「あなたがベットしていた場合、代わりに<X>」を CONDITIONAL{IS_BETTING,then:強化,else:基本} 化（WD19-006/007 の値すり替え2枚採用）。(2)ベット選択数変更型「以下のN個からMつ選ぶ。ベットしていた場合、代わりにKつ選ぶ」に betChoose 機構新設（type/engine effectExecutor/parser/decompiler。engine は is_betting で choose_count 上書き＝recollectArts と同型）。(3)census「コスト:《コイン》」に extraOk 較正＝「ベット―《コイン》」プレフィックスの《コイン》はベット宣言コスト（機構:ベットで別途計測）で二重計測しない＝betting 表現の JSON なら covered。1454→1448（WD19-006/007 の脱STUBで+2した分と、bet-prefix《コイン》を二重計上していた既存betting札の是正で計-6）。以下続き106(Opus): 「代わりに」置換の五面4枚（WX06-003/004/005/006）＝STATE_CONDITION_CLAUSESに「センタールリグが(色)でライフN枚以下」複合条件（AND[LRIG_COLOR,LIFE_COUNT]）を追加しparserがCONDITIONAL{then:強化,else:基本}を生成→heldReview採用で1458→1454。以下同続き106: 色別ARTS_USED_THIS_TURN機構（turn_arts_used_colors state＋Condition.color＋parser規則）新設でWX24-D1〜D4-11の色別アーツ条件脱落4枚を是正して1461→1458。以下続き105(Sonnet): CHOOSE選択肢②「あなたの場に(色)の＜C＞のシグニがある場合」の条件節が丸ごと脱落（+一部は誤ってtarget.filterへ混入）していた6枚を ChoiceOption.condition（既存の選択可否ゲート語彙・engine/parser不変）で是正して1477→1471。続けて「対象のパワーN以下のシグニ…捨ててもよい。そうした場合、バニッシュ」型（LIFE_BURST中心）9枚のTRASH.optional欠落＋パワー閾値フィルタ脱落を既存idiom（optional:true+CONDITIONAL(IS_MY_TURN)+powerRange。WXDi-D08-013等の既存実装済みパターンを踏襲）で是正して1471→1467。続けて「あなたの場に(色)と(色)のシグニがある場合」CLAUSES新設＋「このルリグがアタックしたとき」プレフィックス未対応（既存CLAUSES複数が阻害されていた構造欠陥）を修正し10枚是正で1467→1461
 // 続き77(Sonnet・§5c再収穫): held 85枚採用（GRANT_LRIG/FIELD_SIGNI_ABILITY・CHOOSE復元・IS_SELF_IN_CENTER_ZONE等）で 1514→1494
