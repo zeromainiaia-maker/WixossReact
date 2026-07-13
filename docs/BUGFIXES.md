@@ -5,6 +5,17 @@
 
 ---
 
+## 「代わりに」置換の五面カード4枚を CONDITIONAL 化＝SEQUENCE両実行の過剰効果を是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク6）
+
+原文「基本効果。あなたのセンタールリグが(色)で、あなたのライフクロスが2枚以下の場合、代わりに強化効果。」（条件成立時は基本を強化で**置換**）が、JSON で `SEQUENCE[基本, 強化]` の**両方を無条件実行**する過剰効果になっていた「五面」カード4枚（WX06-003 赤／WX06-004 青／WX06-005 緑／WX06-006 黒）を是正。
+
+- **根本原因**＝parser は「代わりに」を `matchLeadingStateCondition`（`STATE_CONDITION_CLAUSES` 表）が条件を認識できたときのみ `CONDITIONAL{cond, then:強化, else:基本}` へ昇格置換する設計だが、**「センタールリグが(色)で、ライフN枚以下」という複合条件が表に無く**、認識失敗で SEQUENCE 両実行にフォールバックしていた（続き28-29で確立した「代わりに」置換機構自体は既存＝新規engine不要）。
+- **修正**＝`STATE_CONDITION_CLAUSES` に複合条件 `[/あなたのセンタールリグが(白|赤|青|緑|黒)で、あなたのライフクロスが(N)枚以下の場合/ → AND[LRIG_COLOR{color}, LIFE_COUNT{lte,N}]]` を1件追加（`src/data/effectParser.ts`）。これで parser の既存「代わりに」ロジック（`base` を else・enhanced を then）が発火し、`build:effects`→`heldReview --adopt WX06-003,WX06-004,WX06-005,WX06-006` で4枚採用。WX06-004 は強化側に紛れていた原文無関係の `DOWN(相手ルリグ)` も fresh 再parse で正しく消える（原文どおり「相手シグニ2体までダウン」）。
+- **検証**＝golden 304→**305**（`CONDITIONAL` else 分岐＝条件未成立で基本 -12000 のみ・成立で強化 -15000 のみ適用＝従来の両実行を回帰で排除。黒ルリグ WD05-001＋ライフ2で成立を確認）／`npm run gates` 全緑（smoke SKIP 1・fuzz 0・**census 1458→1454**・BASELINE_HIGH 更新）＋`npm run regen` で同型★0維持・逆翻訳が既存 CONDITIONAL-else 群と一貫（「〜なら強化、そうでなければ基本」）。
+- **残**＝WX06-002（基本＝ルリグ block のみ・強化＝ルリグ+シグニ block＝GRANT_KEYWORD/BLOCK_ACTION 混在で fresh が clean な CONDITIONAL にならず据置）・WX25-P3-116（「黒のアーツを使用していた場合、代わりに-5000」＝アーツ色条件の「代わりに」で、続き106の色別ARTS機構と別経路＝要 STATE_CONDITION_CLAUSES へのアーツ色条件追加）はタスク6の続きへ。
+
+---
+
 ## 色別 ARTS_USED_THIS_TURN 機構を新設＝「このターンにあなたが(色)のアーツを使用していた場合」条件脱落の4枚を是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク4）
 
 原文「このターンにあなたが白/赤/青/緑のアーツを使用していた場合、〜」の条件節が JSON で丸ごと脱落し、条件を満たさなくても無条件発火していた真バグ4枚（WX24-D1-11 白／D2-11 赤／D3-11 青／D4-11 緑）を、既存の色なし `ARTS_USED_THIS_TURN` 機構を**色別へ拡張**して是正。既存 parser 規則が `このターンにあなたがアーツを使用していた場合`（色なし）しか見ておらず、「(色)の」が挟まると一切 match せず条件が落ちていた。
