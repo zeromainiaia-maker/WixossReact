@@ -78,8 +78,15 @@ import * as path from 'path';
 // ⚠2026-07-13 続き109(Opus): 判定粒度を**カード単位→効果単位**に切替（上のヘッダ参照）。
 // ベースラインも「高シグナル欠落カード数 1447」→「高シグナル欠落**効果**数 2264」へ一括切替（併記期間なし）。
 // 数字が飛んだのは退化ではなく計測仕様の変更＝旧網が救っていた真の欠落が顕在化したもの（抜き取り5/5が真バグ）。
-const BASELINE_HIGH = 2243;
-// 2243 // 続き110(Fable): 「対戦相手のアップ状態のシグニN体を対象とし、ターン終了時まで、パワー－N」BURST 21効果
+const BASELINE_HIGH = 2229;
+// 2229 // 続き110(Fable) 第2バッチ: SPELL_USED_THIS_TURN 機構新設（Condition型＋evalCondition＝actions_done
+//   'USE_SPELL' 参照＋parser hoist/V2表＋decompiler）＝「このターンにあなたがスペルを使用していた場合」の
+//   条件丸ごと脱落11効果（hoist 8・「代わりに」置換1・CHOOSE選択肢別2）を是正。あわせて V2 に
+//   「あなたの場に(色)の＜C＞のシグニがある場合」「あなたの場に＜C＞のシグニがある場合」を追加し8枚収穫。
+//   lifting にガードD（OPTIONAL_COST系は SEQUENCE 直下ステップ必須＝CONDITIONAL包みで支払フロー崩壊）・
+//   ガードE（COUNTER_SPELL は findCounterSpellMaxCost 非再帰＋UI無条件打ち消し）を新設＝既存 curated の
+//   包み形27枚が held に浮上（既存潜在バグ・PLAN §3 タスク12 へ登録）。2243→2229。
+// 2243 // 続き110(Fable):「対戦相手のアップ状態のシグニN体を対象とし、ターン終了時まで、パワー－N」BURST 21効果
 //   ＝parseSentencePart1 のパワー修整対象分岐が「アップ状態の」等の状態接頭辞を許容せず default {owner:'any',filter無し}
 //   に落ちていた（owner脱落＋isUp脱落の過剰効果）。状態接頭辞を parseSigniTarget 委譲分岐へ追加（アップ/ダウン/凍結状態）。
 //   fresh採用17枚＋手修正温存4枚（WXDi-D06-021/P09-083/P11-083/P15-075）は effectId 外科パッチ。2264→2243。
