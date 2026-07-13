@@ -4260,6 +4260,35 @@ try {
       }
       return null;
     },
+    // ── 2026-07-14 追加ヘルパー（新規シナリオはこちらを優先）──
+    // ボタンクリック（isEnabled を必ず検査し、click 失敗を握りつぶさずログに出す）。
+    // 「disabledのまま押して『クリックした風だが進まない』」「.catch(()=>{})で失敗が見えない」の2大罠を封じる。
+    clickBtn: async (name, { exact = false, nth = 0 } = {}) => {
+      const b = page.getByRole('button', { name, exact }).nth(nth);
+      if (!(await b.count()) || !(await b.isVisible().catch(() => false))) return null;
+      if (!(await b.isEnabled().catch(() => false))) { H.log(`  (btn「${name}」は disabled＝前提の選択が未完了)`); return null; }
+      try { await b.click({ timeout: 2000 }); return 'btn:' + name; }
+      catch (e) { H.log(`  (btn「${name}」click失敗: ${String(e.message).split('\n')[0]})`); return null; }
+    },
+    // createPortal モーダル内の img[alt=カード名] クリック。同名 img が画面下部の常設手札ストリップに
+    // DOM順で先に存在するため .first() は誤クリック→背景オーバーレイのキャンセル誘発（craftTokenPlace の実例）。
+    // 後から document に追加されるモーダル側＝ .last() で狙う。
+    clickModalImage: async (alt) => {
+      const img = page.locator(`img[alt="${alt}"]`).last();
+      if (!(await img.count()) || !(await img.isVisible().catch(() => false))) return null;
+      try { await img.click({ timeout: 3000 }); return 'img:' + alt; }
+      catch (e) { H.log(`  (img「${alt}」click失敗: ${String(e.message).split('\n')[0]})`); return null; }
+    },
+    // 定石チェーン1手＝発動順序確定→pick-0（「決定(1/N)」ready時は押さない）→汎用確定ボタン。
+    // シナリオ側はカード固有のクリックだけ書き、`if (!did) did = await H.stdStep();` で締めるのが型。
+    stdStep: async (labels = ['発動順序を確定', '確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']) => {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); return 'pick:pick-0'; }
+      }
+      return await H.clickTextOrBtn(labels);
+    },
     // 注入直後はグロウフェイズに戻る競合がある。MAIN を確実にしてから操作する。
     ensureMain: async () => {
       for (let k = 0; k < 5; k++) {
