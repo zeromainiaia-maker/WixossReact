@@ -4202,6 +4202,19 @@ const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'd
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
+// preflight＝ブラウザ起動前（0秒）に定番FAIL要因を警告（実行は止めない）
+try {
+  const cardDb = loadCardDb();
+  for (const id of runIds) {
+    const warns = preflightScenario(scenarios[id], cardDb);
+    if (warns.length) { console.log(`⚠ preflight[${id}]:`); for (const w of new Set(warns)) console.log('   - ' + w); }
+  }
+} catch (e) { console.log('preflight スキップ（CSV読込失敗）:', e.message); }
+
+// スクショ＝明示指定シナリオ（デバッグ中）のみ既定ON。全件バッチ（回帰）はOFFで数分短縮。SHOTS=1/0 で強制。
+const SHOTS_ON = process.env.SHOTS === '1' || (process.env.SHOTS !== '0' && requested.length > 0);
+if (!SHOTS_ON) console.log('スクショ省略中（バッチ既定。有効化は SHOTS=1）');
+
 await buildFirst();
 const { proc, url } = await startDev();
 // 異常終了（例外・Ctrl+C）でも preview server を残さない保険（'exit' ハンドラは同期処理のみ可）
