@@ -2265,8 +2265,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectTargetedTriggers(mkTrigCtx(), targetedNums, targetedOwnerId, afterHostState, afterGuestState);
   const collectLrigGrowTriggers = (grownOwnerId: string, afterGrowerState: PlayerState, afterOpState: PlayerState): StackEntry[] =>
     pureCollectLrigGrowTriggers(mkTrigCtx(), grownOwnerId, afterGrowerState, afterOpState);
-  const collectCoinPaidTriggers = (payerId: string, afterPayerState: PlayerState, afterOpState: PlayerState): StackEntry[] =>
+  const collectCoinPaidTriggers = (payerId: string, afterPayerState: PlayerState, afterOpState: PlayerState): { entries: StackEntry[]; usedIds: string[] } =>
     pureCollectCoinPaidTriggers(mkTrigCtx(), payerId, afterPayerState, afterOpState);
+  // ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻すヘルパー（続き106）。
+  const applyCoinPaidUsed = (st: PlayerState, coin: { usedIds: string[] }): PlayerState =>
+    coin.usedIds.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...coin.usedIds] } : st;
 
   /**
    * ターン開始時・終了時・アタックフェイズ開始時の AUTO 効果を収集する。
