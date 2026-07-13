@@ -824,7 +824,7 @@ function writeClusters(
     '# 行形式: 枚数<TAB>テンプレート<TAB>カードID…（テンプレ単位でparser規則→build:effects収穫のバッチを組む）',
     '',
   ];
-  for (const { name, re, pre, src, ids } of missByPattern) {
+  for (const { name, re, pre, ids } of missByPattern) {
     if (!ids.length) continue;
     const clusters = new Map<string, Set<string>>();
     const add = (tpl: string, id: string): void => {
@@ -832,7 +832,7 @@ function writeClusters(
       clusters.get(tpl)!.add(id);
     };
     for (const id of ids) {
-      let t = (src === 'eff' ? corpus.eff : corpus.all).get(id) ?? '';
+      let t = textOf.get(id) ?? '';
       if (pre) t = pre(t);
       const clauses: string[] = [];
       if (name.startsWith('条件節')) {
