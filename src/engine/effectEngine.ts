@@ -1924,7 +1924,11 @@ export function calcContinuousBlockedActions(
         if (effect.effectType !== 'CONTINUOUS') continue;
         if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap)) continue;
         for (const b of extractBlockActions(effect.action)) {
-          if (b.actionId === 'ATTACK_SIGNI_SELF' && isMe) {
+          // 「このシグニはアタックできない」＝自己アタック封じ。parser が2形（ATTACK_SIGNI_SELF(PLAYER) と
+          // ATTACK(SIGNI,owner:self)）を出し、実データは後者だが従来ここで拾われず無効化されていた（続き106・
+          // WX05-023/WX13-043/WXK05-047/WX17-034/PR-402）。両形を受けて能力保持シグニ自身をアタック不可にする。
+          if ((b.actionId === 'ATTACK_SIGNI_SELF'
+               || (b.actionId === 'ATTACK' && b.target.type === 'SIGNI' && b.target.owner === 'self')) && isMe) {
             cannotAttackSigni.add(topNum);
           } else if (b.target.owner === 'opponent') {
             // この効果が ME のフィールドカードなら相手(forOther)を、相手フィールドなら自分(forSelf)をブロック
