@@ -4490,7 +4490,7 @@ try {
 finally { killTree(proc); }
 
 console.log('\n========== 結果サマリ ==========');
-for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}  — ${r.detail}`);
+for (const r of results) console.log(`${r.pass ? '✅ PASS' : '❌ FAIL'}  ${r.id}${r.sec != null ? ` (${r.sec}s)` : ''}  — ${r.detail}`);
 const allPass = results.length === runIds.length && results.every(r => r.pass);
 console.log(allPass ? '\n🎉 ALL PASS' : '\n⚠️ 一部 FAIL');
 process.exit(code || (allPass ? 0 : 1));
