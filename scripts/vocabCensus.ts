@@ -401,6 +401,54 @@ function loadJson(): { str: Map<string, string>; obj: Map<string, unknown[]> } {
   return { str, obj };
 }
 
+// ---- 効果単位コーパス（2026-07-13 続き109・PLAN §4 全カード完成戦略①）----
+// 従来はカード単位判定＝「同カード別効果に語彙があれば合格」＝効果Aの原文修飾句を効果BのJSON語彙で
+// 救ってしまう粗い網だった（死角(b)。過去バッチで偽陽性トリアージ工程が毎回必要になっていた真因）。
+// build:effects が出力する docs/_effect_srctext.json（effectId → 由来の原文ブロック）を使い、
+// 「その効果の原文ブロック × その効果のJSON」だけで突き合わせる＝効果単位の厳密判定にする。
+interface Unit {
+  effectId: string;
+  cardNum: string;
+  /** この効果の由来ブロック原文（注釈（…）除去済み）。srctext に無い効果はカード全文へ fallback */
+  text: string;
+  /** この効果1件だけの JSON 文字列 */
+  js: string;
+  obj: Record<string, unknown>;
+  isBurst: boolean;
+  /** srctext 対応が取れず、カード全文で判定した効果（MANUAL 追加効果など＝従来と同じ粗い判定） */
+  fallback: boolean;
+}
+
+function buildUnits(corpus: Corpus, jsonObj: Map<string, unknown[]>): Unit[] {
+  const SRC_PATH = path.join(process.cwd(), 'docs', '_effect_srctext.json');
+  if (!fs.existsSync(SRC_PATH)) {
+    console.error('⚠ docs/_effect_srctext.json が無い。`npm run build:effects` を先に実行する（効果単位判定の対応表）。');
+    process.exit(1);
+  }
+  const src = JSON.parse(fs.readFileSync(SRC_PATH, 'utf8')) as Record<string, string>;
+  const strip = (s: string) => s.replace(/（[^）]*）/g, '');
+  const units: Unit[] = [];
+  for (const [cardNum, effs] of jsonObj) {
+    if (!Array.isArray(effs)) continue;
+    for (const e of effs as Array<Record<string, unknown>>) {
+      const effectId = (e?.effectId as string) ?? `${cardNum}-?`;
+      const raw = src[effectId];
+      units.push({
+        effectId,
+        cardNum,
+        text: strip(raw ?? corpus.all.get(cardNum) ?? ''),
+        js: JSON.stringify(e),
+        obj: e,
+        isBurst: e?.effectType === 'LIFE_BURST' || /-BURST$/.test(effectId),
+        fallback: raw === undefined,
+      });
+    }
+  }
+  return units;
+}
+
+const isStub = (js: string) => js.includes('STUB') || js.includes('MANUAL');
+
 function main(): void {
   const corpus = loadTexts();
   const texts = corpus.all;
