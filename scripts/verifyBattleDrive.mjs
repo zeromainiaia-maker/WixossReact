@@ -4048,7 +4048,11 @@ const scenarios = {
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P05-037')));
         H.log(`  p068[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (placed) {
-          return { pass: true, detail: `DRAW×2＋ADD_TO_FIELD(HAND_CARD)発火→大罠 ハーメルンが場に出た（hField=${JSON.stringify(st.host.fieldSigni)} hHand=${st.host.hand}・開始時hand=${before?.host?.hand}）` };
+          // ⚠続き114でCP02-087/WXK07-105と同根と確認したバグ（resumeSelectTargetのcontinuation欠落・
+          // Opusタスク12登録）の対象＝ADD_TO_FIELDがSELECT_TARGET経由でSELECT_SIGNI_ZONEを要求した場合、
+          // 外側SEQUENCEの後続ステップ（本カードでは末尾のGRANT_KEYWORD＝アタック無効化能力の付与）が
+          // 無言no-op化する疑いが濃厚（本シナリオでは未確認＝ADD_TO_FIELD自体の成否のみを判定対象とする）。
+          return { pass: true, detail: `DRAW×2＋ADD_TO_FIELD(HAND_CARD)発火→大罠 ハーメルンが場に出た（hField=${JSON.stringify(st.host.fieldSigni)} hHand=${st.host.hand}・開始時hand=${before?.host?.hand}）。⚠後続GRANT_KEYWORDは未確認＝CP02-087と同型バグの疑い（Opusタスク12）` };
         }
       }
       const fin = await H.queryState();
