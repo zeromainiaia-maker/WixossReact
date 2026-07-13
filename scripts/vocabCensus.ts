@@ -453,11 +453,13 @@ function main(): void {
   const corpus = loadTexts();
   const texts = corpus.all;
   const { str: jsonStr, obj: jsonObj } = loadJson();
+  const units = buildUnits(corpus, jsonObj);
   const highAll = new Set<string>();
   const detail: string[] = [
     '# 語彙センサス明細（原文修飾句 × effects JSON 対応語彙・両方向）',
     '# 生成: npx tsx scripts/vocabCensus.ts（npm run census）',
-    '# 高シグナル＝STUB/MANUALを含まないカードで対応語彙ゼロ＝フィルタ/条件/構造脱落（過剰効果）候補',
+    '# 判定は【効果単位】（effectId 粒度・2026-07-13 続き109）＝原文ブロック × その効果のJSON。',
+    '# 高シグナル＝STUB/MANUALを含まない効果で対応語彙ゼロ＝フィルタ/条件/構造脱落（過剰効果）候補',
     '',
   ];
   const summary: string[] = [];
