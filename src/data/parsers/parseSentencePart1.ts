@@ -1129,9 +1129,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
                t.match(/対戦相手の(?:他の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
       if (/対戦相手の他の/.test(t)) excludeSelf = true;
-    } else if (t.match(/対戦相手の(?:感染状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
+    } else if (t.match(/対戦相手の(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
+      // 状態接頭辞（アップ/ダウン/凍結状態の）は parseSigniTarget が isUp/isDown/isFrozen として抽出する
       target = parseSigniTarget(t, 'opponent');
-    } else if (t.match(/あなたの(?:感染状態の)?シグニ([０-９\d]+)体/)) {
+    } else if (t.match(/あなたの(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/)) {
       target = parseSigniTarget(t, 'self');
     } else if (t.match(/このシグニ/)) {
       // 「このシグニのパワーを±N」= 効果元シグニ自身（任意選択でなく thisCardOnly）。
