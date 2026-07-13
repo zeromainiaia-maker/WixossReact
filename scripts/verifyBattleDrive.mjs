@@ -4226,6 +4226,8 @@ const results = [];
 try {
   const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+  // SHOTS_ON=false のとき page.screenshot を no-op 化（シナリオ側の呼び出しは無改変でよい）
+  if (!SHOTS_ON) { const raw = page.screenshot.bind(page); page.screenshot = (o) => (o?.path?.includes('-final') ? raw(o) : Promise.resolve(Buffer.alloc(0))); }
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
