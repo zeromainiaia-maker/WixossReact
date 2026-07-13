@@ -3604,12 +3604,20 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '');
   const { cleaned, condition } = extractUseCondition(stripped);
   // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
-  // プレフィックス除去後は parseSentence の ^ベット― ルール(BET_MECHANIC)に到達せず、「代わりに」節が
-  // BET_ALTERNATIVE(no-op)に誤分類されるため、ここで多択構造を検出して BET_MECHANIC を優先する。
-  // （CHOOSE/GRANT_QUOTED_AUTO_ABILITY 等の専用処理が必要な少数カードは manualEffects 側で上書きする）
-  let action = (isBet && /以下の[^。]*から[^。]*選ぶ/.test(stripped))
-    ? ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction)
-    : parseActionText(condition ? cleaned : stripped);
+  // parseActionTextInner の「ベット選択数変更型」ブランチが CHOOSE+betChoose に展開できればそれを採用
+  // （§3 Opusタスク6・engine が is_betting で choose_count を上書き）。展開できない構造（repeat 選択・
+  // 「代わりに」節が選択数変更でない等）は従来どおり BET_MECHANIC(no-op) に温存する。
+  // （GRANT_QUOTED_AUTO_ABILITY 等の専用処理が必要な少数カードは manualEffects 側で上書きする）
+  const isBetMultiChoose = isBet && /以下の[^。]*から[^。]*選ぶ/.test(stripped);
+  let action: EffectAction;
+  if (isBetMultiChoose) {
+    const parsed = parseActionText(condition ? cleaned : stripped);
+    action = (parsed.type === 'CHOOSE' && (parsed as ChooseAction).betChoose)
+      ? parsed
+      : ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction);
+  } else {
+    action = parseActionText(condition ? cleaned : stripped);
+  }
   const artsFb = consumeSilentFallbacks();
   const hasUnknown = action.type === 'UNKNOWN'
     || (action.type === 'SEQUENCE' && (action as SequenceAction).steps.some(s => s.type === 'UNKNOWN'));
