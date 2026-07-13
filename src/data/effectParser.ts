@@ -978,6 +978,23 @@ function logSilentFallbacks(effectId: string, reasons: string[]): void {
   if (reasons.length > 0 && _silentFallbackLog.length < 100000) _silentFallbackLog.push({ effectId, reasons });
 }
 
+// ── 原文ブロック対応表（続き109で新設・語彙センサスの効果単位化の基盤）──
+// parseCardEffects が effectId ごとに「どの原文ブロックから作られたか」を記録する。
+// 語彙センサス（vocabCensus.ts）はカード単位判定＝「同カード別効果に語彙があれば合格」という
+// 粗い網だったため、効果Aの原文修飾句を効果BのJSON語彙で救ってしまっていた（死角(b)）。
+// この対応表があれば「原文ブロック × その効果のJSON」だけで突き合わせできる＝効果単位の厳密判定。
+// ⚠計器専用。既定は無効（実行時アプリでもparserは呼ばれるためメモリを食わせない）。
+// build:effects が enableSourceTextLog() で有効化し、getSourceTextLog() で回収する。
+const _sourceTextLog = new Map<string, string>();
+let _collectSourceText = false;
+export function enableSourceTextLog(): void { _collectSourceText = true; _sourceTextLog.clear(); }
+export function getSourceTextLog(): ReadonlyMap<string, string> { return _sourceTextLog; }
+function logSourceText(effectId: string | undefined, text: string): void {
+  if (!_collectSourceText || !effectId) return;
+  // 同一 effectId が複数ブロック由来になることは無いが、後勝ちで上書きせず初出を残す
+  if (!_sourceTextLog.has(effectId)) _sourceTextLog.set(effectId, text.trim());
+}
+
 // 「この方法で…トラッシュに置かれた場合、」の条件文を解析する。
 // 該当しない場合は null（呼び出し側で IS_MY_TURN にフォールバック）。
 // prevIsDeckMill: 直前ステップが「デッキの上からトラッシュ（TRASH DECK_CARD）」か。
