@@ -859,6 +859,31 @@ test('Stage2 ON_SIGNI_POWER_ZERO_OR_LESS: once_per_turn 消化済み非発火', 
   eq(collectPowerZeroTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest).length, 0, 'once_per_turn');
 });
 
+// ── Opusタスク12(vi-3)(vi-4)：triggerCollect の LRIGゾーン走査漏れ回帰（続き95/96 で発見・続き106 Opus で修正）──
+// 各コレクタが field.signi のみ走査し field.lrig を欠いていたため、LRIG が watcher の該当timingが構造的に絶対発火しなかった。
+// ownFieldSources 置き換え／専用 lrig ブロック追加で解消。以下は「LRIG に載せると発火する」ことの回帰固定。
+const fired = (e: { effectId: string }[], id: string) => e.some(x => x.effectId === id);
+test('LRIG走査漏れ collectPowerZeroTriggers: LRIG watcher（WX22-013 any_opp）が相手0化で発火', () => {
+  const host = mkState({}); host.field.lrig = ['WX22-013']; const guest = mkState({ signi: [SIGNI, null, null] });
+  eq(fired(collectPowerZeroTriggers(trigCtx(HOST), SIGNI, GUEST, host, guest), 'WX22-013-E2'), true, 'LRIG watcher 発火');
+});
+test('LRIG走査漏れ collectFieldTriggers: 相手LRIG watcher（WX12-001 ON_ATTACK_SIGNI any_opp）が発火', () => {
+  const host = mkState({ signi: [SIGNI, null, null] }); const guest = mkState({}); guest.field.lrig = ['WX12-001'];
+  eq(fired(collectFieldTriggers(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, host, guest, HOST), 'WX12-001-E2'), true, '相手LRIG watcher 発火');
+});
+test('LRIG走査漏れ collectTurnTriggers: 相手LRIG watcher（WX12-002 ON_ATTACK_PHASE_START any_opp）が発火', () => {
+  const host = mkState({}); const guest = mkState({}); guest.field.lrig = ['WX12-002'];
+  eq(fired(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, guest), 'WX12-002-E1'), true, '相手LRIG watcher 発火');
+});
+test('LRIG走査漏れ collectOppArtsUseTriggers: 自LRIG watcher（WX16-003 ON_OPP_ARTS_USE）が発火', () => {
+  const host = mkState({}); host.field.lrig = ['WX16-003']; const guest = mkState({});
+  eq(fired(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host, guest, true), 'WX16-003-E1'), true, '自LRIG watcher 発火');
+});
+test('LRIG走査漏れ collectHandDiscardTriggers: 自LRIG watcher（WXEX2-12 ON_HAND_DISCARDED）が発火', () => {
+  const host = mkState({}); host.field.lrig = ['WXEX2-12'];
+  eq(fired(collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], host, HOST, false).entries, 'WXEX2-12-E2'), true, '自LRIG watcher 発火');
+});
+
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
 test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火', () => {
   const host = mkState({ signi: ['WXK05-023', null, null] }); const guest = mkState({});
