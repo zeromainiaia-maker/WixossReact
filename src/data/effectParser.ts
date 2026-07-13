@@ -3878,7 +3878,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // ライフバースト（全タイプ共通）
   if (card.LifeBurst === '1' && card.BurstText && card.BurstText !== '-') {
     const burst = parseBurstEffect(card);
-    if (burst) effects.push(burst);
+    if (burst) { logSourceText(burst.effectId, card.BurstText); effects.push(burst); }
   }
 
   // 歌のカケラ効果（EffectTextに【歌のカケラ】：〜 がある場合）
