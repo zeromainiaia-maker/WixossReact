@@ -5,6 +5,16 @@
 
 ---
 
+## 「あなたか対戦相手のデッキをN枚トラッシュ」17枚の選択脱落を CHOOSE 化で是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク9／§6.2 系統①(b)）
+
+原文「あなたか対戦相手のデッキの上からカードをN枚トラッシュに置く」（プレイヤーがどちらのデッキを削るか選ぶ）が、JSON で `TRASH{DECK_CARD, owner:'self', count:N}` にハードコードされ**選択が丸ごと脱落**して常に自分のデッキだけを削っていた17枚（18ノード）を是正。テンプレは既存の `WXDi-P04-082`（`CHOOSE{choices:[TRASH(self_deck), TRASH(opponent_deck)]}`）＝**engine 機構は既存（`execChoose`＋`TRASH DECK_CARD`）で新規実装ゼロ**。
+
+- **対象17枚**＝WX07-005/WXDi-D07-019/WXDi-D07-022(E1+BURST の2ノード)/WXDi-P01-044/WXDi-P04-043/WXDi-P05-043/WXDi-P07-087/WXDi-P13-002/WX24-P3-057/WX24-P3-091/WX24-P4-025/WX25-P3-028/WX26-CP1-058/WX26-CP1-098/WXK09-034/WXK09-057/WXK11-076。effectId アンカーで当該 `TRASH{DECK_CARD,owner:self,count:N}` ノードのみを `CHOOSE{self_deck, opp_deck}` へ置換（root 直下・SEQUENCE step 内・CONDITIONAL の `then` 内・**入れ子 CHOOSE の選択肢内**＝WXDi-D07-022-BURST② の4形すべてを走査で正しく差し替え）。他の owner:self ノード（真に「あなたのデッキ」のみの効果）は原文照合で対象外と確認。
+- **検証**＝`npm run gates` 全緑（typecheck／golden303／smoke SKIP 1・CRASH/HANG/INVARIANT 0＝**入れ子 CHOOSE も含め実行破綻なし**／fuzz 0／census 1461維持）＋`npm run regen` で**同型★0 維持**＋逆翻訳が原文どおり「あなたのデッキ／対戦相手のデッキ」の2択を表示することを確認（例＝WX07-005-E2「以下の2つから1つを選ぶ【あなたのデッキの上からカードを5枚トラッシュに置く / 対戦相手のデッキの上からカードを5枚トラッシュに置く】」）。engine/parser/decompiler のコード不変・JSONデータのみ。
+- §6.2 系統①(b) の残17件（続き88で「単点是正できる残件ゼロ＝CHOOSE化が要る」と分類されていた分）を全消化。系統①は (a)純・相手のみ58枚（是正済）・(b)本バッチ17枚・(c)誤検知9枚（修正不要）で完了。
+
+---
+
 ## `execBlockAction` の SIGNI/ATTACK 分岐が count/filter を無視し全ブロックしていたのを修正＝過剰「アタックできない」を解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(ix)）
 
 続き102/103（Sonnet）が全数調査した「`execBlockAction`（`effectExecutor.ts:1536`）の `target.type==='SIGNI' && actionId==='ATTACK'` 分岐が `target.count`/`upToCount`/`target.filter` を一切読まず、`lastProcessedCards` が空なら**対象オーナーの場の全シグニ**へ無差別に『アタックできない』を付与するフォールバックしか持たない」構造欠陥を修正。
