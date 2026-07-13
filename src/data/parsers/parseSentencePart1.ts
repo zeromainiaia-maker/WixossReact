@@ -1330,7 +1330,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.match(/トラッシュに置いたシグニ[０-９\d]*体?につき/)) {
       return { type: 'ADD_TO_LIFE', owner: 'self', count: { $ref: 'last_processed_count' }, fromTop: true };
     }
-    const cM = t.match(/カードを([０-９\d]+)枚/) ?? t.match(/([０-９\d]+)枚(?:の手札)?をライフクロス/);
+    // ⚠「カードをN枚引き、…ライフクロスに加える」の draw 枚数を誤って拾わない（(?!引)＝直後が「引」＝ドロー句を除外）。
+    //   「デッキの一番上のカード」（枚数なし）は count:1 が正（SP24-009＝5枚引き の 5 が漏れて count:5 の過剰だった・続き107）。
+    const cM = t.match(/カードを([０-９\d]+)枚(?!引)/) ?? t.match(/([０-９\d]+)枚(?:の手札)?をライフクロス/);
     const count = cM ? parseNum(cM[1]) : 1;
     // 「手札を〜ライフクロスに加える」は手札選択
     if (t.match(/^手札(?:を|から)/)) {

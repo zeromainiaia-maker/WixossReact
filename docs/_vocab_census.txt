@@ -518,7 +518,7 @@ SP27-002 SP27-016 SPDi43-06 WD21-007 WD23-022-E WDA-F03-13 WDK04-014 WDK07-Y17 W
 ### STUB/MANUAL格納（要個別確認）
 （なし）
 
-## 逆:JSONにDRAW→原文に語なし ［原文該当 1119／高シグナル 0／STUB・MANUAL格納 0］
+## 逆:JSONにDRAW→原文に語なし ［原文該当 1120／高シグナル 0／STUB・MANUAL格納 0］
 ### 高シグナル（対応語彙なし）
 （なし）
 ### STUB/MANUAL格納（要個別確認）
