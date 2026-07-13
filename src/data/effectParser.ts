@@ -1791,6 +1791,33 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // ---- ベット選択数変更型（最優先）----
+  // 「以下のN個からMつ(まで)選ぶ。あなたがベットしていた場合、代わりにKつ(まで)選ぶ。①…②…」
+  // → CHOOSE(choose_count=M) に betChoose(thenChooseCount=K) を付与（ベット宣言で選択数が増える）。
+  // リコレクトの chooseHeadM/chooseRecoM 型と同型（engine effectExecutor が betChoose で count を上書き）。
+  // ⚠「以下から…選ぶ。同じ選択肢を2回以上選んでもよい」（WX17-003 の CHOOSE_SAME_OPTION 型）は
+  //   「以下のN個から」で始まらないため未マッチ＝据置（repeat 選択は別機構）。
+  {
+    const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+    const chooseBetM = text.match(/あなたがベットしていた場合、代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+    if (chooseHeadM && chooseBetM && /[①②③④⑤]/.test(text)) {
+      const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+      if (items.length >= 2) {
+        return {
+          type: 'CHOOSE',
+          choose_count: parseNum(chooseHeadM[1]),
+          from_count: items.length,
+          choices: items.map((m, i) => ({
+            choiceId: `c${i}`,
+            label: `選択肢${i + 1}`,
+            action: parseActionText(m[1].replace(/[。）\s]+$/, '').trim()),
+          })),
+          ...(chooseHeadM[2] ? { upTo: true } : {}),
+          betChoose: { thenChooseCount: parseNum(chooseBetM[1]), thenUpTo: !!chooseBetM[2] },
+        } as ChooseAction;
+      }
+    }
+  }
   // ---- リコレクトアイコン分割（最優先：他の早期returnに飲み込まれる前に処理する） ----
   // 《リコレクトアイコン》［N枚以上］を境界に base（前）と bonus/replacement（後）へ分割する。
   // リコレクトは「ルリグトラッシュのアーツ枚数」で判定し、使用中のアーツ自身(sourceCardNum)は数えない（excludeSource）。
