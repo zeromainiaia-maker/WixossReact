@@ -173,7 +173,16 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-13・続き107・Opus 4.8・PLAN §3 Opusタスク6＝ベット「代わりに」置換機構＝IS_BETTING択一＋betChoose選択数変更を新設）**
+- **🆕 セッション（2026-07-13・続き108・Fable 5・計画セッション＝「全カード完成」戦略の策定と優先順の再編・コード/JSON変更なし）**
+  - **✅ ゴールを「全カード完成」と確定**（ユーザー決定・垂直スライス案＝カードプール限定v1リリースは不採用）。残作業の消化方針を「テールを1枚ずつ削る」から「**測ってから、系統と機構の単位で刈る**」へ再編し、下記の戦略①〜⑤を策定。
+  - **全カード完成戦略（推奨順・次セッションから適用）**：
+    - **① census の効果単位精密化（最優先・ツール投資・Opus/Fable）**＝現在の高シグナル1447は**カード単位判定の粗い網**（同カード別効果に語彙があれば合格＝§5c死角(b)・過去実績で70/73が偽陽性）。`scripts/vocabCensus.ts` を効果単位（effectId粒度）判定へ精密化し、①毎バッチの偽陽性トリアージ工程を消す ②真の残数を確定させる（おそらく1253枚→数百効果に縮む）。BASELINE_HIGH は効果単位の新ベースラインへ切替（数字の飛びは計測仕様変更として本§に記録）。完了後 [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) の分類を効果単位で再計測。
+    - **② 純P1は系統バッチで大カテゴリ順に消化（Sonnet並行可）**＝条件節420の機械分類→`STATE_CONDITION_CLAUSES` バッチ（続き106/107手法の横展開）→色96・クラス239・閾値86×2・「次の相手ターン終了時まで」92 と枚数順。「小さい数296・数値不一致110」は粗い網の偽陽性が主なので①の後に。
+    - **③ 機構待ちは「カード単位」でなく「機構単位」で計画（Opus 1セッション=1機構）**＝純§6.3 66枚＋混在127枚（`docs/_p1_classification.txt`）を機構別に §6.3 へ正式登録：出現条件34・正面31・ライズ29・チーム23・ゲーム除外19・アンコール19・動的比較12・エクシード系10・ハーモニー5・ソウル5・ドライブ5・ウィルス3・シード3・ベット2・ゲート2。§3「機構実装の型」1巡で数十枚が同時に解ける＝全カード路線の本丸。
+    - **④ 横断エンジンバグの根治を単発検証より優先**＝1本の根治で数十枚が直り §7 の再検証項目も一括で消える系：usageLimit 書き戻し漏れの残（タスク12(vi-5)＝二面コレクタ3種）・`collectFieldTriggers` の usageLimit 未実装32枚（タスク12(x)）・BLOCK_ACTION の count/filter 無視の残（タスク12(vii)(viii)）。
+    - **⑤ 運用の締め**＝(a) 自動コミット（"auto: Claude による変更"）に `npm run gates` 緑を条件化（続き107で census 赤 HEAD がコミットされた事故の再発防止）。(b) Sonnet 定型バッチ（/census-batch 再収穫）のスケジュール実行化を検討。
+  - **全体の消化順＝①→②（並行）→③→④→⑤ → P2残（§6.1 未実装action型11種27効果）→ P3実機テール（§7）→ P4 CPU AI（§8）**。P4 は全カード完成後の最終工程として据置。
+  - **次の一手（次セッション・Opus/Fable）＝戦略① census効果単位化に着手**。入口＝`scripts/vocabCensus.ts` の判定粒度をカード単位→効果単位に落とし、`docs/_vocab_census.txt` の明細を effectId 付きで出す。ゲート挙動（BASELINE_HIGH 超過 exit 1）は維持し、新旧の数字は併記期間を設けず一括切替（履歴は本§の恒久指標に記録）。
   - **✅ 値すり替え型（WD19-006/007 採用）**＝`STATE_CONDITION_CLAUSES`（「代わりに」昇格置換のゲート表・`matchLeadingStateCondition` 消費）に `[/あなたがベットしていた場合/ → {type:'IS_BETTING'}]` を1件追加。既存 per-target 値すり替えロジックが発火し `SEQUENCE[POWER_MODIFY -7000, STUB BET_ALTERNATIVE]`（ベット時も -7000 のみの**過少**）→ `CONDITIONAL{IS_BETTING, then:-12000, else:-7000}` へ。engine の IS_BETTING は配線済み（新規engine不要）。文脈欠落で then が別型に縮退する組は既存ガード（`coreOf(then).type===coreOf(base).type`）が置換を拒否し STUB 温存＝退化なし。
   - **✅ betChoose 機構新設**＝「以下のN個からMつ選ぶ。ベットしていた場合、代わりにKつ選ぶ」を CHOOSE + `betChoose:{thenChooseCount,thenUpTo}` に。type（`ChooseAction.betChoose`・recollectArts と同型）／engine（`effectExecutor` の CHOOSE 実行で is_betting 時に count 上書き）／parser（`parseActionTextInner` 先頭ブランチ＋`parseArtsEffect` の BET_MECHANIC 短絡を「展開できたら CHOOSE 採用・不可なら BET_MECHANIC 温存」へ）／decompiler（CHOOSE 描画に betChoose 文）を整備。golden に betChoose 発火テスト追加。
   - **⚠ betChoose 実カード11枚の採用は見送り**＝各選択肢の sub-clause parse に filter/条件の脱落（動的filter・トラッシュ相対ソース誤り・選択肢別ゲート条件脱落）があり、BET_MECHANIC(honest no-op) から CHOOSE 化すると census +8（1454→1462）の退化を確認。**機構だけ整備し、実カード採用は各choiceのparser品質が上がるまで保留**（WX16-005/WX18-003/WX18-005/WX19-005/WX19-006/WXK04-014/WDK05-T10/WDK06-R08/WDK12-007/SPK16-13E/PR-K072）。
