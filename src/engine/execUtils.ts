@@ -741,6 +741,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
       return artsSt.turn_arts_used === true;
     }
+    case 'SPELL_USED_THIS_TURN':
+      // handleUseSpell が actions_done に積む 'USE_SPELL' マーカー（ターン開始時リセット）＝
+      // firstSpellExtra 等の既存機能と同じ判定源を参照する
+      return (st(cond.owner).actions_done ?? []).includes('USE_SPELL');
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
