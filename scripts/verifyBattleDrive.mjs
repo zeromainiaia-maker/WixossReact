@@ -3851,6 +3851,11 @@ const scenarios = {
           const btn = page.getByRole('button', { name: /【起】.*トラッシュ/ }).first();
           if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】手札トラッシュ'; }
         }
+        // discard コスト用の手札ピッカー（SigniActivatedModal内蔵＝pick-0ではなくimg[alt=カード名]クリック）
+        if (!did) {
+          const discardImg = page.locator('img[alt="天童アリス"]').first();
+          if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) { await discardImg.click().catch(() => {}); did = 'pick:天童アリス(discard)'; }
+        }
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
@@ -3858,7 +3863,13 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        if (!did) {
+          const activateBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await activateBtn.count() && await activateBtn.isVisible().catch(() => false) && await activateBtn.isEnabled().catch(() => false)) {
+            await activateBtn.click().catch(() => {}); did = 'btn:発動(enabled)';
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n.startsWith('WX25-CP1-TK1A')));
         H.log(`  ctp[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
