@@ -3681,6 +3681,79 @@ const scenarios = {
     },
   },
 
+  // ㉛ WX25-P3-062-E2（続き112・Sonnet・PLAN §7「機構④誤parse3枚」残り）＝
+  //    【自】：このシグニがアタックしたとき、あなたの場に《虚幸の冥者　ハナレ》がいる場合、対戦相手のシグニ
+  //    1体を対象とし、あなたのエナゾーンから＜毒牙＞のシグニ1枚をトラッシュに置いてもよい。そうした場合、
+  //    ターン終了時まで、それとこのシグニのパワーを-20000する。
+  //    SEQUENCE[STUB OPTIONAL_TRASH_ENERGY_CLASS, CONDITIONAL(IS_MY_TURN, then:...)]は「そうした場合」の
+  //    OPTIONAL_COSTインターセプト機構（effectExecutor.ts:2353の optIds に OPTIONAL_TRASH_ENERGY_CLASS が
+  //    含まれる＝既存の確立済みパターン）で正しく動く設計と判明済み（誤parseではなくOPTIONAL_COST機構の一種）。
+  //    虚幸の冥者ハナレ（WX25-P3-032）はルリグカード＝センタールリグに直接配置してHAS_CARD_IN_FIELD条件を満たす。
+  optionalTrashEnergyClassAttack: {
+    title: 'WX25-P3-062-E2（機構④＝OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELDでアタック時-20000）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX25-P3-032#1'],  // 虚幸の冥者 ハナレ（HAS_CARD_IN_FIELD条件のカード自身をセンターに）
+        'field.signi': [['WX25-P3-062#1'], ['WX01-053#1'], null], // 攻撃者(zone0)＋埋め草(zone1)
+        'field.signi_down': [false, false, false],
+        'energy': ['WX04-101#1'], // アイン＝ダガ（毒牙・Lv1・エナからの任意トラッシュ対象）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, ['WD01-013#1'], null], // POWER_MODIFY対象（zone1・zone0は空けてWX25-P3-062の直接ライフ攻撃にする）
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.powerMods:', JSON.stringify(before?.guest?.powerMods), 'host.powerMods:', JSON.stringify(before?.host?.powerMods));
+      let modalOpened = false;
+      let attacked = false;
+      let lastPhase = null;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/optionalTrashEnergyClassAttack-${s}.png`, fullPage: true });
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase !== lastPhase) { modalOpened = false; lastPhase = phaseChk?.turnPhase; }
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了']);
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !modalOpened && !attacked && phaseChk?.turnPhase === 'ATTACK_SIGNI') {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        // OPTIONAL_TRASH_ENERGY_CLASS のCHOOSE＝「エナ＜毒牙＞を選択して発動」を選ぶ（skipではなくpay）
+        if (!did) {
+          const payBtn = page.getByRole('button', { name: /エナ.*毒牙.*選択して発動|エナから選択して発動/ }).first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:エナ選択して発動(pay)'; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const oppDebuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) <= -20000);
+        const selfDebuffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WX25-P3-062#1:') && parseInt(m.split(':')[1], 10) <= -20000);
+        H.log(`  otec[${s}] -> ${did ?? 'なし'} | gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} hPowerMods=${(st?.host?.powerMods ?? []).join(',') || '-'} hEnergy=${st?.host?.energy} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (oppDebuffed && selfDebuffed) {
+          return { pass: true, detail: `機構④(OPTIONAL_TRASH_ENERGY_CLASS+HAS_CARD_IN_FIELD) 発火→対戦相手WD01-013と自WX25-P3-062が両方-20000（gPowerMods=${(st.guest.powerMods).join(',')} hPowerMods=${(st.host.powerMods).join(',')}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `発火未確認（gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'} hPowerMods=${(fin?.host?.powerMods ?? []).join(',') || '-'} hEnergy=${fin?.host?.energy} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
