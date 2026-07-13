@@ -92,54 +92,6 @@ WX25-P3-092 WX26-CP1-011 WX26-CP1-013 WX26-CP1-015 WX26-CP1-017 WX26-CP1-018
   + [0].action.choices[1].action.target.filter.color = "赤"
   + [0].action.choices[1].action.target.filter.story = "プリオケ"
 
-## +AND +CONDITIONAL +LIFE_COUNT +LRIG_COLOR -SEQUENCE ［3枚］
-WX06-003 WX06-005 WX06-006
---- WX06-003
-  原文: 対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。あなたのセンタールリグが赤で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のパワー15000以下のシグニを２体まで対象とし、それらをバニッシュする。,-
-  - [0].action.steps[0].type = "BANISH"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.powerRange.max = 8000
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "BANISH"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 2
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  …（他 25 行）
---- WX06-005
-  原文: 対戦相手のパワー15000以上のシグニ１体を対象とし、それをバニッシュする。あなたのセンタールリグが緑で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のパワー10000以上のシグニを２体まで対象とし、それらをバニッシュする。,-
-  - [0].action.steps[0].type = "BANISH"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.powerRange.min = 15000
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "BANISH"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 2
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  …（他 25 行）
---- WX06-006
-  原文: 対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。あなたのセンタールリグが黒で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらのパワーをそれぞれ－15000する。,-
-  - [0].action.steps[0].type = "POWER_MODIFY"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[0].delta = -12000
-  - [0].action.steps[1].type = "POWER_MODIFY"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 2
-  - [0].action.steps[1].target.upToCount = true
-  …（他 23 行）
-
 ## -CONDITIONAL -IS_MY_TURN ［2枚］
 WXDi-P09-054 WXDi-P15-092
 --- WXDi-P09-054
@@ -173,23 +125,53 @@ WXDi-P09-054 WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   …（他 26 行）
 
-## +AND +CONDITIONAL +LIFE_COUNT +LRIG_COLOR -DOWN -LRIG -SEQUENCE×2 ［1枚］
-WX06-004
---- WX06-004
-  原文: 対戦相手のシグニ１体を対象とし、それをダウンする。あなたのセンタールリグが青で、あなたのライフクロスが２枚以下の場合、代わりに対戦相手のシグニを２体まで対象とし、それらをダウンする。,-
-  - [0].action.steps[0].type = "DOWN"
+## +CONDITIONAL +IS_BETTING +POWER_MODIFY +SIGNI -SEQUENCE -STUB ［2枚］
+WD19-006 WD19-007
+--- WD19-006
+  原文: ベット―《コインアイコン》《コインアイコン》ターン終了時まで、対戦相手のすべてのシグニのパワーを－7000する。あなたがベットしていた場合、代わりに－12000する。,-
+  - [0].action.steps[0].type = "POWER_MODIFY"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "opponent"
+  - [0].action.steps[0].target.count = "ALL"
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].delta = -7000
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "BET_ALTERNATIVE"
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "IS_BETTING"
+  + [0].action.then.type = "POWER_MODIFY"
+  + [0].action.then.target.type = "SIGNI"
+  …（他 10 行）
+--- WD19-007
+  原文: ベット―《コインアイコン》対戦相手の感染状態のシグニ１体を対象とし、それと同じシグニゾーンにある【ウィルス】１つを取り除き、ターン終了時まで、それのパワーを－8000する。あなたがベットしていた場合、代わりに－15000する。,-
+  - [0].action.steps[0].type = "POWER_MODIFY"
   - [0].action.steps[0].target.type = "SIGNI"
   - [0].action.steps[0].target.owner = "opponent"
   - [0].action.steps[0].target.count = 1
   - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.infected = true
   - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].type = "SEQUENCE"
-  - [0].action.steps[1].steps[0].type = "DOWN"
-  - [0].action.steps[1].steps[0].target.type = "LRIG"
-  - [0].action.steps[1].steps[0].target.owner = "opponent"
-  - [0].action.steps[1].steps[0].target.count = 1
-  - [0].action.steps[1].steps[1].type = "DOWN"
-  …（他 26 行）
+  - [0].action.steps[0].delta = -8000
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "BET_ALTERNATIVE"
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "IS_BETTING"
+  …（他 16 行）
+
+## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
+WX17-005
+--- WX17-005
+  原文: ベット―《コインアイコン》対戦相手のシグニ１体を対象とし、ターン終了時まで、それを《サーバント　ＺＥＲＯ》にする。あなたがベットしていた場合、代わりにターン終了時まで、対戦相手のすべてのシグニを《サーバント　ＺＥＲＯ》にする。,-
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "MAKE_SERVANT_ZERO"
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "BET_ALTERNATIVE"
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "IS_BETTING"
+  + [0].action.then.type = "STUB"
+  + [0].action.then.id = "DECLARE_CARD_NAME"
+  + [0].action.else.type = "STUB"
+  + [0].action.else.id = "MAKE_SERVANT_ZERO"
 
 ## -CHOOSE×2 -DECK_CARD×2 -TRASH×2 ［1枚］
 WXDi-D07-022

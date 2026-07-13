@@ -794,6 +794,10 @@ export interface ChooseAction {
     thenChooseCount: number; // 条件達成時のchoose_count
     thenUpTo?: boolean;      // 条件達成時のupTo
   };
+  betChoose?: {          // 「あなたがベットしていた場合、代わりにMつ(まで)選ぶ」＝ベット宣言時に choose_count/upTo を上書き（is_betting_this_effect で判定・recollectArts と同型）
+    thenChooseCount: number; // ベット時のchoose_count
+    thenUpTo?: boolean;      // ベット時のupTo
+  };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
