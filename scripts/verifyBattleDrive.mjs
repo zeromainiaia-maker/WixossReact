@@ -3948,7 +3948,11 @@ const scenarios = {
             H.log(`    (追跡)ce87 kw[${k}] pEff=${st2?.pendingEffect ?? '-'} kwGrants=${JSON.stringify(st2?.host?.keywordGrants)}`);
           }
           const stFin = await H.queryState();
-          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(stFin.host.fieldSigni)} kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）` };
+          // ⚠続き114で確認済みの真因＝resumeSelectTarget（effectExecutor.ts:4246-4253）が
+          // 「thenAction(ADD_TO_FIELD)がSELECT_SIGNI_ZONEを要求（空き2以上）」の場合に result をそのまま
+          // return し、外側SEQUENCEの pending.continuation（＝後続のGRANT_KEYWORD）を握り潰す＝
+          // ADD_TO_FIELD自体はPASSだがGRANT_KEYWORD（絆常付与）は毎回無言no-op化する。Opusタスク12へ登録。
+          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(stFin.host.fieldSigni)}）。⚠後続GRANT_KEYWORD(絆常)はkwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}＝無発火（resumeSelectTargetのcontinuation欠落バグ・Opusタスク12へ登録）` };
         }
       }
       const fin = await H.queryState();
