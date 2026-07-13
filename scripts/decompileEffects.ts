@@ -687,7 +687,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
       const cntCh = a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
-      return `以下の${numJa(totalCh)}つから${cntCh}【${chOpts.join(' / ')}】`;
+      // betChoose＝「あなたがベットしていた場合、代わりにKつ(まで)選ぶ」の択一（engine が is_betting で choose_count 上書き）。
+      const betCh = a.betChoose
+        ? `。あなたがベットしていた場合、代わりに${numJa(a.betChoose.thenChooseCount)}つ${a.betChoose.thenUpTo ? 'まで' : ''}選ぶ`
+        : '';
+      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
