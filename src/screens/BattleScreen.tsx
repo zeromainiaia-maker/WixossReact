@@ -3070,7 +3070,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
-          turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
+          turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
@@ -3128,7 +3128,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
           opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
-          turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
+          turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           field: {
             ...opState.field,
@@ -3380,7 +3380,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
-        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
@@ -3413,7 +3413,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
         power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
         opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
-        turn_arts_used: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         field: {
           ...opState.field,
@@ -8278,7 +8278,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
       const nextHuSt = { ...huSt,
-        turn_arts_used: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         field: {
         ...huSt.field,
@@ -8316,7 +8316,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
-        turn_arts_used: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_colors: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
       };
       await supabase.from('battle_states').update({
         guest_state: cleanCpuSt,
