@@ -478,19 +478,18 @@ function main(): void {
 
   const missByPattern: Array<{ name: string; re: RegExp; pre?: (t: string) => string; src?: 'all' | 'eff'; ids: string[] }> = [];
   for (const { name, re, keys, pre, extraOk, src } of PATTERNS) {
-    const srcMap = src === 'eff' ? corpus.eff : texts;
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, t0] of srcMap) {
-      const t = pre ? pre(t0) : t0;
+    for (const u of units) {
+      // src:'eff'＝トリガー句/コスト節など LB 原文には現れない系＝ライフバースト効果は対象外
+      if (src === 'eff' && u.isBurst) continue;
+      const t = pre ? pre(u.text) : u.text;
       if (!re.test(t)) continue;
       hits++;
-      const js = jsonStr.get(id);
-      if (!js) continue;
-      if (keys.some(k => js.includes(k)) || (extraOk && extraOk(js, t0))) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(id); highAll.add(id); }
+      if (keys.some(k => u.js.includes(k)) || (extraOk && extraOk(u.js, u.text))) continue;
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(u.effectId); highAll.add(u.effectId); }
     }
     missByPattern.push({ name, re, pre, src, ids: missHigh.slice() });
     pushSection(name, hits, missHigh, missStub);
