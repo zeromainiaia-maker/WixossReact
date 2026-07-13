@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-13・続き108・Fable 5・計画セッション＝「全カード完成」戦略の策定と優先順の再編・コード/JSON変更なし）**
+  - **✅ ゴールを「全カード完成」と確定**（ユーザー決定・垂直スライス案＝カードプール限定v1リリースは不採用）。残作業の消化方針を「テールを1枚ずつ削る」から「**測ってから、系統と機構の単位で刈る**」へ再編し、戦略①〜⑤を策定（①census効果単位化 ②純P1の系統バッチ ③機構単位の計画 ④横断エンジンバグ根治 ⑤運用の締め）。
+  - **全体の消化順＝①→②（並行）→③→④→⑤ → P2残（§6.1 未実装action型11種27効果）→ P3実機テール（§7）→ P4 CPU AI（§8）**。P4 は全カード完成後の最終工程として据置。
+  - 戦略①は続き109（Opus）で完了＝census を効果単位化（カード 1447 → 効果 2264）。②以降は PLAN §4 の現在地を参照。
+
 - **セッション（2026-07-13・続き107・Opus 4.8・PLAN §3 Opusタスク6＝ベット「代わりに」置換機構＝IS_BETTING択一＋betChoose選択数変更を新設）**
   - **✅ 値すり替え型（WD19-006/007 採用）**＝`STATE_CONDITION_CLAUSES`（「代わりに」昇格置換のゲート表・`matchLeadingStateCondition` 消費）に `[/あなたがベットしていた場合/ → {type:'IS_BETTING'}]` を1件追加。既存 per-target 値すり替えロジックが発火し `SEQUENCE[POWER_MODIFY -7000, STUB BET_ALTERNATIVE]`（ベット時も -7000 のみの**過少**）→ `CONDITIONAL{IS_BETTING, then:-12000, else:-7000}` へ。engine の IS_BETTING は配線済み（新規engine不要）。文脈欠落で then が別型に縮退する組は既存ガード（`coreOf(then).type===coreOf(base).type`）が置換を拒否し STUB 温存＝退化なし。
   - **✅ betChoose 機構新設**＝「以下のN個からMつ選ぶ。ベットしていた場合、代わりにKつ選ぶ」を CHOOSE + `betChoose:{thenChooseCount,thenUpTo}` に。type（`ChooseAction.betChoose`・recollectArts と同型）／engine（`effectExecutor` の CHOOSE 実行で is_betting 時に count 上書き）／parser（`parseActionTextInner` 先頭ブランチ＋`parseArtsEffect` の BET_MECHANIC 短絡を「展開できたら CHOOSE 採用・不可なら BET_MECHANIC 温存」へ）／decompiler（CHOOSE 描画に betChoose 文）を整備。golden に betChoose 発火テスト追加。
