@@ -3590,6 +3590,8 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
+        // アーツステップ（自分/相手）をスキップしてATTACK_SIGNIへ進める
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
         if (!did) {
           const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
           if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
