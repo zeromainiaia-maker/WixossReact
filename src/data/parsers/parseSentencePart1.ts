@@ -1700,8 +1700,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (t.match(/あなたの.+シグニ.+場からトラッシュに置く/) && !t.includes('対戦相手')) {
     const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
     const upToM = t.match(/好きな数/);
+    const allM = t.match(/すべての/); // 「あなたのすべてのシグニを場からトラッシュに置く」＝全数（続き107・SP24-009）
     const cM = t.match(/([０-９\d]+)体/);
-    const count = upToM ? 'ALL' : (cM ? parseNum(cM[1]) : 1);
+    const count = (upToM || allM) ? 'ALL' : (cM ? parseNum(cM[1]) : 1);
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count, filter } };
   }
 
