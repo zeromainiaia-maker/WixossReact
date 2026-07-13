@@ -9092,7 +9092,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // ON_COIN_PAID（C1 配線・シグニ【起】《コイン》）: コインを支払った場合に反応【自】を積む。
-      if (coinCostAct > 0) stackEntries.push(...collectCoinPaidTriggers(user.id, paid, isHost ? bs.guest_state : bs.host_state));
+      if (coinCostAct > 0) {
+        const actCoin = collectCoinPaidTriggers(user.id, paid, isHost ? bs.guest_state : bs.host_state);
+        stackEntries.push(...actCoin.entries);
+        paid = applyCoinPaidUsed(paid, actCoin); // 《ターン1回/2回》消化を永続化（続き106）
+      }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
