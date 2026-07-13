@@ -1696,6 +1696,24 @@ test('IS_BETTING条件: ベット宣言時に発火・非ベット時は不発',
   eq(run(act, ctx2).ownerState.hand.length, h2, '非ベット時は不発のはず');
 });
 
+// betChoose（続き107）: 「以下のN個からMつ選ぶ。ベットしていた場合、代わりにKつ選ぶ」＝ベット宣言時に
+// CHOOSE の choose_count/upTo を上書き（recollectArts と同型・engine effectExecutor）。
+test('betChoose: ベット宣言時に選択数が上書きされる', () => {
+  const act = { type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'c0', label: '選択肢1', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      { choiceId: 'c1', label: '選択肢2', action: { type: 'DRAW', owner: 'self', count: 1 } },
+    ],
+    betChoose: { thenChooseCount: 2, thenUpTo: true } } as unknown as EffectAction;
+  const ctxBet = mkCtx({}, {});
+  (ctxBet.ownerState as unknown as { is_betting_this_effect?: boolean }).is_betting_this_effect = true;
+  const rBet = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctxBet);
+  eq((rBet as { pending?: { count?: number } }).pending?.count, 2, 'ベット時は代わりの選択数(2)になるはず');
+  const ctxNo = mkCtx({}, {}); // 非ベット
+  const rNo = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctxNo);
+  eq((rNo as { pending?: { count?: number } }).pending?.count, 1, '非ベット時は基本の選択数(1)のはず');
+});
+
 // HAS_CARD_IN_FIELD cardName（ルリグゾーン走査）: 「あなたの場に《X》がいる場合」（続き26・場に《X》13枚バッチ）
 // X はルリグ名のことが多く、従来 HAS_CARD_IN_FIELD はシグニゾーンしか見ず偽陰性だった＝ルリグゾーンも走査する。
 test('HAS_CARD_IN_FIELD cardName: 場にそのルリグがいれば発火・いなければ不発', () => {
