@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［35枚］
-WX07-029 WX13-002 WX17-009 WX18-009 WX24-D2-11 WX24-P1-069 WX24-P3-077 WX24-P4-050 WX25-CP1-062 WX25-CP1-082 WX25-P2-059 WX25-P2-085 WXDi-CP02-075 WXDi-CP02-081 WXDi-D09-H20 WXDi-D09-H24 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-011 WXDi-P06-049 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-078 WXDi-P12-066 WXDi-P14-081 WXDi-P16-078 WXEX1-65 WXEX2-30 WXK01-037 WXK01-044 WXK03-020 WXK08-059 WXK09-050
+## （type増減なし＝値/構造変更） ［52枚］
+WX07-029 WX13-002 WX17-009 WX18-009 WX24-D2-11 WX24-D5-20 WX24-D5-25 WX24-P1-050 WX24-P1-069 WX24-P2-094 WX24-P3-058 WX24-P3-077 WX24-P4-049 WX24-P4-050 WX24-P4-089 WX25-CP1-047 WX25-CP1-062 WX25-CP1-082 WX25-P1-063 WX25-P1-111 WX25-P2-059 WX25-P2-062 WX25-P2-085 WX25-P2-109 WX25-P3-064 WX26-CP1-059 WXDi-CP02-075 WXDi-CP02-081 WXDi-D09-H20 WXDi-D09-H24 WXDi-P01-088 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-011 WXDi-P06-049 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-078 WXDi-P12-066 WXDi-P12-089 WXDi-P13-088 WXDi-P14-081 WXDi-P16-078 WXEX1-65 WXEX2-30 WXK01-037 WXK01-044 WXK03-020 WXK08-059 WXK09-050
 --- WX07-029
   原文: 《クロスアイコン》《幻獣　カメ》の左【クロス常】：このシグニの基本パワーは15000になる。【起】《ターン１回》《緑》：あなたのエナゾーンからカード１枚を対象とし、それを手札に加える。【クロス自】：このシグニが《ヘブン》したとき、ターン終了時まで、あなたのすべてのシグニのパワーを２倍にする。,：対戦相手のパワー8000以上のシグニ１体を対象とし、それをバニッ
   - [0].action.target.filter.thisCardOnly = true
@@ -125,38 +125,23 @@ WXDi-P09-054 WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   …（他 26 行）
 
-## +CONDITIONAL +IS_BETTING +POWER_MODIFY +SIGNI -SEQUENCE -STUB ［2枚］
-WD19-006 WD19-007
---- WD19-006
-  原文: ベット―《コインアイコン》《コインアイコン》ターン終了時まで、対戦相手のすべてのシグニのパワーを－7000する。あなたがベットしていた場合、代わりに－12000する。,-
-  - [0].action.steps[0].type = "POWER_MODIFY"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = "ALL"
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].delta = -7000
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "BET_ALTERNATIVE"
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "IS_BETTING"
-  + [0].action.then.type = "POWER_MODIFY"
-  + [0].action.then.target.type = "SIGNI"
-  …（他 10 行）
---- WD19-007
-  原文: ベット―《コインアイコン》対戦相手の感染状態のシグニ１体を対象とし、それと同じシグニゾーンにある【ウィルス】１つを取り除き、ターン終了時まで、それのパワーを－8000する。あなたがベットしていた場合、代わりに－15000する。,-
-  - [0].action.steps[0].type = "POWER_MODIFY"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.infected = true
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[0].delta = -8000
-  - [0].action.steps[1].type = "STUB"
-  - [0].action.steps[1].id = "BET_ALTERNATIVE"
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "IS_BETTING"
-  …（他 16 行）
+## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +BLOCK_ACTION +CHOOSE +CONDITIONAL +IS_MY_TURN +PLAYER +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
+WX16-005
+--- WX16-005
+  原文: ベット―《コインアイコン》《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①レベルが場にある【ウィルス】の数以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。②あなたのトラッシュから、レベルが場にある【ウィルス】の数以下のシグニ１枚を対象とし、それを場に出す。そのシグニの【出】能力は発動しない。③対戦相
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 3
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "BANISH"
+  + [0].action.choices[0].action.target.type = "SIGNI"
+  + [0].action.choices[0].action.target.owner = "opponent"
+  + [0].action.choices[0].action.target.count = 1
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.upToCount = false
+  …（他 29 行）
 
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
@@ -172,6 +157,78 @@ WX17-005
   + [0].action.then.id = "DECLARE_CARD_NAME"
   + [0].action.else.type = "STUB"
   + [0].action.else.id = "MAKE_SERVANT_ZERO"
+
+## +CHOOSE +GRANT_KEYWORD×2 +LRIG +SIGNI -STUB ［1枚］
+WX18-003
+--- WX18-003
+  原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つまで選ぶ。①対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。②対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。,-
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "GRANT_KEYWORD"
+  + [0].action.choices[0].action.target.type = "LRIG"
+  + [0].action.choices[0].action.target.owner = "opponent"
+  + [0].action.choices[0].action.target.count = 1
+  + [0].action.choices[0].action.keyword = "アタックできない"
+  + [0].action.choices[0].action.duration = "UNTIL_END_OF_TURN"
+  …（他 12 行）
+
+## +ADD_TO_LIFE +BANISH×2 +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI×2 -STUB ［1枚］
+WX18-005
+--- WX18-005
+  原文: ベット―《コインアイコン》《コインアイコン》以下の４つから２つまで選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①パワー15000以上のすべてのシグニをバニッシュする。②対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。③あなたのデッキの上からカードを３枚エナゾーンに置く。④あなたのデッキの一番上のカードをライフクロスに加
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 2
+  + [0].action.from_count = 4
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "BANISH"
+  + [0].action.choices[0].action.target.type = "SIGNI"
+  + [0].action.choices[0].action.target.owner = "any"
+  + [0].action.choices[0].action.target.count = "ALL"
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.filter.powerRange.min = 15000
+  …（他 23 行）
+
+## +BANISH +CHOOSE +CONDITIONAL +DRAW +ENERGY_CARD +ENERGY_COUNT +LIFE_CRASH +SEQUENCE +SIGNI +TRASH ［1枚］
+WX19-005
+--- WX19-005
+  原文: ベット―《コインアイコン》《コインアイコン》以下の４つから２つまで選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンからカード２枚を対象とし、対戦相手のエナゾーンにカードが４枚以上ある場合、それらをトラッシュに置く。③カードを３枚引く。その後、対戦
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 2
+  + [0].action.from_count = 4
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "BANISH"
+  + [0].action.choices[0].action.target.type = "SIGNI"
+  + [0].action.choices[0].action.target.owner = "opponent"
+  + [0].action.choices[0].action.target.count = 1
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.filter.powerRange.max = 12000
+  …（他 29 行）
+
+## +ADD_TO_LIFE +CHOOSE +CONDITIONAL +DRAW +EXILE +IS_MY_TURN +SEQUENCE +TRASH_CARD ［1枚］
+WX19-006
+--- WX19-006
+  原文: ベット―《コインアイコン》《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに２つまで選ぶ。①対戦相手のレベル４以上のシグニ１体を対象とし、それをトラッシュに置く。②あなたのトラッシュから対戦相手の選んだカード１枚をライフクロスに加える。③対戦相手のトラッシュにあるすべてのスペルをゲームから除外する。この方法でスペルを２枚以上ゲー
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 3
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "STUB"
+  + [0].action.choices[0].action.id = "BANISH"
+  + [0].action.choices[1].choiceId = "c1"
+  + [0].action.choices[1].label = "選択肢2"
+  + [0].action.choices[1].action.type = "ADD_TO_LIFE"
+  + [0].action.choices[1].action.owner = "self"
+  …（他 18 行）
 
 ## -CHOOSE×2 -DECK_CARD×2 -TRASH×2 ［1枚］
 WXDi-D07-022
@@ -234,6 +291,24 @@ WX24-P4-047
   - [0].action.choices[1].action.then.steps[1].then.target.owner = "self"
   …（他 14 行）
 
+## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +SEQUENCE +STUB ［1枚］
+WXK04-014
+--- WXK04-014
+  原文: ベット―《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに２つまで選ぶ。①カードを４枚引く。あなたは手札から＜紅蓮＞のシグニを１枚捨てないかぎり、カードを２枚捨てる。②このターン、あなたは対戦相手のルリグによってダメージを受けない。③あなたの＜紅蓮＞のシグニ１体を対象とし、それを血晶武装［トラッシュ］する。,-
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 3
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "SEQUENCE"
+  + [0].action.choices[0].action.steps[0].type = "DRAW"
+  + [0].action.choices[0].action.steps[0].owner = "self"
+  + [0].action.choices[0].action.steps[0].count = 4
+  + [0].action.choices[0].action.steps[1].type = "STUB"
+  + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
+  …（他 13 行）
+
 ## -SELF_POWER_THRESHOLD ［1枚］
 WXK06-049
 --- WXK06-049
@@ -261,6 +336,60 @@ WD12-018
   + [0].action.steps[1].source.count = 1
   …（他 1 行）
 
+## +CHOOSE +GRANT_KEYWORD +HAND_CARD +SEQUENCE +SIGNI +TRANSFER_TO_HAND +TRASH +TRASH_CARD -STUB ［1枚］
+WDK05-T10
+--- WDK05-T10
+  原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。手札を２枚捨てる。②あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。,-
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "SEQUENCE"
+  + [0].action.choices[0].action.steps[0].type = "GRANT_KEYWORD"
+  + [0].action.choices[0].action.steps[0].target.type = "SIGNI"
+  + [0].action.choices[0].action.steps[0].target.owner = "opponent"
+  + [0].action.choices[0].action.steps[0].target.count = 1
+  + [0].action.choices[0].action.steps[0].target.filter.cardType = "シグニ"
+  …（他 17 行）
+
+## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
+WDK06-R08
+--- WDK06-R08
+  原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対象のあなたの《ライズアイコン》を持つシグニ１体よりパワーの低い対象の対戦相手のシグニ１体をバニッシュする。②あなたのデッキから《ライズアイコン》を持つシグニ１枚と＜アーム＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "BANISH"
+  + [0].action.choices[0].action.target.type = "SIGNI"
+  + [0].action.choices[0].action.target.owner = "opponent"
+  + [0].action.choices[0].action.target.count = 1
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.upToCount = false
+  …（他 17 行）
+
+## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
+WDK12-007
+--- WDK12-007
+  原文: ベット―《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①あなたのトラッシュから対象の＜微菌＞のシグニ１枚を対象のあなたのシグニ１体の【チャーム】にする。ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは「【常】：対戦相手のターンの間、バニッシュされない。」を得る。②あなたの場にある
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "SEQUENCE"
+  + [0].action.choices[0].action.steps[0].type = "ATTACH_CHARM"
+  + [0].action.choices[0].action.steps[0].charm.type = "TRASH_CARD"
+  + [0].action.choices[0].action.steps[0].charm.owner = "self"
+  + [0].action.choices[0].action.steps[0].charm.count = 1
+  + [0].action.choices[0].action.steps[0].charm.filter.story = "微菌"
+  …（他 20 行）
+
 ## +GRANT_FIELD_SIGNI_ABILITY +GRANT_KEYWORD +GRANT_PROTECTION×2 +SEQUENCE×2 +SIGNI×3 -STUB ［1枚］
 SP27-002
 --- SP27-002
@@ -278,4 +407,40 @@ SP27-002
   - [2].action.id = "CONDITIONAL_KEYWORD_BY_CENTER_COLOR"
   ~ [0].action.type : "POWER_MODIFY" → "SEQUENCE"
   …（他 40 行）
+
+## +BANISH +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI ［1枚］
+SPK16-13E
+--- SPK16-13E
+  原文: ベット―《コインアイコン》以下の３つから１つを選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のシグニ１体を対象とし、このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合、それをバニッシュする。②このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに置かれていた場合、あなたのデッキの上からカードを３枚エ
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 3
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "BANISH"
+  + [0].action.choices[0].action.target.type = "SIGNI"
+  + [0].action.choices[0].action.target.owner = "opponent"
+  + [0].action.choices[0].action.target.count = 1
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.upToCount = false
+  …（他 11 行）
+
+## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 -STUB ［1枚］
+PR-K072
+--- PR-K072
+  原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。カードを１枚引く。②あなたの手札から＜調理＞のシグニ１枚を場に出す。ターン終了時まで、そのシグニは能力を失う。その後、あなたのデッキから＜調理＞のシグニ１枚を探して対象のあなたの＜調理＞のシグニ１体の【アクセ】
+  - [0].action.id = "BET_MECHANIC"
+  ~ [0].action.type : "STUB" → "CHOOSE"
+  + [0].action.choose_count = 1
+  + [0].action.from_count = 2
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "SEQUENCE"
+  + [0].action.choices[0].action.steps[0].type = "DOWN"
+  + [0].action.choices[0].action.steps[0].target.type = "SIGNI"
+  + [0].action.choices[0].action.steps[0].target.owner = "opponent"
+  + [0].action.choices[0].action.steps[0].target.count = 1
+  + [0].action.choices[0].action.steps[0].target.filter.cardType = "シグニ"
+  …（他 24 行）
 
