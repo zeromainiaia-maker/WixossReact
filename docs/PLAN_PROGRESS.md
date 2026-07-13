@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-12・続き105・Sonnet 5・verifyBattleDrive状態汚染の根本修正＋census文型バッチ「CHOOSE選択肢②条件」6枚是正）**
+  - **✅ PLAN §3 Sonnetタスク3「バッチ実行時状態汚染」に着手＝2つの根本原因を機械的に切り分けて修正**（`scripts/verifyBattleDrive.mjs`のみ・engine/JSON無変更）。
+  - **原因①（DB側）＝`injectScenario`のシナリオ間リセットが18個の手動列挙方式で、PlayerStateの任意フィールド約170個中150個超が漏れていた**＝実例＝`abilities_removed`が未列挙で残留し、`ontargeted5`のマーカーが後続シナリオの`guest_state`に残り続けていた。**修正＝「盤面の物理配置」9フィールドだけを引き継ぐホワイトリスト方式（除外方式）へ書き換え**。
+  - **原因②（クライアント側）＝1ブラウザセッションでの長時間連続実行によるReact state/タイマー/Realtime購読の蓄積**。**修正＝各シナリオ直前に`page.reload()`を追加**（`App.tsx`のPLAYINGルーム自動復帰ロジックで再マウント）。
+  - **効果測定**＝修正前47件一括＝PASS40/FAIL7→両修正後＝PASS43/FAIL6（残存FAILは低頻度フレーク）。**`oppDraw`のみ完全単独実行でも再現＝バッチ汚染と無関係の別要因**（CPU挙動依存とみられ未解明・スコープ外）。
+  - **✅ 続いて §5c census文型バッチ＝「CHOOSE選択肢②条件」6枚（WX25-P3-092／WX26-CP1-011/013/015/017/018）を`ChoiceOption.condition`で是正（parser/engine変更なし）＋decompiler の選択肢condition描画欠落も修正**。golden 283→284・census 1477→1471。⚠「あなたのターンの場合」クラスタ9枚は据置（engine の`IS_MY_TURN`がプレースホルダ常時真＝Opus拡張が要る）。
+  - **✅ 続けて「パワー閾値」クラスタの optional discard＋powerRange 脱落9枚是正**（golden 284→285・census 1471→1467）。**✅ 続けて「色と色のシグニ」CLAUSES新設＋ルリグアタックプレフィックス構造欠陥修正で10枚是正**（golden 285→286・census 1467→1461）。詳細 BUGFIXES 続き105。
+
 - **セッション（2026-07-12・続き104・Sonnet 5・§7実機検証R30/R38/R46の②③番手を決着＋新規バグ発見）**
   - **✅ PLAN §3 Sonnetタスク1「§7実機検証」の残②③番手を、続き101と同じ「コード読解＋既存/新規golden」方式で決着**（golden 278→283・重いPlaywright実機駆動は使わず）。
   - **R30②（WXK10-022-E1のturnOwner:selfゲート）＝バグではなく設計どおりと確認**＝`collectFieldTriggers`自体はturnOwnerを見ないが、`effectStack.ts`の`turnGateOk`（`initStack`/`pushToStack`）が中央集権的にゲートする二段構え設計と判明。golden新設で通常召喚（ゲート除外）とWXEX2-50型の相手ターン中特殊召喚（ゲート通過）の両方を確認。
