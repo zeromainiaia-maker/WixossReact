@@ -834,13 +834,29 @@ test('C1 ON_LRIG_GROW: any_opp は自分グロウでは非発火', () => {
 });
 test('C1 ON_COIN_PAID: self 支払者の場シグニが発火', () => {
   const host = mkState({ signi: ['WXDi-P15-055', null, null] }); const guest = mkState({});
-  const e = collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest);
-  eq(e.length, 1, 'entries'); eq(e[0].effectId, 'WXDi-P15-055-E1', 'effectId'); eq(e[0].playerId, HOST, 'player');
+  const r = collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest);
+  eq(r.entries.length, 1, 'entries'); eq(r.entries[0].effectId, 'WXDi-P15-055-E1', 'effectId'); eq(r.entries[0].playerId, HOST, 'player');
+  eq(r.usedIds.includes('WXDi-P15-055-E1'), true, 'usedIdsに消費effectIdを返す');
 });
 test('C1 ON_COIN_PAID: usageLimit once_per_turn（消化済みは非発火）', () => {
   const host = mkState({ signi: ['WXDi-P15-055', null, null] }); const guest = mkState({});
   host.actions_done = ['WXDi-P15-055-E1']; // このターン既に発動済み
-  eq(collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest).length, 0, 'once_per_turn');
+  eq(collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest).entries.length, 0, 'once_per_turn');
+});
+test('C1 ON_COIN_PAID: twice_per_turn は usedIds 書き戻しで3回目に非発火（続き99発見・続き106修正）', () => {
+  // 従来 collectCoinPaidTriggers は StackEntry[] のみ返し usedIds 書き戻しが無く、《ターン2回》WXDi-P15-069 が
+  // 3回目のコイン支払いでも発火していた（実機 coinPaidTwice で確認）。usedIds を返し呼び出し側が actions_done へ永続化。
+  const mk = () => { const h = mkState({ signi: ['WXDi-P15-069', null, null] }); return h; };
+  const host = mk(); const guest = mkState({});
+  const r1 = collectCoinPaidTriggers(trigCtx(HOST), HOST, host, guest);
+  eq(r1.entries.length, 1, '1回目発火'); eq(r1.usedIds.includes('WXDi-P15-069-E1'), true, '1回目usedId');
+  // 呼び出し側が書き戻した後の2回目＝まだ発火可（twice）
+  const host2 = { ...mk(), actions_done: ['WXDi-P15-069-E1'] };
+  const r2 = collectCoinPaidTriggers(trigCtx(HOST), HOST, host2, guest);
+  eq(r2.entries.length, 1, '2回目も発火（twice）');
+  // 2回消化後の3回目＝非発火
+  const host3 = { ...mk(), actions_done: ['WXDi-P15-069-E1', 'WXDi-P15-069-E1'] };
+  eq(collectCoinPaidTriggers(trigCtx(HOST), HOST, host3, guest).entries.length, 0, '3回目は非発火');
 });
 
 // Stage2②: ON_SIGNI_POWER_ZERO_OR_LESS（既存配線・R37・C2リスト5枚）の collectPowerZeroTriggers を pure 化→自動検証。
