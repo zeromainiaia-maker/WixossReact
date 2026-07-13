@@ -205,9 +205,9 @@ export function collectPowerZeroTriggers(
     const watcherState = watcherIsHost ? afterHostState : afterGuestState;
     const zeroedIsWatcherOwn = zeroedOwnerId === watcherId;
     const watcherIsTurn = ctx.activeUserId === watcherId;
-    for (const stack of watcherState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
+    // ownFieldSources = 場シグニ最上段＋センタールリグ最上段。field.signi のみ走査だと
+    // LRIG が watcher の ON_SIGNI_POWER_ZERO_OR_LESS が構造的に絶対発火しなかった（続き95/96・WX22-013/WXDi-P14-009）。
+    for (const topNum of ownFieldSources(watcherState)) {
       for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_POWER_ZERO_OR_LESS')) continue;
         const scope = eff.triggerScope ?? 'any';
