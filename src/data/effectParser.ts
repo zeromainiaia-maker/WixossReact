@@ -1107,6 +1107,12 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     ] })],
   [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
     g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+  // 「あなたがベットしていた場合、代わりに＜enhanced＞」＝ベット択一（置換）。表に無いと「代わりに」が
+  // 置換にならず SEQUENCE 両実行の過剰効果になる（基本効果＋強化効果を二重適用）。engine/decompiler は
+  // IS_BETTING 実装済み（execUtils.evalCondition・decompileEffects）。「追加で」形は line 1460 の専用ブロックが
+  // then のみ CONDITIONAL で処理するため、ここは matchLeadingStateCondition 経由の「代わりに」置換専用（§3 Opusタスク6）。
+  [/あなたがベットしていた場合/,
+    () => ({ type: 'IS_BETTING' })],
   ...STATE_CONDITION_CLAUSES_V2,
 ];
 
