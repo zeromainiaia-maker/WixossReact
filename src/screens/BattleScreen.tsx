@@ -5221,6 +5221,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // このターンにアーツを使用したフラグ（ARTS_USED_THIS_TURN 条件。WX25-P1-106。ターン境界でリセット）
         turn_arts_used: true,
+        // 使用したアーツの色（色別 ARTS_USED_THIS_TURN。WX24-D1-11〜D4-11。ターン境界でリセット）
+        turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((card.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
         is_betting_this_effect: betCost > 0 ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
