@@ -564,16 +564,14 @@ function main(): void {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, t] of texts) {
-      const found = KWS.filter(k => t.includes(k));
+    for (const u of units) {
+      const found = KWS.filter(k => u.text.includes(k));
       if (!found.length) continue;
       hits++;
-      const js = jsonStr.get(id);
-      if (!js) continue;
-      const missing = found.filter(k => !js.includes(k));
+      const missing = found.filter(k => !u.js.includes(k));
       if (!missing.length) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(`${id}(${missing.join('/')})`); highAll.add(id); }
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }
     pushSection('キーワード能力語の不在', hits, missHigh, missStub);
   }
