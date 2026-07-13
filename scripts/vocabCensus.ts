@@ -465,7 +465,6 @@ const isStub = (js: string) => js.includes('STUB') || js.includes('MANUAL');
 
 function main(): void {
   const corpus = loadTexts();
-  const texts = corpus.all;
   const { str: jsonStr, obj: jsonObj } = loadJson();
   const units = buildUnits(corpus, jsonObj);
   const highAll = new Set<string>();
