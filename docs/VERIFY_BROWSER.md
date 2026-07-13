@@ -109,8 +109,7 @@ Sonnet の実機検証 methodology メモ（続き112-113・「1試行15〜40秒
 
 ### driver の使い方（一般化後）
 ```bash
-npm run build                              # vite preview は dist/ 配信なので必ず先にビルド
-node scripts/verifyBattleDrive.mjs         # 既定の3シナリオを順に実行（wxk09050→wxk02029→wd07012）
+node scripts/verifyBattleDrive.mjs         # 既定シナリオを順に実行（build 要否は自動判定）
 node scripts/verifyBattleDrive.mjs wd07012 # 指定シナリオのみ
 ```
 ログイン→PLAYING 到達は**一度だけ**行い、同一 PLAYING ルームへ「盤面注入＋クリック列」をシナリオ単位で適用する。各シナリオは `scenarios` テーブルの `{ title, spec, drive }`：
