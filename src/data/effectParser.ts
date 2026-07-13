@@ -3891,6 +3891,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         const action = parseActionText(raw);
         const songFb = consumeSilentFallbacks();
         logSilentFallbacks(`${card.CardNum}-SONG`, songFb);
+        logSourceText(`${card.CardNum}-SONG`, songM[0]);
         effects.push({
           effectId: `${card.CardNum}-SONG`,
           effectType: 'SONG_ICON',
