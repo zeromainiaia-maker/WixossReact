@@ -1098,6 +1098,13 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'SELF_POWER_GTE', value: parseNum(g[0]) })],
   [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
     g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+  // 「あなたのセンタールリグが(色)で、あなたのライフクロスがN枚以下の場合、代わりに強化」（WX06-002〜006「五面」）
+  // ＝LRIG色＋ライフ枚数の複合条件。表に無いと「代わりに」が置換にならず SEQUENCE 両実行の過剰効果になる。
+  [/あなたのセンタールリグが(白|赤|青|緑|黒)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'LRIG_COLOR', owner: 'self', color: g[0] },
+      { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[1]) },
+    ] })],
   [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
     g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
   ...STATE_CONDITION_CLAUSES_V2,
