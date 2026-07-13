@@ -766,8 +766,8 @@ function main(): void {
       for (const [jp, ens] of MAPPING) {
         const colHas = col.includes(jp);
         const jsonHas = ens.some(e => timings.has(e));
-        if (colHas && !jsonHas) { if (stub) missStub.push(`${id}(-${jp})`); else { under.push(`${id}(-${jp})`); highAll.add(id); } }
-        if (!colHas && jsonHas) { if (stub) missStub.push(`${id}(+${jp})`); else { over.push(`${id}(+${jp})`); highAll.add(id); } }
+        if (colHas && !jsonHas) { if (stub) missStub.push(`${id}(-${jp})`); else { under.push(`${id}(-${jp})`); highAll.add(`${id}-E1`); } }
+        if (!colHas && jsonHas) { if (stub) missStub.push(`${id}(+${jp})`); else { over.push(`${id}(+${jp})`); highAll.add(`${id}-E1`); } }
       }
     }
     pushSection('アーツ:列タイミング→JSON欠(使えない側)', hits, under, missStub);
