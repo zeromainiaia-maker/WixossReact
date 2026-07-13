@@ -5264,6 +5264,66 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
     }
+    case 'ENERGY_CHARGE': {
+      // 外部SELECT_TARGET/SEARCH経由で選ばれた単一カードをエナゾーンへ。
+      // このcaseが無いと default→execEnergyCharge 再実行で target（DECK_CARD等）を素通しで再評価し、
+      // 選んだデッキ/トラッシュ札を無視して場のシグニ選択SELECT_TARGETへすり替わる/無限ループする（続き93）。
+      const ecOwner = (action as EnergyChargeAction).target.owner;
+      const ecS = ownerState(ecOwner, ctx);
+      let ecNew = { ...ecS };
+      if (ecS.hand.includes(cardNum)) ecNew = { ...ecNew, hand: ecNew.hand.filter(x => x !== cardNum) };
+      else if (ecS.trash.includes(cardNum)) ecNew = { ...ecNew, trash: ecNew.trash.filter(x => x !== cardNum) };
+      else if (ecS.deck.includes(cardNum)) ecNew = { ...ecNew, deck: ecNew.deck.filter(x => x !== cardNum) };
+      else if (ecS.field.signi.some(st => st?.at(-1) === cardNum)) ecNew = removeFromField(cardNum, ecNew);
+      else return done(ctx);
+      ecNew = { ...ecNew, energy: [...ecNew.energy, cardNum] };
+      return done(addLog(setOwnerState(ecOwner, ecNew, ctx),
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンへ`));
+    }
+    case 'TRANSFER_TO_DECK': {
+      // 外部SELECT_TARGET経由で選ばれた単一カードをデッキへ戻す（top/bottom/shuffle）。
+      // execTransferToDeck の insertToDeck と同じ配置ロジック（続き93）。
+      const tdA = action as TransferToDeckAction;
+      const tdOwner = tdA.source.owner;
+      const tdS = ownerState(tdOwner, ctx);
+      let tdNew = { ...tdS };
+      if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) tdNew = removeFromField(cardNum, tdNew);
+      else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };
+      else if (tdS.trash.includes(cardNum)) tdNew = { ...tdNew, trash: tdNew.trash.filter(x => x !== cardNum) };
+      else if (tdS.energy.includes(cardNum)) tdNew = { ...tdNew, energy: tdNew.energy.filter(x => x !== cardNum) };
+      else return done(ctx);
+      if (tdA.shuffle) tdNew = { ...tdNew, deck: shuffle([...tdNew.deck, cardNum]) };
+      else if (tdA.position === 'bottom') tdNew = { ...tdNew, deck: [...tdNew.deck, cardNum] };
+      else tdNew = { ...tdNew, deck: [cardNum, ...tdNew.deck] };
+      return done(addLog(setOwnerState(tdOwner, tdNew, ctx),
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキ${tdA.position === 'bottom' ? '下' : '上'}へ`));
+    }
+    case 'GRANT_PROTECTION': {
+      // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。
+      const gpA = action as GrantProtectionAction;
+      if (!gpA.target) return done(ctx);
+      const gpOwner = gpA.target.owner;
+      const gpKeyword = `PROTECTION:${(gpA.from ?? []).join(',')}:${gpA.sourceOwner ?? ''}`;
+      const gpGkey = gpA.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
+      const gpS = ownerState(gpOwner, ctx);
+      const gpGrants = { ...(gpS[gpGkey] ?? {}) };
+      gpGrants[cardNum] = [...new Set([...(gpGrants[cardNum] ?? []), gpKeyword])];
+      return done(addLog(setOwnerState(gpOwner, { ...gpS, [gpGkey]: gpGrants }, ctx),
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}に効果耐性（${(gpA.from ?? []).join('/')}）を付与`));
+    }
+    case 'POWER_SET': {
+      // 外部SELECT_TARGET経由で選ばれた単一シグニのパワーを固定値に（delta = value - 表記パワー）。execPowerSet と同じ。
+      const psA = action as PowerSetAction;
+      const psValue = resolveNum(psA.value);
+      const psOwner: Owner = psA.target.owner === 'any'
+        ? (ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
+        : psA.target.owner as Owner;
+      const psS = ownerState(psOwner, ctx);
+      const psBase = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '0') || 0;
+      const psMods = [...(psS.temp_power_mods ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: psValue - psBase }];
+      return done(addLog(setOwnerState(psOwner, { ...psS, temp_power_mods: psMods }, ctx),
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のパワーを${psValue}に`));
+    }
     default:
       // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
