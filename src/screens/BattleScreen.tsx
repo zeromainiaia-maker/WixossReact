@@ -7996,7 +7996,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ON_LRIG_GROW（C1 配線・CPUセンターグロウ）: CPU=guest のグロウに反応する【自】を収集。
           const cpuGrowReactEntries = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
           // ON_COIN_PAID（C1 配線・CPUグロウコストのコイン支払）
-          const cpuGrowCoinEntries = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : [];
+          const cpuGrowCoin = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+          const cpuGrowCoinEntries = cpuGrowCoin.entries;
+          const cpuStAfterCoin = applyCoinPaidUsed(newCpuSt, cpuGrowCoin); // 《ターン1回/2回》消化を永続化（続き106）
           // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋コイン支払反応＋ルリグ【出】効果をスタックに積む
           const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowCoinEntries, ...cpuGrowEntries];
           if (cpuAllGrowEntries.length > 0) {
@@ -8006,12 +8008,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ? pushToStack(existingStackGR, cpuAllGrowEntries)
               : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuAllGrowEntries);
             await supabase.from('battle_states')
-              .update({ guest_state: newCpuSt, effect_stack: newStackGR })
+              .update({ guest_state: cpuStAfterCoin, effect_stack: newStackGR })
               .eq('room_id', roomId);
             return;
           }
           await supabase.from('battle_states')
-            .update({ guest_state: newCpuSt })
+            .update({ guest_state: cpuStAfterCoin })
             .eq('room_id', roomId);
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
