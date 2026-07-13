@@ -3839,6 +3839,7 @@ const scenarios = {
       const before = await H.queryState();
       H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'hand:', before?.host?.hand);
       let modalOpened = false;
+      let discardPicked = false;
       for (let s = 0; s < 20; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/craftTokenPlace-${s}.png`, fullPage: true });
@@ -3852,9 +3853,10 @@ const scenarios = {
           if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】手札トラッシュ'; }
         }
         // discard コスト用の手札ピッカー（SigniActivatedModal内蔵＝pick-0ではなくimg[alt=カード名]クリック）
-        if (!did) {
+        // ⚠クリックはトグル式（選択→再クリックで解除）なので一度だけ押す
+        if (!did && !discardPicked) {
           const discardImg = page.locator('img[alt="天童アリス"]').first();
-          if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) { await discardImg.click().catch(() => {}); did = 'pick:天童アリス(discard)'; }
+          if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) { await discardImg.click().catch(() => {}); did = 'pick:天童アリス(discard)'; discardPicked = true; }
         }
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
