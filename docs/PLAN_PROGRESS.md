@@ -6,6 +6,17 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク9/1＝smoke SKIP残り1件の根本原因確定＋§7実機検証横展開でB2/B3/機構④誤parse3枚を全消化）**
+  - **✅ タスク9＝smoke SKIP残り1件（`WXEX1-19-E2` TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）を診断確定・修正はOpusタスク12(xii)へ登録**＝`resumeSelectTarget`の「選択カードへthenActionを1枚ずつ個別適用」設計と、このSTUBの「自分自身を再帰thenActionにして3枚一括受け取りを期待する」設計が構造的に非互換＝**実プレイでも無限ループ確定**（母数1枚のみ）。詳細BUGFIXES続き112。
+  - **✅ タスク1＝§7実機検証の横展開でB2/B3/機構④誤parse3枚（計4シナリオ）を新規実装・全て2回連続PASS＝`verifyBattleDrive.mjs`の既定orderに追加**：
+    - `revealDeckTopBanish`（B2＝WX17-028 REVEAL_DECK_TOP+動的閾値バニッシュ）＝lrigをLv4Limit11（WD02-001）に変更しレベル制約回避＋バニッシュ確認は「トラッシュ」でなく「エナゾーン」増加で行う（WIXOSSルール）よう是正して実機PASS。
+    - `installDelayedTriggerFire`（B3＝WX25-CP1-069 INSTALL_DELAYED_TRIGGER実発火）＝MAIN→ATTACK_ARTS→ATTACK_ARTS_OP→ATTACK_SIGNIの3段階フェイズ遷移＋crasherFilter近似（クラッシュ源追跡なし・場に該当シグニがいるかで代用＝既知）を活用しWX25-CP1-069自身でライフ直接攻撃・設置→同ターン内発火の一気通貫を確認。
+    - `installByEffectFreeze`（機構④＝WXDi-P07-044-E2 any_ally+byEffect ADD_TO_FIELD watcher）＝WD08-001の【起】《ダウン》場出しでトリガー。**副産物＝WD08-001のLRIG【起】能力2種が`getMyLrigFieldActions`のcostPartsMA分岐未対応でどちらも「【起】コストなし」表示となり区別不能という軽微なUI表示バグを発見**（WXK04-003と同型・down_self/energy0が未対応・実害低のため据置）。
+    - `optionalTrashEnergyClassAttack`（機構④＝WX25-P3-062-E2 OPTIONAL_TRASH_ENERGY_CLASS＋HAS_CARD_IN_FIELD lrig名条件）＝「そうした場合」がCONDITIONAL(IS_MY_TURN)で書かれているのは誤parseではなく`effectExecutor.ts:2353`の`optIds`インターセプト機構の正しい利用と判明（Opusタスク12(xi)と同型パターン）。
+  - **❌ タスク1の続き＝B4（WX24-P2-018 引用付与の実発火）を検証しようとして、起点E1が一度も発火しない新規timingバグを発見・確定（Opusタスク12(xiii)へ登録）**＝`timing:["ON_ATTACK_SIGNI"]`（自己スコープ）はルリグカードでは収集経路自体が存在せず、原文「アタックフェイズ開始時」は`ON_ATTACK_PHASE_START`であるべき疑い＝`wx24p2018GrantFire`シナリオでMAIN→ATTACK_SIGNIまで進めてもUI変化・keyword_grants変化なしを確認（既定order外・診断のみ）。B4本体の検証はこの前提バグの修正待ち。
+  - **✅ 続き113＝PLAN §6.4「クラフトトークンの実機配置検証」のWX25-CP1-066を実機PASS確認**＝`craftTokenPlace`＝`ADD_TO_FIELD{cardName:'雷ちゃん'}`が`execAddToField`のクラフトトークン生成分岐（`effectExecutor.ts:1170`）で`WX25-CP1-TK1A`（`CardData_TK.csv`）へ正しく解決され場に出ることを2回連続PASSで確認・既定orderに追加。**driverの肝＝discardコストの手札ピッカーはSigniActivatedModal内蔵で、同名imgが画面下部の手札ストリップにもDOM順で先に存在するため`.first()`だと誤って背景オーバーレイのキャンセルonClickを誘発する事故を発見＝`.last()`（createPortalで後から追加される側）を使うことで解決**。原文の「あなたの場に《雷ちゃん》がない場合」条件欠落はPLAN既知の据置のまま（新規発見ではない）。
+  - **engine/parser/JSON変更なし（検証専用セッション）**＝全ゲート変わらず緑（golden 310・smoke SKIP 1→診断確定のみ・fuzz 0・census 2225維持）。詳細BUGFIXES続き112・113。
+
 - **セッション（2026-07-13・続き111・Opus 4.8・戦略②「純P1の系統バッチ消化」＝「対戦相手の…を対象とし…そうした場合、それを〈除去〉」慣用形の owner 継承漏れを88カードで是正・census 2229→2225）**
   - **✅ 系統バグ＝「対戦相手の〔レベル/パワー/状態〕シグニ１体を対象とし、〈コスト〉。そうした場合、それを〈手札に戻す/デッキ下/トラッシュ/…〉」（原文345枚の頻出慣用形）で、対象指定文と最終アクション文が別文に割れ、最終アクションの owner が designation を継承せず default（BOUNCE→self・TRASH→any・TRANSFER_TO_DECK→self）に脱落**＝**自分のシグニをバウンス/デッキ送りできる過剰・誤効果**＋designation のレベル/パワー/状態フィルタも脱落。
   - **修正＝`applyLeadingSelfComparison`（続き44・動的比較の後続ターゲット刻み）と同型の `applyLeadingOpponentDesignation` を `parseActionText` に追加**。先頭 designation を `parseSigniTarget` で解決し末尾（「それ」参照）ターゲットへ owner:opponent＋欠落フィルタを刻む。**⚠単一「対象とし」限定・冪等・engine/decompiler 不変（owner/filter は全層配線済み＝「parser の継承漏れ」型）**。
