@@ -282,6 +282,7 @@ function condJa(c?: any): string {
       return `${ownerJa(c.owner)}トラッシュに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
     case 'ARTS_USED_THIS_TURN': { const artsColor = (c as { color?: string }).color; return `このターンにあなたが${artsColor ? `${artsColor}の` : ''}アーツを使用していた`; }
+    case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
