@@ -1413,7 +1413,9 @@ export function collectFieldTriggers(
   for (const stack of myState.field.signi) {
     if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
   }
-  const myLrigWatcher = event === 'ON_PLAY' ? myState.field.lrig.at(-1) : undefined;
+  // センタールリグも any_ally/any watcher に含める（ON_PLAY 限定だと ON_ATTACK_SIGNI/ON_BANISH/ON_BLOOM の
+  // LRIG watcher が構造的に発火しなかった＝続き96・WX12-001/WX14-003/WXDi-P08-007 等）。scope フィルタが発火可否を担保。
+  const myLrigWatcher = myState.field.lrig.at(-1);
   if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
   for (const { topNum, isLrig } of allyWatchers) {
     if (topNum === triggeringCardNum) continue; // 自身は除く
