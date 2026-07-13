@@ -5,6 +5,16 @@
 
 ---
 
+## smoke SKIP残り1件の根本原因を特定＝WXEX1-19-E2「トラッシュから3枚選んでエナ/手札/デッキ下に分配」がresumeSelectTargetの「thenActionを選択カードへ個別適用」設計と構造的に非互換（自己再帰STUB）＝実プレイでも無限ループ確定・Opusタスク12へ登録（2026-07-13・続き112・Sonnet 5・PLAN Sonnetタスク9）
+
+**PLAN §3 Sonnetタスク9「smoke SKIP 268 解消・残1件の最終確認」を実施**。`npx tsx scripts/smokeTest.ts --verbose` で唯一のSKIPを特定＝`WXEX1-19-E2`（原文「【起】《ターン１回》《コインアイコン》：あなたのトラッシュから、対象のカード１枚をエナゾーンに置き、対象のカード１枚を手札に加え、対象のカード１枚をデッキの一番下に置く。」・JSON側は`STUB{id:'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH'}`）で `autopilot loop: SELECT_TARGET` として検出。
+
+- **根本原因＝engineバグ（修正はしていない・診断のみ）**。`execStubPart2.ts`の`TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH`ハンドラは「`needsInteraction(SELECT_TARGET, count:3, thenAction:自分自身のSTUB)`を発行→resume時に`ctx.lastProcessedCards.length>=3`なら3枚を`[toEna,toHand,toDeck]`として一括分配」という**「選択した3枚をまとめて1回で受け取る」設計**。ところが`resumeSelectTarget`（`effectExecutor.ts:4219`）は`thenAction`を**選択された各カードに1枚ずつ個別適用**する設計（`for (const cardNum of selected) { applyDirectAction(pending.thenAction, cardNum, cur) }`＝コメント「選択されたカードに thenAction を個別適用」）。`applyDirectAction`に`STUB`型のcaseは無く、default節（`effectExecutor.ts:5359`）が`executeAction(action, {...ctx, lastProcessedCards:[cardNum]})`で**1枚だけ**を`lastProcessedCards`に積んで再実行するため、1枚目適用時点で`lastProcessedCards.length===1<3`となり同じ`needsInteraction(SELECT_TARGET, candidates:trash, count:3)`を再度返す（トラッシュは何も変化していないため候補配列も同一）。`resumeSelectTarget`のforループは`if (!result.done) return result`で即座に打ち切るため2枚目・3枚目は処理されず、**呼び出し元からは常に同一signatureのSELECT_TARGENTが返り続ける＝真の無限ループ**（smoke側は5回で見切ってSKIP扱いにしているが、実UIでは`H.closeModals()`等の回避策も効かずハングと同義）。
+- **影響範囲＝実カード1枚のみ（WXEX1-19、母数極小）**だが、**「thenActionとして自分自身のSTUBを指定し`lastProcessedCards`の累積を前提にする」設計パターン自体が`resumeSelectTarget`の個別適用ループと原理的に両立しない**（Opusタスク12(v)/(vi)が指摘する「`applyDirectAction`に未対応型があるとdefaultが1枚分の`lastProcessedCards`で元アクションを再実行し暴走する」系統と同根）。修正には(a)`TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH`専用に`resumeSelectTarget`側で複数選択を一括で渡す特別分岐を設けるか、(b)3枚個別の`thenAction`（エナ送り/手札加え/デッキ下）に分解してSELECT_TARGETを3段カスケードにする設計変更のいずれかが要る＝**Opusタスク12（Sonnet発見バグの常設受け口）へ新規登録**（PLAN.md §3 該当箇所に追記）。
+- **診断のみでこの場では修正していない**（CLAUDE.md運用ルール＝Sonnetは発見したengine/parserバグをその場で直さずOpusリストへ登録）。ゲート状態は変化なし（golden 310・smoke SKIP 1のまま・fuzz 0・census 2225）。
+
+---
+
 ## 「対戦相手の…を対象とし…そうした場合、それを〈除去/移動〉」慣用形＝最終アクションの owner が designation を継承せず self/any に誤脱落する過剰・誤効果を88カードで是正（2026-07-13・続き111・Opus 4.8・戦略②）
 
 **効果単位 census クラスタ横断で発見した系統バグ**。「対戦相手の〔レベル/パワー/状態…〕シグニ１体を対象とし、〈コスト/任意アクション〉。そうした場合、それを〈手札に戻す/デッキ下/トラッシュ/バニッシュ…〉」という頻出慣用形（原文345枚）で、**対象指定文（を対象とし）と最終アクション文（それを…）が別文に割れ、最終アクションのターゲット owner が designation を継承せず default に落ちていた**：
