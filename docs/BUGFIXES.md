@@ -16,6 +16,15 @@
 - **検証**＝typecheck／golden **306**／`npm run gates` 全緑（smoke SKIP 1・fuzz 0・census 1447/1447・同型★0）＋`npm run regen`。engine/parser/types/decompiler/census を変更＝JSON採用は WD19-006/007／WX25-P3-116 の計3枚。⚠自動コミット（"auto: Claude による変更"）がセッション中に作業途中の状態を数回コミットしており、一度 census 1456（regression）の赤い HEAD が生じたが、(3) の較正で解消。
 - **残（タスク6続き）**＝betChoose 実カード11枚は各 choice の parser 品質向上後に採用可（WX16-005/WX18-003/WX18-005/WX19-005/WX19-006/WXK04-014/WDK05-T10/WDK06-R08/WDK12-007/SPK16-13E/PR-K072）。ベット「代わりに」の文脈欠落縮退組（WX15-029 等）は「トラッシュから」等の文脈保持が要る別テール。WX17-005 は then STUB が別id（DECLARE_CARD_NAME）へ退化するため不採用。**WX06-002**（基本=ルリグへ付与／強化=ルリグ+シグニ＝GRANT_KEYWORD+BLOCK_ACTION 混在で `coreOf(then).type===coreOf(base).type` ガードが正しく置換拒否＝base⊂enhanced の superset 置換対応が要る）・**WX16-021**（空シグニゾーンへのアタック→正面ダメージの連続置換ルール＝engine 機構）は複雑機構として引き続き据置。
 
+### 追記（続き107・タスク3 DRAW脱落 follow-up + ADD_TO_LIFE 枚数漏れ）＝SP24-009 の2バグを是正・census 1447維持
+
+タスク3（DRAW脱落）のトリアージ（原文「カードをN枚引き、」があるのに JSON の DRAW 不足＝15枚を5サブパターンに分類・詳細 PLAN §3 タスク3）から、最小リスクの subset を消化。
+
+- **(a) 「その後、カードをN枚引き、X」の非先頭連用ドロー脱落**＝`parseSingleSentenceInner` 末尾の DRAW 安全網（続き59＝全文パース結果が先頭 DRAW を欠く時だけ DRAW を前置）の `^カードを` アンカーが「その後、」プレフィックスで外れていた。`^(?:その後、)?カードを` へ拡張（安全網＝DRAW を足すだけで消さない非退化変更）。母集団は「その後、カードをN枚引き」全2枚中 SP24-009 のみ（WXK05-005 は既に正）。SP24-009 が `SEQUENCE[TRASH(hand ALL), SEQUENCE[DRAW 5, ADD_TO_LIFE]]` へ（DRAW 5 追加）。
+- **(b) ADD_TO_LIFE の枚数漏れ**（`parseSentencePart1.ts:1333`）＝「ライフクロスに加える」の枚数抽出 `/カードを([０-９\d]+)枚/` が**同一文中の「カードをN枚引き」の draw 枚数を誤って拾って**いた＝SP24-009「5枚引き、…デッキの一番上のカードをライフクロスに加える」が `ADD_TO_LIFE count:5`（原文は「一番上のカード」＝1枚）の過剰。負後読み `(?!引)` で draw 句を除外＝「デッキの一番上のカード」は count:1（正）へ。⚠正当な多枚ライフ加え（「デッキの上からカードをN枚ライフクロスに加える」＝N枚 followed by ライ）は温存（`(?!引)` は「引」直後のみ除外）。影響は held の4枚（SP24-009=5→1・betChoose の WX16-005/WX18-005/WX19-006 の choice 内ライフ加えも 1 に確定＝いずれも正）で全数確認。
+- **採用**＝SP24-009 の1枚（`DRAW 5` 追加＋`ADD_TO_LIFE count:1` 是正）。**⚠残＝先頭の「あなたのすべてのシグニを場からトラッシュに置き」（field→trash）が複合文「A置き、B捨てる」の系統ギャップで脱落したまま**＝WX20-071 等と同じ compound-sentence 課題（タスク3(c)）＝別途。
+- **検証**＝typecheck／golden 306／`npm run gates` 全緑（smoke SKIP 1・fuzz 0・census 1447維持・同型★0）＋`npm run regen`。decompile 確認＝「手札をすべてトラッシュ。そしてカードを5枚引く。そしてデッキの一番上から**1枚**をライフクロスに加える」（DRAW 復活＋枚数是正を確認）。JSON採用 SP24-009 の1枚・parser 2点（effectParser 安全網・parseSentencePart1 枚数）。
+
 ---
 
 ## 「代わりに」置換の五面カード4枚を CONDITIONAL 化＝SEQUENCE両実行の過剰効果を是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク6）
