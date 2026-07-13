@@ -3771,17 +3771,18 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       if (mainPart) {
         const mainCard = { ...card, EffectText: mainPart };
         const e = parseArtsEffect(mainCard);
-        if (e) effects.push(e);
+        if (e) { logSourceText(e.effectId, mainPart); effects.push(e); }
       }
       const autoPart = stripRuleParens(rawEff.slice(artsAutoIdx));
       const autoEffect = parseBlock(card.CardNum, autoPart, effects.length);
       if (autoEffect) {
         autoEffect.effectId = `${card.CardNum}-E${effects.length + 1}`;
+        logSourceText(autoEffect.effectId, autoPart);
         effects.push(autoEffect);
       }
     } else {
       const e = parseArtsEffect(card);
-      if (e) effects.push(e);
+      if (e) { logSourceText(e.effectId, card.EffectText ?? ''); effects.push(e); }
     }
   } else if (baseType === 'スペル') {
     // スペルも「」『』外側の【自】：セクションを分離する（アーツと同じ）。
