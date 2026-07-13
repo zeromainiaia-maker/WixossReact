@@ -2548,6 +2548,55 @@ test('DISCARD_BOTH 各1枚: 両プレイヤーの手札-1・トラッシュ+1', 
   eq(r.ownerState.hand.length, hs0 - 1, '自手札-1'); eq(r.otherState.hand.length, ho0 - 1, '相手手札-1');
 });
 
+// ── Opusタスク12：applyDirectAction の型対応漏れ回帰（続き93 で発見・smoke SKIP 258/実UIフリーズの真因）──
+// count:1 の外部SELECT_TARGET経路。修正前は default→元アクション再実行で同一SELECT_TARGET無限再発行（autopilot hang）
+// または選んだカードを無視して別対象へすり替わっていた。各型に applyDirectAction の case を新設して解消。
+test('ENERGY_CHARGE(count:1・選択): 手札シグニ1枚を選んでエナへ 手札-1 エナ+1', () => {
+  const ctx = mkCtx({ hand: 3 }, {});
+  const h0 = ctx.ownerState.hand.length; const e0 = ctx.ownerState.energy.length;
+  const r = run({ type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 - 1, '手札-1'); eq(r.ownerState.energy.length, e0 + 1, 'エナ+1');
+});
+test('ENERGY_CHARGE(SEARCH→then:DECK_CARD): デッキから探して見つけた札をエナへ（実カード81件の主形・WX07-017等）', () => {
+  const ctx = mkCtx({}, {});
+  const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ' }, maxCount: 1,
+    then: { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' } }, afterAction: { type: 'SHUFFLE_DECK', owner: 'self' } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.energy.length, e0 + 1, 'エナ+1'); eq(r.ownerState.deck.length, d0 - 1, 'デッキ-1（場のシグニ選択へすり替わらない）');
+});
+test('TRANSFER_TO_DECK(SIGNI count:1・選択): 相手シグニ1体をデッキ下へ 場から除去', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+  const d0 = ctx.otherState.deck.length;
+  const r = run({ type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, position: 'bottom' } as EffectAction, ctx);
+  eq(tops(r.otherState as PlayerState)[0], null, '場から除去'); eq((r.otherState as PlayerState).deck.length, d0 + 1, 'デッキ+1');
+});
+test('GRANT_PROTECTION(SIGNI count:1・選択): 自シグニ1体に効果耐性キーワード付与', () => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {});
+  const r = run({ type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, from: ['banish'], duration: 'THIS_TURN' } as EffectAction, ctx);
+  const grants = (r.ownerState as PlayerState).keyword_grants ?? {};
+  ok((grants[SIGNI] ?? []).some(k => k.startsWith('PROTECTION:')), `keyword_grants (${JSON.stringify(grants)})`);
+});
+test('POWER_SET(SIGNI count:1・選択): 相手シグニ1体のパワーを0に固定（delta=0-base）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+  const base = parseInt(cardMap.get(SIGNI)?.Power || '0');
+  const r = run({ type: 'POWER_SET', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, value: 0 } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI && m.delta === -base), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_FIELD(count:1・選択): 自場の＜毒牙＞数×deltaを選んだ相手シグニに適用（WX04-037）', () => {
+  const ctx = mkCtx({ signi: ['WX04-037', 'WX04-053', null] }, { signi: [SIGNI, null, null] });
+  const r = run({ type: 'POWER_MODIFY_PER_FIELD', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerUnit: -1000, countFilter: { cardType: 'シグニ', story: '毒牙' }, countOwner: 'self' } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI && m.delta === -2000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+test('POWER_MODIFY_PER_LRIG_LEVEL(count:1・選択): 自ルリグLv×deltaを選んだ相手シグニに適用（WX04-101系）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+  ctx.ownerState.field.lrig = ['WD03-002']; // Lv3
+  const r = run({ type: 'POWER_MODIFY_PER_LRIG_LEVEL', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, deltaPerLevel: -1000, lrigOwner: 'self' } as EffectAction, ctx);
+  const mods = (r.otherState as PlayerState).temp_power_mods ?? [];
+  ok(mods.some(m => m.cardNum === SIGNI && m.delta === -3000), `temp_power_mods (${JSON.stringify(mods)})`);
+});
+
 // ── §3 Sonnetタスク5続き（続き83・POWER_MODIFY_PER_*/BY_* 系13型）──
 // ⚠一部の型（LRIG_LEVEL/FIELD等）は target.count が非'ALL'だとselectOrInteract→applyDirectActionの
 // 欠落caseに落ちる続き82発見バグ（Opusタスク12(v)）を踏むため、実カードにない構成のみ count:'ALL' に迂回。
