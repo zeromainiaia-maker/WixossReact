@@ -39,12 +39,40 @@ npm run verify:browser   # dev起動→/verify.html を Chromium で開く→結
 
 ## 実行
 ```bash
-npm run build                      # vite preview は dist/ 配信なので必ず先にビルド
-node scripts/verifyBattleDrive.mjs # preview起動→claude1ログイン→CPU戦→PLAYING到達→盤面注入→召喚クリック列→スクショ
+node scripts/verifyBattleDrive.mjs           # build要否を自動判定→preview起動→ログイン→（ルーム再利用 or CPU戦セットアップ）→盤面注入→クリック列
+node scripts/verifyBattleDrive.mjs <id...>   # 指定シナリオのみ（デバッグ時はこちら＝スクショ全保存）
 ```
 - 前提：`verify-accounts.json`（claude1/claude2・gitignore済）、`.env.local`（VITE_SUPABASE_URL / ANON_KEY）、デッキ「VERIFY_DECK」（無ければ `scripts/verifySetupDeck.mjs`）。
-- ライブ Supabase に rooms/battle_states を作成・削除する（起動時に自分の残ルームを掃除）。数分かかる。
-- スクショ＝`scratchpad-verify/inj-play-*.png` / `inj-99-final.png`、ログ各runは `scratchpad-verify/run*.log`。
+- ライブ Supabase に rooms/battle_states を作成・削除する。
+- スクショ＝`scratchpad-verify/<id>-*.png`、ログ各runは `scratchpad-verify/run*.log`。
+- env スイッチ：`FRESH=1`（ルーム再利用せず新規作成）・`SKIP_BUILD=0/1`（build 強制/強制スキップ）・`SHOTS=1/0`（スクショ強制ON/OFF）。
+
+## ⚡ 高速化＋シナリオ作成の型（2026-07-14・Fable 5）
+
+Sonnet の実機検証 methodology メモ（続き112-113・「1試行15〜40秒＋毎回ビルドとセットアップ」が重い）への回答として driver インフラを改修。**既存シナリオのクリック列・判定は無改変**。
+
+### 毎試行の固定費を削る（debug イテレーション ≈「login＋drive」だけに）
+1. **build 自動スキップ**＝`dist/index.html` と `src/`・`public/`・設定類の mtime 比較で、無変更なら build（数十秒）を省略。シナリオ追加は `scripts/` のみの変更なので build は走らない。「古い dist を検証する罠」は mtime 判定で構造的に消えた＝旧手順の「必ず先に `npm run build`」は不要。
+2. **PLAYING ルーム再利用**＝健全な既存ルーム（host/guest とも life≥4・deck≥10）が残っていればマッチング→じゃんけん→ルリグ選択→マリガン（30〜60秒）をスキップしてシナリオ注入へ直行。消耗ルームは自動破棄→新規作成（自己回復）。**不可解な FAIL はまず `FRESH=1` で再実行して切り分ける**（バッチ限定の状態汚染の切り分けにも使える）。
+3. **バッチ実行はスクショ省略**＝引数なし全件回帰では `page.screenshot` を no-op 化（`-final` のみ保存）。明示指定シナリオは従来どおり全ステップ保存。
+4. **所要秒の計測**＝結果行とサマリに `(NNs)` を出力＝重いシナリオの特定・改善効果の計測用。
+
+### preflight 静的チェック（実行前0秒で定番FAILを警告）
+ブラウザ起動前に CardData CSV（Level/Limit/Team/Restriction）を読み、spec だけで機械判定できる罠を `⚠ preflight[id]:` で警告する（実行は止めない。discard コスト用など召喚しない手札カードには当てはまらないことがある＝召喚シナリオでのみ効く警告）：
+- handPrepend のシグニ Lv > センタールリグ Lv（召喚ボタンが出ない）／場Lv合計＋召喚Lv > Limit
+- Team ≠ `-` でルリグの CardClass と不一致（Team は summon UI を実際にゲートする＝powerzero の教訓）
+- Restriction「○○限定」でルリグ不一致の可能性
+- `field.lrig` 未設定のまま handPrepend にシグニ（初期 Lv0 ルリグ＝召喚不可＝handDiscard の教訓）
+- 空きシグニゾーン2以上（SELECT_SIGNI_ZONE「ゾーンN」クリックが要る＝craftTokenPlace の教訓）
+
+### 新規シナリオ用ヘルパー（生ロケータ直書きの置き換え・既存シナリオは触らない）
+| ヘルパー | 用途 | 封じる罠 |
+|---|---|---|
+| `H.clickBtn(name, {exact, nth})` | isEnabled 検査つきボタンクリック。失敗理由をログに出す | disabled の空押し／`.catch(()=>{})` の握りつぶしで「クリックした風」になる |
+| `H.clickModalImage(alt)` | `img[alt=カード名]` を `.last()` で狙う | 常設手札ストリップの同名 img 誤クリック→キャンセル誘発（craftTokenPlace で5試行を溶かした罠） |
+| `H.stdStep(labels?)` | 定石チェーン1手＝発動順序確定→pick-0（「決定(1/N)」ready時は押さない）→汎用確定 | シナリオ間コピペの差分バグ |
+
+**新規シナリオの型**＝カード固有のクリック（召喚・アーツ・【起】等）だけを `if (!did)` チェーンに書き、`if (!did) did = await H.stdStep();` で締める。判定は `H.findLog`（実エンジンログ）か `H.queryState`（ground truth）で行う。
 
 ## 仕組み
 1. `startDev()`＝`npm run preview` を spawn（**dev の StrictMode 二重実行で gotoMatchmaking が消える問題を回避**するため本番ビルド配信）。
