@@ -522,17 +522,15 @@ function main(): void {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, t0] of texts) {
-      const t = zen2han(t0);
+    for (const u of units) {
+      const t = zen2han(u.text);
       const nums = [...new Set([...t.matchAll(/([2-5])(枚|体)/g)].map(m => m[1]))];
       if (!nums.length) continue;
       hits++;
-      const js = jsonStr.get(id);
-      if (!js) continue;
-      const missing = nums.filter(n => !new RegExp('[:\\[,]' + n + '[,}\\]]').test(js));
+      const missing = nums.filter(n => !new RegExp('[:\\[,]' + n + '[,}\\]]').test(u.js));
       if (!missing.length) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(`${id}(${missing.join('/')})`); highAll.add(id); }
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }
     pushSection('小さい数(2-5枚/体)不在', hits, missHigh, missStub);
   }
