@@ -3860,7 +3860,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       });
 
       if (layerM && layerAbilities.length > 0) {
-        logSourceText(`${card.CardNum}-LAYER`, layerM[0]);
+        // 付与親（-LAYER）の JSON は内側能力（abilities）を内包する＝原文側も内側ブロックを含めて
+        // 突き合わせる（宣言文だけにすると内側能力の語彙欠落を計器が見落とす）
+        logSourceText(`${card.CardNum}-LAYER`, [layerM[0], ...layerBlocks].join(' '));
         effects.unshift({
           effectId: `${card.CardNum}-LAYER`,
           effectType: 'CONTINUOUS',
