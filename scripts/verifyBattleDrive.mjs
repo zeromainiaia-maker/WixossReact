@@ -3816,6 +3816,61 @@ const scenarios = {
     },
   },
 
+  // ㉝ WX25-CP1-066（続き113・Sonnet・PLAN §6.4「クラフトトークンの実機配置検証」）＝
+  //    【起】手札から＜ブルアカ＞のカードを1枚捨てる：あなたの場に《雷ちゃん》がない場合、クラフトの
+  //    《雷ちゃん》1つを場に出す。JSONの`ADD_TO_FIELD{cardName:'雷ちゃん',source未指定}`＝
+  //    `execAddToField`の「ゲーム外からトークン生成」分岐（`effectExecutor.ts:1170`）を検証。
+  //    ⚠原文の「あなたの場に《雷ちゃん》がない場合」という条件がJSONに存在しない（無条件実行）＝
+  //    別issue（据置・Opus送りの候補）として観測するが、初回設置（場に雷ちゃんが無い状態）なら条件の
+  //    有無に関わらず結果は同じなので今回の検証（トークン生成自体が機能するか）には影響しない。
+  craftTokenPlace: {
+    title: 'WX25-CP1-066（クラフトトークン＝《雷ちゃん》をcardName指定でゲーム外から場に出す）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX25-CP1-066#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      handPrepend: ['WXDi-CP02-054#1'], // 天童アリス（＜ブルアカ＞・discard cost用）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'hand:', before?.host?.hand);
+      let modalOpened = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/craftTokenPlace-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const btn = page.getByRole('button', { name: /【起】.*トラッシュ/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】手札トラッシュ'; }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n.startsWith('WX25-CP1-TK1A')));
+        H.log(`  ctp[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed) {
+          return { pass: true, detail: `クラフトトークン《雷ちゃん》配置確認（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `トークン配置未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
