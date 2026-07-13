@@ -3545,6 +3545,70 @@ const scenarios = {
     },
   },
 
+  // ㉙ WX25-CP1-069（続き112・Sonnet・PLAN §7「その他の実機検証待ち」B3）＝INSTALL_DELAYED_TRIGGER の実発火検証。
+  //    【自】：あなたのアタックフェイズ開始時、手札を1枚捨ててもよい。そうした場合、このターン、あなたの青の
+  //    ＜ブルアカ＞のシグニが対戦相手のライフクロス1枚をクラッシュしたとき、対戦相手は手札を1枚捨てる。
+  //    JSONは「してもよい」のoptional欠落でmandatory実行（別issue・census/§5bテール）だが、ここではB3本体＝
+  //    「設置→同ターン内の対戦相手ライフクラッシュで実際に発火するか」を検証する。
+  //    ⚠コード読解で判明済みの近似（BattleScreen.tsx:8704-8715・PLAN B3欄に明記済み）＝crasherFilterは
+  //    「クラッシュを実際に起こしたシグニ」を追跡せず「op（クラッシュされた側から見て攻撃側=このターンの
+  //    プレイヤー）の場に該当シグニがいるか」で代用判定＝WX25-CP1-069自身が青+＜ブルアカ＞なので、
+  //    このカード自身で直接ライフを攻撃するだけで近似条件も満たせる（別カードのアタッカーは不要）。
+  //    guestのlife_clothを2枚にして0枚化（試合終了）を避け、観測ウィンドウを確保する。
+  installDelayedTriggerFire: {
+    title: 'WX25-CP1-069（B3 INSTALL_DELAYED_TRIGGER＝アタックフェイズ開始時設置→ライフクラッシュで発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX25-CP1-069#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'life_cloth': ['WD01-013#9', 'WD01-013#10'], // 2枚（1枚クラッシュしても0枚化＝試合終了を回避）
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'host.hand:', before?.host?.hand);
+      let modalOpened = false;
+      let attacked = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/installDelayedTriggerFire-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !modalOpened && !attacked) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        H.log(`  idt[${s}] -> ${did ?? 'なし'} | gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) hHand=${st?.host?.hand ?? '-'} delayed=${JSON.stringify(st?.host?.delayedTriggers)} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if ((st?.guest?.hand ?? 99) < (before?.guest?.hand ?? 0)) {
+          return { pass: true, detail: `INSTALL_DELAYED_TRIGGER 発火→ライフクラッシュ後に対戦相手の手札が減少（gHand ${before.guest.hand}→${st.guest.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `発火未確認（gHand=${fin?.guest?.hand ?? '-'}（開始${before?.guest?.hand}）delayed=${JSON.stringify(fin?.host?.delayedTriggers)} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
