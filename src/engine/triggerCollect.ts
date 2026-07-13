@@ -1294,6 +1294,24 @@ export function collectHandDiscardTriggers(
       });
     }
   }
+  // 自分のセンタールリグ（ON_HAND_DISCARDED self/any）。signi のみ走査で LRIG が発火しなかった
+  // （続き96・アロス・ピルルク ACRO/MIRA/kl＝WXEX2-12/WXDi-P11-006/WXDi-P14-007・月雪ミヤコ WX25-CP1-016）。
+  // BLOCK_OWN_SIGNI_AUTO はシグニ限定なので LRIG には適用しない。
+  const myLrigHD = myState.field.lrig.at(-1);
+  if (myLrigHD) {
+    for (const eff of (ctx.effectsMap.get(myLrigHD) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+      const isAny = eff.triggerScope === 'any';
+      if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
+      else if (!isAny && !myIsTurn) continue;
+      if (!matchesTrigFilter(eff)) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: discarderId, cardNum: myLrigHD, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(myLrigHD)?.CardName ?? myLrigHD}【自】手札捨て時`, effect: eff,
+      });
+    }
+  }
   // ON_HAND_DISCARDED 'any': discarder の相手フィールドの「いずれかが捨てたとき」を相手コントローラーで収集。
   if (opState && opId && !opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
     for (const stack of opState.field.signi) {
