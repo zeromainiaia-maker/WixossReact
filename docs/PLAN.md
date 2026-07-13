@@ -158,7 +158,7 @@
 | 6 | ~~§5c 再収穫サイクル~~ | JSON採用（/census-batch 準拠） | S | ✅完了（続き77・held99枚中85枚採用・census 1514→1494。詳細 BUGFIXES 続き77） |
 | 7 | ~~BET系の表現描画~~ | decompiler のみ（ゲート軽い） | M（1カードずつ分割可） | ✅完了（続き86・実測19件を全消化） |
 | 8 | semantic audit 実行＋単点修正 | パイプライン＋JSONデータ単点 | M | ⏳**部分完了（続き88・102）**＝系統①の残27件を全分類し単点是正ゼロを確定。stub群スケールアップ＝続き102で119/2306枚精査・単点是正21件・残りは`claude -p`上限リセット後に再開 |
-| 9 | smoke SKIP 268 解消 | scripts（smokeTest autopilot） | S | ◎**再開可（続き106でOpus12(vi-2)着地＝SKIP 258→1）**。残1件の最終確認のみ |
+| 9 | ~~smoke SKIP 268 解消~~ | scripts（smokeTest autopilot） | S | ✅完了（続き112・Sonnet）＝残1件（WXEX1-19-E2）の根本原因を特定＝`resumeSelectTarget`個別適用ループと自己再帰STUBの設計非互換・実プレイでも無限ループ確定。修正はOpusタスク12(xii)へ登録・診断はここで打ち止め |
 | 10 | ~~WXK04-003 ボタンラベル~~ | UI表示単点（BattleScreen） | S | ✅完了（続き81・Sonnet） |
 | 11 | ~~checkAllEffects／verifyEffects 精査~~ | 計器＋分析＋JSON単点 | S | ✅完了（続き89-92・MANDATORY_SUSPICIOUS単点是正16件＋EFFECT_TYPE_MISSING_CONTINUOUS真バグ5件を修正・census 1479。残22件はoptionalフィールド無/構造的でOpus送り確定。verifyEffects「定義なし」誤検出＝続き92で全12シート再走査し現状0件と確認しクローズ） |
 | 12 | ~~英語ID漏れの系統分類~~ | 分析のみ（修正しない） | S〜M | ✅完了（続き87・実測823カードを16テーマに分類・`docs/_stub_leak_classification.txt`） |
