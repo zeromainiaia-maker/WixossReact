@@ -3843,12 +3843,14 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       }
 
       const layerAbilities: CardEffect[] = [];
+      const layerBlocks: string[] = [];
       splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText))).forEach((block, i) => {
         if (layerM && block.startsWith('《レイヤーアイコン》')) {
           const e = parseBlock(card.CardNum, block.replace(/^《レイヤーアイコン》/, ''), i);
           if (e) {
             const lid = `${card.CardNum}-LAYER-E${layerAbilities.length + 1}`;
             logSourceText(lid, block);
+            layerBlocks.push(block);
             layerAbilities.push({ ...e, effectId: lid });
           }
           return;
