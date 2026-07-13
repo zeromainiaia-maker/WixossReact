@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-14・続き114・Fable 5・Sonnet実機検証ワークフローの高速化＝`verifyBattleDrive.mjs` driverインフラ改修。engine/parser/JSON変更なし）**
+  - **✅ Sonnetのmethodologyメモ（続き112-113・`scratchpad-verify/verification-methodology.md`「Fableに相談したいこと」4点）に実装で回答**。既存54シナリオのクリック列・判定は無改変＝driverインフラのみ。**詳細と新手順は [VERIFY_BROWSER.md](./VERIFY_BROWSER.md)「⚡高速化＋シナリオ作成の型（2026-07-14）」を正とする**。
+  - **✅ 1試行の固定費を削減**＝(a) build自動スキップ（distとsrc/public/設定類のmtime比較＝シナリオ追加＝`scripts/`のみの変更ならbuild不要・「古いdistの罠」も構造的に解消・`SKIP_BUILD=0/1`で強制）(b) **健全なPLAYINGルームの再利用**（host/guestともlife≥4・deck≥10ならマッチング〜マリガンの30〜60秒をスキップ・消耗ルームは自動破棄→新規＝自己回復・`FRESH=1`で強制新規＝**不可解FAILの切り分け手段**）(c) バッチ実行はスクショno-op化（`-final`のみ保存・`SHOTS=1/0`）(d) 結果行に所要秒`(NNs)`表示。**実測＝debugイテレーションのdriveが2〜7秒**（wxk04003Label 2s／craftTokenPlace 5s／4件バッチ各4-7s 全PASS）。
+  - **✅ preflight静的チェック新設**＝ブラウザ起動前0秒でCardData CSVからlrigレベル不足・Limit超過・Team/「○○限定」制限・`field.lrig`未設定・空きシグニゾーン2以上（SELECT_SIGNI_ZONE要）を`⚠ preflight[id]:`警告（実行は止めない）。craftTokenPlaceの「空きゾーン2」罠（続き113でSonnetが5試行を溶かした原因）を事前的中で確認。
+  - **✅ 新規シナリオ用ヘルパー3種**＝`H.clickBtn`（isEnabled検査＋click失敗を握りつぶさずログ）・`H.clickModalImage`（`.last()`戦略内蔵＝手札ストリップalt衝突封じ）・`H.stdStep`（定石チェーン共通化）。**新規シナリオの型＝「カード固有クリック＋`stdStep()`で締める」**。
+  - 検証＝再利用経路・FRESH経路（じゃんけん〜マリガン込み）・バッチ経路の3経路で実機PASS・`npm run gates`全緑（census 2225維持）。
+
 - **セッション（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク9/1＝smoke SKIP残り1件の根本原因確定＋§7実機検証横展開でB2/B3/機構④誤parse3枚を全消化）**
   - **✅ タスク9＝smoke SKIP残り1件（`WXEX1-19-E2` TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）を診断確定・修正はOpusタスク12(xii)へ登録**＝`resumeSelectTarget`の「選択カードへthenActionを1枚ずつ個別適用」設計と、このSTUBの「自分自身を再帰thenActionにして3枚一括受け取りを期待する」設計が構造的に非互換＝**実プレイでも無限ループ確定**（母数1枚のみ）。詳細BUGFIXES続き112。
   - **✅ タスク1＝§7実機検証の横展開でB2/B3/機構④誤parse3枚（計4シナリオ）を新規実装・全て2回連続PASS＝`verifyBattleDrive.mjs`の既定orderに追加**：
