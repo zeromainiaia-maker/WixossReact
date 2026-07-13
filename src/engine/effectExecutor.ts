@@ -3301,7 +3301,10 @@ function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: Exec
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  // 選択後は解決済み delta の POWER_MODIFY を適用（applyDirectAction が直接処理。
+  // PER_LRIG_LEVEL case 欠落による default 再入＝同一SELECT_TARGET無限再発行を回避。続き93）。
+  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, pmAction, undefined, ctx);
 }
 
 // POWER_MODIFY_PER_LEVEL_SUM（ACTIVATED/INSTANT 一回限り）: 指定オーナー場のフィルタ一致シグニのレベル合計 × deltaPerLevel を、
