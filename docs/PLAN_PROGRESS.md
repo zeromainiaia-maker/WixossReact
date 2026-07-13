@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-13・続き110・Fable 5・戦略②「純P1の系統バッチ消化」開始＝効果単位クラスタ上位2系統35効果を是正・census 2264→2229）**
+  - **✅ バッチ1＝「対戦相手のアップ状態のシグニ…パワー−15000」BURST 21効果**：`parseSentencePart1.ts` のパワー修整対象分岐が「アップ状態の」等の状態接頭辞を許容せず default `{owner:'any', フィルタ無し}` へ落ちていた＝**owner脱落＋isUp脱落の二重過剰効果**。接頭辞群に アップ/ダウン/凍結状態 を追加し `parseSigniTarget` へ委譲する parser 1行（isUp は全層配線済み＝「既存 regex の穴」型）。held 流入17枚ちょうど（git 機械diff で巻き添えゼロ確認）採用＋手修正温存4枚を effectId 外科パッチ＝21/21。census 2264→2243。詳細 BUGFIXES 続き110（第1エントリ）。
+  - **✅ バッチ2＝`SPELL_USED_THIS_TURN` 機構新設（ARTS_USED と同型・engine 状態新設なし＝既存 `actions_done` 'USE_SPELL' 参照）で「このターンにあなたがスペルを使用していた場合」条件丸ごと脱落11効果を是正**（hoist 8・「代わりに」置換1＝SEQUENCE両実行→CONDITIONAL{then/else}・CHOOSE選択肢別条件2）＋V2 表へ「あなたの場に(色)の＜C＞のシグニがある場合」等を追加し8枚収穫。census 2243→**2229**・golden 306→**309**。詳細 BUGFIXES 続き110（第2エントリ）。
+  - **🆕 横断発見＝lifting ガードD/E 新設**：`OPTIONAL_COST` 系 STUB を CONDITIONAL に包むと effectExecutor の SEQUENCE インターセプト（Pattern ④/⑤）が外れ **pay/skip どちらでも後続実行**・`COUNTER_SPELL` は maxCost ゲート喪失＝parser が今後この形を生成しないようガード。**既存 curated の包み形27枚が held に浮上＝既存潜在バグとして Opusタスク12 (xi) へ登録**（採用禁止＝fresh は条件脱落側の別バグ）。
+  - **⚠知見＝文頭楕円形「(色)の＜C＞がある場合」は直前節のゾーンを引き継ぐ文脈依存**（WX22-002 は場・WXDi-P03-038 は**このシグニの下**）＝固定エンコード不可で撤回。前節文脈の引き継ぎ機構はテール。
+
 - **セッション（2026-07-13・続き109・Opus 4.8・「全カード完成」戦略①＝語彙センサスの効果単位化を完了。計器のみの変更＝engine/JSON 不変）**
   - **✅ 戦略①完了＝`npm run census` を「カード単位判定」から「効果単位（effectId粒度）判定」へ精密化**（詳細 BUGFIXES 続き109）。旧網は「同カード別効果に語彙があれば合格」＝**偽陰性**（効果Aの原文修飾句を効果BのJSON語彙が救う＝真の欠落が数百件埋もれる）と**偽陽性**（LBの数値をE1のJSONに探して外す＝毎バッチのトリアージ工程が要る真因）の両方を生んでいた。
   - **仕組み＝parser に原文ブロックを記録させる**（分割ロジックの二重実装は必ず drift するため）：`effectParser.ts` に `enableSourceTextLog()`/`getSourceTextLog()` を新設（既定オフ＝実行時アプリに負荷なし）→ `build:effects` が **`docs/_effect_srctext.json`（effectId → 由来の原文ブロック）** を出力（カバレッジ 10575/10589＝99.4%・残68はmanualEffects追加分でカード全文fallback）→ `vocabCensus.ts` が「原文ブロック × その効果1件のJSON」で突き合わせ。**STUB/MANUAL 隔離も効果単位化**（カードに1つ STUB があるだけで全効果が隔離される、が無くなった）。`census:clusters` も effectId 出力。
