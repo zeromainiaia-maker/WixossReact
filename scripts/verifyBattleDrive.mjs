@@ -4488,6 +4488,20 @@ try {
       }
       return await H.clickTextOrBtn(labels);
     },
+    // SELECT_SIGNI_ZONE（エナ/手札/トラッシュ等から場に出す際のゾーン選択・空き2つ以上で発生）＝
+    // 「ゾーンN」ボタン（使用中は disabled）。craftTokenPlace の cardName 型だけでなく、
+    // ENERGY_CARD/HAND_CARD ソースの ADD_TO_FIELD が SELECT_TARGET 経由（複数候補）で解決する場合も
+    // 同じ SELECT_SIGNI_ZONE を発生させる（続き114で判明＝execAddToField 内 applyToField の自動配置は
+    // 非対話解決パスのみが通り、SELECT_TARGET を要する対話解決パスは別のゾーン選択機構を通る）。
+    clickZone: async () => {
+      for (const zi of [1, 2, 3]) {
+        const b = page.getByRole('button', { name: new RegExp(`^ゾーン${zi}`) }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
+          await b.click().catch(() => {}); return 'btn:ゾーン' + zi;
+        }
+      }
+      return null;
+    },
     // 注入直後はグロウフェイズに戻る競合がある。MAIN を確実にしてから操作する。
     ensureMain: async () => {
       for (let k = 0; k < 5; k++) {
