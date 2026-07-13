@@ -155,8 +155,12 @@ export function collectCoinPaidTriggers(
   payerId: string,
   afterPayerState: PlayerState,
   afterOpState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
+  // usageLimit の消費を usedIds で返す（呼び出し側で payer の actions_done へ書き戻す）。
+  // 従来は StackEntry[] のみ返し書き戻しが無く、《ターン1回/2回》が実質ノーガードだった（続き99・WXDi-P15-069）。
+  const usedIds: string[] = [];
+  const limitOk = mkLimitOk(afterPayerState.actions_done, usedIds);
   const payerIsTurn = ctx.activeUserId === payerId;
   for (const stack of afterPayerState.field.signi) {
     if (!stack?.length) continue;
@@ -169,9 +173,7 @@ export function collectCoinPaidTriggers(
       if (to === 'self' && !payerIsTurn) continue;
       if (to === 'opponent' && payerIsTurn) continue;
       if (eff.condition && !evalUseCondition(eff.condition, afterPayerState, afterOpState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-      const doneCount = afterPayerState.actions_done?.filter(id => id === eff.effectId).length ?? 0;
-      if (eff.usageLimit === 'once_per_turn' && doneCount >= 1) continue;
-      if (eff.usageLimit === 'twice_per_turn' && doneCount >= 2) continue;
+      if (!limitOk(eff)) continue;
       const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(),
@@ -183,7 +185,7 @@ export function collectCoinPaidTriggers(
       });
     }
   }
-  return entries;
+  return { entries, usedIds };
 }
 
 /**
