@@ -537,19 +537,22 @@ function main(): void {
 
   // ---- 逆方向数値（JSONの4-5桁が原文に無い＝幻覚パラメータ・続き18第4弾・続き19較正）----
   // 照合は（…）注釈込みの rawAll＝【シャドウ（パワー5000以下のシグニ）】等の注釈由来の値は正当（4枚の偽陽性を較正）。
+  // ⚠照合先は「カード全体の生原文」のまま（効果ブロックへ絞らない）＝幻覚検出は保守的側に倒す。
+  // srctext のブロックは注釈（…）が除去済みのものがあり、注釈由来の正当な数値（【シャドウ（パワー5000以下）】等）を
+  // 誤検出してしまうため。帰属だけを effectId 単位にする。
   {
     let hits = 0;
     const missHigh: string[] = [];
     const missStub: string[] = [];
-    for (const [id, js] of jsonStr) {
-      const nums = [...new Set([...js.matchAll(/(?<![\dA-Za-z-])(\d{4,5})(?!\d)/g)].map(m => m[1]))];
+    for (const u of units) {
+      const nums = [...new Set([...u.js.matchAll(/(?<![\dA-Za-z-])(\d{4,5})(?!\d)/g)].map(m => m[1]))];
       if (!nums.length) continue;
       hits++;
-      const t = zen2han(corpus.rawAll.get(id) ?? '');
+      const t = zen2han(corpus.rawAll.get(u.cardNum) ?? '');
       const missing = nums.filter(n => !t.includes(n));
       if (!missing.length) continue;
-      if (js.includes('STUB') || js.includes('MANUAL')) missStub.push(id);
-      else { missHigh.push(`${id}(${missing.join('/')})`); highAll.add(id); }
+      if (isStub(u.js)) missStub.push(u.effectId);
+      else { missHigh.push(`${u.effectId}(${missing.join('/')})`); highAll.add(u.effectId); }
     }
     pushSection('逆:JSON数値が原文に無い(幻覚)', hits, missHigh, missStub);
   }
