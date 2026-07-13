@@ -3855,10 +3855,13 @@ const scenarios = {
         // discard コスト用の手札ピッカー（SigniActivatedModal内蔵＝pick-0ではなくimg[alt=カード名]クリック）
         // ⚠クリックはトグル式（選択→再クリックで解除）なので一度だけ押す
         if (!did && !discardPicked) {
-          const discardImg = page.locator('img[alt="天童アリス"]').first();
+          // ⚠手札ストリップ（画面下部）にも同名imgがDOM順で先に存在する＝createPortalで後から
+          // documentへ追加されるモーダル側のimgは`.last()`で狙う（`.first()`は下部ストリップを誤クリックし
+          // 背景オーバーレイのキャンセルonClickを誘発してモーダルが閉じる事故につながった）
+          const discardImg = page.locator('img[alt="天童アリス"]').last();
           if (await discardImg.count() && await discardImg.isVisible().catch(() => false)) {
-            await discardImg.click({ force: true, timeout: 3000 }).catch(() => {});
-            discardPicked = true; did = 'pick:天童アリス(discard,force)';
+            await discardImg.click({ timeout: 3000 }).catch(() => {});
+            discardPicked = true; did = 'pick:天童アリス(discard,last)';
           }
         }
         if (!did) {
