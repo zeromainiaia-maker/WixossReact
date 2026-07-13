@@ -3500,7 +3500,7 @@ const scenarios = {
     title: 'WX17-028（B2 REVEAL_DECK_TOP＋動的閾値＝公開シグニのレベル合計×1000以下の相手シグニをバニッシュ）',
     spec: {
       hostSet: {
-        'field.lrig': ['WXK09-018#1'],  // コード・ピルルク　ｍＶ Lv3 Limit6（wxk09050と同型＝Lv4シグニ召喚を許容）
+        'field.lrig': ['WD02-001#1'],  // 花代・肆 Lv4 Limit11（WX17-028がLv4のため、levelOk判定=signiLevel<=currentLrigLevelにLv4以上のlrigが必須）
         'field.signi': [null, null, null],
         'deck': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5', 'WD01-012#2', 'WD01-012#3', 'WD01-012#4', 'WD01-012#5'],
         'actions_done': [],
