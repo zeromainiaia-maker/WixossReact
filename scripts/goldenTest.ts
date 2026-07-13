@@ -1204,6 +1204,22 @@ test('ARTS_USED_THIS_TURN 条件: turn_arts_used で発火ゲート（WX25-P3-11
   const hostUsed = { ...host, turn_arts_used: true };
   eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX25-P3-112-E1'), true, 'アーツ使用済みで発火');
 });
+test('SPELL_USED_THIS_TURN 条件: actions_done の USE_SPELL で発火ゲート（WX24-P2-053-E1・続き110）', () => {
+  // 「あなたのアタックフェイズ開始時、このターンにあなたがスペルを使用していた場合、…」＝従来は条件が
+  // 丸ごと脱落し無条件発火の過剰効果だった。判定源は handleUseSpell が積む actions_done の 'USE_SPELL'。
+  const host = mkState({ signi: ['WX24-P2-053', null, null] }); const guest = mkState({});
+  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, guest), 'WX24-P2-053-E1'), false, 'スペル未使用は非発火');
+  const hostUsed = { ...host, actions_done: ['USE_SPELL'] };
+  eq(has(collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', hostUsed, guest), 'WX24-P2-053-E1'), true, 'スペル使用済みで発火');
+});
+test('SPELL_USED_THIS_TURN 構造固定（WX25-P2-108=「代わりに」置換のCONDITIONAL化・WX25-P2-086=選択肢別条件・続き110）', () => {
+  // WX25-P2-108: SEQUENCE両実行（-3000&-5000・2つ目owner:any）→ CONDITIONAL{then:-5000, else:-3000} 置換
+  const s = JSON.stringify(effectsMap.get('WX25-P2-108') ?? []);
+  ok(s.includes('"SPELL_USED_THIS_TURN"') && s.includes('"else"') && !s.includes('"owner":"any"'), `WX25-P2-108: CONDITIONAL置換のはず（実際 ${s.slice(0, 160)}）`);
+  // WX25-P2-086: 選択肢①に黒＜電機＞条件・②にスペル使用条件（従来は両条件とも丸ごと脱落）
+  const s2 = JSON.stringify(effectsMap.get('WX25-P2-086') ?? []);
+  ok(s2.includes('"SPELL_USED_THIS_TURN"') && s2.includes('"story":"電機"'), `WX25-P2-086: 選択肢別条件のはず（実際 ${s2.slice(0, 160)}）`);
+});
 test('Stage2 ON_TURN_START: any_opp シグニが対戦相手のターン開始時に発火（WXDi-P05-039-E1）', () => {
   // 原文「対戦相手のターン開始時、…」＝triggerScope:any_opp。ホストのターン開始＝WXDi-P05-039 を持つ
   // ゲスト視点では「対戦相手のターン開始時」＝相手フィールド any_opp 分岐が発火。
