@@ -3534,14 +3534,15 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
-        const banished = (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.trash ?? 0) > (before?.guest?.trash ?? 0);
-        H.log(`  rdt[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // バニッシュ＝場から除去（WIXOSSルールでは所有者のエナゾーンへ・トラッシュではない）
+        const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
+        H.log(`  rdt[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy} gTrash=${st?.guest?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (banished) {
-          return { pass: true, detail: `REVEAL_DECK_TOP+動的閾値バニッシュ 発火→guest WD01-013 がバニッシュ（gTrash ${before.guest.trash}→${st.guest.trash}）` };
+          return { pass: true, detail: `REVEAL_DECK_TOP+動的閾値バニッシュ 発火→guest WD01-013 がバニッシュ（gField zone0 消滅・gEnergy ${before.guest.energy}→${st.guest.energy}）` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `バニッシュ未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gTrash=${fin?.guest?.trash} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `バニッシュ未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${fin?.guest?.energy} gTrash=${fin?.guest?.trash} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
