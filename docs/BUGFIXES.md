@@ -5,6 +5,18 @@
 
 ---
 
+## ベット「代わりに」置換機構＝IS_BETTING択一＋betChoose選択数変更を新設（2026-07-13・続き107・Opus 4.8・PLAN §3 Opusタスク6）
+
+「あなたがベットしていた場合、代わりに<X>」（ベット宣言時に基本効果を**置換**）が、これまで `STUB BET_ALTERNATIVE`（no-op）／`SEQUENCE` で正しく置換されていなかったベット系「代わりに」カードを、既存の「代わりに」昇格置換ロジックへ載せて是正。ベット宣言（`is_betting_this_effect`）は engine 配線済み（`execUtils.evalCondition` の `IS_BETTING`）。
+
+- **(1) 値すり替え型（WD19-006/007 採用）**＝`STATE_CONDITION_CLAUSES`（`matchLeadingStateCondition` が使う「代わりに」昇格置換のゲート表）に `[/あなたがベットしていた場合/ → {type:'IS_BETTING'}]` を1件追加（`src/data/effectParser.ts`）。これで既存の per-target 値すり替えロジックが発火し、`SEQUENCE[POWER_MODIFY -7000, STUB BET_ALTERNATIVE]`（＝ベット時も -7000 しか適用されない**過少**）が `CONDITIONAL{IS_BETTING, then:-12000, else:-7000}`（WD19-006）／`-15000/-8000`（WD19-007）へ。`matchLeadingStateCondition` の唯一の消費者は SEQUENCE 組み立ての「代わりに」昇格（`effectParser.ts:2221`）＝parseSingleSentence の CONDITIONAL 持ち上げ側（別表・「代わりに」を明示スキップ）には影響しない。⚠他のベット「代わりに」は「トラッシュから」等の文脈欠落で then が別 action 型に縮退するため既存ガード（`coreOf(then).type === coreOf(base).type`）が正しく置換を拒否し STUB 温存（WX15-029 等）＝退化なし。
+- **(2) 選択数変更型＝betChoose 機構新設（11枚を BET_MECHANIC no-op から CHOOSE 化…はcensus退化で見送り）**＝「以下のN個からMつ選ぶ。ベットしていた場合、代わりにKつ選ぶ。①…②…」を CHOOSE(choose_count=M) + `betChoose:{thenChooseCount:K,thenUpTo}` へ。**新設4点**＝`ChooseAction.betChoose` 型（`src/types/effects.ts`・recollectArts と同型）／engine `effectExecutor.ts` の CHOOSE 実行で `is_betting_this_effect` 時に `effectiveCount/effectiveUpTo` を上書き（recollectArts の隣に4行）／parser `parseActionTextInner` 先頭に「ベット選択数変更型」ブランチ＋`parseArtsEffect` の `BET_MECHANIC` 短絡を「CHOOSE+betChoose に展開できたら採用・できなければ従来どおり BET_MECHANIC」へ変更／decompiler `decompileEffects.ts` の CHOOSE 描画に betChoose 文を追加。golden に `betChoose` 発火テストを追加（305→**306**）。⚠**実カード11枚の採用は見送り**＝各選択肢の sub-clause parse に filter/条件の脱落（例 WX16-005「レベルが場にある【ウィルス】数以下」の動的filter脱落・WX19-006②のトラッシュ相対ソース誤り・SPK16-13E の選択肢別ゲート条件脱落）があり、BET_MECHANIC(honest no-op) から CHOOSE 化すると census 高シグナルが +8（1454→1462）する退化を確認したため、**機構だけ整備し実カード採用は各choiceのparser品質が上がるまで保留**（BET_MECHANIC 温存）。
+- **(3) census 較正**＝「コスト:《コイン》」カテゴリ（`re:/《コイン/`）が「ベット―《コインアイコン》」プレフィックスの《コイン》を mandatory コストとして二重計上していた（実体はベット宣言コスト＝「機構:ベット」カテゴリの領分・is_betting は JSON cost に載らない設計）。`extraOk` を追加＝原文の《コイン》がベット―プレフィックスのみに現れ JSON が betting を表現していれば covered。これで WD19-006/007 の脱STUB分＋既存 betting 札の二重計上是正で **census 1454→1448**（BASELINE_HIGH 更新）。
+- **検証**＝typecheck／golden **306**／`npm run gates` 全緑（smoke SKIP 1・fuzz 0・census 1448/1448・同型★0）＋`npm run regen`。engine/parser/types/decompiler/census を変更＝JSON採用は WD19-006/007 の2枚のみ。⚠自動コミット（"auto: Claude による変更"）がセッション中に作業途中の状態を数回コミットしており、一度 census 1456（regression）の赤い HEAD が生じたが、(3) の較正で解消。
+- **残（タスク6続き）**＝betChoose 実カード11枚は各 choice の parser 品質向上後に採用可（WX16-005/WX18-003/WX18-005/WX19-005/WX19-006/WXK04-014/WDK05-T10/WDK06-R08/WDK12-007/SPK16-13E/PR-K072）。ベット「代わりに」の文脈欠落縮退組（WX15-029 等）は「トラッシュから」等の文脈保持が要る別テール。WX17-005 は then STUB が別id（DECLARE_CARD_NAME）へ退化するため不採用。
+
+---
+
 ## 「代わりに」置換の五面カード4枚を CONDITIONAL 化＝SEQUENCE両実行の過剰効果を是正（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク6）
 
 原文「基本効果。あなたのセンタールリグが(色)で、あなたのライフクロスが2枚以下の場合、代わりに強化効果。」（条件成立時は基本を強化で**置換**）が、JSON で `SEQUENCE[基本, 強化]` の**両方を無条件実行**する過剰効果になっていた「五面」カード4枚（WX06-003 赤／WX06-004 青／WX06-005 緑／WX06-006 黒）を是正。
