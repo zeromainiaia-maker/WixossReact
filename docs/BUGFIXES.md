@@ -5,6 +5,36 @@
 
 ---
 
+## §6.4クラフトトークンの実機配置検証＝残5枚中4枚を実機検証・`resumeSelectTarget`のcontinuation欠落という真バグを発見（2026-07-14・続き114・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+**PLAN §6.4「クラフトトークンの実機配置検証 ＋ ADD_TO_FIELD source 近似残」の残5枚（WXDi-CP02-087／WXDi-P03-078／WXDi-P05-068／WXK07-105／WX22-001-E3）のうち4枚を`verifyBattleDrive.mjs`へ新規シナリオとして追加し実機検証。過程でADD_TO_FIELDのSELECT_TARGET解決経路に構造的な真バグを発見・確定した。**
+
+- **`craftEnergyCP02087`（WXDi-CP02-087・水羽ミモリ）＝実機PASS**：【出】あなたのエナゾーンから＜ブルアカ＞のシグニ1枚まで対象とし場に出す。JSON`ADD_TO_FIELD{source:ENERGY_CARD,filter:{story:'ブルアカ'}}`＝`execAddToField`のENERGY_CARDソース分岐（`effectExecutor.ts:1254`）が実機で正しく動作することを確認（天童アリス×5をエナゾーンに用意→召喚→SELECT_TARGET→SELECT_SIGNI_ZONE→場出し）。PLAN注記の「エナ枚数条件」（あなたのエナゾーンに＜ブルアカ＞が5枚以上）はJSON側に存在せず無条件実行＝既知の近似のまま（今回は条件を満たす5枚を用意したため結果に影響なし）。
+- **`craftTurnEndP03078`（WXDi-P03-078・幻獣デグー）＝実機PASS**：【自】ターン終了時、エナゾーンからこのシグニよりパワーの低い＜地獣＞シグニ1体を対象とし場に出す。JSON`ADD_TO_FIELD{source:ENERGY_CARD,filter:{story:'地獣',powerLtSelf:true}}`（動的フィルタ）。`top.turn_phase:'END'`を直接注入し「ターン終了」ボタン→`doPhaseAdvance`の`phase==='END'`分岐（`BattleScreen.tsx:2874`）→`collectTurnTriggers(ON_TURN_END)`起動という経路で、PLAN注記の懸念（「動的フィルタがON_TURN_END経由で解決されるか未検証」）に反し正常動作を確認（幻獣パンダンP2000がP5000の本体より低く候補として正しく解決・場出し）。
+- **`craftHandSpellP05068`（WXDi-P05-068・HAMELN STEP）＝実機PASS**：スペル「カードを2枚引き、手札から《大罠 ハーメルン》を1枚まで場に出す」。JSONは入れ子SEQUENCE`[DRAW×2, ADD_TO_FIELD{source:HAND_CARD,cardName:'大罠　ハーメルン'}]`。PLAN注記の懸念「先頭ドロー脱落」に反し、DRAWとADD_TO_FIELDが両方正しく実行されることを`host.hand`の推移（5→7→6）で確認（スペル使用で5、DRAW×2で7、ハーメルン場出しで6）。
+- **`craftArtsBetK07105`（WXK07-105・快刀乱炎）＝実機FAIL（真バグ確定）**：アーツ「ベット―《コイン》×2 手札から＜アーム＞のシグニ1枚を場に出す。ベットしていた場合、追加で1枚」。JSON`ADD_TO_FIELD{source:HAND_CARD,story:'アーム'}` → `CONDITIONAL{IS_BETTING,then:ADD_TO_FIELD同型}`。実機では1体目のADD_TO_FIELDは成功し、ベットも成立（`host.coins`が2→0に減少＝コイン支払い確認）するにもかかわらず、**CONDITIONAL(IS_BETTING)の2体目ADD_TO_FIELDが一度も発火しない**。
+- **真因を`effectExecutor.ts`のコード読解で確定＝`resumeSelectTarget`（4246-4253行目）が外側SEQUENCEの`pending.continuation`を握り潰す構造的バグ**：
+  ```js
+  let cur = ctx;
+  for (const cardNum of selected) {
+    const result = applyDirectAction(pending.thenAction, cardNum, cur);
+    if (!result.done) return result;   // ← ここで pending.continuation を渡さずそのまま return
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+  }
+  ...
+  if (pending.continuation) { ... return executeAction(cont, cur); }  // ← この分岐に到達しない
+  ```
+  ADD_TO_FIELDが`SELECT_TARGET`（候補が複数＝対象選択が必要）経由で解決される場合、選択後に`resumeSelectTarget`が`thenAction`（＝`ADD_TO_FIELD`本体）を`applyDirectAction`経由で適用する（`effectExecutor.ts:4970-4998`）。このとき配置先の空きシグニゾーンが**2つ以上**あると、`applyDirectAction`のADD_TO_FIELD分岐は独自に`needsInteraction(ctxAfterRemove, {type:'SELECT_SIGNI_ZONE',cardNum,owner})`を返す（**`continuation`フィールドを持たない**）。`resumeSelectTarget`はこの`result.done===false`を検知すると`return result`でそのまま呼び出し元に返してしまい、**自分自身が保持していた`pending.continuation`（＝外側SEQUENCEの残りステップ）を一切引き継がない**。結果、`resumeSelectSigniZone`（`effectExecutor.ts:4620-4646`）がゾーン選択を解決した時点で`pending.continuation`は`undefined`のまま＝`return done(cur)`で完了してしまい、**外側SEQUENCEの後続ステップ（GRANT_KEYWORD・CONDITIONAL等）が二度と実行されない**。
+- **実証2件**：①WXDi-CP02-087＝ADD_TO_FIELD成功後、後続のGRANT_KEYWORD（絆常付与）を`host.keywordGrants`で追跡＝場出し確認後さらに4周（約3.6秒）待っても`[]`のまま＝無発火を確認。②WXK07-105＝上記の通りCONDITIONAL(IS_BETTING)以降が完全に無視される。WXDi-P05-068も同型の後続GRANT_KEYWORDステップを持つため同じ穴の疑いが濃厚（今回のPASS判定はADD_TO_FIELD成功のみを見ており後続は未確認のまま）。
+- **対比＝`REVEAL_UNTIL_TO_FIELD`は同型のSELECT_SIGNI_ZONE生成箇所（`effectExecutor.ts:3050-3056`）で`continuation: next`を正しく設定しており、この経路では同じ問題は起きない**＝`resumeSelectTarget`側の実装漏れであることの傍証。
+- **影響範囲は未調査**＝「ADD_TO_FIELD（ENERGY_CARD/HAND_CARD/TRASH_CARDソース・候補2枚以上でSELECT_TARGETを要する）を含むSEQUENCEに後続ステップがあり、かつ配置先の空きゾーンが2以上ある」全カードが対象。母集団の機械抽出はOpus側で要実施。
+- **修正はせずPLAN §3 Opusタスク12(xiv)へ登録**（診断のみ）。修正方針の見込み＝`resumeSelectTarget`が`applyDirectAction`から`needsInteraction`を受け取った場合、その内側interactionオブジェクトへ`pending.continuation`を引き継ぐ処理を追加する。
+- **WX22-001-E3（悲願の駄姫 グズ子）＝検証対象外と判明**：該当能力（「このアタックフェイズの間、＜遊具＞のシグニが場を離れたとき…」の付与型トリガー設置）はJSON側で`action:{type:'STUB',id:'GRANT_LEAVE_PLACE_PENDING'}`＝engine側にこのSTUB idのハンドラが存在せず、丸ごとno-op。ADD_TO_FIELD自体は発火しないため今回の検証（ADD_TO_FIELD source近似の実機確認）の対象にはならない＝PLAN §6.4「機構待ち」として温存。
+- **`docs/VERIFY_BROWSER.md`「⚡高速化＋シナリオ作成の型（2026-07-14・Fable 5）」の新ヘルパーを使用**：`H.clickZone()`をSELECT_SIGNI_ZONE汎用ヘルパーとして新設（`H.stdStep()`と同様、`H`共通ヘルパー束に追加）。K07-105のアーツコスト選択では`artscost-energy-N`がクリックでトグルする（選択/解除）ため「index0だけを見て未選択なら押す」という実装だと同じ要素を再クリックし続けて無限往復するバグを自分のドライバコードで作り込みかけた（既存の`lrigundermoved`等と同型＝両方まとめて1回だけクリックしてから即submit判定する“単発完結”パターンに合わせて解消）。
+- engine/parser/effects JSON変更なし（`scripts/verifyBattleDrive.mjs`と`docs/PLAN.md`のみ）。`npm run gates`全緑（回帰確認）。既定orderに`craftEnergyCP02087`/`craftTurnEndP03078`/`craftHandSpellP05068`を追加、`craftArtsBetK07105`は意図的FAIL回帰として既定order外（Opus修正後に復帰）。
+
+---
+
 ## §6.4クラフトトークンの実機配置検証＝WX25-CP1-066《雷ちゃん》の生成・場出しを実機PASS（2026-07-13・続き113・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §6.4「クラフトトークンの実機配置検証」6枚のうち、`ADD_TO_FIELD{cardName指定}`（`execAddToField`のゲーム外トークン生成分岐＝`effectExecutor.ts:1170`）を実際に使う唯一のカードであるWX25-CP1-066を実機検証。**
