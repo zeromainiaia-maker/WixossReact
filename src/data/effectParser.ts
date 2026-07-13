@@ -3804,17 +3804,18 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const mainPart = rawSp.slice(0, spAutoIdx).trim();
       if (mainPart) {
         const e = parseSpellEffect({ ...card, EffectText: mainPart });
-        if (e) effects.push(e);
+        if (e) { logSourceText(e.effectId, mainPart); effects.push(e); }
       }
       const autoPart = stripRuleParens(rawSp.slice(spAutoIdx));
       const autoEffect = parseBlock(card.CardNum, autoPart, effects.length);
       if (autoEffect) {
         autoEffect.effectId = `${card.CardNum}-E${effects.length + 1}`;
+        logSourceText(autoEffect.effectId, autoPart);
         effects.push(autoEffect);
       }
     } else {
       const e = parseSpellEffect(card);
-      if (e) effects.push(e);
+      if (e) { logSourceText(e.effectId, card.EffectText ?? ''); effects.push(e); }
     }
   } else {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
