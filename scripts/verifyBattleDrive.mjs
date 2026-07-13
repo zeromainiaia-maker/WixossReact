@@ -10,7 +10,8 @@
 // 前提: verify-accounts.json / .env.local / デッキ「VERIFY_DECK」。詳細は docs/VERIFY_BROWSER.md。
 import { spawn, spawnSync } from 'node:child_process';
 import { chromium } from '@playwright/test';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, readdirSync, statSync } from 'node:fs';
+import { join } from 'node:path';
 
 const SHOT = 'scratchpad-verify';
 mkdirSync(SHOT, { recursive: true });
