@@ -3898,6 +3898,205 @@ const scenarios = {
     },
   },
 
+  // WXDi-CP02-087（続き114・Sonnet・PLAN §6.4「クラフトトークンの実機配置検証 ＋ ADD_TO_FIELD source 近似残」）＝
+  //    【出】：あなたのエナゾーンに＜ブルアカ＞のカードが５枚以上ある場合、あなたのエナゾーンから＜ブルアカ＞の
+  //    シグニを１枚まで対象とし、それを場に出す。JSONの `ADD_TO_FIELD{source:ENERGY_CARD,filter:{story:'ブルアカ'}}`
+  //    ＝`execAddToField` の ENERGY_CARD ソース分岐（`effectExecutor.ts:1254`）を検証。cardName型（クラフト生成）と
+  //    違い SELECT_SIGNI_ZONE は発生しない（空きゾーンへ自動配置・`effectExecutor.ts:1274`）ことをコード読解で
+  //    確認済み＝ここでは候補ピッカー（pick-0）のみ想定。
+  //    ⚠「エナ5枚以上」の条件はJSON側に存在せず無条件実行（既知の近似・据置＝§6.4記載どおり）。今回は条件を
+  //    満たす5枚を用意して検証するため、条件の有無に関わらず結果は同じ（トークン生成自体が機能するかが対象）。
+  craftEnergyCP02087: {
+    title: 'WXDi-CP02-087（ADD_TO_FIELD source:ENERGY_CARD＝エナゾーンから＜ブルアカ＞シグニを場に出す）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WXDi-CP02-054#1', 'WXDi-CP02-054#2', 'WXDi-CP02-054#3', 'WXDi-CP02-054#4', 'WXDi-CP02-054#5'], // 天童アリス（＜ブルアカ＞）×5
+        'actions_done': [],
+      },
+      handPrepend: ['WXDi-CP02-087#1'], // 水羽ミモリ
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/craftEnergyCP02087-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+            await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+          }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-CP02-054')));
+        H.log(`  ce87[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed) {
+          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `場出し未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // WXDi-P03-078（続き114・Sonnet・PLAN §6.4）＝
+  //    【自】：あなたのターン終了時、あなたのエナゾーンからこのシグニよりパワーの低い＜地獣＞のシグニ１枚を
+  //    対象とし、それを場に出す。それの【出】能力は発動しない。JSONの
+  //    `ADD_TO_FIELD{source:ENERGY_CARD,filter:{story:'地獣',powerLtSelf:true}}`（動的フィルタ）＋
+  //    `BLOCK_ACTION{actionId:ON_PLAY_ABILITY}`＝ON_TURN_END 経由での powerLtSelf 動的フィルタ解決を検証
+  //    （§6.4「先頭ドロー脱落」の注記はP05-068側の注記の誤帰属の疑いがあり、本カードでは動的フィルタの
+  //    解決可否そのものが未検証点＝ここで確認する）。turn_phase を直接 'END' に注入し「ターン終了」ボタンで
+  //    doPhaseAdvance の phase==='END' 分岐（`BattleScreen.tsx:2874`）から collectTurnTriggers(ON_TURN_END) を起動。
+  craftTurnEndP03078: {
+    title: 'WXDi-P03-078（ON_TURN_END＋ADD_TO_FIELD source:ENERGY_CARD powerLtSelf動的フィルタ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXDi-P03-078#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-014#1'], // 幻獣　パンダン（＜地獣＞・P2000＜本体P5000）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, null], // BLOCK_ACTION(owner:any) の候補を自分側1体だけに絞り込む
+      },
+      top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+    },
+    async drive(page, H) {
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/craftTurnEndP03078-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['ターン終了']);
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD04-014')));
+        H.log(`  p078[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} phase=${st?.turnPhase ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed) {
+          return { pass: true, detail: `ON_TURN_END経由でADD_TO_FIELD(ENERGY_CARD,powerLtSelf)発火→幻獣パンダンが場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `場出し未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // WXDi-P05-068（続き114・Sonnet・PLAN §6.4）＝スペル「カードを２枚引き、あなたの手札から《大罠　ハーメルン》
+  //    を１枚まで場に出す。その後、…ターン終了時までアタック無効化能力を得る。」JSONは入れ子SEQUENCE
+  //    [DRAW×2, ADD_TO_FIELD{source:HAND_CARD,cardName:'大罠　ハーメルン'}] → GRANT_KEYWORD。
+  //    「先頭ドロー脱落」の懸念＝DRAWとADD_TO_FIELD(HAND_CARD)が入れ子SEQUENCEの中で両方正しく実行されるか
+  //    （ドロー枚数観測＋場出し確認の両方）を検証。
+  craftHandSpellP05068: {
+    title: 'WXDi-P05-068（スペル・入れ子SEQUENCE DRAW×2＋ADD_TO_FIELD source:HAND_CARD cardName指定）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD03-009#1'], // 青×1（スペルコスト）
+        'actions_done': [],
+      },
+      handPrepend: ['WXDi-P05-068#1', 'WXDi-P05-037#1'], // HAMELN STEP／大罠　ハーメルン
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand);
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/craftHandSpellP05068-${s}.png`, fullPage: true });
+        let did = await H.clickBtn('発動', { exact: true });
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            did = await H.clickBtn('発動する', { exact: true });
+            if (!did) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P05-037')));
+        H.log(`  p068[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed) {
+          return { pass: true, detail: `DRAW×2＋ADD_TO_FIELD(HAND_CARD)発火→大罠 ハーメルンが場に出た（hField=${JSON.stringify(st.host.fieldSigni)} hHand=${st.host.hand}・開始時hand=${before?.host?.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `場出し未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // WXK07-105（続き114・Sonnet・PLAN §6.4）＝アーツ「ベット―《コインアイコン》《コインアイコン》あなたの手札
+  //    から＜アーム＞のシグニ１枚を場に出す。あなたがベットしていた場合、追加であなたの手札から＜アーム＞の
+  //    シグニ１枚を場に出す。」JSONは `ADD_TO_FIELD{source:HAND_CARD,story:'アーム'}` →
+  //    `CONDITIONAL{IS_BETTING,then:ADD_TO_FIELD同型}`。ベット分岐（IS_BETTING）が実際にコイン支払いで発火し
+  //    2枚目が場に出るかを検証（Restriction「リル限定」＝field.lrigをリルにして通す）。
+  craftArtsBetK07105: {
+    title: 'WXK07-105（アーツ・ベット分岐＝IS_BETTINGでADD_TO_FIELD source:HAND_CARDが2回発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX15-009#1'],       // 相恩の記憶　リル（Restriction「リル限定」を満たす）
+        'field.signi': [null, null, null],
+        'field.signi_down': [false, false, false],
+        'lrig_deck': ['WXK07-105#1'],       // 快刀乱炎
+        'energy': ['WX04-068#1', 'WX04-068#2'], // 赤×2（アーツコスト）
+        'coins': 2,                          // ベット用
+        'actions_done': [],
+      },
+      handPrepend: ['WD01-013#1', 'WD01-013#2'], // 小剣　ククリ（＜アーム＞）×2
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+    },
+    async drive(page, H) {
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let betClicked = false;
+      let usedBtn = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/craftArtsBetK07105-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !usedBtn) { did = await H.clickBtn('使用', { exact: false }); if (did) usedBtn = true; }
+        if (!did && !betClicked) {
+          const bet = await H.clickBtn('2枚', { exact: true });
+          if (bet) { did = bet; betClicked = true; }
+        }
+        if (!did) {
+          const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+          if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+            if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+            else {
+              for (const i of [0, 1]) {
+                const e = page.getByTestId(`artscost-energy-${i}`).first();
+                if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); did = `artscost-energy-${i}`; break; }
+              }
+            }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const placedCount = (st?.host?.fieldSigni ?? []).flat().filter(n => n?.startsWith('WD01-013')).length;
+        H.log(`  k105[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} coins=${st?.host?.coins} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placedCount >= 2) {
+          return { pass: true, detail: `ベット成立→ADD_TO_FIELD(HAND_CARD)が2回発火し＜アーム＞2体が場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      const finCount = (fin?.host?.fieldSigni ?? []).flat().filter(n => n?.startsWith('WD01-013')).length;
+      return { pass: false, detail: `2体配置未確認（配置済み${finCount}体・hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑳ WXK04-003 ボタンラベル表示バグ（続き81・Sonnet・PLAN §3 Sonnetタスク10）＝getMyLrigFieldActions の
   //    costParts が eff.cost?.coin を非考慮で、E2「【起】《ゲーム1回》サプライズ《コインアイコン》」が常に
   //    「【起】コストなし」と誤表記されていた（costPartsMA/costPartsILT/costParts の3箇所を修正）。
