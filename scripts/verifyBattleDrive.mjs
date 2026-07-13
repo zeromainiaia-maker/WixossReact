@@ -3901,9 +3901,14 @@ const scenarios = {
   // WXDi-CP02-087（続き114・Sonnet・PLAN §6.4「クラフトトークンの実機配置検証 ＋ ADD_TO_FIELD source 近似残」）＝
   //    【出】：あなたのエナゾーンに＜ブルアカ＞のカードが５枚以上ある場合、あなたのエナゾーンから＜ブルアカ＞の
   //    シグニを１枚まで対象とし、それを場に出す。JSONの `ADD_TO_FIELD{source:ENERGY_CARD,filter:{story:'ブルアカ'}}`
-  //    ＝`execAddToField` の ENERGY_CARD ソース分岐（`effectExecutor.ts:1254`）を検証。cardName型（クラフト生成）と
-  //    違い SELECT_SIGNI_ZONE は発生しない（空きゾーンへ自動配置・`effectExecutor.ts:1274`）ことをコード読解で
-  //    確認済み＝ここでは候補ピッカー（pick-0）のみ想定。
+  //    ＝`execAddToField` の ENERGY_CARD ソース分岐（`effectExecutor.ts:1254`）を検証。
+  //    ⚠事前のコード読解では「cardName型と違い SELECT_SIGNI_ZONE は発生しない（空きゾーンへ自動配置）」と
+  //    見立てたが実機では誤り＝候補が複数（SELECT_TARGET要）だと `resumeSelectTarget` 経由で
+  //    `applyDirectAction`(ADD_TO_FIELD) が呼ばれ、そちらは空き2以上で SELECT_SIGNI_ZONE を要求する
+  //    （`effectExecutor.ts:4996-4998`）。**そしてこの経路には重大な実バグがある**＝続き114で確認、Opusタスク12へ
+  //    登録：`resumeSelectTarget`（`effectExecutor.ts:4246-4253`）は thenAction が `needsInteraction` を返すと
+  //    その場で `return result` し、外側 SEQUENCE の `pending.continuation`（後続ステップ＝本カードでは
+  //    GRANT_KEYWORD「絆常」付与）を握り潰す＝ADD_TO_FIELD自体は成功するが後続ステップが毎回無言no-op化する。
   //    ⚠「エナ5枚以上」の条件はJSON側に存在せず無条件実行（既知の近似・据置＝§6.4記載どおり）。今回は条件を
   //    満たす5枚を用意して検証するため、条件の有無に関わらず結果は同じ（トークン生成自体が機能するかが対象）。
   craftEnergyCP02087: {
