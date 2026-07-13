@@ -1077,6 +1077,17 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     () => ({ type: 'THIS_CARD_FROM_TRASH' })],
   [/あなたの場にレベル([０-９\d]+)以上のルリグがいる場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', level: { min: parseNum(g[0]) } } })],
+  // 「このターンにあなたがスペルを使用していた場合」＝actions_done の 'USE_SPELL' マーカー参照（続き110）。
+  // AUTO 効果全体のゲートは hoist（parseBlock 側）が先に処理する＝ここは選択肢内条件（WX25-P2-086/105 の②）と
+  // 「代わりに」置換（WX25-P2-108＝matchLeadingStateCondition 経由の per-target 値すり替え）用。
+  [/このターンにあなたがスペルを使用していた場合/,
+    () => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self' })],
+  // 「あなたの場に(色)の＜C＞のシグニがある場合」（WX25-P2-086/105 の①）／「あなたの場に＜C＞のシグニがある場合」
+  // （census 条件節クラスタ6効果）＝枚数指定なしの存在ゲート。N体/他の付き変種は先行エントリが先にマッチする。
+  [/あなたの場に(白|赤|青|緑|黒)の＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0], story: g[1] } })],
+  [/あなたの場に＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
