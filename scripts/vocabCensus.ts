@@ -834,9 +834,11 @@ function writeClusters(
   interface Row { pattern: string; tpl: string; ids: Set<string> }
   const allRows: Row[] = [];
   const out: string[] = [
-    '# 語彙センサス文型クラスタ表（高シグナルのマッチ節をテンプレート正規化・枚数順）',
+    '# 語彙センサス文型クラスタ表（高シグナルのマッチ節をテンプレート正規化・件数順）',
     '# 生成: npx tsx scripts/vocabCensus.ts --clusters（npm run census:clusters）',
-    '# 行形式: 枚数<TAB>テンプレート<TAB>カードID…（テンプレ単位でparser規則→build:effects収穫のバッチを組む）',
+    '# 行形式: 効果数<TAB>テンプレート<TAB>effectId…（テンプレ単位でparser規則→build:effects収穫のバッチを組む）',
+    '# ⚠ID は effectId（2026-07-13 続き109で効果単位化）。heldReview の採用はカード単位なので、末尾の',
+    '#   -E1/-BURST/-LAYER 等を落として CardNum に変換してからバッチを組む。',
     '',
   ];
   for (const { name, re, pre, ids } of missByPattern) {
