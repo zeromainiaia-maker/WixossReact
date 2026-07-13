@@ -2542,6 +2542,11 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
       effectiveUpTo = a.recollectArts.thenUpTo ?? false;
     }
   }
+  // ベット条件: このアーツ/スペルでベットを宣言していたら choose_count/upTo を上書き（recollectArts と同型）。
+  if (a.betChoose && ctx.ownerState.is_betting_this_effect) {
+    effectiveCount = a.betChoose.thenChooseCount;
+    effectiveUpTo = a.betChoose.thenUpTo ?? false;
+  }
   return needsInteraction(ctx, {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),
