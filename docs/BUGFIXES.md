@@ -5,6 +5,23 @@
 
 ---
 
+## §7実機検証の横展開＝機構④誤parse3枚の残り2枚（WXDi-P07-044-E2・WX25-P3-062-E2）を新規検証・両方実機PASS（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+**PLAN §7「機構④誤parse3枚」に残っていた実機未検証分を`verifyBattleDrive.mjs`へ追加。旧セッションで誤parseは既に是正済み（本ファイル「機構④誤parse3枚の是正」参照）で、今回はその是正が実UIで実際に機能するかの検証。**
+
+- **`installByEffectFreeze`（WXDi-P07-044-E2）**：【自】《自分ターン》あなたのシグニが効果によって場に出たとき（triggerScope:any_ally・triggerCondition.byEffect:true+turnOwner:self）＝対戦相手のシグニ1体を凍結+パワー-2000。トリガー源はWD08-001（混沌の鍵主 ウムル＝フィーラ）の【起】《ダウン》「あなたのトラッシュからシグニ1枚を対象とし、それを場に出す」＝自トラッシュの信号を場に出す操作がADD_TO_FIELD(byEffect)としてwatcherを発火させるかを確認。
+  - **発見①＝WD08-001のLRIG【起】能力2種（E2「デッキ上3枚トラッシュ」／E3「トラッシュから場出し」）がどちらも`getMyLrigFieldActions`のcostPartsMA分岐（`energyTotalMA>0`/`coin`/`discard`系のみ）に該当せず「【起】コストなし」で表示され区別不能**（E2はコスト`黒×0`＝energyTotal=0で分岐に乗らない、E3は`down_self`コストだがcostPartsMAにdown_self分岐自体が無い＝WXK04-003のコイン欠落と同型・LRIG版の派生バグ）。ボタンをPlaywrightの`nth(1)`（JSON順で2番目＝E3）指定して回避＝実機検証は完遂したが表示バグ自体は未修正のまま据置（実害は低優先度＝クリックできないわけではなく紛らわしいだけ）。
+  - **発見②＝配置先ゾーンが2つ空いているとSELECT_SIGNI_ZONEの選択UIが挟まる**＝host場を3ゾーン中1つだけ空ける（既存コメント「wxk10068banish」等と同型の回避策）ことで選択UIをスキップし単純化。
+  - 2回連続PASS（`guest.signiFrozen[0]`がtrueに変化）＝`order`配列に追加。
+- **`optionalTrashEnergyClassAttack`（WX25-P3-062-E2）**：【自】：このシグニがアタックしたとき、あなたの場に《虚幸の冥者 ハナレ》がいる場合、対戦相手のシグニ1体を対象とし、あなたのエナゾーンから＜毒牙＞のシグニ1枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それとこのシグニのパワーを-20000する。
+  - JSONは`SEQUENCE[STUB OPTIONAL_TRASH_ENERGY_CLASS, CONDITIONAL(IS_MY_TURN, then:...)]`という形＝一見「そうした場合」の判定が的外れ（IS_MY_TURNは常に真では？）に見えるが、コード読解で`effectExecutor.ts:2353`の`optIds`（`OPTIONAL_COST`/`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`/`OPTIONAL_TRASH_ENERGY_CLASS`）に該当する既存の確立済みインターセプト機構と判明＝「STUBがSEQUENCE直下＋直後CONDITIONAL(IS_MY_TURN)」の組み合わせを検出し、内部でCHOOSE（pay/skip）による正しい支払いゲートへ変換する設計＝**誤parseではなく正しい機構利用**（Opusタスク12(xi)が指摘する同型パターンの一種）。
+  - 虚幸の冥者ハナレ（WX25-P3-032）はルリグカードのため、host センタールリグへ直接配置してHAS_CARD_IN_FIELD条件を満たした。攻撃フロー（MAIN→アタックフェイズへ→ATTACK_ARTS→アーツ終了→相手へ→ATTACK_ARTS_OP→ATTACK_SIGNI→signi-zoneクリック→アタック）はB3（installDelayedTriggerFire）で確立した3段階フェイズ遷移パターンを再利用。
+  - CHOOSEのpay/skip選択で「エナ＜毒牙＞を選択して発動」ボタンを明示的にクリック（smokeTestのautopilotは`skip`優先だが、実機検証では意図的にpay側を選んで効果発火を確認する必要がある）。
+  - 1回目から即PASS・2回連続PASS（`guest.powerMods`に`WD01-013#1:-20000`・`host.powerMods`に`WX25-P3-062#1:-20000`が両方確認）＝`order`配列に追加。
+- 両シナリオとも既存engine/parserへの変更は無し（検証のみ、発見①のUI表示バグは軽微につき据置）。詳細はPLAN.md §7・`scripts/verifyBattleDrive.mjs`の各シナリオコメント参照。
+
+---
+
 ## §7実機検証の横展開＝B2（WX17-028 REVEAL_DECK_TOP＋動的閾値）・B3（WX25-CP1-069 INSTALL_DELAYED_TRIGGER実発火）を新規検証・両方実機PASS（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §7「その他の実機検証待ち」に残っていたB2・B3を`verifyBattleDrive.mjs`へ新規シナリオとして追加し実機検証。**
