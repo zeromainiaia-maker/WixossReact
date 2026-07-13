@@ -83,6 +83,8 @@ const rows = allRows;
 console.log(`カード数: ${rows.length}`);
 
 // 効果解析
+// 語彙センサスの効果単位判定用に「effectId → 由来の原文ブロック」を収集する（続き109）
+enableSourceTextLog();
 const result: Record<string, ReturnType<typeof parseCardEffects>> = {};
 let parsed = 0, unknown = 0;
 
