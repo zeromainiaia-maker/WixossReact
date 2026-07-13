@@ -5,6 +5,22 @@
 
 ---
 
+## `triggerCollect.ts` の LRIGゾーン走査漏れを5コレクタで根治＝LRIG watcher が構造的に絶対発火しなかったバグを解消（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-3)/(vi-4)）
+
+続き95/96（Sonnet）で棚卸しされた「複数のトリガーコレクタが `field.signi` のみ走査し `field.lrig`（センタールリグ最上段）を欠く系統的な実装漏れ」を修正。多くのコレクタが使う共通ヘルパー `ownFieldSources(state)`（signi 最上段＋lrig 最上段の両方を返す）を使わず手書き走査していた5コレクタで、**LRIG が watcher の該当 timing が一度もマッチせず印刷能力が完全に機能していなかった**（実カード20枚超）。
+
+- **修正した5コレクタ（続き96 の非対称な実装漏れを是正）**＝
+  - **`collectPowerZeroTriggers`**（ON_SIGNI_POWER_ZERO_OR_LESS）＝`watcherState.field.signi` 走査を `ownFieldSources(watcherState)` へ置換（続き95 で実機非発火確認済み＝WX22-013／WXDi-P14-009）。
+  - **`collectFieldTriggers`**（ON_ATTACK_SIGNI/ON_BANISH/ON_BLOOM）＝own側の `myLrigWatcher` を ON_PLAY 限定から**全 event** へ拡張＋opp側走査を `ownFieldSources(opState)` へ置換（own側は ON_PLAY だけ手当て済み・opp側は全欠落の非対称）。該当＝WX12-001/WX14-003/WXDi-P08-007（ON_ATTACK_SIGNI any_opp）・WXEX2-26（ON_BANISH any_opp）。
+  - **`collectTurnTriggers`**（ON_TURN_START/END・ON_ATTACK_PHASE_START・ON_MAIN_PHASE_START・ON_LRIG_ATTACK_STEP_START）＝相手フィールド走査が signi のみだったため、own側ルリグ分岐と同じく **activeCondition ゲート付きの相手ルリグ専用ブロックを追加**（過剰発火を避けるため activeCondition を評価）。該当＝ON_ATTACK_PHASE_START の WX12-002/WX19-002/WX21-001 等11枚。
+  - **`collectOppArtsUseTriggers`**（ON_OPP_ARTS_USE）＝signi 走査を `ownFieldSources(myState)` へ置換（姉妹関数 `collectArtsUseTriggers` は元から lrig 対応済みの非対称）。該当＝WX16-003。
+  - **`collectHandDiscardTriggers`**（ON_HAND_DISCARDED・self側）＝signi 走査の後に**自ルリグ専用ブロックを追加**（`BLOCK_OWN_SIGNI_AUTO` はシグニ限定なので LRIG には非適用）。該当＝アロス・ピルルク ACRO/MIRA/kl（WXEX2-12/WXDi-P11-006/WXDi-P14-007）・月雪ミヤコ（WX25-CP1-016）。
+- **golden 追加5件**＝各コレクタで「LRIG に載せると該当 watcher が発火する」ことを回帰固定（`WX22-013-E2`/`WX12-001-E2`/`WX12-002-E1`/`WX16-003-E1`/`WXEX2-12-E2`）。golden 293→298。
+- **検証**＝`npm run gates` 全緑（typecheck／golden298／smoke SKIP 1・CRASH/HANG/INVARIANT 0／**fuzz 0**・distinct効果 2648→2652＝従来発火しなかった LRIG watcher 経路が動くように／census 1461維持・退化なし）。engine のみ変更・JSON/parser/decompiler 不変＝regen 不要。
+- **残（潜在バグ・記録のみ）**＝続き96 が指摘した `collectTargetedTriggers`/`collectTrashTriggers`/`collectBanishTriggers`/`collectArmorTriggers`/`collectCoinPaidTriggers`/`collectAllyPlayOrOppDiscardTriggers` も同型の signi-only 走査を持つが、該当 timing×scope の実カードに LRIG が0件のため今回は未修正（将来カードで再発しうる設計上の穴）。**別軸の usageLimit 欠落（続き99/100・(vi-5)）は本修正の対象外**＝Opusタスク12 に残置。
+
+---
+
 ## `applyDirectAction` の型対応漏れ6型を修正＝SELECT_TARGET/SEARCH解決後の no-op・無限再入・別対象すり替えを解消（smoke SKIP 258→1）（2026-07-13・続き106・Opus 4.8・PLAN §3 Opusタスク12(vi-2)/(v)/(vi)）
 
 `applyDirectAction`（`effectExecutor.ts:4696`）は SELECT_TARGET/SEARCH で選ばれた単一 `cardNum` に thenAction を適用する分岐だが、`case` の無い型が `default` 節で `executeAction(action, {lastProcessedCards:[cardNum]})` として**元アクションを丸ごと再実行**してしまい、選んだ `cardNum` を無視して元の `target`（`DECK_CARD` 等）を素通しで再評価していた。結果＝(a) 同一 SELECT_TARGET を無限に再発行し autopilot が hang（実UIでは対象選択を延々と要求されターン進行不能＝フリーズ相当）／(b) 選んだデッキ/トラッシュ札を無視して場のシグニ選択へすり替わり、選んだ札は消えたまま別効果に化ける。**smoke の「autopilot loop: SELECT_TARGET」258件の真因**（続き93 で機械分類・`applyDirectAction` に case が無く `default` が同一 SELECT_TARGET を再発行し続ける同一の設計欠陥）。
