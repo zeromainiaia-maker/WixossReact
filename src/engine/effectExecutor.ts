@@ -1536,17 +1536,38 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'SIGNI' && a.actionId === 'ATTACK') {
     const tgtOwner: Owner = a.target.owner === 'self' ? 'self' : 'opponent';
     const tgtState = ownerState(tgtOwner, ctx);
-    const targets = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0
-      ? ctx.lastProcessedCards.filter(cn => tgtState.field.signi.some(s => s?.at(-1) === cn))
-      : tgtState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-    if (targets.length === 0) return done(ctx);
-    const grants = { ...(ctx.ownerState.keyword_grants ?? {}) };
-    for (const cn of targets) {
-      grants[cn] = [...new Set([...(grants[cn] ?? []), 'アタックできない'])];
+    const untilLbl = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
+    // アタック不可付与は効果元（ctx.ownerState）の keyword_grants にカード番号キーで格納する
+    // （effectEngine.ts の判定が host/guest 両者の keyword_grants を攻撃シグニの cardNum で参照するため、
+    //  相手シグニへの付与も効果元側に置いてよい）。
+    const applyAttackBlock = (targets: string[], c: ExecCtx): ExecResult => {
+      if (targets.length === 0) return done(c);
+      const grants = { ...(c.ownerState.keyword_grants ?? {}) };
+      for (const cn of targets) grants[cn] = [...new Set([...(grants[cn] ?? []), 'アタックできない'])];
+      return done(addLog({ ...c, ownerState: { ...c.ownerState, keyword_grants: grants } },
+        `${targets.map(cn => c.cardMap.get(cn)?.CardName ?? cn).join('・')}はアタックできない${untilLbl}`));
+    };
+    // 前段ステップで対象確定済み（lastProcessedCards）＝選択解決後の再入含む。そのまま付与する。
+    if (ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0) {
+      return applyAttackBlock(ctx.lastProcessedCards.filter(cn => tgtState.field.signi.some(s => s?.at(-1) === cn)), ctx);
     }
-    const until = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, keyword_grants: grants } },
-      `${targets.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}はアタックできない${until}`));
+    // filter（thisCardOnly=効果元自身のみ / excludeSelf）を適用して候補を絞る（続き103＝従来は count/filter を無視し全ブロック）。
+    let blkFilter = a.target.filter;
+    let blkThisCardRestrict: string[] | null = null;
+    let blkExcludeSelf = false;
+    if (blkFilter?.thisCardOnly) { const { thisCardOnly: _t, ...rest } = blkFilter; blkFilter = rest; blkThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : []; }
+    if (blkFilter?.excludeSelf) { const { excludeSelf: _e, ...rest } = blkFilter; blkFilter = rest; blkExcludeSelf = true; }
+    let cands = fieldCandidates(tgtState, blkFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    if (blkThisCardRestrict) cands = cands.filter(n => blkThisCardRestrict!.includes(n));
+    if (blkExcludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
+    if (cands.length === 0) return done(ctx);
+    // count 数値なら N 体選択（選択後は lastProcessedCards 経路で個別付与）。ALL/未指定は全候補へ。
+    if (a.target.count !== undefined && a.target.count !== 'ALL') {
+      const count = resolveNum(a.target.count);
+      const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+      return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+    }
+    return applyAttackBlock(cands, ctx);
   }
 
   const state = ownerState(a.target.owner, ctx);
