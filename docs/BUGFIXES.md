@@ -5,6 +5,18 @@
 
 ---
 
+## 「対戦相手の…を対象とし…そうした場合、それを〈除去/移動〉」慣用形＝最終アクションの owner が designation を継承せず self/any に誤脱落する過剰・誤効果を88カードで是正（2026-07-13・続き111・Opus 4.8・戦略②）
+
+**効果単位 census クラスタ横断で発見した系統バグ**。「対戦相手の〔レベル/パワー/状態…〕シグニ１体を対象とし、〈コスト/任意アクション〉。そうした場合、それを〈手札に戻す/デッキ下/トラッシュ/バニッシュ…〉」という頻出慣用形（原文345枚）で、**対象指定文（を対象とし）と最終アクション文（それを…）が別文に割れ、最終アクションのターゲット owner が designation を継承せず default に落ちていた**：
+
+- **実害**＝BOUNCE（手札に戻す）は owner default が **self**、TRASH（トラッシュに置く）は **any**、TRANSFER_TO_DECK（デッキ下）は **self**。「それ」＝対戦相手の designation を指すのに、**自分のシグニをバウンス/デッキ送りできる・任意のシグニ（自分含む）をトラッシュできる**過剰・誤効果。加えて designation のレベル/パワー/状態フィルタも脱落（レベル3以下・パワー5000以下等が消え全シグニ対象化）。
+- **修正**＝`applyLeadingSelfComparison`（続き44・designation の動的比較を後続ターゲットへ刻む先例）と同型の **`applyLeadingOpponentDesignation`** を `parseActionText` に追加。先頭 designation「対戦相手の…シグニN体」を `parseSigniTarget` で解決し、末尾（「それ」参照＝CONDITIONAL.then / SEQUENCE 末尾を降下）の SIGNI ターゲット（owner が明示 opponent でない側）へ **owner:opponent と欠落フィルタを刻む**。**⚠「対象とし」が複数ある文（＝「それ」の指し先が曖昧）は適用しない**単一 designation 限定・冪等。engine/decompiler 変更なし（owner/filter は全層配線済み＝「parser の owner 継承漏れ」型）。
+- **反映**＝**parser fresh の変更前後を全カード snapshot で機械 diff → 95カードが変化し全て「owner:self/any→opponent ＋フィルタ追加」のみ・件数変化/フィルタ削除/構造変化ゼロを確認**。curated への反映は **同ロジックを `_effect_srctext.json` 経由で curated JSON に外科適用**（held 全採用で手修正を失う事故を回避＝MANUAL/PARTIAL カードも安全）＝82カード。CHOOSE 内分岐/複数対象で単一 designation ガードに弾かれた6カード（WXK10-010/WXDi-P07-049/WXDi-P13-045/WX24-P2-048/WX25-CP1-002/WX25-CP1-004）は fresh（検証済み正）から位置整合で self/any→opponent を安全コピー。**計88カード**。curated の既に正しい/より良い手修正6枚（WX05-007/WXK05-066/067/WXDi-P10-035/P15-034/P15-058）は温存。
+- **検証**＝golden 309→**310**（WX07-001 owner/PR-K043 レベル継承/WX24-P2-060 パワー継承/PR-322 any→opponent/CHOOSE 内 self残存ゼロ を assert）・smoke/fuzz 全0・同型★0・逆翻訳原文一致（「対戦相手のシグニ1体を手札に戻す」「対戦相手のレベル3以下のシグニ1体をデッキの一番下に置く」等）・**census 2229→2225**（owner 補正自体は census 語彙シグナルに乗らずフィルタ継承分の4減。本丸は実挙動の owner 誤りの是正）。
+- **テール**＝**PR-Di017B は curated が最終アクション自体を欠く別 issue**（STUB `TARGET_ONLY`+`OPTIONAL_COST` で「それをトラッシュに置く」action が丸ごと不在）＝owner 継承ではなく action 欠落の §5b/§6 テール送り。
+
+---
+
 ## SPELL_USED_THIS_TURN 機構新設＝「このターンにあなたがスペルを使用していた場合」条件の丸ごと脱落11効果＋クラス存在条件8枚を是正・lifting ガードD/E 新設（2026-07-13・続き110 第2バッチ・Fable 5・戦略②）
 
 **効果単位 census 上位クラスタ「このターンにあなたがスペルを使用していた場合」（9＋②選択肢2＝11効果）**。従来 parser はこの節を全文 STUB（CONDITIONAL_POWER_BONUS）か無言消費で落とし、**アタック/フェイズ開始のたび無条件発火する過剰効果**だった。
