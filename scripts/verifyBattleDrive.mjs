@@ -4127,10 +4127,35 @@ async function injectScenario(page, spec) {
   }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec });
 }
 
-// ⚠ `vite preview` はビルド済み dist を配信するため、ソース変更を反映するには毎回 build が必須。
-//    （省略すると古いバンドルを検証して「直したのに FAIL」の罠にハマる。SKIP_BUILD=1 で明示スキップ可）
+// ⚠ `vite preview` はビルド済み dist を配信するため、ソース変更を反映するには build が必須。
+//    2026-07-14: 毎回無条件に build（数十秒）していたのを mtime 比較の自動判定に変更＝
+//    dist/index.html が src/public/設定類のどれよりも新しければスキップ（「古い dist の罠」は
+//    mtime 判定で構造的に回避される）。SKIP_BUILD=1 で強制スキップ・SKIP_BUILD=0 で強制ビルド。
+function distIsFresh() {
+  try {
+    const distTime = statSync('dist/index.html').mtimeMs;
+    let newest = null; // { t, p }
+    const scan = (dir) => {
+      for (const e of readdirSync(dir, { withFileTypes: true })) {
+        const p = join(dir, e.name);
+        if (e.isDirectory()) scan(p);
+        else { const t = statSync(p).mtimeMs; if (!newest || t > newest.t) newest = { t, p }; }
+      }
+    };
+    for (const d of ['src', 'public']) scan(d);
+    for (const f of ['index.html', 'verify.html', 'package.json', 'vite.config.ts', 'tsconfig.json', 'tsconfig.app.json']) {
+      try { const t = statSync(f).mtimeMs; if (!newest || t > newest.t) newest = { t, p: f }; } catch { /* 無ければ無視 */ }
+    }
+    return { fresh: !!newest && distTime > newest.t, newest: newest?.p };
+  } catch { return { fresh: false, newest: null }; }
+}
 function buildFirst() {
   if (process.env.SKIP_BUILD === '1') { console.log('build スキップ（SKIP_BUILD=1）'); return Promise.resolve(); }
+  if (process.env.SKIP_BUILD !== '0') {
+    const { fresh, newest } = distIsFresh();
+    if (fresh) { console.log('build スキップ（dist が src/public より新しい＝変更なし。強制するには SKIP_BUILD=0）'); return Promise.resolve(); }
+    if (newest) console.log(`dist より新しい変更: ${newest}`);
+  }
   return new Promise((resolve, reject) => {
     console.log('dist を build 中…（最新ソース反映）');
     const b = spawn('npm', ['run', 'build'], { shell: true, stdio: ['ignore', 'ignore', 'pipe'] });
