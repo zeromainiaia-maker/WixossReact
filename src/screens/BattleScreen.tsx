@@ -5286,11 +5286,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         coins: Math.max(0, my.coins - coinCost),
       };
       // ON_COIN_PAID（C1 配線・キープレイのコイン支払）: extraEntries 経由で反応【自】を積む。
-      const keyCoinPaidEntries = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : [];
-      const fired = await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paid, op, {}, 1, keyCoinPaidEntries);
+      const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const keyCoinPaidEntries = keyCoin.entries;
+      const paidWithCoin = applyCoinPaidUsed(paid, keyCoin); // 《ターン1回/2回》消化を永続化（続き106）
+      const fired = await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, {}, 1, keyCoinPaidEntries);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
+        await supabase.from('battle_states').update({ [stateKey]: paidWithCoin }).eq('room_id', roomId);
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
