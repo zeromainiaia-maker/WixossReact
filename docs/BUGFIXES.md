@@ -5,6 +5,22 @@
 
 ---
 
+## §6.4クラフトトークンの実機配置検証＝WX25-CP1-066《雷ちゃん》の生成・場出しを実機PASS（2026-07-13・続き113・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+**PLAN §6.4「クラフトトークンの実機配置検証」6枚のうち、`ADD_TO_FIELD{cardName指定}`（`execAddToField`のゲーム外トークン生成分岐＝`effectExecutor.ts:1170`）を実際に使う唯一のカードであるWX25-CP1-066を実機検証。**
+
+- **カード＝WX25-CP1-066（白石ウタハ）E1**：【起】手札から＜ブルアカ＞のカードを1枚捨てる：あなたの場に《雷ちゃん》がない場合、クラフトの《雷ちゃん》1つを場に出す。JSONは`ADD_TO_FIELD{owner:'self',cardName:'雷ちゃん'}`（`source`フィールドなし＝ゲーム外トークン生成の合図）。
+- **`CardData_TK.csv`にトークン専用データ行を確認**＝`WX25-CP1-TK1A,雷ちゃん,...,シグニ/クラフト,...`＝`execAddToField`のCardName一致＋Type「クラフト」を含む解決ロジックが正しくこのカードを見つけられることを実機で確認（`host.fieldSigni`に`WX25-CP1-TK1A#1`が実際に出現）。
+- **driver構築で2つのUIハマりどころを発見・解決**：
+  1. **discardコストの手札ピッカーはSELECT_TARGETの`pick-0`ではなく`SigniActivatedModal`内蔵のカード画像クリック式**（`img[alt=カード名]`）。しかも**同名の`img[alt=...]`が画面下部の常設手札ストリップにもDOM順で先に存在する**＝Playwrightの`.first()`だとそちらを誤クリックし、`SigniActivatedModal`の外側オーバーレイの`onClick`（キャンセル＝`setPendingSigniActivated(null)`）を誘発してモーダルごと閉じてしまう事故が発生（2回再現）。**`.last()`（`createPortal`で`document.body`へ後から追加される側）を使うことで解決**＝同種の「モーダル内画像 vs 常設ストリップ画像」の名前衝突は他のdiscard/選択UIでも起こりうる汎用の教訓。
+  2. コスト支払い後、配置先ゾーンが2つ空いていると`SELECT_SIGNI_ZONE`（`EffectInteractionModal.tsx:753`）の「ゾーンN」ボタンクリックが要る（`wxk10068banish`等の「1ゾーンだけ空ける」回避策の代わりに、今回は素直にボタンクリックで対応）。
+- **2回連続PASS**（`host.fieldSigni`に`WX25-CP1-TK1A#1`出現・`host.hand`が5→4に減少）＝`verifyBattleDrive.mjs`の`craftTokenPlace`として既定orderに追加。
+- **⚠原文の「あなたの場に《雷ちゃん》がない場合」という条件がJSONに存在しない（無条件実行）**＝PLAN §6.4に既に「（場存在条件）」として記載済みの既知の据置＝今回の新規発見ではない（初回設置時は条件の有無に関わらず結果が同じなので検証には影響なし）。
+- **残＝WXDi-CP02-087（エナ枚数条件）／WXDi-P03-078（自パワー動的フィルタ）／WXDi-P05-068（先頭ドロー脱落）／WXK07-105（ベット分岐）／WX22-001-E3（付与型 leave トリガー機構）の5枚は未着手**（これらはcardName型トークンではなくADD_TO_FIELDの他ソース近似のため個別検証が要る）。
+- engine/parser/JSON変更なし（検証のみ）。
+
+---
+
 ## §7実機検証の横展開＝WX24-P2-018-E1（B4引用付与の起点）が一度も発火しないtiming誤りを実機確認・Opusタスク12へ登録（2026-07-13・続き112・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §7「B4引用付与の実発火」を実機検証しようとして、そもそも起点E1が発火しないtiming誤りを発見（未修正・Opus引き継ぎ）。**
