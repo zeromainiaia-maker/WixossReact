@@ -1840,8 +1840,38 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
   };
 }
 
+// 「対戦相手の〔レベル/パワー/色/状態…〕シグニN体を対象とし、…そうした場合、それを〈除去/移動〉」形（続き111）。
+// 対象指定文と最終アクション文（「それを…する」）が別文に割れ、最終アクションの owner が designation を
+// 継承せず default（BOUNCE→self・TRASH→any・TRANSFER_TO_DECK→self 等）へ落ち、「それ」が自分/任意の
+// シグニを指す過剰・誤効果になる（70効果）。designation を parseSigniTarget で解決し、末尾（「それ」参照）の
+// SIGNI ターゲット（owner が明示 opponent でない＝default に落ちた側）へ owner:opponent と欠落フィルタを刻む。
+// ⚠「対象とし」が複数ある文は「それ」の指し先が曖昧＝適用しない（単一 designation に限定）。冪等（既に opponent なら据置）。
+function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
+  if (!/そうした場合、それを/.test(text)) return action;
+  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  const desigM = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
+  if (!desigM) return action;
+  const desig = parseSigniTarget(desigM[1], 'opponent');
+  // 末尾（「それを…」）アクションの target/source を1つだけ補正（コスト等の先行 self ターゲットは触らない）。
+  const findFinal = (a: EffectAction | null | undefined): EffectAction | null => {
+    if (!a || typeof a !== 'object') return null;
+    if (a.type === 'CONDITIONAL') { const c = a as import('../types/effects').ConditionalAction; return findFinal(c.then) ?? c.then; }
+    if (a.type === 'SEQUENCE') { const st = (a as SequenceAction).steps; for (let i = st.length - 1; i >= 0; i--) { const f = findFinal(st[i]); if (f) return f; } return null; }
+    return a;
+  };
+  const fin = findFinal(action) as { target?: EffectTarget; source?: EffectTarget } | null;
+  const tgt = fin?.target ?? fin?.source;
+  if (!tgt || tgt.type !== 'SIGNI' || tgt.owner === 'opponent') return action;
+  tgt.owner = 'opponent';
+  if (!tgt.filter) tgt.filter = {};
+  for (const [k, v] of Object.entries(desig.filter ?? {})) {
+    if (!(k in tgt.filter)) (tgt.filter as Record<string, unknown>)[k] = v;
+  }
+  return action;
+}
+
 function parseActionText(text: string): EffectAction {
-  return applyLeadingSelfComparison(text, parseActionTextInner(text));
+  return applyLeadingSelfComparison(text, applyLeadingOpponentDesignation(text, parseActionTextInner(text)));
 }
 
 function parseActionTextInner(text: string): EffectAction {
