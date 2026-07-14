@@ -4129,13 +4129,7 @@ const scenarios = {
       }
       const fin = await H.queryState();
       const finCount = (fin?.host?.fieldSigni ?? []).flat().filter(n => n?.startsWith('WD01-013')).length;
-      // ⚠engine本体は✅続き117（Opus・タスク12(xiv)）で修正済み＝resumeSelectTargetのcontinuation握り潰しは解消
-      //   （姉妹シナリオ craftEnergyCP02087 で後続GRANT_KEYWORDの実発火を kwGrants で確認済み）。
-      //   本シナリオが依然FAILするのは engine ではなく driver 側のクリック不足＝ADD_TO_FIELD source:HAND_CARD の
-      //   SELECT_TARGET ピッカー（手札2枚から1枚選ぶ＝img[alt=カード名]・pick-0非対応）を drive() が満たせず
-      //   1体目の配置手前で停止するため（hField終始null・craftTokenPlaceの手札ピッカー注記と同種）。
-      //   driver のクリック列補強は Sonnetタスク（PLAN §3）。既定order外のまま。
-      return { pass: false, detail: `2体配置未確認（配置済み${finCount}体・pEff=${fin?.pendingEffect ?? '-'}）＝engineは修正済（craftEnergyCP02087で実証）・本FAILはdriverのHAND_CARDピッカー未クリック（Sonnet driverタスク）` };
+      return { pass: false, detail: `2体配置未確認（配置済み${finCount}体・pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
