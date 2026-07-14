@@ -7729,8 +7729,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
           appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
           const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
-          const triggers = collectBanishTriggers(num, ownerId, hostState, guestState);
-          allTriggers.push(...triggers);
+          const bt = collectBanishTriggers(num, ownerId, hostState, guestState);
+          allTriggers.push(...bt.entries);
+          // usageLimit 消費を actions_done へ畳み込む（同一パスで複数体バニッシュしても《ターン1回》は1度だけ）
+          if (bt.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...bt.usedHostIds] };
+          if (bt.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...bt.usedGuestIds] };
         } else if (mut.type === 'FREEZE') {
           const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === num);
           if (zoneIdx < 0) continue;
