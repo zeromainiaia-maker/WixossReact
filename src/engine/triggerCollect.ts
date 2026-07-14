@@ -1707,6 +1707,7 @@ export function collectTurnTriggers(
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'any_opp' && scope !== 'any') continue;
+    if (!limitOkOp(eff)) continue;
     const opLrigNum = opState.field.lrig.at(-1) ?? '';
     entries.push({
       id: ctx.genId(), playerId: opId, cardNum: opLrigNum, effectId: eff.effectId,
