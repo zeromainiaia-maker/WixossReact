@@ -5,6 +5,16 @@
 
 ---
 
+## WXK07-105（アーツ・ベット分岐）の実機検証を再開＝engine修正済（続き117）を確認・既定orderに追加（2026-07-14・続き125・Sonnet 5・PLAN §6.4／§3 Sonnetタスク1）
+
+**§6.4「クラフトトークンの実機配置検証」の残＝WXK07-105（ベット分岐）を再検証した。** 続き114でこのカードは `resumeSelectTarget` の `pending.continuation` 握り潰しバグ（外側SEQUENCEの2体目 ADD_TO_FIELD が発火しない）でFAILし、続き117（Opus・タスク12(xiv)）でそのengine本体は修正済みだったが、PLANには「engineは直ったがdriver側のHAND_CARDピッカー未クリックで依然FAIL＝Sonnet driverタスク」という未検証の推測が残ったままだった。
+
+- **再検証結果＝driver側の追加修正は不要だった**：`node scripts/verifyBattleDrive.mjs craftArtsBetK07105` を実行したところ、既存の `H.stdStep()`（`pick-0` ハンドリング込みの定石チェーン）だけでベット→1体目 ADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE）→2体目 ADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE）まで問題なく解決し、＜アーム＞2体（WD01-013#1/#2）が場に出ることを2回連続PASSで確認。「pick-0非対応」という旧コメントの想定は、続き114時点ではengine未修正で2体目のSELECT_TARGET自体に到達していなかったための誤診断だったと判明。
+- **対応**：`scripts/verifyBattleDrive.mjs` の `craftArtsBetK07105` を既定 `order` 配列に追加。scenario本体と`order`直後の古いコメント（「driverのHAND_CARDピッカー未クリック」）を実態に合わせて修正。`docs/PLAN.md` §6.4 の「残」リストからWXK07-105を除去し✅化。
+- driver script + PLAN.md のみ。engine/parser/effects JSON変更なし。§6.4「クラフトトークンの実機配置検証」の残はWX22-001-E3（STUB未実装＝機構待ち）のみに縮小。
+
+---
+
 ## 「あなたの他の＜X＞のシグニ（のうち最も…）」ターゲットが owner:any に潰れる parser バグを修正（2026-07-14・続き124・Opus 4.8・PLAN §3 Opusタスク5＝小口持ち越し #4）
 
 **タスク5「小口持ち越し」#4（WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落）を修正した。** 原文「あなたの**他の**＜ブルアカ＞のシグニ**のうち最もパワーの低い**シグニ１体を対象とし…」が、GRANT_KEYWORD/POWER_MODIFY の owner 判定で「他の」プレフィックス＋超上級句（のうち最も…シグニ）に阻まれ **owner:any**（＋story/excludeSelf 欠落）に潰れていた（相手シグニも対象になりうる誤り）。
