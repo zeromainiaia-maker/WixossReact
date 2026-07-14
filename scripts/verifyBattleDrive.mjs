@@ -3987,7 +3987,17 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `E1発火未確認（hKwGrants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）＝timing ON_ATTACK_SIGNI（ルリグの自己スコープでは収集経路が無い疑い）を裏付ける結果` };
+      const selfGrant = (fin?.host?.keywordGrants ?? []).find(g => g.startsWith('WX24-P2-018#1:'));
+      if (selfGrant) {
+        // ✅続き136（Opus・タスク17）で timing を ON_ATTACK_PHASE_START へ是正した結果、**E1 は発火するようになった**
+        //   （修正前は何も起きなかった）。ただし付与先が誤り＝**引用付与の内側 parse の別バグ**が露出した：
+        //   原文は「あなたの＜龍獣＞のシグニ1体を対象とし…それは『【自】：このシグニがアタックしたとき、対戦相手が
+        //   《無無無》を支払わないかぎり…【アサシン】を得る。』を得る」だが、実際は**ルリグ自身**（WX24-P2-018#1）に
+        //   【アサシン】が直接付与される＝(a)対象シグニの選択が JSON に無い (b)引用内の【自】トリガーと相手の支払い
+        //   条件も落ちて即時付与になっている。＝PLAN §3 Opusタスク1（引用付与の内側 ability parse）へ送る。
+        return { pass: false, detail: `【タスク17で発火は解消・別バグ露出】E1はアタックフェイズ開始時に発火し任意コストも支払えたが、付与先が対象シグニ(WX04-072)ではなく**ルリグ自身**（${selfGrant}）＝引用付与の内側 parse バグ（Opusタスク1）。timing 側（旧 ON_ATTACK_SIGNI＝一度も発火しない）は解消済み` };
+      }
+      return { pass: false, detail: `E1発火未確認（hKwGrants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）＝timing 是正（続き136）の回帰の疑い` };
     },
   },
 
