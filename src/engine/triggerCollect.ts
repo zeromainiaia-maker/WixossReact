@@ -501,8 +501,8 @@ export function collectBanishTriggers(
       if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
       // condition を持つAUTOは条件を満たす場合のみ収集（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
       if (eff.condition && !evalUseCondition(eff.condition, myAfterState, opAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-      // usageLimit once_per_turn: actions_done に記録済みならスキップ（実行時に永続化される）
-      if (eff.usageLimit === 'once_per_turn' && myAfterState.actions_done?.includes(eff.effectId)) continue;
+      // usageLimit（《ターン1回/2回》）: actions_done（永続）＋今回の収集内で回数上限に達していればスキップ。
+      if (!limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
