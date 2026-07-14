@@ -2696,11 +2696,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       break;
     case '自':
       effectType = 'AUTO';
-      // timing 判定は**引用「」の外側**のテキストだけで行う（続き135発見・タスク17）。従来は trigText 全体を
-      // 見ていたため、「【自】：あなたのアタックフェイズ開始時、…『【自】：このシグニがアタックしたとき…』を得る」型で
-      // **引用内（＝付与される能力）のトリガー語**が外側のトリガー句より先にマッチし、約20枚が誤 timing になっていた
-      // （ON_ATTACK_SIGNI 15枚・ON_OPP_LIFE_CRASHED 5枚・ON_ATTACK_LRIG 2枚）。引用付与の内側能力自体は parseBlock の
-      // 再帰呼び出しで別途この判定を通るので、内側の timing が失われることはない。
+      // ⚠timing 判定は trigText（＝先頭のトリガー句だけ・上の定義参照）で行う。actionText 全体を見ると、
+      //   トリガー句より後ろの本文や引用付与の内側にある「…したとき」を先に拾って timing が化ける（タスク17）。
       timing = trigText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
              : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
