@@ -4374,7 +4374,7 @@ const scenarios = {
         await page.waitForTimeout(1500);
         before = await H.queryState();
       }
-      H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest));
+      H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest), 'logTail=', JSON.stringify(before?.logTail));
       let modalSeen = false;
       for (let s = 0; s < 24; s++) {
         await page.waitForTimeout(900);
