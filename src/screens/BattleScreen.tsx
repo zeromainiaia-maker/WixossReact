@@ -2888,19 +2888,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_TURN_END トリガーをまだ収集していなければ先に解決する
         const turnEndMarked = my.actions_done?.includes('__TURN_END__');
         if (!turnEndMarked) {
-          const endEntries = collectTurnTriggers('ON_TURN_END', my, op);
+          const endRes = collectTurnTriggers('ON_TURN_END', my, op);
+          const endEntries = endRes.entries;
           if (endEntries.length > 0) {
             const markedMyState: PlayerState = {
               ...my,
-              actions_done: [...(my.actions_done ?? []), '__TURN_END__'],
+              actions_done: [...(my.actions_done ?? []), '__TURN_END__', ...endRes.usedMyIds],
             };
+            const opUpdate = endRes.usedOpIds.length > 0
+              ? { [isHost ? 'guest_state' : 'host_state']: { ...op, actions_done: [...(op.actions_done ?? []), ...endRes.usedOpIds] } }
+              : {};
             const turnPlayerId = bs.active_user_id ?? user.id;
             const existingStack = bs.effect_stack ?? null;
             const stack = existingStack
               ? pushToStack(existingStack, endEntries)
               : initStack(turnPlayerId, endEntries);
             await supabase.from('battle_states')
-              .update({ [stateKey]: markedMyState, effect_stack: stack })
+              .update({ [stateKey]: markedMyState, effect_stack: stack, ...opUpdate })
               .eq('room_id', roomId);
             return; // エフェクト解決後に自動で再度ターン終了処理を行う
           }
