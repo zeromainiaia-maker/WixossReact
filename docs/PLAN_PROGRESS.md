@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き127・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝ON_TARGETED forced単一対象follow-upを実バグと確定）**
+  - **🐛→登録 `POWER_MODIFY{targetsTriggerSource:true}`等の選択UIなし自動解決が`collectTargetedTriggers`を素通りしON_TARGETEDが発火しない実バグを実機再現**＝新規シナリオ`onTargetedForcedBypass`（host WX12-010の`targetsTriggerSource`アタッカー減算×guest WXDi-P03-067のON_TARGETED＝DRAW）でWX12-010の効果は成立するがWXDi-P03-067のDRAWは発火せず（FRESH=1含め2回連続再現）。実カード母集団5枚（WX12-010/WXEX2-29/WXDi-P03-043/WXDi-P04-065/WXK10-022）を機械抽出。Opusタスク12(xx)へ登録（診断のみ・修正せず）。シナリオは意図的FAIL回帰として既定order外のまま。
+  - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
 - **🆕 セッション（2026-07-14・続き126・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝WX04-004-E2実機検証＋WX04-005-E3未実装確定）**
   - **✅ WX04-004-E2（守備側アタック無効化）を新規シナリオ`oppDirectAttackNegate`で実機検証・2回連続PASS**＝正面が空のCPUアタックに対し`STUB(OPP_DIRECT_ATTACK_NEGATE/_PAY)`のCHOOSE(pay/skip)→TRASH(HAND_CARD,＜美巧＞)→エナ支払いフローが正しく解決しアタックを無効化（hLife 6→6）。既定orderに追加。`queryState`に`life`フィールドを新規追加。
   - **🐛→登録 WX04-005-E3＝`STUB LIMIT_ALL_FIELD_1`が完全未実装と確定**（`execStubPart1〜4`にcase自体が無い）。§6.1の残3型とは別の第4の未実装STUB＝Opusタスク12(xix)へ登録（診断のみ・修正せず）。
