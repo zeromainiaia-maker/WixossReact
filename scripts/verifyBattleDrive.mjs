@@ -4387,7 +4387,7 @@ const scenarios = {
         const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX12-024#1');
         const sacrificeGone = Array.isArray(before?.host?.fieldSigni?.[0]) && before.host.fieldSigni[0].includes('WD03-009#1')
           && !((st?.host?.fieldSigni?.[0] ?? []).includes?.('WD03-009#1'));
-        H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify(st?.logTail?.slice(-8))}`);
         if (!stillAlive) {
           if (modalSeen || sacrificeGone) {
             return { pass: true, detail: `想定外＝BanishSubstituteModalが出現しF-3が機能した（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝仮説は誤りだった` };
