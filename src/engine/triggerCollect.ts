@@ -1427,9 +1427,17 @@ export function collectFieldTriggers(
   opState: PlayerState,
   ownerId: string,
   opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const opId = ownerId === ctx.hostId ? ctx.guestId : ctx.hostId;
+  // usageLimit（《ターン1回/2回》）を watcher 側で判定し、消費 effectId を返す（呼び出し元が actions_done へ
+  // 書き戻す＝他コレクタと同型）。この関数にはガード自体が丸ごと無く、「味方のシグニが場に出るたびに◯◯
+  // （ターンに1回）」型が同一ターンに複数体召喚すると毎回発火する過剰効果だった（続き104・実カード32枚）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const ownerIsHost = ownerId === ctx.hostId;
+  const limitOkAlly = mkLimitOk(myState.actions_done, ownerIsHost ? usedHostIds : usedGuestIds);
+  const limitOkOpp = mkLimitOk(opState.actions_done, ownerIsHost ? usedGuestIds : usedHostIds);
   // byEffect/bySigniEffect:「効果によって場に出たとき」限定の発火可否（ON_PLAY）。
   const byEffectTriggerOk = (eff: CardEffect): boolean => {
     if (event !== 'ON_PLAY') return true;
