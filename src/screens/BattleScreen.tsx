@@ -3245,7 +3245,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
         // ターンプレイヤー（newMyState）の self【自】を発火（WX25-CP1-042-E2 等）。
         if (phase === 'ATTACK_SIGNI') {
-          const lasEntries = collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', newMyState, op);
+          const lasRes = collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', newMyState, op);
+          foldTurnUsed(lasRes);
+          const lasEntries = lasRes.entries;
           if (lasEntries.length > 0) {
             const baseStackLAS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
             update.effect_stack = baseStackLAS
