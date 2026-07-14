@@ -4399,6 +4399,61 @@ const scenarios = {
       return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ビート機構Phase1-7（続き115・Sonnet・PLAN §7「その他の実機検証待ち」）＝WDK14-014（炎魔の孔雀 カイム）の
+  //    【出】《ビートアイコン》［４枚以下］「《炎魔の孔雀　カイム》以外のシグニ１体を【ビート】にする：カードを
+  //    １枚引く」＝ON_PLAY cost.beat_signi:1＋condition:BEAT_CONDITION（[条件]ゲート＝現在の【ビート】枚数が
+  //    4枚以下でなければコスト提示自体が出ない）。このコストで WDK14-017（炎魔の幸運 カウカス）を【ビート】に
+  //    することで、WDK14-017 自身の ON_BECOME_BEAT（self scope・「このカードが【ビート】になったとき：
+  //    カードを1枚引き、手札を1枚捨てる」）が発火するかを検証する（[条件]ゲート開閉＋beat_signiコスト
+  //    支払い＋ON_BECOME_BEAT self watcherの3点を一気通貫で確認）。WDK14-014自身が持つON_BECOME_BEAT
+  //    any_ally反応（《赤》《赤》のOPTIONAL_COST付き）は今回スキップして検証対象外（エナ無しで自然にスキップ
+  //    される）。Restriction「タウィル限定」を満たすため lrig は WX06-007（タウィル＝トレ・Lv3）を使う。
+  beatBecomeSelfWDK14017: {
+    title: 'WDK14-014→WDK14-017（ビート機構Phase1-7＝[条件]ゲート＋beat_signiコスト＋ON_BECOME_BEAT self）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX06-007#1'], // 永らえし者 タウィル＝トレ（Lv3・タウィル限定を満たす）
+        'field.signi': [['WDK14-017#1'], null, null], // 炎魔の幸運 カウカス（ビート対象候補・self watcher）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, null],
+      },
+      handPrepend: ['WDK14-014#1'], // 炎魔の孔雀 カイム
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'host.trash:', before?.host?.trash);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/beatBecomeSelfWDK14017-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickZone();
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/カウカス.*の【自】効果（【ビート】になったとき）/);
+        const movedToBeat = !(st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WDK14-017')));
+        H.log(`  beat[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} hTrash=${st?.host?.trash} movedToBeat=${movedToBeat} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        if (watcherLog) {
+          return { pass: true, detail: `ビート機構Phase1-7発火→[条件]ゲート開通＋beat_signiコスト支払いでWDK14-017が【ビート】化→ON_BECOME_BEAT self watcher発火「${watcherLog}」（hHand ${before?.host?.hand}→${st.host.hand}・hTrash ${before?.host?.trash}→${st.host.trash}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ビート機構未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
