@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き120・Opus 4.8・PLAN §3 Opusタスク12(xviii)＝`GROW_COST_REDUCTION`にper-count scaling機構を新設）**
+  - **🐛→✅ グロウコスト軽減がper-count非対応で過大軽減する恒常バグを根治**＝`GrowCostReductionAction`が固定`reduction`のみで、WX14-009（《フレイスロ》7枚につき赤1）・WD14-001（＜悪魔＞シグニ6枚につき黒1）がトラッシュに該当0枚でも常時1色分軽減されていた。型に`perCount:{filter,count}`追加＋parser（「トラッシュのN枚につき」検出）＋engine（`floor(match/N)`倍）＋decompiler。
+  - **データ**＝WX14-009（AUTO）は自動採用、WD14-001（E3がMANUAL保護）は`perCount`手動パッチ。
+  - **✅ 2層検証**：①golden回帰2件新設（N未満→0・N→1・2N→2の閾値・修正なしFAIL実証・314→316）。②全ゲート緑（census 2220→2218・同型★0）。詳細 BUGFIXES 続き120。
+
 - **🆕 セッション（2026-07-14・続き119・Opus 4.8・PLAN §3 Opusタスク12(xvii)＝`collectTurnTriggers`にusageLimitを配線）**
   - **🐛→✅ ターン境界トリガーがフェイズ跨ぎで《ターン1回/2回》を無視して再発火する実バグを根治**＝`collectTurnTriggers`（ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`usageLimit`未参照・`actions_done`書き戻し無し。他コレクタ同型の`{entries,usedHostIds,usedGuestIds}`化＋全7 pushサイトに`mkLimitOk`ゲート＋BattleScreen5呼び出し元で書き戻し（`foldTurnUsed`）。
   - **影響実カード2枚**（WX25-CP1-042-E2・WXDi-CP02-077-E1）。
