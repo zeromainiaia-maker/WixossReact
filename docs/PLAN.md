@@ -173,11 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き119・Opus 4.8・PLAN §3 Opusタスク12(xvii)＝`collectTurnTriggers`にusageLimitを配線）**
-  - **🐛→✅ ターン境界トリガーがフェイズ跨ぎで《ターン1回/2回》を無視して再発火する実バグを根治**＝`collectTurnTriggers`（ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`usageLimit`を一切参照せず`actions_done`書き戻しも無かった。他コレクタと同型の`{entries,usedHostIds,usedGuestIds}`化＋全7 pushサイトに`mkLimitOk`ゲート追加（engine）＋BattleScreenの薄いラッパを`{entries,usedMyIds,usedOpIds}`へ変換し5呼び出し元で`actions_done`書き戻し（`foldTurnUsed`）。
-  - **影響実カード2枚**＝WX25-CP1-042-E2（once_per_turn・ON_LRIG_ATTACK_STEP_START）・WXDi-CP02-077-E1（twice・ON_ATTACK_PHASE_START・誤帰属疑い）。通常プレイは線形フェイズ境界で実害薄だが構造欠陥。
-  - **✅ 3層検証**：①**golden回帰新設**（1回目発火＋usedHostIds消費記録・2回目非発火をassert・修正なしでFAIL実証・313→314）。②**実ブラウザ**＝`lrigAttackStepStartUsageLimit`＝`repatchTop`で同一ターン内2回遷移させ2回目非発火を**2回連続PASS**（意図的FAIL回帰を既定orderに復帰）。③**全ゲート緑**（golden 314・smoke/fuzz全0・census 2220維持・lint 0 error）。
-  - **次の一手＝Opus残の受け口2件**：ビート機構ON_BECOME_BEAT self反応の欠落原因調査（12(xvi)）・`GROW_COST_REDUCTION`のper-count scaling機構新設（xviii）。他にOpusタスク1〜11も独立で着手可。Sonnet側は`craftArtsBetK07105`のdriverクリック補強（HAND_CARDピッカー・engineは続き117で修正済）＋Sonnetタスク1残（R37③等）。
+- **🆕 セッション（2026-07-14・続き120・Opus 4.8・PLAN §3 Opusタスク12(xviii)＝`GROW_COST_REDUCTION`にper-count scaling機構を新設）**
+  - **🐛→✅ グロウコスト軽減がper-count非対応で過大軽減する恒常バグを根治**＝`GrowCostReductionAction`が固定`reduction`のみで「トラッシュのN枚につき」を表現できず、WX14-009（《フレイスロ》7枚につき赤1）・WD14-001（＜悪魔＞シグニ6枚につき黒1）がトラッシュに該当0枚でも常時1色分軽減されていた。型に`perCount:{filter,count}`追加＋parser（「トラッシュのN枚につき」検出）＋engine（`floor(match/N)`倍・0なら加算なし）＋decompilerのパターン別描画。
+  - **データ**＝WX14-009（AUTO）はbuild:effects自動採用、WD14-001（E3がMANUALで`preserved_manual`保護）は`perCount`を手動パッチ。他4枚（WX10-010等の固定値）は無関係。
+  - **✅ 2層検証**：①**golden回帰2件新設**（両カードのN未満→0・N→1・2N→2の閾値挙動をassert・修正なしで「N未満は0」が`expected=0 got=1`のFAIL実証・314→316）。②**全ゲート緑**（golden 316・smoke/fuzz全0・census 2220→**2218**〔2枚が高シグナル欠落から外れた改善・BASELINE更新〕・lint 0 error・同型★0）。
+  - **次の一手＝Opus残の受け口1件**：ビート機構ON_BECOME_BEAT self反応の欠落原因調査（12(xvi)・要調査型＝`entries`配列長のログ計装等が要る）。他にOpusタスク1〜11（引用内parse・動的比較・DRAW脱落・§5c条件節・小口持ち越し・「代わりに」機構・§6.1未実装action型・§6.3大型機構・semantic audit・BEHAVIOR_AUDIT高シグナル・§5b混線テール・リファクタ）も独立で着手可。Sonnet側は`craftArtsBetK07105`のdriverクリック補強（HAND_CARDピッカー・engineは続き117で修正済）＋Sonnetタスク1残（R37③等）。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
