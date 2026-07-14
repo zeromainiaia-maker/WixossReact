@@ -2583,6 +2583,7 @@ const scenarios = {
         return { pass: false, detail: `1回目のON_LRIG_GROW発火/バニッシュが未完走のため検証空振り（fired=${r1.fired} settled=${r1.settled} gField=${JSON.stringify(r1.st?.guest?.fieldSigni)}）` };
       }
       H.log('1回目のBANISH完了確認（guestSigniCount=1）。WX03-024（ゲット・グロウ）を使用して2回目のON_LRIG_GROWを起動する…');
+      H.log('  診断: host.actionsDone(grow1後)=', JSON.stringify(r1.st?.host?.actionsDone));
       await H.ensureMain();
       H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
