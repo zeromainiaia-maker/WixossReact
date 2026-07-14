@@ -4454,6 +4454,73 @@ const scenarios = {
       return { pass: false, detail: `【バグ確認】[条件]ゲート開通＋beat_signiコスト支払い（WDK14-017が【ビート】化）＋ON_BECOME_BEAT any_ally反応（WDK14-014自身の「他のカードが【ビート】になったとき」＝任意コストプロンプト表示）は正常動作したが、WDK14-017自身のON_BECOME_BEAT self反応（このカードが【ビート】になったとき：カードを1枚引き手札を1枚捨てる）が2回連続で一度も発火しなかった（hHand=${fin?.host?.hand}・stack常時0・pEff=${fin?.pendingEffect ?? '-'}）＝同一beat化イベントでany_allyは発火しselfだけ欠落する再現性ある実バグ。collectBeatBecameTriggers（triggerCollect.ts:1206）のself収集ループかBattleScreen側watcher（1484行目）のstack統合を要調査。Opusタスク12へ登録。` };
     },
   },
+
+  // ON_LRIG_ATTACK_STEP_START②usageLimit（続き116・Sonnet・PLAN §7）＝WX25-CP1-042-E2「【自】《ターン１回》：
+  //    あなたのルリグアタックステップ開始時...」のusageLimitが実際に機能するかを検証。コード読解で
+  //    `collectTurnTriggers`（triggerCollect.ts:1571・ON_TURN_START/END/ON_ATTACK_PHASE_START/
+  //    ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`eff.usageLimit`を一切参照せず
+  //    `StackEntry[]`のみを返す（`usedIds`を返さない設計）ことを確認済み＝呼び出し側（BattleScreen.tsx:3220）も
+  //    `actions_done`への書き戻しを一切行わない。通常プレイでは ATTACK_SIGNI→ATTACK_LRIG 移行は1ターンに1回しか
+  //    起きないため実害は薄いが、`repatchTop`で同一ターン内に人為的に2回この遷移を発生させ、usageLimitガードが
+  //    本当に存在しないかを実機で確認する。
+  lrigAttackStepStartUsageLimit: {
+    title: 'WX25-CP1-042-E2（ON_LRIG_ATTACK_STEP_START②＝《ターン1回》usageLimitの実機検証）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX25-CP1-042#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'phase:', before?.turnPhase);
+      let firstFireHand = null;
+      let repatched = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigAttackStepStartUsageLimit-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        // 1回目発火の確認後、ATTACK_SIGNIへ人為的に巻き戻して2回目の遷移を発生させる。
+        if (firstFireHand === null && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)
+          && typeof phaseChk?.guest?.hand === 'number' && typeof before?.guest?.hand === 'number' && phaseChk.guest.hand < before.guest.hand) {
+          firstFireHand = phaseChk.guest.hand;
+          H.log(`  1回目発火確認＝gHand ${before.guest.hand}→${firstFireHand}。ATTACK_SIGNIへ巻き戻して2回目遷移を発生させる。`);
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          repatched = true;
+          did = 'repatch:ATTACK_SIGNI(2回目遷移用)';
+        } else if (phaseChk?.turnPhase === 'MAIN' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = 'repatch:ATTACK_SIGNI';
+        }
+        if (!did) did = await H.clickTextOrBtn(['このまま進む']);
+        if (!did) did = await H.clickTextOrBtn(['ルリグアタックへ']);
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        H.log(`  lasul[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase ?? '-'} gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}・1回目後${firstFireHand ?? '-'}) pEff=${st?.pendingEffect ?? '-'}`);
+        if (repatched && firstFireHand !== null && st?.turnPhase && st.turnPhase !== 'ATTACK_SIGNI' && st.turnPhase !== 'MAIN'
+          && typeof st?.guest?.hand === 'number') {
+          if (st.guest.hand < firstFireHand) {
+            return { pass: false, detail: `【バグ確認】同一ターン内でATTACK_SIGNI→ATTACK_LRIGを人為的に2回発生させたところ、WX25-CP1-042-E2（《ターン1回》usageLimit）が2回目も発火した（gHand ${before.guest.hand}→${firstFireHand}→${st.guest.hand}）＝collectTurnTriggersがusageLimitを一切参照せずactions_doneへの書き戻しも無い実バグを確認。Opusタスク12へ登録。` };
+          }
+          if (s > 12) {
+            return { pass: true, detail: `usageLimit正しく機能＝2回目のATTACK_LRIG遷移では発火せず（gHand ${firstFireHand}→${st.guest.hand}・変化なし）` };
+          }
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `判定未確定（1回目発火=${firstFireHand ?? '未確認'}・phase=${fin?.turnPhase ?? '-'} gHand=${fin?.guest?.hand ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
