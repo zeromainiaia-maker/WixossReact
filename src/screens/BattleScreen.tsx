@@ -3221,9 +3221,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? pushToStack(existingStackHL, hlEntries)
             : initStack(turnPlayerId, hlEntries);
         }
+        // usageLimit 消費（《ターン1回/2回》）を actions_done へ書き戻す＝再フェイズ境界で再発火させない（続き119）。
+        const foldTurnUsed = (res: { usedMyIds: string[]; usedOpIds: string[] }) => {
+          if (res.usedMyIds.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...res.usedMyIds] };
+          if (res.usedOpIds.length > 0) {
+            const opKeyT = isHost ? 'guest_state' : 'host_state';
+            const opBase = (update[opKeyT] as PlayerState) ?? op;
+            update[opKeyT] = { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] };
+          }
+        };
         // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
         if (phase === 'MAIN') {
-          const apsEntries = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
+          const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
+          foldTurnUsed(apsRes);
+          const apsEntries = apsRes.entries;
           if (apsEntries.length > 0) {
             const baseStackAPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
             update.effect_stack = baseStackAPS
