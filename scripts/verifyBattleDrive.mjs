@@ -4521,7 +4521,7 @@ const scenarios = {
         if (repatched && firstFireHand !== null && st?.turnPhase && st.turnPhase !== 'ATTACK_SIGNI' && st.turnPhase !== 'MAIN'
           && typeof st?.guest?.hand === 'number') {
           if (st.guest.hand < firstFireHand) {
-            return { pass: false, detail: `【バグ確認】同一ターン内でATTACK_SIGNI→ATTACK_LRIGを人為的に2回発生させたところ、WX25-CP1-042-E2（《ターン1回》usageLimit）が2回目も発火した（gHand ${before.guest.hand}→${firstFireHand}→${st.guest.hand}）＝collectTurnTriggersがusageLimitを一切参照せずactions_doneへの書き戻しも無い実バグを確認。Opusタスク12へ登録。` };
+            return { pass: false, detail: `【バグ確認】同一ターン内でATTACK_SIGNI→ATTACK_LRIGを人為的に2回発生させたところ、WX25-CP1-042-E2（《ターン1回》usageLimit）が2回目も発火した（gHand ${before.guest.hand}→${firstFireHand}→${st.guest.hand}）＝続き119(タスク12(xvii))で collectTurnTriggers に mkLimitOk＋actions_done書き戻しを配線して修正済み。再発ならその配線の回帰。` };
           }
           if (s > 12) {
             return { pass: true, detail: `usageLimit正しく機能＝2回目のATTACK_LRIG遷移では発火せず（gHand ${firstFireHand}→${st.guest.hand}・変化なし）` };
