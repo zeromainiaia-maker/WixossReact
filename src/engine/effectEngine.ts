@@ -1389,6 +1389,17 @@ export function calcFieldPowers(
           }
         }
 
+        // POWER_MODIFY_PER_DECK_COUNT: デッキ枚数 unitSize 枚ごとにパワー増減（常時・PR-442「10枚につき＋4000」）
+        const perDeckMods = extractPowerModifiesPerDeckCount(effect.action);
+        for (const mod of perDeckMods) {
+          const deckState = mod.deckOwner === 'self' ? ownerState : otherState;
+          const unit = mod.unitSize > 0 ? mod.unitSize : 1;
+          const delta = mod.deltaPerUnit * Math.floor(deckState.deck.length / unit);
+          if (delta !== 0 && powers.has(topNum)) {
+            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+          }
+        }
+
         // POWER_MODIFY_PER_VIRUS_COUNT: 場のウィルス数に比例したパワー増減（常時）
         const perVirusMods = extractPowerModifiesPerVirusCount(effect.action);
         for (const mod of perVirusMods) {
