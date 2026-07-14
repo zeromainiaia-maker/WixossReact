@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き123・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 SELF_TRASH_PREVENT を実装）**
+  - **🐛→✅ 完全no-op効果を1型解消**：**SELF_TRASH_PREVENT**（WX07-033「自分でこのシグニをトラッシュに置けない」）＝`collectSelfTrashPreventNums`新設＋ExecCtx`ownSelfTrashPreventNums`＋`execTrash`除外＋BattleScreen注入。
+  - **✅ 検証**：golden回帰新設（修正なしFAIL実証→PASS・318→319）。全ゲート緑。⚠限定＝コスト支払い別ctx経路は未カバー（該当希少）。詳細 BUGFIXES 続き123。
+  - 今セッション（続き122-123）で§6.1のengine単体完結型（COLOR_INHERIT/STACK_SPELL/SELF_TRASH_PREVENT）を消化。残3型（PLAY_FREE_FROM_TRASH/PREVENT_DAMAGE/COST_SUBSTITUTE）はBattleScreen横断インフラが要るhard tail。
+
 - **🆕 セッション（2026-07-14・続き122・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 未実装action型を2型実装）**
   - **🐛→✅ 完全no-op効果を2型解消**：**COLOR_INHERIT**（WX11-032「エナゾーンのカードの色を追加で持つ」＝`collectFieldSigniExtraColors`にエナ色継承分岐）・**STACK_SPELL**（WX11-029「トラッシュのスペルをこのカードの下に置く」＝dispatchを既存`execPlaceUnderSigni`にアダプト・新規実装ゼロ）。parserは正しく生成していたがengine処理が無く印刷能力が完全無効だった。
   - **副次**：`GRANT_FIELD_SHADOW`は既実装（リストstale）＝PLAN §6.1是正。
