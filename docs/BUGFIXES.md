@@ -5,6 +5,19 @@
 
 ---
 
+## census-batch パイプライン実行→採用不可と判定（据置・診断のみ）（2026-07-14・続き130・Sonnet 5・PLAN §5c）
+
+**§5c census文型バッチを回すため `npm run build:effects`→`node scripts/heldReview.mjs` を実行したが、held 109枚の精査の結果、Sonnetが安全に採用できる差分は無しと判定して据置にした。**
+
+- **調査**：held 109枚 → diff署名29グループ。一見「改善」に見える `+CONDITIONAL` グループ（WX26-CP1-011/013/015/017/018・WX25-P3-092の6枚＝「以下の２つから１つを選ぶ」CHOOSEの選択肢2に条件が付く文型）を精査。
+- **判明した不整合**：curated は既に `choice.condition`（選択肢自体の使用可否条件＝満たさない選択肢は選べない）で実装済み。fresh再生成は同じ条件を `choice.action` を `CONDITIONAL` でラップする形（選択肢は常に選べるが実行時に条件次第で no-op）で吐く。diff署名上は `+CONDITIONAL` で構造追加＝改善に見えるが、実際は表現が違うだけで意味論が異なり、機械採用すると「常に意味のない選択肢がUIに出る」退化になりうる。
+- **他グループ**（`-CHOOSE -DECK_CARD -TRASH` 12枚・`-CONDITIONAL -HAS_CARD_IN_FIELD` 12枚 等）も大半が「curatedにあってfreshに無い」フィルタ/条件＝curated優位・fresh未熟のパターンで、採用対象なし。
+- **census:clusters の未消化上位テンプレ**（凍結状態フィルタ18枚・共通する色74枚・レベル閾値109枚等）も、「共通する色」は語彙自体が完全未実装（新規機構）、「凍結状態フィルタ」はCONDITIONAL/CONTINUOUS/トリガーフィルタ/置換ルールが混在で一括機械化不可、と判明。いずれもOpus向け（意味的退化の見極め or 新規語彙）。
+- **対応**：`choice.condition` vs `CONDITIONAL`ラップの不整合をPLAN §3 Opusタスク12（常設受け口）へ新規在庫として登録。実際のeffects JSONへの変更は行っていない（`docs/_held_fresh.json`等の中間生成物のみ更新・実害なし）。
+- **次の一手**：Sonnet側はBEHAVIOR_AUDITのキュー再生成＋一次トリアージに切り替え。
+
+---
+
 ## ビート機構の複数候補選択UIを実機検証・既定orderに追加（2026-07-14・続き129・Sonnet 5・PLAN §7／ユーザー指示）
 
 **ユーザーから「ビート機構の複数候補選択UIを実装」の指示を受けたが、調査の結果すでに実装済みと判明したため、実機検証に切り替えて対応した。**
