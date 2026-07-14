@@ -5,6 +5,23 @@
 
 ---
 
+## F-3犠牲型5枚を`STUB BANISH_SUBSTITUTE`へ作り替え＝身代わりバニッシュ対話が一切発火しなかった実データ不具合を根治（2026-07-14・続き118・Opus 4.8・PLAN §3 Opusタスク12(xv)）
+
+**続き115（Sonnet）で診断・登録された真バグ（Opusタスク12(xv)）を根治した。** F-3「このシグニ／味方がバニッシュされる場合、代わりに…をバニッシュしてもよい」の犠牲型5枚が、effects JSON上で`STUB BANISH_SUBSTITUTE`（`collectBanishSubstitutes`が認識する形）ではなく**素の`CONTINUOUS BANISH{owner:self,optional:true}`**としてparseされていたため、`collectBanishSubstitutes`（`effectEngine.ts:4380`）に一切拾われず、身代わりモーダルが出ないまま対象がそのままバニッシュされていた（印刷テキストの能力が完全に無効）。
+
+- **対象5枚と分類**（型は`src/types/effects.ts`の`StubAction.banishSubstitute`に既存）：
+  - **WX12-024**（電機）・**WXEX2-60**（ウェポン）＝`self_sacrifice_other`（このシグニがバニッシュ→他の同クラスを犠牲）＋`sacrificeClass`。
+  - **WX20-055**＝`protect_other_sacrifice_self`＋`victimFilter:'riseIcon'`（《ライズアイコン》持ち味方を守り自己犠牲）。
+  - **WXDi-CP01-032**・**WXDi-P10-052**＝`protect_other_sacrifice_self`＋`victimFilter:'otherAny'`＋`activeCondition{TURN_OWNER,opponent}`（相手ターン中に他の味方を守り自己犠牲）。P10-052の「【出】能力で選んだシグニ限定」は選択追跡が機構未対応のため otherAny 近似（BanishSubstituteは常にバトル経路＝相手ターンのみ呼ばれるため実害は小）。
+- **修正（parser＋データ両方）**：
+  - **parser**（`parseSentencePart1.ts`）＝generic「バニッシュ」block（`t.includes('バニッシュしてもよい')`で素のBANISHに落とす・878行目）**より前**に犠牲型検出を追加。「〜がバニッシュされる場合、代わりに〜をバニッシュしてもよい」を2パターン（self_sacrifice_other／protect_other_sacrifice_self）に振り分けて`STUB BANISH_SUBSTITUTE{banishSubstitute}`を生成。`sacrificeClass`は＜X＞から、`victimFilter`は《ライズアイコン》有無から復元。「対戦相手のターンの間」は既存の effect-level `activeCondition{TURN_OWNER,opponent}` 機構が吸い上げるため`collectBanishSubstitutes`の`checkActiveCondition`で担保（oppTurnOnlyは重複のため付けない）。
+  - **データ**（`effects_WX.json`/`effects_WXDi.json`）＝curatedを parser 出力（fresh）と一致させ、`heldReview`の差分を0にした（＝次の`build:effects`でも戻らない）。
+  - **decompiler**（`decompileEffects.ts`）＝STUB `BANISH_SUBSTITUTE`のパターン別日本語描画を追加（英語ID/JSON漏れ回避）。逆翻訳は原文と一致・同型★0維持。
+- **検証（3層）**：①**golden回帰2件新設**＝`collectBanishSubstitutes`が self_sacrifice_other（WX12-024→WD03-009を候補）と protect_other_sacrifice_self（CP01-032→自己犠牲を提示）を正しく返すことをassert（決定論・golden 311→313）。②**実ブラウザ**＝`f3SacrificeWX12024`（旧`f3SacrificeWX12024Bug`）＝CPUのアタックでWX12-024がバニッシュされる際に身代わりモーダルが出現→WD03-009(＜電機＞)を犠牲にしWX12-024が場に残存することを**2回連続PASS**で確認（修正前は身代わり対話が一度も出ずそのままバニッシュ＝意図的FAIL回帰だったものを既定orderに復帰）。③**全ゲート緑**（golden 313・smoke/fuzz全0・census 2225→**2220**〔5枚が高シグナル欠落から外れた改善・BASELINE更新〕・lint 0 error・同型★0）。
+- parser（`parseSentencePart1.ts`）＋decompiler（`decompileEffects.ts`）＋effects JSON（WX/WXDi）＋golden（`goldenTest.ts`）＋driver（`verifyBattleDrive.mjs`）＋census baseline（`vocabCensus.ts`）。engine本体（`effectEngine.ts`の`collectBanishSubstitutes`）は既に両パターン実装済みで変更なし。
+
+---
+
 ## `resumeSelectTarget`のcontinuation握り潰しを根治＝ADD_TO_FIELD(SELECT_TARGET経由)の後続SEQUENCEステップが無言no-op化する構造バグを修正（2026-07-14・続き117・Opus 4.8・PLAN §3 Opusタスク12(xiv)）
 
 **続き114（Sonnet）で診断・登録された真バグ（Opusタスク12(xiv)）を根治した。** `resumeSelectTarget`（`effectExecutor.ts`）が、選択カードへの`thenAction`適用で`applyDirectAction`が`SELECT_SIGNI_ZONE`を要求（＝ADD_TO_FIELDの配置先が空きゾーン2以上）した場合に、`if (!result.done) return result;`（旧4251行目）でその内側interactionをそのまま返し、**外側SEQUENCEの`pending.continuation`（＝後続の GRANT_KEYWORD / CONDITIONAL / BLOCK_ACTION 等）を握り潰していた**。ゾーン選択後は`resumeSelectSigniZone`が`pending.continuation===undefined`を見て`done`するだけで、後続ステップが二度と実行されない。
