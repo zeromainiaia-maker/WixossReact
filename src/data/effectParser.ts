@@ -2641,6 +2641,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let extractedTriggerCondObj: import('../types/effects').CardEffect['triggerCondition']; // トリガー文から抽出した発火限定（byOpponentEffect/fromZones/forResonaCondition）
   let forcedActiveCondition: ActiveCondition | undefined; // marker処理で強制設定する activeCondition（G150「【常】…バニッシュされたとき」のON_BANISH再分類＝相手ターン限定）
 
+  // 【自】の timing 判定に使うテキスト＝**引用「」の外側だけ**（続き135・PLAN §3 Opusタスク17）。
+  // 「【自】：あなたのアタックフェイズ開始時、…それは『【自】：このシグニがアタックしたとき…』を得る。」型では、
+  // 引用内（＝付与される能力）のトリガー語が外側のトリガー句より先に判定チェーンへ当たり、外側 timing が
+  // 内側のものに化けていた（約20枚）。引用内の能力自体は引用付与ハンドラが別途この関数を再帰で通すため、
+  // ここで引用を落としても内側 timing は失われない。costStr/action 解析は actionText（元のまま）を使う。
+  const trigText = actionText.replace(/[「『][^「」『』]*[」』]/g, '');
   switch (marker) {
     case '常':
       effectType = 'CONTINUOUS'; mandatory = true;
