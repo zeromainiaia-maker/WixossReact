@@ -4462,7 +4462,7 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `【バグ確認】[条件]ゲート開通＋beat_signiコスト支払い（WDK14-017が【ビート】化）＋ON_BECOME_BEAT any_ally反応（WDK14-014自身の「他のカードが【ビート】になったとき」＝任意コストプロンプト表示）は正常動作したが、WDK14-017自身のON_BECOME_BEAT self反応（このカードが【ビート】になったとき：カードを1枚引き手札を1枚捨てる）が2回連続で一度も発火しなかった（hHand=${fin?.host?.hand}・stack常時0・pEff=${fin?.pendingEffect ?? '-'}）＝同一beat化イベントでany_allyは発火しselfだけ欠落する再現性ある実バグ。collectBeatBecameTriggers（triggerCollect.ts:1206）のself収集ループかBattleScreen側watcher（1484行目）のstack統合を要調査。Opusタスク12へ登録。` };
+      return { pass: false, detail: `【回帰】WDK14-017自身のON_BECOME_BEAT self反応が発火しない（hHand=${fin?.host?.hand}・pEff=${fin?.pendingEffect ?? '-'}）＝続き121(タスク12(xvi))で真因を特定し修正済み：battleCardNums構築（BattleScreen）が field.beat_zone を走査せず、【ビート】化して beat_zone へ移ったカードが effectsMap から脱落→collectBeatBecameTriggers の self ループが空を引いていた。再発なら addState への beat_zone 走査追加の回帰。` };
     },
   },
 
