@@ -7196,7 +7196,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_BANISH トリガー（バニッシュされた相手シグニ + フィールドトリガー）
       const newHostState  = attackerIsHost ? newMyState : newOpState;
       const newGuestState = attackerIsHost ? newOpState : newMyState;
-      const banishEntries = banishedOpCardNum
+      const banishRes = banishedOpCardNum
         ? collectBanishTriggers(
             banishedOpCardNum,
             defenderId,
@@ -7204,7 +7204,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             newGuestState,
             op, // 防御側のバトル前状態（アクセ付与ON_BANISH復元用）
           )
-        : [];
+        : { entries: [] as StackEntry[], usedHostIds: [] as string[], usedGuestIds: [] as string[] };
+      const banishEntries = banishRes.entries;
+      // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（attacker=newMyState / defender=newOpState）
+      {
+        const usedMine = attackerIsHost ? banishRes.usedHostIds : banishRes.usedGuestIds;
+        const usedOpp  = attackerIsHost ? banishRes.usedGuestIds : banishRes.usedHostIds;
+        if (usedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedMine];
+        if (usedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...usedOpp] };
+      }
 
       // ON_SIGNI_BANISH_BATTLE / ON_SIGNI_BANISH_OPPONENT: （バトルで）相手シグニをバニッシュしたとき
       // scope 'self'（デフォルト）はバニッシュしたアタッカー自身のみ、'any_ally'/'any' は自フィールド全シグニ。
