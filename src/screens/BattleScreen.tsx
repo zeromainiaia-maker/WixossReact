@@ -6360,7 +6360,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } satisfies StackEntry));
 
       // any_ally scope: 味方フィールドの他シグニが持つON_ATTACK_SIGNIへの応答（例: WX01-029）
-      const allyAttackEntries = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
+      const allyAttackRes = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
+      const allyAttackEntries = allyAttackRes.entries;
+      { // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（attacker=myState / defender=opState）
+        const usedMine = attackerIsHost ? allyAttackRes.usedHostIds : allyAttackRes.usedGuestIds;
+        const usedOpp  = attackerIsHost ? allyAttackRes.usedGuestIds : allyAttackRes.usedHostIds;
+        if (usedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedMine];
+        if (usedOpp.length > 0)  newOpState.actions_done = [...(newOpState.actions_done ?? []), ...usedOpp];
+      }
 
       // ON_ATTACK_SIGNIトリガー（防御側：相手シグニがアタックしたとき発動するAUTO効果）
       const opFrontZoneIdx = p.targetOpZone ?? (2 - zoneIndex); // 側面アタックは攻撃先＝指定ゾーン
