@@ -1625,6 +1625,7 @@ export function collectTurnTriggers(
       if (!tokenCardKT) continue;
       for (const eff of (ctx.effectsMap.get(tokenCardKT) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+        if (!limitOkMy(eff)) continue;
         const cardNameKT = ctx.cardMap.get(topNumKT)?.CardName ?? topNumKT;
         entries.push({
           id: ctx.genId(), playerId: meId, cardNum: topNumKT, effectId: `${tokenCardKT}:${eff.effectId}:${topNumKT}`,
