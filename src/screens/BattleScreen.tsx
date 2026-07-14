@@ -4483,7 +4483,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     myState: PlayerState,
     opState: PlayerState,
     ownerId: string,
-  ): StackEntry[] =>
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectBloomTriggers(mkTrigCtx(), bloomedInstanceId, myState, opState, ownerId);
 
   /**
