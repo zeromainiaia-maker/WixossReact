@@ -846,6 +846,13 @@ const trigCtx = (activeUserId: string | null, meId?: string): TrigCtx => ({
   hostId: HOST, guestId: GUEST, meId, activeUserId, turnPhase: 'MAIN',
   effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'tid',
 });
+// collectTurnTriggers は {entries, usedHostIds, usedGuestIds} を返す（続き119でusageLimit配線）。
+// 既存テストは entries だけ見るのでこのヘルパーで .entries を取り出す。
+const cttEntries = (
+  ctx: TrigCtx,
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  my: PlayerState, op: PlayerState,
+) => collectTurnTriggers(ctx, timing, my, op).entries;
 
 test('C1 ON_TARGETED: self-scope 対象シグニ自身が発火（相手ターン）', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
