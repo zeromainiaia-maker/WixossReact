@@ -4445,7 +4445,7 @@ const scenarios = {
         const st = await H.queryState();
         const watcherLog = await H.findLog(/カウカス.*の【自】効果（【ビート】になったとき）/);
         const movedToBeat = !(st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WDK14-017')));
-        H.log(`  beat[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} hTrash=${st?.host?.trash} movedToBeat=${movedToBeat} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
+        H.log(`  beat[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} hTrash=${st?.host?.trash} movedToBeat=${movedToBeat} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog} logTail=${JSON.stringify(st?.logTail?.slice(-6))}`);
         if (watcherLog) {
           return { pass: true, detail: `ビート機構Phase1-7発火→[条件]ゲート開通＋beat_signiコスト支払いでWDK14-017が【ビート】化→ON_BECOME_BEAT self watcher発火「${watcherLog}」（hHand ${before?.host?.hand}→${st.host.hand}・hTrash ${before?.host?.trash}→${st.host.trash}）` };
         }
