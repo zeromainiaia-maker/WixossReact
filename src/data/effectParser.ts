@@ -2647,6 +2647,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // 内側のものに化けていた（約20枚）。引用内の能力自体は引用付与ハンドラが別途この関数を再帰で通すため、
   // ここで引用を落としても内側 timing は失われない。costStr/action 解析は actionText（元のまま）を使う。
   const trigText = actionText.replace(/[「『][^「」『』]*[」』]/g, '');
+  // 【自】の timing 判定に使うテキスト＝**効果ブロック先頭のトリガー句だけ**（続き136・PLAN §3 Opusタスク17）。
+  // 従来は actionText 全体を判定チェーンにかけていたため、トリガー句より後ろ（本文や引用付与の内側）に出てくる
+  // 「…したとき」「…クラッシュされたとき」等が先にマッチし、外側 timing が化けていた（実測27効果）。
+  //   例：WX25-CP1-085「【自】：あなたのアタックフェイズ開始時、…このターン、…がアタックしたとき、…」→ ON_ATTACK_SIGNI
+  //   例：WX25-CP1-065「【自】：あなたのアタックフェイズ開始時、…対戦相手のライフクロス…クラッシュしたとき…」→ ON_OPP_LIFE_CRASHED
+  // 先頭の「…とき、／…時、」までを取り、見つからなければ従来どおり全文で判定する（＝挙動不変のフォールバック）。
+  const trigText = actionText.match(/^.*?(?:とき|時)[、,]/)?.[0] ?? actionText;
   switch (marker) {
     case '常':
       effectType = 'CONTINUOUS'; mandatory = true;
