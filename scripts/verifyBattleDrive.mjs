@@ -2521,38 +2521,31 @@ const scenarios = {
   //    （131行目 `if eff.usageLimit==='once_per_turn' && watcherState.actions_done?.includes(...)`）で、
   //    `usedIds` を返さず呼び出し元（BattleScreen.tsx:5123/8038）も actions_done への書き戻しを一切行わない＝
   //    `collectTurnTriggers`（ON_ATTACK_STEP_START②）で続き116/119に発見・修正された同型バグの疑い。
-  //    lriggrowと同じ WXDi-P03-039-E2（usageLimit:'once_per_turn'）を使い、同一ターン内で
-  //    Lv2→Lv3→Lv4 と2回グロウさせ（`free_grow_this_turn`をグロウ間で再注入）、2回ともBANISHが
-  //    完走するかを確認する。
+  //    ⚠標準の「グロウ」ボタン連打では2回目グロウを起動できない＝`actions_done.includes('GROW')`が
+  //    通常グロウ枠を正しく1ターン1回にブロックする（`wasFreeGrow`＝`freeGrowFilter!==null`のときだけ
+  //    actions_doneへの'GROW'追加をスキップする。`free_grow_this_turn`はコスト無償化のみでこの枠消費とは無関係）＝
+  //    最初の調査でこれを誤認し偽陰性FAILを出した（教訓として残す）。usageLimitを実際にテストできる経路は
+  //    「ゲット・グロウ」系スペル（WX03-024＝GROW_FREEアクション・タマ限定）による横グロウ＝これは
+  //    actions_doneのGROW枠を消費せず同一ターン内で2回目のON_LRIG_GROWを正当に発生させられる。
+  //    Lv2→Lv3標準グロウ（1回目発火）→WX03-024使用→同レベルの別タマルリグへ横グロウ（2回目発火試行）で確認する。
   lrigGrowUsageLimit: {
-    title: 'WXDi-P03-039-E2（ON_LRIG_GROW＝usageLimit《ターン1回》の実機検証）',
+    title: 'WXDi-P03-039-E2（ON_LRIG_GROW＝usageLimit《ターン1回》・ゲット・グロウ経由の実機検証）',
     spec: {
       hostSet: {
         'field.signi': [['WXDi-P03-039#1'], null, null], // watcher（any_ally・usageLimit once_per_turn）
-        'field.lrig': ['WD03-003#1'],                    // 自センター Lv2 ピルルク・Ｍ
-        'lrig_deck': ['WD03-002#1', 'WD03-001#1'],        // 1回目Lv3・2回目Lv4（同系統ピルルク）
-        'free_grow_this_turn': true,
-        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5'], // OPTIONAL_COST《無》×2回分
+        'field.lrig': ['WD01-003#1'],                     // 自センター Lv2 半月の巫女　タマヨリヒメ
+        'lrig_deck': ['WD01-002#1', 'WX01-007#1'],        // 1回目Lv3標準グロウ／2回目ゲット・グロウ横グロウ先（同Lv3・タマ）
+        'free_grow_this_turn': true,                      // 1回目のグロウコスト（白×2）無償化
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4'], // WX03-024コスト《白》×1＋OPTIONAL_COST《無》×2回分
         'actions_done': [],
       },
       guestSet: {
         'field.signi': [['WD01-013#1'], ['WD01-013#6'], null], // バニッシュ対象2体（1回目用・2回目用）
       },
+      handPrepend: ['WX03-024#1'], // ゲット・グロウ（スペル・タマ限定・白×1）
       top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
     },
     async drive(page, H) {
-      const setFreeGrow = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
-        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
-        const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
-        const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
-        const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
-        const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
-        const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
-        const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
-        const hs = { ...row.host_state, free_grow_this_turn: true };
-        await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, { method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify({ host_state: hs }) });
-        return { ok: true };
-      }, { SUPA_URL, ANON });
       const payAndBanish = async (label) => {
         let fired = false;
         for (let s = 0; s < 16; s++) {
@@ -2583,46 +2576,46 @@ const scenarios = {
         const st = await H.queryState();
         return { fired, settled: false, guestSigniCount: (st?.guest?.fieldSigni ?? []).filter(z => (z || []).length).length, st };
       };
-      const grew1 = await H.openGrow(/ピルルク・Ｇ/);
-      H.log('1回目グロウ実行（Lv2→Lv3）:', grew1 ? 'OK' : '失敗');
+      const grew1 = await H.openGrow(/弦月/);
+      H.log('1回目グロウ実行（Lv2→Lv3・標準）:', grew1 ? 'OK' : '失敗');
       const r1 = await payAndBanish('a');
       if (!r1.fired || !r1.settled || r1.guestSigniCount !== 1) {
         return { pass: false, detail: `1回目のON_LRIG_GROW発火/バニッシュが未完走のため検証空振り（fired=${r1.fired} settled=${r1.settled} gField=${JSON.stringify(r1.st?.guest?.fieldSigni)}）` };
       }
-      H.log('1回目のBANISH完了確認（guestSigniCount=1）。2回目グロウ準備（free_grow_this_turn再注入）…');
-      const sfg = await setFreeGrow();
-      H.log('setFreeGrow結果:', JSON.stringify(sfg));
-      await page.waitForTimeout(500);
-      const midSt = await H.queryState();
-      H.log(`2回目グロウ直前 host.lrigTop=${midSt?.host?.lrigTop} lrigDeck=${midSt?.host?.lrigDeck} lrigTrash=${midSt?.host?.lrigTrash} phase=${midSt?.turnPhase}`);
+      H.log('1回目のBANISH完了確認（guestSigniCount=1）。WX03-024（ゲット・グロウ）を使用して2回目のON_LRIG_GROWを起動する…');
+      await H.ensureMain();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
       let grew2 = false;
-      for (let k = 0; k < 5 && !grew2; k++) {
-        await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
-        await page.waitForTimeout(600);
-        const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-        const gbCount = await gb.count();
-        const gbVisible = gbCount ? await gb.isVisible().catch(() => false) : false;
-        H.log(`  grow2-probe[${k}] グロウボタン count=${gbCount} visible=${gbVisible}`);
-        if (gbCount && gbVisible) { await gb.click().catch(() => {}); }
-        await page.waitForTimeout(500);
-        const cand = page.getByRole('button', { name: /ピルルク・Ｔ/ }).first();
-        const candCount = await cand.count();
-        const candVisible = candCount ? await cand.isVisible().catch(() => false) : false;
-        const bodyTxt = await H.fullBody();
-        H.log(`  grow2-probe[${k}] 候補ボタン count=${candCount} visible=${candVisible} | body抜粋=${bodyTxt.slice(0, 300).replace(/\n/g, ' | ')}`);
-        if (candCount && candVisible) { await cand.click().catch(() => {}); grew2 = true; }
+      for (let s = 0; s < 20 && !grew2; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigGrowUsageLimit-cast${s}.png`, fullPage: true });
+        let did = await clickExact('発動'); // CardModal「発動」（スペル詳細確認）
+        if (!did) { // スペルコスト《白》×1
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        if (!did) { // ゲット・グロウ横グロウ先候補（同Lv3・タマ）
+          const cand = page.getByRole('button', { name: /月蝕/ }).first();
+          if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'btn:月蝕(get-grow候補)'; grew2 = true; }
+        }
+        const st = await H.queryState();
+        H.log(`  lgul-cast[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
       }
-      H.log('2回目グロウ実行（Lv3→Lv4）:', grew2 ? 'OK' : '失敗');
+      H.log('2回目グロウ（ゲット・グロウ横グロウ）起動:', grew2 ? 'OK' : '失敗');
       if (!grew2) {
         const fin = await H.queryState();
-        return { pass: false, detail: `2回目グロウ自体が起動せず検証空振り（lrigTop=${fin?.host?.lrigTop} lrigDeck=${fin?.host?.lrigDeck} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）＝グロウ先候補の表示条件を要再調査` };
+        return { pass: false, detail: `WX03-024経由の2回目グロウが起動せず検証空振り（hHand=${fin?.host?.hand ?? '-'} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）` };
       }
       const r2 = await payAndBanish('b');
       if (r2.fired && r2.settled && r2.guestSigniCount === 0) {
-        return { pass: false, detail: `実バグ確認＝usageLimit once_per_turnにもかかわらずON_LRIG_GROWが同一ターン内で2回発火（2回目もOPTIONAL_COST提示→BANISH完走・gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）＝collectLrigGrowTriggers（triggerCollect.ts:102）がusedIds書き戻しを行わない・collectTurnTriggers ON_LRIG_ATTACK_STEP_START②と同型のバグ（Opusタスク12へ登録）` };
+        return { pass: false, detail: `実バグ確認＝usageLimit once_per_turnにもかかわらずON_LRIG_GROWが同一ターン内で2回発火（ゲット・グロウ経由の2回目もOPTIONAL_COST提示→BANISH完走・gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）＝collectLrigGrowTriggers（triggerCollect.ts:102）がusedIds書き戻しを行わない・collectTurnTriggers ON_LRIG_ATTACK_STEP_START②と同型のバグ（Opusタスク12へ登録）` };
       }
       if (!r2.fired && r2.settled && r2.guestSigniCount === 1) {
-        return { pass: true, detail: `usageLimit正しく機能＝2回目のON_LRIG_GROWでは発火せず（optcost-pay未提示・guestの2体目の場シグニ残存 gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）` };
+        return { pass: true, detail: `usageLimit正しく機能＝ゲット・グロウ経由の2回目のON_LRIG_GROWでは発火せず（optcost-pay未提示・guestの2体目の場シグニ残存 gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）` };
       }
       return { pass: false, detail: `2回目グロウ後の判定不明瞭（fired=${r2.fired} settled=${r2.settled} guestSigniCount=${r2.guestSigniCount} gField=${JSON.stringify(r2.st?.guest?.fieldSigni)} pEff=${r2.st?.pendingEffect ?? '-'}）` };
     },
