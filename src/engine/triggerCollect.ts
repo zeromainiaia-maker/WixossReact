@@ -435,7 +435,7 @@ export function collectBanishTriggers(
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
   prevOwnerState?: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const meId = ctx.meId ?? ctx.hostId;
   const isHost = meId === ctx.hostId;
@@ -443,6 +443,12 @@ export function collectBanishTriggers(
   const myAfterState = isHost ? afterHostState : afterGuestState;
   const opAfterState = isHost ? afterGuestState : afterHostState;
   const banishedOwnerIsMe = banishedPlayerId === meId;
+  // usageLimit の消費 effectId を watcher 側で返す（呼び出し元が actions_done へ書き戻す。続き100・Opusタスク12(vi-5)）。
+  // 従来は actions_done を「読む」だけで書き戻しが無く、《ターン1回》が実質ノーガードだった（ON_BANISH watcher 18枚）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const limitOkMy = mkLimitOk(myAfterState.actions_done, isHost ? usedHostIds : usedGuestIds);
+  const limitOkOp = mkLimitOk(opAfterState.actions_done, isHost ? usedGuestIds : usedHostIds);
 
   // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
   if (prevOwnerState) {
