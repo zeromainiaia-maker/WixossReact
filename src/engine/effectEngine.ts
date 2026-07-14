@@ -4090,6 +4090,31 @@ export function collectBounceProtectedSigni(
 }
 
 /**
+ * SELF_TRASH_PREVENT（§6.1・WX07-033「あなたは、自分でこのシグニを場からトラッシュに置くことができない」）:
+ * 効果オーナー自身の効果/コストで場からトラッシュに置けないシグニ番号を返す（自己トラッシュ制限）。
+ * 相手効果によるトラッシュ・バニッシュ（→トラッシュ）は対象外＝あくまで「自分で置く」ことの禁止。
+ */
+export function collectSelfTrashPreventNums(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): Set<string> {
+  const result = new Set<string>();
+  for (const stack of state.field.signi) {
+    if (!stack?.length) continue;
+    const topNum = stack[stack.length - 1];
+    for (const eff of (effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
+      if ((eff.action as { type: string }).type === 'SELF_TRASH_PREVENT') result.add(topNum);
+    }
+  }
+  return result;
+}
+
+/**
  * PREVENT_SELF_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH /
  * SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
  * 相手効果によってフィールドからトラッシュへ移動できないシグニを返す。
