@@ -4687,7 +4687,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
       // ライズで元のトップシグニが下に置かれるカードになると、付いていた【ソウル】はルリグトラッシュへ（ルール処理）
       if (newSoul[zoneIndex])   { zoneExtraLrigTrash.push(newSoul[zoneIndex]!); newSoul[zoneIndex] = null; }
-      const placed: PlayerState = {
+      let placed: PlayerState = {
         ...my,
         hand: my.hand.filter((_, i) => i !== handIndex),
         field: {
