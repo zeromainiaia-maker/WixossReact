@@ -1776,8 +1776,7 @@ export function collectGrowCostReductions(
       let mult = 1;
       if (gcr.perCount) {
         const matchCount = state.trash.filter(n => matchesFilter(cardMap.get(baseNumG(n)), gcr.perCount!.filter)).length;
-        mult = 1; // TEMP-DISABLED Math.floor(matchCount / gcr.perCount.count);
-        void matchCount;
+        mult = Math.floor(matchCount / gcr.perCount.count);
       }
       if (mult > 0) for (const r of gcr.reduction) add(r.color, r.count * mult);
     } else if (action.type === 'COST_REDUCTION' && (action as CostReductionAction).isGrowCost) {
