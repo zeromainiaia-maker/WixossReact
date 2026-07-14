@@ -5,6 +5,17 @@
 
 ---
 
+## LOOK_AND_REORDER canTrash UIを実機検証・既定orderに追加（2026-07-14・続き128・Sonnet 5・PLAN §7.2／§3 Sonnetタスク1）
+
+**§7.2「対話UIの残実装」に残っていた「LOOK_AND_REORDERのcanTrash UI」を実機検証した。** `EffectInteractionModal.tsx:578`の「トラッシュ」トグルボタン（選択したカードを`lookReorderTrash`セットへ追加）→「決定」確定（`handleEffectInteraction(lookReorderOrder)`→`trashList`を`resumeLookAndReorder`へ渡す）は実装済みだったが実機未検証だった。
+
+- **検証**：新規シナリオ`lookReorderCanTrash`＝WX20-037（暴食の暴君　トウタク・ON_PLAY「デッキの上から3枚を見て、その中の何枚でもトラッシュに置き、残りを好きな順番でデッキの一番上に戻す」・`reorder:false, canTrash:true`）をhandPrepend→召喚→ゾーン選択→LOOK_AND_REORDERモーダルで先頭候補の「トラッシュ」ボタンをクリック→「決定」で確定。hTrash 0→1・hDeck 5→4（3枚見て1枚トラッシュ・2枚デッキトップへ戻す）を2回連続PASSで確認。既定orderに追加。
+- **副産物**：ルーム再利用時に前シナリオの残留モーダル（「ライフクロスクラッシュ」＝ライフバースト無しカードの「エナに送る」確認）がブロックする既知パターンに新規遭遇＝drive冒頭とループ内に`['エナに送る','トラッシュに送る','ライフに加える']`のクリーンアップクリックを追加（他シナリオの`closeModals`パターンと同系統・engine/parser無関係）。
+- `queryState`の`sideOf()`に`deck`（`deck.length`）フィールドを新規追加（今後デッキ枚数増減判定に使える）。
+- **結論**：新規バグなし＝UIは実装どおり正しく機能している。全ゲート緑（golden 319・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
+---
+
 ## ON_TARGETED forced単一対象follow-upを実機再現＝targetsTriggerSourceの自動解決がcollectTargetedTriggersを素通りする実バグを確定（2026-07-14・続き127・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
 
 **§7「ON_TARGETED」に長年残っていた「forced単一対象（pending無しで自動解決される対象取り）経路は未発火＝follow-up」の注記を実機で検証し、実バグと確定した。**
