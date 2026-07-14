@@ -4460,6 +4460,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * 召喚されたカード自身（triggerScope='self'）はここでは除き、queueCardEffects で別途処理する。
    */
   // ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM の場トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  // usageLimit（《ターン1回/2回》）消費 effectId を usedHostIds/usedGuestIds で返す（呼び出し元が actions_done へ
+  // 書き戻す）。従来この関数にはガード自体が無く「味方のシグニが場に出るたびに◯◯（ターンに1回）」型が
+  // 同一ターンの複数召喚で毎回発火していた（続き104・実カード32枚・続き135で解消）。
   const collectFieldTriggers = (
     event: 'ON_PLAY' | 'ON_BANISH' | 'ON_ATTACK_SIGNI' | 'ON_BLOOM',
     triggeringCardNum: string,
@@ -4467,7 +4470,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     opState: PlayerState,
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
     opts?: { placedByEffect?: boolean; placeSourceIsSigni?: boolean; placedFromTrash?: boolean },
-  ): StackEntry[] =>
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectFieldTriggers(mkTrigCtx(), event, triggeringCardNum, myState, opState, ownerId, opts);
 
   // 【シード】が開花したときの ON_BLOOM トリガーを収集する。
