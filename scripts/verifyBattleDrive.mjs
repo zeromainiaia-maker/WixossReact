@@ -2797,6 +2797,58 @@ const scenarios = {
     },
   },
 
+  // ㉒' PR-423×SPDi43-21（続き131・Sonnet・PLAN §7「R40②＝opp-draw の『自分の効果で』発生源限定なし」の実機検証）
+  //    PR-423「【自】：メインフェイズかアタックフェイズの間、対戦相手が自分の効果でカードを１枚引いたとき、
+  //    対戦相手にダメージを与える。その後、このシグニをバニッシュする。」＝JSON上は`triggerScope:'any_opp'`＋
+  //    `triggerCondition:{drawPhaseRestriction:'main_attack', drawByEffect:true}`のみで「対戦相手**自身**の効果で」
+  //    という発生源限定は表現されていない。collectOppDrawTriggers（triggerCollect.ts:691）も同様＝
+  //    reactorState(=PR-423所有者)のANY_OPP watcherはdrawerState(=対戦相手)のcards_drawn_by_effect_this_turnが
+  //    増えたことしか見ず、その増加が「対戦相手自身の効果」によるものか「PR-423所有者(host)自身の効果」に
+  //    よるものかを区別しない。SPDi43-21「【自】：あなたのアタックフェイズ開始時、カードを１枚引いてもよい。
+  //    そうした場合、対戦相手はカードを１枚引く。」（=host自身の効果でguestが引く）をhostに同居させ、hostの
+  //    アタックフェイズ開始時にSPDi43-21のDRAW{owner:opponent}でguestが引いたとき、PR-423（同じくhost所有）が
+  //    誤発火（対戦相手＝guestへLIFE_CRASH＋PR-423自己バニッシュ）するかを確認する＝発火すれば「自分の効果で」
+  //    限定なしの近似が実害を持つ実バグと確定（Opusタスク12へ登録・意図的FAIL回帰として既定orderから除外）。
+  oppDrawOwnEffectOnly: {
+    title: 'PR-423×SPDi43-21（ON_DRAW any_opp「自分の効果で」発生源限定なし＝§7 R40②の実機検証）',
+    spec: {
+      hostSet: {
+        'field.signi': [['SPDi43-21#1'], ['PR-423#1'], null], // SPDi43-21=自分の効果でguestを引かせる側／PR-423=watcher
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'guest.hand:', before?.guest?.hand, 'guest.life:', before?.guest?.life);
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppdrawownfx-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        const pr423Alive = (st?.host?.fieldSigni ?? []).some(z => (z || []).includes('PR-423#1'));
+        const guestDrew = (st?.guest?.hand ?? 0) > (before?.guest?.hand ?? 0);
+        const guestLifeDown = (st?.guest?.life ?? 99) < (before?.guest?.life ?? 0);
+        H.log(`  oppdrawownfx[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'}(開始${before?.host?.hand}) gHand=${st?.guest?.hand ?? '-'}(開始${before?.guest?.hand}) gLife=${st?.guest?.life ?? '-'}(開始${before?.guest?.life}) pr423Alive=${pr423Alive} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+        if (guestDrew && (!pr423Alive || guestLifeDown)) {
+          return { pass: false, detail: `実バグ確認＝host自身の効果(SPDi43-21)でguestが引いた（gHand ${before.guest.hand}→${st.guest.hand}）だけでPR-423が誤発火（gLife ${before.guest.life}→${st.guest.life}・PR-423生存=${pr423Alive}）＝「対戦相手が自分の効果で」の発生源限定が engine に無い（Opusタスク12へ登録）` };
+        }
+        if (guestDrew && pr423Alive && s >= 6) {
+          return { pass: true, detail: `guestが引いた（gHand ${before.guest.hand}→${st.guest.hand}）が PR-423 は非発火のまま（gLife ${before.guest.life}→${st.guest.life}維持・生存）＝近似は実害なしと確認` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `SPDi43-21のguestドロー自体が未発生＝検証空振り（hHand=${fin?.host?.hand ?? '-'} gHand=${fin?.guest?.hand ?? '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ㉓ WDA-F02-17: 【自】ON_TRASH（triggerScope:self・triggerCondition.fromZones:['hand']）＝§7 R36「手札捨て/トラッシュ
   //    flatten」の実機検証。「このカードが手札からトラッシュに置かれたとき」＝自己参照トリガー。
   //    原因＝WXK10-065（【出】：あなたは手札を1枚捨てる＝TRASH HAND_CARD self count1・SELECT_TARGET要）で
