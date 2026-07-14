@@ -92,6 +92,7 @@
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L（低優先） | effect 構造そのものが原文とズレたカードの再parse。逓減テール＝他が尽きたら |
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
 | 15 | （大型・任意）§8 CPU AI のメインフェイズ拡張 | 新規設計 | L（特大） | ⏳DESIGN §4「CPU は対人戦と同じ処理」の統一が先 |
+| **17** | **🆕 timing 判定が引用「」の内側を先に拾う系統バグ（続き135で発見・最優先）** | parser修正（timing判定の入力テキスト） | M | 「【自】：（あなた/対戦相手）の**アタックフェイズ開始時**、…『【自】：このシグニが**アタックしたとき**…』を得る」型で、**引用付与の内側トリガー語が外側の判定より先にマッチする**＝約20枚が誤 timing（`ON_ATTACK_SIGNI` 15枚・`ON_OPP_LIFE_CRASHED` 5枚・`ON_ATTACK_LRIG` 2枚。カード一覧は BUGFIXES 続き135 ⑤）。**真因＝timing 判定チェーン（`effectParser.ts` 2700-2854）が actionText 全体を対象にしている**。修正案＝判定前に引用スパンを除いた outerText を作る（**全 timing 分岐に効くので fresh 再生成の差分精査＋census/同型★0 の確認が必須**）。原文に「アタックフェイズ開始時」を含むのに timing が違う効果は計83件あり、残りは遅延句「次の〜」や引用内定義など別分類＝分類してから着手する |
 | 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | ✅ engine 配線済みで parser 語彙だけ無いクラスタは続き75/76で出し切った（19系統81枚・376→128）。**残128は engine に受け皿が無い機構待ち＝§6.3 へ**。ロングテール（1〜6件）のみ。運用知見は PLAN_DETAIL §3 |
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。詳細本文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3 の (i)〜(xx)）：
@@ -103,13 +104,13 @@
 | (i) | SP27-002-E3＝引用付与の内側条件が genericKagiri（isTimingMarker）で**無言消費**され PARTIAL にもならず、無条件アサシン付与へ退化 |
 | (ii) | WXDi-P10-035＝引用内【自】の「それを手札に戻す」の owner エンコードを lastProcessed 慣例と整合するか要精査 |
 | (iii) | WXK09-050＝parser が `GRANT_CHOSEN_ABILITY` を再生成し続け held に残存。Part1固有ハンドラとの dispatch 設計を解消するまで採用不可 |
-| (iv) | `applyDirectAction` の TRASH/HAND_CARD 分岐が `hand_discarded_just`/`turn_hand_discarded_count`/`hand_trashed_by_opp_this_turn` を更新しない（続き81） |
+| ~~(iv)~~ | ~~`applyDirectAction` の TRASH/HAND_CARD 分岐が手札カウンタ3種を更新しない（続き81）~~ **✅続き135（Opus）で修正＝3フィールド更新＋手札保護を即時パスと同形で移植・golden 1件** |
 | (v) | `applyDirectAction` 未対応型が `default` 節で元アクションを暴走再実行する系統の残（続き82） |
-| (vi) | `POWER_MODIFY_PER_DECK_COUNT`（PR-442・CONTINUOUS）が `effectEngine.ts` の CONTINUOUS 計算層に未実装（続き84） |
-| (vi-4/5) | 他6コレクタの LRIG ゾーン走査漏れ（該当実カード0＝潜在バグ）／二面コレクタ3種の usageLimit 書き戻し（続き96/106） |
+| ~~(vi)~~ | ~~`POWER_MODIFY_PER_DECK_COUNT`（PR-442・CONTINUOUS）が CONTINUOUS 計算層に未実装（続き84）~~ **✅続き135（Opus）で実装＝`extractPowerModifiesPerDeckCount`＋`calcFieldPowers` 計算ブロック・golden 1件** |
+| (vi-4)／~~(vi-5)~~ | 他6コレクタの LRIG ゾーン走査漏れ（該当実カード0＝潜在バグ・**未消化**）／~~二面コレクタ3種の usageLimit 書き戻し~~ **✅続き135（Opus）で(x)と一括修正＝Banish18枚/PowerZero6枚/LrigGrow4枚** |
 | (vii) | 「アップ状態のこのシグニをダウンしてもよい」系の対象/自己混同・条件欠落の構造的バグ7件（続き89） |
 | (viii) | checkAllEffects 精査で残った複合バグ7件（WX26-CP1-048 の出自条件欠落ほか・続き90） |
-| (x) | `collectFieldTriggers` に usageLimit 自体が無く《ターン1回》が過剰発火（続き104） |
+| ~~(x)~~ | ~~`collectFieldTriggers` に usageLimit 自体が無く《ターン1回》が過剰発火（続き104・32枚）~~ **✅続き135（Opus）で修正＝5コレクタを `{entries, usedHostIds, usedGuestIds}` 型へ統一＋BattleScreen 12箇所で書き戻し。実機 `onPlayUsageLimit` 2回連続PASS** |
 | (xi) | curated の `CONDITIONAL{条件, then:STUB OPTIONAL_COST}` 包み形27枚の扱い（続き110） |
 | (xii) | WXEX1-19-E2＝自己再帰STUBと `resumeSelectTarget` の個別適用ループが設計非互換＝実プレイでも無限ループ（続き112） |
 | (xiii) | WX24-P2-018-E1＝ルリグの「アタックフェイズ開始時」が `ON_ATTACK_SIGNI`（自己スコープ）で誤登録され一度も発火しない（続き112・§7 B4 のブロッカー） |
@@ -163,7 +164,7 @@
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 319・smoke/fuzz 全0・同型★0・census 2218。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 325・smoke/fuzz 全0・同型★0・census 2218。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（census 高シグナルの機械分類＝純P1 87%／混在9%／純§6.3 5%）。
 >
