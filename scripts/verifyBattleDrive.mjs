@@ -3963,11 +3963,13 @@ const scenarios = {
         // 同じ CHOOSE が残り続ける＝続き136 で判明）。エナ枠 optcost-energy-0 を先にクリックする。
         if (!did) {
           const ec0 = page.getByTestId('optcost-energy-0').first();
-          if (await ec0.count() && await ec0.isVisible().catch(() => false)) { await ec0.click().catch(() => {}); did = 'pick:optcost-energy-0'; }
-        }
-        if (!did) {
-          const payBtn = page.getByRole('button', { name: /支払|エナ.*選択して発動/ }).first();
-          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払(pay)'; }
+          if (await ec0.count() && await ec0.isVisible().catch(() => false)) {
+            await ec0.click().catch(() => {});           // エナ枠は再クリックで選択解除されるので、
+            await page.waitForTimeout(250);              // 同一ステップ内で発動まで押し切る
+            const payBtn = page.getByRole('button', { name: /支払|発動/ }).first();
+            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) await payBtn.click().catch(() => {});
+            did = 'pick:optcost-energy-0→発動';
+          }
         }
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
