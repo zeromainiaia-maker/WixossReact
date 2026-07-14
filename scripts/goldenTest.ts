@@ -151,6 +151,18 @@ test('TRASH 相手エナ1(選択): エナ-1 トラッシュ+1', () => {
   eq(r.otherState.energy.length, 4, 'エナ-1');
   eq(r.otherState.trash.length, 4, 'トラッシュ+1');
 });
+test('collectBanishSubstitutes: F-3犠牲型 self_sacrifice_other（WX12-024）＝他の＜電機＞を身代わり候補に挙げる（タスク12(xv)）', () => {
+  // WX12-024-E1 = STUB BANISH_SUBSTITUTE{pattern:self_sacrifice_other,sacrificeClass:電機}
+  const st = mkState({ signi: ['WX12-024', 'WD03-009', null] }); // victim=WX12-024 / 犠牲候補=WD03-009(＜電機＞)
+  const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WX12-024');
+  ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WD03-009'), `身代わり候補にWD03-009 (${JSON.stringify(opts)})`);
+});
+test('collectBanishSubstitutes: F-3保護型 protect_other_sacrifice_self（WXDi-CP01-032）＝他の味方の被バニッシュ時に自己犠牲を提示（タスク12(xv)）', () => {
+  // WXDi-CP01-032-E1 = STUB BANISH_SUBSTITUTE{pattern:protect_other_sacrifice_self,victimFilter:otherAny}+activeCondition TURN_OWNER相手
+  const st = mkState({ signi: ['WXDi-CP01-032', 'WD03-009', null] }); // source=CP01-032(保護者) / victim=WD03-009(他の味方)
+  const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WD03-009');
+  ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'), `自己犠牲(CP01-032)を提示 (${JSON.stringify(opts)})`);
+});
 test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計', () => {
   // WX10-010-E1 = CONTINUOUS GROW_COST_REDUCTION reduction:[赤1,白1]
   const st = mkState({ signi: ['WX10-010', null, null] });
