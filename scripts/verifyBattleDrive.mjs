@@ -2516,6 +2516,95 @@ const scenarios = {
     },
   },
 
+  // ④' WXDi-P03-039-E2（続き132・Sonnet・PLAN §7「ON_LRIG_GROW④＝《ターン1回》制限の実機未検証」）
+  //    `collectLrigGrowTriggers`（triggerCollect.ts:102）はコード読解で usageLimit を「読む」だけ
+  //    （131行目 `if eff.usageLimit==='once_per_turn' && watcherState.actions_done?.includes(...)`）で、
+  //    `usedIds` を返さず呼び出し元（BattleScreen.tsx:5123/8038）も actions_done への書き戻しを一切行わない＝
+  //    `collectTurnTriggers`（ON_ATTACK_STEP_START②）で続き116/119に発見・修正された同型バグの疑い。
+  //    lriggrowと同じ WXDi-P03-039-E2（usageLimit:'once_per_turn'）を使い、同一ターン内で
+  //    Lv2→Lv3→Lv4 と2回グロウさせ（`free_grow_this_turn`をグロウ間で再注入）、2回ともBANISHが
+  //    完走するかを確認する。
+  lrigGrowUsageLimit: {
+    title: 'WXDi-P03-039-E2（ON_LRIG_GROW＝usageLimit《ターン1回》の実機検証）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WXDi-P03-039#1'], null, null], // watcher（any_ally・usageLimit once_per_turn）
+        'field.lrig': ['WD03-003#1'],                    // 自センター Lv2 ピルルク・Ｍ
+        'lrig_deck': ['WD03-002#1', 'WD03-001#1'],        // 1回目Lv3・2回目Lv4（同系統ピルルク）
+        'free_grow_this_turn': true,
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5'], // OPTIONAL_COST《無》×2回分
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], ['WD01-013#6'], null], // バニッシュ対象2体（1回目用・2回目用）
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const setFreeGrow = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+        const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+        const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
+        const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+        const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
+        const hs = { ...row.host_state, free_grow_this_turn: true };
+        await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, { method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify({ host_state: hs }) });
+        return { ok: true };
+      }, { SUPA_URL, ANON });
+      const payAndBanish = async (label) => {
+        let fired = false;
+        for (let s = 0; s < 16; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/lrigGrowUsageLimit-${label}${s}.png`, fullPage: true });
+          let did = null;
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+            fired = true;
+            await H.clickTestId('optcost-energy-0');
+            await page.waitForTimeout(300);
+            if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+          if (!did) {
+            const pick0 = page.getByTestId('pick-0').first();
+            if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+          const st = await H.queryState();
+          const guestSigniCount = (st?.guest?.fieldSigni ?? []).filter(z => (z || []).length).length;
+          H.log(`  lgul-${label}[${s}] -> ${did ?? 'なし'} | fired=${fired} gField=${JSON.stringify(st?.guest?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+          if (s >= 9 && !fired) return { fired, settled: true, guestSigniCount, st };
+          if (fired && !(st?.stackLen > 0) && !st?.pendingEffect) return { fired, settled: true, guestSigniCount, st };
+        }
+        const st = await H.queryState();
+        return { fired, settled: false, guestSigniCount: (st?.guest?.fieldSigni ?? []).filter(z => (z || []).length).length, st };
+      };
+      const grew1 = await H.openGrow(/ピルルク・Ｇ/);
+      H.log('1回目グロウ実行（Lv2→Lv3）:', grew1 ? 'OK' : '失敗');
+      const r1 = await payAndBanish('a');
+      if (!r1.fired || !r1.settled || r1.guestSigniCount !== 1) {
+        return { pass: false, detail: `1回目のON_LRIG_GROW発火/バニッシュが未完走のため検証空振り（fired=${r1.fired} settled=${r1.settled} gField=${JSON.stringify(r1.st?.guest?.fieldSigni)}）` };
+      }
+      H.log('1回目のBANISH完了確認（guestSigniCount=1）。2回目グロウ準備（free_grow_this_turn再注入）…');
+      await setFreeGrow();
+      await page.waitForTimeout(500);
+      const grew2 = await H.openGrow(/ピルルク・Ｔ/);
+      H.log('2回目グロウ実行（Lv3→Lv4）:', grew2 ? 'OK' : '失敗');
+      const r2 = await payAndBanish('b');
+      if (r2.fired && r2.settled && r2.guestSigniCount === 0) {
+        return { pass: false, detail: `実バグ確認＝usageLimit once_per_turnにもかかわらずON_LRIG_GROWが同一ターン内で2回発火（2回目もOPTIONAL_COST提示→BANISH完走・gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）＝collectLrigGrowTriggers（triggerCollect.ts:102）がusedIds書き戻しを行わない・collectTurnTriggers ON_LRIG_ATTACK_STEP_START②と同型のバグ（Opusタスク12へ登録）` };
+      }
+      if (!r2.fired && r2.settled && r2.guestSigniCount === 1) {
+        return { pass: true, detail: `usageLimit正しく機能＝2回目のON_LRIG_GROWでは発火せず（optcost-pay未提示・guestの2体目の場シグニ残存 gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）` };
+      }
+      return { pass: false, detail: `2回目グロウ後の判定不明瞭（fired=${r2.fired} settled=${r2.settled} guestSigniCount=${r2.guestSigniCount} gField=${JSON.stringify(r2.st?.guest?.fieldSigni)} pEff=${r2.st?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑫ CPUグロウ配線（正）: CPUが GROWフェイズで Lv2→Lv3 に自動グロウする。
   //    guest(=CPU) の center=WD03-003(Lv2 ピルルク・Ｍ)、lrig_deck=[WD03-002(Lv3 ピルルク・Ｇ・青×2)]、
   //    青エナ2枚を注入。CPU自動処理（cpuTurnAction の GROW 分岐）が候補フィルタ（レベル+1／CardClass互換／
