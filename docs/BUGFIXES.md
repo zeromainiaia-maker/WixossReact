@@ -5,6 +5,18 @@
 
 ---
 
+## 「あなたの他の＜X＞のシグニ（のうち最も…）」ターゲットが owner:any に潰れる parser バグを修正（2026-07-14・続き124・Opus 4.8・PLAN §3 Opusタスク5＝小口持ち越し #4）
+
+**タスク5「小口持ち越し」#4（WX25-CP1-051/WXDi-CP02-070 の owner:any・excludeSelf 欠落）を修正した。** 原文「あなたの**他の**＜ブルアカ＞のシグニ**のうち最もパワーの低い**シグニ１体を対象とし…」が、GRANT_KEYWORD/POWER_MODIFY の owner 判定で「他の」プレフィックス＋超上級句（のうち最も…シグニ）に阻まれ **owner:any**（＋story/excludeSelf 欠落）に潰れていた（相手シグニも対象になりうる誤り）。
+
+- **修正（parserのnarrow拡張）**：`parseSentencePart1.ts` の GRANT_KEYWORD ターゲット判定 `kwSelfSigni`/`kwOppSigni` に「あなたの/対戦相手の**他の**（色/クラス）*シグニ」を narrow に拾う分岐を追加。`kwExcludeSelf` に「他の…シグニ**のうち最も**…を対象とし」の超上級句 variant を追加。POWER_MODIFY の owner 判定 else（owner:any 既定）の前に「あなたの他の…シグニ**のうち最も**…を対象とし」→`parseSigniTarget(t,'self')`（story/excludeSelf/superlative/count を正しく抽出）の分岐を追加。
+- **⚠blast radius の制御**：最初の実装（`[^。、]*` で広く一致）は held「値/構造変更」グループを 38→90枚に急増させた（多数カードの owner を無差別 flip）＝**超上級句（のうち最も）と「他の」を必須にする narrow 化で 90→49 に抑制**。増加分11枚は全て「あなたの他の…シグニ」を正しく owner:self 化した改善（回帰ではない・curated は held のため未変更）。
+- **採用**：対象2枚＋同一パターンで owner:any→self が明確な5枚（WX24-P1-052/WX24-P2-059/WX24-P3-061/WX25-CP1-057/WXDi-CP02-067）を `heldReview --adopt` で採用（計7枚）。残4枚（WX25-CP1-078/WXEX2-43＝色/複クラス接頭で excludeSelf 未抽出・WXDi-P11-TK02＝count:ALL要・WXK09-084＝trigger文）は要個別確認で held 据置。
+- **検証**：全ゲート緑（golden 319維持・smoke/fuzz全0・census 2218維持・lint 0 error・**同型★0**）。decompile も「あなたの他の＜ブルアカ＞の最もパワーの低いシグニ1体」と原文一致で描画。
+- parser（`parseSentencePart1.ts`）＋effects JSON（採用7枚）のみ。engine/decompiler変更なし。
+
+---
+
 ## §6.1 未実装action型 SELF_TRASH_PREVENT を実装＝自分で自シグニをトラッシュに置けない制限（2026-07-14・続き123・Opus 4.8・PLAN §3 Opusタスク7）
 
 **§6.1 の残から `SELF_TRASH_PREVENT` を実装した**（WX07-033「【常】：あなたは、自分でこのシグニを場からトラッシュに置くことができない」）。CONTINUOUS だが engine に処理が無く完全 no-op だった。他の CONTINUOUS 制約（`otherTrashFieldProtectedNums` 等）と同型の「effectEngine で集合を計算→ExecCtx に注入→executor で除外」パターンで配線。
