@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き118・Opus 4.8・PLAN §3 Opusタスク12(xv)＝F-3犠牲型5枚を`STUB BANISH_SUBSTITUTE`へ作り替え）**
+  - **🐛→✅ F-3犠牲型5枚が素の`BANISH`としてparseされ身代わり対話が一切発火しなかった実データ不具合を根治**＝WX12-024/WXEX2-60（self_sacrifice_other＋sacrificeClass）・WX20-055（protect+riseIcon）・WXDi-CP01-032/WXDi-P10-052（protect+otherAny+相手ターン）の5枚を`STUB BANISH_SUBSTITUTE`へ作り替え。
+  - **修正＝parser（generic「バニッシュ」blockの前に犠牲型検出）＋curated JSON（fresh一致）＋decompiler（パターン別描画）**。engine（`collectBanishSubstitutes`）は既に両パターン実装済みで変更なし。
+  - **✅ 3層検証**：①golden回帰2件新設（両パターン収集・311→313）。②実ブラウザ`f3SacrificeWX12024`＝身代わりモーダル出現→犠牲→victim残存を2回連続PASS（意図的FAIL回帰を既定orderに復帰）。③全ゲート緑（census 2225→2220・同型★0）。詳細 BUGFIXES 続き118。
+
 - **🆕 セッション（2026-07-14・続き117・Opus 4.8・PLAN §3 Opusタスク12(xiv)＝`resumeSelectTarget`のcontinuation握り潰しを根治）**
   - **🐛→✅ `resumeSelectTarget`が外側SEQUENCEの`pending.continuation`を握り潰す構造バグを根治**＝`applyDirectAction(ADD_TO_FIELD)`が配置先の空きゾーン2以上で`SELECT_SIGNI_ZONE`を要求した場合に、旧`if(!result.done) return result;`が内側interactionをそのまま返し外側continuation（後続のGRANT_KEYWORD/CONDITIONAL/BLOCK_ACTION等）を脱落させていた。修正＝`resumeSearch`同型に`thenAction=ADD_TO_FIELD`時は`execPlaceSigniOnField`経由でchain配置し外側continuationを`afterAction`として全配置後に実行。
   - **影響母集団＝機械抽出で84効果（約80カード）**。構造修正のため全件を一律カバー。
