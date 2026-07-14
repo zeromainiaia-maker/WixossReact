@@ -1603,6 +1603,7 @@ export function collectTurnTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
