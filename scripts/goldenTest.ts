@@ -171,6 +171,23 @@ test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計',
   eq(byColor['赤'], 1, '赤-1');
   eq(byColor['白'], 1, '白-1');
 });
+test('collectGrowCostReductions per-count: WX14-009 トラッシュの《フレイスロ》N枚で赤floor(N/7)（タスク12(xviii)）', () => {
+  // 従来は枚数無視で常時-赤1の過大軽減バグ。修正後は floor(match/7) 倍（7未満は0）。
+  const flCard = findCard(c => (c.CardName ?? '').includes('フレイスロ'));
+  const mk = (n: number) => { const st = mkState({}); st.field.lrig = ['WX14-009']; st.trash = Array.from({ length: n }, () => flCard); return st; };
+  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>).map(r => [r.color, r.count]));
+  eq(red(6)['赤'] ?? 0, 0, '6枚（7未満）は減額0');
+  eq(red(7)['赤'], 1, '7枚で赤1');
+  eq(red(14)['赤'], 2, '14枚で赤2');
+});
+test('collectGrowCostReductions per-count: WD14-001 トラッシュの＜悪魔＞シグニN枚で黒floor(N/6)（タスク12(xviii)）', () => {
+  const akuma = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('悪魔'));
+  const mk = (n: number) => { const st = mkState({}); st.field.lrig = ['WD14-001']; st.trash = Array.from({ length: n }, () => akuma); return st; };
+  const red = (n: number) => Object.fromEntries(collectGrowCostReductions(mk(n), mkState({}), true, effectsMap, cardMap as Map<string, CardData>).map(r => [r.color, r.count]));
+  eq(red(5)['黒'] ?? 0, 0, '5枚（6未満）は減額0');
+  eq(red(6)['黒'], 1, '6枚で黒1');
+  eq(red(12)['黒'], 2, '12枚で黒2');
+});
 test('POWER_MODIFY_PER_ENERGY: エナ枚数×deltaでCONTパワー加算（WX09-019）', () => {
   // WX09-019-E1 = CONTINUOUS POWER_MODIFY_PER_ENERGY deltaPerCard:2000 energyOwner:self target:自身
   const base = parseInt(cardMap.get('WX09-019')?.Power || '0'); // WX09-019はベースパワー0（エナ依存）
