@@ -96,6 +96,8 @@
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。詳細本文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3 の (i)〜(xx)）：
 
+> **✅2026-07-15（続き135・Opus）で4件を消化＝(x)・(vi-5)・(vi)・(iv)**（usageLimit ガード欠落5コレクタの一括是正〈実カード60枚超の過剰発火〉／`POWER_MODIFY_PER_DECK_COUNT` の CONTINUOUS 実装／`applyDirectAction` の手札カウンタ3種＋手札保護。golden 319→325・実機 `onPlayUsageLimit` 新設・詳細 BUGFIXES 続き135）。**この消化で Sonnet タスク1（§7横展開）の意図的FAIL回帰シナリオのうち `trashCounterOpp`／ON_LRIG_GROW④／R37③ が PASS へ反転できるはず＝Sonnet の在庫が復活する。**
+
 | ID | 内容 |
 |---|---|
 | (i) | SP27-002-E3＝引用付与の内側条件が genericKagiri（isTimingMarker）で**無言消費**され PARTIAL にもならず、無条件アサシン付与へ退化 |
