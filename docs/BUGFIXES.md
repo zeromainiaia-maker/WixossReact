@@ -5,6 +5,21 @@
 
 ---
 
+## §6.1 未実装action型 SELF_TRASH_PREVENT を実装＝自分で自シグニをトラッシュに置けない制限（2026-07-14・続き123・Opus 4.8・PLAN §3 Opusタスク7）
+
+**§6.1 の残から `SELF_TRASH_PREVENT` を実装した**（WX07-033「【常】：あなたは、自分でこのシグニを場からトラッシュに置くことができない」）。CONTINUOUS だが engine に処理が無く完全 no-op だった。他の CONTINUOUS 制約（`otherTrashFieldProtectedNums` 等）と同型の「effectEngine で集合を計算→ExecCtx に注入→executor で除外」パターンで配線。
+
+- **修正**：
+  - **effectEngine**＝`collectSelfTrashPreventNums(state, otherState, isOwnerTurn, effectsMap, cardMap)` を新設（場のシグニで CONTINUOUS `SELF_TRASH_PREVENT` を持つものの Set を返す）。
+  - **ExecCtx**（`execUtils.ts`）＝`ownSelfTrashPreventNums?: Set<string>` を追加。
+  - **execTrash**（`effectExecutor.ts`）＝`tgt.type==='SIGNI' && tgt.owner==='self'` の候補生成で、`ownSelfTrashPreventNums` に含まれるシグニを候補から除外（相手効果によるトラッシュは対象外＝あくまで「自分で置く」ことの禁止）。
+  - **BattleScreen**＝効果解決 ctx 構築（stack entry 解決）で `collectSelfTrashPreventNums` を計算して注入。
+- **検証**：**golden回帰新設**（①collectorが場のWX07-033を検出 ②`ownSelfTrashPreventNums`に入るとTRASH{SIGNI,self}の候補から除外されWX07-033が場に残る ③制限なし対照ではトラッシュされる）。**修正なしでFAIL実証**（フィルタ無効化でWX07-033がトラッシュされる）→実装でPASS。golden 318→319。**全ゲート緑**（golden 319・smoke/fuzz全0・census 2218維持・lint 0 error）。
+- **⚠限定**：効果解決 ctx（stack entry 経由）の自己トラッシュを覆う。コスト支払いの別 ctx 経路で自シグニをトラッシュする構成は未カバーだが、WX07-033 を能動的にコスト源にする実カード構成は希少。
+- effectEngine＋execUtils＋effectExecutor＋BattleScreen＋golden。parser/decompiler/effects JSON変更なし。**§6.1残＝A群`PLAY_FREE_FROM_TRASH`（spell解決フロー＝BattleScreen横断）/`PREVENT_DAMAGE`（ダメージ層機構が未実装＝横断）・B群`COST_SUBSTITUTE`（コスト支払いUI統合＝BattleScreen横断）の3型のみ＝いずれもengine単体では完結せず横断インフラが要る hard tail**。
+
+---
+
 ## §6.1 未実装action型を2型実装＝COLOR_INHERIT・STACK_SPELL（完全no-op効果の解消）（2026-07-14・続き122・Opus 4.8・PLAN §3 Opusタスク7）
 
 **§6.1「未実装action型 worklist」（behavior-audit段階4で発見・完全no-op）から2型を実装した。** いずれも parser は正しく生成していたが engine に処理が無く、該当カードの印刷能力が完全に無効だった。
