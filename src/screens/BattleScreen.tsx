@@ -8116,12 +8116,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ? pushToStack(existingStackGR, cpuAllGrowEntries)
               : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuAllGrowEntries);
             await supabase.from('battle_states')
-              .update({ guest_state: cpuStAfterCoin, effect_stack: newStackGR })
+              .update({ guest_state: cpuStAfterCoin, effect_stack: newStackGR, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) })
               .eq('room_id', roomId);
             return;
           }
           await supabase.from('battle_states')
-            .update({ guest_state: cpuStAfterCoin })
+            .update({ guest_state: cpuStAfterCoin, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) })
             .eq('room_id', roomId);
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
