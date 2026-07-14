@@ -4835,16 +4835,38 @@ const scenarios = {
       const before = await H.queryState();
       H.log('開始時 hField:', JSON.stringify(before?.host?.fieldSigni));
       H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let modalOpened = false;
+      let beatPicked = false;
       for (let s = 0; s < 16; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/beatMultiCandidateSelect-${s}.png`, fullPage: true });
-        H.log(`  DEBUG[${s}] body:`, (await H.fullBody()).slice(0, 1200).replace(/\n/g, ' | '));
+        let did = null;
+        if (!did && !modalOpened) {
+          const btn = page.getByRole('button', { name: /【起】/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) {
+            await btn.click().catch(() => {}); did = 'btn:【起】'; modalOpened = true;
+          }
+        }
+        // 「他のシグニ1体を【ビート】に」の候補ゾーン選択UI＝候補カードのimg[alt=カード名]クリック
+        // （SigniActivatedModal.tsx:556以降・pick-Nではなく専用div要素・小剣ククリ/羅植姫アキナナのどちらかを選ぶ）
+        if (!did && !beatPicked) {
+          for (const alt of ['小剣　ククリ', '羅植姫　アキナナ']) {
+            const img = page.locator(`img[alt="${alt}"]`).last();
+            if (await img.count() && await img.isVisible().catch(() => false)) {
+              await img.click().catch(() => {}); did = `img:${alt}(beat候補)`; beatPicked = true; break;
+            }
+          }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['①', '②', 'アサシン', 'ダブルクラッシュ']);
+        if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const fs2 = st?.host?.fieldSigni ?? [];
         const beatMoved = (before?.host?.fieldSigni ?? []).flat().filter(Boolean).length - fs2.flat().filter(Boolean).length;
-        H.log(`  bmcs[${s}] -> hField=${JSON.stringify(fs2)} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  bmcs[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(fs2)} pEff=${st?.pendingEffect ?? '-'}`);
         if (beatMoved > 0) {
-          return { pass: true, detail: `【ビート】化1体を確認（hField ${JSON.stringify(before.host.fieldSigni)}→${JSON.stringify(fs2)}）` };
+          const remaining = fs2.flat().filter(Boolean);
+          return { pass: true, detail: `【ビート】化1体を確認（hField ${JSON.stringify(before.host.fieldSigni)}→${JSON.stringify(fs2)}・場に残存=${JSON.stringify(remaining)}）` };
         }
       }
       const fin = await H.queryState();
