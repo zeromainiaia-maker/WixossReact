@@ -5,6 +5,19 @@
 
 ---
 
+## 【自】の timing 判定を「効果ブロック先頭のトリガー句」に限定＝「アタックフェイズ開始時」23効果の誤 timing を是正（2026-07-15・続き136・Opus 4.8・PLAN §3 Opusタスク17）
+
+**真因は続き135 の見立て（引用「」の内側を拾う）より広かった＝parser の timing 判定チェーン（`effectParser.ts` の `case '自'`）が `actionText` **全体**を対象にしていたため、トリガー句より後ろに出てくる「…したとき」を先に拾って外側 timing が化けていた。**
+
+- **例**：`WX25-CP1-085`「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、**このターン、あなたの黒の＜ブルアカ＞のシグニ1体がアタックしたとき**、…」→ 本文中の「アタックしたとき」を拾って `ON_ATTACK_SIGNI`。`WX25-CP1-065`「…このターン、**対戦相手のライフクロス1枚がクラッシュされたとき**…」→ `ON_OPP_LIFE_CRASHED`。引用付与型（`WX24-P2-018`＝「…それは『【自】：このシグニがアタックしたとき…』を得る」）も同じ機序。
+- **修正（parser）**：判定に使うテキストを `const trigText = actionText.match(/^.*?(?:とき|時)[、,]/)?.[0] ?? actionText;`＝**先頭のトリガー句だけ**に限定（見つからなければ従来どおり全文＝挙動不変のフォールバック）。`case '自'` の判定チェーン内の `actionText` 参照を全て `trigText` に置換（costStr/action 解析は `actionText` のまま＝action 構造には影響しない）。
+- **影響の全数計測**（旧 parser と新 parser の fresh 出力を全カードで比較・`timing` 以外の構造差 **0件**）＝**19効果の timing が変化**。内訳：**`ON_OPP_LIFE_CRASHED`→`ON_ATTACK_PHASE_START` 8件／`ON_ATTACK_SIGNI`→`ON_ATTACK_PHASE_START` 2件＝狙いどおりの是正**。残り9件は「効果ブロックに【自】と【絆自】が混在していて先頭能力の timing に寄る」5件と「先頭トリガー句に対応する語彙が無くフォールバック `ON_PLAY` になる」4件＝**いずれも先頭の能力に忠実になる変化**（後者は語彙欠落が census:timing の計器に刻まれる＝可視化される側）。
+- **JSON 是正（23効果）**：effectId アンカーのパッチで **timing/triggerScope だけ**を差し替え（機械検証で「timing/scope 以外の変化 0件」を確認）。`ON_ATTACK_SIGNI`→APS 14件・`ON_OPP_LIFE_CRASHED`→APS 5件・`ON_ATTACK_LRIG`→APS 2件・`ATTACK`→APS 1件・`SPDi43-10-E2`。「**対戦相手の**アタックフェイズ開始時」の3枚（`WX25-CP1-067`/`WXDi-P08-058`/`WXDi-P08-080`）には `triggerScope:'any_opp'` を付与（`collectTurnTriggers` の相手フィールド分岐が拾う）。
+- **実害**：これらの効果は engine 側に受け皿（`collectTurnTriggers` の ON_ATTACK_PHASE_START）があるのに**誤 timing のせいで一度も発火しない**か、別のイベントで**誤発火**していた。特に `WX24-P2-018-E1` はルリグの効果で `ON_ATTACK_SIGNI`（＝アタックしたシグニ自身の収集経路）に載っており、**構造的に絶対発火しない**状態だった（§7 B4「引用付与の実発火」のブロッカー＝タスク12(xiii)）。
+- **検証**：全ゲート緑（typecheck／**golden 325→326**＝タスク17 の回帰1件新設〈代表3枚の timing＋self/any_opp の収集を固定〉／smoke 全0／fuzz 全0／lint 0 error）。**同型★0 維持**（`npm run regen` 後）。**census 2218→2215**＝`BASELINE_HIGH` を 2215 に更新。
+
+---
+
 ## usageLimit ガード欠落5コレクタの一括修正＋PER_DECK_COUNT 実装＋手札カウンタ更新漏れ（2026-07-15・続き135・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化）
 
 **Sonnet が積んだ在庫（タスク12）から4件を消化した。中心は「《ターン1回/2回》のガードが実質ノーガード」だった5コレクタの一括是正（実カード60枚超の過剰発火バグ）。**
