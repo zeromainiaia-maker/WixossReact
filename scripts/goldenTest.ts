@@ -2931,6 +2931,21 @@ test('PLACE_SIGNI_ON_FIELD: 複数カードを1枚ずつ場に配置（SEARCH→
   const t = tops(r.ownerState);
   ok(t.includes(cardA) && t.includes(cardB), `field tops (${JSON.stringify(t)})`);
 });
+test('ADD_TO_FIELD(SELECT_TARGET経由)＋後続ステップ: 空きゾーン2以上でも外側SEQUENCEのcontinuationが実行される（Opusタスク12(xiv) 回帰）', () => {
+  // execAddToField(source:ENERGY_CARD,count:1) → SELECT_TARGET → thenAction=ADD_TO_FIELD →
+  // applyDirectAction が空きゾーン3つで SELECT_SIGNI_ZONE を要求。旧実装は resumeSelectTarget の
+  // `if(!result.done) return result;` が外側 pending.continuation（後続 DRAW）を握り潰し無言no-op化していた。
+  const ctx = mkCtx({ energy: 3, hand: 5, signi: [null, null, null] }, {});
+  const e0 = ctx.ownerState.energy.length, h0 = ctx.ownerState.hand.length;
+  const seq: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', count: 1 } },
+    { type: 'DRAW', owner: 'self', count: 1 },
+  ] } as EffectAction;
+  const r = run(seq, ctx);
+  eq(tops(r.ownerState).filter(x => x !== null).length, 1, 'エナから1体が場に出た');
+  eq(r.ownerState.energy.length, e0 - 1, 'エナ-1');
+  eq(r.ownerState.hand.length, h0 + 1, '後続DRAWが実行され手札+1（continuation非握り潰し）');
+});
 test('REVEAL_UNTIL_BANISH_SAME_LEVEL: デッキから＜宇宙＞が出るまで公開→そのレベルの相手シグニをバニッシュ（WX17-038）', () => {
   const ctx = mkCtx({ deckTop: ['WX07-034'] }, { signi: [SIGNI_L3, null, null] }); // 宇宙Lv3
   const r = run({ type: 'REVEAL_UNTIL_BANISH_SAME_LEVEL', revealClass: '宇宙', banishOwner: 'opponent' } as EffectAction, ctx);
