@@ -2641,12 +2641,6 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   let extractedTriggerCondObj: import('../types/effects').CardEffect['triggerCondition']; // トリガー文から抽出した発火限定（byOpponentEffect/fromZones/forResonaCondition）
   let forcedActiveCondition: ActiveCondition | undefined; // marker処理で強制設定する activeCondition（G150「【常】…バニッシュされたとき」のON_BANISH再分類＝相手ターン限定）
 
-  // 【自】の timing 判定に使うテキスト＝**引用「」の外側だけ**（続き135・PLAN §3 Opusタスク17）。
-  // 「【自】：あなたのアタックフェイズ開始時、…それは『【自】：このシグニがアタックしたとき…』を得る。」型では、
-  // 引用内（＝付与される能力）のトリガー語が外側のトリガー句より先に判定チェーンへ当たり、外側 timing が
-  // 内側のものに化けていた（約20枚）。引用内の能力自体は引用付与ハンドラが別途この関数を再帰で通すため、
-  // ここで引用を落としても内側 timing は失われない。costStr/action 解析は actionText（元のまま）を使う。
-  const trigText = actionText.replace(/[「『][^「」『』]*[」』]/g, '');
   // 【自】の timing 判定に使うテキスト＝**効果ブロック先頭のトリガー句だけ**（続き136・PLAN §3 Opusタスク17）。
   // 従来は actionText 全体を判定チェーンにかけていたため、トリガー句より後ろ（本文や引用付与の内側）に出てくる
   // 「…したとき」「…クラッシュされたとき」等が先にマッチし、外側 timing が化けていた（実測27効果）。
@@ -2702,7 +2696,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       break;
     case '自':
       effectType = 'AUTO';
-      // timing 判定は**引用「」の外側**のテキストだけで行う（続き135発見・タスク17）。従来は actionText 全体を
+      // timing 判定は**引用「」の外側**のテキストだけで行う（続き135発見・タスク17）。従来は trigText 全体を
       // 見ていたため、「【自】：あなたのアタックフェイズ開始時、…『【自】：このシグニがアタックしたとき…』を得る」型で
       // **引用内（＝付与される能力）のトリガー語**が外側のトリガー句より先にマッチし、約20枚が誤 timing になっていた
       // （ON_ATTACK_SIGNI 15枚・ON_OPP_LIFE_CRASHED 5枚・ON_ATTACK_LRIG 2枚）。引用付与の内側能力自体は parseBlock の
