@@ -15,6 +15,7 @@
 - **JSON 是正（23効果）**：effectId アンカーのパッチで **timing/triggerScope だけ**を差し替え（機械検証で「timing/scope 以外の変化 0件」を確認）。`ON_ATTACK_SIGNI`→APS 14件・`ON_OPP_LIFE_CRASHED`→APS 5件・`ON_ATTACK_LRIG`→APS 2件・`ATTACK`→APS 1件・`SPDi43-10-E2`。「**対戦相手の**アタックフェイズ開始時」の3枚（`WX25-CP1-067`/`WXDi-P08-058`/`WXDi-P08-080`）には `triggerScope:'any_opp'` を付与（`collectTurnTriggers` の相手フィールド分岐が拾う）。
 - **実害**：これらの効果は engine 側に受け皿（`collectTurnTriggers` の ON_ATTACK_PHASE_START）があるのに**誤 timing のせいで一度も発火しない**か、別のイベントで**誤発火**していた。特に `WX24-P2-018-E1` はルリグの効果で `ON_ATTACK_SIGNI`（＝アタックしたシグニ自身の収集経路）に載っており、**構造的に絶対発火しない**状態だった（§7 B4「引用付与の実発火」のブロッカー＝タスク12(xiii)）。
 - **検証**：全ゲート緑（typecheck／**golden 325→326**＝タスク17 の回帰1件新設〈代表3枚の timing＋self/any_opp の収集を固定〉／smoke 全0／fuzz 全0／lint 0 error）。**同型★0 維持**（`npm run regen` 後）。**census 2218→2215**＝`BASELINE_HIGH` を 2215 に更新。
+- **実機（`wx24p2018GrantFire`＝§7 B4 の意図的FAIL回帰シナリオ）**：修正前は「アタックフェイズに入っても何も起きない」だったのが、**アタックフェイズ開始時に E1 が発火し任意コスト《赤》の支払い UI まで到達→付与が実行される**ようになった（timing 側の欠陥は解消）。ただし**付与先が誤り**＝原文「あなたの＜龍獣＞のシグニ1体を対象とし…それは『【自】：このシグニがアタックしたとき…【アサシン】を得る』を得る」に対し、実際は**ルリグ自身に【アサシン】が即時付与**される＝(a) 対象シグニの選択が JSON に無い (b) 引用内の【自】トリガーと「対戦相手が《無》×3 を支払わないかぎり」条件が落ちている。**＝引用付与の内側 ability parse（PLAN §3 Opusタスク1）の別バグとして新規登録**。シナリオは意図的FAIL回帰のまま（FAIL 文言を現状に合わせて更新＝「timing は解消・付与先が別バグ」）。driver 側の不具合も1つ解消＝**任意コスト（OPTIONAL_COST）の CHOOSE は「エナ枠 `optcost-energy-N` を選択→発動」の2段**で、エナ未選択のまま発動を押しても進まない（同一ステップで押し切るよう修正）。
 
 ---
 
