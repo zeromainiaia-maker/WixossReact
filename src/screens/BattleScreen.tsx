@@ -8161,6 +8161,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newCpuSt = { ...cpuSt };
       // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
       const cpuOnPlayEntries: StackEntry[] = [];
+      // 人間（host）側 watcher の usageLimit 消費を畳み込む作業用（huSt と異なれば host_state も併せて保存する）
+      let cpuHuSt: PlayerState = huSt;
       // LIMIT_ALL_FIELD_N: シグニ場出し数の上限（WX04-005-E3）。CPU=guest, 人間=host。
       const cpuFieldSigniLimitBase = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
       // DEPLOY_RESTRICT（配置数制限）: 相手（host）の CONT レゾナ＋自フラグ（このターン）の小さい方を上限に反映。
