@@ -2278,12 +2278,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *    WXEX2-03 も相手アタックフェイズでは発火しない近似）
    */
   // ターン/フェイズ境界トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  // usageLimit（《ターン1回/2回》）消費 effectId を myState/opState 基準の usedMyIds/usedOpIds で返す
+  // （呼び出し元が actions_done へ書き戻す＝他コレクターと同型。続き119でusageLimit配線）。
+  // ⚠myState はターンプレイヤー（=user.id=meId）、opState は非ターンプレイヤーである前提（doPhaseAdvance）。
   const collectTurnTriggers = (
     timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
-  ): StackEntry[] =>
-    pureCollectTurnTriggers(mkTrigCtx(), timing, myState, opState);
+  ): { entries: StackEntry[]; usedMyIds: string[]; usedOpIds: string[] } => {
+    const r = pureCollectTurnTriggers(mkTrigCtx(), timing, myState, opState);
+    return { entries: r.entries, usedMyIds: isHost ? r.usedHostIds : r.usedGuestIds, usedOpIds: isHost ? r.usedGuestIds : r.usedHostIds };
+  };
 
   // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
   const collectAllyPlayOrOppDiscardTriggers = (
