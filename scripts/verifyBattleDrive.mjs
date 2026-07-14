@@ -4451,7 +4451,7 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `ビート機構未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `【バグ確認】[条件]ゲート開通＋beat_signiコスト支払い（WDK14-017が【ビート】化）＋ON_BECOME_BEAT any_ally反応（WDK14-014自身の「他のカードが【ビート】になったとき」＝任意コストプロンプト表示）は正常動作したが、WDK14-017自身のON_BECOME_BEAT self反応（このカードが【ビート】になったとき：カードを1枚引き手札を1枚捨てる）が2回連続で一度も発火しなかった（hHand=${fin?.host?.hand}・stack常時0・pEff=${fin?.pendingEffect ?? '-'}）＝同一beat化イベントでany_allyは発火しselfだけ欠落する再現性ある実バグ。collectBeatBecameTriggers（triggerCollect.ts:1206）のself収集ループかBattleScreen側watcher（1484行目）のstack統合を要調査。Opusタスク12へ登録。` };
     },
   },
 };
