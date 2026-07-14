@@ -5155,7 +5155,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 【出】（ON_PLAY・ターンプレイヤー側）が先に解決され any_opp watcher は後で処理される
       // （2026-07-12・PLAN §7 ON_LRIG_GROW③検証で訂正＝旧コメントは順序を逆に記載していた誤り。
       // golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」参照）。
-      const growTriggerEntries = collectLrigGrowTriggers(user.id, newMyState, op);
+      const growTrig = collectLrigGrowTriggers(user.id, newMyState, op);
+      const growTriggerEntries = growTrig.entries;
+      // usageLimit（《ターン1回》）消費を actions_done へ永続化（従来は「読むだけ」で書き戻しが無く実質ノーガードだった。続き135）
+      const growUsedMine = isHost ? growTrig.usedHostIds : growTrig.usedGuestIds;
+      const growUsedOpp  = isHost ? growTrig.usedGuestIds : growTrig.usedHostIds;
+      if (growUsedMine.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...growUsedMine] };
+      const opAfterGrow: PlayerState | null = growUsedOpp.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...growUsedOpp] }
+        : null;
+      const opKeyGrow = isHost ? 'guest_state' : 'host_state';
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
       const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const growCoinPaidEntries = growCoin.entries;
