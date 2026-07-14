@@ -5,6 +5,19 @@
 
 ---
 
+## R40②「opp-draw の『自分の効果で』発生源限定なし」を実バグと確定（2026-07-14・続き131・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
+
+**§7「残る実機検証項目」の R40② を新規シナリオで実機検証し、既知の近似が実害を持つ実バグであることを確定した。修正は行わずOpusタスク12へ登録（診断のみ）。**
+
+- **対象**：PR-423「【自】：メインフェイズかアタックフェイズの間、**対戦相手が自分の効果で**カードを１枚引いたとき、対戦相手にダメージを与える。その後、このシグニをバニッシュする。」＝JSON上は`triggerScope:'any_opp'`＋`triggerCondition:{drawPhaseRestriction:'main_attack', drawByEffect:true}`のみで「対戦相手**自身**の効果で」という発生源限定は表現されていない。
+- **原因**：`collectOppDrawTriggers`（`src/engine/triggerCollect.ts:691`）は reactor（watcher所有者）側の any_opp watcher を、drawer（対戦相手）側の`cards_drawn_by_effect_this_turn`が増加したことだけをトリガーに収集する。その増加が「drawer自身の効果」によるものか「reactor自身の効果」によるものかを一切区別しない。呼び出し元（`BattleScreen.tsx:2629-2641`）も同様＝`h.cards_drawn_by_effect_this_turn`が増えたら無条件に guest 側 watcher（`collectOppDrawTriggers(bs.guest_id, g, h)`）を、`g`が増えたら host 側 watcher を呼ぶだけ。
+- **実機再現**：新規シナリオ`oppDrawOwnEffectOnly`（`scripts/verifyBattleDrive.mjs`）＝host に PR-423（watcher）と SPDi43-21（「【自】：あなたのアタックフェイズ開始時、カードを１枚引いてもよい。そうした場合、対戦相手はカードを１枚引く。」＝JSON上は`してもよい`が`mandatory:true`に、`そうした場合`が常時true化した`CONDITIONAL{IS_MY_TURN}`に近似され、host自身の効果として無条件に`DRAW{owner:opponent,count:1}`を実行する）を同居させ、hostのアタックフェイズ開始時に host 自身の効果で guest が引いた**だけ**で PR-423 が誤発火（LIFE_CRASH{owner:opponent}＋自己BANISH）することを確認。通常実行＋`FRESH=1`実行の2パターンで再現（gHand 5→6・gLife 7→6・PR-423は生存＝発火痕跡）。
+- **⚠driver運用知見**：中間の確認実行を「既存 PLAYING ルームを再利用」パスで行ったところ、前回実行の残留`pending_effect`（SELECT_TARGET）を引き継いで409秒スタック＝FAIL（`SPDi43-21のguestドロー自体が未発生`という誤った空振り判定）。これはPLAN §3 Sonnetタスク3で既知の「driver バッチ実行の状態汚染」の新規実例＝ルーム再利用パスは信頼できないため、単発の新規シナリオ確認は`FRESH=1`を使う。
+- **対応**：修正はせず Opusタスク12(xxi) へ登録。シナリオは`onTargetedForcedBypass`と同型の「意図的FAIL回帰」として`verifyBattleDrive.mjs`に残し、既定`order`配列には追加していない（Opus修正後にPASSへ反転させて追加する）。
+- **検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。`scripts/verifyBattleDrive.mjs`（新規シナリオ追加）とdocsのみ変更。engine/parser/effects JSON変更なし。
+
+---
+
 ## BEHAVIOR_AUDIT キュー再生成＋一次トリアージ（2026-07-14・続き130・Sonnet 5・PLAN §5a）
 
 **census-batchで有効な採用先が無かったため、Sonnet向けの別ライン＝BEHAVIOR_AUDITのキュー再生成と一次トリアージに切り替えた。**
