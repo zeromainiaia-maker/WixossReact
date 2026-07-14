@@ -2934,6 +2934,17 @@ test('POWER_MODIFY_PER_LIFE_COUNT: CONTINUOUS＝自ライフクロス枚数×del
   const p = calcFieldPowers(mkState({ signi: ['WX24-P3-052', null, null], life: 3 }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(p.get('WX24-P3-052'), base - 6000, 'ライフ3枚×-2000');
 });
+test('POWER_MODIFY_PER_DECK_COUNT: CONTINUOUS＝自デッキ枚数÷unitSize×deltaPerUnit（PR-442・続き135で新規実装）', () => {
+  // PR-442「【常】：このシグニのパワーはあなたのデッキの枚数10枚につき＋4000される」。この型だけ CONTINUOUS
+  // 計算層に実装が無く、常に無効化されていた（続き84・タスク12(vi)）。端数は切り捨て（25枚→2単位＝+8000）。
+  const base = parseInt(cardMap.get('PR-442')?.Power || '0');
+  const host = mkState({ signi: ['PR-442', null, null] });
+  host.deck = Array.from({ length: 25 }, (_, i) => `D${i}`);
+  eq(calcFieldPowers(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get('PR-442'), base + 8000, 'デッキ25枚→floor(25/10)=2単位×+4000');
+  const host2 = mkState({ signi: ['PR-442', null, null] });
+  host2.deck = Array.from({ length: 9 }, (_, i) => `D${i}`);
+  eq(calcFieldPowers(host2, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get('PR-442'), base, 'デッキ9枚→0単位＝増減なし');
+});
 test('POWER_MODIFY_PER_VIRUS_COUNT: CONTINUOUS＝相手場のウィルス数×deltaPerVirus（WX16-032）', () => {
   const base = parseInt(cardMap.get('WX16-032')?.Power || '0');
   const other = mkState({});
