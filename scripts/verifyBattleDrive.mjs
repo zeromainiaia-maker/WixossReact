@@ -4326,7 +4326,7 @@ const scenarios = {
         if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
         const st = await H.queryState();
         const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX10-033#1');
-        const handDropped = (st?.host?.hand ?? []).length < (before?.host?.hand ?? []).length;
+        const handDropped = typeof before?.host?.hand === 'number' && typeof st?.host?.hand === 'number' && st.host.hand < before.host.hand;
         H.log(`  f3pc[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} hTrash=${st?.host?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (stillAlive && handDropped) {
           return { pass: true, detail: `F-3コスト払い型発火→WX10-033は場に残りバニッシュ回避（hHand ${before.host.hand}→${st.host.hand}）` };
