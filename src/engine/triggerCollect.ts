@@ -1480,6 +1480,7 @@ export function collectFieldTriggers(
       // placedPuppet（WDK17-001）: トリガー元が傀儡状態でなければ発火しない。
       if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
       if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+      if (!limitOkAlly(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
