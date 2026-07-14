@@ -261,7 +261,7 @@
 
 **B. CONTINUOUS型（calcFieldPowers/CONT収集器層）**
 - ~~`GROW_COST_REDUCTION`(6)／`POWER_MODIFY_PER_ENERGY`(1)~~ **✅続き116で決着＝詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §6.1**（POWER_MODIFY_PER_ENERGYは実機PASS・GROW_COST_REDUCTIONはWX14-009/WD14-001の2枚でper-count scaling非対応の真バグを発見しOpusタスク12(xviii)へ登録）。
-- [ ] `COST_SUBSTITUTE`（2・WX08-042・CONT）／`SELF_TRASH_PREVENT`（1・WX07-033・CONT）／`COLOR_INHERIT`（1・WX11-032・CONT）／`GRANT_FIELD_SHADOW`（1・WXDi-P15-058・CONT）。
+- [ ] `COST_SUBSTITUTE`（2・WX08-042・CONT）／`SELF_TRASH_PREVENT`（1・WX07-033・CONT＝自己トラッシュ経路への横断ガードが要り高リスク・後回し）／~~`COLOR_INHERIT`（1・WX11-032・CONT）~~ **✅続き122（Opus）で実装＝`collectFieldSigniExtraColors`にエナ色継承分岐追加・golden回帰**／~~`GRANT_FIELD_SHADOW`（1・WXDi-P15-058・CONT）~~ **✅既実装（`execUtils.ts`/`keywords.ts`＝リスト stale・続き122で確認）**。
 
 進め方＝A群から1型ずつ、effectType を確認→ instant なら `execXxx`+dispatch(+必要なら resume 適用case)→golden 1件→smoke/fuzz→キュー減→push（§3）。
 
