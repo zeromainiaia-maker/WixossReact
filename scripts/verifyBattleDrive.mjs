@@ -4381,28 +4381,33 @@ const scenarios = {
         before = await H.queryState();
       }
       H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest), 'logTail=', JSON.stringify(before?.logTail));
+      // ✅続き117（Opus・タスク12(xv)）で修正済み＝WX12-024-E1 を STUB BANISH_SUBSTITUTE
+      // {pattern:'self_sacrifice_other',sacrificeClass:'電機'} へ作り替え（parser/データ両方）。
+      // 期待挙動＝CPUのアタックでWX12-024がバニッシュされる際に身代わりモーダルが出現し、
+      // 犠牲候補（WD03-009・＜電機＞）を選ぶとそれがバニッシュされWX12-024は場に残る。
       let modalSeen = false;
       for (let s = 0; s < 24; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/f3SacrificeWX12024Bug-${s}.png`, fullPage: true });
         const bodyTx = await H.fullBody();
         if (/身代わりバニッシュ/.test(bodyTx)) modalSeen = true;
-        let did = await H.clickTextOrBtn(['を代わりにバニッシュ', '身代わりしない']);
-        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        let did = await H.clickTextOrBtn(['を代わりにバニッシュ', '身代わりする', '代わりにバニッシュ']);
+        if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
         const st = await H.queryState();
         const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX12-024#1');
         const sacrificeGone = Array.isArray(before?.host?.fieldSigni?.[0]) && before.host.fieldSigni[0].includes('WD03-009#1')
           && !((st?.host?.fieldSigni?.[0] ?? []).includes?.('WD03-009#1'));
         H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify(st?.logTail?.slice(-8))}`);
+        // F-3成功＝身代わりモーダルが出現し、犠牲シグニ(WD03-009)がバニッシュされWX12-024が場に残る
+        if (modalSeen && sacrificeGone && stillAlive) {
+          return { pass: true, detail: `F-3犠牲型が機能＝身代わりモーダル出現→WD03-009(＜電機＞)を犠牲にしWX12-024が場に残存（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝タスク12(xv) STUB BANISH_SUBSTITUTE化を実機確認` };
+        }
         if (!stillAlive) {
-          if (modalSeen || sacrificeGone) {
-            return { pass: true, detail: `想定外＝BanishSubstituteModalが出現しF-3が機能した（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝仮説は誤りだった` };
-          }
-          return { pass: false, detail: `【バグ確認】WX12-024がバニッシュされ、身代わり対話（BanishSubstituteModal）は一度も出現しなかった（modalSeen=${modalSeen}）＝JSONがSTUB BANISH_SUBSTITUTEではなく素のBANISHとしてparseされているため collectBanishSubstitutes が拾えない実データ不具合を確認（WXEX2-60/WX20-055/WXDi-CP01-032/WXDi-P10-052の犠牲型5枚も同型と推定）。Opusタスク12へ登録。` };
+          return { pass: false, detail: `WX12-024がバニッシュされた（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝身代わり不発` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} modalSeen=${modalSeen} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
