@@ -4822,7 +4822,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const { error: summonErr } = await supabase.from('battle_states')
-        .update({ [stateKey]: placed, effect_stack: stack, pending_effect: null })
+        .update({ [stateKey]: placed, effect_stack: stack, pending_effect: null, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) })
         .eq('room_id', roomId);
       if (summonErr) console.error('[handleSummonSigni] DB error:', summonErr);
     } finally {
