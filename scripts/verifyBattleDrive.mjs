@@ -2595,7 +2595,23 @@ const scenarios = {
       await page.waitForTimeout(500);
       const midSt = await H.queryState();
       H.log(`2回目グロウ直前 host.lrigTop=${midSt?.host?.lrigTop} lrigDeck=${midSt?.host?.lrigDeck} lrigTrash=${midSt?.host?.lrigTrash} phase=${midSt?.turnPhase}`);
-      const grew2 = await H.openGrow(/ピルルク・Ｔ/);
+      let grew2 = false;
+      for (let k = 0; k < 5 && !grew2; k++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(600);
+        const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+        const gbCount = await gb.count();
+        const gbVisible = gbCount ? await gb.isVisible().catch(() => false) : false;
+        H.log(`  grow2-probe[${k}] グロウボタン count=${gbCount} visible=${gbVisible}`);
+        if (gbCount && gbVisible) { await gb.click().catch(() => {}); }
+        await page.waitForTimeout(500);
+        const cand = page.getByRole('button', { name: /ピルルク・Ｔ/ }).first();
+        const candCount = await cand.count();
+        const candVisible = candCount ? await cand.isVisible().catch(() => false) : false;
+        const bodyTxt = await H.fullBody();
+        H.log(`  grow2-probe[${k}] 候補ボタン count=${candCount} visible=${candVisible} | body抜粋=${bodyTxt.slice(0, 300).replace(/\n/g, ' | ')}`);
+        if (candCount && candVisible) { await cand.click().catch(() => {}); grew2 = true; }
+      }
       H.log('2回目グロウ実行（Lv3→Lv4）:', grew2 ? 'OK' : '失敗');
       if (!grew2) {
         const fin = await H.queryState();
