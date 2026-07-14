@@ -4278,6 +4278,127 @@ const scenarios = {
       return { pass: false, detail: `G145未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // F-3身代わり対話・コスト払い型（続き115・Sonnet・PLAN §7「その他の実機検証待ち」）＝
+  //    WX10-033（コードハート　Ｓ・Ｗ・Ｔ）「【常】：このシグニがバニッシュされる場合、代わりに手札から
+  //    スペルを１枚捨ててもよい。」＝CONTINUOUS BANISH_SUBSTITUTE{substituteCost.discardSpell:1,optional:true}
+  //    （collectBanishSubstitutes の「コスト払い型」分岐）。CPU（guest・P15000）がhost zone1のWX10-033
+  //    （P12000）へバトルアタックし敗北→BanishSubstituteModal（人間防御側への対話）が出て「手札からスペルを
+  //    捨てて回避」を選ぶと、WX10-033が場に残りバニッシュされないことを検証する。
+  f3PayCostWX10033: {
+    title: 'WX10-033（F-3コスト払い型＝手札スペル1枚を捨ててバトルバニッシュを回避）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, ['WX10-033#1'], null], // 防御側（コードハート Ｓ・Ｗ・Ｔ・P12000・zone1中央）
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-015#1'], // ゲット・バイブル（スペル・discardSpellコスト用）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WX01-053#1'], null], // 攻撃者（極剣 ゴッドイーター・P15000・zone1中央）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[1] ?? []).includes?.('WX01-053#1'); r++) {
+        H.log(`再注入(${r})… guest zone1=${JSON.stringify(before?.guest?.fieldSigni?.[1])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest));
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/f3PayCostWX10033-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'cpu', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) did = await H.clickTextOrBtn(['捨てて回避', 'トラッシュして回避']);
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX10-033#1');
+        const handDropped = (st?.host?.hand ?? []).length < (before?.host?.hand ?? []).length;
+        H.log(`  f3pc[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} hTrash=${st?.host?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (stillAlive && handDropped) {
+          return { pass: true, detail: `F-3コスト払い型発火→WX10-033は場に残りバニッシュ回避（hHand ${before.host.hand}→${st.host.hand}）` };
+        }
+        if (!stillAlive) {
+          return { pass: false, detail: `【要注意】WX10-033がバニッシュされた＝F-3コスト払い型の対話が発火しなかった疑い（hHand=${st?.host?.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // F-3身代わり対話・犠牲型の実データ検証（続き115・Sonnet）＝PLAN §7 犠牲型リストの WX12-024（コードハート
+  //    †Ｃ・Ｃ・Ｍ†）「【常】：このシグニがバニッシュされる場合、代わりにあなたの他の＜電機＞のシグニ１体を
+  //    バニッシュしてもよい。」＝ effects_WX.json 上の WX12-024-E1 は STUB BANISH_SUBSTITUTE ではなく
+  //    素の `CONTINUOUS BANISH{target:self,filter:{story:'電機',excludeSelf:true},optional:true}` として
+  //    parse されている（WXEX2-60/WX20-055/WXDi-CP01-032/WXDi-P10-052 の犠牲型5枚も全て同型）。
+  //    collectBanishSubstitutes（engine/effectEngine.ts:4406）は `act.type==='STUB' && act.id==='BANISH_SUBSTITUTE'`
+  //    または `act.type==='BANISH_SUBSTITUTE'` のみを認識するため、この素の BANISH 表現は身代わりオプションとして
+  //    一切収集されない＝BanishSubstituteModal が絶対に出ないはず、という仮説を実機で確認する
+  //    （host zone1 に WX12-024＋sacrifice候補の WD03-009＜電機＞を配置し、CPU がP15000で攻撃→
+  //    対話なしでWX12-024がそのままバニッシュされることを確認）。
+  f3SacrificeWX12024Bug: {
+    title: 'WX12-024（F-3犠牲型＝JSON誤表現でBanishSubstituteが一切発火しない疑いの確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD03-009#1'], ['WX12-024#1'], null], // zone0=sacrifice候補（＜電機＞P12000）／zone1=防御側（P12000中央）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WX01-053#1'], null], // 攻撃者（P15000・zone1中央）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[1] ?? []).includes?.('WX01-053#1'); r++) {
+        H.log(`再注入(${r})… guest zone1=${JSON.stringify(before?.guest?.fieldSigni?.[1])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest));
+      let modalSeen = false;
+      for (let s = 0; s < 24; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/f3SacrificeWX12024Bug-${s}.png`, fullPage: true });
+        const bodyTx = await H.fullBody();
+        if (/身代わりバニッシュ/.test(bodyTx)) modalSeen = true;
+        let did = await H.clickTextOrBtn(['を代わりにバニッシュ', '身代わりしない']);
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX12-024#1');
+        const sacrificeGone = Array.isArray(before?.host?.fieldSigni?.[0]) && before.host.fieldSigni[0].includes('WD03-009#1')
+          && !((st?.host?.fieldSigni?.[0] ?? []).includes?.('WD03-009#1'));
+        H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (!stillAlive) {
+          if (modalSeen || sacrificeGone) {
+            return { pass: true, detail: `想定外＝BanishSubstituteModalが出現しF-3が機能した（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝仮説は誤りだった` };
+          }
+          return { pass: false, detail: `【バグ確認】WX12-024がバニッシュされ、身代わり対話（BanishSubstituteModal）は一度も出現しなかった（modalSeen=${modalSeen}）＝JSONがSTUB BANISH_SUBSTITUTEではなく素のBANISHとしてparseされているため collectBanishSubstitutes が拾えない実データ不具合を確認（WXEX2-60/WX20-055/WXDi-CP01-032/WXDi-P10-052の犠牲型5枚も同型と推定）。Opusタスク12へ登録。` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
