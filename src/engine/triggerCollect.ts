@@ -133,7 +133,7 @@ export function collectLrigGrowTriggers(
         if (to === 'self' && !watcherIsTurn) continue;
         if (to === 'opponent' && watcherIsTurn) continue;
         if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-        if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+        if (!limitOk(eff)) continue;
         const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
         entries.push({
           id: ctx.genId(),
@@ -146,7 +146,7 @@ export function collectLrigGrowTriggers(
       }
     }
   }
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
