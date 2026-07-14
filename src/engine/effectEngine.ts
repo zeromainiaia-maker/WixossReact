@@ -768,6 +768,16 @@ function extractPowerModifiesPerLifeCount(action: EffectAction): PowerModifyPerL
   return [];
 }
 
+// デッキ枚数 N 枚につきパワー±M（PR-442「デッキの枚数10枚につき＋4000」）。この型だけ CONTINUOUS 計算層に
+// 実装が無く、effectExecutor 側の「（effectEngine処理）」というコメントが虚偽で常に無効化されていた（続き84・タスク12(vi)）。
+function extractPowerModifiesPerDeckCount(action: EffectAction): PowerModifyPerDeckCountAction[] {
+  if (action.type === 'POWER_MODIFY_PER_DECK_COUNT') return [action as PowerModifyPerDeckCountAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerDeckCount(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerVirusCount(action: EffectAction): PowerModifyPerVirusCountAction[] {
   if (action.type === 'POWER_MODIFY_PER_VIRUS_COUNT') return [action as PowerModifyPerVirusCountAction];
   if (action.type === 'SEQUENCE') {
