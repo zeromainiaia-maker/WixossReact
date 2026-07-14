@@ -163,6 +163,19 @@ test('collectBanishSubstitutes: F-3保護型 protect_other_sacrifice_self（WXDi
   const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WD03-009');
   ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'), `自己犠牲(CP01-032)を提示 (${JSON.stringify(opts)})`);
 });
+test('collectFieldSigniExtraColors COLOR_INHERIT: WX11-032はエナゾーンのカードの色を追加で持つ（§6.1・タスク7）', () => {
+  // WX11-032-E1 = CONTINUOUS COLOR_INHERIT{source:energy}。エナに赤・青を置くと WX11-032 が赤青を追加取得。
+  const redCard = findCard(c => c.Type === 'シグニ' && c.Color === '赤');
+  const blueCard = findCard(c => c.Type === 'シグニ' && c.Color === '青');
+  const st = mkState({ signi: ['WX11-032', null, null] });
+  st.energy = [redCard, blueCard];
+  const m = collectFieldSigniExtraColors(st, cardMap as Map<string, CardData>, effectsMap, mkState({}), true);
+  const colors = m.get('WX11-032') ?? [];
+  ok(colors.includes('赤') && colors.includes('青'), `エナの赤青を得る (${JSON.stringify(colors)})`);
+  // エナが空なら追加色なし
+  const st0 = mkState({ signi: ['WX11-032', null, null] }); st0.energy = [];
+  ok(!(collectFieldSigniExtraColors(st0, cardMap as Map<string, CardData>, effectsMap, mkState({}), true).get('WX11-032')?.length), 'エナ空なら追加色なし');
+});
 test('collectGrowCostReductions: 場のCONT GROW_COST_REDUCTIONを色別集計', () => {
   // WX10-010-E1 = CONTINUOUS GROW_COST_REDUCTION reduction:[赤1,白1]
   const st = mkState({ signi: ['WX10-010', null, null] });
