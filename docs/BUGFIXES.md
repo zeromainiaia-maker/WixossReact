@@ -5,6 +5,24 @@
 
 ---
 
+## ON_COIN_PAID④・ON_LRIG_GROW④の実機検証（2026-07-14・続き132・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
+
+**§7「残る実機検証項目」のうちON_COIN_PAID④とON_LRIG_GROW④に着手。前者はコード調査で決着、後者は部分決着＋新規在庫登録。**
+
+### ON_COIN_PAID④＝「自分のターン外でも発火するか」を到達不可能と結論
+- `collectCoinPaidTriggers`の呼び出し元を`src/screens/BattleScreen.tsx`全体から洗い出し＝グロウコスト（人間・CPU）・シグニ【起】《コイン》・シグニ【出】《コイン》・アーツ ベット/アンコールの5箇所すべて。
+- いずれも呼び出し元アクション自体が「自分のターンにしか実行できない」操作＝【起】は`EffectTiming`が`'MAIN'|'ATTACK'`のみ（"いつでも使用できる"に相当するtimingが型定義に存在しない）、グロウ/召喚/ベットもすべてターンプレイヤー限定。ガードコストでコインを払うカード効果も探索したが該当なし。
+- 結論：対戦相手のターン中にコインを支払う経路が現状engineに一つも無い＝ON_COIN_PAID④のシナリオはUIから到達不可能。近似（`triggerCondition.turnOwner`未指定時に無条件発火）は実害なしと確定・追加検証不要。
+
+### ON_LRIG_GROW④＝「《ターン1回》制限」部分決着＋新規疑義の登録
+- **✅確認できたこと**：標準の「グロウ」ボタンでの二重発火は`my.actions_done?.includes('GROW')`（`BattleScreen.tsx:10487`）で正しくブロックされる。`wasFreeGrow`（`freeGrowFilter!==null`の場合のみ）だけがこの枠消費をスキップする設計＝`free_grow_this_turn`（コスト無償化フラグ）とは別物と判明。**教訓**：当初「`free_grow_this_turn`を再注入すれば2回目グロウを起動できる」という誤仮説で1回FAILを出した（グロウ枠消費とコスト無償化は独立した別フラグ）。
+- **⚠未決着**：本命の検証経路＝WX03-024（ゲット・グロウ・GROW_FREEアクション・タマ限定スペル）による同レベル横グロウ。Lv2→Lv3標準グロウ→WXDi-P03-039-E2（usageLimit once_per_turn watcher）発火確認→WX03-024使用→月蝕の巫女（WX01-007・同Lv3タマ）へ横グロウ、という手順を組んだが、スペル手札クリック→コスト支払い→候補クリックまでは実行できるものの`host.lrigTop`が変化せず2回目グロウ自体が完了しない。4回の再試行（diagnostic強化含む）でも原因特定に至らず＝検証空振りのまま`verifyBattleDrive.mjs`の`lrigGrowUsageLimit`シナリオとして残置（既定order外・意図的な検証空振りFAIL）。
+- **コード上の疑義**：`collectLrigGrowTriggers`（`src/engine/triggerCollect.ts:102`）はusageLimitを「読む」だけ（131行目）で`usedIds`を返さず、呼び出し元2箇所（`BattleScreen.tsx:5123`・`8038`）も actions_done への書き戻しを一切行わない＝`collectTurnTriggers`（ON_LRIG_ATTACK_STEP_START②）で続き116/119に発見・修正された同型バグの構造的可能性が高いが、**E2Eでは未再現**（get-grow経路自体が検証できなかったため）。Opusタスク12へ「未確認だがコード上疑わしい」として新規登録＝続き119の修正箇所（`collectTurnTriggers`への`mkLimitOk`配線）を参考に数分で判明する可能性がある。
+- **教訓（driver運用）**：2回目実行を「既存ルーム再利用」パスで行うと前回実行の残留状態でスタックする症状を本セッションでも再度観測（続き131と同型）＝`FRESH=1`を徹底する。またブール成功判定（「grow2起動: OK」等）だけでなく、盤面の実際の状態変化（`lrigTop`等）まで確認しないと偽陽性PASSを出す＝1回目の検証ではこれに気づかずusageLimit「正しく機能」と誤ってPASS報告した（本記録作成時に訂正）。
+- **検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。`scripts/verifyBattleDrive.mjs`（新規シナリオ`lrigGrowUsageLimit`追加）とdocsのみ変更。engine/parser/effects JSON変更なし。
+
+---
+
 ## R40②「opp-draw の『自分の効果で』発生源限定なし」を実バグと確定（2026-07-14・続き131・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
 
 **§7「残る実機検証項目」の R40② を新規シナリオで実機検証し、既知の近似が実害を持つ実バグであることを確定した。修正は行わずOpusタスク12へ登録（診断のみ）。**
