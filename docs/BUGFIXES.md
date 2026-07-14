@@ -5,6 +5,18 @@
 
 ---
 
+## WX04-004-E2（守備側アタック無効化）を実機検証・既定orderに追加＋WX04-005-E3の完全未実装STUBを発見（2026-07-14・続き126・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
+
+**§7「その他の実機検証待ち」に残っていたWX04-005-E3／WX04-004-E2を調査した。**
+
+- **WX04-004-E2（戦慄の旋律　アン＝フォース・守備側アタック無効化）＝新規シナリオ`oppDirectAttackNegate`で実機PASS**：「対戦相手のシグニ1体がアタックしたとき、その正面にシグニがない場合、《緑》《無》を支払い手札から＜美巧＞のシグニを1枚捨ててもよい。そうした場合、そのアタックを無効にする」＝`STUB(OPP_DIRECT_ATTACK_NEGATE/_PAY・execStubPart3.ts:5070)`は実装済みだったが実機未検証だった。host lrig=WX04-004・正面ゾーン空・guestのCPUシグニが自動アタックする盤面を注入し、CHOOSE(pay/skip)→「コストを払いアタックを無効にする」ボタン→TRASH(HAND_CARD,＜美巧＞)のSELECT_TARGET（`pick-0`）→エナ支払いの流れが実機で正しく解決し、ログ「《緑》《無》を支払い、アタックを無効にした」を確認（hLife 6→6で無効化を実証）。単体実行・全件バッチ実行とも2回連続PASS。
+  - `queryState`の`sideOf()`に`life`（`life_cloth.length`）フィールドを新規追加（今後life増減判定に使えるよう共通ヘルパーを拡張）。
+  - `craftArtsBetK07105`と同じく、事前に「未検証のまま」だった項目を実際に動かしてみたら一発で通ったケース＝PLANの「未検証」記載は実際の実装状況を反映していないことがある、という教訓の再確認。
+- **WX04-005-E3（アルテマ/メイデン　イオナ・場出し数制限）＝実機検証以前に完全未実装と確定**：「すべてのプレイヤーはシグニを1体しか場に出すことができない（すでに場に2体以上ある場合は1体になるようにシグニをトラッシュに置く）」は`STUB LIMIT_ALL_FIELD_1`のままだが、`grep -rn "LIMIT_ALL_FIELD_1" src/engine/ src/screens/`が0件＝`execStubPart1〜4`のいずれにもcase自体が無い。§6.1の残3型（PLAY_FREE_FROM_TRASH/PREVENT_DAMAGE/COST_SUBSTITUTE・続き123）とは別の第4の未実装STUBとして確定。実カード1枚のみで優先度は低い。修正はせずOpusタスク12(xix)へ登録。
+- **検証**：`oppDirectAttackNegate`追加後に全ゲート緑（golden 319・census 2218維持・lint 0 error）。scenario追加＋queryState拡張のみ。engine/parser/effects JSON変更なし。
+
+---
+
 ## WXK07-105（アーツ・ベット分岐）の実機検証を再開＝engine修正済（続き117）を確認・既定orderに追加（2026-07-14・続き125・Sonnet 5・PLAN §6.4／§3 Sonnetタスク1）
 
 **§6.4「クラフトトークンの実機配置検証」の残＝WXK07-105（ベット分岐）を再検証した。** 続き114でこのカードは `resumeSelectTarget` の `pending.continuation` 握り潰しバグ（外側SEQUENCEの2体目 ADD_TO_FIELD が発火しない）でFAILし、続き117（Opus・タスク12(xiv)）でそのengine本体は修正済みだったが、PLANには「engineは直ったがdriver側のHAND_CARDピッカー未クリックで依然FAIL＝Sonnet driverタスク」という未検証の推測が残ったままだった。
