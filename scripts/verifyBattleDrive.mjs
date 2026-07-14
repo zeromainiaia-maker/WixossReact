@@ -3959,6 +3959,12 @@ const scenarios = {
         let did = null;
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
         if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了']);
+        // 任意コスト（OPTIONAL_COST）の CHOOSE は「エナを選ぶ→発動」の2段（エナ未選択だと発動ボタンが効かず
+        // 同じ CHOOSE が残り続ける＝続き136 で判明）。エナ枠 optcost-energy-0 を先にクリックする。
+        if (!did) {
+          const ec0 = page.getByTestId('optcost-energy-0').first();
+          if (await ec0.count() && await ec0.isVisible().catch(() => false)) { await ec0.click().catch(() => {}); did = 'pick:optcost-energy-0'; }
+        }
         if (!did) {
           const payBtn = page.getByRole('button', { name: /支払|エナ.*選択して発動/ }).first();
           if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払(pay)'; }
