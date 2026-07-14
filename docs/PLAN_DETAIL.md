@@ -50,8 +50,8 @@
 - ~~`LOOK_AT_DECK_AND_LIFE`(3)~~ **✅実装済（2026-07-03）**＝覗き＝情報開示のみ（盤面不変が正しい）・log-only。
 - ~~`VARIABLE_DISCARD_AND_DRAW`（1・WX09-Re15）~~ **✅実装済（2026-07-03・BUGFIXES上部）**。
 - ~~`NAME_BAN`（2・WX10-023）~~ **✅実装済（2026-07-04・続き14）**＝`blocked_card_names_game`（ゲーム内持続）＋targetSelf反転是正。
-- ~~`GROW_COST_REDUCTION`（CONT6）~~ **✅実装（2026-07-03・BUGFIXES上部）**＝pure `collectGrowCostReductions`（golden済）＋人間/CPU/アシストグロウ全経路に減額配線。⚠要実機検証(C2)。
-- ~~`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT）~~ **✅実装済（2026-07-03・続き13）**＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加（golden済・⚠要実機検証）。
+- ~~`GROW_COST_REDUCTION`（CONT6）~~ **✅実装（2026-07-03・BUGFIXES上部）**＝pure `collectGrowCostReductions`（golden済）＋人間/CPU/アシストグロウ全経路に減額配線。**🆕続き116（Sonnet）でコード読解によりWX14-009/WD14-001の2枚がper-count scaling非対応と判明**＝`GrowCostReductionAction.reduction`型が`{color,count}[]`の固定値のみでトラッシュ枚数連動のフィールドが構造的に存在しない。WX14-009「トラッシュの《フレイスロ》カード**7枚につき**赤1減る」・WD14-001「トラッシュの＜悪魔＞シグニ**6枚につき**黒1減る」は原文がper-N-count scalingだが、JSONは条件なしの固定「赤×1」「黒×1」としてparseされており、トラッシュが空でも常に1色分減額されてしまう（過大軽減の恒常バグ）。他4枚（WX10-010/WD13-002/WD13-003/WXDi-P03-039/WX24-P2-043）は原文どおり固定値またはactiveCondition付き固定値で問題なし。機構拡張（reduction要素にfilter+perCount fieldを追加）が要る＝§6.3相当の新規機構としてOpus送り。詳細 BUGFIXES 続き116。
+- ~~`POWER_MODIFY_PER_ENERGY`（1・WX09-019・CONT）~~ **✅実装済（2026-07-03・続き13）**＝`calcFieldPowers` に `_COLOR` 同様の per-energy を追加（golden済）。**✅続き116（Sonnet）で実機PASS確認（2回連続）**＝`verifyBattleDrive.mjs powerModifyPerEnergy`＝エナ3枚の状態でP3000の攻撃を受けても基本パワー0+2000×3=6000として正しく生存することを確認（バトルログで「羅植姫　アキナナ（6000）」の表示も確認）。既定orderに追加。
 
 ## §11 大型機構オーナー表の完了行
 
