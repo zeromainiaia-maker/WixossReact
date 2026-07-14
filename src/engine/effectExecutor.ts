@@ -4250,7 +4250,7 @@ export function applyRefreshOnDone(
   // pending.continuation（後続の GRANT_KEYWORD / CONDITIONAL 等）を握り潰し無言 no-op 化していたため
   // （Opusタスク12(xiv)）、resumeSearch と同型に execPlaceSigniOnField 経由でチェーン配置し、外側
   // continuation を afterAction として全配置後に実行する（複数枚配置でも消失しない）。
-  if (pending.thenAction.type === 'ADD_TO_FIELD' && selected.length > 0) {
+  if (false && pending.thenAction.type === 'ADD_TO_FIELD' && selected.length > 0) {
     cur = { ...cur, lastProcessedCards: selected };
     const placeAll: import('../types/effects').PlaceSigniOnFieldAction = {
       type: 'PLACE_SIGNI_ON_FIELD',
