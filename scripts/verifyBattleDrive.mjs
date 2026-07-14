@@ -4657,6 +4657,50 @@ const scenarios = {
       return { pass: false, detail: `エナチャージ未確認（hEnergy=${fin?.host?.energy ?? '-'}（開始${before?.host?.energy}）pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // WX04-004-E2（続き126・Sonnet・PLAN §7「その他の実機検証待ち」＝守備側アタック無効化）＝「対戦相手のシグニ1体が
+  //    アタックしたとき、その正面にシグニがない場合、《緑》《無》を支払い手札から＜美巧＞のシグニを1枚捨ててもよい。
+  //    そうした場合、そのアタックを無効にする。」STUB(OPP_DIRECT_ATTACK_NEGATE/_PAY・execStubPart3.ts:5070)が
+  //    支払い可否判定→CHOOSE(pay/skip)→TRASH(HAND_CARD,美巧)→エナ支払い＋cancel_current_signi_attackを担う。
+  //    host lrig=WX04-004（正面=host zone2を空に）・guest zone0のシグニがCPU自動アタックで直接アタックを仕掛ける。
+  oppDirectAttackNegate: {
+    title: 'WX04-004-E2（守備側アタック無効化＝正面なしアタックをコスト任意支払いで無効化）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX04-004#1'],       // 戦慄の旋律　アン＝フォース（緑Lv4）
+        'field.signi': [null, null, null],  // 正面（guest zone0のミラー=zone2）を含め全ゾーン空
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-009#1', 'WD04-009#2'], // 緑×2（costColors《緑》《無》を両方満たす）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null], // 小剣　ククリ（CPUアタッカー・zone0）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      handPrepend: ['WX04-092#1'], // 無害の一致　ピュリ（＜美巧＞・discard cost用）
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.life:', before?.host?.life, 'host.energy:', before?.host?.energy);
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppDirectAttackNegate-${s}.png`, fullPage: true });
+        let did = await H.clickTextOrBtn(['コストを払いアタックを無効にする']);
+        if (!did) did = await H.stdStep();
+        if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'スキップ']);
+        const negated = await H.findLog(/支払い、アタックを無効にした/);
+        const st = await H.queryState();
+        H.log(`  odan[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hEnergy=${st?.host?.energy} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (negated) {
+          return { pass: true, detail: `STUBログ「${negated}」を確認＝コスト支払いでアタック無効化フラグが立った（hLife ${before?.host?.life}→${st.host.life}・hEnergy ${before?.host?.energy}→${st.host.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `無効化ログ未確認（hLife=${fin?.host?.life}（開始${before?.host?.life}）hEnergy=${fin?.host?.energy}（開始${before?.host?.energy}）pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
