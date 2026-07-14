@@ -163,6 +163,16 @@ test('collectBanishSubstitutes: F-3保護型 protect_other_sacrifice_self（WXDi
   const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WD03-009');
   ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'), `自己犠牲(CP01-032)を提示 (${JSON.stringify(opts)})`);
 });
+test('STACK_SPELL: トラッシュのスペルをこのカードの下に置く（WX11-029・§6.1・タスク7）', () => {
+  // WX11-029-E1 = ON_PLAY STACK_SPELL{from:trash,filter:スペル,maxCount:3}。トラッシュの2スペルを WX11-029 の下へ。
+  const s1 = findCard(c => c.CardNum === 'WD01-015'), s2 = findCard(c => c.CardNum === 'WD01-018');
+  const ctx = mkCtx({ signi: ['WX11-029', null, null] }, {}, 'WX11-029');
+  ctx.ownerState.trash = [s1, s2];
+  const r = run({ type: 'STACK_SPELL', from: 'trash', filter: { cardType: 'スペル' }, maxCount: 3 } as EffectAction, ctx);
+  const zone = r.ownerState.field.signi.find(st => st?.at(-1) === 'WX11-029');
+  ok(!!zone && zone.length === 3, `WX11-029の下に2スペル (${JSON.stringify(zone)})`);
+  ok(!r.ownerState.trash.includes(s1) && !r.ownerState.trash.includes(s2), 'スペルはトラッシュから除かれた');
+});
 test('collectFieldSigniExtraColors COLOR_INHERIT: WX11-032はエナゾーンのカードの色を追加で持つ（§6.1・タスク7）', () => {
   // WX11-032-E1 = CONTINUOUS COLOR_INHERIT{source:energy}。エナに赤・青を置くと WX11-032 が赤青を追加取得。
   const redCard = findCard(c => c.Type === 'シグニ' && c.Color === '赤');
