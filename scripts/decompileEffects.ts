@@ -1063,6 +1063,20 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // OPTIONAL_TRASH_SELF: 「このシグニを場からトラッシュに置いてもよい」（任意の自己犠牲。兄弟 CONDITIONAL が「そうした場合」）。
       if (a.id === 'OPTIONAL_TRASH_SELF') return 'このシグニを場からトラッシュに置いてもよい';
+      // BANISH_SUBSTITUTE (F-3 犠牲型): 身代わりバニッシュ。pattern/クラス/ライズ条件/相手ターン限定を原文どおり復元。
+      if (a.id === 'BANISH_SUBSTITUTE' && a.banishSubstitute) {
+        const bs = a.banishSubstitute;
+        const oppTurn = bs.oppTurnOnly ? '対戦相手のターンの間、' : '';
+        if (bs.pattern === 'self_sacrifice_other') {
+          const cls = bs.sacrificeClass ? `＜${bs.sacrificeClass}＞の` : '';
+          return `${oppTurn}このシグニがバニッシュされる場合、代わりにあなたの他の${cls}シグニ１体をバニッシュしてもよい`;
+        }
+        if (bs.pattern === 'protect_other_sacrifice_self') {
+          const vf = bs.victimFilter === 'riseIcon' ? '《ライズアイコン》を持つ' : '';
+          const other = bs.victimFilter === 'riseIcon' ? '' : '他の';
+          return `${oppTurn}${vf}あなたの${other}シグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい`;
+        }
+      }
       // GRANT_TO_PLACED_SIGNI: 「この方法で場に出たシグニは…を得る」（value に原文を保持）。
       if (a.id === 'GRANT_TO_PLACED_SIGNI') return a.value ?? 'この方法で場に出たシグニは能力を得る';
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する
