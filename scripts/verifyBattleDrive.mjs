@@ -4693,6 +4693,81 @@ const scenarios = {
     },
   },
 
+  // ON_PLAY any_ally の《ターン1回》usageLimit 実機検証（続き135・Opus・PLANタスク12(x)）＝WX24-P1-046-E1
+  //    「【自】《ターン１回》：あなたの他の＜地獣＞のシグニ１体が場に出たとき、【エナチャージ１】をする。」
+  //    `collectFieldTriggers`（ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any/any_ally/any_opp 共通コレクタ）には
+  //    usageLimit の判定コード自体が存在せず（続き104 で発見・実カード32枚）、同一ターンに味方シグニを複数体
+  //    召喚すると毎回発火していた。修正（mkLimitOk＋usedHostIds/usedGuestIds 返却＋BattleScreen 召喚経路での
+  //    actions_done 書き戻し）後は、2体目の召喚では発火しない＝デッキが1枚しか減らない（エナチャージは
+  //    デッキの一番上から。召喚自体はデッキを減らさない）ことで判定する。
+  onPlayUsageLimit: {
+    title: 'WX24-P1-046-E1（ON_PLAY any_ally《ターン1回》＝2体召喚しても1回だけ発火することの実機検証）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],                        // Lv2（Limit5）＝watcher Lv3＋Lv1×2＝合計5でちょうど収まる
+        'field.signi': [['WX24-P1-046#1'], null, null],      // watcher（幻獣神 オサコ・＜地獣＞）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: { 'blocked_actions': [] },
+      handPrepend: ['WXDi-P04-073#1', 'WXDi-P04-073#2'],     // 幻獣 タスマニアン（＜地獣＞Lv1・コスト無し・効果なし）×2
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 hDeck:', before?.host?.deck, 'hEnergy:', before?.host?.energy, 'hHand:', before?.host?.hand);
+      let summonCount = 0;      // 召喚できたシグニ数（2体で打ち止め）
+      let deckAfterFirst = null; // 1体目召喚後のデッキ枚数（＝1回目発火の基準）
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/onPlayUsageLimit-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length - 1; // watcher を除く
+        let did = null;
+        // 1体目の解決が終わってから2体目を召喚する（stack/pending が空のときだけ手札を触る）
+        if (!st?.pendingEffect && !(st?.stackLen > 0)) {
+          if (placed === 1 && deckAfterFirst === null) {
+            deckAfterFirst = st.host.deck;
+            H.log(`  1体目召喚完了＝hDeck ${before.host.deck}→${deckAfterFirst}（エナチャージ発火なら-1）`);
+          }
+          if (summonCount < 2) {
+            const opened = await H.clickTestId('my-hand-card-0');
+            if (opened) { did = 'hand-card-0'; }
+          }
+        }
+        if (!did) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+            await summonBtn.click().catch(() => {}); did = 'btn:召喚';
+          }
+        }
+        if (!did) {
+          const zoneDid = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+          if (zoneDid) { did = zoneDid; summonCount++; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        H.log(`  opul[${s}] -> ${did ?? 'なし'} | placed=${placed} summonCount=${summonCount} hDeck=${st?.host?.deck}(開始${before?.host?.deck}) hEnergy=${st?.host?.energy} done=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // 2体とも場に出て解決が落ち着いたら判定
+        if (placed === 2 && !st?.pendingEffect && !(st?.stackLen > 0) && s > 8) {
+          const deckDelta = before.host.deck - st.host.deck;
+          const fires = (st.host.actionsDone ?? []).filter(id => id === 'WX24-P1-046-E1').length;
+          if (deckDelta >= 2 || fires >= 2) {
+            return { pass: false, detail: `【バグ再発】ON_PLAY any_ally《ターン1回》が2体目の召喚でも発火（hDeck ${before.host.deck}→${st.host.deck}＝-${deckDelta}／actions_done内の発火記録=${fires}回）＝collectFieldTriggers の usageLimit ガード（続き135）の回帰` };
+          }
+          if (deckDelta === 1 && fires === 1) {
+            return { pass: true, detail: `usageLimit 正常＝2体召喚してもエナチャージは1回だけ（hDeck ${before.host.deck}→${st.host.deck}・hEnergy ${before.host.energy}→${st.host.energy}・actions_done=${JSON.stringify(st.host.actionsDone)}）` };
+          }
+          if (deckDelta === 0 && fires === 0) {
+            return { pass: false, detail: `ON_PLAY any_ally が一度も発火していない（hDeck 不変・actions_done=${JSON.stringify(st.host.actionsDone)}）＝過少発火side の回帰か、召喚が watcher の triggerFilter（＜地獣＞）に一致していない` };
+          }
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `判定未確定（hField=${JSON.stringify(fin?.host?.fieldSigni)} hDeck=${fin?.host?.deck}(開始${before?.host?.deck}) done=${JSON.stringify(fin?.host?.actionsDone)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // POWER_MODIFY_PER_ENERGY 実機検証（続き116・Sonnet・PLAN §6.1「⚠要実機検証」在庫）＝WX09-019（羅植姫 アキナナ）
   //    「【常】：このシグニのパワーはあなたのエナゾーンにあるカード１枚につき＋2000される」（基本パワー0）。
   //    エナ3枚→期待パワー6000。host zone1中央にWX09-019、guest zone1中央にP3000の無効果アタッカー
