@@ -1762,7 +1762,7 @@ export function collectTurnTriggers(
     });
   }
 
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
