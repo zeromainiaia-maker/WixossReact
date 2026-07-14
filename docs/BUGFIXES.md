@@ -5,6 +5,27 @@
 
 ---
 
+## BEHAVIOR_AUDIT 高シグナル22件の目視精査＝新規バグ0件・監査ツールの構造的盲点2種を特定（2026-07-15・続き133・Sonnet 5・PLAN §5a／§3 Sonnetタスク4）
+
+**続き130が機械抽出した高シグナルno-opバグ候補22件（`node scripts/_bqTriage.mjs`）を、今回`npm run audit -- --id <CardNum>`で1件ずつ目視精査した。結論＝新規の真no-opバグは0件。既存追跡STUB7件・監査ツール自体の盲点による偽陽性が大半（COUNTER_SPELL系3件＋トリガー文脈依存系12件）・軽微なparser残骸1件のみ。**
+
+- **前提確認**：`npm run audit:queue`でキュー再生成→`_bqTriage.mjs`実行→高シグナル22件は続き130と完全に同一（総母数273件も同一）＝effects JSON側の変更が続き131/132で無かったことと整合（回帰なし）。
+- **①既に§6.1/§6.3/STUBS.mdで追跡済みのSTUB露出7件**（新規ではない・単なる再確認）：
+  - `WXDi-P09-079-E1`→STUB `PLAY_MILLED_SIGNI_DELAYED_TRASH`（BUGFIXES続き上部・STUBS.md記載済み）
+  - `WX24-P2-049-E1b`→STUB `POWER_PLUS_BANISHED_POWER`（PLAN§6.3記載済み）
+  - `WX25-P2-009-E1`→STUB `REPLACE_NEXT_OPP_REFRESH_MILL_LRIG`（PLAN§6.3記載済み）
+  - `WX25-CP1-040-E1b`→STUB `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE`（PLAN§6.3記載済み）
+  - `WX09-012-E2`→未実装action型`PLAY_FREE_FROM_TRASH`（PLAN§6.1 Opusタスク7記載済み）
+  - `WXEX2-51-E1`→STUB `GRANT_LEAVE_PLACE_PENDING`（PLAN§6.4でWX22-001-E3として既に機構待ち登録済み・本カードは2枚目の実例）
+  - `WXDi-P04-065-E1`→ON_SIGNI_FROZEN watcher。**監査ツールでは無変化に見えるが、実機E2Eでは既にPASS確定済み**（`verifyBattleDrive.mjs`の`freezetrigger`/`freezetriggerUsageLimit`＝続き41/92でPASS・`order`配列に現存）＝監査ツールの偽陽性の典型例。
+- **②監査ツール自体の構造的盲点（新規の系統的発見）＝COUNTER_SPELL/SPELL_CUTIN 3件**：`WX04-003-E3`／`WXEX1-12-E3`／`WXK01-021-E4`はいずれも`action:{type:'COUNTER_SPELL'}`（`effectExecutor.ts:4038`で`return done(ctx)`のみ・コメント「打ち消しログはBattleScreen側でスペル名付きで出力」）＝**実際の打ち消し処理とログはBattleScreen.tsxのSPELL_CUTIN解決経路（実際にスタック上にスペルが積まれた状態）でのみ発生し、behaviorAuditの孤立アクション実行では原理的に再現不可能**。3件とも真バグではない。
+- **③監査ツール自体の構造的盲点＝トリガー文脈依存効果 約12件**：`WX04-082`（正面シグニアタック時）・`WX04-099`（バトル終了時）・`WX04-102`（自己トラッシュ配置時）・`WX07-045-E1`（チャーム0枚のtoy盤面で「好きな数」＝0）・`WX08-029-BURST`（ダメージ無効化系burst＝フラグのみ）・`WX12-010-E2`（アタック時・既知の複雑レゾナ＝PLAN§10）・`WX22-Re01-E2`（アタック時）・`WXDi-P02-034-E1`（相手シグニ0体のtoy盤面で「すべて」対象=空）・`WXDi-P16-013-E2`（トラッシュに黒0枚でdelta=0）・`WX24-P1-015-E1`（自己トラッシュ配置時）・`WXK03-075-E1`（コスト用シグニ+対象の複合セットアップ不足）・`WDK03-001-E1`（ルリグデッキ内の特定カード名参照）＝**いずれも「ON_ATTACK・ON_TRASH等のトリガー発火文脈」または「対象/参照カードが0枚のtoy盤面」を、孤立アクション直接実行方式のbehaviorAuditが構築できないことによる空振り**。個別バグの証拠なし。
+- **④軽微なparser残骸（低優先・要フォローアップ）**：`WXK01-021-E1`のJSONが`{"type":"GRANT_LRIG_ABILITY","abilities":[],"rawText":"。"}`（空の付与）。原文「あなたのセンタールリグは以下の能力を得る」の内側2つの起動能力（エクシード2無償スペル使用・スペルカットイン打ち消し）は同カードのE2/E4として**別トップレベル効果に正しく分離実装済み**＝E1自体は機能的に無害な残骸（`GRANT_LRIG_ABILITY`が空配列で何も付与しない）。修正の実害は無いため低優先のまま据置＝deocompile側の表示改善候補としてのみ記録。
+- **結論・Opusへの引き継ぎ**：高シグナル22件のうち新規の真no-opバグは0件。PLAN §3 Opusタスク11を「最終仕分け＋engine修正」から「WXK01-021-E1の空付与を確認する程度の軽作業」へ大幅縮小＝実質クローズに近い。②③で見つかった監査ツール自体の2種の構造的盲点（SPELL_CUTIN文脈・トリガー発火文脈）は今後の高シグナル抽出のノイズ源として`_bqTriage.mjs`側でのフィルタ改善候補（`SPELL_CUTIN`timing除外・トリガー系timing除外等）＝BEHAVIOR_AUDIT.mdの「次の段階」への追記候補。
+- **検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docsのみ変更（`docs/_behavior_queue.txt`の再生成含む）。engine/parser/effects JSON変更なし。
+
+---
+
 ## ON_COIN_PAID④・ON_LRIG_GROW④の実機検証（2026-07-14・続き132・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
 
 **§7「残る実機検証項目」のうちON_COIN_PAID④とON_LRIG_GROW④に着手。前者はコード調査で決着、後者は部分決着＋新規在庫登録。**
