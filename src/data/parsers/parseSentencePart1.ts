@@ -1656,7 +1656,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの他のシグニ1体を対象とし」＝効果元シグニ自身を対象から除外（WXDi-P11-040）。
       // 未表現だと他に味方シグニが居ないとき自分自身に付与される（続き72の実機観測・続き75で engine の
       // excludeSelf 実装とセットで修正）。対象節に隣接する「他の」だけを見る（他 action の「他のシグニ」に反応しない）。
-      const kwExcludeSelf = /(?:あなた|対戦相手)の他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t);
+      // 「のうち最も…シグニ」等の超上級句が「シグニ」と「を対象とし」の間に挟まっても検出する（WX25-CP1-051）。
+      const kwExcludeSelf = /(?:あなた|対戦相手)の他の[^。、]*シグニ[^。、]*を対象とし/.test(t);
       const kwTarget: EffectTarget = kwExcludeSelf && target.type === 'SIGNI'
         ? { ...target, filter: { ...(target.filter ?? {}), excludeSelf: true } }
         : target;
