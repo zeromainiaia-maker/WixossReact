@@ -5,6 +5,18 @@
 
 ---
 
+## BEHAVIOR_AUDIT キュー再生成＋一次トリアージ（2026-07-14・続き130・Sonnet 5・PLAN §5a）
+
+**census-batchで有効な採用先が無かったため、Sonnet向けの別ライン＝BEHAVIOR_AUDITのキュー再生成と一次トリアージに切り替えた。**
+
+- `npx tsx scripts/behaviorAudit.ts --queue` でキュー再生成（`docs/_behavior_queue.txt`）→ `node scripts/_bqTriage.mjs` で高シグナル候補を機械選別。
+- **結果＝高シグナルno-opバグ候補 22件**（動作動詞あり×STUB露出なし×条件なし×無変化。残り＝STUB未実装11／条件ゲート244／動詞なし24）：
+  `WX04-003 WX04-082 WX04-099 WX04-102 WX07-045 WX08-029 WX09-012 WX12-010 WX22-Re01 WXEX1-12 WXEX2-51 WXDi-P02-034 WXDi-P04-065 WXDi-P09-079 WXDi-P16-013 WX24-P1-015 WX24-P2-049 WX25-P2-009 WX25-CP1-040 WXK01-021 WXK03-075 WDK03-001`
+- このうち WX04-082/099/102（トリガー主語系）・WX09-012/WX12-010（出現条件レゾナ）・WX25-P2-009（§6.3既登録の機構待ち）はPLAN §4に既知として記載済みの模様＝重複の可能性あり。**「真no-op／シナリオ空振り／STUB未実装」の最終仕分けはモデル分担ルール上Opus側の担当**（一次選別まででSonnet側の作業を区切る）。
+- 実際のカード修正・engine変更は行っていない（診断のみ）。
+
+---
+
 ## census-batch パイプライン実行→採用不可と判定（据置・診断のみ）（2026-07-14・続き130・Sonnet 5・PLAN §5c）
 
 **§5c census文型バッチを回すため `npm run build:effects`→`node scripts/heldReview.mjs` を実行したが、held 109枚の精査の結果、Sonnetが安全に採用できる差分は無しと判定して据置にした。**
