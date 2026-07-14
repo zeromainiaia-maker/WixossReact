@@ -4521,6 +4521,68 @@ const scenarios = {
       return { pass: false, detail: `判定未確定（1回目発火=${firstFireHand ?? '未確認'}・phase=${fin?.turnPhase ?? '-'} gHand=${fin?.guest?.hand ?? '-'}）` };
     },
   },
+
+  // POWER_MODIFY_PER_ENERGY 実機検証（続き116・Sonnet・PLAN §6.1「⚠要実機検証」在庫）＝WX09-019（羅植姫 アキナナ）
+  //    「【常】：このシグニのパワーはあなたのエナゾーンにあるカード１枚につき＋2000される」（基本パワー0）。
+  //    エナ3枚→期待パワー6000。host zone1中央にWX09-019、guest zone1中央にP3000の無効果アタッカー
+  //    （WD01-013）を配置しCPUに攻撃させる。パワー加算が正しく効いていれば防御側6000>攻撃側3000で
+  //    WX09-019は生存する（もし基本パワー0のまま計算されていればP3000の攻撃にも敗北しバニッシュされる）。
+  powerModifyPerEnergy: {
+    title: 'WX09-019（POWER_MODIFY_PER_ENERGY＝エナ1枚につき+2000・エナ3枚で基本0→6000への計算を実機検証）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, ['WX09-019#1'], null], // 防御側（羅植姫 アキナナ・zone1中央）
+        'field.signi_down': [false, false, false],
+        'energy': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'], // エナ3枚→期待パワー0+2000*3=6000
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, ['WD01-013#2'], null], // 攻撃側（小剣 ククリ・P3000・zone1中央）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[1] ?? []).includes?.('WD01-013#2'); r++) {
+        H.log(`再注入(${r})… guest zone1=${JSON.stringify(before?.guest?.fieldSigni?.[1])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      H.log('開始時 host:', JSON.stringify(before?.host), 'guest:', JSON.stringify(before?.guest));
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/powerModifyPerEnergy-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'cpu', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX09-019#1');
+        const battleHappened = (st?.logTail ?? []).some(l => /vs/.test(l));
+        H.log(`  pme[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} stillAlive=${stillAlive} battleHappened=${battleHappened} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify(st?.logTail?.slice(-4))}`);
+        if (battleHappened) {
+          if (stillAlive) {
+            return { pass: true, detail: `POWER_MODIFY_PER_ENERGY正しく計算＝エナ3枚でP6000（基本0+2000*3）としてP3000の攻撃を退けWX09-019は生存（logTail=${JSON.stringify(st.logTail.slice(-3))}）` };
+          }
+          return { pass: false, detail: `【要注意】WX09-019がP3000の攻撃でバニッシュされた＝パワー加算が計算されていない疑い（基本パワー0のままなら当然敗北）（logTail=${JSON.stringify(st.logTail.slice(-3))}）` };
+        }
+        if (!stillAlive) {
+          return { pass: false, detail: `【要注意】battle vs行を確認する前にWX09-019が消滅＝原因不明（logTail=${JSON.stringify(st?.logTail?.slice(-5))}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
