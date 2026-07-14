@@ -2582,12 +2582,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const useHost  = (used: string[]) => { if (used.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...used] }; };
     const useGuest = (used: string[]) => { if (used.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...used] }; };
 
-    // ON_BANISH: バニッシュされたシグニ
+    // ON_BANISH: バニッシュされたシグニ（usageLimit 消費は useHost/useGuest で actions_done へ永続化）
     for (const cardNum of detectBanishedSigni(beforeHost, h)) {
-      entries.push(...collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost));
+      const bt = collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost);
+      entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
     for (const cardNum of detectBanishedSigni(beforeGuest, g)) {
-      entries.push(...collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest));
+      const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest);
+      entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
 
     // ON_TRASH: トラッシュに移動したシグニ。原因owner=causeOwnerId と所有者が異なれば「対戦相手の効果によって」。
