@@ -68,7 +68,21 @@ export function parseSentencePart2(t: string): EffectAction | null {
     const growCostM = t.match(/(?:この?カードの上に)?グロウするためのコストは(.+)減る/);
     if (growCostM) {
       const costs = parseEnergyCosts(growCostM[1]);
-      return { type: 'GROW_COST_REDUCTION', reduction: costs.length > 0 ? costs : [{ color: '無', count: 1 }] } as GrowCostReductionAction;
+      const reduction = costs.length > 0 ? costs : [{ color: '無', count: 1 }];
+      // per-count scaling:「あなたのトラッシュにある<filter>N枚につき…減る」（WX14-009/WD14-001）。
+      // 一致枚数が N 未満なら減額0（従来は N を無視して常時固定減額する過大軽減バグだった）。
+      const perCountM = growCostM[1].match(/トラッシュにある(.+?)([０-９\d]+)枚につき/);
+      if (perCountM) {
+        const subj = perCountM[1];
+        const filter: TargetFilter = {};
+        const nameM = subj.match(/カード名に《([^》]+)》を含む/);
+        const storyM = subj.match(/＜([^＞]+)＞/);
+        if (nameM) filter.cardName = nameM[1];
+        if (storyM) filter.story = storyM[1];
+        if (subj.includes('シグニ')) filter.cardType = 'シグニ';
+        return { type: 'GROW_COST_REDUCTION', reduction, perCount: { filter, count: parseNum(perCountM[2]) } } as GrowCostReductionAction;
+      }
+      return { type: 'GROW_COST_REDUCTION', reduction } as GrowCostReductionAction;
     }
   }
 
