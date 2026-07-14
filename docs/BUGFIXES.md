@@ -5,6 +5,17 @@
 
 ---
 
+## ビート機構の複数候補選択UIを実機検証・既定orderに追加（2026-07-14・続き129・Sonnet 5・PLAN §7／ユーザー指示）
+
+**ユーザーから「ビート機構の複数候補選択UIを実装」の指示を受けたが、調査の結果すでに実装済みと判明したため、実機検証に切り替えて対応した。**
+
+- **調査結果**：`analyzeBeatSigniCost`（`execUtils.ts:403`）＋`actBeatNeedSelect`（`SigniActivatedModal.tsx:135-138`）＋候補ゾーン選択UI（同ファイル548-590行目・候補カードをクリックして選択→`selectedSigniActivatedBeat`）＋`executeSigniActivated`（`BattleScreen.tsx:8895`）→`payBeatSigniCost`の`selectedOtherZones`引数まで、候補が必要数より多い場合のプレイヤー選択UIは一気通貫で実装済みだった（`SigniOnPlayCostModal.tsx`にも同型のON_PLAY版が存在）。PLANの「複数候補時の選択UIは未検証」は「未実装」ではなく文字どおり「実機での動作未確認」だった。
+- **実機検証**：新規シナリオ`beatMultiCandidateSelect`＝WXK08-026（炎魔の豊穣　シュブ＝ニグラ・【起】《ビートアイコン》［4枚以下］《ターン1回》他のシグニ1体を【ビート】にする：…）をhost zone0に、候補2体（小剣　ククリ／羅植姫　アキナナ）をzone1・zone2に配置。【起】ボタン→候補一覧から「小剣　ククリ」の`img`をクリックして選択→「発動」→CHOOSE「①【アサシン】」で確定。**選んだ小剣　ククリだけがbeat_zoneへ移り、選ばなかった羅植姫　アキナナは場に残存**（hField `[["WXK08-026#1"],["WD01-013#1"],["WD01-012#1"]]`→`[["WXK08-026#1"],null,["WD01-012#1"]]`）。通常実行＋`FRESH=1`で2回連続PASS。既定orderに追加。
+- **結論**：新規バグなし＝実装どおり正しく機能している。残る既知の低優先事項は(a)CPU側の自動選択（レベル低い順の近似・人間の複数候補選択UIとは別経路のため未検証のまま）、(b)`WXK08-026`の【起】ボタン表示が「【起】コストなし」（`beat_signi`コストが`costPartsMA`の表示ロジックに含まれていない＝WXK04-003/WD08-001と同型の既知UI表示バグ・PLAN既知）。
+- **検証**：全ゲート緑（golden 319・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
+---
+
 ## LOOK_AND_REORDER canTrash UIを実機検証・既定orderに追加（2026-07-14・続き128・Sonnet 5・PLAN §7.2／§3 Sonnetタスク1）
 
 **§7.2「対話UIの残実装」に残っていた「LOOK_AND_REORDERのcanTrash UI」を実機検証した。** `EffectInteractionModal.tsx:578`の「トラッシュ」トグルボタン（選択したカードを`lookReorderTrash`セットへ追加）→「決定」確定（`handleEffectInteraction(lookReorderOrder)`→`trashList`を`resumeLookAndReorder`へ渡す）は実装済みだったが実機未検証だった。
