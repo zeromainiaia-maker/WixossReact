@@ -5,6 +5,18 @@
 
 ---
 
+## §6.1 未実装action型を2型実装＝COLOR_INHERIT・STACK_SPELL（完全no-op効果の解消）（2026-07-14・続き122・Opus 4.8・PLAN §3 Opusタスク7）
+
+**§6.1「未実装action型 worklist」（behavior-audit段階4で発見・完全no-op）から2型を実装した。** いずれも parser は正しく生成していたが engine に処理が無く、該当カードの印刷能力が完全に無効だった。
+
+- **COLOR_INHERIT**（WX11-032・CONTINUOUS「このシグニはあなたのエナゾーンにあるカードの色を追加で持つ」）＝`collectFieldSigniExtraColors`（`effectEngine.ts`＝既に ALL_ZONE_BLACK/GAIN_LRIG_COLOR/INHERIT_UNDER_SIGNI_COLOR 等の色継承を処理）に、`CONTINUOUS COLOR_INHERIT{source:'energy'}`を持つシグニへエナゾーン各カードの色を追加する分岐を追加。これによりWX11-032のE2「自身が持つ色の種類1つにつき+4000」等の色ベース計算も正しく駆動する。
+- **STACK_SPELL**（WX11-029・ON_PLAY「トラッシュからスペルを3枚まで対象とし、それらをこのカードの下に置く」）＝dispatch に`case 'STACK_SPELL'`を追加し、既存の`execPlaceUnderSigni`（trash/hand/energyから選択→`PLACE_UNDER_SOURCE_SIGNI`）へ`{source:from, count:maxCount, upToCount:true, filter}`としてアダプト。既存の「下に置く」機構を再利用し新規実装ゼロ。
+- **副次発見**：`GRANT_FIELD_SHADOW`（§6.1 B群リスト掲載）は**既に実装済み**（`execUtils.ts`の`getFieldGrantedShadowScopes`・`keywords.ts`）＝リストが stale だったため PLAN §6.1 を是正。
+- **検証**：**golden回帰2件新設**（①WX11-032がエナの赤青を追加取得・エナ空なら追加なし ②WX11-029の下にトラッシュ2スペルが移りトラッシュから除かれる）。各々**修正なしでFAIL実証**（COLOR_INHERITは`[]`・STACK_SPELLは`["WX11-029"]`のno-op）→実装でPASS。golden 316→318。**全ゲート緑**（golden 318・smoke/fuzz全0・census 2218維持・lint 0 error）。
+- engine（`effectEngine.ts`＋`effectExecutor.ts`）＋golden（`goldenTest.ts`）のみ。parser/decompiler/effects JSON変更なし（両action型は元から正しく生成されていた）。**§6.1残＝A群`PLAY_FREE_FROM_TRASH`（spell解決が要る）/`PREVENT_DAMAGE`（ダメージ層置換＝横断）・B群`COST_SUBSTITUTE`（コスト支払い統合）/`SELF_TRASH_PREVENT`（自己トラッシュ経路横断ガード＝高リスク後回し）**。
+
+---
+
 ## ON_BECOME_BEAT の self 反応が発火しない真因を特定＝`battleCardNums`が`beat_zone`未走査でeffectsMapから脱落（2026-07-14・続き121・Opus 4.8・PLAN §3 Opusタスク12(xvi)）
 
 **続き115（Sonnet）で診断・登録された真バグ（Opusタスク12(xvi)・原因未特定だったもの）を根本特定して修正した。** 【ビート】になったカード自身の`ON_BECOME_BEAT`（self scope）が、同一イベントの any_ally 反応は発火するのに一度も発火しない非対称バグ。**真因は`collectBeatBecameTriggers`（engine）ではなく、`BattleScreen.tsx`の`battleCardNums`メモ（effectsMap の母集合）が`field.beat_zone`を走査していなかったこと**。
