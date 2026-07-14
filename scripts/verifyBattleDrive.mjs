@@ -5202,6 +5202,7 @@ try {
         delayedTriggers: s.delayed_triggers ?? [],
         coins: s.coins ?? 0,
         life: (s.life_cloth ?? []).length,
+        deck: (s.deck ?? []).length,
       });
       return {
         host: sideOf(hs),
