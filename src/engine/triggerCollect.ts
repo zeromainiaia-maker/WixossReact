@@ -1641,7 +1641,7 @@ export function collectTurnTriggers(
     for (const eff of (ctx.effectsMap.get(myLrigNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, myState, opState, true, ctx.cardMap, myLrigNum)) continue;
-      if (!limitOkMy(eff)) continue;
+      if (false && !limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(myLrigNum)?.CardName ?? myLrigNum;
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: myLrigNum, effectId: eff.effectId,
