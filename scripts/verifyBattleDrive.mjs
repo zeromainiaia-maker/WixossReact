@@ -5107,6 +5107,7 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         signiFrozen: s.field?.signi_frozen ?? null,
         fieldSigni: s.field?.signi ?? null,
+        pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
         abilitiesRemoved: s.abilities_removed ?? [],
         lrigFrozen: s.field?.lrig_frozen ?? false,
