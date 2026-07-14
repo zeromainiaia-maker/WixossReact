@@ -4583,6 +4583,75 @@ const scenarios = {
       return { pass: false, detail: `決着未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ARTS_USED_THIS_TURN 実機検証（続き116・Sonnet・PLAN §5b「⚠要実機検証」在庫）＝WX25-P1-095（幻怪 バンシー）
+  //    「【自】：このシグニがアタックしたとき、このターンにあなたがアーツを使用していた場合、【エナチャージ１】を
+  //    する。」＝`condition:{type:'ARTS_USED_THIS_TURN',owner:'self'}`。`turn_arts_used`フラグをhostSetで直接
+  //    trueに注入し（アーツ使用UI自体は既存の複数シナリオで検証済みのため、ここではフラグ読み取り→条件評価→
+  //    アクション発火の経路に絞る）、host攻撃時にエナが0→1に増えるかを確認する。
+  artsUsedThisTurnGate: {
+    title: 'WX25-P1-095（ARTS_USED_THIS_TURN条件＝このターンにアーツ使用済みならアタック時エナチャージ1）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX25-P1-095#1'], null, null], // 幻怪 バンシー（P5000・zone0）
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'turn_arts_used': true,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WD01-013#1'], null, null], // 対戦相手（小剣 ククリ・P3000・zone0）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let before = await H.queryState();
+      for (let r = 0; r < 4 && !(before?.guest?.fieldSigni?.[0] ?? []).includes?.('WD01-013#1'); r++) {
+        H.log(`再注入(${r})… guest zone0=${JSON.stringify(before?.guest?.fieldSigni?.[0])}`);
+        await injectScenario(page, this.spec);
+        await page.waitForTimeout(1500);
+        before = await H.queryState();
+      }
+      H.log('開始時 host:', JSON.stringify(before?.host));
+      let modalOpened = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/artsUsedThisTurnGate-${s}.png`, fullPage: true });
+        let did = null;
+        const phaseChk = await H.queryState();
+        if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+          }
+        }
+        if (!did && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.stdStep();
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ', 'エナに送る']);
+        const st = await H.queryState();
+        const energyGained = typeof st?.host?.energy === 'number' && st.host.energy > (before?.host?.energy ?? 0);
+        H.log(`  autg[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (energyGained) {
+          return { pass: true, detail: `ARTS_USED_THIS_TURN条件が正しく評価されエナチャージ1が発火（hEnergy ${before?.host?.energy}→${st.host.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `エナチャージ未確認（hEnergy=${fin?.host?.energy ?? '-'}（開始${before?.host?.energy}）pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
