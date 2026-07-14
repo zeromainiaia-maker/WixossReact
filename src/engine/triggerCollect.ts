@@ -523,7 +523,7 @@ export function collectBanishTriggers(
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
       // condition / usageLimit（相手＝opAfterState 視点で評価）
       if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
-      if (eff.usageLimit === 'once_per_turn' && opAfterState.actions_done?.includes(eff.effectId)) continue;
+      if (!limitOkOp(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
@@ -532,7 +532,7 @@ export function collectBanishTriggers(
     }
   }
 
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
