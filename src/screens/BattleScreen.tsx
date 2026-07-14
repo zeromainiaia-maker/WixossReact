@@ -4352,20 +4352,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const resumePlaceEntries: StackEntry[] = [];
         const hostTrashBeforeRSZ = new Set(bs.host_state?.trash ?? []);
         const guestTrashBeforeRSZ = new Set(bs.guest_state?.trash ?? []);
-        for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
+        // 各収集が返す usageLimit 消費 effectId は、収集の合間に actions_done へ畳み込む（次の収集がそれを見て
+        // 再発火を止める＝同一 resume 内で複数体が場に出た場合の《ターン1回》多重発火防止）。
+        let hostStateRP = hostState, guestStateRP = guestState;
+        const useRP = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
+          if (r.usedHostIds.length > 0) hostStateRP = { ...hostStateRP, actions_done: [...(hostStateRP.actions_done ?? []), ...r.usedHostIds] };
+          if (r.usedGuestIds.length > 0) guestStateRP = { ...guestStateRP, actions_done: [...(guestStateRP.actions_done ?? []), ...r.usedGuestIds] };
+        };
+        for (const placedNum of detectPlacedSigni(bs.host_state, hostStateRP)) {
           if (bloomedSetRSZ.has(placedNum)) continue;
-          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: hostTrashBeforeRSZ.has(placedNum) }));
+          const ft = collectFieldTriggers('ON_PLAY', placedNum, hostStateRP, guestStateRP, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: hostTrashBeforeRSZ.has(placedNum) });
+          resumePlaceEntries.push(...ft.entries); useRP(ft);
         }
-        for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
+        for (const placedNum of detectPlacedSigni(bs.guest_state, guestStateRP)) {
           if (bloomedSetRSZ.has(placedNum)) continue;
-          resumePlaceEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: guestTrashBeforeRSZ.has(placedNum) }));
+          const ft = collectFieldTriggers('ON_PLAY', placedNum, guestStateRP, hostStateRP, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: guestTrashBeforeRSZ.has(placedNum) });
+          resumePlaceEntries.push(...ft.entries); useRP(ft);
         }
         for (const bloomedNum of hostBloomedRSZ) {
-          resumePlaceEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+          const bl = collectBloomTriggers(bloomedNum, hostStateRP, guestStateRP, bs.host_id);
+          resumePlaceEntries.push(...bl.entries); useRP(bl);
         }
         for (const bloomedNum of guestBloomedRSZ) {
-          resumePlaceEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
+          const bl = collectBloomTriggers(bloomedNum, guestStateRP, hostStateRP, bs.guest_id);
+          resumePlaceEntries.push(...bl.entries); useRP(bl);
         }
+        if (hostStateRP !== hostState) update.host_state = hostStateRP;
+        if (guestStateRP !== guestState) update.guest_state = guestStateRP;
         if (resumePlaceEntries.length > 0) {
           const baseRP = (update.effect_stack as ReturnType<typeof initStack> | null) ?? (existingStack && !isStackDone(existingStack) ? existingStack : null);
           update.effect_stack = baseRP
