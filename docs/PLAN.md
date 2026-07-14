@@ -87,7 +87,7 @@
 | 7 | §6.1 未実装action型の engine 実装 | engine実装 | M（1型ずつ） | 残3型＝`PLAY_FREE_FROM_TRASH`(2)・`PREVENT_DAMAGE`(5・ダメージ層の置換機構が要る)・`COST_SUBSTITUTE`(2・コスト支払いUI横断) |
 | 8 | §6.3 大型機構 | engine機構＋parser | L（項目ごと独立） | ゲーム除外・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査 |
 | 9 | §6.2 semantic audit 系統残の機構対応 | engine＋decompiler | M | 系統②残（SEQUENCE内 GRANT_PROTECTION＝WX08-017・LAYER付与＝WX15-031・広域24件の subjectFilter/新機構）。系統①は✅続き106で完了 |
-| 11 | BEHAVIOR_AUDIT 高シグナル22 の最終仕分け＋engine修正 | 仕分け＋engine修正 | M | 続き130でキュー再生成済み＝WX04-003/082/099/102・WX07-045・WX08-029・WX09-012・WX12-010・WX22-Re01・WXEX1-12・WXEX2-51・WXDi-P02-034・WXDi-P04-065・WXDi-P09-079・WXDi-P16-013・WX24-P1-015・WX24-P2-049・WX25-P2-009・WX25-CP1-040・WXK01-021・WXK03-075・WDK03-001（トリガー主語系・CHOOSE分岐・出現条件レゾナは継続） |
+| 11 | BEHAVIOR_AUDIT 高シグナル22 の最終仕分け＋engine修正 | 仕分け＋engine修正 | S（縮小） | **続き133でSonnetが22件全件を`npm run audit -- --id`で目視精査＝新規の真no-opバグは0件と判定**（内訳：STUB露出済み・既に§6.1/§6.3で追跡中7件〈WXDi-P09-079/WX24-P2-049/WX25-P2-009/WX25-CP1-040/WX09-012/WXEX2-51/WXDi-P04-065＝最後のみ`freezetrigger`実機PASSで無害確定〉／COUNTER_SPELL＝BattleScreen側cutin経路で実処理・監査ツールの盲点3件／残り約12件はON_ATTACK系・ON_TRASH系等の**トリガー文脈依存効果を監査ツールの直接実行シナリオが構築できない盲点**＝WXK01-021-E1のみ「空の付与文『。』」という軽微なparser残骸の疑い（E2/E4が別途正しく実装済みで機能面の実害なし・低優先）。**残作業＝WXK01-021-E1の空文字付与を要確認する程度**（詳細BUGFIXES続き133）。監査ツールがSPELL_CUTIN/トリガー文脈を構築できない構造的盲点は§6.4「オープンな実装課題」への追記候補。 |
 | 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **下の在庫リスト参照** |
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L（低優先） | effect 構造そのものが原文とズレたカードの再parse。逓減テール＝他が尽きたら |
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
