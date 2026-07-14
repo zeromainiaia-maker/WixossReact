@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-15・続き133・Sonnet 5・PLAN §5a／§3 Sonnetタスク4＝BEHAVIOR_AUDIT一次トリアージ→22件全件を目視精査）**
+  - **キュー再生成で回帰なしを確認**＝`npm run audit:queue`→`_bqTriage.mjs`の高シグナル22件は続き130と完全一致（総母数273も同一）＝続き131/132でeffects JSON側の変更が無かったことと整合。
+  - **✅ 22件全件を`npm run audit -- --id`で目視精査＝新規の真no-opバグは0件**。内訳＝①既に§6.1/§6.3/STUBS.mdで追跡済みのSTUB露出7件（`WXDi-P09-079`/`WX24-P2-049`/`WX25-P2-009`/`WX25-CP1-040`/`WX09-012`/`WXEX2-51`＝いずれも既存追跡STUB、`WXDi-P04-065`は監査ツールでは無変化だが実機E2E`freezetrigger`で既にPASS確定済みの偽陽性）②**監査ツール自体の構造的盲点を新規特定＝COUNTER_SPELL/SPELL_CUTIN系3件**（`WX04-003-E3`/`WXEX1-12-E3`/`WXK01-021-E4`＝実処理はBattleScreen側cutin経路でのみ発生し孤立実行では原理的に再現不可能）③**同じく構造的盲点＝トリガー文脈依存効果 約12件**（ON_ATTACK系・ON_TRASH系・対象0枚のtoy盤面等）④軽微なparser残骸1件（`WXK01-021-E1`＝空のGRANT_LRIG_ABILITY・機能的には無害・E2/E4が別途正しく実装済み）。
+  - **対応**：PLAN§3 Opusタスク11を「最終仕分け＋engine修正（M規模）」から「WXK01-021-E1の空付与確認程度（S規模・実質クローズ近似）」へ大幅縮小。監査ツールの2種の構造的盲点（SPELL_CUTIN・トリガー文脈）は`_bqTriage.mjs`の将来のフィルタ改善候補としてBUGFIXES/PLANに記録（今回は診断のみ・スクリプト自体は変更せず）。
+  - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docsのみ変更（`docs/_behavior_queue.txt`再生成含む）。engine/parser/effects JSON変更なし。
+  - **次の一手**：Sonnet側＝§7 Sonnetタスク3（driverバッチ実行の状態汚染の残・低頻度フレーク）か、Sonnetタスク8（semantic audit続きバッチ）へ。Opus側＝タスク12在庫の消化（R40②(xxi)・ON_LRIG_GROW疑義含む）。
+
 - **🆕 セッション（2026-07-14・続き132・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝ON_COIN_PAID④・ON_LRIG_GROW④の実機検証）**
   - **✅ ON_COIN_PAID④＝コード調査により「現状到達不可能」と結論（近似は実害なし）**＝`collectCoinPaidTriggers`の全5呼び出し元（人間/CPUグロウ・シグニ【起】《コイン》・シグニ【出】《コイン》・アーツベット/アンコール）を洗い出したところ、いずれも呼び出し元アクション自体が自分のターン限定（【起】は`timing:['MAIN'|'ATTACK']`のみ）＝対戦相手のターン中にコインを支払う経路がengineに一つも無い。E2Eシナリオでは到達不能なため追加検証不要と判定。
   - **⚠ ON_LRIG_GROW④＝部分決着＋新規在庫登録**＝標準「グロウ」ボタン連打での二重発火は`actions_done.includes('GROW')`により正しくブロックされていることを確認（`wasFreeGrow`＝`freeGrowFilter!==null`の場合のみこの枠消費をスキップする設計と判明＝当初「free_grow_this_turnで二重グロウできるはず」という誤仮説で1回FAILを出した）。本命の検証経路（WX03-024「ゲット・グロウ」＝GROW_FREEスペルでの横グロウ）はスペル手札クリック→コスト支払い→候補クリックまで実行できたが、host.lrigTopが変化せず2回目グロウ自体が完了しない（4回の再試行・診断ログ追加でも原因特定に至らず）＝検証空振りのまま。`collectLrigGrowTriggers`（triggerCollect.ts:102）がusageLimitの`usedIds`を返さない構造的欠落（ATTACK_STEP_START②で見つかり修正済みのバグと同型）はコード上確認済みだがE2E未再現＝「未確認だがコード上疑わしい」としてOpusタスク12へ新規登録。
