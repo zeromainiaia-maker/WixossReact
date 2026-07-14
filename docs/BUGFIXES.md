@@ -5,6 +5,44 @@
 
 ---
 
+## usageLimit ガード欠落5コレクタの一括修正＋PER_DECK_COUNT 実装＋手札カウンタ更新漏れ（2026-07-15・続き135・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化）
+
+**Sonnet が積んだ在庫（タスク12）から4件を消化した。中心は「《ターン1回/2回》のガードが実質ノーガード」だった5コレクタの一括是正（実カード60枚超の過剰発火バグ）。**
+
+### ① usageLimit ガード欠落＝5コレクタを `{entries, usedHostIds, usedGuestIds}` 型へ統一（タスク12(x)・(vi-5)）
+
+engine のトリガー収集は「コレクタが usageLimit の消費 effectId を返し、呼び出し元が watcher の `actions_done` へ書き戻す」設計だが、以下の5関数がこの規約から外れていた。
+
+| コレクタ | 欠落の内容 | 実害 |
+|---|---|---|
+| `collectFieldTriggers`（ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any/any_ally/any_opp） | **usageLimit の判定コード自体が存在しない**（`mkLimitOk` 参照ゼロ） | 「味方のシグニが場に出るたびに◯◯（ターン1回）」型 **32枚**が同一ターンの複数召喚で毎回発火（続き104） |
+| `collectBloomTriggers` | 同上（ON_BLOOM any_ally 2枚） | 同型の過剰発火 |
+| `collectBanishTriggers` | `actions_done` を**読むだけ**で書き戻し機構が無い | ON_BANISH watcher **18枚**の《ターン1回》がノーガード（続き100） |
+| `collectPowerZeroTriggers` | 同上 | ON_SIGNI_POWER_ZERO_OR_LESS **6枚**（続き100） |
+| `collectLrigGrowTriggers` | 同上 | ON_LRIG_GROW **4枚**（続き132・ゲット・グロウ等での2回目グロウ） |
+
+- **修正**：5関数とも `mkLimitOk`（actions_done＋今回の収集内の出現回数で判定・許可時に消費を積む）を watcher 側で作り、`{entries, usedHostIds, usedGuestIds}` を返す（`collectTurnTriggers`＝続き119 と同型）。`twice_per_turn` も同時に効くようになる。
+- **呼び出し元（BattleScreen 12箇所）で `actions_done` へ書き戻し**：中央 diff（`collectBoardDiffTriggers` の `useHost`/`useGuest`）・resume（SELECT_SIGNI_ZONE 完了）・スペル解決・シグニ召喚・グロウ・シグニアタック・バトル解決・パワー0以下バニッシュ・CONTINUOUS 変異・CPU グロウ・CPU 召喚。**収集の合間に畳み込む**ので、同一パスで複数体が場に出ても《ターン1回》は1度しか発火しない。相手側 watcher の消費は、その経路が相手 state を保存しない場合（召喚・グロウ・CPU）にのみ相手の state キーを追加保存する。
+- **検証**：golden 4件新設（各コレクタの「消費IDを返す」＋「書き戻し後は再発火しない」）。**実機 E2E 新設 `onPlayUsageLimit`**＝WX24-P1-046（「あなたの他の＜地獣＞のシグニ1体が場に出たとき、【エナチャージ1】」《ターン1回》）の場に＜地獣＞Lv1を2体召喚し、デッキが**1枚しか減らない**（エナチャージ1回のみ）ことを2回連続PASS確認。修正前は `actions_done` に effectId が入ること自体があり得ない（書き戻し機構が無かった）ため、このシナリオは修正の有無を確実に切り分ける。既定 order に追加。
+
+### ② `POWER_MODIFY_PER_DECK_COUNT` が CONTINUOUS 計算層に未実装（タスク12(vi)）
+
+PR-442「【常】：このシグニのパワーはあなたのデッキの枚数10枚につき＋4000される」が**常に無効**だった（`effectExecutor.ts` の `case` に「（effectEngine処理）」とあるが `effectEngine.ts` に実装が無い虚偽コメント）。`calcFieldPowers` に `extractPowerModifiesPerDeckCount` と計算ブロックを追加（`floor(deck.length / unitSize) * deltaPerUnit`・端数切り捨て）。golden 1件（25枚→+8000／9枚→0）。
+
+### ③ `applyDirectAction` の TRASH/HAND_CARD が手札カウンタ3種を更新しない（タスク12(iv)）
+
+即時適用パス（`count:'ALL'`＝`applyTrashHand`）は `hand_discarded_just`／`turn_hand_discarded_count`／`hand_trashed_by_opp_this_turn` を更新するのに、**`count:1` 等で SELECT_TARGET を挟む `resumeSelectTarget`→`applyDirectAction` 経路だけがこの更新を丸ごと欠いていた**＝ON_HAND_DISCARDED 不発火・「この方法で手札を捨てた場合」条件の不成立・`HAND_TRASHED_BY_OPP`（「代わりに」置換の起点）の不成立を併発（続き81・§7 `trashCounterOpp` で発見）。3フィールドの更新と **手札保護（PREVENT_ZONE_MOVE_BY_OPP）** を即時パスと同じ形で移植。golden 1件（自分捨て／相手に捨てさせるの両方向）。
+
+### ④ 検証
+
+`npm run gates` 全緑（typecheck／**golden 319→325**／smoke 全0／fuzz 全0／census 2218 維持／lint 0 error）。effects JSON は無変更（engine/scripts のみ）。
+
+### ⑤ 新規発見（次の Opus タスクへ登録）＝parser の timing 判定が**引用「」の内側を先に拾う**
+
+タスク12(xiii)（WX24-P2-018-E1 のルリグ「アタックフェイズ開始時」が `ON_ATTACK_SIGNI` 誤登録）を調べたところ、**単発ではなく系統**と判明。原文に「アタックフェイズ開始時」を含むのに timing がそれ以外になっている効果が **83件**あり、うち**外側トリガーが「【自】：（あなた/対戦相手）のアタックフェイズ開始時、」で始まるのに引用付与の内側トリガー語が先にマッチして誤変換されたものが約20枚**（`ON_ATTACK_SIGNI` へ15枚＝WX24-P1-014/WX24-P2-018/WX25-P2-053/WX25-P3-089/WX25-CP1-085/WX25-CP1-088/WX26-CP1-082/WXDi-P02-039/WXDi-P07-063/WXDi-P08-058/WXDi-P08-080/WXDi-P09-038/WXDi-CP02-079/WX25-CP1-067/SPDi43-10、`ON_OPP_LIFE_CRASHED` へ5枚＝WX24-P2-055/WX25-CP1-079/WX25-CP1-080/WXDi-CP02-086/WXDi-CP02-090、`ON_ATTACK_LRIG` へ2枚＝WX25-P3-019/WXDi-P15-084）。**真因＝timing 判定チェーン（`effectParser.ts:2700-2854`）が actionText 全体を見るため、「…を得る。」で終わる引用内の『このシグニがアタックしたとき』等が外側の判定より先にマッチする**。修正案＝timing 判定の前に引用（「…」）スパンを除いた outerText を作って判定する（全 timing 分岐に効くので fresh 再生成の差分精査が要る＝**PLAN §3 Opusタスク17 として新規登録**）。
+
+---
+
 ## BEHAVIOR_AUDIT 高シグナル22件の目視精査＝新規バグ0件・監査ツールの構造的盲点2種を特定（2026-07-15・続き133・Sonnet 5・PLAN §5a／§3 Sonnetタスク4）
 
 **続き130が機械抽出した高シグナルno-opバグ候補22件（`node scripts/_bqTriage.mjs`）を、今回`npm run audit -- --id <CardNum>`で1件ずつ目視精査した。結論＝新規の真no-opバグは0件。既存追跡STUB7件・監査ツール自体の盲点による偽陽性が大半（COUNTER_SPELL系3件＋トリガー文脈依存系12件）・軽微なparser残骸1件のみ。**
