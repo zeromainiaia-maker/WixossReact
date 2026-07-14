@@ -2689,96 +2689,101 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       break;
     case '自':
       effectType = 'AUTO';
-      timing = actionText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
+      // timing 判定は**引用「」の外側**のテキストだけで行う（続き135発見・タスク17）。従来は actionText 全体を
+      // 見ていたため、「【自】：あなたのアタックフェイズ開始時、…『【自】：このシグニがアタックしたとき…』を得る」型で
+      // **引用内（＝付与される能力）のトリガー語**が外側のトリガー句より先にマッチし、約20枚が誤 timing になっていた
+      // （ON_ATTACK_SIGNI 15枚・ON_OPP_LIFE_CRASHED 5枚・ON_ATTACK_LRIG 2枚）。引用付与の内側能力自体は parseBlock の
+      // 再帰呼び出しで別途この判定を通るので、内側の timing が失われることはない。
+      timing = (trigText => trigText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
-             : actionText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
-             : actionText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
-             : actionText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
-             : actionText.includes('バニッシュされたとき') ? ['ON_BANISH']
+             : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
+             : trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
+             : trigText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
+             : trigText.includes('バニッシュされたとき') ? ['ON_BANISH']
              // 「あなたの＜X＞のシグニが効果によって対戦相手のシグニをバニッシュしたとき」（WX07-036）。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線。トリガー文非除去・scope/filter は下で抽出
-             : actionText.match(/効果によって対戦相手のシグニ[^。]{0,4}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']
+             : trigText.match(/効果によって対戦相手のシグニ[^。]{0,4}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT_BY_EFFECT']
              // 「（このシグニ／あなたの[他の][＜X＞の]シグニ）がバトルによって（対戦相手の）シグニN体をバニッシュしたとき」
              // ＝バトル勝利トリガー。**engine 配線済み**（BattleScreen の resolvePendingSigniBattleFor が
              // ON_SIGNI_BANISH_OPPONENT を triggerScope/usageLimit/condition 込みで収集する `battleBanishEntries`）。
              // 従来 parser がこの語彙を持たず **ON_PLAY へ誤フォールバック**していたため、31枚が「バトルでバニッシュ
              // したとき」ではなく「場に出たとき」に発火する幻覚になっていた（続き75で是正）。scope は下で抽出。
-             : actionText.match(/バトルによって(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             : trigText.match(/バトルによって(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 同上の「バトルによって」が明記されない表記（19件）。**効果によるバニッシュは必ず「効果によって」と
              // 明記される**ため、明記が無い＝バトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体を
              // バニッシュしたとき」等）。上の BY_EFFECT 判定が先に走るので効果バニッシュを奪わない。
-             : actionText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             : trigText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
-             : actionText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
+             : trigText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
              // 「対戦相手の**シグニの**、能力か効果の対象になったとき」（WXDi-P03-056/WXDi-P13-089）も同じ受け皿。
-             : actionText.match(/対戦相手の(?:シグニの)?[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
+             : trigText.match(/対戦相手の(?:シグニの)?[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
              // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
-             : actionText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
+             : trigText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
              // 「あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき」（WXDi-P04-035）。⚠engine未配線。トリガー文非除去
-             : actionText.match(/(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)[^。]{0,40}を得たとき/) ? ['ON_KEYWORD_GAINED']
+             : trigText.match(/(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)[^。]{0,40}を得たとき/) ? ['ON_KEYWORD_GAINED']
              // 「あなたのルリグの下からカードが移動したとき」（WXDi-P04-042）。⚠engine未配線。トリガー文非除去
-             : actionText.match(/ルリグ[^。]{0,6}下から[^。]{0,8}移動したとき/) ? ['ON_LRIG_UNDER_MOVED']
+             : trigText.match(/ルリグ[^。]{0,6}下から[^。]{0,8}移動したとき/) ? ['ON_LRIG_UNDER_MOVED']
              // 「あなたのルリグアタックステップ開始時」（WX25-CP1-042-E2）。⚠engine未配線。先頭アンカー＝句が action 内/付与内に出る WXK01-038/WXDi-CP02-059 を誤分類しない
-             : actionText.match(/^あなたのルリグアタックステップ開始時/) ? ['ON_LRIG_ATTACK_STEP_START']
+             : trigText.match(/^あなたのルリグアタックステップ開始時/) ? ['ON_LRIG_ATTACK_STEP_START']
              // 「あなたのシグニが対戦相手のアーツの効果を受けたとき」（WXK11-019-E2 等）＝ON_OPP_ARTS_USE（配線済み）。トリガー文非除去
-             : actionText.match(/対戦相手のアーツの効果を受けたとき/) ? ['ON_OPP_ARTS_USE']
+             : trigText.match(/対戦相手のアーツの効果を受けたとき/) ? ['ON_OPP_ARTS_USE']
              // 「あなた/対戦相手の[他の][センター]ルリグがグロウしたとき」（WXDi-P05-010 等）。⚠engine未配線。トリガー文非除去・scope は下で抽出
-             : actionText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
+             : trigText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「あなたが《コイン》を1枚以上支払ったとき」（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線。トリガー文非除去
-             : actionText.match(/あなたが《コイン[^》]*》を[^。]{0,8}支払ったとき/) ? ['ON_COIN_PAID']
+             : trigText.match(/あなたが《コイン[^》]*》を[^。]{0,8}支払ったとき/) ? ['ON_COIN_PAID']
              // 「《改造素材》が使用された/あなたが《改造素材》を使用したとき」（WXK09-047 等）。⚠engine未配線。トリガー文非除去・scope/cond は下で抽出
-             : actionText.match(/《改造素材》[^。]{0,12}(?:使用された|使用した)とき/) ? ['ON_MATERIAL_USED']
+             : trigText.match(/《改造素材》[^。]{0,12}(?:使用された|使用した)とき/) ? ['ON_MATERIAL_USED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
-             : actionText.includes('開花したとき') ? ['ON_BLOOM']
-             : actionText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
-             : actionText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
-             : actionText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
+             : trigText.includes('開花したとき') ? ['ON_BLOOM']
+             : trigText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
+             : trigText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
+             : trigText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
              // ⚠「手札から」**単独**が抜けていて11件が ON_PLAY へ誤フォールバックしていた（続き75・§3 Opusタスク16）。
              //   engine は `triggerCondition.fromZones` で領域を判定する（collectAnyZoneTrashSelfTriggers）＝下の
              //   fromZones 抽出にも同じく「手札」単独を足してある。「シグニの下から」は別（under）なので拾わない。
-             : actionText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
-             : actionText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
-             : actionText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
+             : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
+             : trigText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
+             : trigText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
              // 「（対戦相手／あなた）のシグニN体のパワーが0以下になったとき」（6件・続き76）。engine 配線済み
              //   （collectPowerZeroTriggers＝パワー0以下でバニッシュされる際に triggerScope で watcher を絞る）。
              //   ⚠engine は「0以下」専用（閾値付きの「N以下」は受け皿が無い）＝0 に限定してマッチする。scope は下で抽出。
-             : actionText.match(/シグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/) ? ['ON_SIGNI_POWER_ZERO_OR_LESS']
+             : trigText.match(/シグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/) ? ['ON_SIGNI_POWER_ZERO_OR_LESS']
              // 「あなたが【エナチャージ】をしたとき」（2件・続き76）も同じ受け皿（engine はエナゾーンが1枚増えたことを
              //   スナップショット差分で検知＝所有者自身の場のシグニが反応する）。
              //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
              //     エナが増えた側の場しか走査しない）＝拾わない（§6.3 機構待ち）。
-             : actionText.match(/あなたのエナゾーンに[^、。]*置かれたとき|あなたが【エナチャージ】をしたとき/) ? ['ON_ENERGY_CHARGE']
+             : trigText.match(/あなたのエナゾーンに[^、。]*置かれたとき|あなたが【エナチャージ】をしたとき/) ? ['ON_ENERGY_CHARGE']
              // 「対戦相手の場に【ウィルス】Nつが置かれたとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_OPP_VIRUS_PLACED）。
-             : actionText.match(/対戦相手の場に【ウィルス】[０-９\d]*つ?が置かれたとき/) ? ['ON_OPP_VIRUS_PLACED']
+             : trigText.match(/対戦相手の場に【ウィルス】[０-９\d]*つ?が置かれたとき/) ? ['ON_OPP_VIRUS_PLACED']
              // 「あなたの効果N つによって対戦相手のカードがN枚以上デッキに移動したとき」（2件）。engine 配線済み
              //   （collectMoveToDeckTriggers＝triggerCondition.movedToDeckOwner／movedToDeckMinCount）。cond は下で抽出。
-             : actionText.match(/カードが[０-９\d]+枚以上デッキに移動したとき/) ? ['ON_CARD_MOVED_TO_DECK']
-             : actionText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
-             : actionText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
+             : trigText.match(/カードが[０-９\d]+枚以上デッキに移動したとき/) ? ['ON_CARD_MOVED_TO_DECK']
+             : trigText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
+             : trigText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              // 「（あなた/対戦相手/いずれかのプレイヤー）が（[色]の）スペルを使用したとき」（16件・§3 Opusタスク16）。
              // engine 配線済み＝スペル解決時に使用者の場（ルリグ＋シグニ）を走査（triggerFilter.color／usageLimit 対応）。
              // 続き75で triggerScope any_opp/any（相手/いずれかのプレイヤーの使用に反応）も engine に配線した。
              // ⚠「あなたが対戦相手のスペルを使用したとき」＝奪って使う側＝使用者は自分（self）。
-             : /スペルを使用したとき/.test(actionText) ? ['ON_SPELL_USE']
+             : /スペルを使用したとき/.test(trigText) ? ['ON_SPELL_USE']
              // 「このカードがエクシードのコストとしてルリグトラッシュに置かれたとき」（13件・§3 Opusタスク16）。
              // engine 配線済み＝エクシード支払い時に「ルリグトラッシュへ置かれたカード自身」の AUTO を発火
              // （`exceedPaidCards` 走査。※`triggerCondition.exceedCostPaidByPlayer` を持つ「あなたが支払ったとき」変種は
              //  場のシグニ側で発火する別経路＝そちらは MANUAL 管理）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
-             : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(actionText) ? ['ON_EXCEED_COST']
+             : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(trigText) ? ['ON_EXCEED_COST']
              // 「このシグニがライズされたとき」（11件・§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
              // **ライズされたシグニ自身**（self）の AUTO を収集。
              // ⚠「《X》にライズされたとき」（2件）は**下敷きになった側**の反応＝別機構なので拾わない（self とは主語が違う）。
-             : /このシグニがライズされたとき/.test(actionText) ? ['ON_RISE']
+             : /このシグニがライズされたとき/.test(trigText) ? ['ON_RISE']
              // 「（この/あなたの）シグニがドライブ状態になったとき」（15件・§3 Opusタスク16）。engine 配線済み
              // （collectSigniBecomesDriveTriggers＝triggerScope self/any_ally/any を評価）。scope は下で抽出。
-             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?がドライブ状態になったとき/.test(actionText) ? ['ON_SIGNI_BECOMES_DRIVE']
+             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?がドライブ状態になったとき/.test(trigText) ? ['ON_SIGNI_BECOMES_DRIVE']
              // 「（この/あなたの他の）カードが【ビート】になったとき」（8件）。engine 配線済み（self＝なったカード自身／
              // any_ally＝オーナーの場のシグニ）。scope は下で抽出。
-             : /(?:この|あなたの(?:他の)?)カードが【ビート】になったとき/.test(actionText) ? ['ON_BECOME_BEAT']
+             : /(?:この|あなたの(?:他の)?)カードが【ビート】になったとき/.test(trigText) ? ['ON_BECOME_BEAT']
              // 「あなたが（あなたのターンに）アーツを使用したとき」（7件）。engine 配線済み＝**使用者(caster)側のみ**
              // （collectArtsUseTriggers は triggerScope self 限定）。⚠「対戦相手がアーツを使用したとき」は engine の
              //   受け皿が別（ON_OPP_ARTS_USE 系）＝ここでは拾わない（誤って self 扱いにすると発火主体が逆になる）。
-             : /あなた(?:のターンにあなた)?がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE']
+             : /あなた(?:のターンにあなた)?がアーツを使用したとき/.test(trigText) ? ['ON_ARTS_USE']
              // 「（ガードステップ以外で）（あなた／いずれかのプレイヤー）が手札をN枚捨てたとき」（9件・§3 Opusタスク16）。
              // engine 配線済み（collectHandDiscardTriggers）。**「ガードステップ以外で」は engine 側で構造的に担保**
              // されている＝ガードによる手札捨ては `hand_discarded_just`/`asCost` のどちらも立たない
@@ -2788,67 +2793,67 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「あなたが（手札から）（＜X＞の/《ディソナアイコン》の）シグニ/カードをN枚捨てたとき」（6件・続き76）
              //   ＝捨てたカードの種別限定は engine の `triggerFilter`（collectHandDiscardTriggers の matchesTrigFilter）で
              //   評価される。filter は下で抽出。
-             : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(actionText)
-                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚捨てたとき/.test(actionText)) ? ['ON_HAND_DISCARDED']
+             : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(trigText)
+                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚捨てたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
              //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
              //   ルリグ＝ON_ACCE_ATTACH（ルリグ監視の別ループ）。scope は下で抽出。
              // ⚠「このカードが【アクセ】としてシグニに付いたとき」（アクセカード自身の反応）は別＝この regex に当たらない。
-             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)
+             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(trigText)
                  ? (_parsingBaseType === 'ルリグ' ? ['ON_ACCE_ATTACH'] : ['ON_ACCE'])
              // 「（あなた／対戦相手／いずれかのプレイヤー）がリフレッシュしたとき」（6件）。engine 配線済み
              // （collectRefreshTriggers＝triggerCondition.refreshedOwner で発生源を判定）。owner は下で抽出。
-             : /(?:あなた|対戦相手|いずれかのプレイヤー)がリフレッシュしたとき/.test(actionText) ? ['ON_REFRESH']
+             : /(?:あなた|対戦相手|いずれかのプレイヤー)がリフレッシュしたとき/.test(trigText) ? ['ON_REFRESH']
              // 「あなたの効果によって（対戦相手の）エナゾーンからカードN枚がトラッシュに置かれたとき」（3件）。
              // engine 配線済み（collectEnergyToTrashTriggers＝triggerCondition.energyTrashedOwner で発生源エナを判定）。
              // ⚠「あなたの効果によって」限定は engine 側で未表現＝既知の近似（engine の doc コメント参照）。
-             : /エナゾーンからカード[^。]{0,8}がトラッシュに置かれたとき/.test(actionText) ? ['ON_ENERGY_TO_TRASH']
+             : /エナゾーンからカード[^。]{0,8}がトラッシュに置かれたとき/.test(trigText) ? ['ON_ENERGY_TO_TRASH']
              // 「（対戦相手／あなた）のシグニN体が凍結状態になったとき」（3件）。engine 配線済み
              // （collectFreezeTriggers＝triggerScope any_opp 既定／any_ally／any）。scope は下で抽出。
-             : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(actionText) ? ['ON_SIGNI_FROZEN']
+             : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(trigText) ? ['ON_SIGNI_FROZEN']
              // 「あなたの[＜X＞の]シグニの効果によって対戦相手のシグニ[N体]のパワーが減ったとき」（4件・毒牙）。
              // engine 配線済み（collectPowerDecreaseTriggers＝temp_power_mods の新規負 delta を set-diff で検出）。
              // ⚠発生源フィルタ（「＜毒牙＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似（下で刻印）。
-             : /対戦相手のシグニ(?:[０-９\d]+体)?のパワーが減ったとき/.test(actionText) ? ['ON_OPP_POWER_DECREASED']
+             : /対戦相手のシグニ(?:[０-９\d]+体)?のパワーが減ったとき/.test(trigText) ? ['ON_OPP_POWER_DECREASED']
              // 「あなたの＜X＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき」（4件）。
              // engine 配線済み（collectHandDiscardTriggers の asCost 分岐＝捨てられたカード自身の AUTO を発火）。
              // ⚠「どの能力のコストとして捨てられたか」のフィルタは engine が未表現＝落とす近似（下で刻印）。
-             : /能力のコストとしてこのカードが捨てられたとき/.test(actionText) ? ['ON_DISCARDED_AS_COST']
+             : /能力のコストとしてこのカードが捨てられたとき/.test(trigText) ? ['ON_DISCARDED_AS_COST']
              // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
-             : /あなたが【ガード】したとき/.test(actionText) ? ['ON_GUARD']
+             : /あなたが【ガード】したとき/.test(trigText) ? ['ON_GUARD']
              // 「（あなたか）対戦相手がアーツを使用したとき」（4件）。engine 配線済み（collectOppArtsUseTriggers＝相手の
              // アーツ使用に自分の場が反応）。既存の「対戦相手のアーツの効果を受けたとき」と同じ受け皿。
              // ⚠「**あなたか**対戦相手が」（WX16-003）は**どちらの使用でも**発火する＝ON_ARTS_USE（使用者側・
              //   collectArtsUseTriggers）と両方を持たせる（片方だけだと自分のアーツ使用を取りこぼす）。
-             : /あなたか対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_ARTS_USE', 'ON_OPP_ARTS_USE']
-             : /対戦相手がアーツを使用したとき/.test(actionText) ? ['ON_OPP_ARTS_USE']
+             : /あなたか対戦相手がアーツを使用したとき/.test(trigText) ? ['ON_ARTS_USE', 'ON_OPP_ARTS_USE']
+             : /対戦相手がアーツを使用したとき/.test(trigText) ? ['ON_OPP_ARTS_USE']
              // 「（効果N つによって）（あなた/対戦相手）のデッキからカードが（N枚以上）トラッシュに置かれたとき」（6件）。
              // engine 配線済み（collectMillTriggers＝triggerCondition.milledDeckOwner／milledMinCount）。
              // ⚠ON_TRASH の regex は「デッキから」の直後が「トラッシュに置かれたとき」でないと当たらないので競合しない。
-             : /の(?:デッキ|山札)からカード(?:が[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(actionText) ? ['ON_CARD_MILLED_FROM_DECK']
+             : /の(?:デッキ|山札)からカード(?:が[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(trigText) ? ['ON_CARD_MILLED_FROM_DECK']
              // 「あなたが自分の効果によって手札からカードをN枚以上公開したとき」（6件）。engine 配線済み
              // （BattleScreen＝場のシグニ自身が反応。G198）。
-             : /あなたが自分の効果によって手札からカードを[０-９\d]+枚以上公開したとき/.test(actionText) ? ['ON_SELF_REVEAL_FROM_HAND']
+             : /あなたが自分の効果によって手札からカードを[０-９\d]+枚以上公開したとき/.test(trigText) ? ['ON_SELF_REVEAL_FROM_HAND']
              // 「対戦相手のシグニN体がこのシグニの正面に配置されたとき」（3件）。engine 配線済み
              // （collectFieldTriggers の `triggerCondition.placedFront`＝正面ゾーン一致を判定）。timing は ON_PLAY のまま。
-             : /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(actionText) ? ['ON_PLAY']
+             : /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(trigText) ? ['ON_PLAY']
              // 「（あなたの）シグニN体が場から手札に戻ったとき」（4件）。engine 配線済み
              // （collectLeaveFieldTriggers の `triggerCondition.leftToZone:'hand'`＝離れたカードが手札に在中する場合のみ）。
-             : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText) ? ['ON_LEAVE_FIELD']
-             : actionText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
+             : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             : trigText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
              // 無いため ON_PLAY（＝「場に出たとき」）へ誤フォールバックしていた＝召喚しただけで発火する幻覚。
              // ⚠「次の（次の）あなたのメインフェイズ開始時」＝**遅延トリガー**（設置して次ターンに発火）は別機構なので除外。
-             : (/メインフェイズ開始時/.test(actionText) && !/次の(?:次の)?あなたのメインフェイズ開始時/.test(actionText)) ? ['ON_MAIN_PHASE_START']
-             : actionText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
+             : (/メインフェイズ開始時/.test(trigText) && !/次の(?:次の)?あなたのメインフェイズ開始時/.test(trigText)) ? ['ON_MAIN_PHASE_START']
+             : trigText.includes('ライフバーストが発動したとき') ? ['ON_LIFE_BURST']
              // 「あなたがカードをN枚引いたとき」= ドロー時トリガー（G089）。「ターン終了時まで」より先に判定する。
-             : /(?:あなたが)?カードを[０-９\d]+枚引いたとき/.test(actionText) ? ['ON_DRAW']
+             : /(?:あなたが)?カードを[０-９\d]+枚引いたとき/.test(trigText) ? ['ON_DRAW']
              // 「ターン終了時まで」は持続期間指定であってトリガーではない（G085「ターン終了時まで、このシグニのパワーを＋N」）。
              // 実トリガーの「ターン終了時、/に」のみ ON_TURN_END とする。
-             : /ターン終了時(?!まで)/.test(actionText) ? ['ON_TURN_END']
-             : actionText.includes('ターン開始時') ? ['ON_TURN_START']
+             : /ターン終了時(?!まで)/.test(trigText) ? ['ON_TURN_END']
+             : trigText.includes('ターン開始時') ? ['ON_TURN_START']
              // ⚠ここに落ちる＝【自】なのに timing 判定が全て外れて ON_PLAY（「場に出たとき」）になった。原文に
              //   「…とき/…時」があるならそれは別トリガーの取りこぼし＝timing 語彙の欠落。計器に刻む（parseStatus は不変）。
              : (logTimingFallback(`${cardNum}-E${index + 1}`, actionText), ['ON_PLAY']);
