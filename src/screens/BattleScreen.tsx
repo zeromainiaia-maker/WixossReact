@@ -5201,14 +5201,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         })),
       ];
       if (entries.length === 0) {
-        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await supabase.from('battle_states')
+          .update({ [stateKey]: newMyState, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) })
+          .eq('room_id', roomId);
         return;
       }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
       await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null })
+        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) })
         .eq('room_id', roomId);
     } finally {
       setLoading(false);
