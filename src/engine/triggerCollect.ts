@@ -1678,6 +1678,7 @@ export function collectTurnTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp' && scope !== 'any') continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, opState, myState, false, ctx.cardMap, opLrigNumTurn)) continue;
+      if (!limitOkOp(eff)) continue;
       const cardName = ctx.cardMap.get(opLrigNumTurn)?.CardName ?? opLrigNumTurn;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: opLrigNumTurn, effectId: eff.effectId,
