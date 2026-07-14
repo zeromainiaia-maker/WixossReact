@@ -5,6 +5,18 @@
 
 ---
 
+## `resumeSelectTarget`のcontinuation握り潰しを根治＝ADD_TO_FIELD(SELECT_TARGET経由)の後続SEQUENCEステップが無言no-op化する構造バグを修正（2026-07-14・続き117・Opus 4.8・PLAN §3 Opusタスク12(xiv)）
+
+**続き114（Sonnet）で診断・登録された真バグ（Opusタスク12(xiv)）を根治した。** `resumeSelectTarget`（`effectExecutor.ts`）が、選択カードへの`thenAction`適用で`applyDirectAction`が`SELECT_SIGNI_ZONE`を要求（＝ADD_TO_FIELDの配置先が空きゾーン2以上）した場合に、`if (!result.done) return result;`（旧4251行目）でその内側interactionをそのまま返し、**外側SEQUENCEの`pending.continuation`（＝後続の GRANT_KEYWORD / CONDITIONAL / BLOCK_ACTION 等）を握り潰していた**。ゾーン選択後は`resumeSelectSigniZone`が`pending.continuation===undefined`を見て`done`するだけで、後続ステップが二度と実行されない。
+
+- **修正**：`resumeSelectTarget`に、`pending.thenAction.type==='ADD_TO_FIELD'`かつ選択1枚以上のとき`execPlaceSigniOnField`（`PLACE_SIGNI_ON_FIELD`）経由でチェーン配置する分岐を追加（`resumeSearch`のADD_TO_FIELD分岐と同型）。外側`pending.continuation`を`afterAction`として渡すことで、`execPlaceSigniOnField`が各カードのゾーン選択中断を跨いで残りカードの配置＋afterActionを内側interactionの`continuation`へ正しく合成し、**全配置完了後にcontinuationを実行する**。`lastProcessedCards`も配置カードで更新するため、後続がそれを参照する形（配置シグニへのGRANT/BLOCK）も機能する。任意スキップ（選択0枚）時は従来どおり`stripDidItConditional`経路へフォールバック（この分岐に入らない）。
+- **影響母集団**：SEQUENCE内に`ADD_TO_FIELD(source経由・非ALL)`があり後続ステップを持つ効果＝機械抽出で**84効果（約80カード）**（`ADD_TO_FIELD`の後続に BLOCK_ACTION／GRANT_KEYWORD／CONDITIONAL／POWER_MODIFY／BANISH 等）。うち配置先が空きゾーン2以上になった局面で従来は後続が全脱落していた。診断された WXDi-CP02-087（後続GRANT_KEYWORD＝絆常付与）・WXK07-105（後続CONDITIONAL{IS_BETTING}）を含む。構造修正のため母集団全体を一律にカバー。
+- **検証（3層）**：①**golden 回帰テスト新設**＝`SEQUENCE[ADD_TO_FIELD(ENERGY_CARD,count:1), DRAW]`を空きゾーン3で実行し後続DRAWの発火（手札+1）をassert。修正なしでは`expected=6 got=5`でFAIL・修正ありでPASSを確認（決定論・CIゲート）。golden 310→311。②**実ブラウザ**＝`craftEnergyCP02087`（WXDi-CP02-087）を強化＝ADD_TO_FIELD成功に加え配置シグニへの絆常付与が`kwGrants=["WXDi-CP02-087#1:絆常"]`へ入ることをassert・実機PASS（旧・意図的no-op確認から真の回帰テストへ格上げ）。③**全ゲート緑**（golden 311・smoke 10591 OK/1 SKIP・fuzz 全0・census 2225維持・lint 0 error）。
+- **残（本修正の対象外）**：`craftArtsBetK07105`（WXK07-105・HAND_CARDソース）は依然FAILだが原因は engine ではなく driver のクリック不足＝ADD_TO_FIELD source:HAND_CARD の SELECT_TARGET ピッカー（手札から1枚選ぶ＝`img[alt=カード名]`・`pick-0`非対応）を drive() が満たせず1体目配置手前で停止するため（engine修正はcraftEnergyCP02087で実証済み）。driverクリック列の補強はSonnet driverタスクへ。既定order外のまま。
+- engine（`effectExecutor.ts`）＋golden（`goldenTest.ts`）＋driver（`verifyBattleDrive.mjs`のcraftEnergyCP02087強化・craftArtsBetK07105コメント是正）のみ。effects JSON変更なし。
+
+---
+
 ## §7実機検証残の棚卸し＝stale「残」リストの是正＋R40②/ON_COIN_PAID④はコード読解で決着＋ON_LRIG_ATTACK_STEP_START②で新規真バグ発見（2026-07-14・続き116・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §3の「その他の残」列挙（R30/ON_TARGETED残3枚/R42②/R43②/R44②③/R46②③/R38②③/R36②/R39②/R41②）を§7本文と全数突き合わせたところ、すべて既に決着済み（続き75/92/98/101/104等で完了）と判明し、リストがstaleだったことを確認・是正した。** その上で真に残っていた3件（R40②・ON_COIN_PAID④・ON_LRIG_ATTACK_STEP_START②）を消化し、うち1件で新規の真バグを発見した。
