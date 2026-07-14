@@ -8243,10 +8243,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           label: `${candidate.card!.CardName} の【出】/【自】効果`,
           effect: eff,
         } satisfies StackEntry)));
-        cpuOnPlayEntries.push(...collectFieldTriggers('ON_PLAY', candidate.id, newCpuSt, huSt, CPU_PLAYER_ID));
+        const cpuFt = collectFieldTriggers('ON_PLAY', candidate.id, newCpuSt, cpuHuSt, CPU_PLAYER_ID);
+        cpuOnPlayEntries.push(...cpuFt.entries);
+        // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（CPU=guest／人間=host）。
+        // 畳み込んだ状態を次ループの収集に渡すことで、同一ターンに複数体召喚しても《ターン1回》は1度だけ発火する（続き135）。
+        if (cpuFt.usedGuestIds.length > 0) newCpuSt = { ...newCpuSt, actions_done: [...(newCpuSt.actions_done ?? []), ...cpuFt.usedGuestIds] };
+        if (cpuFt.usedHostIds.length > 0) cpuHuSt = { ...cpuHuSt, actions_done: [...(cpuHuSt.actions_done ?? []), ...cpuFt.usedHostIds] };
 
         // 1枚ずつSupabaseを更新して画面に反映させてから次へ
-        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+        await supabase.from('battle_states')
+          .update({ guest_state: newCpuSt, ...(cpuHuSt !== huSt ? { host_state: cpuHuSt } : {}) })
+          .eq('room_id', roomId);
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
 
