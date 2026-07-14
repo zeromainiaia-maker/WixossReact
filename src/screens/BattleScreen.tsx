@@ -2769,17 +2769,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const guestTrashBefore = new Set(beforeGuest?.trash ?? []);
     for (const placedNum of detectPlacedSigni(beforeHost, h)) {
       if (bloomedSetSE.has(placedNum)) continue;
-      entries.push(...collectFieldTriggers('ON_PLAY', placedNum, h, g, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: hostTrashBefore.has(placedNum) }));
+      const ft = collectFieldTriggers('ON_PLAY', placedNum, h, g, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: hostTrashBefore.has(placedNum) });
+      entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
     }
     for (const placedNum of detectPlacedSigni(beforeGuest, g)) {
       if (bloomedSetSE.has(placedNum)) continue;
-      entries.push(...collectFieldTriggers('ON_PLAY', placedNum, g, h, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: guestTrashBefore.has(placedNum) }));
+      const ft = collectFieldTriggers('ON_PLAY', placedNum, g, h, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: guestTrashBefore.has(placedNum) });
+      entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
     }
     for (const bloomedNum of hostBloomedSE) {
-      entries.push(...collectBloomTriggers(bloomedNum, h, g, bs.host_id));
+      const bl = collectBloomTriggers(bloomedNum, h, g, bs.host_id);
+      entries.push(...bl.entries); useHost(bl.usedHostIds); useGuest(bl.usedGuestIds);
     }
     for (const bloomedNum of guestBloomedSE) {
-      entries.push(...collectBloomTriggers(bloomedNum, g, h, bs.guest_id));
+      const bl = collectBloomTriggers(bloomedNum, g, h, bs.guest_id);
+      entries.push(...bl.entries); useHost(bl.usedHostIds); useGuest(bl.usedGuestIds);
     }
 
     // ON_ENERGY_FROM_TRASH: トラッシュからエナゾーンに移動したカード
