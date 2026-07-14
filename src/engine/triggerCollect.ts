@@ -104,14 +104,19 @@ export function collectLrigGrowTriggers(
   grownOwnerId: string,
   afterGrowerState: PlayerState,
   afterOpState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  // usageLimit の消費 effectId を watcher 側で返す（呼び出し元が actions_done へ書き戻す＝他コレクタと同型）。
+  // 従来は actions_done を「読む」だけで書き戻し機構が無く、《ターン1回》が実質ノーガードだった（続き132・Opusタスク12(vi-5)）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
   const oppOfGrowerId = grownOwnerId === ctx.hostId ? ctx.guestId : ctx.hostId;
   for (const watcherIsGrower of [true, false]) {
     const watcherId = watcherIsGrower ? grownOwnerId : oppOfGrowerId;
     const watcherState = watcherIsGrower ? afterGrowerState : afterOpState;
     const otherState = watcherIsGrower ? afterOpState : afterGrowerState;
     const watcherIsTurn = ctx.activeUserId === watcherId;
+    const limitOk = mkLimitOk(watcherState.actions_done, watcherId === ctx.hostId ? usedHostIds : usedGuestIds);
     const watcherCardNums: string[] = [];
     for (const stack of watcherState.field.signi) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
     if (watcherState.field.key_piece) watcherCardNums.push(watcherState.field.key_piece);
