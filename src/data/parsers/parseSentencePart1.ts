@@ -1638,8 +1638,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの＜鉱石＞か＜宝石＞のシグニ」「あなたの赤のシグニ」のようにクラス句/色句が
       // 「あなたの」と「シグニ」の間に挟まると t.includes('あなたのシグニ') が外れて owner:any 既定に
       // 潰れる。クラス句（＜X＞か…）・色句（赤の 等）を許容して判定する。
-      const kwSelfSigni = t.includes('あなたのシグニ') || /あなたの(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
-      const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t);
+      // 「他の」プレフィックスも許容（「あなたの他の＜X＞のシグニのうち最も…」＝WX25-CP1-051 が owner:any に潰れていた）。
+      const kwSelfSigni = t.includes('あなたのシグニ') || /あなたの(?:他の)?(?:[白赤青緑黒]の|＜[^＞]+＞か?の?)*シグニ/.test(t);
+      const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:他の)?(?:[白赤青緑黒]の|＜[^＞]+＞か?の?)*シグニ/.test(t);
       // 単体シグニ付与に付くクラス/色/レベルフィルタ（＜鉱石＞か＜宝石＞か＜ウェポン＞ 等）
       const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
