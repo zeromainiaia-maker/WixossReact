@@ -5775,19 +5775,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const hostBloomedSU  = detectBloomedSigni(bs.host_state, hostState);
         const guestBloomedSU = detectBloomedSigni(bs.guest_state, guestState);
         const bloomedSetSU = new Set<string>([...hostBloomedSU, ...guestBloomedSU]);
+        // usageLimit 消費は収集の合間に actions_done へ畳み込む（次の収集が見て再発火を止める）。
+        const useSU = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
+          if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
+          if (r.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...r.usedGuestIds] };
+        };
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
           if (bloomedSetSU.has(placedNum)) continue;
-          spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
+          const ft = collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni });
+          spellUseEntries.push(...ft.entries); useSU(ft);
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
           if (bloomedSetSU.has(placedNum)) continue;
-          spellUseEntries.push(...collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni }));
+          const ft = collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni });
+          spellUseEntries.push(...ft.entries); useSU(ft);
         }
         for (const bloomedNum of hostBloomedSU) {
-          spellUseEntries.push(...collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id));
+          const bl = collectBloomTriggers(bloomedNum, hostState, guestState, bs.host_id);
+          spellUseEntries.push(...bl.entries); useSU(bl);
         }
         for (const bloomedNum of guestBloomedSU) {
-          spellUseEntries.push(...collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id));
+          const bl = collectBloomTriggers(bloomedNum, guestState, hostState, bs.guest_id);
+          spellUseEntries.push(...bl.entries); useSU(bl);
         }
         // ON_DECK_SHUFFLED: スペル効果がインラインで完了し（SEARCH の afterSearch 等）デッキがシャッフルされた場合。
         // スタック解決（resolveStackNext）を経由しないスペル解決経路は中央 diff を通らないためここで拾う。
