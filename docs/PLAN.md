@@ -173,12 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き122・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 未実装action型を2型実装）**
-  - **🐛→✅ 完全no-op効果を2型解消**：**COLOR_INHERIT**（WX11-032「エナゾーンのカードの色を追加で持つ」＝`collectFieldSigniExtraColors`にエナ色継承分岐追加）・**STACK_SPELL**（WX11-029「トラッシュのスペルをこのカードの下に置く」＝dispatchを既存`execPlaceUnderSigni`にアダプト・新規実装ゼロ）。いずれもparserは正しく生成していたがengine処理が無く印刷能力が完全無効だった。
-  - **副次**：`GRANT_FIELD_SHADOW`は既に実装済み（リストstale）＝PLAN §6.1を是正。
-  - **✅ 検証**：golden回帰2件新設（両型・各々修正なしでno-op FAIL実証→実装でPASS・316→318）。全ゲート緑（golden 318・smoke/fuzz全0・census 2218維持・lint 0 error）。engine＋goldenのみ（parser/decompiler/JSON不変）。
-  - **§6.1残＝A群`PLAY_FREE_FROM_TRASH`（spell解決）/`PREVENT_DAMAGE`（ダメージ層置換＝横断）・B群`COST_SUBSTITUTE`（コスト支払い統合）/`SELF_TRASH_PREVENT`（自己トラッシュ横断ガード＝高リスク）**。
-  - **次の一手＝§6.1残の消化継続、またはOpusタスク1〜6（新語彙＝Sonnet §5c再収穫を解放）へ**。タスク2（動的比較残3枚）・タスク5（小口持ち越し約12件）は小口で着手容易。Sonnet側は`craftArtsBetK07105`のdriverクリック補強＋Sonnetタスク1残。**Sonnet発見バグの新規在庫は現状0**。
+- **🆕 セッション（2026-07-14・続き123・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 SELF_TRASH_PREVENT を実装）**
+  - **🐛→✅ 完全no-op効果を1型解消**：**SELF_TRASH_PREVENT**（WX07-033「自分でこのシグニを場からトラッシュに置けない」）＝`collectSelfTrashPreventNums`新設＋ExecCtx`ownSelfTrashPreventNums`＋`execTrash`の自己シグニ候補除外＋BattleScreen ctx注入（他のCONTINUOUS制約と同型の集合計算→ctx注入→executor除外パターン）。
+  - **✅ 検証**：golden回帰新設（collector検出＋execTrash除外＋制限なし対照）。修正なしでFAIL実証→実装でPASS・318→319。全ゲート緑（golden 319・census 2218維持・lint 0 error）。⚠限定＝効果解決ctx経由の自己トラッシュを覆う（コスト支払い別経路は未カバー・該当希少）。
+  - **§6.1残＝A群`PLAY_FREE_FROM_TRASH`（spell解決フロー）/`PREVENT_DAMAGE`（ダメージ層未実装）・B群`COST_SUBSTITUTE`（コスト支払いUI統合）の3型＝いずれもengine単体で完結せずBattleScreen横断インフラが要る hard tail**。今セッションで§6.1のengine単体完結型（COLOR_INHERIT/STACK_SPELL/SELF_TRASH_PREVENT）は消化済み。
+  - **次の一手＝Opusタスク1〜6（新語彙＝Sonnet §5c再収穫を解放）を推奨**。タスク2（動的比較残3枚）・タスク5（小口持ち越し約12件）が小口で着手容易。§6.1残3型は横断インフラ整備とセットの大型作業として別途。Sonnet側は`craftArtsBetK07105`のdriverクリック補強＋Sonnetタスク1残。**Sonnet発見バグの新規在庫は現状0**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
