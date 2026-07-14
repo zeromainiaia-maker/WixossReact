@@ -907,6 +907,14 @@ const cttEntries = (
   timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   my: PlayerState, op: PlayerState,
 ) => collectTurnTriggers(ctx, timing, my, op).entries;
+// 続き135（Opusタスク12(x)/(vi-5)）で collectFieldTriggers/collectBloomTriggers/collectBanishTriggers/
+// collectPowerZeroTriggers/collectLrigGrowTriggers も {entries, usedHostIds, usedGuestIds} を返すよう統一した
+// （usageLimit の消費を呼び出し元が actions_done へ書き戻す）。既存テストは entries だけ見るのでここで剥がす。
+const cftEntries = (...a: Parameters<typeof collectFieldTriggers>) => collectFieldTriggers(...a).entries;
+const cblEntries = (...a: Parameters<typeof collectBloomTriggers>) => collectBloomTriggers(...a).entries;
+const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBanishTriggers(...a).entries;
+const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
+const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
 
 test('C1 ON_TARGETED: self-scope 対象シグニ自身が発火（相手ターン）', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
