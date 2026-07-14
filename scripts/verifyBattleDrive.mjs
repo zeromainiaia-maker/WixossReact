@@ -4812,6 +4812,45 @@ const scenarios = {
       return { pass: false, detail: `トラッシュ確定未確認（hDeck=${fin?.host?.deck}（開始${before?.host?.deck}） hTrash=${fin?.host?.trash}（開始${before?.host?.trash}） pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ビート機構・複数候補選択UI（続き129・Sonnet・PLAN §7「ビート機構Phase1-7」残）＝`analyzeBeatSigniCost`/
+  //    `actBeatNeedSelect`（SigniActivatedModal.tsx:135-138・548-590）は候補（他のシグニ）が必要数より多いとき
+  //    ゾーン選択UIを要求する設計で実装済みだが、候補1枚のみ（自動選択で足りる）のケースしか実機確認されておらず
+  //    「複数候補時に本当にプレイヤー選択UIが機能するか」が未検証だった。WXK08-026（【起】《ビートアイコン》
+  //    ［4枚以下］《ターン1回》他のシグニ1体を【ビート】にする：…）をhost zone0に、他候補2体をzone1/zone2に置き、
+  //    候補2体から1体を選ばせるUIが実際に出るか・選んだ方だけがbeat_zoneへ移るかを検証する。
+  beatMultiCandidateSelect: {
+    title: 'ビート機構・複数候補選択UI（WXK08-026・他のシグニ候補2体から1体選択）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXK08-026#1'], ['WD01-013#1'], ['WD01-012#1']], // source zone0／候補zone1・zone2
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 hField:', JSON.stringify(before?.host?.fieldSigni));
+      H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/beatMultiCandidateSelect-${s}.png`, fullPage: true });
+        H.log(`  DEBUG[${s}] body:`, (await H.fullBody()).slice(0, 1200).replace(/\n/g, ' | '));
+        const st = await H.queryState();
+        const fs2 = st?.host?.fieldSigni ?? [];
+        const beatMoved = (before?.host?.fieldSigni ?? []).flat().filter(Boolean).length - fs2.flat().filter(Boolean).length;
+        H.log(`  bmcs[${s}] -> hField=${JSON.stringify(fs2)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (beatMoved > 0) {
+          return { pass: true, detail: `【ビート】化1体を確認（hField ${JSON.stringify(before.host.fieldSigni)}→${JSON.stringify(fs2)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `【ビート】化未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
