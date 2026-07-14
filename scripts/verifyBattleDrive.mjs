@@ -4717,36 +4717,33 @@ const scenarios = {
       await H.ensureMain();
       const before = await H.queryState();
       H.log('開始時 hDeck:', before?.host?.deck, 'hEnergy:', before?.host?.energy, 'hHand:', before?.host?.hand);
-      let summonCount = 0;      // 召喚できたシグニ数（2体で打ち止め）
       let deckAfterFirst = null; // 1体目召喚後のデッキ枚数（＝1回目発火の基準）
+      let inSummonFlow = false;  // 手札クリック済み＝「召喚」ボタン／ゾーン選択の解決待ち（この間は手札を触らない）
       for (let s = 0; s < 30; s++) {
         await page.waitForTimeout(800);
         await page.screenshot({ path: `${SHOT}/onPlayUsageLimit-${s}.png`, fullPage: true });
         const st = await H.queryState();
         const placed = (st?.host?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length - 1; // watcher を除く
         let did = null;
-        // 1体目の解決が終わってから2体目を召喚する（stack/pending が空のときだけ手札を触る）
-        if (!st?.pendingEffect && !(st?.stackLen > 0)) {
+        // 召喚フロー中は「召喚」ボタン→ゾーン選択を進める（手札の再クリックでモーダルを閉じてしまわないため）
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚';
+        }
+        if (!did) {
+          const zoneDid = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+          if (zoneDid) { did = zoneDid; inSummonFlow = false; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+        // 前の召喚の解決が終わってから次の1体を召喚する（stack/pending が空のときだけ手札を触る）
+        if (!did && !inSummonFlow && !st?.pendingEffect && !(st?.stackLen > 0) && placed < 2) {
           if (placed === 1 && deckAfterFirst === null) {
             deckAfterFirst = st.host.deck;
             H.log(`  1体目召喚完了＝hDeck ${before.host.deck}→${deckAfterFirst}（エナチャージ発火なら-1）`);
           }
-          if (summonCount < 2) {
-            const opened = await H.clickTestId('my-hand-card-0');
-            if (opened) { did = 'hand-card-0'; }
-          }
+          const opened = await H.clickTestId('my-hand-card-0');
+          if (opened) { did = 'hand-card-0'; inSummonFlow = true; }
         }
-        if (!did) {
-          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
-            await summonBtn.click().catch(() => {}); did = 'btn:召喚';
-          }
-        }
-        if (!did) {
-          const zoneDid = await H.clickTestId('summon-zone-1', 'summon-zone-2');
-          if (zoneDid) { did = zoneDid; summonCount++; }
-        }
-        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
         H.log(`  opul[${s}] -> ${did ?? 'なし'} | placed=${placed} summonCount=${summonCount} hDeck=${st?.host?.deck}(開始${before?.host?.deck}) hEnergy=${st?.host?.energy} done=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         // 2体とも場に出て解決が落ち着いたら判定
         if (placed === 2 && !st?.pendingEffect && !(st?.stackLen > 0) && s > 8) {
