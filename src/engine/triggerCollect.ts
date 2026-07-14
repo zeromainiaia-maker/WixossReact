@@ -1693,6 +1693,7 @@ export function collectTurnTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       const act = eff.action as StubAction;
       if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+      if (!limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(artsNum)?.CardName ?? artsNum;
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: artsNum, effectId: eff.effectId,
