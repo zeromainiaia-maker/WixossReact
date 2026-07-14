@@ -173,11 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き125・Sonnet 5・PLAN §6.4／§3 Sonnetタスク1＝WXK07-105実機検証の再開）**
-  - **✅ WXK07-105（アーツ・ベット分岐＝IS_BETTINGでADD_TO_FIELD source:HAND_CARDが2回発火）を再検証・2回連続PASS**＝続き117（Opus・タスク12(xiv)）で`resumeSelectTarget`の`pending.continuation`握り潰しバグが修正済みだったにもかかわらず、PLANには「driver側のHAND_CARDピッカー未クリックで依然FAIL＝Sonnet driverタスク」という未検証の推測が残ったままだった。実行してみると既存の`H.stdStep()`（`pick-0`ハンドリング込み）だけで1体目・2体目のADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE）とも問題なく解決＝旧登録は誤りと判明。
-  - **対応**：`craftArtsBetK07105`を既定`order`配列に追加。scenario本体＋order直後の古いコメントを実態に合わせて修正。`docs/PLAN.md` §6.4「クラフトトークンの実機配置検証」の残からWXK07-105を除去（残＝WX22-001-E3のみ＝機構待ち）。
+- **🆕 セッション（2026-07-14・続き126・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝WX04-004-E2実機検証＋WX04-005-E3未実装確定）**
+  - **✅ WX04-004-E2（守備側アタック無効化）を新規シナリオ`oppDirectAttackNegate`で実機検証・2回連続PASS**＝正面が空のCPUアタックに対し`STUB(OPP_DIRECT_ATTACK_NEGATE/_PAY)`のCHOOSE(pay/skip)→TRASH(HAND_CARD,＜美巧＞)→エナ支払いフローが正しく解決しアタックを無効化（hLife 6→6）。既定orderに追加。`queryState`に`life`フィールドを新規追加。
+  - **🐛→登録 WX04-005-E3＝`STUB LIMIT_ALL_FIELD_1`が完全未実装と確定**（`execStubPart1〜4`にcase自体が無い）。§6.1の残3型とは別の第4の未実装STUB＝Opusタスク12(xix)へ登録（診断のみ・修正せず）。
   - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
-  - **次の一手＝§7実機検証の横展開の残**（ON_TARGETED forced単一対象follow-up／ビート機構の複数候補選択UI／LOOK_AND_REORDER canTrash UI／WX04-005-E3・WX04-004-E2）。**Opus側＝タスク1〜6の新語彙系（§5c再収穫を解放）またはタスク5の残単点。Sonnet発見バグの新規在庫は現状0**。
+  - **次の一手＝§7実機検証の横展開の残**（ON_TARGETED forced単一対象follow-up／ビート機構の複数候補選択UI／LOOK_AND_REORDER canTrash UI）。**Opus側＝タスク1〜6の新語彙系（§5c再収穫を解放）・タスク5の残単点・またはタスク12(xix)のLIMIT_ALL_FIELD_1新規実装**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
