@@ -9,6 +9,7 @@ import type {
   PowerModifyPerLrigLevelAction,
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
+  PowerModifyPerDeckCountAction,
   PowerModifyPerVirusCountAction,
   PowerModifyPerEnergyColorAction,
   PowerModifyPerEnergyAction,
