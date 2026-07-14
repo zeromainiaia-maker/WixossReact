@@ -2859,7 +2859,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // ON_TURN_START トリガー収集（ドローと同時にスタック積み）。
         // ドローした場合は ON_DRAW（G089「カードを引いたとき」）も併せて収集する。
-        const startEntries = collectTurnTriggers('ON_TURN_START', newMyState, op);
+        const startRes = collectTurnTriggers('ON_TURN_START', newMyState, op);
+        const startEntries = startRes.entries;
+        if (startRes.usedMyIds.length > 0) {
+          newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...startRes.usedMyIds] };
+        }
+        if (startRes.usedOpIds.length > 0) {
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          update[opKey] = { ...(update[opKey] as PlayerState ?? op), actions_done: [...(((update[opKey] as PlayerState) ?? op).actions_done ?? []), ...startRes.usedOpIds] };
+        }
         if (!drawBlocked) {
           const dt = collectDrawTriggers(bs.active_user_id ?? user.id, newMyState, op, true);
           startEntries.push(...dt.entries);
