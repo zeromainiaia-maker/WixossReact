@@ -4171,6 +4171,113 @@ const scenarios = {
       return { pass: false, detail: `ラベル未確認（コイン1=${hasCoinLabel}／デコレのコストなし=${hasDecoreLabel}）` };
     },
   },
+
+  // G144（続き115・Sonnet・PLAN §7「その他の実機検証待ち」＝ビート機構Phase1-7・F-3・G144/G145の一角）＝
+  //    WX10-074（肆ノ遊　ツナヒキ）「【自】：あなたのシグニ１体がダウン状態で場に出たとき、そのシグニをアップ
+  //    する」＝triggerScope:any_ally＋triggerCondition.placedDown＋UP{targetsTriggerSource}。効果配置経路
+  //    （BUGFIXES 2026-06-23「G144/G145 any_ally 効果配置トリガーの配線」）で実際に発火するかを実機検証する。
+  //    WX15-062（似之遊　†チャッキー†）の【出】《無》コストでトラッシュの WX10-082（壱ノ遊　ケンダマ・
+  //    Lv1＜遊具＞・無効果）をダウン状態で場に出させ、既に場にいる WX10-074 の watcher が反応して
+  //    トリガー元（WX10-082）を無選択アップするかを見る。
+  g144DownTrigger: {
+    title: 'WX10-074（G144＝あなたのシグニがダウン状態で場に出たとき、それをアップする）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX10-074#1'], null, null], // watcher（肆ノ遊　ツナヒキ）
+        'field.signi_down': [false, false, false],
+        'trash': ['WX10-082#1'],  // 壱ノ遊　ケンダマ（Lv1＜遊具＞・無効果＝ADD_TO_FIELDの対象）
+        'energy': ['WD01-013#1'], // 【出】コスト《無×1》支払い用
+        'actions_done': [],
+      },
+      handPrepend: ['WX15-062#1'], // 似之遊　†チャッキー†
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let energySelected = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/g144DownTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did && !energySelected) {
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'tid:onplaycost-energy-0'; energySelected = true; }
+        }
+        if (!did && energySelected) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickZone();
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/ツナヒキ.*の【自】効果（他のシグニ召喚時）/);
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX10-082')));
+        H.log(`  g144[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} placed=${placed} watcher=${!!watcherLog}`);
+        if (watcherLog) {
+          return { pass: true, detail: `G144発火→肆ノ遊ツナヒキの【自】効果（他のシグニ召喚時）watcher「${watcherLog}」（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `G144未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // G145（続き115・Sonnet）＝WX10-080（弐ノ遊　ナゲナワ）「【自】：あなたの他のシグニ１体が効果によって
+  //    場に出たとき、このシグニをアップする」＝triggerScope:any_ally＋triggerFilter.excludeSelf＋
+  //    triggerCondition.byEffect＋UP{target.filter.thisCardOnly}。G144と同じ効果配置経路だが、asDown条件は
+  //    無く「効果による場出し」全般で発火し、対象は自分自身（thisCardOnly）という別分岐を検証する。
+  g145ByEffectTrigger: {
+    title: 'WX10-080（G145＝あなたの他のシグニが効果によって場に出たとき、このシグニをアップする）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX10-080#1'], null, null], // watcher（弐ノ遊　ナゲナワ）
+        'field.signi_down': [false, false, false],
+        'trash': ['WX10-082#1'],  // 壱ノ遊　ケンダマ（Lv1＜遊具＞・無効果＝ADD_TO_FIELDの対象）
+        'energy': ['WD01-013#1'], // 【出】コスト《無×1》支払い用
+        'actions_done': [],
+      },
+      handPrepend: ['WX15-062#1'], // 似之遊　†チャッキー†
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let energySelected = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/g145ByEffectTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did && !energySelected) {
+          const e0 = page.getByTestId('onplaycost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'tid:onplaycost-energy-0'; energySelected = true; }
+        }
+        if (!did && energySelected) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickZone();
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const watcherLog = await H.findLog(/ナゲナワ.*の【自】効果（他のシグニ召喚時）/);
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX10-082')));
+        H.log(`  g145[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} placed=${placed} watcher=${!!watcherLog}`);
+        if (watcherLog) {
+          return { pass: true, detail: `G145発火→弐ノ遊ナゲナワの【自】効果（他のシグニ召喚時）watcher「${watcherLog}」（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `G145未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
