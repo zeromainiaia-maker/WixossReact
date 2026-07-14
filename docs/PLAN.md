@@ -290,7 +290,7 @@
 - **R37③**＝パワー0以下トリガーの連鎖再発火（Opusタスク12 の usageLimit 書き戻し修正待ち）。
 - ~~**ON_COIN_PAID④**＝自分のターン外でも発火するか未検証~~ **✅続き132でコード調査により「現状到達不可能」と結論**＝`collectCoinPaidTriggers`の全5呼び出し元（人間グロウ・CPUグロウ・シグニ【起】《コイン》・シグニ【出】《コイン》・アーツ ベット/アンコール）はいずれも呼び出し元アクション自体が「自分のターンにしか実行できない」操作（【起】は`timing:['MAIN'|'ATTACK']`のみでいずれもターンプレイヤー限定・ARTSベットは自分のアタックのみ）＝対戦相手のターン中にコインを支払う経路がengineに一つも無い。実機シナリオでは到達不能なため近似は実害なしと確定。
 - ~~**ON_LRIG_ATTACK_STEP_START②**＝《ターン1回》制限の実機未検証~~ **✅続き116/119で実機検証＝実バグ発見→修正→PASS確認済み**（`lrigAttackStepStartUsageLimit`・既定order）。**PLAN記載が更新漏れで残っていたのを続き132で訂正**。
-- **ON_LRIG_GROW④**＝《ターン1回》制限の実機未検証（③のパース近似は既知）。
+- **ON_LRIG_GROW④**＝《ターン1回》制限の実機未検証（③のパース近似は既知）。**続き132で部分決着＝標準グロウボタン連打での二重発火は`actions_done.includes('GROW')`により正しくブロック済みと確認**（`wasFreeGrow`＝`freeGrowFilter!==null`の場合のみこの枠消費をスキップする設計）。**ただし本命の検証経路（WX03-024等「ゲット・グロウ」＝GROW_FREEスペルによる横グロウ）はdriverでどうしても2回目グロウを完走させられず（`openFreeGrow`候補クリック後もlrigTopが変化しない・原因未特定）検証空振りのまま**。`collectLrigGrowTriggers`（triggerCollect.ts:102）はコード上`usedIds`を返さずusageLimitの書き戻し機構が無い＝ATTACK_STEP_START②で見つかり修正済みの構造的バグと同型の疑いが残るが、E2Eでの再現はできていない＝Opusタスク12へ「未確認だがコード上疑わしい」扱いで登録（続き119と同じ場所を精査すれば数分で判明する可能性）。
 - **ON_TARGETED の forced 単一対象 follow-up**＝pending 無しで自動解決される対象取り経路が未発火（Opusタスク12(xx)）。
 - **B4 引用付与の実発火**（WX24-P2-018 等）＝Opusタスク12(xiii) の timing 誤登録修正待ちで一時停止。
 - **WX04-005-E3**（場出し数制限）＝STUB `LIMIT_ALL_FIELD_1` が engine 未実装と確定（Opusタスク12(xix)）。
