@@ -4744,7 +4744,7 @@ const scenarios = {
           const opened = await H.clickTestId('my-hand-card-0');
           if (opened) { did = 'hand-card-0'; inSummonFlow = true; }
         }
-        H.log(`  opul[${s}] -> ${did ?? 'なし'} | placed=${placed} summonCount=${summonCount} hDeck=${st?.host?.deck}(開始${before?.host?.deck}) hEnergy=${st?.host?.energy} done=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  opul[${s}] -> ${did ?? 'なし'} | placed=${placed} inFlow=${inSummonFlow} hDeck=${st?.host?.deck}(開始${before?.host?.deck}) hEnergy=${st?.host?.energy} done=${JSON.stringify(st?.host?.actionsDone)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         // 2体とも場に出て解決が落ち着いたら判定
         if (placed === 2 && !st?.pendingEffect && !(st?.stackLen > 0) && s > 8) {
           const deckDelta = before.host.deck - st.host.deck;
