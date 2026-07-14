@@ -4693,6 +4693,7 @@ const scenarios = {
         const negated = await H.findLog(/支払い、アタックを無効にした/);
         const st = await H.queryState();
         H.log(`  odan[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hEnergy=${st?.host?.energy} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (s < 3) H.log('  DEBUG fullBody:', (await H.fullBody()).slice(0, 1500).replace(/\n/g, ' | '));
         if (negated) {
           return { pass: true, detail: `STUBログ「${negated}」を確認＝コスト支払いでアタック無効化フラグが立った（hLife ${before?.host?.life}→${st.host.life}・hEnergy ${before?.host?.energy}→${st.host.energy}）` };
         }
