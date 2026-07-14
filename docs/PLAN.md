@@ -173,11 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き129・Sonnet 5・PLAN §7／ユーザー指示＝ビート機構の複数候補選択UIを検証）**
-  - **ユーザーから「実装」の指示を受けたが調査の結果すでに実装済みと判明**＝`analyzeBeatSigniCost`＋`SigniActivatedModal.tsx`の候補ゾーン選択UI＋`payBeatSigniCost`まで一気通貫で配線済み。「複数候補時の選択UIは未検証」は未実装ではなく実機未確認だっただけと確認できたため、実装ではなく実機検証に切り替えて対応。
-  - **✅ 新規シナリオ`beatMultiCandidateSelect`で2回連続PASS**＝WXK08-026＋候補2体（小剣ククリ／羅植姫アキナナ）を配置→候補の一方だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを確認。新規バグなし。既定orderに追加。
-  - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
-  - **次の一手**：§7実機検証の横展開の在庫はこれでほぼ尽きた（残＝CPU自動近似の複数候補選択・低優先）。**Opus側＝タスク1〜6の新語彙系（§5c再収穫を解放）・タスク5の残単点・またはタスク12(xix)(xx)の新規機構実装**。
+- **🆕 セッション（2026-07-14・続き130・Sonnet 5・PLAN §5c／§5a＝census-batch試行→BEHAVIOR_AUDIT一次トリアージに切替）**
+  - **census-batch を試行したが今回は安全な採用先ゼロと判定**＝`build:effects`→`heldReview`のheld 109枚を精査。一見改善に見える`+CONDITIONAL`グループ（WX26-CP1-011/013/015/017/018・WX25-P3-092）は、curatedが既に`choice.condition`（選択肢自体の使用可否条件）で実装済みなのに対しfreshは`choice.action`をCONDITIONALラップする別表現＝diff署名だけでは判断できない意味論の違いと判明（機械採用は危険）。他グループも大半curated優位。census:clusters上位未消化テンプレ（凍結状態フィルタ・共通する色・レベル閾値）も新規語彙 or 意味的退化の見極めが必要でOpus向けと確認。**effects JSONへの変更は無し**（`choice.condition`不整合の気づきはOpusタスク12へ登録・詳細下記）。
+  - **BEHAVIOR_AUDITキュー再生成＋一次トリアージへ切替**＝`behaviorAudit.ts --queue`→`_bqTriage.mjs`で高シグナルno-opバグ候補**22件**を機械抽出（`WX04-003 WX04-082 WX04-099 WX04-102 WX07-045 WX08-029 WX09-012 WX12-010 WX22-Re01 WXEX1-12 WXEX2-51 WXDi-P02-034 WXDi-P04-065 WXDi-P09-079 WXDi-P16-013 WX24-P1-015 WX24-P2-049 WX25-P2-009 WX25-CP1-040 WXK01-021 WXK03-075 WDK03-001`）。うち一部はPLAN既知（WX04-082/099/102・WX09-012/WX12-010・WX25-P2-009）と重複の可能性あり。**「真no-op／シナリオ空振り／STUB未実装」の最終仕分けはOpus側の担当**のためここで区切り（診断のみ・修正なし）。
+  - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docsのみ変更（`_held_fresh.json`等の中間生成物は実害なし）。engine/parser/effects JSON変更なし。
+  - **次の一手**：**Opus側＝①`choice.condition` vs `CONDITIONAL`ラップ不整合の設計判断（タスク12新規在庫）②上記22件の真no-op最終仕分けとengine修正③タスク1〜6の新語彙系（凍結状態フィルタ・共通する色等）**。Sonnet側＝ゲート緑を保ちつつ次のBEHAVIOR_AUDIT一次トリアージ or 実機検証の横展開。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
