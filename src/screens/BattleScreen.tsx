@@ -550,6 +550,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   これを走査しないと自身のON_ACCE_ATTACH能力等がeffectsMapから脱落する。WXK05-041デコレ）。
       (s.field.signi_acce   ?? []).forEach(n => n && nums.add(getCardNum(n)));
       addAll(s.field.free_zone);
+      // beat_zone: シグニが【ビート】になると field.signi から外れ beat_zone に移るため、これを走査しないと
+      //   なったカード自身の ON_BECOME_BEAT（self）が effectsMap から脱落し collectBeatBecameTriggers の
+      //   self ループ（effectsMap.get(becameNum)）が空を引く（続き121・WDK14-017 で確認）。any_ally 側は
+      //   場に残る発火元シグニ（WDK14-014）から拾えるため非対称に self だけ欠落していた。
+      addAll(s.field.beat_zone);
     };
     if (myDeckData) { addAll(myDeckData.main_deck); addAll(myDeckData.lrig_deck); }
     if (bs) { addState(bs.host_state); addState(bs.guest_state); }
