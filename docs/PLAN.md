@@ -138,11 +138,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き131・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝R40②「opp-draw『自分の効果で』発生源限定なし」を実バグと確定）**
-  - **🐛→登録 R40②を実バグと確定**＝新規シナリオ`oppDrawOwnEffectOnly`（host PR-423「対戦相手が**自分の効果で**カードを引いたとき」× host SPDi43-21「あなたのアタックフェイズ開始時…そうした場合対戦相手はカードを1枚引く」＝host自身の効果でguestが引く構図）で検証。`collectOppDrawTriggers`（`triggerCollect.ts:691`）は drawer側の`cards_drawn_by_effect_this_turn`増加しか見ず、増加が「対戦相手自身の効果」か「reactor(watcher所有者)自身の効果」かを区別しない＝host自身の効果でguestが引いただけでPR-423が誤発火（LIFE_CRASH＋自己バニッシュ）することをFRESH=1含め2回連続再現。Opusタスク12(xxi)へ新規登録（診断のみ・修正せず）。シナリオは意図的FAIL回帰として既定order外のまま。
-  - **⚠driver状態汚染の再確認**＝2回目確認を「既存ルーム再利用」パスで行ったところ前回実行の残留pending_effect(SELECT_TARGET)で409秒スタックしFAIL（PLAN§3 Sonnetタスク3の既知症状の新規実例）＝`FRESH=1`で再実行して再現確認に切替え。新規シナリオの単発確認はルーム再利用パスに頼らない方が安全という運用知見。
+- **🆕 セッション（2026-07-14・続き132・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝ON_COIN_PAID④・ON_LRIG_GROW④の実機検証）**
+  - **✅ ON_COIN_PAID④＝コード調査により「現状到達不可能」と結論**＝コイン支払いの全5経路（人間/CPUグロウ・シグニ【起】《コイン》・シグニ【出】《コイン》・アーツベット/アンコール）はいずれも自分のターン限定のアクション＝対戦相手のターン中にコインを支払う経路がengineに無い。近似は実害なしと確定。
+  - **⚠ ON_LRIG_GROW④＝部分決着**＝標準グロウの二重発火は`actions_done.includes('GROW')`で正しくブロック済み（確認済み）。本命の検証経路（ゲット・グロウ＝GROW_FREEスペルの横グロウ）はdriverで4回試行してもlrigTopが変化せず2回目グロウ自体が完了しない＝検証空振り。`collectLrigGrowTriggers`のusageLimit書き戻し欠落（ATTACK_STEP_START②の既知バグと同型）はコード上確認済みだがE2E未再現＝Opusタスク12へ「未確認の疑い」として新規登録。
   - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docs＋driver script のみ変更。engine/parser/effects JSON変更なし。
-  - **次の一手**：**Opus側＝①上記R40②(xxi)を含むタスク12在庫の消化②22件の真no-op最終仕分け③タスク1〜6の新語彙系**。Sonnet側＝§7残る未検証項目（ON_COIN_PAID④・ON_LRIG_GROW④）か次のBEHAVIOR_AUDIT一次トリアージ。
+  - **次の一手**：Opus側＝タスク12在庫（R40②(xxi)・ON_LRIG_GROW疑義🆕含む）の消化。Sonnet側＝§7の主要未検証項目は消化済み＝次はBEHAVIOR_AUDIT一次トリアージか他タスクへ。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
