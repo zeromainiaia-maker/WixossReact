@@ -5111,6 +5111,7 @@ try {
         energyTrashedByOpp: s.energy_trashed_by_opp_this_turn ?? 0,
         delayedTriggers: s.delayed_triggers ?? [],
         coins: s.coins ?? 0,
+        life: (s.life_cloth ?? []).length,
       });
       return {
         host: sideOf(hs),
