@@ -115,6 +115,7 @@
 | (xx) | `POWER_MODIFY{targetsTriggerSource:true}` 系＝ON_TARGETED の forced 単一対象 follow-up が未発火（続き127） |
 | 🆕 | `choice.condition`（選択肢の使用可否条件）と fresh の `choice.action` CONDITIONAL ラップの**表現不整合＝設計判断が要る**（続き130・census-batch が採用不能になる原因） |
 | (xxi) | `collectOppDrawTriggers`（`triggerCollect.ts:691`）が ON_DRAW any_opp watcher の発生源（対戦相手自身の効果か reactor 自身の効果か）を区別せず、「対戦相手が**自分の効果で**」を明記するカード（PR-423 等）が reactor 自身の効果由来の対戦相手ドローにも誤発火する＝実機再現済み（続き131・シナリオ`oppDrawOwnEffectOnly`・意図的FAIL回帰） |
+| 🆕(未確認) | `collectLrigGrowTriggers`（`triggerCollect.ts:102`）が usageLimit の `usedIds` を返さず書き戻し機構が無い＝ATTACK_STEP_START②（続き116/119・タスク12(xvii)相当）で見つかり修正済みの構造的バグと同型のコード疑義。標準グロウの二重発火は`actions_done.includes('GROW')`で別途ブロックされ無害と確認したが、本命の再現経路（ゲット・グロウ＝GROW_FREE横グロウでの2回目ON_LRIG_GROW）はdriverでlrigTopが変化せず検証不能（原因未特定）＝**E2E未再現・コード読解のみの疑い**として登録（続き132） |
 
 #### Sonnet のタスク（2026-07-14 整理・生きているものだけ）
 
