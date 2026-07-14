@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き128・Sonnet 5・PLAN §7.2／§3 Sonnetタスク1＝LOOK_AND_REORDER canTrash UI実機検証）**
+  - **✅ LOOK_AND_REORDER canTrash UIを新規シナリオ`lookReorderCanTrash`で実機検証・2回連続PASS**＝WX20-037召喚→デッキ上3枚を見て「トラッシュ」トグル→「決定」確定でhTrash 0→1・hDeck 5→4を確認。新規バグなし＝実装どおり機能。既定orderに追加。`queryState`に`deck`フィールドを新規追加。
+  - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
 - **🆕 セッション（2026-07-14・続き127・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝ON_TARGETED forced単一対象follow-upを実バグと確定）**
   - **🐛→登録 `POWER_MODIFY{targetsTriggerSource:true}`等の選択UIなし自動解決が`collectTargetedTriggers`を素通りしON_TARGETEDが発火しない実バグを実機再現**＝新規シナリオ`onTargetedForcedBypass`（host WX12-010の`targetsTriggerSource`アタッカー減算×guest WXDi-P03-067のON_TARGETED＝DRAW）でWX12-010の効果は成立するがWXDi-P03-067のDRAWは発火せず（FRESH=1含め2回連続再現）。実カード母集団5枚（WX12-010/WXEX2-29/WXDi-P03-043/WXDi-P04-065/WXK10-022）を機械抽出。Opusタスク12(xx)へ登録（診断のみ・修正せず）。シナリオは意図的FAIL回帰として既定order外のまま。
   - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
