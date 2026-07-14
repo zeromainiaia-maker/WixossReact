@@ -4747,6 +4747,64 @@ const scenarios = {
       return { pass: false, detail: `WX12-010のPOWER_MODIFY未確認（gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} phase=${fin?.turnPhase}）＝CPU未アタックの可能性` };
     },
   },
+
+  // LOOK_AND_REORDER canTrash UI（続き128・Sonnet・PLAN §7.2「対話UIの残実装」）＝EffectInteractionModal.tsx:578の
+  //    「トラッシュ」トグルボタン＋「決定」確定（handleEffectInteraction→resumeLookAndReorder経由でtrashListが
+  //    正しく渡るか）は実装済みだが実機未検証だった。WX20-037（ON_PLAY：デッキ上3枚を見て好きな枚数をトラッシュに
+  //    置き、残りを好きな順でデッキトップへ戻す・reorder:false/canTrash:true）を召喚して検証。
+  lookReorderCanTrash: {
+    title: 'LOOK_AND_REORDER canTrash UI（WX20-037・デッキ上3枚見てトラッシュ選択）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'deck': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5'],
+        'energy': [],
+        'actions_done': [],
+      },
+      handPrepend: ['WX20-037#1'], // 暴食の暴君　トウタク（Lv2・ON_PLAY LOOK_AND_REORDER count3 canTrash）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.deck:', before?.host?.deck, 'host.trash:', before?.host?.trash);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let trashClicked = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lookReorderCanTrash-${s}.png`, fullPage: true });
+        let did = await H.clickBtn('召喚', { exact: true });
+        if (!did) {
+          const zoneBtn = page.getByRole('button', { name: /^ゾーン1/ }).first();
+          if (await zoneBtn.count() && await zoneBtn.isVisible().catch(() => false) && await zoneBtn.isEnabled().catch(() => false)) {
+            await zoneBtn.click().catch(() => {}); did = 'btn:ゾーン1';
+          }
+        }
+        if (!did) {
+          const summonZone = page.getByTestId('summon-zone-1').first();
+          if (await summonZone.count() && await summonZone.isVisible().catch(() => false)) {
+            await summonZone.click().catch(() => {}); did = 'tid:summon-zone-1';
+          }
+        }
+        if (!did && !trashClicked) {
+          const trashBtn = page.getByRole('button', { name: 'トラッシュ', exact: true }).first();
+          if (await trashBtn.count() && await trashBtn.isVisible().catch(() => false)) {
+            await trashBtn.click().catch(() => {}); did = 'btn:トラッシュ(toggle)'; trashClicked = true;
+          }
+        }
+        if (!did && trashClicked) did = await H.clickBtn('決定', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  lrct[${s}] -> ${did ?? 'なし'} | hDeck=${st?.host?.deck}（開始${before?.host?.deck}） hTrash=${st?.host?.trash}（開始${before?.host?.trash}） pEff=${st?.pendingEffect ?? '-'}`);
+        if (trashClicked && st?.host?.trash > before?.host?.trash && !st?.pendingEffect) {
+          return { pass: true, detail: `canTrash UI経由で1枚トラッシュ確定＝hTrash ${before.host.trash}→${st.host.trash}・hDeck ${before.host.deck}→${st.host.deck}（3枚見て1枚トラッシュ・2枚デッキトップへ戻す）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `トラッシュ確定未確認（hDeck=${fin?.host?.deck}（開始${before?.host?.deck}） hTrash=${fin?.host?.trash}（開始${before?.host?.trash}） pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
