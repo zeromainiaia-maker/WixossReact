@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き122・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 未実装action型を2型実装）**
+  - **🐛→✅ 完全no-op効果を2型解消**：**COLOR_INHERIT**（WX11-032「エナゾーンのカードの色を追加で持つ」＝`collectFieldSigniExtraColors`にエナ色継承分岐）・**STACK_SPELL**（WX11-029「トラッシュのスペルをこのカードの下に置く」＝dispatchを既存`execPlaceUnderSigni`にアダプト・新規実装ゼロ）。parserは正しく生成していたがengine処理が無く印刷能力が完全無効だった。
+  - **副次**：`GRANT_FIELD_SHADOW`は既実装（リストstale）＝PLAN §6.1是正。
+  - **✅ 検証**：golden回帰2件新設（両型・修正なしno-op FAIL実証→実装PASS・316→318）。全ゲート緑。engine＋goldenのみ。詳細 BUGFIXES 続き122。
+
 - **🆕 セッション（2026-07-14・続き121・Opus 4.8・PLAN §3 Opusタスク12(xvi)＝ON_BECOME_BEAT self非発火の真因特定・修正＝タスク12在庫全消化）**
   - **🐛→✅ 【ビート】化カード自身のON_BECOME_BEAT（self）が発火しない真因を特定して1行修正**＝engineの`collectBeatBecameTriggers`は元から正しく、真因は`BattleScreen.tsx`の`battleCardNums`（effectsMapの母集合）が`field.beat_zone`を走査していなかったこと。【ビート】化でfield.signiから外れbeat_zoneへ移ったカードがeffectsMapから脱落しselfループが空を引いていた。`addState`に`addAll(s.field.beat_zone)`追加（additive）。
   - **✅ 検証**：実ブラウザ`beatBecomeSelfWDK14017`でself反応発火を2回連続PASS（意図的FAIL回帰を既定orderに復帰）。golden不可（母集合フィルタを通らないため実機が正しい検証経路）。全ゲート緑。
