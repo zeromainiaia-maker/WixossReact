@@ -173,10 +173,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-14・続き128・Sonnet 5・PLAN §7.2／§3 Sonnetタスク1＝LOOK_AND_REORDER canTrash UI実機検証）**
-  - **✅ LOOK_AND_REORDER canTrash UIを新規シナリオ`lookReorderCanTrash`で実機検証・2回連続PASS**＝WX20-037召喚→デッキ上3枚を見て「トラッシュ」トグル→「決定」確定でhTrash 0→1・hDeck 5→4を確認。新規バグなし＝実装どおり機能。既定orderに追加。`queryState`に`deck`フィールドを新規追加。
+- **🆕 セッション（2026-07-14・続き129・Sonnet 5・PLAN §7／ユーザー指示＝ビート機構の複数候補選択UIを検証）**
+  - **ユーザーから「実装」の指示を受けたが調査の結果すでに実装済みと判明**＝`analyzeBeatSigniCost`＋`SigniActivatedModal.tsx`の候補ゾーン選択UI＋`payBeatSigniCost`まで一気通貫で配線済み。「複数候補時の選択UIは未検証」は未実装ではなく実機未確認だっただけと確認できたため、実装ではなく実機検証に切り替えて対応。
+  - **✅ 新規シナリオ`beatMultiCandidateSelect`で2回連続PASS**＝WXK08-026＋候補2体（小剣ククリ／羅植姫アキナナ）を配置→候補の一方だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを確認。新規バグなし。既定orderに追加。
   - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
-  - **次の一手＝§7実機検証の横展開の残**（ビート機構の複数候補選択UI）。これでSonnetタスク1の主要在庫はほぼ尽きた＝残るは低優先ロングテール。**Opus側＝タスク1〜6の新語彙系（§5c再収穫を解放）・タスク5の残単点・またはタスク12(xix)(xx)の新規機構実装**。
+  - **次の一手**：§7実機検証の横展開の在庫はこれでほぼ尽きた（残＝CPU自動近似の複数候補選択・低優先）。**Opus側＝タスク1〜6の新語彙系（§5c再収穫を解放）・タスク5の残単点・またはタスク12(xix)(xx)の新規機構実装**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
