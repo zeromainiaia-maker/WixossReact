@@ -5,6 +5,21 @@
 
 ---
 
+## `GROW_COST_REDUCTION`にper-count scaling機構を新設＝WX14-009/WD14-001の過大軽減バグを根治（2026-07-14・続き120・Opus 4.8・PLAN §3 Opusタスク12(xviii)）
+
+**続き116（Sonnet）で診断・登録された真バグ（Opusタスク12(xviii)）を根治した。** `GrowCostReductionAction`型が`reduction: EnergyCost[]`（固定値）のみで「トラッシュの◯◯カードN枚につき」という枚数連動スケーリングを表現できず、WX14-009「トラッシュの《フレイスロ》カード**7枚につき**赤1減る」・WD14-001「トラッシュの＜悪魔＞シグニ**6枚につき**黒1減る」が条件なしの固定`reduction:[{color,count:1}]`としてparseされ、**該当カードがトラッシュに1枚も無くても常に1色分軽減される**恒常的な過大軽減バグだった。
+
+- **修正（型＋parser＋engine＋decompilerの新機構）**：
+  - **型**（`effects.ts`）＝`GrowCostReductionAction`に`perCount?: { filter: TargetFilter; count: number }`を追加。指定時、reductionの各countは`floor(トラッシュ内filter一致枚数 / perCount.count)`倍される（一致がperCount.count未満なら0＝減額なし）。
+  - **parser**（`parseSentencePart2.ts`）＝「グロウするためのコストは…減る」block内で`トラッシュにある<subj>N枚につき`を検出し、subjから`{cardName}`（「カード名に《X》を含む」）または`{story,cardType:'シグニ'}`（「＜X＞のシグニ」）を復元して`perCount`を生成。
+  - **engine**（`collectGrowCostReductions`＝`effectEngine.ts`）＝`perCount`があれば`state.trash`を`matchesFilter`でカウントし`Math.floor(match/perCount.count)`倍する（0なら加算しない）。
+  - **decompiler**＝perCountのパターン別日本語描画を追加（原文一致・同型★0維持）。
+  - **データ**＝WX14-009（AUTO）はbuild:effectsが自動採用。WD14-001はE3がMANUALで`preserved_manual`保護されるため`perCount`を手動パッチ（effects_misc.json）。
+- **検証（2層）**：①**golden回帰2件新設**＝WX14-009（《フレイスロ》6枚→赤0・7枚→赤1・14枚→赤2）とWD14-001（＜悪魔＞5枚→黒0・6枚→黒1・12枚→黒2）の閾値挙動をassert（決定論・修正なしで「N未満は0」が`expected=0 got=1`のFAILを確認→修正でPASS・golden 314→316）。②**全ゲート緑**（golden 316・smoke/fuzz全0・census 2220→**2218**〔2枚が高シグナル欠落から外れた改善・BASELINE更新〕・lint 0 error・同型★0）。
+- 型（`effects.ts`）＋parser（`parseSentencePart2.ts`）＋engine（`effectEngine.ts`）＋decompiler（`decompileEffects.ts`）＋effects JSON（WX自動＋misc手動）＋golden（`goldenTest.ts`）＋census baseline（`vocabCensus.ts`）。他4枚（WX10-010/WD13-002/WD13-003/WXDi-P03-039/WX24-P2-043）は原文どおり固定値で無関係（変更なし）。
+
+---
+
 ## `collectTurnTriggers`にusageLimit（《ターン1回/2回》）を配線＝ターン境界トリガーがフェイズ跨ぎで再発火する実バグを根治（2026-07-14・続き119・Opus 4.8・PLAN §3 Opusタスク12(xvii)）
 
 **続き116（Sonnet）で診断・登録された真バグ（Opusタスク12(xvii)）を根治した。** `collectTurnTriggers`（`triggerCollect.ts`・ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`usageLimit`を一切参照せず、戻り値も`StackEntry[]`のみで`actions_done`への書き戻しもしていなかったため、《ターン1回/2回》付き効果が同一ターン内にフェイズ境界を複数回跨ぐと毎回発火していた。
