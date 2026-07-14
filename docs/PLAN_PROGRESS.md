@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き119・Opus 4.8・PLAN §3 Opusタスク12(xvii)＝`collectTurnTriggers`にusageLimitを配線）**
+  - **🐛→✅ ターン境界トリガーがフェイズ跨ぎで《ターン1回/2回》を無視して再発火する実バグを根治**＝`collectTurnTriggers`（ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`usageLimit`未参照・`actions_done`書き戻し無し。他コレクタ同型の`{entries,usedHostIds,usedGuestIds}`化＋全7 pushサイトに`mkLimitOk`ゲート＋BattleScreen5呼び出し元で書き戻し（`foldTurnUsed`）。
+  - **影響実カード2枚**（WX25-CP1-042-E2・WXDi-CP02-077-E1）。
+  - **✅ 3層検証**：①golden回帰新設（1回目発火＋消費記録・2回目非発火・修正なしFAIL実証・313→314）。②実ブラウザ`lrigAttackStepStartUsageLimit`＝同一ターン2回遷移で2回目非発火を2回連続PASS（意図的FAIL回帰を既定orderに復帰）。③全ゲート緑（census 2220維持）。詳細 BUGFIXES 続き119。
+
 - **🆕 セッション（2026-07-14・続き118・Opus 4.8・PLAN §3 Opusタスク12(xv)＝F-3犠牲型5枚を`STUB BANISH_SUBSTITUTE`へ作り替え）**
   - **🐛→✅ F-3犠牲型5枚が素の`BANISH`としてparseされ身代わり対話が一切発火しなかった実データ不具合を根治**＝WX12-024/WXEX2-60（self_sacrifice_other＋sacrificeClass）・WX20-055（protect+riseIcon）・WXDi-CP01-032/WXDi-P10-052（protect+otherAny+相手ターン）の5枚を`STUB BANISH_SUBSTITUTE`へ作り替え。
   - **修正＝parser（generic「バニッシュ」blockの前に犠牲型検出）＋curated JSON（fresh一致）＋decompiler（パターン別描画）**。engine（`collectBanishSubstitutes`）は既に両パターン実装済みで変更なし。
