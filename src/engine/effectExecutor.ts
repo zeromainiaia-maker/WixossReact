@@ -4245,6 +4245,22 @@ export function applyRefreshOnDone(
   }
   // 選択されたカードに thenAction を個別適用
   let cur = ctx;
+  // ADD_TO_FIELD（場に出す）: 配置先が空きゾーン2つ以上だと applyDirectAction が SELECT_SIGNI_ZONE で
+  // 中断する。個別 applyDirectAction ループで受けると `if (!result.done) return result;` が外側の
+  // pending.continuation（後続の GRANT_KEYWORD / CONDITIONAL 等）を握り潰し無言 no-op 化していたため
+  // （Opusタスク12(xiv)）、resumeSearch と同型に execPlaceSigniOnField 経由でチェーン配置し、外側
+  // continuation を afterAction として全配置後に実行する（複数枚配置でも消失しない）。
+  if (pending.thenAction.type === 'ADD_TO_FIELD' && selected.length > 0) {
+    cur = { ...cur, lastProcessedCards: selected };
+    const placeAll: import('../types/effects').PlaceSigniOnFieldAction = {
+      type: 'PLACE_SIGNI_ON_FIELD',
+      owner: (pending.thenAction as AddToFieldAction).owner,
+      cardNums: selected,
+      ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
+      ...(pending.continuation ? { afterAction: pending.continuation } : {}),
+    };
+    return execPlaceSigniOnField(placeAll, cur);
+  }
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
