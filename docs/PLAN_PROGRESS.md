@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き124・Opus 4.8・PLAN §3 Opusタスク5＝小口持ち越し #4「あなたの他の…シグニ」owner:any潰れの修正）**
+  - **🐛→✅ 「あなたの他の＜X＞のシグニのうち最も…を対象とし」が owner:any（＋story/excludeSelf欠落）に潰れる parser バグを修正**（WX25-CP1-051/WXDi-CP02-070）＝GRANT_KEYWORDの`kwSelfSigni`/`kwExcludeSelf`と POWER_MODIFYの owner判定に「他の」プレフィックス＋超上級句を narrow に拾う分岐を追加。
+  - **⚠blast radius**：初版（`[^。、]*`広マッチ）が held 38→90枚に急増→**「のうち最も」＋「他の」必須のnarrow化で90→49に抑制**（増加11枚は全て「あなたの他の…シグニ」の正当な owner:self 化・held据置で回帰なし）。対象2枚＋同パターン明確5枚を`heldReview --adopt`で採用（計7枚）。残4枚（色/複クラス接頭でexcludeSelf未抽出2＋count/trigger要確認2）はheld据置。
+  - **✅ 検証**：全ゲート緑（golden 319維持・census 2218維持・lint 0 error・同型★0）。decompileも原文一致。parser＋effects JSON（7枚）のみ。
+  - **タスク5残**：TRANSFER_TO_DECK混入5枚（複文REVEAL_AND_PICK再parseが要る）・WXDi-P03-005/WX26-CP1-100/GRANT_LRIG_ABILITY系5枚 等。タスク2（動的比較3枚）は各カード構造的mis-parseで要個別再parse。
+
 - **🆕 セッション（2026-07-14・続き123・Opus 4.8・PLAN §3 Opusタスク7＝§6.1 SELF_TRASH_PREVENT を実装）**
   - **🐛→✅ 完全no-op効果を1型解消**：**SELF_TRASH_PREVENT**（WX07-033「自分でこのシグニをトラッシュに置けない」）＝`collectSelfTrashPreventNums`新設＋ExecCtx`ownSelfTrashPreventNums`＋`execTrash`除外＋BattleScreen注入。
   - **✅ 検証**：golden回帰新設（修正なしFAIL実証→PASS・318→319）。全ゲート緑。⚠限定＝コスト支払い別ctx経路は未カバー（該当希少）。詳細 BUGFIXES 続き123。
