@@ -205,13 +205,17 @@ export function collectPowerZeroTriggers(
   zeroedOwnerId: string,
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  // usageLimit の消費 effectId を watcher 側で返す（呼び出し元が actions_done へ書き戻す。続き100・Opusタスク12(vi-5)）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
   for (const watcherIsHost of [true, false]) {
     const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
     const watcherState = watcherIsHost ? afterHostState : afterGuestState;
     const zeroedIsWatcherOwn = zeroedOwnerId === watcherId;
     const watcherIsTurn = ctx.activeUserId === watcherId;
+    const limitOk = mkLimitOk(watcherState.actions_done, watcherIsHost ? usedHostIds : usedGuestIds);
     // ownFieldSources = 場シグニ最上段＋センタールリグ最上段。field.signi のみ走査だと
     // LRIG が watcher の ON_SIGNI_POWER_ZERO_OR_LESS が構造的に絶対発火しなかった（続き95/96・WX22-013/WXDi-P14-009）。
     for (const topNum of ownFieldSources(watcherState)) {
