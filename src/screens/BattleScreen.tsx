@@ -4704,7 +4704,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
-      const fieldEntries = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
+      const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
+      const fieldEntries = fieldRes.entries;
+      // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（自分側＝placed／相手側＝opAfterPlay。続き135）
+      const summonUsedMine = isHost ? fieldRes.usedHostIds : fieldRes.usedGuestIds;
+      const summonUsedOpp  = isHost ? fieldRes.usedGuestIds : fieldRes.usedHostIds;
+      if (summonUsedMine.length > 0) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...summonUsedMine] };
+      const opAfterPlay: PlayerState | null = summonUsedOpp.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...summonUsedOpp] }
+        : null;
+      const opKeySummon = isHost ? 'guest_state' : 'host_state';
 
       // 召喚したカード自身の ON_PLAY 効果
       const ownEffects = effectsMap.get(cardNum) ?? [];
