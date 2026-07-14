@@ -4701,6 +4701,52 @@ const scenarios = {
       return { pass: false, detail: `無効化ログ未確認（hLife=${fin?.host?.life}（開始${before?.host?.life}）hEnergy=${fin?.host?.energy}（開始${before?.host?.energy}）pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // ON_TARGETED forced単一対象follow-up（続き127・Sonnet・PLAN §7「その他の実機検証待ち」）＝`collectTargetedTriggers`
+  //    （BattleScreen.tsx:4141）は`handleEffectInteraction`のSELECT_TARGET確定分岐でのみ呼ばれる。しかし
+  //    `POWER_MODIFY{targetsTriggerSource:true}`（execPowerModify・effectExecutor.ts:514-525）は
+  //    「それ」=triggeringCardNumを選択UIなしで直接`done()`適用するため、この経路はSELECT_TARGETを一度も
+  //    生成せず`collectTargetedTriggers`を素通りする＝「対象になった」はずのカードのON_TARGETEDが発火しない
+  //    構造的懸念（型定義コメント`effects.ts:41`の「forced単一対象（pending無しで自動解決）経路は未カバー」）。
+  //    host=WX12-010（ホワイトメイズ　ホデサパ・ON_ATTACK_SIGNI any_opp・targetsTriggerSourceでアタッカーに-2000）
+  //    guest=WXDi-P03-067（羅石　アパタイト・ON_TARGETED self＝DRAW×1・usageLimit once_per_turn）でCPU自動アタック。
+  onTargetedForcedBypass: {
+    title: 'ON_TARGETED forced単一対象follow-up（targetsTriggerSourceの自動解決でON_TARGETEDが発火するか）',
+    spec: {
+      hostSet: {
+        'field.signi': [['WX12-010#1'], null, null], // ホワイトメイズ　ホデサパ（ON_ATTACK_SIGNI any_opp watcher）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-P03-067#1'], null, null], // 羅石　アパタイト（ON_TARGETED self＝DRAW×1・CPUアタッカー）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'guest.powerMods:', JSON.stringify(before?.guest?.powerMods));
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/onTargetedForcedBypass-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        const targeted = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-2000'));
+        H.log(`  otfb[${s}] -> gHand=${st?.guest?.hand}（開始${before?.guest?.hand}）gPowerMods=${JSON.stringify(st?.guest?.powerMods)} phase=${st?.turnPhase}`);
+        if (targeted) {
+          const drew = (st.guest.hand ?? 0) > (before?.guest?.hand ?? 0);
+          if (drew) {
+            return { pass: true, detail: `targetsTriggerSourceでの自動対象化後もON_TARGETEDが発火＝WXDi-P03-067がドロー（gHand ${before.guest.hand}→${st.guest.hand}）＝forced単一対象経路は正しくカバーされている` };
+          }
+          return { pass: false, detail: `WX12-010のPOWER_MODIFY(-2000)は成立（gPowerMods=${JSON.stringify(st.guest.powerMods)}）が、WXDi-P03-067のON_TARGETED（DRAW）が発火せずgHand不変（${before.guest.hand}→${st.guest.hand}）＝forced単一対象（targetsTriggerSourceの選択UIなし自動解決）がcollectTargetedTriggersを素通りする実バグを確認` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `WX12-010のPOWER_MODIFY未確認（gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} phase=${fin?.turnPhase}）＝CPU未アタックの可能性` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
