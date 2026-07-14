@@ -5,6 +5,17 @@
 
 ---
 
+## §7実機検証残の棚卸し＝stale「残」リストの是正＋R40②/ON_COIN_PAID④はコード読解で決着＋ON_LRIG_ATTACK_STEP_START②で新規真バグ発見（2026-07-14・続き116・Sonnet 5・PLAN §3 Sonnetタスク1）
+
+**PLAN §3の「その他の残」列挙（R30/ON_TARGETED残3枚/R42②/R43②/R44②③/R46②③/R38②③/R36②/R39②/R41②）を§7本文と全数突き合わせたところ、すべて既に決着済み（続き75/92/98/101/104等で完了）と判明し、リストがstaleだったことを確認・是正した。** その上で真に残っていた3件（R40②・ON_COIN_PAID④・ON_LRIG_ATTACK_STEP_START②）を消化し、うち1件で新規の真バグを発見した。
+
+- **R40②（opp-draw「自分の効果で」限定）＝コード読解で決着**：`collectOppDrawTriggers`（`triggerCollect.ts:691`）は`triggerCondition.drawByEffect`を一切参照せず、呼び出し元（`BattleScreen.tsx:2620/2626`）も`cards_drawn_by_effect_this_turn`の増加のみをゲートに使う（誰の効果で引いたかを区別しない）設計。PR-423/WXDi-P15-091の原文「対戦相手が**自分の効果で**カードを引いたとき」は、reactor（watcher側）自身の効果が相手に引かせた場合も区別なく発火する近似が実装上確定＝R43②（ON_ENERGY_TO_TRASH）・R46③（ON_OPP_POWER_DECREASED）と同型の発生源追跡機構欠如（§6.3系統課題）。実機検証なしで確定できるため見送り。
+- **ON_COIN_PAID④（自ターン外でも発火するか）＝コード読解で決着**：`collectCoinPaidTriggers`自体は`triggerCondition.turnOwner`未指定なら発火側のターンを問わない設計（WXDi-P15-055/069/WXDi-P16-057の3枚もturnOwner指定なし）。ただし3枚とも自身のコイン支払いは`timing:['MAIN']`のACTIVATEDのみで自分のターン中にしか支払えない。唯一の「相手ターン中にコインを支払う」実カード＝WXEX1-12-E3（`SPELL_CUTIN`・コイン1・COUNTER_SPELL）を`handleCutinUse`（`BattleScreen.tsx:5760`）のコスト支払いブロックで確認したところ、`coins`フィールドへの言及が一切無くコインコスト自体が支払われていない＝既知の「follow-up: スペルのベット(pending_spell/カットイン経由)は未配線」と同一事象で新規バグではないと確定。
+- **ON_LRIG_ATTACK_STEP_START②（《ターン1回》usageLimit）＝実機で新規の真バグを発見**：新シナリオ`lrigAttackStepStartUsageLimit`（`verifyBattleDrive.mjs`）を追加。`repatchTop`で同一ターン内にATTACK_SIGNI→ATTACK_LRIG遷移を人為的に2回発生させたところ、WX25-CP1-042-E2（《ターン1回》）が2回目も発火（gHand 5→4→3・2回連続再現）。原因＝`collectTurnTriggers`（`triggerCollect.ts:1571`・ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が全ブランチ（self/keyword-token/own-lrig/opp-field/opp-lrig/lrig-trash）を通じて`eff.usageLimit`を一切参照せず、戻り値も`StackEntry[]`のみで`usedIds`を返さない設計＝呼び出し元5箇所（`BattleScreen.tsx:3208/3220/3232`他）もactions_doneへの書き戻しを一切行わない。機械抽出でこの5timingのusageLimit付き実カードは2枚のみ（WX25-CP1-042-E2＝once_per_turn・WXDi-CP02-077-E1＝twice_per_turn。⚠後者はCSV原文の「《ターン２回》」がON_ATTACK_PHASE_START側ではなく別のON_HAND_DISCARDED系能力＝JSON未収録の能力を指す疑いがあり誤帰属の可能性）。通常プレイでは各timingの発生自体が1ターンに1回の線形フェイズ境界のため実害は薄いが、continue99/100/104が発見した他コレクタ（collectCoinPaidTriggers/collectBanishTriggers/collectPowerZeroTriggers/collectLrigGrowTriggers/collectFieldTriggers）と同型のガード欠落パターンの新規インスタンス。修正はせずOpusタスク12(xvii)へ登録。
+- `lrigAttackStepStartUsageLimit`は意図的FAIL回帰として既定order外のまま。`npm run gates`全緑（golden 310・census 2225維持・回帰なし）。engine/parser/effects JSON変更なし（driverスクリプト＋PLAN.md/BUGFIXES.mdのみ）。
+
+---
+
 ## §7実機検証残＝G144/G145・F-3身代わり対話・ビート機構Phase1-7を検証・F-3犠牲型5枚とビート機構selfの2件で真バグを発見（2026-07-14・続き115・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §4バトンが指定した残3件（ビート機構Phase1-7・F-3身代わり対話・G144/G145）を`verifyBattleDrive.mjs`へ新規シナリオとして追加し実機検証。G144/G145とF-3コスト払い型はPASS、F-3犠牲型5枚とビート機構のON_BECOME_BEAT self反応で真バグを発見・確定した。**
