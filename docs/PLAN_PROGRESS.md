@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き116・Sonnet 5・PLAN §3 Sonnetタスク1の残の棚卸し＝stale残リストの是正＋R40②/ON_COIN_PAID④をコード読解で決着＋ON_LRIG_ATTACK_STEP_START②で新規真バグ発見）**
+  - **✅ §3の「その他の残」列挙を§7本文と全数突き合わせ＝R30/ON_TARGETED残3枚/R42②/R43②/R44②③/R46②③/R38②③/R36②/R39②/R41②はすべて既に決着済みと判明**（続き75/92/98/101/104等で完了していたがリストが更新されていなかった）。真に残る項目だけに絞り込んでリストを是正。
+  - **✅ R40②（opp-draw「自分の効果で」限定）・ON_COIN_PAID④（自ターン外発火）はコード読解で決着**＝両方とも「発火源を区別しない/相手ターン中の支払い経路自体が未配線」という既知の近似・follow-upの再確認に留まり新規バグではないと確定（実機検証は不要と判断）。詳細はPLAN §7本文。
+  - **🐛 ON_LRIG_ATTACK_STEP_START②（《ターン1回》usageLimit）は実機で新規の真バグを発見→Opusタスク12(xvii)へ登録**＝`lrigAttackStepStartUsageLimit`シナリオで`repatchTop`により同一ターン内にATTACK_SIGNI→ATTACK_LRIG遷移を人為的に2回発生させたところ、WX25-CP1-042-E2が2回目も発火（gHand 5→4→3・2回連続再現）。原因＝`collectTurnTriggers`（ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）がusageLimitを一切実装していない＝continue99/100/104が発見した他コレクタと同型のガード欠落パターンの新規インスタンス（機械抽出で実カード2枚のみ・実害は薄いがコード上のガード欠落は確定）。意図的FAIL回帰として既定order外に登録。
+  - **✅ POWER_MODIFY_PER_ENERGY（WX09-019）＝§6.1「⚠要実機検証」在庫を実機PASS確認（2回連続）**＝基本パワー0＋エナ3枚→期待6000をバトルログ「羅植姫　アキナナ（6000）」で直接確認。既定orderに追加。
+  - **🐛 GROW_COST_REDUCTION（同在庫）＝コード読解でWX14-009/WD14-001の2枚に構造的な過大軽減バグを発見→Opusタスク12(xviii)へ登録**＝`GrowCostReductionAction`型がper-count scaling（「トラッシュのカードN枚につき」）を表現できず、両カードとも該当カードがトラッシュに1枚も無くても常時1色分減額される恒常バグ。
+  - **✅ ARTS_USED_THIS_TURN（WX25-P1-095）＝§5b「⚠要実機検証」在庫も実機PASS確認（2回連続）**＝`turn_arts_used:true`注入→アタック時の条件評価→エナチャージ1発火（hEnergy 0→1）を確認。既定orderに追加。
+  - engine/parser/effects JSON変更なし（driverスクリプト＋PLAN.md/BUGFIXES.mdのみ）。`npm run gates`全緑（golden 310・census 2225維持・回帰なし）。詳細 BUGFIXES 続き116。
+
 - **セッション（2026-07-14・続き115・Sonnet 5・PLAN §3 Sonnetタスク1の残＝ビート機構Phase1-7・F-3身代わり対話・G144/G145を実機検証）**
   - **✅ G144/G145は実機PASS（各2回連続）**＝`g144DownTrigger`（WX10-074・ダウン状態で場出し→トリガー元を無選択アップ）・`g145ByEffectTrigger`（WX10-080・他シグニが効果で場出し→自身アップ）。ともにWX15-062の【出】《無》コスト経由のADD_TO_FIELD配置で発火を確認＝2026-06-23の効果配置トリガー配線が実機でも機能。既定orderに追加。
   - **✅ F-3コスト払い型は実機PASS（2回連続）**＝`f3PayCostWX10033`（WX10-033＝手札スペル1枚を捨ててバトルバニッシュ回避）。CPU（P15000）の攻撃に対しBanishSubstituteModalが正しく表示され選択後WX10-033が場に残ることを確認。既定orderに追加。
