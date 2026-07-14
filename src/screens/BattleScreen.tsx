@@ -7666,13 +7666,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
         appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
 
-        const triggers = collectBanishTriggers(topNum, ownerId, hostState, guestState);
-        allTriggers.push(...triggers);
+        // usageLimit 消費は収集ごとに actions_done へ畳み込む（同一パスで複数シグニが0化しても《ターン1回》は1度だけ）。
+        const usePZ = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
+          if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
+          if (r.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...r.usedGuestIds] };
+        };
+        const bt = collectBanishTriggers(topNum, ownerId, hostState, guestState);
+        allTriggers.push(...bt.entries); usePZ(bt);
         // パワー0以下になったとき（ON_SIGNI_POWER_ZERO_OR_LESS）を監視するシグニのトリガーも収集。
         // 同パスで複数シグニが同時に0化した場合の once_per_turn 重複発火を避けるため effectId で dedup。
-        const pzTriggers = collectPowerZeroTriggers(topNum, ownerId, hostState, guestState)
-          .filter(e => !allTriggers.some(a => a.effectId === e.effectId));
-        allTriggers.push(...pzTriggers);
+        const pz = collectPowerZeroTriggers(topNum, ownerId, hostState, guestState);
+        allTriggers.push(...pz.entries.filter(e => !allTriggers.some(a => a.effectId === e.effectId))); usePZ(pz);
       }
     }
 
