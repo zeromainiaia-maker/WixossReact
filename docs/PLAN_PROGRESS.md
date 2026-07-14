@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き121・Opus 4.8・PLAN §3 Opusタスク12(xvi)＝ON_BECOME_BEAT self非発火の真因特定・修正＝タスク12在庫全消化）**
+  - **🐛→✅ 【ビート】化カード自身のON_BECOME_BEAT（self）が発火しない真因を特定して1行修正**＝engineの`collectBeatBecameTriggers`は元から正しく、真因は`BattleScreen.tsx`の`battleCardNums`（effectsMapの母集合）が`field.beat_zone`を走査していなかったこと。【ビート】化でfield.signiから外れbeat_zoneへ移ったカードがeffectsMapから脱落しselfループが空を引いていた。`addState`に`addAll(s.field.beat_zone)`追加（additive）。
+  - **✅ 検証**：実ブラウザ`beatBecomeSelfWDK14017`でself反応発火を2回連続PASS（意図的FAIL回帰を既定orderに復帰）。golden不可（母集合フィルタを通らないため実機が正しい検証経路）。全ゲート緑。
+  - **✅ Opusタスク12（Sonnet発見バグ受け口）在庫を全消化**（続き117〜121で(xiv)(xv)(xvii)(xviii)(xvi)を順次根治）。詳細 BUGFIXES 続き121。
+
 - **🆕 セッション（2026-07-14・続き120・Opus 4.8・PLAN §3 Opusタスク12(xviii)＝`GROW_COST_REDUCTION`にper-count scaling機構を新設）**
   - **🐛→✅ グロウコスト軽減がper-count非対応で過大軽減する恒常バグを根治**＝`GrowCostReductionAction`が固定`reduction`のみで、WX14-009（《フレイスロ》7枚につき赤1）・WD14-001（＜悪魔＞シグニ6枚につき黒1）がトラッシュに該当0枚でも常時1色分軽減されていた。型に`perCount:{filter,count}`追加＋parser（「トラッシュのN枚につき」検出）＋engine（`floor(match/N)`倍）＋decompiler。
   - **データ**＝WX14-009（AUTO）は自動採用、WD14-001（E3がMANUAL保護）は`perCount`手動パッチ。
