@@ -1573,20 +1573,28 @@ export function collectFieldTriggers(
  */
 export function collectBloomTriggers(
   ctx: TrigCtx, bloomedInstanceId: string, myState: PlayerState, opState: PlayerState, ownerId: string,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const ownerIsHost = ownerId === ctx.hostId;
+  const limitOkSelf = mkLimitOk(myState.actions_done, ownerIsHost ? usedHostIds : usedGuestIds);
   const cn = getCardNum(bloomedInstanceId);
   const cardName = ctx.cardMap.get(cn)?.CardName ?? cn;
   for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOM')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    if (!limitOkSelf(eff)) continue;
     entries.push({
       id: ctx.genId(), playerId: ownerId, cardNum: bloomedInstanceId, effectId: eff.effectId,
       label: `${cardName} の【自】効果（開花時）`, effect: eff,
     });
   }
-  entries.push(...collectFieldTriggers(ctx, 'ON_BLOOM', bloomedInstanceId, myState, opState, ownerId));
-  return entries;
+  const ft = collectFieldTriggers(ctx, 'ON_BLOOM', bloomedInstanceId, myState, opState, ownerId);
+  entries.push(...ft.entries);
+  usedHostIds.push(...ft.usedHostIds);
+  usedGuestIds.push(...ft.usedGuestIds);
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
