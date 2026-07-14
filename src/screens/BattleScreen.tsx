@@ -2238,17 +2238,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * banishedPlayerId: バニッシュされたシグニのオーナーの userId (host_id or guest_id)。
    */
   // ON_BANISH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  // usageLimit（《ターン1回/2回》）消費 effectId を usedHostIds/usedGuestIds で返す（呼び出し元が actions_done へ
+  // 書き戻す＝他コレクタと同型。続き100で発見した「読むだけで書き戻さない」ノーガード状態を続き135で解消）。
   const collectBanishTriggers = (
     banishedCardNum: string,
     banishedPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
     prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
-  ): StackEntry[] =>
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState);
 
   // ON_SIGNI_POWER_ZERO_OR_LESS トリガー収集（pure: triggerCollect.ts）。checkAndBanishPowerZero から呼ぶ。
-  const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): StackEntry[] =>
+  const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectPowerZeroTriggers(mkTrigCtx(), zeroedCardNum, zeroedOwnerId, afterHostState, afterGuestState);
 
   /**
