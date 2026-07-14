@@ -1573,10 +1573,17 @@ export function collectTurnTriggers(
   timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   myState: PlayerState,
   opState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const meId = ctx.meId ?? ctx.hostId;
   const opId = meId === ctx.hostId ? ctx.guestId : ctx.hostId;
+  // usageLimit（《ターン1回/2回》）を消費した effectId を watcher 側で返す（呼び出し元が actions_done へ
+  // 書き戻す＝他コレクターと同型。返さないと同一ターン内にフェイズ境界を跨いで何度でも再発火する。続き119）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const meIsHost = meId === ctx.hostId;
+  const limitOkMy = mkLimitOk(myState.actions_done, meIsHost ? usedHostIds : usedGuestIds); // 自分側 entries 用
+  const limitOkOp = mkLimitOk(opState.actions_done, meIsHost ? usedGuestIds : usedHostIds); // 相手側 entries 用
   const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
     : timing === 'ON_TURN_END' ? 'ターン終了時'
     : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
