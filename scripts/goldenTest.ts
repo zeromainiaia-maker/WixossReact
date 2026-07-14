@@ -163,6 +163,20 @@ test('collectBanishSubstitutes: F-3保護型 protect_other_sacrifice_self（WXDi
   const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WD03-009');
   ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'), `自己犠牲(CP01-032)を提示 (${JSON.stringify(opts)})`);
 });
+test('SELF_TRASH_PREVENT: 自分の効果で自シグニをトラッシュに置けない（WX07-033・§6.1・タスク7）', () => {
+  // collector が場の WX07-033（CONTINUOUS SELF_TRASH_PREVENT）を検出。
+  const st = mkState({ signi: ['WX07-033', null, null] });
+  ok(collectSelfTrashPreventNums(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).has('WX07-033'), 'collectorがWX07-033を検出');
+  // ownSelfTrashPreventNums に入っていれば自己トラッシュ候補から除外＝トラッシュされず場に残る。
+  const ctx = mkCtx({ signi: ['WX07-033', null, null] }, {});
+  ctx.ownSelfTrashPreventNums = new Set(['WX07-033']);
+  const r = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } } as EffectAction, ctx);
+  ok(tops(r.ownerState).includes('WX07-033'), 'WX07-033は自己トラッシュされず場に残る');
+  // 制限なし（対照）＝通常どおりトラッシュされる。
+  const ctx2 = mkCtx({ signi: ['WX07-033', null, null] }, {});
+  const r2 = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } } as EffectAction, ctx2);
+  ok(!tops(r2.ownerState).includes('WX07-033'), '制限なしならトラッシュされる（対照）');
+});
 test('STACK_SPELL: トラッシュのスペルをこのカードの下に置く（WX11-029・§6.1・タスク7）', () => {
   // WX11-029-E1 = ON_PLAY STACK_SPELL{from:trash,filter:スペル,maxCount:3}。トラッシュの2スペルを WX11-029 の下へ。
   const s1 = findCard(c => c.CardNum === 'WD01-015'), s2 = findCard(c => c.CardNum === 'WD01-018');
