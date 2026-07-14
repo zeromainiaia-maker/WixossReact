@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き126・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝WX04-004-E2実機検証＋WX04-005-E3未実装確定）**
+  - **✅ WX04-004-E2（守備側アタック無効化）を新規シナリオ`oppDirectAttackNegate`で実機検証・2回連続PASS**＝正面が空のCPUアタックに対し`STUB(OPP_DIRECT_ATTACK_NEGATE/_PAY)`のCHOOSE(pay/skip)→TRASH(HAND_CARD,＜美巧＞)→エナ支払いフローが正しく解決しアタックを無効化（hLife 6→6）。既定orderに追加。`queryState`に`life`フィールドを新規追加。
+  - **🐛→登録 WX04-005-E3＝`STUB LIMIT_ALL_FIELD_1`が完全未実装と確定**（`execStubPart1〜4`にcase自体が無い）。§6.1の残3型とは別の第4の未実装STUB＝Opusタスク12(xix)へ登録（診断のみ・修正せず）。
+  - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
 - **🆕 セッション（2026-07-14・続き125・Sonnet 5・PLAN §6.4／§3 Sonnetタスク1＝WXK07-105実機検証の再開）**
   - **✅ WXK07-105（アーツ・ベット分岐＝IS_BETTINGでADD_TO_FIELD source:HAND_CARDが2回発火）を再検証・2回連続PASS**＝続き117（Opus・タスク12(xiv)）で`resumeSelectTarget`の`pending.continuation`握り潰しバグが修正済みだったにもかかわらず、PLANには「driver側のHAND_CARDピッカー未クリックで依然FAIL＝Sonnet driverタスク」という未検証の推測が残ったままだった。実行してみると既存の`H.stdStep()`（`pick-0`ハンドリング込み）だけで1体目・2体目のADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE）とも問題なく解決＝旧登録は誤りと判明。
   - **対応**：`craftArtsBetK07105`を既定`order`配列に追加。scenario本体＋order直後の古いコメントを実態に合わせて修正。`docs/PLAN.md` §6.4「クラフトトークンの実機配置検証」の残からWXK07-105を除去（残＝WX22-001-E3のみ＝機構待ち）。
