@@ -1537,6 +1537,7 @@ export function collectFieldTriggers(
         const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
         if (!frontNum || frontNum !== triggeringCardNum) continue;
       }
+      if (!limitOkOpp(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
