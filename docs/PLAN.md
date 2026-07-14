@@ -114,6 +114,7 @@
 | (xix) | WX04-005-E3＝STUB `LIMIT_ALL_FIELD_1`（場出し数制限）が engine 未実装（続き126） |
 | (xx) | `POWER_MODIFY{targetsTriggerSource:true}` 系＝ON_TARGETED の forced 単一対象 follow-up が未発火（続き127） |
 | 🆕 | `choice.condition`（選択肢の使用可否条件）と fresh の `choice.action` CONDITIONAL ラップの**表現不整合＝設計判断が要る**（続き130・census-batch が採用不能になる原因） |
+| (xxi) | `collectOppDrawTriggers`（`triggerCollect.ts:691`）が ON_DRAW any_opp watcher の発生源（対戦相手自身の効果か reactor 自身の効果か）を区別せず、「対戦相手が**自分の効果で**」を明記するカード（PR-423 等）が reactor 自身の効果由来の対戦相手ドローにも誤発火する＝実機再現済み（続き131・シナリオ`oppDrawOwnEffectOnly`・意図的FAIL回帰） |
 
 #### Sonnet のタスク（2026-07-14 整理・生きているものだけ）
 
