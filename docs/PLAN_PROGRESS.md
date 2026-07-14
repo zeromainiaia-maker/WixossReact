@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き130→131・Sonnet 5・PLAN §5c／§5a→§7＝census-batch試行→BEHAVIOR_AUDIT一次トリアージ→R40②実機検証）**
+  - **census-batch を試行したが安全な採用先ゼロと判定**＝`build:effects`→`heldReview`のheld 109枚を精査。一見改善に見える`+CONDITIONAL`グループ（WX26-CP1-011/013/015/017/018・WX25-P3-092）は、curatedが既に`choice.condition`で実装済みなのに対しfreshは`choice.action`をCONDITIONALラップする別表現＝diff署名だけでは判断できない意味論の違いと判明（機械採用は危険）。他グループも大半curated優位。**effects JSONへの変更は無し**（`choice.condition`不整合の気づきはOpusタスク12へ登録）。
+  - **BEHAVIOR_AUDITキュー再生成＋一次トリアージ**＝`behaviorAudit.ts --queue`→`_bqTriage.mjs`で高シグナルno-opバグ候補**22件**を機械抽出（詳細はBUGFIXES）。「真no-op／シナリオ空振り／STUB未実装」の最終仕分けはOpus側の担当のためここで区切り（診断のみ）。
+  - **🐛→登録 R40②「opp-draw の『自分の効果で』発生源限定なし」を実バグと確定**＝新規シナリオ`oppDrawOwnEffectOnly`（host PR-423「対戦相手が**自分の効果で**カードを引いたとき」× host SPDi43-21「あなたのアタックフェイズ開始時…そうした場合対戦相手はカードを1枚引く」＝host自身の効果でguestが引く構図）で検証。`collectOppDrawTriggers`（triggerCollect.ts:691）は drawer側の`cards_drawn_by_effect_this_turn`増加しか見ず、その増加が「対戦相手自身の効果」か「reactor(watcher所有者)自身の効果」かを区別しない＝host自身の効果でguestが引いただけでPR-423が誤発火（LIFE_CRASH＋自己バニッシュ）することをFRESH=1含め2回連続再現。Opusタスク12へ新規登録（診断のみ・修正せず）。シナリオは意図的FAIL回帰として既定order外のまま。
+  - **⚠driver状態汚染の再確認**＝2回目の確認実行を「既存ルーム再利用」パスで行ったところ前回実行の残留pending_effect(SELECT_TARGET)で409秒スタックしFAIL（PLAN§3 Sonnetタスク3の既知症状）＝`FRESH=1`で再実行して再現確認に切替え。ルーム再利用パスは新規シナリオの単発確認には使わない方が安全という運用知見。
+  - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docs＋driver script のみ変更。engine/parser/effects JSON変更なし。
+
 - **🆕 セッション（2026-07-14・続き129・Sonnet 5・PLAN §7／ユーザー指示＝ビート機構の複数候補選択UIを検証）**
   - **ユーザーから「実装」の指示を受けたが調査の結果すでに実装済みと判明**＝`analyzeBeatSigniCost`＋`SigniActivatedModal.tsx`の候補ゾーン選択UI＋`payBeatSigniCost`まで一気通貫で配線済み。「複数候補時の選択UIは未検証」は未実装ではなく実機未確認だっただけと確認できたため、実装ではなく実機検証に切り替えて対応。
   - **✅ 新規シナリオ`beatMultiCandidateSelect`で2回連続PASS**＝WXK08-026＋候補2体（小剣ククリ／羅植姫アキナナ）を配置→候補の一方だけを選んで【起】発動→選んだ方だけがbeat_zoneへ移り選ばなかった方は場に残存することを確認。新規バグなし。既定orderに追加。
