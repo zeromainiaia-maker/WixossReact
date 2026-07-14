@@ -4766,6 +4766,12 @@ const scenarios = {
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
+      // 前シナリオ（ルーム再利用）が残した「ライフクロスクラッシュ」等の残留モーダルを先に片付ける。
+      for (let k = 0; k < 4; k++) {
+        const cleared = await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', 'ライフに加える']);
+        if (!cleared) break;
+        await page.waitForTimeout(600);
+      }
       await H.ensureMain();
       const before = await H.queryState();
       H.log('開始時 host.deck:', before?.host?.deck, 'host.trash:', before?.host?.trash);
@@ -4774,7 +4780,8 @@ const scenarios = {
       for (let s = 0; s < 16; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lookReorderCanTrash-${s}.png`, fullPage: true });
-        let did = await H.clickBtn('召喚', { exact: true });
+        let did = await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', 'ライフに加える']);
+        if (!did) did = await H.clickBtn('召喚', { exact: true });
         if (!did) {
           const zoneBtn = page.getByRole('button', { name: /^ゾーン1/ }).first();
           if (await zoneBtn.count() && await zoneBtn.isVisible().catch(() => false) && await zoneBtn.isEnabled().catch(() => false)) {
