@@ -5,6 +5,19 @@
 
 ---
 
+## `collectTurnTriggers`にusageLimit（《ターン1回/2回》）を配線＝ターン境界トリガーがフェイズ跨ぎで再発火する実バグを根治（2026-07-14・続き119・Opus 4.8・PLAN §3 Opusタスク12(xvii)）
+
+**続き116（Sonnet）で診断・登録された真バグ（Opusタスク12(xvii)）を根治した。** `collectTurnTriggers`（`triggerCollect.ts`・ON_TURN_START/END/ON_ATTACK_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通コレクタ）が`usageLimit`を一切参照せず、戻り値も`StackEntry[]`のみで`actions_done`への書き戻しもしていなかったため、《ターン1回/2回》付き効果が同一ターン内にフェイズ境界を複数回跨ぐと毎回発火していた。
+
+- **修正（他コレクタと同型の`{entries, usedHostIds, usedGuestIds}`化）**：
+  - **engine**（`triggerCollect.ts`）＝`mkLimitOk(myState.actions_done, …)`/`mkLimitOk(opState.actions_done, …)`を自分側・相手側 entries それぞれに適用し（`collectTargetedTriggers`と同型）、消費した effectId を `usedHostIds`/`usedGuestIds` で返す。全7 push サイト（自signi/キーワードトークン/自lrig/相手signi/相手lrig/アーツリサイクル/相手lrig付与）に`limitOk`ゲートを追加。
+  - **BattleScreen**（`BattleScreen.tsx`）＝薄いラッパを`{entries, usedMyIds, usedOpIds}`（myState/opState基準へ変換）に変更し、`doPhaseAdvance`の5呼び出し元（ON_TURN_START/END＋APS/LAS/MPSの3つ）で消費 effectId を各ターンプレイヤー/相手の`actions_done`へ書き戻す（`foldTurnUsed`ヘルパー・既存の`collectDrawTriggers`書き戻しと同型）。
+  - **影響実カードは2枚**（機械抽出）＝WX25-CP1-042-E2（once_per_turn・ON_LRIG_ATTACK_STEP_START）とWXDi-CP02-077-E1（twice_per_turn・ON_ATTACK_PHASE_START・⚠CSV原文の「《ターン２回》」はJSON未収録のON_HAND_DISCARDED系能力を指す誤帰属疑いあり）。通常プレイでは各timingの発生自体が1ターンに1回の線形フェイズ境界のため実害は薄いが、`repatchTop`で人為的に2回遷移させると再現する構造欠陥。
+- **検証（3層）**：①**golden回帰新設**＝WX25-CP1-042-E2で1回目発火＋`usedHostIds`消費記録、`actions_done`記録済みの2回目は非発火をassert（決定論・修正なしで「usedHostIdsに消費記録」FAILを確認→修正でPASS・golden 313→314）。②**実ブラウザ**＝`lrigAttackStepStartUsageLimit`＝`repatchTop`でATTACK_SIGNI→ATTACK_LRIG遷移を同一ターン内2回発生させ、2回目は発火しない（gHand不変）ことを**2回連続PASS**（意図的FAIL回帰を既定orderに復帰）。③**全ゲート緑**（golden 314・smoke/fuzz全0・census 2220維持・lint 0 error）。
+- engine（`triggerCollect.ts`）＋UI（`BattleScreen.tsx`）＋golden（`goldenTest.ts`）＋driver（`verifyBattleDrive.mjs`）。effects JSON変更なし。continue99/100/104が発見した他コレクタ（collectCoinPaidTriggers/collectBanishTriggers/collectPowerZeroTriggers/collectLrigGrowTriggers/collectFieldTriggers）と同型のガード欠落パターンの解消。
+
+---
+
 ## F-3犠牲型5枚を`STUB BANISH_SUBSTITUTE`へ作り替え＝身代わりバニッシュ対話が一切発火しなかった実データ不具合を根治（2026-07-14・続き118・Opus 4.8・PLAN §3 Opusタスク12(xv)）
 
 **続き115（Sonnet）で診断・登録された真バグ（Opusタスク12(xv)）を根治した。** F-3「このシグニ／味方がバニッシュされる場合、代わりに…をバニッシュしてもよい」の犠牲型5枚が、effects JSON上で`STUB BANISH_SUBSTITUTE`（`collectBanishSubstitutes`が認識する形）ではなく**素の`CONTINUOUS BANISH{owner:self,optional:true}`**としてparseされていたため、`collectBanishSubstitutes`（`effectEngine.ts:4380`）に一切拾われず、身代わりモーダルが出ないまま対象がそのままバニッシュされていた（印刷テキストの能力が完全に無効）。
