@@ -4837,14 +4837,30 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
         return done(ctx);
       }
-      // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）
+      // HAND_CARD: hand からトラッシュ（同名カードが複数ある場合は先頭の1枚のみ）。
+      // ⚠ここは SELECT_TARGET を挟む経路（count:1 等）の再開点。即時適用パス（execTrash の applyTrashHand）が更新する
+      // hand_discarded_just / turn_hand_discarded_count / hand_trashed_by_opp_this_turn の3フィールドと手札保護が
+      // 丸ごと抜けており、ON_HAND_DISCARDED 不発火・「この方法で手札を捨てた場合」条件の不成立・HAND_TRASHED_BY_OPP
+      // （「代わりに」置換の起点）の不成立を併発していた（続き81・タスク12(iv)・§7 trashCounterOpp で発見）。
       for (const owner of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(owner, ctx);
         const hi = s.hand.indexOf(cardNum);
         if (hi >= 0) {
+          // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（即時適用パスと同じ保護）
+          if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('hand') || ctx.otherState.prevent_opp_trash_from?.includes('hand'))) {
+            return done(addLog(ctx, '手札保護により効果なし'));
+          }
           const newHand = [...s.hand];
           newHand.splice(hi, 1);
-          const newS: PlayerState = { ...s, hand: newHand, trash: [...s.trash, cardNum] };
+          const newS: PlayerState = {
+            ...s, hand: newHand, trash: [...s.trash, cardNum],
+            hand_discarded_just: [...(s.hand_discarded_just ?? []), cardNum], // ON_HAND_DISCARDED 検出用（BattleScreenが消化）
+            turn_hand_discarded_count: owner === 'self'
+              ? (s.turn_hand_discarded_count ?? 0) + 1 : s.turn_hand_discarded_count,
+            // owner==='opponent' ＝ 実行者から見た相手の手札を捨てさせた＝その相手から見れば「対戦相手の効果で捨てられた」
+            hand_trashed_by_opp_this_turn: owner === 'opponent'
+              ? (s.hand_trashed_by_opp_this_turn ?? 0) + 1 : s.hand_trashed_by_opp_this_turn,
+          };
           return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
         }
       }
