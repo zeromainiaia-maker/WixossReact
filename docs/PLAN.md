@@ -289,7 +289,8 @@
 - ~~**R40②**＝opp-draw の「自分の効果で」発生源限定なし~~ **✅続き131で実バグと確定**＝PR-423×SPDi43-21で実機再現（Opusタスク12(xxi)）。
 - **R37③**＝パワー0以下トリガーの連鎖再発火（Opusタスク12 の usageLimit 書き戻し修正待ち）。
 - **ON_COIN_PAID④**＝自分のターン外でも発火するか未検証。
-- **ON_LRIG_GROW④／ON_LRIG_ATTACK_STEP_START②**＝《ターン1回》制限の実機未検証（③のパース近似は既知）。
+- ~~**ON_LRIG_ATTACK_STEP_START②**＝《ターン1回》制限の実機未検証~~ **✅続き116/119で実機検証＝実バグ発見→修正→PASS確認済み**（`lrigAttackStepStartUsageLimit`・既定order）。**PLAN記載が更新漏れで残っていたのを続き132で訂正**。
+- **ON_LRIG_GROW④**＝《ターン1回》制限の実機未検証（③のパース近似は既知）。
 - **ON_TARGETED の forced 単一対象 follow-up**＝pending 無しで自動解決される対象取り経路が未発火（Opusタスク12(xx)）。
 - **B4 引用付与の実発火**（WX24-P2-018 等）＝Opusタスク12(xiii) の timing 誤登録修正待ちで一時停止。
 - **WX04-005-E3**（場出し数制限）＝STUB `LIMIT_ALL_FIELD_1` が engine 未実装と確定（Opusタスク12(xix)）。
