@@ -2694,7 +2694,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // **引用内（＝付与される能力）のトリガー語**が外側のトリガー句より先にマッチし、約20枚が誤 timing になっていた
       // （ON_ATTACK_SIGNI 15枚・ON_OPP_LIFE_CRASHED 5枚・ON_ATTACK_LRIG 2枚）。引用付与の内側能力自体は parseBlock の
       // 再帰呼び出しで別途この判定を通るので、内側の timing が失われることはない。
-      timing = (trigText => trigText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
+      timing = trigText.includes('《ヘブン》したとき') ? ['ON_HEAVEN']
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
              : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
              : trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
