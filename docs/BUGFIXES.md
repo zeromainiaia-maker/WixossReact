@@ -5,6 +5,17 @@
 
 ---
 
+## ON_BECOME_BEAT の self 反応が発火しない真因を特定＝`battleCardNums`が`beat_zone`未走査でeffectsMapから脱落（2026-07-14・続き121・Opus 4.8・PLAN §3 Opusタスク12(xvi)）
+
+**続き115（Sonnet）で診断・登録された真バグ（Opusタスク12(xvi)・原因未特定だったもの）を根本特定して修正した。** 【ビート】になったカード自身の`ON_BECOME_BEAT`（self scope）が、同一イベントの any_ally 反応は発火するのに一度も発火しない非対称バグ。**真因は`collectBeatBecameTriggers`（engine）ではなく、`BattleScreen.tsx`の`battleCardNums`メモ（effectsMap の母集合）が`field.beat_zone`を走査していなかったこと**。
+
+- **メカニズム**：シグニが【ビート】になると`field.signi`から外れ`field.beat_zone`へ移る。`battleCardNums`の`addState`は deck/hand/field.signi/trash/energy/free_zone 等は走査するが`beat_zone`だけ欠落していたため、【ビート】化したカード（WDK14-017）がどの走査ゾーンにも無くなり`effectsMap`から脱落。`collectBeatBecameTriggers`の self ループ（`effectsMap.get(becameNum)`＝beat_zone在中カードを直接引く）が空を引いて self 効果を1件も収集できなかった。any_ally 側は発火元シグニ（WDK14-014）が`field.signi`に残るため正常に拾えており、**非対称に self だけ欠落**していた。
+- **修正**：`addState`に`addAll(s.field.beat_zone)`を1行追加（`BattleScreen.tsx`）。signi_acce/hastarliq_zones と同じ「反応的ロード不可のゾーンは明示走査」の系列。additive な変更で、collector のゾーン走査ロジックは不変（effectsMap の lookup 対象が増えるだけ）＝既存挙動に影響なし。
+- **検証**：**実ブラウザ**＝`beatBecomeSelfWDK14017`（WDK14-014の【出】《ビート》コストでWDK14-017を【ビート】化）で、WDK14-017自身のON_BECOME_BEAT self反応「炎魔の幸運 カウカス の【自】効果（【ビート】になったとき）」（カード1枚引き手札1枚捨て）が発火することを**2回連続PASS**（意図的FAIL回帰を既定orderに復帰）。engine層の`collectBeatBecameTriggers`は元から正しく、golden では母集合フィルタ（battleCardNums）を通らないため再現しない＝実機が正しい検証経路。**全ゲート緑**（golden 316・smoke/fuzz全0・census 2218維持・lint 0 error）。
+- `BattleScreen.tsx`（1行）のみ。engine/parser/effects JSON変更なし。**⚠これでOpusタスク12（Sonnet発見バグの常設受け口）の在庫を全消化**（続き78で旧8件・続き106で複数・続き117〜121で(xiv)〜(xviii)＋(xvi)）。
+
+---
+
 ## `GROW_COST_REDUCTION`にper-count scaling機構を新設＝WX14-009/WD14-001の過大軽減バグを根治（2026-07-14・続き120・Opus 4.8・PLAN §3 Opusタスク12(xviii)）
 
 **続き116（Sonnet）で診断・登録された真バグ（Opusタスク12(xviii)）を根治した。** `GrowCostReductionAction`型が`reduction: EnergyCost[]`（固定値）のみで「トラッシュの◯◯カードN枚につき」という枚数連動スケーリングを表現できず、WX14-009「トラッシュの《フレイスロ》カード**7枚につき**赤1減る」・WD14-001「トラッシュの＜悪魔＞シグニ**6枚につき**黒1減る」が条件なしの固定`reduction:[{color,count:1}]`としてparseされ、**該当カードがトラッシュに1枚も無くても常に1色分軽減される**恒常的な過大軽減バグだった。
