@@ -4117,6 +4117,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'GROW_FREE':                      return done(addLog(ctx, 'フリーグロウ（BattleScreen処理）'));
     case 'POWER_MODIFY_PER_STACK':         return done(addLog(ctx, 'スタック参照パワー（effectEngine処理）'));
+    // CONTINUOUS 専用（calcFieldPowers 内の extractPowerModifiesPerDeckCount で計算＝続き135で実装）。
+    // ここへ来るのは AUTO/ACTIVATED 経路だけで、その用法の実カードは存在しない（PR-442 は CONTINUOUS）。
     case 'POWER_MODIFY_PER_DECK_COUNT':    return done(addLog(ctx, 'デッキ枚数比例パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_ENERGY_COLOR':  return done(addLog(ctx, 'エナ色種類比例パワー（effectEngine処理）'));
     case 'POWER_MODIFY_PER_ENERGY':        return done(addLog(ctx, 'エナ枚数比例パワー（effectEngine処理）'));
