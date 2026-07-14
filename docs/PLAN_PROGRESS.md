@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き117・Opus 4.8・PLAN §3 Opusタスク12(xiv)＝`resumeSelectTarget`のcontinuation握り潰しを根治）**
+  - **🐛→✅ `resumeSelectTarget`が外側SEQUENCEの`pending.continuation`を握り潰す構造バグを根治**＝`applyDirectAction(ADD_TO_FIELD)`が配置先の空きゾーン2以上で`SELECT_SIGNI_ZONE`を要求した場合に、旧`if(!result.done) return result;`が内側interactionをそのまま返し外側continuation（後続のGRANT_KEYWORD/CONDITIONAL/BLOCK_ACTION等）を脱落させていた。修正＝`resumeSearch`同型に`thenAction=ADD_TO_FIELD`時は`execPlaceSigniOnField`経由でchain配置し外側continuationを`afterAction`として全配置後に実行。
+  - **影響母集団＝機械抽出で84効果（約80カード）**。構造修正のため全件を一律カバー。
+  - **✅ 3層検証**：①golden回帰新設（後続DRAW発火assert・修正なしでFAIL実証・310→311）。②実ブラウザ`craftEnergyCP02087`強化（配置シグニへの絆常付与が`kwGrants`へ入ることをassert・実機PASS）。③全ゲート緑（census 2225維持・lint 0）。
+  - 残＝`craftArtsBetK07105`はengine修正済だがdriverのHAND_CARDピッカー未クリックでFAIL（Sonnet driverタスク）。詳細 BUGFIXES 続き117。
+
 - **🆕 セッション（2026-07-14・続き116・Sonnet 5・PLAN §3 Sonnetタスク1の残の棚卸し＝stale残リストの是正＋R40②/ON_COIN_PAID④をコード読解で決着＋ON_LRIG_ATTACK_STEP_START②で新規真バグ発見）**
   - **✅ §3の「その他の残」列挙を§7本文と全数突き合わせ＝R30/ON_TARGETED残3枚/R42②/R43②/R44②③/R46②③/R38②③/R36②/R39②/R41②はすべて既に決着済みと判明**（続き75/92/98/101/104等で完了していたがリストが更新されていなかった）。真に残る項目だけに絞り込んでリストを是正。
   - **✅ R40②（opp-draw「自分の効果で」限定）・ON_COIN_PAID④（自ターン外発火）はコード読解で決着**＝両方とも「発火源を区別しない/相手ターン中の支払い経路自体が未配線」という既知の近似・follow-upの再確認に留まり新規バグではないと確定（実機検証は不要と判断）。詳細はPLAN §7本文。
