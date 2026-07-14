@@ -228,7 +228,7 @@ export function collectPowerZeroTriggers(
         const to = eff.triggerCondition?.turnOwner;
         if (to === 'self' && !watcherIsTurn) continue;
         if (to === 'opponent' && watcherIsTurn) continue;
-        if (eff.usageLimit === 'once_per_turn' && watcherState.actions_done?.includes(eff.effectId)) continue;
+        if (!limitOk(eff)) continue;
         const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
         entries.push({
           id: ctx.genId(),
@@ -241,7 +241,7 @@ export function collectPowerZeroTriggers(
       }
     }
   }
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
