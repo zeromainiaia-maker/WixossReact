@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き132・Sonnet 5・PLAN §7／§3 Sonnetタスク1＝ON_COIN_PAID④・ON_LRIG_GROW④の実機検証）**
+  - **✅ ON_COIN_PAID④＝コード調査により「現状到達不可能」と結論（近似は実害なし）**＝`collectCoinPaidTriggers`の全5呼び出し元（人間/CPUグロウ・シグニ【起】《コイン》・シグニ【出】《コイン》・アーツベット/アンコール）を洗い出したところ、いずれも呼び出し元アクション自体が自分のターン限定（【起】は`timing:['MAIN'|'ATTACK']`のみ）＝対戦相手のターン中にコインを支払う経路がengineに一つも無い。E2Eシナリオでは到達不能なため追加検証不要と判定。
+  - **⚠ ON_LRIG_GROW④＝部分決着＋新規在庫登録**＝標準「グロウ」ボタン連打での二重発火は`actions_done.includes('GROW')`により正しくブロックされていることを確認（`wasFreeGrow`＝`freeGrowFilter!==null`の場合のみこの枠消費をスキップする設計と判明＝当初「free_grow_this_turnで二重グロウできるはず」という誤仮説で1回FAILを出した）。本命の検証経路（WX03-024「ゲット・グロウ」＝GROW_FREEスペルでの横グロウ）はスペル手札クリック→コスト支払い→候補クリックまで実行できたが、host.lrigTopが変化せず2回目グロウ自体が完了しない（4回の再試行・診断ログ追加でも原因特定に至らず）＝検証空振りのまま。`collectLrigGrowTriggers`（triggerCollect.ts:102）がusageLimitの`usedIds`を返さない構造的欠落（ATTACK_STEP_START②で見つかり修正済みのバグと同型）はコード上確認済みだがE2E未再現＝「未確認だがコード上疑わしい」としてOpusタスク12へ新規登録。
+  - **教訓**：driverでの2回目実行を「既存ルーム再利用」パスで行うと前回実行の残留状態でスタックする（続き131と同型の症状を再度観測）＝`FRESH=1`を徹底。また「grow2起動: OK」のようなブール成功判定だけでなく、盤面の実際の状態変化（lrigTop等）まで確認しないと偽陽性PASSを出す（1回目の検証で気づかずPASSと誤報告した反省点）。
+  - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docs＋driver script のみ変更。engine/parser/effects JSON変更なし。
+  - **次の一手**：Opus側＝タスク12在庫（R40②(xxi)・ON_LRIG_GROW疑義🆕含む）の消化。Sonnet側＝§7は主要未検証項目を消化済み＝次はBEHAVIOR_AUDIT一次トリアージか他タスクへ。
+
 - **🆕 セッション（2026-07-14・続き130→131・Sonnet 5・PLAN §5c／§5a→§7＝census-batch試行→BEHAVIOR_AUDIT一次トリアージ→R40②実機検証）**
   - **census-batch を試行したが安全な採用先ゼロと判定**＝`build:effects`→`heldReview`のheld 109枚を精査。一見改善に見える`+CONDITIONAL`グループ（WX26-CP1-011/013/015/017/018・WX25-P3-092）は、curatedが既に`choice.condition`で実装済みなのに対しfreshは`choice.action`をCONDITIONALラップする別表現＝diff署名だけでは判断できない意味論の違いと判明（機械採用は危険）。他グループも大半curated優位。**effects JSONへの変更は無し**（`choice.condition`不整合の気づきはOpusタスク12へ登録）。
   - **BEHAVIOR_AUDITキュー再生成＋一次トリアージ**＝`behaviorAudit.ts --queue`→`_bqTriage.mjs`で高シグナルno-opバグ候補**22件**を機械抽出（詳細はBUGFIXES）。「真no-op／シナリオ空振り／STUB未実装」の最終仕分けはOpus側の担当のためここで区切り（診断のみ）。
