@@ -4397,7 +4397,7 @@ const scenarios = {
         const stillAlive = (st?.host?.fieldSigni?.[1] ?? []).includes?.('WX12-024#1');
         const sacrificeGone = Array.isArray(before?.host?.fieldSigni?.[0]) && before.host.fieldSigni[0].includes('WD03-009#1')
           && !((st?.host?.fieldSigni?.[0] ?? []).includes?.('WD03-009#1'));
-        H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify(st?.logTail?.slice(-8))}`);
+        H.log(`  f3sac[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pBS=${st?.host?.pendingBanishSubstitute ?? '-'} modalSeen=${modalSeen} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} logTail=${JSON.stringify(st?.logTail?.slice(-4))}`);
         // F-3成功＝身代わりモーダルが出現し、犠牲シグニ(WD03-009)がバニッシュされWX12-024が場に残る
         if (modalSeen && sacrificeGone && stillAlive) {
           return { pass: true, detail: `F-3犠牲型が機能＝身代わりモーダル出現→WD03-009(＜電機＞)を犠牲にしWX12-024が場に残存（modalSeen=${modalSeen} sacrificeGone=${sacrificeGone}）＝タスク12(xv) STUB BANISH_SUBSTITUTE化を実機確認` };
