@@ -5,6 +5,18 @@
 
 ---
 
+## ON_TARGETED forced単一対象follow-upを実機再現＝targetsTriggerSourceの自動解決がcollectTargetedTriggersを素通りする実バグを確定（2026-07-14・続き127・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
+
+**§7「ON_TARGETED」に長年残っていた「forced単一対象（pending無しで自動解決される対象取り）経路は未発火＝follow-up」の注記を実機で検証し、実バグと確定した。**
+
+- **真因**：`collectTargetedTriggers`（`BattleScreen.tsx:4141`）は`handleEffectInteraction`のSELECT_TARGET確定分岐でのみ呼ばれる設計。一方`POWER_MODIFY{targetsTriggerSource:true}`（`execPowerModify`・`effectExecutor.ts:514-525`）は「それ」=`triggeringCardNum`（無ければ`sourceCardNum`）を選択UIなしで直接`done()`適用するため、この解決経路は一度もSELECT_TARGETインタラクションを生成せず`collectTargetedTriggers`を通らない。同型の`targetsLastProcessed`（同ファイル544-548行目）も同じ構造。
+- **実機再現**：新規シナリオ`onTargetedForcedBypass`＝host WX12-010（ホワイトメイズ　ホデサパ・ON_ATTACK_SIGNI any_opp＋`targetsTriggerSource`でアタッカーに-2000）×guest WXDi-P03-067（羅石　アパタイト・ON_TARGETED self＝DRAW×1・usageLimit once_per_turn）でCPU自動アタック→WX12-010のPOWER_MODIFY(-2000)は成立する（`gPowerMods=["WXDi-P03-067#1:-2000"]`）が、WXDi-P03-067自身のON_TARGETED（DRAW）は一度も発火せず`gHand`不変。通常実行＋`FRESH=1`の2回連続で再現（間に1回、ルーム再利用起因の「CPU未アタック」フレークがあったが`FRESH=1`で解消＝バッチ状態汚染とは無関係の既知パターン）。
+- **実カード母集団**：`targetsTriggerSource`/`targetsLastProcessed`かつ`target.owner:'opponent'`を機械抽出＝WX12-010/WXEX2-29/WXDi-P03-043/WXDi-P04-065/WXK10-022の5枚（いずれも「対象を自動選択する側」＝これらの効果が対戦相手の場のON_TARGETEDカードをデッキ構築上たまたま対象にした場合に発火漏れとなる）。
+- **対応**：修正はせずOpusタスク12(xx)へ登録（PLAN.md §3）。`onTargetedForcedBypass`シナリオは意図的FAIL回帰として`verifyBattleDrive.mjs`の既定`order`配列には含めない（修正後にPASSへ反転させて追加する）。
+- driver script + docs のみ。engine/parser/effects JSON変更なし。
+
+---
+
 ## WX04-004-E2（守備側アタック無効化）を実機検証・既定orderに追加＋WX04-005-E3の完全未実装STUBを発見（2026-07-14・続き126・Sonnet 5・PLAN §7／§3 Sonnetタスク1）
 
 **§7「その他の実機検証待ち」に残っていたWX04-005-E3／WX04-004-E2を調査した。**
