@@ -8094,7 +8094,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             });
           }
           // ON_LRIG_GROW（C1 配線・CPUセンターグロウ）: CPU=guest のグロウに反応する【自】を収集。
-          const cpuGrowReactEntries = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
+          const cpuGrowReact = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
+          const cpuGrowReactEntries = cpuGrowReact.entries;
+          // usageLimit（《ターン1回》）消費を actions_done へ永続化（CPU=guest／人間=host。続き135）
+          if (cpuGrowReact.usedGuestIds.length > 0) {
+            newCpuSt = { ...newCpuSt, actions_done: [...(newCpuSt.actions_done ?? []), ...cpuGrowReact.usedGuestIds] };
+          }
+          const humanStateAfterGrowReact: PlayerState | null = cpuGrowReact.usedHostIds.length > 0
+            ? { ...bs.host_state, actions_done: [...(bs.host_state.actions_done ?? []), ...cpuGrowReact.usedHostIds] }
+            : null;
           // ON_COIN_PAID（C1 配線・CPUグロウコストのコイン支払）
           const cpuGrowCoin = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : { entries: [] as StackEntry[], usedIds: [] as string[] };
           const cpuGrowCoinEntries = cpuGrowCoin.entries;
