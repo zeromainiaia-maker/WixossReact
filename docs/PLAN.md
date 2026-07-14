@@ -298,7 +298,7 @@
   - ~~**修正方針**＝`collectFreezeInline`と同型の…場当たり的対応は…対症療法止まり。根本修正としては、**`result.done`に関わらず両経路から共通で呼べる収集関数に統合するリファクタ**が本筋~~ **✅続き61（Opus）で実施＝`collectBoardDiffTriggers`（component-closure・約20種の盤面差分トリガーを before/after 比較で収集）を新設し、`resolveStackNext` の else 節と `handleEffectInteraction` の resume done 分岐を双方これ1呼び出しに置換。action型固有（COLLAB/REVEAL_UNTIL/arts/FORCE_END_TURN）は resume で再現不能のため中央 diff に inline 据置。**
   - 詳細はBUGFIXES続き58（3エントリ・原因分析）＋続き61（根本修正）。
 - **「対戦相手のシグニが場を離れたとき」トリガー（3枚・behavior-audit 段階4で発見・2026-07-03）**＝`ON_LEAVE_FIELD` の watcher 収集（`collectLeaveFieldTriggers`）は**離れたカードと同じ側（味方）の watcher しか見ない**ため、相手の離脱を見る新 `triggerScope` と相手フィールド走査パスが要る。該当＝**WXEX1-30-E2**／**WXK11-017-E1**／**WXDi-P03-040-E1**（3枚とも現JSON `scope=self`＝誤発火）。
-- ~~「このターンにあなたがアーツを使用していた場合」条件~~ **✅実装済（2026-07-03・続き13後半）**＝`ARTS_USED_THIS_TURN`＋`turn_arts_used` 機構で11枚全是正（⚠要実機検証）。~~WX25-P1-106 BURST のダメージ置換近似~~ **✅続き25で REPLACE_NEXT_DAMAGE_WITH_MILL に正エンコード**。
+- ~~「このターンにあなたがアーツを使用していた場合」条件~~ **✅実装済（2026-07-03・続き13後半）**＝`ARTS_USED_THIS_TURN`＋`turn_arts_used` 機構で11枚全是正。**✅続き116（Sonnet）で実機PASS確認（2回連続）**＝`verifyBattleDrive.mjs artsUsedThisTurnGate`（WX25-P1-095）＝`turn_arts_used:true`注入→アタック時に条件評価→エナチャージ1が正しく発火（hEnergy 0→1）を確認。既定orderに追加。~~WX25-P1-106 BURST のダメージ置換近似~~ **✅続き25で REPLACE_NEXT_DAMAGE_WITH_MILL に正エンコード**。
 - **自パワー閾値条件の残テール（2026-07-03発見・素直な21枚は是正済）**＝(a)「代わりに」昇格型：WXDi-P01-054（【起】バニッシュの昇格）／WXDi-P12-067（被バニ反応の昇格）。(b)多段閾値型：PR-470A（10000/25000）／WXDi-D01-016（15000/20000）。(c)【起】の自パワー条件：WXDi-P03-062（起動時 evalUseCondition 配線の確認要）。
 - **WXDi-P05-006＝2択構造ごと崩壊**＝ピース打ち消し（カットイン使用＋対象ピース効果打ち消し＋除外）機構が無く、①②の択も脱落（現 curated は GRANT_KEYWORD 使用条件＋UNKNOWN の残骸）。ピース打ち消し機構待ち。
 - `ON_CARD_MILLED_FROM_DECK` の収集機構（WX25-P2-009-E2＝現 `【※engine未配線】`）。
