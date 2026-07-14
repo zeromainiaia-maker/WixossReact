@@ -2569,7 +2569,7 @@ const scenarios = {
           if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
           const st = await H.queryState();
           const guestSigniCount = (st?.guest?.fieldSigni ?? []).filter(z => (z || []).length).length;
-          H.log(`  lgul-${label}[${s}] -> ${did ?? 'なし'} | fired=${fired} gField=${JSON.stringify(st?.guest?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+          H.log(`  lgul-${label}[${s}] -> ${did ?? 'なし'} | fired=${fired} lrigTop=${st?.host?.lrigTop} lrigDeck=${st?.host?.lrigDeck} gField=${JSON.stringify(st?.guest?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
           if (s >= 9 && !fired) return { fired, settled: true, guestSigniCount, st };
           if (fired && !(st?.stackLen > 0) && !st?.pendingEffect) return { fired, settled: true, guestSigniCount, st };
         }
