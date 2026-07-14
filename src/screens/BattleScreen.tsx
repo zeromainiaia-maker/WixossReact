@@ -4806,7 +4806,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (ownEntries.length === 0 && fieldEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: placed }).eq('room_id', roomId);
+        await supabase.from('battle_states')
+          .update({ [stateKey]: placed, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) })
+          .eq('room_id', roomId);
         return;
       }
 
