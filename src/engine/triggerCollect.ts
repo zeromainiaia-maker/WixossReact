@@ -1553,6 +1553,7 @@ export function collectFieldTriggers(
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
         const act = eff.action as StubAction;
         if (act.type !== 'STUB' || act.id !== 'ARTS_SELF_RECYCLE_ON_TRIGGER') continue;
+        if (!limitOkAlly(eff)) continue;
         const cardName = ctx.cardMap.get(artsNum)?.CardName ?? artsNum;
         entries.push({
           id: ctx.genId(), playerId: ownerId, cardNum: artsNum, effectId: eff.effectId,
@@ -1562,7 +1563,7 @@ export function collectFieldTriggers(
     }
   }
 
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
