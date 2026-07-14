@@ -5109,6 +5109,22 @@ export function collectFieldSigniExtraColors(
       }
     }
 
+    // COLOR_INHERIT (source:'energy'): このシグニはあなたのエナゾーンにあるカードの色を追加で持つ（WX11-032・§6.1）
+    const hasColorInheritEnergy = [...(effectsMap.get(topNum) ?? [])].some(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) return false;
+      const act = eff.action as import('../types/effects').ColorInheritAction;
+      return act.type === 'COLOR_INHERIT' && act.source === 'energy';
+    });
+    if (hasColorInheritEnergy) {
+      for (const enCn of state.energy) {
+        const enColor = cardMap.get(enCn)?.Color ?? '';
+        for (const c of [...enColor].filter(s => '白赤青緑黒'.includes(s))) {
+          if (!extraColors.includes(c)) extraColors.push(c);
+        }
+      }
+    }
+
     if (extraColors.length > 0) result.set(topNum, extraColors);
   }
 
