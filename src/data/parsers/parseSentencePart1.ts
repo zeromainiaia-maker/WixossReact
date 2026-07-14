@@ -1175,6 +1175,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「それ」= トリガー元シグニ（ON_ATTACK_SIGNI等で発火したシグニ自身）
       target = { type: 'SIGNI', owner: 'self', count: 1 };
       isTriggerSource = true;
+    } else if (/あなたの(?:他の)?[^。、]*シグニ[^。、]*を対象とし/.test(t)) {
+      // 「あなたの(他の)＜X＞のシグニのうち最も…シグニ1体を対象とし…それのパワーを±N」＝自分の単体シグニ
+      // （WXDi-CP02-070。else 既定だと owner:any＋story/excludeSelf/superlative 欠落に潰れていた）。
+      target = parseSigniTarget(t, 'self');
     } else {
       target = { type: 'SIGNI', owner: 'any', count: 1 };
     }
