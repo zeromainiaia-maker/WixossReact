@@ -1025,6 +1025,22 @@ test('LRIG走査漏れ collectFieldTriggers: 相手LRIG watcher（WX12-001 ON_AT
   const host = mkState({ signi: [SIGNI, null, null] }); const guest = mkState({}); guest.field.lrig = ['WX12-001'];
   eq(fired(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, host, guest, HOST), 'WX12-001-E2'), true, '相手LRIG watcher 発火');
 });
+test('タスク17 「アタックフェイズ開始時」の timing 是正: 23効果が ON_ATTACK_PHASE_START で発火する（続き136）', () => {
+  // parser の timing 判定が actionText 全体を見ていたため、トリガー句より後ろの本文（「…このターン、…がアタックしたとき」
+  // 「…ライフクロス…クラッシュしたとき」）や引用付与の内側を先に拾い、外側 timing が ON_ATTACK_SIGNI /
+  // ON_OPP_LIFE_CRASHED / ON_ATTACK_LRIG に化けていた＝該当効果は一度も発火しなかった。判定を先頭のトリガー句に
+  // 限定し、JSON 側 23効果も是正。ここでは代表3枚が実際に ON_ATTACK_PHASE_START で収集されることを固定する。
+  const timingOf = (id: string) => (effectsMap.get(id.replace(/-E\d+$/, ''))?.find(e => e.effectId === id)?.timing ?? []).join('/');
+  eq(timingOf('WX24-P2-018-E1'), 'ON_ATTACK_PHASE_START', 'WX24-P2-018-E1（旧 ON_ATTACK_SIGNI＝§7 B4 のブロッカー）');
+  eq(timingOf('WX25-CP1-085-E1'), 'ON_ATTACK_PHASE_START', 'WX25-CP1-085-E1（旧 ON_ATTACK_SIGNI）');
+  eq(timingOf('WXDi-CP02-090-E1'), 'ON_ATTACK_PHASE_START', 'WXDi-CP02-090-E1（旧 ON_OPP_LIFE_CRASHED）');
+  // シグニに載せると自分の APS で実際に収集される（self scope）
+  const host = mkState({ signi: ['WX24-P2-018', null, null] });
+  eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, mkState({})), 'WX24-P2-018-E1'), true, 'APS で収集される');
+  // 「対戦相手のアタックフェイズ開始時」は any_opp＝相手ターンに非ターンプレイヤー側の watcher として収集される
+  const guestWatch = mkState({ signi: ['WXDi-P08-058', null, null] });
+  eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', mkState({}), guestWatch), 'WXDi-P08-058-E1'), true, 'any_opp watcher が相手APSで収集される');
+});
 test('LRIG走査漏れ collectTurnTriggers: 相手LRIG watcher（WX12-002 ON_ATTACK_PHASE_START any_opp）が発火', () => {
   const host = mkState({}); const guest = mkState({}); guest.field.lrig = ['WX12-002'];
   eq(fired(cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, guest), 'WX12-002-E1'), true, '相手LRIG watcher 発火');
