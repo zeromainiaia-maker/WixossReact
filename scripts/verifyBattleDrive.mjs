@@ -2590,10 +2590,17 @@ const scenarios = {
         return { pass: false, detail: `1回目のON_LRIG_GROW発火/バニッシュが未完走のため検証空振り（fired=${r1.fired} settled=${r1.settled} gField=${JSON.stringify(r1.st?.guest?.fieldSigni)}）` };
       }
       H.log('1回目のBANISH完了確認（guestSigniCount=1）。2回目グロウ準備（free_grow_this_turn再注入）…');
-      await setFreeGrow();
+      const sfg = await setFreeGrow();
+      H.log('setFreeGrow結果:', JSON.stringify(sfg));
       await page.waitForTimeout(500);
+      const midSt = await H.queryState();
+      H.log(`2回目グロウ直前 host.lrigTop=${midSt?.host?.lrigTop} lrigDeck=${midSt?.host?.lrigDeck} lrigTrash=${midSt?.host?.lrigTrash} phase=${midSt?.turnPhase}`);
       const grew2 = await H.openGrow(/ピルルク・Ｔ/);
       H.log('2回目グロウ実行（Lv3→Lv4）:', grew2 ? 'OK' : '失敗');
+      if (!grew2) {
+        const fin = await H.queryState();
+        return { pass: false, detail: `2回目グロウ自体が起動せず検証空振り（lrigTop=${fin?.host?.lrigTop} lrigDeck=${fin?.host?.lrigDeck} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）＝グロウ先候補の表示条件を要再調査` };
+      }
       const r2 = await payAndBanish('b');
       if (r2.fired && r2.settled && r2.guestSigniCount === 0) {
         return { pass: false, detail: `実バグ確認＝usageLimit once_per_turnにもかかわらずON_LRIG_GROWが同一ターン内で2回発火（2回目もOPTIONAL_COST提示→BANISH完走・gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）＝collectLrigGrowTriggers（triggerCollect.ts:102）がusedIds書き戻しを行わない・collectTurnTriggers ON_LRIG_ATTACK_STEP_START②と同型のバグ（Opusタスク12へ登録）` };
