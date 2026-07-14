@@ -2588,6 +2588,7 @@ const scenarios = {
       H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
       let grew2 = false;
+      let candClicked = false;
       for (let s = 0; s < 20 && !grew2; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lrigGrowUsageLimit-cast${s}.png`, fullPage: true });
@@ -2599,17 +2600,24 @@ const scenarios = {
             if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
           }
         }
-        if (!did) { // ゲット・グロウ横グロウ先候補（同Lv3・タマ）
+        if (!did && !candClicked) { // ゲット・グロウ横グロウ先候補（同Lv3・タマ）
           const cand = page.getByRole('button', { name: /月蝕/ }).first();
-          if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'btn:月蝕(get-grow候補)'; grew2 = true; }
+          const candCount = await cand.count();
+          const candVisible = candCount ? await cand.isVisible().catch(() => false) : false;
+          if (candCount && candVisible) { await cand.click().catch(() => {}); did = 'btn:月蝕(get-grow候補)'; candClicked = true; }
         }
         const st = await H.queryState();
-        H.log(`  lgul-cast[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  lgul-cast[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} lrigTop=${st?.host?.lrigTop} lrigDeck=${st?.host?.lrigDeck} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (st?.host?.lrigTop === 'WX01-007#1') { grew2 = true; }
+        if (candClicked && !did) { // 候補クリック後、コスト選択サブ画面が出ていないか確認（月蝕限定=同Lvなので本来コスト0のはず）
+          const bodyTxt = await H.fullBody();
+          if (/グロウコスト|コストを選択|選択してください/.test(bodyTxt)) H.log(`  lgul-cast[${s}] 診断: コスト選択画面の疑い body抜粋=${bodyTxt.slice(0, 200).replace(/\n/g, ' | ')}`);
+        }
       }
-      H.log('2回目グロウ（ゲット・グロウ横グロウ）起動:', grew2 ? 'OK' : '失敗');
+      H.log('2回目グロウ（ゲット・グロウ横グロウ）実際に完了:', grew2 ? 'OK（lrigTop=WX01-007#1確認）' : '未完了');
       if (!grew2) {
         const fin = await H.queryState();
-        return { pass: false, detail: `WX03-024経由の2回目グロウが起動せず検証空振り（hHand=${fin?.host?.hand ?? '-'} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）` };
+        return { pass: false, detail: `WX03-024経由の2回目グロウがlrigTop変化まで到達せず検証空振り（候補クリック=${candClicked} lrigTop=${fin?.host?.lrigTop} hHand=${fin?.host?.hand ?? '-'} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）＝ゲット・グロウのUI経路を要再調査` };
       }
       const r2 = await payAndBanish('b');
       if (r2.fired && r2.settled && r2.guestSigniCount === 0) {
