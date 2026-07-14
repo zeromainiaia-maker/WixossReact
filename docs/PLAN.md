@@ -144,12 +144,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-15・続き133・Sonnet 5・PLAN §5a／§3 Sonnetタスク4＝BEHAVIOR_AUDIT一次トリアージ→22件全件を目視精査）**
-  - **キュー再生成で回帰なし確認**＝高シグナル22件は続き130と完全一致（総母数273も同一）。
-  - **✅ 22件全件を`npm run audit -- --id`で目視精査＝新規の真no-opバグは0件**。①既存追跡STUB7件（`WXDi-P09-079`/`WX24-P2-049`/`WX25-P2-009`/`WX25-CP1-040`/`WX09-012`/`WXEX2-51`＝既知・`WXDi-P04-065`は実機E2E`freezetrigger`で既にPASS確定済みの偽陽性）②**監査ツール自体の構造的盲点を新規特定＝COUNTER_SPELL/SPELL_CUTIN系3件**（実処理はBattleScreen側cutin経路のみで孤立実行では再現不可能）③**同盲点＝トリガー文脈依存効果 約12件**（ON_ATTACK系・ON_TRASH系・対象0枚のtoy盤面等）④軽微なparser残骸1件（`WXK01-021-E1`＝空のGRANT_LRIG_ABILITY・機能的には無害）。
-  - **対応**：Opusタスク11を「最終仕分け＋engine修正（M）」から「WXK01-021-E1確認程度（S・実質クローズ近似）」へ大幅縮小。
-  - **✅ 検証**：全ゲート緑（typecheck/golden 319/smoke/fuzz/census 2218維持/lint 0 error）。docsのみ変更。engine/parser/effects JSON変更なし。
-  - **次の一手**：Sonnet側＝§7タスク3（driver状態汚染の残）かタスク8（semantic audit続き）。Opus側＝タスク12在庫の消化。
+- **🆕 セッション（2026-07-15・続き135・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化4件）**
+  - **✅ usageLimit ガード欠落の5コレクタを一括是正（タスク12(x)＋(vi-5)）**＝`collectFieldTriggers`（**判定コード自体が無かった**・ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any系＝実カード32枚）・`collectBloomTriggers`（2枚）・`collectBanishTriggers`（18枚）・`collectPowerZeroTriggers`（6枚）・`collectLrigGrowTriggers`（4枚）を `{entries, usedHostIds, usedGuestIds}` 型へ統一（`mkLimitOk`＋消費IDの返却）。**BattleScreen 12箇所で `actions_done` へ書き戻し**（収集の合間に畳み込むので同一パスの複数召喚でも1回だけ発火）。`twice_per_turn` も同時に有効化。
+  - **✅ `POWER_MODIFY_PER_DECK_COUNT` を CONTINUOUS 計算層に実装（タスク12(vi)）**＝PR-442「デッキ10枚につき＋4000」が常に無効だった（executor のコメントが虚偽で effectEngine に実装が無かった）。
+  - **✅ `applyDirectAction` の TRASH/HAND_CARD が手札カウンタ3種を更新（タスク12(iv)）**＝`count:1` の SELECT_TARGET 経由パスだけ `hand_discarded_just`/`turn_hand_discarded_count`/`hand_trashed_by_opp_this_turn` の更新と手札保護を欠いていた（ON_HAND_DISCARDED 不発火・「代わりに」置換の起点不成立を併発）。
+  - **✅ 検証**：全ゲート緑（typecheck／**golden 319→325**＝新設6件／smoke 全0／fuzz 全0／census 2218 維持／lint 0 error）。**実機 E2E 新設 `onPlayUsageLimit`**（WX24-P1-046＝＜地獣＞2体召喚でエナチャージが1回だけ）を2回連続PASS＋既定 order に追加。effects JSON は無変更。
+  - **🆕 新規発見＝parser の timing 判定が引用「」の内側を先に拾う系統バグ（→Opusタスク17 として登録）**：タスク12(xiii)（WX24-P2-018-E1）は単発ではなく、「【自】：（あなた/対戦相手）のアタックフェイズ開始時、…『【自】：このシグニがアタックしたとき…』を得る」型で**内側の引用トリガーが外側より先にマッチする約20枚**の系統。
+  - **次の一手**：Opus＝タスク17（引用内 timing 誤マッチの系統修正・fresh 差分精査が要る）→タスク12 の残在庫。Sonnet＝**タスク1（§7横展開）が一部復活**＝今回の修正で `trashCounterOpp`／ON_LRIG_GROW④／R37③ の意図的FAIL回帰シナリオを PASS へ反転できるか再検証できる。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
