@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-14・続き115・Sonnet 5・PLAN §3 Sonnetタスク1の残＝ビート機構Phase1-7・F-3身代わり対話・G144/G145を実機検証）**
+  - **✅ G144/G145は実機PASS（各2回連続）**＝`g144DownTrigger`（WX10-074・ダウン状態で場出し→トリガー元を無選択アップ）・`g145ByEffectTrigger`（WX10-080・他シグニが効果で場出し→自身アップ）。ともにWX15-062の【出】《無》コスト経由のADD_TO_FIELD配置で発火を確認＝2026-06-23の効果配置トリガー配線が実機でも機能。既定orderに追加。
+  - **✅ F-3コスト払い型は実機PASS（2回連続）**＝`f3PayCostWX10033`（WX10-033＝手札スペル1枚を捨ててバトルバニッシュ回避）。CPU（P15000）の攻撃に対しBanishSubstituteModalが正しく表示され選択後WX10-033が場に残ることを確認。既定orderに追加。
+  - **🐛 F-3犠牲型5枚は実機FAIL→真因確定＝Opusタスク12へ登録**＝WX12-024の効果JSONが`STUB BANISH_SUBSTITUTE`ではなく素の`CONTINUOUS BANISH{optional:true}`としてparseされているため`collectBanishSubstitutes`が拾えず、対話なしでそのままバニッシュされることを実機確認（`f3SacrificeWX12024Bug`・2回連続FAIL）。**同型5枚＝WX12-024/WXEX2-60/WX20-055/WXDi-CP01-032/WXDi-P10-052**（コスト払い型のWX10-033/WX11-029は正しい表現で無関係）。意図的FAIL回帰として既定order外に登録。
+  - **🐛 ビート機構Phase1-7もON_BECOME_BEAT self反応で真バグ発見→Opusタスク12へ登録**＝`beatBecomeSelfWDK14017`（WDK14-014→WDK14-017）で検証。**[条件]ゲート開通・beat_signiコスト支払い・ON_BECOME_BEAT any_ally反応の3点は正常動作を確認**したが、**同一イベントのON_BECOME_BEAT self反応（WDK14-017自身の「このカードが【ビート】になったとき」）だけが2回連続で一度も発火しなかった**。`collectBeatBecameTriggers`のself収集ループ（`triggerCollect.ts:1230`）とany_ally収集ループ（同1237）が同時に呼ばれるはずがself側だけ欠落＝原因未特定（コード読解だけでは確定できず追加のログ計装調査が要る）。意図的FAIL回帰として既定order外に登録。
+  - engine/parser/effects JSON変更なし（driverスクリプト＋PLAN.md/BUGFIXES.mdのみ）。`npm run gates`全緑（golden 310・census 2225維持・回帰なし）。詳細 BUGFIXES 続き115。
+
 - **セッション（2026-07-14・続き114・Sonnet 5・PLAN §3 Sonnetタスク1＝クラフトトークンの実機配置検証の残5枚を検証・`resumeSelectTarget`のcontinuation欠落という真バグを発見）**
   - **✅ 新手順（続き114・Fable 5のdriverインフラ改修）を使って`verifyBattleDrive.mjs`に4シナリオ新設**＝`craftEnergyCP02087`/`craftTurnEndP03078`/`craftHandSpellP05068`/`craftArtsBetK07105`。手動build不要・preflight警告（「空きシグニゾーンが3」を事前的中）・`H.stdStep`/`H.clickBtn`の型に沿って実装。SELECT_SIGNI_ZONE汎用ヘルパー`H.clickZone()`を新設（既存`H`共通ヘルパー束に追加）。
   - **✅ 3枚は実機PASS**＝WXDi-CP02-087（ON_PLAY→ADD_TO_FIELD source:ENERGY_CARD）・WXDi-P03-078（ON_TURN_END経由でのpowerLtSelf動的フィルタ解決）・WXDi-P05-068（スペル入れ子SEQUENCE内のDRAW×2＋ADD_TO_FIELD source:HAND_CARD）＝いずれもPLAN旧注記の懸念（エナ枚数条件／動的フィルタ／先頭ドロー脱落）に反し正常動作。既定orderに追加。
