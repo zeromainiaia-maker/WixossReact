@@ -200,49 +200,6 @@ WX25-P3-092 WX26-CP1-011 WX26-CP1-013 WX26-CP1-015 WX26-CP1-017 WX26-CP1-018
   ~ [0].action.choices[1].action.type : "BANISH" → "CONDITIONAL"
   …（他 12 行）
 
-## +BANISH +SIGNI -STUB ［3枚］
-WX12-024 WX20-055 WXEX2-60
---- WX12-024
-  原文: 【常】：このシグニがバニッシュされる場合、代わりにあなたの他の＜電機＞のシグニ１体をバニッシュしてもよい。【常】：あなたが使用する青と黒のスペルの使用コストは《無×1》減る。【起】手札から青の＜電機＞のシグニ１枚と黒の＜電機＞のシグニ１枚を捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。対戦相手は手札を１枚捨てる。,：あなたのデッキの上からカー
-  - [0].action.id = "BANISH_SUBSTITUTE"
-  - [0].action.banishSubstitute.pattern = "self_sacrifice_other"
-  - [0].action.banishSubstitute.sacrificeClass = "電機"
-  ~ [0].action.type : "STUB" → "BANISH"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.story = "電機"
-  + [0].action.target.filter.excludeSelf = true
-  + [0].action.target.upToCount = false
-  + [0].action.optional = true
---- WX20-055
-  原文: 【常】：《ライズアイコン》を持つあなたのシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。,-
-  - [0].action.id = "BANISH_SUBSTITUTE"
-  - [0].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
-  - [0].action.banishSubstitute.victimFilter = "riseIcon"
-  ~ [0].action.type : "STUB" → "BANISH"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.thisCardOnly = true
-  + [0].action.optional = true
---- WXEX2-60
-  原文: 【常】：このシグニがバニッシュされる場合、代わりにあなたの他の＜ウェポン＞のシグニ１体をバニッシュしてもよい。【自】《ターン１回》：このシグニがアタックしたとき、あなたの他の＜ウェポン＞のシグニ１体を対象とし、それをアップする。【出】《赤》：このシグニをチアガールにする。,：あなたのトラッシュから＜ウェポン＞のシグニ１枚を対象とし、それを手札に加えるか場に出
-  - [0].action.id = "BANISH_SUBSTITUTE"
-  - [0].action.banishSubstitute.pattern = "self_sacrifice_other"
-  - [0].action.banishSubstitute.sacrificeClass = "ウェポン"
-  ~ [0].action.type : "STUB" → "BANISH"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.story = "ウェポン"
-  + [0].action.target.filter.excludeSelf = true
-  + [0].action.target.upToCount = false
-  + [0].action.optional = true
-
 ## -CONDITIONAL -ENERGY_COUNT ［3枚］
 WX24-P4-066 WX25-P2-076 WXDi-D09-H21
 --- WX24-P4-066
@@ -384,39 +341,6 @@ WXDi-P09-054 WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.operator = "lte"
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   …（他 26 行）
-
-## +BANISH +SIGNI +TURN_OWNER -STUB ［2枚］
-WXDi-CP01-032 WXDi-P10-052
---- WXDi-CP01-032
-  原文: 【常】：対戦相手のターンの間、あなたの他のシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜バーチャル＞の場合、対戦相手のデッキの上からカードを３枚トラッシュに置く。この方法でトラッシュに置かれたシグニのレベルの合計が７の場合、対戦相手のデッキの上からカードを
-  - [0].action.id = "BANISH_SUBSTITUTE"
-  - [0].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
-  - [0].action.banishSubstitute.victimFilter = "otherAny"
-  - [0].action.banishSubstitute.oppTurnOnly = true
-  + [0].activeCondition.type = "TURN_OWNER"
-  + [0].activeCondition.owner = "opponent"
-  ~ [0].action.type : "STUB" → "BANISH"
-  + [0].action.target.type = "SIGNI"
-  + [0].action.target.owner = "self"
-  + [0].action.target.count = 1
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.thisCardOnly = true
-  …（他 1 行）
---- WXDi-P10-052
-  原文: 【出】：あなたの他のシグニ１体を選ぶ。【常】：対戦相手のターンの間、このシグニの【出】能力で選んだシグニがバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【起】《ターン１回》《コインアイコン》《コインアイコン》《コインアイコン》：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。,-
-  - [1].action.id = "BANISH_SUBSTITUTE"
-  - [1].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
-  - [1].action.banishSubstitute.victimFilter = "otherAny"
-  - [1].action.banishSubstitute.oppTurnOnly = true
-  + [1].activeCondition.type = "TURN_OWNER"
-  + [1].activeCondition.owner = "opponent"
-  ~ [1].action.type : "STUB" → "BANISH"
-  + [1].action.target.type = "SIGNI"
-  + [1].action.target.owner = "self"
-  + [1].action.target.count = 1
-  + [1].action.target.filter.cardType = "シグニ"
-  + [1].action.target.filter.thisCardOnly = true
-  …（他 1 行）
 
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［2枚］
 WX25-CP1-046 WXDi-P12-007

@@ -78,7 +78,7 @@ import * as path from 'path';
 // ⚠2026-07-13 続き109(Opus): 判定粒度を**カード単位→効果単位**に切替（上のヘッダ参照）。
 // ベースラインも「高シグナル欠落カード数 1447」→「高シグナル欠落**効果**数 2264」へ一括切替（併記期間なし）。
 // 数字が飛んだのは退化ではなく計測仕様の変更＝旧網が救っていた真の欠落が顕在化したもの（抜き取り5/5が真バグ）。
-const BASELINE_HIGH = 2225;
+const BASELINE_HIGH = 2220;
 // 2229 // 続き110(Fable) 第2バッチ: SPELL_USED_THIS_TURN 機構新設（Condition型＋evalCondition＝actions_done
 //   'USE_SPELL' 参照＋parser hoist/V2表＋decompiler）＝「このターンにあなたがスペルを使用していた場合」の
 //   条件丸ごと脱落11効果（hoist 8・「代わりに」置換1・CHOOSE選択肢別2）を是正。あわせて V2 に
