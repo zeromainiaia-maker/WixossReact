@@ -3,21 +3,18 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［114枚］
-PR-322 PR-370 PR-K043 SPDi44-12 WD17-009 WDK05-T11 WX05-028 WX07-001 WX07-029 WX11-036 WX12-017 WX13-002 WX13-040 WX14-024 WX14-CB02 WX16-033 WX17-009 WX17-041 WX18-009 WX20-022 WX20-033 WX20-054 WX20-067 WX21-004 WX21-047 WX24-D2-11 WX24-P1-040 WX24-P1-069 WX24-P2-007 WX24-P2-060 WX24-P2-063 WX24-P3-047 WX24-P3-062 WX24-P3-077 WX24-P4-050 WX25-CP1-002 WX25-CP1-004 WX25-CP1-052 WX25-CP1-062 WX25-CP1-082 WX25-P1-014 WX25-P2-059 WX25-P2-085 WX25-P3-055 WX26-CP1-045 WX26-CP1-062 WX26-CP1-078 WXDi-CP01-027 WXDi-CP02-075 WXDi-CP02-081 WXDi-D09-H20 WXDi-D09-H24 WXDi-D09-P17 WXDi-P00-033 WXDi-P00-038 WXDi-P00-046 WXDi-P02-036 WXDi-P02-048 WXDi-P02-053 WXDi-P03-059 WXDi-P03-071 WXDi-P04-007 WXDi-P05-048 WXDi-P05-051 WXDi-P05-058 WXDi-P05-065 WXDi-P05-068 WXDi-P06-011 WXDi-P06-032 WXDi-P06-049 WXDi-P07-049 WXDi-P08-052 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-005 WXDi-P11-078 WXDi-P12-061 WXDi-P12-066 WXDi-P13-044 WXDi-P13-045 WXDi-P14-044 WXDi-P14-052 WXDi-P14-079 WXDi-P14-081 WXDi-P15-083 WXDi-P16-008 WXDi-P16-069 WXDi-P16-078 WXEX1-15 WXEX1-43 WXEX1-53 WXEX1-55 WXEX1-65 WXEX1-67 WXEX2-04 WXEX2-27 WXEX2-30 WXEX2-31 WXK01-037 WXK01-044 WXK03-020 WXK03-029 WXK04-026 WXK04-036 WXK04-038 WXK05-021 WXK05-033 WXK08-059 WXK09-050 WXK10-010 WXK10-021 WXK11-017 WXK11-030
---- PR-322
-  原文: 【起】《ターン１回》《黒×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから黒の＜天使＞のシグニ１枚と黒の＜古代兵器＞のシグニ１枚を好きな順番でデッキの一番下に置く。そうした場合、それをトラッシュに置く。【起】《アタックフェイズアイコン》エクシード２：あなたのトラッシュから黒のシグニ１枚を対象とし、それを場に出すかあなたの手札から黒のシグニ１枚を場
-  ~ [0].action.steps[1].then.target.owner : "any" → "opponent"
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
---- PR-370
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、手札からカード名に《槍》を含むシグニを１枚捨ててもよい。そうした場合、それをトラッシュに置く。【出】：あなたのデッキの上からカードを４枚公開し、その中からカード名に《槍》を含むシグニ１枚を手札に加える。残りをシャッフルしてデッキの一番下に置く。,：対戦相手のレベル２以下のシグ
-  ~ [0].action.steps[1].then.target.owner : "any" → "opponent"
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.target.filter.level.max = 3
---- PR-K043
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、手札からレベルの合計が７になるようにシグニを好きな枚数捨ててもよい。そうした場合、それをデッキの一番下に置く。【出】《無》《無》《無》：あなたのデッキからレベルの合計が５の無色ではないシグニ２枚を探して公開し手札に加え、デッキをシャッフルする。,：どちらか１つ選ぶ。①カードを
-  ~ [0].action.steps[1].then.source.owner : "self" → "opponent"
-  + [0].action.steps[1].then.source.filter.level.max = 3
+## （type増減なし＝値/構造変更） ［37枚］
+WD17-009 WX07-029 WX13-002 WX17-009 WX18-009 WX24-D2-11 WX24-P1-069 WX24-P2-007 WX24-P3-077 WX24-P4-050 WX25-CP1-062 WX25-CP1-082 WX25-P2-059 WX25-P2-085 WXDi-CP02-075 WXDi-CP02-081 WXDi-D09-H20 WXDi-D09-H24 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-011 WXDi-P06-049 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-078 WXDi-P12-066 WXDi-P14-081 WXDi-P16-078 WXEX1-65 WXEX2-30 WXK01-037 WXK01-044 WXK03-020 WXK08-059 WXK09-050
+--- WD17-009
+  原文: 【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【自】：このシグニがアタックしたとき、このシグニの正面のシグニ１体を対象とし、このシグニのパワーが15000以上の場合、それをバニッシュする。【起】《赤》：ターン終了時まで、このシグニのパワーを＋3000する。,：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場に＜武勇＞の
+  ~ [2].action.then.target.owner : "opponent" → "self"
+--- WX07-029
+  原文: 《クロスアイコン》《幻獣　カメ》の左【クロス常】：このシグニの基本パワーは15000になる。【起】《ターン１回》《緑》：あなたのエナゾーンからカード１枚を対象とし、それを手札に加える。【クロス自】：このシグニが《ヘブン》したとき、ターン終了時まで、あなたのすべてのシグニのパワーを２倍にする。,：対戦相手のパワー8000以上のシグニ１体を対象とし、それをバニッ
+  - [0].action.target.filter.thisCardOnly = true
+--- WX13-002
+  原文: 【自】：あなたのメインフェイズ開始時、あなたのトラッシュからレベル３以下の＜毒牙＞のシグニ１枚を対象とし、それを場に出す。ターン終了時、それを場からトラッシュに置く。【起】エクシード１：あなたの＜毒牙＞のシグニ１体を対象とし、それをアップする。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード３：あなたのデッキの上からカードを３枚公開する
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.filter.story = "毒牙"
 
 ## -CHOOSE -DECK_CARD -TRASH ［12枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P01-044 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
@@ -203,6 +200,49 @@ WX25-P3-092 WX26-CP1-011 WX26-CP1-013 WX26-CP1-015 WX26-CP1-017 WX26-CP1-018
   ~ [0].action.choices[1].action.type : "BANISH" → "CONDITIONAL"
   …（他 12 行）
 
+## +BANISH +SIGNI -STUB ［3枚］
+WX12-024 WX20-055 WXEX2-60
+--- WX12-024
+  原文: 【常】：このシグニがバニッシュされる場合、代わりにあなたの他の＜電機＞のシグニ１体をバニッシュしてもよい。【常】：あなたが使用する青と黒のスペルの使用コストは《無×1》減る。【起】手札から青の＜電機＞のシグニ１枚と黒の＜電機＞のシグニ１枚を捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。対戦相手は手札を１枚捨てる。,：あなたのデッキの上からカー
+  - [0].action.id = "BANISH_SUBSTITUTE"
+  - [0].action.banishSubstitute.pattern = "self_sacrifice_other"
+  - [0].action.banishSubstitute.sacrificeClass = "電機"
+  ~ [0].action.type : "STUB" → "BANISH"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.story = "電機"
+  + [0].action.target.filter.excludeSelf = true
+  + [0].action.target.upToCount = false
+  + [0].action.optional = true
+--- WX20-055
+  原文: 【常】：《ライズアイコン》を持つあなたのシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。,-
+  - [0].action.id = "BANISH_SUBSTITUTE"
+  - [0].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
+  - [0].action.banishSubstitute.victimFilter = "riseIcon"
+  ~ [0].action.type : "STUB" → "BANISH"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.thisCardOnly = true
+  + [0].action.optional = true
+--- WXEX2-60
+  原文: 【常】：このシグニがバニッシュされる場合、代わりにあなたの他の＜ウェポン＞のシグニ１体をバニッシュしてもよい。【自】《ターン１回》：このシグニがアタックしたとき、あなたの他の＜ウェポン＞のシグニ１体を対象とし、それをアップする。【出】《赤》：このシグニをチアガールにする。,：あなたのトラッシュから＜ウェポン＞のシグニ１枚を対象とし、それを手札に加えるか場に出
+  - [0].action.id = "BANISH_SUBSTITUTE"
+  - [0].action.banishSubstitute.pattern = "self_sacrifice_other"
+  - [0].action.banishSubstitute.sacrificeClass = "ウェポン"
+  ~ [0].action.type : "STUB" → "BANISH"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.story = "ウェポン"
+  + [0].action.target.filter.excludeSelf = true
+  + [0].action.target.upToCount = false
+  + [0].action.optional = true
+
 ## -CONDITIONAL -ENERGY_COUNT ［3枚］
 WX24-P4-066 WX25-P2-076 WXDi-D09-H21
 --- WX24-P4-066
@@ -344,6 +384,39 @@ WXDi-P09-054 WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.operator = "lte"
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   …（他 26 行）
+
+## +BANISH +SIGNI +TURN_OWNER -STUB ［2枚］
+WXDi-CP01-032 WXDi-P10-052
+--- WXDi-CP01-032
+  原文: 【常】：対戦相手のターンの間、あなたの他のシグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜バーチャル＞の場合、対戦相手のデッキの上からカードを３枚トラッシュに置く。この方法でトラッシュに置かれたシグニのレベルの合計が７の場合、対戦相手のデッキの上からカードを
+  - [0].action.id = "BANISH_SUBSTITUTE"
+  - [0].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
+  - [0].action.banishSubstitute.victimFilter = "otherAny"
+  - [0].action.banishSubstitute.oppTurnOnly = true
+  + [0].activeCondition.type = "TURN_OWNER"
+  + [0].activeCondition.owner = "opponent"
+  ~ [0].action.type : "STUB" → "BANISH"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  + [0].action.target.filter.cardType = "シグニ"
+  + [0].action.target.filter.thisCardOnly = true
+  …（他 1 行）
+--- WXDi-P10-052
+  原文: 【出】：あなたの他のシグニ１体を選ぶ。【常】：対戦相手のターンの間、このシグニの【出】能力で選んだシグニがバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい。【起】《ターン１回》《コインアイコン》《コインアイコン》《コインアイコン》：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。,-
+  - [1].action.id = "BANISH_SUBSTITUTE"
+  - [1].action.banishSubstitute.pattern = "protect_other_sacrifice_self"
+  - [1].action.banishSubstitute.victimFilter = "otherAny"
+  - [1].action.banishSubstitute.oppTurnOnly = true
+  + [1].activeCondition.type = "TURN_OWNER"
+  + [1].activeCondition.owner = "opponent"
+  ~ [1].action.type : "STUB" → "BANISH"
+  + [1].action.target.type = "SIGNI"
+  + [1].action.target.owner = "self"
+  + [1].action.target.count = 1
+  + [1].action.target.filter.cardType = "シグニ"
+  + [1].action.target.filter.thisCardOnly = true
+  …（他 1 行）
 
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［2枚］
 WX25-CP1-046 WXDi-P12-007

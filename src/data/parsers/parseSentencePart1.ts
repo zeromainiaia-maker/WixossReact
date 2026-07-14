@@ -2400,35 +2400,6 @@ export function parseSentencePart1(t: string): EffectAction | null {
         optional: true,
       } as BanishSubstituteAction;
     }
-    // ---- F-3 犠牲型：身代わりバニッシュ（STUB BANISH_SUBSTITUTE + banishSubstitute）----
-    // collectBanishSubstitutes（effectEngine）がバトルバニッシュ経路で対話適用する。
-    const oppTurnOnly = /対戦相手のターンの間/.test(t);
-    // (a) 自己犠牲・他クラス犠牲型：「このシグニがバニッシュされる場合、代わりにあなたの他の＜X＞のシグニ１体をバニッシュしてもよい」
-    const selfSacM = t.match(/このシグニがバニッシュされる場合、代わりにあなたの他の(?:＜([^＞]+)＞の)?シグニ[０-９\d]*体?を?バニッシュしてもよい/);
-    if (selfSacM) {
-      return {
-        type: 'STUB', id: 'BANISH_SUBSTITUTE',
-        banishSubstitute: {
-          pattern: 'self_sacrifice_other',
-          ...(selfSacM[1] ? { sacrificeClass: selfSacM[1] } : {}),
-          ...(oppTurnOnly ? { oppTurnOnly: true } : {}),
-        },
-      } as StubAction;
-    }
-    // (b) 他者保護・自己犠牲型：「…あなたの(他の)シグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい」
-    //     《ライズアイコン》を持つ／このシグニの【出】能力で選んだ 等の限定は victimFilter で近似（P10-052の【出】選択は機構未対応で otherAny 近似）。
-    const protectSacM = t.match(/(?:あなたの(?:他の)?シグニ[０-９\d]*体?|選んだシグニ)がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい/);
-    if (protectSacM) {
-      const victimFilter = /《ライズアイコン》/.test(t) ? 'riseIcon' : 'otherAny';
-      return {
-        type: 'STUB', id: 'BANISH_SUBSTITUTE',
-        banishSubstitute: {
-          pattern: 'protect_other_sacrifice_self',
-          victimFilter,
-          ...(oppTurnOnly ? { oppTurnOnly: true } : {}),
-        },
-      } as StubAction;
-    }
   }
 
   // ---- トラッシュからスペルをこのカードの下に置く ----
