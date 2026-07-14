@@ -3953,11 +3953,15 @@ const scenarios = {
             H.log(`    (追跡)ce87 kw[${k}] pEff=${st2?.pendingEffect ?? '-'} kwGrants=${JSON.stringify(st2?.host?.keywordGrants)}`);
           }
           const stFin = await H.queryState();
-          // ⚠続き114で確認済みの真因＝resumeSelectTarget（effectExecutor.ts:4246-4253）が
-          // 「thenAction(ADD_TO_FIELD)がSELECT_SIGNI_ZONEを要求（空き2以上）」の場合に result をそのまま
-          // return し、外側SEQUENCEの pending.continuation（＝後続のGRANT_KEYWORD）を握り潰す＝
-          // ADD_TO_FIELD自体はPASSだがGRANT_KEYWORD（絆常付与）は毎回無言no-op化する。Opusタスク12へ登録。
-          return { pass: true, detail: `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスがエナゾーンから場に出た（hField=${JSON.stringify(stFin.host.fieldSigni)}）。⚠後続GRANT_KEYWORD(絆常)はkwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}＝無発火（resumeSelectTargetのcontinuation欠落バグ・Opusタスク12へ登録）` };
+          // ✅続き117（Opus・タスク12(xiv)）で修正済み＝resumeSelectTarget（effectExecutor.ts）の
+          // thenAction=ADD_TO_FIELD 分岐を execPlaceSigniOnField 経由に切替え、外側SEQUENCEの
+          // pending.continuation（＝後続のGRANT_KEYWORD）を afterAction として全配置後に実行するようにした。
+          // ADD_TO_FIELD成功に加え、配置シグニ WXDi-CP02-087#1 への 絆常付与（GRANT_KEYWORD continuation）が
+          // 実際に kwGrants へ入ることを assert する（旧・意図的no-op確認から真の回帰テストへ格上げ）。
+          const grantOk = (stFin?.host?.keywordGrants ?? []).some(g => typeof g === 'string' && g.includes('WXDi-CP02-087#1'));
+          return { pass: grantOk, detail: grantOk
+            ? `ADD_TO_FIELD(ENERGY_CARD)発火→天童アリスが場に出た＋後続GRANT_KEYWORD(絆常)も発火（kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）＝タスク12(xiv) continuation引き継ぎ修正を実機確認（hField=${JSON.stringify(stFin.host.fieldSigni)}）`
+            : `ADD_TO_FIELD成功だが後続GRANT_KEYWORD(絆常)無発火（kwGrants=${JSON.stringify(stFin?.host?.keywordGrants)}）＝continuation欠落バグ` };
         }
       }
       const fin = await H.queryState();
