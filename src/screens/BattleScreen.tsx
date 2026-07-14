@@ -3259,7 +3259,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // newMyState=ターンプレイヤー／op=非ターンプレイヤー。triggerScope:any_opp（「対戦相手のメインフェイズ開始時」
         // WXDi-P00-034）は op の場シグニで発火＝collectTurnTriggers の相手フィールド分岐が拾う。
         if (phase === 'GROW') {
-          const mpsEntries = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
+          const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
+          foldTurnUsed(mpsRes);
+          const mpsEntries = mpsRes.entries;
           if (mpsEntries.length > 0) {
             const baseStackMPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
             update.effect_stack = baseStackMPS
