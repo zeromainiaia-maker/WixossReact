@@ -78,7 +78,7 @@
 
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
-| 1 | 引用付与の内側 ability parse（引用付与残107の本丸） | parser語彙＋engine機構 | M | 内側「代わりに」置換（WX25-P3-038＝タスク6と合流）・他の内側トリガー語彙・`GRANT_LRIG_ABILITY` の ON_PLAY 誤デフォルト（タスク5と重複）。第1弾は✅続き75 |
+| **1** | 引用付与の内側 ability parse（引用付与残107の本丸）**←続き136で最優先に浮上** | parser語彙＋engine機構 | M | **🆕WX24-P2-018-E1（§7 B4）＝timing 是正（続き136）で発火するようになったが、付与先が「対象の＜龍獣＞シグニ」ではなく**ルリグ自身**で、引用内の【自】トリガーと「対戦相手が《無》×3を支払わないかぎり」条件も落ちて即時【アサシン】付与になっている**（実機 `wx24p2018GrantFire` で確認＝意図的FAIL回帰）。対象選択（SELECT_TARGET）と引用内トリガー/条件の再構成が要る。ほかに内側「代わりに」置換（WX25-P3-038＝タスク6と合流）・他の内側トリガー語彙・`GRANT_LRIG_ABILITY` の ON_PLAY 誤デフォルト（タスク5と重複）。第1弾は✅続き75 |
 | 2 | census「動的比較」の残 | parser語彙＋engine解決器 | S〜M | WXEX2-28（直前配置シグニ基準）・WXK08-005（条件文）・WXK11-003（opp/own センタールリグ） |
 | 3 | DRAW 脱落の parseSingleSentence 直呼び経路 | parser修正 | S〜M | WX20-071（3項以上の連用中止形）・split ガードで止まる複合（WXK07-042/WX20-049/WX26-CP1-066）・先頭自ドロー未捕捉（WXDi-P13-001）・対戦相手ドロー idiom・per-count ドロー・入れ子条件内。(a)(b)(c) 主部分は✅続き107 |
 | 4 | §5c 条件節の残 | parser語彙 | S | 「代わりに」WX25-P2-068/070・「あり」複合条件 WXDi-P11-048（WX25-P3-116 はタスク6送り） |
@@ -92,7 +92,7 @@
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L（低優先） | effect 構造そのものが原文とズレたカードの再parse。逓減テール＝他が尽きたら |
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
 | 15 | （大型・任意）§8 CPU AI のメインフェイズ拡張 | 新規設計 | L（特大） | ⏳DESIGN §4「CPU は対人戦と同じ処理」の統一が先 |
-| **17** | **🆕 timing 判定が引用「」の内側を先に拾う系統バグ（続き135で発見・最優先）** | parser修正（timing判定の入力テキスト） | M | 「【自】：（あなた/対戦相手）の**アタックフェイズ開始時**、…『【自】：このシグニが**アタックしたとき**…』を得る」型で、**引用付与の内側トリガー語が外側の判定より先にマッチする**＝約20枚が誤 timing（`ON_ATTACK_SIGNI` 15枚・`ON_OPP_LIFE_CRASHED` 5枚・`ON_ATTACK_LRIG` 2枚。カード一覧は BUGFIXES 続き135 ⑤）。**真因＝timing 判定チェーン（`effectParser.ts` 2700-2854）が actionText 全体を対象にしている**。修正案＝判定前に引用スパンを除いた outerText を作る（**全 timing 分岐に効くので fresh 再生成の差分精査＋census/同型★0 の確認が必須**）。原文に「アタックフェイズ開始時」を含むのに timing が違う効果は計83件あり、残りは遅延句「次の〜」や引用内定義など別分類＝分類してから着手する |
+| ~~17~~ | ~~timing 判定が本文後半/引用内のトリガー語を先に拾う系統バグ~~ **✅続き136（Opus）で修正＝判定を「効果ブロック先頭のトリガー句」に限定（`trigText`）。JSON 23効果を ON_ATTACK_PHASE_START へ是正・census 2218→2215・golden 326・同型★0維持。詳細 BUGFIXES 続き136** |
 | 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | ✅ engine 配線済みで parser 語彙だけ無いクラスタは続き75/76で出し切った（19系統81枚・376→128）。**残128は engine に受け皿が無い機構待ち＝§6.3 へ**。ロングテール（1〜6件）のみ。運用知見は PLAN_DETAIL §3 |
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。詳細本文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3 の (i)〜(xx)）：
@@ -147,24 +147,26 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-15・続き135・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化4件）**
+- **🆕 セッション（2026-07-15・続き135-136・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化4件／タスク17＝timing判定の系統修正）**
   - **✅ usageLimit ガード欠落の5コレクタを一括是正（タスク12(x)＋(vi-5)）**＝`collectFieldTriggers`（**判定コード自体が無かった**・ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any系＝実カード32枚）・`collectBloomTriggers`（2枚）・`collectBanishTriggers`（18枚）・`collectPowerZeroTriggers`（6枚）・`collectLrigGrowTriggers`（4枚）を `{entries, usedHostIds, usedGuestIds}` 型へ統一（`mkLimitOk`＋消費IDの返却）。**BattleScreen 12箇所で `actions_done` へ書き戻し**（収集の合間に畳み込むので同一パスの複数召喚でも1回だけ発火）。`twice_per_turn` も同時に有効化。
   - **✅ `POWER_MODIFY_PER_DECK_COUNT` を CONTINUOUS 計算層に実装（タスク12(vi)）**＝PR-442「デッキ10枚につき＋4000」が常に無効だった（executor のコメントが虚偽で effectEngine に実装が無かった）。
   - **✅ `applyDirectAction` の TRASH/HAND_CARD が手札カウンタ3種を更新（タスク12(iv)）**＝`count:1` の SELECT_TARGET 経由パスだけ `hand_discarded_just`/`turn_hand_discarded_count`/`hand_trashed_by_opp_this_turn` の更新と手札保護を欠いていた（ON_HAND_DISCARDED 不発火・「代わりに」置換の起点不成立を併発）。
   - **✅ 検証**：全ゲート緑（typecheck／**golden 319→325**＝新設6件／smoke 全0／fuzz 全0／census 2218 維持／lint 0 error）。**実機 E2E 新設 `onPlayUsageLimit`**（WX24-P1-046＝＜地獣＞2体召喚でエナチャージが1回だけ）を2回連続PASS＋既定 order に追加。effects JSON は無変更。**driver 既定 order 全数＝65 PASS / 5 FAIL＝いずれも本修正が原因でないと切り分け済み**（3件はバッチ状態汚染＝個別実行でPASS／`oppDraw` は既知の単独FAIL／`lrigGrowAnyOppP03046` は「CPUがグロウ判断に至らない」＝変更点より手前・同経路の `lrigGrowAnyOpp`/`cpugrow` は PASS。詳細 BUGFIXES 続き135 ④）。
   - **🆕 新規発見＝parser の timing 判定が引用「」の内側を先に拾う系統バグ（→Opusタスク17 として登録）**：タスク12(xiii)（WX24-P2-018-E1）は単発ではなく、「【自】：（あなた/対戦相手）のアタックフェイズ開始時、…『【自】：このシグニがアタックしたとき…』を得る」型で**内側の引用トリガーが外側より先にマッチする約20枚**の系統。
-  - **次の一手**：Opus＝タスク17（引用内 timing 誤マッチの系統修正・fresh 差分精査が要る）→タスク12 の残在庫。Sonnet＝**タスク1（§7横展開）が一部復活**＝今回の修正で `trashCounterOpp`／ON_LRIG_GROW④／R37③ の意図的FAIL回帰シナリオを PASS へ反転できるか再検証できる。
+  - **✅ タスク17（続き136）＝【自】の timing 判定を「効果ブロック先頭のトリガー句」に限定**（従来は actionText 全体を見ており、トリガー句より後ろの本文・引用付与の内側にある「…したとき」を先に拾って timing が化けていた）。旧/新 parser の fresh を全カード比較＝**timing 変化19件・timing以外の構造差0件**を確認したうえで、**「アタックフェイズ開始時」の誤 timing 23効果**（ON_ATTACK_SIGNI→APS 14／ON_OPP_LIFE_CRASHED→APS 5／ON_ATTACK_LRIG→APS 2 ほか）を JSON へ外科的にパッチ（timing/scope のみ・機械検証済み）。**同型★0 維持・census 2218→2215・golden 326**。
+  - **🆕 実機で B4 が前進＝`wx24p2018GrantFire`**：修正前は「アタックフェイズで何も起きない」→ **E1 が発火し任意コスト支払いまで到達**。ただし**付与先がルリグ自身**（原文は「＜龍獣＞のシグニ1体を対象」）＝**引用付与の内側 parse の別バグ**を新規露出＝**Opusタスク1 へ登録**（意図的FAIL回帰のまま）。
+  - **次の一手**：Opus＝**タスク1（引用付与の内側 ability parse）**＝WX24-P2-018 の付与先/内側トリガーの再構成が本丸（B4 の残り）→タスク12 の残在庫。Sonnet＝**タスク1（§7横展開）が一部復活**＝続き135 の修正で `trashCounterOpp`／ON_LRIG_GROW④／R37③ の意図的FAIL回帰シナリオを PASS へ反転できるか再検証できる。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 2218【効果単位】**（2026-07-13 続き109 で判定粒度を「カード単位」→「効果単位（effectId）」へ切替。旧カード単位の 1447 とは**計測仕様が違うので比較不能**）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。**前提＝`docs/_effect_srctext.json`（`npm run build:effects` の副産物）が最新であること**（無ければ census は exit 1）。明細 `docs/_vocab_census.txt`・消化の入口は `npm run census:clusters`（§5c）。**切替の根拠と計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109。**
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 2215【効果単位】**（2026-07-13 続き109 で判定粒度を「カード単位」→「効果単位（effectId）」へ切替。旧カード単位の 1447 とは**計測仕様が違うので比較不能**）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。**前提＝`docs/_effect_srctext.json`（`npm run build:effects` の副産物）が最新であること**（無ければ census は exit 1）。明細 `docs/_vocab_census.txt`・消化の入口は `npm run census:clusters`（§5c）。**切替の根拠と計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109。**
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 325・smoke/fuzz 全0・同型★0・census 2218。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 326・smoke/fuzz 全0・同型★0・census 2215。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（census 高シグナルの機械分類＝純P1 87%／混在9%／純§6.3 5%）。
 >
