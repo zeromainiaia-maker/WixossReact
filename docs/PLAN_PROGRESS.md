@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-14・続き125・Sonnet 5・PLAN §6.4／§3 Sonnetタスク1＝WXK07-105実機検証の再開）**
+  - **✅ WXK07-105（アーツ・ベット分岐＝IS_BETTINGでADD_TO_FIELD source:HAND_CARDが2回発火）を再検証・2回連続PASS**＝続き117（Opus・タスク12(xiv)）で`resumeSelectTarget`の`pending.continuation`握り潰しバグが修正済みだったにもかかわらず、PLANには「driver側のHAND_CARDピッカー未クリックで依然FAIL＝Sonnet driverタスク」という未検証の推測が残ったままだった。実行してみると既存の`H.stdStep()`（`pick-0`ハンドリング込み）だけで1体目・2体目のADD_TO_FIELD（SELECT_TARGET→SELECT_SIGNI_ZONE）とも問題なく解決＝旧登録は誤りと判明。
+  - **対応**：`craftArtsBetK07105`を既定`order`配列に追加。scenario本体＋order直後の古いコメントを実態に合わせて修正。`docs/PLAN.md` §6.4「クラフトトークンの実機配置検証」の残からWXK07-105を除去（残＝WX22-001-E3のみ＝機構待ち）。
+  - **✅ 検証**：全ゲート緑（golden 319・smoke SKIP 1・fuzz全0・census 2218維持・lint 0 error）。driver script + docs のみ。engine/parser/effects JSON変更なし。
+
 - **🆕 セッション（2026-07-14・続き124・Opus 4.8・PLAN §3 Opusタスク5＝小口持ち越し #4「あなたの他の…シグニ」owner:any潰れの修正）**
   - **🐛→✅ 「あなたの他の＜X＞のシグニのうち最も…を対象とし」が owner:any（＋story/excludeSelf欠落）に潰れる parser バグを修正**（WX25-CP1-051/WXDi-CP02-070）＝GRANT_KEYWORDの`kwSelfSigni`/`kwExcludeSelf`と POWER_MODIFYの owner判定に「他の」プレフィックス＋超上級句を narrow に拾う分岐を追加。
   - **⚠blast radius**：初版（`[^。、]*`広マッチ）が held 38→90枚に急増→**「のうち最も」＋「他の」必須のnarrow化で90→49に抑制**（増加11枚は全て「あなたの他の…シグニ」の正当な owner:self 化・held据置で回帰なし）。対象2枚＋同パターン明確5枚を`heldReview --adopt`で採用（計7枚）。残4枚（色/複クラス接頭でexcludeSelf未抽出2＋count/trigger要確認2）はheld据置。
