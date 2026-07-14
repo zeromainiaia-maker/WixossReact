@@ -47,6 +47,8 @@ export interface ExecCtx {
   // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
   // 相手効果でフィールドから移動（バウンス/トラッシュ）できないシグニ番号
   otherTrashFieldProtectedNums?: string[];
+  // SELF_TRASH_PREVENT（WX07-033）: 効果オーナー自身の効果/コストで場からトラッシュに置けない自シグニ番号
+  ownSelfTrashPreventNums?: Set<string>;
   // PREVENT_OPP_SIGNI_ABILITY_GAIN / PREVENT_ABILITY_CHANGE_BY_OPP:
   // 相手効果でキーワード能力を付与できないシグニ番号
   otherAbilityGainProtectedNums?: string[];
