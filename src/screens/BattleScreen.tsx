@@ -6441,7 +6441,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット（側面アタックは攻撃先ゾーンを保持）
-      const newMyStateWithPending: PlayerState = { ...newMyState, pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) } };
+      const newMyStateWithPending: PlayerState = {
+        ...newMyState,
+        ...(atkUsedMine.length > 0 ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine] } : {}),
+        pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) },
+      };
 
       const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries];
       if (allAttackTriggers.length > 0) {
@@ -6451,11 +6455,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, allAttackTriggers)
           : initStack(turnPlayerId, allAttackTriggers);
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpState, effect_stack: stack })
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtk, effect_stack: stack })
           .eq('room_id', roomId);
       } else {
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpState })
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtk })
           .eq('room_id', roomId);
       }
     } finally {
