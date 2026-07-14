@@ -1767,9 +1767,18 @@ export function collectGrowCostReductions(
 ): { color: string; count: number }[] {
   const totals = new Map<string, number>();
   const add = (color: string, count: number) => { if (count > 0) totals.set(color, (totals.get(color) ?? 0) + count); };
+  const baseNumG = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   const scan = (action: EffectAction) => {
     if (action.type === 'GROW_COST_REDUCTION') {
-      for (const r of (action as import('../types/effects').GrowCostReductionAction).reduction) add(r.color, r.count);
+      const gcr = action as import('../types/effects').GrowCostReductionAction;
+      // per-count scaling:「トラッシュの<filter>N枚につき」＝一致枚数を数えて floor(match/N) 倍する
+      // （一致 N 未満なら 0＝減額なし）。perCount 無しは従来どおり固定減額。
+      let mult = 1;
+      if (gcr.perCount) {
+        const matchCount = state.trash.filter(n => matchesFilter(cardMap.get(baseNumG(n)), gcr.perCount!.filter)).length;
+        mult = Math.floor(matchCount / gcr.perCount.count);
+      }
+      if (mult > 0) for (const r of gcr.reduction) add(r.color, r.count * mult);
     } else if (action.type === 'COST_REDUCTION' && (action as CostReductionAction).isGrowCost) {
       for (const r of (action as CostReductionAction).reduction) add(r.color, r.count);
     } else if (action.type === 'SEQUENCE') {
