@@ -1286,6 +1286,10 @@ export interface LookAtDeckAndLifeAction {
 export interface GrowCostReductionAction {
   type: 'GROW_COST_REDUCTION';
   reduction: EnergyCost[];
+  // per-count scaling:「あなたのトラッシュにある<filter>N枚につき reduction 分減る」（WX14-009/WD14-001）。
+  // 指定時、reduction の各 count は floor(トラッシュ内 filter 一致枚数 / perCount.count) 倍される
+  // （一致が perCount.count 未満なら 0＝減額なし）。zone は現状トラッシュのみ。
+  perCount?: { filter: TargetFilter; count: number };
 }
 
 // このゲームの間、対戦相手は同名カードを使用できない
