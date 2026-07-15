@@ -5524,6 +5524,14 @@ try {
 const SHOTS_ON = process.env.SHOTS === '1' || (process.env.SHOTS !== '0' && requested.length > 0);
 if (!SHOTS_ON) console.log('スクショ省略中（バッチ既定。有効化は SHOTS=1）');
 
+// Playwright のブラウザ/レンダラプロセスのクラッシュ（`Target crashed` 等）か判定する＝
+// タスク12(xxvi) の耐障害化でセッション再確立トリガーに使う。page が既に閉じている場合も真。
+function isCrashError(page, e) {
+  try { if (page && page.isClosed && page.isClosed()) return true; } catch { /* noop */ }
+  const msg = String(e?.message ?? e ?? '');
+  return /Target crashed|Target closed|Page crashed|Session closed|browser has been closed|has been closed|Protocol error.*(close|crash)/i.test(msg);
+}
+
 await buildFirst();
 const { proc, url } = await startDev();
 // 異常終了（例外・Ctrl+C）でも preview server を残さない保険（'exit' ハンドラは同期処理のみ可）
