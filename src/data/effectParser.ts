@@ -1164,6 +1164,20 @@ function matchLeadingStateCondition(text: string): { condition: Condition; rest:
   return null;
 }
 
+// CONDITIONAL 持ち上げの条件節「その後、〜の場合、」全体を STATE_CONDITION_CLAUSES で照合する
+//（前段の記録に依存しない独立ゲート＝盤面状態条件。engine evalCondition 対応済みの型のみ）。
+// 例：「その後、対戦相手の手札が０枚の場合、」→ HAND_COUNT(opponent,eq,0)／
+//     「その後、あなたのライフクロスが１枚以下の場合、」→ LIFE_COUNT(self,lte,1)。
+// これが無いと thenM 一致後に condition=null で IS_MY_TURN 化（常時真）＝条件の無言脱落になる（§3 Opusタスク12(xxii)）。
+function parseHoistStateCondition(prefix: string): Condition | null {
+  const t = prefix.trim().replace(/^その後、/, '').replace(/、$/, '');
+  for (const [re, mk] of STATE_CONDITION_CLAUSES) {
+    const m = t.match(new RegExp('^' + re.source + '$'));
+    if (m) return mk(m.slice(1));
+  }
+  return null;
+}
+
 // 文が最上級句（「最も…パワー/レベル」）を含むとき、その文で組み立てた action の SIGNI target.filter へ
 // superlative を注入する（BANISH/BOUNCE/POWER_MODIFY/GRANT_KEYWORD 等 target 経路が多岐にわたるため中央で一括）。
 // parseSuperlative は「最も[大きい/高い/小さい/低い]パワー/レベル」等でのみ非nullなので誤爆しない。
