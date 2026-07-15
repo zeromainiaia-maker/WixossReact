@@ -1083,6 +1083,33 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   return { type: 'LAST_PROCESSED_MATCHES', filter, minCount };
 }
 
+// 多分岐の後続枝：「〔レベルN(以上/以下)?/スペル/＜X＞の(シグニ)?/(色)の(シグニ)?〕の場合、X」（名詞を省略した
+// elliptical 形＝「レベル２の場合、」等を含む）を、直前に処理した公開/ミル結果への LAST_PROCESSED_MATCHES 追加分岐
+// として解く。**多分岐（レベル別に効果が変わる公開/ミル結果）の後続枝専用**＝呼び出し側で prevIsLpmChain
+//（直前ステップが LAST_PROCESSED_MATCHES の CONDITIONAL）をゲートすること。これが無いと後続枝が条件を失った
+// bare step になり無条件発火する（§3 タスク12(xxii) 多分岐＝WXDi-P13-049「レベル1→引く。レベル2→捨てさせる。…」）。
+// カード属性フィルタが1つも取れない（レベルが偶数/奇数・「シグニの場合」等）や盤面語を含む desc は null（bare 据置）。
+function parseBareBranchCondition(clause: string): { condition: Condition; rest: string } | null {
+  const m = clause.match(/^(.+?)の場合、(.+)$/s);
+  if (!m) return null;
+  const desc = m[1];
+  // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
+  if (/あなた|対戦相手|場|トラッシュ|エナ|ライフ|ルリグ|手札|デッキ|この方法|そうした|支払|ベット|達成|枚|体|種類|偶数|奇数|合計/.test(desc)) return null;
+  const filter: TargetFilter = {};
+  const lvAbove = desc.match(/レベル([０-９\d]+)以上/);
+  const lvBelow = desc.match(/レベル([０-９\d]+)以下/);
+  const lvExact = desc.match(/レベル([０-９\d]+)(?:の|$)/);
+  if (lvAbove || lvBelow) filter.level = { ...(lvAbove ? { min: parseNum(lvAbove[1]) } : {}), ...(lvBelow ? { max: parseNum(lvBelow[1]) } : {}) };
+  else if (lvExact) filter.level = parseNum(lvExact[1]);
+  Object.assign(filter, parseStoryFilter(desc), parseColorFilter(desc), parseGuardFilter(desc));
+  if (/スペル/.test(desc)) filter.cardType = 'スペル';
+  else if (/シグニ/.test(desc)) filter.cardType = 'シグニ';
+  const hasDisc = filter.level !== undefined || filter.story !== undefined || filter.color !== undefined ||
+    !!filter.hasGuard || !!filter.noGuard || filter.cardType === 'スペル';
+  if (!hasDisc) return null;
+  return { condition: { type: 'LAST_PROCESSED_MATCHES', filter }, rest: m[2] };
+}
+
 // ===== アクションパース（1文） =====
 
 
