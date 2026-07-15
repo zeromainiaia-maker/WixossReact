@@ -2,6 +2,15 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## LIMIT_ALL_FIELD_1（WX04-005-E3・場出し数制限）は実装済み＝タスク12(xix)「完全未実装」は誤診断・golden で挙動固定（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(xix)）
+
+**続き126（Sonnet）が「`STUB LIMIT_ALL_FIELD_1` が engine 完全未実装（case 自体が存在しない）」と登録した項目を精査したところ、実装済みと判明した。**
+
+- **誤診断の原因**：続き126 は `STUB` の executor（`execStubPart*.ts`）に `LIMIT_ALL_FIELD_1` の case が無いことをもって「未実装」と判断した。実際にはこの効果は**継続効果（場のシグニ上限ルール）**として `src/screens/battle/fieldLimit.ts` に実装されており、STUB executor 経由ではない。
+- **実装の所在（確認）**：(1) `computeFieldSigniLimit`＝自/相手いずれかのセンタールリグが `LIMIT_ALL_FIELD_N` 継続STUBを持てば両者に上限N（min）を適用・無ければ3。(2) `reduceFieldSigniToLimit`＝上限超過分をレベル高い順に残し残りをスタックごとトラッシュ（原文「すでに場に２体以上ある場合は１体になるように」）。(3) 配線＝召喚ブロック（`BattleScreen.tsx:6024` の `myCurrentSigniCount < fieldSigniCountLimit`）／グロウ時に各プレイヤーへ対話式の超過トラッシュ選択エントリを積む（`:5116`）／CPU 側は自動減量（`:8103`）。
+- **本セッションの対応**：実装の正しさを golden で固定（`computeFieldSigniLimit` が WX04-005 ルリグで上限1・既定3／`reduceFieldSigniToLimit` が L1/L2/L3 の3体を上限1で最高レベル(L3)だけ残し2体トラッシュ・上限以内は無変化）。**engine/JSON 無変更・golden 328→331**。
+- **残る既知の軽微近似**（`fieldLimit.ts:77` に明記）＝減量でトラッシュされたシグニの ON_LEAVE_FIELD/ON_TRASH トリガーは `reduceFieldSigniToLimit`（CPU自動減量）経路では未収集。人間側のグロウ経路は TRASH アクションのスタックエントリ経由なので通常収集される。単発カード1枚のため低優先で据置。
+
 ## ON_TARGETED forced単一対象follow-up＝targetsTriggerSource/targetsLastProcessed の自動対象化が collectTargetedTriggers を素通りする実バグを修正（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(xx)）
 
 **続き127（Sonnet）で実機再現・登録された「targetsTriggerSource の選択UIなし自動解決が ON_TARGETED を発火させない」実バグを修正した。**
