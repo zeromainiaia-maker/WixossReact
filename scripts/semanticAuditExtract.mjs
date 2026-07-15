@@ -67,8 +67,8 @@ const norm = (s) => {
   return t === '-' ? '' : t;
 };
 
-const stubGroup = [];   // STUB/MANUAL 含有＝逆翻訳の盲点（本命）
-const cleanGroup = [];  // 全効果 AUTO かつ STUB 無し＝対照群（偽陽性率の測定）
+let stubGroup = [];   // STUB/MANUAL 含有＝逆翻訳の盲点（本命）
+let cleanGroup = [];  // 全効果 AUTO かつ STUB 無し＝対照群（偽陽性率の測定）
 const textNoJson = [];  // テキストはあるが JSON 未登録
 for (const [num, card] of cards) {
   const hasText = norm(card.EffectText) || norm(card.BurstText);
@@ -80,6 +80,12 @@ for (const [num, card] of cards) {
 }
 stubGroup.sort();
 cleanGroup.sort();
+
+if (excludeFile) {
+  const excludeSet = new Set(readFileSync(excludeFile, 'utf8').split(/[,\n\r]+/).map((s) => s.trim()).filter(Boolean));
+  stubGroup = stubGroup.filter((n) => !excludeSet.has(n));
+  cleanGroup = cleanGroup.filter((n) => !excludeSet.has(n));
+}
 
 // ---- サンプリング（シード付きで決定的） ----
 function mulberry32(a) {
