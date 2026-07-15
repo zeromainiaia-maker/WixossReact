@@ -3842,7 +3842,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
-      console.log('[DBG_XX2] entry.effectId=', entry.effectId, 'done=', result.done, 'gHand=', guestState.hand.length, 'gDeck=', guestState.deck.length, 'newStackDone=', isStackDone(newStack));
 
       const stackAfter = isStackDone(newStack) ? null : newStack;
       const update: Record<string, unknown> = {
