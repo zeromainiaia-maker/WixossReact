@@ -1,6 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
+
+## ON_TARGETED forced単一対象follow-up＝targetsTriggerSource/targetsLastProcessed の自動対象化が collectTargetedTriggers を素通りする実バグを修正（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(xx)）
+
+**続き127（Sonnet）で実機再現・登録された「targetsTriggerSource の選択UIなし自動解決が ON_TARGETED を発火させない」実バグを修正した。**
+
+- **真因**：`POWER_MODIFY{targetsTriggerSource:true}`（および `targetsLastProcessed`）は「それ」= `triggeringCardNum`（無ければ `sourceCardNum`）を**選択UIを生成せず直接 `done()` 適用**する（`execPowerModify`・`effectExecutor.ts:515`）。ON_TARGETED の収集は `handleEffectInteraction` の SELECT_TARGET 確定分岐（`BattleScreen.tsx:4142`）でのみ行われるため、この自動解決経路は一度も interaction を経ず ON_TARGETED を素通りしていた。
+- **修正**：(1) `ExecCtx`／`ExecResult`（done）に `autoTargetedCards?: string[]` を追加し `done()` で surface（`execUtils.ts`）。(2) `execPowerModify` の `targetsTriggerSource`／`targetsLastProcessed` の自動適用パスで自動対象化したシグニを `autoTargetedCards` に積む。(3) `resolveStackNext` の done 分岐（`BattleScreen.tsx`）で `result.autoTargetedCards` のうち**効果発生源の対戦相手の場にあるシグニ**を `collectTargetedTriggers` にかけ、ON_TARGETED エントリをスタックへ後乗せ＋usageLimit を actions_done へ書き戻す（既存の SELECT_TARGET 経路と同型）。自分の場のシグニを自己バフした場合（owner:self）は対戦相手フィールド判定で除外され ON_TARGETED は発火しない（正しい挙動）。
+- **実機再現→PASS反転**：`onTargetedForcedBypass`（WX12-010〔ON_ATTACK_SIGNI any_opp＋targetsTriggerSource -2000〕× WXDi-P03-067〔ON_TARGETED self＝DRAW×1〕）。CPU の自動アタック→POWER_MODIFY(-2000)成立→**ON_TARGETED で guest が1枚ドロー**（空手札注入→gHand=1）を **FRESH=1 で2回連続PASS**。⚠計測メモ＝CPUアタックが注入直後・最初の queryState より前に完結するため drive 側で delta 観測は不可。空手札([])を注入して「発火すれば必ず hand===1」の絶対値で判定する形にシナリオを作り直した（修正前は POWER_MODIFY だけ成立し hand===0 のまま）。既定 `order` に追加。
+- **対象実カード母集団**（続き127）＝`targetsTriggerSource`/`targetsLastProcessed` かつ `target.owner:'opponent'` の WX12-010/WXEX2-29/WXDi-P03-043/WXDi-P04-065/WXK10-022 の5枚（これらが対戦相手の場の ON_TARGETED シグニをたまたま対象にした場合の発火漏れ）。いずれも bare/直接の watcher で resolveStackNext 経由に解決されるため本修正でカバーされる。
+- **検証**：全ゲート緑（typecheck／**golden 326→328**＝targetsTriggerSource/targetsLastProcessed の autoTargetedCards surface テスト2件新設／smoke 全0／fuzz 全0／census 2215 維持／lint 0 error）。effects JSON 無変更。
 設計方針は [DESIGN.md](./DESIGN.md)、未対応の作業・今後の計画は [PLAN.md](./PLAN.md)（旧 P1_PLAN.md/ROADMAP.md/TODO.md を統合）。
 
 ---
