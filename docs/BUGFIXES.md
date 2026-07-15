@@ -2,6 +2,26 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## §7実機検証横展開＝trashCounterOpp/lrigGrowUsageLimitをタスク12(iv)/(vi-5)の修正反映でPASSへ反転・既定orderに追加（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1(a)(b)）
+
+**PLAN §3タスク1「§7実機検証の横展開」のうち、続き135（Opus）のタスク12(iv)/(vi-5)修正で反転見込みとされていた意図的FAIL回帰シナリオ2本を再検証した。**
+
+- **`trashCounterOpp`（WX14-040-E3・タスク12(iv)）**：`applyDirectAction`のTRASH/HAND_CARD分岐が手札カウンタ3種を更新しない実engineバグ（続き81で確認・続き135で修正）の反転検証。再実行したところ`hand_trashed_by_opp_this_turn`が正しく加算されPASS。ただし**シナリオ自体が`handPrepend`（続き139で特定した残留ランダム手札混入バグと同型）を使っており、単体でも間欠的にFAILする不安定さがあった**＝`handPrepend`を`hand:['WX14-040#1']`直接指定へ変更（続き139のblockDrawByEffect/exileHandBlindと同じ修正パターン）。修正後、FRESH=1新規ルーム2回・既存ルーム再利用1回の計3回連続PASS＝既定orderに追加。
+- **`lrigGrowUsageLimit`（WXDi-P03-039-E2・タスク12(vi-5)）**：二面コレクタのusageLimit書き戻し欠落（続き135で修正）の反転検証。続き132は「driverでlrigTopが変化せず再現不能」と記録していたが、**これはengineバグではなくdriver側の誤り**と判明＝ゲット・グロウ横グロウで開くグロウ先カード（月蝕の巫女タマヨリヒメ）の【出】効果コスト確認モーダル（`SigniOnPlayCostModal`）を、driveコードがスペル用のtestId（`spellcost-energy-0`）で探していたため永久に一致せず「なし」を繰り返し、グロウ完了判定（`lrigTop`変化）に到達できていなかった。修正＝候補クリック後は正しいtestId（`onplaycost-energy-0`）とスキップボタンで【出】効果モーダルを処理する分岐を追加。修正後FRESH=1で2回連続PASS（`usageLimit`正しく機能＝ゲット・グロウ経由の2回目`ON_LRIG_GROW`で発火せず）＝既定orderに追加。
+- **残課題（未着手）**：タスク1(c)「R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit」は既存シナリオ`powerzero`が基本発火のみを検証しており、2回目トリガーの発火有無を確認する専用シナリオが未実装＝新規シナリオ作成が要る（次点）。
+- **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。
+
+## driverバッチ実行の状態汚染＝タスク12(xxv)「バッチ位置依存FAIL」の根本原因を特定・修正（2026-07-15・続き140・Opus 4.8・PLAN §3 Opusタスク12(xxv)）
+
+> ⚠**この節はコミット履歴（`d9df6f44`〜`c4befa9c`・17:22-17:52）から事後的に復元した記録**。当該セッションがPLAN.md/BUGFIXES.mdへの簿記を行う前に終了したため、続き141（Sonnet）がコードdiffを読んで補完した。詳細な検証ログ（71件フルバッチでの再実行結果など）は失われている可能性がある。
+
+**続き139（Sonnet）がOpusタスク12(xxv)へ登録した「71件フルバッチでのみ再現しscripts単体・5連結では再現しない状態汚染」を調査し、`injectScenario`のDB側累積状態という根本原因を特定した。**
+
+- **原因**：`injectScenario`がリセットする`CORE_TOP_FIELDS`（deck/life_cloth/trash/lrig_trash等）のうち、deck/life_cloth/trash/lrig_trashは「盤面の物理配置」ではあるが**shared な`battle_states`行を跨いで単調に消耗/増加する累積フィールド**（deckはドローで減り、life_clothはクラッシュ/リフレッシュで減り、trash/lrig_trashは増える一方）。約67シナリオがこれらを明示的に上書きしないため、71件フルバッチの後半でhost.deckが枯渇し「4枚引く」系（delayedAttackTrigger/exileHandBlind等）が完走できず、life_cloth枯渇による試合終了状態で後続シナリオが連鎖的にFAILしていた。続き139が「client側の累積疲労」と見立てていたのは誤診断で、**実際はDB側の累積であり`page.reload()`では消えない**。
+- **修正**：`field`配下のステータスマーカーと同じ方式で、`injectScenario`実行のたびにdeck/life_cloth/trash/lrig_trashを健全な既定値（フィラーカード`WD01-013`でhost 40/7枚・guest 40/7枚）へ張り直してから、`spec.hostSet`/`guestSet`のoverrideを適用するよう変更（`deck`を自前注入する`refreshTrigger`等は従来どおりoverrideが効く）。
+- **副次修正**：`exileHandBlind`のEXILE(HAND_CARD,blind)ピッカーが、フラグベース（pick-0/pick-1を各1回だけ押す）でバッチ時のレースに弱く「1枚だけ選んで決定」を誤完走させていたのを、決定ボタンの表示テキスト`決定 (N/M)`から実選択数を読み取り必要数に届くまで未選択枠を選び続ける方式へ堅牢化。`blockDrawByEffect`にも、最初のクリックが空振りし未召喚のまま残った場合の再クリックフォールバックを追加。
+- **検証**：この節の記録元セッションでの71件フルバッチ再実行結果は記録が残っていない＝**次回のOpus/Sonnetセッションで71件フルバッチを再実行し、タスク12(xxv)の解消を確認する作業が引き続き必要**。
+
 ## driver バッチ実行の状態汚染＝blockDrawByEffect/exileHandBlindの原因特定・修正＋残る71件フルバッチ限定flakinessの切り分け（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3）
 
 **PLAN §3タスク3「driverバッチ実行の状態汚染」＝`blockDrawByEffect`/`exileHandBlind`/`delayedAttackTrigger`の3シナリオがバッチ実行時のみFAILし個別実行ではPASSする、という続き135（Opus）の観測を検証した。**
