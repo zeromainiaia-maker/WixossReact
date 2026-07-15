@@ -968,6 +968,7 @@ export interface TransferToDeckAction {
   shuffle: boolean;
   destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
   position?: 'top' | 'bottom';        // デッキの挿入位置（省略時は top）
+  optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
 }
 
 // スペル/アーツの効果を打ち消す
