@@ -1426,6 +1426,72 @@ const scenarios = {
     },
   },
 
+  // ⑪' WX21-067-E1（続き141・Sonnet・PLAN §7「R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit」）＝タスク12(vi-5)
+  //    （続き135・Opusで二面コレクタのusageLimit書き戻しを一括修正済み）の実機検証。powerzero と同じトリガー源
+  //    （WD11-013【出】：対戦相手シグニ1体に-1000）を手札に2枚用意し、guest場に P1000 のバニッシュ対象を2体
+  //    配置＝1体目の召喚でwatcher（アイン＝テトロド）が発火してドロー→2体目の召喚でも同様に0以下化するが、
+  //    《ターン1回》のためドローが再発火しないことを確認する。
+  powerzeroUsageLimit: {
+    title: 'WD11-013×2→WX21-067（ON_SIGNI_POWER_ZERO_OR_LESS＝usageLimit《ターン1回》の実機検証）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX08-004#1'],                              // ミュウ Lv4/Limit11
+        'field.signi': [['WX21-067#1'], null, null],               // watcher（アイン＝テトロド）
+        'hand': ['WD11-013#1', 'WD11-013#2'],                      // 幻蟲 モンチョウ×2（決定的指定＝handPrependの残留ランダム手札混入flakinessを避ける）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-083#1'], ['WX01-083#2'], null],     // バニッシュ対象×2（各P1000＝-1000でちょうど0化）
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const summonAndTarget = async (label, guestCountBefore) => {
+        let summoned = false;
+        for (let s = 0; s < 20; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/powerzeroUL-${label}-${s}.png`, fullPage: true });
+          let did = null;
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+          if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2', 'summon-zone-0');
+          if (!did) { // SELECT_TARGET（-1000 対象＝guest の WX01-083）
+            const pick0 = page.getByTestId('pick-0').first();
+            if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+              const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+              if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+          const st = await H.queryState();
+          const guestCount = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
+          H.log(`  pzul-${label}[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} gCount=${guestCount} actionsDone=${JSON.stringify(st?.host?.actionsDone)} pEff=${st?.pendingEffect ?? '-'}`);
+          if (guestCount < guestCountBefore) return { st, settled: true };
+        }
+        return { st: await H.queryState(), settled: false };
+      };
+
+      await H.ensureMain();
+      H.log('1枚目 手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const r1 = await summonAndTarget('1', 2);
+      if (!r1.settled) return { pass: false, detail: `1回目のバニッシュ未完走（gField=${JSON.stringify(r1.st?.guest?.fieldSigni)}）＝検証空振り` };
+      const done1 = (r1.st?.host?.actionsDone ?? []).includes('WX21-067-E1');
+      if (!done1) return { pass: false, detail: `1回目のON_SIGNI_POWER_ZERO_OR_LESSが発火せず検証空振り（actionsDone=${JSON.stringify(r1.st?.host?.actionsDone)}）` };
+      const hHandAfter1 = r1.st?.host?.hand ?? 0;
+      H.log(`1回目の発火確認（hHand=${hHandAfter1}）。2枚目のWD11-013で2回目のトリガーを起動する…`);
+
+      await H.ensureMain();
+      H.log('2枚目 手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const r2 = await summonAndTarget('2', 1);
+      if (!r2.settled) return { pass: false, detail: `2回目のバニッシュ未完走（gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）＝検証空振り` };
+      const hHandAfter2 = r2.st?.host?.hand ?? 0;
+      if (hHandAfter2 > hHandAfter1) {
+        return { pass: false, detail: `実バグ確認＝usageLimit once_per_turnにもかかわらずON_SIGNI_POWER_ZERO_OR_LESSが同一ターン内で2回発火（2回目も手札 ${hHandAfter1}→${hHandAfter2}でドロー・gField=${JSON.stringify(r2.st?.guest?.fieldSigni)}）` };
+      }
+      return { pass: true, detail: `usageLimit正しく機能＝2枚目のWD11-013による2回目のON_SIGNI_POWER_ZERO_OR_LESSでは発火せず（手札 ${hHandAfter1}→${hHandAfter2}のまま・guest.fieldSigni=${JSON.stringify(r2.st?.guest?.fieldSigni)}）` };
+    },
+  },
+
   // R37「他4枚の個別確認」①のうち signi watcher 2枚（WX20-Re03/WXDi-P01-043）＝powerzero と同型・watcherのみ差し替え。
   powerzeroWX20Re03: {
     title: 'WD11-013→WX20-Re03（R37他4枚①＝ON_SIGNI_POWER_ZERO_OR_LESS・エナチャージ1）',
