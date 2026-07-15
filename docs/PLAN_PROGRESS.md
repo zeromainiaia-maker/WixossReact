@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き144・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ第2弾・完了）**
+  - **✅ seed202607サンプル200枚（stub100+clean100）を全数監査完了**。続き102が`claude -p`セッション上限で中断していた残りclean群80枚を消化。アーカイブに`prompts/`/`raw/`が残っておらず、かつ母集団のstub/clean境界がその後の作業でドリフトして同シード再サンプリングが再現不能（185/200件が別カードに変化）と判明したため、**アーカイブ済み`manifest.json`の`picked`配列を直接の真実ソースとして`slice(120,200)`で残り80枚を明示指定**（`--cards`）して再現性を確保。8バッチ中1バッチがAPIサーバーエラーで失敗→単独再実行で回収し全80枚完走。
+  - **findings 88件（HIGH57/MED28/LOW3）取得・アーカイブの旧125件と統合し累計213件**（`findings.jsonl`の`batch`フィールドは元の通し番号13-20へ補正）。HIGH中心にサンプル12件超をJSON本体と原文で直接照合し**全件で指摘内容が正確**と確認（owner/count/duration/timing/条件節欠落を具体的フィールド名まで正しく特定）。
+  - **既存トラッキングと機械照合し重複除外＝新規実害バグ37枚を確認**。系統別＝A条件節丸ごと欠落11枚（既存PARTIAL計器の死角＝IS_MY_TURN化すらせず無条件化）／B duration/until誤り6枚（POWER_MODIFY/REMOVE_ABILITIES/GRANT_PROTECTION/BLOCK_ACTIONが一時効果を永続化or即時化＝続き62修正の未カバーaction型）／C owner対象範囲誤り6枚（WX10-061＝相手にも+3000適用の重度バグ等）／D timing取り違え4枚（【自】がON_PLAY化）／E主要処理欠落7枚（WXDi-P15-004＝§6.3級新規機構）／Fフィルター単点欠落13枚。**Opusタスク12(xxvii)へ登録**。詳細`docs/_semantic_audit_scaleup2_triage.txt`。
+  - **本セッションはengine/parser/JSON変更なし**（計器実行＋分析＝CLAUDE.mdのガードレール通り、発見したバグはその場で直さずOpusへ登録）。`npm run gates`は未変更のため実行不要（直前続き143の全緑を維持）。
+  - **次の一手**：Sonnet＝stub群母集団2,401枚のうち未サンプリング約2,301枚への semantic audit スケールアップ第3弾（新シードで`semanticAuditExtract.mjs --per-group <N>`）。Opus＝タスク12(xxvii)含む在庫消化。
+
 - **セッション（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)＝IS_MY_TURN化127件バグを3バッチ計22件消化）**
   - **✅ 第1バッチ12件**＝①`parseLastProcessedMatchesCondition` を「それが」に加え**「そのカードが…の場合」**へ拡張②前段の記録に依存しない**盤面状態条件の持ち上げ fallback**（`parseHoistStateCondition`）。内訳＝LAST_PROCESSED_MATCHES 8／LRIG_STORY 2／SELF_POWER_GTE 2。
   - **✅ 第2バッチ8件（結果カウント閾値 Cluster B）**＝汎用カウント条件パーサ **`parseThisWayGenericCount`**（`LAST_PROCESSED_MATCHES{filter,minCount}` で一致数≥閾値を評価）。**記録確認済みの動詞に限定**（公開/トラッシュ/エナ/除外/バニッシュ/デッキ戻し）＋**捕捉不能形（合計/すべて/種類/枚数が/偶数/《…》）は据置**（初回21件フリップ→7件が取りこぼし誤抽出と機械検証で判明し除外語追加）。
