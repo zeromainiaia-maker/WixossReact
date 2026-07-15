@@ -2,6 +2,34 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## semantic audit スケールアップ第2弾＝seed202607サンプル200枚が全数監査完了・新規37枚をOpusタスク12(xxvii)へ登録（2026-07-16・続き144・Sonnet 5・PLAN §3 Sonnetタスク8）
+
+**続き102（2026-07-12）が`claude -p`セッション上限で中断していたsemantic auditサンプル200枚（stub100+clean100・seed202607）のうち、未監査だった残りclean群80枚を完走した。分析専用（engine/parser/JSON変更なし）＝CLAUDE.mdのガードレール通り、発見したバグはその場で直さずOpusタスク12へ登録。**
+
+### 再開時に踏んだ落とし穴（後続セッション向けの手順修正）
+- アーカイブ`scripts/archive/scratchpad/semantic_audit_101/`には`findings.jsonl`/`findings_compact.txt`/`manifest.json`のみが残り、バッチ完了判定に使う`prompts/`/`raw/`は元の作業ディレクトリ（gitignore対象）ごと消失していた（続き139で既に指摘済みの問題）。
+- 続き102の案内どおり`semanticAuditExtract.mjs --per-group 100 --seed 202607`を素朴に再実行したところ、**母集団のstub/clean境界がその後のcensus-batch等の作業でドリフトしており、同シードでも200枚中185枚が別カードに変化**＝再現不能と判明（`stubOrManual`が2398→2401、`cleanAuto`が3577→3574に変動）。
+- **対策＝アーカイブ済み`manifest.json`の`picked`配列（順序固定・200枚）を直接の真実ソースとして使用**。`picked.slice(120,200)`で未監査の残り80枚（すべてclean群）を明示的なカードリストとして取得し、`semanticAuditExtract.mjs --cards <80枚CSV> --batch-size 10`で決定論的にプロンプトを再構成した。次回このサンプルを追監査する場合も同様に`manifest.json`の`picked`を直接参照すること（再サンプリングしない）。
+
+### 実行結果
+8バッチ中batch_01がAPIサーバーエラー（`Server error mid-response`）で失敗→単独再実行（`--batches 1`）で回収し全80枚完走。**findings 88件（HIGH57/MED28/LOW3）取得**。アーカイブの旧125件（続き102・batch1-12・119枚分）と統合し**累計213件**（新規分の`batch`フィールドは元の通し番号13-20へ補正）。これでseed=202607の200枚サンプルは全数監査完了。
+
+### 精度確認
+HIGH findingsから12件超をJSON本体と原文で直接照合＝**全件で指摘内容が正確**（owner/count/duration/timing/条件節の欠落を具体的フィールド名まで正しく特定）。clean群（STUB無し）のため既知の偽陽性パターン（STUB+CONDITIONAL(IS_MY_TURN)任意コストイディオム等）はほぼ該当せず、LOW3件のみ精度に留保あり。
+
+### 既存トラッキングとの重複除去（機械照合）
+`docs/_partial_triage.txt`と3枚重複（WX21-023／WD14-012／WXK06-031＝既にIS_MY_TURN化Cluster A/B/Cとして登録済み）、`docs/PLAN.md`本文と2枚重複（WXK11-055＝G072残・WXEX1-35＝別種の新規指摘のため実質新規）。**残り37枚が新規の実害ありバグ**。
+
+系統別クラスタ（詳細・全ID一覧は`docs/_semantic_audit_scaleup2_triage.txt`）：
+- **A. 条件節丸ごと欠落（11枚）**＝「〜の場合」「〜あるかぎり」がIS_MY_TURN化すらせず単純に消える＝既存のPARTIAL計器（`markSilentFallback`）の死角。PR-K073／WD22-037-UG(3効果)／WDK13-008／WX08-034／WX09-Re04／WX15-101／WX20-040(2効果)／WXEX1-45(2効果)／WXEX1-50／WXDi-P03-001／WXDi-P11-066。
+- **B. duration/until誤り（6枚）**＝POWER_MODIFY/REMOVE_ABILITIES/GRANT_PROTECTION/BLOCK_ACTIONで「ターン終了時まで」等の一時効果がduration:INSTANT化 or until:PERMANENT化＝続き62（Opusタスク(A)）のGRANT_KEYWORD/REMOVE_ABILITIES向け修正ではカバーされていない他action型の同型欠陥。WX07-078／WX09-Re04-E1／WXK06-031-BURST／WX11-038-E2／WX17-025-E3／WXDi-P09-006-E2。
+- **C. owner/対象範囲誤り（6枚）**＝WX10-061（「あなたの他のレベル3のシグニ」がowner:any・レベル/自己除外フィルターなし＝対戦相手にも+3000適用され得る重度バグ）／WX11-038-E1／WXEX1-35-E1／WXEX1-50-E2／WXEX1-57-E1／WXK06-031。
+- **D. timing取り違え（4枚）**＝【自】が全てON_PLAY化。SPDi43-12-sub-E1／WX12-006-E2／WXDi-P11-007-E1／WXDi-P11-066-E1。
+- **E. 主要処理欠落/機構未実装（7枚）**＝WXDi-P15-004（「すべてのルリグが起動能力を得る」がUNKNOWN＋ピース使用時に即時発動する構造的誤り＝§6.3級の新規GRANT機構）／WXDi-P03-001／WX25-CP1-035／WX25-P1-053(2効果)／WXDi-CP02-043／WXDi-CP02-085／WX24-P4-010。
+- **F. フィルター単点欠落（13枚）**＝大半は単一カードの対象フィルター脱落。一部（WDK13-008・WXEX1-45）は既知の「合計制約」census死角（PLAN §5c(7)）。
+
+PLAN.md Opusタスク12へ🆕(xxvii)として登録。§3 Sonnetタスク8は本ラウンド完了とし、次の一手はstub群母集団2,401枚のうち未サンプリング約2,301枚への新シードスケールアップ。
+
 ## IS_MY_TURN化127件バグ消化＝第1バッチ（そのカード/盤面状態）12件＋第2バッチ（結果カウント閾値 Cluster B）8件＋第3バッチ（多分岐後続枝）2件（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)）
 
 **続き138（Sonnet・タスク9トリアージ）が Opusタスク12(xxii) へ登録した「後置条件節を parser が抽出できず無言で常時true化（IS_MY_TURN化）＝127件の過剰実行バグ」のうち、engine 対応済み条件型で直せる均一形を parser 規則追加で消化した。同一セッションで第1バッチ12件＋第2バッチ8件＋第3バッチ2件＝計22件。**
