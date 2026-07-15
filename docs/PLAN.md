@@ -109,7 +109,7 @@
 | ~~(vi)~~ | ~~`POWER_MODIFY_PER_DECK_COUNT`（PR-442・CONTINUOUS）が CONTINUOUS 計算層に未実装（続き84）~~ **✅続き135（Opus）で実装＝`extractPowerModifiesPerDeckCount`＋`calcFieldPowers` 計算ブロック・golden 1件** |
 | (vi-4)／~~(vi-5)~~ | 他6コレクタの LRIG ゾーン走査漏れ（該当実カード0＝潜在バグ・**未消化**）／~~二面コレクタ3種の usageLimit 書き戻し~~ **✅続き135（Opus）で(x)と一括修正＝Banish18枚/PowerZero6枚/LrigGrow4枚** |
 | (vii) | 「アップ状態のこのシグニをダウンしてもよい」系の対象/自己混同・条件欠落の構造的バグ7件（続き89） |
-| (viii) | checkAllEffects 精査で残った複合バグ7件（WX26-CP1-048 の出自条件欠落ほか・続き90） |
+| (viii) | checkAllEffects 精査で残った複合バグ（続き90）。**✅WX25-CP1-062＝続き137（Opus）で修正（欠落していた第1能力を MANUAL 復元・heldReview 採用・census 2215→2214）**。残＝WX26-CP1-048（出自条件欠落+owner混同）・WXDi-P10-034（次メインフェイズ遅延+分岐）・WX16-038（アイコン条件）・WX16-070（値のCHOOSE化）・WX17-028（TRANSFER_TO_DECK optional）・WDK16-13/WXK08-033（2条件ADD_TO_FIELD＋登録者数条件）。大半 parser混線でMANUAL上書き＋heldReview採用が要る |
 | ~~(x)~~ | ~~`collectFieldTriggers` に usageLimit 自体が無く《ターン1回》が過剰発火（続き104・32枚）~~ **✅続き135（Opus）で修正＝5コレクタを `{entries, usedHostIds, usedGuestIds}` 型へ統一＋BattleScreen 12箇所で書き戻し。実機 `onPlayUsageLimit` 2回連続PASS** |
 | (xi) | curated の `CONDITIONAL{条件, then:STUB OPTIONAL_COST}` 包み形27枚の扱い（続き110） |
 | (xii) | WXEX1-19-E2＝自己再帰STUBと `resumeSelectTarget` の個別適用ループが設計非互換＝実プレイでも無限ループ（続き112） |
