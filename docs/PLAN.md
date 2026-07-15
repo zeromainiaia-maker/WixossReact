@@ -151,11 +151,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3＝driverバッチ状態汚染の切り分け）**
-  - **✅ `blockDrawByEffect`/`exileHandBlind`の原因特定・修正**＝`handPrepend`（`.slice(0,4)`で前シナリオ/mulligan由来の実ランダム手札を持ち越す実装）が末尾に紛れ込む余剰カードで召喚ボタン/pick候補の出現順序を狂わせ、driveのクリック列を空振りさせていた。**続き135の「個別実行では3件ともPASS」は誤りでバッチ位置非依存の単体flakinessと確定**（FRESH=1単体でも複数回FAIL再現）。修正＝両シナリオを完全決定的な`'hand':[...]`直接指定へ変更。5シナリオ連結（freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger）で3回連続ALL PASS確認。
-  - **⚠残課題→Opusタスク12(xxv)へ登録**：71件フルバッチではこの3件を含む複数件が依然FAILする場合がある（2回試行、うち1回は残留devサーバーのポート衝突という環境要因）。5連結では再現せず71件通しでのみ再現＝**続き105の「reloadで client 側残留状態を解消した」という診断自体を疑うべき事実**（reloadは既に毎シナリオ実施済みでJSヒープごと破棄されるはずなのに再現する）。Sonnetの調査では原因を確定できず＝**scriptsインフラ課題だが Opus へ切り分け結果ごと引き継ぐ**（ユーザー指示・詳細は task12(xxv)）。
-  - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。詳細 BUGFIXES 続き139。
-  - **次の一手**：Sonnet＝在庫はタスク8（semantic audit・claude -p再開可能）のみ残存。Opus＝タスク12在庫（(vii)(viii)per-card構造修正約8枚／(xii)WXEX1-19無限ループ／(xxi)collectOppDrawTriggers／(xxii)IS_MY_TURN化127件のparser条件節抽出／(xxiii)リコレクト分割8件〔WX25-P1-00X系列は新規GRANT機構が要る§6.3級〕／(xxiv)発生源フィルタ脱落8件／**🆕(xxv)driverバッチランナーの長時間セッション累積疲労＝原因未確定のscriptsインフラ課題**）→本丸のタスク1（引用付与の内側parse）。
+- **🆕 セッション（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1(a)(b)＝§7実機検証横展開）**
+  - **⚠簿記の前置き**：セッション開始時、直近コミット（`d9df6f44`〜`c4befa9c`・17:22-17:52）が**PLAN/BUGFIXES未記載のまま**存在していた＝続き140（Opus）がSonnetタスク3で登録したOpusタスク12(xxv)「driverバッチ位置依存FAIL」を修正済みだが簿記前にセッション終了した形跡。コミット履歴から内容を復元しBUGFIXES/PLAN_PROGRESSへ事後記録した（詳細はBUGFIXES続き140の節）。**71件フルバッチでの再検証は依然未実施のまま**＝次セッションの持ち越し。
+  - **✅ `trashCounterOpp`（タスク12(iv)）／`lrigGrowUsageLimit`（タスク12(vi-5)）をPASSへ反転・既定orderに追加**＝続き135のOpus修正の反転検証。trashCounterOppは`handPrepend`起因の残留ランダム手札混入（続き139と同型）を`hand`直接指定へ修正。lrigGrowUsageLimitは「driverでlrigTopが変化せず再現不能」（続き132の旧記録）の真因が**engineではなくdriver側のtestId誤り**（グロウ先【出】効果コストモーダルをスペル用testIdで探していた）と判明・修正。各2〜3回連続PASSで既定order（73件）に追加。詳細BUGFIXES続き141。
+  - **未着手**：タスク1(c)「R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit」は専用シナリオ未実装（既存`powerzero`は基本発火のみ検証）＝新規シナリオ作成が要る。
+  - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。
+  - **次の一手**：Sonnet＝タスク1(c)（新規シナリオ作成）／タスク8（semantic audit）が在庫。71件フルバッチの再実行でタスク12(xxv)修正の効果を確認するのも軽量に取れる。Opus＝タスク12在庫（(vii)(viii)per-card構造修正約8枚／(xii)WXEX1-19無限ループ／(xxi)collectOppDrawTriggers／(xxii)IS_MY_TURN化127件のparser条件節抽出／(xxiii)リコレクト分割8件〔WX25-P1-00X系列は新規GRANT機構が要る§6.3級〕／(xxiv)発生源フィルタ脱落8件）→本丸のタスク1（引用付与の内側parse）。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
