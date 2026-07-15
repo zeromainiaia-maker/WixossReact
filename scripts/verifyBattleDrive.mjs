@@ -3408,7 +3408,6 @@ const scenarios = {
       await page.waitForTimeout(700);
       H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
       let chose = false;
-      let picked0 = false, picked1 = false;
       let t1 = null; // コスト支払い（エナ→トラッシュ1枚）完了後のtrash基準値。t0はコスト支払い前なのでEXILE判定には使えない
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
