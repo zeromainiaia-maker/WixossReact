@@ -3631,9 +3631,9 @@ const scenarios = {
         'field.lrig': ['WD01-001#1'],        // タマ Lv4/Limit11（WX14-040がLv4のため、Lv2のWD03-003では召喚不可＝要Lv4以上センター）
         'field.signi': [null, null, null],
         'energy': ['WD03-009#1'],           // 青×1（E3コスト。E1白/E2赤/E4黒は払えずスキップされる想定）
+        'hand': ['WX14-040#1'],             // 羅植　ヤシ（Lv4・クラス制限なし・E3のみ青コスト所持）＝決定的指定（旧handPrependは残留ランダム手札混入でmy-hand-card-0がずれるflakinessの原因だった）
         'actions_done': [],
       },
-      handPrepend: ['WX14-040#1'],          // 羅植　ヤシ（Lv4・クラス制限なし・E3のみ青コスト所持）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
