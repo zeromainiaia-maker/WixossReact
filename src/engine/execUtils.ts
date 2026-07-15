@@ -195,7 +195,7 @@ export function canPayOptionalCost(costColors: string[], state: PlayerState, car
 }
 
 export function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, autoTargetedCards: ctx.autoTargetedCards };
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
