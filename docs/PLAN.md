@@ -114,7 +114,7 @@
 | (xi) | curated の `CONDITIONAL{条件, then:STUB OPTIONAL_COST}` 包み形27枚の扱い（続き110） |
 | (xii) | WXEX1-19-E2＝自己再帰STUBと `resumeSelectTarget` の個別適用ループが設計非互換＝実プレイでも無限ループ（続き112） |
 | ~~(xiii)~~ | ~~WX24-P2-018-E1＝ルリグの「アタックフェイズ開始時」が `ON_ATTACK_SIGNI`（自己スコープ）で誤登録され一度も発火しない（続き112・§7 B4 のブロッカー）~~ **✅続き136（Opus・タスク17）の timing 系統修正で `ON_ATTACK_PHASE_START` へ是正済み（JSON確認）。残る付与先バグはタスク1（引用付与の内側 parse）** |
-| (xix) | WX04-005-E3＝STUB `LIMIT_ALL_FIELD_1`（場出し数制限）が engine 未実装（続き126） |
+| ~~(xix)~~ | ~~WX04-005-E3＝STUB `LIMIT_ALL_FIELD_1`（場出し数制限）が engine 未実装（続き126）~~ **✅続き137（Opus）で誤診断と判明＝実装済み。`src/screens/battle/fieldLimit.ts`（`computeFieldSigniLimit`＝両者上限算出／`reduceFieldSigniToLimit`＝超過分をレベル高順に残しトラッシュ）＋BattleScreen 配線（召喚ブロック `BattleScreen:6024`／グロウ時の対話式トラッシュ `:5116`／CPU自動減量 `:8103`）。続き126 は STUB executor の case だけを見た誤り（継続効果として別モジュールに実装）。golden 3件で挙動固定（compute/reduce）。⚠減量トラッシュの ON_LEAVE/ON_TRASH 未収集は既知の軽微近似（fieldLimit.ts:77）** |
 | ~~(xx)~~ | ~~`POWER_MODIFY{targetsTriggerSource:true}` 系＝ON_TARGETED の forced 単一対象 follow-up が未発火（続き127）~~ **✅続き137（Opus）で修正＝`ExecResult` に `autoTargetedCards` を surface し `resolveStackNext` done 分岐で ON_TARGETED を収集。実機 `onTargetedForcedBypass` 2回連続PASS・golden 2件・詳細 BUGFIXES 続き137** |
 | 🆕 | `choice.condition`（選択肢の使用可否条件）と fresh の `choice.action` CONDITIONAL ラップの**表現不整合＝設計判断が要る**（続き130・census-batch が採用不能になる原因） |
 | (xxi) | `collectOppDrawTriggers`（`triggerCollect.ts:691`）が ON_DRAW any_opp watcher の発生源（対戦相手自身の効果か reactor 自身の効果か）を区別せず、「対戦相手が**自分の効果で**」を明記するカード（PR-423 等）が reactor 自身の効果由来の対戦相手ドローにも誤発火する＝実機再現済み（続き131・シナリオ`oppDrawOwnEffectOnly`・意図的FAIL回帰） |
