@@ -2,6 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## WX17-028-E1 の「してもよい」欠落＝TRANSFER_TO_DECK(TRASH) に optional を engine 対応＋JSON付与＝タスク12(viii) の per-card 修正2枚目（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
+
+**羅星姫≡ソラフレア≡の【自】「トラッシュから＜宇宙＞シグニ4枚をデッキに戻してシャッフルしてもよい。そうした場合【ダブルクラッシュ】を得る」が、TRANSFER_TO_DECK を強制実行し「してもよい」を無視していた。**
+
+- **真因**：`execTransferToDeck` の `TRASH_CARD` 経路（`effectExecutor.ts:2632`）は候補を無条件 `slice(0,N)` で強制転送し、`a.optional` を一切見ていなかった（HAND_CARD 経路は selectOrInteract を使うのに TRASH_CARD だけ未対応）。結果、断りたくても4枚が強制的にデッキへ戻り、常に【ダブルクラッシュ】が付与される過剰実行。
+- **修正**：(1) 型に `TransferToDeckAction.optional?` を追加（`effects.ts`）。(2) `execTransferToDeck` の TRASH_CARD 経路で `a.optional && count!=='ALL'` なら `selectOrInteract`（`self_trash`/`opp_trash` スコープ・upTo=true）で選択/スキップ可能に。**スキップ（0体選択）時は既存の `resumeSelectTarget`→`stripDidItConditional`（`effectExecutor.ts:4301`）が後続「そうした場合」(CONDITIONAL IS_MY_TURN→GRANT) を無効化**するため、断れば【ダブルクラッシュ】も付与されない。(3) JSON `WX17-028-E1` の TRANSFER_TO_DECK に `optional:true` を付与（MANUAL-in-JSON カード＝richness ガードで保全されるため直接編集）。(4) decompiler が TRANSFER_TO_DECK の optional を「（してもよい）」表示するよう追記。
+- **検証**：**golden 331→332**（optional TRANSFER_TO_DECK＝選択UIを出す/スキップで「そうした場合」無効化/選択で転送＋付与の3点）／逆翻訳が原文一致（「…デッキに加えてシャッフルする（してもよい）。そうした場合…【ダブルクラッシュ】を持つ」）／census 2214 維持／同型★0／全ゲート緑。⚠トラッシュ候補0枚時の空grant（TRANSFER 0＋GRANT）は本修正前からの既存近似（非空ケースのみ改善）。eachDistinctLevel の厳密選択強制も従来どおり近似（既知）。
+
 ## WX25-CP1-062 の欠落していた第1能力を復元＝タスク12(viii) の per-card 構造修正1枚（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
 
 **現行 parser が2能力を1効果に混線させ欠落していた第1能力を MANUAL 上書きで復元した（(vii)(viii) バッチの1枚目）。**
