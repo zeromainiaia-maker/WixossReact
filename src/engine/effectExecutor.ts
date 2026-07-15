@@ -547,7 +547,9 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (a.targetsLastProcessed) {
     const autoNums = (ctx.lastProcessedCards ?? []).filter(n => cands.includes(n));
     if (autoNums.length === 0) return done(ctx);
-    return done(applyPowerMod(autoNums, ctx));
+    const applied = applyPowerMod(autoNums, ctx);
+    // targetsTriggerSource と同型＝選択UIを経ない自動対象化を ON_TARGETED 収集用に surface（続き137・タスク12(xx)）。
+    return done({ ...applied, autoTargetedCards: [...(ctx.autoTargetedCards ?? []), ...autoNums] });
   }
 
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
