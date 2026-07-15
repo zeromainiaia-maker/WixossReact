@@ -2,6 +2,19 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## PARTIAL 刻印 152件の初回トリアージ＝144件を実害ありと確定・Opusタスク12へ登録（2026-07-15・続き138・Sonnet 5・PLAN §3 Sonnetタスク9）
+
+**`docs/_partial_report.txt`（`npm run build:effects` 副産物・続き38の `markSilentFallback` 刻印）が確立以来一度もトリアージされていなかった152件を、原文照合＋効果JSON本体の直接確認で3分類した（parser/engine 変更なし・純粋な分類作業）。**
+
+- **手順**：`npm run build:effects` を再実行して新鮮さを確認（152件・内容不変）→ `docs/_effect_srctext.json` から全152件の原文ブロックを引いて `IS_MY_TURN化` 127件の理由テキストを目視分類 → `public/data/effects_*.json` から代表サンプル（multi-dest分割11件全件・リコレクト分割8件中6件・発生源フィルタ脱落の代表1件）を直接読み、JSON構造が原文と一致するか確認。
+- **結果**：**(a) 実害あり144件／(b) 慣例で無害11件／(c) 機構待ち0件**。
+  - **IS_MY_TURN化127件＝全件(a)**。文型クラスタ：属性判定65（「その後、レベル/色/センタールリグ等がXの場合」）・カウント閾値59（「この方法でN枚以上〜した場合」）・否定条件3（「〜しなかった場合」＝WD14-012-E2等は最も実害が大きい：捨てても捨てなくても後続の自壊処理が発火）。§9-9のLIFE_BURST内IS_MY_TURN慣例には非該当（そちらは効果全体のCONDITIONAL包み、今回のは後置の個別条件節）。
+  - **multi-dest分割11件＝全件(b)**。`effectParser.ts:2068` のUNKNOWN枝無言除外ロジックだが、11件全件をJSON本体で直接確認した結果 `LOOK_PICK_CHAIN`＋`targetsLastProcessed`／STUB化等で原文の内容は過不足なく保持されていた＝対応不要。
+  - **リコレクト分割8件＝(a)（深刻）**。同じUNKNOWN無言除外ロジック（`effectParser.ts:1945-1946`）だが実際に本体が消えているケースを複数確認：SPDi47-03-E2（ドロー＋ディスカードの本体actionが丸ごと消失）／SPDi47-05-E2（バニッシュ代替の置換ルールが丸ごと消失）／**WX25-P1-001/003/005/007/009（5件同一テンプレ）＝センタールリグへ独立した3つのエクシード起動能力を付与するGRANT機構が丸ごと欠落し、コストゲートも選択もなく3能力を即時連続実行してしまう最も深刻な過剰実行**／WX24-P4-016-E3（GRANT_KEYWORD「マジックボックス」が原文トリガーと不一致）。
+  - **発生源フィルタ脱落8件＝全件(a)**。ON_DISCARDED_AS_COST(5)/ON_OPP_POWER_DECREASED(2)/ON_CARD_MILLED_FROM_DECK(1) のトリガー条件から「＜X＞のシグニの効果/【出】【起】」限定が脱落＝WX25-P3-071-E2で確認（`triggerCondition`にフィルタなし＝微菌以外のコスト捨てでも誤発火）。
+- **成果物**：`docs/_partial_triage.txt`（分類根拠・全件IDリスト・JSON実例）。PLAN.md §3 Opusタスク12へ (xxii) IS_MY_TURN化127件・(xxiii) リコレクト分割8件・(xxiv) 発生源フィルタ脱落8件として登録（parser修正はガードレール②によりOpus担当）。
+- **検証**：本セッションはデータ分類のみ（parser/engine/JSON無変更）。`npm run gates` 全緑（typecheck／golden 334／smoke 全0／fuzz 全0／census 2213 不変／lint 0 error）で無変化を確認。
+
 ## WX16-070-E1 の「＋1か＋2してもよい」欠落＝値の CHOOSE 化＋LEVEL_MODIFY thisCardOnly 対応＝タスク12(viii) の per-card 修正3枚目（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
 
 **仕英の文章＃シゴト＃の【自】「このシグニのレベルを＋１するか＋２してもよい」を、parser が LEVEL_MODIFY +1 固定に潰していた（＋2 の選択肢と「してもよい」を欠落・「このシグニ」も未限定）。**
