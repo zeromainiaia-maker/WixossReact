@@ -2,9 +2,20 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
-## IS_MY_TURN化127件バグの第1バッチ消化＝「そのカードが…の場合」＋盤面状態条件の持ち上げ（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)）
+## IS_MY_TURN化127件バグ消化＝第1バッチ（そのカード/盤面状態）12件＋第2バッチ（結果カウント閾値 Cluster B）8件（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)）
 
-**続き138（Sonnet・タスク9トリアージ）が Opusタスク12(xxii) へ登録した「後置条件節を parser が抽出できず無言で常時true化（IS_MY_TURN化）＝127件の過剰実行バグ」のうち、engine 対応済み条件型で直せる均一形12件を parser 規則追加で消化した。**
+**続き138（Sonnet・タスク9トリアージ）が Opusタスク12(xxii) へ登録した「後置条件節を parser が抽出できず無言で常時true化（IS_MY_TURN化）＝127件の過剰実行バグ」のうち、engine 対応済み条件型で直せる均一形を parser 規則追加で消化した。同一セッションで第1バッチ12件＋第2バッチ8件＝計20件。**
+
+### 第2バッチ＝結果カウント閾値（Cluster B・8件）
+
+- **根本原因**：Cluster B の「この方法で〔フィルタ〕がN枚/体以上〜した場合」（直前の可変/任意アクションの結果に依存する分岐）も、抽出器が対応せず IS_MY_TURN 化していた。
+- **修正＝汎用カウント条件パーサ `parseThisWayGenericCount` を新設**：engine の `LAST_PROCESSED_MATCHES{filter, minCount}` / `LAST_PROCESSED_COUNT_GTE` は「直前に処理したカード（lastProcessedCards）のフィルタ一致数が閾値以上か」を評価できる。前段が lastProcessedCards を**記録することを engine 実装で確認済みの動詞に限定**（公開=REVEAL／トラッシュ=TRASH/MILL／エナ=ENERGY_CHARGE／除外=EXILE／バニッシュ=BANISH／デッキ戻し=TRANSFER_TO_DECK）して、`parseStoryFilter`/`parseLevelFilter`/`parseColorFilter`/`parseGuardFilter` で全フィルタを捕捉。`prevRecords` ゲート下でのみ呼ぶ。
+- **⚠捕捉不能な形は据置（IS_MY_TURN のまま＝census が継続検出＝偽陰性を作らない）**：`合計`（レベル総和＝別条件型）・`すべて`（全一致＝minCount≥N で表せない）・`種類`/`異なる`（distinct）・`枚数が`（ちょうどN・多分岐の枝）・`偶数`/`奇数`・`《…》`（アイコン/名前フィルタ）・`【`（マーカー）・`になった`（デッキ0/ビート）・特定カード名ペア。**初回 build で 21件フリップ→うち7件がこれら取りこぼしの誤抽出（レベル合計4/すべて2/枚数1）と機械検証で判明したため除外語を追加して据置**（実害＝過剰許容の誤条件を作るのを防いだ）。
+- **是正した8効果**（全件：抽出条件を原文照合＋fresh JSON で直前ステップが記録アクションであることを機械確認・機械diffで「意図した8枚のみ変更」）＝WDK06-C07（黒minCount5）／WX14-069（植物minCount2・エナ）／WX25-CP1-008（ブルアカ・CHOOSE①内）／WX26-CP1-092（プリオケ）／WXDi-P01-034-E2（レベル1シグニminCount2）／WXDi-P03-083（スペル）／WXDi-P06-082（レベル1シグニ）／WXK06-030（龍獣minCount8）。
+- **今回除外（多分岐・別バッチ）**：WDK16-13/WXK08-033（第1枝のみ正・第2枝が bare ADD_TO_FIELD で無条件発火の別バグ）／WXDi-P13-049（レベル別4分岐の第2枝以降が無条件）／WX14-072（前段が「公開するか…トラッシュ」の選択を単一TRASHに誤parse＝記録が条件と非対応）。
+- **ゲート**：`npm run gates` 全緑（golden **337**〔+2＝minCount閾値の実行テスト＋構造固定テスト〕）。**census 2210 → 2206**。同型★0維持・逆翻訳原文照合（「《黒》のカード5枚以上なら」「＜龍獣＞のシグニ8枚以上なら」）。
+
+### 第1バッチ＝そのカード参照／盤面状態条件（12件）
 
 - **根本原因**：`effectParser.ts` の CONDITIONAL 持ち上げ（「その後、〜の場合、」を前ステップと結合）で、条件節を `parseThisWayTrashCondition`／`parseLastProcessedMatchesCondition` が抽出できなかったとき `condition: { type: 'IS_MY_TURN' }` にフォールバックする（`effectParser.ts:2490`）。IS_MY_TURN は自ターン中は常時真なので、本来偽になり得る条件（公開カードのレベル/クラス・盤面状態）を無視して分岐が常時発火する＝過剰実行。
 - **修正①＝`parseLastProcessedMatchesCondition` を「そのカードが」に拡張**：従来は「(その後、)それが〜の場合、」しか受けず、原文で頻出する「その後、**そのカード**がレベル１のシグニの場合、」（デッキトップ公開→レベル参照の典型系統）を落として IS_MY_TURN 化していた。regex を `(?:それが|そのカードが)` へ拡張。直前の「デッキの一番上を公開する」（`prevIsRevealLook`）が既存ロジックで `REVEAL_DECK_TOP` へ置換され lastProcessedCards を記録するため、engine の `LAST_PROCESSED_MATCHES` が正しく評価できる。
