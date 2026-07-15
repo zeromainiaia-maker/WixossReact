@@ -2488,6 +2488,11 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
       }
+      // 前段の記録に依存しない盤面状態条件（対戦相手手札N枚・ライフ枚数・センタールリグ＜X＞等）。
+      // 「代わりに」帰結（置換機構待ち）は据置＝ここでは拾わない。
+      if (!condition && !rest.startsWith('代わりに')) {
+        condition = parseHoistStateCondition(thenM[0]);
+      }
       if (soreGaOnly && condition?.type !== 'LAST_PROCESSED_MATCHES') {
         // 新設 alternation で持ち上げできない形（レベルが奇数の等・前段非記録・代わりに）＝従来どおり全文パース
         steps.push(parseSingleSentence(clean));
