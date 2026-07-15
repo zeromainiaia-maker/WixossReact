@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-15・続き142・Opus 4.8・PLAN §3 Opusタスク12(xxvi)＝フルバッチのPlaywrightクラッシュ耐障害化・完了）**
+  - **✅ タスク12(xxvi) 消化**＝`scripts/verifyBattleDrive.mjs` のセッション管理を関数化して耐障害化。①`page` 生成＋console監視＋共通ヘルパー `H`＋ログイン＋ルーム再利用/セットアップ を丸ごと `establish()`（`browser.newContext()`→`newPage()`）へ切り出し、`RECYCLE_EVERY`（既定12）件ごとに `recycle()` で旧 context を破棄→作り直してレンダラのメモリ蓄積を解放。②`isCrashError()` を新設し、クラッシュ検知時は再確立→当該シナリオを最大3回再試行（非クラッシュ例外は従来どおり即FAIL＝実バグを握り潰さない）。
+  - **⚠登録時の主因推定を訂正**：「20回超のスクショによるメモリ蓄積」が主因とされていたが、**スクショはバッチ既定で no-op 化されている（`SHOTS_ON`＝引数指定時のみON・`${id}-final`のみ発火）**と判明＝真因は単一 `page` を74件通しで使う累積（reload では解放されないブラウザプロセス側メモリ/DOM/Realtime購読）。
+  - **検証**：`RECYCLE_EVERY=2` で実機3件（wxk09050/wxk02029/lriggrow）を実行＝2件目後に `♻ セッション再生成` が発火→同一ルーム再利用で再確立→3件目もその新 context 上で PASS（ALL PASS）を確認。`npm run gates` 全緑（typecheck／golden／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。詳細BUGFIXES続き142。
+  - **次の一手**：**🆕74件フルバッチ通しでの実クラッシュ→回復の確認が未実施**＝Opus/Sonnetいずれかが `node scripts/verifyBattleDrive.mjs`（FRESH=1）を通し `♻`/`⚠クラッシュ検知` ログと完走を確認（続き140のタスク12(xxv)＝71件完走確認も兼ねる）。
+
 - **🆕 セッション（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1＝§7実機検証横展開・完了）**
   - **⚠簿記の前置き**：セッション開始時、直近コミット（`d9df6f44`〜`c4befa9c`・17:22-17:52）が**PLAN/BUGFIXES未記載のまま**存在していた＝続き140（Opus）がSonnetタスク3で登録したOpusタスク12(xxv)「driverバッチ位置依存FAIL」を修正済みだが簿記前にセッション終了した形跡。コミット履歴から内容を復元しBUGFIXES/PLAN_PROGRESSへ事後記録した（詳細はBUGFIXES続き140の節）。
   - **✅ タスク1(a)(b)(c) 全完了**＝`trashCounterOpp`（タスク12(iv)）／`lrigGrowUsageLimit`（タスク12(vi-5)）をPASSへ反転・既定orderに追加。trashCounterOppは`handPrepend`起因の残留ランダム手札混入（続き139と同型）を`hand`直接指定へ修正。lrigGrowUsageLimitは「driverでlrigTopが変化せず再現不能」（続き132の旧記録）の真因が**engineではなくdriver側のtestId誤り**（グロウ先【出】効果コストモーダルをスペル用testIdで探していた）と判明・修正。**🆕(c) R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit＝専用シナリオ`powerzeroUsageLimit`を新規作成**（WD11-013を2枚使い1回目watcher発火→2回目は《ターン1回》で非発火を確認）。3項目とも各2〜3回連続PASSで既定order（74件）に追加。詳細BUGFIXES続き141。
