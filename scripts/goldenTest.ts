@@ -614,6 +614,33 @@ test('TRANSFER_TO_DECK optional: 選択UIを出す（強制しない）／スキ
   ok(!rDo.ownerState.trash.includes(SIGNI_L1) && !rDo.ownerState.trash.includes(SIGNI_L2), 'do 時はトラッシュから抜ける');
   ok(rDo.ownerState.deck.includes(SIGNI_L1) && rDo.ownerState.deck.includes(SIGNI_L2), 'do 時はデッキへ');
 });
+// タスク12(viii)（続き137・WX16-070-E1）: LEVEL_MODIFY の thisCardOnly（効果元シグニ自身へ選択UIなしで適用）＋
+// 「レベルを＋1か＋2してもよい」＝CHOOSE(choose_count:1/from_count:2/upTo:true) で値の選択＆スキップを表現。
+test('LEVEL_MODIFY thisCardOnly: 効果元シグニ自身にのみレベル修正（他の味方には付与しない）', () => {
+  const src = SIGNI_L1;
+  const ctx = mkCtx({ signi: [src, SIGNI_L2, null] }, {}, src);
+  const r = run({ type: 'LEVEL_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 2, until: 'UNTIL_END_OF_TURN' } as EffectAction, ctx);
+  const mods = r.ownerState.temp_level_mods ?? [];
+  ok(mods.some(m => m.cardNum === src && m.delta === 2), 'source に +2');
+  ok(!mods.some(m => m.cardNum === SIGNI_L2), '他の味方シグニには付与しない');
+});
+test('WX16-070-E1: レベル＋1か＋2の CHOOSE（plus2 で +2／upTo でスキップ可）', () => {
+  const src = SIGNI_L1;
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const action = { type: 'CHOOSE', choose_count: 1, from_count: 2, upTo: true, choices: [
+    { choiceId: 'plus1', label: 'レベルを＋1する', action: { type: 'LEVEL_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 1, until: 'UNTIL_END_OF_TURN' } },
+    { choiceId: 'plus2', label: 'レベルを＋2する', action: { type: 'LEVEL_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 2, until: 'UNTIL_END_OF_TURN' } },
+  ] } as EffectAction;
+  const eff = { effectId: 't', effectType: 'AUTO', action, duration: 'UNTIL_END_OF_TURN', mandatory: true } as CardEffect;
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done && (r0 as { pending: { type: string } }).pending.type === 'CHOOSE', 'CHOOSE を出す');
+  const p = (r0 as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  const rctx = { ...ctx, logs: r0.logs } as ExecCtx;
+  const rDo = resumeChoose('plus2', p, rctx);
+  ok((rDo.ownerState.temp_level_mods ?? []).some(m => m.cardNum === src && m.delta === 2), 'plus2 で source に +2');
+  const rSkip = resumeChoose([], p, rctx);
+  eq((rSkip.ownerState.temp_level_mods ?? []).length, 0, 'skip（0選択）でレベル修正なし');
+});
 // WXK10-031 E1 統合: デッキ公開(シグニがめくれるまで)→ 公開シグニ(L3)=lastProcessed・公開カードをトラッシュ → BOUNCE{levelLtLastProcessed}（敵L1手札へ・L4残存）
 test('WXK10-031機構: DECK_REVEAL_UNTIL→公開カードトラッシュ→そのシグニ未満レベルの敵を手札へ', () => {
   const ctx = { ...mkCtx({ deckTop: [SIGNI_L3] }, { signi: [SIGNI_L4, SIGNI_L1, null] }), sourceCardNum: 'WXK10-031', triggeringCardNum: 'WXK10-031' } as ExecCtx;
