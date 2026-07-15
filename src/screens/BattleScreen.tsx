@@ -3885,6 +3885,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // ON_TARGETED（続き137・タスク12(xx)）: targetsTriggerSource/targetsLastProcessed の自動対象化は
+        // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。executeEffect が
+        // result.autoTargetedCards として surface した「対戦相手の場のシグニ」を対象に取った瞬間として収集する。
+        if ((result.autoTargetedCards?.length ?? 0) > 0) {
+          const oppOfSourceId = entry.playerId === bs.host_id ? bs.guest_id : bs.host_id;
+          const oppOfSourceAfter = oppOfSourceId === bs.host_id ? hostState : guestState;
+          const autoTargetedOpp = result.autoTargetedCards!.filter(n =>
+            oppOfSourceAfter.field.signi.some(s => s?.at(-1) === n));
+          if (autoTargetedOpp.length > 0) {
+            const tt = collectTargetedTriggers(autoTargetedOpp, oppOfSourceId, hostState, guestState);
+            if (tt.entries.length > 0) {
+              const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
+              update.effect_stack = baseStackT
+                ? pushToStack(baseStackT, tt.entries)
+                : initStack(stack.turnPlayerId, tt.entries);
+            }
+            if (tt.usedHostIds.length > 0) {
+              const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+              update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...tt.usedHostIds] };
+            }
+            if (tt.usedGuestIds.length > 0) {
+              const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+              update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...tt.usedGuestIds] };
+            }
+          }
+        }
+
         // COLLAB: コラボライバー呼び出しで配置されたアシストルリグのON_PLAY効果を積む
         if ((entry.effect.action as import('../types/effects').StubAction)?.type === 'STUB' &&
             (entry.effect.action as import('../types/effects').StubAction)?.id === 'COLLAB') {
