@@ -2,13 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
-## §7実機検証横展開＝trashCounterOpp/lrigGrowUsageLimitをタスク12(iv)/(vi-5)の修正反映でPASSへ反転・既定orderに追加（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1(a)(b)）
+## §7実機検証横展開＝タスク1(a)(b)(c)全消化＋74件フルバッチでPlaywrightブラウザクラッシュを新規発見（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1）
 
-**PLAN §3タスク1「§7実機検証の横展開」のうち、続き135（Opus）のタスク12(iv)/(vi-5)修正で反転見込みとされていた意図的FAIL回帰シナリオ2本を再検証した。**
+**PLAN §3タスク1「§7実機検証の横展開」の(a)(b)(c)全項目を消化し、既定orderを71→74件に拡張した。**
 
 - **`trashCounterOpp`（WX14-040-E3・タスク12(iv)）**：`applyDirectAction`のTRASH/HAND_CARD分岐が手札カウンタ3種を更新しない実engineバグ（続き81で確認・続き135で修正）の反転検証。再実行したところ`hand_trashed_by_opp_this_turn`が正しく加算されPASS。ただし**シナリオ自体が`handPrepend`（続き139で特定した残留ランダム手札混入バグと同型）を使っており、単体でも間欠的にFAILする不安定さがあった**＝`handPrepend`を`hand:['WX14-040#1']`直接指定へ変更（続き139のblockDrawByEffect/exileHandBlindと同じ修正パターン）。修正後、FRESH=1新規ルーム2回・既存ルーム再利用1回の計3回連続PASS＝既定orderに追加。
 - **`lrigGrowUsageLimit`（WXDi-P03-039-E2・タスク12(vi-5)）**：二面コレクタのusageLimit書き戻し欠落（続き135で修正）の反転検証。続き132は「driverでlrigTopが変化せず再現不能」と記録していたが、**これはengineバグではなくdriver側の誤り**と判明＝ゲット・グロウ横グロウで開くグロウ先カード（月蝕の巫女タマヨリヒメ）の【出】効果コスト確認モーダル（`SigniOnPlayCostModal`）を、driveコードがスペル用のtestId（`spellcost-energy-0`）で探していたため永久に一致せず「なし」を繰り返し、グロウ完了判定（`lrigTop`変化）に到達できていなかった。修正＝候補クリック後は正しいtestId（`onplaycost-energy-0`）とスキップボタンで【出】効果モーダルを処理する分岐を追加。修正後FRESH=1で2回連続PASS（`usageLimit`正しく機能＝ゲット・グロウ経由の2回目`ON_LRIG_GROW`で発火せず）＝既定orderに追加。
-- **残課題（未着手）**：タスク1(c)「R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit」は既存シナリオ`powerzero`が基本発火のみを検証しており、2回目トリガーの発火有無を確認する専用シナリオが未実装＝新規シナリオ作成が要る（次点）。
+- **🆕`powerzeroUsageLimit`（WX21-067-E1・タスク12(vi-5)・新規シナリオ）**：タスク1(c)「R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit」の専用シナリオが存在しなかったため新規作成。既存`powerzero`と同じトリガー源（WD11-013【出】＝対戦相手シグニ1体に-1000・コストなし）を手札に2枚用意し、guest場にP1000のバニッシュ対象を2体配置＝1枚目の召喚でwatcher（アイン＝テトロド）が発火してドロー→2枚目の召喚でも同様に0以下化するが《ターン1回》のためドローが再発火しないことを確認する設計。FRESH=1新規ルーム2回・既存ルーム再利用1回の計3回連続PASS＝既定orderに追加（`usageLimit`正しく機能を確認・新規バグなし）。
+- **🆕74件フルバッチ実行で新種の障害を発見（タスク12(xxvi)へ登録）**：全既定シナリオを通しでFRESH=1実行したところ、27件目付近（`acceSelfScope`のスクリーンショット撮影直後）で`page.screenshot: Target crashed`（Playwrightのブラウザレンダラープロセスクラッシュ）が発生しバッチが停止した。**それ以前の27件は既知FAIL（`lrigGrowAnyOpp`/`lrigGrowAnyOppP03046`/`lrigAttackStepStartUsageLimit`/`oppDraw`）を除き全てPASS**＝続き140が修正したDB側累積状態（タスク12(xxv)）によるFAILは再現しなかった＝**続き140の対策自体は機能している**ことを確認できた。今回発見したクラッシュは**続き140とは別種の問題**＝各シナリオが最大20〜22回`page.screenshot({ fullPage: true })`を呼ぶ設計のため、単一の`page`/`browser`インスタンスを74シナリオ通しで使い続けることによるメモリ蓄積が原因と推定。修正は未着手＝Opusタスク12(xxvi)へ登録（詳細はPLAN §3該当行）。
 - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。
 
 ## driverバッチ実行の状態汚染＝タスク12(xxv)「バッチ位置依存FAIL」の根本原因を特定・修正（2026-07-15・続き140・Opus 4.8・PLAN §3 Opusタスク12(xxv)）
