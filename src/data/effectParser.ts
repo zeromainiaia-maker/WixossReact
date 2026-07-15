@@ -2515,6 +2515,11 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
       }
+      // 結果カウント閾値「この方法で〔フィルタ〕がN枚以上〜した場合」（Cluster B）。前段が lastProcessedCards を
+      // 記録するとき（prevRecords）だけ抽出。engine の LAST_PROCESSED_MATCHES/COUNT_GTE で評価される。
+      if (!condition && prevRecords && !rest.startsWith('代わりに')) {
+        condition = parseThisWayGenericCount(thenM[0]);
+      }
       // 前段の記録に依存しない盤面状態条件（対戦相手手札N枚・ライフ枚数・センタールリグ＜X＞等）。
       // 「代わりに」帰結（置換機構待ち）は据置＝ここでは拾わない。
       if (!condition && !rest.startsWith('代わりに')) {
