@@ -1035,7 +1035,7 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
 // 「レベルが奇数の」等の表現不能フィルタは null（呼び出し側で従来挙動に据置＝IS_MY_TURN化けを増やさない）。
 // prevIsEnergyPlace: 直前がエナチャージ系＝「この方法で＜X＞のシグニがエナゾーンに置かれた場合」も抽出（WXEX1-43-BURST）。
 function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = false): Condition | null {
-  const sg = clause.match(/^(?:その後、)?それが(.+?)の場合、$/);
+  const sg = clause.match(/^(?:その後、)?(?:それが|そのカードが)(.+?)の場合、$/);
   if (sg) {
     const desc = sg[1];
     if (desc === 'シグニ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' } };
