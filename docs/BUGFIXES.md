@@ -2,6 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## WX16-070-E1 の「＋1か＋2してもよい」欠落＝値の CHOOSE 化＋LEVEL_MODIFY thisCardOnly 対応＝タスク12(viii) の per-card 修正3枚目（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
+
+**仕英の文章＃シゴト＃の【自】「このシグニのレベルを＋１するか＋２してもよい」を、parser が LEVEL_MODIFY +1 固定に潰していた（＋2 の選択肢と「してもよい」を欠落・「このシグニ」も未限定）。**
+
+- **真因**：値の二択（＋1／＋2）と任意（してもよい）を parser が表現できず、片方（+1）を強制付与していた。加えて `execLevelModify`（`effectExecutor.ts:462`）が `thisCardOnly` を未対応（`fieldCandidates` は sourceCardNum を知らない）＝「このシグニ」限定が効かず任意の自シグニに付与しうる状態だった。
+- **修正**：(1) `execLevelModify` に `thisCardOnly` 対応を追加＝効果元シグニ自身へ選択UIなしで `temp_level_mods` を適用（`execPowerModify` と同型）。(2) `manualEffects.ts` に `WX16-070` を MANUAL 追加＝`CHOOSE{choose_count:1, from_count:2, upTo:true, choices:[LEVEL_MODIFY+1, LEVEL_MODIFY+2]}`。**`upTo:true` は resumeChoose で0選択＝スキップを許すため「してもよい」を表現**。build:effects→`heldReview.mjs --adopt WX16-070` で採用。
+- **検証**：**golden 332→334**（LEVEL_MODIFY thisCardOnly が自身のみ＋他味方非付与／CHOOSE plus2 で +2・skip でレベル修正なし）／逆翻訳「以下の2つから1つまで選ぶ【このシグニのレベルを＋1する / ＋2する】」が原文一致／**census 2214→2213**／同型★0／全ゲート緑。
+
 ## WX17-028-E1 の「してもよい」欠落＝TRANSFER_TO_DECK(TRASH) に optional を engine 対応＋JSON付与＝タスク12(viii) の per-card 修正2枚目（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
 
 **羅星姫≡ソラフレア≡の【自】「トラッシュから＜宇宙＞シグニ4枚をデッキに戻してシャッフルしてもよい。そうした場合【ダブルクラッシュ】を得る」が、TRANSFER_TO_DECK を強制実行し「してもよい」を無視していた。**
