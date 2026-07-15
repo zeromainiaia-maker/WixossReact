@@ -150,15 +150,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-15・続き138・Sonnet 5・PLAN §3 Sonnetタスク9＝PARTIAL刻印151件トリアージ）**
-  - **✅ タスク9完了**＝`docs/_partial_report.txt`（152件・確立以来未トリアージ）を原文照合＋効果JSON本体の直接確認で3分類。**(a)実害あり144件／(b)慣例で無害11件／(c)機構待ち0件**。
-  - **IS_MY_TURN化127件＝全件(a)**。属性判定65／カウント閾値59／否定条件3（WD14-012-E2等は最も実害大）に文型分割。§9-9のLIFE_BURST慣例には非該当。
-  - **multi-dest分割11件＝全件(b)**。11件全件をJSON本体で直接確認＝`targetsLastProcessed`/STUB等で内容欠落なしと確定＝対応不要。
-  - **リコレクト分割8件＝(a)（深刻）**。8件中6件を直接確認＝SPDi47-03-E2（ドロー+ディスカード本体actionが丸ごと消失）／SPDi47-05-E2（置換ルール消失）／**WX25-P1-001/003/005/007/009（5件同一テンプレ）＝センタールリグへの複数エクシード起動能力付与GRANT機構が丸ごと欠落し全能力を即時連続実行**／WX24-P4-016-E3（誤変換疑い）。
-  - **発生源フィルタ脱落8件＝全件(a)**。WX25-P3-071-E2で確認＝`triggerCondition`に発生源限定なく過剰発火。
-  - **成果物**：`docs/_partial_triage.txt`（分類根拠・全件IDリスト・JSON実例）。**(a)144件をPLAN §3 Opusタスク12へ (xxii)(xxiii)(xxiv) として登録**（parser修正はガードレール②によりOpus担当）。
-  - **検証**：データ分類のみ（parser/engine/JSON無変更）。全ゲート緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／同型★0／lint 0 error）。詳細 BUGFIXES 続き138。
-  - **次の一手**：Sonnet＝残る在庫はタスク8（semantic audit）→タスク3（driver状態汚染）の2本のみ。Opus＝タスク12在庫（(vii)(viii)per-card構造修正約8枚／(xii)WXEX1-19無限ループ／(xxi)collectOppDrawTriggers／**🆕(xxii)IS_MY_TURN化127件のparser条件節抽出（定型パターン・一括処理向き）／🆕(xxiii)リコレクト分割8件（WX25-P1-00X系列は新規GRANT機構が要る§6.3級）／🆕(xxiv)発生源フィルタ脱落8件**）→本丸のタスク1（引用付与の内側parse）。
+- **🆕 セッション（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3＝driverバッチ状態汚染の切り分け）**
+  - **✅ `blockDrawByEffect`/`exileHandBlind`の原因特定・修正**＝`handPrepend`（`.slice(0,4)`で前シナリオ/mulligan由来の実ランダム手札を持ち越す実装）が末尾に紛れ込む余剰カードで召喚ボタン/pick候補の出現順序を狂わせ、driveのクリック列を空振りさせていた。**続き135の「個別実行では3件ともPASS」は誤りでバッチ位置非依存の単体flakinessと確定**（FRESH=1単体でも複数回FAIL再現）。修正＝両シナリオを完全決定的な`'hand':[...]`直接指定へ変更。5シナリオ連結（freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger）で3回連続ALL PASS確認。
+  - **⚠残課題**：71件フルバッチではこの3件を含む複数件が依然FAILする場合がある（2回試行、うち1回は残留devサーバーのポート衝突という環境要因）。5連結では再現せず71件通しでのみ再現＝**続き105既知の「長時間ブラウザセッションでの client 側累積疲労」**が真因と判断。根本修正（数シナリオごとの`browser.newPage()`再生成等バッチランナー構造変更）は本セッションのscripts-only範囲を超えるため未着手。
+  - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。詳細 BUGFIXES 続き139。
+  - **次の一手**：Sonnet＝在庫はタスク8（semantic audit・claude -p再開可能）のみ残存。driverバッチランナー構造変更（browser.newPage()の定期再生成）は次点候補として追加可。Opus＝タスク12在庫（(vii)(viii)per-card構造修正約8枚／(xii)WXEX1-19無限ループ／(xxi)collectOppDrawTriggers／(xxii)IS_MY_TURN化127件のparser条件節抽出／(xxiii)リコレクト分割8件〔WX25-P1-00X系列は新規GRANT機構が要る§6.3級〕／(xxiv)発生源フィルタ脱落8件）→本丸のタスク1（引用付与の内側parse）。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
