@@ -23,6 +23,7 @@ export interface ExecCtx {
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
+  autoTargetedCards?: string[]; // 選択UIを経ずに自動対象化したシグニ（targetsTriggerSource/targetsLastProcessed）＝ON_TARGETED 収集用（続き137・タスク12(xx)）
   // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
   // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
   otherProtectedZones?: ('hand' | 'energy')[];
