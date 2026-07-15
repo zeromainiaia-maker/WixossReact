@@ -3391,8 +3391,11 @@ const scenarios = {
         'lrig_deck': ['WX14-011#1'],        // 炎得火失（赤×1・①4枚引き→手札2枚を除外）
         'energy': ['WD02-010#1'],           // 赤×1（アーツコスト）
         'actions_done': [],
+        // 続き139（Sonnet・タスク3調査）＝handPrependの.slice(0,4)がmulligan由来のランダムな
+        // 余剰カードを持ち越し、まれに追加カードがpick-N/ボタン出現順序を狂わせてdriveが空振りする
+        // （blockDrawByEffectと同型のバッチ位置非依存flakiness）。'hand'直接指定で完全決定的にする。
+        'hand': ['WD01-013#1', 'WD01-013#2'],
       },
-      handPrepend: ['WD01-013#1', 'WD01-013#2'],
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
