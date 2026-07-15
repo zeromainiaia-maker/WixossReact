@@ -5794,35 +5794,62 @@ try {
     }
     await page.screenshot({ path: `${SHOT}/drv-99-playing.png`, fullPage: true });
   }
+    return { context, page, H, errors };
+  };
 
-  // ── シナリオを順に実行 ──
+  // ── セッションを確立し、シナリオを順に実行（クラッシュ耐障害化＝タスク12(xxvi)）──
+  let { context, page, H, errors } = await establish();
+  const allErrors = [];
+  // N 件ごとに context を作り直してレンダラの蓄積を解放（既定12・RECYCLE_EVERY で上書き可）。
+  const RECYCLE_EVERY = Math.max(1, Number(process.env.RECYCLE_EVERY || 12));
+  let sinceRecycle = 0;
+  const recycle = async (why) => {
+    console.log(`♻ セッション再生成（${why}）＝旧 context を破棄してメモリ解放`);
+    allErrors.push(...errors);
+    await context.close().catch(() => {});
+    ({ context, page, H, errors } = await establish());
+    sinceRecycle = 0;
+  };
+
   for (const id of runIds) {
+    if (sinceRecycle >= RECYCLE_EVERY) await recycle(`${sinceRecycle}件処理ごとの予防`);
     const sc = scenarios[id];
-    console.log(`\n=== シナリオ ${id}: ${sc.title} ===`);
-    await H.closeModals();
-    const inj = await injectScenario(page, sc.spec);
-    console.log('注入:', JSON.stringify(inj));
-    if (inj.error) { results.push({ id, pass: false, detail: '注入失敗: ' + inj.error }); continue; }
-    // ⚠続き105（Sonnet・§3タスク3）＝injectScenario の DB リセット（host_state/guest_state のホワイトリスト化）
-    // だけでは、前シナリオの BattleScreen インスタンスが持つ React state・setInterval/setTimeout・
-    // Supabase Realtime購読等の**クライアント側の残留状態**は消えないと機械的に切り分け済み
-    // （47件一括→7件小バッチでは再現する不定期FAILが、完全新規ログインでの単独実行では再現しなかった＝
-    // DB起因ではなくクライアントランタイム起因。詳細 BUGFIXES 続き105）。
-    // 根本修正＝毎シナリオ直前に reload してコンポーネントツリーを丸ごと再マウントする。
-    // App.tsx の起動時ロジック（PLAYING ルームを検出して自動的に BattleScreen へ復帰＝
-    // gotoMatchmaking の初回セットアップと同じ経路）を再利用するため、直前の injectScenario の
-    // DB書き込みはそのまま活きる（reload後の初回フェッチで注入済みの盤面を読む）。
-    await page.reload({ waitUntil: 'networkidle' });
-    await page.waitForTimeout(2000);
-    await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
-    const t0 = Date.now();
-    let r;
-    try { r = await sc.drive(page, H); }
-    catch (e) { r = { pass: false, detail: 'drive例外: ' + e.message }; }
-    const sec = Math.round((Date.now() - t0) / 1000);
-    await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true });
-    console.log(`--- ${id}: ${r.pass ? 'PASS' : 'FAIL'} (${sec}s) : ${r.detail}`);
-    results.push({ id, ...r, sec });
+    let r = null;
+    // 最大3回：クラッシュ検知→再確立→再試行。非クラッシュ例外はその場で FAIL 確定（従来挙動）。
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(`\n=== シナリオ ${id}: ${sc.title} ===`);
+        await H.closeModals();
+        const inj = await injectScenario(page, sc.spec);
+        console.log('注入:', JSON.stringify(inj));
+        if (inj.error) { r = { pass: false, detail: '注入失敗: ' + inj.error, sec: 0 }; break; }
+        // 毎シナリオ直前に reload してコンポーネントツリーを再マウント（続き105＝クライアント側残留状態対策）。
+        // App.tsx 起動時ロジックが PLAYING ルームを検出して BattleScreen へ復帰＝直前の注入 DB 書き込みは活きる。
+        await page.reload({ waitUntil: 'networkidle' });
+        await page.waitForTimeout(2000);
+        await page.screenshot({ path: `${SHOT}/${id}-inj.png`, fullPage: true });
+        const t0 = Date.now();
+        let dr;
+        try { dr = await sc.drive(page, H); }
+        catch (e) { if (isCrashError(page, e)) throw e; dr = { pass: false, detail: 'drive例外: ' + e.message }; }
+        const sec = Math.round((Date.now() - t0) / 1000);
+        await page.screenshot({ path: `${SHOT}/${id}-final.png`, fullPage: true }).catch(() => {});
+        console.log(`--- ${id}: ${dr.pass ? 'PASS' : 'FAIL'} (${sec}s) : ${dr.detail}`);
+        r = { ...dr, sec };
+        break;
+      } catch (e) {
+        if (isCrashError(page, e) && attempt < 3) {
+          console.log(`⚠ ブラウザクラッシュ検知（${id}・attempt${attempt}: ${String(e.message).split('\n')[0]}）→ 再確立して再試行`);
+          await recycle(`${id} クラッシュ回復`);
+          continue;
+        }
+        console.log(`--- ${id}: FAIL（例外）: ${e.message}`);
+        r = { pass: false, detail: (isCrashError(page, e) ? 'クラッシュ回復失敗: ' : '例外: ') + e.message, sec: 0 };
+        break;
+      }
+    }
+    results.push({ id, ...r });
+    sinceRecycle++;
   }
 
   if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
