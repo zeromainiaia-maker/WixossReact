@@ -3888,16 +3888,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_TARGETED（続き137・タスク12(xx)）: targetsTriggerSource/targetsLastProcessed の自動対象化は
         // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。executeEffect が
         // result.autoTargetedCards として surface した「対戦相手の場のシグニ」を対象に取った瞬間として収集する。
-        console.log('[DBG_XX] autoTargetedCards=', JSON.stringify(result.done ? result.autoTargetedCards : 'notdone'), 'entry.playerId=', entry.playerId, 'host=', bs.host_id, 'guest=', bs.guest_id);
         if ((result.autoTargetedCards?.length ?? 0) > 0) {
           const oppOfSourceId = entry.playerId === bs.host_id ? bs.guest_id : bs.host_id;
           const oppOfSourceAfter = oppOfSourceId === bs.host_id ? hostState : guestState;
           const autoTargetedOpp = result.autoTargetedCards!.filter(n =>
             oppOfSourceAfter.field.signi.some(s => s?.at(-1) === n));
-          console.log('[DBG_XX] oppOfSourceId=', oppOfSourceId, 'autoTargetedOpp=', JSON.stringify(autoTargetedOpp));
           if (autoTargetedOpp.length > 0) {
             const tt = collectTargetedTriggers(autoTargetedOpp, oppOfSourceId, hostState, guestState);
-            console.log('[DBG_XX] tt.entries=', tt.entries.length, 'used=', tt.usedHostIds.length, tt.usedGuestIds.length);
             if (tt.entries.length > 0) {
               const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
               update.effect_stack = baseStackT
