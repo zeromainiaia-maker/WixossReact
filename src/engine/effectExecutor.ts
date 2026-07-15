@@ -2631,6 +2631,14 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   if (src.type === 'TRASH_CARD') {
     const cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // optional:「トラッシュから…をデッキに戻してもよい」（WX17-028-E1）。選択 or スキップにし、
+    // スキップ（0体選択）時は resumeSelectTarget が続く「そうした場合」(CONDITIONAL IS_MY_TURN) を stripDidItConditional で無効化する。
+    // ⚠従来は無条件で slice(0,N) を強制していた（続き137・タスク12(viii)）。
+    if (a.optional && src.count !== 'ALL') {
+      const count = resolveNum(src.count);
+      const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+      return selectOrInteract(cands, count, true, scope, a, undefined, ctx);
+    }
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
     return done({ ...addLog(setOwnerState(src.owner, newS, ctx), `${cards.length}枚をデッキに戻す`), lastProcessedCards: cards });
