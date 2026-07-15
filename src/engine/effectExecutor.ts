@@ -518,7 +518,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(tgtOwner, ctx);
       const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcType }];
       const newS: PlayerState = { ...s, [powerModKey]: mods };
-      return done(addLog(setOwnerState(tgtOwner, newS, ctx),
+      // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。
+      // 自動対象化したシグニを surface し、BattleScreen の done 分岐で ON_TARGETED を収集させる（続き137・タスク12(xx)）。
+      const withTgt = { ...setOwnerState(tgtOwner, newS, ctx), autoTargetedCards: [...(ctx.autoTargetedCards ?? []), autoNum] };
+      return done(addLog(withTgt,
         `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}のパワー${delta > 0 ? '+' : ''}${delta}`));
     }
     return done(ctx);
