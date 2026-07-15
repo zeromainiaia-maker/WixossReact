@@ -6,7 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
-- **🆕 セッション（2026-07-15・続き142・Opus 4.8・PLAN §3 Opusタスク12(xxvi)＝フルバッチのPlaywrightクラッシュ耐障害化・完了）**
+- **セッション（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)＝IS_MY_TURN化127件バグを3バッチ計22件消化）**
+  - **✅ 第1バッチ12件**＝①`parseLastProcessedMatchesCondition` を「それが」に加え**「そのカードが…の場合」**へ拡張②前段の記録に依存しない**盤面状態条件の持ち上げ fallback**（`parseHoistStateCondition`）。内訳＝LAST_PROCESSED_MATCHES 8／LRIG_STORY 2／SELF_POWER_GTE 2。
+  - **✅ 第2バッチ8件（結果カウント閾値 Cluster B）**＝汎用カウント条件パーサ **`parseThisWayGenericCount`**（`LAST_PROCESSED_MATCHES{filter,minCount}` で一致数≥閾値を評価）。**記録確認済みの動詞に限定**（公開/トラッシュ/エナ/除外/バニッシュ/デッキ戻し）＋**捕捉不能形（合計/すべて/種類/枚数が/偶数/《…》）は据置**（初回21件フリップ→7件が取りこぼし誤抽出と機械検証で判明し除外語追加）。
+  - **✅ 第3バッチ2件（多分岐後続枝）**＝**`parseBareBranchCondition`** を新設。「レベル１の場合、X。レベル２の場合、Y。…」の第2枝以降が接頭辞なしで条件を失い bare step 化（無条件発火）していたのを、**直前が `LAST_PROCESSED_MATCHES` の CONDITIONAL（`prevIsLpmChain`）のときに限り**同じ結果への追加分岐として LPM 化。是正＝**WXDi-P13-049**（レベル1/2/3以上/スペルの4枝全て・前段ミル）／**WX10-031-BURST**（アーム/ウェポン2枝・前段 discard も `resumeSelectTarget:4304` が記録と確認）。盤面語/偶数奇数を含む desc は据置。
+  - **検証**：`npm run gates` 全緑（**golden 338〔+4〕**／smoke 全0／fuzz 全0／lint 0 error）。**census 2213 → 2206**（`BASELINE_HIGH` 更新済み）。全バッチ `heldReview --adopt`＋機械diffで「意図した枚数のみ変更」・`npm run regen` で同型★0維持・逆翻訳原文照合。詳細 BUGFIXES 続き143。
+  - **次の一手**：**Opus＝タスク12(xxii) の残消化を継続**（残105件・`docs/_partial_triage.txt`）＝(a) **多分岐の複合条件枝**（WDK16-13/WXK08-033＝「登録者数100万達成 AND 公開」／**LRIG色別多分岐** WXK09-003 等＝第1枝が LPM でなく LRIG_COLOR なので `prevIsLpmChain` ゲート外＝別ハンドラが要る）／(b) Cluster B の**据置形**（レベル合計＝`LAST_PROCESSED_LEVEL_SUM_EQ`/新GTE型・すべて＝全一致条件・種類＝distinct・手札加え動詞は ADD_TO_HAND が非記録で不可）／(c) 否定条件 Cluster C 3件（WD14-012 等・**engine に「前アクションが起きなかった」条件型が要る**＝機構寄り）。ほかタスク12在庫＝(xxiii)リコレクト分割8件〔§6.3級 GRANT機構〕／(xxiv)発生源フィルタ脱落8件／(vii)(viii)per-card構造修正／(xii)WXEX1-19無限ループ／(xxi)collectOppDrawTriggers→本丸タスク1（引用付与の内側parse）。Sonnet＝タスク8（semantic audit）在庫、及び続き142のフルバッチ完走確認。
+
+- **セッション（2026-07-15・続き142・Opus 4.8・PLAN §3 Opusタスク12(xxvi)＝フルバッチのPlaywrightクラッシュ耐障害化・完了）**
   - **✅ タスク12(xxvi) 消化**＝`scripts/verifyBattleDrive.mjs` のセッション管理を関数化して耐障害化。①`page` 生成＋console監視＋共通ヘルパー `H`＋ログイン＋ルーム再利用/セットアップ を丸ごと `establish()`（`browser.newContext()`→`newPage()`）へ切り出し、`RECYCLE_EVERY`（既定12）件ごとに `recycle()` で旧 context を破棄→作り直してレンダラのメモリ蓄積を解放。②`isCrashError()` を新設し、クラッシュ検知時は再確立→当該シナリオを最大3回再試行（非クラッシュ例外は従来どおり即FAIL＝実バグを握り潰さない）。
   - **⚠登録時の主因推定を訂正**：「20回超のスクショによるメモリ蓄積」が主因とされていたが、**スクショはバッチ既定で no-op 化されている（`SHOTS_ON`＝引数指定時のみON・`${id}-final`のみ発火）**と判明＝真因は単一 `page` を74件通しで使う累積（reload では解放されないブラウザプロセス側メモリ/DOM/Realtime購読）。
   - **検証**：`RECYCLE_EVERY=2` で実機3件（wxk09050/wxk02029/lriggrow）を実行＝2件目後に `♻ セッション再生成` が発火→同一ルーム再利用で再確立→3件目もその新 context 上で PASS（ALL PASS）を確認。`npm run gates` 全緑（typecheck／golden／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。詳細BUGFIXES続き142。
