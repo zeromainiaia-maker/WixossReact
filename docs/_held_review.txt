@@ -15,25 +15,6 @@ PR-Di017B WD16-014 WD17-009 WX07-029 WX13-002 WX16-040 WX17-009 WX18-009 WX21-Re
   原文: 【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【自】：このシグニがアタックしたとき、このシグニの正面のシグニ１体を対象とし、このシグニのパワーが15000以上の場合、それをバニッシュする。【起】《赤》：ターン終了時まで、このシグニのパワーを＋3000する。,：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場に＜武勇＞の
   ~ [2].action.then.target.owner : "opponent" → "self"
 
-## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［18枚］
-WDK05-R14 WDK06-C07 WX06-018 WX11-041 WX14-069 WX14-072 WX22-Re06 WX25-CP1-008 WX26-CP1-092 WXDi-P01-034 WXDi-P03-083 WXDi-P05-042 WXDi-P06-082 WXDi-P13-049 WXEX2-62 WXK06-030 WXK09-097 WXK10-085
---- WDK05-R14
-  原文: 【出】：カードを１枚引き、手札からカード１枚をデッキの一番下に置く。【起】《ターン１回》《青×0》：あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニを２体まで対象とし、それらを凍結する。,：カードを１枚引く。
-  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [1].action.steps[1].condition.filter.cardType = "シグニ"
-  + [1].action.steps[1].condition.minCount = 1
---- WDK06-C07
-  原文: アンコール－《コインアイコン》あなたのデッキの上からカードを５枚トラッシュに置く。その後、この方法で黒のカードが５枚トラッシュに置かれた場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.color = "黒"
-  + [0].action.steps[1].condition.minCount = 5
---- WX06-018
-  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを３枚トラッシュに置く。その後、この方法でトラッシュに置かれた＜ウェポン＞のシグニの枚数が１枚の場合、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。２枚の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。３枚の場合、対戦相手のパワー15
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.story = "ウェポン"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.minCount = 1
-
 ## -CHOOSE -DECK_CARD -TRASH ［12枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P01-044 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
 --- WX24-P3-091
@@ -123,6 +104,26 @@ SPDi43-08 SPDi43-20 WD12-018 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25
   + [0].action.steps[1].source.owner = "self"
   + [0].action.steps[1].source.count = 1
   …（他 1 行）
+
+## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［10枚］
+WDK06-C07 WX14-069 WX14-072 WX25-CP1-008 WX26-CP1-092 WXDi-P01-034 WXDi-P03-083 WXDi-P06-082 WXDi-P13-049 WXK06-030
+--- WDK06-C07
+  原文: アンコール－《コインアイコン》あなたのデッキの上からカードを５枚トラッシュに置く。その後、この方法で黒のカードが５枚トラッシュに置かれた場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.color = "黒"
+  + [0].action.steps[1].condition.minCount = 5
+--- WX14-069
+  原文: あなたのデッキの上からカードを２枚エナゾーンに置く。この方法で＜植物＞のシグニが２枚エナゾーンに置かれた場合、追加であなたのデッキの一番上のカードをエナゾーンに置く。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.story = "植物"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.minCount = 2
+--- WX14-072
+  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。この方法で＜天使＞のシグニを公開した場合、あなたのデッキから＜天使＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.story = "天使"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.minCount = 1
 
 ## -CONDITIONAL -TRASH_HAS_CARD ［6枚］
 WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
@@ -504,13 +505,6 @@ WDK16-13 WXK08-033
   + [0].action.steps[1].condition.filter.level.max = 2
   + [0].action.steps[1].condition.filter.cardType = "シグニ"
   …（他 1 行）
-
-## +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN ［1枚］
-WX15-106
---- WX15-106
-  原文: あなたのデッキの上からカードを２枚エナゾーンに置く。この方法で《アクセアイコン》を持つカードが１枚以上エナゾーンに置かれた場合、追加であなたのデッキの一番上のカードをエナゾーンに置く。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [0].action.steps[1].condition.value = 1
 
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +BLOCK_ACTION +CHOOSE +CONDITIONAL +IS_MY_TURN +PLAYER +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
