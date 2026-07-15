@@ -462,6 +462,16 @@ function srcTypeOf(ctx: ExecCtx): string | undefined {
 function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: ExecCtx): ExecResult {
   const tgtO: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
   const state = ownerState(tgtO, ctx);
+  // thisCardOnly:「このシグニのレベルを＋X」＝効果元シグニ自身へ選択UIなしで適用（WX16-070・execPowerModify と同型・続き137）
+  if (a.target.filter?.thisCardOnly) {
+    const selfNum = ctx.sourceCardNum;
+    if (!selfNum || !state.field.signi.some(s => s?.at(-1) === selfNum)) {
+      return done({ ...addLog(ctx, 'レベル修正の対象がない'), lastProcessedCards: [] });
+    }
+    const mods = [...(state.temp_level_mods ?? []), { cardNum: selfNum, delta: a.delta }];
+    return done({ ...addLog(setOwnerState(tgtO, { ...state, temp_level_mods: mods }, ctx),
+      `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}のレベル${a.delta > 0 ? '+' : ''}${a.delta}`), lastProcessedCards: [selfNum] });
+  }
   const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (cands.length === 0) return done({ ...addLog(ctx, 'レベル修正の対象がない'), lastProcessedCards: [] });
   if (a.target.count === 'ALL') {
