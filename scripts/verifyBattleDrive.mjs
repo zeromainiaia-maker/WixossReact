@@ -3429,19 +3429,31 @@ const scenarios = {
           const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
           if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:選択肢1'; chose = true; }
         }
-        // EXILE(HAND_CARD,blind) の「手札からカードを2枚選んでください」ピッカー（pick-0/pick-1）→決定(2/2)。
-        // ⚠pick-N はクリックのたびに選択トグルするdiv＝一度選んだ後は同じidxを再クリックしない
-        // （picked0/picked1 フラグで管理。件数だけを見る「決定(2/」チェックでは0選択の状態と区別できない）
+        // EXILE(HAND_CARD,blind) の「手札からカードを2枚選ぶ」ピッカー（pick-N）→決定(N/M)。
+        // ⚠決定ボタンは (選択数/必要数) を表示し、1枚選んだ時点で有効化されうる＝clickTextOrBtn は
+        // isEnabled を見ずに押すため、旧実装（picked0/picked1 フラグでpick-0/1を各1回だけ押す）だと
+        // バッチ時レースでどちらかのクリックが選択登録される前に決定が押され「1枚だけ除外」で完走扱いに
+        // なっていた（71件通しでのみ再現＝続き140）。フラグではなく決定ラベルの実選択数(N)を真値にし、
+        // N が必要数 M に届くまで「未選択（✓なし）の pick 枠」を1つずつ押し、揃ってから決定を押す
+        // （選択済みを再クリックするとトグルで外れるため ✓ の有無で選別・取りこぼしは次イテレーションで再試行）。
         if (!did) {
-          if (!picked0) {
-            const pick0 = page.getByTestId('pick-0').first();
-            if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; picked0 = true; }
-          } else if (!picked1) {
-            const pick1 = page.getByTestId('pick-1').first();
-            if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; picked1 = true; }
+          const decBtn = page.getByRole('button', { name: /決定 \(\d/ }).first();
+          if (await decBtn.count() && await decBtn.isVisible().catch(() => false)) {
+            const m = (await decBtn.textContent() ?? '').match(/決定 \((\d+)\/(\d+)\)/);
+            const sel = m ? +m[1] : 0, need = m ? +m[2] : 2;
+            if (sel < need) {
+              for (let idx = 0; idx < 8; idx++) {
+                const p = page.getByTestId(`pick-${idx}`).first();
+                if (!(await p.count()) || !(await p.isVisible().catch(() => false))) continue;
+                if (await p.getByText('✓').count()) continue; // 既に選択済み（再クリックはトグルoffになる）
+                await p.click().catch(() => {}); did = `pick:pick-${idx}(→${sel + 1}/${need})`; break;
+              }
+            } else if (await decBtn.isEnabled().catch(() => false)) {
+              await decBtn.click().catch(() => {}); did = `決定(${sel}/${need})`;
+            }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         // choseに転じた直後（このイテレーションでchoose:選択肢1をクリックした時点）のtrashを基準値として確定。
         // t0はアーツのコスト支払い（エナ1枚消費→トラッシュ1枚）より前の値なので、それをそのままEXILE判定に使うと
