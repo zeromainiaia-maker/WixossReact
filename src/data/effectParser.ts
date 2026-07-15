@@ -1066,8 +1066,10 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   if (!/^(?:その後、)?この方法で/.test(clause)) return null;
   // lastProcessedCards を残すと確認済みの動詞に限定
   if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻))/.test(clause)) return null;
-  // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）
-  if (/種類|共通する|偶数|奇数|異なる|センタールリグのレベル|【|になった/.test(clause)) return null;
+  // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
+  //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
+  //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）。
+  if (/種類|共通する|偶数|奇数|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった/.test(clause)) return null;
   if (parseNameFilter(clause).cardName || parseNameFilter(clause).cardNames) return null; // 特定カード名指定は別機構
   // カウント（N枚/N体）。無指定は1（「＜X＞のシグニを公開した場合」＝1枚以上）。
   const cm = clause.match(/([０-９\d]+)(?:枚|体)/);

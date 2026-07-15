@@ -15,6 +15,25 @@ PR-Di017B WD16-014 WD17-009 WX07-029 WX13-002 WX16-040 WX17-009 WX18-009 WX21-Re
   原文: 【ライズ】あなたの＜武勇＞のシグニ１体の上に置く【自】：このシグニがアタックしたとき、このシグニの正面のシグニ１体を対象とし、このシグニのパワーが15000以上の場合、それをバニッシュする。【起】《赤》：ターン終了時まで、このシグニのパワーを＋3000する。,：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。あなたの場に＜武勇＞の
   ~ [2].action.then.target.owner : "opponent" → "self"
 
+## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［18枚］
+WDK05-R14 WDK06-C07 WX06-018 WX11-041 WX14-069 WX14-072 WX22-Re06 WX25-CP1-008 WX26-CP1-092 WXDi-P01-034 WXDi-P03-083 WXDi-P05-042 WXDi-P06-082 WXDi-P13-049 WXEX2-62 WXK06-030 WXK09-097 WXK10-085
+--- WDK05-R14
+  原文: 【出】：カードを１枚引き、手札からカード１枚をデッキの一番下に置く。【起】《ターン１回》《青×0》：あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニを２体まで対象とし、それらを凍結する。,：カードを１枚引く。
+  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [1].action.steps[1].condition.filter.cardType = "シグニ"
+  + [1].action.steps[1].condition.minCount = 1
+--- WDK06-C07
+  原文: アンコール－《コインアイコン》あなたのデッキの上からカードを５枚トラッシュに置く。その後、この方法で黒のカードが５枚トラッシュに置かれた場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.color = "黒"
+  + [0].action.steps[1].condition.minCount = 5
+--- WX06-018
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを３枚トラッシュに置く。その後、この方法でトラッシュに置かれた＜ウェポン＞のシグニの枚数が１枚の場合、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。２枚の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。３枚の場合、対戦相手のパワー15
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.story = "ウェポン"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.minCount = 1
+
 ## -CHOOSE -DECK_CARD -TRASH ［12枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P01-044 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
 --- WX24-P3-091
@@ -104,51 +123,6 @@ SPDi43-08 SPDi43-20 WD12-018 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25
   + [0].action.steps[1].source.owner = "self"
   + [0].action.steps[1].source.count = 1
   …（他 1 行）
-
-## +LAST_PROCESSED_MATCHES +REVEAL_DECK_TOP -IS_MY_TURN -LOOK_AND_REORDER ［7枚］
-WX19-024 WX24-P3-047 WX24-P3-059 WX24-P3-062 WXDi-P01-059 WXDi-P01-074 WXDi-P01-082
---- WX19-024
-  原文: 【常】：このカードがデッキか手札かトラッシュにあるかぎり、あなたの能力か効果１つによってこのシグニのレベルを参照する場合、レベル４として扱ってもよい。【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。その後、そのカードがレベル４のシグニの場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《メインフェイズアイコン》《アタッ
-  - [1].action.steps[0].source.location = "deck"
-  - [1].action.steps[0].source.owner = "self"
-  - [1].action.steps[0].private = false
-  - [1].action.steps[0].reorder = false
-  - [1].action.steps[0].destination.location = "deck"
-  - [1].action.steps[0].destination.owner = "self"
-  - [1].action.steps[0].destination.position = "top"
-  ~ [1].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
-  + [1].action.steps[0].owner = "self"
-  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [1].action.steps[1].condition.filter.cardType = "シグニ"
-  + [1].action.steps[1].condition.filter.level = 4
---- WX24-P3-047
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《占星術の巫女　リメンバ・ドウン》がいる場合、レベル２以上のシグニ１体を対象とし、ターン終了時まで、それのレベルを－１する。【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。その後、そのカードが＜宇宙＞のシグニの場合、対戦相手のレベル２以下のシグニ１体を対象とし、《白》《無》を支払って
-  - [1].action.steps[0].source.location = "deck"
-  - [1].action.steps[0].source.owner = "self"
-  - [1].action.steps[0].private = false
-  - [1].action.steps[0].reorder = false
-  - [1].action.steps[0].destination.location = "deck"
-  - [1].action.steps[0].destination.owner = "self"
-  - [1].action.steps[0].destination.position = "top"
-  ~ [1].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
-  + [1].action.steps[0].owner = "self"
-  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [1].action.steps[1].condition.filter.cardType = "シグニ"
-  + [1].action.steps[1].condition.filter.story = "宇宙"
---- WX24-P3-059
-  原文: 【自】：あなたのターン終了時、あなたのデッキの一番上を公開する。その後、そのカードがレベル１のシグニの場合、あなたの＜宇宙＞のシグニを２体まで対象とし、次の対戦相手のターン終了時まで、それらのパワーを＋4000する。,-
-  - [0].action.steps[0].source.location = "deck"
-  - [0].action.steps[0].source.owner = "self"
-  - [0].action.steps[0].private = false
-  - [0].action.steps[0].reorder = false
-  - [0].action.steps[0].destination.location = "deck"
-  - [0].action.steps[0].destination.owner = "self"
-  - [0].action.steps[0].destination.position = "top"
-  ~ [0].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
-  + [0].action.steps[0].owner = "self"
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.level = 1
 
 ## -CONDITIONAL -TRASH_HAS_CARD ［6枚］
 WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
@@ -374,19 +348,6 @@ SPDi43-30 WX24-P4-047 WXK03-063
   + [0].action.steps[0].costColors[0] = "青"
   + [0].action.steps[0].costColors[1] = "青"
 
-## +LRIG_STORY -IS_MY_TURN ［2枚］
-WX12-014 WX13-025
---- WX12-014
-  原文: 対戦相手のシグニ１体を対象とし、それをデッキの一番上に置く。その後、あなたのセンタールリグが＜エルドラ＞の場合、あなたのライフクロス１枚をクラッシュしてもよい。そうした場合、あなたのデッキの一番上のカードをライフクロスに加える。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LRIG_STORY"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.story = "エルドラ"
---- WX13-025
-  原文: このアーツを使用する際、手札から＜毒牙＞のシグニを２枚まで捨ててもよい。このアーツの使用コストは、この方法で捨てたシグニ１枚につき《黒×2》《無×1》減る。対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。その後、あなたのセンタールリグが＜ハナレ＞の場合、あなたのトラッシュからレベル３以下の＜毒牙＞のシグニ１枚を対象とし、それ
-  ~ [0].action.steps[3].condition.type : "IS_MY_TURN" → "LRIG_STORY"
-  + [0].action.steps[3].condition.owner = "self"
-  + [0].action.steps[3].condition.story = "ハナレ"
-
 ## -CONDITIONAL -LIFE_COUNT ［2枚］
 WX17-044 WXDi-P16-049
 --- WX17-044
@@ -413,17 +374,6 @@ WX17-044 WXDi-P16-049
   ~ [0].action.choices[1].action.steps[0].type : "CONDITIONAL" → "STUB"
   + [0].action.choices[1].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.choices[1].action.steps[0].costColors[0] = "赤"
-
-## +SELF_POWER_GTE -IS_MY_TURN ［2枚］
-WX26-CP1-066 WXDi-P07-065
---- WX26-CP1-066
-  原文: 【自】：あなたのターン終了時、次の対戦相手のターン終了時まで、このシグニのパワーをあなたのエナゾーンにある＜プリオケ＞のカード１枚につき＋1000する。その後、このシグニのパワーが15000以上の場合、このシグニを場からトラッシュに置き、あなたの場に他の＜プリオケ＞のシグニがある場合、【ルリグバリア】１つを得る。,：対戦相手のシグニ１体を対象とし、ターン終了
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "SELF_POWER_GTE"
-  + [0].action.steps[1].condition.value = 15000
---- WXDi-P07-065
-  原文: 【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ＋する。その後、このシグニのパワーが15000以上の場合、《赤》《赤》《無》を支払ってもよい。そうした場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたのデッキの一番上のカードをこのシグニの下に置く。【起】《
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "SELF_POWER_GTE"
-  + [0].action.steps[1].condition.value = 15000
 
 ## -CONDITIONAL -IS_MY_TURN ［2枚］
 WXDi-P09-054 WXDi-P15-092
@@ -522,13 +472,45 @@ WXDi-CP02-086 WXDi-CP02-090
   + [0].action.steps[1].then.target.owner = "opponent"
   …（他 7 行）
 
-## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
-WX10-031
---- WX10-031
-  原文: あなたの場に＜アーム＞と＜ウェポン＞のシグニがある場合、このスペルの使用コストは《白×1》《赤×1》減る。対象の対戦相手のシグニ１体を手札に戻し、対象の対戦相手のシグニ１体をバニッシュする。,：手札を１枚捨てる。その後、そのカードが＜アーム＞のシグニの場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。＜ウェポン＞のシグニの場合、対戦相手のシグニ１体を対
-  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [1].action.steps[1].condition.filter.cardType = "シグニ"
-  + [1].action.steps[1].condition.filter.story = "アーム"
+## +LAST_PROCESSED_MATCHES +REVEAL_DECK_TOP -IS_MY_TURN -LOOK_AND_REORDER ［2枚］
+WDK16-13 WXK08-033
+--- WDK16-13
+  原文: 【出】：あなたのデッキの一番上を公開する。この方法でレベル２以下の＜電機＞のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。,：カードを１枚引く。
+  - [0].action.steps[0].source.location = "deck"
+  - [0].action.steps[0].source.owner = "self"
+  - [0].action.steps[0].private = false
+  - [0].action.steps[0].reorder = false
+  - [0].action.steps[0].destination.location = "deck"
+  - [0].action.steps[0].destination.owner = "self"
+  - [0].action.steps[0].destination.position = "top"
+  ~ [0].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
+  + [0].action.steps[0].owner = "self"
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.story = "電機"
+  + [0].action.steps[1].condition.filter.level.max = 2
+  …（他 2 行）
+--- WXK08-033
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。この方法でレベル２以下のシグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。,-
+  - [0].action.steps[0].source.location = "deck"
+  - [0].action.steps[0].source.owner = "self"
+  - [0].action.steps[0].private = false
+  - [0].action.steps[0].reorder = false
+  - [0].action.steps[0].destination.location = "deck"
+  - [0].action.steps[0].destination.owner = "self"
+  - [0].action.steps[0].destination.position = "top"
+  ~ [0].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
+  + [0].action.steps[0].owner = "self"
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.level.max = 2
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  …（他 1 行）
+
+## +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN ［1枚］
+WX15-106
+--- WX15-106
+  原文: あなたのデッキの上からカードを２枚エナゾーンに置く。この方法で《アクセアイコン》を持つカードが１枚以上エナゾーンに置かれた場合、追加であなたのデッキの一番上のカードをエナゾーンに置く。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  + [0].action.steps[1].condition.value = 1
 
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +BLOCK_ACTION +CHOOSE +CONDITIONAL +IS_MY_TURN +PLAYER +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
