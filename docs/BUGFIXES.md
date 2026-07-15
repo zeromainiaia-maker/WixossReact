@@ -2,6 +2,21 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## IS_MY_TURN化127件バグの第1バッチ消化＝「そのカードが…の場合」＋盤面状態条件の持ち上げ（2026-07-15・続き143・Opus 4.8・PLAN §3 Opusタスク12(xxii)）
+
+**続き138（Sonnet・タスク9トリアージ）が Opusタスク12(xxii) へ登録した「後置条件節を parser が抽出できず無言で常時true化（IS_MY_TURN化）＝127件の過剰実行バグ」のうち、engine 対応済み条件型で直せる均一形12件を parser 規則追加で消化した。**
+
+- **根本原因**：`effectParser.ts` の CONDITIONAL 持ち上げ（「その後、〜の場合、」を前ステップと結合）で、条件節を `parseThisWayTrashCondition`／`parseLastProcessedMatchesCondition` が抽出できなかったとき `condition: { type: 'IS_MY_TURN' }` にフォールバックする（`effectParser.ts:2490`）。IS_MY_TURN は自ターン中は常時真なので、本来偽になり得る条件（公開カードのレベル/クラス・盤面状態）を無視して分岐が常時発火する＝過剰実行。
+- **修正①＝`parseLastProcessedMatchesCondition` を「そのカードが」に拡張**：従来は「(その後、)それが〜の場合、」しか受けず、原文で頻出する「その後、**そのカード**がレベル１のシグニの場合、」（デッキトップ公開→レベル参照の典型系統）を落として IS_MY_TURN 化していた。regex を `(?:それが|そのカードが)` へ拡張。直前の「デッキの一番上を公開する」（`prevIsRevealLook`）が既存ロジックで `REVEAL_DECK_TOP` へ置換され lastProcessedCards を記録するため、engine の `LAST_PROCESSED_MATCHES` が正しく評価できる。
+- **修正②＝盤面状態条件の持ち上げ fallback を新設**（`parseHoistStateCondition`）：前段の記録に依存しない独立ゲート（「対戦相手の手札が０枚の場合」「あなたのライフクロスがN枚以下の場合」「あなたのセンタールリグが＜X＞の場合」「このシグニのパワーがN以上の場合」等）を、`STATE_CONDITION_CLAUSES`（engine `evalCondition`・decompiler 対応済みの条件型テーブル）で照合して抽出する。「代わりに」帰結（置換機構待ち）は据置。
+- **是正した12効果**（`heldReview --adopt` で採用・機械diffで「意図した12枚のみ変更」を確認）：
+  - LAST_PROCESSED_MATCHES 化（そのカード参照）8枚＝WX19-024（レベル4）／WX24-P3-047（宇宙）／WX24-P3-059（レベル1）／WX24-P3-062（レベル1）／WXDi-P01-059・074・082（レベル1）／WX10-031-BURST（アーム・⚠多分岐の第1枝のみ修正＝ウェポン枝は別形で未対応・据置改善）
+  - LRIG_STORY 化2枚＝WX12-014（エルドラ）／WX13-025（ハナレ）
+  - SELF_POWER_GTE 化2枚＝WX26-CP1-066（15000）／WXDi-P07-065（15000）
+  - なお WX01-032（対戦相手手札0枚→DRAW）は MANUAL 札で既に正しい HAND_COUNT を持つ＝fresh 側が修正②で MANUAL と一致するようになったが採用不要。
+- **ゲート**：`npm run gates` 全緑（typecheck／golden 335〔+1〕／smoke 全0／fuzz 全0／lint 0 error）。**census 2213 → 2210**（`BASELINE_HIGH` と PLAN §4 恒久指標を実数更新）。`npm run regen` で全シート再生成＝同型★0維持。逆翻訳出力を原文照合＝「それがレベル1のシグニなら」「あなたのセンタールリグが＜エルドラ＞なら」「このシグニのパワーが15000以上なら」が正しく描画されることを確認。golden に構造固定テスト1件追加。
+- **⚠残（タスク12(xxii) の未消化）**：127件のうち今回消化は12件のみ。残る系統＝(a) 多分岐「レベル1の場合…レベル2の場合…」（PR-459A/WX06-018/WXK09-003 等・後続枝が「その後」なしで持ち上げ対象外）／(b) 結果カウント閾値「この方法でN枚以上〜した場合」（Cluster B 59件・直前の可変アクション結果に依存）／(c) 否定条件「〜しなかった場合」（Cluster C 3件・WD14-012 等・engine に「前アクションが起きなかった」条件が要る）／(d) 「その後、それらのレベルの合計がN以上の場合」（TRASHED_LEVEL_SUM 系・新条件型が要る）。IDリスト全件は `docs/_partial_triage.txt`。
+
 ## フルバッチのPlaywrightブラウザクラッシュを耐障害化＝タスク12(xxvi)消化（2026-07-15・続き142・Opus 4.8・PLAN §3 Opusタスク12(xxvi)）
 
 **続き141（Sonnet）が登録した「74件フルバッチ実行中 ~27件目で `page.screenshot: Target crashed`（Playwrightのレンダラープロセスクラッシュ）でバッチが停止する」を、`scripts/verifyBattleDrive.mjs` のセッション管理を関数化して耐障害化することで消化した。**
