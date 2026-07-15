@@ -2606,6 +2606,15 @@ const scenarios = {
           const candVisible = candCount ? await cand.isVisible().catch(() => false) : false;
           if (candCount && candVisible) { await cand.click().catch(() => {}); did = 'btn:月蝕(get-grow候補)'; candClicked = true; }
         }
+        if (!did && candClicked) { // グロウ先カード（タマヨリヒメ）の【出】効果コスト確認モーダル＝SigniOnPlayCostModal（trashCounterOppと同型）。
+          // 検証目的はグロウ完了のみのためスキップで十分。
+          const skip = await clickExact('スキップ');
+          if (skip) did = skip;
+          else {
+            const oe0 = page.getByTestId('onplaycost-energy-0').first();
+            if (await oe0.count() && await oe0.isVisible().catch(() => false)) { await oe0.click().catch(() => {}); did = 'onplaycost-energy-0'; }
+          }
+        }
         const st = await H.queryState();
         H.log(`  lgul-cast[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} lrigTop=${st?.host?.lrigTop} lrigDeck=${st?.host?.lrigDeck} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (st?.host?.lrigTop === 'WX01-007#1') { grew2 = true; }
