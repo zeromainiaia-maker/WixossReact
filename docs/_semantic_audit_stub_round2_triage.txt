@@ -1,0 +1,60 @@
+# semantic audit stub群スケールアップ 第1弾（seed202608・新規200枚）トリアージ（PLAN.md §3 Sonnetタスク8・2026-07-16・続き145・Sonnet 5）
+
+対象＝stub群母集団2,401枚から続き144までに監査済みの100枚（seed202607分）を除外した候補2,301枚のうち、
+`manifest.json`（続き144のアーカイブ）の`picked`をマスターとして除外リストを構築し、新シード202608で決定論的に200枚をサンプリング（`slice`ではなく候補プールからの新規Fisher-Yatesサンプリング）。
+
+## 実行体制（本ラウンドから二重化）
+ユーザーの指示により**バッチ実行はOpenAI Codex CLI（`codex exec --json`・ChatGPT完全無料プラン）を主体とし、Claudeはfeasibility確認と精査（トリアージ）のみ**に限定する運用へ変更。
+- Claude側（`claude -p`）はバッチ01〜05（50枚）を実行した時点でユーザーの指示により停止。
+- 残りバッチ06〜20（150枚）はCodex（`codex exec --json --skip-git-repo-check -o <lastmsg>`、逆順13→06実行後に判明した既存ファイル既存スキップで自動的に重複回避）が**無料プランのまま完走**。1バッチ28〜52秒・エラー0件。
+- 新設した簡易ランナー（`semanticAuditRunCodex.mjs`・セッションscratchpad限定・リポジトリ非管理）は`raw/batch_NN.json`の存在チェックで`semanticAuditRun.mjs`（Claude版）と同じディレクトリを安全に共有できる設計＝**二重実行・重複コストを自動回避**。
+- 精度確認：HIGH中心にJSON本体・原文で18件程度を直接照合（Claude産6件＋Codex産12件）＝**全件で指摘内容が正確**。Codexは「STUB＋CONDITIONAL(IS_MY_TURN)の既知イディオム」を正しく学習し、IS_MY_TURN自体は誤検出せずthen節のアクション型不一致のみを正しく報告する等、ガイドの偽陽性除外ルールをClaudeと同水準で運用できていた。
+
+## 結果サマリ
+200枚完走・findings 242件（Claude 56件／Codex 186件）。severity：HIGH 139／MED 98／LOW 5。type：WRONG 131／MISSING 85／SUSPECT_STUB 20／EXTRA 6。指摘ありカード127/200枚（stub群は逆翻訳の盲点＝本命群のため、続き144のclean群80枚〔findings88件〕より単位あたりの検出率が高い）。
+
+## 既存トラッキングとの重複（機械照合）
+- `docs/_partial_triage.txt`と重複＝8枚（WXDi-P11-039／WX25-P3-084／WXDi-P05-086／WDK11-001／WXK11-036／WDK08-Y11／WXK02-028／PR-427）＝IS_MY_TURN化・リコレクト分割等の既知系統と一部一致。
+- `docs/PLAN.md`本文と重複＝9枚（SPDi43-03／WXK08-030／WXDi-P15-058／SP27-002／WX24-P1-035／WX16-033／WXK10-008／WDK07-E15／WX17-041）。
+- **残り110/127枚（87%）は未追跡の新規発見**。
+
+## 🌟ヘッドライン：機械検索で確定した系統バグ（STUBの「対象カードをエナゾーンに置く」idiom破損）
+findingsの中で繰り返し現れた「STUB（任意コストで対戦相手シグニ等を対象化）→CONDITIONAL(IS_MY_TURN)→ENERGY_CHARGE(DECK_CARD)」という誤り方（本来は"それ"＝直前に対象化したカードをエナゾーンに置くべきところ、無関係な自分のデッキ起点エナチャージに置換されている）について、
+**LLM audit結果に頼らず、effects JSON全体を`SEQUENCE`内の`STUB→CONDITIONAL(IS_MY_TURN)→ENERGY_CHARGE{target.type=DECK_CARD}`という形状で機械的に全数検索**したところ、**8件がヒット**（原文を全件確認し8件とも「〜を支払ってもよい/捨ててもよい。そうした場合、それをエナゾーンに置く」の同一構文と確認済み）：
+
+```
+WXDi-P05-073-BURST（STUB=OPTIONAL_COST）
+WX24-P4-048-E2（STUB=REVEAL_AND_PICK）
+WX25-P2-026-E1（STUB=OPTIONAL_COST）
+WX26-CP1-086-BURST（STUB=TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）
+WXK05-027-E2（STUB=OPTIONAL_COST）
+WXK05-070-E1（STUB=TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）
+WXK10-048-BURST（STUB=TARGET_AND_DISCARD_HAND）
+WDK08-Y11-BURST（STUB=TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）
+```
+
+STUB idはバラバラ（5種）だが、いずれも「任意コストの支払い確認後に"対象化済みカードをエナゾーンへ移動"を実行する」局面で共通して`ENERGY_CHARGE_FROM_DECK`相当の汎用処理に落ちている＝**「そうした場合、それをエナゾーンに置く」という結果アクションを生成する単一の共通コードパス（intercept機構）のバグと推定される**。8件全てを同一パッチで一括是正できる可能性が高く、**単発の個別STUBパラメータ修正ではなく、任意コストイディオムのintercept実装（effectExecutor側）の確認が必要**＝Opusタスク12へ機構バグとして登録（新規🆕(xxviii)）。
+
+## その他の新規発見クラスタ（severity/type集計は上記サマリ参照・全件IDは`findings_compact.txt`）
+- **STUB id/パラメータの意味不一致（SUSPECT_STUB・20件）**＝stub群特有のカテゴリ。名前が原文と逆/無関係（例：WXK11-014のARTS_COST_REDUCTION_BY_EFFECTが実際はグロウコスト軽減／WXDi-P12-046のTARGET_AND_DISCARD_HANDが実際はエナゾーンからの任意コスト／WX20-022・WX26-CP1-086のTRADE_BANISH_SELF_SIGNIが実際は自分のクラス限定シグニを場からトラッシュに置く任意コスト）。
+- **timing取り違え（【自】がON_PLAY化）**＝WXDi-P10-040／WX22-027／WDA-F02-17／WX05-025／WXK01-043／WX14-064／WXDi-CP01-027／WXK01-045等、round1で確認した系統と同型で件数が多い（10件超）。
+- **GRANT_LRIG_ABILITY/複数能力付与機構の欠落**＝WXK09-005-E2（`abilities:[]`で空）が続き144のWXDi-P15-004と同型＝§6.3級機構欠落の裏付けが増えた。
+- **duration/until誤り（ターン限定効果の永続化/即時化）**＝WXDi-P16-053-BURST／WX24-P2-086-E2／WXK08-030-BURST／WX26-CP1-086-SONG／WXK03-005-E1等、round1のGroup Bと同系統で件数も多い。
+- **owner/対象取り違え**＝WXDi-P15-011-E1（ルリグ対象がシグニ化）／WXDi-P06-007-E3（同様）／WXK05-072（自分限定が無制限化）／WX24-P2-091（対象所有者selfへの取り違え）等。
+- **条件節（発動条件・分岐条件）の丸ごと欠落**＝件数最多カテゴリ（MISSING 85件の大半）。WXDi-P07-063／WXDi-P11-039／WXK08-053／SPDi43-02／WX13-043等、round1のGroup Aと同系統。
+- **主要処理の丸ごと欠落（UNKNOWN・選択肢欠落等）**＝WX24-P1-035（UNKNOWN raw文字列のまま）／WXDi-P15-011-E2（選択肢の片側が丸ごと欠落）／WXEX1-38（複数効果で条件・代替処理が欠落）等。
+
+## 分類まとめ
+| カテゴリ | 目安件数 | 判定 |
+|---|---|---|
+| 🌟系統バグ：任意コストidiomの「それをエナゾーンに置く」破損 | 8枚（機械確定） | (a) 実害あり・機構バグ（単一コードパス修正で一括是正の可能性） |
+| STUB id/パラメータ意味不一致 | 20件 | (a) 実害あり（一部は要engine裏取り＝SUSPECT） |
+| timing取り違え | 10件超 | (a) 実害あり・既存タスク16/17系統 |
+| GRANT_LRIG_ABILITY等の機構欠落 | 数件 | (c) 機構待ち・§6.3級（続き144(xxvii)と合流） |
+| duration/until誤り | 10件超 | (a) 実害あり・既存Group B系統 |
+| owner/対象取り違え | 10件超 | (a) 実害あり |
+| 条件節欠落 | 40件超（最多） | (a) 実害あり・既存Group A系統 |
+| 主要処理欠落 | 数件〜10件 | (a) 実害あり、一部§6.3級 |
+
+**新規110枚のうち大半(a)実害あり、機構待ち(c)はGRANT_LRIG_ABILITY系の数件のみ**。全件IDは`scripts/archive/scratchpad/semantic_audit_stub_round2/findings_compact.txt`（242件）・原データは同ディレクトリ`findings.jsonl`。
+Opusタスク12へ🆕(xxviii)として登録（ヘッドラインの機構バグを優先・詳細本文参照）。
