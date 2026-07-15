@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3＝driverバッチ状態汚染の切り分け）**
+  - **✅ `blockDrawByEffect`/`exileHandBlind`の原因特定・修正**＝`handPrepend`（`.slice(0,4)`で前シナリオ/mulligan由来の実ランダム手札を持ち越す実装）が末尾に紛れ込む余剰カードで召喚ボタン/pick候補の出現順序を狂わせ、driveのクリック列を空振りさせていた。**続き135の「個別実行では3件ともPASS」は誤りでバッチ位置非依存の単体flakinessと確定**（FRESH=1単体でも複数回FAIL再現）。修正＝両シナリオを完全決定的な`'hand':[...]`直接指定へ変更。5シナリオ連結（freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger）で3回連続ALL PASS確認。
+  - **⚠残課題→Opusタスク12(xxv)へ登録**：71件フルバッチではこの3件を含む複数件が依然FAILする場合がある（2回試行、うち1回は残留devサーバーのポート衝突という環境要因）。5連結では再現せず71件通しでのみ再現＝**続き105の「reloadで client 側残留状態を解消した」という診断自体を疑うべき事実**（reloadは既に毎シナリオ実施済みでJSヒープごと破棄されるはずなのに再現する）。Sonnetの調査では原因を確定できず＝**scriptsインフラ課題だが Opus へ切り分け結果ごと引き継ぐ**（ユーザー指示・詳細は task12(xxv)）。
+  - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。詳細 BUGFIXES 続き139。
+  - **🆕続き140（Opus）が引き継いでタスク12(xxv)のDB側累積状態という根本原因を特定・修正済み**（詳細はBUGFIXES「driverバッチ実行の状態汚染＝タスク12(xxv)…」＝**当該セッションがPLAN/BUGFIXESへの簿記を行わずに終了したため続き141・Sonnetがコミット履歴から事後復元した記録**）。71件フルバッチでの再検証は未実施のまま残っている。
+
 - **セッション（2026-07-15・続き138・Sonnet 5・PLAN §3 Sonnetタスク9＝PARTIAL刻印151件トリアージ）**
   - **✅ タスク9完了**＝`docs/_partial_report.txt`（152件・確立以来未トリアージ）を原文照合＋効果JSON本体の直接確認で3分類。**(a)実害あり144件／(b)慣例で無害11件／(c)機構待ち0件**。
   - **IS_MY_TURN化127件＝全件(a)**。属性判定65／カウント閾値59／否定条件3（WD14-012-E2等は最も実害大）に文型分割。§9-9のLIFE_BURST慣例には非該当。
