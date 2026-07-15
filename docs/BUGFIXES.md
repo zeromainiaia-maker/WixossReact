@@ -2,6 +2,16 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## フルバッチのPlaywrightブラウザクラッシュを耐障害化＝タスク12(xxvi)消化（2026-07-15・続き142・Opus 4.8・PLAN §3 Opusタスク12(xxvi)）
+
+**続き141（Sonnet）が登録した「74件フルバッチ実行中 ~27件目で `page.screenshot: Target crashed`（Playwrightのレンダラープロセスクラッシュ）でバッチが停止する」を、`scripts/verifyBattleDrive.mjs` のセッション管理を関数化して耐障害化することで消化した。**
+
+- **主因の切り分け（登録時の推定を訂正）**：登録時は「各シナリオが最大20回超の `page.screenshot({fullPage:true})` を呼ぶ設計によるメモリ蓄積」が主因と推定されていたが、**コードを読むと `SHOTS_ON`（`process.env.SHOTS==='1' || (SHOTS!=='0' && requested.length>0)`）が false のフルバッチ既定では `page.screenshot` は no-op 化されており、実際に発火するのは `${id}-final.png`（1シナリオ1枚）だけ**（`verifyBattleDrive.mjs:5554`）。つまり主因は撮影回数そのものではなく、**単一の `page`/`context` を74シナリオ通しで使い続けることによるレンダラのヒープ/DOM/Supabase Realtime購読の累積**（毎シナリオ `page.reload()` してもブラウザプロセス側のメモリは解放されない）。
+- **修正①（予防的リサイクル＝タスク推奨(a)）**：`page` 生成＋SHOTS no-op ラップ＋console/pageerror 監視＋共通ヘルパー束 `H`＋ログイン＋ルーム再利用/セットアップ を丸ごと `establish()` 関数（`browser.newContext()` → `context.newPage()` で毎回まっさらな context を作る）へ切り出し。`RECYCLE_EVERY`（既定12・環境変数で上書き可）件処理するごとに `recycle()`＝旧 context を `close()` して破棄→`establish()` で作り直し、レンダラ側の蓄積を解放する。新規 context は localStorage 空＝毎回ログインし直すが、`findReusableRoom`（非FRESH時）で健全な PLAYING ルームを再利用するためマッチング/マリガンはスキップされ再確立コストは軽い。
+- **修正②（クラッシュ回復＝タスク推奨(c)）**：`isCrashError(page, e)`（`page.isClosed()` もしくは `Target crashed`/`Target closed`/`Session closed`/`browser has been closed` 等にマッチ）を新設。各シナリオを最大3回まで try し、クラッシュ検知時は `recycle()` で再確立して当該シナリオを再試行、以降のシナリオも継続する。**非クラッシュの drive 例外は従来どおりその場で FAIL 確定**（`sc.drive` 内 catch で `isCrashError` のみ再throw）＝実バグを握り潰さない。全 context 分の console errors は `allErrors` に集約して末尾で出力。
+- **検証**：`RECYCLE_EVERY=2 node scripts/verifyBattleDrive.mjs wxk09050 wxk02029 lriggrow` を実機実行＝2件目の後に `♻ セッション再生成（2件処理ごとの予防）` が発火し、旧 context 破棄→同一ルーム再利用で再確立→3件目もその新 context 上で PASS を確認（3件 ALL PASS）。予防リサイクルとクラッシュ回復は同一の `recycle()`/`establish()` 機構を共有。`npm run gates` 全緑（typecheck／golden／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。
+- **⚠残**：74件フルバッチ通しでの実クラッシュ再現→回復の確認は未実施（実行に数分＋Supabase 依存）＝次セッションで `node scripts/verifyBattleDrive.mjs`（FRESH=1）を通し、`♻`／`⚠ブラウザクラッシュ検知` ログとバッチ完走を確認する作業が残る。同時に続き140のDB側累積対策（タスク12(xxv)）の71件完走も併せて確認できる。
+
 ## §7実機検証横展開＝タスク1(a)(b)(c)全消化＋74件フルバッチでPlaywrightブラウザクラッシュを新規発見（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1）
 
 **PLAN §3タスク1「§7実機検証の横展開」の(a)(b)(c)全項目を消化し、既定orderを71→74件に拡張した。**
