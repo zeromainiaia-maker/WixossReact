@@ -110,10 +110,13 @@ if (onlyCards) {
   picked = onlyCards.map((num) => ({ num, group: stubGroup.includes(num) ? 'stub' : 'clean' }));
 } else {
   const rnd = mulberry32(seed);
-  picked = [
-    ...sample(stubGroup, perGroup, rnd).map((num) => ({ num, group: 'stub' })),
-    ...sample(cleanGroup, perGroup, rnd).map((num) => ({ num, group: 'clean' })),
-  ];
+  picked = [];
+  if (groupsArg.includes('stub')) {
+    picked.push(...(perGroup === null ? stubGroup : sample(stubGroup, perGroup, rnd)).map((num) => ({ num, group: 'stub' })));
+  }
+  if (groupsArg.includes('clean')) {
+    picked.push(...(perGroup === null ? cleanGroup : sample(cleanGroup, perGroup, rnd)).map((num) => ({ num, group: 'clean' })));
+  }
 }
 
 // ---- カード1枚分の監査データ ----
