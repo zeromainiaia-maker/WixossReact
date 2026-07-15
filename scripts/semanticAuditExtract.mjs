@@ -200,7 +200,7 @@ batches.forEach((b, i) => {
   writeFileSync(join(outDir, 'prompts', `batch_${nn}.txt`), prompt);
 });
 writeFileSync(join(outDir, 'manifest.json'), JSON.stringify({
-  seed, perGroup, batchSize,
+  seed, perGroup: perGroupArg, batchSize, groups: groupsArg, excludeFile,
   population: { stubOrManual: stubGroup.length, cleanAuto: cleanGroup.length, textNoJson: textNoJson.length },
   textNoJson,
   picked,
