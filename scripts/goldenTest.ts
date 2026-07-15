@@ -564,6 +564,28 @@ test('targetsLastProcessed: 自動対象化した相手シグニを autoTargeted
   const r = run({ type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsLastProcessed: true, delta: 2000 } as EffectAction, ctx);
   ok((r.autoTargetedCards ?? []).includes(tgt), 'lastProcessed 由来の自動対象も surface される');
 });
+// タスク12(xix)（続き137）: LIMIT_ALL_FIELD_N（WX04-005-E3「すべてのプレイヤーはシグニを１体しか場に出せない」）は
+// STUB executor の case ではなく継続効果として src/screens/battle/fieldLimit.ts に実装済み（続き126 Sonnet の「完全未実装」は
+// STUB executor だけを見た誤診断）。挙動を golden で固定する。
+test('LIMIT_ALL_FIELD: WX04-005（LIMIT_ALL_FIELD_1）を持つルリグで上限1・無ければ既定3', () => {
+  const withLrig = { ...mkState({}), field: { ...mkState({}).field, lrig: ['WX04-005'] } } as PlayerState;
+  const plain = mkState({});
+  eq(computeFieldSigniLimit(withLrig, plain, effectsMap, getCardNumG), 1, '自ルリグが LIMIT_ALL_FIELD_1 → 上限1');
+  eq(computeFieldSigniLimit(plain, withLrig, effectsMap, getCardNumG), 1, '相手ルリグが持っていても両者に適用（min）');
+  eq(computeFieldSigniLimit(plain, plain, effectsMap, getCardNumG), 3, '誰も持たなければ既定3');
+});
+test('LIMIT_ALL_FIELD: reduceFieldSigniToLimit は上限超過分をレベル高い順に残しトラッシュへ', () => {
+  const st = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] }); // L1/L2/L3 が3体
+  const { state: after, trashed } = reduceFieldSigniToLimit(st, 1, cardMap as Map<string, CardData>);
+  eq(tops(after)[2], SIGNI_L3, '最高レベル(L3)が残る');
+  eq(tops(after)[0], null, 'L1 は除去'); eq(tops(after)[1], null, 'L2 は除去');
+  eq(trashed.length, 2, '2体トラッシュ'); ok(after.trash.includes(SIGNI_L1) && after.trash.includes(SIGNI_L2), '除去分がトラッシュへ');
+});
+test('LIMIT_ALL_FIELD: 上限以内なら reduce は無変化', () => {
+  const st = mkState({ signi: [SIGNI_L1, null, null] });
+  const { state: after, trashed } = reduceFieldSigniToLimit(st, 1, cardMap as Map<string, CardData>);
+  eq(trashed.length, 0, '超過なし＝トラッシュ0'); eq(tops(after)[0], SIGNI_L1, 'そのまま残る');
+});
 // WXK10-031 E1 統合: デッキ公開(シグニがめくれるまで)→ 公開シグニ(L3)=lastProcessed・公開カードをトラッシュ → BOUNCE{levelLtLastProcessed}（敵L1手札へ・L4残存）
 test('WXK10-031機構: DECK_REVEAL_UNTIL→公開カードトラッシュ→そのシグニ未満レベルの敵を手札へ', () => {
   const ctx = { ...mkCtx({ deckTop: [SIGNI_L3] }, { signi: [SIGNI_L4, SIGNI_L1, null] }), sourceCardNum: 'WXK10-031', triggeringCardNum: 'WXK10-031' } as ExecCtx;
