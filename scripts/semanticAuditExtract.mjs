@@ -191,8 +191,9 @@ mkdirSync(join(outDir, 'batches'), { recursive: true });
 mkdirSync(join(outDir, 'prompts'), { recursive: true });
 const batches = [];
 for (let i = 0; i < picked.length; i += batchSize) batches.push(picked.slice(i, i + batchSize));
+const padWidth = Math.max(2, String(batches.length).length);
 batches.forEach((b, i) => {
-  const nn = String(i + 1).padStart(2, '0');
+  const nn = String(i + 1).padStart(padWidth, '0');
   const entries = b.map(({ num }) => cardEntry(num));
   writeFileSync(join(outDir, 'batches', `batch_${nn}.json`), JSON.stringify(b, null, 1));
   const prompt = header + '\n' + entries.map(renderCard).join('\n---\n\n');
