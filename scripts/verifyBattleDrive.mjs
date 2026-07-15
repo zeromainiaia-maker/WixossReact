@@ -5304,6 +5304,24 @@ async function injectScenario(page, spec) {
         s.field.heaven_state = [false, false, false];
       }
     }
+    // ── バッチ位置依存FAILの根本対策（2026-07-15・続き140・Opus）＝累積COREの健全化 ──
+    // CORE_TOP_FIELDS のうち deck/life_cloth/trash/lrig_trash は「盤面の物理配置」ではあるが、
+    // shared な battle_states 行を跨いで**単調に消耗/増加する累積フィールド**である（deck はドローで減り、
+    // life_cloth はクラッシュ/リフレッシュで減り、trash/lrig_trash は増える一方）。約67シナリオがこれらを
+    // 上書きしないため、71件フルバッチの後半では host.deck が枯渇して「4枚引く」系（delayedAttackTrigger/
+    // exileHandBlind）が完走できず、life_cloth 枯渇による試合終了状態で後続の自分ターン系が軒並みFAILしていた
+    // ＝単体・5連結では消耗が軽微で再現しない「バッチ位置依存flakiness」の真因（続き139が client 疲労と見立て
+    // 次点送りにしていた残課題）。injectScenario 直後の page.reload() はクライアント状態（React/timer/Realtime）
+    // を毎回まっさらにするが、DB 側のこの累積は reload では消えない。field 配下の status マーカーと同じく
+    // 「毎シナリオ健全な既定値へ張り直し→この後の setPath が spec.hostSet/guestSet で上書きする」方式で決定化する
+    // （deck を自前注入する refreshTrigger/revealDeckTopBanish/lookReorderCanTrash、guest life を2枚に絞る
+    //  installDelayedTriggerFire 等は従来どおり override が効く）。
+    const prevDeck = { host: (hs.deck ?? []).length, guest: (gs.deck ?? []).length };   // リセット前＝前シナリオ終了時の残量（消耗の可視化用）
+    const prevLife = { host: (hs.life_cloth ?? []).length, guest: (gs.life_cloth ?? []).length };
+    const FILLER = 'WD01-013'; // 小剣ククリ＝効果テキストもLIFE_BURSTも持たないバニラ（既存シナリオも deck/life_cloth フィラーに採用済み）
+    const mkFiller = (base, n) => Array.from({ length: n }, (_, i) => `${FILLER}#${base + i}`);
+    hs.deck = mkFiller(1200, 40); hs.life_cloth = mkFiller(1300, 7); hs.trash = []; hs.lrig_trash = []; // host（#1200～/#1300～＝scenario注入の#1..#10と非衝突）
+    gs.deck = mkFiller(2200, 40); gs.life_cloth = mkFiller(2300, 7); gs.trash = []; gs.lrig_trash = []; // guest（host と別レンジ＝owner跨ぎの重複も回避）
     for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
     for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
     if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)];
