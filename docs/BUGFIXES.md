@@ -2,6 +2,33 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## semantic audit stub群スケールアップ第1弾＝新規200枚完走・Codex CLI併用体制の確立・系統バグ8件を機械確定（2026-07-16・続き145・Sonnet 5・PLAN §3 Sonnetタスク8）
+
+**続き144が完了したseed202607サンプル（stub100+clean100）に続き、stub群母集団2,401枚のうち未サンプリングだった約2,301枚から新規200枚（seed202608）を監査した。本ラウンドから実行体制を変更＝ユーザーの指示で`claude -p`のトークン消費を節約するため、バッチ実行はOpenAI Codex CLI（ChatGPT完全無料プラン）主体に切り替え、Claudeはfeasibility確認と精査（トリアージ）に専念した。**
+
+### サンプリング手順
+続き144の教訓（母集団ドリフトで単純な同シード再実行は再現不能）を踏まえ、`scripts/archive/scratchpad/semantic_audit_101/manifest.json`の`picked`配列（stub群100枚・順序固定）を除外リストとして、現在のstub母集団2,401枚から差し引いた候補2,301枚に対し新シード202608でFisher-Yatesサンプリングし200枚を確定（`--cards`で明示指定）。
+
+### 実行体制の変更（ユーザー指示による）
+- ユーザーから「claude側のトークンがもうない」との申告を受け、`semanticAuditRun.mjs`（Claude版）のバックグラウンドタスクをバッチ05完了時点（50枚）で`TaskStop`により即座に停止。
+- 継続にあたり、Codex CLI（`codex exec --json --skip-git-repo-check -o <lastmsg>`）が同タスクを代替できるか実機確認。`codex auth status`相当（`codex login status`）でログイン方式を確認したところ`authMethod: claude.ai`ではなく`ChatGPT`ログイン・ユーザー申告で「完全無料プラン」と判明。1バッチ（10枚）のテスト実行で正常に動作し、既知の偽陽性除外ルール（STUB+CONDITIONAL(IS_MY_TURN)の任意コストイディオム等）も正しく適用した高精度な出力を確認。
+- **新設した簡易ランナー`semanticAuditRunCodex.mjs`**（セッションscratchpad限定・リポジトリ非管理＝one-off）は、Claude版と同じ`raw/batch_NN.json`存在チェックによるスキップ規約を共有する設計とし、**同一出力ディレクトリを両ツールが安全に分担できる**ようにした。Claudeがバッチ01→05（正順）で止まった状態から、Codexをバッチ20→06（逆順）で走らせることで自動的に隙間なく完走（`raw`ファイル既存チェックで重複を回避）。
+- **結果：Codexは無料プランのまま残り15バッチ（150枚）を完走**（1バッチ28〜52秒・エラー0件）。有料APIキーではなくサブスクリプションログインのため、Claude Pro同様に追加課金は発生しない（利用枠消費のみ）。
+
+### 精度確認
+HIGH中心にJSON本体・原文で18件程度を直接照合（Claude産6件＋Codex産12件、STUB id/パラメータ検証を含む）＝**全件で指摘内容が正確**。Codexは複雑な偽陽性除外ルール（既知イディオムのIS_MY_TURN条件は報告しないがthen節のアクション型不一致は報告する、等）もClaudeと同水準で運用できていた。
+
+### 結果サマリ
+200枚完走・**findings 242件**（Claude 56件／Codex 186件）。severity：HIGH139／MED98／LOW5。指摘ありカード127/200枚（stub群は逆翻訳の盲点＝本命群のため、続き144のclean群80枚〔findings88件〕より単位あたり検出率が高い）。`docs/_partial_triage.txt`と8枚・PLAN.md本文と9枚が重複＝**新規発見は110/127枚（87%）**。
+
+### 🌟ヘッドライン：機械検索で確定した系統バグ
+LLM findingsの中で繰り返し現れた「STUB（任意コストで対象化）→CONDITIONAL(IS_MY_TURN)→ENERGY_CHARGE(DECK_CARD)」という誤り方（原文「〜を支払ってもよい。そうした場合、それ〔対象化済みカード〕をエナゾーンに置く」の"それ"が無視され、無関係な自分のデッキ起点エナチャージに置換される）について、**LLM audit結果に頼らず、effects JSON全体を`SEQUENCE`内`STUB→CONDITIONAL(IS_MY_TURN)→ENERGY_CHARGE{target.type:DECK_CARD}`という形状で機械的に全数検索**したところ**8件がヒット**（`WXDi-P05-073-BURST`/`WX24-P4-048-E2`/`WX25-P2-026-E1`/`WX26-CP1-086-BURST`/`WXK05-027-E2`/`WXK05-070-E1`/`WXK10-048-BURST`/`WDK08-Y11-BURST`）。原文を全件確認し8件とも同一構文と確認済み。STUB idは5種（OPTIONAL_COST/TRADE_BANISH_SELF_SIGNI/REVEAL_AND_PICK/TARGET_AND_DISCARD_HAND/TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）とバラバラだが、**「任意コスト支払い確認後に対象化済みカードをエナゾーンへ移動する」局面で共通して汎用ENERGY_CHARGE_FROM_DECKに落ちる＝単一の共通コードパス（intercept機構）のバグと推定**。8件を同一パッチで一括是正できる可能性が高く、個別STUBパラメータ修正ではなく`effectExecutor`側の任意コストイディオムintercept実装の確認が必要。
+
+### その他の新規発見クラスタ
+STUB id/パラメータの意味不一致20件（stub群特有＝WXK11-014のARTS_COST_REDUCTION_BY_EFFECTが実際はグロウコスト軽減等）／timing取り違え10件超（【自】がON_PLAY化）／WXK09-005-E2＝GRANT_LRIG_ABILITYが`abilities:[]`で空＝続き144(xxvii)のWXDi-P15-004と同型の機構欠落／duration誤り10件超／owner取り違え10件超／条件節欠落40件超（最多）。詳細・全IDは`docs/_semantic_audit_stub_round2_triage.txt`。
+
+PLAN.md Opusタスク12へ🆕(xxviii)として登録。次回スケールアップ用に既監査stub300枚（続き144の100枚＋本ラウンドの200枚）の累積除外リストを`scripts/archive/scratchpad/semantic_audit_stub_round2/audited_stub_cards_cumulative.txt`に保存。§3 Sonnetタスク8は次の一手＝stub群残り約2,101枚への第2弾（Codex主体・Claude精査のみの体制継続）。
+
 ## semantic audit スケールアップ第2弾＝seed202607サンプル200枚が全数監査完了・新規37枚をOpusタスク12(xxvii)へ登録（2026-07-16・続き144・Sonnet 5・PLAN §3 Sonnetタスク8）
 
 **続き102（2026-07-12）が`claude -p`セッション上限で中断していたsemantic auditサンプル200枚（stub100+clean100・seed202607）のうち、未監査だった残りclean群80枚を完走した。分析専用（engine/parser/JSON変更なし）＝CLAUDE.mdのガードレール通り、発見したバグはその場で直さずOpusタスク12へ登録。**
