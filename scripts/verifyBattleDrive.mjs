@@ -5852,7 +5852,8 @@ try {
     sinceRecycle++;
   }
 
-  if (errors.length) { console.log('\n[console errors]'); errors.slice(0, 8).forEach(e => console.log('  ' + e)); }
+  allErrors.push(...errors);
+  if (allErrors.length) { console.log('\n[console errors]'); allErrors.slice(0, 8).forEach(e => console.log('  ' + e)); }
   await browser.close();
 } catch (e) { console.error('失敗:', e.message); code = 2; }
 finally { killTree(proc); }
