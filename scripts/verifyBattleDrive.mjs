@@ -5343,7 +5343,7 @@ async function injectScenario(page, spec) {
     const w = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
       method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd),
     });
-    return { roomId, ok: w.ok, status: w.status, body: w.ok ? null : await w.text() };
+    return { roomId, ok: w.ok, status: w.status, prevDeck, prevLife, body: w.ok ? null : await w.text() };
   }, { SUPA_URL, ANON, CPU_PLAYER_ID, spec });
 }
 
