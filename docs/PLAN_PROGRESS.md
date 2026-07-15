@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-15・続き141・Sonnet 5・PLAN §3 Sonnetタスク1＝§7実機検証横展開・完了）**
+  - **⚠簿記の前置き**：セッション開始時、直近コミット（`d9df6f44`〜`c4befa9c`・17:22-17:52）が**PLAN/BUGFIXES未記載のまま**存在していた＝続き140（Opus）がSonnetタスク3で登録したOpusタスク12(xxv)「driverバッチ位置依存FAIL」を修正済みだが簿記前にセッション終了した形跡。コミット履歴から内容を復元しBUGFIXES/PLAN_PROGRESSへ事後記録した（詳細はBUGFIXES続き140の節）。
+  - **✅ タスク1(a)(b)(c) 全完了**＝`trashCounterOpp`（タスク12(iv)）／`lrigGrowUsageLimit`（タスク12(vi-5)）をPASSへ反転・既定orderに追加。trashCounterOppは`handPrepend`起因の残留ランダム手札混入（続き139と同型）を`hand`直接指定へ修正。lrigGrowUsageLimitは「driverでlrigTopが変化せず再現不能」（続き132の旧記録）の真因が**engineではなくdriver側のtestId誤り**（グロウ先【出】効果コストモーダルをスペル用testIdで探していた）と判明・修正。**🆕(c) R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit＝専用シナリオ`powerzeroUsageLimit`を新規作成**（WD11-013を2枚使い1回目watcher発火→2回目は《ターン1回》で非発火を確認）。3項目とも各2〜3回連続PASSで既定order（74件）に追加。詳細BUGFIXES続き141。
+  - **🆕 71件フルバッチを実行→新種の障害を発見**：`page.screenshot: Target crashed`（Playwrightのブラウザプロセスクラッシュ）で27件目付近（`acceSelfScope`直後）に停止。**タスク12(xxv)のDB側累積状態対策（続き140）とは別種の問題**＝それまでの27件はacceAttachまで全PASS（既知FAILのlrigGrowAnyOpp/lrigGrowAnyOppP03046/lrigAttackStepStartUsageLimit/oppDrawを除く）で、続き140の対策自体は効いている様子。**Opusタスク12へ新規登録**＝(xxvi)としてscriptsインフラ課題。
+  - **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみ。
+
 - **セッション（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3＝driverバッチ状態汚染の切り分け）**
   - **✅ `blockDrawByEffect`/`exileHandBlind`の原因特定・修正**＝`handPrepend`（`.slice(0,4)`で前シナリオ/mulligan由来の実ランダム手札を持ち越す実装）が末尾に紛れ込む余剰カードで召喚ボタン/pick候補の出現順序を狂わせ、driveのクリック列を空振りさせていた。**続き135の「個別実行では3件ともPASS」は誤りでバッチ位置非依存の単体flakinessと確定**（FRESH=1単体でも複数回FAIL再現）。修正＝両シナリオを完全決定的な`'hand':[...]`直接指定へ変更。5シナリオ連結（freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger）で3回連続ALL PASS確認。
   - **⚠残課題→Opusタスク12(xxv)へ登録**：71件フルバッチではこの3件を含む複数件が依然FAILする場合がある（2回試行、うち1回は残留devサーバーのポート衝突という環境要因）。5連結では再現せず71件通しでのみ再現＝**続き105の「reloadで client 側残留状態を解消した」という診断自体を疑うべき事実**（reloadは既に毎シナリオ実施済みでJSヒープごと破棄されるはずなのに再現する）。Sonnetの調査では原因を確定できず＝**scriptsインフラ課題だが Opus へ切り分け結果ごと引き継ぐ**（ユーザー指示・詳細は task12(xxv)）。
