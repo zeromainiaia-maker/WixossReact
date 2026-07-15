@@ -546,11 +546,13 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする${a.conditional ? '（そうした場合）' : ''}`;
     case 'TRANSFER_TO_HAND': return `${targetJa(a.source)}を手札に加える`;
-    case 'TRANSFER_TO_DECK':
-      if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す`;
+    case 'TRANSFER_TO_DECK': {
+      const opt = a.optional ? '（してもよい）' : '';
+      if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す${opt}`;
       return a.shuffle
-        ? `${targetJa(a.source)}をデッキに加えてシャッフルする`
-        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く`;
+        ? `${targetJa(a.source)}をデッキに加えてシャッフルする${opt}`
+        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く${opt}`;
+    }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
     case 'PLACE_LRIGS_UNDER_CENTER':
