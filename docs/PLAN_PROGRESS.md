@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化）**
+  - **✅ タスク12(xx)＝ON_TARGETED forced単一対象follow-up を修正**＝`POWER_MODIFY{targetsTriggerSource:true}`／`targetsLastProcessed` の**選択UIなし自動解決**が `collectTargetedTriggers`（SELECT_TARGET 確定分岐でのみ発火）を素通りし、対象化された対戦相手シグニの ON_TARGETED が一度も発火しなかった実バグ（続き127・Sonnet 実機再現）。修正＝`ExecCtx`/`ExecResult`(done) に `autoTargetedCards` を追加→`execPowerModify` の自動適用パスで surface→`resolveStackNext` done 分岐で「効果発生源の対戦相手フィールドにある autoTargetedCards」を `collectTargetedTriggers` にかけ ON_TARGETED をスタック後乗せ＋usageLimit 書き戻し（既存 SELECT_TARGET 経路と同型）。自己バフ（owner:self）は対戦相手フィールド判定で除外＝ON_TARGETED 非発火（正しい）。
+  - **✅ タスク12(xiii)＝解決確認（bookkeeping）**＝WX24-P2-018-E1 の timing は続き136（タスク17）で `ON_ATTACK_PHASE_START` へ是正済みと JSON で確認。残る付与先バグはタスク1（引用付与の内側 parse）。
+  - **✅ タスク12(xix)＝誤診断と判明（bookkeeping＋golden固定）**＝WX04-005-E3 `LIMIT_ALL_FIELD_1` は「engine 完全未実装」（続き126）ではなく `src/screens/battle/fieldLimit.ts` に継続効果として実装済み（上限算出＋超過分トラッシュ＋召喚ブロック/グロウ減量配線）。続き126 は STUB executor の case だけを見た誤り。golden 3件で挙動固定。
+  - **✅ タスク12(viii)＝WX25-CP1-062 の欠落第1能力を復元**＝parser が2能力を1効果に混線させ欠落していた「ターン終了時 手札を捨てて＜ブルアカ＞+4000」を `manualEffects.ts` の完全 MANUAL 上書きで復元（build:effects→`heldReview.mjs --adopt`）。逆翻訳が原文2能力と一致・**census 2215→2214**。副次で build:effects が保留中の parser 純改善13枚を adopted_gain（無損失）同時採用。
+  - **✅ タスク12(viii)＝WX17-028-E1 の「してもよい」欠落を修正**＝`execTransferToDeck` の TRASH_CARD 経路が `optional` を無視し4枚を強制転送していた（HAND_CARD 経路のみ selectOrInteract 対応済みだった）。型に `TransferToDeckAction.optional?` 追加＋TRASH_CARD 経路を selectOrInteract 化（self_trash 選択/スキップ）。スキップ時は既存 `stripDidItConditional` が後続「そうした場合」【ダブルクラッシュ】を無効化。JSON に `optional:true`・decompiler に「（してもよい）」表示追加。
+  - **✅ タスク12(viii)＝WX16-070-E1 の「＋1か＋2してもよい」欠落を修正**＝parser が LEVEL_MODIFY +1 固定に潰していた（＋2 と「してもよい」と「このシグニ」限定を欠落）。`execLevelModify` に `thisCardOnly` 対応追加（source へ選択UIなし適用）＋`manualEffects.ts` に `CHOOSE{upTo:true, choices:[+1,+2]}`（upTo で0選択=スキップ）で MANUAL 化・heldReview 採用。**census 2214→2213**。(viii) 残＝WX26-CP1-048/WXDi-P10-034/WX16-038/WDK16-13/WXK08-033。
+  - **✅ 検証**：全ゲート緑（typecheck／**golden 326→334**＝autoTargetedCards 2件＋LIMIT_ALL_FIELD 3件＋TRANSFER_TO_DECK optional 1件＋LEVEL_MODIFY thisCardOnly/CHOOSE 2件／smoke 全0／fuzz 全0／**census 2215→2213**／同型★0／lint 0 error）。**実機 E2E `onTargetedForcedBypass`**（WX12-010〔ON_ATTACK_SIGNI any_opp＋targetsTriggerSource -2000〕× WXDi-P03-067〔ON_TARGETED self=DRAW〕）を空手札注入の絶対値判定に作り直し **FRESH=1 で2回連続PASS**（gHand=1）→既定 order に追加。effects JSON 無変更。詳細 BUGFIXES 続き137。
+
 - **セッション（2026-07-15・続き135-136・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化4件／タスク17＝timing判定の系統修正）**
   - **✅ usageLimit ガード欠落の5コレクタを一括是正（タスク12(x)＋(vi-5)）**＝`collectFieldTriggers`（判定コード自体が無かった・ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any系＝実カード32枚）・`collectBloomTriggers`（2枚）・`collectBanishTriggers`（18枚）・`collectPowerZeroTriggers`（6枚）・`collectLrigGrowTriggers`（4枚）を `{entries, usedHostIds, usedGuestIds}` 型へ統一。BattleScreen 12箇所で `actions_done` へ書き戻し。`twice_per_turn` も同時に有効化。
   - **✅ `POWER_MODIFY_PER_DECK_COUNT` を CONTINUOUS 計算層に実装（タスク12(vi)）**／**✅ `applyDirectAction` の TRASH/HAND_CARD が手札カウンタ3種を更新（タスク12(iv)）**。
