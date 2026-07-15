@@ -4979,24 +4979,26 @@ const scenarios = {
         'field.signi_down': [false, false, false],
         'blocked_actions': [],
         'actions_done': [],
+        'hand': [], // ⚠絶対値判定のため空手札を注入（CPUアタックは注入直後に完結し before スナップショットが取れないため）
       },
       top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
     },
+    // ⚠計測タイミング（続き137・Opusタスク12(xx)修正後）：CPU の自動アタック→WX12-010 の POWER_MODIFY→
+    //   ON_TARGETED の DRAW はすべて「注入直後・最初の queryState より前」に完結してしまう。そのため drive 側で
+    //   ドロー前後の delta は観測できない。代わりに guest.hand を空([])で注入し、ON_TARGETED が正しく発火すれば
+    //   ちょうど hand===1（DRAW×1）になる絶対値で判定する（修正が無ければ POWER_MODIFY だけ成立し hand===0 のまま）。
     async drive(page, H) {
-      const before = await H.queryState();
-      H.log('開始時 guest.hand:', before?.guest?.hand, 'guest.powerMods:', JSON.stringify(before?.guest?.powerMods));
       for (let s = 0; s < 16; s++) {
         await page.waitForTimeout(1000);
         await page.screenshot({ path: `${SHOT}/onTargetedForcedBypass-${s}.png`, fullPage: true });
         const st = await H.queryState();
         const targeted = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-2000'));
-        H.log(`  otfb[${s}] -> gHand=${st?.guest?.hand}（開始${before?.guest?.hand}）gPowerMods=${JSON.stringify(st?.guest?.powerMods)} phase=${st?.turnPhase}`);
+        H.log(`  otfb[${s}] -> gHand=${st?.guest?.hand} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} phase=${st?.turnPhase}`);
         if (targeted) {
-          const drew = (st.guest.hand ?? 0) > (before?.guest?.hand ?? 0);
-          if (drew) {
-            return { pass: true, detail: `targetsTriggerSourceでの自動対象化後もON_TARGETEDが発火＝WXDi-P03-067がドロー（gHand ${before.guest.hand}→${st.guest.hand}）＝forced単一対象経路は正しくカバーされている` };
+          if ((st.guest.hand ?? 0) >= 1) {
+            return { pass: true, detail: `targetsTriggerSourceでの自動対象化後もON_TARGETEDが発火＝WXDi-P03-067がドロー（空手札注入→gHand=${st.guest.hand}）＝forced単一対象経路が正しくカバーされている` };
           }
-          return { pass: false, detail: `WX12-010のPOWER_MODIFY(-2000)は成立（gPowerMods=${JSON.stringify(st.guest.powerMods)}）が、WXDi-P03-067のON_TARGETED（DRAW）が発火せずgHand不変（${before.guest.hand}→${st.guest.hand}）＝forced単一対象（targetsTriggerSourceの選択UIなし自動解決）がcollectTargetedTriggersを素通りする実バグを確認` };
+          return { pass: false, detail: `WX12-010のPOWER_MODIFY(-2000)は成立（gPowerMods=${JSON.stringify(st.guest.powerMods)}）が、WXDi-P03-067のON_TARGETED（DRAW）が発火せずgHand=0のまま＝forced単一対象（targetsTriggerSourceの選択UIなし自動解決）がcollectTargetedTriggersを素通りする実バグ` };
         }
       }
       const fin = await H.queryState();
