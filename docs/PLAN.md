@@ -113,7 +113,7 @@
 | ~~(x)~~ | ~~`collectFieldTriggers` に usageLimit 自体が無く《ターン1回》が過剰発火（続き104・32枚）~~ **✅続き135（Opus）で修正＝5コレクタを `{entries, usedHostIds, usedGuestIds}` 型へ統一＋BattleScreen 12箇所で書き戻し。実機 `onPlayUsageLimit` 2回連続PASS** |
 | (xi) | curated の `CONDITIONAL{条件, then:STUB OPTIONAL_COST}` 包み形27枚の扱い（続き110） |
 | (xii) | WXEX1-19-E2＝自己再帰STUBと `resumeSelectTarget` の個別適用ループが設計非互換＝実プレイでも無限ループ（続き112） |
-| (xiii) | WX24-P2-018-E1＝ルリグの「アタックフェイズ開始時」が `ON_ATTACK_SIGNI`（自己スコープ）で誤登録され一度も発火しない（続き112・§7 B4 のブロッカー） |
+| ~~(xiii)~~ | ~~WX24-P2-018-E1＝ルリグの「アタックフェイズ開始時」が `ON_ATTACK_SIGNI`（自己スコープ）で誤登録され一度も発火しない（続き112・§7 B4 のブロッカー）~~ **✅続き136（Opus・タスク17）の timing 系統修正で `ON_ATTACK_PHASE_START` へ是正済み（JSON確認）。残る付与先バグはタスク1（引用付与の内側 parse）** |
 | (xix) | WX04-005-E3＝STUB `LIMIT_ALL_FIELD_1`（場出し数制限）が engine 未実装（続き126） |
 | ~~(xx)~~ | ~~`POWER_MODIFY{targetsTriggerSource:true}` 系＝ON_TARGETED の forced 単一対象 follow-up が未発火（続き127）~~ **✅続き137（Opus）で修正＝`ExecResult` に `autoTargetedCards` を surface し `resolveStackNext` done 分岐で ON_TARGETED を収集。実機 `onTargetedForcedBypass` 2回連続PASS・golden 2件・詳細 BUGFIXES 続き137** |
 | 🆕 | `choice.condition`（選択肢の使用可否条件）と fresh の `choice.action` CONDITIONAL ラップの**表現不整合＝設計判断が要る**（続き130・census-batch が採用不能になる原因） |
