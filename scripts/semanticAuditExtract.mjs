@@ -27,10 +27,15 @@ function argOf(name, dflt) {
 }
 const outDir = argOf('--out', null);
 if (!outDir) { console.error('--out <dir> は必須'); process.exit(1); }
-const perGroup = Number(argOf('--per-group', '50'));
+const perGroupArg = argOf('--per-group', '50');
+const perGroup = perGroupArg === 'all' ? null : Number(perGroupArg);
 const batchSize = Number(argOf('--batch-size', '10'));
 const seed = Number(argOf('--seed', '42'));
-const onlyCards = argOf('--cards', null)?.split(',').map(s => s.trim()).filter(Boolean) ?? null;
+const cardsFileArg = argOf('--cards-file', null);
+const onlyCards = argOf('--cards', null)?.split(',').map(s => s.trim()).filter(Boolean)
+  ?? (cardsFileArg ? readFileSync(cardsFileArg, 'utf8').split(/[,\n\r]+/).map(s => s.trim()).filter(Boolean) : null);
+const excludeFile = argOf('--exclude-file', null);
+const groupsArg = argOf('--groups', 'stub,clean').split(',');
 
 const root = process.cwd();
 
