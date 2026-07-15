@@ -3472,8 +3472,12 @@ const scenarios = {
         'energy': ['WD01-013#1'],           // 無コスト（任意色で可）
         'blocked_actions': ['DRAW_OR_ADD_TO_HAND_BY_EFFECT'], // WXK10-010①解決後の状態を模擬
         'actions_done': [],
+        // 続き139（Sonnet・タスク3調査）＝handPrependは前シナリオ/mulliganの実ランダム手札を
+        // .slice(0,4)で持ち越すため末尾3枚が毎回変わり、そのランダムな余剰カードが召喚ボタンの
+        // 出現順序やSELECT_TARGET候補と衝突してdriveのクリック列を狂わせる（バッチ位置に無関係の
+        // 単体flakiness・詳細BUGFIXES）。'hand'を直接指定して完全決定的にする。
+        'hand': ['WXDi-P01-061#1'],
       },
-      handPrepend: ['WXDi-P01-061#1'],      // 蒼天　カロン（【出】《無》：カードを1枚引く・任意コスト）
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
