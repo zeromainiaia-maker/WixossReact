@@ -586,6 +586,34 @@ test('LIMIT_ALL_FIELD: 上限以内なら reduce は無変化', () => {
   const { state: after, trashed } = reduceFieldSigniToLimit(st, 1, cardMap as Map<string, CardData>);
   eq(trashed.length, 0, '超過なし＝トラッシュ0'); eq(tops(after)[0], SIGNI_L1, 'そのまま残る');
 });
+// タスク12(viii)（続き137・WX17-028-E1）: TRANSFER_TO_DECK{TRASH_CARD, optional} を強制せず選択/スキップ可能にし、
+// スキップ（0体選択）時は後続「そうした場合」(CONDITIONAL IS_MY_TURN→GRANT) を stripDidItConditional で無効化する。
+test('TRANSFER_TO_DECK optional: 選択UIを出す（強制しない）／スキップで「そうした場合」を無効化／選択で転送＋付与', () => {
+  const src = SIGNI_L3;
+  const trashSigni = [SIGNI_L1, SIGNI_L2];
+  const base = mkCtx({ signi: [src, null, null] }, {}, src);
+  const ctx = { ...base, ownerState: { ...base.ownerState, trash: [...trashSigni] } } as ExecCtx;
+  const action = { type: 'SEQUENCE', steps: [
+    { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 2, filter: { cardType: 'シグニ' } }, shuffle: true, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN' } },
+  ] } as EffectAction;
+  const eff = { effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect;
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, '強制せず中断（インタラクション）');
+  const p0 = (r0 as { pending: { type: string; optional?: boolean } }).pending;
+  ok(p0.type === 'SELECT_TARGET' && p0.optional === true, 'optional な SELECT_TARGET を出す');
+  const rctx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  // スキップ（0体）
+  const rSkip = resumeSelectTarget([], p0 as never, rctx);
+  ok(rSkip.done, 'skip 完了');
+  eq((rSkip.ownerState.keyword_grants ?? {})[src]?.includes('ダブルクラッシュ') ?? false, false, 'skip 時はダブルクラッシュ非付与');
+  ok(rSkip.ownerState.trash.includes(SIGNI_L1) && rSkip.ownerState.trash.includes(SIGNI_L2), 'skip 時は転送されずトラッシュに残る');
+  // 選択（2体）
+  const rDo = resumeSelectTarget(trashSigni, p0 as never, rctx);
+  ok((rDo.ownerState.keyword_grants ?? {})[src]?.includes('ダブルクラッシュ'), 'do 時はダブルクラッシュ付与');
+  ok(!rDo.ownerState.trash.includes(SIGNI_L1) && !rDo.ownerState.trash.includes(SIGNI_L2), 'do 時はトラッシュから抜ける');
+  ok(rDo.ownerState.deck.includes(SIGNI_L1) && rDo.ownerState.deck.includes(SIGNI_L2), 'do 時はデッキへ');
+});
 // WXK10-031 E1 統合: デッキ公開(シグニがめくれるまで)→ 公開シグニ(L3)=lastProcessed・公開カードをトラッシュ → BOUNCE{levelLtLastProcessed}（敵L1手札へ・L4残存）
 test('WXK10-031機構: DECK_REVEAL_UNTIL→公開カードトラッシュ→そのシグニ未満レベルの敵を手札へ', () => {
   const ctx = { ...mkCtx({ deckTop: [SIGNI_L3] }, { signi: [SIGNI_L4, SIGNI_L1, null] }), sourceCardNum: 'WXK10-031', triggeringCardNum: 'WXK10-031' } as ExecCtx;
