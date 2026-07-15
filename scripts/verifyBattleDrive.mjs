@@ -3522,6 +3522,9 @@ const scenarios = {
           }
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
+        // バッチ時レース対策＝召喚UIが一度も出ずカードが手札に残ったまま（未召喚）なら手札カードを再クリック。
+        // 最初の1クリックが空振り（長時間セッションでのレンダリング遅延で選択が登録されない）でも復帰できる。
+        if (!did && !summoned) did = await H.clickTestId('my-hand-card-0');
         const st = await H.queryState();
         const blockedLog = await H.findLog(/効果によるドローは封じられている/);
         H.log(`  block[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand ?? '-'} blocked=${JSON.stringify(st?.host?.blockedActions)} blockedLog=${!!blockedLog}`);
