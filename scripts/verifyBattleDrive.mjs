@@ -3668,7 +3668,7 @@ const scenarios = {
         }
         if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定']);
         const st = await H.queryState();
-        H.log(`  trashctr[${s}] -> ${did ?? 'なし'} | gHandTrashedByOpp=${st?.guest?.handTrashedByOpp ?? '-'} gHand=${st?.guest?.hand ?? '-'} pEff=${st?.pendingEffect ?? '-'} hHand=${st?.host?.hand ?? '-'} phase=${st?.turnPhase ?? '-'} active=${st?.activeUser ?? '-'}`);
+        H.log(`  trashctr[${s}] -> ${did ?? 'なし'} | gHandTrashedByOpp=${st?.guest?.handTrashedByOpp ?? '-'} gHand=${st?.guest?.hand ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if ((st?.guest?.handTrashedByOpp ?? 0) >= 1) {
           return { pass: true, detail: `execTrash カウンタ加算確認→guest.hand_trashed_by_opp_this_turn=${st.guest.handTrashedByOpp}（「代わりに」置換の起点条件が実ディスパッチで成立）` };
         }
