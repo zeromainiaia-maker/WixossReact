@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-15・続き135-136・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化4件／タスク17＝timing判定の系統修正）**
+  - **✅ usageLimit ガード欠落の5コレクタを一括是正（タスク12(x)＋(vi-5)）**＝`collectFieldTriggers`（判定コード自体が無かった・ON_PLAY/ON_ATTACK_SIGNI/ON_BLOOM の any系＝実カード32枚）・`collectBloomTriggers`（2枚）・`collectBanishTriggers`（18枚）・`collectPowerZeroTriggers`（6枚）・`collectLrigGrowTriggers`（4枚）を `{entries, usedHostIds, usedGuestIds}` 型へ統一。BattleScreen 12箇所で `actions_done` へ書き戻し。`twice_per_turn` も同時に有効化。
+  - **✅ `POWER_MODIFY_PER_DECK_COUNT` を CONTINUOUS 計算層に実装（タスク12(vi)）**／**✅ `applyDirectAction` の TRASH/HAND_CARD が手札カウンタ3種を更新（タスク12(iv)）**。
+  - **✅ タスク17（続き136）＝【自】の timing 判定を「効果ブロック先頭のトリガー句」に限定**＝「アタックフェイズ開始時」の誤 timing 23効果を JSON へ外科的にパッチ。同型★0 維持・census 2218→2215・golden 326。
+  - **✅ 検証**：全ゲート緑（golden 319→325・smoke/fuzz 全0・census 2215・lint 0 error）。実機 E2E `onPlayUsageLimit` 2回連続PASS。詳細 BUGFIXES 続き135-136。
+
 - **セッション（2026-07-15・続き133・Sonnet 5・PLAN §5a／§3 Sonnetタスク4＝BEHAVIOR_AUDIT一次トリアージ→22件全件を目視精査）**
   - **キュー再生成で回帰なしを確認**＝`npm run audit:queue`→`_bqTriage.mjs`の高シグナル22件は続き130と完全一致（総母数273も同一）＝続き131/132でeffects JSON側の変更が無かったことと整合。
   - **✅ 22件全件を`npm run audit -- --id`で目視精査＝新規の真no-opバグは0件**。内訳＝①既に§6.1/§6.3/STUBS.mdで追跡済みのSTUB露出7件（`WXDi-P09-079`/`WX24-P2-049`/`WX25-P2-009`/`WX25-CP1-040`/`WX09-012`/`WXEX2-51`＝いずれも既存追跡STUB、`WXDi-P04-065`は監査ツールでは無変化だが実機E2E`freezetrigger`で既にPASS確定済みの偽陽性）②**監査ツール自体の構造的盲点を新規特定＝COUNTER_SPELL/SPELL_CUTIN系3件**（`WX04-003-E3`/`WXEX1-12-E3`/`WXK01-021-E4`＝実処理はBattleScreen側cutin経路でのみ発生し孤立実行では原理的に再現不可能）③**同じく構造的盲点＝トリガー文脈依存効果 約12件**（ON_ATTACK系・ON_TRASH系・対象0枚のtoy盤面等）④軽微なparser残骸1件（`WXK01-021-E1`＝空のGRANT_LRIG_ABILITY・機能的には無害・E2/E4が別途正しく実装済み）。
