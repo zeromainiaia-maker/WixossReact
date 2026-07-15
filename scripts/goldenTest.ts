@@ -429,6 +429,17 @@ test('LAST_PROCESSED_MATCHES minCount 閾値: この方法で黒N枚以上トラ
     eq(r.ownerState.hand.length, 3, '黒1枚のみ→minCount2未満→ドローなし（無条件発火しない）');
   }
 });
+test('多分岐の後続枝が LAST_PROCESSED_MATCHES 化（bare step の無条件発火を防ぐ・続き143）', () => {
+  // WXDi-P13-049: ミル→「レベル1→引く。レベル2→捨てさせる。レベル3以上→バニッシュ。スペル→…」。
+  // 従来は第1枝のみ条件付きで第2枝以降が bare step（無条件発火＝過剰実行）だった。
+  const e = (effectsMap.get('WXDi-P13-049') ?? []).find(x => x.effectId === 'WXDi-P13-049-E1');
+  const steps = (e?.action as { steps?: Array<{ type?: string; condition?: { type?: string; filter?: Record<string, unknown> } }> })?.steps ?? [];
+  const conds = steps.filter(s => s.type === 'CONDITIONAL' && s.condition?.type === 'LAST_PROCESSED_MATCHES');
+  ok(conds.length === 4, `4枝すべて LAST_PROCESSED_MATCHES 化のはず（実際 ${conds.length}枝・${JSON.stringify(steps.map(s => s.type))}）`);
+  const s = JSON.stringify(conds.map(c => c.condition?.filter));
+  ok(s.includes('"level":1') && s.includes('"level":2') && s.includes('"min":3') && s.includes('"cardType":"スペル"'),
+     `レベル1/2/3以上/スペルの4条件のはず（実際 ${s}）`);
+});
 test('結果カウント閾値の parser 構造固定（Cluster B・続き143）', () => {
   // WDK06-C07: 黒5枚トラッシュ→{color:黒}minCount5
   const s1 = JSON.stringify(effectsMap.get('WDK06-C07') ?? []);

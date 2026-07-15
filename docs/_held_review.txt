@@ -105,26 +105,6 @@ SPDi43-08 SPDi43-20 WD12-018 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25
   + [0].action.steps[1].source.count = 1
   …（他 1 行）
 
-## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［10枚］
-WDK06-C07 WX14-069 WX14-072 WX25-CP1-008 WX26-CP1-092 WXDi-P01-034 WXDi-P03-083 WXDi-P06-082 WXDi-P13-049 WXK06-030
---- WDK06-C07
-  原文: アンコール－《コインアイコン》あなたのデッキの上からカードを５枚トラッシュに置く。その後、この方法で黒のカードが５枚トラッシュに置かれた場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.color = "黒"
-  + [0].action.steps[1].condition.minCount = 5
---- WX14-069
-  原文: あなたのデッキの上からカードを２枚エナゾーンに置く。この方法で＜植物＞のシグニが２枚エナゾーンに置かれた場合、追加であなたのデッキの一番上のカードをエナゾーンに置く。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.story = "植物"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.minCount = 2
---- WX14-072
-  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。この方法で＜天使＞のシグニを公開した場合、あなたのデッキから＜天使＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.story = "天使"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.minCount = 1
-
 ## -CONDITIONAL -TRASH_HAS_CARD ［6枚］
 WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
 --- WXDi-P00-042
@@ -506,6 +486,33 @@ WDK16-13 WXK08-033
   + [0].action.steps[1].condition.filter.cardType = "シグニ"
   …（他 1 行）
 
+## +CONDITIONAL +LAST_PROCESSED_MATCHES ［1枚］
+WX10-031
+--- WX10-031
+  原文: あなたの場に＜アーム＞と＜ウェポン＞のシグニがある場合、このスペルの使用コストは《白×1》《赤×1》減る。対象の対戦相手のシグニ１体を手札に戻し、対象の対戦相手のシグニ１体をバニッシュする。,：手札を１枚捨てる。その後、そのカードが＜アーム＞のシグニの場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。＜ウェポン＞のシグニの場合、対戦相手のシグニ１体を対
+  - [1].action.steps[2].target.type = "SIGNI"
+  - [1].action.steps[2].target.owner = "opponent"
+  - [1].action.steps[2].target.count = 1
+  - [1].action.steps[2].target.filter.cardType = "シグニ"
+  - [1].action.steps[2].target.filter.story = "ウェポン"
+  - [1].action.steps[2].target.upToCount = false
+  ~ [1].action.steps[2].type : "BANISH" → "CONDITIONAL"
+  + [1].action.steps[2].condition.type = "LAST_PROCESSED_MATCHES"
+  + [1].action.steps[2].condition.filter.story = "ウェポン"
+  + [1].action.steps[2].condition.filter.cardType = "シグニ"
+  + [1].action.steps[2].then.type = "BANISH"
+  + [1].action.steps[2].then.target.type = "SIGNI"
+  …（他 4 行）
+
+## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
+WX14-072
+--- WX14-072
+  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。この方法で＜天使＞のシグニを公開した場合、あなたのデッキから＜天使＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.story = "天使"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.minCount = 1
+
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +BLOCK_ACTION +CHOOSE +CONDITIONAL +IS_MY_TURN +PLAYER +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
 --- WX16-005
@@ -653,6 +660,24 @@ WXDi-P10-035
   + [0].action.steps[0].target.count = 1
   + [0].action.steps[0].target.filter.thisCardOnly = true
   …（他 22 行）
+
+## +CONDITIONAL×3 +LAST_PROCESSED_MATCHES×4 -IS_MY_TURN ［1枚］
+WXDi-P13-049
+--- WXDi-P13-049
+  原文: 【自】：あなたのメインフェイズ以外でこのシグニが場を離れたとき、《青》を支払いあなたのデッキの一番下のカードをトラッシュに置いてもよい。その後、この方法でデッキからトラッシュに置かれたカードがレベル１の場合、カードを３枚引く。レベル２の場合、対戦相手は手札を３枚捨てる。レベル３以上の場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。スペルの場合、対
+  - [0].action.steps[2].target.type = "HAND_CARD"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 3
+  - [0].action.steps[3].target.type = "SIGNI"
+  - [0].action.steps[3].target.owner = "opponent"
+  - [0].action.steps[3].target.count = 1
+  - [0].action.steps[3].target.filter.cardType = "シグニ"
+  - [0].action.steps[3].target.filter.level.min = 3
+  - [0].action.steps[3].target.upToCount = false
+  - [0].action.steps[4].target.type = "HAND_CARD"
+  - [0].action.steps[4].target.owner = "opponent"
+  - [0].action.steps[4].target.count = 1
+  …（他 28 行）
 
 ## +CONDITIONAL +DRAW +IS_MY_TURN +STUB ［1枚］
 WXDi-CP02-077
