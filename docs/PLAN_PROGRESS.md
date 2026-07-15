@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-15・続き138・Sonnet 5・PLAN §3 Sonnetタスク9＝PARTIAL刻印151件トリアージ）**
+  - **✅ タスク9完了**＝`docs/_partial_report.txt`（152件・確立以来未トリアージ）を原文照合＋効果JSON本体の直接確認で3分類。**(a)実害あり144件／(b)慣例で無害11件／(c)機構待ち0件**。
+  - **IS_MY_TURN化127件＝全件(a)**。属性判定65／カウント閾値59／否定条件3（WD14-012-E2等は最も実害大）に文型分割。§9-9のLIFE_BURST慣例には非該当。
+  - **multi-dest分割11件＝全件(b)**。11件全件をJSON本体で直接確認＝`targetsLastProcessed`/STUB等で内容欠落なしと確定＝対応不要。
+  - **リコレクト分割8件＝(a)（深刻）**。8件中6件を直接確認＝SPDi47-03-E2（ドロー+ディスカード本体actionが丸ごと消失）／SPDi47-05-E2（置換ルール消失）／**WX25-P1-001/003/005/007/009（5件同一テンプレ）＝センタールリグへの複数エクシード起動能力付与GRANT機構が丸ごと欠落し全能力を即時連続実行**／WX24-P4-016-E3（誤変換疑い）。
+  - **発生源フィルタ脱落8件＝全件(a)**。WX25-P3-071-E2で確認＝`triggerCondition`に発生源限定なく過剰発火。
+  - **成果物**：`docs/_partial_triage.txt`（分類根拠・全件IDリスト・JSON実例）。**(a)144件をPLAN §3 Opusタスク12へ (xxii)(xxiii)(xxiv) として登録**（parser修正はガードレール②によりOpus担当）。
+  - **検証**：データ分類のみ（parser/engine/JSON無変更）。全ゲート緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／同型★0／lint 0 error）。詳細 BUGFIXES 続き138。
+
 - **セッション（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12＝在庫消化）**
   - **✅ タスク12(xx)＝ON_TARGETED forced単一対象follow-up を修正**＝`POWER_MODIFY{targetsTriggerSource:true}`／`targetsLastProcessed` の**選択UIなし自動解決**が `collectTargetedTriggers`（SELECT_TARGET 確定分岐でのみ発火）を素通りし、対象化された対戦相手シグニの ON_TARGETED が一度も発火しなかった実バグ（続き127・Sonnet 実機再現）。修正＝`ExecCtx`/`ExecResult`(done) に `autoTargetedCards` を追加→`execPowerModify` の自動適用パスで surface→`resolveStackNext` done 分岐で「効果発生源の対戦相手フィールドにある autoTargetedCards」を `collectTargetedTriggers` にかけ ON_TARGETED をスタック後乗せ＋usageLimit 書き戻し（既存 SELECT_TARGET 経路と同型）。自己バフ（owner:self）は対戦相手フィールド判定で除外＝ON_TARGETED 非発火（正しい）。
   - **✅ タスク12(xiii)＝解決確認（bookkeeping）**＝WX24-P2-018-E1 の timing は続き136（タスク17）で `ON_ATTACK_PHASE_START` へ是正済みと JSON で確認。残る付与先バグはタスク1（引用付与の内側 parse）。
