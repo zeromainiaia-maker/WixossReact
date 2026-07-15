@@ -40,9 +40,11 @@ function extractJson(text) {
   return JSON.parse(stripped.slice(start, end + 1));
 }
 
+const MAX_CONSECUTIVE_FAILURES = Number(argOf('--max-consecutive-failures', '5'));
 let totalFindings = 0;
 let totalCards = 0;
 let failed = 0;
+let consecutiveFailures = 0;
 for (const f of batchFiles) {
   const nn = f.match(/batch_(\d+)/)?.[1];
   if (only && !only.includes(Number(nn))) continue;
@@ -60,8 +62,16 @@ for (const f of batchFiles) {
   if (res.status !== 0 || !existsSync(lastMsgPath)) {
     console.error(`batch_${nn}: 失敗 (exit=${res.status}, ${sec}s)\n${(res.stderr || '').slice(0, 800)}`);
     failed++;
-    continue; // Codex（無料プラン）はレート上限で恒久停止しない想定＝次のバッチへ継続
+    consecutiveFailures++;
+    // 単発の失敗は継続するが、N連続失敗＝無料枠の使用量上限やログイン切れ等の恒久的なブロックとみなし早期停止する
+    // （skip規約により、未生成の raw/batch_NN.json は次回同コマンドで自動的に再試行される＝再開は安全）
+    if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      console.error(`\n⚠${MAX_CONSECUTIVE_FAILURES}連続失敗を検知＝使用量上限またはログイン切れの可能性が高いため停止します。上限リセット後に同じコマンドで再開してください（済みバッチは自動スキップ）。`);
+      break;
+    }
+    continue;
   }
+  consecutiveFailures = 0;
 
   const lastMsg = readFileSync(lastMsgPath, 'utf8');
   writeFileSync(rawPath, JSON.stringify({ result: lastMsg }));
