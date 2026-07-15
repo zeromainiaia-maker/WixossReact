@@ -5542,7 +5542,14 @@ let code = 0;
 const results = [];
 try {
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1400, height: 950 } });
+  // タスク12(xxvi)＝74件フルバッチでレンダラのメモリ蓄積により ~27件目で `Target crashed`＝バッチ停止。
+  // 対策＝セッション（context+page+H＋console監視）を関数化し、(a) N件ごとに context を作り直して
+  // ヒープ/DOM/Realtime購読の蓄積を解放、(b) クラッシュ検知時に再確立して当該シナリオを再試行する。
+  // 新規 context は localStorage 空＝毎回ログインし直すが、ルーム再利用（findReusableRoom）で
+  // マッチング/セットアップは非FRESH時スキップされるため再確立コストは軽い。
+  const establish = async () => {
+    const context = await browser.newContext({ viewport: { width: 1400, height: 950 } });
+    const page = await context.newPage();
   // SHOTS_ON=false のとき page.screenshot を no-op 化（シナリオ側の呼び出しは無改変でよい）
   if (!SHOTS_ON) { const raw = page.screenshot.bind(page); page.screenshot = (o) => (o?.path?.includes('-final') ? raw(o) : Promise.resolve(Buffer.alloc(0))); }
   const errors = [];
