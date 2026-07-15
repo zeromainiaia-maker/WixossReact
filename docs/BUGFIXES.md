@@ -2,6 +2,15 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## WX25-CP1-062 の欠落していた第1能力を復元＝タスク12(viii) の per-card 構造修正1枚（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(viii)）
+
+**現行 parser が2能力を1効果に混線させ欠落していた第1能力を MANUAL 上書きで復元した（(vii)(viii) バッチの1枚目）。**
+
+- **真因**：豊見コトリ（＜ブルアカ＞）は【自】ターン終了時 手札を捨てて＜ブルアカ＞シグニ+4000／【絆自】アタックフェイズ開始時 ダウン→ドローの2能力を持つが、**parser は両者を1つの SEQUENCE（E1）へ混線させ、しかも POWER_MODIFY を `owner:any count:1` に壊す**（fresh 確認）。既存 JSON は絆自のみのより綺麗な版だったが**第1能力（捨てる→+4000）が丸ごと欠落**していた（続き91 で登録）。
+- **修正**：`manualEffects.ts` に完全 MANUAL 上書きを追加＝E1=第1能力（`SEQUENCE[TRASH HAND_CARD optional, CONDITIONAL(IS_MY_TURN)→POWER_MODIFY{all self ＜ブルアカ＞, +4000, UNTIL_OPP_TURN_END}]`＝WX24-P4-050-E1 と同型）／E2=絆自（既存 JSON と同型）。**採用手順＝`build:effects` で held に落ちる（parser fresh と構造が違い pure-superset でないため）→`node scripts/heldReview.mjs --adopt WX25-CP1-062` で JSON へ採用**（JSON手パッチではなく MANUAL を source of truth に）。
+- **検証**：逆翻訳が原文2能力と一致（decompile_sheet9）／**census 2215→2214**（BASELINE_HIGH 更新）／同型★0 維持／全ゲート緑（golden 331・smoke/fuzz 全0・lint 0 error）。
+- **副次**：この過程で `build:effects` が**保留中だった parser 純改善13枚を adopted_gain（pure-superset＝無損失）として同時採用**（SPDi43-10/WX24-P1-014/WX24-P2-018/WX25-CP1-085/WX25-CP1-088/WX25-P2-053/WX25-P3-019/WX25-P3-089/WX26-CP1-082/WXDi-CP02-079/WXDi-P07-063/WXDi-P09-038/WXDi-P15-084）。richness ガードが手修正571/held127を保護しているため手修正巻き戻しではない（memory の「build:effects が~20枚巻き戻す」懸念はガード導入で解消済み）。census/同型★0/全ゲートで無害を確認。
+
 ## LIMIT_ALL_FIELD_1（WX04-005-E3・場出し数制限）は実装済み＝タスク12(xix)「完全未実装」は誤診断・golden で挙動固定（2026-07-15・続き137・Opus 4.8・PLAN §3 Opusタスク12(xix)）
 
 **続き126（Sonnet）が「`STUB LIMIT_ALL_FIELD_1` が engine 完全未実装（case 自体が存在しない）」と登録した項目を精査したところ、実装済みと判明した。**
