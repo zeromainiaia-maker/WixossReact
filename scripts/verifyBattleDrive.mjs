@@ -5424,7 +5424,7 @@ try {
   // SHOTS_ON=false のとき page.screenshot を no-op 化（シナリオ側の呼び出しは無改変でよい）
   if (!SHOTS_ON) { const raw = page.screenshot.bind(page); page.screenshot = (o) => (o?.path?.includes('-final') ? raw(o) : Promise.resolve(Buffer.alloc(0))); }
   const errors = [];
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); if (m.text().includes('[DBG_XX')) console.log('  '+m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 
   // 共通ヘルパー束（シナリオ drive に渡す）
