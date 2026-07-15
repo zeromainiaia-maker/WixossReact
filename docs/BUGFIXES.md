@@ -2,6 +2,17 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## driver バッチ実行の状態汚染＝blockDrawByEffect/exileHandBlindの原因特定・修正＋残る71件フルバッチ限定flakinessの切り分け（2026-07-15・続き139・Sonnet 5・PLAN §3 Sonnetタスク3）
+
+**PLAN §3タスク3「driverバッチ実行の状態汚染」＝`blockDrawByEffect`/`exileHandBlind`/`delayedAttackTrigger`の3シナリオがバッチ実行時のみFAILし個別実行ではPASSする、という続き135（Opus）の観測を検証した。**
+
+- **原因特定**：`blockDrawByEffect`・`exileHandBlind`の`spec.handPrepend`（`scripts/verifyBattleDrive.mjs`の`injectScenario`内`if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)]`）が、**前シナリオ／mulligan由来の実ランダムな手札を`.slice(0,4)`でそのまま持ち越す**実装だった。末尾に紛れ込むランダムな余剰カードが召喚ボタンの出現順序やSELECT_TARGETのpick候補と衝突し、driveのクリック列（`clickTestId`/`clickTextOrBtn`の固定順フォールバック）を空振りさせていた。**FRESH=1の単体再実行だけで複数回FAILを再現**＝続き135の「個別実行では3件ともPASS」という前提は誤りで、**バッチ位置に依存しない単体flakinessだった**と判明。
+- **修正**：両シナリオの`handPrepend`を、他の安定シナリオと同じ**完全決定的な`'hand':[...]`直接指定**（hostSet）へ変更。ランダムな持ち越しカードを排除。
+- **検証**：修正後、単体FRESH実行3回連続PASS（blockDrawByEffect）・2回連続PASS（exileHandBlind）。実バッチ順の直前シナリオを含む5連結（`freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger`）で**3回連続ALL PASS**（SHOTS=1含む）。
+- **⚠残課題（未解決・切り分け完了）**：71件フルバッチではこの3件が依然FAILすることがある（2回試行：1回目は環境要因＝古い`verifyBattleDrive`のPlaywright devサーバーがポート4173に残留し新規実行が汚染された状態と衝突＝`taskkill`後に再実行して62/71へ改善／2回目はクリーンな状態でも同3件を含む9件がFAIL）。**5シナリオの短い連結では再現しないが71件通しでのみ再現する**ことから、原因は「ホワイトリストの漏れ」ではなく**続き105が既に指摘していた「長時間ブラウザセッションでのReact state・setInterval/setTimeout・Supabase Realtime購読等のクライアント側累積疲労」**（`injectScenario`直前のコメント参照）と判断。根本修正には数シナリオごとに`browser.newPage()`を再生成する等バッチランナー構造自体の変更が要り、本セッションのscripts-onlyな修正範囲を超えるため次点へ持ち越し。
+- **副次確認**：`oppDraw`単独FAIL・`lrigGrowAnyOppP03046`のFRESH=1でもFAIL、は続き135記載のまま未解決（今回のバッチ実行で再確認したのみ・原因調査はしていない）。
+- **検証**：`npm run gates`全緑（typecheck／golden 334／smoke全0／fuzz全0／census 2213不変／lint 0 error）。engine/JSON無変更＝scriptsのみの変更。
+
 ## PARTIAL 刻印 152件の初回トリアージ＝144件を実害ありと確定・Opusタスク12へ登録（2026-07-15・続き138・Sonnet 5・PLAN §3 Sonnetタスク9）
 
 **`docs/_partial_report.txt`（`npm run build:effects` 副産物・続き38の `markSilentFallback` 刻印）が確立以来一度もトリアージされていなかった152件を、原文照合＋効果JSON本体の直接確認で3分類した（parser/engine 変更なし・純粋な分類作業）。**
