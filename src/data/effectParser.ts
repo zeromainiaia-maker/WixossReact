@@ -2569,7 +2569,17 @@ function parseActionTextInner(text: string): EffectAction {
       }
       steps.push({ type: 'CONDITIONAL', condition: condition ?? { type: 'IS_MY_TURN' as const }, then: parseSingleSentence(rest) });
     } else {
-      steps.push(parseSingleSentence(clean));
+      // 多分岐の後続枝（「レベル２の場合、」「スペルの場合、」等・接頭辞なし）＝直前が LAST_PROCESSED_MATCHES の
+      // CONDITIONAL（＝公開/ミル結果のレベル別分岐の途中）のときに限り、同じ結果への追加分岐として CONDITIONAL 化する。
+      const prevStepE = steps[steps.length - 1] as { type?: string };
+      const prevIsLpmChainE = steps.length > 0 && prevStepE?.type === 'CONDITIONAL' &&
+        (prevStepE as import('../types/effects').ConditionalAction).condition?.type === 'LAST_PROCESSED_MATCHES';
+      const branch = prevIsLpmChainE ? parseBareBranchCondition(clean) : null;
+      if (branch) {
+        steps.push({ type: 'CONDITIONAL', condition: branch.condition, then: parseSingleSentence(branch.rest) });
+      } else {
+        steps.push(parseSingleSentence(clean));
+      }
     }
   }
 
