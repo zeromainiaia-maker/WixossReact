@@ -2037,11 +2037,21 @@ function applyLeadingSelfComparison(text: string, action: EffectAction): EffectA
 // 「②<状態条件>の場合、X」は「条件を満たすときだけ選べる」＝availability。action を CONDITIONAL 包みに
 // すると選択肢が常時選択可に化け、条件が偽でも選んで空振りできる（続き156・§3 Opusタスク12🆕 の解消）。
 // IS_MY_TURN/IS_OPPONENT_TURN（プレースホルダ常時真）は availability に持ち上げても無意味＝据置。
-function liftChoiceOptionCondition(action: EffectAction): { action: EffectAction; condition?: Condition } {
+// rawText＝選択肢の原文（①②除去後）。**条件が選択肢の先頭にある availability ゲートのときだけ**持ち上げる。
+// 「…を対象とし、<条件>の場合、それを〜」（対象化の後で条件判定＝action ゲート）は持ち上げない＝(a) 意味的に
+// 選択後に対象を取ってから条件判定するもので availability とは違う、(b) choice.condition は decompiler で
+// 条件を選択肢先頭へ描画するため、対象化が先の原文とは語順がズレて 同型★ 割れになる。
+function liftChoiceOptionCondition(action: EffectAction, rawText?: string): { action: EffectAction; condition?: Condition } {
   if (action && action.type === 'CONDITIONAL') {
     const c = action as import('../types/effects').ConditionalAction;
     if (c.condition && c.then && !c.else &&
         c.condition.type !== 'IS_MY_TURN' && c.condition.type !== 'IS_OPPONENT_TURN') {
+      // 条件が先頭にあるか（＝「〜の場合、」より前に「対象とし」等の対象化・先行アクションが無いか）を原文で判定。
+      if (rawText != null) {
+        const baIdx = rawText.indexOf('場合');
+        const tgIdx = rawText.indexOf('対象とし');
+        if (baIdx < 0 || (tgIdx >= 0 && tgIdx < baIdx)) return { action };
+      }
       return { action: c.then, condition: c.condition };
     }
   }
