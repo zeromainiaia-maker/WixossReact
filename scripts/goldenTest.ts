@@ -1304,6 +1304,13 @@ test('Stage2 ON_DRAW any_opp: 相手ドローで反応側が発火（WXDi-P15-09
   const host = mkState({ signi: ['WXDi-P15-091', null, null] }); const guest = mkState({});
   eq(has(collectOppDrawTriggers(trigCtx(HOST), HOST, host, guest).entries, 'WXDi-P15-091-E1'), true, '相手ドロー発火');
 });
+test('Stage2 ON_DRAW any_opp: drawByDrawerOwnEffect＝相手が自分の効果で引いたときのみ発火（PR-423・続き162・タスク12(xxi)）', () => {
+  const host = mkState({ signi: ['PR-423', null, null] });
+  const guestOwn = mkState({}); (guestOwn as unknown as { last_draw_by_own_effect: boolean }).last_draw_by_own_effect = true;
+  const guestForced = mkState({}); (guestForced as unknown as { last_draw_by_own_effect: boolean }).last_draw_by_own_effect = false;
+  eq(has(collectOppDrawTriggers(trigCtx(HOST), HOST, host, guestOwn).entries, 'PR-423-E1'), true, '相手自身の効果で引いた→発火');
+  eq(has(collectOppDrawTriggers(trigCtx(HOST), HOST, host, guestForced).entries, 'PR-423-E1'), false, 'reactor の効果で引かせた→非発火');
+});
 test('Stage2 ON_CARD_MILLED_FROM_DECK: milledMinCount 未満は非発火（WXDi-P08-079-E1 min=2）', () => {
   const host = mkState({ signi: ['WXDi-P08-079', null, null] }); const guest = mkState({});
   eq(has(collectMillTriggers(trigCtx(HOST), HOST, host, guest, 2, 0).entries, 'WXDi-P08-079-E1'), true, '2枚で発火');
