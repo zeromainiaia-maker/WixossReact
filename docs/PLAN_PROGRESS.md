@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②＝「手札に加えるか場に出す」選択肢欠落系統バグの消化）**
+  - **84効果を CHOOSE(手札/場) へ是正**。原文「それを手札に加えるか場に出す」（カードの行き先二択）が JSON で `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」枝が丸ごと脱落。トリアージの「ADD_TO_FIELD 縮退」は誤りで実体は逆＝手札固定への縮退（88効果中85が該当）。
+  - **修正（engine 変更なし）**：`effectParser.ts` に `wrapHandOrField` 新設し `parseSingleSentence` から呼ぶ＝文が `/手札に加えるか、?場に出す/` を含み内側が source 付き `TRANSFER_TO_HAND` のとき `CHOOSE(hand / field=ADD_TO_FIELD{同一source})` に包む。engine は `execAddToField`（TRASH/ENERGY/HAND/DECK source 対応）で既に完動＝新機構ゼロ。
+  - **採用（84効果）**：`heldReview --adopt-sig` 2署名一括67枚＋MANUAL/PARTIAL 兄弟温存カードの JSON 直接パッチ14。golden 回帰ガード2件。
+  - **検証**：gates 全緑＝golden 340→342・smoke/fuzz 全0・census 2173→2169（-4）・同型★0維持。残4効果は検索機構が STUB 化の複雑case（§6.3級）。詳細 BUGFIXES 続き149。
+
 - **セッション（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)①＝「次の対戦相手のターン終了時まで」duration 系統バグの消化）**
   - **続き146で確定した duration 系統（53効果クラスタ）を消化＝34効果を `UNTIL_OPP_TURN_END` へ是正**。原文「次の対戦相手のターン終了時まで」（相手の次ターン終了時まで＝長期の一時効果）が JSON で `UNTIL_END_OF_TURN`（現ターン終了＝即切れ）に縮退。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
   - **真因＝parser の substring 先取り**。`"次の対戦相手のターン終了時まで"` は `"ターン終了時まで"` を内包するため、多くの箇所が `t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : …` を**先に**判定して潰していた（既存の `UNTIL_OPP_TURN_END` 分岐へ到達不能）。POWER_MODIFY は既定で action-level duration を持たず temp ストア行きのため、値 flip だけでなく付与も必要だった。
