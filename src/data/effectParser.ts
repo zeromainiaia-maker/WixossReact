@@ -1079,13 +1079,17 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
   //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
   //   なかった＝否定条件（Cluster C・結果が起きなかった側＝COUNT_GTE では表せない・据置）。
-  if (/種類|共通する|偶数|奇数|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) return null;
+  // 「レベルが偶数/奇数」は levelParity で捕捉できる（engine matchesFilter 対応済み）＝除外から外す。
+  //   ただし「合計/すべて/枚数が/なかった」等の捕捉不能形は引き続き据置（誤って過剰許容の条件を作らない）。
+  if (/種類|共通する|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) return null;
   if (parseNameFilter(clause).cardName || parseNameFilter(clause).cardNames) return null; // 特定カード名指定は別機構
   // カウント（N枚/N体）。無指定は1（「＜X＞のシグニを公開した場合」＝1枚以上）。
   const cm = clause.match(/([０-９\d]+)(?:枚|体)/);
   const minCount = cm ? parseNum(cm[1]) : 1;
+  const parityM = clause.match(/レベルが(偶数|奇数)/);
   const filter: TargetFilter = {
     ...parseStoryFilter(clause), ...parseLevelFilter(clause), ...parseColorFilter(clause), ...parseGuardFilter(clause),
+    ...(parityM ? { levelParity: parityM[1] === '偶数' ? 'even' as const : 'odd' as const } : {}),
   };
   if (/スペル/.test(clause)) filter.cardType = 'スペル';
   else if (/シグニ/.test(clause)) filter.cardType = 'シグニ';
