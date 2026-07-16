@@ -2,6 +2,17 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## `textNoJson` 56枚の実体確認：真の欠落0件・全件が構造的に対応済み（2026-07-17・PLAN §3 補欠(b)）
+
+**主題**＝`docs/PLAN.md` 補欠(b)＝`scripts/semanticAuditExtract.mjs` が検出する「原文（EffectText/BurstText）はあるが effects JSON に登録されていない56枚」が、真の実装漏れかバニラ/ルール系で正当かの未確認事項だった。`node scripts/semanticAuditExtract.mjs --out <dir> --per-group 1 --groups stub` で最新の母集団を再計測し、母数が変わっていないこと（56枚・IDリストも旧 manifest と完全一致）を確認した上で全56枚を個別に精査した。
+
+**内訳（3系統・全て正当・JSON化不要）**：
+- **デュアルカラーエナ注記 52枚**：EffectText が「（エナコストを支払う際、このカードは○か○１つとして支払える）」のみ（例 WXDi-D01-018）。CSV `Color` 列が既に2色文字列（例 "青緑"）で登録されており、`src/screens/battle/costs.ts` のエナ支払い判定（`cardColor.includes(color)`／L392）が単色トークンとの部分一致で構造的にこの挙動をカバー済み。EffectText は実装済みルールの重複注記にすぎない。
+- **コイン獲得 1枚（WXDi-P13-023 ナナシ）**：「ゲームを開始する際...センタールリグであるならコインを得る」「グロウしたとき同枚数のコインを得る」。CSV `Coin` 列を `BattleScreen.tsx` がゲーム開始時（L1663/1904/1926/1949）とグロウ実行時（L5099/5491/8079）に直接参照してコイン加算する既存ロジックがあり、EffectText の DSL 化は不要。
+- **トークン系 3枚（WX24-D1-TK1／WX24-P1-TK2A／WX26-CP1-TK01）**：リミットアッパー／ルリグバリア／シグニバリアの各常在トークン。効果本体は BattleScreen 側にハードコード実装済み（`limit_upper_token` フラグでリミット+2算出／`countBarrierTokens`・`removeOneBarrierToken` でダメージ無効化）。トークンの役割はゲーム状態のマーカーであり DSL 効果として実行する対象ではない。
+
+**結論**＝56枚全件が「構造的に別経路で実装済み・EffectText は説明的ルール注記」であり、真の欠落は0件。追加の parser/engine/JSON 変更は不要（ガードレール②準拠＝non-change）。同型★・golden・census は無変更。
+
 ## semantic audit Cluster D：付与能力内側のエナ→トラッシュ timing を配線（1枚・census 2045→2044・golden 373→374）（2026-07-17）
 
 **採用**＝**SPDi43-12-sub-E1**。原文「あなたの効果1つによって対戦相手のエナゾーンからカードが合計1枚以上トラッシュに置かれたとき」を `ON_PLAY` から `ON_ENERGY_TO_TRASH`、`triggerCondition.energyTrashedOwner:'opponent'` へ是正した。parser の既存エナ→トラッシュ規則を「カード1枚が」だけでなく「カードが合計1枚以上」にも届かせ、外側【起】の `GRANT_LRIG_ABILITY.abilities` 内へ正しく emit する。engine は既存 `collectEnergyToTrashTriggers` が `effectsMap` 上の場カードしか走査せず、実行時付与先 `lrig_granted_auto_effects` が no-op だったため、同 collector にセンタールリグ付与 AUTO の走査を追加した。相手エナ減少で発火／自エナ減少で非発火を golden で固定。既存3枚の通常 ON_ENERGY_TO_TRASH 走査は変更していない。なお「あなたの効果1つによって」の効果発生源限定は、この timing 全体で既知の engine 近似（発生源追跡なし）を継承する。
