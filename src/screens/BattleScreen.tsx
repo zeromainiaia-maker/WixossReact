@@ -9373,7 +9373,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
       const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
         [cardNum], paid, user.id, true,
-        isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id);
+        isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum);
       stackEntries.push(...hdEntries);
       if (usedLimitIds.length > 0) {
         paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
