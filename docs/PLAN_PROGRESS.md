@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き171・Opus 4.8 が実装・検証／PLAN §3 Opusタスク12(xxii) IS_MY_TURN化残の消化＋前段 TRANSFER_TO_DECK パースバグ是正）**
+  - **手法**＝IS_MY_TURN化残104件を前段アクション型で機械分類し、**engine が lastProcessedCards を記録する前段なのに parser が条件を捕捉できていないクラスタ**を特定（TRANSFER_TO_DECK 前段・語順違いの MILL 前段）。全カード生パース dump を編集前後で厳密 diff＝**ちょうど36効果のみ変化（副作用ゼロ）** を機械確認してから採用。
+  - **3系統の穴を修正**：①`prevRecords` ゲートに `TRANSFER_TO_DECK` 追加（「この方法でカードをN枚デッキに加えた場合」＝LAST_PROCESSED_COUNT_GTE。WX19-040/WXK02-039/WX17-063）／②`parseThisWayGenericCount` verb-gate＋`parseThisWayTrashCondition` sc4 に語順違い「トラッシュに＜X＞のシグニがN枚置かれた」を追加（WXEX1-47＝TRASHED_STORY_COUNT_GTE）／③**前段 `parseSentencePart1.ts` トラッシュ→デッキ全回収ハンドラの count/filter 脱落を是正**（非すべて時 count:1 固定＋単色のみ→span ベースで枚数・story/color/level 抽出。否定「＜X＞ではない/以外」ガード・source zone アンカーで エナゾーン誤発火防止）＝33効果の count/filter 復元。
+  - **採用＝29カード（heldReview）＋WXEX1-47 直接パッチ**。**WX09-Re19 は既存手パッチ（COUNT_GTE 10 保持）温存＝不採用**。census **2044→2032**・golden **374→377**（+3）・同型★0・smoke/fuzz 全0・lint 0 errors・IS_MY_TURN化 125→120。詳細 BUGFIXES 続き171。
+  - **続き171b（同セッション）＝ALL_MATCH 機構を新設**＝`LAST_PROCESSED_ALL_MATCH`（engine＋型＋decompiler＋parser `parseAllMatchCondition`）で「この方法で処理したカードがすべて〔filter〕の場合」を捕捉。2枚採用（WXDi-P05-042 level1シグニ／WXK09-097 黒）・golden 377→**379**・census 2032 維持・同型★0。詳細 BUGFIXES 続き171b。
+  - **続き171c（同セッション）＝`LAST_PROCESSED_MATCHES` の色（OR）対応**＝「それが青か緑のシグニの場合」（WX21-016）「それらに白か黒のシグニがN体以上含まれる場合」（WX21-010）を parser で捕捉（engine matchesFilter は color OR 対応済み・parser のみの穴）。2枚採用・golden 379→**381**・census 2032 維持・同型★0。詳細 BUGFIXES 続き171c。
+  - **続き171d（同セッション）＝LOOK_AND_REORDER（公開）を lastProcessedCards 記録型に**＝engine `resumeLookAndReorder` が閲覧カードを記録＋parser `prevRecords` に公開 LOOK_AND_REORDER 追加。「デッキ上N枚公開→この方法で〔天使3枚/すべてlevel1〕公開された場合」を捕捉（WX12-Re10＝MATCHES minCount3／WXDi-P07-064＝ALL_MATCH level1）。2枚採用・golden 381→**383**・census 2032→**2031**・smoke/fuzz 全0・同型★0。詳細 BUGFIXES 続き171d。
+  - **残**＝IS_MY_TURN化残の大半は機構待ち＝種類/distinct・レベル合計・すべて(ALL_MATCH)・多分岐カウント（2/3/4枚公開）・アイコン・否定条件・LOOK_AND_REORDER 非記録の「公開」前段。WXEX1-47-E1 の then「バニッシュし、…クラッシュ」複合脱落（LIFE_CRASH のみ）は別 parser gap（PARTIAL 維持）。
+  - **次の一手**：Opus＝(xxiii) リコレクト分割（§6.3級 GRANT 機構）・(xxvii) 残 Cluster B（duration・非 POWER_MODIFY 型）/E（機構欠落）・タスク1残（【常】アタックできない家族）・IS_MY_TURN化残の distinct/sum/多分岐カウント機構。**新機構タスク**＝`ON_SIGNI_BECOMES_UP`（WX12-006 系）・手札カード自身の効果捨て timing（WXDi-P11-066 系）・エナ発ゾーン移動 timing（WXDi-P11-007 系）。Sonnet＝§7フルバッチ回帰。
+
 - **🆕 セッション（2026-07-16・続き169・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster D＝timing 取り違え（【自】が ON_PLAY 化）を消化）**
   - **ワークフロー実験の5巡目**。Cluster D は「【自】の timing 判定が外れ ON_PLAY へフォールバック」＝engine に collector があれば parser 是正で直る／無ければ §6.3。PLAN 通り大半が機構待ちで、**Codex は最難関の1枚を採用・3枚を §6.3 据置**。
   - **1枚採用（parser＋engine 小改修）・census 2045→2044・golden 373→374・同型★0・gates 全緑（smoke/fuzz 込み）**。
