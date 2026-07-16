@@ -2768,7 +2768,25 @@ function parseActionTextInner(text: string): EffectAction {
           // 他形（能動アクション）に誤ペアリングして無条件付与にしない
           const prevStepQG2 = steps[steps.length - 1] as { type?: string };
           const prevPairsQG2 = prevStepQG2?.type === 'STUB' || prevStepQG2?.type === 'DOWN' || prevStepQG2?.type === 'BOUNCE' || prevStepQG2?.type === 'TRASH';
+          // 内側引用が単一ブロックの AUTO でパースできるときだけ発火する（試験展開＝結果は捨てて
+          // 実展開は expandGrantEffectRawTexts に委ねる。無言フォールバック刻印は退避して汚染しない）。
+          // 展開不能な内側（「【常】：アタックできない。」等）で rawText 温存の GRANT_EFFECT を作ると
+          // engine が no-op ガードするため、従来の粗い即時エンコード（BLOCK_ACTION 等＝動く近似）より
+          // 退化する＝そのケースは従来規則に据置（WXK10-007/WXDi-P06-047/WXDi-P08-053 で実測）。
+          let innerOkQG2 = false;
           if (targetQG2 && prevPairsQG2) {
+            const savedFbQG2 = _silentFallbacks;
+            _silentFallbacks = [];
+            try {
+              const subsQG2 = splitEffectBlocks(grantM[2])
+                .map((bq, si) => parseBlock('QG2-trial', bq, si))
+                .filter((e): e is CardEffect => e !== null);
+              innerOkQG2 = subsQG2.length === 1 && subsQG2[0].parseStatus === 'AUTO';
+            } finally {
+              _silentFallbacks = savedFbQG2;
+            }
+          }
+          if (targetQG2 && prevPairsQG2 && innerOkQG2) {
             // コストが「アップ状態のこのシグニをダウン」形なら S1 を正準形（DOWN self thisCardOnly optional＝
             // WD12-013・続き163）へ置き換える（従来は対象節のフィルタが DOWN に誤って載り、コストのはずの
             // ダウンが対象シグニに掛かる誤実装だった）。ダウン不可時は executor が残りをスキップする。
