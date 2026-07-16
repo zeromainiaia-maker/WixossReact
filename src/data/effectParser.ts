@@ -1191,6 +1191,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   一度も発火せず、アタック時/ターン終了時に無条件発火の過剰効果だった（WDK07-E13/WXK04-081/083 等）。
   [/このシグニに【アクセ】が付いている場合/,
     () => ({ type: 'THIS_CARD_IS_ACCED' })],
+  // 「あなたの場に《X》と《Y》がある場合」＝2枚の名前指定シグニがそれぞれ場に居る（AND・既存の色AND clause と
+  //   同形＝decompiler の condToText は AND 対応済）。従来は無条件発火（WX05-033/WX08-034/WXK10-034 等）。
+  [/あなたの場に《([^》]+)》と《([^》]+)》がある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } },
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[1] } },
+    ] })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
