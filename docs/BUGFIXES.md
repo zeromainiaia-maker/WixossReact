@@ -2,6 +2,26 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「次の対戦相手のターン終了時まで」が `UNTIL_END_OF_TURN`（現ターン終了）へ縮退する duration 系統バグ34効果を是正（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)）
+
+**続き146の semantic audit stub群スケールアップで確定した duration 系統（53効果クラスタ）を消化。** 原文「**次の対戦相手のターン終了時まで**」（＝相手の次ターン終了時まで＝長期の一時効果）が、JSON では `UNTIL_END_OF_TURN`（現在のターン終了時＝即座に切れる）に縮退していた。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
+
+### 真因（parser の substring 先取り）
+`"次の対戦相手のターン終了時まで"` は `"ターン終了時まで"` を**内包**する。汎用パーサの多くの箇所が `t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : …` を**先に**判定していたため、より特定的な `UNTIL_OPP_TURN_END` 分岐（既に一部に存在＝`parseSentencePart1.ts:1637` 等）へ到達する前に潰れていた。加えて先頭句剥がしの経路では action が `PERMANENT` に化け、`restoreLeadUntilEndOfTurn` は素の `^ターン終了時まで、` しか復元しないため opp-turn は素通りしていた。POWER_MODIFY は既定で action-level duration を持たず `temp_power_mods`（ターン終了クリア）へ入るため、値の flip だけでなく**付与**も必要だった。
+
+### 修正（per-sentence 正規化＝1文=1期間句のスコープで安全）
+- **parser**（`effectParser.ts` `upgradeToOppTurnEnd` を新設し `parseSingleSentence` から呼ぶ）：文に `/次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/` があるとき、その文の action ツリー（自身＋SEQUENCE/CONDITIONAL/CHOOSE の直下）で `duration`（`UNTIL_END_OF_TURN`/`PERMANENT`）・`until`（`UNTIL_END_OF_TURN`）を `UNTIL_OPP_TURN_END` へ昇格し、duration 未設定の POWER_MODIFY/POWER_SET にも付与する。**文単位**のため、同一 effect の別文が SEQUENCE へ合流する際の正当な PERMANENT（別文の【常】付与＝WX26-CP1-061 の「歌のカケラ」等）や素の「ターン終了時まで」（WXDi-CP02-051-E2 の REMOVE_ABILITIES）は潰さない。付与能力の内側（`abilities`/`rawText`）には潜らない。
+- **engine 変更は不要**。`UNTIL_OPP_TURN_END` は POWER_MODIFY（`power_mods_until_opp_turn`）/GRANT_KEYWORD・GRANT_PROTECTION（`keyword_grants_until_opp_turn`）/GRANT_EFFECT（`granted_effects_until_opp_turn`）で既に長期ストアへ振られ、次の相手ターン終了時（＝自分の次ターン開始時）にクリアされる。それ以外の action 型（REMOVE_ABILITIES 等）は値を無視しターン終了クリア＝**退化なし・JSON/逆翻訳の精度のみ向上**。
+- **採用の内訳（34効果）**：parser 再生成で duration を**付与**した20効果は build:effects の pure-superset 判定で自動採用／**値 flip** の7効果（WX24-P1-040・WX24-P4-020・WX25-P2-018・WX26-CP1-028・SPDi43-06/22/27）は `heldReview --adopt` で採用／card 内に MANUAL 兄弟があり丸ごと温存される7効果（WXDi-P09-080・WXDi-CP01-038〈PERMANENT→OPP〉・WX24-P1-059・WX24-P4-088・WXDi-P07-053・WXDi-CP02-051-E2・WXDi-P12-060-E2）は当該 POWER_MODIFY/GRANT_PROTECTION の duration のみ JSON 直接パッチ。
+- golden に回帰ガード1件（POWER_MODIFY 付与・GRANT_KEYWORD 値 flip・素の「ターン終了時まで」を昇格しない対称ガードを assert）。
+
+### 検証
+- 逆翻訳が原文一致に是正（例：WX24-P2-060-E2「このシグニのパワーを＋4000する**（次の相手ターン終了時まで）**」／WX24-P1-040-E2「【シャドウ】を与える**（次の相手ターン終了時まで）**」）。
+- gates 全緑：golden 339→340・smoke/fuzz 全0・census **2206→2173**（-33＝duration 誤りが高シグナル欠落として計上されていた分が解消・BASELINE_HIGH も実数更新）・同型★0維持。
+
+### 残（構造的＝本タスクのスコープ外・19効果）
+53効果クラスタのうち19効果は duration の flip だけでは直らない：**STUB 機構待ち**（`GRANT_ABILITY_INNER_TEXT`/`GRANT_QUOTED_ABILITY`/`COPY_TARGET_POWER`/`DEPLOY_RESTRICT` 等＝duration フィールド自体が無く §6.3 級）／**短縮 enum until**（WX24-P2-047 の BLOCK_ACTION `until:'END_OF_TURN'` は opp-turn 値を持たない）／**INSTANT 引用付与**（WX24-P4-026・WX25-P1-087・WX25-P3-007）／**opp POWER_MODIFY が引用付与に埋没**（WX25-CP1-064・WX25-CP1-061）／**opp 句が引用付与能力の内側**（WXEX2-69）。これらは別途 §6.3／個別パースの課題。
+
 ## 「それをエナゾーンに置く」＝対象化した相手シグニのエナ送りが自分デッキチャージへ退化していた系統バグ7効果を是正（2026-07-16・続き147・Opus 4.8・PLAN §3 Opusタスク12(xxviii)）
 
 **続き145で機械検索確定した8効果の系統バグ（🆕(xxviii)）を消化。** 原文「対戦相手のシグニ１体を対象とし、コストを支払ってもよい。**そうした場合、それをエナゾーンに置く。**」の「それ」＝対象化した相手シグニ＝**エナ送り除去（SEND_TO_ENERGY）**だが、JSON は `CONDITIONAL{IS_MY_TURN, then: ENERGY_CHARGE{target:DECK_CARD, owner:self}}`＝**自分デッキからのエナチャージ**に化けていた（相手シグニ除去が丸ごと自分のエナ増加に）。
