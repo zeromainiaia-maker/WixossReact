@@ -1067,15 +1067,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'LAST_PROCESSED_COUNT_GTE':
       return (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
-    case 'LAST_PROCESSED_LEVEL_SUM_EQ': {
-      // lastProcessedCardsのシグニのレベル合計がvalue=Nか判定（WD21-012等）
+    case 'LAST_PROCESSED_LEVEL_SUM': {
+      // lastProcessedCardsのシグニのレベル合計と value を operator で比較（合計がN／N以上／N以下。WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];
       const sum = processed.reduce((acc, cn) => {
         const c = ctx.cardMap.get(cn);
         if (c?.Type !== 'シグニ') return acc;
         return acc + (parseInt(c.Level ?? '0', 10) || 0);
       }, 0);
-      return sum === cond.value;
+      return cmp(sum, cond.operator, cond.value);
     }
     case 'TRASHED_DISTINCT_LEVELS_GTE': {
       // この方法でトラッシュしたシグニ(lastProcessedCards)のうち、相異なるレベルが cond.count 種以上か（WX03-015）
