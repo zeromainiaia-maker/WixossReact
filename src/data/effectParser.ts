@@ -1578,6 +1578,29 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'LRIG_LEVEL_CMP_OPP', operator: g[0] === '以下' ? 'lte' : g[0] === 'より低い' ? 'lt' : g[0] === 'より高い' ? 'gt' : 'gte' })],
       [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
         g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+      // 「このターンにあなたが手札をN枚以上捨てていた場合」＝turn_hand_discarded_count ゲート
+      //   （engine TURN_HAND_DISCARD_GTE 実装済）。従来は語彙が無くアタックフェイズ開始時/出時に無条件発火の
+      //   過剰効果（WX24-P1-062/WX25-P3-090/WXK02-049 等・census 条件節クラスタ6枚）。
+      [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
+        g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+      // 「(あなた|対戦相手)の場にシグニがN体(以上)ある場合」＝場のシグニ数ゲート（engine FIELD_COUNT 実装済）。
+      //   ＜C＞/色/状態付きは先行の HAS_CARD_IN_FIELD が先にマッチ＝ここは無フィルタの総数のみ。旧3ゾーン札の
+      //   「3体ある」＝満場＝gte で正しい（PR-464/WX10-065/WXK06-085）。
+      [/(あなた|対戦相手)の場にシグニが([０-９\d]+)体(?:以上)?ある場合/,
+        g => ({ type: 'FIELD_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
+      // 「(あなた|対戦相手)のセンタールリグがレベルN以上の場合」＝中央ルリグのレベル閾値（engine LRIG_LEVEL 実装済）。
+      //   従来は語彙が無く無条件発火（WX24-P2-003 相手Lv3以上・WXDi-D08-011 等）。
+      [/(あなた|対戦相手)のセンタールリグがレベル([０-９\d]+)(以上|以下)の場合/,
+        g => ({ type: 'LRIG_LEVEL', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+      // 「あなたの場にレゾナがある場合」＝場にレゾナが1体以上（engine HAS_CARD_IN_FIELD の cardType レゾナ）。
+      //   WD11-018/WX07-023 等。「追加で」形は line 1456 ブロックが then だけ CONDITIONAL で処理するため、
+      //   ここは matchLeadingStateCondition 経由の先頭マッチ用。
+      [/あなたの場にレゾナがある場合/,
+        () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
+      // 「このシグニがアクセされている場合」＝効果元シグニにアクセが付いているか（engine THIS_CARD_IS_ACCED 実装済）。
+      //   従来は語彙が無くアタック時に無条件発火（WX15-098/101/104）。
+      [/このシグニがアクセされている場合/,
+        () => ({ type: 'THIS_CARD_IS_ACCED' })],
       ...STATE_CONDITION_CLAUSES_V2,
     ];
     const t0 = text.trim();
