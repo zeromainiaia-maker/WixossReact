@@ -2,6 +2,22 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## (xxiv) ON_DISCARDED_AS_COST 発生源クラス限定＋(vii) 「このシグニをダウンしてもよい」対象/自己混同を是正（8枚・census 2092→2088・golden 358→359）（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii)）
+
+**主題**＝ユーザー依頼で Opusタスク12 の (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を並行消化。
+
+### (xxiv) ON_DISCARDED_AS_COST の発生源クラス限定（4枚・engine 機構新設）
+**真因**＝「あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき」の**発生源クラス限定が parser で無言脱落**し、微菌以外のコスト捨てでも誤発火していた（WX25-P3-071/077/084/088）。
+**修正**＝(1) triggerCondition に `discardCostSourceStory` を新設。(2) `collectHandDiscardTriggers` に `costSourceNum` 引数を追加し、ON_DISCARDED_AS_COST の発火時にコストを支払った能力の host シグニ（`cardNum`）の CardClass に指定クラスを含むかで判定。(3) BattleScreen の3つの asCost 発火元（【起】/【出】コスト捨て）で `cardNum` を渡す。(4) parser で「＜X＞のシグニの【出】【起】能力のコストとして」を抽出（silent fallback 廃止）。4枚を JSON 直接パッチ（PARTIAL/MANUAL 温存カードのため）。**残＝WX25-P3-085 は inner ability が丸ごと漏れ出た grant mis-parse（timing が ON_OPP_LIFE_CRASHED に化け）＝§6.3級の引用付与（別途）**。golden に `collectHandDiscardTriggers` の発火/非発火1件追加（358→359）。
+**⚠残る発生源フィルタ脱落**＝ON_OPP_POWER_DECREASED(2・WX25-P3-032/062)・ON_CARD_MILLED_FROM_DECK(1・WX24-P3-030) は「どのシグニの効果がパワーを減らした/ミルしたか」の発生源シグニ追跡が engine に無く、より深いイベント帰属機構が要る＝§6.3級として残置。
+
+### (vii) 「アップ状態のこのシグニをダウンしてもよい」対象/自己混同（4枚・JSON MANUAL 上書き）
+**真因**＝parser が「対象とし…アップ状態の**このシグニ**をダウンしてもよい。そうした場合、それに効果」の**自己ダウン（コスト）を対象選択と混線**させ、DOWN が self（thisCardOnly）でなく対象/別エンティティを downしていた（+ optional 欠落 + 後続効果のフィルタ脱落）。正準形は WD12-013＝`DOWN{self,thisCardOnly,isUp,optional} + CONDITIONAL{IS_MY_TURN, 効果}`（optional スキップ時に engine が後続 CONDITIONAL を除去＝「そうした場合」ゲート）。
+**修正した4枚**＝**WX25-P1-055/WXDi-P04-059**（DOWN→self、BANISH に power≤8000/5000 フィルタ復元）・**WXDi-P13-074**（DOWN に `isDisona` フィルタ＋optional 追加・「その後」FREEZE は無条件維持）・**WXDi-CP01-040**（DOWN→self thisCardOnly optional、LOOK_AND_REORDER→REVEAL_DECK_TOP、DRAW を `LAST_PROCESSED_MATCHES{story:バーチャル}` でゲート）。
+**残3枚（§6.3級）**＝WX25-P3-089（対象＜迷宮＞シグニへ ON_ATTACK 内蔵能力を付与＝引用付与）・WXDi-P15-084（対象ルリグへ内蔵能力付与＝引用付与）・WX25-P2-112（アップ状態ルリグを down＋「ダウンしたルリグと共通する色」の動的色フィルタ）。
+
+**検証**＝golden 359・smoke/fuzz 全0・同型★0 維持・census 2092→2088（BASELINE 更新）・IS_MY_TURN化 104 維持（(vii)(xxiv) は IS_MY_TURN 系ではない）。
+
 ## ON_DRAW any_opp「対戦相手が自分の効果で引いたとき」の発生源プレイヤー限定を実装＝Opusタスク12(xxi) 解消（PR-423・Sonnet タスク1 の在庫復活）（2026-07-16・続き162・Opus 4.8・PLAN §3 Opusタスク12(xxi)／依存 Opus12→Sonnet1）
 
 **主題**＝**Sonnet の詰まりを解消する作業**（依存＝`Opus12 → Sonnet1`：Opus が (xxi) を直すと §7 の意図的FAIL回帰シナリオ `oppDrawOwnEffectOnly` が PASS へ反転し、Sonnet タスク1〈§7 実機検証横展開〉の主力在庫が復活する）。
