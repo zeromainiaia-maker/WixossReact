@@ -3,22 +3,20 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［113枚］
-PR-402 PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WD22-036-G WD23-041-EA WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-030 WX14-047 WX16-035 WX16-040 WX16-Re03 WX17-009 WX17-025 WX17-029 WX17-037 WX17-050 WX17-Re02 WX18-009 WX18-077 WX19-080 WX21-026 WX21-046 WX21-Re06 WX22-006 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-069 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-057 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-008 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D05-015 WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-023 WXDi-P01-034 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-019 WXDi-P05-058 WXDi-P05-085 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P07-090 WXDi-P08-059 WXDi-P08-072 WXDi-P10-005 WXDi-P10-039 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-008 WXDi-P16-078 WXDi-P16-087 WXEX1-03 WXEX1-21 WXEX1-60 WXEX1-65 WXEX2-30 WXEX2-31 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-035 WXK09-050 WXK09-084 WXK09-090 WXK09-091
---- PR-402
-  原文: 【常】：あなたのトラッシュにカードが１５枚以上ないかぎり、このシグニはアタックできない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュから黒のシグニ７枚をデッキに加えてシャッフルする。そうした場合、ターン終了時まで、それのパワーを－7000する。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあな
-  ~ [1].action.steps[0].source.count : 1 → 7
-  + [1].action.steps[0].source.filter.cardType = "シグニ"
-  + [1].action.steps[0].source.filter.color = "黒"
+## （type増減なし＝値/構造変更） ［87枚］
+PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-040 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-009 WX18-077 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-069 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-057 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-005 WXDi-P10-039 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-050 WXK09-084
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
 --- SPDi44-12
   原文: 【起】《ターン１回》《白》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる＜天使＞のシグニ３枚を好きな順番でデッキの一番下に置く。そうした場合、それを手札に戻す。【起】《ゲーム１回》プライマル《白×0》：次の対戦相手のターン終了時まで、このルリグは「【常】：あなたがダメージを受ける場合、代わりに手札を１枚捨てるかあなたのエナゾー
   ~ [1].action.until : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
+--- SPDi47-04
+  原文: 【起】《ターン１回》エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く：このルリグはそのカードの【歌のカケラ】を使用する。【起】《ゲーム１回》《緑×0》：《リコレクトアイコン》［４枚以上］あなたのエナゾーンからシグニを３枚まで対象とし、それらを場に出す。次の対戦相手のターン終了時まで、あなたのすべてのシグニのパワーを＋10000し、それらは【シャ
+  ~ [1].action.steps[2].duration : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
 
-## +CONDITIONAL +IS_MY_TURN ［19枚］
-WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX14-029 WX16-Re02 WX20-005 WX21-010 WX22-033 WX24-P3-050 WX24-P3-069 WX24-P4-067 WXDi-P03-044 WXDi-P07-048 WXK04-027 WXK09-040 WXK09-063 WXK09-100
+## +CONDITIONAL +IS_MY_TURN ［18枚］
+WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX14-029 WX16-Re02 WX20-005 WX22-033 WX24-P3-050 WX24-P3-069 WX24-P4-067 WXDi-P03-044 WXDi-P07-048 WXK04-027 WXK09-040 WXK09-063 WXK09-100
 --- WD07-007
   原文: あなたのデッキの上からカードを４枚トラッシュに置く。その後、その中に黒のカードがある場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。その中に白のカードがある場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
   - [0].action.steps[1].source.type = "TRASH_CARD"
@@ -543,22 +541,6 @@ WX17-044 WXDi-P16-049
   + [0].action.choices[1].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.choices[1].action.steps[0].costColors[0] = "赤"
 
-## +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN ［2枚］
-WX19-040 WXK02-039
---- WX19-040
-  原文: あなたのトラッシュから＜水獣＞のシグニ５枚を対象とし、それらをデッキに加えてシャッフルする。この方法でカードを５枚デッキに加えた場合、カードを２枚引く。,-
-  ~ [0].action.steps[0].source.count : 1 → 5
-  + [0].action.steps[0].source.filter.cardType = "シグニ"
-  + [0].action.steps[0].source.filter.story = "水獣"
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [0].action.steps[1].condition.value = 5
---- WXK02-039
-  原文: あなたのトラッシュからすべての＜武勇＞のシグニをデッキに加えてシャッフルする。この方法で１５枚以上のカードをデッキに加えた場合、あなたのデッキの一番上のカードをライフクロスに加える。,：あなたのトラッシュからカード１枚を対象とし、それを手札に加える。
-  + [0].action.steps[0].source.filter.cardType = "シグニ"
-  + [0].action.steps[0].source.filter.story = "武勇"
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [0].action.steps[1].condition.value = 15
-
 ## +CONDITIONAL +TRASH_HAS_CARD ［2枚］
 WXDi-CP01-042 WXDi-P06-060
 --- WXDi-CP01-042
@@ -806,18 +788,6 @@ WX17-005
   + [0].action.then.id = "DECLARE_CARD_NAME"
   + [0].action.else.type = "STUB"
   + [0].action.else.id = "MAKE_SERVANT_ZERO"
-
-## +LAST_PROCESSED_COUNT_GTE×2 -IS_MY_TURN×2 ［1枚］
-WX17-063
---- WX17-063
-  原文: 【出】《青×0》：あなたのトラッシュから《中罠　プラスボム》以外の《トラップアイコン》を持つシグニを３枚まで対象とし、それらをデッキに加えてシャッフルする。【トラップアイコン】：対戦相手は自身のトラッシュからすべてのカードをデッキに加えてシャッフルする。その後、この方法で１０枚以上のカードがデッキに加えられた場合、あなたは《青》を支払ってもよい。そうした場合
-  ~ [0].action.steps[0].source.count : 1 → 3
-  + [0].action.steps[0].source.upToCount = true
-  + [0].action.steps[0].source.filter.cardType = "シグニ"
-  ~ [0].action.steps[2].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [0].action.steps[2].condition.value = 10
-  ~ [2].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [2].action.steps[1].condition.value = 10
 
 ## +CHOOSE +GRANT_KEYWORD×2 +LRIG +SIGNI -STUB ［1枚］
 WX18-003

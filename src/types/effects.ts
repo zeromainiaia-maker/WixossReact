@@ -1409,6 +1409,7 @@ export interface GrantLrigAbilityAction {
   abilities: CardEffect[];  // 付与される能力（サブエフェクト）
   rawText: string;          // 元のテキスト（表示用）
   permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
+  targetedCenter?: boolean; // 「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る」表記変種（WX25-P1-001系）。engine挙動は既定と同一（自分のセンタールリグへ付与）＝decompiler表示用
 }
 
 // チャームを外す（シグニに付いたチャームをトラッシュに置く）
