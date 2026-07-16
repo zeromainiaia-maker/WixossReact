@@ -127,6 +127,15 @@ test('DRAW: 手札+2 デッキ-2', () => {
   const r = run({ type: 'DRAW', owner: 'self', count: 2 } as EffectAction, ctx);
   eq(r.ownerState.hand.length, 7, 'hand'); eq(r.ownerState.deck.length, d0 - 2, 'deck');
 });
+test('LAST_PROCESSED_LEVEL_SUM: 合計レベルを operator で判定（eq/gte/lte・続き160）', () => {
+  const lv = (n: number) => findCard(c => isSigni(c) && parseInt(c.Level ?? '', 10) === n);
+  const a = lv(2), b = lv(3); // レベル合計 5
+  const ctx = { ...mkCtx({}, {}), lastProcessedCards: [a, b] } as unknown as ExecCtx;
+  const ev = (operator: string, value: number) => evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator, value } as never, ctx);
+  ok(ev('eq', 5) && !ev('eq', 4), 'eq: 合計5のみ真');
+  ok(ev('gte', 5) && ev('gte', 4) && !ev('gte', 6), 'gte: 5以下の閾値で真');
+  ok(ev('lte', 5) && ev('lte', 6) && !ev('lte', 4), 'lte: 5以上の閾値で真');
+});
 test('VARIABLE_DISCARD_AND_DRAW: 手札5全捨て→捨てた5+bonus1=6枚ドロー（WX09-Re15）', () => {
   const ctx = mkCtx({ hand: 5, trash: 3 }, {});
   const d0 = ctx.ownerState.deck.length;
