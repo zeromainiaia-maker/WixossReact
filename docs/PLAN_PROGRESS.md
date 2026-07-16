@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き158・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き157「次の一手」(a)＝LAST_PROCESSED reveal 経路の条件節 parser 未 emit を是正）**
+  - **8枚是正・census 2101→2098・IS_MY_TURN化 128→119**。engine の条件評価器は対応済みなのに parser が emit していなかった3種の穴を系統的に塞いだ：①level parity（偶数/奇数＝`matchesFilter.levelParity`）を `parseLastProcessedMatchesCondition`/`parseBareBranchCondition`/`parseThisWayGenericCount` の3関数へ（WDK04-011/WXDi-P10-073/WXK01-106/WXK01-107）②bare story「＜X＞の場合」（のシグニ無し）を `parseLastProcessedMatchesCondition` へ（WX25-CP1-054/WXDi-CP02-063＝デッキ公開＜ブルアカ＞）③`LAST_PROCESSED_POWER_GTE`（それのパワーがN以上＝直前 POWER_MODIFY delta を addDelta 化・engine 実装済み parser 未 emit）（WXK11-065・WX03-046 は既 MANUAL）。
+  - **採用**＝値変更で held 落ち→`heldReview --adopt` 6枚＋WXK11-065 は PARTIAL 温存で JSON 直接パッチ。**据置**＝WXK07-106（BET）/WDK16-13/WXK08-033（登録者数 AND 複合枝）/WX14-072。golden 356・smoke/fuzz 全0・同型★0 維持。詳細 BUGFIXES 続き158。
+
 - **🆕 セッション（2026-07-16・続き157・Opus 4.8・PLAN §3 Opusタスク12🆕＝ドリームチーム【使用条件】ヘッダ mis-parse 是正）**
   - **WXDi-P08 ピース4枚是正・census 2104→2101**。真因＝ヘッダ「合計N種類以上の色を持つ」の「を持つ」が part1 のキーワード付与規則に食われ `GRANT_KEYWORD"使用条件"` のゴミ化＋色別3分岐が丸ごと脱落し全枝無条件実行。修正＝(1) `parseArtsEffect` でヘッダを近似省略ストリップ（engine にチーム合計色数条件が無い・WXDi-P15-003 同扱い）(2) SEQUENCE thenM を `の?場合`化＝「がいる場合」（の無し）の後続枝を拾う (3) WXDi-P08-005 複合ゲート `AND[HAS_CARD_IN_FIELD{ルリグ,color}, LRIG_LEVEL{opp}]` を追加。**⚠P08-003 は「見る。その中から…」の2文 LOOK_PICK と条件が跨るため partial 据置**。
   - **検証**：golden 356・smoke/fuzz 全0・census 2104→2101（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き157。**⚠この直前の続き156（choice.condition 機構＋条件節 CLAUSES 53枚・census 2131→2104）と合わせて同日消化**。
