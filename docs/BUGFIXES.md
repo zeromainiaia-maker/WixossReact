@@ -2,6 +2,25 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## トラッシュ／エナ回収の level・class filter 単点脱落を parser 2規則で是正（50枚・51効果、census 2084→2050、golden 364→366）（2026-07-16・PLAN §3 Opusタスク12(xxvii) Cluster F）
+
+**主題**＝semantic audit Cluster F の clean 候補から、既存 DSL・engine・decompiler が対応済みで parser の対象名詞句抽出だけが欠けていた **WD19-008-E1（トラッシュのレベル3以下の黒シグニ）／WX18-082-E2（同レベル4以上の＜遊具＞）／WXEX2-45-E2（エナの＜遊具＞2枚まで）**を選択。`build:effects` の純粋上位集合収穫により同じ2文型も一括是正した。変更は全件 `TRANSFER_TO_HAND.source.filter` への `level` または `story/cardType` 追加だけで、action 構造・owner・count・zone・STUB・parseStatus の変化は0。
+
+### parser（`parseSentencePart1.ts`・engine/type/decompiler 変更なし）
+- **トラッシュ→手札**＝既存の `トラッシュから…手札に加える` handler で、level を全文でなく対象名詞句（`対象とし` より前）から抽出。異なる level の複数対象、名称/クラスとの OR、成立条件側の level は昇格しない。明示的据置の WX13-006B（チェックゾーン条件）と同断片 WX17-030 もガード。
+- **エナ→手札**＝`エナゾーンから…手札に加える` の対象名詞句から class を抽出し、`ENERGY_CARD.filter` に `story`（シグニなら `cardType` も）を付与。全文スキャンによる前置き条件 class の混入なし。
+
+### 採用（50枚・51効果）
+- **level 27効果**＝WX09-Re14-E1／WX10-088-E1／WX14-045-BURST／WX18-081-E2／**WX18-082-E2**／WX22-017-E1／WX22-049-E1／WXEX1-46-E2／WX25-P1-104-BURST／WX25-CP1-049-E2／WXDi-D03-016-E1／WXDi-D07-009-E2／WXDi-P02-045-E1／WXDi-P06-080-BURST／WXDi-P06-084-E1／WXDi-P10-043-E2／WXDi-P11-056-E1／WXDi-P15-073-BURST／WXDi-P16-085-BURST／WXK04-078-E1／WXK06-082-E1／WXK07-032-E1／WXK07-033-E2／WXK10-056-E2／WXK11-018-BURST／WXK11-057-BURST／**WD19-008-E1**。
+- **class 24効果（23枚）**＝WX17-Re04-E1／WX21-002-E2／WX21-004-E1／WXEX1-34-E3／WXEX1-42-E2・BURST／WXEX1-44-E2／WXEX2-20-E1／**WXEX2-45-E2**／WX25-CP1-072-BURST／WX26-CP1-090-E1／WXDi-P05-040-E2／WXDi-P06-073-E1／WXDi-P11-045-E3／WXDi-P15-008-E2／WXDi-CP02-040-E1／041-E1／042-E1／043-E2／057-E1／091-BURST／WXK09-047-E2／WXK10-048-E2／WD12-001-E2。
+
+### 精密 diff と据置
+初版 fresh 58枚を全件原文照合し、対象決定後の条件 level 混入（WX16-036）、異なる level 複数対象の単一 filter 化（WX19-027／SPK01-09／WXDi-P08-002／WXDi-P09-004）、OR の AND 化（PR-K078）を検出して parser ガード後の fresh へ戻した。明示的据置の WX13-006B／WX17-030 も非採用。代表8枚（本命3枚＋条件後置・同一level反復・置換文併存・カードclass・hand/field択一）を逆翻訳し原文一致を確認。
+
+**機構待ち（PLAN §6.3送り候補）**＝WXDi-P14-087-E1 は ON_OPP_LIFE_CRASHED 収集がクラッシュ元シグニを追跡せず triggerFilter を評価不能／WXDi-P11-007-E3 は `REARRANGE_SIGNI{swap}` が engine で明示的未対応／WXDi-P10-077-E1 は「3カード名 OR 黒」の和集合 filter が DSL に無い／WXDi-P14-036-E1 は `eachDistinctLevel` の厳密選択 enforcement が TODO。合計level・チェックゾーン・G072系は指定どおり据置。
+
+**検証**＝`npm run gates` 全緑（golden 364→366〔trash level 上下限／energy class+2枚まで〕・smoke CRASH/HANG/INVARIANT 全0・fuzz 全0・lint error 0）・census **2084→2050**（BASELINE 更新）・`npm run regen` 完走・同型★0維持。最終機械 diff は50枚すべて target `source.filter` の追加のみ、指定据置9カードは HEAD と完全一致。
+
 ## §3 Opusタスク1（本丸）＝引用付与の対象-コスト分離2文型＋「対戦相手が《…》を支払わないかぎり」ゲートを実装（16枚・14効果採用・census 2088→2084・golden 359→364・実機 `wx24p2018GrantFire` 2回連続PASS）（2026-07-16・続き164・Fable 5〔Opus側〕・PLAN §3 Opusタスク1／12(vii)残/(xxi)類縁）
 
 **主題**＝タスク1の本丸 WX24-P2-018-E1 を含む「**<対象>を対象とし、<任意コスト>てもよい。そうした場合、(期間、)それは「【自】…」を得る**」の2文型家族（原文照合で全18効果）と、その内側に現れる「**対戦相手が《無》×N を支払わないかぎり、X**」ゲート（同33文）を parser 語彙化した。従来は (a) S1 の対象節が任意コスト STUB／誤 DOWN に飲まれて**無言脱落**、(b) S2 は引用内側が漏れ出して**即時実行に平坦化**（WX24-P2-018＝ルリグ自身へ即アサシン付与・WX25-P3-089＝内側 DRAW の即時実行・WXDi-P15-084＝内側 TRASH の即時実行）、(c)「支払わないかぎり」節は**無言消費されて X が無条件実行**の過剰効果、の三重の系統バグだった。

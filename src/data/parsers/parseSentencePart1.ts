@@ -1328,10 +1328,25 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- トラッシュ → 手札 ----
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
-    // story は「トラッシュから…手札に加える」の名詞句スパン内に限定（前置きの条件クラス＜X＞を拾わない・WX22-002 偽陽性回避）。
+    // story / level は「トラッシュから…手札に加える」の名詞句スパン内に限定
+    // （前置きの条件クラス・level を拾わない。WX22-002 偽陽性回避／WD19-008・WX18-082 の閾値脱落是正）。
     const trashSpan = t.match(/トラッシュから(.*?)手札に加える/s);
     const spanTxt = trashSpan ? trashSpan[1] : '';
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt) };
+    // 「対象とし」より後ろの成立条件 level（WX16-036）や、複数対象の別 level（WX19-027 等）を
+    // 単一 filter に混入させない。OR と「代わりに」も既存 DSL では正確に表せないため level 昇格しない。
+    const trashTargetPhrase = spanTxt.split('対象とし', 1)[0];
+    const targetLevelMentions = [...trashTargetPhrase.matchAll(/レベル[０-９\d]+(?:以上|以下)?/g)];
+    const targetLevelSpecs = new Set(targetLevelMentions.map(m => m[0]));
+    const hasLevelOr = /(?:か|または)(?:レベル|＜|[白赤青緑黒無]の)/.test(trashTargetPhrase)
+      || /レベル[０-９\d]+(?:以上|以下)?の?か/.test(trashTargetPhrase);
+    // WX13-006B はチェックゾーン条件を choice 外へ保持する別機構待ち。choice 断片だけを改善して
+    // 不完全な fresh を採用しない（同文型 WX17-030 もこのバッチでは据置）。
+    const isDeferredCheckZoneFamily = /レベル[３3]以下の＜凶蟲＞のシグニを?[２2]枚まで/.test(trashTargetPhrase);
+    // 同じ範囲の反復（「レベル2以下の＜天使＞とレベル2以下の＜古代兵器＞」）は共通 filter として安全。
+    const levelFilter = targetLevelSpecs.size === 1 && !hasLevelOr && !isDeferredCheckZoneFamily && !t.includes('代わりに')
+      ? parseLevelFilter(trashTargetPhrase)
+      : {};
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt) };
     // 色は「[単色]の〔カード/シグニ/スペル〕」の一意な単色のみ付与（「白か赤」「白のカードと黒のカード」等の複色は単一色filterで表せず誤るため除外）。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
@@ -1356,10 +1371,17 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- エナゾーン → 手札 ----
   if (t.includes('エナゾーンから') && t.includes('手札に加える')) {
+    // filter は対象名詞句内だけから抽出する（前置き条件の＜X＞を混入させない）。
+    // engine/decompiler 対応済みの class filter を source に載せる（WXEX2-45-E2）。
+    const energySpan = t.match(/エナゾーンから(.*?)手札に加える/s)?.[1] ?? '';
+    const storyFilter = parseStoryFilter(energySpan);
+    const filter: TargetFilter | undefined = Object.keys(storyFilter).length > 0
+      ? { ...parseCardTypeFilter(energySpan), ...storyFilter }
+      : undefined;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
-    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM } };
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, ...(filter ? { filter } : {}) } };
   }
 
   // ---- デッキ上を見て並び替え ----

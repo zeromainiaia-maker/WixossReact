@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き164・Fable 5〔Opus側〕・PLAN §3 Opusタスク1＝引用付与の内側 ability parse の本丸を消化）**
+  - **16枚是正（14効果採用）・census 2088→2084・golden 359→364・実機 `wx24p2018GrantFire` 完全経路2回連続PASS（既定order追加＝75件）**。
+  - **2文型引用付与（家族18効果）**＝「<対象>を対象とし、<任意コスト>てもよい。そうした場合、(期間、)それは「【自】…」を得る」を parser 語彙化：文ループに prevRaw 追跡を新設し、S1 の対象節を `GRANT_EFFECT{target, rawText}` へ運ぶ（「それ」解決）。ダウンコスト形は S1 を正準形 `DOWN{self,thisCardOnly,isUp,optional}`（WD12-013）へ置換。⚠内側引用が単一ブロック AUTO で試験展開できるときだけ発火（「【常】：アタックできない。」等は従来の粗い即時近似を温存＝no-op 退化を防ぐガード）。
+  - **「対戦相手が《…》を支払わないかぎり、X」ゲート（33文）**＝`SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL{IS_MY_TURN}]` 化（engine 変更ゼロ＝既存 executor Pattern で相手側 pay/skip CHOOSE）。⚠「対戦相手**は**」形（主語分配）と「そのシグニ」照応（owner 反転退化）は据置。
+  - **全数機械測定**＝before/after 全9283カードダンプ比較→16枚のみ変化・全枚原文照合で退化ゼロ（測定ループで退化2系統を検出しガード追加）。JSON 採用は curated==fresh-before の14効果のみ（WX25-P3-074/078 は既に正準 MANUAL＝据置）。**タスク12(vii) 残の WX25-P3-089/WXDi-P15-084 もこの家族として同時消化**。
+  - **検証**：gates 全緑・census 2084（BASELINE 更新）・同型★0 維持・decompiler に OPPONENT_PAY_OPTIONAL 描画＋「そうしなかった場合」反転を追加。詳細 BUGFIXES 続き164。
+  - **次の一手**：Opus＝(xxiii) リコレクト分割・(xxvii) 残 Cluster A/F・タスク1残（【常】アタックできない家族の付与構造化・内側「代わりに」）・IS_MY_TURN化残104・条件節クラスタ残の機構バウンド分。Sonnet＝`oppDrawOwnEffectOnly` PASS 反転確認（続き162 在庫）＋今回 PASS 済み `wx24p2018GrantFire` を含む§7フルバッチの回帰確認。
+
 - **🆕 セッション（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii) を並行消化）**
   - **8枚是正・census 2092→2088・golden 358→359**。ユーザー依頼で (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を両方進めた。
   - **(xxiv) ON_DISCARDED_AS_COST 発生源クラス限定（4枚・engine機構新設）**＝triggerCondition `discardCostSourceStory`＋`collectHandDiscardTriggers` に `costSourceNum` 引数（コスト支払い能力の host シグニ CardClass で判定）＋BattleScreen 3発火元で `cardNum` 渡し＋parser 抽出。WX25-P3-071/077/084/088（微菌）。**残＝WX25-P3-085 grant mis-parse／ON_OPP_POWER_DECREASED 2・ON_CARD_MILLED_FROM_DECK 1 は発生源シグニ追跡が engine に無く §6.3級**。
