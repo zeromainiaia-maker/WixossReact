@@ -1510,10 +1510,18 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
       [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
         g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
-      [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
+      // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
+      //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
+      //   `(?:ある)?の?場合` で「N枚以上ある場合」「N枚以下の場合」「N枚の場合」の三形を許容する。
+      [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?(?:ある)?の?場合/,
         g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
-      [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
+      // 「エナゾーンにあるカードがN枚以下の場合」（にある＋の場合）も許容（WX21-064/WX24-P3-056 等）。
+      [/(あなた|対戦相手)のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)(?:ある)?の?場合/,
         g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+      // 「あなたのトラッシュにカードがN枚以上/以下ある場合」＝トラッシュ総枚数ゲート（engine TRASH_COUNT 実装済）。
+      //   ＜C＞/レベル/色付きは先行の TRASH_HAS_CARD が先にマッチする＝ここは無フィルタの総枚数のみ（WXDi-P01-079 等）。
+      [/(あなた|対戦相手)のトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合/,
+        g => ({ type: 'TRASH_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
       [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
         g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
