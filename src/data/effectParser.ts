@@ -2364,11 +2364,11 @@ function parseActionTextInner(text: string): EffectAction {
       type: 'CHOOSE',
       choose_count: chooseCount,
       from_count: items.length,
-      choices: items.map((m, i) => ({
-        choiceId: `c${i}`,
-        label: `選択肢${i + 1}`,
-        action: parseActionText(m[1].replace(/[。）\s]+$/, '').trim()),
-      })),
+      choices: items.map((m, i) => {
+        const parsed = parseActionText(m[1].replace(/[。）\s]+$/, '').trim());
+        const { action, condition } = liftChoiceOptionCondition(parsed);
+        return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
+      }),
     };
   }
 
