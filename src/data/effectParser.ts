@@ -2792,7 +2792,12 @@ function parseActionTextInner(text: string): EffectAction {
       // lastProcessedCards を上書きしない）ため、その前の公開ステップの記録が生きている＝記録扱い。
       const prevIsLpmChain = prevStep?.type === 'CONDITIONAL' &&
         (prevStep as import('../types/effects').ConditionalAction).condition?.type === 'LAST_PROCESSED_MATCHES';
-      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevStep?.type === 'REVEAL_DECK_TOP';
+      // BANISH／EXILE／SEND_TO_ENERGY も engine が lastProcessedCards を記録する（execBanish/execExile/execSendToEnergy＝
+      // ALL・selectOrInteract の両経路）。「この方法で〜バニッシュした／ゲームから除外した／エナゾーンに置いた場合」の
+      // 結果カウント条件を拾えるよう prevRecords に含める（parseThisWayTrashCondition の prevIsDeckMill は
+      // 「トラッシュに置かれた」限定なので誤反応しない＝parseThisWayGenericCount 経由でのみ効く）。
+      const prevIsProcessRecorder = prevStep?.type === 'BANISH' || prevStep?.type === 'EXILE' || prevStep?.type === 'SEND_TO_ENERGY';
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
