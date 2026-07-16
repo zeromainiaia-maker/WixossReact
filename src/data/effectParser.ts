@@ -1086,8 +1086,10 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   const DBG = process.env.TRACE_GC;
   if (DBG) console.error('[GC] clause=', JSON.stringify(clause));
   if (!/^(?:その後、)?この方法で/.test(clause)) { if (DBG) console.error('[GC] fail: prefix'); return null; }
-  // lastProcessedCards を残すと確認済みの動詞に限定
-  if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) { if (DBG) console.error('[GC] fail: verb'); return null; }
+  // lastProcessedCards を残すと確認済みの動詞に限定。
+  // ⚠「トラッシュに置」は語順で分離することがある（「トラッシュに＜X＞のシグニがN枚以上置かれた」＝
+  //   フィルタ名詞句が「トラッシュに」と「置」の間に入る・WXEX1-47）＝`トラッシュに[^。]*?置` で分離形も許容。
+  if (!/(?:公開|トラッシュに[^。]*?置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) { if (DBG) console.error('[GC] fail: verb'); return null; }
   // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
   //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
