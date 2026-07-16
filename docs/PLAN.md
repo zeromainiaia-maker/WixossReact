@@ -155,14 +155,14 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)①＝「次の対戦相手のターン終了時まで」duration 系統バグの消化）**
-  - **続き146で確定した duration 系統（53効果クラスタ）を消化＝34効果を `UNTIL_OPP_TURN_END` へ是正**。原文「次の対戦相手のターン終了時まで」（相手の次ターン終了時まで＝長期の一時効果）が JSON で `UNTIL_END_OF_TURN`（現ターン終了＝即切れ）に縮退。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
-  - **真因＝parser の substring 先取り**。`"次の対戦相手のターン終了時まで"` は `"ターン終了時まで"` を内包するため、多くの箇所が `t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : …` を**先に**判定して潰していた（既存の `UNTIL_OPP_TURN_END` 分岐へ到達不能）。POWER_MODIFY は既定で action-level duration を持たず temp ストア行きのため、値 flip だけでなく付与も必要だった。
-  - **修正（engine 変更なし）**：`effectParser.ts` に `upgradeToOppTurnEnd` を新設し `parseSingleSentence` から呼ぶ＝文に `/次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/` があれば、その文の action ツリー（自身＋SEQUENCE/CONDITIONAL/CHOOSE 直下）の `duration`（UNTIL_END_OF_TURN/PERMANENT）・`until`（UNTIL_END_OF_TURN）を OPP へ昇格し、duration 未設定の POWER_MODIFY/POWER_SET にも付与。**文単位**のため別文の正当な PERMANENT（WX26-CP1-061 の「歌のカケラ」）や素の「ターン終了時まで」（WXDi-CP02-051-E2 の REMOVE_ABILITIES）は潰さない。
-  - **採用**：20効果は build:effects の pure-superset で自動採用／7効果は heldReview 採用／card 内 MANUAL 兄弟で丸ごと温存の7効果は当該 action の duration のみ JSON 直接パッチ。golden に回帰ガード1件（付与・flip・非昇格の対称ガード）。
-  - **検証**：逆翻訳が原文一致（例 WX24-P2-060-E2「…＋4000する（次の相手ターン終了時まで）」）。gates 全緑＝golden 339→340・smoke/fuzz 全0・census **2206→2173**（-33・BASELINE 実数更新）・同型★0維持。
-  - **残19効果は構造的でスコープ外**＝STUB機構待ち（GRANT_ABILITY_INNER_TEXT 等・§6.3級）／短縮enum until（WX24-P2-047）／INSTANT引用付与（WX24-P4-026等）／opp POWER_MODIFY が引用付与に埋没（WX25-CP1-064/061）／opp句が付与能力の内側（WXEX2-69）。詳細 BUGFIXES 続き148。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxix)②＝選択肢欠落系統23件「手札に加えるか場に出す」→ADD_TO_FIELD縮退・(xxvii)＝semantic audit第2弾37枚・(xxii)(xxiii)(xxiv) 系統バグ等）。Sonnet＝タスク8はstub群完了＝Opus在庫消化待ち、または補欠タスク。
+- **🆕 セッション（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②＝「手札に加えるか場に出す」選択肢欠落系統バグの消化）**
+  - **続き146で「選択肢欠落系統」として登録された系統を消化＝84効果を CHOOSE(手札/場) へ是正**。原文「それを**手札に加えるか場に出す**」（＝カードの行き先二択）が JSON で `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」枝が丸ごと脱落。LIFE_BURST 中心（原文該当88効果中85が縮退・実害）。
+  - **トリアージの「ADD_TO_FIELD 縮退」は誤りで実体は逆＝手札固定への縮退**（機械照合で判明）。原因＝`parseSentencePart1.ts:1304` 等の hand-transfer 規則が広い `includes('手札に加える')` で「手札に加えるか場に出す」も捕捉し「場に出す」枝を無言脱落。
+  - **修正（engine 変更なし）**：`effectParser.ts` に `wrapHandOrField` 新設し `parseSingleSentence` から呼ぶ＝文が `/手札に加えるか、?場に出す/` を含み内側が source 付き `TRANSFER_TO_HAND` のとき `CHOOSE(hand=TRANSFER_TO_HAND / field=ADD_TO_FIELD{owner:self, 同一source})` に包む。MANUAL 正解3枚と同形。engine は `execAddToField`（TRASH/ENERGY/HAND/DECK source 対応）で既に完動＝新機構ゼロ。
+  - **採用（84効果）**：build:effects 再生成 → `heldReview --adopt-sig` で2署名一括67枚（+TRASH_CARD 52／+ENERGY_CARD 15）＋MANUAL/PARTIAL 兄弟で丸ごと温存されるカードの当該 action を fresh から JSON 直接パッチ14。golden 回帰ガード2件（包み・非包み）。
+  - **検証**：逆翻訳が原文一致（例 WX22-023-BURST「以下の2つから1つを選ぶ【…手札に加える / …場に出す】」）。gates 全緑＝golden 340→342・smoke/fuzz 全0・census **2173→2169**（-4・BASELINE 実数更新）・同型★0維持。
+  - **残4効果は範囲外**＝検索・公開機構自体が STUB 化の複雑case（SP27-005-E1/WD22-036-G-E1/WXK02-001-E2/WXEX2-49-E2＝§6.3級）。詳細 BUGFIXES 続き149。
+  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxvii)＝semantic audit第2弾37枚・(xxii)(xxiii)(xxiv) 系統バグ・(xxix)⑤ owner取り違え等の未検証222クラスタ）。Sonnet＝タスク8はstub群完了＝Opus在庫消化待ち、または補欠タスク。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
