@@ -1198,6 +1198,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
       { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } },
       { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[1] } },
     ] })],
+  // 「あなたの場に(色)のルリグがいる場合」＝場（センター＋アシスト）に指定色のルリグが1体以上いる
+  //   （HAS_CARD_IN_FIELD が lrigZoneTops を走査・color フィルタは matchesFilter が Color.includes で判定）。
+  //   ドリームチーム系（WXDi-P08-001〜005）の色別3分岐が丸ごと脱落し全枝を無条件実行していた過剰効果を是正。
+  [/あなたの場に(白|赤|青|緑|黒)のルリグがいる場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
