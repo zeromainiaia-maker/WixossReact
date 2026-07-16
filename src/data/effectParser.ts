@@ -1201,6 +1201,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // 「あなたの場に(色)のルリグがいる場合」＝場（センター＋アシスト）に指定色のルリグが1体以上いる
   //   （HAS_CARD_IN_FIELD が lrigZoneTops を走査・color フィルタは matchesFilter が Color.includes で判定）。
   //   ドリームチーム系（WXDi-P08-001〜005）の色別3分岐が丸ごと脱落し全枝を無条件実行していた過剰効果を是正。
+  // 複合ゲート「あなたの場に(色)のルリグがいて対戦相手のセンタールリグがレベルN以上の場合」＝AND（WXDi-P08-005）。
+  //   単独 color-lrig 規則より先に置く（先勝ち）。
+  [/あなたの場に(白|赤|青|緑|黒)のルリグがいて対戦相手のセンタールリグがレベル([０-９\d]+)以上の場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } },
+      { type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
+    ] })],
   [/あなたの場に(白|赤|青|緑|黒)のルリグがいる場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } })],
   // 「あなたのトラッシュに《X》と《Y》がある場合」＝2枚の名前指定カードがそれぞれトラッシュに有る（AND）。
