@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き156・Opus 4.8・PLAN §5c 条件節クラスタ＋§3 Opusタスク12🆕 choice.condition 機構）**
+  - **53枚採用・census 2131→2104**。3バッチ：①engine対応済み状態条件を CLAUSES 系統追加（27枚）＝`SELF_POWER_GTE`/`FIELD_SIGNI_POWER_COUNT`/`HAS_CARD_IN_FIELD{isFrozen/color/isDisona/cardName}`/`LIFE_COMPARE_OPP`/`LRIG_LEVEL_EQ_OPP`/`LRIG_COLOR`/`THIS_CARD_IS_ACCED`/`AND[cardName×2]`。second-pass strip-list に「対戦相手のターン終了時、」「アタックフェイズ開始時、」等追加。旧「アクセされている」regex の文言不一致バグも是正。
+  - ②choice.condition 持ち上げ機構（20枚）＝続き155 が先送りした §3 Opusタスク12🆕 を解消。`liftChoiceOptionCondition` を CHOOSE 構築4経路へ配線。対象化後の action ゲートは rawText ガードで抑止。③追加 CLAUSES（6枚）＝`AND[TRASH_HAS_CARD×2]`/`THIS_CARD_HAS_UNDER`/`HAS_CARD_IN_FIELD{ルリグ,color}`。
+  - golden 356・smoke/fuzz 全0・census 2131→2104・同型★0。詳細 BUGFIXES 続き156。
+
 - **🆕 セッション（2026-07-16・続き155・Opus 4.8・PLAN §5c 条件節クラスタ611 系統消化＝トリガー句直後の状態条件節脱落を是正）**
   - **是正49効果**＝「【自】：<トリガー>、<状態条件>の場合、<アクション>」でトリガー句（ターン終了時/アタックフェイズ開始時等）**直後**の状態条件節がパーサーで丸ごと脱落し**無条件発火する過剰効果**になっていた系統（WX12-046 が毎ターン自壊、等）。census 2167→2131。
   - **修正（parser のみ）**＝leading-condition ブロックを nested 関数 `tryWrapLeadingStateCond` に切り出し**①トリガー句付き text＋②トリガー句除去後 t の2箇所から呼ぶ second pass**。engine 対応済み条件型で CLAUSES 拡張＝`TRASH_COUNT`/`TURN_HAND_DISCARD_GTE`/`FIELD_COUNT`/`LRIG_LEVEL`(自/相手)/`HAS_CARD_IN_FIELD{レゾナ}`/`THIS_CARD_IS_ACCED`。build:effects→heldReview 署名単位採用・全件原文照合。
