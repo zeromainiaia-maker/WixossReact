@@ -2744,9 +2744,9 @@ function parseActionTextInner(text: string): EffectAction {
     // 生成する）、対象情報だけを prevRaw から GRANT_EFFECT.target へ運ぶ（「それ」の解決＝付与時に選択UI）。
     // 引用内は expandGrantEffectRawTexts が parseBlock で CardEffect へ展開する（失敗時は rawText 温存＝PARTIAL）。
     {
-      const grantM = clean.match(/^そうした場合、(ターン終了時まで、|次の対戦相手のターン終了時まで、)それ(?:ら)?は「(【[自出起常]】.+)」を得る$/s);
+      const grantM = clean.match(/^そうした場合、(ターン終了時まで、|次の対戦相手のターン終了時まで、)それ(?:ら)?は「(【[自出起常]】.+)」を得る。?$/s);
       if (grantM && steps.length > 0) {
-        const prevT = prevRaw.match(/^((?:あなた|対戦相手)の[^。「」]*?を?)対象とし、([^。「」]+てもよい)$/);
+        const prevT = prevRaw.match(/^((?:あなた|対戦相手)の[^。「」]*?を?)対象とし、([^。「」]+てもよい)。?$/);
         // 対象は場のシグニ/ルリグ限定＝出自ゾーン付き対象（トラッシュ/エナ/手札/デッキ）や表現不能修飾は据置
         if (prevT && !/トラッシュ|エナゾーン|手札|デッキ|アイコン|同じシグニゾーン/.test(prevT[1])) {
           const preQG2 = prevT[1].endsWith('を') ? prevT[1].slice(0, -1) + 'を対象とし、' : prevT[1] + '対象とし、';
