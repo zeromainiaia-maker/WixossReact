@@ -454,6 +454,21 @@ test('結果カウント閾値の parser 構造固定（Cluster B・続き143）
   ok(s3.includes('"LAST_PROCESSED_MATCHES"') && s3.includes('"cardType":"スペル"'),
      `WXDi-P03-083: スペルのはず（実際 ${s3.slice(0, 200)}）`);
 });
+test('「それをエナゾーンに置く」＝対象化した相手シグニのエナ送り（ENERGY_CHARGE誤マップ回帰・§3タスク12(xxviii)・続き147）', () => {
+  // 原文「対戦相手のシグニ1体を対象とし、コストを支払ってもよい。そうした場合、それをエナゾーンに置く。」
+  // 「それ」＝対象化した相手シグニ＝SEND_TO_ENERGY（エナ送り除去）。従来は REVEAL 文脈用の
+  // ENERGY_CHARGE{DECK_CARD,self}（自分デッキからのチャージ）へ誤マップされ、除去が丸ごと自分エナ増加に化けていた。
+  for (const id of ['WXDi-P05-073-BURST', 'WX25-P2-026-E1', 'WX26-CP1-086-BURST', 'WXK05-027-E2', 'WXK05-070-E1', 'WXK10-048-BURST', 'WDK08-Y11-BURST']) {
+    const card = id.replace(/-(BURST|E\d+|SONG)$/, '');
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === id);
+    const steps = (e?.action as { steps?: Array<{ type?: string; condition?: { type?: string }; then?: { type?: string; target?: { owner?: string } } }> })?.steps ?? [];
+    const cond = steps.find(s => s.type === 'CONDITIONAL' && s.condition?.type === 'IS_MY_TURN');
+    ok(cond?.then?.type === 'SEND_TO_ENERGY', `${id}: then が SEND_TO_ENERGY のはず（実際 ${cond?.then?.type}）`);
+    ok(cond?.then?.target?.owner === 'opponent', `${id}: 対象が相手シグニのはず（実際 owner=${cond?.then?.target?.owner}）`);
+    const s = JSON.stringify(e?.action ?? {});
+    ok(!s.includes('ENERGY_CHARGE'), `${id}: ENERGY_CHARGE（自分デッキチャージ）へ退化していないこと`);
+  }
+});
 // ── 続き49: 「あなたの場にあるすべてのシグニが＜C＞の場合」CONDITIONAL 持ち上げ（ALL_FIELD_SIGNI_MATCH）＝
 // 場の全シグニ同クラスでゲート（WX25-CP1-042 等）。全一致＝発火／1体でも非一致＝no-op／空盤面＝no-op。
 test('ALL_FIELD_SIGNI_MATCH: 場の全シグニが同クラスのときのみ then 発火（全一致→発火／混在→不変／空→不変）', () => {
