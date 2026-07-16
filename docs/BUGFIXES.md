@@ -2,6 +2,15 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「あなたの中央のシグニゾーンにある[＜X＞]のシグニのパワーを＋N」の group-buff が owner:any/count:1 に潰れるバグ8効果を是正（2026-07-16・続き154・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
+
+CONTINUOUS group-buff の filter 脱落系統（level/disona/覚醒 に続く）の**中央ゾーン版**。原文「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1, filter:{}}` に潰れ効果元自身のみバフへ縮退していた。
+- **engine 対応は既存**＝`centerZoneOnly`（中央=zoneIdx1）は matchesStateFilter（`effectEngine.ts:531`）で group-buff 適用（applyDeltaToState）が評価・decompiler（「中央ゾーンの」）も対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。
+- **修正**＝group-buff parser（`parseSentencePart1.ts`）に「あなたの中央のシグニゾーンにある…シグニのパワーを」専用 else-if を追加し、`centerZoneOnly:true` ＋名詞句内の story/disona/color を付与（全文スキャン禁止踏襲）。engine 変更なし。
+- **対象8効果**（親コミット比較で**9効果変化・うち MANUAL の WXDi-P06-034-E2 除く8枚を採用・回帰ゼロ**）＝WXDi-D02-24-E1（バーチャル）・WXDi-P13-009-E1（ディソナ）・WXK01-003-E1（怪異）・SP38-008-E2・WXK10-079-E1・WXDi-P02-009-E1・WXDi-P05-007-E1・WXDi-D04-013-E1。
+- **⚠残ギャップ**＝WXDi-D04-013-E1 の active condition「このシグニが**左か右のシグニゾーンにあるかぎり**」は parser 未対応で未捕捉（**変更前も any/1 で条件無し＝既存の別ギャップ**・今回は target を改善するのみで退化なし）。左右ゾーンの active condition は今後の課題（centerZoneOnly の checkActiveCondition はあるが左右は無い）。
+- golden 回帰ガード2件（parse 復元・**engine calcFieldPowers で中央 index1 のみ+3000・左右不変を実測**）。gates 全緑＝golden 352→354・census 2167 維持・同型★0維持。
+
 ## 「あなたのすべての＜X＞のシグニをアップする」の group-up が UP{count:1, filter無} に潰れ「1体だけアップ」へ縮退するバグ6効果を是正（2026-07-16・続き153・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
 
 CONTINUOUS group-buff（POWER_MODIFY）と同型の脱落が **UP アクション**にもあった。原文「あなたのすべての＜X＞のシグニをアップする」（該当自分シグニ全体をアップ）が `UP{target:{owner:self, count:1, filter無}}` に潰れ、**1体だけアップ＋種族フィルタ喪失（全シグニから任意1体アップ）**へ縮退していた。
