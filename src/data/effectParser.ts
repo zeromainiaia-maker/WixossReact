@@ -2802,6 +2802,10 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseThisWayGenericCount(thenM[0]);
       }
+      // 結果のレベル合計閾値「この方法で〜レベルの合計がN(以上/以下)?の場合」（LAST_PROCESSED_LEVEL_SUM）。
+      if (!condition && prevRecords && !rest.startsWith('代わりに')) {
+        condition = parseLevelSumCondition(thenM[0]);
+      }
       // 「その後、それのパワーがN以上(である)?の場合」＝直前 POWER_MODIFY で強化した「それ」（lastProcessedCards）の
       // 実効パワー閾値（LAST_PROCESSED_POWER_GTE・engine 実装済み）。effectivePowers は POWER_MODIFY 適用前スナップショット
       // のため、直前 delta を addDelta として渡して加味する（WX03-046「+5000後15000以上」/WXK11-065「+4000後10000以上」）。
