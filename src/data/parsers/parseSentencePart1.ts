@@ -1364,14 +1364,26 @@ export function parseSentencePart1(t: string): EffectAction | null {
       (t.includes('デッキに加え') || t.includes('デッキに戻し')) &&
       (t.includes('シャッフル') || t.includes('シャッフルする'))) {
     const all = t.includes('すべて') || t.includes('全て') || t.includes('全部');
-    const count = all ? 'ALL' : 1;
-    // 「トラッシュからすべての黒のカードをデッキに加えてシャッフルする」型は
-    // source の色制約を保持する（WXK06-031-E2／WX01-033-E3）。単色が対象名詞句に
-    // 明記された形だけに限定し、複色・後続条件の色を誤って混入させない。
-    const colorM = t.match(/トラッシュからすべての([白赤青緑黒])のカードをデッキ(?:に加え|に戻し)/);
+    // count：「N枚を対象とし」「N枚まで」＝明示枚数（すべて時は ALL）。従来は非すべてを 1 固定にしていたため
+    //   「＜X＞のシグニ５枚を対象とし」等が count=1 に潰れ、結果カウント条件（LAST_PROCESSED_COUNT_GTE）を
+    //   常に偽にしていた（WX19-040＝§3 タスク12(xxii)）。
+    const upToM = t.match(/([０-９\d]+)枚まで/);
+    const cM = t.match(/([０-９\d]+)枚を対象/);
+    const count: number | 'ALL' = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1));
+    // filter は対象名詞句内（トラッシュから … デッキに加え/戻し の span）だけから抽出する
+    //   （前置き条件・後続条件の＜X＞や色を混入させない。エナゾーン→手札ハンドラと同型）。
+    //   従来は「すべての(単色)のカード」だけを拾い、story（＜水獣＞/＜武勇＞）を落としていた（WXK02-039）。
+    const deckSpan = t.match(/トラッシュ(?:から|にある)(.*?)(?:を)?デッキ(?:に加え|に戻し)/s)?.[1] ?? '';
+    const spanStory = parseStoryFilter(deckSpan);
+    const spanColor = parseColorFilter(deckSpan);
+    const spanLevel = parseLevelFilter(deckSpan);
+    const filter: TargetFilter = {
+      ...(deckSpan.includes('シグニ') ? { cardType: 'シグニ' } : {}),
+      ...spanStory, ...spanColor, ...spanLevel,
+    };
     return {
       type: 'TRANSFER_TO_DECK',
-      source: { type: 'TRASH_CARD', owner: 'self', count, ...(colorM ? { filter: { color: colorM[1] } } : {}) },
+      source: { type: 'TRASH_CARD', owner: 'self', count, ...(upToM ? { upToCount: true } : {}), ...(Object.keys(filter).length > 0 ? { filter } : {}) },
       shuffle: true,
     } as TransferToDeckAction;
   }
