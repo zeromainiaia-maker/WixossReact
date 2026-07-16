@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き145・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ・stub群第1弾＋Codex CLI併用体制の確立）**
+  - **実行体制の変更（ユーザー指示）**：セッション途中でユーザーから「claude側のトークンがもうない」と申告を受け、`claude -p`バックグラウンドタスクをバッチ05完了時点（50枚）で`TaskStop`により停止。代替としてOpenAI Codex CLI（`codex exec --json`・ChatGPT完全無料プラン）の実行可否を確認＝1バッチのテストで正常動作・偽陽性除外ルールもClaudeと同水準で適用と確認。**以降「バッチ実行はCodex主体・Claudeは確認/精査のみ」の体制へ移行**（ユーザー指示）。新設した簡易ランナー`semanticAuditRunCodex.mjs`（セッションscratchpad限定）は`raw/batch_NN.json`の存在チェックでClaude版ランナーと同一出力ディレクトリを安全に共有＝Claude（正順01→05）とCodex（逆順20→06）が重複なく分担し200枚完走。**Codexは無料プランのまま残り150枚を1バッチ28〜52秒・エラー0件で完走**（有料APIキーではなくサブスクリプションログインのため追加課金なし）。
+  - **サンプリング**：stub群母集団2,401枚から続き144の既監査100枚（seed202607分）を`manifest.json`の`picked`を除外リストとして差し引いた候補2,301枚から、新シード202608で新規200枚をサンプリング。
+  - **findings 242件**（Claude56件／Codex186件・HIGH139/MED98/LOW5）取得。既存トラッキングと機械照合し重複除外＝**新規発見110/127枚（87%）**。HIGH中心に18件程度をJSON本体・原文で直接照合し全件正確と確認。
+  - **🌟ヘッドライン＝機械検索で確定した系統バグ**：LLM findingsに繰り返し現れた「STUB→CONDITIONAL(IS_MY_TURN)→ENERGY_CHARGE(DECK_CARD)」という誤り方（原文「支払ってもよい。そうした場合、それ〔対象化済みカード〕をエナゾーンに置く」の"それ"が無視される）を、**effects JSON全体からこの形状で機械的に全数検索し8件を確定**（`WXDi-P05-073-BURST`/`WX24-P4-048-E2`/`WX25-P2-026-E1`/`WX26-CP1-086-BURST`/`WXK05-027-E2`/`WXK05-070-E1`/`WXK10-048-BURST`/`WDK08-Y11-BURST`＝STUB idは5種でバラバラだが原文は全件「〜を支払ってもよい。そうした場合、それ〔対象化済みカード〕をエナゾーンに置く」の同一構文）。**「それをエナゾーンに置く」という結果アクションが、対象化済みカードの移動ではなく無関係な自分のデッキ起点エナチャージに落ちる＝任意コストイディオムのintercept実装（`effectExecutor`側）の共通バグと推定**＝8件を同一パッチで一括是正できる可能性が高い。ほか新規110/127枚＝STUB id/パラメータ意味不一致20件（stub群特有＝名前が原文と逆/無関係。例：`WXK11-014`のARTS_COST_REDUCTION_BY_EFFECTが実際はグロウコスト軽減）／timing取り違え10件超（【自】がON_PLAY化）／`WXK09-005-E2`＝GRANT_LRIG_ABILITYが`abilities:[]`で空＝(xxvii)のWXDi-P15-004と同型の機構欠落／duration誤り10件超／owner取り違え10件超／条件節欠落40件超（最多）。詳細・全IDは`docs/_semantic_audit_stub_round2_triage.txt`＋`scripts/archive/scratchpad/semantic_audit_stub_round2/findings_compact.txt`（242件全件）。
+  - **本セッションはengine/parser/JSON変更なし**（計器実行＋分析）。次回スケールアップ用に既監査stub300枚の累積除外リストを`scripts/archive/scratchpad/semantic_audit_stub_round2/audited_stub_cards_cumulative.txt`に保存。
+  - **次の一手**：Sonnet＝stub群残り約2,101枚への第2弾（Codex主体・Claude精査のみの体制を継続）。Opus＝タスク12(xxvii)(xxviii)含む在庫消化（(xxviii)のヘッドライン系統バグは8件一括修正の可能性があり優先度高）。
+
 - **セッション（2026-07-16・続き144・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ第2弾・完了）**
   - **✅ seed202607サンプル200枚（stub100+clean100）を全数監査完了**。続き102が`claude -p`セッション上限で中断していた残りclean群80枚を消化。アーカイブに`prompts/`/`raw/`が残っておらず、かつ母集団のstub/clean境界がその後の作業でドリフトして同シード再サンプリングが再現不能（185/200件が別カードに変化）と判明したため、**アーカイブ済み`manifest.json`の`picked`配列を直接の真実ソースとして`slice(120,200)`で残り80枚を明示指定**（`--cards`）して再現性を確保。8バッチ中1バッチがAPIサーバーエラーで失敗→単独再実行で回収し全80枚完走。
   - **findings 88件（HIGH57/MED28/LOW3）取得・アーカイブの旧125件と統合し累計213件**（`findings.jsonl`の`batch`フィールドは元の通し番号13-20へ補正）。HIGH中心にサンプル12件超をJSON本体と原文で直接照合し**全件で指摘内容が正確**と確認（owner/count/duration/timing/条件節欠落を具体的フィールド名まで正しく特定）。
