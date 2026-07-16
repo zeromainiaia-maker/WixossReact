@@ -4073,11 +4073,13 @@ const scenarios = {
             did = 'pick:optcost-energy-0→発動';
           }
         }
-        if (!did) { // GRANT_EFFECT の対象選択（龍獣＝WX04-072 のみ）
+        if (!did) { // GRANT_EFFECT の対象選択（龍獣＝WX04-072 のみ）。選択→「決定 (1/1)」の2段
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
-            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+            const confirmBtn = page.getByRole('button', { name: /決定 \(1\// }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+              await confirmBtn.click().catch(() => {}); did = 'btn:決定(1/n)';
+            } else { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
         // 付与後：WX04-072 でアタック（内側【自】ON_ATTACK_SIGNI を発火させる）
