@@ -161,6 +161,7 @@
   - **採用＝29カード（heldReview）＋WXEX1-47 直接パッチ**。**WX09-Re19 は既存手パッチ（COUNT_GTE 10 保持）温存＝不採用**。census **2044→2032**・golden **374→377**（+3）・同型★0・smoke/fuzz 全0・lint 0 errors・IS_MY_TURN化 125→120。詳細 BUGFIXES 続き171。
   - **続き171b（同セッション）＝ALL_MATCH 機構を新設**＝`LAST_PROCESSED_ALL_MATCH`（engine＋型＋decompiler＋parser `parseAllMatchCondition`）で「この方法で処理したカードがすべて〔filter〕の場合」を捕捉。2枚採用（WXDi-P05-042 level1シグニ／WXK09-097 黒）・golden 377→**379**・census 2032 維持・同型★0。詳細 BUGFIXES 続き171b。
   - **続き171c（同セッション）＝`LAST_PROCESSED_MATCHES` の色（OR）対応**＝「それが青か緑のシグニの場合」（WX21-016）「それらに白か黒のシグニがN体以上含まれる場合」（WX21-010）を parser で捕捉（engine matchesFilter は color OR 対応済み・parser のみの穴）。2枚採用・golden 379→**381**・census 2032 維持・同型★0。詳細 BUGFIXES 続き171c。
+  - **続き171d（同セッション）＝LOOK_AND_REORDER（公開）を lastProcessedCards 記録型に**＝engine `resumeLookAndReorder` が閲覧カードを記録＋parser `prevRecords` に公開 LOOK_AND_REORDER 追加。「デッキ上N枚公開→この方法で〔天使3枚/すべてlevel1〕公開された場合」を捕捉（WX12-Re10＝MATCHES minCount3／WXDi-P07-064＝ALL_MATCH level1）。2枚採用・golden 381→**383**・census 2032→**2031**・smoke/fuzz 全0・同型★0。詳細 BUGFIXES 続き171d。
   - **残**＝IS_MY_TURN化残の大半は機構待ち＝種類/distinct・レベル合計・すべて(ALL_MATCH)・多分岐カウント（2/3/4枚公開）・アイコン・否定条件・LOOK_AND_REORDER 非記録の「公開」前段。WXEX1-47-E1 の then「バニッシュし、…クラッシュ」複合脱落（LIFE_CRASH のみ）は別 parser gap（PARTIAL 維持）。
   - **次の一手**：Opus＝(xxiii) リコレクト分割（§6.3級 GRANT 機構）・(xxvii) 残 Cluster B（duration・非 POWER_MODIFY 型）/E（機構欠落）・タスク1残（【常】アタックできない家族）・IS_MY_TURN化残の distinct/sum/多分岐カウント機構。**新機構タスク**＝`ON_SIGNI_BECOMES_UP`（WX12-006 系）・手札カード自身の効果捨て timing（WXDi-P11-066 系）・エナ発ゾーン移動 timing（WXDi-P11-007 系）。Sonnet＝§7フルバッチ回帰。
 ### 📊 恒久指標（維持中・逐次更新）
