@@ -1115,6 +1115,29 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   return { type: 'LAST_PROCESSED_MATCHES', filter, minCount };
 }
 
+// 「(その後、)この方法で(トラッシュに置かれた/公開された)(すべての)?カードがすべて<filter>(のシグニ)?の場合、」
+//   → LAST_PROCESSED_ALL_MATCH。直前に処理したカードが**全て**フィルタ一致（≥N一致の parseThisWayGenericCount とは
+//   別意味＝engine は every で判定）。前段が lastProcessedCards を記録するとき（呼び出し側 prevRecords）だけ呼ぶ。
+//   捕捉できないフィルタ（種類/共通/レベルの異なる等）は null 据置。WXDi-P05-042「すべてのカードがレベル１のシグニ」・
+//   WXK09-097「カードがすべて黒」。
+function parseAllMatchCondition(clause: string): Condition | null {
+  if (!/^(?:その後、)?この方法で/.test(clause)) return null;
+  // 「すべての(カード)が<X>」または「(カード)がすべて<X>」＝全一致マーカー。
+  const m = clause.match(/(?:すべての(?:カード)?が|カードがすべて)(.+?)の場合、?$/);
+  if (!m) return null;
+  const desc = m[1];
+  // 全一致で表せないフィルタ（種類/共通/レベルの異なる/名前ペア/合計）は据置（誤変換を作らない）。
+  if (/種類|共通する|異なる|合計|同じレベル|中に/.test(desc)) return null;
+  if (parseNameFilter(desc).cardName || parseNameFilter(desc).cardNames) return null;
+  const filter: TargetFilter = {
+    ...parseStoryFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseGuardFilter(desc),
+  };
+  if (/スペル/.test(desc)) filter.cardType = 'スペル';
+  else if (/シグニ/.test(desc)) filter.cardType = 'シグニ';
+  if (Object.keys(filter).length === 0) return null; // フィルタ語彙が1つも無ければ据置
+  return { type: 'LAST_PROCESSED_ALL_MATCH', filter };
+}
+
 // 「(その後、)(この方法で…／それら…)(シグニの)?レベルの合計がN(以上/以下)?の場合、」→ LAST_PROCESSED_LEVEL_SUM。
 // engine は lastProcessedCards のシグニレベル合計を operator で判定＝前段が lastProcessedCards を記録するとき
 //（呼び出し側 prevRecords）だけ呼ぶ。「以上」→gte／「以下」→lte／無印→eq（ちょうどN）。§3 タスク12(xxii) 合計系。
