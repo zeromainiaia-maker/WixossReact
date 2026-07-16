@@ -2,6 +2,20 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## ON_DRAW any_opp「対戦相手が自分の効果で引いたとき」の発生源プレイヤー限定を実装＝Opusタスク12(xxi) 解消（PR-423・Sonnet タスク1 の在庫復活）（2026-07-16・続き162・Opus 4.8・PLAN §3 Opusタスク12(xxi)／依存 Opus12→Sonnet1）
+
+**主題**＝**Sonnet の詰まりを解消する作業**（依存＝`Opus12 → Sonnet1`：Opus が (xxi) を直すと §7 の意図的FAIL回帰シナリオ `oppDrawOwnEffectOnly` が PASS へ反転し、Sonnet タスク1〈§7 実機検証横展開〉の主力在庫が復活する）。
+
+**真因**＝`collectOppDrawTriggers`（`triggerCollect.ts`）が ON_DRAW `any_opp` の反応側を集める際、**対戦相手（drawer）が引いた原因が「drawer 自身の効果」か「reactor 自身の効果で相手を引かせた」かを一切区別していなかった**。PR-423-E1「対戦相手が**自分の効果で**カードを引いたとき」は `triggerCondition.drawByEffect:true` を持つが、この field は decompiler 表示専用（「効果によって」）で engine 評価では無視され、発生源プレイヤー限定が欠落＝reactor 自身の効果（例：SPDi43-21「対戦相手はカードを１枚引く」）で相手が引いたときにも誤発火していた（続き131・実機シナリオ `oppDrawOwnEffectOnly` で再現済み）。
+
+**修正**（engine 機構の新設）：
+- **PlayerState に `last_draw_by_own_effect?: boolean`** を追加＝直近の効果ドローが「そのプレイヤー自身の効果」由来か。`execDraw` で `a.owner==='self'`（＝効果元＝ドロー側）のとき true、`a.owner==='opponent'`（相手にドローさせた）とき false を、ドローした側の state に記録（`canDraw>0` のときのみ更新）。
+- **triggerCondition に `drawByDrawerOwnEffect?: boolean`** を追加。`collectOppDrawTriggers` で `eff.triggerCondition?.drawByDrawerOwnEffect && !drawerState.last_draw_by_own_effect` なら発火をスキップ。
+- **PR-423-E1 の JSON**（MANUAL・`effects_misc.json` 直書き）の triggerCondition に `drawByDrawerOwnEffect:true` を付与。
+- 類似カード確認＝「対戦相手が自分の効果で引く」は PR-423 のみ（WXDi-P15-091 は「効果によって」＝発生源限定なしなので対象外）。
+
+**検証**＝golden に `collectOppDrawTriggers` の PR-423 発火/非発火ケース1件を追加（357→358）：drawer.last_draw_by_own_effect=true→発火／false→非発火。smoke/fuzz 全0・同型★0 維持・census 2092 維持。**⚠E2E（`oppDrawOwnEffectOnly` の PASS 反転）は Sonnet タスク1 の検証作業＝ブラウザ harness で確認し既定 order へ追加する**（続き131 の意図的FAIL回帰が PASS になるはず）。
+
 ## `prevRecords` ゲートに BANISH／EXILE／SEND_TO_ENERGY を追加＝結果カウント条件の前段判定漏れを是正（2枚採用・census 2093→2092・IS_MY_TURN化 107→104）（2026-07-16・続き161・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き160「次の一手」）
 
 **主題**＝「この方法で〜バニッシュした／ゲームから除外した／エナゾーンに置いた場合」の結果カウント条件（`parseThisWayGenericCount`）が、**前段が記録するのに parser の `prevRecords` ゲートに入っておらず** IS_MY_TURN 化していた。
