@@ -3345,9 +3345,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_OPP_POWER_DECREASED' && /(?:＜[^＞]+＞の|他の)シグニの効果によって/.test(actionText)) {
         markSilentFallback('ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似');
       }
-      // ON_DISCARDED_AS_COST: どの能力のコストとして捨てられたかの限定は engine が未表現＝落とす近似。
-      if (timing[0] === 'ON_DISCARDED_AS_COST' && /(?:＜[^＞]+＞の)?シグニの【[^】]+】/.test(actionText)) {
-        markSilentFallback('ON_DISCARDED_AS_COST:コスト元の能力フィルタ（＜X＞のシグニの【出】【起】）を落とす近似');
+      // ON_DISCARDED_AS_COST: 「あなたの＜X＞のシグニの【出】【起】能力のコストとして」の発生源クラス限定を
+      //   triggerCondition.discardCostSourceStory に抽出（engine が host シグニの CardClass で判定・続き162 タスク12(xxiv)）。
+      //   ＜X＞が無い（クラス無指定）ときは従来どおり限定なし。
+      if (timing[0] === 'ON_DISCARDED_AS_COST') {
+        const dcs = actionText.match(/(?:あなたの)?＜([^＞]+)＞のシグニの【[^】]+】(?:【[^】]+】)?能力のコストとして/);
+        if (dcs) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), discardCostSourceStory: dcs[1] };
       }
       // ON_SPELL_USE: 使用者（主語）を triggerScope に、スペルの色を triggerFilter.color に抽出。
       //   「あなたが…」＝self（既定）／「対戦相手が…」＝any_opp／「いずれかのプレイヤーが…」＝any。
