@@ -4011,7 +4011,13 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
   const isBet = /^ベット[―─]/.test(card.EffectText);
   const stripped = stripRuleParens(card.EffectText)
-    .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '');
+    .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '')
+    // 【使用条件】【ドリームチーム】合計N種類以上の色を持つ（＝場の3ルリグが合計N色以上：ピースの使用条件）。
+    //   engine に「チームの合計色数」条件が無いため近似省略（WXDi-P15-003 と同じ扱い）。⚠除去しないと
+    //   末尾「…色を持つ」が part1 の「を持つ」キーワード付与規則に食われ GRANT_KEYWORD"使用条件" のゴミになり、
+    //   続く色別3分岐（あなたの場に(色)のルリグがいる場合）が丸ごと脱落して無条件実行される（WXDi-P08-001〜005）。
+    //   （…）は stripRuleParens が既に除去済み。
+    .replace(/^【使用条件】【ドリームチーム】合計[０-９\d]+種類以上の色を持つ/, '');
   const { cleaned, condition } = extractUseCondition(stripped);
   // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
   // parseActionTextInner の「ベット選択数変更型」ブランチが CHOOSE+betChoose に展開できればそれを採用
