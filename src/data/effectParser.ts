@@ -1289,8 +1289,31 @@ function upgradeToOppTurnEnd(a: EffectAction | undefined): void {
   else if (ra.type === 'CHOOSE') ra.choices?.forEach(c => upgradeToOppTurnEnd(c.action));
 }
 
+// 「（対象を）手札に加えるか場に出す」＝そのカードの行き先二択（手札 or 場）。従来 parser は
+// 「手札に加える」だけを拾って「場に出す」選択肢を無言脱落させ、手札固定（TRANSFER_TO_HAND）へ
+// 縮退させていた（LIFE_BURST 中心の系統バグ・85効果）。既存の hand-transfer を CHOOSE(手札/場) に
+// 包み直し、source を両枝で共有する（MANUAL 正解 3枚＝WX04-038-BURST 等と同形）。
+// 「デッキ上から公開し手札に加えるか場に出し」系は上流で REVEAL_AND_PICK(handOrField) に解決済みで
+// この関数へ到達しないため衝突しない。
+const HAND_OR_FIELD_RE = /手札に加えるか、?場に出す|場に出すか、?手札に加える/;
+function wrapHandOrField(action: EffectAction, text: string): EffectAction {
+  if (!HAND_OR_FIELD_RE.test(text)) return action;
+  // top-level が source 付き hand-transfer のときだけ包む（複合文は個別文で個々に処理される）。
+  if (action.type !== 'TRANSFER_TO_HAND' || !(action as TransferToHandAction).source) return action;
+  const src = (action as TransferToHandAction).source;
+  const fieldSrc = JSON.parse(JSON.stringify(src)) as EffectTarget;
+  return {
+    type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'hand', label: '手札に加える', action },
+      { choiceId: 'field', label: '場に出す', action: { type: 'ADD_TO_FIELD', owner: 'self', source: fieldSrc } as AddToFieldAction },
+    ],
+  } as ChooseAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
-  const action = parseSingleSentenceInner(text);
+  let action = parseSingleSentenceInner(text);
+  action = wrapHandOrField(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
