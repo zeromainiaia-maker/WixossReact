@@ -4028,8 +4028,12 @@ const scenarios = {
   //    見る＝**ルリグの効果はこの経路を一切通らない**（ルリグの攻撃はATTACK_LRIGフェイズの別コードパス）。
   //    原文は「アタックフェイズ**開始時**」＝`ON_ATTACK_PHASE_START`が正しいtimingのはずで、
   //    `ON_ATTACK_SIGNI`は誤りの疑いが濃厚＝**E1が一度も発火しない可能性**。
+  //    ✅続き164（Opus・タスク1）＝引用付与の内側 parse を実装（GRANT_EFFECT{target:龍獣}＋内側【自】ON_ATTACK_SIGNI
+  //    ＋OPPONENT_PAY_OPTIONAL《無×3》ゲート）。本シナリオは全経路を運転する：E1発火→《赤》支払い→対象WX04-072選択
+  //    →内側能力付与（granted_effects）→WX04-072でアタック→内側【自】発火→相手（CPU・エナ0で支払い不能）が
+  //    「支払わない」→WX04-072に【アサシン】付与、まで。旧FAIL（ルリグ自身へ即付与）の反転検証。
   wx24p2018GrantFire: {
-    title: 'WX24-P2-018（B4＝引用付与の起点E1が発火するか。timing疑義の実機確認）',
+    title: 'WX24-P2-018（B4＝引用付与の完全経路：E1→対象付与→アタック→相手不払い→アサシン）',
     spec: {
       hostSet: {
         'field.lrig': ['WX24-P2-018#1'],
@@ -4043,13 +4047,15 @@ const scenarios = {
         'field.lrig': ['WD03-002#1'],
         'field.signi': [['WD01-013#1'], null, null],
         'field.signi_down': [false, false, false],
+        'energy': [], // CPU が内側の《無×3》を支払えない状態にする（pay 選択肢 unavailable → skip＝アサシン付与）
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
     },
     async drive(page, H) {
       const before = await H.queryState();
       H.log('開始時 host.keywordGrants:', JSON.stringify(before?.host?.keywordGrants));
-      for (let s = 0; s < 20; s++) {
+      let modalOpened = false;
+      for (let s = 0; s < 26; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wx24p2018GrantFire-${s}.png`, fullPage: true });
         let did = null;
@@ -4067,33 +4073,41 @@ const scenarios = {
             did = 'pick:optcost-energy-0→発動';
           }
         }
-        if (!did) {
+        if (!did) { // GRANT_EFFECT の対象選択（龍獣＝WX04-072 のみ）
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
             const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
+        // 付与後：WX04-072 でアタック（内側【自】ON_ATTACK_SIGNI を発火させる）
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) {
+            await atkBtn.click().catch(() => {}); did = 'btn:アタック(exact)';
+          }
+        }
+        if (!did && !modalOpened) {
+          const st0 = await H.queryState();
+          if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
         if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
         const st = await H.queryState();
         const granted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WX04-072#1:') && g.includes('アサシン'));
+        const selfGrantNow = (st?.host?.keywordGrants ?? []).find(g => g.startsWith('WX24-P2-018#1:') && g.includes('アサシン'));
         H.log(`  w2018[${s}] -> ${did ?? 'なし'} | hKwGrants=${(st?.host?.keywordGrants ?? []).join(',') || '-'} phase=${st?.turnPhase ?? '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (granted) {
-          return { pass: true, detail: `E1発火→WX04-072に【アサシン】付与確認（hKwGrants=${(st.host.keywordGrants).join(',')}）` };
+          return { pass: true, detail: `引用付与の完全経路PASS＝E1発火→WX04-072へ内側能力付与→アタック時に相手不払い→【アサシン】付与（hKwGrants=${(st.host.keywordGrants).join(',')}）` };
+        }
+        if (selfGrantNow) {
+          return { pass: false, detail: `旧バグ再発＝ルリグ自身（${selfGrantNow}）へ即時アサシン付与（引用付与の内側 parse の回帰）` };
         }
       }
       const fin = await H.queryState();
-      const selfGrant = (fin?.host?.keywordGrants ?? []).find(g => g.startsWith('WX24-P2-018#1:'));
-      if (selfGrant) {
-        // ✅続き136（Opus・タスク17）で timing を ON_ATTACK_PHASE_START へ是正した結果、**E1 は発火するようになった**
-        //   （修正前は何も起きなかった）。ただし付与先が誤り＝**引用付与の内側 parse の別バグ**が露出した：
-        //   原文は「あなたの＜龍獣＞のシグニ1体を対象とし…それは『【自】：このシグニがアタックしたとき、対戦相手が
-        //   《無無無》を支払わないかぎり…【アサシン】を得る。』を得る」だが、実際は**ルリグ自身**（WX24-P2-018#1）に
-        //   【アサシン】が直接付与される＝(a)対象シグニの選択が JSON に無い (b)引用内の【自】トリガーと相手の支払い
-        //   条件も落ちて即時付与になっている。＝PLAN §3 Opusタスク1（引用付与の内側 ability parse）へ送る。
-        return { pass: false, detail: `【タスク17で発火は解消・別バグ露出】E1はアタックフェイズ開始時に発火し任意コストも支払えたが、付与先が対象シグニ(WX04-072)ではなく**ルリグ自身**（${selfGrant}）＝引用付与の内側 parse バグ（Opusタスク1）。timing 側（旧 ON_ATTACK_SIGNI＝一度も発火しない）は解消済み` };
-      }
-      return { pass: false, detail: `E1発火未確認（hKwGrants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）＝timing 是正（続き136）の回帰の疑い` };
+      return { pass: false, detail: `アサシン付与未確認（hKwGrants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} phase=${fin?.turnPhase ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）＝E1不発／対象選択不達／内側【自】不発のいずれか` };
     },
   },
 
