@@ -6,6 +6,9 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き162・Opus 4.8・PLAN §3 Opusタスク12(xxi)＝Sonnet の詰まり解消：ON_DRAW any_opp「自分の効果で」発生源限定を実装）**
+  - **依存 `Opus12→Sonnet1` を消化＝Sonnet の主力在庫を再生産**。`collectOppDrawTriggers` が発生源（drawer 自身の効果か reactor の効果で相手を引かせたか）を区別せず PR-423「対戦相手が自分の効果で引いたとき」が誤発火していた（続き131・`oppDrawOwnEffectOnly` 意図的FAIL回帰）のを修正。PlayerState `last_draw_by_own_effect`（execDraw で `a.owner==='self'` 記録）＋triggerCondition `drawByDrawerOwnEffect`＋PR-423 JSON フラグ付与。golden 357→358。**Sonnet＝`oppDrawOwnEffectOnly` を harness で回し PASS 反転を確認して既定 order へ追加**。詳細 BUGFIXES 続き162。
+
 - **🆕 セッション（2026-07-16・続き161・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き160「次の一手」＝結果カウント条件の前段判定漏れ〈BANISH/EXILE/SEND_TO_ENERGY〉を是正）**
   - **2枚採用・census 2093→2092・IS_MY_TURN化 107→104**。「この方法で〜バニッシュした/ゲームから除外した/エナゾーンに置いた場合」の結果カウント条件が、前段が lastProcessedCards を記録するのに parser の `prevRecords` ゲートに `BANISH`/`EXILE`/`SEND_TO_ENERGY` が入っておらず IS_MY_TURN 化していた。`prevIsProcessRecorder` を `prevRecords` に OR 追加（`prevSetsProcessed` は据置＝`parseThisWayTrashCondition` の「トラッシュに置かれた」限定分岐に無反応で安全）。採用＝WX14-021（EXILE→スペル3枚）・WX21-059（BANISH→シグニ2体）。据置＝WX14-072（CHOICE mis-parse）。golden 357・同型★0 維持。詳細 BUGFIXES 続き161。
 
