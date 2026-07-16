@@ -2,6 +2,20 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## IS_MY_TURN化残の消化＋前段 TRANSFER_TO_DECK の count/filter 脱落是正（36効果・census 2044→2032・golden 374→377）（2026-07-17・PLAN §3 Opusタスク12(xxii)）
+
+**主題**＝PARTIAL 刻印 IS_MY_TURN化残（`docs/_partial_report.txt`）104件のうち「結果カウント条件」系を消化。104件を前段アクション型で機械分類し、**engine が lastProcessedCards を記録する前段なのに parser が条件を捕捉できていないクラスタ**を特定した。3系統の穴を修正：
+
+1. **`prevRecords` ゲートに `TRANSFER_TO_DECK` が無い**（`effectParser.ts:2922`）。`execTransferToDeck` は全分岐（LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD）で `lastProcessedCards` を記録するのに、条件持ち上げのゲートに含まれず「この方法でカードをN枚デッキに加えた場合」（LAST_PROCESSED_COUNT_GTE）が常時true化していた。→ `prevIsProcessRecorder2` を追加。**WX19-040（COUNT_GTE 5）・WXK02-039（COUNT_GTE 15）・WX17-063-E1/TRAP（COUNT_GTE 10・対戦相手のデッキ回収枚数）** を捕捉。
+
+2. **語順「トラッシュに＜X＞のシグニがN枚以上置かれた」の取りこぼし**（`parseThisWayGenericCount` verb-gate と `parseThisWayTrashCondition` sc2/sc3）。「トラッシュに置」の**連続一致**を要求していたため、フィルタ名詞句が「トラッシュに」と「置」の間に入る語順（WXEX1-47）で verb 判定が外れていた。→ verb-gate を `トラッシュに[^。]*?置` の分離形許容へ／`parseThisWayTrashCondition` に sc4（語順違い TRASHED_STORY_COUNT_GTE）を追加。**WXEX1-47-E1＝TRASHED_STORY_COUNT_GTE{古代兵器,5}**（PARTIAL 温存カードのため JSON 直接パッチ。⚠then が「バニッシュし、…クラッシュ」複合を LIFE_CRASH のみに潰す別 parser gap は残置・PARTIAL 維持）。
+
+3. **前段 TRANSFER_TO_DECK パーサの count/filter 脱落**（`parseSentencePart1.ts:1362`「トラッシュ→デッキ全回収」ハンドラ）。非すべて時に **count:1 固定＋単色のみ抽出**で、原文の枚数（5枚等）と story/level filter（水獣/武勇/古代兵器等）を落としていた（(1) の COUNT_GTE を常に偽にする原因でもあった）。→ エナゾーン→手札ハンドラと同型の **span ベース抽出**へ（デッキに加え直前の source zone にアンカー＝`zoneM`／`fromTrash` ゲート）。count は「N枚まで(upTo)/N枚/すべて(ALL)」、filter は story/color/level/cardType。**否定ガード**＝「＜X＞ではない/以外」「(色)ではない」を positive filter に混ぜない（WX22-006 精元ではない・WX14-030/WX21-026 無色ではない）。source zone アンカーで「エナゾーンから…デッキに加え」の誤発火（WX21-028）も防止。→ **33効果**の count/filter を復元。
+
+**検証**＝全カード生パース dump を編集前後で厳密 diff＝**ちょうど36効果のみ変化**（副作用ゼロ）を確認。各変更を原文照合し、否定・zone 誤スコープの回帰を潰した。**WX09-Re19 は既存が手パッチ（COUNT_GTE 10 保持＋別構造）のため温存＝不採用**（heldReview から除外）。採用＝heldReview で29カード＋WXEX1-47 直接パッチ。golden +3（count/filter 抽出・否定ガード・語順 TRASHED_STORY）。census 2044→2032・同型★0・smoke/fuzz 全0・IS_MY_TURN化 125→120。
+
+**残**＝IS_MY_TURN化残の大半は機構待ち＝種類/distinct・レベル合計・すべて(ALL_MATCH)・多分岐カウント（2/3/4枚公開）・アイコン・否定条件・LOOK_AND_REORDER 非記録の「公開」前段。WXEX1-47 の then 複合脱落（バニッシュ+クラッシュ）は別 parser gap。
+
 ## `textNoJson` 56枚の実体確認：真の欠落0件・全件が構造的に対応済み（2026-07-17・PLAN §3 補欠(b)）
 
 **主題**＝`docs/PLAN.md` 補欠(b)＝`scripts/semanticAuditExtract.mjs` が検出する「原文（EffectText/BurstText）はあるが effects JSON に登録されていない56枚」が、真の実装漏れかバニラ/ルール系で正当かの未確認事項だった。`node scripts/semanticAuditExtract.mjs --out <dir> --per-group 1 --groups stub` で最新の母集団を再計測し、母数が変わっていないこと（56枚・IDリストも旧 manifest と完全一致）を確認した上で全56枚を個別に精査した。
