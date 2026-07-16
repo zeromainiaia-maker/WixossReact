@@ -729,6 +729,9 @@ export function collectOppDrawTriggers(
       const to = eff.triggerCondition?.turnOwner;
       if (to === 'self' && !reactorIsTurn) continue;
       if (to === 'opponent' && reactorIsTurn) continue;
+      // 「対戦相手が【自分の効果で】引いたとき」限定（PR-423）＝drawer が自身の効果で引いた場合のみ発火。
+      // reactor 自身の効果で drawer を引かせた場合（drawer.last_draw_by_own_effect=false）は誤発火しない。
+      if (eff.triggerCondition?.drawByDrawerOwnEffect && !drawerState.last_draw_by_own_effect) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, reactorState, drawerState, reactorIsTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, reactorState, drawerState, ctx.cardMap, topNum, phase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
