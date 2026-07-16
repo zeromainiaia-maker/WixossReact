@@ -1493,7 +1493,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // engine 側 IS_MY_TURN がプレースホルダ常時真のため対象外。「場に《X》がいる」（X はルリグ名の
   // ことが多い）は execUtils/effectEngine の HAS_CARD_IN_FIELD がルリグゾーンも走査するよう対応済み
   // （2026-07-05 続き26）＝cardName フィルタで照合する。
-  {
+  // ⚠2026-07-16 続き155：本ブロックを nested 関数 tryWrapLeadingStateCond に切り出し、①この位置（トリガー句が
+  //   残っている text）と、②下のトリガー句除去（1668〜）後の t の**2箇所**から呼ぶ。①のプレフィックス許可リストに
+  //   無いトリガー句（「ターン終了時、」等・1668 で除去される）直後の条件節は、①では拾えず 1668 除去後に②が拾う
+  //   （WX12-046「ターン終了時、手札がN枚以上ある場合、…」等）。②は t 先頭がクリーン（トリガー句既除去）なので
+  //   プレフィックス空でマッチする。①が return したら②へは来ない＝二重ラップしない。
+  function tryWrapLeadingStateCond(text: string): EffectAction | null {
     const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
