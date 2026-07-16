@@ -155,12 +155,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き156・Opus 4.8・PLAN §5c 条件節クラスタ＋§3 Opusタスク12🆕 choice.condition 機構）**
-  - **53枚採用・census 2131→2104**。3バッチ：**①engine対応済み状態条件を CLAUSES 系統追加（27枚）**＝`SELF_POWER_GTE`/`FIELD_SIGNI_POWER_COUNT`/`HAS_CARD_IN_FIELD{isFrozen/color/isDisona/cardName minCount}`/`LIFE_COMPARE_OPP`/`LRIG_LEVEL_EQ_OPP`/`LRIG_COLOR`/`THIS_CARD_IS_ACCED`/`AND[cardName×2]`。second-pass strip-list に「対戦相手のターン終了時、」「(あなた|対戦相手)のアタックフェイズ開始時、」「…捨てられたとき、」追加。**旧「アクセされている」regex が実文言「【アクセ】が付いている」と不一致で一度も発火せず過剰発火だったバグも是正**。
-  - **②choice.condition 持ち上げ機構を新設（20枚）**＝続き155 が先送りした §3 Opusタスク12🆕 を解消。「①…②<状態条件>の場合、X」の選択肢**先頭**availability 条件を engine の `choice.condition`（execChoose・effectExecutor.ts:2540）へ持ち上げる `liftChoiceOptionCondition` を CHOOSE 構築4経路へ配線。**⚠「…を対象とし、<条件>の場合」（対象化後の action ゲート）は原文語順維持のため持ち上げない**（rawText ガード）。
-  - **③追加 CLAUSES（6枚）**＝`AND[TRASH_HAS_CARD×2]`/`THIS_CARD_HAS_UNDER`/`HAS_CARD_IN_FIELD{ルリグ,color}`。
-  - **検証**：golden 356（回帰0）・smoke/fuzz 全0・census 2131→2104（BASELINE 更新）・同型★0（5986枚）維持。詳細 BUGFIXES 続き156。
-  - **次の一手**：Opus＝条件節クラスタ残の**機構バウンド**分（(a) ドリームチーム【使用条件】ヘッダ mis-parse＝GRANT_KEYWORD"使用条件"化・色別3分岐脱落 WXDi-P08-001〜005／(b) LAST_PROCESSED reveal 経路のブルアカ系＝REVEAL_AND_PICK と絡む／(c) コスト支払い累計・デッキ移動累計カウンタ）を機構ごとに。タスク12 在庫（(xxvii) 残 Cluster C/A/F）も。Sonnet＝Opus在庫消化待ちまたは補欠。
+- **🆕 セッション（2026-07-16・続き157・Opus 4.8・PLAN §3 Opusタスク12🆕＝ドリームチーム【使用条件】ヘッダ mis-parse 是正）**
+  - **WXDi-P08 ピース4枚是正・census 2104→2101**。真因＝ヘッダ「合計N種類以上の色を持つ」の「を持つ」が part1 のキーワード付与規則に食われ `GRANT_KEYWORD"使用条件"` のゴミ化＋色別3分岐が丸ごと脱落し全枝無条件実行。修正＝(1) `parseArtsEffect` でヘッダを近似省略ストリップ（engine にチーム合計色数条件が無い・WXDi-P15-003 同扱い）(2) SEQUENCE thenM を `の?場合`化＝「がいる場合」（の無し）の後続枝を拾う (3) WXDi-P08-005 複合ゲート `AND[HAS_CARD_IN_FIELD{ルリグ,color}, LRIG_LEVEL{opp}]` を追加。**⚠P08-003 は「見る。その中から…」の2文 LOOK_PICK と条件が跨るため partial 据置**。
+  - **検証**：golden 356・smoke/fuzz 全0・census 2104→2101（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き157。**⚠この直前の続き156（choice.condition 機構＋条件節 CLAUSES 53枚・census 2131→2104）と合わせて同日消化**（要約は PLAN_PROGRESS 先頭）。
+  - **次の一手**：Opus＝条件節クラスタ残の**機構バウンド**分（(a) LAST_PROCESSED reveal 経路のブルアカ系＝REVEAL_AND_PICK と絡む／(b) 「見る。その中から…」2文 LOOK_PICK × 条件（P08-003 等）／(c) コスト支払い累計・デッキ移動累計カウンタ）を機構ごとに。タスク12 在庫（(xxvii) 残 Cluster C/A/F）も。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
