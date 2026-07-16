@@ -2,6 +2,16 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## `LAST_PROCESSED_MATCHES` の色（OR）フィルタ対応：「それが青か緑のシグニの場合」等（2枚・golden 379→381）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171c）
+
+**主題**＝IS_MY_TURN化残の「それ/そのカード属性」クラスタのうち**色判定**。「その後、それが青か緑のシグニの場合」（WX21-016・前段 BANISH）「それらに白か黒のシグニが１体以上含まれる場合」（WX21-010・前段 BANISH）は、`parseLastProcessedMatchesCondition` の `sm` 分岐が story/level/guard のみで**色語彙を持たず**無条件true化していた。engine の `matchesFilter` は `filter.color` の string|string[] を OR 判定済み（受け皿あり）＝**parser のみの穴**。
+
+**修正**（`effectParser.ts` parser のみ・engine 変更なし）：
+- 「(色)(か(色))+のシグニ」→ `color:[...]`（OR）／「(色)のシグニ」→ `color:単色`（`それが/そのカードが…の場合` 分岐）。
+- 「それらに(色OR)のシグニがN体以上含まれる場合」→ `LAST_PROCESSED_MATCHES{color, minCount:N}`（新 `incl` 分岐）。
+
+**検証**＝全カード生パース diff で**ちょうど2効果のみ変化**（WX21-016＝color[青,緑]／WX21-010＝color[白,黒],minCount1・いずれも前段 BANISH が lastProcessedCards を記録）。golden +2（parse assertion）。golden 379→381・census 2032 維持・同型★0・smoke/fuzz 全0。
+
 ## `LAST_PROCESSED_ALL_MATCH` 新設：「この方法で処理したカードがすべて〔filter〕の場合」の全一致条件（2枚・golden 377→379）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171b）
 
 **主題**＝IS_MY_TURN化残の「すべて（ALL_MATCH）」クラスタ。「この方法でトラッシュに置かれた**すべての**カードがレベル１のシグニの場合」（WXDi-P05-042）「カードが**すべて**黒の場合」（WXK09-097）は、既存の `LAST_PROCESSED_MATCHES`（≥N一致）では表せない**全一致**セマンティクス（1枚でも外れると不成立・空集合も不成立）で、engine 受け皿が無く無条件true化していた。
