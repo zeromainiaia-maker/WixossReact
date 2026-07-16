@@ -2032,6 +2032,22 @@ function applyLeadingSelfComparison(text: string, action: EffectAction): EffectA
 //  ・形A は先頭が「カードを…引く」＝命令形（トリガー主語「あなたが引くか…とき」は先頭が別語で除外）。
 //  ・両動作が非UNKNOWNに解けたときのみ CHOOSE 化（片方でも解けなければ従来動作＝据置）。
 //  ・トリガー/条件構造（「とき」「そうした場合」）を含む場合は 2択でなく条件/連鎖なので除外。
+// 選択肢の action が leading CONDITIONAL（状態条件ゲート・else 無し）なら、engine の choice.condition
+// （execChoose の available 判定＝effectExecutor.ts:2540）へ持ち上げ、action を then へ差し替える。
+// 「②<状態条件>の場合、X」は「条件を満たすときだけ選べる」＝availability。action を CONDITIONAL 包みに
+// すると選択肢が常時選択可に化け、条件が偽でも選んで空振りできる（続き156・§3 Opusタスク12🆕 の解消）。
+// IS_MY_TURN/IS_OPPONENT_TURN（プレースホルダ常時真）は availability に持ち上げても無意味＝据置。
+function liftChoiceOptionCondition(action: EffectAction): { action: EffectAction; condition?: Condition } {
+  if (action && action.type === 'CONDITIONAL') {
+    const c = action as import('../types/effects').ConditionalAction;
+    if (c.condition && c.then && !c.else &&
+        c.condition.type !== 'IS_MY_TURN' && c.condition.type !== 'IS_OPPONENT_TURN') {
+      return { action: c.then, condition: c.condition };
+    }
+  }
+  return { action };
+}
+
 function parseDrawOrChoice(text: string): ChooseAction | null {
   const t = text.replace(/。$/, '').trim();
   if (/とき|そうした場合/.test(t)) return null;
