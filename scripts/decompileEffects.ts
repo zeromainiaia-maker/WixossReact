@@ -676,6 +676,12 @@ function actionJa(a?: Action, effectType?: string): string {
         if (i === 0) return part;
         // IS_MY_TURN の CONDITIONAL は「そうした場合」で始まるので「そして」は不要
         if (step?.condition?.type === 'IS_MY_TURN' || part.startsWith('そうした場合')) {
+          // OPPONENT_PAY_OPTIONAL 直後の then は「支払わ**なかった**場合に実行」（executor:2339 の skip 枝）
+          // ＝「そうした場合」では意味が反転するため「そうしなかった場合」に置き換える
+          const prevQ = pairs[i - 1]?.step as { type?: string; id?: string } | undefined;
+          if (prevQ?.type === 'STUB' && prevQ?.id === 'OPPONENT_PAY_OPTIONAL' && part.startsWith('そうした場合、')) {
+            return acc + '。そうしなかった場合、' + part.slice('そうした場合、'.length);
+          }
           return acc + '。' + part;
         }
         return acc + '。そして' + part;
