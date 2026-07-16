@@ -1132,6 +1132,8 @@ function parseAllMatchCondition(clause: string): Condition | null {
   const filter: TargetFilter = {
     ...parseStoryFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseGuardFilter(desc),
   };
+  // 末尾の「の」を区切りに消費するため desc は「黒」等の bare 色になりうる（parseColorFilter は「(色)の」要求）。
+  if (!filter.color) { const bc = desc.match(/^(白|赤|青|緑|黒)$/); if (bc) filter.color = bc[1]; }
   if (/スペル/.test(desc)) filter.cardType = 'スペル';
   else if (/シグニ/.test(desc)) filter.cardType = 'シグニ';
   if (Object.keys(filter).length === 0) return null; // フィルタ語彙が1つも無ければ据置
