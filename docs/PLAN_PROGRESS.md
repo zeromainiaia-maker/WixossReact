@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き146・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ・stub群第2弾＝残り2,101枚を完走・stub群母集団2,401枚が全数監査完了）**
+  - **ユーザー指示「バッチはCodexだけ・Claudeは確認だけ」に従い実行**。`scripts/semanticAuditExtract.mjs`に`--exclude-file`・`--groups`・`--per-group all`・`--cards-file`を追加（サンプリングでなく既監査300枚を除外した残り全部を抽出できるよう恒久化）。`scripts/semanticAuditRunCodex.mjs`を正式ツールとして新規作成＋**5連続失敗で自動停止するサーキットブレーカーを追加**。
+  - **実行中に2種の障害に遭遇**：①アカウント`karkadoll1011@gmail.com`が17バッチで無料枠上限に到達（リセットは約1か月先の`Aug 15th, 2026`）→ユーザー了承のもと別アカウント`zeromain.iaia@gmail.com`へ切替。②切替後さらに5連続失敗＝診断用の手動`codex exec`とバックグラウンドジョブの同時実行によるトークンリフレッシュ競合（一時的）＝単独実行に戻し211バッチ完走まで無停止。
+  - **結果**：211バッチ・2,101枚完走・**findings 2,799件**（HIGH1,829/MED965/LOW5）。**stub群母集団2,401枚は全数監査完了**。quoteクラスタリング＋直接照合で3系統確定（Opusタスク12 🆕(xxix)）：①duration系統24件（「次の対戦相手のターン終了時まで」→UNTIL_END_OF_TURN短縮）②選択肢欠落23件（手札に加えるか場に出す→ADD_TO_FIELDのみ）③(xxii)適用範囲拡大（PARTIAL刻印152件リスト外にも同一IS_MY_TURN誤変換）。詳細`docs/_semantic_audit_stub_round3_triage.txt`。
+  - **本セッションはengine/parser/JSON変更なし**（スクリプト拡張＋計器実行＋分析のみ）。
+
 - **セッション（2026-07-16・続き145・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ・stub群第1弾＋Codex CLI併用体制の確立）**
   - **実行体制の変更（ユーザー指示）**：セッション途中でユーザーから「claude側のトークンがもうない」と申告を受け、`claude -p`バックグラウンドタスクをバッチ05完了時点（50枚）で`TaskStop`により停止。代替としてOpenAI Codex CLI（`codex exec --json`・ChatGPT完全無料プラン）の実行可否を確認＝1バッチのテストで正常動作・偽陽性除外ルールもClaudeと同水準で適用と確認。**以降「バッチ実行はCodex主体・Claudeは確認/精査のみ」の体制へ移行**（ユーザー指示）。新設した簡易ランナー`semanticAuditRunCodex.mjs`（セッションscratchpad限定）は`raw/batch_NN.json`の存在チェックでClaude版ランナーと同一出力ディレクトリを安全に共有＝Claude（正順01→05）とCodex（逆順20→06）が重複なく分担し200枚完走。**Codexは無料プランのまま残り150枚を1バッチ28〜52秒・エラー0件で完走**（有料APIキーではなくサブスクリプションログインのため追加課金なし）。
   - **サンプリング**：stub群母集団2,401枚から続き144の既監査100枚（seed202607分）を`manifest.json`の`picked`を除外リストとして差し引いた候補2,301枚から、新シード202608で新規200枚をサンプリング。
