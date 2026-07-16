@@ -2920,7 +2920,11 @@ function parseActionTextInner(text: string): EffectAction {
       // 結果カウント条件を拾えるよう prevRecords に含める（parseThisWayTrashCondition の prevIsDeckMill は
       // 「トラッシュに置かれた」限定なので誤反応しない＝parseThisWayGenericCount 経由でのみ効く）。
       const prevIsProcessRecorder = prevStep?.type === 'BANISH' || prevStep?.type === 'EXILE' || prevStep?.type === 'SEND_TO_ENERGY';
-      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevStep?.type === 'REVEAL_DECK_TOP';
+      // TRANSFER_TO_DECK（デッキに戻す/加える）も engine が lastProcessedCards を記録する（execTransferToDeck の
+      // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
+      // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
+      const prevIsProcessRecorder2 = prevStep?.type === 'TRANSFER_TO_DECK';
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevIsProcessRecorder2 || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
