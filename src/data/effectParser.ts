@@ -651,6 +651,17 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 「あなたの場に《ライズアイコン》を持つシグニが3体あるかぎり、」
+  // ＝ライズアイコン持ちシグニ3体の条件（WXEX1-35）。別枚数の既存カードは今回の採用対象に混ぜない。
+  const fieldRiseCountM = text.match(/^(?:このシグニは)?あなたの場に《ライズアイコン》を持つシグニが[３3]体あるかぎり、/);
+  if (fieldRiseCountM) {
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true }, minCount: 3 },
+      rest: text.slice(fieldRiseCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3d: 「対戦相手の場にシグニが(合計)?N体あるかぎり、」（相手シグニ数体条件。G075）
   const oppFieldSigniCountM = text.match(/^対戦相手の場にシグニが(?:合計)?([０-９\d]+)体あるかぎり、/);
   if (oppFieldSigniCountM) {
@@ -1145,6 +1156,14 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 「場にレベルN、レベルM、レベルKのシグニがある場合」＝各レベルのシグニがそれぞれ存在する（PR-K073）。
+  [/あなたの場にレベル([０-９\d]+)、レベル([０-９\d]+)、レベル([０-９\d]+)のシグニがある場合/,
+    g => ({ type: 'AND', conditions: g.map(level => ({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(level) },
+    })) })],
+  // 「対戦相手の場にキーがある場合」＝key_piece にキーが存在する（WDK09〜13-008）。
+  [/対戦相手の場にキーがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'キー' } })],
   [/あなたのトラッシュに＜([^＞]+)＞のカードが([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { story: g[0] }, minCount: parseNum(g[1]) })],
   [/あなたのトラッシュにレベル([０-９\d]+)のシグニが([０-９\d]+)枚以上ある場合/,
@@ -3804,6 +3823,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
 
+  // CHOOSE ヘッダより前の「場にレベルN、レベルM、レベルKのシグニがある場合」は
+  // 選択肢の一部ではなく効果全体の発動条件（PR-K073）。CHOOSE 分解はヘッダ以前を捨てるため、
+  // 先に CardEffect.condition へ持ち上げる。
+  const fieldLevelSetM = actionText?.match(/^あなたの場にレベル([０-９\d]+)、レベル([０-９\d]+)、レベル([０-９\d]+)のシグニがある場合、(?=以下の)/);
+  if (fieldLevelSetM) {
+    const levelSetCond: Condition = { type: 'AND', conditions: fieldLevelSetM.slice(1).map(level => ({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(level) },
+    })) };
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, levelSetCond] }
+      : levelSetCond;
+    actionText = actionText.slice(fieldLevelSetM[0].length);
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
@@ -4186,7 +4219,17 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     //   続く色別3分岐（あなたの場に(色)のルリグがいる場合）が丸ごと脱落して無条件実行される（WXDi-P08-001〜005）。
     //   （…）は stripRuleParens が既に除去済み。
     .replace(/^【使用条件】【ドリームチーム】合計[０-９\d]+種類以上の色を持つ/, '');
-  const { cleaned, condition } = extractUseCondition(stripped);
+  // ピースの印刷済み使用条件「【使用条件】あなたの場に(色)のルリグがいる」。
+  // CardEffect.condition は BattleScreen の候補表示・実行直前の双方で evalUseCondition に評価される。
+  const printedColorLrig = stripped.match(/^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグがいる/);
+  const withoutPrintedUseCondition = printedColorLrig ? stripped.slice(printedColorLrig[0].length) : stripped;
+  const extractedUse = extractUseCondition(withoutPrintedUseCondition);
+  const condition: Condition | undefined = printedColorLrig
+    ? (extractedUse.condition
+        ? { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] }, extractedUse.condition] }
+        : { type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] })
+    : extractedUse.condition;
+  const cleaned = extractedUse.cleaned;
   // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
   // parseActionTextInner の「ベット選択数変更型」ブランチが CHOOSE+betChoose に展開できればそれを採用
   // （§3 Opusタスク6・engine が is_betting で choose_count を上書き）。展開できない構造（repeat 選択・

@@ -2,6 +2,17 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## semantic audit Tier 1：既存 Condition 受け皿へ4件を配線（census 2048→2045・golden 369→373）（2026-07-17・Cluster A/C）
+
+**採用4枚**＝既存 DSL で表現できる盤面／使用条件を parser から curated JSON へ採用し、`HAS_CARD_IN_FIELD` にキーゾーン走査だけを追加した。全 effects JSON の前後比較で変更カードは下記4枚のみ。
+
+- **PR-K073-E1**：原文「場にレベル2、レベル3、レベル4のシグニがある場合」を effect-level `AND[HAS_CARD_IN_FIELD(level:2), level:3, level:4]` として CHOOSE 全体へ付与。②の「《コードＶＬ　花畑チャイカ》以外」も包含 `cardName` から `excludeCardName` へ是正。
+- **WXDi-P03-001-E1**：印刷済み「【使用条件】あなたの場に青のルリグがいる」を `condition:{type:'LRIG_COLOR',owner:'self',color:'青'}` へ。BattleScreen の候補表示／実行直前がともに `evalUseCondition` を読むことを確認。次の自ターン終了時の手札2枚捨ては遅延効果機構待ちのため UNKNOWN／PARTIAL を維持。
+- **WDK13-008-E1**：選択肢②だけを `HAS_CARD_IN_FIELD{owner:opponent,filter:{cardType:'キー'}}` の CONDITIONAL で包んだ。`execUtils.evalCondition` が `field.key_piece` も `matchesFilter` で走査するよう拡張し、decompiler にキー条件表現を追加。選択したシグニの合計レベル7／12制約は既知の合計選択機構待ちで未実装のまま。
+- **WXEX1-35-E1**：外側 CONTINUOUS に `activeCondition:HAS_CARD_IN_FIELD{owner:self,filter:{cardType:'シグニ',hasRiseIcon:true},minCount:3}` を追加。内側 `GRANT_PROTECTION target.count:ALL` は機能同値の既存 collector 慣例なので変更していない。
+
+**副作用確認**＝`build:effects`→heldReview で原文／leaf diff を照合し、前スナップショットとの全 effects JSON 比較は対象4枚だけ。汎用ライズ規則で自動収穫された対象外 WX18-030 は activeCondition 追加以外の差がないことを検証後、今回の対象外としてカード単位で復元。逆翻訳差分も対象4行だけ、`npm run regen` 完走、同型★0。`npm run gates` 全緑（typecheck、golden **373/373**、smoke CRASH/HANG/INVARIANT 全0、fuzz 全0、census **2045/BASELINE 2045**、lint error 0〔既存warning 187〕）。
+
 ## owner/対象範囲 audit：トラッシュ全回収と公開条件の色 filter を是正（2枚・census 2049→2048・golden 367→369）（2026-07-17・PLAN §3 Opusタスク12(xxvii) Cluster C）
 
 **主題**＝semantic audit Cluster C を原文と個別照合し、既存 DSL・engine・decompiler だけで完全表現できる clean 単点 **WXK06-031-E2／WXEX1-57-E1** のみ採用。owner/count/zone/action 構造は変えず、過剰だった対象を原文の色へ絞った。engine／型／decompiler は変更していない。

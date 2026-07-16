@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き167・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster C＝owner/対象範囲の誤りを消化）**
+  - **ワークフロー実験の3巡目**。Cluster C は owner/count/範囲の「変更」を伴い退化リスク最大のため、**Codex は確証できた2枚のみ採用・残り4枚は理由付きで据置**＝妥当な保守判断。
+  - **2枚採用・census 2049→2048・golden 367→369・同型★0・gates 全緑**。
+  - **採用①＝WXK06-031-E2（parser 規則）**＝「トラッシュからすべての黒のカードをデッキに加えてシャッフル」に `filter:{color:黒}` を付与（従来 filter 欠落で全色回収の過剰）。`parseSentencePart1.ts` の TRASH→DECK 全回収規則に**単色明記の狭い regex** を追加＝複色/後続条件の色混入を防止。
+  - **採用②＝WXEX1-57-E1（MANUAL）**＝「白か黒の＜天使＞のシグニ」の色 filter が `color:黒` のみ→`color:['白','黒']`。共通 parseColorFilter は複色名詞句を意図的に単色へ落とすため MANUAL 上書き。engine `matchesFilter` は color 配列対応。
+  - **Claude 検証**＝機械 diff で変更2効果のみ・WXK06-031-E1 の PARTIAL drift 不採用・**WXEX1-35 の count机能同值を engine collector で裏取り**（GRANT_PROTECTION は host 自身を保護し count 非展開）・census 2048/golden 369/同型★0/gates 独立再実行。**退化ゼロ**。
+  - **据置**＝WX10-061/WX11-038（既是正）／WXEX1-50-E2（相手手札選択機構）／WXEX1-35-E1（ライズ条件機構・count 无害）／WXK06-031-E1（複数レベル探索）＝§6.3級。
+
 - **🆕 セッション（2026-07-16・続き166・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster A＝条件節丸ごと欠落を消化）**
   - **ワークフロー実験の2巡目**（続き165 と同じ「Codex 実装／Claude 検証」）。Cluster A は大半が機構待ちのため **Codex は保守的に1枚だけ採用・残りは理由付きで据置**＝Cluster A の性質に照らして妥当な判断。
   - **1枚採用（CONDITIONAL 包み）・census 2050→2049・golden 366→367・同型★0・gates 全緑**。

@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums } from '../src/engine/effectEngine';
-import { evalCondition } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
@@ -3734,6 +3734,60 @@ test('parse エナ回収の class filter は対象名詞句から復元（WXEX2-
   eq(source.upToCount, true, '任意上限');
   eq(source.filter?.cardType, 'シグニ', 'シグニ限定');
   eq(source.filter?.story, '遊具', '＜遊具＞限定');
+});
+
+// ── semantic audit Tier 1（続き168）：条件ゲート4件 ──
+test('PR-K073-E1: レベル2/3/4の場条件がCHOOSE全体をANDゲートし、検索は同名以外', () => {
+  const e = parseCardEffects(cardMap.get('PR-K073')!)[0];
+  const condition = e.condition as unknown as { type: string; conditions: { type: string; filter?: { level?: number } }[] };
+  const choose = e.action as unknown as { type: string; choices: { action: { filter?: { cardName?: string; excludeCardName?: string } } }[] };
+  eq(condition.type, 'AND', '3条件はAND');
+  eq(JSON.stringify(condition.conditions.map(c => c.filter?.level)), JSON.stringify([2, 3, 4]), 'level 2/3/4');
+  eq(choose.type, 'CHOOSE', 'conditionがCHOOSE全体をゲート');
+  const searchFilter = choose.choices[1]?.action.filter;
+  eq(searchFilter?.excludeCardName, 'コードＶＬ　花畑チャイカ', '同名カードを除外');
+  eq(searchFilter?.cardName, undefined, '包含filterへ反転しない');
+});
+
+test('WXDi-P03-001-E1: 青LRIG使用条件をparserがemitし、evalUseConditionがプレイ可否をゲート', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P03-001')!)[0];
+  eq(e.condition?.type, 'LRIG_COLOR', 'condition=LRIG_COLOR');
+  const condition = e.condition!;
+  const blueLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('青'));
+  const redLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('赤') && !c.Color?.includes('青'));
+  const blue = mkState({}); blue.field.lrig = [blueLrig];
+  const red = mkState({}); red.field.lrig = [redLrig];
+  ok(evalUseCondition(condition, blue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '青LRIGなら使用可');
+  ok(!evalUseCondition(condition, red, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '青でなければ使用不可');
+  ok(JSON.stringify(e.action).includes('次のあなたのターン終了時、手札を２枚捨てる'), '遅延効果UNKNOWNは温存');
+});
+
+test('WDK13-008-E1: 選択肢2だけが相手key_piece条件付きで、HAS_CARD_IN_FIELDがキーを走査', () => {
+  const e = parseCardEffects(cardMap.get('WDK13-008')!)[0];
+  const choose = e.action as unknown as { choices: { action: EffectAction }[] };
+  eq(choose.choices[0]?.action.type, 'TRANSFER_TO_HAND', '選択肢1は無条件のまま');
+  const gated = choose.choices[1]?.action as unknown as { type: string; condition: import('../src/types/effects').Condition; then: EffectAction };
+  eq(gated.type, 'CONDITIONAL', '選択肢2のみ条件付き');
+  eq(gated.condition.type, 'HAS_CARD_IN_FIELD', 'HAS_CARD_IN_FIELD');
+  const key = findCard(c => c.Type === 'キー');
+  const ctx = mkCtx({}, {});
+  ok(!evalCondition(gated.condition, ctx), 'キーなしはfalse');
+  ctx.otherState.field.key_piece = key;
+  ok(evalCondition(gated.condition, ctx), '相手key_pieceにキーがあればtrue');
+});
+
+test('WXEX1-35-E1: ライズアイコン持ち3体条件を外側activeConditionへ付与し、内側countは維持', () => {
+  const e = parseCardEffects(cardMap.get('WXEX1-35')!)[0];
+  const cond = e.activeCondition!;
+  eq(cond.type, 'HAS_CARD_IN_FIELD', '外側activeCondition');
+  const rise = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.EffectText?.includes('【ライズ】')).slice(0, 3).map(c => c.CardNum);
+  eq(rise.length, 3, 'テスト用ライズ3体');
+  const two = mkState({ signi: [rise[0], rise[1], null] });
+  const three = mkState({ signi: [rise[0], rise[1], rise[2]] });
+  ok(!checkActiveCondition(cond, two, mkState({}), true, cardMap, 'WXEX1-35'), 'ライズ2体では無効');
+  ok(checkActiveCondition(cond, three, mkState({}), true, cardMap, 'WXEX1-35'), 'ライズ3体で有効');
+  const innerCount = (e.action as unknown as { abilities: { action: { target: { count: number | string } } }[] }).abilities[0]?.action.target.count;
+  eq(innerCount, 'ALL', '既存の内側count:ALLは変更しない');
 });
 
 // ── レポート ──

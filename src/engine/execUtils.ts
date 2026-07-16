@@ -777,6 +777,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         for (const ln of lrigZoneTops(fst.field)) {
           if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matched++;
         }
+        // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
+        // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
+        const key = fst.field.key_piece;
+        if (key && !(cond.excludeSelf && srcNum && key === srcNum)
+            && matchesFilter(ctx.cardMap.get(key), cond.filter)) matched++;
       }
       return matched >= (cond.minCount ?? 1);
     }

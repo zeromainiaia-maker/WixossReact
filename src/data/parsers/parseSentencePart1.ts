@@ -1086,8 +1086,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),
     };
+    const excludeNameM = t.match(/《([^》]+)》以外/);
     const nameM = t.match(/《([^》]+)》/);
-    if (nameM) {
+    if (excludeNameM) {
+      filter.excludeCardName = excludeNameM[1];
+    } else if (nameM) {
       // 《Xアイコン》を持つカード＝アイコン保持フィルタ（hasIcon）。カード名フィルタにすると
       // どのカード名にも含まれず無言no-matchになる（WX08-072-BURST の旧バグ）
       const iconM = nameM[1].match(/^(クロス|ライズ|トラップ|アクセ)アイコン$/);

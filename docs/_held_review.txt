@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［75枚］
-PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WX05-073 WX07-029 WX13-002 WX16-040 WX17-009 WX17-029 WX18-009 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-069 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-057 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-005 WXDi-P10-039 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-037 WXK01-044 WXK05-040 WXK06-031 WXK06-050 WXK08-059 WXK09-050 WXK09-084
+## （type増減なし＝値/構造変更） ［87枚］
+PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-040 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-009 WX18-077 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-069 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-057 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-005 WXDi-P10-039 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-050 WXK09-084
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -148,6 +148,52 @@ SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25-P1-058 W
   + [0].action.steps[0].costColors[0] = "黒"
   + [0].action.steps[0].costColors[1] = "黒"
 
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［7枚］
+WDK09-008 WDK10-007 WDK11-007 WDK12-008 WX24-P4-082 WXDi-P02-071 WXDi-P12-002
+--- WDK09-008
+  原文: カードを２枚引く。対戦相手の場にキーがある場合、対戦相手は手札を２枚捨てる。,-
+  - [0].action.steps[1].target.type = "HAND_CARD"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 2
+  ~ [0].action.steps[1].type : "TRASH" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "TRASH"
+  + [0].action.steps[1].then.target.type = "HAND_CARD"
+  + [0].action.steps[1].then.target.owner = "opponent"
+  + [0].action.steps[1].then.target.count = 2
+--- WDK10-007
+  原文: ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。対戦相手の場にキーがある場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。,-
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].source.type = "TRASH_CARD"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.upToCount = false
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].source.filter.story = "龍獣"
+  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "ADD_TO_FIELD"
+  …（他 7 行）
+--- WDK11-007
+  原文: ターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。」を得る。対戦相手の場にキーがある場合、追加でターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。」を得る。,-
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].actionId = "ATTACK"
+  - [0].action.steps[1].until = "END_OF_TURN"
+  ~ [0].action.steps[1].type : "BLOCK_ACTION" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "BLOCK_ACTION"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "any"
+  …（他 3 行）
+
 ## -CONDITIONAL -TRASH_HAS_CARD ［6枚］
 WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
 --- WXDi-P00-042
@@ -193,6 +239,45 @@ WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
   ~ [0].action.steps[0].type : "CONDITIONAL" → "STUB"
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "黒"
+
+## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［6枚］
+WXDi-P03-002 WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
+--- WXDi-P03-002
+  原文: 【使用条件】あなたの場に緑のルリグがいるこのゲームの間、あなたは以下の能力を得る。『【自】：あなたのターンの間、あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナチャージ１】をする。』,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "緑"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
+--- WXDi-P16-003
+  原文: 【使用条件】あなたの場に白のルリグがいるあなたの場に白のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる白のルリグ１体につき《白×1》減る。【ルリグバリア】２つを得る。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "白"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+--- WXDi-P16-004
+  原文: 【使用条件】あなたの場に赤のルリグがいるあなたの場に赤のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる赤のルリグ１体につき《赤×1》減る。対戦相手のライフクロス１枚をトラッシュに置く。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "赤"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
 
 ## +UNKNOWN -GRANT_KEYWORD -SIGNI ［5枚］
 WX25-P1-048 WXDi-D09-H11 WXDi-P06-002 WXDi-P07-001 WXDi-P09-002
@@ -347,54 +432,6 @@ WX24-P4-066 WX25-P2-076 WXDi-D09-H21
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "赤"
   …（他 2 行）
-
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［3枚］
-WX24-P4-082 WXDi-P02-071 WXDi-P12-002
---- WX24-P4-082
-  原文: 【エナチャージ２】をする。その後、あなたの場にレベル４以上のルリグがいる場合、あなたのエナゾーンから緑のシグニを１枚まで対象とし、それを場に出す。,：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加えるか場に出す。
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "ENERGY_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = true
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.level.min = 4
-  - [0].action.steps[1].source.filter.color = "緑"
-  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.filter.cardType = "ルリグ"
-  …（他 9 行）
---- WXDi-P02-071
-  原文: 対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。その後、対戦相手の場に凍結状態のシグニが３体以上ある場合、追加で対戦相手の手札を１枚見ないで選び、捨てさせる。,-
-  - [0].action.steps[2].target.type = "HAND_CARD"
-  - [0].action.steps[2].target.owner = "opponent"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].target.blind = true
-  ~ [0].action.steps[2].type : "TRASH" → "CONDITIONAL"
-  + [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[2].condition.owner = "opponent"
-  + [0].action.steps[2].condition.filter.cardType = "シグニ"
-  + [0].action.steps[2].condition.filter.isFrozen = true
-  + [0].action.steps[2].condition.minCount = 3
-  + [0].action.steps[2].then.type = "TRASH"
-  + [0].action.steps[2].then.target.type = "HAND_CARD"
-  …（他 3 行）
---- WXDi-P12-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたの場に《ディソナアイコン》のシグニが３体ある場合、対戦相手のすべてのシグニをバニッシュし、その後、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカードを２枚まで対象とし、それらをトラッシュに置く。,-
-  - [0].action.target.type = "ENERGY_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 2
-  - [0].action.target.upToCount = true
-  ~ [0].action.type : "TRASH" → "CONDITIONAL"
-  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.isDisona = true
-  + [0].action.condition.minCount = 3
-  + [0].action.then.type = "TRASH"
-  + [0].action.then.target.type = "ENERGY_CARD"
-  …（他 3 行）
 
 ## +GRANT_EFFECT +SIGNI ［3枚］
 WX24-P2-055 WX25-P3-085 WXDi-P08-080
@@ -841,6 +878,32 @@ WXDi-D07-022
   - [0].action.steps[1].choices[1].action.type = "TRASH"
   - [0].action.steps[1].choices[1].action.target.type = "DECK_CARD"
   …（他 24 行）
+
+## +LRIG_COLOR +UNKNOWN -GRANT_KEYWORD -SIGNI ［1枚］
+WXDi-P00-002
+--- WXDi-P00-002
+  原文: 【使用条件】あなたの場に白のルリグがいる対戦相手のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】【ランサー】【ダブルクラッシュ】を失い、新たに得られない。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.keyword = "使用条件"
+  - [0].action.duration = "UNTIL_END_OF_TURN"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "白"
+  ~ [0].action.type : "GRANT_KEYWORD" → "UNKNOWN"
+  + [0].action.raw = "対戦相手のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】【ランサー】【ダブルクラッシュ】を失い、新たに得られない"
+  ~ [0].parseStatus : "AUTO" → "UNKNOWN"
+
+## +LRIG_COLOR ［1枚］
+WXDi-P00-004
+--- WXDi-P00-004
+  原文: 【使用条件】あなたの場に緑のルリグがいるあなたのパワー１５０００以上のシグニを２体まで対象とし、ターン終了時まで、それらは【ランサー】を得る。,-
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "緑"
+  ~ [0].action.target.owner : "self" → "any"
+  ~ [0].action.keyword : "使用条件" → "ランサー"
 
 ## +AND +CONDITIONAL +HAS_CARD_IN_FIELD×2 ［1枚］
 WXDi-P00-044

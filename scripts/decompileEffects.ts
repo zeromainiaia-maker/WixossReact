@@ -294,6 +294,8 @@ function condJa(c?: any): string {
       // 「場にレベルN以上のルリグがいる」（ルリグゾーン走査・WX24-P4-061/068）
       if (c.filter?.cardType === 'ルリグ')
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}ルリグがいる`;
+      if (c.filter?.cardType === 'キー')
+        return `${ownerJa(c.owner)}場にキーがある`;
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
       if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
         return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
