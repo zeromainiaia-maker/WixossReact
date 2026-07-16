@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）**
+  - **PARTIAL 刻印 Cluster B の「捨てカウント」系4効果を消化**＝「手札を捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件が `IS_MY_TURN`（常時true）化して過剰実行していたのを `LAST_PROCESSED_COUNT_GTE` へ是正。`parseThisWayGenericCount` の許可動詞に `捨て` 追加（engine で `TRASH{HAND_CARD}` が lastProcessedCards を記録するのを確認）・否定「捨てなかった」は reject。
+  - **安全側の境界**＝前段が実 TRASH の forced/filter 捨てのみ（PR-K038-E3・WXEX2-39-E1・WXDi-P06-035-E2〈第1枝〉・WXK01-001-E2）。「捨ててもよい/好きな枚数捨てる」は前段が STUB{OPTIONAL_COST} 化で据置。JSON 直接パッチ＋parseStatus AUTO 化。
+  - golden 342→345（parse・否定非変換・engine 実行で過剰実行防止を実測）・census 2169→2167・同型★0維持。PARTIAL IS_MY_TURN化 98→94。詳細 BUGFIXES 続き150。
+
 - **セッション（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②＝「手札に加えるか場に出す」選択肢欠落系統バグの消化）**
   - **84効果を CHOOSE(手札/場) へ是正**。原文「それを手札に加えるか場に出す」（カードの行き先二択）が JSON で `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」枝が丸ごと脱落。トリアージの「ADD_TO_FIELD 縮退」は誤りで実体は逆＝手札固定への縮退（88効果中85が該当）。
   - **修正（engine 変更なし）**：`effectParser.ts` に `wrapHandOrField` 新設し `parseSingleSentence` から呼ぶ＝文が `/手札に加えるか、?場に出す/` を含み内側が source 付き `TRANSFER_TO_HAND` のとき `CHOOSE(hand / field=ADD_TO_FIELD{同一source})` に包む。engine は `execAddToField`（TRASH/ENERGY/HAND/DECK source 対応）で既に完動＝新機構ゼロ。
