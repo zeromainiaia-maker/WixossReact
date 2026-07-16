@@ -1083,9 +1083,11 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
 // 全セマンティクスを捕捉できる形に限定＝捕捉不能なフィルタ（N種類/共通クラス/偶数/レベルの異なる/名前ペア/
 //   センターレベル依存）は null を返し IS_MY_TURN 据置（census が継続検出＝偽陰性を作らない）。
 function parseThisWayGenericCount(clause: string): Condition | null {
-  if (!/^(?:その後、)?この方法で/.test(clause)) return null;
+  const DBG = process.env.TRACE_GC;
+  if (DBG) console.error('[GC] clause=', JSON.stringify(clause));
+  if (!/^(?:その後、)?この方法で/.test(clause)) { if (DBG) console.error('[GC] fail: prefix'); return null; }
   // lastProcessedCards を残すと確認済みの動詞に限定
-  if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) return null;
+  if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) { if (DBG) console.error('[GC] fail: verb'); return null; }
   // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
   //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
