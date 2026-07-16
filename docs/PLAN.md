@@ -155,12 +155,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き154・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝中央ゾーン group-buff の脱落是正）**
-  - **是正8効果**＝CONTINUOUS group-buff filter 脱落系統（level/disona/覚醒/UP に続く）の**中央ゾーン版**。「あなたの中央のシグニゾーンにある[＜X＞]のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1}` に潰れ効果元自身のみバフへ縮退。WXDi-D02-24（バーチャル）・WXDi-P13-009（ディソナ）・WXK01-003（怪異）・SP38-008・WXK10-079・WXDi-P02-009・WXDi-P05-007・WXDi-D04-013。
-  - **engine 対応は既存**＝centerZoneOnly（zoneIdx1）は matchesStateFilter・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。parser に専用 else-if を追加（centerZoneOnly＋名詞句内 story/disona）。親コミット比較で9効果変化・MANUAL 除く8枚採用・回帰ゼロ。
-  - **⚠残ギャップ**＝WXDi-D04-013 の「左か右のシグニゾーンにあるかぎり」active condition は未捕捉（変更前も条件無し＝既存の別ギャップ・今回 target のみ改善で退化なし）。左右ゾーンの checkActiveCondition は今後の課題。
-  - **検証**：golden 352→354（parse・engine 中央 index1 のみ+3000 実測）・smoke/fuzz 全0・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き154。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続。(xxvii) 残＝Cluster C 単点（WXEX1-35/50・WXEX1-57 白か黒）・A 条件節丸ごと欠落11枚・F フィルタ単点13枚・E §6.3級機構。group-buff の残（左右ゾーン/クロス/ドライブは要機構）・DOWN group。(xxii) 残は SEARCH 前段カウント。Sonnet＝Opus在庫消化待ちまたは補欠。
+- **🆕 セッション（2026-07-16・続き155・Opus 4.8・PLAN §5c 条件節クラスタ611 系統消化＝トリガー句直後の状態条件節脱落を是正）**
+  - **是正49効果**＝「【自】：<トリガー>、<状態条件>の場合、<アクション>」でトリガー句（ターン終了時/アタックフェイズ開始時等）**直後**の状態条件節がパーサーで丸ごと脱落し**無条件発火する過剰効果**になっていた系統（WX12-046 が毎ターン自壊、等）。census 2167→2131。
+  - **修正（parser のみ）**＝leading-condition ブロックを nested 関数 `tryWrapLeadingStateCond` に切り出し**①トリガー句付き text＋②トリガー句除去後 t の2箇所から呼ぶ second pass**（1668 除去後の条件を t 先頭で拾う）。「N枚以上**ある**場合」regex 許容。engine 対応済み条件型で CLAUSES 拡張＝`TRASH_COUNT`/`TURN_HAND_DISCARD_GTE`/`FIELD_COUNT`/`LRIG_LEVEL`(自/相手)/`HAS_CARD_IN_FIELD{レゾナ}`/`THIS_CARD_IS_ACCED`。build:effects→heldReview 署名単位採用・全件原文照合。
+  - **⚠選択肢内条件は据置**＝「②<条件>の場合、X」は engine が `choice.condition` で available 判定（`effectExecutor.ts:2540`）＝action を CONDITIONAL 包むと選択肢が常時選択可に化ける（WX25-P3-092 等6枚・golden 回帰）。curated の choice.condition 形を温存（`+CONDITIONAL` 署名は非採用）。PLAN §3 Opusタスク12🆕 の継続課題。
+  - **検証**：golden 354→356（second pass 回帰ガード2件追加）・smoke/fuzz 全0・census 2167→2131（BASELINE 更新）・同型★0維持。詳細 BUGFIXES 続き155。
+  - **次の一手**：Opus＝条件節クラスタ611 の残（「そのカードが＜C＞の場合」等 LAST_PROCESSED 系・前段依存／HAND比較／傀儡状態 等 engine 対応済みを追加）を second pass 経由で継続消化。タスク12 在庫（(xxvii) 残 Cluster C 単点・A 条件節欠落11・F フィルタ13）も。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
