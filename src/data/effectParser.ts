@@ -1245,6 +1245,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   従来は無条件発火（WDK15-014/WXDi-P11-081）。
   [/このシグニの下にカードがある場合/,
     () => ({ type: 'THIS_CARD_HAS_UNDER' })],
+  // ── 続き166（2026-07-16）：semantic audit Cluster A の条件節丸ごと脱落（常時発動化）を是正。
+  // 「あなたの場にパワーN以上の＜C＞のシグニがある場合」＝同一シグニに power/story の積条件（WXEX1-50-E1）。
+  //   AND に分けると別々のシグニで条件成立してしまうため、1つの HAS_CARD_IN_FIELD filter に積む。
+  [/あなたの場にパワー([０-９\d]+)以上の＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: 'シグニ', story: g[1], powerRange: { min: parseNum(g[0]) },
+    } })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。

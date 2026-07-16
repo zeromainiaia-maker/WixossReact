@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き165・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster F＝フィルター単点欠落を消化）**
+  - **ワークフロー実験＝「Opus 用作業を Codex に実装まで走らせ、Claude は検証のみ」**（ユーザー指示）。⚠ユーザー指定の `gpt-5-codex` は ChatGPT アカウント認証では 400 で使用不可→アカウント既定の `gpt-5.6-sol` で実行。
+  - **50枚・51効果採用（filter 追加のみ）・census 2084→2050・golden 364→366・同型★0・gates 全緑**。
+  - **parser 2規則（`parseSentencePart1.ts`・engine/型/decompiler 変更なし）**＝(1) トラッシュ→手札：level を全文でなく**対象名詞句（「対象とし」より前）**から抽出。異なる level の複数対象・名称/クラス OR・成立条件側 level・「代わりに」・チェックゾーン系（WX13-006B）はガードして昇格しない。(2) エナ→手札：対象名詞句から class/story を `ENERGY_CARD.filter` へ付与（「＜X＞のカード」はシグニでなければ cardType 付けず story のみ）。
+  - **本命3枚**＝WD19-008-E1（トラッシュ level3以下黒）／WX18-082-E2（同 level4以上＜遊具＞）／WXEX2-45-E2（エナ ＜遊具＞2枚まで）。同2文型を build:effects で一括収穫。
+  - **Claude 検証（報告の鵜呑みなし）**＝①HEAD vs 作業ツリー全数機械 diff＝51効果すべて `source.filter` 追加のみ（owner/count/構造/STUB/parseStatus 変化ゼロ）②原文照合8枚（本命＋拡大分＝CHOOSE/選択肢スコープ・カード/シグニ区別・level 閾値すべて正確）③除外6枚（WX16-036 条件後置 level／WX19-027 等 複数 level／PR-K078 OR）と据置9枚が誤 filter なし・HEAD 一致 ④census 2050・golden 366・同型★0・`npm run gates` 全緑を Claude が独立再実行で確認。**退化ゼロ**。
+  - **機構待ち（PLAN §6.3 送り候補）**＝WXDi-P14-087-E1（クラッシュ元シグニ追跡なし）／WXDi-P11-007-E3（`REARRANGE_SIGNI{swap}` 未対応）／WXDi-P10-077-E1（3カード名 OR 黒の和集合 filter）／WXDi-P14-036-E1（`eachDistinctLevel` 厳密選択 TODO）／合計 level・チェックゾーン・G072 系は指定どおり据置。
+
 - **🆕 セッション（2026-07-16・続き164・Fable 5〔Opus側〕・PLAN §3 Opusタスク1＝引用付与の内側 ability parse の本丸を消化）**
   - **16枚是正（14効果採用）・census 2088→2084・golden 359→364・実機 `wx24p2018GrantFire` 完全経路2回連続PASS（既定order追加＝75件）**。
   - **2文型引用付与（家族18効果）**＝「<対象>を対象とし、<任意コスト>てもよい。そうした場合、(期間、)それは「【自】…」を得る」を parser 語彙化：文ループに prevRaw 追跡を新設し、S1 の対象節を `GRANT_EFFECT{target, rawText}` へ運ぶ（「それ」解決）。ダウンコスト形は S1 を正準形 `DOWN{self,thisCardOnly,isUp,optional}`（WD12-013）へ置換。⚠内側引用が単一ブロック AUTO で試験展開できるときだけ発火（「【常】：アタックできない。」等は従来の粗い即時近似を温存＝no-op 退化を防ぐガード）。

@@ -2,6 +2,27 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 条件節丸ごと欠落による常時発動化を是正（1枚・census 2050→2049・golden 366→367）（2026-07-16・PLAN §3 Opusタスク12(xxvii) Cluster A）
+
+**主題**＝semantic audit Cluster A の候補を全件トリアージし、既存 DSL・engine・decompiler だけで原文どおり表現でき、別クラスタの不具合に支配されない clean 単点 **WXEX1-50-E1** を採用した。effects JSON の手パッチではなく、`effectParser.ts` の状態条件テンプレートから `build:effects` で収穫し `heldReview --adopt WXEX1-50` で採用。engine／型／decompiler は変更していない。
+
+### parser と採用
+- `STATE_CONDITION_CLAUSES_V2`（`STATE_CONDITION_CLAUSES` と単文条件持ち上げの共通表）へ **`あなたの場にパワー([０-９\d]+)以上の＜([^＞]+)＞のシグニがある場合`** を追加。
+- **WXEX1-50-E1** 原文「あなたの場にパワー20000以上の＜毒牙＞のシグニがある場合」→ `HAS_CARD_IN_FIELD{owner:self, filter:{cardType:シグニ, story:毒牙, powerRange:{min:20000}}}`。power と story を別々の AND にせず、同一シグニへ積条件として付与した。
+- fresh vs live-curated の全フィールド差分は、既存 `SEQUENCE[DRAW(1), ENERGY_CHARGE_FROM_DECK(1)]` を同内容の `CONDITIONAL.then` に包み上記 condition を追加するだけ。E2/BURST、owner、対象、action内容、STUB、parseStatus は不変。逆翻訳も「あなたの場に＜毒牙＞のパワー20000以上のシグニがいるなら、1枚引く。そしてエナチャージ1」と原文一致。
+
+### 据置／既解消
+- **既に正しいため変更なし**＝WX08-034-E1（`AND[HAS_CARD_IN_FIELD(cardName:アルシャ), HAS_CARD_IN_FIELD(cardName:コロカロ)]`）、WX15-101-E1（`THIS_CARD_IS_ACCED`）、WXDi-P11-066-E1 の「手札2枚以下」（`HAND_COUNT{lte,2}`）。WXDi-P11-066 の ON_PLAY 誤分類は Cluster D の timing 修正対象として混ぜなかった。
+- **PR-K073-E1**＝`以下の2つから1つを選ぶ` の早期 handler が状態条件表を通らず、さらに第2選択肢の「《コードＶＬ　花畑チャイカ》以外」が包含 `cardName` に反転している。条件だけの clean 単点にならないため据置。
+- **WD22-037-UG-E1/E2/E3**＝「シグニ／ルリグかアーツ／スペルの効果によって場に出た」の発生源種別を追跡する Condition／イベント履歴が無い。
+- **WDK13-008-E1**＝`HAS_CARD_IN_FIELD` はシグニゾーンとルリグゾーン頂点だけを走査し `field.key_piece` を見ない。キー存在 Condition が無いため据置。
+- **WX09-Re04-E1**＝Cluster B の duration 誤り（原文はターン終了時まで、JSONは `INSTANT`）が支配的。相手ターン条件だけを混ぜず据置。
+- **WX20-040-E1/E2**＝トラップは `field.signi_traps` にあるが、これを評価する Condition が無い。存在／3枚以上とも engine 受け皿待ち。
+- **WXEX1-45-E1/E2**＝英知合計レベルは専用 `EICHI_LEVEL_SUM`／effect-level activeCondition 経路の案件で、今回の action 内状態条件テンプレートとは別。既知の専用機構側へ据置。
+- **WXDi-P03-001-E1**＝「使用条件：青のルリグ」は効果 action の CONDITIONAL ではなくカードのプレイ可否。使用条件機構側へ据置。
+
+**検証**＝`npm run gates` 全緑（typecheck PASS・golden **367/367**・smoke CRASH/HANG/INVARIANT 全0・fuzz 全0・census **2049/BASELINE 2049**・lint error 0〔既存warning 187〕）。`npm run regen` 完走、`node scripts/groupSimilar.mjs --all` の同型★ **0**。census は条件節計器の死角ではなく本件を1件検出したため `BASELINE_HIGH` を2050→2049へ更新した。
+
 ## トラッシュ／エナ回収の level・class filter 単点脱落を parser 2規則で是正（50枚・51効果、census 2084→2050、golden 364→366）（2026-07-16・PLAN §3 Opusタスク12(xxvii) Cluster F）
 
 **主題**＝semantic audit Cluster F の clean 候補から、既存 DSL・engine・decompiler が対応済みで parser の対象名詞句抽出だけが欠けていた **WD19-008-E1（トラッシュのレベル3以下の黒シグニ）／WX18-082-E2（同レベル4以上の＜遊具＞）／WXEX2-45-E2（エナの＜遊具＞2枚まで）**を選択。`build:effects` の純粋上位集合収穫により同じ2文型も一括是正した。変更は全件 `TRANSFER_TO_HAND.source.filter` への `level` または `story/cardType` 追加だけで、action 構造・owner・count・zone・STUB・parseStatus の変化は0。
