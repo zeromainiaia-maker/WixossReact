@@ -2,6 +2,16 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## LOOK_AND_REORDER（公開）を lastProcessedCards 記録型に：「この方法で公開されたN枚/すべて〜の場合」を捕捉（2枚・census 2032→2031・golden 381→383）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171d）
+
+**主題**＝IS_MY_TURN化残の「公開」系（「デッキの上からN枚公開する。その後、この方法で〔天使が3枚/すべてlevel1〕公開された場合、…」）は、前段の `LOOK_AND_REORDER`（公開）が engine で `lastProcessedCards` を記録せず、parser の `prevRecords` ゲートにも入っていなかったため無条件true化していた。
+
+**修正（engine＋parser の2層）**：
+- **engine**（`effectExecutor.ts` `resumeLookAndReorder`）＝閲覧カード（`reordered`＝全公開カード）を `lastProcessedCards` に記録して continuation を実行。⚠実 `LOOK_AND_REORDER` action の直後に lastProcessedCards を読む既存効果は無い（`targetsTriggerSource` は triggeringCardNum 参照・STUB id "LOOK_AND_REORDER" は別物）＝既存挙動に中立。
+- **parser**（`effectParser.ts`）＝`prevRecords` に `prevIsPublicLook`（`LOOK_AND_REORDER` かつ `private:false` かつ count>1）を追加。私的な「見る」は除外（「公開」条件文とミスマッチのため）。
+
+**検証**＝全カード生パース diff で**ちょうど2効果のみ変化**（WX12-Re10-E1＝LAST_PROCESSED_MATCHES{story:天使,minCount:3}＝3枚全て天使／WXDi-P07-064-E1＝ALL_MATCH{level1シグニ}＝全部level1）。engine テスト golden +2（公開3枚全悪魔→発火／混在→不発）で SEQUENCE→interaction resume→continuation の lastProcessedCards 貫通を固定。smoke（CRASH/HANG/INVARIANT 0）・fuzz 0・census 2032→2031・同型★0。**残**＝種類/distinct（WXK10-060）は distinct-count 機構待ち。
+
 ## `LAST_PROCESSED_MATCHES` の色（OR）フィルタ対応：「それが青か緑のシグニの場合」等（2枚・golden 379→381）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171c）
 
 **主題**＝IS_MY_TURN化残の「それ/そのカード属性」クラスタのうち**色判定**。「その後、それが青か緑のシグニの場合」（WX21-016・前段 BANISH）「それらに白か黒のシグニが１体以上含まれる場合」（WX21-010・前段 BANISH）は、`parseLastProcessedMatchesCondition` の `sm` 分岐が story/level/guard のみで**色語彙を持たず**無条件true化していた。engine の `matchesFilter` は `filter.color` の string|string[] を OR 判定済み（受け皿あり）＝**parser のみの穴**。
