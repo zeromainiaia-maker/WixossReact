@@ -1060,18 +1060,20 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
 //   LAST_PROCESSED_MATCHES{filter, minCount} / LAST_PROCESSED_COUNT_GTE（結果カウント閾値・§3 タスク12(xxii) Cluster B）。
 // 前段が lastProcessedCards を記録するステップのときだけ呼ぶ（呼び出し側 prevRecords でゲート）。
 // **記録することを engine 実装で確認済みの動詞に限定**＝公開(REVEAL)／トラッシュに置く(TRASH/MILL)／エナゾーンに置く
-//   (ENERGY_CHARGE)／ゲームから除外(EXILE)／バニッシュ(BANISH)／デッキに戻す(TRANSFER_TO_DECK)。
-//   捨てる(TRASH hand は選択経路で記録が不確実)・手札に加える(ADD_TO_HAND は SEARCH 内処理で非記録)は除外。
+//   (ENERGY_CHARGE)／ゲームから除外(EXILE)／バニッシュ(BANISH)／デッキに戻す(TRANSFER_TO_DECK)／
+//   捨てる(TRASH{HAND_CARD}＝ALL/blind/選択resume の全経路で lastProcessedCards を記録することを engine で確認済み・
+//   §3 タスク12(xxii) 捨てカウントバッチ)。手札に加える(ADD_TO_HAND は SEARCH 内処理で非記録)は除外。
 // 全セマンティクスを捕捉できる形に限定＝捕捉不能なフィルタ（N種類/共通クラス/偶数/レベルの異なる/名前ペア/
 //   センターレベル依存）は null を返し IS_MY_TURN 据置（census が継続検出＝偽陰性を作らない）。
 function parseThisWayGenericCount(clause: string): Condition | null {
   if (!/^(?:その後、)?この方法で/.test(clause)) return null;
   // lastProcessedCards を残すと確認済みの動詞に限定
-  if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻))/.test(clause)) return null;
+  if (!/(?:公開|トラッシュに置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) return null;
   // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
-  //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）。
-  if (/種類|共通する|偶数|奇数|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった/.test(clause)) return null;
+  //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
+  //   なかった＝否定条件（Cluster C・結果が起きなかった側＝COUNT_GTE では表せない・据置）。
+  if (/種類|共通する|偶数|奇数|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) return null;
   if (parseNameFilter(clause).cardName || parseNameFilter(clause).cardNames) return null; // 特定カード名指定は別機構
   // カウント（N枚/N体）。無指定は1（「＜X＞のシグニを公開した場合」＝1枚以上）。
   const cm = clause.match(/([０-９\d]+)(?:枚|体)/);
