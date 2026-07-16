@@ -1042,6 +1042,12 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     const desc = sg[1];
     if (desc === 'シグニ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' } };
     if (desc === 'レゾナ') return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } };
+    // 「レベルが偶数／奇数のシグニ」＝ engine matchesFilter の levelParity 対応済み（従来は表現不能で IS_MY_TURN 据置）。
+    const par = desc.match(/^レベルが(偶数|奇数)のシグニ$/);
+    if (par) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: par[1] === '偶数' ? 'even' : 'odd' } };
+    // 「＜X＞(か＜Y＞)?」単独（「のシグニ」なし＝カード種別を問わない story 一致。デッキ公開＜ブルアカ＞系）。
+    const st = desc.match(/^＜([^＞]+)＞(?:か＜([^＞]+)＞)?$/);
+    if (st) return { type: 'LAST_PROCESSED_MATCHES', filter: { story: st[2] ? [st[1], st[2]] : st[1] } };
     const sm = desc.match(/^(?:レベル[０-９\d]+(?:以上|以下)?の)?(?:《ガードアイコン》を持つ)?(?:＜[^＞]+＞(?:か＜[^＞]+＞)?の)?シグニ$/);
     if (sm) {
       const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc), ...parseGuardFilter(desc) };
