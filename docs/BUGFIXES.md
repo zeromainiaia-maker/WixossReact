@@ -12,7 +12,7 @@
 - `(あなた|対戦相手)の手札がN枚より多い場合` → `HAND_COUNT{operator:'gt', value:N}`（既存 HAND_COUNT 節は「の場合」＝以上/以下/eq 専用で「より多い」を落としていた）。→ WDK08-Y08。
 - `(あなた|対戦相手)の場にシグニがない場合` → `FIELD_COUNT{operator:'eq', value:0}`。→ WX04-025。
 
-**採用**＝`heldReview --adopt` で4枚（WD11-018・WD22-038-UG・WXDi-D05-012・WXDi-P02-089）。WD12-018 は build が自動採用・WX04-025 は既に MANNUAL で FIELD_COUNT 済み。**据置**＝WD09-018（then「追加で探して公開し手札に加える」が SEARCH 未 parse で UNKNOWN 化＝既存 STUB `CONDITIONAL_SEARCH_IF_RESONA` を温存）・WDK08-Y08（then「その差の分だけエナに置く」が差分移動機構未対応で UNKNOWN 化）＝いずれも条件は正しいが then が機構待ちのため held 残置。
+**採用**＝`heldReview --adopt` で4枚（WD11-018・WD22-038-UG・WXDi-D05-012・WXDi-P02-089）。WD12-018 は build が自動採用・WX04-025 は既に MANUAL で FIELD_COUNT 済み。**据置**＝WD09-018（then「追加で探して公開し手札に加える」が SEARCH 未 parse で UNKNOWN 化＝既存 STUB `CONDITIONAL_SEARCH_IF_RESONA` を温存）・WDK08-Y08（then「その差の分だけエナに置く」が差分移動機構未対応で UNKNOWN 化）＝いずれも条件は正しいが then が機構待ちのため held 残置。
 
 **結果**＝golden 356・smoke 全0・fuzz 全0・同型★0 維持・census 2098→2096（BASELINE 更新）・IS_MY_TURN化 119→111（刻印 145→137）。
 
