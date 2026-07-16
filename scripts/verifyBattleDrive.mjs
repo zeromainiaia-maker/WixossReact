@@ -4096,7 +4096,7 @@ const scenarios = {
             if (opened) { did = opened; modalOpened = true; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['決定', '発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         const granted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WX04-072#1:') && g.includes('アサシン'));
         const selfGrantNow = (st?.host?.keywordGrants ?? []).find(g => g.startsWith('WX24-P2-018#1:') && g.includes('アサシン'));
