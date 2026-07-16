@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き157・Opus 4.8・PLAN §3 Opusタスク12🆕＝ドリームチーム【使用条件】ヘッダ mis-parse 是正）**
+  - **WXDi-P08 ピース4枚是正・census 2104→2101**。真因＝ヘッダ「合計N種類以上の色を持つ」の「を持つ」が part1 のキーワード付与規則に食われ `GRANT_KEYWORD"使用条件"` のゴミ化＋色別3分岐が丸ごと脱落し全枝無条件実行。修正＝(1) `parseArtsEffect` でヘッダを近似省略ストリップ（engine にチーム合計色数条件が無い・WXDi-P15-003 同扱い）(2) SEQUENCE thenM を `の?場合`化＝「がいる場合」（の無し）の後続枝を拾う (3) WXDi-P08-005 複合ゲート `AND[HAS_CARD_IN_FIELD{ルリグ,color}, LRIG_LEVEL{opp}]` を追加。**⚠P08-003 は「見る。その中から…」の2文 LOOK_PICK と条件が跨るため partial 据置**。
+  - **検証**：golden 356・smoke/fuzz 全0・census 2104→2101（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き157。**⚠この直前の続き156（choice.condition 機構＋条件節 CLAUSES 53枚・census 2131→2104）と合わせて同日消化**。
+
 - **🆕 セッション（2026-07-16・続き156・Opus 4.8・PLAN §5c 条件節クラスタ＋§3 Opusタスク12🆕 choice.condition 機構）**
   - **53枚採用・census 2131→2104**。3バッチ：①engine対応済み状態条件を CLAUSES 系統追加（27枚）＝`SELF_POWER_GTE`/`FIELD_SIGNI_POWER_COUNT`/`HAS_CARD_IN_FIELD{isFrozen/color/isDisona/cardName}`/`LIFE_COMPARE_OPP`/`LRIG_LEVEL_EQ_OPP`/`LRIG_COLOR`/`THIS_CARD_IS_ACCED`/`AND[cardName×2]`。second-pass strip-list に「対戦相手のターン終了時、」「アタックフェイズ開始時、」等追加。旧「アクセされている」regex の文言不一致バグも是正。
   - ②choice.condition 持ち上げ機構（20枚）＝続き155 が先送りした §3 Opusタスク12🆕 を解消。`liftChoiceOptionCondition` を CHOOSE 構築4経路へ配線。対象化後の action ゲートは rawText ガードで抑止。③追加 CLAUSES（6枚）＝`AND[TRASH_HAS_CARD×2]`/`THIS_CARD_HAS_UNDER`/`HAS_CARD_IN_FIELD{ルリグ,color}`。
