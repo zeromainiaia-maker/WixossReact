@@ -1282,10 +1282,15 @@ export function collectHandDiscardTriggers(
   const matchesTrigFilter = (eff: CardEffect): boolean =>
     !eff.triggerFilter || discardedNums.some(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter));
   // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）
+  // 発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして」＝コストを支払った能力の host シグニ
+  //（costSourceNum）の CardClass に X を含むときだけ発火（Opusタスク12(xxiv)）。
+  const costSrcClass = costSourceNum ? (ctx.cardMap.get(costSourceNum)?.CardClass ?? '') : '';
   if (asCost) {
     for (const cn of discardedNums) {
       for (const eff of (ctx.effectsMap.get(cn) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_DISCARDED_AS_COST')) continue;
+        const reqStory = eff.triggerCondition?.discardCostSourceStory;
+        if (reqStory && !costSrcClass.includes(reqStory)) continue;
         if (!limitOk(eff)) continue;
         entries.push({
           id: ctx.genId(), playerId: discarderId, cardNum: cn, effectId: eff.effectId,
