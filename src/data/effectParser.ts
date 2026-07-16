@@ -2780,7 +2780,7 @@ function parseActionTextInner(text: string): EffectAction {
       // のため、直前 delta を addDelta として渡して加味する（WX03-046「+5000後15000以上」/WXK11-065「+4000後10000以上」）。
       // 従来は語彙が無く常時true化（IS_MY_TURN）していた過剰効果。
       if (!condition && !rest.startsWith('代わりに')) {
-        const pm = thenM[0].match(/^(?:その後、)?それのパワーが([０-９\d]+)以上(?:である)?の場合、$/);
+        const pm = thenM[0].match(/^(?:その後、)?それのパワーが([０-９\d]+)以上(?:である|の)?場合、$/);
         const pv = prevStep as { type?: string; delta?: number };
         if (pm && pv?.type === 'POWER_MODIFY' && typeof pv.delta === 'number') {
           condition = { type: 'LAST_PROCESSED_POWER_GTE', value: parseNum(pm[1]), addDelta: pv.delta };
