@@ -2,6 +2,18 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## `LAST_PROCESSED_ALL_MATCH` 新設：「この方法で処理したカードがすべて〔filter〕の場合」の全一致条件（2枚・golden 377→379）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171b）
+
+**主題**＝IS_MY_TURN化残の「すべて（ALL_MATCH）」クラスタ。「この方法でトラッシュに置かれた**すべての**カードがレベル１のシグニの場合」（WXDi-P05-042）「カードが**すべて**黒の場合」（WXK09-097）は、既存の `LAST_PROCESSED_MATCHES`（≥N一致）では表せない**全一致**セマンティクス（1枚でも外れると不成立・空集合も不成立）で、engine 受け皿が無く無条件true化していた。
+
+**実装（engine＋型＋decompiler＋parser の4層）**：
+- **engine**（`execUtils.ts` evalCondition）＝`LAST_PROCESSED_ALL_MATCH`＝`lastProcessedCards.length>0 && every(matchesFilter)`。
+- **型**（`effects.ts`）＝`{ type:'LAST_PROCESSED_ALL_MATCH'; filter:TargetFilter }`。
+- **decompiler**（`decompileEffects.ts`）＝「この方法で処理したカードがすべて〔filterJa〕」。
+- **parser**（`effectParser.ts`）＝`parseAllMatchCondition`＝「すべての(カード)?が/カードがすべて〔desc〕の場合」から story/level/color/guard/cardType を抽出。⚠末尾「の」を区切りに消費するため bare 色（「黒」）を別途拾う。種類/共通/レベルの異なる/合計は据置。thenM 分岐で **parseThisWayGenericCount より前**に試す（「すべて」は後者で除外語のため）＝前段が lastProcessedCards を記録するとき（prevRecords）だけ。
+
+**検証**＝全カード生パース diff で**ちょうど2効果のみ変化**（WXDi-P05-042-E1＝ALL_MATCH{level1,シグニ}／WXK09-097-E1＝ALL_MATCH{color:黒}・いずれも任意コスト支払いをゲート・後続「そうした場合」は IS_MY_TURN 慣例維持）。engine テスト golden +2（全悪魔→発火／1枚外れ→不発）。golden 377→379・census 2032 維持・同型★0・smoke/fuzz 全0。**残**＝STUB 前段（WX16-Re02 の DECLARE_NUMBER→mill）・LOOK_AND_REORDER 非記録前段（WXDi-P07-064 の「公開」）は機構待ち。
+
 ## IS_MY_TURN化残の消化＋前段 TRANSFER_TO_DECK の count/filter 脱落是正（36効果・census 2044→2032・golden 374→377）（2026-07-17・PLAN §3 Opusタスク12(xxii)）
 
 **主題**＝PARTIAL 刻印 IS_MY_TURN化残（`docs/_partial_report.txt`）104件のうち「結果カウント条件」系を消化。104件を前段アクション型で機械分類し、**engine が lastProcessedCards を記録する前段なのに parser が条件を捕捉できていないクラスタ**を特定した。3系統の穴を修正：
