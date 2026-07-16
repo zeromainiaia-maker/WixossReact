@@ -2,6 +2,26 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## トリガー句直後の状態条件節「〜の場合、」が丸ごと脱落し無条件発火する系統バグを是正（49効果・census 2167→2131）（2026-07-16・続き155・Opus 4.8・PLAN §5c 条件節クラスタ611／§3 Opusタスク12(xxii)系）
+
+**census 最大クラスタ「条件節(〜の場合)」611効果の系統消化。** 「【自】：<トリガー>、<状態条件>の場合、<アクション>」という形で、トリガー句（「ターン終了時、」「アタックフェイズ開始時、」等）の**直後**に来る状態条件節が、パーサーで丸ごと脱落し**条件を無視して無条件発火する過剰効果**になっていた（WX12-046「手札が7枚以上ある場合、このシグニをトラッシュ」が毎ターン自壊、等）。
+
+### 原因（2系統）
+1. **プレフィックス許可リスト不足**：状態条件節を CONDITIONAL へ持ち上げる `parseSingleSentence` の leading-condition ブロックは、条件の前に居残るプレフィックスとして「…対象とし、」「…アタックしたとき、」しか許容せず、「ターン終了時、」等のトリガー句が前置する条件を拾えなかった。トリガー句除去チェーン（1668〜）は**このブロックの後**に走るため、除去後に条件を拾い直す経路が無かった。
+2. **regex の near-miss**：「手札がN枚以上**ある**場合」（枚+以上+ある+場合／の 無し）が「N枚以上**の**場合」固定の regex を外し、「エナゾーンに**ある**カードが」も同様に外していた。
+
+### 修正（parser のみ・engine 変更なし）
+- leading-condition ブロックを nested 関数 `tryWrapLeadingStateCond` に切り出し、**①トリガー句が残っている text と、②トリガー句除去後の t の2箇所**から呼ぶ（**second pass**）。1668 で除去されるトリガー句直後の条件は、①では拾えず②が t 先頭で拾う（①が return したら②へ来ないので二重ラップしない）。
+- `HAND_COUNT`/`ENERGY_COUNT` の regex に「ある」許容（`(?:ある)?の?場合`）。
+- engine 対応済みの条件型で新クラスタを CLAUSES 表に追加：`TRASH_COUNT`（トラッシュ総枚数）・`TURN_HAND_DISCARD_GTE`（このターン手札N枚以上捨てた）・`FIELD_COUNT`（場のシグニN体）・`LRIG_LEVEL`（センタールリグのレベル閾値・自/相手）・`HAS_CARD_IN_FIELD{レゾナ}`・`THIS_CARD_IS_ACCED`（アクセされている）。
+- 採用は build:effects→heldReview で署名グループ単位（`+CONDITIONAL +HAND_COUNT`13／`+ENERGY_COUNT`6／`+TRASH_COUNT`4／`+LRIG_LEVEL`7／`+TURN_HAND_DISCARD_GTE`7／`+FIELD_COUNT`4／`+THIS_CARD_IS_ACCED`3／`+HAS_CARD_IN_FIELD`5）。全件を原文照合してから採用。owner/閾値/scope の誤りゼロを確認。
+
+### ⚠選択肢内条件は adopt しない（choice.condition 設計不整合）
+「以下の2つから1つを選ぶ。②<状態条件>の場合、X」の**② 選択肢内条件**は、engine が `choice.condition`（トップレベル）で選択肢の使用可否（available）を判定する（`effectExecutor.ts:2540`）ため、条件を **choice.action の CONDITIONAL に包むと available が常に true 化**して選択肢がいつでも選べてしまう（WX25-P3-092 等6枚・golden 回帰）。**この6枚は curated の choice.condition 形を温存**（`+CONDITIONAL` 署名は採用しない）。PLAN §3 Opusタスク12🆕「choice.condition と fresh の CONDITIONAL ラップの表現不整合」として継続課題。
+
+### 検証
+golden 回帰ガード2件追加（②second pass の ON_TURN_END HAND_COUNT／TURN_HAND_DISCARD_GTE）。gates 全緑＝golden 354→356・smoke/fuzz 全0・census **2167→2131**（BASELINE_HIGH 実数更新）・同型★0維持。
+
 ## 「あなたの中央のシグニゾーンにある[＜X＞]のシグニのパワーを＋N」の group-buff が owner:any/count:1 に潰れるバグ8効果を是正（2026-07-16・続き154・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
 
 CONTINUOUS group-buff の filter 脱落系統（level/disona/覚醒 に続く）の**中央ゾーン版**。原文「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1, filter:{}}` に潰れ効果元自身のみバフへ縮退していた。
