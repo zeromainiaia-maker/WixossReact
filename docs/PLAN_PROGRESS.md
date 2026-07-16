@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)①＝「次の対戦相手のターン終了時まで」duration 系統バグの消化）**
+  - **続き146で確定した duration 系統（53効果クラスタ）を消化＝34効果を `UNTIL_OPP_TURN_END` へ是正**。原文「次の対戦相手のターン終了時まで」（相手の次ターン終了時まで＝長期の一時効果）が JSON で `UNTIL_END_OF_TURN`（現ターン終了＝即切れ）に縮退。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
+  - **真因＝parser の substring 先取り**。`"次の対戦相手のターン終了時まで"` は `"ターン終了時まで"` を内包するため、多くの箇所が `t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : …` を**先に**判定して潰していた（既存の `UNTIL_OPP_TURN_END` 分岐へ到達不能）。POWER_MODIFY は既定で action-level duration を持たず temp ストア行きのため、値 flip だけでなく付与も必要だった。
+  - **修正（engine 変更なし）**：`effectParser.ts` に `upgradeToOppTurnEnd` を新設し `parseSingleSentence` から呼ぶ＝文に `/次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/` があれば、その文の action ツリーの `duration`・`until` を OPP へ昇格し、duration 未設定の POWER_MODIFY/POWER_SET にも付与。**文単位**のため別文の正当な PERMANENT や素の「ターン終了時まで」は潰さない。
+  - **採用**：20効果は build:effects の pure-superset で自動採用／7効果は heldReview 採用／MANUAL 兄弟で丸ごと温存の7効果は JSON 直接パッチ。golden 回帰ガード1件。
+  - **検証**：gates 全緑＝golden 339→340・smoke/fuzz 全0・census 2206→2173（-33・BASELINE 実数更新）・同型★0維持。残19効果は構造的でスコープ外（STUB機構待ち等）。詳細 BUGFIXES 続き148。
+
 - **セッション（2026-07-16・続き147・Opus 4.8・PLAN §3 Opusタスク12(xxviii)＝「それをエナゾーンに置く」系統バグの消化）**
   - **続き145で機械検索確定した8効果の系統バグ（🆕(xxviii)）を消化**。原文「対戦相手のシグニ１体を対象とし、コストを支払ってもよい。**そうした場合、それをエナゾーンに置く。**」の「それ」＝対象化した相手シグニ＝**エナ送り除去（SEND_TO_ENERGY）**だが、JSON では `CONDITIONAL{IS_MY_TURN, then: ENERGY_CHARGE{DECK_CARD, self}}`＝**自分デッキからのエナチャージ**に化けていた（相手シグニ除去が丸ごと自分エナ増加に）。
   - **Sonnet の推定「executor intercept バグ」は誤りで、実体は parser**＝`parseSentencePart1.ts:1815` の「それをエナゾーンに置く」ルールが REVEAL 文脈専用の `ENERGY_CHARGE{DECK_CARD}` に決め打ちし、相手シグニ対象文脈にも誤適用していた（「それ」の指し先取り違え）。
