@@ -4632,7 +4632,10 @@ export function resumeOptionalCost(
   } else {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   }
-  const cur = addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`);
+  // 見た/公開したカード（reordered＝全閲覧カード）を lastProcessedCards に記録する。後続の
+  //   「この方法で公開されたN枚/すべて〜の場合」（LAST_PROCESSED_COUNT_GTE/ALL_MATCH/MATCHES）が参照する。
+  //   ⚠現状 parser は公開(private:false)の LOOK_AND_REORDER 前段のみ条件を emit する（呼び出し側 prevRecords）。
+  const cur = { ...addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`), lastProcessedCards: reordered };
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
