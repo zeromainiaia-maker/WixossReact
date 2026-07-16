@@ -155,14 +155,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②＝「手札に加えるか場に出す」選択肢欠落系統バグの消化）**
-  - **続き146で「選択肢欠落系統」として登録された系統を消化＝84効果を CHOOSE(手札/場) へ是正**。原文「それを**手札に加えるか場に出す**」（＝カードの行き先二択）が JSON で `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」枝が丸ごと脱落。LIFE_BURST 中心（原文該当88効果中85が縮退・実害）。
-  - **トリアージの「ADD_TO_FIELD 縮退」は誤りで実体は逆＝手札固定への縮退**（機械照合で判明）。原因＝`parseSentencePart1.ts:1304` 等の hand-transfer 規則が広い `includes('手札に加える')` で「手札に加えるか場に出す」も捕捉し「場に出す」枝を無言脱落。
-  - **修正（engine 変更なし）**：`effectParser.ts` に `wrapHandOrField` 新設し `parseSingleSentence` から呼ぶ＝文が `/手札に加えるか、?場に出す/` を含み内側が source 付き `TRANSFER_TO_HAND` のとき `CHOOSE(hand=TRANSFER_TO_HAND / field=ADD_TO_FIELD{owner:self, 同一source})` に包む。MANUAL 正解3枚と同形。engine は `execAddToField`（TRASH/ENERGY/HAND/DECK source 対応）で既に完動＝新機構ゼロ。
-  - **採用（84効果）**：build:effects 再生成 → `heldReview --adopt-sig` で2署名一括67枚（+TRASH_CARD 52／+ENERGY_CARD 15）＋MANUAL/PARTIAL 兄弟で丸ごと温存されるカードの当該 action を fresh から JSON 直接パッチ14。golden 回帰ガード2件（包み・非包み）。
-  - **検証**：逆翻訳が原文一致（例 WX22-023-BURST「以下の2つから1つを選ぶ【…手札に加える / …場に出す】」）。gates 全緑＝golden 340→342・smoke/fuzz 全0・census **2173→2169**（-4・BASELINE 実数更新）・同型★0維持。
-  - **残4効果は範囲外**＝検索・公開機構自体が STUB 化の複雑case（SP27-005-E1/WD22-036-G-E1/WXK02-001-E2/WXEX2-49-E2＝§6.3級）。詳細 BUGFIXES 続き149。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxvii)＝semantic audit第2弾37枚・(xxii)(xxiii)(xxiv) 系統バグ・(xxix)⑤ owner取り違え等の未検証222クラスタ）。Sonnet＝タスク8はstub群完了＝Opus在庫消化待ち、または補欠タスク。
+- **🆕 セッション（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）**
+  - **PARTIAL 刻印 Cluster B（結果カウント閾値）の「捨てカウント」系を消化＝4効果**。原文「手札を（すべて/N枚）捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件を parser が抽出できず `CONDITIONAL{IS_MY_TURN}`（常時true）に化けさせ、実際の捨て枚数を見ずに X を無条件発火していた（過剰実行）。
+  - **原因＝`parseThisWayGenericCount` が「記録が不確実」との理由で捨て動詞を許可リストから除外していた**。engine を確認＝`TRASH{HAND_CARD}` は ALL/blind/選択resume の全経路で `lastProcessedCards` を記録（`effectExecutor.ts:699/730`・`resumeSelectTarget:4288`）＝`LAST_PROCESSED_COUNT_GTE` で正しくゲートされる。許可動詞に `捨て` 追加・否定「捨てなかった」は reject（Cluster C 据置）。
+  - **安全側の境界**＝前段が実 `TRASH` の forced/filter 捨てのみ是正（PR-K038-E3・WXEX2-39-E1・WXDi-P06-035-E2〈第1枝〉・WXK01-001-E2）。「捨ててもよい/好きな枚数捨てる（generic）」は前段が `STUB{OPTIONAL_COST}` に化け記録が不確実＝据置（(xi) と合流）。
+  - **採用**：curated が PARTIAL で丸ごと温存されるため当該 action を JSON 直接パッチ＋parseStatus AUTO 化。golden 回帰ガード3件（parse・否定非変換・**engine 実行で過剰実行防止を実測**）。
+  - **検証**：gates 全緑＝golden 342→345・smoke/fuzz 全0・census **2169→2167**（-2・BASELINE 更新）・同型★0維持。PARTIAL IS_MY_TURN化 98→94。詳細 BUGFIXES 続き150。
+  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxii) 残＝属性判定/カウント閾値の据置分・多分岐複合条件・(xxvii) semantic audit第2弾37枚・(xxix)⑤ owner取り違え222クラスタ）。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
