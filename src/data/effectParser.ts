@@ -1266,11 +1266,36 @@ function restoreLeadUntilEndOfTurn(a: EffectAction | undefined): void {
   if (ra.type === 'SEQUENCE') ra.steps?.forEach(restoreLeadUntilEndOfTurn);
 }
 
+// 「次の対戦相手のターン終了時まで／の間」（＝次の相手ターン終了時まで）は UNTIL_OPP_TURN_END。
+// 汎用パーサは substring 一致で先に「ターン終了時まで」を拾い UNTIL_END_OF_TURN に潰し（`次の対戦相手の
+// ターン終了時まで` は `ターン終了時まで` を内包するため）、先頭句剥がしでは PERMANENT に化ける。engine は
+// action 内 duration===UNTIL_OPP_TURN_END を長期ストア（power_mods_until_opp_turn / keyword_grants_until_opp_turn
+// / granted_effects_until_opp_turn）へ振り、POWER_MODIFY/GRANT_KEYWORD/GRANT_EFFECT/GRANT_PROTECTION が対応。
+// 続き148・タスク12(xxix)＝semantic audit stub群 duration系統53効果。文単位（1文＝1期間句）で処理するため、
+// SEQUENCE へ合流する他文の正当な PERMANENT（別文の【常】付与等）は潰さない。付与能力の内側（abilities/rawText）
+// には潜らない（内側 duration は別スコープ）。
+const OPP_TURN_END_RE = /次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/;
+function upgradeToOppTurnEnd(a: EffectAction | undefined): void {
+  if (!a || typeof a !== 'object') return;
+  const ra = a as { type: string; until?: string; duration?: string; steps?: EffectAction[]; then?: EffectAction; else?: EffectAction; choices?: { action?: EffectAction }[] };
+  // until は POWER_MODIFY_PER_* 等が EffectDuration 型で持つ。短縮 enum（END_OF_TURN/NEXT_TURN/PERMANENT）とは
+  // 値が異なる（UNTIL_ 接頭辞）ので、UNTIL_END_OF_TURN のみを昇格し短縮 enum は触らない。
+  if (ra.until === 'UNTIL_END_OF_TURN') ra.until = 'UNTIL_OPP_TURN_END';
+  if (ra.duration === 'UNTIL_END_OF_TURN' || ra.duration === 'PERMANENT') ra.duration = 'UNTIL_OPP_TURN_END';
+  // duration 未設定の POWER_MODIFY/POWER_SET は既定でターン終了クリア（temp_power_mods）。この句では長期化が要る。
+  if ((ra.type === 'POWER_MODIFY' || ra.type === 'POWER_SET') && ra.duration === undefined) ra.duration = 'UNTIL_OPP_TURN_END';
+  if (ra.type === 'SEQUENCE') ra.steps?.forEach(upgradeToOppTurnEnd);
+  else if (ra.type === 'CONDITIONAL') { upgradeToOppTurnEnd(ra.then); upgradeToOppTurnEnd(ra.else); }
+  else if (ra.type === 'CHOOSE') ra.choices?.forEach(c => upgradeToOppTurnEnd(c.action));
+}
+
 function parseSingleSentence(text: string): EffectAction {
   const action = parseSingleSentenceInner(text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
-  if (/^ターン終了時まで[、,]/.test(text.trim())) restoreLeadUntilEndOfTurn(action);
+  const trimmed = text.trim();
+  if (OPP_TURN_END_RE.test(trimmed)) upgradeToOppTurnEnd(action);
+  else if (/^ターン終了時まで[、,]/.test(trimmed)) restoreLeadUntilEndOfTurn(action);
   return action;
 }
 
