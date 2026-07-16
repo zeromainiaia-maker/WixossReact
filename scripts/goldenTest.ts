@@ -3390,6 +3390,31 @@ test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLe
   const notOverridden = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, noCond, mkState({}), effectsMap, true);
   eq(notOverridden.get('WX04-049')?.Level, cardMap.get('WX04-049')?.Level, '条件不成立なら元のまま');
 });
+test('duration「次の対戦相手のターン終了時まで」= UNTIL_OPP_TURN_END（substring先取りバグの回帰ガード・続き148・タスク12(xxix)）', () => {
+  // 「次の対戦相手のターン終了時まで」は「ターン終了時まで」を内包するため、汎用パーサの substring 一致が
+  // 先に UNTIL_END_OF_TURN を返して潰していた。per-sentence 正規化（upgradeToOppTurnEnd）で昇格する。
+  // 代表: POWER_MODIFY（duration未設定→付与）と GRANT_KEYWORD（値flip）。
+  const findDur = (a: unknown, want: (x: { type?: string; duration?: string }) => boolean): boolean => {
+    const n = a as { type?: string; duration?: string; steps?: unknown[]; then?: unknown; else?: unknown; choices?: { action?: unknown }[] };
+    if (!n || typeof n !== 'object') return false;
+    if (want(n)) return true;
+    if (Array.isArray(n.steps) && n.steps.some(s => findDur(s, want))) return true;
+    if (n.then && findDur(n.then, want)) return true;
+    if (n.else && findDur(n.else, want)) return true;
+    if (Array.isArray(n.choices) && n.choices.some(c => c.action && findDur(c.action, want))) return true;
+    return false;
+  };
+  const pm = effectsMap.get('WX24-P2-060')!.find(e => e.effectId === 'WX24-P2-060-E2')!; // 【起】《ダウン》：次の対戦相手のターン終了時まで、パワー+4000
+  ok(findDur(pm.action, n => n.type === 'POWER_MODIFY' && n.duration === 'UNTIL_OPP_TURN_END'), 'POWER_MODIFY に UNTIL_OPP_TURN_END が付く');
+  const gk = effectsMap.get('WX24-P1-040')!.find(e => e.effectId === 'WX24-P1-040-E2')!; // 次の対戦相手のターン終了時まで、【シャドウ】を得る
+  ok(findDur(gk.action, n => n.type === 'GRANT_KEYWORD' && n.duration === 'UNTIL_OPP_TURN_END'), 'GRANT_KEYWORD が UNTIL_OPP_TURN_END へ昇格');
+  // 対称ガード：素の「ターン終了時まで」は UNTIL_END_OF_TURN のままで昇格しない（WXDi-CP02-051-E2 の REMOVE_ABILITIES）
+  const mixed = effectsMap.get('WXDi-CP02-051')!.find(e => e.effectId === 'WXDi-CP02-051-E2')!;
+  ok(findDur(mixed.action, n => n.type === 'POWER_MODIFY' && n.duration === 'UNTIL_OPP_TURN_END'), '同カードの opp文 POWER_MODIFY は昇格');
+  const ra = (mixed.action as unknown as { steps: { type: string; then?: { type: string; until?: string } }[] }).steps
+    .map(s => s.then).find(t => t?.type === 'REMOVE_ABILITIES');
+  eq(ra?.until, 'UNTIL_END_OF_TURN', '素の「ターン終了時まで」由来 REMOVE_ABILITIES は昇格しない');
+});
 
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
