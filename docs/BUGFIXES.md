@@ -2,6 +2,30 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「（対象を）手札に加えるか場に出す」の行き先二択が「手札に加える」だけに縮退する系統バグ84効果を是正（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②）
+
+**続き146の semantic audit stub群スケールアップで「選択肢欠落系統」として登録された系統を消化。** 原文「それを**手札に加えるか場に出す**」（＝そのカードを手札 or 場のどちらへ送るかをプレイヤーが選ぶ二択）が、JSON では `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」選択肢が丸ごと脱落していた。LIFE_BURST 中心の系統（原文該当88効果中 85効果が AUTO で縮退・実害）。
+
+### 原因
+`parseSentencePart1.ts:1304`（トラッシュから手札に加える）等の hand-transfer 規則が、より広い `t.includes('手札に加える')` で「手札に加えるか場に出す」も捕捉し、`TRANSFER_TO_HAND` を返して「場に出す」枝を無言脱落させていた（トリアージ資料の「ADD_TO_FIELD 縮退」は誤りで、実体は逆＝**手札固定への縮退**）。エナゾーン源（`【エナチャージ１】…エナゾーンから…対象とし、それを手札に加えるか場に出す`）でも同型。
+
+### 修正（parser・engine 変更なし）
+- `effectParser.ts` に `wrapHandOrField(action, text)` を新設し `parseSingleSentence` から呼ぶ。文が `/手札に加えるか、?場に出す|場に出すか、?手札に加える/` を含み、内側パース結果が **source 付きの `TRANSFER_TO_HAND`** のとき、それを `CHOOSE(choose_count:1, from_count:2)` に包む＝第1枝 `hand`＝元の `TRANSFER_TO_HAND`／第2枝 `field`＝`ADD_TO_FIELD{owner:self, source: 同一 source のディープコピー}`。MANUAL 正解 3枚（WX04-038-BURST・WX24-P1-085-BURST・WX25-P3-107-BURST）と同形。
+- **engine は既存で完動**：`execAddToField` は source が TRASH_CARD/ENERGY_CARD/HAND_CARD/DECK_CARD いずれでも対象選択→配置する。CHOOSE も既存。＝**新機構ゼロ**。
+- 「デッキ上から公開し手札に加えるか場に出し（残りをデッキ下）」系は上流で `REVEAL_AND_PICK{handOrField:true}` に解決済みでこの関数へ到達しないため衝突しない。「それを手札に加える」だけ（場に出す なし）の単純回収は包まない（誤爆防止・golden で assert）。
+
+### 採用の内訳（84効果）
+- build:effects 再生成 → `heldReview --adopt-sig` で純クラスタ2署名を一括採用＝`+ADD_TO_FIELD +CHOOSE +TRASH_CARD`（52枚）＋`+ADD_TO_FIELD +CHOOSE +ENERGY_CARD`（15枚）。
+- カード内に MANUAL/PARTIAL 兄弟があり build:effects が丸ごと温存する14効果（WX09-020-BURST・WX24-P2-087-BURST・WX24-P4-088-BURST・WX25-P1-110-BURST・WXDi-P07-087-BURST・WXDi-P09-080-BURST・WXDi-P11-076-BURST・WXEX1-37-BURST・WXEX1-49-E1・WXEX2-29-BURST・WXEX2-37-BURST・WXEX2-75-E2・WXEX2-75-BURST・WXK03-027-BURST）は当該効果の `action` のみ fresh から JSON 直接パッチ（兄弟は不変・コンパクト形式維持）。
+- golden に回帰ガード2件（CHOOSE 包み・単純回収の非包み）。
+
+### 残り4効果（範囲外＝別機構待ち）
+検索・公開機構自体が STUB 化された複雑case：SP27-005-E1（デッキ公開until＋STUB）・WD22-036-G-E1（5枚公開ピック）・WXK02-001-E2（デッキ上1枚公開分岐）・WXEX2-49-E2（デッキミル→ピック）。fresh が CHOOSE を生成しない＝§6.3 級。
+
+### 検証
+- 逆翻訳が原文一致（例 WX22-023-BURST「以下の2つから1つを選ぶ【…手札に加える / …場に出す】」）。
+- gates 全緑：golden 340→342・smoke/fuzz 全0・census **2173→2169**（-4・BASELINE_HIGH 実数更新）・同型★0維持。
+
 ## 「次の対戦相手のターン終了時まで」が `UNTIL_END_OF_TURN`（現ターン終了）へ縮退する duration 系統バグ34効果を是正（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)）
 
 **続き146の semantic audit stub群スケールアップで確定した duration 系統（53効果クラスタ）を消化。** 原文「**次の対戦相手のターン終了時まで**」（＝相手の次ターン終了時まで＝長期の一時効果）が、JSON では `UNTIL_END_OF_TURN`（現在のターン終了時＝即座に切れる）に縮退していた。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
