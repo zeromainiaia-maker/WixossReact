@@ -3620,6 +3620,58 @@ test('duration「次の対戦相手のターン終了時まで」= UNTIL_OPP_TUR
   eq(ra?.until, 'UNTIL_END_OF_TURN', '素の「ターン終了時まで」由来 REMOVE_ABILITIES は昇格しない');
 });
 
+// §3 Opusタスク1＝引用付与の対象-コスト分離2文型（「<対象>を対象とし、<任意コスト>てもよい。そうした場合、
+// (期間、)それは「【自】…」を得る」）。従来は S1 の対象節が脱落し S2 は引用内側が漏れ出して即時実行に平坦化
+// （WX24-P2-018＝ルリグ自身へ即アサシン・WX25-P3-089＝内側 CHOOSE の即時実行）。GRANT_EFFECT.target へ対象を運ぶ。
+test('parse 2文型引用付与（支払いコスト形・WX24-P2-018）→ OPTIONAL_COST + GRANT_EFFECT(龍獣) + 内側 OPPONENT_PAY_OPTIONAL', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-QG2A', Type: 'ルリグ', EffectText: '【自】：あなたのアタックフェイズ開始時、あなたの＜龍獣＞のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手が《無》《無》《無》を支払わないかぎり、ターン終了時まで、このシグニは【アサシン】を得る。」を得る。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; then?: { type: string; target?: { owner: string; filter?: { story?: string } }; effect?: CardEffect } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0]?.id, 'OPTIONAL_COST', 'S1=OPTIONAL_COST（コスト温存）');
+  const ge = seq.steps[1]?.then as { type: string; target?: { owner: string; filter?: { story?: string } }; effect?: CardEffect };
+  eq(ge?.type, 'GRANT_EFFECT', 'S2=GRANT_EFFECT（従来は STUB GRANT_QUOTED_AUTO_ABILITY でルリグ自身へ即付与）');
+  eq(ge?.target?.filter?.story, '龍獣', '対象節（S1）の＜龍獣＞filter が target へ運ばれる');
+  eq(ge?.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '内側【自】が CardEffect へ展開される');
+  const inner = ge?.effect?.action as unknown as { type: string; steps: { type: string; id?: string; costColors?: string[] }[] };
+  eq(inner?.steps?.[0]?.id, 'OPPONENT_PAY_OPTIONAL', '内側「支払わないかぎり」が OPPONENT_PAY_OPTIONAL ゲート化（従来は無言消費で無条件アサシン）');
+  eq(inner?.steps?.[0]?.costColors?.length, 3, '《無》×3');
+  eq(e.parseStatus, 'AUTO', 'AUTO のまま');
+});
+test('parse 2文型引用付与（ダウンコスト形・WX25-P3-089）→ 正準 DOWN self + GRANT_EFFECT(迷宮/excludeSelf)', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-QG2B', Type: 'シグニ', EffectText: '【自】：あなたのアタックフェイズ開始時、あなたの他の＜迷宮＞のシグニ１体を対象とし、アップ状態のこのシグニをダウンしてもよい。そうした場合、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、カードを１枚引くか、対戦相手は手札を１枚捨てる。」を得る。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { type: string; optional?: boolean; target?: { filter?: { thisCardOnly?: boolean; isUp?: boolean } }; then?: { type: string; target?: { filter?: { story?: string; excludeSelf?: boolean } }; effect?: CardEffect } }[] };
+  eq(seq.steps[0]?.type, 'DOWN', 'S1=DOWN');
+  eq(seq.steps[0]?.optional, true, 'DOWN は任意（コスト）');
+  eq(seq.steps[0]?.target?.filter?.thisCardOnly, true, 'DOWN は自身（従来は対象＜迷宮＞シグニをダウンさせる誤コスト）');
+  const ge = seq.steps[1]?.then as { type: string; target?: { filter?: { story?: string; excludeSelf?: boolean } }; effect?: CardEffect };
+  eq(ge?.type, 'GRANT_EFFECT', 'S2=GRANT_EFFECT（従来は内側 DRAW の即時実行に平坦化）');
+  eq(ge?.target?.filter?.story, '迷宮', '対象 filter 復元');
+  eq(ge?.target?.filter?.excludeSelf, true, '「他の」＝excludeSelf');
+  eq(ge?.effect?.action?.type, 'CHOOSE', '内側の CHOOSE（引くか捨てさせる）が展開される');
+});
+test('parse 2文型引用付与ガード＝内側が AUTO 展開不能（【常】アタックできない）は従来規則へ据置（WXDi-P06-047）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-QG2C', Type: 'シグニ', EffectText: '【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、このシグニを場からトラッシュに置いてもよい。そうした場合、ターン終了時まで、それは「【常】：アタックできない。」を得る。' } as unknown as CardData)[0];
+  const s = JSON.stringify(e.action);
+  ok(!s.includes('GRANT_EFFECT'), 'rawText 温存の no-op GRANT_EFFECT を作らない（従来の粗い即時 BLOCK_ACTION＝動く近似を維持）');
+  eq(e.parseStatus, 'AUTO', 'AUTO のまま（PARTIAL 降格しない）');
+});
+// 「対戦相手が《…》を支払わないかぎり、X」単文ゲート（P1規則）
+test('parse 「対戦相手が《無》《無》を支払わないかぎり、対戦相手は手札を２枚捨てる」→ OPPONENT_PAY_OPTIONAL ゲート（WX25-P1-057）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-UNP', Type: 'シグニ', EffectText: '【自】：このシグニがアタックしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手は手札を２枚捨てる。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; costColors?: string[]; then?: { type: string; target?: { owner: string; count: number } } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は節が無言消費され無条件2枚捨て）');
+  eq(seq.steps[0]?.costColors?.length, 2, '《無》×2');
+  const then = seq.steps[1]?.then as { type: string; target?: { owner: string; count: number } };
+  eq(then?.type, 'TRASH', 'then=TRASH');
+  eq(then?.target?.owner, 'opponent', '捨てるのは対戦相手（主語温存）');
+});
+test('parse 「対戦相手は《無》を支払わないかぎり、手札を１枚捨てる」（は形＝主語分配）は既存専用規則へ据置（WXDi-P16-091）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-UNP2', Type: 'シグニ', EffectText: '【出】：対戦相手は《無》を支払わないかぎり、手札を１枚捨てる。' } as unknown as CardData)[0];
+  const s = JSON.stringify(e.action);
+  ok(!s.includes('"owner":"self"') || !s.includes('HAND_CARD') || !s.includes('OPPONENT_PAY_OPTIONAL'), '「は」形で自分の手札捨てへ owner 反転しない');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
