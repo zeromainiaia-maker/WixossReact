@@ -1106,6 +1106,8 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
   if (/あなた|対戦相手|場|トラッシュ|エナ|ライフ|ルリグ|手札|デッキ|この方法|そうした|支払|ベット|達成|枚|体|種類|偶数|奇数|合計/.test(desc)) return null;
   const filter: TargetFilter = {};
+  const parity = desc.match(/レベルが(偶数|奇数)/);
+  if (parity) filter.levelParity = parity[1] === '偶数' ? 'even' : 'odd';
   const lvAbove = desc.match(/レベル([０-９\d]+)以上/);
   const lvBelow = desc.match(/レベル([０-９\d]+)以下/);
   const lvExact = desc.match(/レベル([０-９\d]+)(?:の|$)/);
@@ -1114,7 +1116,7 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
   Object.assign(filter, parseStoryFilter(desc), parseColorFilter(desc), parseGuardFilter(desc));
   if (/スペル/.test(desc)) filter.cardType = 'スペル';
   else if (/シグニ/.test(desc)) filter.cardType = 'シグニ';
-  const hasDisc = filter.level !== undefined || filter.story !== undefined || filter.color !== undefined ||
+  const hasDisc = filter.level !== undefined || filter.levelParity !== undefined || filter.story !== undefined || filter.color !== undefined ||
     !!filter.hasGuard || !!filter.noGuard || filter.cardType === 'スペル';
   if (!hasDisc) return null;
   return { condition: { type: 'LAST_PROCESSED_MATCHES', filter }, rest: m[2] };
