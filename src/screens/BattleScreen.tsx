@@ -4608,8 +4608,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     asCost: boolean,
     opState?: PlayerState,
     opId?: string,
+    costSourceNum?: string,
   ): { entries: StackEntry[]; usedLimitIds: string[] } =>
-    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId);
+    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum);
 
   /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
