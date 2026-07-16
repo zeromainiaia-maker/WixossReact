@@ -2,6 +2,18 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## `prevRecords` ゲートに BANISH／EXILE／SEND_TO_ENERGY を追加＝結果カウント条件の前段判定漏れを是正（2枚採用・census 2093→2092・IS_MY_TURN化 107→104）（2026-07-16・続き161・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き160「次の一手」）
+
+**主題**＝「この方法で〜バニッシュした／ゲームから除外した／エナゾーンに置いた場合」の結果カウント条件（`parseThisWayGenericCount`）が、**前段が記録するのに parser の `prevRecords` ゲートに入っておらず** IS_MY_TURN 化していた。
+
+**真因**＝`prevRecords`（block 抽出で lastProcessedCards 依存条件を許可するゲート）が `TRASH`/`LIFE_CRASH`/reveal-top/energy-charge/LPM-chain だけを見ており、engine が同様に lastProcessedCards を記録する **`BANISH`（execBanish）/`EXILE`（execExile）/`SEND_TO_ENERGY`（execSendToEnergy）**（いずれも ALL・selectOrInteract の両経路で記録）を含めていなかった。
+
+**修正**＝`prevIsProcessRecorder = prevStep.type ∈ {BANISH, EXILE, SEND_TO_ENERGY}` を `prevRecords` に OR 追加。**`prevSetsProcessed` は据え置き**（`parseThisWayTrashCondition` の `prevIsDeckMill` 分岐は全て「トラッシュに置かれた」限定なので EXILE/BANISH clause には無反応＝誤反応せず、`parseThisWayGenericCount` 経由でのみ効く）。影響は3枚のみ（build:effects で確認）＝安全。
+
+**採用**＝`heldReview --adopt` 2枚：WX14-021（相手トラッシュのスペルを全除外→3枚以上なら banish＝`LAST_PROCESSED_MATCHES{cardType:スペル,minCount:3}`・prev=EXILE）・WX21-059（＜原子＞2体 banish→2体なら search-summon＝`{cardType:シグニ,minCount:2}`・prev=BANISH）。**据置**＝WX14-072（「手札公開するか自己トラッシュ」の CHOICE を parser が TRASH に mis-parse＝前段が意味的に別物・続き158 同様に据置）。
+
+**結果**＝golden 357・smoke 全0・fuzz 全0・同型★0 維持・census 2093→2092（BASELINE 更新）・IS_MY_TURN化 107→104（刻印 133→130）。
+
 ## `LAST_PROCESSED_LEVEL_SUM` を operator 対応へ一般化＝「レベルの合計がN以上/以下/ちょうど」の parser 未 emit を是正（4枚採用・census 2096→2093・golden 356→357）（2026-07-16・続き160・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き159「次の一手」）
 
 **主題**＝IS_MY_TURN化クラスタの「結果のレベル合計閾値」系統。「この方法でトラッシュに置いた/公開したシグニのレベルの合計がN(以上/以下)?の場合」を parser が抽出できず無条件発火していた。
