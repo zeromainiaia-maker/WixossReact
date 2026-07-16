@@ -1152,10 +1152,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
       // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
-    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
-      // 「あなたの[他の][色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
-      // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/色/種族を独立オプションにする。
-      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t) } };
+    } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:レベル[０-９\d]+の|[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
+      // 「あなたの[他の][レベルN|色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
+      // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/レベル/色/種族を独立オプションにする。
+      // レベル指定（WX10-061「あなたの他のレベル３のシグニ」）が無いと owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退していた。
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(t), ...parseColorFilter(t), ...parseStoryFilter(t) } };
       if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
