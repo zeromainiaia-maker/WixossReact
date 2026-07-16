@@ -257,6 +257,24 @@ WXDi-P09-003 WXDi-P10-002 WXDi-P11-002 WXDi-P11-003 WXDi-P15-002
   ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
 
+## +LAST_PROCESSED_LEVEL_SUM -IS_MY_TURN ［4枚］
+WDK05-R14 WX22-Re06 WXEX2-62 WXK10-085
+--- WDK05-R14
+  原文: 【出】：カードを１枚引き、手札からカード１枚をデッキの一番下に置く。【起】《ターン１回》《青×0》：あなたのデッキの下からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニを２体まで対象とし、それらを凍結する。,：カードを１枚引く。
+  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_LEVEL_SUM"
+  + [1].action.steps[1].condition.operator = "eq"
+  + [1].action.steps[1].condition.value = 4
+--- WX22-Re06
+  原文: あなたの黒のシグニを好きな数対象とし、それらを場からトラッシュに置く。その後、この方法でトラッシュに置いたシグニのレベルの合計が３以上の場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。６以上の場合、カードを２枚引く。９以上の場合、対戦相手のライフクロス１枚をクラッシュする。１２以上の場合、あなたのトラッシュからシグニを３枚まで対象とし、それらを場
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_LEVEL_SUM"
+  + [0].action.steps[1].condition.operator = "gte"
+  + [0].action.steps[1].condition.value = 3
+--- WXEX2-62
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が７の場合、対戦相手のライフクロス１枚をクラッシュする。７以上の場合、対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。【出】《赤》：あなたのデッキからレベル１の＜宇宙＞のシグニ１枚を探し
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_LEVEL_SUM"
+  + [0].action.steps[1].condition.operator = "eq"
+  + [0].action.steps[1].condition.value = 7
+
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［4枚］
 WX24-P2-007 WX24-P2-087 WXEX2-18 WXEX2-70
 --- WX24-P2-007
@@ -282,54 +300,6 @@ WX24-P2-007 WX24-P2-087 WXEX2-18 WXEX2-70
   + [1].action.steps[1].then.target.filter.cardType = "シグニ"
   + [1].action.steps[1].then.target.upToCount = false
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［4枚］
-WD11-018 WX24-P4-082 WXDi-P02-071 WXDi-P12-002
---- WD11-018
-  原文: あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。その後、あなたの場にレゾナがある場合、追加であなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.color = "黒"
-  ~ [0].action.steps[1].type : "TRANSFER_TO_HAND" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.filter.cardType = "レゾナ"
-  + [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
-  + [0].action.steps[1].then.source.type = "TRASH_CARD"
-  …（他 5 行）
---- WX24-P4-082
-  原文: 【エナチャージ２】をする。その後、あなたの場にレベル４以上のルリグがいる場合、あなたのエナゾーンから緑のシグニを１枚まで対象とし、それを場に出す。,：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加えるか場に出す。
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "ENERGY_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = true
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.level.min = 4
-  - [0].action.steps[1].source.filter.color = "緑"
-  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.filter.cardType = "ルリグ"
-  …（他 9 行）
---- WXDi-P02-071
-  原文: 対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。その後、対戦相手の場に凍結状態のシグニが３体以上ある場合、追加で対戦相手の手札を１枚見ないで選び、捨てさせる。,-
-  - [0].action.steps[2].target.type = "HAND_CARD"
-  - [0].action.steps[2].target.owner = "opponent"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].target.blind = true
-  ~ [0].action.steps[2].type : "TRASH" → "CONDITIONAL"
-  + [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[2].condition.owner = "opponent"
-  + [0].action.steps[2].condition.filter.cardType = "シグニ"
-  + [0].action.steps[2].condition.filter.isFrozen = true
-  + [0].action.steps[2].condition.minCount = 3
-  + [0].action.steps[2].then.type = "TRASH"
-  + [0].action.steps[2].then.target.type = "HAND_CARD"
-  …（他 3 行）
-
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
 --- WX06-CB03
@@ -353,53 +323,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.type = "SIGNI"
   + [0].action.abilities[0].action.steps[0].target.owner = "self"
   + [0].action.abilities[0].action.steps[0].target.count = 1
-
-## +CONDITIONAL +TRASH_COUNT ［3枚］
-WD22-038-UG WXDi-D05-012 WXDi-P02-089
---- WD22-038-UG
-  原文: 【常】：あなたのトラッシュにカードが１５枚以上あるかぎり、このシグニの基本パワーは12000になる。【出】：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュにカードが２０枚以上ある場合、あなたのトラッシュからレベル２以下の黒のシグニ１枚を対象とし、それをダウン状態で場に出す。,：あなたのデッキの上からカードを３枚トラッシュに置く
-  - [1].action.steps[1].target.type = "SIGNI"
-  - [1].action.steps[1].target.owner = "self"
-  - [1].action.steps[1].target.count = 1
-  - [1].action.steps[1].target.filter.cardType = "シグニ"
-  - [1].action.steps[1].target.filter.level.max = 2
-  - [1].action.steps[1].target.filter.color = "黒"
-  - [1].action.steps[1].target.upToCount = false
-  ~ [1].action.steps[1].type : "DOWN" → "CONDITIONAL"
-  + [1].action.steps[1].condition.type = "TRASH_COUNT"
-  + [1].action.steps[1].condition.owner = "self"
-  + [1].action.steps[1].condition.operator = "gte"
-  + [1].action.steps[1].condition.value = 20
-  …（他 8 行）
---- WXDi-D05-012
-  原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュにカードが２０枚以上ある場合、《無》《無》を支払ってもよい。そうした場合、あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それを手札に加える。,-
-  - [0].action.steps[1].id = "OPTIONAL_COST"
-  - [0].action.steps[1].costColors[0] = "無"
-  - [0].action.steps[1].costColors[1] = "無"
-  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "TRASH_COUNT"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.operator = "gte"
-  + [0].action.steps[1].condition.value = 20
-  + [0].action.steps[1].then.type = "STUB"
-  + [0].action.steps[1].then.id = "OPTIONAL_COST"
-  + [0].action.steps[1].then.costColors[0] = "無"
-  + [0].action.steps[1].then.costColors[1] = "無"
---- WXDi-P02-089
-  原文: 各プレイヤーは自分のデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュにカードが２５枚以上ある場合、あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加える。,-
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.noGuard = true
-  ~ [0].action.steps[1].type : "TRANSFER_TO_HAND" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "TRASH_COUNT"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.operator = "gte"
-  + [0].action.steps[1].condition.value = 25
-  + [0].action.steps[1].then.type = "TRANSFER_TO_HAND"
-  …（他 6 行）
 
 ## -CONDITIONAL -ENERGY_COUNT ［3枚］
 WX24-P4-066 WX25-P2-076 WXDi-D09-H21
@@ -440,6 +363,54 @@ WX24-P4-066 WX25-P2-076 WXDi-D09-H21
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "赤"
   …（他 2 行）
+
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［3枚］
+WX24-P4-082 WXDi-P02-071 WXDi-P12-002
+--- WX24-P4-082
+  原文: 【エナチャージ２】をする。その後、あなたの場にレベル４以上のルリグがいる場合、あなたのエナゾーンから緑のシグニを１枚まで対象とし、それを場に出す。,：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加えるか場に出す。
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].source.type = "ENERGY_CARD"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.upToCount = true
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].source.filter.level.min = 4
+  - [0].action.steps[1].source.filter.color = "緑"
+  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "self"
+  + [0].action.steps[1].condition.filter.cardType = "ルリグ"
+  …（他 9 行）
+--- WXDi-P02-071
+  原文: 対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。その後、対戦相手の場に凍結状態のシグニが３体以上ある場合、追加で対戦相手の手札を１枚見ないで選び、捨てさせる。,-
+  - [0].action.steps[2].target.type = "HAND_CARD"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.blind = true
+  ~ [0].action.steps[2].type : "TRASH" → "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[2].condition.owner = "opponent"
+  + [0].action.steps[2].condition.filter.cardType = "シグニ"
+  + [0].action.steps[2].condition.filter.isFrozen = true
+  + [0].action.steps[2].condition.minCount = 3
+  + [0].action.steps[2].then.type = "TRASH"
+  + [0].action.steps[2].then.target.type = "HAND_CARD"
+  …（他 3 行）
+--- WXDi-P12-002
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたの場に《ディソナアイコン》のシグニが３体ある場合、対戦相手のすべてのシグニをバニッシュし、その後、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカードを２枚まで対象とし、それらをトラッシュに置く。,-
+  - [0].action.target.type = "ENERGY_CARD"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 2
+  - [0].action.target.upToCount = true
+  ~ [0].action.type : "TRASH" → "CONDITIONAL"
+  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.filter.cardType = "シグニ"
+  + [0].action.condition.filter.isDisona = true
+  + [0].action.condition.minCount = 3
+  + [0].action.then.type = "TRASH"
+  + [0].action.then.target.type = "ENERGY_CARD"
+  …（他 3 行）
 
 ## +GRANT_EFFECT +SIGNI ［3枚］
 WX24-P2-055 WX25-P3-085 WXDi-P08-080
