@@ -1104,7 +1104,7 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
   if (!m) return null;
   const desc = m[1];
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
-  if (/あなた|対戦相手|場|トラッシュ|エナ|ライフ|ルリグ|手札|デッキ|この方法|そうした|支払|ベット|達成|枚|体|種類|偶数|奇数|合計/.test(desc)) return null;
+  if (/あなた|対戦相手|場|トラッシュ|エナ|ライフ|ルリグ|手札|デッキ|この方法|そうした|支払|ベット|達成|枚|体|種類|合計/.test(desc)) return null;
   const filter: TargetFilter = {};
   const parity = desc.match(/レベルが(偶数|奇数)/);
   if (parity) filter.levelParity = parity[1] === '偶数' ? 'even' : 'odd';
