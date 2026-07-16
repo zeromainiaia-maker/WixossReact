@@ -107,6 +107,9 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     // このドローの原因カード（drawBySourceStory 判定用）。実際に引いた場合のみ更新。collectDrawTriggers が
     // cards_drawn_by_effect_this_turn の増加を検出した直後に読むため、ここで上書きすれば常に最新の原因が反映される。
     last_effect_draw_source: canDraw > 0 ? ctx.sourceCardNum : state.last_effect_draw_source,
+    // このドローがドロー側自身の効果か（a.owner==='self'＝効果元＝ドロー側）。相手にドローさせた（a.owner==='opponent'）
+    // 場合は false。ON_DRAW any_opp「対戦相手が自分の効果で引いたとき」（PR-423）の発生源プレイヤー限定に使う。
+    last_draw_by_own_effect: canDraw > 0 ? (a.owner === 'self') : state.last_draw_by_own_effect,
   };
   // リフレッシュはここでは行わず、効果解決後（result.done）の applyRefreshOnDone に集約する
   // （ルール：効果解決中はデッキ0のまま可能な限り解決し、その後リフレッシュ）。
