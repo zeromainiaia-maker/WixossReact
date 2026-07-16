@@ -1,0 +1,388 @@
+# timing センサス残クラスタの振り分け台帳（2026-07-17・Sonnet・PLAN §3 補欠(a)）
+#
+# 目的＝docs/_timing_census.txt の各クラスタについて、engine に該当timingの収集関数（collector）が
+# 既に存在するかを機械照合し、「Opusタスク16（parser regex 1本で直る＝parser語彙のみ不足）」と
+# 「§6.3送り（収集関数/filter軸が無く新規機構が要る）」に仕分ける。
+#
+# 判定基準（3段階）:
+#   [A] 完全wired　＝該当ON_*の収集関数が存在し、必要なtriggerScope/triggerFilter/triggerConditionの
+#       軸も型に既にある。parser側でtiming/scope/filterを抽出するregexを足すだけで直る＝Opusタスク16。
+#   [B] 部分wired　＝収集関数（イベント検出）自体はあるが、必要なfilter/閾値/scope軸が型に無い。
+#       parser regexだけでは直らず、TargetFilter/triggerCondition等への軽量engine拡張が要る。
+#   [C] 未wired　＝該当イベントを検出する収集関数が存在しない（0参照）か、scope/方向が根本的に逆
+#       （例：相手起因イベントを自分側で監視する経路が無い）。新規機構＝§6.3送り。
+#
+# 根拠は grep（`triggerCollect.ts`/`BattleScreen.tsx`/`effects.ts`のON_*コメント）による実地確認。
+# 総数: 117クラスタ（`npm run census:timing`実行時点）。⚠この母数はセンサス再実行のたびに微増減する
+# （継続的なIS_MY_TURN化消化等の副作用）ので、実数より「各クラスタの判定ロジック」を再利用すること。
+#
+# ---------------------------------------------------------------------------
+
+n=5  あなたの《トラップアイコン》が発動したとき
+  → [C] ON_TRAP_ACTIVATE は型定義のみでengine参照0件（triggerCollect/BattleScreen 未使用）。新規機構。
+
+n=4  あなたの効果によって対戦相手が手札をN枚捨てたとき
+  → [A] collectHandDiscardTriggers（triggerCollect.ts:1295）がtriggerScope 'any'で相手discard監視に対応済み。
+
+n=3  カードがコストか効果によってシグニの下からトラッシュに置かれたとき
+  → [C] ON_TRASH の fromZones は 'hand'|'deck'|'energy'|'field' のみ。「シグニの下(under signi)」という
+    zone種別が型に無い。新規機構。
+
+n=2  対戦相手のシグニのアタックを効果によって無効にしたとき
+  → [C] NEGATE_ATTACKはaction型としては存在するが、それをトリガーとして監視する timing/collector が無い。
+
+n=2  あなたのグロウフェイズ開始時
+  → [C] collectTurnTriggers は ON_TURN_START/END/ATTACK_PHASE_START/MAIN_PHASE_START/LRIG_ATTACK_STEP_START
+    のみ。「グロウフェイズ開始時」に対応する timing が型に存在しない。新規機構。
+
+n=2  あなたのライフクロスにカードN枚が加えられたとき
+  → [C] ライフクロス「増加」を検出する timing が無い（ON_LIFE_CRASHED/ON_OPP_LIFE_CRASHED は減少＝
+    クラッシュ側のみ）。新規機構。
+
+n=2  このルリグのアタックが【ガード】されたとき
+  → [C] ON_GUARD（collectSelfEventTriggers）は「あなたがガードした」＝ガード実行者視点のみ。
+    アタック側から見た「ガードされた」逆視点のscopeが無い。新規機構。
+
+n=2  このカードが【アクセ】としてシグニに付いたとき
+  → [A] ON_ACCE_ATTACH 配線済み（BattleScreen.tsx・2箇所参照）。
+
+n=2  このシグニがあなたのエナゾーンから手札に移動したとき
+  → [C] エナ→手札（self）の移動を検出する timing が無い（ON_ENERGY_TO_TRASH はtrash宛先限定）。新規機構。
+
+n=2  対戦相手のエナゾーンにカードN枚が置かれたとき
+  → [C] ON_ENERGY_CHARGE は「あなたのエナゾーンに1枚ちょうど」＝自分視点限定（BattleScreen.tsx:1573）。
+    相手のエナゾーン増加を監視する逆scopeが無い。新規機構。
+
+n=2  このカードが捨てられたとき（自身）
+  → [C] collectHandDiscardTriggers は場のwatcher（他カードが反応）のみを走査し、捨てられたカード自身の
+    ON_HAND_DISCARDED self反応は未対応。新規機構（続き138 IS_MY_TURN化残と同系統）。
+
+n=2  対戦相手の効果によってこのカードが捨てられたとき（自身）
+  → [C] 上記と同じ穴。PLAN既知＝WXDi-P11-066系（PLAN §4 続き169「手札カード自身の効果捨てtiming」）。
+
+n=1  このシグニが対戦相手のレベルN以下のシグニとバトルしたとき
+  → [A] ON_SIGNI_BATTLE（BattleScreen.tsx:7345）+ TargetFilter.levelRange で表現可能（既存パターン=WX04-099）。
+
+n=1  対戦相手のシグニN体が場からデッキに移動したとき
+  → [A] ON_CARD_MOVED_TO_DECK（collectMoveToDeckTriggers）は発生元zone非依存の汎用検出。
+
+n=1  このシグニがNターンにライフクロスを合計N枚以上クラッシュしたとき
+  → [C] 複数ターンにまたがる累積カウント機構が無い。新規機構。
+
+n=1  あなたのシグニN体が効果によってダウン状態になったとき
+  → [C] ON_SIGNI_DOWN は型定義のみでengine参照0件。新規機構。
+
+n=1  このシグニが対戦相手のレベルNのシグニとバトルしたとき
+  → [A] 上記「レベルN以下」と同型（TargetFilter.levelRangeで表現可）。
+
+n=1  あなたのトラッシュから効果でカードN枚がデッキに移動したとき
+  → [A] movedToDeckFromTrash（triggerCondition）で対応済み。
+
+n=1  対戦相手があなたのシグニの効果によって手札をN枚捨てたとき
+  → [A] collectHandDiscardTriggers と同系統（n=4クラスタと同じ穴・同じ収集関数）。
+
+n=1  アタックフェイズの間にあなたがカードをN枚以上引いたとき
+  → [C] triggerCondition.drawPhaseRestriction:'main_attack' はフェイズ限定に対応するが「N枚以上」の
+    累積閾値カウントは未対応（単発ON_DRAWごとの判定のみ）。新規拡張。
+
+n=1  あなたのシグニN体がアップ状態になったとき
+  → [C] ON_SIGNI_BECOMES_UP が型に存在しない。PLAN既知＝新機構タスク（続き169・WX12-006系）。
+
+n=1  このシグニが場から離れたとき（自身）
+  → [A] ON_LEAVE_FIELD self配線済み（collectLeaveFieldTriggers）。
+
+n=1  あなたが対戦相手のシグニN体のアタックを無効にしたとき
+  → [C] 「アタックを無効にした」トリガー無し（n=2クラスタと同じ穴）。
+
+n=1  カードN枚があなたのエナゾーンから手札に移動したとき
+  → [C] エナ→手札 timing無し（同上n=2クラスタ）。
+
+n=1  リグかシグニの効果によって手札かデッキからエナゾーンに置かれたとき
+  → [C] ON_ENERGY_CHARGE は発生源zone(手札/デッキ)や原因（リグ/シグニの効果）の限定軸を持たない。
+
+n=1  このシグニが効果によってダウン状態になったとき（self）
+  → [C] ON_SIGNI_DOWN 未配線（同上）。
+
+n=1  あなたのシグニN体がアクセされたとき
+  → [A] ON_ACCE_ATTACH any_ally scopeで表現可能（配線済み）。
+
+n=1  このシグニが感染状態のシグニN体をバニッシュしたとき
+  → [A] ON_SIGNI_BANISH系 + TargetFilter.infected で表現可能（infected フィールド既存）。
+
+n=1  【チャーム】N枚が場からいずれかのトラッシュに置かれたとき
+  → [A] ON_CHARM_TO_TRASH 配線済み。
+
+n=1  あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき
+  → [B] ON_SIGNI_BANISH_BATTLE は配線済みだが「正面以外」という対象限定filterが型に無い。軽量拡張要。
+
+n=1  このカードが【アクセ】として＜X＞のシグニに付いたとき
+  → [A] ON_ACCE_ATTACH self + host名フィルタ対応済み。
+
+n=1  このシグニがシグニN体をバニッシュしたとき
+  → [A] ON_SIGNI_BANISH系・自己scope基本形。
+
+n=1  このシグニの正面にレベルN以下のシグニN体が出たとき
+  → [A] triggerCondition.placedFront + TargetFilter.levelRange で表現可能。
+
+n=1  このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき
+  → [A] triggerCondition.frontLowerLevelThanSource 配線済み（コメントにWX17-075の実例あり）。
+
+n=1  カードが【アクセ】としてレベルN以下の＜X＞のシグニに付いたとき
+  → [B] accedHostMinLevel は「N以上」のみ型に存在。「N以下」対称軸が無く軽量拡張が要る。
+
+n=1  カードが【アクセ】としてレベルN以上の＜X＞のシグニに付いたとき
+  → [A] accedHostMinLevel で直接対応可能。
+
+n=1  あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき
+  → [C] ON_LEAVE_FIELD は「離れたカードの持ち主側」のwatcherのみ（any_ally/any）。効果を与えた側が
+    相手の離脱を監視する逆scope（any_opp相当）が無い。
+
+n=1  あなたの【自】の【英知】能力が発動したとき
+  → [C] 【英知】能力の発動を検出する timing が無い。新規機構。
+
+n=1  あなたがエナゾーンからカードN枚を手札に加えたとき
+  → [C] エナ→手札 timing無し（同上クラスタ群）。
+
+n=1  あなたのセンタールリグかシグニN体がアップ状態になったとき
+  → [C] ON_SIGNI_BECOMES_UP 未実装（同上）。
+
+n=1  このシグニがカード名に《オダノブ》を含むシグニにライズされたとき
+  → [A] triggerCondition.risedOntoNameContains 配線済み（コメントにWX20-056-E2の実例あり）。
+
+n=1  カードN枚がいずれかのプレイヤーの手札に加えられたとき
+  → [C] 汎用「手札に加わった」timingが無い（ON_DRAWはドロー動作限定）。
+
+n=1  対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき
+  → [C] ゾーンアイコン（トラップ）条件付きのON_PLAY派生timingが無い。
+
+n=1  【ウィルス】Nつが対戦相手の場に置かれるか対戦相手の場から取り除かれたとき
+  → [A] ON_OPP_VIRUS_CHANGED 配線済み（collectSelfEventTriggers）。
+
+n=1  対戦相手の場にある【ウィルス】がN以上取り除かれたとき
+  → [B] ON_OPP_VIRUS_REMOVED は配線済みだが「N以上」の除去枚数閾値カウントが型に無い（フラグ検出のみ
+    の可能性）。要確認・軽量拡張。
+
+n=1  このシグニが対戦相手にダメージを与えたとき
+  → [A] ON_SIGNI_DAMAGE 配線済み（BattleScreen.tsx:7375）。
+
+n=1  対戦相手の場から【ウィルス】Nつが取り除かれたとき
+  → [B] 上記ON_OPP_VIRUS_REMOVEDの閾値と同じ課題。
+
+n=1  あなたが《コインアイコン》をベットしたとき
+  → [C] ON_COIN_PAIDは「スペルのベット（pending_spell/カットイン経由）は未配線」と明記済み。
+
+n=1  あなたの【トラップ】Nつが設置されたとき
+  → [C] トラップの「設置」（発動ではない）を検出するtimingが無い。
+
+n=1  あなたの他の＜X＞のシグニN体がダウン状態になったとき
+  → [C] ON_SIGNI_DOWN 未配線（同上クラスタ群・any_ally版）。
+
+n=1  効果NつによってデッキからカードがN枚以上トラッシュに置かれたとき（合計）
+  → [C] ON_CARD_MILLED_FROM_DECKは単一解決単位のみの近似（型コメントに明記：「合計N枚」型はTODO §3.5）。
+    複数効果にまたがる累積は未対応。
+
+n=1  対戦相手の場にあるシグニの【出】能力が発動したとき
+  → [C] 他カードのON_PLAY発動を横から監視するtimingが無い。
+
+n=1  あなたのシグニN体がダウン状態になったとき
+  → [C] ON_SIGNI_DOWN 未配線（同上）。
+
+n=1  あなたの【アクセ】N枚がトラッシュに置かれたとき
+  → [C] ON_CHARM_TO_TRASHはチャーム専用。アクセ版のtrash-timingが型に無い。
+
+n=1  対戦相手の場にある【チャーム】N枚がトラッシュに置かれたとき
+  → [A] ON_CHARM_TO_TRASH は triggerScope any/any_ally/any_opp に対応済み（コメント明記）。
+
+n=1  【チャーム】が付いている対戦相手のシグニをバニッシュしたとき
+  → [A] TargetFilter.hasCharm が既存＝ON_SIGNI_BANISH系＋hasCharmで表現可能。
+
+n=1  あなたが緑のアーツを使用したとき
+  → [B] ON_ARTS_USE（collectArtsUseTriggers）は配線済みだが、使用したアーツの色を絞るfilter軸が無い
+    （現状は使用トリガーの有無のみ判定）。軽量拡張要。
+
+n=1  シグニがバトルによって対戦相手の凍結状態のシグニをバニッシュしたとき
+  → [C] TargetFilterに凍結状態（frozen）を判定するフィールドが存在しない。
+
+n=1  このシグニが正面のシグニN体をバニッシュしたとき
+  → [A] ON_SIGNI_BANISH系＋自己scope基本形。
+
+n=1  このカードが【アクセ】としてレベルN以上のシグニに付いたとき
+  → [A] accedHostMinLevel直接対応（重複クラスタ）。
+
+n=1  対戦相手のカードがあなたの効果によってデッキに移動したとき
+  → [A] movedToDeckOwner:'opponent' で対応済み。
+
+n=1  あなたのライフクロスが他の領域に移動したとき
+  → [C] クラッシュ以外のライフクロス移動（手札/デッキ等）を検出するtimingが無い。
+
+n=1  効果NつによってあなたがカードをN枚以上引いたとき（合計）
+  → [C] 複数効果にまたがる累積ドロー数カウント機構が無い（同上milled合計と同型の穴）。
+
+n=1  あなたの効果Nつによってあなたがカードをn枚以上引いたとき（合計）
+  → [C] 同上。
+
+n=1  対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき
+  → [C] ゾーンアイコン（ゲート）条件付きON_PLAY派生timingが無い（トラップ版と同型）。
+
+n=1  このシグニにカードN枚が付いたとき
+  → [B] ACCE限定なら ON_ACCE_ATTACH で対応可だが「カードが付いた」の対象が層/ソウル等も含む汎用表現
+    かは要individual確認。
+
+n=1  てあなたのデッキから＜X＞のシグニN枚がトラッシュに置かれたとき
+  → [B] ON_CARD_MILLED_FROM_DECK は milledDeckOwner/milledMinCount のみでstory/level/color filterが
+    型に無い。軽量拡張要（filter軸追加）。
+
+n=1  がバトルによって対戦相手の凍結状態のシグニN体をバニッシュしたとき
+  → [C] frozen filter無し（同上）。
+
+n=1  シグニN体がダウン状態になったとき
+  → [C] ON_SIGNI_DOWN 未配線。
+
+n=1  このシグニがアタックしたアタック終了時
+  → [C] ON_ATTACK_SIGNIはアタック開始側のみ。「アタック終了時」variantが型に無い。
+
+n=1  このシグニが対戦相手のシグニとバトルしたとき
+  → [A] ON_SIGNI_BATTIE基本形（filterなし）。
+
+n=1  あなたの効果によって対戦相手のシグニN体が場から手札に移動したとき
+  → [C] ON_LEAVE_FIELDは同一オーナー側watcherのみ。効果を与えた側（自分）が相手の離脱を監視する
+    逆scopeが無い（前出クラスタと同じ穴）。
+
+n=1  対戦相手が手札をN枚捨てたとき（無条件）
+  → [A] collectHandDiscardTriggersの基本形（同上クラスタ群と同じ収集関数）。
+
+n=1  対戦相手の場にある【ウィルス】N枚が取り除かれたとき
+  → [B] ON_OPP_VIRUS_REMOVEDの閾値カウント課題（重複）。
+
+n=1  あなたか対戦相手のライフクロスN枚がトラッシュに置かれたとき
+  → [B] ON_LIFE_CRASHED/ON_OPP_LIFE_CRASHEDはクラッシュ経由のみ対応。「トラッシュに置かれた」が
+    クラッシュ以外の経路（バニッシュ的移動等）を含むかは要individual確認。
+
+n=1  あなたの手札からカードN枚がトラッシュに置かれたとき
+  → [A] ON_TRASH fromZones:['hand'] で対応済み。
+
+n=1  あなたか対戦相手が《コインアイコン》を得たとき
+  → [C] ON_COIN_PAIDは支払い方向のみ。コイン「獲得」方向のtimingが無い。
+
+n=1  このシグニがバトルしたとき（無条件）
+  → [A] ON_SIGNI_BATTLE基本形。
+
+n=1  あなたのライフクロスがN枚になったとき（状態一致）
+  → [C] ライフクロス枚数が特定値に「なった」ことを検出するtimingが無い（イベントでなく状態一致）。
+
+n=1  あなたのシグニN体に【ソウル】が付いたとき
+  → [C] ソウル付与を検出するtimingが無い（collectGrantedFromSoulは付与済みソウルの効果適用機構で別物）。
+
+n=1  このシグニに【ソウル】が付いたとき（self）
+  → [C] 同上。
+
+n=1  アシストルリグかライフバーストの能力か効果の対象になったとき
+  → [B] ON_TARGETED基盤は配線済みだが、起源ability種別（アシストルリグ/ライフバースト限定）の
+    filter軸が無い。軽量拡張の可能性あり・要individual確認。
+
+n=1  あなたが自分の効果によってカードをN枚以上捨てたとき（合計・自己discard）
+  → [C] collectHandDiscardTriggersのtriggerFilterは「1枚でも一致すればOK」のsome判定のみで、
+    「N枚以上」の閾値カウントに未対応。
+
+n=1  このシグニがバトルによって凍結状態のシグニをバニッシュしたとき
+  → [C] frozen filter無し（同上重複）。
+
+n=1  レベルN以下のシグニN体がこのシグニの正面のシグニゾーンに出たとき
+  → [A] placedFront + levelRange（「以下」対称形。TargetFilterのlevelRangeは汎用min/max対応）。
+
+n=1  このシグニが場からエナゾーンに置かれたとき
+  → [C] PLAN既知＝§6.3機構待ち（続き169「エナ発ゾーン移動timing」WXDi-P11-007系）。
+
+n=1  なたのエナゾーンから効果によってカードN枚が他の領域に移動したとき
+  → [C] ON_ENERGY_TO_TRASHはtrash宛先限定。「他の領域」への汎用移動は未対応。
+
+n=1  このシグニが《コードアート　ララ・ルー//メモリア》にライズされたとき
+  → [A] risedOntoNameContainsで対応可能（同上クラスタと同じ機構）。
+
+n=1  ワーN以上のシグニが対戦相手のシグニN体をバニッシュしたとき（発動元パワー条件）
+  → [C] バニッシュを実行した側自身のパワーを条件とするfilter軸が無い（対象側のpowerRangeはあるが
+    発動元側の条件は別軸＝未対応）。
+
+n=1  あなたがエクシードのコストを支払ったとき
+  → [A] triggerCondition.exceedCostPaidByPlayer 配線済み（コメントにWXDi-P06-078実例あり）。
+
+n=1  対戦相手がダメージを受けたとき
+  → [A] ON_SIGNI_DAMAGE系のバリエーションとして表現可能性が高い（ダメージ=ライフクラッシュ相当）。
+    要individual確認（triggerScope方向の検証）。
+
+n=1  なたのライフクロスN枚がクラッシュされるかトラッシュに置かれたとき（OR複合）
+  → [C] OR複合トリガー機構は型コメントで「未実装」と明記済み（ON_ALLY_PLAY_OR_OPP_HAND_DISCARDと同型）。
+
+n=1  【出】能力か【出】能力の効果の対象になったとき
+  → [B] ON_TARGETED基盤配線済みだが起源ability種別filterが無い（同上「アシストルリグ」クラスタと同課題）。
+
+n=1  あなたの効果によってこのカードが捨てられたとき（自身・自己効果）
+  → [C] 捨てられたカード自身のON_HAND_DISCARDED self反応は未対応（n=2クラスタと同じ穴）。
+
+n=1  ってあなたのデッキからカードが合計N枚以上トラッシュに置かれたとき（累積）
+  → [C] milled合計カウント機構なし（同上）。
+
+n=1  あなたのデッキからレベルNのシグニN枚がトラッシュに置かれたとき
+  → [B] ON_CARD_MILLED_FROM_DECKにlevel/story filterが型に無い（同上クラスタと同課題）。
+
+n=1  このシグニがコストか効果によって捨てられたとき
+  → [C] 自身discard self-反応の穴（同上）。
+
+n=1  対戦相手のシグニN体があなたの効果によって手札に戻ったとき
+  → [C] ON_LEAVE_FIELDの跨サイドscope（効果元が相手の離脱を監視）が無い（同上クラスタと同じ穴）。
+
+n=1  プレイヤーのデッキからカードが合計N枚以上トラッシュに置かれたとき
+  → [C] milled合計カウント機構なし（同上）。
+
+n=1  によって対戦相手のシグニN体が手札に戻るかトラッシュに置かれたとき（OR複合）
+  → [C] OR複合トリガー機構未実装（同上）。
+
+n=1  あなたが手札から＜X＞のカードをN枚以上捨てたとき
+  → [C] discard filterは「1枚でも一致」判定のみで「N枚以上」閾値カウント未対応（同上）。
+
+n=1  によってあなたが《ガードアイコン》を持たないカードをN枚捨てたとき
+  → [C] 同上（discard閾値カウント未対応）。
+
+n=1  あなたのアタックフェイズ終了時
+  → [C] ON_ATTACK_PHASE_STARTのみ存在。終了時variantが型に無い。
+
+n=1  シグニの効果によってデッキからカードN枚がトラッシュに置かれたとき
+  → [B] ON_CARD_MILLED_FROM_DECKは発生源zone側は判定できるが「シグニの効果によって」という
+    原因（causal agent）限定軸が型に無い。
+
+n=1  対戦相手の効果によってカードがN枚以上対戦相手の手札に移動したとき
+  → [C] 汎用「手札に加わった」timingが無い（ON_DRAW以外の手札増加を検出できない）。
+
+n=1  たの効果Nつによってカードが合計N枚以上あなたの手札に移動したとき（累積）
+  → [C] 同上＋累積カウントの二重の穴。
+
+n=1  あなたの《MC.LIONNrdVerse-ULT》がダウンしたとき
+n=1  なたの《DJ.LOVITNrdVerse-ULT》がダウンしたとき
+n=1  あなたの《VJ.WOLFNrdVerse-ULT》がダウンしたとき
+  → [C]（3件同型）ON_SIGNI_DOWN self・named-card版。ON_SIGNI_DOWN自体が未配線のため同じ穴。
+
+n=1  このルリグが《夢限　-Q-》から《夢限　-A-》になったとき
+  → [C] 特定named-formへの変化を検出するtimingが型に無い（ON_SIGNI_BECOMES_DRIVEは別機構＝ライド限定）。
+
+# ---------------------------------------------------------------------------
+# 集計（このセンサス実行時点・117クラスタ）
+#   [A] 完全wired（parser regexのみで直る＝Opusタスク16候補）        … 約34クラスタ
+#   [B] 部分wired（軽量engine拡張＝filter/閾値追加が要る）            … 約16クラスタ
+#   [C] 未wired（新規機構＝§6.3送り）                                … 約67クラスタ
+#
+# 主な繰り返しパターン（§6.3への機構タスク化を検討する際のグルーピング）:
+#   - ON_SIGNI_DOWN（アップ含む）が丸ごと未配線 … 8クラスタ相当。ON_SIGNI_BECOMES_UPは既にPLANで
+#     新機構タスク化済み（続き169）。ON_SIGNI_DOWN（ダウン版）も同時に機構化する価値が高い。
+#   - 「累積・合計N以上」系（milled合計／ドロー合計／discard合計）… 8クラスタ相当。単発イベント収集は
+#     あるが解決を跨いだ累積カウンタが無い、という共通の型的欠落＝1本の汎用機構で複数クラスタが同時に
+#     直る可能性が高い（型コメントの「cf. TODO §3.5」参照）。
+#   - ON_LEAVE_FIELD／ON_HAND_DISCARDEDの「跨サイドscope」欠落（効果を与えた側が相手の離脱/discardを
+#     監視する）… 4クラスタ相当。collectLeaveFieldTriggers/collectHandDiscardTriggersへのany_opp相当
+#     scope追加で一括対応できる可能性。
+#   - 自己discard（捨てられたカード自身が反応するON_HAND_DISCARDED self）… 4クラスタ相当。PLAN既知
+#     （続き169・WXDi-P11-066）と同一の穴＝1本の機構で解決。
+#   - frozen状態をTargetFilterで判定できない … 4クラスタ相当。TargetFilter.frozen追加で一括対応。
+#   - トラップ/ゲート等ゾーンアイコン条件のON_PLAY派生timing欠落 … 2クラスタ。
+#
+# ⚠本台帳は「機械照合」の一次判定であり、実採用時は各クラスタの該当カードで個別に原文照合・
+# engineコード確認を行うこと（[B]は特にfilter追加の実装コストが軽微かどうか要再確認）。
