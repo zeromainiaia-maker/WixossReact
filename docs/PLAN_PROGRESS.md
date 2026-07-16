@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き169・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster D＝timing 取り違え（【自】が ON_PLAY 化）を消化）**
+  - **ワークフロー実験の5巡目**。Cluster D は「【自】の timing 判定が外れ ON_PLAY へフォールバック」＝engine に collector があれば parser 是正で直る／無ければ §6.3。PLAN 通り大半が機構待ちで、**Codex は最難関の1枚を採用・3枚を §6.3 据置**。
+  - **1枚採用（parser＋engine 小改修）・census 2045→2044・golden 373→374・同型★0・gates 全緑（smoke/fuzz 込み）**。
+  - **採用＝SPDi43-12-E2（内側 SPDi43-12-sub-E1）**＝【起】バイブスMAX でセンタールリグに付与する AUTO 能力「対戦相手のエナゾーンからカードがトラッシュに置かれたとき、このルリグをアップする」の timing を `ON_PLAY`→`ON_ENERGY_TO_TRASH` へ是正。**engine 小改修**＝`collectEnergyToTrashTriggers`（triggerCollect:864）に**付与済みルリグ AUTO（`lrig_granted_auto_effects`）の走査を追加**。
+  - **§6.3 据置3枚**＝WX12-006-E2（`ON_SIGNI_BECOMES_UP` 新設要）／WXDi-P11-066-E1（手札カード自身の効果捨て timing）／WXDi-P11-007-E1（エナ発ゾーン移動 timing）。
+
 - **🆕 セッション（2026-07-16・続き168・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster A/C 据置分の "Tier 1"＝engine 受け皿ありを消化）**
   - **4巡目・初の engine 小改修許可。4枚全採用・census 2048→2045・golden 369→373・同型★0・gates 全緑**。
   - PR-K073-E1（level2/3/4 存在条件＋《花畑チャイカ》以外の filter 反転是正）／WXDi-P03-001-E1（使用条件 LRIG_COLOR 青の配線・evalUseCondition 経路確認）／WDK13-008-E1（相手キー条件＋engine `HAS_CARD_IN_FIELD` に key_piece 走査5行追加）／WXEX1-35-E1（ライズ×3 条件・既存 hasRiseIcon filter）。
