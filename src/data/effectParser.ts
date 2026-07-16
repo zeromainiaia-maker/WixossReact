@@ -2775,6 +2775,17 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseThisWayGenericCount(thenM[0]);
       }
+      // 「その後、それのパワーがN以上(である)?の場合」＝直前 POWER_MODIFY で強化した「それ」（lastProcessedCards）の
+      // 実効パワー閾値（LAST_PROCESSED_POWER_GTE・engine 実装済み）。effectivePowers は POWER_MODIFY 適用前スナップショット
+      // のため、直前 delta を addDelta として渡して加味する（WX03-046「+5000後15000以上」/WXK11-065「+4000後10000以上」）。
+      // 従来は語彙が無く常時true化（IS_MY_TURN）していた過剰効果。
+      if (!condition && !rest.startsWith('代わりに')) {
+        const pm = thenM[0].match(/^(?:その後、)?それのパワーが([０-９\d]+)以上(?:である)?の場合、$/);
+        const pv = prevStep as { type?: string; delta?: number };
+        if (pm && pv?.type === 'POWER_MODIFY' && typeof pv.delta === 'number') {
+          condition = { type: 'LAST_PROCESSED_POWER_GTE', value: parseNum(pm[1]), addDelta: pv.delta };
+        }
+      }
       // 前段の記録に依存しない盤面状態条件（対戦相手手札N枚・ライフ枚数・センタールリグ＜X＞等）。
       // 「代わりに」帰結（置換機構待ち）は据置＝ここでは拾わない。
       if (!condition && !rest.startsWith('代わりに')) {
