@@ -2,6 +2,21 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## LAST_PROCESSED reveal 経路の条件節を系統追加＝levelParity／bare story／POWER_GTE の parser 未 emit を是正（8枚・census 2101→2098・IS_MY_TURN化 128→119）（2026-07-16・続き158・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き157「次の一手」(a)）
+
+**主題**＝PARTIAL 刻印 IS_MY_TURN化クラスタ（`docs/_partial_report.txt`）の残のうち、**engine の条件評価器（execUtils.evalCondition / matchesFilter）は既に対応済みなのに parser がその条件を emit していなかった穴**を3種まとめて塞いだ。いずれも「デッキ公開/ミル/POWER_MODIFY の直後に『そのカードが〜の場合』で分岐する」LAST_PROCESSED 経路で、条件節が抽出できず無条件（IS_MY_TURN）化＝過剰実行していた。
+
+**3種の穴（engine 実装済み・parser 未 emit）**：
+1. **level parity（レベルが偶数/奇数のシグニ）**＝`matchesFilter` は `filter.levelParity:'even'|'odd'` を既に評価するのに、`parseLastProcessedMatchesCondition`／`parseBareBranchCondition`／`parseThisWayGenericCount` の3関数が parity を捕捉せず据置していた。3関数すべてに parity 認識を追加（`parseBareBranchCondition`・`parseThisWayGenericCount` は除外リストから「偶数|奇数」を削除）。→ WDK04-011（偶数→手札/奇数→trash+power の2枝）・WXDi-P10-073・WXK01-106（偶数2枚・minCount:2）・WXK01-107（偶数ゲート）。
+2. **bare story（「＜X＞の場合」＝「のシグニ」無し）**＝`parseLastProcessedMatchesCondition` の regex が `…シグニ$` を要求し、「そのカードが＜ブルアカ＞の場合」（種別を問わない story 一致）を落としていた。`＜X＞(か＜Y＞)?$` 単独枝を追加＝`LAST_PROCESSED_MATCHES{filter:{story:X}}`。→ WX25-CP1-054・WXDi-CP02-063（デッキ公開＜ブルアカ＞）。
+3. **`LAST_PROCESSED_POWER_GTE`**（それのパワーがN以上の場合）＝engine は WX03-046 用に実装済み（`effectExecutor` の `selectOrInteract`→`resumeSelectTarget` が選択対象を lastProcessedCards に記録・`execUtils` が `effectivePowers` スナップショット＋`addDelta` で判定）なのに parser が一切 emit していなかった。block 抽出に「直前が numeric-delta の POWER_MODIFY のとき『それのパワーがN以上(である/の)?場合』→ `LAST_PROCESSED_POWER_GTE{value:N, addDelta:直前delta}`」を追加。→ WXK11-065（+4000後10000以上）。WX03-046 は既に MANUAL で POWER_GTE 済みと判明。
+
+**採用フロー**＝parser 変更は条件の**値変更**（IS_MY_TURN→別条件）で isPureSuperset に非該当のため held に落ちる。6枚（LPM 系）は `heldReview.mjs --adopt` で明示採用、WXK11-065 は PARTIAL 温存で held に載らないため JSON を単一行 format 保持で直接パッチ。
+
+**据置（機構未対応で held 残置）**＝WXK07-106（BET header の UNKNOWN 混在）・WDK16-13/WXK08-033（登録者数 AND 複合枝が脱落し無条件 ADD_TO_FIELD 化＝(xxii) 既知の複合条件枝）・WX14-072（手札公開 CHOICE の mis-parse・本バッチ対象外）。
+
+**結果**＝golden 356・smoke 全0・fuzz 全0・同型★0 維持・census 2101→2098（BASELINE 更新）・IS_MY_TURN化 128→119（刻印 154→145）。
+
 ## ドリームチーム【使用条件】ヘッダの mis-parse を是正（WXDi-P08 ピース4枚・census 2104→2101）（2026-07-16・続き157・Opus 4.8・PLAN §3 Opusタスク12🆕 続き156 の残タスク(a)）
 
 **対象**＝WXDi-P08-001〜005（ドリームチームピース）。効果文が「【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）あなたの場に(色)のルリグがいる場合、X。その後、あなたの場に(色)のルリグがいる場合、Y。その後、あなたの場に(色)のルリグがいる場合、Z。」という構造。
