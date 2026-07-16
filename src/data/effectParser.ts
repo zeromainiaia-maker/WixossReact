@@ -2063,13 +2063,15 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
   const aAction = parseActionText(aText);
   const bAction = parseActionText(bText);
   if (aAction.type === 'UNKNOWN' || bAction.type === 'UNKNOWN') return null;
+  const aLift = liftChoiceOptionCondition(aAction);
+  const bLift = liftChoiceOptionCondition(bAction);
   return {
     type: 'CHOOSE',
     choose_count: 1,
     from_count: 2,
     choices: [
-      { choiceId: 'c0', label: '選択肢1', action: aAction },
-      { choiceId: 'c1', label: '選択肢2', action: bAction },
+      { choiceId: 'c0', label: '選択肢1', action: aLift.action, ...(aLift.condition ? { condition: aLift.condition } : {}) },
+      { choiceId: 'c1', label: '選択肢2', action: bLift.action, ...(bLift.condition ? { condition: bLift.condition } : {}) },
     ],
   };
 }
