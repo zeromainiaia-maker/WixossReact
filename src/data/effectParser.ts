@@ -1080,6 +1080,13 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     }
     return null;
   }
+  // 「(その後、)それらに(色OR)のシグニがN体以上含まれる場合」＝直前に処理した複数カード(lastProcessedCards)に
+  //   指定色のシグニが minCount 以上あるか（WX21-010「それらに白か黒のシグニが１体以上含まれる場合」・前段 BANISH）。
+  const incl = clause.match(/^(?:その後、)?それらに((?:白|赤|青|緑|黒)(?:か(?:白|赤|青|緑|黒))*)のシグニが([０-９\d]+)体以上含まれる場合、$/);
+  if (incl) {
+    const colors = incl[1].split('か');
+    return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: colors.length > 1 ? colors : colors[0] }, minCount: parseNum(incl[2]) };
+  }
   if (prevIsEnergyPlace) {
     const ep = clause.match(/この方法で＜([^＞]+)＞のシグニがエナゾーンに置かれた場合、$/);
     if (ep) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: ep[1] } };
