@@ -155,11 +155,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き162・Opus 4.8・PLAN §3 Opusタスク12(xxi)＝Sonnet の詰まり解消：ON_DRAW any_opp「自分の効果で」発生源限定を実装）**
-  - **依存 `Opus12→Sonnet1` を消化＝Sonnet の主力在庫を再生産する作業**。`collectOppDrawTriggers` が ON_DRAW any_opp watcher の発生源（drawer 自身の効果か reactor の効果で相手を引かせたか）を区別せず PR-423「対戦相手が自分の効果で引いたとき」が誤発火していた（続き131・シナリオ`oppDrawOwnEffectOnly`・意図的FAIL回帰）のを修正。
-  - **機構新設**＝PlayerState `last_draw_by_own_effect`（execDraw で `a.owner==='self'` を記録）＋triggerCondition `drawByDrawerOwnEffect`。`collectOppDrawTriggers` で drawer のフラグを判定＝reactor 自身の効果で相手を引かせた場合は非発火。PR-423 JSON にフラグ付与（類似は PR-423 のみ・WXDi-P15-091 は「効果によって」で対象外）。golden 1件（発火/非発火）追加＝357→358。
-  - **検証**：golden 358・smoke/fuzz 全0・census 2092 維持・同型★0 維持。詳細 BUGFIXES 続き162。
-  - **次の一手**：**Sonnet＝タスク1 の在庫が復活**＝`oppDrawOwnEffectOnly` をブラウザ harness で回し PASS 反転を確認して既定 order へ追加（続き131 の意図的FAIL回帰が PASS になるはず）。Opus＝IS_MY_TURN化残104（種類/ALL_MATCH/LAST_PROCESSED_HAS_BURST/単発条件）・前段が STUB で記録しない一群の前段記録機構・(xxvii) 残 Cluster C/A/F。
+- **🆕 セッション（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii) を並行消化）**
+  - **8枚是正・census 2092→2088・golden 358→359**。ユーザー依頼で (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を両方進めた。
+  - **(xxiv) ON_DISCARDED_AS_COST 発生源クラス限定（4枚・engine機構新設）**＝triggerCondition `discardCostSourceStory`＋`collectHandDiscardTriggers` に `costSourceNum` 引数（コスト支払い能力の host シグニ CardClass で判定）＋BattleScreen 3発火元で `cardNum` 渡し＋parser 抽出。WX25-P3-071/077/084/088（微菌）。**残＝WX25-P3-085 grant mis-parse／ON_OPP_POWER_DECREASED 2・ON_CARD_MILLED_FROM_DECK 1 は発生源シグニ追跡が engine に無く §6.3級**。
+  - **(vii) 「このシグニをダウンしてもよい」対象/自己混同（4枚・MANUAL 上書き）**＝DOWN を self thisCardOnly optional へ（正準形 WD12-013）。WX25-P1-055/WXDi-P04-059（+BANISH power フィルタ復元）・WXDi-P13-074（+isDisona）・WXDi-CP01-040（+REVEAL_DECK_TOP＋バーチャルゲート）。**残3枚＝§6.3級**（WX25-P3-089/WXDi-P15-084 引用付与・WX25-P2-112 動的色フィルタ）。
+  - **検証**：golden 359・smoke/fuzz 全0・census 2092→2088（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き163。
+  - **次の一手**：Opus＝(xxiii) リコレクト分割・(xxvii) 残 Cluster C/A/F・引用付与（タスク1＝(vii)/(xxiv) 残の共通ブロッカー＝GRANT-inner 機構）・IS_MY_TURN化残104。Sonnet＝続き162 の `oppDrawOwnEffectOnly` PASS 反転確認（在庫復活済み）。
   - **次の一手**：Opus＝条件節クラスタ残の**機構バウンド**分（(a) LAST_PROCESSED reveal 経路のブルアカ系＝REVEAL_AND_PICK と絡む／(b) 「見る。その中から…」2文 LOOK_PICK × 条件（P08-003 等）／(c) コスト支払い累計・デッキ移動累計カウンタ）を機構ごとに。タスク12 在庫（(xxvii) 残 Cluster C/A/F）も。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
