@@ -2,6 +2,31 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## §3 Opusタスク1（本丸）＝引用付与の対象-コスト分離2文型＋「対戦相手が《…》を支払わないかぎり」ゲートを実装（16枚・14効果採用・census 2088→2084・golden 359→364・実機 `wx24p2018GrantFire` 2回連続PASS）（2026-07-16・続き164・Fable 5〔Opus側〕・PLAN §3 Opusタスク1／12(vii)残/(xxi)類縁）
+
+**主題**＝タスク1の本丸 WX24-P2-018-E1 を含む「**<対象>を対象とし、<任意コスト>てもよい。そうした場合、(期間、)それは「【自】…」を得る**」の2文型家族（原文照合で全18効果）と、その内側に現れる「**対戦相手が《無》×N を支払わないかぎり、X**」ゲート（同33文）を parser 語彙化した。従来は (a) S1 の対象節が任意コスト STUB／誤 DOWN に飲まれて**無言脱落**、(b) S2 は引用内側が漏れ出して**即時実行に平坦化**（WX24-P2-018＝ルリグ自身へ即アサシン付与・WX25-P3-089＝内側 DRAW の即時実行・WXDi-P15-084＝内側 TRASH の即時実行）、(c)「支払わないかぎり」節は**無言消費されて X が無条件実行**の過剰効果、の三重の系統バグだった。
+
+### parser（`effectParser.ts`・3規則）
+1. **P1「対戦相手が(《[白赤青緑黒無]》)+を支払わないかぎり、X」**（`parseSingleSentenceInner` 早段・^アンカー）→ `SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL,costColors}, CONDITIONAL{IS_MY_TURN, then:X}]`。engine は既存の executor Pattern（`effectExecutor.ts:2339`＝相手側 CHOOSE「支払う=noop／支払わない=X」・`opponentResponds`）で完結＝**engine 変更ゼロ**。⚠ガード2点＝「対戦相手**は**」形（主語が帰結節に分配される「手札を捨てる/アタックできない」型＝part3 専用規則の領分）と、帰結が「そのシグニ」照応（単文パースで owner が self に反転する退化＝WXDi-P08-007 で実測）は据置。
+2. **P2 2文型引用付与**（`parseActionTextInner` 文ループ・prevRaw 追跡を新設）＝S2「そうした場合、(期間、)それ(ら)は「【自出起常】…」を得る」を検知したら、**直前文の原文**から対象節を抽出して `CONDITIONAL{IS_MY_TURN, then: GRANT_EFFECT{target, duration, rawText}}` を積む（「それ」の解決＝付与時に選択UI・engine は既存 `execGrantEffect`）。コストが「アップ状態のこのシグニをダウンしてもよい」形なら S1 を**正準形**（`DOWN{self,thisCardOnly,isUp,optional}`＝WD12-013・続き163）へ置換（従来は対象節のフィルタが DOWN に誤って載り、コストのはずの自己ダウンが対象シグニに掛かっていた）。⚠ガード＝**内側引用が単一ブロック AUTO で試験展開できるときだけ発火**（`_silentFallbacks` を退避して parseBlock 試行）。展開不能な内側（「【常】：アタックできない。」等）で rawText 温存 GRANT_EFFECT を作ると engine の no-op ガードにより**従来の粗い即時 BLOCK_ACTION（動く近似）より退化**するため据置（WXK10-007/WXDi-P06-047/WXDi-P08-053 で実測して除外）。
+3. 内側の「ターン終了時まで、このシグニは【アサシン】を得る」は既存 GRANT_KEYWORD 規則＋`execGrantKeyword` の sourceCardNum 自動適用（`effectExecutor.ts:1755`）で host 自身に付く＝追加変更不要。
+
+### 全数機械測定（ガードレール準拠）
+変更前後の parser 出力を**全9283カードでダンプ比較**（before は編集前コミットの worktree で採取）→ **16枚のみ変化・全16枚を原文照合して退化ゼロを確認**（途中2回の退化検出→ガード追加のループ込み：初版23枚→P08-007 owner反転/P16-091 主語分配で「が」限定＋そのシグニ照応ガード→21枚→【常】内側の no-op 化で AUTO 試験展開ガード→16枚に収束）。
+
+### JSON 採用（14効果・fresh vs live-curated を effectId 単位で突き合わせ）
+curated==fresh-before（手修正なし）を機械確認した14効果のみ採用（`scripts/archive/adoptGrantFamily_tsuzuki164.mjs`）：**WX24-P2-018-E1**（本丸＝OPTIONAL_COST《赤》→GRANT_EFFECT＜龍獣＞→内側【自】ON_ATTACK_SIGNI＋OPPONENT_PAY_OPTIONAL《無×3》→アサシン）・**WX25-P3-089-E1／WXDi-P15-084-E1**（タスク12(vii)残の引用付与2枚＝ダウンコスト正準化＋内側CHOOSE／LRIG付与＋ON_ATTACK_LRIG once_per_turn）・WXDi-CP02-079-E1・WX25-P2-053-E2・WXK10-080-E2（内側【常】GRANT_PROTECTION が AUTO 展開できる例）・WX25-CP1-032-E1（CHOOSE 内②枝）・WX25-CP1-001-E1（リコレクト枝の内側にP1ゲート）・WX24-P2-079-E1・WX25-P1-057-E1・WX25-P2-115-E1・WXDi-P09-052-E1・WXDi-P12-047-E2・WX26-CP1-077-SONG。**WX25-P3-074/078 は curated が既に正準形の MANUAL＝据置**（今回の parser 出力と意味同値＝parser/curated パリティ達成の裏付け）。
+
+### decompiler
+`OPPONENT_PAY_OPTIONAL` の描画（「対戦相手は《…》を支払ってもよい」）を新設し、SEQUENCE 描画で直後の CONDITIONAL(IS_MY_TURN) を「**そうしなかった場合、**」へ反転（pay の skip 枝が then＝意味反転を防ぐ）。
+
+### 実機E2E（＝タスク1の DoD）
+`wx24p2018GrantFire` を**完全経路シナリオへ書き換え**（guest エナ0注入＝CPU が《無×3》を支払えず「支払わない」を自動選択）：E1発火→《赤》支払い→対象 WX04-072 選択→内側能力付与→WX04-072 アタック→内側【自】発火→相手不払い→**WX04-072 に【アサシン】付与**。**2回連続PASS**（旧・意図的FAIL＝ルリグ自身へ即付与、の反転）＝既定 order へ追加（71→75…実際は74→75件目）。driver 修正＝SELECT_TARGET の「決定 (1/n)」2段確定・フォールバッククリック列から「発動」誤爆を除去。
+
+**検証**＝gates 全緑（typecheck・golden 359→364〔parse形5件追加：2文型pay形/ダウン形/【常】据置ガード/P1ゲート/「は」形据置〕・smoke 10593 全0・fuzz 全0）・census 2088→**2084**（BASELINE 更新）・同型★0 維持・`npm run regen` 済み。
+
+**残（タスク1のスコープ外に切り出し）**＝(a) 2文型のうち内側が AUTO 展開できない「【常】：アタックできない。」家族（WX24-P3-049/WXDi-P06-047/WXDi-P08-053/WX25-CP1-026/WXK10-007②/WXK11-007②）＝粗い即時 BLOCK_ACTION の従来近似のまま（付与構造化には granted CONTINUOUS の BLOCK_ACTION 収集が要る）。(b)「そのシグニ」照応の P1 据置1枚（WXDi-P08-007-E1＝条件脱落の既知バグ継続・トリガー元照応の owner 解決が要る）。(c) WX25-P3-085（S1にトリガー句が挟まる単文型 grant mis-parse＝タスク12(xxiv)残のまま）。(d) SP27-002-E3（内側【常】の「正面パワー15000以上であるかぎり」＝genericKagiri 消費・タスク12(i)のまま）。
+
 ## (xxiv) ON_DISCARDED_AS_COST 発生源クラス限定＋(vii) 「このシグニをダウンしてもよい」対象/自己混同を是正（8枚・census 2092→2088・golden 358→359）（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii)）
 
 **主題**＝ユーザー依頼で Opusタスク12 の (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を並行消化。
