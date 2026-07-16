@@ -155,13 +155,14 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き147・Opus 4.8・PLAN §3 Opusタスク12(xxviii)＝「それをエナゾーンに置く」系統バグの消化）**
-  - **続き145で機械検索確定した8効果の系統バグ（🆕(xxviii)）を消化**。原文「対戦相手のシグニ１体を対象とし、コストを支払ってもよい。**そうした場合、それをエナゾーンに置く。**」の「それ」＝対象化した相手シグニ＝**エナ送り除去（SEND_TO_ENERGY）**だが、JSON では `CONDITIONAL{IS_MY_TURN, then: ENERGY_CHARGE{DECK_CARD, self}}`＝**自分デッキからのエナチャージ**に化けていた（相手シグニ除去が丸ごと自分エナ増加に）。
-  - **Sonnet の推定「executor intercept バグ」は誤りで、実体は parser**＝`parseSentencePart1.ts:1815` の「それをエナゾーンに置く」ルールが REVEAL 文脈専用の `ENERGY_CHARGE{DECK_CARD}` に決め打ちし、相手シグニ対象文脈にも誤適用していた（「それ」の指し先取り違え）。
-  - **修正**：(a) parser `applyLeadingOpponentDesignation`（`effectParser.ts`）を拡張＝末尾が `ENERGY_CHARGE` かつ「そうした場合、それをエナゾーンに置く」があれば先頭 designation（相手シグニ）を的にした `SEND_TO_ENERGY` へ置換（既存の単一`対象とし`ガード流用）。(b) `parseCardEffects` で parser 出力の厳密一致を検証してから JSON 7効果を直接パッチ（WXDi-P05-073-BURST/WX25-P2-026-E1/WX26-CP1-086-BURST/WXK05-027-E2/WXK05-070-E1/WXK10-048-BURST/WDK08-Y11-BURST）。(c) golden に構造回帰ガード1件。engine 変更は不要（既存の OPTIONAL_COST/TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST → CONDITIONAL(IS_MY_TURN) 経路＋`execSendToEnergy` で実行）。
-  - **検証**：逆翻訳が原文一致に是正（例 WXK10-048-BURST「…そうした場合、対戦相手のシグニ1体をエナゾーンに置く」）。gates 全緑＝golden 338→339・smoke/fuzz 全0・census 2206維持・同型★0維持。
-  - **残（Opusタスク12 へ持ち越し）**：WX24-P4-048-E2（「対象とし」2回＋動的パワー制約で除外＝要専用処理）／上記7のうち WX26-CP1-086・WXK05-027・WXK05-070 はコスト STUB 自体が不正確（除去は是正済み・コスト表現精緻化は別途）。詳細 BUGFIXES 続き147。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxix)＝duration系統24件/選択肢欠落23件・(xxvii)＝semantic audit第2弾37枚・(xxii)(xxiii)(xxiv) 系統バグ等）。Sonnet＝タスク8はstub群完了＝Opus在庫消化待ち、または補欠タスク。
+- **🆕 セッション（2026-07-16・続き148・Opus 4.8・PLAN §3 Opusタスク12(xxix)①＝「次の対戦相手のターン終了時まで」duration 系統バグの消化）**
+  - **続き146で確定した duration 系統（53効果クラスタ）を消化＝34効果を `UNTIL_OPP_TURN_END` へ是正**。原文「次の対戦相手のターン終了時まで」（相手の次ターン終了時まで＝長期の一時効果）が JSON で `UNTIL_END_OF_TURN`（現ターン終了＝即切れ）に縮退。シャドウ付与・パワー修整・能力付与・耐性付与など幅広い action で発生。
+  - **真因＝parser の substring 先取り**。`"次の対戦相手のターン終了時まで"` は `"ターン終了時まで"` を内包するため、多くの箇所が `t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : …` を**先に**判定して潰していた（既存の `UNTIL_OPP_TURN_END` 分岐へ到達不能）。POWER_MODIFY は既定で action-level duration を持たず temp ストア行きのため、値 flip だけでなく付与も必要だった。
+  - **修正（engine 変更なし）**：`effectParser.ts` に `upgradeToOppTurnEnd` を新設し `parseSingleSentence` から呼ぶ＝文に `/次の(?:対戦相手|相手)の?ターン(?:終了時まで|の間)/` があれば、その文の action ツリー（自身＋SEQUENCE/CONDITIONAL/CHOOSE 直下）の `duration`（UNTIL_END_OF_TURN/PERMANENT）・`until`（UNTIL_END_OF_TURN）を OPP へ昇格し、duration 未設定の POWER_MODIFY/POWER_SET にも付与。**文単位**のため別文の正当な PERMANENT（WX26-CP1-061 の「歌のカケラ」）や素の「ターン終了時まで」（WXDi-CP02-051-E2 の REMOVE_ABILITIES）は潰さない。
+  - **採用**：20効果は build:effects の pure-superset で自動採用／7効果は heldReview 採用／card 内 MANUAL 兄弟で丸ごと温存の7効果は当該 action の duration のみ JSON 直接パッチ。golden に回帰ガード1件（付与・flip・非昇格の対称ガード）。
+  - **検証**：逆翻訳が原文一致（例 WX24-P2-060-E2「…＋4000する（次の相手ターン終了時まで）」）。gates 全緑＝golden 339→340・smoke/fuzz 全0・census **2206→2173**（-33・BASELINE 実数更新）・同型★0維持。
+  - **残19効果は構造的でスコープ外**＝STUB機構待ち（GRANT_ABILITY_INNER_TEXT 等・§6.3級）／短縮enum until（WX24-P2-047）／INSTANT引用付与（WX24-P4-026等）／opp POWER_MODIFY が引用付与に埋没（WX25-CP1-064/061）／opp句が付与能力の内側（WXEX2-69）。詳細 BUGFIXES 続き148。
+  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxix)②＝選択肢欠落系統23件「手札に加えるか場に出す」→ADD_TO_FIELD縮退・(xxvii)＝semantic audit第2弾37枚・(xxii)(xxiii)(xxiv) 系統バグ等）。Sonnet＝タスク8はstub群完了＝Opus在庫消化待ち、または補欠タスク。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
