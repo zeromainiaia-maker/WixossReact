@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き153・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝UP group の filter/count 脱落是正）**
+  - **是正6効果**＝POWER_MODIFY group-buff と同型の脱落が UP にもあった。「あなたのすべての＜X＞のシグニをアップする」が `UP{owner:self, count:1, filter無}` に潰れ「1体だけアップ＋種族フィルタ喪失」へ縮退。WX11-038（迷宮）・WX05-036（水獣）・WXEX1-14（植物）・WXEX2-16（緑）・WXK03-020（遊具）・WX25-CP1-039（ブルアカ）。`すべての` を種族の前後どちらでも許容する group-up 正規表現を追加。engine `execUp` は count:ALL+filter 完全対応で engine 変更なし。親コミット比較で6効果のみ変化・回帰ゼロ。
+  - golden 350→352・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き153。
+
 - **セッション（2026-07-16・続き152・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝CONTINUOUS group-buff の disona/覚醒 filter 脱落是正）**
   - **是正4効果**＝続き151 の level 脱落と同型。CONTINUOUS「あなたの[他の]《ディソナアイコン》/覚醒状態のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1}` に潰れ効果元自身のみバフへ縮退。WXDi-P12-044/P13-047/P13-070（`isDisona`）・WXDi-P08-076（`isAwakened`）。engine 対応済み（isDisona=matchesFilter・isAwakened=matchesStateFilter）。group-buff parser の対象名詞句 filter に追加（名詞句内抽出＝全文スキャン禁止）。親コミット比較で5効果のみ変化・回帰ゼロ。crossState/ドライブ/左右ゾーンは適用経路未対応で除外。
   - golden 348→350・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き152。
