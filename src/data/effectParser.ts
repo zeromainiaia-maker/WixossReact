@@ -1844,6 +1844,25 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ①のプレフィックス許可リストに無いトリガー句（「ターン終了時、」等）直後の条件は、1668 除去で t 先頭へ来る。
   { const _w = tryWrapLeadingStateCond(t); if (_w) return _w; }
 
+  // 「対戦相手が《…》…を支払わないかぎり、X」＝相手が任意コストを支払わなければ X を実行する対話ゲート。
+  // STUB OPPONENT_PAY_OPTIONAL ＋ CONDITIONAL(IS_MY_TURN) の標準ペア＝effectExecutor:2339 が
+  // 「支払う（pay＝何も起きない）／支払わない（skip＝X 実行）」の相手側 CHOOSE を生成する。
+  // 従来はこの節に対応する規則が無く、下流の非アンカー規則が X だけを拾って節全体が無言消費され
+  // **X が無条件実行の過剰効果**になっていた（WX24-P2-018-E1 の引用内側＝タスク12(i) と同系統・§3 Opusタスク1）。
+  {
+    const oppUnlessPayM = t.match(/^対戦相手[がは]((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
+    if (oppUnlessPayM) {
+      const costColors = [...oppUnlessPayM[1].matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
+      const unlessThen = parseSingleSentence(oppUnlessPayM[2]);
+      if (!JSON.stringify(unlessThen).includes('"UNKNOWN"')) {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors } as StubAction,
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: unlessThen } as EffectAction,
+        ] } as SequenceAction;
+      }
+    }
+  }
+
   // 「[<トリガー句>、]このシグニをアップし、<残り>」＝2動作の複合文（「アップ＋ターン終了時まで能力を失う」＝
   // 再攻撃コンボの定番・6枚）。従来は先頭の「アップ」が無言脱落し、残り（能力喪失）だけが実行されていた＝
   // **デメリットだけ適用される**過少パース（WX24-P1-017 の引用付与の内側／WXDi-P15-056／WXDi-CP02-051 等）。
