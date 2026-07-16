@@ -2,6 +2,21 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## `LAST_PROCESSED_LEVEL_SUM` を operator 対応へ一般化＝「レベルの合計がN以上/以下/ちょうど」の parser 未 emit を是正（4枚採用・census 2096→2093・golden 356→357）（2026-07-16・続き160・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き159「次の一手」）
+
+**主題**＝IS_MY_TURN化クラスタの「結果のレベル合計閾値」系統。「この方法でトラッシュに置いた/公開したシグニのレベルの合計がN(以上/以下)?の場合」を parser が抽出できず無条件発火していた。
+
+**構造＝engine 実装済み・parser 未 emit＋operator 不足の二重の穴**：
+- engine には `LAST_PROCESSED_LEVEL_SUM_EQ`（lastProcessedCards のシグニレベル合計＝N）が実装・型・decompiler まで揃っていたが、**parser が一度も emit しておらず**（`effectParser.ts:1079` のコメントで「合計系は据置」とされていた）、しかも **EQ（ちょうどN）専用で「N以上/以下」を表現できなかった**。
+- JSON 消費者ゼロを確認のうえ `LAST_PROCESSED_LEVEL_SUM_EQ` を **`LAST_PROCESSED_LEVEL_SUM{operator, value}`** へ一般化（engine は `cmp(sum, operator, value)`・decompiler は `opJa` 付き・型は `CompareOp`）。
+- parser に `parseLevelSumCondition` を新設＝「(その後、)(この方法で／それら)〜レベルの合計がN(以上/以下)?の場合」→ operator（以上=gte／以下=lte／無印=eq）。block 抽出で前段が lastProcessedCards を記録するとき（`prevRecords`）だけ発火。
+
+**採用**＝`heldReview --adopt-sig` で4枚：WDK05-R14（合計4=eq・凍結）・WXK10-085（合計4=eq・パワー減）・WXEX2-62（合計7=eq・クラッシュ）・WX22-Re06（合計3以上=gte・バニッシュ）。**回帰防止**＝golden に `evalCondition` で eq/gte/lte を叩く1件を追加（356→357）。
+
+**据置**＝前段が lastProcessedCards を記録しないカード（PR-K049＝両者デッキ底トラッシュが STUB `LRIG_UNDER_CARD_OP`／WDK13-017＝「めくれるまで公開」が STUB `REVEAL_AND_PICK`／WXDi-P11-039＝任意手札公開が STUB／WXDi-P16-087＝prev が入れ子 SEQUENCE[DRAW,TRASH] で `prevSetsProcessed` が最外 type=SEQUENCE を見て false）。いずれも前段の記録機構が別途要る。**多分岐の2枝目以降**（「6以上の場合」等・接頭辞なし）は前段 then が lastProcessedCards を上書きしうるため意図的に据置（先頭枝専用）。
+
+**結果**＝golden 357・smoke 全0・fuzz 全0・同型★0 維持・census 2096→2093（BASELINE 更新）・IS_MY_TURN化 111→107（刻印 137→133）。
+
 ## 盤面状態条件節を STATE_CONDITION_CLAUSES へ系統追加＝レゾナ場／トラッシュ枚数／手札より多い／場にシグニなし（4枚採用・census 2098→2096・IS_MY_TURN化 119→111）（2026-07-16・続き159・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き158「次の一手」）
 
 **主題**＝続き158 の続き。PARTIAL 刻印 IS_MY_TURN化クラスタ（`docs/_partial_report.txt`）の残のうち、**engine の evalCondition・decompiler の condJa がどちらも既対応なのに parser の `STATE_CONDITION_CLAUSES` に語彙が無く、「その後、<状態条件>の場合」の条件節ごと脱落して無条件発火していた**盤面状態4種を追加した。前段ステップの記録に依存しない独立ゲート（`parseHoistStateCondition` 経由）。
