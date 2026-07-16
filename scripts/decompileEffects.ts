@@ -347,7 +347,7 @@ function condJa(c?: any): string {
     case 'OPPONENT_NOT_PAID': return '対戦相手が任意コストを支払わなかった';
     case 'SELF_OPTIONAL_EFFECT_TAKEN': return '自分が任意効果を実行した';
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN': return 'このターン《ディソナ》以外のスペルを使用していない';
-    case 'LAST_PROCESSED_LEVEL_SUM_EQ': return `直前に処理したシグニのレベル合計が${numJa(c.value)}`;
+    case 'LAST_PROCESSED_LEVEL_SUM': return `直前に処理したシグニのレベル合計が${numJa(c.value)}${opJa(c.operator)}`;
     case 'TRASHED_DISTINCT_LEVELS_GTE': return `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
     case 'TRASHED_STORY_COUNT_GTE': return `この方法で${numJa(c.count)}体の＜${c.story}＞のシグニがトラッシュに置かれた`;
     case 'LAST_PROCESSED_POWER_GTE': return `直前に選んだシグニのパワー${c.addDelta ? `（+${c.addDelta}後）` : ''}が${numJa(c.value)}以上`;
