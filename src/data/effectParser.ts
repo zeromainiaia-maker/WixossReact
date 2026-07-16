@@ -1929,7 +1929,17 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
     if (a.type === 'SEQUENCE') { const st = (a as SequenceAction).steps; for (let i = st.length - 1; i >= 0; i--) { const f = findFinal(st[i]); if (f) return f; } return null; }
     return a;
   };
-  const fin = findFinal(action) as { target?: EffectTarget; source?: EffectTarget } | null;
+  const fin = findFinal(action) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
+  // 特例（続き147・§3 タスク12(xxviii)）：末尾が「そうした場合、それをエナゾーンに置く」＝
+  // 対象化した相手シグニ（designation）のエナ送り。parseSentencePart1 が REVEAL 文脈用の
+  // ENERGY_CHARGE{DECK_CARD,self}（＝自分デッキからのチャージ）に誤マップするため、
+  // designation を的にした SEND_TO_ENERGY へ置換する（該当8効果の除去脱落を一括是正）。
+  if (fin && fin.type === 'ENERGY_CHARGE' && /そうした場合、それをエナゾーンに置く/.test(text)) {
+    const mut = fin as unknown as { type: string; target: EffectTarget };
+    mut.type = 'SEND_TO_ENERGY';
+    mut.target = desig;
+    return action;
+  }
   const tgt = fin?.target ?? fin?.source;
   if (!tgt || tgt.type !== 'SIGNI' || tgt.owner === 'opponent') return action;
   tgt.owner = 'opponent';
