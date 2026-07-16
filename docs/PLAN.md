@@ -93,7 +93,7 @@
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
 | 15 | （大型・任意）§8 CPU AI のメインフェイズ拡張 | 新規設計 | L（特大） | ⏳DESIGN §4「CPU は対人戦と同じ処理」の統一が先 |
 | ~~17~~ | ~~timing 判定が本文後半/引用内のトリガー語を先に拾う系統バグ~~ **✅続き136（Opus）で修正＝判定を「効果ブロック先頭のトリガー句」に限定（`trigText`）。JSON 23効果を ON_ATTACK_PHASE_START へ是正・census 2218→2215・golden 326・同型★0維持。詳細 BUGFIXES 続き136** |
-| 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | ✅ engine 配線済みで parser 語彙だけ無いクラスタは続き75/76で出し切った（19系統81枚・376→128）。**残128は engine に受け皿が無い機構待ち＝§6.3 へ**。ロングテール（1〜6件）のみ。運用知見は PLAN_DETAIL §3 |
+| 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | ✅ engine 配線済みで parser 語彙だけ無いクラスタは続き75/76で出し切った（19系統81枚・376→128）。**続き172（Sonnet）で残117クラスタの振り分け台帳 `docs/_timing_census_triage.txt` を新設＝旧「残128は全て機構待ち」の想定を訂正**：**[A]完全wired（parser regexのみで直る）約34クラスタが即消化候補として新たに判明**（ON_ACCE_ATTACH／ON_SIGNI_BATTLE系／ON_CARD_MOVED_TO_DECK／ON_CHARM_TO_TRASH／risedOntoNameContains／exceedCostPaidByPlayer等）。[B]軽量engine拡張が要る約16クラスタ／[C]新規機構が要る約67クラスタ（§6.3送り）。[C]側は個別カード対応より①ON_SIGNI_DOWN系未配線②累積・合計N以上カウンタ欠如③ON_LEAVE_FIELD/ON_HAND_DISCARDEDの跨サイドscope欠如④自己discard反応欠如⑤frozen filter欠如、の5パターンで一括機構化を検討する方が費用対効果が高い。運用知見は PLAN_DETAIL §3 |
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。詳細本文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3 の (i)〜(xx)）：
 
