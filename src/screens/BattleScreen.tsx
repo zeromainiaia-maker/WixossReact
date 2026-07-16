@@ -9252,7 +9252,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (allDiscardedForTrigger.length > 0) {
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
           allDiscardedForTrigger, paid, user.id, true,
-          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id);
+          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum);
         stackEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
