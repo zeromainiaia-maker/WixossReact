@@ -2963,7 +2963,11 @@ function parseActionTextInner(text: string): EffectAction {
       // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
       // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
       const prevIsProcessRecorder2 = prevStep?.type === 'TRANSFER_TO_DECK';
-      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevIsProcessRecorder2 || prevStep?.type === 'REVEAL_DECK_TOP';
+      // 公開（private:false）の LOOK_AND_REORDER も engine が閲覧カードを lastProcessedCards に記録する
+      //（resumeLookAndReorder＝reordered を記録）。「この方法で公開された（すべての）カードがN枚/〜の場合」の結果条件を
+      //   拾えるよう含める（「デッキの上からN枚公開する」WX12-Re10/WXDi-P07-064 等）。私的な「見る」は含めない。
+      const prevIsPublicLook = lar?.type === 'LOOK_AND_REORDER' && lar.private === false && (typeof lar.count !== 'number' || lar.count > 1);
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevIsProcessRecorder2 || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
