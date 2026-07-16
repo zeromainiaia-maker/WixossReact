@@ -2,6 +2,31 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## semantic audit stub群スケールアップ第2弾＝残り2,101枚（stub群母集団の全数）を完走・Codexのみで実行、Claudeは精査に専念（2026-07-16・続き146・Sonnet 5・PLAN §3 Sonnetタスク8）
+
+**ユーザー指示「バッチはCodexだけ・Claudeは確認だけ」に従い、続き145で確立したCodex CLI体制のまま、stub群母集団2,401枚のうち未監査だった残り2,101枚（既監査300枚を`--exclude-file`で除外・サンプリングではなく全数）を1ラウンドで完走した。これにより**stub群母集団2,401枚は全数監査完了**。
+
+### ツールの恒久化
+`scripts/semanticAuditExtract.mjs`に`--exclude-file`（既監査カード除外）・`--groups`（stub/clean限定）・`--per-group all`（サンプリングでなく全件抽出）・`--cards-file`（大量カードリストをファイルから読む＝CLI引数長制限を回避）を追加。続き145の`semanticAuditRunCodex.mjs`は「セッションscratchpad限定・one-off」扱いだったが、今後も継続する運用のため`scripts/`に正式なツールとして新規作成（`claude -p`版と同じ`raw/batch_NN.json`スキップ規約を共有）。**5連続失敗で自動停止するサーキットブレーカーを追加**（無料枠上限・認証切れ等の恒久的ブロックを検知し、無駄なリトライで時間を浪費しないため。未完了バッチは`raw`ファイル不在のまま＝次回同コマンドで自動再開）。
+
+### 実行中に遭遇した2種の障害
+1. **Codex無料枠の使用量上限**：アカウント`karkadoll1011@gmail.com`で17バッチ完走後、5連続失敗で自動停止。手動で1バッチを直接実行し原因を特定＝`codex exec`が返す生のエラーメッセージに`"You've hit your usage limit...try again at Aug 15th, 2026 1:35 AM"`と明記（推測ではなくツールの出力そのもの）。約1か月先のリセットで実用的でないため、ユーザー了承のもと別アカウント（`zeromain.iaia@gmail.com`）へ`codex logout`→`codex login`で切替えて続行。
+2. **一時的な401 Unauthorized**：切替後さらに5連続失敗で自動停止したが、`codex login status`は直後に正常復帰＝クォータ枯渇ではなく**診断用に手動`codex exec`をバックグラウンドジョブと同時実行したことによるトークンリフレッシュの競合**と判明。単独実行に戻したところ211バッチ完走まで無停止。
+
+### 結果サマリ
+211バッチ・2,101枚完走・**findings 2,799件**（HIGH 1,829/MED 965/LOW 5）。指摘ありカード1,371/2,101枚（65.3%＝続き145の63.5%とほぼ同水準・想定内）。
+
+### 🌟精査で確定した4系統（quoteクラスタリング＋直接JSON/原文照合）
+1. **(xxviii)の独立再確認**：「それをエナゾーンに置く」クラスタ5件中4件が続き145で機械検索確定済みの8件と一致（WX25-P2-026-E1/WXK05-027-E2/WXK05-070-E1/WXK10-048-BURST）＝LLM意味比較が機械JSON形状検索と独立に同一バグを検出＝優先度の裏付け。残り1件（WXK10-011）はquote一致のみの誤クラスタ（実体は§6.3級の別バグ＝複合選択STUB内の欠落）。
+2. **🆕(xxii)の適用範囲拡大**：「そうした場合」クラスタ27件中2件（WX04-030-BURST=`parseStatus:MANUAL`／WX06-014-E2=`parseStatus:AUTO`）を直接確認＝**task9のPARTIAL刻印152件リストに含まれないカードで同一のIS_MY_TURN誤変換バグを確認**。既存計器（`markSilentFallback`によるPARTIAL降格）は「パーサーがIS_MY_TURN条件オブジェクトを生成できてしまったケース」を捕捉できない盲点があり、実際の影響範囲は152件より広い。
+3. **🆕duration系統バグ（新規・24件）**：「次の対戦相手のターン終了時まで」がJSONでは`duration:"UNTIL_END_OF_TURN"`（現在のターン終了時）に短縮される。WX24-P1-040-E2（GRANT_KEYWORD シャドウ付与）・WX24-P2-030-E2（STUB GRANT_ABILITY_INNER_TEXT）の2件で確認＝durationパーサーが長期の期間表現を認識できず短いdurationへフォールバックする疑い。
+4. **🆕選択肢欠落系統（新規・23件）**：「手札に加えるか場に出す」がADD_TO_FIELDのみに縮退（SP27-005-E1で確認）。「手札に加える」選択肢が丸ごと欠落＋検索処理自体もSTUBに埋没。
+
+### その他の未検証大型クラスタ（次回優先候補）
+owner取り違え「対戦相手のシグニ１体」22件・unless未実装「手札を３枚捨てないかぎり」14件・ゾーン取り違え「あなたのトラッシュから」13件・対象種別+owner取り違え「対戦相手のルリグ１体」11件・フィルタ欠落「ルリグかシグニ１体」10件・BET_MECHANIC表現不足「以下の３つから１つを選ぶ」9件、ほか計222クラスタ。全リスト`scripts/archive/scratchpad/semantic_audit_stub_round3/clusters_high.txt`、詳細`docs/_semantic_audit_stub_round3_triage.txt`。
+
+**PLAN.md Opusタスク12へ🆕(xxix)として登録**（duration系統・選択肢欠落系統・(xxii)適用範囲拡大の3点）。累積除外リストを`scripts/archive/scratchpad/semantic_audit_stub_round3/audited_stub_cards_cumulative.txt`（2,401枚＝stub群母集団の全数）に更新。**§3 Sonnetタスク8はstub群について完了**。
+
 ## semantic audit stub群スケールアップ第1弾＝新規200枚完走・Codex CLI併用体制の確立・系統バグ8件を機械確定（2026-07-16・続き145・Sonnet 5・PLAN §3 Sonnetタスク8）
 
 **続き144が完了したseed202607サンプル（stub100+clean100）に続き、stub群母集団2,401枚のうち未サンプリングだった約2,301枚から新規200枚（seed202608）を監査した。本ラウンドから実行体制を変更＝ユーザーの指示で`claude -p`のトークン消費を節約するため、バッチ実行はOpenAI Codex CLI（ChatGPT完全無料プラン）主体に切り替え、Claudeはfeasibility確認と精査（トリアージ）に専念した。**
