@@ -2660,9 +2660,13 @@ function parseActionTextInner(text: string): EffectAction {
   }
 
   const steps: EffectAction[] = [];
+  let prevRawSentence = '';
   for (const s of sentences) {
     const clean = s.trim();
     if (!clean) continue;
+    // 直前文の原文（2文型規則が S1 の対象節を参照するために保持。continue で飛んでも常に直前の非空文を指す）
+    const prevRaw = prevRawSentence;
+    prevRawSentence = clean;
 
     // 「＜盤面状態条件＞の場合、代わりに＜enhanced＞」= 昇格置換（else付きCONDITIONAL）。（2026-07-05 続き28）
     // 直前ステップ（base）を else に、enhanced を then にして CONDITIONAL で前ステップを置換する。
