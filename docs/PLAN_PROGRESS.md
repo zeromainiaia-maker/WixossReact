@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き152・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝CONTINUOUS group-buff の disona/覚醒 filter 脱落是正）**
+  - **是正4効果**＝続き151 の level 脱落と同型。CONTINUOUS「あなたの[他の]《ディソナアイコン》/覚醒状態のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1}` に潰れ効果元自身のみバフへ縮退。WXDi-P12-044/P13-047/P13-070（`isDisona`）・WXDi-P08-076（`isAwakened`）。engine 対応済み（isDisona=matchesFilter・isAwakened=matchesStateFilter）。group-buff parser の対象名詞句 filter に追加（名詞句内抽出＝全文スキャン禁止）。親コミット比較で5効果のみ変化・回帰ゼロ。crossState/ドライブ/左右ゾーンは適用経路未対応で除外。
+  - golden 348→350・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き152。
+
 - **セッション（2026-07-16・続き151・Opus 4.8・PLAN §3 Opusタスク12(xxvii)＝CONTINUOUS group-buff の level 脱落是正＋Cluster B false positive 検証）**
   - **是正1件＝WX10-061-E1**：CONTINUOUS「あなたの他のレベル３のシグニのパワーを＋3000」が `POWER_MODIFY{owner:any, count:1}` に潰れ、engine（`count!=='ALL'`＝このシグニ自身のみ）で効果元自身のみバフへ縮退。group-buff parser（`parseSentencePart1.ts:1155`）にレベル filter 認識を追加（対象名詞句内から抽出＝全文スキャン禁止）。当初の全文スキャンで条件節 level 誤付与の回帰（SPDi43-31/WX05-073）を検出→名詞句内限定で回避。トリアージの「相手にも+3000」は誤り（count:1 は self-only）。
   - **(xxvii) Cluster B（POWER_MODIFY duration:INSTANT化）は false positive と確定**＝action 無 duration の POWER_MODIFY は engine の temp_power_mods でターン終了クリア＝原文どおり。修正不要でスコープ除外（意味的退化の見極め）。
