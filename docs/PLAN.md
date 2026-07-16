@@ -155,13 +155,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）**
-  - **PARTIAL 刻印 Cluster B（結果カウント閾値）の「捨てカウント」系を消化＝4効果**。原文「手札を（すべて/N枚）捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件を parser が抽出できず `CONDITIONAL{IS_MY_TURN}`（常時true）に化けさせ、実際の捨て枚数を見ずに X を無条件発火していた（過剰実行）。
-  - **原因＝`parseThisWayGenericCount` が「記録が不確実」との理由で捨て動詞を許可リストから除外していた**。engine を確認＝`TRASH{HAND_CARD}` は ALL/blind/選択resume の全経路で `lastProcessedCards` を記録（`effectExecutor.ts:699/730`・`resumeSelectTarget:4288`）＝`LAST_PROCESSED_COUNT_GTE` で正しくゲートされる。許可動詞に `捨て` 追加・否定「捨てなかった」は reject（Cluster C 据置）。
-  - **安全側の境界**＝前段が実 `TRASH` の forced/filter 捨てのみ是正（PR-K038-E3・WXEX2-39-E1・WXDi-P06-035-E2〈第1枝〉・WXK01-001-E2）。「捨ててもよい/好きな枚数捨てる（generic）」は前段が `STUB{OPTIONAL_COST}` に化け記録が不確実＝据置（(xi) と合流）。
-  - **採用**：curated が PARTIAL で丸ごと温存されるため当該 action を JSON 直接パッチ＋parseStatus AUTO 化。golden 回帰ガード3件（parse・否定非変換・**engine 実行で過剰実行防止を実測**）。
-  - **検証**：gates 全緑＝golden 342→345・smoke/fuzz 全0・census **2169→2167**（-2・BASELINE 更新）・同型★0維持。PARTIAL IS_MY_TURN化 98→94。詳細 BUGFIXES 続き150。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続（(xxii) 残＝属性判定/カウント閾値の据置分・多分岐複合条件・(xxvii) semantic audit第2弾37枚・(xxix)⑤ owner取り違え222クラスタ）。Sonnet＝Opus在庫消化待ちまたは補欠。
+- **🆕 セッション（2026-07-16・続き151・Opus 4.8・PLAN §3 Opusタスク12(xxvii)＝CONTINUOUS group-buff の level 脱落是正＋Cluster B false positive 検証）**
+  - **是正1件＝WX10-061-E1**：CONTINUOUS「あなたの他のレベル３のシグニのパワーを＋3000」が `POWER_MODIFY{owner:any, count:1, filter:{}}` に潰れ、engine（`count!=='ALL'`＝このシグニ自身のみ）で**効果元自身のみバフ**へ縮退。group-buff parser（`parseSentencePart1.ts:1155`）が対象名詞句の level を認識できなかった。正規表現に `レベルNの` を追加し**対象名詞句内から**level 抽出（`owner:self, count:ALL, filter:{level:N}, excludeSelf`）。⚠当初の全文スキャンで条件節 level を誤付与する回帰を検出（SPDi43-31/WX05-073）→名詞句内限定で回避。**トリアージの「相手にも+3000」は誤り**（count:1 は self-only 扱いで相手に及ばない）。
+  - **(xxvii) Cluster B（POWER_MODIFY duration:INSTANT化）は false positive と確定**＝action に duration 未設定の POWER_MODIFY は engine の `temp_power_mods`（ターン終了クリア）で実質「ターン終了時まで」＝原文どおり。effect.duration:INSTANT は temp store 挙動に無関係。修正不要でスコープ除外（意味的退化の見極め）。
+  - **検証**：golden 345→348（parse 復元・条件 level 非混入・**engine calcFieldPowers で「他のLv3自シグニのみ+3000/自身・Lv2・相手Lv3不変」実測**）・smoke/fuzz 全0・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き151。
+  - **次の一手**：Opus＝タスク12 の在庫消化を継続。(xxvii) 残は Cluster C owner/filter 単点（WX11-038-E1 迷宮フィルタ脱落・WXEX1-35/50・WXEX1-57 白か黒等）と CONTINUOUS group-buff の他フィルタ（ゾーン位置=左/右/中央のシグニゾーン・状態=クロス/覚醒/ドライブ・ディソナ）＝parser 拡張で追える。(xxii) 残は SEARCH 前段の「N枚トラッシュに置いた場合」（要 SEARCH の lastProcessed 記録確認＋「それ」参照の整合）。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
