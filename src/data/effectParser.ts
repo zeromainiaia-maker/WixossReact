@@ -27,6 +27,8 @@ import type {
   Condition,
   GrantKeywordAction,
   PowerModifyAction,
+  TransferToHandAction,
+  AddToFieldAction,
 } from '../types/effects';
 import {
   parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget,
