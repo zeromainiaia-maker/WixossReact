@@ -3818,6 +3818,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX25-CP1-062-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
+  // PLAN §3 Opusタスク12(xxvii) Cluster C: WXEX1-57-E1
+  // 原文「それが白か黒の＜天使＞のシグニの場合、それを手札に加える」。共通 parseColorFilter は
+  // 複色名詞句を意図的に単色へ昇格しないため、このカードだけ color OR を MANUAL で保持する。
+  // owner/revealCount/pickCount/then/remainder は自動パースを維持し、対象 filter だけを原文どおり狭める。
+  "WXEX1-57": [
+    {"effectId":"WXEX1-57-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"天使","color":["白","黒"]},"pickCount":1,"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1}},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+
 };
 
 /**

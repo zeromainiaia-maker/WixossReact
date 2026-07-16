@@ -2604,6 +2604,34 @@ test('Cluster A 条件節: 同じ＜毒牙＞シグニに power>=20000 を要求
   ok(evalCondition(cond, yes), 'power>=20000 の＜毒牙＞なら成立');
   ok(!evalCondition(cond, no), '低power毒牙と高power非毒牙の別カードでは不成立');
 });
+// PLAN §3 Opusタスク12(xxvii) Cluster C: トラッシュ全回収の対象色脱落を回帰防止。
+test('Cluster C parser: 「トラッシュからすべての黒のカード」→ self/ALL/color黒（WXK06-031-E2）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-CLC-TRASH-COLOR', Type: 'シグニ', EffectText: '【起】《黒》：あなたのトラッシュからすべての黒のカードをデッキに加えてシャッフルする。' } as unknown as CardData)[0];
+  const a = e.action as { type?: string; source?: { type?: string; owner?: string; count?: string; filter?: { color?: string } }; shuffle?: boolean };
+  eq(a.type, 'TRANSFER_TO_DECK', 'TRANSFER_TO_DECK');
+  eq(a.source?.type, 'TRASH_CARD', 'source はトラッシュ');
+  eq(a.source?.owner, 'self', 'owner:self を維持');
+  eq(a.source?.count, 'ALL', 'count:ALL を維持');
+  eq(a.source?.filter?.color, '黒', '原文の黒 filter を復元');
+  eq(a.shuffle, true, 'シャッフルを維持');
+});
+// 複色 REVEAL は当該カード固有の MANUAL。白・黒の OR と既存 owner/count/zone を固定する。
+test('Cluster C MANUAL: REVEAL 白か黒の＜天使＞→ color OR（WXEX1-57-E1）', () => {
+  const card = cardMap.get('WXEX1-57');
+  ok(!!card, 'WXEX1-57 カードデータがある');
+  const e = mergeManualEffects('WXEX1-57', parseCardEffects(card!))[0];
+  const a = e.action as { type?: string; owner?: string; revealCount?: number; pickCount?: number; filter?: { cardType?: string; story?: string; color?: string[] }; then?: { type?: string; source?: { type?: string; owner?: string; count?: number } } };
+  eq(e.parseStatus, 'MANUAL', 'カード固有 MANUAL 上書き');
+  eq(a.type, 'REVEAL_AND_PICK', 'REVEAL_AND_PICK');
+  eq(a.owner, 'self', 'owner:self を維持');
+  eq(a.revealCount, 1, 'デッキトップ1枚');
+  eq(a.pickCount, 1, '該当カード1枚');
+  eq(a.filter?.cardType, 'シグニ', 'シグニ限定');
+  eq(a.filter?.story, '天使', '＜天使＞限定');
+  eq(JSON.stringify(a.filter?.color), JSON.stringify(['白', '黒']), '白または黒の OR');
+  eq(a.then?.type, 'TRANSFER_TO_HAND', '該当カードを手札へ');
+  eq(a.then?.source?.owner, 'self', '自分のデッキカード');
+});
 test('CONT POWER_MODIFY level+excludeSelf: 他のLv3自シグニのみ+3000（自身/Lv2/相手Lv3は不変）（WX10-061）', () => {
   const L3a = findCard(c => isSigni(c) && c.Level === '3');
   const L3b = findCard(c => isSigni(c) && c.Level === '3' && c.CardNum !== L3a);

@@ -1362,9 +1362,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
       (t.includes('シャッフル') || t.includes('シャッフルする'))) {
     const all = t.includes('すべて') || t.includes('全て') || t.includes('全部');
     const count = all ? 'ALL' : 1;
+    // 「トラッシュからすべての黒のカードをデッキに加えてシャッフルする」型は
+    // source の色制約を保持する（WXK06-031-E2／WX01-033-E3）。単色が対象名詞句に
+    // 明記された形だけに限定し、複色・後続条件の色を誤って混入させない。
+    const colorM = t.match(/トラッシュからすべての([白赤青緑黒])のカードをデッキ(?:に加え|に戻し)/);
     return {
       type: 'TRANSFER_TO_DECK',
-      source: { type: 'TRASH_CARD', owner: 'self', count },
+      source: { type: 'TRASH_CARD', owner: 'self', count, ...(colorM ? { filter: { color: colorM[1] } } : {}) },
       shuffle: true,
     } as TransferToDeckAction;
   }

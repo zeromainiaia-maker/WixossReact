@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き166・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster A＝条件節丸ごと欠落を消化）**
+  - **ワークフロー実験の2巡目**（続き165 と同じ「Codex 実装／Claude 検証」）。Cluster A は大半が機構待ちのため **Codex は保守的に1枚だけ採用・残りは理由付きで据置**＝Cluster A の性質に照らして妥当な判断。
+  - **1枚採用（CONDITIONAL 包み）・census 2050→2049・golden 366→367・同型★0・gates 全緑**。
+  - **採用＝WXEX1-50-E1**＝「あなたの場にパワー20000以上の＜毒牙＞のシグニがある場合、カードを1枚引き【エナチャージ1】」。従来は条件節が脱落し**無条件発火**していた。parser の `STATE_CONDITION_CLAUSES_V2` に regex 1本追加＝`HAS_CARD_IN_FIELD{owner:self, filter:{cardType:シグニ, story:毒牙, powerRange:{min:20000}}}`（power と story を**1つの filter に積む**＝AND 分割だと別シグニで成立してしまうため。engine `matchesFilter`・decompiler 対応済みの既存パターン＝parseSentencePart1:668 と同形）。既存 `DRAW→ENERGY_CHARGE` を同内容の `CONDITIONAL.then` に包んだだけ・engine/型/decompiler 不変。
+  - **Claude 検証（報告の鵜呑みなし）**＝①機械 diff＝変更は WXEX1-50-E1 の1効果のみで CONDITIONAL 包み（owner/対象/STUB/parseStatus 不変）②`powerRange` が engine の発明フィールドでなく既存 `matchesFilter` 対応済みと確認（power は base 評価＝既存 HAS_CARD_IN_FIELD の挙動どおり・HEAD の常時発動より厳密に正しい）③Codex が「既に正しい」と主張した WX08-034（複合カード名 AND）・WX15-101（THIS_CARD_IS_ACCED）・WXDi-P11-066（HAND_COUNT lte2）を JSON で確認＝**主張どおり条件は action 内 CONDITIONAL に既存**（Codex は正しく無変更に留めた）④census 2049・golden 367・同型★0・`npm run gates` 全緑を独立再実行で確認。**退化ゼロ**。
+  - **据置（§6.3 送り候補・理由付き）**＝WD22-037-UG「効果によって場に出た場合」（発生源イベント履歴 Condition なし）／WDK13-008「対戦相手の場にキー」（`HAS_CARD_IN_FIELD` が `field.key_piece` を走査しない）／WX20-040「【トラップ】があるかぎり」（`field.signi_traps` 評価 Condition なし）／WXEX1-45「英知合計レベル」（専用機構）／WXDi-P03-001「使用条件：青のルリグ」（効果内条件でなくプレイ条件＝別機構）／PR-K073（CHOOSE 早期 handler が条件表を通らない）／WX09-Re04（Cluster B の duration バグが支配的）。
+
 - **🆕 セッション（2026-07-16・続き165・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster F＝フィルター単点欠落を消化）**
   - **ワークフロー実験＝「Opus 用作業を Codex に実装まで走らせ、Claude は検証のみ」**（ユーザー指示）。⚠ユーザー指定の `gpt-5-codex` は ChatGPT アカウント認証では 400 で使用不可→アカウント既定の `gpt-5.6-sol` で実行。
   - **50枚・51効果採用（filter 追加のみ）・census 2084→2050・golden 364→366・同型★0・gates 全緑**。

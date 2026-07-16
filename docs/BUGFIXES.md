@@ -2,6 +2,16 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## owner/対象範囲 audit：トラッシュ全回収と公開条件の色 filter を是正（2枚・census 2049→2048・golden 367→369）（2026-07-17・PLAN §3 Opusタスク12(xxvii) Cluster C）
+
+**主題**＝semantic audit Cluster C を原文と個別照合し、既存 DSL・engine・decompiler だけで完全表現できる clean 単点 **WXK06-031-E2／WXEX1-57-E1** のみ採用。owner/count/zone/action 構造は変えず、過剰だった対象を原文の色へ絞った。engine／型／decompiler は変更していない。
+
+- **WXK06-031-E2** 原文「あなたのトラッシュからすべての黒のカードをデッキに加えてシャッフルする」：`TRANSFER_TO_DECK.source` の `owner:self/count:ALL` を維持し、`filter:{color:'黒'}` を parser で追加。同文型 WX01-033-E3 は既存 MANUAL と一致する。
+- **WXEX1-57-E1** 原文「それが白か黒の＜天使＞のシグニの場合、それを手札に加える」：`REVEAL_AND_PICK.filter.color:'黒'` を `['白','黒']` に変更。該当文型がこの1枚だけで、共通 `parseColorFilter` の複色抑制方針を崩さないようカード固有 MANUAL（`parseStatus:'MANUAL'`）とした。
+- **据置**＝WX10-061-E1／WX11-038-E1 は既に正しい。WXEX1-50-E2 は相手手札からの選択機構、WXK06-031-E1 はレベル1～4を1枚ずつ選ぶ複数探索＋先行対象参照＋処理枚数条件、WXEX1-35-E1 はライズアイコン持ち3体の継続条件が必要なため、owner/count だけを部分修正しなかった。WXEX1-35 の内側 `GRANT_PROTECTION count:ALL` は完全効果耐性 collector が CONT target の count を参照せず効果元自身を保護するため機能同値だが、外側条件欠落に実害が残る。
+
+**検証**＝fresh vs curated は WXEX1-57-E1 が `color:'黒'→['白','黒']`＋MANUAL 刻印、WXK06-031-E2 が `source.filter.color:'黒'` 追加のみ。WXK06-031-E1 の別 drift（`parseStatus:AUTO→PARTIAL`）は effect 単位採用で除外し、未修正効果の計測状態を維持した。`npm run gates` 全緑（golden **369/369**・smoke CRASH/HANG/INVARIANT 全0・fuzz 全0・census **2048/BASELINE 2048**・lint error 0〔既存warning 187〕）。census の1件減は WXEX1-57-E1 が高シグナル欄から MANUAL 要確認欄へ移ったことによる。`npm run regen` 完走、同型★ **0**。逆翻訳は「《白・黒》の＜天使＞」「すべての《黒》のカード(トラッシュ)」で原文一致。
+
 ## 条件節丸ごと欠落による常時発動化を是正（1枚・census 2050→2049・golden 366→367）（2026-07-16・PLAN §3 Opusタスク12(xxvii) Cluster A）
 
 **主題**＝semantic audit Cluster A の候補を全件トリアージし、既存 DSL・engine・decompiler だけで原文どおり表現でき、別クラスタの不具合に支配されない clean 単点 **WXEX1-50-E1** を採用した。effects JSON の手パッチではなく、`effectParser.ts` の状態条件テンプレートから `build:effects` で収穫し `heldReview --adopt WXEX1-50` で採用。engine／型／decompiler は変更していない。
