@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き155・Opus 4.8・PLAN §5c 条件節クラスタ611 系統消化＝トリガー句直後の状態条件節脱落を是正）**
+  - **是正49効果**＝「【自】：<トリガー>、<状態条件>の場合、<アクション>」でトリガー句（ターン終了時/アタックフェイズ開始時等）**直後**の状態条件節がパーサーで丸ごと脱落し**無条件発火する過剰効果**になっていた系統（WX12-046 が毎ターン自壊、等）。census 2167→2131。
+  - **修正（parser のみ）**＝leading-condition ブロックを nested 関数 `tryWrapLeadingStateCond` に切り出し**①トリガー句付き text＋②トリガー句除去後 t の2箇所から呼ぶ second pass**。engine 対応済み条件型で CLAUSES 拡張＝`TRASH_COUNT`/`TURN_HAND_DISCARD_GTE`/`FIELD_COUNT`/`LRIG_LEVEL`(自/相手)/`HAS_CARD_IN_FIELD{レゾナ}`/`THIS_CARD_IS_ACCED`。build:effects→heldReview 署名単位採用・全件原文照合。
+  - **⚠選択肢内条件は据置**＝「②<条件>の場合、X」は engine が `choice.condition` で available 判定（`effectExecutor.ts:2540`）＝action を CONDITIONAL 包むと選択肢が常時選択可に化ける（WX25-P3-092 等6枚・golden 回帰）。curated の choice.condition 形を温存（`+CONDITIONAL` 署名は非採用）。→**続き156 で choice.condition 持ち上げ機構として解消済み**。
+  - **検証**：golden 354→356（second pass 回帰ガード2件追加）・smoke/fuzz 全0・census 2167→2131（BASELINE 更新）・同型★0維持。詳細 BUGFIXES 続き155。
+
 - **セッション（2026-07-16・続き153・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝UP group の filter/count 脱落是正）**
   - **是正6効果**＝POWER_MODIFY group-buff と同型の脱落が UP にもあった。「あなたのすべての＜X＞のシグニをアップする」が `UP{owner:self, count:1, filter無}` に潰れ「1体だけアップ＋種族フィルタ喪失」へ縮退。WX11-038（迷宮）・WX05-036（水獣）・WXEX1-14（植物）・WXEX2-16（緑）・WXK03-020（遊具）・WX25-CP1-039（ブルアカ）。`すべての` を種族の前後どちらでも許容する group-up 正規表現を追加。engine `execUp` は count:ALL+filter 完全対応で engine 変更なし。親コミット比較で6効果のみ変化・回帰ゼロ。
   - golden 350→352・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き153。
