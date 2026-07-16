@@ -860,6 +860,27 @@ export function collectEnergyToTrashTriggers(
       });
     }
   }
+  // 起動効果でセンタールリグへ一時付与された AUTO 能力も同じイベントで収集する。
+  // GRANT_LRIG_ABILITY の実行結果は effectsMap ではなく lrig_granted_auto_effects に格納されるため、
+  // ここを走査しないと ON_ENERGY_TO_TRASH の内側能力（SPDi43-12）が timing を持っていても no-op になる。
+  const lrigTop = controllerState.field.lrig.at(-1);
+  if (lrigTop && !controllerState.lrig_abilities_disabled) {
+    for (const eff of controllerState.lrig_granted_auto_effects ?? []) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
+      const owner = eff.triggerCondition?.energyTrashedOwner ?? 'any';
+      const relevant = owner === 'self' ? fromControllerEnergy
+        : owner === 'opponent' ? fromOppEnergy
+        : fromControllerEnergy + fromOppEnergy;
+      if (relevant <= 0) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, lrigTop)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, lrigTop, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: lrigTop, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(lrigTop)?.CardName ?? lrigTop} の【自】効果（エナトラッシュ時・付与能力）`, effect: eff,
+      });
+    }
+  }
   return { entries, usedOncePerTurnIds };
 }
 

@@ -2,6 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## semantic audit Cluster D：付与能力内側のエナ→トラッシュ timing を配線（1枚・census 2045→2044・golden 373→374）（2026-07-17）
+
+**採用**＝**SPDi43-12-sub-E1**。原文「あなたの効果1つによって対戦相手のエナゾーンからカードが合計1枚以上トラッシュに置かれたとき」を `ON_PLAY` から `ON_ENERGY_TO_TRASH`、`triggerCondition.energyTrashedOwner:'opponent'` へ是正した。parser の既存エナ→トラッシュ規則を「カード1枚が」だけでなく「カードが合計1枚以上」にも届かせ、外側【起】の `GRANT_LRIG_ABILITY.abilities` 内へ正しく emit する。engine は既存 `collectEnergyToTrashTriggers` が `effectsMap` 上の場カードしか走査せず、実行時付与先 `lrig_granted_auto_effects` が no-op だったため、同 collector にセンタールリグ付与 AUTO の走査を追加した。相手エナ減少で発火／自エナ減少で非発火を golden で固定。既存3枚の通常 ON_ENERGY_TO_TRASH 走査は変更していない。なお「あなたの効果1つによって」の効果発生源限定は、この timing 全体で既知の engine 近似（発生源追跡なし）を継承する。
+
+**据置（PLAN §6.3 機構待ち）**＝**WX12-006-E2** は「シグニがアップ状態になったとき」の collector／発火イベントが無く `ON_SIGNI_BECOMES_UP` 相当の新設が必要。**WXDi-P11-066-E1** は `collectHandDiscardTriggers` の非コスト `ON_HAND_DISCARDED` が場の watcher のみで、手札から捨てられたカード自身を走査せず、さらに「対戦相手の効果によって」を当該 discard イベントへ帰属させる情報も渡らないため新規イベント追跡が必要。**WXDi-P11-007-E1** は既存 `ON_ZONE_MOVED` が場のシグニゾーン間移動専用で、エナ→手札／エナ→場の出発・到着領域を保持せず、複合条件も表現不能。誤 timing／no-op timing へ寄せず現状据置。
+
+**検証**＝全 effects JSON の HEAD 比較で変更カードは SPDi43-12 だけ、据置3枚は byte-equivalent な effect object を維持。`npm run regen` 完走・同型★0。`npm run gates` 全緑（typecheck、golden **374/374**、smoke CRASH/HANG/INVARIANT 全0、fuzz 全0、census **2044/BASELINE 2044**、lint error 0〔既存 warning 187〕）。
+
 ## semantic audit Tier 1：既存 Condition 受け皿へ4件を配線（census 2048→2045・golden 369→373）（2026-07-17・Cluster A/C）
 
 **採用4枚**＝既存 DSL で表現できる盤面／使用条件を parser から curated JSON へ採用し、`HAS_CARD_IN_FIELD` にキーゾーン走査だけを追加した。全 effects JSON の前後比較で変更カードは下記4枚のみ。

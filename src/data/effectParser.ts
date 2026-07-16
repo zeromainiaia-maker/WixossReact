@@ -3289,7 +3289,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「あなたの効果によって（対戦相手の）エナゾーンからカードN枚がトラッシュに置かれたとき」（3件）。
              // engine 配線済み（collectEnergyToTrashTriggers＝triggerCondition.energyTrashedOwner で発生源エナを判定）。
              // ⚠「あなたの効果によって」限定は engine 側で未表現＝既知の近似（engine の doc コメント参照）。
-             : /エナゾーンからカード[^。]{0,8}がトラッシュに置かれたとき/.test(trigText) ? ['ON_ENERGY_TO_TRASH']
+             : (/(?:エナゾーンからカード[^。]{0,8}が|エナゾーンからカードが合計[０-９\d]+枚以上)トラッシュに置かれたとき/.test(trigText)) ? ['ON_ENERGY_TO_TRASH']
              // 「（対戦相手／あなた）のシグニN体が凍結状態になったとき」（3件）。engine 配線済み
              // （collectFreezeTriggers＝triggerScope any_opp 既定／any_ally／any）。scope は下で抽出。
              : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(trigText) ? ['ON_SIGNI_FROZEN']

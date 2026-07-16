@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き168・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster A/C 据置分の "Tier 1"＝engine 受け皿ありを消化）**
+  - **4巡目・初の engine 小改修許可。4枚全採用・census 2048→2045・golden 369→373・同型★0・gates 全緑**。
+  - PR-K073-E1（level2/3/4 存在条件＋《花畑チャイカ》以外の filter 反転是正）／WXDi-P03-001-E1（使用条件 LRIG_COLOR 青の配線・evalUseCondition 経路確認）／WDK13-008-E1（相手キー条件＋engine `HAS_CARD_IN_FIELD` に key_piece 走査5行追加）／WXEX1-35-E1（ライズ×3 条件・既存 hasRiseIcon filter）。
+  - **Claude 検証**＝機械 diff で変更4効果のみ・**engine key 走査の副作用を全382 HAS_CARD_IN_FIELD 条件で照合し誤マッチ0**・PR-K073 の cardName→excludeCardName 是正を HEAD 比較・census/golden/同型★/gates 独立再実行。退化ゼロ。
+  - **訂正**＝WX09-Re04「対戦相手のターン」は Tier 1 でなくアーキ制約（`execUtils:1006` で IS_MY_TURN/IS_OPPONENT_TURN が executor オーナー視点固定ゆえ no-op）で据置。
+
 - **🆕 セッション（2026-07-16・続き167・Codex CLI〔gpt-5.6-sol・reasoning high〕が実装／Claude〔Opus 4.8〕が検証・PLAN §3 Opusタスク12(xxvii) Cluster C＝owner/対象範囲の誤りを消化）**
   - **ワークフロー実験の3巡目**。Cluster C は owner/count/範囲の「変更」を伴い退化リスク最大のため、**Codex は確証できた2枚のみ採用・残り4枚は理由付きで据置**＝妥当な保守判断。
   - **2枚採用・census 2049→2048・golden 367→369・同型★0・gates 全緑**。

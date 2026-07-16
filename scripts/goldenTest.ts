@@ -1336,6 +1336,17 @@ test('Stage2 ON_ENERGY_TO_TRASH: energyTrashedOwner=opponent は相手エナ消�
   eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WD15-015-E1'), true, '相手エナで発火');
   eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WD15-015-E1'), false, '自エナは非発火');
 });
+test('Cluster D ON_ENERGY_TO_TRASH: ルリグ付与能力の内側 timing を収集（SPDi43-12-sub-E1）', () => {
+  const parsed = parseCardEffects(cardMap.get('SPDi43-12')!);
+  const grant = parsed.find(e => e.effectId === 'SPDi43-12-E2')?.action as { abilities?: CardEffect[] };
+  const inner = grant.abilities?.find(e => e.effectId === 'SPDi43-12-sub-E1');
+  eq(inner?.timing?.[0], 'ON_ENERGY_TO_TRASH', '内側 timing');
+  eq(inner?.triggerCondition?.energyTrashedOwner, 'opponent', '対戦相手のエナ限定');
+  const host = mkState({}); host.field.lrig = ['SPDi43-12']; host.lrig_granted_auto_effects = [inner!];
+  const guest = mkState({});
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'SPDi43-12-sub-E1'), true, '相手エナ→トラッシュで発火');
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'SPDi43-12-sub-E1'), false, '自エナ→トラッシュでは非発火');
+});
 test('Stage2 ON_REFRESH: refreshedOwner=any はどちらのリフレッシュでも発火（WXDi-P04-043-E1）', () => {
   const host = mkState({ signi: ['WXDi-P04-043', null, null] }); const guest = mkState({});
   eq(has(collectRefreshTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXDi-P04-043-E1'), true, '自リフレッシュで発火');
