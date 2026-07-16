@@ -2950,6 +2950,11 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
       }
+      // 全一致「この方法で処理したカードがすべて〔フィルタ〕の場合」（LAST_PROCESSED_ALL_MATCH）。前段が
+      // lastProcessedCards を記録するときだけ。parseThisWayGenericCount より前に試す（すべて は後者で除外語のため）。
+      if (!condition && prevRecords && !rest.startsWith('代わりに')) {
+        condition = parseAllMatchCondition(thenM[0]);
+      }
       // 結果カウント閾値「この方法で〔フィルタ〕がN枚以上〜した場合」（Cluster B）。前段が lastProcessedCards を
       // 記録するとき（prevRecords）だけ抽出。engine の LAST_PROCESSED_MATCHES/COUNT_GTE で評価される。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
