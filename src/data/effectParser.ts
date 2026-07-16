@@ -1637,7 +1637,10 @@ function parseSingleSentenceInner(text: string): EffectAction {
         } as import('../types/effects').ConditionalAction;
       }
     }
+    return null;
   }
+  // first pass（トリガー句が残っている text）
+  { const _w = tryWrapLeadingStateCond(text); if (_w) return _w; }
   // 「(その後、)あなたがベットしていた場合、追加で<X>」→ CONDITIONAL{IS_BETTING, then:<X>}
   // （2026-07-05 続き27・census文型「あなたがベットしていた場合」バッチ）。ベット宣言は
   // BattleScreen が raw text の「ベット―《X》」から UI 提示し is_betting_this_effect を立てる＝
