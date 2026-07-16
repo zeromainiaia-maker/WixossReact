@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii) を並行消化）**
+  - **8枚是正・census 2092→2088・golden 358→359**。ユーザー依頼で (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を両方進めた。
+  - **(xxiv) ON_DISCARDED_AS_COST 発生源クラス限定（4枚・engine機構新設）**＝triggerCondition `discardCostSourceStory`＋`collectHandDiscardTriggers` に `costSourceNum` 引数（コスト支払い能力の host シグニ CardClass で判定）＋BattleScreen 3発火元で `cardNum` 渡し＋parser 抽出。WX25-P3-071/077/084/088（微菌）。**残＝WX25-P3-085 grant mis-parse／ON_OPP_POWER_DECREASED 2・ON_CARD_MILLED_FROM_DECK 1 は発生源シグニ追跡が engine に無く §6.3級**。
+  - **(vii) 「このシグニをダウンしてもよい」対象/自己混同（4枚・MANUAL 上書き）**＝DOWN を self thisCardOnly optional へ（正準形 WD12-013）。WX25-P1-055/WXDi-P04-059（+BANISH power フィルタ復元）・WXDi-P13-074（+isDisona）・WXDi-CP01-040（+REVEAL_DECK_TOP＋バーチャルゲート）。**残3枚＝§6.3級**（WX25-P3-089/WXDi-P15-084 引用付与・WX25-P2-112 動的色フィルタ）。
+  - **検証**：golden 359・smoke/fuzz 全0・census 2092→2088（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き163。
+
 - **🆕 セッション（2026-07-16・続き162・Opus 4.8・PLAN §3 Opusタスク12(xxi)＝Sonnet の詰まり解消：ON_DRAW any_opp「自分の効果で」発生源限定を実装）**
   - **依存 `Opus12→Sonnet1` を消化＝Sonnet の主力在庫を再生産**。`collectOppDrawTriggers` が発生源（drawer 自身の効果か reactor の効果で相手を引かせたか）を区別せず PR-423「対戦相手が自分の効果で引いたとき」が誤発火していた（続き131・`oppDrawOwnEffectOnly` 意図的FAIL回帰）のを修正。PlayerState `last_draw_by_own_effect`（execDraw で `a.owner==='self'` 記録）＋triggerCondition `drawByDrawerOwnEffect`＋PR-423 JSON フラグ付与。golden 357→358。**Sonnet＝`oppDrawOwnEffectOnly` を harness で回し PASS 反転を確認して既定 order へ追加**。詳細 BUGFIXES 続き162。
 
