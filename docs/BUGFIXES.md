@@ -2,6 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「あなたのすべての＜X＞のシグニをアップする」の group-up が UP{count:1, filter無} に潰れ「1体だけアップ」へ縮退するバグ6効果を是正（2026-07-16・続き153・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
+
+CONTINUOUS group-buff（POWER_MODIFY）と同型の脱落が **UP アクション**にもあった。原文「あなたのすべての＜X＞のシグニをアップする」（該当自分シグニ全体をアップ）が `UP{target:{owner:self, count:1, filter無}}` に潰れ、**1体だけアップ＋種族フィルタ喪失（全シグニから任意1体アップ）**へ縮退していた。
+- **原因**＝UP parser（`parseSentencePart1.ts:1277`）が `すべてのシグニをアップ`（種族を挟まない形）しか count:ALL 化せず、「すべて**＜迷宮＞の**シグニ」（すべてが種族の前）は非マッチでフォールバック（count:1/filter無）していた。
+- **修正**＝`すべての` を種族の前後どちらでも許容する group-up 正規表現を追加し、**対象名詞句内から**レベル/色/種族/ディソナ filter を抽出（全文スキャン禁止踏襲）。engine の `execUp` は `count:ALL`＋filter（`fieldCandidates`）を完全対応済みで engine 変更なし。
+- **対象6効果**（親コミット比較で**この6効果のみ変化・回帰ゼロ**を機械確認）＝WX11-038-E1（迷宮）・WX05-036-E1（水獣）・WXEX1-14-E1（植物）・WXEX2-16-E1（緑・SEQUENCE先頭）・WXK03-020-E2（遊具・OPTIONAL_COST 後）・WX25-CP1-039-E2（ブルアカ）。
+- golden 回帰ガード2件（story/color の group-up 復元）。gates 全緑＝golden 350→352・census 2167 維持・同型★0維持。
+
 ## CONTINUOUS group-buff の《ディソナアイコン》/覚醒状態 filter 脱落で「このシグニ自身のみ」へ縮退するバグ4効果を是正（2026-07-16・続き152・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
 
 続き151 の level 脱落是正（WX10-061）と同型の group-buff filter 脱落を追加消化。CONTINUOUS「あなたの[他の]《ディソナアイコン》/覚醒状態のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1, filter:{}}` に潰れ、engine（`count!=='ALL'`＝効果元自身のみ）で**効果元自身のみバフ**へ縮退していた。
