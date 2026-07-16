@@ -1129,6 +1129,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       return false;
     }
+    case 'LAST_PROCESSED_ALL_MATCH': {
+      // 直前に処理した（トラッシュ/公開）カード(lastProcessedCards)が **すべて** filter 一致か
+      //（「この方法でトラッシュに置かれたカードがすべて黒の場合」WXK09-097／「すべてのカードがレベル１のシグニの場合」
+      //  WXDi-P05-042）。空集合は false（1枚も処理していなければ条件不成立）。minCount 系（≥N一致）とは別意味。
+      const procA = ctx.lastProcessedCards ?? [];
+      if (procA.length === 0) return false;
+      return procA.every(cn => matchesFilter(ctx.cardMap.get(cn), cond.filter));
+    }
     case 'LAST_PROCESSED_POWER_GTE': {
       // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー判定（WX03-046「それのパワーが15000以上」）。
       // effectivePowers は直前の POWER_MODIFY 適用前のスナップショットのため、addDelta でその+パワーを加味する。
