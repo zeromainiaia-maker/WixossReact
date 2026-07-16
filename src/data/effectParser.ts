@@ -1097,6 +1097,18 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   return { type: 'LAST_PROCESSED_MATCHES', filter, minCount };
 }
 
+// 「(その後、)(この方法で…／それら…)(シグニの)?レベルの合計がN(以上/以下)?の場合、」→ LAST_PROCESSED_LEVEL_SUM。
+// engine は lastProcessedCards のシグニレベル合計を operator で判定＝前段が lastProcessedCards を記録するとき
+//（呼び出し側 prevRecords）だけ呼ぶ。「以上」→gte／「以下」→lte／無印→eq（ちょうどN）。§3 タスク12(xxii) 合計系。
+// ⚠多分岐の2枝目以降（「レベルの合計が６の場合、」＝接頭辞なし・前段の then が lastProcessedCards を上書きしうる）は
+//   誤読の恐れがあるため据置＝ここは先頭枝（この方法で/それら 付き）専用。
+function parseLevelSumCondition(clause: string): Condition | null {
+  const m = clause.match(/^(?:その後、)?(?:この方法で|それら).*?レベルの合計が([０-９\d]+)(以上|以下)?(?:の)?場合、?$/);
+  if (!m) return null;
+  const operator: CompareOp = m[2] === '以上' ? 'gte' : m[2] === '以下' ? 'lte' : 'eq';
+  return { type: 'LAST_PROCESSED_LEVEL_SUM', operator, value: parseNum(m[1]) };
+}
+
 // 多分岐の後続枝：「〔レベルN(以上/以下)?/スペル/＜X＞の(シグニ)?/(色)の(シグニ)?〕の場合、X」（名詞を省略した
 // elliptical 形＝「レベル２の場合、」等を含む）を、直前に処理した公開/ミル結果への LAST_PROCESSED_MATCHES 追加分岐
 // として解く。**多分岐（レベル別に効果が変わる公開/ミル結果）の後続枝専用**＝呼び出し側で prevIsLpmChain
