@@ -1152,6 +1152,15 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
       // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
+    } else if (t.match(/あなたの中央のシグニゾーンにある.*?シグニのパワーを/)) {
+      // 「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]の?シグニのパワーを±N」＝中央ゾーン(index1)の該当シグニ全体。
+      // engine matchesStateFilter（centerZoneOnly=zoneIdx1）・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。
+      // 無いと owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退していた（WXDi-D02-24/WXK01-003/WXK10-079 等）。フィルタは名詞句内から取る。
+      const czNounM = t.match(/中央のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニのパワーを/);
+      const czMods = czNounM?.[1] ?? '';
+      const czFilter: TargetFilter = { cardType: 'シグニ', centerZoneOnly: true, ...parseColorFilter(czMods), ...parseStoryFilter(czMods) };
+      if (czMods.includes('《ディソナアイコン》')) czFilter.isDisona = true;
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: czFilter };
     } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:レベル[０-９\d]+の|[白赤青緑黒]の|《ディソナアイコン》の|覚醒状態の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
       // 「あなたの[他の][レベルN|色|＜種族＞|《ディソナアイコン》|覚醒状態]の[すべての]シグニのパワーを±N」＝
       // 該当する自分シグニ全体への持続バフ。「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう独立オプションにする。
