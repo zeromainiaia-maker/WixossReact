@@ -1152,6 +1152,45 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   「このシグニの下に」）で、場条件への固定エンコードは誤変換になる（続き110 で実測・撤回済み）。
   [/あなたの場に＜([^＞]+)＞のシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+  // ── 続き156（2026-07-16）：census 条件節クラスタ残の engine 対応済み条件を追加（過剰効果是正）。
+  //    いずれも execUtils.evalCondition・decompileEffects の condToText 両対応を確認済み。
+  // 「このシグニのパワーがN以上の場合」＝効果元シグニのパワー閾値（SELF_POWER_GTE・gte のみ）。
+  //   従来は語彙が無くアタック時/アタックフェイズ開始時/起動時に無条件発火の過剰効果（WXDi-P03-060/062・
+  //   PR-470A・WXK05-043・WXK10-046 等）。「ちょうどNの場合」は engine が gte のみ＝据置（誤変換を作らない）。
+  [/このシグニのパワーが([０-９\d]+)以上の場合/,
+    g => ({ type: 'SELF_POWER_GTE', value: parseNum(g[0]) })],
+  // 「(あなた|対戦相手)の場にパワーN以上のシグニがある場合」＝場のパワー閾値シグニ数（FIELD_SIGNI_POWER_COUNT・
+  //   minPower N を1体以上）。従来は語彙が無く無条件発火（WXDi-P00-069/P05-076・WXK02-046 等）。
+  [/(あなた|対戦相手)の場にパワー([０-９\d]+)以上のシグニがある場合/,
+    g => ({ type: 'FIELD_SIGNI_POWER_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', minPower: parseNum(g[1]), operator: 'gte', value: 1 })],
+  // 「(あなた|対戦相手)の場に凍結状態のシグニがN体以上ある場合」＝場の凍結シグニ数（HAS_CARD_IN_FIELD の
+  //   isFrozen 状態フィルタ＝execUtils が signi_frozen を走査・実装済）。従来は無条件発火（WXDi-P02-065/071 等）。
+  [/(あなた|対戦相手)の場に凍結状態のシグニが([０-９\d]+)体以上ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isFrozen: true }, minCount: parseNum(g[1]) })],
+  // 「対戦相手のライフクロスの枚数があなたより多い場合」＝相手ライフ>自ライフ＝自ライフ<相手ライフ（LIFE_COMPARE_OPP・
+  //   cmp(自ライフ, operator, 相手ライフ) なので 'lt'）。従来は無条件発火（WX15-033/WX17-040/WX18-032 等）。
+  [/対戦相手のライフクロスの枚数があなたより多い場合/,
+    () => ({ type: 'LIFE_COMPARE_OPP', operator: 'lt' })],
+  // 「あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合」＝両中央ルリグ同レベル（LRIG_LEVEL_EQ_OPP）。
+  [/あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合/,
+    () => ({ type: 'LRIG_LEVEL_EQ_OPP' })],
+  // 「あなたのセンタールリグが(色)の場合」＝中央ルリグの色（LRIG_COLOR・Color.includes）。
+  [/あなたのセンタールリグが(白|赤|青|緑|黒)の場合/,
+    g => ({ type: 'LRIG_COLOR', owner: 'self', color: g[0] })],
+  // 「(あなた|対戦相手)の場に(色)のシグニがN体以上ある場合」＝色シグニ数（HAS_CARD_IN_FIELD color minCount）。
+  //   従来は無条件発火（WXDi-P05-015 赤3体／WXDi-P08-043 青3体 等）。
+  [/(あなた|対戦相手)の場に(白|赤|青|緑|黒)のシグニが([０-９\d]+)体以上ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[1] }, minCount: parseNum(g[2]) })],
+  // 「あなたの場に《X》のシグニがN体(以上)ある場合」＝名前/アイコン指定シグニ数（HAS_CARD_IN_FIELD minCount）。
+  //   《ディソナアイコン》は Story='Dissona'（isDisona フラグ・line 1552 慣例）＝カード名ではない。
+  //   従来は無条件発火（WXDi-P13-066/068 ディソナ3体・WXDi-P12-006 ディソナ2体 等）。
+  [/あなたの場に《([^》]+)》のシグニが([０-９\d]+)体(?:以上)?ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: g[0] === 'ディソナアイコン' ? { cardType: 'シグニ', isDisona: true } : { cardType: 'シグニ', cardName: g[0] }, minCount: parseNum(g[1]) })],
+  // 「このシグニに【アクセ】が付いている場合」＝効果元シグニにアクセ付与（THIS_CARD_IS_ACCED）。
+  //   ⚠実カードの文言は「【アクセ】が付いている」＝旧 CLAUSES の「アクセされている」regex は実文言と不一致で
+  //   一度も発火せず、アタック時/ターン終了時に無条件発火の過剰効果だった（WDK07-E13/WXK04-081/083 等）。
+  [/このシグニに【アクセ】が付いている場合/,
+    () => ({ type: 'THIS_CARD_IS_ACCED' })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
