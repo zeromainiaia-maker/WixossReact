@@ -1274,8 +1274,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- アップ ----
   if (t.includes('アップする') || t.match(/をアップ/)) {
-    if (t.includes('すべてのシグニをアップ') || t.match(/あなたのシグニ[をが]アップ/)) {
-      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+    // 「あなたの[すべての][他の][レベル/色/＜種族＞/ディソナ]の(すべての)?シグニをアップする」＝該当する自分シグニ全体。
+    // 「すべての＜迷宮＞のシグニ」（すべてが種族の前）も拾えるよう すべての を種族の前後どちらでも許容。
+    // 種族フィルタ付き（WX11-038/WX05-036/WXEX1-14）が従来 count:1/filter無し に潰れ「1体だけアップ」へ縮退していた。
+    // ⚠フィルタは**対象名詞句内**からのみ取る（全文スキャン禁止）。engine の execUp は count:ALL+filter を完全対応。
+    const upGroupM = t.match(/あなたの(?:すべての)?(?:他の)?((?:レベル[０-９\d]+(?:以上|以下)?の|[白赤青緑黒]の|《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)(?:すべての)?シグニ[をが]アップ/);
+    if (t.includes('すべてのシグニをアップ') || t.match(/あなたのシグニ[をが]アップ/) || (upGroupM && upGroupM[1])) {
+      const upMods = upGroupM?.[1] ?? '';
+      const upFilter: TargetFilter = { ...parseLevelFilter(upMods), ...parseColorFilter(upMods), ...parseStoryFilter(upMods) };
+      if (upMods.includes('《ディソナアイコン》')) upFilter.isDisona = true;
+      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL', ...(Object.keys(upFilter).length ? { filter: upFilter } : {}) } };
     }
     // 「このシグニをアップする」＝効果元自身（thisCardOnly）。
     if (t.includes('このシグニ')) {
