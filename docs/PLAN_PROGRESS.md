@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き151・Opus 4.8・PLAN §3 Opusタスク12(xxvii)＝CONTINUOUS group-buff の level 脱落是正＋Cluster B false positive 検証）**
+  - **是正1件＝WX10-061-E1**：CONTINUOUS「あなたの他のレベル３のシグニのパワーを＋3000」が `POWER_MODIFY{owner:any, count:1}` に潰れ、engine（`count!=='ALL'`＝このシグニ自身のみ）で効果元自身のみバフへ縮退。group-buff parser（`parseSentencePart1.ts:1155`）にレベル filter 認識を追加（対象名詞句内から抽出＝全文スキャン禁止）。当初の全文スキャンで条件節 level 誤付与の回帰（SPDi43-31/WX05-073）を検出→名詞句内限定で回避。トリアージの「相手にも+3000」は誤り（count:1 は self-only）。
+  - **(xxvii) Cluster B（POWER_MODIFY duration:INSTANT化）は false positive と確定**＝action 無 duration の POWER_MODIFY は engine の temp_power_mods でターン終了クリア＝原文どおり。修正不要でスコープ除外（意味的退化の見極め）。
+  - **検証**：golden 345→348（parse・条件 level 非混入・engine calcFieldPowers 実測）・smoke/fuzz 全0・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き151。
+
 - **セッション（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）**
   - **PARTIAL 刻印 Cluster B の「捨てカウント」系4効果を消化**＝「手札を捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件が `IS_MY_TURN`（常時true）化して過剰実行していたのを `LAST_PROCESSED_COUNT_GTE` へ是正。`parseThisWayGenericCount` の許可動詞に `捨て` 追加（engine で `TRASH{HAND_CARD}` が lastProcessedCards を記録するのを確認）・否定「捨てなかった」は reject。
   - **安全側の境界**＝前段が実 TRASH の forced/filter 捨てのみ（PR-K038-E3・WXEX2-39-E1・WXDi-P06-035-E2〈第1枝〉・WXK01-001-E2）。「捨ててもよい/好きな枚数捨てる」は前段が STUB{OPTIONAL_COST} 化で据置。JSON 直接パッチ＋parseStatus AUTO 化。
