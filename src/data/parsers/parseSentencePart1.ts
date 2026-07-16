@@ -1364,11 +1364,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
       (t.includes('デッキに加え') || t.includes('デッキに戻し')) &&
       (t.includes('シャッフル') || t.includes('シャッフルする'))) {
     const all = t.includes('すべて') || t.includes('全て') || t.includes('全部');
-    // filter/count は対象名詞句内（トラッシュから … デッキに加え/戻し の span）だけから抽出する
-    //   （前置き条件・後続条件の＜X＞や色を混入させない。エナゾーン→手札ハンドラと同型）。
+    // filter/count は対象名詞句内（デッキに加え/戻し の直前の source zone … デッキに加え の span）だけから
+    //   抽出する（前置き条件・後続条件の＜X＞や色を混入させない。エナゾーン→手札ハンドラと同型）。
     //   従来は「すべての(単色)のカード」だけを拾い、story（＜水獣＞/＜武勇＞）・枚数を落としていた
     //   （WXK02-039／WX19-040＝§3 タスク12(xxii)）。
-    const deckSpan = t.match(/トラッシュ(?:から|にある)(.*?)(?:を)?デッキ(?:に加え|に戻し)/s)?.[1] ?? '';
+    // ⚠デッキに加える直前の最寄り source zone にアンカーする＝文中に別の「トラッシュから」があっても、実際に
+    //   デッキへ移す元が「エナゾーンから」の場合（WX21-028）はこの TRASH_CARD ハンドラが対象名詞句を拾わない
+    //   （span 空＝従来出力を保存）。span は zone マーカーを跨がない（負先読み）。
+    const zoneM = t.match(/(トラッシュ(?:から|にある)|エナゾーンから)((?:(?!トラッシュ(?:から|にある)|エナゾーンから).)*?)(?:を)?デッキ(?:に加え|に戻し)/s);
+    const fromTrash = !!zoneM && zoneM[1].startsWith('トラッシュ');
+    const deckSpan = fromTrash ? zoneM![2] : '';
     // ⚠否定＝「＜X＞ではない／以外」の story・「(色)ではない」は positive filter に混ぜない（WX22-006 精元ではない・
     //   WX14-030/WX21-026 無色ではない）。span から否定トークンを除いてから filter を抽出する。名前指定の
     //   「《…》以外」は色/storyフィルタに影響しないためそのまま（WD23-041＝色は正しく残る）。
