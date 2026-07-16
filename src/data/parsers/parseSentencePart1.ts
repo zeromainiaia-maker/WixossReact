@@ -1156,7 +1156,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
       // 「あなたの[他の][レベルN|色|＜種族＞]の[すべての]シグニのパワーを±N」＝該当する自分シグニ全体への持続バフ。
       // 「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう、他の/レベル/色/種族を独立オプションにする。
       // レベル指定（WX10-061「あなたの他のレベル３のシグニ」）が無いと owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退していた。
-      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(t), ...parseColorFilter(t), ...parseStoryFilter(t) } };
+      // ⚠level は**対象の名詞句内**からのみ取る（全文スキャンだと「レベル３の場合、…あなたのすべてのシグニ+3000」＝SPDi43-31 の
+      //   条件節 level を対象フィルタへ誤付与する。全文スキャン禁止の教訓）。色/種族は既存挙動を踏襲。
+      const selfBuffNounM = t.match(/あなたの(?:他の)?(レベル[０-９\d]+(?:以上|以下)?の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/);
+      const selfBuffLevel = selfBuffNounM?.[1] ? parseLevelFilter(selfBuffNounM[1]) : {};
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...selfBuffLevel, ...parseColorFilter(t), ...parseStoryFilter(t) } };
       if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
