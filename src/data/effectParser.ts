@@ -2073,8 +2073,8 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
   const aAction = parseActionText(aText);
   const bAction = parseActionText(bText);
   if (aAction.type === 'UNKNOWN' || bAction.type === 'UNKNOWN') return null;
-  const aLift = liftChoiceOptionCondition(aAction);
-  const bLift = liftChoiceOptionCondition(bAction);
+  const aLift = liftChoiceOptionCondition(aAction, aText);
+  const bLift = liftChoiceOptionCondition(bAction, bText);
   return {
     type: 'CHOOSE',
     choose_count: 1,
@@ -2148,7 +2148,8 @@ function parseActionTextInner(text: string): EffectAction {
           choose_count: parseNum(chooseHeadM[1]),
           from_count: items.length,
           choices: items.map((m, i) => {
-            const { action, condition } = liftChoiceOptionCondition(parseActionText(m[1].replace(/[。）\s]+$/, '').trim()));
+            const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+            const { action, condition } = liftChoiceOptionCondition(parseActionText(optRaw), optRaw);
             return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
           }),
           ...(chooseHeadM[2] ? { upTo: true } : {}),
@@ -2180,7 +2181,8 @@ function parseActionTextInner(text: string): EffectAction {
             choose_count: parseNum(chooseHeadM[1]),
             from_count: items.length,
             choices: items.map((m, i) => {
-              const { action, condition } = liftChoiceOptionCondition(parseActionText(m[1].replace(/[。）\s]+$/, '').trim()));
+              const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+            const { action, condition } = liftChoiceOptionCondition(parseActionText(optRaw), optRaw);
               return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
             }),
             ...(chooseHeadM[2] ? { upTo: true } : {}),
@@ -2375,8 +2377,9 @@ function parseActionTextInner(text: string): EffectAction {
       choose_count: chooseCount,
       from_count: items.length,
       choices: items.map((m, i) => {
-        const parsed = parseActionText(m[1].replace(/[。）\s]+$/, '').trim());
-        const { action, condition } = liftChoiceOptionCondition(parsed);
+        const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+        const parsed = parseActionText(optRaw);
+        const { action, condition } = liftChoiceOptionCondition(parsed, optRaw);
         return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
       }),
     };

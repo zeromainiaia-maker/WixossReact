@@ -15,54 +15,6 @@ PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WX05-073 WX07-029 WX13-002 WX16-
   原文: 【起】《ターン１回》エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く：このルリグはそのカードの【歌のカケラ】を使用する。【起】《ゲーム１回》《緑×0》：《リコレクトアイコン》［４枚以上］あなたのエナゾーンからシグニを３枚まで対象とし、それらを場に出す。次の対戦相手のターン終了時まで、あなたのすべてのシグニのパワーを＋10000し、それらは【シャ
   ~ [1].action.steps[2].duration : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
 
-## -CONDITIONAL ［21枚］
-SP27-010 SPDi43-21 WD16-023 WX10-026 WX13-012 WX22-017 WX24-P3-034 WX24-P3-038 WX24-P4-019 WX24-P4-047 WX25-P2-067 WX25-P2-075 WX25-P2-084 WX25-P3-095 WX26-CP1-023 WXDi-P10-036 WXDi-P11-056 WXDi-P13-067 WXDi-P14-002 WXDi-P16-012 WXK08-040
---- SP27-010
-  原文: アンコール－あなたのセンタールリグの下からカード２枚をルリグトラッシュに置く以下の３つから１つを選ぶ。①レゾナではない対戦相手のレベル２以下のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。このターンに対戦相手がスペルを使用していた場合、追加でカードを１枚引く。③対戦相手のパワー12000以下のシグニ１体を対象とし、あなたのライフクロスが０枚
-  - [0].action.choices[2].action.condition.type = "LIFE_COUNT"
-  - [0].action.choices[2].action.condition.owner = "self"
-  - [0].action.choices[2].action.condition.operator = "eq"
-  - [0].action.choices[2].action.condition.value = 0
-  - [0].action.choices[2].action.then.type = "BANISH"
-  - [0].action.choices[2].action.then.target.type = "SIGNI"
-  - [0].action.choices[2].action.then.target.owner = "opponent"
-  - [0].action.choices[2].action.then.target.count = 1
-  - [0].action.choices[2].action.then.target.filter.cardType = "シグニ"
-  - [0].action.choices[2].action.then.target.filter.powerRange.max = 12000
-  - [0].action.choices[2].action.then.target.upToCount = false
-  ~ [0].action.choices[2].action.type : "CONDITIONAL" → "BANISH"
-  …（他 10 行）
---- SPDi43-21
-  原文: 【自】：あなたのアタックフェイズ開始時、カードを１枚引いてもよい。そうした場合、対戦相手はカードを１枚引く。【自】：このシグニがアタックしたとき、あなたの場に《VOGUE3-EXTREMEマドカ》がいる場合、以下の２つから１つを選ぶ。①対戦相手は手札を２枚捨てる。②対戦相手の手札が０枚の場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－
-  - [1].action.choices[1].action.condition.type = "HAND_COUNT"
-  - [1].action.choices[1].action.condition.owner = "opponent"
-  - [1].action.choices[1].action.condition.operator = "eq"
-  - [1].action.choices[1].action.condition.value = 0
-  - [1].action.choices[1].action.then.type = "POWER_MODIFY"
-  - [1].action.choices[1].action.then.target.type = "SIGNI"
-  - [1].action.choices[1].action.then.target.owner = "opponent"
-  - [1].action.choices[1].action.then.target.count = 1
-  - [1].action.choices[1].action.then.target.filter.cardType = "シグニ"
-  - [1].action.choices[1].action.then.target.upToCount = false
-  - [1].action.choices[1].action.then.delta = -5000
-  ~ [1].action.choices[1].action.type : "CONDITIONAL" → "POWER_MODIFY"
-  …（他 10 行）
---- WD16-023
-  原文: このスペルの使用コストは対戦相手の手札１枚につき《無×1》増える。対戦相手のシグニ１体を対象とし、それをバニッシュする。,：どちらか１つを選ぶ。①対戦相手は手札を１枚捨てる。②対戦相手のシグニ１体を対象とし、対戦相手の手札が０枚の場合、それをバニッシュする。
-  - [1].action.choices[1].action.condition.type = "HAND_COUNT"
-  - [1].action.choices[1].action.condition.owner = "opponent"
-  - [1].action.choices[1].action.condition.operator = "eq"
-  - [1].action.choices[1].action.condition.value = 0
-  - [1].action.choices[1].action.then.type = "BANISH"
-  - [1].action.choices[1].action.then.target.type = "SIGNI"
-  - [1].action.choices[1].action.then.target.owner = "opponent"
-  - [1].action.choices[1].action.then.target.count = 1
-  - [1].action.choices[1].action.then.target.filter.cardType = "シグニ"
-  - [1].action.choices[1].action.then.target.upToCount = false
-  ~ [1].action.choices[1].action.type : "CONDITIONAL" → "BANISH"
-  + [1].action.choices[1].action.target.type = "SIGNI"
-  …（他 8 行）
-
 ## -CHOOSE -DECK_CARD -TRASH ［12枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P01-044 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
 --- WX24-P3-091
@@ -336,53 +288,38 @@ WX24-P2-055 WX25-P3-085 WXDi-P08-080
   + [0].action.effect.action.type = "POWER_MODIFY"
   …（他 9 行）
 
-## -CONDITIONAL×2 ［3枚］
-WX25-P2-072 WX25-P2-086 WX25-P2-105
---- WX25-P2-072
-  原文: 【自】：あなたのアタックフェイズ開始時、以下の２つから１つを選ぶ。①あなたの場に他の＜電機＞のシグニがある場合、対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。②このシグニが覚醒状態の場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。,-
-  - [0].action.choices[0].action.condition.type = "HAS_CARD_IN_FIELD"
-  - [0].action.choices[0].action.condition.owner = "self"
-  - [0].action.choices[0].action.condition.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.condition.filter.story = "電機"
-  - [0].action.choices[0].action.condition.excludeSelf = true
-  - [0].action.choices[0].action.then.type = "BANISH"
-  - [0].action.choices[0].action.then.target.type = "SIGNI"
-  - [0].action.choices[0].action.then.target.owner = "opponent"
-  - [0].action.choices[0].action.then.target.count = 1
-  - [0].action.choices[0].action.then.target.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.then.target.filter.powerRange.max = 2000
-  - [0].action.choices[0].action.then.target.upToCount = false
-  …（他 28 行）
---- WX25-P2-086
-  原文: 【自】：このシグニがアタックしたとき、以下の２つから１つを選ぶ。①あなたの場に黒の＜電機＞のシグニがある場合、カードを１枚引く。②このターンにあなたがスペルを使用していた場合、対戦相手は手札を１枚捨てる。,：対戦相手のルリグ１体を対象とし、それをダウンする。
-  - [0].action.choices[0].action.condition.type = "HAS_CARD_IN_FIELD"
-  - [0].action.choices[0].action.condition.owner = "self"
-  - [0].action.choices[0].action.condition.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.condition.filter.color = "黒"
-  - [0].action.choices[0].action.condition.filter.story = "電機"
-  - [0].action.choices[0].action.then.type = "DRAW"
-  - [0].action.choices[0].action.then.owner = "self"
-  - [0].action.choices[0].action.then.count = 1
-  - [0].action.choices[1].action.condition.type = "SPELL_USED_THIS_TURN"
-  - [0].action.choices[1].action.condition.owner = "self"
-  - [0].action.choices[1].action.then.type = "TRASH"
-  - [0].action.choices[1].action.then.target.type = "HAND_CARD"
-  …（他 16 行）
---- WX25-P2-105
-  原文: 【自】：このシグニがアタックしたとき、以下の２つから１つを選ぶ。①あなたの場に青の＜電機＞のシグニがある場合、対戦相手のデッキの上からカードを４枚トラッシュに置く。②このターンにあなたがスペルを使用していた場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを
-  - [0].action.choices[0].action.condition.type = "HAS_CARD_IN_FIELD"
-  - [0].action.choices[0].action.condition.owner = "self"
-  - [0].action.choices[0].action.condition.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.condition.filter.color = "青"
-  - [0].action.choices[0].action.condition.filter.story = "電機"
-  - [0].action.choices[0].action.then.type = "TRASH"
-  - [0].action.choices[0].action.then.target.type = "DECK_CARD"
-  - [0].action.choices[0].action.then.target.owner = "opponent"
-  - [0].action.choices[0].action.then.target.count = 4
-  - [0].action.choices[1].action.condition.type = "SPELL_USED_THIS_TURN"
-  - [0].action.choices[1].action.condition.owner = "self"
-  - [0].action.choices[1].action.then.type = "POWER_MODIFY"
-  …（他 24 行）
+## +CONDITIONAL ［2枚］
+WX17-040 WX18-032
+--- WX17-040
+  原文: 以下の３つから３つまで選ぶ。①対戦相手の手札があなたより多い場合、カードを１枚引く。②対戦相手のエナゾーンにあるカードがあなたより多い場合、あなたのデッキの一番上のカードをエナゾーンに置く。③対戦相手のシグニ１体を対象とし、対戦相手のライフクロスの枚数があなたより多い場合、それをバニッシュする。,-
+  - [0].action.choices[2].action.target.type = "SIGNI"
+  - [0].action.choices[2].action.target.owner = "opponent"
+  - [0].action.choices[2].action.target.count = 1
+  - [0].action.choices[2].action.target.filter.cardType = "シグニ"
+  - [0].action.choices[2].action.target.upToCount = false
+  - [0].action.choices[2].condition.type = "LIFE_COMPARE_OPP"
+  - [0].action.choices[2].condition.operator = "lt"
+  ~ [0].action.choices[2].action.type : "BANISH" → "CONDITIONAL"
+  + [0].action.choices[2].action.condition.type = "LIFE_COMPARE_OPP"
+  + [0].action.choices[2].action.condition.operator = "lt"
+  + [0].action.choices[2].action.then.type = "BANISH"
+  + [0].action.choices[2].action.then.target.type = "SIGNI"
+  …（他 4 行）
+--- WX18-032
+  原文: 【自】《ターン２回》：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、対戦相手のライフクロスがあなたより多い場合、このシグニをアップする。【出】：対戦相手の手札が６枚以上ある場合、対戦相手は手札が３枚になるようにカードを捨てる。,：どちらか１つを選ぶ。①対戦相手の手札があなたより多い場合、カードを２枚引く。②対戦相手のシグニ１体を対象とし、対戦相
+  - [2].action.choices[1].action.target.type = "SIGNI"
+  - [2].action.choices[1].action.target.owner = "opponent"
+  - [2].action.choices[1].action.target.count = 1
+  - [2].action.choices[1].action.target.filter.cardType = "シグニ"
+  - [2].action.choices[1].action.target.upToCount = false
+  - [2].action.choices[1].condition.type = "LIFE_COMPARE_OPP"
+  - [2].action.choices[1].condition.operator = "lt"
+  ~ [2].action.choices[1].action.type : "BANISH" → "CONDITIONAL"
+  + [2].action.choices[1].action.condition.type = "LIFE_COMPARE_OPP"
+  + [2].action.choices[1].action.condition.operator = "lt"
+  + [2].action.choices[1].action.then.type = "BANISH"
+  + [2].action.choices[1].action.then.target.type = "SIGNI"
+  …（他 4 行）
 
 ## -CONDITIONAL -LIFE_COUNT ［2枚］
 WX17-044 WXDi-P16-049
@@ -631,7 +568,7 @@ WX18-005
   + [0].action.choices[0].action.target.filter.powerRange.min = 15000
   …（他 23 行）
 
-## +BANISH +CHOOSE +DRAW +ENERGY_CARD +ENERGY_COUNT +LIFE_CRASH +SEQUENCE +SIGNI +TRASH ［1枚］
+## +BANISH +CHOOSE +CONDITIONAL +DRAW +ENERGY_CARD +ENERGY_COUNT +LIFE_CRASH +SEQUENCE +SIGNI +TRASH ［1枚］
 WX19-005
 --- WX19-005
   原文: ベット―《コインアイコン》《コインアイコン》以下の４つから２つまで選ぶ。あなたがベットしていた場合、代わりに３つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手は自分のエナゾーンからカード２枚を対象とし、対戦相手のエナゾーンにカードが４枚以上ある場合、それらをトラッシュに置く。③カードを３枚引く。その後、対戦
@@ -647,7 +584,7 @@ WX19-005
   + [0].action.choices[0].action.target.count = 1
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.filter.powerRange.max = 12000
-  …（他 28 行）
+  …（他 29 行）
 
 ## +ADD_TO_LIFE +CHOOSE +CONDITIONAL +DRAW +EXILE +IS_MY_TURN +SEQUENCE +TRASH_CARD ［1枚］
 WX19-006
