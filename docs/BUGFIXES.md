@@ -2,6 +2,28 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 条件節クラスタ残の engine 対応済み状態条件を系統追加＋選択肢内条件の choice.condition 持ち上げ機構を新設（53枚採用・census 2131→2104）（2026-07-16・続き156・Opus 4.8・PLAN §5c 条件節クラスタ／§3 Opusタスク12🆕）
+
+**主題**＝続き155 の leading 状態条件バッチの続き。census 条件節クラスタの高シグナル欠落（＝原文に条件節があるのに JSON が無条件＝過剰効果）のうち、**engine（execUtils.evalCondition）・decompiler（condToText）両対応済みの条件型**を系統的に `STATE_CONDITION_CLAUSES_V2` へ追加し、併せて続き155 が §3 Opusタスク12🆕 として先送りした**選択肢内先頭条件の choice.condition 持ち上げ機構**を実装した。3バッチ・全件 golden/smoke/fuzz/census/同型★0 で検証。
+
+**バッチ1（27枚・parser CLAUSES＋strip 拡張）**
+- **追加条件型**（`STATE_CONDITION_CLAUSES_V2`・全て execUtils/decompiler 両対応を実装で確認）：`SELF_POWER_GTE`（このシグニのパワーがN以上）／`FIELD_SIGNI_POWER_COUNT`（場にパワーN以上のシグニがある）／`HAS_CARD_IN_FIELD{isFrozen}`（場に凍結状態のシグニがN体以上）／`LIFE_COMPARE_OPP`（対戦相手のライフがあなたより多い＝自ライフ<相手ライフ＝operator:'lt'）／`LRIG_LEVEL_EQ_OPP`（両中央ルリグ同レベル）／`LRIG_COLOR`（センタールリグが色）／`HAS_CARD_IN_FIELD{color,minCount}`（場に色のシグニがN体以上）／`HAS_CARD_IN_FIELD{cardName/isDisona,minCount}`（場に《X》のシグニがN体・《ディソナアイコン》は isDisona）／`THIS_CARD_IS_ACCED`（【アクセ】が付いている）／`AND[HAS_CARD_IN_FIELD{cardName}×2]`（場に《X》と《Y》がある）。
+- **second-pass strip-list 拡張**（`parseSingleSentence` の t 生成・続き155 の②パス）＝leading 状態条件の直前に居残るトリガー句を追加除去：「対戦相手のターン終了時、」「(あなた|対戦相手)のアタックフェイズ開始時、」「対戦相手の効果によってこのカードが(手札から)捨てられたとき、」。これが無いと条件節ごと脱落して無条件発火（WXK04-081/083・WXK03-037・WXDi-P11-066 等）。
+- **⚠バグ発見**＝旧 CLAUSES の `/このシグニがアクセされている場合/` は**実カード文言「【アクセ】が付いている」と不一致で一度も発火せず**、アタック時/ターン終了時に無条件発火の過剰効果だった（WDK07-E13/WXK04-081/083）。正しい文言の regex を追加して是正。
+
+**バッチ2（20枚・choice.condition 持ち上げ機構）**
+- **真因**＝「以下のNつからMつ選ぶ①…②<状態条件>の場合、X」の選択肢先頭 availability 条件を、parser が action ごと `CONDITIONAL` に包んでいた（または脱落）。engine の `execChoose`（effectExecutor.ts:2540）は `choice.condition` で選択肢の available 判定をするため、action-CONDITIONAL 包みだと**選択肢が常時選択可に化け、条件が偽でも選んで空振りできる**（続き155 が §3 Opusタスク12🆕 として先送りした課題）。
+- **修正**＝`liftChoiceOptionCondition(action, rawText)` を新設し、CHOOSE 構築4経路（`buildChoose`／bet 択一／recollectArts／`parseDrawOrChoice`）へ配線。選択肢 action が leading `CONDITIONAL{then, else無し}` のとき condition を `choice.condition` へ持ち上げ action を then へ差し替える。
+- **⚠rawText ガード**＝「…を対象とし、<条件>の場合、それを〜」（対象化の**後**で条件判定＝action ゲート）は持ち上げない（(a) availability とは意味が違う、(b) `choice.condition` は decompiler が条件を選択肢先頭へ描画するため対象化が先の原文と語順がズレて同型★割れになる）。`場合` より前に `対象とし` があれば持ち上げ抑止。IS_MY_TURN/IS_OPPONENT_TURN（プレースホルダ常時真）も抑止。
+- 採用は「-CONDITIONAL」署名（action-CONDITIONAL→choice.condition の型消滅）17枚＋「-CONDITIONAL×2」3枚。curated が action ゲートに choice.condition を使う少数の不整合カード（WX17-040 等）は fresh と食い違うため held 温存（＝害なし）。
+
+**バッチ3（6枚・追加 CLAUSES）**
+- `AND[TRASH_HAS_CARD{cardName}×2]`（トラッシュに《X》と《Y》がある）／`THIS_CARD_HAS_UNDER`（このシグニの下にカードがある・filter無し）／`HAS_CARD_IN_FIELD{cardType:ルリグ,color}`（場に色のルリグがいる＝lrigZoneTops 走査。ドリームチーム系 WXDi-P08 用だが当該カードは【使用条件】ヘッダの mis-parse で別途壊れており未捕捉＝将来用に温存）。
+
+**検証**＝golden 356（回帰なし）・smoke/fuzz 全0・census 2131→2104（BASELINE_HIGH 更新）・同型★0（5986枚）維持。全採用は `scripts/heldReview.mjs --adopt(-sig)` 経由で原文照合済み。
+
+**未消化として残す（§3 Opusタスク12🆕／条件節クラスタ）**＝(a) ドリームチーム【使用条件】ヘッダの mis-parse（GRANT_KEYWORD"使用条件"に化ける・色別3分岐脱落＝WXDi-P08-001〜005・機構要）／(b) 「そのカード/それが〜の場合」LAST_PROCESSED 系のうち REVEAL_AND_PICK と絡む reveal 経路（ブルアカ系）／(c) 「あなたのターンの場合」IS_MY_TURN・「対戦相手のターンの場合」IS_OPPONENT_TURN のプレースホルダ常時真（engine 未実装＝別機構）／(d) コスト支払い累計・デッキ移動累計カウンタ系（engine 状態カウンタ要）。
+
 ## トリガー句直後の状態条件節「〜の場合、」が丸ごと脱落し無条件発火する系統バグを是正（49効果・census 2167→2131）（2026-07-16・続き155・Opus 4.8・PLAN §5c 条件節クラスタ611／§3 Opusタスク12(xxii)系）
 
 **census 最大クラスタ「条件節(〜の場合)」611効果の系統消化。** 「【自】：<トリガー>、<状態条件>の場合、<アクション>」という形で、トリガー句（「ターン終了時、」「アタックフェイズ開始時、」等）の**直後**に来る状態条件節が、パーサーで丸ごと脱落し**条件を無視して無条件発火する過剰効果**になっていた（WX12-046「手札が7枚以上ある場合、このシグニをトラッシュ」が毎ターン自壊、等）。

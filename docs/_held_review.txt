@@ -200,54 +200,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.owner = "self"
   + [0].action.abilities[0].action.steps[0].target.count = 1
 
-## +AND +CONDITIONAL +TRASH_HAS_CARD×2 ［3枚］
-WX12-043 WX13-077 WXDi-P14-082
---- WX12-043
-  原文: 【出】：対戦相手のパワー8000以下のシグニ１体を対象とし、あなたのトラッシュに《小炎　フレイスロ兵長》と《爆炎　フレイスロ軍曹》がある場合、それをバニッシュする。,：どちらか１つを選ぶ。①対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。②あなたのデッキからカード名に《フレイスロ》を含むシグニ１枚を探して公開し手札に加え、デッキをシ
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.filter.powerRange.max = 8000
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "BANISH" → "CONDITIONAL"
-  + [0].action.condition.type = "AND"
-  + [0].action.condition.conditions[0].type = "TRASH_HAS_CARD"
-  + [0].action.condition.conditions[0].owner = "self"
-  + [0].action.condition.conditions[0].filter.cardName = "小炎　フレイスロ兵長"
-  + [0].action.condition.conditions[1].type = "TRASH_HAS_CARD"
-  …（他 9 行）
---- WX13-077
-  原文: 【自】：このシグニがバニッシュされたとき、《緑》を支払ってもよい。そうした場合、あなたのデッキからレベル４の＜空獣＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【出】：あなたのトラッシュに《幻獣　メジロ》と《幻獣　ウグイス》がある場合、あなたのデッキの一番上のカードをエナゾーンに置く。,：【エナチャージ１】
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
-  + [1].action.condition.type = "AND"
-  + [1].action.condition.conditions[0].type = "TRASH_HAS_CARD"
-  + [1].action.condition.conditions[0].owner = "self"
-  + [1].action.condition.conditions[0].filter.cardName = "幻獣　メジロ"
-  + [1].action.condition.conditions[1].type = "TRASH_HAS_CARD"
-  + [1].action.condition.conditions[1].owner = "self"
-  + [1].action.condition.conditions[1].filter.cardName = "幻獣　ウグイス"
-  + [1].action.then.type = "ENERGY_CHARGE_FROM_DECK"
-  + [1].action.then.owner = "self"
-  …（他 1 行）
---- WXDi-P14-082
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のパワー8000以下のシグニ１体を対象とし、あなたのエナゾーンから＜電音部＞のシグニ１枚をトラッシュに置いてもよい。そうした場合、それをバニッシュする。【自】：あなたのターン終了時、あなたのトラッシュに《電音部　水上雛》と《電音部　犬吠埼紫杏》がある場合、【エナチャージ１】をする。【起】エナゾーンから＜電音部＞の
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
-  + [1].action.condition.type = "AND"
-  + [1].action.condition.conditions[0].type = "TRASH_HAS_CARD"
-  + [1].action.condition.conditions[0].owner = "self"
-  + [1].action.condition.conditions[0].filter.cardName = "電音部　水上雛"
-  + [1].action.condition.conditions[1].type = "TRASH_HAS_CARD"
-  + [1].action.condition.conditions[1].owner = "self"
-  + [1].action.condition.conditions[1].filter.cardName = "電音部　犬吠埼紫杏"
-  + [1].action.then.type = "ENERGY_CHARGE_FROM_DECK"
-  + [1].action.then.owner = "self"
-  …（他 1 行）
-
 ## -CONDITIONAL -ENERGY_COUNT ［3枚］
 WX24-P4-066 WX25-P2-076 WXDi-D09-H21
 --- WX24-P4-066
@@ -335,54 +287,6 @@ WX24-P2-055 WX25-P3-085 WXDi-P08-080
   + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
   + [0].action.effect.action.type = "POWER_MODIFY"
   …（他 9 行）
-
-## +CONDITIONAL +THIS_CARD_HAS_UNDER ［3枚］
-WDK15-014 WXDi-P11-081 WXK08-053
---- WDK15-014
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このシグニの下にカードがある場合、ターン終了時まで、それのパワーを－7000する。【出】《黒》：あなたのデッキの一番上のカードをこのシグニの下に置く。,：カードを１枚引く。
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  - [0].action.delta = -7000
-  ~ [0].action.type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.condition.type = "THIS_CARD_HAS_UNDER"
-  + [0].action.then.type = "POWER_MODIFY"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "opponent"
-  + [0].action.then.target.count = 1
-  …（他 3 行）
---- WXDi-P11-081
-  原文: 【自】：このシグニがアタックしたとき、このシグニの下にカードがある場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。【出】：あなたの手札からレベル３以上のシグニ１枚をこのシグニの下に置いてもよい。,：対戦相手のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを－12000する。
-  - [0].action.source.type = "TRASH_CARD"
-  - [0].action.source.owner = "self"
-  - [0].action.source.count = 1
-  - [0].action.source.upToCount = false
-  - [0].action.source.filter.cardType = "シグニ"
-  - [0].action.source.filter.color = "黒"
-  ~ [0].action.type : "TRANSFER_TO_HAND" → "CONDITIONAL"
-  + [0].action.condition.type = "THIS_CARD_HAS_UNDER"
-  + [0].action.then.type = "TRANSFER_TO_HAND"
-  + [0].action.then.source.type = "TRASH_CARD"
-  + [0].action.then.source.owner = "self"
-  + [0].action.then.source.count = 1
-  …（他 3 行）
---- WXK08-053
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－1000する。このシグニの下にカードがある場合、代わりにターン終了時まで、それのパワーを－3000する。,：カードを１枚引く。
-  - [0].action.steps[2].type = "POWER_MODIFY"
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "self"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].target.filter.thisCardOnly = true
-  - [0].action.steps[2].delta = -3000
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "THIS_CARD_HAS_UNDER"
-  ~ [0].action.steps[1].then.delta : -1000 → -3000
-  + [0].action.steps[1].else.type = "CONDITIONAL"
-  + [0].action.steps[1].else.condition.type = "IS_MY_TURN"
-  + [0].action.steps[1].else.then.type = "POWER_MODIFY"
-  + [0].action.steps[1].else.then.target.type = "SIGNI"
-  …（他 4 行）
 
 ## +CONDITIONAL ［2枚］
 WX17-040 WX18-032
