@@ -2,6 +2,18 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## CONTINUOUS「あなたの[他の]レベルNのシグニのパワーを＋M」の group-buff が owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退するバグを是正＋semantic audit findings 2件の検証（2026-07-16・続き151・Opus 4.8・PLAN §3 Opusタスク12(xxvii)）
+
+### 是正＝WX10-061-E1（CONTINUOUS group-buff の level filter 脱落）
+原文「【常】：あなたの他のレベル３のシグニのパワーを＋3000する」が JSON で `POWER_MODIFY{target:{owner:any, count:1, filter:{}}}` に潰れていた。**CONTINUOUS の POWER_MODIFY は engine（`effectEngine.ts:1237`）で `count!=='ALL'` を「このシグニ＝効果元カード自身のみ」と解釈する**ため、実効挙動は「他のレベル３シグニ全体 ＋3000」ではなく**効果元自身のみ ＋3000**への縮退（＝トリアージの「対戦相手にも適用され得る」は誤り＝実体は count:1 で self-only 扱いのため相手には及ばない）。
+- **原因**＝group-buff parser（`parseSentencePart1.ts:1155`）が対象名詞句の filter を色/種族のみ認識し、**レベル指定を認識できず**フォールバック（owner:any/count:1）へ落ちていた。
+- **修正**＝正規表現の filter 選択肢に `レベル[０-９\d]+の` を追加し、**対象名詞句内から**のみ `parseLevelFilter` で level を抽出（`owner:self, count:ALL, filter:{level:N}, excludeSelf`）。
+- **⚠全文スキャン禁止の遵守**＝当初 `parseLevelFilter(t)` を全文に掛けたところ、**条件節の level を対象へ誤付与する回帰**を検出（SPDi43-31-E1「公開カードがレベル３の場合、…あなたのすべてのシグニ＋3000」／WX05-073-E1「センタールリグがレベル４以上の場合、…すべてのシグニ＋5000」＝条件の level を buff 対象に混入）。level 抽出を**対象名詞句のマッチ内に限定**して回避（golden に誤付与しない対称ガードを追加）。WX05-073 は curated が既に条件 level/色を混入した既存バグ（fresh はより正確＝level 除去・退化なし）。
+- golden 回帰ガード3件（parse 復元・条件 level 非混入・**engine 実行で「他のLv3自シグニのみ+3000／自身・Lv2・相手Lv3は不変」を calcFieldPowers で実測**）。census 2167 維持（本件は高シグナル欠落項目ではない）・同型★0維持・golden 345→348。
+
+### 検証で false positive と判定＝(xxvii) Cluster B（POWER_MODIFY duration:INSTANT化）は退化なし
+semantic audit が「ターン終了時までの POWER_MODIFY が duration:INSTANT化」と HIGH で指摘した WX07-078-E1／WXK06-031-BURST 等は**実バグではない**と確認。action に duration 未設定の POWER_MODIFY は engine（`effectEngine.ts:522`）で `temp_power_mods`（ターン終了クリア）へ入り**実質「ターン終了時まで」**として正しく動く。効果レベルの `duration:INSTANT` は POWER_MODIFY の temp store 挙動に影響しない＝**逆翻訳/JSON の見かけだけの差で挙動は原文どおり**（LLM audit が effect.duration を見て誤検出）。「意味的退化の見極め」で修正不要と確定＝スコープから除外。
+
 ## 「手札を捨てる。この方法でカードをN枚(以上)捨てた場合」の後置カウント条件が IS_MY_TURN（常時true）に化ける過剰実行バグ4効果を是正（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）
 
 **続き138（Sonnet）のPARTIAL刻印トリアージで「Cluster B 結果カウント閾値」に分類された系統の一部を消化。** 原文「手札を（すべて/好きな枚数/N枚）捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件を parser が抽出できず `CONDITIONAL{IS_MY_TURN}`（常時true）に化けさせ、実際に捨てた枚数を見ずに後続 X を無条件発火していた（可変・任意の捨て枚数に依存する分岐なのに過剰実行）。
