@@ -155,12 +155,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き153・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝UP group の filter/count 脱落是正）**
-  - **是正6効果**＝POWER_MODIFY group-buff と同型の脱落が **UP** にもあった。「あなたのすべての＜X＞のシグニをアップする」が `UP{owner:self, count:1, filter無}` に潰れ「1体だけアップ＋種族フィルタ喪失」へ縮退。WX11-038-E1（迷宮）・WX05-036-E1（水獣）・WXEX1-14-E1（植物）・WXEX2-16-E1（緑）・WXK03-020-E2（遊具）・WX25-CP1-039-E2（ブルアカ）。
-  - **原因**＝UP parser（`parseSentencePart1.ts:1277`）が「すべてのシグニ」（種族を挟まない形）しか count:ALL 化せず、「すべて＜X＞のシグニ」（すべてが種族の前）が非マッチでフォールバック（count:1/filter無）。
-  - **修正**＝`すべての` を種族の前後どちらでも許容する group-up 正規表現を追加し名詞句内から filter 抽出（全文スキャン禁止踏襲）。engine `execUp` は count:ALL+filter を完全対応済み＝engine 変更なし。親コミット比較で**この6効果のみ変化・回帰ゼロ**を機械確認。
-  - **検証**：golden 350→352（story/color group-up 復元）・smoke/fuzz 全0・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き153。
-  - **次の一手**：Opus＝タスク12 の在庫消化を継続。(xxvii) 残＝Cluster C 単点（WXEX1-35/50・WXEX1-57 白か黒・WX11-038 は今回是正）・A 条件節丸ごと欠落11枚・F フィルタ単点13枚・E §6.3級機構。CONTINUOUS group-buff/DOWN の残（中央ゾーン=centerZoneOnly は engine 対応済み・左右/クロス/ドライブは要機構）。(xxii) 残は SEARCH 前段カウント。Sonnet＝Opus在庫消化待ちまたは補欠。
+- **🆕 セッション（2026-07-16・続き154・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き＝中央ゾーン group-buff の脱落是正）**
+  - **是正8効果**＝CONTINUOUS group-buff filter 脱落系統（level/disona/覚醒/UP に続く）の**中央ゾーン版**。「あなたの中央のシグニゾーンにある[＜X＞]のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1}` に潰れ効果元自身のみバフへ縮退。WXDi-D02-24（バーチャル）・WXDi-P13-009（ディソナ）・WXK01-003（怪異）・SP38-008・WXK10-079・WXDi-P02-009・WXDi-P05-007・WXDi-D04-013。
+  - **engine 対応は既存**＝centerZoneOnly（zoneIdx1）は matchesStateFilter・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。parser に専用 else-if を追加（centerZoneOnly＋名詞句内 story/disona）。親コミット比較で9効果変化・MANUAL 除く8枚採用・回帰ゼロ。
+  - **⚠残ギャップ**＝WXDi-D04-013 の「左か右のシグニゾーンにあるかぎり」active condition は未捕捉（変更前も条件無し＝既存の別ギャップ・今回 target のみ改善で退化なし）。左右ゾーンの checkActiveCondition は今後の課題。
+  - **検証**：golden 352→354（parse・engine 中央 index1 のみ+3000 実測）・smoke/fuzz 全0・census 2167 維持・同型★0維持。詳細 BUGFIXES 続き154。
+  - **次の一手**：Opus＝タスク12 の在庫消化を継続。(xxvii) 残＝Cluster C 単点（WXEX1-35/50・WXEX1-57 白か黒）・A 条件節丸ごと欠落11枚・F フィルタ単点13枚・E §6.3級機構。group-buff の残（左右ゾーン/クロス/ドライブは要機構）・DOWN group。(xxii) 残は SEARCH 前段カウント。Sonnet＝Opus在庫消化待ちまたは補欠。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
