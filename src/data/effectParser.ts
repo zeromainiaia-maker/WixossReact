@@ -1094,8 +1094,8 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   //   なかった＝否定条件（Cluster C・結果が起きなかった側＝COUNT_GTE では表せない・据置）。
   // 「レベルが偶数/奇数」は levelParity で捕捉できる（engine matchesFilter 対応済み）＝除外から外す。
   //   ただし「合計/すべて/枚数が/なかった」等の捕捉不能形は引き続き据置（誤って過剰許容の条件を作らない）。
-  if (/種類|共通する|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) return null;
-  if (parseNameFilter(clause).cardName || parseNameFilter(clause).cardNames) return null; // 特定カード名指定は別機構
+  if (/種類|共通する|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) { if (DBG) console.error('[GC] fail: excl-words'); return null; }
+  if (parseNameFilter(clause).cardName || parseNameFilter(clause).cardNames) { if (DBG) console.error('[GC] fail: nameFilter', JSON.stringify(parseNameFilter(clause))); return null; } // 特定カード名指定は別機構
   // カウント（N枚/N体）。無指定は1（「＜X＞のシグニを公開した場合」＝1枚以上）。
   const cm = clause.match(/([０-９\d]+)(?:枚|体)/);
   const minCount = cm ? parseNum(cm[1]) : 1;
