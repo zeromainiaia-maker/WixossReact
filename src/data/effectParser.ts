@@ -1203,6 +1203,17 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   ドリームチーム系（WXDi-P08-001〜005）の色別3分岐が丸ごと脱落し全枝を無条件実行していた過剰効果を是正。
   [/あなたの場に(白|赤|青|緑|黒)のルリグがいる場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } })],
+  // 「あなたのトラッシュに《X》と《Y》がある場合」＝2枚の名前指定カードがそれぞれトラッシュに有る（AND）。
+  //   従来は無条件発火（WX12-043/WX13-077/WXDi-P14-082 等）。decompiler は AND を「かつ」で描画（同型★0 維持済）。
+  [/あなたのトラッシュに《([^》]+)》と《([^》]+)》がある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[0] } },
+      { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[1] } },
+    ] })],
+  // 「このシグニの下にカードがある場合」＝効果元シグニの下に1枚以上（THIS_CARD_HAS_UNDER・filter 無し）。
+  //   従来は無条件発火（WDK15-014/WXDi-P11-081）。
+  [/このシグニの下にカードがある場合/,
+    () => ({ type: 'THIS_CARD_HAS_UNDER' })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
