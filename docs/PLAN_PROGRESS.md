@@ -6,6 +6,9 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き161・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き160「次の一手」＝結果カウント条件の前段判定漏れ〈BANISH/EXILE/SEND_TO_ENERGY〉を是正）**
+  - **2枚採用・census 2093→2092・IS_MY_TURN化 107→104**。「この方法で〜バニッシュした/ゲームから除外した/エナゾーンに置いた場合」の結果カウント条件が、前段が lastProcessedCards を記録するのに parser の `prevRecords` ゲートに `BANISH`/`EXILE`/`SEND_TO_ENERGY` が入っておらず IS_MY_TURN 化していた。`prevIsProcessRecorder` を `prevRecords` に OR 追加（`prevSetsProcessed` は据置＝`parseThisWayTrashCondition` の「トラッシュに置かれた」限定分岐に無反応で安全）。採用＝WX14-021（EXILE→スペル3枚）・WX21-059（BANISH→シグニ2体）。据置＝WX14-072（CHOICE mis-parse）。golden 357・同型★0 維持。詳細 BUGFIXES 続き161。
+
 - **🆕 セッション（2026-07-16・続き160・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き159「次の一手」＝結果レベル合計閾値の parser 未 emit＋operator 化）**
   - **4枚採用・census 2096→2093・golden 356→357・IS_MY_TURN化 111→107**。engine の `LAST_PROCESSED_LEVEL_SUM_EQ` は型/engine/decompiler まで揃っていたが parser が一度も emit せず＋EQ 専用だった二重の穴を是正：(1) JSON 消費者ゼロを確認し `LAST_PROCESSED_LEVEL_SUM{operator,value}` へ一般化（engine `cmp`・decompiler `opJa`）(2) parser に `parseLevelSumCondition` 新設（以上=gte/以下=lte/無印=eq・`prevRecords` ゲート）。採用＝WDK05-R14/WXK10-085=eq4・WXEX2-62=eq7・WX22-Re06=gte3。golden に `evalCondition` 回帰1件追加。据置＝前段が STUB で lastProcessed 未記録の一群。同型★0 維持。詳細 BUGFIXES 続き160。
 
