@@ -2508,6 +2508,30 @@ test('parse 「あなたの覚醒状態のシグニのパワーを＋3000」→ 
   eq(a.target.count, 'ALL', 'count:ALL');
   eq(a.target.filter.isAwakened, true, 'isAwakened フィルタ復元');
 });
+// §3 Opusタスク12(xxvii)＝「あなたの中央のシグニゾーンにある[＜X＞]のシグニのパワーを＋N」の group-buff が
+// owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退（WXDi-D02-24/WXK01-003 等）。centerZoneOnly filter を復元。
+test('parse 「あなたの中央のシグニゾーンにある＜バーチャル＞のシグニのパワーを＋3000」→ self/ALL/centerZoneOnly+story（WXDi-D02-24）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-CZ', Type: 'シグニ', EffectText: '【常】：あなたの中央のシグニゾーンにある＜バーチャル＞のシグニのパワーを＋3000する。' } as unknown as CardData)[0];
+  const a = e.action as unknown as { target: { owner: string; count: string; filter: { centerZoneOnly?: boolean; story?: string } } };
+  eq(a.target.owner, 'self', 'owner:self（従来は any/1 に潰れ）');
+  eq(a.target.count, 'ALL', 'count:ALL');
+  eq(a.target.filter.centerZoneOnly, true, 'centerZoneOnly フィルタ復元');
+  eq(a.target.filter.story, 'バーチャル', 'story も併せて復元');
+});
+test('CONT POWER_MODIFY centerZoneOnly: 中央ゾーン(index1)のシグニのみ+3000（左右は不変）', () => {
+  const me = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] }); // index0=左, 1=中央, 2=右
+  const op = mkState({});
+  const buffEff = { effectId: 'cz', effectType: 'CONTINUOUS',
+    action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', centerZoneOnly: true } }, delta: 3000 },
+    duration: 'PERMANENT', mandatory: true } as unknown as CardEffect;
+  const cm = cardMap as Map<string, CardData>;
+  const p0 = calcFieldPowers(me, op, true, effectsMap, cm);
+  const em = new Map(effectsMap); em.set(SIGNI_L1, [...(effectsMap.get(SIGNI_L1) ?? []), buffEff]);
+  const p1 = calcFieldPowers(me, op, true, em, cm);
+  eq((p1.get(SIGNI_L2) ?? 0) - (p0.get(SIGNI_L2) ?? 0), 3000, '中央ゾーン(index1)のシグニに+3000');
+  eq((p1.get(SIGNI_L1) ?? 0) - (p0.get(SIGNI_L1) ?? 0), 0, '左ゾーン(index0)は不変');
+  eq((p1.get(SIGNI_L3) ?? 0) - (p0.get(SIGNI_L3) ?? 0), 0, '右ゾーン(index2)は不変');
+});
 test('parse 条件節の level を対象へ誤付与しない（「レベル３の場合、…すべてのシグニ＋N」＝SPDi43-31/WX05-073 型）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LVCOND', Type: 'スペル', EffectText: 'あなたのセンタールリグがレベル４以上の場合、ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。' } as unknown as CardData)[0];
   // 対象は全シグニ（level フィルタ無し）。条件節の level4 を target.filter へ混入させない。
