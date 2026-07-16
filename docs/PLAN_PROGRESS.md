@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-16・続き147・Opus 4.8・PLAN §3 Opusタスク12(xxviii)＝「それをエナゾーンに置く」系統バグの消化）**
+  - **続き145で機械検索確定した8効果の系統バグ（🆕(xxviii)）を消化**。原文「対戦相手のシグニ１体を対象とし、コストを支払ってもよい。**そうした場合、それをエナゾーンに置く。**」の「それ」＝対象化した相手シグニ＝**エナ送り除去（SEND_TO_ENERGY）**だが、JSON では `CONDITIONAL{IS_MY_TURN, then: ENERGY_CHARGE{DECK_CARD, self}}`＝**自分デッキからのエナチャージ**に化けていた（相手シグニ除去が丸ごと自分エナ増加に）。
+  - **Sonnet の推定「executor intercept バグ」は誤りで、実体は parser**＝`parseSentencePart1.ts:1815` の「それをエナゾーンに置く」ルールが REVEAL 文脈専用の `ENERGY_CHARGE{DECK_CARD}` に決め打ちし、相手シグニ対象文脈にも誤適用していた（「それ」の指し先取り違え）。
+  - **修正**：(a) parser `applyLeadingOpponentDesignation`（`effectParser.ts`）を拡張＝末尾が `ENERGY_CHARGE` かつ「そうした場合、それをエナゾーンに置く」があれば先頭 designation（相手シグニ）を的にした `SEND_TO_ENERGY` へ置換。(b) `parseCardEffects` で parser 出力の厳密一致を検証してから JSON 7効果を直接パッチ（WXDi-P05-073-BURST/WX25-P2-026-E1/WX26-CP1-086-BURST/WXK05-027-E2/WXK05-070-E1/WXK10-048-BURST/WDK08-Y11-BURST）。(c) golden に構造回帰ガード1件。engine 変更は不要。
+  - **検証**：逆翻訳が原文一致に是正。gates 全緑＝golden 338→339・smoke/fuzz 全0・census 2206維持・同型★0維持。
+  - **残（Opusタスク12 へ持ち越し）**：WX24-P4-048-E2（「対象とし」2回＋動的パワー制約で除外）／上記7のうち WX26-CP1-086・WXK05-027・WXK05-070 はコスト STUB 自体が不正確（除去は是正済み・コスト表現精緻化は別途）。詳細 BUGFIXES 続き147。
+
 - **セッション（2026-07-16・続き146・Sonnet 5・PLAN §3 Sonnetタスク8＝semantic auditスケールアップ・stub群第2弾＝残り2,101枚を完走・stub群母集団2,401枚が全数監査完了）**
   - **ユーザー指示「バッチはCodexだけ・Claudeは確認だけ」に従い実行**。`scripts/semanticAuditExtract.mjs`に`--exclude-file`・`--groups`・`--per-group all`・`--cards-file`を追加（サンプリングでなく既監査300枚を除外した残り全部を抽出できるよう恒久化）。`scripts/semanticAuditRunCodex.mjs`を正式ツールとして新規作成＋**5連続失敗で自動停止するサーキットブレーカーを追加**。
   - **実行中に2種の障害に遭遇**：①アカウント`karkadoll1011@gmail.com`が17バッチで無料枠上限に到達（リセットは約1か月先の`Aug 15th, 2026`）→ユーザー了承のもと別アカウント`zeromain.iaia@gmail.com`へ切替。②切替後さらに5連続失敗＝診断用の手動`codex exec`とバックグラウンドジョブの同時実行によるトークンリフレッシュ競合（一時的）＝単独実行に戻し211バッチ完走まで無停止。
