@@ -218,7 +218,7 @@ export type Condition =
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number }      // この方法で直前に処理した（手札に加えた等）カード枚数がN以上（G158 プライマル「5枚以上手札に加えた場合」）
-  | { type: 'LAST_PROCESSED_LEVEL_SUM_EQ'; value: number }   // lastProcessedCardsのシグニレベル合計=N
+  | { type: 'LAST_PROCESSED_LEVEL_SUM'; operator: CompareOp; value: number }   // lastProcessedCardsのシグニレベル合計とNの比較（operator省略時eqだった旧LAST_PROCESSED_LEVEL_SUM_EQを一般化・続き160）
   | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number }   // この方法でトラッシュ(lastProcessedCards)したシグニのうち相異なるレベルがcount種以上（WX03-015）
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
   | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
