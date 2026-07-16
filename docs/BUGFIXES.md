@@ -2,6 +2,27 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「それをエナゾーンに置く」＝対象化した相手シグニのエナ送りが自分デッキチャージへ退化していた系統バグ7効果を是正（2026-07-16・続き147・Opus 4.8・PLAN §3 Opusタスク12(xxviii)）
+
+**続き145で機械検索確定した8効果の系統バグ（🆕(xxviii)）を消化。** 原文「対戦相手のシグニ１体を対象とし、コストを支払ってもよい。**そうした場合、それをエナゾーンに置く。**」の「それ」＝対象化した相手シグニ＝**エナ送り除去（SEND_TO_ENERGY）**だが、JSON は `CONDITIONAL{IS_MY_TURN, then: ENERGY_CHARGE{target:DECK_CARD, owner:self}}`＝**自分デッキからのエナチャージ**に化けていた（相手シグニ除去が丸ごと自分のエナ増加に）。
+
+### 真因（Sonnet の推定＝executor intercept は誤り／実体は parser）
+`parseSentencePart1.ts:1815` の「それをエナゾーンに置く」ルールが **REVEAL 文脈専用**（公開した自分デッキのカードをエナへ）の `ENERGY_CHARGE{DECK_CARD}` に決め打ちしていた。これが「対戦相手のシグニを対象とし…そうした場合、それをエナゾーンに置く」の別文脈にも適用され、対象化した相手シグニのエナ送りを消していた（「それ」の指し先を取り違え）。
+
+### 修正
+- **parser**（`effectParser.ts` `applyLeadingOpponentDesignation`）：末尾アクションが `ENERGY_CHARGE` かつ本文に「そうした場合、それをエナゾーンに置く」がある場合、先頭 designation（相手シグニ）を的にした `SEND_TO_ENERGY` へ置換。既存の「単一 `対象とし` に限定」ガードを流用（「それ」の指し先が一意なケースのみ）。
+- **JSON 直接パッチ7効果**（parser 出力と厳密一致を `parseCardEffects` で検証してから適用）：WXDi-P05-073-BURST（パワー5000以上）／WX25-P2-026-E1／WX26-CP1-086-BURST／WXK05-027-E2／WXK05-070-E1（パワー10000以上）／WXK10-048-BURST／WDK08-Y11-BURST。いずれも `then` を `SEND_TO_ENERGY{target:{SIGNI,opponent,…}}` へ。
+- engine 実行経路は既存の「STUB(OPTIONAL_COST / TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST) → CONDITIONAL(IS_MY_TURN)」（`effectExecutor.ts:2058-2366`）で「pay→then」を実行し、`execSendToEnergy` が相手場から対象選択→エナ送り。追加の engine 変更は不要。
+- golden に構造回帰ガードを1件追加（7効果すべて `then` が SEND_TO_ENERGY・owner opponent・ENERGY_CHARGE 非退化を assert）。
+
+### 検証
+- 逆翻訳が原文一致に是正（例 WXK10-048-BURST：「《緑》を支払ってもよい。そうした場合、**対戦相手のシグニ1体をエナゾーンに置く**」）。
+- gates 全緑：golden 338→339・smoke/fuzz 全0・census 2206維持・同型★0維持。
+
+### 残（本タスクからの持ち越し・Opusタスク12 へ）
+- **WX24-P4-048-E2**＝「対象とし」が2回（トラッシュ→デッキ下＋相手シグニ）かつ「この方法でデッキに移動したシグニと同じパワー」の**動的パワー制約**付き。単一 designation ガードで除外＝別扱い（JSON は現状 ENERGY_CHARGE のまま・要専用処理）。
+- 上記7のうち **WX26-CP1-086-BURST / WXK05-027-E2 / WXK05-070-E1** はコスト STUB 自体が不正確（TRADE_BANISH_SELF_SIGNI／REVEAL_AND_PICK／TARGET_AND_DISCARD_HAND＝エナからプリオケtrash・水獣4公開・指定カード捨て等が未モデル化）。除去アクションは正しくなったが**コスト表現の精緻化は別途**（SUSPECT_STUB 系）。
+
 ## semantic audit stub群スケールアップ第2弾＝残り2,101枚（stub群母集団の全数）を完走・Codexのみで実行、Claudeは精査に専念（2026-07-16・続き146・Sonnet 5・PLAN §3 Sonnetタスク8）
 
 **ユーザー指示「バッチはCodexだけ・Claudeは確認だけ」に従い、続き145で確立したCodex CLI体制のまま、stub群母集団2,401枚のうち未監査だった残り2,101枚（既監査300枚を`--exclude-file`で除外・サンプリングではなく全数）を1ラウンドで完走した。これにより**stub群母集団2,401枚は全数監査完了**。
