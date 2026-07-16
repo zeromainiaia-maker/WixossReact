@@ -1273,7 +1273,7 @@ export function collectBeatBecameTriggers(
  */
 export function collectHandDiscardTriggers(
   ctx: TrigCtx, discardedNums: string[], myState: PlayerState, discarderId: string, asCost: boolean,
-  opState?: PlayerState, opId?: string,
+  opState?: PlayerState, opId?: string, costSourceNum?: string,
 ): { entries: StackEntry[]; usedLimitIds: string[] } {
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
