@@ -2135,11 +2135,10 @@ function parseActionTextInner(text: string): EffectAction {
           type: 'CHOOSE',
           choose_count: parseNum(chooseHeadM[1]),
           from_count: items.length,
-          choices: items.map((m, i) => ({
-            choiceId: `c${i}`,
-            label: `選択肢${i + 1}`,
-            action: parseActionText(m[1].replace(/[。）\s]+$/, '').trim()),
-          })),
+          choices: items.map((m, i) => {
+            const { action, condition } = liftChoiceOptionCondition(parseActionText(m[1].replace(/[。）\s]+$/, '').trim()));
+            return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
+          }),
           ...(chooseHeadM[2] ? { upTo: true } : {}),
           betChoose: { thenChooseCount: parseNum(chooseBetM[1]), thenUpTo: !!chooseBetM[2] },
         } as ChooseAction;
