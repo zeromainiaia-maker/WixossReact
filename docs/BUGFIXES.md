@@ -2,6 +2,25 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 「手札を捨てる。この方法でカードをN枚(以上)捨てた場合」の後置カウント条件が IS_MY_TURN（常時true）に化ける過剰実行バグ4効果を是正（2026-07-16・続き150・Opus 4.8・PLAN §3 Opusタスク12(xxii) 捨てカウントバッチ）
+
+**続き138（Sonnet）のPARTIAL刻印トリアージで「Cluster B 結果カウント閾値」に分類された系統の一部を消化。** 原文「手札を（すべて/好きな枚数/N枚）捨てる。この方法でカードをN枚(以上)捨てた場合、X」の後置カウント条件を parser が抽出できず `CONDITIONAL{IS_MY_TURN}`（常時true）に化けさせ、実際に捨てた枚数を見ずに後続 X を無条件発火していた（可変・任意の捨て枚数に依存する分岐なのに過剰実行）。
+
+### 原因と修正（parser のみ・engine 変更なし）
+- `parseThisWayGenericCount`（`effectParser.ts`）が「記録が不確実」との理由で**捨てる動詞を許可動詞リストから除外**していた（`公開|トラッシュに置|エナゾーンに置|…` に `捨て` が無い）。
+- **engine 実装を確認＝`TRASH{HAND_CARD}` は ALL/blind/選択resume の全経路で `lastProcessedCards` に捨てたカードを記録する**（`effectExecutor.ts:699/730` ＋ `resumeSelectTarget:4288/4304`）。`LAST_PROCESSED_COUNT_GTE` は `lastProcessedCards.length >= value` で評価＝捨てた枚数で正しくゲートされる。捨て0枚なら false＝発火しない（＝原文どおり・過剰実行しない）。
+- 許可動詞に `捨て` を追加。否定「捨て**なかった**」（Cluster C）は `COUNT_GTE` では表せないため reject 語に `なかった` を追加して据置。
+- 呼び出し側ゲートは既存の `prevSetsProcessed = prevStep.type === 'TRASH'` で成立（「手札をすべて捨てる」＝`TRASH{HAND_CARD, ALL}` が前段）。
+
+### 適用範囲の境界（安全側）
+- **前段が実 `TRASH` の forced/filter 付き捨て**（「手札を２枚捨てる」「＜凶蟲＞を好きな枚数捨てる」「すべて捨てる」）＝**是正**：PR-K038-E3・WXEX2-39-E1・WXDi-P06-035-E2（第1枝のみ・第2枝の「代わりに」は置換機構待ちで既存据置）・WXK01-001-E2。
+- **前段が `STUB{OPTIONAL_COST}` に化ける「手札をすべて捨てても**よい**」「手札を好きな枚数捨てる（generic）」**＝記録が STUB 依存で不確実なため**据置のまま**（PR-427-E2・WDK05-T01-E2・WXDi-D09-H17-E1・WX24-P2-048-E1）。これらは(xi) OPTIONAL_COST STUB の扱いと合流。
+
+### 採用と検証
+- 4効果は curated が `parseStatus:PARTIAL` で build:effects が丸ごと温存するため、当該効果の `action` を fresh から JSON 直接パッチ＋parseStatus を AUTO へ。
+- golden に回帰ガード3件（parse＝COUNT_GTE抽出／否定の非変換／**engine 実行＝手札3枚全捨て→ドロー発火・手札1枚→未発火の過剰実行防止を実測**）。
+- gates 全緑：golden 342→345・smoke/fuzz 全0・census **2169→2167**（-2・BASELINE 実数更新）・同型★0維持。PARTIAL 刻印 IS_MY_TURN化 98→94。
+
 ## 「（対象を）手札に加えるか場に出す」の行き先二択が「手札に加える」だけに縮退する系統バグ84効果を是正（2026-07-16・続き149・Opus 4.8・PLAN §3 Opusタスク12(xxix)②）
 
 **続き146の semantic audit stub群スケールアップで「選択肢欠落系統」として登録された系統を消化。** 原文「それを**手札に加えるか場に出す**」（＝そのカードを手札 or 場のどちらへ送るかをプレイヤーが選ぶ二択）が、JSON では `TRANSFER_TO_HAND`（手札固定）に縮退し「場に出す」選択肢が丸ごと脱落していた。LIFE_BURST 中心の系統（原文該当88効果中 85効果が AUTO で縮退・実害）。
