@@ -155,13 +155,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-16・続き163・Opus 4.8・PLAN §3 Opusタスク12(xxiv)(vii) を並行消化）**
-  - **8枚是正・census 2092→2088・golden 358→359**。ユーザー依頼で (xxiv) 発生源フィルタ脱落と (vii) アップ/ダウン混同を両方進めた。
-  - **(xxiv) ON_DISCARDED_AS_COST 発生源クラス限定（4枚・engine機構新設）**＝triggerCondition `discardCostSourceStory`＋`collectHandDiscardTriggers` に `costSourceNum` 引数（コスト支払い能力の host シグニ CardClass で判定）＋BattleScreen 3発火元で `cardNum` 渡し＋parser 抽出。WX25-P3-071/077/084/088（微菌）。**残＝WX25-P3-085 grant mis-parse／ON_OPP_POWER_DECREASED 2・ON_CARD_MILLED_FROM_DECK 1 は発生源シグニ追跡が engine に無く §6.3級**。
-  - **(vii) 「このシグニをダウンしてもよい」対象/自己混同（4枚・MANUAL 上書き）**＝DOWN を self thisCardOnly optional へ（正準形 WD12-013）。WX25-P1-055/WXDi-P04-059（+BANISH power フィルタ復元）・WXDi-P13-074（+isDisona）・WXDi-CP01-040（+REVEAL_DECK_TOP＋バーチャルゲート）。**残3枚＝§6.3級**（WX25-P3-089/WXDi-P15-084 引用付与・WX25-P2-112 動的色フィルタ）。
-  - **検証**：golden 359・smoke/fuzz 全0・census 2092→2088（BASELINE 更新）・同型★0 維持。詳細 BUGFIXES 続き163。
-  - **次の一手**：Opus＝(xxiii) リコレクト分割・(xxvii) 残 Cluster C/A/F・引用付与（タスク1＝(vii)/(xxiv) 残の共通ブロッカー＝GRANT-inner 機構）・IS_MY_TURN化残104。Sonnet＝続き162 の `oppDrawOwnEffectOnly` PASS 反転確認（在庫復活済み）。
-  - **次の一手**：Opus＝条件節クラスタ残の**機構バウンド**分（(a) LAST_PROCESSED reveal 経路のブルアカ系＝REVEAL_AND_PICK と絡む／(b) 「見る。その中から…」2文 LOOK_PICK × 条件（P08-003 等）／(c) コスト支払い累計・デッキ移動累計カウンタ）を機構ごとに。タスク12 在庫（(xxvii) 残 Cluster C/A/F）も。Sonnet＝Opus在庫消化待ちまたは補欠。
+- **🆕 セッション（2026-07-16・続き164・Fable 5〔Opus側〕・PLAN §3 Opusタスク1＝引用付与の内側 ability parse の本丸を消化）**
+  - **16枚是正（14効果採用）・census 2088→2084・golden 359→364・実機 `wx24p2018GrantFire` 完全経路2回連続PASS（既定order追加＝75件）**。
+  - **2文型引用付与（家族18効果）**＝「<対象>を対象とし、<任意コスト>てもよい。そうした場合、(期間、)それは「【自】…」を得る」を parser 語彙化：文ループに prevRaw 追跡を新設し、S1 の対象節を `GRANT_EFFECT{target, rawText}` へ運ぶ（「それ」解決）。ダウンコスト形は S1 を正準形 `DOWN{self,thisCardOnly,isUp,optional}`（WD12-013）へ置換。⚠内側引用が単一ブロック AUTO で試験展開できるときだけ発火（「【常】：アタックできない。」等は従来の粗い即時近似を温存＝no-op 退化を防ぐガード）。
+  - **「対戦相手が《…》を支払わないかぎり、X」ゲート（33文）**＝`SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL{IS_MY_TURN}]` 化（engine 変更ゼロ＝既存 executor Pattern で相手側 pay/skip CHOOSE）。⚠「対戦相手**は**」形（主語分配）と「そのシグニ」照応（owner 反転退化）は据置。
+  - **全数機械測定**＝before/after 全9283カードダンプ比較→16枚のみ変化・全枚原文照合で退化ゼロ（測定ループで退化2系統を検出しガード追加）。JSON 採用は curated==fresh-before の14効果のみ（WX25-P3-074/078 は既に正準 MANUAL＝据置）。**タスク12(vii) 残の WX25-P3-089/WXDi-P15-084 もこの家族として同時消化**。
+  - **検証**：gates 全緑・census 2084（BASELINE 更新）・同型★0 維持・decompiler に OPPONENT_PAY_OPTIONAL 描画＋「そうしなかった場合」反転を追加。詳細 BUGFIXES 続き164。
+  - **次の一手**：Opus＝(xxiii) リコレクト分割・(xxvii) 残 Cluster A/F・タスク1残（【常】アタックできない家族の付与構造化・内側「代わりに」）・IS_MY_TURN化残104・条件節クラスタ残の機構バウンド分。Sonnet＝`oppDrawOwnEffectOnly` PASS 反転確認（続き162 在庫）＋今回 PASS 済み `wx24p2018GrantFire` を含む§7フルバッチの回帰確認。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
