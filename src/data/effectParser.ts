@@ -1028,6 +1028,11 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
     // この方法で＜X＞のシグニ（が）トラッシュに置かれた場合（枚数指定なし＝1枚以上・WXDi-P10-071）
     const sc3 = clause.match(/この方法で(?:あなたのデッキから)?＜([^＞]+)＞のシグニ(?:が)?トラッシュに置かれた場合/);
     if (sc3) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc3[1], count: 1 };
+    // 語順違い：「この方法でトラッシュに＜X＞のシグニがN枚(以上)置かれた場合」（「トラッシュに」が
+    //   フィルタ名詞句の前に来る形＝WXEX1-47・WX26-CP1-058「デッキから」付き）。上の sc2/sc3 は
+    //   「＜X＞のシグニ…トラッシュに置かれた」語順専用でこの形を取りこぼす。
+    const sc4 = clause.match(/この方法で(?:あなたのデッキから)?トラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚(?:以上)?置かれた場合/);
+    if (sc4) return { type: 'TRASHED_STORY_COUNT_GTE', story: sc4[1], count: parseNum(sc4[2]) };
     // この方法でカードをN枚(以上)トラッシュに置いた/N枚(以上)のカードが|カードがN枚(以上)トラッシュに置かれた場合
     //（プレーンなカード枚数＝MILL結果。PR-442/WX09-Re19/WXK02-063/WXDi-P11-082）
     const cc = clause.match(/この方法で(?:あなたのデッキから)?(?:カードを([０-９\d]+)枚(?:以上)?トラッシュに置いた|([０-９\d]+)枚(?:以上)?のカードがトラッシュに置かれた|カードが([０-９\d]+)枚(?:以上)?トラッシュに置かれた)場合/);
