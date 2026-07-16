@@ -2418,6 +2418,20 @@ function parseActionTextInner(text: string): EffectAction {
       }
     }
   }
+  // ---- センタールリグへの能力付与（対象形式: 「あなたのセンタールリグ１体を対象とし、（ターン終了時まで、）
+  //      それは以下の能力を得る。『【起】エクシード１：…【起】…』」＝WX25-P1-001/003/005/007/009）----
+  // 複数の独立した【起】（エクシードコスト付き）を後天付与する文型。従来この規則が無く、引用内の3能力が
+  // コストゲートも選択も無い1本の SEQUENCE へ平坦化されて**即時全実行**される過剰実行バグだった（タスク12(xxiii)）。
+  // センタールリグは1体しか居ないため対象選択は自明＝engine は既定の GRANT_LRIG_ABILITY（自分のセンタールリグへ
+  // 付与→ lrig_granted_auto_effects → UI が付与ACTIVATEDとして列挙・エクシード支払い）で完結する。
+  // abilities は expandGrantLrigAbilities が rawText から展開する（既存規則と同方式）。
+  {
+    const targetGrantM = text.match(/(?:あなたの)?センタールリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
+    if (targetGrantM) {
+      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: targetGrantM[1].trim(), targetedCenter: true,
+        ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
+    }
+  }
   // ---- センタールリグへの能力付与 ----
   if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
     const m = text.match(/以下の能力を得る[。、]?(.+)/s);
