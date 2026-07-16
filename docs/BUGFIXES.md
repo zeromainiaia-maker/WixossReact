@@ -2,6 +2,21 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## timing センサス残117クラスタの振り分け台帳を作成＝§6.3送りとOpusタスク16候補を仕分け（2026-07-17・PLAN §3 補欠(a)・Sonnet 5・続き172）
+
+**主題**＝PLAN §3 補欠(a)「timing census 残128（113クラスタ）の振り分け台帳作成は未着手」を消化。`docs/_timing_census.txt`（`npm run census:timing`・この時点で135効果/117クラスタ）の全クラスタについて、`src/types/effects.ts` のON_*コメント（engine配線済み/未配線の明記）と `triggerCollect.ts`/`BattleScreen.tsx` の実装を突き合わせて機械照合し、`docs/_timing_census_triage.txt` を新設した。
+
+**分類（3段階）**：
+- **[A] 完全wired（parser regexのみで直る＝Opusタスク16の即消化候補）**＝約34クラスタ。ON_ACCE_ATTACH／ON_SIGNI_BATTLE系／ON_CARD_MOVED_TO_DECK／ON_CHARM_TO_TRASH／risedOntoNameContains／exceedCostPaidByPlayer等、collector とfilter軸が既に揃っている。
+- **[B] 部分wired（軽量engine拡張が要る）**＝約16クラスタ。event検出はあるがfilter/閾値が型に無い（例：ON_ARTS_USEの色filter欠如・ON_CARD_MILLED_FROM_DECKのlevel/story filter欠如・ON_OPP_VIRUS_REMOVEDのN以上閾値）。
+- **[C] 未wired（新規機構＝§6.3送り）**＝約67クラスタ。
+
+**繰り返しパターン（一括機構化の候補として整理）**：①ON_SIGNI_DOWN系が丸ごと未配線（型定義のみでengine参照0件・8クラスタ相当。ON_SIGNI_BECOMES_UPは続き169で既に新機構タスク化済みだがダウン版は未登録）②「累積・合計N以上」系（milled合計／ドロー合計／discard合計）のカウンタ欠如（8クラスタ相当・単発イベント収集はあるが解決を跨いだ累積が無い）③ON_LEAVE_FIELD／ON_HAND_DISCARDEDの跨サイドscope欠如（効果を与えた側が相手の離脱/discardを監視できない・4クラスタ相当）④自己discard反応（捨てられたカード自身のON_HAND_DISCARDED self）の欠如＝PLAN既知のWXDi-P11-066系と同一の穴（4クラスタ相当）⑤TargetFilterにfrozen判定フィールドが無い（4クラスタ相当）。
+
+**検証**＝docs追加のみ（parser/engine/JSON非変更）につき `npm run gates` で回帰なきことのみ確認（golden 383・census 2031・同型★0・smoke/fuzz 全0・変化なし）。`npm run census:timing` の再実行に伴い `docs/_timing_census.txt` のベースライン注記行も微修正（2032→2031の表記ずれを解消・実質差分なし）。
+
+**残**＝[A]34クラスタはOpusタスク16として即消化可能（parser regex1本ずつ）。[B]16クラスタは軽量engine拡張後にOpusタスク16へ合流。[C]67クラスタは上記5パターンへの機構タスク化を検討してから§6.3の個別カード登録に落とす（1本の汎用機構で複数クラスタが同時に片付く可能性が高い＝個別カード対応より先にパターン単位の機構検討を推奨）。詳細・カード別根拠は `docs/_timing_census_triage.txt`。
+
 ## LOOK_AND_REORDER（公開）を lastProcessedCards 記録型に：「この方法で公開されたN枚/すべて〜の場合」を捕捉（2枚・census 2032→2031・golden 381→383）（2026-07-17・PLAN §3 Opusタスク12(xxii) 続き171d）
 
 **主題**＝IS_MY_TURN化残の「公開」系（「デッキの上からN枚公開する。その後、この方法で〔天使が3枚/すべてlevel1〕公開された場合、…」）は、前段の `LOOK_AND_REORDER`（公開）が engine で `lastProcessedCards` を記録せず、parser の `prevRecords` ゲートにも入っていなかったため無条件true化していた。
