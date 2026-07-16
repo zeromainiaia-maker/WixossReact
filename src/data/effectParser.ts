@@ -2736,6 +2736,49 @@ function parseActionTextInner(text: string): EffectAction {
       }
     }
 
+    // 「そうした場合、(期間、)それ(ら)は「【自/出/起/常】…」を得る」＝直前文「<対象>を対象とし、<任意コスト>てもよい」
+    // の対象へ引用能力を付与する2文型（引用付与の対象-コスト分離・§3 Opusタスク1・全18効果の家族）。
+    // 従来は S1 の対象節が任意コスト STUB／誤 DOWN に飲まれて脱落し、S2 は引用内側が漏れ出して即時実行に
+    // 平坦化していた（WX24-P2-018＝ルリグ自身へ即アサシン付与・WX25-P3-089/WXDi-P15-084＝内側効果の即時実行）。
+    // S1 のコストステップはそのまま（executor Pattern③〔STUB+CONDITIONAL〕／DOWN 空振りスキップが支払フローを
+    // 生成する）、対象情報だけを prevRaw から GRANT_EFFECT.target へ運ぶ（「それ」の解決＝付与時に選択UI）。
+    // 引用内は expandGrantEffectRawTexts が parseBlock で CardEffect へ展開する（失敗時は rawText 温存＝PARTIAL）。
+    {
+      const grantM = clean.match(/^そうした場合、(ターン終了時まで、|次の対戦相手のターン終了時まで、)それ(?:ら)?は「(【[自出起常]】.+)」を得る$/s);
+      if (grantM && steps.length > 0) {
+        const prevT = prevRaw.match(/^((?:あなた|対戦相手)の[^。「」]*?を?)対象とし、([^。「」]+てもよい)$/);
+        // 対象は場のシグニ/ルリグ限定＝出自ゾーン付き対象（トラッシュ/エナ/手札/デッキ）や表現不能修飾は据置
+        if (prevT && !/トラッシュ|エナゾーン|手札|デッキ|アイコン|同じシグニゾーン/.test(prevT[1])) {
+          const preQG2 = prevT[1].endsWith('を') ? prevT[1].slice(0, -1) + 'を対象とし、' : prevT[1] + '対象とし、';
+          const ownerQG2: Owner = preQG2.startsWith('対戦相手の') ? 'opponent' : 'self';
+          let targetQG2: EffectTarget | null = null;
+          if (/ルリグかシグニ/.test(preQG2)) {
+            const cm = preQG2.match(/([０-９\d]+)体(まで)?を?対象とし、$/);
+            targetQG2 = { type: 'CENTER_LRIG_OR_SIGNI', owner: ownerQG2, count: cm ? parseNum(cm[1]) : 1, ...(cm?.[2] ? { upToCount: true } : {}) };
+          } else if (/シグニ/.test(preQG2)) {
+            targetQG2 = parseSigniTarget(preQG2, ownerQG2);
+          } else if (/ルリグ/.test(preQG2)) {
+            targetQG2 = { type: 'LRIG', owner: ownerQG2, count: 1 };
+          }
+          // 前段がコストとして機能するステップ（STUB 任意コスト系／DOWN）であることを確認＝
+          // 他形（能動アクション）に誤ペアリングして無条件付与にしない
+          const prevStepQG2 = steps[steps.length - 1] as { type?: string };
+          const prevPairsQG2 = prevStepQG2?.type === 'STUB' || prevStepQG2?.type === 'DOWN' || prevStepQG2?.type === 'BOUNCE' || prevStepQG2?.type === 'TRASH';
+          if (targetQG2 && prevPairsQG2) {
+            // コストが「アップ状態のこのシグニをダウン」形なら S1 を正準形（DOWN self thisCardOnly optional＝
+            // WD12-013・続き163）へ置き換える（従来は対象節のフィルタが DOWN に誤って載り、コストのはずの
+            // ダウンが対象シグニに掛かる誤実装だった）。ダウン不可時は executor が残りをスキップする。
+            if (/^アップ状態のこのシグニをダウンしてもよい$/.test(prevT[2])) {
+              steps[steps.length - 1] = { type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true, isUp: true } }, optional: true } as EffectAction;
+            }
+            const durQG2: EffectDuration = grantM[1].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+            steps.push({ type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'GRANT_EFFECT', target: targetQG2, duration: durQG2, rawText: grantM[2] } as EffectAction });
+            continue;
+          }
+        }
+      }
+    }
+
     // 「そうしなかった場合、」= 直前が OPPONENT_PAY_OPTIONAL の場合、その else アクションを IS_MY_TURN CONDITIONAL でラップ
     const notThenM = clean.match(/^そうしなかった場合、/);
     if (notThenM && steps.length > 0) {
