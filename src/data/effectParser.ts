@@ -1291,6 +1291,21 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // スキップし、ここで per-target 値すり替えの置換ゲートとして拾う（engine/decompiler は color 付き実装済み・続き106）。
   [/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/,
     g => ({ type: 'ARTS_USED_THIS_TURN', owner: 'self', color: g[0] })],
+  // ── 続き158（2026-07-16）：PARTIAL 刻印 IS_MY_TURN化残の盤面状態系（engine evalCondition・decompiler condJa 両対応）。
+  //    従来は語彙が無く「その後、<状態条件>の場合」の条件節ごと脱落して無条件発火の過剰効果だった。
+  // 「あなたの場にレゾナがある場合」＝HAS_CARD_IN_FIELD{cardType:レゾナ}（matchesFilter は Type='レゾナ' を照合。WD09/11/12-018 の「追加で」枝）。
+  [/あなたの場にレゾナがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
+  // 「(あなた|対戦相手)のトラッシュにカードがN枚以上ある場合」＝TRASH_COUNT（trash.length 比較）。
+  //   ⚠フィルタ付き（＜X＞のシグニ/レベル/色）は先行エントリが先にマッチする＝ここは無フィルタの総枚数専用。
+  [/(あなた|対戦相手)のトラッシュにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
+  // 「(あなた|対戦相手)の手札がN枚より多い場合」＝HAND_COUNT{gt}（既存 HAND_COUNT 節は「の場合」＝以上/以下/eq 専用で「より多い」を落とす。WDK08-Y08）。
+  [/(あなた|対戦相手)の手札が([０-９\d]+)枚より多い場合/,
+    g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gt', value: parseNum(g[1]) })],
+  // 「(あなた|対戦相手)の場にシグニがない場合」＝FIELD_COUNT{eq,0}（field.signi の非空スタック数=0。WX04-025）。
+  [/(あなた|対戦相手)の場にシグニがない場合/,
+    g => ({ type: 'FIELD_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'eq', value: 0 })],
   ...STATE_CONDITION_CLAUSES_V2,
 ];
 
