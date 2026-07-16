@@ -1849,9 +1849,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // 「支払う（pay＝何も起きない）／支払わない（skip＝X 実行）」の相手側 CHOOSE を生成する。
   // 従来はこの節に対応する規則が無く、下流の非アンカー規則が X だけを拾って節全体が無言消費され
   // **X が無条件実行の過剰効果**になっていた（WX24-P2-018-E1 の引用内側＝タスク12(i) と同系統・§3 Opusタスク1）。
+  // ⚠「対戦相手**は**〜支払わないかぎり、手札を捨てる/アタックできない」は主語が帰結節にも分配される別形
+  //   （part3:2095 等の専用規則の領分）＝ここでは「対戦相手**が**」形のみ扱う。
+  // ⚠帰結が「そのシグニ」照応（トリガー元シグニ参照＝WXDi-P08-007）は、単文パースで owner が self に
+  //   反転する退化を起こすため据置（従来どおり条件脱落の既知バグとして残る＝タスク12 在庫）。
   {
-    const oppUnlessPayM = t.match(/^対戦相手[がは]((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
-    if (oppUnlessPayM) {
+    const oppUnlessPayM = t.match(/^対戦相手が((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
+    if (oppUnlessPayM && !/^(?:ターン終了時まで、)?そのシグニ/.test(oppUnlessPayM[2])) {
       const costColors = [...oppUnlessPayM[1].matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
       const unlessThen = parseSingleSentence(oppUnlessPayM[2]);
       if (!JSON.stringify(unlessThen).includes('"UNKNOWN"')) {
