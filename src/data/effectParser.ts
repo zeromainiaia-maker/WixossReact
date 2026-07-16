@@ -1064,6 +1064,15 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     // 「＜X＞(か＜Y＞)?」単独（「のシグニ」なし＝カード種別を問わない story 一致。デッキ公開＜ブルアカ＞系）。
     const st = desc.match(/^＜([^＞]+)＞(?:か＜([^＞]+)＞)?$/);
     if (st) return { type: 'LAST_PROCESSED_MATCHES', filter: { story: st[2] ? [st[1], st[2]] : st[1] } };
+    // 「(色)(か(色))*のシグニ」＝色（OR）フィルタ。BANISH/公開/ミル結果が特定色かの判定（WX21-016「青か緑のシグニ」）。
+    //   matchesFilter は filter.color の string|string[] を OR 判定する。従来は色語彙が無く IS_MY_TURN 据置だった。
+    const colM = desc.match(/^((?:白|赤|青|緑|黒)(?:か(?:白|赤|青|緑|黒))+)のシグニ$/);
+    if (colM) {
+      const colors = colM[1].split('か');
+      return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: colors } };
+    }
+    const col1 = desc.match(/^(白|赤|青|緑|黒)のシグニ$/);
+    if (col1) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: col1[1] } };
     const sm = desc.match(/^(?:レベル[０-９\d]+(?:以上|以下)?の)?(?:《ガードアイコン》を持つ)?(?:＜[^＞]+＞(?:か＜[^＞]+＞)?の)?シグニ$/);
     if (sm) {
       const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc), ...parseGuardFilter(desc) };
