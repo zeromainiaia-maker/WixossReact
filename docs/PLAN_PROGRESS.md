@@ -6,6 +6,9 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き160・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き159「次の一手」＝結果レベル合計閾値の parser 未 emit＋operator 化）**
+  - **4枚採用・census 2096→2093・golden 356→357・IS_MY_TURN化 111→107**。engine の `LAST_PROCESSED_LEVEL_SUM_EQ` は型/engine/decompiler まで揃っていたが parser が一度も emit せず＋EQ 専用だった二重の穴を是正：(1) JSON 消費者ゼロを確認し `LAST_PROCESSED_LEVEL_SUM{operator,value}` へ一般化（engine `cmp`・decompiler `opJa`）(2) parser に `parseLevelSumCondition` 新設（以上=gte/以下=lte/無印=eq・`prevRecords` ゲート）。採用＝WDK05-R14/WXK10-085=eq4・WXEX2-62=eq7・WX22-Re06=gte3。golden に `evalCondition` 回帰1件追加。据置＝前段が STUB で lastProcessed 未記録の一群。同型★0 維持。詳細 BUGFIXES 続き160。
+
 - **🆕 セッション（2026-07-16・続き159・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き158「次の一手」＝盤面状態条件節の parser 未 emit を是正）**
   - **4枚採用・census 2098→2096・IS_MY_TURN化 119→111**。続き158 の続き。engine evalCondition・decompiler condJa は既対応なのに `STATE_CONDITION_CLAUSES` に語彙が無く条件節ごと脱落していた盤面状態4種を追加：`あなたの場にレゾナがある場合`→`HAS_CARD_IN_FIELD{cardType:レゾナ}`（WD09/11/12-018 の「追加で」枝）／`トラッシュにカードがN枚以上ある場合`→`TRASH_COUNT{gte}`（WD22-038-UG/WXDi-D05-012/WXDi-P02-089）／`手札がN枚より多い場合`→`HAND_COUNT{gt}`（WDK08-Y08）／`場にシグニがない場合`→`FIELD_COUNT{eq,0}`（WX04-025）。
   - **採用**＝`heldReview --adopt` 4枚（WD11-018/WD22-038-UG/WXDi-D05-012/WXDi-P02-089）。WD12-018 は自動採用・WX04-025 は既 MANUAL。**据置**＝WD09-018（then が SEARCH 未 parse で UNKNOWN 化）・WDK08-Y08（then「差の分だけ」機構未対応）。golden 356・同型★0 維持。詳細 BUGFIXES 続き159。
