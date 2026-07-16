@@ -2,6 +2,20 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## 盤面状態条件節を STATE_CONDITION_CLAUSES へ系統追加＝レゾナ場／トラッシュ枚数／手札より多い／場にシグニなし（4枚採用・census 2098→2096・IS_MY_TURN化 119→111）（2026-07-16・続き159・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き158「次の一手」）
+
+**主題**＝続き158 の続き。PARTIAL 刻印 IS_MY_TURN化クラスタ（`docs/_partial_report.txt`）の残のうち、**engine の evalCondition・decompiler の condJa がどちらも既対応なのに parser の `STATE_CONDITION_CLAUSES` に語彙が無く、「その後、<状態条件>の場合」の条件節ごと脱落して無条件発火していた**盤面状態4種を追加した。前段ステップの記録に依存しない独立ゲート（`parseHoistStateCondition` 経由）。
+
+**追加した条件節（engine＋decompiler 両対応を確認済み）**：
+- `あなたの場にレゾナがある場合` → `HAS_CARD_IN_FIELD{owner:self, filter:{cardType:'レゾナ'}}`（matchesFilter は field.signi の `Type==='レゾナ'` を照合）。→ WD09/11/12-018 の「追加で〜」枝（レゾナがあれば2回目の探索/手札加え）。
+- `(あなた|対戦相手)のトラッシュにカードがN枚以上ある場合` → `TRASH_COUNT{operator:'gte', value:N}`（trash.length 比較・無フィルタの総枚数専用＝＜X＞のシグニ/レベル/色付きは先行エントリが先取り）。→ WD22-038-UG/WXDi-D05-012/WXDi-P02-089。
+- `(あなた|対戦相手)の手札がN枚より多い場合` → `HAND_COUNT{operator:'gt', value:N}`（既存 HAND_COUNT 節は「の場合」＝以上/以下/eq 専用で「より多い」を落としていた）。→ WDK08-Y08。
+- `(あなた|対戦相手)の場にシグニがない場合` → `FIELD_COUNT{operator:'eq', value:0}`。→ WX04-025。
+
+**採用**＝`heldReview --adopt` で4枚（WD11-018・WD22-038-UG・WXDi-D05-012・WXDi-P02-089）。WD12-018 は build が自動採用・WX04-025 は既に MANNUAL で FIELD_COUNT 済み。**据置**＝WD09-018（then「追加で探して公開し手札に加える」が SEARCH 未 parse で UNKNOWN 化＝既存 STUB `CONDITIONAL_SEARCH_IF_RESONA` を温存）・WDK08-Y08（then「その差の分だけエナに置く」が差分移動機構未対応で UNKNOWN 化）＝いずれも条件は正しいが then が機構待ちのため held 残置。
+
+**結果**＝golden 356・smoke 全0・fuzz 全0・同型★0 維持・census 2098→2096（BASELINE 更新）・IS_MY_TURN化 119→111（刻印 145→137）。
+
 ## LAST_PROCESSED reveal 経路の条件節を系統追加＝levelParity／bare story／POWER_GTE の parser 未 emit を是正（8枚・census 2101→2098・IS_MY_TURN化 128→119）（2026-07-16・続き158・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き157「次の一手」(a)）
 
 **主題**＝PARTIAL 刻印 IS_MY_TURN化クラスタ（`docs/_partial_report.txt`）の残のうち、**engine の条件評価器（execUtils.evalCondition / matchesFilter）は既に対応済みなのに parser がその条件を emit していなかった穴**を3種まとめて塞いだ。いずれも「デッキ公開/ミル/POWER_MODIFY の直後に『そのカードが〜の場合』で分岐する」LAST_PROCESSED 経路で、条件節が抽出できず無条件（IS_MY_TURN）化＝過剰実行していた。
