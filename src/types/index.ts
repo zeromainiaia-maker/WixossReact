@@ -337,6 +337,10 @@ export interface PlayerState {
   // 直近の効果ドロー（execDraw 経由）の原因カード番号。triggerCondition.drawBySourceStory（WX20-026-E3）の発火判定用。
   // ドローフェイズの通常ドロー（drawCards 経由）では undefined にクリアし、効果ドロー（execDraw）が原因カードを上書きする。
   last_effect_draw_source?: string;
+  // 直近の効果ドローが「このプレイヤー自身の効果」由来か（execDraw で a.owner==='self' のとき true・相手にドローさせた
+  // 場合 false）。ON_DRAW any_opp の triggerCondition.drawByDrawerOwnEffect（「対戦相手が自分の効果で引いたとき」＝
+  // PR-423）の発火判定用。ドローフェイズの通常ドローは execDraw を通らないため更新されない（drawByEffect で別途除外）。
+  last_draw_by_own_effect?: boolean;
   // REPLACE_PLUS_N: このターン、相手シグニへの正のパワー修正を負に置換する
   replace_opp_power_plus?: boolean;
   // COIN_USE_RESTRICTION: コイン使用先制限（'spell_signi_only'=スペルとシグニにしか使えない）
