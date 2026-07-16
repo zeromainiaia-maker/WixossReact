@@ -1116,6 +1116,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const n = m?.[2] ? numJa(parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)))) : '1';
         return `あなたの手札から${cls}シグニ${n}枚を捨ててもよい`;
       }
+      // OPPONENT_PAY_OPTIONAL: 対戦相手の任意コスト支払い（兄弟 CONDITIONAL(IS_MY_TURN) が
+      // 「そうしなかった場合」の本体＝SEQUENCE 描画側でラベルを反転する）
+      if (a.id === 'OPPONENT_PAY_OPTIONAL') {
+        const costJaOPO = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
+        return `対戦相手は${costJaOPO || 'コスト'}を支払ってもよい`;
+      }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // costText（エナ色以外の任意コスト句）が明示されていれば原文どおり描画（A3）
         if (a.costText) return a.costText;
