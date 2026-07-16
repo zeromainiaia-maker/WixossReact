@@ -917,7 +917,12 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REVEAL':
       if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する`;
       return `${ownerJa(a.owner)}デッキの上を公開する`;
-    case 'GRANT_LRIG_ABILITY': return `${a.permanent ? 'このゲームの間、' : ''}あなたのセンタールリグは『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』を得る`;
+    case 'GRANT_LRIG_ABILITY': {
+      const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
+      // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
+      if (a.targetedCenter) return `あなたのセンタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
+      return `${a.permanent ? 'このゲームの間、' : ''}あなたのセンタールリグは『${glaInner}』を得る`;
+    }
     case 'AWAKEN_SIGNI': return 'このシグニを覚醒状態にする';
     case 'GAIN_BOND': return a.source === 'declared'
       ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
