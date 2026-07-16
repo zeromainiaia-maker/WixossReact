@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-16・続き159・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き158「次の一手」＝盤面状態条件節の parser 未 emit を是正）**
+  - **4枚採用・census 2098→2096・IS_MY_TURN化 119→111**。続き158 の続き。engine evalCondition・decompiler condJa は既対応なのに `STATE_CONDITION_CLAUSES` に語彙が無く条件節ごと脱落していた盤面状態4種を追加：`あなたの場にレゾナがある場合`→`HAS_CARD_IN_FIELD{cardType:レゾナ}`（WD09/11/12-018 の「追加で」枝）／`トラッシュにカードがN枚以上ある場合`→`TRASH_COUNT{gte}`（WD22-038-UG/WXDi-D05-012/WXDi-P02-089）／`手札がN枚より多い場合`→`HAND_COUNT{gt}`（WDK08-Y08）／`場にシグニがない場合`→`FIELD_COUNT{eq,0}`（WX04-025）。
+  - **採用**＝`heldReview --adopt` 4枚（WD11-018/WD22-038-UG/WXDi-D05-012/WXDi-P02-089）。WD12-018 は自動採用・WX04-025 は既 MANUAL。**据置**＝WD09-018（then が SEARCH 未 parse で UNKNOWN 化）・WDK08-Y08（then「差の分だけ」機構未対応）。golden 356・同型★0 維持。詳細 BUGFIXES 続き159。
+
 - **🆕 セッション（2026-07-16・続き158・Opus 4.8・PLAN §3 Opusタスク12(xxii)／続き157「次の一手」(a)＝LAST_PROCESSED reveal 経路の条件節 parser 未 emit を是正）**
   - **8枚是正・census 2101→2098・IS_MY_TURN化 128→119**。engine の条件評価器は対応済みなのに parser が emit していなかった3種の穴を系統的に塞いだ：①level parity（偶数/奇数＝`matchesFilter.levelParity`）を `parseLastProcessedMatchesCondition`/`parseBareBranchCondition`/`parseThisWayGenericCount` の3関数へ（WDK04-011/WXDi-P10-073/WXK01-106/WXK01-107）②bare story「＜X＞の場合」（のシグニ無し）を `parseLastProcessedMatchesCondition` へ（WX25-CP1-054/WXDi-CP02-063＝デッキ公開＜ブルアカ＞）③`LAST_PROCESSED_POWER_GTE`（それのパワーがN以上＝直前 POWER_MODIFY delta を addDelta 化・engine 実装済み parser 未 emit）（WXK11-065・WX03-046 は既 MANUAL）。
   - **採用**＝値変更で held 落ち→`heldReview --adopt` 6枚＋WXK11-065 は PARTIAL 温存で JSON 直接パッチ。**据置**＝WXK07-106（BET）/WDK16-13/WXK08-033（登録者数 AND 複合枝）/WX14-072。golden 356・smoke/fuzz 全0・同型★0 維持。詳細 BUGFIXES 続き158。
