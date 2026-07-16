@@ -2,6 +2,14 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## CONTINUOUS group-buff の《ディソナアイコン》/覚醒状態 filter 脱落で「このシグニ自身のみ」へ縮退するバグ4効果を是正（2026-07-16・続き152・Opus 4.8・PLAN §3 Opusタスク12(xxvii) Cluster C 続き）
+
+続き151 の level 脱落是正（WX10-061）と同型の group-buff filter 脱落を追加消化。CONTINUOUS「あなたの[他の]《ディソナアイコン》/覚醒状態のシグニのパワーを＋N」が `POWER_MODIFY{owner:any, count:1, filter:{}}` に潰れ、engine（`count!=='ALL'`＝効果元自身のみ）で**効果元自身のみバフ**へ縮退していた。
+- **対象4効果**：WXDi-P12-044-E1／WXDi-P13-047-E1／WXDi-P13-070-E1（《ディソナアイコン》＝`isDisona`）・WXDi-P08-076-E1（覚醒状態＝`isAwakened`）。MANUAL 済みの WXDi-P12-060-E1（disona）と同一構造になり AUTO で再現。
+- **engine 対応は既存**＝`isDisona` は matchesFilter（`execUtils.ts:291` `Story==='Dissona'`）・`isAwakened` は matchesStateFilter（`effectEngine.ts:515`）で group-buff 適用経路（`applyDeltaToState`）が両方評価する。**crossState/ドライブ状態/左右シグニゾーンは group-buff 適用経路が未対応のため今回は除外**（クロスは matchesStateFilter 非対応・ドライブは lrig_riding_signi の別機構・左右は centerZoneOnly しか無い）。
+- **修正**＝group-buff parser（`parseSentencePart1.ts:1155`）の対象名詞句 filter 選択肢に `《ディソナアイコン》の|覚醒状態の` を追加し、**対象名詞句内から**のみ isDisona/isAwakened を抽出（全文スキャン禁止を踏襲）。
+- **影響分離**＝親コミット parser との fresh 差分で**この5効果（4枚＋MANUAL の P12-060）のみ変化・回帰ゼロ**を機械確認。golden 回帰ガード2件（disona/awakened の復元）。gates 全緑＝golden 348→350・census 2167 維持・同型★0維持。
+
 ## CONTINUOUS「あなたの[他の]レベルNのシグニのパワーを＋M」の group-buff が owner:any/count:1 に潰れ「このシグニ自身のみ」へ縮退するバグを是正＋semantic audit findings 2件の検証（2026-07-16・続き151・Opus 4.8・PLAN §3 Opusタスク12(xxvii)）
 
 ### 是正＝WX10-061-E1（CONTINUOUS group-buff の level filter 脱落）
