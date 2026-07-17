@@ -4003,9 +4003,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (oppBanM[1]) extractedTriggerFilter = { story: oppBanM[1] };
           actionText = oppBanM[2];
         } else {
-          // 「このシグニが（パワーN以下の場合）バニッシュされたとき、」のみ除去（前置き条件がある場合は除去しない）
-          const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
-          if (m) actionText = m[1];
+          // 「あなたの[他の][＜X＞の]シグニ[N体]がバニッシュされたとき」= any_ally（味方シグニのバニッシュに反応）。
+          // 既定の self（＝バニッシュされたカード自身）に潰れると watcher 自身がバニッシュされない限り発火せず、
+          // ルリグ watcher に至っては構造的に絶対発火しなかった（20効果・Opusタスク12(vi-4) と同根）。
+          // 「【チャーム】が付いている〜」「このシグニより低いレベルを持つ〜」等の被バニッシュ側状態限定と、
+          // 「（対戦相手の）アタックフェイズの間、」前置き付きは意図的に非マッチ＝据置（限定を無言で落とさないため）。
+          const allyBanM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+          if (allyBanM) {
+            extractedTriggerScope = 'any_ally';
+            const allyFilter: TargetFilter = {};
+            if (allyBanM[1]) allyFilter.excludeSelf = true;
+            if (allyBanM[2]) allyFilter.story = allyBanM[2];
+            if (Object.keys(allyFilter).length > 0) extractedTriggerFilter = allyFilter;
+            actionText = allyBanM[3];
+          } else {
+            // 「このシグニが（パワーN以下の場合）バニッシュされたとき、」のみ除去（前置き条件がある場合は除去しない）
+            const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
+            if (m) actionText = m[1];
+          }
         }
       }
       if (timing[0] === 'ON_ZONE_MOVED') {
