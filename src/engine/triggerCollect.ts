@@ -1349,6 +1349,7 @@ export function collectHandDiscardTriggers(
   if (myLrigHD) {
     for (const eff of (ctx.effectsMap.get(myLrigHD) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+      if (eff.triggerScope === 'any_opp') continue; // 相手が捨てたとき＝discarder 自身の LRIG では発火しない
       const isAny = eff.triggerScope === 'any';
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
       else if (!isAny && !myIsTurn) continue;
