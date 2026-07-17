@@ -93,7 +93,7 @@ CardData_Sheet*.csv（カードテキスト）
 4. `npx vercel --prod` で本番デプロイ
 
 - ドキュメントのみの変更は version bump / デプロイ不要。
-- このリポジトリには「auto: Claude による変更」を自動コミットするフックがある（編集が随時コミットされるのは正常動作）。
+- ~~このリポジトリには「auto: Claude による変更」を自動コミットするフックがある~~ **2026-07-17（続き182）に撤去した**。`.claude/settings.local.json` の PostToolUse フック（`Write|Edit` のたびに `git add -A` → `git commit -m 'auto: Claude による変更'`）が、**レビュー前・検証途中の状態まで無差別にコミットしていた**ため（続き182 では差し戻し対象だった LLM 実装や作業途中の状態が自動コミットされ、`git checkout <file>` がベースライン復元にならず検証が混乱した）。**コミットは作業の区切りで明示的に行う**。
 
 ---
 
