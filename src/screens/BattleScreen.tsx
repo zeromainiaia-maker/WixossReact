@@ -6526,14 +6526,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // ON_SIGNI_DOWN（アタックダウン・タスク16[C]機構①）: アタック宣言でアタッカーがダウンした（byEffect:false＝
+      // 「効果によってダウン」限定の watcher は発火しない）。中央 diff はスタック解決のみを通るためここで収集する。
+      const downHostSt  = attackerIsHost ? newMyState : newOpStateAtk;
+      const downGuestSt = attackerIsHost ? newOpStateAtk : newMyState;
+      const atkDownRes = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
+        [{ ownerId: attackerId, nums: [myTopNum], byEffect: false }], downHostSt, downGuestSt);
+      const atkDownUsedMine = attackerIsHost ? atkDownRes.usedHostIds : atkDownRes.usedGuestIds;
+      const atkDownUsedOpp  = attackerIsHost ? atkDownRes.usedGuestIds : atkDownRes.usedHostIds;
+      const newOpStateAtkDown: PlayerState = atkDownUsedOpp.length > 0
+        ? { ...newOpStateAtk, actions_done: [...(newOpStateAtk.actions_done ?? []), ...atkDownUsedOpp] }
+        : newOpStateAtk;
+
       // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット（側面アタックは攻撃先ゾーンを保持）
       const newMyStateWithPending: PlayerState = {
         ...newMyState,
-        ...(atkUsedMine.length > 0 ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine] } : {}),
+        ...(atkUsedMine.length > 0 || atkDownUsedMine.length > 0
+          ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine, ...atkDownUsedMine] } : {}),
         pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) },
       };
 
-      const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries];
+      const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries, ...atkDownRes.entries];
       if (allAttackTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
