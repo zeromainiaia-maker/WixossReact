@@ -1342,6 +1342,40 @@ test('Stage2 ON_CARD_MILLED_FROM_DECK: milledMinCount 未満は非発火（WXDi-
   eq(has(collectMillTriggers(trigCtx(HOST), HOST, host, guest, 2, 0).entries, 'WXDi-P08-079-E1'), true, '2枚で発火');
   eq(has(collectMillTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXDi-P08-079-E1'), false, '1枚は非発火');
 });
+// Stage2⑨: ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（collectSigniDownUpTriggers・タスク16[C]続き180）を pure 化→自動検証。
+test('Stage2 ON_SIGNI_DOWN: byEffect ゲート＝効果ダウンのみ発火・アタックダウンは非発火（WX05-040-E2 any_ally）', () => {
+  const host = mkState({ signi: ['WX05-040', null, null] }); const guest = mkState({});
+  const grp = (byEffect: boolean) => [{ ownerId: HOST, nums: ['WX05-040'], byEffect }];
+  eq(has(collectSigniDownUpTriggers(trigCtx(HOST), 'ON_SIGNI_DOWN', grp(true), host, guest).entries, 'WX05-040-E2'), true, '効果ダウンで発火');
+  eq(has(collectSigniDownUpTriggers(trigCtx(HOST), 'ON_SIGNI_DOWN', grp(false), host, guest).entries, 'WX05-040-E2'), false, 'アタックダウン(byEffect:false)は非発火');
+});
+test('Stage2 ON_SIGNI_DOWN: any_ally scope＝相手側シグニのダウンでは非発火（WX05-040-E2）', () => {
+  const host = mkState({ signi: ['WX05-040', null, null] }); const guest = mkState({ signi: ['WX05-040-opp', null, null] });
+  const grpOpp = [{ ownerId: GUEST, nums: ['WX05-040-opp'], byEffect: true }];
+  eq(has(collectSigniDownUpTriggers(trigCtx(HOST), 'ON_SIGNI_DOWN', grpOpp, host, guest).entries, 'WX05-040-E2'), false, 'any_ally は相手側ダウンで非発火');
+});
+test('Stage2 ON_SIGNI_BECOMES_UP: キー watcher＝キー上の【自】を収集（WXK11-015-E3 isTriggerSource freeze・MANUAL）', () => {
+  const host = mkState({ signi: [null, null, null] }); const guest = mkState({ signi: ['GG', null, null] });
+  host.field.key_piece = 'WXK11-015'; // キーに載っている
+  const grp = [{ ownerId: GUEST, nums: ['GG'], byEffect: false }]; // 相手シグニがダウン（scope:any）
+  eq(has(collectSigniDownUpTriggers(trigCtx(HOST), 'ON_SIGNI_DOWN', grp, host, guest).entries, 'WXK11-015-E3'), true, 'キー上の ON_SIGNI_DOWN を収集');
+});
+test('Stage2 detectNewlyDowned/Upped: signi_down 遷移を同一在中のみ検出（別カードに入れ替わったゾーンは誤検出しない）', () => {
+  const before = mkState({ signi: ['AAA', 'BBB', null], down: [false, false, false] });
+  const afterDown = mkState({ signi: ['AAA', 'BBB', null], down: [true, false, false] });
+  eq(JSON.stringify(detectNewlyDowned(before, afterDown)), JSON.stringify(['AAA']), 'zone0 が false→true・同一在中→検出');
+  const afterSwap = mkState({ signi: ['CCC', 'BBB', null], down: [true, false, false] });
+  eq(detectNewlyDowned(before, afterSwap).length, 0, '別カードに入れ替わったゾーンは非検出');
+  const beforeUp = mkState({ signi: ['AAA', 'BBB', null], down: [true, false, false] });
+  const afterUp = mkState({ signi: ['AAA', 'BBB', null], down: [false, false, false] });
+  eq(JSON.stringify(detectNewlyUpped(beforeUp, afterUp).nums), JSON.stringify(['AAA']), 'zone0 が true→false・同一在中→検出');
+});
+test('Stage2 ON_LEAVE_FIELD any_opp: 相手シグニの離脱で反応側が発火（WXK11-049-E1 跨サイド離脱）', () => {
+  const host = mkState({ signi: ['WXK11-049', null, null] }); const guest = mkState({});
+  // WXK11-049-E1 は any_opp＋byOwnEffect＝watcher(host)自身の効果で相手シグニが手札へ離脱したとき発火
+  const ctx = { ...trigCtx(HOST), causeOwnerId: HOST } as unknown as TrigCtx;
+  eq(has(collectLeaveFieldTriggers(ctx, 'GG-opp', [], HOST, host, guest, GUEST, 'hand').entries, 'WXK11-049-E1'), true, 'byOwnEffect＝自効果で相手離脱→発火');
+});
 
 // Stage2⑧: set-diff 系 6ファミリ（charm/energy/refresh/powerDecrease/moveToDeck/freeze）を pure 化→自動検証。
 test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火（WX16-Re05-E1 any）', () => {
