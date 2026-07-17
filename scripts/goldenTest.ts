@@ -1297,7 +1297,7 @@ test('Stage2 ON_BANISH any_ally: ルリグ watcher が発火（WX22-011-E2・(vi
   eq(has(cbtEntries(trigCtx(HOST, HOST), bikou, HOST, host, guest), 'WX22-011-E2'), true, 'ルリグ watcher が味方＜美巧＞バニッシュで発火');
   eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WX22-011-E2'), false, '美巧以外は非発火');
 });
-test('Stage2 ON_BANISH: any_opp 相手バニッシュで非発火・自バニッシュで非発火（WX13-085-E1）', () => {
+test('Stage2 ON_BANISH: any_opp 相手バニッシュで発火・自バニッシュで非発火（WX13-085-E1）', () => {
   const host = mkState({ signi: ['WX13-085', null, null] }); const guest = mkState({});
   eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, GUEST, host, guest), 'WX13-085-E1'), true, '相手バニッシュ発火');
   eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WX13-085-E1'), false, '自バニッシュ非発火');
