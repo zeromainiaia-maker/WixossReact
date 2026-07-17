@@ -3616,6 +3616,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'any_opp';
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), frontLowerLevelThanSource: true };
         }
+        // placedOnTrapZone / placedOnGateZone（WX21-025/WXK10-044・タスク16[C]機構⑤）。
+        if (/対戦相手のシグニ(?:[０-９\d]+体)?が【トラップ】のあるシグニゾーンに出たとき/.test(trigText)) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedOnTrapZone: true };
+        }
+        if (/対戦相手のシグニ(?:[０-９\d]+体)?が【ゲート】があるシグニゾーンに出たとき/.test(trigText)) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedOnGateZone: true };
+        }
       }
       // ON_LEAVE_FIELD + leftToZone:'hand'（「シグニN体が場から手札に戻ったとき」）: 主語で scope を決める
       //   （「あなたのシグニ」＝any_ally／主語なしの「シグニ1体が」＝any＝どちらの場のシグニでも反応）。
