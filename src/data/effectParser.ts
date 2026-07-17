@@ -2671,6 +2671,18 @@ function parseActionTextInner(text: string): EffectAction {
           } as RevealAndPickAction;
         }
       }
+      // その中から好きな枚数をトラッシュ/デッキへ（pick 不成立時のみ＝上のコメント参照）
+      if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
+        return {
+          type: 'LOOK_AND_REORDER',
+          source: { location: 'deck', owner: 'self' },
+          count: parseNum(cM[1]),
+          private: true,
+          reorder: nextS.includes('好きな順番'),
+          canTrash: nextS.includes('トラッシュ'),
+          destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
+        };
+      }
     }
   }
 
