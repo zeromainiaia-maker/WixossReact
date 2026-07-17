@@ -1920,9 +1920,10 @@ function effJa(e: Eff): string {
     if (t === 'ON_EXCEED_COST' && e.triggerCondition?.exceedCostPaidByPlayer) {
       s = 'あなたがエクシードのコストを支払ったとき';
     }
-    // ON_ACCE_ATTACH（アクセカード自身）の host レベル/クラス条件
-    //   （WXK05-041「レベル4以上のシグニに付いたとき」・WX17-076-E2「レベル2以下の＜調理＞の…」・WX17-033-E4「＜調理＞の…」）
-    if (t === 'ON_ACCE_ATTACH' && (e.triggerCondition?.accedHostMinLevel || e.triggerCondition?.accedHostMaxLevel || e.triggerCondition?.accedHostStory)) {
+    // ON_ACCE_ATTACH（アクセカード自身）: accedSelf または host レベル/クラス条件で「このカードが【アクセ】として…」を描画。
+    //   （WXK05-040/SPK01-11「シグニに付いたとき」・WXK05-041「レベル4以上の…」・WX17-076「レベル2以下/3以上の＜調理＞の…」・WX17-033「＜調理＞の…」）
+    //   accedSelf 無し＝ルリグ監視版（default「あなたのシグニ1体に【アクセ】が付いたとき」WXK04-003）。
+    if (t === 'ON_ACCE_ATTACH' && (e.triggerCondition?.accedSelf || e.triggerCondition?.accedHostMinLevel || e.triggerCondition?.accedHostMaxLevel || e.triggerCondition?.accedHostStory)) {
       const tc = e.triggerCondition;
       const lvJa = tc.accedHostMinLevel ? `レベル${tc.accedHostMinLevel}以上の`
         : tc.accedHostMaxLevel ? `レベル${tc.accedHostMaxLevel}以下の` : '';
