@@ -1117,8 +1117,8 @@ export function collectSigniDownUpTriggers(
           if (scope === 'any_ally' && !changedIsWatcherOwn) continue;
           if (eff.triggerCondition?.byEffect && !grp.byEffect) continue;
           const changedNums = [
-        ...grp.nums,
-        ...(event === 'ON_SIGNI_BECOMES_UP' && eff.triggerCondition?.upIncludesLrig && grp.lrigNum ? [grp.lrigNum] : []),
+            ...grp.nums,
+            ...(event === 'ON_SIGNI_BECOMES_UP' && eff.triggerCondition?.upIncludesLrig && grp.lrigNum ? [grp.lrigNum] : []),
           ];
           for (const changedNum of changedNums) {
             if (scope === 'self' && changedNum !== topNum) continue;
