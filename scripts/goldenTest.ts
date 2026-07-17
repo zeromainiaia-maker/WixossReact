@@ -2000,6 +2000,47 @@ test('引用付与（対象形式）: WX25-P1-001 が RECOLLECT_GATE + GRANT_LRI
   eq(`${sub1?.revealCount}/${sub1?.pickCount}/${sub1?.pickUpTo}`, '5/2/true', '5枚見て2枚まで');
 });
 
+// タスク12(xxiii)残・SPDi47-03: 「手札を好きな枚数捨てる」＝TRASH{HAND_CARD, count:'ALL', upToCount}の対話分岐
+// （SIGNI分岐と同形の移植）＋捨て枚数を LAST_PROCESSED_COUNT_GTE の2段閾値（8→ライフ→デッキ下／1→シグニ→デッキ下）
+// が連鎖で読めること。⚠LIFE_CLOTH_CARD 転送は lastProcessedCards を上書きしない設計（GTE8発火後も GTE1 が捨て枚数を見る）。
+{
+  const spdi47Chain = (lifeThenSigni: boolean): EffectAction => ({ type: 'SEQUENCE', steps: [
+    { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true } },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 8 },
+      then: { type: 'TRANSFER_TO_DECK', source: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 }, shuffle: false, position: 'bottom' } },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+      then: { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, shuffle: false, position: 'bottom' } },
+  ] }) as unknown as EffectAction;
+  test('TRASH 手札好きな枚数（ALL+upTo）: 5枚捨て→GTE8不発・GTE1発火（相手シグニ→デッキ下）', () => {
+    const ctx = mkCtx({ hand: 5 }, { signi: [SIGNI, null, null] });
+    const r = run(spdi47Chain(false), ctx);
+    eq(r.ownerState.hand.length, 0, '手札が全部捨てられていない');
+    eq(r.otherState.life_cloth.length, 7, 'GTE8が誤発火（ライフが減った）');
+    eq(r.otherState.field.signi.filter(s => (s?.length ?? 0) > 0).length, 0, 'GTE1不発（シグニが場に残った）');
+    eq(r.otherState.deck.at(-1), SIGNI, 'シグニがデッキ下に置かれていない');
+  });
+  test('TRASH 手札好きな枚数（ALL+upTo）: 8枚捨て→GTE8発火（ライフ→デッキ下）かつGTE1も発火（非上書き）', () => {
+    const ctx = mkCtx({ hand: 8 }, { signi: [SIGNI_P3000, null, null] });
+    const r = run(spdi47Chain(true), ctx);
+    eq(r.ownerState.hand.length, 0, '手札が全部捨てられていない');
+    eq(r.otherState.life_cloth.length, 6, 'GTE8不発（ライフが減っていない）');
+    eq(r.otherState.field.signi.filter(s => (s?.length ?? 0) > 0).length, 0, 'GTE1不発＝LIFE転送がlastProcessedCardsを上書きした');
+  });
+}
+
+// タスク12(xxiii)残・SPDi47-05: BANISH_REDIRECT{redirectTo:'exile'}＝「エナゾーンに置かれる代わりにゲームから除外」。
+// フラグ設定（executor）と行き先解決（banishDestination＝どのゾーンにも置かない）の両方を固定。
+test('BANISH_REDIRECT exile: フラグ設定＋バニッシュ先がどのゾーンにも置かれない', () => {
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, redirectTo: 'exile', until: 'END_OF_TURN' } as unknown as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).banish_redirect_to_exile, true, 'フラグ未設定');
+  const banished = mkState({});
+  const { state: after } = banishDestination(banished, r.ownerState as PlayerState, 'TEST-CARD');
+  eq(after.energy.length, banished.energy.length, 'エナに置かれた');
+  eq(after.trash.length, banished.trash.length, 'トラッシュに置かれた');
+  eq(after.hand.length, banished.hand.length, '手札に置かれた');
+});
+
 // タスク12(xxiii)副産物: 「その中からカードをN枚まで手札に加え、残りを好きな順番でデッキの一番上/下に置く」が
 // 汎用デッキ/トラッシュ規則（LOOK_AND_REORDER）に先に飲まれて pick（手札加え）が丸ごと脱落する規則順序バグの回帰防止。
 test('pick復元: 「5枚見る→2枚まで手札・残り好きな順でデッキ下」が REVEAL_AND_PICK{pickUpTo} にパースされる（WXDi-P16-034）', () => {
