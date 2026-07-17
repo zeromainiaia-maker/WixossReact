@@ -3995,7 +3995,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const casterState = isHost ? hostState : guestState;
           const casterOpState = isHost ? guestState : hostState;
           const casterIsActive = bs.active_user_id === user.id;
-          const au = collectArtsUseTriggers(user.id, casterState, casterOpState, casterIsActive);
+          const au = collectArtsUseTriggers(user.id, casterState, casterOpState, casterIsActive, entry.cardNum);
           if (au.entries.length > 0) {
             const baseStackAU = (update.effect_stack as typeof stackAfter) ?? null;
             update.effect_stack = baseStackAU
