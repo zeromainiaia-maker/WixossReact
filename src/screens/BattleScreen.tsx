@@ -7022,7 +7022,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_WITH_EXILE' &&
             checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
           );
-          const anyRedirect = redirectBanish || redirectBanishToHand || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom || defenderLeaveExile;
+          const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom || defenderLeaveExile;
           newOpState = {
             ...opS,
             hand: redirectBanishToHand ? [...opS.hand, ...opStack] : opS.hand,
