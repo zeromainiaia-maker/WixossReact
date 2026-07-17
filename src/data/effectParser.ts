@@ -3478,6 +3478,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき」（WX17-075-E3 の付与内【自】）＝
              //   frontLowerLevelThanSource（engine 配線済み・レベル比較は collectFieldTriggers が行う）。cond は下で抽出。
              : /このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき/.test(trigText) ? ['ON_PLAY']
+             // 「対戦相手のシグニN体が【トラップ】のある/【ゲート】があるシグニゾーンに出たとき」（WX21-025/WXK10-044・
+             //   タスク16[C]機構⑤）。engine 配線済み＝collectFieldTriggers の placedOnTrapZone/placedOnGateZone
+             //   （トリガー元の持ち主の signi_traps / own_gate_zones で判定）。cond/scope は下で抽出。
+             : /対戦相手のシグニ(?:[０-９\d]+体)?が【トラップ】のあるシグニゾーンに出たとき/.test(trigText) ? ['ON_PLAY']
+             : /対戦相手のシグニ(?:[０-９\d]+体)?が【ゲート】があるシグニゾーンに出たとき/.test(trigText) ? ['ON_PLAY']
              // 「（あなたの）シグニN体が場から手札に戻ったとき」（4件）。engine 配線済み
              // （collectLeaveFieldTriggers の `triggerCondition.leftToZone:'hand'`＝離れたカードが手札に在中する場合のみ）。
              : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
