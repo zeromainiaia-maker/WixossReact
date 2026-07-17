@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き176・Opus 4.8・タスク16[A]＝「このカードが【アクセ】として…シグニに付いたとき」の timing 語彙化＝ON_ACCE_ATTACH アクセカード自身）**
+  - **主題**＝ON_ACCE_ATTACH 群6効果。engine はアクセカード自身の反応を配線済みだったが parser 語彙が無く ON_PLAY 誤フォールバック。
+  - **parser**＝`このカードが【アクセ】として…シグニに付いたとき`→ON_ACCE_ATTACH。host条件抽出（accedHostMinLevel/accedHostMaxLevel 新設/accedHostStory 新設）＋`accedSelf`（ルリグ監視版との逆翻訳弁別）。**engine**＝acce-self ループに maxLevel/story ゲート追加。
+  - **JSON**＝6効果パッチ（AUTO4 durable/MANUAL2 accedSelf 追記）。census 2027 維持・golden 391→392・fallback 129→123。詳細 BUGFIXES 続き176。
+
 - **セッション（2026-07-17・続き175・Opus 4.8・タスク16[A]＝「対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp 新設）**
   - **主題**＝timing センサス残 [A]クラスタ最大の完全wired候補「（あなたの効果によって）対戦相手が手札をN枚捨てたとき」（n=4＋同型 n=1）を消化。原文主語が**相手**のため従来 parser は「拾わない」と明示していた穴。
   - **engine（collectHandDiscardTriggers）**＝相手フィールド watcher path を `any` 限定→`any/any_opp` へ拡張＋センタールリグも走査。path1/自LRIG では `any_opp` を明示スキップ＝自分の手札捨てでは誤発火しない。
