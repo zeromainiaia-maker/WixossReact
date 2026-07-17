@@ -2645,13 +2645,38 @@ function parseActionTextInner(text: string): EffectAction {
     const cM = sentences[0].match(/([０-９\d]+)枚見る/);
     if (cM) {
       const nextS = sentences[1].trim();
+      // 「その中からカードをN枚まで手札に加え、残りを好きな順番でデッキの一番上/下に置く」＝pick＋remainder が
+      // 1文に同居する形（WX25-P1-001 引用内の【起】等）。下の汎用デッキ/トラッシュ規則が「残りを…デッキ…」に
+      // 先にマッチして LOOK_AND_REORDER に飲まれ **pick（手札加え）が丸ごと脱落**していた（タスク12(xxiii)）
+      // ため、この形だけ先に捕捉する（汎用規則の順序変更は125枚に波及し複合文で退化が混在＝狭い規則に留める）。
+      {
+        const pickUpToM = nextS.match(/^その中からカードを([０-９\d]+)枚まで手札に加え、残りを好きな順番でデッキの一番(上|下)に(?:置く|戻す)/);
+        if (pickUpToM) {
+          return {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+            pickCount: parseNum(pickUpToM[1]),
+            pickUpTo: true,
+            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder: { location: 'deck', position: pickUpToM[2] === '下' ? 'bottom' : 'top' },
+          } as RevealAndPickAction;
+        }
+      }
+      if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
+        return {
+          type: 'LOOK_AND_REORDER',
+          source: { location: 'deck', owner: 'self' },
+          count: parseNum(cM[1]),
+          private: true,
+          reorder: nextS.includes('好きな順番'),
+          canTrash: nextS.includes('トラッシュ'),
+          destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
+        };
+      }
       // その中からXを手札に加える → 残りをシャッフルしてデッキへ
-      // ⚠pick 規則を LOOK_AND_REORDER 規則より**先に**試す：「その中からカードを２枚まで手札に加え、
-      //   残りを…デッキの一番下に置く」のような pick 文は remainder の「デッキ」を含むため、後段の
-      //   デッキ/トラッシュ規則が先だと LOOK_AND_REORDER に飲まれて **pick（手札加え）が丸ごと脱落**する
-      //   （WX25-P1-001 引用内の【起】等＝タスク12(xxiii)で発覚した規則順序バグ）。
       if (nextS.match(/その中から.+(手札に加える|手札に加え)/)) {
-        const pickM = nextS.match(/その中から(?:(.+?)の)?(?:シグニ|カード)?を?([０-９\d]+|すべて)枚?(?:まで)?を?(?:公開し)?(?:手札に加える|手札に加え)/);
+        const pickM = nextS.match(/その中から(?:(.+?)の)?(?:シグニ|カード)?([０-９\d]+|すべて)枚?(?:を公開し)?(?:手札に加える|手札に加え)/);
         const remainS = sentences.find(s => s.trim().match(/残りを(?:シャッフルして)?デッキ/));
         const remainder: RevealAndPickAction['remainder'] = remainS?.includes('一番下')
           ? { location: 'deck', position: 'bottom' }
@@ -2670,18 +2695,6 @@ function parseActionTextInner(text: string): EffectAction {
             remainder,
           } as RevealAndPickAction;
         }
-      }
-      // その中から好きな枚数をトラッシュ/デッキへ（pick 不成立時のみ＝上のコメント参照）
-      if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
-        return {
-          type: 'LOOK_AND_REORDER',
-          source: { location: 'deck', owner: 'self' },
-          count: parseNum(cM[1]),
-          private: true,
-          reorder: nextS.includes('好きな順番'),
-          canTrash: nextS.includes('トラッシュ'),
-          destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
-        };
       }
     }
   }
