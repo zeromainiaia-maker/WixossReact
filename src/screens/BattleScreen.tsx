@@ -2655,12 +2655,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'energy'));
     }
 
-    // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）
+    // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）。causeOwnerId＝この効果のオーナー
+    // （「あなたの効果によって対戦相手の…」any_opp／「対戦相手の効果によって」byOpponentEffect の判定に使用）。
     for (const { cardNum, under } of detectLeftFieldSigni(beforeHost, h)) {
-      entries.push(...collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g));
+      const lf = collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g, causeOwnerId);
+      entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
     for (const { cardNum, under } of detectLeftFieldSigni(beforeGuest, g)) {
-      entries.push(...collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g));
+      const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId);
+      entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
 
     // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn 増加を検出）
