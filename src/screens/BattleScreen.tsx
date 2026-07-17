@@ -3067,6 +3067,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
+          banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
           power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
           double_power_minus_this_turn: undefined, // パワーマイナス2倍（このターン）フラグをクリア
           no_grow: undefined,                   // グロウ禁止フラグをリセット
