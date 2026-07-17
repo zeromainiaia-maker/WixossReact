@@ -1653,6 +1653,7 @@ export interface CardEffect {
     discardCostSourceStory?: string; // ON_DISCARDED_AS_COST の発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして捨てられたとき」（WX25-P3-071/077/084/085/088）。コストを支払った能力の host シグニの CardClass に X を含む場合のみ発火＝他クラスのコスト捨てでは誤発火しない（続き162・Opusタスク12(xxiv)）
     milledDeckOwner?: 'self' | 'opponent' | 'any';   // ON_CARD_MILLED_FROM_DECK の発生源デッキ（トリガー所有者から見た self/opponent/any）。省略=any
     energyTrashedOwner?: 'self' | 'opponent' | 'any'; // ON_ENERGY_TO_TRASH の発生源エナゾーン（トリガー所有者から見た self/opponent/any）。省略=any。WD15-015=opponent。⚠「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火＝相手効果による自エナトラッシュも発火しうる近似）
+    accedSelf?: boolean;        // ON_ACCE_ATTACH の変種弁別：true＝「このカードが【アクセ】として（…の）シグニに付いたとき」（アクセカード自身の反応）。省略＝「あなたのシグニ1体に【アクセ】が付いたとき」（ルリグ監視・WXK04-003）。engine は走査ループが役割で分かれるため無視（逆翻訳の主語切替専用）
     accedHostMinLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以上のシグニに付いたとき」host レベル条件（WXK05-041=4）。host シグニの Level がN未満なら発火しない
     accedHostMaxLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以下のシグニに付いたとき」host レベル条件（WX17-076-E2=2）。host シグニの Level がN超なら発火しない
     accedHostStory?: string;    // ON_ACCE_ATTACH（アクセカード自身）の「＜X＞のシグニに付いたとき」host クラス条件（WX17-033-E4=調理）。host シグニの CardClass に含まれなければ発火しない
