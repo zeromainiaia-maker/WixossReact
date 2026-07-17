@@ -297,7 +297,7 @@ export function collectArmorTriggers(
       });
     }
   }
-  return entries;
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 // 条件ツリーに IS_MY_TURN / IS_OPPONENT_TURN が含まれるか（evalCondition では IS_MY_TURN が常時true のため明示判定）。
