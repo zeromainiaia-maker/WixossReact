@@ -7724,18 +7724,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             );
           });
         const redirectBanishToHandP0 = opState.banish_redirect_to_hand === true;
+        // BANISH_REDIRECT redirectTo:'exile'（SPDi47-05）: エナの代わりにゲームから除外（どのゾーンにも置かない）
+        const redirectBanishToExileP0 = !redirectBanishP0 && !redirectBanishToHandP0 && opState.banish_redirect_to_exile === true;
         // OPP_SIGNI_ENERGY_TO_DECK_BOTTOM (WX25-CP1-003): エナの代わりにデッキの一番下へ
-        const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && removed.opp_signi_energy_to_deck_bottom === true;
+        const energyToBottomP0 = !redirectBanishP0 && !redirectBanishToHandP0 && !redirectBanishToExileP0 && removed.opp_signi_energy_to_deck_bottom === true;
         const withBanished: PlayerState = redirectBanishP0
           ? { ...removed, trash: [...removed.trash, topNum] }
           : redirectBanishToHandP0
             ? { ...removed, hand: [...removed.hand, topNum] }
-            : energyToBottomP0
-              ? { ...removed, deck: [...removed.deck, topNum] }
-              : { ...removed, energy: [...removed.energy, topNum] };
+            : redirectBanishToExileP0
+              ? removed
+              : energyToBottomP0
+                ? { ...removed, deck: [...removed.deck, topNum] }
+                : { ...removed, energy: [...removed.energy, topNum] };
         if (ownerIsHost) hostState = withBanished; else guestState = withBanished;
         const banishedName = battleCardMap.get(topNum)?.CardName ?? topNum;
-        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
+        appendBattleLogs([`${banishedName}はパワー0以下のためバニッシュ${redirectBanishP0 ? '（トラッシュへ）' : redirectBanishToHandP0 ? '（手札へ）' : redirectBanishToExileP0 ? '（ゲームから除外）' : energyToBottomP0 ? '（エナ代替→デッキ下）' : ''}`]);
 
         // usageLimit 消費は収集ごとに actions_done へ畳み込む（同一パスで複数シグニが0化しても《ターン1回》は1度だけ）。
         const usePZ = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
