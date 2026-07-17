@@ -1726,6 +1726,15 @@ export function collectFieldTriggers(
         const frontNum = myState.field.signi[2 - ziHost]?.at(-1);
         if (!frontNum || frontNum !== triggeringCardNum) continue;
       }
+      // placedOnTrapZone（WX21-025）/ placedOnGateZone（WXK10-044）: トリガー元シグニの持ち主（myState）の
+      // ゾーン状態（signi_traps / own_gate_zones）に【トラップ】/【ゲート】がある場合のみ（タスク16[C]機構⑤）。
+      if (eff.triggerCondition?.placedOnTrapZone || eff.triggerCondition?.placedOnGateZone) {
+        if (event !== 'ON_PLAY') continue;
+        const ziTrig2 = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
+        if (ziTrig2 < 0) continue;
+        if (eff.triggerCondition.placedOnTrapZone && !(myState.field.signi_traps?.[ziTrig2])) continue;
+        if (eff.triggerCondition.placedOnGateZone && !(myState.own_gate_zones ?? []).includes(ziTrig2)) continue;
+      }
       if (!limitOkOpp(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
