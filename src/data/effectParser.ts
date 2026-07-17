@@ -3459,7 +3459,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「（効果N つによって）（あなた/対戦相手）のデッキからカードが（N枚以上）トラッシュに置かれたとき」（6件）。
              // engine 配線済み（collectMillTriggers＝triggerCondition.milledDeckOwner／milledMinCount）。
              // ⚠ON_TRASH の regex は「デッキから」の直後が「トラッシュに置かれたとき」でないと当たらないので競合しない。
-             : /の(?:デッキ|山札)からカード(?:が[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(trigText) ? ['ON_CARD_MILLED_FROM_DECK']
+             // 「合計N枚以上」（WXDi-P08-079/WXDi-CP02-010）＝「コストか効果**1つ**によって…合計N枚以上」は単一解決内の
+             //   閾値＝engine の milledMinCount がそのまま正確に表現する（ターン跨ぎ累積ではない・タスク16[C]機構④）。
+             //   「によってデッキから」（所有者語なし＝WXEX1-49）も拾う（owner は下の抽出で any）。
+             : /(?:の|によって)(?:デッキ|山札)からカード(?:が(?:合計)?[０-９\d]+枚以上|[０-９\d]+枚が|が)トラッシュに置かれたとき/.test(trigText) ? ['ON_CARD_MILLED_FROM_DECK']
              // 「あなたが自分の効果によって手札からカードをN枚以上公開したとき」（6件）。engine 配線済み
              // （BattleScreen＝場のシグニ自身が反応。G198）。
              : /あなたが自分の効果によって手札からカードを[０-９\d]+枚以上公開したとき/.test(trigText) ? ['ON_SELF_REVEAL_FROM_HAND']
