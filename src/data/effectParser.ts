@@ -3441,6 +3441,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // engine 配線済み（collectHandDiscardTriggers の asCost 分岐＝捨てられたカード自身の AUTO を発火）。
              // ⚠「どの能力のコストとして捨てられたか」のフィルタは engine が未表現＝落とす近似（下で刻印）。
              : /能力のコストとしてこのカードが捨てられたとき/.test(trigText) ? ['ON_DISCARDED_AS_COST']
+             // 「（対戦相手の効果によって/あなたの効果によって/あなたの＜X＞のシグニの効果によって/コストか効果によって）
+             //   このカードが捨てられたとき」「あなたがこのカードを捨てたとき」＝**捨てられたカード自身**の反応
+             //   （自己discard・タスク16[C]機構②）。engine 配線済み＝中央diff detectHandTrashed→
+             //   collectAnyZoneTrashSelfTriggers（ON_TRASH self・fromZones:['hand']・byOpponentEffect/byOwnEffect/
+             //   trashSourceStory/turnOwner）。cond は下で抽出。⚠「能力のコストとして」は上の ON_DISCARDED_AS_COST が
+             //   先に拾う。コスト捨て・ガードによる捨ては中央diffを通らない既知の近似（効果起因の捨てのみ検出）。
+             : (/このカードが(?:コストか効果によって)?捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText)) ? ['ON_TRASH']
              // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
              : /あなたが【ガード】したとき/.test(trigText) ? ['ON_GUARD']
              // 「（あなたか）対戦相手がアーツを使用したとき」（4件）。engine 配線済み（collectOppArtsUseTriggers＝相手の
