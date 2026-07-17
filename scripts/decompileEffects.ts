@@ -1920,9 +1920,14 @@ function effJa(e: Eff): string {
     if (t === 'ON_EXCEED_COST' && e.triggerCondition?.exceedCostPaidByPlayer) {
       s = 'あなたがエクシードのコストを支払ったとき';
     }
-    // ON_ACCE_ATTACH の host レベル条件（WXK05-041「レベル4以上のシグニに付いたとき」）
-    if (t === 'ON_ACCE_ATTACH' && e.triggerCondition?.accedHostMinLevel) {
-      s = `このカードが【アクセ】としてレベル${e.triggerCondition.accedHostMinLevel}以上のシグニに付いたとき`;
+    // ON_ACCE_ATTACH（アクセカード自身）の host レベル/クラス条件
+    //   （WXK05-041「レベル4以上のシグニに付いたとき」・WX17-076-E2「レベル2以下の＜調理＞の…」・WX17-033-E4「＜調理＞の…」）
+    if (t === 'ON_ACCE_ATTACH' && (e.triggerCondition?.accedHostMinLevel || e.triggerCondition?.accedHostMaxLevel || e.triggerCondition?.accedHostStory)) {
+      const tc = e.triggerCondition;
+      const lvJa = tc.accedHostMinLevel ? `レベル${tc.accedHostMinLevel}以上の`
+        : tc.accedHostMaxLevel ? `レベル${tc.accedHostMaxLevel}以下の` : '';
+      const stJa = tc.accedHostStory ? `＜${tc.accedHostStory}＞の` : '';
+      s = `このカードが【アクセ】として${lvJa}${stJa}シグニに付いたとき`;
     }
     // ON_PLAY の triggerFilter（クロス/ライズアイコン）を主語に反映（「あなたの《クロスアイコン》を持つシグニが場に出たとき」）
     if (t === 'ON_PLAY' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any') && (e.triggerFilter?.hasCrossIcon || e.triggerFilter?.hasRiseIcon)) {
