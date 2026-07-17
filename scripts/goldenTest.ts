@@ -1980,6 +1980,35 @@ test('GRANT_LRIG_ABILITY: 付与能力が登録され permanent は permanentGra
   eq(after.length, 1, 'ターン境界フィルタでpermanentのみ残っていない');
 });
 
+// タスク12(xxiii): 「センタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード…』」
+// （WX25-P1-001/003/005/007/009）。従来は付与構造が丸ごと欠落し、3能力をコストゲートも選択も無く
+// 即時連続実行する過剰実行バグだった＝GRANT_LRIG_ABILITY（targetedCenter）＋ACTIVATED×3（exceedコスト）へ固定。
+test('引用付与（対象形式）: WX25-P1-001 が RECOLLECT_GATE + GRANT_LRIG_ABILITY(【起】×3・エクシード1/1/2) にパースされる', () => {
+  const parsed = parseCardEffects(cardMap.get('WX25-P1-001')!);
+  const act = parsed.find(e => e.effectId === 'WX25-P1-001-E1')?.action as import('../src/types/effects').SequenceAction;
+  eq(act?.type, 'SEQUENCE', '外形');
+  eq(act?.steps?.[0]?.type, 'RECOLLECT_GATE', 'リコレクトゲート');
+  const gla = act?.steps?.[1] as import('../src/types/effects').GrantLrigAbilityAction;
+  eq(gla?.type, 'GRANT_LRIG_ABILITY', '付与アクション');
+  eq(gla?.targetedCenter, true, 'targetedCenter 刻印');
+  eq(gla?.abilities?.length, 3, '付与能力3本');
+  eq(gla?.abilities?.every(a => a.effectType === 'ACTIVATED' && a.timing?.[0] === 'MAIN'), true, '全て【起】MAIN');
+  eq(gla?.abilities?.map(a => a.cost?.exceed).join(','), '1,1,2', 'エクシードコスト1/1/2');
+  // 内側1本目は「5枚見て2枚まで手札・残りをデッキ下」＝REVEAL_AND_PICK（LOOK_AND_REORDER 縮退＝pick脱落の回帰防止）
+  const sub1 = gla?.abilities?.[0]?.action as import('../src/types/effects').RevealAndPickAction;
+  eq(sub1?.type, 'REVEAL_AND_PICK', '内側1本目の型');
+  eq(`${sub1?.revealCount}/${sub1?.pickCount}/${sub1?.pickUpTo}`, '5/2/true', '5枚見て2枚まで');
+});
+
+// タスク12(xxiii)副産物: 「その中からカードをN枚まで手札に加え、残りを好きな順番でデッキの一番上/下に置く」が
+// 汎用デッキ/トラッシュ規則（LOOK_AND_REORDER）に先に飲まれて pick（手札加え）が丸ごと脱落する規則順序バグの回帰防止。
+test('pick復元: 「5枚見る→2枚まで手札・残り好きな順でデッキ下」が REVEAL_AND_PICK{pickUpTo} にパースされる（WXDi-P16-034）', () => {
+  const parsed = parseCardEffects(cardMap.get('WXDi-P16-034')!);
+  const act = parsed.find(e => e.effectId === 'WXDi-P16-034-E1')?.action as import('../src/types/effects').RevealAndPickAction;
+  eq(act?.type, 'REVEAL_AND_PICK', 'pick が LOOK_AND_REORDER に縮退');
+  eq(`${act?.revealCount}/${act?.pickCount}/${act?.pickUpTo}/${act?.remainder?.position}`, '5/2/true/bottom', '値');
+});
+
 // UP{LRIG}: 「このルリグをアップする」（WX10-009/WX19-014等）。lrig_down を解除する
 test('UP LRIG: ダウン状態のルリグをアップ（lrig_down解除）', () => {
   const ctx = mkCtx({}, {});
