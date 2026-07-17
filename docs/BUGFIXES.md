@@ -2,6 +2,23 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+---
+
+## Opusタスク12在庫消化＝(v) クローズ＋(vi-4) が「潜在」ではなく実バグと判明し ON_BANISH any_ally scope 脱落16効果を根治（2026-07-17・続き181・Opus 4.8・PLAN §3 Opusタスク12(v)/(vi-4)）
+
+**(v)＝`applyDirectAction` の default 暴走再実行の残**と**(vi-4)＝6コレクタの LRIGゾーン走査漏れ**を消化。(vi-4) は登録時「該当実カード0＝潜在バグ」とされていたが、**前提が既に崩れており実カード8枚が死んでいた**と判明（続き96 の棚卸し以降に採用された JSON で ON_BANISH/ON_TRASH/ON_BLOOD_CRYSTAL_ARMOR のルリグ watcher が発生していた）。
+
+- **(v) クローズ＝残る到達型を全数実測して確定**。`applyDirectAction` の default 節に `ADA_PROBE` 計器を差して `npm run smoke`（全10593効果）を実行し、default に落ちる型を実測＝**REVEAL 133／STUB 101／BLOCK_ACTION 32／DRAW 4／REARRANGE_SIGNI 1**。うち**真の再入バグは `STORY_CHANGE` のみ**（`execStoryChange` が自身を thenAction に渡すのに case が無く、選択解決→default→再実行→同一 SELECT_TARGET 無限再発行）＝**case 新設で解消**。他は全て benign と機械確認＝STUB（意図通り）／bare REVEAL（`{type:'REVEAL'}`＝source 無しで done）／BLOCK_ACTION（`execBlockAction` が `lastProcessedCards` 経路で選択済み対象に付与＝設計通り）／DRAW（REVEAL_AND_PICK pickCount:1 の then＝1回適用が正しい）／REARRANGE_SIGNI（swap 形は明示 no-op）。**exec関数×dispatch表×case表の機械突合でも残は BLOCK_ACTION/STORY_CHANGE の2型のみ**と確認済み＝(v) は在庫から落とせる。
+  - golden 追加1件（`STORY_CHANGE(count:1・選択)`）＝**修正前は `autopilot hang` になることを確認してから修正**（既存の count:'ALL' テストにあった「count:1系は applyDirectAction 欠落バグを踏むため ALL で検証」の注記も解消）。実カード母集団0件の型＝挙動変化なしの潜在バグ修正。
+- **(vi-4)＝6コレクタ（`collectTargetedTriggers`/`collectTrashTriggers`×2ブロック/`collectBanishTriggers`×2ブロック/`collectArmorTriggers`/`collectCoinPaidTriggers`/`collectAllyPlayOrOppDiscardTriggers`）の手書き `field.signi` 走査を共通ヘルパー `ownFieldSources()` へ統一**（続き106 と同型の根治）。**「該当実カード0」の前提を実データで再検証したところ ON_BANISH に6効果・ON_TRASH に1効果・ON_BLOOD_CRYSTAL_ARMOR に1効果のルリグ watcher が存在**＝走査漏れで構造的に絶対発火しない状態だった。
+- **🔎 派生して発見＝ON_BANISH の any_ally scope 脱落（20効果）**。parser に「対戦相手の…シグニがバニッシュされたとき」→`any_opp` の規則はあるのに、**「あなたの［他の］［＜X＞の］シグニ1体がバニッシュされたとき」→`any_ally` の規則が無く既定の `self`（＝バニッシュされたカード自身のみ）へ潰れていた**。シグニ16／レゾナ1／ルリグ3が該当し、**ルリグ3枚は (vi-4) の走査漏れと二重で完全に死んでいた**。
+  - **parser**＝`effectParser.ts` の ON_BANISH ブロックに any_ally 規則を追加（`＜X＞`→`triggerFilter.story`／`他の`→`triggerFilter.excludeSelf`）。**限定を無言で落とさないため意図的に非マッチ＝据置4件**＝「（対戦相手の）アタックフェイズの間、」前置き付き（WX18-002-E1/WXEX1-18-E1）・「【チャーム】が付いているあなたのシグニ」（WXK07-074-E1）・「このシグニより低いレベルを持つあなたのシグニ」（WXK11-018-E1）。
+  - **engine**＝`collectBanishTriggers` の field 走査2ブロックに **triggerFilter 評価を追加**（既存 ON_BANISH 156効果の triggerFilter 保有は0件＝挙動不変の受け皿）。さらに**block1（被バニッシュカード自身）を any_ally 対応**＝**⚠ここが意味的退化の分かれ目**で、「あなたの＜悪魔＞のシグニ1体が」は**自身が＜悪魔＞なら自分のバニッシュでも発火する**（WX02-025 は精像：悪魔）ため、scope を any_ally にするだけだと**自己発火を失う逆方向の退化**になる。場から離れたカードは field 走査で拾えないので block1 側で拾う（`excludeSelf` のみ自身を除外。condition/usageLimit も field 走査側と同条件で評価＝WXDi-P16-074-E2 の FIELD_HAS_GATE が無条件化しないように）。
+  - **JSON 採用16効果**＝`build:effects` 再生成後に**全効果の機械 diff で「16効果のみ・triggerScope/triggerFilter の付与だけで action は不変」を確認**（新規0・消滅0）。WD14-011-E1/WX02-025-E2/WX05-025-E1/WX06-017-E2/WX07-033-E2/WX09-014-E2/WX14-031-E1/WX22-011-E2/WXEX1-43-E2/WX24-P1-048-E1/WX25-P1-084-E1/WX25-P1-086-E1/WXDi-P02-056-E1/WXDi-P03-042-E2/WXDi-P09-041-E2/WXDi-P15-090-E1。
+- **golden 追加4件**（403→406＝STORY_CHANGE 1＋any_ally 3）＝味方＜悪魔＞で発火/＜悪魔＞以外で非発火/相手側で非発火/**自身のバニッシュでも発火**（WX02-025-E2）・excludeSelf は自身で非発火（WXDi-P03-042-E2）・**ルリグ watcher が発火**（WX22-011-E2）。**修正を外すと LRIG テストが落ちる**ことを確認済み＝バグを検出するテストになっている。
+- **検証**＝`npm run gates` 全緑（typecheck／golden406／smoke CRASH/HANG/INVARIANT 0・SKIP 1／fuzz 0＝seed 1/2/3 でも0／lint 0 error）。**census 2016→2003（13改善＝実数更新）**。`npm run regen` 済み＝**同型★0 維持**・逆翻訳が「このシグニがバニッシュされたとき」→「あなたの＜悪魔＞のシグニがバニッシュされたとき」と原文どおりに改善。
+- **🆕 在庫へ登録した新規発見**＝PLAN §3 Opusタスク12 の (xxxi)（「センタールリグ/そのシグニのレベル1につきカードを1枚引く」5効果が `DRAW count:1` へ潰れる内容欠落）・(xxxii)（ON_TRASH/ON_BLOOD_CRYSTAL_ARMOR にも同型の any_ally scope 脱落＝ルリグ2枚。engine 走査は本修正で通ったが parser 規則が無く依然 self）。
+
 ## Opusタスク16[C]：台帳下部5機構のJSON採用（ON_SIGNI_DOWN/UP・自己discard反応・跨サイド離脱・mill合計/draw以上・ゾーンアイコン）＝続き180で採用・簿記（27カード採用・golden 396→402・census 2019→2016・timing fallback 91→60）（2026-07-17・Opus 4.8・続き180）
 
 **主題**＝続き180（Fable 5→Opus 引き継ぎ）で実装完了していたタスク16[C]の5機構（engine/parser/decompiler は実装済み・HEADに載っていた）の**JSON採用と検証・簿記を完了**。Fable 5 が残した「⏭Opus 残作業」を順番どおり消化。
