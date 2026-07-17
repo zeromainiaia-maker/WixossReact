@@ -4085,19 +4085,49 @@ test('parse エナ回収の class filter は対象名詞句から復元（WXEX2-
   eq(source.filter?.story, '遊具', '＜遊具＞限定');
 });
 
-// Opusタスク12(xxxii): 味方シグニのトラッシュ／血晶武装を監視するルリグ watcher の scope/filter 脱落。
-test('parse 味方シグニのトラッシュ／血晶武装は any_ally と対象 filter を保持（Opusタスク12(xxxii)）', () => {
-  const trash = (effectsMap.get('WX24-P1-015') ?? []).find(e => e.effectId === 'WX24-P1-015-E1');
-  eq(trash?.timing?.[0], 'ON_TRASH', 'WX24-P1-015-E1 timing');
-  eq(trash?.triggerScope, 'any_ally', 'WX24-P1-015-E1 scope');
-  eq(trash?.triggerFilter?.levelRange?.max, 2, 'WX24-P1-015-E1 levelRange.max');
-  eq(trash?.triggerFilter?.story, '悪魔', 'WX24-P1-015-E1 story');
-  eq(trash?.triggerCondition?.fromZones?.includes('field'), true, 'WX24-P1-015-E1 fromZones.field');
-  eq(trash?.condition?.type, 'DURING_PHASE', 'WX24-P1-015-E1 main phase condition');
-  const armor = (effectsMap.get('WDK08-L01') ?? []).find(e => e.effectId === 'WDK08-L01-E1');
-  eq(armor?.timing?.[0], 'ON_BLOOD_CRYSTAL_ARMOR', 'WDK08-L01-E1 timing');
-  eq(armor?.triggerScope, 'any_ally', 'WDK08-L01-E1 scope');
-  eq(armor?.triggerFilter?.story, '紅蓮', 'WDK08-L01-E1 story');
+// ── Opusタスク12(xxxii)：味方シグニのトラッシュ／血晶武装を監視するルリグ watcher の scope/filter 脱落 ──
+// ⚠ parser 規則の回帰を検出するため **parseCardEffects を直接叩く**（effectsMap＝JSON+MANUAL のスナップショットを
+//   読むと、手修正テーブルで同じ値を書けばテストが通ってしまい parser 退行を見逃す）。
+test('parse 味方シグニのトラッシュは any_ally＋filter＋fromZones＋自分メイン限定（Opusタスク12(xxxii)）', () => {
+  const e = parseCardEffects(cardMap.get('WX24-P1-015')!).find(x => x.effectId === 'WX24-P1-015-E1')!;
+  eq(e.timing?.[0], 'ON_TRASH', 'timing');
+  eq(e.triggerScope, 'any_ally', 'scope＝あなたのシグニが対象（self に潰れるとルリグ watcher は絶対発火しない）');
+  eq(e.triggerFilter?.levelRange?.max, 2, 'レベル2以下');
+  eq(e.triggerFilter?.story, '悪魔', '＜悪魔＞限定');
+  // 「場から」の出自限定を前置き剥がしで落とさない（落とすと手札/デッキからのトラッシュでも発火する）
+  eq(e.triggerCondition?.fromZones?.includes('field'), true, 'fromZones=field を維持');
+  // 「あなたのメインフェイズの間」＝DURING_PHASE 単独では相手のメインフェイズでも真になるため IS_MY_TURN と AND
+  eq(e.condition?.type, 'AND', 'condition は AND');
+  eq(e.condition?.conditions?.some(c => c.type === 'DURING_PHASE' && c.phases?.includes('MAIN')), true, 'DURING_PHASE:MAIN');
+  eq(e.condition?.conditions?.some(c => c.type === 'IS_MY_TURN'), true, 'IS_MY_TURN（ターン所有者限定）');
+});
+
+test('parse 味方シグニの血晶武装は any_ally＋story filter（Opusタスク12(xxxii)）', () => {
+  const e = parseCardEffects(cardMap.get('WDK08-L01')!).find(x => x.effectId === 'WDK08-L01-E1')!;
+  eq(e.timing?.[0], 'ON_BLOOD_CRYSTAL_ARMOR', 'timing');
+  eq(e.triggerScope, 'any_ally', 'scope');
+  eq(e.triggerFilter?.story, '紅蓮', '＜紅蓮＞限定');
+});
+
+test('collectTrashTriggers: any_ally watcher は filter/ターン所有者/《ターン1回》を評価（Opusタスク12(xxxii)）', () => {
+  const WATCHER = 'WX24-P1-015';           // ルリグ watcher（レベル2以下の＜悪魔＞・あなたのメインフェイズの間）
+  const DEMON_L2 = findCard(c => isSigni(c) && c.Story === '悪魔' && c.Level === '2');
+  const DEMON_L4 = findCard(c => isSigni(c) && c.Story === '悪魔' && c.Level === '4');
+  const fired = (r: { entries: StackEntry[] }) => r.entries.some(x => x.effectId === 'WX24-P1-015-E1');
+  const host = mkState({ field: { signi: [null, null, null], lrig: [WATCHER] } });
+  const guest = mkState({});
+  // 自分のメインフェイズに自分のレベル2＜悪魔＞がトラッシュ → 発火（従来は self に潰れて絶対発火しなかった）
+  eq(fired(collectTrashTriggers(trigCtx(HOST), DEMON_L2, HOST, host, guest)), true, 'レベル2＜悪魔＞で発火');
+  // レベル4＜悪魔＞＝triggerFilter で弾く（engine が filter 未評価だと過剰発火する）
+  eq(fired(collectTrashTriggers(trigCtx(HOST), DEMON_L4, HOST, host, guest)), false, 'レベル4は非発火');
+  // 相手のメインフェイズ（＝ターンプレイヤーが相手）では非発火＝「あなたのメインフェイズの間」の所有者限定
+  eq(fired(collectTrashTriggers(trigCtx(GUEST), DEMON_L2, HOST, host, guest)), false, '相手ターンは非発火');
+  // 《ターン1回》＝actions_done に消費済みなら再収集しない
+  const hostUsed = mkState({ field: { signi: [null, null, null], lrig: [WATCHER] }, actions_done: ['WX24-P1-015-E1'] });
+  eq(fired(collectTrashTriggers(trigCtx(HOST), DEMON_L2, HOST, hostUsed, guest)), false, '《ターン1回》消費済みは非発火');
+  // 1回の収集内で2体トラッシュしても usedHostIds で2回目が抑止される（呼び出し元が actions_done へ書き戻す）
+  const r = collectTrashTriggers(trigCtx(HOST), DEMON_L2, HOST, host, guest);
+  eq(r.usedHostIds.includes('WX24-P1-015-E1'), true, 'usedHostIds に消費を返す');
 });
 
 // ── semantic audit Tier 1（続き168）：条件ゲート4件 ──
