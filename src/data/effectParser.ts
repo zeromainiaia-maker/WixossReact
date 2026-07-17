@@ -3539,9 +3539,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_CARD_MILLED_FROM_DECK: 削られたデッキの持ち主と枚数閾値を triggerCondition に抽出。
       //   ⚠「あなたの＜X＞のシグニの効果1つによって」の**発生源フィルタ**は engine が未表現＝落とす近似（下で刻印）。
       if (timing[0] === 'ON_CARD_MILLED_FROM_DECK') {
+        // 所有者：「あなたの」明示＝self／「対戦相手の」＝opponent／「いずれかのプレイヤーの」・所有者語なし
+        // （「効果1つによってデッキから」WXEX1-49）＝any。
         const mo = /いずれかのプレイヤーの(?:デッキ|山札)からカード/.test(actionText) ? 'any'
-          : /対戦相手の(?:デッキ|山札)からカード/.test(actionText) ? 'opponent' : 'self';
-        const mc = actionText.match(/カードが([０-９\d]+)枚以上トラッシュに置かれたとき/)
+          : /対戦相手の(?:デッキ|山札)からカード/.test(actionText) ? 'opponent'
+          : /あなたの(?:デッキ|山札)からカード/.test(actionText) ? 'self' : 'any';
+        // 「合計N枚以上」（WXDi-P08-079 等）も同じ per-resolution 閾値（milledMinCount）として抽出。
+        const mc = actionText.match(/カードが(?:合計)?([０-９\d]+)枚以上トラッシュに置かれたとき/)
                 ?? actionText.match(/カード([０-９\d]+)枚がトラッシュに置かれたとき/);
         extractedTriggerCondObj = {
           ...(extractedTriggerCondObj ?? {}),
