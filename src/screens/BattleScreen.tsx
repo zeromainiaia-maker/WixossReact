@@ -7396,9 +7396,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (banishedOpCardNum) {
         const lfSA = collectLeaveFieldTriggers(banishedOpCardNum, banishedOpUnderCards, defenderId, newHostState, newGuestState);
         leaveEntriesSA.push(...lfSA.entries);
-        // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化
-        if (lfSA.usedHostIds.length > 0) newHostState.actions_done = [...(newHostState.actions_done ?? []), ...lfSA.usedHostIds];
-        if (lfSA.usedGuestIds.length > 0) newGuestState.actions_done = [...(newGuestState.actions_done ?? []), ...lfSA.usedGuestIds];
+        // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（banishRes と同型＝attacker=newMyState / defender=newOpState）
+        const lfUsedMine = attackerIsHost ? lfSA.usedHostIds : lfSA.usedGuestIds;
+        const lfUsedOpp  = attackerIsHost ? lfSA.usedGuestIds : lfSA.usedHostIds;
+        if (lfUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...lfUsedMine];
+        if (lfUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...lfUsedOpp] };
       }
 
       // ON_SIGNI_BATTLE: 実際にバトルが行われた場合、参加した両シグニ（攻撃側=myTopNum / 防御側=opTopCardNum）で発火。
