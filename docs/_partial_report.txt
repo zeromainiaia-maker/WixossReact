@@ -1,14 +1,14 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-17T00:09:59.052Z / 刻印効果 109件
+生成: 2026-07-17T11:08:26.484Z / 刻印効果 110件
 
 ## カテゴリ別件数
 
 - IS_MY_TURN化: 93
 - multi-dest分割: 11
 - リコレクト分割: 3
+- ON_CARD_MILLED_FROM_DECK: 2
 - ON_OPP_POWER_DECREASED: 2
-- ON_CARD_MILLED_FROM_DECK: 1
 
 ## 明細（effectId → 理由）
 
@@ -66,6 +66,7 @@ WX24-P3-037-E1	multi-dest分割:UNKNOWNステップ除去
 WX24-P3-039-E1	multi-dest分割:UNKNOWNステップ除去
 WX24-P3-050-E1	IS_MY_TURN化:その後、そのカードが【ライフバースト】を持つ場合、
 WX24-P3-069-E1	IS_MY_TURN化:その後、そのカードが【ライフバースト】を持つ場合、
+WX24-P3-087-E1	ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似
 WX24-P4-016-E3	リコレクト分割:UNKNOWNステップ除去
 WX24-P4-045-E1	IS_MY_TURN化:この方法でカードをライフクロスに加えた場合、
 WX24-P4-067-E1	IS_MY_TURN化:その後、そのカードが【ライフバースト】を持つ場合、
