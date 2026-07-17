@@ -2,6 +2,25 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16[A]：「このカードが【アクセ】として（…の）シグニに付いたとき」の timing 語彙化＝ON_ACCE_ATTACH（アクセカード自身）を parser に（6効果・timing fallback 129→123・golden 391→392）（2026-07-17・Opus 4.8・続き176）
+
+**主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）の ON_ACCE_ATTACH 群。engine（`checkAndFireOnAcceTriggersForOwner` の attachedAcce ループ・BattleScreen:9532）は「このカードが【アクセ】としてシグニに付いたとき」＝**アクセカード自身の反応**を既に配線済みだったが、parser がその timing 語彙を持たず 6効果が全て `ON_PLAY` へ誤フォールバックしていた（＝場に出ただけで発火する幻覚）。parser regex＋host条件抽出＋軽量 engine 拡張（host maxLevel/story）で消化。
+
+**parser（`effectParser.ts`）**：
+- timing branch に `このカードが【アクセ】として[^。]*シグニに付いたとき` → `ON_ACCE_ATTACH` を追加（既存の「このシグニに【アクセ】が付いたとき」＝ON_ACCE／ルリグ ON_ACCE_ATTACH 分岐とは原文が違うので衝突しない）。
+- 条件抽出ブロックで host 条件を triggerCondition へ：「レベルN以上の」→`accedHostMinLevel`／「レベルN以下の」→`accedHostMaxLevel`（**新設**）／「＜X＞の」→`accedHostStory`（**新設**）。あわせて `accedSelf:true` を必ず刻む（後述の弁別用）。
+
+**engine（`BattleScreen.tsx` acce-self ループ）**：既存の `accedHostMinLevel`（≧）判定に加え `accedHostMaxLevel`（≦）と `accedHostStory`（host シグニ CardClass に `includes`）の host ゲートを追加。どれも満たさなければその効果を skip（過剰発火抑止）。
+
+**decompiler 弁別（`accedSelf`・新 triggerCondition フラグ）**：ON_ACCE_ATTACH は **2用途で共用**＝(a) ルリグ監視版「あなたのシグニ1体に【アクセ】が付いたとき」（WXK04-003）と (b) アクセカード自身「このカードが【アクセ】として…シグニに付いたとき」。engine は走査ループが役割で分かれるため区別不要だが、逆翻訳は主語が正反対になる。host 条件が無い素の acce-self（WXK05-040/SPK01-11）は tc=null で (a) と区別不能だったため、`accedSelf:true` を導入し decompiler が accedSelf/accedHost* のいずれかで (b) の主語を描画・無ければ default の (a) を維持。engine は `accedSelf` を無視（逆翻訳専用フラグ）。
+
+**JSON**＝6効果を effectId アンカー直接パッチ（timing+triggerCondition のみ・action 不変）：
+- AUTO 4件（`ON_PLAY`→`ON_ACCE_ATTACH`）＝WXK05-040-E2〔accedSelf〕・WX17-033-E4〔accedSelf+調理〕・WX17-076-E2〔accedSelf+maxLv2+調理〕・WX17-076-E3〔accedSelf+minLv3+調理〕。単カード parser 実行で **fresh と完全一致（key順序含む）**を確認＝durable。
+- MANUAL 2件（既に ON_ACCE_ATTACH・逆翻訳のため accedSelf 追記）＝SPK01-11-E1・WXK05-041-E2〔既存 accedHostMinLevel:4〕。
+- HEAD 比較で **変更は上記6効果のみ**（WX17-033/WX17-076/WXK05-040 の他効果・カード追加削除ゼロ）を機械確認。MANUAL の同型改善済み効果（WX17-033-E3 の acceHost/cardClass filter）は非対象。
+
+**検証**＝gates 全緑（typecheck／golden **391→392**＝acce-self parser の bare/minLevel/maxLevel+story 3ケース追加／smoke・fuzz 全0／census **2027 維持**／lint 0 errors）・`npm run regen`＋同型★0 維持・逆翻訳6枚原文一致（WXK04-003 のルリグ版が「あなたのシグニ1体に…」を維持することも確認）・`census:timing` fallback **129効果/114クラスタ→123/109**。要実機検証＝アクセ装着→host条件一致時のトリガー発火（WX17-033＝＜調理＞host／WXK05-041＝Lv4以上）。
+
 ## Opusタスク16：「（あなたの効果によって）対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp を新設（5効果・timing fallback 135→129・golden 388→391）（2026-07-17・Opus 4.8・続き175）
 
 **主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）の最大の完全wired候補「あなたの効果によって対戦相手が手札をN枚捨てたとき」（n=4）＋同型 n=1（WX09-028）を消化。原文の主語が **対戦相手（相手が捨てる）** のため従来 parser は「拾わない」と明示していた（`any` に倒すと自分の手札捨てでも発火する過剰効果になるため）。engine に **`any_opp` scope** を新設して解決した。
