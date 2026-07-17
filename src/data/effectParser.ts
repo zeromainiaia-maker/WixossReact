@@ -3341,9 +3341,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.match(/あなたのエナゾーンに[^、。]*置かれたとき|あなたが【エナチャージ】をしたとき/) ? ['ON_ENERGY_CHARGE']
              // 「対戦相手の場に【ウィルス】Nつが置かれたとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_OPP_VIRUS_PLACED）。
              : trigText.match(/対戦相手の場に【ウィルス】[０-９\d]*つ?が置かれたとき/) ? ['ON_OPP_VIRUS_PLACED']
-             // 「あなたの効果N つによって対戦相手のカードがN枚以上デッキに移動したとき」（2件）。engine 配線済み
-             //   （collectMoveToDeckTriggers＝triggerCondition.movedToDeckOwner／movedToDeckMinCount）。cond は下で抽出。
-             : trigText.match(/カードが[０-９\d]+枚以上デッキに移動したとき/) ? ['ON_CARD_MOVED_TO_DECK']
+             // 「（対戦相手のシグニN体が場から／あなたのトラッシュから／対戦相手のカードが）デッキに移動したとき」（§3 Opusタスク16）。engine 配線済み
+             //   （collectMoveToDeckTriggers＝triggerCondition.movedToDeckOwner／movedToDeckMinCount／movedToDeckFromTrash）。cond は下で抽出。
+             //   「N枚以上」に限らず単数移動（1体/1枚/枚数明記なし）も拾う（minCount 既定1）。
+             : trigText.match(/(?:シグニ|カード)(?:[０-９\d]+[体枚])?が[^。]{0,16}デッキに移動したとき/) ? ['ON_CARD_MOVED_TO_DECK']
              : trigText.match(/このカードが.{0,40}手札から公開されたとき/) ? ['ON_REVEALED_FROM_HAND']
              : trigText.includes('血晶武装状態になったとき') ? ['ON_BLOOD_CRYSTAL_ARMOR']
              // 「（あなた/対戦相手/いずれかのプレイヤー）が（[色]の）スペルを使用したとき」（16件・§3 Opusタスク16）。
