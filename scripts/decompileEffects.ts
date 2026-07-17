@@ -2005,6 +2005,11 @@ function effJa(e: Eff): string {
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
       s = s.replace('あなたが手札を捨てたとき', 'いずれかのプレイヤーが手札を捨てたとき');
     }
+    // ON_HAND_DISCARDED の triggerScope:'any_opp'（「あなたの効果によって対戦相手が手札を捨てたとき」
+    //   WXDi-P04-063/WX09-028 等・続き175）を主語に反映。「ガードステップ以外で」前置は落とす（相手の捨て札）。
+    if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any_opp') {
+      s = 'あなたの効果によって対戦相手が手札を捨てたとき';
+    }
     return s;
   }).filter(Boolean).join('/');
   // 主語に反映できなかった scope のみマーカー表示
