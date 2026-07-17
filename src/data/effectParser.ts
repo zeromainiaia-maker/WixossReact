@@ -3618,6 +3618,30 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), leftToZone: 'hand' };
         extractedTriggerScope = /あなたのシグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText) ? 'any_ally' : 'any';
       }
+      // ON_LEAVE_FIELD 跨サイド any_opp（タスク16[C]機構③）:「あなたの効果によって対戦相手のシグニが場から手札に
+      //   移動した/手札に戻ったとき」＝効果を与えた側（watcher）の any_opp＋byOwnEffect＋leftToZone:'hand'。
+      if (timing[0] === 'ON_LEAVE_FIELD'
+          && (/あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が場から手札に移動したとき/.test(trigText)
+              || /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText))) {
+        extractedTriggerScope = 'any_opp';
+        extractedTriggerCondObj = {
+          ...(extractedTriggerCondObj ?? {}), leftToZone: 'hand', byOwnEffect: true,
+          ...(/あなたのターンの間[、,]/.test(trigText) ? { turnOwner: 'self' as const } : {}),
+        };
+      }
+      // ON_LEAVE_FIELD「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026）＝
+      //   any_ally＋byOpponentEffect＋triggerFilter（story/他の）。
+      if (timing[0] === 'ON_LEAVE_FIELD') {
+        const lvOpp = trigText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/);
+        if (lvOpp) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true };
+          const lvTf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (lvOpp[1]) lvTf.excludeSelf = true;
+          if (lvOpp[2]) lvTf.story = lvOpp[2];
+          if (Object.keys(lvTf).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...lvTf };
+        }
+      }
       // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）＝「＜X＞のシグニ」「《ディソナアイコン》のカード」「シグニ」。
       if (timing[0] === 'ON_HAND_DISCARDED') {
         const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/);
