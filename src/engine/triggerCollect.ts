@@ -58,9 +58,7 @@ export function collectTargetedTriggers(
     const targetedIsWatcherOwn = targetedOwnerId === watcherId;
     const watcherIsTurn = ctx.activeUserId === watcherId;
     const limitOk = mkLimitOk(watcherState.actions_done, watcherIsHost ? usedHostIds : usedGuestIds);
-    for (const stack of watcherState.field.signi) {
-      if (!stack?.length) continue;
-      const topNum = stack[stack.length - 1];
+    for (const topNum of ownFieldSources(watcherState)) {
       for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TARGETED')) continue;
         const scope = eff.triggerScope ?? 'self';
