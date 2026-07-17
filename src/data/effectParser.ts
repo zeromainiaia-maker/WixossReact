@@ -3599,6 +3599,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_OPP_ARTS_USE' && /対戦相手がアーツを使用したとき/.test(actionText)) {
         extractedTriggerScope = 'any_opp';
       }
+      // ON_ARTS_USE: 使用したアーツの色を triggerFilter.color に抽出（「あなたが緑のアーツを使用したとき」WXK01-043・
+      //   タスク16[B]）。engine（collectArtsUseTriggers）が使用アーツカードを matchesFilter で評価する。ON_SPELL_USE と同型。
+      if (timing[0] === 'ON_ARTS_USE') {
+        const acM = trigText.match(/あなた(?:のターンにあなた)?が([白赤青緑黒])のアーツを使用したとき/);
+        if (acM) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), color: acM[1] };
+      }
       // ON_ACCE_ATTACH（アクセカード自身）: host シグニのレベル/クラス条件を triggerCondition に抽出。
       //   「レベルN以上の」→ accedHostMinLevel／「レベルN以下の」→ accedHostMaxLevel／「＜X＞の」→ accedHostStory。
       //   engine（checkAndFireOnAcceTriggersForOwner）が host シグニの Level/CardClass で判定する。
