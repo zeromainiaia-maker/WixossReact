@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き172・Sonnet 5・PLAN §3 補欠(a) timing センサス残クラスタの振り分け台帳を新設）**
+  - **経緯**＝§7フルバッチ回帰（続き171d の「次の一手」）は、続き170セッションが `oppDrawOwnEffectOnly` を無引数実行で確認した際に**デフォルト order 全件が副作用的に既に実行済み**（`scratchpad-verify/*-final.png` のタイムスタンプで裏取り＝02:31〜03:52に69シナリオ分の完走痕跡）と判明したため重複実行を回避。バックグラウンドで開始した再実行は即座に停止（プロセス残留なし確認済み）。
+  - **代わりに補欠(a)「timing census 残128（113クラスタ）の振り分け台帳作成は未着手」を消化**。`npm run census:timing`（実行時点135効果/117クラスタ）の全クラスタを、`src/types/effects.ts` のON_*コメント（engine配線済み/未配線の明記）と `triggerCollect.ts`/`BattleScreen.tsx` の実装照合で機械分類し、`docs/_timing_census_triage.txt` を新設。
+  - **分類**＝**[A]完全wired（parser regexのみ＝Opusタスク16の即消化候補）約34クラスタ**／**[B]部分wired（軽量engine拡張が要る）約16クラスタ**／**[C]未wired（新規機構＝§6.3送り）約67クラスタ**。
+  - **繰り返しパターン発見**（個別カード対応より1本の機構で複数クラスタが同時に片付く可能性）＝①ON_SIGNI_DOWN系が丸ごと未配線（8クラスタ相当・ON_SIGNI_BECOMES_UPは既に新機構タスク化済みだがダウン版は未登録）②「累積・合計N以上」系カウンタ欠如（milled合計/ドロー合計/discard合計・8クラスタ相当）③ON_LEAVE_FIELD/ON_HAND_DISCARDEDの跨サイドscope欠如（4クラスタ相当）④自己discard反応の欠如＝WXDi-P11-066系と同一の穴（4クラスタ相当）⑤TargetFilterにfrozen判定が無い（4クラスタ相当）。
+  - **検証**＝docs追加のみ（parser/engine/JSON非変更）につき `npm run gates` で回帰なきことのみ確認（golden 383・census 2031・同型★0・smoke/fuzz 全0・無変化）。詳細 BUGFIXES 続き172。
+
 - **🆕 セッション（2026-07-17・続き171・Opus 4.8 が実装・検証／PLAN §3 Opusタスク12(xxii) IS_MY_TURN化残の消化＋前段 TRANSFER_TO_DECK パースバグ是正）**
   - **手法**＝IS_MY_TURN化残104件を前段アクション型で機械分類し、**engine が lastProcessedCards を記録する前段なのに parser が条件を捕捉できていないクラスタ**を特定（TRANSFER_TO_DECK 前段・語順違いの MILL 前段）。全カード生パース dump を編集前後で厳密 diff＝**ちょうど36効果のみ変化（副作用ゼロ）** を機械確認してから採用。
   - **3系統の穴を修正**：①`prevRecords` ゲートに `TRANSFER_TO_DECK` 追加（「この方法でカードをN枚デッキに加えた場合」＝LAST_PROCESSED_COUNT_GTE。WX19-040/WXK02-039/WX17-063）／②`parseThisWayGenericCount` verb-gate＋`parseThisWayTrashCondition` sc4 に語順違い「トラッシュに＜X＞のシグニがN枚置かれた」を追加（WXEX1-47＝TRASHED_STORY_COUNT_GTE）／③**前段 `parseSentencePart1.ts` トラッシュ→デッキ全回収ハンドラの count/filter 脱落を是正**（非すべて時 count:1 固定＋単色のみ→span ベースで枚数・story/color/level 抽出。否定「＜X＞ではない/以外」ガード・source zone アンカーで エナゾーン誤発火防止）＝33効果の count/filter 復元。
