@@ -3319,7 +3319,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.includes('開花したとき') ? ['ON_BLOOM']
              : trigText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
              : trigText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
-             : trigText.includes('場を離れたとき') ? ['ON_LEAVE_FIELD']
+             : /場(?:を|から)離れたとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              // ⚠「手札から」**単独**が抜けていて11件が ON_PLAY へ誤フォールバックしていた（続き75・§3 Opusタスク16）。
              //   engine は `triggerCondition.fromZones` で領域を判定する（collectAnyZoneTrashSelfTriggers）＝下の
              //   fromZones 抽出にも同じく「手札」単独を足してある。「シグニの下から」は別（under）なので拾わない。
