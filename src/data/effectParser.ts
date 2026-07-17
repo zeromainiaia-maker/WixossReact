@@ -3513,9 +3513,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_CARD_MOVED_TO_DECK: デッキに移動したカードの持ち主と枚数閾値を triggerCondition に抽出。
       //   「あなたの**トラッシュから**カードがN枚以上デッキに移動したとき」（WX22-014）は fromTrash 限定（engine が別カウンタで数える）。
       if (timing[0] === 'ON_CARD_MOVED_TO_DECK') {
-        const cnt = actionText.match(/カードが([０-９\d]+)枚以上デッキに移動したとき/);
+        const cnt = actionText.match(/(?:シグニ|カード)が?([０-９\d]+)[枚体]以上デッキに移動したとき/);
         const fromTrash = /あなたのトラッシュから[^。]{0,12}デッキに移動したとき/.test(actionText);
-        const owner = /対戦相手の(?:カード|トラッシュ)/.test(actionText) ? 'opponent'
+        const owner = /対戦相手の(?:カード|シグニ|トラッシュ)/.test(actionText) ? 'opponent'
           : (fromTrash || /あなたのカード/.test(actionText)) ? 'self' : 'any';
         extractedTriggerCondObj = {
           ...(extractedTriggerCondObj ?? {}),
