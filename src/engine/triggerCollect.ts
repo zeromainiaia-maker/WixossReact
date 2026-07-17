@@ -605,8 +605,13 @@ export function collectLeaveFieldTriggers(
   leftPlayerId: string,
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
-): StackEntry[] {
+  // この離脱を引き起こした効果のオーナー userId（中央 diff の meta.causeOwnerId）。
+  // undefined＝バトル/ルール処理など効果起因でない離脱＝byOwnEffect/byOpponentEffect ゲート付き効果は発火しない。
+  causeOwnerId?: string,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
   const leftCard = ctx.cardMap.get(getCardNum(leftCardNum));
   for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
@@ -617,9 +622,11 @@ export function collectLeaveFieldTriggers(
       effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
     });
   }
-  const ownerStateAfter = leftPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  const leftIsHost = leftPlayerId === ctx.hostId;
+  const ownerStateAfter = leftIsHost ? afterHostState : afterGuestState;
   // watcher（味方）視点のターン。turnOwner 条件（「対戦相手/あなたのターンの間」）判定に使う。
   const watcherIsTurn = ctx.activeUserId === leftPlayerId;
+  const allyLimitOk = mkLimitOk(ownerStateAfter.actions_done, leftIsHost ? usedHostIds : usedGuestIds);
   // 場のシグニに加えてルリグも監視対象（例: 炎・花代・伍はルリグの【自】で味方シグニの離脱を見る）
   const lrigTop = ownerStateAfter.field.lrig.at(-1);
   const watcherNums = [
@@ -638,6 +645,11 @@ export function collectLeaveFieldTriggers(
       if (to === 'opponent' && watcherIsTurn) continue;
       // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
       if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
+      // byOpponentEffect（「対戦相手の効果によって場を離れたとき」WX19-026）: 原因効果のオーナーが watcher の相手側のときのみ。
+      if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === undefined) continue;
+      if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === leftPlayerId) continue;
+      // usageLimit（《ターン1回/2回》）＝呼び出し側が usedHostIds/usedGuestIds を actions_done へ書き戻す（続き104 と同型）。
+      if (!allyLimitOk(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: leftPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
@@ -645,7 +657,39 @@ export function collectLeaveFieldTriggers(
       });
     }
   }
-  return entries;
+  // 跨サイド any_opp（タスク16[C]機構③）: 「（あなたの効果によって）対戦相手のシグニが場を離れた/手札に戻ったとき」
+  // ＝離脱したカードの**相手側**（＝効果を与えた側）の watcher（WXK11-049/WXDi-CP01-027-E2）。
+  const oppId = leftIsHost ? ctx.guestId : ctx.hostId;
+  const oppStateAfter = leftIsHost ? afterGuestState : afterHostState;
+  const oppIsTurn = ctx.activeUserId === oppId;
+  const oppLimitOk = mkLimitOk(oppStateAfter.actions_done, leftIsHost ? usedGuestIds : usedHostIds);
+  const oppLrigTop = oppStateAfter.field.lrig.at(-1);
+  const oppWatcherNums = [
+    ...oppStateAfter.field.signi.flatMap(stack => stack?.length ? [stack[stack.length - 1]] : []),
+    ...(oppLrigTop ? [oppLrigTop] : []),
+  ];
+  for (const topNum of oppWatcherNums) {
+    for (const eff of (ctx.effectsMap.get(getCardNum(topNum)) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
+      if (eff.triggerScope !== 'any_opp') continue;
+      if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+      const to = eff.triggerCondition?.turnOwner;
+      if (to === 'self' && !oppIsTurn) continue;
+      if (to === 'opponent' && oppIsTurn) continue;
+      if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
+      // byOwnEffect（「**あなたの効果によって**対戦相手のシグニが…」）: watcher 自身の効果が原因のときのみ
+      // （バトル・ルール処理・相手自身の効果では発火しない）。
+      if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== oppId) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, oppStateAfter, ownerStateAfter, oppIsTurn, ctx.cardMap, topNum)) continue;
+      if (!oppLimitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: oppId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（相手シグニが場を離れたとき）`,
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+      });
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /** usageLimit（once/twice_per_turn）チェッカ。actionsDone（永続）＋used（今回の収集内）の出現回数で判定し、許可時は used に積む。 */
