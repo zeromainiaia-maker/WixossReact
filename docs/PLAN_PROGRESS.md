@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き173・Fable 5・Opusタスク12(xxiii) 本丸＝WX25-P1-00X系列のルリグ複数【起】エクシード能力付与を語彙化＋pick脱落の規則順序バグ是正）**
+  - **✅(xxiii) の最深刻バグ（WX25-P1-001/003/005/007/009＝5枚）を消化**＝「センタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：…×3』」が付与構造ごと欠落し3能力を即時全実行していたのを、parser 文型1本（`GRANT_LRIG_ABILITY{targetedCenter}`）＋型＋decompiler 表示で是正。**トリアージの「§6.3級の新規GRANT機構が要る」は誤り＝engine 受け皿（executor→`lrig_granted_auto_effects`→BattleScreen 付与【起】列挙→`executeLrigGranted` エクシード支払い→ターン境界リセット3箇所）は完備済みで、欠けていたのは parser のみ**。
+  - **✅副産物＝pick脱落の規則順序バグ（系統15枚）**＝「デッキ上N枚見る→その中からカードをN枚まで手札に加え、残りを好きな順番でデッキ下」が汎用デッキ/トラッシュ規則に飲まれ `LOOK_AND_REORDER` へ縮退（手札加え丸ごと脱落）。狭い専用規則で `REVEAL_AND_PICK{pickUpTo}` へ（**汎用規則の順序入替＋regex緩和は125枚波及・複合文退化混在のため差し戻し**＝全カード生パースdiffで25枚のみ・全件pick復元方向を機械確認してから採用）。heldReview 採用18枚＋MANUAL兄弟温存2枚（SPDi43-28-E2/WX25-P3-001-E1）は直接パッチ（`scripts/archive/patch_pickdrop_manual2.mjs`）。
+  - **指標**＝census 2031→**2028**（`BASELINE_HIGH` 更新済み）・golden 383→**385**（付与構造＋pick復元の parse assertion 追加）・smoke 10592 OK 全0・fuzz 全0・同型★0（5986枚）・lint 0 errors。詳細 BUGFIXES 続き173。
+
 - **🆕 セッション（2026-07-17・続き172・Sonnet 5・PLAN §3 補欠(a) timing センサス残クラスタの振り分け台帳を新設）**
   - **経緯**＝§7フルバッチ回帰（続き171d の「次の一手」）は、続き170セッションが `oppDrawOwnEffectOnly` を無引数実行で確認した際に**デフォルト order 全件が副作用的に既に実行済み**（`scratchpad-verify/*-final.png` のタイムスタンプで裏取り＝02:31〜03:52に69シナリオ分の完走痕跡）と判明したため重複実行を回避。バックグラウンドで開始した再実行は即座に停止（プロセス残留なし確認済み）。
   - **代わりに補欠(a)「timing census 残128（113クラスタ）の振り分け台帳作成は未着手」を消化**。`npm run census:timing`（実行時点135効果/117クラスタ）の全クラスタを、`src/types/effects.ts` のON_*コメント（engine配線済み/未配線の明記）と `triggerCollect.ts`/`BattleScreen.tsx` の実装照合で機械分類し、`docs/_timing_census_triage.txt` を新設。
