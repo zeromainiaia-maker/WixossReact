@@ -3361,8 +3361,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「このカードがエクシードのコストとしてルリグトラッシュに置かれたとき」（13件・§3 Opusタスク16）。
              // engine 配線済み＝エクシード支払い時に「ルリグトラッシュへ置かれたカード自身」の AUTO を発火
              // （`exceedPaidCards` 走査。※`triggerCondition.exceedCostPaidByPlayer` を持つ「あなたが支払ったとき」変種は
-             //  場のシグニ側で発火する別経路＝そちらは MANUAL 管理）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
+             //  場のシグニ側で発火する別経路＝そちらは exceedCostPaidByPlayer で下に配線）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
              : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(trigText) ? ['ON_EXCEED_COST']
+             // 「あなたがエクシードのコストを支払ったとき」変種（§3 Opusタスク16）。engine 配線済み＝場のシグニ側で
+             //   `triggerCondition.exceedCostPaidByPlayer` を見て発火（WXDi-P06-078）。cond は下で刻む。
+             : /あなたがエクシードのコストを支払ったとき/.test(trigText) ? ['ON_EXCEED_COST']
              // 「このシグニが（カード名に《X》を含むシグニ／《X》に）ライズされたとき」（§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
              // **ライズされたシグニ自身**（self）の AUTO を収集。主語は常に「ライズした側（このシグニ）」で、
              //   「《X》に」は**下敷きになった元シグニの名前**を指す＝engine の risedOntoNameContains（下敷き名 includes 判定）。名前は下で抽出。
