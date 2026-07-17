@@ -3379,6 +3379,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ⚠「このカードが【アクセ】としてシグニに付いたとき」（アクセカード自身の反応）は別＝この regex に当たらない。
              : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(trigText)
                  ? (_parsingBaseType === 'ルリグ' ? ['ON_ACCE_ATTACH'] : ['ON_ACCE'])
+             // 「このカードが【アクセ】として（レベルN以上/以下の）（＜X＞の）シグニに付いたとき」（アクセカード自身の反応・§3 Opusタスク16）。
+             // engine 配線済み＝checkAndFireOnAcceTriggersForOwner の attachedAcceNum ループ（ON_ACCE_ATTACH）。
+             //   host のレベル/クラス条件は下で triggerCondition（accedHostMinLevel/accedHostMaxLevel/accedHostStory）に抽出。
+             : /このカードが【アクセ】として[^。]*シグニに付いたとき/.test(trigText) ? ['ON_ACCE_ATTACH']
              // 「（あなた／対戦相手／いずれかのプレイヤー）がリフレッシュしたとき」（6件）。engine 配線済み
              // （collectRefreshTriggers＝triggerCondition.refreshedOwner で発生源を判定）。owner は下で抽出。
              : /(?:あなた|対戦相手|いずれかのプレイヤー)がリフレッシュしたとき/.test(trigText) ? ['ON_REFRESH']
