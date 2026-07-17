@@ -6558,7 +6558,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           .eq('room_id', roomId);
       } else {
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtk })
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown })
           .eq('room_id', roomId);
       }
     } finally {
