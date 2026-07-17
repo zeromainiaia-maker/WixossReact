@@ -730,7 +730,16 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       return addLog(setOwnerState(tgt.owner, newS, c),
         `手札から${toTrash.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
-    if (tgt.count === 'ALL') return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
+    if (tgt.count === 'ALL') {
+      // 「好きな枚数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全捨てにしない）。
+      // SIGNI 分岐の同形（execTrash:671）を手札に移植＝「手札を好きな枚数捨てる」（SPDi47-03 等）。
+      // resumeSelectTarget が lastProcessedCards を記録するため「この方法で手札をN枚以上捨てた場合」条件と連鎖できる。
+      if (tgt.upToCount) {
+        if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+      }
+      return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
+    }
     const count = resolveNum(tgt.count);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
