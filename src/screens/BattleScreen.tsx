@@ -6967,6 +6967,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               );
             });
           const redirectBanishToHand = myS.banish_redirect_to_hand === true;
+          // BANISH_REDIRECT redirectTo:'exile'（SPDi47-05）: エナの代わりにゲームから除外（どのゾーンにも置かない）
+          const redirectBanishToExile = !redirectBanish && !redirectBanishToHand && myS.banish_redirect_to_exile === true;
           // BANISH_BY_SELF_GOES_TO_TRASH: この攻撃シグニが banish_to_trash_by_self を持つ場合、バニッシュ先はトラッシュ
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS STUB効果（activeCondition評価込み）
           const banishBySelftToTrash =
