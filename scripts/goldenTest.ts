@@ -2013,7 +2013,7 @@ test('引用付与（対象形式）: WX25-P1-001 が RECOLLECT_GATE + GRANT_LRI
   ] }) as unknown as EffectAction;
   test('TRASH 手札好きな枚数（ALL+upTo）: 5枚捨て→GTE8不発・GTE1発火（相手シグニ→デッキ下）', () => {
     const ctx = mkCtx({ hand: 5 }, { signi: [SIGNI, null, null] });
-    const r = run(spdi47Chain(false), ctx);
+    const r = run(spdi47Chain(), ctx);
     eq(r.ownerState.hand.length, 0, '手札が全部捨てられていない');
     eq(r.otherState.life_cloth.length, 7, 'GTE8が誤発火（ライフが減った）');
     eq(r.otherState.field.signi.filter(s => (s?.length ?? 0) > 0).length, 0, 'GTE1不発（シグニが場に残った）');
