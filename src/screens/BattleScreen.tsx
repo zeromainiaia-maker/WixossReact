@@ -7293,6 +7293,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (eff.triggerFilter?.excludeSelf && topNumBB === myTopNum) continue;
               if (eff.triggerFilter && !matchesFilter(battleCardMap.get(getCardNum(myTopNum)), eff.triggerFilter)) continue;
             }
+            // banishedFilter: 被バニッシュシグニがカード条件（matchesFilter）＋バニッシュ直前のゾーン状態
+            // （matchesStateFilter＝infected/isFrozen/hasCharm）を満たす場合のみ発火。
+            if (eff.triggerCondition?.banishedFilter) {
+              const bfBB = eff.triggerCondition.banishedFilter;
+              if (!matchesFilter(battleCardMap.get(getCardNum(banishedOpCardNum)), bfBB)) continue;
+              if (banishedZoneIdxBB < 0 || !matchesStateFilter(opS, banishedZoneIdxBB, bfBB)) continue;
+            }
             // condition を持つAUTOは条件を満たす場合のみ収集（例: WXK04-044 血晶武装中のみアップ）
             if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, topNumBB, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
