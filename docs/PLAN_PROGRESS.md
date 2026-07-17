@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き178・Opus 4.8・タスク16[B]＝engine の triggerFilter を軽量拡張＝ON_SIGNI_BATTLE level/power filter＋basic/front banish）**
+  - **主題**＝タスク16 [B]第1弾。engine を**1箇所だけ**軽量拡張して parser 語彙とセットで消化。
+  - **engine**＝collectBattleTrig に「バトル相手の triggerFilter を matchesFilter で評価」1行追加（level/power）。**既存 ON_SIGNI_BATTLE に triggerFilter 持ちは皆無**＝副作用ゼロ。
+  - **parser**＝①ON_SIGNI_BATTLE の level/power filter 抽出（levelRange{max}/level/powerRange{min}・「対戦相手の」省略可）②basic/front banish（`このシグニが(正面の)?シグニをバニッシュ`→ON_SIGNI_BANISH_OPPONENT・バトル相手は常に正面のため filter 不要・WX17-046/WXK04-044）。**decompiler**＝battle filter 描画。
+  - **影響検証**＝続き177 baseline diff で影響5効果のみ（WX04-099/WX05-047/WX17-046/WXK04-044-G/WXDi-P14-062-G）・回帰ゼロ。**JSON**＝AUTO2件 fresh 置換＋WXDi-P14-062内側 timing/filter パッチ。WX04-099（action target で level 担保済み）・WXK04-044（ON_SIGNI_BANISH_BATTLE で正）は MANUAL 据置。
+  - **指標**＝golden 393→**394**・smoke/fuzz 全0・同型★0・census 2026→**2025**（改善・baseline 据置）・`census:timing` fallback 106/92→**101/87**。詳細 BUGFIXES 続き178。
+
 - **セッション（2026-07-17・続き177・Opus 4.8・タスク16[A]＝clean な残 [A]クラスタを一括消化＝5系統9timing）**
   - **主題**＝engine collector が完全wired で parser regex のみ不足の [A]を横断消化（engine変更ゼロ）。
   - **追加timing**＝ON_SIGNI_BATTLE基本形／ON_SIGNI_DAMAGE／ON_RISE risedOntoNameContains／ON_CHARM_TO_TRASH／ON_CARD_MOVED_TO_DECK単数移動（owner はトリガー句限定）／ON_LEAVE_FIELD「場から離れた」／ON_OPP_VIRUS_CHANGED・REMOVED／ON_EXCEED_COST exceedCostPaidByPlayer。
