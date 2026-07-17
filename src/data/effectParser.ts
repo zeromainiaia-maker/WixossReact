@@ -3683,6 +3683,53 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_SIGNI_FROZEN') {
         if (/あなたのシグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（タスク16[C]機構①）: scope・filter・byEffect・フェイズ限定を抽出。
+      //   trigText（効果ブロック先頭のトリガー句）のみ判定。
+      if (timing[0] === 'ON_SIGNI_DOWN' || timing[0] === 'ON_SIGNI_BECOMES_UP') {
+        // scope: 「このシグニが」＝self／「あなたの…」＝any_ally（engine 既定）／主語なし「シグニ1体が」＝any。
+        if (/このシグニが(?:効果によって)?ダウン状態になったとき/.test(trigText)) extractedTriggerScope = 'self';
+        else if (/あなたの/.test(trigText)) extractedTriggerScope = 'any_ally';
+        else extractedTriggerScope = 'any';
+        const duCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        // 「効果によって」＝アタック/コスト支払いのダウンでは発火しない（WX05-040/WX14-CB01・公式注釈どおり）。
+        if (/効果によって(?:ダウン|アップ)状態になったとき/.test(trigText)) duCond.byEffect = true;
+        // 「アタックフェイズの間、」（WXEX2-01/WX20-051）。
+        if (/アタックフェイズの間[、,]/.test(trigText)) duCond.duringAttackPhase = true;
+        // 「あなたのセンタールリグかシグニ1体がアップ状態になったとき」（WX20-051）＝ルリグのアップにも反応。
+        if (/センタールリグかシグニ/.test(trigText)) duCond.upIncludesLrig = true;
+        if (Object.keys(duCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...duCond };
+        // filter: 「他の」「＜X＞の」「《X》（named・SPDi43-17〜19）」。
+        const duTf: NonNullable<typeof extractedTriggerFilter> = {};
+        const duNm = trigText.match(/あなたの《([^》]+)》がダウンしたとき/);
+        if (duNm) duTf.cardName = duNm[1];
+        const duSt = trigText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(?:効果によって)?(?:ダウン|アップ)状態になったとき/);
+        if (duSt) {
+          if (duSt[1]) duTf.excludeSelf = true;
+          if (duSt[2]) duTf.story = duSt[2];
+        }
+        if (Object.keys(duTf).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...duTf };
+      }
+      // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・タスク16[C]機構②）: fromZones:['hand'] を軸に
+      //   原因限定（対戦相手の効果/あなたの効果/＜X＞のシグニの効果）・turnOwner を抽出。
+      if (timing[0] === 'ON_TRASH' && !/能力のコストとして/.test(trigText)
+          && (/このカードが(?:コストか効果によって)?捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText))) {
+        const sdCond: NonNullable<typeof extractedTriggerCondObj> = { fromZones: ['hand'] };
+        if (/対戦相手の効果によってこのカードが捨てられたとき/.test(trigText)) sdCond.byOpponentEffect = true;
+        else if (/あなたの効果によってこのカードが捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText)) sdCond.byOwnEffect = true;
+        const sdSrc = trigText.match(/あなたの＜([^＞]+)＞のシグニの効果によってこのカードが捨てられたとき/);
+        if (sdSrc) { sdCond.byOwnEffect = true; sdCond.trashSourceStory = sdSrc[1]; }
+        if (/あなたのターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'self';
+        else if (/対戦相手のターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'opponent';
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...sdCond };
+      }
+      // ON_DRAW（self）の限定軸（タスク16[C]機構④）: 「あなたのターンの間」「アタックフェイズの間に」「あなたの効果1つによって」。
+      if (timing[0] === 'ON_DRAW' && /あなたがカードを[０-９\d]+枚(?:以上)?引いたとき/.test(trigText)) {
+        const drCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        if (/あなたのターンの間[、,]/.test(trigText)) drCond.turnOwner = 'self';
+        if (/アタックフェイズの間に/.test(trigText)) drCond.duringAttackPhase = true;
+        if (/あなたの効果[０-９\d]*つ?によって/.test(trigText)) drCond.drawByDrawerOwnEffect = true;
+        if (Object.keys(drCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...drCond };
+      }
       // ON_OPP_POWER_DECREASED: 発生源の限定（「＜X＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似。
       //   その分だけ過剰発火しうる（自分の別効果でパワーを減らしても発火する）ので計器に刻む。
       if (timing[0] === 'ON_OPP_POWER_DECREASED' && /(?:＜[^＞]+＞の|他の)シグニの効果によって/.test(actionText)) {
