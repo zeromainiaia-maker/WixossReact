@@ -2,6 +2,27 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16[C]：台帳下部5機構のJSON採用（ON_SIGNI_DOWN/UP・自己discard反応・跨サイド離脱・mill合計/draw以上・ゾーンアイコン）＝続き180で採用・簿記（27カード採用・golden 396→402・census 2019→2016・timing fallback 91→60）（2026-07-17・Opus 4.8・続き180）
+
+**主題**＝続き180（Fable 5→Opus 引き継ぎ）で実装完了していたタスク16[C]の5機構（engine/parser/decompiler は実装済み・HEADに載っていた）の**JSON採用と検証・簿記を完了**。Fable 5 が残した「⏭Opus 残作業」を順番どおり消化。
+
+**採用（計27カード）**：`npm run build:effects`（richness ガード付き収穫マージ）→ `heldReview --adopt` の正規ルートで採用。
+- **pure-superset 自動採用5枚**＝WX14-027・WX21-025・WXEX2-31・WXDi-P02-030・WXDi-P10-060（無損失で情報増＝証明可能に安全）。
+- **held から明示採用22枚**＝①ON_SIGNI_DOWN/UP：WX05-040/WX12-006/WX14-CB01/WX20-051/WXEX1-42/WXEX2-01/SPDi43-17,18,19 ②自己discard反応(ON_TRASH+fromZones:hand)：WXDi-P10-039/P10-070/P11-066/P08-075/P16-072/P11-069/P14-086/WX24-P1-045 ③跨サイド離脱(ON_LEAVE_FIELD any_opp)：WXK11-049/WXDi-CP01-027/WX19-026 ④WX11-030（ON_DRAW+duringAttackPhase）。
+- **手パッチ MANUAL 化1枚**＝**WXK11-015-E3**（キーの【自】「シグニがダウン→そのシグニを凍結」）。parser は FREEZE owner:self+filter{isDown} と対象幻覚（続き179 WX17-075-E1 と同型）。`isTriggerSource:true`＋owner:opponent 近似で manualEffects.ts に追加（engine FREEZE isTriggerSource は owner スコープ内解決のため、この鍵のエクシードが相手をダウン→凍結の主要ケースに合わせた。自分側ダウンは no-op）。build:effects→held→adopt で JSON へ反映。
+
+**据置（採用しない）判断**＝原文照合で fresh が退化/曖昧なもの：
+- **MANUAL 温存6枚**（build:effects が自動温存）＝WXDi-P08-079/WXDi-CP02-010（turnOwner:self を fresh が落とす）・WXEX1-49-E2（fresh が -8000 POWER_MODIFY を喪失）・WX24-P3-087（fresh PARTIAL）・WXK10-025/WXK10-040（E1 MANUAL 温存。E3/E2 の filter 精緻化＝level/color・cardType は既知の未採用微改善として本記載に残す）。
+- **WXDi-CP02-077-E1 据置**＝2能力（【自】discard反応と【絆自】）が1スロットに混在。curated は【絆自】を、fresh は【自】+絆自リークを表現＝どちらも部分的で、fresh 採用は相手手札 discard の過剰発火を招くため据置（2効果分割は台帳へ）。
+
+**golden（396→402・+6）**＝(a)parser：ON_SIGNI_DOWN+byEffect／ON_SIGNI_DOWN+excludeSelf+story／ON_SIGNI_BECOMES_UP+duringAttackPhase+upIncludesLrig／mill「合計N枚以上」→milledMinCount (b)engine：collectSigniDownUpTriggers の byEffect ゲート＋any_ally scope＋キー watcher(WXK11-015)／detectNewlyDowned/Upped の同一在中判定／collectLeaveFieldTriggers any_opp の byOwnEffect ゲート(WXK11-049)。
+
+**検証**＝gates 全緑（typecheck／golden 402／smoke 10592 OK 全0／fuzz 全0／census **2019→2016**〔BASELINE_HIGH 実数更新〕／lint 0 errors）・`npm run regen`＋同型★0 維持・`census:timing` fallback **91効果/77クラスタ→60/48**（ON_SIGNI_DOWN/UP の fallback 解消）。
+
+**既知の近似（記録）**＝(a)コスト捨て・ガード捨ては中央diff を通らず②は効果起因のみ検出 (b)アップフェイズ一斉アップ・アタック無効化経路のダウンは非検出 (c)mill の発生源シグニ限定（WX24-P3-087「悪魔のシグニの効果によって」等）は落とす (d)⑤ゾーンアイコン（placedOnGateZone 等）は迷宮ゲート設置が未配線の間 no-op (e)③の any_opp/usageLimit 是正で ON_LEAVE_FIELD《ターン1回》の過剰発火が正される (f)WXEX1-42-E1 の action filter は「そのシグニのパワー以下」を表現できず story:植物/isDown がトリガー句から漏れ込んだ既存幻覚（動的比較機構待ち・timing 是正のみ採用）。
+
+**見送り（台帳へ）**＝手札増加 timing（WX25-P2-063/SPDi43-11＝ON_HAND_ADDED 新設要）・WXDi-D09-P16（discarder 経路に own-effect 原因判定なし）・WX24-P2-051（《ガードアイコン》非所持 filter 軸なし）・WXDi-P13-051（OR複合）・WXEX2-76-E1（ON_PLAY self 幻覚＝続き179発見）・WXDi-CP02-077 の2効果分割。
+
 ## Opusタスク16[B]第2弾：被バニッシュ状態 filter（感染/チャーム/凍結）＋placedFront レベル filter＋ON_ARTS_USE 色 filter（10効果・timing fallback 101→91・golden 394→396・census 2027→2019）（2026-07-17・Fable 5・続き179）
 
 **主題**＝タスク16 [B]の第2弾＝続き178「次の一手」の [B]残メニューを一括消化。engine 軽量拡張3箇所＋parser 語彙＋decompiler 描画。**影響は全カード fresh diff で意図した9カード（10効果）のみ・巻き添えゼロを機械確認**。
