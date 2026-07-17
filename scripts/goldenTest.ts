@@ -2021,7 +2021,7 @@ test('引用付与（対象形式）: WX25-P1-001 が RECOLLECT_GATE + GRANT_LRI
   });
   test('TRASH 手札好きな枚数（ALL+upTo）: 8枚捨て→GTE8発火（ライフ→デッキ下）かつGTE1も発火（非上書き）', () => {
     const ctx = mkCtx({ hand: 8 }, { signi: [SIGNI_P3000, null, null] });
-    const r = run(spdi47Chain(true), ctx);
+    const r = run(spdi47Chain(), ctx);
     eq(r.ownerState.hand.length, 0, '手札が全部捨てられていない');
     eq(r.otherState.life_cloth.length, 6, 'GTE8不発（ライフが減っていない）');
     eq(r.otherState.field.signi.filter(s => (s?.length ?? 0) > 0).length, 0, 'GTE1不発＝LIFE転送がlastProcessedCardsを上書きした');
