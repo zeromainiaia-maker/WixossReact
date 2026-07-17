@@ -271,10 +271,8 @@ export function collectArmorTriggers(
       effect: eff,
     });
   }
-  // フィールド上の全シグニの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
-  for (const stack of ownerStateAfter.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  // フィールド上の全シグニ＋ルリグの ON_BLOOD_CRYSTAL_ARMOR (scope=any_ally)
+  for (const topNum of ownFieldSources(ownerStateAfter)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
       const scope = eff.triggerScope ?? 'self';
