@@ -3339,6 +3339,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
              //     エナが増えた側の場しか走査しない）＝拾わない（§6.3 機構待ち）。
              : trigText.match(/あなたのエナゾーンに[^、。]*置かれたとき|あなたが【エナチャージ】をしたとき/) ? ['ON_ENERGY_CHARGE']
+             // 「【ウィルス】Nつが対戦相手の場に置かれるか（対戦相手の場から）取り除かれたとき」（置＋除 の複合・§3 Opusタスク16）。
+             //   engine 配線済み＝collectSelfEventTriggers の ON_OPP_VIRUS_CHANGED（配置・除去のどちらでも発火）。置かれた/取り除かれた単独より先に判定する。
+             : /【ウィルス】[０-９\d]*つ?が[^。]{0,16}置かれるか[^。]{0,16}取り除かれたとき/.test(trigText) ? ['ON_OPP_VIRUS_CHANGED']
+             // 「対戦相手の場（から／にある）【ウィルス】Nつが（Nつ以上）取り除かれたとき」（§3 Opusタスク16）。engine 配線済み（ON_OPP_VIRUS_REMOVED）。
+             //   ⚠「Nつ以上」の閾値カウントは engine 未対応の近似（除去が起きれば発火。「1つ以上」は既定と同値で問題なし）。
+             : /対戦相手の場(?:から|にある)[^。]{0,8}【ウィルス】[^。]{0,10}取り除かれたとき/.test(trigText) ? ['ON_OPP_VIRUS_REMOVED']
              // 「対戦相手の場に【ウィルス】Nつが置かれたとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_OPP_VIRUS_PLACED）。
              : trigText.match(/対戦相手の場に【ウィルス】[０-９\d]*つ?が置かれたとき/) ? ['ON_OPP_VIRUS_PLACED']
              // 「（対戦相手のシグニN体が場から／あなたのトラッシュから／対戦相手のカードが）デッキに移動したとき」（§3 Opusタスク16）。engine 配線済み
