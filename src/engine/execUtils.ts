@@ -104,6 +104,10 @@ export function banishDestination(
   if (opponent.banish_redirect_to_hand === true) {
     return { state: { ...removed, hand: [...removed.hand, num] }, log: 'をバニッシュ（手札へ）' };
   }
+  // BANISH_REDIRECT redirectTo:'exile'（SPDi47-05）: エナの代わりにゲームから除外＝どのゾーンにも置かない
+  if (opponent.banish_redirect_to_exile === true) {
+    return { state: removed, log: 'をバニッシュ（ゲームから除外）' };
+  }
   if (removed.opp_signi_energy_to_deck_bottom === true) {
     return { state: { ...removed, deck: [...removed.deck, num] }, log: '→デッキ下' };
   }
