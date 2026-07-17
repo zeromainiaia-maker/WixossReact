@@ -252,9 +252,14 @@ export function collectArmorTriggers(
   armoredPlayerId: string,
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const ownerStateAfter = armoredPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  // usageLimit の消費 effectId（呼び出し元が actions_done へ書き戻す＝ON_BANISH と同型）。
+  // any_ally パスは続き181 まで parser が self に潰していて死んでおり、ノーガードが露見しなかった。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const limitOkOwner = mkLimitOk(ownerStateAfter.actions_done, armoredPlayerId === ctx.hostId ? usedHostIds : usedGuestIds);
   // このシグニ自身の ON_BLOOD_CRYSTAL_ARMOR (scope=self)
   for (const eff of (ctx.effectsMap.get(armoredCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
