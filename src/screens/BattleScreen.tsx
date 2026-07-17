@@ -2641,12 +2641,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const cardNum of detectDeckTrashed(beforeGuest, g)) {
       entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
     }
-    // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）
+    // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）。
+    // causeSourceCardNum＝原因効果の発生源カード（「あなたの＜X＞のシグニの効果によって捨てられたとき」の判定用）。
     for (const cardNum of detectHandTrashed(beforeHost, h)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand'));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'hand', causeSourceCardNum));
     }
     for (const cardNum of detectHandTrashed(beforeGuest, g)) {
-      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand'));
+      entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, 'hand', causeSourceCardNum));
     }
     for (const cardNum of detectEnergyTrashed(beforeHost, h)) {
       entries.push(...collectAnyZoneTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, 'energy'));
