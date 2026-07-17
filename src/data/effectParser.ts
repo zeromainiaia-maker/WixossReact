@@ -3352,10 +3352,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // （`exceedPaidCards` 走査。※`triggerCondition.exceedCostPaidByPlayer` を持つ「あなたが支払ったとき」変種は
              //  場のシグニ側で発火する別経路＝そちらは MANUAL 管理）。ON_TRASH の regex は領域指定が先頭に要るため競合しない。
              : /エクシードのコストとしてルリグトラッシュに置かれたとき/.test(trigText) ? ['ON_EXCEED_COST']
-             // 「このシグニがライズされたとき」（11件・§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
-             // **ライズされたシグニ自身**（self）の AUTO を収集。
-             // ⚠「《X》にライズされたとき」（2件）は**下敷きになった側**の反応＝別機構なので拾わない（self とは主語が違う）。
-             : /このシグニがライズされたとき/.test(trigText) ? ['ON_RISE']
+             // 「このシグニが（カード名に《X》を含むシグニ／《X》に）ライズされたとき」（§3 Opusタスク16）。engine 配線済み＝ライズ配置時に
+             // **ライズされたシグニ自身**（self）の AUTO を収集。主語は常に「ライズした側（このシグニ）」で、
+             //   「《X》に」は**下敷きになった元シグニの名前**を指す＝engine の risedOntoNameContains（下敷き名 includes 判定）。名前は下で抽出。
+             : /このシグニが(?:カード名に《[^》]+》を含むシグニ|《[^》]+》)?にライズされたとき|このシグニがライズされたとき/.test(trigText) ? ['ON_RISE']
              // 「（この/あなたの）シグニがドライブ状態になったとき」（15件・§3 Opusタスク16）。engine 配線済み
              // （collectSigniBecomesDriveTriggers＝triggerScope self/any_ally/any を評価）。scope は下で抽出。
              : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?がドライブ状態になったとき/.test(trigText) ? ['ON_SIGNI_BECOMES_DRIVE']
