@@ -2849,10 +2849,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ON_BLOOD_CRYSTAL_ARMOR: 血晶武装状態になったシグニ
     for (const cardNum of detectNewlyArmored(beforeHost, h)) {
-      entries.push(...collectArmorTriggers(cardNum, bs.host_id, h, g));
+      const at = collectArmorTriggers(cardNum, bs.host_id, h, g);
+      entries.push(...at.entries); useHost(at.usedHostIds); useGuest(at.usedGuestIds);
     }
     for (const cardNum of detectNewlyArmored(beforeGuest, g)) {
-      entries.push(...collectArmorTriggers(cardNum, bs.guest_id, h, g));
+      const at = collectArmorTriggers(cardNum, bs.guest_id, h, g);
+      entries.push(...at.entries); useHost(at.usedHostIds); useGuest(at.usedGuestIds);
     }
 
     return { entries, hostState: h, guestState: g };
