@@ -5,6 +5,7 @@ import type {
   Owner,
   DrawAction,
   BanishAction,
+  BanishRedirectAction,
   BounceAction,
   SendToEnergyAction,
   PowerModifyAction,
