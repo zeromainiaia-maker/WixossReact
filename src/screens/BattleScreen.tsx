@@ -4637,8 +4637,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     casterState: PlayerState,
     opState: PlayerState,
     isCasterTurn: boolean,
+    usedArtsNum?: string,
   ): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn);
+    pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn, usedArtsNum);
 
   // シグニ召喚（ゾーン選択後に実行）
   const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
