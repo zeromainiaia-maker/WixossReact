@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き181・Opus 4.8・タスク12在庫＝(v) クローズ＋(vi-4) 消化＝**完了**）**
+  - **成果**＝golden 402→**406**・census 2016→**2003**（実数更新）・smoke/fuzz 全0（seed 1/2/3）・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き181。
+  - **(v)＝クローズ**。`applyDirectAction` の default 節に計器を差し smoke 全10593効果で到達型を実測（REVEAL133/STUB101/BLOCK_ACTION32/DRAW4/REARRANGE_SIGNI1）＝**真の再入バグは `STORY_CHANGE` のみ**（case 新設・修正前 autopilot hang を確認）。他は全て benign と機械確認＝在庫から落とせる。
+  - **(vi-4)＝⚠「該当実カード0の潜在バグ」という登録時の前提が既に崩れていた**（続き96 以降の JSON 採用でルリグ watcher が発生＝ON_BANISH6・ON_TRASH1・ARMOR1）。6コレクタの手書き `field.signi` 走査を `ownFieldSources()` へ統一。
+  - **派生＝ON_BANISH の any_ally scope 脱落20効果を発見し16効果を根治**。parser に「あなたの[他の][＜X＞の]シグニ1体がバニッシュされたとき」→any_ally 規則を追加（＜X＞→triggerFilter.story／他の→excludeSelf）＋engine に triggerFilter 評価＋**block1 の any_ally 対応**（＝自身が＜悪魔＞なら自分のバニッシュでも発火する。scope 変更だけだと**自己発火を失う逆方向の退化**になる分かれ目）。JSON は全効果 diff で「16効果のみ・scope/filter のみ・action 不変」を機械確認。
+  - **据置**＝限定を無言で落とさないため意図的に非マッチ4件（アタックフェイズ前置き WX18-002-E1/WXEX1-18-E1・チャーム付き WXK07-074-E1・動的レベル比較 WXK11-018-E1）。
+
 - **セッション（2026-07-17・続き180・Fable 5→Opus 4.8・タスク16[C]＝台帳下部5機構の一括機構化＝**完了**）**
   - **成果＝engine/parser/decompiler 実装（Fable 5）＋JSON採用・golden・全ゲート・簿記（Opus）を完遂。golden 396→402・census 2019→2016・timing fallback 91/77→60/48・同型★0 維持。** 詳細は BUGFIXES 続き180。
   - **実装済み5機構（HEAD 済）**：①`collectSigniDownUpTriggers`＋`detectNewlyDowned/Upped`（ON_SIGNI_DOWN/BECOMES_UP・byEffect/duringAttackPhase/upIncludesLrig・watcher は場+LRIG+**キー**）②自己discard反応（ON_TRASH self+fromZones:hand・byOwnEffect/trashSourceStory/turnOwner）③ON_LEAVE_FIELD 跨サイド（{entries,usedHostIds,usedGuestIds}化＋any_opp byOwnEffect＋any_ally byOpponentEffect・既存 usageLimit 過剰発火も是正）④mill「合計N枚以上」regex＋ON_DRAW/ON_HAND_DISCARDED「N枚以上」＋drawByDrawerOwnEffect 等ゲート⑤ゾーンアイコン placedOnTrapZone/placedOnGateZone。
