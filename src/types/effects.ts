@@ -1654,6 +1654,8 @@ export interface CardEffect {
     milledDeckOwner?: 'self' | 'opponent' | 'any';   // ON_CARD_MILLED_FROM_DECK の発生源デッキ（トリガー所有者から見た self/opponent/any）。省略=any
     energyTrashedOwner?: 'self' | 'opponent' | 'any'; // ON_ENERGY_TO_TRASH の発生源エナゾーン（トリガー所有者から見た self/opponent/any）。省略=any。WD15-015=opponent。⚠「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火＝相手効果による自エナトラッシュも発火しうる近似）
     accedHostMinLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以上のシグニに付いたとき」host レベル条件（WXK05-041=4）。host シグニの Level がN未満なら発火しない
+    accedHostMaxLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以下のシグニに付いたとき」host レベル条件（WX17-076-E2=2）。host シグニの Level がN超なら発火しない
+    accedHostStory?: string;    // ON_ACCE_ATTACH（アクセカード自身）の「＜X＞のシグニに付いたとき」host クラス条件（WX17-033-E4=調理）。host シグニの CardClass に含まれなければ発火しない
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（トリガー所有者から見た self/opponent/any）。省略=any。WXDi-P04-043=any（いずれかのプレイヤー）
     leftToZone?: 'hand'; // ON_LEAVE_FIELD の行き先限定（「場から手札に戻ったとき」WXK02-041）。離れたカードが所有者の手札に在中する場合のみ発火。省略=行き先不問
     exceedCostPaidByPlayer?: boolean; // ON_EXCEED_COST の「あなたがエクシードのコストを支払ったとき」変種（場のシグニが反応。WXDi-P06-078）。省略時は既存の「このカードがエクシードのコストとして置かれたとき」（コストカード自身）。⚠ルリグ起動のエクシード支払い経路のみ検出（アーツ/スペルのカットイン exceed は未検出の近似）
