@@ -1069,6 +1069,83 @@ export function collectFreezeTriggers(
 }
 
 /**
+ * ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP トリガーを収集する（タスク16[C]機構①・collectFreezeTriggers と同型）。
+ * changedByOwner＝各所有者と状態が変わったシグニ番号（byEffect＝効果起因か。アタックダウン＝false）。
+ * lrigNum＝センタールリグがアップした場合のカード番号（ON_SIGNI_BECOMES_UP＋upIncludesLrig のみ反応・WX20-051）。
+ * 評価軸: triggerScope（self/any_ally 既定/any）／triggerFilter（story・cardName 部分一致・excludeSelf）／
+ *   triggerCondition.byEffect（「効果によって」＝アタック/コストのダウンでは発火しない・WX05-040 公式注釈）／
+ *   triggerCondition.duringAttackPhase（「アタックフェイズの間」＝ctx.turnPhase が ATTACK_* のときのみ）。
+ * watcher は場シグニ＋センタールリグ＋キー（WXK11-015 はキーカード自身の AUTO）。
+ */
+export function collectSigniDownUpTriggers(
+  ctx: TrigCtx,
+  event: 'ON_SIGNI_DOWN' | 'ON_SIGNI_BECOMES_UP',
+  changedByOwner: { ownerId: string; nums: string[]; lrigNum?: string | null; byEffect: boolean }[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const isAttackPhase = (ctx.turnPhase ?? '').startsWith('ATTACK');
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    if (watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const sources = [
+      ...ownFieldSources(watcherState),
+      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+      ...(watcherState.field.key_piece_extra ?? []),
+    ];
+    for (const topNum of sources) {
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(event)) continue;
+        const scope = eff.triggerScope ?? 'any_ally';
+        if (eff.triggerCondition?.duringAttackPhase && !isAttackPhase) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+        for (const grp of changedByOwner) {
+          const changedIsWatcherOwn = grp.ownerId === watcherId;
+          if (scope === 'any_opp' && changedIsWatcherOwn) continue;
+          if (scope === 'any_ally' && !changedIsWatcherOwn) continue;
+          if (eff.triggerCondition?.byEffect && !grp.byEffect) continue;
+          const changedNums = [
+        ...grp.nums,
+        ...(event === 'ON_SIGNI_BECOMES_UP' && eff.triggerCondition?.upIncludesLrig && grp.lrigNum ? [grp.lrigNum] : []),
+          ];
+          for (const changedNum of changedNums) {
+            if (scope === 'self' && changedNum !== topNum) continue;
+            if (eff.triggerFilter?.excludeSelf && changedNum === topNum) continue;
+            if (eff.triggerFilter) {
+              const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+              if (Object.keys(restFilter).length > 0
+                && !matchesFilter(ctx.cardMap.get(getCardNum(changedNum)), restFilter, ctx.effectivePowers?.get(changedNum))) continue;
+            }
+            const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+              + usedIds.filter(id => id === eff.effectId).length;
+            if (used >= max) break;
+            if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+            const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+            entries.push({
+              id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+              label: `${cardName} の【自】効果（${event === 'ON_SIGNI_DOWN' ? 'ダウン時' : 'アップ時'}）`, effect: eff, triggeringCardNum: changedNum,
+            });
+          }
+        }
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD / ウィルス系）に反応する自フィールド/ルリグ/キーの AUTO を収集する（Stage2 抽出）。
  * FROZEN_LOSES_ABILITIES（相手ルリグ常在）・CONTINUOUS REMOVE_ABILITIES・トラッシュ自己復活（ON_LIFE_CRASHED）も処理。
  * usedOncePerTurnIds は呼び出し側で actions_done に追加して保存すること。
