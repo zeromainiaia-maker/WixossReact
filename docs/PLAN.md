@@ -82,7 +82,7 @@
 | 2 | census「動的比較」の残 | parser語彙＋engine解決器 | S〜M | WXEX2-28（直前配置シグニ基準）・WXK08-005（条件文）・WXK11-003（opp/own センタールリグ） |
 | 3 | DRAW 脱落の parseSingleSentence 直呼び経路 | parser修正 | S〜M | WX20-071（3項以上の連用中止形）・split ガードで止まる複合（WXK07-042/WX20-049/WX26-CP1-066）・先頭自ドロー未捕捉（WXDi-P13-001）・対戦相手ドロー idiom・per-count ドロー・入れ子条件内。(a)(b)(c) 主部分は✅続き107 |
 | 4 | §5c 条件節の残 | parser語彙 | S | 「代わりに」WX25-P2-068/070・「あり」複合条件 WXDi-P11-048（WX25-P3-116 はタスク6送り） |
-| 5 | 小口持ち越し（約10件・隙間埋めに最適） | 単点（parser/engine/decompiler混在） | S×件数 | WXDi-P03-005（PAID_ADDITIONAL_COST の置換モード）・WX26-CP1-100（SEND_TO_ENERGY のトラッシュ対象化）・GRANT_LRIG_ABILITY 系5枚の parser ON_PLAY 誤デフォルト・原文無関係 `TRANSFER_TO_DECK` 混入5枚・SEQUENCE 下流「そうした場合」IS_MY_TURN 連鎖・PR-Di038 duration・WX25-P2-095・WXEX2-50-E3 step2 レベル制約・WX12-008 exceed-cost timing・WXK10-033-E1 据置確認・WXEX2-25-E3 の decompiler levelLtSelf |
+| 5 | 小口持ち越し（約10件・隙間埋めに最適） | 単点（parser/engine/decompiler混在） | S×件数 | WXDi-P03-005（PAID_ADDITIONAL_COST の置換モード）・WX26-CP1-100（SEND_TO_ENERGY のトラッシュ対象化）・GRANT_LRIG_ABILITY 系5枚の parser ON_PLAY 誤デフォルト・原文無関係 `TRANSFER_TO_DECK` 混入5枚・SEQUENCE 下流「そうした場合」IS_MY_TURN 連鎖・PR-Di038 duration・WX25-P2-095・WXEX2-50-E3 step2 レベル制約・WX12-008 exceed-cost timing・WXK10-033-E1 据置確認・~~WXEX2-25-E3 の decompiler levelLtSelf~~ **✅続き189（Opus）で消化**＝GRANT_EFFECT 付与先が LRIG のとき inner の `levelLtSelf/levelGtSelf` を「このシグニより」→「このルリグより」に読み替え（engine は host 基準で解決済＝表示のみの是正・同型★0維持）。**⚠この表の他項目「代わりに」WX25-P2-068/070・動的比較3枚（タスク2）は実は engine 置換機構＝タスク6級でSではない（要再ラベル）** |
 | 6 | 「代わりに」残テールの機構系 | engine新機構（置換） | L | D:置換ルール9（バニッシュされない系）・C:コスト代替6・E:リコレクト2・B1残10の条件語彙（§6.3）＋WX16-021 |
 | 7 | §6.1 未実装action型の engine 実装 | engine実装 | M（1型ずつ） | 残3型＝`PLAY_FREE_FROM_TRASH`(2)・`PREVENT_DAMAGE`(5・ダメージ層の置換機構が要る)・`COST_SUBSTITUTE`(2・コスト支払いUI横断) |
 | 8 | §6.3 大型機構 | engine機構＋parser | L（項目ごと独立） | ゲーム除外・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査 |
@@ -161,10 +161,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き188・Opus 4.8・タスク12(xxx) 消化＝「対戦相手のシグニが場に出たとき」ON_PLAY scope/対象幻覚を根治）**
-  - **成果**＝golden 421→**422**・census 2001→**1998**（3効果改善＝BASELINE_HIGH 実数更新）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き188。
-  - 原文「対戦相手のシグニが場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする」が **ON_PLAY 既定 self**（自身が場に出たとき＝一度も発火しない）＋charm owner self＋任意対象に化けていた同型**3枚**を根治（WXEX2-76-E1/WX08-006-E2＝any_opp・WXK10-048-E1＝any_ally）。**根因＝parser の ON_PLAY scope 抽出に any_opp 語彙欠落**（timing センサスは「場に出たとき」除外の死角）。effectParser に any_opp 抽出（トリガー句非除去）＋parseSentencePart1 に charm owner「対戦相手は自分の…」→opponent／「そのシグニ」→`isTriggerSource`＋engine execAttachCharm の triggeringCardNum 解決＋decompiler。
-  - **次の一手**：Opus＝タスク12在庫の残（(i)(ii)(iii)(viii)残(xi)(xii)(xxiv)残(xxxi)残(b)(xxxv)-c＋ON_BANISH据置4件）。※(ii) WXDi-P10-035 は「owner精査」ではなく引用付与（quoted【自】）が丸ごと BOUNCE に潰れる**§6.3級**と判明（要再分類）。Sonnet＝新 timing の §7 driver＋is-source watcher の実機確認。
+- **🆕 セッション（2026-07-18・続き189・Opus 4.8・タスク5 小口＝GRANT_EFFECT(→LRIG) 内 levelLtSelf の decompiler 読み替え）**
+  - **成果**＝同型★0（5986枚）維持・golden 422/census 1998（不変＝decompiler 表現のみ）・`npm run regen` 済み。詳細は BUGFIXES 続き189。
+  - WXEX2-25-E3 の逆翻訳が「このシグニより低いレベル」→原文「この**ルリグ**より」とズレ。GRANT_EFFECT 付与先が LRIG のとき inner の「このシグニより(低い/高い)レベル」を「このルリグより」に読み替え（engine は host 基準で解決済＝機能は正）。`levelLtSelf` は全JSONでこの1枚のみ。
+  - **⚠棚卸し所見＝タスク5/2/4 の「S」項目の多くは実は engine 置換機構＝タスク6級**（「代わりに」WX25-P2-068/070・動的比較3枚等）。真に S なのは decompiler 表現・単点 filter 付与のみ＝**非タスク12の低難易度在庫はほぼ枯渇**。
+  - **次の一手**：Opus＝タスク12在庫の残（(i)(iii)(viii)残(xi)(xii)(xxiv)残(xxxi)残(b)(xxxv)-c＋ON_BANISH据置4件・(ii)は§6.3再分類）。低難易度が尽きたら**タスク6/8 の機構1つ**か、タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構に着手。Sonnet＝新 timing の §7 driver＋is-source watcher の実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。

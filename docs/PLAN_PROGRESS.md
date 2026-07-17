@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き188・Opus 4.8・タスク12(xxx) 消化＝「対戦相手のシグニが場に出たとき」ON_PLAY scope/対象幻覚を根治）**
+  - **成果**＝golden 421→**422**・census 2001→**1998**（3効果改善＝BASELINE_HIGH 実数更新）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き188。
+  - 原文「対戦相手のシグニが場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする」が **ON_PLAY 既定 self**（自身が場に出たとき＝一度も発火しない）＋charm owner self＋任意対象に化けていた同型**3枚**を根治（WXEX2-76-E1/WX08-006-E2＝any_opp・WXK10-048-E1＝any_ally）。effectParser に any_opp 抽出（トリガー句非除去）＋parseSentencePart1 に charm owner「対戦相手は自分の…」→opponent／「そのシグニ」→`isTriggerSource`＋engine execAttachCharm の triggeringCardNum 解決＋decompiler。
+
 - **🆕 セッション（2026-07-18・続き187・Opus 4.8・タスク12(xxxi) 残(a) 消化＝`ENERGY_CHARGE_PER_LRIG_LEVEL` 新設）**
   - **成果**＝golden 420→**421**・census **2001**（維持）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き187。
   - 「…レベル1につき引くか、…レベル1につき【エナチャージ】をする」二択が `ENERGY_CHARGE_FROM_DECK count:1` に潰れる内容欠落を是正。続き184の `DRAW_PER_LRIG_LEVEL` と対称な **`ENERGY_CHARGE_PER_LRIG_LEVEL`** を types/engine/parser/decompiler/golden の5層で新設。**根因＝【エナチャージ】ショートハンド規則が文全体を先取り**していたため、その直前に二択規則（`CHOOSE[DRAW_PER_LRIG_LEVEL, ENERGY_CHARGE_PER_LRIG_LEVEL]`）を挿入。WXK10-004-E1／WX26-CP1-003-E1①（入れ子CHOOSE）採用。残＝(xxxi)(b) WD21-001-E2（めくったカードのレベル比例）。

@@ -4,6 +4,16 @@
 
 ---
 
+## Opusタスク5 小口消化＝GRANT_EFFECT(→LRIG) 内 levelLtSelf の decompiler 読み替え（2026-07-18・続き189・Opus 4.8）
+
+**内容**＝WXEX2-25-E3（対戦相手のセンタールリグに「【常】：このルリグより低いレベルを持つあなたのシグニのパワーを－8000する」を付与）の逆翻訳が「**この**シグニより低いレベル」と表示され、原文「この**ルリグ**より」とズレていた（decompiler の `filterJa` が `levelLtSelf` を「このシグニより」固定で描画）。engine は `levelLtSelf/levelGtSelf` を host 基準で解決済み（effectEngine.ts:1262・シグニ/ルリグ両対応）＝**機能は正・表示のみのズレ**。decompiler の GRANT_EFFECT case で付与先 `target.type==='LRIG'` のとき inner body の「このシグニより(低い/高い)レベル」→「このルリグより」に読み替え（LRIG 付与に scope・signi 付与には非干渉）。`levelLtSelf` は全JSONでこの1枚のみ。
+
+**検証**＝同型★0（5986枚）維持・golden 422（不変）・census 1998（不変）・`npm run regen` 済み。engine/JSON 非変更＝decompiler 表現のみ。
+
+**⚠棚卸し所見**＝タスク5/2/4 の「S」ラベル項目の多く（「代わりに」WX25-P2-068/070・動的比較 WXEX2-28/WXK08-005/WXK11-003 等）は実際には engine 置換機構＝**タスク6（L）級**であり S ではない。真に S なのは decompiler 表現・単点 filter 付与のみ。次に取る前に再ラベルが要る。
+
+---
+
 ## Opusタスク12(xxx) 消化＝「対戦相手のシグニが場に出たとき」の ON_PLAY scope/対象幻覚を根治（2026-07-18・続き188・Opus 4.8）
 
 **経緯**＝続き179で発見・未修正だった WXEX2-76-E1 の scope/対象幻覚。原文「対戦相手のシグニ１体が場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする」が、**timing ON_PLAY の scope 既定 self**（＝ナナフシ自身が場に出たとき＝一度も発火しない）＋charm owner self＋任意対象 ATTACH_CHARM に化けていた。CSV 全数照合で**同型3枚**を確認（WXEX2-76-E1／WX08-006-E2＝any_opp・WXK10-048-E1＝any_ally）。

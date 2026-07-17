@@ -606,7 +606,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const subjGE = a.targetsLastProcessed ? 'それ'
         : a.target?.filter?.thisCardOnly ? 'このシグニ'
         : targetJa(a.target);
-      const bodyGE = a.effect ? effJa(a.effect) : (a.rawText ?? '');
+      const bodyGE0 = a.effect ? effJa(a.effect) : (a.rawText ?? '');
+      // levelLtSelf/levelGtSelf（「自身より低い/高いレベル」）は付与先の種別で読みが変わる＝engine は host 基準で解決
+      //   （effectEngine.ts の resolveDynamicFilter が「このシグニ/このルリグ」を host で判定）。ルリグ付与文脈では
+      //   filterJa の既定「このシグニより」を「このルリグより」に読み替える（WXEX2-25-E3）。
+      const bodyGE = a.target?.type === 'LRIG'
+        ? bodyGE0.replace(/このシグニより(低い|高い)レベル/g, 'このルリグより$1レベル')
+        : bodyGE0;
       return `${subjGE}は『${bodyGE}』を得る${durJaGE}`;
     }
     case 'REVEAL_DECK_TOP': return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.count)}枚公開する`;
