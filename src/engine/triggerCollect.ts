@@ -417,7 +417,6 @@ export function collectTrashTriggers(
     });
   }
   // フィールド上シグニ＋ルリグのON_TRASHフィールドトリガー（ally_banished等）
-  const ownerState = trashedPlayerId === ctx.hostId ? afterHostState : afterGuestState;
   for (const topNum of ownFieldSources(ownerState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
@@ -430,7 +429,13 @@ export function collectTrashTriggers(
         const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
         if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
       }
+      // ターン所有者条件は evalCondition では判定できない（IS_MY_TURN はプレースホルダで常時 true）ため、
+      // watcher＝トラッシュされたシグニのオーナー視点で収集側が判定する（WX24-P1-015-E1「あなたのメインフェイズの間」＝
+      // AND(DURING_PHASE:MAIN, IS_MY_TURN)。DURING_PHASE 単独だと相手のメインフェイズでも発火してしまう）。
+      if (condHas(eff.condition, 'IS_MY_TURN') && !ownerIsTurnPlayer) continue;
+      if (condHas(eff.condition, 'IS_OPPONENT_TURN') && ownerIsTurnPlayer) continue;
       if (eff.condition && !evalUseCondition(eff.condition, ownerState, trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
+      if (!limitOkOwner(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: trashedPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（シグニトラッシュ時）`, effect: eff,
