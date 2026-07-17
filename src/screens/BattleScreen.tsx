@@ -2554,6 +2554,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries: fz.entries, hostState: h, guestState: g };
   };
 
+  // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP のインライン収集（タスク16[C]機構①・collectFreezeInline と同型）。
+  // before は bs.host_state/guest_state。byEffect＝効果起因か（中央diff＝true／アタックダウンは
+  // performSigniAttack 側で byEffect:false のまま直接 pure collector を呼ぶ）。
+  const collectSigniDownUpInline = (
+    afterHost: PlayerState,
+    afterGuest: PlayerState,
+  ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
+    let h = afterHost, g = afterGuest;
+    const entries: StackEntry[] = [];
+    const downHost = detectNewlyDowned(bs.host_state, afterHost);
+    const downGuest = detectNewlyDowned(bs.guest_state, afterGuest);
+    if (downHost.length > 0 || downGuest.length > 0) {
+      const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
+        [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], h, g);
+      entries.push(...dn.entries);
+      if (dn.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...dn.usedHostIds] };
+      if (dn.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...dn.usedGuestIds] };
+    }
+    const upHost = detectNewlyUpped(bs.host_state, afterHost);
+    const upGuest = detectNewlyUpped(bs.guest_state, afterGuest);
+    if (upHost.nums.length > 0 || upGuest.nums.length > 0 || upHost.lrigUpNum || upGuest.lrigUpNum) {
+      const up = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_BECOMES_UP',
+        [{ ownerId: bs.host_id, nums: upHost.nums, lrigNum: upHost.lrigUpNum, byEffect: true },
+         { ownerId: bs.guest_id, nums: upGuest.nums, lrigNum: upGuest.lrigUpNum, byEffect: true }], h, g);
+      entries.push(...up.entries);
+      if (up.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...up.usedHostIds] };
+      if (up.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...up.usedGuestIds] };
+    }
+    return { entries, hostState: h, guestState: g };
+  };
+
   // === 盤面差分トリガーの統合収集（続き61・Opus）===
   // resolveStackNext の中央 diff（result.done===true 分岐）と handleEffectInteraction の resume 完了分岐の
   // 双方から呼べる「盤面 before/after を比べてトリガーを収集する」共通関数。
