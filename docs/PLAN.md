@@ -155,14 +155,14 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-17・続き175・Opus 4.8・タスク16[A]＝「対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp 新設）**
-  - **主題**＝timing センサス残 [A]クラスタ最大の完全wired候補「（あなたの効果によって）対戦相手が手札をN枚捨てたとき」（n=4＋同型 n=1）を消化。原文主語が**相手**のため従来 parser は「拾わない」と明示（`any` に倒すと自分の捨てでも過剰発火）していた穴。
-  - **engine（collectHandDiscardTriggers）**＝相手フィールド watcher path を `any` 限定→`any/any_opp` へ拡張＋**センタールリグも走査**（対象2枚がルリグ札）。path1/自LRIG では `any_opp` を明示スキップ＝**自分の手札捨てでは誤発火しない**（`any` との差）。
-  - **parser**＝timing branch＋scope 抽出に `対戦相手が(…効果によって)?手札を…捨てたとき`→ON_HAND_DISCARDED any_opp を追加（trigText 先頭句限定）。複合OR（WXDi-P11-064）・【起】内付与（WX24-P4-017）は上流/別case で先取りされ衝突なし。
-  - **JSON**＝5効果を effectId アンカー直接パッチ（timing+scope のみ・action 不変・parseStatus AUTO 維持＝durable）：WX09-028-E1・WXDi-P02-030-E1・WXDi-P04-009-E2・WXDi-P04-063-E1・WXDi-P10-060-E1。**decompiler**＝any_opp 描画追加（逆翻訳原文一致）。
-  - **除外**＝WD16-014-E1 は timing は直るが action が内側引用 DRAW に潰れる＝引用付与（§6.3・タスク1）案件のため放置（タスク1へ登録）。
-  - **指標**＝census **2027 維持**・golden 388→**391**（any_opp 発火・自捨て非発火・LRIG watcher の3件）・smoke/fuzz 全0・同型★0・`census:timing` fallback 135/117→**129/114**。詳細 BUGFIXES 続き175。要実機検証＝相手手札捨て→凍結/バニッシュの発火。
-  - **次の一手**：Opus＝①タスク16[A]残（`docs/_timing_census_triage.txt`＝ON_ACCE_ATTACH／ON_SIGNI_BATTLE levelRange／ON_CARD_MOVED_TO_DECK／risedOntoNameContains／ON_CHARM_TO_TRASH any_opp 等・parser regexのみ）②IS_MY_TURN化残の distinct/sum/多分岐カウント機構・(xxvii)残Cluster B/E ③タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残・WD16-014-E1 を(§6.3)引用付与へ）。Sonnet＝**タスク1在庫**＝相手手札捨て→any_opp 発火の §7 driver 新設（WXDi-P04-063 の凍結・WX09-028 のバニッシュ）＋続き173/174 の在庫2件。
+- **🆕 セッション（2026-07-17・続き176・Opus 4.8・タスク16[A]＝「このカードが【アクセ】として…シグニに付いたとき」の timing 語彙化＝ON_ACCE_ATTACH アクセカード自身）**
+  - **主題**＝timing センサス残 [A]クラスタの ON_ACCE_ATTACH 群（6効果）。engine（`checkAndFireOnAcceTriggersForOwner` の attachedAcce ループ）は「アクセカード自身の反応」を配線済みだったが parser に語彙が無く 6効果が全て ON_PLAY へ誤フォールバック（場に出ただけで発火する幻覚）。
+  - **parser**＝`このカードが【アクセ】として[^。]*シグニに付いたとき`→ON_ACCE_ATTACH。host条件抽出＝「レベルN以上の」`accedHostMinLevel`／「レベルN以下の」`accedHostMaxLevel`（新設）／「＜X＞の」`accedHostStory`（新設）＋`accedSelf:true`（弁別）。
+  - **engine（BattleScreen）**＝acce-self ループに accedHostMaxLevel（≦）・accedHostStory（host CardClass includes）の host ゲートを追加（既存 accedHostMinLevel に並置）。
+  - **decompiler 弁別**＝ON_ACCE_ATTACH は**ルリグ監視版**「あなたのシグニ1体に…」（WXK04-003・default）と**アクセ自身**「このカードが【アクセ】として…」で共用。host条件無しの素の acce-self（WXK05-040/SPK01-11）は tc=null で区別不能だったため `accedSelf` フラグを新設（engine は無視・逆翻訳専用）。
+  - **JSON**＝6効果を effectId アンカー直接パッチ（timing+triggerCondition のみ・action 不変）。AUTO 4件（WXK05-040-E2/WX17-033-E4/WX17-076-E2/WX17-076-E3）は fresh と完全一致＝durable。MANUAL 2件（SPK01-11-E1/WXK05-041-E2）は accedSelf 追記。HEAD比較で変更6効果のみ機械確認。
+  - **指標**＝census **2027 維持**・golden 391→**392**（acce-self parser bare/minLv/maxLv+story）・smoke/fuzz 全0・同型★0・`census:timing` fallback 129/114→**123/109**。詳細 BUGFIXES 続き176。要実機検証＝アクセ装着→host条件一致時のトリガー発火（WX17-033＝＜調理＞／WXK05-041＝Lv4以上）。
+  - **次の一手**：Opus＝①タスク16[A]残（`docs/_timing_census_triage.txt`＝ON_SIGNI_BATTLE levelRange〔WX04-099/WX05-047〕／ON_CARD_MOVED_TO_DECK〔WX05-019〕／risedOntoNameContains〔WX20-056/WXK-…〕／ON_CHARM_TO_TRASH any_opp〔WXEX2-24〕／movedToDeckFromTrash〔WX09-020〕／exceedCostPaidByPlayer 等・parser regexのみ）②[B]軽量engine拡張（accedHostMinLevel 対称のような filter/閾値追加）③タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残）。Sonnet＝**タスク1在庫**＝アクセ装着→host条件トリガーの §7 driver 新設＋続き173/174/175 の在庫。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
