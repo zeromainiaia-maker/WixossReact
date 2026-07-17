@@ -155,13 +155,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-17・続き178・Opus 4.8・タスク16[B]＝engine の triggerFilter を軽量拡張＝ON_SIGNI_BATTLE level/power filter＋basic/front banish）**
-  - **主題**＝タスク16 [B]第1弾。engine を**1箇所だけ**軽量拡張して parser 語彙とセットで消化。
-  - **engine**＝collectBattleTrig に「バトル相手の triggerFilter を matchesFilter で評価」1行追加（level/power）。**既存 ON_SIGNI_BATTLE に triggerFilter 持ちは皆無**＝副作用ゼロ。
-  - **parser**＝①ON_SIGNI_BATTLE の level/power filter 抽出（levelRange{max}/level/powerRange{min}・「対戦相手の」省略可）②basic/front banish（`このシグニが(正面の)?シグニをバニッシュ`→ON_SIGNI_BANISH_OPPONENT・バトル相手は常に正面のため filter 不要・WX17-046/WXK04-044）。**decompiler**＝battle filter 描画。
-  - **影響検証**＝続き177 baseline diff で影響5効果のみ（WX04-099/WX05-047/WX17-046/WXK04-044-G/WXDi-P14-062-G）・回帰ゼロ。**JSON**＝AUTO2件 fresh 置換＋WXDi-P14-062内側 timing/filter パッチ。WX04-099（action target で level 担保済み）・WXK04-044（ON_SIGNI_BANISH_BATTLE で正）は MANUAL 据置。
-  - **指標**＝golden 393→**394**・smoke/fuzz 全0・同型★0・census 2026→**2025**（改善・baseline 据置）・`census:timing` fallback 106/92→**101/87**。詳細 BUGFIXES 続き178。
-  - **次の一手**：Opus＝①**[B]残**（banish の**被バニッシュ** triggerFilter〔感染/チャーム付き〕＝ゾーン状態依存で pre-banish 状態スナップショットが要る・placedFront＋level filter・ON_ARTS_USE 色 filter・virus N以上閾値）②[C]§6.3 機構群（ON_SIGNI_DOWN/UP・累積N以上カウンタ・跨サイドscope・自己discard・frozen filter＝5パターン一括機構化）③タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残）。Sonnet＝**タスク1在庫**＝新 timing の §7 driver 新設（バトル/ダメージ/ライズ/チャーム/デッキ移動/離場/ウィルス/エクシード＋バトル相手 level/power 条件）＋続き173/174/175 の在庫。
+- **🆕 セッション（2026-07-17・続き179・Fable 5・タスク16[B]第2弾＝被バニッシュ状態 filter（感染/チャーム/凍結）＋placedFront レベル filter＋ON_ARTS_USE 色 filter）**
+  - **主題**＝続き178「次の一手」の [B]残メニューを一括消化＝9カード10効果。影響は全カード fresh diff で意図分のみ・巻き添えゼロを機械確認。
+  - **engine**＝①`triggerCondition.banishedFilter` 新設（被バニッシュシグニ限定・battleBanishEntries が**防御側バトル前状態**の被バニッシュゾーンで matchesStateFilter 評価＝pre-banish スナップ。triggerFilter は主語側なので別軸）②`collectArtsUseTriggers` に使用アーツ引数＋matchesFilter 評価③placedFront＋levelRange は **engine 変更ゼロ**（collectFieldTriggers が triggerFilter 評価済み＝実質[A]）。既存 JSON に banishedFilter／ON_ARTS_USE triggerFilter 持ちは皆無＝副作用ゼロ。
+  - **JSON**＝AUTO 7効果 fresh 置換（凍結4＝WXK02-054/WXK10-072/WXDi-P00-061/WXDi-P10-059・感染 WX16-079・チャーム WXEX2-76-E2・緑アーツ WXK01-043）＋**WX17-075-E1 は action の対象幻覚（自分のシグニをバニッシュ）も是正して MANUAL 化**。WXDi-P02-083-E1/WX17-075-E3 は MANUAL 据置（fresh が追いついた）。
+  - **指標**＝golden 394→**396**・smoke/fuzz 全0・同型★0・census 2025→**2019**（改善・要因特定済み＝`BASELINE_HIGH` を 2019 へ実数更新）・`census:timing` fallback 101/87→**91/77**。詳細 BUGFIXES 続き179。
+  - **次の一手**：Opus＝①**[C]§6.3 機構群の一括機構化**（残 timing センサスの上位は全て[C]＝ON_SIGNI_DOWN/UP・累積N以上カウンタ・跨サイドscope・自己discard 反応の5パターン。台帳 `docs/_timing_census_triage.txt` 下部のグルーピング参照）②タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残＋**🆕(xxx) WXEX2-76-E1**）。Sonnet＝**タスク1在庫**＝新 timing の §7 driver 新設（続き178分＝バトル相手 level/power に加え、続き179分＝凍結/チャーム/感染バニッシュ・緑アーツ・正面レベル配置）＋続き173/174/175 の在庫。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
