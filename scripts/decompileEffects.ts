@@ -1833,6 +1833,52 @@ function effJa(e: Eff): string {
     else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}${scopeNoun}${s.slice('このカード'.length)}`;
     // ON_LEAVE_FIELD の leftToZone:'hand'（「シグニ１体が場から手札に戻ったとき」WXK02-041）
     if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
+    // ON_LEAVE_FIELD 跨サイド any_opp（「あなたの効果によって対戦相手のシグニが場から手札に移動したとき」WXK11-049/WXDi-CP01-027）
+    if (t === 'ON_LEAVE_FIELD' && e.triggerScope === 'any_opp' && e.triggerCondition?.byOwnEffect) {
+      const toJa = e.triggerCondition?.leftToZone === 'hand' ? '場から手札に移動した' : '場を離れた';
+      const turnJa = e.triggerCondition?.turnOwner === 'self' ? 'あなたのターンの間、' : '';
+      s = `${turnJa}あなたの効果によって対戦相手のシグニ１体が${toJa}とき`;
+    }
+    // ON_LEAVE_FIELD any_ally＋byOpponentEffect（「あなたの＜X＞のシグニが対戦相手の効果によって場を離れたとき」WX19-026）
+    if (t === 'ON_LEAVE_FIELD' && e.triggerScope === 'any_ally' && e.triggerCondition?.byOpponentEffect) {
+      const fJa = e.triggerFilter ? filterJa(e.triggerFilter) : '';
+      s = `あなたの${fJa}シグニ１体が対戦相手の効果によって場を離れたとき`;
+    }
+    // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（タスク16[C]機構①）: scope・filter・byEffect・フェイズ限定を描画。
+    if (t === 'ON_SIGNI_DOWN' || t === 'ON_SIGNI_BECOMES_UP') {
+      const duTc = e.triggerCondition;
+      const stateJa = t === 'ON_SIGNI_DOWN' ? 'ダウン' : 'アップ';
+      if (e.triggerFilter?.cardName) {
+        s = `あなたの《${e.triggerFilter.cardName}》がダウンしたとき`;
+      } else {
+        const phaseJa = duTc?.duringAttackPhase ? 'アタックフェイズの間、' : '';
+        const byEffJa = duTc?.byEffect ? '効果によって' : '';
+        const sc = e.triggerScope ?? 'any_ally';
+        const subjJa = sc === 'self' ? 'このシグニ'
+          : sc === 'any' ? 'シグニ１体'
+          : `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${e.triggerFilter?.story ? `＜${e.triggerFilter.story}＞の` : ''}${duTc?.upIncludesLrig ? 'センタールリグか' : ''}シグニ１体`;
+        s = `${phaseJa}${subjJa}が${byEffJa}${stateJa}状態になったとき`;
+      }
+    }
+    // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・fromZones:['hand']＋原因限定）
+    if (t === 'ON_TRASH' && (e.triggerCondition?.byOwnEffect || e.triggerCondition?.trashSourceStory
+        || (e.triggerCondition?.byOpponentEffect && e.triggerCondition?.fromZones?.length === 1 && e.triggerCondition.fromZones[0] === 'hand'))) {
+      const sdTc = e.triggerCondition;
+      const causeJa = sdTc?.trashSourceStory ? `あなたの＜${sdTc.trashSourceStory}＞のシグニの効果によって`
+        : sdTc?.byOpponentEffect ? '対戦相手の効果によって'
+        : sdTc?.byOwnEffect ? 'あなたの効果によって' : '';
+      const turnJa = sdTc?.turnOwner === 'self' ? 'あなたのターンの間、' : sdTc?.turnOwner === 'opponent' ? '対戦相手のターンの間、' : '';
+      s = `${turnJa}${causeJa}このカードが捨てられたとき`;
+    }
+    // ON_DRAW の限定軸（「アタックフェイズの間に」「あなたのターンの間、あなたの効果によって」WX11-030/WXK10-040）
+    if (t === 'ON_DRAW' && (e.triggerScope ?? 'self') === 'self'
+        && (e.triggerCondition?.duringAttackPhase || e.triggerCondition?.drawByDrawerOwnEffect)) {
+      const drTc = e.triggerCondition;
+      const turnJa = drTc?.turnOwner === 'self' ? 'あなたのターンの間、' : '';
+      const phaseJa = drTc?.duringAttackPhase ? 'アタックフェイズの間に' : '';
+      const ownJa = drTc?.drawByDrawerOwnEffect ? 'あなたの効果によって' : '';
+      s = `${turnJa}${phaseJa}${ownJa}あなたがカードを１枚以上引いたとき`;
+    }
     // ON_MAIN_PHASE_START の triggerScope:any_opp（「対戦相手のメインフェイズ開始時」WXDi-P00-034）
     if (t === 'ON_MAIN_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のメインフェイズ開始時';
     // ON_TURN_END/ON_TURN_START の triggerScope:any_opp（「対戦相手のターン終了/開始時」WX11-032/WX20-073 等）
