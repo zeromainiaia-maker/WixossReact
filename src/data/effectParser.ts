@@ -3807,6 +3807,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         } else {
           extractedTriggerScope = 'self';
         }
+        // 被バニッシュシグニの状態限定（「感染状態の／凍結状態の／【チャーム】が付いている…シグニをバニッシュしたとき」
+        //   WX16-079/WXK02-054/WXEX2-76 等）を triggerCondition.banishedFilter に抽出（タスク16[B]）。
+        //   engine（battleBanishEntries）はバトル**前**状態の被バニッシュゾーンで matchesStateFilter 評価する。
+        //   トリガー句（trigText）のみ判定＝action 本文の同語には誤反応しない。
+        {
+          const bf: NonNullable<typeof extractedTriggerFilter> = {};
+          if (/凍結状態のシグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) bf.isFrozen = true;
+          if (/感染状態のシグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) bf.infected = true;
+          if (/【チャーム】が付いている(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) bf.hasCharm = true;
+          if (Object.keys(bf).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedFilter: bf };
+        }
       }
       // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜X＞のシグニが効果によって…バニッシュしたとき」WX07-036）：主語を triggerScope:any_ally＋triggerFilter に抽出（actionText 非改変）。
       if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT') {
