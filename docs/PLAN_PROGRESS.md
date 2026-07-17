@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き179・Fable 5・タスク16[B]第2弾＝被バニッシュ状態 filter（感染/チャーム/凍結）＋placedFront レベル filter＋ON_ARTS_USE 色 filter）**
+  - **主題**＝続き178「次の一手」の [B]残メニューを一括消化＝9カード10効果。影響は全カード fresh diff で意図分のみ・巻き添えゼロを機械確認。
+  - **engine**＝①`triggerCondition.banishedFilter` 新設（被バニッシュシグニ限定・battleBanishEntries が**防御側バトル前状態**の被バニッシュゾーンで matchesStateFilter 評価＝pre-banish スナップ。triggerFilter は主語側なので別軸）②`collectArtsUseTriggers` に使用アーツ引数＋matchesFilter 評価③placedFront＋levelRange は **engine 変更ゼロ**（collectFieldTriggers が triggerFilter 評価済み＝実質[A]）。既存 JSON に banishedFilter／ON_ARTS_USE triggerFilter 持ちは皆無＝副作用ゼロ。
+  - **JSON**＝AUTO 7効果 fresh 置換（凍結4＝WXK02-054/WXK10-072/WXDi-P00-061/WXDi-P10-059・感染 WX16-079・チャーム WXEX2-76-E2・緑アーツ WXK01-043）＋**WX17-075-E1 は action の対象幻覚（自分のシグニをバニッシュ）も是正して MANUAL 化**。WXDi-P02-083-E1/WX17-075-E3 は MANUAL 据置（fresh が追いついた）。
+  - **指標**＝golden 394→**396**・smoke/fuzz 全0・同型★0・census 2025→**2019**（改善・要因特定済み＝`BASELINE_HIGH` を 2019 へ実数更新）・`census:timing` fallback 101/87→**91/77**。詳細 BUGFIXES 続き179。
+
 - **セッション（2026-07-17・続き178・Opus 4.8・タスク16[B]＝engine の triggerFilter を軽量拡張＝ON_SIGNI_BATTLE level/power filter＋basic/front banish）**
   - **主題**＝タスク16 [B]第1弾。engine を**1箇所だけ**軽量拡張して parser 語彙とセットで消化。
   - **engine**＝collectBattleTrig に「バトル相手の triggerFilter を matchesFilter で評価」1行追加（level/power）。**既存 ON_SIGNI_BATTLE に triggerFilter 持ちは皆無**＝副作用ゼロ。
