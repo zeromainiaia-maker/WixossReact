@@ -1918,7 +1918,12 @@ function effJa(e: Eff): string {
     }
     // ON_TRASH の「コストか効果によって場から」限定を反映（バトル・ルール処理では発火しない。G204）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrEffect) {
-      s = 'このシグニがコストか効果によって場からトラッシュに置かれたとき';
+      // fromZones/scope で組み立て済みの主語（self/any_ally/any_opp）を維持したまま原因句を差し込む。
+      // self の原文だけは「このカード」ではなく「このシグニ」なので名詞も合わせる。
+      s = s.replace(/^このカード/, 'このシグニ');
+      s = s.includes('場からトラッシュに置かれたとき')
+        ? s.replace('場からトラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき')
+        : s.replace('トラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき');
     }
     // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
     if (t === 'ON_PLAY' && e.triggerCondition?.bySigniEffect) {

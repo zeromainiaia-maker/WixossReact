@@ -427,6 +427,7 @@ export function collectTrashTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       // triggerFilter はトラッシュに置かれたシグニ側の限定。watcher 自身を除く指定もここで評価する。
@@ -454,10 +455,12 @@ export function collectTrashTriggers(
   const watcherState = trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState;
   const watcherOppState = ownerState; // = トラッシュされたカードのオーナー状態
   const watcherIsTurnPlayer = ctx.activeUserId === watcherPlayerId;
+  const limitOkWatcher = mkLimitOk(watcherState.actions_done, watcherPlayerId === ctx.hostId ? usedHostIds : usedGuestIds);
   for (const topNum of ownFieldSources(watcherState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp') continue; // 'any' は既存の自分側ループで収集済み
       // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
@@ -465,14 +468,13 @@ export function collectTrashTriggers(
       if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;
       // ターン条件以外の condition を評価
       if (eff.condition && !evalUseCondition(eff.condition, watcherState, watcherOppState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
+      if (!limitOkWatcher(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: watcherPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（対戦相手シグニのトラッシュ時）`, effect: eff,
       });
     }
   }
-  // ⚠この any_opp watcher パスは usageLimit 未評価のまま（ON_BANISH では評価済み＝(x) 同型の残穴）。
-  //   本タスク(xxxii)の対象外＝未検証で挙動を変えないため据置。PLAN §3 Opusタスク12 へ登録。
   return { entries, usedHostIds, usedGuestIds };
 }
 

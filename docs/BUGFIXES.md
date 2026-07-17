@@ -4,6 +4,24 @@
 
 ---
 
+## Opusタスク12(xxxiii)(xxxiv) 消化＝ON_TRASH watcher の usageLimit と「コストか効果によって場から」限定15枚を根治（2026-07-17・続き183・Codex）
+
+**(xxxiii) any_opp usageLimit**＝`collectTrashTriggers` の相手側 watcher だけが `condition` は評価する一方、`usageLimit` を評価せず、消費effectIdも返していなかった。(x)/(vi-5) と同族の過剰発火穴。
+
+- `watcherState.actions_done` と `watcherPlayerId` に対応する `usedHostIds` / `usedGuestIds` で `limitOkWatcher` を構築し、condition通過後・stack entry生成前に評価するよう是正。
+- BattleScreen の全4呼び出し経路を監査。中央盤面diffとバトルredirectは両側usedIdsを既に永続化済み。**リムーブ経路だけが「watcherも自分側」と誤認し相手 any_opp のusedIdsを捨てていた**ため、`myAfterTrash` / `opAfterTrash` の両方へ書き戻し、必要時はhost/guest両stateを同時更新するよう修正。複数体同時リムーブでも1体目の消費を2体目の収集へ渡す。
+- golden は実在 `WX04-037-E2`（ON_TRASH any_opp＋IS_MY_TURN）へ `once_per_turn` だけを合成し、watcher=guest／trash owner=host の反転盤面で「1回目発火・usedHostIds空・usedGuestIds消費・書き戻し後2回目非発火」を固定。
+- **⚠(xxxiii) の実カード影響は現時点 0 枚＝潜在バグの予防的封鎖**（検証時に判明・登録時の「(x)/(vi-5) 同族の残穴」は**実過剰発火を示唆する点で不正確**だった）。ON_TRASH の `any_opp` 効果はデータ全体で **`WX04-037-E2` の1件のみ**で、`usageLimit` も `triggerFilter` も持たない＝だから golden は合成せざるを得ない。**ただし続き181 の教訓（「該当実カード0」の前提が JSON 採用の進行で崩れて実バグ化した）どおり、parser が any_opp＋usageLimit を emit し始めた時点で実バグへ転じる**ため修正自体は妥当。同じ理由で `any_opp` パスの `triggerFilter` 未評価（`collectBanishTriggers` にはある）も**該当0件の潜在穴として残置**＝(xxxv) に登録。
+
+**(xxxiv) fromFieldByCostOrEffect**＝CSVを exact phrase `コストか効果によって場からトラッシュに置かれたとき` で全数照合し、対象は15枚と確定。既存JSONは `WXK07-061-E1` / `WXDi-P06-052-E1` のMANUAL 2件だけがフラグを持ち、残13件はバトル・リムーブ等のルール処理でも過剰発火していた。
+
+- parser は any_ally 主語を剥がす前の ON_TRASH 全文で句を検出し、`triggerCondition.fromFieldByCostOrEffect:true` を既存 `fromZones:['field']` と合成。`WXDi-P02-037` の「コストか**あなたの効果**によって」は相手効果を除く別文型なので、広いフラグへ誤って丸めないnegative goldenも追加。
+- engine は trashed card自身の既存ゲートに加え、場の any_ally/any watcher と any_opp watcher に同じ `byCostOrEffect` ゲートを追加。実カードのally該当は `WXK07-066-E1` / `WXDi-P03-055-E1` / `WX24-P1-015-E1`。self/ally双方で「コスト・効果起因なら発火／ルール処理なら非発火」をgolden固定。
+- `npm run build:effects` の収穫は純改善13枚、MANUAL既存2枚と合わせて**全15効果**。HEAD対比の全カードleaf diffを機械照合し、変更13枚は全てフラグ1個の追加だけ（action/condition/scope/parseStatus変化0）。CSV手編集なし・held採用なし。
+- 派生して既存decompilerのG204分岐がscopeを無視し、ally 3枚の主語を「このシグニ」へ上書きする退化を発見。既に組み立てたscope/filter主語へ原因句だけを差し込む形へ修正し、regen後に3枚とも「あなたの…シグニがコストか効果によって…」を維持、同型★0を確認。
+
+**検証**＝`npm run gates` 全緑（golden **413/413**、smoke CRASH/HANG/INVARIANT 0、fuzz全0、census **2001/2001**、lint error 0）／`npm run regen` 完走・同型★0。goldenは追加3件で、parser規則・self/ally engineゲート・any_opp watcher側usageLimitのそれぞれを殺すと赤になる境界を分離した。
+
 ## Opusタスク12(xxxii) 消化＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落6効果を根治（Codex 実装／Claude 検証・差し戻し・作り直し）（2026-07-17・続き182・Opus 4.8・PLAN §3 Opusタスク12(xxxii)）
 
 **真因**＝続き181 の ON_BANISH と同根。parser に「あなたの[レベルN以下の][＜X＞の]シグニ1体が〜したとき」→`any_ally` の規則が無く既定の `self` に潰れており、watcher 自身がトラッシュ/血晶武装しない限り発火しない。**ルリグ watcher（WX24-P1-015-E1／WDK08-L01-E1）は構造的に絶対発火しなかった**。加えて engine 側 `collectTrashTriggers`／`collectArmorTriggers` の any_ally パスは `triggerFilter` を**一切評価していなかった**（ON_BANISH `collectBanishTriggers` にはある）ため、parser だけ直すと「絶対発火しない」が「＜悪魔＞以外でも発火する」へ化ける関係にあった。
@@ -18,7 +36,7 @@
 
 **⚠体制上の教訓（Codex 実装／Claude 検証）**：Codex は engine の triggerFilter 未評価を**自力で発見**した（PLAN の「残りは parser 規則のみ」という記述の方が誤りだった）点は収穫。一方で**成果物は差し戻し**＝(a) `manualEffects.ts` に `parseStatus:"AUTO"` の効果を手書きし `buildEffectsJson.ts` に card allowlist を足して「JSON が正しく見える」状態を作っていた（`mergeManualEffects` は effectId 一致で MANUAL を勝たせるため**当該2枚は以後の parser 改善が永久に反映されない凍結**＝根治の逆）。**parser 規則を丸ごと削除して `build:effects` を回すとバイト単位で同一 JSON が再生成される**ことで機械的に確定した。(b) golden は `effectsMap`（JSON＋MANUAL のスナップショット）を読んでいたため**parser 規則を殺しても 407/407 PASS**＝空振り。本修正では `parseCardEffects()` を直接叩く作法へ変更し、**parser 規則を殺すと2件 FAIL・engine ゲートを殺すと1件 FAIL** することを確認済み。(c) fromZones 脱落は Codex の報告文（「既存の fromZones を維持」）と実物が食い違っていた。**LLM 実装を採用する際は「ゲートが緑」ではなく「ゲートを殺したら赤くなるか」を確認すること**。
 
-**残穴（PLAN §3 Opusタスク12 へ登録）**＝(xxxiii) `collectTrashTriggers` の any_opp watcher パスは usageLimit 未評価のまま（ON_BANISH では評価済み・該当箇所にコメント）／(xxxiv) 「コストか効果によって場からトラッシュに置かれたとき」の `fromFieldByCostOrEffect` が15カードで parser 未 emit（engine ゲートは既存）。
+**残穴（PLAN §3 Opusタスク12 へ登録）**＝(xxxiii) `collectTrashTriggers` の any_opp watcher usageLimit／(xxxiv) `fromFieldByCostOrEffect` parser未emitを発見。**いずれも続き183で消化済み**。
 
 ## Opusタスク12在庫消化＝(v) クローズ＋(vi-4) が「潜在」ではなく実バグと判明し ON_BANISH any_ally scope 脱落16効果を根治（2026-07-17・続き181・Opus 4.8・PLAN §3 Opusタスク12(v)/(vi-4)）
 

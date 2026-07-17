@@ -4043,6 +4043,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/レゾナの出現条件のために/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
         }
+        // 「コストか効果によって場からトラッシュに置かれたとき」は、バトルやリムーブ等の
+        // ルール処理による field→trash では発火しない。主語を剥がす前の全文で先に刻み、
+        // self と any_ally のどちらでも同じ限定を維持する（Opusタスク12(xxxiv)・15枚）。
+        if (/コストか効果によって場からトラッシュに置かれたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromFieldByCostOrEffect: true };
+        }
         // 「（あなたのメインフェイズの間、）あなたの[レベルN以下の][＜X＞の]シグニN体が」＝ any_ally の主語を
         // **前置きとしてだけ剥がす**（Opusタスク12(xxxii)・ON_BANISH の any_ally 規則と同根）。既定の self に潰れると
         // watcher 自身がトラッシュされない限り発火せず、ルリグ watcher は構造的に絶対発火しない。

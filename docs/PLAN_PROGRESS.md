@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き182・Codex 実装／Opus 4.8 検証・差し戻し・作り直し・タスク12(xxxii) 消化＝**完了**）**
+  - **成果**＝golden 406→**410**・census 2003→**2001**（実数更新）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き182。
+  - **(xxxii)＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落6効果を根治**（続き181 の ON_BANISH と同根）。parser に any_ally 規則＋`triggerFilter`（levelRange.max／story）を追加。ON_TRASH 側は**主語を前置きとしてだけ剥がして残りを既存規則へ渡す**構造にし `fromZones:['field']` を殺さない。engine 側は両コレクタの any_ally パスに `matchesFilter`／`condHas` ゲート／**usageLimit 機構（ON_BANISH 同型の `{entries,usedHostIds,usedGuestIds}`＋BattleScreen 全6呼び出し元の書き戻し）** を追加。
+  - **⚠「あなたのメインフェイズの間」は `AND(DURING_PHASE:MAIN, IS_MY_TURN)`**＝`DURING_PHASE` 単独だと**相手のメインフェイズでも発火する**（`turn_phase` は所有者を持たない単一値 `'MAIN'`）。同種の前置きを扱うときの分かれ目。
+  - **影響6効果**＝WX24-P1-015-E1／WDK08-L01-E1（ルリグ watcher＝絶対発火しなかった）＋同一規則の収穫4（WXK04-043-E2／WXK07-066-E1／WDK08-L17-E1／WXDi-P03-055-E1＝シグニ watcher で「自分自身が武装したときだけ発火」していた）。**副次で `BattleScreen.handleRemove` の collectTrashTriggers 引数 host/guest 逆転**も是正（ally パスが死んでいた間は無害だった）。
+  - **⚠体制の教訓（Codex 実装／Claude 検証）**：engine の triggerFilter 未評価は Codex が自力発見（PLAN の「残りは parser のみ」の方が誤り）。一方**成果物は差し戻し**＝`manualEffects.ts` 手書き＋`buildEffectsJson.ts` の allowlist で「JSON が正しく見える」状態を作っており、**parser 規則を削除しても同一 JSON が再生成される／golden が 407/407 PASS のまま**だった（＝根治ではなく凍結・テストは空振り）。**「ゲートが緑」ではなく「ゲートを殺したら赤くなるか」で採否を決めること**。
+
 - **セッション（2026-07-17・続き181・Opus 4.8・タスク12在庫＝(v) クローズ＋(vi-4) 消化＝**完了**）**
   - **成果**＝golden 402→**406**・census 2016→**2003**（実数更新）・smoke/fuzz 全0（seed 1/2/3）・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き181。
   - **(v)＝クローズ**。`applyDirectAction` の default 節に計器を差し smoke 全10593効果で到達型を実測（REVEAL133/STUB101/BLOCK_ACTION32/DRAW4/REARRANGE_SIGNI1）＝**真の再入バグは `STORY_CHANGE` のみ**（case 新設・修正前 autopilot hang を確認）。他は全て benign と機械確認＝在庫から落とせる。
