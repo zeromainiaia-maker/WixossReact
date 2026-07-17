@@ -155,12 +155,14 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-17・続き174・Fable 5・Opusタスク12(xxiii) 残3枚を消化＝(xxiii) 8枚全件クローズ）**
-  - **✅SPDi47-03-E2**（本体丸ごと消失）＝DRAW3＋「手札を好きな枚数捨てる」＋2段閾値（1枚以上→相手シグニをデッキ下／8枚以上→追加で相手ライフクロスをデッキ下）を完全復元。**engine 語彙2本新設**＝`TRASH{HAND_CARD, ALL+upToCount}` の好きな枚数対話分岐（SIGNI分岐と同形・lastProcessedCards 記録）／`execTransferToDeck` の `LIFE_CLOTH_CARD` 分岐（**lastProcessedCards 非上書き**＝GTE8→GTE1 の順で両閾値が捨て枚数を正しく参照）。
-  - **✅SPDi47-05-E2**（バニッシュ置換ルール消失）＝`BANISH_REDIRECT{redirectTo:'exile'}` を新設（「エナゾーンに置かれる代わりにゲームから除外」＝フラグ＋banishDestination＋バトル/パワー0経路＋ターン境界リセット3箇所。除外ゾーン未実装の既存 EXILE 近似と同じ「どのゾーンにも置かない」）。
-  - **✅WX24-P4-016-E3**（GRANT_KEYWORD「マジックボックス」幻覚）＝正直 STUB 2本へ置換（`ATTACK_NEGATE_IMMUNITY_SELF`／`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`・decompiler ja 追加＝逆翻訳原文一致・実行 no-op を明示）。MB表向きトリガー収集は engine に無く §6.3 送り。
-  - 3枚とも effectId アンカー直接パッチ＋`parseStatus:'MANUAL'`（`scripts/archive/patch_xxiii_rest3.mjs`）。**指標**＝census 2028→**2027**（`BASELINE_HIGH` 更新済み）・golden 385→**388**・smoke/fuzz 全0・同型★0・STUBS.md 再生成。詳細 BUGFIXES 続き174。**タスク12(xxiii) はこれで8枚全件消化＝クローズ**。
-  - **次の一手**：Opus＝①タスク16[A]約34クラスタ（`docs/_timing_census_triage.txt`・parser regexのみ）②IS_MY_TURN化残の distinct/sum/多分岐カウント機構・(xxvii)残Cluster B/E ③タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残）。Sonnet＝**タスク1在庫2件**＝WX25-P1-001 の付与【起】通しシナリオ（続き173）＋SPDi47-03 の好きな枚数discard→2段閾値シナリオ（続き174）の §7 driver 新設・2回連続PASS確認。
+- **🆕 セッション（2026-07-17・続き175・Opus 4.8・タスク16[A]＝「対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp 新設）**
+  - **主題**＝timing センサス残 [A]クラスタ最大の完全wired候補「（あなたの効果によって）対戦相手が手札をN枚捨てたとき」（n=4＋同型 n=1）を消化。原文主語が**相手**のため従来 parser は「拾わない」と明示（`any` に倒すと自分の捨てでも過剰発火）していた穴。
+  - **engine（collectHandDiscardTriggers）**＝相手フィールド watcher path を `any` 限定→`any/any_opp` へ拡張＋**センタールリグも走査**（対象2枚がルリグ札）。path1/自LRIG では `any_opp` を明示スキップ＝**自分の手札捨てでは誤発火しない**（`any` との差）。
+  - **parser**＝timing branch＋scope 抽出に `対戦相手が(…効果によって)?手札を…捨てたとき`→ON_HAND_DISCARDED any_opp を追加（trigText 先頭句限定）。複合OR（WXDi-P11-064）・【起】内付与（WX24-P4-017）は上流/別case で先取りされ衝突なし。
+  - **JSON**＝5効果を effectId アンカー直接パッチ（timing+scope のみ・action 不変・parseStatus AUTO 維持＝durable）：WX09-028-E1・WXDi-P02-030-E1・WXDi-P04-009-E2・WXDi-P04-063-E1・WXDi-P10-060-E1。**decompiler**＝any_opp 描画追加（逆翻訳原文一致）。
+  - **除外**＝WD16-014-E1 は timing は直るが action が内側引用 DRAW に潰れる＝引用付与（§6.3・タスク1）案件のため放置（タスク1へ登録）。
+  - **指標**＝census **2027 維持**・golden 388→**391**（any_opp 発火・自捨て非発火・LRIG watcher の3件）・smoke/fuzz 全0・同型★0・`census:timing` fallback 135/117→**129/114**。詳細 BUGFIXES 続き175。要実機検証＝相手手札捨て→凍結/バニッシュの発火。
+  - **次の一手**：Opus＝①タスク16[A]残（`docs/_timing_census_triage.txt`＝ON_ACCE_ATTACH／ON_SIGNI_BATTLE levelRange／ON_CARD_MOVED_TO_DECK／risedOntoNameContains／ON_CHARM_TO_TRASH any_opp 等・parser regexのみ）②IS_MY_TURN化残の distinct/sum/多分岐カウント機構・(xxvii)残Cluster B/E ③タスク12残在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残・WD16-014-E1 を(§6.3)引用付与へ）。Sonnet＝**タスク1在庫**＝相手手札捨て→any_opp 発火の §7 driver 新設（WXDi-P04-063 の凍結・WX09-028 のバニッシュ）＋続き173/174 の在庫2件。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
