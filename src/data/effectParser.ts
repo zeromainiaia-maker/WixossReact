@@ -3666,7 +3666,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const leaveScan = actionText.replace(/^(対戦相手|あなた)のターンの間、/, (_m, who) => {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: who === '対戦相手' ? 'opponent' : 'self' };
           return '';
-        });
+        }).replace(/場から離れたとき/g, '場を離れたとき'); // 「場から離れた」＝「場を離れた」（WX12-015）＝下の主語判定 regex を共用
         const selfLeaveM = leaveScan.match(/^このシグニが場を離れたとき[、,]/);
         if (!selfLeaveM) {
           const allyLeaveM = leaveScan.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき[、,]/);
