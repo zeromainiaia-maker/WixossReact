@@ -4,6 +4,18 @@
 
 ---
 
+## §7 driver 横展開＝続き178/179 新 timing filter の実機検証2件を追加（ON_SIGNI_BATTLE level:4／ON_ARTS_USE color:緑）（2026-07-18・続き185・Sonnet作業を codex CLI に委譲→Opus が確認/是正）
+
+**経緯**：無料版 codex CLI（codex-personal）に PLAN §3 Sonnet タスク1「§7 実機検証の横展開」を委譲。codex が `scripts/verifyBattleDrive.mjs` に2シナリオを追加したが、利用上限で driver 実行前に停止＝**未検証**のまま。Opus が確認したところ両シナリオとも FAIL したため、原因を切り分けて是正した（engine バグではなく driver ドライブ手順の不備）。
+
+**追加シナリオ（各2回連続 PASS・既定 order 追加）**：
+- **`battleLevel4Filter`（WX05-047-E1＝続き178 ON_SIGNI_BATTLE + `triggerFilter:{level:4}` → BANISH）**＝WX05-047（正面のLv4とバトル時バニッシュ）× 相手役 WX05-040（Lv4シグニ）。〈是正〉codex 初版は「通常バトルの vs 行の有無」で効果バニッシュを切り分けようとして常に FAIL（バトル時発火なので vs 行は必ず出る）。→ **この盤面で `pendingEffect=SELECT_TARGET`／`stackLen>0` を出せる効果は WX05-047-E1 のみ**という事実に基づき「効果発火の観測＋対象消滅」を判定条件へ変更。
+- **`artsUseGreenFilter`（WXK01-043-E1＝続き179 ON_ARTS_USE + `triggerFilter:{color:緑}` → ENERGY_CHARGE・usageLimit once_per_turn）**＝緑アーツ使用時にエナチャージ。〈是正〉codex 初版は使用アーツに **WX01-024（緑子限定）** を選び、青ルリグ WD03-002 では「使用」不可でアーツを撃てず空振り。→ 無制限の緑アーツ **WX09-005（森羅万象・《緑》×1・MAIN可）** へ差し替え＋緑エナ1枚を用意。判定も「エナ枚数±」（コスト消費とチャージが相殺し 0→1→0 で揺れる）ではなく **`actions_done` への `WXK01-043-E1` 記録**へ変更。
+
+**確認**＝gates 全緑（golden/smoke/fuzz/census baseline 2001 維持・0 errors）。カード事実と効果JSONの照合で両 triggerFilter が正しくパース済みであることも確認（幻覚なし）。**engine/parser は無変更**（driver シナリオ追加のみ）。
+
+---
+
 ## Opusタスク12(xxxi) 部分消化＝「センタールリグのレベル1につきカードを1枚引く」を DRAW_PER_LRIG_LEVEL で根治（2026-07-17・続き184・Opus 4.8）
 
 **症状**：「あなたのセンタールリグのレベル１につきカードを１枚引く」が engine に per-level ドロー語彙が無く、汎用 DRAW 規則に先取りされて `DRAW count:1`（＝レベル無視の1枚固定）へ潰れる内容欠落（PLAN §3 Opusタスク12(xxxi) 登録分）。
