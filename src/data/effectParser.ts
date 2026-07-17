@@ -3323,6 +3323,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ⚠「手札から」**単独**が抜けていて11件が ON_PLAY へ誤フォールバックしていた（続き75・§3 Opusタスク16）。
              //   engine は `triggerCondition.fromZones` で領域を判定する（collectAnyZoneTrashSelfTriggers）＝下の
              //   fromZones 抽出にも同じく「手札」単独を足してある。「シグニの下から」は別（under）なので拾わない。
+             // 「（対戦相手の場にある／あなたの場にある）【チャーム】N枚が（場から）（いずれかの）トラッシュに置かれたとき」（§3 Opusタスク16）。
+             //   engine 配線済み＝collectCharmToTrashTriggers（signi_charms の set-diff で検出・triggerScope any/any_ally/any_opp で発生源フィールドを判定）。scope は下で抽出。
+             //   ⚠ ON_TRASH より前に置く（【チャーム】は専用受け皿）。ただし ON_TRASH regex は「場から**いずれかの**トラッシュ」を「場からトラッシュ」として拾わないので実害はない。
+             : /【チャーム】[０-９\d]*枚?が(?:場から)?(?:いずれかの)?トラッシュに置かれたとき/.test(trigText) ? ['ON_CHARM_TO_TRASH']
              : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : trigText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : trigText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
