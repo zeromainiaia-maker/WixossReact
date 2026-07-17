@@ -409,9 +409,7 @@ export function collectTrashTriggers(
   const watcherState = trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState;
   const watcherOppState = ownerState; // = トラッシュされたカードのオーナー状態
   const watcherIsTurnPlayer = ctx.activeUserId === watcherPlayerId;
-  for (const stack of watcherState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  for (const topNum of ownFieldSources(watcherState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
