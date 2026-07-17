@@ -2,6 +2,24 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## タスク12(xxiii) WX25-P1-00X系列＝ルリグへの複数【起】エクシード能力付与を語彙化（5枚）＋pick脱落の規則順序バグ是正（15枚）（census 2031→2028・golden 383→385）（2026-07-17・Fable 5・続き173）
+
+**主題**＝Opusタスク12(xxiii) の本丸「WX25-P1-001/003/005/007/009（同一テンプレ5枚）＝『あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：…【起】エクシード１：…【起】エクシード２：…』』」。従来 parser にこの文型の規則が無く、**引用内の3つの独立した起動能力がコストゲートも選択も無い1本の SEQUENCE へ平坦化されて即時全実行**される最深刻の過剰実行バグだった（続き138トリアージで確定）。
+
+**真因と修正（新規 engine 機構は不要だった）**：
+- **engine 受け皿は既に完備**＝`GRANT_LRIG_ABILITY` executor（`effectExecutor.ts:4108`→`lrig_granted_auto_effects`）／BattleScreen の付与ACTIVATED列挙（`grantedMyLrigEffects`→MAIN フェイズの【起】ボタン）／`executeLrigGranted` のエクシード支払い（センター→左→右の下からN枚）／ターン境界リセット3箇所（PvP通常・PvP確認後・CPU＝`permanentGrant` filter）。トリアージの「§6.3級の新規GRANT機構が要る」は誤りで、**実体は parser の文型1本の欠落**。
+- **parser**（`effectParser.ts` センタールリグ付与クラスタ先頭に追加）＝`センタールリグ[１1]体を対象とし[、,](ターン終了時まで[、,])?それは以下の能力を得る。?[『「](…)[』」]` → `GRANT_LRIG_ABILITY{abilities:[], rawText, targetedCenter:true}`。abilities は既存の `expandGrantLrigAbilities` が rawText→`splitEffectBlocks`→`parseBlock` で展開（【起】エクシードN のコスト・timing MAIN は parseBlock 既存処理）。
+- **型**（`types/effects.ts`）＝`GrantLrigAbilityAction.targetedCenter?: boolean`（表記変種の decompiler 用刻印。engine 挙動は既定＝自分のセンタールリグへ付与、と同一）。
+- **decompiler**（`decompileEffects.ts`）＝targetedCenter 時「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『…』」を出力。
+
+**副産物＝pick脱落の規則順序バグ（系統15枚）**：内側1本目「あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く」が `LOOK_AND_REORDER` に縮退（**手札加えの丸ごと脱落**）。真因＝「デッキ上N枚見る」の次文規則で、汎用の「その中から…デッキ/トラッシュ」規則が remainder の「デッキ」に先にマッチして pick 規則へ届かない順序バグ。**当初試した汎用規則の順序入替＋regex緩和は125枚に波及し複合文の退化が混在**（「加えるか」選択肢消失等）したため**差し戻し**、この文型限定の狭い規則（`^その中からカードを(N)枚まで手札に加え、残りを好きな順番でデッキの一番(上|下)に(置く|戻す)`→`REVEAL_AND_PICK{pickUpTo:true}`）に留めた。全カード生パース diff で**25枚のみ変化・全件この文型・全件 pick 復元方向**を機械確認（うち7枚は live 既正＝fresh==curated 整合化で held ノイズ減）。
+
+**採用**＝`build:effects`→`heldReview --adopt` 18枚（grant家族5＋pick家族13。fresh vs live の深diffが「pick復元のみ」であることを全13枚で機械確認）＋MANUAL兄弟温存2枚（SPDi43-28-E2／WX25-P3-001-E1 steps[0]）は effectId アンカーの直接パッチ（`scripts/archive/patch_pickdrop_manual2.mjs`）。WXDi-P08-038 は live 既正で不要・WX24-P2-049 は E番号体系が別管理（E1b）のため据置。
+
+**検証**＝gates 全緑（golden 383→**385**＝WX25-P1-001 の付与構造 parse assertion＋WXDi-P16-034 の pick 復元 assertion を追加／smoke 10592 OK・CRASH 0／fuzz 全0／census **2031→2028**＝`BASELINE_HIGH` 更新／lint 0 errors）。`npm run regen`＋同型★0 維持（5986枚）。逆翻訳の原文照合＝001/003/P16-034 を目視確認（付与構造・エクシードコスト・pick「2枚まで」すべて復元）。
+
+**残（(xxiii) 外の既知の内側欠落＝旧 JSON から同値・今回スコープ外）**：003-sub-E1「それと共通する色を持たないカードを１枚まで」の動的比較（タスク2系）／005-sub-E2「対戦相手が手札を３枚捨てないかぎり」ゲート（OPPONENT_PAY_OPTIONAL の手札版が無い）／005-sub-E3 凍結対象が原文ルリグ・JSONシグニ（単点）／009-sub-E2「表記されているパワーと異なる」動的フィルタ（タスク2系）。(xxiii) の残＝SPDi47-03-E2/SPDi47-05-E2/WX24-P4-016-E3（リコレクト分割の別型・要個別再確認）。**要実機検証**＝付与【起】のエクシード支払い→効果実行の実機経路（既存 `executeLrigGranted` 配線だが本カード群での通し確認は未）＝§7 driver シナリオ追加は Sonnet タスク1 へ。
+
 ## timing センサス残117クラスタの振り分け台帳を作成＝§6.3送りとOpusタスク16候補を仕分け（2026-07-17・PLAN §3 補欠(a)・Sonnet 5・続き172）
 
 **主題**＝PLAN §3 補欠(a)「timing census 残128（113クラスタ）の振り分け台帳作成は未着手」を消化。`docs/_timing_census.txt`（`npm run census:timing`・この時点で135効果/117クラスタ）の全クラスタについて、`src/types/effects.ts` のON_*コメント（engine配線済み/未配線の明記）と `triggerCollect.ts`/`BattleScreen.tsx` の実装を突き合わせて機械照合し、`docs/_timing_census_triage.txt` を新設した。
