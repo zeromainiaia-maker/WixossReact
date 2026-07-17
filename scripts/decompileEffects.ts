@@ -424,7 +424,7 @@ function actionJa(a?: Action, effectType?: string): string {
         : t?.type === 'HAND_CARD' && t?.owner === 'opponent'
         ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
-      const cnt = t?.count === 'ALL' ? 'すべて' : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
+      const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて') : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': {
