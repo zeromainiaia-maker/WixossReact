@@ -701,6 +701,15 @@ export function collectDrawTriggers(
       }
       // outsideDrawPhase: ドローフェイズの通常ドローでは発火しない（効果ドローのみ・WXDi-D09-P19 等）。
       if (eff.triggerCondition?.outsideDrawPhase && isDrawPhaseDraw) continue;
+      // turnOwner（「あなたのターンの間、…引いたとき」WXK10-040）: drawer 視点のターンで絞る。
+      const toDR = eff.triggerCondition?.turnOwner;
+      if (toDR === 'self' && !isDrawerTurn) continue;
+      if (toDR === 'opponent' && isDrawerTurn) continue;
+      // duringAttackPhase（「アタックフェイズの間にあなたがカードをN枚以上引いたとき」WX11-030）。
+      if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      // drawByDrawerOwnEffect（「あなたの効果1つによってあなたが…引いたとき」WXK10-040）: 自分の効果による
+      // ドローのみ（相手効果に引かされた場合・通常ドローでは発火しない。execDraw が記録する last_draw_by_own_effect）。
+      if (eff.triggerCondition?.drawByDrawerOwnEffect && !drawerState.last_draw_by_own_effect) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, drawerState, otherState, isDrawerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, drawerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
