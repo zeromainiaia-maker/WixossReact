@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き183・Codex 実装／Opus 4.8 検証・簿記・タスク12(xxxiii)(xxxiv) 消化＝**完了**）**
+  - **成果**＝golden 410→**413**・census **2001**（維持）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き183。
+  - **(xxxiii)＝`collectTrashTriggers` の any_opp watcher が usageLimit 未評価**を是正。watcher 側 `state.actions_done` と host/guest 別 `usedIds` を使う `limitOkWatcher` を追加。BattleScreen のリムーブ経路が唯一「watcher も自分側」と誤認して相手 any_opp の usedIds を捨てていたため、`myAfterTrash`／`opAfterTrash` の両 state を永続化するよう是正。**⚠実カード影響は現時点0枚＝予防的封鎖**（ON_TRASH any_opp は `WX04-037-E2` の1件のみで usageLimit を持たない）。golden は実在効果へ `once_per_turn` を合成し watcher=guest の反転盤面で固定。
+  - **(xxxiv)＝「コストか効果によって場からトラッシュに置かれたとき」の `fromFieldByCostOrEffect` を parser で emit**。CSV exact phrase で15枚を機械特定。既存フラグ持ちは MANUAL 2枚のみで残13枚はバトル/リムーブ等ルール処理でも過剰発火していた。engine は self に加え any_ally/any_opp watcher へ同ゲートを追加。**派生で decompiler の G204 分岐が ally 主語を「このシグニ」へ上書きする退化を発見・修正**。全 leaf diff はフラグ追加のみ・同型★0。
+  - **次の一手**：Opus＝タスク12在庫の残（(i)(ii)(iii)(viii)残(xi)(xii)(xxiv)残(xxx)(xxxi)残＋**(xxxv)**＝(xxxiv) の近傍表記で未ゲートの兄弟）。Sonnet＝新 timing の §7 driver＋続き181/182/183 で発火条件が是正された any_ally watcher の実機確認。
+
 - **🆕 セッション（2026-07-17・続き182・Codex 実装／Opus 4.8 検証・差し戻し・作り直し・タスク12(xxxii) 消化＝**完了**）**
   - **成果**＝golden 406→**410**・census 2003→**2001**（実数更新）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き182。
   - **(xxxii)＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落6効果を根治**（続き181 の ON_BANISH と同根）。parser に any_ally 規則＋`triggerFilter`（levelRange.max／story）を追加。ON_TRASH 側は**主語を前置きとしてだけ剥がして残りを既存規則へ渡す**構造にし `fromZones:['field']` を殺さない。engine 側は両コレクタの any_ally パスに `matchesFilter`／`condHas` ゲート／**usageLimit 機構（ON_BANISH 同型の `{entries,usedHostIds,usedGuestIds}`＋BattleScreen 全6呼び出し元の書き戻し）** を追加。

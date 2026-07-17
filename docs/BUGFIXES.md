@@ -4,6 +4,22 @@
 
 ---
 
+## Opusタスク12(xxxi) 部分消化＝「センタールリグのレベル1につきカードを1枚引く」を DRAW_PER_LRIG_LEVEL で根治（2026-07-17・続き184・Opus 4.8）
+
+**症状**：「あなたのセンタールリグのレベル１につきカードを１枚引く」が engine に per-level ドロー語彙が無く、汎用 DRAW 規則に先取りされて `DRAW count:1`（＝レベル無視の1枚固定）へ潰れる内容欠落（PLAN §3 Opusタスク12(xxxi) 登録分）。
+
+**修正**＝`POWER_MODIFY_PER_LRIG_LEVEL` に倣った新語彙 `DRAW_PER_LRIG_LEVEL`（`drawPerLevel`／`lrigOwner`／`owner`）を新設：
+- **types/effects.ts**＝`DrawPerLrigLevelAction` interface＋union追加。
+- **engine/effectExecutor.ts**＝`execDrawPerLrigLevel`（`ownerState(lrigOwner)` の最新センタールリグの Level を読み `drawPerLevel × lv` 枚を DRAW へ委譲。lv≦0/NaN は no-op）＋dispatch case。selectOrInteract を通らず即 DRAW なので default 再入リスクなし。
+- **parser（parseSentencePart1.ts）**＝汎用 DRAW 規則の**直前**に `(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき(?:、)?カードを([０-９\d]+)枚引く`（`レベル1につき` のみ＝levelUnit≠1 は skip）を追加。
+- **decompiler（decompileEffects.ts）**＝逆翻訳 case 追加。
+
+**採用**＝clean な2枚（WX12-013-E1／WDK07-E09-E2）を heldReview で採用（全カード生 diff でこの2枚のみ変化を機械確認）。golden +1（Lv4×1=4枚ドローの回帰ガード）・census 2001維持・smoke/fuzz 全0。
+
+**残渣（PLAN §3 Opusタスク12(xxxi) に縮小登録）**＝(a)「引くか【エナチャージ】」CHOOSE 2枚（WXK10-004-E1／WX26-CP1-003-E1①）＝CHOOSE ごと消え `ENERGY_CHARGE count:1` に潰れている＝エナ枝の `ENERGY_CHARGE_PER_LRIG_LEVEL` 新設＋CHOOSE 構築が要る／(b)「そのシグニのレベル１につき」1枚（WD21-001-E2）＝めくったカードのレベル比例（別機構＝lastProcessed level 参照）。
+
+---
+
 ## Opusタスク12(xxxiii)(xxxiv) 消化＝ON_TRASH watcher の usageLimit と「コストか効果によって場から」限定15枚を根治（2026-07-17・続き183・Codex）
 
 **(xxxiii) any_opp usageLimit**＝`collectTrashTriggers` の相手側 watcher だけが `condition` は評価する一方、`usageLimit` を評価せず、消費effectIdも返していなかった。(x)/(vi-5) と同族の過剰発火穴。

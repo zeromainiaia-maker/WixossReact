@@ -41,6 +41,7 @@ import type {
   PowerModifyPerTrashCountAction,
   PowerModifyPerLifeCountAction,
   PowerModifyPerLrigLevelAction,
+  DrawPerLrigLevelAction,
   PowerModifyPerVirusCountAction,
   PowerModifyPerDeckCountAction,
   PowerModifyPerEnergyColorAction,
@@ -801,6 +802,20 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const m = t.match(/あなたのセンタールリグがアップ状態の場合、カードを([０-９\d]+)枚引く/);
     if (m) return { type: 'CONDITIONAL', condition: { type: 'CENTER_LRIG_IS_UP' }, then: { type: 'DRAW', owner: 'self', count: parseNum(m[1]) } };
   }
+  // 「（あなた/対戦相手）のセンタールリグのレベル1につきカードをN枚引く」＝ルリグレベル比例ドロー（WX12-013/WDK07-E09 等）。
+  // 汎用 DRAW が先取りすると「レベル1につき」を無視して固定枚数に潰れる（続き184）。
+  {
+    const m = t.match(/(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につき(?:、)?カードを([０-９\d]+)枚引く/);
+    if (m && parseNum(m[2]) === 1) {
+      return {
+        type: 'DRAW_PER_LRIG_LEVEL',
+        drawPerLevel: parseNum(m[3]),
+        lrigOwner: m[1] === '対戦相手' ? 'opponent' : 'self',
+        owner: 'self',
+      } as DrawPerLrigLevelAction;
+    }
+  }
+
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);

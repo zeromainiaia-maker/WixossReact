@@ -515,6 +515,7 @@ export type EffectAction =
   | AltCostOppTurnAction
   | BlockCardUseAction
   | DrawPerFieldCountAction
+  | DrawPerLrigLevelAction
   | EnergyChargeFromDeckPerFieldCountAction
   | AwakenSigniAction
   | NegateAttackAction
@@ -555,6 +556,14 @@ export interface DrawPerFieldCountAction {
   drawPerUnit: number;        // シグニ1体ごとに引く枚数
   countFilter: TargetFilter;  // カウント対象シグニのフィルタ
   countOwner: Owner;          // カウントするフィールドのオーナー
+}
+
+// センタールリグのレベル1につき M枚ドロー（「あなたのセンタールリグのレベル１につきカードを１枚引く」WX12-013 等）
+export interface DrawPerLrigLevelAction {
+  type: 'DRAW_PER_LRIG_LEVEL';
+  drawPerLevel: number;   // ルリグのレベル1につき引く枚数
+  lrigOwner: Owner;       // どちらのセンタールリグのレベルを参照するか
+  owner: Owner;           // 誰が引くか（通常 self）
 }
 
 // フィールドのシグニ N体につき デッキトップ M枚をエナチャージ

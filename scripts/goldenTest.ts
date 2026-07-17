@@ -3832,6 +3832,16 @@ test('DRAW_PER_FIELD_COUNT: 自場の該当シグニ数×drawPerUnit枚ドロー
   const r = run({ type: 'DRAW_PER_FIELD_COUNT', drawPerUnit: 1, countFilter: { cardType: 'シグニ', story: ['電機', '水獣'] }, countOwner: 'self' } as EffectAction, ctx);
   eq(r.ownerState.hand.length, h0 + 2, '手札+2'); eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
 });
+// 続き184: DRAW_PER_LRIG_LEVEL＝「あなたのセンタールリグのレベル1につきカードを1枚引く」（WX12-013/WDK07-E09）。
+// 従来 DRAW count:1 に潰れていたのを、自センタールリグのレベル×drawPerLevel 枚に是正した回帰ガード。
+test('DRAW_PER_LRIG_LEVEL: 自センタールリグのレベル×drawPerLevel枚ドロー（WX12-013）', () => {
+  const L4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const ctx = mkCtx({ hand: 5 }, {});
+  ctx.ownerState.field.lrig = [L4];
+  const h0 = ctx.ownerState.hand.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'DRAW_PER_LRIG_LEVEL', drawPerLevel: 1, lrigOwner: 'self', owner: 'self' } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 + 4, '手札+4（Lv4×1）'); eq(r.ownerState.deck.length, d0 - 4, 'デッキ-4');
+});
 test('ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT: 自場の該当シグニ数×chargePerUnit枚をデッキからエナへ（WX02-066）', () => {
   const ctx = mkCtx({ signi: ['WD04-009', 'WD04-010', null] }, {});
   const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;

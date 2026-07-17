@@ -3342,6 +3342,16 @@ function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAc
   return executeAction({ type: 'DRAW', owner: 'self', count: drawCount }, ctx);
 }
 
+function execDrawPerLrigLevel(a: import('../types/effects').DrawPerLrigLevelAction, ctx: ExecCtx): ExecResult {
+  const lrigState = ownerState(a.lrigOwner, ctx);
+  const lrigNum = lrigState.field.lrig.at(-1);
+  const lv = parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+  if (isNaN(lv) || lv <= 0) return done(ctx);
+  const drawCount = a.drawPerLevel * lv;
+  if (drawCount <= 0) return done(ctx);
+  return executeAction({ type: 'DRAW', owner: a.owner, count: drawCount }, ctx);
+}
+
 function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx: ExecCtx): ExecResult {
   const countState = ownerState(a.countOwner, ctx);
   let fieldCount = 0;
@@ -4106,6 +4116,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
     case 'DRAW_PER_FIELD_COUNT':       return execDrawPerFieldCount(action as import('../types/effects').DrawPerFieldCountAction, ctx);
+    case 'DRAW_PER_LRIG_LEVEL':        return execDrawPerLrigLevel(action as import('../types/effects').DrawPerLrigLevelAction, ctx);
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return execEnergyChargeFromDeckPerFieldCount(action as import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx);
     case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
     case 'NEGATE_ATTACK':              return execNegateAttack(action as import('../types/effects').NegateAttackAction, ctx);
