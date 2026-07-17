@@ -2,6 +2,28 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16[B]第2弾：被バニッシュ状態 filter（感染/チャーム/凍結）＋placedFront レベル filter＋ON_ARTS_USE 色 filter（10効果・timing fallback 101→91・golden 394→396・census 2027→2019）（2026-07-17・Fable 5・続き179）
+
+**主題**＝タスク16 [B]の第2弾＝続き178「次の一手」の [B]残メニューを一括消化。engine 軽量拡張3箇所＋parser 語彙＋decompiler 描画。**影響は全カード fresh diff で意図した9カード（10効果）のみ・巻き添えゼロを機械確認**。
+
+**engine（3箇所・いずれも軽量）**：
+1. **`triggerCondition.banishedFilter` 新設**（`types/effects.ts`）＝ON_SIGNI_BANISH_OPPONENT/_BATTLE の**被バニッシュシグニ**限定。既存 `triggerFilter` は any_ally scope で**バニッシュした側**（主語）に使われるため別軸にした。`BattleScreen.tsx` battleBanishEntries で評価＝カード条件は `matchesFilter`・**ゾーン状態（infected/isFrozen/hasCharm）は防御側のバトル前状態 `opS` の被バニッシュゾーン（findIndex＝犠牲経路対応）で `matchesStateFilter`**（チャーム/ウィルス/凍結はバニッシュで場から消えるため pre-banish スナップが必須）。既存 JSON に banishedFilter 持ちは皆無＝副作用ゼロ（機械確認）。
+2. **`collectArtsUseTriggers` に `usedArtsNum` 引数追加**（`triggerCollect.ts`）＝使用したアーツカードを `triggerFilter` で `matchesFilter` 評価（「あなたが緑のアーツを使用したとき」WXK01-043）。filter 付きなのにアーツ不明の呼び出しでは発火しない（過剰発火抑止）。BattleScreen 呼び出し元は `entry.cardNum` を引き渡し。既存 ON_ARTS_USE に triggerFilter 持ちは皆無＝副作用ゼロ（機械確認）。
+3. **placedFront＋レベル filter は engine 変更ゼロ**＝collectFieldTriggers（any_opp path）は placedFront 判定の**前に** triggerFilter を matchesFilter 評価済みだった（実質 [A]）。
+
+**parser（`effectParser.ts`）**：
+- banish 2規則を拡張＝`バトルによって(【チャーム】が付いている)?(対戦相手の)?(凍結状態の|感染状態の)?シグニ…`／`このシグニが(正面の)?(感染状態の|凍結状態の)?シグニN体をバニッシュしたとき`。banishedFilter 抽出は **trigText（効果ブロック先頭のトリガー句）のみ判定**（凍結→isFrozen／感染→infected／チャーム→hasCharm。基本形には刻まない＝過剰限定しない）。
+- placedFront 系 chain 3本＝「このシグニの正面に（レベルN以下の）シグニN体が出たとき」（WX17-075-E1）／「（対戦相手の）レベルN以下のシグニN体がこのシグニの正面のシグニゾーンに出たとき」（WXDi-P02-083）→ ON_PLAY＋any_opp＋placedFront＋`triggerFilter.levelRange{max}`／「このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき」（WX17-075-E3 付与内）→ frontLowerLevelThanSource。
+- ON_ARTS_USE regex に `([白赤青緑黒]の)?` を追加し色を `triggerFilter.color` へ（ON_SPELL_USE と同型）。
+
+**decompiler**＝banishedFilter（「バトルによって【チャーム】が付いている/凍結状態の/感染状態の…」）・placedFront＋levelRange（level:{max} 形式の MANUAL 互換込み）・frontLowerLevelThanSource・ON_ARTS_USE 色を描画。
+
+**JSON（HEAD 比較で変更8効果のみを機械確認）**＝AUTO 7効果を fresh 置換（timing/scope/cond/filter 追加・action 不変＝durable）：WX16-079-E1〔感染〕・WXEX2-76-E2〔チャーム〕・WXK02-054-E1/WXK10-072-E1/WXDi-P00-061-E1/WXDi-P10-059-E2〔凍結〕・WXK01-043-E1〔緑アーツ〕。**WX17-075-E1 は timing に加え action の対象幻覚も是正**（fresh は「そのシグニ」を**自分の**シグニ BANISH に誤解決＝E3-G MANUAL と同形の `owner:opponent＋isTriggerSource` へパッチ・MANUAL化）。WXDi-P02-083-E1・WX17-075-E3 は既に MANUAL で正＝据置（fresh が追いついた）。
+
+**検証**＝gates 全緑（typecheck／golden **394→396**〔①collectArtsUseTriggers 色filter＝緑発火/赤非発火/不明非発火 ②parser 判定＝banishedFilter 3種＋基本形非刻印・placedFront 2語順＋levelRange・frontLower・ARTS色〕／smoke 10592 OK 全0／fuzz 全0／census **2027→2019**〔改善・要因特定済み＝本セッションの timing 是正。BASELINE_HIGH を 2019 へ実数更新〕／lint 0 errors）・`npm run regen`＋同型★0 維持・逆翻訳9枚が原文と機能一致・`census:timing` fallback **101効果/87クラスタ→91/77**。要実機検証＝凍結/チャーム/感染シグニのバトルバニッシュ発火（非該当シグニで非発火）・緑アーツ使用のエナチャージ・正面レベル2以下配置のバニッシュ対話。
+
+**発見（未修正・タスク12在庫へ登録）**＝**WXEX2-76-E1**：原文「対戦相手のシグニ１体が場に出たとき、対戦相手は自分のデッキの一番上のカードを**そのシグニ**の【チャーム】にする」が ON_PLAY **self**（このシグニが場に出たとき）＋任意対象チャームに化けている（timing census の対象外＝「場に出たとき」除外規則の死角）。ON_PLAY any_opp＋トリガー元シグニへの ATTACH_CHARM が要る。
+
 ## Opusタスク16[B]：engine の triggerFilter を軽量拡張＝ON_SIGNI_BATTLE の level/power filter＋basic/front banish（5効果・timing fallback 106→101・golden 393→394）（2026-07-17・Opus 4.8・続き178）
 
 **主題**＝タスク16の [B]（engine が filter/閾値を評価しないため [A] では拾えなかったもの）の第1弾。**engine を1箇所だけ軽量拡張**して parser 語彙とセットで消化。
