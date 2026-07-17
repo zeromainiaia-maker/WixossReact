@@ -3422,6 +3422,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「（対戦相手／あなた）のシグニN体が凍結状態になったとき」（3件）。engine 配線済み
              // （collectFreezeTriggers＝triggerScope any_opp 既定／any_ally／any）。scope は下で抽出。
              : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(trigText) ? ['ON_SIGNI_FROZEN']
+             // 「（この/あなたの[他の][＜X＞の]）シグニN体が（効果によって）ダウン状態になったとき」（タスク16[C]機構①）。
+             //   engine 配線済み＝collectSigniDownUpTriggers（中央diff＝効果ダウン／performSigniAttack＝アタックダウン／
+             //   checkAndApplyContMutations＝常時効果ダウン・フリーズ）。scope/filter/byEffect/フェイズ限定は下で抽出。
+             //   ⚠「効果によって」の注釈（コスト支払い・アタックのダウンは効果に含まれない＝WX05-040）は
+             //   engine の byEffect ゲートが担保（アタックダウンは byEffect:false で収集）。
+             : /シグニ(?:[０-９\d]+体)?が(?:効果によって)?ダウン状態になったとき/.test(trigText) ? ['ON_SIGNI_DOWN']
+             // 「あなたの《X》がダウンしたとき」（SPDi43-17〜19＝named シグニのアタック/効果ダウン）。
+             : /あなたの《[^》]+》がダウンしたとき/.test(trigText) ? ['ON_SIGNI_DOWN']
+             // 「あなたの（センタールリグか）シグニN体がアップ状態になったとき」（WX12-006/WX20-051）。
+             //   engine＝中央diff の効果アップのみ検出（アップフェイズの一斉アップでは発火しない近似）。
+             : /シグニ(?:[０-９\d]+体)?がアップ状態になったとき/.test(trigText) ? ['ON_SIGNI_BECOMES_UP']
              // 「あなたの[＜X＞の]シグニの効果によって対戦相手のシグニ[N体]のパワーが減ったとき」（4件・毒牙）。
              // engine 配線済み（collectPowerDecreaseTriggers＝temp_power_mods の新規負 delta を set-diff で検出）。
              // ⚠発生源フィルタ（「＜毒牙＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似（下で刻印）。
