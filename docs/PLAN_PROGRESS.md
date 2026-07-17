@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き175・Opus 4.8・タスク16[A]＝「対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp 新設）**
+  - **主題**＝timing センサス残 [A]クラスタ最大の完全wired候補「（あなたの効果によって）対戦相手が手札をN枚捨てたとき」（n=4＋同型 n=1）を消化。原文主語が**相手**のため従来 parser は「拾わない」と明示していた穴。
+  - **engine（collectHandDiscardTriggers）**＝相手フィールド watcher path を `any` 限定→`any/any_opp` へ拡張＋センタールリグも走査。path1/自LRIG では `any_opp` を明示スキップ＝自分の手札捨てでは誤発火しない。
+  - **parser**＝`対戦相手が(…効果によって)?手札を…捨てたとき`→ON_HAND_DISCARDED any_opp（trigText 先頭句限定）。**JSON**＝5効果を直接パッチ（WX09-028-E1・WXDi-P02-030-E1・WXDi-P04-009-E2・WXDi-P04-063-E1・WXDi-P10-060-E1）。**decompiler**＝any_opp 描画追加。
+  - **除外**＝WD16-014-E1 は action が内側引用 DRAW に潰れる＝引用付与（§6.3・タスク1）送り。
+  - **指標**＝census 2027 維持・golden 388→391・smoke/fuzz 全0・同型★0・`census:timing` fallback 135/117→129/114。詳細 BUGFIXES 続き175。
+
 - **セッション（2026-07-17・続き174・Fable 5・Opusタスク12(xxiii) 残3枚を消化＝(xxiii) 8枚全件クローズ）**
   - **✅SPDi47-03-E2**（本体丸ごと消失）＝DRAW3＋「手札を好きな枚数捨てる」＋2段閾値（1枚以上→相手シグニをデッキ下／8枚以上→追加で相手ライフクロスをデッキ下）を完全復元。**engine 語彙2本新設**＝`TRASH{HAND_CARD, ALL+upToCount}` の好きな枚数対話分岐／`execTransferToDeck` の `LIFE_CLOTH_CARD` 分岐（lastProcessedCards 非上書き）。
   - **✅SPDi47-05-E2**（バニッシュ置換ルール消失）＝`BANISH_REDIRECT{redirectTo:'exile'}` を新設。
