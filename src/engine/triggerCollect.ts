@@ -530,7 +530,11 @@ export function collectBanishTriggers(
       if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
-      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), stripExcludeSelf(eff.triggerFilter))) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0
+          && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), restFilter)) continue;
+      }
       // condition / usageLimit（相手＝opAfterState 視点で評価）
       if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOkOp(eff)) continue;
