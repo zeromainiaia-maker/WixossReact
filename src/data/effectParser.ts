@@ -3481,6 +3481,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「（あなたの）シグニN体が場から手札に戻ったとき」（4件）。engine 配線済み
              // （collectLeaveFieldTriggers の `triggerCondition.leftToZone:'hand'`＝離れたカードが手札に在中する場合のみ）。
              : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             // 跨サイド any_opp（タスク16[C]機構③）＝「（あなたのターンの間、）あなたの効果によって対戦相手のシグニN体が
+             //   場から手札に移動したとき」（WXK11-049）／「対戦相手のシグニN体があなたの効果によって手札に戻ったとき」
+             //   （WXDi-CP01-027）。engine 配線済み＝collectLeaveFieldTriggers の any_opp 走査（byOwnEffect＝watcher 自身の
+             //   効果が原因のときのみ・中央diff の causeOwnerId で判定）。cond/scope は下で抽出。
+             : /あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が場から手札に移動したとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             : /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             // 「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026・CSV原文は「離た」）＝
+             //   any_ally＋byOpponentEffect（原因効果のオーナーが相手のときのみ発火）。
+             : /シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              : trigText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
