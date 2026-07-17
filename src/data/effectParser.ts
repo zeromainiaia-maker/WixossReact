@@ -3539,6 +3539,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_OPP_ARTS_USE' && /対戦相手がアーツを使用したとき/.test(actionText)) {
         extractedTriggerScope = 'any_opp';
       }
+      // ON_ACCE_ATTACH（アクセカード自身）: host シグニのレベル/クラス条件を triggerCondition に抽出。
+      //   「レベルN以上の」→ accedHostMinLevel／「レベルN以下の」→ accedHostMaxLevel／「＜X＞の」→ accedHostStory。
+      //   engine（checkAndFireOnAcceTriggersForOwner）が host シグニの Level/CardClass で判定する。
+      if (timing[0] === 'ON_ACCE_ATTACH' && /このカードが【アクセ】として/.test(actionText)) {
+        const minM = actionText.match(/レベル([０-９\d]+)以上の/);
+        const maxM = actionText.match(/レベル([０-９\d]+)以下の/);
+        const storyM = actionText.match(/＜([^＞]+)＞のシグニに付いたとき/);
+        const cond: Record<string, unknown> = {};
+        if (minM) cond.accedHostMinLevel = parseInt(toHalf(minM[1]), 10);
+        if (maxM) cond.accedHostMaxLevel = parseInt(toHalf(maxM[1]), 10);
+        if (storyM) cond.accedHostStory = storyM[1];
+        if (Object.keys(cond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...cond };
+      }
       // ON_REFRESH: リフレッシュした側を triggerCondition.refreshedOwner に抽出（省略時 engine 既定 = any）。
       if (timing[0] === 'ON_REFRESH') {
         const ro = /あなたがリフレッシュしたとき/.test(actionText) ? 'self'
