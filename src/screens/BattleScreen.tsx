@@ -7402,7 +7402,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
       if (banishedOpCardNum && redirectBanishForTrigger) {
         // バトルでのバニッシュ→トラッシュはコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
-        trashEntriesSA.push(...collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState, false, false));
+        const ttSA = collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState, false, false);
+        trashEntriesSA.push(...ttSA.entries);
+        // usageLimit 消費を actions_done へ永続化（直下の ON_LEAVE_FIELD と同型）
+        const ttUsedMine = attackerIsHost ? ttSA.usedHostIds : ttSA.usedGuestIds;
+        const ttUsedOpp  = attackerIsHost ? ttSA.usedGuestIds : ttSA.usedHostIds;
+        if (ttUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...ttUsedMine];
+        if (ttUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...ttUsedOpp] };
       }
 
       // ON_LEAVE_FIELD: バトルでバニッシュされたシグニは場を離れている（バトル起因＝causeOwnerId なし）
