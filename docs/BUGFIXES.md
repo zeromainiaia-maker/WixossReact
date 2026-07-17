@@ -2,6 +2,24 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16[B]：engine の triggerFilter を軽量拡張＝ON_SIGNI_BATTLE の level/power filter＋basic/front banish（5効果・timing fallback 106→101・golden 393→394）（2026-07-17・Opus 4.8・続き178）
+
+**主題**＝タスク16の [B]（engine が filter/閾値を評価しないため [A] では拾えなかったもの）の第1弾。**engine を1箇所だけ軽量拡張**して parser 語彙とセットで消化。
+
+**engine（`BattleScreen.tsx` collectBattleTrig）**＝ON_SIGNI_BATTLE 収集にバトル相手の triggerFilter 評価を1行追加＝`if (eff.triggerFilter && !matchesFilter(battleCardMap.get(battleOpponentNum), eff.triggerFilter, effectivePowers.get(battleOpponentNum))) continue;`。**既存 ON_SIGNI_BATTLE 効果に triggerFilter 持ちは皆無**（全JSON機械確認）＝副作用ゼロ。level/power は matchesFilter が CardData＋effectivePowers で判定（ゾーン状態依存の infected/hasCharm とは別＝それらは別途 [B]）。
+
+**parser（`effectParser.ts`）**：
+- **ON_SIGNI_BATTLE の level/power filter**＝regex を `このシグニが(?:対戦相手の)?(?:レベルN以下の|レベルNの|パワーN以上の)?シグニとバトルしたとき` へ拡張し、triggerFilter を抽出（「レベルN以下」→`levelRange{max}`／「レベルN」→`level`／「パワーN以上」→`powerRange{min}`）。「対戦相手の」は省略可（WXDi-P14-062 の内側は省略形）。
+- **basic/front banish**＝`このシグニが(?:正面の)?シグニN体をバニッシュしたとき`→ON_SIGNI_BANISH_OPPONENT（WX17-046 英知=7／WXK04-044 血晶武装granted）。バトルバニッシュ相手は常に正面＝相手シグニなので owner/正面 filter は不要。「効果によって」「あなたのシグニを」は非マッチ（前者は上流 BY_EFFECT、後者は主語違い）。
+
+**decompiler**＝ON_SIGNI_BATTLE の triggerFilter を「対戦相手のレベルN(以下)の/パワーN以上のシグニとバトルしたとき」に描画。
+
+**影響検証**＝続き177 push（ca1d6c88）baseline との全カード fresh diff で**影響は意図した5効果のみ**（WX04-099-E1・WX05-047-E1・WX17-046-E2・WXK04-044-E1-G・WXDi-P14-062-E1-G。※WXDi-P03-016 の見かけ上の差分は同一 effectId「-sub-E1」が2箇所に出る diff script 側の Map 衝突による偽陽性＝base/fresh 完全同一を確認）。過剰マッチ/回帰ゼロ。
+
+**JSON**＝AUTO2件を fresh 置換（durable）＝WX05-047-E1（ON_SIGNI_BATTLE＋`triggerFilter{level:4}`）・WX17-046-E2（ON_SIGNI_BANISH_OPPONENT＋scope self）／WXDi-P14-062-E1 の内側G（PARTIAL）を timing＝ON_SIGNI_BATTLE＋`triggerFilter{powerRange{min:10000}}` にパッチ（action は UNKNOWN のまま＝§5b の別課題）。**WX04-099-E1・WXK04-044-E1 は MANUAL で既に機能正**（WX04-099 は level 条件を action target の `isTriggerSource+levelRange` で担保済み・triggerFilter 無しで engine 変更の影響なし／WXK04-044 は ON_SIGNI_BANISH_BATTLE で正しい）＝**据置**。HEAD比較で変更3カードのみ。
+
+**検証**＝gates 全緑（typecheck／golden **393→394**〔[B] parser の level/power/banish 判定〕・[A]テストの「level filter は拾わない」アサーションを新挙動へ更新／smoke・fuzz 全0／census 2026→**2025**〔改善・BASELINE_HIGH 据置〕／lint 0 errors）・`npm run regen`＋同型★0 維持・逆翻訳5枚が原文と機能一致・`census:timing` fallback 106/92→**101/87**。要実機検証＝バトル相手の level/power 条件でのトリガー発火（WX05-047＝レベル4のみ・WXDi-P14-062＝パワー10000以上のみ）。
+
 ## Opusタスク16[A]：clean な残 [A]クラスタを一括消化＝5系統9timingを parser 語彙化（16効果影響・timing fallback 123→106・golden 392→393）（2026-07-17・Opus 4.8・続き177）
 
 **主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）のうち **engine collector が完全wired で parser regex のみ不足**のものを横断的に消化。engine 変更ゼロ（全て既存 collector に配線済み）＝**parser 語彙追加のみ**。5バッチ・9 timing。
