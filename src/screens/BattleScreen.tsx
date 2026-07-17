@@ -5341,9 +5341,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (removeTrashEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, removeTrashEntries) : initStack(user.id, removeTrashEntries);
-        await supabase.from('battle_states').update({ [stateKey]: newMyState, effect_stack: stack }).eq('room_id', roomId);
+        await supabase.from('battle_states').update({ [stateKey]: myAfterTrash, effect_stack: stack }).eq('room_id', roomId);
       } else {
-        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await supabase.from('battle_states').update({ [stateKey]: myAfterTrash }).eq('room_id', roomId);
       }
     } finally {
       setLoading(false);
