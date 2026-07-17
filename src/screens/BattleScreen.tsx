@@ -2234,7 +2234,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterGuestState: PlayerState,
     causeByOpponent = false,
     byCostOrEffect = true,
-  ): StackEntry[] =>
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect);
 
   /**
