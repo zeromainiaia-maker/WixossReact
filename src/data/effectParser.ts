@@ -3611,7 +3611,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）＝「＜X＞のシグニ」「《ディソナアイコン》のカード」「シグニ」。
       if (timing[0] === 'ON_HAND_DISCARDED') {
-        const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚捨てたとき/);
+        const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/);
         if (hdM) {
           const cls = hdM[1];
           const f: Record<string, unknown> = {};
