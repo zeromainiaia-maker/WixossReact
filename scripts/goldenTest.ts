@@ -1483,6 +1483,14 @@ test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 /
   const host2 = mkState({ signi: ['WXK01-059', null, null] }); const guest2 = mkState({});
   eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host2, guest2, true).entries, 'WXK01-059-E2'), true, '自アーツ使用で発火');
 });
+// タスク16[B]第2弾: ON_ARTS_USE の色 filter＝使用したアーツカードを matchesFilter で評価（WXK01-043「あなたが緑の
+// アーツを使用したとき」）。filter 付きなのにアーツが特定できない呼び出しでは発火しない（過剰発火抑止）。
+test('collectArtsUseTriggers 色filter: 緑アーツで発火・非緑/不明では非発火（WXK01-043）', () => {
+  const host = mkState({ signi: ['WXK01-043', null, null] }); const guest = mkState({});
+  eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host, guest, true, 'WD04-006').entries, 'WXK01-043-E1'), true, '緑アーツ（WD04-006）で発火');
+  eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host, guest, true, 'WD02-006').entries, 'WXK01-043-E1'), false, '赤アーツ（WD02-006）では非発火');
+  eq(has(collectArtsUseTriggers(trigCtx(HOST), HOST, host, guest, true).entries, 'WXK01-043-E1'), false, 'アーツ不明（filter付き）では非発火');
+});
 
 // Stage2⑩: 大物 collectFieldTriggers（ON_PLAY 等）/ collectBloomTriggers を pure 化→自動検証。
 const DOKUGA = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('毒牙') && c.CardNum !== 'WX06-021');
