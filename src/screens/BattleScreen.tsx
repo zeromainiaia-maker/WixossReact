@@ -7346,6 +7346,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const isControllerTurnPlayer = playerId === bs.active_user_id;
           for (const eff of (effectsMap.get(cardNum) ?? [])) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_BATTLE')) continue;
+            // triggerFilter: バトル相手のシグニのレベル/パワー条件（WX04-099=レベル2以下／WX05-047=レベル4／WXDi-P14-062=パワー10000以上）
+            if (eff.triggerFilter && !matchesFilter(battleCardMap.get(battleOpponentNum), eff.triggerFilter, effectivePowers.get(battleOpponentNum))) continue;
             // 「あなたのターンの間」(IS_MY_TURN) / 「対戦相手のターンの間」(IS_OPPONENT_TURN) のターン判定
             if (condHasBattle(eff.condition, 'IS_MY_TURN') && !isControllerTurnPlayer) continue;
             if (condHasBattle(eff.condition, 'IS_OPPONENT_TURN') && isControllerTurnPlayer) continue;
