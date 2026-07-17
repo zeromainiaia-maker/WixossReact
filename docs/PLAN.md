@@ -105,7 +105,7 @@
 | (ii) | WXDi-P10-035＝引用内【自】の「それを手札に戻す」の owner エンコードを lastProcessed 慣例と整合するか要精査 |
 | (iii) | WXK09-050＝parser が `GRANT_CHOSEN_ABILITY` を再生成し続け held に残存。Part1固有ハンドラとの dispatch 設計を解消するまで採用不可 |
 | ~~(iv)~~ | ~~`applyDirectAction` の TRASH/HAND_CARD 分岐が手札カウンタ3種を更新しない（続き81）~~ **✅続き135（Opus）で修正＝3フィールド更新＋手札保護を即時パスと同形で移植・golden 1件** |
-| (v) | `applyDirectAction` 未対応型が `default` 節で元アクションを暴走再実行する系統の残（続き82） |
+| ~~(v)~~ | ~~`applyDirectAction` 未対応型が `default` 節で元アクションを暴走再実行する系統の残（続き82）~~ **✅続き181（Opus）でクローズ**＝default 到達型を smoke 全10593効果で実測（REVEAL133/STUB101/BLOCK_ACTION32/DRAW4/REARRANGE_SIGNI1）し、**真の再入バグは `STORY_CHANGE` のみ**＝case 新設で解消（golden 1件・修正前 autopilot hang を確認）。他は全て benign と機械確認（STUB意図通り／bare REVEAL／BLOCK_ACTION は lastProcessedCards 経路／DRAW は pickCount:1 で1回適用が正／REARRANGE_SIGNI swap は明示no-op）。exec×dispatch×case の機械突合でも残は2型のみ。詳細 BUGFIXES 続き181 |
 | ~~(vi)~~ | ~~`POWER_MODIFY_PER_DECK_COUNT`（PR-442・CONTINUOUS）が CONTINUOUS 計算層に未実装（続き84）~~ **✅続き135（Opus）で実装＝`extractPowerModifiesPerDeckCount`＋`calcFieldPowers` 計算ブロック・golden 1件** |
 | (vi-4)／~~(vi-5)~~ | 他6コレクタの LRIG ゾーン走査漏れ（該当実カード0＝潜在バグ・**未消化**）／~~二面コレクタ3種の usageLimit 書き戻し~~ **✅続き135（Opus）で(x)と一括修正＝Banish18枚/PowerZero6枚/LrigGrow4枚** |
 | (vii) | 「アップ状態のこのシグニをダウンしてもよい」系の対象/自己混同7件（続き89）。**✅続き163（Opus）で4枚 clean 修正**（WX25-P1-055/WXDi-P04-059/WXDi-P13-074/WXDi-CP01-040＝DOWN を self thisCardOnly optional へ・正準形 WD12-013）。**✅続き164（Fable 5・タスク1）で引用付与2枚も消化**＝WX25-P3-089/WXDi-P15-084（2文型引用付与の parser 実装＋JSON採用＝正準 DOWN self＋GRANT_EFFECT）。**残1枚＝§6.3級**＝WX25-P2-112（アップルリグ down＋「ダウンしたルリグと共通する色」動的フィルタ）。詳細 BUGFIXES 続き163/164 |
