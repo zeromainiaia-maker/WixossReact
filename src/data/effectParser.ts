@@ -3561,6 +3561,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (storyM) cond.accedHostStory = storyM[1];
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...cond };
       }
+      // ON_RISE: 「（カード名に）《X》（を含むシグニ）にライズされたとき」→ 下敷きシグニ名で限定（risedOntoNameContains）。
+      //   engine は下敷き元シグニの CardName に対する includes 判定（WX20-056=オダノブ部分一致／WXDi-P06-054=フルネーム）。
+      if (timing[0] === 'ON_RISE') {
+        const rm = actionText.match(/カード名に《([^》]+)》を含むシグニにライズされたとき/) || actionText.match(/《([^》]+)》にライズされたとき/);
+        if (rm) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), risedOntoNameContains: rm[1] };
+      }
       // ON_REFRESH: リフレッシュした側を triggerCondition.refreshedOwner に抽出（省略時 engine 既定 = any）。
       if (timing[0] === 'ON_REFRESH') {
         const ro = /あなたがリフレッシュしたとき/.test(actionText) ? 'self'
