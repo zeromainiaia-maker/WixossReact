@@ -60,6 +60,54 @@ WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX14-029 WX16-Re02 WX20-005 WX22-03
   + [0].action.steps[1].then.target.count = 1
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
 
+## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER ［13枚］
+SPDi43-26 WX24-P4-043 WX25-P1-064 WX25-P1-068 WXDi-CP02-001 WXDi-D08-004 WXDi-P03-017 WXDi-P06-033 WXDi-P08-003 WXDi-P08-051 WXDi-P12-006 WXDi-P14-001 WXDi-P16-034
+--- SPDi43-26
+  原文: 【自】：このルリグがアタックしたとき、あなたのエナゾーンから白のシグニ１枚をデッキの一番上に置いてもよい。そうした場合、【ルリグバリア】１つを得る。【起】《ゲーム１回》インフレーション《白×0》：あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。その後、対戦相手のシグニ１体を対象とし、手札か
+  - [1].action.source.location = "deck"
+  - [1].action.source.owner = "self"
+  - [1].action.count = 5
+  - [1].action.private = true
+  - [1].action.reorder = true
+  - [1].action.canTrash = false
+  - [1].action.destination.location = "deck"
+  - [1].action.destination.owner = "self"
+  - [1].action.destination.position = "bottom"
+  ~ [1].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
+  + [1].action.owner = "self"
+  + [1].action.revealCount = 5
+  …（他 6 行）
+--- WX24-P4-043
+  原文: 【自】《相手ターン》《ターン１回》：あなたのシグニ１体が場を離れたとき、あなたのデッキの一番上を公開する。その後、以下の２つから１つを選ぶ。①この方法で公開されたカードがレベル１のシグニの場合、そのシグニをダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。②カードを１枚引く。【出】《白》：あなたのデッキの上からカードを３枚見る。その中からカー
+  - [1].action.source.location = "deck"
+  - [1].action.source.owner = "self"
+  - [1].action.count = 3
+  - [1].action.private = true
+  - [1].action.reorder = true
+  - [1].action.canTrash = false
+  - [1].action.destination.location = "deck"
+  - [1].action.destination.owner = "self"
+  - [1].action.destination.position = "top"
+  ~ [1].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
+  + [1].action.owner = "self"
+  + [1].action.revealCount = 3
+  …（他 6 行）
+--- WX25-P1-064
+  原文: 【出】手札から＜天使＞のシグニを１枚捨てる：あなたのデッキの上からカードを５枚見る。その中からカードを１枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.source.location = "deck"
+  - [0].action.source.owner = "self"
+  - [0].action.count = 5
+  - [0].action.private = true
+  - [0].action.reorder = true
+  - [0].action.canTrash = false
+  - [0].action.destination.location = "deck"
+  - [0].action.destination.owner = "self"
+  - [0].action.destination.position = "bottom"
+  ~ [0].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
+  + [0].action.owner = "self"
+  + [0].action.revealCount = 5
+  …（他 6 行）
+
 ## -CHOOSE -DECK_CARD -TRASH ［11枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
 --- WX24-P3-091
@@ -368,6 +416,54 @@ WX24-P2-007 WX24-P2-087 WXEX2-18 WXEX2-70
   + [1].action.steps[1].then.target.upToCount = false
   + [2].action.steps[1].source.filter.cardType = "シグニ"
   + [2].action.steps[1].source.filter.story = "遊具"
+
+## +GRANT_LRIG_ABILITY +SEQUENCE ［4枚］
+WX25-P1-001 WX25-P1-005 WX25-P1-007 WX25-P1-009
+--- WX25-P1-001
+  原文: 《リコレクトアイコン》［４枚以上］あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。【起】エクシード１：対戦相手のパワー12000以下のシグニ１体を対象とし、それを手札に戻す。【起】エクシー
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].revealCount = 5
+  - [0].action.steps[1].pickCount = 2
+  - [0].action.steps[1].then.type = "ADD_TO_HAND"
+  - [0].action.steps[1].then.owner = "self"
+  - [0].action.steps[1].remainder.location = "deck"
+  - [0].action.steps[1].remainder.position = "bottom"
+  - [0].action.steps[2].type = "BOUNCE"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.upToCount = false
+  …（他 67 行）
+--- WX25-P1-005
+  原文: 《リコレクトアイコン》［４枚以上］あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：カードを４枚引き、手札を２枚捨てる。【起】エクシード１：対戦相手のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、それをバニッシュする。【起】エクシード２：対戦相手のルリグ１体を対象とし、それを凍結する。対戦相手は
+  - [0].action.steps[1].steps[0].type = "DRAW"
+  - [0].action.steps[1].steps[0].owner = "self"
+  - [0].action.steps[1].steps[0].count = 4
+  - [0].action.steps[1].steps[1].type = "TRASH"
+  - [0].action.steps[1].steps[1].target.type = "HAND_CARD"
+  - [0].action.steps[1].steps[1].target.owner = "self"
+  - [0].action.steps[1].steps[1].target.count = 2
+  - [0].action.steps[2].type = "BANISH"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  …（他 60 行）
+--- WX25-P1-007
+  原文: 《リコレクトアイコン》［４枚以上］あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：あなたのトラッシュから《ガードアイコン》を持たないカードを２枚まで対象とし、それらをエナゾーンに置く。【起】エクシード１：対戦相手のレベル３以上のシグニ１体を対象とし、それをバニッシュする。【起】エクシード２：【エナチャージ
+  - [0].action.steps[1].target.type = "TRASH_CARD"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 2
+  - [0].action.steps[1].target.upToCount = true
+  - [0].action.steps[1].target.filter.noGuard = true
+  - [0].action.steps[2].type = "BANISH"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  - [0].action.steps[2].target.filter.level.min = 3
+  - [0].action.steps[2].target.upToCount = false
+  …（他 54 行）
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -1212,6 +1308,24 @@ WX24-P3-057
   - [0].action.choices[1].action.type = "TRASH"
   - [0].action.choices[1].action.target.type = "DECK_CARD"
   …（他 17 行）
+
+## +CONDITIONAL +GRANT_LRIG_ABILITY +LRIG_LEVEL ［1枚］
+WX25-P1-003
+--- WX25-P1-003
+  原文: 《リコレクトアイコン》［４枚以上］あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：対戦相手のセンタールリグがレベル３以上の場合、対戦相手のエナゾーンから、カード１枚と、それと共通する色を持たないカードを１枚まで対象とし、それらをトラッシュに置く。【起】エクシード１：対戦相手のパワー12000以下のシグニ１
+  - [0].action.steps[1].target.type = "ENERGY_CARD"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.upToCount = true
+  - [0].action.steps[2].type = "BANISH"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  - [0].action.steps[2].target.filter.powerRange.max = 12000
+  - [0].action.steps[2].target.upToCount = false
+  - [0].action.steps[3].type = "LIFE_CRASH"
+  …（他 48 行）
 
 ## -CONDITIONAL -THIS_CARD_IS_AWAKENED ［1枚］
 WX25-P2-095
