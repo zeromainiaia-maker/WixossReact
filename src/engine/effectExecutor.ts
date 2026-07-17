@@ -2651,6 +2651,21 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       : { ...s, deck: [...cards, ...s.deck] };
   }
 
+  // LIFE_CLOTH_CARD: ライフクロスをデッキへ（「対戦相手のライフクロス１枚をデッキの一番下に置く」SPDi47-03）。
+  // ライフクロスは裏向き＝選択の余地がないため一番上（配列末尾＝crashOneLife と同じ向き）から N 枚を移す。
+  // ⚠lastProcessedCards は上書きしない（「この方法で手札をN枚捨てた場合」等の直前記録を後続 CONDITIONAL が
+  //   参照する連鎖の途中に置かれるため＝SPDi47-03 の2段閾値）。
+  if (src.type === 'LIFE_CLOTH_CARD') {
+    const n = src.count === 'ALL' ? state.life_cloth.length : resolveNum(src.count);
+    const life = [...state.life_cloth];
+    const moved: string[] = [];
+    for (let i = 0; i < n && life.length > 0; i++) moved.push(life.pop()!);
+    if (moved.length === 0) return done(addLog(ctx, 'ライフクロスがない'));
+    const newS = insertToDeck({ ...state, life_cloth: life }, moved);
+    return done(addLog(setOwnerState(src.owner, newS, ctx),
+      `${ownerJaLog(src.owner)}ライフクロス${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`));
+  }
+
   if (src.type === 'TRASH_CARD') {
     const cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     // optional:「トラッシュから…をデッキに戻してもよい」（WX17-028-E1）。選択 or スキップにし、
