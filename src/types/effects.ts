@@ -1111,7 +1111,7 @@ export interface MutualDiscardAndDrawAction {
 export interface BanishRedirectAction {
   type: 'BANISH_REDIRECT';
   target: EffectTarget;
-  redirectTo: 'trash';
+  redirectTo: 'trash' | 'exile'; // exile＝「エナゾーンに置かれる代わりにゲームから除外」（SPDi47-05。除外ゾーン未実装＝どのゾーンにも置かず取り除く近似）
   until: 'END_OF_TURN' | 'PERMANENT';
 }
 
