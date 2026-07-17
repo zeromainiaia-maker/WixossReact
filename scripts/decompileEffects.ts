@@ -1973,6 +1973,13 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.frontLowerLevelThanSource) {
       s = 'このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき';
     }
+    // ON_PLAY placedOnTrapZone / placedOnGateZone（WX21-025/WXK10-044・タスク16[C]機構⑤）
+    if (t === 'ON_PLAY' && e.triggerCondition?.placedOnTrapZone) {
+      s = '対戦相手のシグニ１体が【トラップ】のあるシグニゾーンに出たとき';
+    }
+    if (t === 'ON_PLAY' && e.triggerCondition?.placedOnGateZone) {
+      s = '対戦相手のシグニ１体が【ゲート】があるシグニゾーンに出たとき';
+    }
     // ON_SIGNI_BANISH_OPPONENT の banishedFilter（被バニッシュシグニの状態限定・WX16-079/WXK02-054/WXEX2-76 等）
     if (t === 'ON_SIGNI_BANISH_OPPONENT' && e.triggerCondition?.banishedFilter) {
       const bf = e.triggerCondition.banishedFilter;
