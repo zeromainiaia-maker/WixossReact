@@ -263,3 +263,47 @@ export function detectNewlyFrozen(before: PlayerState, after: PlayerState): stri
   }
   return out;
 }
+
+/**
+ * 新たにダウン状態（signi_down false→true）になったシグニ番号を返す（ON_SIGNI_DOWN 用）。
+ * 前後で同一シグニがゾーンに在中する場合のみ（「ダウン状態で場に出た」入場や入れ替わりは
+ * 「ダウン状態になった」と区別＝placedDown 側の領分なので拾わない）。
+ */
+export function detectNewlyDowned(before: PlayerState, after: PlayerState): string[] {
+  if (!before || !after) return [];
+  const bd = before.field.signi_down ?? [];
+  const ad = after.field.signi_down ?? [];
+  const out: string[] = [];
+  const zones = after.field.signi?.length ?? 0;
+  for (let z = 0; z < zones; z++) {
+    if (ad[z] === true && bd[z] !== true) {
+      const num = after.field.signi[z]?.at(-1);
+      if (num && before.field.signi[z]?.at(-1) === num) out.push(num);
+    }
+  }
+  return out;
+}
+
+/**
+ * 新たにアップ状態（signi_down true→false）になったシグニ番号＋センタールリグを返す（ON_SIGNI_BECOMES_UP 用）。
+ * 同一シグニが在中する場合のみ（ダウンシグニが離れて空きゾーンになったケースを誤検出しない）。
+ * lrigUpNum＝センタールリグが lrig_down true→false になった場合そのカード番号（WX20-051 の upIncludesLrig 用）。
+ * ⚠アップフェイズの一斉アップは phase advance 経路＝本 detector を通らない（意図した近似＝効果によるアップのみ検出）。
+ */
+export function detectNewlyUpped(before: PlayerState, after: PlayerState): { nums: string[]; lrigUpNum: string | null } {
+  if (!before || !after) return { nums: [], lrigUpNum: null };
+  const bd = before.field.signi_down ?? [];
+  const ad = after.field.signi_down ?? [];
+  const nums: string[] = [];
+  const zones = after.field.signi?.length ?? 0;
+  for (let z = 0; z < zones; z++) {
+    if (bd[z] === true && ad[z] !== true) {
+      const num = after.field.signi[z]?.at(-1);
+      if (num && before.field.signi[z]?.at(-1) === num) nums.push(num);
+    }
+  }
+  const lrigTop = after.field.lrig.at(-1);
+  const lrigUpNum = (before.field.lrig_down === true && after.field.lrig_down !== true
+    && lrigTop && before.field.lrig.at(-1) === lrigTop) ? lrigTop : null;
+  return { nums, lrigUpNum };
+}
