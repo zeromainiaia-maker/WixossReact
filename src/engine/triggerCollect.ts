@@ -374,19 +374,33 @@ export function collectTrashTriggers(
   afterGuestState: PlayerState,
   causeByOpponent = false,
   byCostOrEffect = true,
-): StackEntry[] {
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
+  // usageLimit（《ターン1回/2回》）の消費 effectId を返す（呼び出し元が actions_done へ書き戻す＝ON_BANISH と同型。
+  // 続き181 までは any_ally が parser で self に潰れていてこのパス自体が死んでおり、ノーガードが露見しなかった）。
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const ownerState = trashedPlayerId === ctx.hostId ? afterHostState : afterGuestState;
+  const limitOkOwner = mkLimitOk(ownerState.actions_done, trashedPlayerId === ctx.hostId ? usedHostIds : usedGuestIds);
+  // 「あなたの…シグニがトラッシュに置かれたとき」の watcher＝トラッシュされたシグニのオーナー。
+  const ownerIsTurnPlayer = ctx.activeUserId === trashedPlayerId;
   // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'self' && scope !== 'any_ally' && scope !== 'any') continue;
     if (scope !== 'self') {
+      // any_ally は**トラッシュされたカード自身も母集団に含む**（自身が＜X＞なら自分のトラッシュでも発火）。
+      // 既に場から離れているため下の field 走査では拾えず、ここで拾わないと自己発火だけが落ちる（ON_BANISH と同型）。
       if (eff.triggerFilter?.excludeSelf) continue;
       if (eff.triggerFilter) {
         const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
         if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
       }
+      if (condHas(eff.condition, 'IS_MY_TURN') && !ownerIsTurnPlayer) continue;
+      if (condHas(eff.condition, 'IS_OPPONENT_TURN') && ownerIsTurnPlayer) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, ownerState, trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState, ctx.cardMap, trashedCardNum, ctx.turnPhase ?? '')) continue;
+      if (!limitOkOwner(eff)) continue;
     }
     // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
