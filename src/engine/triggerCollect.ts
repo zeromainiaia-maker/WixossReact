@@ -286,6 +286,7 @@ export function collectArmorTriggers(
         const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
         if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(armoredCardNum)), filter)) continue;
       }
+      if (!limitOkOwner(eff)) continue;
       entries.push({
         id: ctx.genId(),
         playerId: armoredPlayerId,
