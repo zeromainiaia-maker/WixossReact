@@ -158,13 +158,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-17・続き181・Opus 4.8・タスク12在庫＝(v) クローズ＋(vi-4) 消化＝**完了**）**
-  - **成果**＝golden 402→**406**・census 2016→**2003**（実数更新）・smoke/fuzz 全0（seed 1/2/3）・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き181。
-  - **(v)＝クローズ**。`applyDirectAction` の default 節に計器を差し smoke 全10593効果で到達型を実測（REVEAL133/STUB101/BLOCK_ACTION32/DRAW4/REARRANGE_SIGNI1）＝**真の再入バグは `STORY_CHANGE` のみ**（case 新設・修正前 autopilot hang を確認）。他は全て benign と機械確認＝在庫から落とせる。
-  - **(vi-4)＝⚠「該当実カード0の潜在バグ」という登録時の前提が既に崩れていた**（続き96 以降の JSON 採用でルリグ watcher が発生＝ON_BANISH6・ON_TRASH1・ARMOR1）。6コレクタの手書き `field.signi` 走査を `ownFieldSources()` へ統一。
-  - **派生＝ON_BANISH の any_ally scope 脱落20効果を発見し16効果を根治**。parser に「あなたの[他の][＜X＞の]シグニ1体がバニッシュされたとき」→any_ally 規則を追加（＜X＞→triggerFilter.story／他の→excludeSelf）＋engine に triggerFilter 評価＋**block1 の any_ally 対応**（＝自身が＜悪魔＞なら自分のバニッシュでも発火する。scope 変更だけだと**自己発火を失う逆方向の退化**になる分かれ目）。JSON は全効果 diff で「16効果のみ・scope/filter のみ・action 不変」を機械確認。
-  - **据置**＝限定を無言で落とさないため意図的に非マッチ4件（アタックフェイズ前置き WX18-002-E1/WXEX1-18-E1・チャーム付き WXK07-074-E1・動的レベル比較 WXK11-018-E1）。
-  - **次の一手**：Opus＝タスク12在庫の残（(i)(ii)(iii)(viii)残(xi)(xii)(xxiv)残(xxx)＋新規登録の**(xxxi)** per-level ドロー5効果・**(xxxii)** ON_TRASH/ARMOR の同型 scope 脱落）。Sonnet＝新 timing の §7 driver（続き178/179/180分）＋**本修正で発火するようになった ON_BANISH any_ally 16効果の実機確認**（特にルリグ watcher WX22-011-E2）。
+- **🆕 セッション（2026-07-17・続き182・Codex 実装／Opus 4.8 検証・差し戻し・作り直し・タスク12(xxxii) 消化＝**完了**）**
+  - **成果**＝golden 406→**410**・census 2003→**2001**（実数更新）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き182。
+  - **(xxxii)＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落6効果を根治**（続き181 の ON_BANISH と同根）。parser に any_ally 規則＋`triggerFilter`（levelRange.max／story）を追加。ON_TRASH 側は**主語を前置きとしてだけ剥がして残りを既存規則へ渡す**構造にし `fromZones:['field']` を殺さない。engine 側は両コレクタの any_ally パスに `matchesFilter`／`condHas` ゲート／**usageLimit 機構（ON_BANISH 同型の `{entries,usedHostIds,usedGuestIds}`＋BattleScreen 全6呼び出し元の書き戻し）** を追加。
+  - **⚠「あなたのメインフェイズの間」は `AND(DURING_PHASE:MAIN, IS_MY_TURN)`**＝`DURING_PHASE` 単独だと**相手のメインフェイズでも発火する**（`turn_phase` は所有者を持たない単一値 `'MAIN'`）。同種の前置きを扱うときの分かれ目。
+  - **影響6効果**＝WX24-P1-015-E1／WDK08-L01-E1（ルリグ watcher＝絶対発火しなかった）＋同一規則の収穫4（WXK04-043-E2／WXK07-066-E1／WDK08-L17-E1／WXDi-P03-055-E1＝シグニ watcher で「自分自身が武装したときだけ発火」していた）。**副次で `BattleScreen.handleRemove` の collectTrashTriggers 引数 host/guest 逆転**も是正（ally パスが死んでいた間は無害だった）。
+  - **⚠体制の教訓（Codex 実装／Claude 検証）**：engine の triggerFilter 未評価は Codex が自力発見（PLAN の「残りは parser のみ」の方が誤り）。一方**成果物は差し戻し**＝`manualEffects.ts` 手書き＋`buildEffectsJson.ts` の allowlist で「JSON が正しく見える」状態を作っており、**parser 規則を削除しても同一 JSON が再生成される／golden が 407/407 PASS のまま**だった（＝根治ではなく凍結・テストは空振り）。**「ゲートが緑」ではなく「ゲートを殺したら赤くなるか」で採否を決めること**。
+  - **次の一手**：Opus＝タスク12在庫の残（(i)(ii)(iii)(viii)残(xi)(xii)(xxiv)残(xxx)(xxxi)＋新規登録の**(xxxiii)** any_opp パスの usageLimit 未評価・**(xxxiv)** `fromFieldByCostOrEffect` の parser 未 emit 15カード）。Sonnet＝新 timing の §7 driver（続き178/179/180分）＋**続き181/182 で発火するようになった any_ally watcher の実機確認**（ON_BANISH 16効果＝特にルリグ watcher WX22-011-E2／本セッション分＝WX24-P1-015-E1・WDK08-L01-E1）。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
