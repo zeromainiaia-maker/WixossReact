@@ -2709,6 +2709,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ON_SIGNI_FROZEN: 新たに凍結状態になったシグニ
     { const fz = collectFreezeInline(h, g); entries.push(...fz.entries); h = fz.hostState; g = fz.guestState; }
 
+    // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP: 効果でダウン/アップ状態が変わったシグニ（タスク16[C]機構①・byEffect=true）
+    { const du = collectSigniDownUpInline(h, g); entries.push(...du.entries); h = du.hostState; g = du.guestState; }
+
     // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD（OR複合・WXDi-P11-064）: 「あなたのターンの間」＝ターンプレイヤーを controller として、
     // 味方シグニが場に出た（play枝）か相手手札がトラッシュに置かれた（discard枝・⚠自効果限定は近似）場合に発火。
     {
