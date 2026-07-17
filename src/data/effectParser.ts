@@ -3362,12 +3362,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // engine 配線済み（collectHandDiscardTriggers）。**「ガードステップ以外で」は engine 側で構造的に担保**
              // されている＝ガードによる手札捨ては `hand_discarded_just`/`asCost` のどちらも立たない
              // （BattleScreen の performGuardResponse・同関数の doc コメント参照）ので、条件語彙は不要。
-             // ⚠「（あなたの効果によって）対戦相手が手札を捨てたとき」は主語が相手＝engine に専用 scope が無く
-             //   'any'（いずれかが捨てたとき）に倒すと自分の手札捨てでも発火する過剰効果になるため**拾わない**。
+             // ⚠「（あなたの効果によって）対戦相手が手札を捨てたとき」は主語が相手＝engine の any_opp scope で拾う
+             //   （続き175・Opusタスク16）。collectHandDiscardTriggers の相手フィールド path が any/any_opp を発火し、
+             //   any_opp は discarder 自身の場では発火しない＝自分の手札捨てでは誤発火しない。scope は下で any_opp に刻む。
+             //   ⚠複合OR「…場に出るか、…対戦相手が手札を捨てたとき」（WXDi-P11-064）は上で先に捕捉済みなのでここには来ない。
              // 「あなたが（手札から）（＜X＞の/《ディソナアイコン》の）シグニ/カードをN枚捨てたとき」（6件・続き76）
              //   ＝捨てたカードの種別限定は engine の `triggerFilter`（collectHandDiscardTriggers の matchesTrigFilter）で
              //   評価される。filter は下で抽出。
              : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(trigText)
+                || /対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(trigText)
                 || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚捨てたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
