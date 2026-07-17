@@ -327,6 +327,7 @@ export function collectDeckTrashSelfTriggers(
  */
 export function collectAnyZoneTrashSelfTriggers(
   ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand',
+  causeSourceCardNum?: string,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
@@ -337,6 +338,20 @@ export function collectAnyZoneTrashSelfTriggers(
     const okByZones = fromZones ? fromZones.includes(origin) : !!eff.triggerCondition?.fromAnyZone;
     if (!okByZones) continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    // byOwnEffect（「あなたの効果によって/あなたがこのカードを捨てたとき」＝タスク16[C]機構②）: 対戦相手効果起因では発火しない。
+    if (eff.triggerCondition?.byOwnEffect && causeByOpponent) continue;
+    // trashSourceStory（「あなたの＜X＞のシグニの効果によって捨てられたとき」WXDi-P14-086）: 原因効果の発生源
+    // カードが自分側の＜X＞のシグニのときのみ（発生源不明＝ガード/ルール処理では発火しない）。
+    if (eff.triggerCondition?.trashSourceStory) {
+      if (causeByOpponent) continue;
+      const srcCard = causeSourceCardNum ? ctx.cardMap.get(getCardNum(causeSourceCardNum)) : undefined;
+      if (!srcCard || srcCard.Type !== 'シグニ' || !(srcCard.CardClass ?? '').includes(eff.triggerCondition.trashSourceStory)) continue;
+    }
+    // turnOwner（「あなたのターンの間、このカードが捨てられたとき」WXDi-P10-070）: 捨てられたカードの持ち主視点。
+    const toAZ = eff.triggerCondition?.turnOwner;
+    const ownerIsTurnAZ = ctx.activeUserId === trashedPlayerId;
+    if (toAZ === 'self' && !ownerIsTurnAZ) continue;
+    if (toAZ === 'opponent' && ownerIsTurnAZ) continue;
     const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
     entries.push({
       id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
