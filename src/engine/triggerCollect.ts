@@ -2004,9 +2004,9 @@ export function collectAllyPlayOrOppDiscardTriggers(
   if (controllerId !== ctx.activeUserId) return { entries, usedOncePerTurnIds }; // 「あなたのターンの間」
   if (controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  for (const stack of controllerState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  // ⚠上の BLOCK_OWN_SIGNI_AUTO 早期 return はシグニ限定の封じだが、ここでは関数全体を止めるため
+  //   ルリグ watcher も巻き添えで止まる（該当実カード0のため既知の近似として据置）。
+  for (const topNum of ownFieldSources(controllerState)) {
     for (const eff of effsOf(ctx, topNum)) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ALLY_PLAY_OR_OPP_HAND_DISCARD')) continue;
       const filter = eff.triggerFilter;
