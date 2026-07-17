@@ -388,6 +388,8 @@ function actionJa(a?: Action, effectType?: string): string {
   switch (a.type) {
     case 'DRAW': return a.untilHandCount !== undefined
       ? `${ownerJa(a.owner)}手札が${a.untilHandCount}枚より少ない場合、その差の分だけカードを引く`
+      : a.perLastProcessedLevel
+      ? `${ownerJa(a.owner)}そのシグニのレベル1につきカードを${numJa(a.count)}枚引く`
       : `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
     case 'GAIN_COIN': return `${ownerJa(a.owner)}コインを${numJa(a.count ?? 1)}枚得る`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;

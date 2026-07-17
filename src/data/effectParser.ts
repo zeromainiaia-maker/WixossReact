@@ -29,6 +29,7 @@ import type {
   PowerModifyAction,
   TransferToHandAction,
   AddToFieldAction,
+  DrawAction,
 } from '../types/effects';
 import {
   parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget,
@@ -2708,6 +2709,13 @@ function parseActionTextInner(text: string): EffectAction {
       const condText = condM[1];
       const thenText = condM[2].replace(/。$/, '');
       let thenAction = parseSingleSentence(thenText);
+      // 「（公開した）そのシグニのレベル１につきカードをN枚引く」＝公開シグニのレベル比例ドロー（WD21-001-E2）。
+      // parseSingleSentence は「レベル１につき」を無視して固定 count に潰すため、公開カード（lastProcessedCards）の
+      // レベル合計を参照する perLastProcessedLevel フラグ付き DRAW に差し替える（続き190）。
+      const perLevelDrawM = thenText.match(/そのシグニのレベル[０-９\d]+につきカードを([０-９\d]+)枚引く/);
+      if (perLevelDrawM) {
+        thenAction = { type: 'DRAW', owner: 'self', count: parseNum(perLevelDrawM[1]), perLastProcessedLevel: true } as DrawAction;
+      }
       // 「公開した（＝選んだ）カードをエナゾーンに置く」は ADD_TO_ENERGY（applyDirectAction が選択カードをエナへ）。
       // ENERGY_CHARGE{DECK_CARD} だと execEnergyCharge が場のシグニを選ぶ誤動作になるため正規化する。
       if (thenAction.type === 'ENERGY_CHARGE' && (thenAction as EnergyChargeAction).target?.type === 'DECK_CARD') {

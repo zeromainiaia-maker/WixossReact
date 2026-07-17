@@ -3868,6 +3868,15 @@ test('ENERGY_CHARGE_PER_LRIG_LEVEL: 自センタールリグのレベル×charge
   const r = run({ type: 'ENERGY_CHARGE_PER_LRIG_LEVEL', chargePerLevel: 1, lrigOwner: 'self', owner: 'self' } as EffectAction, ctx);
   eq(r.ownerState.energy.length, e0 + 4, 'エナ+4（Lv4×1）'); eq(r.ownerState.deck.length, d0 - 4, 'デッキ-4');
 });
+// 続き190: DRAW{perLastProcessedLevel}＝「（公開した）そのシグニのレベル1につきカードを1枚引く」（WD21-001-E2）。
+// REVEAL_AND_PICK の then で公開シグニ（lastProcessedCards）のレベル合計×count 枚に是正した回帰ガード。
+// 従来は DRAW count:1 に潰れ「レベル1につき」を無視して常に1枚だった。
+test('DRAW{perLastProcessedLevel}: 直前公開シグニのレベル×count枚ドロー（WD21-001-E2）', () => {
+  const ctx = { ...mkCtx({}, {}), lastProcessedCards: [SIGNI_L3] } as ExecCtx; // レベル3
+  const h0 = ctx.ownerState.hand.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'DRAW', owner: 'self', count: 1, perLastProcessedLevel: true } as EffectAction, ctx);
+  eq(r.ownerState.hand.length, h0 + 3, '手札+3（Lv3×1）'); eq(r.ownerState.deck.length, d0 - 3, 'デッキ-3');
+});
 test('ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT: 自場の該当シグニ数×chargePerUnit枚をデッキからエナへ（WX02-066）', () => {
   const ctx = mkCtx({ signi: ['WD04-009', 'WD04-010', null] }, {});
   const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;

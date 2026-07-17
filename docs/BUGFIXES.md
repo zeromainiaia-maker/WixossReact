@@ -4,6 +4,24 @@
 
 ---
 
+## Opusタスク12(xxxi)残(b) 消化＝公開シグニのレベル比例ドロー `DRAW{perLastProcessedLevel}`（2026-07-18・続き190・Opus 4.8）
+
+**対象**＝WD21-001-E2「【出】《コインアイコン》《コインアイコン》：あなたのデッキの一番上を公開する。それがシグニの場合、あなたはそのシグニのレベル１につきカードを１枚引く。」
+
+**バグ**＝parser の「デッキの一番上を公開する→それが〜の場合」ルール（`effectParser.ts:2702`）が、条件節 then を `parseSingleSentence("あなたはそのシグニのレベル１につきカードを１枚引く")` で解釈し、**「レベル１につき」を無視して `DRAW count:1`（固定1枚）に潰していた**＝公開シグニがレベル3でも1枚しか引かない過小ドロー。REVEAL_AND_PICK の `then` は `applyDirectAction` の default 経由で `lastProcessedCards:[公開シグニ]` を受け取るため、レベル参照の素地はあった。
+
+**修正**＝`DRAW` に `perLastProcessedLevel?: boolean` フラグ新設（`addLastProcessedCount`＝枚数加算とは別軸＝レベル合計 × count）。
+- **types**（`effects.ts:552`）＝DrawAction にフラグ追加。
+- **engine**（`effectExecutor.ts` execDraw）＝フラグ時 `count = resolveNum(count) × Σ(lastProcessedCards のレベル)`。`untilHandCount` とは排他。
+- **parser**（`effectParser.ts:2710`）＝then 文が `そのシグニのレベル[N]につきカードを[M]枚引く` にマッチしたら `DRAW{count:M, perLastProcessedLevel:true}` に差し替え。
+- **decompiler**（`decompileEffects.ts:389`）＝フラグ時「そのシグニのレベル1につきカードをN枚引く」に逆翻訳。
+
+**検証**＝golden 422→**423**（新規1件＝Lv3公開で+3ドローを assert）・census 1998維持・smoke/fuzz 全0・同型★0。build:effects で WD21-001-E2 の then に perLastProcessedLevel 付与を確認・`npm run regen` で逆翻訳反映確認。**(xxxi) クローズ**。
+
+**設計判断**＝新規 action 型（DRAW_PER_LRIG_LEVEL 等）を増やさず、既存 REVEAL_AND_PICK→then→lastProcessedCards の連鎖にフラグ1本を足す最小変更で解決（公開カードのレベル参照は engine 既存の素地を再利用）。
+
+---
+
 ## Opusタスク5 小口消化＝GRANT_EFFECT(→LRIG) 内 levelLtSelf の decompiler 読み替え（2026-07-18・続き189・Opus 4.8）
 
 **内容**＝WXEX2-25-E3（対戦相手のセンタールリグに「【常】：このルリグより低いレベルを持つあなたのシグニのパワーを－8000する」を付与）の逆翻訳が「**この**シグニより低いレベル」と表示され、原文「この**ルリグ**より」とズレていた（decompiler の `filterJa` が `levelLtSelf` を「このシグニより」固定で描画）。engine は `levelLtSelf/levelGtSelf` を host 基準で解決済み（effectEngine.ts:1262・シグニ/ルリグ両対応）＝**機能は正・表示のみのズレ**。decompiler の GRANT_EFFECT case で付与先 `target.type==='LRIG'` のとき inner body の「このシグニより(低い/高い)レベル」→「このルリグより」に読み替え（LRIG 付与に scope・signi 付与には非干渉）。`levelLtSelf` は全JSONでこの1枚のみ。
