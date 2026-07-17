@@ -2631,10 +2631,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const hostTrashedByOpp  = causeOwnerId === bs.guest_id;
     const guestTrashedByOpp = causeOwnerId === bs.host_id;
     for (const cardNum of detectTrashedSigni(beforeHost, h)) {
-      entries.push(...collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp));
+      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp);
+      entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     for (const cardNum of detectTrashedSigni(beforeGuest, g)) {
-      entries.push(...collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp));
+      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp);
+      entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
     for (const cardNum of detectDeckTrashed(beforeHost, h)) {
