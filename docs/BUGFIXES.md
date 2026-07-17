@@ -2,6 +2,28 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16[A]：clean な残 [A]クラスタを一括消化＝5系統9timingを parser 語彙化（16効果影響・timing fallback 123→106・golden 392→393）（2026-07-17・Opus 4.8・続き177）
+
+**主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）のうち **engine collector が完全wired で parser regex のみ不足**のものを横断的に消化。engine 変更ゼロ（全て既存 collector に配線済み）＝**parser 語彙追加のみ**。5バッチ・9 timing。
+
+**追加した parser 判定（timing branch＋条件/scope 抽出）**：
+1. **ON_SIGNI_BATTLE 基本形**＝`このシグニが(対戦相手の)?シグニとバトルしたとき`／`このシグニがバトルしたとき`（WXK11-022/PR-305）。engine＝BattleScreen collectBattleTrig（参加両シグニ自身を scope self 収集）。⚠**レベルN(以下)/パワーN以上の filter 付きは engine が battleOpponent の filter を見ない＝過剰発火のため意図的に拾わない**（WX04-099/WX05-047/WXDi-P14-062＝[B]・regex を `対戦相手のシグニ` 直後の「とバトル」に限定して除外）。
+2. **ON_SIGNI_DAMAGE**＝`このシグニが対戦相手にダメージを与えたとき`／`対戦相手がダメージを受けたとき`（WX21-054 の grant 内G・WXDi-P07-047）。engine＝damageEntries（アタックで相手ライフをクラッシュした攻撃側シグニ自身を scope self）。
+3. **ON_RISE risedOntoNameContains**＝`このシグニが(カード名に《X》を含むシグニ|《X》)にライズされたとき`（WX20-056=オダノブ部分一致・WXDi-P06-054=フルネーム）。engine＝BattleScreen 4796（下敷き元シグニ CardName の includes 判定）。**旧 parser コメントの「《X》にライズは別機構で拾わない」は保守的な未実装メモで、engine/decompiler は既に対応済みだった。**
+4. **ON_CHARM_TO_TRASH**＝`【チャーム】N枚が(場から)?(いずれかの)?トラッシュに置かれたとき`（WX16-Re05=any・WXEX2-24=any_opp）。scope 抽出＝「対戦相手の場にある」→any_opp／「あなたの場にある」→any_ally。engine＝collectCharmToTrashTriggers（scope で発生源フィールド判定）。ON_TRASH より前に配置。
+5. **ON_CARD_MOVED_TO_DECK（単数移動）**＝旧 regex `カードがN枚以上デッキに移動` を `(?:シグニ|カード)(?:N[体枚])?が[^。]{0,16}デッキに移動したとき` へ拡張（WX05-019/WX09-020/WXK06-042）。**owner/fromTrash 判定を「先頭〜最初のデッキに移動したとき」のトリガー句に限定**＝action 本体の「対戦相手のシグニ1体を対象とし…」に誤反応するバグを回避（WX09-020）。owner 抽出に「対戦相手のシグニ」を追加。engine＝collectMoveToDeckTriggers（movedToDeckOwner/MinCount/FromTrash）。
+6. **ON_LEAVE_FIELD**＝`場を離れたとき` を `場(?:を|から)離れたとき` へ拡張（WX12-015＝「場から離れたとき」）。scope 抽出は leaveScan で「場から離れた」→「場を離れた」に正規化して既存 regex を共用。
+7. **ON_OPP_VIRUS_CHANGED / REMOVED**＝`【ウィルス】…置かれるか…取り除かれたとき`→CHANGED（WX21-030）／`対戦相手の場(から|にある)【ウィルス】…取り除かれたとき`→REMOVED（WX21-045/068・WD19-009）。PLACED より前に配置。engine＝collectSelfEventTriggers。⚠「N以上」閾値は engine 未対応の近似（除去が起きれば発火・「1つ以上」は既定同値）。
+8. **ON_EXCEED_COST exceedCostPaidByPlayer**＝`あなたがエクシードのコストを支払ったとき`（WXDi-P06-078）。engine＝BattleScreen 9975（場のシグニ側で exceedCostPaidByPlayer を見て発火・既存の「ルリグトラッシュに置かれたとき」自身反応とは別経路）。
+
+**影響範囲の機械検証**＝続き176 push 時点（4b941a3a）の parser を baseline に全カード fresh parse を比較＝**私の変更が影響したのは16効果のみ・全て ON_PLAY→正しい timing、過剰マッチ/回帰ゼロ**（`場から離れた`/`デッキに移動`/`シグニとバトル` の widen が他 timing を奪っていないことを確認）。
+
+**JSON**＝影響16効果のうち **curated AUTO ON_PLAY の9効果を effectId アンカー直接パッチ**（timing＋triggerCondition/triggerScope のみ・action 不変・fresh と**完全一致**＝durable）：WX05-019-E3・WX12-015-E1・WX21-045-E1・WXEX2-24-E1・WXK06-042-E1・WXK11-022-E2・PR-305-E1・WXDi-P06-054-E1・WXDi-P07-047-E1。残7効果は既に MANUAL で正しい timing（fresh が追いついた＝将来 AUTO 化可能）。HEAD比較で変更9カードのみを機械確認。
+
+**検証**＝gates 全緑（typecheck／golden **392→393**＝[A]一括の parser 判定テスト／smoke・fuzz 全0／census **2027→2026**〔改善・要因未特定のため BASELINE_HIGH は据置〕／lint 0 errors）・`npm run regen`＋同型★0 維持・逆翻訳9枚が原文と機能一致・`census:timing` fallback **123効果/109クラスタ→106/92**。**engine 変更ゼロ**＝実機挙動への副作用なし（既存 collector に timing が届くだけ）。要実機検証＝各トリガーの実発火（バトル/ダメージ/ライズ/チャームトラッシュ/デッキ移動/離場/ウィルス増減/エクシード支払い）。
+
+**残 [A]で今回見送り**＝banish 系 filter（WX16-079 感染/WX17-046 基本/WXK04-044 正面/WXEX2-76 チャーム付き）は engine の battleBanishEntries が **被バニッシュシグニの triggerFilter を評価しない**（self scope では filter 未適用）＝実質 [B]・別途 engine 拡張が要る。placedFront＋levelRange（WX17-075/WXDi-P02-083）も同様に level filter が engine 未適用。ON_TRASH watcher（WDA-F02-17）は「場のシグニが手札トラッシュに反応」＝self 反応の ON_TRASH とは別 scope で要確認。
+
 ## Opusタスク16[A]：「このカードが【アクセ】として（…の）シグニに付いたとき」の timing 語彙化＝ON_ACCE_ATTACH（アクセカード自身）を parser に（6効果・timing fallback 129→123・golden 391→392）（2026-07-17・Opus 4.8・続き176）
 
 **主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）の ON_ACCE_ATTACH 群。engine（`checkAndFireOnAcceTriggersForOwner` の attachedAcce ループ・BattleScreen:9532）は「このカードが【アクセ】としてシグニに付いたとき」＝**アクセカード自身の反応**を既に配線済みだったが、parser がその timing 語彙を持たず 6効果が全て `ON_PLAY` へ誤フォールバックしていた（＝場に出ただけで発火する幻覚）。parser regex＋host条件抽出＋軽量 engine 拡張（host maxLevel/story）で消化。
