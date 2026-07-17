@@ -2,6 +2,24 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## Opusタスク16：「（あなたの効果によって）対戦相手が手札を捨てたとき」の timing 語彙化＝ON_HAND_DISCARDED any_opp を新設（5効果・timing fallback 135→129・golden 388→391）（2026-07-17・Opus 4.8・続き175）
+
+**主題**＝timing センサス残 [A]クラスタ（`docs/_timing_census_triage.txt`）の最大の完全wired候補「あなたの効果によって対戦相手が手札をN枚捨てたとき」（n=4）＋同型 n=1（WX09-028）を消化。原文の主語が **対戦相手（相手が捨てる）** のため従来 parser は「拾わない」と明示していた（`any` に倒すと自分の手札捨てでも発火する過剰効果になるため）。engine に **`any_opp` scope** を新設して解決した。
+
+**engine（`triggerCollect.ts` collectHandDiscardTriggers）**：既存の相手フィールド watcher path（discarder の対戦相手側の場を相手コントローラーで収集）を拡張。
+- path2 の発火条件を `triggerScope==='any'` のみ → `'any' || 'any_opp'` へ。あわせて **センタールリグも走査対象に追加**（WXDi-P02-030/P04-009 がルリグ札のため。BLOCK_OWN_SIGNI_AUTO はシグニ限定＝LRIG は対象外扱い、path1 の続き96 と同じ）。
+- path1（discarder 自身の場）と自LRIG path で **`any_opp` を明示スキップ**＝相手が捨てたときのトリガーは discarder 自身の場では発火しない＝**自分の手札捨てでは誤発火しない**（`any`＝いずれか、との差）。
+
+**parser（`effectParser.ts`）**：timing branch の ON_HAND_DISCARDED 条件に `対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき` を追加（trigText 先頭句のみ判定＝続き136 の trigText 限定と整合）。scope 抽出で同 regex を any_opp に刻む。複合OR「…場に出るか、…対戦相手が…捨てたとき」（WXDi-P11-064）は上流の `ON_ALLY_PLAY_OR_OPP_HAND_DISCARD` で先に捕捉されるため衝突しない。【起】内の付与遅延OR（WX24-P4-017-E3）は AUTO ternary に来ないため不変。
+
+**JSON（effectId アンカー直接パッチ・timing+scope のみ・action 不変）**＝5効果を `ON_PLAY` → `['ON_HAND_DISCARDED']`＋`triggerScope:'any_opp'`（parseStatus は AUTO 維持＝parser が同一出力を再生成でき durable）：WX09-028-E1・WXDi-P02-030-E1・WXDi-P04-009-E2・WXDi-P04-063-E1・WXDi-P10-060-E1。単カード parser 実行で fresh の action が curated と完全一致することを確認済み。
+
+**decompiler**＝ON_HAND_DISCARDED any_opp を「あなたの効果によって対戦相手が手札を捨てたとき」へ描画（逆翻訳 原文一致）。
+
+**除外**＝WD16-014-E1（原文は「対戦相手が…捨てたとき、…基本パワー12000＋『【自】このシグニがアタックしたとき…』を得る」）は timing は直るが action が **内側引用の DRAW に潰れる**＝引用付与（§6.3・タスク1）案件のため今回は触れず放置（curated の ON_ATTACK_SIGNI のまま）。WX24-P4-017-E3・WXDi-P11-064-E1 も別機構のため対象外。
+
+**検証**＝gates 全緑（typecheck／golden **388→391**＝any_opp 発火・自捨て非発火・LRIG watcher 発火の3件追加／smoke・fuzz 全0／census **2027 維持**／lint 0 errors）・`npm run regen`＋同型★0 維持・逆翻訳5枚原文一致・`census:timing` fallback **135効果/117クラスタ→129/114**（該当クラスタ消失）。⚠既知の近似＝「あなたのシグニの効果によって」等の発生源限定は engine が未追跡（any_opp 近似）。要実機検証＝相手手札捨て→凍結/バニッシュの発火。
+
 ## タスク12(xxiii) 残3枚を消化＝(xxiii) 完了（SPDi47-03/05・WX24-P4-016。census 2028→2027・golden 385→388）（2026-07-17・Fable 5・続き174）
 
 **主題**＝リコレクト分割の別型3枚（続き138トリアージで実害確定・続き173の残）。3枚とも `parseStatus:'MANUAL'` 化した effectId アンカーの直接パッチ（`scripts/archive/patch_xxiii_rest3.mjs`）＋小さな engine 語彙2本の新設で是正。
