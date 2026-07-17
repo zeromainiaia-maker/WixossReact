@@ -9535,10 +9535,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (attachedAcceNum) {
       for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
-        // accedHostMinLevel:「レベルN以上のシグニに付いたとき」host シグニのレベル条件（WXK05-041=4）
-        if (eff.triggerCondition?.accedHostMinLevel) {
+        // host シグニのレベル/クラス条件（WXK05-041=Lv4以上／WX17-076-E2=Lv2以下／WX17-033-E4=＜調理＞）
+        const acceTc = eff.triggerCondition;
+        if (acceTc?.accedHostMinLevel || acceTc?.accedHostMaxLevel) {
           const hostLv = parseInt(battleCardMap.get(getCardNum(acceHostCardNum))?.Level ?? '0', 10);
-          if (isNaN(hostLv) || hostLv < eff.triggerCondition.accedHostMinLevel) continue;
+          if (isNaN(hostLv)) continue;
+          if (acceTc.accedHostMinLevel && hostLv < acceTc.accedHostMinLevel) continue;
+          if (acceTc.accedHostMaxLevel && hostLv > acceTc.accedHostMaxLevel) continue;
+        }
+        if (acceTc?.accedHostStory) {
+          const hostCls = battleCardMap.get(getCardNum(acceHostCardNum))?.CardClass ?? '';
+          if (!hostCls.includes(acceTc.accedHostStory)) continue;
         }
         if (eff.usageLimit === 'once_per_turn' &&
             ((state.actions_done?.includes(eff.effectId)) || usedOncePerTurnIdsAcce.includes(eff.effectId))) continue;
