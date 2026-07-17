@@ -2,6 +2,24 @@
 
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
+## タスク12(xxiii) 残3枚を消化＝(xxiii) 完了（SPDi47-03/05・WX24-P4-016。census 2028→2027・golden 385→388）（2026-07-17・Fable 5・続き174）
+
+**主題**＝リコレクト分割の別型3枚（続き138トリアージで実害確定・続き173の残）。3枚とも `parseStatus:'MANUAL'` 化した effectId アンカーの直接パッチ（`scripts/archive/patch_xxiii_rest3.mjs`）＋小さな engine 語彙2本の新設で是正。
+
+**①SPDi47-03-E2（本体アクション丸ごと消失＋誤条件）**：
+- 原文「カードを３枚引き、手札を好きな枚数捨てる。その後、この方法で手札を１枚以上捨てた場合、対戦相手のシグニ１体を…デッキの一番下に置く。手札を８枚以上捨てた場合、追加で対戦相手のライフクロス１枚を…」に対し、旧JSONは **DRAW+discard 本体が存在せず**、条件は IS_MY_TURN 化、8枚閾値は無関係 STUB だった。
+- **engine 2本新設**＝(a) `TRASH{HAND_CARD, count:'ALL', upToCount}` の「好きな枚数」対話分岐（SIGNI 分岐 `execTrash:671` と同形の移植・`resumeSelectTarget` が lastProcessedCards を記録）／(b) `execTransferToDeck` に `LIFE_CLOTH_CARD` 分岐（ライフクロス一番上＝配列末尾から N 枚をデッキへ・**lastProcessedCards を上書きしない**）。
+- **JSON**＝`SEQUENCE[GATE, DRAW3, TRASH(好きな枚数), COND(捨てGTE8){LIFE→デッキ下}, COND(捨てGTE1){SIGNI→デッキ下}]`。⚠**GTE8 を GTE1 より先に置く**＝SIGNI 転送は lastProcessedCards を上書きするが LIFE 転送はしない設計のため、この順序で両閾値が捨て枚数を正しく参照できる（8枚以上なら両方発火＝原文どおり・golden で非上書きを固定）。`LAST_PROCESSED_COUNT_GTE` に表示用 `verbJa?: string` を追加（decompiler が「捨てた」を描画・engine 判定には不使用）。
+
+**②SPDi47-05-E2（バニッシュ置換ルール丸ごと消失）**：
+- **engine 機構**＝`BANISH_REDIRECT` に `redirectTo:'exile'` 変種を追加（「エナゾーンに置かれる代わりにゲームから除外」）。PlayerState `banish_redirect_to_exile` フラグ＋`banishDestination`（効果バニッシュ）＋BattleScreen バトルバニッシュ/パワー0 経路（どのゾーンにも置かない＝除外ゾーン未実装の既存 EXILE 近似と同じ）＋**ターン境界リセット3箇所**。原文パターンは全カード中この1枚のみ（srctext 機械確認）＝parser 規則は追加せず MANUAL。
+- **JSON**＝GATE 直後に `BANISH_REDIRECT{redirectTo:'exile', until:'END_OF_TURN'}` を挿入（既存 STUB POWER_MOD_PER_COUNT＝「合計で－20000」は executor パターン3実装済みのため温存）。
+
+**③WX24-P4-016-E3（GRANT_KEYWORD「マジックボックス」幻覚）**：
+- 旧JSONは自シグニに存在しないキーワード「マジックボックス」を付与する幻覚（対象選択UIまで出る過剰実行）。**engine にマジックボックス表向きイベントのトリガー収集が無い**（PLACE/OPEN は STUB 対話のみ・BattleScreen 参照ゼロ）ため機構化は §6.3 送りとし、**正直 STUB 2本へ置換**＝`ATTACK_NEGATE_IMMUNITY_SELF`（アタック無効化免除）／`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（MB表向き時の付与）。decompiler に原文どおりの ja を追加＝逆翻訳は原文一致・実行は no-op（過少実行を明示する記録）。
+
+**検証**＝gates 全緑（golden 385→**388**＝好きな枚数discard×2段閾値の非上書き2本＋exile行き先1本／smoke・fuzz 全0／census **2028→2027**・`BASELINE_HIGH` 更新／lint 0 errors）。`npm run regen`＋同型★0 維持。逆翻訳の原文照合＝3枚とも原文の全文が復元（①は GTE8/GTE1 の記述順のみ原文と逆＝機能同値・パッチスクリプトに理由明記）。STUBS.md 再生成（新規 STUB 2種）。**これで (xxiii) は8枚全件消化＝クローズ**。要実機検証＝①の好きな枚数discard UI／②の実バトルでの除外挙動。
+
 ## タスク12(xxiii) WX25-P1-00X系列＝ルリグへの複数【起】エクシード能力付与を語彙化（5枚）＋pick脱落の規則順序バグ是正（15枚）（census 2031→2028・golden 383→385）（2026-07-17・Fable 5・続き173）
 
 **主題**＝Opusタスク12(xxiii) の本丸「WX25-P1-001/003/005/007/009（同一テンプレ5枚）＝『あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：…【起】エクシード１：…【起】エクシード２：…』』」。従来 parser にこの文型の規則が無く、**引用内の3つの独立した起動能力がコストゲートも選択も無い1本の SEQUENCE へ平坦化されて即時全実行**される最深刻の過剰実行バグだった（続き138トリアージで確定）。
