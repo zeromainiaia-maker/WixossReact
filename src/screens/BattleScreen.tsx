@@ -6554,7 +6554,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, allAttackTriggers)
           : initStack(turnPlayerId, allAttackTriggers);
         await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtk, effect_stack: stack })
+          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown, effect_stack: stack })
           .eq('room_id', roomId);
       } else {
         await supabase.from('battle_states')
