@@ -3565,6 +3565,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (storyM) cond.accedHostStory = storyM[1];
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...cond };
       }
+      // ON_CHARM_TO_TRASH: 発生源フィールドを triggerScope に（「対戦相手の場にある」＝any_opp／「あなたの場にある」＝any_ally／無指定＝any 既定）。
+      if (timing[0] === 'ON_CHARM_TO_TRASH') {
+        if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else if (/あなたの場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_ally';
+      }
       // ON_RISE: 「（カード名に）《X》（を含むシグニ）にライズされたとき」→ 下敷きシグニ名で限定（risedOntoNameContains）。
       //   engine は下敷き元シグニの CardName に対する includes 判定（WX20-056=オダノブ部分一致／WXDi-P06-054=フルネーム）。
       if (timing[0] === 'ON_RISE') {
