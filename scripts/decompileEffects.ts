@@ -1930,6 +1930,14 @@ function effJa(e: Eff): string {
       const stJa = tc.accedHostStory ? `＜${tc.accedHostStory}＞の` : '';
       s = `このカードが【アクセ】として${lvJa}${stJa}シグニに付いたとき`;
     }
+    // ON_SIGNI_BATTLE の triggerFilter（バトル相手のレベル/パワー条件・WX04-099/WX05-047/WXDi-P14-062）
+    if (t === 'ON_SIGNI_BATTLE' && e.triggerFilter) {
+      const tf = e.triggerFilter;
+      const cond = tf.levelRange?.max !== undefined ? `レベル${tf.levelRange.max}以下の`
+        : typeof tf.level === 'number' ? `レベル${tf.level}の`
+        : tf.powerRange?.min !== undefined ? `パワー${tf.powerRange.min}以上の` : '';
+      if (cond) s = `このシグニが対戦相手の${cond}シグニとバトルしたとき`;
+    }
     // ON_PLAY の triggerFilter（クロス/ライズアイコン）を主語に反映（「あなたの《クロスアイコン》を持つシグニが場に出たとき」）
     if (t === 'ON_PLAY' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any') && (e.triggerFilter?.hasCrossIcon || e.triggerFilter?.hasRiseIcon)) {
       const icon = e.triggerFilter.hasCrossIcon ? 'クロスアイコン' : 'ライズアイコン';
