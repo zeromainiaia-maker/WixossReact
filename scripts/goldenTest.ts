@@ -3176,6 +3176,30 @@ test('parse timing 語彙: ON_SIGNI_BATTLE の level/power filter＋basic/front 
   eq(mk('このシグニがシグニ１体をバニッシュしたとき、カードを１枚引く。').timing?.[0], 'ON_SIGNI_BANISH_OPPONENT', 'シグニをバニッシュ（owner無）→OPPONENT');
   eq(mk('このシグニが正面のシグニ１体をバニッシュしたとき、このシグニをアップする。').timing?.[0], 'ON_SIGNI_BANISH_OPPONENT', '正面のシグニをバニッシュ→OPPONENT');
 });
+test('parse timing 語彙: 被バニッシュ状態 filter＋placedFront レベル＋ARTS 色（タスク16[B]第2弾）', () => {
+  const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-T16B2', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  // banishedFilter（被バニッシュシグニの状態限定＝engine battleBanishEntries がバトル前状態で matchesStateFilter 評価）
+  const fz = mk('このシグニがバトルによって対戦相手の凍結状態のシグニをバニッシュしたとき、対戦相手のライフクロス１枚をクラッシュする。');
+  eq(fz.timing?.[0], 'ON_SIGNI_BANISH_OPPONENT', '凍結バニッシュ→OPPONENT');
+  eq(fz.triggerCondition?.banishedFilter?.isFrozen, true, '凍結→banishedFilter.isFrozen');
+  eq(mk('このシグニが感染状態のシグニ１体をバニッシュしたとき、カードを１枚引く。').triggerCondition?.banishedFilter?.infected, true, '感染→banishedFilter.infected（バトルによって明記なし形）');
+  eq(mk('このシグニがバトルによって【チャーム】が付いている対戦相手のシグニをバニッシュしたとき、対戦相手のライフクロス１枚をクラッシュする。').triggerCondition?.banishedFilter?.hasCharm, true, 'チャーム付き→banishedFilter.hasCharm');
+  eq(mk('このシグニがバトルによって対戦相手のシグニをバニッシュしたとき、カードを１枚引く。').triggerCondition?.banishedFilter, undefined, '基本形は banishedFilter を刻まない（過剰限定しない）');
+  // placedFront＋levelRange（engine collectFieldTriggers が placedFront 判定の前に triggerFilter を matchesFilter 評価）
+  const pf = mk('このシグニの正面にレベル２以下のシグニ１体が出たとき、あなたはそのシグニをバニッシュしてもよい。');
+  eq(pf.timing?.[0], 'ON_PLAY', '正面出現→ON_PLAY（placedFront 慣例）');
+  eq(pf.triggerScope, 'any_opp', 'any_opp');
+  eq(pf.triggerCondition?.placedFront, true, 'placedFront');
+  eq(pf.triggerFilter?.levelRange?.max, 2, 'レベル2以下→levelRange.max');
+  const pf2 = mk('対戦相手のレベル２以下のシグニ１体がこのシグニの正面のシグニゾーンに出たとき、カードを１枚引く。');
+  eq(pf2.triggerCondition?.placedFront, true, '「正面のシグニゾーンに出た」語順→placedFront');
+  eq(pf2.triggerFilter?.levelRange?.max, 2, 'levelRange.max=2');
+  eq(mk('このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき、あなたはそれをバニッシュしてもよい。').triggerCondition?.frontLowerLevelThanSource, true, 'より低いレベル→frontLowerLevelThanSource');
+  // ON_ARTS_USE の色 filter（engine collectArtsUseTriggers が使用アーツを matchesFilter 評価）
+  const ar = mk('あなたが緑のアーツを使用したとき、【エナチャージ１】をする。');
+  eq(ar.timing?.[0], 'ON_ARTS_USE', '色付きアーツ使用→ON_ARTS_USE');
+  eq(ar.triggerFilter?.color, '緑', '緑→triggerFilter.color');
+});
 test('parse timing 語彙: リフレッシュしたとき→ON_REFRESH（refreshedOwner を主語から抽出）', () => {
   const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-REF', Type: 'シグニ', EffectText: `【自】：${t}、【エナチャージ１】をする。` } as unknown as CardData)[0];
   eq(mk('あなたがリフレッシュしたとき').triggerCondition?.refreshedOwner, 'self', 'あなた＝self');
