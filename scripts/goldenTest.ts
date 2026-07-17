@@ -1276,26 +1276,28 @@ test('Stage2 ON_BANISH: self バニッシュで自身が発火（WX02-025-E2）'
 });
 // Opusタスク12(vi-4)＋any_ally scope 脱落（続き181）：「あなたの＜X＞のシグニ1体がバニッシュされたとき」は
 // ①味方＜X＞のバニッシュで発火 ②自身が＜X＞なら自分のバニッシュでも発火 ③＜X＞以外では非発火 ④ルリグ watcher でも発火。
+const NON_AKUMA = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('悪魔') && !(c.CardClass ?? '').includes('美巧'));
 test('Stage2 ON_BANISH any_ally: 味方＜悪魔＞のバニッシュで発火・＜悪魔＞以外では非発火（WX02-025-E2）', () => {
   const host = mkState({ signi: ['WX02-025', null, null] }); const guest = mkState({});
   // WD14-011 も精像：悪魔＝triggerFilter{story:悪魔} に一致
   eq(has(cbtEntries(trigCtx(HOST, HOST), 'WD14-011', HOST, host, guest), 'WX02-025-E2'), true, '味方悪魔のバニッシュで発火');
-  // SIGNI（非悪魔）のバニッシュでは triggerFilter で弾かれる
-  eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WX02-025-E2'), false, '悪魔以外は非発火');
+  eq(has(cbtEntries(trigCtx(HOST, HOST), NON_AKUMA, HOST, host, guest), 'WX02-025-E2'), false, '悪魔以外は非発火');
   // 相手のシグニがバニッシュされても any_ally は非発火
   eq(has(cbtEntries(trigCtx(HOST, HOST), 'WD14-011', GUEST, host, guest), 'WX02-025-E2'), false, '相手側バニッシュは非発火');
+  // 自身（＝精像：悪魔）のバニッシュでも発火する＝block1 の any_ally 拡張（場から離れるため field 走査では拾えない）
+  eq(has(cbtEntries(trigCtx(HOST, HOST), 'WX02-025', HOST, host, guest), 'WX02-025-E2'), true, '自身のバニッシュでも発火');
 });
 test('Stage2 ON_BANISH any_ally: excludeSelf（「あなたの他のシグニ」）は自分のバニッシュで非発火（WXDi-P03-042-E2）', () => {
   const host = mkState({ signi: ['WXDi-P03-042', null, null] }); const guest = mkState({});
   eq(has(cbtEntries(trigCtx(HOST, HOST), 'WXDi-P03-042', HOST, host, guest), 'WXDi-P03-042-E2'), false, '自身のバニッシュでは非発火');
-  eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WXDi-P03-042-E2'), true, '他の味方バニッシュで発火');
+  eq(has(cbtEntries(trigCtx(HOST, HOST), NON_AKUMA, HOST, host, guest), 'WXDi-P03-042-E2'), true, '他の味方バニッシュで発火');
 });
 test('Stage2 ON_BANISH any_ally: ルリグ watcher が発火（WX22-011-E2・(vi-4) の LRIGゾーン走査漏れ）', () => {
   // 修正前は collectBanishTriggers が field.signi のみ走査＝ルリグの watcher は構造的に絶対発火しなかった
   const host = mkState({}); host.field.lrig = ['WX22-011']; const guest = mkState({});
-  const bikou = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('美巧'))!;
+  const bikou = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('美巧'));
   eq(has(cbtEntries(trigCtx(HOST, HOST), bikou, HOST, host, guest), 'WX22-011-E2'), true, 'ルリグ watcher が味方＜美巧＞バニッシュで発火');
-  eq(has(cbtEntries(trigCtx(HOST, HOST), SIGNI, HOST, host, guest), 'WX22-011-E2'), false, '美巧以外は非発火');
+  eq(has(cbtEntries(trigCtx(HOST, HOST), NON_AKUMA, HOST, host, guest), 'WX22-011-E2'), false, '美巧以外は非発火');
 });
 test('Stage2 ON_BANISH: any_opp 相手バニッシュで発火・自バニッシュで非発火（WX13-085-E1）', () => {
   const host = mkState({ signi: ['WX13-085', null, null] }); const guest = mkState({});
