@@ -3513,10 +3513,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_CARD_MOVED_TO_DECK: デッキに移動したカードの持ち主と枚数閾値を triggerCondition に抽出。
       //   「あなたの**トラッシュから**カードがN枚以上デッキに移動したとき」（WX22-014）は fromTrash 限定（engine が別カウンタで数える）。
       if (timing[0] === 'ON_CARD_MOVED_TO_DECK') {
-        const cnt = actionText.match(/(?:シグニ|カード)が?([０-９\d]+)[枚体]以上デッキに移動したとき/);
-        const fromTrash = /あなたのトラッシュから[^。]{0,12}デッキに移動したとき/.test(actionText);
-        const owner = /対戦相手の(?:カード|シグニ|トラッシュ)/.test(actionText) ? 'opponent'
-          : (fromTrash || /あなたのカード/.test(actionText)) ? 'self' : 'any';
+        // owner/fromTrash はトリガー句（先頭〜最初の「デッキに移動したとき」）だけで判定する
+        //   ＝action 本体の「対戦相手のシグニ1体を対象とし…」等に誤反応しない（WX09-020）。
+        const trigM = actionText.match(/^[^。]*?デッキに移動したとき/);
+        const trig = trigM ? trigM[0] : actionText;
+        const cnt = trig.match(/(?:シグニ|カード)が?([０-９\d]+)[枚体]以上デッキに移動したとき/);
+        const fromTrash = /あなたのトラッシュから/.test(trig);
+        const owner = /対戦相手の(?:カード|シグニ|トラッシュ)/.test(trig) ? 'opponent'
+          : (fromTrash || /あなたのカード/.test(trig)) ? 'self' : 'any';
         extractedTriggerCondObj = {
           ...(extractedTriggerCondObj ?? {}),
           movedToDeckOwner: owner,
