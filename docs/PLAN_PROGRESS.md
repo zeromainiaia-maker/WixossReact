@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き177・Opus 4.8・タスク16[A]＝clean な残 [A]クラスタを一括消化＝5系統9timing）**
+  - **主題**＝engine collector が完全wired で parser regex のみ不足の [A]を横断消化（engine変更ゼロ）。
+  - **追加timing**＝ON_SIGNI_BATTLE基本形／ON_SIGNI_DAMAGE／ON_RISE risedOntoNameContains／ON_CHARM_TO_TRASH／ON_CARD_MOVED_TO_DECK単数移動（owner はトリガー句限定）／ON_LEAVE_FIELD「場から離れた」／ON_OPP_VIRUS_CHANGED・REMOVED／ON_EXCEED_COST exceedCostPaidByPlayer。
+  - **検証**＝baseline diff で影響16効果のみ・全て ON_PLAY→正しい timing・回帰ゼロ。AUTO9件パッチ（durable）。golden 392→393・census 2027→2026・fallback 123→106・同型★0。詳細 BUGFIXES 続き177。
+
 - **セッション（2026-07-17・続き176・Opus 4.8・タスク16[A]＝「このカードが【アクセ】として…シグニに付いたとき」の timing 語彙化＝ON_ACCE_ATTACH アクセカード自身）**
   - **主題**＝ON_ACCE_ATTACH 群6効果。engine はアクセカード自身の反応を配線済みだったが parser 語彙が無く ON_PLAY 誤フォールバック。
   - **parser**＝`このカードが【アクセ】として…シグニに付いたとき`→ON_ACCE_ATTACH。host条件抽出（accedHostMinLevel/accedHostMaxLevel 新設/accedHostStory 新設）＋`accedSelf`（ルリグ監視版との逆翻訳弁別）。**engine**＝acce-self ループに maxLevel/story ゲート追加。
