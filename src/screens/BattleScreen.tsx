@@ -7894,6 +7894,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
 
+    // ON_SIGNI_DOWN（常時効果によるダウン/フリーズ＝byEffect:true・タスク16[C]機構①）
+    {
+      const downHost  = detectNewlyDowned(bs.host_state, hostState);
+      const downGuest = detectNewlyDowned(bs.guest_state, guestState);
+      if (downHost.length > 0 || downGuest.length > 0) {
+        const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
+          [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], hostState, guestState);
+        allTriggers.push(...dn.entries);
+        if (dn.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...dn.usedHostIds] };
+        if (dn.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...dn.usedGuestIds] };
+      }
+    }
+
     setLoading(true);
     try {
       let newStack = bs.effect_stack as import('../types').EffectStack | null;
