@@ -1861,8 +1861,11 @@ function effJa(e: Eff): string {
         s = `${phaseJa}${subjJa}が${byEffJa}${stateJa}状態になったとき`;
       }
     }
-    // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・fromZones:['hand']＋原因限定）
-    if (t === 'ON_TRASH' && (e.triggerCondition?.byOwnEffect || e.triggerCondition?.trashSourceStory
+    // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・fromZones:['hand']＋原因限定）。
+    // ⚠byOwnEffect は「場から」トラッシュ（fromZones:['field']・WX18-081 等6枚）でも使うため、
+    //   field 起点は自己discard扱いにせず下の「あなたの効果によって場から」ブロックへ渡す。
+    const isFieldOriginTrash = e.triggerCondition?.fromZones?.length === 1 && e.triggerCondition.fromZones[0] === 'field';
+    if (t === 'ON_TRASH' && ((e.triggerCondition?.byOwnEffect && !isFieldOriginTrash) || e.triggerCondition?.trashSourceStory
         || (e.triggerCondition?.byOpponentEffect && e.triggerCondition?.fromZones?.length === 1 && e.triggerCondition.fromZones[0] === 'hand'))) {
       const sdTc = e.triggerCondition;
       const causeJa = sdTc?.trashSourceStory ? `あなたの＜${sdTc.trashSourceStory}＞のシグニの効果によって`
@@ -1917,6 +1920,12 @@ function effJa(e: Eff): string {
         ? s.replace('場からトラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき')
         : s.replace('トラッシュに置かれたとき', '効果によって場からトラッシュに置かれたとき');
     }
+    // ON_TRASH の「あなたの効果によって」限定（相手効果・コスト・バトル・ルール処理では発火しない）
+    if (t === 'ON_TRASH' && e.triggerCondition?.byOwnEffect) {
+      s = s.includes('場からトラッシュに置かれたとき')
+        ? s.replace('場からトラッシュに置かれたとき', 'あなたの効果によって場からトラッシュに置かれたとき')
+        : s.replace('トラッシュに置かれたとき', 'あなたの効果によって場からトラッシュに置かれたとき');
+    }
     // ON_TRASH の「コストか効果によって場から」限定を反映（バトル・ルール処理では発火しない。G204）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrEffect) {
       // fromZones/scope で組み立て済みの主語（self/any_ally/any_opp）を維持したまま原因句を差し込む。
@@ -1925,6 +1934,13 @@ function effJa(e: Eff): string {
       s = s.includes('場からトラッシュに置かれたとき')
         ? s.replace('場からトラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき')
         : s.replace('トラッシュに置かれたとき', 'コストか効果によって場からトラッシュに置かれたとき');
+    }
+    // ON_TRASH の「コストかあなたの効果によって場から」限定（相手効果・バトル・ルール処理では発火しない）
+    if (t === 'ON_TRASH' && e.triggerCondition?.fromFieldByCostOrOwnEffect) {
+      s = s.replace(/^このカード/, 'このシグニ');
+      s = s.includes('場からトラッシュに置かれたとき')
+        ? s.replace('場からトラッシュに置かれたとき', 'コストかあなたの効果によって場からトラッシュに置かれたとき')
+        : s.replace('トラッシュに置かれたとき', 'コストかあなたの効果によって場からトラッシュに置かれたとき');
     }
     // ON_PLAY の「効果によって」限定を反映（手札からの通常召喚では発火しない）
     if (t === 'ON_PLAY' && e.triggerCondition?.bySigniEffect) {

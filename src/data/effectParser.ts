@@ -4049,6 +4049,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/コストか効果によって場からトラッシュに置かれたとき/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromFieldByCostOrEffect: true };
         }
+        // 「あなたの効果によって場から」＝自分の効果起因のみ（相手効果・コスト・バトル・ルール処理を除外）。
+        // 「コストかあなたの効果によって」（下の別軸）を substring で誤捕捉しないよう negative 判定し、
+        // 語順違い「あなたの効果によってこのシグニが場から」も拾う（WX19-073）。6枚。
+        if (!/コストかあなたの効果によって/.test(actionText)
+            && /あなたの効果によって(?:このシグニが)?場からトラッシュに置かれたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
+        }
+        // 「効果によって場から」（「あなたの」「コストか」の前置きなし）＝任意の効果起因（自他問わず）。
+        // コストを含まない narrower 文型。上の own-effect / 下の cost-or-own を substring 誤捕捉しない
+        // よう negative 判定し、語順違い「効果によってこのシグニが場から」も拾う。4枚。
+        else if (!/(?:コストか|あなたの)効果によって/.test(actionText)
+            && /効果によって(?:このシグニが)?場からトラッシュに置かれたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+        }
+        // WXDi-P02-037-E2 は「コストかあなたの効果」限定。広い G204 に丸めると相手効果で誤発火するため別軸で保持する。
+        if (/コストかあなたの効果によって場からトラッシュに置かれたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromFieldByCostOrOwnEffect: true };
+        }
         // 「（あなたのメインフェイズの間、）あなたの[レベルN以下の][＜X＞の]シグニN体が」＝ any_ally の主語を
         // **前置きとしてだけ剥がす**（Opusタスク12(xxxii)・ON_BANISH の any_ally 規則と同根）。既定の self に潰れると
         // watcher 自身がトラッシュされない限り発火せず、ルリグ watcher は構造的に絶対発火しない。
@@ -4058,7 +4076,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         //   （turn_phase は所有者を持たない単一値＝'MAIN'。ATTACK_SIGNI_OP のような OP 接尾辞が無い）ため
         //   IS_MY_TURN と AND し、ターン所有者は収集側の condHas ゲートに判定させる（G150 系と同じ慣例）。
         // 被作用側の状態限定（「【チャーム】が付いている〜」等）は、限定を無言で落とさないよう非マッチ＝据置。
-        const allyTrashM = actionText.match(/^(あなたのメインフェイズの間、)?あなたの(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]+体が(?=(?:コストか効果によって)?(?:場|いずれかの領域)からトラッシュに置かれたとき)(.+)/s);
+        const allyTrashM = actionText.match(/^(あなたのメインフェイズの間、)?あなたの(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]+体が(?=(?:(?:コストか)?(?:あなたの)?効果によって)?(?:場|いずれかの領域)からトラッシュに置かれたとき)(.+)/s);
         if (allyTrashM) {
           extractedTriggerScope = 'any_ally';
           const allyFilter: TargetFilter = {};

@@ -4,6 +4,23 @@
 
 ---
 
+## Opusタスク12(xxxv) 消化＝ON_TRASH「〜によって」近傍表記の過剰発火を根治（(a)(b)(d)＋Opus 検証で byOwnEffect 語彙を追加是正）（2026-07-18・続き186・Codex 実装／Opus 検証・是正）
+
+**経緯**＝(xxxiv)（続き183）の兄弟。ON_TRASH の「効果によって場から」限定が `collectTrashTriggers` で未評価＝バトル/ルール処理でも過剰発火していた系統。Codex CLI（gpt-5.6-sol・high）に (xxxv) を委譲実装させ、Opus が検証。**検証で (a) の意味的取りこぼしを1件発見・是正した**（下記）。
+
+**(a) 「効果によって場から」10枚＝過剰発火の是正**。CSV exact phrase で対象10枚を機械照合（登録どおり増減なし）。**engine `collectTrashTriggers` は cost/effect の二値しか持たなかった**ため、新引数 `byEffectCause`（effect起因＝true／コスト・バトル・ルール処理＝false）を追加し self/any_ally/any_opp の全3ループでゲート。executor 側は field→trash の**コスト支払いだけ**を `TrashAction.asCost`＋`ExecCtx.fieldTrashCostCards`（instanceId 追跡）で記録し、BattleScreen 中央diffが `byEffectCause = !fieldTrashCostCards.has(cardNum)` を渡す（リムーブ・バトルredirect は false）。→ **効果起因=発火／コスト起因=非発火／バトル・ルール=非発火**を分離。
+- **⚠Opus 検証で発見・是正した意味的取りこぼし**＝Codex は10枚一律に `byEffect:true` を付けたが、原文を精査すると**2文型に割れる**：「**効果によって**」4枚（WX18-086/089・WX19-029・WD14-015＝任意の効果起因＝自他問わず発火が正しい）と「**あなたの効果によって**」6枚（WX18-081/082・WX19-044・WX19-073・WXEX2-80・SP27-003＝自分の効果限定＝相手効果では発火しない）。`byEffect` は engine で `causeByOpponent` を見ないため、後者6枚は**相手効果でも誤発火**する。→ 既存の `byOwnEffect`（自己discard反応/ON_LEAVE_FIELD any_opp で「相手効果起因では発火しない」の意味で既に存在）を **ON_TRASH 場から経路にも適用**。parser を「あなたの効果」→`byOwnEffect`／「効果」→`byEffect` に弁別（negative lookahead で相互排他）、engine 3ループに `byOwnEffect && (!byEffectCause || causeByOpponent)` ゲート追加、decompiler は既存 self-discard ブロックが byOwnEffect だけで先取りして「捨てられたとき」に化ける退化を `fromZones:['field']` ガードで回避し「あなたの効果によって場からトラッシュに置かれたとき」を維持。heldReview で6枚を byEffect→byOwnEffect へ採用し直し。
+
+**(b) WXDi-P02-037-E2「コストかあなたの効果によって場から」**＝Codex が新フラグ `fromFieldByCostOrOwnEffect` を新設し厳密実装（コスト／自分の効果で発火・相手効果／バトル／ルール処理で非発火）。any_ally scope 復元・decompiler も原文どおり。暫定残渣なし。
+
+**(d) any_opp watcher の triggerFilter 未評価**＝`collectBanishTriggers` にはあるが `collectTrashTriggers` の any_opp パスに無かった潜在穴（該当実カード0）。any_ally と同じ `excludeSelf`＋`matchesFilter` を追加（続き181 の教訓＝該当0でも parser が emit し始めた時点で実バグ化するため予防封鎖）。
+
+**(c) 「コストか効果によってシグニの下から」3枚（WX18-062/WX22-027/WXK03-033）**＝**§6.3 送り（未実装）**。3枚とも ON_TRASH 効果が1件も無く、原文照合で「下カード→トラッシュ」の detector・timing・collector が engine に無いと確認（`TAKE_FROM_UNDER_SIGNI` はあるが移動検出機構が別途要る）。幻覚 JSON を避け 0件のまま残置。
+
+**JSON leaf diff（HEAD対比・機械照合）**＝変更9カードのみ・全て純加算＝byOwnEffect 6／byEffect 2（WX19-029・WD14-015／WX18-086/089 は既存MANUALで無変更）／fromFieldByCostOrOwnEffect 1（WXDi-P02-037）＋any_ally scope 復元3（WX18-081/082・WXDi-P02-037）。action/condition/parseStatus の変化・新規/消滅効果は**0**。(c)3枚は無改変を機械確認。
+
+**検証**＝`npm run gates` 全緑（golden **420/420**、census **2001/2001**、smoke CRASH/HANG/INVARIANT 0、fuzz 全0、lint error 0）／`npm run regen` 完走・**同型★0**。golden は byEffect/byOwnEffect の parser 弁別・self/any_ally の cost/battle/相手効果 各境界・executor のコスト原因追跡・(b) の4境界・(d) の filter/excludeSelf を、各ゲートを外すと赤になる形で追加（計6テスト・純増）。自己discard byOwnEffect（WXDi-P08-075/P11-069）が「捨てられたとき」のまま無傷なことも確認。
+
 ## §7 driver 横展開＝続き178/179 新 timing filter の実機検証2件を追加（ON_SIGNI_BATTLE level:4／ON_ARTS_USE color:緑）（2026-07-18・続き185・Sonnet作業を codex CLI に委譲→Opus が確認/是正）
 
 **経緯**：無料版 codex CLI（codex-personal）に PLAN §3 Sonnet タスク1「§7 実機検証の横展開」を委譲。codex が `scripts/verifyBattleDrive.mjs` に2シナリオを追加したが、利用上限で driver 実行前に停止＝**未検証**のまま。Opus が確認したところ両シナリオとも FAIL したため、原因を切り分けて是正した（engine バグではなく driver ドライブ手順の不備）。

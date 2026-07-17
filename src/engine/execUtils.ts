@@ -24,6 +24,7 @@ export interface ExecCtx {
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
   autoTargetedCards?: string[]; // 選択UIを経ずに自動対象化したシグニ（targetsTriggerSource/targetsLastProcessed）＝ON_TARGETED 収集用（続き137・タスク12(xx)）
+  fieldTrashCostCards?: string[]; // この解決ラウンドでコストとして場→トラッシュへ置いたinstanceId（ON_TRASH byEffect 原因弁別用）
   // CONTINUOUS保護効果（effectEngine動的計算）: 相手の効果でトラッシュに移動できないゾーン
   // ownerProtected = 効果オーナーの保護, otherProtected = 相手の保護
   otherProtectedZones?: ('hand' | 'energy')[];
@@ -71,8 +72,8 @@ export interface ExecCtx {
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; autoTargetedCards?: string[] }
-  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef };
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[] }
+  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; fieldTrashCostCards?: string[] };
 
 // ===== ユーティリティ =====
 
@@ -199,11 +200,11 @@ export function canPayOptionalCost(costColors: string[], state: PlayerState, car
 }
 
 export function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, autoTargetedCards: ctx.autoTargetedCards };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards };
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
-  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending };
+  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, fieldTrashCostCards: ctx.fieldTrashCostCards };
 }
 
 export function matchesFilter(

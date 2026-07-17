@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-17・続き184・Opus 4.8・タスク12(xxxi) 部分消化＝clean 2枚を根治）**
+  - **成果**＝golden 413→**414**・census **2001**（維持）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き184。
+  - **(xxxi)＝「あなたのセンタールリグのレベル１につきカードを１枚引く」が engine の per-level ドロー語彙欠如で汎用DRAWに先取りされ `DRAW count:1` に潰れる内容欠落**を是正。`POWER_MODIFY_PER_LRIG_LEVEL` に倣い新語彙 **`DRAW_PER_LRIG_LEVEL`**（`drawPerLevel`/`lrigOwner`/`owner`）を types/engine（`execDrawPerLrigLevel`）/parser（汎用DRAW直前に規則追加・`レベル1につき`のみ）/decompiler の4層で新設。clean な2枚 **WX12-013-E1／WDK07-E09-E2** を heldReview で採用（全カード生 diff でこの2枚のみ変化を機械確認）。golden 追加1件（Lv4×1=4枚ドローの回帰ガード）。
+  - **残渣（(xxxi) を縮小登録）**＝(a)「引くか【エナチャージ】」CHOOSE 2枚（WXK10-004-E1／WX26-CP1-003-E1①）＝CHOOSE ごと消え `ENERGY_CHARGE count:1` に潰れ＝エナ枝の `ENERGY_CHARGE_PER_LRIG_LEVEL` 新設＋CHOOSE 構築が要る（重い）／(b)「そのシグニのレベル１につき」1枚（WD21-001-E2）＝めくったカードのレベル比例（lastProcessed level 参照の別機構）。
+
 - **🆕 セッション（2026-07-17・続き183・Codex 実装／Opus 4.8 検証・簿記・タスク12(xxxiii)(xxxiv) 消化＝**完了**）**
   - **成果**＝golden 410→**413**・census **2001**（維持）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き183。
   - **(xxxiii)＝`collectTrashTriggers` の any_opp watcher が usageLimit 未評価**を是正。watcher 側 `state.actions_done` と host/guest 別 `usedIds` を使う `limitOkWatcher` を追加。BattleScreen のリムーブ経路が唯一「watcher も自分側」と誤認して相手 any_opp の usedIds を捨てていたため、`myAfterTrash`／`opAfterTrash` の両 state を永続化するよう是正。**⚠実カード影響は現時点0枚＝予防的封鎖**（ON_TRASH any_opp は `WX04-037-E2` の1件のみで usageLimit を持たない）。golden は実在効果へ `once_per_turn` を合成し watcher=guest の反転盤面で固定。

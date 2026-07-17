@@ -667,6 +667,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
           { ...removed, trash: [...removed.trash, num] }, cur),
           `${cur.cardMap.get(num)?.CardName ?? num}をトラッシュへ`);
       }
+      if (a.asCost && selected.length > 0) {
+        cur = { ...cur, fieldTrashCostCards: [...(cur.fieldTrashCostCards ?? []), ...selected] };
+      }
       return cur;
     }
     if (tgt.count === 'ALL') {
@@ -1184,7 +1187,7 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     return result;
   }
   // 即時配置完了（空きゾーン1つ/空きなし）→ 残りを継続
-  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards });
 }
 
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
@@ -2261,6 +2264,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const trashSelfActionOTS: EffectAction = {
             type: 'TRASH',
             target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
+            asCost: true,
           } as EffectAction;
           const payActionOTS: EffectAction = { type: 'SEQUENCE', steps: [trashSelfActionOTS, conditional.then] } as SequenceAction;
           const optsOTS = [
@@ -2524,7 +2528,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards };
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (step.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = step as import('../types/effects').TrashAction;
@@ -4344,7 +4348,7 @@ export function applyRefreshOnDone(
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
     if (!result.done) return result;
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards };
   }
   cur = { ...cur, lastProcessedCards: selected };
   // selfTrashCost: 「このシグニを場からトラッシュに置いてもよい。そうした場合、それらをバニッシュする」
@@ -4356,7 +4360,11 @@ export function applyRefreshOnDone(
       && cur.ownerState.field.signi.some(s => s?.at(-1) === cur.sourceCardNum)) {
     const selfNum = cur.sourceCardNum;
     const removed = removeFromField(selfNum, cur.ownerState);
-    cur = addLog({ ...cur, ownerState: { ...removed, trash: [...removed.trash, selfNum] } },
+    cur = addLog({
+      ...cur,
+      ownerState: { ...removed, trash: [...removed.trash, selfNum] },
+      fieldTrashCostCards: [...(cur.fieldTrashCostCards ?? []), selfNum],
+    },
       `${cur.cardMap.get(selfNum)?.CardName ?? selfNum}を場からトラッシュに置く`);
   }
   if (pending.continuation) {
@@ -4456,7 +4464,7 @@ export function resumeSearch(
   for (const id of picked) {
     const result = applyDirectAction(pending.thenAction, id, cur);
     if (!result.done) return result;
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards };
   }
   // EVEAL_PICK_HAND_SHUFFLE_BOTTOM
    if (pending.restDest) {
@@ -4526,7 +4534,7 @@ export function resumeSearch(
   }
   if (pending.continuation) {
     // 選択したアクションが処理したシグニ（公開/場出し等）を continuation の「その後、そのシグニより…」が参照できるよう lastProcessedCards を継承
-    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards });
+    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards });
   }
   return result;
 }
@@ -4548,7 +4556,7 @@ export function resumeOptionalCost(
     const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) return result;
     if (pending.continuation) {
-      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards });
     }
     return result;
   }
@@ -4590,7 +4598,7 @@ export function resumeOptionalCost(
   }
   if (pending.continuation) {
     // lastProcessedCards を継承（支払い後の効果が公開/場出し等したシグニを「その後、そのシグニより…」で参照する。WXK10-031）
-    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards });
+    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards });
   }
   return result;
 }
@@ -4619,7 +4627,7 @@ export function resumeOptionalCost(
       return result;
     }
     if (pending.continuation) {
-      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards });
     }
     return result;
   }
@@ -4873,8 +4881,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
           const removed = removeFromField(cardNum, s);
           const newS: PlayerState = { ...removed, trash: [...removed.trash, cardNum] };
-          return done(addLog(setOwnerState(owner, newS, ctx),
-            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
+          const movedCtx = setOwnerState(owner, newS, ctx);
+          const causeCtx = trashAction.asCost
+            ? { ...movedCtx, fieldTrashCostCards: [...(movedCtx.fieldTrashCostCards ?? []), cardNum] }
+            : movedCtx;
+          return done(addLog(causeCtx, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
         }
         return done(ctx);
       }

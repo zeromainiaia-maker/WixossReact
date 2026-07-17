@@ -371,6 +371,7 @@ export function collectAnyZoneTrashSelfTriggers(
  * ON_TRASH トリガーを収集する（Stage2 抽出。「場から」トラッシュ＝field origin が主経路）。
  * causeByOpponent: このトラッシュが対戦相手の効果によるものか（byOpponentEffect ゲート用）。
  * byCostOrEffect: このトラッシュがコストか効果によるものか（fromFieldByCostOrEffect ゲート用。G204）。
+ * byEffectCause: このトラッシュが効果によるものか（コスト・バトル・ルール処理は false。byEffect ゲート用）。
  */
 export function collectTrashTriggers(
   ctx: TrigCtx,
@@ -380,6 +381,7 @@ export function collectTrashTriggers(
   afterGuestState: PlayerState,
   causeByOpponent = false,
   byCostOrEffect = true,
+  byEffectCause = true,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   // usageLimit（《ターン1回/2回》）の消費 effectId を返す（呼び出し元が actions_done へ書き戻す＝ON_BANISH と同型。
@@ -410,8 +412,15 @@ export function collectTrashTriggers(
     }
     // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    // 「効果によって」だけの文型はコストを含まない。effect 起因シグナルが無ければ発火しない。
+    if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+    // 「あなたの効果によって」＝自分の効果起因のみ。コスト・バトル・ルール処理（!byEffectCause）と相手効果（causeByOpponent）を除外。
+    if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
     if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+    // 「コストかあなたの効果によって場から」＝コスト、または trashed owner 自身の効果だけを許可。
+    if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
+        && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
     // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
     if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
     // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
@@ -427,7 +436,11 @@ export function collectTrashTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+      if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+      if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
+          && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       // triggerFilter はトラッシュに置かれたシグニ側の限定。watcher 自身を除く指定もここで評価する。
@@ -460,9 +473,19 @@ export function collectTrashTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+      if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
+      if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+      if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
+          && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_opp') continue; // 'any' は既存の自分側ループで収集済み
+      // any_ally と同じく、トラッシュに置かれたシグニ側へ watcher の triggerFilter を適用する。
+      if (eff.triggerFilter?.excludeSelf && trashedCardNum === topNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
+        if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
+      }
       // 「あなたのターンの間」: IS_MY_TURN 指定があれば watcher がターンプレイヤーのときのみ
       if (condHas(eff.condition, 'IS_MY_TURN') && !watcherIsTurnPlayer) continue;
       if (condHas(eff.condition, 'IS_OPPONENT_TURN') && watcherIsTurnPlayer) continue;

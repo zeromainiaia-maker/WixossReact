@@ -2234,8 +2234,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterGuestState: PlayerState,
     causeByOpponent = false,
     byCostOrEffect = true,
+    byEffectCause = true,
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect);
+    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect, byEffectCause);
 
   /**
    * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
@@ -2608,9 +2609,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const collectBoardDiffTriggers = (
     afterHost: PlayerState,
     afterGuest: PlayerState,
-    meta: { causeOwnerId: string; causeSourceCardNum: string },
+    meta: { causeOwnerId: string; causeSourceCardNum: string; fieldTrashCostCards?: string[] },
   ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
     const { causeOwnerId, causeSourceCardNum } = meta;
+    const fieldTrashCostCards = new Set(meta.fieldTrashCostCards ?? []);
     const beforeHost = bs.host_state, beforeGuest = bs.guest_state;
     let h = afterHost, g = afterGuest;
     const entries: StackEntry[] = [];
@@ -2627,15 +2629,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
 
-    // ON_TRASH: トラッシュに移動したシグニ。原因owner=causeOwnerId と所有者が異なれば「対戦相手の効果によって」。
+    // ON_TRASH: スタック/pending 解決内でも fieldTrashCostCards に記録された支払いは byEffectCause=false、
+    // それ以外の場→トラッシュは effect 起因。原因owner と所有者が異なれば「対戦相手の効果によって」。
     const hostTrashedByOpp  = causeOwnerId === bs.guest_id;
     const guestTrashedByOpp = causeOwnerId === bs.host_id;
     for (const cardNum of detectTrashedSigni(beforeHost, h)) {
-      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp);
+      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp, true, !fieldTrashCostCards.has(cardNum));
       entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     for (const cardNum of detectTrashedSigni(beforeGuest, g)) {
-      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp);
+      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp, true, !fieldTrashCostCards.has(cardNum));
       entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
@@ -3921,7 +3924,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 従来ここに全 collector が並んでいたが、resume 経路（handleEffectInteraction）と共通化するため
         // collectBoardDiffTriggers に集約した。action 型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD/arts）は下に inline 据置。
         {
-          const bd = collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: entry.playerId, causeSourceCardNum: entry.cardNum });
+          const bd = collectBoardDiffTriggers(hostState, guestState, {
+            causeOwnerId: entry.playerId,
+            causeSourceCardNum: entry.cardNum,
+            fieldTrashCostCards: result.fieldTrashCostCards,
+          });
           update.host_state = bd.hostState;
           update.guest_state = bd.guestState;
           if (bd.entries.length > 0) {
@@ -4246,7 +4253,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // （続き70で R30/WXK10-022-E1 が実機FAIL）。done 分岐と同じ統合収集をここでも行う。
         // ⚠ pending_effect が残ったままスタックに積むが、これは従来の ON_BANISH 特例と同じ扱い（pending 解決後に
         //    スタックが処理される）＝新しい実行順序を持ち込むものではない。
-        const midBd = collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: pe.sourcePlayerId, causeSourceCardNum: pe.sourceCardNum });
+        const midBd = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: pe.sourcePlayerId,
+          causeSourceCardNum: pe.sourceCardNum,
+          fieldTrashCostCards: result.fieldTrashCostCards,
+        });
         update.host_state = midBd.hostState;
         update.guest_state = midBd.guestState;
         if (midBd.entries.length > 0) {
@@ -4262,7 +4273,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // resolveStackNext の中央 diff と同一の collectBoardDiffTriggers を呼び、resume 経路（対象選択/CHOOSE を挟んで
         // 完了した効果）でも全トリガー種別を取りこぼさず収集する（従来は banish/bloom/armor/leave/ds/bn/lu/kg/fz の 9 種のみで、
         // ON_OPP_POWER_DECREASED/ON_ENERGY_TO_TRASH/ON_DRAW〔SEQUENCE内対話〕/ON_TRASH self 等を取りこぼしていた・§6.3 続き58/60）。
-        const bd = collectBoardDiffTriggers(hostState, guestState, { causeOwnerId: pe.sourcePlayerId, causeSourceCardNum: pe.sourceCardNum });
+        const bd = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: pe.sourcePlayerId,
+          causeSourceCardNum: pe.sourceCardNum,
+          fieldTrashCostCards: result.fieldTrashCostCards,
+        });
         update.host_state = bd.hostState;
         update.guest_state = bd.guestState;
         const pendingEntries = bd.entries;
@@ -5327,14 +5342,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const opStateKey = isHost ? 'guest_state' : 'host_state';
       // ON_TRASH トリガー（フィールドから直接トラッシュ）
-      // リムーブはルールによる処理でコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
+      // リムーブはルール処理でコスト/効果起因ではない（fromFieldByCostOrEffect/byEffect は発火しない。G204）
       const removeTrashEntries: StackEntry[] = [];
       // ⚠ 引数は host/guest 順（my/op 順ではない）。ゲスト側で my/op を渡すと watcher の場走査が
       //    相手側にすり替わる（any_ally パスが死んでいた続き181 以前は無害だったが (xxxii) で顕在化）。
       let myAfterTrash = newMyState;
       let opAfterTrash = op;
       for (const cn of removedSigniNums) {
-        const tt = collectTrashTriggers(cn, user.id, isHost ? myAfterTrash : opAfterTrash, isHost ? opAfterTrash : myAfterTrash, false, false);
+        const tt = collectTrashTriggers(cn, user.id, isHost ? myAfterTrash : opAfterTrash, isHost ? opAfterTrash : myAfterTrash, false, false, false);
         removeTrashEntries.push(...tt.entries);
         // self/any_ally は自分側、any_opp は相手側の watcher。両側の usageLimit をそれぞれ永続化する。
         const usedMine = isHost ? tt.usedHostIds : tt.usedGuestIds;
@@ -7406,8 +7421,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           );
         });
       if (banishedOpCardNum && redirectBanishForTrigger) {
-        // バトルでのバニッシュ→トラッシュはコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
-        const ttSA = collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState, false, false);
+        // バトルでのバニッシュ→トラッシュはコスト/効果起因ではない（fromFieldByCostOrEffect/byEffect は発火しない。G204）
+        const ttSA = collectTrashTriggers(banishedOpCardNum, defenderId, newHostState, newGuestState, false, false, false);
         trashEntriesSA.push(...ttSA.entries);
         // usageLimit 消費を actions_done へ永続化（直下の ON_LEAVE_FIELD と同型）
         const ttUsedMine = attackerIsHost ? ttSA.usedHostIds : ttSA.usedGuestIds;

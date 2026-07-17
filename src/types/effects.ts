@@ -656,6 +656,7 @@ export interface ExileAction {
 export interface TrashAction {
   type: 'TRASH'; // 指定カードをトラッシュへ
   target: EffectTarget;
+  asCost?: boolean; // true = 効果処理ではなくコスト支払いによる field→trash（ON_TRASH byEffect を発火させない原因追跡用）
   opponentSelects?: boolean; // 「対戦相手は自分の〜1枚を対象とし、それをトラッシュに置く」：対戦相手が自分のカードを選んでトラッシュ（target.owner='opponent'。WX04-009）
   bestEffort?: boolean; // true = 対象がなくても後続SEQUENCEをスキップしない（「手札を1枚捨て、カードをN枚引く（捨てられなくても引く）」の捨て。WDK06-R20/WDK14-022）
   optional?: boolean; // true =「捨ててもよい」（スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WXDi-D08-013/P14-084）
@@ -1645,7 +1646,7 @@ export interface CardEffect {
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
     fromZones?: Array<'hand' | 'deck' | 'energy' | 'field'>; // ON_TRASH の発生源を限定（「手札かデッキから」=['hand','deck']。指定領域からのみ発火。WX04-102）
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
-    byEffect?: boolean; // 効果によって場に出た場合のみ発火（WX11-054等「効果によって場に出たとき」）。手札からの通常召喚では発火しない。ON_SIGNI_DOWN では「効果によってダウン状態になった」限定＝アタック/コスト支払いのダウンでは発火しない（WX05-040/WX14-CB01・公式注釈どおり）
+    byEffect?: boolean; // 効果によるイベントのみ発火。ON_PLAY＝通常召喚を除外、ON_SIGNI_DOWN＝アタック/コストを除外、ON_TRASH＝コスト/バトル/ルール処理を除外（任意の効果起因＝自他問わず。WX18-086等）
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）
     placedFromTrash?: boolean; // トラッシュから場に出た場合のみ発火（「シグニがトラッシュから場に出たとき」。ON_PLAY と併用。配置元がトラッシュかを場出し前後の set-diff で判定）
@@ -1654,6 +1655,7 @@ export interface CardEffect {
     frontLowerLevelThanSource?: boolean; // このシグニ（効果元）の正面に、効果元よりレベルの低いシグニが出た場合のみ発火（WX17-075 タルタル付与。ON_PLAY any_opp と併用）
     placedFront?: boolean; // このシグニ（効果元）の正面ゾーンにトリガー元シグニが配置された場合のみ発火（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」。ON_PLAY any_opp と併用。frontLowerLevelThanSource のレベル条件なし版）
     fromFieldByCostOrEffect?: boolean; // このシグニがコストか効果によって「場から」トラッシュに置かれた場合のみ発火（バトル・ルール処理では発火しない。G204。ON_TRASH と併用）
+    fromFieldByCostOrOwnEffect?: boolean; // 自分のシグニがコストか「あなたの効果」によって場からトラッシュに置かれた場合のみ発火（相手効果・バトル・ルール処理を除外。WXDi-P02-037-E2）
     drawBySourceStory?: string; // このドローの原因が、あなたの場にある指定＜story＞のシグニの効果である場合のみ発火（WX20-026-E3「あなたの場にある＜凶蟲＞のシグニの効果でカードを引いたとき」。ON_DRAW と併用。ドローフェイズの通常ドローやその他カードの効果ドローでは発火しない）
     outsideDrawPhase?: boolean; // ドローフェイズの通常ドロー（マンダトリードロー）では発火せず、それ以外（効果等）で引いたときのみ発火（WXDi-D09-P19/WXDi-P05-062「ドローフェイズ以外であなたがカードを１枚引いたとき」。ON_DRAW と併用）
     drawPhaseRestriction?: 'main_attack' | 'opp_attack'; // ON_DRAW triggerScope:any_opp（対戦相手ドロー）の位相限定。main_attack=メイン/アタックフェイズの間（WXDi-P04-038/PR-423）／opp_attack=対戦相手のアタックフェイズの間（WD22-029-G・対戦相手ターン＋アタック系サブフェイズ）

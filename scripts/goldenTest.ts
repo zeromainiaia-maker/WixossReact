@@ -4176,6 +4176,8 @@ test('parse ON_TRASH: exact phrase 15枚すべてに fromFieldByCostOrEffect を
   // 「コストかあなたの効果によって」は相手効果を除く別条件。広いフラグへ誤って丸めない。
   const narrower = parseCardEffects(cardMap.get('WXDi-P02-037')!).find(x => x.effectId === 'WXDi-P02-037-E2')!;
   eq(narrower.triggerCondition?.fromFieldByCostOrEffect, undefined, 'より狭い別文型は対象外');
+  eq(narrower.triggerCondition?.fromFieldByCostOrOwnEffect, true, 'コストか自分の効果の専用ゲート');
+  eq(narrower.triggerScope, 'any_ally', 'あなたのシグニ1体を監視');
 });
 
 test('collectTrashTriggers: fromFieldByCostOrEffect は self と any_ally watcher の両経路をゲート（Opusタスク12(xxxiv)）', () => {
@@ -4188,6 +4190,156 @@ test('collectTrashTriggers: fromFieldByCostOrEffect は self と any_ally watche
   eq(has(collectTrashTriggers(trigCtx(HOST), 'WX24-P1-067', HOST, host, guest, false, false).entries, selfId), false, 'self はルール処理起因で非発火');
   eq(has(collectTrashTriggers(trigCtx(HOST), 'WXK07-039', HOST, host, guest, false, true).entries, allyId), true, 'any_ally はコスト/効果起因で発火');
   eq(has(collectTrashTriggers(trigCtx(HOST), 'WXK07-039', HOST, host, guest, false, false).entries, allyId), false, 'any_ally はルール処理起因で非発火');
+});
+
+test('parse ON_TRASH: 「効果によって」4枚=byEffect／「あなたの効果によって」6枚=byOwnEffect（Opusタスク12(xxxv-a)）', () => {
+  // 「効果によって」＝任意の効果起因（自他問わず）。相手効果でも発火する。
+  const anyEffect = ['WX18-086', 'WX18-089', 'WX19-029', 'WD14-015'];
+  // 「あなたの効果によって」＝自分の効果起因のみ（相手効果は除外）。
+  const ownEffect = ['WX18-081', 'WX18-082', 'WX19-044', 'WX19-073', 'WXEX2-80', 'SP27-003'];
+  for (const cardNum of anyEffect) {
+    const e = parseCardEffects(cardMap.get(cardNum)!).find(x => x.timing?.includes('ON_TRASH'))!;
+    eq(e.triggerCondition?.byEffect, true, `${cardNum} は任意効果起因`);
+    eq(e.triggerCondition?.byOwnEffect, undefined, `${cardNum} を own-effect へ狭めない`);
+    eq(e.triggerCondition?.fromFieldByCostOrEffect, undefined, `${cardNum} をコスト込みへ丸めない`);
+  }
+  for (const cardNum of ownEffect) {
+    const e = parseCardEffects(cardMap.get(cardNum)!).find(x => x.timing?.includes('ON_TRASH'))!;
+    eq(e.triggerCondition?.byOwnEffect, true, `${cardNum} は自分の効果限定`);
+    eq(e.triggerCondition?.byEffect, undefined, `${cardNum} を任意効果へ広げない`);
+    eq(e.triggerCondition?.fromFieldByCostOrEffect, undefined, `${cardNum} をコスト込みへ丸めない`);
+  }
+  // 語順違い「あなたの効果によってこのシグニが場から」も own-effect 限定（WX19-073）。
+  const reordered = parseCardEffects(cardMap.get('WX19-073')!).find(x => x.effectId === 'WX19-073-E1')!;
+  eq(reordered.triggerCondition?.byOwnEffect, true, '語順違いも own-effect で捕捉');
+});
+
+test('collectTrashTriggers: byEffect は self/any_ally ともルール処理を除外（Opusタスク12(xxxv-a)）', () => {
+  const selfBase = effectsMap.get('WX24-P1-067')!.find(e => e.effectId === 'WX24-P1-067-E1')!;
+  const allyBase = effectsMap.get('WXK07-066')!.find(e => e.effectId === 'WXK07-066-E1')!;
+  const selfId = 'TEST-ON-TRASH-BY-EFFECT-SELF';
+  const allyId = 'TEST-ON-TRASH-BY-EFFECT-ALLY';
+  const syntheticEffects = new Map(effectsMap);
+  syntheticEffects.set('WX24-P1-067', [{
+    ...selfBase,
+    effectId: selfId,
+    triggerScope: 'self',
+    triggerCondition: { fromZones: ['field'], byEffect: true },
+  }]);
+  syntheticEffects.set('WXK07-066', [{
+    ...allyBase,
+    effectId: allyId,
+    triggerScope: 'any_ally',
+    triggerCondition: { fromZones: ['field'], byEffect: true },
+  }]);
+  const ctx = { ...trigCtx(HOST), effectsMap: syntheticEffects };
+  const host = mkState({ signi: ['WXK07-066', null, null] });
+  const guest = mkState({});
+
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, true, true).entries, selfId), true, 'self は効果起因で発火');
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, true, false).entries, selfId), false, 'self はコスト起因で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, false, false).entries, selfId), false, 'self はバトル/ルール処理で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WXK07-039', HOST, host, guest, false, true, true).entries, allyId), true, 'any_ally は効果起因で発火');
+  eq(has(collectTrashTriggers(ctx, 'WXK07-039', HOST, host, guest, false, true, false).entries, allyId), false, 'any_ally はコスト起因で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WXK07-039', HOST, host, guest, false, false, false).entries, allyId), false, 'any_ally はバトル/ルール処理で非発火');
+});
+
+test('collectTrashTriggers: byOwnEffect は自分の効果のみ（相手効果/コスト/ルール処理を除外）（Opusタスク12(xxxv-a)）', () => {
+  const selfBase = effectsMap.get('WX24-P1-067')!.find(e => e.effectId === 'WX24-P1-067-E1')!;
+  const allyBase = effectsMap.get('WXK07-066')!.find(e => e.effectId === 'WXK07-066-E1')!;
+  const selfId = 'TEST-ON-TRASH-BY-OWN-EFFECT-SELF';
+  const allyId = 'TEST-ON-TRASH-BY-OWN-EFFECT-ALLY';
+  const syntheticEffects = new Map(effectsMap);
+  syntheticEffects.set('WX24-P1-067', [{
+    ...selfBase, effectId: selfId, triggerScope: 'self',
+    triggerCondition: { fromZones: ['field'], byOwnEffect: true },
+  }]);
+  syntheticEffects.set('WXK07-066', [{
+    ...allyBase, effectId: allyId, triggerScope: 'any_ally',
+    triggerCondition: { fromZones: ['field'], byOwnEffect: true },
+  }]);
+  const ctx = { ...trigCtx(HOST), effectsMap: syntheticEffects };
+  const host = mkState({ signi: ['WXK07-066', null, null] });
+  const guest = mkState({});
+  // 引数: (…, causeByOpponent, byCostOrEffect, byEffectCause)
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, true, true).entries, selfId), true, 'self は自分の効果起因で発火');
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, true, true, true).entries, selfId), false, 'self は相手効果起因で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, true, false).entries, selfId), false, 'self はコスト起因で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WX24-P1-067', HOST, host, guest, false, false, false).entries, selfId), false, 'self はバトル/ルール処理で非発火');
+  eq(has(collectTrashTriggers(ctx, 'WXK07-039', HOST, host, guest, false, true, true).entries, allyId), true, 'any_ally は自分の効果起因で発火');
+  eq(has(collectTrashTriggers(ctx, 'WXK07-039', HOST, host, guest, true, true, true).entries, allyId), false, 'any_ally は相手効果起因で非発火');
+});
+
+test('effectExecutor: field→trash のコストだけを原因シグナルへ記録（Opusタスク12(xxxv-a)）', () => {
+  const owner = mkState({ signi: [SIGNI, null, null] });
+  const other = mkState({});
+  const makeEffect = (asCost: boolean): CardEffect => ({
+    effectId: `TEST-FIELD-TRASH-${asCost ? 'COST' : 'EFFECT'}`,
+    effectType: 'AUTO',
+    timing: ['ON_PLAY'],
+    mandatory: true,
+    action: {
+      type: 'SEQUENCE',
+      steps: [{
+        type: 'TRASH',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+        ...(asCost ? { asCost: true } : {}),
+      }],
+    },
+    parseStatus: 'AUTO',
+  });
+  const exec = (asCost: boolean) => executeEffect(makeEffect(asCost), {
+    ownerState: owner, otherState: other, cardMap, logs: [], sourceCardNum: SIGNI,
+  });
+  const costResult = exec(true);
+  const effectResult = exec(false);
+  eq(costResult.done, true, 'コストTRASH完了');
+  eq(effectResult.done, true, '効果TRASH完了');
+  if (!costResult.done || !effectResult.done) throw new Error('unexpected pending');
+  eq(costResult.fieldTrashCostCards?.includes(SIGNI), true, 'コストだけinstanceIdを記録');
+  eq(effectResult.fieldTrashCostCards, undefined, '通常効果はコスト扱いしない');
+});
+
+test('collectTrashTriggers: コストか自分の効果限定は相手効果/ルール処理を除外（Opusタスク12(xxxv-b)）', () => {
+  const base = effectsMap.get('WXDi-P02-037')!.find(e => e.effectId === 'WXDi-P02-037-E2')!;
+  const effectId = 'TEST-ON-TRASH-COST-OR-OWN-EFFECT';
+  const synthetic = {
+    ...base,
+    effectId,
+    triggerScope: 'any_ally',
+    triggerCondition: { fromZones: ['field'], fromFieldByCostOrOwnEffect: true },
+  } as CardEffect;
+  const syntheticEffects = new Map(effectsMap);
+  syntheticEffects.set('WXDi-P02-037', [synthetic]);
+  const ctx = { ...trigCtx(HOST), effectsMap: syntheticEffects };
+  const host = mkState({ signi: ['WXDi-P02-037', null, null] });
+  const guest = mkState({});
+
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, true, false).entries, effectId), true, 'コスト起因で発火');
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, true, true).entries, effectId), true, '自分の効果起因で発火');
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, true, true, true).entries, effectId), false, '相手効果起因で非発火');
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, false, false).entries, effectId), false, 'バトル/ルール処理で非発火');
+});
+
+test('collectTrashTriggers: any_opp watcher は triggerFilter/excludeSelf を評価（Opusタスク12(xxxv-d)）', () => {
+  const base = effectsMap.get('WX04-037')!.find(e => e.effectId === 'WX04-037-E2')!;
+  const filterId = 'TEST-ON-TRASH-ANY-OPP-FILTER';
+  const excludeId = 'TEST-ON-TRASH-ANY-OPP-EXCLUDE-SELF';
+  const AKUMA = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+  const NON_AKUMA_TRASH = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('悪魔'));
+  const host = mkState({});
+  const guest = mkState({ signi: ['WX04-037', null, null] });
+
+  const filterEffects = new Map(effectsMap);
+  filterEffects.set('WX04-037', [{ ...base, effectId: filterId, triggerFilter: { story: '悪魔' } }]);
+  const filterCtx = { ...trigCtx(GUEST), effectsMap: filterEffects };
+  eq(has(collectTrashTriggers(filterCtx, AKUMA, HOST, host, guest).entries, filterId), true, '一致filterは発火');
+  eq(has(collectTrashTriggers(filterCtx, NON_AKUMA_TRASH, HOST, host, guest).entries, filterId), false, '不一致filterは非発火');
+
+  const excludeEffects = new Map(effectsMap);
+  excludeEffects.set('WX04-037', [{ ...base, effectId: excludeId, triggerFilter: { excludeSelf: true } }]);
+  const excludeCtx = { ...trigCtx(GUEST), effectsMap: excludeEffects };
+  eq(has(collectTrashTriggers(excludeCtx, 'WX04-037', HOST, host, guest).entries, excludeId), false, 'excludeSelfは同一instanceを除外');
 });
 
 test('collectArmorTriggers: any_ally watcher は story filter を評価（Opusタスク12(xxxii)）', () => {
