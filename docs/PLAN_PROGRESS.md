@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き174・Fable 5・Opusタスク12(xxiii) 残3枚を消化＝(xxiii) 8枚全件クローズ）**
+  - **✅SPDi47-03-E2**（本体丸ごと消失）＝DRAW3＋「手札を好きな枚数捨てる」＋2段閾値（1枚以上→相手シグニをデッキ下／8枚以上→追加で相手ライフクロスをデッキ下）を完全復元。**engine 語彙2本新設**＝`TRASH{HAND_CARD, ALL+upToCount}` の好きな枚数対話分岐／`execTransferToDeck` の `LIFE_CLOTH_CARD` 分岐（lastProcessedCards 非上書き）。
+  - **✅SPDi47-05-E2**（バニッシュ置換ルール消失）＝`BANISH_REDIRECT{redirectTo:'exile'}` を新設。
+  - **✅WX24-P4-016-E3**（GRANT_KEYWORD「マジックボックス」幻覚）＝正直 STUB 2本へ置換。
+  - census 2028→**2027**・golden 385→**388**・smoke/fuzz 全0・同型★0。詳細 BUGFIXES 続き174。
+
 - **🆕 セッション（2026-07-17・続き173・Fable 5・Opusタスク12(xxiii) 本丸＝WX25-P1-00X系列のルリグ複数【起】エクシード能力付与を語彙化＋pick脱落の規則順序バグ是正）**
   - **✅(xxiii) の最深刻バグ（WX25-P1-001/003/005/007/009＝5枚）を消化**＝「センタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード１：…×3』」が付与構造ごと欠落し3能力を即時全実行していたのを、parser 文型1本（`GRANT_LRIG_ABILITY{targetedCenter}`）＋型＋decompiler 表示で是正。**トリアージの「§6.3級の新規GRANT機構が要る」は誤り＝engine 受け皿（executor→`lrig_granted_auto_effects`→BattleScreen 付与【起】列挙→`executeLrigGranted` エクシード支払い→ターン境界リセット3箇所）は完備済みで、欠けていたのは parser のみ**。
   - **✅副産物＝pick脱落の規則順序バグ（系統15枚）**＝「デッキ上N枚見る→その中からカードをN枚まで手札に加え、残りを好きな順番でデッキ下」が汎用デッキ/トラッシュ規則に飲まれ `LOOK_AND_REORDER` へ縮退（手札加え丸ごと脱落）。狭い専用規則で `REVEAL_AND_PICK{pickUpTo}` へ（**汎用規則の順序入替＋regex緩和は125枚波及・複合文退化混在のため差し戻し**＝全カード生パースdiffで25枚のみ・全件pick復元方向を機械確認してから採用）。heldReview 採用18枚＋MANUAL兄弟温存2枚（SPDi43-28-E2/WX25-P3-001-E1）は直接パッチ（`scripts/archive/patch_pickdrop_manual2.mjs`）。
