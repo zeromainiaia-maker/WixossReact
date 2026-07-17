@@ -2004,7 +2004,7 @@ test('引用付与（対象形式）: WX25-P1-001 が RECOLLECT_GATE + GRANT_LRI
 // （SIGNI分岐と同形の移植）＋捨て枚数を LAST_PROCESSED_COUNT_GTE の2段閾値（8→ライフ→デッキ下／1→シグニ→デッキ下）
 // が連鎖で読めること。⚠LIFE_CLOTH_CARD 転送は lastProcessedCards を上書きしない設計（GTE8発火後も GTE1 が捨て枚数を見る）。
 {
-  const spdi47Chain = (lifeThenSigni: boolean): EffectAction => ({ type: 'SEQUENCE', steps: [
+  const spdi47Chain = (): EffectAction => ({ type: 'SEQUENCE', steps: [
     { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true } },
     { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 8 },
       then: { type: 'TRANSFER_TO_DECK', source: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 }, shuffle: false, position: 'bottom' } },
