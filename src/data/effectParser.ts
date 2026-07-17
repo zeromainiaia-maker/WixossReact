@@ -3558,6 +3558,24 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         extractedTriggerScope = 'any_opp';
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFront: true };
       }
+      // ON_PLAY + placedFront＋レベル filter（「このシグニの正面に（レベルN以下の）シグニN体が出たとき」WX17-075-E1／
+      //   「（対戦相手の）レベルN以下のシグニN体がこのシグニの正面のシグニゾーンに出たとき」WXDi-P02-083）: 相手の配置に
+      //   反応（any_opp）。レベル条件はトリガー元シグニへの triggerFilter（collectFieldTriggers が matchesFilter で評価）。
+      //   trigText（効果ブロック先頭のトリガー句）のみ判定＝本文中の同型句には誤反応しない。
+      if (timing[0] === 'ON_PLAY') {
+        const pfM = trigText.match(/このシグニの正面に(?:レベル([０-９\d]+)以下の)?シグニ(?:[０-９\d]+体)?が出たとき/)
+          ?? trigText.match(/(?:対戦相手の)?レベル([０-９\d]+)以下のシグニ(?:[０-９\d]+体)?がこのシグニの正面のシグニゾーンに出たとき/);
+        if (pfM) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFront: true };
+          if (pfM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), levelRange: { max: parseInt(toHalf(pfM[1]), 10) } };
+        }
+        // frontLowerLevelThanSource（WX17-075-E3 付与内）: このシグニより低いレベルのシグニが正面に出たときのみ発火。
+        if (/このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき/.test(trigText)) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), frontLowerLevelThanSource: true };
+        }
+      }
       // ON_LEAVE_FIELD + leftToZone:'hand'（「シグニN体が場から手札に戻ったとき」）: 主語で scope を決める
       //   （「あなたのシグニ」＝any_ally／主語なしの「シグニ1体が」＝any＝どちらの場のシグニでも反応）。
       if (timing[0] === 'ON_LEAVE_FIELD' && /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText)) {
