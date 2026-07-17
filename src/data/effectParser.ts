@@ -3281,7 +3281,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ON_SIGNI_BANISH_OPPONENT を triggerScope/usageLimit/condition 込みで収集する `battleBanishEntries`）。
              // 従来 parser がこの語彙を持たず **ON_PLAY へ誤フォールバック**していたため、31枚が「バトルでバニッシュ
              // したとき」ではなく「場に出たとき」に発火する幻覚になっていた（続き75で是正）。scope は下で抽出。
-             : trigText.match(/バトルによって(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             // 被バニッシュ側の状態限定（「【チャーム】が付いている／凍結状態の／感染状態の」＝WXEX2-76/WXK02-054 等）は
+             // triggerCondition.banishedFilter に下で抽出（engine はバトル前状態で matchesStateFilter 評価＝タスク16[B]）。
+             : trigText.match(/バトルによって(?:【チャーム】が付いている)?(?:対戦相手の)?(?:凍結状態の|感染状態の)?シグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 同上の「バトルによって」が明記されない表記（19件）。**効果によるバニッシュは必ず「効果によって」と
              // 明記される**ため、明記が無い＝バトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体を
              // バニッシュしたとき」等）。上の BY_EFFECT 判定が先に走るので効果バニッシュを奪わない。
