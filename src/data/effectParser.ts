@@ -3286,6 +3286,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 明記される**ため、明記が無い＝バトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体を
              // バニッシュしたとき」等）。上の BY_EFFECT 判定が先に走るので効果バニッシュを奪わない。
              : trigText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             // 「このシグニが（対戦相手の）シグニとバトルしたとき」「このシグニがバトルしたとき」（レベル/パワー限定**なし**の基本形・§3 Opusタスク16）。
+             // engine 配線済み＝BattleScreen の collectBattleTrig（参加した両シグニ自身の ON_SIGNI_BATTLE を scope self で収集）。
+             // ⚠「レベルN(以下)の/パワーN以上のシグニとバトル」は engine が battleOpponent の filter を見ない＝過剰発火になるため拾わない（[B]）。
+             //   `対戦相手のシグニ` の直後に「とバトル」が来るケースだけ拾う（間に「レベル…/パワー…」が入る filter 付きは非マッチ）。
+             : /このシグニが(?:対戦相手の)?シグニとバトルしたとき|このシグニがバトルしたとき/.test(trigText) ? ['ON_SIGNI_BATTLE']
+             // 「このシグニが対戦相手にダメージを与えたとき」「対戦相手がダメージを受けたとき」（§3 Opusタスク16）。engine 配線済み
+             // ＝BattleScreen の damageEntries（アタックで相手ライフをクラッシュした攻撃側シグニ自身を scope self で収集）。
+             : /このシグニが対戦相手にダメージを与えたとき|対戦相手がダメージを受けたとき/.test(trigText) ? ['ON_SIGNI_DAMAGE']
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
              : trigText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
              // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
