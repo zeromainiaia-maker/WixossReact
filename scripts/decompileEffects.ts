@@ -311,7 +311,7 @@ function condJa(c?: any): string {
     case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}`;
     case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
     case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
-    case 'LAST_PROCESSED_COUNT_GTE': return `この方法でカードを${numJa(c.value)}枚以上手札に加えた`;
+    case 'LAST_PROCESSED_COUNT_GTE': return `この方法でカードを${numJa(c.value)}枚以上${c.verbJa ?? '手札に加えた'}`;
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
     case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;
