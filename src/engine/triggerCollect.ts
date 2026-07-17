@@ -1361,14 +1361,22 @@ export function collectHandDiscardTriggers(
       });
     }
   }
-  // ON_HAND_DISCARDED 'any': discarder の相手フィールドの「いずれかが捨てたとき」を相手コントローラーで収集。
-  if (opState && opId && !opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
-    for (const stack of opState.field.signi) {
-      const topNum = stack?.at(-1);
+  // ON_HAND_DISCARDED 'any'/'any_opp': discarder の相手フィールド（センタールリグ＋シグニ）の watcher を
+  // 相手コントローラーで収集。'any'＝いずれかが捨てたとき（自分の捨ても含む）／'any_opp'＝対戦相手（＝discarder）
+  // が捨てたときのみ（「あなたの効果によって対戦相手が手札を捨てたとき」WXDi-P04-063 等・続き175・Opusタスク16）。
+  // LRIG は BLOCK_OWN_SIGNI_AUTO の対象外（シグニ限定）＝別途走査（続き96 の path1 と同じ扱い）。
+  if (opState && opId) {
+    const oppBlocked = !!opState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+    const oppSources: Array<{ num: string | undefined; isLrig: boolean }> = [
+      { num: opState.field.lrig.at(-1), isLrig: true },
+      ...opState.field.signi.map(s => ({ num: s?.at(-1), isLrig: false })),
+    ];
+    for (const { num: topNum, isLrig } of oppSources) {
       if (!topNum) continue;
+      if (oppBlocked && !isLrig) continue;
       for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
-        if (eff.triggerScope !== 'any') continue;
+        if (eff.triggerScope !== 'any' && eff.triggerScope !== 'any_opp') continue;
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
           const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
