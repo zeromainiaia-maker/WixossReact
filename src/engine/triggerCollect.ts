@@ -1328,6 +1328,8 @@ export function collectHandDiscardTriggers(
     if (!topNum) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+      // any_opp＝「対戦相手が捨てたとき」＝discarder 自身の場では発火しない（相手フィールド path で拾う）。
+      if (eff.triggerScope === 'any_opp') continue;
       const isAny = eff.triggerScope === 'any';
       if (myBlocked) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
