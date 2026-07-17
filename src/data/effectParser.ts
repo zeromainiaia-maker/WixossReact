@@ -3289,7 +3289,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「このシグニが（対戦相手の）（レベルN(以下)の／パワーN以上の）シグニとバトルしたとき」「このシグニがバトルしたとき」（§3 Opusタスク16）。
              // engine 配線済み＝BattleScreen の collectBattleTrig（参加した両シグニ自身の ON_SIGNI_BATTLE を scope self で収集・
              //   バトル相手の level/power は triggerFilter で評価＝続き178）。filter は下で抽出。
-             : /このシグニが対戦相手の(?:レベル[０-９\d]+以下の|レベル[０-９\d]+の|パワー[０-９\d]+以上の)?シグニとバトルしたとき|このシグニがバトルしたとき/.test(trigText) ? ['ON_SIGNI_BATTLE']
+             : /このシグニが(?:対戦相手の)?(?:レベル[０-９\d]+以下の|レベル[０-９\d]+の|パワー[０-９\d]+以上の)?シグニとバトルしたとき|このシグニがバトルしたとき/.test(trigText) ? ['ON_SIGNI_BATTLE']
              // 「このシグニが対戦相手にダメージを与えたとき」「対戦相手がダメージを受けたとき」（§3 Opusタスク16）。engine 配線済み
              // ＝BattleScreen の damageEntries（アタックで相手ライフをクラッシュした攻撃側シグニ自身を scope self で収集）。
              : /このシグニが対戦相手にダメージを与えたとき|対戦相手がダメージを受けたとき/.test(trigText) ? ['ON_SIGNI_DAMAGE']
