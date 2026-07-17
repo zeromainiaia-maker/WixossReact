@@ -3579,6 +3579,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (storyM) cond.accedHostStory = storyM[1];
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...cond };
       }
+      // ON_EXCEED_COST（あなたが支払ったとき変種）: exceedCostPaidByPlayer を刻む（場のシグニ側で発火する別経路）。
+      if (timing[0] === 'ON_EXCEED_COST' && /あなたがエクシードのコストを支払ったとき/.test(actionText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), exceedCostPaidByPlayer: true };
+      }
       // ON_CHARM_TO_TRASH: 発生源フィールドを triggerScope に（「対戦相手の場にある」＝any_opp／「あなたの場にある」＝any_ally／無指定＝any 既定）。
       if (timing[0] === 'ON_CHARM_TO_TRASH') {
         if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
