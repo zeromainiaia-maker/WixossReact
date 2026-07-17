@@ -174,6 +174,9 @@ export interface PlayerState {
   banish_redirect?: boolean;
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る（BANISH_REDIRECT_TO_HAND）
   banish_redirect_to_hand?: boolean;
+  // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンに置かれる代わりにゲームから除外される
+  // （BANISH_REDIRECT redirectTo:'exile'＝SPDi47-05。除外ゾーン未実装＝どのゾーンにも置かず取り除く近似）
+  banish_redirect_to_exile?: boolean;
   // このターン、パワーが0以下のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（所有者問わず。WX04-038-E1）
   power0_banish_to_trash?: boolean;
   // このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
