@@ -167,9 +167,7 @@ export function collectCoinPaidTriggers(
   const usedIds: string[] = [];
   const limitOk = mkLimitOk(afterPayerState.actions_done, usedIds);
   const payerIsTurn = ctx.activeUserId === payerId;
-  for (const stack of afterPayerState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  for (const topNum of ownFieldSources(afterPayerState)) {
     for (const eff of effsOf(ctx, topNum)) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_COIN_PAID')) continue;
       const scope = eff.triggerScope ?? 'self';
