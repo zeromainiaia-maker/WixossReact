@@ -5459,9 +5459,20 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return done(addLog(setOwnerState(psOwner, { ...psS, temp_power_mods: psMods }, ctx),
         `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のパワーを${psValue}に`));
     }
+    case 'STORY_CHANGE': {
+      // 外部SELECT_TARGET経由で選ばれた単一シグニのストーリーを書き換える。execStoryChange と同じ。
+      // case が無いと default→execStoryChange 再実行で同一 SELECT_TARGET 再発行＝無限ループになる。
+      const scA = action as StoryChangeAction;
+      const scOwner: Owner = scA.target.owner === 'any'
+        ? (ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent')
+        : scA.target.owner as Owner;
+      const scS = ownerState(scOwner, ctx);
+      const scOverrides = { ...(scS.story_overrides ?? {}), [cardNum]: scA.newStory };
+      return done(addLog(setOwnerState(scOwner, { ...scS, story_overrides: scOverrides }, ctx),
+        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}のストーリーを${scA.newStory}に変更`));
+    }
     default:
       // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
-      if (process.env.ADA_PROBE) console.error(`ADA_DEFAULT\t${action.type}\t${(action as { stubId?: string }).stubId ?? ''}`);
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }
