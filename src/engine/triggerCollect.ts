@@ -497,10 +497,8 @@ export function collectBanishTriggers(
     });
   }
 
-  // 2. 自分フィールド上シグニのトリガー
-  for (const stack of myAfterState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  // 2. 自分フィールド上シグニ＋ルリグのトリガー
+  for (const topNum of ownFieldSources(myAfterState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
       const scope = eff.triggerScope ?? 'self';
