@@ -3286,6 +3286,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 明記される**ため、明記が無い＝バトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体を
              // バニッシュしたとき」等）。上の BY_EFFECT 判定が先に走るので効果バニッシュを奪わない。
              : trigText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             // 「このシグニが（正面の）シグニN体をバニッシュしたとき」（「対戦相手の」明記なし・バトルバニッシュ・§3 Opusタスク16）。
+             //   バトルでバニッシュする相手は常に正面＝相手シグニなので owner/正面 filter は不要（WX17-046 英知=7／WXK04-044 血晶武装 granted）。
+             //   ⚠「効果によって」「あなたのシグニを」は含まない（前者は上の BY_EFFECT、後者は主語違いで非マッチ）。感染/チャーム付き等の filter 付きは engine 未対応で別途（[B]）。
+             : /このシグニが(?:正面の)?シグニ(?:[０-９\d]+体)?をバニッシュしたとき/.test(trigText) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 「このシグニが（対戦相手の）（レベルN(以下)の／パワーN以上の）シグニとバトルしたとき」「このシグニがバトルしたとき」（§3 Opusタスク16）。
              // engine 配線済み＝BattleScreen の collectBattleTrig（参加した両シグニ自身の ON_SIGNI_BATTLE を scope self で収集・
              //   バトル相手の level/power は triggerFilter で評価＝続き178）。filter は下で抽出。
