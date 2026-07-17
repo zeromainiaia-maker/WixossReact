@@ -5328,8 +5328,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_TRASH トリガー（フィールドから直接トラッシュ）
       // リムーブはルールによる処理でコスト/効果起因ではない（fromFieldByCostOrEffect は発火しない。G204）
       const removeTrashEntries: StackEntry[] = [];
+      // ⚠ 引数は host/guest 順（my/op 順ではない）。ゲスト側で my/op を渡すと watcher の場走査が
+      //    相手側にすり替わる（any_ally パスが死んでいた続き181 以前は無害だったが (xxxii) で顕在化）。
+      let myAfterTrash = newMyState;
       for (const cn of removedSigniNums) {
-        removeTrashEntries.push(...collectTrashTriggers(cn, user.id, newMyState, op, false, false));
+        const tt = collectTrashTriggers(cn, user.id, isHost ? myAfterTrash : op, isHost ? op : myAfterTrash, false, false);
+        removeTrashEntries.push(...tt.entries);
+        // リムーブしたのは自分のシグニ＝watcher も自分側。消費 usageLimit を自分の actions_done へ書き戻す。
+        const used = isHost ? tt.usedHostIds : tt.usedGuestIds;
+        if (used.length > 0) myAfterTrash = { ...myAfterTrash, actions_done: [...(myAfterTrash.actions_done ?? []), ...used] };
       }
       if (removeTrashEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
