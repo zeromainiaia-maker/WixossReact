@@ -3448,6 +3448,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「対戦相手のシグニN体がこのシグニの正面に配置されたとき」（3件）。engine 配線済み
              // （collectFieldTriggers の `triggerCondition.placedFront`＝正面ゾーン一致を判定）。timing は ON_PLAY のまま。
              : /対戦相手のシグニ(?:[０-９\d]+体)?がこのシグニの正面に配置されたとき/.test(trigText) ? ['ON_PLAY']
+             // 「このシグニの正面に（レベルN以下の）シグニN体が出たとき」（WX17-075-E1）／「（対戦相手の）レベルN以下の
+             //   シグニN体がこのシグニの正面のシグニゾーンに出たとき」（WXDi-P02-083）＝placedFront＋レベル filter（タスク16[B]）。
+             //   engine 配線済み（collectFieldTriggers は placedFront 判定の**前に** triggerFilter を matchesFilter 評価）。
+             //   timing は ON_PLAY のまま・scope/cond/filter は下で抽出。
+             : /このシグニの正面に(?:レベル[０-９\d]+以下の)?シグニ(?:[０-９\d]+体)?が出たとき/.test(trigText) ? ['ON_PLAY']
+             : /(?:対戦相手の)?レベル[０-９\d]+以下のシグニ(?:[０-９\d]+体)?がこのシグニの正面のシグニゾーンに出たとき/.test(trigText) ? ['ON_PLAY']
+             // 「このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき」（WX17-075-E3 の付与内【自】）＝
+             //   frontLowerLevelThanSource（engine 配線済み・レベル比較は collectFieldTriggers が行う）。cond は下で抽出。
+             : /このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき/.test(trigText) ? ['ON_PLAY']
              // 「（あなたの）シグニN体が場から手札に戻ったとき」（4件）。engine 配線済み
              // （collectLeaveFieldTriggers の `triggerCondition.leftToZone:'hand'`＝離れたカードが手札に在中する場合のみ）。
              : /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
