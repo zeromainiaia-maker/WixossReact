@@ -1215,6 +1215,24 @@ test('LRIG走査漏れ collectHandDiscardTriggers: 自LRIG watcher（WXEX2-12 ON
   const host = mkState({}); host.field.lrig = ['WXEX2-12'];
   eq(fired(collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], host, HOST, false).entries, 'WXEX2-12-E2'), true, '自LRIG watcher 発火');
 });
+// 続き175（Opusタスク16）: any_opp「（あなたの効果によって）対戦相手が手札を捨てたとき」＝相手フィールド watcher が
+// 相手（discarder）の手札捨てで発火し、自分の手札捨てでは発火しない（自分の捨てで発火する 'any' との差）。
+test('collectHandDiscardTriggers any_opp: 相手(discarder)の手札捨てで反応側シグニが発火（WXDi-P04-063）', () => {
+  const discarder = mkState({}); const reactor = mkState({ signi: ['WXDi-P04-063', null, null] });
+  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST).entries;
+  eq(fired(e, 'WXDi-P04-063-E1'), true, '相手捨てで発火');
+  eq(e.find(x => x.effectId === 'WXDi-P04-063-E1')?.playerId, HOST, 'playerId=反応側(HOST)');
+});
+test('collectHandDiscardTriggers any_opp: 自分の手札捨てでは発火しない（過剰効果防止）', () => {
+  const reactor = mkState({ signi: ['WXDi-P04-063', null, null] });
+  const e = collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], reactor, HOST, false, mkState({}), GUEST).entries;
+  eq(fired(e, 'WXDi-P04-063-E1'), false, '自分の捨てでは非発火');
+});
+test('collectHandDiscardTriggers any_opp: 反応側センタールリグ watcher も発火（WXDi-P04-009 LRIG）', () => {
+  const discarder = mkState({}); const reactor = mkState({}); reactor.field.lrig = ['WXDi-P04-009'];
+  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST).entries;
+  eq(fired(e, 'WXDi-P04-009-E2'), true, '相手捨てで LRIG watcher 発火');
+});
 
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
 test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火', () => {
