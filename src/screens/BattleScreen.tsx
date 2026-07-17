@@ -3407,7 +3407,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
-        banish_redirect_to_hand: undefined, power0_banish_to_trash: undefined,
+        banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined,
         double_power_minus_this_turn: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
         prevent_defeat: undefined, declared_guard_restrict_level: undefined,
