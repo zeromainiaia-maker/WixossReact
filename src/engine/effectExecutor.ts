@@ -5461,6 +5461,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     default:
       // STUB 等の場合、選択中の cardNum を lastProcessedCards で引き渡す
+      if (process.env.ADA_PROBE) console.error(`ADA_DEFAULT\t${action.type}\t${(action as { stubId?: string }).stubId ?? ''}`);
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }
