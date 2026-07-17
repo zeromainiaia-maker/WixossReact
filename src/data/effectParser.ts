@@ -4043,6 +4043,28 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/レゾナの出現条件のために/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
         }
+        // 「（あなたのメインフェイズの間、）あなたの[レベルN以下の][＜X＞の]シグニN体が」＝ any_ally の主語を
+        // **前置きとしてだけ剥がす**（Opusタスク12(xxxii)・ON_BANISH の any_ally 規則と同根）。既定の self に潰れると
+        // watcher 自身がトラッシュされない限り発火せず、ルリグ watcher は構造的に絶対発火しない。
+        // ⚠残りの「（コストか効果によって）場からトラッシュに置かれたとき、…」は**下の既存規則にそのまま渡す**＝
+        //   fromZones の抽出を殺さない（ここで一緒に消費すると出自ゾーン限定が無言で落ちる）。
+        // 「あなたのメインフェイズの間」は DURING_PHASE 単独では**相手のメインフェイズでも真**になる
+        //   （turn_phase は所有者を持たない単一値＝'MAIN'。ATTACK_SIGNI_OP のような OP 接尾辞が無い）ため
+        //   IS_MY_TURN と AND し、ターン所有者は収集側の condHas ゲートに判定させる（G150 系と同じ慣例）。
+        // 被作用側の状態限定（「【チャーム】が付いている〜」等）は、限定を無言で落とさないよう非マッチ＝据置。
+        const allyTrashM = actionText.match(/^(あなたのメインフェイズの間、)?あなたの(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]+体が(?=(?:コストか効果によって)?(?:場|いずれかの領域)からトラッシュに置かれたとき)(.+)/s);
+        if (allyTrashM) {
+          extractedTriggerScope = 'any_ally';
+          const allyFilter: TargetFilter = {};
+          if (allyTrashM[2]) allyFilter.levelRange = { max: parseNum(allyTrashM[2]) };
+          if (allyTrashM[3]) allyFilter.story = allyTrashM[3];
+          if (Object.keys(allyFilter).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...allyFilter };
+          if (allyTrashM[1]) extractedTriggerCondition = {
+            type: 'AND',
+            conditions: [{ type: 'DURING_PHASE', phases: ['MAIN'] }, { type: 'IS_MY_TURN' }],
+          };
+          actionText = allyTrashM[4];
+        }
         const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域)からトラッシュに置かれたとき[、,]\s*(.+)/s);
         if (m) {
           // 出自ゾーンを fromZones に記録（「デッキから」=deck／「場から」=field／「手札かデッキから」=hand+deck）。
@@ -4093,7 +4115,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BLOOD_CRYSTAL_ARMOR') {
-        const m = actionText.match(/(?:(?:あなたの|このシグニが?)(?:(?:＜[^＞]*＞の)?シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
+        // 「あなたの＜X＞のシグニN体が血晶武装状態になったとき」= any_ally。
+        // 主語の限定を取れない形は既存の除去規則に委ね、限定を無言で落とさない。
+        const allyArmorM = actionText.match(/^あなたの(?:＜([^＞]+)＞の)?シグニ[１-９\d０-９]*体?が血晶武装状態になったとき[、,]\s*(.+)/s);
+        if (allyArmorM) {
+          extractedTriggerScope = 'any_ally';
+          if (allyArmorM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: allyArmorM[1] };
+          actionText = allyArmorM[2];
+        }
+        const m = !allyArmorM && actionText.match(/(?:(?:あなたの|このシグニが?)(?:(?:＜[^＞]*＞の)?シグニ[１-９\d０-９]*体?が?)?血晶武装状態になったとき)[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_LIFE_BURST') {

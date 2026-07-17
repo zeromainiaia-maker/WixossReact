@@ -275,6 +275,12 @@ export function collectArmorTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
+      // triggerFilter は血晶武装状態になったシグニ側の限定。
+      if (eff.triggerFilter?.excludeSelf && armoredCardNum === topNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
+        if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(armoredCardNum)), filter)) continue;
+      }
       entries.push({
         id: ctx.genId(),
         playerId: armoredPlayerId,
@@ -373,6 +379,15 @@ export function collectTrashTriggers(
   // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
+    const scope = eff.triggerScope ?? 'self';
+    if (scope !== 'self' && scope !== 'any_ally' && scope !== 'any') continue;
+    if (scope !== 'self') {
+      if (eff.triggerFilter?.excludeSelf) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
+        if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
+      }
+    }
     // 「対戦相手の効果によって」限定トリガーは対戦相手効果が原因のときのみ発火（WX04-035-E2）
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
     // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
@@ -395,6 +410,13 @@ export function collectTrashTriggers(
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
+      // triggerFilter はトラッシュに置かれたシグニ側の限定。watcher 自身を除く指定もここで評価する。
+      if (eff.triggerFilter?.excludeSelf && trashedCardNum === topNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _excludeSelf, ...filter } = eff.triggerFilter;
+        if (Object.keys(filter).length > 0 && !matchesFilter(ctx.cardMap.get(getCardNum(trashedCardNum)), filter)) continue;
+      }
+      if (eff.condition && !evalUseCondition(eff.condition, ownerState, trashedPlayerId === ctx.hostId ? afterGuestState : afterHostState, ctx.cardMap, topNum, ctx.turnPhase ?? '')) continue;
       entries.push({
         id: ctx.genId(), playerId: trashedPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum} の【自】効果（シグニトラッシュ時）`, effect: eff,

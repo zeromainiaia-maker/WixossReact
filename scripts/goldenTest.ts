@@ -4085,6 +4085,21 @@ test('parse エナ回収の class filter は対象名詞句から復元（WXEX2-
   eq(source.filter?.story, '遊具', '＜遊具＞限定');
 });
 
+// Opusタスク12(xxxii): 味方シグニのトラッシュ／血晶武装を監視するルリグ watcher の scope/filter 脱落。
+test('parse 味方シグニのトラッシュ／血晶武装は any_ally と対象 filter を保持（Opusタスク12(xxxii)）', () => {
+  const trash = (effectsMap.get('WX24-P1-015') ?? []).find(e => e.effectId === 'WX24-P1-015-E1');
+  eq(trash?.timing?.[0], 'ON_TRASH', 'WX24-P1-015-E1 timing');
+  eq(trash?.triggerScope, 'any_ally', 'WX24-P1-015-E1 scope');
+  eq(trash?.triggerFilter?.levelRange?.max, 2, 'WX24-P1-015-E1 levelRange.max');
+  eq(trash?.triggerFilter?.story, '悪魔', 'WX24-P1-015-E1 story');
+  eq(trash?.triggerCondition?.fromZones?.includes('field'), true, 'WX24-P1-015-E1 fromZones.field');
+  eq(trash?.condition?.type, 'DURING_PHASE', 'WX24-P1-015-E1 main phase condition');
+  const armor = (effectsMap.get('WDK08-L01') ?? []).find(e => e.effectId === 'WDK08-L01-E1');
+  eq(armor?.timing?.[0], 'ON_BLOOD_CRYSTAL_ARMOR', 'WDK08-L01-E1 timing');
+  eq(armor?.triggerScope, 'any_ally', 'WDK08-L01-E1 scope');
+  eq(armor?.triggerFilter?.story, '紅蓮', 'WDK08-L01-E1 story');
+});
+
 // ── semantic audit Tier 1（続き168）：条件ゲート4件 ──
 test('PR-K073-E1: レベル2/3/4の場条件がCHOOSE全体をANDゲートし、検索は同名以外', () => {
   const e = parseCardEffects(cardMap.get('PR-K073')!)[0];
