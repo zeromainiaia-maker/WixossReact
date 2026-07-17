@@ -3580,9 +3580,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_SIGNI_BATTLE: バトル相手のレベル/パワー条件を triggerFilter に抽出（engine collectBattleTrig が matchesFilter で評価）。
       if (timing[0] === 'ON_SIGNI_BATTLE') {
-        const lvMax = actionText.match(/対戦相手のレベル([０-９\d]+)以下のシグニとバトルしたとき/);
-        const lvEx = actionText.match(/対戦相手のレベル([０-９\d]+)のシグニとバトルしたとき/);
-        const pwMin = actionText.match(/対戦相手のパワー([０-９\d]+)以上のシグニとバトルしたとき/);
+        const lvMax = actionText.match(/(?:対戦相手の)?レベル([０-９\d]+)以下のシグニとバトルしたとき/);
+        const lvEx = actionText.match(/(?:対戦相手の)?レベル([０-９\d]+)のシグニとバトルしたとき/);
+        const pwMin = actionText.match(/(?:対戦相手の)?パワー([０-９\d]+)以上のシグニとバトルしたとき/);
         if (lvMax) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), levelRange: { max: parseInt(toHalf(lvMax[1]), 10) } };
         else if (lvEx) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), level: parseInt(toHalf(lvEx[1]), 10) };
         else if (pwMin) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), powerRange: { min: parseInt(toHalf(pwMin[1]), 10) } };
