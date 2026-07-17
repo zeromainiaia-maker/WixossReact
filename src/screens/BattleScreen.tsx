@@ -2209,14 +2209,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectArmorTriggers(mkTrigCtx(), armoredCardNum, armoredPlayerId, afterHostState, afterGuestState);
 
   // ON_LEAVE_FIELD トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  // causeOwnerId＝離脱を引き起こした効果のオーナー（バトル/ルール処理＝undefined）。
   const collectLeaveFieldTriggers = (
     leftCardNum: string,
     leftUnder: string[],
     leftPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
-  ): StackEntry[] =>
-    pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState);
+    causeOwnerId?: string,
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
+    pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId);
 
   // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] =>
