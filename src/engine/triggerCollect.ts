@@ -525,6 +525,8 @@ export function collectBanishTriggers(
       // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
       if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
+      if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), stripExcludeSelf(eff.triggerFilter))) continue;
       // condition / usageLimit（相手＝opAfterState 視点で評価）
       if (eff.condition && !evalUseCondition(eff.condition, opAfterState, myAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOkOp(eff)) continue;
