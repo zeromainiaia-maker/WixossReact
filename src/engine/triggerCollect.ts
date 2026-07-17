@@ -502,6 +502,9 @@ export function collectBanishTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
       if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
+      // triggerFilter＝バニッシュされたシグニ側の限定（「あなたの＜悪魔＞のシグニ1体が」の＜悪魔＞・excludeSelf）。
+      if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), stripExcludeSelf(eff.triggerFilter))) continue;
       // condition を持つAUTOは条件を満たす場合のみ収集（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
       if (eff.condition && !evalUseCondition(eff.condition, myAfterState, opAfterState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       // usageLimit（《ターン1回/2回》）: actions_done（永続）＋今回の収集内で回数上限に達していればスキップ。
