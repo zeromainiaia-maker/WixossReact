@@ -1424,6 +1424,7 @@ export function collectOppArtsUseTriggers(
  */
 export function collectArtsUseTriggers(
   ctx: TrigCtx, casterId: string, casterState: PlayerState, opState: PlayerState, isCasterTurn: boolean,
+  usedArtsNum?: string,
 ): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
   const usedIds: string[] = [];
@@ -1435,6 +1436,9 @@ export function collectArtsUseTriggers(
     for (const eff of (ctx.effectsMap.get(srcNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ARTS_USE')) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      // triggerFilter: 使用したアーツの色条件（「あなたが緑のアーツを使用したとき」WXK01-043）。
+      // filter があるのにアーツが特定できない呼び出しでは発火させない（過剰発火抑止）。
+      if (eff.triggerFilter && !matchesFilter(usedArtsNum ? ctx.cardMap.get(getCardNum(usedArtsNum)) : undefined, eff.triggerFilter)) continue;
       if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
         const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
         const used = (casterState.actions_done ?? []).filter(id => id === eff.effectId).length
