@@ -1912,9 +1912,30 @@ function effJa(e: Eff): string {
     if (t === 'ON_RISE' && e.triggerCondition?.risedOntoNameContains) {
       s = `このシグニがカード名に《${e.triggerCondition.risedOntoNameContains}》を含むシグニにライズされたとき`;
     }
-    // ON_PLAY placedFront（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」）
+    // ON_PLAY placedFront（WXDi-P03-043「対戦相手のシグニ１体がこのシグニの正面に配置されたとき」／
+    //   レベル filter 付き＝WX17-075-E1/WXDi-P02-083「このシグニの正面にレベルN以下のシグニ１体が出たとき」）
     if (t === 'ON_PLAY' && e.triggerCondition?.placedFront) {
-      s = '対戦相手のシグニ１体がこのシグニの正面に配置されたとき';
+      const tfLv = e.triggerFilter?.levelRange?.max
+        ?? (typeof e.triggerFilter?.level === 'object' ? e.triggerFilter.level.max : undefined);
+      s = tfLv !== undefined
+        ? `このシグニの正面にレベル${tfLv}以下のシグニ１体が出たとき`
+        : '対戦相手のシグニ１体がこのシグニの正面に配置されたとき';
+    }
+    // ON_PLAY frontLowerLevelThanSource（WX17-075「このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき」）
+    if (t === 'ON_PLAY' && e.triggerCondition?.frontLowerLevelThanSource) {
+      s = 'このシグニの正面にこのシグニより低いレベルを持つシグニが出たとき';
+    }
+    // ON_SIGNI_BANISH_OPPONENT の banishedFilter（被バニッシュシグニの状態限定・WX16-079/WXK02-054/WXEX2-76 等）
+    if (t === 'ON_SIGNI_BANISH_OPPONENT' && e.triggerCondition?.banishedFilter) {
+      const bf = e.triggerCondition.banishedFilter;
+      const stJa = bf.isFrozen ? '凍結状態の' : bf.infected ? '感染状態の' : '';
+      const charmJa = bf.hasCharm ? '【チャーム】が付いている' : '';
+      s = `このシグニがバトルによって${charmJa}対戦相手の${stJa}シグニをバニッシュしたとき`;
+    }
+    // ON_ARTS_USE の triggerFilter.color（「あなたが緑のアーツを使用したとき」WXK01-043）
+    if (t === 'ON_ARTS_USE' && e.triggerFilter?.color && !e.timing?.includes('ON_OPP_ARTS_USE')) {
+      const acJa = Array.isArray(e.triggerFilter.color) ? e.triggerFilter.color.join('か') : e.triggerFilter.color;
+      s = `あなたが${acJa}のアーツを使用したとき`;
     }
     // ON_EXCEED_COST「あなたがエクシードのコストを支払ったとき」変種（WXDi-P06-078）
     if (t === 'ON_EXCEED_COST' && e.triggerCondition?.exceedCostPaidByPlayer) {
