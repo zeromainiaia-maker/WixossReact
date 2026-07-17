@@ -34,7 +34,8 @@ export type EffectTiming =
   | 'ON_BLOOD_CRYSTAL_ARMOR' // シグニが血晶武装状態になったとき
   | 'ON_HEAVEN'  // このシグニが《ヘブン》したとき（ヘブンヘブン時）
   | 'ON_ACCE'    // シグニにアクセが付いたとき
-  | 'ON_SIGNI_DOWN'             // 自分のシグニがダウンしたとき
+  | 'ON_SIGNI_DOWN'             // シグニがダウン状態になったとき（WX05-040/WX14-CB01/WXEX1-42/WXEX2-01/WXK11-015/SPDi43-17〜19）。triggerScope self/any_ally/any・triggerFilter（story/excludeSelf/cardName）・triggerCondition.byEffect（「効果によって」＝アタック/コストのダウンでは発火しない）/duringAttackPhase。engine 配線＝中央diff（効果ダウン）＋performSigniAttack（アタックダウン）＋checkAndApplyContMutations（常時効果ダウン/フリーズ）
+  | 'ON_SIGNI_BECOMES_UP'       // シグニ（かセンタールリグ）がアップ状態になったとき（WX12-006/WX20-051）。triggerCondition.upIncludesLrig=センタールリグのアップにも反応（WX20-051）。engine 配線＝中央diff（効果アップのみ＝アップフェイズの一斉アップでは発火しない近似）
   | 'ON_SIGNI_BECOMES_DRIVE'    // あなたのシグニがドライブ状態になったとき（ルリグがライドした瞬間。WXK01-076/079・WDK01-014/017）。drive_became_just フラグ＋BattleScreen watcher で発火
   | 'ON_BECOME_BEAT'            // このカード／あなたの他のカードが【ビート】になったとき（WXK08-045/070/074/077・WXK10-069・WDK14-014/015/017）。beat_became_just フラグ＋BattleScreen watcher で発火。self=なったカード自身（beat_zone在中）／any_ally=場の他カード
   | 'ON_SIGNI_ENTERS'           // シグニが場に出たとき
