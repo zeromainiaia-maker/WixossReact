@@ -4151,6 +4151,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
     case 'BANISH_REDIRECT': {
+      // redirectTo:'exile'＝「エナゾーンに置かれる代わりにゲームから除外」（SPDi47-05）。既定（trash）と同じ
+      // ターン内フラグ方式＝banishDestination／BattleScreen のバトル・パワー0経路が参照し、ターン境界でリセット。
+      if ((action as BanishRedirectAction).redirectTo === 'exile') {
+        const newOwnerEx: PlayerState = { ...ctx.ownerState, banish_redirect_to_exile: true };
+        return done(addLog({ ...ctx, ownerState: newOwnerEx }, '対戦相手のシグニのバニッシュ先をゲーム除外へ変更'));
+      }
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
       return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
     }
