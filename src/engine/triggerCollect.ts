@@ -484,7 +484,24 @@ export function collectBanishTriggers(
   // 1. バニッシュされたカード自身の ON_BANISH 効果
   for (const eff of (ctx.effectsMap.get(banishedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
-    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    const selfScope = eff.triggerScope ?? 'self';
+    if (selfScope !== 'self') {
+      // any_ally（「あなたの＜悪魔＞のシグニ1体がバニッシュされたとき」）は**被バニッシュ側自身も母集団に含む**
+      // （自身が＜悪魔＞なら自分のバニッシュでも発火する）。既に場から離れているため下の field 走査では拾えず、
+      // ここで拾わないと自己発火だけが落ちる。「他の」＝excludeSelf のみ自身を除外。
+      if (selfScope !== 'any_ally' && selfScope !== 'any') continue;
+      if (eff.triggerFilter?.excludeSelf) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0
+          && !matchesFilter(ctx.cardMap.get(getCardNum(banishedCardNum)), restFilter)) continue;
+      }
+      // condition/usageLimit は field 走査側と同じ条件で評価（WXDi-P16-074-E2 の FIELD_HAS_GATE 等）
+      const ownerStateForCond = banishedOwnerIsMe ? myAfterState : opAfterState;
+      const otherStateForCond = banishedOwnerIsMe ? opAfterState : myAfterState;
+      if (eff.condition && !evalUseCondition(eff.condition, ownerStateForCond, otherStateForCond, ctx.cardMap, banishedCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!(banishedOwnerIsMe ? limitOkMy : limitOkOp)(eff)) continue;
+    }
     // activeCondition チェック（「対戦相手のターンの間」等）
     const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
     if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
