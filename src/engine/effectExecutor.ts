@@ -2663,7 +2663,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     if (moved.length === 0) return done(addLog(ctx, 'ライフクロスがない'));
     const newS = insertToDeck({ ...state, life_cloth: life }, moved);
     return done(addLog(setOwnerState(src.owner, newS, ctx),
-      `${ownerJaLog(src.owner)}ライフクロス${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`));
+      `${src.owner === 'opponent' ? '対戦相手の' : ''}ライフクロス${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`));
   }
 
   if (src.type === 'TRASH_CARD') {
