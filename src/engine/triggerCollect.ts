@@ -389,11 +389,9 @@ export function collectTrashTriggers(
       label: `${cardName} の【トラッシュ時】効果`, effect: eff,
     });
   }
-  // フィールド上シグニのON_TRASHフィールドトリガー（ally_banished等）
+  // フィールド上シグニ＋ルリグのON_TRASHフィールドトリガー（ally_banished等）
   const ownerState = trashedPlayerId === ctx.hostId ? afterHostState : afterGuestState;
-  for (const stack of ownerState.field.signi) {
-    if (!stack?.length) continue;
-    const topNum = stack[stack.length - 1];
+  for (const topNum of ownFieldSources(ownerState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
       if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
