@@ -3460,9 +3460,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (beatM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
       }
-      // ON_HAND_DISCARDED: 主語で scope を決める（「あなたが」＝self 既定／「いずれかのプレイヤーが」＝any）。
+      // ON_HAND_DISCARDED: 主語で scope を決める（「あなたが」＝self 既定／「いずれかのプレイヤーが」＝any／
+      //   「（あなたの効果によって）対戦相手が」＝any_opp＝相手が捨てたときのみ・自分の捨てでは発火しない）。
       if (timing[0] === 'ON_HAND_DISCARDED') {
         if (/いずれかのプレイヤーが手札を/.test(actionText)) extractedTriggerScope = 'any';
+        else if (/対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(actionText)) extractedTriggerScope = 'any_opp';
       }
       // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
       //   「あなたのシグニN体に」＝any_ally＝あなたの場のシグニ全体が反応）。
