@@ -4,6 +4,45 @@
 
 ---
 
+## Opusタスク12(xxx) 消化＝「対戦相手のシグニが場に出たとき」の ON_PLAY scope/対象幻覚を根治（2026-07-18・続き188・Opus 4.8）
+
+**経緯**＝続き179で発見・未修正だった WXEX2-76-E1 の scope/対象幻覚。原文「対戦相手のシグニ１体が場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする」が、**timing ON_PLAY の scope 既定 self**（＝ナナフシ自身が場に出たとき＝一度も発火しない）＋charm owner self＋任意対象 ATTACH_CHARM に化けていた。CSV 全数照合で**同型3枚**を確認（WXEX2-76-E1／WX08-006-E2＝any_opp・WXK10-048-E1＝any_ally）。
+
+**根因**＝parser の ON_PLAY scope 抽出（`effectParser.ts`）に「あなたのシグニが場に出たとき」（any_ally）はあったが**「対戦相手のシグニが場に出たとき」（any_opp）の語彙が無く**、scope 既定 self に落ちていた（timing センサスは「場に出たとき」を除外規則で計測対象外＝死角）。加えて ATTACH_CHARM parser が「対戦相手は自分のデッキ」を charm owner に反映せず、「そのシグニ」をトリガー元に解決する語彙を持たなかった。
+
+**修正（parser 2 + engine 1 + decompiler 1）**＝
+- **effectParser.ts**（ON_PLAY scope 抽出）＝「対戦相手の[＜X＞の]シグニ[N体]が場に出たとき」→ `triggerScope: 'any_opp'`（＋story filter）を追加。**トリガー句は非除去**（後続の ATTACH_CHARM が「対戦相手は…そのシグニの【チャーム】」から charm owner／対象を読むため）。engine の `collectFieldTriggers` 相手フィールド any_opp path は配線済み。
+- **parseSentencePart1.ts**（ATTACH_CHARM）＝(1) charm owner に「対戦相手は自分のデッキ/トラッシュ」→`opponent` を追加（相手が自分のデッキからチャージ）。(2)「そのシグニの【チャーム】にする」→ `to.filter.isTriggerSource:true`（CSV上この語句を持つ効果は全て「シグニが場に出たとき」トリガー＝「その」＝場に出たシグニ・別の対象化文脈は皆無と grep で確認）。
+- **effectExecutor.ts**（execAttachCharm）＝`to.filter.isTriggerSource` 分岐を `thisCardOnly` と同型で追加＝`ctx.triggeringCardNum` が対象側フィールドに在れば単一解決。
+- **decompiler**＝ATTACH_CHARM の `to` が isTriggerSource のとき「そのシグニ（場に出たシグニ）」と表示。
+
+WXK10-048-E1（any_ally・charm/scope 既存正）は `to` の isTriggerSource 付与が pure superset として自動採用、WXEX2-76／WX08-006 は heldReview で採用。golden 1件追加（isTriggerSource→triggeringCardNum 解決の回帰ガード）。
+
+**検証**＝golden 421→**422**・census 2001→**1998**（3効果改善＝BASELINE_HIGH 実数更新）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・逆翻訳原文一致・`npm run regen` 済み。
+
+---
+
+## Opusタスク12(xxxi) 残(a) 消化＝`ENERGY_CHARGE_PER_LRIG_LEVEL` 新設で「引くか【エナチャージ】」二択を根治（2026-07-18・続き187・Opus 4.8）
+
+**経緯**＝続き184で `DRAW_PER_LRIG_LEVEL`（ルリグレベル比例ドロー）を新設した際の据置分。「あなたのセンタールリグのレベル１につきカードを１枚引く**か**、あなたのセンタールリグのレベル１につき【エナチャージ１】をする」という**ドロー／エナチャージの二択**が、`ENERGY_CHARGE_FROM_DECK count:1`（固定1枚）に潰れていた2枚（WXK10-004-E1／WX26-CP1-003-E1①）。
+
+**根因**＝parser の【エナチャージN】ショートハンド規則（`parseSentencePart1.ts:762`）が文中の `【エナチャージ１】` に先取りマッチし、文全体を `ENERGY_CHARGE_FROM_DECK count:1` に潰していた（前半のドロー節・「レベル1につき」の比例性・「か」の二択性がすべて脱落）。
+
+**修正**＝
+- **types**（`effects.ts`）＝`EnergyChargePerLrigLevelAction`（`chargePerLevel`/`lrigOwner`/`owner`）新設＋union追加。`DrawPerLrigLevelAction` と対称。
+- **engine**（`effectExecutor.ts`）＝`execEnergyChargePerLrigLevel`＝自/相手センタールリグの Level を読み `chargePerLevel×level` 枚を `ENERGY_CHARGE_FROM_DECK` へ委譲（`execDrawPerLrigLevel` と同形・Lv0/不在は no-op）。
+- **parser**（`parseSentencePart1.ts`）＝ショートハンド規則の**直前**に二択規則を追加＝「…レベル1につきカードをN枚引くか、…レベル1につき【エナチャージM】をする」を `CHOOSE(choose_count:1, from_count:2)` の `[DRAW_PER_LRIG_LEVEL, ENERGY_CHARGE_PER_LRIG_LEVEL]` へ（level部が両方1のときのみ・lrigOwner は主語で弁別）。
+- **decompiler**（`decompileEffects.ts`）＝`DRAW_PER_LRIG_LEVEL` の隣に case 追加＝「〜のセンタールリグのレベル1につき【エナチャージN】をする」。
+- **golden**＝`ENERGY_CHARGE_PER_LRIG_LEVEL`（Lv4×1→エナ+4）1件追加。
+
+WX26-CP1-003-E1①は3択の第1枝が自身2択という**入れ子CHOOSE**になるが原文どおり（「①…引くか…エナチャージ…をする」自体が二択）。heldReview で2枚採用。逆翻訳は原文一致・入れ子も忠実に復元（decompile_sheet4/9 で確認）。
+
+**残**＝(xxxi) の (b)「そのシグニのレベル１につき」1枚（WD21-001-E2＝めくったカードのレベル比例＝lastProcessed level 参照の別機構）は未着手のまま。
+
+**検証**＝golden 420→**421**・census 2001維持・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。
+
+---
+
 ## Opusタスク12(xxxv) 消化＝ON_TRASH「〜によって」近傍表記の過剰発火を根治（(a)(b)(d)＋Opus 検証で byOwnEffect 語彙を追加是正）（2026-07-18・続き186・Codex 実装／Opus 検証・是正）
 
 **経緯**＝(xxxiv)（続き183）の兄弟。ON_TRASH の「効果によって場から」限定が `collectTrashTriggers` で未評価＝バトル/ルール処理でも過剰発火していた系統。Codex CLI（gpt-5.6-sol・high）に (xxxv) を委譲実装させ、Opus が検証。**検証で (a) の意味的取りこぼしを1件発見・是正した**（下記）。

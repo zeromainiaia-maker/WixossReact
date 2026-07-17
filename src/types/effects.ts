@@ -516,6 +516,7 @@ export type EffectAction =
   | BlockCardUseAction
   | DrawPerFieldCountAction
   | DrawPerLrigLevelAction
+  | EnergyChargePerLrigLevelAction
   | EnergyChargeFromDeckPerFieldCountAction
   | AwakenSigniAction
   | NegateAttackAction
@@ -564,6 +565,14 @@ export interface DrawPerLrigLevelAction {
   drawPerLevel: number;   // ルリグのレベル1につき引く枚数
   lrigOwner: Owner;       // どちらのセンタールリグのレベルを参照するか
   owner: Owner;           // 誰が引くか（通常 self）
+}
+
+// センタールリグのレベル1につき M枚エナチャージ（「あなたのセンタールリグのレベル１につき【エナチャージ１】をする」WXK10-004 等）
+export interface EnergyChargePerLrigLevelAction {
+  type: 'ENERGY_CHARGE_PER_LRIG_LEVEL';
+  chargePerLevel: number; // ルリグのレベル1につきチャージする枚数
+  lrigOwner: Owner;       // どちらのセンタールリグのレベルを参照するか
+  owner: Owner;           // 誰がチャージするか（通常 self）
 }
 
 // フィールドのシグニ N体につき デッキトップ M枚をエナチャージ

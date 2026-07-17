@@ -3859,6 +3859,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const allyResonaPlayM = !allyPlayM && actionText.match(/^あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
         const anyPlayM = !allyPlayM && !allyResonaPlayM && actionText.match(/^シグニ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
+        // 「対戦相手の[＜X＞の]シグニ[N体]が場に出たとき」= any_opp（相手の場にシグニが出たときに反応。engine
+        //   collectFieldTriggers の相手フィールド any_opp path が拾う。WXEX2-76/WX08-006）。⚠従来この語彙が無く
+        //   scope 既定 self で「このシグニ（自身）が場に出たとき」に化けていた（一度も発火しない・§3 タスク12(xxx)）。
+        //   トリガー句は**除去しない**（後続の ATTACH_CHARM が「対戦相手は…そのシグニの【チャーム】」から
+        //   charm owner／対象トリガー元を読むため）。
+        const oppPlayM = !allyPlayM && !allyResonaPlayM && !anyPlayM
+          && actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場に出たとき[、,]/);
         if (allyPlayM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
@@ -3875,6 +3882,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         } else if (anyPlayM) {
           extractedTriggerScope = 'any';
           actionText = anyPlayM[1];
+        } else if (oppPlayM) {
+          extractedTriggerScope = 'any_opp';
+          if (oppPlayM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: oppPlayM[1] };
+          // actionText は非改変（トリガー句を残す）
         } else {
           // 「（このシグニが）（シグニの）効果によって場に出たとき」= self 限定。
           // 「シグニの効果によって」= bySigniEffect（シグニの効果のみ）／「効果によって」= byEffect（任意の効果）。

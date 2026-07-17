@@ -392,6 +392,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GAIN_COIN': return `${ownerJa(a.owner)}コインを${numJa(a.count ?? 1)}枚得る`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;
     case 'DRAW_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につきカードを${a.drawPerLevel}枚引く`;
+    case 'ENERGY_CHARGE_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につき【エナチャージ${a.chargePerLevel}】をする`;
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきデッキの一番上のカードを${a.chargePerUnit}枚エナゾーンに置く`;
     case 'BANISH': return a.opponentSelects
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
@@ -772,7 +773,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード1枚`
         : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード1枚`
         : `${ownerJa(a.charm?.owner)}カード`;
-      const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ' : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体`;
+      const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ'
+        : a.to?.filter?.isTriggerSource ? 'そのシグニ（場に出たシグニ）'
+        : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体`;
       return `${charmJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'SET_BASE_LEVEL': {

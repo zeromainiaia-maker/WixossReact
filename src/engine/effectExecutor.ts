@@ -2828,6 +2828,9 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   let toCands: string[];
   if (a.to.filter?.thisCardOnly) {
     toCands = (ctx.sourceCardNum && toState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+  } else if (a.to.filter?.isTriggerSource) {
+    // 「そのシグニの【チャーム】にする」＝場に出たトリガー元シグニ（WXEX2-76/WX08-006/WXK10-048）
+    toCands = (ctx.triggeringCardNum && toState.field.signi.some(s => s?.at(-1) === ctx.triggeringCardNum)) ? [ctx.triggeringCardNum] : [];
   } else {
     toCands = fieldCandidates(toState, a.to.filter, ctx.cardMap, ctx.effectivePowers);
   }
@@ -3354,6 +3357,16 @@ function execDrawPerLrigLevel(a: import('../types/effects').DrawPerLrigLevelActi
   const drawCount = a.drawPerLevel * lv;
   if (drawCount <= 0) return done(ctx);
   return executeAction({ type: 'DRAW', owner: a.owner, count: drawCount }, ctx);
+}
+
+function execEnergyChargePerLrigLevel(a: import('../types/effects').EnergyChargePerLrigLevelAction, ctx: ExecCtx): ExecResult {
+  const lrigState = ownerState(a.lrigOwner, ctx);
+  const lrigNum = lrigState.field.lrig.at(-1);
+  const lv = parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+  if (isNaN(lv) || lv <= 0) return done(ctx);
+  const chargeCount = a.chargePerLevel * lv;
+  if (chargeCount <= 0) return done(ctx);
+  return executeAction({ type: 'ENERGY_CHARGE_FROM_DECK', owner: a.owner, count: chargeCount }, ctx);
 }
 
 function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx: ExecCtx): ExecResult {
@@ -4121,6 +4134,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
     case 'DRAW_PER_FIELD_COUNT':       return execDrawPerFieldCount(action as import('../types/effects').DrawPerFieldCountAction, ctx);
     case 'DRAW_PER_LRIG_LEVEL':        return execDrawPerLrigLevel(action as import('../types/effects').DrawPerLrigLevelAction, ctx);
+    case 'ENERGY_CHARGE_PER_LRIG_LEVEL': return execEnergyChargePerLrigLevel(action as import('../types/effects').EnergyChargePerLrigLevelAction, ctx);
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return execEnergyChargeFromDeckPerFieldCount(action as import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx);
     case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
     case 'NEGATE_ATTACK':              return execNegateAttack(action as import('../types/effects').NegateAttackAction, ctx);

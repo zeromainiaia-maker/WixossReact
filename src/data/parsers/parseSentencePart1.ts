@@ -42,6 +42,7 @@ import type {
   PowerModifyPerLifeCountAction,
   PowerModifyPerLrigLevelAction,
   DrawPerLrigLevelAction,
+  EnergyChargePerLrigLevelAction,
   PowerModifyPerVirusCountAction,
   PowerModifyPerDeckCountAction,
   PowerModifyPerEnergyColorAction,
@@ -755,6 +756,29 @@ export function parseSentencePart1(t: string): EffectAction | null {
       color: costRedM[1],
       reduction: [{ color: costRedM[3] as EnergyCost['color'], count: costRedM[4] ? parseNum(costRedM[4]) : 1 }],
     } as CostReductionAction;
+  }
+
+  // 「（あなた/対戦相手）のセンタールリグのレベル1につきカードをN枚引くか、…のレベル1につき【エナチャージM】をする」
+  // ＝ルリグレベル比例のドロー／エナチャージ二択（WXK10-004/WX26-CP1-003①）。
+  // 下の【エナチャージ】ショートハンドが先取りすると全体が固定枚数エナチャージに潰れる（続き187）。
+  {
+    const m = t.match(/(あなた|対戦相手)のセンタールリグのレベル([０-９\d]+)につきカードを([０-９\d]+)枚引くか、(?:(?:あなた|対戦相手)の)?センタールリグのレベル([０-９\d]+)につき【エナチャ[ー―‐−-]ジ([０-９\d]+)】をする/);
+    if (m && parseNum(m[2]) === 1 && parseNum(m[4]) === 1) {
+      const lrigOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      return {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          { choiceId: 'c0', label: '選択肢1', action: {
+            type: 'DRAW_PER_LRIG_LEVEL', drawPerLevel: parseNum(m[3]), lrigOwner, owner: 'self',
+          } as DrawPerLrigLevelAction },
+          { choiceId: 'c1', label: '選択肢2', action: {
+            type: 'ENERGY_CHARGE_PER_LRIG_LEVEL', chargePerLevel: parseNum(m[5]), lrigOwner, owner: 'self',
+          } as EnergyChargePerLrigLevelAction },
+        ],
+      };
+    }
   }
 
   // ---- エナチャージ（【エナチャージN】ショートハンド）----
@@ -1673,8 +1697,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const charmFromTrash = t.includes('トラッシュから');
     const charmIsSelf = (t.includes('このシグニをそれの') || t.includes('このシグニを')) && !charmIsTopOfDeck && !charmFromTrash;
     const charmIsThisCard = t.includes('このカードをそれの') || t.includes('このカードを');
-    // チャームの出所オーナー
-    const charmOwner: Owner = t.includes('対戦相手のデッキ') || t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
+    // チャームの出所オーナー（「対戦相手は自分のデッキ…」＝対戦相手が自分のデッキから＝opponent。WXEX2-76/WX08-006）
+    const charmOwner: Owner = t.includes('対戦相手のデッキ') || t.includes('対戦相手のトラッシュ')
+      || t.includes('対戦相手は自分のデッキ') || t.includes('対戦相手は自分のトラッシュ') ? 'opponent' : 'self';
     const charm: EffectTarget = charmIsTopOfDeck
       ? { type: 'DECK_CARD', owner: charmOwner, count: 1 }
       : charmFromTrash
@@ -1684,7 +1709,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
           : { type: 'SIGNI', owner: 'self', count: 1 };
     // 付与先が「このシグニの【チャーム】」＝効果元シグニ自身（任意選択でなく thisCardOnly。G147）
     const toThisCard = /このシグニの【チャーム】/.test(t);
-    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1, ...(toThisCard ? { filter: { thisCardOnly: true } } : {}) };
+    // 付与先が「そのシグニの【チャーム】」＝トリガー元シグニ（＝場に出たシグニ）に付与（任意選択でなく isTriggerSource。
+    //   WXEX2-76/WX08-006/WXK10-048。engine execAttachCharm が triggeringCardNum に解決）。CSV上この語句を持つ効果は
+    //   すべて「（対戦相手の/あなたの）シグニが場に出たとき」トリガー＝「その」は場に出たシグニを指す（別の対象化文脈は無い）。
+    const toTriggerSource = !toThisCard && /そのシグニの【チャーム】/.test(t);
+    const toFilter = toThisCard ? { thisCardOnly: true } : toTriggerSource ? { isTriggerSource: true } : undefined;
+    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1, ...(toFilter ? { filter: toFilter } : {}) };
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
 

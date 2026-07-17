@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き187・Opus 4.8・タスク12(xxxi) 残(a) 消化＝`ENERGY_CHARGE_PER_LRIG_LEVEL` 新設）**
+  - **成果**＝golden 420→**421**・census **2001**（維持）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き187。
+  - 「…レベル1につき引くか、…レベル1につき【エナチャージ】をする」二択が `ENERGY_CHARGE_FROM_DECK count:1` に潰れる内容欠落を是正。続き184の `DRAW_PER_LRIG_LEVEL` と対称な **`ENERGY_CHARGE_PER_LRIG_LEVEL`** を types/engine/parser/decompiler/golden の5層で新設。**根因＝【エナチャージ】ショートハンド規則が文全体を先取り**していたため、その直前に二択規則（`CHOOSE[DRAW_PER_LRIG_LEVEL, ENERGY_CHARGE_PER_LRIG_LEVEL]`）を挿入。WXK10-004-E1／WX26-CP1-003-E1①（入れ子CHOOSE）採用。残＝(xxxi)(b) WD21-001-E2（めくったカードのレベル比例）。
+
+- **🆕 セッション（2026-07-18・続き186・Codex 実装／Opus 4.8 検証・是正・簿記・タスク12(xxxv) 消化＝(a)(b)(d) 完了・(c) §6.3送り）**
+  - **成果**＝golden 413→**420**・census **2001**（維持）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き186。
+  - **(a)「効果によって場から」10枚**＝engine `collectTrashTriggers` に新引数 `byEffectCause`＋executor の `TrashAction.asCost`/`ExecCtx.fieldTrashCostCards`（コスト支払いの instanceId 追跡）で「効果=発火／コスト・バトル・ルール=非発火」を分離。**Opus 検証で Codex の「10枚一律 byEffect」を意味的に是正**＝原文が2文型に割れる（「効果によって」4枚=`byEffect`〔任意効果〕／「あなたの効果によって」6枚=既存 `byOwnEffect`〔相手効果も除外〕）。parser 弁別・engine 3ループにゲート・decompiler の self-discard 先取り退化を fromZones:field ガードで回避・heldReview で6枚を採用し直し。
+  - **(b) WXDi-P02-037-E2**＝Codex が新フラグ `fromFieldByCostOrOwnEffect` で厳密実装（暫定残渣なし）。**(d)** any_opp watcher に triggerFilter/excludeSelf を予防追加（該当0・続き181教訓）。残渣＝(c)「シグニの下から」3枚（WX18-062/WX22-027/WXK03-033）＝§6.3送り。
+
 - **🆕 セッション（2026-07-17・続き184・Opus 4.8・タスク12(xxxi) 部分消化＝clean 2枚を根治）**
   - **成果**＝golden 413→**414**・census **2001**（維持）・smoke/fuzz 全0・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き184。
   - **(xxxi)＝「あなたのセンタールリグのレベル１につきカードを１枚引く」が engine の per-level ドロー語彙欠如で汎用DRAWに先取りされ `DRAW count:1` に潰れる内容欠落**を是正。`POWER_MODIFY_PER_LRIG_LEVEL` に倣い新語彙 **`DRAW_PER_LRIG_LEVEL`**（`drawPerLevel`/`lrigOwner`/`owner`）を types/engine（`execDrawPerLrigLevel`）/parser（汎用DRAW直前に規則追加・`レベル1につき`のみ）/decompiler の4層で新設。clean な2枚 **WX12-013-E1／WDK07-E09-E2** を heldReview で採用（全カード生 diff でこの2枚のみ変化を機械確認）。golden 追加1件（Lv4×1=4枚ドローの回帰ガード）。

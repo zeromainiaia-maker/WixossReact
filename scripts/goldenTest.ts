@@ -3654,6 +3654,22 @@ test('REMOVE_CHARM 相手シグニのチャーム1枚: signi_charms を除去し
   eq(r.otherState.field.signi_charms?.[0] ?? null, null, 'charm除去');
   eq(r.otherState.trash.length, t0 + 1, 'トラッシュ+1');
 });
+// 続き188: ATTACH_CHARM の to.filter.isTriggerSource＝「そのシグニの【チャーム】にする」を場に出たトリガー元
+// シグニ（triggeringCardNum）に解決する（WXEX2-76/WX08-006＝対戦相手のシグニが場に出たとき any_opp）。
+// 従来 to が任意対象になり「対戦相手のシグニ1体」に化けていた回帰ガード。
+test('ATTACH_CHARM isTriggerSource: 場に出たトリガー元シグニに相手デッキトップをチャーム（WXEX2-76）', () => {
+  const trigSigni = fresh();
+  const oppDeckTop = fresh();
+  const ctx = mkCtx({}, { signi: [trigSigni, null, null], deckTop: [oppDeckTop] });
+  (ctx as { triggeringCardNum?: string }).triggeringCardNum = trigSigni;
+  const action = { type: 'ATTACH_CHARM',
+    charm: { type: 'DECK_CARD', owner: 'opponent', count: 1 },
+    to: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { isTriggerSource: true } },
+  } as unknown as EffectAction;
+  const r = run(action, ctx);
+  eq(r.otherState.field.signi_charms?.[0], oppDeckTop, 'トリガー元シグニ(zone0)に相手デッキトップがチャームされる');
+  ok(!r.otherState.deck.includes(oppDeckTop), 'チャームカードは相手デッキから抜ける');
+});
 test('DISCARD_BOTH 各1枚: 両プレイヤーの手札-1・トラッシュ+1', () => {
   const ctx = mkCtx({ hand: 5 }, { hand: 5 });
   const hs0 = ctx.ownerState.hand.length; const ho0 = ctx.otherState.hand.length;
@@ -3841,6 +3857,16 @@ test('DRAW_PER_LRIG_LEVEL: 自センタールリグのレベル×drawPerLevel枚
   const h0 = ctx.ownerState.hand.length; const d0 = ctx.ownerState.deck.length;
   const r = run({ type: 'DRAW_PER_LRIG_LEVEL', drawPerLevel: 1, lrigOwner: 'self', owner: 'self' } as EffectAction, ctx);
   eq(r.ownerState.hand.length, h0 + 4, '手札+4（Lv4×1）'); eq(r.ownerState.deck.length, d0 - 4, 'デッキ-4');
+});
+// 続き187: ENERGY_CHARGE_PER_LRIG_LEVEL＝「あなたのセンタールリグのレベル1につき【エナチャージ1】をする」（WXK10-004/WX26-CP1-003①）。
+// 「引くか…エナチャージ」の二択で、従来は【エナチャージ】ショートハンドに先取りされ count:1 に潰れていた回帰ガード。
+test('ENERGY_CHARGE_PER_LRIG_LEVEL: 自センタールリグのレベル×chargePerLevel枚をデッキからエナへ（WXK10-004）', () => {
+  const L4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.lrig = [L4];
+  const e0 = ctx.ownerState.energy.length; const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'ENERGY_CHARGE_PER_LRIG_LEVEL', chargePerLevel: 1, lrigOwner: 'self', owner: 'self' } as EffectAction, ctx);
+  eq(r.ownerState.energy.length, e0 + 4, 'エナ+4（Lv4×1）'); eq(r.ownerState.deck.length, d0 - 4, 'デッキ-4');
 });
 test('ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT: 自場の該当シグニ数×chargePerUnit枚をデッキからエナへ（WX02-066）', () => {
   const ctx = mkCtx({ signi: ['WD04-009', 'WD04-010', null] }, {});
