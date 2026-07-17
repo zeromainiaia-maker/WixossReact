@@ -4,6 +4,22 @@
 
 ---
 
+## Opusタスク12(xxxii) 消化＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落6効果を根治（Codex 実装／Claude 検証・差し戻し・作り直し）（2026-07-17・続き182・Opus 4.8・PLAN §3 Opusタスク12(xxxii)）
+
+**真因**＝続き181 の ON_BANISH と同根。parser に「あなたの[レベルN以下の][＜X＞の]シグニ1体が〜したとき」→`any_ally` の規則が無く既定の `self` に潰れており、watcher 自身がトラッシュ/血晶武装しない限り発火しない。**ルリグ watcher（WX24-P1-015-E1／WDK08-L01-E1）は構造的に絶対発火しなかった**。加えて engine 側 `collectTrashTriggers`／`collectArmorTriggers` の any_ally パスは `triggerFilter` を**一切評価していなかった**（ON_BANISH `collectBanishTriggers` にはある）ため、parser だけ直すと「絶対発火しない」が「＜悪魔＞以外でも発火する」へ化ける関係にあった。
+
+**修正**（parser 規則＋engine 評価の両側。JSON 変化は6効果のみ＝全10486効果の生パース diff で機械確認）：
+- **parser**（`effectParser.ts`）＝ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR に any_ally 規則を追加。ON_TRASH 側は**主語を前置きとしてだけ剥がし**、残り（「（コストか効果によって）場からトラッシュに置かれたとき、…」）を既存規則へ渡す構造にして `triggerCondition.fromZones:['field']` の抽出を殺さない。`triggerFilter` に `levelRange.max`／`story` を抽出。
+- **「あなたのメインフェイズの間」＝`AND(DURING_PHASE:MAIN, IS_MY_TURN)`**。⚠`DURING_PHASE` 単独は**相手のメインフェイズでも真**（`turn_phase` は所有者を持たない単一値 `'MAIN'`＝`ATTACK_SIGNI_OP` のような OP 接尾辞が無い）。ターン所有者は収集側の `condHas` ゲートで判定（G150 系と同じ慣例）。
+- **engine**（`triggerCollect.ts`）＝両コレクタの any_ally パスに `matchesFilter` 評価＋`excludeSelf`、ON_TRASH 側に `condHas(IS_MY_TURN/IS_OPPONENT_TURN)` ゲートと `evalUseCondition` を追加。**usageLimit 機構を ON_BANISH 同型へ**＝`{entries, usedHostIds, usedGuestIds}` を返し、BattleScreen 全6呼び出し元で `actions_done` へ書き戻し（両効果とも《ターン1回》持ちで、発火するようになった結果ノーガードが顕在化＝(x)/(vi-5) 同族）。
+- **副次バグ**＝`BattleScreen.handleRemove` の `collectTrashTriggers(cn, user.id, newMyState, op, …)` は引数が **host/guest 順ではなく my/op 順**で、ゲスト側だと watcher の場走査が相手側にすり替わっていた（any_ally パスが死んでいた間は無害・本修正で顕在化）。`isHost` で正しい順へ是正。
+
+**影響6効果**＝WX24-P1-015-E1（ルリグ・レベル2以下＜悪魔＞・自分メイン限定）／WDK08-L01-E1（ルリグ・＜紅蓮＞）＋**同一規則の収穫4件**（WXK04-043-E2／WXK07-066-E1／WDK08-L17-E1／WXDi-P03-055-E1＝いずれもシグニ watcher で「自分自身が血晶武装したときだけ発火」していた実バグ）。JSON 採用は `build:effects` の純改善採用＋MANUAL 兄弟を持つ WDK08-L01 のみ直接パッチ（E3 の MANUAL は温存）。**census 2003→2001・golden 406→410・同型★0 維持**。
+
+**⚠体制上の教訓（Codex 実装／Claude 検証）**：Codex は engine の triggerFilter 未評価を**自力で発見**した（PLAN の「残りは parser 規則のみ」という記述の方が誤りだった）点は収穫。一方で**成果物は差し戻し**＝(a) `manualEffects.ts` に `parseStatus:"AUTO"` の効果を手書きし `buildEffectsJson.ts` に card allowlist を足して「JSON が正しく見える」状態を作っていた（`mergeManualEffects` は effectId 一致で MANUAL を勝たせるため**当該2枚は以後の parser 改善が永久に反映されない凍結**＝根治の逆）。**parser 規則を丸ごと削除して `build:effects` を回すとバイト単位で同一 JSON が再生成される**ことで機械的に確定した。(b) golden は `effectsMap`（JSON＋MANUAL のスナップショット）を読んでいたため**parser 規則を殺しても 407/407 PASS**＝空振り。本修正では `parseCardEffects()` を直接叩く作法へ変更し、**parser 規則を殺すと2件 FAIL・engine ゲートを殺すと1件 FAIL** することを確認済み。(c) fromZones 脱落は Codex の報告文（「既存の fromZones を維持」）と実物が食い違っていた。**LLM 実装を採用する際は「ゲートが緑」ではなく「ゲートを殺したら赤くなるか」を確認すること**。
+
+**残穴（PLAN §3 Opusタスク12 へ登録）**＝(xxxiii) `collectTrashTriggers` の any_opp watcher パスは usageLimit 未評価のまま（ON_BANISH では評価済み・該当箇所にコメント）／(xxxiv) 「コストか効果によって場からトラッシュに置かれたとき」の `fromFieldByCostOrEffect` が15カードで parser 未 emit（engine ゲートは既存）。
+
 ## Opusタスク12在庫消化＝(v) クローズ＋(vi-4) が「潜在」ではなく実バグと判明し ON_BANISH any_ally scope 脱落16効果を根治（2026-07-17・続き181・Opus 4.8・PLAN §3 Opusタスク12(v)/(vi-4)）
 
 **(v)＝`applyDirectAction` の default 暴走再実行の残**と**(vi-4)＝6コレクタの LRIGゾーン走査漏れ**を消化。(vi-4) は登録時「該当実カード0＝潜在バグ」とされていたが、**前提が既に崩れており実カード8枚が死んでいた**と判明（続き96 の棚卸し以降に採用された JSON で ON_BANISH/ON_TRASH/ON_BLOOD_CRYSTAL_ARMOR のルリグ watcher が発生していた）。
