@@ -2200,12 +2200,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // detect*/count*（盤面差分の検出/計数）は Stage2 で pure 化＝src/engine/boardDiff.ts に集約（上部 import）。
 
   // ON_BLOOD_CRYSTAL_ARMOR トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
+  // usageLimit（《ターン1回/2回》）消費 effectId を usedHostIds/usedGuestIds で返す（呼び出し元が actions_done へ
+  // 書き戻す＝ON_BANISH と同型。Opusタスク12(xxxii)で any_ally が発火するようになり書き戻しが必要になった）。
   const collectArmorTriggers = (
     armoredCardNum: string,
     armoredPlayerId: string,
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
-  ): StackEntry[] =>
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
     pureCollectArmorTriggers(mkTrigCtx(), armoredCardNum, armoredPlayerId, afterHostState, afterGuestState);
 
   // ON_LEAVE_FIELD トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
