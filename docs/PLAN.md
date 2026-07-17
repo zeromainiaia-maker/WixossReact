@@ -158,24 +158,25 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-17・続き180・Fable 5→Opus 4.8・タスク16[C]＝台帳下部5機構の一括機構化＝**完了**）**
-  - **成果＝engine/parser/decompiler 実装（Fable 5）＋JSON採用・golden・全ゲート・簿記（Opus）を完遂。golden 396→402・census 2019→2016・timing fallback 91/77→60/48・同型★0 維持。** 詳細は BUGFIXES 続き180。
-  - **実装済み5機構（HEAD 済）**：①`collectSigniDownUpTriggers`＋`detectNewlyDowned/Upped`（ON_SIGNI_DOWN/BECOMES_UP・byEffect/duringAttackPhase/upIncludesLrig・watcher は場+LRIG+**キー**）②自己discard反応（ON_TRASH self+fromZones:hand・byOwnEffect/trashSourceStory/turnOwner）③ON_LEAVE_FIELD 跨サイド（{entries,usedHostIds,usedGuestIds}化＋any_opp byOwnEffect＋any_ally byOpponentEffect・既存 usageLimit 過剰発火も是正）④mill「合計N枚以上」regex＋ON_DRAW/ON_HAND_DISCARDED「N枚以上」＋drawByDrawerOwnEffect 等ゲート⑤ゾーンアイコン placedOnTrapZone/placedOnGateZone。
-  - **JSON採用（計27カード）**＝build:effects（richness ガード）→heldReview --adopt の正規ルート。pure-superset 自動採用5（WX14-027/WX21-025/WXEX2-31/WXDi-P02-030/WXDi-P10-060）＋held 明示採用22（①9②8③3④WX11-030）＋**WXK11-015-E3 を isTriggerSource で MANUAL 化**（続き179 WX17-075-E1 と同型の対象幻覚是正）。
-  - **据置判断**＝MANUAL 温存6（WXDi-P08-079/WXDi-CP02-010＝fresh が turnOwner:self 喪失・WXEX1-49-E2＝fresh が -8000 喪失・WX24-P3-087＝fresh PARTIAL・WXK10-025/WXK10-040＝E1 MANUAL）＋WXDi-CP02-077-E1 据置（2能力混在・fresh 採用は相手手札 discard 過剰発火）。
-  - **見送り（台帳）**＝ON_HAND_ADDED 新設要（WX25-P2-063/SPDi43-11）・WXDi-D09-P16・WX24-P2-051（ガードアイコン非所持 filter 軸）・WXDi-P13-051（OR複合）・WXEX2-76-E1（続き179発見の ON_PLAY self 幻覚）・WXDi-CP02-077 の2効果分割。
-  - **次の一手**：Opus＝タスク12在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残(xxx)）。Sonnet＝新 timing の §7 driver（続き178/179/180分）。
+- **🆕 セッション（2026-07-17・続き181・Opus 4.8・タスク12在庫＝(v) クローズ＋(vi-4) 消化＝**完了**）**
+  - **成果**＝golden 402→**406**・census 2016→**2003**（実数更新）・smoke/fuzz 全0（seed 1/2/3）・同型★0 維持・`npm run regen` 済み。詳細は BUGFIXES 続き181。
+  - **(v)＝クローズ**。`applyDirectAction` の default 節に計器を差し smoke 全10593効果で到達型を実測（REVEAL133/STUB101/BLOCK_ACTION32/DRAW4/REARRANGE_SIGNI1）＝**真の再入バグは `STORY_CHANGE` のみ**（case 新設・修正前 autopilot hang を確認）。他は全て benign と機械確認＝在庫から落とせる。
+  - **(vi-4)＝⚠「該当実カード0の潜在バグ」という登録時の前提が既に崩れていた**（続き96 以降の JSON 採用でルリグ watcher が発生＝ON_BANISH6・ON_TRASH1・ARMOR1）。6コレクタの手書き `field.signi` 走査を `ownFieldSources()` へ統一。
+  - **派生＝ON_BANISH の any_ally scope 脱落20効果を発見し16効果を根治**。parser に「あなたの[他の][＜X＞の]シグニ1体がバニッシュされたとき」→any_ally 規則を追加（＜X＞→triggerFilter.story／他の→excludeSelf）＋engine に triggerFilter 評価＋**block1 の any_ally 対応**（＝自身が＜悪魔＞なら自分のバニッシュでも発火する。scope 変更だけだと**自己発火を失う逆方向の退化**になる分かれ目）。JSON は全効果 diff で「16効果のみ・scope/filter のみ・action 不変」を機械確認。
+  - **据置**＝限定を無言で落とさないため意図的に非マッチ4件（アタックフェイズ前置き WX18-002-E1/WXEX1-18-E1・チャーム付き WXK07-074-E1・動的レベル比較 WXK11-018-E1）。
+  - **次の一手**：Opus＝タスク12在庫の残（(i)(ii)(iii)(viii)残(xi)(xii)(xxiv)残(xxx)＋新規登録の**(xxxi)** per-level ドロー5効果・**(xxxii)** ON_TRASH/ARMOR の同型 scope 脱落）。Sonnet＝新 timing の §7 driver（続き178/179/180分）＋**本修正で発火するようになった ON_BANISH any_ally 16効果の実機確認**（特にルリグ watcher WX22-011-E2）。
+
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 2016【効果単位】**（2026-07-17 続き180 更新＝タスク16[C]の5機構JSON採用で 2019→2016・実数更新。続き179で timing[B]第2弾の10効果是正で 2027→2019。2026-07-13 続き109 で判定粒度を「カード単位」→「効果単位（effectId）」へ切替。旧カード単位の 1447 とは**計測仕様が違うので比較不能**）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。**前提＝`docs/_effect_srctext.json`（`npm run build:effects` の副産物）が最新であること**（無ければ census は exit 1）。明細 `docs/_vocab_census.txt`・消化の入口は `npm run census:clusters`（§5c）。**切替の根拠と計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109。**
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 2003【効果単位】**（2026-07-17 続き181 更新＝タスク12(vi-4)＋ON_BANISH any_ally scope 脱落の是正で 2016→2003・実数更新。続き180 でタスク16[C]の5機構JSON採用により 2019→2016。続き179で timing[B]第2弾の10効果是正で 2027→2019。2026-07-13 続き109 で判定粒度を「カード単位」→「効果単位（effectId）」へ切替。旧カード単位の 1447 とは**計測仕様が違うので比較不能**）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。**前提＝`docs/_effect_srctext.json`（`npm run build:effects` の副産物）が最新であること**（無ければ census は exit 1）。明細 `docs/_vocab_census.txt`・消化の入口は `npm run census:clusters`（§5c）。**切替の根拠と計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109。**
 - **母数**：効果カード 5975／効果 10549／MANUAL効果 733／STUB含むカード 1820。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 402・smoke/fuzz 全0・同型★0・census 2016。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 406・smoke/fuzz 全0・同型★0・census 2003。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >

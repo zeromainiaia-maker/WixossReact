@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-17・続き180・Fable 5→Opus 4.8・タスク16[C]＝台帳下部5機構の一括機構化＝**完了**）**
+  - **成果＝engine/parser/decompiler 実装（Fable 5）＋JSON採用・golden・全ゲート・簿記（Opus）を完遂。golden 396→402・census 2019→2016・timing fallback 91/77→60/48・同型★0 維持。** 詳細は BUGFIXES 続き180。
+  - **実装済み5機構（HEAD 済）**：①`collectSigniDownUpTriggers`＋`detectNewlyDowned/Upped`（ON_SIGNI_DOWN/BECOMES_UP・byEffect/duringAttackPhase/upIncludesLrig・watcher は場+LRIG+**キー**）②自己discard反応（ON_TRASH self+fromZones:hand・byOwnEffect/trashSourceStory/turnOwner）③ON_LEAVE_FIELD 跨サイド（{entries,usedHostIds,usedGuestIds}化＋any_opp byOwnEffect＋any_ally byOpponentEffect・既存 usageLimit 過剰発火も是正）④mill「合計N枚以上」regex＋ON_DRAW/ON_HAND_DISCARDED「N枚以上」＋drawByDrawerOwnEffect 等ゲート⑤ゾーンアイコン placedOnTrapZone/placedOnGateZone。
+  - **JSON採用（計27カード）**＝build:effects（richness ガード）→heldReview --adopt の正規ルート。pure-superset 自動採用5（WX14-027/WX21-025/WXEX2-31/WXDi-P02-030/WXDi-P10-060）＋held 明示採用22（①9②8③3④WX11-030）＋**WXK11-015-E3 を isTriggerSource で MANUAL 化**（続き179 WX17-075-E1 と同型の対象幻覚是正）。
+  - **据置判断**＝MANUAL 温存6（WXDi-P08-079/WXDi-CP02-010＝fresh が turnOwner:self 喪失・WXEX1-49-E2＝fresh が -8000 喪失・WX24-P3-087＝fresh PARTIAL・WXK10-025/WXK10-040＝E1 MANUAL）＋WXDi-CP02-077-E1 据置（2能力混在・fresh 採用は相手手札 discard 過剰発火）。
+  - **見送り（台帳）**＝ON_HAND_ADDED 新設要（WX25-P2-063/SPDi43-11）・WXDi-D09-P16・WX24-P2-051（ガードアイコン非所持 filter 軸）・WXDi-P13-051（OR複合）・WXEX2-76-E1（続き179発見の ON_PLAY self 幻覚）・WXDi-CP02-077 の2効果分割。
+  - **次の一手**：Opus＝タスク12在庫（(i)(ii)(iii)(v)(vi-4)(viii)残(xi)(xii)(xxiv)残(xxx)）。Sonnet＝新 timing の §7 driver（続き178/179/180分）。
+
 - **セッション（2026-07-17・続き179・Fable 5・タスク16[B]第2弾＝被バニッシュ状態 filter（感染/チャーム/凍結）＋placedFront レベル filter＋ON_ARTS_USE 色 filter）**
   - **主題**＝続き178「次の一手」の [B]残メニューを一括消化＝9カード10効果。影響は全カード fresh diff で意図分のみ・巻き添えゼロを機械確認。
   - **engine**＝①`triggerCondition.banishedFilter` 新設（被バニッシュシグニ限定・battleBanishEntries が**防御側バトル前状態**の被バニッシュゾーンで matchesStateFilter 評価＝pre-banish スナップ。triggerFilter は主語側なので別軸）②`collectArtsUseTriggers` に使用アーツ引数＋matchesFilter 評価③placedFront＋levelRange は **engine 変更ゼロ**（collectFieldTriggers が triggerFilter 評価済み＝実質[A]）。既存 JSON に banishedFilter／ON_ARTS_USE triggerFilter 持ちは皆無＝副作用ゼロ。
