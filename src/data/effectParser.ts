@@ -3382,10 +3382,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「（この/あなたの他の）カードが【ビート】になったとき」（8件）。engine 配線済み（self＝なったカード自身／
              // any_ally＝オーナーの場のシグニ）。scope は下で抽出。
              : /(?:この|あなたの(?:他の)?)カードが【ビート】になったとき/.test(trigText) ? ['ON_BECOME_BEAT']
-             // 「あなたが（あなたのターンに）アーツを使用したとき」（7件）。engine 配線済み＝**使用者(caster)側のみ**
-             // （collectArtsUseTriggers は triggerScope self 限定）。⚠「対戦相手がアーツを使用したとき」は engine の
+             // 「あなたが（あなたのターンに）（[色]の）アーツを使用したとき」（7件）。engine 配線済み＝**使用者(caster)側のみ**
+             // （collectArtsUseTriggers は triggerScope self 限定・使用アーツの色は triggerFilter.color を matchesFilter 評価＝
+             //   タスク16[B]・WXK01-043）。⚠「対戦相手がアーツを使用したとき」は engine の
              //   受け皿が別（ON_OPP_ARTS_USE 系）＝ここでは拾わない（誤って self 扱いにすると発火主体が逆になる）。
-             : /あなた(?:のターンにあなた)?がアーツを使用したとき/.test(trigText) ? ['ON_ARTS_USE']
+             : /あなた(?:のターンにあなた)?が(?:[白赤青緑黒]の)?アーツを使用したとき/.test(trigText) ? ['ON_ARTS_USE']
              // 「（ガードステップ以外で）（あなた／いずれかのプレイヤー）が手札をN枚捨てたとき」（9件・§3 Opusタスク16）。
              // engine 配線済み（collectHandDiscardTriggers）。**「ガードステップ以外で」は engine 側で構造的に担保**
              // されている＝ガードによる手札捨ては `hand_discarded_just`/`asCost` のどちらも立たない
