@@ -3578,6 +3578,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (storyM) cond.accedHostStory = storyM[1];
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...cond };
       }
+      // ON_SIGNI_BATTLE: バトル相手のレベル/パワー条件を triggerFilter に抽出（engine collectBattleTrig が matchesFilter で評価）。
+      if (timing[0] === 'ON_SIGNI_BATTLE') {
+        const lvMax = actionText.match(/対戦相手のレベル([０-９\d]+)以下のシグニとバトルしたとき/);
+        const lvEx = actionText.match(/対戦相手のレベル([０-９\d]+)のシグニとバトルしたとき/);
+        const pwMin = actionText.match(/対戦相手のパワー([０-９\d]+)以上のシグニとバトルしたとき/);
+        if (lvMax) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), levelRange: { max: parseInt(toHalf(lvMax[1]), 10) } };
+        else if (lvEx) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), level: parseInt(toHalf(lvEx[1]), 10) };
+        else if (pwMin) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), powerRange: { min: parseInt(toHalf(pwMin[1]), 10) } };
+      }
       // ON_EXCEED_COST（あなたが支払ったとき変種）: exceedCostPaidByPlayer を刻む（場のシグニ側で発火する別経路）。
       if (timing[0] === 'ON_EXCEED_COST' && /あなたがエクシードのコストを支払ったとき/.test(actionText)) {
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), exceedCostPaidByPlayer: true };
