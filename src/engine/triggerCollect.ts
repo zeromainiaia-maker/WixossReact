@@ -465,7 +465,9 @@ export function collectTrashTriggers(
       });
     }
   }
-  return entries;
+  // ⚠この any_opp watcher パスは usageLimit 未評価のまま（ON_BANISH では評価済み＝(x) 同型の残穴）。
+  //   本タスク(xxxii)の対象外＝未検証で挙動を変えないため据置。PLAN §3 Opusタスク12 へ登録。
+  return { entries, usedHostIds, usedGuestIds };
 }
 
 /**
