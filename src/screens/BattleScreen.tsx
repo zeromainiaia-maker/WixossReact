@@ -7273,6 +7273,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const battleBanishEntries: StackEntry[] = [];
       if (banishedOpCardNum) {
         const usedIdsBB: string[] = [];
+        // banishedFilter（被バニッシュシグニの限定・タスク16[B]）: 「感染状態の/凍結状態の/【チャーム】が付いている
+        // シグニをバニッシュしたとき」（WX16-079/WXK02-054/WXEX2-76 等）。チャーム/ウィルス/凍結はバニッシュで
+        // 場から消えるゾーン状態のため、防御側の**バトル前状態（opS）**の被バニッシュゾーンで判定する（pre-banish スナップ）。
+        // 犠牲（BanishSubstitute）経路では正面以外のゾーンが落ちるので findIndex で引く。
+        const banishedZoneIdxBB = opS.field.signi.findIndex(s => s?.at(-1) === banishedOpCardNum);
         for (const stackBB of newMyState.field.signi) {
           const topNumBB = stackBB?.at(-1);
           if (!topNumBB) continue;
