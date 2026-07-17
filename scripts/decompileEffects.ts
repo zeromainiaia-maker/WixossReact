@@ -1063,6 +1063,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'POWER_DOUBLE_ALL') return 'ターン終了時まで、あなたのすべてのシグニのパワーを2倍にする';
       if (a.id === 'BANISH_REDIRECT_POWER0_TRASH') return 'このターン、パワーが0以下のシグニがバニッシュされる場合、エナゾーンの代わりにトラッシュに置かれる';
+      // WX24-P4-016-E3（タスク12(xxiii)残・engine未実装の正直STUB＝旧GRANT_KEYWORD幻覚の是正）
+      if (a.id === 'ATTACK_NEGATE_IMMUNITY_SELF') return 'このターン、あなたの効果によってシグニのアタックは無効にならない';
+      if (a.id === 'MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC') return 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る';
       if (a.id === 'DOUBLE_POWER_MINUS_THIS_TURN') return 'このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される';
       // DISCARD_OR_PENALTY: 原文から「＜クラス＞/種別のカードを1枚捨てないかぎり手札をN枚捨てる」を復元
       if (a.id === 'DISCARD_OR_PENALTY') {
