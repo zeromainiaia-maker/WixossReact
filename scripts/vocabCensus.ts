@@ -157,7 +157,7 @@ const PATTERNS: Pattern[] = [
   {
     name: 'パワー閾値(NN以上/以下)',
     re: /パワー(が)?[０-９\d]+以[上下]/,
-    keys: ['powerRange', 'SELF_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax'],
+    keys: ['powerRange', 'SELF_POWER', 'FRONT_SIGNI_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax'],
   },
   {
     name: 'レベル閾値(N以上/以下)',
