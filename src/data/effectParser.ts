@@ -2743,6 +2743,35 @@ function parseActionTextInner(text: string): EffectAction {
     // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
   }
 
+  // ---- デッキの一番上を見る（private look）→ 条件分岐（それが〜のシグニの場合、それを場に出（す/してもよい））----
+  // 「公開する」版（上）と対。旧実装は sentence 分割で LOOK_AND_REORDER + bare ADD_TO_FIELD になり
+  // 原文の filter（レベル/色/クラス/ライズアイコン）と optional（「もよい」）が丸ごと脱落し、
+  // デッキトップを無条件で場に出す過剰効果に退化していた（タスク12・WX16-038-E1/E2・WX15-001-E2）。
+  // 正準形＝WX10-007/021（MANUAL）と同じ SEQUENCE[LOOK, ADD_TO_FIELD{source:DECK_CARD fromTop filter}]。
+  if (sentences[0].trim().match(/デッキの一番上を見る/) && sentences.length >= 2) {
+    const condS = sentences[1].trim();
+    const condM = condS.match(/^それが(.+?)シグニの場合、(.+)/);
+    if (condM && /場に出/.test(condM[2]) && !/場に他のシグニがない/.test(condS)) {
+      const condText = condM[1];
+      const optional = /もよい/.test(condM[2]);
+      const filter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseLevelFilter(condText),
+        ...parseStoryFilter(condText),
+        ...parseColorFilter(condText),
+      };
+      if (/《ライズアイコン》を持たない/.test(condText)) filter.noRiseIcon = true;
+      else if (/《ライズアイコン》を持つ/.test(condText)) filter.hasRiseIcon = true;
+      const look = parseSingleSentence(sentences[0].trim());
+      const add: AddToFieldAction = {
+        type: 'ADD_TO_FIELD', owner: 'self',
+        ...(optional ? { optional: true } : {}),
+        source: { type: 'DECK_CARD', owner: 'self', count: 1, fromTop: true, filter },
+      };
+      return { type: 'SEQUENCE', steps: [look, add] } as SequenceAction;
+    }
+  }
+
   // ---- デッキの上からN枚公開 → その中からフィルタでピック → 残りを処理 ----
   if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚公開する/) && sentences.length >= 2) {
     const revM = sentences[0].match(/([０-９\d]+)枚公開する/);
