@@ -1602,6 +1602,29 @@ test('Stage2 ON_DISCARDED_AS_COST: asCost=true のみ発火（WX25-P3-071-E2）'
   eq(has(collectHandDiscardTriggers(trigCtx(HOST), ['WX25-P3-071'], host, HOST, true, undefined, undefined, bikin).entries, 'WX25-P3-071-E2'), true, 'コスト捨てで発火');
   eq(has(collectHandDiscardTriggers(trigCtx(HOST), ['WX25-P3-071'], host, HOST, false, undefined, undefined, bikin).entries, 'WX25-P3-071-E2'), false, 'asCost=falseは非発火');
 });
+// ON_OPP_POWER_DECREASED の発生源限定（続き206・タスク12(xxiv)）。従来は「＜毒牙＞のシグニの効果によって」を
+// 落としており、自分のどの効果でパワーを減らしても発火する過剰トリガーだった。
+// ⚠発生源不明（srcCardNum 未記録の経路＝空配列）のときは**従来どおり発火**させる設計＝部分実装が過少発火に化けないため。
+test('Stage2 ON_OPP_POWER_DECREASED: 発生源クラス限定（WX25-P3-032-E1・続き206）', () => {
+  const host = mkState({ signi: ['WX25-P3-032', null, null] });
+  const guest = mkState({});
+  const dokuga = findCard(c => (c.CardClass ?? '').includes('毒牙') && c.CardNum !== 'WX25-P3-032');
+  const other = findCard(c => !(c.CardClass ?? '').includes('毒牙') && isSigni(c));
+  const fire = (srcs: string[]) => has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, srcs).entries, 'WX25-P3-032-E1');
+  eq(fire([dokuga!]), true, '毒牙シグニの効果による減少では発火するはず');
+  eq(fire([other!]), false, '毒牙以外の効果による減少では発火しないはず（従来はここが過剰発火）');
+  eq(fire([]), true, '発生源不明（srcCardNum 未記録経路）は従来どおり発火するはず');
+});
+
+test('Stage2 ON_OPP_POWER_DECREASED: 「他の」＝自身の効果は発生源にならない（WX25-P3-062-E1・続き206）', () => {
+  const host = mkState({ signi: ['WX25-P3-062', null, null] });
+  const guest = mkState({});
+  const dokuga = findCard(c => (c.CardClass ?? '').includes('毒牙') && c.CardNum !== 'WX25-P3-062');
+  const fire = (srcs: string[]) => has(collectPowerDecreaseTriggers(trigCtx(HOST), HOST, host, guest, 3000, srcs).entries, 'WX25-P3-062-E1');
+  eq(fire([dokuga!]), true, '他の毒牙シグニの効果なら発火するはず');
+  eq(fire(['WX25-P3-062']), false, '自分自身の効果では発火しないはず（「他の」）');
+});
+
 test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 / WXK01-059-E2）', () => {
   const host1 = mkState({ signi: ['WXK11-019', null, null] }); const guest1 = mkState({});
   eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true), 'WXK11-019-E2'), true, '相手アーツ使用で発火');
