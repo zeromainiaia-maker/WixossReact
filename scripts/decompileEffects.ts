@@ -148,6 +148,7 @@ function filterJa(f?: any): string {
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
+  if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
   if (f.levelEqLastProcessed) parts.push('この方法で【ビート】にしたシグニと同じレベルの');
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
   if (f.levelLtDiscardSigni) parts.push('この方法で捨てたシグニより低いレベルを持つ');
