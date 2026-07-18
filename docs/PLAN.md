@@ -161,10 +161,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き193・Opus 4.8・タスク12(i) 消化＝SP27-002-E3 二段「かぎり」引用付与の退化）**
-  - **成果**＝golden 427→**428**・census **1998**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen`／`genStubsMd` 済み。end-to-end 実測で条件充足時のみアサシン付与を確認。詳細は BUGFIXES 続き193。
-  - SP27-002-E3「センタールリグが緑であるかぎり、このシグニは「正面のシグニのパワーが15000以上であるかぎり、【アサシン】を得る」を得る」の**外側条件を genericKagiri が無言消費**し、残りが `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` STUB（keyword=【常】誤認・内側条件無視・全シグニ付与の三重バグ）へ退化していた。**外側 LRIG_COLOR ＋内側 `FRONT_SIGNI_POWER`（新設）を AND に平坦化**（両とも継続「かぎり」＝挙動的に厳密）した CONTINUOUS GRANT_KEYWORD へ構造化。`parseCenterColorFrontPowerGrant` を条件抽出ループ前に呼び genericKagiri を回避。旧 STUB の parser 規則・engine ハンドラを削除。
-  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (ii)(iii)(xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝イベント履歴 Condition／自己再帰STUB再設計／引用付与内側 parse の owner 精査／被バニッシュ動的状態参照）。
+- **🆕 セッション（2026-07-18・続き194・Opus 4.8・タスク12(ii) 消化＝WXDi-P10-035 の退化 curated を改善 fresh へ差し替え）**
+  - **成果**＝**census 1998→1996 改善**（BASELINE_HIGH 実数更新）・golden **428**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き194。
+  - (ii) の「引用内【自】『それを手札に戻す』の owner エンコード整合」を精査＝**現行 fresh は既に正準形**（`BOUNCE{owner:'opponent'}`＝採用済み WDK05-T11-E1 と完全同型・`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`＋`IS_MY_TURN` プレースホルダ慣例で pay/skip 発動・単一対象で lastProcessed 不要）＝**owner バグ無し**と確定。実バグは採用済み curated が退化版（E1＝POWER_MODIFY＋付与トリガー脱落の flat BOUNCE／E2＝HAND_COUNT≧4 条件脱落の無条件 AWAKEN）で放置されていた点＝改善 fresh を heldReview 採用で差し替え（parser/engine 変更ゼロ）。
+  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (iii)(xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝イベント履歴 Condition／自己再帰STUB再設計／引用付与内側 parse／被バニッシュ動的状態参照）。
   - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
