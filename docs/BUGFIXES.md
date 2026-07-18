@@ -4,6 +4,20 @@
 
 ---
 
+## Opusタスク12(ii) 消化＝WXDi-P10-035 の退化 curated を改善 fresh へ差し替え（引用内【自】の owner 整合を精査）（2026-07-18・続き194・Opus 4.8）
+
+**対象**＝WXDi-P10-035（幻水姫 セイレーン）
+- E1「【常】：このシグニが覚醒状態であるかぎり、このシグニのパワーは＋1000され、このシグニは「【自】：このシグニが場を離れたとき、対戦相手のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。」を得る。」
+- E2「【自】：あなたのアタックフェイズ開始時、あなたの手札が４枚以上ある場合、このシグニは覚醒する。」
+
+**精査（要精査 → 結論）**＝(ii) の懸念は「引用内【自】の『それを手札に戻す』の owner エンコード（続き81 時点で `BOUNCE{owner:'self'}` に化けていた）が `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`＋lastProcessed 慣例と整合するか」。**現行パーサの fresh を精査した結果、既に正準形へ改善済み**と判明＝
+- E1 fresh＝`CONTINUOUS{IS_SELF_AWAKENED, SEQUENCE[POWER_MODIFY+1000(thisCard), GRANT_FIELD_SIGNI_ABILITY{thisCardOnly, ability:G}]}`。付与能力 G＝`AUTO{ON_LEAVE_FIELD, SEQUENCE[STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST,costColors:[白]}, CONDITIONAL{IS_MY_TURN, then:BOUNCE{owner:'opponent'}}]}`。
+- **この G は採用済み正準カード WDK05-T11-E1（「対戦相手のシグニ１体を対象とし、《白》を支払ってもよい。そうした場合、それを手札に戻す。」と同一文）と完全同型**＝`IS_MY_TURN` は「コスト支払い→発動」のプレースホルダ慣例で、engine `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` ハンドラ（`effectExecutor.ts:2176`）が pay/skip の CHOOSE を提示し pay 時のみ `conditional.then` の BOUNCE を実行（owner は `fixOwnerTOSOC` でも self→opponent 補正されるが、**parser 側で既に opponent を出しており二重に正しい**）。単一対象なので BOUNCE 自身の選択＝「それ」で lastProcessed は不要＝慣例と整合。**⇒ owner エンコードにバグは無い（精査完了）。**
+
+**残っていた実バグ**＝採用済み curated JSON が改善前の**退化版**のまま放置されていた：E1＝POWER_MODIFY＋付与トリガーが丸ごと落ち即時 `BOUNCE{owner:'opponent'}`（CONTINUOUS な BOUNCE＝毎フレーム発火の破綻形）／E2＝`HAND_COUNT≧4` 条件が落ち無条件 `AWAKEN_SIGNI`（過剰発火）。**改善 fresh を heldReview で採用**して差し替え（parser/engine 変更ゼロ＝データ差し替えのみ）。付与能力は `augMap`（トリガー用 effectsMap）に collectGrantedFromLayer が SEQUENCE 直下の GRANT_FIELD_SIGNI_ABILITY を activeCondition 付きで instanceId キーで合成する経路に乗る（覚醒中に離脱＝離脱前 augMap に G が在るため収集される）。
+
+**結果**＝WXDi-P10-035 を採用（E1 SEQUENCE 復元・E2 条件復元）。逆翻訳が原文一致（「そしてこのシグニは『【自】このカードが場を離れたとき：《白》を支払ってもよい。そうした場合、対戦相手のシグニ1体を手札に戻す』を得る」／「あなたの手札が4枚以上なら、このシグニを覚醒状態にする」）。**census 1998→1996 改善**（退化 curated が欠いていたパワー/条件語彙を回収＝BASELINE_HIGH 実数更新）・golden 428 維持・同型★0・smoke/fuzz 全0・typecheck/lint 緑。
+
 ## Opusタスク12(i) 消化＝SP27-002-E3 二段「かぎり」引用付与の退化（genericKagiri 無言消費）（2026-07-18・続き193・Opus 4.8）
 
 **対象**＝SP27-002-E3（幻獣 ダチョウ）「【常】：あなたのセンタールリグが緑であるかぎり、このシグニは「【常】：このシグニの正面のシグニのパワーが15000以上であるかぎり、【アサシン】を得る。」を得る。」
