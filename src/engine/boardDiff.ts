@@ -167,6 +167,26 @@ export function detectPowerDecrease(before: PlayerState, after: PlayerState): nu
   return dec;
 }
 
+/**
+ * パワー減少を起こした効果元カード（temp_power_mods の新規負 delta の srcCardNum）を返す（ON_OPP_POWER_DECREASED
+ * の発生源限定「あなたの＜X＞のシグニの効果によって」判定用・§3 タスク12(xxiv)）。
+ * ⚠srcCardNum は全書き込み経路では埋まらない。**1件でも未設定が混ざる場合は空配列＝発生源不明**を返し、
+ * 呼び出し側は従来どおり発火させる（過剰側に倒す）＝部分実装が「発火しない」退化に化けるのを防ぐ。
+ */
+export function detectPowerDecreaseSources(before: PlayerState, after: PlayerState): string[] {
+  if (!before || !after) return [];
+  const beforeMods = before.temp_power_mods ?? [];
+  const afterMods = after.temp_power_mods ?? [];
+  const srcs: string[] = [];
+  for (let i = beforeMods.length; i < afterMods.length; i++) {
+    if (afterMods[i].delta >= 0) continue;
+    const src = afterMods[i].srcCardNum;
+    if (!src) return [];      // 発生源不明が混ざる＝限定判定を諦める
+    srcs.push(src);
+  }
+  return srcs;
+}
+
 /** デッキ→トラッシュ枚数（ミル枚数）を算出。before.deck かつ after.trash かつ not before.trash。 */
 export function countMilledFromDeck(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
