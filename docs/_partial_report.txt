@@ -1,6 +1,6 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-18T23:22:45.955Z / 刻印効果 110件
+生成: 2026-07-18T23:42:09.591Z / 刻印効果 108件
 
 ## カテゴリ別件数
 
@@ -8,7 +8,6 @@
 - multi-dest分割: 11
 - リコレクト分割: 3
 - ON_CARD_MILLED_FROM_DECK: 2
-- ON_OPP_POWER_DECREASED: 2
 
 ## 明細（effectId → 理由）
 
@@ -75,10 +74,8 @@ WX25-P1-039-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P1-044-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P2-039-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P2-041-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P3-032-E1	ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似
 WX25-P3-038-E1	multi-dest分割:UNKNOWNアクション除去
 WX25-P3-045-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P3-062-E1	ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似
 WX26-CP1-058-E1	IS_MY_TURN化:その後、この方法であなたのデッキから＜プリオケ＞のカードが３枚以上トラッシュに置かれた場合、
 WXDi-CP01-045-E1	IS_MY_TURN化:この方法で＜バーチャル＞のシグニ２枚がトラッシュに置かれた場合、
 WXDi-D09-H17-E1	IS_MY_TURN化:この方法でカードを６枚以上捨てた場合、
