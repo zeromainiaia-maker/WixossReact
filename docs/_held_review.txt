@@ -148,6 +148,90 @@ SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25-P1-058 W
   + [0].action.steps[0].costColors[0] = "黒"
   + [0].action.steps[0].costColors[1] = "黒"
 
+## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER -SIGNI -TRANSFER_TO_DECK ［9枚］
+WX24-P1-023 WX24-P2-031 WX24-P2-033 WX24-P2-037 WX24-P2-039 WX24-P3-033 WX25-P2-035 WX25-P2-037 WX25-P3-042
+--- WX24-P1-023
+  原文: 対戦相手のパワー10000以下のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、それをバニッシュする。あなたのデッキの上からカードを５枚見る。その中からスペルか＜電機＞のシグニを合計２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.steps[1].source.location = "deck"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].count = 5
+  - [0].action.steps[1].private = true
+  - [0].action.steps[1].reorder = false
+  - [0].action.steps[1].canTrash = false
+  - [0].action.steps[1].destination.location = "deck"
+  - [0].action.steps[1].destination.owner = "self"
+  - [0].action.steps[1].destination.position = "top"
+  - [0].action.steps[2].type = "TRANSFER_TO_DECK"
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  …（他 12 行）
+--- WX24-P2-031
+  原文: 対戦相手のパワー10000以下のシグニ１体を対象とし、それを手札に戻す。あなたのデッキの上からカードを７枚見る。その中から＜天使＞と＜悪魔＞のシグニをそれぞれ１枚まで公開し手札に加え、残りをシャッフルしてデッキの一番下に置く。,-
+  - [0].action.steps[1].source.location = "deck"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].count = 7
+  - [0].action.steps[1].private = true
+  - [0].action.steps[1].reorder = false
+  - [0].action.steps[1].canTrash = false
+  - [0].action.steps[1].destination.location = "deck"
+  - [0].action.steps[1].destination.owner = "self"
+  - [0].action.steps[1].destination.position = "top"
+  - [0].action.steps[2].type = "TRANSFER_TO_DECK"
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  …（他 12 行）
+--- WX24-P2-033
+  原文: 対戦相手のパワー12000以下のシグニ１体を対象とし、対戦相手が《無》《無》を支払わないかぎり、それをバニッシュする。あなたのデッキの上からカードを５枚見る。その中から＜龍獣＞のシグニを２枚まで公開し手札に加え、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.steps[1].source.location = "deck"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].count = 5
+  - [0].action.steps[1].private = true
+  - [0].action.steps[1].reorder = false
+  - [0].action.steps[1].canTrash = false
+  - [0].action.steps[1].destination.location = "deck"
+  - [0].action.steps[1].destination.owner = "self"
+  - [0].action.steps[1].destination.position = "top"
+  - [0].action.steps[2].type = "TRANSFER_TO_DECK"
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  …（他 12 行）
+
+## +UNKNOWN -SIGNI -TRANSFER_TO_DECK ［8枚］
+SP38-006 WX14-046 WX21-028 WX25-CP1-012 WX25-P1-041 WXDi-P05-050 WXEX1-06 WXK08-025
+--- SP38-006
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。『【起】エクシード１：このターン、対戦相手の場にあるキーとシグニは能力を失い、新たに得られない。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニゾーンにあるシグニ１体を対象とし、それをトラッシュに置く。対戦相手は自分のデッキの上からカードを３枚見て、その中からシグニを１枚まで場に出し、残りを好
+  - [2].action.steps[1].source.type = "SIGNI"
+  - [2].action.steps[1].source.owner = "opponent"
+  - [2].action.steps[1].source.count = 1
+  - [2].action.steps[1].source.filter.cardType = "シグニ"
+  - [2].action.steps[1].shuffle = false
+  - [2].action.steps[1].position = "bottom"
+  ~ [2].action.steps[1].type : "TRANSFER_TO_DECK" → "UNKNOWN"
+  + [2].action.steps[1].raw = "対戦相手は自分のデッキの上からカードを３枚見て、その中からシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く"
+  ~ [2].parseStatus : "AUTO" → "PARTIAL"
+--- WX14-046
+  原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚公開する。その中から＜毒牙＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.steps[1].source.type = "SIGNI"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].shuffle = false
+  - [0].action.steps[1].position = "bottom"
+  ~ [0].action.steps[1].type : "TRANSFER_TO_DECK" → "UNKNOWN"
+  + [0].action.steps[1].raw = "その中から＜毒牙＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く"
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+--- WX21-028
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からすべての＜天使＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。【起】《ターン１回》《緑×0》：対戦相手の、シグニ１体とエナゾーンにあるカード１枚とトラッシュにあるカード１枚を対象とし、あなたのエナゾーンから赤と青と緑の＜天使＞のシグニを１枚ずつデッキに加えてシャッフルする。そ
+  - [0].action.steps[1].source.type = "SIGNI"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].shuffle = false
+  - [0].action.steps[1].position = "bottom"
+  ~ [0].action.steps[1].type : "TRANSFER_TO_DECK" → "UNKNOWN"
+  + [0].action.steps[1].raw = "その中からすべての＜天使＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く"
+  ~ [0].parseStatus : "AUTO" → "PARTIAL"
+
 ## +CONDITIONAL +HAS_CARD_IN_FIELD ［7枚］
 WDK09-008 WDK10-007 WDK11-007 WDK12-008 WX24-P4-082 WXDi-P02-071 WXDi-P12-002
 --- WDK09-008
@@ -278,6 +362,39 @@ WXDi-P03-002 WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
   + [0].condition.color = "赤"
   ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
   + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+
+## +STUB -SIGNI -TRANSFER_TO_DECK ［5枚］
+WX16-061 WX24-P3-018 WXEX1-13 WXEX2-15 WXK05-021
+--- WX16-061
+  原文: 【出】：あなたの【トラップ】１つをトラッシュに置く。そうした場合、あなたのデッキの上からカードを３枚見て、その中から１枚を【トラップ】としてあなたのシグニゾーンに設置し、残りを好きな順番でデッキの一番下に置く。,-
+  - [0].action.steps[1].then.source.type = "SIGNI"
+  - [0].action.steps[1].then.source.owner = "self"
+  - [0].action.steps[1].then.source.count = 1
+  - [0].action.steps[1].then.source.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.shuffle = false
+  - [0].action.steps[1].then.position = "bottom"
+  ~ [0].action.steps[1].then.type : "TRANSFER_TO_DECK" → "STUB"
+  + [0].action.steps[1].then.id = "TRAP_OPERATION"
+--- WX24-P3-018
+  原文: 【自】：あなたのメインフェイズ開始時、あなたの場にある、中身が＜トリック＞のシグニである【マジックボックス】を３枚まで表向きにしてシグニにする。あなたのデッキの上からカードを３枚見る。その中からカードを１枚まで【マジックボックス】としてあなたのシグニゾーンに設置し、残りを好きな順番でデッキの一番下に置く。【起】《ゲーム１回》ファンタジー《赤×0》：クラフトの
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  - [0].action.steps[2].source.count = 1
+  - [0].action.steps[2].source.filter.cardType = "シグニ"
+  - [0].action.steps[2].shuffle = false
+  - [0].action.steps[2].position = "bottom"
+  ~ [0].action.steps[2].type : "TRANSFER_TO_DECK" → "STUB"
+  + [0].action.steps[2].id = "PLACE_MAGIC_BOX"
+--- WXEX1-13
+  原文: 【自】：対戦相手のアタックフェイズ開始時、あなたの【トラップ】１つを対象とし、それを手札に戻してもよい。そうした場合、あなたのデッキの上からカードを２枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置し、残りをデッキの一番下に置く。【起】《ターン１回》《アタックフェイズアイコン》《コインアイコン》：あなたのデッキの上からカードを５枚見
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  - [0].action.steps[2].source.count = 1
+  - [0].action.steps[2].source.filter.cardType = "シグニ"
+  - [0].action.steps[2].shuffle = false
+  - [0].action.steps[2].position = "bottom"
+  ~ [0].action.steps[2].type : "TRANSFER_TO_DECK" → "STUB"
+  + [0].action.steps[2].id = "PLACE_TRAP_FROM_REVEALED"
 
 ## +UNKNOWN -GRANT_KEYWORD -SIGNI ［5枚］
 WX25-P1-048 WXDi-D09-H11 WXDi-P06-002 WXDi-P07-001 WXDi-P09-002
@@ -541,6 +658,32 @@ WX17-044 WXDi-P16-049
   + [0].action.choices[1].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.choices[1].action.steps[0].costColors[0] = "赤"
 
+## +SEARCH ［2枚］
+WX18-001 WXEX2-28
+--- WX18-001
+  原文: 【出】：あなたのデッキの上からカードを３枚公開する。その中から好きな数の＜悪魔＞のシグニを手札に加え、残りをトラッシュに置く。【起】《アタックフェイズアイコン》エクシード２：あなたのデッキから＜悪魔＞のシグニ１枚を探して場に出す。その後、あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それを場に出し、デッキをシャッフルする。【起】《アタックフェイズアイ
+  - [1].action.steps[0].owner = "self"
+  ~ [1].action.steps[0].type : "ADD_TO_FIELD" → "SEARCH"
+  + [1].action.steps[0].from.location = "deck"
+  + [1].action.steps[0].from.owner = "self"
+  + [1].action.steps[0].filter.cardType = "シグニ"
+  + [1].action.steps[0].filter.story = "悪魔"
+  + [1].action.steps[0].maxCount = 1
+  + [1].action.steps[0].then.type = "ADD_TO_FIELD"
+  + [1].action.steps[0].then.owner = "self"
+--- WXEX2-28
+  原文: 【常】：あなたの＜ウェポン＞のシグニ１体が対戦相手の効果によって場を離れる場合、代わりにアップ状態のこのシグニをダウンしてもよい。【出】《白》：このシグニをチアガールにする。【起】《ターン１回》《赤》：あなたのデッキから＜ウェポン＞のシグニ１枚を探して場に出す。その後、あなたのデッキからそれよりレベルの高い＜ウェポン＞のシグニ１枚を探して場に出し、デッキをシ
+  - [2].action.steps[0].owner = "self"
+  ~ [2].action.steps[0].type : "ADD_TO_FIELD" → "SEARCH"
+  + [2].action.steps[0].from.location = "deck"
+  + [2].action.steps[0].from.owner = "self"
+  + [2].action.steps[0].filter.cardType = "シグニ"
+  + [2].action.steps[0].filter.story = "ウェポン"
+  + [2].action.steps[0].maxCount = 1
+  + [2].action.steps[0].then.type = "ADD_TO_FIELD"
+  + [2].action.steps[0].then.owner = "self"
+  + [2].action.steps[1].filter.levelGtLastProcessed = true
+
 ## +CONDITIONAL +TRASH_HAS_CARD ［2枚］
 WXDi-CP01-042 WXDi-P06-060
 --- WXDi-CP01-042
@@ -695,6 +838,39 @@ SPDi43-30 WXK03-063
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "青"
   + [0].action.steps[0].costColors[1] = "青"
+
+## +UNKNOWN×2 -SIGNI×2 -TRANSFER_TO_DECK×2 ［2枚］
+PR-434 SP27-004
+--- PR-434
+  原文: 数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。,：数字１つを宣言する。あなたのデッキの上からカードを５枚公開する。その中から宣言した数字と同じレベルを持つシグニを２枚まで手札に加え、残りをシャッフルしてデッキの一番下に置く。
+  - [0].action.steps[2].source.type = "SIGNI"
+  - [0].action.steps[2].source.owner = "self"
+  - [0].action.steps[2].source.count = 1
+  - [0].action.steps[2].source.filter.cardType = "シグニ"
+  - [0].action.steps[2].shuffle = false
+  - [0].action.steps[2].position = "bottom"
+  - [1].action.steps[2].source.type = "SIGNI"
+  - [1].action.steps[2].source.owner = "self"
+  - [1].action.steps[2].source.count = 1
+  - [1].action.steps[2].source.filter.cardType = "シグニ"
+  - [1].action.steps[2].shuffle = false
+  - [1].action.steps[2].position = "bottom"
+  …（他 4 行）
+--- SP27-004
+  原文: 【自】：このシグニがバニッシュされたとき、あなたのデッキの上からカードを３枚公開する。その中から＜アーム＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。【出】：あなたのデッキの上からカードを３枚公開する。その中から＜ウェポン＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。,：あなたのデッキから＜アーム＞か＜ウェポン＞のシグ
+  - [0].action.steps[1].source.type = "SIGNI"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].shuffle = false
+  - [0].action.steps[1].position = "bottom"
+  - [1].action.steps[1].source.type = "SIGNI"
+  - [1].action.steps[1].source.owner = "self"
+  - [1].action.steps[1].source.count = 1
+  - [1].action.steps[1].source.filter.cardType = "シグニ"
+  - [1].action.steps[1].shuffle = false
+  - [1].action.steps[1].position = "bottom"
+  …（他 6 行）
 
 ## +CONDITIONAL +IS_MY_TURN +LRIG_COLOR -LAST_PROCESSED_COUNT_GTE ［1枚］
 WX09-Re19

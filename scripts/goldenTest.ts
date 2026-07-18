@@ -4674,6 +4674,36 @@ test('WX09-012-E2 parser: 「青の」色フィルタが filter.color に載る'
   eq(act.costThreshold, 3, 'コスト閾値3'); eq(act.filter.color, '青', '色フィルタ青'); eq(act.filter.cardType, 'スペル', 'スペル限定');
 });
 
+// タスク2（動的比較・WXEX2-28-E3）: 「デッキから＜ウェポン＞1枚を探して場に出す。その後、それよりレベルの高い
+// ＜ウェポン＞1枚を探して場に出し、シャッフル」＝2段 SEARCH＋levelGtLastProcessed（直前配置シグニ基準）。
+// 従来は①終止形「探して場に出す。」が SEARCH 規則を素通りし bare ADD_TO_FIELD に退化（第1サーチ丸ごと消失・
+// WX18-001-E2 も同系統）②「それよりレベルの高い」動的比較が無言脱落、の二重退化だった。
+test('WXEX2-28-E3 parser: 2段 SEARCH＋levelGtLastProcessed を生成（終止形サーチ文の退化解消）', () => {
+  const effs = parseCardEffects(cardMap.get('WXEX2-28')!);
+  const e3 = effs.find(e => e.effectId?.startsWith('WXEX2-28-E3')) ?? effs[2];
+  const seq = e3.action as unknown as { type: string; steps: { type: string; filter?: { levelGtLastProcessed?: boolean; story?: string } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0].type, 'SEARCH', '第1文も SEARCH（bare ADD_TO_FIELD ではない）');
+  eq(seq.steps[1].type, 'SEARCH', '第2文も SEARCH');
+  ok(seq.steps[1].filter?.levelGtLastProcessed === true, '第2 SEARCH に levelGtLastProcessed');
+  eq(seq.steps[1].filter?.story, 'ウェポン', 'ウェポン filter 維持');
+});
+test('levelGtLastProcessed e2e: 1体目を場に出し、それよりレベルの高いウェポンだけが2体目候補になる', () => {
+  const wL1 = 'WX01-072', wL3 = 'WX01-041'; // ウェポン L1 / L3
+  const base = mkCtx({ signi: [null, null, null] }, {});
+  const nonW = base.ownerState.deck.filter(n => !(cardMap.get(n)?.CardClass ?? '').includes('ウェポン')).slice(0, 5);
+  const c = { ...base, ownerState: { ...base.ownerState, deck: [wL1, wL3, ...nonW] } } as ExecCtx;
+  const action = { type: 'SEQUENCE', steps: [
+    { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', story: 'ウェポン' }, maxCount: 1, then: { type: 'ADD_TO_FIELD', owner: 'self' } },
+    { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: { cardType: 'シグニ', levelGtLastProcessed: true, story: 'ウェポン' }, maxCount: 1, then: { type: 'ADD_TO_FIELD', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
+  ] } as EffectAction;
+  const r = run(action, c); // autopilot: 第1候補 wL1 を配置 → 第2 SEARCH は level>1 のウェポンのみ＝wL3
+  const placed = tops(r.ownerState).filter(x => x);
+  ok(placed.includes(wL1), '1体目 wL1 配置');
+  ok(placed.includes(wL3), '2体目 wL3（それよりレベルの高いウェポン）配置');
+  ok(!r.ownerState.deck.includes(wL1) && !r.ownerState.deck.includes(wL3), '両方デッキから除去');
+});
+
 // タスク12(xii)（WXEX1-19-E2）: TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH の自己再帰 thenAction は
 // resumeSelectTarget の個別適用ループと非互換（1枚ずつ渡り「3枚一括」の前提が崩れ、同一 SELECT_TARGET を
 // 再発行し続ける真の無限ループ）。thenAction=no-op＋continuation の一括受け取り型（INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N と同型）で固定する。
