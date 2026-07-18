@@ -8782,7 +8782,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 攻撃側ルリグのダブルクラッシュ確認
         const opLrigNum = op.field.lrig.at(-1);
         const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
-        if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {
+        // PREVENT_DAMAGE ウィンドウ（scope='ALL' も 'LRIG' もルリグアタックのダメージを無効）＝期間内は回数無制限。
+        // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
+        if ((my.prevent_damage_windows ?? []).length > 0) {
+          appendBattleLogs([`ルリグアタック：ダメージ無効（ダメージを受けない効果）`]);
+          newMyState = { ...my, field: { ...my.field, lrig_attacked: false } };
+        } else if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {
           const fzLB = removeOneBarrierToken(my.field.free_zone, LRIG_BARRIER_CARD);
           appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${countBarrierTokens(fzLB, LRIG_BARRIER_CARD)}）`]);
           newMyState = { ...my, field: { ...my.field, free_zone: fzLB, lrig_attacked: false } };
