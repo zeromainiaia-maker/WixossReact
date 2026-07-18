@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き197・Opus 4.8・タスク12(viii)残 消化＝WX26-CP1-048 出自条件機構）**
+  - **成果**＝census 1993→**1992** 改善（BASELINE_HIGH 実数更新）・golden 433→**435**（出自記録e2e＋THIS_CARD_PLACED_BY_CLASS/LAST_PROCESSED_SHARES_COLOR_WITH_LRIG）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き197。
+  - 「このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合」の**出自条件が bare SEQUENCE で完全脱落**（通常召喚でも発火）＋共通色ゲート脱落＋エナチャージ owner 誤り。**出自帰属機構を新設**＝PlayerState `signi_placed_by_source`（execAddToField/resumeSelectZone の全配置点で `ctx.sourceCardNum` を決定論的に記録）＋Condition `THIS_CARD_PLACED_BY_CLASS{cardClass}`（配置元カードの CardClass 判定・⚠プリオケは story でなく CardClass）＋`LAST_PROCESSED_SHARES_COLOR_WITH_LRIG`。WX26-CP1-048 を MANUAL 化。**e2e 実測でプリオケ配置=true/別クラス=false/通常召喚=false を確認**。
+  - **⚠残る (viii)＝WXDi-P10-034（次メインフェイズ遅延+分岐）は §6.3 専用タスクとして分離**＝(a)デッキカードのゾーン裏向き配置(b)**次ターン**まで生存する遅延トリガー(c)表向き選択分岐＝ターン境界ロジックに触れる高リスク。他の残タスク12＝(xi)(xii)(xxiv)残・ON_BANISH据置2件 も §6.3級。
+
 - **🆕 セッション（2026-07-18・続き196・Opus 4.8・タスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開2分岐配置）**
   - **成果**＝census 1996→**1993** 改善（BASELINE_HIGH 実数更新）・golden 429→**433**（parse構造＋evalCondition AND＋e2e配置×3）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き196。
   - デッキトップ公開の2分岐配置で**第2分岐（登録者数100万＋公開シグニ）の条件が完全脱落し bare ADD_TO_FIELD（無条件2枚目配置）に退化**＋両分岐 optional 脱落。parser に `parseSubscriberRevealCondition` 新設（`AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]`）＋bare ADD_TO_FIELD の「もよい」→optional＋engine no-source ADD_TO_FIELD を optional 対応（CHOOSE 出す/出さない）。**e2e 実測で level2電機→第1分岐配置／level3非電機→登録者数100万時のみ第2分岐配置を確認**。
