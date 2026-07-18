@@ -132,6 +132,25 @@ export function checkActiveCondition(
       return true;
     }
 
+    case 'FRONT_SIGNI_POWER': {
+      // このシグニの正面（相手ゾーン 2-zi）のシグニの実効パワーを判定。正面が空なら不成立。
+      if (!sourceCardNum) return false;
+      const zi = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      if (zi < 0) return false; // 効果元がシグニでない（ルリグ等）＝正面なし
+      const frontNum = otherState.field.signi[2 - zi]?.at(-1);
+      if (!frontNum) return false;
+      const frontPower = effectivePowers?.get(frontNum) ?? parseInt(cardMap.get(frontNum)?.Power ?? '0', 10);
+      switch (cond.operator) {
+        case 'gte': return frontPower >= cond.value;
+        case 'lte': return frontPower <= cond.value;
+        case 'gt':  return frontPower >  cond.value;
+        case 'lt':  return frontPower <  cond.value;
+        case 'eq':  return frontPower === cond.value;
+        case 'neq': return frontPower !== cond.value;
+      }
+      return false;
+    }
+
     case 'HAND_DIFF': {
       const diff = ownerState.hand.length - otherState.hand.length;
       switch (cond.operator) {
