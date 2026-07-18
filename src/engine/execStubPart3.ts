@@ -3988,6 +3988,21 @@ export function execStubPart3(
   if (stub.id === 'FROZEN_LOSES_ABILITIES') {
     return done(addLog(ctx, '凍結シグニは能力を失う（effectEngine側処理）'));
   }
+  // RETURN_SELF_ARTS_TO_LRIG_DECK: このアーツ（使用後＝ルリグトラッシュに置かれた自身）をルリグデッキに戻す
+  // （WXK11-003①/WDK17-008①。BattleScreen はアーツを lrig_trash へ移してから効果を発火するため、
+  //   効果実行時点で sourceCardNum は lrig_trash にある）
+  if (stub.id === 'RETURN_SELF_ARTS_TO_LRIG_DECK') {
+    const srcRSA = ctx.sourceCardNum;
+    if (srcRSA && ctx.ownerState.lrig_trash.includes(srcRSA)) {
+      const newOwnerRSA = {
+        ...ctx.ownerState,
+        lrig_trash: ctx.ownerState.lrig_trash.filter(n => n !== srcRSA),
+        lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcRSA],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerRSA }, `${ctx.cardMap.get(srcRSA)?.CardName ?? srcRSA}をルリグデッキに戻す`));
+    }
+    return done(addLog(ctx, 'ルリグデッキに戻す対象なし（RETURN_SELF_ARTS_TO_LRIG_DECK）'));
+  }
   // OPTIONAL_RETURN_TO_LRIG_DECK: 任意コストを支払ってルリグトラッシュからルリグをルリグデッキに戻す
   if (stub.id === 'OPTIONAL_RETURN_TO_LRIG_DECK') {
     const costColorsORL = stub.costColors ?? ['青'];
