@@ -120,7 +120,10 @@ export interface PlayerState {
   // srcType: この修正の発生元カードの Type（'シグニ'/'スペル'/'アーツ'/'ルリグ'/'アシストルリグ'/'レゾナ' 等）。
   //   「あなたのシグニの効果で」（WX04-038-E1）等、発生元の種別を参照する効果のために保持する。
   //   includes() で照合する想定（'アシストルリグ'.includes('ルリグ') 等）。未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数のため）。
-  temp_power_mods?: Array<{ cardNum: string; delta: number; srcType?: string }>;
+  // cardNum=修正を受けた側／srcCardNum=修正を起こした効果元カード（ON_OPP_POWER_DECREASED の発生源限定
+  //   「あなたの＜X＞のシグニの効果によって」の判定に使う。全書き込み経路では埋まらないため、
+  //   **未設定＝発生源不明＝従来どおり発火**（過剰側に倒す）とし、部分実装が取りこぼし＝過少発火に化けないようにする）
+  temp_power_mods?: Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>;
   // LEVEL_MODIFY: シグニのレベルを±する一時修正（UNTIL_END_OF_TURN）。fieldCandidates が実効レベルとして
   //   temp_power_mods と同様に適用（レベルフィルタ判定用）。ターン境界で temp_power_mods と共にクリア。
   temp_level_mods?: Array<{ cardNum: string; delta: number }>;
