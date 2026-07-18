@@ -2108,6 +2108,30 @@ function parseMultiStageUnderGrant(text: string): EffectAction | null {
   return null;
 }
 
+// 「あなたのセンタールリグが<色>であるかぎり、このシグニは「【常】：このシグニの正面のシグニのパワーがN以上であるかぎり、【KW】を得る。」を得る」
+// 外側（センター色）・内側（正面パワー）とも継続（かぎり）条件なので AND に平坦化し、CONTINUOUS GRANT_KEYWORD（このシグニ）へ。
+// engine collectContinuousGrantedKeywords が両条件を毎フレーム評価する（FRONT_SIGNI_POWER は正面が空なら不成立）。SP27-002-E3。
+// ⚠従来は外側「〜かぎり、」を genericKagiri が無言消費し、残りが CONDITIONAL_KEYWORD_BY_CENTER_COLOR STUB へ退化していた。
+// 条件抽出ループより**前**に呼ぶこと（外側条件が genericKagiri に消費される前に丸ごと取る）。
+function parseCenterColorFrontPowerGrant(text: string): { activeCondition: ActiveCondition; action: EffectAction } | null {
+  const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
+  const m = text.match(/^あなたのセンタールリグが([白赤青緑黒])であるかぎり、このシグニは「【常】：このシグニの正面のシグニのパワーが([０-９\d,]+)以上であるかぎり、【([^】]+)】を得る。」を得る。?$/);
+  if (!m) return null;
+  const power = parseInt(toHW(m[2]).replace(/[,，]/g, ''), 10);
+  return {
+    activeCondition: { type: 'AND', conditions: [
+      { type: 'LRIG_COLOR', owner: 'self', color: m[1] },
+      { type: 'FRONT_SIGNI_POWER', operator: 'gte', value: power },
+    ] } as ActiveCondition,
+    action: {
+      type: 'GRANT_KEYWORD',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      keyword: m[3],
+      duration: 'PERMANENT',
+    } as EffectAction,
+  };
+}
+
 function parseContinuousQuotedGrant(text: string): EffectAction | null {
   // ---- 連用中止「このシグニのパワーは＋Nされ、<B>」＝パワー修正＋残りの複合（WXDi-P11-046 等）----
   // 従来は先頭のパワー修正が無言脱落し <B> だけが残る（＋3000 消失＝続き77 Sonnet観測(b)）。
