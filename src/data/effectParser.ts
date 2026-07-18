@@ -4015,6 +4015,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           forcedActiveCondition = { type: 'TURN_OWNER', owner: turnIntervalM[1] === '対戦相手' ? 'opponent' : 'self' };
           actionText = turnIntervalM[2];
         }
+        // 「(対戦相手の)アタックフェイズの間、」前置き＝アタックフェイズ限定（対戦相手の→相手ターンのアタックフェイズ）。
+        // engine collectBanishTriggers が triggerCondition.duringAttackPhase / turnOwner を section2/3（any_ally）で評価する。
+        // 既定 self に潰れるとルリグ watcher は絶対発火しない（WX18-002/WXEX1-18・Opusタスク12 ON_BANISH据置）。
+        const atkPhaseM = actionText.match(/^(対戦相手の)?アタックフェイズの間、(.+)/s);
+        if (atkPhaseM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringAttackPhase: true };
+          if (atkPhaseM[1]) extractedTriggerCondObj = { ...extractedTriggerCondObj, turnOwner: 'opponent' };
+          actionText = atkPhaseM[2];
+        }
         // 「対戦相手の（＜X＞の）シグニ[N体]がバニッシュされたとき」= any_opp（相手シグニのバニッシュに反応。collectBanishTriggers step2 が triggerScope で処理）
         const oppBanM = actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
         if (oppBanM) {
@@ -4025,8 +4034,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 「あなたの[他の][＜X＞の]シグニ[N体]がバニッシュされたとき」= any_ally（味方シグニのバニッシュに反応）。
           // 既定の self（＝バニッシュされたカード自身）に潰れると watcher 自身がバニッシュされない限り発火せず、
           // ルリグ watcher に至っては構造的に絶対発火しなかった（20効果・Opusタスク12(vi-4) と同根）。
-          // 「【チャーム】が付いている〜」「このシグニより低いレベルを持つ〜」等の被バニッシュ側状態限定と、
-          // 「（対戦相手の）アタックフェイズの間、」前置き付きは意図的に非マッチ＝据置（限定を無言で落とさないため）。
+          // 「（対戦相手の）アタックフェイズの間、」前置きは上で剥がして triggerCondition 化済み（WX18-002/WXEX1-18）。
+          // 「【チャーム】が付いている〜」「このシグニより低いレベルを持つ〜」等の被バニッシュ側**動的状態**限定は、
+          // matchesFilter（静的カードデータ）では表現できず（charm 付帯・watcher 相対レベル）意図的に非マッチ＝据置。
           const allyBanM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
           if (allyBanM) {
             extractedTriggerScope = 'any_ally';

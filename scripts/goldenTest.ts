@@ -1310,6 +1310,35 @@ test('Stage2 ON_BANISH: meId 視点に依らず対称（GUEST 視点でも同結
   const e = cbtEntries(trigCtx(HOST, GUEST), SIGNI, GUEST, host, guest);
   eq(e.find(x => x.effectId === 'WX13-085-E1')?.playerId, HOST, 'playerId=能力保持者HOST');
 });
+// Opusタスク12 ON_BANISH据置(アタックフェイズ前置き)：「（対戦相手の）アタックフェイズの間、あなたの＜X＞のシグニが
+// バニッシュされたとき」＝any_ally + triggerCondition.duringAttackPhase(+turnOwner)。修正前は scope 既定 self に潰れ
+// ルリグ watcher は構造的に絶対発火しなかった（WX18-002/WXEX1-18）。
+const YUGU = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具'));
+const EICHI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('英知'));
+test('Stage2 ON_BANISH any_ally duringAttackPhase: アタックフェイズ中のみ発火（WXEX1-18-E1・ルリグwatcher）', () => {
+  const host = mkState({}); host.field.lrig = ['WXEX1-18']; const guest = mkState({});
+  const atk = (au: string) => ({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI', activeUserId: au });
+  const main = { ...trigCtx(HOST, HOST), turnPhase: 'MAIN', activeUserId: GUEST };
+  // 英知のバニッシュ×アタックフェイズ→発火（自ターン/相手ターン問わず）
+  eq(has(collectBanishTriggers(atk(HOST), EICHI, HOST, host, guest).entries, 'WXEX1-18-E1'), true, '自ターンアタックで発火');
+  eq(has(collectBanishTriggers(atk(GUEST), EICHI, HOST, host, guest).entries, 'WXEX1-18-E1'), true, '相手ターンアタックで発火');
+  // メインフェイズでは非発火
+  eq(has(collectBanishTriggers(main, EICHI, HOST, host, guest).entries, 'WXEX1-18-E1'), false, 'メインでは非発火');
+  // 英知以外は非発火（triggerFilter story:英知）
+  eq(has(collectBanishTriggers(atk(GUEST), NON_AKUMA, HOST, host, guest).entries, 'WXEX1-18-E1'), false, '英知以外は非発火');
+});
+test('Stage2 ON_BANISH any_ally duringAttackPhase+turnOwner:opponent: 相手のアタックフェイズのみ発火（WX18-002-E1・ルリグwatcher）', () => {
+  const host = mkState({}); host.field.lrig = ['WX18-002']; const guest = mkState({});
+  const ctxAt = (au: string) => ({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI', activeUserId: au });
+  // 遊具のバニッシュ×相手ターン(activeUserId=GUEST)のアタックフェイズ→発火
+  eq(has(collectBanishTriggers(ctxAt(GUEST), YUGU, HOST, host, guest).entries, 'WX18-002-E1'), true, '相手ターンアタックで発火');
+  // 自ターン(activeUserId=HOST)のアタックフェイズ→turnOwner:opponent 不成立で非発火
+  eq(has(collectBanishTriggers(ctxAt(HOST), YUGU, HOST, host, guest).entries, 'WX18-002-E1'), false, '自ターンアタックは非発火');
+  // 相手ターンのメインフェイズ→duringAttackPhase 不成立で非発火
+  eq(has(collectBanishTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'MAIN', activeUserId: GUEST }, YUGU, HOST, host, guest).entries, 'WX18-002-E1'), false, '相手メインは非発火');
+  // 遊具以外は非発火
+  eq(has(collectBanishTriggers(ctxAt(GUEST), NON_AKUMA, HOST, host, guest).entries, 'WX18-002-E1'), false, '遊具以外は非発火');
+});
 
 // Stage2⑥: ON_LEAVE_FIELD（collectLeaveFieldTriggers）を pure 化→自動検証。triggerFilter/leftToZone ゲートを検証。
 const ARM_SIGNI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('アーム'));

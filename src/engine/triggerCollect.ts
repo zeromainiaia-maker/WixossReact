@@ -587,12 +587,18 @@ export function collectBanishTriggers(
   }
 
   // 2. 自分フィールド上シグニ＋ルリグのトリガー
+  const isMyTurn = ctx.activeUserId === meId;
   for (const topNum of ownFieldSources(myAfterState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (banishedOwnerIsMe  && scope !== 'any_ally' && scope !== 'any') continue;
       if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
+      // duringAttackPhase＝アタックフェイズ中のバニッシュのみ発火（「（対戦相手の）アタックフェイズの間、」WX18-002/WXEX1-18）。
+      if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      // turnOwner＝反応側（me）のターン限定（'self'＝自分ターン／'opponent'＝相手ターン。「対戦相手のアタックフェイズ」等）。
+      if (eff.triggerCondition?.turnOwner === 'self' && !isMyTurn) continue;
+      if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
       // triggerFilter＝バニッシュされたシグニ側の限定（「あなたの＜悪魔＞のシグニ1体が」の＜悪魔＞・excludeSelf）。
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
@@ -613,6 +619,7 @@ export function collectBanishTriggers(
   }
 
   // 3. 相手フィールド上シグニ＋ルリグのトリガー
+  const isOpTurn = ctx.activeUserId === opId;
   for (const topNum of ownFieldSources(opAfterState)) {
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
@@ -620,6 +627,10 @@ export function collectBanishTriggers(
       // 相手視点：「自分の味方がバニッシュ」= !banishedOwnerIsMe
       if (!banishedOwnerIsMe && scope !== 'any_ally' && scope !== 'any') continue;
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
+      // duringAttackPhase / turnOwner（反応側＝opId 視点）を section2 と対称に評価。
+      if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      if (eff.triggerCondition?.turnOwner === 'self' && !isOpTurn) continue;
+      if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
         const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;

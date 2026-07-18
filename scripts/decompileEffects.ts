@@ -1856,6 +1856,14 @@ function effJa(e: Eff): string {
       const fJa = e.triggerFilter ? filterJa(e.triggerFilter) : '';
       s = `あなたの${fJa}シグニ１体が対戦相手の効果によって場を離れたとき`;
     }
+    // ON_BANISH の「（対戦相手の）アタックフェイズの間、」前置き（WX18-002/WXEX1-18）。
+    // scopeSubj 置換済みの主語（「あなたの遊具シグニがバニッシュされたとき」）に前置きを冠す。
+    if (t === 'ON_BANISH' && e.triggerCondition?.duringAttackPhase) {
+      const pref = e.triggerCondition?.turnOwner === 'opponent' ? '対戦相手のアタックフェイズの間、'
+        : e.triggerCondition?.turnOwner === 'self' ? 'あなたのアタックフェイズの間、'
+        : 'アタックフェイズの間、';
+      s = `${pref}${s}`;
+    }
     // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（タスク16[C]機構①）: scope・filter・byEffect・フェイズ限定を描画。
     if (t === 'ON_SIGNI_DOWN' || t === 'ON_SIGNI_BECOMES_UP') {
       const duTc = e.triggerCondition;
@@ -2145,8 +2153,10 @@ function effJa(e: Eff): string {
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
-  // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）
-  const turnMark = e.triggerCondition?.turnOwner
+  // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
+  // ON_BANISH の duringAttackPhase 併用時は「（対戦相手の）アタックフェイズの間、」前置きが同義のため二重表記を抑止。
+  const suppressTurnMark = (e.timing || []).includes('ON_BANISH') && e.triggerCondition?.duringAttackPhase;
+  const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark)
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
   // ON_MATERIAL_USED は改造素材機構（Step1-3b）で全変種配線済＝engineUnwiredTimings から除外済。

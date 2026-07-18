@@ -4,6 +4,23 @@
 
 ---
 
+## Opusタスク12 ON_BANISH据置 消化＝「（対戦相手の）アタックフェイズの間、あなたの＜X＞のシグニがバニッシュされたとき」（2026-07-18・続き191・Opus 4.8）
+
+**対象**＝WX18-002-E1（哀罪の駄姫 グズ子・ルリグ）「【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたの＜遊具＞のシグニ１体がバニッシュされたとき、…」／WXEX1-18-E1（ママ♥４・ルリグ）「【自】《ターン１回》：アタックフェイズの間、あなたの＜英知＞のシグニ１体がバニッシュされたとき、エナからそのシグニを場に出す」。
+
+**バグ**＝両効果とも `triggerScope` が既定 self に潰れていた（parser がアタックフェイズ前置き付きの any_ally 主語を非マッチ据置していた）。ON_BANISH の scope self＝「バニッシュされたカード自身」の意味なので、**ルリグ watcher であるこの2枚は構造的に絶対発火しなかった**（(xxxii)/(vi-4) のルリグ走査漏れと同根）。
+
+**修正**：
+- **parser**（`effectParser.ts` ON_BANISH ブロック）＝「（対戦相手の）アタックフェイズの間、」前置きを剥がして `triggerCondition.duringAttackPhase`（対戦相手の→`+turnOwner:'opponent'`）に変換。前置きを剥がした後の「あなたの＜X＞のシグニ…」を既存 allyBanM が拾い `triggerScope:any_ally` + `triggerFilter:{story}` を付与。
+- **engine**（`triggerCollect.ts` collectBanishTriggers section2/3）＝any_ally パスに `duringAttackPhase`（phase が ATTACK_* か）と `turnOwner`（反応側視点の自/相手ターン）のゲートを追加。section2＝reactor=me／section3＝reactor=opp で対称評価。既存の《相手ターン》ON_BANISH 2枚（WX25-P1-084/086）は effectStack ゲートと同方向のため回帰なし。
+- **decompiler**（`decompileEffects.ts`）＝ON_BANISH の `duringAttackPhase` に「（対戦相手の）アタックフェイズの間、」前置きを描画。`turnOwner` の《相手ターン》マーカーは duringAttackPhase 併用時に二重表記になるため抑止。
+
+**検証**＝golden 423→**425**（新規2件＝duringAttackPhase の phase ゲート・turnOwner:opponent の相手ターンゲート・story filter を collectBanishTriggers で assert）・census 1998維持・smoke/fuzz 全0・同型★0。WXEX1-18 は build:effects で held 経由→`heldReview --adopt` で採用、WX18-002 は直接採用。regen で逆翻訳「（対戦相手の）アタックフェイズの間、あなたの＜X＞のシグニがバニッシュされたとき」を確認。
+
+**据置継続＝残2枚**＝WXK07-074-E1（「【チャーム】が付いているあなたのシグニ」）・WXK11-018-E1（「このシグニより低いレベルを持つあなたのシグニ」）は、被バニッシュシグニの**動的状態**（charm 付帯・watcher 相対レベル）が判定に要り、`matchesFilter`（静的カードデータ）では表現不可。charm は離場後 prevOwnerState 参照、相対レベルは watcher レベル解決が要る＝§6.3級。
+
+---
+
 ## Opusタスク12(xxxi)残(b) 消化＝公開シグニのレベル比例ドロー `DRAW{perLastProcessedLevel}`（2026-07-18・続き190・Opus 4.8）
 
 **対象**＝WD21-001-E2「【出】《コインアイコン》《コインアイコン》：あなたのデッキの一番上を公開する。それがシグニの場合、あなたはそのシグニのレベル１につきカードを１枚引く。」
