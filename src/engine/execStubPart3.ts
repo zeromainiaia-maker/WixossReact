@@ -2108,7 +2108,6 @@ export function execStubPart3(
     const newOwnerRPN: PlayerState = { ...ctx.ownerState, replace_opp_power_plus: true };
     return done(addLog({ ...ctx, ownerState: newOwnerRPN }, 'このターン相手シグニへの+パワー修正を-に置換'));
   }
-  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR already handled above
   // === バッチ16: アクセ・公開・汎用選択系 ===
   // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1フラグを設定
   if (stub.id === 'GRID_REVEAL_PLUS') {
