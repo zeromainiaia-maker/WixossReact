@@ -3798,6 +3798,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "SPDi01-121": [{"effectId":"SPDi01-121-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"DECK_TOP_SHARES_COLOR_WITH_LRIG","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX25-P1-115": [{"effectId":"WX25-P1-115-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"DECK_TOP_SHARES_COLOR_WITH_LRIG","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
 
+  // ===== WX26-CP1-048 プリンセス・ジール（タスク12(viii)残・出自条件機構）=====
+  // E2【出】：このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合（出自条件＝THIS_CARD_PLACED_BY_CLASS。
+  //   signi_placed_by_source に記録した発生源 CardClass で判定）、対戦相手のエナからカード1枚をトラッシュ。
+  //   それが対戦相手のセンタールリグと共通する色を持つ場合（LAST_PROCESSED_SHARES_COLOR_WITH_LRIG）、
+  //   対戦相手が【エナチャージ1】（原文「してもよい」＝相手に利するため常に行う近似でmandatory）。
+  //   ⚠parser の bare SEQUENCE は出自条件・共通色・エナチャージ owner をすべて落としていたため MANUAL 化。
+  "WX26-CP1-048": [
+    {"effectId":"WX26-CP1-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ALL_FIELD_SIGNI_MATCH","owner":"self","filter":{"cardType":"シグニ","story":"プリオケ"}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX26-CP1-048-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS","cardClass":"プリオケ"},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_SHARES_COLOR_WITH_LRIG","owner":"opponent"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"opponent","count":1}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+
   // ===== G158: E1 全シグニ異クラス条件で【エナチャージ2】 / E2 プライマル（技名）：エナのシグニを手札へ、5枚以上でルリグに無敵付与 =====
   "SPDi44-04": [
     {"effectId":"SPDi44-04-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"FIELD_SIGNI_ALL_DISTINCT_CLASS","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
