@@ -4311,6 +4311,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
     }
+    case 'PREVENT_DAMAGE': {
+      // 期間中のダメージ無効ウィンドウを張る（回数無制限）。消費は BattleScreen の crashOneLife／ルリグアタック応答。
+      const pd = action as import('../types/effects').PreventDamageAction;
+      const scopePD = pd.scope ?? (pd.until === 'NEXT_TURN' ? 'LRIG' : 'ALL');
+      const expiresPD = pd.until === 'NEXT_TURN' ? 'NEXT_TURN_END' : 'MY_TURN_END';
+      const tgtOwnerPD: Owner = pd.owner === 'opponent' ? 'opponent' : 'self';
+      const sPD = ownerState(tgtOwnerPD, ctx);
+      const newSPD: PlayerState = {
+        ...sPD,
+        prevent_damage_windows: [...(sPD.prevent_damage_windows ?? []), { scope: scopePD, expires: expiresPD }],
+      };
+      return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
+        `${pd.until === 'NEXT_TURN' ? '次のターンの間' : 'このターン'}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
+    }
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL': {
       // 「次にダメージを受ける場合、代わりにデッキ上N枚をトラッシュ」の予約（消費は crashOneLife／ルリグアタック応答）
       const rdm = action as import('../types/effects').ReplaceNextDamageWithMillAction;
