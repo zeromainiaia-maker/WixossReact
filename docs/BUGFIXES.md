@@ -4,6 +4,30 @@
 
 ---
 
+## タスク12(xxiv) 続き＝ON_OPP_POWER_DECREASED の発生源フィルタ脱落（過剰トリガー2件）を機構ごと実装（golden 464→466）（2026-07-19・続き206・Opus 4.8）
+
+**まず在庫の現状確認で「8件中5件は既に消化済み」と判明**（前段の(未確認)監査と同じく、PLAN の在庫項目が実態より古かった）。内訳＝ON_DISCARDED_AS_COST 5件は**続き162 で `discardCostSourceStory` として実装済み**（4件は JSON にフィルタが入り engine/golden も配線済み、残り WX25-P3-085-E1 は別件の単文型 grant mis-parse＝タスク1(d) で追跡中）。**実際に残っていたのは ON_OPP_POWER_DECREASED 2件と ON_CARD_MILLED_FROM_DECK 1件**。
+
+**今回消化＝ON_OPP_POWER_DECREASED 2件**。原文「あなたの（他の）＜毒牙＞のシグニの効果によって対戦相手のシグニ1体のパワーが減ったとき」の**発生源限定が `triggerCondition` に一切入っておらず、自分のどの効果でパワーを減らしても発火する過剰トリガー**だった（parser は `markSilentFallback` で正直に PARTIAL 刻印はしていた）。
+
+**難所＝発生源が engine 側に記録されていなかった**。ON_DISCARDED_AS_COST はコスト支払い側が発生源カードを渡していたので `discardCostSourceStory` を判定できたが、パワー減少の検出は **`temp_power_mods` の盤面 diff**（新規の負 delta を数えるだけ）で、`temp_power_mods` が持つ `cardNum` は**修正を受けた側＝対象**であって発生源ではない。そこで発生源を記録する経路を通した：
+
+1. **types**＝`temp_power_mods` に `srcCardNum?` を追加（`triggerCondition` 側は `powerDecreaseSourceStory` / `powerDecreaseExcludeSelf`＝`discardCostSourceStory` と同型）。
+2. **engine**＝`srcType` を既に載せている3つの書き込み経路に `srcCardNum: ctx.sourceCardNum` を追加。
+3. **boardDiff**＝`detectPowerDecreaseSources` を新設（新規の負 delta の `srcCardNum` を返す）。
+4. **triggerCollect**＝`collectPowerDecreaseTriggers` が発生源クラス（`CardClass`）と「他の」を判定。
+5. **parser**＝「あなたの(他の)?(＜X＞の)?シグニの効果によって」を `triggerCondition` へ抽出し `markSilentFallback` を撤去。
+
+**⚠部分実装が「過少発火」に化けないための設計**＝`temp_power_mods` の書き込み経路は約15箇所あり `srcCardNum` は**全経路では埋まらない**。そこで `detectPowerDecreaseSources` は**未設定が1件でも混ざれば空配列（＝発生源不明）を返し**、コレクタは**発生源不明のときは従来どおり発火**させる。**過剰側に倒す**ことで、記録漏れが「発火しなくなる」退化に化けるのを構造的に防いだ（`effectEngine.ts:1646` の「srcType 未設定はシグニ発生元として扱う」と同じ思想）。golden にこの3ケース（限定クラス一致で発火／不一致で非発火／不明で発火）を固定した。
+
+**JSON は2件とも MANUAL/PARTIAL＝手動管理側**なので `build:effects` の収穫では入らず直接パッチ（parser 側も同じ出力になることを直接パースで確認済み＝乖離なし）。
+
+**ゲート**＝golden 464→**466**・`_partial_report.txt` の ON_OPP_POWER_DECREASED 無言近似 **0件**（計器が落ちた＝近似の解消）・census 1948 据置・smoke/fuzz 全0・同型★0。**要実機検証＝毒牙以外の効果で減らしたとき発火しないこと**。
+
+**残＝ON_CARD_MILLED_FROM_DECK 1件（WX24-P3-030-E1・「あなたの＜悪魔＞のシグニの効果1つによって」）**＝ミル発生源の記録が同様に必要（`countMilledFromDeck` も枚数だけの盤面 diff）。同じ型で実装できるが未着手＝タスク12 に残す。
+
+---
+
 ## タスク12(未確認) クローズ＝usageLimit 消費IDの書き戻しを全15コレクタで全数監査（**新規の穴なし**を確認・コード変更なし）（2026-07-19・続き206・Opus 4.8）
 
 **背景**＝`collectLrigGrowTriggers` が `usedIds` を返さず書き戻し機構も無く《ターン1回》が実質ノーガードだった構造的バグ（続き132で疑義登録→続き135で修正）について、PLAN に **「E2E未再現・コード読解のみの疑い」** として残っていた項目。**同型の穴が他のコレクタにも潜んでいないか**が本質的な残リスクだったため、全数監査した。
