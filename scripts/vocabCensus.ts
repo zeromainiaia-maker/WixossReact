@@ -78,7 +78,7 @@ import * as path from 'path';
 // ⚠2026-07-13 続き109(Opus): 判定粒度を**カード単位→効果単位**に切替（上のヘッダ参照）。
 // ベースラインも「高シグナル欠落カード数 1447」→「高シグナル欠落**効果**数 2264」へ一括切替（併記期間なし）。
 // 数字が飛んだのは退化ではなく計測仕様の変更＝旧網が救っていた真の欠落が顕在化したもの（抜き取り5/5が真バグ）。
-const BASELINE_HIGH = 1993; // 続き196(Opus): タスク12(viii)残＝WDK16-13/WXK08-033 のデッキトップ公開2分岐配置を是正（第2分岐に登録者数条件 AND[SUBSCRIBER_COUNT,LAST_PROCESSED_MATCHES] 復元＋ADD_TO_FIELD optional・engine no-source ADD_TO_FIELD の optional 対応）で 1996→1993 改善＝実数更新。旧1996は続き194(ii)
+const BASELINE_HIGH = 1992; // 続き197(Opus): タスク12(viii)残＝WX26-CP1-048 出自条件機構（THIS_CARD_PLACED_BY_CLASS＝signi_placed_by_source 記録＋LAST_PROCESSED_SHARES_COLOR_WITH_LRIG＋相手エナチャージ）を MANUAL 化で 1993→1992 改善＝実数更新。旧1993は続き196(viii)
 
 // 2218 // 続き136(Opus) タスク17: 【自】の timing 判定を「効果ブロック先頭のトリガー句」に限定（従来は actionText 全体を
 //        見ており、トリガー句より後ろの本文/引用付与の内側にある「…したとき」を先に拾って timing が化けていた）。
