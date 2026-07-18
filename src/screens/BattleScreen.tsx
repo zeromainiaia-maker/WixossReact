@@ -2733,9 +2733,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const decOnHost  = detectPowerDecrease(beforeHost, h);
     const decOnGuest = detectPowerDecrease(beforeGuest, g);
     if (decOnHost > 0 || decOnGuest > 0) {
-      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest);
+      // 発生源限定（「あなたの＜X＞のシグニの効果によって」）判定用に、減少を起こした効果元カードも渡す。
+      // 空配列＝発生源不明＝コレクタ側で従来どおり発火（過剰側に倒す）。
+      const decSrcOnHost  = detectPowerDecreaseSources(beforeHost, h);
+      const decSrcOnGuest = detectPowerDecreaseSources(beforeGuest, g);
+      const dpH = collectPowerDecreaseTriggers(bs.host_id, h, g, decOnGuest, decSrcOnGuest);
       entries.push(...dpH.entries); useHost(dpH.usedOncePerTurnIds);
-      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost);
+      const dpG = collectPowerDecreaseTriggers(bs.guest_id, g, h, decOnHost, decSrcOnHost);
       entries.push(...dpG.entries); useGuest(dpG.usedOncePerTurnIds);
     }
 
