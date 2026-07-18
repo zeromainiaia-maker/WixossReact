@@ -1355,6 +1355,8 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       const emptyIdx = signi.findIndex(z => !z || z.length === 0);
       if (emptyIdx >= 0) signi[emptyIdx] = [n];
       newS = { ...newS, field: { ...newS.field, signi } };
+      // 出自記録: この配置が効果起因（sourceCardNum あり・自身の再配置でない）なら発生源を記録（WX26-CP1-048）。
+      newS = recordPlacedBySource(newS, n, ctx.sourceCardNum);
       // ダウン状態で場に出す（ミズフウセン等「ダウン状態で場に出してもよい」）
       if (a.asDown && emptyIdx >= 0) {
         const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
