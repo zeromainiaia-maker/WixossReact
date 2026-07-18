@@ -4,6 +4,24 @@
 
 ---
 
+## Opusタスク12(viii)残 消化＝WX26-CP1-048 出自条件機構（＜プリオケ＞の効果で場に出た）（2026-07-18・続き197・Opus 4.8）
+
+**対象**＝WX26-CP1-048（プリンセス・ジール(テイクミーハイヤー)）E2「【出】：このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合、対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。それが対戦相手のセンタールリグと共通する色を持つ場合、対戦相手は【エナチャージ１】をしてもよい。」
+
+**バグ**＝bare SEQUENCE`[TRASH{ENERGY_CARD,opponent}, ENERGY_CHARGE_FROM_DECK{owner:self}]` に退化＝(a)**出自条件「＜プリオケ＞の効果で場に出た場合」が完全脱落**（通常召喚でも毎回発火する過剰効果）(b)「共通する色を持つ場合」ゲート脱落(c)エナチャージの owner が self（本来 opponent）。
+
+**新機構（出自帰属＝event attribution）**：
+- **PlayerState `signi_placed_by_source?: Record<string,string>`**（配置シグニ instanceId → 場出し効果の発生源カード）。`execAddToField`（applyToField・no-source deck top）と `resumeSelectZone`／`resumeSelectSigniZone` の**全配置点で `recordPlacedBySource(state, placed, ctx.sourceCardNum)` を呼び決定論的に記録**（通常召喚＝sourceCardNum なし／自己再配置は記録しない）。
+- **Condition `THIS_CARD_PLACED_BY_CLASS{cardClass}`**（execUtils evalCondition）＝`signi_placed_by_source[sourceCardNum]` の発生源カードがシグニかつ CardClass に cardClass を含むか判定。**⚠＜プリオケ＞は story ではなく CardClass**（このコードベースの filter `story` フィールドは matchesFilter が CardClass に照合する慣例だが、本条件は発生源カードの CardClass を直接見る）。
+- **Condition `LAST_PROCESSED_SHARES_COLOR_WITH_LRIG{owner}`**＝直前処理カード（トラッシュしたエナ）が指定 owner のセンタールリグと共通色を持つか（`DECK_TOP_SHARES_COLOR_WITH_LRIG` と同型の色比較）。
+- decompiler も両条件を追加。
+
+**修正**＝WX26-CP1-048 を **MANUAL 化**（固有構造で parser 過剰マッチ回避）＝`CONDITIONAL{THIS_CARD_PLACED_BY_CLASS{プリオケ}, then:SEQUENCE[TRASH{ENERGY_CARD,opponent}, CONDITIONAL{LAST_PROCESSED_SHARES_COLOR_WITH_LRIG{opponent}, then:ENERGY_CHARGE_FROM_DECK{opponent,1}}]}`。E1（ALL_FIELD_SIGNI_MATCH＋BANISH）は据置。「してもよい」は相手に利する行動のため mandatory 近似。
+
+**結果**＝heldReview 採用。**end-to-end 実測（golden）で検証**＝＜プリオケ＞シグニ（WX26-CP1-045）の効果で ADD_TO_FIELD 配置→`signi_placed_by_source` 記録→`THIS_CARD_PLACED_BY_CLASS{プリオケ}`=true／別クラス=false／通常召喚（source無し）=記録なし=false。`LAST_PROCESSED_SHARES_COLOR_WITH_LRIG` も赤カード×赤ルリグ=true/×白ルリグ=false を確認。逆翻訳が原文一致。census 1993→1992・golden 431→**435**（出自記録e2e＋2条件）・同型★0・smoke/fuzz 全0・lint 緑。
+
+**⚠WXDi-P10-034（次メインフェイズ遅延+分岐）は据置＝別作業**。「デッキ上4枚→1枚を裏向きでシグニゾーンに置く→次の自分メインフェイズ開始時に表向きにしてもよい（+5000）／しなければ手札へ」＝(a)デッキカードのゾーン裏向き配置（`face_down_signi` は自シグニを裏返す近似で新規配置は非対応）(b)**次ターン**まで生存する遅延トリガー（`INSTALL_DELAYED_TRIGGER` は `duration:'THIS_TURN'` 限定でターン境界3箇所でクリア）(c)表向き選択の分岐、の3機構拡張が要りターン境界ロジックに触れる高リスク作業。現状は LOOK_AND_REORDER（4枚見て並べ替え）の部分近似のまま。§6.3 の専用タスクとして分離。
+
 ## Opusタスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開の2分岐条件配置（登録者数条件＋optional 復元）（2026-07-18・続き196・Opus 4.8）
 
 **対象**＝WDK16-13（コードＶＬ 出雲霞・【出】）／WXK08-033（コードＶＬ 闇夜乃モルル・【自】アタック時）＝(viii)残の「WDK16-13/WXK08-033（2条件ADD_TO_FIELD＋登録者数条件）」。原文「デッキの一番上を公開する。この方法でレベル２以下の(＜電機＞の)シグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。」
