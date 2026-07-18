@@ -164,6 +164,11 @@ export interface PlayerState {
   // 次のダメージを「代わりに自デッキ上N枚トラッシュ」で置き換えるキュー（REPLACE_NEXT_DAMAGE_WITH_MILL 効果。
   // 各要素=ミル枚数。デッキが枚数未満のエントリは置き換え不可＝原文注記どおりダメージ通過。ターン境界でリセット）
   damage_replace_mill?: number[];
+  // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
+  // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
+  // expires='MY_TURN_END'＝自分のターン終了時に消滅／'NEXT_TURN_END'＝「次のターンの間」＝自ターン終了を1回だけ生き延び、
+  //   そこで 'MY_TURN_END' へ降格して相手ターンを丸ごとカバーする（相手ターン終了時は自分の状態をリセットしないため）。
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[];
   // このターン、このプレイヤーのすべてのキーは能力を失う（WXK02-029 ビカム・ユー CONDITIONAL_GROW_AND_KEY_DISABLE）
   keys_abilities_disabled?: boolean;
   // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）
