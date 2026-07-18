@@ -3192,6 +3192,28 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+// §6.1 タスク7: トラッシュ（スペル）/ルリグトラッシュ（アーツ）からコストの合計が閾値以下のカードを選び、
+// コストを支払わずに使用する（WX09-012-E2／WX19-002-E4）。使用の実体は STUB 'USE_SPELL_FROM_TRASH'
+// （フリープレイ系＝主効果を実行。スペルはトラッシュに残置・アーツはルリグトラッシュに残置）。
+function execPlayFreeFromTrash(a: PlayFreeFromTrashAction, ctx: ExecCtx): ExecResult {
+  const isArts = a.filter?.cardType === 'アーツ';
+  const zone = isArts ? (ctx.ownerState.lrig_trash ?? []) : ctx.ownerState.trash;
+  const cands = zone.filter(n => {
+    const c = ctx.cardMap.get(n);
+    if (!matchesFilter(c, a.filter)) return false;
+    const total = parseEnergyCosts(c?.Cost ?? '').reduce((s, e) => s + e.count, 0);
+    return total <= a.costThreshold;
+  });
+  if (cands.length === 0) return done(addLog(ctx, 'PlayFreeFromTrash: 対象なし'));
+  // SEARCH は0枚選択で確定でき、「使用してもよい」（辞退）に対応する
+  return needsInteraction(ctx, {
+    type: 'SEARCH',
+    visibleCards: cands,
+    maxPick: a.maxCount,
+    thenAction: ({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH' } as StubAction) as EffectAction,
+  });
+}
+
 function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
   // NEXT_OPP_TURN: 「次の対戦相手のターン、相手のコストが増える」＝キャスター(self)側へ保持し、
   // 相手ターンのコスト計算で参照する（power_mods_until_opp_turn と同型のライフサイクル）。
