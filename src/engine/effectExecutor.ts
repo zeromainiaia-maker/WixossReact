@@ -1271,6 +1271,18 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     // 空きゾーンがなければスキップ
     if (!state.field.signi.some(z => !z || z.length === 0)) return done(ctx);
     const cardNum = state.deck[0];
+    // optional:「場に出してもよい」＝出す/出さないを選択（デッキトップ公開後の任意配置。WDK16-13/WXK08-033）。
+    // 出す側は optional を落として同アクションへ再入し、下の SELECT_ZONE 分岐で配置する。
+    if (a.optional) {
+      const placeAct = { ...a, optional: false } as AddToFieldAction;
+      const cardLbl = ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
+      return needsInteraction(ctx, {
+        type: 'CHOOSE', count: 1, options: [
+          { id: 'place', label: `${cardLbl}を場に出す`, action: placeAct as EffectAction, available: true },
+          { id: 'skip', label: '場に出さない', action: { type: 'SEQUENCE', steps: [] } as EffectAction, available: true },
+        ],
+      });
+    }
     const newS: PlayerState = { ...state, deck: state.deck.slice(1) };
     const newCtx = setOwnerState(tgtOwner, newS, ctx);
     return needsInteraction(newCtx, {
