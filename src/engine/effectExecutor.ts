@@ -1197,6 +1197,13 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
   return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards });
 }
 
+// 効果によって場に出したシグニの発生源（sourceCardNum）を記録する（出自条件 THIS_CARD_PLACED_BY_CLASS 用・WX26-CP1-048）。
+// 通常召喚（sourceCardNum なし）や自身の再配置は記録しない。
+function recordPlacedBySource(state: PlayerState, placedInstanceId: string, sourceCardNum?: string): PlayerState {
+  if (!sourceCardNum || sourceCardNum === placedInstanceId) return state;
+  return { ...state, signi_placed_by_source: { ...(state.signi_placed_by_source ?? {}), [placedInstanceId]: sourceCardNum } };
+}
+
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
