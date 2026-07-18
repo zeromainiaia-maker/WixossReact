@@ -1198,6 +1198,14 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     const existing = result.pending.continuation;
     result.pending = {
       ...result.pending,
+      // ゾーン選択を跨いで lastProcessedCards（この効果で場に出したシグニ）を維持する。
+      // applyDirectAction の SELECT_SIGNI_ZONE は placedSoFar を積まないため、ここで補わないと
+      // resume 後の afterAction（levelGtLastProcessed 等の動的比較 SEARCH）が直前配置シグニを
+      // 参照できず空振りする（WXEX2-28-E3）。head は配置中＝resume 側が末尾に足すので除外。
+      ...(result.pending.type === 'SELECT_SIGNI_ZONE'
+          && (result.pending as { placedSoFar?: string[] }).placedSoFar === undefined
+        ? { placedSoFar: (ctx.lastProcessedCards ?? []).filter(n => n !== head) }
+        : {}),
       continuation: existing
         ? ({ type: 'SEQUENCE', steps: [existing, cont] } as SequenceAction)
         : cont,
