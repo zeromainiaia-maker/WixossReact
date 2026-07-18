@@ -2709,26 +2709,29 @@ function parseActionTextInner(text: string): EffectAction {
           } as RevealAndPickAction;
         }
       }
-      // ---- その中から〔filter〕(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ＝pick-to-hand + remainder ----
+      // ---- その中から〔class/color/level filter〕(の)シグニ/カード(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
       // 「見る。その中から＜C＞のシグニM枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く」系（census
-      // 「引用なし」look-pick 7-8枚＋テール）。従来は下の汎用 LOOK_AND_REORDER が「その中から…デッキ」に先にマッチし
-      // **pick（手札加え）が丸ごと脱落**して単なるデッキ並べ替えに退化していた。手札加えを含む S2 はここで先に解決する。
-      // 「場に出し」を含む handOrField 形（上流 2547）は対象外。remainder は同文（S2）優先で読む（旧規則は別文限定
-      // ＋「シャッフルして」限定で「好きな順番でデッキの一番下」を拾えず top へ誤既定していた）。
-      if (/手札に加え/.test(nextS) && !/場に出し/.test(nextS)) {
-        const pickM = nextS.match(/^その中から(.*?)を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:を公開し|公開し)?(?:手札に加える|手札に加え)/);
-        if (pickM) {
-          const nounP = pickM[1];
-          const pickCount: number | 'ALL' = (pickM[2] === 'すべて' || pickM[2] === '好きな枚数') ? 'ALL' : parseNum(pickM[2]);
-          const pickUpTo = pickM[3] === 'まで' || pickM[2] === '好きな枚数';
+      // クラス指定/色/レベル filter の look-pick）。従来は下の汎用 LOOK_AND_REORDER が「その中から…デッキ」に先にマッチし
+      // **pick（手札加え）が丸ごと脱落**して単なるデッキ並べ替えに退化していた（＜C＞のシグニ M枚 手札加えが消失）。
+      // → クリーンな単一 pick-to-hand のみここで REVEAL_AND_PICK に解決する。
+      // ⚠除外（filter/構造を faithfully 表現できない＝過剰化/取りこぼしになる形は LOOK_AND_REORDER に残す）：
+      //   多目的（「…手札に加え、X枚を…に置き、残り」）・それぞれ multi-filter・OR（「か」「と」）・hand-or-energy
+      //   （「手札に加えるかエナゾーンに置き」）・場に出し（上流 2547 handOrField）・アイコン/名前 filter（＜C＞/色/
+      //   レベル/無色 以外）・「残りをデッキに加えてシャッフル」（行き先が一番上/下でない）。pick 動詞直後に「、残りを」を
+      //   要求して多目的・hand-or-X を弾き、filter 前置詞を class/color/level に限定して OR/アイコン/名前を弾く。
+      {
+        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の)*)(シグニ|カード)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)/);
+        if (pk) {
+          const filterSrc = pk[1] + (pk[2] ?? '');
+          const pickCount: number | 'ALL' = (pk[3] === 'すべて' || pk[3] === '好きな枚数') ? 'ALL' : parseNum(pk[3]);
+          const pickUpTo = pk[4] === 'まで' || pk[3] === '好きな枚数';
           const filter: TargetFilter = {
-            ...parseStoryFilter(nounP), ...parseColorFilter(nounP), ...parseLevelFilter(nounP),
-            ...(/シグニ/.test(nounP) ? { cardType: 'シグニ' as const } : {}),
+            ...parseStoryFilter(filterSrc), ...parseColorFilter(filterSrc), ...parseLevelFilter(filterSrc),
+            ...(pk[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}),
           };
-          const remSrc = /残りを/.test(nextS) ? nextS : (sentences.find(s => /残りを.*(?:デッキ|トラッシュ)/.test(s.trim())) ?? '');
           const remainder: RevealAndPickAction['remainder'] =
-            /トラッシュ/.test(remSrc) ? { location: 'trash', position: 'any' }
-            : /一番下/.test(remSrc) ? { location: 'deck', position: 'bottom' }
+            pk[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+            : pk[5] === 'デッキの一番下' ? { location: 'deck', position: 'bottom' }
             : { location: 'deck', position: 'top' };
           return {
             type: 'REVEAL_AND_PICK',
