@@ -4777,7 +4777,7 @@ export function resumeSelectSigniZone(
     return needsInteraction(ctx, pending);
   }
   signi[zoneIndex] = [pending.cardNum];
-  let newS: PlayerState = { ...state, field: { ...state.field, signi } };
+  let newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
   if (pending.asDown) {
     const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
     newDown[zoneIndex] = true;
