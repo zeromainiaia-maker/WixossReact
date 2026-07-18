@@ -37,6 +37,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
+  parsePowerFilter, parseLevelFilter, parseStateFilter,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
