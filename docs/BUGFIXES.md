@@ -4,6 +4,22 @@
 
 ---
 
+## Opusタスク12(i) 消化＝SP27-002-E3 二段「かぎり」引用付与の退化（genericKagiri 無言消費）（2026-07-18・続き193・Opus 4.8）
+
+**対象**＝SP27-002-E3（幻獣 ダチョウ）「【常】：あなたのセンタールリグが緑であるかぎり、このシグニは「【常】：このシグニの正面のシグニのパワーが15000以上であるかぎり、【アサシン】を得る。」を得る。」
+
+**バグ**＝外側「あなたのセンタールリグが緑であるかぎり、」を `parseActiveCondition` の genericKagiri（`effectParser.ts:953` の `/^[^。「」]+かぎり、/`＝`isTimingMarker:true` で**無言消費**）が条件抽出前に食い、残りの「このシグニは「…」を得る」が `parseSentencePart2` の `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` STUB へ落ちていた。engine の当該 STUB ハンドラ（`execStubPart3.ts`）も雑で、**(a) 先頭の【常】を `/【([^】]+)】/` で拾い「常」をキーワードと誤認 (b) 内側の「正面パワー15000以上」条件を完全無視 (c) このシグニ限定でなく自分の全シグニへ無条件付与**＝三重に誤っていた（実質「緑なら全シグニに無意味キーワード」）。
+
+**修正**（外側・内側とも継続「かぎり」条件なので AND に平坦化＝挙動的に厳密。engine `collectContinuousGrantedKeywords` が毎フレーム両条件を評価する）：
+- **types**（`effects.ts`）＝`ActiveCondition` に `FRONT_SIGNI_POWER{operator,value}`（このシグニの正面＝相手ゾーン 2-zi のシグニの実効パワー。正面が空なら不成立）を新設。
+- **engine**（`effectEngine.ts checkActiveCondition`）＝`FRONT_SIGNI_POWER` を実装（効果元の zone index を `ownerState.field.signi` から引き、`otherState.field.signi[2-zi]` の実効パワーを `effectivePowers` 優先で判定）。既存の `collectContinuousGrantedKeywords` が effectivePowers を渡す経路に配線済のためデバフ収集で自動評価される。
+- **parser**（`effectParser.ts` に `parseCenterColorFrontPowerGrant` 新設＋CONTINUOUS の条件抽出ループ**前**に呼ぶ）＝「あなたのセンタールリグが<色>であるかぎり、このシグニは「【常】：このシグニの正面のシグニのパワーがN以上であるかぎり、【KW】を得る。」を得る」を `activeCondition:AND[LRIG_COLOR{self,色}, FRONT_SIGNI_POWER{gte,N}]` ＋ `GRANT_KEYWORD{thisCardOnly}` へ。genericKagiri に外側条件を食わせない。
+- **decompiler**（`decompileEffects.ts condJa`）＝`FRONT_SIGNI_POWER`→「このシグニの正面のシグニのパワーがN以上」。
+- **census**（`vocabCensus.ts`）＝パワー閾値クラスタの対応キーに `FRONT_SIGNI_POWER` を追加（脱STUBで高シグナル化するのを是正）。
+- **cleanup**＝旧 `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` の parser 規則（`parseSentencePart2.ts`）と engine ハンドラ（`execStubPart3.ts`）を削除（JSON 参照 0・STUBS.md 再生成で消滅）。
+
+**結果**＝SP27-002-E3 を heldReview 採用（CONTINUOUS GRANT_KEYWORD アサシン）。end-to-end 実測で「緑ルリグ+正面15000→アサシン付与／正面12000→なし／赤ルリグ→なし」を確認。golden 427→428（`FRONT_SIGNI_POWER` の閾値/正面空テスト・末尾配置でカーソル非撹乱）・census 1998 維持・同型★0 維持・smoke/fuzz 全0・typecheck/lint 緑。
+
 ## Opusタスク12(viii)残 消化＝デッキトップ private look 条件付き配置の filter/optional 脱落（2026-07-18・続き192・Opus 4.8）
 
 **対象**＝WX16-038-E1（忍猿の十勇 サルトビ）「【出】：あなたのデッキの一番上を見る。それが《ライズアイコン》を持つ＜武勇＞のシグニの場合、それを場に出してもよい」／WX16-038-E2（同・【自】ライズされたとき版で「《ライズアイコン》を持たない＜武勇＞」）／WX15-001-E2（真実の記憶 リル）「あなたのメインフェイズ開始時、…それが赤のシグニの場合、それを場に出してもよい」。(viii)残に「WX16-038（アイコン条件）」として登録されていた項目。
