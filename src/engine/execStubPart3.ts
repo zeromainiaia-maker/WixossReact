@@ -999,32 +999,9 @@ export function execStubPart3(
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
     return done(addLog(ctx, '起動能力コスト増加'));
   }
-  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR: センタールリグの色に応じてキーワード付与
-  if (stub.id === 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR') {
-    const centerCKBC = ctx.ownerState.field.lrig.at(-1);
-    const centerCardCKBC = centerCKBC ? ctx.cardMap.get(centerCKBC) : undefined;
-    const centerColorCKBC = centerCardCKBC?.Color ?? '';
-    const srcCKBC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCKBC = srcCKBC ? (srcCKBC.EffectText ?? '') : '';
-    const mKwCKBC = txtCKBC.match(/【([^】]+)】/);
-    const kwCKBC = mKwCKBC ? mKwCKBC[1] : 'ランサー';
-    const mColorCKBC = txtCKBC.match(/(赤|青|緑|白|黒)/);
-    const condColorCKBC = mColorCKBC ? mColorCKBC[1] : '';
-    if (condColorCKBC && !centerColorCKBC.includes(condColorCKBC)) {
-      return done(addLog(ctx, `センター色${centerColorCKBC}≠${condColorCKBC}（条件不達成）`));
-    }
-    // 自分のフィールドシグニにキーワード付与
-    const kwGrantsCKBC = { ...(ctx.ownerState.keyword_grants ?? {}) };
-    (ctx.ownerState.field.signi ?? []).forEach(s => {
-      if (s && s.length > 0) {
-        const cn = s[s.length - 1];
-        const existing = kwGrantsCKBC[cn] ?? [];
-        if (!existing.includes(kwCKBC)) kwGrantsCKBC[cn] = [...existing, kwCKBC];
-      }
-    });
-    const newSCKBC: PlayerState = { ...ctx.ownerState, keyword_grants: kwGrantsCKBC };
-    return done(addLog({ ...ctx, ownerState: newSCKBC }, `センター色${centerColorCKBC}→全シグニに【${kwCKBC}】付与`));
-  }
+  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR は廃止（SP27-002-E3 を CONTINUOUS GRANT_KEYWORD＋
+  // activeCondition AND(LRIG_COLOR, FRONT_SIGNI_POWER) へ構造化・タスク12(i)）。旧 STUB は
+  // 先頭の【常】をキーワードと誤認し内側の正面パワー条件も無視して全シグニへ無条件付与していた。
   // SELECT_OTHER_SIGNI: ソース以外のシグニを選択
   if (stub.id === 'SELECT_OTHER_SIGNI') {
     const srcSOS = ctx.sourceCardNum;
