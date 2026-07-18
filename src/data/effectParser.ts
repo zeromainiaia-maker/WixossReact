@@ -3930,10 +3930,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたの効果[０-９\d]*つ?によって/.test(trigText)) drCond.drawByDrawerOwnEffect = true;
         if (Object.keys(drCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...drCond };
       }
-      // ON_OPP_POWER_DECREASED: 発生源の限定（「＜X＞のシグニの効果によって」「他の」）は engine が未表現＝落とす近似。
-      //   その分だけ過剰発火しうる（自分の別効果でパワーを減らしても発火する）ので計器に刻む。
-      if (timing[0] === 'ON_OPP_POWER_DECREASED' && /(?:＜[^＞]+＞の|他の)シグニの効果によって/.test(actionText)) {
-        markSilentFallback('ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似');
+      // ON_OPP_POWER_DECREASED: 「あなたの（他の）＜X＞のシグニの効果によって」の発生源限定を
+      //   triggerCondition.powerDecreaseSourceStory / powerDecreaseExcludeSelf に抽出する
+      //   （engine が temp_power_mods.srcCardNum の CardClass で判定・続き206 タスク12(xxiv)。
+      //    discardCostSourceStory と同型）。従来は落として過剰発火＝自分の別効果でパワーを減らしても発火していた。
+      if (timing[0] === 'ON_OPP_POWER_DECREASED') {
+        const pdM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニの効果によって/);
+        if (pdM && (pdM[1] || pdM[2])) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            ...(pdM[2] ? { powerDecreaseSourceStory: pdM[2] } : {}),
+            ...(pdM[1] ? { powerDecreaseExcludeSelf: true } : {}),
+          };
+        } else if (/(?:＜[^＞]+＞の|他の)シグニの効果によって/.test(actionText)) {
+          // 「あなたの」が付かない別形＝上の規則で拾えない＝従来どおり落とす近似として計器に刻む
+          markSilentFallback('ON_OPP_POWER_DECREASED:発生源フィルタ（＜X＞/他のシグニの効果）を落とす近似');
+        }
       }
       // ON_DISCARDED_AS_COST: 「あなたの＜X＞のシグニの【出】【起】能力のコストとして」の発生源クラス限定を
       //   triggerCondition.discardCostSourceStory に抽出（engine が host シグニの CardClass で判定・続き162 タスク12(xxiv)）。
