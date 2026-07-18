@@ -105,3 +105,16 @@ export function jankenWinner(h: string, g: string, hostId: string, guestId: stri
 export const toHalfWidth = (s: string) =>
   s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
 
+
+// PREVENT_DAMAGE ウィンドウのターン境界処理（自分＝ターン終了プレイヤーの状態に適用）。
+// 'MY_TURN_END'（このターンの間）は消滅し、'NEXT_TURN_END'（次のターンの間）は自ターン終了を1回だけ
+// 生き延びて 'MY_TURN_END' へ降格する＝続く相手ターンを丸ごとカバーし、その次の自ターン終了で消える。
+// （相手ターン終了時にはこちらの状態をリセットしないため、この2段構えで「次のターンの間」を表現する）
+export function advancePreventDamageWindows(
+  windows: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[] | undefined,
+): { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[] | undefined {
+  const next = (windows ?? [])
+    .filter(w => w.expires === 'NEXT_TURN_END')
+    .map(w => ({ ...w, expires: 'MY_TURN_END' as const }));
+  return next.length > 0 ? next : undefined;
+}
