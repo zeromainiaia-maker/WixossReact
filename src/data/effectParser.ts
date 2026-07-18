@@ -4369,8 +4369,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     // 多段「下にレベルNのシグニがあるかぎり、「Q」を得る。」は条件抽出ループより**前**に丸ごと取る
     // （1段目条件を genericKagiri に消費させない。WX24-P1-043＝続き77 Sonnet観測(b)）
     const multiStage = parseMultiStageUnderGrant(actionText);
+    const centerColorFront = multiStage ? null : parseCenterColorFrontPowerGrant(actionText);
     if (multiStage) {
       resolvedAction = multiStage;
+    } else if (centerColorFront) {
+      // 外側センター色＋内側正面パワーの二段「かぎり」を AND に平坦化（genericKagiri の無言消費を回避）。
+      activeCondition = centerColorFront.activeCondition;
+      resolvedAction = centerColorFront.action;
     } else {
     // 複数条件を繰り返しパースして AND で結合する
     let remaining = actionText;
