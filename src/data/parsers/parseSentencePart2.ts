@@ -1931,7 +1931,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   // 自分自身に付与されてしまう実機バグ・続き75で excludeSelf を engine 実装＋ここで付与）。対象節に隣接する
   // 「他の」だけを見る（「他のシグニをトラッシュして、このシグニが【ランサー】を得る」等の巻き添えを避ける）。
   const kwOtherTarget = /(?:あなた|対戦相手)の他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t);
-  const kwTargetFilter = kwOtherTarget ? { filter: { excludeSelf: true } } : {};
+  // 対象節（「…を対象とし」直前の修飾句）だけを切り出し、閾値/状態フィルタを付与対象に乗せる。
+  // ⚠**全文スキャンは禁止**（parserUtils の教訓）＝「あなたの**レベル３の**シグニ1体をトラッシュに置く。
+  //   対戦相手のシグニ1体を対象とし…」のような別文節の数値を拾って対象を誤って絞ってしまう。
+  // 付与系の各規則（【キーワード】/「アタックできない」/引用キーワード/シャドウ）はこれを共有する
+  //   ＝従来はどれもフィルタを落として「全シグニが対象」の過剰効果になっていた（続き205）。
+  const kwTgtPhraseM = t.match(/(?:あなた|対戦相手)の([^。、]{0,24}?)(?:シグニ|ルリグ)(?:を)?(?:[０-９\d]+体)?(?:まで)?を?対象とし/);
+  const kwThrFilter = kwTgtPhraseM
+    ? { ...parsePowerFilter(kwTgtPhraseM[1]), ...parseLevelFilter(kwTgtPhraseM[1]), ...parseStateFilter(kwTgtPhraseM[1]) }
+    : {};
+  const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter };
+  const kwTargetFilter = Object.keys(kwMergedFilter).length > 0 ? { filter: kwMergedFilter } : {};
 
   // ---- 【キーワード】を得る（文脈依存owner/count）----
   {
