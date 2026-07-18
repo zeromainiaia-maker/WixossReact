@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き193・Opus 4.8・タスク12(i) 消化＝SP27-002-E3 二段「かぎり」引用付与の退化）**
+  - **成果**＝golden 427→**428**・census **1998**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen`／`genStubsMd` 済み。end-to-end 実測で条件充足時のみアサシン付与を確認。詳細は BUGFIXES 続き193。
+  - SP27-002-E3「センタールリグが緑であるかぎり、このシグニは「正面のシグニのパワーが15000以上であるかぎり、【アサシン】を得る」を得る」の**外側条件を genericKagiri が無言消費**し、残りが `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` STUB（keyword=【常】誤認・内側条件無視・全シグニ付与の三重バグ）へ退化していた。**外側 LRIG_COLOR ＋内側 `FRONT_SIGNI_POWER`（新設）を AND に平坦化**（両とも継続「かぎり」＝挙動的に厳密）した CONTINUOUS GRANT_KEYWORD へ構造化。`parseCenterColorFrontPowerGrant` を条件抽出ループ前に呼び genericKagiri を回避。旧 STUB の parser 規則・engine ハンドラを削除。
+
 - **🆕 セッション（2026-07-18・続き192・Opus 4.8・タスク12(viii)残 消化＝デッキトップ private look 条件付き配置の filter/optional 脱落）**
   - **成果**＝golden 425→**427**・census **1998**（維持）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き192。
   - 「デッキの一番上を**見る**。それが〔filter〕のシグニの場合、それを場に出（す/してもよい）」が sentence 分割で bare `ADD_TO_FIELD` に落ち、filter（レベル/色/クラス/ライズアイコン）と optional が丸ごと脱落し**無条件配置**に退化していた（WX16-038-E1/E2・WX15-001-E2）。「公開する」版が `REVEAL_AND_PICK{filter}` に変換される上流ブロック（`effectParser.ts:2703`）と**対の「見る」版を新設**。`noRiseIcon` フィルタ（「《ライズアイコン》を持たない」）＋`EffectTarget.fromTop` を types/engine/decompiler に追加。3効果採用・MANUAL WX10-007/021 の held ドリフト解消。
