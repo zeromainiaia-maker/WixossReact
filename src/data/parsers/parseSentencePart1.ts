@@ -51,6 +51,7 @@ import type {
   BanishAction,
   TrashAction,
   SendToEnergyAction,
+  SequenceAction,
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf,
