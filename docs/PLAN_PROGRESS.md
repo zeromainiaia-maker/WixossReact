@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き196・Opus 4.8・タスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開2分岐配置）**
+  - **成果**＝census 1996→**1993** 改善（BASELINE_HIGH 実数更新）・golden 429→**433**（parse構造＋evalCondition AND＋e2e配置×3）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き196。
+  - デッキトップ公開の2分岐配置で**第2分岐（登録者数100万＋公開シグニ）の条件が完全脱落し bare ADD_TO_FIELD（無条件2枚目配置）に退化**＋両分岐 optional 脱落。parser に `parseSubscriberRevealCondition` 新設（`AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]`）＋bare ADD_TO_FIELD の「もよい」→optional＋engine no-source ADD_TO_FIELD を optional 対応（CHOOSE 出す/出さない）。**e2e 実測で level2電機→第1分岐配置／level3非電機→登録者数100万時のみ第2分岐配置を確認**。
+
 - **🆕 セッション（2026-07-18・続き195・Opus 4.8・タスク12(iii) 消化＝WXK09-050 の GRANT_CHOSEN_ABILITY 再生成 held 滞留）**
   - **成果**＝golden 428→**429**・census **1996**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き195。
   - parser 主経路が generic `GRANT_CHOSEN_ABILITY` を生成し続け curated `SIGNI_GRANT_CHOSEN_ABILITY`（power比較＋DOWN/BOUNCE保護のカード固有ハンドラ）と id 不一致で held 恒久滞留していた。**parser に「表記されているパワーよりパワーの高い…選んだ能力を得る」検出を足し固有ハンドラへ委譲**＝fresh=curated で held ドリフト解消。engine の generic ハンドラ（execStubPart2）の死にコード `SIGNI_GRANT_CHOSEN_ABILITY` 列挙を削除（Part1→Part2 dispatch で Part1 が先取り＝到達不能）。engine 挙動不変。
