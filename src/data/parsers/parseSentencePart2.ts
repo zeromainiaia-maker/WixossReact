@@ -1994,7 +1994,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
           target: {
             type: tgtTypeCA, owner: kwOwnerCA, count: countCA,
             ...(upToCA ? { upToCount: true } : {}),
-            ...(Object.keys(mergedFilterCA).length > 0 ? { filter: mergedFilterCA } : {}),
+            ...kwTargetFilter,
           },
           keyword: 'アタックできない',
           duration: durCA,
