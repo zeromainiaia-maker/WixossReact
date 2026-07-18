@@ -161,10 +161,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き195・Opus 4.8・タスク12(iii) 消化＝WXK09-050 の GRANT_CHOSEN_ABILITY 再生成 held 滞留）**
-  - **成果**＝golden 428→**429**・census **1996**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き195。
-  - parser 主経路が generic `GRANT_CHOSEN_ABILITY` を生成し続け curated `SIGNI_GRANT_CHOSEN_ABILITY`（power比較＋DOWN/BOUNCE保護のカード固有ハンドラ）と id 不一致で held 恒久滞留していた。**parser に「表記されているパワーよりパワーの高い…選んだ能力を得る」検出を足し固有ハンドラへ委譲**＝fresh=curated で held ドリフト解消。engine の generic ハンドラ（execStubPart2）の死にコード `SIGNI_GRANT_CHOSEN_ABILITY` 列挙を削除（Part1→Part2 dispatch で Part1 が先取り＝到達不能）。engine 挙動不変。
-  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝curated CONDITIONAL 包み27枚の扱い／自己再帰STUB再設計／イベント帰属機構／被バニッシュ動的状態参照）。
+- **🆕 セッション（2026-07-18・続き196・Opus 4.8・タスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開2分岐配置）**
+  - **成果**＝census 1996→**1993** 改善（BASELINE_HIGH 実数更新）・golden 429→**433**（parse構造＋evalCondition AND＋e2e配置×3）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き196。
+  - デッキトップ公開の2分岐配置で**第2分岐（登録者数100万＋公開シグニ）の条件が完全脱落し bare ADD_TO_FIELD（無条件2枚目配置）に退化**＋両分岐 optional 脱落。parser に `parseSubscriberRevealCondition` 新設（`AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]`）＋bare ADD_TO_FIELD の「もよい」→optional＋engine no-source ADD_TO_FIELD を optional 対応（CHOOSE 出す/出さない）。**e2e 実測で level2電機→第1分岐配置／level3非電機→登録者数100万時のみ第2分岐配置を確認**。
+  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件・WXDi-P10-034 次メインフェイズ遅延)・ON_BANISH据置2件 は全て §6.3級（新規機構＝curated CONDITIONAL 包み27枚の扱い／自己再帰STUB再設計／イベント帰属機構／遅延トリガー機構／被バニッシュ動的状態参照）。
   - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
