@@ -1080,6 +1080,16 @@ function resolveDynamicFilter(
       ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: lvl - 1 } }
       : { ...rest, level: { min: 99, max: -1 } };
   }
+  // levelGtLastProcessed: 直前に処理したシグニのレベル"より高い"（「その後、…それよりレベルの高い」＝直前配置シグニ基準。WXEX2-28）。
+  // 参照不能なら到達不能 level で空ヒット＝対象なし。
+  if (result.levelGtLastProcessed) {
+    const { levelGtLastProcessed: _lgt, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const lvl = ref ? parseInt(cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+    result = !isNaN(lvl)
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: lvl + 1 } }
+      : { ...rest, level: { min: 99, max: -1 } };
+  }
   if (result.levelEqLastProcessed) {
     const { levelEqLastProcessed: _le, ...rest } = result;
     const ref = lastProcessedCards?.[0];
