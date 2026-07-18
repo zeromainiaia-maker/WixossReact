@@ -4511,6 +4511,34 @@ test('WXEX1-35-E1: ライズアイコン持ち3体条件を外側activeCondition
   eq(innerCount, 'ALL', '既存の内側count:ALLは変更しない');
 });
 
+// タスク12(viii): WDK16-13/WXK08-033 のデッキトップ公開→2分岐条件配置。第2分岐が登録者数条件で正しくゲートされること。
+test('parse WDK16-13【出】→ 第2分岐 AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]・両分岐 optional（タスク12(viii)）', () => {
+  const effs = parseCardEffects(cardMap.get('WDK16-13')!);
+  const seq = effs.find(e => e.effectId === 'WDK16-13-E1')?.action as unknown as { type: string; steps: Array<{ type: string; condition?: { type: string; conditions?: { type: string }[] }; then?: { optional?: boolean } }> };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[1].condition?.type, 'LAST_PROCESSED_MATCHES', '第1分岐=LAST_PROCESSED_MATCHES（level≤2＜電機＞）');
+  eq(seq.steps[1].then?.optional, true, '第1分岐 ADD_TO_FIELD optional（場に出してもよい）');
+  eq(seq.steps[2].condition?.type, 'AND', '第2分岐=AND');
+  eq(seq.steps[2].condition?.conditions?.[0].type, 'SUBSCRIBER_COUNT', 'AND[0]=SUBSCRIBER_COUNT（登録者数100万）');
+  eq(seq.steps[2].condition?.conditions?.[1].type, 'LAST_PROCESSED_MATCHES', 'AND[1]=LAST_PROCESSED_MATCHES（公開シグニ）');
+  eq(seq.steps[2].then?.optional, true, '第2分岐 ADD_TO_FIELD optional');
+});
+test('evalCondition AND[SUBSCRIBER_COUNT≥100, LAST_PROCESSED_MATCHES{シグニ}]: 両成立でのみ true（タスク12(viii)）', () => {
+  const signiCard = findCard(c => isSigni(c));
+  const cond = { type: 'AND', conditions: [
+    { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 100 },
+    { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' } },
+  ] };
+  const mk = (sub: number, lp: string[]) => {
+    const c = { ...mkCtx({}, {}), lastProcessedCards: lp } as unknown as ExecCtx;
+    (c.ownerState as unknown as { subscriber_count?: number }).subscriber_count = sub;
+    return c;
+  };
+  ok(evalCondition(cond as never, mk(100, [signiCard])), '登録者数100万+シグニ公開で true');
+  ok(!evalCondition(cond as never, mk(50, [signiCard])), '登録者数不足で false');
+  ok(!evalCondition(cond as never, mk(100, [])), '公開カードなしで false');
+});
+
 // checkActiveCondition の FRONT_SIGNI_POWER: 効果元シグニの正面（相手ゾーン 2-zi）のシグニの実効パワーで判定（SP27-002-E3・タスク12(i)）
 // ※ fresh() でカーソルを進めると後続テストの払い出しがずれるため、必ずファイル末尾に置く。
 test('checkActiveCondition FRONT_SIGNI_POWER: 正面パワー閾値以上でのみ true（正面空は false）', () => {
