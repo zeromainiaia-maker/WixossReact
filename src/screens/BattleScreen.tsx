@@ -2516,8 +2516,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     controllerState: PlayerState,
     otherState: PlayerState,
     decreaseOnOpp: number,
+    decreaseSources: string[] = [],
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectPowerDecreaseTriggers(mkTrigCtx(), controllerId, controllerState, otherState, decreaseOnOpp);
+    pureCollectPowerDecreaseTriggers(mkTrigCtx(), controllerId, controllerState, otherState, decreaseOnOpp, decreaseSources);
 
   // ON_CARD_MOVED_TO_DECK トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectMoveToDeckTriggers = (
