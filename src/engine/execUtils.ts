@@ -248,6 +248,8 @@ export function matchesFilter(
   if (filter.hasCrossIcon && !(card.EffectText?.startsWith('《クロスアイコン》'))) return false;
   // 《ライズアイコン》を持つ（EffectText に【ライズ】を含む）
   if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
+  // 《ライズアイコン》を持たない（hasRiseIcon の否定）
+  if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     // card_class_overridesによるクラス上書き、次にTREAT_AS_CLASS_ALL_ZONESオーバーライドを考慮
