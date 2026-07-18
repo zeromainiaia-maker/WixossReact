@@ -2709,6 +2709,39 @@ function parseActionTextInner(text: string): EffectAction {
           } as RevealAndPickAction;
         }
       }
+      // ---- その中から〔filter〕(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ＝pick-to-hand + remainder ----
+      // 「見る。その中から＜C＞のシグニM枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く」系（census
+      // 「引用なし」look-pick 7-8枚＋テール）。従来は下の汎用 LOOK_AND_REORDER が「その中から…デッキ」に先にマッチし
+      // **pick（手札加え）が丸ごと脱落**して単なるデッキ並べ替えに退化していた。手札加えを含む S2 はここで先に解決する。
+      // 「場に出し」を含む handOrField 形（上流 2547）は対象外。remainder は同文（S2）優先で読む（旧規則は別文限定
+      // ＋「シャッフルして」限定で「好きな順番でデッキの一番下」を拾えず top へ誤既定していた）。
+      if (/手札に加え/.test(nextS) && !/場に出し/.test(nextS)) {
+        const pickM = nextS.match(/^その中から(.*?)を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:を公開し|公開し)?(?:手札に加える|手札に加え)/);
+        if (pickM) {
+          const nounP = pickM[1];
+          const pickCount: number | 'ALL' = (pickM[2] === 'すべて' || pickM[2] === '好きな枚数') ? 'ALL' : parseNum(pickM[2]);
+          const pickUpTo = pickM[3] === 'まで' || pickM[2] === '好きな枚数';
+          const filter: TargetFilter = {
+            ...parseStoryFilter(nounP), ...parseColorFilter(nounP), ...parseLevelFilter(nounP),
+            ...(/シグニ/.test(nounP) ? { cardType: 'シグニ' as const } : {}),
+          };
+          const remSrc = /残りを/.test(nextS) ? nextS : (sentences.find(s => /残りを.*(?:デッキ|トラッシュ)/.test(s.trim())) ?? '');
+          const remainder: RevealAndPickAction['remainder'] =
+            /トラッシュ/.test(remSrc) ? { location: 'trash', position: 'any' }
+            : /一番下/.test(remSrc) ? { location: 'deck', position: 'bottom' }
+            : { location: 'deck', position: 'top' };
+          return {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+            ...(Object.keys(filter).length > 0 ? { filter } : {}),
+            pickCount,
+            ...(pickUpTo ? { pickUpTo: true } : {}),
+            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder,
+          } as RevealAndPickAction;
+        }
+      }
       if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
         return {
           type: 'LOOK_AND_REORDER',
@@ -2719,28 +2752,6 @@ function parseActionTextInner(text: string): EffectAction {
           canTrash: nextS.includes('トラッシュ'),
           destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
         };
-      }
-      // その中からXを手札に加える → 残りをシャッフルしてデッキへ
-      if (nextS.match(/その中から.+(手札に加える|手札に加え)/)) {
-        const pickM = nextS.match(/その中から(?:(.+?)の)?(?:シグニ|カード)?([０-９\d]+|すべて)枚?(?:を公開し)?(?:手札に加える|手札に加え)/);
-        const remainS = sentences.find(s => s.trim().match(/残りを(?:シャッフルして)?デッキ/));
-        const remainder: RevealAndPickAction['remainder'] = remainS?.includes('一番下')
-          ? { location: 'deck', position: 'bottom' }
-          : { location: 'deck', position: 'top' };
-        if (pickM) {
-          const story = pickM[1] ? parseStoryFilter(pickM[1]) : {};
-          const filter: TargetFilter = { ...story };
-          const pickCount = pickM[2] === 'すべて' ? 'ALL' : parseNum(pickM[2]);
-          return {
-            type: 'REVEAL_AND_PICK',
-            owner: 'self',
-            revealCount: parseNum(cM[1]),
-            filter: Object.keys(filter).length > 0 ? filter : undefined,
-            pickCount,
-            then: { type: 'ADD_TO_HAND', owner: 'self' },
-            remainder,
-          } as RevealAndPickAction;
-        }
       }
     }
   }
