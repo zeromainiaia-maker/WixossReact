@@ -4110,8 +4110,9 @@ export function execStubPart2(
     return done(addLog(ctx, `[ガードコスト: ${stub.id}]`));
   }
   // 選んだキーワード/保護能力付与（シグニ対象・SELECT_TARGET→CHOOSEインタラクション）
-  if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF'
-      || stub.id === 'SIGNI_GRANT_CHOSEN_ABILITY') {
+  // ※ SIGNI_GRANT_CHOSEN_ABILITY（WXK09-050＝表記パワー比較＋DOWN/BOUNCE 保護）は execStubPart1 の
+  //   カード固有ハンドラが先取りするためここには到達しない（generic は power 比較/保護を扱えない・タスク12(iii)）。
+  if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF') {
     const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
     const toHWGCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
