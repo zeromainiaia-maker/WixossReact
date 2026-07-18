@@ -237,7 +237,7 @@
 
 **A. instant型（executor層・優先）**
 - ~~`LEVEL_MODIFY`(9)／`LOOK_AT_DECK_AND_LIFE`(3)／`VARIABLE_DISCARD_AND_DRAW`(1)／`NAME_BAN`(2)~~ **✅実装済（詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §6.1）**。
-- [ ] `PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）／~~`STACK_SPELL`（1・WX11-029・AUTO）~~ **✅続き122（Opus）で実装＝dispatchを`execPlaceUnderSigni`にアダプト（trashからスペルmaxCount枚選び下に置く）・golden回帰**／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
+- [ ] ~~`PLAY_FREE_FROM_TRASH`（2・WX09-012・AUTO/ACT）~~ **✅続き202（Fable 5）で実装＝`execPlayFreeFromTrash` 新設（WX09-012-E2 スペル／WX19-002-E4 アーツ・golden 3件・詳細 BUGFIXES 続き202）**／~~`STACK_SPELL`（1・WX11-029・AUTO）~~ **✅続き122（Opus）で実装＝dispatchを`execPlaceUnderSigni`にアダプト（trashからスペルmaxCount枚選び下に置く）・golden回帰**／`PREVENT_DAMAGE`（5・WX08-029・ACT3/AUTO1/LB1＝ただしダメージ層への置換機構が要る＝実質横断）。
 
 **B. CONTINUOUS型（calcFieldPowers/CONT収集器層）**
 - ~~`GROW_COST_REDUCTION`(6)／`POWER_MODIFY_PER_ENERGY`(1)~~ **✅続き116で決着＝詳細 [PLAN_DETAIL.md](./PLAN_DETAIL.md) §6.1**（POWER_MODIFY_PER_ENERGYは実機PASS・GROW_COST_REDUCTIONはWX14-009/WD14-001の2枚でper-count scaling非対応の真バグを発見しOpusタスク12(xviii)へ登録）。
