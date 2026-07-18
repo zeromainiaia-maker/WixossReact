@@ -3754,7 +3754,12 @@ export function execStubPart2(
         if (stateOtherAfterPF.hand.includes(cnPF)) {
           stateOtherAfterPF = { ...stateOtherAfterPF, hand: stateOtherAfterPF.hand.filter(c => c !== cnPF), trash: [...stateOtherAfterPF.trash, cnPF] };
         } else {
-          stateAfterPF = { ...stateAfterPF, trash: [...stateAfterPF.trash, cnPF], hand: stateAfterPF.hand.filter(c => c !== cnPF) };
+          // USE_SPELL_FROM_TRASH（トラッシュ発の使用）は既にトラッシュにあるため二重積みしない
+          stateAfterPF = {
+            ...stateAfterPF,
+            trash: stateAfterPF.trash.includes(cnPF) ? stateAfterPF.trash : [...stateAfterPF.trash, cnPF],
+            hand: stateAfterPF.hand.filter(c => c !== cnPF),
+          };
         }
       }
       const execCtxPF = { ...newCtxPF, ownerState: stateAfterPF, otherState: stateOtherAfterPF };
