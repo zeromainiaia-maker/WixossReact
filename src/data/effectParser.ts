@@ -1095,6 +1095,20 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
   return null;
 }
 
+// 「あなたの登録者数がN万人を達成していて、この方法で〜が公開された場合、」（WDK16-13/WXK08-033 の第2分岐）→
+//   AND[SUBSCRIBER_COUNT{gte,N}, <inner「この方法で…公開された場合」の LAST_PROCESSED_MATCHES>]。
+// 前段が公開（lastProcessedCards を記録）のときだけ呼ぶ（呼び出し側 prevRecords でゲート）。inner が解けなければ null。
+function parseSubscriberRevealCondition(clause: string): Condition | null {
+  const m = clause.match(/^あなたの登録者数が([０-９\d]+)万人を達成していて、(この方法で.+場合、)$/);
+  if (!m) return null;
+  const inner = parseThisWayGenericCount(m[2]);
+  if (!inner) return null;
+  return { type: 'AND', conditions: [
+    { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(m[1]) },
+    inner,
+  ] };
+}
+
 // 「(その後、)この方法で〔フィルタ〕を/がN枚/体(以上) 〔lastProcessedCards を残す動詞〕た/れた場合、」→
 //   LAST_PROCESSED_MATCHES{filter, minCount} / LAST_PROCESSED_COUNT_GTE（結果カウント閾値・§3 タスク12(xxii) Cluster B）。
 // 前段が lastProcessedCards を記録するステップのときだけ呼ぶ（呼び出し側 prevRecords でゲート）。
