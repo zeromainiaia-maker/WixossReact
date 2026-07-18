@@ -22,9 +22,11 @@
 
 **JSON は2件とも MANUAL/PARTIAL＝手動管理側**なので `build:effects` の収穫では入らず直接パッチ（parser 側も同じ出力になることを直接パースで確認済み＝乖離なし）。
 
-**ゲート**＝golden 464→**466**・`_partial_report.txt` の ON_OPP_POWER_DECREASED 無言近似 **0件**（計器が落ちた＝近似の解消）・census 1948 据置・smoke/fuzz 全0・同型★0。**要実機検証＝毒牙以外の効果で減らしたとき発火しないこと**。
+**ゲート**＝golden 464→**467**・`_partial_report.txt` の ON_OPP_POWER_DECREASED 無言近似 **0件**（計器が落ちた＝近似の解消）・census 1948 据置・smoke/fuzz 全0・同型★0。**要実機検証＝毒牙以外の効果で減らしたとき発火しないこと**。
 
-**残＝ON_CARD_MILLED_FROM_DECK 1件（WX24-P3-030-E1・「あなたの＜悪魔＞のシグニの効果1つによって」）**＝ミル発生源の記録が同様に必要（`countMilledFromDeck` も枚数だけの盤面 diff）。同じ型で実装できるが未着手＝タスク12 に残す。
+**追補＝ON_CARD_MILLED_FROM_DECK 1件も同型で消化し (xxiv) 完了**（WX24-P3-030-E1「あなたの＜悪魔＞のシグニの効果1つによって」）。**ここは発生源を吊るす場所が無いのが難点**＝`temp_power_mods` は構造体配列なので `srcCardNum` を足せたが、**trash は `string[]` でエントリにメタ情報を持てない**。そこで**既存の `last_effect_draw_source`（`drawBySourceStory` 用）とまったく同じ型**で `PlayerState.last_effect_mill_source` を新設し、`execMill`（ミルの単一経路）が記録する方式にした。`triggerCondition.milledSourceStory` を parser が抽出し、コレクタが `CardClass` で判定。**発生源不明時は従来どおり発火**（過剰側に倒す）は power 版と同じ。
+
+これで **`_partial_report.txt` の ON_OPP_POWER_DECREASED / ON_CARD_MILLED_FROM_DECK の無言近似はどちらも 0件**＝(xxiv) の「発生源フィルタ脱落」系統は全消化。golden 466→**467**。
 
 ---
 
