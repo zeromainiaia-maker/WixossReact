@@ -95,11 +95,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
   {
     const playFreeM = t.match(/トラッシュからコストの合計が([０-９\d]+)以下の(.+?)スペル([０-９\d]+)枚を対象とし、それをコストを支払わずに使用してもよい/);
     if (playFreeM) {
-      const colorFilter = parseStoryFilter(playFreeM[2]) as TargetFilter;
+      const storyFilter = parseStoryFilter(playFreeM[2]) as TargetFilter;
+      // 「青の」等の色限定は parseStoryFilter（＜クラス＞専用）では拾えないため別途抽出（WX09-012）
+      const colorsPFM = [...playFreeM[2].matchAll(/(白|赤|青|緑|黒)/g)].map(m => m[1]);
       return {
         type: 'PLAY_FREE_FROM_TRASH',
         costThreshold: parseNum(playFreeM[1]),
-        filter: { cardType: 'スペル', ...colorFilter },
+        filter: {
+          cardType: 'スペル',
+          ...(colorsPFM.length === 1 ? { color: colorsPFM[0] } : colorsPFM.length > 1 ? { color: colorsPFM } : {}),
+          ...storyFilter,
+        },
         maxCount: parseNum(playFreeM[3]),
       } as PlayFreeFromTrashAction;
     }
