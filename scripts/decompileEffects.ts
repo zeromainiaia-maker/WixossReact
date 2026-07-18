@@ -916,7 +916,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const whoCI = a.targetOwner === 'opponent' ? '対戦相手' : 'あなた';
       return `${when}${whoCI}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
     }
-    case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
+    case 'PREVENT_DAMAGE': {
+      // 期間（このターン／次のターンの間）と範囲（あらゆるダメージ／ルリグアタックのみ）を原文どおり出す
+      const whoPD = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+      if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
+        return `${a.until === 'NEXT_TURN' ? '次のターンの間、' : 'このターン、'}対戦相手のルリグは${whoPD}にダメージを与えない`;
+      return `${a.until === 'NEXT_TURN' ? '次のターンの間、' : 'このターン、'}${whoPD}はダメージを受けない`;
+    }
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
