@@ -898,7 +898,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const restr = a.ignoreRestrictions ? '（限定条件を無視して）' : '';
       return `${from}から${timingClause}${costLim}${filterJa(a.filter)}${noun}1枚を${restr}コストを支払わずに使用する`;
     }
-    case 'PLAY_FREE_FROM_TRASH': return 'トラッシュからコストを支払わずに場に出す';
+    case 'PLAY_FREE_FROM_TRASH': {
+      const fromPFT = a.filter?.cardType === 'アーツ' ? 'ルリグトラッシュ' : 'トラッシュ';
+      const nounPFT = a.filter?.cardType ? ([] as string[]).concat(a.filter.cardType).join('か') : 'カード';
+      return `${fromPFT}からコストの合計が${a.costThreshold}以下の${filterJa(a.filter)}${nounPFT}${a.maxCount ?? 1}枚をコストを支払わずに使用する`;
+    }
     case 'BANISH_REDIRECT': return a.redirectTo === 'exile'
       ? 'このターン、対戦相手のシグニがバニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される'
       : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
