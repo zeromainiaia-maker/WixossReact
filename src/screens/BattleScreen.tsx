@@ -3456,6 +3456,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
+        prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined,
         double_power_minus_this_turn: undefined, no_grow: undefined,
