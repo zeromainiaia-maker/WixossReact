@@ -136,7 +136,7 @@
 
 #### Sonnet のタスク（2026-07-15 棚卸し・生きているものだけ）
 
-> **⚠2026-07-15（続き134）の棚卸し結果＝在庫がほぼ枯渇している**。続き133 で BEHAVIOR_AUDIT 高シグナル22の精査が「新規バグ0件」で終わったことにより、**タスク1（主力在庫）・4 が同時に枯れ、6 は元からブロック**。**🆕続き138でタスク9（PARTIAL刻印151件トリアージ）も完了＝Opusタスク12へ144件分登録**。**🆕続き170（Sonnet）でタスク1の§7横展開も全消化完了（既定order 75件）＝続き171d時点の「次の一手：Sonnet=§7フルバッチ回帰」は、続き170が無引数実行した際にデフォルトorder全件が副作用的に既に完走済みと確認（重複実行はしない）**。**🆕続き172（Sonnet）で補欠(a) timing census振り分け台帳も完了**。**残る Sonnet 在庫はタスク3（driver バッチ状態汚染・低優先で継続観測のみ）のみ＝実質空**。**Opus のタスク12（在庫）・1〜6（新語彙）・タスク16（続き172で判明した[A]約34クラスタ）を進めないと Sonnet に流す観測対象が生まれない**。
+> **2026-07-15（続き134）の棚卸しでは在庫がほぼ枯渇していた**が、**続き201の parser 改善でタスク6に採用待ち37効果が発生し、Sonnet の定型在庫が復活**した。タスク1（§7横展開）・4（BEHAVIOR_AUDIT）は完走／休眠、タスク3は低優先の継続観測。まずタスク6の fresh vs curated 精密diffを取る。
 
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
@@ -144,14 +144,16 @@
 | 1 | **§7 実機検証の横展開** | 検証（driver シナリオ追加のみ） | S×件数 | **✅(a)(b)(c)は続き141（Sonnet）で消化完了**：(a)`trashCounterOpp`（タスク12(iv)修正の反転＝PASS・既定orderに追加）(b)ON_LRIG_GROW④のusageLimit＝`lrigGrowUsageLimit`（タスク12(vi-5)修正の反転＝旧FAILの真因はdriver側のtestId誤りと判明・修正してPASS・既定orderに追加）(c)R37③ ON_SIGNI_POWER_ZERO_OR_LESSのusageLimit＝専用シナリオ`powerzeroUsageLimit`を新規作成しPASS・既定orderに追加。既定order 71→74件。**✅`oppDrawOwnEffectOnly`も続き170（Sonnet）で反転確認完了**＝Opus続き162の`drawByDrawerOwnEffect`修正後、2回連続PASS（guestドロー後もPR-423生存・guest.life無傷）＝既定orderに追加（74→75件）。**残ブロック**＝(xiii)/(xix)/(xx) は続き136/137 で既に解消済み（要 §7 反転確認）。WX22-001-E3（クラフトトークン残・§6.4）も引き続き可。**🆕続き173/174で在庫2件復活**＝(a)WX25-P1-001（タスク12(xxiii) 消化）の付与【起】シナリオ新設＝アーツ使用（リコレクト4枚）→センタールリグに【起】×3付与→エクシード1支払い→デッキ5枚見て2枚手札、まで通しで2回連続PASS確認（b)SPDi47-03 の【起】＝DRAW3→好きな枚数discard→捨て枚数閾値（1枚以上でシグニ→デッキ下）の通し確認（いずれも「要実機検証」刻印の解消） |
 | 3 | driver バッチ実行の状態汚染 | scripts（engine/JSON 非依存） | M | ⏳部分完了（続き77・105・139）＝ホワイトリスト方式リセット＋シナリオ毎 `page.reload()` で改善を継続中。**🆕2026-07-15（続き139・Sonnet）＝`blockDrawByEffect`/`exileHandBlind`の原因を特定・修正**＝両シナリオが`handPrepend`（`.slice(0,4)`で前シナリオ/mulligan由来の**実ランダム手札**を持ち越す実装）を使っていたため、末尾に紛れ込むランダムな余剰カードが召喚ボタン/pick候補の出現順序を狂わせてdriveのクリック列を空振りさせていた＝**バッチ位置に依存しない単体flakinessと確定**（FRESH=1の単体再実行だけでも複数回FAILを再現）。修正＝両シナリオを`handPrepend`から**完全決定的な`'hand':[...]`直接指定**へ変更（他の安定シナリオと同じパターン）。**5シナリオ連結（freezeLrig→negateAttackLrig→blockDrawByEffect→exileHandBlind→delayedAttackTrigger）で3回連続ALL PASS**を確認。⚠**ただし71件フルバッチでは依然この3件がFAILする場合がある**＝修正後に2回フルバッチを実行し1回目は環境要因（旧`verifyBattleDrive`のdevサーバーがポート4173に残留＝`taskkill`後に再実行したら62/71へ改善）、2回目もこの3件を含む9件がFAIL。**5シナリオの短い連結では再現せず71件通しでのみ再現する＝ホワイトリストの漏れではなく「長時間ブラウザセッションでのReact state/setInterval/Supabase Realtime購読等のクライアント側累積疲労」（該当コード注釈と一致）と判断**＝**根本原因の切り分けと修正は Opusタスク12(xxv) へ登録・引き継ぎ済み**（scriptsインフラ課題だがSonnet単独では確定できず・詳細BUGFIXES続き139）。(b)`oppDraw` 単独FAIL（既知・CPU挙動依存）。(c)`lrigGrowAnyOppP03046` が FRESH=1 でも FAIL＝CPUがグロウ判断に至らない（続き135記載のまま未解決）。現在シナリオは**81定義／71既定実行** |
 | 4 | ~~BEHAVIOR_AUDIT キュー再生成＋一次トリアージ~~ **⛔枯渇（常設のまま休眠）** | 計器実行＋分析 | S | **続き133 で高シグナル22件を全件精査＝新規の真no-opバグ0件**。残る母数251件（273−22）は**監査ツールの構造的盲点**（COUNTER_SPELL/SPELL_CUTIN・トリガー文脈依存効果）に大半が該当＝そのまま掘っても同じ結論になる。再開するなら**まず盲点フィルタを機械的に実装して除外してから**（＝新規のスクリプト作業。低収量の見込み） |
-| 6 | §5c 再収穫サイクル（`/census-batch` 準拠） | JSON採用 | S | **⛔Opusタスク1〜6 のいずれかが着地するまで着手しない**（現在プラトー＝空振りになる。続き130 で「安全な採用先ゼロ」を実測確認済み） |
+| 6 | §5c 再収穫サイクル（`/census-batch` 準拠） | JSON採用 | S | **🆕採用待ち37効果あり（続き201の `TRANSFER_TO_DECK` 幻覚除去で parser が curated より改善）**。下記 effectId を次バッチで fresh vs curated 精密diff＋原文照合し、richness を落とさないものだけ採用可否判定する。parser/engine は変更しない。 |
 | 8 | semantic audit のスケールアップ＋単点修正 | パイプライン＋JSON単点 | M | **✅stub群母集団2,401枚は続き146で全数監査完了**（続き144のseed202607・100枚＋続き145のseed202608・200枚＋続き146の残り2,101枚全数＝300+2,101=2,401）。続き146は**全211バッチをCodex CLIのみで実行**（ユーザー指示「バッチはCodexだけ・Claudeは確認だけ」）＝findings2,799件・quoteクラスタリングで3系統確定（Opusタスク12 🆕(xxix)）。**stub群についてはタスク8は完了**。累積除外リスト`scripts/archive/scratchpad/semantic_audit_stub_round3/audited_stub_cards_cumulative.txt`（2,401枚）。残るはclean群（3,574枚・未着手）への展開が任意の次候補だが優先度は低い（stub群の方がSTUB/MANUAL含有＝逆翻訳の盲点として密度が高いため）。詳細`docs/_semantic_audit_stub_round3_triage.txt` |
+
+**🆕 Sonnetタスク6・未採用在庫37効果（続き201）**＝`WX14-046-E1`, `WX16-061-E1`, `WX21-028-E1`, `WXEX1-06-E2`, `WXEX1-13-E1`, `WXEX2-15-E1`, `WXK05-021-E2`, `WXK08-025-E3`, `SP27-004-E1`, `SP27-004-E2`, `SP38-006-E3`, `PR-434-E1`, `PR-434-BURST`, `WXDi-P03-005-E1`, `WXDi-P05-050-E1`, `WXDi-CP01-001-E1`, `WX24-P1-020-E1`, `WX24-P1-023-E1`, `WX24-P1-029-E1`, `WX24-P2-031-E1`, `WX24-P2-033-E1`, `WX24-P2-037-E1`, `WX24-P2-039-E1`, `WX24-P3-018-E1`, `WX24-P3-033-E1`, `WX24-P3-035-E1`, `WX25-P1-035-E1`, `WX25-P1-037-E1`, `WX25-P1-041-E1`, `WX25-P1-043-E1`, `WX25-P2-035-E1`, `WX25-P2-037-E1`, `WX25-P2-043-E1`, `WX25-P3-040-E1`, `WX25-P3-042-E1`, `WX25-CP1-012-E2`, `WX24-D1-25-E1`。全カード生パース before/after 39効果から採用済み WX14-037-E1／WXK07-034-E1 を除いた実数。**次バッチで `npm run build:effects` を再実行し、各 effectId の fresh vs live-curated を精密diffして、幻覚 `TRANSFER_TO_DECK` の除去以外の構造・filter・条件・選択肢を失わないか原文と照合して採用可否を判定する。**
 
 ~~**補欠(a) timing census 残クラスタの振り分け台帳作成**~~ **✅続き172（Sonnet）で完了＝`docs/_timing_census_triage.txt` 新設（詳細はタスク16の行・BUGFIXES続き172参照）**。~~(b) `textNoJson` 56枚の実体確認~~ **✅続き170（Sonnet）で完了＝56枚全件が正当・真の欠落0件**。内訳＝①デュアルカラーエナ注記52枚「（エナコストを支払う際、このカードは○か○１つとして支払える）」＝`Color`列が既に2色文字列（例"青緑"）で`costs.ts`の`cardColor.includes(color)`が構造的に対応済み、EffectTextは重複するルール注記。②WXDi-P13-023（ナナシ）のコイン獲得＝CSV`Coin`列を`BattleScreen.tsx`がゲーム開始時/グロウ時に直接参照（5箇所）、DSL効果不要。③WX24-D1-TK1／WX24-P1-TK2A／WX26-CP1-TK01（リミットアッパー/ルリグバリア/シグニバリアの各トークン）＝トークンの効果本体はBattleScreen内にハードコード実装済み（`limit_upper_token`・`countBarrierTokens`等）でJSON化不要。詳細 BUGFIXES 続き170。
 
 **依存の要点（交互サイクルの回し方・2026-07-15 更新）**＝待ち関係は3本：**Opus1〜6 → Sonnet6**（新語彙が着地してから再収穫）／**Sonnet1・4・8・9 → Opus12**（Sonnet が観測して積む → Opus が修正する）／**Opus12 → Sonnet1**（修正が着地すると §7 の意図的FAIL回帰シナリオを PASS へ反転させる検証作業が生まれる＝Sonnet の主力在庫が復活する）。それ以外の組はすべて独立＝どの順で取っても衝突しない（バトン式なので同時作業はしない・§11 の「着手中」宣言は大型機構のみ必須）。
 
-**⚠いまサイクルが Opus 側で詰まっている**＝Sonnet が積んだ在庫（Opusタスク12 の (i)〜(xxi)＋🆕2件＋**続き138のタスク9トリアージ由来 (xxii)(xxiii)(xxiv)＝PARTIAL刻印144件分の系統バグ**／~~(xxv)~~ **✅続き140で消化済み**）が消化されないまま溜まり、その結果 Sonnet 側の 1・4・6 が同時に待ちに入った。**Opus は「新語彙を開く」より先に、まず タスク12 の在庫消化を優先する**（＝Sonnet の在庫を再生産する行為でもある）。
+**現在は Sonnet 側のタスク6が実行可能**＝続き201で生まれた未採用37効果を先に精密diff・採用判定する。そこで parser/engine の追加バグが見つかった場合のみ Opusタスク12へ登録し、交互サイクルへ戻す。
 
 ---
 
@@ -161,16 +163,16 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き199・§5c look-pick 残テール＝カード名filter）**
-  - **成果**＝`WX19-049-E1` 1効果を `SEQUENCE[LOOK_AND_REORDER×2]` から `REVEAL_AND_PICK{filter.cardName:'盾'}` へ是正。census 1971→**1970**、golden 436→**437**。parser 規則＋golden＋収穫JSONのみで、engine/types/decompiler は変更なし。
-  - **検証規律**＝`build:effects` で fresh 再生成後、変化が同 effectId 1件だけと確認し、原文の2枚公開／カード名に《盾》を含むシグニ／1枚／手札／残りデッキ上を全項目照合してから採用。規則は原文全文をアンカーにし、他の名前・アイコン・OR・multi-filter・多目的・colorMatchesLrig を除外。
-  - **次の一手**＝残 look-pick テールは、OR（単一filterでは表現不能）・それぞれmulti-filter（LOOK_PICK_CHAIN要）・多目的・他の名前/アイコン・colorMatchesLrig。parser-only で1対1対応できる文型を別バッチで選ぶ。
+- **🆕 セッション（2026-07-18・続き199〜201・Codex・look-pick 名前 filter 完走＋`TRANSFER_TO_DECK` 幻覚除去）**
+  - **3バッチの成果**＝続き199で `WX19-049-E1` のカード名《盾》pickを復元（census 1971→1970・golden 436→437）。続き200で `PR-370-E2` の《槍》pick＋deck bottom と `WX12-019-E1` の `filter.cardName:'フレイスロ'`＋`pickCount:'ALL'` を復元（1970→1968・437→439）。続き201で remainder と場のシグニ移動を誤結合する広すぎる規則を遮断し、`WX14-037-E1`／`WXK07-034-E1` の幻覚 `TRANSFER_TO_DECK` を除去（1968→1967・439→441）。
+  - **退化検証**＝続き201の全カード生パース before/after は39効果すべて公開・look の remainder 文脈で、場のシグニ移動原文は0件。CSV原文325カードから抽出した唯一の巻き込みリスク `WXDi-P12-006` も、正当な `TRANSFER_TO_DECK{owner:'opponent'}` と `REVEAL_AND_PICK` がともに残存。smoke/fuzz 全0・同型★0。
+  - **次の一手**＝Sonnet は§3タスク6へ登録した未採用37効果を、`build:effects` で fresh 再生成後に live-curated と effectId 単位で精密 diff し、原文・richness を照合して採用可否を判定する。Opus は採用判定で parser/engine の追加バグが見つかった場合のみタスク12で受ける。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1967【効果単位】**（2026-07-18 続き200＝未反映実測2件＋`TRANSFER_TO_DECK` 幻覚除去1件を簿記反映し1970→1967。続き199＝look-pickカード名filter 1効果を `REVEAL_AND_PICK` へ是正し1971→1970）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1967【効果単位】**（2026-07-18 続き201＝`TRANSFER_TO_DECK` 幻覚除去で1968→1967、続き200＝名前filter 2効果の復元で1970→1968、続き199＝カード名《盾》pick復元で1971→1970）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
 - **母数**：効果カード 5975／効果 10590／MANUAL効果 898／STUB含むカード 1864（2026-07-17 続き184 実測更新）。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
@@ -203,7 +205,7 @@
 
 ### 5c. 語彙センサスの系統別消化（2026-07-04新設・続き17-18で両方向98計測に拡大・続き23で文型バッチ化・過剰効果＋幻覚バグ）
 
-**目標＝`npm run census` の高シグナル欠落（**現ベースライン 2218 効果**・§4 恒久指標）を文型テンプレ単位のバッチで0へ逓減。** 過剰効果（フィルタ・条件・使用制限の脱落で対象/発火が広がる・ゲームを壊す側）と幻覚（原文に無い効果/数値がJSONに居る・逆方向）は behavior-audit の無変化キューに掛からない別種のバグ母集団（発見経緯は §4 続き15、拡充は続き17-18）。
+**目標＝`npm run census` の高シグナル欠落（**現ベースライン 1967 効果**・§4 恒久指標）を文型テンプレ単位のバッチで0へ逓減。** 過剰効果（フィルタ・条件・使用制限の脱落で対象/発火が広がる・ゲームを壊す側）と幻覚（原文に無い効果/数値がJSONに居る・逆方向）は behavior-audit の無変化キューに掛からない別種のバグ母集団（発見経緯は §4 続き15、拡充は続き17-18）。
 
 - **残りの消化対象（生きている worklist のみ・消化済みバッチの履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §5c）**＝(1) **「代わりに」残テール**：C:コスト代替6・D:置換ルール9（バニッシュされない系＝置換機構要）・E:リコレクト2・B1残10（コスト参照・ターン中イベント等＝条件語彙が無い §6.3）＋**CHOOSE平坦化復元の採用待ち held 約35枚**。(2) **幻覚/取り違え系の残**＝WX16-021（置換ルール→即時LIFE_CRASH幻覚＝置換機構要・§6.3）・BURST内IS_MY_TURN残7（§6.3登録済み）。(3) **構造平坦化系**＝引用付与の残107（CONTSELF_COND 18／OTHER 約30／内側品質不全27＝トリガー語彙拡充で再収穫可・held 103 が計器）・代わりに183・IS_MY_TURN誤変換の残53・遅延13・「Nまで」120。(4) 除去系の対象フィルタ脱落（クラス339=`story`・色105・パワー閾値83・レベル閾値90・凍結13・ダウン/アップ38・数値不一致153・小さい数390=粗い網）。(5) トリガー種別（約220）・コスト脱落（コイン24+場トラ25+エナトラ12+他）・ゾーン行き先67・機構census（ライズ31/チーム25/アンコール22/エクシード16等）・公開128・次相手ターン99・相手選ぶ31・制限58・キーワード86。(6) 制限/様相（ターン1回28・ゲーム1回3・任意→強制23）・保護/付与系（同一性46・共通色66・能力なし10）。(7) 語彙自体が無い系統＝最上級（6枚・`TargetFilter` に `superlative:{key,dir}` 新設）・**正面32**（`frontOfSelf` はあるが使用3件＝parser 未配線疑い）・動的比較の残35・合計制約27・**出現条件35＝機構1本の欠落（parser が除去+engine強制なし）**は §3「機構実装の型」で新語彙＋engineセット実装。
 - **進め方＝`/census-batch` スキルに定型化済み**（`.claude/skills/census-batch/SKILL.md`＝続き23確立のパイプライン＋必須ガードレール込み。原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §5c）。概要＝①`census:clusters` でテンプレ選定→②既存DSL型で表現できるか確認（不可＝機構待ちとして §6.3 へ）→③parser 規則追加（**JSON手パッチではなく parser を source of truth に**）→④`build:effects`→⑤`heldReview` spot-check→`--adopt`（**STUB退化・「代わりに」昇格・別STUB id 化は採用しない**）→⑥golden 1件/テンプレ＋全ゲート＋BASELINE_HIGH 更新。旧手順（census明細から手パッチ）は廃止＝parserWorklist held を増やさない。

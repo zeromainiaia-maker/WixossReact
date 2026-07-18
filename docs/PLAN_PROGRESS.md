@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き199・§5c look-pick 残テール＝カード名filter）**
+  - **成果**＝`WX19-049-E1` 1効果を `SEQUENCE[LOOK_AND_REORDER×2]` から `REVEAL_AND_PICK{filter.cardName:'盾'}` へ是正。census 1971→**1970**、golden 436→**437**。parser 規則＋golden＋収穫JSONのみで、engine/types/decompiler は変更なし。
+  - **検証規律**＝`build:effects` で fresh 再生成後、変化が同 effectId 1件だけと確認し、原文の2枚公開／カード名に《盾》を含むシグニ／1枚／手札／残りデッキ上を全項目照合してから採用。規則は原文全文をアンカーにし、他の名前・アイコン・OR・multi-filter・多目的・colorMatchesLrig を除外。
+  - **次の一手（退避時点）**＝残 look-pick テールは、OR（単一filterでは表現不能）・それぞれmulti-filter（LOOK_PICK_CHAIN要）・多目的・他の名前/アイコン・colorMatchesLrig。parser-only で1対1対応できる文型を別バッチで選ぶ。
+
 - **🆕 セッション（2026-07-18・続き198・Opus 4.8・§5c look-pick 系統消化）**
   - **成果**＝census 1992→1971・golden 435→436・smoke/fuzz 全0・同型★0・`npm run regen` 済み。class/color/level filter の別文 pick-to-hand 40枚を parser 規則のみで `REVEAL_AND_PICK` へ是正。多目的・それぞれmulti-filter・OR・hand-or-energy・場出し・アイコン/名前 filter は意図的に除外。詳細は BUGFIXES 続き198。
 

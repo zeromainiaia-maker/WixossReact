@@ -4,6 +4,24 @@
 
 ---
 
+## `TRANSFER_TO_DECK` 幻覚の系統除去＝公開カードの remainder と場のシグニ移動の誤結合を遮断（実害2効果・census 1968→1967）（2026-07-18・続き201）
+
+**真因**＝`parseSentencePart1.ts` の「シグニをデッキの一番下に置く」規則が、`/デッキの一番下に置く/ && (シグニ|それ)` という広すぎる判定だった。同じ複文にある pick 対象の「シグニ」と、公開・look したカードの「残りをデッキの一番下に置く」を句をまたいで結合し、原文に存在しない `TRANSFER_TO_DECK{owner:'self'}`（自分の場のシグニ1体をデッキ下へ送る）を生成していた。
+
+**実害**＝`WX14-037-E1` 選択肢②と `WXK07-034-E1` 選択肢2の2件。fresh parser だけでなく curated JSON にも幻覚 `TRANSFER_TO_DECK` が採用済みだったため、実機では公開・pick 処理に続いて自分の場のシグニが理由なくデッキへ戻る実バグだった。
+
+**修正**＝場のシグニ移動規則から remainder 文型 `/残りを(好きな順番で|シャッフルして)?デッキの一番下に置く/` を除外。`WX14-037-E1` は選択肢②の正しい `REVEAL_PICK_HAND_SHUFFLE_BOTTOM`（`execStubPart1.ts` に実装済みの honest STUB）、`WXK07-034-E1` は正しい `REVEAL_AND_PICK` を保持したまま、幻覚 `TRANSFER_TO_DECK` だけを除去して curated へ採用した。
+
+**全数退化検証**＝同じ全カード入力を修正前規則／修正後規則で生パースして差分を取り、変化は39効果。全件が「公開・見たカードの残り」文脈で、場のシグニをデッキ下へ移動する原文は0/39だった。CSV 原文側から remainder 正規表現に合う325カードも独立抽出し、場のシグニ移動を併記する巻き込みリスク候補は `WXDi-P12-006` の1件だけと確認。個別 parse では `E1` 選択肢2の正当な `TRANSFER_TO_DECK{owner:'opponent'}` は残存し、`E2` の remainder も `REVEAL_AND_PICK` のままで退化なし。golden 439→441、census 1968→1967、smoke/fuzz 全0、同型★0。
+
+## §5c look-pick 名前 filter クラスタ完走＝PR-370/WX12-019 の pick・filter・ALL 復元（2効果・census 1970→1968）（2026-07-18・続き200）
+
+**`PR-370-E2`**＝原文「デッキの上からカードを４枚公開し、その中からカード名に《槍》を含むシグニ１枚を手札に加える。残りをシャッフルしてデッキの一番下に置く。」が `SEQUENCE[LOOK_AND_REORDER{4,top}, SHUFFLE_DECK]` に退化し、pick が完全脱落したうえ remainder も原文と逆の top になっていた。公開句と pick が**読点で連結された同一文**のため `splitSentences` 後の規則では捕捉できず、文分割前の全文アンカーで `REVEAL_AND_PICK{revealCount:4,filter:{cardType:'シグニ',cardName:'槍'},pickCount:1,then:ADD_TO_HAND,remainder:deck/bottom}` へ是正した。remainder の「シャッフル」は現行語彙にフラグがないため deck bottom までを正確に表現し、機構待ちとして PLAN に明記済み。
+
+**`WX12-019-E1`**＝原文「その中からカード名に《フレイスロ》を含むすべてのカードを手札に加え、残りをトラッシュに置く。」は `REVEAL_AND_PICK` ではあったが、`filter.cardName` が丸ごと欠落してどのカードでも拾える過剰効果となり、「すべて」も1枚へ縮小していた。既存語彙 `pickCount:'ALL'`＋`pickNoun:'カード'`＋`filter.cardName:'フレイスロ'` で復元。engine の `execRevealAndPick` は `pickCount === 'ALL'` を実装済みで、DSL と実行の乖離はない。
+
+**全数確認**＝CSV 全数検索でこの名前 filter 文型は5カードのみ（`WX19-049`／`PR-370`／`WX12-019`／`WX14-037`／`WX20-072`）。`WX19-049` は続き199、`PR-370` と `WX12-019` は本バッチ、`WX14-037` は続き201へ分離し、`WX20-072` は手札かエナの多目的型なので除外。golden 437→439、census 1970→1968、smoke/fuzz 全0、同型★0。
+
 ## §5c look-pick 残テール消化＝カード名 filter の pick 脱落是正（1効果・census 1971→1970）（2026-07-18・続き199）
 
 **対象と原文**＝`WX19-049-E1`「【出】：あなたのデッキの上からカードを２枚公開する。その中からカード名に《盾》を含むシグニ１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。」。live は `SEQUENCE[LOOK_AND_REORDER, LOOK_AND_REORDER]` で、カード名 filter と手札加えが丸ごと脱落していた。
