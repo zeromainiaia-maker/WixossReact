@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き192・Opus 4.8・タスク12(viii)残 消化＝デッキトップ private look 条件付き配置の filter/optional 脱落）**
+  - **成果**＝golden 425→**427**・census **1998**（維持）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き192。
+  - 「デッキの一番上を**見る**。それが〔filter〕のシグニの場合、それを場に出（す/してもよい）」が sentence 分割で bare `ADD_TO_FIELD` に落ち、filter（レベル/色/クラス/ライズアイコン）と optional が丸ごと脱落し**無条件配置**に退化していた（WX16-038-E1/E2・WX15-001-E2）。「公開する」版が `REVEAL_AND_PICK{filter}` に変換される上流ブロック（`effectParser.ts:2703`）と**対の「見る」版を新設**。`noRiseIcon` フィルタ（「《ライズアイコン》を持たない」）＋`EffectTarget.fromTop` を types/engine/decompiler に追加。3効果採用・MANUAL WX10-007/021 の held ドリフト解消。
+
 - **🆕 セッション（2026-07-18・続き189・Opus 4.8・タスク5 小口＝GRANT_EFFECT(→LRIG) 内 levelLtSelf の decompiler 読み替え）**
   - **成果**＝同型★0（5986枚）維持・golden 422/census 1998（不変＝decompiler 表現のみ）・`npm run regen` 済み。詳細は BUGFIXES 続き189。
   - WXEX2-25-E3 の逆翻訳が「このシグニより低いレベル」→原文「この**ルリグ**より」とズレ。GRANT_EFFECT 付与先が LRIG のとき inner の「このシグニより(低い/高い)レベル」を「このルリグより」に読み替え（engine は host 基準で解決済＝機能は正）。`levelLtSelf` は全JSONでこの1枚のみ。
