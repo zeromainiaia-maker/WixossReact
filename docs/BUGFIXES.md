@@ -4,6 +4,23 @@
 
 ---
 
+## タスク7クローズ＝`COST_SUBSTITUTE` の engine 実装（エナ色オーバーライドとして表現）＋逆翻訳の生JSON漏れ是正（golden 454→456）（2026-07-19・続き204b・Opus 4.8）
+
+**症状**＝`COST_SUBSTITUTE` も `PREVENT_DAMAGE` と同じく types／parser／decompiler には居るのに engine dispatch が無い**完全no-op**（該当2効果）。さらに decompiler が `costJa` で `substituteCost` を描画できず **`《白×1》のコストをコスト:{"banish_self":true}で支払ってもよい` と生JSONを漏らしていた**（§5b の英語/JSON漏れ）。
+
+**対象2枚はどちらもオフカラー代替**＝WX08-042《美しき弦奏 コントラ》は**緑**のシグニなのに《**白**》の支払いに使え、WX21-044《惨之遊 †シャテキ†》は**黒**なのに《**緑**》に使える。原文＝「あなたが《X》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい。」
+
+**実装＝新機構を足さず既存のエナ色オーバーライドに載せた**。エナコストの支払いは**そもそもエナゾーンからカードをトラッシュする行為**なので、「代わりにこのカードをエナからトラッシュしてよい」は「**エナゾーンにあるこのカード1枚が色Xとして支払える**」と完全に等価になる。よって `collectEnergyTrashSubstituteInfo`（`effectEngine.ts`）の**エナゾーン走査ループ**に COST_SUBSTITUTE 分岐を追加し、`colorOverrideMap`（instId→色）へ登録するだけで済んだ＝`canAffordGrowCost`/`canAffordWithExtraCost` の `trashSubColors` 経路と支払いUIの色表示（ArtsModal／SigniActivatedModal）に**そのまま乗る**。既存の `ENERGY_SUBSTITUTE_TRASH_SIGNI`（エナの自分自身→センタールリグ色）と同じ型の隣に置いた。
+
+- **ガード**＝`substituteCost.banish_self` が真、かつ `originalCost` が**1色1枚**のときだけ適用する。1枚で複数コストを賄う形は色オーバーライドでは表現できないため対象外（該当データは無し）。
+- **decompiler**＝`banish_self` を原文の言い回し（「代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい」）で描画。2効果とも**原文と字面一致**するようになった（生JSON漏れ解消）。
+
+**既知の残り（新機構ではなく既存の配線穴）**＝原文の「あなたが《X》を支払う際」は**グロウコストの支払いも含む**が、`myEnergyTrashSubInfo` は**グロウ経路（GrowModal／BattleScreen のグロウ可否判定）に渡されていない**ため、現状グロウ支払いでは代替できない。これは先行実装の `ENERGY_SUBSTITUTE_TRASH_SIGNI` 等と**共通の既存プラミング穴**（本変更で新たに生じたものではない）＝§3 Opusタスク12 に登録。
+
+**ゲート**＝golden 454→**456**（エナ上で原文の色として扱える／場に居るだけでは付かない、の2件）・typecheck/smoke/fuzz/census 1963 据置・同型★0 維持。**要実機検証＝支払いUIでの実選択**。**これで §6.1「未実装action型」の残型は0＝タスク7クローズ**。
+
+---
+
 ## タスク7「未実装action型」＝`PREVENT_DAMAGE` の engine 実装（完全no-op→ダメージ無効ウィンドウ機構・golden 451→454）（2026-07-19・続き204・Opus 4.8）
 
 **症状＝型はあるのに engine dispatch が一度も存在しない完全no-op**。`PreventDamageAction` は types／parser／decompiler には居るのに `effectExecutor` にも BattleScreen にも `'PREVENT_DAMAGE'` の分岐が無く、該当4効果（WX08-029-BURST／WX14-003-E4／PR-K077-E2／WX15-002-E2 の内側）は**発動しても何も起きない**。decompiler も一律「ダメージを無効にする」で期間も範囲も落としていた（PLAN §3 Opusタスク7 の残2型のうち1型）。
