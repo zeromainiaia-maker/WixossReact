@@ -4539,6 +4539,25 @@ test('evalCondition AND[SUBSCRIBER_COUNT≥100, LAST_PROCESSED_MATCHES{シグニ
   ok(!evalCondition(cond as never, mk(100, [])), '公開カードなしで false');
 });
 
+// タスク12(viii) end-to-end: WDK16-13【出】を実盤面で駆動（run は CHOOSE で place を選ぶ＝置ける限り置く）。
+// 第1分岐（level≤2＜電機＞）・第2分岐（登録者数100万+シグニ）の条件で置く/置かないが分岐すること。
+test('e2e WDK16-13: level2＜電機＞は第1分岐で場に出る（登録者数0でも）', () => {
+  const eff = parseCardEffects(cardMap.get('WDK16-13')!).find(e => e.effectId === 'WDK16-13-E1')!;
+  const ctx = mkCtx({ signi: [null, null, null], deckTop: ['WD03-012'] }, {}); // WD03-012=level2 電機
+  const r = run(eff.action as EffectAction, ctx);
+  ok(tops(r.ownerState).includes('WD03-012'), 'level2＜電機＞シグニが場に出る');
+});
+test('e2e WDK16-13: level3非電機は登録者数100万達成時のみ第2分岐で場に出る', () => {
+  const eff = parseCardEffects(cardMap.get('WDK16-13')!).find(e => e.effectId === 'WDK16-13-E1')!;
+  const mkTop = (sub: number) => {
+    const c = mkCtx({ signi: [null, null, null], deckTop: ['WD01-010'] }, {}); // WD01-010=level3 非電機シグニ
+    (c.ownerState as unknown as { subscriber_count?: number }).subscriber_count = sub;
+    return c;
+  };
+  ok(tops(run(eff.action as EffectAction, mkTop(100)).ownerState).includes('WD01-010'), '登録者数100万で場に出る（第2分岐）');
+  ok(!tops(run(eff.action as EffectAction, mkTop(50)).ownerState).includes('WD01-010'), '登録者数不足なら場に出ない（両分岐false）');
+});
+
 // checkActiveCondition の FRONT_SIGNI_POWER: 効果元シグニの正面（相手ゾーン 2-zi）のシグニの実効パワーで判定（SP27-002-E3・タスク12(i)）
 // ※ fresh() でカーソルを進めると後続テストの払い出しがずれるため、必ずファイル末尾に置く。
 test('checkActiveCondition FRONT_SIGNI_POWER: 正面パワー閾値以上でのみ true（正面空は false）', () => {
