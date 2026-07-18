@@ -1610,7 +1610,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- 場に出す（デッキ上から / 手札から など）----
   if (t.includes('場に出してもよい') || (t.includes('場に出す') && !t.includes('エナ') && !t.includes('トラッシュ'))) {
-    return { type: 'ADD_TO_FIELD', owner: 'self' };
+    // 「場に出してもよい」＝任意配置（engine の no-source 経路が CHOOSE で出す/出さないを提示）
+    return { type: 'ADD_TO_FIELD', owner: 'self', ...(t.includes('もよい') ? { optional: true } : {}) };
   }
 
   // ---- 効果耐性付与（「〜のルリグ以外からの効果を受けない」）----
