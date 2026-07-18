@@ -538,7 +538,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && cands.includes(autoNum)) {
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcType }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum: autoNum, delta, srcType, srcCardNum: ctx.sourceCardNum }];
       const newS: PlayerState = { ...s, [powerModKey]: mods };
       // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。
       // 自動対象化したシグニを surface し、BattleScreen の done 分岐で ON_TARGETED を収集させる（続き137・タスク12(xx)）。
