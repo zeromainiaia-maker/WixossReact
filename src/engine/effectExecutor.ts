@@ -5108,7 +5108,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         : pmAction.target.owner as Owner;
       const powerModKey = pmAction.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
       const s = ownerState(tgtOwner, ctx);
-      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType: srcTypeOf(ctx) }];
+      const mods = [...(s[powerModKey] ?? []), { cardNum, delta, srcType: srcTypeOf(ctx), srcCardNum: ctx.sourceCardNum }];
       const newS: PlayerState = { ...s, [powerModKey]: mods };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `パワー${delta > 0 ? '+' : ''}${delta}`));
     }
