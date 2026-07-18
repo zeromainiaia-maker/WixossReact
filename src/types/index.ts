@@ -326,6 +326,10 @@ export interface PlayerState {
   // THIS_CARD_FROM_TRASH: トラッシュから場に出したシグニのインスタンスID。直後の【出】効果で
   // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
   signi_played_from_trash?: string[];
+  // 効果によって場に出したシグニの instanceId → 場出し効果の発生源カード instanceId。
+  // 「このシグニが＜X＞のシグニの効果によって場に出ていた場合」（出自条件・WX26-CP1-048）を
+  // 直後の【出】が THIS_CARD_PLACED_BY_CLASS で判定するために記録。通常召喚では記録されない。
+  signi_placed_by_source?: Record<string, string>;
   // FREE_GROW_NEXT_TURN: 次の自分ターンのグロウコストを0にする予約（WX03-024-BURST）。
   // 自分ターン開始時に free_grow_this_turn へ移される。
   free_grow_next_turn?: boolean;
