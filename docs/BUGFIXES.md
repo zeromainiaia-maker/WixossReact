@@ -4,6 +4,25 @@
 
 ---
 
+## タスク2「動的比較」2/3消化＝WXEX2-28 の2段サーチ復元（levelGtLastProcessed 新設）＋WXK11-003 の選択構造復元（前置CHOOSE・両種別コスト増・センタールリグ動的アタック制限）＋ルリグデッキ戻し幻覚の系統除去12枚（census 1967→1963・golden 445→451）（2026-07-19・続き203・Fable 5）
+
+**① WXEX2-28-E3「直前配置シグニ基準」＝二重退化を根治（タスク2）**
+- **退化1＝終止形サーチ文の素通り**：SEARCH 規則（`parseSentencePart1.ts:1118`）の条件が連用形「場に出**し**」のみで、「デッキから…探して場に出す。」（終止形・文末）が規則を素通りし **bare `ADD_TO_FIELD`（デッキ検索が丸ごと消失）** に退化していた。CSV 全数でこの文型は3枚＝WXEX2-28/WX18-001（is 修正）・WX20-053（「手札**か**デッキから」二重ソース＝deck 単独に丸めると手札側が失われるためガードで据置）。
+- **退化2＝「それよりレベルの高い」動的比較の無言脱落**：`levelGtLastProcessed` を新設（types／engine `resolveDynamicFilter`＝lastProcessedCards[0] のレベル+1を level.min へ・参照不能なら空ヒット／decompiler filterJa）。`parseLastProcessedComparison` を「そのシグニ|それ」×「レベルの高い」対応に拡張し SEARCH 規則の filter 合成へ追加。
+- **engine の第3の穴＝ゾーン選択を跨ぐと lastProcessedCards が消える**：`applyDirectAction` の ADD_TO_FIELD が `placedSoFar` 無しで SELECT_SIGNI_ZONE を発行するため、`resumeSelectSigniZone` が lastProcessedCards を復元できず、後続 SEARCH の動的比較が空振りして afterSearch（シャッフル）だけ実行されていた。`execPlaceSigniOnField` のチェーン合成箇所で `placedSoFar`（配置中 head 除外）を補完。
+- **副産物＝WXDi-D07-019-E2**：「場に出たそれよりパワーの低い」の `powerLtLastProcessed` が curated で脱落（任意の相手シグニをバニッシュできる過剰効果）→「それより」対応で fresh が是正・E2のみ JSON 直接パッチ（E1 の CHOOSE は curated が正で fresh が退化のため card 単位採用はしない）。
+- golden +2（parser 構造／e2e＝L1 配置→L3 のみ第2候補）。census 1967→1965。
+
+**② WXK11-003「opp/own センタールリグ」＝選択構造の崩壊を根治（タスク2）**
+- **崩壊の真因**＝CHOOSE ヘッダ規則が「以下の…選ぶ。」の**text 先頭**限定で、使用条件文「このアーツは対戦相手のターンにしか使用できない。」が前置される本カードでは CHOOSE が組まれず、①②行が文フィルタで落ちて選択構造ごと消滅。さらに①内の「このアーツをルリグデッキに戻す」が catch-all（`includes('デッキに戻す')`→`TRANSFER_TO_DECK{SIGNI}`）で**自分の場のシグニをデッキへ送る幻覚**になっていた。
+- **修正**＝(a)前置使用条件文＋CHOOSE ヘッダの複合を parser で SEQUENCE[使用条件, CHOOSE] へ（この1文型に限定・過剰マッチ防止）(b)「（このターン、|次の対戦相手のターンの間、）対戦相手の、アーツとスペルの使用コストは…増える」→ SEQUENCE[COST_INCREASE アーツ, COST_INCREASE スペル]（duration UNTIL_END_OF_TURN/NEXT_OPP_TURN）(c)「対戦相手は自分のセンタールリグより低いレベルを持つシグニでアタックできない」→ `BLOCK_ACTION{SIGNI opp ALL, filter:{levelLtOppLrig}, ATTACK, END_OF_TURN}`（「自分の」＝相手自身のセンタールリグ＝キャスター視点の levelLtOppLrig）(d)「このアーツをルリグデッキに戻す」→ 新 STUB `RETURN_SELF_ARTS_TO_LRIG_DECK`（BattleScreen はアーツを lrig_trash に移してから効果発火＝sourceCardNum を lrig_trash→lrig_deck へ・catch-all より前に配置）。
+- **engine 2点**＝`execBlockAction` の ATTACK 分岐が動的フィルタ未解決（未知フラグが matchesFilter で無視され**全シグニ過剰ブロック**に化ける）→ `resolveDynamicFilter` を挿入／`execCostIncrease` の duration `UNTIL_END_OF_TURN` が cost_modifiers のクリア条件 `'END_OF_TURN'` と不一致で**永続化する**潜在バグ → 正規化。decompiler は BLOCK_ACTION の filterJa 描画（既存カードの filter は全て空＝退化ゼロを機械確認）と「対戦相手のが使用する」文法修正。
+- **横展開の収穫**＝catch-all に `!includes('ルリグデッキに戻')` ガードを追加し、**「ルリグデッキに戻す」系の幻覚 TRANSFER_TO_DECK{SIGNI} を系統除去**。fresh 全数 diff で影響13枚を全件精査し12枚採用：WXK11-003/WDK17-008（①戻し STUB 化）・**WX20-021（同じ前置文型で3択構造が丸ごと欠落していたのを完全復元**＝①手札7枚条件の availability 持ち上げ＋②エナ10枚 CONDITIONAL＋③エナチャージ）・WX24-P3-036/WXK01-005（幻覚除去＋BLOCK_CARD_USE 復元）・WX07-050/WX16-Re18/WXDi-D06-004/P02-030/P03-030/P05-010/P06-023（幻覚→honest UNKNOWN＝レゾナ/ルリグ/自カードのルリグデッキ戻し機構は未実装のため据置）。**WXK06-016 のみ不採用**（fresh が then 内の DRAW を巻き添えで失う＝mixed）。WXK09-006 は curated MANUAL と fresh が一致化（held ドリフト解消）。
+- golden +4（WXK11-003 構造／BLOCK_ACTION×levelLtOppLrig の発火・非発火／STUB 戻し／COST_INCREASE 正規化）＝計451。census 1965→**1963**（BASELINE_HIGH 更新）。smoke/fuzz 全0・同型★0。
+
+**残（タスク2）**＝WXK08-005（キー）のみ＝①先頭文「アタックフェイズの間、自ルリグレベル＜相手ルリグのかぎり《アタックフェイズアイコン》を得る」が **JSON に効果ごと不在**（キーの使用タイミング動的付与＝新機構）②E2 `GRANT_LRIG_ABILITY{abilities:[]}` が空（「以下の能力を得る」の付与構造・E3-E5 はキー自身の効果として並置＝機能近似だが厳密には付与）。
+**新規登録（タスク5 小口）**＝catch-all `includes('デッキに戻す')`（`parseSentencePart1.ts` シグニをデッキに戻す規則）は依然広すぎ＝「〜デッキに戻す」文脈を広く SIGNI 移動へ丸める疑い（今回はルリグデッキのみガード）。WXK06-016 の then 分解（DRAW+ルリグデッキ戻し）・WX20-053 の手札かデッキ二重ソース SEARCH も同枠。
+
 ## タスク12(xii) WXEX1-19-E2 実プレイ無限ループの根治＋§6.1 タスク7 `PLAY_FREE_FROM_TRASH` engine 実装（smoke SKIP 1→0・golden 442→445）（2026-07-18・続き202・Fable 5）
 
 **① タスク12(xii)＝WXEX1-19-E2「トラッシュから3枚選んでエナ/手札/デッキ下に分配」の真の無限ループを根治（クローズ）**
