@@ -4180,6 +4180,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'REVEAL_AND_PICK':         return execRevealAndPick(action as RevealAndPickAction, ctx);
     case 'LOOK_PICK_CHAIN':         return execLookPickChain(action as import('../types/effects').LookPickChainAction, ctx);
     case 'PLAY_FREE':               return execPlayFree(action as PlayFreeAction, ctx);
+    case 'PLAY_FREE_FROM_TRASH':    return execPlayFreeFromTrash(action as import('../types/effects').PlayFreeFromTrashAction, ctx);
     case 'COST_INCREASE':           return execCostIncrease(action as CostIncreaseAction, ctx);
     case 'POWER_MODIFY_PER_FIELD':     return execPowerModifyPerField(action as PowerModifyPerFieldAction, ctx);
     case 'DRAW_PER_FIELD_COUNT':       return execDrawPerFieldCount(action as import('../types/effects').DrawPerFieldCountAction, ctx);
