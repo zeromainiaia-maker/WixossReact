@@ -3715,7 +3715,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           milledDeckOwner: mo,
           milledMinCount: mc ? parseInt(toHalf(mc[1]), 10) : 1,
         };
-        if (/(?:＜[^＞]+＞の)シグニの効果/.test(actionText)) {
+        // 発生源限定「あなたの＜X＞のシグニの効果１つによって」を milledSourceStory に抽出
+        // （engine が last_effect_mill_source の CardClass で判定・続き206 タスク12(xxiv)。
+        //  powerDecreaseSourceStory と同型）。従来は落として過剰発火＝任意の効果によるミルでも発火していた。
+        const msM = actionText.match(/あなたの＜([^＞]+)＞のシグニの効果/);
+        if (msM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), milledSourceStory: msM[1] };
+        } else if (/(?:＜[^＞]+＞の)シグニの効果/.test(actionText)) {
+          // 「あなたの」が付かない別形＝上の規則で拾えない＝従来どおり落とす近似として計器に刻む
           markSilentFallback('ON_CARD_MILLED_FROM_DECK:発生源フィルタ（＜X＞のシグニの効果）を落とす近似');
         }
       }
