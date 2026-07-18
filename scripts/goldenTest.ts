@@ -833,6 +833,20 @@ test('dual-pick 構造固定（WX24-P1-017/WX25-P3-038 が LOOK_PICK_CHAIN[hand,
     ok(s.includes('LOOK_PICK_CHAIN') && s.includes('"then":"hand"') && s.includes('"then":"field"'), `${num}: dual-pick LOOK_PICK_CHAIN[hand,field] のはず`);
   }
 });
+// look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
+// 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
+// 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。
+test('look-pick 構造固定（＜C＞のシグニ手札加えが bare LOOK_AND_REORDER に戻っていない＝REVEAL_AND_PICK+filter）', () => {
+  // ＜C＞クラス filter（WX16-043=英知・WXDi-P01-047=悪魔・WXDi-P06-044=宇宙）
+  for (const num of ['WX16-043', 'WXDi-P01-047', 'WXDi-P06-044']) {
+    const s = JSON.stringify((effectsMap.get(num) ?? [])[0] ?? {});
+    ok(s.includes('"REVEAL_AND_PICK"') && s.includes('"story"') && s.includes('"ADD_TO_HAND"') && !s.includes('"LOOK_AND_REORDER"'),
+      `${num}-E1: REVEAL_AND_PICK{filter.story}+ADD_TO_HAND のはず（実際 ${s.slice(0, 140)}）`);
+  }
+  // 「N枚まで」上限＋色/レベル filter＋remainder bottom（WX26-CP1-100=プリオケupTo・WXDi-P02-051=level1）
+  const s100 = JSON.stringify((effectsMap.get('WX26-CP1-100') ?? [])[0] ?? {});
+  ok(s100.includes('"REVEAL_AND_PICK"') && s100.includes('"pickUpTo":true') && s100.includes('"position":"bottom"'), `WX26-CP1-100-E1: REVEAL_AND_PICK pickUpTo bottom のはず（実際 ${s100.slice(0, 140)}）`);
+});
 // GRANT_TO_PLACED_SIGNI（続き41）：「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を targetsLastProcessed で
 // 場出しシグニ(lastProcessedCards)へ付与する。engine 機構は既存だが本ラウンドで parser を実装して STUB を実アクション化。
 test('GRANT_TO_PLACED_SIGNI(A): GRANT_KEYWORD targetsLastProcessed が場出しシグニ(lastProcessed)へ アサシン付与（WX25-P1-044/P2-039）', () => {
