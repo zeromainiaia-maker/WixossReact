@@ -2646,6 +2646,20 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 使用条件文が CHOOSE ヘッダに前置される型（「このアーツは対戦相手のターンにしか使用できない。以下の…選ぶ。①…」
+  // ＝WXK11-003）。従来はヘッダが text 先頭でないため CHOOSE が組まれず、①②行が文フィルタで落ちて
+  // 選択構造ごと消え、①内の後続文が単独 mis-parse する幻覚が出ていた。前置文はこの1文型に限定（過剰マッチ防止）。
+  {
+    const preHeadM = text.trim().match(/^(このアーツは対戦相手のターンにしか使用できない。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。[\s\S]+)$/);
+    if (preHeadM && /[①②③④⑤]/.test(preHeadM[2]) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
+      const preAct = parseSingleSentence(preHeadM[1].replace(/。$/, ''));
+      const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]));
+      if (chosenPre && preAct.type !== 'UNKNOWN') {
+        return { type: 'SEQUENCE', steps: [preAct, chosenPre] } as SequenceAction;
+      }
+    }
+  }
+
   if (sentences.length === 0) {
     // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
     const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
