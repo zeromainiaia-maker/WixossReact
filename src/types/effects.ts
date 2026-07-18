@@ -209,6 +209,8 @@ export type Condition =
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
   | { type: 'SELF_POWER_GTE'; value: number }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
+  | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass: string } // このシグニが＜X＞のシグニの効果によって場に出ていた場合（出自条件。signi_placed_by_source の発生源 CardClass を判定・WX26-CP1-048）
+  | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
   | { type: 'DURING_PHASE'; phases: string[] }
