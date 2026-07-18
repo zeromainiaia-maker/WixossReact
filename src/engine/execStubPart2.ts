@@ -1304,10 +1304,15 @@ export function execStubPart2(
     if (ctx.ownerState.trash.length < 3) {
       return done(addLog(ctx, 'トラッシュが3枚未満（TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH）'));
     }
+    // 自己再帰 thenAction は resumeSelectTarget の個別適用ループと非互換（lastProcessedCards が1枚ずつになり
+    // 「3枚一括」の前提が崩れて同一 SELECT_TARGET を再発行し続ける）＝thenAction は no-op にし
+    // continuation で3枚一括受け取り（INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N と同型・タスク12(xii)）
     const contTZDFT: StubAction = { type: 'STUB', id: 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH' };
+    const noopTZDFT: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
     return needsInteraction(addLog(ctx, 'トラッシュから3枚選択（1枚目→エナ・2枚目→手札・3枚目→デッキ下）'), {
       type: 'SELECT_TARGET', candidates: ctx.ownerState.trash, count: 3, optional: false,
-      targetScope: 'self_trash', thenAction: contTZDFT as EffectAction,
+      targetScope: 'self_trash', thenAction: noopTZDFT as EffectAction,
+      continuation: contTZDFT as EffectAction,
     });
   }
   // 自・相手を両方エナへ（ゾーン交換系）
