@@ -161,10 +161,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き194・Opus 4.8・タスク12(ii) 消化＝WXDi-P10-035 の退化 curated を改善 fresh へ差し替え）**
-  - **成果**＝**census 1998→1996 改善**（BASELINE_HIGH 実数更新）・golden **428**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き194。
-  - (ii) の「引用内【自】『それを手札に戻す』の owner エンコード整合」を精査＝**現行 fresh は既に正準形**（`BOUNCE{owner:'opponent'}`＝採用済み WDK05-T11-E1 と完全同型・`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`＋`IS_MY_TURN` プレースホルダ慣例で pay/skip 発動・単一対象で lastProcessed 不要）＝**owner バグ無し**と確定。実バグは採用済み curated が退化版（E1＝POWER_MODIFY＋付与トリガー脱落の flat BOUNCE／E2＝HAND_COUNT≧4 条件脱落の無条件 AWAKEN）で放置されていた点＝改善 fresh を heldReview 採用で差し替え（parser/engine 変更ゼロ）。
-  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (iii)(xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝イベント履歴 Condition／自己再帰STUB再設計／引用付与内側 parse／被バニッシュ動的状態参照）。
+- **🆕 セッション（2026-07-18・続き195・Opus 4.8・タスク12(iii) 消化＝WXK09-050 の GRANT_CHOSEN_ABILITY 再生成 held 滞留）**
+  - **成果**＝golden 428→**429**・census **1996**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き195。
+  - parser 主経路が generic `GRANT_CHOSEN_ABILITY` を生成し続け curated `SIGNI_GRANT_CHOSEN_ABILITY`（power比較＋DOWN/BOUNCE保護のカード固有ハンドラ）と id 不一致で held 恒久滞留していた。**parser に「表記されているパワーよりパワーの高い…選んだ能力を得る」検出を足し固有ハンドラへ委譲**＝fresh=curated で held ドリフト解消。engine の generic ハンドラ（execStubPart2）の死にコード `SIGNI_GRANT_CHOSEN_ABILITY` 列挙を削除（Part1→Part2 dispatch で Part1 が先取り＝到達不能）。engine 挙動不変。
+  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝curated CONDITIONAL 包み27枚の扱い／自己再帰STUB再設計／イベント帰属機構／被バニッシュ動的状態参照）。
   - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
