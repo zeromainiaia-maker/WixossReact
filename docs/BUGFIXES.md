@@ -4,6 +4,25 @@
 
 ---
 
+## タスク7「未実装action型」＝`PREVENT_DAMAGE` の engine 実装（完全no-op→ダメージ無効ウィンドウ機構・golden 451→454）（2026-07-19・続き204・Opus 4.8）
+
+**症状＝型はあるのに engine dispatch が一度も存在しない完全no-op**。`PreventDamageAction` は types／parser／decompiler には居るのに `effectExecutor` にも BattleScreen にも `'PREVENT_DAMAGE'` の分岐が無く、該当4効果（WX08-029-BURST／WX14-003-E4／PR-K077-E2／WX15-002-E2 の内側）は**発動しても何も起きない**。decompiler も一律「ダメージを無効にする」で期間も範囲も落としていた（PLAN §3 Opusタスク7 の残2型のうち1型）。
+
+**既存フラグでは表現できない**のが未実装のまま残っていた理由＝`prevent_next_damage`（回数カウンタ・1ダメージ1消費）も `prevent_lrig_damage`（1回で undefined に落ちる使い切り＋ルリグアタック経路のみ）も**「期間中は回数無制限」を表せない**。原文は2系統ある：
+- 「このターン、**あなたはダメージを受けない**」（WX08-029-BURST）＝あらゆるダメージ・このターン中無制限
+- 「**次のターンの間**、対戦相手の**ルリグは**あなたにダメージを与えない」（WX14-003-E4／PR-K077-E2）＝ルリグアタックのダメージのみ・次のターン中無制限
+
+**機構＝ダメージ無効ウィンドウ**（`PlayerState.prevent_damage_windows: { scope:'ALL'|'LRIG'; expires:'MY_TURN_END'|'NEXT_TURN_END' }[]`）。
+- **① types**＝`PreventDamageAction` に `scope?: 'ALL'|'LRIG'` を追加（未指定時は `until==='NEXT_TURN'`→LRIG／それ以外→ALL にフォールバックし旧データでも壊れない）。parser 2規則（`parseSentencePart1.ts`）と curated JSON 4効果に scope を明示。
+- **② engine**＝`effectExecutor` に `PREVENT_DAMAGE` 分岐を新設（owner 側の state にウィンドウを push・`until` から `expires` を決定）。
+- **③ 消費側（BattleScreen）**＝`crashOneLife` 冒頭で scope='ALL' を判定、ルリグアタック応答の冒頭で scope 問わず判定。**いずれも消費型の無効化（バリアトークン／`prevent_next_damage`／置換ミル）より前**に置いた＝「受けない」が確定している場面で使い切りリソースを無駄に消費させないため。
+- **④ ターン境界（3箇所＝PvP通常終了・PvP確認後・CPU）**＝新ヘルパ `advancePreventDamageWindows`（`src/screens/battle/battleUtils.ts`）。**リセットブロックは「ターンを終了するプレイヤー自身」の状態しか触らない**ため、単純に自ターン終了で消すと「次のターンの間」＝相手ターンを1度もカバーできない。そこで `NEXT_TURN_END` は自ターン終了を**1回だけ生き延びて `MY_TURN_END` へ降格**する2段構えにした（相手ターンを丸ごとカバーし、その次の自ターン終了で消滅）。自ターン中の余剰カバーは scope='LRIG'＝相手ルリグは自ターンにアタックしないため無害。
+- **⑤ decompiler**＝期間（このターン／次のターンの間）と範囲（ダメージを受けない／対戦相手のルリグはダメージを与えない）を出し分け、4効果とも**原文と字面一致**するようになった。
+
+**ゲート**＝golden 451→**454**（ウィンドウ生成／境界降格の2周／採用JSON構造ガードの3件追加）・typecheck/smoke/fuzz/census 1963 据置・同型★0 維持。**要実機検証**＝③の消費と④の境界越え（BattleScreen 層）。**タスク7 の残は `COST_SUBSTITUTE`(2) のみ**。
+
+---
+
 ## タスク2「動的比較」2/3消化＝WXEX2-28 の2段サーチ復元（levelGtLastProcessed 新設）＋WXK11-003 の選択構造復元（前置CHOOSE・両種別コスト増・センタールリグ動的アタック制限）＋ルリグデッキ戻し幻覚の系統除去12枚（census 1967→1963・golden 445→451）（2026-07-19・続き203・Fable 5）
 
 **① WXEX2-28-E3「直前配置シグニ基準」＝二重退化を根治（タスク2）**
