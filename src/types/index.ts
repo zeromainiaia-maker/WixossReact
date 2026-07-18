@@ -352,6 +352,11 @@ export interface PlayerState {
   // 直近の効果ドロー（execDraw 経由）の原因カード番号。triggerCondition.drawBySourceStory（WX20-026-E3）の発火判定用。
   // ドローフェイズの通常ドロー（drawCards 経由）では undefined にクリアし、効果ドロー（execDraw）が原因カードを上書きする。
   last_effect_draw_source?: string;
+  // 直近の効果ミル（execMill 経由）の原因カード番号。triggerCondition.milledSourceStory
+  //   （WX24-P3-030-E1「あなたの＜悪魔＞のシグニの効果１つによって」）の発火判定に使う。
+  //   trash は string[] でエントリに発生源を持てないため state 側に記録する（last_effect_draw_source と同型）。
+  //   ⚠execMill 以外のミル経路では埋まらない＝**未設定は発生源不明として従来どおり発火**させる（過剰側に倒す）。
+  last_effect_mill_source?: string;
   // 直近の効果ドローが「このプレイヤー自身の効果」由来か（execDraw で a.owner==='self' のとき true・相手にドローさせた
   // 場合 false）。ON_DRAW any_opp の triggerCondition.drawByDrawerOwnEffect（「対戦相手が自分の効果で引いたとき」＝
   // PR-423）の発火判定用。ドローフェイズの通常ドローは execDraw を通らないため更新されない（drawByEffect で別途除外）。
