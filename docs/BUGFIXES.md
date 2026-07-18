@@ -4,6 +4,18 @@
 
 ---
 
+## Opusタスク12(iii) 消化＝WXK09-050 の GRANT_CHOSEN_ABILITY 再生成による held 滞留（dispatch 設計解消）（2026-07-18・続き195・Opus 4.8）
+
+**対象**＝WXK09-050（コードアート Ｒ・Ｌ・Ｃ）E2「【出】：以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①「【常】：対戦相手の効果によってダウンしない。」②「【常】：対戦相手の効果によって手札に戻らない。」」
+
+**バグ**＝parser 主経路（`effectParser.ts:2600` の「以下のNつから…選んだ能力を得る」ヘッダ処理）が **generic `GRANT_CHOSEN_ABILITY`** を生成し続け、curated の **`SIGNI_GRANT_CHOSEN_ABILITY`**（カード固有）と id が食い違い build:effects で held に恒久滞留していた。engine には2つのハンドラが存在＝(1)`execStubPart1.ts:385` の `SIGNI_GRANT_CHOSEN_ABILITY` 専用ハンドラ＝**正しい**（CHOOSE①②→「表記パワーより現在パワーが高い＜電機＞シグニ」を選択→`GRANT_PROTECTION{from:[DOWN|BOUNCE], sourceOwner:opponent}` を granted_effects に付与）／(2)`execStubPart2.ts:4113` の generic ハンドラ＝**退化**（クラスフィルタのみで**表記パワー比較を扱えず**、保護を keyword_grants の 'ダウン不可'/'バウンス不可' として積むだけで実効しない）。generic を採用すると power 比較も保護も失われる＝採用不可のまま放置されていた。
+
+**修正**（dispatch は `execStub` が Part1→Part2→Part3 順で Part1 が先取り＝`SIGNI_GRANT_CHOSEN_ABILITY` は常に固有ハンドラが処理する構造を利用）：
+- **parser**（`effectParser.ts:2600`）＝`選んだ能力を得る` 分岐に **`表記されているパワーよりパワーの高い…選んだ能力を得る` 検出**を追加し `SIGNI_GRANT_CHOSEN_ABILITY` へ委譲（powerCompareGrant）。`このシグニは…` は `_SELF`、それ以外は generic `GRANT_CHOSEN_ABILITY` は据置。「表記されているパワーよりパワーの高い」を持つ他3枚（WX24-P4-054/WXDi-P08-072/WXK10-027）は「選んだ能力を得る」を持たず誤マッチしない。固有ハンドラは＜電機＞ハードコード＝WXK09-050 専用で安全。
+- **engine cleanup**（`execStubPart2.ts:4113`）＝Part2 の OR 条件から **死にコードの `|| SIGNI_GRANT_CHOSEN_ABILITY` を削除**（Part1 が先取りするため到達不能だった＝dispatch 設計の曖昧さを解消）。
+
+**結果**＝fresh が `SIGNI_GRANT_CHOSEN_ABILITY` を生成し curated と一致＝**held ドリフト解消**（`_held_fresh.json` から WXK09-050 消滅）。engine 挙動は不変（curated は元々固有ハンドラ経由＝runtime は変わらない）。golden 428→**429**（parse ルーティング固定テスト＝generic へ退化させない）・census 1996 維持・同型★0・smoke/fuzz 全0・typecheck/lint 緑。
+
 ## Opusタスク12(ii) 消化＝WXDi-P10-035 の退化 curated を改善 fresh へ差し替え（引用内【自】の owner 整合を精査）（2026-07-18・続き194・Opus 4.8）
 
 **対象**＝WXDi-P10-035（幻水姫 セイレーン）
