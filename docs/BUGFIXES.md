@@ -4,6 +4,19 @@
 
 ---
 
+## Opusタスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開の2分岐条件配置（登録者数条件＋optional 復元）（2026-07-18・続き196・Opus 4.8）
+
+**対象**＝WDK16-13（コードＶＬ 出雲霞・【出】）／WXK08-033（コードＶＬ 闇夜乃モルル・【自】アタック時）＝(viii)残の「WDK16-13/WXK08-033（2条件ADD_TO_FIELD＋登録者数条件）」。原文「デッキの一番上を公開する。この方法でレベル２以下の(＜電機＞の)シグニが公開された場合、それを場に出してもよい。あなたの登録者数が１００万人を達成していて、この方法でシグニが公開された場合、それを場に出してもよい。」
+
+**バグ**＝2分岐のうち **(a) 第2分岐（登録者数100万＋公開シグニ）の条件が完全脱落**し bare `ADD_TO_FIELD`（無条件配置）に退化＝登録者数に関係なく毎回2枚目を場に出す過剰プレイ。**(b) 両分岐の optional（「場に出してもよい」）が脱落**＝強制配置。第1分岐（level≤2＜電機＞）は fresh で既に `CONDITIONAL{LAST_PROCESSED_MATCHES}` に是正されていた（残っていたのは第2分岐と optional）。
+
+**修正**：
+- **parser**（`effectParser.ts` 文分割ループ）＝(1)`thenM` の先頭条件節 alternation に「あなたの登録者数がN万人を達成していて、この方法で〜た場合、」を追加。(2)新設 `parseSubscriberRevealCondition`＝この複合を `AND[SUBSCRIBER_COUNT{gte,N}, <inner「この方法で…公開された場合」の LAST_PROCESSED_MATCHES>]` へ（inner は既存 `parseThisWayGenericCount` を再利用）。前段が公開（prevRecords＝直前 CONDITIONAL{LAST_PROCESSED_MATCHES} が lastProcessed 記録を消費しない）でゲート。
+- **parser**（`parseSentencePart1.ts` bare ADD_TO_FIELD）＝「場に出してもよい」の「もよい」検出で `optional:true` を付与。
+- **engine**（`effectExecutor.ts` execAddToField の no-source 経路）＝`a.optional` 時に CHOOSE(出す/出さない)を提示し、出す側は optional を落として同アクションへ再入して SELECT_ZONE で配置（UI/型変更なし・既存 CHOOSE/SELECT_ZONE を再利用）。`SUBSCRIBER_COUNT`（Condition・万単位）／`AND`（Condition）／`LAST_PROCESSED_MATCHES`／`REVEAL_DECK_TOP`（lastProcessed 記録）は engine 実装済み。
+
+**結果**＝両カードを heldReview 採用。**end-to-end 実測（golden）で検証**＝level2＜電機＞は登録者数0でも第1分岐で場に出る／level3非電機は登録者数100万時のみ第2分岐で出る・不足時は出ない。逆翻訳が原文一致（「そしてそれが＜電機＞のレベル2以下のシグニなら…そして登録者数が100万以上かつそれがシグニなら…場に出す」）。**census 1996→1993 改善**（BASELINE_HIGH 実数更新）・golden 429→**433**（parse構造＋evalCondition AND＋e2e配置×3）・同型★0・smoke/fuzz 全0・typecheck/lint 緑。⚠残＝WX26-CP1-048（出自条件「＜プリオケ＞の効果によって場に出た」＝§6.3イベント帰属機構待ち）・WXDi-P10-034（次メインフェイズ遅延+分岐＝遅延トリガー機構待ち）。
+
 ## Opusタスク12(iii) 消化＝WXK09-050 の GRANT_CHOSEN_ABILITY 再生成による held 滞留（dispatch 設計解消）（2026-07-18・続き195・Opus 4.8）
 
 **対象**＝WXK09-050（コードアート Ｒ・Ｌ・Ｃ）E2「【出】：以下の２つから１つを選ぶ。表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①「【常】：対戦相手の効果によってダウンしない。」②「【常】：対戦相手の効果によって手札に戻らない。」」
