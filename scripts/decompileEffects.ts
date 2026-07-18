@@ -913,7 +913,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : 'コスト';
       const when = a.duration === 'NEXT_OPP_TURN' ? '次の対戦相手のターンの間、'
         : a.duration === 'UNTIL_END_OF_TURN' ? 'このターン、' : '';
-      return `${when}${ownerJa(a.targetOwner)}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
+      const whoCI = a.targetOwner === 'opponent' ? '対戦相手' : 'あなた';
+      return `${when}${whoCI}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
     }
     case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
