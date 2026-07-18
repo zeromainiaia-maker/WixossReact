@@ -2541,7 +2541,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- 次のターンの間、対戦相手のルリグはダメージを与えない ----
   if (t.match(/次の.*ターンの間、対戦相手のルリグはあなたにダメージを与えない/)) {
-    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN' } as PreventDamageAction;
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN', scope: 'LRIG' } as PreventDamageAction;
   }
 
   // ---- シグニの位置交換 ----
