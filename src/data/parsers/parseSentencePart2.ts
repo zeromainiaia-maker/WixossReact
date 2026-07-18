@@ -1976,6 +1976,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
         // ⚠upToCount は「N体まで」だけ。素朴な t.includes('まで') は「ターン終了時**まで**」に必ず当たり、
         //   ほぼ全効果が「N体まで（＝0体でもよい）」に化けるので必ず数詞に隣接させて判定する。
         const upToCA = /[０-９\d]+体まで/.test(t) || /体を[０-９\d]+体まで/.test(t);
+        // 閾値フィルタ（「パワー20000以下の」「レベル2以下の」「凍結状態の」）を対象に乗せる。
+        // ⚠**全文スキャンは禁止**（parserUtils の教訓）＝「あなたのレベル3のシグニをトラッシュし、対戦相手の
+        //   シグニ1体は…」のような別文節の数値を拾って対象を誤って絞る。**対象節（「…を対象とし」直前の
+        //   修飾句）だけ**を切り出して掛ける。対象節が取れない文型ではフィルタ無し＝従来どおり。
+        const tgtPhraseM = t.match(/(?:あなた|対戦相手)の([^。、]{0,24}?)(?:シグニ|ルリグ)(?:を)?(?:[０-９\d]+体)?(?:まで)?を?対象とし/);
+        const tgtPhraseCA = tgtPhraseM ? tgtPhraseM[1] : '';
+        const thrFilterCA = tgtPhraseCA
+          ? { ...parsePowerFilter(tgtPhraseCA), ...parseLevelFilter(tgtPhraseCA), ...parseStateFilter(tgtPhraseCA) }
+          : {};
+        const baseFilterCA = (kwTargetFilter as { filter?: Record<string, unknown> }).filter ?? {};
+        const mergedFilterCA = { ...baseFilterCA, ...thrFilterCA };
         const durCA: EffectDuration =
           (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
             : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'UNTIL_END_OF_TURN';
