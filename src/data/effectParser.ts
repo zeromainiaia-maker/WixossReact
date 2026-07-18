@@ -2599,7 +2599,14 @@ function parseActionTextInner(text: string): EffectAction {
       //     「**このシグニ**は選んだ能力を得る」＝`_SELF`／それ以外（対象シグニに付与）＝`GRANT_CHOSEN_ABILITY`。
       if (/選んだ能力を得る/.test(text)) {
         const selfGrant = /この(?:シグニ|カード)は[^。]*選んだ能力を得る/.test(text);
-        return { type: 'STUB', id: selfGrant ? 'GRANT_CHOSEN_ABILITY_SELF' : 'GRANT_CHOSEN_ABILITY' } as unknown as EffectAction;
+        // 「表記されているパワーよりパワーの高いあなたの＜電機＞のシグニ…選んだ能力を得る」（WXK09-050）は
+        // 表記パワー比較フィルタ＋保護（GRANT_PROTECTION）を扱うカード固有ハンドラ
+        // （execStubPart1 の SIGNI_GRANT_CHOSEN_ABILITY）へ委ねる。generic GRANT_CHOSEN_ABILITY は
+        // keyword_grants ベースで power 比較も DOWN/BOUNCE 保護も扱えず退化する（§3 Opusタスク12(iii)）。
+        const powerCompareGrant = /表記されているパワーよりパワーの高い[^。]*選んだ能力を得る/.test(text);
+        const gcaId = powerCompareGrant ? 'SIGNI_GRANT_CHOSEN_ABILITY'
+          : selfGrant ? 'GRANT_CHOSEN_ABILITY_SELF' : 'GRANT_CHOSEN_ABILITY';
+        return { type: 'STUB', id: gcaId } as unknown as EffectAction;
       }
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
