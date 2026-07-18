@@ -1143,7 +1143,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を探/);
     const maxCount = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
-    const toField = t.includes('場に出し');
+    const toField = t.includes('場に出し') || t.includes('場に出す');
     const toTrash = t.includes('トラッシュに置き');
     const toEnergy = t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き');
     return {
