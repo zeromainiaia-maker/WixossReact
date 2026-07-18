@@ -911,7 +911,8 @@ function actionJa(a?: Action, effectType?: string): string {
       const inc = Array.isArray(a.amount) && a.amount.length > 0
         ? a.amount.map((e: any) => `《${e.color}×${e.count}》`).join('')
         : 'コスト';
-      const when = a.duration === 'NEXT_OPP_TURN' ? '次の対戦相手のターンの間、' : '';
+      const when = a.duration === 'NEXT_OPP_TURN' ? '次の対戦相手のターンの間、'
+        : a.duration === 'UNTIL_END_OF_TURN' ? 'このターン、' : '';
       return `${when}${ownerJa(a.targetOwner)}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
     }
     case 'PREVENT_DAMAGE': return 'ダメージを無効にする';
