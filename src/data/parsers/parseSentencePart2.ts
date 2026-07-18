@@ -1396,10 +1396,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_FREE_GROW' } as StubAction;
   }
 
-  // ---- センタールリグが特定色の場合、このシグニは条件付き能力を得る ----
-  if (t.match(/あなたのセンタールリグが.*であるかぎり.*このシグニは.*を得る/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_KEYWORD_BY_CENTER_COLOR' } as StubAction;
-  }
+  // 「あなたのセンタールリグが<色>であるかぎり、このシグニは「…」を得る」（旧 CONDITIONAL_KEYWORD_BY_CENTER_COLOR STUB）は
+  // effectParser.ts の parseCenterColorFrontPowerGrant が条件抽出ループ前に構造化パースする（SP27-002-E3）。
 
   // ---- このターンにアタックしていた場合、手札を捨てる ----
   if (t.match(/このターンにこのシグニがアタックしていた場合.*手札を.*枚捨てる/)) {
