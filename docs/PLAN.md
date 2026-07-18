@@ -163,10 +163,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き199〜201・Codex・look-pick 名前 filter 完走＋`TRANSFER_TO_DECK` 幻覚除去）**
-  - **3バッチの成果**＝続き199で `WX19-049-E1` のカード名《盾》pickを復元（census 1971→1970・golden 436→437）。続き200で `PR-370-E2` の《槍》pick＋deck bottom と `WX12-019-E1` の `filter.cardName:'フレイスロ'`＋`pickCount:'ALL'` を復元（1970→1968・437→439）。続き201で remainder と場のシグニ移動を誤結合する広すぎる規則を遮断し、`WX14-037-E1`／`WXK07-034-E1` の幻覚 `TRANSFER_TO_DECK` を除去（1968→1967・439→441）。
-  - **退化検証**＝続き201の全カード生パース before/after は39効果すべて公開・look の remainder 文脈で、場のシグニ移動原文は0件。CSV原文325カードから抽出した唯一の巻き込みリスク `WXDi-P12-006` も、正当な `TRANSFER_TO_DECK{owner:'opponent'}` と `REVEAL_AND_PICK` がともに残存。smoke/fuzz 全0・同型★0。
-  - **次の一手**＝Sonnet は§3タスク6へ登録した未採用37効果を、`build:effects` で fresh 再生成後に live-curated と effectId 単位で精密 diff し、原文・richness を照合して採用可否を判定する。Opus は採用判定で parser/engine の追加バグが見つかった場合のみタスク12で受ける。
+- **🆕 セッション（2026-07-18・続き202・Fable 5・タスク12(xii) 無限ループ根治＋タスク7 `PLAY_FREE_FROM_TRASH` engine 実装）**
+  - **✅タスク12(xii) クローズ**＝WXEX1-19-E2（トラッシュ3枚→エナ/手札/デッキ下分配）の**実プレイ無限ループ**を根治。自己再帰 thenAction を `thenAction: no-op ＋ continuation: 本体STUB` の一括受け取り型（`INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N` と同型）へ変更。**smoke SKIP 1→0**（全10593効果 OK 到達）。
+  - **✅タスク7の1型消化**＝`PLAY_FREE_FROM_TRASH`（完全no-op）を engine 実装（`execPlayFreeFromTrash`＋dispatch）。WX09-012-E2（トラッシュ→コスト3以下の青スペル）／WX19-002-E4（ルリグトラッシュ→コスト5以下のアーツ）＝使用実体は既存フリープレイ STUB `USE_SPELL_FROM_TRASH`。派生3件＝フリープレイSTUBのトラッシュ二重積みガード・parser の「青の」色フィルタ脱落是正（JSON採用＝全効果diffで WX09-012-E2 のみ変化を機械確認）・decompiler の誤表現「場に出す」→「使用する」是正。golden 442→**445**・census 1967 維持・同型★0。詳細 BUGFIXES 続き202。
+  - **次の一手**＝Sonnet は§3タスク6の未採用37効果の精密diff・採用判定（据置のまま実行可能）。Opus はタスク7残2型（`PREVENT_DAMAGE`＝ダメージ層置換機構／`COST_SUBSTITUTE`＝コスト支払いUI横断）か、タスク2（動的比較3枚）・タスク1残(a)（granted CONTINUOUS の BLOCK_ACTION 収集機構）から取る。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
