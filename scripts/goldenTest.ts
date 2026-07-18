@@ -3605,6 +3605,37 @@ test('ADD_TO_LIFE fromTop: デッキトップ2枚をライフクロスに追加'
   const r = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 2, fromTop: true } as EffectAction, ctx);
   eq(r.ownerState.life_cloth.length, l0 + 2, 'ライフ+2'); eq(r.ownerState.deck.length, d0 - 2, 'デッキ-2');
 });
+// Opusタスク12: デッキトップ private look 条件付き配置（「一番上を見る。それが〜のシグニの場合、それを場に出す」）が
+// sentence 分割で LOOK + bare ADD_TO_FIELD になり filter/optional が脱落していた回帰（WX16-038/WX15-001）。
+test('デッキトップ private look 条件付き配置: filter＋optional を保持（WX16-038/WX15-001・タスク12）', () => {
+  const addStep = (txt: string) => {
+    const seq = parseCardEffects({ CardNum: 'TEST-LOOK', Type: 'シグニ', EffectText: txt } as unknown as CardData)[0].action as SequenceAction;
+    return seq.steps.find(s => s.type === 'ADD_TO_FIELD') as AddToFieldAction;
+  };
+  const e1 = addStep('【出】：あなたのデッキの一番上を見る。それが《ライズアイコン》を持つ＜武勇＞のシグニの場合、それを場に出してもよい。');
+  const s1 = e1.source as { type: string; fromTop?: boolean; filter?: Record<string, unknown> } | undefined;
+  eq(e1.optional, true, 'E1 optional（もよい）');
+  eq(s1?.type, 'DECK_CARD', 'E1 source=DECK_CARD'); eq(s1?.fromTop, true, 'E1 fromTop');
+  eq(s1?.filter?.story, '武勇', 'E1 story=武勇'); eq(s1?.filter?.hasRiseIcon, true, 'E1 hasRiseIcon');
+  const e2 = addStep('【自】：このシグニがライズされたとき、あなたのデッキの一番上を見る。それが《ライズアイコン》を持たない＜武勇＞のシグニの場合、それを場に出してもよい。');
+  const s2 = e2.source as { filter?: Record<string, unknown> } | undefined;
+  eq(s2?.filter?.noRiseIcon, true, 'E2 noRiseIcon（持たない）');
+  const e3 = addStep('【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上を見る。それが赤のシグニの場合、それを場に出してもよい。');
+  eq((e3.source as { filter?: Record<string, unknown> } | undefined)?.filter?.color, '赤', 'E3 color=赤');
+});
+test('ADD_TO_FIELD DECK_CARD filter gating: トップが filter 一致で場に出す/不一致で出さない（hasRiseIcon/noRiseIcon）', () => {
+  const rise = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【ライズ】'));
+  const plain = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【ライズ】'));
+  const play = (top: string, filter: Record<string, unknown>) => {
+    const ctx = mkCtx({ signi: [null, null, null], deckTop: [top] }, {});
+    const r = run({ type: 'ADD_TO_FIELD', owner: 'self', optional: true, source: { type: 'DECK_CARD', owner: 'self', count: 1, fromTop: true, filter } } as unknown as EffectAction, ctx);
+    return tops(r.ownerState as PlayerState).includes(top);
+  };
+  ok(play(rise, { cardType: 'シグニ', hasRiseIcon: true }), 'ライズ持ちトップは hasRiseIcon で場に出る');
+  ok(!play(plain, { cardType: 'シグニ', hasRiseIcon: true }), 'ライズ非持ちトップは hasRiseIcon で出ない');
+  ok(play(plain, { cardType: 'シグニ', noRiseIcon: true }), 'ライズ非持ちトップは noRiseIcon で場に出る');
+  ok(!play(rise, { cardType: 'シグニ', noRiseIcon: true }), 'ライズ持ちトップは noRiseIcon で出ない');
+});
 test('NEGATE_ATTACK 相手シグニ1: negated_attacks に記録', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   const r = run({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
