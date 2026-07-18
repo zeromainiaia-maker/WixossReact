@@ -161,11 +161,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き196・Opus 4.8・タスク12(viii)残 消化＝WDK16-13/WXK08-033 デッキトップ公開2分岐配置）**
-  - **成果**＝census 1996→**1993** 改善（BASELINE_HIGH 実数更新）・golden 429→**433**（parse構造＋evalCondition AND＋e2e配置×3）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き196。
-  - デッキトップ公開の2分岐配置で**第2分岐（登録者数100万＋公開シグニ）の条件が完全脱落し bare ADD_TO_FIELD（無条件2枚目配置）に退化**＋両分岐 optional 脱落。parser に `parseSubscriberRevealCondition` 新設（`AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]`）＋bare ADD_TO_FIELD の「もよい」→optional＋engine no-source ADD_TO_FIELD を optional 対応（CHOOSE 出す/出さない）。**e2e 実測で level2電機→第1分岐配置／level3非電機→登録者数100万時のみ第2分岐配置を確認**。
-  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件・WXDi-P10-034 次メインフェイズ遅延)・ON_BANISH据置2件 は全て §6.3級（新規機構＝curated CONDITIONAL 包み27枚の扱い／自己再帰STUB再設計／イベント帰属機構／遅延トリガー機構／被バニッシュ動的状態参照）。
-  - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
+- **🆕 セッション（2026-07-18・続き197・Opus 4.8・タスク12(viii)残 消化＝WX26-CP1-048 出自条件機構）**
+  - **成果**＝census 1993→**1992** 改善（BASELINE_HIGH 実数更新）・golden 433→**435**（出自記録e2e＋THIS_CARD_PLACED_BY_CLASS/LAST_PROCESSED_SHARES_COLOR_WITH_LRIG）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き197。
+  - 「このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合」の**出自条件が bare SEQUENCE で完全脱落**（通常召喚でも発火）＋共通色ゲート脱落＋エナチャージ owner 誤り。**出自帰属機構を新設**＝PlayerState `signi_placed_by_source`（execAddToField/resumeSelectZone の全配置点で `ctx.sourceCardNum` を決定論的に記録）＋Condition `THIS_CARD_PLACED_BY_CLASS{cardClass}`（配置元カードの CardClass 判定・⚠プリオケは story でなく CardClass）＋`LAST_PROCESSED_SHARES_COLOR_WITH_LRIG`。WX26-CP1-048 を MANUAL 化。**e2e 実測でプリオケ配置=true/別クラス=false/通常召喚=false を確認**。
+  - **⚠残る (viii)＝WXDi-P10-034（次メインフェイズ遅延+分岐）は §6.3 専用タスクとして分離**＝(a)デッキカードのゾーン裏向き配置（face_down_signi は自シグニ裏返し近似で新規配置非対応）(b)**次ターン**まで生存する遅延トリガー（INSTALL_DELAYED_TRIGGER は THIS_TURN 限定・ターン境界3箇所でクリア）(c)表向き選択分岐＝ターン境界ロジックに触れる高リスク。他の残タスク12＝(xi)(xii)(xxiv)残・ON_BANISH据置2件 も §6.3級。
+  - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**、または WXDi-P10-034 の遅延トリガー機構に着手。Sonnet＝新 timing の §7 driver 実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
