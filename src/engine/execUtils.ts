@@ -1000,6 +1000,27 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'THIS_CARD_FROM_TRASH':
       // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
+    case 'THIS_CARD_PLACED_BY_CLASS': {
+      // このシグニが＜X＞のシグニの効果によって場に出ていた場合（出自条件・WX26-CP1-048）。
+      // signi_placed_by_source に記録された発生源カードの CardClass に cardClass が含まれ、かつシグニであること。
+      if (!ctx.sourceCardNum) return false;
+      const srcPBC = ctx.ownerState.signi_placed_by_source?.[ctx.sourceCardNum];
+      if (!srcPBC) return false;
+      const srcCardPBC = ctx.cardMap.get(getCardNum(srcPBC));
+      if (!srcCardPBC || srcCardPBC.Type !== 'シグニ') return false;
+      return (srcCardPBC.CardClass ?? '').split(/[/／]/).map(s => s.trim()).some(c => c.includes(cond.cardClass));
+    }
+    case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': {
+      // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）。
+      const lpSC = ctx.lastProcessedCards?.[0];
+      if (!lpSC) return false;
+      const lpColors = (ctx.cardMap.get(getCardNum(lpSC))?.Color ?? '').split(/[/／、,]/).map(c => c.trim()).filter(Boolean);
+      if (lpColors.length === 0) return false;
+      const lrigTopSC = st(cond.owner).field.lrig.at(-1);
+      if (!lrigTopSC) return false;
+      const lrigColorSC = ctx.cardMap.get(getCardNum(lrigTopSC))?.Color ?? '';
+      return lpColors.some(c => lrigColorSC.includes(c));
+    }
     case 'FIELD_SIGNI_POWER_COUNT': {
       const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
         const top = stack?.at(-1);
