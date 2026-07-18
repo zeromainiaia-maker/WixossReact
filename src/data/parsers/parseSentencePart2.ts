@@ -37,7 +37,7 @@ import type {
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
-  parsePowerFilter, parseLevelFilter, parseStateFilter,
+  parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
@@ -1938,7 +1938,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   ＝従来はどれもフィルタを落として「全シグニが対象」の過剰効果になっていた（続き205）。
   const kwTgtPhraseM = t.match(/(?:あなた|対戦相手)の([^。、]{0,24}?)(?:シグニ|ルリグ)(?:を)?(?:[０-９\d]+体)?(?:まで)?を?対象とし/);
   const kwThrFilter = kwTgtPhraseM
-    ? { ...parsePowerFilter(kwTgtPhraseM[1]), ...parseLevelFilter(kwTgtPhraseM[1]), ...parseStateFilter(kwTgtPhraseM[1]) }
+    ? { ...parsePowerFilter(kwTgtPhraseM[1]), ...parseLevelFilter(kwTgtPhraseM[1]), ...parseStateFilter(kwTgtPhraseM[1]), ...parseColorFilter(kwTgtPhraseM[1]) }
     : {};
   const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter };
   const kwTargetFilter = Object.keys(kwMergedFilter).length > 0 ? { filter: kwMergedFilter } : {};
