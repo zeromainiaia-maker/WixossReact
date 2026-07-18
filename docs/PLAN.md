@@ -161,11 +161,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き192・Opus 4.8・タスク12(viii)残 消化＝デッキトップ private look 条件付き配置の filter/optional 脱落）**
-  - **成果**＝golden 425→**427**・census **1998**（維持）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き192。
-  - 「デッキの一番上を**見る**。それが〔filter〕のシグニの場合、それを場に出（す/してもよい）」が sentence 分割で bare `ADD_TO_FIELD` に落ち、filter（レベル/色/クラス/ライズアイコン）と optional が丸ごと脱落し**無条件配置**に退化していた（WX16-038-E1/E2・WX15-001-E2）。「公開する」版が `REVEAL_AND_PICK{filter}` に変換される上流ブロック（`effectParser.ts:2703`）と**対の「見る」版を新設**。`noRiseIcon` フィルタ（「《ライズアイコン》を持たない」）＋`EffectTarget.fromTop` を types/engine/decompiler に追加。3効果採用・MANUAL WX10-007/021 の held ドリフト解消。
-  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (i)(iii)(xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・(xxxv)-c・ON_BANISH据置2件 は全て §6.3級（新規機構＝イベント履歴 Condition／自己再帰STUB再設計／引用付与内側 parse／被バニッシュ動的状態参照）。
-  - **次の一手**：Opus＝低難易度在庫が尽きたので**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手（PLAN §4「次の一手」推奨）。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
+- **🆕 セッション（2026-07-18・続き193・Opus 4.8・タスク12(i) 消化＝SP27-002-E3 二段「かぎり」引用付与の退化）**
+  - **成果**＝golden 427→**428**・census **1998**（維持）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen`／`genStubsMd` 済み。end-to-end 実測で条件充足時のみアサシン付与を確認。詳細は BUGFIXES 続き193。
+  - SP27-002-E3「センタールリグが緑であるかぎり、このシグニは「正面のシグニのパワーが15000以上であるかぎり、【アサシン】を得る」を得る」の**外側条件を genericKagiri が無言消費**し、残りが `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` STUB（keyword=【常】誤認・内側条件無視・全シグニ付与の三重バグ）へ退化していた。**外側 LRIG_COLOR ＋内側 `FRONT_SIGNI_POWER`（新設）を AND に平坦化**（両とも継続「かぎり」＝挙動的に厳密）した CONTINUOUS GRANT_KEYWORD へ構造化。`parseCenterColorFrontPowerGrant` を条件抽出ループ前に呼び genericKagiri を回避。旧 STUB の parser 規則・engine ハンドラを削除。
+  - **⚠残タスク12 の低難易度は完全に枯渇**＝残る (ii)(iii)(xi)(xii)(xxiv)残・(viii)残(WX26-CP1-048 出自条件等)・ON_BANISH据置2件 は全て §6.3級（新規機構＝イベント履歴 Condition／自己再帰STUB再設計／引用付与内側 parse の owner 精査／被バニッシュ動的状態参照）。
+  - **次の一手**：Opus＝**タスク6/8 の機構1つ**（§6.3級）か、**タスク1(a)「アタックできない家族6効果」の BLOCK_ACTION 収集機構**に着手。あるいは §5c census-batch を Opus 語彙着地後に回す。Sonnet＝新 timing の §7 driver 実機確認。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
