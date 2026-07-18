@@ -1980,6 +1980,37 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, `リコレクト条件達成（アーツ${artsInLrigTrash}枚）`);
       continue;
     }
+    // 条件付き任意コストの「包み形」＝CONDITIONAL{ <ゲート条件>, then: STUB OPTIONAL_COST系 }（46効果・タスク12(xi)）。
+    // 原文「<ゲート>の場合、<コスト>を支払ってもよい。そうした場合、<本体>」を parser がこの形で表現する
+    // （ゲートは「支払ってもよい」に掛かるので、この入れ子は表現として正しい）。
+    // ⚠従来は Pattern ④/⑤ が「STUB が SEQUENCE の直下ステップ」だけを見ていたため包み形にマッチせず、
+    //   execStubPart1 のエッジケース（pay/skip とも no-op）に落ちていた。その結果:
+    //     (a) コストを払わなくても直後の CONDITIONAL{IS_MY_TURN, then:<本体>} が実行される＝**コスト踏み倒し**
+    //     (b) ゲート条件がプロンプトにしか掛からず、条件を満たさなくても本体が実行される＝**過剰効果**
+    //   ここでゲートを評価して包みを解き、既存の Pattern ④/⑤ に委譲することで両方を解消する。
+    if (step.type === 'CONDITIONAL') {
+      const wrapCond = step as ConditionalAction;
+      const wrapStub = wrapCond.then as import('../types/effects').StubAction;
+      const OPT_IDS_WRAP = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+      if (wrapStub?.type === 'STUB' && OPT_IDS_WRAP.includes(wrapStub.id) && !wrapCond.else) {
+        if (evalCondition(wrapCond.condition, cur)) {
+          // ゲート成立＝包みを解いて「STUB が直下ステップ」の正準形に直し、Pattern ④/⑤ へ委譲する
+          const unwrapped: SequenceAction = { type: 'SEQUENCE', steps: [wrapStub, ...a.steps.slice(i + 1)] };
+          return executeAction(unwrapped, cur);
+        }
+        // ゲート不成立＝任意コストを提示しないだけでなく、対になる「そうした場合」の本体もスキップする。
+        // （本体は直後の CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}＝parser が「そうした場合」に使う形）
+        const bodyIdx = a.steps.findIndex((s, idx) => {
+          if (idx <= i) return false;
+          if (s?.type !== 'CONDITIONAL') return false;
+          const c = (s as ConditionalAction).condition.type;
+          return c === 'IS_MY_TURN' || c === 'PAID_ADDITIONAL_COST';
+        });
+        cur = addLog(cur, '任意コストの条件を満たさない（スキップ）');
+        if (bodyIdx > i) { i = bodyIdx; continue; }   // 本体ごと読み飛ばす
+        continue;
+      }
+    }
     // LRIG_UNDER_TO_TRASH ゲート：センタールリグの下からN枚をルリグトラッシュへ（エクシード相当）。
     // 「そうした場合」効果のため、下のカードがN枚未満なら置けず残りステップをスキップ（WX05-007）。
     if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'LRIG_UNDER_TO_TRASH') {
