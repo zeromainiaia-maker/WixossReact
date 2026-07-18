@@ -4565,7 +4565,7 @@ test('e2e WX26-CP1-048: 効果配置の出自記録＋THIS_CARD_PLACED_BY_CLASS 
   const ctx = mkCtx({ signi: [null, null, null], deckTop: [placed] }, {}, prioke); // sourceCardNum=プリオケ
   const r = run({ type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction, ctx);
   eq(r.ownerState.signi_placed_by_source?.[placed], prioke, '配置元プリオケを signi_placed_by_source に記録');
-  const evalCtx = { ...r, sourceCardNum: placed } as ExecCtx;
+  const evalCtx = { ...ctx, ownerState: r.ownerState, sourceCardNum: placed } as ExecCtx;
   ok(evalCondition({ type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: 'プリオケ' } as never, evalCtx), 'プリオケの効果で場に出たので true');
   ok(!evalCondition({ type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '電機' } as never, evalCtx), '別クラス（電機）では false');
   // 通常召喚（sourceCardNum 無し）は記録しない＝出自条件は false
