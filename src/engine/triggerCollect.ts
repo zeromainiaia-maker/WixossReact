@@ -944,6 +944,17 @@ export function collectMillTriggers(
         : owner === 'opponent' ? milledFromOppDeck
         : milledFromControllerDeck + milledFromOppDeck;
       if (relevant < minCount) continue;
+      // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
+      // ⚠last_effect_mill_source は execMill 以外の経路では埋まらない＝**未設定は発生源不明として従来どおり発火**
+      //   させる（過剰側に倒す）。ここで落とすと部分実装が過少発火の退化になる。
+      const reqMillStory = eff.triggerCondition?.milledSourceStory;
+      if (reqMillStory) {
+        const millSrc = (owner === 'opponent' ? otherState : controllerState).last_effect_mill_source;
+        if (millSrc) {
+          const cls = ctx.cardMap.get(getCardNum(millSrc))?.CardClass ?? '';
+          if (!cls.includes(reqMillStory)) continue;
+        }
+      }
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
