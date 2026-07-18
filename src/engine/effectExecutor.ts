@@ -3781,6 +3781,9 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     ...state,
     deck: state.deck.slice(actual),
     trash: [...state.trash, ...milled],
+    // このミルの原因カード（milledSourceStory 判定用・last_effect_draw_source と同型）。
+    // trash は string[] でエントリに発生源を持てないため、直近のミル発生源を state 側に記録する。
+    last_effect_mill_source: ctx.sourceCardNum,
   };
   const updatedCtx = setOwnerState(a.owner, newState, ctx);
   return done(addLog(
