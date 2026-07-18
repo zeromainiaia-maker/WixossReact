@@ -597,6 +597,22 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPP_SIGNI_ATTACK_POWER_RESTRICT' } as StubAction;
   }
 
+  // ---- 対戦相手は自分のセンタールリグより低いレベルを持つシグニでアタックできない（WXK11-003②）----
+  // 「自分の」＝対戦相手自身のセンタールリグ＝キャスター視点の levelLtOppLrig（execBlockAction が
+  // resolveDynamicFilter で level.max へ解決してから keyword_grants 付与）。
+  if (t.match(/^(?:このターン、)?対戦相手は自分のセンタールリグより低いレベルを持つシグニでアタックできない$/)) {
+    return {
+      type: 'BLOCK_ACTION',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', levelLtOppLrig: true } },
+      actionId: 'ATTACK', until: 'END_OF_TURN',
+    } as BlockActionAction;
+  }
+
+  // ---- このアーツをルリグデッキに戻す（使用後＝ルリグトラッシュから戻す。WXK11-003①/WDK17-008①）----
+  if (t.match(/^このアーツを(?:あなたの)?ルリグデッキに戻す$/)) {
+    return { type: 'STUB', id: 'RETURN_SELF_ARTS_TO_LRIG_DECK' } as StubAction;
+  }
+
   // ---- 捨てた・置いた枚数と同じ数のシグニのパワー修正 ----
   if (t.match(/この方法で捨てた.*枚数と同じ数.*シグニ.*パワー/)) {
     return { type: 'STUB', id: 'POWER_MOD_BY_DISCARD_COUNT' } as StubAction;
