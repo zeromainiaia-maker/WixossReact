@@ -164,7 +164,7 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-19・続き204・Opus 4.8・タスク7 `PREVENT_DAMAGE` の engine 実装＝ダメージ無効ウィンドウ機構）**
+- **🆕 セッション（2026-07-19・続き204・Opus 4.8・**タスク7「未実装action型」をクローズ**＝`PREVENT_DAMAGE`＋`COST_SUBSTITUTE` の engine 実装・golden 451→456）**
   - **✅タスク7の1型消化**＝`PREVENT_DAMAGE`（types/parser/decompiler には居るのに engine dispatch が一度も無い**完全no-op**・該当4効果＝WX08-029-BURST／WX14-003-E4／PR-K077-E2／WX15-002-E2内側）を実装。既存フラグ（`prevent_next_damage`＝1回消費カウンタ／`prevent_lrig_damage`＝使い切り＋ルリグ経路のみ）では**「期間中は回数無制限」を表現できない**のが未実装のまま残っていた理由。
   - **機構**＝`PlayerState.prevent_damage_windows`（`scope:'ALL'|'LRIG'` × `expires:'MY_TURN_END'|'NEXT_TURN_END'`）。engine 分岐新設・`crashOneLife`／ルリグアタック応答の**消費型無効化（バリア/カウンタ/置換ミル）より前**で判定（使い切りリソースの浪費防止）・ターン境界3箇所は新ヘルパ `advancePreventDamageWindows` で **`NEXT_TURN_END` を自ターン終了で1回だけ生き延びさせ `MY_TURN_END` へ降格**（リセットは終了プレイヤー自身の状態しか触らないため、この2段構えでないと「次のターンの間」＝相手ターンを1度もカバーできない）。decompiler も期間・範囲を出し分け4効果とも原文一致に。
   - golden 451→**454**・census 1963 据置・smoke/fuzz 全0・同型★0・typecheck緑。詳細 BUGFIXES 続き204。**要実機検証＝消費とターン境界越え（BattleScreen 層）**。
