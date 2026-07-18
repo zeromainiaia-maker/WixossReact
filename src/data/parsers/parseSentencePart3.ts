@@ -608,11 +608,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
     } as BlockActionAction;
   }
 
-  // ---- このアーツをルリグデッキに戻す（使用後＝ルリグトラッシュから戻す。WXK11-003①/WDK17-008①）----
-  if (t.match(/^このアーツを(?:あなたの)?ルリグデッキに戻す$/)) {
-    return { type: 'STUB', id: 'RETURN_SELF_ARTS_TO_LRIG_DECK' } as StubAction;
-  }
-
   // ---- 捨てた・置いた枚数と同じ数のシグニのパワー修正 ----
   if (t.match(/この方法で捨てた.*枚数と同じ数.*シグニ.*パワー/)) {
     return { type: 'STUB', id: 'POWER_MOD_BY_DISCARD_COUNT' } as StubAction;
