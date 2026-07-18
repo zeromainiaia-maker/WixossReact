@@ -1961,12 +1961,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
       if (plainCannotAttack) {
         const kwOwnerCA: Owner = t.includes('対戦相手') ? 'opponent' : t.includes('あなた') ? 'self' : 'any';
         // 対象種別：「ルリグかシグニ」「ルリグとシグニを合計N体」→ 両方から選ぶ／「ルリグ」単独 → LRIG／既定 → SIGNI
-        const bothCA = /ルリグ(?:か|または|と)[^。]{0,12}シグニ/.test(t);
+        // 「ルリグかシグニN体」「ルリグとシグニを合計N体」「ルリグ1体と（対戦相手の）シグニ1体」→ 両方から選ぶ
+        const bothCA = /ルリグ(?:[０-９\d]+体)?(?:か|または|と)[^。]{0,12}シグニ/.test(t);
         const lrigOnlyCA = !bothCA && /ルリグ/.test(t) && !/シグニ/.test(t);
         const tgtTypeCA = bothCA ? 'CENTER_LRIG_OR_SIGNI' : lrigOnlyCA ? 'LRIG' : 'SIGNI';
-        // 体数は対象種別に対応する数詞から取る（「シグニを2体まで」「ルリグとシグニを合計2体まで」）
-        const cntMCA = t.match(/(?:合計)?([０-９\d]+)体/);
-        const countCA = cntMCA ? parseNum(cntMCA[1]) : 1;
+        // 体数：「合計N体」優先。両対象で合計指定が無い形（ルリグ1体と シグニ1体）は各1体＝2体。
+        const totalMCA = t.match(/合計([０-９\d]+)体/);
+        const cntMCA = t.match(/([０-９\d]+)体/);
+        const countCA = t.includes('すべてのシグニ') ? 'ALL'
+          : totalMCA ? parseNum(totalMCA[1])
+            : bothCA ? 2
+              : cntMCA ? parseNum(cntMCA[1]) : 1;
+        // ⚠upToCount は「N体まで」だけ。素朴な t.includes('まで') は「ターン終了時**まで**」に必ず当たり、
+        //   ほぼ全効果が「N体まで（＝0体でもよい）」に化けるので必ず数詞に隣接させて判定する。
+        const upToCA = /[０-９\d]+体まで/.test(t) || /体を[０-９\d]+体まで/.test(t);
         const durCA: EffectDuration =
           (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
             : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'UNTIL_END_OF_TURN';
