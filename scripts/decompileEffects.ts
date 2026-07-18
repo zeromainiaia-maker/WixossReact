@@ -524,7 +524,7 @@ function actionJa(a?: Action, effectType?: string): string {
       };
       const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
       const subj = a.target?.type === 'SIGNI'
-        ? `${ownerWord ? ownerWord + 'の' : ''}シグニ`
+        ? `${ownerWord ? ownerWord + 'の' : ''}${filterJa(a.target?.filter)}シグニ`
         : (ownerWord || 'すべてのプレイヤー');
       return `${untilPre}${subj}は${pred}`;
     }
