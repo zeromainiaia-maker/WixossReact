@@ -1240,11 +1240,15 @@ export interface PowerModifyPerEnergyAction {
   energyOwner: Owner;
 }
 
-// このターン、プレイヤーはダメージを受けない
+// 期間中プレイヤーはダメージを受けない（期間内は回数無制限＝1回消費の PREVENT_NEXT_DAMAGE とは別物）
+// scope: 'ALL'＝あらゆるダメージ（「このターン、あなたはダメージを受けない」）
+//        'LRIG'＝ルリグアタックによるダメージのみ（「対戦相手のルリグはあなたにダメージを与えない」）
+// until: 'UNTIL_END_OF_TURN'＝この（発動）ターンの終わりまで／'NEXT_TURN'＝次のターンの間
 export interface PreventDamageAction {
   type: 'PREVENT_DAMAGE';
   owner: Owner;
   until: EffectDuration;
+  scope?: 'ALL' | 'LRIG';
 }
 
 // 各プレイヤーのエナゾーンをN枚に均等化する
