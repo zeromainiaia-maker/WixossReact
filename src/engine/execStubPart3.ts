@@ -999,9 +999,8 @@ export function execStubPart3(
   if (stub.id === 'INCREASE_ACT_ABILITY_COST') {
     return done(addLog(ctx, '起動能力コスト増加'));
   }
-  // CONDITIONAL_KEYWORD_BY_CENTER_COLOR は廃止（SP27-002-E3 を CONTINUOUS GRANT_KEYWORD＋
-  // activeCondition AND(LRIG_COLOR, FRONT_SIGNI_POWER) へ構造化・タスク12(i)）。旧 STUB は
-  // 先頭の【常】をキーワードと誤認し内側の正面パワー条件も無視して全シグニへ無条件付与していた。
+  // （旧 CONDITIONAL_KEYWORD_BY_CENTER_COLOR ハンドラは廃止。SP27-002-E3 を CONTINUOUS GRANT_KEYWORD＋
+  //   activeCondition AND(LRIG_COLOR, FRONT_SIGNI_POWER) へ構造化＝タスク12(i)。BUGFIXES 参照）
   // SELECT_OTHER_SIGNI: ソース以外のシグニを選択
   if (stub.id === 'SELECT_OTHER_SIGNI') {
     const srcSOS = ctx.sourceCardNum;
