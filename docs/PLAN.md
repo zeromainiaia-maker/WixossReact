@@ -170,13 +170,13 @@
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1970【効果単位】**（2026-07-18 続き199＝look-pickカード名filter 1効果を `REVEAL_AND_PICK` へ是正し1971→1970。続き198＝class/color/level filter 40枚の pick 脱落是正で1992→1971）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1967【効果単位】**（2026-07-18 続き200＝未反映実測2件＋`TRANSFER_TO_DECK` 幻覚除去1件を簿記反映し1970→1967。続き199＝look-pickカード名filter 1効果を `REVEAL_AND_PICK` へ是正し1971→1970）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
 - **母数**：効果カード 5975／効果 10590／MANUAL効果 898／STUB含むカード 1864（2026-07-17 続き184 実測更新）。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 437・smoke/fuzz 全0・同型★0・census 1970。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 441・smoke/fuzz 全0・同型★0・census 1967。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >
@@ -275,6 +275,7 @@
 - **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）のプレイヤー選択ピッカーのみ自動近似。
 - **G072 残6枚**（条件前置き付きの相手シグニ被バニッシュ反応）: WX05-040/WX11-027（「メインフェイズの間」）／WXEX2-23（「アタックフェイズの間」）／WXK11-055（「あなたの効果によって」）／WX13-051（「＜龍獣＞効果で」）／WXDi-P11-TK05（【チャーム】付き相手シグニ）。前置きモデリングの誤りリスク高く個別対応。
 - **multi-dest pick（look→手札＋場の二目的）**: WX24-P1-017／WX24-P1-026／WX25-P3-038／WX25-CP1-025／WX26-CP1-019。付与/条件/絆を伴う同時pickは別語彙が要る。
+- **REVEAL_AND_PICK remainder の shuffle 保持（機構待ち）**: PR-370-E2「残りをシャッフルしてデッキの一番下に置く」は `RevealAndPickAction['remainder']` に shuffle 語彙がなく、現状は deck bottom のみ表現。
 - **GRANT_TO_PLACED_SIGNI 残（続き42で実装＝4枚）**＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N／レベル１につきミル」は parser で `GRANT_KEYWORD`/`POWER_MODIFY`{targetsLastProcessed}＋`MILL{countIsLastProcessedLevelSum}` へ実装済み（WX25-P1-044/WX25-P2-039/WX24-P3-037/WX24-P3-039）。**残る honest STUB 2枚**＝引用複合能力付与：WX24-P1-017（「【自】バトルバニッシュ時、自アップ＋能力喪失」）・WX25-P3-038（「【自】アタック時、パワー8000以下を手札／能力なしならトラッシュ」）＝内側【自】ability の parse（GRANT_QUOTED_AUTO_ABILITY 系＝現状 log-only STUB）が要る。
 - **凍結状態フィルタのアサシン変種**: WX25-P2-084②「【アサシン（凍結状態のパワー3000以下のシグニ）】」＋2択。
 - **公開カード→自身のアクセ化**: WDK07-E15（新STUB `INTERNAL_ACCE_PICKED_TO_SELF` が要る）。

@@ -2182,7 +2182,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- シグニをデッキの一番下に置く ----
-  if (t.match(/デッキの一番下に置く/) && (t.includes('シグニ') || t.includes('それ'))) {
+  // 公開/look 後の「残り」は公開カードの remainder であり、同じ複文内に pick 対象の
+  // 「シグニ」があっても場のシグニを指さない。句をまたいだ誤結合をここで除外する。
+  const isRevealedRemainderToDeckBottom =
+    /残りを(?:好きな順番で|シャッフルして)?デッキの一番下に置く/.test(t);
+  if (!isRevealedRemainderToDeckBottom && t.match(/デッキの一番下に置く/) && (t.includes('シグニ') || t.includes('それ'))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const cM = t.match(/([０-９\d]+)体/);
     const count = cM ? parseNum(cM[1]) : 1;
