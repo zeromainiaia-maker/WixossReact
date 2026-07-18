@@ -3086,6 +3086,10 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
       }
+      // 「登録者数がN万人達成していて、この方法で〜公開された場合」＝AND[SUBSCRIBER_COUNT, LAST_PROCESSED_MATCHES]（WDK16-13/WXK08-033 第2分岐）
+      if (!condition && prevRecords && !rest.startsWith('代わりに')) {
+        condition = parseSubscriberRevealCondition(thenM[0]);
+      }
       // 全一致「この方法で処理したカードがすべて〔フィルタ〕の場合」（LAST_PROCESSED_ALL_MATCH）。前段が
       // lastProcessedCards を記録するときだけ。parseThisWayGenericCount より前に試す（すべて は後者で除外語のため）。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
