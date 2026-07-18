@@ -2543,6 +2543,23 @@ export function collectEnergyTrashSubstituteInfo(
       continue;
     }
 
+    // COST_SUBSTITUTE（substituteCost.banish_self）: 「あなたが《X》を支払う際、代わりにあなたのエナゾーンから
+    // このシグニをトラッシュに置いてもよい」＝エナゾーンにあるこのカード1枚が色Xとして支払える、と等価。
+    // （エナコストの支払い自体がエナゾーンからのトラッシュなので、色オーバーライドで完全に表現できる）
+    // count>1（1枚で複数コストを賄う）は色オーバーライドでは表せないため対象外にする。
+    const costSubEff = selfEffs.find(eff => {
+      if (eff.effectType !== 'CONTINUOUS') return false;
+      const act = eff.action as import('../types/effects').CostSubstituteAction;
+      return act.type === 'COST_SUBSTITUTE' && !!(act.substituteCost as { banish_self?: boolean })?.banish_self;
+    });
+    if (costSubEff) {
+      const origCS = (costSubEff.action as import('../types/effects').CostSubstituteAction).originalCost ?? [];
+      if (origCS.length === 1 && (origCS[0].count ?? 1) <= 1 && origCS[0].color) {
+        colorOverrideMap.set(instId, origCS[0].color);
+        continue;
+      }
+    }
+
     // ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI: 美巧シグニ→白
     if (hasWhiteSubTrashSigni && card.Type === 'シグニ' && (card.CardClass ?? '').includes('美巧')) {
       colorOverrideMap.set(instId, '白');
