@@ -101,7 +101,7 @@
 
 | ID | 内容 |
 |---|---|
-| (i) | SP27-002-E3＝引用付与の内側条件が genericKagiri（isTimingMarker）で**無言消費**され PARTIAL にもならず、無条件アサシン付与へ退化 |
+| ~~(i)~~ | ~~SP27-002-E3＝引用付与の内側条件が genericKagiri（isTimingMarker）で**無言消費**され PARTIAL にもならず、無条件アサシン付与へ退化~~ **✅続き193（Opus）で消化＝二段「かぎり」を AND に平坦化**（外側 LRIG_COLOR＋内側 `FRONT_SIGNI_POWER` 新設）で CONTINUOUS GRANT_KEYWORD アサシンへ構造化。genericKagiri より前に `parseCenterColorFrontPowerGrant` で丸ごと取り、旧 `CONDITIONAL_KEYWORD_BY_CENTER_COLOR` STUB（keyword=【常】誤認・内側条件無視・全シグニ付与の三重バグ）を parser/engine とも削除。golden 427→428・census 1998維持・同型★0。詳細 BUGFIXES 続き193 |
 | (ii) | WXDi-P10-035＝引用内【自】の「それを手札に戻す」の owner エンコードを lastProcessed 慣例と整合するか要精査 |
 | (iii) | WXK09-050＝parser が `GRANT_CHOSEN_ABILITY` を再生成し続け held に残存。Part1固有ハンドラとの dispatch 設計を解消するまで採用不可 |
 | ~~(iv)~~ | ~~`applyDirectAction` の TRASH/HAND_CARD 分岐が手札カウンタ3種を更新しない（続き81）~~ **✅続き135（Opus）で修正＝3フィールド更新＋手札保護を即時パスと同形で移植・golden 1件** |
