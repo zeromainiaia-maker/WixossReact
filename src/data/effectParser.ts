@@ -3045,7 +3045,7 @@ function parseActionTextInner(text: string): EffectAction {
     //   （ドリームチーム「その後、あなたの場に(色)のルリグがいる場合、X」＝WXDi-P08 等）＝`の?` で両対応。
     //   実際の条件抽出は parseHoistStateCondition 等が STATE_CONDITION_CLAUSES で検証するため過剰マッチは無害
     //   （未知条件は IS_MY_TURN 据置＝機能的に bare と同値）。
-    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|(?:《[^》]+》)+を支払った場合、|それが[^、。]+の場合、)/);
+    const thenM = clean.match(/^(?:そうした場合、|その後、(?:[^、]+の?場合、|この方法で.+(?:支払った|た)場合、)|この方法で.+(?:支払った|た)場合、|あなたの登録者数が[０-９\d]+万人を達成していて、この方法で.+た場合、|(?:《[^》]+》)+を支払った場合、|それが[^、。]+の場合、)/);
     if (thenM && steps.length > 0) {
       const rest = clean.slice(thenM[0].length);
       // 先頭「それが」形は新設 alternation（従来は thenM 非マッチ＝parseSingleSentence 直行だった）。
