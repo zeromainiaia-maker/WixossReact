@@ -1114,6 +1114,7 @@ export function collectRefreshTriggers(
  */
 export function collectPowerDecreaseTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState, decreaseOnOpp: number,
+  decreaseSources: string[] = [],
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
