@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き202・Fable 5・タスク12(xii) 無限ループ根治＋タスク7 `PLAY_FREE_FROM_TRASH` engine 実装）**
+  - **✅タスク12(xii) クローズ**＝WXEX1-19-E2（トラッシュ3枚→エナ/手札/デッキ下分配）の**実プレイ無限ループ**を根治。自己再帰 thenAction を `thenAction: no-op ＋ continuation: 本体STUB` の一括受け取り型（`INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N` と同型）へ変更。**smoke SKIP 1→0**（全10593効果 OK 到達）。
+  - **✅タスク7の1型消化**＝`PLAY_FREE_FROM_TRASH`（完全no-op）を engine 実装（`execPlayFreeFromTrash`＋dispatch）。WX09-012-E2（トラッシュ→コスト3以下の青スペル）／WX19-002-E4（ルリグトラッシュ→コスト5以下のアーツ）。派生3件＝フリープレイSTUBのトラッシュ二重積みガード・parser の「青の」色フィルタ脱落是正（JSON採用＝全効果diffで WX09-012-E2 のみ変化を機械確認）・decompiler の誤表現「場に出す」→「使用する」是正。golden 442→**445**・census 1967 維持・同型★0。詳細 BUGFIXES 続き202。
+  - **次の一手（退避時点）**＝Opus はタスク7残2型（`PREVENT_DAMAGE`／`COST_SUBSTITUTE`）か、タスク2（動的比較3枚）・タスク1残(a)から取る。
+
 - **🆕 セッション（2026-07-18・続き199〜201・Codex・look-pick 名前 filter 完走＋`TRANSFER_TO_DECK` 幻覚除去）**
   - **3バッチの成果**＝続き199で `WX19-049-E1` のカード名《盾》pickを復元（census 1971→1970・golden 436→437）。続き200で `PR-370-E2` の《槍》pick＋deck bottom と `WX12-019-E1` の `filter.cardName:'フレイスロ'`＋`pickCount:'ALL'` を復元（1970→1968・437→439）。続き201で remainder と場のシグニ移動を誤結合する広すぎる規則を遮断し、`WX14-037-E1`／`WXK07-034-E1` の幻覚 `TRANSFER_TO_DECK` を除去（1968→1967・439→441）。
   - **退化検証**＝続き201の全カード生パース before/after は39効果すべて公開・look の remainder 文脈で、場のシグニ移動原文は0件。CSV原文325カードから抽出した唯一の巻き込みリスク `WXDi-P12-006` も、正当な `TRANSFER_TO_DECK{owner:'opponent'}` と `REVEAL_AND_PICK` がともに残存。smoke/fuzz 全0・同型★0。
