@@ -991,7 +991,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SIGNI_ABOVE_ABILITY': return `このカードの上の${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'NAME_BAN': return `このゲームの間、${a.targetSelf ? 'あなた' : '対戦相手'}は同名のカードを使用できない`;
     case 'BLOCK_CARD_USE': return `このターン、対戦相手は《${a.cardName}》を使用できない`;
-    case 'COST_SUBSTITUTE': return `${costJa({ energy: a.originalCost })}のコストを${costJa(a.substituteCost)}で支払って${a.optional ? 'もよい' : '支払う'}`;
+    case 'COST_SUBSTITUTE': {
+      // substituteCost.banish_self＝「代わりにあなたのエナゾーンからこのシグニをトラッシュに置く」（原文の言い回し）。
+      // 旧実装は costJa が拾えず `コスト:{"banish_self":true}` と生JSONを漏らしていた（§5b の英語/JSON漏れ）。
+      const subJa = (a.substituteCost as { banish_self?: boolean })?.banish_self
+        ? 'あなたのエナゾーンからこのシグニをトラッシュに置いて'
+        : `${costJa(a.substituteCost)}を支払って`;
+      return `あなたが${costJa({ energy: a.originalCost })}を支払う際、代わりに${subJa}${a.optional ? 'もよい' : ''}`;
+    }
     case 'VARIABLE_DISCARD_AND_DRAW': return `${ownerJa(a.owner)}手札を好きな枚数捨て、その枚数${a.drawBonus ? `＋${a.drawBonus}枚` : '分'}カードを引く`;
     case 'SELF_TRASH_PREVENT': return 'あなたは自分の効果ではこのシグニをトラッシュに置けない';
     case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return `＜${a.revealClass}＞のシグニがめくれるまでデッキの上を公開し、それと同じレベルの${ownerJa(a.banishOwner)}シグニ1体をバニッシュする（公開したカードはデッキの一番下に置く）`;
