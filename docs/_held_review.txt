@@ -741,24 +741,6 @@ WX16-005
   + [0].action.choices[0].action.target.upToCount = false
   …（他 29 行）
 
-## +ADD_TO_HAND×2 +REVEAL_AND_PICK×2 -LOOK_AND_REORDER×2 ［1枚］
-WX16-043
---- WX16-043
-  原文: 【起】《ダウン》：あなたのデッキの上からカードを２枚見る。その中から＜英知＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。【起】英知=11《ダウン》：あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをデッキの一番下に置く。,-
-  - [0].action.source.location = "deck"
-  - [0].action.source.owner = "self"
-  - [0].action.count = 2
-  - [0].action.private = true
-  - [0].action.reorder = true
-  - [0].action.canTrash = false
-  - [0].action.destination.location = "deck"
-  - [0].action.destination.owner = "self"
-  - [0].action.destination.position = "bottom"
-  - [1].action.source.location = "deck"
-  - [1].action.source.owner = "self"
-  - [1].action.count = 2
-  …（他 24 行）
-
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
 --- WX17-005
@@ -845,6 +827,24 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +LOOK_AND_REORDER×2 +SEQUENCE -ADD_TO_HAND -REVEAL_AND_PICK ［1枚］
+WX19-049
+--- WX19-049
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からカード名に《盾》を含むシグニ１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。,：カードを１枚引く。
+  - [0].action.owner = "self"
+  - [0].action.revealCount = 2
+  - [0].action.filter.cardType = "シグニ"
+  - [0].action.filter.cardName = "盾"
+  - [0].action.pickCount = 1
+  - [0].action.then.type = "ADD_TO_HAND"
+  - [0].action.then.owner = "self"
+  - [0].action.remainder.location = "deck"
+  - [0].action.remainder.position = "top"
+  ~ [0].action.type : "REVEAL_AND_PICK" → "SEQUENCE"
+  + [0].action.steps[0].type = "LOOK_AND_REORDER"
+  + [0].action.steps[0].source.location = "deck"
+  …（他 17 行）
 
 ## -CHOOSE×2 -DECK_CARD×2 -TRASH×2 ［1枚］
 WXDi-D07-022

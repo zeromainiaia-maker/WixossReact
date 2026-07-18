@@ -4,6 +4,14 @@
 
 ---
 
+## §5c look-pick 残テール消化＝カード名 filter の pick 脱落是正（1効果・census 1971→1970）（2026-07-18・続き199）
+
+**対象と原文**＝`WX19-049-E1`「【出】：あなたのデッキの上からカードを２枚公開する。その中からカード名に《盾》を含むシグニ１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。」。live は `SEQUENCE[LOOK_AND_REORDER, LOOK_AND_REORDER]` で、カード名 filter と手札加えが丸ごと脱落していた。
+
+**修正**＝`effectParser.ts` の「デッキ上N枚公開→その中からfilterでpick」ブロックで、汎用 `pickM1` より前に上記文言へ限定した規則を追加。既存語彙 `REVEAL_AND_PICK{revealCount:2, filter:{cardType:'シグニ',cardName:'盾'}, pickCount:1, then:ADD_TO_HAND, remainder:deck/top}` だけで完結し、engine/types/decompiler は変更なし。デッキ下/トラッシュ・別の名前文型・アイコン・OR/multi-filter を許可せず、pick・手札・remainder の全文をアンカーにして過剰マッチを防止した。
+
+**fresh 全数照合・採用**＝`npm run build:effects` で `_held_fresh.json` を再生成し、該当 diff 署名 `+ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER×2 -SEQUENCE` が `WX19-049` 1枚のみであることを確認。`WX19-049-E1` の fresh を原文の全要素（2枚公開／カード名に《盾》を含むシグニ／1枚／手札／残りデッキ上）と1対1照合後、`heldReview --adopt WX19-049` で採用。golden 436→437、census 1971→1970。
+
 ## §5c look-pick 系統消化＝別文「その中から〔filter〕を公開し手札に加え、残りをデッキ下」の pick 脱落是正（40枚・census 1992→1971）（2026-07-18・続き198・Opus 4.8）
 
 **症状（真の系統的内容欠落バグ）**：「あなたのデッキの上からカードをN枚見る。その中から＜C＞のシグニM枚を**公開し手札に加え**、残りを好きな順番でデッキの一番下に置く。」型が、**pick（手札に加える）部分が丸ごと脱落**して単なる `LOOK_AND_REORDER`（デッキ並べ替えのみ＝何も手札に入らない）に退化していた。WX16-043/WXDi-P03-048/WX25-P1-069 等、40枚。カードが本来のサーチ（デッキ掘り→手札加え）を全く行わない実害バグ。

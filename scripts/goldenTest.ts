@@ -847,6 +847,13 @@ test('look-pick 構造固定（＜C＞のシグニ手札加えが bare LOOK_AND_
   const s100 = JSON.stringify((effectsMap.get('WX26-CP1-100') ?? [])[0] ?? {});
   ok(s100.includes('"REVEAL_AND_PICK"') && s100.includes('"pickUpTo":true') && s100.includes('"position":"bottom"'), `WX26-CP1-100-E1: REVEAL_AND_PICK pickUpTo bottom のはず（実際 ${s100.slice(0, 140)}）`);
 });
+test('look-pick 名前filter（カード名に《盾》を含むシグニ1枚を手札・残りデッキ上）', () => {
+  const parsed = parseCardEffects(cardMap.get('WX19-049')!);
+  const act = parsed.find(e => e.effectId === 'WX19-049-E1')?.action as import('../src/types/effects').RevealAndPickAction;
+  eq(act?.type, 'REVEAL_AND_PICK', 'pick が LOOK_AND_REORDER に縮退');
+  eq(`${act?.revealCount}/${act?.pickCount}/${act?.filter?.cardType}/${act?.filter?.cardName}/${act?.remainder?.position}`,
+    '2/1/シグニ/盾/top', '公開2枚・カード名に《盾》を含むシグニ1枚・残りデッキ上');
+});
 // GRANT_TO_PLACED_SIGNI（続き41）：「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を targetsLastProcessed で
 // 場出しシグニ(lastProcessedCards)へ付与する。engine 機構は既存だが本ラウンドで parser を実装して STUB を実アクション化。
 test('GRANT_TO_PLACED_SIGNI(A): GRANT_KEYWORD targetsLastProcessed が場出しシグニ(lastProcessed)へ アサシン付与（WX25-P1-044/P2-039）', () => {

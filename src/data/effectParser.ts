@@ -2838,6 +2838,18 @@ function parseActionTextInner(text: string): EffectAction {
       // 「その中から(すべての|N枚の)XXシグニをN枚手札に加え」パターン
       const pickSentence = sentences.find(s => s.includes('その中から') && (s.includes('手札に加える') || s.includes('手札に加え')));
       if (pickSentence) {
+        // 続き198で意図的に除外した名前 filter テールのうち、公開2枚→「カード名に《X》を含むシグニ1枚」→
+        // 手札→残りデッキ上、という単一文型。汎用 pickM1 は《X》を class として解釈できず filter が空になるため、
+        // 完全文アンカーで先に既存 cardName（部分一致）へ落とす。デッキ下/トラッシュ・他の名前文型へは広げない。
+        const nameTopM = pickSentence.match(/^その中からカード名に《([^》]+)》を含むシグニ([０-９\d]+)枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。?$/);
+        if (nameTopM) {
+          return {
+            type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]),
+            filter: { cardType: 'シグニ', cardName: nameTopM[1] },
+            pickCount: parseNum(nameTopM[2]), then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder: { location: 'deck', position: 'top' },
+          } as RevealAndPickAction;
+        }
         const pickM1 = pickSentence.match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加え/);
         const pickM2 = pickSentence.match(/その中からすべての(.+?)のシグニを手札に加え/);
         const pickM3 = pickSentence.match(/その中から(.+?)のシグニをすべて手札に加え/);

@@ -161,23 +161,22 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き198・Opus 4.8・§5c look-pick 系統消化＝別文「その中から〔filter〕を公開し手札に加え、残りをデッキ下」の pick 脱落是正）**
-  - **成果**＝census 1992→**1971**（-21・BASELINE_HIGH 実数更新）・golden 435→**436**（look-pick 構造固定テスト追加）・smoke/fuzz 全0・同型★0・lint clean・`npm run regen` 済み。**parser 規則のみの修正**（engine/decompiler は既存 `REVEAL_AND_PICK` で完結＝ガードレール「1バッチ=parser のみ」順守）。詳細は BUGFIXES 続き198。
-  - **真の系統的内容欠落バグ**＝「デッキ上N枚見る。その中から＜C＞のシグニM枚を**公開し手札に加え**、残りを好きな順番でデッキの一番下に置く」型が **pick（手札加え）が丸ごと脱落**して単なる `LOOK_AND_REORDER`（デッキ並べ替えのみ＝何も手札に入らない）に退化していた（40枚）。汎用 LOOK_AND_REORDER 規則（`その中から.*デッキ`）が pick-to-hand の S2 を先に飲み込むのが原因＋旧 pick 規則の remainder 誤既定。
-  - **修正**＝汎用 LOOK_AND_REORDER の前にクリーンな単一 pick-to-hand 規則を新設（class/color/level filter＋「N枚まで」upTo＋remainder〔一番上/下/トラッシュ〕を faithfully 捕捉）。**過剰化/取りこぼしを作る形は意図的に除外**（多目的・それぞれ multi-filter・OR〔か/と〕・hand-or-energy・場に出し・アイコン/名前 filter・「デッキに加えてシャッフル」）して LOOK_AND_REORDER に残す。too-broad で 70枚ヒット→`_held_fresh.json`（正）で全数原文照合し filter 前置詞＋「、残り」アンカーで厳格化→40枚採用（全件 fresh で原文一致確認）。
-  - **次の一手**：Opus＝残 look-pick テール（それぞれ multi-filter＝`LOOK_PICK_CHAIN` 機構・OR filter〔スペルか＜C＞〕・多目的・アイコン/名前 filter・colorMatchesLrig）を別バッチ or §6.3 で。または タスク6/8 の機構1つ・タスク1(a)「アタックできない家族6効果」（※調査で判明＝engine は keyword_grants で既に機能動作・大半が STUB含みで baseline 非計上＝census 効果は小）・WXDi-P10-034 遅延トリガー機構。Sonnet＝§5c 再収穫（本バッチで新規 REVEAL_AND_PICK 語彙が着地＝安全な採用先が復活しうる）。
+- **🆕 セッション（2026-07-18・続き199・§5c look-pick 残テール＝カード名filter）**
+  - **成果**＝`WX19-049-E1` 1効果を `SEQUENCE[LOOK_AND_REORDER×2]` から `REVEAL_AND_PICK{filter.cardName:'盾'}` へ是正。census 1971→**1970**、golden 436→**437**。parser 規則＋golden＋収穫JSONのみで、engine/types/decompiler は変更なし。
+  - **検証規律**＝`build:effects` で fresh 再生成後、変化が同 effectId 1件だけと確認し、原文の2枚公開／カード名に《盾》を含むシグニ／1枚／手札／残りデッキ上を全項目照合してから採用。規則は原文全文をアンカーにし、他の名前・アイコン・OR・multi-filter・多目的・colorMatchesLrig を除外。
+  - **次の一手**＝残 look-pick テールは、OR（単一filterでは表現不能）・それぞれmulti-filter（LOOK_PICK_CHAIN要）・多目的・他の名前/アイコン・colorMatchesLrig。parser-only で1対1対応できる文型を別バッチで選ぶ。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1971【効果単位】**（2026-07-18 続き198 更新＝§5c look-pick 系統＝別文「その中から〔class/color/level filter〕を公開し手札に加え、残りをデッキ下」の pick 脱落是正（40枚を REVEAL_AND_PICK+filter へ）で 1992→1971・実数更新。2026-07-18 続き197＝タスク12(viii)残＝WX26-CP1-048 出自条件機構の MANUAL 化で 1993→1992・実数更新。2026-07-18 続き196＝WDK16-13/WXK08-033 のデッキトップ公開2分岐配置の登録者数条件復元で 1996→1993・実数更新。2026-07-18 続き194＝タスク12(ii)＝WXDi-P10-035 の退化 curated を改善 fresh へ差し替えで 1998→1996・実数更新。2026-07-18 続き188＝タスク12(xxx)＝「対戦相手のシグニが場に出たとき」ON_PLAY scope/対象幻覚是正で 2001→1998・実数更新。2026-07-17 続き182＝タスク12(xxxii)＝ON_TRASH/ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落の是正で 2003→2001。続き181 でタスク12(vi-4)＋ON_BANISH any_ally scope 脱落の是正で 2016→2003。続き180 でタスク16[C]の5機構JSON採用により 2019→2016。続き179で timing[B]第2弾の10効果是正で 2027→2019。2026-07-13 続き109 で判定粒度を「カード単位」→「効果単位（effectId）」へ切替。旧カード単位の 1447 とは**計測仕様が違うので比較不能**）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。**前提＝`docs/_effect_srctext.json`（`npm run build:effects` の副産物）が最新であること**（無ければ census は exit 1）。明細 `docs/_vocab_census.txt`・消化の入口は `npm run census:clusters`（§5c）。**切替の根拠と計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109。**
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1970【効果単位】**（2026-07-18 続き199＝look-pickカード名filter 1効果を `REVEAL_AND_PICK` へ是正し1971→1970。続き198＝class/color/level filter 40枚の pick 脱落是正で1992→1971）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
 - **母数**：効果カード 5975／効果 10590／MANUAL効果 898／STUB含むカード 1864（2026-07-17 続き184 実測更新）。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 436・smoke/fuzz 全0・同型★0・census 1971。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 437・smoke/fuzz 全0・同型★0・census 1970。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >
