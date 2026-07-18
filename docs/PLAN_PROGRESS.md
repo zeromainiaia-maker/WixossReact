@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き199〜201・Codex・look-pick 名前 filter 完走＋`TRANSFER_TO_DECK` 幻覚除去）**
+  - **3バッチの成果**＝続き199で `WX19-049-E1` のカード名《盾》pickを復元（census 1971→1970・golden 436→437）。続き200で `PR-370-E2` の《槍》pick＋deck bottom と `WX12-019-E1` の `filter.cardName:'フレイスロ'`＋`pickCount:'ALL'` を復元（1970→1968・437→439）。続き201で remainder と場のシグニ移動を誤結合する広すぎる規則を遮断し、`WX14-037-E1`／`WXK07-034-E1` の幻覚 `TRANSFER_TO_DECK` を除去（1968→1967・439→441）。
+  - **退化検証**＝続き201の全カード生パース before/after は39効果すべて公開・look の remainder 文脈で、場のシグニ移動原文は0件。CSV原文325カードから抽出した唯一の巻き込みリスク `WXDi-P12-006` も、正当な `TRANSFER_TO_DECK{owner:'opponent'}` と `REVEAL_AND_PICK` がともに残存。smoke/fuzz 全0・同型★0。
+  - **次の一手（退避時点）**＝Sonnet は§3タスク6へ登録した未採用37効果を、`build:effects` で fresh 再生成後に live-curated と effectId 単位で精密 diff し、原文・richness を照合して採用可否を判定する。
+
 - **🆕 セッション（2026-07-18・続き199・§5c look-pick 残テール＝カード名filter）**
   - **成果**＝`WX19-049-E1` 1効果を `SEQUENCE[LOOK_AND_REORDER×2]` から `REVEAL_AND_PICK{filter.cardName:'盾'}` へ是正。census 1971→**1970**、golden 436→**437**。parser 規則＋golden＋収穫JSONのみで、engine/types/decompiler は変更なし。
   - **検証規律**＝`build:effects` で fresh 再生成後、変化が同 effectId 1件だけと確認し、原文の2枚公開／カード名に《盾》を含むシグニ／1枚／手札／残りデッキ上を全項目照合してから採用。規則は原文全文をアンカーにし、他の名前・アイコン・OR・multi-filter・多目的・colorMatchesLrig を除外。
