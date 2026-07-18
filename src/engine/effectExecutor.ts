@@ -1640,6 +1640,11 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
     let blkExcludeSelf = false;
     if (blkFilter?.thisCardOnly) { const { thisCardOnly: _t, ...rest } = blkFilter; blkFilter = rest; blkThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : []; }
     if (blkFilter?.excludeSelf) { const { excludeSelf: _e, ...rest } = blkFilter; blkFilter = rest; blkExcludeSelf = true; }
+    // 動的フィルタ（levelLtOppLrig 等）を具体値へ解決してから候補を絞る（WXK11-003②）。
+    // 解決しないと未知フラグが matchesFilter で無視され、全シグニへの過剰アタックブロックに化ける。
+    if (blkFilter) {
+      blkFilter = resolveDynamicFilter(blkFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    }
     let cands = fieldCandidates(tgtState, blkFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     if (blkThisCardRestrict) cands = cands.filter(n => blkThisCardRestrict!.includes(n));
     if (blkExcludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
