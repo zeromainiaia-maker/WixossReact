@@ -1949,6 +1949,34 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
     const quoted = (t.match(/「([^」]+)」を得る/) ?? [])[1] ?? '';
     if (quoted.includes('アタックできない')) {
+      // 「<対象>は「【常】：アタックできない。」を得る」。
+      // ⚠従来は対象を一切読まず SIGNI/owner:'any'/count:1/END_OF_TURN 決め打ちで、原文が**ルリグ**を対象に
+      //   していても**シグニ**をブロックする別効果に化けていた（ルリグは素通り＋無関係なシグニが止まる二重誤り）。
+      //   NEGATE_ATTACK で先に是正した §3 Opusタスク10 パターンB と同じ壊れ方。
+      // 表現は多数派（102効果）と同じ GRANT_KEYWORD{'アタックできない'} に寄せる＝engine は LRIG /
+      //   CENTER_LRIG_OR_SIGNI を解決でき、ルリグアタック判定（BattleScreen）もこの経路を見るため engine 変更不要。
+      // 引用内に条件節（「…ないかぎりアタックできない」「…でアタックできない」）を持つ変種は
+      //   条件を落として無条件ブロックに化ける＝過剰効果になるため、この規則では扱わず従来の粗い近似へ落とす。
+      const plainCannotAttack = /^【常】：アタックできない。?$/.test(quoted.trim());
+      if (plainCannotAttack) {
+        const kwOwnerCA: Owner = t.includes('対戦相手') ? 'opponent' : t.includes('あなた') ? 'self' : 'any';
+        // 対象種別：「ルリグかシグニ」「ルリグとシグニを合計N体」→ 両方から選ぶ／「ルリグ」単独 → LRIG／既定 → SIGNI
+        const bothCA = /ルリグ(?:か|または|と)[^。]{0,12}シグニ/.test(t);
+        const lrigOnlyCA = !bothCA && /ルリグ/.test(t) && !/シグニ/.test(t);
+        const tgtTypeCA = bothCA ? 'CENTER_LRIG_OR_SIGNI' : lrigOnlyCA ? 'LRIG' : 'SIGNI';
+        // 体数は対象種別に対応する数詞から取る（「シグニを2体まで」「ルリグとシグニを合計2体まで」）
+        const cntMCA = t.match(/(?:合計)?([０-９\d]+)体/);
+        const countCA = cntMCA ? parseNum(cntMCA[1]) : 1;
+        const durCA: EffectDuration =
+          (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
+            : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'UNTIL_END_OF_TURN';
+        return {
+          type: 'GRANT_KEYWORD',
+          target: { type: tgtTypeCA, owner: kwOwnerCA, count: countCA, ...(t.includes('まで') ? { upToCount: true } : {}), ...kwTargetFilter },
+          keyword: 'アタックできない',
+          duration: durCA,
+        } as GrantKeywordAction;
+      }
       return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'any', count: 1 }, actionId: 'ATTACK', until: 'END_OF_TURN' } as BlockActionAction;
     }
     const kwMatch = quoted.match(/^(ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ|バニッシュ耐性|シールド|チャーム)$/);
