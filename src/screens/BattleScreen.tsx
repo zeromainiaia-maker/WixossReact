@@ -6282,6 +6282,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ライフクロスを1枚クラッシュし、チェック状態にする
   // returns: crashed=null + prevented=true → ダメージ無効、crashed=null + !prevented → ライフなし（即勝利判定）
   const crashOneLife = (state: PlayerState): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
+    // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
+    // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
+    if ((state.prevent_damage_windows ?? []).some(w => w.scope === 'ALL')) {
+      appendBattleLogs([`ダメージ無効（このターンダメージを受けない）`]);
+      return { newState: state, crashed: null, prevented: true };
+    }
     if (countBarrierTokens(state.field.free_zone, SIGNI_BARRIER_CARD) > 0) {
       const fz = removeOneBarrierToken(state.field.free_zone, SIGNI_BARRIER_CARD);
       appendBattleLogs([`シグニバリア発動（残${countBarrierTokens(fz, SIGNI_BARRIER_CARD)}）ダメージ無効`]);
