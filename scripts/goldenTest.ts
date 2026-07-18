@@ -2567,6 +2567,34 @@ test('付与系の対象節フィルタ: 兄弟規則（シャドウ付与）に
   ok(!/"color":/.test(s2), 'WXDi-P09-053: 原文に色指定が無いので色フィルタは付かないはず');
 });
 
+// ── アタック不可付与の据置4効果（2026-07-19 続き205・Opusタスク12(xxxvii)）──
+// 続き205 の機械採用からは「アタックノード以外にも骨格差がある」として外し、個別判断で採用した4件。
+test('据置4効果: 「代わりに」が置換（CONDITIONAL）として表現される', () => {
+  // WX06-002＝基本はルリグ1体、条件成立時「代わりに」ルリグ＋シグニ2体。
+  // 旧 curated は SEQUENCE で**両方実行**していた＝「代わりに」を無視した過剰効果だった。
+  const s = JSON.stringify(effectsMap.get('WX06-002') ?? []);
+  ok(s.includes('"type":"CONDITIONAL"'), 'WX06-002: 代わりに＝CONDITIONAL のはず');
+  ok(s.includes('"else"'), 'WX06-002: 条件不成立時の既定（ルリグ1体）が else にあるはず');
+  ok(!/"type":"SEQUENCE","steps":\[\{"type":"GRANT_KEYWORD"[^\]]*"GRANT_KEYWORD"/.test(s),
+    'WX06-002: 両方を順に実行する旧形へ戻っていないこと');
+});
+
+test('据置4効果: BET_MECHANIC の no-op STUB が CHOOSE+betChoose に展開されている', () => {
+  for (const [cn, upto] of [['WX18-003', true], ['WDK05-T10', false]] as const) {
+    const s = JSON.stringify(effectsMap.get(cn) ?? []);
+    ok(!s.includes('"BET_MECHANIC"'), `${cn}: no-op STUB が残っていないはず`);
+    ok(s.includes('"type":"CHOOSE"') && s.includes('"betChoose"'), `${cn}: CHOOSE+betChoose のはず`);
+    ok(s.includes(`"thenUpTo":${upto}`), `${cn}: 「2つ${upto ? 'まで' : ''}選ぶ」の upTo が原文どおりのはず`);
+  }
+});
+
+test('据置4効果: 条件付き追加付与が CONDITIONAL になる（無条件2回付与に戻らない）', () => {
+  // WDK11-007＝1体目は無条件、2体目は「対戦相手の場にキーがある場合」のみ。旧 curated は2体目も無条件だった。
+  const s = JSON.stringify(effectsMap.get('WDK11-007') ?? []);
+  ok(s.includes('"type":"CONDITIONAL"'), 'WDK11-007: 2体目は CONDITIONAL のはず');
+  ok(s.includes('"HAS_CARD_IN_FIELD"') && s.includes('"キー"'), 'WDK11-007: 相手の場のキー条件のはず');
+});
+
 // ── COST_SUBSTITUTE（2026-07-19 続き204・Opusタスク7）: エナの色オーバーライドとして実装 ──
 // 「あなたが《X》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい」
 // ＝エナゾーンにあるこのカードが色Xとして支払える、と等価（エナ支払い自体がエナからのトラッシュのため）。
