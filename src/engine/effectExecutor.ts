@@ -34,6 +34,7 @@ import type {
   AttachCharmAction,
   RevealAndPickAction,
   PlayFreeAction,
+  PlayFreeFromTrashAction,
   CostIncreaseAction,
   PowerModifyPerFieldAction,
   PowerModifyPerLrigLevelAction,
