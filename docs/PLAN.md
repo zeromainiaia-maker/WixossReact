@@ -163,10 +163,10 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-18・続き202・Fable 5・タスク12(xii) 無限ループ根治＋タスク7 `PLAY_FREE_FROM_TRASH` engine 実装）**
-  - **✅タスク12(xii) クローズ**＝WXEX1-19-E2（トラッシュ3枚→エナ/手札/デッキ下分配）の**実プレイ無限ループ**を根治。自己再帰 thenAction を `thenAction: no-op ＋ continuation: 本体STUB` の一括受け取り型（`INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N` と同型）へ変更。**smoke SKIP 1→0**（全10593効果 OK 到達）。
-  - **✅タスク7の1型消化**＝`PLAY_FREE_FROM_TRASH`（完全no-op）を engine 実装（`execPlayFreeFromTrash`＋dispatch）。WX09-012-E2（トラッシュ→コスト3以下の青スペル）／WX19-002-E4（ルリグトラッシュ→コスト5以下のアーツ）＝使用実体は既存フリープレイ STUB `USE_SPELL_FROM_TRASH`。派生3件＝フリープレイSTUBのトラッシュ二重積みガード・parser の「青の」色フィルタ脱落是正（JSON採用＝全効果diffで WX09-012-E2 のみ変化を機械確認）・decompiler の誤表現「場に出す」→「使用する」是正。golden 442→**445**・census 1967 維持・同型★0。詳細 BUGFIXES 続き202。
-  - **次の一手**＝Sonnet は§3タスク6の未採用37効果の精密diff・採用判定（据置のまま実行可能）。Opus はタスク7残2型（`PREVENT_DAMAGE`＝ダメージ層置換機構／`COST_SUBSTITUTE`＝コスト支払いUI横断）か、タスク2（動的比較3枚）・タスク1残(a)（granted CONTINUOUS の BLOCK_ACTION 収集機構）から取る。
+- **🆕 セッション（2026-07-19・続き203・Fable 5・タスク2「動的比較」2/3消化＋ルリグデッキ戻し幻覚の系統除去12枚）**
+  - **✅WXEX2-28-E3（直前配置シグニ基準）**＝終止形「探して場に出す。」が SEARCH 規則を素通りして bare ADD_TO_FIELD に退化（WX18-001-E2 も同系統・同時修復）＋「それよりレベルの高い」脱落を `levelGtLastProcessed` 新設で是正＋**ゾーン選択を跨ぐと lastProcessedCards が消える engine 穴**（`execPlaceSigniOnField`→`placedSoFar` 補完）を根治。副産物＝WXDi-D07-019-E2 の `powerLtLastProcessed` 脱落（任意バニッシュ過剰効果）も是正。
+  - **✅WXK11-003（opp/own センタールリグ）**＝前置使用条件文で CHOOSE が組まれず選択構造ごと消滅していたのを復元（①両種別 COST_INCREASE＋新 STUB `RETURN_SELF_ARTS_TO_LRIG_DECK`／②`BLOCK_ACTION{filter:levelLtOppLrig}`）。engine 2点＝`execBlockAction` の動的フィルタ未解決（全シグニ過剰ブロック化）と `execCostIncrease` の UNTIL_END_OF_TURN 永続化を修正。**横展開＝catch-all `デッキに戻す` の「ルリグデッキ」幻覚を系統除去し12枚採用**（WX20-021 は同前置文型で3択構造が丸ごと欠落していたのを完全復元）。golden 445→**451**・census 1967→**1963**・smoke/fuzz 全0・同型★0。詳細 BUGFIXES 続き203。
+  - **次の一手**＝Opus はタスク2残＝WXK08-005（キーの使用タイミング動的付与＋空 GRANT_LRIG_ABILITY＝§6.3級の面あり）か、タスク7残2型（`PREVENT_DAMAGE`／`COST_SUBSTITUTE`）・タスク1残(a)。Sonnet は§3タスク6の未採用37効果の精密diff・採用判定（据置のまま実行可能）。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
