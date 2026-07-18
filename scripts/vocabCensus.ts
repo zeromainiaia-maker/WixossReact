@@ -78,7 +78,7 @@ import * as path from 'path';
 // ⚠2026-07-13 続き109(Opus): 判定粒度を**カード単位→効果単位**に切替（上のヘッダ参照）。
 // ベースラインも「高シグナル欠落カード数 1447」→「高シグナル欠落**効果**数 2264」へ一括切替（併記期間なし）。
 // 数字が飛んだのは退化ではなく計測仕様の変更＝旧網が救っていた真の欠落が顕在化したもの（抜き取り5/5が真バグ）。
-const BASELINE_HIGH = 1998; // 続き188(Opus): タスク12(xxx)＝「対戦相手のシグニが場に出たとき」ON_PLAY scope/対象幻覚是正（WXEX2-76/WX08-006/WXK10-048 の any_opp scope・charm owner・isTriggerSource）で 2001→1998 改善＝実数更新。旧2001は続き182(xxxii)
+const BASELINE_HIGH = 1996; // 続き194(Opus): タスク12(ii)＝WXDi-P10-035 の退化 curated（flat BOUNCE・E2 無条件 AWAKEN）を改善 fresh（連用中止 SEQUENCE[POWER_MODIFY,GRANT_FIELD_SIGNI_ABILITY]＋E2 に HAND_COUNT≧4 復元）へ差し替えで 1998→1996 改善＝実数更新。旧1998は続き188(xxx)
 
 // 2218 // 続き136(Opus) タスク17: 【自】の timing 判定を「効果ブロック先頭のトリガー句」に限定（従来は actionText 全体を
 //        見ており、トリガー句より後ろの本文/引用付与の内側にある「…したとき」を先に拾って timing が化けていた）。
