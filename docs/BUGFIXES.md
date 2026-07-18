@@ -4,6 +4,21 @@
 
 ---
 
+## タスク12(xii) WXEX1-19-E2 実プレイ無限ループの根治＋§6.1 タスク7 `PLAY_FREE_FROM_TRASH` engine 実装（smoke SKIP 1→0・golden 442→445）（2026-07-18・続き202・Fable 5）
+
+**① タスク12(xii)＝WXEX1-19-E2「トラッシュから3枚選んでエナ/手札/デッキ下に分配」の真の無限ループを根治（クローズ）**
+- **真因**（続き112の Sonnet 診断どおり）＝`execStubPart2.ts` の `TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH` が **thenAction に自分自身の STUB を指定**して「選択3枚を lastProcessedCards で一括受け取り」を期待していたが、`resumeSelectTarget` は thenAction を**選択カード1枚ずつ個別適用**する設計。`applyDirectAction` に STUB case が無く default 節が `lastProcessedCards:[1枚]` で再実行 → `length 1 < 3` で同一 `SELECT_TARGET`（候補＝トラッシュ・不変）を再発行し続ける＝実UIでもハングと同義の真の無限ループだった。
+- **修正**＝既存の確立パターン（`INTERNAL_OPP_HAND_TO_DECK_BOTTOM_N` と同型）へ変更：`thenAction: RULE_REMINDER_TEXT`（no-op）＋ **`continuation: TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH`**。`resumeSelectTarget` は continuation 実行前に `lastProcessedCards: selected`（3枚・選択順）をセットするため、再入時に `[toEna, toHand, toDeck]` の一括分配が成立する。engine 1箇所のみ・parser/JSON 変更なし。
+- **検証**＝golden に再現テストを先に追加（修正前 FAIL＝resume が done にならないことを確認）→修正後 PASS（1枚目→エナ/2枚目→手札/3枚目→デッキ一番下/トラッシュから3枚除去）。**smoke SKIP(対話未対応) 1→0**＝全10593効果 OK 到達。
+
+**② §6.1 タスク7＝`PLAY_FREE_FROM_TRASH`（完全no-op だった action 型）を engine 実装（残3型→2型）**
+- **対象2効果**＝`WX09-012-E2`（【出】トラッシュからコスト合計3以下の**青の**スペル1枚をコストを支払わずに使用してもよい）／`WX19-002-E4`（【起】アタックフェイズ・コイン3：ルリグトラッシュからコスト合計5以下のアーツ1枚をコストを支払わずに使用する）。従来は dispatch に case が無く**完全no-op**。
+- **実装**＝`effectExecutor.ts` に `execPlayFreeFromTrash` を新設し dispatch 配線。ゾーンは `filter.cardType==='アーツ'` でルリグトラッシュ／それ以外はトラッシュ。候補は `matchesFilter`（色等）＋`parseEnergyCosts` 合計≦`costThreshold` で絞り、`SEARCH{maxPick}`（0枚確定＝「してもよい」の辞退対応）→使用の実体は既存フリープレイ系 STUB `USE_SPELL_FROM_TRASH`（主効果＝ACTIVATED/AUTO ON_PLAY を実行。アーツ主効果は ACTIVATED と実測確認）。
+- **派生修正2件**＝(a) フリープレイ STUB のスペル移動が「既にトラッシュにあるカード」を再 append する潜在バグ（トラッシュ発の使用で**同一カードが2枚に複製**）を includes ガードで是正。(b) **parser の色フィルタ脱落**＝「青のスペル」の色限定が `parseStoryFilter`（＜クラス＞専用）で無言消費され全色スペルが対象になる過剰効果 → 色抽出を追加し `filter.color:'青'` を emit。`build:effects` の全ファイル効果単位 diff で**変化は WX09-012-E2 の color 追加のみ**を機械確認し採用。
+- **decompiler**＝`PLAY_FREE_FROM_TRASH` の逆翻訳が「トラッシュからコストを支払わずに場に出す」という誤表現（使用≠場に出す・ゾーン/閾値/filter 全脱落）だったのを「（ルリグ）トラッシュからコストの合計がN以下の…をコストを支払わずに使用する」へ是正。`npm run regen`・同型★0 維持。
+- **検証**＝golden +3（スペル候補絞り込み〈色・コスト超過除外〉＋使用後トラッシュ二重積みなし／アーツ候補絞り込み＋ルリグトラッシュ残置／parser の color emit）。golden 442→**445**・gates 全緑・census 1967 維持。
+- **残**＝タスク7の残2型は `PREVENT_DAMAGE`（ダメージ層の置換機構が要る）と `COST_SUBSTITUTE`（コスト支払いUI横断）＝いずれも新機構級で据置。
+
 ## `TRANSFER_TO_DECK` 幻覚の系統除去＝公開カードの remainder と場のシグニ移動の誤結合を遮断（実害2効果・census 1968→1967）（2026-07-18・続き201）
 
 **真因**＝`parseSentencePart1.ts` の「シグニをデッキの一番下に置く」規則が、`/デッキの一番下に置く/ && (シグニ|それ)` という広すぎる判定だった。同じ複文にある pick 対象の「シグニ」と、公開・look したカードの「残りをデッキの一番下に置く」を句をまたいで結合し、原文に存在しない `TRANSFER_TO_DECK{owner:'self'}`（自分の場のシグニ1体をデッキ下へ送る）を生成していた。
