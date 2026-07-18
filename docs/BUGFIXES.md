@@ -4,6 +4,20 @@
 
 ---
 
+## Opusタスク12(viii)残 消化＝デッキトップ private look 条件付き配置の filter/optional 脱落（2026-07-18・続き192・Opus 4.8）
+
+**対象**＝WX16-038-E1（忍猿の十勇 サルトビ）「【出】：あなたのデッキの一番上を見る。それが《ライズアイコン》を持つ＜武勇＞のシグニの場合、それを場に出してもよい」／WX16-038-E2（同・【自】ライズされたとき版で「《ライズアイコン》を持たない＜武勇＞」）／WX15-001-E2（真実の記憶 リル）「あなたのメインフェイズ開始時、…それが赤のシグニの場合、それを場に出してもよい」。(viii)残に「WX16-038（アイコン条件）」として登録されていた項目。
+
+**バグ**＝「デッキの一番上を**見る**（private look）。それが〔filter〕のシグニの場合、それを場に出（す/してもよい）」文型が、`splitSentences` で2文に割れた後 sentence2 が parser の bare fallback（`parseSentencePart1.ts:1612`＝`ADD_TO_FIELD{owner:self}`）に落ち、**原文の filter（レベル/色/クラス/ライズアイコン）と optional（「もよい」）が丸ごと脱落**＝デッキトップを無条件で場に出す過剰効果に退化していた。⚠**「公開する」版は上流の `effectParser.ts:2703` ブロックで `REVEAL_AND_PICK{filter}` に正しく変換されていた**（WDK16-17/WXK08-063/WX18-002 等）＝「見る」版だけ対の処理が無かった。正準形は WX10-007/021（MANUAL）の `SEQUENCE[LOOK_AND_REORDER, ADD_TO_FIELD{source:{DECK_CARD, fromTop, filter}, optional}]`（executor は `execAddToField` の DECK_CARD 分岐＝`effectExecutor.ts:1304` でデッキ上 count 枚を matchesFilter で絞り、一致0なら何も起きない＝機構は完備済み）。
+
+**修正**：
+- **parser**（`effectParser.ts` 公開ブロック直後に新設）＝`sentences[0]` が「デッキの一番上を見る」かつ sentence2 が `^それが(.+?)シグニの場合、(.+)` で「場に出」を含むとき、condText から `parseLevelFilter`/`parseStoryFilter`/`parseColorFilter` で filter を組み、`《ライズアイコン》を持たない`→`noRiseIcon:true`／`持つ`→`hasRiseIcon:true` を付与。`もよい`→`optional:true`。`SEQUENCE[LOOK, ADD_TO_FIELD{source:DECK_CARD fromTop filter, optional}]` を返す。「場に他のシグニがない」等の盤面条件付き（WX01-036/057/059＝CONDITIONAL+DECK_TOP_MATCHES の別形）は除外。
+- **types**（`effects.ts`）＝`TargetFilter.noRiseIcon`（hasRiseIcon の否定）＋`EffectTarget.fromTop`（DECK_CARD 用・WX10-007 等の MANUAL 正準形と一致させるため）を追加。
+- **engine**（`execUtils.ts` matchesFilter）＝`filter.noRiseIcon && EffectText に【ライズ】を含む → 不一致`。
+- **decompiler**（`decompileEffects.ts`）＝`noRiseIcon`→「《ライズアイコン》を持たない」を描画（乖離防止）。
+
+**結果**＝3効果を AUTO 自動採用（filter+optional 復元）・MANUAL の WX10-007/021 は fresh がキュレートと一致し held ドリフト解消。golden 425→427（parser 回帰＋noRiseIcon/hasRiseIcon の DECK_CARD ゲーティング engine テスト）・census 1998 維持・同型★0（5986枚）維持・smoke/fuzz 全0。
+
 ## Opusタスク12 ON_BANISH据置 消化＝「（対戦相手の）アタックフェイズの間、あなたの＜X＞のシグニがバニッシュされたとき」（2026-07-18・続き191・Opus 4.8）
 
 **対象**＝WX18-002-E1（哀罪の駄姫 グズ子・ルリグ）「【自】《ターン１回》：対戦相手のアタックフェイズの間、あなたの＜遊具＞のシグニ１体がバニッシュされたとき、…」／WXEX1-18-E1（ママ♥４・ルリグ）「【自】《ターン１回》：アタックフェイズの間、あなたの＜英知＞のシグニ１体がバニッシュされたとき、エナからそのシグニを場に出す」。
