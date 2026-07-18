@@ -354,6 +354,22 @@ export function parseSentencePart1(t: string): EffectAction | null {
     };
   }
 
+  // ---- 対戦相手のアーツとスペルのコスト増加（両種別・期間前置。WXK11-003①/WXK09-006②/SPDi43-31）----
+  {
+    const costIncBothM = t.match(/^(このターン、|次の対戦相手のターンの間、)?対戦相手の、?(?:アーツとスペル|スペルとアーツ)の使用コストは(.+?)増える/);
+    if (costIncBothM) {
+      const amountB = parseEnergyCosts(costIncBothM[2]);
+      const durB = costIncBothM[1] === '次の対戦相手のターンの間、' ? 'NEXT_OPP_TURN'
+        : costIncBothM[1] ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+      const mkCIB = (ct: 'アーツ' | 'スペル'): CostIncreaseAction => ({
+        type: 'COST_INCREASE', targetCardType: ct, targetOwner: 'opponent',
+        amount: amountB.length > 0 ? amountB : [{ color: '無', count: 1 }],
+        duration: durB,
+      } as CostIncreaseAction);
+      return { type: 'SEQUENCE', steps: [mkCIB('アーツ'), mkCIB('スペル')] } as SequenceAction;
+    }
+  }
+
   // ---- 対戦相手スペル/アーツのコスト増加 ----
   const costIncM = t.match(/対戦相手の(スペル|アーツ|ルリグ)(?:の【[^】]+】能力)?の使用コストは/);
   if (costIncM && t.includes('増える')) {
