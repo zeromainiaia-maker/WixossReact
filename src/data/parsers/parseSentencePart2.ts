@@ -1980,7 +1980,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
             : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'UNTIL_END_OF_TURN';
         return {
           type: 'GRANT_KEYWORD',
-          target: { type: tgtTypeCA, owner: kwOwnerCA, count: countCA, ...(t.includes('まで') ? { upToCount: true } : {}), ...kwTargetFilter },
+          target: { type: tgtTypeCA, owner: kwOwnerCA, count: countCA, ...(upToCA ? { upToCount: true } : {}), ...kwTargetFilter },
           keyword: 'アタックできない',
           duration: durCA,
         } as GrantKeywordAction;
