@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-18・続き189・Opus 4.8・タスク5 小口＝GRANT_EFFECT(→LRIG) 内 levelLtSelf の decompiler 読み替え）**
+  - **成果**＝同型★0（5986枚）維持・golden 422/census 1998（不変＝decompiler 表現のみ）・`npm run regen` 済み。詳細は BUGFIXES 続き189。
+  - WXEX2-25-E3 の逆翻訳が「このシグニより低いレベル」→原文「この**ルリグ**より」とズレ。GRANT_EFFECT 付与先が LRIG のとき inner の「このシグニより(低い/高い)レベル」を「このルリグより」に読み替え（engine は host 基準で解決済＝機能は正）。`levelLtSelf` は全JSONでこの1枚のみ。
+  - **⚠棚卸し所見＝タスク5/2/4 の「S」項目の多くは実は engine 置換機構＝タスク6級**（「代わりに」WX25-P2-068/070・動的比較3枚等）。真に S なのは decompiler 表現・単点 filter 付与のみ＝**非タスク12の低難易度在庫はほぼ枯渇**。
+
 - **🆕 セッション（2026-07-18・続き188・Opus 4.8・タスク12(xxx) 消化＝「対戦相手のシグニが場に出たとき」ON_PLAY scope/対象幻覚を根治）**
   - **成果**＝golden 421→**422**・census 2001→**1998**（3効果改善＝BASELINE_HIGH 実数更新）・smoke/fuzz 全0・同型★0（5986枚）・lint clean・`npm run regen` 済み。詳細は BUGFIXES 続き188。
   - 原文「対戦相手のシグニが場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする」が **ON_PLAY 既定 self**（自身が場に出たとき＝一度も発火しない）＋charm owner self＋任意対象に化けていた同型**3枚**を根治（WXEX2-76-E1/WX08-006-E2＝any_opp・WXK10-048-E1＝any_ally）。effectParser に any_opp 抽出（トリガー句非除去）＋parseSentencePart1 に charm owner「対戦相手は自分の…」→opponent／「そのシグニ」→`isTriggerSource`＋engine execAttachCharm の triggeringCardNum 解決＋decompiler。
