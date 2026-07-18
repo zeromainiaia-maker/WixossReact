@@ -2536,7 +2536,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- ダメージを受けない ----
   if (t.match(/あなたはダメージを受けない/)) {
-    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN' } as PreventDamageAction;
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'ALL' } as PreventDamageAction;
   }
 
   // ---- 次のターンの間、対戦相手のルリグはダメージを与えない ----
