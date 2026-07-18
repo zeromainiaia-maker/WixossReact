@@ -4757,7 +4757,7 @@ export function resumeSelectZone(
       `ゾーンが埋まっているため${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をデッキに戻す`));
   }
   signi[zoneIndex] = [pending.cardNum];
-  const newS: PlayerState = { ...state, field: { ...state.field, signi } };
+  const newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
