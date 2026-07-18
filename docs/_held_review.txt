@@ -828,24 +828,6 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
-## +LOOK_AND_REORDER×2 +SEQUENCE -ADD_TO_HAND -REVEAL_AND_PICK ［1枚］
-WX19-049
---- WX19-049
-  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中からカード名に《盾》を含むシグニ１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。,：カードを１枚引く。
-  - [0].action.owner = "self"
-  - [0].action.revealCount = 2
-  - [0].action.filter.cardType = "シグニ"
-  - [0].action.filter.cardName = "盾"
-  - [0].action.pickCount = 1
-  - [0].action.then.type = "ADD_TO_HAND"
-  - [0].action.then.owner = "self"
-  - [0].action.remainder.location = "deck"
-  - [0].action.remainder.position = "top"
-  ~ [0].action.type : "REVEAL_AND_PICK" → "SEQUENCE"
-  + [0].action.steps[0].type = "LOOK_AND_REORDER"
-  + [0].action.steps[0].source.location = "deck"
-  …（他 17 行）
-
 ## -CHOOSE×2 -DECK_CARD×2 -TRASH×2 ［1枚］
 WXDi-D07-022
 --- WXDi-D07-022

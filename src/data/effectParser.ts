@@ -2562,6 +2562,25 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- 公開句と名前 filter pick が読点で続く1文型 ----
+  // 「公開し、その中からカード名に《X》を含むシグニN枚を手札に加える。残りを…」を splitSentences 前に捕捉する。
+  // 公開だけが先に単文解析され LOOK_AND_REORDER へ縮退し、後続 pick が消えるのを防ぐ（PR-370-E2）。
+  // CHOOSE 内や多目的 pick を巻き込まないよう、効果本文全体と単一 pick-to-hand＋remainder の語順へアンカーする。
+  {
+    const nameInlineM = text.match(/^あなたのデッキの上からカードを([０-９\d]+)枚公開し、その中からカード名に《([^》]+)》を含む(シグニ|カード)([０-９\d]+)枚を手札に加える。残りを(シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)に(?:置く|戻す)。?$/);
+    if (nameInlineM) {
+      const remainder: RevealAndPickAction['remainder'] = nameInlineM[6] === 'トラッシュ'
+        ? { location: 'trash', position: 'any' }
+        : { location: 'deck', position: nameInlineM[6] === 'デッキの一番下' ? 'bottom' : 'top' };
+      return {
+        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(nameInlineM[1]),
+        filter: { ...(nameInlineM[3] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), cardName: nameInlineM[2] },
+        ...(nameInlineM[3] === 'カード' ? { pickNoun: 'カード' } : {}),
+        pickCount: parseNum(nameInlineM[4]), then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder,
+      } as RevealAndPickAction;
+    }
+  }
+
   const sentences = splitSentences(text).filter(s => {
     const c = s.trim().replace(/。$/, '');
     if (!c) return false;
@@ -2838,16 +2857,20 @@ function parseActionTextInner(text: string): EffectAction {
       // 「その中から(すべての|N枚の)XXシグニをN枚手札に加え」パターン
       const pickSentence = sentences.find(s => s.includes('その中から') && (s.includes('手札に加える') || s.includes('手札に加え')));
       if (pickSentence) {
-        // 続き198で意図的に除外した名前 filter テールのうち、公開2枚→「カード名に《X》を含むシグニ1枚」→
-        // 手札→残りデッキ上、という単一文型。汎用 pickM1 は《X》を class として解釈できず filter が空になるため、
-        // 完全文アンカーで先に既存 cardName（部分一致）へ落とす。デッキ下/トラッシュ・他の名前文型へは広げない。
-        const nameTopM = pickSentence.match(/^その中からカード名に《([^》]+)》を含むシグニ([０-９\d]+)枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。?$/);
-        if (nameTopM) {
+        // 名前 filter の単一 pick-to-hand。汎用 pickM1 は《X》を class として解釈できず filter が空になるため、
+        // 固定枚数/該当全件、シグニ/カード、残りの3行き先を完全文アンカーで先に既存 cardName（部分一致）へ落とす。
+        // pick 直後に「、残りを」を要求し、多目的・hand-or-X・CHOOSE 内の断片は除外する。
+        const namePickM = pickSentence.match(/^その中からカード名に《([^》]+)》を含む(?:(シグニ|カード)([０-９\d]+)枚|すべての(シグニ|カード))を手札に加え、残りを(好きな順番で)?(デッキの一番上|デッキの一番下|トラッシュ)に(?:置く|戻す)。?$/);
+        if (namePickM) {
+          const noun = namePickM[2] ?? namePickM[4];
+          const remainder: RevealAndPickAction['remainder'] = namePickM[6] === 'トラッシュ'
+            ? { location: 'trash', position: 'any' }
+            : { location: 'deck', position: namePickM[6] === 'デッキの一番下' ? 'bottom' : 'top' };
           return {
             type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(revM[1]),
-            filter: { cardType: 'シグニ', cardName: nameTopM[1] },
-            pickCount: parseNum(nameTopM[2]), then: { type: 'ADD_TO_HAND', owner: 'self' },
-            remainder: { location: 'deck', position: 'top' },
+            filter: { ...(noun === 'シグニ' ? { cardType: 'シグニ' as const } : {}), cardName: namePickM[1] },
+            ...(noun === 'カード' ? { pickNoun: 'カード' } : {}),
+            pickCount: namePickM[3] ? parseNum(namePickM[3]) : 'ALL', then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder,
           } as RevealAndPickAction;
         }
         const pickM1 = pickSentence.match(/その中から(.+?)のシグニ([０-９\d]+|すべて)枚?を手札に加え/);

@@ -854,6 +854,20 @@ test('look-pick 名前filter（カード名に《盾》を含むシグニ1枚を
   eq(`${act?.revealCount}/${act?.pickCount}/${act?.filter?.cardType}/${act?.filter?.cardName}/${act?.remainder?.position}`,
     '2/1/シグニ/盾/top', '公開2枚・カード名に《盾》を含むシグニ1枚・残りデッキ上');
 });
+test('look-pick 名前filter・読点連結（PR-370-E2: 《槍》シグニ1枚を手札・残りシャッフルしてデッキ下）', () => {
+  const parsed = parseCardEffects(cardMap.get('PR-370')!);
+  const act = parsed.find(e => e.effectId === 'PR-370-E2')?.action as import('../src/types/effects').RevealAndPickAction;
+  eq(act?.type, 'REVEAL_AND_PICK', '公開し、その中から…の pick が LOOK_AND_REORDER に縮退');
+  eq(`${act?.revealCount}/${act?.pickCount}/${act?.filter?.cardType}/${act?.filter?.cardName}/${act?.remainder?.location}/${act?.remainder?.position}`,
+    '4/1/シグニ/槍/deck/bottom', '公開4枚・カード名に《槍》を含むシグニ1枚・残りデッキ下');
+});
+test('look-pick 名前filter・全件カード（WX12-019-E1: 《フレイスロ》を含むすべてのカードを手札・残りトラッシュ）', () => {
+  const parsed = parseCardEffects(cardMap.get('WX12-019')!);
+  const act = parsed.find(e => e.effectId === 'WX12-019-E1')?.action as import('../src/types/effects').RevealAndPickAction;
+  eq(act?.type, 'REVEAL_AND_PICK', '名前 filter の全件 pick');
+  eq(`${act?.revealCount}/${act?.pickCount}/${act?.pickNoun}/${act?.filter?.cardType ?? 'ANY'}/${act?.filter?.cardName}/${act?.remainder?.location}/${act?.remainder?.position}`,
+    '2/ALL/カード/ANY/フレイスロ/trash/any', '公開2枚・カード種別無限定・該当全件・残りトラッシュ');
+});
 // GRANT_TO_PLACED_SIGNI（続き41）：「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を targetsLastProcessed で
 // 場出しシグニ(lastProcessedCards)へ付与する。engine 機構は既存だが本ラウンドで parser を実装して STUB を実アクション化。
 test('GRANT_TO_PLACED_SIGNI(A): GRANT_KEYWORD targetsLastProcessed が場出しシグニ(lastProcessed)へ アサシン付与（WX25-P1-044/P2-039）', () => {
