@@ -3256,7 +3256,9 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
     direction: 'increase' as const,
     targetCardType: a.targetCardType,
     amount: a.amount,
-    until: (a.duration ?? 'PERMANENT') as 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT',
+    // UNTIL_END_OF_TURN（action 側の語彙）は cost_modifiers のターン境界クリア条件 'END_OF_TURN' へ正規化する
+    // （そのまま通すと until 不一致で永続化する。WXK11-003①「このターン」）
+    until: (a.duration === 'UNTIL_END_OF_TURN' ? 'END_OF_TURN' : (a.duration ?? 'PERMANENT')) as 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT',
   };
   const newS: PlayerState = {
     ...state,
