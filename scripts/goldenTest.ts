@@ -4502,6 +4502,22 @@ test('WXEX1-35-E1: ライズアイコン持ち3体条件を外側activeCondition
   eq(innerCount, 'ALL', '既存の内側count:ALLは変更しない');
 });
 
+// checkActiveCondition の FRONT_SIGNI_POWER: 効果元シグニの正面（相手ゾーン 2-zi）のシグニの実効パワーで判定（SP27-002-E3・タスク12(i)）
+// ※ fresh() でカーソルを進めると後続テストの払い出しがずれるため、必ずファイル末尾に置く。
+test('checkActiveCondition FRONT_SIGNI_POWER: 正面パワー閾値以上でのみ true（正面空は false）', () => {
+  const cond = { type: 'FRONT_SIGNI_POWER', operator: 'gte', value: 15000 } as unknown as import('../src/types/effects').ActiveCondition;
+  const src = fresh();
+  const front = fresh();
+  const me = mkState({ signi: [null, src, null] });  // 効果元は index1
+  const op = mkState({ signi: [null, front, null] }); // 正面 = 相手 index 2-1 = 1
+  const powHi = new Map<string, number>([[front, 15000]]);
+  const powLo = new Map<string, number>([[front, 12000]]);
+  eq(checkActiveCondition(cond, me, op, true, cardMap as Map<string, CardData>, src, powHi), true, '正面15000で true');
+  eq(checkActiveCondition(cond, me, op, true, cardMap as Map<string, CardData>, src, powLo), false, '正面12000で false');
+  const opEmpty = mkState({ signi: [null, null, null] });
+  eq(checkActiveCondition(cond, me, opEmpty, true, cardMap as Map<string, CardData>, src, powHi), false, '正面が空なら false');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
