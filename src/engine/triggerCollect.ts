@@ -1130,6 +1130,21 @@ export function collectPowerDecreaseTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_POWER_DECREASED')) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      // 発生源限定（「あなたの＜X＞のシグニの効果によって」「あなたの**他の**＜X＞のシグニの効果によって」）。
+      // ⚠decreaseSources が空＝発生源不明（srcCardNum 未記録の経路）は**従来どおり発火**させる。
+      //   ここで落とすと部分実装が「発火しない」退化になるため、不明時は過剰側に倒す（§3 タスク12(xxiv)）。
+      const reqStory = eff.triggerCondition?.powerDecreaseSourceStory;
+      const reqOther = eff.triggerCondition?.powerDecreaseExcludeSelf;
+      if ((reqStory || reqOther) && decreaseSources.length > 0) {
+        const ok = decreaseSources.some(src => {
+          if (reqOther && src === topNum) return false;             // 「他の」＝自分自身の効果は発生源にならない
+          if (!reqStory) return true;
+          // 発生源は「あなたの」＝controller 側のカード。CardClass に指定クラスを含むシグニのみ。
+          const cls = ctx.cardMap.get(getCardNum(src))?.CardClass ?? '';
+          return cls.includes(reqStory);
+        });
+        if (!ok) continue;
+      }
       if (!limitOk(eff)) continue;
       // deltaFromOppPowerDecrease: 「減った値と同じだけ＋」を decreaseOnOpp で動的注入
       let resolvedEff = eff;
