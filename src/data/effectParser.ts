@@ -2329,6 +2329,12 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   const tgt = fin?.target ?? fin?.source;
   if (!tgt || tgt.type !== 'SIGNI' || tgt.owner === 'opponent') return action;
   tgt.owner = 'opponent';
+  // designation で「それ」の指し先が確定したので、トリガー元への自動対象フラグは撤去する。
+  // 残すと engine が triggeringCardNum ?? sourceCardNum（＝【起】ではカード自身）へ解決して
+  // 対象化した相手シグニではなく自分自身に効果が乗る（WXK02-028-E3・続き209）。
+  if ((fin as { targetsTriggerSource?: boolean }).targetsTriggerSource) {
+    delete (fin as { targetsTriggerSource?: boolean }).targetsTriggerSource;
+  }
   if (!tgt.filter) tgt.filter = {};
   for (const [k, v] of Object.entries(desig.filter ?? {})) {
     if (!(k in tgt.filter)) (tgt.filter as Record<string, unknown>)[k] = v;
