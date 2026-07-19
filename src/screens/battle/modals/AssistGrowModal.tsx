@@ -22,7 +22,7 @@ interface AssistGrowModalProps {
 }
 
 export function AssistGrowModal(p: AssistGrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showAssistGrowModal, setShowAssistGrowModal, pendingAssistGrowCard, setPendingAssistGrowCard, pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost, getAssistGrowCandidates, executeAssistGrow } = p;
   return (
     <>
