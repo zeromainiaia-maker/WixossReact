@@ -891,6 +891,30 @@ test('dual-pick 構造固定（WX24-P1-017/WX25-P3-038 が LOOK_PICK_CHAIN[hand,
     ok(s.includes('LOOK_PICK_CHAIN') && s.includes('"then":"hand"') && s.includes('"then":"field"'), `${num}: dual-pick LOOK_PICK_CHAIN[hand,field] のはず`);
   }
 });
+// 続き218c: 場出しのみの単段 LOOK_PICK_CHAIN[field]。dual-pick 規則は hand段+field段の**両方**を要求するため、
+// 「その中からシグニをN枚まで場に出し、残りを…」だけの形はどの規則にも掛からず bare LOOK_AND_REORDER へ縮退し、
+// **場に出す部分が丸ごと消える no-op** だった（WX25-CP1-012-E3 ほか16効果の系統）。
+test('場出しのみ pick の構造固定（LOOK_PICK_CHAIN[field]・bare LOOK_AND_REORDER に戻っていない・続き218c）', () => {
+  for (const num of ['WX25-CP1-012', 'WXDi-P11-030', 'WX25-CP1-043', 'WXK01-057', 'WX25-P1-053']) {
+    const s = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(s.includes('LOOK_PICK_CHAIN') && s.includes('"then":"field"'),
+       `${num}: LOOK_PICK_CHAIN[field] のはず（実際 ${s.slice(0, 220)}）`);
+  }
+  // 残りの行き先も原文どおり（デッキ下／トラッシュ／デッキ上）
+  ok(JSON.stringify(effectsMap.get('WXK01-057') ?? []).includes('"remainder":{"location":"trash"'), 'WXK01-057: 残りはトラッシュ');
+  ok(JSON.stringify(effectsMap.get('WX25-P1-053') ?? []).includes('"position":"top"'), 'WX25-P1-053: 残りはデッキの一番上');
+  // 「手札に加えるか場に出し」（選択形）は REVEAL_AND_PICK の担当＝本規則が横取りしていないこと
+  ok(JSON.stringify(effectsMap.get('WX24-P2-062') ?? []).includes('REVEAL_AND_PICK'), 'WX24-P2-062: 選択形は REVEAL_AND_PICK のまま');
+});
+test('LOOK_PICK_CHAIN remainder=energy: 残りがエナゾーンへ（デッキに残らない・続き218c）', () => {
+  const ctx = mkCtx({ deckTop: [SIGNI, SIGNI_L2, SIGNI_P3000] }, {});
+  const beforeEnergy = ctx.ownerState.energy.length;
+  const r = run({ type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3, stages: [
+    { filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field' },
+  ], remainder: { location: 'energy', position: 'any' } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.field.signi.filter(Boolean).length, 1, '1枚が場へ');
+  eq(r.ownerState.energy.length, beforeEnergy + 2, '残り2枚がエナゾーンへ（従来は黙ってデッキに残っていた）');
+});
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。
