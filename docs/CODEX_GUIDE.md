@@ -140,6 +140,7 @@ node scripts/groupSimilar.mjs --all   # 同型★
 | 9 | **JSON 手パッチは parser 同修正か MANUAL 化とセット**。`effects_*.json` はミニファイ1行＝`JSON.stringify(j)` で書き戻す | 片方だけだと held 計器が増える。pretty-print は巨大 diff |
 | 10 | **`MANUAL`/`PARTIAL` を含むカードは `build:effects` が curated を温存し heldReview に載らない**（`PRESERVE_STATUSES`）と明記 | 続き209 で `WXEX1-03` がこれに該当し、直接 JSON パッチが必要だった |
 | 11 | **既存挙動を広く変える一般化はしない**（regex は具体文型に限定） | 続き207 の「plain な『場に出してもよい』の optional 化は据置」判断 |
+| 12 | **変更は per-card ではなく per-effect で報告させる** | 続き212 で Codex は「変更8カード・outlier 0」と正しく報告したが、**採用はカード単位なので同じカード内の別効果3件も一緒に変わっていた**（`PR-427-E3`／`WXDi-D09-H17-E2`／`WXDi-P11-039-E2`）。今回は3件とも改善方向だったが、**退化していても報告に現れない**。カード単位の diff だけ見ていると見逃す |
 
 ---
 
