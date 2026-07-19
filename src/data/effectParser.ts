@@ -2946,6 +2946,8 @@ function parseActionTextInner(text: string): EffectAction {
             ...(Object.keys(filter).length > 0 ? { filter } : {}),
             pickCount,
             ...(pickUpTo ? { pickUpTo: true } : {}),
+            // 原文が「シグニ」でなく「カード」を拾う形なら逆翻訳の名詞を保持（既定は「シグニ」・G236）。
+            ...(pk[2] === 'カード' ? { pickNoun: 'カード' } : {}),
             then: { type: 'ADD_TO_HAND', owner: 'self' },
             remainder,
           } as RevealAndPickAction;
