@@ -4308,20 +4308,28 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   ⚠「対戦相手の効果によって場を離れたとき」(WX19-026・下記4068)・「場から手札に戻った/移動したとき」(4049/4055) は
       //     別スコープ（byOpponentEffect/any_opp）で既処理＝ここでは除去しない（guard 参照）。
       if (timing[0] === 'ON_LEAVE_FIELD') {
-        const ls = actionText.replace(/場から離れ?たとき/g, '場を離れたとき'); // 「場から離れた」＝「場を離れた」（WX12-015）
-        const lm = ls.match(/^(?:(この)?アタックフェイズの間[、,])?(?:(対戦相手|あなた)のターンの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
-        if (lm && !/対戦相手の効果によって|場から手札に(?:戻った|移動した)とき/.test(ls)) {
-          if (lm[1] !== undefined) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringAttackPhase: true };
-          if (lm[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: lm[2] === '対戦相手' ? 'opponent' : 'self' };
-          if (lm[3] !== 'このシグニ') {
+        // 「(対戦相手|あなた)のターンの間、」前置きは主語形に依らず turnOwner に落とす（WX19-003/WXK11-017「相手の効果によって離れたとき」等）。
+        const leaveScan = actionText.replace(/^(対戦相手|あなた)のターンの間、/, (_m, who) => {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: who === '対戦相手' ? 'opponent' : 'self' };
+          return '';
+        }).replace(/場から離れ?たとき/g, '場を離れたとき'); // 「場から離れた」＝「場を離れた」（WX12-015）
+        // 前置き（アタックフェイズの間）＋主語（このシグニ / あなたの[他の][カード名に《X》を含む|＜Y＞の]シグニ）＋「が場を離れたとき、」を
+        // まとめて解釈し、duringAttackPhase / scope / triggerFilter を抽出したうえで **actionText からトリガー句を除去** する
+        // （除去しないと後続 parser が末尾の「…それを場に出す」を GRANT_LEAVE_PLACE_PENDING STUB へ丸める＝WXEX2-51-E1 が no-op）。
+        // ⚠「対戦相手の効果によって場を離れたとき」(WX19-026・下記4068)・「場から手札に戻った/移動したとき」(4049/4055) は
+        //   別スコープ（byOpponentEffect/any_opp/leftToZone）で既処理＝ここでは除去しない（guard 参照）。
+        const lm = leaveScan.match(/^((?:この)?アタックフェイズの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
+        if (lm && !/対戦相手の効果によって|場から手札に(?:戻った|移動した)とき/.test(leaveScan)) {
+          if (lm[1]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringAttackPhase: true };
+          if (lm[2] !== 'このシグニ') {
             extractedTriggerScope = 'any_ally';
             const lf: NonNullable<typeof extractedTriggerFilter> = {};
-            if (lm[4]) lf.excludeSelf = true;   // 「他の」＝自身を除く
-            if (lm[5]) lf.cardName = lm[5];      // 「カード名に《X》を含む」＝部分一致（WXEX2-51 ユラギ）
-            else if (lm[6]) lf.story = lm[6];    // 「＜Y＞の」
+            if (lm[3]) lf.excludeSelf = true;   // 「他の」＝自身を除く
+            if (lm[4]) lf.cardName = lm[4];      // 「カード名に《X》を含む」＝部分一致（WXEX2-51 ユラギ）
+            else if (lm[5]) lf.story = lm[5];    // 「＜Y＞の」
             if (Object.keys(lf).length) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...lf };
           }
-          actionText = ls.slice(lm[0].length);
+          actionText = leaveScan.slice(lm[0].length);
         }
       }
       // ON_PLAY: 「あなたの[＜X＞の]シグニ[N体]が（効果によって）場に出たとき」= any_ally＋triggerFilter。「効果によって」= byEffect 限定
