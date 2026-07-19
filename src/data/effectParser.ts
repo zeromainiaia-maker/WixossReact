@@ -3929,6 +3929,25 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           .replace(/^[^。「」]*?(?:ダウン|アップ)状態になったとき[、,]\s*/, '')
           .replace(/^あなたの《[^》]+》がダウンしたとき[、,]\s*/, '');
       }
+      // ON_HAND_ADDED（続き207）: handOwner／fromZones／movedSelf／excludeGrowPhase／turnOwner／移動カード filter を抽出。
+      if (timing[0] === 'ON_HAND_ADDED') {
+        const haCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        if (/対戦相手の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上対戦相手の手札に移動したとき/.test(trigText)) {
+          haCond.handOwner = 'opponent'; // 増えたのは相手の手札
+          haCond.byOpponentEffect = true; // 原因も相手の効果
+        }
+        if (/グロウフェイズ以外で/.test(trigText)) haCond.excludeGrowPhase = true;
+        if (/エナゾーンから/.test(trigText)) haCond.fromZones = ['energy'];
+        // 「このシグニが（あなたの）エナゾーンから手札に移動したとき」＝移動カード自身が手札から発火（WD12-009/010）
+        if (/このシグニが(?:あなたの)?エナゾーンから手札に移動したとき/.test(trigText)) haCond.movedSelf = true;
+        if (/^あなたのターンの間[、,]/.test(trigText)) haCond.turnOwner = 'self';
+        else if (/^対戦相手のターンの間[、,]/.test(trigText)) haCond.turnOwner = 'opponent';
+        // 移動カード側 filter（「エナゾーンからシグニ1枚が」＝シグニ限定。WXDi-P11-007）
+        if (/エナゾーンからシグニ[０-９\d]+枚が/.test(trigText)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), cardType: 'シグニ' };
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...haCond };
+        // トリガー句を action 本文から除去（「エナ」等が後続の対象パースのガードに誤マッチするのを防ぐ）
+        actionText = actionText.replace(/^[^。「」]*?(?:手札に移動したとき|手札に加わるか場に出たとき)[、,]\s*/, '');
+      }
       // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・タスク16[C]機構②）: fromZones:['hand'] を軸に
       //   原因限定（対戦相手の効果/あなたの効果/＜X＞のシグニの効果）・turnOwner を抽出。
       if (timing[0] === 'ON_TRASH' && !/能力のコストとして/.test(trigText)
