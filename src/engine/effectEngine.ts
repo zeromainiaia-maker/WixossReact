@@ -866,11 +866,37 @@ function extractCostReductions(action: EffectAction): CostReductionAction[] {
   return [];
 }
 
+/** SEQUENCE ステップ内を再帰的に探索し BANISH_REDIRECT アクションを収集する。 */
+export function collectBanishRedirectActions(action: EffectAction): import('../types/effects').BanishRedirectAction[] {
+  if (action.type === 'BANISH_REDIRECT') return [action as import('../types/effects').BanishRedirectAction];
+  if (action.type === 'SEQUENCE') {
+    return (action as import('../types/effects').SequenceAction).steps.flatMap(s => collectBanishRedirectActions(s));
+  }
+  return [];
+}
+
 /** SEQUENCE ステップ内を再帰的に探索し BANISH_REDIRECT が含まれるか判定する。 */
 export function hasBanishRedirectInAction(action: EffectAction): boolean {
-  if (action.type === 'BANISH_REDIRECT') return true;
-  if (action.type === 'SEQUENCE') return (action as import('../types/effects').SequenceAction).steps.some(s => hasBanishRedirectInAction(s));
-  return false;
+  return collectBanishRedirectActions(action).length > 0;
+}
+
+/**
+ * CONTINUOUS BANISH_REDIRECT を持つシグニ `holderNum` が、いま起きているバニッシュに対して
+ * 置換を適用できるか（2026-07-19 続き217）。
+ * @param battlingNum バトル中のそのプレイヤー側のシグニ。バトル以外の経路（パワー0以下での消滅等）は null。
+ *
+ * `bySource` 無し＝無条件（従来どおり場にあるだけで適用）。
+ * `bySource` 有り＝「このシグニとの/による」バニッシュに限るので、能力の持ち主自身がバトル当事者の
+ * ときだけ適用する。バトル経路でない（battlingNum=null）なら適用しない。
+ */
+export function banishRedirectAppliesFrom(
+  action: EffectAction,
+  holderNum: string,
+  battlingNum: string | null,
+): boolean {
+  const acts = collectBanishRedirectActions(action);
+  if (acts.length === 0) return false;
+  return acts.some(a => (a.bySource === undefined ? true : battlingNum !== null && holderNum === battlingNum));
 }
 
 // ===== フィールドシグニの有効パワー計算 =====
