@@ -6605,6 +6605,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
         .filter(e => !e.crossOnly || attackerCrossOk) // 【クロス自】はアタッカーがクロス状態のときのみ
+        .filter(e => !e.kizunaIcon || isKizunaActive(newMyState, myTopNum, battleCardMap)) // 【絆自】は絆獲得時のみ
         .filter(e => !e.condition || evalUseCondition(e.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, atkSelfPowers))
         .map(e => ({
           id: generateUUID(),
