@@ -1,12 +1,12 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-19T10:00:10.214Z / 刻印効果 63件
+生成: 2026-07-19T10:28:36.675Z / 刻印効果 53件
 
 ## カテゴリ別件数
 
 - IS_MY_TURN化: 50
-- multi-dest分割: 11
 - リコレクト分割: 3
+- 場出しpick分割: 1
 
 ## 明細（effectId → 理由）
 
@@ -36,20 +36,10 @@ WX20-053-E2	IS_MY_TURN化:その後、この方法でデッキからカードを
 WX21-023-E1	IS_MY_TURN化:その後、この方法でシグニを２枚以上公開した場合、
 WX22-021-E2	IS_MY_TURN化:この方法でカードが７枚以上公開された場合、
 WX22-043-E1	IS_MY_TURN化:この方法でカードを２枚エナゾーンに置いた場合、
-WX24-P1-017-E1	multi-dest分割:UNKNOWNアクション除去
-WX24-P1-026-E1	multi-dest分割:UNKNOWNアクション除去
-WX24-P2-035-E1	multi-dest分割:UNKNOWNアクション除去
-WX24-P3-037-E1	multi-dest分割:UNKNOWNステップ除去
-WX24-P3-039-E1	multi-dest分割:UNKNOWNステップ除去
 WX24-P4-016-E3	リコレクト分割:UNKNOWNステップ除去
 WX24-P4-045-E1	IS_MY_TURN化:この方法でカードをライフクロスに加えた場合、
 WX25-P1-026-E2	IS_MY_TURN化:この方法でカードを５枚以上手札に加えた場合、
-WX25-P1-039-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P1-044-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P2-039-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P2-041-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P3-038-E1	multi-dest分割:UNKNOWNアクション除去
-WX25-P3-045-E1	multi-dest分割:UNKNOWNアクション除去
+WX25-P1-052-E1	場出しpick分割:UNKNOWNアクション除去
 WX26-CP1-058-E1	IS_MY_TURN化:その後、この方法であなたのデッキから＜プリオケ＞のカードが３枚以上トラッシュに置かれた場合、
 WXDi-CP01-045-E1	IS_MY_TURN化:この方法で＜バーチャル＞のシグニ２枚がトラッシュに置かれた場合、
 WXDi-P01-082-E1	IS_MY_TURN化:この方法でシグニを手札に加えた場合、

@@ -2628,7 +2628,7 @@ function parseActionTextInner(text: string): EffectAction {
   //      二目的 dual-pick＝LOOK_PICK_CHAIN[hand ステージ, field ステージ]。後続「この方法で場に出たシグニは…」等が
   //      付く札は前後を parseActionText で解析し SEQUENCE[prefix, LPC, suffix] に組む（bare LOOK_AND_REORDER 化を防ぐ）。
   {
-    const dp = text.match(/デッキの上からカードを([０-９\d]+)枚見る。\s*その中から(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで(?:公開し)?手札に加え、(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで場に出し、残り[^。]*?(デッキの一番下|トラッシュ)[^。]*?。/);
+    const dp = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚見る。\s*その中から(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで(?:公開し)?手札に加え、(?:＜([^＞]+)＞の)?シグニを?([０-９\d]+)枚まで場に出し、残り[^。]*?(デッキの一番下|トラッシュ)[^。]*?。/);
     if (dp && dp.index !== undefined) {
       // dp: [1]revealCount [2]手札クラス [3]手札枚数 [4]場クラス [5]場枚数 [6]残り先
       const remainder: { location: 'deck' | 'trash'; position: 'top' | 'bottom' | 'any' } =
@@ -2661,8 +2661,12 @@ function parseActionTextInner(text: string): EffectAction {
   //      ⚠「手札に加えるか場に出し」（選択形）は次の REVEAL_AND_PICK 規則の担当＝ここでは除外する。
   {
     // 「２枚まで場に出し」と「１枚を場に出し」（上限なし＝ちょうどN枚）の両語形を取る
-    const fp = text.match(/デッキの上からカードを([０-９\d]+)枚見る。\s*その中から((?:(?!手札に加える)[^。])*?)シグニを?([０-９\d]+)枚(まで)?を?場に出し、残り[^。]*?(デッキの一番下|デッキの一番上|トラッシュ|エナゾーン)[^。]*?。/);
-    if (fp && fp.index !== undefined && !/手札に加えるか場に出/.test(text)) {
+    const fp = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚見る。\s*その中から((?:(?!手札に加える)[^。])*?)シグニを?([０-９\d]+)枚(まで)?を?場に出し、残り[^。]*?(デッキの一番下|デッキの一番上|トラッシュ|エナゾーン)[^。]*?。/);
+    // ⚠ガード：後続に**引用能力の付与**（「【自】…」を得る）を含む札は対象外にする。前後文を
+    //   parseActionText で平坦化すると引用の**中身が即時実行のステップに化ける**（WX24-P2-001＝
+    //   「それは『このシグニがアタックしたとき…』を得る」が UP＋REMOVE_ABILITIES の即時実行になった）。
+    //   付与のまま表現するには GRANT_QUOTED_AUTO_ABILITY 経路が要る＝据置（現状維持で退化させない）。
+    if (fp && fp.index !== undefined && !/手札に加えるか場に出/.test(text) && !/「[^」]*」を得る/.test(text)) {
       // fp: [1]revealCount [2]フィルタ記述 [3]枚数 [4]「まで」 [5]残りの行き先
       const desc = fp[2];
       const remainder: { location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' } =

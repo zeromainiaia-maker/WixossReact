@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［77枚］
-PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX19-078 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-P1-014 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-D09-P14 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-044 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-048 WXK06-050 WXK08-023 WXK08-059 WXK09-084
+## （type増減なし＝値/構造変更） ［73枚］
+PR-Di017B SPDi44-12 SPDi47-04 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-P1-014 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-084
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -102,6 +102,54 @@ SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-P1-058 WX25-P3-069 WX
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "黒"
   + [0].action.steps[0].costColors[1] = "黒"
+
+## +LOOK_PICK_CHAIN -LOOK_AND_REORDER ［9枚］
+WX20-037 WX24-P2-065 WX25-CP1-012 WX25-CP1-043 WX25-P1-053 WX26-CP1-070 WXDi-P11-030 WXK01-057 WXK02-030
+--- WX20-037
+  原文: 【ライズ】あなたの赤のシグニ２体の上に置く【出】：あなたのデッキの上からカードを３枚見る。その中から赤のシグニを２枚まで場に出し、残りをトラッシュに置く。【起】このシグニの下からカード２枚をトラッシュに置く：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。,：カードを１枚引く。
+  - [0].action.source.location = "deck"
+  - [0].action.source.owner = "self"
+  - [0].action.count = 3
+  - [0].action.private = true
+  - [0].action.reorder = false
+  - [0].action.canTrash = true
+  - [0].action.destination.location = "deck"
+  - [0].action.destination.owner = "self"
+  - [0].action.destination.position = "top"
+  ~ [0].action.type : "LOOK_AND_REORDER" → "LOOK_PICK_CHAIN"
+  + [0].action.owner = "self"
+  + [0].action.revealCount = 3
+  …（他 6 行）
+--- WX24-P2-065
+  原文: あなたのデッキの上からカードを３枚見る。その中から＜天使＞か＜悪魔＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。,：対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。
+  - [0].action.source.location = "deck"
+  - [0].action.source.owner = "self"
+  - [0].action.count = 3
+  - [0].action.private = true
+  - [0].action.reorder = true
+  - [0].action.canTrash = false
+  - [0].action.destination.location = "deck"
+  - [0].action.destination.owner = "self"
+  - [0].action.destination.position = "bottom"
+  ~ [0].action.type : "LOOK_AND_REORDER" → "LOOK_PICK_CHAIN"
+  + [0].action.owner = "self"
+  + [0].action.revealCount = 3
+  …（他 7 行）
+--- WX25-CP1-012
+  原文: 【自】：あなたのルリグかシグニがアタックによって対戦相手のライフクロスを１枚以上クラッシュしたとき、そのアタック終了時、対戦相手が《無》を支払わないかぎり、対戦相手にダメージを与える。【起】《ゲーム１回》《白×0》：対戦相手のレベル２以下のシグニ１体を対象とし、それを手札に戻す。【絆起】《ゲーム１回》《白×0》：あなたのデッキの上からカードを５枚見る。その中
+  - [2].action.source.location = "deck"
+  - [2].action.source.owner = "self"
+  - [2].action.count = 5
+  - [2].action.private = true
+  - [2].action.reorder = true
+  - [2].action.canTrash = false
+  - [2].action.destination.location = "deck"
+  - [2].action.destination.owner = "self"
+  - [2].action.destination.position = "bottom"
+  ~ [2].action.type : "LOOK_AND_REORDER" → "LOOK_PICK_CHAIN"
+  + [2].action.owner = "self"
+  + [2].action.revealCount = 5
+  …（他 5 行）
 
 ## -CONDITIONAL -TRASH_HAS_CARD ［6枚］
 WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
@@ -1063,6 +1111,24 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   …（他 29 行）
 
+## +GRANT_KEYWORD +LOOK_PICK_CHAIN +SEQUENCE +SIGNI -LOOK_AND_REORDER ［1枚］
+WXDi-CP01-005
+--- WXDi-CP01-005
+  原文: 【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりに《無》を支払いコラボライバー１人とコラボしてもよい。【出】：コラボライバー２人を呼ぶ。【起】《ゲーム１回》＃ヘルエスタ国営放送《白×0》：あなたのデッキの上からカードを５枚見る。その中からシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。次の対戦相手のターンの
+  - [2].action.source.location = "deck"
+  - [2].action.source.owner = "self"
+  - [2].action.count = 5
+  - [2].action.private = true
+  - [2].action.reorder = true
+  - [2].action.canTrash = false
+  - [2].action.destination.location = "deck"
+  - [2].action.destination.owner = "self"
+  - [2].action.destination.position = "bottom"
+  ~ [2].action.type : "LOOK_AND_REORDER" → "SEQUENCE"
+  + [2].action.steps[0].type = "LOOK_PICK_CHAIN"
+  + [2].action.steps[0].owner = "self"
+  …（他 12 行）
+
 ## +CONDITIONAL +IS_MY_TURN +THIS_CARD_IS_UP -TRASHED_STORY_COUNT_GTE ［1枚］
 WXDi-CP01-045
 --- WXDi-CP01-045
@@ -1081,6 +1147,24 @@ WXDi-CP01-045
   ~ [0].action.steps[1].condition.type : "TRASHED_STORY_COUNT_GTE" → "IS_MY_TURN"
   …（他 1 行）
 
+## +LOOK_PICK_CHAIN +REMOVE_ABILITIES +SIGNI×2 +UP -LOOK_AND_REORDER ［1枚］
+WX24-P2-001
+--- WX24-P2-001
+  原文: あなたのデッキの上からカードを３枚見る。その中からシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。その後、あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、このシグニをアップし、ターン終了時まで、このシグニは能力を失う。」を得る。《リコレクトアイコン》［４枚以上］追加で対戦相手のシグニ１体を対象と
+  - [0].action.steps[0].source.location = "deck"
+  - [0].action.steps[0].source.owner = "self"
+  - [0].action.steps[0].count = 3
+  - [0].action.steps[0].private = true
+  - [0].action.steps[0].reorder = true
+  - [0].action.steps[0].canTrash = false
+  - [0].action.steps[0].destination.location = "deck"
+  - [0].action.steps[0].destination.owner = "self"
+  - [0].action.steps[0].destination.position = "bottom"
+  - [0].action.steps[1].minArts = 4
+  - [0].action.steps[2].target.upToCount = false
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  …（他 27 行）
+
 ## -CHOOSE -CONDITIONAL -DECK_CARD -HAS_CARD_IN_FIELD -TRASH ［1枚］
 WX24-P3-057
 --- WX24-P3-057
@@ -1098,6 +1182,42 @@ WX24-P3-057
   - [0].action.choices[1].action.type = "TRASH"
   - [0].action.choices[1].action.target.type = "DECK_CARD"
   …（他 17 行）
+
+## +LOOK_PICK_CHAIN -LOOK_AND_REORDER -SEQUENCE -STUB ［1枚］
+WX24-P4-022
+--- WX24-P4-022
+  原文: 【常】：このルリグはあなたのルリグトラッシュにあるレベル３の＜アン＞と同じカード名としても扱い、そのルリグの【自】能力を得る。【出】エクシード４：あなたのデッキの上からカードを４枚見る。その中からシグニを３枚まで場に出し、残りをエナゾーンに置く。【起】《ゲーム１回》アイディール《緑×0》：《リコレクトアイコン》［４枚以上］対戦相手のシグニゾーンかエナゾーンか
+  - [1].action.steps[0].type = "LOOK_AND_REORDER"
+  - [1].action.steps[0].source.location = "deck"
+  - [1].action.steps[0].source.owner = "self"
+  - [1].action.steps[0].count = 4
+  - [1].action.steps[0].private = true
+  - [1].action.steps[0].reorder = false
+  - [1].action.steps[0].canTrash = false
+  - [1].action.steps[0].destination.location = "deck"
+  - [1].action.steps[0].destination.owner = "self"
+  - [1].action.steps[0].destination.position = "top"
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "REVEAL_PICK_PLAY"
+  …（他 8 行）
+
+## +INSTALL_DELAYED_TRIGGER +LOOK_PICK_CHAIN +POWER_MODIFY +SEQUENCE +SIGNI -LOOK_AND_REORDER ［1枚］
+WX25-P1-079
+--- WX25-P1-079
+  原文: あなたのデッキの上からカードを５枚見る。その中から＜ウェポン＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。次のあなたのアタックフェイズ開始時、次の対戦相手のターン終了時まで、あなたのクロス状態のすべてのシグニのパワーを＋3000する。,：対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。
+  - [0].action.source.location = "deck"
+  - [0].action.source.owner = "self"
+  - [0].action.count = 5
+  - [0].action.private = true
+  - [0].action.reorder = true
+  - [0].action.canTrash = false
+  - [0].action.destination.location = "deck"
+  - [0].action.destination.owner = "self"
+  - [0].action.destination.position = "bottom"
+  ~ [0].action.type : "LOOK_AND_REORDER" → "SEQUENCE"
+  + [0].action.steps[0].type = "LOOK_PICK_CHAIN"
+  + [0].action.steps[0].owner = "self"
+  …（他 16 行）
 
 ## -CONDITIONAL -THIS_CARD_IS_AWAKENED ［1枚］
 WX25-P2-095
@@ -1221,6 +1341,24 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
+
+## +BANISH +LOOK_PICK_CHAIN +SEQUENCE +SIGNI -LOOK_AND_REORDER ［1枚］
+WDK06-R01
+--- WDK06-R01
+  原文: 【常】：あなたのターンの間、あなたの＜アーム＞のシグニのパワーを＋3000する。【出】：あなたのデッキの上からカードを３枚見る。その中から＜アーム＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。その後、この方法で場に出たシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたの場に《メル＝マドラー》がいる場合
+  - [1].action.source.location = "deck"
+  - [1].action.source.owner = "self"
+  - [1].action.count = 3
+  - [1].action.private = true
+  - [1].action.reorder = true
+  - [1].action.canTrash = false
+  - [1].action.destination.location = "deck"
+  - [1].action.destination.owner = "self"
+  - [1].action.destination.position = "bottom"
+  ~ [1].action.type : "LOOK_AND_REORDER" → "SEQUENCE"
+  + [1].action.steps[0].type = "LOOK_PICK_CHAIN"
+  + [1].action.steps[0].owner = "self"
+  …（他 13 行）
 
 ## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
 WDK06-R08
