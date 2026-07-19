@@ -4814,6 +4814,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       useCondition = extracted.condition;
       actionText = extracted.cleaned;
     }
+    if (process.env.DBG_LEAVE && timing[0] === 'ON_LEAVE_FIELD') console.error('[PRE_PARSE] actionText=', JSON.stringify(actionText));
     resolvedAction = parseActionText(actionText);
   }
   // 無言フォールバック刻印をここで回収（以降のサブ展開 parseBlock は各自の効果内で回収する）
