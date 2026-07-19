@@ -247,6 +247,37 @@ test('POWER_MODIFY_PER_ENERGY: エナ枚数×deltaでCONTパワー加算（WX09-
   const p0 = calcFieldPowers(mkState({ signi: ['WX09-019', null, null], energy: 0 }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(p0.get('WX09-019'), base, 'エナ0枚で加算なし');
 });
+test('DURING_ATTACK_PHASE: checkActiveCondition が owner別×phase別に判定／turnPhase未指定は従来どおりtrue（タスク12）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const my = mkState({}), op = mkState({});
+  const self = { type: 'DURING_ATTACK_PHASE', owner: 'self' } as ActiveCondition;
+  const opp = { type: 'DURING_ATTACK_PHASE', owner: 'opponent' } as ActiveCondition;
+  const bare = { type: 'DURING_ATTACK_PHASE' } as ActiveCondition;
+  // owner:self ＝自ターンのアタックフェイズのみ
+  ok(checkActiveCondition(self, my, op, true,  cm, undefined, undefined, undefined, 'ATTACK_SIGNI') === true,  'self+自ターンATTACK=有効');
+  ok(checkActiveCondition(self, my, op, true,  cm, undefined, undefined, undefined, 'MAIN')         === false, 'self+自ターンMAIN=無効');
+  ok(checkActiveCondition(self, my, op, false, cm, undefined, undefined, undefined, 'ATTACK_LRIG')  === false, 'self+相手ターンATTACK=無効');
+  // owner:opponent ＝相手ターンのアタックフェイズのみ
+  ok(checkActiveCondition(opp,  my, op, false, cm, undefined, undefined, undefined, 'ATTACK_SIGNI') === true,  'opp+相手ターンATTACK=有効');
+  ok(checkActiveCondition(opp,  my, op, true,  cm, undefined, undefined, undefined, 'ATTACK_SIGNI') === false, 'opp+自ターンATTACK=無効');
+  // bare ＝どちらのアタックフェイズでも（非アタックフェイズは無効）
+  ok(checkActiveCondition(bare, my, op, true,  cm, undefined, undefined, undefined, 'ATTACK_ARTS')  === true,  'bare+自ターンATTACK=有効');
+  ok(checkActiveCondition(bare, my, op, false, cm, undefined, undefined, undefined, 'ATTACK_SIGNI') === true,  'bare+相手ターンATTACK=有効');
+  ok(checkActiveCondition(bare, my, op, true,  cm, undefined, undefined, undefined, 'MAIN')         === false, 'bare+MAIN=無効');
+  // turnPhase未指定＝計器の呼び出し元では過小実行を避けるため true（permissive）
+  ok(checkActiveCondition(self, my, op, false, cm) === true, 'turnPhase未指定=permissive true');
+});
+test('DURING_ATTACK_PHASE: calcFieldPowers に turnPhase が通り WX25-CP1-082-E3 の＋5000がアタックフェイズのみ乗る（タスク12）', () => {
+  const cn = 'WX25-CP1-082'; // 里浜ウミカ・Power10000・【絆常】アタックフェイズの間このシグニ＋5000
+  const base = parseInt(cardMap.get(cn)?.Power || '0');
+  const my = mkState({ signi: [cn, null, null] });
+  (my as unknown as { bonds: string[] }).bonds = [cardMap.get(cn)?.CardName ?? '']; // 絆獲得済みにする（kizunaIconゲート）
+  const op = mkState({});
+  const cm = cardMap as Map<string, CardData>;
+  eq(calcFieldPowers(my, op, true, effectsMap, cm, 'ATTACK_SIGNI').get(cn), base + 5000, 'アタックフェイズ=+5000');
+  eq(calcFieldPowers(my, op, true, effectsMap, cm, 'MAIN').get(cn),         base,        'MAIN=加算なし');
+  eq(calcFieldPowers(my, op, true, effectsMap, cm).get(cn),                 base + 5000, 'turnPhase未指定=従来どおり適用（permissive）');
+});
 test('LOOK_AT_DECK_AND_LIFE: 情報開示のみ（盤面不変）', () => {
   const ctx = mkCtx({}, { deckTop: [SIGNI], life: 7 });
   const beforeDeck = ctx.otherState.deck.length, beforeLife = ctx.otherState.life_cloth.length;
