@@ -1342,6 +1342,166 @@ export function collectSigniDownUpTriggers(
 }
 
 /**
+ * ON_HAND_ADDED トリガーを収集する（続き207・collectSigniDownUpTriggers と同型）。
+ * addedByOwner＝手札が増えた各所有者と移動カード（from＝移動元ゾーン）。causeOwnerId＝原因効果のオーナー。
+ * 評価軸: triggerCondition.handOwner（増えた手札の側・既定 self）／fromZones（移動元限定）／
+ *   byOpponentEffect・byOwnEffect（原因効果のオーナー）／excludeGrowPhase（グロウフェイズ非発火）／turnOwner。
+ *   triggerFilter＝移動カード側の filter（「シグニ1枚が」等）。発火は移動イベント単位（「1枚以上」＝枚数によらず1回）。
+ * movedSelf:true の効果は場 watcher では発火せず、移動カード自身（手札に居る）の効果として別ループで発火する（WD12-009/010）。
+ */
+export function collectHandAddedTriggers(
+  ctx: TrigCtx,
+  addedByOwner: { ownerId: string; moved: { cardNum: string; from: string }[] }[],
+  causeOwnerId: string,
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const isGrowPhase = ctx.turnPhase === 'GROW';
+  const evalCommon = (eff: CardEffect, watcherId: string, watcherState: PlayerState, otherState: PlayerState, topNum: string): boolean => {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_ADDED')) return false;
+    if (eff.triggerCondition?.excludeGrowPhase && isGrowPhase) return false;
+    const to = eff.triggerCondition?.turnOwner;
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    if (to === 'self' && !watcherIsTurn) return false;
+    if (to === 'opponent' && watcherIsTurn) return false;
+    if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === watcherId) return false;
+    if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== watcherId) return false;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) return false;
+    if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) return false;
+    return true;
+  };
+  const matchingMoved = (eff: CardEffect, moved: { cardNum: string; from: string }[]): { cardNum: string; from: string }[] => {
+    let list = moved;
+    const fz = eff.triggerCondition?.fromZones;
+    if (fz && fz.length > 0) list = list.filter(m => (fz as string[]).includes(m.from));
+    if (eff.triggerFilter) list = list.filter(m => matchesFilter(ctx.cardMap.get(getCardNum(m.cardNum)), eff.triggerFilter!));
+    return list;
+  };
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    // ── 場の watcher（シグニ＋センタールリグ＋キー）──
+    if (!watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
+      const sources = [
+        ...ownFieldSources(watcherState),
+        ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+        ...(watcherState.field.key_piece_extra ?? []),
+      ];
+      for (const topNum of sources) {
+        for (const eff of effsOf(ctx, topNum)) {
+          if (eff.triggerCondition?.movedSelf) continue; // 移動カード自身の変種は下のループで扱う
+          if (!evalCommon(eff, watcherId, watcherState, otherState, topNum)) continue;
+          const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+          for (const grp of addedByOwner) {
+            if (grp.moved.length === 0) continue;
+            const handIsWatcherOwn = grp.ownerId === watcherId;
+            const ho = eff.triggerCondition?.handOwner ?? 'self';
+            if (ho === 'self' && !handIsWatcherOwn) continue;
+            if (ho === 'opponent' && handIsWatcherOwn) continue;
+            if (matchingMoved(eff, grp.moved).length === 0) continue;
+            const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+              + usedIds.filter(id => id === eff.effectId).length;
+            if (used >= max) break;
+            if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+            const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+            entries.push({
+              id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+              label: `${cardName} の【自】効果（手札移動時）`, effect: eff,
+            });
+          }
+        }
+      }
+    }
+    // ── 移動カード自身の watcher（movedSelf・手札から発火＝WD12-009/010）──
+    for (const grp of addedByOwner) {
+      if (grp.ownerId !== watcherId) continue;
+      for (const m of grp.moved) {
+        for (const eff of effsOf(ctx, m.cardNum)) {
+          if (!eff.triggerCondition?.movedSelf) continue;
+          if (!evalCommon(eff, watcherId, watcherState, otherState, m.cardNum)) continue;
+          if (matchingMoved(eff, [m]).length === 0) continue;
+          const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+          const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+            + usedIds.filter(id => id === eff.effectId).length;
+          if (used >= max) continue;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+          const cardName = ctx.cardMap.get(getCardNum(m.cardNum))?.CardName ?? m.cardNum;
+          entries.push({
+            id: ctx.genId(), playerId: watcherId, cardNum: m.cardNum, effectId: eff.effectId,
+            label: `${cardName} の【自】効果（手札に移動）`, effect: eff, triggeringCardNum: m.cardNum,
+          });
+        }
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
+ * ON_ENERGY_TO_FIELD トリガーを収集する（続き207・WXDi-P11-007-E1「エナゾーンからシグニ1枚が…場に出たとき」枝）。
+ * placedByOwner＝エナから場に出たシグニの各所有者。timing 併記（ON_HAND_ADDED とのOR）を想定し評価軸は同じ
+ * triggerCondition（turnOwner）／triggerFilter（出たシグニの filter）を使う。手札枝と同一 usageLimit を
+ * 共有するため、呼び出し側は collectHandAddedTriggers の usedIds を反映してから呼ぶこと。
+ */
+export function collectEnergyToFieldTriggers(
+  ctx: TrigCtx,
+  placedByOwner: { ownerId: string; nums: string[] }[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    if (watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const sources = [
+      ...ownFieldSources(watcherState),
+      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+      ...(watcherState.field.key_piece_extra ?? []),
+    ];
+    for (const topNum of sources) {
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_FIELD')) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+        for (const grp of placedByOwner) {
+          // 「あなたのエナゾーンから」＝自分側の配置のみ（該当カードは自エナ限定。相手側の配置では発火しない）
+          if (grp.ownerId !== watcherId) continue;
+          const nums = eff.triggerFilter
+            ? grp.nums.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter!))
+            : grp.nums;
+          if (nums.length === 0) continue;
+          const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+            + usedIds.filter(id => id === eff.effectId).length;
+          if (used >= max) break;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+          const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+          entries.push({
+            id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+            label: `${cardName} の【自】効果（エナから場に出たとき）`, effect: eff, triggeringCardNum: nums[0],
+          });
+        }
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD / ウィルス系）に反応する自フィールド/ルリグ/キーの AUTO を収集する（Stage2 抽出）。
  * FROZEN_LOSES_ABILITIES（相手ルリグ常在）・CONTINUOUS REMOVE_ABILITIES・トラッシュ自己復活（ON_LIFE_CRASHED）も処理。
  * usedOncePerTurnIds は呼び出し側で actions_done に追加して保存すること。
