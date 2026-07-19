@@ -713,6 +713,7 @@ export interface ShuffleDeckAction {
 export interface RevealAction {
   type: 'REVEAL'; // 直前に選んだカードを公開
   source?: EffectTarget; // 指定がある場合は手札等から特定のカードを公開
+  optional?: boolean; // true = 手札の全公開などを実行する／しないの二択
 }
 
 export interface AddToHandAction {

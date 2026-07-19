@@ -3247,6 +3247,10 @@ function parseActionTextInner(text: string): EffectAction {
       //（resumeLookAndReorder＝reordered を記録）。「この方法で公開された（すべての）カードがN枚/〜の場合」の結果条件を
       //   拾えるよう含める（「デッキの上からN枚公開する」WX12-Re10/WXDi-P07-064 等）。私的な「見る」は含めない。
       const prevIsPublicLook = lar?.type === 'LOOK_AND_REORDER' && lar.private === false && (typeof lar.count !== 'number' || lar.count > 1);
+      // 今回の限定形「あなたの手札を公開してもよい」は REVEAL{HAND_CARD,ALL,optional} が
+      // 公開した全カードを lastProcessedCards に残す。一般の bare REVEAL は記録しないため source 付きだけを許可する。
+      const prevReveal = prevStep as Partial<import('../types/effects').RevealAction> & { type?: string };
+      const prevIsHandRevealRecorder = prevReveal?.type === 'REVEAL' && prevReveal.source?.type === 'HAND_CARD';
       const prevConditionalOpen = prevStep?.type === 'CONDITIONAL'
         ? prevStep as import('../types/effects').ConditionalAction
         : undefined;
@@ -3259,7 +3263,8 @@ function parseActionTextInner(text: string): EffectAction {
         (prevStep as import('../types/effects').StubAction).id === 'OPEN_MAGIC_BOX') || prevIsWrappedMagicBoxOpen;
       const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain
         || prevIsProcessRecorder || prevIsProcessRecorder2 || prevIsSearchTrashRecorder || prevIsRemoveCharmRecorder
-        || prevIsNamedTransferToHand || prevIsTransferToHandRecorder || prevIsMagicBoxOpen || prevStep?.type === 'REVEAL_DECK_TOP';
+        || prevIsNamedTransferToHand || prevIsTransferToHandRecorder || prevIsMagicBoxOpen || prevIsHandRevealRecorder
+        || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
@@ -3314,6 +3319,18 @@ function parseActionTextInner(text: string): EffectAction {
           (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST') {
         condition = { type: 'PAID_ADDITIONAL_COST' };
       }
+      // 「この方法で《赤》を支払った場合」も同じ実支払い二値。対象12件の WXK07-027 に
+      // 帰結句まで限定し、同文型の別カードへ波及させない。
+      if (!condition && /^その後、この方法で《赤》を支払った場合、$/.test(thenM[0]) &&
+          /^このシグニのパワー以下の対戦相手のシグニ/.test(rest) && prevStep?.type === 'STUB' &&
+          (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST') {
+        condition = { type: 'PAID_ADDITIONAL_COST' };
+      }
+      // WXK04-084 の色＋特定札捨て複合コスト。支払い枝の内側で実際にマレガビを捨て、
+      // 対象なしなら execSequence の既存 TRASH ゲートが後続の場出しを止める。
+      const isMaregabiPaid = /^その後、この方法で《幻水マレガビ》を捨てた場合、$/.test(thenM[0]) &&
+        prevStep?.type === 'STUB' && (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST';
+      if (!condition && isMaregabiPaid) condition = { type: 'PAID_ADDITIONAL_COST' };
       // 前段の記録に依存しない盤面状態条件（対戦相手手札N枚・ライフ枚数・センタールリグ＜X＞等）。
       // 「代わりに」帰結（置換機構待ち）は据置＝ここでは拾わない。
       if (!condition && !rest.startsWith('代わりに')) {
@@ -3332,7 +3349,14 @@ function parseActionTextInner(text: string): EffectAction {
       if (!condition && !/^(?:その後、)?そうした場合、$/.test(thenM[0])) {
         markSilentFallback(`IS_MY_TURN化:${thenM[0]}`);
       }
-      steps.push({ type: 'CONDITIONAL', condition: condition ?? { type: 'IS_MY_TURN' as const }, then: parseSingleSentence(rest) });
+      let parsedThen = parseSingleSentence(rest);
+      if (isMaregabiPaid) {
+        parsedThen = { type: 'SEQUENCE', steps: [
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardName: '幻水マレガビ' } }, asCost: true },
+          parsedThen,
+        ] } as SequenceAction;
+      }
+      steps.push({ type: 'CONDITIONAL', condition: condition ?? { type: 'IS_MY_TURN' as const }, then: parsedThen });
     } else {
       // 多分岐の後続枝（「レベル２の場合、」「スペルの場合、」等・接頭辞なし）＝直前が LAST_PROCESSED_MATCHES の
       // CONDITIONAL（＝公開/ミル結果のレベル別分岐の途中）のときに限り、同じ結果への追加分岐として CONDITIONAL 化する。

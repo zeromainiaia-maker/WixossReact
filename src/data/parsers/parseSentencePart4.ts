@@ -175,7 +175,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 手札をすべて捨ててもよい ----
   if (t.match(/^あなたは手札をすべて捨ててもよい$/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' }, optional: true };
 
   // ---- すべてのシグニを好きなように配置し直してもよい ----
   if (t.match(/すべてのシグニを、?好きなように配置し直してもよい/))
@@ -562,7 +562,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- エナゾーンのカードをすべてトラッシュに置いてもよい ----
   if (t.match(/エナゾーンにあるすべてのカードをトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }, optional: true };
 
   // ---- あなたはそのカードを捨てさせてもよい / 対戦相手は〜捨てさせる ----
   if (t.match(/^あなたはそのカードを捨てさせてもよい$/))
@@ -620,8 +620,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
 
   // ---- 手札を好きな枚数捨てる ----
-  if (t.match(/^あなたは手札を好きな枚数捨てる$/) ||
-      t.match(/^手札からシグニを好きな枚数捨てる$/))
+  if (t.match(/^あなたは手札を好きな枚数捨てる$/))
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true } };
+  if (t.match(/^手札からシグニを好きな枚数捨てる$/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
   // ---- 手札から〈クラス〉/特定カードを捨ててもよい（条件付き） ----
@@ -661,7 +662,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 手札をすべて捨ててもよい（全捨て任意） ----
   if (t.match(/^手札をすべて捨ててもよい$/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' }, optional: true };
 
   // ---- 対戦相手は手札を裏向きでN束に分ける ----
   if (t.match(/対戦相手は手札を裏向きで[１-９\d０-９]+つの束に分ける/) ||
@@ -880,7 +881,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- 手札を公開してもよい ----
   if (t.match(/^あなたの手札を公開してもよい$/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+    return { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count: 'ALL' }, optional: true };
 
   // ---- 対戦相手はルリグデッキからカードを見てあなたが公開 ----
   if (t.match(/対戦相手は.*ルリグデッキからカード[１-９\d０-９]*枚を見ないで選び/))

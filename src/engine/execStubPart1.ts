@@ -65,6 +65,11 @@ export function execStubPart1(
       ],
     });
   }
+  // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
+  // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
+  if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {
+    return done({ ...addLog(ctx, '任意アクションをスキップ'), lastProcessedCards: [] });
+  }
   // 他の任意コスト系（SEQUENCEパターン外のフォールバック）
   if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
     return done(addLog(ctx, `任意コスト（${stub.id}：後続ステップで処理）`));

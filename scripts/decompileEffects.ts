@@ -993,7 +993,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
     case 'REVEAL':
-      if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する`;
+      if (a.source?.type === 'HAND_CARD' && a.source.count === 'ALL') return `${ownerJa(a.source.owner)}手札を公開する${a.optional ? '（してもよい）' : ''}`;
+      if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する${a.optional ? '（してもよい）' : ''}`;
       return `${ownerJa(a.owner)}デッキの上を公開する`;
     case 'GRANT_LRIG_ABILITY': {
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';

@@ -357,6 +357,18 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
     const scope: TargetScope = src.owner === 'self' ? 'self_hand' : 'opp_hand';
     // 選択＝公開（手札に残す）。resumeSelectTarget が lastProcessedCards=選択カード をセットし continuation を実行する
     const revealCount = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+    // 「手札を公開してもよい」は一部公開ではなく、全公開／非公開の二択。
+    if (src.count === 'ALL' && a.optional) {
+      const revealAll = { ...a, optional: false } as import('../types/effects').RevealAction;
+      const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+      return needsInteraction(addLog(ctx, '手札をすべて公開しますか？'), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'reveal', label: '公開する', action: revealAll, available: true },
+          { id: 'skip', label: '公開しない', action: skip, available: true },
+        ],
+      });
+    }
     return selectOrInteract(cands, revealCount, false, scope, { type: 'REVEAL' }, undefined, ctx);
   }
   return done(addLog(ctx, 'カードを公開'));
@@ -686,6 +698,18 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
         return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
       }
+      // 「すべてトラッシュに置いてもよい」は任意枚数ではなく、全件実行／スキップの二択。
+      if (a.optional) {
+        const trashAll = { ...a, optional: false } as TrashAction;
+        const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        return needsInteraction(addLog(ctx, 'すべてトラッシュに置きますか？'), {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'trash', label: 'すべてトラッシュに置く', action: trashAll, available: true },
+            { id: 'skip', label: 'スキップ', action: skip, available: true },
+          ],
+        });
+      }
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
     const count = resolveNum(tgt.count);
@@ -750,6 +774,17 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
         return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
       }
+      if (a.optional) {
+        const trashAll = { ...a, optional: false } as TrashAction;
+        const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        return needsInteraction(addLog(ctx, '手札をすべて捨てますか？'), {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'trash', label: 'すべて捨てる', action: trashAll, available: true },
+            { id: 'skip', label: 'スキップ', action: skip, available: true },
+          ],
+        });
+      }
       return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     }
     const count = resolveNum(tgt.count);
@@ -795,7 +830,20 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     // 「そのカード」は既にトリガーで一意に決まっており、対象を取らないため選択UIを出さず直接処理する。
     if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
-    if (tgt.count === 'ALL') return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
+    if (tgt.count === 'ALL') {
+      if (a.optional) {
+        const trashAll = { ...a, optional: false } as TrashAction;
+        const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        return needsInteraction(addLog(ctx, 'エナゾーンのカードをすべてトラッシュに置きますか？'), {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'trash', label: 'すべてトラッシュに置く', action: trashAll, available: true },
+            { id: 'skip', label: 'スキップ', action: skip, available: true },
+          ],
+        });
+      }
+      return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
+    }
     const count = resolveNum(tgt.count);
     // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）
     const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';

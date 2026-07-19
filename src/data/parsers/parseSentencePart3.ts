@@ -1068,6 +1068,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 手札からクラス等のシグニをN枚捨ててもよい ----
+  // WXK04-084 限定：色コスト＋特定名カードの手札捨てを1つの任意追加コストとして保持する。
+  // 汎用の「〜してもよい」へ広げず、このカード名・色列の原文形だけを実体化する。
+  if (/^《緑》《緑》《無》を支払い、手札から《幻水マレガビ》を１枚捨ててもよい$/.test(t)) {
+    return {
+      type: 'STUB', id: 'OPTIONAL_COST', costColors: ['緑', '緑', '無'],
+      costText: '《緑》《緑》《無》を支払い、手札から《幻水マレガビ》を１枚捨ててもよい',
+    } as StubAction;
+  }
   {
     const optDiscardM = t.match(/手札から(.+?)のシグニ?を([０-９\d]+)枚?捨ててもよい/);
     if (optDiscardM) {
