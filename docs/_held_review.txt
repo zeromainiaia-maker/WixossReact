@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［86枚］
-PR-Di017B SPDi44-12 SPDi47-04 WD14-012 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-040 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-057 WX25-P2-059 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-42 WXEX1-53 WXEX1-65 WXEX2-01 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-084
+## （type増減なし＝値/構造変更） ［84枚］
+PR-Di017B SPDi44-12 SPDi47-04 WD14-012 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX05-073 WX06-023 WX07-029 WX07-035 WX09-CB02 WX13-002 WX13-041 WX14-047 WX16-035 WX16-040 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX21-Re06 WX24-D2-11 WX24-P1-069 WX24-P2-059 WX24-P3-061 WX24-P3-077 WX24-P4-050 WX25-CP1-005 WX25-CP1-051 WX25-CP1-078 WX25-CP1-082 WX25-CP1-093 WX25-P1-014 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P2-030 WX25-P2-059 WX25-P2-063 WX25-P2-071 WX25-P2-085 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-067 WXDi-CP02-075 WXDi-CP02-081 WXDi-D01-014 WXDi-D09-H20 WXDi-D09-H24 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P03-071 WXDi-P05-058 WXDi-P06-038 WXDi-P06-049 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-072 WXDi-P10-054 WXDi-P11-007 WXDi-P11-078 WXDi-P11-TK02 WXDi-P12-050 WXDi-P12-066 WXDi-P14-081 WXDi-P15-053 WXDi-P16-078 WXDi-P16-087 WXEX1-65 WXEX2-30 WXK01-036 WXK01-037 WXK01-044 WXK05-040 WXK06-050 WXK08-023 WXK08-059 WXK09-084
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -15,8 +15,8 @@ PR-Di017B SPDi44-12 SPDi47-04 WD14-012 WD16-014 WD17-009 WDK08-L12 WDK11-011 WX0
   原文: 【起】《ターン１回》エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く：このルリグはそのカードの【歌のカケラ】を使用する。【起】《ゲーム１回》《緑×0》：《リコレクトアイコン》［４枚以上］あなたのエナゾーンからシグニを３枚まで対象とし、それらを場に出す。次の対戦相手のターン終了時まで、あなたのすべてのシグニのパワーを＋10000し、それらは【シャ
   ~ [1].action.steps[2].duration : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
 
-## +CONDITIONAL +IS_MY_TURN ［18枚］
-WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX14-029 WX16-Re02 WX20-005 WX22-033 WX24-P3-050 WX24-P3-069 WX24-P4-067 WXDi-P03-044 WXDi-P07-048 WXK04-027 WXK09-040 WXK09-063 WXK09-100
+## +CONDITIONAL +IS_MY_TURN ［17枚］
+WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX16-Re02 WX20-005 WX22-033 WX24-P3-050 WX24-P3-069 WX24-P4-067 WXDi-P03-044 WXDi-P07-048 WXK04-027 WXK09-040 WXK09-063 WXK09-100
 --- WD07-007
   原文: あなたのデッキの上からカードを４枚トラッシュに置く。その後、その中に黒のカードがある場合、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。その中に白のカードがある場合、あなたのデッキから白のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
   - [0].action.steps[1].source.type = "TRASH_CARD"
@@ -59,6 +59,54 @@ WD07-007 WX05-023 WX05-037 WX10-025 WX10-048 WX14-029 WX16-Re02 WX20-005 WX22-03
   + [0].action.steps[1].then.target.owner = "opponent"
   + [0].action.steps[1].then.target.count = 1
   ~ [0].parseStatus : "AUTO" → "PARTIAL"
+
+## +ADD_TO_FIELD +HAND_CARD -DOWN -SIGNI ［11枚］
+WD12-009 WD12-010 WX14-009 WX24-P2-052 WX24-P2-075 WX24-P2-077 WX24-P2-078 WX24-P3-053 WX24-P4-070 WX25-P2-057 WXDi-P08-040
+--- WD12-009
+  原文: 【自】：あなたのシグニ１体が効果によって場に出たとき、対戦相手のパワー15000以上のシグニ１体を対象とし、《緑》を支払ってもよい。そうした場合、それをバニッシュする。【自】：このシグニがあなたのエナゾーンから手札に移動したとき、あなたの手札からレベル４のシグニ１枚をダウン状態で場に出してもよい。,：対戦相手のパワー10000以上のシグニ１体を対象とし、それ
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "self"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.filter.level = 4
+  - [1].action.target.upToCount = false
+  ~ [1].timing[0] : "ON_PLAY" → "ON_HAND_ADDED"
+  ~ [1].action.type : "DOWN" → "ADD_TO_FIELD"
+  + [1].action.owner = "self"
+  + [1].action.source.type = "HAND_CARD"
+  + [1].action.source.owner = "self"
+  + [1].action.source.count = 1
+  …（他 7 行）
+--- WD12-010
+  原文: 【自】：このシグニがあなたのエナゾーンから手札に移動したとき、あなたの手札からレベル３のシグニ１枚をダウン状態で場に出してもよい。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.level = 3
+  - [0].action.target.upToCount = false
+  ~ [0].timing[0] : "ON_PLAY" → "ON_HAND_ADDED"
+  ~ [0].action.type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.owner = "self"
+  + [0].action.source.type = "HAND_CARD"
+  + [0].action.source.owner = "self"
+  + [0].action.source.count = 1
+  …（他 7 行）
+--- WX14-009
+  原文: 【常】：このカードにグロウするためのコストは、あなたのトラッシュにあるカード名に《フレイスロ》を含むカード７枚につき《赤×1》減る。【自】：あなたのカード名に《フレイスロ》を含むシグニ１体が場を離れたとき、あなたの手札からそのシグニより低いレベルを持つ、カード名に《フレイスロ》を含むシグニ１枚をダウン状態で場に出してもよい。【起】《ターン２回》icon_tx
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "self"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  ~ [1].action.type : "DOWN" → "ADD_TO_FIELD"
+  + [1].action.owner = "self"
+  + [1].action.source.type = "HAND_CARD"
+  + [1].action.source.owner = "self"
+  + [1].action.source.count = 1
+  + [1].action.source.upToCount = false
+  + [1].action.source.filter.cardType = "シグニ"
+  …（他 4 行）
 
 ## -CHOOSE -DECK_CARD -TRASH ［11枚］
 WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P05-043 WXDi-P07-087 WXDi-P13-002 WXK09-034 WXK09-057 WXK11-076
@@ -107,6 +155,38 @@ WX24-P3-091 WX24-P4-025 WX25-P3-028 WX26-CP1-098 WXDi-D07-019 WXDi-P05-043 WXDi-
   - [1].action.steps[2].choices[1].action.type = "TRASH"
   - [1].action.steps[2].choices[1].action.target.type = "DECK_CARD"
   …（他 6 行）
+
+## +ADD_TO_FIELD -DOWN -SIGNI ［11枚］
+WX24-P2-058 WX24-P4-043 WX25-P2-090 WX25-P2-093 WX25-P3-061 WXDi-P01-087 WXDi-P02-044 WXDi-P06-039 WXDi-P13-054 WXDi-P15-049 WXK07-018
+--- WX24-P2-058
+  原文: 【自】：このシグニがコストか効果によって場を離れたとき、あなたのデッキの上からカードを３枚トラッシュに置く。その後、この方法でトラッシュに置かれたカードの中からシグニを１枚まで対象とし、以下の２つから１つを選ぶ。①それを手札に加える。②それのレベル１につき《無》を支払ってもよい。そうした場合、それをダウン状態で場に出す。それの【出】能力は発動しない。,：あな
+  - [0].action.steps[1].choices[1].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].choices[1].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].choices[1].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].choices[1].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].choices[1].action.steps[1].then.target.upToCount = false
+  ~ [0].action.steps[1].choices[1].action.steps[1].then.type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.steps[1].choices[1].action.steps[1].then.owner = "self"
+--- WX24-P4-043
+  原文: 【自】《相手ターン》《ターン１回》：あなたのシグニ１体が場を離れたとき、あなたのデッキの一番上を公開する。その後、以下の２つから１つを選ぶ。①この方法で公開されたカードがレベル１のシグニの場合、そのシグニをダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。②カードを１枚引く。【出】《白》：あなたのデッキの上からカードを３枚見る。その中からカー
+  - [0].action.steps[1].choices[0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[1].choices[0].action.steps[0].target.owner = "self"
+  - [0].action.steps[1].choices[0].action.steps[0].target.count = 1
+  - [0].action.steps[1].choices[0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[1].choices[0].action.steps[0].target.filter.level = 1
+  - [0].action.steps[1].choices[0].action.steps[0].target.upToCount = false
+  ~ [0].action.steps[1].choices[0].action.steps[0].type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.steps[1].choices[0].action.steps[0].owner = "self"
+  + [0].action.steps[1].choices[0].action.steps[0].optional = true
+--- WX25-P2-090
+  原文: 【自】：このシグニがアタックしたとき、そのアタック終了時、あなたのエナゾーンからレベル１の＜遊具＞のシグニ１枚を対象とし、場にあるこのシグニをエナゾーンに置いてもよい。そうした場合、それをダウン状態で場に出す。それの【出】能力は発動しない。,-
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.target.upToCount = false
+  ~ [0].action.steps[1].then.type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.steps[1].then.owner = "self"
 
 ## -CONDITIONAL -HAS_CARD_IN_FIELD ［11枚］
 SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-CP1-055 WX25-P1-058 WX25-P3-069 WXDi-P13-048 WXDi-P14-078 WXK10-036
@@ -458,6 +538,54 @@ WXDi-P09-003 WXDi-P10-002 WXDi-P11-002 WXDi-P11-003 WXDi-P15-002
   - [0].action.steps[0].duration = "PERMANENT"
   ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
+
+## +ADD_TO_FIELD +TRASH_CARD -DOWN -SIGNI ［4枚］
+SP27-003 WD22-038-UG WX15-061 WX18-090
+--- SP27-003
+  原文: 【自】：アタックフェイズの間、このシグニがあなたの効果によって場からトラッシュに置かれたとき、あなたのトラッシュから《惨之遊　†バカラ†》以外のレベル３以下の＜遊具＞のシグニ１枚を対象とし、それをダウン状態で場に出す。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "self"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.level.max = 3
+  - [0].action.target.filter.story = "遊具"
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.owner = "self"
+  + [0].action.source.type = "TRASH_CARD"
+  + [0].action.source.owner = "self"
+  + [0].action.source.count = 1
+  …（他 5 行）
+--- WD22-038-UG
+  原文: 【常】：あなたのトラッシュにカードが１５枚以上あるかぎり、このシグニの基本パワーは12000になる。【出】：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュにカードが２０枚以上ある場合、あなたのトラッシュからレベル２以下の黒のシグニ１枚を対象とし、それをダウン状態で場に出す。,：あなたのデッキの上からカードを３枚トラッシュに置く
+  - [1].action.steps[1].then.target.type = "SIGNI"
+  - [1].action.steps[1].then.target.owner = "self"
+  - [1].action.steps[1].then.target.count = 1
+  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [1].action.steps[1].then.target.filter.level.max = 2
+  - [1].action.steps[1].then.target.filter.color = "黒"
+  - [1].action.steps[1].then.target.upToCount = false
+  ~ [1].action.steps[1].then.type : "DOWN" → "ADD_TO_FIELD"
+  + [1].action.steps[1].then.owner = "self"
+  + [1].action.steps[1].then.source.type = "TRASH_CARD"
+  + [1].action.steps[1].then.source.owner = "self"
+  + [1].action.steps[1].then.source.count = 1
+  …（他 5 行）
+--- WX15-061
+  原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、《無》を支払ってもよい。そうした場合、このシグニを場からトラッシュに置く。その後、あなたのトラッシュからシグニ１枚を対象とし、それをダウン状態で場に出す。,-
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "self"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  - [0].action.steps[2].target.upToCount = false
+  ~ [0].action.steps[2].type : "DOWN" → "ADD_TO_FIELD"
+  + [0].action.steps[2].owner = "self"
+  + [0].action.steps[2].source.type = "TRASH_CARD"
+  + [0].action.steps[2].source.owner = "self"
+  + [0].action.steps[2].source.count = 1
+  + [0].action.steps[2].source.upToCount = false
+  + [0].action.steps[2].source.filter.cardType = "シグニ"
+  …（他 1 行）
 
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［4枚］
 WX24-P2-007 WX24-P2-087 WXEX2-18 WXEX2-70
@@ -864,6 +992,24 @@ WX09-Re19
   + [0].action.steps[0].then.target.count = 10
   …（他 5 行）
 
+## +ADD_TO_FIELD +CONDITIONAL +ENERGY_CARD +IS_MY_TURN -DOWN -SIGNI ［1枚］
+WX14-029
+--- WX14-029
+  原文: 【自】：カード１枚があなたのエナゾーンから手札に移動したとき、このシグニをバニッシュしてもよい。その後、この効果でこのシグニをバニッシュしていた場合、あなたのエナゾーンからシグニ１枚を対象とし、それをダウン状態で場に出す。【自】：このカードが手札かデッキからトラッシュに置かれたとき、あなたのセンタールリグが＜アイヤイ＞の場合、このカードをトラッシュからエナゾ
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.filter.cardType = "シグニ"
+  - [0].action.steps[1].target.upToCount = false
+  ~ [0].timing[0] : "ON_PLAY" → "ON_HAND_ADDED"
+  ~ [0].action.steps[1].type : "DOWN" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "IS_MY_TURN"
+  + [0].action.steps[1].then.type = "ADD_TO_FIELD"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.source.type = "ENERGY_CARD"
+  + [0].action.steps[1].then.source.owner = "self"
+  …（他 6 行）
+
 ## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
 WX14-072
 --- WX14-072
@@ -959,6 +1105,19 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +STUB -DOWN -SIGNI ［1枚］
+WX21-004
+--- WX21-004
+  原文: 【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上のカードをエナゾーンに置く。その後、あなたのエナゾーンから＜英知＞のシグニを１枚まで対象とし、それを手札に加える。【自】《ターン１回》：アタックフェイズの間、あなたの＜英知＞のシグニが場を離れたとき、あなたのエナゾーンからそのシグニと同じレベルの＜英知＞のシグニを１枚まで対象とし、それをダウン状態で
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "self"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.filter.story = "英知"
+  - [1].action.target.upToCount = false
+  ~ [1].action.type : "DOWN" → "STUB"
+  + [1].action.id = "GRANT_LEAVE_PLACE_PENDING"
 
 ## -CHOOSE×2 -DECK_CARD×2 -TRASH×2 ［1枚］
 WXDi-D07-022
