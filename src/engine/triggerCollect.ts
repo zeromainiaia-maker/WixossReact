@@ -1092,6 +1092,7 @@ export function collectRefreshTriggers(
     if (removed.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REFRESH')) continue;
+      if (!kizunaOk(ctx, eff, controllerState, topNum)) continue;
       const owner = eff.triggerCondition?.refreshedOwner ?? 'any';
       const relevant = owner === 'self' ? refreshedByController
         : owner === 'opponent' ? refreshedByOpp
