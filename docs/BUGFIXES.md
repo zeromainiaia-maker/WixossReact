@@ -4,6 +4,42 @@
 
 ---
 
+## 「場に＜C＞/(色)のシグニがN種類以上ある場合」の条件が丸ごと脱落し5効果が無条件発火／`HAS_CARD_IN_FIELD` の `distinctNames` を engine が黙って無視（golden 503→504・census 1919→1916・同型★0）（2026-07-19・続き218・Opus）
+
+Opusタスク12(xli) の残（b）＝「＜ブルアカ＞のシグニが３種類以上」の種類数条件。着手時の見立ては「`HAS_CARD_IN_FIELD` に `distinctName` を足す小機構（`TRASH_HAS_CARD` に前例）」だったが、実際には**型にはフラグが既にあり、engine の片方の経路だけが実装していた**という別の穴だった。
+
+### 1. engine：`execUtils.evalCondition` の `HAS_CARD_IN_FIELD` が `distinctNames` を無視（真バグ）
+
+- `src/types/effects.ts` の `HAS_CARD_IN_FIELD` には `distinctNames?: boolean` が定義済みで、`effectEngine.ts` の **CONTINUOUS 収集経路**（「それぞれ名前の異なる＜原子＞のシグニが３体あるかぎり」WX12-Re01）だけが実装していた。
+- 一方 **`execUtils.evalCondition`（AUTO/ACTIVATED の一般経路）は一致スタック数を数えるだけ**で `distinctNames` を参照していなかった＝**同名3体でも「3種類以上」が成立する**過剰判定。フラグを立てても効かないため、parser 側で語彙を足すだけでは JSON が主張する限定を engine が無視する乖離になるところだった。
+- 一致した**カード番号を集めてから数える**形に変更し、`distinctNames` 時は `CardName`（引けない場合はカード番号）で寄せて種類数を数える（effectEngine の収集と同じ寄せ方）。ルリグゾーン／キーゾーン走査分も同じ集合に入れる。
+
+### 2. 型：`HAS_CARD_IN_FIELD` が `ActiveCondition` と `Condition` に**二重定義**されていた
+
+- 同名メンバが2つの union（`ActiveCondition` 138行〜／`Condition` 173行〜）に別々に定義されており、**`Condition` 側にだけ `distinctNames` が無かった**。⚠ 当初 `Condition` 側を「重複」と見て削除したところ parser 全体が型エラー（別 union なので削除は誤り）＝**両方を揃えて更新する**のが正しい。両方の定義にコメントで相互参照を残した。
+
+### 3. parser：「N種類以上ある場合」の語彙が無く条件が丸ごと脱落（過剰効果5件）
+
+`STATE_CONDITION_CLAUSES_V2` に2規則を追加（`src/data/effectParser.ts`）。
+
+- `(あなた|対戦相手)の場に(色|＜C＞)のシグニがN種類以上ある場合` → `HAS_CARD_IN_FIELD{distinctNames:true, minCount:N}`
+- 複合形 `あなたの場に(色)のシグニがN種類以上あり対戦相手のエナゾーンにカードがM枚以上ある場合` → `AND[HAS_CARD_IN_FIELD, ENERGY_COUNT]`（WXDi-P05-056）
+- 先行の「〜のシグニがある場合」系規則は**「がある場合」を要求する**ため本語形とは競合しない（確認済み）。
+
+**実害**＝5効果すべてが条件を落として無条件発火していた。`WX25-CP1-041-E2`／`WX25-CP1-045-E3`（【絆自】アタックフェイズ開始時にドロー／エナチャージ）・`WXDi-P05-064-E1`・`WXDi-P05-056-E1`（相手エナ破壊）・`WXDi-P03-058-E1`。
+
+### 4. decompiler：語形ヒント `distinctPhraseJa:'kinds'`
+
+既定の描画は「それぞれ名前の異なる〜がN体いる」（WX12-Re01 の原文語形）。同じ述語の別語形「＜C＞のシグニがN種類以上ある」を原文どおりに戻すため、表示専用のヒント `distinctPhraseJa:'kinds'` を追加した（**意味は同一・engine は参照しない**。`LAST_PROCESSED_MATCHES` の `verbJa` に前例）。
+
+### 検証
+
+- **golden 503→504**＝新規テスト「異名3体で成立／**同名3体では不成立**／2種類では不成立／`distinctNames` 無しは従来どおり体数で成立」。engine 修正を一時無効化して**意図的に失敗させ**、検出できることを確認済み。
+- `build:effects`→`heldReview` で **5枚のみ採用**（全件 leaf diff を確認＝既存 action を `CONDITIONAL` で包むだけで他リーフ無傷＝退化なし）。開始コミットとの機械 diff で**変更カードが正確に5枚**であることを確認。
+- 全ゲート緑（golden 504・smoke 10722・fuzz 0・**census 1919→1916**・同型★0・lint 0 errors）。逆翻訳を `npm run regen` で再生成し、5枚とも原文どおりの条件が出ることを目視確認。
+
+---
+
 ## `BANISH_REDIRECT` に「バニッシュ元の限定」語彙が無く10効果が常時・全バニッシュへ過剰発火／原文ブロック対応表の採番ズレで65効果がカード全文判定に落ちていた計器欠陥（golden 499→503・census 1919維持・同型★0）（2026-07-19・続き217・Opus）
 
 Opusタスク12(xli)（絆分離で可視化された残ギャップ）の消化。**着手して最初に判明したのは、(xli) に並んだ11効果のうち7件が実バグではなく計器のノイズだったこと**＝`docs/_effect_srctext.json`（effectId→原文ブロックの対応表）の採番が curated JSON とズレており、census がその効果を**カード全文**で判定していた。計器を先に直してから、残った実バグ4件のうち最大の系統バグを消化した。
