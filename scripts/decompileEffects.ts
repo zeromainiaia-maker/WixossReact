@@ -1968,6 +1968,11 @@ function effJa(e: Eff): string {
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
     else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}${scopeNoun}${s.slice('このカード'.length)}`;
+    // ON_ATTACK_LRIG 等「このルリグ」始まりも scope 主語に置換（続き218j）。
+    // ⚠名詞は scopeNoun（既定「シグニ」）ではなく **「ルリグ」固定**＝主語がルリグである timing のため。
+    // これが無いと any_opp なのに「**この**ルリグがアタックしたとき」と描かれ、原文照合時に
+    // 「自分のアタックで発火する」と誤読させる（実際は相手のルリグアタックで発火）。
+    else if (scopeSubj !== null && s.startsWith('このルリグ')) s = `${scopeSubj}ルリグ${s.slice('このルリグ'.length)}`;
     // ON_LEAVE_FIELD の leftToZone:'hand'（「シグニ１体が場から手札に戻ったとき」WXK02-041）
     if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
     // ON_LEAVE_FIELD 跨サイド any_opp（「あなたの効果によって対戦相手のシグニが場から手札に移動したとき」WXK11-049/WXDi-CP01-027）
