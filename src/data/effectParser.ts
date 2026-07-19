@@ -2298,7 +2298,12 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
 // SIGNI ターゲット（owner が明示 opponent でない＝default に落ちた側）へ owner:opponent と欠落フィルタを刻む。
 // ⚠「対象とし」が複数ある文は「それ」の指し先が曖昧＝適用しない（単一 designation に限定）。冪等（既に opponent なら据置）。
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
-  if (!/そうした場合、それを/.test(text)) return action;
+  // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
+  // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
+  // 後者は前段の結果カウント条件を挟むだけで「それ」の指し先は同一（先頭の対象化した相手シグニ）。
+  const hasAnaphora = /そうした場合、それを/.test(text)
+    || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(text);
+  if (!hasAnaphora) return action;
   if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
   const desigM = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
   if (!desigM) return action;
