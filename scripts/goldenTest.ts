@@ -1310,6 +1310,8 @@ test('collectHandDiscardTriggers any_opp: 反応側センタールリグ watcher
 });
 
 // 続き207: ON_HAND_ADDED（効果によってカードが手札に移動したとき）＝collectHandAddedTriggers。
+// （`has` は Stage2④ で定義＝この位置では TDZ のためローカル定義を使う）
+const hasEff = (e: { effectId: string }[], id: string) => e.some(x => x.effectId === id);
 test('ON_HAND_ADDED: 相手効果で相手手札が増えたとき watcher シグニが発火（WX25-P2-063・グロウフェイズ/自効果は非発火）', () => {
   const host = mkState({ signi: ['WX25-P2-063', null, null] }); const guest = mkState({});
   const moved = (owner: string) => [
