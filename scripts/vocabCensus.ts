@@ -334,7 +334,19 @@ const PATTERNS: Pattern[] = [
   { name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff' },
   { name: 'コスト:エナからトラッシュ', re: /エナゾーンから[^。：]{0,18}(トラッシュに置く|支払う)：?/, keys: ['energyTrash', 'ENERGY'], src: 'eff' },
   { name: 'コスト:場からトラッシュ', re: /場から[^。：]{0,18}トラッシュに置く：/, keys: ['fieldTrash', 'trash_self', 'beat', 'fieldTo'], src: 'eff' },
-  { name: 'ゾーン:エナゾーンに置く', re: /エナゾーンに置/, keys: ['ENERGY', 'nerg'] },
+  {
+    name: 'ゾーン:エナゾーンに置く', re: /エナゾーンに置/, keys: ['ENERGY', 'nerg'],
+    // 「（対戦相手の）シグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置く」は
+    // 置換先ゾーンの語彙が `BANISH_REDIRECT` で正しく表現済み＝この destination 句だけを理由に高シグナルへ
+    // 落ちるのは偽陽性（続き217／218b で族全数36効果を棚卸し済み。§3 (xliii)）。
+    // ⚠ 無条件マスクにはしない＝redirect イディオム句を除いた残りに「エナゾーンに置」が残るならフラグ維持
+    //   （本物の SEND_TO_ENERGY が別に併存するカードを隠さないため。lrigDown 較正と同じ安全弁）。
+    //   subject 側のフィルタ脱落（正面/レベル/凍結など・(xliv) §6.3）はこの destination カテゴリの関心外で、
+    //   各々の専用カテゴリ（正面／レベル閾値／凍結状態フィルタ）が引き続き露出する。
+    //   BANISH_REDIRECT を持つ全22効果で除去後の残存0を機械確認済み。
+    extraOk: (js, t) => js.includes('BANISH_REDIRECT')
+      && !/エナゾーンに置/.test(t.replace(/エナゾーンに置かれる代わりに[^。]*?トラッシュに置[くか]/g, '')),
+  },
   { name: 'ゾーン:デッキの一番下', re: /デッキの一番下/, keys: ['BOTTOM', 'bottom', 'Bottom'] },
   { name: 'ゾーン:ルリグデッキに戻す', re: /ルリグデッキに戻/, keys: ['LRIG_DECK', 'lrigDeck', 'RETURN_TO_LRIG'] },
   { name: '基本パワー変更', re: /基本パワーは/, keys: ['POWER_SET', 'basePower', 'SET_POWER'], src: 'eff' },
