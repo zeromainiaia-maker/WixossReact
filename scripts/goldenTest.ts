@@ -1369,8 +1369,8 @@ test('引用付与の内側トリガー: 「対戦相手のシグニかルリグ
   for (const num of ['WXDi-D06-010', 'WX24-P2-046', 'WXDi-P09-036']) {
     ok(innerScopes(num).includes('any_opp'), `${num}: 内側トリガーが any_opp（no-op 化の回帰ガード）`);
   }
-  // 「対戦相手のセンタールリグ１体が」＝ルリグ単独は any_opp にしない（過剰発火を作らない据置）
-  ok(!innerScopes('WX15-002').includes('any_opp'), 'WX15-002: センタールリグ単独は据置（誤って ON_ATTACK_SIGNI に載せない）');
+  // 「対戦相手のセンタールリグ１体が」＝ルリグ単独主語も続き218j で any_opp 化（timing は ON_ATTACK_LRIG）
+  ok(innerScopes('WX15-002').includes('any_opp'), 'WX15-002: センタールリグ単独も any_opp（218j で経路新設）');
 });
 
 test('timing census C: 指定9効果の parser timing とガード変種条件', () => {
