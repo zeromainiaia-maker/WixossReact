@@ -203,11 +203,83 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
 // ── effectId → 原文ブロック 対応表（語彙センサスの効果単位判定の基盤・続き109）──
 // 「原文のこの一節は、この効果のJSONで表現されているか」を効果単位で突き合わせるための対応表。
 // カード単位判定（同カード別効果に語彙があれば合格）の死角(b)を消す。
-// ⚠parser 由来の effectId のみ（manualEffects 追加分は載らない＝センサス側はカード全文へ fallback）。
+// ⚠parser 由来の effectId のみ。curated 側が別の採番（-E1b / -MULTIENA / 手動追加で番号がずれた等）
+//   を使っている効果は下の位置合わせで解決し、それでも残るものだけセンサス側がカード全文へ fallback。
 {
-  const src = Object.fromEntries([...getSourceTextLog()].sort((a, b) => a[0].localeCompare(b[0])));
-  writeFileSync(join(root, 'docs', '_effect_srctext.json'), JSON.stringify(src), 'utf-8');
-  console.log(`原文ブロック対応表: ${Object.keys(src).length}効果（docs/_effect_srctext.json）`);
+  const src: Record<string, string> = Object.fromEntries([...getSourceTextLog()]);
+
+  // ── curated effectId ↔ parser 原文ブロックの位置合わせ（2026-07-19 続き217）──
+  // curated JSON は手修正で採番が parser とずれることがある（1ブロックを -E1/-E1b に分割・
+  // -MULTIENA/-DECORE の意味的サフィックス・手動追加で以降の番号がシフト等）。ID が一致しないと
+  // センサスがその効果を「カード全文」で判定してしまい、他ブロックの語彙で誤合格/誤不合格になる。
+  // BURST は ID が一致するので別扱いにし、残りは「curated 順 × parser 解析順」で件数が一致する
+  // ときだけ位置合わせする。さらにマーカー（【常】【自】【起】【出】＋絆）と effectType の
+  // 整合を全ペアで検査し、1つでも矛盾したら そのカードは位置合わせしない（誤対応で計器を汚さない）。
+  const isBurstId = (id: string) => /-BURST$/.test(id);
+  const markerOf = (text: string): string | null => {
+    const m = /^【(絆)?(常|自|起|出)】/.exec(text.trim());
+    return m ? m[2] : null;
+  };
+  const kizunaOf = (text: string) => /^【絆(常|自|起|出)】/.test(text.trim());
+  // マーカー → 許容される effectType（【出】は ON_PLAY の AUTO として出る）
+  const MARKER_TYPES: Record<string, Set<string>> = {
+    常: new Set(['CONTINUOUS']),
+    自: new Set(['AUTO']),
+    起: new Set(['ACTIVATED']),
+    出: new Set(['AUTO']),
+  };
+  const freshByCard = new Map<string, Array<[string, string]>>();
+  for (const [id, text] of getSourceTextLog()) {
+    const card = id.replace(/-(BURST|MULTIENA|DECORE|E\d+[a-z]?)$/, '');
+    if (!freshByCard.has(card)) freshByCard.set(card, []);
+    freshByCard.get(card)!.push([id, text]);
+  }
+  const alignReport: string[] = [];
+  let aligned = 0, rejected = 0, unresolved = 0;
+  for (const [cardNum, effs] of Object.entries(result)) {
+    if (!Array.isArray(effs)) continue;
+    const curatedNb = effs.map(e => e?.effectId as string).filter(id => id && !isBurstId(id));
+    if (curatedNb.every(id => src[id] !== undefined)) continue;   // 既に全解決
+    const freshNb = (freshByCard.get(cardNum) ?? []).filter(([id]) => !isBurstId(id));
+    if (curatedNb.length !== freshNb.length) {
+      unresolved += curatedNb.filter(id => src[id] === undefined).length;
+      alignReport.push(`SKIP(件数不一致) ${cardNum}: curated ${curatedNb.length} vs parser ${freshNb.length}`);
+      continue;
+    }
+    // マーカー整合を全ペアで検査
+    const byId = new Map(effs.map(e => [e?.effectId as string, e]));
+    const bad: string[] = [];
+    for (let i = 0; i < curatedNb.length; i++) {
+      const eff = byId.get(curatedNb[i]) as Record<string, unknown>;
+      const text = freshNb[i][1];
+      const mk = markerOf(text);
+      if (!mk) continue;                                          // マーカー無しブロックは検査対象外
+      const et = eff?.effectType as string;
+      if (et && !MARKER_TYPES[mk].has(et)) bad.push(`${curatedNb[i]}(${et}) vs ${mk}`);
+      if (kizunaOf(text) !== !!eff?.kizunaIcon) bad.push(`${curatedNb[i]} kizuna不一致`);
+    }
+    if (bad.length > 0) {
+      rejected++;
+      unresolved += curatedNb.filter(id => src[id] === undefined).length;
+      alignReport.push(`REJECT(マーカー不整合) ${cardNum}: ${bad.join(' / ')}`);
+      continue;
+    }
+    for (let i = 0; i < curatedNb.length; i++) {
+      if (src[curatedNb[i]] === undefined) {
+        src[curatedNb[i]] = freshNb[i][1];
+        aligned++;
+        alignReport.push(`ALIGN ${cardNum}: ${curatedNb[i]} ← ${freshNb[i][0]}「${freshNb[i][1].slice(0, 40)}」`);
+      }
+    }
+  }
+  console.log(`原文ブロック位置合わせ: 解決 ${aligned}効果 / マーカー不整合で棄却 ${rejected}カード / 未解決 ${unresolved}効果`);
+  writeFileSync(join(root, 'docs', '_srctext_align.txt'),
+    ['# effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）', '',
+      `解決 ${aligned} / 棄却カード ${rejected} / 未解決 ${unresolved}`, '', ...alignReport.sort(), ''].join('\n'), 'utf-8');
+
+  const sorted = Object.fromEntries(Object.entries(src).sort((a, b) => a[0].localeCompare(b[0])));
+  writeFileSync(join(root, 'docs', '_effect_srctext.json'), JSON.stringify(sorted), 'utf-8');
+  console.log(`原文ブロック対応表: ${Object.keys(sorted).length}効果（docs/_effect_srctext.json）`);
 }
 
 const total = Object.values(result).flat().length;
