@@ -4,6 +4,30 @@
 
 ---
 
+## 「（トラッシュから…対象とし、）それをデッキの一番上に置く」がトラッシュ回収→山札トップではなく場のシグニ移動へ幻覚化（8効果是正・census 1891→1888・§3 タスク5）（2026-07-19・続き218e・Opus）
+
+§3 タスク5 の「原文無関係 `TRANSFER_TO_DECK` 混入」。「あなたのトラッシュから〈フィルタ〉のシグニを1枚（まで）対象とし、それをデッキの一番上に置く」＝**トラッシュ回収を山札の一番上に置く tutor 効果**が、JSON では「場のシグニ1体を山札へ送る」（`source: SIGNI`・`position` 無し）という別物へ化けていた（回収がバウンスに反転）。
+
+### 真因
+`parseSentencePart1` は `parseSentencePart2` より先に走る。part1 の緩い規則（旧 line 2304）が `/それをデッキの一番上に置く/` を無条件に掴んで `TRANSFER_TO_DECK{source:SIGNI(場), position 無し}` を返すため、正しい part2 のトラッシュ回収規則（`TRASH_CARD`→top・line 218）へ到達できなかった。加えて part2 の regex は「N枚**を**対象とし」しか拾えず「N枚**まで**対象とし」（upToCount）を弾いていた。
+
+### 修正（parser のみ・engine 無変更）
+- **part1**：field-SIGNI 規則に `!t.includes('トラッシュから')` guard を追加（トラッシュ回収は part2 の `TRASH_CARD` 規則へ委譲）＋ `position:'top'`（原文「一番上」なのに欠落していた。engine は position 未指定でも top 扱いのため場のシグニ側の挙動は不変）。field 側の対象（`WX10-032`/`WX10-045` 等「対戦相手のシグニ1体を…」）は「トラッシュから」を含まないため掴み続ける。
+- **part2**：トラッシュ→トップ規則の regex を `([０-９\d]+)枚(まで)?を?対象とし` に緩め、`まで`時は `upToCount:true`。フィルタも `parseCardTypeFilter/parseLevelFilter/parseColorFilter/parseStoryFilter` で level/color/＜クラス＞を拾うよう拡張。
+
+### 是正した8効果（すべて`TRASH_CARD`→top へ）
+`WX19-060`（相手トラッシュ→相手山札）／`WXDi-P01-063`（level1・upTo）／`WXDi-P03-023-E2`（upTo）／`WXDi-P05-009-E3`（色白）／`WXK01-109`（level≤2・＜トリック＞・upTo）／`WXK07-082`（level4）／`WX20-043-E2`（条件除去後に回収→top へ・棚ぼた）＝heldReview で7枚採用。`WXK01-004-E2`（＜トリック＞）は E1 が MANUAL 刻印でカード丸ごと温存されるため parser 出力（reparse で確認）を単点ハンド適用し MANUAL 刻印。
+
+### 残置（今回対象外）
+- `WXDi-P05-009-E1`／後述の「そうした場合、それを…」系＝条件/連文分割で「それ」の先行詞（トラッシュ）が失われた節。単独の「それをデッキの一番上に置く」からは場/トラッシュの別が復元不能で field-SIGNI のまま（先行詞解決が要る）。
+- `WXEX1-65-E1`＝「このシグニの正面のシグニをデッキの一番上に置く」は真に場のシグニだが owner が front-of-self（相手）＝現状 self の owner ニュアンス残（別軸）。
+- `WXDi-P11-003`＝私の修正と無関係な held 差分（`GRANT_KEYWORD 使用条件`→`STUB GAIN_ABILITY_THIS_GAME`）が混在するため軽作業の分限として採用見送り（held 残）。
+
+### 検証
+全ゲート緑（typecheck・golden・smoke・fuzz 0・census **1888/1888**・lint 0 errors）＋`npm run regen` で逆翻訳表示が「カード(トラッシュ)1枚をデッキの上に置く」へ是正を確認。`BASELINE_HIGH` を 1888 に更新。
+
+---
+
 ## census 偽陽性の解消＝`BANISH_REDIRECT` 族の「エナゾーンに置かれる代わりにトラッシュに」destination 句（census 1895→1891・§3 (xliii)）（2026-07-19・続き218d・Opus）
 
 Opusタスク12(xliii)＝census の系統的偽陽性。JSON 側は原文どおり正しいのに高シグナルに残り続ける族の較正。**JSON は一切変更していない（census スクリプトのみの計器較正）**＝parser/engine/effects データは無変更。
