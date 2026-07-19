@@ -6603,7 +6603,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // ON_ATTACK_SIGNIトリガー収集（Phase 1：バトル前に処理するトリガー）
       // condition を持つ AUTO は発動条件を満たす場合のみ収集（「〜であるかぎり『【自】アタック時…』を得る」系）
-      const atkSelfPowers = calcFieldPowers(newMyState, newOpState, true, effectsMap, battleCardMap);
+      const atkSelfPowers = calcFieldPowers(newMyState, newOpState, true, effectsMap, battleCardMap, bs.turn_phase);
       const attackerCrossOk = isCrossZoneActive(newMyState, myTopNum, battleCardMap);
       const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
