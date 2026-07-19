@@ -4377,6 +4377,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
             // 「対戦相手の（＜X＞の）シグニがアタックしたとき」: 防御側シグニが相手アタックに反応（any_opp）
             extractedTriggerScope = 'any_opp';
             if (oppAttM[1]) extractedTriggerFilter = { story: oppAttM[1] };
+            // 「シグニ**か**ルリグ」複合主語のうち**ルリグ側の半分**は engine に収集経路が無く落ちる。
+            // シグニ側は忠実に発火するので過剰主張ではないが、脱落は計器に刻んで在庫化する。
+            if (/(?:か(?:センター)?ルリグ|(?:センター)?ルリグか)/.test(oppAttM[0])) {
+              markSilentFallback('ON_ATTACK_SIGNI:「シグニかルリグ」複合主語のルリグ側を落とす近似（相手ルリグのアタックで自分の付与能力を拾う経路が engine に無い）');
+            }
           }
         }
       }
