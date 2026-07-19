@@ -3753,7 +3753,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 複合主語。従来は下の総称フォールバックで ON_ATTACK_SIGNI だけになり**ルリグ側が丸ごと落ちて**いた
              // （続き218i で silent fallback として刻んだ分・タスク12(xlvii)）。engine は両 timing とも
              // any_opp 収集経路を持つ（ON_ATTACK_SIGNI＝collectFieldTriggers／ON_ATTACK_LRIG＝collectLrigAttackDefenderTriggers）。
-             : /対戦相手の(?:(?:すべての|各)?)(?:＜[^＞]+＞の)?(?:シグニか(?:センター)?ルリグ|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_SIGNI'] /* TEMP */
+             : /対戦相手の(?:(?:すべての|各)?)(?:＜[^＞]+＞の)?(?:シグニか(?:センター)?ルリグ|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_SIGNI', 'ON_ATTACK_LRIG']
              // 「対戦相手の（センター）ルリグ**単独**がアタックしたとき」＝ルリグアタックのみ（WX15-002-E2 等）。
              // ⚠総称フォールバックより先に判定する（後ろだと ON_ATTACK_SIGNI へ落ちて相手シグニのアタックで誤発火する）。
              : /対戦相手の(?:(?:すべての|各)?)(?:センター)?ルリグ(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_LRIG']
