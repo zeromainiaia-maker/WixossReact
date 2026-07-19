@@ -2698,6 +2698,34 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         return done(addLog(cur, 'ダウン不可：残りのSEQUENCEをスキップ'));
       }
     }
+    // 「そうした場合」＝CONDITIONAL{IS_MY_TURN} プレースホルダの did-it ゲート（タスク12(xxix)③）。
+    // parser は「そうした場合、」を常時 true の IS_MY_TURN で表す慣例エンコード（§9-9）のため、
+    // 前段が空振り（対象なし＝lastProcessedCards 空）でも本体が実行される＝**過剰発火**だった。
+    // 上の TRASH/DOWN 専用ゲートは「残りのSEQUENCEを丸ごと捨てる」粗い形なので既存挙動のまま温存し、
+    // ここでは**プレースホルダ1ステップだけを消費**して以降の独立ステップは残す（過剰も過小も作らない）。
+    // 対象は「処理したカードを lastProcessedCards に記録する＝空振りを判定できる」型に限定する
+    // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
+    if (DID_IT_GATED_TYPES.has(step.type) && i + 1 < a.steps.length
+        && (cur.lastProcessedCards ?? []).length === 0) {
+      const nextDI = a.steps[i + 1];
+      if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {
+        cur = addLog(cur, '前段が空振り：「そうした場合」の効果は発生しない');
+        i++;  // プレースホルダを消費
+        const elseDI = (nextDI as ConditionalAction).else;
+        if (elseDI) {
+          const resElse = executeAction(elseDI, cur);
+          if (!resElse.done) {
+            const remainingElse = a.steps.slice(i + 1);
+            const contElse: EffectAction | undefined = remainingElse.length > 0
+              ? (remainingElse.length === 1 ? remainingElse[0] : { type: 'SEQUENCE', steps: remainingElse })
+              : undefined;
+            return { ...resElse, pending: contElse ? { ...resElse.pending, continuation: contElse } : resElse.pending };
+          }
+          cur = { ...cur, ownerState: resElse.ownerState, otherState: resElse.otherState, logs: resElse.logs, lastProcessedCards: resElse.lastProcessedCards };
+        }
+        continue;
+      }
+    }
   }
   return done(cur);
 }
