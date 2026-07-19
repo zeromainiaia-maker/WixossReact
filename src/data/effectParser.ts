@@ -3915,6 +3915,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (duSt[2]) duTf.story = duSt[2];
         }
         if (Object.keys(duTf).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...duTf };
+        // トリガー句を action 本文から除去（対象名詞句パースへの混入防止＝WXEX1-42 で trigger 由来の
+        // story/isDown/excludeSelf が BANISH 対象 filter に化けていた）。ON_PLAY any_ally と同型の処理。
+        actionText = actionText
+          .replace(/^[^。「」]*?(?:ダウン|アップ)状態になったとき[、,]\s*/, '')
+          .replace(/^あなたの《[^》]+》がダウンしたとき[、,]\s*/, '');
       }
       // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・タスク16[C]機構②）: fromZones:['hand'] を軸に
       //   原因限定（対戦相手の効果/あなたの効果/＜X＞のシグニの効果）・turnOwner を抽出。
