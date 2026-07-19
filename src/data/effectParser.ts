@@ -4361,7 +4361,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'self';
         } else {
           const allyColorM = actionText.match(/^あなたの([白赤青緑黒])のシグニがアタックしたとき、/);
-          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+          // 「対戦相手の〔シグニ／シグニかルリグ／ルリグかシグニ／シグニかセンタールリグ…〕がアタックしたとき」。
+          // ⚠**シグニを含む主語だけ**を any_opp として拾う。「センタールリグ」単独（WX15-002-E2 等）は
+          //   engine に「相手ルリグのアタックで**自分の**付与能力を発火させる」収集経路が無い
+          //   （ON_ATTACK_LRIG は BattleScreen 7832 で `my.lrig_granted_auto_effects` しか見ない）ため、
+          //   ここで拾うと ON_ATTACK_SIGNI に載って**相手シグニのアタックで誤発火する過剰効果を新設**してしまう。
+          //   → 据置して §3 タスク12 へ登録（近似より no-op のほうが安全）。
+          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
           if (allyColorM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { color: allyColorM[1] };
