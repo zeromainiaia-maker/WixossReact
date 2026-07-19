@@ -12,7 +12,7 @@ import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, StackEntry } from '../src/types';
-import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction } from '../src/types/effects';
+import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
