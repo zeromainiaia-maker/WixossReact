@@ -172,25 +172,24 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-19・続き217・Opus・タスク12(xli)＝計器（原文ブロック対応表）の採番ズレを是正し、露出した `BANISH_REDIRECT` の系統バグ10効果を消化。golden 499→503・census 1919維持）**
-  - **着手して最初に判明したのは、(xli) の11効果のうち7件が実バグではなく計器ノイズだったこと**＝`docs/_effect_srctext.json`（effectId→原文ブロック）の採番が curated JSON とズレ、census が**カード全文**でその効果を判定していた（fallback 65効果）。**計器を先に直してから実バグを判定する**のが正しい順序だった。
-  - **計器修正（`buildEffectsJson.ts`）**＝BURST を別扱いにし「curated 順 × parser 解析順」の件数が一致するカードだけ**位置で対応付ける**パスを追加。誤対応防止に**マーカー（【常】【自】【起】【出】＋絆）と effectType/kizunaIcon の整合を全ペア検査**し、1つでも矛盾したらそのカードは位置合わせしない。**⚠成立したカードでは「位置」が正＝ID 完全一致も上書きする**（`WXK01-028`＝curated `E1,E2,E2b,E3` ↔ parser `E1,E2,E3,E4` で curated `-E3` の実体は parser `-E4`。ID 一致を優先すると直したいカードで誤対応が残る）。**fallback 65→32**・全36件を `docs/_srctext_align.txt` で目視確認。残32は curated が parser より効果数の多いカード（`-DECORE` 等）で原理的に対応付け不能。
-  - **実バグ消化＝`BANISH_REDIRECT` のバニッシュ元限定（10効果）**。型に修飾句の語彙が無く**全30効果が `{owner:'opponent',count:'ALL'}` に潰れ**、engine も `banish_redirect` の**無条件ブール**で `action.target` を完全無視していた。実害＝`WXDi-CP02-072-E3`【絆常】「このシグニとのバトルによって」が、**場に1体いるだけで相手の全バニッシュを永続でトラッシュ送り**にする（相手のエナ加速を丸ごと停止）。`bySource?:'battle_with_this'|'by_this'` を新設し、parser 語彙・engine（CONTINUOUS の3経路を `banishRedirectAppliesFrom` に統一＝**パワー0以下の消滅は非バトル経路なので不適用**）・executor（`banish_redirect_by_source_nums` で発生源スコープ＝**JSON が限定を主張して engine が無視する乖離を作らない**）・decompiler まで一括。7効果は build:effects が自動採用・MANUAL 温存の3効果は外科的パッチ。**開始コミットとの効果単位 diff で「変更10効果・すべて bySource 追加のみ・他リーフ無傷」を機械確認**。
-  - **⚠意図的に非マッチにした語形**＝「このシグニの**効果**によって」（`WX24-P4-050-E2`）。バトル経路ではないため `bySource` を付けると発火しなくなり**かえって退化する**。
-  - **検証**＝全ゲート緑（golden **503**〔新規テストは意図的に失敗させて実行を確認済み〕・smoke 10722・fuzz 0・census **1919維持**・同型★0・lint 0 errors）。
-  - **次の一手**＝Opus は タスク12 の (xli) 残（`WX25-CP1-012-E3` の場出し欠落／`WX25-CP1-045-E3` の種類数条件＝`HAS_CARD_IN_FIELD` に `distinctName` 追加。`TRASH_HAS_CARD` に前例あり）と、**新規登録した (xliii)＝census が `BANISH_REDIRECT` 族を知らず JSON が正しくても高シグナルに残る系統的偽陽性**。timing[C] 残43効果／タスク12(xxii)残50件も継続。**Sonnet はタスク8**（semantic audit clean群）。
-
+- **🆕 セッション（2026-07-19・続き218・Opus・タスク12(xli) の残を消化＝「N種類以上」条件と lrigDown コスト限定の2機構。golden 503→505・census 1919→1899）**
+  - **(b)「＜ブルアカ＞のシグニが３種類以上ある場合」＝種類数条件**。着手時の見立ては「`HAS_CARD_IN_FIELD` に `distinctName` を足す小機構」だったが、実際は**型にフラグが既にあり engine の片方の経路だけが実装していた**という別の穴だった＝`effectEngine` の CONTINUOUS 収集は対応済みなのに **`execUtils.evalCondition`（AUTO/ACTIVATED の一般経路）が `distinctNames` を黙って無視**（同名N体でも成立）。parser もこの語形の語彙が無く条件を丸ごと落として**5効果が無条件発火**していた（`WX25-CP1-041/045`・`WXDi-P03-058`・`WXDi-P05-056`・`WXDi-P05-064`）。engine ＋ parser 2規則（単独形／`AND` 複合形）＋表示ヒント `distinctPhraseJa` で一括消化。
+  - **⚠型の落とし穴**＝`HAS_CARD_IN_FIELD` は `ActiveCondition` と `Condition` に**二重定義**されており、当初「重複」と見て片方を消したら parser 全体が型エラー（別 union だった）。**両方を揃えて更新する**のが正解＝両定義に相互参照コメントを残した。
+  - **(c) `WXDi-CP02-056-E4` は PLAN の見立てどおり census 偽陽性**（`cost.lrigDown` がその語彙そのもの）。**ただしマスクする前に族の全効果を個別確認したところ実バグ7件が出た**＝parser が「アップ状態の〔レベルNの〕〔センター〕ルリグN体をダウンする」の**限定語をキャプチャしながら捨てていた**（センター限定3件は**アシストをダウンして払えた**／レベル限定4件は**任意レベルで払えた**）。`lrigDown.level` を新設し **BattleScreen の自動支払い・コストモーダルの可否判定/表示ラベル**まで配線した（JSON が限定を主張して engine が無視する乖離を作らない）。`costJa` が `lrigDown` 未対応で**逆翻訳がコスト節を丸ごと落としていた**のも同時に是正。
+  - **census の緩め方**＝無条件マスクにせず `extraOk` で「`lrigDown` を持ち、かつ**コスト句を除いた残りに状態語が無い**」ときだけ合格とした（将来 `lrigDown` と「アップ状態のシグニ」フィルタを併せ持つカードは引き続きフラグされる）。`lrigDown` を持つ**全21効果**で残存0を機械確認済み。**§3 (xliii) が警告する「マスキングで実欠落を隠す危険」が実在した実例**＝偽陽性判定は必ず族の全数確認とセットにする。
+  - **検証**＝全ゲート緑（golden **505**〔distinctNames は engine 修正を一時無効化して**意図的に失敗させ**検出を確認〕・smoke 10722・fuzz 0・**census 1899**・同型★0・lint 0 errors）。採用は heldReview 5枚＋自動採用7枚で、いずれも**開始コミットとの効果単位 diff で変更カード枚数と他リーフ無傷を機械確認**。
+  - **次の一手**＝Opus は タスク12 の **(xli) 残1件＝`WX25-CP1-012-E3` の場出し欠落**（「シグニを２枚まで場に出し」が `LOOK_AND_REORDER` へ縮退）と **(xliv)＝`BANISH_REDIRECT` の残テール**（属性フィルタ／単体対象／正面限定＋owner 要確認）、**(xliii)＝`BANISH_REDIRECT` 族の census 偽陽性**（今回と同じ「族を全数確認してから緩める」手順で）。timing[C] 残43効果／タスク12(xxii) 残50件も継続。**Sonnet はタスク1（§7 実機検証）**＝今回 **要実機検証＝センター限定コストでアシストが支払い候補にならない／レベル限定コストで非該当レベルが候補にならない**が新規に増えた。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1919【効果単位】**（2026-07-19 続き215＝Opus・絆マーカーを効果ブロック境界として認識＝134カード137能力の飲み込み解消で1928→1919）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1899【効果単位】**（2026-07-19 続き218＝Opus・①「N種類以上」条件の語彙化で1919→1916／②`lrigDown` コスト限定の実装＋表現済みのときだけ偽陽性を解消して1916→1899）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
 - **母数**：効果カード 5975／効果 10719／MANUAL効果 891／STUB含むカード 1862・STUBノード 2432（2026-07-19 実測更新。STUBS.md サマリーと整合）。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 503・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1919。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 505・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1899。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >
