@@ -1005,6 +1005,7 @@ export function calcFieldPowers(
   isMyTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
   cardMap: Map<string, CardData>,
+  turnPhase?: TurnPhase,
 ): Map<string, number> {
   // ベースパワーを収集（フィールドの最前面シグニ）
   const powers = new Map<string, number>();
