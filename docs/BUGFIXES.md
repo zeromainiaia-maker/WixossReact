@@ -4,6 +4,20 @@
 
 ---
 
+## フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` ＝「アタックフェイズの間、〜が場を離れたとき、〜を場に出す」【自】が no-op へ丸め＋ON_LEAVE_FIELD の duringAttackPhase 未評価（golden 499→501・census 1919維持・同型★0）（2026-07-19・続き216・Opus）
+
+STUBS.md でフォールバック（execStub 未処理＝engine が実処理を持たない）だった `GRANT_LEAVE_PLACE_PENDING` の主因を特定・解消。**engine 機構はほぼ揃っており、真因は parser のトリガー句除去漏れ＋ON_LEAVE_FIELD 収集の duringAttackPhase 未評価**だった。
+
+- **根因1（parser）**：`parseSentencePart1` の「`場を離れたとき` かつ `場に出す` を含めば STUB」判定は、**辞書形「それを場に出す」だけを捕まえ「場に出して**もよい**」は素通り**する形になっていた（後者は下流の配置ハンドラで正しく解けていた＝WX11-035/WX19-003）。ところが `effectParser.ts` の ON_LEAVE_FIELD トリガー抽出は **actionText からトリガー句を除去していなかった**ため、「アタックフェイズの間、」前置き＋「カード名に《X》を含むシグニ…が場を離れたとき、」を持つ非任意「場に出す」＝**WXEX2-51-E1 が STUB（no-op）に落ちていた**（`parseActionText` の前置き除去 regex `^[^、。「」]{2,60}場を離れたとき、` は「アタックフェイズの間、」の読点で分断され失敗）。
+- **parser 修正（`effectParser.ts` ON_LEAVE_FIELD ブロック）**：トリガー句「[（この）アタックフェイズの間、][（対戦相手/あなた）のターンの間、]＜主語＞が場を離れたとき、」をまとめて解釈し、`duringAttackPhase` / `turnOwner` / `triggerScope(any_ally)` / `triggerFilter`（`＜Y＞の`→story／**`カード名に《X》を含む`→cardName** 新規／`他の`→excludeSelf）を抽出したうえで **actionText からトリガー句を除去**（除去後は既存の配置ハンドラが解く）。あわせてトラッシュ配置ハンドラ（`parseSentencePart1`）に name-contains フィルタ（`カード名に《X》を含む` 文脈限定で `parseNameFilter`）を追加。
+- **根因2（engine）**：`collectLeaveFieldTriggers`（self/any_ally/any_opp の3パス）が **`triggerCondition.duringAttackPhase` を評価していなかった**（ON_BANISH 側は評価済みだったが ON_LEAVE_FIELD は穴）。3パスに `duringAttackPhase && !turnPhase.startsWith('ATTACK') → skip` を追加。
+- **engine 修正2（相対フィルタ解決）**：`resolveLeaveFieldDynamicFilters` に `levelLtTrigger/levelGtTrigger/powerLtTrigger/powerLteTrigger`（「そのシグニより低い/高い」）の**収集時解決**を追加＝ON_LEAVE_FIELD のトリガー元は離脱カードだが any_ally 監視では実行元が watcher シグニで `triggeringCardNum` が離脱カードにならず `resolveDynamicFilter` が解けないため、離脱カード基準で level/powerRange へ確定（幂等：フラグを消すので二重解決しない）。
+- **JSON 反映（8効果が変化・全て改善）**：pure-superset の5枚（`WX14-009-E2`/`WX24-P2-052-E1`/`WX24-P2-078-E1`/`WXK02-031-E1`/`WXDi-D05-015-E2`）は build:effects が自動採用＝**scope 誤り（self→any_ally）と duringAttackPhase 欠落を是正**。構造変更の2枚を heldReview で採用＝`WXEX2-51-E1`（STUB→トラッシュから低レベルの《ユラギ》配置・any_ally・duringAttackPhase）／**`WX24-P3-053-E1`（先頭の「カードを1枚引き」が無言脱落していたのを復元**＋duringAttackPhase）。
+- **残（据置＝退化なし）**：`GRANT_LEAVE_PLACE_PENDING` は2枚残＝(a)**WX21-004-E2**＝エナから「そのシグニと**同じ**レベル」配置。`levelEqTrigger` 語彙が要るが該当1枚のため「過剰語彙を作らない」方針で held のまま（STUB維持＝no-op のまま・退化なし）。(b)**WX22-001-E3**＝【起】でこのアタックフェイズ限定の遅延 ON_LEAVE_FIELD watcher を設置する形＝`INSTALL_DELAYED_TRIGGER` の ON_LEAVE_FIELD 拡張が要る §6.3 級。両者は Opusタスク12 へ後続登録。
+- **検証**：全ゲート緑（typecheck／golden **499→501**〔ON_LEAVE_FIELD の duringAttackPhase+cardName 発火/非発火＋levelLtTrigger 解決の2件を追加〕／smoke 10722 OK・CRASH等0／fuzz 0／census 1919維持／lint 0 errors）。regen の逆翻訳も STUB「機構未実装・近似」→原文一致の実描画へ更新（同型★0）。
+
+---
+
 ## Opusタスク12(xl)から発展＝絆マーカー【絆常/絆自/絆起/絆出】が効果ブロック境界として未認識（134カード137能力の飲み込み・golden 496→499・census 1928→1919）（2026-07-19・続き215・Opus）
 
 タスク12(xl)（`WX25-CP1-012-E2` の `GRANT_KEYWORD{絆起}` 構造疑義）を起点に調査したところ、**単カードの問題ではなく parser の系統バグ**と判明。`splitEffectBlocks` の `MARKER_RE` が `【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】` しか見ておらず、**絆マーカーが効果ブロックの境界として認識されていなかった**。結果、絆能力は直前の効果ブロックへ丸ごと飲み込まれていた（134カード・137能力＝全絆カード）。
