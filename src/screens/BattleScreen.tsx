@@ -3890,7 +3890,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerLevelOverrides = isAttackPhaseBS ? collectAttackPhaseLevelOverrides(ownerState, effectsMap, battleCardMap) : {};
       const ownerStateForCtx = Object.keys(ownerLevelOverrides).length > 0
         ? { ...ownerState, attack_phase_level_overrides: ownerLevelOverrides } : ownerState;
-      const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap);
+      const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, bs.turn_phase);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
       const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);
       // PREVENT_SIGNI_ABILITY_LOSS_BY_OPP: 相手フィールドの能力保護シグニを動的計算してctxに渡す
