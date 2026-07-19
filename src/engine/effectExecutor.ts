@@ -2184,12 +2184,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       cur = addLog(cur, '数字を宣言（スキップ：次ステップが GRANT_KEYWORD でないため）');
       continue;
     }
-    // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN)
-    // IS_MY_TURN はパーサーが「コスト支払い → 効果発動」を表すプレースホルダーとして使用
+    // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
+    // IS_MY_TURN は旧パーサーのプレースホルダー、PAID_ADDITIONAL_COST は明示的な支払い結果条件。
     if (step.type === 'STUB') {
       const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
       if (nextStep?.type === 'CONDITIONAL' &&
-          (nextStep as ConditionalAction).condition.type === 'IS_MY_TURN') {
+          ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes((nextStep as ConditionalAction).condition.type)) {
         const conditional = nextStep as ConditionalAction;
         const remaining = a.steps.slice(i + 2);
         const cont: EffectAction | undefined = remaining.length > 0

@@ -1065,6 +1065,8 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     // 「＜X＞(か＜Y＞)?」単独（「のシグニ」なし＝カード種別を問わない story 一致。デッキ公開＜ブルアカ＞系）。
     const st = desc.match(/^＜([^＞]+)＞(?:か＜([^＞]+)＞)?$/);
     if (st) return { type: 'LAST_PROCESSED_MATCHES', filter: { story: st[2] ? [st[1], st[2]] : st[1] } };
+    const named = desc.match(/^《([^》]+)》$/);
+    if (named) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardName: named[1] } };
     // 「(色)(か(色))*のシグニ」＝色（OR）フィルタ。BANISH/公開/ミル結果が特定色かの判定（WX21-016「青か緑のシグニ」）。
     //   matchesFilter は filter.color の string|string[] を OR 判定する。従来は色語彙が無く IS_MY_TURN 据置だった。
     const colM = desc.match(/^((?:白|赤|青|緑|黒)(?:か(?:白|赤|青|緑|黒))+)のシグニ$/);
@@ -1080,6 +1082,14 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
       if (Object.keys(filter).length > 1) return { type: 'LAST_PROCESSED_MATCHES', filter };
     }
     return null;
+  }
+  const amongColor = clause.match(/^(?:その後、)?その中に(白|赤|青|緑|黒)のカードがある場合、$/);
+  if (amongColor) return { type: 'LAST_PROCESSED_MATCHES', filter: { color: amongColor[1] } };
+  if (/^(?:その後、)?それらがそれぞれ共通する色を持つ場合、$/.test(clause)) {
+    return { type: 'LAST_PROCESSED_SHARE_COLOR' };
+  }
+  if (/^(?:その後、)?そのカードが【ライフバースト】を持つ場合、$/.test(clause)) {
+    return { type: 'LAST_PROCESSED_HAS_BURST' };
   }
   // 「(その後、)それらに(色OR)のシグニがN体以上含まれる場合」＝直前に処理した複数カード(lastProcessedCards)に
   //   指定色のシグニが minCount 以上あるか（WX21-010「それらに白か黒のシグニが１体以上含まれる場合」・前段 BANISH）。
@@ -1200,6 +1210,8 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
   const m = clause.match(/^(.+?)の場合、(.+)$/s);
   if (!m) return null;
   const desc = m[1];
+  const amongColor = desc.match(/^その中に(白|赤|青|緑|黒)のカードがある$/);
+  if (amongColor) return { condition: { type: 'LAST_PROCESSED_MATCHES', filter: { color: amongColor[1] } }, rest: m[2] };
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
   if (/あなた|対戦相手|場|トラッシュ|エナ|ライフ|ルリグ|手札|デッキ|この方法|そうした|支払|ベット|達成|枚|体|種類|合計/.test(desc)) return null;
   const filter: TargetFilter = {};
@@ -1226,6 +1238,28 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  [/あなたのデッキが([０-９\d]+)枚の場合/,
+    g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+  [/あなたのエナゾーンに＜(美巧)＞のシグニが(５)枚以上ある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, operator: 'gte', value: parseNum(g[1]) })],
+  [/対戦相手のすべてのシグニが凍結状態である場合/,
+    () => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } })],
+  [/このシグニの下にカードが無い場合/,
+    () => ({ type: 'THIS_CARD_HAS_UNDER', negate: true })],
+  [/いずれかのプレイヤーの手札が([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'HAND_COUNT', owner: 'any', operator: 'gte', value: parseNum(g[0]) })],
+  [/あなたのトラッシュに＜(古代兵器)＞のシグニが(７)種類以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]), distinctName: true })],
+  [/このターンにあなたがスペルを([０-９\d]+)枚以上使用していた場合/,
+    g => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self', minCount: parseNum(g[0]) })],
+  [/このターンにあなたがドローフェイズ以外でカードを([０-９\d]+)枚以上引いていた場合/,
+    g => ({ type: 'CARDS_DRAWN_BY_EFFECT', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
+  [/あなたのエナゾーンにあるカードの色が([０-９\d]+)種類以上ある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: {}, distinctColor: true, operator: 'gte', value: parseNum(g[0]) })],
+  [/対戦相手のセンタールリグが(白|赤|青|緑|黒|無色)の場合/,
+    g => ({ type: 'LRIG_COLOR', owner: 'opponent', color: g[0] })],
+  [/あなたの場に傀儡状態のシグニが([０-９\d]+)体以上ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isPuppet: true }, minCount: parseNum(g[0]) })],
   // 「場にレベルN、レベルM、レベルKのシグニがある場合」＝各レベルのシグニがそれぞれ存在する（PR-K073）。
   [/あなたの場にレベル([０-９\d]+)、レベル([０-９\d]+)、レベル([０-９\d]+)のシグニがある場合/,
     g => ({ type: 'AND', conditions: g.map(level => ({
@@ -3087,7 +3121,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (notPaidM && steps.length > 0) {
       for (let j = steps.length - 1; j >= 0; j--) {
         const st = steps[j] as import('../types/effects').ConditionalAction;
-        if (st?.type === 'CONDITIONAL' && st.condition?.type === 'IS_MY_TURN') {
+        if (st?.type === 'CONDITIONAL' && (st.condition?.type === 'IS_MY_TURN' || st.condition?.type === 'PAID_ADDITIONAL_COST')) {
           const rest = clean.slice(notPaidM[0].length);
           st.else = parseSingleSentence(rest);
           break;
@@ -3158,6 +3192,10 @@ function parseActionTextInner(text: string): EffectAction {
       // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
       // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
       const prevIsProcessRecorder2 = prevStep?.type === 'TRANSFER_TO_DECK';
+      // WXDi-P05-086: トラッシュから手札に加えた対象カード名を直後に判定する。
+      // TRANSFER_TO_HAND は選択結果を lastProcessedCards に残すが、一般化すると既存の照応曖昧文まで拾うため原文節で限定する。
+      const prevIsNamedTransferToHand = prevStep?.type === 'TRANSFER_TO_HAND' &&
+        /^その後、それが《羅星姫　イクリプス》の場合、$/.test(thenM[0]);
       // SEARCH→TRASH は resumeSearch が選んだカードを lastProcessedCards に記録する。
       // ただし原文閾値まで検索できる fresh に限る。これにより WXEX1-03(7)／WXK02-028(4)は採用し、
       // 前段が原文4枚を1枚に過小parseしている WXK06-031 は条件だけ常時偽にする退化を避けて据置する。
@@ -3176,9 +3214,19 @@ function parseActionTextInner(text: string): EffectAction {
       //（resumeLookAndReorder＝reordered を記録）。「この方法で公開された（すべての）カードがN枚/〜の場合」の結果条件を
       //   拾えるよう含める（「デッキの上からN枚公開する」WX12-Re10/WXDi-P07-064 等）。私的な「見る」は含めない。
       const prevIsPublicLook = lar?.type === 'LOOK_AND_REORDER' && lar.private === false && (typeof lar.count !== 'number' || lar.count > 1);
+      const prevConditionalOpen = prevStep?.type === 'CONDITIONAL'
+        ? prevStep as import('../types/effects').ConditionalAction
+        : undefined;
+      const prevIsWrappedMagicBoxOpen = prevConditionalOpen?.then?.type === 'STUB' &&
+        (prevConditionalOpen.then as import('../types/effects').StubAction).id === 'OPEN_MAGIC_BOX';
+      if (prevIsWrappedMagicBoxOpen && !prevConditionalOpen?.else) {
+        prevConditionalOpen!.else = { type: 'STUB', id: 'INTERNAL_OPEN_MB_SKIP' };
+      }
+      const prevIsMagicBoxOpen = (prevStep?.type === 'STUB' &&
+        (prevStep as import('../types/effects').StubAction).id === 'OPEN_MAGIC_BOX') || prevIsWrappedMagicBoxOpen;
       const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain
         || prevIsProcessRecorder || prevIsProcessRecorder2 || prevIsSearchTrashRecorder || prevIsRemoveCharmRecorder
-        || prevStep?.type === 'REVEAL_DECK_TOP';
+        || prevIsNamedTransferToHand || prevIsMagicBoxOpen || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
@@ -3219,6 +3267,20 @@ function parseActionTextInner(text: string): EffectAction {
           condition = { type: 'LAST_PROCESSED_POWER_GTE', value: parseNum(pm[1]), addDelta: pv.delta };
         }
       }
+      // 任意の自己バニッシュ直後「この効果でこのシグニをバニッシュしていた場合」。execBanish は
+      // 実行時に選択結果を lastProcessedCards に残し、スキップ時は空配列になる。
+      if (!condition && /^その後、この効果でこのシグニをバニッシュしていた場合、$/.test(thenM[0])) {
+        const b = prevStep as Partial<import('../types/effects').BanishAction> & { type?: string };
+        if (b.type === 'BANISH' && b.optional && b.target?.filter?.thisCardOnly) {
+          condition = { type: 'LAST_PROCESSED_COUNT_GTE', value: 1, verbJa: 'このシグニをバニッシュしていた', omitGteJa: true };
+        }
+      }
+      // 直前 OPTIONAL_COST と対になる明示的な「《色》…を支払った場合」。PAID_ADDITIONAL_COST は
+      // effectExecutor の任意コスト先読み経路で実際の支払い選択として評価される。
+      if (!condition && /^(?:《[^》]+》)+を支払った場合、$/.test(thenM[0]) && prevStep?.type === 'STUB' &&
+          (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST') {
+        condition = { type: 'PAID_ADDITIONAL_COST' };
+      }
       // 前段の記録に依存しない盤面状態条件（対戦相手手札N枚・ライフ枚数・センタールリグ＜X＞等）。
       // 「代わりに」帰結（置換機構待ち）は据置＝ここでは拾わない。
       if (!condition && !rest.startsWith('代わりに')) {
@@ -3248,7 +3310,22 @@ function parseActionTextInner(text: string): EffectAction {
       if (branch) {
         steps.push({ type: 'CONDITIONAL', condition: branch.condition, then: parseSingleSentence(branch.rest) });
       } else {
-        steps.push(parseSingleSentence(clean));
+        const prevCond = prevStepE?.type === 'CONDITIONAL'
+          ? (prevStepE as import('../types/effects').ConditionalAction).condition
+          : undefined;
+        const noBurst = prevCond?.type === 'LAST_PROCESSED_HAS_BURST'
+          ? clean.match(/^【ライフバースト】を持たない場合、(このアタックを無効にし、(?:(?:対戦相手が《無》)|(?:あなたのルリグ)|(?:対戦相手のエナゾーン)).+)$/s)
+          : null;
+        const lrigColorBranch = prevCond?.type === 'LRIG_COLOR' && prevCond.owner === 'opponent'
+          ? clean.match(/^(赤|青|緑|黒|無色)の場合、(.+)$/s)
+          : null;
+        if (noBurst) {
+          steps.push({ type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_HAS_BURST', negate: true }, then: parseSingleSentence(noBurst[1]) });
+        } else if (lrigColorBranch) {
+          steps.push({ type: 'CONDITIONAL', condition: { type: 'LRIG_COLOR', owner: 'opponent', color: lrigColorBranch[1] }, then: parseSingleSentence(lrigColorBranch[2]) });
+        } else {
+          steps.push(parseSingleSentence(clean));
+        }
       }
     }
   }
@@ -3294,6 +3371,34 @@ function parseActionTextInner(text: string): EffectAction {
     if (merged.length !== steps.length) {
       steps.length = 0;
       steps.push(...merged);
+    }
+  }
+  // 公開・ミルした集合の後続枝「その中に色のカードがある場合」。WD07-007 の2色独立分岐。
+  {
+    const m = text.trim().match(/^その中に(白|赤|青|緑|黒)のカードがある場合、(.+)$/s);
+    if (m) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_MATCHES', filter: { color: m[1] } },
+        then: parseSingleSentence(m[2]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
+
+  // WDK10-008: 「共通色なら2枚回収。ベットしていた場合、代わりに4枚回収」は
+  // 共通色ゲートの内側でベットが値を置換する。汎用「代わりに」昇格はベットを外側へ出すため、
+  // この既存条件2種の組み合わせだけ正しい入れ子へ戻す。
+  if (steps.length === 2 && steps[0]?.type === 'EXILE' && steps[1]?.type === 'CONDITIONAL') {
+    const bet = steps[1] as import('../types/effects').ConditionalAction;
+    const common = bet.else?.type === 'CONDITIONAL'
+      ? bet.else as import('../types/effects').ConditionalAction
+      : undefined;
+    if (bet.condition.type === 'IS_BETTING' && common?.condition.type === 'LAST_PROCESSED_SHARE_COLOR') {
+      steps[1] = {
+        type: 'CONDITIONAL',
+        condition: common.condition,
+        then: { type: 'CONDITIONAL', condition: bet.condition, then: bet.then, else: common.then },
+      };
     }
   }
 

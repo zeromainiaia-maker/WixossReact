@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-19・続き209・Codex 実装／Opus 4.8 検証・追加修正・タスク12(xxii)「IS_MY_TURN化＝過剰実行バグ」第1バッチ5効果＋先頭対象指定の照応拡張3効果・golden 482→484・census 1945→1941）**
+  - 原文の後置条件節を parser が `CONDITIONAL{IS_MY_TURN}`（常時 true）へ潰す過剰実行を、既存 `LAST_PROCESSED_COUNT_GTE` の最小拡張で5効果修正。成立／不成立の両方向を golden 固定し、engine が結果を記録できない約40件は過小実行を避けて見送った。
+  - 検証中に `applyLeadingOpponentDesignation` が「この方法で〜場合、それを/それの」を通さない既存照応バグを発見し、意図2枚＋同 family 1枚を是正。生パース diff は3枚、outlier 0。
+  - ゲート＝golden 484・census 1941・smoke 10593 OK/0・fuzz 0・同型★0・lint warning 222。IS_MY_TURN化 93→88。詳細 BUGFIXES 続き209。
+  - 次の一手（退避時点）＝タスク12(xxii) 第2バッチとして、残88件中「この方法で」を含まない属性判定／盤面状態 family 30件を engine 評価可否から精査する。
+
 - **セッション（2026-07-19・続き208・**Codex 実装／Opus 4.8 検証**・timing センサス[C]残2クラスタ消化＝`ON_LIFE_CLOTH_ADDED`／`ON_OPP_ENERGY_ADDED` 新設・golden 478→482・timing fallback 56→52）**
   - **運用**＝ユーザー指示により**実装は Codex CLI・Claude は検証のみ**（続き182/183/186 と同形）。`Bash(codex *)` を `.claude/settings.local.json` に許可済み＝次回から Claude 側から起動可能。指示書は「続き207 の中央 diff パターン踏襲・engine 新語彙を足さない・census 1945 を増やさない・golden 追加・commit しない」を明記。
   - **✅`ON_LIFE_CLOTH_ADDED` 新設**（WD06-001-E2／WD20-001-E2）＝既存 `ON_LIFE_CRASHED` 系は**減少側のみ**で増加検出が無かった。`detectLifeClothAdded` は `life_cloth` の**増加 set-diff のみ**（クラッシュ→バーストの減少と構造的に非混線）。「カード1枚が加えられたとき」＝**1枚ちょうど**限定。WD20 の「あなたのターンの間」は既存 `triggerCondition.turnOwner:'self'` で表現。

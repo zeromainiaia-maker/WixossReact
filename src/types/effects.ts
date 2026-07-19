@@ -171,12 +171,13 @@ export type ActiveCondition =
 
 export type Condition =
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
+  | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致する手札枚数（distinctName=名前の異なる枚数）
   | { type: 'LIFE_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
-  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致するエナゾーンのカード枚数（「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
+  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
@@ -184,10 +185,10 @@ export type Condition =
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string } // このターンに owner がアーツを使用していた場合（turn_arts_used）。color 指定時は当該色のアーツを使用していた場合（turn_arts_used_colors。WX24-D1-11〜D4-11）
-  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner } // このターンに owner がスペルを使用していた場合（actions_done の 'USE_SPELL' マーカー参照＝handleUseSpell が積みターン開始時リセット。WX24-P1-068 等の系統・続き110）
+  | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜空獣＞と＜地獣＞が合計3体ある場合」=minCount:3。WX04-094）
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
-  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // minCount: フィルタ一致カードがN枚以上あるか（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」=minCount:2。G090）
+  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
@@ -202,7 +203,7 @@ export type Condition =
   | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
-  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter }    // このシグニの下にカードがある場合（filter=下カードの条件）
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean } // このシグニの下にカードがある場合。negate=true は「無い場合」
   | { type: 'LRIG_LEVEL_EQ_OPP' }                             // 自分のセンタールリグのレベルが対戦相手のセンタールリグと同じ場合
   | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' } // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合（WXK07-025/WXK10-068。EQ の不等号版）
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string } // センタールリグのカード名が name を含む場合
@@ -241,7 +242,7 @@ export type Condition =
   | { type: 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN' }       // このターンに《ディソナアイコン》ではないスペルを使用していない（DISONA_RESTRICTION用）
   | { type: 'DECK_TOP_SHARES_COLOR_WITH_LRIG'; owner: Owner } // デッキの一番上のカードと共通する色を持つルリグ（センター/アシスト）が場にいる場合（G157）
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
-  | { type: 'LAST_PROCESSED_HAS_BURST' }                     // lastProcessedCards[0] が【ライフバースト】を持つ場合
+  | { type: 'LAST_PROCESSED_HAS_BURST'; negate?: boolean }   // lastProcessedCards[0] が【ライフバースト】を持つ場合。negate=true は持たない場合
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
   | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
   | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number }  // lastProcessedCards（直前のミル/公開/選択/エナ置き結果）に filter 一致が minCount（省略=1）枚以上（「それが＜X＞のシグニの場合」WXK06-079／「この方法で＜X＞のシグニがエナゾーンに置かれた場合」WXEX1-43-BURST）
@@ -347,6 +348,7 @@ export interface TargetFilter {
   isUp?:      boolean; // アップ状態（ダウンしていない）
   isFrozen?:  boolean;
   isAwakened?: boolean; // 覚醒状態のシグニ（ownerState.awakened_signi にCardNumが含まれる）。「レベルNの覚醒状態のシグニがある場合」等。matchesStateFilter/execUtils HAS_CARD_IN_FIELD で判定（WXDi-P14-054/058/066）
+  isPuppet?: boolean; // 傀儡状態のシグニ（field.puppet_signi にインスタンスIDが含まれる）
   crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）

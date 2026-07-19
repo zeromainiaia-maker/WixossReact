@@ -713,7 +713,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'FIELD_COUNT':
       return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
         cond.operator, resolveNum(cond.value));
+    case 'DECK_COUNT':
+      return cmp(st(cond.owner).deck.length, cond.operator, resolveNum(cond.value));
     case 'HAND_COUNT':
+      if (cond.owner === 'any') {
+        return cmp(s.hand.length, cond.operator, resolveNum(cond.value)) ||
+          cmp(o.hand.length, cond.operator, resolveNum(cond.value));
+      }
       return cmp(st(cond.owner).hand.length, cond.operator, resolveNum(cond.value));
     case 'HAND_COUNT_FILTER': {
       const matched = handCandidates(st(cond.owner), cond.filter, ctx.cardMap);
@@ -730,7 +736,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT_FILTER': {
       const matched = energyCandidates(st(cond.owner), cond.filter, ctx.cardMap, ctx.treatAsClassAllZones);
-      const n = cond.distinctName
+      const n = cond.distinctColor
+        ? new Set(matched.flatMap(cn => splitColors(ctx.cardMap.get(cn)?.Color))).size
+        : cond.distinctName
         ? new Set(matched.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn)).size
         : matched.length;
       return cmp(n, cond.operator, resolveNum(cond.value));
@@ -754,7 +762,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'SPELL_USED_THIS_TURN':
       // handleUseSpell が actions_done に積む 'USE_SPELL' マーカー（ターン開始時リセット）＝
       // firstSpellExtra 等の既存機能と同じ判定源を参照する
-      return (st(cond.owner).actions_done ?? []).includes('USE_SPELL');
+      return (st(cond.owner).actions_done ?? []).filter(a => a === 'USE_SPELL').length >= (cond.minCount ?? 1);
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
@@ -775,12 +783,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           const isAwk = (fst.awakened_signi ?? []).includes(top);
           if (cond.filter.isAwakened !== isAwk) return false;
         }
+        if (cond.filter?.isPuppet !== undefined) {
+          const isPuppet = (fst.field.puppet_signi ?? []).includes(top);
+          if (cond.filter.isPuppet !== isPuppet) return false;
+        }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       }).length;
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
         for (const ln of lrigZoneTops(fst.field)) {
           if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matched++;
         }
@@ -797,19 +809,27 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // 空盤面は false（1体以上を要求＝軍勢が居ないのに空振り発火しない）。ルリグは対象外（シグニのみ）。
       const fst2 = st(cond.owner);
       const tops = fst2.field.signi
-        .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
-        .filter((n): n is string => n !== null);
+        .map((stack, zoneIdx) => stack && stack.length ? { cardNum: stack[stack.length - 1], zoneIdx } : null)
+        .filter((n): n is { cardNum: string; zoneIdx: number } => n !== null);
       if (tops.length === 0) return false;
-      return tops.every(top => matchesFilter(ctx.cardMap.get(top), cond.filter));
+      return tops.every(({ cardNum, zoneIdx }) => {
+        if (cond.filter.isFrozen !== undefined && cond.filter.isFrozen !== (fst2.field.signi_frozen?.[zoneIdx] ?? false)) return false;
+        if (cond.filter.isAwakened !== undefined && cond.filter.isAwakened !== (fst2.awakened_signi ?? []).includes(cardNum)) return false;
+        if (cond.filter.isPuppet !== undefined && cond.filter.isPuppet !== (fst2.field.puppet_signi ?? []).includes(cardNum)) return false;
+        return matchesFilter(ctx.cardMap.get(cardNum), cond.filter);
+      });
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
       // minCount: フィルタ一致カードがN枚以上（省略=1。「トラッシュに＜武勇＞のシグニが10枚以上ある場合」等）
-      const matched = st(cond.owner).trash.filter(n => {
+      const matchedCards = st(cond.owner).trash.filter(n => {
         const c = ctx.cardMap.get(n);
         if (!c) return false;
         return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
-      }).length;
+      });
+      const matched = cond.distinctName
+        ? new Set(matchedCards.map(n => ctx.cardMap.get(n)?.CardName ?? getCardNum(n))).size
+        : matchedCards.length;
       return matched >= (cond.minCount ?? 1);
     }
     case 'DECK_TOP_MATCHES': {
@@ -930,12 +950,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const src = ctx.sourceCardNum;
       if (!src) return false;
       const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
-      if (!stack || stack.length <= 1) return false;
-      if (!cond.filter) return true;
-      return stack.slice(0, -1).some(cn => {
+      const hasMatch = !!stack && stack.length > 1 && (!cond.filter || stack.slice(0, -1).some(cn => {
         const base = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
         return matchesFilter(ctx.cardMap.get(base), cond.filter);
-      });
+      }));
+      return cond.negate ? !hasMatch : hasMatch;
     }
     case 'LRIG_LEVEL_EQ_OPP': {
       const myLrig = s.field.lrig.at(-1);
@@ -1140,7 +1159,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const proc = ctx.lastProcessedCards ?? [];
       if (proc.length === 0) return false;
       const c = ctx.cardMap.get(proc[0]);
-      return !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
+      const hasBurst = !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
+      return cond.negate ? !hasBurst : hasBurst;
     }
     case 'LAST_PROCESSED_HAS_TYPE': {
       // この方法で直前に処理した（トラッシュ等）カードの中に指定Type（'スペル'等）が含まれるか（G164）

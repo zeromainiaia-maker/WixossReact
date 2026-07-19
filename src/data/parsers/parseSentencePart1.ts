@@ -1004,7 +1004,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const isOptional = t.includes('バニッシュしてもよい');
     // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）
-    if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) && !t.includes('対戦相手')) {
+    if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) &&
+        (!t.includes('対戦相手') || /このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニをバニッシュしてもよい/.test(t))) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } }, ...(isOptional ? { optional: true } : {}) };
     }
     // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」＝対戦相手が自分のシグニを選んでバニッシュ
@@ -2176,7 +2177,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ] };
     }
     const upToM = t.match(/([０-９\d]+)枚まで/);
-    const count = t.includes('すべて') ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1);
+    const exactTrashCountM = t.match(/対戦相手のトラッシュにあるカード([０-９\d]+)枚を対象とし/);
+    const count = t.includes('すべて') ? 'ALL' : (upToM ? parseNum(upToM[1]) : exactTrashCountM ? parseNum(exactTrashCountM[1]) : 1);
     const srcType = isHand ? 'HAND_CARD' : isEnergy ? 'ENERGY_CARD' : 'TRASH_CARD';
     // 「場にあるこのシグニをゲームから除外する」＝効果元シグニ自身の場からの除外（WX25-P1-TK6）
     if (t.match(/場にあるこのシグニをゲームから除外する/)) {

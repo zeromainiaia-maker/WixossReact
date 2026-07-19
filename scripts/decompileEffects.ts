@@ -106,6 +106,8 @@ function filterJa(f?: any): string {
   if (f.frontOfGateZone) parts.push('【ゲート】の正面の');
   if (f.inGateZone) parts.push('同じゾーンに【ゲート】がある');
   if (f.centerZoneOnly) parts.push('中央ゾーンの');
+  if (f.isFrozen) parts.push('凍結状態の');
+  if (f.isPuppet) parts.push('傀儡状態の');
   if (f.eachDistinctLevel) parts.push('それぞれレベルの異なる');
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
@@ -266,12 +268,17 @@ function condJa(c?: any): string {
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
     case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
-    case 'HAND_COUNT': return `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'HAND_COUNT': return c.owner === 'any'
+      ? `いずれかのプレイヤーの手札が${numJa(c.value)}枚${opJa(c.operator)}`
+      : `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
     case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'ENERGY_COUNT_FILTER': return `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
+    case 'ENERGY_COUNT_FILTER': return c.distinctColor
+      ? `${ownerJa(c.owner)}エナゾーンにあるカードの色が${numJa(c.value)}種類${opJa(c.operator)}`
+      : `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
     case 'LRIG_NAME_CONTAINS': return `${ownerJa(c.owner)}センタールリグ名が「${c.name}」を含む`;
     case 'LRIG_COLOR': return `${ownerJa(c.owner)}センタールリグが${c.color}`;
@@ -282,12 +289,12 @@ function condJa(c?: any): string {
       // 「トラッシュにカード名に《X》を含むカードがある」（WX20-065）
       if (c.filter?.cardName)
         return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
-      return `${ownerJa(c.owner)}トラッシュに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
+      return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
     case 'ARTS_USED_THIS_TURN': { const artsColor = (c as { color?: string }).color; return `このターンにあなたが${artsColor ? `${artsColor}の` : ''}アーツを使用していた`; }
-    case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを使用していた`;
+    case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
-    case 'LAST_PROCESSED_HAS_BURST': return '直前のカードが【ライフバースト】を持つ';
+    case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
     case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
     case 'HAS_CARD_IN_FIELD':
@@ -319,6 +326,7 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_COUNT_GTE': {
       if (c.negate && c.verbJa === '捨てた') return `この方法で手札を${numJa(c.value)}枚捨てなかった`;
       if (c.negate && c.verbJa === 'チャームをトラッシュに置いた') return `この方法で【チャーム】${numJa(c.value)}枚がトラッシュに置かれなかった`;
+      if (c.verbJa === 'このシグニをバニッシュしていた') return 'この効果でこのシグニをバニッシュしていた';
       return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '手札に加えた'}`;
     }
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
@@ -342,14 +350,18 @@ function condJa(c?: any): string {
     case 'THIS_CARD_IS_ARMORED': return 'このシグニが血晶武装状態';
     case 'THIS_CARD_IS_AWAKENED': return 'このシグニが覚醒状態';
     case 'ALL_FIELD_SIGNI_MATCH': {
-      const cls = c.filter?.isDisona ? '《ディソナアイコン》'
+      const cls = c.filter?.isFrozen ? '凍結状態'
+        : c.filter?.isPuppet ? '傀儡状態'
+        : c.filter?.isDisona ? '《ディソナアイコン》'
         : c.filter?.story ? `＜${c.filter.story}＞`
         : c.filter?.cardName ? `《${c.filter.cardName}》`
         : filterJa(c.filter);
       return `${ownerJa(c.owner)}場にあるすべてのシグニが${cls}`;
     }
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
-    case 'THIS_CARD_HAS_UNDER': return c.filter ? `このシグニの下に${filterJa(c.filter)}シグニがある` : 'このシグニの下にカードがある';
+    case 'THIS_CARD_HAS_UNDER': return c.filter
+      ? `このシグニの下に${filterJa(c.filter)}シグニが${c.negate ? '無い' : 'ある'}`
+      : `このシグニの下にカードが${c.negate ? '無い' : 'ある'}`;
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
     case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
