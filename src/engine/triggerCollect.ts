@@ -701,7 +701,8 @@ export function resolveLeaveFieldDynamicFilters(
       const gt = obj.levelGtTrigger === true;
       delete obj.levelLtTrigger; delete obj.levelGtTrigger;
       const base = isNaN(leftLevel) ? 0 : leftLevel;
-      obj.level = { ...(obj.level ?? {}), ...(gt ? { min: base + 1 } : { max: base - 1 }) };
+      const prev = (typeof obj.level === 'object' && obj.level) ? obj.level : {};
+      obj.level = { ...prev, ...(gt ? { min: base + 1 } : { max: base - 1 }) };
     }
     if (obj.powerLtTrigger === true || obj.powerLteTrigger === true) {
       const lte = obj.powerLteTrigger === true;
