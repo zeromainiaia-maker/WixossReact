@@ -4,6 +4,30 @@
 
 ---
 
+## 機構待ちタスク一括消化＝powerLteTrigger 動的比較／ON_HAND_ADDED・ON_ENERGY_TO_FIELD 新設／「ダウン状態で場に出す」DOWN 誤退化の系統是正（golden 470→478・census 1948→1945）（2026-07-19・続き207・Fable 5）
+
+**§3 の「機構待ち」据置項目を3本消化**＝タスク16[C] の「動的比較（WXEX1-42）」「ON_HAND_ADDED 新設」＋タスク12(xxvii) 残（WXDi-P11-007-E1 エナ発ゾーン移動 timing）。着手時の現状確認で **(xxvii) の残3枚のうち2枚は既に解消済み（簿記が古い）** と判明＝WX12-006-E2（ON_SIGNI_BECOMES_UP＝続き180 の機構で JSON 採用済み・any_ally 既定/filter/byEffect 完備）・WXDi-P11-066-E1（自己discard反応＝続き180 の `collectAnyZoneTrashSelfTriggers`＋`byOpponentEffect` で表現・golden 済み）。
+
+**1. `powerLteTrigger`（トリガー元パワー以下の動的比較）**＝既存 `powerLtTrigger`（より低い・WXK11-020）の Lte 兄弟を1本足すだけで機構は完結した。
+- **真因は比較脱落ではなく2つの別バグ**＝(a) **ON_SIGNI_DOWN/UP 系がトリガー句を actionText から除去しておらず**、WXEX1-42-E1 の BANISH 対象 filter にトリガー句由来の `story:植物/isDown/excludeSelf` が**幻覚フィルタとして混入**（本来の「そのシグニのパワー以下」は丸ごと脱落）。ON_PLAY any_ally と同型の除去を追加。(b) **ON_PLAY any_ally 規則が「＜X＞か＜Y＞の」複数クラスに未対応**で、WXEX1-53-E1 が scope 既定 self（＝自身が場に出たとき）へ退化・byEffect も落ちていた。regex を `＜X＞(か＜Y＞)?の` に拡張（story 配列 emit・matchesFilter は配列対応済み）。
+- parser は `parseTriggerComparison` に「そのシグニのパワー以下の」を追加（「そうした場合」＝lastProcessed 文脈は除外）。engine `resolveDynamicFilter` は **Lte 形のみ trigger 不在時に lastProcessedCards[0] へフォールバック**（「ダウンする。そうした場合、そのシグニのパワー以下」＝WD04-018 の MANUAL `powerLteLastProcessed` と同じ解決に自然に一致する）。
+- **副産物2枚も是正**＝WXEX2-01-E1（UP 対象の isDown 幻覚除去）・WXK11-015-E3（MANUAL の owner:opponent 近似を撤去＝**execFreeze に owner:'any'＋isTriggerSource の所在側解決分岐を新設**し「シグニ1体がダウン状態になったとき、そのシグニを凍結する」を両側対応に。自分のアタックダウンでも凍結する公式裁定どおりの両刃）。
+- 採用4枚（WXEX1-42/WXEX1-53/WXEX2-01 heldReview・WDK12-001 純増自動採用）。全カード生パース diff で変化6枚のみを機械確認・全数原文照合。
+
+**2. `ON_HAND_ADDED`／`ON_ENERGY_TO_FIELD` timing 新設**（タスク2・3の機構は同一＝「ゾーン→手札/場」移動の検出）。
+- **検出**＝`detectHandAdded`（before/after の手札 set-diff＋移動元ゾーン判定 energy/field/deck/trash）・`detectPlacedFromEnergy`（detectPlacedSigni の移動元エナ限定版）。中央 diff（`collectBoardDiffTriggers`＝resolveStackNext／resume 両経路）に配線＝検出される移動は構造的に効果起因。
+- **コレクタ**＝`collectHandAddedTriggers`（handOwner／fromZones／byOpponentEffect・byOwnEffect／excludeGrowPhase／turnOwner／triggerFilter を評価。発火は移動イベント単位＝「1枚以上」）＋`collectEnergyToFieldTriggers`。**`movedSelf` 変種**（「このシグニがあなたのエナゾーンから手札に移動したとき」＝移動カード自身が手札から発火・WD12-009/010）は場 watcher と別ループで弁別（場に居る同名 watcher の誤発火を防ぐ）。usageLimit 書き戻しは全コレクタ標準の {entries, usedHostIds, usedGuestIds} 型。手札枝と場枝（timing 併記 OR）の二重 once_per_turn は、呼び出し側が手札枝の usedIds を反映してから場枝を呼ぶ順序で防止。
+- **5枚採用**＝WX25-P2-063-E1（ON_PLAY 退化→handOwner:opponent＋byOpponentEffect＋excludeGrowPhase）・WXDi-P11-007-E1（ON_PLAY 退化→両 timing＋fromZones:energy＋シグニ filter）・WX14-029-E1・WD12-009-E2・WD12-010-E1（movedSelf）。WXK11-049 は既存 `ON_LEAVE_FIELD{leftToZone:hand}` で対応済み＝対象外。WX25-P3-023（付与型の遅延 watcher）は grant/duration 機構が別＝据置。
+
+**3. 「ダウン状態で場に出す」の DOWN 誤退化を系統是正（census に出ていた実バグの一括回収）**＝実装中に WX14-029 の後段「それをダウン状態で場に出す」が **DOWN ルールの `/をダウン/` に誤マッチして「場のシグニをダウンする」に化けている**のを発見。全 CSV を数えると**同文型が40枚**あり全て同じ退化だった。
+- DOWN ルールに `!t.includes('ダウン状態で場に出')` ガード＋手札/トラッシュ/エナの ADD_TO_FIELD ビルダに `asDown`（＋「してもよい」なら `optional`）を down 変種限定で追加（plain な「場に出してもよい」の optional 化は既存挙動を広く変えるため据置）。
+- **全カード生パース diff で変化40枚全てが当該文型の家族であることを機械確認**（outlier 0・残 DOWN 2枚は正当なコスト/バースト側）。30枚 heldReview 採用・12枚は fresh==curated 化（過去の手修正に parser が追いついた＝held 解消）。
+- WD12-009/010 の action も DOWN{level:N}（誤）→ `ADD_TO_FIELD{HAND_CARD, asDown, optional}`（正）へ。
+
+**ゲート**＝golden 470→**478**（powerLteTrigger 解決2種・FREEZE any 側解決・WXEX1-53 メタデータ・コレクタ4種の発火/非発火）・census 1948→**1945**（BASELINE_HIGH 更新）・smoke/fuzz 全0・同型★0 維持・全逆翻訳を原文照合済み。**要実機検証**＝ON_HAND_ADDED の実対戦発火（WX25-P2-063 の相手ターン手札増→ハンデス）と WXDi-P11-007 のエナチャージ発火（コレクタは golden 固定済み・BattleScreen 配線は中央 diff 経由）。
+
+---
+
 ## タスク12(xxxvi) クローズ＝エナ代替トラッシュをグロウ支払い経路へ配線（golden 469→470）（2026-07-19・続き206・Opus 4.8）
 
 **続き204b（`COST_SUBSTITUTE` 実装）中に発見して自分で登録した配線穴の回収。** `myEnergyTrashSubInfo`（`wildcardInstIds` / `colorOverrideMap` / `keySubInstId`）は ArtsModal・SigniActivatedModal の支払い経路にしか渡されておらず、**グロウ支払いでは代替が効かなかった**。原文「あなたが《X》を支払う際、代わりに…トラッシュに置いてもよい」は**グロウコストの支払いも含む**ため取りこぼし＝`COST_SUBSTITUTE`(WX08-042/WX21-044) だけでなく先行実装の `ENERGY_SUBSTITUTE_TRASH_SIGNI`・`ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI`・`ENERGY_COLOR_SUBSTITUTE_TRASH` も同様に効いていなかった。
