@@ -1815,6 +1815,8 @@ const timingJa: Record<string, string> = {
   ON_ACCE_ATTACH: 'あなたのシグニ１体に【アクセ】が付いたとき',
   ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
   ON_CARD_MOVED_TO_DECK: 'あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき',
+  ON_HAND_ADDED: '効果によってカードがあなたの手札に移動したとき',
+  ON_ENERGY_TO_FIELD: 'あなたのエナゾーンからシグニが場に出たとき',
   ON_SIGNI_POWER_ZERO_OR_LESS: 'シグニのパワーが0以下になったとき',
   ON_SIGNI_FROZEN: 'シグニが凍結状態になったとき',
   ON_TARGETED: 'このシグニが対戦相手の能力か効果の対象になったとき',
