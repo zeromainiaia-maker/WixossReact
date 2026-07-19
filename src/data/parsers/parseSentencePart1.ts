@@ -1531,6 +1531,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // 即時配置を避けて no-op STUB に。忠実実装には「場を離れたとき手札から配置」を期間付きで付与する
   // 機構が必要（WX22-001-E3）。※【自】ON_LEAVE_FIELD はトリガー文が除去済みで此処に来ない。
   if (t.includes('場を離れたとき') && t.includes('場に出す')) {
+    if (process.env.DBG_LEAVE) console.error('[STUB_LEAVE] t=', JSON.stringify(t));
     return { type: 'STUB', id: 'GRANT_LEAVE_PLACE_PENDING' } as StubAction;
   }
 
