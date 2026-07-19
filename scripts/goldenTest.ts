@@ -4705,6 +4705,20 @@ test('BANISH_REDIRECT: banish_redirect フラグを立てる（WX01-027）', () 
   const r = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN' } as EffectAction, ctx);
   eq((r.ownerState as PlayerState).banish_redirect, true, 'banish_redirect');
 });
+// 続き218: BANISH_REDIRECT の whenPowerZero（バニッシュ**される側**の限定）。
+// 「このターン、パワーが０以下の対戦相手のシグニがバニッシュされる場合…」（WXDi-P10-009-E3／WXDi-CP02-102-E2）は
+// パワー0消滅経路にだけ効く＝無条件 banish_redirect を立てると相手の全バニッシュがトラッシュ送りになる過剰発火。
+test('BANISH_REDIRECT whenPowerZero: 無条件フラグを立てず対戦相手限定のパワー0フラグだけを立てる（続き218）', () => {
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN', whenPowerZero: true } as unknown as EffectAction, ctx);
+  const st = r.ownerState as PlayerState;
+  eq(st.power0_banish_to_trash_opp_only, true, 'パワー0（対戦相手限定）フラグが立つ');
+  ok(st.banish_redirect !== true, '無条件 banish_redirect は立てない（全バニッシュへの過剰発火防止）');
+  ok(st.power0_banish_to_trash !== true, '所有者問わず版（WX04-038-E1 のSTUB用）は立てない');
+  // 限定なしは従来どおり無条件フラグ＝既存挙動を壊していないこと
+  const r2 = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, redirectTo: 'trash', until: 'END_OF_TURN' } as EffectAction, mkCtx({}, {}));
+  eq((r2.ownerState as PlayerState).banish_redirect, true, '限定なしは従来どおり無条件');
+});
 // 続き217: BANISH_REDIRECT の bySource（バニッシュ元の限定）。
 // これが無いと「能力持ちが場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する
 // （WXDi-CP02-072-E3「【絆常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合…」等10効果）。
