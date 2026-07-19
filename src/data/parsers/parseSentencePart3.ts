@@ -855,7 +855,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のシグニ1体を対象とし、《色》を支払ってもよい ----
-  if (t.match(/対戦相手のシグニ[０-９\d]*体を対象とし、《[赤青緑黒白無]》を支払ってもよい/)) {
+  if (t.match(/対戦相手のシグニ[０-９\d]*体を対象とし、(?:《[赤青緑黒白無]》)+を支払ってもよい/)) {
     const costColors = extractCostColors(t);
     return { type: 'STUB', id: 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', costColors } as StubAction;
   }

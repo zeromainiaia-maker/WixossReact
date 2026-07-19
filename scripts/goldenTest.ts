@@ -24,8 +24,8 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, type TrigCtx } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped } from '../src/engine/boardDiff';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { advancePreventDamageWindows } from '../src/screens/battle/battleUtils';
 import { canAffordGrowCost } from '../src/screens/battle/costs';
@@ -1352,6 +1352,68 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
   // 別カードがエナ→手札へ移動（WD12-009 は場に居る）→ movedSelf は場 watcher では発火しない
   const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
   eq(hasEff(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
+});
+
+test('ON_LIFE_CLOTH_ADDED: 増加 set-diff だけで LRIG watcher が発火し、WD20 は自ターン限定', () => {
+  const before = mkState({ life: 2 });
+  const addedNum = fresh();
+  const after = { ...before, life_cloth: [...before.life_cloth, addedNum] };
+  eq(detectLifeClothAdded(before, after).join(','), addedNum, '増加カードだけを検出');
+  eq(detectLifeClothAdded(after, before).length, 0, '減少（クラッシュ側）は検出しない');
+  const host = mkState({}); host.field.lrig = ['WD20-001'];
+  const event = [{ ownerId: HOST, nums: [addedNum] }, { ownerId: GUEST, nums: [] }];
+  eq(hasEff(collectLifeClothAddedTriggers(trigCtx(HOST), event, host, mkState({})).entries, 'WD20-001-E2'), true, '自ターンは発火');
+  eq(hasEff(collectLifeClothAddedTriggers(trigCtx(GUEST), event, host, mkState({})).entries, 'WD20-001-E2'), false, '相手ターンは非発火');
+  eq(collectLifeClothAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, nums: [addedNum, fresh()] }, { ownerId: GUEST, nums: [] }], host, mkState({})).entries.length, 0, '2枚同時追加では非発火');
+});
+
+test('ON_OPP_ENERGY_ADDED: 相手エナ1枚増加・閾値・アタックフェイズ・usageLimit を評価', () => {
+  const host = mkState({ signi: ['WX24-P2-050', null, null] });
+  const guest = mkState({ energy: 3 });
+  const placed = guest.energy.at(-1)!;
+  const beforeGuest = { ...guest, energy: guest.energy.slice(0, -1) };
+  eq(detectEnergyAdded(beforeGuest, guest).join(','), placed, '相手エナの増加カードを set-diff 検出');
+  eq(detectEnergyAdded(guest, beforeGuest).length, 0, 'エナ減少は検出しない');
+  const event = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [placed] }];
+  const attackCtx = { ...trigCtx(HOST), turnPhase: 'ATTACK' };
+  const fired1 = collectOppEnergyAddedTriggers(attackCtx, event, host, guest);
+  eq(hasEff(fired1.entries, 'WX24-P2-050-E1'), true, '条件成立で発火');
+  eq(fired1.entries[0]?.triggeringCardNum, placed, '置かれたカード自身を保持');
+  eq(fired1.usedHostIds.join(','), 'WX24-P2-050-E1', 'once_per_turn 消費IDを返す');
+  const usedHost = { ...host, actions_done: ['WX24-P2-050-E1'] };
+  eq(hasEff(collectOppEnergyAddedTriggers(attackCtx, event, usedHost, guest).entries, 'WX24-P2-050-E1'), false, '使用済みなら再発火しない');
+  eq(hasEff(collectOppEnergyAddedTriggers(trigCtx(HOST), event, host, guest).entries, 'WX24-P2-050-E1'), false, 'メインフェイズでは非発火');
+  eq(collectOppEnergyAddedTriggers(attackCtx, [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [placed, fresh()] }], host, guest).entries.length, 0, '2枚同時増加では非発火');
+});
+
+test('ON_OPP_ENERGY_ADDED: WDA-F03-13 はトリガー後、相手エナ8枚以上なら任意の1枚を対象に取る', () => {
+  const host = mkState({ signi: ['WDA-F03-13', null, null] });
+  const guest7 = mkState({ energy: 7 });
+  const guest8 = mkState({ energy: 8 });
+  const e7 = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [guest7.energy.at(-1)!] }];
+  const e8 = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [guest8.energy.at(-1)!] }];
+  eq(hasEff(collectOppEnergyAddedTriggers(trigCtx(HOST), e7, host, guest7).entries, 'WDA-F03-13-E2'), true, '配置イベント自体では発火');
+  eq(hasEff(collectOppEnergyAddedTriggers(trigCtx(HOST), e8, host, guest8).entries, 'WDA-F03-13-E2'), true, '8枚でも発火');
+  const eff = effectsMap.get('WDA-F03-13')!.find(e => e.effectId === 'WDA-F03-13-E2')!;
+  const r7 = executeEffect(eff, { ...mkCtx({ signi: ['WDA-F03-13', null, null] }, { energy: 7 }, 'WDA-F03-13'), triggeringCardNum: guest7.energy.at(-1)! });
+  eq(r7.done, true, '7枚では条件不成立で対象選択なし');
+  const c8 = mkCtx({ signi: ['WDA-F03-13', null, null] }, { energy: 8 }, 'WDA-F03-13');
+  const r8 = executeEffect(eff, { ...c8, triggeringCardNum: c8.otherState.energy.at(-1)! });
+  eq(r8.done, false, '8枚なら相手エナの対象選択を要求');
+  const p8 = (r8 as { pending: { candidates: string[] } }).pending;
+  eq(p8.candidates.length, 8, '置かれたカードに限らず相手エナ8枚すべてが候補');
+});
+
+test('ON_OPP_ENERGY_ADDED「そのカード」: 置かれた相手エナ自身だけを選択なしでトラッシュ', () => {
+  const eff = effectsMap.get('WX24-P2-050')!.find(e => e.effectId === 'WX24-P2-050-E1')!;
+  const ctx = mkCtx({ signi: ['WX24-P2-050', null, null] }, { energy: 3 }, 'WX24-P2-050');
+  const placed = ctx.otherState.energy[1];
+  const untouched = ctx.otherState.energy.filter(n => n !== placed);
+  const r = executeEffect(eff, { ...ctx, triggeringCardNum: placed, currentPhase: 'ATTACK' });
+  eq(r.done, true, '対象選択を出さず完了');
+  eq(r.otherState.energy.includes(placed), false, '置かれたカードをエナから除去');
+  eq(r.otherState.trash.includes(placed), true, '置かれたカードをトラッシュへ');
+  ok(untouched.every(n => r.otherState.energy.includes(n)), '他の相手エナは残る');
 });
 
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。

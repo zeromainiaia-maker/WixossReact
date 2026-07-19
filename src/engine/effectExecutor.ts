@@ -763,8 +763,17 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // colorNotMatchesLrig 等の動的フィルタを対象オーナーのルリグ基準で解決（WX21-035①）
     const ownerSt = tgt.owner === 'self' ? ctx.ownerState : ctx.otherState;
     const otherSt = tgt.owner === 'self' ? ctx.otherState : ctx.ownerState;
-    const resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-    const cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    let resolvedFilter = resolveDynamicFilter(tgt.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    // isTriggerSource: ON_OPP_ENERGY_ADDED の「そのカード」＝この解決で置かれたカード自身。
+    // 既存 TargetFilter 語彙を ENERGY_CARD にも適用し、任意の相手エナを選ぶ効果と取り違えない。
+    let triggerRestrict: string[] | null = null;
+    if (resolvedFilter?.isTriggerSource) {
+      const { isTriggerSource: _ts, ...rest } = resolvedFilter;
+      resolvedFilter = rest;
+      triggerRestrict = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : [];
+    }
+    let cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
     const scope: TargetScope = tgt.owner === 'self' ? 'self_energy' : 'opp_energy';
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
@@ -784,6 +793,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       return addLog(setOwnerState(tgt.owner, newS, c),
         `エナから${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`);
     }
+    // 「そのカード」は既にトリガーで一意に決まっており、対象を取らないため選択UIを出さず直接処理する。
+    if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     if (tgt.count === 'ALL') return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     const count = resolveNum(tgt.count);
     // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）

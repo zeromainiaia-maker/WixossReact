@@ -1535,9 +1535,25 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SET_HAND_CARD_AS_TRAP' } as StubAction;
   }
 
-  // ---- 対戦相手のエナゾーンにカードが置かれたとき条件付きトラッシュ ----
-  if (t.match(/対戦相手のエナゾーンに.*置かれたとき.*以上.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL' } as StubAction;
+  // ---- 相手エナ増加トリガー後の条件付きトラッシュ（timing 句は effectParser 側で除去済み）----
+  // 「そこから対象のカード」＝任意選択、「そのカード」＝置かれたカード自身（isTriggerSource）を区別する。
+  {
+    const oppEnergyAnyM = t.match(/^そこに([０-９\d]+)枚以上のカードがある場合、あなたはそこから対象のカード[０-９\d]+枚をトラッシュに置く$/);
+    if (oppEnergyAnyM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(oppEnergyAnyM[1]) },
+        then: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } },
+      };
+    }
+    const oppEnergyThatM = t.match(/^対戦相手のエナゾーンにカードが([０-９\d]+)枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く$/);
+    if (oppEnergyThatM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(oppEnergyThatM[1]) },
+        then: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1, filter: { isTriggerSource: true } } },
+      };
+    }
   }
 
   // ---- 対戦相手の効果によってダメージを受けず/ライフクロスは移動しない ----

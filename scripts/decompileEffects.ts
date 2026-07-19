@@ -425,6 +425,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
+      if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）。
       // count:'ALL'（すべて捨てる）は選択の余地がないため明示しない。
       const who = t?.count === 'ALL'
@@ -683,6 +684,11 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
+      if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
+          && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1]?.condition?.type === 'IS_MY_TURN'
+          && a.steps[1]?.then?.type === 'BANISH') {
+        return `${actionJa(a.steps[0])}。そうした場合、それをバニッシュする`;
+      }
       // DO_THREE_THINGS が先頭のSEQUENCEは、その1STUBが原文「N つを行う。①②③」全体を表現し、
       // 後続 step は parser の冗長な再パース（②③の consequence を重複描画）なので先頭のみ描画する。
       if (a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'DO_THREE_THINGS') {
@@ -725,6 +731,14 @@ function actionJa(a?: Action, effectType?: string): string {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
         return `そうした場合、${actionJa(a.then)}`;
+      }
+      if (a.condition?.type === 'ENERGY_COUNT' && a.condition.owner === 'opponent'
+          && a.then?.type === 'TRASH' && a.then.target?.type === 'ENERGY_CARD') {
+        const n = numJa(a.condition.value);
+        if (a.then.target?.filter?.isTriggerSource) {
+          return `対戦相手のエナゾーンにカードが${n}枚以上あり、このターンにこの能力でカードをトラッシュに置いていない場合、そのカードをトラッシュに置く`;
+        }
+        return `そこに${n}枚以上のカードがある場合、あなたはそこから対象のカード１枚をトラッシュに置く`;
       }
       return `${condJa(a.condition)}なら、${actionJa(a.then)}${a.else ? `、そうでなければ${actionJa(a.else)}` : ''}`;
     }
@@ -1178,7 +1192,7 @@ function actionJa(a?: Action, effectType?: string): string {
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
         const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
           + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
-        return `${costJaOC || 'コスト'}を支払ってもよい`;
+        return `${a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : ''}${costJaOC || 'コスト'}を支払ってもよい`;
       }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
@@ -1817,6 +1831,8 @@ const timingJa: Record<string, string> = {
   ON_CARD_MOVED_TO_DECK: 'あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき',
   ON_HAND_ADDED: '効果によってカードがあなたの手札に移動したとき',
   ON_ENERGY_TO_FIELD: 'あなたのエナゾーンからシグニが場に出たとき',
+  ON_LIFE_CLOTH_ADDED: 'あなたのライフクロスにカード１枚が加えられたとき',
+  ON_OPP_ENERGY_ADDED: '対戦相手のエナゾーンにカード１枚が置かれたとき',
   ON_SIGNI_POWER_ZERO_OR_LESS: 'シグニのパワーが0以下になったとき',
   ON_SIGNI_FROZEN: 'シグニが凍結状態になったとき',
   ON_TARGETED: 'このシグニが対戦相手の能力か効果の対象になったとき',
@@ -2116,6 +2132,12 @@ function effJa(e: Eff): string {
         ? `あなたのエナゾーンから${haSubj}１枚が手札に加わるか場に出たとき`
         : `${haSubj}１枚があなたのエナゾーンから手札に移動したとき`;
     }
+    if (t === 'ON_LIFE_CLOTH_ADDED' && e.triggerCondition?.turnOwner === 'self') {
+      s = `あなたのターンの間、${s}`;
+    }
+    if (t === 'ON_OPP_ENERGY_ADDED' && e.condition?.type === 'DURING_PHASE' && e.condition.phases?.includes('ATTACK')) {
+      s = `アタックフェイズの間、${s}`;
+    }
     if (t === 'ON_ENERGY_TO_FIELD' && (e.timing ?? []).includes('ON_HAND_ADDED')) s = '';
     // ON_SIGNI_POWER_ZERO_OR_LESS の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた/self=このシグニ）
     if (t === 'ON_SIGNI_POWER_ZERO_OR_LESS') {
@@ -2187,16 +2209,17 @@ function effJa(e: Eff): string {
   const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && !(e.timing || []).includes('ON_OPP_ARTS_USE') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
-  const cond = condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';
+  const timingOwnsCondition = (e.timing || []).includes('ON_OPP_ENERGY_ADDED') && e.condition?.type === 'DURING_PHASE';
+  const cond = !timingOwnsCondition && condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';
   // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
   const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
   const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
-  const limit = e.usageLimit && e.usageLimit !== 'unlimited' ? `《${e.usageLimit}》` : '';
+  const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
   // ON_BANISH の duringAttackPhase 併用時は「（対戦相手の）アタックフェイズの間、」前置きが同義のため二重表記を抑止。
   const suppressTurnMark = (e.timing || []).includes('ON_BANISH') && e.triggerCondition?.duringAttackPhase;
-  const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark)
+  const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark && !(e.timing || []).includes('ON_LIFE_CLOTH_ADDED'))
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);
   // ON_MATERIAL_USED は改造素材機構（Step1-3b）で全変種配線済＝engineUnwiredTimings から除外済。

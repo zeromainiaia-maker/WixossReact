@@ -80,6 +80,18 @@ export function detectPlacedFromEnergy(before: PlayerState, after: PlayerState):
   return detectPlacedSigni(before, after).filter(n => beforeEnergy.has(n));
 }
 
+/** ライフクロスに新たに加わったカードだけを検出（ON_LIFE_CLOTH_ADDED）。減少は返さない。 */
+export function detectLifeClothAdded(before: PlayerState, after: PlayerState): string[] {
+  const beforeLife = new Set(before.life_cloth);
+  return after.life_cloth.filter(n => !beforeLife.has(n));
+}
+
+/** エナゾーンに新たに加わったカードだけを検出（ON_OPP_ENERGY_ADDED）。 */
+export function detectEnergyAdded(before: PlayerState, after: PlayerState): string[] {
+  const beforeEnergy = new Set(before.energy);
+  return after.energy.filter(n => !beforeEnergy.has(n));
+}
+
 /** トラッシュ→エナゾーンに移動したカードを検出（ON_ENERGY_FROM_TRASHトリガー用）。 */
 export function detectEnergyFromTrash(before: PlayerState, after: PlayerState): string[] {
   const newInEnergy = after.energy.filter(n => !before.energy.includes(n));

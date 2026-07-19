@@ -3489,6 +3489,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   （collectPowerZeroTriggers＝パワー0以下でバニッシュされる際に triggerScope で watcher を絞る）。
              //   ⚠engine は「0以下」専用（閾値付きの「N以下」は受け皿が無い）＝0 に限定してマッチする。scope は下で抽出。
              : trigText.match(/シグニ(?:[０-９\d]+体)?のパワーが[0０]以下になったとき/) ? ['ON_SIGNI_POWER_ZERO_OR_LESS']
+             // ライフクロス／相手エナの増加は、減少側 timing や自分エナ監視とは別の中央 set-diff で収集する。
+             : trigText.match(/あなたのライフクロスにカード[０-９\d]+枚が加えられたとき/) ? ['ON_LIFE_CLOTH_ADDED']
+             : trigText.match(/対戦相手のエナゾーンにカード[０-９\d]+枚が置かれたとき/) ? ['ON_OPP_ENERGY_ADDED']
              // 「あなたが【エナチャージ】をしたとき」（2件・続き76）も同じ受け皿（engine はエナゾーンが1枚増えたことを
              //   スナップショット差分で検知＝所有者自身の場のシグニが反応する）。
              //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
@@ -3947,6 +3950,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...haCond };
         // トリガー句を action 本文から除去（「エナ」等が後続の対象パースのガードに誤マッチするのを防ぐ）
         actionText = actionText.replace(/^[^。「」]*?(?:手札に移動したとき|手札に加わるか場に出たとき)[、,]\s*/, '');
+      }
+      if (timing[0] === 'ON_LIFE_CLOTH_ADDED') {
+        const lcCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        if (/^あなたのターンの間[、,]/.test(trigText)) lcCond.turnOwner = 'self';
+        else if (/^対戦相手のターンの間[、,]/.test(trigText)) lcCond.turnOwner = 'opponent';
+        if (Object.keys(lcCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...lcCond };
+        actionText = actionText.replace(/^.*?あなたのライフクロスにカード[０-９\d]+枚が加えられたとき[、,]\s*/, '');
+      }
+      if (timing[0] === 'ON_OPP_ENERGY_ADDED') {
+        if (/アタックフェイズの間/.test(trigText)) extractedTriggerCondition = { type: 'DURING_PHASE', phases: ['ATTACK'] };
+        actionText = actionText.replace(/^.*?対戦相手のエナゾーンにカード[０-９\d]+枚が置かれたとき[、,]\s*/, '');
       }
       // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・タスク16[C]機構②）: fromZones:['hand'] を軸に
       //   原因限定（対戦相手の効果/あなたの効果/＜X＞のシグニの効果）・turnOwner を抽出。
@@ -4742,6 +4756,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     if (costStr.includes('《ターン２回》')) usageLimit = 'twice_per_turn';
     else if (costStr.includes('《ターン１回》')) usageLimit = 'once_per_turn';
     else if (costStr.includes('《ゲーム１回》')) usageLimit = 'once_per_game';
+    // WX24-P2-050 の文章型ターン1回：「このターンにこの能力でカードをトラッシュに置いていない場合」。
+    else if (/このターンにこの能力でカードをトラッシュに置いていない場合/.test(block)) usageLimit = 'once_per_turn';
   }
 
   // 無言フォールバックがあった効果は AUTO を PARTIAL に降格（UNKNOWN/既存PARTIALはそのまま）

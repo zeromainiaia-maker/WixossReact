@@ -1502,6 +1502,106 @@ export function collectEnergyToFieldTriggers(
 }
 
 /**
+ * ON_LIFE_CLOTH_ADDED を収集する。ライフが増えた側自身の場（シグニ／ルリグ／キー）の watcher のみを走査する。
+ * turnOwner・condition・usageLimit は既存の中央 diff コレクタと同じ順序で評価する。
+ */
+export function collectLifeClothAddedTriggers(
+  ctx: TrigCtx,
+  addedByOwner: { ownerId: string; nums: string[] }[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    const added = addedByOwner.find(g => g.ownerId === watcherId)?.nums ?? [];
+    // 対象2枚はいずれも「カード1枚が加えられたとき」＝1枚ちょうど。複数枚同時追加は発火しない。
+    if (added.length !== 1) continue;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const limitOk = mkLimitOk(watcherState.actions_done, usedIds);
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    const sources = [
+      ...ownFieldSources(watcherState),
+      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+      ...(watcherState.field.key_piece_extra ?? []),
+    ];
+    for (const topNum of sources) {
+      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LIFE_CLOTH_ADDED')) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+        entries.push({
+          id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（ライフクロス追加時）`, effect: eff, triggeringCardNum: added[0],
+        });
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
+ * ON_OPP_ENERGY_ADDED を収集する。watcher から見た対戦相手のエナが1枚ちょうど増えたイベントだけを扱い、
+ * 置かれたカードを triggeringCardNum に保持する（WX24-P2-050「そのカード」）。
+ */
+export function collectOppEnergyAddedTriggers(
+  ctx: TrigCtx,
+  addedByOwner: { ownerId: string; nums: string[] }[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const opponentId = watcherIsHost ? ctx.guestId : ctx.hostId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    const added = addedByOwner.find(g => g.ownerId === opponentId)?.nums ?? [];
+    if (added.length !== 1) continue;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const limitOk = mkLimitOk(watcherState.actions_done, usedIds);
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    const sources = [
+      ...ownFieldSources(watcherState),
+      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+      ...(watcherState.field.key_piece_extra ?? []),
+    ];
+    for (const topNum of sources) {
+      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_ENERGY_ADDED')) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+        entries.push({
+          id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（相手エナ追加時）`, effect: eff, triggeringCardNum: added[0],
+        });
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * 自分側イベント（ON_LIFE_CRASHED / ON_GUARD / ウィルス系）に反応する自フィールド/ルリグ/キーの AUTO を収集する（Stage2 抽出）。
  * FROZEN_LOSES_ABILITIES（相手ルリグ常在）・CONTINUOUS REMOVE_ABILITIES・トラッシュ自己復活（ON_LIFE_CRASHED）も処理。
  * usedOncePerTurnIds は呼び出し側で actions_done に追加して保存すること。
