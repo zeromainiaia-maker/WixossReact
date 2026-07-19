@@ -4362,34 +4362,28 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const colM = actionText.match(/([白赤青緑黒])のスペルを使用したとき/);
         if (colM) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), color: colM[1] };
       }
-      // ON_ATTACK_SIGNI: トリガー元（このシグニ/あなたのシグニ等）のスコープを抽出
-      if (timing[0] === 'ON_ATTACK_SIGNI') {
+      // ON_ATTACK_SIGNI / ON_ATTACK_LRIG: トリガー元（このシグニ/あなたのシグニ/対戦相手の…）のスコープを抽出。
+      // 「対戦相手のシグニかルリグが〜」は timing が ['ON_ATTACK_SIGNI','ON_ATTACK_LRIG'] の2要素になるため
+      // timing[0] 決め打ちではなく includes で判定する（続き218j・タスク12(xlvii)）。
+      if (timing.includes('ON_ATTACK_SIGNI') || timing.includes('ON_ATTACK_LRIG')) {
         const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
         if (selfAttM) {
           extractedTriggerScope = 'self';
         } else {
           const allyColorM = actionText.match(/^あなたの([白赤青緑黒])のシグニがアタックしたとき、/);
-          // 「対戦相手の〔シグニ／シグニかルリグ／ルリグかシグニ／シグニかセンタールリグ…〕がアタックしたとき」。
-          // ⚠**シグニを含む主語だけ**を any_opp として拾う。「センタールリグ」単独（WX15-002-E2 等）は
-          //   engine に「相手ルリグのアタックで**自分の**付与能力を発火させる」収集経路が無い
-          //   （ON_ATTACK_LRIG は BattleScreen 7832 で `my.lrig_granted_auto_effects` しか見ない）ため、
-          //   ここで拾うと ON_ATTACK_SIGNI に載って**相手シグニのアタックで誤発火する過剰効果を新設**してしまう。
-          //   → 据置して §3 タスク12 へ登録（近似より no-op のほうが安全）。
-          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+          // 「対戦相手の〔シグニ／ルリグ／シグニかルリグ／ルリグかシグニ／センタールリグ…〕がアタックしたとき」。
+          // 続き218j で**ルリグ単独主語も対象化**した（engine に防御側収集経路 collectLrigAttackDefenderTriggers を
+          // 新設し、timing 側も ON_ATTACK_LRIG を出すようにしたため、もう ON_ATTACK_SIGNI へ誤って載る心配がない）。
+          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグ(?:かシグニ)?)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
           if (allyColorM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { color: allyColorM[1] };
           } else if (/^あなたのシグニがアタックしたとき、/.test(actionText)) {
             extractedTriggerScope = 'any_ally';
           } else if (oppAttM) {
-            // 「対戦相手の（＜X＞の）シグニがアタックしたとき」: 防御側シグニが相手アタックに反応（any_opp）
+            // 「対戦相手の（＜X＞の）シグニ/ルリグがアタックしたとき」: 防御側が相手アタックに反応（any_opp）
             extractedTriggerScope = 'any_opp';
             if (oppAttM[1]) extractedTriggerFilter = { story: oppAttM[1] };
-            // 「シグニ**か**ルリグ」複合主語のうち**ルリグ側の半分**は engine に収集経路が無く落ちる。
-            // シグニ側は忠実に発火するので過剰主張ではないが、脱落は計器に刻んで在庫化する。
-            if (/(?:か(?:センター)?ルリグ|(?:センター)?ルリグか)/.test(oppAttM[0])) {
-              markSilentFallback('ON_ATTACK_SIGNI:「シグニかルリグ」複合主語のルリグ側を落とす近似（相手ルリグのアタックで自分の付与能力を拾う経路が engine に無い）');
-            }
           }
         }
       }
