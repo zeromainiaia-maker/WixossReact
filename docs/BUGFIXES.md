@@ -4,6 +4,18 @@
 
 ---
 
+## タスク12(xxxvi) クローズ＝エナ代替トラッシュをグロウ支払い経路へ配線（golden 469→470）（2026-07-19・続き206・Opus 4.8）
+
+**続き204b（`COST_SUBSTITUTE` 実装）中に発見して自分で登録した配線穴の回収。** `myEnergyTrashSubInfo`（`wildcardInstIds` / `colorOverrideMap` / `keySubInstId`）は ArtsModal・SigniActivatedModal の支払い経路にしか渡されておらず、**グロウ支払いでは代替が効かなかった**。原文「あなたが《X》を支払う際、代わりに…トラッシュに置いてもよい」は**グロウコストの支払いも含む**ため取りこぼし＝`COST_SUBSTITUTE`(WX08-042/WX21-044) だけでなく先行実装の `ENERGY_SUBSTITUTE_TRASH_SIGNI`・`ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI`・`ENERGY_COLOR_SUBSTITUTE_TRASH` も同様に効いていなかった。
+
+**配線＝人間のグロウ経路5箇所**（GrowModal のフェーズ1候補判定・フェーズ2選択検証／AssistGrowModal の同2箇所／BattleScreen のグロウ候補可否）に `wildcardInstIds` と `colorOverrideMap` を渡す。`canAffordGrowCost` は既に `trashSubWilds`/`trashSubColors` を optional 引数で受けているので**引数を足すだけ**＝既存判定を狭めない純粋な権限追加。**CPU のグロウ可否（`BattleScreen:8197`）は据置**＝CPU 側が厳しめに見積もるのはプレイヤー体験の不具合ではないため、検証できない変更を増やさない判断。
+
+**golden で自動検証できた**＝`canAffordGrowCost` は純関数なので、「素の色（緑）では《白》を払えない／`colorOverrideMap` を渡せば払える／白エナは当然払える」の3点を固定（配線穴の回帰検出）。**⚠テスト作成時に `parseGrowCost` のコスト書式を `《白×1》` と誤り、costs が空配列→無条件 true で「払えないはず」が FAIL した**。正しくは `《白》×1`（× は 》の外）。**このミスは「テストが緑だから正しい」ではなく「赤が出たので書式の誤りに気づけた」例**＝期待値を先に書く価値がそのまま出た。
+
+**ゲート**＝golden 469→**470**・typecheck/smoke/fuzz/census 1948 据置・同型★0。**要実機検証＝グロウ支払いUIで実際にオフカラーのエナを選択して支払えること**（可否判定は golden で固定したが、選択UIと実支払いは BattleScreen 層）。
+
+---
+
 ## タスク12(xi) クローズ＝条件付き任意コストの「包み形」46効果が**コスト踏み倒し＋ゲート無視**になっていたのを engine 側で解消（golden 467→469）（2026-07-19・続き206・Opus 4.8）
 
 **在庫は「27枚の扱い（方針判断）」として未着手のまま残っていたが、現状確認したら46効果に増えており、しかも実害のある二重バグだった。**
