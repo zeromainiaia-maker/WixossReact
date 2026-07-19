@@ -2104,6 +2104,19 @@ function effJa(e: Eff): string {
       else if (vo === 'self') s = `あなたのカードが${vc}枚以上デッキに移動したとき`;
       else s = `いずれかのプレイヤーのカードが${vc}枚以上デッキに移動したとき`;
     }
+    // ON_HAND_ADDED（続き207）: handOwner/fromZones/movedSelf/excludeGrowPhase を描画。
+    // ON_ENERGY_TO_FIELD 併記（WXDi-P11-007）＝「手札に加わるか場に出たとき」に1文でまとめ、場側は空にする。
+    if (t === 'ON_HAND_ADDED') {
+      const tc = e.triggerCondition;
+      const orField = (e.timing ?? []).includes('ON_ENERGY_TO_FIELD');
+      const haSubj = e.triggerFilter?.cardType === 'シグニ' ? 'シグニ' : 'カード';
+      if (tc?.movedSelf) s = 'このシグニがあなたのエナゾーンから手札に移動したとき';
+      else if (tc?.handOwner === 'opponent') s = `${tc?.excludeGrowPhase ? 'グロウフェイズ以外で' : ''}対戦相手の効果によってカードが１枚以上対戦相手の手札に移動したとき`;
+      else if (tc?.fromZones?.includes('energy')) s = orField
+        ? `あなたのエナゾーンから${haSubj}１枚が手札に加わるか場に出たとき`
+        : `${haSubj}１枚があなたのエナゾーンから手札に移動したとき`;
+    }
+    if (t === 'ON_ENERGY_TO_FIELD' && (e.timing ?? []).includes('ON_HAND_ADDED')) s = '';
     // ON_SIGNI_POWER_ZERO_OR_LESS の triggerScope を主語に反映（any_opp=対戦相手/any_ally=あなた/self=このシグニ）
     if (t === 'ON_SIGNI_POWER_ZERO_OR_LESS') {
       const sc = e.triggerScope ?? 'any';
