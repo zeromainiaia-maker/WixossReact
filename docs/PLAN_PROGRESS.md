@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-19・続き214・Sonnet・タスク6在庫77件（続き201の37効果＋続き208の40枚）を全消化＝64枚採用・golden 496維持・census 1929→1928）**
+  - **List A（続き208・40枚）**＝`STUB:OPTIONAL_COST`→`STUB:TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` の単点差分のみと全40枚を個別確認して採用。他フィールド完全一致。
+  - **List B（続き201・37効果=35カードNum）**＝`TRANSFER_TO_DECK` の source が常に「場のシグニ1体を自分がデッキへ」という**幻覚**（原文の「残りを…デッキ下へ」＝公開した残りカードとは無関係）だったのを続き201の parser 修正が除去した結果を精密diff。**24カードNumに実差分あり→採用**（内訳＝(a)幻覚除去のみ→`UNKNOWN`+raw honestなfallback化 (b)実装済みSTUBハンドラへの昇格＝`TRAP_OPERATION`/`PLACE_TRAP_FROM_REVEALED`/`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`/`PLACE_MAGIC_BOX` (c) 壊れた2ステップ→単一`REVEAL_AND_PICK`への構造化＝旧構造は「公開カードを手札に加える」ステップ自体が欠落していた実害バグ）。**残り11カードNumは`manualEffects.ts`のMANUAL上書きで既に是正済み**と判明・採用不要。
+  - engine の `execTransferToDeck`（`src.type==='SIGNI'`時の挙動）を読んで「幻覚」の実体を実証してから採用可否を判定（表面上は「具体アクション→STUB/UNKNOWN」というガードレール抵触パターンに見えるが、curated 側が壊れていたケースと確認できたため task6 の趣旨どおり採用）。
+  - 採用後、旧HEADとの機械diffでカードNum単位の変更が意図した64枚ちょうど（巻き添え0）であることを確認。全ゲート緑（golden 496維持・smoke 10593 OK・fuzz 0・census 1929→**1928**・lint 0 errors・同型★0）。`BASELINE_HIGH` を1928へ更新。詳細 BUGFIXES 続き214。
+  - **⚠️副産物**＝`WX25-CP1-012-E2` の diff 対象外ステップに疑わしい構造（`GRANT_KEYWORD{絆起,PERMANENT}`）を発見・未調査のままOpusタスク12 (xl) へ登録。
+  - **次の一手**＝Opus は timing[C] 残43効果（上位＝「シグニの下からトラッシュ」3・「アタックを効果によって無効にしたとき」2・以降ロングテール）／タスク12 在庫（(xl)新規1件＋(xxii)残50件＝構造的ブロッカー待ち）／タスク12(xxxix) 24件は個別対応か§6.3送り。**Sonnet は §3タスク6が空になった**＝次はタスク8（semantic audit clean群3,574枚・優先度低）かOpus1〜6の新語彙着地待ち。
+
 - **セッション（2026-07-19・続き213・**Codex 実装／Opus 4.8 検証**・タスク16 timing センサス[C] 残の3系統9効果を全消化＝`ON_TRAP_ACTIVATE` 配線／`ON_GUARD` ルリグ変種／`ON_GROW_PHASE_START` 新設・golden 491→496・timing フォールバック 52→43効果）**
   - **⚠️スコープを差し替えた**＝PLAN の「次の一手」はタスク12(xxxix) 24件だったが、**Claude が23件を原文↔逆翻訳で実測したところ同型クラスタが無く寄せ集めと判明**。唯一まとまった「このアタックを無効にし」系は**全CSVで4枚しかなく、しかも攻撃無効化の型が engine に存在しない**（§6.3級）。`WXK09-003` の赤分岐は `【未実装/UNKNOWN】`。**異質なものを束ねると検証不能になる**ため Codex 向けから外し、代わりに配線状況を実測できる timing センサス[C] を投げた（判断基準は [CODEX_GUIDE.md](./CODEX_GUIDE.md) §3-4）。
   - **✅`ON_TRAP_ACTIVATE` 配線（5効果）**＝型と parser emit は既にあったのに **engine 参照 0＝一度も発火しない**状態だった。`collectTrapActivateTriggers` 新設。**検出方式が的確**＝`signi_traps` の減少では「発動」と「破棄」を区別できないため、**executor が発動枝で `result.trapActivated` を立て**、BattleScreen が解決完了後に収集する（executor の継続経路6箇所すべてにフラグ伝播）。対象＝WX16-028-E3／WX16-040-E1／WXEX2-66-E2／WD23-008-A-E1／WD23-032-A-E1。

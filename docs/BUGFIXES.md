@@ -4,6 +4,26 @@
 
 ---
 
+## Opusタスク12(xl)から発展＝絆マーカー【絆常/絆自/絆起/絆出】が効果ブロック境界として未認識（134カード137能力の飲み込み・golden 496→499・census 1928→1919）（2026-07-19・続き215・Opus）
+
+タスク12(xl)（`WX25-CP1-012-E2` の `GRANT_KEYWORD{絆起}` 構造疑義）を起点に調査したところ、**単カードの問題ではなく parser の系統バグ**と判明。`splitEffectBlocks` の `MARKER_RE` が `【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】` しか見ておらず、**絆マーカーが効果ブロックの境界として認識されていなかった**。結果、絆能力は直前の効果ブロックへ丸ごと飲み込まれていた（134カード・137能力＝全絆カード）。
+
+- **実害（curated 側に残っていた実バグの例）**：
+  - `WXDi-CP02-094`＝【自】と【絆自】が1つの SEQUENCE に合成され、**パワー－2000が2段積み**（二重減少）。
+  - `WXDi-CP02-057`＝【絆起】の `ADD_TO_FIELD`（エナから場出し）が【起】の SEQUENCE 末尾に混入し、**【起】を撃つと無関係に場出しまで走る**。
+  - `WXDi-CP02-072`＝【絆常】の `BANISH_REDIRECT` が【自】の steps[2] に埋没＝**絆未獲得でも常時有効**。
+  - `WX25-CP1-012`＝マーカー文字列そのものを付与能力と誤読した `GRANT_KEYWORD{keyword:"絆起"}` の**幻覚**（＝(xl) の正体）。
+- **parser 修正（`src/data/effectParser.ts`）**：①`MARKER_RE` と split 正規表現・`parseBlock` の marker match に `絆` を追加し、`kizunaIcon: true` を刻印。②分割位置の lookbehind を `(?<=。)` → `(?<=。|。」)` へ拡張＝`stripRuleParens` 後に `…置く。」【絆出】` と残る形が分割されず欠落していた（`WXDi-CP02-047`）。この②は絆以外にも効いており `WX25-P3-028`（【起】リコレクトが【出】に飲み込まれていた）も同時に解消。
+- **engine 配線（新規 AUTO/ACTIVATED を無条件発火させないためのゲート）**：`kizunaIcon` は従来 CONTINUOUS 専用（`effectEngine` の CONTINUOUS ループ・`keywords.ts` の `hasKeyword`/`getShadowScopes`）だったが、分離により AUTO 60・ACTIVATED 11 が新規に出現するため、絆未獲得時に発動しないゲートを追加。`isKizunaActive()`／`filterKizunaGated()` を `effectEngine.ts` に新設（`isCrossZoneActive` と同型）し、`triggerCollect.ts` に `kizunaOk()` を追加のうえ以下へ配線＝BattleScreen `triggerEffects`（ON_PLAY 経路）／`collectTurnTriggers`（ON_ATTACK_PHASE_START）／ON_ATTACK_SIGNI／ON_OPP_LIFE_CRASHED／`collectRefreshTriggers`／シグニ【起】・センタールリグ【起】の起動可否。
+- **JSON 反映（3分類で仕分け）**：held 112枚は機械分類（CLEAN 109／残3は注釈内の `【絆出】` を二重計上した私の集計ミス）＋4種の目視照合を経て一括採用。`build:effects` が MANUAL/PARTIAL で温存する18枚は**原文照合で3分類**して個別適用＝(a)**MATCH 5枚**（curated の既存効果が絆能力そのもの＝`kizunaIcon` を立てるだけ／`WXDi-CP02-074-E2` `WXDi-CP02-082-E2` `WXDi-CP02-089-E2` `WX25-CP1-060-E3` `WX25-CP1-062-E2`）(b)**EMBEDDED 1枚**（`WXDi-CP02-072-E1` の steps から `BANISH_REDIRECT` を除去し E3 として分離）(c)**ABSENT 11枚**（絆能力が完全欠落＝追加）。`WX25-CP1-062` のみ `manualEffects.ts` の定義が JSON を上書きするため、そちらにも `kizunaIcon` を付与した。
+- **⚠自戒（作業中に作り込み、検出して修正した誤り）**：最初の一括 append は「既存 `kizunaIcon` の数」だけを見て欠落判定したため、**「絆能力が既に MANUAL で表現済みだがフラグが無い」5枚に二重登録を作った**。逆翻訳の目視照合（`WX25-CP1-062-E2`/`WXDi-CP02-089-E2` が同内容で2本並ぶ）で発覚し、全17枚を原文照合で仕分け直して解消。**「フラグの有無」ではなく「能力の内容」で突き合わせる**必要がある。
+- **最終検証**：134枚全数で「原文の絆マーカー数（注釈除去後）＝JSON の `kizunaIcon` 効果数」が**不一致0**、幻覚 `GRANT_KEYWORD{絆X}` の**残存0**。全ゲート緑（typecheck／golden **496→499**〔絆ゲートの発火・非発火・飲み込み回帰の3件を追加〕／smoke 10593→**10722** OK・CRASH等0／fuzz 0／census 1928→**1919**／lint 0 errors／同型★0）。`BASELINE_HIGH` を1919へ更新。
+- **残ギャップ（census が新規に計上した9件＝正直な残差）**：分離した絆能力のうち一部は parser が本文を完全には捕捉できていない（例：`WX25-CP1-012-E3` の「シグニを２枚まで場に出し」が `LOOK_AND_REORDER` に落ちて場出しが欠落／`WX25-CP1-045-E3` の「＜ブルアカ＞が３種類以上ある場合」条件脱落／`WX25-CP1-082-E3` の「アタックフェイズの間」`activeCondition` 脱落）。**従来は能力ごと不在で計器に載らなかったものが、載る形になった**＝退化ではなく可視化。Opusタスク12 へ後続として登録。
+
+---
+
+---
+
 ## Sonnetタスク6＝§5c再収穫サイクル 未採用在庫の消化（64採用）（golden 496維持・census 1929→1928）（2026-07-19・続き214・Sonnet）
 
 続き201/続き208の未採用在庫（合計37効果＋40枚）を fresh vs live-curated で精密diff（`tmp_diffCheck.mjs` 一時作成・spot-check後削除）し、64枚を採用。parser/engine 変更なし。
