@@ -149,7 +149,7 @@ const PATTERNS: Pattern[] = [
     name: '動的比較(〜より高い/低い)',
     re: /より[^。]{0,6}(高い|低い|大きい|小さい)/,
     keys: ['powerLtSelf', 'powerLteSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf',
-      'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger', 'powerLtAnyAlly', 'powerLtPrinted', 'powerGtPrinted',
+      'powerLtTrigger', 'powerLteTrigger', 'levelLtTrigger', 'levelGtTrigger', 'powerLtAnyAlly', 'powerLtPrinted', 'powerGtPrinted',
       'powerBelowLeftCard', 'levelBelowLeftCard',
       'powerLteLastProcessed', 'powerLtLastProcessed', 'levelLteLastProcessed', 'levelLtLastProcessed', 'levelLteDiscardSigni',
       'levelBelow', 'powerBelow', 'LowerLevel', 'LOWER', 'HIGHER'],
