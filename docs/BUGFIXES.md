@@ -4,6 +4,19 @@
 
 ---
 
+## Sonnetタスク6＝§5c再収穫サイクル 未採用在庫の消化（64採用）（golden 496維持・census 1929→1928）（2026-07-19・続き214・Sonnet）
+
+続き201/続き208の未採用在庫（合計37効果＋40枚）を fresh vs live-curated で精密diff（`tmp_diffCheck.mjs` 一時作成・spot-check後削除）し、64枚を採用。parser/engine 変更なし。
+
+- **List A（続き208・40枚）**：`STUB:OPTIONAL_COST`（対象取りを落とす汎用STUB）→`STUB:TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（family正規・単色66枚が既に使用中）の単点差分のみ。全40枚を個別diffし他フィールド完全一致を確認して採用。対象：`WD15-001` `WD23-008-A` `WX05-028` `WX17-031` `WX20-033` `WX22-020` `WX22-Re17` `WX24-P4-048` `WX25-P2-026` `WX25-P3-063` `WXDi-D02-22` `WXDi-D06-014` `WXDi-D07-016` `WXDi-P00-038` `WXDi-P00-046` `WXDi-P00-068` `WXDi-P00-075` `WXDi-P01-070` `WXDi-P01-080` `WXDi-P02-036` `WXDi-P02-053` `WXDi-P03-075` `WXDi-P03-081` `WXDi-P04-076` `WXDi-P05-051` `WXDi-P05-072` `WXDi-P06-032` `WXDi-P06-042` `WXDi-P06-072` `WXDi-P07-049` `WXDi-P07-084` `WXDi-P07-092` `WXDi-P08-070` `WXDi-P11-005` `WXDi-P12-061` `WXDi-P16-053` `WXDi-P16-057` `WXDi-P16-058` `WXK02-038` `WXK07-030`。
+- **List B（続き201・37効果=35カードNum）**：`TRANSFER_TO_DECK` の source が常に `{type:SIGNI, owner:self, count:1, filter:{cardType:シグニ}}`（＝場のシグニ1体をデッキへ、原文の「残りを…デッキの一番下に置く」＝公開した残りカードとは無関係）という**幻覚**だったのを、続き201の parser 修正が除去した結果。engine の `execTransferToDeck`（`src.type==='SIGNI'`）を確認し、この source が場のシグニを対象とする別物であることを実証した上で判定：
+  - 24カードNumに実差分あり→採用（`WX14-046` `WX16-061` `WX21-028` `WXEX1-06` `WXEX1-13` `WXEX2-15` `WXK05-021` `WXK08-025` `SP27-004` `SP38-006` `PR-434` `WXDi-P05-050` `WX24-P2-031` `WX24-P2-033` `WX24-P2-037` `WX24-P2-039` `WX24-P3-018` `WX24-P3-033` `WX25-P1-041` `WX25-P2-035` `WX25-P2-037` `WX25-P3-042` `WX25-CP1-012` `WX24-P1-023`）。内訳＝(a) `TRANSFER_TO_DECK`→`UNKNOWN`+raw＋`parseStatus:PARTIAL`（幻覚除去のみ・honestなfallback化）(b) `TRANSFER_TO_DECK`→`STUB`（`TRAP_OPERATION`/`PLACE_TRAP_FROM_REVEALED`/`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`/`PLACE_MAGIC_BOX`＝いずれも実装済みハンドラ）(c) `LOOK_AND_REORDER`+壊れた`TRANSFER_TO_DECK`の2ステップ→単一`REVEAL_AND_PICK`（`remainder.location/position`で残りをデッキ下へ・実装済み）＝旧構造は「公開カードを手札に加える」ステップ自体が欠落していた実害バグ。
+  - 残り11カードNumは差分なし（`WXDi-P03-005` `WXDi-CP01-001` `WX24-P1-020` `WX24-P1-029` `WX24-P3-035` `WX25-P1-035` `WX25-P1-037` `WX25-P1-043` `WX25-P2-043` `WX25-P3-040` `WX24-D1-25`）＝`manualEffects.ts` のMANUAL上書きで既に是正済みと判明（`LOOK_PICK_CHAIN`等）。採用不要。
+- 採用後、旧HEADとの機械diffでカードNum単位の変更が意図した64枚ちょうど（巻き添え0）であることを確認。全ゲート緑（golden 496維持・smoke 10593 OK・fuzz 0・census 1929→**1928**・lint 0 errors・同型★0）。`BASELINE_HIGH`（`scripts/vocabCensus.ts`）を1928へ更新。
+- **⚠次セッションへの申し送り**＝`WX25-CP1-012-E2` の diff 対象外ステップに疑わしい構造（`BOUNCE`→`GRANT_KEYWORD{keyword:"絆起", duration:PERMANENT}`→今回是正した`TRANSFER_TO_DECK`跡地、が同一SEQUENCEに同居）を発見したが、今回のdiff範囲外（steps[2]のみ変化）のため未調査。「絆起」キーワード付与の意味論が正しいか要確認＝Opusタスク12へ新規登録候補。
+
+---
+
 ## タスク12(xxii) 第4バッチ＝`STUB:OPTIONAL_COST` 前段の任意アクション実体化（8採用・4見送り）（golden 488→491・IS_MY_TURN化 58→51）（2026-07-19・続き212・Codex）
 
 `OPTIONAL_COST` は色エナの支払い選択しか行わず、手札を捨てる／公開する／エナをトラッシュへ置く原文アクション自体が消えていた。対象文型を全手札捨て、全エナ捨て、全手札公開、手札の可変枚数捨ての具体形だけに限定し、`TRASH`／`REVEAL` の既存 `lastProcessedCards` 記録経路へ接続した。ALL の任意処理は engine で実行／全スキップを選べるようにし、スキップ時は記録を空にする。追加コスト2件は既存の `OPTIONAL_COST → CONDITIONAL{PAID_ADDITIONAL_COST}` 先読み経路を使用した。
