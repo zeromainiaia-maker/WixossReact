@@ -4688,6 +4688,26 @@ test('BANISH_REDIRECT: banish_redirect フラグを立てる（WX01-027）', () 
   const r = run({ type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN' } as EffectAction, ctx);
   eq((r.ownerState as PlayerState).banish_redirect, true, 'banish_redirect');
 });
+// 続き217: BANISH_REDIRECT の bySource（バニッシュ元の限定）。
+// これが無いと「能力持ちが場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する
+// （WXDi-CP02-072-E3「【絆常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合…」等10効果）。
+test('BANISH_REDIRECT bySource: 限定なしは常に適用／battle_with_this は当事者のみ・非バトル経路は不適用', () => {
+  const plain = { type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, redirectTo: 'trash', until: 'PERMANENT' } as EffectAction;
+  const byBattle = { ...plain, bySource: 'battle_with_this' } as EffectAction;
+  const byThis = { ...plain, bySource: 'by_this' } as EffectAction;
+  // 限定なし＝バトル当事者でなくても、バトル経路でなくても適用（従来挙動を維持）
+  ok(banishRedirectAppliesFrom(plain, 'HOLDER', 'OTHER'), '限定なし: 当事者でなくても適用');
+  ok(banishRedirectAppliesFrom(plain, 'HOLDER', null), '限定なし: 非バトル経路でも適用');
+  // battle_with_this＝能力の持ち主がバトル当事者のときだけ
+  ok(banishRedirectAppliesFrom(byBattle, 'HOLDER', 'HOLDER'), 'battle_with_this: 当事者なら適用');
+  ok(!banishRedirectAppliesFrom(byBattle, 'HOLDER', 'OTHER'), 'battle_with_this: 別のシグニのバトルでは不適用');
+  ok(!banishRedirectAppliesFrom(byBattle, 'HOLDER', null), 'battle_with_this: パワー0以下等の非バトル経路では不適用');
+  ok(!banishRedirectAppliesFrom(byThis, 'HOLDER', null), 'by_this: 非バトル経路では不適用');
+  // SEQUENCE に内包されていても取り出せる
+  const seq = { type: 'SEQUENCE', steps: [{ type: 'DRAW', owner: 'self', count: 1 }, byBattle] } as EffectAction;
+  ok(banishRedirectAppliesFrom(seq, 'HOLDER', 'HOLDER'), 'SEQUENCE内: 当事者なら適用');
+  ok(!banishRedirectAppliesFrom(seq, 'HOLDER', 'OTHER'), 'SEQUENCE内: 非当事者は不適用');
+});
 test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新配置に反映（WX04-041-E2）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
   const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
