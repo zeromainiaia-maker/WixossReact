@@ -398,12 +398,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WXK11-015-E3 反覆する思念　ピルルクＶＳリメンバ（キー）【自】：シグニ１体がダウン状態になったとき、そのシグニを凍結する。
-  //   parser: FREEZE 対象 owner:self+filter{isDown}（トリガー元でなく任意の自分ダウンシグニに誤解決）。
+  //   parser: FREEZE 対象 owner:self（トリガー元でなく任意の自分シグニに誤解決）。
   //   正: そのシグニ＝トリガー元（triggeringCardNum）。isTriggerSource で限定。owner はダウンした側が
-  //   どちらもありうる（triggerScope:any）が engine の FREEZE isTriggerSource は owner スコープ内解決のため、
-  //   主要ケース（この鍵の付与エクシードが対戦相手シグニをダウン→凍結）に合わせ owner:opponent 近似（自分側ダウンは no-op）。
+  //   どちらもありうる（triggerScope:any・自分のアタックダウンでも凍結する＝公式裁定どおりの両刃）。
+  //   続き207: execFreeze に owner:'any'＋isTriggerSource の側解決分岐を追加し、旧 owner:opponent 近似
+  //   （自分側ダウンは no-op）を撤去。count:'ALL'＝選択UIを経ず自動適用（WX04-082-E1 と同型）。
   "WXK11-015": [
-    {"effectId":"WXK11-015-E3","effectType":"AUTO","timing":["ON_SIGNI_DOWN"],"triggerScope":"any","action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isTriggerSource":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WXK11-015-E3","effectType":"AUTO","timing":["ON_SIGNI_DOWN"],"triggerScope":"any","action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"any","count":"ALL","filter":{"cardType":"シグニ","isTriggerSource":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
 
   // WX04-084-E1 ATTRACTION（スペル）あなたのデッキからコストの合計が1のスペル1枚とコストの合計が2のスペル1枚とコストの合計が3のスペル1枚を探して公開し手札に加え、シャッフルする。
