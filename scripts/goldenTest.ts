@@ -353,6 +353,19 @@ test('powerLtTrigger: トリガー元パワー未満のみ対象（trigger P1200
   eq(tops(r.otherState)[0], null, 'P3000（<12000）が除去される');
   ok(tops(r.otherState)[1] !== null, '同値 P12000 は残る');
 });
+test('powerLteTrigger: トリガー元パワー以下のみ対象（trigger P3000→P3000除去・P12000残存・WXEX1-42）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] }, SIGNI_P3000);
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLteTrigger: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, '同値 P3000（≤3000）が除去される（以下＝同値含む）');
+  ok(tops(r.otherState)[1] !== null, 'P12000 は残る');
+});
+test('powerLteTrigger: trigger 不在時は lastProcessedCards[0] へフォールバック（「そうした場合、そのシグニのパワー以下」WD04-018 系）', () => {
+  const base = mkCtx({}, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
+  const ctx = { ...base, lastProcessedCards: [SIGNI_P3000] } as ExecCtx;
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLteTrigger: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'lastProcessed P3000 基準で P3000 が除去される');
+  ok(tops(r.otherState)[1] !== null, 'P12000 は残る');
+});
 test('levelLtTrigger: トリガー元レベル未満のみ対象（trigger L2→L1除去・L2残存・WX09-014）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, SIGNI_L2);
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLtTrigger: true } } } as EffectAction, ctx);
