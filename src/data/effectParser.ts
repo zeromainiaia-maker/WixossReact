@@ -3501,7 +3501,9 @@ function parseActionTextInner(text: string): EffectAction {
 function splitEffectBlocks(text: string): string[] {
   // 【マルチエナ】の直後に別の効果マーカーが続く場合は句点を挿入（WX04-054等）
   // 「。」と効果マーカーの間の全角/半角スペースを除去（WX10-029等）
-  const MARKER_RE = /(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】/;
+  // 【絆常】【絆自】【絆起】【絆出】＝絆アイコン能力（対応カード名との絆を獲得しているかぎり有効）。
+  // 絆マーカーを分割対象に含めないと、絆ブロックが直前の効果ブロックへ丸ごと飲み込まれる（134カード・137能力）。
+  const MARKER_RE = /(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム|絆)?(?:常|出|起|自|ガード)】/;
   const MARKER_PAT = MARKER_RE.source;
   const normalized = text
     .replace(new RegExp(`【マルチエナ】(?=${MARKER_PAT})`, 'g'), '【マルチエナ】。')
