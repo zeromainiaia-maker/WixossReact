@@ -1158,6 +1158,14 @@ export interface BanishRedirectAction {
    * ⚠この限定が無いと「場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する。
    */
   bySource?: 'battle_with_this' | 'by_this';
+  /**
+   * バニッシュ**される側**の限定＝「パワーが０以下のシグニがバニッシュされる場合」（2026-07-19 続き218）。
+   * true のとき、置換はパワー0以下による消滅経路にだけ効く（バトル/効果によるバニッシュには効かない）。
+   * 省略＝限定なし。⚠これが無いと「相手の**全**バニッシュが常時トラッシュ送り」に過剰発火する
+   * （`WXDi-P10-009-E3`／`WXDi-CP02-102-E2`）。所有者問わずの同義STUB `BANISH_REDIRECT_POWER0_TRASH`
+   * （WX04-038-E1）とは別に、target.owner:'opponent' 限定を engine 側で区別する。
+   */
+  whenPowerZero?: boolean;
 }
 
 // フィールド上のシグニを再配置する
