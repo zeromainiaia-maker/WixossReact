@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-19・続き215・Opus・タスク12(xl)から発展＝絆マーカーが効果ブロック境界として未認識だった系統バグを消化。134カード137能力・golden 496→499・census 1928→1919）**
+  - **発端**＝タスク12(xl)（`WX25-CP1-012-E2` の `GRANT_KEYWORD{絆起}` 構造疑義）。調べると単カードではなく **parser の系統バグ**＝`splitEffectBlocks` の `MARKER_RE` に絆が無く、**【絆常/絆自/絆起/絆出】が効果ブロックの境界として認識されていなかった**（＝絆能力が直前ブロックへ丸ごと飲み込まれる。全絆カード134枚・137能力）。
+  - **実害**＝`WXDi-CP02-094`（パワー－2000の二重減少）・`WXDi-CP02-057`（【起】を撃つと【絆起】の場出しまで走る）・`WXDi-CP02-072`（絆常の `BANISH_REDIRECT` が絆未獲得でも常時有効）・`WX25-CP1-012`（マーカー文字列を付与能力と誤読した幻覚）。**逆翻訳が原文一致していても盤面挙動が壊れている**類型。
+  - **parser**＝marker regex 3箇所に `絆` を追加し `kizunaIcon` を刻印。加えて分割の lookbehind を `(?<=。)`→`(?<=。|。」)` へ拡張（`stripRuleParens` 後に `…置く。」【絆出】` と残る形が分割されず欠落＝`WXDi-CP02-047`）。②は絆以外にも効き `WX25-P3-028`（【起】が【出】に飲み込み）も同時解消。
+  - **engine**＝分離で AUTO 60・ACTIVATED 11 が新規出現するため、絆未獲得時に発動しないゲートを新設（`isKizunaActive`/`filterKizunaGated`／`triggerCollect` の `kizunaOk`）。配線先＝`triggerEffects`(ON_PLAY)／`collectTurnTriggers`(ON_ATTACK_PHASE_START)／ON_ATTACK_SIGNI／ON_OPP_LIFE_CRASHED／`collectRefreshTriggers`／シグニ・センタールリグの【起】起動可否。**従来 `kizunaIcon` は CONTINUOUS 専用だった**。
+  - **JSON**＝held 112枚を機械分類（CLEAN 109）＋目視4種で一括採用。MANUAL/PARTIAL 温存の18枚は原文照合で **MATCH 5（フラグを立てるだけ）／EMBEDDED 1（残骸除去＋分離）／ABSENT 11（追加）** に仕分けて個別適用。`WX25-CP1-062` のみ `manualEffects.ts` 側にも `kizunaIcon` が要る（JSON を上書きするため）。
+  - **⚠自戒**＝最初の一括 append は「既存 `kizunaIcon` の数」だけで欠落判定したため **5枚に二重登録を作った**（既に MANUAL で表現済みだがフラグが無いケース）。逆翻訳の目視照合で発覚・全17枚を仕分け直して解消。**フラグの有無ではなく能力の内容で突き合わせる**。
+  - **検証**＝134枚全数で「原文の絆マーカー数＝JSON の `kizunaIcon` 効果数」不一致0・幻覚残存0。全ゲート緑（golden **499**・smoke 10593→**10722**・fuzz 0・census **1919**・同型★0）。`BASELINE_HIGH` 1919へ更新。
+  - **次の一手**＝Opus は タスク12 の後続として**絆分離で可視化された残ギャップ9件**（census 新規計上＝`WX25-CP1-012-E3` の場出し欠落・`WX25-CP1-045-E3` の種類数条件脱落・`WX25-CP1-082-E3` の「アタックフェイズの間」脱落 等。**退化ではなく、従来は能力ごと不在で計器に載らなかったものが載る形になった**）／timing[C] 残43効果／タスク12(xxii)残50件。**Sonnet はタスク8**（semantic audit clean群）。
+
 - **セッション（2026-07-19・続き214・Sonnet・タスク6在庫77件（続き201の37効果＋続き208の40枚）を全消化＝64枚採用・golden 496維持・census 1929→1928）**
   - **List A（続き208・40枚）**＝`STUB:OPTIONAL_COST`→`STUB:TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` の単点差分のみと全40枚を個別確認して採用。他フィールド完全一致。
   - **List B（続き201・37効果=35カードNum）**＝`TRANSFER_TO_DECK` の source が常に「場のシグニ1体を自分がデッキへ」という**幻覚**（原文の「残りを…デッキ下へ」＝公開した残りカードとは無関係）だったのを続き201の parser 修正が除去した結果を精密diff。**24カードNumに実差分あり→採用**（内訳＝(a)幻覚除去のみ→`UNKNOWN`+raw honestなfallback化 (b)実装済みSTUBハンドラへの昇格＝`TRAP_OPERATION`/`PLACE_TRAP_FROM_REVEALED`/`REVEAL_PICK_HAND_SHUFFLE_BOTTOM`/`PLACE_MAGIC_BOX` (c) 壊れた2ステップ→単一`REVEAL_AND_PICK`への構造化＝旧構造は「公開カードを手札に加える」ステップ自体が欠落していた実害バグ）。**残り11カードNumは`manualEffects.ts`のMANUAL上書きで既に是正済み**と判明・採用不要。
