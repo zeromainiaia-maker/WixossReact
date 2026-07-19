@@ -4,6 +4,20 @@
 
 ---
 
+## 「対戦相手のルリグがアタックしたとき」に**防御側**の付与AUTO を拾う経路が engine に無く発火不能だった問題を機構ごと解消（`collectLrigAttackDefenderTriggers` 新設・4効果を完全化・golden 514→516・§3 タスク12(xlvii)）（2026-07-20・続き218j・Opus）
+
+続き218i で「engine に経路が無いから据置」として自ら登録した (xlvii) を、同セッションで機構ごと消化した。**engine → parser → decompiler の3層を揃えて初めて完結**する類の穴。
+
+- **穴の正体**＝`ON_ATTACK_LRIG` の AUTO 収集は BattleScreen（ルリグアタック処理）が **アタック側の `my.lrig_granted_auto_effects` しか見ていなかった**。つまり「自分のルリグがアタックしたとき」しか拾えず、**「対戦相手のルリグがアタックしたとき」に反応する防御側の付与能力を発火させる術が構造的に無かった**。`ON_ATTACK_SIGNI` 側には `collectFieldTriggers` が `opState.lrig_granted_auto_effects` を any_opp/any で拾う経路が既にあり（`WXDi-CP02-033` が動く根拠）、**ルリグアタックだけ対応物が欠けていた**非対称。
+- **engine**＝`triggerCollect.ts` に **`collectLrigAttackDefenderTriggers(ctx, defenderState, defenderId)`** を新設（ON_ATTACK_SIGNI 側の「相手ルリグの付与AUTO」節と同型）。`triggerScope` が **any_opp/any のものだけ**を拾う（未設定＝既定 `self` は「自分のルリグがアタックしたとき」＝アタック側の既存収集の担当なので**二重発火させない**）。`lrig_abilities_disabled` ゲートと usageLimit（消費 effectId を `usedIds` で返し呼び出し元が `actions_done` へ書き戻す）も他コレクタと同型。
+- **BattleScreen 配線**＝防御側エントリは **`playerId` も usageLimit の書き戻し先も攻撃側と異なる**ため、アタック側 entries と結合したうえで `update[defenderKey]` に `actions_done` を書き戻す形にした（既存の単一 `attackerId` 前提の map をアタック側専用に切り出して結合）。
+- **parser**＝(1)timing 判定に「対戦相手の〔シグニかルリグ／ルリグかシグニ〕」＝**`['ON_ATTACK_SIGNI','ON_ATTACK_LRIG']` の2要素**、「対戦相手の（センター）ルリグ**単独**」＝`['ON_ATTACK_LRIG']` を追加。**⚠ルリグ単独は総称フォールバック（`アタックしたとき`→ON_ATTACK_SIGNI）より前に判定する**（後ろだと ON_ATTACK_SIGNI へ落ちて相手シグニのアタックで誤発火する）。(2)scope 抽出の分岐条件を `timing[0] === 'ON_ATTACK_SIGNI'` から **`timing.includes(...)`** へ（2要素 timing に対応）。(3)続き218i で入れた `markSilentFallback`（ルリグ半分の脱落）は**穴が塞がったので削除**＝`parseStatus` が PARTIAL→AUTO に戻ることで解消を機械的に確認できる。
+- **decompiler**＝`このルリグ` 始まりの timing 文が scope 主語置換の対象外で、**any_opp なのに「＊この＊ルリグがアタックしたとき」と描かれていた**（原文照合時に「自分のアタックで発火する」と誤読させる致命的な表示バグ）。`このシグニ`/`このカード` と同様の置換を追加（名詞は `scopeNoun` 既定の「シグニ」ではなく**「ルリグ」固定**）。
+- **JSON**＝4効果が完全化（`WX15-002-E2`＝ON_ATTACK_SIGNI→**ON_ATTACK_LRIG** へ是正＋any_opp 獲得／`WXDi-D06-010-E1`・`WX24-P2-046-E1`・`WXDi-P09-036-E1`＝ON_ATTACK_LRIG を timing に追加し**ルリグ半分を回収**）。採用は held 大グループ混在のため**個別 `--adopt`**＋curated→fresh 全 leaf 差分で「**fresh が失う leaf 0件**」を機械確認。参照実装 `WXDi-CP02-033`（シグニ単独主語）が `['ON_ATTACK_SIGNI']` のまま**広がっていない**ことも確認＝過剰化なし。
+- **検証**＝全ゲート緑（typecheck／**golden 514→516**／smoke／fuzz／census 1880維持／lint 0 errors）。新規 golden 2件は**engine 収集を無効化すると落ちる**（`any_opp は拾う expected=1 got=0`）**／parser の2要素 timing を1要素に戻すと落ちる**（`WXDi-D06-010: 両 timing を持つ`）ことをそれぞれ実測確認。続き218i のテストは「WX15-002 は据置」を固定していたため**意図した仕様変更により失敗**したので、本質的ガード（ON_ATTACK_SIGNI に載せない＝timing の作り分け）を新テストへ移したうえで更新した。`npm run regen` で逆翻訳が「対戦相手のルリグがアタックしたとき」「対戦相手のシグニがアタックしたとき/対戦相手のルリグがアタックしたとき」と原文どおり描かれることを確認。
+
+---
+
 ## 引用付与の内側能力「対戦相手の〔シグニかルリグ〕がアタックしたとき」が triggerScope 脱落で**完全な no-op（死に能力）**になっていた3効果を是正（golden 513→514・§3 タスク5）（2026-07-20・続き218i・Opus）
 
 タスク5「GRANT_LRIG_ABILITY 系の parser ON_PLAY 誤デフォルト」として登録されていた項目を精査したところ、**実体は ON_PLAY ではなく内側能力の `triggerScope` 脱落**だった（外側の ON_PLAY は【出】＝アシストルリグの登場時で妥当。逆翻訳が「このシグニが場に出たとき」と描くのは表示上の語彙問題）。
