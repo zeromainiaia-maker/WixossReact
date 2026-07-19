@@ -140,6 +140,7 @@ function filterJa(f?: any): string {
   if (f.powerLtPrinted) parts.push('表記されているパワーよりパワーの低い');
   if (f.powerGtPrinted) parts.push('表記されているパワーよりパワーの高い');
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
+  if (f.powerLteTrigger) parts.push('そのシグニのパワー以下の');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
   if (f.levelLtOppLrig) parts.push('対戦相手のセンタールリグより低いレベルを持つ');
