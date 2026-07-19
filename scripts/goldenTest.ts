@@ -1347,7 +1347,7 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
   const host = mkState({ signi: ['WD12-009', null, null] }); const guest = mkState({});
   // このカード自身がエナ→手札へ移動 → 自身の効果が発火（cardNum=移動カード）
   const e1 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: 'WD12-009', from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, mkState({}), guest);
-  eq(has(e1.entries, 'WD12-009-E2'), true, '自身の移動で発火');
+  eq(hasEff(e1.entries, 'WD12-009-E2'), true, '自身の移動で発火');
   eq(e1.entries.find(x => x.effectId === 'WD12-009-E2')?.cardNum, 'WD12-009', 'cardNum=移動カード');
   // 別カードがエナ→手札へ移動（WD12-009 は場に居る）→ movedSelf は場 watcher では発火しない
   const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
