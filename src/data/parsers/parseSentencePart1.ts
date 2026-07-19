@@ -58,7 +58,6 @@ import {
 } from '../parserUtils';
 
 export function parseSentencePart1(t: string): EffectAction | null {
-  if (process.env.DBG_LEAVE && (t.includes('場を離れ') || t.includes('ユラギ') || t.includes('水獣'))) console.error('[P1_ENTRY] t=', JSON.stringify(t));
   // ---- 【シグニバリア】/【ルリグバリア】を得る ----
   // 純粋なバリア付与文のみマッチ（「白のルリグ1体につき【ルリグバリア】…」等の複雑文は別stubで処理するため除外）。
   // 従来は汎用 GRANT_KEYWORD(keyword:○バリア) になり no-op だった。エンジン実装済みの
