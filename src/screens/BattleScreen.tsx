@@ -3618,7 +3618,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const hasAffordable = growCandidates.some(card => {
           const gCoin = parseCoinCost(card.GrowCost);
           return (gCoin === 0 || my.coins >= gCoin) &&
-            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+            // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
+            // ＝原文「あなたが《X》を支払う際」はグロウコストを含む（タスク12(xxxvi)・続き206）。
+            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs,
+              undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
         });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);

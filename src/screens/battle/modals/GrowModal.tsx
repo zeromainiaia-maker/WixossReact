@@ -59,7 +59,7 @@ export function GrowModal(p: GrowModalProps) {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -126,7 +126,7 @@ export function GrowModal(p: GrowModalProps) {
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
               const isValidNormal = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
               const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
                 selectedGrowCost.size === totalReq - 1 && (() => {
                   const subSigniId = growSubEnaSigni[0];
