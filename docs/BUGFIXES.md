@@ -4,6 +4,36 @@
 
 ---
 
+## timing センサス[C]残2クラスタ消化＝`ON_LIFE_CLOTH_ADDED`／`ON_OPP_ENERGY_ADDED` 新設（golden 478→482・timing fallback 56→52）（2026-07-19・続き208・**Codex 実装／Opus 検証**）
+
+`npm run census:timing` の残フォールバック 56効果/45クラスタのうち、**engine 配線が無いために【自】が `ON_PLAY` へ誤フォールバックしていた**2クラスタ・4効果を消化。続き207 で確立した「中央 diff 検出＋コレクタ」パターンを踏襲（engine の新 action 型・新 duration・新 scope はゼロ）。
+
+**1. `ON_LIFE_CLOTH_ADDED`（WD06-001-E2／WD20-001-E2）**
+- 既存 `ON_LIFE_CRASHED` / `ON_OPP_LIFE_CRASHED` は**減少（クラッシュ）側のみ**で、ライフクロス増加を検出する timing が無かった。
+- `detectLifeClothAdded`＝before/after の `life_cloth` set-diff で**増加分のみ**を返す（クラッシュ→バースト等の減少と構造的に混線しない）。中央 diff（`collectBoardDiffTriggers`）へ配線。
+- `collectLifeClothAddedTriggers`＝ライフが増えた側自身の場（シグニ／ルリグ／キー）watcher のみ走査。**「カード1枚が加えられたとき」＝1枚ちょうど**に限定（複数枚同時追加では非発火）。
+- WD20-001 の「**あなたのターンの間**」は `triggerCondition.turnOwner:'self'` で表現（新語彙を足さず既存フィールド流用）。
+
+**2. `ON_OPP_ENERGY_ADDED`（WDA-F03-13-E2／WX24-P2-050-E1）**
+- 既存 `ON_ENERGY_CHARGE` は「あなたのエナゾーンに1枚ちょうど」＝**自分視点限定**で、相手エナ増加を監視する逆 scope が無かった。
+- `detectEnergyAdded`＋`collectOppEnergyAddedTriggers`（watcher から見た**対戦相手**のエナが1枚増えたイベントのみ）。置かれたカードを `triggeringCardNum` に保持。
+- **同文型だが対象が別物**なので弁別が肝：
+  - **WX24-P2-050「そのカード」**＝置かれたカード自身 → `filter:{isTriggerSource:true}`。`execTrash` の ENERGY_CARD 分岐に isTriggerSource 解決を追加し、**対象選択UIを出さず直接トラッシュ**。`DURING_PHASE(ATTACK)`＋`usageLimit:'once_per_turn'` も表現（usageLimit 書き戻しは `mkLimitOk` 内部の `used.push` で標準どおり）。
+  - **WDA-F03-13「対象のカード1枚」**＝相手エナ全体から対象を取る → filter なし。8枚以上のとき**候補8枚の対象選択**になる。
+- **旧 STUB `OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL` は実質死んでいた**＝閾値を原文 regex で読み、常に `energy.slice(-1)` を1枚・対象選択なし・しかも `ON_PLAY` 発火（正しいタイミングで一度も動かない）。今回2枚とも実表現へ置換し、ハンドラは参照0の死にコードとして残置。
+
+**parser 副次変更**＝`parseSentencePart3` の「対戦相手のシグニN体を対象とし、《色》を支払ってもよい」regex を単色 `《[赤青緑黒白無]》` → 複数色 `(?:《[赤青緑黒白無]》)+` に拡張（WD06 の《青》《青》《青》のため）。
+
+**⚠️ 副産物＝未採用 held が40枚増加**（Sonnetタスク6 へ登録済み）。上記 regex 拡張により、複数色を支払う同型カード40枚の fresh が `STUB OPTIONAL_COST`（対象取りを落とす汎用）→ `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（family 正規）へ改善した。**他フィールドは完全一致の均質な1点差**で、原文が「対戦相手のシグニ1体を**対象とし**」である以上 fresh が正しい。**未採用なので実挙動は不変**＝採用待ち在庫。
+
+**ゲート**＝golden 478→**482**（増加のみ検出／1枚ちょうど／turnOwner／フェイズゲート／usageLimit 消費と再発火抑止／**「そのカード」＝選択なし直接 vs「対象のカード1枚」＝候補8枚**の弁別を固定）・census **1945 維持**・smoke 10593 OK/0・fuzz 0・同型★0 維持・`census:timing` 56→**52**効果。**JSON 変更は厳密に4枚のみ**（全 effects_*.json の機械 diff で確認）・逆翻訳4枚を原文と逐語照合。
+
+**検証で判明した Codex 報告の不正確さ2点**（実装自体は妥当）＝①「近似・保留なし」と報告したが上記の40枚 held 増を申告していなかった ②lint を「既存warning 222」と報告したがベースラインは218で+4は新規（中身は `useHost`/`useGuest` の `use` 接頭辞を React Hook と誤認する既存 false positive・実害なし）。**Codex は数値は正確だが副作用の申告が漏れる**ため、held/lint の差分は検証側で必ず取る。
+
+**要実機検証**＝WDA-F03-13 の相手エナ8枚時の対象選択UI（コレクタと executor は golden 固定済み・配線は中央 diff 経由）。
+
+---
+
 ## 機構待ちタスク一括消化＝powerLteTrigger 動的比較／ON_HAND_ADDED・ON_ENERGY_TO_FIELD 新設／「ダウン状態で場に出す」DOWN 誤退化の系統是正（golden 470→478・census 1948→1945）（2026-07-19・続き207・Fable 5）
 
 **§3 の「機構待ち」据置項目を3本消化**＝タスク16[C] の「動的比較（WXEX1-42）」「ON_HAND_ADDED 新設」＋タスク12(xxvii) 残（WXDi-P11-007-E1 エナ発ゾーン移動 timing）。着手時の現状確認で **(xxvii) の残3枚のうち2枚は既に解消済み（簿記が古い）** と判明＝WX12-006-E2（ON_SIGNI_BECOMES_UP＝続き180 の機構で JSON 採用済み・any_ally 既定/filter/byEffect 完備）・WXDi-P11-066-E1（自己discard反応＝続き180 の `collectAnyZoneTrashSelfTriggers`＋`byOpponentEffect` で表現・golden 済み）。
