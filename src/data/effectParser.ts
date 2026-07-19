@@ -1331,6 +1331,29 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   「このシグニの下に」）で、場条件への固定エンコードは誤変換になる（続き110 で実測・撤回済み）。
   [/あなたの場に＜([^＞]+)＞のシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+  // ── 続き218（2026-07-19）：「(あなた|対戦相手)の場に(色|＜C＞)のシグニがN種類以上ある場合」＝
+  //    カード名の種類数ゲート（HAS_CARD_IN_FIELD の distinctNames + minCount）。語彙が無く条件が丸ごと
+  //    脱落し、アタックフェイズ開始時/アタック時に無条件発火する過剰効果だった（WX25-CP1-041/045・
+  //    WXDi-P03-058・WXDi-P05-064）。engine 側は今回 execUtils の HAS_CARD_IN_FIELD に distinctNames
+  //    を実装して対応（従来は型にフラグだけあり evalCondition が黙って無視＝同名N体でも成立していた）。
+  //    ⚠先行の「〜のシグニがある場合」系は「がある場合」を要求するため本形（「が N 種類以上ある場合」）
+  //      とは競合しない。
+  [/(あなた|対戦相手)の場に(?:(白|赤|青|緑|黒)|＜([^＞]+)＞)の(?:シグニ)が([０-９\d]+)種類以上ある場合/,
+    g => ({
+      type: 'HAS_CARD_IN_FIELD',
+      owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', ...(g[1] ? { color: g[1] } : {}), ...(g[2] ? { story: g[2] } : {}) },
+      minCount: parseNum(g[3]),
+      distinctNames: true,
+      distinctPhraseJa: 'kinds',
+    })],
+  // 上記の複合形「あなたの場に(色)のシグニがN種類以上あり対戦相手のエナゾーンにカードがM枚以上ある場合」
+  // ＝2条件の AND（WXDi-P05-056。単独形は「種類以上ある場合」で終わるため本形とは排他）。
+  [/あなたの場に(白|赤|青|緑|黒)のシグニが([０-９\d]+)種類以上あり対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] }, minCount: parseNum(g[1]), distinctNames: true, distinctPhraseJa: 'kinds' },
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[2]) },
+    ] })],
   // ── 続き156（2026-07-16）：census 条件節クラスタ残の engine 対応済み条件を追加（過剰効果是正）。
   //    いずれも execUtils.evalCondition・decompileEffects の condToText 両対応を確認済み。
   // 「このシグニのパワーがN以上の場合」＝効果元シグニのパワー閾値（SELF_POWER_GTE・gte のみ）。
