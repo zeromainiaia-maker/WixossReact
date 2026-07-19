@@ -767,7 +767,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
       const fst = st(cond.owner);
-      let matched = fst.field.signi.filter((stack, zoneIdx) => {
+      // distinctNames:true は「N種類以上」＝カード名の異なる数を数える（「＜ブルアカ＞のシグニが３種類以上
+      // ある場合」WX25-CP1-041/045・「それぞれ名前の異なる＜原子＞のシグニが３体あるかぎり」WX12-Re01）。
+      // 一致したカード番号を集めてから数える（従来は件数だけ数えて distinctNames を黙って無視していた＝
+      // 同名3体でも成立する過剰効果になっていた）。effectEngine の CONTINUOUS 収集と同じく CardName で寄せ、
+      // CardData が引けない場合はカード番号にフォールバックする。
+      const matchedNums = fst.field.signi.filter((stack, zoneIdx) => {
         if (!stack || stack.length === 0) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && srcNum && top === srcNum) return false;
