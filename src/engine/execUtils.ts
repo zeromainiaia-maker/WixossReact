@@ -794,7 +794,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           if (cond.filter.isPuppet !== isPuppet) return false;
         }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
-      }).map(stack => stack[stack.length - 1]);
+      }).map(stack => stack![stack!.length - 1]);
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
