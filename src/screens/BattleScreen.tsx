@@ -1552,8 +1552,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const hostState = bs.host_state, guestState = bs.guest_state;
     const hostIsActive = bs.active_user_id === bs.host_id;
     // 各シグニを「その持ち主視点」で計算したパワー（ターン依存修正を正しく反映）
-    const hostPowers  = calcFieldPowers(hostState, guestState, hostIsActive,  effectsMap, battleCardMap);
-    const guestPowers = calcFieldPowers(guestState, hostState, !hostIsActive, effectsMap, battleCardMap);
+    const hostPowers  = calcFieldPowers(hostState, guestState, hostIsActive,  effectsMap, battleCardMap, bs.turn_phase);
+    const guestPowers = calcFieldPowers(guestState, hostState, !hostIsActive, effectsMap, battleCardMap, bs.turn_phase);
     const curPowers = new Map<string, number>([...hostPowers, ...guestPowers]);
     const prevEnergy = prevEnergyRef.current;
     const prevPowers = prevPowersRef.current;
