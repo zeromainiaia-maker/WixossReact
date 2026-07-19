@@ -172,13 +172,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-19・続き218e・Opus・**§3 タスク5（小口）を1件消化**＝「（トラッシュから…対象とし、）それをデッキの一番上に置く」のトラッシュ回収幻覚を是正。parser のみ・engine 無変更。census 1891→1888）**
-  - **真因**＝`parseSentencePart1` が part2 より先に走り、緩い規則（旧 line 2304）が `/それをデッキの一番上に置く/` を無条件に掴んで `TRANSFER_TO_DECK{source:SIGNI(場), position 無し}` を返す。**トラッシュから回収して山札トップに置く tutor 効果が「場のシグニ1体を山札へバウンス」という別物へ反転**していた。加えて part2 のトラッシュ→トップ規則が「N枚**を**対象とし」しか拾えず「N枚**まで**対象とし」（upToCount）を弾いていた。
-  - **修正**＝(1) part1 の field-SIGNI 規則に `!t.includes('トラッシュから')` guard＋`position:'top'`（engine は position 未指定でも top 扱いのため field 側の挙動は不変）。(2) part2 の regex を `枚(まで)?を?対象とし` に緩め upToCount 対応、フィルタも level/color/＜クラス＞を拾うよう拡張。
-  - **是正8効果**＝`WX19-060`／`WXDi-P01-063`／`WXDi-P03-023-E2`／`WXDi-P05-009-E3`／`WXK01-109`／`WXK07-082`／`WX20-043-E2`（条件除去後に回収→top へ・棚ぼた）＝heldReview で7枚採用＋`WXK01-004-E2`（E1 が MANUAL 刻印でカード温存されるため parser 出力を単点ハンド適用・MANUAL 刻印）。
-  - **残置**＝(1)条件/連文分割で「それ」の先行詞が失われた節（`WXDi-P05-009-E1` 等・field のまま＝先行詞解決が要る）(2)`WXEX1-65-E1` の front-of-self owner ニュアンス(3)`WXDi-P11-003`＝無関係な held 差分混在で採用見送り。いずれも別軸で今回対象外。
-  - **検証**＝全ゲート緑（typecheck・golden・smoke・fuzz 0・**census 1888/1888**・lint 0 errors）＋`npm run regen` で逆翻訳が「カード(トラッシュ)1枚をデッキの上に置く」へ是正を確認。`BASELINE_HIGH` を 1888 に更新。詳細 BUGFIXES 続き218e。
-  - **次の一手**＝タスク5 の残小口（`WXDi-P03-005`／`WX26-CP1-100`／GRANT_LRIG_ABILITY 系5枚 ON_PLAY 誤デフォルト／`WX25-P2-095` ほか）／**timing[C] 残43効果（タスク16）**／**タスク12(xxii) 残50件**／(xxix) 残・(vii)(viii)(xlii) の残。**Sonnet はタスク1（§7 実機検証）**。
+- **🆕 セッション（2026-07-19・続き218f・Opus・**§3 タスク12 の続き＝「アタックフェイズの間」限定の CONTINUOUS 常在効果が PERMANENT に潰れる系統バグを新機構で消化**＝`DURING_ATTACK_PHASE` を新設。13効果12カード是正。golden 508→510・census 1888→1886）**
+  - **真因**＝「[あなたの/対戦相手の]アタックフェイズの間、」で始まる CONTINUOUS【常/絆常】効果は、フェイズ限定句に parser 語彙が無く**丸ごと黙って落ち** `duration:PERMANENT`・activeCondition 無しに潰れていた＝**相手ターン中も常時適用される過剰効果**（例：`WX24-P1-050-E1` の「正面のシグニ－2000」が相手ターン中も相手を弱体化／`WXDi-P07-057-E1` は「相手アタックフェイズ＋手札4枚以上」の**両条件が落ち**て【シャドウ】無条件付与）。続き215/217 で残ギャップ登録した `WX25-CP1-082-E3` を起点に系統と判明。
+  - **修正（4層＝新機構）**＝(1)型 `ActiveCondition` に `{type:'DURING_ATTACK_PHASE'; owner?}`（self=自アタックのみ／opponent=相手アタックのみ／省略=両方）。(2)parser `parseActiveCondition` に接頭辞消費規則（action は非アンカー regex で拾うため退化なし・AND 複合も両取り）。(3)engine `checkActiveCondition` に第9引数 `turnPhase` を追加し `calcFieldPowers` へ貫通、BattleScreen **全13呼び出し元へ `bs.turn_phase`**（POWER 経路は完全 enforced／keyword・banish_redirect は turnPhase 未持で permissive＝従来同値・退化なし）。(4)decompiler。
+  - **是正13効果**＝POWER 9（`SPDi43-14`/`WX12-CB01`/`WX24-P1-050`/`WX24-P2-057-E1,E2`/`WXDi-P09-009`/`WXDi-P10-044`/`WXEX2-26`/`WX25-CP1-082-E3`）＋シャドウ2（`WX21-022-LAYER`/`WXDi-P07-057`）＋`BANISH_REDIRECT` 2（`WXEX2-75`/`WXDi-D09-P14`）。全て build:effects で pure superset 自動採用・巻き添え0を効果単位 diff で機械確認。
+  - **検証**＝全ゲート緑（golden **508→510**〔owner×phase×permissive 全分岐＋calcFieldPowers 貫通〕・smoke 10719 OK・SKIP 0・fuzz 0・**census 1888→1886**・lint 0 errors・同型★0）。`BASELINE_HIGH` を1886へ更新。詳細 BUGFIXES 続き218f。
+  - **次の一手**＝タスク5 の残小口（`WXDi-P03-005`／`WX26-CP1-100`／GRANT_LRIG_ABILITY 系5枚 ON_PLAY 誤デフォルト／`WX25-P2-095` ほか）／**timing[C] 残43効果（タスク16）**／**タスク12(xxii) 残50件**／(xxix) 残・(vii)(viii)(xlii)(xliv) の残。**Sonnet はタスク1（§7 実機検証）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
