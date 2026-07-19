@@ -665,6 +665,9 @@ export function collectBanishTriggers(
  *  levelBelowLeftCard → level:{max: 離れたカードのレベル-1}
  *  powerBelowLeftCard → powerRange:{max: 離れたカードのパワー-1}
  *  underLeftCard → cardNames:[下にあった《ライズアイコン》を持たないシグニ名]（該当なしなら空＝候補なし）
+ *  levelLtTrigger/levelGtTrigger/powerLtTrigger/powerLteTrigger → 「そのシグニより低い/高い」のトリガー相対比較。
+ *    ON_LEAVE_FIELD のトリガー元＝場を離れたカードなので、離れたカード基準で level/powerRange へ解決する
+ *    （any_ally 監視では実行元が watcher シグニで triggeringCardNum が離脱カードにならないため、収集時に確定させる。WXEX2-51-E1）。
  */
 export function resolveLeaveFieldDynamicFilters(
   cardMap: Map<string, CardData>,
@@ -672,7 +675,7 @@ export function resolveLeaveFieldDynamicFilters(
   leftCard: CardData | undefined,
   underCards: string[],
 ): CardEffect {
-  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard)":true/.test(JSON.stringify(eff.action))) return eff;
+  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard|levelLtTrigger|levelGtTrigger|powerLtTrigger|powerLteTrigger)":true/.test(JSON.stringify(eff.action))) return eff;
   const clone = JSON.parse(JSON.stringify(eff)) as CardEffect;
   const leftLevel = parseInt(leftCard?.Level ?? '', 10);
   const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
@@ -691,6 +694,19 @@ export function resolveLeaveFieldDynamicFilters(
     if (obj.powerBelowLeftCard === true) {
       delete obj.powerBelowLeftCard;
       obj.powerRange = { max: isNaN(leftPower) ? 0 : leftPower - 1 };
+    }
+    // トリガー相対（「そのシグニより低い/高い」）＝離脱カード基準。resolveDynamicFilter も triggeringCardNum で解くが、
+    // any_ally 監視では triggeringCardNum が離脱カードにならないため収集時に確定しておく（幂等：フラグを消すため二重解決しない）。
+    if (obj.levelLtTrigger === true || obj.levelGtTrigger === true) {
+      const gt = obj.levelGtTrigger === true;
+      delete obj.levelLtTrigger; delete obj.levelGtTrigger;
+      const base = isNaN(leftLevel) ? 0 : leftLevel;
+      obj.level = { ...(obj.level ?? {}), ...(gt ? { min: base + 1 } : { max: base - 1 }) };
+    }
+    if (obj.powerLtTrigger === true || obj.powerLteTrigger === true) {
+      const lte = obj.powerLteTrigger === true;
+      delete obj.powerLtTrigger; delete obj.powerLteTrigger;
+      obj.powerRange = { ...(obj.powerRange ?? {}), max: isNaN(leftPower) ? 0 : (lte ? leftPower : leftPower - 1) };
     }
     if (obj.underLeftCard === true) {
       delete obj.underLeftCard;
