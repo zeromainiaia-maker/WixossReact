@@ -794,20 +794,23 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           if (cond.filter.isPuppet !== isPuppet) return false;
         }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
-      }).length;
+      }).map(stack => stack[stack.length - 1]);
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
         for (const ln of lrigZoneTops(fst.field)) {
-          if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matched++;
+          if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matchedNums.push(ln);
         }
         // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
         // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
         const key = fst.field.key_piece;
         if (key && !(cond.excludeSelf && srcNum && key === srcNum)
-            && matchesFilter(ctx.cardMap.get(key), cond.filter)) matched++;
+            && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
       }
+      const matched = cond.distinctNames
+        ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size
+        : matchedNums.length;
       return matched >= (cond.minCount ?? 1);
     }
     case 'ALL_FIELD_SIGNI_MATCH': {
