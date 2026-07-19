@@ -83,7 +83,9 @@ export type EffectTiming =
   | 'ON_FRONT_SIGNI_ATTACK'    // このシグニの正面のシグニ（=このシグニにアタックしてくる相手シグニ）がアタックしたとき、守備側の正面シグニで発火（WX04-082-E1）。triggeringCardNum=アタッカー
   | 'ON_ZONE_MOVED'            // 場にあるこのシグニが効果によって他のシグニゾーンに移動したとき（WX14-050/052/053）。パワー＋N は MOVE_TO_OTHER_SIGNI_ZONE ハンドラが原文を読んで適用済みのため現状 engine 未配線
   | 'ON_CARD_MILLED_FROM_DECK' // あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき（WX25-P2-009-E2）。collectMillTriggers で配線済み
-  | 'ON_CARD_MOVED_TO_DECK';   // あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき（WX09-020/WX22-014/WXK10-076/WDK09-013）。collectMoveToDeckTriggers が解決前後の set-diff で検出（movedToDeckOwner/MinCount/FromTrash で限定）
+  | 'ON_CARD_MOVED_TO_DECK'    // あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき（WX09-020/WX22-014/WXK10-076/WDK09-013）。collectMoveToDeckTriggers が解決前後の set-diff で検出（movedToDeckOwner/MinCount/FromTrash で限定）
+  | 'ON_HAND_ADDED'            // 効果によってカードが手札に移動したとき（続き207・WX25-P2-063「対戦相手の効果によって…対戦相手の手札に」／WXDi-P11-007・WX14-029「あなたのエナゾーンから手札に」／WD12-009/010＝移動カード自身 triggerScope:self）。detectHandAdded の set-diff で検出（handOwner/fromZones/byOpponentEffect/excludeGrowPhase/triggerFilter で限定）
+  | 'ON_ENERGY_TO_FIELD';      // あなたのエナゾーンからシグニが場に出たとき（続き207・WXDi-P11-007-E1「手札に加わるか場に出たとき」の場側枝＝ON_HAND_ADDED と併記して OR）。detectPlacedFromEnergy で検出
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
