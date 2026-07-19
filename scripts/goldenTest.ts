@@ -495,6 +495,22 @@ test('did-itゲート: 前段が空振りなら「そうした場合」は発火
   eq(run(mkSeq({ type: 'DRAW', owner: 'self', count: 1 } as unknown as EffectAction), mkCtx({ hand: 3 }, {})).ownerState.hand.length, 6,
     'DRAW（常に成功する型）はゲート対象外＝1+2枚ドローされる');
 });
+// 前段が成功して lastProcessedCards を残した**後**に別ステップが空振りするケース。
+// selectOrInteract の候補0件が done(ctx) で**残留値をそのまま持ち越して**いたため、
+// 「そうした場合」ゲートが直前の成功ステップの値を読んですり抜けていた（execUtils 側の修正の回帰ガード）。
+test('did-itゲート: 直前ステップの lastProcessedCards 残留ですり抜けない', () => {
+  const WHITE2 = findCard(c => isSigni(c) && (c.Color ?? '').includes('白') && !(c.Color ?? '').includes('黒'));
+  const eff = { type: 'SEQUENCE', steps: [
+    // ① 成功して lastProcessedCards=[白シグニ] を残す
+    { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+    // ② 黒シグニは場にいないので空振り（＝ここで残留値が消えなければならない）
+    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', color: ['黒'] } } },
+    // ③ ②に掛かる「そうした場合」＝発火してはいけない
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] } as EffectAction;
+  eq(run(eff, mkCtx({ hand: 3 }, { signi: [WHITE2, null, null] })).ownerState.hand.length, 3,
+    '②が空振り→③は発火しない（①の残留値ですり抜けない）');
+});
 // 「そうした場合」でない独立ステップは、前段が空振りでも実行される（プレースホルダ1個だけを消費すること）
 test('did-itゲート: 前段が空振りでも「そうした場合」以外の独立ステップは残る', () => {
   const eff = { type: 'SEQUENCE', steps: [
