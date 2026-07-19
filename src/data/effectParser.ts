@@ -3547,9 +3547,12 @@ function stripKeywordPrefixes(text: string): string {
 let _parsingBaseType = '';
 
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
-  const typeM = block.match(/^【(クロス)?(ドライブ|チーム)?(常|出|起|自|ガード)】/);
+  const typeM = block.match(/^【(クロス)?(ドライブ|チーム|絆)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
   const isCrossOnly = typeM[1] === 'クロス';
+  // 絆：このカード名との絆を獲得しているかぎり有効（engine 側は effectEngine の CONTINUOUS ループ・
+  // keywords.ts の hasKeyword/getShadowScopes・トリガー収集/起動可否が kizunaIcon を評価する）。
+  const isKizuna = typeM[2] === '絆';
   // ドライブ：そのシグニがドライブ状態であるかぎり有効（IS_DRIVE_STATE条件）
   // チーム：チームルリグが揃っているかぎり有効（既存JSONの慣例に合わせ条件なしで登録）
   const isDrive = typeM[2] === 'ドライブ';
