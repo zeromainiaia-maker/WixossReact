@@ -168,6 +168,7 @@ export type ActiveCondition =
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
+  | { type: 'DURING_ATTACK_PHASE'; owner?: Owner }             // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果（CONTINUOUS）。owner:'self'=あなたのアタックフェイズのみ／'opponent'=対戦相手のアタックフェイズのみ／省略=どちらのアタックフェイズでも。engine は calcFieldPowers に渡された turnPhase（ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）で判定＝省略すると相手ターン中も過剰適用になっていた（WX25-CP1-082-E3/WX24-P1-050-E1 ほか9効果・タスク12）。turnPhase 未指定の呼び出し元では従来どおり true（過小実行を避ける）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
