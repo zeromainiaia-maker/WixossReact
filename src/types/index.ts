@@ -180,6 +180,10 @@ export interface PlayerState {
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
   banish_redirect?: boolean;
+  // 同上だが「このシグニとのバトル／このシグニによって」に限定される版（BANISH_REDIRECT bySource・続き217）。
+  // 置換が効くのはここに載っているシグニ自身がバトル当事者のときだけ＝無条件の banish_redirect とは別枠。
+  // ⚠ここを無条件フラグに合流させると「場に1体いるだけで相手の全バニッシュがトラッシュ送り」に過剰発火する。
+  banish_redirect_by_source_nums?: string[];
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る（BANISH_REDIRECT_TO_HAND）
   banish_redirect_to_hand?: boolean;
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンに置かれる代わりにゲームから除外される
