@@ -4,6 +4,40 @@
 
 ---
 
+## `BANISH_REDIRECT` に「バニッシュ元の限定」語彙が無く10効果が常時・全バニッシュへ過剰発火／原文ブロック対応表の採番ズレで65効果がカード全文判定に落ちていた計器欠陥（golden 499→503・census 1919維持・同型★0）（2026-07-19・続き217・Opus）
+
+Opusタスク12(xli)（絆分離で可視化された残ギャップ）の消化。**着手して最初に判明したのは、(xli) に並んだ11効果のうち7件が実バグではなく計器のノイズだったこと**＝`docs/_effect_srctext.json`（effectId→原文ブロックの対応表）の採番が curated JSON とズレており、census がその効果を**カード全文**で判定していた。計器を先に直してから、残った実バグ4件のうち最大の系統バグを消化した。
+
+### 1. 計器：原文ブロック対応表の位置合わせ（`scripts/buildEffectsJson.ts`）
+
+- **症状**：census の「うち原文ブロック対応なし＝カード全文fallback」が **65効果**。該当効果は**他ブロックの語彙で誤合格／無関係カテゴリで誤不合格**の両方を起こす（例＝`WXDi-CP02-056-E4` は【絆起】「アップ状態のルリグ２体をダウンする：カードを１枚引く」で JSON は正しいのに、カード全文の「デッキの一番下」「代わりに」等が高シグナルとして計上されていた）。
+- **原因**：srctext は **parser 由来の effectId** で採番されるが、curated JSON は手修正で採番がズレる＝①1ブロックを `-E1`/`-E1b` に手分割 ②`-MULTIENA`/`-DECORE` の意味的サフィックス ③手動追加で以降の番号がシフト（**絆分離で追加された `WXDi-CP02-072-E3` は parser では `-E2`**）。
+- **修正**：BURST を別扱いにしたうえで「curated 順 × parser 解析順」の件数が一致するカードだけ**位置で対応付ける**パスを追加。誤対応で計器を汚さないよう、**マーカー（【常】【自】【起】【出】＋絆）と `effectType`・`kizunaIcon` の整合を全ペアで検査し、1つでも矛盾したらそのカードは位置合わせしない**。
+- **⚠位置合わせが成立したカードでは「位置」が正＝ID 完全一致も上書きする**。curated が途中に効果を挿すと以降の同名 ID は別ブロックを指すため（`WXK01-028`＝curated `E1,E2,E2b,E3` ↔ parser `E1,E2,E3,E4` で **curated `-E3` の実体は parser `-E4`**）。ID 完全一致を優先すると、まさに直したいカードで誤対応が残る。
+- **結果**：fallback **65→32効果**（解決36・マーカー不整合による棄却0）。レポート `docs/_srctext_align.txt` に全件（ALIGN/REMAP/SKIP）を出力し、36件すべてを目視確認。残32は curated が parser より効果数の多いカード（`-DECORE` 等・対応するブロックが存在しない）で、原理的に対応付け不能。
+
+### 2. 実バグ：`BANISH_REDIRECT` のバニッシュ元限定（10効果）
+
+計器を直したうえで (xli) を再判定し、最大の系統バグを消化した。**`BanishRedirectAction` には修飾句の語彙が一切なく、全30効果が `{owner:'opponent', count:'ALL'}` に潰れていた**。engine 側も `banish_redirect` という**無条件ブール**で、`action.target` を完全に無視していた。
+
+- **実害**：`WXDi-CP02-072-E3`【絆常】「対戦相手のシグニが**このシグニとのバトルによって**バニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」が、**場に1体いるだけで相手の全バニッシュを常時トラッシュ送りにする**（永続・全体）。相手のエナ加速を丸ごと止める重大な過剰発火。同型が10効果。
+- **型**：`BanishRedirectAction.bySource?: 'battle_with_this' | 'by_this'` を新設（省略＝従来の無条件）。
+- **parser**：「このシグニとのバトルによって」→`battle_with_this`／「このシグニによって」→`by_this` を emit。あわせて「バニッシュされ**たシグニは**」の語形も拾うよう regex を拡張（`WXDi-D04-016-E2`）。**「このシグニの効果によって」（`WX24-P4-050-E2`）は意図的に非マッチ**＝バトル経路ではないため `bySource` を付けると発火しなくなり、かえって退化する。
+- **engine（CONTINUOUS 経路）**：`hasBanishRedirectInAction` を `collectBanishRedirectActions` ＋ `banishRedirectAppliesFrom(action, holderNum, battlingNum)` へ置き換え、BattleScreen の**バトルバニッシュ／ON_TRASH トリガー／パワー0以下消滅**の3箇所を is-applicable 判定に統一。`bySource` 付きは**能力の持ち主自身がバトル当事者のときだけ**適用し、**パワー0以下による消滅（非バトル経路）では適用しない**。
+- **engine（ACTIVATED/AUTO 経路）**：executor の `case 'BANISH_REDIRECT'` は `bySource` を見ずに無条件フラグを立てていた＝**JSON が限定を主張しているのに engine が無視する乖離**になるため、`PlayerState.banish_redirect_by_source_nums?: string[]`（発生源シグニ限定リスト）を新設して発生源へスコープ。ターン境界リセット2箇所（既存 `banish_redirect` と同じ場所）へ追加。
+- **decompiler**：限定句を描画（`…がこのシグニとのバトルによってバニッシュされる場合のバニッシュ先を…`）＝限定なしの表示と区別できるようにした。
+- **JSON**：parser 改善で **7効果を build:effects が自動採用**、カードに MANUAL 効果があり温存された3効果（`WXDi-CP02-072-E3`／`WXDi-P13-056-E2`／`WXDi-D04-016-E2`）は effectId アンカーの外科的パッチで付与。**セッション開始コミットとの効果単位 diff で「変更10効果・すべて `bySource` 追加のみ・他リーフ無傷」を機械確認**。
+- **検証**：全ゲート緑（typecheck／golden **499→503**〔`bySource` の適用判定＝限定なし/当事者/非当事者/非バトル経路/SEQUENCE内、および executor が無条件フラグではなく限定リストへ積むこと〕／smoke 10722 OK・CRASH等0／fuzz 0／census **1919維持**／lint 0 errors）。regen 後に逆翻訳が原文一致・同型★0 を確認。**golden の新規テストは意図的に失敗させて実行されることを確認済み**。
+
+### 3. (xli) の再仕分け結果
+
+- **計器ノイズ（実バグではない）7件**＝`WX25-CP1-060-E3`／`WX25-CP1-061-E3`／`WX25-CP1-062-E2`／`WX25-CP1-082-E3`／`WXDi-CP02-074-E2`／`WXDi-CP02-082-E2`／`WXDi-CP02-089-E2`。位置合わせ後は census の高シグナルから消えた（＝JSON は原文どおり）。
+- **✅消化**＝`WXDi-CP02-072-E3`（上記の系統バグ本体）。
+- **残（Opusタスク12 へ再登録）**＝`WX25-CP1-012-E3`（「シグニを２枚まで場に出し」が `LOOK_AND_REORDER` へ落ちて場出しが欠落）／`WX25-CP1-045-E3`（「＜ブルアカ＞のシグニが３種類以上ある場合」の種類数条件が脱落＝`HAS_CARD_IN_FIELD` に `distinctName` が無い。`TRASH_HAS_CARD` に前例あり）／`WXDi-CP02-056-E4`（「アップ状態の」ルリグダウンコスト＝偽陽性の可能性が高い）。
+- **⚠新規に判明した census の系統的偽陽性**＝`BANISH_REDIRECT` 族は原文の「エナゾーンに置く」「〜される場合」に対応する語彙トークンを census が知らないため、**JSON が正しくても高シグナルに残り続ける**（`WXDi-CP02-071-E1`/`WX09-022-E1`/`WXK11-032-E1` 等）。census 側のカテゴリ判定に `BANISH_REDIRECT` を教える必要があるが、**マスキングで実欠落を隠す危険があるため独立したパスで慎重にやる**。Opusタスク12 へ登録。
+
+---
+
 ## フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` ＝「アタックフェイズの間、〜が場を離れたとき、〜を場に出す」【自】が no-op へ丸め＋ON_LEAVE_FIELD の duringAttackPhase 未評価（golden 499→501・census 1919維持・同型★0）（2026-07-19・続き216・Opus）
 
 STUBS.md でフォールバック（execStub 未処理＝engine が実処理を持たない）だった `GRANT_LEAVE_PLACE_PENDING` の主因を特定・解消。**engine 機構はほぼ揃っており、真因は parser のトリガー句除去漏れ＋ON_LEAVE_FIELD 収集の duringAttackPhase 未評価**だった。
