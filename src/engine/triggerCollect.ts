@@ -742,6 +742,8 @@ export function collectLeaveFieldTriggers(
   for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    // duringAttackPhase（「アタックフェイズの間、…が場を離れたとき」WX24-P3-053/WXK02-031 等）＝アタックフェイズ中の離脱のみ発火。
+    if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
     entries.push({
       id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
