@@ -168,27 +168,27 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-19・続き208・**Codex 実装／Opus 4.8 検証**・timing センサス[C]残2クラスタ消化＝`ON_LIFE_CLOTH_ADDED`／`ON_OPP_ENERGY_ADDED` 新設・golden 478→482・timing fallback 56→52）**
-  - **運用**＝ユーザー指示により**実装は Codex CLI・Claude は検証のみ**（続き182/183/186 と同形）。`Bash(codex *)` を `.claude/settings.local.json` に許可済み＝次回から Claude 側から起動可能。指示書は「続き207 の中央 diff パターン踏襲・engine 新語彙を足さない・census 1945 を増やさない・golden 追加・commit しない」を明記。
-  - **✅`ON_LIFE_CLOTH_ADDED` 新設**（WD06-001-E2／WD20-001-E2）＝既存 `ON_LIFE_CRASHED` 系は**減少側のみ**で増加検出が無かった。`detectLifeClothAdded` は `life_cloth` の**増加 set-diff のみ**（クラッシュ→バーストの減少と構造的に非混線）。「カード1枚が加えられたとき」＝**1枚ちょうど**限定。WD20 の「あなたのターンの間」は既存 `triggerCondition.turnOwner:'self'` で表現。
-  - **✅`ON_OPP_ENERGY_ADDED` 新設**（WDA-F03-13-E2／WX24-P2-050-E1）＝既存 `ON_ENERGY_CHARGE` は自分視点限定で逆 scope が無かった。**同文型だが対象が別物**なのが肝＝**WX24「そのカード」**＝置かれたカード自身（`isTriggerSource`・`execTrash` の ENERGY_CARD 分岐に解決追加・**対象選択UIを出さず直接**）／**WDA「対象のカード1枚」**＝相手エナ全体から対象選択（8枚候補）。WX24 は `DURING_PHASE(ATTACK)`＋`usageLimit:'once_per_turn'`（書き戻しは `mkLimitOk` 内部 push で標準どおり）。旧 STUB `OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL` は `energy.slice(-1)` 固定・対象選択なし・`ON_PLAY` 発火の**実質死んでいた近似**（参照0の死にコードとして残置）。
-  - **⚠️ 副産物＝未採用 held が40枚増加**（Sonnetタスク6 へ登録）。`parseSentencePart3` の「対戦相手のシグニN体を対象とし、《色》を支払ってもよい」regex を単色→複数色に拡張した波及で、同型40枚の fresh が `STUB OPTIONAL_COST`（対象取りを落とす汎用）→ `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（family 正規）へ改善。**他フィールドは完全一致の均質な1点差**・**未採用なので実挙動は不変**。
-  - **ゲート**＝golden 478→**482**・census **1945 維持**・smoke 10593 OK/0・fuzz 0・同型★0 維持・`census:timing` 56→**52**効果。**JSON 変更は厳密に4枚のみ**（全 effects_*.json の機械 diff で確認）・逆翻訳4枚を原文と逐語照合。詳細 BUGFIXES 続き208。
-  - **🔍 検証所見（次に Codex を使う人向け）**＝**Codex は数値申告は正確だったが副作用の申告が漏れた**＝①「近似・保留なし」と報告したが上記40枚 held 増を申告せず ②lint を「既存warning 222」と報告したが実際のベースラインは218で+4は新規（中身は `useHost`/`useGuest` の `use` 接頭辞を React Hook と誤認する既存 false positive・実害なし）。**検証側は held バケットの増減と lint 差分を必ず自分で取ること**（`_held_review.txt` のバケット集合 diff＋`eslint -f json` の行番号レンジ確認）。
-  - **要実機検証**＝WDA-F03-13 の相手エナ8枚時の対象選択UI（コレクタ・executor は golden 固定済み・配線は中央 diff 経由）。
-  - **次の一手**＝Opus はタスク2残＝WXK08-005（キーの使用タイミング動的付与＝§6.3級）か タスク16 残 [C]（トラップアイコン発動時5効果・シグニの下からトラッシュ3効果など。上位クラスタは概ね [C] 新機構）。Sonnet は§3タスク6＝**未採用37効果＋今回の40枚**の精密diff・採用判定（据置のまま実行可能）＋§7 で ON_HAND_ADDED 2枚・WDA-F03-13 の実機シナリオ追加。
+- **🆕 セッション（2026-07-19・続き209・**Codex 実装／Opus 4.8 検証・追加修正**・タスク12(xxii)「IS_MY_TURN化＝過剰実行バグ」第1バッチ5効果＋先頭対象指定の照応拡張3効果・golden 482→484・census 1945→1941）**
+  - **バグの正体**＝原文の後置条件節（「その後、〜の場合、」「この方法で〜した場合、」）を parser が抽出できず `CONDITIONAL{IS_MY_TURN}`＝**常時 true のプレースホルダ**へ無言で潰していた＝**条件を満たさなくても分岐が常に発火**。逆翻訳は `IS_MY_TURN` を「そうした場合、」と描くため**目視では気付けない偽陰性**。
+  - **⚠️着手時に実測し直した**＝PLAN 記載の「127件」は続き143 の消化を反映しておらず古かった。現状＝刻印106件／**IS_MY_TURN化 93件**（うち63件が「この方法で…場合」family）。**簿記が古い前提で始めないこと**（続き207 に続き3例目）。
+  - **✅5効果採用**＝既存 `LAST_PROCESSED_COUNT_GTE` に**最小の `negate` フラグ**を足すだけ（新条件型ゼロ）。否定3件（`WD14-012-E2`／`WX13-037-E3`／`WX13-057-E2`＝「起きなかった側」が常に発火していた最大実害系統）＋閾値2件（`WXEX1-03-E1` 7枚／`WXK02-028-E3` 4枚＝前段が「最大N枚探索」で N 超過が構造的に不可能なため GTE ≡ ちょうどN）。**golden は成立/不成立の両方向を固定**。
+  - **✅見送り約40件は構造的ブロッカー**（前段 STUB で結果が `lastProcessedCards` に残らない／distinct種類数・レベル合計・集合全称の条件語彙が無い）。**parser が条件を吐いても engine が解決できなければ今度は過小実行**になるため無理に採用しない。`WXK06-031` の見送り判断自体も golden で固定した。
+  - **✅Opus 検証で既存バグを追加発見・修正**＝`applyLeadingOpponentDesignation`（先頭「対戦相手のシグニ1体を対象とし」を末尾「それ」へ伝播）の**ガードが「そうした場合、それを」限定**で、同じ照応の「この方法で〜場合、それを/それの」を通していなかった。default 落ちが実害＝**TRASH→`owner:any`**（自分のシグニも落とす）・**POWER_MODIFY→`owner:self`＋`targetsTriggerSource`**（【起】ではトリガー元が無く**カード自身へフォールバック**）。regex 拡張＋指し先確定時の `targetsTriggerSource` 撤去で是正。**生パース diff で変化3枚のみ**＝意図2枚＋同family の `WXK02-063-E1`（元から条件はあり誤対象だけ残っていた）。outlier 0。
+  - **ゲート**＝golden 482→**484**・census 1945→**1941**（`BASELINE_HIGH` 更新）・smoke 10593 OK/0・fuzz 0・同型★0 維持・lint 0 errors（warning 222・新規増なし）・**JSON 変更は 5＋3＝8枚のみ**（機械 diff 確認）。IS_MY_TURN化 93→**88**。詳細 BUGFIXES 続き209。
+  - **🔍 Codex 運用の所見（2セッション目）**＝続き208 は副作用（held 40枚増・lint +4）を申告しなかったが、**今回は held 新規増0・lint 増0 で申告も正確**。一方で**「採用効果の逆翻訳文」を報告に載せながら、それが原文と食い違っていることは指摘しなかった**（上記の既存バグ発見経緯）。**検証側は Codex の出した逆翻訳を鵜呑みにせず自分で原文照合する**。加えて held バケットの集合 diff と lint 差分は毎回自分で取る。
+  - **次の一手**＝Opus はタスク12(xxii) 第2バッチ＝**残88件**のうち「その後、〜の場合」属性判定family 30件（「この方法で」を含まない側・今回スコープ外にしたもの）。engine 側が解決できるかを先に確かめてから採用すること。あるいはタスク2残＝WXK08-005（§6.3級）。Sonnet は§3タスク6＝未採用37効果＋続き208 の40枚の精密diff・採用判定＋§7 で ON_HAND_ADDED 2枚・WDA-F03-13 の実機シナリオ追加。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 79 / LOSS 67 / VALUE 12（2026-07-05 続き29終了時点・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**＝続き25時点の24から増えたのは**回帰ではなく続き29の CHOOSE 平坦化修正の採用待ちバックログ**（parser が curated より正しくなった側＝WX14-011/WX17-020/WX20-Re20/WXDi-P02-005 等の CHOOSE 復元 one-off 約35枚と、その巻き添えバケツ）。内訳＝(a)LOSS 67＝CHOOSE復元の採用待ち約35＋レガシードリフト（EXILE→TRASH系 WX21-027/WXDi-CP02-TK03B 等・owner 等）のパーサー弱点、(b)VALUE 12＝count 慣例の非一貫性（CONT保護は count 無視＝機能同値・WX18-034/WXEX1-35 等）・duration 文脈テール（WX25-P2-062）と単発テール。**CHOOSE復元分を採用し切ったら再計測して実数を締め直す。この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
 - **timing flatten**（当初159枚の実バグ）は R5-R58 で完了＝VALUE 0（詳細 §7下部）。
-- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1945【効果単位】**（2026-07-19 続き207＝「ダウン状態で場に出す」DOWN 誤退化の系統是正35枚採用＋ON_HAND_ADDED 系5枚で1948→1945。続き205＝アタック不可付与の対象決め打ち是正28効果で1963→1951・対象節の閾値フィルタで1951→1949・兄弟規則へ横展開で1949→1948、続き203＝終止形サーチ退化＋levelGtLastProcessed で1967→1965・前置CHOOSE復元＋ルリグデッキ戻し幻覚除去12枚採用で1965→1963）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
+- **🆕 語彙センサス（過剰効果＋幻覚＝両方向の計器）**：`npm run census`（`scripts/vocabCensus.ts`）。**現ベースライン＝高シグナル欠落 1941【効果単位】**（2026-07-19 続き207＝「ダウン状態で場に出す」DOWN 誤退化の系統是正35枚採用＋ON_HAND_ADDED 系5枚で1948→1945。続き205＝アタック不可付与の対象決め打ち是正28効果で1963→1951・対象節の閾値フィルタで1951→1949・兄弟規則へ横展開で1949→1948、続き203＝終止形サーチ退化＋levelGtLastProcessed で1967→1965・前置CHOOSE復元＋ルリグデッキ戻し幻覚除去12枚採用で1965→1963）。**この数字から増えたら回帰（exit 1）／減ったら `BASELINE_HIGH` とここを実数更新**。前提＝`docs/_effect_srctext.json` が最新であること。明細 `docs/_vocab_census.txt`、過去の計測履歴は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §4／BUGFIXES 続き109以降。
 - **母数**：効果カード 5975／効果 10590／MANUAL効果 898／STUB含むカード 1864（2026-07-17 続き184 実測更新）。
 - **A3クローズ＋B機構全完了（B1-B4）**。残るP1機構＝C（engine実機配線・P2）のみ。同型★0（5986枚）。
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 482・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1945。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 484・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1941。
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >
