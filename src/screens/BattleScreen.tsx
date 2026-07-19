@@ -7969,6 +7969,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // パワー0以下のシグニ→トラッシュ（所有者問わず。WX04-038-E1。どちらかのプレイヤーが設定）
           hostState.power0_banish_to_trash === true ||
           guestState.power0_banish_to_trash === true ||
+          // 「対戦相手の」限定版（BANISH_REDIRECT whenPowerZero・続き218）＝設定した側の対戦相手のシグニだけ。
+          // opState は消滅するシグニの持ち主から見た対戦相手＝そこに立っていれば消滅側が「対戦相手」に当たる。
+          opState.power0_banish_to_trash_opp_only === true ||
           opState.field.signi.some(s => {
             const n = s?.at(-1);
             // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない
