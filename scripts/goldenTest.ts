@@ -1280,6 +1280,33 @@ const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBa
 const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
 const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
 
+// ── 続き218i: 引用付与の内側能力「対戦相手の〔シグニかルリグ〕がアタックしたとき」の triggerScope 脱落（§3 タスク5）。
+// parser の oppAtt regex が「シグニ」単独しか見ておらず、複合主語だと scope 未設定＝engine 既定 'self' に落ち、
+// collectFieldTriggers の付与AUTO収集（any_opp/any 必須）で弾かれて**完全な no-op（死に能力）**になっていた。
+// ⚠「センタールリグ」**単独**は engine に収集経路が無い（ON_ATTACK_LRIG は自分側の付与しか見ない）ため
+//   意図的に据置＝拾うと相手シグニのアタックで誤発火する過剰効果を新設してしまう。その据置も固定する。
+test('引用付与の内側トリガー: 「対戦相手のシグニかルリグがアタックしたとき」は any_opp／「センタールリグ」単独は据置', () => {
+  const innerScopes = (cardNum: string): (string | undefined)[] => {
+    const out: (string | undefined)[] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const o = n as Record<string, unknown>;
+      if (o.type === 'GRANT_LRIG_ABILITY') {
+        for (const ab of ((o.abilities as Record<string, unknown>[]) ?? [])) out.push(ab.triggerScope as string | undefined);
+      }
+      for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); }
+    };
+    for (const e of parseCardEffects(cardMap.get(cardNum)!)) walk(e.action);
+    return out;
+  };
+  // 「シグニかルリグ」「ルリグかシグニ」「シグニかルリグ１体」＝シグニ側を any_opp で正しく拾う
+  for (const num of ['WXDi-D06-010', 'WX24-P2-046', 'WXDi-P09-036']) {
+    ok(innerScopes(num).includes('any_opp'), `${num}: 内側トリガーが any_opp（no-op 化の回帰ガード）`);
+  }
+  // 「対戦相手のセンタールリグ１体が」＝ルリグ単独は any_opp にしない（過剰発火を作らない据置）
+  ok(!innerScopes('WX15-002').includes('any_opp'), 'WX15-002: センタールリグ単独は据置（誤って ON_ATTACK_SIGNI に載せない）');
+});
+
 test('timing census C: 指定9効果の parser timing とガード変種条件', () => {
   const expected: Array<[string, string, string]> = [
     ['WX16-028', 'WX16-028-E3', 'ON_TRAP_ACTIVATE'], ['WX16-040', 'WX16-040-E1', 'ON_TRAP_ACTIVATE'],
