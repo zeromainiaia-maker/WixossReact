@@ -1292,7 +1292,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- ダウン ----
-  if (t.includes('ダウンする') || t.match(/をダウン/)) {
+  // ⚠「それをダウン状態で場に出す」（WX14-029＝エナから down 配置）は /をダウン/ に誤マッチして
+  //   DOWN に潰れていた＝ADD_TO_FIELD asDown（下のエナ/手札ビルダ）の領分なので除外。
+  if ((t.includes('ダウンする') || t.match(/をダウン/)) && !t.includes('ダウン状態で場に出')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     // 「（センター）ルリグ**か**シグニN体」「ルリグ**と**シグニを合計N体まで」→ OR選択（CENTER_LRIG_OR_SIGNI）。
     // ⚠「センター」が付かない表記（WX25-CP1-028①「対戦相手のルリグかシグニ1体を対象とし、それをダウンする」）は
