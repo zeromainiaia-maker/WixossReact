@@ -2296,7 +2296,10 @@ function effJa(e: Eff): string {
   const cond = !timingOwnsCondition && condStr ? (condStr.endsWith('間') ? `${condStr}、` : `${condStr}${/(状態|以上|以下|枚)$/.test(condStr) ? 'の' : ''}場合、`) : '';
   // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
   const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
-  const actCond = e.activeCondition ? `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》` : '';
+  // 「〜の間」で終わる活性条件（アタックフェイズ/ターンの間）は「〜かぎり」を付けず前置きとして描く
+  const actCond = e.activeCondition
+    ? (acJa.endsWith('間') ? `《${acJa}》` : `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》`)
+    : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
