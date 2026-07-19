@@ -163,7 +163,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                             handNeeded > 0 ? `手札${handFilter ? `の${filterLabel(handFilter)}` : ''}${handNeeded}枚を${handCostLabel}` : null,
                             enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
                             ftNeeded > 0 ? `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体をトラッシュ` : null,
-                            lrigDownCost ? `アップ状態の${lrigDownCost.centerOnly ? 'センター' : ''}ルリグ${lrigDownCost.count}体をダウン` : null,
+                            lrigDownCost ? `アップ状態の${lrigDownCost.level !== undefined ? `レベル${lrigDownCost.level}の` : ''}${lrigDownCost.centerOnly ? 'センター' : ''}ルリグ${lrigDownCost.count}体をダウン` : null,
                             (eff.cost?.lifeTrash ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeTrash}枚トラッシュ` : null,
                             (eff.cost?.life_crash ?? 0) > 0 ? `ライフクロス${eff.cost!.life_crash}枚クラッシュ` : null,
                             (eff.cost?.lifeToHand ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeToHand}枚を手札へ` : null,
