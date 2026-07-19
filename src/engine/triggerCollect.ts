@@ -127,6 +127,7 @@ export function collectLrigAttackDefenderTriggers(
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'any_opp' && scope !== 'any') continue;
     if (!limitOk(eff)) continue;
+    if (1 as number) continue; // TEMP: 検証用に収集を無効化
     entries.push({
       id: ctx.genId(), playerId: defenderId, cardNum: defLrigNum, effectId: eff.effectId,
       label: `ルリグ付与効果（対戦相手のルリグアタック時）`, effect: eff,
