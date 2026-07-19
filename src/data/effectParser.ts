@@ -2654,6 +2654,44 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- デッキ上N枚見て「その中から〔フィルタ〕シグニをM枚(まで)場に出し、残りを…」＝場出しのみの単段
+  //      LOOK_PICK_CHAIN[field ステージ]（続き218c）。直前の dual-pick 規則は**手札段と場段の両方**を要求する
+  //      ため、場出しだけの本形（16効果の系統）はどの規則にも掛からず bare LOOK_AND_REORDER へ縮退し、
+  //      **場に出す部分が丸ごと消える no-op** になっていた（`WX25-CP1-012-E3`／`WXDi-P11-030-E1` ほか）。
+  //      ⚠「手札に加えるか場に出し」（選択形）は次の REVEAL_AND_PICK 規則の担当＝ここでは除外する。
+  {
+    const fp = text.match(/デッキの上からカードを([０-９\d]+)枚見る。\s*その中から((?:(?!手札に加える)[^。])*?)シグニを?([０-９\d]+)枚(まで)?場に出し、残り[^。]*?(デッキの一番下|デッキの一番上|トラッシュ|エナゾーン)[^。]*?。/);
+    if (fp && fp.index !== undefined && !/手札に加えるか場に出/.test(text)) {
+      // fp: [1]revealCount [2]フィルタ記述 [3]枚数 [4]「まで」 [5]残りの行き先
+      const desc = fp[2];
+      const remainder: LookPickChainAction['remainder'] =
+        fp[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+          : fp[5] === 'エナゾーン' ? { location: 'energy', position: 'any' }
+            : { location: 'deck', position: fp[5] === 'デッキの一番上' ? 'top' : 'bottom' };
+      const filter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseStoryFilter(desc),
+      };
+      const lpcF: EffectAction = {
+        type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(fp[1]),
+        stages: [{ filter, pickCount: parseNum(fp[3]), then: 'field' }],
+        remainder,
+      } as unknown as EffectAction;
+      // dual-pick 規則と同じく前後文を解析して SEQUENCE に組む（「その後、この方法で場に出たシグニは…」等）
+      const beforeF = text.slice(0, fp.index).trim().replace(/。$/, '');
+      const afterF = text.slice(fp.index + fp[0].length).trim();
+      const stepsF: EffectAction[] = [];
+      const pushFlatF = (a: EffectAction) => {
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') stepsF.push(st); else markSilentFallback('場出しpick分割:UNKNOWNステップ除去'); }
+        else if (a.type !== 'UNKNOWN') stepsF.push(a); else markSilentFallback('場出しpick分割:UNKNOWNアクション除去');
+      };
+      if (beforeF) pushFlatF(parseActionText(beforeF));
+      stepsF.push(lpcF);
+      if (afterF) pushFlatF(parseActionText(afterF));
+      return stepsF.length === 1 ? stepsF[0] : { type: 'SEQUENCE', steps: stepsF } as SequenceAction;
+    }
+  }
+
   // ---- デッキ上N枚見て「（＜C＞の）シグニM枚を公開し手札に加えるか場に出し、残りをデッキ下」＝REVEAL_AND_PICK（handOrField）----
   // 2文（「…見る。その中から…」）にまたがるため splitSentences 前に全文で捕捉する（22枚の系統・pick 脱落を防ぐ）。
   {
