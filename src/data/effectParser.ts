@@ -4367,7 +4367,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           //   （ON_ATTACK_LRIG は BattleScreen 7832 で `my.lrig_granted_auto_effects` しか見ない）ため、
           //   ここで拾うと ON_ATTACK_SIGNI に載って**相手シグニのアタックで誤発火する過剰効果を新設**してしまう。
           //   → 据置して §3 タスク12 へ登録（近似より no-op のほうが安全）。
-          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+          const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/); // TEMP
           if (allyColorM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { color: allyColorM[1] };
