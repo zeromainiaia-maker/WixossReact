@@ -790,7 +790,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS  = localIsHost ? bs.host_state  : bs.guest_state;
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    const base = calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap);
+    const base = calcFieldPowers(myS, opS, myTurn, effectsMap, battleCardMap, bs.turn_phase);
     // lrig_attack_phase_power_down_per_signi: アタックフェイズ中に相手シグニのパワーを自シグニ数×N下げる
     const isAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase);
     if (isAttackPhase && (myS.lrig_attack_phase_power_down_per_signi ?? 0) > 0) {
