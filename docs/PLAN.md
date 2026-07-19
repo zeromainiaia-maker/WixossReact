@@ -172,14 +172,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-19・続き218d・Opus・**タスク12(xliii) を完了**＝`BANISH_REDIRECT` 族の census 系統的偽陽性を解消。JSON 無変更＝census 計器のみの較正。census 1895→1891）**
-  - **真因**＝census「ゾーン:エナゾーンに置く」カテゴリ（`re:/エナゾーンに置/`, `keys:['ENERGY','nerg']`）は原文の「エナゾーンに置」に SEND_TO_ENERGY 語彙を要求するが、「（対戦相手の）シグニがバニッシュされる場合、**エナゾーンに置かれる代わりにトラッシュに置く**」の redirect イディオムでは置換先ゾーンの概念を `BANISH_REDIRECT` が正しく表現しており SEND_TO_ENERGY は現れない。カテゴリがこの語彙を知らないため原文どおり正しい22効果が恒久的に高シグナルへ落ちていた（`WXDi-CP02-071-E1`／`WX09-022-E1`／`WXK11-032-E1`／`WXDi-CP02-072-E3` 等）。
-  - **修正**＝`{name:'ゾーン:エナゾーンに置く'}` に `extraOk` を追加。`js.includes('BANISH_REDIRECT')` かつ **redirect イディオム句（`/エナゾーンに置かれる代わりに[^。]*?トラッシュに置[くか]/`）を除いた残りに「エナゾーンに置」が残らない**ときだけ合格。**続き218 の lrigDown と同じ安全弁**＝本物の SEND_TO_ENERGY が別に併存するカードは残存チェックで引き続きフラグ（§3 (xliii) が警告する「マスキングで実欠落を隠す危険」への構造的ガード）。
-  - **族の全数確認（(xliii) の必須手順）**＝このカテゴリで高シグナルの58効果のうち **`BANISH_REDIRECT` を持つのはちょうど22効果**、全22件で idiom 除去後の「エナゾーンに置」残存0を機械確認（隠れた SEND_TO_ENERGY 欠落なし）。残り36効果（BANISH_REDIRECT 無し）は idiom 除去の対象外＝誤マスクなし。族の JSON 正当性は続き217／218b で棚卸し済み。
-  - **subject 側のフィルタ脱落（正面/レベル/凍結/感染/単体＝(xliv) §6.3）はこの destination カテゴリの関心外**＝各々の専用カテゴリ（正面 line 108／レベル閾値 line 24／凍結状態フィルタ line 42）が引き続き露出する（例：`WX19-078-E1` は 正面カテゴリにも高シグナルで残存）。感染フィルタは元々 census に専用カテゴリが無く今回のマスクで新たに隠れるものは無い。
-  - **効果**＝カテゴリ高シグナル 58→36（STUB バケットも 21→18＝redirect を持つ STUB/MANUAL 3件も同じ安全弁で covered・ゲート外）。**dedup 総数 1895→1891**（4件のみ純減＝このカテゴリ専属の真の偽陽性。残り18件は他カテゴリでも高シグナルのため総数には残存）。
-  - **検証**＝全ゲート緑（typecheck・golden 508・smoke 10722・fuzz 0・**census 1891/1891**・同型★0・lint 0 errors）。`BASELINE_HIGH` を 1891 に更新。詳細 BUGFIXES 続き218d。
-  - **次の一手**＝Opus は **(xliv) 残12効果は §6.3 の target スコープ機構待ち＝取らない**。残るは **timing[C] 残43効果（タスク16）**／**タスク12(xxii) 残50件**／(xxix) 残・(vii)(viii)(xlii) の残。**棚卸し候補**＝既に PARTIAL で採用済みのため温存され続けているカード群（`WX24-P1-017`／`WX25-P3-038` ほか）の実態確認（続き218c の「PARTIAL 永続温存」発見が示す通り高収量の可能性）。**Sonnet はタスク1（§7 実機検証＝続き218 で増えたセンター/レベル限定の lrigDown コスト・(xi) skip・(xxxvi) グロウ支払いUI）**。
+- **🆕 セッション（2026-07-19・続き218e・Opus・**§3 タスク5（小口）を1件消化**＝「（トラッシュから…対象とし、）それをデッキの一番上に置く」のトラッシュ回収幻覚を是正。parser のみ・engine 無変更。census 1891→1888）**
+  - **真因**＝`parseSentencePart1` が part2 より先に走り、緩い規則（旧 line 2304）が `/それをデッキの一番上に置く/` を無条件に掴んで `TRANSFER_TO_DECK{source:SIGNI(場), position 無し}` を返す。**トラッシュから回収して山札トップに置く tutor 効果が「場のシグニ1体を山札へバウンス」という別物へ反転**していた。加えて part2 のトラッシュ→トップ規則が「N枚**を**対象とし」しか拾えず「N枚**まで**対象とし」（upToCount）を弾いていた。
+  - **修正**＝(1) part1 の field-SIGNI 規則に `!t.includes('トラッシュから')` guard＋`position:'top'`（engine は position 未指定でも top 扱いのため field 側の挙動は不変）。(2) part2 の regex を `枚(まで)?を?対象とし` に緩め upToCount 対応、フィルタも level/color/＜クラス＞を拾うよう拡張。
+  - **是正8効果**＝`WX19-060`／`WXDi-P01-063`／`WXDi-P03-023-E2`／`WXDi-P05-009-E3`／`WXK01-109`／`WXK07-082`／`WX20-043-E2`（条件除去後に回収→top へ・棚ぼた）＝heldReview で7枚採用＋`WXK01-004-E2`（E1 が MANUAL 刻印でカード温存されるため parser 出力を単点ハンド適用・MANUAL 刻印）。
+  - **残置**＝(1)条件/連文分割で「それ」の先行詞が失われた節（`WXDi-P05-009-E1` 等・field のまま＝先行詞解決が要る）(2)`WXEX1-65-E1` の front-of-self owner ニュアンス(3)`WXDi-P11-003`＝無関係な held 差分混在で採用見送り。いずれも別軸で今回対象外。
+  - **検証**＝全ゲート緑（typecheck・golden・smoke・fuzz 0・**census 1888/1888**・lint 0 errors）＋`npm run regen` で逆翻訳が「カード(トラッシュ)1枚をデッキの上に置く」へ是正を確認。`BASELINE_HIGH` を 1888 に更新。詳細 BUGFIXES 続き218e。
+  - **次の一手**＝タスク5 の残小口（`WXDi-P03-005`／`WX26-CP1-100`／GRANT_LRIG_ABILITY 系5枚 ON_PLAY 誤デフォルト／`WX25-P2-095` ほか）／**timing[C] 残43効果（タスク16）**／**タスク12(xxii) 残50件**／(xxix) 残・(vii)(viii)(xlii) の残。**Sonnet はタスク1（§7 実機検証）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
