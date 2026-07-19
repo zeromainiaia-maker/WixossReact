@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-19・続き208・**Codex 実装／Opus 4.8 検証**・timing センサス[C]残2クラスタ消化＝`ON_LIFE_CLOTH_ADDED`／`ON_OPP_ENERGY_ADDED` 新設・golden 478→482・timing fallback 56→52）**
+  - **運用**＝ユーザー指示により**実装は Codex CLI・Claude は検証のみ**（続き182/183/186 と同形）。`Bash(codex *)` を `.claude/settings.local.json` に許可済み＝次回から Claude 側から起動可能。指示書は「続き207 の中央 diff パターン踏襲・engine 新語彙を足さない・census 1945 を増やさない・golden 追加・commit しない」を明記。
+  - **✅`ON_LIFE_CLOTH_ADDED` 新設**（WD06-001-E2／WD20-001-E2）＝既存 `ON_LIFE_CRASHED` 系は**減少側のみ**で増加検出が無かった。`detectLifeClothAdded` は `life_cloth` の**増加 set-diff のみ**（クラッシュ→バーストの減少と構造的に非混線）。「カード1枚が加えられたとき」＝**1枚ちょうど**限定。WD20 の「あなたのターンの間」は既存 `triggerCondition.turnOwner:'self'` で表現。
+  - **✅`ON_OPP_ENERGY_ADDED` 新設**（WDA-F03-13-E2／WX24-P2-050-E1）＝既存 `ON_ENERGY_CHARGE` は自分視点限定で逆 scope が無かった。**同文型だが対象が別物**なのが肝＝**WX24「そのカード」**＝置かれたカード自身（`isTriggerSource`・`execTrash` の ENERGY_CARD 分岐に解決追加・**対象選択UIを出さず直接**）／**WDA「対象のカード1枚」**＝相手エナ全体から対象選択（8枚候補）。WX24 は `DURING_PHASE(ATTACK)`＋`usageLimit:'once_per_turn'`（書き戻しは `mkLimitOk` 内部 push で標準どおり）。旧 STUB `OPP_ENERGY_OVERFLOW_TRASH_CONDITIONAL` は `energy.slice(-1)` 固定・対象選択なし・`ON_PLAY` 発火の**実質死んでいた近似**（参照0の死にコードとして残置）。
+  - **⚠️ 副産物＝未採用 held が40枚増加**（Sonnetタスク6 へ登録）。`parseSentencePart3` の「対戦相手のシグニN体を対象とし、《色》を支払ってもよい」regex を単色→複数色に拡張した波及で、同型40枚の fresh が `STUB OPTIONAL_COST`（対象取りを落とす汎用）→ `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（family 正規）へ改善。**他フィールドは完全一致の均質な1点差**・**未採用なので実挙動は不変**。
+  - **ゲート**＝golden 478→**482**・census **1945 維持**・smoke 10593 OK/0・fuzz 0・同型★0 維持・`census:timing` 56→**52**効果。**JSON 変更は厳密に4枚のみ**（全 effects_*.json の機械 diff で確認）・逆翻訳4枚を原文と逐語照合。詳細 BUGFIXES 続き208。
+  - **🔍 検証所見（次に Codex を使う人向け）**＝**Codex は数値申告は正確だったが副作用の申告が漏れた**＝①「近似・保留なし」と報告したが上記40枚 held 増を申告せず ②lint を「既存warning 222」と報告したが実際のベースラインは218で+4は新規（中身は `useHost`/`useGuest` の `use` 接頭辞を React Hook と誤認する既存 false positive・実害なし）。**検証側は held バケットの増減と lint 差分を必ず自分で取ること**（`_held_review.txt` のバケット集合 diff＋`eslint -f json` の行番号レンジ確認）。
+  - **要実機検証**＝WDA-F03-13 の相手エナ8枚時の対象選択UI（コレクタ・executor は golden 固定済み・配線は中央 diff 経由）。
+  - **次の一手**＝Opus はタスク2残＝WXK08-005（キーの使用タイミング動的付与＝§6.3級）か タスク16 残 [C]（トラップアイコン発動時5効果・シグニの下からトラッシュ3効果など。上位クラスタは概ね [C] 新機構）。Sonnet は§3タスク6＝**未採用37効果＋今回の40枚**の精密diff・採用判定（据置のまま実行可能）＋§7 で ON_HAND_ADDED 2枚・WDA-F03-13 の実機シナリオ追加。
+
 - **セッション（2026-07-19・続き207・Fable 5・**機構待ちタスク3本一括消化**＝`powerLteTrigger` 動的比較（タスク16[C]）／`ON_HAND_ADDED`・`ON_ENERGY_TO_FIELD` 新設（タスク16[C]＋タスク12(xxvii) クローズ）／「ダウン状態で場に出す」DOWN 誤退化40枚の系統是正・census 1948→1945・golden 470→478）**
   - **✅タスク12(xxvii) クローズ**＝現状確認で残3枚のうち**2枚は続き180 の機構で既に解消済み（簿記が古い）**＝WX12-006-E2（ON_SIGNI_BECOMES_UP 採用済み）・WXDi-P11-066-E1（自己discard反応＋byOpponentEffect 表現済み）。残る WXDi-P11-007-E1 は下記 timing 新設で消化。
   - **✅`powerLteTrigger`（そのシグニのパワー以下＝トリガー元基準）新設**＝既存 `powerLtTrigger` の Lte 兄弟1本＋lastProcessed フォールバック（trigger 不在の ACTIVATED では直前アクション結果基準に自然一致＝WD04-018 の MANUAL と同解決）。**真因は比較脱落でなく別の2バグ**＝(a) ON_SIGNI_DOWN/UP がトリガー句を actionText から除去せず WXEX1-42-E1 の BANISH 対象に `story:植物/isDown/excludeSelf` の**幻覚フィルタ**が混入（除去を追加）(b) ON_PLAY any_ally 規則が「＜X＞か＜Y＞の」複数クラス未対応で WXEX1-53-E1 が scope self へ退化（regex 拡張・story 配列 emit）。副産物＝WXEX2-01-E1 の isDown 幻覚除去・WXK11-015-E3 の owner:opponent 近似撤去（**execFreeze に owner:'any'＋isTriggerSource の所在側解決を新設**＝自アタックダウンでも凍結する公式裁定どおり）。採用4枚・全カード生パース diff 6枚のみ・全数原文照合。
