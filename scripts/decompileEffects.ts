@@ -309,6 +309,10 @@ function condJa(c?: any): string {
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
       if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
         return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
+      // distinctPhraseJa:'kinds' は同じ述語（名前の異なる数）の別語形「＜C＞のシグニがN種類以上ある」＝
+      // 原文どおりに戻す（既定の「それぞれ名前の異なる〜がN体いる」形＝WX12-Re01 と意味は同一）
+      if (c.distinctNames && c.distinctPhraseJa === 'kinds')
+        return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニが${numJa(c.minCount ?? 1)}種類以上ある`;
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
