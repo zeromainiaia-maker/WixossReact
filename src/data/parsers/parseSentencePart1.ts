@@ -1587,6 +1587,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
       ...parseColorMatchesLrig(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準。resolveDynamicFilter が解決
       ...parseTriggerComparison(t, { allowPlacement: true }), // 「そのシグニより低い/高いレベル」＝トリガー元基準（被バニッシュ/被トラッシュ/場に出た）
+      ...(/カード名に《[^》]+》を含む/.test(t) ? parseNameFilter(t) : {}), // 「カード名に《X》を含むシグニ」＝部分一致（WXEX2-51 ユラギ）
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
