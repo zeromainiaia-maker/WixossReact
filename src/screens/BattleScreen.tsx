@@ -6173,7 +6173,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
       // ownerState=cutinPaid(me), otherState=newCasterState
-      const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap);
+      const cutinPowers = calcFieldPowers(cutinPaid, newCasterState, bs.active_user_id === user.id, effectsMap, battleCardMap, bs.turn_phase);
       const cutinIsOwnerTurn = bs.active_user_id === user.id;
       const cutinAllColorSigniNums = new Set([...collectAllColorSigniForField(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectAllColorSigniForField(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
       const cutinExtraColors = new Map([...collectFieldSigniExtraColors(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectFieldSigniExtraColors(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
