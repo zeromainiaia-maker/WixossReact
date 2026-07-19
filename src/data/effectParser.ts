@@ -1124,10 +1124,17 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   // ⚠「トラッシュに置」は語順で分離することがある（「トラッシュに＜X＞のシグニがN枚以上置かれた」＝
   //   フィルタ名詞句が「トラッシュに」と「置」の間に入る・WXEX1-47）＝`トラッシュに[^。]*?置` で分離形も許容。
   if (!/(?:公開|トラッシュに[^。]*?置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) return null;
+  // 否定条件3件。「N枚が/を処理されなかった」は lastProcessedCards.length < N。
+  // 前段が実際に記録することは呼び出し側 prevRecords で保証する。肯定の COUNT_GTE を
+  // negate するだけで表せるため、新しい条件型は作らない。
+  const negHand = clause.match(/この方法で手札を([０-９\d]+)枚捨てなかった場合、?$/);
+  if (negHand) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(negHand[1]), verbJa: '捨てた', negate: true };
+  const negCharm = clause.match(/この方法で【チャーム】([０-９\d]+)枚がトラッシュに置かれなかった場合、?$/);
+  if (negCharm) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(negCharm[1]), verbJa: 'チャームをトラッシュに置いた', negate: true };
   // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
   //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
-  //   なかった＝否定条件（Cluster C・結果が起きなかった側＝COUNT_GTE では表せない・据置）。
+  //   上で捕捉した2種以外の「なかった」は対象・動詞を保証できないため据置。
   // 「レベルが偶数/奇数」は levelParity で捕捉できる（engine matchesFilter 対応済み）＝除外から外す。
   //   ただし「合計/すべて/枚数が/なかった」等の捕捉不能形は引き続き据置（誤って過剰許容の条件を作らない）。
   if (/種類|共通する|異なる|合計|すべて|枚数|センタールリグのレベル|【|《|になった|なかった/.test(clause)) return null;
@@ -3140,11 +3147,27 @@ function parseActionTextInner(text: string): EffectAction {
       // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
       // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
       const prevIsProcessRecorder2 = prevStep?.type === 'TRANSFER_TO_DECK';
+      // SEARCH→TRASH は resumeSearch が選んだカードを lastProcessedCards に記録する。
+      // ただし原文閾値まで検索できる fresh に限る。これにより WXEX1-03(7)／WXK02-028(4)は採用し、
+      // 前段が原文4枚を1枚に過小parseしている WXK06-031 は条件だけ常時偽にする退化を避けて据置する。
+      const clauseCountM = thenM[0].match(/([０-９\d]+)(?:枚|体)/);
+      const clauseCount = clauseCountM ? parseNum(clauseCountM[1]) : 1;
+      const prevSearch = prevStep as Partial<import('../types/effects').SearchAction> & { type?: string };
+      const prevIsSearchTrashRecorder = prevSearch?.type === 'SEARCH'
+        && prevSearch.then?.type === 'TRASH'
+        && (prevSearch.then as import('../types/effects').TrashAction).target?.type === 'DECK_CARD'
+        && typeof prevSearch.maxCount === 'number' && prevSearch.maxCount >= clauseCount;
+      // REMOVE_CHARM は execRemoveCharm が実際に外せたチャームだけを lastProcessedCards に記録する。
+      const prevCharm = prevStep as Partial<import('../types/effects').RemoveCharmAction> & { type?: string };
+      const prevIsRemoveCharmRecorder = prevCharm?.type === 'REMOVE_CHARM'
+        && (prevCharm.count === 'ALL' || (typeof prevCharm.count === 'number' && prevCharm.count >= clauseCount));
       // 公開（private:false）の LOOK_AND_REORDER も engine が閲覧カードを lastProcessedCards に記録する
       //（resumeLookAndReorder＝reordered を記録）。「この方法で公開された（すべての）カードがN枚/〜の場合」の結果条件を
       //   拾えるよう含める（「デッキの上からN枚公開する」WX12-Re10/WXDi-P07-064 等）。私的な「見る」は含めない。
       const prevIsPublicLook = lar?.type === 'LOOK_AND_REORDER' && lar.private === false && (typeof lar.count !== 'number' || lar.count > 1);
-      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain || prevIsProcessRecorder || prevIsProcessRecorder2 || prevStep?.type === 'REVEAL_DECK_TOP';
+      const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain
+        || prevIsProcessRecorder || prevIsProcessRecorder2 || prevIsSearchTrashRecorder || prevIsRemoveCharmRecorder
+        || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
@@ -3162,6 +3185,13 @@ function parseActionTextInner(text: string): EffectAction {
       // 記録するとき（prevRecords）だけ抽出。engine の LAST_PROCESSED_MATCHES/COUNT_GTE で評価される。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseThisWayGenericCount(thenM[0]);
+        // filterless SEARCH→TRASH の逆翻訳を原文動詞に合わせる（既存条件型の表示用語彙）。
+        if (condition?.type === 'LAST_PROCESSED_COUNT_GTE' && prevIsSearchTrashRecorder && !condition.negate) {
+          condition.verbJa = 'トラッシュに置いた';
+          // SEARCH の上限と閾値が同じなら、原文「N枚トラッシュに置いた」は実質 >=N と同値。
+          // JSON の評価は GTE のまま、逆翻訳だけ原文どおり「以上」を省く。
+          if (!thenM[0].includes('以上') && prevSearch.maxCount === condition.value) condition.omitGteJa = true;
+        }
       }
       // 結果のレベル合計閾値「この方法で〜レベルの合計がN(以上/以下)?の場合」（LAST_PROCESSED_LEVEL_SUM）。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {

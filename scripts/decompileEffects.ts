@@ -316,7 +316,11 @@ function condJa(c?: any): string {
     case 'THIS_CARD_PLACED_BY_CLASS': return `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた`;
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': return `それが${ownerJa(c.owner)}センタールリグと共通する色を持つ`;
     case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
-    case 'LAST_PROCESSED_COUNT_GTE': return `この方法でカードを${numJa(c.value)}枚以上${c.verbJa ?? '手札に加えた'}`;
+    case 'LAST_PROCESSED_COUNT_GTE': {
+      if (c.negate && c.verbJa === '捨てた') return `この方法で手札を${numJa(c.value)}枚捨てなかった`;
+      if (c.negate && c.verbJa === 'チャームをトラッシュに置いた') return `この方法で【チャーム】${numJa(c.value)}枚がトラッシュに置かれなかった`;
+      return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '手札に加えた'}`;
+    }
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
     case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;

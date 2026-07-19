@@ -1098,8 +1098,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       return true;
     }
-    case 'LAST_PROCESSED_COUNT_GTE':
-      return (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
+    case 'LAST_PROCESSED_COUNT_GTE': {
+      const matched = (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
+      return cond.negate ? !matched : matched;
+    }
     case 'LAST_PROCESSED_LEVEL_SUM': {
       // lastProcessedCardsのシグニのレベル合計と value を operator で比較（合計がN／N以上／N以下。WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];
