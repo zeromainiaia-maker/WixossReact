@@ -6745,7 +6745,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // checkAndBanishPowerZero と同じ判定ロジックを共有し、バトル解決を遅延させる判定に使う。
   const collectPowerZeroBanishCandidates = (hostState: PlayerState, guestState: PlayerState): string[] => {
     const isMyTurnLocal = bs?.active_user_id === bs?.host_id;
-    const powers = calcFieldPowers(hostState, guestState, isMyTurnLocal, effectsMap, battleCardMap);
+    const powers = calcFieldPowers(hostState, guestState, isMyTurnLocal, effectsMap, battleCardMap, bs.turn_phase);
     const candidates: string[] = [];
     for (const ownerIsHost of [true, false]) {
       const ownerState = ownerIsHost ? hostState : guestState;
