@@ -101,6 +101,41 @@ export function collectTargetedTriggers(
 }
 
 /**
+ * ルリグアタック時に「**防御側**」の付与AUTO（`lrig_granted_auto_effects`）を収集する（続き218j・タスク12(xlvii)）。
+ *
+ * 従来 `ON_ATTACK_LRIG` の収集は BattleScreen が**アタック側の `my.lrig_granted_auto_effects` しか見ておらず**、
+ * 「対戦相手のルリグがアタックしたとき、〜」という**防御側の付与能力を発火させる経路が存在しなかった**。
+ * `ON_ATTACK_SIGNI` 側は `collectFieldTriggers` が `opState.lrig_granted_auto_effects` を any_opp/any で拾う
+ * 経路を持っており（同ファイル内・「相手ルリグの付与AUTO」節）、本関数はそのルリグアタック版＝同型。
+ *
+ * defenderId＝アタックされた側（＝この能力の持ち主）。scope が any_opp/any のものだけを拾う
+ * （未設定＝既定 'self' は「自分のルリグがアタックしたとき」であり BattleScreen 側の既存収集が担当する）。
+ * usageLimit（《ターン1回/2回》）は消費した effectId を usedIds で返し、呼び出し元が actions_done へ書き戻す（他コレクタと同型）。
+ */
+export function collectLrigAttackDefenderTriggers(
+  ctx: TrigCtx,
+  defenderState: PlayerState,
+  defenderId: string,
+): { entries: StackEntry[]; usedIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedIds: string[] = [];
+  if (defenderState.lrig_abilities_disabled) return { entries, usedIds };
+  const limitOk = mkLimitOk(defenderState.actions_done, usedIds);
+  const defLrigNum = defenderState.field.lrig.at(-1) ?? '';
+  for (const eff of (defenderState.lrig_granted_auto_effects ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
+    const scope = eff.triggerScope ?? 'self';
+    if (scope !== 'any_opp' && scope !== 'any') continue;
+    if (!limitOk(eff)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: defenderId, cardNum: defLrigNum, effectId: eff.effectId,
+      label: `ルリグ付与効果（対戦相手のルリグアタック時）`, effect: eff,
+    });
+  }
+  return { entries, usedIds };
+}
+
+/**
  * ON_LRIG_GROW（「（センター）ルリグがグロウしたとき」）のトリガーを収集する。
  * grownOwnerId=グロウしたプレイヤー（センターグロウの実行者）。両プレイヤーの場（シグニ＋キー＋ルリグ上）から収集。
  *   any_ally: watcher 自分側のルリグがグロウ ／ any_opp: 対戦相手のルリグがグロウ ／ self: グロウ先自身（ON_PLAY 経路で処理）＝除外。
