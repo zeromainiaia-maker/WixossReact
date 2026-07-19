@@ -1365,7 +1365,10 @@ export function selectOrInteract(
       return true;
     });
   }
-  if (filteredCands.length === 0) return done(ctx);
+  // 候補0件＝このステップは何も処理しなかった。lastProcessedCards を空に倒して「空振り」を記録する
+  // （従来は done(ctx) で**直前ステップの残留値をそのまま持ち越して**いたため、後続の
+  //  CONDITIONAL{IS_MY_TURN}＝「そうした場合」ゲートがすり抜けて過剰発火していた＝タスク12(xxix)③）。
+  if (filteredCands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
   return needsInteraction(ctx, {
     type: 'SELECT_TARGET',
     candidates: filteredCands,
