@@ -7965,9 +7965,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           guestState.power0_banish_to_trash === true ||
           opState.field.signi.some(s => {
             const n = s?.at(-1);
+            // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない
             return n && (effectsMap.get(n) ?? []).some(e =>
               e.effectType === 'CONTINUOUS' &&
-              hasBanishRedirectInAction(e.action) &&
+              banishRedirectAppliesFrom(e.action, n, null) &&
               checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
             );
           });
