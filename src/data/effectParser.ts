@@ -4027,7 +4027,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_PLAY: 「あなたの[＜X＞の]シグニ[N体]が（効果によって）場に出たとき」= any_ally＋triggerFilter。「効果によって」= byEffect 限定
       if (timing[0] === 'ON_PLAY') {
         // 「傀儡状態の」修飾＝placedPuppet（WDK17-001）。「他の」「＜X＞の」と同様にあなたのシグニ全体（any_ally）の一種。
-        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
+        // クラス部は「＜X＞の」「＜X＞か＜Y＞の」の両形（WXEX1-53「＜アーム＞か＜ウェポン＞の」＝従来この形が
+        // 落ちて scope 既定 self（自身が場に出たとき）へ退化していた）。
+        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
         // 「あなたのレゾナ[N体]が場に出たとき」= any_ally＋cardType:レゾナ（レゾナは効果でのみ場に出る。G148）
         const allyResonaPlayM = !allyPlayM && actionText.match(/^あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
