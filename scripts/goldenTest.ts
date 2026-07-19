@@ -1347,9 +1347,11 @@ test('parser: 「対戦相手のルリグがアタックしたとき」は ON_AT
 // ── 続き218i: 引用付与の内側能力「対戦相手の〔シグニかルリグ〕がアタックしたとき」の triggerScope 脱落（§3 タスク5）。
 // parser の oppAtt regex が「シグニ」単独しか見ておらず、複合主語だと scope 未設定＝engine 既定 'self' に落ち、
 // collectFieldTriggers の付与AUTO収集（any_opp/any 必須）で弾かれて**完全な no-op（死に能力）**になっていた。
-// ⚠「センタールリグ」**単独**は engine に収集経路が無い（ON_ATTACK_LRIG は自分側の付与しか見ない）ため
-//   意図的に据置＝拾うと相手シグニのアタックで誤発火する過剰効果を新設してしまう。その据置も固定する。
-test('引用付与の内側トリガー: 「対戦相手のシグニかルリグがアタックしたとき」は any_opp／「センタールリグ」単独は据置', () => {
+// ⚠「センタールリグ」単独は続き218i 時点では engine に収集経路が無く据置していたが、**続き218j で経路を新設**
+//   （collectLrigAttackDefenderTriggers）したため現在は ON_ATTACK_LRIG + any_opp が正。timing の作り分け
+//   （ルリグ単独＝LRIG のみ／複合＝両方／シグニ単独＝SIGNI のみ）は直上の 218j テストが担保する。
+//   ここは「複合主語で any_opp が付くこと」＝no-op 化の回帰ガードに専念する。
+test('引用付与の内側トリガー: 「対戦相手のシグニかルリグがアタックしたとき」は any_opp', () => {
   const innerScopes = (cardNum: string): (string | undefined)[] => {
     const out: (string | undefined)[] = [];
     const walk = (n: unknown): void => {
