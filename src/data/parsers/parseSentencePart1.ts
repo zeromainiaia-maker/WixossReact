@@ -2300,10 +2300,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
     }
   }
 
-  // ---- シグニをデッキの一番上に置く ----
-  if (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/)) {
+  // ---- シグニをデッキの一番上に置く（場のシグニ限定）----
+  // 「トラッシュから…を対象とし、それをデッキの一番上に置く」はトラッシュ回収→トップ（TRASH_CARD）であり
+  // 場のシグニ移動ではない。part2 の TRASH_CARD 規則に委譲するためここでは掴まない（掴むと場のシグニ幻覚化する）。
+  if (!t.includes('トラッシュから') && (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ' } }, shuffle: false } as TransferToDeckAction;
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ' } }, shuffle: false, position: 'top' } as TransferToDeckAction;
   }
 
   // ---- 対戦相手は自分のデッキの一番上を公開する ----
