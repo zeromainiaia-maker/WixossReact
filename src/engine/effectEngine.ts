@@ -1,8 +1,7 @@
-import type { PlayerState, CardData } from '../types';
+import type { PlayerState, CardData, TurnPhase } from '../types';
 import type {
   CardEffect,
   ActiveCondition,
-  TurnPhase,
   EffectAction,
   PowerModifyAction,
   PowerModifyPerStackAction,
