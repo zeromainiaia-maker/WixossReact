@@ -87,9 +87,12 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               });
               // 自動支払いコスト（選択不要）
               const lrigDownCost = eff.cost?.lrigDown;
-              const upLrigCount = (pState.field.lrig.length > 0 && !pState.field.lrig_down ? 1 : 0)
-                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_l?.length ?? 0) > 0 && !pState.field.assist_lrig_l_down ? 1 : 0)
-                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_r?.length ?? 0) > 0 && !pState.field.assist_lrig_r_down ? 1 : 0);
+              // level 指定時は該当レベルのルリグゾーンだけを支払い候補に数える（BattleScreen の支払い側と同じ判定）
+              const ldLevelOk = (stack?: string[]) => lrigDownCost?.level === undefined
+                || Number(battleCardMap.get(getCardNum(stack?.[stack.length - 1] ?? ''))?.Level) === lrigDownCost.level;
+              const upLrigCount = (pState.field.lrig.length > 0 && !pState.field.lrig_down && ldLevelOk(pState.field.lrig) ? 1 : 0)
+                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_l?.length ?? 0) > 0 && !pState.field.assist_lrig_l_down && ldLevelOk(pState.field.assist_lrig_l) ? 1 : 0)
+                + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_r?.length ?? 0) > 0 && !pState.field.assist_lrig_r_down && ldLevelOk(pState.field.assist_lrig_r) ? 1 : 0);
               const lrigDownOk = !lrigDownCost || upLrigCount >= lrigDownCost.count;
               const lifeNeeded = (eff.cost?.lifeTrash ?? 0) + (eff.cost?.life_crash ?? 0) + (eff.cost?.lifeToHand ?? 0);
               const lifeOk = lifeNeeded === 0 || pState.life_cloth.length >= lifeNeeded;
