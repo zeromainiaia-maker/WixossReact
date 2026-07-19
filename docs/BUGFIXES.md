@@ -4,6 +4,16 @@
 
 ---
 
+## タスク12(xxii) 第3バッチ＝`LAST_PROCESSED_*` 条件語彙拡張（10採用・10見送り）（golden 486→488・census 1933→1929）（2026-07-19・続き211・Codex）
+
+指定20効果について前段 action の `lastProcessedCards` 記録経路を1件ずつ確認した。既存 `LAST_PROCESSED_MATCHES` に比較演算子、フィルタ後の distinct 名、必須カード名集合、共通クラス、センタールリグとの動的レベル比較、逆翻訳用動詞を追加し、新しい条件型は増やしていない。成立／不成立の両方向を golden 固定した。
+
+- 採用：`WX06-018-E1`、`WX11-041-E1`、`WX15-106-E1`、`WX22-006-E3`、`WXEX1-66-E2`、`WXEX2-21-E1`、`WXK01-005-E1`、`WXK09-091-E1`、`WXK10-060-E2`、`WXK11-036-E2`。
+- 見送り：`WD20-018-E1`（記録対象が条件主語と不一致）、`WD21-020-E1`（公開集合なし）、`WX05-013-E3`／`WX21-023-E1`（bare `REVEAL` が未記録）、`WX20-053-E2`（デッキ検索由来を記録・識別不能）、`WX22-021-E2`（`SHUFFLE_DECK` 未記録＋公開前段 STUB）、`WXDi-P13-003A-E1`（`GRANT_KEYWORD` 未記録）、`WXEX1-06-E2`（直前 `TRANSFER_TO_DECK` が別集合で上書き）、`WXK06-031-E1`（前回同様、fresh `SEARCH.maxCount=1` で原文4枚を満たせない）、`WXK07-042-E1`（`DRAW` 未記録＋トラッシュ前段欠落）。
+- 全カード生パース diff は上記採用10効果だけ（outlier 0）。`build:effects` 後の `IS_MY_TURN化` は68→58、heldReview は272のまま。全ゲート緑（golden 488、smoke 10593、fuzz 0、census 1929、lint 0 errors / 222 warnings、同型★0）。
+
+---
+
 ## タスク12(xxii) 第2バッチ＝「その後、〜の場合」属性判定／盤面状態 family（20採用・10見送り）（golden 484→486・census 1941→1933）（2026-07-19・続き210・Codex）
 
 `docs/_partial_report.txt` の IS_MY_TURN化88件から、ユーザー指定の「この方法で」を含まない30効果だけを原文ブロック単位で精査した。条件 parser・engine 評価・decompiler を同時に対応し、条件成立／不成立の両方向を golden 固定した。

@@ -1168,16 +1168,41 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return proc.some(cn => ctx.cardMap.get(cn)?.Type === cond.cardType);
     }
     case 'LAST_PROCESSED_MATCHES': {
-      // 直前に処理/公開/選択したカード(lastProcessedCards)に filter 一致が minCount（省略=1）枚以上あるか
-      // （「それが＜X＞のシグニの場合」＝ミル/公開/対象選択直後の条件節。WXK06-079/WXEX1-36/43-BURST）
+      // 直前に処理/公開/選択したカード(lastProcessedCards)のフィルタ付き件数・種類数・集合条件。
+      // 旧 minCount は gte のまま互換維持し、operator/value で eq/lte 等も表す。
       const procM = ctx.lastProcessedCards ?? [];
-      const need = cond.minCount ?? 1;
-      let hit = 0;
-      for (const cn of procM) {
-        if (matchesFilter(ctx.cardMap.get(cn), cond.filter)) hit++;
-        if (hit >= need) return true;
+      const centerLevel = cond.levelLteCenterLrig
+        ? (() => {
+            const lrig = st(cond.levelLteCenterLrig!).field.lrig.at(-1);
+            if (!lrig) return undefined;
+            const n = parseInt(ctx.cardMap.get(getCardNum(lrig))?.Level ?? '', 10);
+            return Number.isFinite(n) ? n : undefined;
+          })()
+        : undefined;
+      const matchedCards = procM.filter(cn => {
+        const card = ctx.cardMap.get(getCardNum(cn));
+        if (!matchesFilter(card, cond.filter)) return false;
+        if (cond.levelLteCenterLrig) {
+          if (centerLevel === undefined || card?.Type !== 'シグニ') return false;
+          const level = parseInt(card.Level ?? '', 10);
+          if (!Number.isFinite(level) || level > centerLevel) return false;
+        }
+        return true;
+      });
+      if (cond.requiredCardNames && !cond.requiredCardNames.every(name =>
+        matchedCards.some(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name))) return false;
+      if (cond.shareClass) {
+        if (matchedCards.length === 0) return false;
+        const classSets = matchedCards.map(cn => new Set(
+          (ctx.cardMap.get(getCardNum(cn))?.CardClass ?? '').split(/[／/]/)
+            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean),
+        ));
+        if (classSets[0].size === 0 || ![...classSets[0]].some(cl => classSets.every(set => set.has(cl)))) return false;
       }
-      return false;
+      const count = cond.distinctName
+        ? new Set(matchedCards.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? getCardNum(cn))).size
+        : matchedCards.length;
+      return cmp(count, cond.operator ?? 'gte', cond.value ?? cond.minCount ?? 1);
     }
     case 'LAST_PROCESSED_ALL_MATCH': {
       // 直前に処理した（トラッシュ/公開）カード(lastProcessedCards)が **すべて** filter 一致か

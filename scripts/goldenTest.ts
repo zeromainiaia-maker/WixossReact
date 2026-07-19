@@ -5289,6 +5289,69 @@ test('WXDi-P06-039-E1 PAID_ADDITIONAL_COST: 支払う/支払わないでthen/els
   eq(skipped.ownerState.hand.length, hs + 1, '不払い時はelse');
 });
 
+// タスク12(xxii) 第3バッチ：plain action が lastProcessedCards を記録する10効果。
+// parser が条件を落とさないことと、各 effectId の成立/不成立を両方向で固定する。
+test('タスク12(xxii) 第3バッチ10効果: parserがLAST_PROCESSED条件を保持', () => {
+  const parsed = (id: string) => JSON.stringify(parseCardEffects(cardMap.get(id)!));
+  const checks: Array<[string, string[]]> = [
+    ['WX06-018', ['"LAST_PROCESSED_MATCHES"', '"story":"ウェポン"', '"value":1', '"value":2', '"value":3']],
+    ['WX11-041', ['"story":["鉱石","宝石"]', '"operator":"eq"', '"value":2']],
+    ['WX15-106', ['"hasIcon":"アクセ"', '"operator":"gte"']],
+    ['WX22-006', ['"shareClass":true', '"value":7']],
+    ['WXEX1-66', ['"story":"原子"', '"distinctName":true', '"value":4']],
+    ['WXEX2-21', ['"DECK_COUNT"', '"owner":"opponent"', '"value":0']],
+    ['WXK01-005', ['"color":"黒"', '"verbJa":"手札に加えた"']],
+    ['WXK09-091', ['"requiredCardNames":["星銀の童話　バズイール","星銀の童話　ブロト"]']],
+    ['WXK10-060', ['"story":"植物"', '"distinctName":true', '"value":3']],
+    ['WXK11-036', ['"levelLteCenterLrig":"self"']],
+  ];
+  for (const [id, needles] of checks) {
+    const json = parsed(id);
+    for (const needle of needles) ok(json.includes(needle), `${id}: ${needle}を保持`);
+    ok(!json.includes('"condition":{"type":"IS_MY_TURN"}'), `${id}: IS_MY_TURN化しない`);
+  }
+});
+
+test('タスク12(xxii) 第3バッチ10効果: condition成立/不成立の両方向', () => {
+  const put = (id: string, data: Partial<CardData>): string => {
+    cardMap.set(id, { CardNum: id, CardName: id, Type: 'シグニ', CardClass: '', Color: '', Level: '1', EffectText: '', BurstText: '', ...data } as CardData);
+    return id;
+  };
+  const other = put('LP3-OTHER', { CardName: 'その他', CardClass: '精像：天使', Color: '白', Level: '4' });
+  const weapon1 = put('LP3-WEAPON1', { CardName: '武器A', CardClass: '精武：ウェポン' });
+  const weapon2 = put('LP3-WEAPON2', { CardName: '武器B', CardClass: '精武：ウェポン' });
+  const ore = put('LP3-ORE', { CardName: '鉱石A', CardClass: '精羅：鉱石' });
+  const gem = put('LP3-GEM', { CardName: '宝石A', CardClass: '精羅：宝石' });
+  const acce = put('LP3-ACCE', { CardName: 'アクセ持ち', EffectText: '【アクセ】' });
+  const atom = [0, 1, 2, 3].map(i => put(`LP3-ATOM${i}`, { CardName: `原子${i}`, CardClass: '精羅：原子' }));
+  const plant = [0, 1, 2].map(i => put(`LP3-PLANT${i}`, { CardName: `植物${i}`, CardClass: '精生：植物' }));
+  const common = Array.from({ length: 7 }, (_, i) => put(`LP3-COMMON${i}`, { CardName: `共通${i}`, CardClass: '精像：美巧' }));
+  const black = put('LP3-BLACK', { CardName: '黒シグニ', Color: '黒' });
+  const buzz = put('LP3-BUZZ', { CardName: '星銀の童話　バズイール', CardClass: '精像：美巧' });
+  const broto = put('LP3-BROTO', { CardName: '星銀の童話　ブロト', CardClass: '精像：美巧' });
+  const lrig = put('LP3-LRIG', { CardName: 'レベル3ルリグ', Type: 'ルリグ', Level: '3' });
+  const lv3 = put('LP3-LV3', { CardName: 'レベル3', Level: '3' });
+  const lv4 = put('LP3-LV4', { CardName: 'レベル4', Level: '4' });
+  const ctx = () => mkCtx({}, {});
+  const lp = (cards: string[]) => ({ ...ctx(), lastProcessedCards: cards } as ExecCtx);
+  const cases: { id: string; cond: import('../src/types/effects').Condition; yes: ExecCtx; no: ExecCtx }[] = [
+    { id: 'WX06-018-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: 'ウェポン' }, operator: 'eq', value: 1 }, yes: lp([weapon1, other, other]), no: lp([weapon1, weapon2, other]) },
+    { id: 'WX11-041-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: ['鉱石', '宝石'] }, operator: 'eq', value: 2 }, yes: lp([ore, gem]), no: lp([ore, other]) },
+    { id: 'WX15-106-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { hasIcon: 'アクセ' }, operator: 'gte', value: 1 }, yes: lp([acce, other]), no: lp([other, other]) },
+    { id: 'WX22-006-E3', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'eq', value: 7, shareClass: true }, yes: lp(common), no: lp([...common.slice(0, 6), other]) },
+    { id: 'WXEX1-66-E2', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '原子' }, operator: 'eq', value: 4, distinctName: true }, yes: lp(atom), no: lp([atom[0], `${atom[0]}#2`, atom[1], atom[2]]) },
+    { id: 'WXK01-005-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: '黒' }, operator: 'gte', value: 1 }, yes: lp([black]), no: lp([other]) },
+    { id: 'WXK09-091-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, requiredCardNames: ['星銀の童話　バズイール', '星銀の童話　ブロト'] }, yes: lp([buzz, broto, other]), no: lp([buzz, other, other]) },
+    { id: 'WXK10-060-E2', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '植物' }, operator: 'eq', value: 3, distinctName: true }, yes: lp(plant), no: lp([plant[0], `${plant[0]}#2`, plant[1]]) },
+  ];
+  { const y = ctx(), n = ctx(); y.otherState.deck = []; n.otherState.deck = [other]; cases.push({ id: 'WXEX2-21-E1', cond: { type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: 0 }, yes: y, no: n }); }
+  { const y = lp([lv3]), n = lp([lv4]); y.ownerState.field.lrig = [lrig]; n.ownerState.field.lrig = [lrig]; cases.push({ id: 'WXK11-036-E2', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'gte', value: 1, levelLteCenterLrig: 'self' }, yes: y, no: n }); }
+  for (const c of cases) {
+    ok(evalCondition(c.cond, c.yes), `${c.id}: 成立盤面でtrue`);
+    ok(!evalCondition(c.cond, c.no), `${c.id}: 不成立盤面でfalse`);
+  }
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

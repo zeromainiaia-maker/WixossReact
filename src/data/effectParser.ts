@@ -1125,11 +1125,14 @@ function parseSubscriberRevealCondition(clause: string): Condition | null {
 // **記録することを engine 実装で確認済みの動詞に限定**＝公開(REVEAL)／トラッシュに置く(TRASH/MILL)／エナゾーンに置く
 //   (ENERGY_CHARGE)／ゲームから除外(EXILE)／バニッシュ(BANISH)／デッキに戻す(TRANSFER_TO_DECK)／
 //   捨てる(TRASH{HAND_CARD}＝ALL/blind/選択resume の全経路で lastProcessedCards を記録することを engine で確認済み・
-//   §3 タスク12(xxii) 捨てカウントバッチ)。手札に加える(ADD_TO_HAND は SEARCH 内処理で非記録)は除外。
+//   §3 タスク12(xxii) 捨てカウントバッチ)／TRANSFER_TO_HAND の選択結果を手札に加える。
 // 全セマンティクスを捕捉できる形に限定＝捕捉不能なフィルタ（N種類/共通クラス/偶数/レベルの異なる/名前ペア/
 //   センターレベル依存）は null を返し IS_MY_TURN 据置（census が継続検出＝偽陰性を作らない）。
 function parseThisWayGenericCount(clause: string): Condition | null {
   if (!/^(?:その後、)?この方法で/.test(clause)) return null;
+  // 直前に手札へ加えたカードの色（WXK01-005）。一般の「手札に加え」は照応が広いため、この句だけ先に限定捕捉する。
+  const colorToHand = clause.match(/この方法で(白|赤|青|緑|黒)のシグニを手札に加えた場合、?$/);
+  if (colorToHand) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: colorToHand[1] }, operator: 'gte', value: 1, verbJa: '手札に加えた' };
   // lastProcessedCards を残すと確認済みの動詞に限定。
   // ⚠「トラッシュに置」は語順で分離することがある（「トラッシュに＜X＞のシグニがN枚以上置かれた」＝
   //   フィルタ名詞句が「トラッシュに」と「置」の間に入る・WXEX1-47）＝`トラッシュに[^。]*?置` で分離形も許容。
@@ -1141,6 +1144,28 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   if (negHand) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(negHand[1]), verbJa: '捨てた', negate: true };
   const negCharm = clause.match(/この方法で【チャーム】([０-９\d]+)枚がトラッシュに置かれなかった場合、?$/);
   if (negCharm) return { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(negCharm[1]), verbJa: 'チャームをトラッシュに置いた', negate: true };
+  // フィルタ付きの「枚数がN枚」＝一致数をちょうどN枚で比較（WX06-018）。
+  const exactStoryCount = clause.match(/この方法でトラッシュに置かれた＜([^＞]+)＞のシグニの枚数が([０-９\d]+)枚の場合、?$/);
+  if (exactStoryCount) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: exactStoryCount[1] }, operator: 'eq', value: parseNum(exactStoryCount[2]), verbJa: 'トラッシュに置かれた' };
+  // ORクラスの合計枚数（WX11-041）。
+  const storyOrTotal = clause.match(/この方法で＜([^＞]+)＞か＜([^＞]+)＞のシグニが合計([０-９\d]+)枚トラッシュに置かれた場合、?$/);
+  if (storyOrTotal) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: [storyOrTotal[1], storyOrTotal[2]] }, operator: 'eq', value: parseNum(storyOrTotal[3]), verbJa: 'トラッシュに置かれた' };
+  // アイコン持ちカードの結果枚数（WX15-106）。
+  const iconCount = clause.match(/この方法で《(クロス|ライズ|トラップ|アクセ)アイコン》を持つカードが([０-９\d]+)枚(以上|以下)?エナゾーンに置かれた場合、?$/);
+  if (iconCount) return { type: 'LAST_PROCESSED_MATCHES', filter: { hasIcon: iconCount[1] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ' }, operator: iconCount[3] === '以下' ? 'lte' : iconCount[3] === '以上' ? 'gte' : 'eq', value: parseNum(iconCount[2]), verbJa: 'エナゾーンに置かれた' };
+  // 公開したクラス一致カードの「種類」＝異なるカード名数（WXEX1-66/WXK10-060）。
+  const distinctStory = clause.match(/この方法で＜([^＞]+)＞のシグニが([０-９\d]+)種類(以上|以下)?公開された場合、?$/);
+  if (distinctStory) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: distinctStory[1] }, operator: distinctStory[3] === '以下' ? 'lte' : distinctStory[3] === '以上' ? 'gte' : 'eq', value: parseNum(distinctStory[2]), distinctName: true, verbJa: '公開された' };
+  // 複数の指定カード名をすべて含む（WXK09-091）。cardNames(OR)では片方2枚でも成立するため専用フィールドでAND評価する。
+  const requiredNames = clause.match(/この方法で《([^》]+)》と《([^》]+)》をデッキに加えた場合、?$/);
+  if (requiredNames) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, requiredCardNames: [requiredNames[1], requiredNames[2]], verbJa: 'デッキに加えた' };
+  // 選んだN枚すべてに共通クラスがある（WX22-006）。
+  const commonClass = clause.match(/この方法で共通するクラスを持つシグニ([０-９\d]+)枚をデッキに加えた場合、?$/);
+  if (commonClass) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'eq', value: parseNum(commonClass[1]), shareClass: true, verbJa: 'デッキに加えた' };
+  // 中央ルリグの現在レベルを上限にする動的比較（WXK11-036）。
+  if (/この方法であなたのセンタールリグのレベル以下のシグニがトラッシュに置かれた場合、?$/.test(clause)) {
+    return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'gte', value: 1, levelLteCenterLrig: 'self', verbJa: 'トラッシュに置かれた' };
+  }
   // 全セマンティクスを捕捉できない形は据置（誤って過剰許容の条件を作らない）。
   //   合計＝レベル総和条件（LAST_PROCESSED_LEVEL_SUM 系）／すべて＝全一致（minCount≥N では表せない）／
   //   枚数が＝ちょうどN・多分岐の枝／《…》＝アイコン/名前フィルタ（本パーサ非対応）／
@@ -1206,10 +1231,15 @@ function parseLevelSumCondition(clause: string): Condition | null {
 //（直前ステップが LAST_PROCESSED_MATCHES の CONDITIONAL）をゲートすること。これが無いと後続枝が条件を失った
 // bare step になり無条件発火する（§3 タスク12(xxii) 多分岐＝WXDi-P13-049「レベル1→引く。レベル2→捨てさせる。…」）。
 // カード属性フィルタが1つも取れない（レベルが偶数/奇数・「シグニの場合」等）や盤面語を含む desc は null（bare 据置）。
-function parseBareBranchCondition(clause: string): { condition: Condition; rest: string } | null {
+function parseBareBranchCondition(clause: string, previous?: Condition): { condition: Condition; rest: string } | null {
   const m = clause.match(/^(.+?)の場合、(.+)$/s);
   if (!m) return null;
   const desc = m[1];
+  // 先頭枝がフィルタ付き件数なら、後続「2枚の場合」「3枚の場合」も同じ母集合の exact 比較（WX06-018）。
+  const countOnly = desc.match(/^([０-９\d]+)枚$/);
+  if (countOnly && previous?.type === 'LAST_PROCESSED_MATCHES') {
+    return { condition: { ...previous, operator: 'eq', value: parseNum(countOnly[1]) }, rest: m[2] };
+  }
   const amongColor = desc.match(/^その中に(白|赤|青|緑|黒)のカードがある$/);
   if (amongColor) return { condition: { type: 'LAST_PROCESSED_MATCHES', filter: { color: amongColor[1] } }, rest: m[2] };
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
@@ -1240,6 +1270,8 @@ function parseBareBranchCondition(clause: string): { condition: Condition; rest:
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
   [/あなたのデッキが([０-９\d]+)枚の場合/,
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+  [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
+    g => ({ type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: parseNum(g[0]) })],
   [/あなたのエナゾーンに＜(美巧)＞のシグニが(５)枚以上ある場合/,
     g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, operator: 'gte', value: parseNum(g[1]) })],
   [/対戦相手のすべてのシグニが凍結状態である場合/,
@@ -3196,6 +3228,7 @@ function parseActionTextInner(text: string): EffectAction {
       // TRANSFER_TO_HAND は選択結果を lastProcessedCards に残すが、一般化すると既存の照応曖昧文まで拾うため原文節で限定する。
       const prevIsNamedTransferToHand = prevStep?.type === 'TRANSFER_TO_HAND' &&
         /^その後、それが《羅星姫　イクリプス》の場合、$/.test(thenM[0]);
+      const prevIsTransferToHandRecorder = prevStep?.type === 'TRANSFER_TO_HAND' && /この方法で.+手札に加えた場合/.test(thenM[0]);
       // SEARCH→TRASH は resumeSearch が選んだカードを lastProcessedCards に記録する。
       // ただし原文閾値まで検索できる fresh に限る。これにより WXEX1-03(7)／WXK02-028(4)は採用し、
       // 前段が原文4枚を1枚に過小parseしている WXK06-031 は条件だけ常時偽にする退化を避けて据置する。
@@ -3226,7 +3259,7 @@ function parseActionTextInner(text: string): EffectAction {
         (prevStep as import('../types/effects').StubAction).id === 'OPEN_MAGIC_BOX') || prevIsWrappedMagicBoxOpen;
       const prevRecords = prevSetsProcessed || prevIsRevealLook || prevIsPublicLook || prevIsEnergyPlace || prevIsLpmChain
         || prevIsProcessRecorder || prevIsProcessRecorder2 || prevIsSearchTrashRecorder || prevIsRemoveCharmRecorder
-        || prevIsNamedTransferToHand || prevIsMagicBoxOpen || prevStep?.type === 'REVEAL_DECK_TOP';
+        || prevIsNamedTransferToHand || prevIsTransferToHandRecorder || prevIsMagicBoxOpen || prevStep?.type === 'REVEAL_DECK_TOP';
       let condition = parseThisWayTrashCondition(thenM[0], prevSetsProcessed);
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLastProcessedMatchesCondition(thenM[0], prevIsEnergyPlace);
@@ -3306,7 +3339,10 @@ function parseActionTextInner(text: string): EffectAction {
       const prevStepE = steps[steps.length - 1] as { type?: string };
       const prevIsLpmChainE = steps.length > 0 && prevStepE?.type === 'CONDITIONAL' &&
         (prevStepE as import('../types/effects').ConditionalAction).condition?.type === 'LAST_PROCESSED_MATCHES';
-      const branch = prevIsLpmChainE ? parseBareBranchCondition(clean) : null;
+      const previousLpm = prevIsLpmChainE
+        ? (prevStepE as import('../types/effects').ConditionalAction).condition
+        : undefined;
+      const branch = prevIsLpmChainE ? parseBareBranchCondition(clean, previousLpm) : null;
       if (branch) {
         steps.push({ type: 'CONDITIONAL', condition: branch.condition, then: parseSingleSentence(branch.rest) });
       } else {

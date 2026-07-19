@@ -374,7 +374,23 @@ function condJa(c?: any): string {
     case 'TRASHED_DISTINCT_LEVELS_GTE': return `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
     case 'TRASHED_STORY_COUNT_GTE': return `この方法で${numJa(c.count)}体の＜${c.story}＞のシグニがトラッシュに置かれた`;
     case 'LAST_PROCESSED_POWER_GTE': return `直前に選んだシグニのパワー${c.addDelta ? `（+${c.addDelta}後）` : ''}が${numJa(c.value)}以上`;
-    case 'LAST_PROCESSED_MATCHES': return `それが${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : (c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}`;
+    case 'LAST_PROCESSED_MATCHES': {
+      const value = c.value ?? c.minCount ?? 1;
+      const op = c.operator ?? 'gte';
+      const threshold = `${numJa(value)}${c.distinctName ? '種類' : '枚'}${op === 'gte' ? '以上' : op === 'lte' ? '以下' : ''}`;
+      if (c.requiredCardNames) return `この方法で${c.requiredCardNames.map((n: string) => `《${n}》`).join('と')}を${c.verbJa ?? '処理した'}`;
+      if (c.shareClass) return `この方法で共通するクラスを持つシグニ${numJa(value)}枚を${c.verbJa ?? '処理した'}`;
+      if (c.levelLteCenterLrig) return `この方法であなたのセンタールリグのレベル以下のシグニが${c.verbJa ?? '処理された'}`;
+      if (c.verbJa === '手札に加えた' && c.filter?.color && c.filter?.cardType === 'シグニ') return `この方法で${[].concat(c.filter.color).join('か')}のシグニを手札に加えた`;
+      if (c.verbJa) {
+        const subject = c.filter?.hasIcon ? `《${c.filter.hasIcon}アイコン》を持つカード`
+          : c.filter?.color && c.filter?.cardType === 'シグニ' ? `${[].concat(c.filter.color).join('か')}のシグニ`
+          : Array.isArray(c.filter?.story) && c.filter?.cardType === 'シグニ' ? `${c.filter.story.map((s: string) => `＜${s}＞`).join('か')}のシグニ`
+          : `${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
+        return `この方法で${subject}が${threshold}${c.verbJa}`;
+      }
+      return `それが${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : (c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}`;
+    }
     case 'LAST_PROCESSED_ALL_MATCH': return `この方法で処理したカードがすべて${filterJa(c.filter)}${(c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}`;
     case 'ENERGY_TRASH_COLOR_COUNT_GTE': return `この方法で指定色のカードが${numJa(c.value)}枚以上トラッシュに置かれた`;
     case 'BEAT_CONDITION': return `あなたの【ビート】が${c.condText ?? ''}`;
