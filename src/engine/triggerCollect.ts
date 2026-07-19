@@ -2302,6 +2302,7 @@ export function collectTurnTriggers(
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!kizunaOk(ctx, eff, myState, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
