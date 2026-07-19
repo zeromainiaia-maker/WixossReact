@@ -3749,6 +3749,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
              : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
              : trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
+             // 「対戦相手の〔シグニかルリグ／ルリグかシグニ〕がアタックしたとき」＝**両方**のアタックで発火する
+             // 複合主語。従来は下の総称フォールバックで ON_ATTACK_SIGNI だけになり**ルリグ側が丸ごと落ちて**いた
+             // （続き218i で silent fallback として刻んだ分・タスク12(xlvii)）。engine は両 timing とも
+             // any_opp 収集経路を持つ（ON_ATTACK_SIGNI＝collectFieldTriggers／ON_ATTACK_LRIG＝collectLrigAttackDefenderTriggers）。
+             : /対戦相手の(?:(?:すべての|各)?)(?:＜[^＞]+＞の)?(?:シグニか(?:センター)?ルリグ|(?:センター)?ルリグかシグニ)(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_SIGNI', 'ON_ATTACK_LRIG']
+             // 「対戦相手の（センター）ルリグ**単独**がアタックしたとき」＝ルリグアタックのみ（WX15-002-E2 等）。
+             // ⚠総称フォールバックより先に判定する（後ろだと ON_ATTACK_SIGNI へ落ちて相手シグニのアタックで誤発火する）。
+             : /対戦相手の(?:(?:すべての|各)?)(?:センター)?ルリグ(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_LRIG']
              : trigText.includes('アタックしたとき') ? ['ON_ATTACK_SIGNI']
              : trigText.includes('バニッシュされたとき') ? ['ON_BANISH']
              // 「あなたの＜X＞のシグニが効果によって対戦相手のシグニをバニッシュしたとき」（WX07-036）。既存 ON_SIGNI_BANISH_OPPONENT（バトル経路のみ配線）と別＝効果バニッシュ経路。⚠engine未配線。トリガー文非除去・scope/filter は下で抽出
