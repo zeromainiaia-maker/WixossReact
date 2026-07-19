@@ -43,11 +43,24 @@ export function checkActiveCondition(
   sourceCardNum?: string,
   effectivePowers?: Map<string, number>,
   oppTrashColorLoss?: boolean,
+  turnPhase?: TurnPhase,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
+
+    case 'DURING_ATTACK_PHASE': {
+      // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果。turnPhase を渡さない呼び出し元では
+      // 従来どおり true（過小実行を避ける＝主用途 calcFieldPowers 以外は phase を持たない）。
+      if (turnPhase === undefined) return true;
+      const inAttack = turnPhase === 'ATTACK_ARTS' || turnPhase === 'ATTACK_ARTS_OP'
+        || turnPhase === 'ATTACK_SIGNI' || turnPhase === 'ATTACK_LRIG';
+      if (!inAttack) return false;
+      if (cond.owner === 'self') return isOwnerTurn;      // あなたのアタックフェイズ＝効果所有者のターン
+      if (cond.owner === 'opponent') return !isOwnerTurn; // 対戦相手のアタックフェイズ
+      return true;                                        // owner 省略＝どちらのアタックフェイズでも
+    }
 
     case 'BEAT_CONDITION':
       // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり有効（CONTINUOUS常時能力のゲート）
