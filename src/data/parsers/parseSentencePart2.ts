@@ -216,15 +216,18 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- スペル/カードをトラッシュからデッキの一番上に置く ----
   {
-    const trashToDeckTopM = t.match(/トラッシュから(.+?)([０-９\d]+)枚を?対象とし、それ(?:ら)?を(?:対戦相手の)?デッキの一番上に置く/);
+    // 「N枚を対象とし」だけでなく「N枚まで対象とし」（＝upToCount）も拾う（WXDi-P01-063/WXK01-109 等）。
+    const trashToDeckTopM = t.match(/トラッシュから(.+?)([０-９\d]+)枚(まで)?を?対象とし、それ(?:ら)?を(?:対戦相手の)?デッキの一番上に置く/);
     if (trashToDeckTopM) {
+      const desc = trashToDeckTopM[1];
       const owner: Owner = t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
-      const filter: TargetFilter = { ...parseStoryFilter(trashToDeckTopM[1]) };
-      if (trashToDeckTopM[1].includes('スペル')) filter.cardType = 'スペル';
-      if (trashToDeckTopM[1].includes('シグニ')) filter.cardType = 'シグニ';
+      const filter: TargetFilter = {
+        ...parseCardTypeFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseStoryFilter(desc),
+      };
+      const upTo = !!trashToDeckTopM[3];
       return {
         type: 'TRANSFER_TO_DECK',
-        source: { type: 'TRASH_CARD', owner, count: parseNum(trashToDeckTopM[2]), filter: Object.keys(filter).length > 0 ? filter : undefined },
+        source: { type: 'TRASH_CARD', owner, count: parseNum(trashToDeckTopM[2]), ...(upTo ? { upToCount: true } : {}), filter: Object.keys(filter).length > 0 ? filter : undefined },
         shuffle: false,
         position: 'top',
       } as TransferToDeckAction;
