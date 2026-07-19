@@ -3049,7 +3049,9 @@ export function isCrossZoneActive(playerState: PlayerState, cardNum: string, car
  * getShadowScopes）で別途判定済み。本関数は AUTO/ACTIVATED を扱うトリガー収集・起動可否側で使う。
  */
 export function isKizunaActive(playerState: PlayerState, cardNum: string, cardMap: Map<string, CardData>): boolean {
-  const name = cardMap.get(cardNum)?.CardName ?? cardMap.get(getCardNum(cardNum))?.CardName;
+  const h = cardNum.indexOf('#'); // instanceId（"CardNum#n"）を素の CardNum へ落とす
+  const bare = h > 0 ? cardNum.slice(0, h) : cardNum;
+  const name = cardMap.get(cardNum)?.CardName ?? cardMap.get(bare)?.CardName;
   return !!name && !!playerState.bonds?.includes(name);
 }
 
