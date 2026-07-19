@@ -990,10 +990,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // bySource＝バニッシュ元の限定（続き217）。無いと「常時・全バニッシュ」に読めてしまう。
       const src = a.bySource === 'battle_with_this' ? 'このシグニとのバトルによって'
         : a.bySource === 'by_this' ? 'このシグニによって' : '';
+      // whenPowerZero＝バニッシュされる側の限定（続き218）。無いと「全バニッシュ」に読めてしまう。
+      const p0 = a.whenPowerZero ? 'パワーが0以下の' : '';
       return a.redirectTo === 'exile'
-        ? `このターン、対戦相手のシグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
-        : src
-          ? `対戦相手のシグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+        ? `このターン、${p0}対戦相手のシグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
+        : src || p0
+          ? `${p0}対戦相手のシグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
           : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
     }
     case 'COST_INCREASE': {
