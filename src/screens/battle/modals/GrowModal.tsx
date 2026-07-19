@@ -24,7 +24,7 @@ interface GrowModalProps {
 }
 
 export function GrowModal(p: GrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard } = p;
   return (
     <>
