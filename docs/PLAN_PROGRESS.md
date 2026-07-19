@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-19・続き218f・Opus・**§3 タスク12 の続き＝「アタックフェイズの間」限定の CONTINUOUS 常在効果が PERMANENT に潰れる系統バグを新機構で消化**＝`DURING_ATTACK_PHASE` を新設。13効果12カード是正。golden 508→510・census 1888→1886）**
+  - **真因**＝「[あなたの/対戦相手の]アタックフェイズの間、」で始まる CONTINUOUS【常/絆常】効果は、フェイズ限定句に parser 語彙が無く**丸ごと黙って落ち** `duration:PERMANENT`・activeCondition 無しに潰れていた＝**相手ターン中も常時適用される過剰効果**（例：`WX24-P1-050-E1` の「正面のシグニ－2000」が相手ターン中も相手を弱体化／`WXDi-P07-057-E1` は「相手アタックフェイズ＋手札4枚以上」の**両条件が落ち**て【シャドウ】無条件付与）。続き215/217 で残ギャップ登録した `WX25-CP1-082-E3` を起点に系統と判明。
+  - **修正（4層＝新機構）**＝(1)型 `ActiveCondition` に `{type:'DURING_ATTACK_PHASE'; owner?}`（self=自アタックのみ／opponent=相手アタックのみ／省略=両方）。(2)parser `parseActiveCondition` に接頭辞消費規則（action は非アンカー regex で拾うため退化なし・AND 複合も両取り）。(3)engine `checkActiveCondition` に第9引数 `turnPhase` を追加し `calcFieldPowers` へ貫通、BattleScreen **全13呼び出し元へ `bs.turn_phase`**（POWER 経路は完全 enforced／keyword・banish_redirect は turnPhase 未持で permissive＝従来同値・退化なし）。(4)decompiler。
+  - **是正13効果**＝POWER 9（`SPDi43-14`/`WX12-CB01`/`WX24-P1-050`/`WX24-P2-057-E1,E2`/`WXDi-P09-009`/`WXDi-P10-044`/`WXEX2-26`/`WX25-CP1-082-E3`）＋シャドウ2（`WX21-022-LAYER`/`WXDi-P07-057`）＋`BANISH_REDIRECT` 2（`WXEX2-75`/`WXDi-D09-P14`）。全て build:effects で pure superset 自動採用・巻き添え0を効果単位 diff で機械確認。
+  - **検証**＝全ゲート緑（golden **508→510**〔owner×phase×permissive 全分岐＋calcFieldPowers 貫通〕・smoke 10719 OK・SKIP 0・fuzz 0・**census 1888→1886**・lint 0 errors・同型★0）。`BASELINE_HIGH` を1886へ更新。詳細 BUGFIXES 続き218f。
+
 - **🆕 セッション（2026-07-19・続き218e・Opus・**§3 タスク5（小口）を1件消化**＝「（トラッシュから…対象とし、）それをデッキの一番上に置く」のトラッシュ回収幻覚を是正。parser のみ・engine 無変更。census 1891→1888）**
   - **真因**＝`parseSentencePart1` が part2 より先に走り、緩い規則（旧 line 2304）が `/それをデッキの一番上に置く/` を無条件に掴んで `TRANSFER_TO_DECK{source:SIGNI(場), position 無し}` を返す。**トラッシュから回収して山札トップに置く tutor 効果が「場のシグニ1体を山札へバウンス」という別物へ反転**していた。加えて part2 のトラッシュ→トップ規則が「N枚**を**対象とし」しか拾えず「N枚**まで**対象とし」（upToCount）を弾いていた。
   - **修正**＝(1) part1 の field-SIGNI 規則に `!t.includes('トラッシュから')` guard＋`position:'top'`（engine は position 未指定でも top 扱いのため field 側の挙動は不変）。(2) part2 の regex を `枚(まで)?を?対象とし` に緩め upToCount 対応、フィルタも level/color/＜クラス＞を拾うよう拡張。
