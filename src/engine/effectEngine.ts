@@ -1239,7 +1239,7 @@ export function calcFieldPowers(
 
       for (const effect of effects) {
         if (effect.effectType !== 'CONTINUOUS') continue;
-        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers, oppTrashColorLoss)) continue;
+        if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, topNum, powers, oppTrashColorLoss, turnPhase)) continue;
         // クロスのみ有効な効果: このシグニのゾーンがクロス状態でなければスキップ
         if (effect.crossOnly) {
           const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum || s?.includes(topNum));
