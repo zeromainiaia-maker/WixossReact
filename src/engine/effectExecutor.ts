@@ -4368,6 +4368,19 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwnerEx: PlayerState = { ...ctx.ownerState, banish_redirect_to_exile: true };
         return done(addLog({ ...ctx, ownerState: newOwnerEx }, '対戦相手のシグニのバニッシュ先をゲーム除外へ変更'));
       }
+      // bySource（「このシグニとのバトルによって」等）付きは無条件フラグを立てない＝関与したシグニに限定する
+      // （続き217。無条件にすると場に1体いるだけで相手の全バニッシュがトラッシュ送りになる過剰発火）。
+      const brSrc = (action as BanishRedirectAction).bySource;
+      if (brSrc !== undefined) {
+        if (!ctx.sourceCardNum) return done(addLog(ctx, 'バニッシュ先変更（限定付き・発生源不明のため適用なし）'));
+        const prevNums = ctx.ownerState.banish_redirect_by_source_nums ?? [];
+        const newOwnerBs: PlayerState = {
+          ...ctx.ownerState,
+          banish_redirect_by_source_nums: prevNums.includes(ctx.sourceCardNum) ? prevNums : [...prevNums, ctx.sourceCardNum],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerBs },
+          `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}とのバトルでのバニッシュ先をトラッシュへ変更`));
+      }
       const newOwner: PlayerState = { ...ctx.ownerState, banish_redirect: true };
       return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手のシグニのバニッシュ先をトラッシュへ変更'));
     }
