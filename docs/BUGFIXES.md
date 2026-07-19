@@ -4,6 +4,20 @@
 
 ---
 
+## 「[あなたの/対戦相手の]アタックフェイズの間、」限定の CONTINUOUS 常在効果が activeCondition 脱落で PERMANENT に潰れ相手ターン中も過剰適用（DURING_ATTACK_PHASE 新設・13効果12カード是正・golden 508→510・census 1888→1886・§3 タスク12）（2026-07-19・続き218f・Opus）
+
+タスク12 の続き。続き215/217 で残ギャップとして登録した `WX25-CP1-082-E3`（「アタックフェイズの間、このシグニのパワーは＋5000される」）の **activeCondition 脱落**を起点に調査したところ、**単カードではなく系統バグ**と判明。「[あなたの/対戦相手の]アタックフェイズの間、」で始まる CONTINUOUS【常/絆常】効果は、フェイズ限定句が parser に語彙が無く**丸ごと黙って落ち**、`duration:PERMANENT`・`activeCondition` 無しに潰れていた（＝相手ターン中も常時適用される過剰効果）。
+
+- **実害**：例＝`WX24-P1-050-E1`「アタックフェイズの間、このシグニの正面のシグニのパワーを－2000」は、相手ターン中も相手シグニを常時弱体化（本来は攻防のアタックフェイズだけ）。`WX25-CP1-082-E3` の自己＋5000 は相手のバニッシュ判定にも常時効き、`WXDi-P07-057-E1` に至っては「対戦相手のアタックフェイズの間、手札4枚以上あるかぎり」の**両条件が落ち**て【シャドウ】を無条件常時付与していた。
+- **型（`ActiveCondition` に新設）**：`{ type:'DURING_ATTACK_PHASE'; owner?:Owner }`。owner:'self'＝あなたのアタックフェイズのみ／'opponent'＝対戦相手のアタックフェイズのみ／省略＝どちらのアタックフェイズでも（自己バフ・正面弱体の攻防兼用が主）。
+- **parser（`parseActiveCondition` パターン1b）**：CONTINUOUS 分岐の条件抽出ループで `^(あなたの|対戦相手の)?アタックフェイズの間[、,]` を消費し owner を確定。action 側は非アンカー regex で拾うため接頭辞消費後も従来どおりパース（＝AUTO 維持・退化なし。`WX24-P2-057-E2` は「アタックフェイズの間」＋「他の＜迷宮＞があるかぎり」が AND で両取り、`WXDi-P07-057-E1` は AND[DURING_ATTACK_PHASE opponent, COUNT_THRESHOLD hand≥4] を復元）。
+- **engine**：`checkActiveCondition` に第9引数 `turnPhase?:TurnPhase` を追加し、`DURING_ATTACK_PHASE` を評価（`ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG` のいずれか＝アタックフェイズ、owner 別に isOwnerTurn で当該プレイヤーのアタックフェイズか判定）。**`turnPhase` 未指定の呼び出し元は従来どおり true（permissive）＝過小実行を避ける**。`calcFieldPowers` に `turnPhase` を貫通させ、BattleScreen の**全13呼び出し元へ `bs.turn_phase` を渡す**（POWER 経路は完全に enforced。keyword/banish_redirect 経路は turnPhase を持たず permissive のまま＝従来挙動と同値で退化なし・データは正しくなり将来配線時に自動で効く）。AND 再帰も turnPhase を伝播。
+- **decompiler**：`condJa` に `DURING_ATTACK_PHASE` を追加し、activeCondition が「〜間」で終わる場合は「かぎり」を付けず前置き描画（`《アタックフェイズの間》`）。
+- **JSON（13効果12カードが build:effects で自動採用＝pure superset）**：POWER 9（`SPDi43-14-E1`／`WX12-CB01-E1`／`WX24-P1-050-E1`／`WX24-P2-057-E1,E2`／`WXDi-P09-009-E1`／`WXDi-P10-044-E1`／`WXEX2-26-E1`／`WX25-CP1-082-E3`）＋【シャドウ】付与2（`WX21-022-LAYER-E1` 相手アタック限定／`WXDi-P07-057-E1` 相手アタック＋手札条件）＋`BANISH_REDIRECT` 2（`WXEX2-75-E1` 自アタック限定／`WXDi-D09-P14-E1` bare）。セッション開始コミットとの効果単位 diff で「変更13効果・すべて activeCondition 追加（＋AND 内の既存条件復元）」を機械確認（巻き添え0）。MANUAL 上書き無し。
+- **検証**：全ゲート緑（typecheck／golden **508→510**〔checkActiveCondition の owner×phase×permissive 全分岐＋calcFieldPowers に turnPhase が通り WX25-CP1-082-E3 の＋5000 がアタックフェイズのみ乗ること〕／smoke 10719 OK・CRASH等0・SKIP 0／fuzz 0／**census 1888→1886**／lint 0 errors／同型★0）。`npm run regen` で逆翻訳がフェイズ限定を原文どおり描画することを確認（`《アタックフェイズの間》`／`《対戦相手のアタックフェイズの間かつ…》`）。`BASELINE_HIGH` を1886へ更新。
+
+---
+
 ## 「（トラッシュから…対象とし、）それをデッキの一番上に置く」がトラッシュ回収→山札トップではなく場のシグニ移動へ幻覚化（8効果是正・census 1891→1888・§3 タスク5）（2026-07-19・続き218e・Opus）
 
 §3 タスク5 の「原文無関係 `TRANSFER_TO_DECK` 混入」。「あなたのトラッシュから〈フィルタ〉のシグニを1枚（まで）対象とし、それをデッキの一番上に置く」＝**トラッシュ回収を山札の一番上に置く tutor 効果**が、JSON では「場のシグニ1体を山札へ送る」（`source: SIGNI`・`position` 無し）という別物へ化けていた（回収がバウンスに反転）。
