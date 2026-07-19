@@ -143,14 +143,21 @@ export function parseSentencePart1(t: string): EffectAction | null {
   }
 
   // ---- バニッシュ先変更（エナゾーン→トラッシュ）----
-  if (t.match(/バニッシュされる場合.*エナゾーンに置かれる代わりにトラッシュに置かれる/)) {
+  // 「このシグニとのバトルによって」「このシグニによって」＝バニッシュ元の限定（続き217）。
+  // 落とすと「場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する。
+  if (t.match(/バニッシュされ(?:る場合|たシグニは).*エナゾーンに置かれる代わりにトラッシュに置かれる/)) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const until = t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
+    const bySource: BanishRedirectAction['bySource'] | undefined =
+      /このシグニとのバトルによって/.test(t) ? 'battle_with_this'
+        : /このシグニによって/.test(t) ? 'by_this'
+          : undefined;
     return {
       type: 'BANISH_REDIRECT',
       target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } },
       redirectTo: 'trash',
       until,
+      ...(bySource ? { bySource } : {}),
     } as BanishRedirectAction;
   }
 
