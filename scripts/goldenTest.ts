@@ -1351,7 +1351,7 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
   eq(e1.entries.find(x => x.effectId === 'WD12-009-E2')?.cardNum, 'WD12-009', 'cardNum=移動カード');
   // 別カードがエナ→手札へ移動（WD12-009 は場に居る）→ movedSelf は場 watcher では発火しない
   const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
-  eq(has(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
+  eq(hasEff(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
 });
 
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
