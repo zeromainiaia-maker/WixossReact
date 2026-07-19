@@ -358,8 +358,14 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // アップ状態のルリグN体をダウン → lrigDown
   if (!cost.lrigDown) {
-    const ldM = costStr.match(/アップ状態の(?:レベル([０-９\d]+)の)?(?:センター)?ルリグ([０-９\d]+)体をダウンする/);
-    if (ldM) cost.lrigDown = { count: parseNum(ldM[2]) };
+    // ⚠ レベル限定・センター限定は従来キャプチャしておきながら捨てていた＝コストが緩くなる過剰効果だった
+    //   （「センタールリグ1体」なのにアシストをダウンして払えた／「レベル２のルリグ」の限定が無かった）。続き218。
+    const ldM = costStr.match(/アップ状態の(?:レベル([０-９\d]+)の)?(センター)?ルリグ([０-９\d]+)体をダウンする/);
+    if (ldM) cost.lrigDown = {
+      count: parseNum(ldM[3]),
+      ...(ldM[2] ? { centerOnly: true } : {}),
+      ...(ldM[1] ? { level: parseNum(ldM[1]) } : {}),
+    };
   }
   // アップ状態のシグニN体をダウン → fieldDown
   if (!cost.fieldDown) {
