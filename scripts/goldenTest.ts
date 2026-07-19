@@ -1309,6 +1309,49 @@ test('collectHandDiscardTriggers any_opp: 反応側センタールリグ watcher
   eq(fired(e, 'WXDi-P04-009-E2'), true, '相手捨てで LRIG watcher 発火');
 });
 
+// 続き207: ON_HAND_ADDED（効果によってカードが手札に移動したとき）＝collectHandAddedTriggers。
+test('ON_HAND_ADDED: 相手効果で相手手札が増えたとき watcher シグニが発火（WX25-P2-063・グロウフェイズ/自効果は非発火）', () => {
+  const host = mkState({ signi: ['WX25-P2-063', null, null] }); const guest = mkState({});
+  const moved = (owner: string) => [
+    { ownerId: HOST, moved: owner === HOST ? [{ cardNum: SIGNI, from: 'deck' }] : [] },
+    { ownerId: GUEST, moved: owner === GUEST ? [{ cardNum: SIGNI, from: 'deck' }] : [] },
+  ];
+  // 《相手ターン》＝turnOwner:opponent → activeUserId=GUEST（watcher=HOST の相手ターン）で評価
+  const e1 = collectHandAddedTriggers(trigCtx(GUEST), moved(GUEST), GUEST, host, guest);
+  eq(has(e1.entries, 'WX25-P2-063-E1'), true, '相手効果→相手手札増で発火');
+  eq(e1.usedHostIds.includes('WX25-P2-063-E1'), true, 'once_per_turn 消費IDが返る');
+  const e2 = collectHandAddedTriggers(trigCtx(GUEST), moved(GUEST), HOST, host, guest);
+  eq(has(e2.entries, 'WX25-P2-063-E1'), false, '自分(watcher)の効果起因では非発火（byOpponentEffect）');
+  const e3 = collectHandAddedTriggers(trigCtx(GUEST), moved(HOST), GUEST, host, guest);
+  eq(has(e3.entries, 'WX25-P2-063-E1'), false, '自分の手札増では非発火（handOwner:opponent）');
+  const e4 = collectHandAddedTriggers({ ...trigCtx(GUEST), turnPhase: 'GROW' }, moved(GUEST), GUEST, host, guest);
+  eq(has(e4.entries, 'WX25-P2-063-E1'), false, 'グロウフェイズでは非発火（excludeGrowPhase）');
+});
+test('ON_HAND_ADDED: エナ→手札のシグニ移動で LRIG watcher が発火（WXDi-P11-007-E1・fromZones/filter ゲート）', () => {
+  const host = mkState({}); host.field.lrig = ['WXDi-P11-007']; const guest = mkState({});
+  const mv = (from: string) => [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from }] }, { ownerId: GUEST, moved: [] }];
+  eq(has(collectHandAddedTriggers(trigCtx(HOST), mv('energy'), HOST, host, guest).entries, 'WXDi-P11-007-E1'), true, 'エナ→手札で発火');
+  eq(has(collectHandAddedTriggers(trigCtx(HOST), mv('deck'), HOST, host, guest).entries, 'WXDi-P11-007-E1'), false, 'デッキ→手札では非発火（fromZones:energy）');
+  eq(has(collectHandAddedTriggers(trigCtx(GUEST), mv('energy'), HOST, host, guest).entries, 'WXDi-P11-007-E1'), false, '相手ターンでは非発火（turnOwner:self）');
+});
+test('ON_ENERGY_TO_FIELD: エナ→場のシグニ配置で LRIG watcher が発火（WXDi-P11-007-E1 の場側枝）', () => {
+  const host = mkState({}); host.field.lrig = ['WXDi-P11-007']; const guest = mkState({});
+  const e = collectEnergyToFieldTriggers(trigCtx(HOST), [{ ownerId: HOST, nums: [SIGNI] }], host, guest);
+  eq(has(e.entries, 'WXDi-P11-007-E1'), true, 'エナ→場で発火');
+  const e2 = collectEnergyToFieldTriggers(trigCtx(HOST), [{ ownerId: GUEST, nums: [SIGNI] }], host, guest);
+  eq(has(e2.entries, 'WXDi-P11-007-E1'), false, '相手側の配置では非発火');
+});
+test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12-009-E2・他カード移動では非発火）', () => {
+  const host = mkState({ signi: ['WD12-009', null, null] }); const guest = mkState({});
+  // このカード自身がエナ→手札へ移動 → 自身の効果が発火（cardNum=移動カード）
+  const e1 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: 'WD12-009', from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, mkState({}), guest);
+  eq(has(e1.entries, 'WD12-009-E2'), true, '自身の移動で発火');
+  eq(e1.entries.find(x => x.effectId === 'WD12-009-E2')?.cardNum, 'WD12-009', 'cardNum=移動カード');
+  // 別カードがエナ→手札へ移動（WD12-009 は場に居る）→ movedSelf は場 watcher では発火しない
+  const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
+  eq(has(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
+});
+
 // Stage2③: ON_BLOOD_CRYSTAL_ARMOR（血晶武装したとき・自分の場のみ走査）の collectArmorTriggers を pure 化→自動検証。
 test('Stage2 ON_BLOOD_CRYSTAL_ARMOR: self-scope 武装シグニ自身が発火', () => {
   const host = mkState({ signi: ['WXK05-023', null, null] }); const guest = mkState({});
