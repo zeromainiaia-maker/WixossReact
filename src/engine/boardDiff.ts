@@ -50,6 +50,36 @@ export function detectBloomedSigni(before: PlayerState, after: PlayerState): str
   return result;
 }
 
+/**
+ * 効果によって手札に移動（増加）したカードと移動元ゾーンを検出（ON_HAND_ADDED・続き207）。
+ * 中央 diff（効果解決）からのみ呼ばれる前提＝検出された移動は効果起因（ドローフェイズの通常ドローは通らない）。
+ * from: 'energy'|'field'|'deck'|'trash'|'other'（fromZones 限定＝「エナゾーンから」WXDi-P11-007/WX14-029/WD12-009 用）。
+ */
+export function detectHandAdded(before: PlayerState, after: PlayerState): { cardNum: string; from: 'energy' | 'field' | 'deck' | 'trash' | 'other' }[] {
+  const beforeHand = new Set(before.hand);
+  const beforeEnergy = new Set(before.energy);
+  const beforeDeck = new Set(before.deck);
+  const beforeTrash = new Set(before.trash);
+  const beforeField = new Set<string>();
+  for (const stack of before.field.signi) for (const cn of (stack ?? [])) beforeField.add(cn);
+  const out: { cardNum: string; from: 'energy' | 'field' | 'deck' | 'trash' | 'other' }[] = [];
+  for (const n of after.hand) {
+    if (beforeHand.has(n)) continue;
+    out.push({
+      cardNum: n,
+      from: beforeEnergy.has(n) ? 'energy' : beforeField.has(n) ? 'field'
+        : beforeDeck.has(n) ? 'deck' : beforeTrash.has(n) ? 'trash' : 'other',
+    });
+  }
+  return out;
+}
+
+/** エナゾーンから場に出たシグニを検出（ON_ENERGY_TO_FIELD・続き207・WXDi-P11-007-E1「か場に出たとき」枝）。detectPlacedSigni の移動元限定版。 */
+export function detectPlacedFromEnergy(before: PlayerState, after: PlayerState): string[] {
+  const beforeEnergy = new Set(before.energy);
+  return detectPlacedSigni(before, after).filter(n => beforeEnergy.has(n));
+}
+
 /** トラッシュ→エナゾーンに移動したカードを検出（ON_ENERGY_FROM_TRASHトリガー用）。 */
 export function detectEnergyFromTrash(before: PlayerState, after: PlayerState): string[] {
   const newInEnergy = after.energy.filter(n => !before.energy.includes(n));
