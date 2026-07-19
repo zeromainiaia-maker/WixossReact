@@ -1451,6 +1451,17 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     return done(addLog(setOwnerState(a.target.owner, newS, ctx),
       `${lrigName}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`));
   }
+  // owner:'any'＋isTriggerSource（「シグニ1体がダウン状態になったとき、そのシグニを凍結する」WXK11-015-E3＝
+  // triggerScope:any でトリガー元がどちらの場かは実行時に決まる）: トリガー元の所在側を特定してから通常経路へ。
+  // 所在不明（既に場を離れた等）なら no-op。
+  if (a.target.owner === 'any' && a.target.filter?.isTriggerSource) {
+    const trigNum = ctx.triggeringCardNum;
+    const side: Owner | null = !trigNum ? null
+      : ctx.ownerState.field.signi.some(s => s?.at(-1) === trigNum) ? 'self'
+      : ctx.otherState.field.signi.some(s => s?.at(-1) === trigNum) ? 'opponent' : null;
+    if (!side) return done(ctx);
+    return execFreeze({ ...a, target: { ...a.target, owner: side } }, ctx);
+  }
   const state = ownerState(a.target.owner, ctx);
   // isTriggerSource: トリガー元カード（ctx.triggeringCardNum＝アタッカー等）のみを対象（「アタックしたそのシグニ」WX04-082-E1）
   let freezeFilter = a.target.filter;
