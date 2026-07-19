@@ -38,6 +38,7 @@ import type {
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
+  parseCardTypeFilter,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
