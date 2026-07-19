@@ -8220,7 +8220,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // useEffectのチェックはCPUターン中（active_user_id !== user.id）をスキップするためここで補完
     if (!bs.effect_stack && !bs.pending_effect) {
       const isCpuHostLocal = bs.active_user_id === bs.host_id;
-      const powersCpu = calcFieldPowers(bs.host_state, bs.guest_state, isCpuHostLocal, effectsMap, battleCardMap);
+      const powersCpu = calcFieldPowers(bs.host_state, bs.guest_state, isCpuHostLocal, effectsMap, battleCardMap, bs.turn_phase);
       const hasPowerZero = [bs.host_state, bs.guest_state].some(st =>
         st.field.signi.some(stack => {
           if (!stack?.length) return false;
