@@ -4,6 +4,18 @@
 
 ---
 
+## `REVEAL_AND_PICK` の pick 文が「《ガードアイコン》を持たない」フィルタ形を弾いて過剰保守的だった問題を解消＋WXDi-P03-005 の有害 MANUAL 幻覚（自分のシグニをデッキに戻す）をエクシード置換つき REVEAL_AND_PICK へ是正（golden 516→517・§3 タスク5）（2026-07-20・続き218k・Opus）
+
+タスク5「小口持ち越し」の `WXDi-P03-005` を精査したところ、**curated の MANUAL が有害な幻覚**だった＝原文「デッキ5枚見て、その中から《ガードアイコン》を持たないシグニ1枚まで**手札に加え**、（追加でエクシード4を払っていた場合）代わりに2枚まで」に対し、JSON は「**自分のシグニ1体をデッキに戻す**」＝カードを引く動作が消えたうえ自分の場を削る逆効果に化けていた。fresh は正直に `UNKNOWN` を刻んでおり、**fresh(UNKNOWN=no-op) のほうが MANUAL より害が小さい**状態だった。
+
+- **parser 改善（本丸）**＝`REVEAL_AND_PICK`（pick-to-hand）規則の filter 前置詞が `＜C＞|色|無色|レベル` に限定され、**「《ガードアイコン》を持たない」を意図的に除外**していた（「faithfully 表現できない形は LOOK_AND_REORDER に残す」という当時の保守判断）。だが **`noGuard` は型にも `matchesFilter` にも実装済み（G237）＝忠実に表現できる**ので、この除外は現在では過剰。regex に `《ガードアイコン》を持たない` 枝を追加し、`filter.noGuard` を emit するようにした。あわせて pick 名詞が「カード」（＜シグニ以外＞）のとき **`pickNoun:'カード'` を保持**（逆翻訳が「シグニ」に化けるのを防ぐ）。
+- **波及して改善したカード**＝この拡張で `WXDi-P05-021`（「ガード無しカード2枚まで手札」）が **fresh(AUTO) で curated(MANUAL) と完全一致**するようになった（＝将来 build:effects が AUTO で出せる＝MANUAL メンテ不要化。ただし内容は既に正しいので既存 curated は温存＝無理に触らない）。noGuard pick 文を含むカードは全corpus で3枚（P03-005／P05-021／P09-065、うち P09-065 は別文型で対象外）。
+- **P03-005 の是正**＝有害 MANUAL を原文忠実な構造へ手修正（build:effects で保持されることを確認）。`STUB(OPTIONAL_COST エクシード4)` → `REVEAL_AND_PICK(reveal5, noGuard, pick1まで)`（base）→ `CONDITIONAL{IS_MY_TURN, then: REVEAL_AND_PICK(pick2まで)}`（replace）。engine の **Pattern④ 追加コスト強化（effectExecutor 2588）が replace モードを実装済み**（pay→then=2枚版・skip→base=1枚版）なのを事前確認したうえで構造を合わせた＝新規機構不要。
+- **なぜ pick 文を単独 REVEAL_AND_PICK 化する parser 規則は作らなかったか**＝P03-005 は原文の改行で「5枚見る」と「その中から…」が別文に割れ、置換文脈では「見る」が前段で消費されて **pick 文が単独で残る**。これを parser で解決するには「分離 pick 文の単独解決」＋「エクシード置換の else 結合」の2機構が要り、置換系統は原文「…していた場合、代わりに」で66枚（うち24枚は既に else 対応・40枚が未対応の玉石混交）と広い§6.3級。単カードのため過剰語彙を作らず、curated 直修正＋engine 既存機構で完結させた。
+- **検証**＝全ゲート緑（typecheck／**golden 516→517**／smoke／fuzz／census 1880維持／lint 0 errors）。追加 golden 2件（pay=2枚・skip=1枚）は**旧幻覚版（TRANSFER_TO_DECK）に戻すと落ちる**（`pay で2枚 expected=7 got=5`）ことを実測確認。`npm run regen` で逆翻訳が「自分のシグニをデッキに戻す」→「ガード無しシグニを手札に加える」へ是正されることを確認（置換ニュアンスは IS_MY_TURN 描画の既存制約で「そうした場合」表示だが engine 挙動は正しい）。**残＝置換系統40枚の一般化は §6.3 級で据置**（parser の分離 pick 単独解決＋置換 else 機構が要る）。
+
+---
+
 ## 「対戦相手のルリグがアタックしたとき」に**防御側**の付与AUTO を拾う経路が engine に無く発火不能だった問題を機構ごと解消（`collectLrigAttackDefenderTriggers` 新設・4効果を完全化・golden 514→516・§3 タスク12(xlvii)）（2026-07-20・続き218j・Opus）
 
 続き218i で「engine に経路が無いから据置」として自ら登録した (xlvii) を、同セッションで機構ごと消化した。**engine → parser → decompiler の3層を揃えて初めて完結**する類の穴。
