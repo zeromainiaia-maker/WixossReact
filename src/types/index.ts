@@ -191,6 +191,10 @@ export interface PlayerState {
   banish_redirect_to_exile?: boolean;
   // このターン、パワーが0以下のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（所有者問わず。WX04-038-E1）
   power0_banish_to_trash?: boolean;
+  // このターン、**対戦相手の**パワー0以下のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ
+  // （BANISH_REDIRECT の whenPowerZero。WXDi-P10-009-E3／WXDi-CP02-102-E2）。上の所有者問わず版と別枠で、
+  // 「このフラグを立てた側の対戦相手」のシグニが死ぬときだけ効く＝消滅側から見て opState 側に立っていれば適用。
+  power0_banish_to_trash_opp_only?: boolean;
   // このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
   double_power_minus_this_turn?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
