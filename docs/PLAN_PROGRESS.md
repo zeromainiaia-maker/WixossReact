@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-20・続き218g・Opus・**§3 タスク12 の続き＝parser は正しいのに curated が古い `LOOK_AND_REORDER` のまま held ドリフトし「手札に加える」が死んでいた9効果を採用**。census 1886→1880）**
+  - **真因**＝census 最上位クラスタ「その中からカードをN枚まで手札に加え、残りをデッキの一番下に置く」を精査＝**parser は既に `REVEAL_AND_PICK`（`ADD_TO_HAND` 含む）を正しく生成しているのに curated JSON が古い `LOOK_AND_REORDER` のまま**で、**カードを引く動作（カードアドバンテージ）が丸ごと欠落**していた（デッキ並べ替えだけの no-op 退化）。`build:effects` の harvest は型スワップ（`LOOK_AND_REORDER`↔`REVEAL_AND_PICK`＝互いに非 superset）を held に上げず curated を黙って温存する死角のため、`heldReview` からも不可視だった。
+  - **抽出と検証**＝curated 全走査で候補84 → fresh が同 effectId で `REVEAL_AND_PICK` を出す真ドリフト36 → **忠実性を1件ずつ検証して採用9件**（`WX04-093-BURST`／`WXDi-CP02-007-E2`／`WXDi-CP02-103-E1`／`WXDi-P15-077-E2`／`WXDi-D04-021`・`P00-045`・`P10-048`・`P16-062`-BURST〔handOrField 同型4〕／`WXK04-044-E2`）。**除外**＝`WXK10-022-E3`「無色ではない」・`WXK01-004-E1`「レベルが奇数」・`WX02-018-E1` 条件付き等、**fresh が filter/条件を落とす過剰簡約**（MANUAL 据置が正しい偽陽性）。
+  - **採用方法**＝held 不可視のため対象9 effectId の curated を fresh 効果（parser 出力・`parseStatus:AUTO`）で外科的置換。`build:effects` 再実行で curated==fresh となり安定。効果単位 diff で「変更9・巻き添え0」を機械確認。engine は `REVEAL_AND_PICK`（handOrField/filter/remainder）実装済み。
+  - **検証**＝全ゲート緑（golden 510維持・smoke 10719 OK・SKIP 0・fuzz 0・**census 1886→1880**・lint 0 errors・同型★0）。regen で「手札に加える」復活を確認。`BASELINE_HIGH` を1880へ更新。詳細 BUGFIXES 続き218g。
+
 - **🆕 セッション（2026-07-19・続き218f・Opus・**§3 タスク12 の続き＝「アタックフェイズの間」限定の CONTINUOUS 常在効果が PERMANENT に潰れる系統バグを新機構で消化**＝`DURING_ATTACK_PHASE` を新設。13効果12カード是正。golden 508→510・census 1888→1886）**
   - **真因**＝「[あなたの/対戦相手の]アタックフェイズの間、」で始まる CONTINUOUS【常/絆常】効果は、フェイズ限定句に parser 語彙が無く**丸ごと黙って落ち** `duration:PERMANENT`・activeCondition 無しに潰れていた＝**相手ターン中も常時適用される過剰効果**（例：`WX24-P1-050-E1` の「正面のシグニ－2000」が相手ターン中も相手を弱体化／`WXDi-P07-057-E1` は「相手アタックフェイズ＋手札4枚以上」の**両条件が落ち**て【シャドウ】無条件付与）。続き215/217 で残ギャップ登録した `WX25-CP1-082-E3` を起点に系統と判明。
   - **修正（4層＝新機構）**＝(1)型 `ActiveCondition` に `{type:'DURING_ATTACK_PHASE'; owner?}`（self=自アタックのみ／opponent=相手アタックのみ／省略=両方）。(2)parser `parseActiveCondition` に接頭辞消費規則（action は非アンカー regex で拾うため退化なし・AND 複合も両取り）。(3)engine `checkActiveCondition` に第9引数 `turnPhase` を追加し `calcFieldPowers` へ貫通、BattleScreen **全13呼び出し元へ `bs.turn_phase`**（POWER 経路は完全 enforced／keyword・banish_redirect は turnPhase 未持で permissive＝従来同値・退化なし）。(4)decompiler。
