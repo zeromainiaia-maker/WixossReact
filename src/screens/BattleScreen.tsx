@@ -7548,6 +7548,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const trashEntriesSA: StackEntry[] = [];
       const redirectBanishForTrigger =
         myS.banish_redirect === true ||
+        (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
         myS.field.signi.some(s => {
           const n = s?.at(-1);
           // 上の redirectBanish（実際の行き先判定）と同じ条件にする＝bySource 付きはバトル当事者のみ
