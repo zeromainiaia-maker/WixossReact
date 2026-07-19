@@ -3641,6 +3641,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   効果が原因のときのみ・中央diff の causeOwnerId で判定）。cond/scope は下で抽出。
              : /あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が場から手札に移動したとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              : /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             // ON_HAND_ADDED（続き207・タスク16[C]）: 効果によってカードが手札に移動（増加）したとき。
+             //   「場から手札に移動」（ON_LEAVE_FIELD leftToZone:hand）は上の規則が先取り＝ここは非・場由来。
+             //   engine 配線＝collectHandAddedTriggers（detectHandAdded の set-diff・handOwner/fromZones/movedSelf は下で抽出）。
+             : /対戦相手の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上対戦相手の手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
+             // 「あなたのエナゾーンからシグニ1枚が手札に加わるか場に出たとき」（WXDi-P11-007）＝手札枝＋場枝の OR（timing 併記）。
+             : /エナゾーンから[^。]{0,10}手札に加わるか場に出たとき/.test(trigText) ? ['ON_HAND_ADDED', 'ON_ENERGY_TO_FIELD']
+             // 「（カード1枚が／このシグニが）あなたのエナゾーンから手札に移動したとき」（WX14-029/WD12-009/WD12-010）。
+             : /エナゾーンから手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
              // 「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026・CSV原文は「離た」）＝
              //   any_ally＋byOpponentEffect（原因効果のオーナーが相手のときのみ発火）。
              : /シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/.test(trigText) ? ['ON_LEAVE_FIELD']
