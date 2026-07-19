@@ -3150,6 +3150,10 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   if (a.remainder.location === 'trash') {
     return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, trash: [...state.trash, ...rest] }, cur), `残り${rest.length}枚をトラッシュへ`));
   }
+  // 「残りをエナゾーンに置く」（WX24-P4-022-E2 等）。未対応だと残りが黙ってデッキに残る＝原文と違う盤面になる。
+  if (a.remainder.location === 'energy') {
+    return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, energy: [...state.energy, ...rest] }, cur), `残り${rest.length}枚をエナゾーンへ`));
+  }
   return done(cur);
 }
 
