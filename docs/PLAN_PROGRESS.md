@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-19・続き213・**Codex 実装／Opus 4.8 検証**・タスク16 timing センサス[C] 残の3系統9効果を全消化＝`ON_TRAP_ACTIVATE` 配線／`ON_GUARD` ルリグ変種／`ON_GROW_PHASE_START` 新設・golden 491→496・timing フォールバック 52→43効果）**
+  - **⚠️スコープを差し替えた**＝PLAN の「次の一手」はタスク12(xxxix) 24件だったが、**Claude が23件を原文↔逆翻訳で実測したところ同型クラスタが無く寄せ集めと判明**。唯一まとまった「このアタックを無効にし」系は**全CSVで4枚しかなく、しかも攻撃無効化の型が engine に存在しない**（§6.3級）。`WXK09-003` の赤分岐は `【未実装/UNKNOWN】`。**異質なものを束ねると検証不能になる**ため Codex 向けから外し、代わりに配線状況を実測できる timing センサス[C] を投げた（判断基準は [CODEX_GUIDE.md](./CODEX_GUIDE.md) §3-4）。
+  - **✅`ON_TRAP_ACTIVATE` 配線（5効果）**＝型と parser emit は既にあったのに **engine 参照 0＝一度も発火しない**状態だった。`collectTrapActivateTriggers` 新設。**検出方式が的確**＝`signi_traps` の減少では「発動」と「破棄」を区別できないため、**executor が発動枝で `result.trapActivated` を立て**、BattleScreen が解決完了後に収集する（executor の継続経路6箇所すべてにフラグ伝播）。対象＝WX16-028-E3／WX16-040-E1／WXEX2-66-E2／WD23-008-A-E1／WD23-032-A-E1。
+  - **✅`ON_GUARD` ルリグ変種（2効果）**＝「このルリグのアタックが【ガード】されたとき」。**parser だけの問題ではなく engine も要拡張**と判明（既存 ON_GUARD 収集はシグニのアタック用）。`collectLrigAttackGuardedTriggers` を新設し、既存収集側は `triggerCondition.lrigAttackGuarded` を持つ効果を **skip して二重発火を防止**。WXK04-004-E1／SPDi43-27-E1。
+  - **✅`ON_GROW_PHASE_START` 新設（2効果）**＝型・parser・engine すべて無かった timing。**新規機構を作らず既存の `collectTurnTriggers` フェイズ機構に相乗り**（ENERGY→GROW 遷移＋CPU 経路の2箇所で発火）。WX12-011-E1／WXDi-P11-010A-E1。
+  - **ゲート**＝golden 491→**496**・census **1929 維持**・smoke 10593 OK/0・fuzz 0・同型★0 維持・lint 0 errors（warning 222・増減0）・**held 273→271**・**`npm run census:timing` 52効果/43クラスタ→43効果/40クラスタ**。**変更カード9・変更効果ちょうど9＝同カード内の巻き添えゼロ**。詳細 BUGFIXES 続き213。
+  - **🔍 Codex 運用の所見（5セッション目）**＝**CODEX_GUIDE §5-12 で追加した「per-card ではなく per-effect で報告」が効いた**（続き212 は同カード内の別効果3件の変化を申告しなかったが、今回は巻き添え0で一致）。簿記禁止・CODEX_GUIDE 非編集も遵守。**「parser が timing を吐いても engine が収集しなければ一度も発火しない」を指示に明記したことで、engine 側の要拡張（ON_GUARD ルリグ変種）を自分で発見して対応**した。
+
 - **セッション（2026-07-19・続き212・**Codex 実装／Opus 4.8 検証**・タスク12(xxii) 第4バッチ＝`STUB:OPTIONAL_COST` 前段12件のうち8効果採用・golden 488→491・IS_MY_TURN化 58→50。あわせて [CODEX_GUIDE.md](./CODEX_GUIDE.md) を新設）**
   - **⚠️検証側で真因を訂正した（2回連続）**＝Codex はこの12件を「前段 `STUB:OPTIONAL_COST` が結果を `lastProcessedCards` に残さない」と説明していたが、**ハンドラ（`execStubPart1.ts:52`）を読むとエナ色コストの CHOOSE を出すだけでアクションを一切実行していない**。真因は「記録しない」ではなく**原文の任意アクション（手札をすべて捨ててもよい／エナをすべてトラッシュしてもよい／手札を公開してもよい）が汎用 STUB に潰されて消えている**こと。**実アクション＋`optional` で表現すれば engine は既存経路で記録する**、という因果を指示書に据えて投げ直した。
   - **✅8効果採用**＝`PR-427-E2`／`WDK05-T01-E2`／`WXDi-D09-H17-E1`（手札すべて捨て→`LAST_PROCESSED_COUNT_GTE`）・`WXDi-P14-042-E1`（エナすべてトラッシュ→7枚以上）・`WXDi-P11-039-E1`（手札公開→`LAST_PROCESSED_LEVEL_SUM eq 10`）・`WX24-P2-048-E1`（CHOOSE①枝）・`WXK04-084-E1`／`WXK07-027-E2`（支払い二値→既存 `PAID_ADDITIONAL_COST` の look-ahead 経路）。
