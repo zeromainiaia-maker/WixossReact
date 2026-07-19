@@ -10364,8 +10364,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const handCount = my.hand.length;
       // acceTrash コストは【アクセ】枚数が足りないと支払えない
       const acceCount = (my.field.signi_acce ?? []).filter(a => a !== null).length;
+      // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
+      const kizunaOkHere = isKizunaActive(my, topNum, battleCardMap);
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
+        (!e.kizunaIcon || kizunaOkHere) &&
         // メイン: timing未指定 or MAIN を含む。アタックフェイズ: ATTACK_ARTS を含む（《アタックフェイズアイコン》）。
         (actPhase === 'MAIN'
           ? (e.timing === undefined || e.timing.includes('MAIN'))
