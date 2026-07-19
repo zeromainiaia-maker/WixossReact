@@ -980,9 +980,16 @@ function actionJa(a?: Action, effectType?: string): string {
       const nounPFT = a.filter?.cardType ? ([] as string[]).concat(a.filter.cardType).join('か') : 'カード';
       return `${fromPFT}からコストの合計が${a.costThreshold}以下の${filterJa(a.filter)}${nounPFT}${a.maxCount ?? 1}枚をコストを支払わずに使用する`;
     }
-    case 'BANISH_REDIRECT': return a.redirectTo === 'exile'
-      ? 'このターン、対戦相手のシグニがバニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される'
-      : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
+    case 'BANISH_REDIRECT': {
+      // bySource＝バニッシュ元の限定（続き217）。無いと「常時・全バニッシュ」に読めてしまう。
+      const src = a.bySource === 'battle_with_this' ? 'このシグニとのバトルによって'
+        : a.bySource === 'by_this' ? 'このシグニによって' : '';
+      return a.redirectTo === 'exile'
+        ? `このターン、対戦相手のシグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
+        : src
+          ? `対戦相手のシグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+          : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
+    }
     case 'COST_INCREASE': {
       const inc = Array.isArray(a.amount) && a.amount.length > 0
         ? a.amount.map((e: any) => `《${e.color}×${e.count}》`).join('')
