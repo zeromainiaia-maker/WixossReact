@@ -1557,7 +1557,8 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
-    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, filter },
+      ...(t.includes('ダウン状態で場に出') ? { asDown: true } : {}) };
   }
 
   // ---- このシグニ/カード自身をトラッシュから場に出す（自己蘇生・トラッシュ自己起動）----
