@@ -4368,6 +4368,15 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         const newOwnerEx: PlayerState = { ...ctx.ownerState, banish_redirect_to_exile: true };
         return done(addLog({ ...ctx, ownerState: newOwnerEx }, '対戦相手のシグニのバニッシュ先をゲーム除外へ変更'));
       }
+      // whenPowerZero（「パワーが０以下の対戦相手のシグニがバニッシュされる場合」）＝パワー0消滅経路だけに効く
+      // 限定（続き218）。無条件フラグを立てると相手の全バニッシュがトラッシュ送りになる過剰発火。
+      // 所有者問わずの `power0_banish_to_trash`（STUB BANISH_REDIRECT_POWER0_TRASH・WX04-038-E1）とは別フラグ
+      // ＝こちらは「設定した側の対戦相手のシグニ」限定。
+      if ((action as BanishRedirectAction).whenPowerZero === true) {
+        const newOwnerP0: PlayerState = { ...ctx.ownerState, power0_banish_to_trash_opp_only: true };
+        return done(addLog({ ...ctx, ownerState: newOwnerP0 },
+          'このターン、対戦相手のパワー0以下のシグニのバニッシュ先→トラッシュ'));
+      }
       // bySource（「このシグニとのバトルによって」等）付きは無条件フラグを立てない＝関与したシグニに限定する
       // （続き217。無条件にすると場に1体いるだけで相手の全バニッシュがトラッシュ送りになる過剰発火）。
       const brSrc = (action as BanishRedirectAction).bySource;
