@@ -31,6 +31,15 @@ const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
 /**
+ * kizunaIcon 効果（【絆自】【絆起】【絆出】）のゲート。
+ * 効果を持つ側のプレイヤーが発生源カード名との絆を獲得していなければ発動しない。
+ * 各コレクタの effect ループ先頭で `if (!kizunaOk(ctx, eff, watcherState, topNum)) continue;` と使う。
+ * （【絆常】＝CONTINUOUS は effectEngine 側のループで別途判定済み）
+ */
+const kizunaOk = (ctx: TrigCtx, eff: CardEffect, state: PlayerState, cardNum: string): boolean =>
+  !eff.kizunaIcon || isKizunaActive(state, cardNum, ctx.cardMap);
+
+/**
  * ON_TARGETED（「このシグニが対戦相手の能力か効果の対象になったとき」）のトリガーを収集する。
  * targetedNums=対象に取られたシグニのカード番号群／targetedOwnerId=その所有者（＝効果発生源の対戦相手）。
  *   self（既定）: 対象に取られたシグニ自身が ON_TARGETED を持つ場合
