@@ -3043,6 +3043,29 @@ export function isCrossZoneActive(playerState: PlayerState, cardNum: string, car
 }
 
 /**
+ * kizunaIcon 効果（【絆出】【絆自】【絆起】）のゲート判定。
+ * 発生源カード名との絆を、その効果を持つ側のプレイヤーが獲得しているかを返す。
+ * 【絆常】は effectEngine 内の CONTINUOUS ループ（および keywords.ts の hasKeyword /
+ * getShadowScopes）で別途判定済み。本関数は AUTO/ACTIVATED を扱うトリガー収集・起動可否側で使う。
+ */
+export function isKizunaActive(playerState: PlayerState, cardNum: string, cardMap: Map<string, CardData>): boolean {
+  const name = cardMap.get(cardNum)?.CardName ?? cardMap.get(getCardNum(cardNum))?.CardName;
+  return !!name && !!playerState.bonds?.includes(name);
+}
+
+/** 効果配列から「絆未獲得で無効な kizunaIcon 効果」を落とす（crossOnly ゲートと同型のヘルパー）。 */
+export function filterKizunaGated(
+  effects: CardEffect[],
+  playerState: PlayerState,
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+): CardEffect[] {
+  if (!effects.some(e => e.kizunaIcon)) return effects;
+  const ok = isKizunaActive(playerState, cardNum, cardMap);
+  return effects.filter(e => !e.kizunaIcon || ok);
+}
+
+/**
  * 動的キーワード付与の収集（バッジ表示用）。
  * CONTINUOUS GRANT_KEYWORD で activeCondition が現在満たされている付与を、各シグニ instanceId 単位で集める。
  * - 「このシグニは【ランサー】を得る」型（count:1, owner:self, source=シグニ自身）＝ WD04-010 等の動的キーワード

@@ -1,0 +1,138 @@
+CLEAN | WXDi-CP02-008 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-009 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-026 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-027 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-028 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-029 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-033 | curEff2->frEff3 junk0->0 kiz1/1
+KIZ_COUNT_MISMATCH | WXDi-CP02-034 | curEff2->frEff3 junk0->0 kiz1/2
+KIZ_COUNT_MISMATCH | WXDi-CP02-035 | curEff1->frEff2 junk0->0 kiz1/2
+CLEAN | WXDi-CP02-036 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-040 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-041 | curEff1->frEff2 junk0->0 kiz1/1
+KIZ_COUNT_MISMATCH | WXDi-CP02-042 | curEff1->frEff2 junk0->0 kiz1/2
+CLEAN | WXDi-CP02-043 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-048 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-049 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-053 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-054 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-055 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-057 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-058 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-059 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-060 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-061 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-062 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-063 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-064 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-065 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-066 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-067 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-069 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-070 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-071 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-073 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-075 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-076 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-077 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-078 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-079 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-080 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-081 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-083 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-085 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-086 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-087 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-088 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-090 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-091 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WXDi-CP02-092 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-093 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-094 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-095 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-096 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-097 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-098 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-099 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-100 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-101 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WXDi-CP02-102 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-016 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-020 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-024 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-038 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-039 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WX25-CP1-041 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-042 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-044 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WX25-CP1-045 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-046 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WX25-CP1-047 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-048 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-049 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-050 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WX25-CP1-051 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WX25-CP1-052 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WX25-CP1-053 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-054 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-055 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-056 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-057 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-058 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-059 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-063 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-064 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-066 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WX25-CP1-067 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-068 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-070 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-071 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-072 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WX25-CP1-073 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-074 | curEff1->frEff2 junk1->0 kiz1/1
+CLEAN | WX25-CP1-076 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-077 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-078 | curEff2->frEff3 junk1->0 kiz1/1
+CLEAN | WX25-CP1-079 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-080 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-081 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-082 | curEff3->frEff4 junk0->0 kiz1/1
+CLEAN | WX25-CP1-083 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-084 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-085 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-086 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-087 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-088 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-089 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-090 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-091 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CP1-092 | curEff1->frEff2 junk0->0 kiz1/1
+CLEAN | WX25-CP1-093 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CD1-04 | curEff2->frEff3 junk0->0 kiz1/1
+CLEAN | WX25-CD1-17 | curEff2->frEff3 junk1->0 kiz1/1
+
+[preserved_manual]
+WXDi-CP02-007
+WXDi-CP02-010
+WXDi-CP02-051
+WXDi-CP02-052
+WXDi-CP02-056
+WXDi-CP02-072
+WXDi-CP02-074
+WXDi-CP02-082
+WXDi-CP02-084
+WXDi-CP02-089
+WX25-CP1-012
+WX25-CP1-040
+WX25-CP1-060
+WX25-CP1-061
+WX25-CP1-062
+WX25-CP1-065
+WX25-CP1-069
+WX25-CP1-075
+
+[adopted_or_same]
+WXDi-CP02-047
+WXDi-CP02-050
+WXDi-CP02-068
+WX25-CP1-043
