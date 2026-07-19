@@ -269,6 +269,7 @@ function condJa(c?: any): string {
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
+    case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
     case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'HAND_COUNT': return c.owner === 'any'
