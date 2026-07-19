@@ -146,7 +146,14 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // 「このシグニとのバトルによって」「このシグニによって」＝バニッシュ元の限定（続き217）。
   // 落とすと「場に1体いるだけで相手の全バニッシュが常時トラッシュ送り」に過剰発火する。
   if (t.match(/バニッシュされ(?:る場合|たシグニは).*エナゾーンに置かれる代わりにトラッシュに置かれる/)) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // owner 判定（続き218 で4件の誤りを是正）。素朴な「対戦相手」語の有無だけだと以下を取り落として
+    // owner:'self'＝自分のシグニのバニッシュ先を変える（原文と逆の意味）になっていた：
+    // - 「このシグニの正面の（感染状態の）シグニ」＝正面は定義上**対戦相手のゾーン**
+    //   （WX19-078-E1・WXDi-D09-P14-E1・WXDi-P10-044-E2）
+    // - 「それが」＝直前文で対象に取った対戦相手のシグニを受ける照応（WXK06-048-E1「対戦相手のシグニ
+    //   １体を対象とし…このターン、それがバニッシュされる場合」）＝文単位パースで主語が落ちる形。
+    const owner: Owner = (t.includes('対戦相手') || /この(?:シグニ|カード)の正面の/.test(t) || /^(?:このターン、)?それが/.test(t))
+      ? 'opponent' : 'self';
     const until = t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
     const bySource: BanishRedirectAction['bySource'] | undefined =
       /このシグニとのバトルによって/.test(t) ? 'battle_with_this'
