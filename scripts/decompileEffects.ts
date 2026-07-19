@@ -458,6 +458,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
+      if (t?.type === 'HAND_CARD' && t.owner === 'self' && t.count === 'ALL') {
+        if (t.upToCount) return 'あなたは手札を好きな枚数捨てる';
+        return `あなたの手札をすべて捨てる${a.optional ? '（してもよい）' : ''}`;
+      }
+      if (t?.type === 'ENERGY_CARD' && t.owner === 'self' && t.count === 'ALL' && a.optional) {
+        return 'あなたのエナゾーンにあるすべてのカードをトラッシュに置く（してもよい）';
+      }
       // 手札/エナの「誰が選ぶか」を明示（見ないでランダム / 自分が見て選ぶ / 相手が選ぶ）。
       // count:'ALL'（すべて捨てる）は選択の余地がないため明示しない。
       const who = t?.count === 'ALL'
@@ -616,6 +623,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'
         : '処理する';
+      if (a.maxCount?.$ref === 'last_processed_count' && /捨てたカード[１1]枚につき/.test(currentCardText)) {
+        return `捨てたカード１枚につき${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}１枚を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      }
       const maxJa = typeof a.maxCount === 'object'
         ? (a.maxCount?.$ref === 'last_processed_count' ? 'この方法でバニッシュ／トラッシュした数と同じ枚数の' : '')
         : (a.maxCount ? a.maxCount + '枚まで' : '');
@@ -716,6 +726,20 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_SOUL_HOST_ABILITY': return `このカードが【ソウル】として付いている${filterJa(a.filter)}シグニは『${(a.abilities || []).map(effJa).join(' / ')}』を得る`;
     case 'SEQUENCE': {
       if (!a.steps || a.steps.length === 0) return '何もしない';
+      // 対象12件の追加コスト2形。内部では OPTIONAL_COST と PAID_ADDITIONAL_COST を
+      // 分けて持つが、逆翻訳は原文の「この方法で支払った/捨てた場合」に戻す。
+      if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0].id === 'OPTIONAL_COST'
+          && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1].condition?.type === 'PAID_ADDITIONAL_COST') {
+        const cost = actionJa(a.steps[0]);
+        const paidThen = a.steps[1].then;
+        if (a.steps[0].costText?.includes('幻水マレガビ') && paidThen?.type === 'SEQUENCE'
+            && paidThen.steps?.[0]?.type === 'TRASH' && paidThen.steps?.[1]) {
+          return `${cost}。その後、この方法で《幻水マレガビ》を捨てた場合、${actionJa(paidThen.steps[1])}`;
+        }
+        if ((a.steps[0].costColors ?? []).join('') === '赤') {
+          return `${cost}。その後、この方法で《赤》を支払った場合、${actionJa(paidThen)}`;
+        }
+      }
       if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'
           && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1]?.condition?.type === 'IS_MY_TURN'
           && a.steps[1]?.then?.type === 'BANISH') {
@@ -763,6 +787,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
         return `そうした場合、${actionJa(a.then)}`;
+      }
+      if (a.condition?.type === 'LAST_PROCESSED_COUNT_GTE' && a.then?.type === 'STUB'
+          && a.then.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
+        const body = actionJa(a.then).replace(/^この方法でカードを[０-９\d]*枚以上捨てた場合、/, '');
+        return `${condJa(a.condition)}なら、${body}`;
       }
       if (a.condition?.type === 'ENERGY_COUNT' && a.condition.owner === 'opponent'
           && a.then?.type === 'TRASH' && a.then.target?.type === 'ENERGY_CARD') {

@@ -1491,6 +1491,19 @@ WD09-018
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
 
+## +HAND_CARD +LAST_PROCESSED_COUNT_GTE +TRASH -IS_MY_TURN -STUB ［1枚］
+WDK05-T01
+--- WDK05-T01
+  原文: 【常】：あなたの場に《燃盛　遊月・鍵》がいるかぎり、このルリグは【ダブルクラッシュ】を得る。【出】：あなたは手札を好きな枚数捨てる。この方法でカードを１枚以上捨てた場合、捨てたカード１枚につきあなたのデッキから＜遊具＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《白×
+  - [1].action.steps[0].id = "OPTIONAL_COST"
+  ~ [1].action.steps[0].type : "STUB" → "TRASH"
+  + [1].action.steps[0].target.type = "HAND_CARD"
+  + [1].action.steps[0].target.owner = "self"
+  + [1].action.steps[0].target.count = "ALL"
+  + [1].action.steps[0].target.upToCount = true
+  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  + [1].action.steps[1].condition.value = 1
+
 ## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
 WDK06-R08
 --- WDK06-R08

@@ -3282,6 +3282,15 @@ function parseActionTextInner(text: string): EffectAction {
       // 記録するとき（prevRecords）だけ抽出。engine の LAST_PROCESSED_MATCHES/COUNT_GTE で評価される。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseThisWayGenericCount(thenM[0]);
+        // 今回実体化した全手札/全エナの処理は、汎用の「手札に加えた」ではなく
+        // 原文の移動動詞を逆翻訳へ残す。ALL の任意/可変枚数形に限定し、既存の
+        // 通常 TRASH 文型へは波及させない。
+        const prevTrash = prevStep as Partial<import('../types/effects').TrashAction> & { type?: string };
+        if (condition?.type === 'LAST_PROCESSED_COUNT_GTE' && prevTrash.type === 'TRASH' &&
+            prevTrash.target?.count === 'ALL' && (prevTrash.optional || prevTrash.target?.upToCount)) {
+          if (prevTrash.target?.type === 'HAND_CARD') condition.verbJa = '捨てた';
+          if (prevTrash.target?.type === 'ENERGY_CARD') condition.verbJa = 'トラッシュに置いた';
+        }
         // filterless SEARCH→TRASH の逆翻訳を原文動詞に合わせる（既存条件型の表示用語彙）。
         if (condition?.type === 'LAST_PROCESSED_COUNT_GTE' && prevIsSearchTrashRecorder && !condition.negate) {
           condition.verbJa = 'トラッシュに置いた';
@@ -3293,6 +3302,14 @@ function parseActionTextInner(text: string): EffectAction {
       // 結果のレベル合計閾値「この方法で〜レベルの合計がN(以上/以下)?の場合」（LAST_PROCESSED_LEVEL_SUM）。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
         condition = parseLevelSumCondition(thenM[0]);
+      }
+      // 「トラッシュに置いた」は parseThisWayTrashCondition が先に拾うため、上の汎用件数
+      // パーサーを通らない。どちらの抽出経路でも限定 ALL アクションの原文動詞を保持する。
+      const prevAllTrash = prevStep as Partial<import('../types/effects').TrashAction> & { type?: string };
+      if (condition?.type === 'LAST_PROCESSED_COUNT_GTE' && prevAllTrash.type === 'TRASH' &&
+          prevAllTrash.target?.count === 'ALL' && (prevAllTrash.optional || prevAllTrash.target?.upToCount)) {
+        if (prevAllTrash.target?.type === 'HAND_CARD') condition.verbJa = '捨てた';
+        if (prevAllTrash.target?.type === 'ENERGY_CARD') condition.verbJa = 'トラッシュに置いた';
       }
       // 「その後、それのパワーがN以上(である)?の場合」＝直前 POWER_MODIFY で強化した「それ」（lastProcessedCards）の
       // 実効パワー閾値（LAST_PROCESSED_POWER_GTE・engine 実装済み）。effectivePowers は POWER_MODIFY 適用前スナップショット
@@ -3321,9 +3338,10 @@ function parseActionTextInner(text: string): EffectAction {
       }
       // 「この方法で《赤》を支払った場合」も同じ実支払い二値。対象12件の WXK07-027 に
       // 帰結句まで限定し、同文型の別カードへ波及させない。
-      if (!condition && /^その後、この方法で《赤》を支払った場合、$/.test(thenM[0]) &&
-          /^このシグニのパワー以下の対戦相手のシグニ/.test(rest) && prevStep?.type === 'STUB' &&
-          (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST') {
+      const isWxk07Paid = /^その後、この方法で《赤》を支払った場合、$/.test(thenM[0]) &&
+        /^このシグニのパワー以下の対戦相手のシグニ/.test(rest) && prevStep?.type === 'STUB' &&
+        (prevStep as import('../types/effects').StubAction).id === 'OPTIONAL_COST';
+      if (!condition && isWxk07Paid) {
         condition = { type: 'PAID_ADDITIONAL_COST' };
       }
       // WXK04-084 の色＋特定札捨て複合コスト。支払い枝の内側で実際にマレガビを捨て、
@@ -3350,9 +3368,21 @@ function parseActionTextInner(text: string): EffectAction {
         markSilentFallback(`IS_MY_TURN化:${thenM[0]}`);
       }
       let parsedThen = parseSingleSentence(rest);
+      // WDK05-T01-E2：「捨てたカード1枚につき」検索。SEARCH は既に
+      // {$ref:'last_processed_count'} を engine で解決できるため固定1枚から差し替える。
+      if (/^捨てたカード[１1]枚につきあなたのデッキから＜遊具＞のシグニ[１1]枚を探して/.test(rest) &&
+          parsedThen.type === 'SEARCH') {
+        parsedThen = { ...parsedThen, maxCount: { $ref: 'last_processed_count' } };
+      }
+      if (isWxk07Paid && parsedThen.type === 'BANISH') {
+        parsedThen = {
+          ...parsedThen,
+          target: { ...parsedThen.target, filter: { ...(parsedThen.target.filter ?? {}), powerLteSelf: true } },
+        };
+      }
       if (isMaregabiPaid) {
         parsedThen = { type: 'SEQUENCE', steps: [
-          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardName: '幻水マレガビ' } }, asCost: true },
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardName: '幻水　マレガビ' } }, asCost: true },
           parsedThen,
         ] } as SequenceAction;
       }

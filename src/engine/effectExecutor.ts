@@ -698,18 +698,6 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
         return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
       }
-      // 「すべてトラッシュに置いてもよい」は任意枚数ではなく、全件実行／スキップの二択。
-      if (a.optional) {
-        const trashAll = { ...a, optional: false } as TrashAction;
-        const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
-        return needsInteraction(addLog(ctx, 'すべてトラッシュに置きますか？'), {
-          type: 'CHOOSE', count: 1,
-          options: [
-            { id: 'trash', label: 'すべてトラッシュに置く', action: trashAll, available: true },
-            { id: 'skip', label: 'スキップ', action: skip, available: true },
-          ],
-        });
-      }
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
     const count = resolveNum(tgt.count);
@@ -2527,7 +2515,11 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           return needsInteraction(addLog(cur, '対戦相手：コストを支払いますか？'), pending);
         }
 
-        const canAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
+        const needsMaregabi = stub.costText?.includes('幻水マレガビ') === true;
+        const hasMaregabi = !needsMaregabi || cur.ownerState.hand.some(cn =>
+          matchesFilter(cur.cardMap.get(cn), { cardName: '幻水　マレガビ' }));
+        const canAfford = (costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap))
+          && hasMaregabi;
         const payLabel = costColors.length > 0
           ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
           : '発動する';
