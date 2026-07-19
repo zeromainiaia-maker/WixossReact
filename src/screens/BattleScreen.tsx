@@ -7843,15 +7843,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
       const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects, ...contGrantedLrigEffects];
       const update: Partial<BattleStateRow> = { [myKey]: newMyState };
-      if (onAttackEffects.length > 0) {
-        const entries: StackEntry[] = onAttackEffects.map(e => ({
-          id: generateUUID(),
-          playerId: attackerId,
-          cardNum: lrigNum,
-          effectId: e.effectId,
-          label: `${lrigName} の【自】効果（アタック時）`,
-          effect: e,
-        }));
+      // 防御側の付与AUTO（「対戦相手のルリグがアタックしたとき」＝any_opp/any scope・タスク12(xlvii)）。
+      // アタック側とは playerId も usageLimit の書き戻し先も異なるため、別の entries として結合する。
+      const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
+      const defenderId = attackerId === bs.host_id ? bs.guest_id : bs.host_id;
+      const defRes = collectLrigAttackDefenderTriggers(op, defenderId);
+      if (defRes.usedIds.length > 0) {
+        update[defenderKey] = { ...op, actions_done: [...(op.actions_done ?? []), ...defRes.usedIds] };
+      }
+      const attackerEntries: StackEntry[] = onAttackEffects.map(e => ({
+        id: generateUUID(),
+        playerId: attackerId,
+        cardNum: lrigNum,
+        effectId: e.effectId,
+        label: `${lrigName} の【自】効果（アタック時）`,
+        effect: e,
+      }));
+      const entries: StackEntry[] = [...attackerEntries, ...defRes.entries];
+      if (entries.length > 0) {
         const existing = bs.effect_stack ?? null;
         update.effect_stack = existing ? pushToStack(existing, entries) : initStack(bs.active_user_id ?? attackerId, entries);
       }
