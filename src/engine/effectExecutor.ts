@@ -1004,12 +1004,19 @@ function resolveDynamicFilter(
   }
   // powerLtTrigger / powerLteTrigger: トリガー元シグニ（被バニッシュ/場に出た/アタッカー/ダウンした）のパワーを基準に
   // powerRange.max へ解決（「そのシグニよりパワーの低い」＝N-1／「そのシグニのパワー以下の」＝N。
-  // 被バニッシュ等 場外のシグニは cardMap の表記パワーで参照）
-  if ((result.powerLtTrigger || result.powerLteTrigger) && triggeringCardNum) {
-    const trigPower = effectivePowers?.get(triggeringCardNum)
-      ?? parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Power ?? '0', 10);
-    const { powerLtTrigger: _pt, powerLteTrigger: _pe, ...rest } = result;
-    result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtTrigger ? trigPower - 1 : trigPower } };
+  // 被バニッシュ等 場外のシグニは cardMap の表記パワーで参照）。
+  // Lte 形のみ trigger 不在時は lastProcessedCards[0] へフォールバック（「ダウンする。そうした場合、そのシグニの
+  // パワー以下」＝ACTIVATED 内の直前アクション参照。WD04-018 の powerLteLastProcessed と同じ解決になる）。
+  {
+    const trigRef = (result.powerLtTrigger || result.powerLteTrigger)
+      ? (triggeringCardNum ?? (result.powerLteTrigger ? lastProcessedCards?.[0] : undefined))
+      : undefined;
+    if (trigRef) {
+      const trigPower = effectivePowers?.get(trigRef)
+        ?? parseInt(cardMap.get(getCardNum(trigRef))?.Power ?? '0', 10);
+      const { powerLtTrigger: _pt, powerLteTrigger: _pe, ...rest } = result;
+      result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtTrigger ? trigPower - 1 : trigPower } };
+    }
   }
   // levelLtTrigger / levelGtTrigger: トリガー元シグニのレベルを基準に level へ解決（「そのシグニより低い/高いレベルを持つ」）
   if ((result.levelLtTrigger || result.levelGtTrigger) && triggeringCardNum) {
