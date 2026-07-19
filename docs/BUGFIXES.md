@@ -4,6 +4,18 @@
 
 ---
 
+## parser は正しく `REVEAL_AND_PICK` を出すのに curated が古い `LOOK_AND_REORDER` のまま held ドリフトし「その中から…手札に加え」が丸ごと死んでいた9効果を採用（census 1886→1880・§3 タスク12）（2026-07-20・続き218g・Opus）
+
+タスク12 の続き。census 最上位クラスタ「その中からカードをN枚まで手札に加え、残りを…デッキの一番下に置く」を精査したところ、**parser は既に正しく `REVEAL_AND_PICK`（`ADD_TO_HAND` を含む）を生成しているのに、curated JSON が古い `LOOK_AND_REORDER` のまま**で、**カードを引く（手札に加える）動作＝カードアドバンテージが丸ごと欠落**している効果群を発見した。`LOOK_AND_REORDER` はデッキを並べ替えるだけで手札には1枚も来ない no-op 同然の退化。
+
+- **なぜ放置されていたか**＝`build:effects` の収穫マージは「証明可能に無損失な純粋上位集合」だけを自動採用し、**`LOOK_AND_REORDER`→`REVEAL_AND_PICK` のような型スワップ（どちらも他方の superset ではない）は held にも上げず curated を黙って温存する**。そのため `heldReview` からも不可視で、`_held_fresh.json` にも載らない死角だった。
+- **抽出**＝全 curated 効果を走査し「トップ/SEQUENCE 内に `LOOK_AND_REORDER` を持つ」かつ「原文に『その中から…手札に加え』があり『場に出』は無い」候補84件 → うち **fresh 直接パースが同 effectId で `REVEAL_AND_PICK` を出す36件**が真のドリフト。
+- **忠実性を1件ずつ検証して採用は9件に限定**（`WX04-093-BURST`／`WXDi-CP02-007-E2`／`WXDi-CP02-103-E1`〔CHOOSE の②枝〕／`WXDi-P15-077-E2`〔＜防衛派＞filter〕／`WXDi-D04-021-BURST`・`WXDi-P00-045-BURST`・`WXDi-P10-048-BURST`・`WXDi-P16-062-BURST`〔同型4枚・`handOrField` 手札に加えるか場に出し〕／`WXK04-044-E2`〔＜紅蓮＞filter〕）。**除外**＝残りの多くが `parseStatus:MANUAL` で、`WXK10-022-E3`（「無色ではない」filter を fresh が落とす）・`WXK01-004-E1`（「レベルが奇数」を落とす）・`WX02-018-E1`（「＜鉱石＞か＜宝石＞なら2ドロー」の条件付き）等、**fresh がフィルタ/条件を落とす過剰簡約**のため意図的に MANUAL 据置されていた＝採用してはいけない偽陽性。
+- **採用方法**＝held に載らないため `heldReview` は使えず、対象9 effectId の curated を fresh 効果（parser 出力そのもの・`parseStatus:AUTO`）で外科的に置換。`build:effects` 再実行で curated==fresh となり以降安定（型スワップは harvest が触らない）。セッション開始コミットとの効果単位 diff で「変更9効果ちょうど・巻き添え0」を機械確認。engine は `REVEAL_AND_PICK`（`handOrField`／`filter`／remainder trash/deck）を実装済み（既存クラスタ多数で使用・`effectExecutor` 4662）。
+- **検証**＝全ゲート緑（typecheck／golden 510維持／smoke 10719 OK・CRASH等0・SKIP 0〔9効果を実行〕／fuzz 0／**census 1886→1880**／lint 0 errors／同型★0）。`npm run regen` で逆翻訳に「手札に加える」が復活することを確認。`BASELINE_HIGH` を1880へ更新。**残＝MANUAL 据置の過剰簡約は別軸（filter/条件を faithfully 表現できる parser 拡張が要る＝§6.3級）。cur:AUTO の残（`WXDi-P16-008-E2` の多目的等）は忠実表現の可否要確認でタスク12へ残置**。
+
+---
+
 ## 「[あなたの/対戦相手の]アタックフェイズの間、」限定の CONTINUOUS 常在効果が activeCondition 脱落で PERMANENT に潰れ相手ターン中も過剰適用（DURING_ATTACK_PHASE 新設・13効果12カード是正・golden 508→510・census 1888→1886・§3 タスク12）（2026-07-19・続き218f・Opus）
 
 タスク12 の続き。続き215/217 で残ギャップとして登録した `WX25-CP1-082-E3`（「アタックフェイズの間、このシグニのパワーは＋5000される」）の **activeCondition 脱落**を起点に調査したところ、**単カードではなく系統バグ**と判明。「[あなたの/対戦相手の]アタックフェイズの間、」で始まる CONTINUOUS【常/絆常】効果は、フェイズ限定句が parser に語彙が無く**丸ごと黙って落ち**、`duration:PERMANENT`・`activeCondition` 無しに潰れていた（＝相手ターン中も常時適用される過剰効果）。
