@@ -565,6 +565,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン1b: 「[あなたの/対戦相手の]アタックフェイズの間、」（CONTINUOUS 常在のフェイズ限定）。
+  // 落とすと PERMANENT に潰れ相手ターン中も過剰適用になる（WX25-CP1-082-E3「アタックフェイズの間、パワーは＋5000」・
+  // WX24-P1-050-E1「正面のシグニのパワーを－2000」ほか9効果＝タスク12）。owner 省略＝どちらのアタックフェイズでも。
+  const atkPhaseM = text.match(/^(あなたの|対戦相手の)?アタックフェイズの間[、,]/);
+  if (atkPhaseM) {
+    const owner = atkPhaseM[1] === 'あなたの' ? 'self' : atkPhaseM[1] === '対戦相手の' ? 'opponent' : undefined;
+    return {
+      condition: { type: 'DURING_ATTACK_PHASE', ...(owner ? { owner } : {}) },
+      rest: text.slice(atkPhaseM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン2a: 「あなたの場に《X》(か《Y》)*があるかぎり、」（複数カード名のいずれか存在。WX08-049「《羅星　アルシャ》か《羅星　ディアデム》」）
   // 単一名は cardName、複数名は cardNames に解決。下のパターン2は単一《》/＜＞のみなので、複数《》はここで先取りする。
   const fieldNamesM = text.match(/^あなたの場に((?:《[^》]+》(?:か)?)+)があるかぎり、/);
