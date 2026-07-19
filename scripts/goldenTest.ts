@@ -28,6 +28,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { advancePreventDamageWindows } from '../src/screens/battle/battleUtils';
+import { canAffordGrowCost } from '../src/screens/battle/costs';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
