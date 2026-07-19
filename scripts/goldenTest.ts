@@ -1638,6 +1638,30 @@ test('Stage2 ON_LEAVE_FIELD: leftToZone=hand は手札在中時のみ発火（WX
   const host2 = mkState({ signi: ['WXK02-041', null, null] }); // SIGNI を手札に入れない
   eq(has(collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], HOST, host2, guest).entries, 'WXK02-041-E2'), false, '手札不在で非発火');
 });
+// ON_LEAVE_FIELD の duringAttackPhase（「アタックフェイズの間、…が場を離れたとき」）＋カード名包含 triggerFilter。
+// 修正前は「アタックフェイズの間、」前置き＋「カード名に《X》を含むシグニ…が場を離れたとき」を parser が解釈できず、
+// action 末尾の「…それを場に出す」が GRANT_LEAVE_PLACE_PENDING STUB（no-op）へ丸められていた（WXEX2-51-E1）。
+const YURAGI_LEAVER = findCard(c => isSigni(c) && (c.CardName ?? '').includes('ユラギ') && c.CardNum !== 'WXEX2-51');
+const NON_YURAGI = findCard(c => isSigni(c) && !(c.CardName ?? '').includes('ユラギ') && c.CardNum !== 'WXEX2-51');
+test('Stage2 ON_LEAVE_FIELD any_ally duringAttackPhase+cardName(ユラギ): アタックフェイズ中の名前包含離脱のみ発火（WXEX2-51-E1）', () => {
+  const host = mkState({ signi: ['WXEX2-51', null, null] }); const guest = mkState({});
+  const atk = { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' };
+  const main = { ...trigCtx(HOST), turnPhase: 'MAIN' };
+  eq(has(collectLeaveFieldTriggers(atk, YURAGI_LEAVER, [], HOST, host, guest).entries, 'WXEX2-51-E1'), true, 'アタックフェイズ×ユラギ離脱で発火');
+  eq(has(collectLeaveFieldTriggers(main, YURAGI_LEAVER, [], HOST, host, guest).entries, 'WXEX2-51-E1'), false, 'メインでは非発火（duringAttackPhase）');
+  eq(has(collectLeaveFieldTriggers(atk, NON_YURAGI, [], HOST, host, guest).entries, 'WXEX2-51-E1'), false, '非ユラギ離脱は非発火（cardName filter）');
+});
+test('Stage2 ON_LEAVE_FIELD levelLtTrigger 解決: 離脱カード基準で level.max=離脱Lv-1・cardName保持（WXEX2-51-E1）', () => {
+  const host = mkState({ signi: ['WXEX2-51', null, null] }); const guest = mkState({});
+  const leaver = YURAGI_LEAVER;
+  const lv = parseInt(findCard(c => c.CardNum === leaver)?.Level ?? '0', 10);
+  const ent = collectLeaveFieldTriggers({ ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' }, leaver, [], HOST, host, guest).entries.find(e => e.effectId === 'WXEX2-51-E1');
+  ok(!!ent, 'WXEX2-51-E1 が収集された');
+  const f = (ent!.effect.action as { source: { filter: Record<string, unknown> } }).source.filter;
+  eq(f.levelLtTrigger, undefined, 'levelLtTrigger は収集時に level へ解決され除去される');
+  eq((f.level as { max: number }).max, lv - 1, `離脱レベル${lv}→level.max=${lv - 1}`);
+  eq(f.cardName, 'ユラギ', 'cardName ユラギ を保持（低レベルのユラギのみ配置）');
+});
 
 // Stage2⑦: ON_DRAW / 対戦相手ドロー / ミル（collectDraw/OppDraw/MillTriggers）を pure 化→自動検証。
 test('Stage2 ON_DRAW: self ドローで発火・once_per_turn 消化済み非発火（WXK02-090-E1）', () => {
