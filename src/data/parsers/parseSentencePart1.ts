@@ -152,12 +152,16 @@ export function parseSentencePart1(t: string): EffectAction | null {
       /このシグニとのバトルによって/.test(t) ? 'battle_with_this'
         : /このシグニによって/.test(t) ? 'by_this'
           : undefined;
+    // バニッシュされる側の限定「パワーが０以下の(対戦相手の)?シグニがバニッシュされる場合」（続き218）。
+    // 落とすと相手の全バニッシュが常時トラッシュ送りになる（WXDi-P10-009-E3／WXDi-CP02-102-E2）。
+    const whenPowerZero = /パワーが０以下の[^。]*?シグニが[^。]*?バニッシュされる場合/.test(t);
     return {
       type: 'BANISH_REDIRECT',
       target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } },
       redirectTo: 'trash',
       until,
       ...(bySource ? { bySource } : {}),
+      ...(whenPowerZero ? { whenPowerZero: true } : {}),
     } as BanishRedirectAction;
   }
 
