@@ -1339,7 +1339,7 @@ test('ON_HAND_ADDED: エナ→手札のシグニ移動で LRIG watcher が発火
 test('ON_ENERGY_TO_FIELD: エナ→場のシグニ配置で LRIG watcher が発火（WXDi-P11-007-E1 の場側枝）', () => {
   const host = mkState({}); host.field.lrig = ['WXDi-P11-007']; const guest = mkState({});
   const e = collectEnergyToFieldTriggers(trigCtx(HOST), [{ ownerId: HOST, nums: [SIGNI] }], host, guest);
-  eq(has(e.entries, 'WXDi-P11-007-E1'), true, 'エナ→場で発火');
+  eq(hasEff(e.entries, 'WXDi-P11-007-E1'), true, 'エナ→場で発火');
   const e2 = collectEnergyToFieldTriggers(trigCtx(HOST), [{ ownerId: GUEST, nums: [SIGNI] }], host, guest);
   eq(has(e2.entries, 'WXDi-P11-007-E1'), false, '相手側の配置では非発火');
 });
