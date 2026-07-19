@@ -754,7 +754,7 @@ test('WXK10-031-E1（実定義・任意コスト経由）: pay→公開→BOUNCE
 // 対象選択が STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）や別文（cost/条件）に分かれ、除去アクション文（「それを
 // バニッシュする」等）に比較語が残らず全数脱落していた過剰効果群。基準を厳密に切る（この=自身/その=トリガー主語/その後=lastProcessed据置）。
 test('designation 動的比較: この→powerLtSelf / その→powerLtTrigger / その後→据置（applyLeadingSelfComparison）', () => {
-  const KEYS = ['powerLtSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf', 'powerLtTrigger', 'levelLtTrigger', 'levelGtTrigger'];
+  const KEYS = ['powerLtSelf', 'powerGtSelf', 'levelLtSelf', 'levelGtSelf', 'powerLtTrigger', 'powerLteTrigger', 'levelLtTrigger', 'levelGtTrigger'];
   const dynKeys = (id: string): string => {
     const found = new Set<string>();
     const walk = (a: unknown): void => {
