@@ -7179,6 +7179,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const redirectBanish =
             isShoot ||
             myS.banish_redirect === true ||
+            // bySource 付き（このシグニとの/による）＝そのシグニ自身がバトル当事者のときだけ（続き217）
+            (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
             myS.field.signi.some(s => {
               const n = s?.at(-1);
               // bySource（「このシグニとのバトルによって」等）付きは、バトル当事者＝myTopNum のときだけ適用
