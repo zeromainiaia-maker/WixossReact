@@ -152,7 +152,12 @@ export function parseSentencePart1(t: string): EffectAction | null {
     //   （WX19-078-E1・WXDi-D09-P14-E1・WXDi-P10-044-E2）
     // - 「それが」＝直前文で対象に取った対戦相手のシグニを受ける照応（WXK06-048-E1「対戦相手のシグニ
     //   １体を対象とし…このターン、それがバニッシュされる場合」）＝文単位パースで主語が落ちる形。
-    const owner: Owner = (t.includes('対戦相手') || /この(?:シグニ|カード)の正面の/.test(t) || /^(?:このターン、)?それが/.test(t))
+    // - 「この**シグニによって**バニッシュされたシグニは」＝自陣を自分でバニッシュすることはない＝相手側
+    //   （WXDi-D04-016-E2。curated が opponent で正しく fresh だけ self に落ちていた既存の乖離）。
+    //   ⚠「このシグニとの**バトル**によって」は両者が同時にバニッシュされうるため**ここに含めない**
+    //     （該当10効果はいずれも原文に「対戦相手の」があり判定に影響しない）。
+    const owner: Owner = (t.includes('対戦相手') || /この(?:シグニ|カード)の正面の/.test(t)
+      || /^(?:このターン、)?それが/.test(t) || /このシグニによってバニッシュされた/.test(t))
       ? 'opponent' : 'self';
     const until = t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
     const bySource: BanishRedirectAction['bySource'] | undefined =
