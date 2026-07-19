@@ -2280,6 +2280,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectLrigGrowTriggers(mkTrigCtx(), grownOwnerId, afterGrowerState, afterOpState);
   const collectCoinPaidTriggers = (payerId: string, afterPayerState: PlayerState, afterOpState: PlayerState): { entries: StackEntry[]; usedIds: string[] } =>
     pureCollectCoinPaidTriggers(mkTrigCtx(), payerId, afterPayerState, afterOpState);
+  // 「対戦相手のルリグがアタックしたとき」＝**防御側**の付与AUTO（any_opp/any scope）を収集（タスク12(xlvii)）。
+  // 従来この経路が無く、防御側の付与能力が ON_ATTACK_LRIG で一切拾われなかった。
+  const collectLrigAttackDefenderTriggers = (defenderState: PlayerState, defenderId: string): { entries: StackEntry[]; usedIds: string[] } =>
+    pureCollectLrigAttackDefenderTriggers(mkTrigCtx(), defenderState, defenderId);
   // ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻すヘルパー（続き106）。
   const applyCoinPaidUsed = (st: PlayerState, coin: { usedIds: string[] }): PlayerState =>
     coin.usedIds.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...coin.usedIds] } : st;
