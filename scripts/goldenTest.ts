@@ -774,6 +774,31 @@ test('designation 動的比較: この→powerLtSelf / その→powerLtTrigger /
   eq(dynKeys('WXK11-041'), 'powerLtTrigger', 'WXK11-041 その＝被バニッシュ→powerLtTrigger');
   eq(dynKeys('WXK10-031'), '', 'WXK10-031 その後＝公開カード(lastProcessed)は据置（別機構）');
   eq(dynKeys('WXDi-P08-031'), '', 'WXDi-P08-031 その後＝場に出したシグニ(lastProcessed)は据置（別機構）');
+  eq(dynKeys('WXEX1-42'), 'powerLteTrigger', 'WXEX1-42 そのシグニのパワー以下→powerLteTrigger（Lte 形・続き207）');
+  eq(dynKeys('WXEX1-53'), 'powerLteTrigger', 'WXEX1-53 そのシグニのパワー以下→powerLteTrigger');
+});
+test('ON_PLAY any_ally 複数クラス: 「あなたの＜X＞か＜Y＞のシグニが効果によって場に出たとき」→ any_ally+story配列+byEffect（WXEX1-53・続き207）', () => {
+  const e = (effectsMap.get('WXEX1-53') ?? []).find(x => x.effectId === 'WXEX1-53-E1')!;
+  eq(e.triggerScope, 'any_ally', 'scope＝any_ally（旧: 既定 self へ退化し自身召喚時に誤発火）');
+  eq(JSON.stringify(e.triggerFilter?.story), '["アーム","ウェポン"]', 'triggerFilter.story＝[アーム,ウェポン]');
+  eq(e.triggerCondition?.byEffect, true, '「効果によって」＝byEffect（通常召喚では発火しない）');
+});
+test('FREEZE owner:any+isTriggerSource: トリガー元の所在側を実行時解決（WXK11-015-E3・続き207）', () => {
+  const frz = { type: 'FREEZE', target: { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ', isTriggerSource: true } } } as EffectAction;
+  // 相手側のシグニがダウン→相手側ゾーンが凍結される
+  {
+    const ctx = mkCtx({ signi: [SIGNI_P3000, null, null] }, { signi: [null, SIGNI_P12000, null] }, SIGNI_P12000);
+    const r = run(frz, ctx);
+    eq(r.otherState.field.signi_frozen?.[1], true, '相手側トリガー元が凍結');
+    eq(r.ownerState.field.signi_frozen?.[0] ?? false, false, '自分側は不変');
+  }
+  // 自分側のシグニがダウン（自アタックダウン等）→自分側ゾーンが凍結される（旧 owner:opponent 近似では no-op だった）
+  {
+    const ctx = mkCtx({ signi: [SIGNI_P3000, null, null] }, { signi: [null, SIGNI_P12000, null] }, SIGNI_P3000);
+    const r = run(frz, ctx);
+    eq(r.ownerState.field.signi_frozen?.[0], true, '自分側トリガー元が凍結');
+    eq(r.otherState.field.signi_frozen?.[1] ?? false, false, '相手側は不変');
+  }
 });
 test('designation owner継承: 「対戦相手の…を対象とし…そうした場合、それを〈除去〉」の最終ターゲットが opponent＋フィルタ継承（applyLeadingOpponentDesignation・続き111）', () => {
   // 末尾（「それを…」）アクションの target/source を辿る（CONDITIONAL.then / SEQUENCE 末尾を降下）。
