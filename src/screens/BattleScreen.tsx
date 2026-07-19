@@ -10501,6 +10501,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const eff of lrigEffsMA) {
           if (eff.effectType !== 'ACTIVATED') continue;
           if (!eff.timing?.includes('MAIN')) continue;
+          // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
+          if (eff.kizunaIcon && !isKizunaActive(my, lrigTopMA, battleCardMap)) continue;
           // ルリグの【起】効果は基本何度でも使用可（ターン1回アイコンを持つ場合のみ usageLimit で制限）。
           // 他パス（シグニ/付与/キー）と同様に usageLimit 基準で判定する。
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
