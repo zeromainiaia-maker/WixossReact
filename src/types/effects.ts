@@ -279,7 +279,7 @@ export interface EffectCost {
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタの場シグニを組で指定（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」WX04-040-E2）。fieldTrashと併用不可
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter }; // 手札からN枚をこのシグニの下に置く
-  lrigDown?: { count: number; centerOnly?: boolean };         // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
