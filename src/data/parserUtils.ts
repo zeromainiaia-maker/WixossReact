@@ -162,6 +162,9 @@ export function parsePrintedComparison(text: string): Partial<TargetFilter> {
 //   ADD_TO_FIELD hand ビルダーが levelBelowLeftCard で別処理し parseSigniTarget を通らないため衝突しない。
 export function parseTriggerComparison(text: string, opts?: { allowPlacement?: boolean }): Partial<TargetFilter> {
   if (/その後/.test(text)) return {}; // lastProcessed（「その後、そのシグニ」）は別機構
+  // 「そのシグニのパワー以下の」＝トリガー元パワー以下（「より低い」と別語形の Lte 形。WXEX1-42/WXEX1-53/WDK12-001）。
+  // 「そうした場合、そのシグニのパワー以下」＝直前アクション結果（lastProcessed・WD04-018）は除外。
+  if (/そのシグニのパワー以下の/.test(text) && !/そうした場合/.test(text)) return { powerLteTrigger: true };
   const m = text.match(/そのシグニより(パワーの低い|パワーの高い|(?:低いレベルを持つ|レベルの低い)|(?:高いレベルを持つ|レベルの高い))/);
   if (!m) return {};
   // 「そのシグニより…を場に出す」＝比較対象自体を場に出す placement（leftCard 手札→場＝levelBelowLeftCard の領分・
