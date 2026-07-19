@@ -1618,7 +1618,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (/(?:この|その)シグニより(?:パワーの低い|低いパワー)/.test(t)) filter.powerBelowLeftCard = true;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const count = upToM ? parseNum(upToM[1]) : 1;
-    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+    // 「ダウン状態で場に出（してもよい）」（WD12-009/010＝ON_HAND_ADDED movedSelf の action）: asDown＋任意なら optional。
+    // ⚠変更を最小にするため down 変種に限定（plain な「場に出してもよい」の optional 化は既存挙動を広く変えるので据置）。
+    const asDownHand = t.includes('ダウン状態で場に出');
+    return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: !!upToM, filter },
+      ...(asDownHand ? { asDown: true, ...(t.includes('場に出してもよい') ? { optional: true } : {}) } : {}) };
   }
 
   // ---- 対戦相手はシグニをN体までしか場に出せない（配置数制限・DEPLOY_RESTRICT）----
