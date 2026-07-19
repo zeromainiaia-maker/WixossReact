@@ -3804,6 +3804,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const crossOk = isCrossZoneActive(startMyState, cardNum, battleCardMap);
       targets = targets.filter(e => !e.crossOnly || crossOk);
     }
+    // kizunaIcon（【絆出】【絆自】）: 発生源カード名との絆を獲得していなければ発動しない。
+    // crossOnly と同じくトリガー時（収集時）の状態 startMyState で判定する。
+    targets = filterKizunaGated(targets, startMyState, cardNum, battleCardMap);
     // placedDown（G144「このシグニがダウン状態で場に出たとき」self経路）: 自身がダウン状態で出ていなければ発動しない。
     // 手札からの通常召喚はダウンにならないため自然に除外される（ダウン配置は効果経由のみ）。
     if (timings.includes('ON_PLAY') && targets.some(e => e.triggerCondition?.placedDown)) {
