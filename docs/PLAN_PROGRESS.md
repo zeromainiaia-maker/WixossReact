@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-19・続き218・Opus・**タスク12(xli) を完了**＋(xliv) 第1弾＝「N種類以上」条件・lrigDown コスト限定・BANISH_REDIRECT のパワー0限定/owner・場出しのみ pick の4機構。golden 503→508・census 1919→1895）**
+  - **(b)「＜ブルアカ＞のシグニが３種類以上ある場合」＝種類数条件**。着手時の見立ては「`HAS_CARD_IN_FIELD` に `distinctName` を足す小機構」だったが、実際は**型にフラグが既にあり engine の片方の経路だけが実装していた**という別の穴だった＝`effectEngine` の CONTINUOUS 収集は対応済みなのに **`execUtils.evalCondition`（AUTO/ACTIVATED の一般経路）が `distinctNames` を黙って無視**（同名N体でも成立）。parser もこの語形の語彙が無く条件を丸ごと落として**5効果が無条件発火**していた（`WX25-CP1-041/045`・`WXDi-P03-058`・`WXDi-P05-056`・`WXDi-P05-064`）。engine ＋ parser 2規則（単独形／`AND` 複合形）＋表示ヒント `distinctPhraseJa` で一括消化。
+  - **⚠型の落とし穴**＝`HAS_CARD_IN_FIELD` は `ActiveCondition` と `Condition` に**二重定義**されており、当初「重複」と見て片方を消したら parser 全体が型エラー（別 union だった）。**両方を揃えて更新する**のが正解＝両定義に相互参照コメントを残した。
+  - **(c) `WXDi-CP02-056-E4` は PLAN の見立てどおり census 偽陽性**（`cost.lrigDown` がその語彙そのもの）。**ただしマスクする前に族の全効果を個別確認したところ実バグ7件が出た**＝parser が「アップ状態の〔レベルNの〕〔センター〕ルリグN体をダウンする」の**限定語をキャプチャしながら捨てていた**（センター限定3件は**アシストをダウンして払えた**／レベル限定4件は**任意レベルで払えた**）。`lrigDown.level` を新設し **BattleScreen の自動支払い・コストモーダルの可否判定/表示ラベル**まで配線した（JSON が限定を主張して engine が無視する乖離を作らない）。`costJa` が `lrigDown` 未対応で**逆翻訳がコスト節を丸ごと落としていた**のも同時に是正。
+  - **census の緩め方**＝無条件マスクにせず `extraOk` で「`lrigDown` を持ち、かつ**コスト句を除いた残りに状態語が無い**」ときだけ合格とした。`lrigDown` を持つ**全21効果**で残存0を機械確認済み。**§3 (xliii) が警告する「マスキングで実欠落を隠す危険」が実在した実例**＝偽陽性判定は必ず族の全数確認とセットにする。
+  - **後半（218b）＝タスク12(xliv) `BANISH_REDIRECT` 残テールの第1弾**。族36効果を全数棚卸しし、**engine が今の設計で忠実に表現できる分だけ**消化＝(1)「パワーが０以下の」限定脱落2件（`WXDi-P10-009-E3`／`WXDi-CP02-102-E2`。`whenPowerZero` 新設）(2) owner 誤り5件（「正面の」3・「それが」照応1・「このシグニによって」1＝すべて `self` に落ちて原文と逆の意味）。**⛔残りは §6.3 級**＝BANISH_REDIRECT は真偽フラグ実装で `action.target` を見ないため属性フィルタ5件/単体対象4件/正面3件は target スコープ機構待ち。
+  - **末尾（218c）＝タスク12(xli) 残(a) の消化。単カードではなく15効果の系統**＝`LOOK_PICK_CHAIN{then:"field"}` は engine・decompiler とも実装済みなのに dual-pick 規則が**手札段と場段の両方**を要求していたため「場出しだけの形」が bare `LOOK_AND_REORDER` へ縮退し**場出しが丸ごと消える no-op** だった。単段規則を新設。**⚠副次発見＝`PARTIAL` 誤刻印は永続温存を招く**（前置「あなたの」が規則外に残り UNKNOWN→markSilentFallback。build:effects が PARTIAL を含むカードを丸ごと温存するため以後の parser 改善が永久に届かない）＝規則に `(?:あなたの)?` を含めて解消。
+  - **検証**＝全ゲート緑（golden **508**・smoke 10722・fuzz 0・**census 1895**・同型★0・lint 0 errors）。
+
 - **セッション（2026-07-19・続き217・Opus・タスク12(xli)＝計器（原文ブロック対応表）の採番ズレを是正し、露出した `BANISH_REDIRECT` の系統バグ10効果を消化。golden 499→503・census 1919維持）**
   - **着手して最初に判明したのは、(xli) の11効果のうち7件が実バグではなく計器ノイズだったこと**＝`docs/_effect_srctext.json`（effectId→原文ブロック）の採番が curated JSON とズレ、census が**カード全文**でその効果を判定していた（fallback 65効果）。**計器を先に直してから実バグを判定する**のが正しい順序だった。
   - **計器修正（`buildEffectsJson.ts`）**＝BURST を別扱いにし「curated 順 × parser 解析順」の件数が一致するカードだけ**位置で対応付ける**パスを追加。誤対応防止に**マーカー（【常】【自】【起】【出】＋絆）と effectType/kizunaIcon の整合を全ペア検査**し、1つでも矛盾したらそのカードは位置合わせしない。**⚠成立したカードでは「位置」が正＝ID 完全一致も上書きする**（`WXK01-028`＝curated `E1,E2,E2b,E3` ↔ parser `E1,E2,E3,E4` で curated `-E3` の実体は parser `-E4`。ID 一致を優先すると直したいカードで誤対応が残る）。**fallback 65→32**・全36件を `docs/_srctext_align.txt` で目視確認。残32は curated が parser より効果数の多いカード（`-DECORE` 等）で原理的に対応付け不能。
