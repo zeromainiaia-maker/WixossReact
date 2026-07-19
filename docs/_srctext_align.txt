@@ -1,0 +1,68 @@
+# effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
+
+解決 33 / 棄却カード 0 / 未解決 32
+
+ALIGN WD01-016: WD01-016-MULTIENA ← WD01-016-E2「【常】：【マルチエナ】」
+ALIGN WD01-017: WD01-017-MULTIENA ← WD01-017-E2「【常】：【マルチエナ】」
+ALIGN WD04-016: WD04-016-MULTIENA ← WD04-016-E2「【常】：【マルチエナ】」
+ALIGN WD04-017: WD04-017-MULTIENA ← WD04-017-E2「【常】：【マルチエナ】」
+ALIGN WDK06-R09: WDK06-R09-E2b ← WDK06-R09-E3「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：シグニ１体を対象とし」
+ALIGN WX01-051: WX01-051-MULTIENA ← WX01-051-E2「【常】：【マルチエナ】」
+ALIGN WX01-100: WX01-100-MULTIENA ← WX01-100-E2「【常】：【マルチエナ】」
+ALIGN WX02-077: WX02-077-MULTIENA ← WX02-077-E2「【常】：【マルチエナ】」
+ALIGN WX02-078: WX02-078-MULTIENA ← WX02-078-E2「【常】：【マルチエナ】」
+ALIGN WX10-097: WX10-097-MULTIENA ← WX10-097-E2「【常】：【マルチエナ】」
+ALIGN WX10-098: WX10-098-MULTIENA ← WX10-098-E2「【常】：【マルチエナ】」
+ALIGN WX10-099: WX10-099-MULTIENA ← WX10-099-E2「【常】：【マルチエナ】」
+ALIGN WX10-100: WX10-100-MULTIENA ← WX10-100-E2「【常】：【マルチエナ】」
+ALIGN WX24-P2-049: WX24-P2-049-E1b ← WX24-P2-049-E2「【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、あなたの白のシ」
+ALIGN WX24-P4-058: WX24-P4-058-E1b ← WX24-P4-058-E2「【自】《ターン１回》：あなたのシグニがバトルによってシグニ１体をバニッシュしたと」
+ALIGN WX25-CP1-040: WX25-CP1-040-E1b ← WX25-CP1-040-E2「【起】《ターン１回》エナゾーンから＜ブルアカ＞のカードを３枚までトラッシュに置く」
+ALIGN WX25-CP1-061: WX25-CP1-061-E3 ← WX25-CP1-061-E2「【絆常】：このシグニのパワーは＋4000される。」
+ALIGN WX25-P1-054: WX25-P1-054-E1b ← WX25-P1-054-E2「【クロス自】《ターン１回》：このシグニが《ヘブン》したとき、あなたの場に《合炎奇」
+ALIGN WXDi-CP02-056: WXDi-CP02-056-E4 ← WXDi-CP02-056-E3「【絆起】アップ状態のルリグ２体をダウンする：カードを１枚引く。」
+ALIGN WXDi-CP02-072: WXDi-CP02-072-E3 ← WXDi-CP02-072-E2「【絆常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合、エ」
+ALIGN WXDi-D01-020: WXDi-D01-020-MULTIENA ← WXDi-D01-020-E2「【常】：【マルチエナ】」
+ALIGN WXDi-D03-020: WXDi-D03-020-MULTIENA ← WXDi-D03-020-E2「【常】：【マルチエナ】」
+ALIGN WXDi-P03-016: WXDi-P03-016-E1b ← WXDi-P03-016-E2「【出】：ターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋500」
+ALIGN WXDi-P06-010: WXDi-P06-010-E1b ← WXDi-P06-010-E2「【出】：【エナチャージ２】。」
+ALIGN WXDi-P06-010: WXDi-P06-010-E1c ← WXDi-P06-010-E3「【起】《ゲーム１回》《緑×0》：対戦相手のパワー12000以上のシグニ１体を対象」
+ALIGN WXDi-P13-050: WXDi-P13-050-E1b ← WXDi-P13-050-E2「【出】：あなたの場に《コード・ピルルク・極》がいる場合、あなたのデッキの上からカ」
+ALIGN WXK01-028: WXK01-028-E2b ← WXK01-028-E3「【出】《緑》《無》：あなたのデッキの一番上のカードをライフクロスに加える。」
+ALIGN WXK01-074: WXK01-074-E1b ← WXK01-074-E2「【自】：このシグニがドライブ状態になったとき、あなたのシグニ１体を対象とし、ター」
+ALIGN WXK01-119: WXK01-119-MULTIENA ← WXK01-119-E2「【常】：【マルチエナ】」
+ALIGN WXK01-120: WXK01-120-MULTIENA ← WXK01-120-E2「【常】：【マルチエナ】」
+ALIGN WXK01-121: WXK01-121-MULTIENA ← WXK01-121-E2「【常】：【マルチエナ】」
+ALIGN WXK01-122: WXK01-122-MULTIENA ← WXK01-122-E2「【常】：【マルチエナ】」
+ALIGN WXK04-015: WXK04-015-E1b ← WXK04-015-E2「【起】このキーを場からルリグトラッシュに置く：あなたの赤のシグニ１体を対象とし、」
+SKIP(件数不一致) PR-426: curated 3 vs parser 2
+SKIP(件数不一致) WD04-009: curated 2 vs parser 1
+SKIP(件数不一致) WDK07-E01: curated 3 vs parser 2
+SKIP(件数不一致) WDK07-E02: curated 2 vs parser 1
+SKIP(件数不一致) WDK07-E03: curated 2 vs parser 1
+SKIP(件数不一致) WDK07-E04: curated 2 vs parser 1
+SKIP(件数不一致) WX05-021: curated 4 vs parser 3
+SKIP(件数不一致) WX14-060: curated 2 vs parser 1
+SKIP(件数不一致) WX14-061: curated 2 vs parser 1
+SKIP(件数不一致) WX16-062: curated 1 vs parser 0
+SKIP(件数不一致) WX16-064: curated 1 vs parser 0
+SKIP(件数不一致) WX17-028: curated 2 vs parser 1
+SKIP(件数不一致) WX20-038: curated 4 vs parser 3
+SKIP(件数不一致) WX20-072: curated 4 vs parser 3
+SKIP(件数不一致) WX25-P2-009: curated 2 vs parser 1
+SKIP(件数不一致) WX25-P2-118: curated 3 vs parser 2
+SKIP(件数不一致) WXDi-CP02-103: curated 2 vs parser 1
+SKIP(件数不一致) WXDi-P07-060: curated 3 vs parser 2
+SKIP(件数不一致) WXDi-P09-048: curated 3 vs parser 2
+SKIP(件数不一致) WXDi-P15-003: curated 2 vs parser 1
+SKIP(件数不一致) WXDi-P15-057: curated 3 vs parser 2
+SKIP(件数不一致) WXDi-P16-054: curated 3 vs parser 2
+SKIP(件数不一致) WXEX2-69: curated 4 vs parser 3
+SKIP(件数不一致) WXK01-008: curated 1 vs parser 0
+SKIP(件数不一致) WXK01-009: curated 1 vs parser 0
+SKIP(件数不一致) WXK04-016: curated 1 vs parser 0
+SKIP(件数不一致) WXK04-017: curated 1 vs parser 0
+SKIP(件数不一致) WXK04-018: curated 2 vs parser 1
+SKIP(件数不一致) WXK04-072: curated 3 vs parser 2
+SKIP(件数不一致) WXK05-014: curated 3 vs parser 2
+SKIP(件数不一致) WXK10-039: curated 2 vs parser 1

@@ -264,12 +264,15 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
       alignReport.push(`REJECT(マーカー不整合) ${cardNum}: ${bad.join(' / ')}`);
       continue;
     }
+    // ⚠位置合わせが成立したカードは「位置」が正＝既存の ID 完全一致も上書きする。
+    //   curated が途中に効果を挿した場合、以降の同名 ID は別ブロックを指しているため
+    //   （例 WXK01-028: curated E1,E2,E2b,E3 ↔ parser E1,E2,E3,E4＝curated E3 の実体は parser E4）。
     for (let i = 0; i < curatedNb.length; i++) {
-      if (src[curatedNb[i]] === undefined) {
-        src[curatedNb[i]] = freshNb[i][1];
-        aligned++;
-        alignReport.push(`ALIGN ${cardNum}: ${curatedNb[i]} ← ${freshNb[i][0]}「${freshNb[i][1].slice(0, 40)}」`);
-      }
+      const prev = src[curatedNb[i]];
+      if (prev === freshNb[i][1]) continue;
+      src[curatedNb[i]] = freshNb[i][1];
+      aligned++;
+      alignReport.push(`${prev === undefined ? 'ALIGN ' : 'REMAP '}${cardNum}: ${curatedNb[i]} ← ${freshNb[i][0]}「${freshNb[i][1].slice(0, 40)}」`);
     }
   }
   console.log(`原文ブロック位置合わせ: 解決 ${aligned}効果 / マーカー不整合で棄却 ${rejected}カード / 未解決 ${unresolved}効果`);
