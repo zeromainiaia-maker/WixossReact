@@ -766,6 +766,8 @@ export function collectLeaveFieldTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
+      // duringAttackPhase（「アタックフェイズの間、あなたの＜X＞のシグニが場を離れたとき」WX24-P2-052/WX21-004/WXEX2-51）。
+      if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
       if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
       // turnOwner（「あなた/対戦相手のターンの間」）: watcher 視点のターンで絞る（WX19-003/WX25-P1-034 等）
       const to = eff.triggerCondition?.turnOwner;
