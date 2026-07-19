@@ -63,52 +63,6 @@ WX24-P3-091 WX24-P4-025 WX26-CP1-098 WXDi-D07-019 WXDi-P05-043 WXDi-P07-087 WXDi
   - [0].action.then.choices[1].action.target.type = "DECK_CARD"
   …（他 6 行）
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［10枚］
-WDK09-008 WDK10-007 WDK12-008 WX24-P4-082 WX25-CP1-041 WX25-CP1-045 WXDi-P02-071 WXDi-P03-058 WXDi-P05-064 WXDi-P12-002
---- WDK09-008
-  原文: カードを２枚引く。対戦相手の場にキーがある場合、対戦相手は手札を２枚捨てる。,-
-  - [0].action.steps[1].target.type = "HAND_CARD"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 2
-  ~ [0].action.steps[1].type : "TRASH" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  + [0].action.steps[1].then.type = "TRASH"
-  + [0].action.steps[1].then.target.type = "HAND_CARD"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = 2
---- WDK10-007
-  原文: ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。対戦相手の場にキーがある場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。,-
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.story = "龍獣"
-  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  + [0].action.steps[1].then.type = "ADD_TO_FIELD"
-  …（他 7 行）
---- WDK12-008
-  原文: 対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。対戦相手の場にキーがある場合、追加でカードを１枚引き【エナチャージ１】をする。,-
-  - [0].action.steps[1].steps[0].type = "DRAW"
-  - [0].action.steps[1].steps[0].owner = "self"
-  - [0].action.steps[1].steps[0].count = 1
-  - [0].action.steps[1].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  - [0].action.steps[1].steps[1].owner = "self"
-  - [0].action.steps[1].steps[1].count = 1
-  ~ [0].action.steps[1].type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  + [0].action.steps[1].then.type = "SEQUENCE"
-  + [0].action.steps[1].then.steps[0].type = "DRAW"
-  …（他 5 行）
-
 ## -CONDITIONAL -HAS_CARD_IN_FIELD ［10枚］
 SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-P1-058 WX25-P3-069 WXDi-P13-048 WXDi-P14-078 WXK10-036
 --- SPDi43-08
@@ -194,6 +148,52 @@ WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
   ~ [0].action.steps[0].type : "CONDITIONAL" → "STUB"
   + [0].action.steps[0].id = "OPTIONAL_COST"
   + [0].action.steps[0].costColors[0] = "黒"
+
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［6枚］
+WDK09-008 WDK10-007 WDK12-008 WX24-P4-082 WXDi-P02-071 WXDi-P12-002
+--- WDK09-008
+  原文: カードを２枚引く。対戦相手の場にキーがある場合、対戦相手は手札を２枚捨てる。,-
+  - [0].action.steps[1].target.type = "HAND_CARD"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 2
+  ~ [0].action.steps[1].type : "TRASH" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "TRASH"
+  + [0].action.steps[1].then.target.type = "HAND_CARD"
+  + [0].action.steps[1].then.target.owner = "opponent"
+  + [0].action.steps[1].then.target.count = 2
+--- WDK10-007
+  原文: ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。対戦相手の場にキーがある場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。,-
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].source.type = "TRASH_CARD"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].source.upToCount = false
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].source.filter.story = "龍獣"
+  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "ADD_TO_FIELD"
+  …（他 7 行）
+--- WDK12-008
+  原文: 対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。対戦相手の場にキーがある場合、追加でカードを１枚引き【エナチャージ１】をする。,-
+  - [0].action.steps[1].steps[0].type = "DRAW"
+  - [0].action.steps[1].steps[0].owner = "self"
+  - [0].action.steps[1].steps[0].count = 1
+  - [0].action.steps[1].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
+  - [0].action.steps[1].steps[1].owner = "self"
+  - [0].action.steps[1].steps[1].count = 1
+  ~ [0].action.steps[1].type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "opponent"
+  + [0].action.steps[1].condition.filter.cardType = "キー"
+  + [0].action.steps[1].then.type = "SEQUENCE"
+  + [0].action.steps[1].then.steps[0].type = "DRAW"
+  …（他 5 行）
 
 ## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［6枚］
 WXDi-P03-002 WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
@@ -852,24 +852,6 @@ WXDi-P04-016
   原文: 【自】：【ソウル】が付いているあなたのシグニ１体がアタックしたとき、対戦相手のデッキの上からカードを２枚トラッシュに置く。【起】《黒×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》エクシード３：対戦相手のシグニを２体まで対象とし、あなたのルリグデッキにあるピース１枚をゲームから除外する。そうした
   ~ [2].action.steps[0].target.type : "DECK_CARD" → "TRASH_CARD"
   ~ [2].action.steps[0].target.count : 2 → 1
-
-## +AND +CONDITIONAL +ENERGY_COUNT +HAS_CARD_IN_FIELD ［1枚］
-WXDi-P05-056
---- WXDi-P05-056
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に赤のシグニが３種類以上あり対戦相手のエナゾーンにカードが２枚以上ある場合、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く。,-
-  - [0].action.target.type = "ENERGY_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  ~ [0].action.type : "TRASH" → "CONDITIONAL"
-  + [0].action.condition.type = "AND"
-  + [0].action.condition.conditions[0].type = "HAS_CARD_IN_FIELD"
-  + [0].action.condition.conditions[0].owner = "self"
-  + [0].action.condition.conditions[0].filter.cardType = "シグニ"
-  + [0].action.condition.conditions[0].filter.color = "赤"
-  + [0].action.condition.conditions[0].minCount = 3
-  + [0].action.condition.conditions[0].distinctNames = true
-  + [0].action.condition.conditions[0].distinctPhraseJa = "kinds"
-  …（他 8 行）
 
 ## +ADD_TO_FIELD +CHOOSE +DECK_CARD×2 +POWER_MODIFY +SEQUENCE +TRANSFER_TO_HAND +TRASH_CARD×2 +TRASH×2 -GRANT_KEYWORD ［1枚］
 WXDi-P06-003
