@@ -2755,6 +2755,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...mvG.entries); useGuest(mvG.usedOncePerTurnIds);
     }
 
+    // ON_HAND_ADDED: 効果によってカードが手札に移動した場合（続き207・WX25-P2-063/WXDi-P11-007/WX14-029/WD12-009）
+    const handAddedHost = detectHandAdded(beforeHost, h);
+    const handAddedGuest = detectHandAdded(beforeGuest, g);
+    if (handAddedHost.length > 0 || handAddedGuest.length > 0) {
+      const ha = pureCollectHandAddedTriggers(mkTrigCtx(), [
+        { ownerId: bs.host_id, moved: handAddedHost },
+        { ownerId: bs.guest_id, moved: handAddedGuest },
+      ], causeOwnerId, h, g);
+      entries.push(...ha.entries); useHost(ha.usedHostIds); useGuest(ha.usedGuestIds);
+    }
+    // ON_ENERGY_TO_FIELD: エナゾーンからシグニが場に出た場合（続き207・WXDi-P11-007-E1「か場に出たとき」枝。
+    // 手札枝と同一効果の usageLimit を共有するため ON_HAND_ADDED の usedIds 反映（useHost/useGuest）後に呼ぶ）
+    const evfHost = detectPlacedFromEnergy(beforeHost, h);
+    const evfGuest = detectPlacedFromEnergy(beforeGuest, g);
+    if (evfHost.length > 0 || evfGuest.length > 0) {
+      const ev = pureCollectEnergyToFieldTriggers(mkTrigCtx(), [
+        { ownerId: bs.host_id, nums: evfHost },
+        { ownerId: bs.guest_id, nums: evfGuest },
+      ], h, g);
+      entries.push(...ev.entries); useHost(ev.usedHostIds); useGuest(ev.usedGuestIds);
+    }
+
     // ON_SIGNI_FROZEN: 新たに凍結状態になったシグニ
     { const fz = collectFreezeInline(h, g); entries.push(...fz.entries); h = fz.hostState; g = fz.guestState; }
 
