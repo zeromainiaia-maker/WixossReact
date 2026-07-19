@@ -1636,6 +1636,7 @@ export function collectSelfEventTriggers(
     if (myAbilitiesRemovedSelf.has(topNum)) continue;
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
       // トラッシュからの自己復活（ADD_TO_FIELD source:TRASH_CARD で自身を出す）はトラッシュ専用＝場走査では除外。
       {
         const fAct = eff.action as AddToFieldAction;
@@ -1664,6 +1665,7 @@ export function collectSelfEventTriggers(
   for (const srcNum of nonSigniSources) {
     for (const eff of ctx.effectsMap.get(srcNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
       if (!limitOk(eff)) continue;
       const cardName = ctx.cardMap.get(srcNum)?.CardName ?? srcNum;
       entries.push({
@@ -1687,6 +1689,74 @@ export function collectSelfEventTriggers(
         });
       }
     }
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
+ * 《トラップアイコン》が実際に発動し、そのアイコン効果の解決が完了したときの watcher を収集する。
+ * 場のシグニ/ルリグに加え、「このカード/シグニをトラッシュから戻す」効果だけはトラッシュ自身から発火する。
+ */
+export function collectTrapActivateTriggers(
+  ctx: TrigCtx,
+  ownerId: string,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const used = ownerId === ctx.hostId ? usedHostIds : usedGuestIds;
+  const limitOk = mkLimitOk(ownerState.actions_done, used);
+  const containsSelfTrashSource = (action: CardEffect['action']): boolean => {
+    const a = action as unknown as Record<string, unknown>;
+    if ((a.source as { type?: string; owner?: string } | undefined)?.type === 'TRASH_CARD'
+        && (a.source as { owner?: string }).owner === 'self') return true;
+    if (Array.isArray(a.steps)) return (a.steps as CardEffect['action'][]).some(containsSelfTrashSource);
+    if (a.then && typeof a.then === 'object') return containsSelfTrashSource(a.then as CardEffect['action']);
+    return false;
+  };
+  const sources = [
+    ...ownFieldSources(ownerState),
+    ...ownerState.trash.filter(n => effsOf(ctx, n).some(e => e.timing?.includes('ON_TRAP_ACTIVATE') && containsSelfTrashSource(e.action))),
+  ];
+  for (const sourceNum of sources) {
+    for (const eff of effsOf(ctx, sourceNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRAP_ACTIVATE')) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, ownerState, otherState, ctx.cardMap, sourceNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(sourceNum))?.CardName ?? sourceNum;
+      entries.push({
+        id: ctx.genId(), playerId: ownerId, cardNum: sourceNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（トラップアイコン発動時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/** 攻撃側ルリグの「このルリグのアタックが【ガード】されたとき」を収集する。 */
+export function collectLrigAttackGuardedTriggers(
+  ctx: TrigCtx,
+  attackerId: string,
+  attackerState: PlayerState,
+  defenderState: PlayerState,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  const limitOk = mkLimitOk(attackerState.actions_done, usedOncePerTurnIds);
+  const lrigNum = attackerState.field.lrig.at(-1);
+  if (!lrigNum) return { entries, usedOncePerTurnIds };
+  for (const eff of effsOf(ctx, lrigNum)) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_GUARD') || !eff.triggerCondition?.lrigAttackGuarded) continue;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, attackerId === ctx.activeUserId, ctx.cardMap, lrigNum)) continue;
+    if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, lrigNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!limitOk(eff)) continue;
+    const cardName = ctx.cardMap.get(getCardNum(lrigNum))?.CardName ?? lrigNum;
+    entries.push({
+      id: ctx.genId(), playerId: attackerId, cardNum: lrigNum, effectId: eff.effectId,
+      label: `${cardName} の【自】効果（ルリグアタックがガードされたとき）`, effect: eff,
+    });
   }
   return { entries, usedOncePerTurnIds };
 }
@@ -2190,7 +2260,7 @@ export function collectBloomTriggers(
  */
 export function collectTurnTriggers(
   ctx: TrigCtx,
-  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   myState: PlayerState,
   opState: PlayerState,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
@@ -2206,6 +2276,7 @@ export function collectTurnTriggers(
   const limitOkOp = mkLimitOk(opState.actions_done, meIsHost ? usedGuestIds : usedHostIds); // 相手側 entries 用
   const labelSuffix = timing === 'ON_TURN_START' ? 'ターン開始時'
     : timing === 'ON_TURN_END' ? 'ターン終了時'
+    : timing === 'ON_GROW_PHASE_START' ? 'グロウフェイズ開始時'
     : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
     : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
 

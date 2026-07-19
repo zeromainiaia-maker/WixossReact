@@ -3836,8 +3836,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   trashSourceStory/turnOwner）。cond は下で抽出。⚠「能力のコストとして」は上の ON_DISCARDED_AS_COST が
              //   先に拾う。コスト捨て・ガードによる捨ては中央diffを通らない既知の近似（効果起因の捨てのみ検出）。
              : (/このカードが(?:コストか効果によって)?捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText)) ? ['ON_TRASH']
+             // 「あなたの《トラップアイコン》が発動したとき」＝実際のトラップ発動完了地点から収集。
+             : /あなたの《トラップアイコン》が発動したとき/.test(trigText) ? ['ON_TRAP_ACTIVATE']
              // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
              : /あなたが【ガード】したとき/.test(trigText) ? ['ON_GUARD']
+             // 攻撃側変種。「あなたがガードした」とは watcher 側が逆なので triggerCondition で弁別する。
+             : /このルリグのアタックが【ガード】されたとき/.test(trigText) ? ['ON_GUARD']
              // 「（あなたか）対戦相手がアーツを使用したとき」（4件）。engine 配線済み（collectOppArtsUseTriggers＝相手の
              // アーツ使用に自分の場が反応）。既存の「対戦相手のアーツの効果を受けたとき」と同じ受け皿。
              // ⚠「**あなたか**対戦相手が」（WX16-003）は**どちらの使用でも**発火する＝ON_ARTS_USE（使用者側・
@@ -3892,6 +3896,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   any_ally＋byOpponentEffect（原因効果のオーナーが相手のときのみ発火）。
              : /シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              : trigText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
+             : trigText.includes('グロウフェイズ開始時') ? ['ON_GROW_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
              // 無いため ON_PLAY（＝「場に出たとき」）へ誤フォールバックしていた＝召喚しただけで発火する幻覚。
@@ -3922,6 +3927,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_MAIN_PHASE_START も同じく主語で scope を決める（「対戦相手のメインフェイズ開始時」＝any_opp・1件）。
       if (timing[0] === 'ON_MAIN_PHASE_START') {
         if (/対戦相手のメインフェイズ開始時/.test(actionText)) extractedTriggerScope = 'any_opp';
+      }
+      // ON_GUARD の攻撃側ルリグ変種。既存の「あなたが【ガード】したとき」と同じ timing を使い、
+      // collector が防御側 watcher と攻撃側ルリグ watcher を分ける。
+      if (timing[0] === 'ON_GUARD' && /このルリグのアタックが【ガード】されたとき/.test(trigText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), lrigAttackGuarded: true };
       }
       // ON_SIGNI_BECOMES_DRIVE / ON_BECOME_BEAT: 主語で scope を決める。
       //   「このシグニ/このカードが…」＝self（既定）／「あなたの[他の]シグニ・カードが…」＝any_ally（「他の」は excludeSelf）。

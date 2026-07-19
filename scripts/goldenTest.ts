@@ -25,6 +25,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { advancePreventDamageWindows } from '../src/screens/battle/battleUtils';
@@ -1141,7 +1142,7 @@ const trigCtx = (activeUserId: string | null, meId?: string): TrigCtx => ({
 // 既存テストは entries だけ見るのでこのヘルパーで .entries を取り出す。
 const cttEntries = (
   ctx: TrigCtx,
-  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   my: PlayerState, op: PlayerState,
 ) => collectTurnTriggers(ctx, timing, my, op).entries;
 // 続き135（Opusタスク12(x)/(vi-5)）で collectFieldTriggers/collectBloomTriggers/collectBanishTriggers/
@@ -1152,6 +1153,80 @@ const cblEntries = (...a: Parameters<typeof collectBloomTriggers>) => collectBlo
 const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBanishTriggers(...a).entries;
 const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
 const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
+
+test('timing census C: 指定9効果の parser timing とガード変種条件', () => {
+  const expected: Array<[string, string, string]> = [
+    ['WX16-028', 'WX16-028-E3', 'ON_TRAP_ACTIVATE'], ['WX16-040', 'WX16-040-E1', 'ON_TRAP_ACTIVATE'],
+    ['WXEX2-66', 'WXEX2-66-E2', 'ON_TRAP_ACTIVATE'], ['WD23-008-A', 'WD23-008-A-E1', 'ON_TRAP_ACTIVATE'],
+    ['WD23-032-A', 'WD23-032-A-E1', 'ON_TRAP_ACTIVATE'], ['WXK04-004', 'WXK04-004-E1', 'ON_GUARD'],
+    ['SPDi43-27', 'SPDi43-27-E1', 'ON_GUARD'], ['WX12-011', 'WX12-011-E1', 'ON_GROW_PHASE_START'],
+    ['WXDi-P11-010A', 'WXDi-P11-010A-E1', 'ON_GROW_PHASE_START'],
+  ];
+  for (const [cardNum, effectId, timing] of expected) {
+    const eff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    ok(!!eff?.timing?.includes(timing as never), `${effectId}: ${timing}`);
+    if (timing === 'ON_GUARD') ok(eff?.triggerCondition?.lrigAttackGuarded === true, `${effectId}: 攻撃側変種`);
+  }
+});
+
+test('C1 ON_TRAP_ACTIVATE: 発動イベント時だけ場/トラッシュ watcher を収集し usageLimit を消費', () => {
+  const localEffects = new Map(effectsMap);
+  for (const n of ['WX16-028', 'WX16-040', 'WXEX2-66', 'WD23-008-A', 'WD23-032-A']) {
+    localEffects.set(n, parseCardEffects(cardMap.get(n)!));
+  }
+  const host = mkState({ signi: ['WXEX2-66', 'WD23-032-A', null] });
+  host.field.lrig = ['WD23-008-A'];
+  host.trash = ['WX16-028', 'WX16-040'];
+  const guest = mkState({});
+  const r = collectTrapActivateTriggers({ ...trigCtx(HOST, HOST), effectsMap: localEffects }, HOST, host, guest);
+  for (const id of ['WX16-028-E3', 'WX16-040-E1', 'WXEX2-66-E2', 'WD23-008-A-E1', 'WD23-032-A-E1']) {
+    ok(r.entries.some(e => e.effectId === id), `${id}: 発動時に収集`);
+  }
+  ok(r.usedHostIds.includes('WXEX2-66-E2') && r.usedHostIds.includes('WD23-032-A-E1'), 'turn1消費を返す');
+  const hostUsed = { ...host, actions_done: r.usedHostIds };
+  const r2 = collectTrapActivateTriggers({ ...trigCtx(HOST, HOST), effectsMap: localEffects }, HOST, hostUsed, guest);
+  ok(!r2.entries.some(e => e.effectId === 'WXEX2-66-E2'), '同一ターン2回目は非発火');
+});
+
+test('executor trap event marker: 実発動はtrue、トラップを手札へ戻すだけなら立たない', () => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.signi_traps = ['WD23-032-A', null, null];
+  const activated = run({ type: 'STUB', id: 'ACTIVATE_TRAP' } as EffectAction, ctx);
+  eq(activated.trapActivated, true, '実発動marker');
+  const ctxSeq = mkCtx({}, {});
+  ctxSeq.ownerState.field.signi_traps = ['WD23-032-A', null, null];
+  const activatedInSequence = run({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'ACTIVATE_TRAP' }, { type: 'DRAW', owner: 'self', count: 1 },
+  ] } as EffectAction, ctxSeq);
+  eq(activatedInSequence.trapActivated, true, '後続stepを跨いでもmarker保持');
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.field.signi_traps = ['WD23-032-A', null, null];
+  const notActivated = run({ type: 'STUB', id: 'TRAP_TO_HAND' } as EffectAction, ctx2);
+  eq(notActivated.trapActivated, undefined, '非発動ターン/操作ではmarkerなし');
+});
+
+test('C1 ON_GUARD: 防御側ガードと攻撃側ルリグ被ガードを弁別', () => {
+  const localEffects = new Map(effectsMap);
+  localEffects.set('WXK04-004', parseCardEffects(cardMap.get('WXK04-004')!));
+  const attacker = mkState({}); attacker.field.lrig = ['WXK04-004'];
+  const defender = mkState({});
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: localEffects };
+  const atk = collectLrigAttackGuardedTriggers(ctx, HOST, attacker, defender);
+  ok(atk.entries.some(e => e.effectId === 'WXK04-004-E1'), '攻撃側ルリグは発火');
+  eq(collectSelfEventTriggers(ctx, 'ON_GUARD', attacker, defender, 'ガード時', HOST).entries.length, 0, '防御側collectorへ混入しない');
+  const noGuardEvent = collectLrigAttackGuardedTriggers({ ...ctx, effectsMap: new Map() }, HOST, attacker, defender);
+  eq(noGuardEvent.entries.length, 0, '該当イベント/能力なしは非発火');
+});
+
+test('C1 ON_GROW_PHASE_START: ENERGY→GROW相当だけで自ルリグを収集', () => {
+  const localEffects = new Map(effectsMap);
+  localEffects.set('WX12-011', parseCardEffects(cardMap.get('WX12-011')!));
+  const host = mkState({}); host.field.lrig = ['WX12-011'];
+  const guest = mkState({});
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: localEffects };
+  ok(cttEntries(ctx, 'ON_GROW_PHASE_START', host, guest).some(e => e.effectId === 'WX12-011-E1'), 'グロウフェイズ開始で発火');
+  ok(!cttEntries(ctx, 'ON_MAIN_PHASE_START', host, guest).some(e => e.effectId === 'WX12-011-E1'), 'メインフェイズ開始では非発火');
+});
 
 test('C1 ON_TARGETED: self-scope 対象シグニ自身が発火（相手ターン）', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });

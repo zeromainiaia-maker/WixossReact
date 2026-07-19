@@ -11,6 +11,7 @@ import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, re
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectEnergyAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
@@ -2294,7 +2295,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // （呼び出し元が actions_done へ書き戻す＝他コレクターと同型。続き119でusageLimit配線）。
   // ⚠myState はターンプレイヤー（=user.id=meId）、opState は非ターンプレイヤーである前提（doPhaseAdvance）。
   const collectTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
   ): { entries: StackEntry[]; usedMyIds: string[]; usedOpIds: string[] } => {
@@ -3343,6 +3344,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update[opKeyT] = { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] };
           }
         };
+        // ON_GROW_PHASE_START: ENERGY→GROW移行時（グロウフェイズ開始時）トリガー。
+        if (phase === 'ENERGY') {
+          const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op);
+          foldTurnUsed(gpsRes);
+          if (gpsRes.entries.length > 0) {
+            const baseStackGPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
+            update.effect_stack = baseStackGPS
+              ? pushToStack(baseStackGPS, gpsRes.entries)
+              : initStack(bs.active_user_id ?? user.id, gpsRes.entries);
+          }
+        }
         // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
         if (phase === 'MAIN') {
           const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
@@ -3968,6 +3980,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           interaction: result.pending,
           ...(entry.triggeringCardNum ? { triggeringCardNum: entry.triggeringCardNum } : {}),
           ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
+          ...(result.trapActivated ? { trapActivated: true } : {}),
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
         update.effect_stack = newStack;
@@ -3990,6 +4003,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = baseStackBD
               ? pushToStack(baseStackBD, bd.entries)
               : initStack(stack.turnPlayerId, bd.entries);
+          }
+        }
+
+        // 《トラップアイコン》発動は signi_traps の減少だけでは「破棄」と区別できないため、
+        // executor が発動枝で立てた明示イベントを、現在の効果解決完了後に収集する。
+        if (result.trapActivated) {
+          const ta = collectTrapActivateTriggers(entry.playerId, hostState, guestState);
+          if (ta.entries.length > 0) {
+            const baseStackTA = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackTA
+              ? pushToStack(baseStackTA, ta.entries)
+              : initStack(stack.turnPlayerId, ta.entries);
+          }
+          if (ta.usedHostIds.length > 0) {
+            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ta.usedHostIds] };
+          }
+          if (ta.usedGuestIds.length > 0) {
+            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
           }
         }
 
@@ -4224,7 +4257,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       const inter = pe.interaction;
 
       let result: ExecResult;
@@ -4348,6 +4381,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.effect_stack = null;
           }
         }
+
+        if (result.trapActivated) {
+          const ta = collectTrapActivateTriggers(pe.sourcePlayerId, hostState, guestState);
+          if (ta.entries.length > 0) {
+            const turnPlayerId = bs.active_user_id ?? user.id;
+            const baseStackTA = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
+            update.effect_stack = baseStackTA
+              ? pushToStack(baseStackTA, ta.entries)
+              : initStack(turnPlayerId, ta.entries);
+          }
+          if (ta.usedHostIds.length > 0) {
+            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ta.usedHostIds] };
+          }
+          if (ta.usedGuestIds.length > 0) {
+            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
+          }
+        }
       }
 
       // ON_TARGETED トリガーを（done/not-done どちらの分岐で確定したスタックにも）後乗せで積む。
@@ -4396,7 +4448,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap3 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       let result = resumeSelectZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
@@ -4438,7 +4490,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap5 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
@@ -4549,7 +4601,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // skip（null）= 現状の配置をそのまま渡す（恒等変換。continuation はそのまま実行される）
       const arrangement = newArrangement ?? [0, 1, 2].map(zi => targetState.field.signi[zi]?.at(-1) ?? '');
@@ -4593,7 +4645,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap4 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
@@ -4662,6 +4714,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     ownerId: string = user.id, // myState の持ち主（CPU効果収集時はCPU_PLAYER_ID）
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
     pureCollectSelfEventTriggers(mkTrigCtx(), timing, myState, opState, labelSuffix, ownerId);
+
+  const collectTrapActivateTriggers = (
+    ownerId: string,
+    hostState: PlayerState,
+    guestState: PlayerState,
+  ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } => {
+    const ownerState = ownerId === bs.host_id ? hostState : guestState;
+    const otherState = ownerId === bs.host_id ? guestState : hostState;
+    return pureCollectTrapActivateTriggers(mkTrigCtx(), ownerId, ownerState, otherState);
+  };
+
+  const collectLrigAttackGuardedTriggers = (
+    attackerId: string,
+    attackerState: PlayerState,
+    defenderState: PlayerState,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
+    pureCollectLrigAttackGuardedTriggers(mkTrigCtx(), attackerId, attackerState, defenderState);
 
   /**
    * シグニが効果によって他のシグニゾーンに移動したとき（ON_ZONE_MOVED）のトリガーを収集する。
@@ -8200,6 +8269,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ENERGYフェイズ：手札の先頭1枚をエナチャージ ───
     if (phase === 'ENERGY') {
+      let cpuAtGrowStart = cpuSt;
       const used    = cpuSt.actions_done?.includes('ENERGY') ?? false;
       const blocked = cpuSt.blocked_actions?.includes('ENERGY') ?? false;
       if (!used && !blocked && cpuSt.hand.length > 0) {
@@ -8212,11 +8282,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy: [...cpuSt.energy, charged],
           actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
         };
+        cpuAtGrowStart = newCpuSt;
         await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
         // 少し待ってGROWへ進む
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
-      await supabase.from('battle_states').update({ turn_phase: 'GROW' }).eq('room_id', roomId);
+      // CPU側も人間側の ENERGY→GROW と同じ pure collector を使用する。
+      const gpsCpu = pureCollectTurnTriggers({ ...mkTrigCtx(), meId: CPU_PLAYER_ID }, 'ON_GROW_PHASE_START', cpuAtGrowStart, huSt);
+      const cpuAfterGps: PlayerState = gpsCpu.usedGuestIds.length > 0
+        ? { ...cpuAtGrowStart, actions_done: [...(cpuAtGrowStart.actions_done ?? []), ...gpsCpu.usedGuestIds] }
+        : cpuAtGrowStart;
+      const humanAfterGps: PlayerState | undefined = gpsCpu.usedHostIds.length > 0
+        ? { ...huSt, actions_done: [...(huSt.actions_done ?? []), ...gpsCpu.usedHostIds] }
+        : undefined;
+      const gpsStack = gpsCpu.entries.length > 0
+        ? (bs.effect_stack ? pushToStack(bs.effect_stack, gpsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, gpsCpu.entries))
+        : undefined;
+      await supabase.from('battle_states').update({
+        turn_phase: 'GROW', guest_state: cpuAfterGps,
+        ...(humanAfterGps ? { host_state: humanAfterGps } : {}),
+        ...(gpsStack ? { effect_stack: gpsStack } : {}),
+      }).eq('room_id', roomId);
       return;
     }
 
@@ -8705,6 +8791,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_GUARD: 代替コストによるガードも【ガード】したときに含まれる
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+      const attackerId = isHost ? bs.guest_id : bs.host_id;
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
         energy: my.energy.filter(cn => cn !== trashTarget),
@@ -8713,7 +8802,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
       };
       appendBattleLogs([`ガード代替コスト：エナ＜${altCost.signiClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
-      const update: Record<string, unknown> = { [stateKey]: newMyState };
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newOpState = attackGuard.usedOncePerTurnIds.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : op;
+      const update: Record<string, unknown> = { [stateKey]: newMyState, [opKey]: newOpState };
       if (guardTriggers.length > 0) {
         const existingStack = bs.effect_stack ?? null;
         update.effect_stack = existingStack
@@ -8737,6 +8830,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_GUARD: 代替コストによるガードも【ガード】したときに含まれる
       const { entries: guardTriggers, usedOncePerTurnIds: guardUsedIds } =
         collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時');
+      const attackerId = isHost ? bs.guest_id : bs.host_id;
+      const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+      guardTriggers.push(...attackGuard.entries);
       const newMyState: PlayerState = {
         ...my,
         hand: my.hand.slice(0, -altN),
@@ -8745,7 +8841,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: guardUsedIds.length > 0 ? [...(my.actions_done ?? []), ...guardUsedIds] : my.actions_done,
       };
       appendBattleLogs([`ガード代替：手札${altN}枚を捨てる（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
-      const update: Record<string, unknown> = { [stateKey]: newMyState };
+      const opKey = isHost ? 'guest_state' : 'host_state';
+      const newOpState = attackGuard.usedOncePerTurnIds.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : op;
+      const update: Record<string, unknown> = { [stateKey]: newMyState, [opKey]: newOpState };
       if (guardTriggers.length > 0) {
         const existingStack = bs.effect_stack ?? null;
         update.effect_stack = existingStack
@@ -8770,6 +8870,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stateKey = p.responderKey;
       let newMyState: PlayerState;
       let guardTriggers: StackEntry[] = [];
+      let attackGuardUsedIds: string[] = [];
       if (handIndex !== null) {
         // ガードカードをトラッシュへ
         const cardNum = my.hand[handIndex];
@@ -8828,7 +8929,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_GUARD: 自フィールドシグニの「あなたが【ガード】したとき」トリガーを収集
         const { entries: guardEntries, usedOncePerTurnIds: guardUsedIds } =
           collectSelfEventTriggers('ON_GUARD', my, op, 'ガード時', responderId);
-        guardTriggers = guardEntries;
+        const attackGuard = collectLrigAttackGuardedTriggers(attackerId, op, my);
+        guardTriggers = [...guardEntries, ...attackGuard.entries];
+        attackGuardUsedIds = attackGuard.usedOncePerTurnIds;
         if (guardUsedIds.length > 0) {
           newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...guardUsedIds] };
         }
@@ -8918,6 +9021,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // バースト処理中でない場合は即座に再アタック、バースト中はcheck解消後に再表示
         newMyState = { ...newMyState, field: { ...newMyState.field, lrig_attacked: true } };
         appendBattleLogs([`ルリグアタック継続（残り${rem}回）`]);
+      }
+      if (attackGuardUsedIds.length > 0) {
+        newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...attackGuardUsedIds] };
       }
       const guardUpdate: Record<string, unknown> = { [stateKey]: newMyState, [oppStateKey]: newOpState };
       if (guardTriggers.length > 0) {

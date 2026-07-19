@@ -68,6 +68,7 @@ export type EffectTiming =
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
   | 'ON_GUARD'                  // あなたが【ガード】したとき
   | 'ON_ATTACK_PHASE_START'     // あなたのアタックフェイズ開始時
+  | 'ON_GROW_PHASE_START'       // あなたのグロウフェイズ開始時
   | 'ON_MAIN_PHASE_START'       // メインフェイズ開始時（GROW→MAIN 遷移で発火。triggerScope:any_opp＝「対戦相手のメインフェイズ開始時」WXDi-P00-034。collectTurnTriggers で収集）
   | 'ON_ACCE_ATTACH'            // シグニに【アクセ】が付いたとき（ルリグ監視/アクセカード自身）
   | 'ON_SPELL_USE'              // あなたがスペルを使用したとき
@@ -1720,6 +1721,7 @@ export interface CardEffect {
     byOwnEffect?: boolean;                            // ON_TRASH（自己discard反応「あなたの効果によって/あなたがこのカードを捨てたとき」WXDi-P08-075/P11-069）＝対戦相手の効果起因では発火しない。ON_LEAVE_FIELD any_opp（「あなたの効果によって対戦相手のシグニが…」WXK11-049/WXDi-CP01-027）＝watcher 自身の効果が原因のときのみ発火（バトル/ルール処理でも発火しない）
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）
     placedOnGateZone?: boolean;                       // 「対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき」（WXK10-044）＝トリガー元シグニの持ち主の own_gate_zones に当該ゾーンが含まれる場合のみ発火（同上。⚠WXK迷宮のゲート設置が未配線の間は発火しない＝旧 ON_PLAY self 幻覚よりは正直な no-op）
+    lrigAttackGuarded?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集
     trashSourceStory?: string;                        // ON_TRASH 自己discard反応の発生源限定「あなたの＜X＞のシグニの効果によってこのカードが捨てられたとき」（WXDi-P14-086）＝原因効果の発生源カード（中央diff の causeSourceCardNum）の CardClass に X を含むときのみ発火
   };
 

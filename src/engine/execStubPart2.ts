@@ -3014,9 +3014,9 @@ export function execStubPart2(
     if (trapDataAT) {
       const trapEffsAT = parseCardEffects(trapDataAT);
       const trapIconEffAT = trapEffsAT.find(e => e.effectType === 'TRAP_ICON');
-      if (trapIconEffAT) return exec(trapIconEffAT.action, loggedCtxAT);
+      if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedCtxAT, trapActivated: true });
     }
-    return done(loggedCtxAT);
+    return done({ ...loggedCtxAT, trapActivated: true });
   }
   // SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置
   if (stub.id === 'SET_OPP_SIGNI_AS_TRAP') {
@@ -3131,9 +3131,9 @@ export function execStubPart2(
       if (trapDataIconAT) {
         const trapEffsIconAT = parseCardEffects(trapDataIconAT);
         const trapIconEffAT = trapEffsIconAT.find(e => e.effectType === 'TRAP_ICON');
-        if (trapIconEffAT) return exec(trapIconEffAT.action, loggedIconAT);
+        if (trapIconEffAT) return exec(trapIconEffAT.action, { ...loggedIconAT, trapActivated: true });
       }
-      return done(loggedIconAT);
+      return done({ ...loggedIconAT, trapActivated: true });
     }
     if (txtTRAPOP.includes('トラッシュに置く') || txtTRAPOP.includes('トラッシュへ置く')) {
       const trapsTO: (string | null)[] = ctx.ownerState.field.signi_traps ?? [null, null, null];

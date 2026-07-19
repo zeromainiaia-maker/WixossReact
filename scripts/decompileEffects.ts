@@ -1865,6 +1865,7 @@ const timingJa: Record<string, string> = {
   ON_SIGNI_BANISH_BATTLE: 'このシグニがバトルで対戦相手のシグニをバニッシュしたとき',
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
+  ON_GROW_PHASE_START: 'あなたのグロウフェイズ開始時',
   ON_MAIN_PHASE_START: 'あなたのメインフェイズ開始時',
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
@@ -1912,8 +1913,8 @@ const timingJa: Record<string, string> = {
   ON_REVEALED_FROM_HAND: 'このカードがあなたの効果によって手札から公開されたとき',
   ON_ENERGY_FROM_TRASH: 'このカードがトラッシュからエナゾーンに置かれたとき',
   ON_BLOOD_CRYSTAL_ARMOR: 'あなたのシグニが血晶武装状態になったとき',
-  // 【トラップアイコン】【歌のカケラ】はアイコン（effectType）側で表示するため、timing ラベルは空にする。
-  ON_TRAP_ACTIVATE: '',
+  // TRAP_ICON は effectType 側で表示される。AUTO の ON_TRAP_ACTIVATE は通常のトリガー文を描画する。
+  ON_TRAP_ACTIVATE: 'あなたの《トラップアイコン》が発動したとき',
   ON_SONG_ACTIVATE: '',
 };
 
@@ -1945,6 +1946,7 @@ function effJa(e: Eff): string {
   const scopeNoun = e.triggerFilter?.cardType && !Array.isArray(e.triggerFilter.cardType) ? e.triggerFilter.cardType : 'シグニ';
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
+    if (e.effectType === 'TRAP_ICON' && t === 'ON_TRAP_ACTIVATE') s = '';
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
     else if (scopeSubj !== null && s.startsWith('このカード')) s = `${scopeSubj}${scopeNoun}${s.slice('このカード'.length)}`;
@@ -2009,6 +2011,7 @@ function effJa(e: Eff): string {
     }
     // ON_MAIN_PHASE_START の triggerScope:any_opp（「対戦相手のメインフェイズ開始時」WXDi-P00-034）
     if (t === 'ON_MAIN_PHASE_START' && e.triggerScope === 'any_opp') s = '対戦相手のメインフェイズ開始時';
+    if (t === 'ON_GUARD' && e.triggerCondition?.lrigAttackGuarded) s = 'このルリグのアタックが【ガード】されたとき';
     // ON_TURN_END/ON_TURN_START の triggerScope:any_opp（「対戦相手のターン終了/開始時」WX11-032/WX20-073 等）
     if ((t === 'ON_TURN_END' || t === 'ON_TURN_START') && e.triggerScope === 'any_opp') s = `対戦相手の${s}`;
     // ON_LRIG_GROW の主語（triggerScope/excludeSelf）を反映（any_opp＝対戦相手／excludeSelf＝他の）
