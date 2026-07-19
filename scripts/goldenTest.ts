@@ -1280,6 +1280,70 @@ const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBa
 const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
 const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
 
+// ── 続き218j: 相手ルリグのアタックで**防御側**の付与AUTO を拾う経路（タスク12(xlvii)）。
+// 従来 ON_ATTACK_LRIG の収集は BattleScreen がアタック側の `my.lrig_granted_auto_effects` しか見ておらず、
+// 「対戦相手のルリグがアタックしたとき」の防御側付与能力を発火させる術が無かった（＝完全 no-op）。
+test('collectLrigAttackDefenderTriggers: 防御側の付与AUTO を any_opp/any だけ拾う', () => {
+  const mkGranted = (scope: string | undefined, usageLimit?: string): CardEffect => ({
+    effectId: 'g1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+    ...(scope ? { triggerScope: scope } : {}), ...(usageLimit ? { usageLimit } : {}),
+  } as unknown as CardEffect);
+  const mkDef = (effs: CardEffect[], actionsDone: string[] = []): PlayerState =>
+    ({ ...mkState({}), lrig_granted_auto_effects: effs, actions_done: actionsDone,
+       field: { ...mkState({}).field, lrig: [SIGNI] } } as unknown as PlayerState);
+  const run1 = (st: PlayerState) => collectLrigAttackDefenderTriggers(trigCtx(HOST), st, GUEST);
+  // any_opp / any は拾う（＝これが本体の是正）
+  eq(run1(mkDef([mkGranted('any_opp')])).entries.length, 1, 'any_opp は拾う');
+  eq(run1(mkDef([mkGranted('any')])).entries.length, 1, 'any は拾う');
+  // scope 未設定（＝既定 self＝「自分のルリグがアタックしたとき」）は拾わない＝アタック側の既存収集の担当
+  eq(run1(mkDef([mkGranted(undefined)])).entries.length, 0, 'scope 未設定(self) は拾わない（二重発火させない）');
+  eq(run1(mkDef([mkGranted('any_ally')])).entries.length, 0, 'any_ally は拾わない');
+  // playerId は防御側
+  eq(run1(mkDef([mkGranted('any_opp')])).entries[0].playerId, GUEST, 'エントリの playerId は防御側');
+  // usageLimit：消費済みなら拾わず、初回は usedIds を返す（呼び出し元が actions_done へ書き戻す）
+  eq(run1(mkDef([mkGranted('any_opp', 'once_per_turn')], ['g1'])).entries.length, 0, '《ターン1回》消費済みは拾わない');
+  eq(run1(mkDef([mkGranted('any_opp', 'once_per_turn')])).usedIds.join(','), 'g1', '初回は usedIds を返す');
+  // ルリグ能力が封じられていたら拾わない
+  const disabled = { ...mkDef([mkGranted('any_opp')]), lrig_abilities_disabled: true } as unknown as PlayerState;
+  eq(run1(disabled).entries.length, 0, 'lrig_abilities_disabled 時は拾わない');
+});
+// 「対戦相手の（センター）ルリグがアタックしたとき」の timing/scope（parser 側・続き218j）
+test('parser: 「対戦相手のルリグがアタックしたとき」は ON_ATTACK_LRIG／「シグニかルリグ」は両 timing', () => {
+  const innerOf = (cardNum: string): { timing: string[]; scope?: string }[] => {
+    const out: { timing: string[]; scope?: string }[] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      const o = n as Record<string, unknown>;
+      if (o.type === 'GRANT_LRIG_ABILITY') {
+        for (const ab of ((o.abilities as Record<string, unknown>[]) ?? [])) {
+          out.push({ timing: (ab.timing as string[]) ?? [], scope: ab.triggerScope as string | undefined });
+        }
+      }
+      for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); }
+    };
+    for (const e of parseCardEffects(cardMap.get(cardNum)!)) walk(e.action);
+    return out;
+  };
+  // ルリグ単独主語＝ON_ATTACK_LRIG のみ（⚠ON_ATTACK_SIGNI に載ると相手シグニのアタックで誤発火する）
+  {
+    const a = innerOf('WX15-002').find(x => x.scope === 'any_opp');
+    ok(!!a, 'WX15-002: any_opp が付く');
+    eq(a!.timing.join(','), 'ON_ATTACK_LRIG', 'WX15-002: ルリグ単独は ON_ATTACK_LRIG のみ');
+  }
+  // 複合主語＝両 timing（シグニ側もルリグ側も落とさない）
+  for (const num of ['WXDi-D06-010', 'WX24-P2-046', 'WXDi-P09-036']) {
+    const a = innerOf(num).find(x => x.scope === 'any_opp');
+    ok(!!a, `${num}: any_opp が付く`);
+    ok(a!.timing.includes('ON_ATTACK_SIGNI') && a!.timing.includes('ON_ATTACK_LRIG'), `${num}: 両 timing を持つ`);
+  }
+  // シグニ単独主語は ON_ATTACK_SIGNI のみ＝ルリグ側へ広げない（過剰化の回帰ガード）
+  {
+    const a = innerOf('WXDi-CP02-033').find(x => x.scope === 'any_opp');
+    ok(!!a, 'WXDi-CP02-033: any_opp が付く');
+    eq(a!.timing.join(','), 'ON_ATTACK_SIGNI', 'WXDi-CP02-033: シグニ単独は ON_ATTACK_SIGNI のみ（広げない）');
+  }
+});
 // ── 続き218i: 引用付与の内側能力「対戦相手の〔シグニかルリグ〕がアタックしたとき」の triggerScope 脱落（§3 タスク5）。
 // parser の oppAtt regex が「シグニ」単独しか見ておらず、複合主語だと scope 未設定＝engine 既定 'self' に落ち、
 // collectFieldTriggers の付与AUTO収集（any_opp/any 必須）で弾かれて**完全な no-op（死に能力）**になっていた。
