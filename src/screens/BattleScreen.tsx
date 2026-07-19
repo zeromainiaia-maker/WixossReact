@@ -5914,7 +5914,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellWho = caster_id === user.id ? '自分' : '相手';
       const spellName = battleCardMap.get(card_num)?.CardName ?? card_num;
       appendBattleLogs([`[${spellWho}] ${spellName}を使用`]);
-      const spellPowers = calcFieldPowers(resolved, nonCasterState, bs.active_user_id === caster_id, effectsMap, battleCardMap);
+      const spellPowers = calcFieldPowers(resolved, nonCasterState, bs.active_user_id === caster_id, effectsMap, battleCardMap, bs.turn_phase);
       const spellIsOwnerTurn = bs.active_user_id === caster_id;
       const spellAllColorSigniNums = new Set([...collectAllColorSigniForField(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectAllColorSigniForField(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
       const spellExtraColors = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
