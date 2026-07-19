@@ -7902,7 +7902,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.effect_stack || bs.pending_effect) return;
 
     const isMyTurnLocal = bs.active_user_id === bs.host_id;
-    const powers = calcFieldPowers(bs.host_state, bs.guest_state, isMyTurnLocal, effectsMap, battleCardMap);
+    const powers = calcFieldPowers(bs.host_state, bs.guest_state, isMyTurnLocal, effectsMap, battleCardMap, bs.turn_phase);
 
     // バニッシュ候補を先に収集してフィンガープリントで二重処理を防ぐ
     const candidates: string[] = [];
