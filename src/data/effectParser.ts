@@ -2665,7 +2665,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (fp && fp.index !== undefined && !/手札に加えるか場に出/.test(text)) {
       // fp: [1]revealCount [2]フィルタ記述 [3]枚数 [4]「まで」 [5]残りの行き先
       const desc = fp[2];
-      const remainder: LookPickChainAction['remainder'] =
+      const remainder: { location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' } =
         fp[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
           : fp[5] === 'エナゾーン' ? { location: 'energy', position: 'any' }
             : { location: 'deck', position: fp[5] === 'デッキの一番上' ? 'top' : 'bottom' };
