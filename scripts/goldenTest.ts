@@ -1641,7 +1641,7 @@ test('Stage2 ON_LEAVE_FIELD: leftToZone=hand は手札在中時のみ発火（WX
 // ON_LEAVE_FIELD の duringAttackPhase（「アタックフェイズの間、…が場を離れたとき」）＋カード名包含 triggerFilter。
 // 修正前は「アタックフェイズの間、」前置き＋「カード名に《X》を含むシグニ…が場を離れたとき」を parser が解釈できず、
 // action 末尾の「…それを場に出す」が GRANT_LEAVE_PLACE_PENDING STUB（no-op）へ丸められていた（WXEX2-51-E1）。
-const YURAGI_LEAVER = findCard(c => isSigni(c) && (c.CardName ?? '').includes('ユラギ') && c.CardNum !== 'WXEX2-51');
+const YURAGI_LEAVER = findCard(c => isSigni(c) && (c.CardName ?? '').includes('ユラギ') && c.CardNum !== 'WXEX2-51' && parseInt(c.Level ?? '0', 10) >= 2);
 const NON_YURAGI = findCard(c => isSigni(c) && !(c.CardName ?? '').includes('ユラギ') && c.CardNum !== 'WXEX2-51');
 test('Stage2 ON_LEAVE_FIELD any_ally duringAttackPhase+cardName(ユラギ): アタックフェイズ中の名前包含離脱のみ発火（WXEX2-51-E1）', () => {
   const host = mkState({ signi: ['WXEX2-51', null, null] }); const guest = mkState({});
