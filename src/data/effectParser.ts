@@ -3515,7 +3515,7 @@ function splitEffectBlocks(text: string): string[] {
     // P03-030/P06-010/P13-050/WXK04-015/WXK01-028/WX25-P3-036/WX25-CP1-040/WX24-P4-058/WXK01-074）
     .replace(new RegExp(`(【エナチャージ[０-９\\d]+】|【シュート】|【ダブルクラッシュ】)(?=${MARKER_PAT})`, 'g'), '$1。')
     .replace(new RegExp(`。[\\s　]+(?=${MARKER_PAT})`, 'g'), '。');
-  return normalized.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
+  return normalized.split(/(?<=。)(?=(?:《レイヤーアイコン》)?【(?:クロス)?(?:ドライブ|チーム|絆)?(?:常|出|起|自|ガード)】)/).map(b => b.trim()).filter(Boolean);
 }
 
 // 効果ではないキーワード接頭辞（ライズ条件・ハーモニー条件等）を除去する
