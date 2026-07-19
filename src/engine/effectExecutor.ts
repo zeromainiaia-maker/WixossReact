@@ -2033,10 +2033,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
 // DRAW/SHUFFLE_DECK/GRANT_KEYWORD 等の「常に成功する・記録しない」型は入れてはならない
 // （入れると空振りでないのに then を殺す＝過小実行に化ける）。追加時は tmp_gate_matrix 相当の
 // 「空振り盤面＝skip／成功盤面＝fire」の両側で必ず検証すること（片側だけ見ると全抑制が満点に見える）。
-const DID_IT_GATED_TYPES = new Set<string>([
-  'BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND',
-  'SEND_TO_ENERGY', 'LIFE_CRASH', 'EXILE',
-]);
+const DID_IT_GATED_TYPES = new Set<string>([]); // TEMP: 回帰テスト検証用に無効化
 
 function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   let cur = ctx;
