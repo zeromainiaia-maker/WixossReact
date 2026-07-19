@@ -134,7 +134,7 @@
 | ~~🆕(xxxvii)~~ | ~~アタック不可付与の据置4効果~~ **✅続き205で4件とも個別に原文照合し全採用（すべて fresh が正）** |
 | ~~🆕(xxxviii)~~ | ~~付与対象に閾値フィルタが乗らない過剰効果~~ **✅続き205＝対象節スコープで抽出＋兄弟規則（付与系4規則）へ横展開・色フィルタも追加** |
 | ~~🆕(xxxvi)~~ | ~~エナ代替トラッシュ情報がグロウ経路に未接続~~ **✅続き206＝人間のグロウ経路5箇所へ配線（CPU 可否は据置）**。**要実機検証＝グロウ支払いUIでの実選択**（→§7） |
-| ~~🆕(xxviii)~~ | **✅続き147（Opus）で系統バグ本体を消化**＝「それをエナゾーンに置く」8効果のうち**7効果を SEND_TO_ENERGY へ是正**（parser `applyLeadingOpponentDesignation` 拡張＋JSON 7効果パッチ・golden 338→339・census 2206維持・同型★0維持）。**Sonnet の推定「executor intercept バグ」は誤りで実体は parser**（`parseSentencePart1.ts:1815` の REVEAL 文脈専用 `ENERGY_CHARGE{DECK_CARD}` が相手シグニ対象文脈に誤適用）。**残＝WX24-P4-048-E2**（「対象とし」2回＋動的パワー制約で除外＝要専用処理）＋**WX26-CP1-086/WXK05-027/WXK05-070 のコスト STUB 精緻化**（除去は是正済み・コスト表現は別途）。詳細 BUGFIXES 続き147。**元記録↓**：semantic audit stub群スケールアップ第1弾＝新規200枚（seed202608）完走・242件findings（続き145・Sonnet・タスク8）。ほか新規110/127枚＝STUB id/パラメータ意味不一致20件（stub群特有＝名前が原文と逆/無関係。例：`WXK11-014`のARTS_COST_REDUCTION_BY_EFFECTが実際はグロウコスト軽減）／timing取り違え10件超（【自】がON_PLAY化）／`WXK09-005-E2`＝GRANT_LRIG_ABILITYが`abilities:[]`で空＝(xxvii)のWXDi-P15-004と同型の機構欠落／duration誤り10件超／owner取り違え10件超／条件節欠落40件超（最多）。詳細・全IDは`docs/_semantic_audit_stub_round2_triage.txt`＋`scripts/archive/scratchpad/semantic_audit_stub_round2/findings_compact.txt`（242件全件）。 |
+| ~~🆕(xxviii)~~ | ~~「それをエナゾーンに置く」が TRASH 等へ潰れる系統~~ **✅続き147＝7効果を SEND_TO_ENERGY へ是正（実体は parser の REVEAL 文脈規則の誤適用・Sonnet 推定の executor intercept は誤り）**（詳細 BUGFIXES 続き147・元記録の全文は PLAN_DETAIL §3）。残＝WX24-P4-048-E2（「対象とし」2回＋動的パワー制約＝要専用処理）＋WX26-CP1-086/WXK05-027/WXK05-070 のコスト STUB 精緻化 |
 | ~~🆕(xl)~~ | ~~【絆常/絆自/絆起/絆出】が効果ブロック境界として認識されず絆能力が飲み込まれる（134カード137能力）~~ **✅続き215＝parser marker 3箇所＋engine 絆未獲得ゲート新設・112枚一括採用**（詳細 BUGFIXES 続き215） |
 | 🆕(xli) | **絆分離の残ギャップ（続き215→217 で再仕分け＝11件中7件は計器ノイズと判明・`BANISH_REDIRECT` 本体は✅続き217で消化。詳細 BUGFIXES 続き217）**。**残3件**＝(a)`WX25-CP1-012-E3`「シグニを２枚まで場に出し」の場出し欠落（`LOOK_AND_REORDER` へ縮退）(b)`WX25-CP1-045-E3`「＜ブルアカ＞のシグニが３種類以上」の種類数条件＝`HAS_CARD_IN_FIELD` に `distinctName` を足す小機構（`TRASH_HAS_CARD` に前例）(c)`WXDi-CP02-056-E4` アップ状態ダウンコスト＝偽陽性の可能性大 |
 | 🆕(xliii) | **census の系統的偽陽性＝`BANISH_REDIRECT` 族（続き217・Opus）**。census のカテゴリ判定が `BANISH_REDIRECT` を「エナゾーンに置く」「〜される場合」に対応する語彙として知らないため、**JSON が原文どおり正しくても高シグナルに残り続ける**（`WXDi-CP02-071-E1`／`WX09-022-E1`／`WXK11-032-E1`／`WXDi-CP02-072-E3` 等）。⚠**マスキングで実欠落を隠す危険があるため独立したパスで慎重に**＝カテゴリに語彙を教える前に、その族の全効果が本当に原文どおりかを個別確認してから。 |
@@ -194,7 +194,7 @@
 >
 > **戦略＝続き108 策定の「全カード完成戦略①〜⑤」を最優先で適用する。①（census 効果単位化）は✅続き109で完了＝現在は戦略②「純P1の系統バッチ消化」。** 残作業マップは [P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md)（🆕2026-07-16 効果単位で再計測＝純P1 2022効果 92%／混在 88 4%／純§6.3 96 4%）。
 >
-> 1. **自分のモデル側のタスク表（§3）から取る**。**🆕2026-07-16（続き144）更新**＝**Opus は最優先で タスク12 の在庫（(i)〜(xxi)＋(xxii)〜(xxvi)＋続き144追加の(xxvii)＝semantic audit第2弾の新規37枚）を消化する**（Sonnet 側の 1・4・6 がこの在庫待ちで同時にブロックされている＝サイクルが Opus で詰まっている）。**✅タスク8（semantic audit・seed202607の200枚サンプル）も続き144で全数監査完了＝残る Sonnet 在庫は タスク8 の次ラウンド（stub群未サンプリング約2,301枚への新シードスケールアップ）のみ**。旧推奨だった タスク1（§7横展開）・タスク4（キュー）は**枯渇したので取らない**（理由は §3 Sonnet 表）。
+> 1. **自分のモデル側のタスク表（§3）から取る**。**🆕2026-07-19 整理時点**＝**Opus の主戦場は タスク12 の生き残り在庫（(xli)残3件・(xliii)(xliv)・(xxxix)・(xxii)残50件・(xxix)残・(vii)(viii)(xlii)の残）＋タスク16 残43効果**（(i)〜(xl) の大半は消化済み＝1行✅サマリ参照）。**Sonnet の主力は タスク1（§7 実機検証＝(xi) skip検証・(xxxvi) グロウ支払いUIほか）**＝タスク6は Opus の新語彙着地待ち・タスク8 clean群（3,574枚）は任意。タスク4（キュー）は枯渇したので取らない（理由は §3 Sonnet 表）。
 > 2. **手順はスキルに従う**＝`/census-batch`（§5c 文型バッチ1巡）・`/audit-card <CardNum>`（BEHAVIOR_AUDIT 1カード監査1巡）・`/baton`（セッション終了時の簿記）。散文の記憶で回さない。
 > 3. **engine/parser/decompiler を触ったら `npm run gates`・シート再生成は `npm run regen`**（§12）。バグは golden に1件足してから直す。
 
