@@ -5030,6 +5030,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     mandatory,
     parseStatus,
     ...(isCrossOnly ? { crossOnly: true } : {}),
+    ...(isKizuna ? { kizunaIcon: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),
     ...(trashActivated ? { trashActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
