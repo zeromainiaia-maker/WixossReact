@@ -78,7 +78,7 @@
 
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
-| **1** | 引用付与の内側 ability parse | parser語彙＋engine機構 | M | **✅本丸は続き164・「アタックできない」家族は続き205で消化**（詳細 PLAN_DETAIL §3／BUGFIXES 続き164・205）。**残**＝(b)内側「代わりに」置換（WX25-P3-038＝タスク6と合流）(c)`GRANT_LRIG_ABILITY` の ON_PLAY 誤デフォルト（タスク5と重複）(d)WX25-P3-085 単文型 grant mis-parse（12(xxiv)残） |
+| ~~**1**~~ | ~~引用付与の内側 ability parse~~ | parser語彙＋engine機構 | M | **✅クローズ（続き224）**＝本丸 続き164・「アタックできない」家族 続き205・(d)`WX25-P3-085` 単文型 grant mis-parse は続き224（E1 は fresh 側で既に是正済＝再収穫のみ／同カード BURST の DOWN 対象 SIGNI→LRIG を parseSentencePart1 の DOWN 規則へ bare-LRIG 検出追加＝続き223 凍結の DOWN 版・11効果消化・census 1866→1865）。残の (b) 内側「代わりに」置換（WX25-P3-038）は§3タスク6と合流・(c) `GRANT_LRIG_ABILITY` ON_PLAY 誤デフォルトは続き218i（タスク5）で消化済。詳細 BUGFIXES 続き164・205・224 |
 | 2 | census「動的比較」の残 | parser語彙＋engine解決器 | S（縮小） | 残＝WXK08-005（キー）のみ＝①「自ルリグレベル＜相手ルリグのかぎり《アタックフェイズアイコン》を得る」が JSON に効果ごと不在（**キーの使用タイミング動的付与＝新機構**）②E2 `GRANT_LRIG_ABILITY{abilities:[]}` が空（E3-E5 は機能近似）。他は**✅続き203で消化**（詳細 BUGFIXES 続き203） |
 | 3 | DRAW 脱落の parseSingleSentence 直呼び経路 | parser修正 | S〜M | WX20-071（3項以上の連用中止形）・split ガードで止まる複合（WXK07-042/WX20-049/WX26-CP1-066）・先頭自ドロー未捕捉（WXDi-P13-001）・対戦相手ドロー idiom・per-count ドロー・入れ子条件内。(a)(b)(c) 主部分は✅続き107 |
 | 4 | §5c 条件節の残 | parser語彙 | S | 「代わりに」WX25-P2-068/070・「あり」複合条件 WXDi-P11-048（WX25-P3-116 はタスク6送り） |
