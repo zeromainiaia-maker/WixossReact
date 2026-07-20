@@ -3002,7 +3002,11 @@ function parseActionTextInner(text: string): EffectAction {
         // 「《ガードアイコン》を持たない」は `の` を伴わず直接 名詞に続く（＜C＞の／色の／レベルNの と接続形が違う）ため
         // 別枝で許容する。**noGuard は型にも matchesFilter にも実装済み（G237）＝忠実に表現できる**ので、
         // 上のコメントが弾いていた「アイコン filter」の除外対象からは外れる（続き218k・§3 タスク5）。
-        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|《ガードアイコン》を持たない)*)(シグニ|カード)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)/);
+        // pick 名詞は シグニ／カード／スペル を許容する。「スペル」は cardType:'スペル' フィルタ＋pickNoun:'スペル'
+        //   で忠実表現できる（engine matchesFilter・MANUAL 正解 WXDi-D04-012/WXDi-P09-048-E3 と同形）。従来は
+        //   noun 群に無く「その中から…デッキ」の汎用 LOOK_AND_REORDER に飲まれて pick が丸ごと脱落していた
+        //   （WXK05-023-E3／SPDi43-17-E1 等・census クラスタ「Nまで上限選択」）。
+        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|《ガードアイコン》を持たない)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)/);
         if (pk) {
           const filterSrc = pk[1] + (pk[2] ?? '');
           const pickCount: number | 'ALL' = (pk[3] === 'すべて' || pk[3] === '好きな枚数') ? 'ALL' : parseNum(pk[3]);
@@ -3010,7 +3014,8 @@ function parseActionTextInner(text: string): EffectAction {
           const filter: TargetFilter = {
             ...parseStoryFilter(filterSrc), ...parseColorFilter(filterSrc), ...parseLevelFilter(filterSrc),
             ...(/《ガードアイコン》を持たない/.test(filterSrc) ? { noGuard: true } : {}),
-            ...(pk[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}),
+            ...(pk[2] === 'シグニ' ? { cardType: 'シグニ' as const }
+              : pk[2] === 'スペル' ? { cardType: 'スペル' as const } : {}),
           };
           const remainder: RevealAndPickAction['remainder'] =
             pk[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
