@@ -282,7 +282,7 @@
 - **ビートの残（低優先）**: トラッシュ→beat（WDK14-013）のプレイヤー選択ピッカーのみ自動近似。
 - **G072 残6枚**（条件前置き付きの相手シグニ被バニッシュ反応）: WX05-040/WX11-027（「メインフェイズの間」）／WXEX2-23（「アタックフェイズの間」）／WXK11-055（「あなたの効果によって」）／WX13-051（「＜龍獣＞効果で」）／WXDi-P11-TK05（【チャーム】付き相手シグニ）。前置きモデリングの誤りリスク高く個別対応。
 - **multi-dest pick（look→手札＋場の二目的）**: WX24-P1-017／WX24-P1-026／WX25-P3-038／WX25-CP1-025／WX26-CP1-019。付与/条件/絆を伴う同時pickは別語彙が要る。
-- **REVEAL_AND_PICK remainder の shuffle 保持（機構待ち）**: PR-370-E2「残りをシャッフルしてデッキの一番下に置く」は `RevealAndPickAction['remainder']` に shuffle 語彙がなく、現状は deck bottom のみ表現。
+- ~~**REVEAL_AND_PICK remainder の shuffle 保持（機構待ち）**~~ **✅2026-07-21（続き233・Opus）で消化**＝`RevealAndPickAction['remainder']`／pending の `revealRemainder` に `shuffle?` を追加し、engine の remainder 適用2経路（`revealRemainder` 消費・pickable空の早期経路）で `shuffle` 時に置く前に順序をランダム化。parser（effectParser.ts の「カード名に《X》を含むシグニ…残りをシャッフルして…」1文型）で `shuffle:true` を抽出。PR-370-E2「残りをシャッフルしてデッキの一番下に置く」を正エンコード。
 - **GRANT_TO_PLACED_SIGNI 残（続き42で実装＝4枚）**＝「この方法で場に出たシグニは【K】を得る／のパワーを＋N／レベル１につきミル」は parser で `GRANT_KEYWORD`/`POWER_MODIFY`{targetsLastProcessed}＋`MILL{countIsLastProcessedLevelSum}` へ実装済み（WX25-P1-044/WX25-P2-039/WX24-P3-037/WX24-P3-039）。**残る honest STUB 2枚**＝引用複合能力付与：WX24-P1-017（「【自】バトルバニッシュ時、自アップ＋能力喪失」）・WX25-P3-038（「【自】アタック時、パワー8000以下を手札／能力なしならトラッシュ」）＝内側【自】ability の parse（GRANT_QUOTED_AUTO_ABILITY 系＝現状 log-only STUB）が要る。
 - **凍結状態フィルタのアサシン変種**: WX25-P2-084②「【アサシン（凍結状態のパワー3000以下のシグニ）】」＋2択。
 - **公開カード→自身のアクセ化**: WDK07-E15（新STUB `INTERNAL_ACCE_PICKED_TO_SELF` が要る）。
