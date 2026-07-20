@@ -857,6 +857,10 @@ export function collectLeaveFieldTriggers(
       // byOwnEffect（「**あなたの効果によって**対戦相手のシグニが…」）: watcher 自身の効果が原因のときのみ
       // （バトル・ルール処理・相手自身の効果では発火しない）。
       if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== oppId) continue;
+      // byEffect（「対戦相手のシグニが**効果によって**場を離れたとき」WXK11-017）: 任意の効果起因のみ（バトル/ルール処理では発火しない）。
+      if (eff.triggerCondition?.byEffect && causeOwnerId === undefined) continue;
+      // leftStateFilter（「対戦相手の**凍結状態の**シグニが場を離れたとき」WXEX1-30/WXDi-P03-040）: 離脱直前の状態で絞る。
+      if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, oppStateAfter, ownerStateAfter, oppIsTurn, ctx.cardMap, topNum)) continue;
       if (!oppLimitOk(eff)) continue;
       entries.push({
