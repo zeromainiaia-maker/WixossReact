@@ -1312,6 +1312,10 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   語彙が無くアーツ使用時に無条件で3ドローする過剰効果だった（WX20-005・タスク12(xxxix)）。
   [/あなたの手札が対戦相手より少ない場合/,
     () => ({ type: 'HAND_DIFF', operator: 'lt', value: 0 })],
+  // 「あなたの手札が対戦相手より多い場合」＝self−opp>0（HAND_DIFF{gt,0}）。少ない側の対称形。
+  //   WX24-P2-022 の「多い場合バニッシュ／少ない場合ハンデス」二分岐の前段が無条件バニッシュだった。
+  [/あなたの手札が対戦相手より多い場合/,
+    () => ({ type: 'HAND_DIFF', operator: 'gt', value: 0 })],
   [/対戦相手のセンタールリグが(白|赤|青|緑|黒|無色)の場合/,
     g => ({ type: 'LRIG_COLOR', owner: 'opponent', color: g[0] })],
   [/あなたの場に傀儡状態のシグニが([０-９\d]+)体以上ある場合/,

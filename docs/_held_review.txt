@@ -395,6 +395,44 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.owner = "self"
   + [0].action.abilities[0].action.steps[0].target.count = 1
 
+## +CONDITIONAL +HAND_DIFF ［3枚］
+WX20-005 WX24-P1-045 WX24-P2-022
+--- WX20-005
+  原文: あなたの場に＜精生＞のシグニがある場合、このアーツの使用コストは《青×1》減る。あなたの手札が対戦相手より少ない場合、カードを３枚引く。その後、いずれかのプレイヤーの手札が６枚以上ある場合、対戦相手のシグニ１体を対象とし、それをデッキの一番上に置く。,-
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 3
+  ~ [0].action.steps[1].type : "DRAW" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "HAND_DIFF"
+  + [0].action.steps[1].condition.operator = "lt"
+  + [0].action.steps[1].condition.value = 0
+  + [0].action.steps[1].then.type = "DRAW"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 3
+--- WX24-P1-045
+  原文: 【自】《ターン１回》：あなたの青のシグニ１体が対戦相手の、能力か効果の対象になったとき、対戦相手は手札を１枚捨てる。【自】：対戦相手の効果によってこのカードが捨てられたとき、あなたの手札が対戦相手より少ない場合、カードを１枚引く。,：どちらか１つを選ぶ。①対戦相手のシグニを２体まで対象とし、それらをダウンする。②カードを１枚引く。
+  - [1].action.owner = "self"
+  - [1].action.count = 1
+  ~ [1].action.type : "DRAW" → "CONDITIONAL"
+  + [1].action.condition.type = "HAND_DIFF"
+  + [1].action.condition.operator = "lt"
+  + [1].action.condition.value = 0
+  + [1].action.then.type = "DRAW"
+  + [1].action.then.owner = "self"
+  + [1].action.then.count = 1
+--- WX24-P2-022
+  原文: 【自】：このルリグがアタックしたとき、あなたの＜遊具＞のシグニ１体を場からデッキの一番下に置いてもよい。そうした場合、カードを１枚引き、対戦相手が手札を３枚捨てないかぎり、対戦相手にダメージを与える。【起】《ゲーム１回》ぶっとばす！《青×0》：あなたの手札が対戦相手より多い場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。あなたの手札が対戦相手より
+  - [1].action.steps[1].target.type = "HAND_CARD"
+  - [1].action.steps[1].target.owner = "opponent"
+  - [1].action.steps[1].target.count = 3
+  ~ [1].action.steps[1].type : "TRASH" → "CONDITIONAL"
+  + [1].action.steps[1].condition.type = "HAND_DIFF"
+  + [1].action.steps[1].condition.operator = "lt"
+  + [1].action.steps[1].condition.value = 0
+  + [1].action.steps[1].then.type = "TRASH"
+  + [1].action.steps[1].then.target.type = "HAND_CARD"
+  + [1].action.steps[1].then.target.owner = "opponent"
+  + [1].action.steps[1].then.target.count = 3
+
 ## +DURING_ATTACK_PHASE ［3枚］
 WX21-029 WXEX2-30 WXEX2-47
 --- WX21-029
@@ -1208,6 +1246,22 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].type = "STUB"
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 13 行）
+
+## +CONDITIONAL +ENERGY_COUNT_FILTER ［1枚］
+WXK04-027
+--- WXK04-027
+  原文: 【出】：色１つを宣言する。あなたのデッキの一番上を公開し、それが宣言した色を持つカードの場合、それをエナゾーンに置く。【自】：各ターン終了時、あなたのエナゾーンにあるカードの色が２種類以上ある場合、【エナチャージ１】をする。その後、あなたのエナゾーンにあるカードの色が４種類以上ある場合、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。,：カードを１枚
+  - [1].action.steps[0].owner = "self"
+  - [1].action.steps[0].count = 1
+  ~ [1].action.steps[0].type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
+  + [1].action.steps[0].condition.type = "ENERGY_COUNT_FILTER"
+  + [1].action.steps[0].condition.owner = "self"
+  + [1].action.steps[0].condition.distinctColor = true
+  + [1].action.steps[0].condition.operator = "gte"
+  + [1].action.steps[0].condition.value = 2
+  + [1].action.steps[0].then.type = "ENERGY_CHARGE_FROM_DECK"
+  + [1].action.steps[0].then.owner = "self"
+  + [1].action.steps[0].then.count = 1
 
 ## +UNKNOWN -DRAW -SEQUENCE -SIGNI -TRANSFER_TO_DECK ［1枚］
 WXK06-016
