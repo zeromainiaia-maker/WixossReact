@@ -63,7 +63,7 @@ import {
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
-  evalUseCondition, banishDestination, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
+  evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
