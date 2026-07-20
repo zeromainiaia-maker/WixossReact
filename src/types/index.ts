@@ -542,7 +542,7 @@ export type PendingInteractionDef =
       restDest?: 'deck_bottom' | 'trash' | 'energy'; // 未ピックカードの行き先（REVEAL_PICK_HAND_SHUFFLE_BOTTOM用）
       // REVEAL_AND_PICK の残り公開カード（ピックしなかった非対象/未選択カードを含む全公開カード）を
       // 指定場所へ移す。cards＝公開した全カード（visibleCards=選択可能な部分集合とは別）。
-      revealRemainder?: { cards: string[]; location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' };
+      revealRemainder?: { cards: string[]; location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
       // handOrField: ピックしたカードを1枚ずつ「手札に加える or 場に出す」の対話選択で処理する（「公開し手札に加えるか場に出し」）
       handOrField?: boolean;
       continuation?: EffectAction;
