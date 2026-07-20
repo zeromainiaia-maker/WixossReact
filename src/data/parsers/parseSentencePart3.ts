@@ -825,8 +825,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- このシグニを場からトラッシュに置いてもよい ----
+  // 「この**シグニ**」＝効果元自身のみ（thisCardOnly）。「置いても**よい**」＝任意（optional）。
+  // 任意スキップ時は engine が後続 CONDITIONAL(IS_MY_TURN)=「そうした場合」も実行しない（execTrash:706 / execSequence did-it ゲート）。
+  // これが無いと自分の**全**シグニがトラッシュ候補になり、かつ強制実行＋「そうした場合」の本体も常時発火する退化になる
+  // （WX19-031/WX19-034/WXK10-032/WXK10-033/WXEX2-31）。
   if (t.match(/^このシグニを場からトラッシュに置いてもよい$/)) {
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, optional: true };
   }
 
   // ---- 《色》を支払ってもよい（単色任意コスト）→ OPTIONAL_COST with costColors ----
