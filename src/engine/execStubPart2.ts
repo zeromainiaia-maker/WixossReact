@@ -2346,12 +2346,12 @@ export function execStubPart2(
     // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
     const foundOppBAN = ctx.otherState.field.signi.some(s => s?.at(-1) === cnBAN);
     if (foundOppBAN) {
-      const { state: newSOtherBAN, log: logOppBAN } = banishDestination(removeFromField(cnBAN, ctx.otherState), ctx.ownerState, cnBAN);
+      const { state: newSOtherBAN, log: logOppBAN } = banishDestination(removeFromField(cnBAN, ctx.otherState), ctx.ownerState, cnBAN, banishRedirectOpts(ctx, ctx.otherState, cnBAN));
       return done(addLog({ ...ctx, otherState: newSOtherBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${logOppBAN}`));
     }
     const foundSelfBAN = ctx.ownerState.field.signi.some(s => s?.at(-1) === cnBAN);
     if (foundSelfBAN) {
-      const { state: newSBAN, log: logSelfBAN } = banishDestination(removeFromField(cnBAN, ctx.ownerState), ctx.otherState, cnBAN);
+      const { state: newSBAN, log: logSelfBAN } = banishDestination(removeFromField(cnBAN, ctx.ownerState), ctx.otherState, cnBAN, banishRedirectOpts(ctx, ctx.ownerState, cnBAN));
       return done(addLog({ ...ctx, ownerState: newSBAN }, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}${logSelfBAN}`));
     }
     return done(addLog(ctx, `${ctx.cardMap.get(cnBAN)?.CardName ?? cnBAN}はフィールドにない`));
