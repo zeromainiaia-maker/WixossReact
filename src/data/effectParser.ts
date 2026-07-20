@@ -4862,6 +4862,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.slice(fieldLevelSetM[0].length);
   }
 
+  // CHOOSE ヘッダ（「以下の…から…を選ぶ」）の直前に来る一般状態条件も効果全体の発動条件。CHOOSE 分解は
+  // ヘッダ以前を捨てるため、matchLeadingStateCondition で拾える条件のうち直後が CHOOSE ヘッダのものだけを
+  // CardEffect.condition へ持ち上げる（上の fieldLevelSetM の一般化）。WX24-P2-048「あなたの場に《満月の使徒
+  // 小湊るう子》がいる場合、以下の２つから１つを選ぶ」は従来この条件が脱落し、毎アタックフェイズ開始時に無条件で
+  // CHOOSE が発火する過剰効果だった（タスク12(xxxix)）。engine 対応済みの STATE_CONDITION_CLAUSES 型に限定。
+  if (actionText && !/^以下の/.test(actionText)) {
+    const cm = matchLeadingStateCondition(actionText);
+    if (cm && /^以下の[０-９\d一二三四五六七八九]/.test(cm.rest)) {
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, cm.condition] }
+        : cm.condition;
+      actionText = cm.rest;
+    }
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
