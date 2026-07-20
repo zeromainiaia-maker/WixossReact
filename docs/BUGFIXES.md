@@ -4,6 +4,18 @@
 
 ---
 
+## タスク12(vii) 完了＝WX25-P2-112「アップ状態のルリグをダウン→共通色の相手エナをトラッシュ」を実装（`colorMatchesLastProcessed` 新設・execDown(LRIG) 拡張・census 1869→1868・golden 520）（2026-07-20・続き220・Opus）
+
+タスク12(vii) の残り1枚 `WX25-P2-112` を消化し、(vii) をクローズした。原文＝【自】アタックフェイズ開始時、対戦相手のエナが2枚以上なら、あなたの**アップ状態のルリグ**1体をダウンして**もよい**。その後、対戦相手のエナから**この方法でダウンしたルリグと共通する色を持つ**カード1枚をトラッシュ。
+
+- **parser の誤り**＝(1)DOWN 対象を **`SIGNI`（本来 `LRIG`）** に取り違え (2)DOWN の optional 脱落 (3)TRASH が**無条件＋色フィルタ無し**（毎アタックフェイズ相手エナを1枚問答無用でトラッシュする過剰効果）。
+- **engine 拡張**＝(a)`execDown` の LRIG 分岐が従来 `seqVars.lastDownedLrigLevel` のみで**色参照ができなかった**ため、**ダウンしたルリグ instance を `lastProcessedCards` に記録**するよう変更（＋既にダウン済み＝アップでないときは no-op で `lastProcessedCards` 空／`optional` を「ダウン/スキップ」二択で実装）。(b)動的フィルタ **`colorMatchesLastProcessed` を新設**（`TargetFilter`／`resolveDynamicFilter`／decompiler）＝`lastProcessedCards[0]`（ダウンしたルリグ）と**共通する色を持つ**カードに絞る。**owner 非依存**なので「相手エナを自ルリグ色で絞る」（`colorMatchesLrig` は target-owner のルリグ基準＝相手ルリグになり使えない）を正しく表現。**参照不能（スキップ／既にダウン）なら到達不能色で空ヒット＝「この方法でダウンした場合」の did-it ゲートを兼ねる**。
+- **encode**＝curated を `parseStatus:MANUAL` で `CONDITIONAL{ENERGY_COUNT opp gte2}→SEQUENCE[DOWN{LRIG self,optional}, TRASH{ENERGY_CARD opp, filter:colorMatchesLastProcessed}]` に是正（`manualEffects.ts`）。build の harvest は既存 AUTO からの値変更として held に落とすため `heldReview --adopt` で採用。
+- **golden 追加**＝赤ルリグをダウン→赤相手エナのみトラッシュ・青は残る／既にダウン状態なら相手エナ不変（did-it ゲート）を固定。
+- **検証**＝全ゲート緑（typecheck／**golden 519→520**／smoke 10722 OK・0（LRIG optional 二択でも SKIP 0）／fuzz 0（DOWN{LRIG} の lastProcessedCards 記録追加でも他カード無退化）／**census 1869→1868**／lint 0 errors）。`npm run regen` で逆翻訳に「共通する色を持つ」が復活。**タスク12(vii) は残0＝クローズ**。
+
+---
+
 ## タスク12(xxii) 「手札から＜C＞のシグニをN枚公開する」が bare REVEAL に潰れ source/filter/count が脱落＝公開カウント条件が全滅していた系統を是正（census 1874→1869・golden 519）（2026-07-20・続き219c・Opus）
 
 「あなたの手札から＜C＞のシグニをN枚（まで／好きな枚数）**公開する**」が **bare `{type:REVEAL}`（source/filter/count なし）** に潰れていた。engine の `execReveal` は `source:HAND_CARD` のときだけ選択カードを `lastProcessedCards` に記録するため、bare REVEAL では**「この方法でシグニをN枚以上公開した場合」の結果カウント条件が前段記録ゲート（`prevIsHandRevealRecorder`）を通れず全て IS_MY_TURN 化（＝無条件発火の過剰効果）**していた（タスク12(xxii)・報告の「公開した場合」クラスタ）。
