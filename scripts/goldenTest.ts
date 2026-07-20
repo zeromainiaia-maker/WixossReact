@@ -6111,6 +6111,41 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   ok(!ents2.some(e => (e.effect.action as { id?: string }).id === 'RESOLVE_FACEDOWN_FLIP'), 'pending 無し＝注入なし');
 });
 
+// ── タスク12(xxix)(b)・続き226: 照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。
+//    そうした場合、それの/それは/それを…」で「それ」の指し先が任意コスト文を挟んで失われ owner:self+
+//    targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理で復元する回帰テスト。──
+{
+  const firstOfType = (a: EffectAction | null | undefined, t: string): Record<string, unknown> | null => {
+    if (!a || typeof a !== 'object') return null;
+    if ((a as { type?: string }).type === t) return a as Record<string, unknown>;
+    for (const v of Object.values(a as Record<string, unknown>)) {
+      if (Array.isArray(v)) { for (const x of v) { const r = firstOfType(x as EffectAction, t); if (r) return r; } }
+      else if (v && typeof v === 'object') { const r = firstOfType(v as EffectAction, t); if (r) return r; }
+    }
+    return null;
+  };
+  const effOf = (card: string, effId: string) => parseCardEffects(cardMap.get(card)!).find(e => e.effectId === effId)!;
+  test('照応A: WX07-031-E3 power-down が opponent へ復元＋targetsTriggerSource 撤去（それの・介在節あり）', () => {
+    const pm = firstOfType(effOf('WX07-031', 'WX07-031-E3').action, 'POWER_MODIFY')!;
+    eq((pm.target as { owner?: string }).owner, 'opponent', 'owner');
+    ok(!('targetsTriggerSource' in pm), 'tts 撤去');
+  });
+  test('照応A(偽陽性belt): WXDi-D02-22-BURST は TARGET_OPP コストでも parser で opponent 化', () => {
+    const pm = firstOfType(effOf('WXDi-D02-22', 'WXDi-D02-22-BURST').action, 'POWER_MODIFY')!;
+    eq((pm.target as { owner?: string }).owner, 'opponent', 'owner');
+  });
+  test('照応A(退化防止): WX07-001-E1 BOUNCE は opponent のまま（旧補正を剥がさない）', () => {
+    const b = firstOfType(effOf('WX07-001', 'WX07-001-E1').action, 'BOUNCE')!;
+    eq((b.target as { owner?: string }).owner, 'opponent', 'owner');
+  });
+  test('照応B: WX24-P4-044-E2 手札回収の source が DECK_CARD→TRASH_CARD へ復元', () => {
+    const th = firstOfType(effOf('WX24-P4-044', 'WX24-P4-044-E2').action, 'TRANSFER_TO_HAND')!;
+    eq((th.source as { type?: string }).type, 'TRASH_CARD', 'source zone');
+    eq((th.source as { owner?: string }).owner, 'self', 'source owner');
+    eq(((th.source as { filter?: { hasGuard?: boolean } }).filter ?? {}).hasGuard, true, 'hasGuard filter');
+  });
+}
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
