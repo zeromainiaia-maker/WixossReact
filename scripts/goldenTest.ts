@@ -5966,6 +5966,69 @@ test('タスク12(xxii) 第4バッチ: 好きな枚数0/全枚と追加コスト
     'マレガビが手札にない場合は複合コストを選べない');
 });
 
+// ══════════════ WXDi-P10-034（羅植姫 ユキ//メモリア）: 裏向き設置→ターン跨ぎ遅延→表向き分岐（タスク12(viii)）══════════════
+test('WXDi-P10-034: LOOK_PLACE_FACEDOWN_DELAYED＝1枚を裏向き設置・残り3枚デッキ下・pending記録', () => {
+  const top = [fresh(), fresh(), fresh(), fresh()];
+  const ctx = mkCtx({ deckTop: top }, {}, 'WXDi-P10-034');
+  const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'STUB', id: 'LOOK_PLACE_FACEDOWN_DELAYED', count: 4, value: 5000 } as EffectAction, ctx);
+  eq(r.ownerState.field.facedown_signi?.[0], top[0], '1枚目を裏向きでシグニゾーン0に');
+  ok(!r.ownerState.field.signi[0]?.length, '表向きシグニゾーンは空（裏向きは別枠）');
+  eq(r.ownerState.pending_facedown_flip?.cardNum, top[0], 'pending cardNum');
+  eq(r.ownerState.pending_facedown_flip?.powerBonus, 5000, 'pending powerBonus');
+  eq(r.ownerState.pending_facedown_flip?.zoneIndex, 0, 'pending zoneIndex');
+  eq(r.ownerState.deck.length, d0 - 1, 'デッキ-1（裏向き1枚が場へ・残り3枚はデッキ下）');
+  ok(!r.ownerState.deck.includes(top[0]), '裏向きにした1枚はデッキに残らない');
+  ok([top[1], top[2], top[3]].every(c => r.ownerState.deck.includes(c)), '残り3枚はデッキ内（一番下）');
+});
+test('WXDi-P10-034: 空きシグニゾーンが無ければ設置せず見た全カードをデッキ下へ', () => {
+  const top = [fresh(), fresh(), fresh(), fresh()];
+  const ctx = mkCtx({ deckTop: top, signi: [fresh(), fresh(), fresh()] }, {}, 'WXDi-P10-034');
+  const d0 = ctx.ownerState.deck.length;
+  const r = run({ type: 'STUB', id: 'LOOK_PLACE_FACEDOWN_DELAYED', count: 4, value: 5000 } as EffectAction, ctx);
+  ok(!r.ownerState.pending_facedown_flip, '空きゾーン無しでは pending は立たない');
+  eq(r.ownerState.deck.length, d0, 'デッキ枚数は不変（4枚見て4枚デッキ下）');
+  ok(top.every(c => r.ownerState.deck.includes(c)), '見た4枚は全てデッキに残る');
+});
+test('WXDi-P10-034: 表向きにする→シグニゾーンへ出し場にあるかぎり+5000（field_power_mods）', () => {
+  const card = SIGNI_P3000;
+  const base = mkCtx({}, {}, 'WXDi-P10-034');
+  const owner = { ...base.ownerState,
+    field: { ...base.ownerState.field, facedown_signi: [card, null, null], signi: [null, null, null] },
+    pending_facedown_flip: { cardNum: card, zoneIndex: 0, powerBonus: 5000, sourceCardNum: 'WXDi-P10-034' } };
+  const ctx = { ...base, ownerState: owner } as ExecCtx;
+  const r = run({ type: 'STUB', id: 'RESOLVE_FACEDOWN_FLIP' } as EffectAction, ctx); // autopilot CHOOSE→先頭='flip'
+  eq(r.ownerState.field.signi[0]?.at(-1), card, 'シグニゾーン0に表向きで出る');
+  eq(r.ownerState.field.facedown_signi?.[0], null, '裏向き枠クリア');
+  ok(!r.ownerState.pending_facedown_flip, 'pending クリア');
+  ok((r.ownerState.field_power_mods ?? []).some(m => m.cardNum === card && m.delta === 5000), 'field_power_mods に +5000');
+  const pw = calcFieldPowers(r.ownerState, r.otherState, true, effectsMap, cardMap as Map<string, CardData>);
+  eq(pw.get(card), 3000 + 5000, '実効パワー base3000+5000');
+});
+test('WXDi-P10-034: 表向きにしない→そのカードを手札に加える（場には出ない）', () => {
+  const card = SIGNI_P3000;
+  const base = mkCtx({ hand: 0 }, {}, 'WXDi-P10-034');
+  const owner = { ...base.ownerState,
+    field: { ...base.ownerState.field, facedown_signi: [card, null, null] },
+    pending_facedown_flip: { cardNum: card, zoneIndex: 0, powerBonus: 5000, sourceCardNum: 'WXDi-P10-034' } };
+  const ctx = { ...base, ownerState: owner } as ExecCtx;
+  const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'STUB', id: 'RESOLVE_FACEDOWN_FLIP' } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!r0.done && r0.pending.type === 'CHOOSE', 'CHOOSE（表向き/手札）を提示');
+  const r = resumeChoose('hand', r0.pending as never, { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs });
+  eq(r.ownerState.field.facedown_signi?.[0], null, '裏向き枠クリア');
+  ok(r.ownerState.hand.includes(card), '手札に加わる');
+  ok(!r.ownerState.field.signi[0]?.length, 'シグニゾーンには出ない');
+  ok(!r.ownerState.pending_facedown_flip, 'pending クリア');
+});
+test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐トリガー(RESOLVE_FACEDOWN_FLIP)を注入', () => {
+  const my = mkState({});
+  my.pending_facedown_flip = { cardNum: SIGNI_P3000, zoneIndex: 0, powerBonus: 5000, sourceCardNum: 'WXDi-P10-034' };
+  const ents = cttEntries(trigCtx(HOST, HOST), 'ON_MAIN_PHASE_START', my, mkState({}));
+  ok(ents.some(e => (e.effect.action as { id?: string }).id === 'RESOLVE_FACEDOWN_FLIP'), 'pending あり＝RESOLVE 注入');
+  const ents2 = cttEntries(trigCtx(HOST, HOST), 'ON_MAIN_PHASE_START', mkState({}), mkState({}));
+  ok(!ents2.some(e => (e.effect.action as { id?: string }).id === 'RESOLVE_FACEDOWN_FLIP'), 'pending 無し＝注入なし');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
