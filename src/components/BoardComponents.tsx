@@ -453,7 +453,7 @@ export interface StackedSigniSlotProps {
   hasGate?: boolean;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, faceDownCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
