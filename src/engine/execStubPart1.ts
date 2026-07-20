@@ -445,7 +445,7 @@ export function execStubPart1(
     if (atkPwBAW >= frontPwBAW) {
       return done(addLog(ctx, `アタッカー(${atkPwBAW})は正面(${frontPwBAW})未満でない＝バニッシュなし`));
     }
-    const { state: newOtherBAW, log: logBAW } = banishDestination(removeFromField(attackerBAW, ctx.otherState), ctx.ownerState, attackerBAW);
+    const { state: newOtherBAW, log: logBAW } = banishDestination(removeFromField(attackerBAW, ctx.otherState), ctx.ownerState, attackerBAW, banishRedirectOpts(ctx, ctx.otherState, attackerBAW));
     return done(addLog({ ...ctx, otherState: newOtherBAW },
       `${ctx.cardMap.get(attackerBAW)?.CardName ?? attackerBAW}${logBAW}（正面より低パワー）`));
   }
