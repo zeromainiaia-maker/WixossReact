@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き218k・Opus・**§3 タスク5＝`WXDi-P03-005` の有害 MANUAL 幻覚を是正＋REVEAL_AND_PICK の `noGuard` filter 過剰保守を解消**。golden 516→517）**（同日の連続作業 218h/i/j は本ファイル内へ退避）
+  - **発見**＝タスク5 の `WXDi-P03-005` の curated MANUAL が**有害な幻覚**＝原文「デッキ5枚見てガード無しシグニ1枚まで**手札に加え**、（エクシード4を払っていたら）代わりに2枚まで」が「**自分のシグニをデッキに戻す**」（カードを引く動作が消え自分の場を削る逆効果）に化けていた。fresh は正直に UNKNOWN を刻んでおり **fresh(no-op) のほうが MANUAL より害が小さい**状態。
+  - **parser 改善（本丸）**＝`REVEAL_AND_PICK` pick 文の filter 前置詞が `＜C＞|色|無色|レベル` に限定され「《ガードアイコン》を持たない」を意図的に除外していた（当時の保守判断）。だが **`noGuard` は型にも matchesFilter にも実装済み（G237）＝忠実に表現できる**ので過剰。regex に noGuard 枝を追加＋pick 名詞「カード」の `pickNoun` 保持。副産物で `WXDi-P05-021` が fresh(AUTO)=curated(MANUAL) 完全一致に（将来 AUTO 化可能・内容は既に正しいので温存）。
+  - **P03-005 是正**＝有害 MANUAL を原文忠実な構造へ手修正（build:effects で保持確認）＝`STUB(OPTIONAL_COST)` → `REVEAL_AND_PICK(pick1)` → `CONDITIONAL{IS_MY_TURN, then:REVEAL_AND_PICK(pick2)}`。engine の **Pattern④ replace モードが実装済み**（pay=2枚・skip=1枚）と事前確認して構造を合わせた＝新規機構不要。**pick 文を単独 REVEAL_AND_PICK 化する parser 規則は作らない**（分離 pick 単独解決＋置換 else は §6.3級・置換系統は原文「…していた場合、代わりに」で66枚と広い＝単カードのため過剰語彙を作らない）。
+  - **検証**＝全ゲート緑（**golden 516→517**・census 1880維持・lint 0 errors）。追加 golden 2件は**旧幻覚版に戻すと落ちる**（`pay で2枚 expected=7 got=5`）ことを実測確認。regen で「自分のシグニをデッキに戻す」→「ガード無しシグニを手札に加える」是正を確認。詳細 BUGFIXES 続き218k。
+
 - **セッション（2026-07-20・続き218h〜j・Opus・§3 タスク12＋タスク5 の連続作業。golden 510→516）**
   - **218h＝タスク12(xxix)③「そうした場合」の did-it ゲートを engine に新設（155効果152カード）**。parser は「そうした場合、」を常時 true `CONDITIONAL{IS_MY_TURN}` で表す慣例エンコード（§9-9）で、engine が「前段が実際に何かをしたか」を判定しないと前段空振りでも本体が実行される。`TRASH`/`DOWN`(自分)だけ既存ゲート有り、`BANISH`/`BOUNCE`/`DOWN`(相手)/`FREEZE`/`TRANSFER_TO_DECK`/`TRANSFER_TO_HAND`/`SEND_TO_ENERGY`/`LIFE_CRASH` は全滅だった。修正2点＝(a)`selectOrInteract` 候補0件を `lastProcessedCards:[]` に倒す（残留値すり抜け防止）(b)`execSequence` に汎用 did-it ゲート（プレースホルダ1ステップだけ消費・allowlist は lastProcessedCards 記録型のみ）。**⚠計器の教訓**＝最初の片側計器（空振りで skip するか）は観測値未伝播の空計器で全 PASS に見えた→対照群（成功盤面で fire すべき）を足した両側計器で実態判明。golden 510→513。詳細 BUGFIXES 続き218h。
   - **218i＝タスク5「GRANT_LRIG_ABILITY ON_PLAY 誤デフォルト」が実は誤診断**＝内側能力の `triggerScope` 脱落。相手アタック検出 regex が「シグニ」単独しか見ず「シグニかルリグ」複合主語を取りこぼし scope 未設定に→`collectFieldTriggers`(2429) は any_opp/any しか収集せず**完全な no-op（防御能力が丸ごと死亡）**。regex 拡張で3効果是正（`WXDi-D06-010`/`WX24-P2-046`/`WXDi-P09-036`）。`WX15-002-E2`（ルリグ単独）は engine 経路不在で当初据置→(xlvii) 登録。golden 513→514。詳細 BUGFIXES 続き218i。
