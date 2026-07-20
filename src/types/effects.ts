@@ -1080,7 +1080,7 @@ export interface RevealAndPickAction {
   pickNoun?: string;  // ピック対象の名詞（既定「シグニ」）。色一致で任意カードを拾う等は「カード」（G236）
   then: EffectAction;
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
-  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
+  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
 }
 
 // コストなしでカードを使用する（手札・相手手札・相手トラッシュ・ルリグデッキから）
