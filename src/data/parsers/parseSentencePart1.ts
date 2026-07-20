@@ -1367,7 +1367,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if ((t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t)) && !t.includes('センタールリグではない')) {
       return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 }, ...(downOptional ? { optional: true } : {}) };
     }
-    return { type: 'DOWN', target: parseSigniTarget(t, owner), ...(downOptional ? { optional: true } : {}) };
+    const downTgt = parseSigniTarget(t, owner);
+    // 「正面のシグニ」＝効果元シグニの正面（相手ゾーン 2-zi）に限定＝engine の execDown が frontOfSelf を解決。
+    if (isFrontOfSelf) downTgt.filter = { ...(downTgt.filter ?? {}), frontOfSelf: true };
+    return { type: 'DOWN', target: downTgt, ...(downOptional ? { optional: true } : {}) };
   }
 
   // ---- 凍結 ----
