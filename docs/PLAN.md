@@ -93,7 +93,7 @@
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
 | 15 | （大型・任意）§8 CPU AI のメインフェイズ拡張 | 新規設計 | L（特大） | ⏳DESIGN §4「CPU は対人戦と同じ処理」の統一が先 |
 | ~~17~~ | ~~timing 判定が本文後半/引用内のトリガー語を先に拾う~~ | parser | — | **✅続き136で修正＝判定を効果ブロック先頭のトリガー句（trigText）に限定・23効果是正**（詳細 BUGFIXES 続き136） |
-| 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | [A]完全wired／[B]軽量engine拡張／[C]新規機構 の3階層を続き75-76・172・175-180・207-208・213 で系統消化済み（経緯の全文は PLAN_DETAIL §3・BUGFIXES 各続き。振り分け台帳 `docs/_timing_census_triage.txt`）。**残43効果/40クラスタ**＝「シグニの下からトラッシュ」3・「アタックを効果によって無効にしたとき」2・以降ロングテール |
+| 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | [A]完全wired／[B]軽量engine拡張／[C]新規機構 の3階層を続き75-76・172・175-180・207-208・213・**235** で系統消化済み（経緯の全文は PLAN_DETAIL §3・BUGFIXES 各続き。振り分け台帳 `docs/_timing_census_triage.txt`）。**残41効果/38クラスタ**（続き235で受身形 [A] 2件消化＝ON_ACCE「アクセされたとき」WX15-059＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれた」WDA-F02-17-E2〔正面ダウン engine 拡張込み〕）＝残る [A] はほぼ枯渇。「シグニの下からトラッシュ」3・「アタックを効果によって無効にしたとき」2・以降ロングテール（大半 [C]§6.3 機構待ち＋[B] 軽量拡張） |
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。詳細本文と完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3〔2026-07-19退避節含む〕）：
 
