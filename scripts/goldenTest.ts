@@ -4145,6 +4145,32 @@ test('FREEZE(LRIG) 実行: 相手センタールリグが lrig_frozen になる'
   eq(r.otherState.field.lrig_frozen, true, '相手ルリグが凍結');
   eq(r.otherState.field.lrig_down ?? false, false, 'down:false ならダウンはしない');
 });
+// 「対戦相手のルリグ1体を対象とし、それを凍結する」＝FREEZE 対象は LRIG（センター無しの素のルリグ）。
+// 従来は parser がセンタールリグしか見ておらず fallback で **シグニ凍結** に化けていた
+// （§3 タスク12(xxix)(b) semantic audit クラスタ「対戦相手のルリグ1体」の凍結系17効果）。
+test('parse FREEZE-LRIG: 「対戦相手のルリグ1体を対象とし、それを凍結する」が LRIG 対象になる', () => {
+  const freezeTgtTypes = (cardNum: string, effectId: string): string[] => {
+    const eff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    const out: string[] = [];
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object') return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const nd = n as Record<string, unknown>;
+      if (nd.type === 'FREEZE' && nd.target) out.push((nd.target as { type: string }).type);
+      for (const k of Object.keys(nd)) walk(nd[k]);
+    };
+    walk(eff?.action);
+    return out;
+  };
+  // 素の単体：LRIG のみ
+  eq(freezeTgtTypes('WXDi-P00-018', 'WXDi-P00-018-E2').join(','), 'LRIG', 'WXDi-P00-018-E2');
+  eq(freezeTgtTypes('WX25-CP1-016', 'WX25-CP1-016-E2').join(','), 'LRIG', 'WX25-CP1-016-E2');
+  // 「ルリグ1体とシグニ1体を対象とし、それらを凍結する」＝両方（LRIG と SIGNI 両方）
+  const both = freezeTgtTypes('WX24-D3-04', 'WX24-D3-04-E2');
+  ok(both.includes('LRIG') && both.includes('SIGNI'), `WX24-D3-04-E2 は LRIG+SIGNI 両方（${both.join(',')}）`);
+  // CHOICE 内でも LRIG 対象を拾う
+  ok(freezeTgtTypes('WX24-P1-005', 'WX24-P1-005-E1').includes('LRIG'), 'WX24-P1-005-E1 選択肢①が LRIG');
+});
 
 // 5択CHOOSE（§3 Opusタスク10 パターンA）＝選択肢の丸数字クラスが ④ 止まりで **⑤が④に吸収され1つ消えていた**。
 test('parse 5択CHOOSE: ⑤まで正しく分割される（PR-K056 系・パターンA）', () => {

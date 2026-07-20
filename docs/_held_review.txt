@@ -359,6 +359,54 @@ WX24-P2-007 WX24-P2-087 WXEX2-18 WXEX2-70
   + [2].action.steps[1].source.filter.cardType = "シグニ"
   + [2].action.steps[1].source.filter.story = "遊具"
 
+## +FREEZE +LRIG +SEQUENCE ［4枚］
+WX24-D3-04 WX24-P2-045 WX25-P3-059 WXDi-P02-041
+--- WX24-D3-04
+  原文: 【起】《ターン２回》手札から青のシグニを１枚捨てる：対戦相手の手札を１枚見ないで選び、捨てさせる。【起】《ゲーム１回》《青×0》：対戦相手のルリグ１体とシグニ１体を対象とし、それらを凍結する。,-
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  ~ [1].action.type : "FREEZE" → "SEQUENCE"
+  + [1].action.steps[0].type = "FREEZE"
+  + [1].action.steps[0].target.type = "LRIG"
+  + [1].action.steps[0].target.owner = "opponent"
+  + [1].action.steps[0].target.count = 1
+  + [1].action.steps[1].type = "FREEZE"
+  + [1].action.steps[1].target.type = "SIGNI"
+  …（他 4 行）
+--- WX24-P2-045
+  原文: 【出】：対戦相手のルリグ１体と対戦相手のシグニ１体を対象とし、それらをダウンする。【出】手札を３枚捨てる：対戦相手のルリグ１体と対戦相手のシグニ１体を対象とし、それらを凍結する。,-
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  ~ [1].action.type : "FREEZE" → "SEQUENCE"
+  + [1].action.steps[0].type = "FREEZE"
+  + [1].action.steps[0].target.type = "LRIG"
+  + [1].action.steps[0].target.owner = "opponent"
+  + [1].action.steps[0].target.count = 1
+  + [1].action.steps[1].type = "FREEZE"
+  + [1].action.steps[1].target.type = "SIGNI"
+  …（他 4 行）
+--- WX25-P3-059
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのシグニ１体を対象とし、《青》を支払ってもよい。そうした場合、ターン終了時まで、それは【アサシン】を得る。【起】《ダウン》：ターン終了時まで、このシグニは「【自】：あなたのアタックフェイズ開始時、対戦相手のシグニを２体まで対象とし、それらを凍結する。」を得る。,：対戦相手のルリグ１体と対戦相手のシグニ１体を対象と
+  - [2].action.target.type = "SIGNI"
+  - [2].action.target.owner = "opponent"
+  - [2].action.target.count = 1
+  - [2].action.target.filter.cardType = "シグニ"
+  - [2].action.target.upToCount = false
+  ~ [2].action.type : "FREEZE" → "SEQUENCE"
+  + [2].action.steps[0].type = "FREEZE"
+  + [2].action.steps[0].target.type = "LRIG"
+  + [2].action.steps[0].target.owner = "opponent"
+  + [2].action.steps[0].target.count = 1
+  + [2].action.steps[1].type = "FREEZE"
+  + [2].action.steps[1].target.type = "SIGNI"
+  …（他 4 行）
+
 ## +STUB -GRANT_KEYWORD -SIGNI ［4枚］
 WXDi-P09-003 WXDi-P10-002 WXDi-P11-002 WXDi-P15-002
 --- WXDi-P09-003
