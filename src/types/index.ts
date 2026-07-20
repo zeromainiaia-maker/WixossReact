@@ -94,6 +94,7 @@ export interface PlayerState {
     signi_traps?:       (string | null)[]; // [zone0, zone1, zone2] 裏向きトラップのCardNum（設置済み・未発動）
     signi_magic_boxes?: (string | null)[]; // [zone0, zone1, zone2] 【マジックボックス】のCardNum（裏向き設置中）
     signi_seeds?:  (string | null)[]; // [zone0, zone1, zone2] 【シード】のCardNum（設置済み・未開花）
+    facedown_signi?: (string | null)[]; // [zone0, zone1, zone2] 裏向きでシグニゾーンに置かれたカード（WXDi-P10-034）。表向きにするまで inert（パワー/能力/アタック無し・場のシグニとして扱わない）。次の自メインフェイズ開始時に表向き分岐（pending_facedown_flip）
     signi_armor?:  boolean[];         // [zone0, zone1, zone2] true=血晶武装状態（場を離れるまで維持）
     puppet_signi?: string[];          // 傀儡状態でこの場に出ている（持ち主＝対戦相手の）シグニのインスタンスID。場を離れると持ち主のトラッシュへ回収される（WDK17-007）
     free_zone?:    string[];          // フリーゾーン（チアガール等を置く汎用ゾーン）
