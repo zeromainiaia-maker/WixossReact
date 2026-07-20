@@ -7583,10 +7583,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
         myS.field.signi.some(s => {
           const n = s?.at(-1);
-          // 上の redirectBanish（実際の行き先判定）と同じ条件にする＝bySource 付きはバトル当事者のみ
+          // 上の redirectBanish（実際の行き先判定）と同じ条件にする＝bySource 付きはバトル当事者のみ・
+          // target.filter も同じ被バニッシュシグニ属性で評価する（トリガー発火可否を実際の行き先と一致させる）。
           return n && (effectsMap.get(n) ?? []).some(e =>
             e.effectType === 'CONTINUOUS' &&
-            banishRedirectAppliesFrom(e.action, n, myTopNum) &&
+            banishRedirectAppliesFrom(e.action, n, myTopNum, banishedOpAttrsOf(banishedOpCardNum)) &&
             checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
           );
         });
