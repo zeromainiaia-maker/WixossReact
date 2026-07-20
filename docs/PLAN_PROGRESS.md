@@ -6,6 +6,10 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-21・続き231・Opus・**タスク12(xliv)(a2) 効果経路の 【常】 BANISH_REDIRECT 走査＝`BANISH` action（ARTS/【出】/【自】等）でバニッシュした相手シグニの行き先がターン内フラグしか見ず 【常】置換を取りこぼしてエナ送りになっていた under-fire を消化**。golden 533→**534**・census **1841** 維持）
+  - **修正（engine のみ）**＝`cardMap.get(n).effects` から CONTINUOUS を直接読めるため effectsMap 追加不要と判明。`fieldEffectBanishRedirectToTrash`＋`computeBanishedAttrs`＋`banishRedirectAppliesFrom{excludeWhenPowerZero}` 新設、`banishDestination` に opts 配線、効果経路 全10箇所へ `banishRedirectOpts`。
+  - **過剰発火の回避**＝属性不一致・whenPowerZero・bySource・phase不明の DURING_ATTACK_PHASE は全て発火させない（保守的 under-fire）。実カード WX19-078 で感染→トラッシュ／非感染→エナを end-to-end 確認。詳細 BUGFIXES 続き231。
+
 - **セッション（2026-07-21・続き230・Opus・**タスク12(xliv)(a) 属性フィルタ＝`BANISH_REDIRECT` の「対戦相手の［限定］シグニがバニッシュされる場合」の限定（レベル/凍結/感染/チャーム）が脱落し全バニッシュがトラッシュ送りになる過剰発火を、parser で target.filter へ復元＋engine の battle/power0 経路で被バニッシュ属性を評価して消化**。golden 532→**533**・census **1841** 維持）
   - **バグ**＝parser が属性限定を丸ごと落とし filter が `{cardType:シグニ}` のみ。engine の 【常】オンザフライ走査 `banishRedirectAppliesFrom` が target.filter を見ず、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**（相手のエナ加速を止める実害）。
   - **修正**＝(1)parser（`parseSentencePart1.ts`）＝`レベルN以下の/凍結状態の/感染状態の/【チャーム】が付いている …シグニがバニッシュされ` を `filter.level/isFrozen/infected/hasCharm` へ。(2)engine（`effectEngine.ts`）＝`BanishedCardAttrs`＋`banishRedirectFilterMatches`、`banishRedirectAppliesFrom` に第4引数 `banished?`。(3)BattleScreen 3経路（バトル先/ON_TRASH トリガー/パワー0）に除去前盤面から取った属性を配線。(4)decompiler。
