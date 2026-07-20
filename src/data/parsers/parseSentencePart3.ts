@@ -1493,8 +1493,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のエナゾーンからカードをトラッシュに置いてもよい ----
+  // 「てもよい」＝任意。「そうした場合」の did-it ゲートと組む任意アクションで、optional を落とすと engine が
+  //   強制でトラッシュさせる（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
   if (t.match(/対戦相手のエナゾーンからカード[０-９\d]*枚?を対象とし、それをトラッシュに置いてもよい/)) {
-    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } };
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 }, optional: true };
   }
 
   // ---- 対戦相手のシグニN体を対象とする（単独）----
