@@ -4,6 +4,25 @@
 
 ---
 
+## §6.3 機構待ち解消＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火＋REVEAL_AND_PICK remainder の shuffle 語彙（golden 535→537・census 1841→1839）（2026-07-21・続き233・Opus）
+
+**背景**＝§6.3 の機構待ちを3系統消化。
+
+**(1) ON_LEAVE_FIELD 跨サイド any_opp watcher の byEffect / leftStateFilter（WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1）**
+- **バグ**＝「（あなたのターンの間、）対戦相手の[凍結状態の]シグニが[効果によって]場を離れたとき、X」という**相手シグニの離脱を見る watcher** 効果3枚が、parser に scope 抽出規則が無く `triggerScope` 既定＝`self`（＝**自分自身が離れたときしか発火しない**）に潰れていた。跨サイド収集の機構（`collectLeaveFieldTriggers` の any_opp 相手フィールド走査）は続き218b の機構③で既に存在していた＝**データ側の scope/cond 欠落だけ**の問題。ただし「凍結状態の」は離脱**直前**の盤面（`signi_frozen[zoneIdx]`）が要り、`collectLeaveFieldTriggers` は離脱**後**の state しか受け取っていなかった。
+- **修正**：
+  - 型（`effects.ts`）＝`triggerCondition.leftStateFilter?: TargetFilter`（離脱直前状態限定・`banishedFilter` の ON_LEAVE_FIELD 版）を新設。`byEffect`（任意効果起因）は既存フィールドを流用。
+  - engine＝`detectLeftFieldSigni`（`boardDiff.ts`）が `zoneIdx` も返すように拡張。`collectLeaveFieldTriggers` に離脱直前 state スナップショット引数 `leftBeforeState`/`leftZoneIdx` を追加し、`leftStateOk(filter)`（`matchesStateFilter` で評価・state 未渡し時は保守的に false）を any_opp/any_ally 分岐へ配線。`byEffect` ゲート（`causeOwnerId===undefined` なら非発火）も同分岐へ追加。BattleScreen の中央diff 呼び出し2箇所が before-state（`beforeHost`/`beforeGuest`）＋zoneIdx を渡す。
+  - parser（`effectParser.ts`）＝「対戦相手の(凍結状態の)?シグニが(効果によって)?場を離れたとき」→ `any_opp`＋`byEffect`（効果によって）／`leftStateFilter{isFrozen}`（凍結状態の）／`turnOwner:self`（あなたのターンの間）を抽出。`build:effects` で AUTO 3枚を純改善自動採用。
+  - golden に3アサート追加（byEffect の効果離脱/バトル離脱、turnOwner:self の自ターン/相手ターン、leftStateFilter の凍結/非凍結/before-state無し）。
+- **⚠残（保守的 under-fire）**＝**バトル離脱経路**（`BattleScreen.tsx:7608` のバトルバニッシュ）は除去前 state を渡していないため、凍結フィルタ付き効果はバトル離脱で非発火。過剰発火より偽陰性を選ぶ方針（`banishedFilter` と同思想）＝WXEX1-30-E1 の「凍結相手シグニは離場時トラッシュに置く」置換 STUB が未実装なこととも整合。中央diff（効果によるバウンス/トラッシュ等）は正しく発火する。
+
+**(2) REVEAL_AND_PICK remainder の shuffle 保持（PR-370-E2）**
+- **バグ**＝「残りをシャッフルしてデッキの一番下に置く」の shuffle が `RevealAndPickAction['remainder']` に語彙が無く、公開残りを**公開順のままデッキ下**へ置いていた（順序が決定的＝原文のランダム化を無視）。
+- **修正**＝remainder／pending `revealRemainder` に `shuffle?` を追加。engine の remainder 適用2経路（`revealRemainder` 消費・pickable 空の早期経路）で `shuffle` 時に置く前に `shuffle()`。parser の「カード名に《X》を含むシグニ…残りをシャッフルして…」1文型ハンドラで `shuffle:true` 抽出。PR-370-E2 を純改善自動採用。
+
+**ゲート**＝全ゲート緑（golden **537**・smoke 10722全OK・fuzz 全0・census 1841→**1839**〔WXK11-017/WXEX1-30/WXDi-P03-040 の欠落2件解消〕・lint 0 errors・typecheck）。
+
 ## タスク5 消化＝「このシグニを場からトラッシュに置いてもよい」自己犠牲が全シグニ強制トラッシュ＋本体常時発火に退化（5枚是正）＋WX26-CP1-100/PR-Di038 は正常と確認（golden 534→535・census 1841維持）（2026-07-21・続き232・Opus）
 
 **バグ**＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」の自己犠牲イディオムで、parser の完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self count:1}` を **thisCardOnly も optional も付けず**に emit していた。結果：(1)対象が**自分の全シグニ**になり「このシグニ」以外も選べる（誤対象）(2)**強制実行**（optional 欠落）で任意のはずが必ずトラッシュ (3)スキップできないため後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体（場出し/アップ等）も**常時発火**（コスト踏み倒し）。engine 側は `execTrash:706` の optional スキップ→did-it ゲート（`execSequence`）で正しく処理する準備が既にあったのに、parser がフラグを立てていなかった。対比：「あなたのシグニ1体を…置いてもよい」（WXK10-055）は optional:true が付いており正常だった。
