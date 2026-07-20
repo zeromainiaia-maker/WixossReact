@@ -2439,10 +2439,10 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   if (/代わりに/.test(text)) return action;
   const desigM = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
   if (!desigM) return action;
-  // 偽陽性除外：任意コスト STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は engine（effectExecutor の
-  // fixOwnerTOSOC）が実行時に owner:self/any→opponent を補正するため、JSON の owner:self は退化ではない。
-  // ここで書き換えると engine の対象選択フローと二重管理になるため触らない（続き226 で機械確認した5枚）。
-  if (JSON.stringify(action).includes('"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"')) return action;
+  // ⚠任意コスト STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` を持つケースも補正対象に含める。engine の
+  // fixOwnerTOSOC は実行時 owner を opponent へ寄せるが、JSON を先に opponent へ直しても fixOwner は冪等
+  // （no-op）で二重管理にならず、accusative「それを」系（WX05-028/WX07-001 等）は従来から本ハンドラが
+  // opponent へ直した JSON で正常動作している。ここでスキップすると逆に既存補正を剥がす退化になる（続き226）。
   const desig = parseSigniTarget(desigM[1], 'opponent');
   // 末尾（「それを…」）アクションの target/source を1つだけ補正（コスト等の先行 self ターゲットは触らない）。
   const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
