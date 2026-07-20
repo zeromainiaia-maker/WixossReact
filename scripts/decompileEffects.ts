@@ -1125,6 +1125,12 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
       if (a.id === 'UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
       if (a.id === 'FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
+      // WXDi-P10-034: デッキ上N枚を見て1枚を裏向きでシグニゾーンに置き、残りをデッキ下→次の自メインフェイズ開始時に表向き分岐
+      if (a.id === 'LOOK_PLACE_FACEDOWN_DELAYED') {
+        const cnt = typeof a.count === 'number' ? a.count : 4;
+        const bonus = typeof a.value === 'number' ? a.value : (parseInt(String(a.value ?? '5000'), 10) || 5000);
+        return `デッキの上から${cnt}枚を見て、1枚を裏向きでシグニゾーンに置き、残りを好きな順番でデッキの一番下に置く。次のあなたのメインフェイズ開始時、そのカードを表向きにしてもよい（そうした場合、場にあるかぎりパワー＋${bonus}／しなかった場合、手札に加える）`;
+      }
       // N回目までアタック自動無効化（WX10-018/WX17-006/SP27-016）＝engine は原文の「一度目か二度目」等を
       // 実行時に読み取る（execStubPart3）。逆翻訳は原文の該当文をそのまま抽出して描画。
       if (a.id === 'NEGATE_NTH_ATTACK') {
