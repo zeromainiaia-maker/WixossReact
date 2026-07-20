@@ -3553,6 +3553,110 @@ export function execStubPart2(
   if (stub.id === 'BLOOM_CHOOSE') {
     return done(addLog(ctx, `[開花時選択効果: ${ctx.sourceCardNum}]`));
   }
+
+  // ─── WXDi-P10-034（羅植姫 ユキ//メモリア）：デッキ上を裏向き設置→次の自メインフェイズ開始時に表向き分岐 ───
+  // LOOK_PLACE_FACEDOWN_DELAYED (E1本体): デッキ上 count 枚を見て、1枚を裏向きでシグニゾーンに置き（PLACE_FACEDOWN_SIGNI）、
+  //   残りを好きな順番でデッキの一番下へ（SEARCH restDest:deck_bottom）。裏向きカードは pending_facedown_flip に記録され、
+  //   次の自メインフェイズ開始時に collectTurnTriggers が RESOLVE_FACEDOWN_FLIP を発火する。
+  if (stub.id === 'LOOK_PLACE_FACEDOWN_DELAYED') {
+    const countLPF = typeof stub.count === 'number' ? stub.count : 4;
+    const bonusLPF = typeof stub.value === 'number' ? stub.value : (parseInt(String(stub.value ?? '5000'), 10) || 5000);
+    const visibleLPF = ctx.ownerState.deck.slice(0, countLPF);
+    if (visibleLPF.length === 0) return done(addLog(ctx, 'デッキが空（裏向き設置スキップ）'));
+    const fdArrLPF = ctx.ownerState.field.facedown_signi ?? [];
+    const seedArrLPF = ctx.ownerState.field.signi_seeds ?? [];
+    const hasEmptyLPF = ctx.ownerState.field.signi.some((z, i) => (!z || z.length === 0) && !fdArrLPF[i] && !seedArrLPF[i]);
+    if (!hasEmptyLPF) {
+      // 空きシグニゾーンが無く裏向きで置けない → 見た全カードをデッキの一番下へ
+      const newDeckLPF = [...ctx.ownerState.deck.slice(visibleLPF.length), ...visibleLPF];
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: newDeckLPF } }, `空きシグニゾーンなし：見た${visibleLPF.length}枚をデッキの一番下へ`));
+    }
+    return needsInteraction(addLog(ctx, `デッキの上から${visibleLPF.length}枚を見る`), {
+      type: 'SEARCH',
+      visibleCards: visibleLPF,
+      maxPick: 1,
+      thenAction: ({ type: 'STUB', id: 'PLACE_FACEDOWN_SIGNI', value: bonusLPF } as StubAction) as EffectAction,
+      restDest: 'deck_bottom',
+    });
+  }
+  // PLACE_FACEDOWN_SIGNI: SEARCH で選んだ1枚（lastProcessedCards[0]）を裏向きでシグニゾーンに置く。restDest が残りをデッキ下へ運ぶ。
+  if (stub.id === 'PLACE_FACEDOWN_SIGNI') {
+    const pickedPFS = ctx.lastProcessedCards?.[0];
+    if (!pickedPFS) return done(addLog(ctx, '裏向き設置：対象なし'));
+    const bonusPFS = typeof stub.value === 'number' ? stub.value : (parseInt(String(stub.value ?? '5000'), 10) || 5000);
+    let sPFS: PlayerState = { ...ctx.ownerState };
+    const diPFS = sPFS.deck.indexOf(pickedPFS);
+    if (diPFS >= 0) { const dk = [...sPFS.deck]; dk.splice(diPFS, 1); sPFS = { ...sPFS, deck: dk }; }
+    const fdPFS = [...(sPFS.field.facedown_signi ?? [null, null, null])] as (string | null)[];
+    const seedPFS = sPFS.field.signi_seeds ?? [];
+    const zoneIdxPFS = sPFS.field.signi.findIndex((z, i) => (!z || z.length === 0) && !fdPFS[i] && !seedPFS[i]);
+    if (zoneIdxPFS < 0) {
+      return done(addLog({ ...ctx, ownerState: { ...sPFS, deck: [...sPFS.deck, pickedPFS] } }, '裏向き設置：空きゾーンなし→デッキの一番下'));
+    }
+    fdPFS[zoneIdxPFS] = pickedPFS;
+    sPFS = {
+      ...sPFS,
+      field: { ...sPFS.field, facedown_signi: fdPFS },
+      pending_facedown_flip: { cardNum: pickedPFS, zoneIndex: zoneIdxPFS, powerBonus: bonusPFS, sourceCardNum: ctx.sourceCardNum ?? pickedPFS },
+    };
+    return done(addLog({ ...ctx, ownerState: sPFS },
+      `${ctx.cardMap.get(getCardNum(pickedPFS))?.CardName ?? pickedPFS}を裏向きでシグニゾーン${zoneIdxPFS + 1}に置く`));
+  }
+  // RESOLVE_FACEDOWN_FLIP: 次の自メインフェイズ開始時、裏向きカードを表向きにするか選ぶ（合成トリガーから発火）。
+  if (stub.id === 'RESOLVE_FACEDOWN_FLIP') {
+    const pfRFF = ctx.ownerState.pending_facedown_flip;
+    if (!pfRFF) return done(ctx);
+    const fdRFF = (ctx.ownerState.field.facedown_signi ?? [])[pfRFF.zoneIndex];
+    if (fdRFF !== pfRFF.cardNum) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, pending_facedown_flip: undefined } }, '裏向きカード消失：表向き分岐スキップ'));
+    }
+    const nameRFF = ctx.cardMap.get(getCardNum(pfRFF.cardNum))?.CardName ?? pfRFF.cardNum;
+    return needsInteraction(addLog(ctx, `${nameRFF}を表向きにするか選択`), {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'flip', label: `表向きにする（パワー＋${pfRFF.powerBonus}）`, available: true, action: ({ type: 'STUB', id: 'FACEDOWN_FLIP_UP' } as StubAction) as EffectAction },
+        { id: 'hand', label: '表向きにせず手札に加える', available: true, action: ({ type: 'STUB', id: 'FACEDOWN_FLIP_TO_HAND' } as StubAction) as EffectAction },
+      ],
+    });
+  }
+  // FACEDOWN_FLIP_UP: 裏向きカードを表向きにしてシグニゾーンへ（場にあるかぎり field_power_mods で +powerBonus）。
+  if (stub.id === 'FACEDOWN_FLIP_UP') {
+    const pfFU = ctx.ownerState.pending_facedown_flip;
+    if (!pfFU) return done(ctx);
+    const fdFU = [...(ctx.ownerState.field.facedown_signi ?? [null, null, null])] as (string | null)[];
+    if (fdFU[pfFU.zoneIndex] !== pfFU.cardNum) {
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, pending_facedown_flip: undefined } }, '表向き：対象消失'));
+    }
+    fdFU[pfFU.zoneIndex] = null;
+    const signiFU = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    signiFU[pfFU.zoneIndex] = [pfFU.cardNum];
+    const fmodsFU = [...(ctx.ownerState.field_power_mods ?? []), { cardNum: pfFU.cardNum, delta: pfFU.powerBonus, srcCardNum: pfFU.sourceCardNum }];
+    const newSFU: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, signi: signiFU, facedown_signi: fdFU },
+      field_power_mods: fmodsFU,
+      pending_facedown_flip: undefined,
+    };
+    return done(addLog({ ...ctx, ownerState: newSFU },
+      `${ctx.cardMap.get(getCardNum(pfFU.cardNum))?.CardName ?? pfFU.cardNum}を表向きにする（パワー＋${pfFU.powerBonus}）`));
+  }
+  // FACEDOWN_FLIP_TO_HAND: 表向きにせず、そのカードを手札に加える。
+  if (stub.id === 'FACEDOWN_FLIP_TO_HAND') {
+    const pfTH = ctx.ownerState.pending_facedown_flip;
+    if (!pfTH) return done(ctx);
+    const fdTH = [...(ctx.ownerState.field.facedown_signi ?? [null, null, null])] as (string | null)[];
+    if (fdTH[pfTH.zoneIndex] === pfTH.cardNum) fdTH[pfTH.zoneIndex] = null;
+    const newSTH: PlayerState = {
+      ...ctx.ownerState,
+      field: { ...ctx.ownerState.field, facedown_signi: fdTH },
+      hand: [...ctx.ownerState.hand, pfTH.cardNum],
+      pending_facedown_flip: undefined,
+    };
+    return done(addLog({ ...ctx, ownerState: newSTH },
+      `${ctx.cardMap.get(getCardNum(pfTH.cardNum))?.CardName ?? pfTH.cardNum}を手札に加える`));
+  }
+
   // 裏向き系（face_down_signi + abilities_removed で近似実装済み）
   // REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除
   if (stub.id === 'REMOVE_SIGNI_ZONE') {
