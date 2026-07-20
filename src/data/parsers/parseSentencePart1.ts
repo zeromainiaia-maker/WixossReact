@@ -1149,10 +1149,13 @@ export function parseSentencePart1(t: string): EffectAction | null {
   if (selfDiscardM) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
   }
-  // ---- 「その後、手札をN枚捨ててもよい」 ----
+  // ---- 「（…を対象とし、）手札をN枚捨ててもよい」（任意）----
+  // 「てもよい」＝任意。「そうした場合、それを<除去>」の did-it ゲートと組む任意コストで、optional を落とすと
+  //   engine が強制で手札を捨てさせる（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
+  //   ⚠この規則は先頭非アンカーで「…を対象とし、手札をN枚捨ててもよい」も拾う＝part3 の anchored 版より先に効く。
   {
     const optDiscardM = t.match(/手札を([０-９\d]+)枚捨ててもよい$/);
-    if (optDiscardM) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) } };
+    if (optDiscardM) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) }, optional: true };
   }
 
   // ---- サーチ（手札 or 場に出す or エナゾーン）----
