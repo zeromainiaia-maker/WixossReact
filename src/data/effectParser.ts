@@ -1307,6 +1307,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'CARDS_DRAWN_BY_EFFECT', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
   [/あなたのエナゾーンにあるカードの色が([０-９\d]+)種類以上ある場合/,
     g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: {}, distinctColor: true, operator: 'gte', value: parseNum(g[0]) })],
+  // 「あなたの手札が対戦相手より少ない場合」＝自分の手札枚数が相手より少ない（HAND_DIFF{lt,0}＝self−opp<0）。
+  //   engine evalCondition・decompiler 両対応済（activeCondition 版「〜より多いかぎり」と同じ HAND_DIFF 型）。
+  //   語彙が無くアーツ使用時に無条件で3ドローする過剰効果だった（WX20-005・タスク12(xxxix)）。
+  [/あなたの手札が対戦相手より少ない場合/,
+    () => ({ type: 'HAND_DIFF', operator: 'lt', value: 0 })],
   [/対戦相手のセンタールリグが(白|赤|青|緑|黒|無色)の場合/,
     g => ({ type: 'LRIG_COLOR', owner: 'opponent', color: g[0] })],
   [/あなたの場に傀儡状態のシグニが([０-９\d]+)体以上ある場合/,
