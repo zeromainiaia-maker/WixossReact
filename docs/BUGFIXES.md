@@ -4,6 +4,47 @@
 
 ---
 
+## `BANISH_REDIRECT` の属性フィルタ（レベル/凍結/感染/チャーム）が脱落し「対戦相手の全バニッシュがトラッシュ送り」に過剰発火＝バトル/パワー0経路で target.filter を評価（golden 532→533・census 1841維持）（2026-07-21・続き230・Opus）
+
+Opusタスク12(xliv)(a)＝属性フィルタ5件。`BANISH_REDIRECT` は「対戦相手の**［限定］**シグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」の**限定**（レベル１以下／凍結／感染／チャーム付き）を parser が丸ごと落とし、engine の **battle/power0 経路（【常】をオンザフライで走査する `banishRedirectAppliesFrom`）が target.filter を一切見ず**、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**になる過剰発火だった（相手のエナ加速を丸ごと止める実害）。
+
+### 1. parser：属性限定を target.filter へ復元（`parseSentencePart1.ts`）
+
+バニッシュ先変更ルール（「エナゾーンに置かれる代わりにトラッシュに置かれる」）の filter 構築に4つの属性抽出を追加。被バニッシュ側の主語句（`…シグニが…バニッシュされ`）に係る限定だけを拾う：
+- `レベルN以下の…シグニがバニッシュされ` → `filter.level = {max:N}`（WXK10-053）
+- `凍結状態の…シグニがバニッシュされ` → `filter.isFrozen`（WXDi-P12-073・bySource:battle_with_this と併存）
+- `感染状態の…シグニがバニッシュされ` → `filter.infected`（WX21-005・**WX19-078**＝「正面の感染状態の」も infected を獲得＝正面限定は §6.3残だが over-fire は縮小）
+- `【チャーム】が付いている…シグニがバニッシュされ` → `filter.hasCharm`（WX18-038）
+
+WX25-P3-104（「レベル２以下のシグニ**１体を対象とし**…**それが**バニッシュされる場合」）は主語が `それが` で `シグニが…バニッシュされ` に一致しない＝単体対象系（(xliv)(b)）のため意図どおり不変。
+
+### 2. engine：`banishRedirectAppliesFrom` に被バニッシュ属性を評価（`effectEngine.ts`）
+
+`BanishedCardAttrs`（level/frozen/hasCharm/infected）を新設し、`banishRedirectFilterMatches` で target.filter の属性限定を評価。`banishRedirectAppliesFrom` に第4引数 `banished?` を追加＝**渡すと限定を評価**、未指定＝従来どおり評価しない（**後方互換**。効果経路など属性が取れない呼び出しは無変更）。level 未取得（`undefined`）は不適用に倒す（近似で過剰発火しない）。
+
+### 3. BattleScreen：3経路に被バニッシュ属性を配線
+
+凍結/チャーム/感染は**ゾーン添字の状態**でバニッシュ後に消えるため、**除去前の opS/currentOwner 盤面**から取る。level は printed + `temp_level_mods`。
+- **バトルバニッシュ先判定**（`banishedOpAttrsOf(opTopCardNum)`）＋**ON_TRASH トリガー発火可否**（`banishedOpAttrsOf(banishedOpCardNum)`）＝実際の行き先とトリガーを一致させる。
+- **パワー0消滅**（`p0Attrs`＝dieZoneP0 のゾーン状態）。
+
+### 4. decompiler：属性限定を逆翻訳に描画（`decompileEffects.ts`）
+
+`対戦相手の${凍結/感染/チャーム/レベルN以下}シグニが…バニッシュされる場合`。4カードとも原文どおり（WXDi-P12-073 は bySource と併記）。
+
+### 残（(xliv) の未消化）
+
+- **効果経路（`banishDestination`）は据置**＝`ExecCtx` に effectsMap が無く 【常】 の CONTINUOUS 走査ができない（効果バニッシュは今も turn-flag 依存で 【常】 redirect を拾わない既存ギャップ＝**over-fire ではなく under。今回の変更で悪化しない**）。effectsMap を ExecCtx へ通す配線＋16呼び出し点のシグネチャ変更が要る §6.3級。
+- **単体対象4件**（(xliv)(b)＝「シグニ１体を対象とし…それがバニッシュ」）＝対象選択して番号を記録するフロー未実装。
+- **正面限定3件**（WX19-078 ほか）＝target 側ゾーン限定機構。
+
+### 検証
+
+- **golden 532→533**＝新規テスト「属性限定は被バニッシュシグニに一致するときだけ適用（level<=1/凍結/チャーム/感染の適用・不適用両方＋level不明は不適用＋banished未指定は後方互換）」。
+- 全ゲート緑（golden 533・smoke 10722・fuzz 0・census 1841維持・lint 0 errors・typecheck）。`npm run regen` 後、4カードの逆翻訳に属性限定が正しく出ることを目視確認（WX19-078 は infected 獲得で over-fire 縮小）。
+
+---
+
 ## census クラスタ「Nまで上限選択」＝REVEAL_AND_PICK のフィルタ付き pick が「スペル」noun を欠き pick 脱落＝parser 拡張で2効果被覆（census 1843→1841・golden 532維持）（2026-07-20・続き229・Opus）
 
 census クラスタ上位「その中からカードをN枚まで手札に加え、残りをデッキ一番下に置く」（14効果）を精査。**大半（12）は既に正しく REVEAL_AND_PICK で、census の欠落計上は同一効果内の別脱落（使用条件ピースの「その後、〜の場合」多段条件節の脱落＝WXDi-P08-003/WXDi-P13-001 ほか）が原因**と判明（クラスタ・テンプレは代表文型でグルーピングするため欠落理由は効果ごとに異なる）。そのうえで clean な parser gap を1本消化した。
