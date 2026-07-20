@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き227・Opus・**§3 タスク4 §5c条件節の残＝「Aあり Bある場合」複合条件の語彙欠落（WXDi-P11-048-E1）を消化。トラッシュ色枚数＋相手エナ枚数の AND を parser に1本追加**。census **1845** 維持・golden **532** 維持）
+  - **内容**＝E1 原文「あなたのトラッシュに黒のカードが１０枚以上あり対戦相手のエナゾーンにカードが２枚以上ある場合」の**複合条件が丸ごと脱落**し、アタック時に無条件で相手エナをトラッシュする過剰効果だった（E2 単一条件「２０枚以上」は既に正しく CONDITIONAL 化・E3 不変）。
+  - **修正（新機構不要）**＝`effectParser.ts` の条件テーブルに、続き218 の類似複合（WXDi-P05-056「場に色シグニN種類以上あり…」）と**同型の別語彙**を1本追加＝`AND[TRASH_HAS_CARD{self,color,minCount}, ENERGY_COUNT{opponent,gte}]`。engine の evalCondition（AND/TRASH_HAS_CARD/ENERGY_COUNT）・decompiler の condToText（AND「かつ」）はいずれも既存対応。fresh は E1 が TRASH→CONDITIONAL へ構造変化するため held 温存→heldReview で採用。
+  - **ゲート**＝全ゲート緑（typecheck・golden **532**・smoke 10722全OK・fuzz 全0・census **1845** 維持・lint 0 errors・同型★0）。census は過剰効果（条件脱落）の是正で「欠落語彙」計器を動かさず baseline 不変＝挙動是正は golden/smoke/fuzz が担保。詳細 BUGFIXES 続き227。
+
 - **🆕 セッション（2026-07-20・続き226・Opus・**§3 タスク12(xxix)(b) 完了＝照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。そうした場合、それの…」で「それ」の照応先が失われ owner:self+targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理2本で復元。ライブ84枚＋MANUAL1枚を一括是正**。census 1846→**1845**・golden 528→**532**）
   - **起点**＝続き223 のトリアージで (xxix)(b)残 として登録した2クラスタ（「対戦相手のシグニ1体」power-down owner 22件／「あなたのトラッシュから」hand-add zone 13件）。任意コスト文が対象化文と結果文の間に割り込むと「それ」の照応先が parser で失われ、power-down/付与が **owner:self+targetsTriggerSource**（トリガー元＝自分自身）へ、手札回収が **source:DECK_CARD**（自デッキ）へ化けて原文と逆・別ゾーンの効果になっていた。
   - **根因と修正（新機構不要）**＝(A)既存 `applyLeadingOpponentDesignation`（続き111）の照応検出を「そうした場合、それを」限定→`/そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/`（「それの/それは」＋介在節「ターン終了時まで、」「カードを1枚引き、」＋「それら」）へ拡張＝owner→opponent＋tts撤去＋欠落フィルタ補完。(B)`applyLeadingTrashHandAnaphora` を新設＝自トラッシュ designation から `TRASH_CARD` source を組み `DECK_CARD` を置換。
