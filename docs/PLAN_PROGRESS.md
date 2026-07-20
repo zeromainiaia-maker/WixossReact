@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-21・続き233・Opus・**§6.3 機構待ちを3系統消化＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火（+凍結フィルタ+効果限定+離脱直前 state スナップショット機構）／REVEAL_AND_PICK remainder の shuffle 語彙。golden 535→**537**・census 1841→**1839**）**
+  - **(1) ON_LEAVE_FIELD 跨サイド any_opp watcher（WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1）**＝相手シグニの離脱を見る watcher 効果3枚が parser の scope 抽出欠落で `triggerScope=self`（自身離脱でしか発火せず）に潰れていた。跨サイド収集機構は続き218b で既存＝**データ側の scope/cond 欠落だけ**。ただし「凍結状態の」は離脱**直前**盤面が要る。
+  - **修正**＝①型に `triggerCondition.leftStateFilter?:TargetFilter`（`banishedFilter` の ON_LEAVE_FIELD 版）新設・`byEffect` は既存流用。②`detectLeftFieldSigni` が `zoneIdx` を返し、`collectLeaveFieldTriggers` に離脱直前 state スナップショット（`leftBeforeState`/`leftZoneIdx`）を配線＝`matchesStateFilter` で凍結評価（BattleScreen 中央diff 2箇所が before-state を渡す）。③engine any_opp/any_ally 分岐に `byEffect`（任意効果起因）＋`leftStateFilter` ゲート追加。④parser で「対戦相手の(凍結状態の)?シグニが(効果によって)?場を離れたとき」→any_opp+byEffect/leftStateFilter/turnOwner 抽出。build:effects 純改善自動採用・golden 3アサート追加。
+  - **⚠残（保守的 under-fire）**＝バトル離脱経路（`BattleScreen.tsx:7608`）は除去前 state 未渡しのため凍結フィルタ付き効果はバトル離脱で非発火（過剰発火より偽陰性・`banishedFilter` と同思想）。中央diff（効果離脱）は正発火。
+  - **(2) REVEAL_AND_PICK remainder の shuffle 保持（PR-370-E2）**＝remainder／`revealRemainder` に `shuffle?` 追加、engine の remainder 適用2経路で置く前に `shuffle()`、parser の名前フィルタ pick 1文型で `shuffle:true` 抽出。
+  - **ゲート**＝全ゲート緑（golden **537**・smoke 10722全OK・fuzz 全0・census 1841→**1839**・lint 0 errors・typecheck）。詳細 BUGFIXES 続き233。
+
 - **セッション（2026-07-21・続き232・Opus・**タスク5 消化＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」自己犠牲イディオムが thisCardOnly も optional も欠き、**全シグニ強制トラッシュ＋「そうした場合」本体常時発火**に退化していた5枚を是正。副産物で WX26-CP1-100／PR-Di038 は正常と確認**。golden 534→**535**・census **1841** 維持）**
   - **バグ**＝parser 完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self 1}` を裸で emit＝(1)対象が自分の全シグニ（誤対象）(2)強制実行（optional 欠落）(3)スキップ不能ゆえ後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体も常時発火（コスト踏み倒し）。engine は `execTrash:706` の optional スキップ→did-it ゲートを既に備えていたが parser がフラグを立てていなかった。
   - **修正**＝parser で `thisCardOnly:true`＋`optional:true` 付与（AUTO 4枚 WX19-031/034・WXK10-032・WXEX2-31 を build:effects 再生成／WXK10-033 は E2 MANUAL 保護のため E1 直パッチ＋MANUAL 刻印）＋decompiler の SIGNI TRASH 分岐が optional 接尾辞を落としていたのを是正（`（してもよい）`）。
