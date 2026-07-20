@@ -729,6 +729,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         : matched.length;
       return cmp(n, cond.operator, resolveNum(cond.value));
     }
+    case 'HAND_DIFF':
+      return cmp(s.hand.length - o.hand.length, cond.operator, cond.value);
     case 'LIFE_COUNT':
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
     case 'LIFE_CRASHED_THIS_TURN':
