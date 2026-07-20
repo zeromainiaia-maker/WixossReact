@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き224・Opus・**§3 タスク1(d) 完了＝WX25-P3-085 の単文型 grant mis-parse（再収穫）＋同カード BURST「対戦相手のルリグ1体…ダウン」の DOWN 対象取り違えを parser 一般化で消化＝続き223 凍結の DOWN 版・11効果**。census 1866→**1865**・golden 527維持）
+  - **タスク1 をクローズ**＝本丸 続き164・「アタックできない」家族 続き205・(d) は続き224・(c) は続き218i（タスク5）・(b) はタスク6合流と確認。
+  - **E1（単文型 grant mis-parse）は fresh 側で既に是正済＝再収穫のみ**。curated が「外側トリガー＋GRANT 構造を丸ごと落とし内側能力（ライフクラッシュ→ドロー）をトップに漏らして `ON_OPP_LIFE_CRASHED/DRAW` に潰れていた」held ドリフト。fresh は正しく `GRANT_EFFECT{ON_DISCARDED_AS_COST, discardCostSourceStory:微菌, effect: crash→draw once_per_turn}` を出す（続き164 grant 語彙＋続き163 discardCostSourceStory の着地済）。
+  - **BURST の DOWN 対象取り違え**＝原文「対戦相手のルリグ1体を対象とし、それをダウンする」の DOWN 対象が **SIGNI** に化けていた（owner:opponent は正・type が LRIG→SIGNI）。`parseSentencePart1.ts` の DOWN 規則に凍結と同型の bare-LRIG 検出を追加。**消化**＝11効果（9枚 heldReview 採用＋WX24-P1-069/WX24-P3-077 は E1 optional 据置ドリフトを避け BURST のみ手動 LRIG 化）。詳細 BUGFIXES 続き224。
+
 - **🆕 セッション（2026-07-20・続き223・Opus・**§3 タスク12(xxix)(b) 222クラスタ・トリアージ＝「対戦相手のルリグ1体…凍結」の種別取り違え18効果を parser 一般化で消化**。census 1866維持・golden 526→**527**）
   - **対象**＝semantic audit stub群 round3（続き146・findings 2,799件）の HIGH quote クラスタ222個のうち、続き145 が「未検証・次回優先候補」としていた§5 の7クラスタを直接JSON照合でトリアージ。
   - **拾えた機構不要の当たり**＝クラスタ「対戦相手のルリグ1体」の凍結系。原文「対戦相手のルリグ1体を対象とし、それを凍結する」の FREEZE 対象が JSON では **SIGNI** に化けていた**種別取り違え**（owner は opponent で正・type が LRIG→SIGNI）。engine の `execFreeze` は既に LRIG 分岐（`lrig_frozen:true`）を持つため **parser 1規則の一般化だけ**で直る。
