@@ -1570,12 +1570,32 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
       return done(addLog(ctx, 'センタールリグは効果を受けない（ダウン無効）'));
     }
+    // 「アップ状態のルリグをダウン」＝既にダウン済み（アップでない）ならダウンするものがない＝no-op。
+    // lastProcessedCards を空にして後続の「この方法でダウンしたルリグと共通する色」等の did-it を不成立にする。
+    if (state.field.lrig_down) {
+      return done({ ...addLog(ctx, 'ルリグは既にダウン状態'), lastProcessedCards: [] });
+    }
+    // 「ダウンしてもよい」＝ダウン/スキップの二択（スキップ時は INTERNAL_SKIP が lastProcessedCards を空にする）。
+    if (a.optional) {
+      const downNow = { ...a, optional: false } as DownAction;
+      const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+      return needsInteraction(addLog(ctx, 'ルリグをダウンしますか？'), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'down', label: 'ダウンする', action: downNow, available: true },
+          { id: 'skip', label: 'スキップ', action: skip, available: true },
+        ],
+      });
+    }
     const lrigCardNum = lrigTopId ? getCardNum(lrigTopId) : undefined;
     const lrigCard = lrigCardNum ? ctx.cardMap.get(lrigCardNum) : undefined;
     const lrigLevel = lrigCard ? parseInt(lrigCard.Level ?? '', 10) : NaN;
     const newS: PlayerState = { ...state, field: { ...state.field, lrig_down: true } };
     const lrigName = lrigCard?.CardName ?? 'ルリグ';
-    const newCtx = addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`);
+    // ダウンしたルリグ自身を lastProcessedCards に記録（「この方法でダウンしたルリグと共通する色を持つカード」
+    // 等の後続動的フィルタ／条件が参照する。従来は seqVars.lastDownedLrigLevel のみで色参照ができなかった）。
+    const newCtx = { ...addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をダウン`),
+      lastProcessedCards: lrigTopId ? [lrigTopId] : [] };
     return done(!isNaN(lrigLevel)
       ? { ...newCtx, seqVars: { ...newCtx.seqVars, lastDownedLrigLevel: lrigLevel } }
       : newCtx);
