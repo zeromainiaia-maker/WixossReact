@@ -3157,7 +3157,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     maxPick,
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
-    ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position } } : {}),
+    ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}) } } : {}),
   });
 }
 
