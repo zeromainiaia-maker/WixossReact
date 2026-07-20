@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き225・Opus・**§3 タスク12(vii)系 完了＝「〜てもよい」（任意アクション）が parser で optional:true を落とし engine が強制実行＋「そうした場合」did-it ゲートが常時成立していた系統退化。ライブ90枚を一括是正**。census 1865→**1846**・golden 527→**528**）
+  - **起点**＝続き224 の副産物として観測した「このシグニをダウンしてもよい」E1 の optional 脱落を系統化。`_held_fresh`（fresh）と `public/data`（live）を leaf 比較し「**curated が optional:true を持つのに fresh が落とす**」効果を全数抽出（21枚）→ action 型で分類し各ハンドラの取りこぼしを特定。
+  - **根因＝4ハンドラの「てもよい」→optional 取りこぼし**：DOWN（part1「ダウンしてもよい」）／手札捨て（part1 `手札をN枚捨ててもよい$`＝**先頭非アンカー**で「…を対象とし、手札を…捨ててもよい」を拾う主経路。part3 の anchored 版より先に効く）／エナ→トラッシュ（part3）／場出し（part1 手札・トラッシュから「場に出してもよい」＝旧・続き207 が down 変種限定で**意図的据置**していたのを、engine 対応済＋影響3枚と機械確認して plain へ拡張）。
+  - **ライブ実害の一括是正**＝parser 修正後、build:effects の**純粋上位集合（isPureSuperset＝無損失）自動採用**で **live 90枚**の optional 欠落（強制実行バグ）を一括是正（全件 source に「てもよい」在を機械確認＝**偽陽性0**）。さらに optional 復元で**過去 held の改善（219b CHOOSE 条件・STUB→REVEAL 等）が pure-superset 解禁**され自動採用＝census 1865→**1846**（全て additive で退化不可能）。
+  - **個別**＝3枚 heldReview 採用（WXDi-P00-033 STUB→REVEAL／WX24-P2-087 付与内 ENERGY_CHARGE→SEND_TO_ENERGY／PR-305 BANISH→`CONDITIONAL{LRIG_COLOR:黒}`）＋SPDi43-30 は choice② の HAND_COUNT ドリフト退化を避け choice① の optional のみ手術的パッチ＋MANUAL 化。**回帰防止 golden 1件追加**。全ゲート緑（census 1846・golden 528・smoke 10722・fuzz 全0・lint 0 errors）。詳細 BUGFIXES 続き225。
+
 - **🆕 セッション（2026-07-20・続き224・Opus・**§3 タスク1(d) 完了＝WX25-P3-085 の単文型 grant mis-parse（再収穫）＋同カード BURST「対戦相手のルリグ1体…ダウン」の DOWN 対象取り違えを parser 一般化で消化＝続き223 凍結の DOWN 版・11効果**。census 1866→**1865**・golden 527維持）
   - **タスク1 をクローズ**＝本丸 続き164・「アタックできない」家族 続き205・(d) は続き224・(c) は続き218i（タスク5）・(b) はタスク6合流と確認。
   - **E1（単文型 grant mis-parse）は fresh 側で既に是正済＝再収穫のみ**。curated が「外側トリガー＋GRANT 構造を丸ごと落とし内側能力（ライフクラッシュ→ドロー）をトップに漏らして `ON_OPP_LIFE_CRASHED/DRAW` に潰れていた」held ドリフト。fresh は正しく `GRANT_EFFECT{ON_DISCARDED_AS_COST, discardCostSourceStory:微菌, effect: crash→draw once_per_turn}` を出す（続き164 grant 語彙＋続き163 discardCostSourceStory の着地済）。
