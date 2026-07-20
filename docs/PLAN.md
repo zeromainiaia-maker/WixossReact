@@ -177,11 +177,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-20・続き227・Opus・**§3 タスク4 §5c条件節の残＝「Aあり Bある場合」複合条件の語彙欠落（WXDi-P11-048-E1）を消化。トラッシュ色枚数＋相手エナ枚数の AND を parser に1本追加**。census **1845** 維持・golden **532** 維持）**（続き226 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **内容**＝E1 原文「あなたのトラッシュに黒のカードが１０枚以上あり対戦相手のエナゾーンにカードが２枚以上ある場合」の**複合条件が丸ごと脱落**し、アタック時に無条件で相手エナをトラッシュする過剰効果だった（E2 単一条件「２０枚以上」は既に正しく CONDITIONAL 化・E3 不変）。
-  - **修正（新機構不要）**＝`effectParser.ts` の条件テーブルに、続き218 の類似複合（WXDi-P05-056「場に色シグニN種類以上あり…」）と**同型の別語彙**を1本追加＝`AND[TRASH_HAS_CARD{self,color,minCount}, ENERGY_COUNT{opponent,gte}]`。engine の evalCondition（AND/TRASH_HAS_CARD/ENERGY_COUNT）・decompiler の condToText（AND「かつ」）はいずれも既存対応。fresh は E1 が TRASH→CONDITIONAL へ構造変化するため held 温存→heldReview で採用。
-  - **ゲート**＝全ゲート緑（typecheck・golden **532**・smoke 10722全OK・fuzz 全0・census **1845** 維持・lint 0 errors・同型★0）。census は過剰効果（条件脱落）の是正で「欠落語彙」計器を動かさず baseline 不変＝挙動是正は golden/smoke/fuzz が担保。詳細 BUGFIXES 続き227。
-  - **次の一手（Opus）**＝タスク4 残＝「代わりに」WX25-P2-068/070 は engine 置換機構＝タスク6級（要再ラベル）。他＝タスク12(xxxix) 残（SPDi43-30/WX25-P2-085 の選択肢ドリフト・「このアタックを無効にし」系3枚§6.3ほか）／タスク12(xxii) 残50（入れ子26＋前段属性判定の見送り）／timing[C] 残43（タスク16）／タスク5 残小口（置換系統一般化§6.3・WX26-CP1-100）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
+- **🆕 セッション（2026-07-20・続き228・Opus・**§3 タスク3 DRAW脱落の一部＝「デッキの一番上のカードをエナゾーンに置き、X」連用中止が後続（ドロー/場出し）を飲み込んで脱落していた系統を連用中止 splitter に追加して是正**。census 1845→**1843**・golden **532** 維持）**（続き227 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **内容**＝「デッキの一番上のカードをエナゾーンに置き、カードを１枚引く」等の連用中止形で、先頭のエナチャージだけ残り後続が丸ごと脱落。7枚を棚卸しし、`対象とし`/`場合`/`そうした場合` ガードで止まる複合を除いた純粋連用チェーンを対象化。
+  - **修正**＝`effectParser.ts` の連用中止 splitter（`CONJ_FIN`＋`conjM`）に `デッキの一番上のカードをエナゾーンに置き` を追加＝左を `…置く` へ正規化し `ENERGY_CHARGE_FROM_DECK` に解いて右半分と SEQUENCE 化（両半分非UNKNOWN のときだけ）。engine の ENERGY_CHARGE_FROM_DECK/DRAW/ネスト SEQUENCE は既存対応。**WX15-098-E1**（アクセ時 エナ置き＋ドロー）／**WX19-030-E2**（【ウィルス】除去コスト：エナ置き＋ドロー＋その後バニッシュ）の energy-charge を回復（heldReview 採用・原文＋逆翻訳照合済）。
+  - **据置**＝WX20-071（3項＋DURING_OPP_TURN/IS_SELF_ACCED が hoist されず `場合` が action 文に残り split ガードに掛かる）／WX05-024・WX13-034（`対象とし` 挟み）／PR-378（choice② の「ゲームから除外」が TRASH 近似＝EXILE §6.3）。観測バグ→タスク12(xlix) 登録＝WX19-030-E1 の 【常】出撃制限が ADD_TO_FIELD へ mis-parse。
+  - **ゲート**＝全ゲート緑（golden **532** 維持・smoke 10722全OK・fuzz 全0・census **1843**・lint 0 errors・同型★0）。BASELINE_HIGH を 1843 へ実数更新。詳細 BUGFIXES 続き228。
+  - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・`対象とし`挟みエナ置き・対戦相手ドロー idiom・per-count ドロー）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級・要再ラベル）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
