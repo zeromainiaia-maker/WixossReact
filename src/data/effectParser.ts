@@ -2472,8 +2472,38 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   return action;
 }
 
+// 「あなたのトラッシュから…シグニ/カードN枚を対象とし、[任意コスト]。そうした場合、それを手札に加える」形
+// （タスク12(xxix)(b)・続き226）。対象化文（自トラッシュ指定）と最終「それを手札に加える」が任意コスト文を
+// 挟んで別文に割れ、最終 TRANSFER_TO_HAND の source が designation を継承せず DECK_CARD（自デッキ）へ落ちる
+// ＝トラッシュ回収がデッキ操作へ化けカードアドバンテージが死ぬ。designation の filter/count を TRASH_CARD
+// source として復元する。冪等（既に TRASH_CARD なら据置）。単一「対象とし」限定で「それ」の指し先を確定する。
+function applyLeadingTrashHandAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/そうした場合、それを手札に加える/.test(text)) return action;
+  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  const desigM = text.match(/あなたのトラッシュから([^。]*?(?:シグニ|カード))(?:を)?([０-９\d]+)枚(まで)?を?対象とし/s);
+  if (!desigM) return action;
+  const fin = findTailAction(action) as (EffectAction & { source?: EffectTarget }) | null;
+  if (!fin || fin.type !== 'TRANSFER_TO_HAND' || !fin.source
+      || fin.source.type !== 'DECK_CARD' || fin.source.owner !== 'self') return action;
+  const span = desigM[1];
+  const filter: TargetFilter = {
+    ...(span.includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
+    ...parseStoryFilter(span), ...parseColorFilter(span), ...parseLevelFilter(span), ...parseGuardFilter(span),
+  };
+  const count = parseNum(desigM[2]);
+  const upTo = !!desigM[3];
+  fin.source = {
+    type: 'TRASH_CARD', owner: 'self', count,
+    ...(upTo ? { upToCount: true } : {}),
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+  };
+  return action;
+}
+
 function parseActionText(text: string): EffectAction {
-  return applyLeadingSelfComparison(text, applyLeadingOpponentDesignation(text, parseActionTextInner(text)));
+  return applyLeadingSelfComparison(text,
+    applyLeadingTrashHandAnaphora(text,
+      applyLeadingOpponentDesignation(text, parseActionTextInner(text))));
 }
 
 function parseActionTextInner(text: string): EffectAction {
