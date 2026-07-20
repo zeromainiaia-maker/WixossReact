@@ -6859,6 +6859,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
 
+      // タスク12(xliv)(a)：BANISH_REDIRECT の target.filter（レベル/凍結/感染/チャーム限定）を評価するため、
+      // 被バニッシュシグニの属性を除去前の opS 盤面から取る（凍結/チャーム/感染はゾーン添字状態＝バニッシュ後は消える）。
+      const banishedOpAttrsOf = (cardNum: string | null) => {
+        if (!cardNum) return undefined;
+        const zi = opS.field.signi.findIndex(s => s?.at(-1) === cardNum);
+        if (zi < 0) return undefined;
+        const base = parseInt(battleCardMap.get(cardNum)?.Level ?? '', 10);
+        const level = isNaN(base) ? undefined
+          : base + (opS.temp_level_mods ?? []).filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0);
+        return {
+          level,
+          frozen: (opS.field.signi_frozen?.[zi] ?? false),
+          hasCharm: (opS.field.signi_charms?.[zi] ?? null) !== null,
+          infected: (opS.field.signi_virus?.[zi] ?? 0) > 0,
+        };
+      };
+
       // キーワード能力確認
       const myGrants = myS.keyword_grants;
       const myArmoredNums = new Set(
