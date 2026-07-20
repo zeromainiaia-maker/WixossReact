@@ -4145,7 +4145,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
       //   「あなたのシグニN体に」＝any_ally＝あなたの場のシグニ全体が反応）。
       if (timing[0] === 'ON_ACCE') {
-        if (/あなたのシグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(actionText)) extractedTriggerScope = 'any_ally';
+        if (/あなたのシグニ(?:[０-９\d]+体)?(?:に【アクセ】が付いた|がアクセされた)とき/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
       // ON_CARD_MILLED_FROM_DECK: 削られたデッキの持ち主と枚数閾値を triggerCondition に抽出。
       //   ⚠「あなたの＜X＞のシグニの効果1つによって」の**発生源フィルタ**は engine が未表現＝落とす近似（下で刻印）。
