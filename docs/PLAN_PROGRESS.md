@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き226・Opus・**§3 タスク12(xxix)(b) 完了＝照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。そうした場合、それの…」で「それ」の照応先が失われ owner:self+targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理2本で復元。ライブ84枚＋MANUAL1枚を一括是正**。census 1846→**1845**・golden 528→**532**）
+  - **起点**＝続き223 のトリアージで (xxix)(b)残 として登録した2クラスタ（「対戦相手のシグニ1体」power-down owner 22件／「あなたのトラッシュから」hand-add zone 13件）。任意コスト文が対象化文と結果文の間に割り込むと「それ」の照応先が parser で失われ、power-down/付与が **owner:self+targetsTriggerSource**（トリガー元＝自分自身）へ、手札回収が **source:DECK_CARD**（自デッキ）へ化けて原文と逆・別ゾーンの効果になっていた。
+  - **根因と修正（新機構不要）**＝(A)既存 `applyLeadingOpponentDesignation`（続き111）の照応検出を「そうした場合、それを」限定→`/そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/`（「それの/それは」＋介在節「ターン終了時まで、」「カードを1枚引き、」＋「それら」）へ拡張＝owner→opponent＋tts撤去＋欠落フィルタ補完。(B)`applyLeadingTrashHandAnaphora` を新設＝自トラッシュ designation から `TRASH_CARD` source を組み `DECK_CARD` を置換。
+  - **ガードの試行錯誤**＝当初 `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（engine fixOwnerTOSOC が実行時補正）を偽陽性としてスキップする guard を入れたが、**旧 accusative「それを」系（WX05-028/WX07-001 等）が既に本ハンドラで opponent に直された JSON で正常動作している**ため、スキップは逆に既存補正を剥がす退化（BOUNCE/TRASH が opponent→self へ逆流）を生んだ。held before/after 差分で機械検出→guard 撤去（fixOwner は冪等で二重管理にならない）。
+  - **一括是正**＝build:effects の held 差分＝**84カード（87 leaf）が新規 held**（全て owner→opponent または DECK_CARD→TRASH_CARD・退化0を機械分類）。35枚サンプルを超えて同一 systematic bug を捕捉（CHOOSE/GRANT 内部の入れ子も再帰で正しく効く）。全84枚を heldReview 採用＋MANUAL の WXDi-CP02-072-E1 を手動パッチ。**回帰防止 golden 4件追加**。census は owner 変更が「欠落語彙」計器をほぼ動かさず（挙動是正であり golden/smoke/fuzz で担保）1846→**1845**。全ゲート緑（census 1845・golden 532・smoke 10722・fuzz 全0・lint 0 errors・同型★0）。詳細 BUGFIXES 続き226。
+
 - **🆕 セッション（2026-07-20・続き225・Opus・**§3 タスク12(vii)系 完了＝「〜てもよい」（任意アクション）が parser で optional:true を落とし engine が強制実行＋「そうした場合」did-it ゲートが常時成立していた系統退化。ライブ90枚を一括是正**。census 1865→**1846**・golden 527→**528**）
   - **起点**＝続き224 の副産物として観測した「このシグニをダウンしてもよい」E1 の optional 脱落を系統化。`_held_fresh`（fresh）と `public/data`（live）を leaf 比較し「**curated が optional:true を持つのに fresh が落とす**」効果を全数抽出（21枚）→ action 型で分類し各ハンドラの取りこぼしを特定。
   - **根因＝4ハンドラの「てもよい」→optional 取りこぼし**：DOWN（part1「ダウンしてもよい」）／手札捨て（part1 `手札をN枚捨ててもよい$`＝**先頭非アンカー**で「…を対象とし、手札を…捨ててもよい」を拾う主経路。part3 の anchored 版より先に効く）／エナ→トラッシュ（part3）／場出し（part1 手札・トラッシュから「場に出してもよい」＝旧・続き207 が down 変種限定で**意図的据置**していたのを、engine 対応済＋影響3枚と機械確認して plain へ拡張）。
