@@ -51,6 +51,21 @@ export function detectBloomedSigni(before: PlayerState, after: PlayerState): str
 }
 
 /**
+ * 裏向き（facedown_signi）から表向きにしてシグニになったカードを検出（WXDi-P10-034）。
+ * 表向きにする前は facedown_signi に裏向き、後は同じ instanceId が signi に表向きで存在する。
+ * 「裏向きを表向きにする」は開花と同じく「場に出た」扱いではないため detectPlacedSigni（ON_PLAY）から除外する。
+ */
+export function detectFacedownFlipped(before: PlayerState, after: PlayerState): string[] {
+  const beforeFacedown = new Set<string>((before.field.facedown_signi ?? []).filter((c): c is string => !!c));
+  const result: string[] = [];
+  for (const stack of after.field.signi) {
+    const top = stack?.at(-1);
+    if (top && beforeFacedown.has(top)) result.push(top);
+  }
+  return result;
+}
+
+/**
  * 効果によって手札に移動（増加）したカードと移動元ゾーンを検出（ON_HAND_ADDED・続き207）。
  * 中央 diff（効果解決）からのみ呼ばれる前提＝検出された移動は効果起因（ドローフェイズの通常ドローは通らない）。
  * from: 'energy'|'field'|'deck'|'trash'|'other'（fromZones 限定＝「エナゾーンから」WXDi-P11-007/WX14-029/WD12-009 用）。
