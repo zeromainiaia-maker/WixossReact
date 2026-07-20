@@ -1684,7 +1684,7 @@ export function execStubPart3(
     // removeFromField でチャーム・アクセ・ライズ下カード等も正しく処理する
     // （手動でスタックを切ると下のカードが場に残ってしまう）
     const removedHLB = removeFromField(topHLB, ctx.otherState);
-    const { state: newOtherHLB, log: logHLB } = banishDestination(removedHLB, ctx.ownerState, topHLB);
+    const { state: newOtherHLB, log: logHLB } = banishDestination(removedHLB, ctx.ownerState, topHLB, banishRedirectOpts(ctx, ctx.otherState, topHLB));
     return done(addLog({ ...ctx, otherState: newOtherHLB },
       `【ハスターリク】：${ctx.cardMap.get(topHLB)?.CardName ?? topHLB}${logHLB}`));
   }
