@@ -521,6 +521,39 @@ test('did-itゲート: 前段が空振りでも「そうした場合」以外の
   eq(run(eff, mkCtx({ hand: 3 }, { signi: [null, null, null] })).ownerState.hand.length, 4,
     '空振り→「そうした場合」の2ドローは消え、独立した1ドローは残る（3+1）');
 });
+// ── タスク12(xxix) 残(a): WX06-014-E2「対戦相手のシグニ１体を対象とし、あなたのトラッシュから《古代兵器》
+//    のシグニ５枚を…デッキの一番下に置く。そうした場合、それをバニッシュする。」
+//    従来 JSON は step1 が「相手シグニをデッキ下」に化けていた（原文と別物）。自分トラッシュから古代兵器5枚を
+//    デッキ下へ移す TRANSFER_TO_DECK に是正し、did-it ゲート（TRANSFER_TO_DECK が空振りなら banish 不発）で
+//    「そうした場合」を表現。「それ」は相手シグニ1体で盤面不変ゆえ末尾で選び直しても照応と同値。
+test('WX06-014-E2: 古代兵器5枚をトラッシュ→デッキ下→相手シグニをバニッシュ／不足なら不発（タスク12(xxix)残a）', () => {
+  const ANCIENT: string[] = [];
+  for (const c of cardMap.values()) {
+    if (c.Type === 'シグニ' && (c.CardClass ?? '').includes('古代兵器')) ANCIENT.push(c.CardNum);
+    if (ANCIENT.length >= 6) break;
+  }
+  ok(ANCIENT.length >= 6, `古代兵器シグニが6枚以上必要（実際 ${ANCIENT.length}）`);
+  const eff = (effectsMap.get('WX06-014') ?? []).find(e => e.effectId === 'WX06-014-E2')!.action as EffectAction;
+  ok(!!eff, 'WX06-014-E2 の action が取れること');
+  // ① 成功: 自分トラッシュに古代兵器5枚＋相手に1体 → 5枚がデッキ下へ・相手シグニがバニッシュ（トラッシュ行き）
+  {
+    const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
+    ctx.ownerState.trash = ANCIENT.slice(0, 5);
+    const deck0 = ctx.ownerState.deck.length;
+    const oppTrash0 = ctx.otherState.trash.length;
+    const r = run(eff, ctx);
+    eq(r.ownerState.trash.filter(n => ANCIENT.includes(n)).length, 0, '古代兵器5枚がトラッシュから抜ける');
+    eq(r.ownerState.deck.length, deck0 + 5, 'デッキが5枚増える（一番下へ）');
+    eq(r.otherState.field.signi.filter(s => s?.length).length, 0, '相手シグニが場から消える（バニッシュ）');
+    eq(r.otherState.trash.length, oppTrash0 + 1, '相手シグニがトラッシュへ');
+  }
+  // ② 空振り: 古代兵器0枚 → step1 が空振り→「そうした場合」の banish は不発（相手シグニは残る）
+  {
+    const ctx = mkCtx({ trash: 0 }, { signi: [SIGNI, null, null] });
+    const r = run(eff, ctx);
+    eq(r.otherState.field.signi.filter(s => s?.length).length, 1, '古代兵器不足→バニッシュ不発（相手シグニ残存）');
+  }
+});
 // ── 続き143: 「この方法で〔フィルタ〕がN枚以上〜した場合」CONDITIONAL 持ち上げ（LAST_PROCESSED_MATCHES minCount）＝
 // 結果カウント閾値（Cluster B）。ミル結果の一致枚数が閾値未満なら発火しない回帰ガード（過剰実行にならない）。
 test('LAST_PROCESSED_MATCHES minCount 閾値: この方法で黒N枚以上トラッシュ→ゲート（2枚→発火／1枚→不発・続き143）', () => {
