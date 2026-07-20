@@ -1331,7 +1331,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ⚠「それをダウン状態で場に出す」（WX14-029＝エナから down 配置）は /をダウン/ に誤マッチして
   //   DOWN に潰れていた＝ADD_TO_FIELD asDown（下のエナ/手札ビルダ）の領分なので除外。
   if ((t.includes('ダウンする') || t.match(/をダウン/)) && !t.includes('ダウン状態で場に出')) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // 「（この／）シグニ／カードの正面のシグニ」＝正面は定義上**対戦相手のゾーン**（WDA-F02-17-E2「このシグニの
+    //   正面のシグニ１体を対象とし、それをダウンする」）。従来 fallback で owner:'self'＝自分のシグニをダウンに化けていた。
+    const isFrontOfSelf = /(?:この)?(?:シグニ|カード)の正面の[^、。]*シグニ/.test(t);
+    const owner: Owner = (t.includes('対戦相手') || isFrontOfSelf) ? 'opponent' : 'self';
     // 「ダウンしてもよい」＝任意（player が実行するか選べる）。「そうした場合」の did-it ゲートと組で使われ、
     //   optional を落とすと engine が強制ダウンさせてしまう（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
     const downOptional = t.includes('ダウンしてもよい');
