@@ -4,6 +4,19 @@
 
 ---
 
+## `BANISH_REDIRECT` の効果経路（バトル/パワー0以外）で 【常】置換が未走査＝holder の場を on-the-fly 走査してトラッシュ送りに（タスク12(xliv)(a2)・golden 533→534・census 1841維持）（2026-07-21・続き231・Opus）
+
+**バグ**＝バニッシュ先変更（「対戦相手のシグニがバニッシュされる場合、代わりにトラッシュに置く」）の 【常】能力は、バトル経路・パワー0消滅経路では `banishRedirectAppliesFrom` で on-the-fly 走査されていたが、**効果によるバニッシュ**（`BANISH` action＝ARTS/【出】/【自】等）の行き先を決める `execUtils.banishDestination` は**ターン内フラグ（`banish_redirect` 等）しか見ておらず、フラグに載らない 【常】置換を丸ごと取りこぼしていた**（既存の under-fire ギャップ）。該当は WX19-078（感染）・WX21-005（感染）・WX18-038（チャーム）・WXK10-053（level≤1）・WX05-018（原槍エナジェ在場）等。効果で相手シグニをバニッシュすると本来トラッシュ送りになるはずがエナ送りになり、相手のエナ加速を許していた。
+
+**修正**（engine のみ・JSON 変更なし）：
+- `effectEngine.ts`＝(1)`banishRedirectAppliesFrom` に `opts.excludeWhenPowerZero` を追加（効果経路は whenPowerZero 限定＝パワー0専用の置換を弾く）。(2)`computeBanishedAttrs`（除去前盤面から level/frozen/hasCharm/infected を取得）と (3)`fieldEffectBanishRedirectToTrash`（holder 場の CONTINUOUS BANISH_REDIRECT を走査。bySource は battlingNum=null で除外・whenPowerZero 除外・target.filter 属性評価・activeCondition は holder 視点で評価）を新設。
+- `execUtils.ts`＝`banishDestination` に `opts?{cardMap,banished,turnPhase,effectivePowers}` を追加し、ターン内フラグの後・デッキ下の前に効果経路走査を挿入（redirectBanish はデッキ下より優先＝バトル経路と同順）。opts 未指定は従来どおりフラグのみ（後方互換）。組み立てヘルパー `banishRedirectOpts(ctx, victimState, num)` を新設。
+- 効果経路の `banishDestination` 呼び出し**全10箇所**（effectExecutor 2・execStubPart1 1・execStubPart2 3・execStubPart3 4）に `banishRedirectOpts(...)` を配線（除去**前**の被バニッシュ側 state を渡す）。
+
+**過剰発火の回避**＝(a) 属性限定は `computeBanishedAttrs` で被バニッシュシグニに一致するときだけ適用（不一致はエナ送り）。(b) `whenPowerZero`/`bySource` 限定は効果経路では不適用。(c) `DURING_ATTACK_PHASE` 限定（WXEX2-75/WXDi-D09-P14/WXDi-P10-044）は turnPhase が判らない効果経路では**保守的にスキップ**（過剰発火を避ける＝軽微な過小実行。ctx.currentPhase が載れば正しく評価）。census 計器（欠落方向）は不動＝1841維持。
+
+**ゲート**＝全ゲート緑（golden **534**〔効果経路走査＋各ガードの両側を新規1テストで固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck）。実カード WX19-078 で効果バニッシュが感染シグニ→トラッシュ／非感染→エナを end-to-end 確認。**残（(xliv)残）**＝bySource='by_this' の効果経路（発生源シグニ配線が要る）・単体対象4件(b)・正面限定3件(c) は据置（§6.3級）。
+
 ## `BANISH_REDIRECT` の属性フィルタ（レベル/凍結/感染/チャーム）が脱落し「対戦相手の全バニッシュがトラッシュ送り」に過剰発火＝バトル/パワー0経路で target.filter を評価（golden 532→533・census 1841維持）（2026-07-21・続き230・Opus）
 
 Opusタスク12(xliv)(a)＝属性フィルタ5件。`BANISH_REDIRECT` は「対戦相手の**［限定］**シグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」の**限定**（レベル１以下／凍結／感染／チャーム付き）を parser が丸ごと落とし、engine の **battle/power0 経路（【常】をオンザフライで走査する `banishRedirectAppliesFrom`）が target.filter を一切見ず**、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**になる過剰発火だった（相手のエナ加速を丸ごと止める実害）。
