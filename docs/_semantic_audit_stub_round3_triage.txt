@@ -52,6 +52,23 @@ SP27-005-E1を直接確認＝原文「そのシグニを手札に加えるか場
 
 全222クラスタの完全なリストは `scripts/archive/scratchpad/semantic_audit_stub_round3/clusters_high.txt`、カード単位の可読ビューは同ディレクトリの `findings_compact.txt`、生データは `findings.jsonl`・`manifest.json`。
 
+## 6. §5 の未検証7クラスタのトリアージ結果（2026-07-20・続き223・Opus・PLAN §3 タスク12(xxix)(b)）
+
+§5 の「未検証・次回優先候補」7クラスタを直接JSON照合でトリアージした。**機構不要の当たりは「ルリグ凍結」の1系統のみ**で、残りは系統parser修正待ちか§6.3級。
+
+| クラスタ | 件数 | 判定 | 内容 |
+|---|---|---|---|
+| 対戦相手のルリグ1体（凍結系） | 18効果 | **✅消化（機構不要）** | FREEZE 対象が LRIG→SIGNI に化けていた種別取り違え。parser の凍結規則を「センター」限定から素の「ルリグ1体を対象」へ一般化して直した（engine は FREEZE-on-LRIG 対応済み）。詳細 BUGFIXES 続き223 |
+| 対戦相手のシグニ1体（power-down owner） | 22 | 🔁系統再分類 | 「…を対象とし、[任意コスト]。そうした場合、それのパワー－X」の**照応先ロスト**＝`owner:self`+`targetsTriggerSource`（トリガー元＝自分シグニへ適用）。「あなたのトラッシュから」クラスタと同一系統。**うち一部は engine の owner補正STUB（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST 等）で偽陽性**。機構不要だが parser/engine 系統修正＝(xxix)(b)残 として登録 |
+| あなたのトラッシュから（hand-add zone） | 13 | 🔁系統再分類 | 同上の照応先ロストの TRANSFER_TO_HAND 版＝`source:DECK_CARD`（デッキ）に化け。上と同一系統 |
+| 対戦相手のルリグ1体（DOWN/能力ロック/GRANT 系） | ~5 | ⛔一部§6.3 | DOWN-on-lrig／REMOVE_ABILITIES-on-lrig／BLOCK_ACTION は複雑CHOOSE札に埋没＝engine対応と要個別確認。凍結系と分けて据置 |
+| ルリグかシグニ1体 | 10 | ⛔§6.3 | NEGATE_ATTACK の対象種別union（ルリグ∨シグニ）機構が要る |
+| そのシグニの【出】能力 | 8 | ⛔§6.3 | 「この効果で場に出したシグニだけ」の能力ロックのスコープ機構が要る（現状は自プレイヤーの【出】全般を封じる過剰効果） |
+| 以下の3つから1つを選ぶ | 9 | ⛔§6.3 | BET機構 |
+| 手札をN枚捨てないかぎり | 14 | ⛔§6.3 | unless（不成立分岐）未実装 |
+
+**次の一手**＝(xxix)(b)残＝照応先ロスト系統（power-down owner ＋ hand-add zone）を専用セッションで消化する。既存の did-it ゲート（218h）と opponent-target choose を再利用できる機構不要の系統だが、`OPTIONAL_COST`/`TRADE_BANISH_SELF_SIGNI` インターセプタへの owner補正＋`targetsTriggerSource` strip 拡張（parser/engine 両面）＝規模中。偽陽性除外（owner補正STUB該当分）を先に機械抽出してから着手すると効率的。
+
 ## 結論・次の一手
 
 - **stub群母集団2,401枚は本ラウンドで全数監査完了**＝累積除外リスト `scripts/archive/scratchpad/semantic_audit_stub_round3/audited_stub_cards_cumulative.txt`（2,401枚）。PLAN §3 Sonnetタスク8「semantic auditのスケールアップ」は**stub群について完了**（残るはclean群の追加サンプリング、または母集団自体の再定義＝低優先）。
