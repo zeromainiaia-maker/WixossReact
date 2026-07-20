@@ -3799,6 +3799,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "SPDi01-121": [{"effectId":"SPDi01-121-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"DECK_TOP_SHARES_COLOR_WITH_LRIG","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX25-P1-115": [{"effectId":"WX25-P1-115-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"CONDITIONAL","condition":{"type":"DECK_TOP_SHARES_COLOR_WITH_LRIG","owner":"self"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
 
+  // ===== WX25-P2-112（タスク12(vii)残・アップルリグdown＋「共通する色」動的フィルタ）=====
+  // 【自】アタックフェイズ開始時、対戦相手のエナが2枚以上なら、あなたのアップ状態のルリグ1体をダウンしてもよい。
+  //   その後、対戦相手のエナから「この方法でダウンしたルリグと共通する色を持つ」カード1枚をトラッシュ。
+  //   ⚠parser は DOWN を SIGNI（本来 LRIG）に取り違え・TRASH を無条件＆色フィルタ無しにしていたため MANUAL 化。
+  //   engine 側は execDown(LRIG) がダウンしたルリグ instance を lastProcessedCards に記録するよう拡張し、
+  //   TRASH の filter.colorMatchesLastProcessed（owner非依存＝相手エナを自ルリグ色で絞る／参照不能なら空ヒット＝
+  //   「ダウンしなかった／既にダウン」の did-it ゲートを兼ねる）で共通色1枚に限定する。DOWN の optional は
+  //   execDown(LRIG) の「ダウン/スキップ」二択で実装（続き220）。
+  "WX25-P2-112": [
+    {"effectId":"WX25-P2-112-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT","owner":"opponent","operator":"gte","value":2},"then":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1},"optional":true},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorMatchesLastProcessed":true}}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+
   // ===== WX26-CP1-048 プリンセス・ジール（タスク12(viii)残・出自条件機構）=====
   // E2【出】：このシグニが＜プリオケ＞のシグニの効果によって場に出ていた場合（出自条件＝THIS_CARD_PLACED_BY_CLASS。
   //   signi_placed_by_source に記録した発生源 CardClass で判定）、対戦相手のエナからカード1枚をトラッシュ。
