@@ -2022,6 +2022,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     .replace(/^あなたのターン終了時、/, '')
     .replace(/^対戦相手のターン終了時、/, '')
     .replace(/^あなたのターン開始時、/, '')
+    .replace(/^各ターン終了時、/, '')
     .replace(/^ターン終了時、/, '')
     // ⚠続き156：アタックフェイズ開始時／捨てられたとき の直後に居残る状態条件節を second pass で拾うため
     //   strip-list を拡張（従来は非対応で条件節ごと脱落＝無条件発火の過剰効果。WXDi-P05-015/P12-006・
