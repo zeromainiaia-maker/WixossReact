@@ -4,6 +4,25 @@
 
 ---
 
+## タスク16（timing 語彙センサス）＝受身形トリガー2件を消化（ON_ACCE「アクセされたとき」＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれたとき」＋正面ダウン engine 拡張）（2026-07-21・続き235・Opus）
+
+**背景**＝`npm run census:timing`（【自】なのに parser が timing を取りこぼし ON_PLAY へ誤フォールバックした効果の計器）の残43効果/40クラスタから、engine 収集関数が既存の [A]（parser regex で直る）候補2件を消化。いずれも**能動形しか見ていなかった regex が受身形を取りこぼす**同型。census:timing 43→41効果・40→38クラスタ。
+
+**(1) ON_ACCE 受身形「（あなたの）シグニがアクセされたとき」（WX15-059-E1）**
+- 従来 timing regex は `シグニに【アクセ】が付いたとき` のみを見て、受身形 `シグニがアクセされたとき` を取りこぼし **ON_PLAY（召喚しただけで発火）** へ誤フォールバックしていた（curated は MANUAL で ON_ACCE + any_ally を保持済＝fresh だけが化けていた）。
+- **修正**＝timing 判定（`effectParser.ts:3986`）と scope 抽出（同 4146）の regex に `(?:に【アクセ】が付いた|がアクセされた)とき` の受身形を追加。fresh が ON_ACCE + triggerScope=any_ally を生成するように。該当は WX15-059 の1枚のみ（grep 済み・過剰語彙リスク無し）。
+
+**(2) ON_HAND_DISCARDED watcher 受身形「あなたの手札からカードN枚がトラッシュに置かれたとき」＋正面ダウン（WDA-F02-17-E2）**
+- 場のこのシグニ（watcher）が手札捨てに反応する効果が、(a) timing で ON_PLAY へ化け、(b) 対象「このシグニの正面のシグニ」が owner:self（＝自分のシグニをダウン）に潰れ、**二重に壊れて**いた。同カード E3「**この**カードが手札からトラッシュに置かれたとき」は捨てられたカード自身（ON_TRASH self）で別物。
+- **修正3点**＝①parser timing（`effectParser.ts`）＝ON_HAND_DISCARDED クラスタに `手札からカードN枚がトラッシュに置かれたとき` を追加（`collectHandDiscardTriggers` は効果/コスト双方の手札捨てで発火・E3型「このカードが手札から…」は上の ON_TRASH が先取りで競合なし）。②parser DOWN 対象（`parseSentencePart1.ts`）＝「（この）シグニ/カードの正面のシグニ」→ owner:opponent + `filter.frontOfSelf`（正面は定義上相手ゾーン・該当は本カード1枚）。③engine `execDown`（`effectExecutor.ts`）に frontOfSelf 解決を追加（execBanish 208-225 と同型＝効果元 owner zi の正面＝相手 2-zi に絞る）。
+- カードは E3 が MANUAL のため build:effects で全体が保護され E2 の改善が自動採用されない（`buildEffectsJson.ts:153`）＝curated E2 を fresh と完全一致に手術パッチ（held ドリフト無し）。
+
+**ゲート**＝golden 537→**540**（parser 2 + engine 1 追加）・smoke 10722全OK・fuzz 全0・census 1839維持（timing 是正は高signal欠落計器の対象外）・同型★0・lint 0 errors・typecheck。decompile 再生成済（E2＝「あなたが手札を捨てたとき：対戦相手のこのシグニの正面のシグニ1体をダウンする」・E1＝ON_ACCE として忠実）。
+
+**残（タスク16）**＝41効果/38クラスタ。残る [A] 候補はほぼ枯渇＝大半が [C]（§6.3 新機構待ち＝「シグニの下からトラッシュ」3・「アタックを効果によって無効にしたとき」2・ソウル付与・OR複合トリガー・累積カウント等）と [B]（軽量 engine 拡張＝正面以外 filter・milled level/story filter 等）。
+
+---
+
 ## タスク11 クローズ＝WXK01-021-E1 の空 GRANT_LRIG_ABILITY は真no-op ではないと engine コードで確認＋アーツ一時付与の内側【自】parse 失敗3枚を新規発見（Opusタスク12 登録）（2026-07-21・続き234・Opus）
 
 **背景**＝PLAN §3 Opusタスク11「BEHAVIOR_AUDIT 高シグナル22 の最終仕分け」の残件＝「WXK01-021-E1 の空文字付与の要確認（低優先）」を精査してクローズ。
