@@ -4717,7 +4717,9 @@ export function resumeSearch(
     let deck = [...s.deck];
     const moved: string[] = [];
     for (const cn of rest) { const di = deck.indexOf(cn); if (di >= 0) { deck.splice(di, 1); moved.push(cn); } }
-    if (rr.location === 'deck') deck = rr.position === 'bottom' ? [...deck, ...moved] : [...moved, ...deck];
+    // shuffle: 「残りをシャッフルしてデッキの一番下に置く」（PR-370-E2 等）＝置く前に順序をランダム化
+    const movedOrdered = rr.shuffle ? shuffle([...moved]) : moved;
+    if (rr.location === 'deck') deck = rr.position === 'bottom' ? [...deck, ...movedOrdered] : [...movedOrdered, ...deck];
     s = { ...s, deck,
       ...(rr.location === 'trash' ? { trash: [...s.trash, ...moved] } : {}),
       ...(rr.location === 'energy' ? { energy: [...s.energy, ...moved] } : {}) };
