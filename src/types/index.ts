@@ -328,6 +328,13 @@ export interface PlayerState {
   // INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」で設置された1ターン限りの遅延条件トリガー。
   // 後続のトリガー（trigger.timing）発火時に effect を実行する。ターン終了時にクリア。
   delayed_triggers?: import('./effects').InstallDelayedTriggerAction[];
+  // WXDi-P10-034: 裏向きでシグニゾーンに置いたカードの「次の自メインフェイズ開始時」表向き分岐待ち。
+  //   ターン境界クリア対象外（設置は自アタックフェイズ開始時＝flip は次の自ターンのメインフェイズ開始時なので、
+  //   間の相手ターンを跨いで持ち越す。delayed_triggers（THIS_TURN 限定・ターン境界クリア）では表現できないため専用フィールド）。
+  pending_facedown_flip?: { cardNum: string; zoneIndex: number; powerBonus: number; sourceCardNum: string };
+  // 「そのシグニが場にあるかぎり、そのシグニのパワーを＋N」＝場に居る間だけ効く永続パワー修正（WXDi-P10-034 の表向き +5000）。
+  //   temp_power_mods（ターン境界クリア）と異なりクリアしない。calcFieldPowers が field.signi に居る cardNum にのみ適用（場を離れれば base が無く自然に失効）。
+  field_power_mods?: Array<{ cardNum: string; delta: number; srcCardNum?: string }>;
   // REVEAL_DECK_TOP（B2）: 直前に公開したデッキ上カードのうちシグニのレベル合計（動的閾値 powerLteRevealedSigniLevelSum 用）。
   last_revealed_signi_level_sum?: number;
   // REVEAL_DECK_TOP（B2）: 直前に公開したデッキ上カード番号（TRASH_REVEALED が参照）。
