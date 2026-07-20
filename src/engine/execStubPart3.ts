@@ -18,7 +18,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination,
+  removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination, banishRedirectOpts,
   getCardNum, shuffle, addToBeatZone,
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
 } from './execUtils';
