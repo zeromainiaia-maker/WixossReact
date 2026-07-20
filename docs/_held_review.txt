@@ -355,6 +355,8 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.steps[0].target.type = "SIGNI"
   + [0].action.steps[0].target.owner = "self"
   + [0].action.steps[0].target.count = 1
+  + [0].action.steps[0].target.filter.thisCardOnly = true
+  + [0].action.steps[0].optional = true
 --- WX21-056
   原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、カードを２枚引く。」を得る。,-
   - [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
@@ -362,6 +364,8 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.type = "SIGNI"
   + [0].action.abilities[0].action.steps[0].target.owner = "self"
   + [0].action.abilities[0].action.steps[0].target.count = 1
+  + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
+  + [0].action.abilities[0].action.steps[0].optional = true
 --- WX21-061
   原文: 【常】：あなたの＜天使＞のシグニは「【自】：対戦相手のターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、あなたのデッキの上からカードを２枚エナゾーンに置く。」を得る。,-
   - [0].action.abilities[0].action.steps[0].id = "OPTIONAL_TRASH_SELF"
@@ -369,6 +373,8 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.type = "SIGNI"
   + [0].action.abilities[0].action.steps[0].target.owner = "self"
   + [0].action.abilities[0].action.steps[0].target.count = 1
+  + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
+  + [0].action.abilities[0].action.steps[0].optional = true
 
 ## +DURING_ATTACK_PHASE ［3枚］
 WX21-029 WXEX2-30 WXEX2-47
@@ -864,6 +870,24 @@ WXDi-P01-044
   - [0].action.choices[1].action.target.type = "DECK_CARD"
   …（他 42 行）
 
+## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER ［1枚］
+WXDi-P03-061
+--- WXDi-P03-061
+  原文: 【常】：あなたのトラッシュにスペルがあるかぎり、このシグニのパワーは＋3000される。【出】：あなたのデッキの上からカードを５枚見る。その中からスペルを好きな枚数公開し手札に加え、残りを好きな順番でデッキの一番下に置く。この方法で手札に加えたカード１枚につき手札を１枚捨てる。,：あなたのトラッシュからスペルを２枚まで対象とし、それらを手札に加える。
+  - [1].action.source.location = "deck"
+  - [1].action.source.owner = "self"
+  - [1].action.count = 5
+  - [1].action.private = true
+  - [1].action.reorder = true
+  - [1].action.canTrash = false
+  - [1].action.destination.location = "deck"
+  - [1].action.destination.owner = "self"
+  - [1].action.destination.position = "bottom"
+  ~ [1].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
+  + [1].action.owner = "self"
+  + [1].action.revealCount = 5
+  …（他 8 行）
+
 ## +TRASH_CARD -DECK_CARD ［1枚］
 WXDi-P04-016
 --- WXDi-P04-016
@@ -987,24 +1011,6 @@ WXDi-P11-003
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
   ~ [0].action.steps[1].choices[2].action.source.type : "SIGNI" → "TRASH_CARD"
   + [0].action.steps[1].choices[2].action.position = "top"
-
-## +AND +CONDITIONAL +ENERGY_COUNT +TRASH_HAS_CARD ［1枚］
-WXDi-P11-048
---- WXDi-P11-048
-  原文: 【自】《ターン１回》：このシグニがアタックしたとき、あなたのトラッシュに黒のカードが１０枚以上あり対戦相手のエナゾーンにカードが２枚以上ある場合、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く。【自】《ターン１回》：このシグニがアタックしたとき、あなたのトラッシュに黒のカードが２０枚以上ある場合、対戦相手は手札を１枚捨てる。【出】《黒》《無》
-  - [0].action.target.type = "ENERGY_CARD"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  ~ [0].action.type : "TRASH" → "CONDITIONAL"
-  + [0].action.condition.type = "AND"
-  + [0].action.condition.conditions[0].type = "TRASH_HAS_CARD"
-  + [0].action.condition.conditions[0].owner = "self"
-  + [0].action.condition.conditions[0].filter.color = "黒"
-  + [0].action.condition.conditions[0].minCount = 10
-  + [0].action.condition.conditions[1].type = "ENERGY_COUNT"
-  + [0].action.condition.conditions[1].owner = "opponent"
-  + [0].action.condition.conditions[1].operator = "gte"
-  …（他 5 行）
 
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［1枚］
 WXDi-P12-007
@@ -1287,6 +1293,21 @@ WXK08-066
   + [0].action.steps[2].then.type = "ENERGY_CHARGE_FROM_DECK"
   + [0].action.steps[2].then.owner = "self"
   + [0].action.steps[2].then.count = 1
+
+## +SEQUENCE +TRASH +TRASH_CARD ［1枚］
+PR-378
+--- PR-378
+  原文: 以下の２つから１つを選ぶ。①あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引き、このカードをゲームから除外する。②あなたのシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの一番上のカードをエナゾーンに置き、このカードをゲームから除外する。,-
+  - [0].action.choices[1].action.steps[1].then.owner = "self"
+  - [0].action.choices[1].action.steps[1].then.count = 1
+  ~ [0].action.choices[1].action.steps[1].then.type : "ENERGY_CHARGE_FROM_DECK" → "SEQUENCE"
+  + [0].action.choices[1].action.steps[1].then.steps[0].type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.choices[1].action.steps[1].then.steps[0].owner = "self"
+  + [0].action.choices[1].action.steps[1].then.steps[0].count = 1
+  + [0].action.choices[1].action.steps[1].then.steps[1].type = "TRASH"
+  + [0].action.choices[1].action.steps[1].then.steps[1].target.type = "TRASH_CARD"
+  + [0].action.choices[1].action.steps[1].then.steps[1].target.owner = "self"
+  + [0].action.choices[1].action.steps[1].then.steps[1].target.count = 1
 
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018

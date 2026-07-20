@@ -5211,6 +5211,37 @@ test('BANISH_REDIRECT bySource: 実行時は無条件フラグではなく発生
   eq(st.banish_redirect, undefined, '無条件フラグは立てない（過剰発火の防止）');
   eq((st.banish_redirect_by_source_nums ?? []).join(','), 'SRC-001', '発生源シグニだけが限定リストに載る');
 });
+// タスク5: 「このシグニを場からトラッシュに置いてもよい。そうした場合、X」＝自己犠牲は thisCardOnly（このシグニのみ）
+// ＋optional（任意）。任意スキップ時は後続 CONDITIONAL(IS_MY_TURN)=「そうした場合」も実行しない
+// （WX19-031/WX19-034/WXK10-032/WXK10-033/WXEX2-31 の parser 退化＝全シグニ強制トラッシュ＋本体常時発火を是正）。
+test('optional self-trash thisCardOnly: このシグニのみ対象＋「そうした場合」ゲート（タスク5）', () => {
+  const src = SIGNI;
+  const seq = { type: 'SEQUENCE', steps: [
+    { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as unknown as EffectAction;
+  // 実行（autopilot は候補=このシグニのみを1枚選択）: このシグニだけトラッシュ＋そうした場合＝ドロー
+  {
+    const ctx = { ...mkCtx({ signi: [src, SIGNI_P3000, SIGNI_L2] }, {}), sourceCardNum: src } as unknown as ExecCtx;
+    const h0 = ctx.ownerState.hand.length;
+    const r = run(seq, ctx);
+    ok(r.ownerState.trash.includes(src), 'このシグニがトラッシュへ');
+    eq(tops(r.ownerState).filter(x => x).length, 2, '他シグニ2体は場に残る（thisCardOnlyで対象外）');
+    eq(r.ownerState.hand.length, h0 + 1, 'そうした場合＝ドロー実行');
+  }
+  // スキップ（optional で0枚選択）: トラッシュされず、後続「そうした場合」も発火しない
+  {
+    const ctx = { ...mkCtx({ signi: [src, SIGNI_P3000, SIGNI_L2] }, {}), sourceCardNum: src } as unknown as ExecCtx;
+    const h0 = ctx.ownerState.hand.length;
+    const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: seq, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!r0.done, 'optional self-trash で対話待ち');
+    const c: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const rSkip = resumeSelectTarget([], (r0 as { pending: unknown }).pending as never, c); // 0枚＝スキップ
+    ok(!rSkip.ownerState.trash.includes(src), 'スキップ時: このシグニはトラッシュされない');
+    eq(tops(rSkip.ownerState).filter(x => x).length, 3, 'スキップ時: 3体とも場に残る');
+    eq(rSkip.ownerState.hand.length, h0, 'スキップ時: そうした場合の本体（ドロー）は発火しない');
+  }
+});
 test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新配置に反映（WX04-041-E2）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
   const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
