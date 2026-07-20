@@ -95,10 +95,20 @@ export function resolveNum(n: NumberOrRef): number {
 // - 相手側の banish_redirect: エナの代わりにトラッシュへ
 // - 相手側の banish_redirect_to_hand: エナの代わりに手札へ
 // - 自身の opp_signi_energy_to_deck_bottom (WX25-CP1-003): エナの代わりにデッキの一番下へ
+//
+// opts（タスク12(xliv)(a2)）＝効果経路の 【常】 BANISH_REDIRECT 走査用。cardMap を渡すと、ターン内フラグが
+// 立っていなくても opponent（＝置換能力の持ち主）の場にある CONTINUOUS BANISH_REDIRECT を on-the-fly で
+// 評価してトラッシュ送りにする（バトル/パワー0経路が既に行っている走査の効果経路版）。省略＝従来どおりフラグのみ。
 export function banishDestination(
   removed: PlayerState,   // バニッシュされた側の状態（removeFromField適用済み）
-  opponent: PlayerState,  // バニッシュされた側から見た対戦相手の状態
+  opponent: PlayerState,  // バニッシュされた側から見た対戦相手の状態（＝置換能力の持ち主候補）
   num: string,
+  opts?: {
+    cardMap?: Map<string, CardData>;
+    banished?: BanishedCardAttrs;       // 除去前盤面から取った被バニッシュ属性（computeBanishedAttrs）
+    turnPhase?: TurnPhase;
+    effectivePowers?: Map<string, number>;
+  },
 ): { state: PlayerState; log: string } {
   if (opponent.banish_redirect === true) {
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
@@ -109,6 +119,11 @@ export function banishDestination(
   // BANISH_REDIRECT redirectTo:'exile'（SPDi47-05）: エナの代わりにゲームから除外＝どのゾーンにも置かない
   if (opponent.banish_redirect_to_exile === true) {
     return { state: removed, log: 'をバニッシュ（ゲームから除外）' };
+  }
+  // 効果経路の 【常】 BANISH_REDIRECT（redirectTo:'trash'）走査（タスク12(xliv)(a2)）。
+  // ターン内フラグに載らない常在置換をここで拾う。redirectBanish はデッキ下より優先（バトル経路と同順）。
+  if (opts?.cardMap && fieldEffectBanishRedirectToTrash(opponent, removed, opts.cardMap, opts.banished, opts.turnPhase, opts.effectivePowers)) {
+    return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }
   if (removed.opp_signi_energy_to_deck_bottom === true) {
     return { state: { ...removed, deck: [...removed.deck, num] }, log: '→デッキ下' };
