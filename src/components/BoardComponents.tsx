@@ -512,6 +512,11 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
               <span style={{ fontSize: 14, lineHeight: 1 }}>🌱</span>
               <span style={{ fontSize: 7, color: '#44ff88', fontWeight: 'bold', lineHeight: 1 }}>SEED</span>
             </div>
+          ) : faceDownCardNum ? (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
+              <span style={{ fontSize: 14, lineHeight: 1 }}>🂠</span>
+              <span style={{ fontSize: 7, color: '#aaccee', fontWeight: 'bold', lineHeight: 1 }}>裏向き</span>
+            </div>
           ) : virusCount > 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
               <span style={{ fontSize: 14, lineHeight: 1 }}>🦠</span>
