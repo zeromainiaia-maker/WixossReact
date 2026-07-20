@@ -999,10 +999,19 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.bySource === 'by_this' ? 'このシグニによって' : '';
       // whenPowerZero＝バニッシュされる側の限定（続き218）。無いと「全バニッシュ」に読めてしまう。
       const p0 = a.whenPowerZero ? 'パワーが0以下の' : '';
+      // 属性限定（タスク12(xliv)(a)）＝被バニッシュシグニの絞り込み。無いと「全バニッシュ」に読めてしまう。
+      const brf = a.target?.filter ?? {};
+      const attr = [
+        brf.isFrozen ? '凍結状態の' : '',
+        brf.infected ? '感染状態の' : '',
+        brf.hasCharm ? '【チャーム】が付いている' : '',
+        (brf.level && typeof brf.level === 'object' && brf.level.max !== undefined) ? `レベル${brf.level.max}以下の`
+          : (typeof brf.level === 'number' ? `レベル${brf.level}の` : ''),
+      ].join('');
       return a.redirectTo === 'exile'
-        ? `このターン、${p0}対戦相手のシグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
-        : src || p0
-          ? `${p0}対戦相手のシグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
+        ? `このターン、${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合、エナゾーンに置かれる代わりにゲームから除外される`
+        : src || p0 || attr
+          ? `${p0}対戦相手の${attr}シグニが${src}バニッシュされる場合のバニッシュ先をトラッシュに変更する`
           : '対戦相手のシグニのバニッシュ先をトラッシュに変更する';
     }
     case 'COST_INCREASE': {
