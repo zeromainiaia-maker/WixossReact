@@ -4,6 +4,19 @@
 
 ---
 
+## タスク12(xxix)(b) 222クラスタのトリアージ＝「対戦相手のルリグ1体を対象とし、それを凍結する」がシグニ凍結に化けていた系統18効果を parser 修正で消化（golden 526→527・census 1866維持）（2026-07-20・続き223・Opus）
+
+semantic audit stub群 round3（続き146・findings 2,799件）の HIGH quote クラスタ「222個」のうち、続き145 のトリアージ（`docs/_semantic_audit_stub_round3_triage.txt` §5）が「未検証・次回優先候補」としてリスト化していた7クラスタを直接JSON照合でトリアージした。
+
+- **拾えた機構不要の当たり＝クラスタ「対戦相手のルリグ1体」11件のうち凍結系**。原文「対戦相手のルリグ1体を対象とし、それを凍結する」の FREEZE 対象が JSON では **SIGNI**（対戦相手シグニ）に化けていた＝**対象の種別取り違え**（owner は opponent で正しいが type が LRIG→SIGNI）。engine の `execFreeze` は既に LRIG 分岐（`lrig_frozen:true`・続きWX17-020③）を持つため、**parser 1規則の一般化だけで機構不要に直る**。
+- **根因**＝`parseSentencePart1.ts` の 凍結 規則が `t.includes('センタールリグ')` しか見ておらず、「センター」無しの素の「対戦相手のルリグ1体を対象」が fallback の `parseSigniTarget` に落ちて SIGNI 凍結に化けていた（すぐ上の DOWN 規則も同じ制限）。
+- **修正**＝`lrigTargetFZ = センタールリグ ∨ /ルリグ[１1]体を対象/ ∨ ルリグ1体とシグニ1体併記` に一般化（「ルリグ1体につき」等のカウント句・使用条件の「ルリグ」を拾わないよう**「を対象」を必須**にし、アシスト対象「センタールリグではない」は据置＝§6.3）。「ルリグ1体とシグニ1体を対象とし、それらを凍結する」は `SEQUENCE[FREEZE LRIG, FREEZE SIGNI]` の両凍結に。
+- **消化＝17効果を heldReview で採用＋1効果を手修正**（WXDi-P00-018/P02-041/P04-010/P08-004/P08-036/P12-050/P14-003/P15-033/P16-044/CP02-002・WX24-P1-005/P2-045/D3-04・WX25-P1-005/P3-059/CP1-016/P2-TK06。WXDi-P15-011-E1 は E3 が MANUAL でカード単位温存され採用対象外のため手修正）。全17件を「全カードで FREEZE 署名が変化したもの」を LRIG フィルタ無しで網羅照合し、**退化（signi凍結の消失）ゼロ・全件原文一致**を機械確認（両凍結・CHOICE内・付与能力内も含む）。
+- **golden**＝parser 照合テスト追加（素の単体→LRIG／ルリグ+シグニ→両方／CHOICE内→LRIG）。全ゲート緑（**golden 527**・smoke/fuzz 全0・**census 1866維持**〔凍結は「欠落」計器の対象外〕・lint 0 errors）。
+- **残りのクラスタ＝機構不要ではなく系統バグとして再分類**（詳細は triage §6 に追記）：
+  - **「対戦相手のシグニ1体」(power-down owner) ＋「あなたのトラッシュから」(hand-add zone) は同一の parser 系統バグ**＝「…を対象とし、[任意コストSTUB]。そうした場合、それを[動詞]」の**照応先（それ）ロスト**。POWER_MODIFY は `owner:self`+`targetsTriggerSource` に落ちてトリガー元（自分シグニ）へ適用、TRANSFER_TO_HAND は `source:DECK_CARD`（デッキ）に落ちる＝どちらも空振り/誤対象。既存の did-it ゲート（218h）と opponent-target choose を再利用すれば直せる**機構不要の系統**だが、`OPTIONAL_COST`/`TRADE_BANISH_SELF_SIGNI` インターセプタへの owner補正＋tts strip 拡張＝parser/engine 両面の系統修正で規模が大きく、専用セッションへ登録（§3 タスク12(xxix)(b)残）。※`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`/`OPTIONAL_TRASH_ENERGY_CLASS`/`TARGET_AND_DISCARD_HAND` の STUB は既に engine が owner を self→opponent 補正するため**同クラスタでも該当カードは偽陽性**（LLM が JSON の owner:self だけ見て誤検出）。
+  - **「ルリグかシグニ1体」(NEGATE_ATTACK 対象union) ＝§6.3**（攻撃無効化の対象種別union機構）。**「そのシグニの【出】能力」(placed-signi限定の能力ロック) ＝§6.3**（「この効果で場に出したシグニだけ」のスコープ機構）。**「以下の3つから1つを選ぶ」＝§6.3**（BET機構）。**「手札をN枚捨てないかぎり」＝unless未実装（§6.3）**。
+
 ## タスク12(xxix) 残(a) 完了＝WX06-014-E2「相手シグニ1体を対象とし、自分トラッシュから《古代兵器》5枚をデッキ下→そうした場合バニッシュ」の step1 が「相手シグニをデッキ下」に化けていた原文別物バグを是正（census 1867→1866・golden 525→526）（2026-07-20・続き222・Opus）
 
 タスク12(xxix) の唯一の残件 (a) `WX06-014-E2`（創造の鍵主 ウムル＝フェムのエクシード能力）を消化し、(xxix) を完全クローズした。§6.3級「エクシード相当コスト＋対象照応の機構要」として据置かれていたが、実測すると**既存機構だけで忠実表現でき**、専用機構は不要と判明した。
