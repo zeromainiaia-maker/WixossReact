@@ -2865,7 +2865,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const placeSourceIsSigni = battleCardMap.get(causeSourceCardNum)?.Type === 'シグニ';
     const hostBloomedSE  = detectBloomedSigni(beforeHost, h);
     const guestBloomedSE = detectBloomedSigni(beforeGuest, g);
-    const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE]);
+    // 裏向き→表向き（WXDi-P10-034）も開花と同じく「場に出た」扱いではないため ON_PLAY から除外する。
+    const bloomedSetSE = new Set<string>([...hostBloomedSE, ...guestBloomedSE,
+      ...detectFacedownFlipped(beforeHost, h), ...detectFacedownFlipped(beforeGuest, g)]);
     const hostTrashBefore = new Set(beforeHost?.trash ?? []);
     const guestTrashBefore = new Set(beforeGuest?.trash ?? []);
     for (const placedNum of detectPlacedSigni(beforeHost, h)) {
