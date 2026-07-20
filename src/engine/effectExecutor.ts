@@ -1166,6 +1166,15 @@ function resolveDynamicFilter(
       result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
     }
   }
+  // colorMatchesLastProcessed: 直前に処理したカード（lastProcessedCards[0]＝「この方法でダウンしたルリグ」等）と
+  // 共通する色（1色でも一致）。owner 非依存＝相手エナを自ルリグ色で絞る（WX25-P2-112）。参照不能（スキップ／
+  // 該当なし）なら到達不能な色にして空ヒット＝「この方法でダウンした場合」の did-it ゲートを兼ねる。
+  if (result.colorMatchesLastProcessed) {
+    const { colorMatchesLastProcessed: _cm, ...rest } = result;
+    const ref = lastProcessedCards?.[0];
+    const cols = ref ? (cardMap.get(getCardNum(ref))?.Color?.match(/[白赤青緑黒無]/g) ?? []) : [];
+    result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
+  }
   if (result.powerLteRevealedSigniLevelSum != null) {
     const { powerLteRevealedSigniLevelSum: mult, ...rest } = result;
     const sum = ownerSt.last_revealed_signi_level_sum ?? 0;
