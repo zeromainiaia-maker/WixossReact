@@ -812,9 +812,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 手札をN枚捨ててもよい（任意）----
+  // 「てもよい」＝任意。「そうした場合」の did-it ゲートと組で使われ、optional を落とすと engine が強制で
+  //   手札を捨てさせてしまう（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
   if (t.match(/^手札を([０-９\d]+)枚捨ててもよい$/)) {
     const cnt = parseNum((t.match(/([０-９\d]+)枚/) ?? [])[1] ?? '1');
-    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt } };
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: cnt }, optional: true };
   }
 
   // ---- それの【出】能力は発動しない（出コストを支払ったが効果を抑止）----
