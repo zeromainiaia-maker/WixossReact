@@ -279,14 +279,22 @@ export function parseSentencePart2(t: string): EffectAction | null {
     }
   }
 
-  // ---- 手札からシグニを公開してもよい ----
+  // ---- 手札からシグニを公開する／公開してもよい（N枚／N枚まで／好きな枚数・名前が異なる）----
+  //   従来は「N枚まで公開してもよい」限定で、「公開する」（必須形）・「好きな枚数」・「それぞれ名前が異なる」は
+  //   bare REVEAL に潰れ、source/filter/count が丸ごと脱落＝engine が lastProcessedCards を記録せず「この方法で
+  //   シグニをN枚以上公開した場合」の結果カウント条件が全て IS_MY_TURN 化していた（タスク12(xxii)・WX21-023/
+  //   WXEX1-69/WXK04-034/WDK08-Y01/Y11 等）。source:HAND_CARD にすれば execReveal が選択カードを記録する。
   {
-    const revealHandM = t.match(/あなたの手札から(?:名前の異なる)?(?:(.+?)の)?シグニを?([０-９\d]+)枚まで公開してもよい/);
+    const revealHandM = t.match(/あなたの手札から(それぞれ名前が異なる|名前の異なる)?(?:(.+?)の)?シグニを?(?:([０-９\d]+)枚(まで)?|好きな枚数)公開(?:する|してもよい)/);
     if (revealHandM) {
       const filter: TargetFilter = { cardType: 'シグニ' };
-      if (revealHandM[1]) Object.assign(filter, parseStoryFilter(revealHandM[1]));
-      const count = parseNum(revealHandM[2]);
-      return { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count, upToCount: true, filter } } as { type: 'REVEAL'; source?: EffectTarget };
+      if (revealHandM[2]) Object.assign(filter, parseStoryFilter(revealHandM[2]));
+      if (revealHandM[1]) filter.distinctName = true;
+      const count = revealHandM[3] ? parseNum(revealHandM[3]) : 'ALL';
+      // 「N枚まで」「好きな枚数」＝可変（upTo）／「N枚」＝ちょうど。
+      const upToCount = !!revealHandM[4] || !revealHandM[3];
+      const optional = /公開してもよい/.test(t);
+      return { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count, upToCount, filter }, ...(optional ? { optional: true } : {}) } as { type: 'REVEAL'; source?: EffectTarget; optional?: boolean };
     }
   }
 
