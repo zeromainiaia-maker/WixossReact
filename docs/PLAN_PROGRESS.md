@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-21・続き232・Opus・**タスク5 消化＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」自己犠牲イディオムが thisCardOnly も optional も欠き、**全シグニ強制トラッシュ＋「そうした場合」本体常時発火**に退化していた5枚を是正。副産物で WX26-CP1-100／PR-Di038 は正常と確認**。golden 534→**535**・census **1841** 維持）**
+  - **バグ**＝parser 完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self 1}` を裸で emit＝(1)対象が自分の全シグニ（誤対象）(2)強制実行（optional 欠落）(3)スキップ不能ゆえ後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体も常時発火（コスト踏み倒し）。engine は `execTrash:706` の optional スキップ→did-it ゲートを既に備えていたが parser がフラグを立てていなかった。
+  - **修正**＝parser で `thisCardOnly:true`＋`optional:true` 付与（AUTO 4枚 WX19-031/034・WXK10-032・WXEX2-31 を build:effects 再生成／WXK10-033 は E2 MANUAL 保護のため E1 直パッチ＋MANUAL 刻印）＋decompiler の SIGNI TRASH 分岐が optional 接尾辞を落としていたのを是正（`（してもよい）`）。
+  - **正常と確認（是正不要）**＝WX26-CP1-100 choice② は既に `ENERGY_CHARGE{TRASH_CARD}`（engine 実装済）／PR-Di038 の `UNTIL_OPP_TURN_END`＝「次の相手ターン終了時まで」で原文一致。
+  - **ゲート**＝全ゲート緑（golden **535**・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck）。詳細 BUGFIXES 続き232。
+
 - **セッション（2026-07-21・続き231・Opus・**タスク12(xliv)(a2) 効果経路の 【常】 BANISH_REDIRECT 走査＝`BANISH` action（ARTS/【出】/【自】等）でバニッシュした相手シグニの行き先がターン内フラグしか見ず 【常】置換を取りこぼしてエナ送りになっていた under-fire を消化**。golden 533→**534**・census **1841** 維持）
   - **修正（engine のみ）**＝`cardMap.get(n).effects` から CONTINUOUS を直接読めるため effectsMap 追加不要と判明。`fieldEffectBanishRedirectToTrash`＋`computeBanishedAttrs`＋`banishRedirectAppliesFrom{excludeWhenPowerZero}` 新設、`banishDestination` に opts 配線、効果経路 全10箇所へ `banishRedirectOpts`。
   - **過剰発火の回避**＝属性不一致・whenPowerZero・bySource・phase不明の DURING_ATTACK_PHASE は全て発火させない（保守的 under-fire）。実カード WX19-078 で感染→トラッシュ／非感染→エナを end-to-end 確認。詳細 BUGFIXES 続き231。
