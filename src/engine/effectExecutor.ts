@@ -5143,9 +5143,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
-      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
       const opp = ownerState(found === 'self' ? 'opponent' : 'self', ctx);
-      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum);
+      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum, banishRedirectOpts(ctx, s, cardNum));
       return done(addLog(setOwnerState(found, withEnergy, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`));
     }
