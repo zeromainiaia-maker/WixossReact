@@ -177,12 +177,11 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-21・続き231・Opus・**タスク12(xliv)(a2) 効果経路の 【常】 BANISH_REDIRECT 走査＝`BANISH` action（ARTS/【出】/【自】等）でバニッシュした相手シグニの行き先が、ターン内フラグしか見ず 【常】置換（「対戦相手のシグニがバニッシュされる場合トラッシュへ」）を取りこぼしてエナ送りになっていた under-fire を消化**。golden 533→**534**・census **1841** 維持）**（続き230 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **バグ**＝バトル/パワー0経路は `banishRedirectAppliesFrom` で holder 場を on-the-fly 走査するが、効果経路の行き先を決める `execUtils.banishDestination` は `banish_redirect` 等のターン内フラグしか参照せず、フラグに載らない 【常】置換を無視＝効果バニッシュが本来トラッシュ送りのところエナ送りになり相手のエナ加速を許していた（WX19-078/WX21-005/WX18-038/WXK10-053/WX05-018 等）。
-  - **修正（engine のみ・JSON 変更なし）**＝当初 PLAN は「effectsMap を ExecCtx へ通す＋16呼び出し点変更」と見積もっていたが、**`cardMap.get(n).effects` から CONTINUOUS 効果を直接読める**ため effectsMap 追加は不要と判明。(1)`effectEngine.fieldEffectBanishRedirectToTrash` 新設（holder 場走査・bySource/whenPowerZero/属性フィルタで絞る）＋`computeBanishedAttrs`＋`banishRedirectAppliesFrom` に `excludeWhenPowerZero`。(2)`banishDestination` に opts 配線＋`banishRedirectOpts` ヘルパー。(3)効果経路の呼び出し**全10箇所**へ配線（除去前 state を渡す）。
-  - **過剰発火の回避**＝属性不一致・whenPowerZero・bySource・phase 不明の DURING_ATTACK_PHASE は**すべて発火させない**（保守的な under-fire）。census（欠落方向）不動＝1841維持。
-  - **ゲート**＝全ゲート緑（golden **534**〔走査＋各ガード両側を新規1テストで固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck・実カード WX19-078 で感染→トラッシュ／非感染→エナを end-to-end 確認）。詳細 BUGFIXES 続き231。
-  - **据置（(xliv)残）**＝bySource='by_this' の効果経路（(a3)・発生源シグニ配線が要る）／単体対象4件(b)／正面限定3件(c)＝§6.3級。
+- **🆕 セッション（2026-07-21・続き232・Opus・**タスク5 消化＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」自己犠牲イディオムが thisCardOnly も optional も欠き、**全シグニ強制トラッシュ＋「そうした場合」本体常時発火**に退化していた5枚を是正。副産物で WX26-CP1-100／PR-Di038 は正常と確認**。golden 534→**535**・census **1841** 維持）**（続き231 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **バグ**＝parser 完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self 1}` を裸で emit＝(1)対象が自分の全シグニ（誤対象）(2)強制実行（optional 欠落）(3)スキップ不能ゆえ後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体も常時発火（コスト踏み倒し）。engine は `execTrash:706` の optional スキップ→did-it ゲートを既に備えていたが parser がフラグを立てていなかった。
+  - **修正**＝parser で `thisCardOnly:true`＋`optional:true` 付与（AUTO 4枚 WX19-031/034・WXK10-032・WXEX2-31 を build:effects 再生成／WXK10-033 は E2 MANUAL 保護のため E1 直パッチ＋MANUAL 刻印）＋decompiler の SIGNI TRASH 分岐が optional 接尾辞を落としていたのを是正（`（してもよい）`）。
+  - **正常と確認（是正不要）**＝WX26-CP1-100 choice② は既に `ENERGY_CHARGE{TRASH_CARD}`（engine 実装済）／PR-Di038 の `UNTIL_OPP_TURN_END`＝「次の相手ターン終了時まで」で原文一致。
+  - **ゲート**＝全ゲート緑（golden **535**〔optional self-trash の thisCardOnly＋ゲートを take/skip 両側で固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck）。詳細 BUGFIXES 続き232。
   - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・使用条件ピース多段条件節・`対象とし`挟みエナ置き・対戦相手ドロー idiom）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
