@@ -2815,9 +2815,10 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const nameInlineM = text.match(/^あなたのデッキの上からカードを([０-９\d]+)枚公開し、その中からカード名に《([^》]+)》を含む(シグニ|カード)([０-９\d]+)枚を手札に加える。残りを(シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)に(?:置く|戻す)。?$/);
     if (nameInlineM) {
+      const shuffle = !!nameInlineM[5]; // 「残りをシャッフルして…」＝置く前に順序をランダム化（PR-370-E2）
       const remainder: RevealAndPickAction['remainder'] = nameInlineM[6] === 'トラッシュ'
         ? { location: 'trash', position: 'any' }
-        : { location: 'deck', position: nameInlineM[6] === 'デッキの一番下' ? 'bottom' : 'top' };
+        : { location: 'deck', position: nameInlineM[6] === 'デッキの一番下' ? 'bottom' : 'top', ...(shuffle ? { shuffle: true } : {}) };
       return {
         type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(nameInlineM[1]),
         filter: { ...(nameInlineM[3] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), cardName: nameInlineM[2] },
