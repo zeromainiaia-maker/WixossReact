@@ -4328,7 +4328,7 @@ export function execStubPart3(
     if (!targetNum) return done(addLog(ctx, 'INTERNAL_BIDC_BANISH: 対象なし'));
     const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
     const removed = removeFromField(targetNum, ctx.otherState);
-    const { state: withDest, log: destLog } = banishDestination(removed, ctx.ownerState, targetNum);
+    const { state: withDest, log: destLog } = banishDestination(removed, ctx.ownerState, targetNum, banishRedirectOpts(ctx, ctx.otherState, targetNum));
     const oppEnergyCands = ctx.otherState.energy;
     if (oppEnergyCands.length === 0) {
       return done(addLog({ ...ctx, otherState: withDest }, `${targetName}${destLog}（相手エナなし）`));
