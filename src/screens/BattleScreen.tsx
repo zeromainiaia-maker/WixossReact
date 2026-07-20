@@ -6035,7 +6035,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
         const hostBloomedSU  = detectBloomedSigni(bs.host_state, hostState);
         const guestBloomedSU = detectBloomedSigni(bs.guest_state, guestState);
-        const bloomedSetSU = new Set<string>([...hostBloomedSU, ...guestBloomedSU]);
+        const bloomedSetSU = new Set<string>([...hostBloomedSU, ...guestBloomedSU,
+          ...detectFacedownFlipped(bs.host_state, hostState), ...detectFacedownFlipped(bs.guest_state, guestState)]);
         // usageLimit 消費は収集の合間に actions_done へ畳み込む（次の収集が見て再発火を止める）。
         const useSU = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
           if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
