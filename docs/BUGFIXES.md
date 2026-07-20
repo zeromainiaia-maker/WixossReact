@@ -4,6 +4,22 @@
 
 ---
 
+## タスク12(viii) 完全クローズ＝WXDi-P10-034「デッキ上4枚→1枚裏向き設置→次の自メインフェイズ開始時に表向き分岐（+5000/手札）」を実装（`facedown_signi` ゾーン＋`pending_facedown_flip`＋`field_power_mods` 新設・census 1868→1867・golden 520→525）（2026-07-20・続き221・Opus）
+
+タスク12(viii) の唯一の残り `WXDi-P10-034`（羅植姫 ユキ//メモリア）を実装し、(viii) を完全クローズした。§6.3 級の単カード大型機構（3要素＝(a)裏向き配置 (b)ターン跨ぎ遅延トリガー (c)表向き選択分岐＋ターン境界）。原文 E1＝【自】あなたのアタックフェイズ開始時、デッキの上から4枚見る。その中から1枚を**裏向きでシグニゾーンに置き**、残りを好きな順番でデッキの一番下に置く。**次のあなたのメインフェイズ開始時**、そのカードを表向きにしてもよい。そうした場合、場にあるかぎりパワー+5000。そうしなかった場合、手札に加える。
+
+- **従来の退化**＝parser がこの構造を汎用 `LOOK_AND_REORDER`（4枚見て**全部**デッキ下）へ潰し、**裏向き設置・遅延・分岐が丸ごと no-op**（見て並べ替えるだけ）だった。
+- **(a) 裏向き配置**＝新ゾーン `field.facedown_signi: (string|null)[]` を新設（`signi_seeds`＝シード開花と同型の並列裏向き枠。ただしシード機構の混線＝表向き時 ON_BLOOM 誤発火や植物シードとの archetype 干渉を避けるため**別枠**にした）。表向きにするまで **inert**（`field.signi` に居ないためパワー/能力/アタック/対象化なし）。BoardComponents に `faceDownCardNum` prop＋「🂠裏向き」表示、BattleScreen のカードデータ収集（549行）に追加。
+- **(b) ターン跨ぎ遅延**＝`PlayerState.pending_facedown_flip{cardNum,zoneIndex,powerBonus,sourceCardNum}` を新設（**ターン境界クリア対象外の永続フィールド**）。既存 `delayed_triggers` は `THIS_TURN` 限定でターン終了時にクリアされ**相手ターンを跨げない**（設置＝自アタックフェイズ開始時／flip＝次の自ターンのメインフェイズ開始時＝間に相手1ターン）ため専用化。`collectTurnTriggers` の `ON_MAIN_PHASE_START` で pending があれば合成 `AUTO` エントリ（action=`RESOLVE_FACEDOWN_FLIP`・mandatory）を注入＝ソースカード（ユキ）が場を離れていてもスタックは `executeEffect` を実行するので発火する。
+- **(c) 表向き選択分岐**＝`RESOLVE_FACEDOWN_FLIP` が `CHOOSE`（表向き/手札）を提示。**表向き**＝`facedown_signi[zi]→signi[zi]` へ移し `field_power_mods{cardNum,delta:+5000}`（`calcFieldPowers` が `field.signi` に居る間だけ加算＝「場にあるかぎり」を自然表現・ターン境界クリアなし）を追加。**手札**＝そのカードを手札へ。いずれも pending クリア。裏向きカード消失時は pending だけクリアして no-op（守り）。
+- **ON_PLAY 除外**＝裏向き→表向きは開花と同じく「場に出た」扱いにしない（`detectFacedownFlipped` を boardDiff に新設し、中央 `collectBoardDiffTriggers`・RSZ/SU の3経路＋「あなたのシグニが場に出たとき」経路の ON_PLAY 収集から除外）。
+- **flow のUI再利用**＝pick は既存 `SEARCH`（visibleCards=4・maxPick1・thenAction=`PLACE_FACEDOWN_SIGNI`・restDest=deck_bottom）、zone は最左空きへ自動配置、flip は既存 `CHOOSE`＝**新規モーダル不要**で実機UIに載る。空きシグニゾーンが無ければ設置せず見た4枚をデッキ下へ。
+- **parser/JSON**＝`effectParser.ts` に専用規則（「その中から1枚を裏向きでシグニゾーンに置き」で先取り→STUB `LOOK_PLACE_FACEDOWN_DELAYED{count:4,value:5000}`）。`effects_WXDi.json` の E1 を更新（BURST は保持）。
+- **golden 追加5件**＝設置＋pending 記録／空きゾーン無し時の全デッキ下／表向き+5000（`calcFieldPowers` 3000→8000）／手札分岐／`ON_MAIN_PHASE_START` 注入有無。
+- **検証**＝全ゲート緑（typecheck／**golden 520→525**／smoke 10722 OK・0／fuzz 0／**census 1868→1867**／lint 0 errors）。**タスク12(viii) は残0＝クローズ**。**要実機検証（→§7）**＝実UIでの pick クリック・次ターン main 開始時の flip 選択・裏向き表示。
+
+---
+
 ## タスク12(vii) 完了＝WX25-P2-112「アップ状態のルリグをダウン→共通色の相手エナをトラッシュ」を実装（`colorMatchesLastProcessed` 新設・execDown(LRIG) 拡張・census 1869→1868・golden 520）（2026-07-20・続き220・Opus）
 
 タスク12(vii) の残り1枚 `WX25-P2-112` を消化し、(vii) をクローズした。原文＝【自】アタックフェイズ開始時、対戦相手のエナが2枚以上なら、あなたの**アップ状態のルリグ**1体をダウンして**もよい**。その後、対戦相手のエナから**この方法でダウンしたルリグと共通する色を持つ**カード1枚をトラッシュ。
