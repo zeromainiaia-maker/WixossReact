@@ -4,6 +4,18 @@
 
 ---
 
+## タスク12(xxix)(b) 完了＝照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。そうした場合、それの…」で「それ」が失われ owner:self+targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理で復元＝ライブ84枚＋MANUAL1枚を是正（census 1846→1845・golden 528→532）（2026-07-20・続き226・Opus）
+
+semantic audit stub群 round3（続き223 トリアージ）の「対戦相手のシグニ1体」（22件・power-down owner）／「あなたのトラッシュから」（13件・hand-add zone）クラスタ＝**照応先ロスト系統**を専用消化した。「〈対象〉を対象とし、〈任意コスト〉てもよい。そうした場合、それを〈動詞〉」で、任意コスト文が対象化文と結果文の間に割り込むと「それ」の照応先（先頭で対象化した相手シグニ／自トラッシュのカード）が parser で失われ、結果アクションが**トリガー元＝自分自身**（`owner:self`+`targetsTriggerSource`）や**自デッキ**（`source:DECK_CARD`）へ化けて原文と逆・別ゾーンの効果になっていた。
+
+- **既存機構の延長で解決（新機構不要）**＝`applyLeadingOpponentDesignation`（続き111 で「対戦相手の…シグニ…を対象とし…そうした場合、それを〈除去/移動〉」用に導入。owner を opponent へ寄せ tts 撤去＋欠落フィルタ補完）が、照応検出を**「そうした場合、それを」限定**にしていたため、パワー/付与の**「それの／それは」や介在節（「ターン終了時まで、」「カードを1枚引き、」）を挟む形**を取りこぼしていた。検出正規表現を `/そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/` へ拡張（Pattern A）。
+- **Pattern B ハンドラ新設** `applyLeadingTrashHandAnaphora`＝「あなたのトラッシュから…シグニ/カードN枚を対象とし、[任意コスト]。そうした場合、それを手札に加える」の最終 `TRANSFER_TO_HAND{source:DECK_CARD,self}`（bare「それを手札に加える」の parser フォールバック＝parseSentencePart1:2017）を、designation の filter/count から組んだ `TRASH_CARD` source へ復元（`parseStoryFilter/parseColorFilter/parseLevelFilter/parseGuardFilter` 流用）。冪等。
+- **ガード**：(1)**「代わりに」置換**（前段/後段の二重 power-modify へ平坦化される別系統＝タスク6）は findTail が末尾のみ補正すると片方が誤 owner のまま残るため丸ごと据置（WX24-P3-076 等）。(2)**単一「を対象とし」**限定で「それ」の指し先を確定（CHOOSE 各選択肢・リコレクト bonus は再帰 parseActionText で個別に効く）。
+- **偽陽性STUBも是正対象に含めた**＝当初 `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`（engine `fixOwnerTOSOC` が実行時 owner を opponent へ寄せる）を「偽陽性」としてスキップする guard を入れたが、**旧 accusative「それを」系（WX05-028/WX07-001/WXDi-P00-038 等）が既に本ハンドラで opponent に直された JSON で正常動作している**ため、スキップは逆に既存補正を剥がす退化（BOUNCE/TRASH が opponent→self へ逆流）を生んだ。guard を撤去＝JSON を先に opponent へ直しても fixOwner は冪等（no-op）で二重管理にならないと機械確認（held before/after 差分で退化0を確認）。
+- **一括是正**＝build:effects の held 差分＝**84カード（87 leaf）が新規 held**（全て `owner:self/any→opponent`＋tts撤去、または `DECK_CARD→TRASH_CARD`。退化0を機械分類）。semantic audit の35枚サンプルを超えて同一 systematic bug を広く捕捉（未サンプルの power-down/hand-add・CHOOSE 内部・GRANT 内部の入れ子も含む）。全84枚を heldReview で採用。MANUAL でハード保護され自動採用されない **WXDi-CP02-072-E1** は手動パッチ（source→TRASH_CARD{hasGuard}・MANUAL 維持）。
+- **回帰防止**＝golden 4件追加（照応A power-down opponent＋tts撤去／照応A 偽陽性belt＝TARGET_OPP でも opponent／**退化防止＝WX07-001 BOUNCE が opponent のまま**／照応B source DECK_CARD→TRASH_CARD hasGuard）。census は owner 変更が「欠落語彙」計器をほぼ動かさず（**挙動是正**であり golden/smoke/fuzz で担保）1846→**1845**。全ゲート緑（census 1845・golden **532**・smoke 10722全OK・fuzz 全0・lint 0 errors・同型★0）。
+- **残**＝(1)`WX25-P3-010-E1` の「それをライフクロスに加える」（自トラッシュから ADD_TO_LIFE すべきが `fromTop`＝デッキトップに化け・別 action 型で単発）(2)`WX24-P4-048-E2` 等の「それをエナゾーンに置く」自トラッシュ版（(xxviii)残）(3)`WX24-P3-076-E1` の「代わりに」二重 power-down（タスク6）。
+
 ## タスク12(vii)系 完了＝「〜てもよい」（任意アクション）が parser で optional:true を落とし engine が強制実行していた系統退化＝ライブ90枚を一括是正（census 1865→1846・golden 527→528）（2026-07-20・続き225・Opus）
 
 続き224 の副産物として観測・登録した「このシグニをダウンしてもよい」E1 の optional 脱落を起点に系統化した。**「〜てもよい」は任意（player が実行を選べる）**なのに、複数の parser ハンドラが optional フラグを立てず `optional` 無しの action を返していた。engine はこれを**強制実行**し、さらに「そうした場合、〜」の did-it ゲート（optional スキップ時に後続 CONDITIONAL を不成立にする＝execTrash:70 等）が**常時成立**して過剰効果になっていた。
