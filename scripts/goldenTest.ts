@@ -540,12 +540,12 @@ test('WX06-014-E2: 古代兵器5枚をトラッシュ→デッキ下→相手シ
     const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
     ctx.ownerState.trash = ANCIENT.slice(0, 5);
     const deck0 = ctx.ownerState.deck.length;
-    const oppTrash0 = ctx.otherState.trash.length;
+    const oppEner0 = ctx.otherState.energy.length;
     const r = run(eff, ctx);
     eq(r.ownerState.trash.filter(n => ANCIENT.includes(n)).length, 0, '古代兵器5枚がトラッシュから抜ける');
     eq(r.ownerState.deck.length, deck0 + 5, 'デッキが5枚増える（一番下へ）');
     eq(r.otherState.field.signi.filter(s => s?.length).length, 0, '相手シグニが場から消える（バニッシュ）');
-    eq(r.otherState.trash.length, oppTrash0 + 1, '相手シグニがトラッシュへ');
+    eq(r.otherState.energy.length, oppEner0 + 1, 'バニッシュした相手シグニがエナゾーンへ');
   }
   // ② 空振り: 古代兵器0枚 → step1 が空振り→「そうした場合」の banish は不発（相手シグニは残る）
   {
