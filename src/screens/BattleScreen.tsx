@@ -4555,7 +4555,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const resumePlaceSourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
         const hostBloomedRSZ  = detectBloomedSigni(bs.host_state, hostState);
         const guestBloomedRSZ = detectBloomedSigni(bs.guest_state, guestState);
-        const bloomedSetRSZ = new Set<string>([...hostBloomedRSZ, ...guestBloomedRSZ]);
+        const bloomedSetRSZ = new Set<string>([...hostBloomedRSZ, ...guestBloomedRSZ,
+          ...detectFacedownFlipped(bs.host_state, hostState), ...detectFacedownFlipped(bs.guest_state, guestState)]);
         const resumePlaceEntries: StackEntry[] = [];
         const hostTrashBeforeRSZ = new Set(bs.host_state?.trash ?? []);
         const guestTrashBeforeRSZ = new Set(bs.guest_state?.trash ?? []);
