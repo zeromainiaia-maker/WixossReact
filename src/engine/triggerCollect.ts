@@ -768,9 +768,19 @@ export function collectLeaveFieldTriggers(
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
   // この離脱を引き起こした効果のオーナー userId（中央 diff の meta.causeOwnerId）。
-  // undefined＝バトル/ルール処理など効果起因でない離脱＝byOwnEffect/byOpponentEffect ゲート付き効果は発火しない。
+  // undefined＝バトル/ルール処理など効果起因でない離脱＝byOwnEffect/byOpponentEffect/byEffect ゲート付き効果は発火しない。
   causeOwnerId?: string,
+  // 離脱**直前**の盤面（離脱プレイヤーの before state）とゾーン添字。leftStateFilter（凍結/感染/チャーム等）評価用。
+  // undefined＝バトル離脱など除去前 state 未渡し＝leftStateFilter 付き効果は保守的に非発火。
+  leftBeforeState?: PlayerState,
+  leftZoneIdx?: number,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  // leftStateFilter（離脱直前の状態限定）: 除去前 state とゾーンが渡っている場合のみ評価。無ければ保守的に非発火（false）。
+  const leftStateOk = (filter: TargetFilter | undefined): boolean => {
+    if (!filter) return true;
+    if (!leftBeforeState || leftZoneIdx === undefined) return false;
+    return matchesStateFilter(leftBeforeState, leftZoneIdx, filter);
+  };
   const entries: StackEntry[] = [];
   const usedHostIds: string[] = [];
   const usedGuestIds: string[] = [];
