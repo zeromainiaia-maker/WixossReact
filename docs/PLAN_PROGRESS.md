@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-21・続き230・Opus・**タスク12(xliv)(a) 属性フィルタ＝`BANISH_REDIRECT` の「対戦相手の［限定］シグニがバニッシュされる場合」の限定（レベル/凍結/感染/チャーム）が脱落し全バニッシュがトラッシュ送りになる過剰発火を、parser で target.filter へ復元＋engine の battle/power0 経路で被バニッシュ属性を評価して消化**。golden 532→**533**・census **1841** 維持）
+  - **バグ**＝parser が属性限定を丸ごと落とし filter が `{cardType:シグニ}` のみ。engine の 【常】オンザフライ走査 `banishRedirectAppliesFrom` が target.filter を見ず、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**（相手のエナ加速を止める実害）。
+  - **修正**＝(1)parser（`parseSentencePart1.ts`）＝`レベルN以下の/凍結状態の/感染状態の/【チャーム】が付いている …シグニがバニッシュされ` を `filter.level/isFrozen/infected/hasCharm` へ。(2)engine（`effectEngine.ts`）＝`BanishedCardAttrs`＋`banishRedirectFilterMatches`、`banishRedirectAppliesFrom` に第4引数 `banished?`。(3)BattleScreen 3経路（バトル先/ON_TRASH トリガー/パワー0）に除去前盤面から取った属性を配線。(4)decompiler。
+  - **被覆5枚**＝WXK10-053（level≤1）/WXDi-P12-073（凍結）/WX21-005（感染）/WX18-038（チャーム）＋WX19-078（正面の感染＝over-fire 縮小）。詳細 BUGFIXES 続き230。
+
 - **🆕 セッション（2026-07-20・続き229・Opus・**§3 census クラスタ「Nまで上限選択」精査＝REVEAL_AND_PICK のフィルタ付き pick ハンドラが「スペル」noun を欠き pick 脱落していた系統を parser 拡張で2効果被覆**。census 1843→**1841**・golden **532** 維持）**
   - **精査の知見**＝census 上位クラスタ「その中からカードをN枚まで手札に加え、残りをデッキ一番下に置く」（14効果）を1件ずつ実体確認＝**12は既に正しく REVEAL_AND_PICK**で、census の欠落計上は**同一効果内の別脱落**（使用条件ピースの「その後、〜の場合」多段条件節脱落＝WXDi-P08-003/P13-001）が原因。**クラスタ枚数は鵜呑みにできない**（代表文型でグルーピングするため）。
   - **修正**＝フィルタ付き reveal-pick ハンドラ（`effectParser.ts:3005`）の pick 名詞群 `(シグニ|カード)` に `スペル` を追加（`cardType:'スペル'`＋`pickNoun:'スペル'`＝engine matchesFilter・MANUAL 正解 WXDi-D04-012-E1/WXDi-P09-048-E3 と同形）。従来は「その中から（色の）スペル1枚を公開し手札に加え、残り…」が汎用 LOOK_AND_REORDER に飲まれ pick が丸ごと脱落していた。**SPDi43-17-E1**（heldReview 採用）／**WXK05-023-E3**（MANUAL 凍結カードのため手術的パッチ・赤のスペル）を被覆。他4枚は既に MANUAL 正解で不変。
