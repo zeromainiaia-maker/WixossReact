@@ -177,12 +177,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-20・続き228・Opus・**§3 タスク3 DRAW脱落の一部＝「デッキの一番上のカードをエナゾーンに置き、X」連用中止が後続（ドロー/場出し）を飲み込んで脱落していた系統を連用中止 splitter に追加して是正**。census 1845→**1843**・golden **532** 維持）**（続き227 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **内容**＝「デッキの一番上のカードをエナゾーンに置き、カードを１枚引く」等の連用中止形で、先頭のエナチャージだけ残り後続が丸ごと脱落。7枚を棚卸しし、`対象とし`/`場合`/`そうした場合` ガードで止まる複合を除いた純粋連用チェーンを対象化。
-  - **修正**＝`effectParser.ts` の連用中止 splitter（`CONJ_FIN`＋`conjM`）に `デッキの一番上のカードをエナゾーンに置き` を追加＝左を `…置く` へ正規化し `ENERGY_CHARGE_FROM_DECK` に解いて右半分と SEQUENCE 化（両半分非UNKNOWN のときだけ）。engine の ENERGY_CHARGE_FROM_DECK/DRAW/ネスト SEQUENCE は既存対応。**WX15-098-E1**（アクセ時 エナ置き＋ドロー）／**WX19-030-E2**（【ウィルス】除去コスト：エナ置き＋ドロー＋その後バニッシュ）の energy-charge を回復（heldReview 採用・原文＋逆翻訳照合済）。
-  - **据置**＝WX20-071（3項＋DURING_OPP_TURN/IS_SELF_ACCED が hoist されず `場合` が action 文に残り split ガードに掛かる）／WX05-024・WX13-034（`対象とし` 挟み）／PR-378（choice② の「ゲームから除外」が TRASH 近似＝EXILE §6.3）。観測バグ→タスク12(xlix) 登録＝WX19-030-E1 の 【常】出撃制限が ADD_TO_FIELD へ mis-parse。
-  - **ゲート**＝全ゲート緑（golden **532** 維持・smoke 10722全OK・fuzz 全0・census **1843**・lint 0 errors・同型★0）。BASELINE_HIGH を 1843 へ実数更新。詳細 BUGFIXES 続き228。
-  - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・`対象とし`挟みエナ置き・対戦相手ドロー idiom・per-count ドロー）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級・要再ラベル）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
+- **🆕 セッション（2026-07-20・続き229・Opus・**§3 census クラスタ「Nまで上限選択」精査＝REVEAL_AND_PICK のフィルタ付き pick ハンドラが「スペル」noun を欠き pick 脱落していた系統を parser 拡張で2効果被覆**。census 1843→**1841**・golden **532** 維持）**（続き228 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **精査の知見**＝census 上位クラスタ「その中からカードをN枚まで手札に加え、残りをデッキ一番下に置く」（14効果）を1件ずつ実体確認＝**12は既に正しく REVEAL_AND_PICK**で、census の欠落計上は**同一効果内の別脱落**（使用条件ピースの「その後、〜の場合」多段条件節脱落＝WXDi-P08-003/P13-001）が原因。**クラスタ枚数は鵜呑みにできない**（代表文型でグルーピングするため）。
+  - **修正**＝フィルタ付き reveal-pick ハンドラ（`effectParser.ts:3005`）の pick 名詞群 `(シグニ|カード)` に `スペル` を追加（`cardType:'スペル'`＋`pickNoun:'スペル'`＝engine matchesFilter・MANUAL 正解 WXDi-D04-012-E1/WXDi-P09-048-E3 と同形）。従来は「その中から（色の）スペル1枚を公開し手札に加え、残り…」が汎用 LOOK_AND_REORDER に飲まれ pick が丸ごと脱落していた。**SPDi43-17-E1**（heldReview 採用）／**WXK05-023-E3**（MANUAL 凍結カードのため手術的パッチ・赤のスペル）を被覆。他4枚は既に MANUAL 正解で不変。
+  - **据置**＝WX10-033（「すべてのスペル」＝count が noun 前）／WXEX1-12・WXK05-023-BURST（多重pick「シグニ1枚とスペル1枚」）。使用条件ピース多段条件節脱落はタスク3 残へ登録。
+  - **ゲート**＝全ゲート緑（golden **532** 維持・smoke 10722全OK・fuzz 全0・census **1841**・lint 0 errors・同型★0・逆翻訳2枚とも原文一致）。BASELINE_HIGH を 1841 へ実数更新。詳細 BUGFIXES 続き229。
+  - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・使用条件ピース多段条件節・`対象とし`挟みエナ置き・対戦相手ドロー idiom）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
