@@ -257,9 +257,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
         }
       }
       const removed = removeFromField(num, s);
-      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
       const opp = ownerState(tgt.owner === 'self' ? 'opponent' : 'self', cur);
-      const { state: dest, log } = banishDestination(removed, opp, num);
+      const { state: dest, log } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s, num));
       cur = addLog(setOwnerState(tgt.owner, dest, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}${log}`);
     }
