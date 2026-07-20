@@ -467,7 +467,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRASH': {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
-      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
+      if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
       if (t?.type === 'HAND_CARD' && t.owner === 'self' && t.count === 'ALL') {
         if (t.upToCount) return 'あなたは手札を好きな枚数捨てる';
