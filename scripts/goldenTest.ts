@@ -1313,6 +1313,13 @@ test('ON_HAND_DISCARDED watcher 受身形＋正面ダウン 構造固定（WDA-F
   eq(tgt?.owner, 'opponent', 'WDA-F02-17-E2: DOWN 対象 owner=opponent（正面＝相手ゾーン）');
   ok(!!tgt?.filter?.frontOfSelf, 'WDA-F02-17-E2: DOWN 対象 filter.frontOfSelf=true');
 });
+// execDown frontOfSelf: 効果元シグニ（owner zi）の正面（相手 2-zi）のシグニだけをダウンする（execBanish と同型）。
+test('execDown frontOfSelf: 効果元の正面（相手 2-zi）のシグニのみダウン', () => {
+  const ctx = mkCtx({ signi: [SIGNI_L1, null, null] }, { signi: [null, null, SIGNI_L2] }, SIGNI_L1);
+  const r = run({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } } } as EffectAction, ctx);
+  eq(r.otherState.field.signi_down[2], true, '正面（2-zi）のシグニがダウン');
+  eq(r.otherState.field.signi_down[0], false, '正面以外はダウンしない');
+});
 // 引用付与の内側 parse（§3 Opusタスク1・続き75）：「この方法で場に出たシグニは「【自】…」を得る」＝
 // GRANT_EFFECT{targetsLastProcessed} の rawText を parseBlock が内側 CardEffect へ展開する。
 // 内側の timing／自己参照／「アップし、」複合文が正しく解けていることを固定する（従来は STUB で engine no-op）。
