@@ -131,6 +131,19 @@ export function banishDestination(
   return { state: { ...removed, energy: [...removed.energy, num] }, log: 'をバニッシュ' };
 }
 
+/**
+ * banishDestination の効果経路 opts を ExecCtx から組み立てるヘルパー（タスク12(xliv)(a2)）。
+ * `victimState` は removeFromField 適用**前**の被バニッシュ側の状態を渡すこと（属性取得のため）。
+ */
+export function banishRedirectOpts(ctx: ExecCtx, victimState: PlayerState, num: string) {
+  return {
+    cardMap: ctx.cardMap,
+    banished: computeBanishedAttrs(victimState, num, ctx.cardMap),
+    turnPhase: ctx.currentPhase as TurnPhase | undefined,
+    effectivePowers: ctx.effectivePowers,
+  };
+}
+
 // 傀儡（puppet）の離場回収: fieldOwner の場の puppet_signi のうち、もう場にないものを
 // fieldOwner の各ゾーン（エナ/トラッシュ/手札/デッキ）から取り除き、持ち主（trueOwner）のトラッシュへ移す。
 // 「傀儡状態のシグニが場を離れる場合、代わりに持ち主のトラッシュに置かれる」（WDK17-007）の近似（移動後に回収）。
