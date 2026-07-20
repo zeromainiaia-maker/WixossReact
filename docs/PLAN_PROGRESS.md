@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-20・続き219〜221・Opus・**§3 タスク12(xxxix)+(xxii)+(vii)+(viii)＝条件脱落の過剰効果を4バッチで計23枚消化＋(vii)(viii)クローズ**。census 1880→**1867**・golden 517→**525**）**
+  - **根因①**＝トリガー句 strip リストに「**各**ターン終了時、」が無く、トリガー句が action 文先頭に居残って先頭状態条件 CONDITIONAL 持ち上げが不発＝第1文の `〜場合、` 条件が丸ごと脱落（WXK04-027-E2 のエナ色2種類以上ゲート）。strip に追加。
+  - **根因②**＝相対手札比較 `HAND_DIFF` が `ActiveCondition` にしか無く `Condition`（CONDITIONAL）に無い＝「手札が対戦相手より少ない/多い場合」を条件節ごと脱落。parser/`Condition`型/`execUtils.evalCondition`/decompiler の4点セットで配線（WX20-005/WX24-P1-045/WX24-P2-022/WXK10-045）。
+  - **バッチ2（219b）**＝CHOOSE ヘッダ直前の状態条件の汎用持ち上げ（`matchLeadingStateCondition`＋CHOOSE 直後限定）で10枚是正（毎アタックフェイズ無条件 CHOOSE 発火のゲート化）。census 1878→1874・golden 518。
+  - **バッチ3（219c）**＝手札公開 REVEAL の source 脱落是正（「公開してもよい」限定→「公開する/N枚/好きな枚数」へ一般化・`REVEAL{source:HAND_CARD}` 復元）で7枚。census 1874→1869・golden 519。
+  - **バッチ4（220）**＝タスク12(vii) クローズ＝WX25-P2-112 のダウン→共通色エナトラッシュを実装（`execDown(LRIG)` の lastProcessedCards 記録＋`colorMatchesLastProcessed` 動的フィルタ新設）。census 1869→1868・golden 520。
+  - **バッチ5（221）**＝タスク12(viii) 完全クローズ＝WXDi-P10-034 の裏向き設置→ターン跨ぎ遅延→表向き分岐（`facedown_signi`/`pending_facedown_flip`/`field_power_mods` 新設）。census 1868→1867・golden 525。詳細 BUGFIXES 続き219〜221。
+
 - **🆕 セッション（2026-07-20・続き218k・Opus・**§3 タスク5＝`WXDi-P03-005` の有害 MANUAL 幻覚を是正＋REVEAL_AND_PICK の `noGuard` filter 過剰保守を解消**。golden 516→517）**（同日の連続作業 218h/i/j は本ファイル内へ退避）
   - **発見**＝タスク5 の `WXDi-P03-005` の curated MANUAL が**有害な幻覚**＝原文「デッキ5枚見てガード無しシグニ1枚まで**手札に加え**、（エクシード4を払っていたら）代わりに2枚まで」が「**自分のシグニをデッキに戻す**」（カードを引く動作が消え自分の場を削る逆効果）に化けていた。fresh は正直に UNKNOWN を刻んでおり **fresh(no-op) のほうが MANUAL より害が小さい**状態。
   - **parser 改善（本丸）**＝`REVEAL_AND_PICK` pick 文の filter 前置詞が `＜C＞|色|無色|レベル` に限定され「《ガードアイコン》を持たない」を意図的に除外していた（当時の保守判断）。だが **`noGuard` は型にも matchesFilter にも実装済み（G237）＝忠実に表現できる**ので過剰。regex に noGuard 枝を追加＋pick 名詞「カード」の `pickNoun` 保持。副産物で `WXDi-P05-021` が fresh(AUTO)=curated(MANUAL) 完全一致に（将来 AUTO 化可能・内容は既に正しいので温存）。
