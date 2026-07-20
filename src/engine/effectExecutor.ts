@@ -3137,10 +3137,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     // ピック対象なし：残りを指定場所へ
     if (a.remainder) {
       const pos = a.remainder.position;
+      const restOrdered = a.remainder.shuffle ? shuffle([...visible]) : visible;
       const newS: PlayerState = {
         ...state,
         deck: pos === 'bottom'
-          ? [...state.deck.slice(count), ...visible]
+          ? [...state.deck.slice(count), ...restOrdered]
           : state.deck,
       };
       return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`));
