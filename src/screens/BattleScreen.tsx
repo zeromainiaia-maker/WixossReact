@@ -7215,9 +7215,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myS.field.signi.some(s => {
               const n = s?.at(-1);
               // bySource（「このシグニとのバトルによって」等）付きは、バトル当事者＝myTopNum のときだけ適用
+              // 被バニッシュシグニ＝opTopCardNum。target.filter（レベル/凍結/感染/チャーム）で絞る（タスク12(xliv)(a)）。
               return n && (effectsMap.get(n) ?? []).some(e =>
                 e.effectType === 'CONTINUOUS' &&
-                banishRedirectAppliesFrom(e.action, n, myTopNum) &&
+                banishRedirectAppliesFrom(e.action, n, myTopNum, banishedOpAttrsOf(opTopCardNum)) &&
                 checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
               );
             });
