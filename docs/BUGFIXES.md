@@ -4,6 +4,20 @@
 
 ---
 
+## タスク12(vii)系 完了＝「〜てもよい」（任意アクション）が parser で optional:true を落とし engine が強制実行していた系統退化＝ライブ90枚を一括是正（census 1865→1846・golden 527→528）（2026-07-20・続き225・Opus）
+
+続き224 の副産物として観測・登録した「このシグニをダウンしてもよい」E1 の optional 脱落を起点に系統化した。**「〜てもよい」は任意（player が実行を選べる）**なのに、複数の parser ハンドラが optional フラグを立てず `optional` 無しの action を返していた。engine はこれを**強制実行**し、さらに「そうした場合、〜」の did-it ゲート（optional スキップ時に後続 CONDITIONAL を不成立にする＝execTrash:70 等）が**常時成立**して過剰効果になっていた。
+
+- **観測手法**＝`_held_fresh.json`（fresh）と `public/data`（curated/live）を leaf 比較し「**curated が optional:true を持つのに fresh が落とす**」効果を全数抽出＝21枚。action 型で分類し各ハンドラの取りこぼしを特定した。
+- **根因と修正（4ハンドラ）**：
+  - **DOWN**（`parseSentencePart1.ts`）＝「ダウンする/をダウン」規則が「ダウンしてもよい」でも optional を立てず。`downOptional = t.includes('ダウンしてもよい')` を全 DOWN 返り値へ配線（6枚）。
+  - **手札捨て**（同 part1・`手札を([０-９\d]+)枚捨ててもよい$`＝**先頭非アンカー**）＝「対戦相手の…を対象とし、手札を1枚捨ててもよい」も拾う主経路。ここが optional を落としていた（part3 の anchored `^手札を…$` 版より先に効くため part3 修正は届かない）。optional:true を付与（10枚）。
+  - **エナ→トラッシュ**（`parseSentencePart3.ts`・「対戦相手のエナゾーンから…トラッシュに置いてもよい」）＝同上（1枚）。
+  - **場出し**（part1・手札から/トラッシュから「場に出してもよい」）＝旧・続き207 が「変更を最小にするため down 変種限定」として plain を**意図的に据置**していた。engine execAddToField は optional 対応済（1465行・0枚選択でスキップ）で、影響カードが3枚と限定的（機械計測）＝退化なしと確認し plain へ拡張（3枚）。
+- **ライブ実害の一括是正**＝parser が optional を正しく吐くようになった結果、build:effects の**純粋上位集合（isPureSuperset＝無損失）自動採用**で **live 90枚**の optional 欠落（＝強制実行バグ）が一括是正された。全90枚の source に「てもよい」在を機械確認＝**偽陽性0**。さらに optional 復元で**過去 held の改善（続き219b の CHOOSE 状態条件・STUB→REVEAL 等）が pure-superset として解禁**され自動採用（WX25-P2-085 の「他の＜武勇＞がある場合」条件ほか）＝census が 1865→**1846** に押し下げ（全て additive で退化不可能）。
+- **個別採用/据置**＝optional に加えて既存の正しい改善が束ねられた3枚（**WXDi-P00-033** STUB→REVEAL／**WX24-P2-087** 付与能力内の ENERGY_CHARGE→SEND_TO_ENERGY／**PR-305** BANISH→`CONDITIONAL{LRIG_COLOR:黒}`）は heldReview で採用。**SPDi43-30** は fresh が choice② の `HAND_COUNT{opp=0}` 条件を落とす退化（既知の(xxxix)ドリフト）を含むためカード全体採用せず、**choice① の DOWN optional だけ手術的パッチ＋E1 を MANUAL 化**（choice② 温存）。
+- **回帰防止**＝golden に「てもよい optional 保持」テストを追加（DOWN=WXDi-P16-078／手札捨て=WX24-P4-050／エナ→トラッシュ=WXDi-P06-011／場出し=WXK08-059 の4型を parseCardEffects で assert）。全ゲート緑（**census 1846**・**golden 528**・smoke 10722全OK・fuzz 全0・lint 0 errors）。
+
 ## タスク1(d) 完了＝WX25-P3-085 の単文型 grant mis-parse（fresh は既に是正済＝再収穫のみ）＋同カード BURST「対戦相手のルリグ1体…ダウン」の DOWN 対象取り違えを parser 一般化で消化（census 1866→1865・golden 527維持）（2026-07-20・続き224・Opus）
 
 §3 Opusタスク1 の残件 (d) `WX25-P3-085` を消化し、あわせて (c) は続き218i で消化済・(b) はタスク6合流と確認してタスク1本体をクローズした。続き223（凍結 SIGNI→LRIG）の DOWN 版にあたる。
