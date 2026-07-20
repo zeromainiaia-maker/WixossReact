@@ -8014,10 +8014,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           opState.power0_banish_to_trash_opp_only === true ||
           opState.field.signi.some(s => {
             const n = s?.at(-1);
-            // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない
+            // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない。
+            // 被バニッシュ＝topNum（currentOwner の dieZoneP0）。target.filter で絞る（タスク12(xliv)(a)）。
+            const base = parseInt(battleCardMap.get(topNum)?.Level ?? '', 10);
+            const p0Attrs = {
+              level: isNaN(base) ? undefined
+                : base + (currentOwner.temp_level_mods ?? []).filter(m => m.cardNum === topNum).reduce((sum, m) => sum + m.delta, 0),
+              frozen: (currentOwner.field.signi_frozen?.[dieZoneP0] ?? false),
+              hasCharm: (currentOwner.field.signi_charms?.[dieZoneP0] ?? null) !== null,
+              infected: (currentOwner.field.signi_virus?.[dieZoneP0] ?? 0) > 0,
+            };
             return n && (effectsMap.get(n) ?? []).some(e =>
               e.effectType === 'CONTINUOUS' &&
-              banishRedirectAppliesFrom(e.action, n, null) &&
+              banishRedirectAppliesFrom(e.action, n, null, p0Attrs) &&
               checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
             );
           });
