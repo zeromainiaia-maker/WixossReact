@@ -972,8 +972,8 @@ export function execStubPart2(
       const colorsBMCS = splitColors(curBMCS.cardMap.get(top)?.Color);
       if (colorsBMCS.length < 2) continue;
       const removedBMCS = removeFromField(top, curBMCS.otherState);
-      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下）を適用
-      const { state: destBMCS } = banishDestination(removedBMCS, curBMCS.ownerState, top);
+      // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
+      const { state: destBMCS } = banishDestination(removedBMCS, curBMCS.ownerState, top, banishRedirectOpts(curBMCS, curBMCS.otherState, top));
       curBMCS = { ...curBMCS, otherState: destBMCS };
       banishedBMCS++;
     }
