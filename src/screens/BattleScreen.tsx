@@ -547,6 +547,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (s.field.signi_charms ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.signi_soul   ?? []).forEach(n => n && nums.add(getCardNum(n)));
       (s.field.signi_seeds  ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      (s.field.facedown_signi ?? []).forEach(n => n && nums.add(getCardNum(n))); // 裏向きシグニ（WXDi-P10-034）のカードデータをロード
       // signi_acce: 手札/エナから装着されたアクセカード自身のロードに必須（装着でhand/energyから外れるため
       //   これを走査しないと自身のON_ACCE_ATTACH能力等がeffectsMapから脱落する。WXK05-041デコレ）。
       (s.field.signi_acce   ?? []).forEach(n => n && nums.add(getCardNum(n)));
