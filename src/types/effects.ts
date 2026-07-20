@@ -1727,6 +1727,7 @@ export interface CardEffect {
     excludeGrowPhase?: boolean; // 「グロウフェイズ以外で」＝ctx.turnPhase が GROW のときは発火しない（WX25-P2-063。ON_HAND_ADDED と併用）
     movedSelf?: boolean; // ON_HAND_ADDED の変種弁別：true＝「このシグニが（あなたのエナゾーンから）手札に移動したとき」＝移動したカード自身が手札から発火（WD12-009-E2/WD12-010-E1）。省略＝場の watcher（自身が手札に移動しても発火しない）
     leftToZone?: 'hand'; // ON_LEAVE_FIELD の行き先限定（「場から手札に戻ったとき」WXK02-041）。離れたカードが所有者の手札に在中する場合のみ発火。省略=行き先不問
+    leftStateFilter?: TargetFilter; // ON_LEAVE_FIELD の離脱シグニ状態限定（「対戦相手の凍結状態のシグニが場を離れたとき」WXEX1-30/WXDi-P03-040 等）。離脱**直前**の盤面状態（matchesStateFilter＝isFrozen/infected/hasCharm 等）で判定。banishedFilter の ON_LEAVE_FIELD 版。バトル離脱（除去前 state 未渡し）では判定材料が無いため保守的に非発火
     exceedCostPaidByPlayer?: boolean; // ON_EXCEED_COST の「あなたがエクシードのコストを支払ったとき」変種（場のシグニが反応。WXDi-P06-078）。省略時は既存の「このカードがエクシードのコストとして置かれたとき」（コストカード自身）。⚠ルリグ起動のエクシード支払い経路のみ検出（アーツ/スペルのカットイン exceed は未検出の近似）
     // ON_CARD_MILLED_FROM_DECK の発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
     // engine は last_effect_mill_source の CardClass で判定し、発生源不明のときは従来どおり発火する（過剰側に倒す）。
