@@ -175,13 +175,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-20・続き222・Opus・**§3 タスク12(xxix) 残(a) クローズ＝(xxix) 完全消化**。census 1867→**1866**・golden 525→**526**）**（続き219〜221 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **対象**＝タスク12(xxix) の唯一の残件 (a) `WX06-014-E2`（創造の鍵主 ウムル＝フェムのエクシード能力）。§6.3級「エクシード相当コスト＋対象照応の機構要」として据置かれていたが、**既存機構だけで忠実表現でき専用機構は不要**と判明。
-  - **原文**＝【起】《ターン１回》エクシード１：対戦相手のシグニ１体を対象とし、あなたのトラッシュから《古代兵器》のシグニ５枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。
-  - **従来の退化**＝curated step1 が `TRANSFER_TO_DECK{source:SIGNI, owner:opponent, count:1}`＝「相手シグニをデッキ下」に化け、原文の「自分トラッシュから古代兵器5枚をデッキ下」が丸ごと別物だった。
-  - **是正**＝step1 を `TRANSFER_TO_DECK{TRASH_CARD, self, count:5, filter:{cardType:シグニ, story:古代兵器}, bottom}` へ差し替え MANUAL 化（build:effects がカード単位で温存）。step2 の `CONDITIONAL{IS_MY_TURN}→BANISH{相手シグニ1}` は流用。**「そうした場合」**は `TRANSFER_TO_DECK` が既に did-it ゲート型（続き218h）で TRASH_CARD 経路が移動枚数を lastProcessedCards に記録するため、古代兵器0枚なら空振り→banish 不発＝新規機構ゼロ。**exceed コストは既に配線済み**（登録時の見落とし）。**「それ」照応**は間の処理が自分トラッシュ→自分デッキのみで相手盤面不変ゆえ末尾再選択と同値＝専用機構不要。
-  - **検証**＝golden に WX06-014-E2 の両側テスト追加（①5枚→デッキ下・相手シグニがエナへ〔BANISH のデフォルト送り先はエナゾーン〕②0枚→banish 不発で残存）。全ゲート緑（**golden 526**・smoke/fuzz 全0・**census 1867→1866**）。詳細 BUGFIXES 続き222。
-  - **次の一手**＝タスク5 の残小口（`WX26-CP1-100`＝SEND_TO_ENERGY のトラッシュ対象化 ほか）／**timing[C] 残43効果（タスク16）**＝ロングテールで ROI 低／**タスク12(xxii) 残50件**（入れ子26＋前段/属性判定の構造的ブロッカー待ち）／**置換系統40枚の一般化（§6.3級）**／(xlvi) 残（MANUAL 過剰簡約群＝§6.3級）・(xlii)(xliv) の残。**⚠(xlvii) の防御側収集は §7 実機検証対象**（Sonnetタスク1へ）。**Sonnet はタスク1（§7 実機検証）**。
+- **🆕 セッション（2026-07-20・続き223・Opus・**§3 タスク12(xxix)(b) 222クラスタ・トリアージ＝「対戦相手のルリグ1体…凍結」の種別取り違え18効果を parser 一般化で消化**。census 1866維持・golden 526→**527**）**（続き222 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **対象**＝semantic audit stub群 round3（続き146・findings 2,799件）の HIGH quote クラスタ222個のうち、続き145 が「未検証・次回優先候補」としていた§5 の7クラスタを直接JSON照合でトリアージ。
+  - **拾えた機構不要の当たり**＝クラスタ「対戦相手のルリグ1体」の凍結系。原文「対戦相手のルリグ1体を対象とし、それを凍結する」の FREEZE 対象が JSON では **SIGNI** に化けていた**種別取り違え**（owner は opponent で正・type が LRIG→SIGNI）。engine の `execFreeze` は既に LRIG 分岐（`lrig_frozen:true`）を持つため **parser 1規則の一般化だけ**で直る。
+  - **根因**＝`parseSentencePart1.ts` の凍結規則が `センタールリグ` しか見ておらず、素の「ルリグ1体を対象」が fallback で SIGNI 凍結に化けていた。`lrigTargetFZ = センタールリグ ∨ /ルリグ[１1]体を対象/ ∨ ルリグ1体とシグニ1体併記` に一般化（「を対象」必須でカウント句/使用条件を除外・アシスト「センタールリグではない」据置）。
+  - **消化**＝17効果を heldReview 採用＋WXDi-P15-011-E1 手修正（MANUAL兄弟でカード温存）。**全カードの FREEZE 署名変化を LRIG フィルタ無しで網羅照合＝退化ゼロ・全件原文一致**（両凍結 SEQUENCE・CHOICE内・付与能力内も確認）。golden に parser 照合テスト追加。全ゲート緑（**golden 527**・smoke/fuzz 全0・**census 1866維持**・lint 0 errors）。詳細 BUGFIXES 続き223・triage §6。
+  - **次の一手（Opus）**＝**(xxix)(b)残＝照応先ロスト系統**（「対戦相手のシグニ1体」power-down owner ＋「あなたのトラッシュから」hand-add zone＝「…を対象とし、[任意コスト]。そうした場合、それを[動詞]」で照応先が消え `owner:self`+`targetsTriggerSource`／`source:DECK_CARD` に化ける同一 parser 系統。既存 did-it ゲート＋opponent choose 再利用の機構不要だが `OPTIONAL_COST`/`TRADE_BANISH_SELF_SIGNI` インターセプタへの owner補正＋tts strip 拡張＝parser/engine 両面・規模中。**着手前に engine owner補正STUB該当の偽陽性を機械抽出**）。他＝タスク5 残小口／timing[C] 残43（タスク16）／タスク12(xxii) 残50。**Sonnet はタスク1（§7 実機検証）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
