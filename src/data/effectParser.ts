@@ -1382,6 +1382,15 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
       { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] }, minCount: parseNum(g[1]), distinctNames: true, distinctPhraseJa: 'kinds' },
       { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[2]) },
     ] })],
+  // 同型の別語彙「あなたのトラッシュに(色)のカードがN枚以上あり対戦相手のエナゾーンにカードがM枚以上ある場合」
+  // ＝トラッシュ色枚数ゲート＋相手エナ枚数ゲートの AND（WXDi-P11-048-E1）。従来は複合形の語彙が無く条件が
+  //   丸ごと脱落し、アタック時に無条件で相手エナをトラッシュする過剰効果だった。単独形（line 1335）は
+  //   「N枚以上ある場合」で終わり「あり」で連結しないため本形とは排他（先勝ちの順序に依存しない）。
+  [/あなたのトラッシュに(白|赤|青|緑|黒)のカードが([０-９\d]+)枚以上あり対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'TRASH_HAS_CARD', owner: 'self', filter: { color: g[0] }, minCount: parseNum(g[1]) },
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[2]) },
+    ] })],
   // ── 続き156（2026-07-16）：census 条件節クラスタ残の engine 対応済み条件を追加（過剰効果是正）。
   //    いずれも execUtils.evalCondition・decompileEffects の condToText 両対応を確認済み。
   // 「このシグニのパワーがN以上の場合」＝効果元シグニのパワー閾値（SELF_POWER_GTE・gte のみ）。
