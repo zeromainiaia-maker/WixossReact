@@ -1358,10 +1358,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     //   fallback で **シグニ凍結** に化けていた。engine の 'LRIG' はセンタールリグ固定なので同じ受け皿へ寄せる。
     //   「ルリグ1体につき」等のカウント句／使用条件の「ルリグ」を誤って拾わないよう、対象化を表す
     //   「ルリグ1体を対象」を必須にする。「センタールリグではない」＝アシスト対象は受け皿が無く据置（§6.3）。
-    const lrigTargetFZ = (t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t))
-      && !t.includes('センタールリグではない');
     // 「ルリグ1体とシグニ1体を対象とし、それらを凍結する」＝両方凍結（と で明示的に併記されたときだけ）。
     const lrigAndSigniFZ = /(?:センター)?ルリグ[１1]体と(?:対戦相手の)?シグニ[１1]体を対象/.test(t);
+    const lrigTargetFZ = (t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t) || lrigAndSigniFZ)
+      && !t.includes('センタールリグではない');
     if (lrigTargetFZ && (t.match(/(?:センター)?ルリグか.*シグニ|(?:センター)?ルリグまたは.*シグニ/) || lrigAndSigniFZ)) {
       if (t.match(/(?:センター)?ルリグか.*シグニ|(?:センター)?ルリグまたは.*シグニ/)) {
         return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 } };
