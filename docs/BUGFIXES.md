@@ -4,6 +4,16 @@
 
 ---
 
+## タスク4 §5c条件節の残＝「Aあり Bある場合」複合条件の語彙欠落（WXDi-P11-048-E1）＝トラッシュ色枚数＋相手エナ枚数の AND を parser に追加（census 1845 維持・golden 532 維持）（2026-07-20・続き227・Opus）
+
+PLAN §3 タスク4 の残「あり」複合条件 `WXDi-P11-048` を消化した。E1 原文「このシグニがアタックしたとき、**あなたのトラッシュに黒のカードが１０枚以上あり対戦相手のエナゾーンにカードが２枚以上ある場合**、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く」の**複合条件が丸ごと脱落**し、アタック時に無条件で相手エナを１枚トラッシュする過剰効果になっていた（E2 単一条件「２０枚以上ある場合」は既に正しく CONDITIONAL 化・E3 も不変）。
+
+- **既存語彙の延長で解決（新機構不要）**＝`effectParser.ts` の条件テーブル（`STATE_CONDITION_CLAUSES_V2`）に、続き218 で追加済みの類似複合「あなたの場に(色)のシグニがN種類以上あり対戦相手のエナゾーンにカードがM枚以上ある場合」（WXDi-P05-056）と**同型の別語彙**を1本追加＝`/あなたのトラッシュに(白|赤|青|緑|黒)のカードが([０-９\d]+)枚以上あり対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/` → `AND[TRASH_HAS_CARD{self,color,minCount}, ENERGY_COUNT{opponent,gte,value}]`。単独形（同テーブルの「(色)のカードがN枚以上ある場合」）は「あり」で連結せず「ある場合」で終わるため本形とは排他（先勝ちの順序に依存しない）。
+- **engine/decompiler は既存対応のみ**＝`evalCondition` の AND／TRASH_HAS_CARD／ENERGY_COUNT(opponent) はいずれも実装済。逆翻訳も condToText の AND（「かつ」連結）＋既存 TRASH_HAS_CARD/ENERGY_COUNT 語彙で「トラッシュに黒のカードが10枚以上ある かつ 相手エナが2以上」＝意味等価（同型★0 維持）。
+- **採用**＝fresh は E1 が `action.type:TRASH→CONDITIONAL` へ構造変化するため isPureSuperset に落ちず held 温存→`heldReview --adopt WXDi-P11-048` で採用（E1 に条件が付くだけの純改善・退化0を held 差分で確認）。
+- **回帰防止/ゲート**＝全ゲート緑（typecheck・golden **532**・smoke 10722全OK・fuzz 全0・census **1845** 維持・lint 0 errors・同型★0）。census は過剰効果（条件脱落）の是正で「欠落語彙」計器を動かさないため baseline 不変＝挙動是正は golden/smoke/fuzz が担保。
+- **残**＝タスク4 の「代わりに」WX25-P2-068/070 は engine 置換機構＝タスク6級（S ではない・要再ラベル）。本件でタスク4の非置換系は消化。
+
 ## タスク12(xxix)(b) 完了＝照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。そうした場合、それの…」で「それ」が失われ owner:self+targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理で復元＝ライブ84枚＋MANUAL1枚を是正（census 1846→1845・golden 528→532）（2026-07-20・続き226・Opus）
 
 semantic audit stub群 round3（続き223 トリアージ）の「対戦相手のシグニ1体」（22件・power-down owner）／「あなたのトラッシュから」（13件・hand-add zone）クラスタ＝**照応先ロスト系統**を専用消化した。「〈対象〉を対象とし、〈任意コスト〉てもよい。そうした場合、それを〈動詞〉」で、任意コスト文が対象化文と結果文の間に割り込むと「それ」の照応先（先頭で対象化した相手シグニ／自トラッシュのカード）が parser で失われ、結果アクションが**トリガー元＝自分自身**（`owner:self`+`targetsTriggerSource`）や**自デッキ**（`source:DECK_CARD`）へ化けて原文と逆・別ゾーンの効果になっていた。
