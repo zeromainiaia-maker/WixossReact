@@ -1699,6 +1699,16 @@ export function calcFieldPowers(
   applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true);
   applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true);
 
+  // field_power_mods（「そのシグニが場にあるかぎり＋N」の永続パワー修正・WXDi-P10-034 表向き +5000）。
+  //   temp_power_mods と異なりターン境界でクリアしない。場に居る cardNum にのみ適用（powers.has で守る＝場を離れれば失効）。
+  const applyFieldMods = (state: PlayerState) => {
+    for (const mod of state.field_power_mods ?? []) {
+      if (powers.has(mod.cardNum)) powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + mod.delta);
+    }
+  };
+  applyFieldMods(myState);
+  applyFieldMods(opState);
+
   // POWER_CAP: パワー上限の適用（全パワー修正後に上限を適用）
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
   const applyCaps = (state: PlayerState) => {
