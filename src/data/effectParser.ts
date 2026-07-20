@@ -2415,25 +2415,37 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
 // シグニを指す過剰・誤効果になる（70効果）。designation を parseSigniTarget で解決し、末尾（「それ」参照）の
 // SIGNI ターゲット（owner が明示 opponent でない＝default に落ちた側）へ owner:opponent と欠落フィルタを刻む。
 // ⚠「対象とし」が複数ある文は「それ」の指し先が曖昧＝適用しない（単一 designation に限定）。冪等（既に opponent なら据置）。
+// 末尾（「それを…」照応先）アクションを取り出す共通ヘルパー（Pattern A/B 共有）。
+// CONDITIONAL は then を、SEQUENCE は末尾ステップから深さ優先で最初に見つかる葉アクションを返す。
+function findTailAction(a: EffectAction | null | undefined): EffectAction | null {
+  if (!a || typeof a !== 'object') return null;
+  if (a.type === 'CONDITIONAL') { const c = a as import('../types/effects').ConditionalAction; return findTailAction(c.then) ?? c.then; }
+  if (a.type === 'SEQUENCE') { const st = (a as SequenceAction).steps; for (let i = st.length - 1; i >= 0; i--) { const f = findTailAction(st[i]); if (f) return f; } return null; }
+  return a;
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
-  // 後者は前段の結果カウント条件を挟むだけで「それ」の指し先は同一（先頭の対象化した相手シグニ）。
-  const hasAnaphora = /そうした場合、それを/.test(text)
+  // さらに任意コスト文を挟んで「そうした場合、（ターン終了時まで、／カードを１枚引き、）それの/それは/それら…」
+  // と割れる power-down/付与の照応（タスク12(xxix)(b)・続き226）も同一構造。介在節（読点まで）と
+  // 「それの／それは／それら」を許容して照応先の相手シグニを取り戻す（22効果の owner:self+targetsTriggerSource 化）。
+  const hasAnaphora = /そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/.test(text)
     || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(text);
   if (!hasAnaphora) return action;
   if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  // 「代わりに」置換は前段/後段の二重 power-modify/除去へ平坦化される別系統（タスク6）。findTail が末尾だけ
+  // 補正すると片方が誤 owner のまま残るため丸ごと据置する（WX24-P3-076 等）。
+  if (/代わりに/.test(text)) return action;
   const desigM = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
   if (!desigM) return action;
+  // 偽陽性除外：任意コスト STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は engine（effectExecutor の
+  // fixOwnerTOSOC）が実行時に owner:self/any→opponent を補正するため、JSON の owner:self は退化ではない。
+  // ここで書き換えると engine の対象選択フローと二重管理になるため触らない（続き226 で機械確認した5枚）。
+  if (JSON.stringify(action).includes('"TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"')) return action;
   const desig = parseSigniTarget(desigM[1], 'opponent');
   // 末尾（「それを…」）アクションの target/source を1つだけ補正（コスト等の先行 self ターゲットは触らない）。
-  const findFinal = (a: EffectAction | null | undefined): EffectAction | null => {
-    if (!a || typeof a !== 'object') return null;
-    if (a.type === 'CONDITIONAL') { const c = a as import('../types/effects').ConditionalAction; return findFinal(c.then) ?? c.then; }
-    if (a.type === 'SEQUENCE') { const st = (a as SequenceAction).steps; for (let i = st.length - 1; i >= 0; i--) { const f = findFinal(st[i]); if (f) return f; } return null; }
-    return a;
-  };
-  const fin = findFinal(action) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
+  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget; source?: EffectTarget }) | null;
   // 特例（続き147・§3 タスク12(xxviii)）：末尾が「そうした場合、それをエナゾーンに置く」＝
   // 対象化した相手シグニ（designation）のエナ送り。parseSentencePart1 が REVEAL 文脈用の
   // ENERGY_CHARGE{DECK_CARD,self}（＝自分デッキからのチャージ）に誤マップするため、
