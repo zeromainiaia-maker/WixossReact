@@ -486,10 +486,12 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             border: trapCardNum ? '1px dashed #ffd700'
               : magicBoxCardNum ? '1px dashed #bb88ff'
               : seedCardNum ? '1px dashed #44ff88'
+              : faceDownCardNum ? '1px dashed #88aacc'
               : virusCount > 0 ? '1px dashed #ff5555' : C.borderEmpty,
             backgroundColor: trapCardNum ? 'rgba(40,30,0,0.6)'
               : magicBoxCardNum ? 'rgba(40,0,80,0.6)'
               : seedCardNum ? 'rgba(0,40,20,0.6)'
+              : faceDownCardNum ? 'rgba(20,30,50,0.7)'
               : virusCount > 0 ? 'rgba(60,0,0,0.55)' : C.bgCardEmpty,
             cursor: magicBoxCardNum && isMe ? 'pointer' : undefined,
           }}
