@@ -1353,8 +1353,17 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     // ⚠ルリグ対象を見ておらず、「対戦相手のセンタールリグ1体を対象とし、それを凍結する」（WX17-020③）が
     //   **シグニの凍結**に化けていた（§3 Opusタスク10 パターンB）。すぐ上の DOWN 規則と同じ3分岐に揃える。
-    if (t.includes('センタールリグ') && t.includes('シグニ')) {
-      if (t.match(/センタールリグか.*シグニ|センタールリグまたは.*シグニ/)) {
+    // ⚠さらに「センター」無しの素の「対戦相手のルリグ1体を対象とし、それを凍結する」（WX25-CP1-016 等・
+    //   §3 タスク12(xxix)(b) semantic audit クラスタ「対戦相手のルリグ1体」11件のうち凍結系）も
+    //   fallback で **シグニ凍結** に化けていた。engine の 'LRIG' はセンタールリグ固定なので同じ受け皿へ寄せる。
+    //   「ルリグ1体につき」等のカウント句／使用条件の「ルリグ」を誤って拾わないよう、対象化を表す
+    //   「ルリグ1体を対象」を必須にする。「センタールリグではない」＝アシスト対象は受け皿が無く据置（§6.3）。
+    const lrigTargetFZ = (t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t))
+      && !t.includes('センタールリグではない');
+    // 「ルリグ1体とシグニ1体を対象とし、それらを凍結する」＝両方凍結（と で明示的に併記されたときだけ）。
+    const lrigAndSigniFZ = /(?:センター)?ルリグ[１1]体と(?:対戦相手の)?シグニ[１1]体を対象/.test(t);
+    if (lrigTargetFZ && (t.match(/(?:センター)?ルリグか.*シグニ|(?:センター)?ルリグまたは.*シグニ/) || lrigAndSigniFZ)) {
+      if (t.match(/(?:センター)?ルリグか.*シグニ|(?:センター)?ルリグまたは.*シグニ/)) {
         return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 } };
       }
       return { type: 'SEQUENCE', steps: [
@@ -1362,9 +1371,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
         { type: 'FREEZE', target: parseSigniTarget(t, owner) },
       ]};
     }
-    // ⚠「**センタールリグではない**対戦相手のルリグ1体」（WXDi-P14-040-E2）＝アシストルリグが対象。
-    //   engine の 'LRIG' はセンタールリグ固定でアシスト対象の受け皿が無いため、ここでは拾わない（据置＝§6.3 機構待ち）。
-    if (t.includes('センタールリグ') && !t.includes('センタールリグではない')) {
+    if (lrigTargetFZ) {
       return { type: 'FREEZE', target: { type: 'LRIG', owner, count: 1 } };
     }
     return { type: 'FREEZE', target: parseSigniTarget(t, owner) };
