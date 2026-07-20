@@ -104,7 +104,8 @@ n=1  このシグニが効果によってダウン状態になったとき（sel
   → [C] ON_SIGNI_DOWN 未配線（同上）。
 
 n=1  あなたのシグニN体がアクセされたとき
-  → [A] ON_ACCE_ATTACH any_ally scopeで表現可能（配線済み）。
+  → [A]→✅消化（続き235）。※シグニ受け皿は ON_ACCE（ON_ACCE_ATTACH はルリグ用）＝timing regex に受身形
+    「がアクセされた」を追加し ON_ACCE + any_ally を生成（WX15-059-E1）。BUGFIXES 続き235。
 
 n=1  このシグニが感染状態のシグニN体をバニッシュしたとき
   → [A] ON_SIGNI_BANISH系 + TargetFilter.infected で表現可能（infected フィールド既存）。
