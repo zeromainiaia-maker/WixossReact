@@ -412,8 +412,11 @@ function condJa(c?: any): string {
     case 'SELF_POWER_THRESHOLD': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
     case 'FRONT_SIGNI_POWER': return `このシグニの正面のシグニのパワーが${numJa(c.value)}${opJa(c.operator)}`;
     case 'ENERGY_COLOR_TYPES': return `${ownerJa(c.owner)}エナゾーンにあるカードが持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
-    // diff = 自分 − 相手（符号付き）。gte のみ使用＝「自分が相手よりN枚以上多い」（相手が多い場合は不成立）
-    case 'HAND_DIFF': return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
+    // diff = 自分 − 相手（符号付き）。gte／gt は「自分が相手より多い」側、lt／lte value=0 は「少ない」側。
+    case 'HAND_DIFF':
+      if (c.value === 0 && c.operator === 'lt') return 'あなたの手札が対戦相手より少ない';
+      if (c.value === 0 && c.operator === 'gt') return 'あなたの手札が対戦相手より多い';
+      return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
