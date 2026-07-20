@@ -4,6 +4,23 @@
 
 ---
 
+## タスク5 消化＝「このシグニを場からトラッシュに置いてもよい」自己犠牲が全シグニ強制トラッシュ＋本体常時発火に退化（5枚是正）＋WX26-CP1-100/PR-Di038 は正常と確認（golden 534→535・census 1841維持）（2026-07-21・続き232・Opus）
+
+**バグ**＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」の自己犠牲イディオムで、parser の完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self count:1}` を **thisCardOnly も optional も付けず**に emit していた。結果：(1)対象が**自分の全シグニ**になり「このシグニ」以外も選べる（誤対象）(2)**強制実行**（optional 欠落）で任意のはずが必ずトラッシュ (3)スキップできないため後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体（場出し/アップ等）も**常時発火**（コスト踏み倒し）。engine 側は `execTrash:706` の optional スキップ→did-it ゲート（`execSequence`）で正しく処理する準備が既にあったのに、parser がフラグを立てていなかった。対比：「あなたのシグニ1体を…置いてもよい」（WXK10-055）は optional:true が付いており正常だった。
+
+**修正**：
+- parser（`parseSentencePart3.ts:828`）＝`TRASH{SIGNI self 1, filter:{thisCardOnly:true}, optional:true}` に是正。`build:effects` で AUTO 4枚を自動再生成（WX19-031／WX19-034／WXK10-032／WXEX2-31）。
+- `WXK10-033` は E2 が MANUAL のためカード全体が保護され fresh が採用されない＝E1 を public/data 直パッチ（thisCardOnly＋optional）＋ parseStatus:MANUAL 刻印。
+- decompiler（`decompileEffects.ts:470`）＝SIGNI TRASH 分岐が optional 接尾辞を落としていた（489 の汎用分岐にはあった）ので `（してもよい）` を追加＝逆翻訳の忠実化。
+
+**副産物の確認（正常と判明した項目）**：
+- **WX26-CP1-100**（「SEND_TO_ENERGY のトラッシュ対象化」）＝choice② は既に `ENERGY_CHARGE{TRASH_CARD self 2 upTo, filter:プリオケ/level1}` として正しくパースされ、engine `execEnergyCharge` も TRASH_CARD→エナを実装済み（`effectExecutor.ts:883-898`）。是正不要。
+- **PR-Di038 duration**＝`UNTIL_OPP_TURN_END` は型定義上「次の対戦相手のターン終了時まで」（`effects.ts:103`）で原文と一致。是正不要。
+
+**残（タスク5 の§6.3/系統送り）**＝置換系統40枚一般化・WX20-053 二重ソース SEARCH＋使用条件・WXEX1-65 正面owner＋レベル比較条件・WXDi-P05-009 「それ」先行詞解決・WXK06-016 アーツ自己ルリグデッキ戻し・WXEX2-50 動的レベル制約。いずれも単発機構待ち。
+
+**ゲート**＝全ゲート緑（golden **535**〔optional self-trash の thisCardOnly＋「そうした場合」ゲートを take/skip 両側で固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck・decompile 逆翻訳で5枚が「（してもよい）」表記になることを確認）。
+
 ## `BANISH_REDIRECT` の効果経路（バトル/パワー0以外）で 【常】置換が未走査＝holder の場を on-the-fly 走査してトラッシュ送りに（タスク12(xliv)(a2)・golden 533→534・census 1841維持）（2026-07-21・続き231・Opus）
 
 **バグ**＝バニッシュ先変更（「対戦相手のシグニがバニッシュされる場合、代わりにトラッシュに置く」）の 【常】能力は、バトル経路・パワー0消滅経路では `banishRedirectAppliesFrom` で on-the-fly 走査されていたが、**効果によるバニッシュ**（`BANISH` action＝ARTS/【出】/【自】等）の行き先を決める `execUtils.banishDestination` は**ターン内フラグ（`banish_redirect` 等）しか見ておらず、フラグに載らない 【常】置換を丸ごと取りこぼしていた**（既存の under-fire ギャップ）。該当は WX19-078（感染）・WX21-005（感染）・WX18-038（チャーム）・WXK10-053（level≤1）・WX05-018（原槍エナジェ在場）等。効果で相手シグニをバニッシュすると本来トラッシュ送りになるはずがエナ送りになり、相手のエナ加速を許していた。
