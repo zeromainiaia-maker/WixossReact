@@ -2818,7 +2818,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const apTurnAfter = turnIsHost ? h : g;
       const apOppBefore = turnIsHost ? beforeGuest : beforeHost;
       const apOppAfter = turnIsHost ? g : h;
-      const allyPlaced = detectPlacedSigni(apTurnBefore, apTurnAfter);
+      // 裏向き→表向き（WXDi-P10-034）は「場に出た」扱いではないため「あなたのシグニが場に出たとき」から除外。
+      const facedownFlippedAP = new Set<string>(detectFacedownFlipped(apTurnBefore, apTurnAfter));
+      const allyPlaced = detectPlacedSigni(apTurnBefore, apTurnAfter).filter(n => !facedownFlippedAP.has(n));
       const oppDiscarded = detectHandTrashed(apOppBefore, apOppAfter).length;
       if (allyPlaced.length > 0 || oppDiscarded > 0) {
         const turnPlayerId = turnIsHost ? bs.host_id : bs.guest_id;
