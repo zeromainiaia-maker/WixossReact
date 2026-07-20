@@ -4,6 +4,19 @@
 
 ---
 
+## タスク12(xxii) 「手札から＜C＞のシグニをN枚公開する」が bare REVEAL に潰れ source/filter/count が脱落＝公開カウント条件が全滅していた系統を是正（census 1874→1869・golden 519）（2026-07-20・続き219c・Opus）
+
+「あなたの手札から＜C＞のシグニをN枚（まで／好きな枚数）**公開する**」が **bare `{type:REVEAL}`（source/filter/count なし）** に潰れていた。engine の `execReveal` は `source:HAND_CARD` のときだけ選択カードを `lastProcessedCards` に記録するため、bare REVEAL では**「この方法でシグニをN枚以上公開した場合」の結果カウント条件が前段記録ゲート（`prevIsHandRevealRecorder`）を通れず全て IS_MY_TURN 化（＝無条件発火の過剰効果）**していた（タスク12(xxii)・報告の「公開した場合」クラスタ）。
+
+- **根因**＝`parseSentencePart2` の手札公開規則が **「N枚まで公開して**もよい**」限定**の正規表現で、「公開する」（必須形）・「好きな枚数」・「それぞれ名前が異なる」は未マッチ→下流の bare REVEAL に落ちていた。
+- **修正**＝規則を `/あなたの手札から(それぞれ名前が異なる|名前の異なる)?(?:(.+?)の)?シグニを?(?:([０-９\d]+)枚(まで)?|好きな枚数)公開(?:する|してもよい)/` へ一般化。`count`（N／`'ALL'`＝好きな枚数）・`upToCount`（「まで」「好きな枚数」＝可変）・`optional`（「してもよい」）・story フィルタを復元し `REVEAL{source:HAND_CARD}` を emit。「それぞれ名前が異なる」は `TargetFilter` 未対応の軽微な公開選択制約なので据置（記録・条件には影響しない）。
+- **純改善で自動採用6枚**（`isPureSuperset`＝REVEAL に source/filter/optional が付くだけの無損失）＝`WXDi-P10-045`（プリパラ・optional）／`WXDi-P11-075`（2文目「水獣3枚公開」）／`WDK08-Y17`（水獣3枚）／`WX21-065`（龍獣2枚まで・optional）／`WX22-044`（龍獣1枚・optional）／`WXK04-088`（水獣1枚・optional）。全6枚を HEAD 比 before/after で照合。
+- **held から採用1枚**＝`WX21-023`＝REVEAL{HAND_CARD,4,upTo,龍獣} 復元＋「2枚以上公開」→`LAST_PROCESSED_MATCHES{minCount:2}` ゲート復活。**残る「3枚以上」「4枚」のカスケード閾値は別課題**（bare「N枚以上の場合」が reveal-count を暗黙参照する多段閾値＝未配線）だが、当該 TRASH/GRANT は採用前も無条件だったため**退化なし・厳密に改善**。
+- **据置（採用見送り）**＝`WDK08-Y01`（「対戦相手シグニを対象→それをエナ」の対象照応が fresh で消え deck-charge に化ける）／`WXK04-034`（「5枚以上なら**代わりに**」の置換が未処理で charge-2 が無条件追加＝退化リスク）。いずれも REVEAL は直るが別機構が要るため held 温存。
+- **検証**＝HEAD 基準で curated 変化ちょうど6枚（全て REVEAL source 付与・巻き添え0）を機械確認。全ゲート緑（typecheck／**golden 519**・WX21-023 の REVEAL source＋公開2枚ゲートを固定／smoke 10722 OK・0（公開の selectOrInteract 追加でも SKIP 0）／fuzz 0／**census 1874→1869**／lint 0 errors）。`npm run regen` 済み。
+
+---
+
 ## タスク12(xxxix) CHOOSE ヘッダ前の状態条件が脱落して毎ターン無条件発火だった過剰効果10枚を汎用持ち上げで是正（census 1878→1874・golden 518）（2026-07-20・続き219b・Opus）
 
 「あなたの場に《X》/＜C＞/レゾナ がある場合、以下の２つから１つを選ぶ。①…②…」形の効果で、**先頭の状態条件が丸ごと脱落し、毎アタックフェイズ開始時（または出時）に無条件で CHOOSE が発火する過剰効果**だった（WX24-P2-048 ほか10枚）。
