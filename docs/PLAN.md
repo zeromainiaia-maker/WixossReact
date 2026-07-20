@@ -175,7 +175,7 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-20・続き219／219b／219c・Opus・**§3 タスク12(xxxix)+(xxii)＝条件脱落の過剰効果を3バッチで計22枚消化**。census 1880→**1869**・golden 517→**519**）**（続き218k は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+- **🆕 セッション（2026-07-20・続き219〜220・Opus・**§3 タスク12(xxxix)+(xxii)+(vii)＝条件脱落の過剰効果を4バッチで計23枚消化＋(vii)クローズ**。census 1880→**1868**・golden 517→**520**）**（続き218k は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
   - **根因①**＝トリガー句 strip リストに「**各**ターン終了時、」が無く（`^ターン終了時、` は「各」始まりに非マッチ）、トリガー句が action 文先頭に居残って second-pass の先頭状態条件 CONDITIONAL 持ち上げが不発＝**第1文の `〜場合、` 条件が丸ごと脱落**。`WXK04-027-E2` の「エナ色2種類以上」ゲートが消えて毎ターン無条件エナチャージだった（第2文の4種類ゲートは `parseHoistStateCondition` が捕捉済み）。strip に追加。
   - **根因②**＝相対手札比較 `HAND_DIFF`（自分−相手の手札差）が `ActiveCondition`（CONTINUOUS）にしか無く `Condition`（CONDITIONAL）に無い＝「手札が対戦相手より少ない/多い場合」を CONDITIONAL 条件で評価できず条件節ごと脱落。**4点セットで配線**＝parser（`STATE_CONDITION_CLAUSES_V2` に少ない→`{lt,0}`/多い→`{gt,0}`）・`Condition` 型・`execUtils.evalCondition`・decompiler。**WX20-005**（無条件3ドロー）**WX24-P1-045**（無条件1ドロー）**WX24-P2-022**（多い→バニッシュ／少ない→ハンデスの二分岐が両方無条件・少ない側は engine 無実装 STUB）**WXK10-045**（毎アタックフェイズ無条件バニッシュ）を是正。
   - **検証（219）**＝HEAD 基準 held diff でちょうど5枚（巻き添え0）を機械確認→`heldReview --adopt`。全ゲート緑（golden 517維持・HAND_DIFF{lt/gt,0}＋2色ゲートを golden 固定／census 1880→1878）。詳細 BUGFIXES 続き219。
