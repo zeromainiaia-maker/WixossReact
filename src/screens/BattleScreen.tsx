@@ -2221,8 +2221,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
     causeOwnerId?: string,
+    leftBeforeState?: PlayerState,
+    leftZoneIdx?: number,
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId);
+    pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId, leftBeforeState, leftZoneIdx);
 
   // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] =>
