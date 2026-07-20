@@ -1342,7 +1342,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
         { type: 'DOWN', target: signiTgt },
       ]};
     }
-    if (t.includes('センタールリグ')) {
+    // ⚠「センター」無しの素の「対戦相手のルリグ1体を対象とし、それをダウンする」（WX25-P3-085-BURST 等）も
+    //   従来 fallback で **シグニダウン** に化けていた。engine の 'LRIG' はセンタールリグ固定＝同じ受け皿へ寄せる
+    //   （すぐ下の FREEZE 規則と同型・§3 タスク1(d)）。「ルリグ1体を対象」を必須にしてカウント句「ルリグ1体につき」
+    //   等の誤検出を避け、「センタールリグではない」＝アシスト対象は受け皿が無く据置（§6.3）。
+    if ((t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t)) && !t.includes('センタールリグではない')) {
       return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } };
     }
     return { type: 'DOWN', target: parseSigniTarget(t, owner) };
