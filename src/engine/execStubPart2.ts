@@ -15,7 +15,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination,
+  removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
   getCardNum,
   createTokenInstanceId,
   resolveTokenBase,
