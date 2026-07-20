@@ -1165,6 +1165,29 @@ test('look-pick 名前filter・全件カード（WX12-019-E1: 《フレイスロ
   eq(`${act?.revealCount}/${act?.pickCount}/${act?.pickNoun}/${act?.filter?.cardType ?? 'ANY'}/${act?.filter?.cardName}/${act?.remainder?.location}/${act?.remainder?.position}`,
     '2/ALL/カード/ANY/フレイスロ/trash/any', '公開2枚・カード種別無限定・該当全件・残りトラッシュ');
 });
+// 「〜てもよい」＝任意アクションが optional:true を保つこと（§3 タスク12(vii)系・続き225）。
+// optional を落とすと engine が強制実行し「そうした場合」の did-it ゲートが常時成立＝過剰効果になる。
+test('「てもよい」optional 保持: DOWN／手札捨て／エナ→トラッシュ／場出し（続き225）', () => {
+  // 任意ステップを内包する SEQUENCE/CHOOSE/単体から optional な該当型を探す
+  const findOpt = (cardNum: string, wantType: string): boolean => {
+    let found = false;
+    const walk = (a: unknown) => {
+      if (!a || typeof a !== 'object') return;
+      const o = a as Record<string, unknown>;
+      if (o.type === wantType && o.optional === true) found = true;
+      for (const v of Object.values(o)) {
+        if (Array.isArray(v)) v.forEach(walk);
+        else if (v && typeof v === 'object') walk(v);
+      }
+    };
+    for (const e of parseCardEffects(cardMap.get(cardNum)!)) walk(e.action);
+    return found;
+  };
+  ok(findOpt('WXDi-P16-078', 'DOWN'), 'WXDi-P16-078-E1「アップ状態のこのシグニをダウンしてもよい」→ DOWN optional');
+  ok(findOpt('WX24-P4-050', 'TRASH'), 'WX24-P4-050-E1「…を対象とし、手札を1枚捨ててもよい」→ TRASH optional');
+  ok(findOpt('WXDi-P06-011', 'TRASH'), 'WXDi-P06-011-E1「対戦相手のエナゾーンから…トラッシュに置いてもよい」→ TRASH optional');
+  ok(findOpt('WXK08-059', 'ADD_TO_FIELD'), 'WXK08-059-E1「手札から…場に出してもよい」→ ADD_TO_FIELD optional');
+});
 // GRANT_TO_PLACED_SIGNI（続き41）：「この方法で場に出たシグニは【K】を得る/のパワーを＋N」を targetsLastProcessed で
 // 場出しシグニ(lastProcessedCards)へ付与する。engine 機構は既存だが本ラウンドで parser を実装して STUB を実アクション化。
 test('GRANT_TO_PLACED_SIGNI(A): GRANT_KEYWORD targetsLastProcessed が場出しシグニ(lastProcessed)へ アサシン付与（WX25-P1-044/P2-039）', () => {
