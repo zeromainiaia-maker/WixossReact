@@ -901,15 +901,51 @@ export function hasBanishRedirectInAction(action: EffectAction): boolean {
  * `bySource` 無し＝無条件（従来どおり場にあるだけで適用）。
  * `bySource` 有り＝「このシグニとの/による」バニッシュに限るので、能力の持ち主自身がバトル当事者の
  * ときだけ適用する。バトル経路でない（battlingNum=null）なら適用しない。
+ *
+ * `banished`（タスク12(xliv)(a)）＝被バニッシュシグニの属性。渡すと target.filter の属性限定
+ * （レベル/凍結/感染/チャーム）を評価して一致しないバニッシュには適用しない。未指定＝限定を評価しない
+ * （後方互換。効果経路など属性が取れない呼び出しは従来どおり）。
  */
+export interface BanishedCardAttrs {
+  level?: number;    // 実効レベル（printed + temp_level_mods）。未取得は undefined
+  frozen: boolean;   // 凍結中（signi_frozen[zone]）
+  hasCharm: boolean; // 【チャーム】が付いている（signi_charms[zone]）
+  infected: boolean; // 感染状態（signi_virus[zone] > 0）
+}
+
+/** BANISH_REDIRECT の target.filter の属性限定が被バニッシュシグニに一致するか。
+ *  制限フィールド（level/isFrozen/hasCharm/infected）が無ければ true（無条件）。
+ *  cardType 等の非制限フィールドは無視（対象は常にシグニ）。 */
+function banishRedirectFilterMatches(a: import('../types/effects').BanishRedirectAction, b: BanishedCardAttrs): boolean {
+  const f = a.target?.filter;
+  if (!f) return true;
+  if (f.level !== undefined) {
+    if (b.level === undefined) return false;
+    if (typeof f.level === 'number') { if (b.level !== f.level) return false; }
+    else {
+      if (f.level.min !== undefined && b.level < f.level.min) return false;
+      if (f.level.max !== undefined && b.level > f.level.max) return false;
+    }
+  }
+  if (f.isFrozen === true && !b.frozen) return false;
+  if (f.hasCharm === true && !b.hasCharm) return false;
+  if (f.infected === true && !b.infected) return false;
+  return true;
+}
+
 export function banishRedirectAppliesFrom(
   action: EffectAction,
   holderNum: string,
   battlingNum: string | null,
+  banished?: BanishedCardAttrs,
 ): boolean {
   const acts = collectBanishRedirectActions(action);
   if (acts.length === 0) return false;
-  return acts.some(a => (a.bySource === undefined ? true : battlingNum !== null && holderNum === battlingNum));
+  return acts.some(a => {
+    if (a.bySource !== undefined && !(battlingNum !== null && holderNum === battlingNum)) return false;
+    if (banished !== undefined && !banishRedirectFilterMatches(a, banished)) return false;
+    return true;
+  });
 }
 
 // ===== フィールドシグニの有効パワー計算 =====
