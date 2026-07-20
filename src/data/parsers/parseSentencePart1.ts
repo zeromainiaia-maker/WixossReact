@@ -1639,9 +1639,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
     //   source owner を変えても挙動不変＝held増だけになるため据置＝self（傀儡機構は §6.3 別課題）。
     const toOppField = /対戦相手の(?:場|シグニゾーン)に出/.test(t);
     const placeOwner: Owner = toOppField ? 'opponent' : 'self';
-    // 「ダウン状態で場に出（してもよい）」＝asDown＋任意なら optional（手札/エナビルダと同じ down 変種限定・続き207）
+    // 「場に出してもよい」＝任意（optional）。「そうした場合」の did-it ゲートと組む／単独でも「出す/出さない」を
+    //   選べる（engine execAddToField が optional で 0枚選択＝スキップを許可・§3 タスク12(vii)系）。down 変種は asDown も付与。
     return { type: 'ADD_TO_FIELD', owner: placeOwner, source: { type: 'TRASH_CARD', owner: placeOwner, count, upToCount: !!upToM, filter },
-      ...(t.includes('ダウン状態で場に出') ? { asDown: true, ...(t.includes('場に出してもよい') ? { optional: true } : {}) } : {}) };
+      ...(t.includes('ダウン状態で場に出') ? { asDown: true } : {}),
+      ...(t.includes('場に出してもよい') ? { optional: true } : {}) };
   }
 
   // ---- ルリグデッキからレゾナを出現条件無視で場に出す ----
