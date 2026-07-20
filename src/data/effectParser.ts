@@ -4257,6 +4257,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (Object.keys(lvTf).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...lvTf };
         }
       }
+      // ON_LEAVE_FIELD 跨サイド any_opp（§6.3 機構待ち解消）:「（あなたのターンの間、）対戦相手のシグニが（効果によって）場を離れたとき」
+      //   ＝離脱カードの相手側 watcher の any_opp。「効果によって」＝byEffect（任意効果起因・バトル/ルール処理で不発）。
+      //   「凍結状態の」＝leftStateFilter{isFrozen}（離脱直前の状態・engine が除去前 state で matchesStateFilter 評価）。
+      //   WXK11-017-E1（効果）／WXEX1-30-E2・WXDi-P03-040-E1（凍結状態）。
+      if (timing[0] === 'ON_LEAVE_FIELD') {
+        const lvOppLeave = trigText.match(/対戦相手の(凍結状態の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場を離れたとき/);
+        if (lvOppLeave) {
+          extractedTriggerScope = 'any_opp';
+          const lvc: NonNullable<typeof extractedTriggerCondObj> = { ...(extractedTriggerCondObj ?? {}) };
+          if (lvOppLeave[2]) lvc.byEffect = true;
+          if (lvOppLeave[1]) lvc.leftStateFilter = { isFrozen: true };
+          if (/あなたのターンの間[、,]/.test(trigText)) lvc.turnOwner = 'self';
+          extractedTriggerCondObj = lvc;
+        }
+      }
       // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）＝「＜X＞のシグニ」「《ディソナアイコン》のカード」「シグニ」。
       if (timing[0] === 'ON_HAND_DISCARDED') {
         const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/);
