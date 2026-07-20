@@ -4195,7 +4195,7 @@ export function execStubPart3(
     if (!oppTopNum) return done(addLog(ctx, '正面に相手シグニなし'));
     const oppName = ctx.cardMap.get(oppTopNum)?.CardName ?? oppTopNum;
     const removedOpp = removeFromField(oppTopNum, ctx.otherState);
-    const { state: withDest, log: destLog } = banishDestination(removedOpp, ctx.ownerState, oppTopNum);
+    const { state: withDest, log: destLog } = banishDestination(removedOpp, ctx.ownerState, oppTopNum, banishRedirectOpts(ctx, ctx.otherState, oppTopNum));
     return done(addLog({ ...ctx, otherState: withDest }, `${oppName}${destLog}（パワー15000以上アタック）`));
   }
 
