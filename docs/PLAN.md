@@ -177,12 +177,13 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-21・続き232・Opus・**タスク5 消化＝「このシグニを場からトラッシュに置いてもよい。そうした場合、X」自己犠牲イディオムが thisCardOnly も optional も欠き、**全シグニ強制トラッシュ＋「そうした場合」本体常時発火**に退化していた5枚を是正。副産物で WX26-CP1-100／PR-Di038 は正常と確認**。golden 534→**535**・census **1841** 維持）**（続き231 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **バグ**＝parser 完全一致規則（`parseSentencePart3.ts:828`）が `TRASH{SIGNI self 1}` を裸で emit＝(1)対象が自分の全シグニ（誤対象）(2)強制実行（optional 欠落）(3)スキップ不能ゆえ後続 `CONDITIONAL(IS_MY_TURN)`=「そうした場合」の本体も常時発火（コスト踏み倒し）。engine は `execTrash:706` の optional スキップ→did-it ゲートを既に備えていたが parser がフラグを立てていなかった。
-  - **修正**＝parser で `thisCardOnly:true`＋`optional:true` 付与（AUTO 4枚 WX19-031/034・WXK10-032・WXEX2-31 を build:effects 再生成／WXK10-033 は E2 MANUAL 保護のため E1 直パッチ＋MANUAL 刻印）＋decompiler の SIGNI TRASH 分岐が optional 接尾辞を落としていたのを是正（`（してもよい）`）。
-  - **正常と確認（是正不要）**＝WX26-CP1-100 choice② は既に `ENERGY_CHARGE{TRASH_CARD}`（engine 実装済）／PR-Di038 の `UNTIL_OPP_TURN_END`＝「次の相手ターン終了時まで」で原文一致。
-  - **ゲート**＝全ゲート緑（golden **535**〔optional self-trash の thisCardOnly＋ゲートを take/skip 両側で固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck）。詳細 BUGFIXES 続き232。
-  - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・使用条件ピース多段条件節・`対象とし`挟みエナ置き・対戦相手ドロー idiom）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
+- **🆕 セッション（2026-07-21・続き233・Opus・**§6.3 機構待ちを3系統消化＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火（+凍結フィルタ+効果限定+離脱直前 state スナップショット機構）／REVEAL_AND_PICK remainder の shuffle 語彙。golden 535→**537**・census 1841→**1839**）**（続き232 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **(1) ON_LEAVE_FIELD 跨サイド any_opp watcher（WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1）**＝相手シグニの離脱を見る watcher 効果3枚が parser の scope 抽出欠落で `triggerScope=self`（自身離脱でしか発火せず）に潰れていた。跨サイド収集機構は続き218b で既存＝**データ側の scope/cond 欠落だけ**。ただし「凍結状態の」は離脱**直前**盤面が要る。
+  - **修正**＝①型に `triggerCondition.leftStateFilter?:TargetFilter`（`banishedFilter` の ON_LEAVE_FIELD 版）新設・`byEffect` は既存流用。②`detectLeftFieldSigni` が `zoneIdx` を返し、`collectLeaveFieldTriggers` に離脱直前 state スナップショット（`leftBeforeState`/`leftZoneIdx`）を配線＝`matchesStateFilter` で凍結評価（BattleScreen 中央diff 2箇所が before-state を渡す）。③engine any_opp/any_ally 分岐に `byEffect`（任意効果起因）＋`leftStateFilter` ゲート追加。④parser で「対戦相手の(凍結状態の)?シグニが(効果によって)?場を離れたとき」→any_opp+byEffect/leftStateFilter/turnOwner 抽出。build:effects 純改善自動採用・golden 3アサート追加。
+  - **⚠残（保守的 under-fire）**＝バトル離脱経路（`BattleScreen.tsx:7608`）は除去前 state 未渡しのため凍結フィルタ付き効果はバトル離脱で非発火（過剰発火より偽陰性・`banishedFilter` と同思想）。中央diff（効果離脱）は正発火。
+  - **(2) REVEAL_AND_PICK remainder の shuffle 保持（PR-370-E2）**＝remainder／`revealRemainder` に `shuffle?` 追加、engine の remainder 適用2経路で置く前に `shuffle()`、parser の名前フィルタ pick 1文型で `shuffle:true` 抽出。
+  - **ゲート**＝全ゲート緑（golden **537**・smoke 10722全OK・fuzz 全0・census 1841→**1839**・lint 0 errors・typecheck）。詳細 BUGFIXES 続き233。
+  - **次の一手（Opus）**＝§6.3 残の tractable 候補＝凍結leftStateFilter の**バトル離脱**対応（`banishDestination` 経路に除去前 state 配線＝§6.3 line 261(a) の BANISH_REDIRECT 属性フィルタとも共通）／`ON_CARD_MILLED_FROM_DECK`（WX25-P2-009＝「あなたは以下の能力を得る」プレイヤー付与能力機構が前提）。他はタスク3/4/12 残（前セッション踏襲）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
 - **脱落疑い 255枚を全分類済み**（偽陽性179／機構待ち72／修正済・`node scripts/_dropTriage.mjs`）。
