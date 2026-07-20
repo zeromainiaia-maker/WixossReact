@@ -167,9 +167,18 @@ export function parseSentencePart1(t: string): EffectAction | null {
     // バニッシュされる側の限定「パワーが０以下の(対戦相手の)?シグニがバニッシュされる場合」（続き218）。
     // 落とすと相手の全バニッシュが常時トラッシュ送りになる（WXDi-P10-009-E3／WXDi-CP02-102-E2）。
     const whenPowerZero = /パワーが０以下の[^。]*?シグニが[^。]*?バニッシュされる場合/.test(t);
+    // バニッシュされる**側**の属性限定（タスク12(xliv)(a)）。落とすと「対戦相手の全バニッシュ」に過剰発火する
+    // ＝engine の battle/power0 経路が target.filter を評価して被バニッシュシグニを絞る（レベル/凍結/感染/チャーム）。
+    // レベル１以下(WXK10-053)・凍結(WXDi-P12-073)・感染(WX21-005)・【チャーム】付き(WX18-038)。
+    const redirectFilter: TargetFilter = { cardType: 'シグニ' };
+    const brLvM = t.match(/レベル([０-９\d]+)以下の[^。]*?シグニが[^。]*?バニッシュされ/);
+    if (brLvM) redirectFilter.level = { max: parseNum(brLvM[1]) };
+    if (/凍結状態の[^。]*?シグニが[^。]*?バニッシュされ/.test(t)) redirectFilter.isFrozen = true;
+    if (/感染状態の[^。]*?シグニが[^。]*?バニッシュされ/.test(t)) redirectFilter.infected = true;
+    if (/【チャーム】が付いている[^。]*?シグニが[^。]*?バニッシュされ/.test(t)) redirectFilter.hasCharm = true;
     return {
       type: 'BANISH_REDIRECT',
-      target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ' } },
+      target: { type: 'SIGNI', owner, count: 'ALL', filter: redirectFilter },
       redirectTo: 'trash',
       until,
       ...(bySource ? { bySource } : {}),
