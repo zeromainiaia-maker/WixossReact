@@ -131,15 +131,15 @@ export function detectNewlyArmored(before: PlayerState, after: PlayerState): str
  * 場を離れたシグニを検出（ON_LEAVE_FIELDトリガー用。行き先は問わない）。
  * under = そのシグニの下にあったカード（ライズ素材等。フンババの動的フィルタ解決に使う）。
  */
-export function detectLeftFieldSigni(before: PlayerState, after: PlayerState): { cardNum: string; under: string[] }[] {
+export function detectLeftFieldSigni(before: PlayerState, after: PlayerState): { cardNum: string; under: string[]; zoneIdx: number }[] {
   const afterFieldCards = new Set(after.field.signi.flatMap(z => z ?? []));
-  const result: { cardNum: string; under: string[] }[] = [];
+  const result: { cardNum: string; under: string[]; zoneIdx: number }[] = [];
   for (let i = 0; i < 3; i++) {
     const beforeStack = before.field.signi[i] ?? [];
     const beforeTop = beforeStack.at(-1);
     if (!beforeTop) continue;
     if (!afterFieldCards.has(beforeTop)) {
-      result.push({ cardNum: beforeTop, under: beforeStack.slice(0, -1) });
+      result.push({ cardNum: beforeTop, under: beforeStack.slice(0, -1), zoneIdx: i });
     }
   }
   return result;
