@@ -824,6 +824,10 @@ export function collectLeaveFieldTriggers(
       // byOpponentEffect（「対戦相手の効果によって場を離れたとき」WX19-026）: 原因効果のオーナーが watcher の相手側のときのみ。
       if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === undefined) continue;
       if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === leftPlayerId) continue;
+      // byEffect（「味方のシグニが効果によって場を離れたとき」）: 任意の効果起因のみ（バトル/ルール処理では発火しない）。
+      if (eff.triggerCondition?.byEffect && causeOwnerId === undefined) continue;
+      // leftStateFilter（離脱直前の状態限定・凍結/感染/チャーム等）。
+      if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       // usageLimit（《ターン1回/2回》）＝呼び出し側が usedHostIds/usedGuestIds を actions_done へ書き戻す（続き104 と同型）。
       if (!allyLimitOk(eff)) continue;
       entries.push({
