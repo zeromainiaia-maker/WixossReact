@@ -2035,6 +2035,34 @@ test('Stage2 ON_LEAVE_FIELD levelLtTrigger 解決: 離脱カード基準で leve
   eq(f.cardName, 'ユラギ', 'cardName ユラギ を保持（低レベルのユラギのみ配置）');
 });
 
+// §6.3 機構待ち解消: ON_LEAVE_FIELD any_opp（跨サイド watcher）の byEffect / leftStateFilter ゲート。
+// WXK11-017-E1「あなたのターンの間、対戦相手のシグニが効果によって場を離れたとき、エナチャージ」
+//   ＝any_opp + byEffect + turnOwner:self。watcher(WXK11-017) は離脱した相手シグニの反対側（HOST）に居る。
+test('§6.3 ON_LEAVE_FIELD any_opp byEffect: 相手シグニが効果離脱かつ自ターンのみ発火（WXK11-017-E1）', () => {
+  const host = mkState({ signi: ['WXK11-017', null, null] }); const guest = mkState({});
+  // leftPlayerId=GUEST（相手シグニが離脱）／oppId=HOST（watcher）／activeUserId=HOST（あなたのターン）
+  const fire = collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], GUEST, host, guest, HOST).entries;
+  eq(has(fire, 'WXK11-017-E1'), true, '効果離脱×自ターンで発火');
+  eq(fire.find(e => e.effectId === 'WXK11-017-E1')?.playerId, HOST, 'エントリの playerId は watcher(HOST)');
+  // causeOwnerId 未指定（バトル/ルール離脱）＝byEffect ゲートで非発火
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], GUEST, host, guest).entries, 'WXK11-017-E1'), false, 'バトル離脱は byEffect で非発火');
+  // 相手ターン（activeUserId=GUEST）＝turnOwner:self ゲートで非発火
+  eq(has(collectLeaveFieldTriggers(trigCtx(GUEST), SIGNI, [], GUEST, host, guest, HOST).entries, 'WXK11-017-E1'), false, '相手ターンは turnOwner:self で非発火');
+});
+// WXEX1-30-E2 / WXDi-P03-040-E1「対戦相手の凍結状態のシグニが場を離れたとき」＝any_opp + leftStateFilter{isFrozen}。
+//   凍結状態は離脱直前の盤面（leftBeforeState の signi_frozen[leftZoneIdx]）で判定する。
+test('§6.3 ON_LEAVE_FIELD any_opp leftStateFilter(isFrozen): 凍結シグニ離脱のみ発火（WXEX1-30-E2/WXDi-P03-040-E1）', () => {
+  const host = mkState({ signi: ['WXDi-P03-040', null, null] }); const guest = mkState({});
+  const frozenBefore = mkState({ signi: [SIGNI, null, null] }); frozenBefore.field.signi_frozen = [true, false, false];
+  const upBefore = mkState({ signi: [SIGNI, null, null] }); // signi_frozen 全 false
+  // 凍結×離脱直前 state 渡し＝発火
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], GUEST, host, guest, undefined, frozenBefore, 0).entries, 'WXDi-P03-040-E1'), true, '凍結離脱で発火');
+  // 非凍結＝leftStateFilter で非発火
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], GUEST, host, guest, undefined, upBefore, 0).entries, 'WXDi-P03-040-E1'), false, '非凍結離脱は非発火');
+  // before-state 未渡し（バトル離脱）＝判定材料無しで保守的に非発火
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), SIGNI, [], GUEST, host, guest).entries, 'WXDi-P03-040-E1'), false, 'before-state 無しは保守的に非発火');
+});
+
 // Stage2⑦: ON_DRAW / 対戦相手ドロー / ミル（collectDraw/OppDraw/MillTriggers）を pure 化→自動検証。
 test('Stage2 ON_DRAW: self ドローで発火・once_per_turn 消化済み非発火（WXK02-090-E1）', () => {
   const host = mkState({ signi: ['WXK02-090', null, null] }); const guest = mkState({});
