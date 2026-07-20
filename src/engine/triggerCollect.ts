@@ -2347,6 +2347,26 @@ export function collectTurnTriggers(
     : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
     : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
 
+  // WXDi-P10-034: 「次のあなたのメインフェイズ開始時、そのカードを表向きにしてもよい」の遅延分岐。
+  //   自アタックフェイズ開始時に設置した pending_facedown_flip を、次の自メインフェイズ開始時に RESOLVE_FACEDOWN_FLIP として発火する
+  //   （delayed_triggers は THIS_TURN 限定でターン境界クリアされ相手ターンを跨げないため、専用の永続フィールドで持ち越す）。
+  if (timing === 'ON_MAIN_PHASE_START' && myState.pending_facedown_flip) {
+    const pfMPS = myState.pending_facedown_flip;
+    const cardNameMPS = ctx.cardMap.get(getCardNum(pfMPS.cardNum))?.CardName ?? pfMPS.cardNum;
+    entries.push({
+      id: ctx.genId(), playerId: meId, cardNum: pfMPS.sourceCardNum, effectId: `FACEDOWN_FLIP:${pfMPS.cardNum}`,
+      label: `裏向きの${cardNameMPS}を表向きにするか（メインフェイズ開始時）`,
+      effect: {
+        effectId: `FACEDOWN_FLIP:${pfMPS.cardNum}`,
+        effectType: 'AUTO',
+        timing: ['ON_MAIN_PHASE_START'],
+        action: { type: 'STUB', id: 'RESOLVE_FACEDOWN_FLIP' } as StubAction,
+        duration: 'INSTANT',
+        mandatory: true,
+      } as CardEffect,
+    });
+  }
+
   const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
   const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap);
