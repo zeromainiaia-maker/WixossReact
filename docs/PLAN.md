@@ -107,7 +107,7 @@
 | ~~(vi)~~ | ~~POWER_MODIFY_PER_DECK_COUNT が CONTINUOUS 未実装~~ **✅続き135で実装** |
 | ~~(vi-4)~~／~~(vi-5)~~ | ~~6コレクタの LRIG ゾーン走査漏れ・usageLimit 書き戻し~~ **✅続き181／続き135で消化＝派生の ON_BANISH any_ally 脱落16効果も根治**（詳細 BUGFIXES 続き181・135） |
 | ~~(vii)~~ | ~~「アップ状態のこのシグニをダウンしてもよい」系の対象/自己混同7件~~ **✅完了（続き163/164で6枚・続き220で残1枚 WX25-P2-112）**＝WX25-P2-112 は続き220で消化＝`execDown(LRIG)` がダウンしたルリグを `lastProcessedCards` に記録＋`colorMatchesLastProcessed` 動的フィルタ新設（owner非依存・参照不能で空ヒット＝did-it ゲート）で「共通する色を持つ相手エナをトラッシュ」を実装。DOWN は SIGNI→LRIG 是正＋optional 二択。golden 520・census 1868。詳細 BUGFIXES 続き220 |
-| (viii) | checkAllEffects 精査の複合バグ＝**✅WX25-CP1-062／WX17-028／WX16-070／WX16-038／WDK16-13・WXK08-033／WX26-CP1-048 は続き137〜197で消化**（経緯の全文は PLAN_DETAIL §3・BUGFIXES 各続き）。**残＝WXDi-P10-034（次メインフェイズ遅延+分岐）**＝(a)裏向き配置 (b)ターン跨ぎ遅延トリガー (c)表向き選択分岐＋ターン境界＝§6.3 専用タスク（別分離） |
+| ~~(viii)~~ | ~~checkAllEffects 精査の複合バグ~~ **✅完全クローズ**＝WX25-CP1-062／WX17-028／WX16-070／WX16-038／WDK16-13・WXK08-033／WX26-CP1-048 は続き137〜197で消化。**残の WXDi-P10-034（次メインフェイズ遅延+分岐）は続き221で実装完了**＝(a)裏向き配置＝新ゾーン `facedown_signi`（inert・表向き前はパワー/能力/アタック無し）(b)ターン跨ぎ遅延＝`pending_facedown_flip`（ターン境界クリア対象外の永続フィールド。delayed_triggers は THIS_TURN 限定で相手ターンを跨げないため専用化）＋collectTurnTriggers の ON_MAIN_PHASE_START に RESOLVE_FACEDOWN_FLIP 注入 (c)表向き選択分岐＝CHOOSE で「表向き（場に居るかぎり+5000＝`field_power_mods`）／手札」。裏向き→表向きは開花と同じく「場に出た」扱いにせず ON_PLAY を除外（`detectFacedownFlipped`）。golden 5件追加・全ゲート緑・census 1868→1867（詳細 BUGFIXES 続き221） |
 | ~~(x)~~ | ~~collectFieldTriggers の usageLimit 欠落（《ターン1回》過剰発火32枚）~~ **✅続き135＝5コレクタ統一＋書き戻し12箇所・実機PASS** |
 | ~~(xi)~~ | ~~CONDITIONAL{条件, then:STUB OPTIONAL_COST}包み46効果のコスト踏み倒し＋ゲート無視~~ **✅続き206で engine 解消**。**要実機検証＝skip 選択時に本体が発動しないこと**（→§7） |
 | ~~(xii)~~ | ~~WXEX1-19-E2 自己再帰STUBの無限ループ~~ **✅続き202＝一括受け取り型へ変更で根治・smoke SKIP 1→0**（詳細 BUGFIXES 続き202） |
