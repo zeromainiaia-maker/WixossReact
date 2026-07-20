@@ -11,7 +11,7 @@
 import type { PlayerState, CardData, StackEntry } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
-import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isKizunaActive } from './effectEngine';
+import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isKizunaActive, matchesStateFilter } from './effectEngine';
 
 /** トリガー収集の依存（BattleScreen の bs/effectsMap/battleCardMap 等を注入）。 */
 export interface TrigCtx {
