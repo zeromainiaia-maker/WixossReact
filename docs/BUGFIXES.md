@@ -4,6 +4,17 @@
 
 ---
 
+## タスク1(d) 完了＝WX25-P3-085 の単文型 grant mis-parse（fresh は既に是正済＝再収穫のみ）＋同カード BURST「対戦相手のルリグ1体…ダウン」の DOWN 対象取り違えを parser 一般化で消化（census 1866→1865・golden 527維持）（2026-07-20・続き224・Opus）
+
+§3 Opusタスク1 の残件 (d) `WX25-P3-085` を消化し、あわせて (c) は続き218i で消化済・(b) はタスク6合流と確認してタスク1本体をクローズした。続き223（凍結 SIGNI→LRIG）の DOWN 版にあたる。
+
+- **E1 の単文型 grant mis-parse＝実は fresh 側で既に是正済**。原文「【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき、あなたの＜微菌＞のシグニ1体を対象とし、ターン終了時まで、それは「【自】《ターン1回》：このシグニが対戦相手のライフクロス1枚をクラッシュしたとき、カードを1枚引く。」を得る。」が、curated JSON では**外側トリガー（ON_DISCARDED_AS_COST）と GRANT 構造を丸ごと落とし、内側能力（ライフクラッシュ→ドロー）をトップに漏れ出させて `ON_OPP_LIFE_CRASHED/DRAW` に潰れていた**。fresh を parse すると既に `GRANT_EFFECT{target: 自＜微菌＞SIGNI, UNTIL_END_OF_TURN, effect: ON_OPP_LIFE_CRASHED→DRAW once_per_turn, triggerCondition.discardCostSourceStory:微菌}` を正しく出す（続き164 の grant 語彙＋続き163 の discardCostSourceStory が着地済）。**held ドリフトしていただけで parser 変更は不要＝再収穫（heldReview 採用）で解消**。
+- **BURST の DOWN 対象取り違え**。原文「対戦相手のルリグ1体を対象とし、それをダウンする」の DOWN 対象が JSON では **SIGNI**（対戦相手シグニ）に化けていた＝**対象の種別取り違え**（owner:opponent は正しいが type が LRIG→SIGNI）。engine の `execDown` は既に LRIG 分岐（相手センタールリグのダウン・効果耐性・二択も対応・続き220）を持つため、**parser 1規則の一般化だけで機構不要に直る**。
+- **根因**＝`parseSentencePart1.ts` の DOWN 規則が `t.includes('センタールリグ')` しか見ておらず、「センター」無しの素の「対戦相手のルリグ1体を対象」が fallback の `parseSigniTarget` に落ちて SIGNI ダウンに化けていた（続き223 で凍結規則には bare-LRIG 検出を入れたが DOWN 規則は取り残されていた）。
+- **修正**＝DOWN 規則の fallback 直前に `(センタールリグ ∨ /ルリグ[１1]体を対象/) ∧ ¬センタールリグではない` → `DOWN{target:'LRIG', owner, count:1}` を追加（凍結規則と同型。カウント句「ルリグ1体につき」等を拾わないよう**「を対象」を必須**にし、アシスト対象「センタールリグではない」は受け皿無しで据置＝§6.3）。
+- **消化＝DOWN 対象が SIGNI→LRIG に変わる全カードを機械抽出→原文照合し11効果を消化**。9効果を heldReview で採用（WXDi-D06-013・WX24-P2-079・WX24-P4-006・WX24-P4-073・WX25-P1-085・WX25-P2-086・WX25-P3-085〔E1 grant 再収穫込み〕・WX25-CP1-066・WX26-CP1-081）。**WX24-P1-069/WX24-P3-077 は E1「アップ状態のこのシグニをダウンしてもよい」の `optional:true` が fresh 側で脱落する据置系ドリフト**（別バグ・タスク12(vii)系）を避けるため**カード全体採用せず BURST のみ手動で LRIG 化**（E1 温存を機械確認）。全11件を「全カードで DOWN 署名が変化したもの」を LRIG フィルタ無しで網羅照合し、退化（シグニダウンの消失）ゼロ・全件原文一致を確認。PR-K072-E1（「シグニ1体…ダウン」＝SIGNI 正）は無関係の既存ドリフトのため対象外。
+- **ゲート**＝全ゲート緑（**census 1866→1865**〔E1 grant 再収穫で高シグナル欠落1件解消／DOWN の SIGNI→LRIG は欠落計器の対象外〕・golden 527維持・smoke 10722全OK・fuzz 全0・lint 0 errors）。
+
 ## タスク12(xxix)(b) 222クラスタのトリアージ＝「対戦相手のルリグ1体を対象とし、それを凍結する」がシグニ凍結に化けていた系統18効果を parser 修正で消化（golden 526→527・census 1866維持）（2026-07-20・続き223・Opus）
 
 semantic audit stub群 round3（続き146・findings 2,799件）の HIGH quote クラスタ「222個」のうち、続き145 のトリアージ（`docs/_semantic_audit_stub_round3_triage.txt` §5）が「未検証・次回優先候補」としてリスト化していた7クラスタを直接JSON照合でトリアージした。
