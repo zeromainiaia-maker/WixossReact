@@ -177,12 +177,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-21・続き230・Opus・**タスク12(xliv)(a) 属性フィルタ＝`BANISH_REDIRECT` の「対戦相手の［限定］シグニがバニッシュされる場合」の限定（レベル/凍結/感染/チャーム）が脱落し全バニッシュがトラッシュ送りになる過剰発火を、parser で target.filter へ復元＋engine の battle/power0 経路で被バニッシュ属性を評価して消化**。golden 532→**533**・census **1841** 維持）**（続き229 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **バグ**＝parser が属性限定を丸ごと落とし filter が `{cardType:シグニ}` のみ。engine の 【常】オンザフライ走査 `banishRedirectAppliesFrom` が target.filter を見ず、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**（相手のエナ加速を止める実害）。
-  - **修正**＝(1)parser（`parseSentencePart1.ts`）＝`レベルN以下の/凍結状態の/感染状態の/【チャーム】が付いている …シグニがバニッシュされ` を `filter.level/isFrozen/infected/hasCharm` へ。(2)engine（`effectEngine.ts`）＝`BanishedCardAttrs`＋`banishRedirectFilterMatches`、`banishRedirectAppliesFrom` に第4引数 `banished?`（未指定＝後方互換で限定を評価しない）。(3)BattleScreen 3経路（バトル先/ON_TRASH トリガー/パワー0）に除去前盤面から取った属性を配線＝凍結/チャーム/感染はゾーン添字状態でバニッシュ後に消えるため。(4)decompiler。
-  - **被覆5枚**＝WXK10-053（level≤1）/WXDi-P12-073（凍結・battle_with_this 併存）/WX21-005（感染）/WX18-038（チャーム）＋WX19-078（正面の感染＝infected 獲得で over-fire 縮小・正面限定は §6.3残）。WX25-P3-104 は単体対象系のため意図どおり不変。
-  - **据置（(xliv)残）**＝**効果経路（`banishDestination`）**は `ExecCtx` に effectsMap が無く 【常】 走査不可＝16呼び出し点シグネチャ変更＋effectsMap 配線が要る §6.3級（今回の変更で悪化しない under-fire な既存ギャップ）／単体対象4件（(xliv)(b)）／正面限定3件。
-  - **ゲート**＝全ゲート緑（golden **533**・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck・逆翻訳4枚とも属性限定が出ることを目視確認）。詳細 BUGFIXES 続き230。
+- **🆕 セッション（2026-07-21・続き231・Opus・**タスク12(xliv)(a2) 効果経路の 【常】 BANISH_REDIRECT 走査＝`BANISH` action（ARTS/【出】/【自】等）でバニッシュした相手シグニの行き先が、ターン内フラグしか見ず 【常】置換（「対戦相手のシグニがバニッシュされる場合トラッシュへ」）を取りこぼしてエナ送りになっていた under-fire を消化**。golden 533→**534**・census **1841** 維持）**（続き230 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **バグ**＝バトル/パワー0経路は `banishRedirectAppliesFrom` で holder 場を on-the-fly 走査するが、効果経路の行き先を決める `execUtils.banishDestination` は `banish_redirect` 等のターン内フラグしか参照せず、フラグに載らない 【常】置換を無視＝効果バニッシュが本来トラッシュ送りのところエナ送りになり相手のエナ加速を許していた（WX19-078/WX21-005/WX18-038/WXK10-053/WX05-018 等）。
+  - **修正（engine のみ・JSON 変更なし）**＝当初 PLAN は「effectsMap を ExecCtx へ通す＋16呼び出し点変更」と見積もっていたが、**`cardMap.get(n).effects` から CONTINUOUS 効果を直接読める**ため effectsMap 追加は不要と判明。(1)`effectEngine.fieldEffectBanishRedirectToTrash` 新設（holder 場走査・bySource/whenPowerZero/属性フィルタで絞る）＋`computeBanishedAttrs`＋`banishRedirectAppliesFrom` に `excludeWhenPowerZero`。(2)`banishDestination` に opts 配線＋`banishRedirectOpts` ヘルパー。(3)効果経路の呼び出し**全10箇所**へ配線（除去前 state を渡す）。
+  - **過剰発火の回避**＝属性不一致・whenPowerZero・bySource・phase 不明の DURING_ATTACK_PHASE は**すべて発火させない**（保守的な under-fire）。census（欠落方向）不動＝1841維持。
+  - **ゲート**＝全ゲート緑（golden **534**〔走査＋各ガード両側を新規1テストで固定〕・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck・実カード WX19-078 で感染→トラッシュ／非感染→エナを end-to-end 確認）。詳細 BUGFIXES 続き231。
+  - **据置（(xliv)残）**＝bySource='by_this' の効果経路（(a3)・発生源シグニ配線が要る）／単体対象4件(b)／正面限定3件(c)＝§6.3級。
   - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・使用条件ピース多段条件節・`対象とし`挟みエナ置き・対戦相手ドロー idiom）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
