@@ -2647,6 +2647,18 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- WXDi-P10-034（羅植姫 ユキ//メモリア）: デッキ上N枚を見て1枚を裏向きでシグニゾーンに置き、残りをデッキ下へ。
+  //      次の自メインフェイズ開始時にそのカードを表向きにしてもよい（＋パワー）／しなければ手札。
+  //      裏向き設置・ターン跨ぎ遅延・表向き選択分岐は engine の LOOK_PLACE_FACEDOWN_DELAYED（STUB）が一括処理する
+  //      （汎用の LOOK_AND_REORDER へ縮退させると裏向き設置と遅延分岐が丸ごと no-op 化するため、専用規則で先取りする）。
+  {
+    const fdm = text.match(/デッキの上からカードを([０-９\d]+)枚見る。\s*その中から[１1]枚を裏向きでシグニゾーンに置き/);
+    if (fdm) {
+      const bonusFdm = text.match(/パワーを＋([０-９\d]+)する/);
+      return { type: 'STUB', id: 'LOOK_PLACE_FACEDOWN_DELAYED', count: parseNum(fdm[1]), value: bonusFdm ? parseNum(bonusFdm[1]) : 5000 } as StubAction as unknown as EffectAction;
+    }
+  }
+
   // ---- デッキ上N枚見て「＜C＞シグニをM枚まで手札に加え、＜C＞シグニをK枚まで場に出し、残りをデッキ下」＝
   //      二目的 dual-pick＝LOOK_PICK_CHAIN[hand ステージ, field ステージ]。後続「この方法で場に出たシグニは…」等が
   //      付く札は前後を parseActionText で解析し SEQUENCE[prefix, LPC, suffix] に組む（bare LOOK_AND_REORDER 化を防ぐ）。
