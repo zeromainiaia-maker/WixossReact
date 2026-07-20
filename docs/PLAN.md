@@ -87,7 +87,7 @@
 | ~~7~~ | ~~§6.1 未実装action型の engine 実装~~ | engine実装 | — | **✅クローズ（続き202/204/204b）＝残型0**（PLAY_FREE_FROM_TRASH／PREVENT_DAMAGE／COST_SUBSTITUTE。詳細 PLAN_DETAIL §3／BUGFIXES 続き202・204） |
 | 8 | §6.3 大型機構 | engine機構＋parser | L（項目ごと独立） | ゲーム除外・canCardGuard 統一・多段閾値 nested CONDITIONAL・スペル被破棄【自】収集パス・ON_LEAVE_FIELD 相手scope 3枚・出現条件レゾナ35・正面32の parser 未配線調査 |
 | 9 | §6.2 semantic audit 系統残の機構対応 | engine＋decompiler | M | 系統②残（SEQUENCE内 GRANT_PROTECTION＝WX08-017・LAYER付与＝WX15-031・広域24件の subjectFilter/新機構）。系統①は✅続き106で完了 |
-| 11 | BEHAVIOR_AUDIT 高シグナル22 の最終仕分け | 仕分け＋engine修正 | S（縮小） | **✅続き133で22件全件精査＝新規の真no-opバグ0件**（詳細 PLAN_DETAIL §3／BUGFIXES 続き133）。残＝WXK01-021-E1 の空文字付与の要確認（低優先）。監査ツールの SPELL_CUTIN/トリガー文脈盲点は §6.4 追記候補 |
+| ~~11~~ | ~~BEHAVIOR_AUDIT 高シグナル22 の最終仕分け~~ | 仕分け＋engine修正 | — | **✅クローズ（続き234）**＝続き133で22件全件精査（真no-opバグ0件）＋残件「WXK01-021-E1 の空付与」を続き234で engine コード確認＝**バグではない**（E2/E3/E4 がキー top-level 効果として正しく機能・空 GRANT_LRIG_ABILITY は無害 no-op・約37枚のキー系統的ノイズ）。副産物でアーツ一時付与の内側【自】parse 失敗3枚を発見しタスク12 (l) へ登録。詳細 BUGFIXES 続き234。監査ツールの SPELL_CUTIN/トリガー文脈盲点は §6.4 追記候補（別件） |
 | 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **下の在庫リスト参照** |
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L（低優先） | effect 構造そのものが原文とズレたカードの再parse。逓減テール＝他が尽きたら |
 | 14 | リファクタ Stage2（useState 11本）→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | 独立・他と並行可 |
