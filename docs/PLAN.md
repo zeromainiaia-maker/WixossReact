@@ -177,11 +177,12 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-20・続き229・Opus・**§3 census クラスタ「Nまで上限選択」精査＝REVEAL_AND_PICK のフィルタ付き pick ハンドラが「スペル」noun を欠き pick 脱落していた系統を parser 拡張で2効果被覆**。census 1843→**1841**・golden **532** 維持）**（続き228 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **精査の知見**＝census 上位クラスタ「その中からカードをN枚まで手札に加え、残りをデッキ一番下に置く」（14効果）を1件ずつ実体確認＝**12は既に正しく REVEAL_AND_PICK**で、census の欠落計上は**同一効果内の別脱落**（使用条件ピースの「その後、〜の場合」多段条件節脱落＝WXDi-P08-003/P13-001）が原因。**クラスタ枚数は鵜呑みにできない**（代表文型でグルーピングするため）。
-  - **修正**＝フィルタ付き reveal-pick ハンドラ（`effectParser.ts:3005`）の pick 名詞群 `(シグニ|カード)` に `スペル` を追加（`cardType:'スペル'`＋`pickNoun:'スペル'`＝engine matchesFilter・MANUAL 正解 WXDi-D04-012-E1/WXDi-P09-048-E3 と同形）。従来は「その中から（色の）スペル1枚を公開し手札に加え、残り…」が汎用 LOOK_AND_REORDER に飲まれ pick が丸ごと脱落していた。**SPDi43-17-E1**（heldReview 採用）／**WXK05-023-E3**（MANUAL 凍結カードのため手術的パッチ・赤のスペル）を被覆。他4枚は既に MANUAL 正解で不変。
-  - **据置**＝WX10-033（「すべてのスペル」＝count が noun 前）／WXEX1-12・WXK05-023-BURST（多重pick「シグニ1枚とスペル1枚」）。使用条件ピース多段条件節脱落はタスク3 残へ登録。
-  - **ゲート**＝全ゲート緑（golden **532** 維持・smoke 10722全OK・fuzz 全0・census **1841**・lint 0 errors・同型★0・逆翻訳2枚とも原文一致）。BASELINE_HIGH を 1841 へ実数更新。詳細 BUGFIXES 続き229。
+- **🆕 セッション（2026-07-21・続き230・Opus・**タスク12(xliv)(a) 属性フィルタ＝`BANISH_REDIRECT` の「対戦相手の［限定］シグニがバニッシュされる場合」の限定（レベル/凍結/感染/チャーム）が脱落し全バニッシュがトラッシュ送りになる過剰発火を、parser で target.filter へ復元＋engine の battle/power0 経路で被バニッシュ属性を評価して消化**。golden 532→**533**・census **1841** 維持）**（続き229 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **バグ**＝parser が属性限定を丸ごと落とし filter が `{cardType:シグニ}` のみ。engine の 【常】オンザフライ走査 `banishRedirectAppliesFrom` が target.filter を見ず、能力持ちが場にいるだけで**相手の全バニッシュが常時トラッシュ送り**（相手のエナ加速を止める実害）。
+  - **修正**＝(1)parser（`parseSentencePart1.ts`）＝`レベルN以下の/凍結状態の/感染状態の/【チャーム】が付いている …シグニがバニッシュされ` を `filter.level/isFrozen/infected/hasCharm` へ。(2)engine（`effectEngine.ts`）＝`BanishedCardAttrs`＋`banishRedirectFilterMatches`、`banishRedirectAppliesFrom` に第4引数 `banished?`（未指定＝後方互換で限定を評価しない）。(3)BattleScreen 3経路（バトル先/ON_TRASH トリガー/パワー0）に除去前盤面から取った属性を配線＝凍結/チャーム/感染はゾーン添字状態でバニッシュ後に消えるため。(4)decompiler。
+  - **被覆5枚**＝WXK10-053（level≤1）/WXDi-P12-073（凍結・battle_with_this 併存）/WX21-005（感染）/WX18-038（チャーム）＋WX19-078（正面の感染＝infected 獲得で over-fire 縮小・正面限定は §6.3残）。WX25-P3-104 は単体対象系のため意図どおり不変。
+  - **据置（(xliv)残）**＝**効果経路（`banishDestination`）**は `ExecCtx` に effectsMap が無く 【常】 走査不可＝16呼び出し点シグネチャ変更＋effectsMap 配線が要る §6.3級（今回の変更で悪化しない under-fire な既存ギャップ）／単体対象4件（(xliv)(b)）／正面限定3件。
+  - **ゲート**＝全ゲート緑（golden **533**・smoke 10722全OK・fuzz 全0・census **1841**維持・lint 0 errors・typecheck・逆翻訳4枚とも属性限定が出ることを目視確認）。詳細 BUGFIXES 続き230。
   - **次の一手（Opus）**＝タスク3 残（WX20-071 の条件 hoist・使用条件ピース多段条件節・`対象とし`挟みエナ置き・対戦相手ドロー idiom）／タスク4 残「代わりに」WX25-P2-068/070（タスク6級）／タスク12(xxxix) 残（選択肢ドリフト・攻撃無効化§6.3）／タスク12(xxii) 残50／timing[C] 残43（タスク16）。**Sonnet はタスク1（§7 実機検証）＋タスク6（新語彙着地分の再収穫）**。
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
