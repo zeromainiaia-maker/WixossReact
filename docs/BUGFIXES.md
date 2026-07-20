@@ -4,6 +4,22 @@
 
 ---
 
+## タスク11 クローズ＝WXK01-021-E1 の空 GRANT_LRIG_ABILITY は真no-op ではないと engine コードで確認＋アーツ一時付与の内側【自】parse 失敗3枚を新規発見（Opusタスク12 登録）（2026-07-21・続き234・Opus）
+
+**背景**＝PLAN §3 Opusタスク11「BEHAVIOR_AUDIT 高シグナル22 の最終仕分け」の残件＝「WXK01-021-E1 の空文字付与の要確認（低優先）」を精査してクローズ。
+
+**(1) WXK01-021-E1 の `GRANT_LRIG_ABILITY{abilities:[], rawText:"。"}` は無害な no-op（バグではない）**
+- 原文「【常】：あなたのセンタールリグは以下の能力を得る。」の後続3能力（【起】エクシード2 無償スペル使用／【出】トラッシュからスペル回収／【起】スペルカットイン打ち消し）は、原文が PR-257 のような「」括弧で能力を括らず地の文で続くため、parser が **別トップレベル効果 E2/E3/E4 に分離**し、E1 は空付与になっていた。
+- **engine コードで機能を確認**＝E2/E3/E4 はキーの top-level 効果として全て正しく実行される：E2（ACTIVATED MAIN）＝`getKeyPieceActions`（`BattleScreen.tsx:10753`）がキーの top-level ACTIVATED を直接プレイヤーに提示／E3（AUTO ON_PLAY）＝キー設置時に `queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], …)`（`BattleScreen.tsx:5623`）で発火／E4（ACTIVATED SPELL_CUTIN）＝SPELL_CUTIN 収集（`BattleScreen.tsx:5222` が key_piece 含む）で提示。
+- E1 の空 `abilities:[]` は `collectLrigGrantedEffects`（`effectEngine.ts:2019-2021`）が空配列を push するだけ＝**無害**。しかも**現状が安全な表現**で、E1 に E2/E3/E4 を nest して top-level を残すと**二重実行**になる。census にも E1 は未計上（`_vocab_census.txt` に WXK01-021-E1 は0件）。
+- 同型のキー系統は**約37枚**（`GRANT_LRIG_ABILITY{abilities:[], rawText:"。"}`＝WXK01-007/028/035・WXK02-006/023/028・WXK03-006/008/018 …）＝いずれも「以下の能力を得る」＋能力ブロックがキー top-level に正しく捕捉される**系統的な無害 decompile ノイズ**。実害0のため据置（表示改善のみの候補）。**タスク11 はクローズ**。
+
+**(2) 新規発見＝アーツ「ターン終了時まで、あなたのセンタールリグは「【自】…」を得る」の内側【自】parse 失敗3枚＝完全 no-op（Opusタスク12 へ登録）**
+- 同 empty-abilities 走査で、rawText が `"。"` ではなく**完全な【自】能力文**を抱えたまま `abilities:[]` の3枚を検出＝**WD21-009（燐廻転生）／PR-204（アーク・ディストラクト）／WX15-016（スリップ・ノット）**。いずれもアーツで効果は E1 単独＝内側【自】が nest されず top-level フォールバックも無く**能力が完全に消失（真no-op＝アーツが何もしない）**。
+- 同パターン「ターン終了時まで、あなたのセンタールリグは「【自】…」を得る」は全11枚中**8枚（WX01-028/WX02-028/WX19-014/PR-238/PR-K077/WXDi-P05-052 等）は abilities:1 に正しく nest**されており、engine は一時 AUTO 付与を実装済み＝**機構は存在**。失敗3枚は内側【自】が複雑（アタック時トリガー＋下からルリグトラッシュ／数字宣言／バーストアイコン照合／アタック無効）で parser の内側 ability parse が空を返す**データ/parser 級のバグ**＝§6.3 の新機構は不要、内側 parse 改善で直る見込み。**Opusタスク12 (xl) へ登録**。
+
+**ゲート**＝docs のみ（parser/engine/decompiler 非変更）＝ゲート影響なし。
+
 ## §6.3 機構待ち解消＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火＋REVEAL_AND_PICK remainder の shuffle 語彙（golden 535→537・census 1841→1839）（2026-07-21・続き233・Opus）
 
 **背景**＝§6.3 の機構待ちを3系統消化。
