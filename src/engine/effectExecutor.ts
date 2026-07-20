@@ -1615,8 +1615,24 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
-  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定（WDA-F02-17-E2「このシグニの正面のシグニ」）。
+  //   execBanish（208-225）と同型＝filter から剥がして frontRestrict で絞る。
+  let downFilter = a.target.filter;
+  let frontRestrict: string[] | null = null;
+  if (downFilter?.frontOfSelf) {
+    const { frontOfSelf: _f, ...rest } = downFilter;
+    downFilter = rest;
+    if (a.target.owner === 'opponent' && ctx.sourceCardNum) {
+      const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+      const frontNum = zi >= 0 ? ctx.otherState.field.signi[2 - zi]?.at(-1) : undefined;
+      frontRestrict = frontNum ? [frontNum] : [];
+    } else {
+      frontRestrict = [];
+    }
+  }
+  let cands = fieldCandidates(state, downFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
+  if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
