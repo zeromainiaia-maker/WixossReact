@@ -4625,7 +4625,7 @@ export function execStubPart3(
     let cIERB = ctx;
     for (const t of targetsIERB) {
       const removedIERB = removeFromField(t, cIERB.otherState);
-      const { state: withDestIERB } = banishDestination(removedIERB, cIERB.ownerState, t);
+      const { state: withDestIERB } = banishDestination(removedIERB, cIERB.ownerState, t, banishRedirectOpts(cIERB, cIERB.otherState, t));
       cIERB = { ...cIERB, otherState: withDestIERB };
     }
     const namesIERB = targetsIERB.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・');
