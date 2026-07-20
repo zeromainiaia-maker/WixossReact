@@ -3975,9 +3975,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「あなたが（手札から）（＜X＞の/《ディソナアイコン》の）シグニ/カードをN枚捨てたとき」（6件・続き76）
              //   ＝捨てたカードの種別限定は engine の `triggerFilter`（collectHandDiscardTriggers の matchesTrigFilter）で
              //   評価される。filter は下で抽出。
+             // 「（あなたの）手札からカードN枚がトラッシュに置かれたとき」（WDA-F02-17-E2＝場の watcher が手札捨てに反応）。
+             //   ＝「手札を捨てたとき」と同じ discard イベント（collectHandDiscardTriggers が効果/コスト双方の手札捨てで発火）を
+             //     受身形で書いたもの。従来 regex が「捨てたとき」しか見ず ON_PLAY へ誤フォールバックしていた。
+             //   ⚠「このカードが手札からトラッシュに置かれたとき」（捨てられたカード自身＝E3型）は上の ON_TRASH が先取り
+             //     （「手札から」直後に「トラッシュ」が来る＝「カードN枚が」が挟まらない）ので競合しない。
              : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(trigText)
                 || /対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(trigText)
-                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
+                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(trigText)
+                || /(?:あなたの)?手札からカード[０-９\d]*枚がトラッシュに置かれたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
              //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
