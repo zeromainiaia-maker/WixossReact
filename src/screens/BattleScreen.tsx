@@ -2674,12 +2674,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ON_LEAVE_FIELD: 場を離れたシグニ（行き先を問わない）。causeOwnerId＝この効果のオーナー
     // （「あなたの効果によって対戦相手の…」any_opp／「対戦相手の効果によって」byOpponentEffect の判定に使用）。
-    for (const { cardNum, under } of detectLeftFieldSigni(beforeHost, h)) {
-      const lf = collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g, causeOwnerId);
+    for (const { cardNum, under, zoneIdx } of detectLeftFieldSigni(beforeHost, h)) {
+      const lf = collectLeaveFieldTriggers(cardNum, under, bs.host_id, h, g, causeOwnerId, beforeHost, zoneIdx);
       entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
-    for (const { cardNum, under } of detectLeftFieldSigni(beforeGuest, g)) {
-      const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId);
+    for (const { cardNum, under, zoneIdx } of detectLeftFieldSigni(beforeGuest, g)) {
+      const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId, beforeGuest, zoneIdx);
       entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
 
