@@ -1,8 +1,0 @@
-WX05-018-E2 owner=opponent to=trash cond={"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"原槍　エナジェ"}} filter={"cardType":"シグニ"}
-WX18-038-E2 owner=opponent to=trash cond=- filter={"cardType":"シグニ","hasCharm":true}
-WX19-078-E1 owner=opponent to=trash cond=- filter={"cardType":"シグニ","infected":true}
-WX21-005-E1 owner=opponent to=trash cond=- filter={"cardType":"シグニ","infected":true}
-WXEX2-75-E1 owner=opponent to=trash cond={"type":"DURING_ATTACK_PHASE","owner":"self"} filter={"cardType":"シグニ"}
-WXK10-053-E1 owner=opponent to=trash cond=- filter={"cardType":"シグニ","level":{"max":1}}
-WXDi-D09-P14-E1 owner=opponent to=trash cond={"type":"DURING_ATTACK_PHASE"} filter={"cardType":"シグニ"}
-WXDi-P10-044-E2 owner=opponent to=trash cond={"type":"DURING_ATTACK_PHASE"} filter={"cardType":"シグニ"}
