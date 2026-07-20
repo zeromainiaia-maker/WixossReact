@@ -938,14 +938,79 @@ export function banishRedirectAppliesFrom(
   holderNum: string,
   battlingNum: string | null,
   banished?: BanishedCardAttrs,
+  opts?: { excludeWhenPowerZero?: boolean },
 ): boolean {
   const acts = collectBanishRedirectActions(action);
   if (acts.length === 0) return false;
   return acts.some(a => {
     if (a.bySource !== undefined && !(battlingNum !== null && holderNum === battlingNum)) return false;
+    // 効果経路（バトルでもパワー0消滅でもない）は whenPowerZero 限定を弾く（パワー0経路専用の置換を効果バニッシュに掛けない）
+    if (opts?.excludeWhenPowerZero && a.whenPowerZero === true) return false;
     if (banished !== undefined && !banishRedirectFilterMatches(a, banished)) return false;
     return true;
   });
+}
+
+/**
+ * 被バニッシュシグニの属性（レベル/凍結/チャーム/感染）を除去前の盤面から取得する（タスク12(xliv)）。
+ * `banishRedirectFilterMatches` の target.filter 属性限定を評価するのに使う。
+ * removeFromField 前の state と対象 num を渡すこと（除去後はゾーン添字状態が失われる）。
+ * 対象が場に居ない/レベル不明なら level は undefined（level フィルタは不成立扱い）。
+ */
+export function computeBanishedAttrs(
+  state: PlayerState,
+  num: string,
+  cardMap: Map<string, CardData>,
+): BanishedCardAttrs | undefined {
+  const zi = state.field.signi.findIndex(s => s?.at(-1) === num);
+  if (zi < 0) return undefined;
+  const base = parseInt(cardMap.get(num)?.Level ?? '', 10);
+  const level = isNaN(base)
+    ? undefined
+    : base + (state.temp_level_mods ?? []).filter(m => m.cardNum === num).reduce((s, m) => s + m.delta, 0);
+  return {
+    level,
+    frozen: (state.field.signi_frozen?.[zi] ?? false),
+    hasCharm: (state.field.signi_charms?.[zi] ?? null) !== null,
+    infected: (state.field.signi_virus?.[zi] ?? 0) > 0,
+  };
+}
+
+/**
+ * 効果経路（バトル/パワー0以外）のバニッシュに対し、置換能力の持ち主 `holder` の場にある
+ * 【常】 BANISH_REDIRECT（redirectTo:'trash'）が適用されるかを、on-the-fly で走査する（タスク12(xliv)(a2)）。
+ *
+ * BattleScreen のバトル・パワー0経路と同じく `banishRedirectAppliesFrom` で判定するが、効果経路なので
+ * `battlingNum=null`（bySource 付き＝「このシグニとのバトル/による」は不適用）＋`excludeWhenPowerZero`
+ * （パワー0専用の置換は不適用）で絞る。`banished` 属性で target.filter（レベル/凍結/感染/チャーム）も評価する。
+ *
+ * activeCondition は holder 視点で評価する。`DURING_ATTACK_PHASE` 限定の置換は turnPhase が判らない効果経路
+ * では発火経路（アタックフェイズか）を確定できないため保守的にスキップする（過剰発火を避ける＝軽微な過小実行）。
+ * turnPhase が渡されればそれで正しく評価する。
+ */
+export function fieldEffectBanishRedirectToTrash(
+  holder: PlayerState,
+  victim: PlayerState,
+  cardMap: Map<string, CardData>,
+  banished?: BanishedCardAttrs,
+  turnPhase?: TurnPhase,
+  effectivePowers?: Map<string, number>,
+): boolean {
+  for (const stack of holder.field.signi) {
+    const n = stack?.at(-1);
+    if (!n) continue;
+    for (const e of (cardMap.get(n)?.effects ?? [])) {
+      if (e.effectType !== 'CONTINUOUS') continue;
+      if (!banishRedirectAppliesFrom(e.action, n, null, banished, { excludeWhenPowerZero: true })) continue;
+      // フェイズ限定の置換は効果経路で phase が不明なら保守的にスキップ（過剰発火を避ける）
+      if (e.activeCondition?.type === 'DURING_ATTACK_PHASE' && turnPhase === undefined) continue;
+      // isOwnerTurn は turnPhase 未指定時の DURING_ATTACK_PHASE では使われず、他の condition（HAS_CARD_IN_FIELD 等）は
+      // ターン非依存なので true 固定でよい
+      if (!checkActiveCondition(e.activeCondition, holder, victim, true, cardMap, n, effectivePowers, undefined, turnPhase)) continue;
+      return true;
+    }
+  }
+  return false;
 }
 
 // ===== フィールドシグニの有効パワー計算 =====
