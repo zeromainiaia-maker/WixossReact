@@ -178,6 +178,7 @@ function filterJa(f?: any): string {
   if (f.infected) parts.push('感染状態の');
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
+  if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
   if (f.keyword) parts.push(`${[].concat(f.keyword).map((k: string) => `【${k}】`).join('か')}を持つ`);
   return parts.join('');
 }
