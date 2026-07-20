@@ -447,6 +447,7 @@ export interface StackedSigniSlotProps {
   isMe?: boolean;
   trapCardNum?: string | null;
   seedCardNum?: string | null;
+  faceDownCardNum?: string | null; // 裏向きでシグニゾーンに置かれたカード（WXDi-P10-034）
   magicBoxCardNum?: string | null;
   statusKeywords?: string[];
   hasGate?: boolean;
