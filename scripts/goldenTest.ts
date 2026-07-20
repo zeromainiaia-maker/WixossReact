@@ -965,6 +965,32 @@ test('手札公開 REVEAL の source 復元＋公開カウント条件（WX21-02
   ok(s[1]?.type === 'CONDITIONAL' && s[1]?.condition?.type === 'LAST_PROCESSED_MATCHES' && s[1]?.condition?.minCount === 2,
     'WX21-023 step1 は「2枚以上公開」の LAST_PROCESSED_MATCHES（IS_MY_TURN 化しない）');
 });
+// ── 続き220: WX25-P2-112（タスク12(vii)残）＝アップ状態のルリグをダウンし、そのルリグと共通する色を持つ相手エナを
+// トラッシュ。execDown(LRIG) がダウンしたルリグを lastProcessedCards に記録し、TRASH の filter.colorMatchesLastProcessed
+// がその色で相手エナを絞る（owner非依存）。ダウンしなければ空ヒット＝did-it ゲート。
+test('WX25-P2-112: アップルリグをダウン→共通色の相手エナのみトラッシュ（colorMatchesLastProcessed・タスク12(vii)）', () => {
+  const redLrig = findCard(c => c.Type === 'ルリグ' && !!c.Color?.includes('赤'));
+  const redEne = findCard(c => isSigni(c) && !!c.Color?.includes('赤') && !c.Color?.includes('青'));
+  const blueEne = findCard(c => isSigni(c) && !!c.Color?.includes('青') && !c.Color?.includes('赤'));
+  const eff = (effectsMap.get('WX25-P2-112') ?? [])[0]?.action as EffectAction;
+  ok(!!eff, 'WX25-P2-112 効果あり');
+  // 相手エナ2枚（赤・青）／自ルリグ赤・アップ状態 → run はダウン択一で「ダウンする」を選ぶ。
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.field.lrig = [redLrig];
+  ctx.ownerState.field.lrig_down = false;
+  ctx.otherState.energy = [redEne, blueEne];
+  const r = run(eff, ctx);
+  ok(r.ownerState.field.lrig_down === true, '自ルリグはダウンした');
+  ok(!r.otherState.energy.includes(redEne), '共通色（赤）の相手エナはトラッシュされる');
+  ok(r.otherState.energy.includes(blueEne), '非共通色（青）の相手エナは残る');
+  // 既にダウン済み（アップでない）→ ダウンもトラッシュも起きない（空ヒット did-it ゲート）。
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.field.lrig = [redLrig];
+  ctx2.ownerState.field.lrig_down = true;
+  ctx2.otherState.energy = [redEne, blueEne];
+  const r2 = run(eff, ctx2);
+  eq(r2.otherState.energy.length, 2, '既にダウン状態なら相手エナはトラッシュされない');
+});
 test('levelGtTrigger: トリガー元レベル超過のみ対象（trigger L1→L2除去・L1残存・WX24-P1-015）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, SIGNI_L1);
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelGtTrigger: true } } } as EffectAction, ctx);
