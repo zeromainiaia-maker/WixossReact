@@ -1320,6 +1320,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
   //   DOWN に潰れていた＝ADD_TO_FIELD asDown（下のエナ/手札ビルダ）の領分なので除外。
   if ((t.includes('ダウンする') || t.match(/をダウン/)) && !t.includes('ダウン状態で場に出')) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    // 「ダウンしてもよい」＝任意（player が実行するか選べる）。「そうした場合」の did-it ゲートと組で使われ、
+    //   optional を落とすと engine が強制ダウンさせてしまう（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
+    const downOptional = t.includes('ダウンしてもよい');
     // 「（センター）ルリグ**か**シグニN体」「ルリグ**と**シグニを合計N体まで」→ OR選択（CENTER_LRIG_OR_SIGNI）。
     // ⚠「センター」が付かない表記（WX25-CP1-028①「対戦相手のルリグかシグニ1体を対象とし、それをダウンする」）は
     //   下の分岐に入らず **シグニ限定**に潰れていた（§3 Opusタスク10 パターンB の同根）。
@@ -1331,15 +1334,15 @@ export function parseSentencePart1(t: string): EffectAction | null {
           type: 'CENTER_LRIG_OR_SIGNI', owner,
           count: lsM[1] ? parseNum(lsM[1]) : 1,
           ...(lsM[2] ? { upToCount: true } : {}),
-        } };
+        }, ...(downOptional ? { optional: true } : {}) };
       }
     }
     if (t.includes('センタールリグ') && t.includes('シグニ')) {
       // 「センタールリグとすべてのシグニをダウン」のような複合ダウン（AND）
       const signiTgt = parseSigniTarget(t, owner);
       return { type: 'SEQUENCE', steps: [
-        { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } },
-        { type: 'DOWN', target: signiTgt },
+        { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 }, ...(downOptional ? { optional: true } : {}) },
+        { type: 'DOWN', target: signiTgt, ...(downOptional ? { optional: true } : {}) },
       ]};
     }
     // ⚠「センター」無しの素の「対戦相手のルリグ1体を対象とし、それをダウンする」（WX25-P3-085-BURST 等）も
@@ -1347,9 +1350,9 @@ export function parseSentencePart1(t: string): EffectAction | null {
     //   （すぐ下の FREEZE 規則と同型・§3 タスク1(d)）。「ルリグ1体を対象」を必須にしてカウント句「ルリグ1体につき」
     //   等の誤検出を避け、「センタールリグではない」＝アシスト対象は受け皿が無く据置（§6.3）。
     if ((t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t)) && !t.includes('センタールリグではない')) {
-      return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 } };
+      return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 }, ...(downOptional ? { optional: true } : {}) };
     }
-    return { type: 'DOWN', target: parseSigniTarget(t, owner) };
+    return { type: 'DOWN', target: parseSigniTarget(t, owner), ...(downOptional ? { optional: true } : {}) };
   }
 
   // ---- 凍結 ----
