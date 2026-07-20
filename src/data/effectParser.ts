@@ -3983,7 +3983,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
              //   ルリグ＝ON_ACCE_ATTACH（ルリグ監視の別ループ）。scope は下で抽出。
              // ⚠「このカードが【アクセ】としてシグニに付いたとき」（アクセカード自身の反応）は別＝この regex に当たらない。
-             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?に【アクセ】が付いたとき/.test(trigText)
+             //   ⚠「（あなたの）シグニN体がアクセされたとき」（WX15-059＝受身形）も同じ ON_ACCE トリガー＝
+             //     従来 regex が「【アクセ】が付いた」だけを見て「がアクセされた」を取りこぼし ON_PLAY へ誤フォールバックしていた。
+             : /(?:この|あなたの)シグニ(?:[０-９\d]+体)?(?:に【アクセ】が付いた|がアクセされた)とき/.test(trigText)
                  ? (_parsingBaseType === 'ルリグ' ? ['ON_ACCE_ATTACH'] : ['ON_ACCE'])
              // 「このカードが【アクセ】として（レベルN以上/以下の）（＜X＞の）シグニに付いたとき」（アクセカード自身の反応・§3 Opusタスク16）。
              // engine 配線済み＝checkAndFireOnAcceTriggersForOwner の attachedAcceNum ループ（ON_ACCE_ATTACH）。
