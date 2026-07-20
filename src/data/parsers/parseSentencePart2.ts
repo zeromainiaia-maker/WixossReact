@@ -289,7 +289,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
     if (revealHandM) {
       const filter: TargetFilter = { cardType: 'シグニ' };
       if (revealHandM[2]) Object.assign(filter, parseStoryFilter(revealHandM[2]));
-      if (revealHandM[1]) filter.distinctName = true;
+      // 「それぞれ名前が異なる」は公開選択の軽微な制約＝TargetFilter 未対応・記録/条件には影響しないため据置。
       const count = revealHandM[3] ? parseNum(revealHandM[3]) : 'ALL';
       // 「N枚まで」「好きな枚数」＝可変（upTo）／「N枚」＝ちょうど。
       const upToCount = !!revealHandM[4] || !revealHandM[3];
