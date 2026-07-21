@@ -508,6 +508,21 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
     if (filter.levelParity === 'odd'  && lv % 2 !== 1) return false;
   }
+  // 《クロスアイコン》/《ライズアイコン》の有無（execUtils 版と同基準・GRANT_PROTECTION subjectFilter 等で使用）
+  if (filter.hasCrossIcon && !(cardData.EffectText?.startsWith('《クロスアイコン》'))) return false;
+  if (filter.hasRiseIcon && !(cardData.EffectText?.includes('【ライズ】'))) return false;
+  if (filter.noRiseIcon && (cardData.EffectText?.includes('【ライズ】'))) return false;
+  // 使用コストの合計（《色×N》の合計、コインは除く。「対戦相手のコストの合計が５以上の…効果を受けない」WX15-031）
+  if (filter.costMax !== undefined || filter.costMin !== undefined) {
+    let total = 0;
+    for (const m of (cardData.Cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+      if (m[1] === 'コイン') continue;
+      const n = parseInt(m[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10);
+      if (!isNaN(n)) total += n;
+    }
+    if (filter.costMax !== undefined && total > filter.costMax) return false;
+    if (filter.costMin !== undefined && total < filter.costMin) return false;
+  }
   return true;
 }
 
