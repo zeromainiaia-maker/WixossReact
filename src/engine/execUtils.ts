@@ -418,6 +418,16 @@ export function getCardNum(id: string): string {
   return h > 0 ? id.slice(0, h) : id;
 }
 
+// カード（instanceId/cardNum）を両プレイヤーの場から探し、所属 state とゾーン index を返す。
+// LAST_PROCESSED_MATCHES のゾーン状態フィルタ（hasCharm 等）が直前対象のゾーンを引くのに使う。
+function findFieldZoneState(cn: string, ctx: ExecCtx): { state: PlayerState; zoneIdx: number } | null {
+  for (const s of [ctx.ownerState, ctx.otherState]) {
+    const zoneIdx = s.field.signi.findIndex(stack => stack && stack.length > 0 && stack[stack.length - 1] === cn);
+    if (zoneIdx >= 0) return { state: s, zoneIdx };
+  }
+  return null;
+}
+
 // ─── 【ビート】化の共通ヘルパ（MAKE_BEAT 正規化）──────────────────────────
 // カードを beat_zone へ加え、beat_became_just に積む（ON_BECOME_BEAT 発火用）。**配置のみ**を担い、
 // 元の場所（場/トラッシュ/デッキ等）からの除去は呼び出し側が行う。従来は5箇所で
