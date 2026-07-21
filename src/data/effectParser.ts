@@ -2140,6 +2140,25 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
+  // 「〈対象〉を対象とし、あなたのデッキの一番上のカードをエナゾーンに置き、それを〈除去〉」＝中間のエナチャージ
+  //   （ENERGY_CHARGE_FROM_DECK）が無言脱落し、対象化シグニの単発除去だけに縮退していた（WX05-024/WX13-034 BURST・
+  //   §3 タスク3「対象とし挟みのエナ置き＋バニッシュ」）。下の split ガード（2170）は「対象とし」を含む文を触らない
+  //   ため、この文型は連用中止 splitter では拾えない。designation は「それを〈除去〉」側に属する（それ＝対象化した
+  //   シグニ）ので、先頭のエナ置きを SEQUENCE 先頭へ切り出し「〈対象〉を対象とし、それを〈除去〉」を再帰 parse する
+  //   （engine の ENERGY_CHARGE_FROM_DECK／BANISH 等はいずれも既存対応。「対象とし」1回・「それ」照応の単純形のみ）。
+  {
+    const m = t.match(/^([^。]*?を対象とし、)あなたのデッキの一番上のカードをエナゾーンに置き、(それ[をのは].+)$/s);
+    if (m && (t.match(/を対象とし/g)?.length ?? 0) === 1) {
+      const removal = parseSingleSentence(m[1] + m[2]);
+      if (removal.type !== 'UNKNOWN') {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } as EffectAction,
+          removal,
+        ] } as SequenceAction;
+      }
+    }
+  }
+
   // 連用中止形の並列動作「Aし、Bする」→ SEQUENCE（§3 Opusタスク10 パターンF-1）。
   // ⚠従来は**先頭の動作が無言脱落**して後半だけが残っていた（「シグニ1体をバニッシュ**し**、シグニ1体を
   //   ダウンする」→ DOWN だけ／「手札をすべて捨て、カードを4枚引く」→ DRAW だけ）。
