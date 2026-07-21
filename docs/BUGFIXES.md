@@ -4,6 +4,22 @@
 
 ---
 
+## §3 タスク3 DRAW/中間アクション脱落を系統消化＝「対象とし」split ガード取りこぼし・ON_LEAVE_FIELD の leftStateFilter・ドリームチーム系ピースの多段条件節脱落（census 1836→1831・golden 546→551）（2026-07-21・続き238・Opus）
+
+PLAN §3 タスク3（DRAW 脱落の parseSingleSentence 直呼び経路）の tractable な残系統を一括消化した。engine 新機構は不要（既存の action 型・leftStateFilter・HAS_CARD_IN_FIELD 条件のみで忠実表現できることを実測で確認）。
+
+- **(1)「〈対象〉を対象とし、あなたのデッキの一番上のカードをエナゾーンに置き、それをバニッシュする」の中間エナチャージ脱落**（WX05-024/WX13-034 BURST）。連用中止 splitter（`effectParser.ts:2170` の `!/対象とし、|…/.test(t)` ガード）が「対象とし」を含む文を丸ごと触らないため、designation を持つこの文型は拾えず ENERGY_CHARGE_FROM_DECK が無言脱落して単発 BANISH に縮退していた。designation は「それを〈除去〉」側に属するので、先頭のエナ置きを SEQUENCE 先頭へ切り出し「〈対象〉を対象とし、それを〈除去〉」を再帰 parse する専用ハンドラを split ガード直前へ追加（`(t.match(/を対象とし/g)?.length ?? 0) === 1` の単純形限定）。WX13-034 は E2 が MANUAL でカード単位温存されるため BURST を手術的パッチ（WX05-024-BURST と同一原文）。
+
+- **(2)「〈対象〉を対象とし、それを〈移動/除去 連用〉、〈B〉」の前半移動脱落**（WXDi-P13-001「対戦相手のシグニ1体を対象とし、それをデッキの一番下に置き、対戦相手は手札を2枚捨てる」の bounce＝TRANSFER_TO_DECK が脱落して相手手札捨てだけ残っていた）。同じく「対象とし」ガードが split を止めていた。designation が「それを〈移動〉」に属し〈B〉が独立動作の単純形に限り、連用中止を1回だけ切り出すハンドラを追加（`それを.*?(?:デッキの一番[上下]に置き|バニッシュし|…)、(.+)`）。「それをバニッシュし、カードを1枚引く」等にも一般化。
+
+- **(3)WX20-071「対戦相手のターンの間、このシグニが場を離れたとき、このシグニがアクセされていた場合、エナ置き＋ドロー＋場出し」**＝3項 SEQUENCE が先頭エナ置きだけに縮退し、かつ「アクセされていた場合」条件が丸ごと脱落して無条件発火していた。**`THIS_CARD_IS_ACCED` は現在の場を走査するため離脱後は常に false になり action-level CONDITIONAL では死ぬ**ので、離脱**直前** state を評価する `triggerCondition.leftStateFilter{hasAcce}`（`matchesStateFilter` が既に hasAcce 対応・engine の離脱直前 state スナップショット leftBeforeState/leftZoneIdx は続き既存）へ寄せ、条件節を actionText から除去して後続 3項 SEQUENCE を解けるようにした。**engine の `collectLeaveFieldTriggers` の self スコープ経路が leftStateFilter/turnOwner を未評価だった穴を修正**（従来は self 離脱が両条件を無視して無条件発火＝「対戦相手のターンの間」self 離脱7効果の過剰発火を一括是正）。decompiler にも leftStateFilter{hasAcce/isFrozen} の描画を追加（従来 leftStateFilter は逆翻訳未描画＝原文照合で条件が欠けて見えていた）。
+
+- **(4)ドリームチーム系ピース WXDi-P08-003**＝「[白ルリグ条件]、デッキ上5枚見る。その中から2枚手札。その後、[赤ルリグ]、バニッシュ。その後、[黒ルリグ]、10ミル」で、**REVEAL_AND_PICK 早期 return（`parseActionTextInner:3016`）が sentences[0..1] だけ消費して後続「その後、…の場合、X」セグメント＋先頭色条件を丸ごと捨てていた**。reveal を先頭色条件で CONDITIONAL ラップした seed ステップとしてメインループ（複数文 SEQUENCE 組立・thenM が「その後、…の場合」を CONDITIONAL 化）へ注入するよう修正。白/赤/黒の3色分岐を復元（色ルリグ条件 `HAS_CARD_IN_FIELD{cardType:ルリグ,color}` は既存語彙）。姉妹 WXDi-P08-001/002/004/005 は単文分岐で既に3分岐正常＝退化なしを確認。WXDi-P13-001 の DRAW/条件は続き既存で復活済み（本件で bounce を追加）。
+
+- **ゲート**＝全ゲート緑（typecheck・golden **551**〔+5・parser4種＋engine leftStateFilter/turnOwner ゲート〕・smoke 10722全OK・fuzz 全0・census **1831**〔1836→1831＝高シグナル欠落5件解消〕・lint 0 errors・同型★0〔対象カードは逆翻訳外れクラスタに非出現〕）。BASELINE_HIGH を 1831 へ実数更新。採用＝heldReview で WX05-024/WX20-071/WXDi-P08-003/WXDi-P13-001（AUTO 4枚）＋WX13-034-BURST 手術的パッチ。
+
+- **残（真の §6.3・単発機構待ち＝「過剰語彙を作らない」方針で据置）**＝(a)**WXK07-042**「好きな数の＜原子＞シグニをトラッシュ、ドロー。この方法で2体以上/3体トラッシュした場合、追加でバニッシュ」＝**この方法でトラッシュした数**の per-resolution カウンタ機構＋自シグニトラッシュ脱落。(b)**WX20-049**「支払ってもよい。そうした場合、このシグニをトラッシュし、SEARCH」＝OPTIONAL_COST の did-pay ゲート下で自己トラッシュ＋SEARCH の逐次化（isSearchLike ガードが split を止め自己トラッシュ脱落）。(c)**WX26-CP1-066**「エナの＜プリオケ＞1枚につき+1000。その後パワー15000以上の場合、トラッシュし、他プリオケある場合バリア」＝per-count パワー＋二重入れ子条件。いずれも単発カード専用機構が要り Opusタスク6/§6.3 の長テール。対戦相手ドロー idiom・per-count ドローの残も同カテゴリ。
+
 ## §3 タスク2「動的比較」クローズ＝WXK08-005（キー）の《アタックフェイズアイコン》エクシード2 を動的レベル比較でゲート（2026-07-21・続き237・Opus）
 
 **背景**＝タスク2「census 動的比較」の最後の残1枚 `WXK08-005`（ぶりっつあーや！・キー）を消化しクローズ。原文「アタックフェイズの間、あなたのセンタールリグのレベルが対戦相手のセンタールリグより低いかぎり、このキーは《アタックフェイズアイコン》を得る。【常】：あなたのセンタールリグは以下の能力を得る。【起】《スペルカットイン》エクシード１：スペル効果打ち消し。【起】《アタックフェイズアイコン》エクシード２：ダウン＋凍結。【出】：相手シグニをデッキトップ。」**golden 545→546・census 1836 維持・smoke/fuzz 全0・同型★0・lint 0**。
