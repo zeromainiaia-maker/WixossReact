@@ -900,7 +900,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを手札に加える。そして${restJa}`;
     }
     case 'REVEAL_UNTIL_TO_FIELD':
-      return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを${a.repeat}回繰り返す`;
+      return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを${a.repeat}回繰り返す${a.suppressOnPlay ? '。その【出】能力は発動しない' : ''}`;
     case 'NEGATE_ATTACK': return `${a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}体を対象とし、このターンそれがアタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}そのアタックを無効にする`;
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
