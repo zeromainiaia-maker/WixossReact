@@ -771,6 +771,12 @@ export interface AddToFieldAction {
   asDown?: boolean;      // true = ダウン状態で場に出す
   cardName?: string;     // ゲーム外からトークンを生成して場に出す場合のCardNum
   optional?: boolean;    // true =「場に出してもよい」（出す/出さないを選択可能にする）
+  // suppressOnPlay: true =「その（それらの）シグニの【出】能力は発動しない」＝この配置で場に出したシグニ自身の
+  // ON_PLAY を発火させない（他シグニの watcher 反応は従来どおり発火）。旧・全体 BLOCK_ACTION{ON_PLAY_ABILITY}
+  // （engine 未参照の死アクション）を parser の foldSuppressOnPlay が配置アクションへ畳み込んだ忠実表現。
+  // ⚠ ADD_TO_FIELD 経路自体は現状シグニ自身の ON_PLAY を発火させない（§6.3・REVEAL_UNTIL_TO_FIELD のみ発火）ため
+  // 当フラグは前方安全用フック。将来 ADD_TO_FIELD 自身 ON_PLAY を配線する際にこのフラグでゲートする。
+  suppressOnPlay?: boolean;
 }
 
 export interface FreezeAction {
