@@ -39,9 +39,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX05-024": [{"effectId":"WX05-024-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","powerRange":{"min":15000}},"subjectOwner":"self","from":["シグニ","スペル"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-016-E1 混沌の豊穣 シュブニグラ：「あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない」→ isDown。
   "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
-  // WX09-CB02-E1 終末の回旋 チェロン：「あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない」。
-  //   旧JSONは from:['シグニ','アーツ','スペル','ルリグ']（＝全効果耐性の過剰保護）＋《クロスアイコン》条件脱落。→ from:['BANISH']＋hasCrossIcon。
-  "WX09-CB02": [{"effectId":"WX09-CB02-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","story":"美巧","hasCrossIcon":true},"subjectOwner":"self","from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX09-CB02-E1（終末の回旋 チェロン）は下方の既存ブロックで是正済（from:['BANISH']＋hasCrossIcon）。
   // WX13-005A-E1 白羅星 フルムーン：「あなたの他のレゾナは対戦相手のシグニの効果を受けない」→ cardType:レゾナ＋excludeSelf。
   "WX13-005A": [{"effectId":"WX13-005A-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX18-034-E1 コードオーダー モツナ：「このシグニはアクセされているかぎり、対戦相手のルリグの効果を受けない」。
