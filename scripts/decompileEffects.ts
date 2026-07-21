@@ -512,7 +512,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL':
       return `このターン、次にあなたが${a.damageSource ? (a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ') + 'によって' : ''}ダメージを受ける場合、代わりにあなたのデッキの上からカードを${a.millCount}枚トラッシュに置く`;
     case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
-    case 'UP': return `${a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
+    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {
       // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
       if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
