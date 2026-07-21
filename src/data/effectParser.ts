@@ -1028,6 +1028,25 @@ function logSourceText(effectId: string | undefined, text: string): void {
   if (!_sourceTextLog.has(effectId)) _sourceTextLog.set(effectId, text.trim());
 }
 
+// 後置条件節の前段 recorder 検出でラッパーを貫通する（§3 タスク12(xxii)）。
+// 直前ステップが「先頭ガード条件で丸ごと gate された CONDITIONAL（else なし）」や「連文 SEQUENCE の末尾」で
+// あっても、実際に lastProcessedCards を残すのはその内側の末尾アクション。engine 上も：
+//  - CONDITIONAL(else なし) はガード真で then の ctx（lastProcessedCards 込み）を返し、偽なら素通し。
+//    recorder がその効果の先頭処理ステップである限り、偽時の lastProcessedCards は空のままで後置 COUNT_GTE も
+//    正しく偽になる（＝過剰実行しない）。
+//  - SEQUENCE は末尾ステップの結果 ctx を返すため lastProcessedCards は末尾アクションのもの＝「この方法で」の指示対象と一致。
+// これで「センタールリグが黒の場合、N枚トラッシュ。その後、この方法でN枚トラッシュに置かれた場合…」（WX09-Re19）等の
+// ラップされた recorder を検出できる。深さ4まで降下（実データは1段）。
+function unwrapWrappedRecorder(step: unknown): unknown {
+  let s = step as { type?: string; then?: unknown; else?: unknown; steps?: unknown[] } | undefined;
+  for (let i = 0; i < 4 && s; i++) {
+    if (s.type === 'CONDITIONAL' && !s.else && s.then) { s = s.then as typeof s; continue; }
+    if (s.type === 'SEQUENCE' && Array.isArray(s.steps) && s.steps.length > 0) { s = s.steps[s.steps.length - 1] as typeof s; continue; }
+    break;
+  }
+  return s;
+}
+
 // 「この方法で…トラッシュに置かれた場合、」の条件文を解析する。
 // 該当しない場合は null（呼び出し側で IS_MY_TURN にフォールバック）。
 // prevIsDeckMill: 直前ステップが「デッキの上からトラッシュ（TRASH DECK_CARD）」か。
