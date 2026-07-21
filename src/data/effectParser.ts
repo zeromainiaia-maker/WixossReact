@@ -1501,6 +1501,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
   [/あなたの場にクロス状態のシグニがある場合/,
     () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+  // 「あなたの場に傀儡状態のシグニがある場合」＝HAS_CARD_IN_FIELD{isPuppet}（engine evalCondition が puppet_signi を走査・
+  //   WXK09-057「代わりに－7000」の per-target 値すり替えゲート。表に無いと SEQUENCE 両実行の過剰効果になる）。
+  [/あなたの場に傀儡状態のシグニがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isPuppet: true } })],
   [/このシグニのパワーが([０-９\d]+)以上の場合/,
     g => ({ type: 'SELF_POWER_GTE', value: parseNum(g[0]) })],
   [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
