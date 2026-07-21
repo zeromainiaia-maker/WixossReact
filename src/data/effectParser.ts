@@ -4649,6 +4649,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (/【チャーム】が付いている(?:対戦相手の)?シグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) bf.hasCharm = true;
           if (Object.keys(bf).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedFilter: bf };
         }
+        // 被バニッシュシグニの位置限定「正面以外の」（WX17-032「バトルによって正面以外のシグニをバニッシュしたとき」）。
+        //   banishedFilter とは別軸＝カード属性ではなくゾーン位置。engine はアタッカーの正面ゾーンと被バニッシュ
+        //   ゾーンの不一致を判定（battleBanishEntries）。
+        if (/バトルによって正面以外のシグニ[^。]{0,6}をバニッシュしたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedNotFront: true };
+        }
       }
       // ON_SIGNI_BANISH_OPPONENT_BY_EFFECT（「あなたの＜X＞のシグニが効果によって…バニッシュしたとき」WX07-036）：主語を triggerScope:any_ally＋triggerFilter に抽出（actionText 非改変）。
       if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT_BY_EFFECT') {
