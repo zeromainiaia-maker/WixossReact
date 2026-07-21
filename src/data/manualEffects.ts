@@ -72,7 +72,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //      granted 経路と二重発火し、かつ granted ATTACK_ARTS 経路(BattleScreen 10721)は condition 未評価でゲートが
   //      外れるため、キー top-level のまま保持するのが正しい。
   "WXK08-005": [
-    {"effectId":"WXK08-005-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[],"rawText":"【常】：あなたのセンタールリグは以下の能力を得る。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK08-005-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[],"rawText":"【起】《スペルカットインアイコン》エクシード１：スペル１つを対象とし、それの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK08-005-E3","effectType":"ACTIVATED","timing":["SPELL_CUTIN"],"cost":{"exceed":1},"action":{"type":"COUNTER_SPELL"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WXK08-005-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"condition":{"type":"LRIG_LEVEL_CMP_OPP","operator":"lt"},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"down":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WXK08-005-E5","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
