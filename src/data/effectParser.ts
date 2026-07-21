@@ -3190,6 +3190,29 @@ function parseActionTextInner(text: string): EffectAction {
     // ごと複製し delta だけ差し替えて then にする（ターゲット共有・WXDi-CP01-047 等17枚の系統）。
     // ⚠条件が表現できない形（コスト参照・ターン中イベント等）は据置。
     if (steps.length > 0) {
+      // target-property 置換：「それに【チャーム】が付いている場合、代わりに(ターン終了時まで、)それのパワーを－Mする」
+      // ＝直前 POWER_MODIFY で選択した対象自身のプロパティ条件（盤面状態ではない）。base は常時適用し、条件成立時に
+      // 差分だけを同一対象へ加算する（加算モデル＝WXDi-P07-079 の LAST_PROCESSED_MATCHES + targetsLastProcessed と同型）。
+      // 従来は「それ」の先行詞が失われ owner:any の別対象へ二重適用する過剰効果だった（WX25-P2-102/107/109）。
+      {
+        const tpm = clean.match(/^それに【チャーム】が付いている場合、代わりに(?:ターン終了時まで、)?それのパワーを([－\-])([０-９\d]+)する。?$/);
+        const baseStep = steps[steps.length - 1];
+        const coreBase = baseStep?.type === 'CONDITIONAL' ? (baseStep as import('../types/effects').ConditionalAction).then : baseStep;
+        if (tpm && coreBase?.type === 'POWER_MODIFY' &&
+            typeof (coreBase as import('../types/effects').PowerModifyAction).delta === 'number') {
+          const basePM = coreBase as import('../types/effects').PowerModifyAction;
+          const enhancedDelta = ((tpm[1] === '－' || tpm[1] === '-') ? -1 : 1) * parseNum(tpm[2]);
+          const extra = enhancedDelta - (basePM.delta as number); // 差分だけを追加（-8000 −(-5000)= -3000）
+          const thenPM: import('../types/effects').PowerModifyAction = {
+            type: 'POWER_MODIFY',
+            target: JSON.parse(JSON.stringify(basePM.target)),
+            delta: extra,
+            targetsLastProcessed: true,
+          };
+          steps.push({ type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { hasCharm: true } }, then: thenPM });
+          continue;
+        }
+      }
       let cm = matchLeadingStateCondition(clean);
       if (!cm) {
         // (a) 裸の多段閾値: 前段が数量条件の CONDITIONAL のときだけ、その条件の複製に新数値を入れて引き継ぐ
