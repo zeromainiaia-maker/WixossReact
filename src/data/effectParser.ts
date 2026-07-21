@@ -3199,7 +3199,7 @@ function parseActionTextInner(text: string): EffectAction {
       // 差分だけを同一対象へ加算する（加算モデル＝WXDi-P07-079 の LAST_PROCESSED_MATCHES + targetsLastProcessed と同型）。
       // 従来は「それ」の先行詞が失われ owner:any の別対象へ二重適用する過剰効果だった（WX25-P2-102/107/109）。
       {
-        const tpm = clean.match(/^それに【チャーム】が付いている場合、代わりに(?:ターン終了時まで、)?それのパワーを([－\-])([０-９\d]+)する。?$/);
+        const tpm = clean.match(/^それに【チャーム】が付いている場合、代わりに(?:ターン終了時まで、)?それのパワーを([－-])([０-９\d]+)する。?$/);
         const baseStep = steps[steps.length - 1];
         const coreBase = baseStep?.type === 'CONDITIONAL' ? (baseStep as import('../types/effects').ConditionalAction).then : baseStep;
         if (tpm && coreBase?.type === 'POWER_MODIFY' &&
