@@ -3504,7 +3504,7 @@ function parseActionTextInner(text: string): EffectAction {
       // ALL・selectOrInteract の両経路）。「この方法で〜バニッシュした／ゲームから除外した／エナゾーンに置いた場合」の
       // 結果カウント条件を拾えるよう prevRecords に含める（parseThisWayTrashCondition の prevIsDeckMill は
       // 「トラッシュに置かれた」限定なので誤反応しない＝parseThisWayGenericCount 経由でのみ効く）。
-      const prevIsProcessRecorder = prevStep?.type === 'BANISH' || prevStep?.type === 'EXILE' || prevStep?.type === 'SEND_TO_ENERGY';
+      const prevIsProcessRecorder = effPrev?.type === 'BANISH' || effPrev?.type === 'EXILE' || effPrev?.type === 'SEND_TO_ENERGY';
       // TRANSFER_TO_DECK（デッキに戻す/加える）も engine が lastProcessedCards を記録する（execTransferToDeck の
       // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
       // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
