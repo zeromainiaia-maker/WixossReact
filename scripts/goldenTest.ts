@@ -6657,6 +6657,56 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   });
 }
 
+// ── タスク12(xxix): 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY}
+//    （engine 未参照・target owner:any/ALL の過剰表現）を配置アクションへ畳み込み suppressOnPlay 化する
+//    parser fold の回帰ガード。──
+{
+  const treeHas = (a: unknown, pred: (x: Record<string, unknown>) => boolean): boolean => {
+    if (!a || typeof a !== 'object') return false;
+    const o = a as Record<string, unknown>;
+    if (pred(o)) return true;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) { for (const x of v) if (treeHas(x, pred)) return true; }
+      else if (v && typeof v === 'object') { if (treeHas(v, pred)) return true; }
+    }
+    return false;
+  };
+  const hasOnPlayBlock = (a: unknown) => treeHas(a, x => x.type === 'BLOCK_ACTION' && x.actionId === 'ON_PLAY_ABILITY');
+  const hasSuppress = (a: unknown) => treeHas(a, x => x.suppressOnPlay === true);
+  const effOfX = (card: string, effId: string) => parseCardEffects(cardMap.get(card)!).find(e => e.effectId === effId)!;
+
+  test('(xxix) parser fold: WX18-026-E1 は ON_PLAY_ABILITY 死ブロックを ADD_TO_FIELD.suppressOnPlay へ畳む', () => {
+    const a = effOfX('WX18-026', 'WX18-026-E1').action;
+    ok(!hasOnPlayBlock(a), 'ON_PLAY_ABILITY ブロックが残っている');
+    ok(hasSuppress(a), 'suppressOnPlay が立っていない');
+  });
+  test('(xxix) parser fold: CHOOSE 枝内（WX25-CP1-002-E1 選択肢②）も畳む', () => {
+    const a = effOfX('WX25-CP1-002', 'WX25-CP1-002-E1').action;
+    ok(!hasOnPlayBlock(a), 'CHOOSE 内にブロック残存');
+    ok(hasSuppress(a), 'CHOOSE 内 suppressOnPlay 欠落');
+  });
+  test('(xxix) parser fold: CONDITIONAL(そうした場合).then 埋没配置（WX24-P2-080-E1）も畳む', () => {
+    const a = effOfX('WX24-P2-080', 'WX24-P2-080-E1').action;
+    ok(!hasOnPlayBlock(a), 'CONDITIONAL 越しにブロック残存');
+    ok(hasSuppress(a), 'CONDITIONAL.then の配置へ suppressOnPlay 欠落');
+  });
+  test('(xxix) 出力 JSON 忠実性: 折込済み効果は block 無し/flag 有り（MANUAL含む）', () => {
+    const targets = ['WX18-026-E1', 'WX11-021-E1', 'WXDi-P02-020-E1', 'WXDi-P09-030-E1', 'WXDi-P09-030-E2'];
+    for (const [, effs] of effectsMap) {
+      for (const e of effs as CardEffect[]) {
+        if (!targets.includes(e.effectId)) continue;
+        ok(!hasOnPlayBlock(e.action), `${e.effectId}: JSON に ON_PLAY_ABILITY 残存`);
+        ok(hasSuppress(e.action), `${e.effectId}: JSON に suppressOnPlay 欠落`);
+      }
+    }
+  });
+  test('(xxix) 非該当は不変: 配置アンカーの無い BLOCK は誤って畳まない（WX20-007-E1・STUB配置）', () => {
+    const a = effOfX('WX20-007', 'WX20-007-E1').action;
+    ok(hasOnPlayBlock(a), 'アンカー無し＝ブロック据置のはず');
+    ok(!hasSuppress(a), 'アンカー無しに suppressOnPlay を付けてはいけない');
+  });
+}
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
