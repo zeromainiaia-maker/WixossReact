@@ -553,6 +553,12 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = !(state.field.signi_down?.[zoneIdx] ?? false);
     if (filter.isUp !== v) return false;
   }
+  if (filter.isDrive !== undefined) {
+    // ドライブ状態＝ルリグに乗られている乗機シグニ（lrig_riding_signi）
+    const top = state.field.signi[zoneIdx]?.at(-1);
+    const v = top ? (state.lrig_riding_signi ?? []).includes(top) : false;
+    if (filter.isDrive !== v) return false;
+  }
   if (filter.inGateZone !== undefined) {
     const v = (state.own_gate_zones ?? []).includes(zoneIdx);
     if (filter.inGateZone !== v) return false;
