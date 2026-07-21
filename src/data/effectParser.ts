@@ -2502,6 +2502,71 @@ function findTailAction(a: EffectAction | null | undefined): EffectAction | null
   return a;
 }
 
+// foldSuppressOnPlay（タスク12(xxix)・「そのシグニの【出】能力」クラスタの忠実表現化）：
+// 「〜を場に出す。その（それらの）シグニの【出】能力は発動しない」を、旧来 parser が別ステップとして吐く
+// 全体 BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}（engine から一切参照されない死アクション。しかも target が
+// owner:any/count:ALL＝『全シグニの【出】を封じる』と読める過剰表現）から、直前の配置アクションへ畳み込んだ
+// scoped フラグ suppressOnPlay へ変換する。BLOCK_ACTION ステップは除去。配置アンカーが特定できない
+// （STUB 配置等）場合は畳み込まず据置（誤変換を避ける）。SEQUENCE / CHOOSE / CONDITIONAL を再帰。
+function isOnPlayAbilityBlock(a: EffectAction): boolean {
+  return a.type === 'BLOCK_ACTION' && (a as import('../types/effects').BlockActionAction).actionId === 'ON_PLAY_ABILITY';
+}
+// 与えられたアクションが配置アンカーなら suppressOnPlay を立てて返す。アンカーでなければ null。
+function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
+  if (a.type === 'ADD_TO_FIELD') return { ...(a as AddToFieldAction), suppressOnPlay: true };
+  if (a.type === 'REVEAL_UNTIL_TO_FIELD') return { ...(a as import('../types/effects').RevealUntilToFieldAction), suppressOnPlay: true };
+  if (a.type === 'LOOK_PICK_CHAIN') {
+    const lpc = a as import('../types/effects').LookPickChainAction;
+    // 最後の then:'field' ステージ＝場出し。手札/エナ/トラッシュ ステージには乗せない。
+    let idx = -1;
+    lpc.stages.forEach((s, i) => { if (s.then === 'field') idx = i; });
+    if (idx < 0) return null;
+    return { ...lpc, stages: lpc.stages.map((s, i) => i === idx ? { ...s, suppressOnPlay: true } : s) };
+  }
+  if (a.type === 'SEARCH') {
+    const se = a as import('../types/effects').SearchAction;
+    if (se.then && se.then.type === 'ADD_TO_FIELD') {
+      return { ...se, then: { ...(se.then as AddToFieldAction), suppressOnPlay: true } };
+    }
+    return null;
+  }
+  if (a.type === 'SEQUENCE') {
+    // 直前兄弟が入れ子 SEQUENCE の場合はその末尾側から配置アンカーを探す（WX24-P3-053 の inner SEQ 等）。
+    const seq = a as SequenceAction;
+    for (let j = seq.steps.length - 1; j >= 0; j--) {
+      const r = trySetSuppressOnPlay(seq.steps[j]);
+      if (r) { const steps = [...seq.steps]; steps[j] = r; return { ...seq, steps }; }
+    }
+    return null;
+  }
+  return null;
+}
+function foldSuppressOnPlay(action: EffectAction): EffectAction {
+  if (action.type === 'SEQUENCE') {
+    const seq = action as SequenceAction;
+    let steps = seq.steps.map(foldSuppressOnPlay); // 先に子を畳む
+    const remove = new Set<number>();
+    for (let i = 0; i < steps.length; i++) {
+      if (!isOnPlayAbilityBlock(steps[i])) continue;
+      for (let j = i - 1; j >= 0; j--) {
+        const r = trySetSuppressOnPlay(steps[j]);
+        if (r) { steps[j] = r; remove.add(i); break; }
+      }
+    }
+    if (remove.size > 0) steps = steps.filter((_, i) => !remove.has(i));
+    return { ...seq, steps };
+  }
+  if (action.type === 'CHOOSE') {
+    const ch = action as ChooseAction;
+    return { ...ch, choices: ch.choices.map(c => c.action ? { ...c, action: foldSuppressOnPlay(c.action) } : c) };
+  }
+  if (action.type === 'CONDITIONAL') {
+    const co = action as import('../types/effects').ConditionalAction;
+    return { ...co, then: foldSuppressOnPlay(co.then), ...(co.else ? { else: foldSuppressOnPlay(co.else) } : {}) };
+  }
+  return action;
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
