@@ -139,6 +139,51 @@ test('LAST_PROCESSED_LEVEL_SUM: 合計レベルを operator で判定（eq/gte/l
   ok(ev('gte', 5) && ev('gte', 4) && !ev('gte', 6), 'gte: 5以下の閾値で真');
   ok(ev('lte', 5) && ev('lte', 6) && !ev('lte', 4), 'lte: 5以上の閾値で真');
 });
+// ── タスク12 (xxii): 先頭ガード CONDITIONAL／連文 SEQUENCE にラップされた recorder の後置条件解決 ──
+// 「センタールリグが黒の場合、N枚トラッシュ。その後、この方法でN枚トラッシュに置かれた場合…」（WX09-Re19 等）で、
+// recorder（deck-mill）が CONDITIONAL に包まれていても engine は then 経路で lastProcessedCards を残し、
+// ガード偽なら空のまま＝後置 COUNT_GTE も偽で正しくスキップされる（過剰実行しない）ことを固定する。
+test('(xxii) ラップ recorder: ガード真→mill→COUNT_GTE 真で後続発火／ガード偽→mill無し→後続スキップ', () => {
+  const mkSeq = (guardVal: number): EffectAction => ({
+    type: 'SEQUENCE', steps: [
+      { type: 'CONDITIONAL', condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gte', value: guardVal },
+        then: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 3 } } },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3 },
+        then: { type: 'DRAW', owner: 'self', count: 1 } },
+    ],
+  } as unknown as EffectAction);
+  // ガード真（手札2≥1）→ deck-mill 3 → lastProcessedCards=3 → COUNT_GTE(3) 真 → DRAW 1
+  {
+    const ctx = mkCtx({ hand: 2 }, {});
+    const t0 = ctx.ownerState.trash.length, d0 = ctx.ownerState.deck.length, h0 = ctx.ownerState.hand.length;
+    const r = run(mkSeq(1), ctx);
+    eq(r.ownerState.trash.length, t0 + 3, 'ガード真: mill 3枚がトラッシュへ');
+    eq(r.ownerState.hand.length, h0 + 1, 'ガード真: 後続 DRAW で手札+1');
+    eq(r.ownerState.deck.length, d0 - 4, 'ガード真: デッキ-4（mill3+draw1）');
+  }
+  // ガード偽（手札2≥100 は偽）→ mill 実行されず lastProcessedCards 空 → COUNT_GTE 偽 → DRAW スキップ
+  {
+    const ctx = mkCtx({ hand: 2 }, {});
+    const t0 = ctx.ownerState.trash.length, d0 = ctx.ownerState.deck.length, h0 = ctx.ownerState.hand.length;
+    const r = run(mkSeq(100), ctx);
+    eq(r.ownerState.trash.length, t0, 'ガード偽: mill されない');
+    eq(r.ownerState.hand.length, h0, 'ガード偽: 後続 DRAW も発火しない（過剰実行しない）');
+    eq(r.ownerState.deck.length, d0, 'ガード偽: デッキ不変');
+  }
+});
+// 採用カードの構造回帰ガード：ラップ recorder の後置条件が抽出されていること（IS_MY_TURN 化けの再発防止）。
+test('(xxii) WX09-Re19-E1: 先頭 LRIG_COLOR ガード＋後置 LAST_PROCESSED_COUNT_GTE(10) が固定', () => {
+  const effs = (cardMap.get('WX09-Re19') as { effects?: CardEffect[] })?.effects ?? [];
+  const e1 = effs.find(e => e.effectId === 'WX09-Re19-E1');
+  ok(!!e1, 'E1 が存在する');
+  const steps = (e1!.action as SequenceAction).steps;
+  eq(steps[0].type, 'CONDITIONAL', 'step0 は CONDITIONAL（LRIG_COLOR ガード）');
+  eq((steps[0] as { condition?: { type?: string } }).condition?.type, 'LRIG_COLOR', 'step0 ガードは LRIG_COLOR');
+  eq(steps[1].type, 'CONDITIONAL', 'step1 は後置条件 CONDITIONAL');
+  const c1 = (steps[1] as { condition?: { type?: string; value?: number } }).condition;
+  eq(c1?.type, 'LAST_PROCESSED_COUNT_GTE', 'step1 条件は LAST_PROCESSED_COUNT_GTE（IS_MY_TURN 化けしない）');
+  eq(c1?.value, 10, '閾値10');
+});
 test('VARIABLE_DISCARD_AND_DRAW: 手札5全捨て→捨てた5+bonus1=6枚ドロー（WX09-Re15）', () => {
   const ctx = mkCtx({ hand: 5, trash: 3 }, {});
   const d0 = ctx.ownerState.deck.length;
