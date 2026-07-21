@@ -4,6 +4,25 @@
 
 ---
 
+## §3 タスク12 (xxii) 後置条件節の IS_MY_TURN 化＝ラップされた recorder の検出漏れを消化（partial 50→44・golden 554→556・census 1826→1825）（2026-07-21・続き241・Opus）
+
+PLAN §3 Opusタスク12 (xxii)「後置条件節の IS_MY_TURN 誤変換」の残のうち、**recorder（lastProcessedCards を残すアクション）が先頭ガード CONDITIONAL や連文 SEQUENCE にラップされていて parser の前段検出（`prevRecords`）が外れ、「その後、この方法で〜した場合」が IS_MY_TURN（＝あなたのターン中は常時真）へ化けていた系統**を消化した。
+
+**根本原因**：`effectParser.ts` の後置条件抽出は直前ステップ `steps[steps.length-1]` の**型**で recorder を判定する（`prevSetsProcessed = prevStep.type==='TRASH'|…`）。ところが「センタールリグが黒の場合、デッキ上を10枚トラッシュ」のように recorder が `CONDITIONAL(LRIG_COLOR)?TRASH` に包まれると `prevStep.type==='CONDITIONAL'` となり検出が外れ、後置の `LAST_PROCESSED_COUNT_GTE` が抽出されず IS_MY_TURN に落ちていた。
+
+**修正**：`unwrapWrappedRecorder(step)` を新設（`CONDITIONAL`〔else なし〕の `.then`／`SEQUENCE` の末尾ステップを深さ4まで貫通）し、`prevSetsProcessed`／`prevIsProcessRecorder`（BANISH/EXILE/SEND_TO_ENERGY）／`prevIsProcessRecorder2`（TRANSFER_TO_DECK）／`prevIsEnergyPlace` の検出を `effPrev = unwrapWrappedRecorder(prevStep)` ベースへ配線。**engine 追加はゼロ**：`execConditional` はガード真で `then` の ctx（lastProcessedCards 込み）を返し、偽なら素通し。recorder がその効果の先頭処理ステップである限り、ガード偽時は lastProcessedCards が空のまま＝後置 COUNT_GTE も偽で正しくスキップされる（＝過剰実行しない）ことを確認済み。
+
+**採用3枚**（heldReview・いずれも adopted が退化していた）：
+- **WX09-Re19-E1**＝adopted は先頭 `LRIG_COLOR{黒}` ガードを丸ごと欠いて**無条件で10枚ミル**＋トラッシュ回収を1枚（原文5枚）に**退化**していた。fresh で `CONDITIONAL(LRIG_COLOR)?TRASH{DECK 10}` ＋後置 `LAST_PROCESSED_COUNT_GTE{10}` ＋回収5枚を復元。
+- **WXDi-CP01-045-E1**＝`CONDITIONAL(THIS_CARD_IS_UP)?TRASH{DECK 2}` ＋後置 `TRASHED_STORY_COUNT_GTE{バーチャル,2}`。
+- **WXDi-P16-087-E1**＝`SEQUENCE[DRAW→TRASH{HAND 2}]` ラップの手札捨てを貫通し後置 `LAST_PROCESSED_LEVEL_SUM{lte,3}` を抽出。
+
+**golden**：ラップ recorder の engine 解決（ガード真→mill→COUNT_GTE 真で後続発火／ガード偽→mill無し→後続スキップの過剰実行防止）＋WX09-Re19-E1 の構造回帰ガード（LRIG_COLOR＋LAST_PROCESSED_COUNT_GTE 固定）の2本を追加。554→556。
+
+**残（(xxii) の未消化＝真の§6.3級・約41件）**：ラップ以外の IS_MY_TURN 化はいずれも**前段が STUB（非記録アクション）**（`REVEAL_AND_PICK`／`OPTIONAL_TRASH_ENERGY_CLASS`／`DECK_REVEAL_UNTIL`／`LRIG_UNDER_CARD_OP`／`BEAT_ZONE_OP` 等＝lastProcessedCards を残さない）か、**新規状態追跡機構**（この方法で【ビート】がN枚になった＝盤面後カウント／リミットN以上／このターンのエナ累計移動／デッキから探していた＝did-search 真偽／アタック幾何／追加コスト・色支払いの実選択）を要する。`execBounce`（ALL 経路）・hand-`REVEAL` も lastProcessedCards 未記録＝これらを記録化する engine 改修が前提。各々独立した単発機構待ちのため、過剰語彙／過小実行（parser が条件を吐いても engine が解決できず branch が死ぬ）を避けて据置。明細 `docs/_partial_report.txt`（IS_MY_TURN化 41件）。
+
+**検証**：全ゲート緑（typecheck・golden 556・smoke 10719全OK・fuzz 全0・census 1826→1825・lint 0error）。adopted JSON への波及は上記3枚のみ（build:effects は他を held 温存＝auto-adopt ゼロ）。
+
 ## §3 タスク12 (li) キー【起】の timing↔phase 照合を追加＝`getKeyPieceActions` の過剰緩さ是正（113効果棚卸し・golden 552→554・census 1826据置）（2026-07-21・続き240・Opus）
 
 PLAN §3 Opusタスク12 (li) を消化した。**`getKeyPieceActions`（BattleScreen.tsx:10765-10772）がキーの ACTIVATED 能力を timing↔phase 照合せず、アクションが撃てる phase（MAIN/ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）なら timing を無視して全部 surface していた**広域な緩さ。シグニ【起】（`getMySigniZoneActions`:10443-10445）は既に「MAIN→timing に MAIN／アタックフェイズ→timing に ATTACK_ARTS」の照合を持っていたのに、キー側はこの照合が丸ごと無く、**MAIN 専用（《アタックフェイズアイコン》無し）がアタックフェイズにも／ATTACK_ARTS 専用がメインにも出て**いた。
