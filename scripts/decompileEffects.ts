@@ -707,8 +707,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const protThisOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && a.target
         && a.target.count !== 'ALL' && !a.target.filter
         && (a.target.owner === 'self' || a.target.owner === 'any');
+      const subjOwnerJa = a.subjectFilter ? ownerJa(a.subjectOwner ?? 'self') : '';
       const subject = protThisOnly ? 'このシグニ'
-        : a.target ? targetJa(a.target) : filterJa(a.subjectFilter) + 'シグニ';
+        : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + 'シグニ';
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
@@ -716,9 +717,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const fromArr: string[] = a.from ?? [];
       const srcTypes = ['ルリグ', 'シグニ', 'スペル', 'アーツ'];
       const srcTokens = fromArr.filter(f => srcTypes.includes(f));
+      // sourceCostMin:「コストの合計がN以上の、アーツとスペルの効果を受けない」（WX15-031）
+      const costMinJa = a.sourceCostMin !== undefined ? `コストの合計が${a.sourceCostMin}以上の、` : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
-        return `${subject}は${ownerJa(a.sourceOwner)}、${srcTokens.join('と')}の効果を受けない`;
+        return `${subject}は${ownerJa(a.sourceOwner)}${costMinJa || '、'}${srcTokens.join('と')}の効果を受けない`;
       }
       if (fromArr.includes('any')) {
         return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
