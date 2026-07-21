@@ -58,6 +58,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXK04-042-E1b","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_ARMORED"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK04-042-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"SELF_POWER_GTE","value":10000},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // WXK08-005 ぶりっつあーや！（キー・タスク2「動的比較」の最後の1枚）：
+  //   原文「アタックフェイズの間、あなたのセンタールリグのレベルが対戦相手のセンタールリグより低いかぎり、このキーは
+  //   《アタックフェイズアイコン》を得る。【常】：あなたのセンタールリグは以下の能力を得る。【起】《スペルカットイン》
+  //   エクシード１：スペル1つの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ1体を
+  //   ダウンし凍結する。【出】：対戦相手のシグニ1体をデッキの一番上に置く。」
+  //   ① 先頭文（動的レベル比較で《アタックフェイズアイコン》を得る）が parser のブロック分割で丸ごと脱落し、
+  //      E4（エクシード２のダウン＋凍結）が無条件で撃てる過剰効果になっていた。→ E4 に condition:LRIG_LEVEL_CMP_OPP{lt}
+  //      （自センタールリグレベル＜相手・engine/decompiler 実装済＝WXK07-025/WXK10-068 と同型）を付与してゲート化。
+  //      getKeyPieceActions が eff.condition を evalUseCondition で評価済みのため engine 追加は不要。
+  //   ② E2「以下の能力を得る」の GRANT_LRIG_ABILITY は abilities 空のまま維持（機能近似）。E3/E4 はキー自身の
+  //      ACTIVATED としてカットイン経路(effs SPELL_CUTIN)/getKeyPieceActions で機能する。abilities に詰めると
+  //      granted 経路と二重発火し、かつ granted ATTACK_ARTS 経路(BattleScreen 10721)は condition 未評価でゲートが
+  //      外れるため、キー top-level のまま保持するのが正しい。
+  "WXK08-005": [
+    {"effectId":"WXK08-005-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[],"rawText":"【常】：あなたのセンタールリグは以下の能力を得る。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXK08-005-E3","effectType":"ACTIVATED","timing":["SPELL_CUTIN"],"cost":{"exceed":1},"action":{"type":"COUNTER_SPELL"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK08-005-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"condition":{"type":"LRIG_LEVEL_CMP_OPP","operator":"lt"},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"down":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK08-005-E5","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   // WXK04-044 紅蓮の使い魔 オズマ姫：E1【常】このシグニは血晶武装状態であるかぎり、「【自】正面のシグニ1体をバニッシュしたとき、このシグニをアップする」を得る。
   //   旧JSONは「CONTINUOUS UP（常時アップ）」に誤訳。→ AUTO ON_SIGNI_BANISH_BATTLE（バトルで正面をバニッシュ）＋ condition:THIS_CARD_IS_ARMORED で自身アップ。E2（手札1捨て→デッキトップ5見て紅蓮1枚手札）はJSON維持。
   "WXK04-044": [{"effectId":"WXK04-044-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_BATTLE"],"triggerScope":"self","condition":{"type":"THIS_CARD_IS_ARMORED"},"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],
