@@ -2159,6 +2159,29 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
+  // 「〈対象〉を対象とし、それを〈移動/除去 連用〉、〈B〉」＝designation は「それを〈移動/除去〉」に属し、〈B〉は独立動作。
+  //   下の split ガード（2170）が「対象とし」で丸ごと止めるため後半 B しか残らず前半（それを移動）が脱落していた
+  //   （WXDi-P13-001＝「対戦相手のシグニ1体を対象とし、それをデッキの一番下に置き、対戦相手は手札を2枚捨てる」の
+  //   デッキ下送りが脱落）。単一 designation・「それ」照応の単純形に限り、連用中止を1回だけ安全に切り出す。
+  {
+    const RENYO2: Array<[RegExp, string]> = [
+      [/デッキの一番下に置き$/, 'デッキの一番下に置く'], [/デッキの一番上に置き$/, 'デッキの一番上に置く'],
+      [/バニッシュし$/, 'バニッシュする'], [/トラッシュに置き$/, 'トラッシュに置く'],
+      [/手札に戻し$/, '手札に戻す'], [/エナゾーンに置き$/, 'エナゾーンに置く'],
+      [/ダウンし$/, 'ダウンする'], [/凍結し$/, '凍結する'],
+    ];
+    const m2 = t.match(/^([^。]*?を対象とし、それを.+?(?:デッキの一番[上下]に置き|バニッシュし|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウンし|凍結し))、(.+)$/s);
+    if (m2 && (t.match(/を対象とし/g)?.length ?? 0) === 1 && !/とき|場合|代わりに/.test(t)) {
+      let leftText = m2[1];
+      for (const [re, fin] of RENYO2) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
+      const left = parseSingleSentence(leftText);
+      const right = parseSingleSentence(m2[2]);
+      if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN' && right.type !== 'STUB') {
+        return { type: 'SEQUENCE', steps: [left, right] } as SequenceAction;
+      }
+    }
+  }
+
   // 連用中止形の並列動作「Aし、Bする」→ SEQUENCE（§3 Opusタスク10 パターンF-1）。
   // ⚠従来は**先頭の動作が無言脱落**して後半だけが残っていた（「シグニ1体をバニッシュ**し**、シグニ1体を
   //   ダウンする」→ DOWN だけ／「手札をすべて捨て、カードを4枚引く」→ DRAW だけ）。
