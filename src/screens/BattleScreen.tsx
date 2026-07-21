@@ -7574,6 +7574,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               label: `${battleCardMap.get(topNumBB)?.CardName ?? topNumBB} の【自】効果（バトルバニッシュ時）`,
               effect: eff,
               triggeringCardNum: banishedOpCardNum, // 「そのシグニのレベル以下」等の被バニッシュ参照用
+              battleAttackerCardNum: myTopNum, // 「そのアタックしているシグニ」参照用（any_ally scope で能力ホスト≠アタッカーになりうるため別軸）
             } satisfies StackEntry);
           }
         }
