@@ -607,6 +607,58 @@ test('WX06-014-E2: 古代兵器5枚をトラッシュ→デッキ下→相手シ
     eq(r.otherState.field.signi.filter(s => s?.length).length, 1, '古代兵器不足→バニッシュ不発（相手シグニ残存）');
   }
 });
+// ── 続き239（Opusタスク9）: §6.2 系統② GRANT_PROTECTION 効果耐性の subjectFilter/count/from/sourceCostMin 是正の回帰ガード。
+//    「あなたの[属性/状態]シグニは対戦相手の…効果を受けない」が target:{count:'ALL'} で効果元1体のみ保護になる偽陰性を subjectFilter で解消したこと・
+//    from の過剰保護是正（WX09-CB02＝全効果耐性→BANISH のみ）・sourceCostMin（コスト合計N以上）ゲート・isDrive/excludeSelf を確認する。
+test('GRANT_PROTECTION 効果耐性 subjectFilter/from/sourceCostMin（Opusタスク9・§6.2 系統②）', () => {
+  const findSigni = (pred: (c: CardData) => boolean): string => {
+    for (const [n, c] of cardMap) if (c.Type === 'シグニ' && pred(c)) return n;
+    throw new Error('no signi');
+  };
+  const emptyOpp = mkState({});
+  const withProt = (holder: string, extra: string[] = [], opt: { down?: boolean[] } = {}) => {
+    const st = mkState({ signi: [holder, ...extra] as string[] });
+    if (opt.down) (st.field as { signi_down: boolean[] }).signi_down = opt.down;
+    return st;
+  };
+
+  // WX09-016: あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない（ダウンのみ・シグニ源のみ）
+  {
+    const other = findSigni(c => (c.CardClass ?? '') !== '');
+    const st = withProt('WX09-016', [other], { down: [true, false, false] });
+    const imDown = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, effectsMap, false, 'シグニ');
+    ok(imDown.has('WX09-016') && !imDown.has(other), 'WX09-016: ダウン状態のシグニのみ免疫（アップは非免疫）');
+    const imLrig = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, effectsMap, false, 'ルリグ');
+    ok(imLrig.size === 0, 'WX09-016: ルリグ源には無反応（from シグニ限定）');
+  }
+  // WX09-CB02: from を全効果耐性→BANISH に是正＝バニッシュ以外の効果では免疫にならない（過剰保護解消）
+  {
+    const st = withProt('WX09-CB02');
+    const im = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, effectsMap, false, 'シグニ');
+    ok(!im.has('WX09-CB02'), 'WX09-CB02: シグニ効果への完全免疫は付かない（BANISH 軸のみ）');
+  }
+  // WX15-031-LAYER: コスト合計5以上のアーツ/スペルのみ免疫（sourceCostMin ゲート）
+  {
+    const grant = effectsMap.get('WX15-031')!.find(e => e.effectId === 'WX15-031-LAYER')!;
+    const inner = (grant.action as { abilities: CardEffect[] }).abilities[0];
+    const st = mkState({ signi: ['WX15-031'] });
+    const em = new Map(effectsMap); em.set('WX15-031', [inner]);
+    const hiArts = findCard(c => c.Type === 'アーツ' && costTotal(c) >= 5);
+    const loArts = findCard(c => c.Type === 'アーツ' && costTotal(c) >= 1 && costTotal(c) < 5);
+    const imHi = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, em, false, 'アーツ', hiArts);
+    const imLo = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, em, false, 'アーツ', loArts);
+    ok(imHi.has('WX15-031') && !imLo.has('WX15-031'), 'WX15-031: コスト5以上のアーツのみ免疫（sourceCostMin）');
+  }
+  // keyword_grants 経由（WX08-017 の実行後状態を模擬）: PROTECTION:アーツ:opponent を読む
+  {
+    const holder = findSigni(() => true);
+    const st = mkState({ signi: [holder] });
+    (st as { keyword_grants: Record<string, string[]> }).keyword_grants = { [holder]: ['PROTECTION:アーツ:opponent'] };
+    const im = collectEffectImmuneSigni(st, emptyOpp, cardMap as Map<string, CardData>, effectsMap, false, 'アーツ');
+    ok(im.has(holder), 'keyword_grants の PROTECTION:アーツ:opponent がアーツ源で免疫（WX08-017 count:ALL 経路）');
+  }
+});
+
 // ── 続き143: 「この方法で〔フィルタ〕がN枚以上〜した場合」CONDITIONAL 持ち上げ（LAST_PROCESSED_MATCHES minCount）＝
 // 結果カウント閾値（Cluster B）。ミル結果の一致枚数が閾値未満なら発火しない回帰ガード（過剰実行にならない）。
 test('LAST_PROCESSED_MATCHES minCount 閾値: この方法で黒N枚以上トラッシュ→ゲート（2枚→発火／1枚→不発・続き143）', () => {
