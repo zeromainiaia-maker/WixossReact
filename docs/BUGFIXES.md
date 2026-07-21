@@ -4,6 +4,28 @@
 
 ---
 
+## タスク16（timing 語彙センサス）＝WX17-032「正面以外のシグニをバニッシュしたとき」を消化（新設 targetsBattleAttacker 込み）（2026-07-21・続き236・Sonnet（Opusタスク16を試行））
+
+**背景**＝`npm run census:timing` 残41効果/38クラスタから、triage台帳（`docs/_timing_census_triage.txt`）で [B]（軽量engine拡張）と判定されていた「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」（WX17-032-E1）を消化。取りかかってみると **triage の[B]判定は「軽量」の保証ではなかった**＝action側にも新規 engine 配線が要る[B]〜[C]境界級だったが、範囲が1カードに閉じていたため実装した。
+
+**(1) timing／triggerCondition（trigger側）**
+- 従来の `ON_SIGNI_BANISH_OPPONENT` 判定 regex（`effectParser.ts:3860`）は `バトルによって` の直後に `【チャーム】が付いている`／`対戦相手の`／`凍結状態の|感染状態の` のいずれかしか許容せず、「正面以外の」を取りこぼして **ON_PLAY（場に出ただけで発火）** へ誤フォールバックしていた。
+- **修正**＝regex に `(?:正面以外の)?` を追加＋新設 `triggerCondition.banishedNotFront`（`types/effects.ts`）を抽出。engine の `battleBanishEntries`（`BattleScreen.tsx` 内 `resolvePendingSigniBattleFor`）に「被バニッシュゾーン（`banishedZoneIdxBB`）とアタッカーの対象ゾーン（`opZoneIndex`＝側面アタック/リダイレクトも追従）が一致する場合は発火しない」ゲートを追加。decompiler（`scripts/decompileEffects.ts`）は triggerScope（self/any_ally）を反映して「このシグニが／あなたのシグニが」を出し分けるよう `banishedFilter` 側の描画も一般化。
+
+**(2) 「そのアタックしているシグニをアップする」（action側・新規 engine 配線）**
+- WX17-032 の主語は「**あなたの**シグニが」＝`triggerScope:any_ally`（能力ホスト自身に限定しない・WXEX2-40 と同型）。当初 WXK04-044（`このシグニがバトルによって正面をバニッシュしたとき`＝`triggerScope:self`）を前例に `thisCardOnly` で実装したが、**any_ally scope では「バニッシュした実アタッカー」と「能力ホスト（WX17-032自身）」が別カードになりうる**ため誤り（WX17-032が温存され別の自シグニが非正面バニッシュした場合、`thisCardOnly` は無関係な WX17-032自身をアップしてしまう）。
+- 既存の `targetsTriggerSource`（`ctx.triggeringCardNum`）も使えない＝この push サイトの `triggeringCardNum` は既に「被バニッシュ相手カード」（`そのシグニのレベル以下`等の参照用）に専有されており転用すると他カードの意味を壊す。
+- **修正**＝新設 `UpAction.targetsBattleAttacker` ＋ `StackEntry.battleAttackerCardNum` ＋ `ExecCtx.battleAttackerCardNum` を新規配線（`battleBanishEntries` push 時に `myTopNum`＝実アタッカーを保持）。`execUp`（`effectExecutor.ts`）に `targetsTriggerSource` と並ぶ新分岐を追加。parser（`parseSentencePart1.ts`）は「そのアタックしているシグニ」を検出して `targetsBattleAttacker:true` を出す。decompiler は「そのアタックしているシグニをアップする」を専用描画。
+- 語彙センサス（`scripts/vocabCensus.ts`）の「除外(〜以外の)」カテゴリの偽陽性検出 keys が `thisCardOnly` 採用時に偶然一致していた（`banishedNotFront` 自体は未登録）ため、`targetsBattleAttacker` 採用後に再フラグしていたのを発見＝keys に `NotFront` を追加して恒久対応。
+
+**ゲート**＝golden 540→**542**（構造固定テスト＋`targetsBattleAttacker` の実行検証＝能力ホストと実アタッカーが別カードのケースを直接検証）・smoke 10722全OK・fuzz 全0・census 1839→**1838**・census:timing 41→**40**効果（38→37クラスタ）・同型★0・lint 0 errors・typecheck。decompile再生成済＝`【自】あなたのシグニがバトルによって正面以外の対戦相手のシグニをバニッシュしたとき：《once_per_turn》そのアタックしているシグニをアップする`（原文と忠実一致）。
+
+**教訓（次に triage 台帳を消化する Opus/Sonnet 向け）**＝`docs/_timing_census_triage.txt` の [A]/[B]/[C] 判定は trigger 側（timing/triggerScope/triggerCondition）だけを見た一次判定で、**action 側の対象解決（「そのシグニ」「そのアタックしているシグニ」等の照応先）は別途 individual 確認が要る**。特に `triggerScope:any_ally` の効果で「能力ホスト」と「トリガーを引き起こした実カード」が食い違う可能性があるケースは `thisCardOnly` を安易に使わない（WD12-013/WD12-015 の「アップ状態の**この**シグニ」＝能力ホスト自身を指す語彙と、WX17-032 の「**その**アタックしているシグニ」＝トリガー主語を指す語彙は文面上似ていても意味が違う）。
+
+**残（タスク16）**＝40効果/37クラスタ。残る [A] 候補はほぼ枯渇＝大半が [C]（§6.3 新機構待ち）と [B]（軽量〜中量 engine 拡張・個別に action 側も要確認）。詳細 `docs/_timing_census_triage.txt`。
+
+---
+
 ## タスク16（timing 語彙センサス）＝受身形トリガー2件を消化（ON_ACCE「アクセされたとき」＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれたとき」＋正面ダウン engine 拡張）（2026-07-21・続き235・Opus）
 
 **背景**＝`npm run census:timing`（【自】なのに parser が timing を取りこぼし ON_PLAY へ誤フォールバックした効果の計器）の残43効果/40クラスタから、engine 収集関数が既存の [A]（parser regex で直る）候補2件を消化。いずれも**能動形しか見ていなかった regex が受身形を取りこぼす**同型。census:timing 43→41効果・40→38クラスタ。
