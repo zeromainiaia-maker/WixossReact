@@ -709,8 +709,9 @@ function actionJa(a?: Action, effectType?: string): string {
         && a.target.count !== 'ALL' && !a.target.filter
         && (a.target.owner === 'self' || a.target.owner === 'any');
       const subjOwnerJa = a.subjectFilter ? ownerJa(a.subjectOwner ?? 'self') : '';
+      const subjNoun = a.subjectFilter?.cardType === 'レゾナ' ? 'レゾナ' : 'シグニ';
       const subject = protThisOnly ? 'このシグニ'
-        : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + 'シグニ';
+        : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
