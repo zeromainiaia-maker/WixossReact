@@ -6,6 +6,7 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-21・続き236・Sonnet（Opusタスク16を試行）・**WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき、そのアタックしているシグニをアップする」を消化＝timing regex に「正面以外の」追加＋新設 `triggerCondition.banishedNotFront`（engine `battleBanishEntries` でアタッカー正面ゾーンと被バニッシュゾーンの不一致を判定）。UP先「そのアタックしているシグニ」は any_ally scope で能力ホスト≠実アタッカーになりうるため `thisCardOnly` は誤り＝新設 `targetsBattleAttacker`（`StackEntry.battleAttackerCardNum`／`ExecCtx.battleAttackerCardNum` 経由）で解決＝タスク16[B]が実際には新規 engine 配線を要した1例。census:timing 41→40効果・golden 540→542・census 1839→1838。詳細 BUGFIXES 続き235）**
 - **🆕 セッション（2026-07-21・続き235・Opus・**タスク16（timing 語彙センサス）継続＝**受身形トリガー2件を消化**＝ON_ACCE「アクセされたとき」＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれた」（正面ダウン engine 拡張込み）。census:timing 43→**41**効果・golden 537→**540**・census 1839 維持）**
 - **🆕 セッション（2026-07-21・続き233・Opus・**§6.3 機構待ちを3系統消化＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火（+凍結フィルタ+効果限定+離脱直前 state スナップショット機構）／REVEAL_AND_PICK remainder の shuffle 語彙。golden 535→**537**・census 1841→**1839**）**
   - **(1) ON_LEAVE_FIELD 跨サイド any_opp watcher（WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1）**＝相手シグニの離脱を見る watcher 効果3枚が parser の scope 抽出欠落で `triggerScope=self`（自身離脱でしか発火せず）に潰れていた。跨サイド収集機構は続き218b で既存＝**データ側の scope/cond 欠落だけ**。ただし「凍結状態の」は離脱**直前**盤面が要る。
