@@ -1071,6 +1071,7 @@ export interface LookPickChainStage {
   then: 'hand' | 'energy' | 'trash' | 'field' | 'beat'; // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
+  suppressOnPlay?: boolean;       // then:'field' 限定。「その（それらの）シグニの【出】能力は発動しない」（AddToFieldAction 参照）
 }
 export interface LookPickChainAction {
   type: 'LOOK_PICK_CHAIN';
