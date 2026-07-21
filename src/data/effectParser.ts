@@ -3508,7 +3508,7 @@ function parseActionTextInner(text: string): EffectAction {
       // TRANSFER_TO_DECK（デッキに戻す/加える）も engine が lastProcessedCards を記録する（execTransferToDeck の
       // LRIG_TRASH_CARD/TRASH_CARD/HAND_CARD/DECK 全分岐＝ALL・選択の両経路）。「この方法でカードをN枚デッキに
       // 加えた/戻した場合」の結果カウント条件（parseThisWayGenericCount の「デッキに(加え|戻)」）を拾えるよう含める。
-      const prevIsProcessRecorder2 = prevStep?.type === 'TRANSFER_TO_DECK';
+      const prevIsProcessRecorder2 = effPrev?.type === 'TRANSFER_TO_DECK';
       // WXDi-P05-086: トラッシュから手札に加えた対象カード名を直後に判定する。
       // TRANSFER_TO_HAND は選択結果を lastProcessedCards に残すが、一般化すると既存の照応曖昧文まで拾うため原文節で限定する。
       const prevIsNamedTransferToHand = prevStep?.type === 'TRANSFER_TO_HAND' &&
