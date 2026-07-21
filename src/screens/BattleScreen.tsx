@@ -10769,6 +10769,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !(my.blocked_actions?.includes(e.effectId)) &&
         !isActionBlocked('USE_ACT') &&
         (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP' || phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG') &&
+        // timing↔phase 照合（(li)）＝MAIN専用はメインのみ／《アタックフェイズアイコン》専用はアタックフェイズのみ surface する
+        keyActivatedTimingMatchesPhase(e.timing, phase) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, keyNum, phase, effectivePowers)),
       );
       for (const eff of activatable) {
