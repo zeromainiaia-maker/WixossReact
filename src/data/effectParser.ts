@@ -5381,6 +5381,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = markSelfPM(resolvedAction);
   }
 
+  // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION を配置アンカーへ畳み込む（タスク12(xxix)）
+  resolvedAction = foldSuppressOnPlay(resolvedAction);
+
   const duration: EffectDuration = effectType === 'CONTINUOUS' ? 'PERMANENT'
     : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
     : 'INSTANT';
