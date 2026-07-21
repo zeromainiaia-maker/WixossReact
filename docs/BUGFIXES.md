@@ -4,6 +4,23 @@
 
 ---
 
+## §3 タスク12(xxxix) 残テールの tractable 分2枚＝WXK10-045 の動的レベルフィルタ `levelLteHandDiff` 新設＋SPDi43-30 の先頭カード名条件の欠落補完（golden 556→557・census 1825維持）（2026-07-21・続き242・Opus）
+
+タスク12(xxxix)「逆翻訳全文照合で検出した条件以外の原文不一致」の残（続き213 で「同型クラスタが無く §6.3 送りか個別対応」と判断した寄せ集め）のうち、**新規§6.3機構を要さない tractable な2枚**を個別に消化した。残る「このアタックを無効にし」系3枚・WXK09-003 赤分岐（ライフクロス→エナ新ゾーン）・WXDi-P06-039 の「このシグニの下にあった」照応・Magic Box 3件は、いずれも単発の§6.3機構待ちで据置。
+
+- **WXK10-045-E1「その枚数の差以下のレベルを持つ対象の対戦相手のシグニ１体をバニッシュ」の動的レベルフィルタ**＝続き219 で `HAND_DIFF{gt,0}` ゲート（手札が相手より多い場合）は配線済みだったが、**「差以下のレベル」の動的フィルタが未実装＝ゲート通過後は相手シグニを無制限にバニッシュする過剰効果**として明記のまま残っていた。既存の単発動的レベルフィルタ（`levelLteFieldVirusCount`／`levelLteLastProcessed`／`levelLteDiscardSigni`）と同型で **`levelLteHandDiff` を4層に配線**：
+  - **型**（`TargetFilter`）＝`levelLteHandDiff?: boolean`。
+  - **engine**（`resolveDynamicFilter`）＝`level.max = max(0, ownerSt.hand.length − otherSt.hand.length)` へ解決。`ownerSt` は常に効果キャスター＝self ゆえ target が相手シグニでも「自分−相手の手札差」を正しく計算（`levelLteFieldVirusCount` が相手対象でも caster 基準で計算するのと同じ）。HAND_DIFF ゲート下でのみ実行されるが防御的に `max(0,diff)` でクランプ。
+  - **parser**（`parseHandDiffLevelFilter`）＝「枚数の差以下のレベルを持つ」検出で `levelLteHandDiff:true` を emit し `parseSigniTarget` の filter へ配線。「レベルN以下」（数字あり）の `parseLevelFilter` とは非衝突（数字なし語形）。
+  - **decompiler**＝「あなたと対戦相手の手札の枚数の差以下のレベルを持つ」を描画。
+  - **単発だが正当**＝「差以下のレベル」は全CSVで2枚（WXK10-045＋WXEX2-80）だが、WXEX2-80 は「公開されたシグニ2枚のレベルの差」＝reveal 基準の別機構（§6.3級・別物）。無制限バニッシュの過剰効果を是正する方向で、`levelLteFieldVirusCount`（単発 WX16-005）と同じ「単発動的フィルタは前例あり」の判断。build:effects で WXK10-045 のみ変化（1カード）を機械確認。
+- **SPDi43-30-E1 の先頭カード名条件の欠落**（MANUAL・続き219b で「持ち上げは効くが選択肢内ドリフトのため据置」とされた分）＝原文「あなたの場に《アンストッパブル　Dr.タマゴ》がいる場合、以下の２つから選ぶ」の**先頭条件が丸ごと欠落**し、毎アタックフェイズ開始時に無条件で CHOOSE が発火していた。219b の汎用持ち上げ（`matchLeadingStateCondition`）は AUTO カードにしか効かず MANUAL の本カードは据置になっていた。選択肢内ドリフト（①DOWN の `optional:true`・②の `HAND_COUNT{eq,0}` ゲート）は**続き225 の optional pass で既に是正済み**と確認できたため、残る欠落は先頭条件のみ。`HAS_CARD_IN_FIELD{owner:self, filter:{cardName:'アンストッパブル　Dr.タマゴ'}}`（WX24-P2-048 と同型・matchesFilter の cardName で照合）を MANUAL 直付与。
+- **WX25-P2-085 は既に解決済みと確認**＝219b の姉妹据置カードだが、現行 JSON は condition（`HAS_CARD_IN_FIELD{武勇,excludeSelf}`）も ②DOWN の `optional:true` も持ち原文と一致（続き225 の optional pass で着地済み）＝追加修正不要。
+- **golden**＝`levelLteHandDiff` 解決の回帰ガードを1件追加（自手札5−相手手札3=差2→Lv2 相手シグニ除去・Lv4 残存／差1では Lv2 も対象外で盤面不変）。**engine 解決を `&& false` で無効化すると「差1で Lv2 が誤除去され盤面不変アサートが落ちる」ことを実測確認**（空テストでない）。golden 556→557。
+- **検証**＝全ゲート緑（typecheck／**golden 557**／smoke 10722 OK・0／fuzz 0／**census 1825 維持**〔両カードとも既に census シグナル無し＝過剰トリガーではなく filter/condition 欠落の精緻化〕／lint 0 errors）。`npm run regen` で逆翻訳が「あなたの場に《アンストッパブル　Dr.タマゴ》がいる場合」「差以下のレベルを持つシグニ…をバニッシュ」へ復活することを確認。effects_WXK.json は WXK10-045 のみ・effects_misc.json は SPDi43-30 のみ変化を機械確認。
+
+---
+
 ## §3 タスク12 (xxii) 後置条件節の IS_MY_TURN 化＝ラップされた recorder の検出漏れを消化（partial 50→44・golden 554→556・census 1826→1825）（2026-07-21・続き241・Opus）
 
 PLAN §3 Opusタスク12 (xxii)「後置条件節の IS_MY_TURN 誤変換」の残のうち、**recorder（lastProcessedCards を残すアクション）が先頭ガード CONDITIONAL や連文 SEQUENCE にラップされていて parser の前段検出（`prevRecords`）が外れ、「その後、この方法で〜した場合」が IS_MY_TURN（＝あなたのターン中は常時真）へ化けていた系統**を消化した。
