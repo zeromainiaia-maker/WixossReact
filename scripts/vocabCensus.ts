@@ -296,7 +296,7 @@ const PATTERNS: Pattern[] = [
   {
     name: '除外(〜以外の)',
     re: /以外の(シグニ|カード|スペル|ルリグ)/,
-    keys: ['xclude', 'nonColorless', 'noGuard', 'thisCardOnly', 'exceptSource'],
+    keys: ['xclude', 'nonColorless', 'noGuard', 'thisCardOnly', 'exceptSource', 'NotFront'],
   },
   {
     name: 'ターン1回制限',
