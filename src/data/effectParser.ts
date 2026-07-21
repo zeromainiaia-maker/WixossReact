@@ -3229,7 +3229,19 @@ function parseActionTextInner(text: string): EffectAction {
 
   const steps: EffectAction[] = [];
   let prevRawSentence = '';
-  for (const s of sentences) {
+  // ドリームチーム系ピースの reveal seed（上 dreamRevealLead）：先頭2文の REVEAL_AND_PICK を先頭条件で
+  //   CONDITIONAL ラップして steps[0] に積み、後続「その後、…の場合、X」セグメントだけをループに回す。
+  let loopSentences = sentences;
+  if (dreamRevealLead) {
+    const revealBody = (dreamRevealLead[2].endsWith('。') ? dreamRevealLead[2] : dreamRevealLead[2] + '。') + sentences[1];
+    const revealAction = parseActionText(revealBody);
+    const leadCond = parseHoistStateCondition(dreamRevealLead[1] + '、');
+    if (revealAction.type !== 'UNKNOWN') {
+      steps.push(leadCond ? { type: 'CONDITIONAL', condition: leadCond, then: revealAction } as EffectAction : revealAction);
+      loopSentences = sentences.slice(2);
+    }
+  }
+  for (const s of loopSentences) {
     const clean = s.trim();
     if (!clean) continue;
     // 直前文の原文（2文型規則が S1 の対象節を参照するために保持。continue で飛んでも常に直前の非空文を指す）
