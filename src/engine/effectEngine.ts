@@ -4112,9 +4112,13 @@ export function collectEffectImmuneSigni(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   isOwnerTurn: boolean,
   sourceCardType: string,
+  sourceCardNum?: string,
 ): Set<string> {
   const immune = new Set<string>();
   const srcType = sourceCardType ?? '';
+  // sourceCostMin（「コストの合計がN以上の、アーツとスペルの効果を受けない」WX15-031）判定用に
+  // 解決中ソースカードの使用コスト合計を求める（《色×N》の合計・コイン除く＝matchesFilter.costMin と同基準）。
+  const srcCard = sourceCardNum ? cardMap.get(getCardNum(sourceCardNum)) : undefined;
   // アシストルリグも「ルリグ」の効果。レゾナはシグニ扱い。
   const srcIsLrig = srcType.includes('ルリグ');
   const srcIsSigni = srcType.includes('シグニ') || srcType.includes('レゾナ');
