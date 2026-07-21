@@ -838,7 +838,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
         : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'
         : '残りを好きな順番でデッキの一番下に置く';
-      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。その中から${(a.stages || []).map(stageJa).join('、')}、${remJa}`;
+      const supLPC = (a.stages || []).some((s: any) => s.then === 'field' && s.suppressOnPlay) ? '。その【出】能力は発動しない' : '';
+      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。その中から${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}`;
     }
     case 'REVEAL_AND_PICK': {
       const rapOwner = a.owner ?? a.from?.owner;
