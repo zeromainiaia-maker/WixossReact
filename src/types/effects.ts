@@ -349,6 +349,7 @@ export interface TargetFilter {
   eachDistinctLevel?: boolean; // 選択した複数枚がそれぞれレベルの異なる（G256「それぞれレベルの異なる＜X＞のシグニ2枚」）。逆翻訳の表示用＋選択補助（厳密enforce はTODO）
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
+  isDrive?:   boolean; // ドライブ状態のシグニ（ownerState.lrig_riding_signi に含まれる＝ルリグに乗られている乗機シグニ）。matchesStateFilter で判定（「あなたのドライブ状態のシグニ」WXEX1-37）
   isFrozen?:  boolean;
   isAwakened?: boolean; // 覚醒状態のシグニ（ownerState.awakened_signi にCardNumが含まれる）。「レベルNの覚醒状態のシグニがある場合」等。matchesStateFilter/execUtils HAS_CARD_IN_FIELD で判定（WXDi-P14-054/058/066）
   isPuppet?: boolean; // 傀儡状態のシグニ（field.puppet_signi にインスタンスIDが含まれる）
