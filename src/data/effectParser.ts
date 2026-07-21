@@ -4327,6 +4327,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerCondObj = lvc;
         }
       }
+      // ON_LEAVE_FIELD 自己スコープ「…このシグニが場を離れたとき、このシグニがアクセされていた場合、X」
+      //   ＝離脱**直前**にこのシグニ（＝離脱カード自身）がアクセされていた場合のみ発火（WX20-071・§3 タスク3）。
+      //   THIS_CARD_IS_ACCED は「現在の場」を見るため離脱後は常に false（＝action-level CONDITIONAL では死ぬ）。
+      //   engine の leftStateFilter{hasAcce}（collectLeaveFieldTriggers が離脱直前 state で matchesStateFilter 評価）
+      //   へ寄せ、条件節を actionText から除去して後続の 3項 SEQUENCE（エナ置き＋ドロー＋場出し）を解けるようにする。
+      if (timing[0] === 'ON_LEAVE_FIELD' && /このシグニがアクセされていた場合[、,]/.test(actionText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), leftStateFilter: { hasAcce: true } };
+        actionText = actionText.replace(/このシグニがアクセされていた場合[、,]/, '');
+      }
       // ON_HAND_DISCARDED の triggerFilter（捨てたカードの種別限定）＝「＜X＞のシグニ」「《ディソナアイコン》のカード」「シグニ」。
       if (timing[0] === 'ON_HAND_DISCARDED') {
         const hdM = actionText.match(/あなたが(?:手札から)?(＜[^＞]+＞の|《ディソナアイコン》の)?(シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/);
