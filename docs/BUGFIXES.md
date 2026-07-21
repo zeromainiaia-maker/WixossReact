@@ -4,6 +4,28 @@
 
 ---
 
+## §3 タスク6「代わりに」残テール＝per-target 値すり替えの B1残 tractable 分4枚＋WX16-021 無害化（2026-07-21・続き235b・Opus）
+
+**背景**＝§3 タスク6「代わりに」残テールのうち、**per-target 値すり替え**（「対戦相手のシグニ1体を対象とし、それのパワーを－N。＜条件＞の場合、代わりに－M」）の残9枚を条件別に精査。条件語彙が既存 engine 機構に乗る4枚を消化し、残5枚（単発 turn-counter/cost-tracking＝真の§6.3）は「過剰語彙を作らない」方針で据置と切り分けた。従来この4枚は「それ」の先行詞が失われ、enhanced が **owner:any の別対象へ二重適用**（例 WX25-P2-102＝相手シグニに－5000、さらに自分または相手のシグニ1体に－8000）する**過剰効果**だった。**golden 542→545・census 1838→1836・smoke/fuzz 全0・同型★0・lint 0**。
+
+**(1) target-property 条件（チャーム3枚＝WX25-P2-102/107/109）**
+- 「それに【チャーム】が付いている場合、代わりに－M」は**選択済み対象自身のプロパティ条件**（盤面状態ではない）＝CONDITIONAL の then/else が対象を再選択する置換モデルでは表現できない（条件を対象選択前に評価できない）。**base を常時適用し、条件成立時に差分だけ同一対象へ加算する加算モデル**（`LAST_PROCESSED_MATCHES{filter:{hasCharm}}` ＋ `POWER_MODIFY{targetsLastProcessed, delta:-(M-N)}`＝MANUAL 正解 WXDi-P07-079 と同型）で表現。
+- engine：`LAST_PROCESSED_MATCHES`（execUtils）は従来 `matchesFilter`（CardData のみ）で hasCharm 等の**ゾーン状態を黙って無視**していた。ゾーン状態フィルタ指定時のみ、直前対象を場から探して `matchesStateFilter`（effectEngine・hasCharm 等）で照合するよう拡張（`findFieldZoneState` 新設）。
+- parser：SEQUENCE 組み立てループ（effectParser.ts）に「それに【チャーム】が付いている場合、代わりに(ターン終了時まで、)それのパワーを－Mする」を検出して加算 CONDITIONAL を push する規則を追加（WX25-P2-109 は付与内側の引用 ability でも同経路で正エンコード）。
+
+**(2) 盤面状態条件（傀儡場1枚＝WXK09-057-E2）**
+- 「あなたの場に傀儡状態のシグニがある場合、代わりに－M」を `HAS_CARD_IN_FIELD{owner:self, filter:{isPuppet:true}}`（engine の evalCondition は puppet_signi 走査を実装済）で表現＝既存の per-target 値すり替え経路（`matchLeadingStateCondition`）に乗せるため `STATE_CONDITION_CLAUSES` に1行追加。
+- ⚠**巻き添え回避**：heldReview は**カード単位**で fresh を採用するため、同カード E1「あなたか対戦相手のデッキの上から3枚トラッシュ」の CHOOSE が fresh 側で単一 TRASH へ退化（別系統の parser 限界）していた。E1 の**元 CHOOSE を復元し MANUAL 刻印**して保護（E2 の修正は維持）。
+
+**(3) WX16-021（驚天動地・アーツ）の有害幻覚を無害化**
+- 原文＝「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりに正面にあるかのようにダメージを与える」＝**アタック幾何機構（§6.3）**。これが 0コスト（《緑》×0）無条件 `LIFE_CRASH`（メイン起動でライフ1クラッシュ）へ幻覚化し、**毎メイン無条件でライフを割る極端な過剰効果**になっていた。真の機構は engine のアタックレーン模型の理解が要る§6.3のため、`STUB{ARTS_ATTACK_EMPTY_ZONE_AS_FRONT}` no-op へ無害化（MANUAL・costText に原文保持）。
+
+**回帰ガード（golden+3）**＝(a)`LAST_PROCESSED_MATCHES{hasCharm}` の両側 assert（チャーム持ち→-8000／無し→-5000のみ）(b)`HAS_CARD_IN_FIELD{isPuppet}` の両側（傀儡あり→-7000／なし→-3000）(c)採用4枚の構造固定。
+
+**残（すべて単発§6.3の長テール）**＝B1残5枚（ターン中イベント counter＝WXDi-P11-067「手札2枚捨て」・WX14-070「効果でダウン→アップ」・WXK06-071「4枚デッキ移動」／コスト参照＝WDK17-014「傀儡をコストでトラッシュ」・WX25-P2-101「レベル1をコストで捨て」）・D:置換ルール9（WX04-052 は CHARM_PROTECTION 実装済＝偽陽性混在・各々別バニッシュ置換機構）・C:コスト代替6・E:リコレクト2＋WX16-021 のアタック幾何。いずれも1カード級の専用機構待ちで、census「代わりに(置換)」高シグナルは偽陽性・長テールが大半（PLAN §3 タスク6 に明細）。
+
+---
+
 ## タスク16（timing 語彙センサス）＝WX17-032「正面以外のシグニをバニッシュしたとき」を消化（新設 targetsBattleAttacker 込み）（2026-07-21・続き236・Sonnet（Opusタスク16を試行））
 
 **背景**＝`npm run census:timing` 残41効果/38クラスタから、triage台帳（`docs/_timing_census_triage.txt`）で [B]（軽量engine拡張）と判定されていた「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」（WX17-032-E1）を消化。取りかかってみると **triage の[B]判定は「軽量」の保証ではなかった**＝action側にも新規 engine 配線が要る[B]〜[C]境界級だったが、範囲が1カードに閉じていたため実装した。
