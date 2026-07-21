@@ -7557,6 +7557,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               if (!matchesFilter(battleCardMap.get(getCardNum(banishedOpCardNum)), bfBB)) continue;
               if (banishedZoneIdxBB < 0 || !matchesStateFilter(opS, banishedZoneIdxBB, bfBB)) continue;
             }
+            // banishedNotFront: 被バニッシュシグニがアタッカーの正面ゾーン（opZoneIndex＝本バトルの対象ゾーン。
+            // 犠牲/リダイレクトで実際の対象ゾーンが変わった場合も同じ opZoneIndex を正面として扱う）と
+            // 一致する場合は発火しない（WX17-032「正面以外のシグニをバニッシュしたとき」）。
+            if (eff.triggerCondition?.banishedNotFront && banishedZoneIdxBB === opZoneIndex) continue;
             // condition を持つAUTOは条件を満たす場合のみ収集（例: WXK04-044 血晶武装中のみアップ）
             if (eff.condition && !evalUseCondition(eff.condition, newMyState, newOpState, battleCardMap, topNumBB, bs.turn_phase, effectivePowers)) continue;
             if (eff.usageLimit === 'once_per_turn' &&
