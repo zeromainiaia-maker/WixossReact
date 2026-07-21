@@ -149,6 +149,7 @@ function filterJa(f?: any): string {
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
   if (f.powerLteLastProcessed) parts.push('直前に処理したシグニのパワー以下の');
   if (f.powerLtLastProcessed) parts.push('（その後）そのシグニよりパワーの低い');
+  if (f.levelLteHandDiff) parts.push('あなたと対戦相手の手札の枚数の差以下のレベルを持つ');
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
