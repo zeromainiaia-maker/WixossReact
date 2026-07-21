@@ -1682,6 +1682,15 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     }
     return done(ctx);
   }
+  // targetsBattleAttacker: 「そのアタックしているシグニ」= バトルを行ったアタッカー自身を無選択でアップ（ON_SIGNI_BANISH_OPPONENT
+  // any_ally 等・能力ホスト＝topNumBB とアタッカーが別カードになりうるため sourceCardNum は使えない。WX17-032）
+  if (a.targetsBattleAttacker) {
+    const autoNum = ctx.battleAttackerCardNum;
+    if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
+      return done(applyUp([autoNum], ctx));
+    }
+    return done(ctx);
+  }
   const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyUp(selected: string[], c: ExecCtx): ExecCtx {
