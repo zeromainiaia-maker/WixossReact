@@ -63,7 +63,7 @@ SP27-005-E1を直接確認＝原文「そのシグニを手札に加えるか場
 | あなたのトラッシュから（hand-add zone） | 13 | **✅消化（続き226・機構不要）** | 同上の照応先ロストの TRANSFER_TO_HAND 版＝`source:DECK_CARD`→`TRASH_CARD` 復元ハンドラ `applyLeadingTrashHandAnaphora` を新設。上と同一バッチで消化。詳細 BUGFIXES 続き226 |
 | 対戦相手のルリグ1体（DOWN/能力ロック/GRANT 系） | ~5 | ⛔一部§6.3 | DOWN-on-lrig／REMOVE_ABILITIES-on-lrig／BLOCK_ACTION は複雑CHOOSE札に埋没＝engine対応と要個別確認。凍結系と分けて据置 |
 | ルリグかシグニ1体 | 10 | ⛔§6.3 | NEGATE_ATTACK の対象種別union（ルリグ∨シグニ）機構が要る |
-| そのシグニの【出】能力 | 8 | ⛔§6.3 | 「この効果で場に出したシグニだけ」の能力ロックのスコープ機構が要る（現状は自プレイヤーの【出】全般を封じる過剰効果） |
+| そのシグニの【出】能力 | 8 | **✅続き243（Opus）で忠実表現化＝偽陽性** | finding は「自プレイヤーの【出】全般を封じる過剰効果」と主張していたが**挙動上は偽陽性**＝(1)`BLOCK_ACTION{ON_PLAY_ABILITY}` は engine 未参照の死アクション (2)ADD_TO_FIELD 経路は効果配置シグニの自身【出】を発火させない（自身【出】は REVEAL_UNTIL_TO_FIELD のみ・当クラスタ非使用）ため抑制は既定で満たされる。死アクションを配置アクションの `suppressOnPlay` フラグへ畳む fold を parser に新設（76効果折込・22効果はアンカー無し据置）。詳細 BUGFIXES 続き243 |
 | 以下の3つから1つを選ぶ | 9 | ⛔§6.3 | BET機構 |
 | 手札をN枚捨てないかぎり | 14 | ⛔§6.3 | unless（不成立分岐）未実装 |
 
