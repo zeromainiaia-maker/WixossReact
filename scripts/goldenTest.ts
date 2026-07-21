@@ -1653,6 +1653,53 @@ test('引用付与の内側トリガー: 「対戦相手のシグニかルリグ
   ok(innerScopes('WX15-002').includes('any_opp'), 'WX15-002: センタールリグ単独も any_opp（218j で経路新設）');
 });
 
+// ── §3 タスク3: DRAW/中間アクション脱落の parseSingleSentence 直呼び経路（続き238）。
+// 「対象とし」split ガードで中間アクションが脱落していた系統・ON_LEAVE_FIELD の leftStateFilter・
+//  ドリームチーム系ピースの多段条件節脱落を parser 構造で回帰ガードする。
+test('§3タスク3: 「対象とし＋エナ置き＋それをバニッシュ」が SEQUENCE[ENERGY_CHARGE_FROM_DECK, BANISH]', () => {
+  for (const num of ['WX05-024', 'WX13-034']) {
+    const b = parseCardEffects(cardMap.get(num)!).find(e => e.effectId === `${num}-BURST`)!;
+    const a = b.action as { type: string; steps: { type: string }[] };
+    eq(a.type, 'SEQUENCE', `${num}: BURST は SEQUENCE`);
+    eq(a.steps[0].type, 'ENERGY_CHARGE_FROM_DECK', `${num}: 先頭はエナチャージ（脱落回帰ガード）`);
+    eq(a.steps[1].type, 'BANISH', `${num}: 後続はバニッシュ`);
+  }
+});
+test('§3タスク3: WX20-071 ON_LEAVE_FIELD は leftStateFilter{hasAcce}＋3項 SEQUENCE（エナ置き/ドロー/場出し）', () => {
+  const e = parseCardEffects(cardMap.get('WX20-071')!).find(x => x.effectId === 'WX20-071-E1')!;
+  ok(e.timing?.includes('ON_LEAVE_FIELD' as never), 'timing は ON_LEAVE_FIELD');
+  eq((e.triggerCondition as { leftStateFilter?: { hasAcce?: boolean } })?.leftStateFilter?.hasAcce, true,
+    '「アクセされていた場合」→ leftStateFilter.hasAcce（現在場を見る THIS_CARD_IS_ACCED では離脱後 no-op）');
+  eq((e.triggerCondition as { turnOwner?: string })?.turnOwner, 'opponent', '対戦相手のターンの間→turnOwner');
+  const types: string[] = [];
+  const walk = (n: unknown): void => { if (!n || typeof n !== 'object') return; const o = n as Record<string, unknown>;
+    if (typeof o.type === 'string') types.push(o.type); for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); } };
+  walk(e.action);
+  ok(types.includes('ENERGY_CHARGE_FROM_DECK') && types.includes('DRAW') && types.includes('ADD_TO_FIELD'),
+    '3項すべて（エナ置き＋ドロー＋場出し）が生存');
+});
+test('§3タスク3: WXDi-P13-001 その後条件の帰結が SEQUENCE[TRANSFER_TO_DECK, TRASH]（bounce 脱落ガード）', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P13-001')!).find(x => x.effectId === 'WXDi-P13-001-E1')!;
+  let cond: { then?: { type: string; steps?: { type: string }[] } } | null = null;
+  const walk = (n: unknown): void => { if (!n || typeof n !== 'object') return; const o = n as Record<string, unknown>;
+    if (o.type === 'CONDITIONAL' && (o.condition as { type?: string })?.type === 'HAS_CARD_IN_FIELD') cond = o as never;
+    for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v); } };
+  walk(e.action);
+  ok(!!cond, 'ディソナ3体の CONDITIONAL が存在');
+  const then = cond!.then!;
+  eq(then.type, 'SEQUENCE', '帰結は SEQUENCE');
+  eq(then.steps![0].type, 'TRANSFER_TO_DECK', '先頭は相手シグニをデッキ下（bounce・脱落回帰ガード）');
+  eq(then.steps![1].type, 'TRASH', '後続は相手手札捨て');
+});
+test('§3タスク3: WXDi-P08-003 ドリームチームは白/赤/黒の3色 CONDITIONAL（後続セグメント脱落ガード）', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P08-003')!).find(x => x.effectId === 'WXDi-P08-003-E1')!;
+  const a = e.action as { type: string; steps: { type: string; condition?: { filter?: { color?: string } } }[] };
+  eq(a.type, 'SEQUENCE', 'トップは SEQUENCE');
+  const colors = a.steps.filter(s => s.type === 'CONDITIONAL').map(s => s.condition?.filter?.color);
+  ok(colors.includes('白') && colors.includes('赤') && colors.includes('黒'),
+    '白/赤/黒の色ルリグ条件が3つとも生存（REVEAL 早期 return による後続脱落の回帰ガード）');
+});
+
 test('timing census C: 指定9効果の parser timing とガード変種条件', () => {
   const expected: Array<[string, string, string]> = [
     ['WX16-028', 'WX16-028-E3', 'ON_TRAP_ACTIVATE'], ['WX16-040', 'WX16-040-E1', 'ON_TRAP_ACTIVATE'],
