@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
