@@ -4,6 +4,27 @@
 
 ---
 
+## §3 タスク9 完全解決＝§6.2 系統② GRANT_PROTECTION 効果耐性の subjectFilter/新機構（「あなたの[属性/状態]シグニは…効果を受けない」の広域偽陰性・過剰保護・SEQUENCE内・LAYER付与）（census 1831→1826・golden 551→552）（2026-07-21・続き239・Opus）
+
+PLAN §3 タスク9（§6.2 semantic audit 系統②残）を完全解決した。中核は **`collectEffectImmuneSigni`（effectEngine.ts）が `target:{count:'ALL'}` を honor せず効果元シグニ1体のみ保護していた偽陰性**＝「あなたの[属性/状態]シグニは対戦相手の…効果を受けない」が parser の `target:{count:'ALL',owner:self}` で吐かれ広域耐性が実質死んでいた系統（WXK04-002 血晶武装で確立済みの `subjectFilter` 変換手法を横展開）。
+
+**engine 追加**：
+- **`matchesStateFilter` に `isDrive`**（ドライブ状態＝`lrig_riding_signi` 含有）を追加。TargetFilter に `isDrive` を新設。
+- **`collectEffectImmuneSigni` に `sourceCardNum` 引数＋`sourceCostMin` ゲート**（「対戦相手のコストの合計がN以上の、アーツとスペルの効果を受けない」＝解決中ソースカードの Cost 合計で判定・WX15-031）＋subjectFilter の **`excludeSelf`**（「あなたの他のレゾナ」＝付与元自身を除外）。GrantProtectionAction に `sourceCostMin` を新設。
+- **effectEngine ローカル `matchesFilter`（execUtils 版とは別物）に `costMin`/`costMax`/`hasCrossIcon`/`hasRiseIcon`/`noRiseIcon` を追加**（未実装で `costMin`/`hasCrossIcon` が常に true 素通り＝sourceCostMin ゲートと WX09-CB02 のクロス限定が効かなかった。engine 検証テストで発覚）。
+- BattleScreen 3926 の呼び出しに `entry.cardNum` を渡す。decompiler は `sourceCostMin`（「コストの合計がN以上の、」）・subjectOwner プレフィックス・`isDrive`（「ドライブ状態の」）・cardType レゾナ名詞を描画。
+
+**是正した9カード**（すべて MANUAL・JSON 直パッチで反映）：
+- **WX05-024-E2**（パワー15000以上）／**WX09-016-E1**（ダウン状態）／**WX13-005A-E1**（他のレゾナ）／**WX19-048-E1**（名前《盾》・相手ターン）／**WXEX1-37-E1**（ドライブ状態）＝`target:{count:'ALL'}`→`subjectFilter`。
+- **WX09-CB02-E1**＝旧 `from:['シグニ','アーツ','スペル','ルリグ']`（＝全効果耐性の**過剰保護**）＋《クロス》条件脱落を `from:['BANISH']`＋`subjectFilter:{story:美巧,hasCrossIcon}` へ是正（バニッシュ保護のみ）。
+- **WX18-034-E1**＝広域ではなく「このシグニ」限定＋アクセ条件 → `count:1`＋`activeCondition:IS_SELF_ACCED`。
+- **WX08-017**（SEQUENCE内・アーツ）＝step2 `count:1→'ALL'`＋power30000＋`UNTIL_END_OF_TURN`（execGrantProtection が count:'ALL' を keyword_grants へ一括付与＝既存経路。step1 の POWER_MODIFY は INSTANT で temp_power_mods＝原文「ターン終了時まで」で正しい）。
+- **WX15-031-LAYER**（LAYER付与型）＝内側【常】GRANT_PROTECTION に `sourceCostMin:5`（`collectGrantedFromLayer` 経由で各＜怪異＞シグニへ付与され augMap の granted 能力を collectEffectImmuneSigni が読む）。
+
+**残（真の§6.3 へ登録・PLAN §6.3）**：発生源プロパティ限定（WXEX2-36/WXK11-021/WX11-027）・self-except（WX17-001）・相手エナゾーン免疫（WXK11-020）・トリガー元付与（WX14-049/WXEX1-58/WXK10-080/WD18-008）・動的盤面条件（WX12-Re09）・POWER_MODIFY 免疫5件（別 parser mis-parse＝no-op）。
+
+**検証**：全ゲート緑（typecheck/golden 552/smoke 10722 全OK/fuzz 0/census 1831→1826/lint 0error）。golden に効果耐性テスト1件追加（isDown 限定・ルリグ源無反応・from BANISH の過剰保護解消・hasCrossIcon 限定・sourceCostMin ゲート・keyword_grants 経路）。engine 単体検証で isDown/excludeSelf/sourceCostMin/hasCrossIcon の各挙動を確認済み。意味的変更はちょうど9カード（機械 diff で確認）。
+
 ## §3 タスク3 DRAW/中間アクション脱落を系統消化＝「対象とし」split ガード取りこぼし・ON_LEAVE_FIELD の leftStateFilter・ドリームチーム系ピースの多段条件節脱落（census 1836→1831・golden 546→551）（2026-07-21・続き238・Opus）
 
 PLAN §3 タスク3（DRAW 脱落の parseSingleSentence 直呼び経路）の tractable な残系統を一括消化した。engine 新機構は不要（既存の action 型・leftStateFilter・HAS_CARD_IN_FIELD 条件のみで忠実表現できることを実測で確認）。
