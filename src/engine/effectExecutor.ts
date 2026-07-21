@@ -1186,6 +1186,13 @@ function resolveDynamicFilter(
     const { levelLteFieldVirusCount: _, ...rest } = result;
     result = { ...rest, level: { max: ownVirus + oppVirus } };
   }
+  // levelLteHandDiff: レベルが自分と対戦相手の手札枚数の差（self−opp）以下（「その枚数の差以下のレベルを持つ」WXK10-045）。
+  // ownerSt は常に効果キャスター＝self。HAND_DIFF{gt,0} ゲート下でのみ実行されるが、防御的に max(0, diff) でクランプ。
+  if (result.levelLteHandDiff && otherSt) {
+    const diff = ownerSt.hand.length - otherSt.hand.length;
+    const { levelLteHandDiff: _, ...rest } = result;
+    result = { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: Math.max(0, diff) } };
+  }
   return result;
 }
 
