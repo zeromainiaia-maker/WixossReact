@@ -6,6 +6,7 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-21・続き235・Opus・**タスク16（timing 語彙センサス）継続＝**受身形トリガー2件を消化**＝ON_ACCE「アクセされたとき」＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれた」（正面ダウン engine 拡張込み）。census:timing 43→**41**効果・golden 537→**540**・census 1839 維持）**
 - **🆕 セッション（2026-07-21・続き233・Opus・**§6.3 機構待ちを3系統消化＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火（+凍結フィルタ+効果限定+離脱直前 state スナップショット機構）／REVEAL_AND_PICK remainder の shuffle 語彙。golden 535→**537**・census 1841→**1839**）**
   - **(1) ON_LEAVE_FIELD 跨サイド any_opp watcher（WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1）**＝相手シグニの離脱を見る watcher 効果3枚が parser の scope 抽出欠落で `triggerScope=self`（自身離脱でしか発火せず）に潰れていた。跨サイド収集機構は続き218b で既存＝**データ側の scope/cond 欠落だけ**。ただし「凍結状態の」は離脱**直前**盤面が要る。
   - **修正**＝①型に `triggerCondition.leftStateFilter?:TargetFilter`（`banishedFilter` の ON_LEAVE_FIELD 版）新設・`byEffect` は既存流用。②`detectLeftFieldSigni` が `zoneIdx` を返し、`collectLeaveFieldTriggers` に離脱直前 state スナップショット（`leftBeforeState`/`leftZoneIdx`）を配線＝`matchesStateFilter` で凍結評価（BattleScreen 中央diff 2箇所が before-state を渡す）。③engine any_opp/any_ally 分岐に `byEffect`（任意効果起因）＋`leftStateFilter` ゲート追加。④parser で「対戦相手の(凍結状態の)?シグニが(効果によって)?場を離れたとき」→any_opp+byEffect/leftStateFilter/turnOwner 抽出。build:effects 純改善自動採用・golden 3アサート追加。
