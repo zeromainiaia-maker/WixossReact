@@ -2171,12 +2171,15 @@ function effJa(e: Eff): string {
     if (t === 'ON_PLAY' && e.triggerCondition?.placedOnGateZone) {
       s = '対戦相手のシグニ１体が【ゲート】があるシグニゾーンに出たとき';
     }
-    // ON_SIGNI_BANISH_OPPONENT の banishedFilter（被バニッシュシグニの状態限定・WX16-079/WXK02-054/WXEX2-76 等）
-    if (t === 'ON_SIGNI_BANISH_OPPONENT' && e.triggerCondition?.banishedFilter) {
+    // ON_SIGNI_BANISH_OPPONENT の banishedFilter/banishedNotFront（被バニッシュシグニの状態/位置限定・
+    //   WX16-079/WXK02-054/WXEX2-76/WX17-032 等）。主語は triggerScope（self=このシグニ／any_ally=あなたのシグニ）。
+    if (t === 'ON_SIGNI_BANISH_OPPONENT' && (e.triggerCondition?.banishedFilter || e.triggerCondition?.banishedNotFront)) {
       const bf = e.triggerCondition.banishedFilter;
-      const stJa = bf.isFrozen ? '凍結状態の' : bf.infected ? '感染状態の' : '';
-      const charmJa = bf.hasCharm ? '【チャーム】が付いている' : '';
-      s = `このシグニがバトルによって${charmJa}対戦相手の${stJa}シグニをバニッシュしたとき`;
+      const stJa = bf?.isFrozen ? '凍結状態の' : bf?.infected ? '感染状態の' : '';
+      const charmJa = bf?.hasCharm ? '【チャーム】が付いている' : '';
+      const frontJa = e.triggerCondition.banishedNotFront ? '正面以外の' : '';
+      const subjJa = e.triggerScope === 'any_ally' ? 'あなたのシグニ' : 'このシグニ';
+      s = `${subjJa}がバトルによって${charmJa}${frontJa}対戦相手の${stJa}シグニをバニッシュしたとき`;
     }
     // ON_ARTS_USE の triggerFilter.color（「あなたが緑のアーツを使用したとき」WXK01-043）
     if (t === 'ON_ARTS_USE' && e.triggerFilter?.color && !e.timing?.includes('ON_OPP_ARTS_USE')) {
