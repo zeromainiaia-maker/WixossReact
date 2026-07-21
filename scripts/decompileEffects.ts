@@ -528,11 +528,13 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       return a.fromHand ? `手札を${numJa(a.count)}枚選んでライフクロスに加える` : `${ownerJa(a.owner)}デッキの${a.fromTop ? '一番上' : ''}から${numJa(a.count)}枚をライフクロスに加える`;
     }
-    case 'ADD_TO_FIELD':
+    case 'ADD_TO_FIELD': {
+      const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
-        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}`;
-      return a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す');
+        return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      return (a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す')) + supAF;
+    }
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
