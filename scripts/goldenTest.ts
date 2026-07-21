@@ -1258,6 +1258,17 @@ test('WX17-032 banishedNotFront 構造固定（ON_PLAY に化けていない・a
   eq(upAction?.type, 'UP', 'WX17-032-E1: action=UP');
   eq(upAction?.targetsBattleAttacker, true, 'WX17-032-E1: UP先=targetsBattleAttacker（そのアタックしているシグニ≠能力ホスト自身）');
 });
+// targetsBattleAttacker の実行検証：any_ally scope では battleBanishEntries の cardNum（能力ホスト）が
+// 実際のアタッカーと別カードになりうる（WX17-032 が最前列で温存され、別の自シグニが側面から非正面バニッシュした場合等）。
+// sourceCardNum（能力ホスト）ではなく battleAttackerCardNum（実アタッカー）をアップすることを固定する。
+test('targetsBattleAttacker: 能力ホストではなく実際のバトルアタッカーをアップする（ホスト≠アタッカー）', () => {
+  const host = fresh();      // 能力保持カード（sourceCardNum）＝ダウンしたままのはず
+  const attacker = fresh();  // 実際にバトルしたカード（battleAttackerCardNum）＝これがアップするはず
+  const ctx = { ...mkCtx({ signi: [host, attacker, null], down: [true, true, false] }, {}, host), battleAttackerCardNum: attacker } as ExecCtx;
+  const r = run({ type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsBattleAttacker: true } as EffectAction, ctx);
+  eq(r.ownerState.field.signi_down?.[1], false, 'アタッカー（index1）がアップする');
+  eq(r.ownerState.field.signi_down?.[0], true, '能力ホスト（index0）はダウンしたまま＝誤って自身をアップしていない');
+});
 // ON_MAIN_PHASE_START（「あなた/対戦相手のメインフェイズ開始時」・§3 Opusタスク16 の最大クラスタ29件）。
 // engine（collectTurnTriggers・GROW→MAIN 移行）は元から配線済みで parser に語彙が無いだけだった＝
 // ON_PLAY（「場に出たとき」）へ誤フォールバックしていた回帰ガード。
