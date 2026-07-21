@@ -829,6 +829,8 @@ function main(): void {
 
   detail.push(`# 高シグナル欠落 効果総数（重複除外・effectId単位）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
+  // TMP DUMP
+  { const cards = new Set([...highAll].map(e => e.replace(/-(E\d+[a-z]?|BURST|LAYER|SONG|TRAP)$/,''))); fs.writeFileSync('tmp_highall.txt', [...highAll].sort().join('\n')+'\n', 'utf8'); console.log(`[TMP] highAll effects=${highAll.size} cards=${cards.size}`); }
 
   if (CLUSTERS_MODE) writeClusters(units, missByPattern);
 
