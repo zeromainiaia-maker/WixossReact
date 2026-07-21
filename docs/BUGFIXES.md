@@ -4,6 +4,24 @@
 
 ---
 
+## §3 タスク12 (li) キー【起】の timing↔phase 照合を追加＝`getKeyPieceActions` の過剰緩さ是正（113効果棚卸し・golden 552→554・census 1826据置）（2026-07-21・続き240・Opus）
+
+PLAN §3 Opusタスク12 (li) を消化した。**`getKeyPieceActions`（BattleScreen.tsx:10765-10772）がキーの ACTIVATED 能力を timing↔phase 照合せず、アクションが撃てる phase（MAIN/ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）なら timing を無視して全部 surface していた**広域な緩さ。シグニ【起】（`getMySigniZoneActions`:10443-10445）は既に「MAIN→timing に MAIN／アタックフェイズ→timing に ATTACK_ARTS」の照合を持っていたのに、キー側はこの照合が丸ごと無く、**MAIN 専用（《アタックフェイズアイコン》無し）がアタックフェイズにも／ATTACK_ARTS 専用がメインにも出て**いた。
+
+**実データ棚卸し（キー80枚・ACTIVATED 113効果）**：timing 分布は ATTACK_ARTS 60／MAIN 47／両方（ATTACK_ARTS+MAIN）3／SPELL_CUTIN 単独2／全部入り1。**timing 未設定は0件**（全効果が timing を持つ＝旧ゲートは実質全て過剰surface）。
+
+**修正**：`battleUtils.ts` にピュアヘルパー `keyActivatedTimingMatchesPhase(timing, phase)` を新設し、`getKeyPieceActions` の phase ゲート直後に `&& keyActivatedTimingMatchesPhase(e.timing, phase)` を挿入。判定はシグニ【起】と同型：
+- **MAIN フェイズ → timing に `MAIN` を含む**。
+- **アタックフェイズ各ステップ → timing に `ATTACK_ARTS`（or `ATTACK`）を含む**。
+- **例外 `SPELL_CUTIN`**：cut-in 専用 phase が engine に無く、現状は通常 phase 内で撃つしかないため、`SPELL_CUTIN` を含む効果はどの phase でも surface（従来アクセス維持＝退化ゼロ）。該当は WXK01-021-E4／WXK08-005-E3（単独）＋PR-K046-E2（混在＝MAIN/ATTACK でも元々可）。
+- timing 未設定（実データ0件）は保守的に許容。
+
+これで MAIN 専用47効果はアタックフェイズで、ATTACK_ARTS 専用60効果はメインで消える（＝本来の《アタックフェイズアイコン》の有無どおりに）。WXK08-005-E4 のレベルゲート（続き237）はそのまま効き、《アタックフェイズアイコン》(ATTACK_ARTS) 側の phase 限定が本件で追加される。
+
+**ゲート**：全ゲート緑（typecheck・golden **554**〔+2＝ヘルパー単体の phase 振り分け＋全キー113効果が「少なくとも1つの phase で surface される」退化ゼロの全数ガード〕・smoke 10722全OK・fuzz 全0・census **1826 据置**〔UI/engine のみ・parser 非変更〕・lint 0 errors）。JSON/parser 変更なし＝意味的 diff は「キー【起】の surface phase」のみ。
+
+**残（(li) の派生・§6.3 候補）**：《アタックフェイズアイコン》を「アタックフェイズの間だけ得る」動的付与（WXK08-005 の先頭文型＝現状は timing 固定）や SPELL_CUTIN の真のカットイン窓モデル化は engine のフェイズ機構拡張が要るため据置（近似で退化しない範囲に限定）。
+
 ## §3 タスク9 完全解決＝§6.2 系統② GRANT_PROTECTION 効果耐性の subjectFilter/新機構（「あなたの[属性/状態]シグニは…効果を受けない」の広域偽陰性・過剰保護・SEQUENCE内・LAYER付与）（census 1831→1826・golden 551→552）（2026-07-21・続き239・Opus）
 
 PLAN §3 タスク9（§6.2 semantic audit 系統②残）を完全解決した。中核は **`collectEffectImmuneSigni`（effectEngine.ts）が `target:{count:'ALL'}` を honor せず効果元シグニ1体のみ保護していた偽陰性**＝「あなたの[属性/状態]シグニは対戦相手の…効果を受けない」が parser の `target:{count:'ALL',owner:self}` で吐かれ広域耐性が実質死んでいた系統（WXK04-002 血晶武装で確立済みの `subjectFilter` 変換手法を横展開）。
