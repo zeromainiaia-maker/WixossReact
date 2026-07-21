@@ -4158,13 +4158,19 @@ export function collectEffectImmuneSigni(
         : sourceMatches(gp.from);
       if (!blocked) continue;
 
+      // sourceCostMin: 解決中ソースカード（アーツ/スペル）の使用コスト合計が閾値未満なら保護しない（WX15-031）
+      if (gp.sourceCostMin !== undefined && !matchesFilter(srcCard, { costMin: gp.sourceCostMin })) continue;
+
       // 保護対象シグニを収集
       if (gp.subjectFilter) {
         const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
-        // カード属性（matchesFilter）に加えゾーン状態（isArmored 等）も honor する（WXK04-002 血晶武装シグニ保護）
+        // カード属性（matchesFilter）に加えゾーン状態（isDown/isDrive 等）も honor する（WXK04-002 血晶武装シグニ保護）。
+        // excludeSelf（「あなたの他のレゾナ」WX13-005A）は付与元シグニ自身を除外する。
         subjState.field.signi.forEach((s2, zi2) => {
           const top2 = s2?.at(-1);
-          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter) && matchesStateFilter(subjState, zi2, gp.subjectFilter)) immune.add(top2);
+          if (!top2) return;
+          if (gp.subjectFilter?.excludeSelf && top2 === sourceNum) return;
+          if (matchesFilter(cardMap.get(top2), gp.subjectFilter) && matchesStateFilter(subjState, zi2, gp.subjectFilter)) immune.add(top2);
         });
       } else if (gp.target) {
         // target ベース（一時付与でない CONT は稀）: self/any count:1 → このシグニ自身
