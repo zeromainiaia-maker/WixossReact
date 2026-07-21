@@ -2018,23 +2018,25 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX09-CB02 終末の回旋　チェロン（E1のみ）
+  // WX09-CB02 終末の回旋　チェロン（E1のみ）：§6.2 系統②（Opusタスク9）で是正。
   // 【常】あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない。
-  //   （アイコンフィルタ未対応のためPARTIAL：美巧全体に保護で近似）
+  //   旧近似は from:['シグニ','アーツ','スペル','ルリグ']（＝全効果耐性の過剰保護）＋《クロスアイコン》条件脱落だった。
+  //   → from:['BANISH']（バニッシュ軸のみ）＋subjectFilter:{story:美巧, hasCrossIcon}（collectBanishEffectProtectedSigni が honor）。
   'WX09-CB02': [
     {
       effectId: 'WX09-CB02-E1',
       effectType: 'CONTINUOUS',
       action: {
         type: 'GRANT_PROTECTION',
-        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { story: '美巧' } },
-        from: ['シグニ', 'アーツ', 'スペル', 'ルリグ'],
+        subjectFilter: { cardType: 'シグニ', story: '美巧', hasCrossIcon: true },
+        subjectOwner: 'self',
+        from: ['BANISH'],
         sourceOwner: 'opponent',
         duration: 'PERMANENT',
       },
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
