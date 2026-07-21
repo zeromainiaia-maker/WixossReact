@@ -126,6 +126,13 @@ export function parseLevelLteLastProcessed(text: string): Partial<TargetFilter> 
   return /この方法で[^。]{0,20}?シグニのレベル以下/.test(text) ? { levelLteLastProcessed: true } : {};
 }
 
+// 「その枚数の差以下のレベルを持つ」＝自分と対戦相手の手札枚数の差以下のレベル（動的・engine 解決済）。
+// 「手札が対戦相手より多い場合」（HAND_DIFF{gt,0}）ゲート下で発火する前提。該当1枚（WXK10-045）だが、
+// 無制限バニッシュへの過剰簡約を防ぐ（levelLteFieldVirusCount と同型の単発動的フィルタ）。
+export function parseHandDiffLevelFilter(text: string): Partial<TargetFilter> {
+  return /枚数の差以下のレベルを持つ/.test(text) ? { levelLteHandDiff: true } : {};
+}
+
 // 「(この|自身)シグニより〔パワーの低い/高い・低いレベル/レベルの高い〕」＝効果元シグニ自身を基準にした動的比較。
 // resolveDynamicFilter が sourceCardNum の実効パワー/レベルで powerRange/level へ解決する。
 // ⚠自己参照（このシグニ/自身）に限定＝「その/あなたのいずれか/表記されている/センタールリグ」等の別基準は対象外
