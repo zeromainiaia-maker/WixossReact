@@ -20,6 +20,7 @@ export interface ExecCtx {
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
   triggeringCardNum?: string; // 効果を引き起こしたカード番号（any_ally scope の「それ」参照用）
   triggeringKeyword?: string; // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY の「その能力」参照用・WXDi-P04-035）
+  battleAttackerCardNum?: string; // ON_SIGNI_BANISH_OPPONENT/_BATTLE のバトルアタッカー自身（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
