@@ -5863,6 +5863,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     }
   }
 
+  // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
+  // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。
+  for (const e of effects) e.action = foldSuppressOnPlay(e.action);
+
   return effects;
 }
 
