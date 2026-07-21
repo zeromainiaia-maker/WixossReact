@@ -968,6 +968,19 @@ test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P120
   eq(tops(r.otherState)[0], null, '敵P3000（<自最大12000）が除去される');
   ok(tops(r.otherState)[1] !== null, '敵P12000（=最大・より低くない）は残る');
 });
+// ── タスク12(xxxix): levelLteHandDiff＝「その枚数の差以下のレベルを持つ」（WXK10-045）──
+// resolveDynamicFilter が (自手札−相手手札) を level.max へ解決＝差以下のレベルの相手シグニのみバニッシュ対象。
+// 従来は level フィルタが丸ごと脱落し、HAND_DIFF ゲート通過後は無制限に相手シグニをバニッシュしていた過剰効果の回帰ガード。
+test('levelLteHandDiff: 自手札5−相手手札3=差2 → Lv2の相手シグニは除去・Lv4は残る（WXK10-045-E1）', () => {
+  const ctx = mkCtx({ hand: 5 }, { hand: 3, signi: [SIGNI_L2, SIGNI_L4, null] });
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLteHandDiff: true } } } as EffectAction, ctx);
+  eq(tops(r.otherState)[0], null, 'Lv2（≤差2）が除去される');
+  ok(tops(r.otherState)[1] !== null, 'Lv4（>差2）は残る');
+  // 差が Lv より小さい（差1）と Lv2 も対象外＝候補ゼロで盤面不変（filter 脱落なら Lv2 が誤除去される）
+  const ctx2 = mkCtx({ hand: 4 }, { hand: 3, signi: [SIGNI_L2, SIGNI_L4, null] });
+  const r2 = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLteHandDiff: true } } } as EffectAction, ctx2);
+  ok(tops(r2.otherState)[0] !== null && tops(r2.otherState)[1] !== null, '差1ではLv2もLv4も対象外で盤面不変');
+});
 // ── 続き46: 表記パワー比較（per-candidate）＝「表記されているパワーよりパワーの低い/高い」= 実効 vs 自身の表記 ──
 test('powerLtPrinted/powerGtPrinted: 実効パワーと表記パワーの per-candidate 比較（WX25-CP1-093/WXK10-027）', () => {
   // 低い＝低下中のみ対象：P3000を実効1000に低下→対象／P12000は実効=表記→非対象
