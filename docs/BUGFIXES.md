@@ -4,6 +4,29 @@
 
 ---
 
+## §3 タスク12(xxix)「そのシグニの【出】能力は発動しない」クラスタの忠実表現化＝死アクション BLOCK_ACTION を配置アンカーへ畳み込み suppressOnPlay 化（76効果・golden 557→562・census 1825維持）（2026-07-21・続き243・Opus）
+
+PLAN §3 Opusタスク12(xxix)（semantic audit stub群 round3）残の§6.3クラスタのうち「そのシグニの【出】能力」（≈30効果として登録）を精査し、**挙動上は偽陽性**であることを確定したうえで**忠実表現へ是正**した。
+
+**判明した事実（偽陽性の根拠2点）**：finding は「JSON が全シグニの【出】能力をターン終了まで封じる過剰効果」と主張していたが、実機に過剰発火は無い。
+1. `BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}` は **engine のどこからも参照されない完全な死アクション**（parser が吐くだけで発火判定側に読み手が皆無。`grep` で消費0を確認）。しかも target が `owner:any/count:ALL`＝「全シグニ封じ」と読める過剰表現。
+2. そもそも **`ADD_TO_FIELD`／`SEARCH→field`／`LOOK_PICK_CHAIN` 経路は、効果で場に出したシグニ自身の ON_PLAY を発火させていない**（自身【出】を積むのは `REVEAL_UNTIL_TO_FIELD` 経路だけ。当クラスタはこれを使わない）。よって「そのシグニの【出】は発動しない」は既定で満たされている。
+   - ⚠この裏に「効果で場に出したシグニ自身の【出】が本来は誘発すべきなのに ADD_TO_FIELD 経路では鳴らない」という別系統の MISSING バグ（§6.3・PLAN が温存）が隠れている。当クラスタはその例外（抑制したい側）に過ぎない。
+
+**忠実表現化（ユーザー選択＝最小修正・低リスク）**：死アクションを配置アクションへ畳み込む `suppressOnPlay` フラグへ変換した。
+- **型**（`AddToFieldAction`／`RevealUntilToFieldAction`／`LookPickChainStage`）に `suppressOnPlay?: boolean` を追加（コメントで「前方安全フック＝将来 ADD_TO_FIELD 自身 ON_PLAY を配線する際にゲートする」と明記）。
+- **parser**（`effectParser.ts` `foldSuppressOnPlay`）＝`parseCardEffects` 末尾の**単一チョークポイント**（AUTO/ARTS/スペル/バースト全経路を通す）で、`BLOCK_ACTION{ON_PLAY_ABILITY}` ステップの**直前兄弟の配置アンカー**へ `suppressOnPlay:true` を立ててブロックを除去。アンカー探索は ADD_TO_FIELD／REVEAL_UNTIL_TO_FIELD／LOOK_PICK_CHAIN(then:field)／SEARCH(then:ADD_TO_FIELD)／REVEAL_AND_PICK(then:ADD_TO_FIELD)／**CONDITIONAL.then/else 埋没**（「そうした場合」IS_MY_TURN ゲート下の配置）／入れ子 SEQUENCE を再帰。**アンカーが特定できない場合は畳まず据置**（STUB 配置・misparse を誤変換しない）。
+- **engine 前方安全**（`BattleScreen.tsx`）＝REVEAL_UNTIL_TO_FIELD の自身 ON_PLAY 発火3経路（entry／resume／spell）で `action.suppressOnPlay` 時は自身【出】を積まないよう配線（当クラスタは REVEAL_UNTIL_TO_FIELD を使わないので現状は latent だが、フラグを機能させる恒久フック）。
+- **decompiler**（`decompileEffects.ts`）＝ADD_TO_FIELD／LOOK_PICK_CHAIN／REVEAL_UNTIL_TO_FIELD に「。その【出】能力は発動しない」を suppressOnPlay 時に付す。
+- **JSON 反映**＝AUTO は build:effects→heldReview で**純fold の3バッチ計49枚を採用**（署名 `-BLOCK_ACTION -PLAYER`/`-SIGNI`/`×2`。各カードの唯一の差分が fold であることを curated↔fresh の正規化一致で機械確認してから採用）。MANUAL/PARTIAL・混在ドリフト持ちの17効果は curated JSON へ**同一 fold ロジックを直接適用**（byte安定な round-trip を確認したうえで最小差分編集）。**計76効果**を折込み。
+- **残22効果は据置**（配置アンカー無し＝STUB配置8件〔REVEAL_PICK_PLAY等〕・非配置/misparse14件〔REARRANGE_SIGNI・DOWN・standalone BLOCK 等〕）。死ブロックのまま残るが**no-op で挙動不変**、かつ STUB 実装時の抑制意図マーカーとして機能するため前方安全。
+- **golden**＝parser fold（直畳み・CHOOSE枝内・CONDITIONAL越し）＋JSON忠実性（MANUAL含む）＋**非該当据置**（WX20-007 の STUB配置アンカー無しは畳まない）の5件を追加。golden 557→562。
+- **検証**＝全ゲート緑（typecheck／**golden 562**／smoke 10722 OK・0／fuzz 0／**census 1825 維持**〔block→flag の構造変換は高signal欠落計器の対象外〕／lint 0 errors）。`npm run regen` 済。
+
+**残（xxix）**＝真の§6.3級クラスタのみ＝ルリグかシグニ union（NEGATE_ATTACK 対象種別）／そのシグニの【出】能力の**別系統 MISSING**（ADD_TO_FIELD 自身【出】未発火）／BET機構／unless（手札N枚捨てないかぎり）。
+
+---
+
 ## §3 タスク12(xxxix) 残テールの tractable 分2枚＝WXK10-045 の動的レベルフィルタ `levelLteHandDiff` 新設＋SPDi43-30 の先頭カード名条件の欠落補完（golden 556→557・census 1825維持）（2026-07-21・続き242・Opus）
 
 タスク12(xxxix)「逆翻訳全文照合で検出した条件以外の原文不一致」の残（続き213 で「同型クラスタが無く §6.3 送りか個別対応」と判断した寄せ集め）のうち、**新規§6.3機構を要さない tractable な2枚**を個別に消化した。残る「このアタックを無効にし」系3枚・WXK09-003 赤分岐（ライフクロス→エナ新ゾーン）・WXDi-P06-039 の「このシグニの下にあった」照応・Magic Box 3件は、いずれも単発の§6.3機構待ちで据置。
