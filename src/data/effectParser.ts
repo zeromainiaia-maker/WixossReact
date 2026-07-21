@@ -3012,8 +3012,17 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ドリームチーム系ピース（WXDi-P08-003 等）：先頭セグメントが「[状態条件]、デッキ上N枚見る。その中から…」の
+  //   2文にまたがる REVEAL_AND_PICK で、かつ後続に「その後、…の場合、X」セグメント（sentences[2..]）が続く形。
+  //   下の REVEAL_AND_PICK 早期 return は sentences[0..1] だけ消費して**後続セグメントと先頭条件を丸ごと捨てる**ため、
+  //   ここで検出して reveal ブロックをスキップし、メインループ（3223〜）に reveal を CONDITIONAL ラップの seed
+  //   ステップとして注入する（後続の「その後、…の場合、」は thenM が既存処理で CONDITIONAL 化）。§3 タスク3・続き229。
+  const dreamRevealLead = (sentences.length >= 3 && sentences[1] && /その中から/.test(sentences[1]))
+    ? (sentences[0]?.trim() ?? '').match(/^(.+?(?:場合|かぎり))、(.*デッキの上からカードを[０-９\d]+枚見る.*)$/)
+    : null;
+
   // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
-  if (sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
+  if (!dreamRevealLead && sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
     const cM = sentences[0].match(/([０-９\d]+)枚見る/);
     if (cM) {
       const nextS = sentences[1].trim();
