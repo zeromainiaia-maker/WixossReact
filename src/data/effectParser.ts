@@ -2530,6 +2530,22 @@ function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
     }
     return null;
   }
+  if (a.type === 'REVEAL_AND_PICK') {
+    // 「〜を公開し場に出す。その【出】は発動しない」＝ then が ADD_TO_FIELD のときのみ
+    const rap = a as { then?: EffectAction };
+    if (rap.then && rap.then.type === 'ADD_TO_FIELD') {
+      return { ...(a as object), then: { ...(rap.then as AddToFieldAction), suppressOnPlay: true } } as EffectAction;
+    }
+    return null;
+  }
+  if (a.type === 'CONDITIONAL') {
+    // 「（自分のターンなら）場に出す。そうした場合その【出】は発動しない」＝配置が CONDITIONAL.then/else に埋没
+    const co = a as import('../types/effects').ConditionalAction;
+    const rt = trySetSuppressOnPlay(co.then);
+    if (rt) return { ...co, then: rt };
+    if (co.else) { const re = trySetSuppressOnPlay(co.else); if (re) return { ...co, else: re }; }
+    return null;
+  }
   if (a.type === 'SEQUENCE') {
     // 直前兄弟が入れ子 SEQUENCE の場合はその末尾側から配置アンカーを探す（WX24-P3-053 の inner SEQ 等）。
     const seq = a as SequenceAction;
