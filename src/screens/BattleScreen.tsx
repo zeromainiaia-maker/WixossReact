@@ -3923,7 +3923,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」WX04-035-E1等）:
       // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
       const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
-      const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType);
+      const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum);
       // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
       const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType);
       const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
