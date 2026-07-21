@@ -45,6 +45,27 @@ export function parsePowerVal(s: string | undefined): number {
   return s === '∞' ? Infinity : (parseInt(s ?? '0', 10) || 0);
 }
 
+/**
+ * キー【起】能力（getKeyPieceActions）の timing↔phase 照合（Opusタスク12 (li)）。
+ * 従来 getKeyPieceActions は timing を無視して「アクションが撃てる phase なら全 ACTIVATED を surface」していた過剰な緩さで、
+ * MAIN 専用（timing:['MAIN']）がアタックフェイズにも、《アタックフェイズアイコン》専用（timing:['ATTACK_ARTS']）がメインにも
+ * 出ていた。シグニ【起】(getMySigniZoneActions) と同型の照合に揃える：
+ *  - MAIN フェイズ → timing に 'MAIN' を含む
+ *  - アタックフェイズ各ステップ（ATTACK_ARTS / ATTACK_ARTS_OP / ATTACK_SIGNI / ATTACK_LRIG）→ timing に 'ATTACK_ARTS'（or 'ATTACK'）を含む
+ * 例外：'SPELL_CUTIN' はカットイン専用 phase が engine に無く、現状は通常 phase 内で撃つしかないため、
+ * timing に 'SPELL_CUTIN' を含む効果はどの phase でも surface する（従来アクセスを維持＝退化ゼロ）。
+ * timing 未設定（キー ACTIVATED では実データ0件）は保守的に許容する。
+ */
+export function keyActivatedTimingMatchesPhase(
+  timing: readonly string[] | undefined,
+  phase: string,
+): boolean {
+  if (!timing || timing.length === 0) return true;
+  if (timing.includes('SPELL_CUTIN')) return true;
+  if (phase === 'MAIN') return timing.includes('MAIN');
+  return timing.includes('ATTACK_ARTS') || timing.includes('ATTACK');
+}
+
 export function assignInstanceIds(cards: string[]): string[] {
   const counts: Record<string, number> = {};
   return cards.map(cn => {
