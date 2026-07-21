@@ -4533,8 +4533,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if ((srcEff?.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
           // bySigniEffect 限定の【出】はソース（場出しした効果元）がシグニの場合のみ発火（G079）。
           const sourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
+          const suppressOnPlay = !!(srcEff?.action as import('../types/effects').RevealUntilToFieldAction)?.suppressOnPlay; // タスク12(xxix)
           const rutfOnPlayEntries: StackEntry[] = [];
-          for (const instanceId of result.lastProcessedCards ?? []) {
+          for (const instanceId of suppressOnPlay ? [] : (result.lastProcessedCards ?? [])) {
             const cn = getCardNum(instanceId);
             for (const eff of (effectsMap.get(cn) ?? [])) {
               if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
