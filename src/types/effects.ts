@@ -1002,6 +1002,7 @@ export interface RevealUntilToFieldAction {
   owner: Owner;            // 公開するデッキの持ち主（通常 self）
   repeat: number;          // 繰り返し回数（WX04-093 = 3）
   revealClass?: string;    // めくり続ける対象シグニの＜クラス＞（省略=任意のシグニ）
+  suppressOnPlay?: boolean; // true =「その（それらの）シグニの【出】能力は発動しない」（AddToFieldAction 参照）。REVEAL_UNTIL_TO_FIELD は自身 ON_PLAY を発火させるため即有効
 }
 
 // ルリグトラッシュにあるすべてのルリグを、自分のセンタールリグの下（スタック最下部）に置く（WX05-001「創世の巫女 マユ」の【出】）。
