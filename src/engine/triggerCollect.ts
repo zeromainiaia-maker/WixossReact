@@ -785,11 +785,23 @@ export function collectLeaveFieldTriggers(
   const usedHostIds: string[] = [];
   const usedGuestIds: string[] = [];
   const leftCard = ctx.cardMap.get(getCardNum(leftCardNum));
+  // self スコープ（このシグニ自身の離脱）視点のターン。turnOwner／leftStateFilter 判定に使う。
+  const selfIsTurn = ctx.activeUserId === leftPlayerId;
   for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     // duringAttackPhase（「アタックフェイズの間、…が場を離れたとき」WX24-P3-053/WXK02-031 等）＝アタックフェイズ中の離脱のみ発火。
     if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    // turnOwner（「対戦相手/あなたのターンの間、このシグニが場を離れたとき」WX20-071 等7効果）: 離脱カード所有者視点のターンで絞る。
+    //   従来は self スコープ経路が turnOwner を評価せず相手ターン限定効果が自ターンにも過剰発火していた。
+    {
+      const to = eff.triggerCondition?.turnOwner;
+      if (to === 'self' && !selfIsTurn) continue;
+      if (to === 'opponent' && selfIsTurn) continue;
+    }
+    // leftStateFilter（離脱直前の状態限定・「このシグニがアクセされていた場合」等）: 離脱カード自身のゾーンで評価。
+    //   従来は self スコープ経路が未評価で無条件発火していた（WX20-071 の hasAcce ゲート）。
+    if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
     entries.push({
       id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
