@@ -2005,6 +2005,15 @@ function effJa(e: Eff): string {
       const fJa = e.triggerFilter ? filterJa(e.triggerFilter) : '';
       s = `あなたの${fJa}シグニ１体が対戦相手の効果によって場を離れたとき`;
     }
+    // ON_LEAVE_FIELD self スコープ＋leftStateFilter（離脱直前の状態限定・「このシグニがアクセされていた場合」WX20-071）。
+    //   engine は離脱直前 state で評価する（THIS_CARD_IS_ACCED は現在場を見るため離脱後 no-op）。逆翻訳では
+    //   離脱トリガーの後ろに条件句を付す（従来 leftStateFilter は未描画＝原文照合で条件が欠けて見えていた）。
+    if (t === 'ON_LEAVE_FIELD' && (e.triggerScope ?? 'self') === 'self' && e.triggerCondition?.leftStateFilter) {
+      const lsf = e.triggerCondition.leftStateFilter as { hasAcce?: boolean; isFrozen?: boolean };
+      const condJa = lsf.hasAcce ? '、このシグニがアクセされていた場合'
+        : lsf.isFrozen ? '、このシグニが凍結状態だった場合' : '';
+      if (condJa) s = `${s}${condJa}`;
+    }
     // ON_BANISH の「（対戦相手の）アタックフェイズの間、」前置き（WX18-002/WXEX1-18）。
     // scopeSubj 置換済みの主語（「あなたの遊具シグニがバニッシュされたとき」）に前置きを冠す。
     if (t === 'ON_BANISH' && e.triggerCondition?.duringAttackPhase) {
