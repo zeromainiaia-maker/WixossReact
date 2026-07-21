@@ -29,6 +29,44 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK05-030": [{"effectId":"WXK05-030-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
 
 
+  // ===== §6.2 系統②：GRANT_PROTECTION 効果耐性の subjectFilter/count/from 是正（Opusタスク9） =====
+  // 「あなたの[属性/状態]シグニは対戦相手の…効果を受けない」を parser が target:{count:'ALL'} で吐くと
+  // collectEffectImmuneSigni が count:'ALL' を honor せず効果元シグニ1体のみ保護（＝広域耐性が実質死ぬ偽陰性）。
+  // → subjectFilter:{...}/subjectOwner へ変換（collectEffectImmuneSigni が matchesFilter＋matchesStateFilter で全該当シグニを保護）。
+  //   from が誤って全種別（＝全効果耐性）になっているものは原文の軸（BANISH 等）へ、「このシグニ」限定は count:1＋activeCondition へ。
+  // WX05-024-E2 幻獣神 ライアン：「あなたのパワー15000以上のシグニは、対戦相手の、スペルとシグニの効果を受けない」
+  //   （E1「シグニのパワーは増減しない」＝from:['POWER_MODIFY'] の別mis-parse は §6.3 送り）。
+  "WX05-024": [{"effectId":"WX05-024-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","powerRange":{"min":15000}},"subjectOwner":"self","from":["シグニ","スペル"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX09-016-E1 混沌の豊穣 シュブニグラ：「あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない」→ isDown。
+  "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX09-CB02-E1 終末の回旋 チェロン：「あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない」。
+  //   旧JSONは from:['シグニ','アーツ','スペル','ルリグ']（＝全効果耐性の過剰保護）＋《クロスアイコン》条件脱落。→ from:['BANISH']＋hasCrossIcon。
+  "WX09-CB02": [{"effectId":"WX09-CB02-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","story":"美巧","hasCrossIcon":true},"subjectOwner":"self","from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX13-005A-E1 白羅星 フルムーン：「あなたの他のレゾナは対戦相手のシグニの効果を受けない」→ cardType:レゾナ＋excludeSelf。
+  "WX13-005A": [{"effectId":"WX13-005A-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX18-034-E1 コードオーダー モツナ：「このシグニはアクセされているかぎり、対戦相手のルリグの効果を受けない」。
+  //   広域ではなく「このシグニ」限定＋アクセ条件 → count:1（＝効果元自身を保護）＋activeCondition:IS_SELF_ACCED。
+  "WX18-034": [{"effectId":"WX18-034-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ACCED"},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["ルリグ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX19-048-E1 中盾 ティンベー：「対戦相手のターンの間、カード名に《盾》を含むあなたのシグニは対戦相手のシグニの効果を受けない」。
+  //   activeCondition:TURN_OWNER(opponent) は既存維持＋subjectFilter:{cardName:'盾'}。
+  "WX19-048": [{"effectId":"WX19-048-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","cardName":"盾"},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXEX1-37-E1 コードアクセル アパッチ：「あなたのドライブ状態のシグニは対戦相手の、キーとアーツの効果を受けない」→ isDrive。
+  //   キーは srcIsArts（アーツ/ピース/キー）に含まれるため from:['アーツ'] で判定される。
+  "WXEX1-37": [{"effectId":"WXEX1-37-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDrive":true},"subjectOwner":"self","from":["アーツ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WX08-017-E1 日進月歩（アーツ・SEQUENCE内 GRANT_PROTECTION）：
+  //   「その後、ターン終了時まで、あなたのパワー30000以上のすべてのシグニは『対戦相手のアーツの効果を受けない』を得る」。
+  //   step2 count:1→'ALL'（すべてのシグニ）＋duration PERMANENT→UNTIL_END_OF_TURN。execGrantProtection が count:'ALL' を
+  //   keyword_grants へ一括付与し collectEffectImmuneSigni が PROTECTION:アーツ:opponent を読む（power30000 は付与時の実効パワーで判定）。
+  //   step1 の POWER_MODIFY は INSTANT 実行時 temp_power_mods（ターン終了時クリア）＝原文「ターン終了時まで＋5000」で正しい。
+  "WX08-017": [{"effectId":"WX08-017-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000},{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","powerRange":{"min":30000}}},"from":["アーツ"],"sourceOwner":"opponent","duration":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
+  // WX15-031-LAYER 幻怪姫 ヌラリ（LAYER付与型）：
+  //   「【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る…【常】：このシグニは対戦相手のコストの合計が
+  //   ５以上の、アーツとスペルの効果を受けない」。内側【常】GRANT_PROTECTION に sourceCostMin:5 を追加（旧JSONはコスト条件脱落で
+  //   全アーツ/スペルを無条件遮断する過剰保護）。GRANT_FIELD_SIGNI_ABILITY は collectGrantedFromLayer 経由で各＜怪異＞シグニへ
+  //   付与され、collectEffectImmuneSigni が augMap のその granted 能力を読む（sourceCostMin は解決中アーツ/スペルの Cost 合計で判定）。
+  "WX15-031": [{"effectId":"WX15-031-LAYER","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX15-031-LAYER-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["スペル","アーツ"],"sourceOwner":"opponent","sourceCostMin":5,"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+
+
   // ===== 血晶武装：逆翻訳乖離の修正（「血晶武装状態であるかぎり/の場合」の条件欠落） =====
   // WXK04-002 英血の器 優羽莉Lv4'（ルリグ）：E1【常】あなたの血晶武装状態のシグニは対戦相手のルリグの効果を受けない。
   //   旧JSONは target:{owner:self,count:ALL}（collectEffectImmuneSigni が count:ALL を honor せず効果元のみ保護）で実質機能せず。
