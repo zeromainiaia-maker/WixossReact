@@ -245,6 +245,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     cardType: 'シグニ',
     ...parsePowerFilter(text),
     ...parseLevelFilter(text),
+    ...parseHandDiffLevelFilter(text),
     ...parseColorFilter(text),
     ...parseStoryFilter(text),
   };
