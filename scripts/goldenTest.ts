@@ -1699,6 +1699,25 @@ test('§3タスク3: WXDi-P08-003 ドリームチームは白/赤/黒の3色 CON
   ok(colors.includes('白') && colors.includes('赤') && colors.includes('黒'),
     '白/赤/黒の色ルリグ条件が3つとも生存（REVEAL 早期 return による後続脱落の回帰ガード）');
 });
+test('§3タスク3 engine: ON_LEAVE_FIELD self スコープが leftStateFilter{hasAcce}＋turnOwner を評価（WX20-071）', () => {
+  const eff = {
+    effectId: 'lf1', effectType: 'AUTO', timing: ['ON_LEAVE_FIELD'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+    triggerCondition: { leftStateFilter: { hasAcce: true }, turnOwner: 'opponent' },
+  } as unknown as CardEffect;
+  const localEffects = new Map(effectsMap);
+  localEffects.set('LEAVER', [eff]);
+  const ctxOf = (activeUserId: string) => ({ ...trigCtx(activeUserId), effectsMap: localEffects });
+  const after = mkState({});
+  const withAcce = { ...mkState({}), field: { ...mkState({}).field, signi_acce: ['ACCE', null, null] } } as unknown as PlayerState;
+  const noAcce = { ...mkState({}), field: { ...mkState({}).field, signi_acce: [null, null, null] } } as unknown as PlayerState;
+  // leftPlayerId=HOST。active=GUEST ＝「対戦相手のターン」で turnOwner:opponent が成立。
+  const fire = (before: PlayerState, active: string) =>
+    collectLeaveFieldTriggers(ctxOf(active), 'LEAVER', [], HOST, after, after, undefined, before, 0).entries.length;
+  eq(fire(withAcce, GUEST), 1, 'アクセ有り＋相手ターン→発火');
+  eq(fire(noAcce, GUEST), 0, 'アクセ無し→非発火（hasAcce ゲート・従来は無条件発火だった）');
+  eq(fire(withAcce, HOST), 0, '自ターン→非発火（turnOwner:opponent ゲート・従来は無条件発火だった）');
+});
 
 test('timing census C: 指定9効果の parser timing とガード変種条件', () => {
   const expected: Array<[string, string, string]> = [
