@@ -1419,11 +1419,10 @@ export function parseSentencePart1(t: string): EffectAction | null {
     if (t.includes('このシグニ')) {
       return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
     }
-    // 「そのアタックしているシグニをアップする」＝バトルで発火した効果元自身を指す照応（ON_SIGNI_BANISH_BATTLE系。
-    // WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき、そのアタックしているシグニをアップする」
-    // ＝WXK04-044 と同型のself+thisCardOnly）。
+    // 「そのアタックしているシグニをアップする」＝トリガー節の主語（「あなたのシグニが」＝any_ally scope）が指す
+    // 実際のバトルアタッカーへの照応（能力ホスト自身とは限らないため thisCardOnly ではなく専用フラグ。WX17-032）。
     if (t.includes('そのアタックしているシグニ')) {
-      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } };
+      return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsBattleAttacker: true };
     }
     // 「それとこのルリグをアップする」＝対象シグニ＋このルリグの両方をアップ（WXEX2-01）
     if (t.match(/それと(この|あなたの(?:センター)?)ルリグ[をが]アップ(する|し)/)) {
