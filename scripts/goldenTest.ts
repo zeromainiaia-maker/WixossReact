@@ -1247,15 +1247,16 @@ test('ON_SIGNI_BANISH_OPPONENT 構造固定（バトル勝利トリガーが ON_
   eq(e3?.triggerScope ?? 'self', 'self', 'WX10-048: scope=self');
 });
 // ON_SIGNI_BANISH_OPPONENT の banishedNotFront（「正面以外の…バニッシュしたとき」・タスク16[B]・WX17-032）。
-// 従来「正面以外の」を含む語彙がなく ON_PLAY へ誤フォールバック＋UP先も thisCardOnly が無く任意の自シグニへ潰れていた回帰ガード。
-test('WX17-032 banishedNotFront 構造固定（ON_PLAY に化けていない・any_ally scope・UP先が thisCardOnly）', () => {
+// 従来「正面以外の」を含む語彙がなく ON_PLAY へ誤フォールバック＋UP先も targetsBattleAttacker が無く任意の自シグニへ
+// 潰れていた回帰ガード。scope=any_ally（能力ホスト≠アタッカーになりうる）のため thisCardOnly ではなく専用フラグを使う。
+test('WX17-032 banishedNotFront 構造固定（ON_PLAY に化けていない・any_ally scope・UP先がバトルアタッカー照応）', () => {
   const e1 = (effectsMap.get('WX17-032') ?? []).find(e => e.timing?.includes('ON_SIGNI_BANISH_OPPONENT'));
   ok(!!e1, 'WX17-032-E1: ON_SIGNI_BANISH_OPPONENT のはず（ON_PLAY ではない）');
   eq(e1?.triggerScope, 'any_ally', 'WX17-032-E1: scope=any_ally（あなたのシグニが）');
   eq(e1?.triggerCondition?.banishedNotFront, true, 'WX17-032-E1: triggerCondition.banishedNotFront=true');
-  const upAction = e1?.action as { type?: string; target?: { filter?: { thisCardOnly?: boolean } } } | undefined;
+  const upAction = e1?.action as { type?: string; targetsBattleAttacker?: boolean } | undefined;
   eq(upAction?.type, 'UP', 'WX17-032-E1: action=UP');
-  eq(upAction?.target?.filter?.thisCardOnly, true, 'WX17-032-E1: UP先=thisCardOnly（そのアタックしているシグニ＝効果元自身）');
+  eq(upAction?.targetsBattleAttacker, true, 'WX17-032-E1: UP先=targetsBattleAttacker（そのアタックしているシグニ≠能力ホスト自身）');
 });
 // ON_MAIN_PHASE_START（「あなた/対戦相手のメインフェイズ開始時」・§3 Opusタスク16 の最大クラスタ29件）。
 // engine（collectTurnTriggers・GROW→MAIN 移行）は元から配線済みで parser に語彙が無いだけだった＝
