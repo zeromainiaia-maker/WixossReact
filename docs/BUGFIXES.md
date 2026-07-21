@@ -4,6 +4,18 @@
 
 ---
 
+## §3 タスク2「動的比較」クローズ＝WXK08-005（キー）の《アタックフェイズアイコン》エクシード2 を動的レベル比較でゲート（2026-07-21・続き237・Opus）
+
+**背景**＝タスク2「census 動的比較」の最後の残1枚 `WXK08-005`（ぶりっつあーや！・キー）を消化しクローズ。原文「アタックフェイズの間、あなたのセンタールリグのレベルが対戦相手のセンタールリグより低いかぎり、このキーは《アタックフェイズアイコン》を得る。【常】：あなたのセンタールリグは以下の能力を得る。【起】《スペルカットイン》エクシード１：スペル効果打ち消し。【起】《アタックフェイズアイコン》エクシード２：ダウン＋凍結。【出】：相手シグニをデッキトップ。」**golden 545→546・census 1836 維持・smoke/fuzz 全0・同型★0・lint 0**。
+
+**① 先頭文の脱落＝過剰効果（本丸）**＝parser のブロック分割で先頭文「アタックフェイズの間…より低いかぎり《アタックフェイズアイコン》を得る」が丸ごと脱落（`_effect_srctext.json` に E1 が不在）し、E4（エクシード２のダウン＋凍結）が**動的レベル比較のゲート無しで無条件に撃てる**過剰効果になっていた。→ E4 に `condition:{type:'LRIG_LEVEL_CMP_OPP', operator:'lt'}`（自センタールリグレベル＜相手・**engine/decompiler/parser とも実装済＝WXK07-025/WXK10-068 と同型で新機構不要**）を付与。**engine 追加ゼロ**＝キーの ACTIVATED 能力を surface する `getKeyPieceActions`（BattleScreen.tsx:10758）が既に `eff.condition` を `evalUseCondition` で評価済み（10772）のため、condition を足すだけで使用可否がゲートされる。decompiler は `effect.condition` を「〜場合、」で描画済み（decompileEffects.ts:2321/2340）＝逆翻訳が「自分のセンタールリグのレベルが対戦相手のセンタールリグより低い場合、対戦相手のシグニ1体をダウンして凍結する」と原文の意図を正しく反映。
+
+**② E2「以下の能力を得る」は空 GRANT_LRIG_ABILITY のまま維持（機能近似）**＝E3/E4 はキー自身の ACTIVATED としてカットイン経路（SPELL_CUTIN・BattleScreen 5222/5233）と `getKeyPieceActions`（全 ACTIVATED を surface）で機能する。E2.abilities に詰めると `collectLrigGrantedEffects` の granted 経路と**二重発火**し、かつ **granted ATTACK_ARTS 経路（BattleScreen 10721）は `condition` を評価していない**ためゲートが外れる（getKeyPieceActions:10772 だけが condition を見る）＝キー top-level のまま保持するのが engine 的に正しい。rawText は付与2能力の原文を保持し逆翻訳を「あなたのセンタールリグは『【起】…【起】…』を得る」と忠実化。
+
+**副産物＝task 12 へ登録した engine 観測**＝`getKeyPieceActions`（BattleScreen 10765-10772）は**キーの ACTIVATED 能力を timing とフェイズを照合せず surface**している（phase∈{MAIN,ATTACK_ARTS,…} かつ ACTIVATED なら timing 無視で全部出す）。キー ACTIVATED 能力の timing 分布は ATTACK_ARTS 60/MAIN 47/両方3/SPELL_CUTIN 2/全3タイミング1 で、**MAIN 専用能力がアタックフェイズにも／ATTACK_ARTS 専用がメインにも出る 107+ 能力の広域な既存緩さ**。本カードでもレベルゲートは効くが《アタックフェイズアイコン》のフェイズ限定は緩いまま。シグニ【起】（10443-10445）と同型の timing↔phase 照合を入れれば直るが 64 キーの挙動変化＝要専用 golden の Opusタスク12 として登録（本タスクのスコープ外）。
+
+**検証**＝golden にキー実効果の回帰ガードを追加（`WXK08-005-E4` が `LRIG_LEVEL_CMP_OPP{lt}` を持ち、自Lv2<相手Lv4→使用可／自Lv4≥相手Lv2→使用不可を `evalUseCondition` で assert）。MANUAL 効果（manualEffects.ts）で E2-E5 を明示化。census 1836 不変（先頭文の「より低い」は脱落 E1 由来でどの効果ブロックにも属さず計器対象外＝退化・幻覚とも無関係）。
+
 ## §3 タスク6「代わりに」残テール＝per-target 値すり替えの B1残 tractable 分4枚＋WX16-021 無害化（2026-07-21・続き235b・Opus）
 
 **背景**＝§3 タスク6「代わりに」残テールのうち、**per-target 値すり替え**（「対戦相手のシグニ1体を対象とし、それのパワーを－N。＜条件＞の場合、代わりに－M」）の残9枚を条件別に精査。条件語彙が既存 engine 機構に乗る4枚を消化し、残5枚（単発 turn-counter/cost-tracking＝真の§6.3）は「過剰語彙を作らない」方針で据置と切り分けた。従来この4枚は「それ」の先行詞が失われ、enhanced が **owner:any の別対象へ二重適用**（例 WX25-P2-102＝相手シグニに－5000、さらに自分または相手のシグニ1体に－8000）する**過剰効果**だった。**golden 542→545・census 1838→1836・smoke/fuzz 全0・同型★0・lint 0**。
