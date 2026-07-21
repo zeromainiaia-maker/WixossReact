@@ -2170,7 +2170,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
       [/手札に戻し$/, '手札に戻す'], [/エナゾーンに置き$/, 'エナゾーンに置く'],
       [/ダウンし$/, 'ダウンする'], [/凍結し$/, '凍結する'],
     ];
-    const m2 = t.match(/^([^。]*?を対象とし、それを.+?(?:デッキの一番[上下]に置き|バニッシュし|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウンし|凍結し))、(.+)$/s);
+    const m2 = t.match(/^([^。]*?を対象とし、それを.*?(?:デッキの一番[上下]に置き|バニッシュし|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウンし|凍結し))、(.+)$/s);
     if (m2 && (t.match(/を対象とし/g)?.length ?? 0) === 1 && !/とき|場合|代わりに/.test(t)) {
       let leftText = m2[1];
       for (const [re, fin] of RENYO2) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
