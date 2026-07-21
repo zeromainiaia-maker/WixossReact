@@ -3485,7 +3485,9 @@ function parseActionTextInner(text: string): EffectAction {
       //（デッキミル TRASH DECK_CARD／場・手札・エナの TRASH／LIFE_CRASH）のときだけ抽出する。
       // search/optional-cost/grant 等が前段の場合は誤抽出になるため IS_MY_TURN 据置（§5c）。
       const prevStep = steps[steps.length - 1] as { type?: string };
-      const prevSetsProcessed = prevStep?.type === 'TRASH' || prevStep?.type === 'LIFE_CRASH';
+      // 先頭ガード CONDITIONAL／連文 SEQUENCE にラップされた recorder を貫通して検出する（(xxii)）。
+      const effPrev = unwrapWrappedRecorder(prevStep) as { type?: string };
+      const prevSetsProcessed = effPrev?.type === 'TRASH' || effPrev?.type === 'LIFE_CRASH';
       // 「それが〜の場合」（LAST_PROCESSED_MATCHES）の前段ゲート＝lastProcessedCards を記録するステップ。
       // 「デッキの一番上を公開する」は LOOK_AND_REORDER(1枚・並べ替えなし・公開・デッキ上) に近似されている
       // ため、条件持ち上げ時に記録付き公開 REVEAL_DECK_TOP へ置換する（WXEX1-36-BURST）。
