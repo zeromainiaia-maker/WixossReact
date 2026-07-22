@@ -29,7 +29,9 @@ export type BattleAction =
  * 純粋遷移：現在の盤面とアクションから、DB へ書き込むパッチ（Partial<BattleStateRow>）を返す。
  * 副作用なし・同入力同出力。永続化は呼び出し側（useBattlePersist）が担う。
  */
-export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
+export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
+  // _bs は「純粋遷移は現在盤面から次パッチを計算する」契約を表す引数。代表3ケースは単一
+  // フィールド更新で盤面参照が不要なため未使用（`_` 接頭辞）。盤面依存の遷移を移すときに参照する。
   switch (action.type) {
     case 'SET_SETUP_PHASE':
       return { setup_phase: action.phase };
