@@ -353,7 +353,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     if (bs.setup_phase === 'LRIG_SELECT' && bs.host_lrig_selected && bs.guest_lrig_selected) {
       transitioningRef.current = true;
-      supabase.from('battle_states').update({ setup_phase: 'MULLIGAN' }).eq('room_id', roomId)
+      persist.commit(reduceBattle(bs, { type: 'SET_SETUP_PHASE', phase: 'MULLIGAN' }))
         .then(() => { transitioningRef.current = false; });
       return () => { transitioningRef.current = false; };
     }
