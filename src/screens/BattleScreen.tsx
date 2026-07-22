@@ -195,20 +195,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     lookReorderBottom, setLookReorderBottom, selectedMultiChoiceIds, setSelectedMultiChoiceIds,
   } = useEffectInteraction();
   const pickLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // アシストルリグセットアップ（センタールリグ選択後の中間状態）
-  const [pendingLrigSetup, setPendingLrigSetup] = useState<{
-    centerCardNum: string;
-    centerInstanceId: string;
-    lrigWithIds: string[];
-    mainWithIds: string[];
-    remainingLv0: Array<{ cardNum: string; instanceId: string; origIdx: number }>;
-    assistStep: 'confirm' | 'select_l' | 'select_r';
-    assistLInstanceId: string | null;
-    assistLCardNum: string | null;
-  } | null>(null);
-  const [logExpanded, setLogExpanded] = useState(false);
-  const [battleLogs, setBattleLogs] = useState<import('../types').GameLog[]>([]);
-  const logScrollRef = useRef<HTMLDivElement>(null);
+  // バトルログUI（展開トグル・ログ配列・自動スクロール ref）
+  const { logExpanded, setLogExpanded, battleLogs, setBattleLogs, logScrollRef } = useBattleLog();
   const prevPhaseRef = useRef<string | null>(null);
   const prevTurnRef  = useRef<number | null>(null);
   // ON_ENERGY_CHARGE / ON_POWER_THRESHOLD 検知用スナップショット（前回観測時のエナ・パワー）
