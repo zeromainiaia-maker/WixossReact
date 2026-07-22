@@ -1143,6 +1143,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
     const nameMatches = [...t.matchAll(/《([^》]+)》/g)].map(m => m[1]);
     if (nameMatches.length > 0 && t.startsWith('あなたのトラッシュから《') && t.includes('このシグニの下に置く')) {
       if (nameMatches.length === 1) {
+        // 「《X》以外の＜種族＞のシグニN枚」＝除外名＋種族＋枚数（cardName 誤合成の是正・WX05-023-E3 原子3枚）。
+        // 「以外の」が無ければ従来どおり《X》を include 名として扱う。
+        if (t.includes('以外の')) {
+          const cntM = t.match(/シグニ([０-９\d]+)枚/);
+          return {
+            type: 'PLACE_UNDER_SIGNI', source: 'trash',
+            count: cntM ? parseNum(cntM[1]) : 1, upToCount: false,
+            filter: { cardType: 'シグニ', excludeCardName: nameMatches[0], ...parseStoryFilter(t) },
+          } as PlaceUnderSigniAction;
+        }
         return { type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1, filter: { cardName: nameMatches[0] } } as PlaceUnderSigniAction;
       }
       // 複数名：「か」ならどれか1枚、「と」なら全部
