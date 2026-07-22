@@ -888,8 +888,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // CPU対戦: ゲーム終了時にCPUのACKを自動設定
   useEffect(() => {
-    if (!isCpuBattle || bs?.global_phase !== 'FINISHED' || bs?.guest_end_ack) return;
-    supabase.from('battle_states').update({ guest_end_ack: true }).eq('room_id', roomId);
+    if (!bs || !isCpuBattle || bs.global_phase !== 'FINISHED' || bs.guest_end_ack) return;
+    persist.commit(reduceBattle(bs, { type: 'ACK_END', isHost: false }));
   }, [isCpuBattle, bs?.global_phase, bs?.guest_end_ack, roomId]);
 
   // CPU対戦: 両者ACK揃い次第ルームを自動削除
