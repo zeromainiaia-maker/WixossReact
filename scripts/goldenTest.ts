@@ -98,7 +98,11 @@ function mkCtx(owner: StateOpts, other: StateOpts, sourceInst?: string): ExecCtx
 
 // ── オートパイロット（最終 ExecResult を返す）──
 function run(eff: EffectAction, ctx: ExecCtx): ExecResult {
-  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  return finish(result, ctx);
+}
+function finish(initial: ExecResult, ctx: ExecCtx): ExecResult {
+  let result = initial;
   let steps = 0;
   while (!result.done) {
     if (++steps > 40) throw new Error('autopilot hang');
@@ -7395,6 +7399,71 @@ test('対象filter合成 第2波: WX09-020-BURST（PRESERVE直パッチ）の白
 });
 
 // ── レポート ──
+test('WXK08-055: under-signi 2枚なら -5000 と draw のみ', () => {
+  const eff = mergeManualEffects('WXK08-055', effectsMap.get('WXK08-055') ?? []).find(e => e.effectId === 'WXK08-055-E1');
+  ok(!!eff, 'manual effect'); if (!eff) return;
+  const ctx = mkCtx({}, { signi: [SIGNI_P12000, null, null] }, 'WXK08-055');
+  const top = SIGNI_L4;
+  const under = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  ctx.ownerState.field.signi[0] = [...under, top];
+  const handBefore = ctx.ownerState.hand.length;
+  const first = executeEffect(eff, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'under-signi selection');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(first.pending.thenAction), JSON.stringify({ type: 'STUB', id: 'INTERNAL_TRASH_UNDER_SIGNI' }), 'under handler');
+  const resumedCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs };
+  const afterUnder = resumeSelectTarget(under.slice(0, 2), first.pending, resumedCtx);
+  const r = finish(afterUnder, resumedCtx);
+  eq(r.ownerState.hand.length, handBefore + 1, 'draw 1');
+  eq(r.ownerState.field.signi[0]?.length, 2, 'two under cards removed');
+  const deltas = (r.otherState.temp_power_mods ?? []).map(m => m.delta);
+  eq(deltas.filter(d => d === -5000).length, 1, '-5000 once');
+  eq(deltas.filter(d => d === -10000).length, 0, 'no -10000');
+});
+
+test('WXK11-070: energy thresholds share pre-recovery count and self-exile is unique', () => {
+  const eff = mergeManualEffects('WXK11-070', effectsMap.get('WXK11-070') ?? []).find(e => e.effectId === 'WXK11-070-E1');
+  ok(!!eff, 'manual effect'); if (!eff) return;
+  const ctx = mkCtx({}, {}, 'WXK11-070');
+  ctx.ownerState.energy = fill(10);
+  ctx.ownerState.trash = ['WXK11-070'];
+  const lifeBefore = ctx.ownerState.life_cloth.length;
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.energy.length, 0, 'all energy trashed');
+  eq(r.ownerState.life_cloth.length, lifeBefore + 1, '10 threshold adds life');
+  eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 1, 'self-exile approximation has one trash copy');
+  eq(r.ownerState.deck.includes('WXK11-070'), false, 'self removed from shuffled deck');
+});
+
+test('MILL fromBottom: deck末尾だけをトラッシュへ移す', () => {
+  const ctx = mkCtx({}, {});
+  const deck = [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4];
+  ctx.ownerState.deck = [...deck]; ctx.ownerState.trash = [];
+  const r = run({ type: 'MILL', owner: 'self', count: 2, fromBottom: true }, ctx);
+  eq(JSON.stringify(r.ownerState.deck), JSON.stringify(deck.slice(0, 2)), 'deck head remains');
+  eq(JSON.stringify(r.ownerState.trash), JSON.stringify(deck.slice(2)), 'deck tail milled');
+});
+
+test('WXK03-039: bottom 4 distinct levels banish retained target only', () => {
+  const eff = mergeManualEffects('WXK03-039', effectsMap.get('WXK03-039') ?? []).find(e => e.effectId === 'WXK03-039-E1');
+  ok(!!eff, 'manual effect'); if (!eff) return;
+  const target = SIGNI_P12000;
+  const ctx = mkCtx({}, { signi: [target, null, null] }, 'WXK03-039');
+  const head = fill(2);
+  const bottom = [SIGNI_L1, SIGNI_L2, SIGNI_L3, SIGNI_L4];
+  ctx.ownerState.deck = [...head, ...bottom]; ctx.ownerState.trash = [];
+  const r = run(eff.action, ctx);
+  eq(JSON.stringify(r.ownerState.deck), JSON.stringify(head), 'only bottom four milled');
+  eq(JSON.stringify(r.ownerState.trash), JSON.stringify(bottom), 'milled cards retained for condition');
+  eq(r.otherState.field.signi[0], null, 'selected target banished');
+  ok(r.otherState.energy.includes(target), 'banished target moved to energy');
+
+  const no = mkCtx({}, { signi: [target, null, null] }, 'WXK03-039');
+  no.ownerState.deck = [...head, SIGNI_L1, SIGNI_L1, SIGNI_L1, SIGNI_L1]; no.ownerState.trash = [];
+  const rn = run(eff.action, no);
+  eq(rn.otherState.field.signi[0]?.at(-1), target, 'non-distinct mill does not banish');
+});
+
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

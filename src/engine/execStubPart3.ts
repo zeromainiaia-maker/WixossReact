@@ -652,21 +652,35 @@ export function execStubPart3(
   }
   // INTERNAL_TRASH_UNDER_SIGNI: シグニ下カードをトラッシュへ移動
   if (stub.id === 'INTERNAL_TRASH_UNDER_SIGNI') {
-    const cardITUS = ctx.lastProcessedCards?.[0];
-    if (!cardITUS) return done(addLog(ctx, 'INTERNAL_TRASH_UNDER_SIGNI: カードなし'));
+    const cardsITUS = ctx.lastProcessedCards ?? [];
+    if (cardsITUS.length === 0) return done(addLog(ctx, 'INTERNAL_TRASH_UNDER_SIGNI: カードなし'));
     const newSigniITUS = ctx.ownerState.field.signi.map(stack => {
       if (!stack) return stack;
-      const idx = stack.indexOf(cardITUS);
-      if (idx < 0) return stack;
-      return stack.filter((_, i) => i !== idx);
+      return stack.filter(cardNum => !cardsITUS.includes(cardNum));
     }) as (string[] | null)[];
     const newOwnerITUS: PlayerState = {
       ...ctx.ownerState,
-      trash: [...ctx.ownerState.trash, cardITUS],
+      trash: [...ctx.ownerState.trash, ...cardsITUS],
       field: { ...ctx.ownerState.field, signi: newSigniITUS },
     };
-    return done(addLog({ ...ctx, ownerState: newOwnerITUS },
-      `${ctx.cardMap.get(cardITUS)?.CardName ?? cardITUS}をシグニ下からトラッシュへ`));
+    return done({ ...addLog({ ...ctx, ownerState: newOwnerITUS },
+      `シグニの下から${cardsITUS.length}枚をトラッシュへ`), lastProcessedCards: cardsITUS });
+  }
+  if (stub.id === 'TRASH_UNDER_SIGNI_UP_TO_ALL') {
+    const candidates = ctx.ownerState.field.signi.flatMap(stack => stack && stack.length > 1 ? stack.slice(0, -1) : []);
+    if (candidates.length === 0) return done({ ...addLog(ctx, 'シグニの下にカードがない'), lastProcessedCards: [] });
+    return needsInteraction(addLog(ctx, 'シグニの下のカードを好きな枚数トラッシュに置く'), {
+      type: 'SELECT_TARGET', candidates, count: candidates.length, optional: true,
+      targetScope: 'self_field', thenAction: { type: 'STUB', id: 'INTERNAL_TRASH_UNDER_SIGNI' } as StubAction,
+    });
+  }
+  if (stub.id === 'SELECT_OPP_SIGNI_FOR_BOTTOM_MILL') {
+    const candidates = ctx.otherState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+    if (candidates.length === 0) return done(addLog(ctx, '対象にできる対戦相手のシグニがない'));
+    return needsInteraction(addLog(ctx, '対戦相手のシグニ1体を対象とする'), {
+      type: 'SELECT_TARGET', candidates, count: 1, optional: false, targetScope: 'opp_field',
+      thenAction: { type: 'STUB', id: 'INTERNAL_MILL_BOTTOM_DISTINCT4_BANISH' } as StubAction,
+    });
   }
   // LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限
   if (stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'LIMIT_OPP_ATTACK_ONCE') {
@@ -4759,7 +4773,20 @@ export function execStubPart3(
     if (!srcESAU) return done(addLog(ctx, 'EXILE_SELF_AFTER_USE: sourceCardNum なし'));
     const nameESAU = ctx.cardMap.get(srcESAU)?.CardName ?? srcESAU;
     // フィールドから除去（チャーム・アクセはトラッシュ、カード本体はゲームから除外→近似でトラッシュ）
-    const removedESAU = removeFromField(srcESAU, ctx.ownerState);
+    const removeOneESAU = (cards: string[]): [string[], boolean] => {
+      const idx = cards.indexOf(srcESAU);
+      if (idx < 0) return [cards, false];
+      return [[...cards.slice(0, idx), ...cards.slice(idx + 1)], true];
+    };
+    const foundOnFieldESAU = ctx.ownerState.field.signi.some(stack => stack?.includes(srcESAU))
+      || ctx.ownerState.field.lrig.includes(srcESAU);
+    let removedESAU = foundOnFieldESAU ? removeFromField(srcESAU, ctx.ownerState) : ctx.ownerState;
+    let foundESAU = foundOnFieldESAU;
+    for (const zone of ['deck', 'hand', 'trash', 'energy', 'life_cloth'] as const) {
+      if (foundESAU) break;
+      const [cards, removed] = removeOneESAU(removedESAU[zone]);
+      if (removed) { removedESAU = { ...removedESAU, [zone]: cards }; foundESAU = true; }
+    }
     const newOwnerESAU: PlayerState = { ...removedESAU, trash: [...removedESAU.trash, srcESAU] };
     return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外（近似: トラッシュ）`));
   }

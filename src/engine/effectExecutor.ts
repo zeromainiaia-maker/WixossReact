@@ -2104,6 +2104,16 @@ const DID_IT_GATED_TYPES = new Set<string>([
 ]);
 
 function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
+  if (a.snapshotLastProcessedForConditionals) {
+    const snapshotCtx = { ...ctx, lastProcessedCards: [...(ctx.lastProcessedCards ?? [])] };
+    const resolvedSteps = a.steps.flatMap(step => {
+      if (step.type !== 'CONDITIONAL') return [step];
+      const conditional = step as ConditionalAction;
+      if (evalCondition(conditional.condition, snapshotCtx)) return [conditional.then];
+      return conditional.else ? [conditional.else] : [];
+    });
+    return execSequence({ type: 'SEQUENCE', steps: resolvedSteps }, ctx);
+  }
   let cur = ctx;
   for (let i = 0; i < a.steps.length; i++) {
     const step = a.steps[i];
@@ -3988,10 +3998,10 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const actual = Math.min(count, state.deck.length);
   if (actual === 0) return done(addLog(ctx, 'デッキが空のためミルをスキップ'));
-  const milled = state.deck.slice(0, actual);
+  const milled = a.fromBottom ? state.deck.slice(state.deck.length - actual) : state.deck.slice(0, actual);
   const newState: PlayerState = {
     ...state,
-    deck: state.deck.slice(actual),
+    deck: a.fromBottom ? state.deck.slice(0, state.deck.length - actual) : state.deck.slice(actual),
     trash: [...state.trash, ...milled],
     // このミルの原因カード（milledSourceStory 判定用・last_effect_draw_source と同型）。
     // trash は string[] でエントリに発生源を持てないため、直近のミル発生源を state 側に記録する。
@@ -4699,6 +4709,30 @@ export function applyRefreshOnDone(
       ...(pending.continuation ? { afterAction: pending.continuation } : {}),
     };
     return execPlaceSigniOnField(placeAll, cur);
+  }
+  if (pending.thenAction.type === 'STUB' && (pending.thenAction as StubAction).id === 'INTERNAL_TRASH_UNDER_SIGNI') {
+    const signi = cur.ownerState.field.signi.map(stack => stack ? stack.filter(n => !selected.includes(n)) : stack) as (string[] | null)[];
+    cur = addLog({
+      ...cur,
+      ownerState: { ...cur.ownerState, trash: [...cur.ownerState.trash, ...selected], field: { ...cur.ownerState.field, signi } },
+      lastProcessedCards: selected,
+    }, `シグニの下から${selected.length}枚をトラッシュへ`);
+    if (pending.continuation) return executeAction(pending.continuation, cur);
+    return done(cur);
+  }
+  if (pending.thenAction.type === 'STUB' && (pending.thenAction as StubAction).id === 'INTERNAL_MILL_BOTTOM_DISTINCT4_BANISH') {
+    const retainedTarget = selected[0];
+    if (!retainedTarget) return done(cur);
+    const milled = execMill({ type: 'MILL', owner: 'self', count: 4, fromBottom: true }, cur);
+    if (!milled.done) return milled;
+    cur = { ...cur, ownerState: milled.ownerState, otherState: milled.otherState, logs: milled.logs, lastProcessedCards: milled.lastProcessedCards };
+    if (evalCondition({ type: 'TRASHED_DISTINCT_LEVELS_GTE', count: 4 }, cur)) {
+      const banished = applyDirectAction({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, retainedTarget, cur);
+      if (!banished.done) return banished;
+      cur = { ...cur, ownerState: banished.ownerState, otherState: banished.otherState, logs: banished.logs, lastProcessedCards: milled.lastProcessedCards };
+    }
+    if (pending.continuation) return executeAction(pending.continuation, cur);
+    return done(cur);
   }
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
