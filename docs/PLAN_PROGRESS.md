@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-22・続き252・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第4波＝センタールリグ条件＋ターン内履歴/出自条件22効果を採用**（census 1761→**1742**・golden 590→**593**）**
+  - **修正（Codex 実装）**＝LRIG_LEVEL/COLOR/STORY・SPELL_USED_THIS_TURN・THIS_CARD_FROM_TRASH・IS_BETTING 流用＋最小拡張3点（**`OR` 複合条件**・`THIS_CARD_PLACED_BY_CLASS` cardClass 省略＝効果起因配置の存在判定・**`signi_played_from_deck`+`THIS_CARD_FROM_DECK`**）。「代わりに」二重実行2件（4枚+6枚両ミル等）・choice 潰れ2件・PARTIAL カードの UNKNOWN 復元も同時是正。betChoose 2枚は既に正しかったと正直申告。見送り＝G5 5（支払い経路/遅延2回化/ブースト機構/1回目判定が無い）＋G6 新カウンタ要23（登録のみ）。
+  - **⚠Claude 検証で検出→Claude 側で直接是正**（codex 差し戻しを中断・ユーザー指示）＝①**parser 完全未修正の JSON 直パッチ納品（ガードレール9違反）**＝held 73→**86 汚染**（申告「74」は stale 読み値＝乖離2連続）・drift は「fresh が条件を失う」向き＝将来 `--adopt` で修正が剥がれる危険 → **`STATE_COND_BATCH4_ACTIONS`**（curated 完全一致リテラル・batch2/3 方式）を parser に固定し held **73 復帰**。②**誤合成の除去し忘れ3件**＝WX05-052（サーチ Lv4+白限定化＝過小）・WX05-073（全体+5000 の Lv4+緑限定化＝過小）・WX16-036（無色欠落＝過剰）を JSON+parser 両修正。③BASELINE_HIGH 1742 更新＋golden 是正ガード+1。
+  - **ゲート**＝全緑（golden **593**・smoke 10722全OK・fuzz 全0・census **1742**・lint 0 errors・同型★0・**held 73**）。変更集合＝22効果ちょうど（機械diff・巻き添え0）。詳細 BUGFIXES 続き252。
+
 - **🆕 セッション（2026-07-22・続き251・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第3波＝盤面/ゾーン状態条件の丸ごと脱落33効果を採用**（census 1792→**1761**・golden 588→**590**）**
   - **当たりバッチ**＝投入前実測で候補39効果すべてが条件丸ごと脱落の真バグ（偽陽性ゼロ）。「場に＜C＞がいる/トラッシュにN種類/エナにN枚/全シグニが＜C＞/色合計N種類/キー・チャーム存在」の条件節がアタック・場出しのたび無条件発火していた系統。
   - **修正（Codex 実装）**＝既存条件（HAS_CARD_IN_FIELD/TRASH_HAS_CARD/ENERGY_COUNT_FILTER/ALL_FIELD_SIGNI_MATCH）流用＋最小拡張3点（`HAS_CARD_IN_FIELD.distinctColors`・新条件 `HAS_KEY_IN_FIELD`・hasCharm ゾーン状態評価）。複合バグ同時是正＝WXDi-CP02-056-E2 幻覚DRAW除去・WX25-CP1-077 条件の対象filter誤合成分離・WX13-049 回収対象スペル復元・WX22-038 SEARCH filter（スペル costMin:2）復元ほか。見送り6（owner:any 場条件・シグニの下・チェックゾーン・能力なしfilter）は再検証済み。
