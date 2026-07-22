@@ -5422,7 +5422,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
-      await persist.commit({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, effectStack: stack, clearPending: true, opp: opAfterGrow ? { key: opKeyGrow, state: opAfterGrow } : undefined }));
     } finally {
       setLoading(false);
     }
