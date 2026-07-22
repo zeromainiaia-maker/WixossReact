@@ -141,6 +141,8 @@ node scripts/groupSimilar.mjs --all   # 同型★
 | 10 | **`MANUAL`/`PARTIAL` を含むカードは `build:effects` が curated を温存し heldReview に載らない**（`PRESERVE_STATUSES`）と明記 | 続き209 で `WXEX1-03` がこれに該当し、直接 JSON パッチが必要だった |
 | 11 | **既存挙動を広く変える一般化はしない**（regex は具体文型に限定） | 続き207 の「plain な『場に出してもよい』の optional 化は据置」判断 |
 | 12 | **変更は per-card ではなく per-effect で報告させる** | 続き212 で Codex は「変更8カード・outlier 0」と正しく報告したが、**採用はカード単位なので同じカード内の別効果3件も一緒に変わっていた**（`PR-427-E3`／`WXDi-D09-H17-E2`／`WXDi-P11-039-E2`）。今回は3件とも改善方向だったが、**退化していても報告に現れない**。カード単位の diff だけ見ていると見逃す |
+| 13 | **`buildEffectsJson.ts` に force-adopt リストを仕込むの禁止。採用は `heldReview --adopt`（or 検証済み fresh の直パッチ）経由** | 続き251 で Codex が恒久 `FORCE_ADOPT_BOARD_ZONE_BATCH3` を build 本体に追加＝**held 計器の恒久バイパス**になり、PRESERVE（MANUAL/PARTIAL 同居）カード4枚を含む**兄弟効果12件が無審査採用**された（うち退化4件＝条件脱落2・別STUB化1・MANUAL剥がし1）。しかも本人の報告は「変化33のみ・outlier 0」＝**数値申告が外れた初のケース**（force-adopt の副作用は自分の diff 集計にも映らなかった） |
+| 14 | **新フィールドを既存 action 型へ足すときは「型宣言＋executor 対応」の両方を確認させる**（JSON は型検査されない） | 続き251 で `TRANSFER_TO_DECK` に `targetsLastProcessed` を付けたが**型にも executor にも存在しない死フラグ**＝実行時は無フィルタの独自選択へフォールバックし過剰効果化（WXK09-066）。tsc は JSON データを検査しないため素通りする |
 
 ---
 
