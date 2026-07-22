@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-22・続き248・Opus・**タスク12(xlix) 消化＝**【常】出撃制限が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統11枚**を新設 `SELF_PLAY_RESTRICT` で表現し直し＋summon チョークポイントで**実 enforcement**。census 1825→**1817**・golden 573→**579**）**
+  - **バグ**＝「このシグニ/カード/キーは〜（新たに）場に出すことができない」（カード自身の出撃制限）が「場に出す」を含むため bare `ADD_TO_FIELD` へ落ち、`CONTINUOUS ADD_TO_FIELD{owner:self}` として**制限が完全に失われていた**（意味的退化）。「対戦相手はシグニをN体まで」（`DEPLOY_RESTRICT`・場の枚数制限）とは別系統。
+  - **棚卸し**＝idiom 全19枚を分類＝Type A（自身出撃制限＝本修正）11枚／Type B（場の枚数制限）8枚＝既に `DEPLOY_RESTRICT`/`fieldLimit.ts` 実装済。**engine 誤実行の懸念は現状無しと確認**（`CONTINUOUS ADD_TO_FIELD` はどの収集経路にも拾われず executor default が安全 no-op）＝現状は無害な inert no-op だが出撃制限が効かない退化。
+  - **修正**＝新設 `SelfPlayRestrictAction`（`never`＝効果でのみ配置可／`condition`＝許可条件／`rawText`）＋parser `parseSelfPlayRestrict`（全文先取り＝`parseActiveCondition` が「…ないかぎり、」条件節を剥がす前に検出）＋engine `canSelfPlay` を `handleSummonSigni` へ配線＋`evalConditionForContinuous` に FIELD_SIGNI_POWER_COUNT/FIELD_CLASS_COUNT/LRIG_NAME_CONTAINS 追加＋executor no-op＋decompiler は rawText 忠実描画。
+  - **enforcement 実配線**＝never（WXK05-032/PR-470B）／WX12-022（パワー10000+）／WX14-033（＜アーム＞2体+）／キー3枚（LRIG名+Lv4）。**permissive 据置**（機械条件なし＝従来同値・退化なし）＝WX19-030(ウィルス総数)/WX18-075(アクセ総数)/WX08-025(クロス状態)/WD16-016(相手ディスカード)＝新規 Condition 語彙が要る単発機構。CPU 召喚経路・キー配置経路の enforcement は §8/別チョークポイントへ据置。
+  - **採用**＝型スワップは build:effects 非採用（held ドリフト）だが、全11枚で**非E1効果が curated 完全一致・E1のみ変化**を機械確認し `_held_fresh.json` から直接採用（minified 維持）。
+  - **ゲート**＝全ゲート緑（typecheck／**golden 579**〔parse 11枚＋canSelfPlay 5テスト〕・smoke 10722全OK・fuzz 全0・census **1817**・lint 0 errors）。`npm run regen` 済（逆翻訳が原文一致）。詳細 BUGFIXES 続き248。
+
 - **🆕 セッション（2026-07-21・続き243・Opus・**タスク12(xxix)「そのシグニの【出】能力」クラスタ（≈30効果として登録）を**忠実表現化**＝**挙動上は偽陽性**と確定したうえで死アクションを畳んだ。census 1825維持・golden 557→**562**）**
   - **偽陽性の根拠2点**＝(1)`BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}` は **engine 未参照の完全な死アクション**（`grep` で消費0確認）＋target `owner:any/ALL`＝「全シグニ封じ」の過剰表現。(2)`ADD_TO_FIELD`/`SEARCH→field`/`LOOK_PICK_CHAIN` 経路は**効果配置シグニの自身 ON_PLAY を発火させない**（自身【出】を積むのは `REVEAL_UNTIL_TO_FIELD` のみ・当クラスタは非使用）＝抑制は既定で満たされていた。
   - **忠実表現化（最小修正・低リスク）**＝死アクションを配置アクションの `suppressOnPlay` フラグへ畳む。型（AddToField/RevealUntilToField/LookPickChainStage）＋parser `foldSuppressOnPlay`（`parseCardEffects` 末尾の単一チョークポイント）＋engine 前方安全（REVEAL_UNTIL_TO_FIELD 3経路）＋decompiler。76効果を折込・残22効果は配置アンカー無しで据置。
