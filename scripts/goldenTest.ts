@@ -6759,6 +6759,15 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: {} as PlayerState });
     ok(!('effect_stack' in patch), '省略時は effect_stack キー無し');
   });
+  test('Stage3 reduceBattle END_GAME: FINISHED＋winner＋最終盤面', () => {
+    const my = { a: 1 } as unknown as PlayerState;
+    const op = { b: 2 } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'END_GAME', winnerId: 'u1', myKey: 'host_state', myState: my, opp: { key: 'guest_state', state: op } });
+    eq(patch.global_phase, 'FINISHED', 'FINISHED');
+    eq(patch.winner_id, 'u1', 'winner');
+    eq(patch.host_state, my, 'my');
+    eq(patch.guest_state, op, 'opp');
+  });
 }
 
 // ── レポート ──
