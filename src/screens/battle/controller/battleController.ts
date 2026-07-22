@@ -20,6 +20,8 @@ import type { BattleStateRow } from '../../../types';
 export type BattleAction =
   /** セットアップフェイズを進める（例：じゃんけん確定後 → MULLIGAN）。 */
   | { type: 'SET_SETUP_PHASE'; phase: BattleStateRow['setup_phase'] }
+  /** ターンフェイズを進める（ENERGY / MAIN / ATTACK_* / END 等）。 */
+  | { type: 'SET_TURN_PHASE'; phase: BattleStateRow['turn_phase'] }
   /** 決着確認（終了ダイアログ）を了承する。 */
   | { type: 'ACK_END'; isHost: boolean }
   /** じゃんけんの手を提出する。 */
