@@ -58,6 +58,34 @@ import {
   parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf,
 } from '../parserUtils';
 
+/**
+ * 自身出撃制限（SELF_PLAY_RESTRICT・Opusタスク12(xlix)）を全文から検出する。
+ * 「【常】：この(シグニ|カード|キー)は〜（新たに）場に出すことができない」＝この効果を持つカード自身の通常召喚可否ゲート。
+ * 「対戦相手はシグニをN体まで」（DEPLOY_RESTRICT・場の枚数制限）とは別系統。
+ * effectParser の CONTINUOUS 分岐が parseActiveCondition で条件節を剥がす**前**の全文で呼ぶこと（さもないと
+ * 「…ないかぎり、新たに場に出す…」の条件節が先に消費され、残余「新たに場に出す…」が bare ADD_TO_FIELD へ誤 parse される）。
+ * マッチしなければ null。
+ */
+export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null {
+  if (!/^この(?:シグニ|カード|キー)は/.test(t) || !/(?:新たに)?場に出すことができない/.test(t)) return null;
+  const base: SelfPlayRestrictAction = { type: 'SELF_PLAY_RESTRICT', rawText: t };
+  // never＝無条件で通常召喚不可（効果でのみ配置可）：「効果以外によっては」／条件節（場合・かぎり・限り）を含まない
+  if (/効果以外によっては/.test(t) || !/(?:場合|かぎり|限り)/.test(t)) {
+    return { ...base, never: true };
+  }
+  // あなたの場にパワーN以上のシグニがある場合にしか（WX12-022）
+  const pwM = t.match(/あなたの場にパワー([０-９\d,]+)以上のシグニがある場合にしか/);
+  if (pwM) return { ...base, condition: { type: 'FIELD_SIGNI_POWER_COUNT', owner: 'self', minPower: parseInt(toHalf(pwM[1]).replace(/,/g, ''), 10), operator: 'gte', value: 1 } };
+  // あなたの場に＜C＞のシグニがN体以上ないかぎり／ある場合にしか（WX14-033）
+  const clsM = t.match(/あなたの場に[＜<]([^＞>]+)[＞>]のシグニが([０-９\d]+)体以上(?:ないかぎり|ある場合にしか)/);
+  if (clsM) return { ...base, condition: { type: 'FIELD_CLASS_COUNT', owner: 'self', story: clsM[1], operator: 'gte', value: parseNum(clsM[2]) } };
+  // あなたのセンタールリグが《X（　レベルN）》の場合にしか（キー WDK16-05H/S/T）
+  const lrigM = t.match(/あなたのセンタールリグが《([^》]+?)[　\s]*レベル([０-９\d])》の場合にしか/);
+  if (lrigM) return { ...base, condition: { type: 'AND', conditions: [ { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: lrigM[1] }, { type: 'LRIG_LEVEL', owner: 'self', operator: 'eq', value: parseNum(lrigM[2]) } ] } };
+  // それ以外（ウィルス総数/アクセ総数/クロス状態/相手ディスカード等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
+  return base;
+}
+
 export function parseSentencePart1(t: string): EffectAction | null {
   // ---- 【シグニバリア】/【ルリグバリア】を得る ----
   // 純粋なバリア付与文のみマッチ（「白のルリグ1体につき【ルリグバリア】…」等の複雑文は別stubで処理するため除外）。
