@@ -558,6 +558,7 @@ export type EffectAction =
   | RevealUntilToFieldAction
   | PlaceLrigsUnderCenterAction
   | StubAction
+  | SelfPlayRestrictAction
   | GainBondAction
   | MILLAction
   | UnknownAction;
