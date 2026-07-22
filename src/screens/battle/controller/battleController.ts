@@ -86,6 +86,8 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       if (action.clearPending) patch.pending_effect = null;
       return patch;
     }
+    case 'SET_STACK':
+      return { effect_stack: action.settle && action.stack ? (isStackDone(action.stack) ? null : action.stack) : action.stack };
     case 'END_GAME': {
       const patch: Partial<BattleStateRow> = {
         [action.myKey]: action.myState,
