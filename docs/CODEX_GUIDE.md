@@ -150,6 +150,8 @@ node scripts/groupSimilar.mjs --all   # 同型★
 
 **「やらなかったことの申告」を最重要と明記する。** これを書くと質が上がる。
 
+> ⚠ **held/parserWorklist の申告値は「報告直前に `npm run build:effects` → `node scripts/heldReview.mjs` を再実行した実測値」であることを義務付ける**。続き252 で Codex は stale な held ファイルの読み値（74）を申告し、実測は 86 だった（parser 未修正の JSON 直パッチ21件ぶんのドリフトが不可視化）。
+
 1. 触ったファイルと各1行の理由
 2. **調査結果**（今回の機構が成立する前提を満たすか。効果ごとに）
 3. **採用した効果の全件**＝`effectId ／ 原文の条件節 ／ 生成 JSON ／ 逆翻訳文全体 ／ 原文と一致するか`
