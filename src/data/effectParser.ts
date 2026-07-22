@@ -5220,11 +5220,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         parseStatus: eichiFb.length > 0 ? 'PARTIAL' : 'AUTO',
       };
     }
+    // 自身出撃制限（SELF_PLAY_RESTRICT・Opusタスク12(xlix)）は条件抽出ループより**前**に全文で取る
+    // （「…ないかぎり、新たに場に出す…」の条件節を parseActiveCondition が剥がして残余が bare ADD_TO_FIELD へ
+    //   誤 parse されるのを回避。条件は SELF_PLAY_RESTRICT.condition に内包する）。
+    const selfPlayRestrict = parseSelfPlayRestrict(actionText);
     // 多段「下にレベルNのシグニがあるかぎり、「Q」を得る。」は条件抽出ループより**前**に丸ごと取る
     // （1段目条件を genericKagiri に消費させない。WX24-P1-043＝続き77 Sonnet観測(b)）
-    const multiStage = parseMultiStageUnderGrant(actionText);
-    const centerColorFront = multiStage ? null : parseCenterColorFrontPowerGrant(actionText);
-    if (multiStage) {
+    const multiStage = selfPlayRestrict ? null : parseMultiStageUnderGrant(actionText);
+    const centerColorFront = (selfPlayRestrict || multiStage) ? null : parseCenterColorFrontPowerGrant(actionText);
+    if (selfPlayRestrict) {
+      resolvedAction = selfPlayRestrict;
+    } else if (multiStage) {
       resolvedAction = multiStage;
     } else if (centerColorFront) {
       // 外側センター色＋内側正面パワーの二段「かぎり」を AND に平坦化（genericKagiri の無言消費を回避）。
