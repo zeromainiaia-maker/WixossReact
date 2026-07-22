@@ -6709,6 +6709,26 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   });
 }
 
+// Stage3 骨組み：純粋バトルコントローラ reduceBattle（現在盤面＋action → DB パッチ）の遷移を固定。
+// 代表3ケースは単一フィールド更新。将来ハンドラを純粋化して case を足すたびにここも増やす。
+{
+  const stub = {} as BattleStateRow; // 代表3ケースは盤面非依存のため最小スタブで足りる
+  test('Stage3 reduceBattle SET_SETUP_PHASE: setup_phase パッチのみ', () => {
+    const patch = reduceBattle(stub, { type: 'SET_SETUP_PHASE', phase: 'MULLIGAN' });
+    eq(patch.setup_phase, 'MULLIGAN', 'setup_phase');
+    eq(Object.keys(patch).length, 1, 'キー数');
+  });
+  test('Stage3 reduceBattle ACK_END: host/guest で書き込み先が分岐', () => {
+    eq(reduceBattle(stub, { type: 'ACK_END', isHost: true }).host_end_ack, true, 'host');
+    eq(reduceBattle(stub, { type: 'ACK_END', isHost: true }).guest_end_ack, undefined, 'host は guest を触らない');
+    eq(reduceBattle(stub, { type: 'ACK_END', isHost: false }).guest_end_ack, true, 'guest');
+  });
+  test('Stage3 reduceBattle SUBMIT_JANKEN: host/guest で提出先が分岐', () => {
+    eq(reduceBattle(stub, { type: 'SUBMIT_JANKEN', isHost: true, pick: 'GU' }).host_janken, 'GU', 'host');
+    eq(reduceBattle(stub, { type: 'SUBMIT_JANKEN', isHost: false, pick: 'PA' }).guest_janken, 'PA', 'guest');
+  });
+}
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
