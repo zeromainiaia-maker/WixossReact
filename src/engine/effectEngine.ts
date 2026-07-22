@@ -764,11 +764,64 @@ function evalConditionForContinuous(
       }).length;
       return cmp(cnt, cond.operator, cond.value);
     }
+    case 'FIELD_CLASS_COUNT': {
+      // 場のシグニのうち CardClass が story を含むものの数（execUtils.evalCondition と同実装）
+      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        return cardMap.get(top)?.CardClass?.includes(cond.story) ? n + 1 : n;
+      }, 0);
+      return cmp(cnt, cond.operator, cond.value);
+    }
+    case 'FIELD_SIGNI_POWER_COUNT': {
+      // 場のシグニのうちパワーが minPower 以上のものの数。CONTINUOUS 評価では effectivePowers を持たないため
+      // ベースパワー（cardMap の Power）で近似する（出撃制限ゲート用途では十分な保守的近似）。
+      const cnt = st(cond.owner).field.signi.reduce((n, stack) => {
+        const top = stack?.at(-1);
+        if (!top) return n;
+        const pw = parseInt(cardMap.get(top)?.Power ?? '0', 10) || 0;
+        return pw >= cond.minPower ? n + 1 : n;
+      }, 0);
+      return cmp(cnt, cond.operator, cond.value);
+    }
+    case 'LRIG_NAME_CONTAINS': {
+      const lrig = st(cond.owner).field.lrig;
+      const top = lrig[lrig.length - 1];
+      if (!top) return false;
+      return cardMap.get(top)?.CardName?.includes(cond.name) ?? false;
+    }
     case 'AND':
       return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum, oppTrashColorLoss));
     default:
       return true;
   }
+}
+
+/**
+ * 自身出撃制限（SELF_PLAY_RESTRICT・Opusタスク12(xlix)）：cardNum を **通常召喚**（handleSummonSigni）で
+ * 場に出せるかを評価する。制限が無ければ true。
+ *  - never=true：常に false（効果でのみ配置可能）。
+ *  - condition あり：evalConditionForContinuous で評価し、満たさないとき false（配置不可）。
+ *    ownerState＝召喚するプレイヤー（この時点で当該カードはまだ手札にあり場に含まれない）／otherState＝相手。
+ *  - 未対応語彙で condition を付けられなかったカードは condition 省略＝permissive（true・従来の inert no-op と同値）。
+ * evalConditionForContinuous の default は true（＝評価不能な条件は許可）なので、過剰制限（正当な召喚を弾く退化）を避ける。
+ */
+export function canSelfPlay(
+  effects: CardEffect[] | undefined,
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum?: string,
+): boolean {
+  if (!effects) return true;
+  for (const eff of effects) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    const a = eff.action;
+    if (!a || a.type !== 'SELF_PLAY_RESTRICT') continue;
+    if (a.never) return false;
+    if (a.condition && !evalConditionForContinuous(a.condition, ownerState, otherState, cardMap, sourceCardNum)) return false;
+  }
+  return true;
 }
 
 function extractPowerSets(action: EffectAction): PowerSetAction[] {
