@@ -13,6 +13,7 @@
 // キーへ書くか・opp/スタック/pending を併せるか）を本 reducer に集約する。レシピは
 // docs/BATTLE_CONTROLLER.md。
 import type { BattleStateRow, PlayerState, EffectStack } from '../../../types';
+import { isStackDone } from '../../../engine/effectStack';
 
 /** プレイヤー状態を書き込む先のカラム。 */
 export type PlayerStateKey = 'host_state' | 'guest_state';
