@@ -34,7 +34,7 @@ import type {
 import {
   parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget,
 } from './parserUtils';
-import { parseSentencePart1 } from './parsers/parseSentencePart1';
+import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4 } from './parsers/parseSentencePart4';
