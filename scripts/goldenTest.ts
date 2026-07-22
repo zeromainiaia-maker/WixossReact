@@ -132,6 +132,52 @@ test('DRAW: 手札+2 デッキ-2', () => {
   const r = run({ type: 'DRAW', owner: 'self', count: 2 } as EffectAction, ctx);
   eq(r.ownerState.hand.length, 7, 'hand'); eq(r.ownerState.deck.length, d0 - 2, 'deck');
 });
+
+// ── SELF_PLAY_RESTRICT（自身出撃制限・Opusタスク12(xlix)）──
+// 「【常】：このシグニは〜（新たに）場に出すことができない」を SELF_PLAY_RESTRICT へ正 parse し、
+// canSelfPlay が never/condition で通常召喚可否をゲートする（旧来は bare ADD_TO_FIELD へ誤 parse＝inert no-op）。
+test('(xlix) parse: 11枚が SELF_PLAY_RESTRICT へ（ADD_TO_FIELD 誤 parse を解消）', () => {
+  const ids = ['PR-470B', 'WD16-016', 'WDK16-05H', 'WDK16-05S', 'WDK16-05T', 'WX08-025', 'WX12-022', 'WX14-033', 'WX18-075', 'WX19-030', 'WXK05-032'];
+  for (const id of ids) {
+    const e1 = (effectsMap.get(id) ?? [])[0];
+    ok(e1?.action?.type === 'SELF_PLAY_RESTRICT', `${id}-E1 は SELF_PLAY_RESTRICT (実際:${e1?.action?.type})`);
+    ok(e1?.effectType === 'CONTINUOUS', `${id}-E1 は CONTINUOUS`);
+  }
+  // never（無条件・効果でのみ配置可）
+  ok((effectsMap.get('WXK05-032')![0].action as { never?: boolean }).never === true, 'WXK05-032 は never');
+  ok((effectsMap.get('PR-470B')![0].action as { never?: boolean }).never === true, 'PR-470B（効果以外によっては）は never');
+  // condition（WX12-022=パワー10000以上のシグニ / WX14-033=＜アーム＞2体以上）
+  eq((effectsMap.get('WX12-022')![0].action as { condition?: { type: string } }).condition?.type, 'FIELD_SIGNI_POWER_COUNT', 'WX12-022 は FIELD_SIGNI_POWER_COUNT');
+  eq((effectsMap.get('WX14-033')![0].action as { condition?: { type: string } }).condition?.type, 'FIELD_CLASS_COUNT', 'WX14-033 は FIELD_CLASS_COUNT');
+});
+test('(xlix) canSelfPlay: never は常に配置不可', () => {
+  const effs = effectsMap.get('WXK05-032')!;
+  ok(canSelfPlay(effs, mkState({}), mkState({}), cardMap as Map<string, CardData>) === false, 'never→false');
+});
+test('(xlix) canSelfPlay: FIELD_SIGNI_POWER_COUNT（WX12-022）＝場にパワー10000以上のシグニがある場合のみ可', () => {
+  const effs = effectsMap.get('WX12-022')!;
+  const P12000 = findCard(c => isSigni(c) && parseInt(c.Power ?? '0', 10) >= 10000);
+  const P3000 = findCard(c => isSigni(c) && parseInt(c.Power ?? '0', 10) === 3000);
+  ok(canSelfPlay(effs, mkState({ signi: [P12000, null, null] }), mkState({}), cardMap as Map<string, CardData>) === true, '10000以上あり→可');
+  ok(canSelfPlay(effs, mkState({ signi: [P3000, null, null] }), mkState({}), cardMap as Map<string, CardData>) === false, '10000未満のみ→不可');
+  ok(canSelfPlay(effs, mkState({}), mkState({}), cardMap as Map<string, CardData>) === false, '空盤面→不可');
+});
+test('(xlix) canSelfPlay: FIELD_CLASS_COUNT（WX14-033）＝＜アーム＞2体以上ないかぎり不可', () => {
+  const effs = effectsMap.get('WX14-033')!;
+  const arms = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('アーム')).map(c => c.CardNum);
+  ok(arms.length >= 2, 'アームsigni 2枚以上存在');
+  ok(canSelfPlay(effs, mkState({ signi: [arms[0], arms[1], null] }), mkState({}), cardMap as Map<string, CardData>) === true, 'アーム2体→可');
+  ok(canSelfPlay(effs, mkState({ signi: [arms[0], null, null] }), mkState({}), cardMap as Map<string, CardData>) === false, 'アーム1体→不可');
+});
+test('(xlix) canSelfPlay: 未対応語彙（WX19-030 ウィルス総数）は permissive＝常に可（退化なし）', () => {
+  const effs = effectsMap.get('WX19-030')!;
+  ok((effs[0].action as { condition?: unknown }).condition === undefined, 'condition 無し（permissive）');
+  ok(canSelfPlay(effs, mkState({}), mkState({}), cardMap as Map<string, CardData>) === true, 'condition 無し→可');
+});
+test('(xlix) canSelfPlay: 出撃制限を持たないカードは常に可', () => {
+  ok(canSelfPlay(effectsMap.get(SIGNI) ?? [], mkState({}), mkState({}), cardMap as Map<string, CardData>) === true, '制限無し→可');
+  ok(canSelfPlay(undefined, mkState({}), mkState({}), cardMap as Map<string, CardData>) === true, 'effects 無し→可');
+});
 test('LAST_PROCESSED_LEVEL_SUM: 合計レベルを operator で判定（eq/gte/lte・続き160）', () => {
   const lv = (n: number) => findCard(c => isSigni(c) && parseInt(c.Level ?? '', 10) === n);
   const a = lv(2), b = lv(3); // レベル合計 5
