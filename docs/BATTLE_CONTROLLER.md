@@ -30,25 +30,39 @@ handler(React) → BattleAction を組む
 - **計算（純粋）と永続化（副作用）を分離**。トリガー収集・盤面差分・スタック整列は Stage2 で既に純粋化済み（`triggerCollect` / `boardDiff` / `effectStack`）＝これらを使うパッチ組み立ても純粋関数へ寄せられる。
 - 純粋 reducer は golden で網羅検証。永続化は1点に集約されモック/差し替えが容易。
 
-## 3. 骨組み（本セッションで着地）
+## 3. 進捗
 
 | ファイル | 役割 |
 |---|---|
-| `src/screens/battle/controller/persist.ts` | 永続化チョークポイント `useBattlePersist(roomId)`＝`commit(patch)` / `fetchState()` / `remove()`。battle_states への I/O を1点集約。 |
-| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。代表3ケース（`SET_SETUP_PHASE` / `ACK_END` / `SUBMIT_JANKEN`）を実装し seam を実証。網羅性は `never` guard で強制。 |
-| `scripts/goldenTest.ts` | `Stage3 reduceBattle *` 3件で遷移を固定（golden 562→565）。 |
+| `src/screens/battle/controller/persist.ts` | 永続化チョークポイント `useBattlePersist(roomId)`＝`commit(patch)` / `fetchState()` / `remove()`。battle_states への I/O を1点集約。error は `.message` を保持。 |
+| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在4 action＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN`。 |
+| `scripts/goldenTest.ts` | `Stage3 reduceBattle *` で各遷移を固定。 |
 
-BattleScreen 側は代表3箇所（setup_phase 遷移・CPU 終了ACK・CPU じゃんけん提出）を `persist.commit(reduceBattle(bs, action))` へ置換済み＝パターンを実配線で実証。**残る約110箇所のインライン書き込みは未移行**（Stage3 実装の本体＝複数セッションのテール）。
+### ✅ 永続化チョークポイント移行＝完了
 
-## 4. 段階移行レシピ（残テール）
+BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `persist` へ移行済み**（`supabase...update(...).eq('room_id',roomId)` の単一行58＋複数行53、`delete()` 4、`select('*')...single()` 2、代表手配線3）。生 supabase 参照が残るのは**特定カラム select の4箇所のみ**（`host_mulligan_done,...` / `host_janken,...` / `host_end_ack,...` の部分読み＝意図的に raw のまま。全行取得ではないため `fetchState()` に寄せない）。
 
-1件ずつ、挙動同値を保って進める（一括変換しない）：
+移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-1. **永続化の置換**（機械的・低リスク）＝ `supabase.from('battle_states').update(X).eq('room_id', roomId)` を `persist.commit(X)` へ。型検査で安全。`.then()`/`await` はそのまま（`commit` は同じ thenable を返す）。
-   - `.select()` 連鎖や `.delete()` は `persist.fetchState()` / `persist.remove()` を使う。
-2. **パッチ組み立ての純粋化**（1ハンドラずつ）＝ハンドラ内の `const update = {...}` 計算を `BattleAction` を1種足して `reduceBattle` の case へ移す。エンジン純粋関数（triggerCollect 等）はそのまま reducer 内から呼べる。
-3. **golden を1件足してから移す**＝移す遷移の入出力（`bs`＋action → patch）を `Stage3 reduceBattle *` に固定してから置換（回帰防止）。
+### reducer 純粋化＝一部着手
+
+単一フィールド遷移の代表を `persist.commit(reduceBattle(bs, action))` へ実配線済み（10箇所）：setup_phase 遷移1・CPU終了ACK1・CPUじゃんけん1・**turn_phase 遷移7**（ENERGY/MAIN/ATTACK_SIGNI/ATTACK_ARTS_OP/ATTACK_LRIG/END）。
+
+**残＝Stage3 実装の本体**＝各ハンドラの `const update = {...}`（host_state/guest_state/effect_stack を engine 純粋関数で計算する複雑パッチ）を `reduceBattle` の case へ寄せる純粋化＝約50ハンドラの複数セッションのテール。
+
+## 4. 段階移行レシピ（残テール＝reducer 純粋化）
+
+永続化移行は完了。以後は「パッチ組み立ての純粋化」を1ハンドラずつ、挙動同値を保って進める（一括変換しない）：
+
+1. **golden を1件足してから移す**＝移す遷移の入出力（`bs`＋action → patch）を `Stage3 reduceBattle *` に固定してから置換（回帰防止）。
+2. **パッチ組み立ての純粋化**＝ハンドラ内の `const update = {...}` 計算を `BattleAction` を1種足して `reduceBattle` の case へ移す。engine 純粋関数（triggerCollect / boardDiff / effectStack 等）はそのまま reducer 内から呼べる。ローカル closure 依存（user.id / isHost / 各種 ref）は action の payload に載せる。
+3. `persist.commit(reduceBattle(bs, action))` へ置換。`bs` は非null が必要（多くのハンドラは `if (!bs) return` で narrowing 済）。
 4. `npm run gates`（typecheck→golden/smoke/fuzz/census/lint）で緑を確認。BattleScreen を触るので必須。
+
+### 新規 I/O を書くときの約束
+
+- battle_states への全行書き込み/読み取り/削除は**必ず `persist` 経由**（生 `supabase.from('battle_states').update/...` を新設しない）。部分カラム select のみ raw 可。
+- reducer は `bs` を**読むだけ**（純粋）。supabase を呼ばない・`bs` を書き換えない。
 
 ### ⚠ 注意
 
