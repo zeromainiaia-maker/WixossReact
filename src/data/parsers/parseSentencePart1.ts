@@ -1318,7 +1318,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     } else if (t.match(/対戦相手の(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       // 状態接頭辞（アップ/ダウン/凍結状態の）は parseSigniTarget が isUp/isDown/isFrozen として抽出する
       target = parseSigniTarget(t, 'opponent');
-    } else if (t.match(/あなたの(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/)) {
+    } else if (t.match(/あなたの(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?(?:(?:＜[^＞]+＞[とか])*＜[^＞]+＞の|[白赤青緑黒]の|レベル[０-９\d]+(?:以上|以下)?の)?シグニ([０-９\d]+)体/)) {
+      // 「あなたの[＜種族＞/色/レベル]のシグニN体を対象とし…それのパワー±N」＝自分の単体シグニへの持続バフ。
+      // ＜種族＞/色/レベル 接頭辞が無いと owner:any（下の else）へ潰れ story/color フィルタが脱落していた（WX10-013 水獣・WX11-046 空獣か地獣）。
+      // フィルタは parseSigniTarget が名詞句から story/color/level を取る。「あなたのすべての…シグニのパワーを」全体バフは上の分岐が先取り済み。
       target = parseSigniTarget(t, 'self');
     } else if (t.match(/このシグニ/)) {
       // 「このシグニのパワーを±N」= 効果元シグニ自身（任意選択でなく thisCardOnly）。
