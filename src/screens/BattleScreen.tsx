@@ -73,6 +73,9 @@ import { useActivatedModals } from './battle/hooks/useActivatedModals';
 import { useCutin } from './battle/hooks/useCutin';
 import { useEffectInteraction } from './battle/hooks/useEffectInteraction';
 import { useRemoveZone, useGuardResponses, useEndDiscard, useZoomOverlays } from './battle/hooks/useMiscBattleUI';
+import { useBattleSession } from './battle/hooks/useBattleSession';
+import { useBattleLog } from './battle/hooks/useBattleLog';
+import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
