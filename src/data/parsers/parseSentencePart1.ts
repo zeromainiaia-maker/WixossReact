@@ -47,6 +47,7 @@ import type {
   PowerModifyPerDeckCountAction,
   PowerModifyPerEnergyColorAction,
   StubAction,
+  SelfPlayRestrictAction,
   PowerModifyAction,
   BanishAction,
   TrashAction,
