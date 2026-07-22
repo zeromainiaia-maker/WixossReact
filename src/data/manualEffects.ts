@@ -7,6 +7,11 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // WX12-Re09 大剣 デュランダ：自分の場のシグニ3体に共通色がない間、基本パワー15000＋相手効果への完全耐性。
+  "WX12-Re09": [
+    {"effectId":"WX12-Re09-E1","effectType":"CONTINUOUS","activeCondition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":15000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX12-Re09-E2","effectType":"CONTINUOUS","activeCondition":{"type":"NO_COMMON_COLOR_AMONG_FIELD_SIGNI","owner":"self","count":3},"action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   // ===== 【常】：【マルチエナ】（自身キーワード）を effects.json に未登録だったカード群（逆翻訳・検出の一貫性のため明示）=====
   "WD01-016": [{"effectId":"WD01-016-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WD01-017": [{"effectId":"WD01-017-MULTIENA","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],

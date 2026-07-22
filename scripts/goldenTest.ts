@@ -700,6 +700,38 @@ test('WX06-014-E2: 古代兵器5枚をトラッシュ→デッキ下→相手シ
     eq(r.otherState.field.signi.filter(s => s?.length).length, 1, '古代兵器不足→バニッシュ不発（相手シグニ残存）');
   }
 });
+test('WX12-Re09: 場のシグニ3体の共通色がない間だけ基本15000＋相手効果耐性', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const em = new Map(effectsMap);
+  em.set('WX12-Re09', mergeManualEffects('WX12-Re09', em.get('WX12-Re09') ?? []));
+  const findSigniColor = (color: string, exclude: string[] = []) => findCard(c =>
+    c.Type === 'シグニ' && c.Color === color && !exclude.includes(c.CardNum));
+  const colorless1 = findSigniColor('無');
+  const colorless2 = findSigniColor('無', [colorless1]);
+  const white = findSigniColor('白', ['WX12-Re09']);
+  const red = findSigniColor('赤');
+  const redGreen = findSigniColor('赤緑');
+  const whiteBlue = findSigniColor('白青');
+  const whiteGreen = findSigniColor('白緑');
+  const rawPower = parseInt(cardMap.get('WX12-Re09')?.Power ?? '0', 10);
+
+  const assertActive = (st: PlayerState, message: string) => {
+    eq(calcFieldPowers(st, mkState({}), true, em, cm).get('WX12-Re09'), 15000, `${message}: 基本パワー15000`);
+    const immune = collectEffectImmuneSigni(st, mkState({}), cm, em, true, 'シグニ', red);
+    ok(immune.has('WX12-Re09') && immune.size === 1, `${message}: 相手効果から自身だけを保護`);
+  };
+  const assertInactive = (st: PlayerState, message: string) => {
+    eq(calcFieldPowers(st, mkState({}), true, em, cm).get('WX12-Re09'), rawPower, `${message}: 素のパワー`);
+    const immune = collectEffectImmuneSigni(st, mkState({}), cm, em, true, 'シグニ', red);
+    ok(!immune.has('WX12-Re09'), `${message}: 効果耐性なし`);
+  };
+
+  assertActive(mkState({ signi: ['WX12-Re09', colorless1, colorless2] }), '白/無色/無色');
+  assertActive(mkState({ signi: ['WX12-Re09', redGreen, white] }), '白/赤緑/白（多色を個別色へ分解）');
+  assertInactive(mkState({ signi: ['WX12-Re09', white, findSigniColor('白', ['WX12-Re09', white])] }), '3体に白が共通');
+  assertInactive(mkState({ signi: ['WX12-Re09', whiteBlue, whiteGreen] }), '白/白青/白緑（多色にも白が共通）');
+  assertInactive(mkState({ signi: ['WX12-Re09', colorless1, null] }), 'シグニ2体のみ');
+});
 // ── 続き239（Opusタスク9）: §6.2 系統② GRANT_PROTECTION 効果耐性の subjectFilter/count/from/sourceCostMin 是正の回帰ガード。
 //    「あなたの[属性/状態]シグニは対戦相手の…効果を受けない」が target:{count:'ALL'} で効果元1体のみ保護になる偽陰性を subjectFilter で解消したこと・
 //    from の過剰保護是正（WX09-CB02＝全効果耐性→BANISH のみ）・sourceCostMin（コスト合計N以上）ゲート・isDrive/excludeSelf を確認する。

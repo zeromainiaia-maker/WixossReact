@@ -54,6 +54,19 @@ export function checkActiveCondition(
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
 
+    case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': {
+      const signi = ownerState.field.signi
+        .map(stack => stack?.at(-1))
+        .filter((cardNum): cardNum is string => !!cardNum);
+      if (signi.length !== cond.count) return false;
+      const colorSets = signi.map(cardNum => new Set(splitFieldColors(cardMap.get(cardNum)?.Color)));
+      const common = new Set(colorSets[0]);
+      for (const colors of colorSets.slice(1)) {
+        for (const color of common) if (!colors.has(color)) common.delete(color);
+      }
+      return common.size === 0;
+    }
+
     case 'DURING_ATTACK_PHASE': {
       // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果。turnPhase を渡さない呼び出し元では
       // 従来どおり true（過小実行を避ける＝主用途 calcFieldPowers 以外は phase を持たない）。

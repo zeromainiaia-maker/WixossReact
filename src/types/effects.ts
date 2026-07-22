@@ -138,6 +138,7 @@ export type NumberOrRef = number | { $ref: string };
 export type ActiveCondition =
   | { type: 'OR'; conditions: ActiveCondition[] }
   | { type: 'TURN_OWNER'; owner: Owner }
+  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
@@ -176,6 +177,7 @@ export type ActiveCondition =
 export type Condition =
   | { type: 'OR'; conditions: Condition[] }
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
+  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
