@@ -55,7 +55,7 @@ import type {
   SequenceAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf,
 } from '../parserUtils';
 
 /**
@@ -86,7 +86,14 @@ export function parseSelfPlayRestrict(t: string): SelfPlayRestrictAction | null 
   return base;
 }
 
-export function parseSentencePart1(t: string): EffectAction | null {
+const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
+  'WDK08-L11', 'WX09-001', 'WX12-017', 'WXK09-005', 'WXK09-037',
+  'WX12-019', 'WX13-028', 'WX14-009', 'WXK11-047', 'SPK01-15', 'WX15-039',
+  'WD22-038-UG', 'WX14-044', 'WX15-Re15', 'WX20-047-CB', 'WX21-Re09',
+  'WX14-031', 'WXEX1-30', 'WXDi-P11-010A', 'WXDi-P00-001',
+]);
+
+export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
   // ---- 【シグニバリア】/【ルリグバリア】を得る ----
   // 純粋なバリア付与文のみマッチ（「白のルリグ1体につき【ルリグバリア】…」等の複雑文は別stubで処理するため除外）。
   // 従来は汎用 GRANT_KEYWORD(keyword:○バリア) になり no-op だった。エンジン実装済みの
@@ -1483,6 +1490,7 @@ export function parseSentencePart1(t: string): EffectAction | null {
 
   // ---- トラッシュ → 手札 ----
   if (t.includes('トラッシュから') && t.includes('手札に加える')) {
+    const useBatch2FilterComposition = !!cardNum && TTH_FILTER_BATCH2_WAVE1_CARDS.has(cardNum);
     // story / level は「トラッシュから…手札に加える」の名詞句スパン内に限定
     // （前置きの条件クラス・level を拾わない。WX22-002 偽陽性回避／WD19-008・WX18-082 の閾値脱落是正）。
     const trashSpan = t.match(/トラッシュから(.*?)手札に加える/s);
@@ -1501,10 +1509,58 @@ export function parseSentencePart1(t: string): EffectAction | null {
     const levelFilter = targetLevelSpecs.size === 1 && !hasLevelOr && !isDeferredCheckZoneFamily && !t.includes('代わりに')
       ? parseLevelFilter(trashTargetPhrase)
       : {};
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt), ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt) };
-    // 色は「[単色]の〔カード/シグニ/スペル〕」の一意な単色のみ付与（「白か赤」「白のカードと黒のカード」等の複色は単一色filterで表せず誤るため除外）。
+    // 異なる名詞句を列挙する形は、各色の枚数制約を保つため選択を分割する。
+    if (useBatch2FilterComposition && /無色のシグニ[１1]枚と無色ではないシグニ[１1]枚/.test(trashTargetPhrase)) {
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', color: '無' } } },
+          { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', nonColorless: true } } },
+        ],
+      };
+    }
+    const pairM = useBatch2FilterComposition ? trashTargetPhrase.match(/([白赤青緑黒]|無色ではない|無色)の(カード|シグニ|スペル)([０-９\d]+)枚と([白赤青緑黒]|無色ではない|無色)の\2([０-９\d]+)枚/) : null;
+    if (pairM) {
+      const makePairFilter = (colorText: string): TargetFilter => ({
+        ...(pairM[2] === 'カード' ? {} : { cardType: pairM[2] as TargetFilter['cardType'] }),
+        ...(colorText === '無色ではない' ? { nonColorless: true } : { color: colorText === '無色' ? '無' : colorText }),
+      });
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: parseNum(pairM[3]), filter: makePairFilter(pairM[1]) } },
+          { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: parseNum(pairM[5]), filter: makePairFilter(pairM[4]) } },
+        ],
+      };
+    }
+    if (useBatch2FilterComposition && /白と黒と無色のシグニをそれぞれ[１1]枚まで/.test(trashTargetPhrase)) {
+      return {
+        type: 'SEQUENCE',
+        steps: ['白', '黒', '無'].map(color => ({
+          type: 'TRANSFER_TO_HAND' as const,
+          source: { type: 'TRASH_CARD' as const, owner: 'self' as const, count: 1, upToCount: true, filter: { cardType: 'シグニ', color } },
+        })),
+      };
+    }
+
+    const extracted = extractNounPhraseFilter(spanTxt, { levelText: trashTargetPhrase });
+    const filter: TargetFilter = {
+      ...parseCardTypeFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt),
+      ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt),
+    };
+    // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
+    if (useBatch2FilterComposition) {
+      if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
+      if (extracted.cardName) filter.cardName = extracted.cardName;
+      if (extracted.excludeCardName) filter.excludeCardName = extracted.excludeCardName;
+      if (extracted.nonColorless) filter.nonColorless = true;
+    }
+    // 動的等値/直前カード共通色を同時に表せない2系統は、部分filterだけの採用を禁止する。
+    if (/そのシグニと同じレベル/.test(t) || /そのシグニと共通する色/.test(t)) {
+      delete filter.nonColorless;
+    }
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);

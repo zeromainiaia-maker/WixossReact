@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, matchesFilter } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
@@ -7017,6 +7017,42 @@ test('状態条件節バッチ3: 採用32効果の条件構造を固定', () => 
     const s = JSON.stringify(effectsMap.get('WXK09-066') ?? []);
     ok(!s.includes('targetsLastProcessed'), 'WXK09-066: 死フラグ不使用');
     ok(s.includes('"position":"top"') && s.includes('"level":{"max":3}'), 'WXK09-066: then にLv3以下フィルタ');
+  }
+});
+
+test('対象filter合成 第1波: parserの複色OR/無色/名前/否定/除外/SEQUENCEを固定', () => {
+  const action = (card: string, id: string) => parseCardEffects(cardMap.get(card)!).find(e => e.effectId === id)!.action;
+  const js = (card: string, id: string) => JSON.stringify(action(card, id));
+  ok(js('WX09-001', 'WX09-001-E1').includes('"color":["白","黒"]'), '複色OR');
+  ok(js('WXK09-037', 'WXK09-037-BURST').includes('"color":"無"'), '無色');
+  ok(js('WX12-019', 'WX12-019-BURST').includes('"cardName":"フレイスロ"'), '名前包含');
+  ok(js('WX15-039', 'WX15-039-BURST').includes('"nonColorless":true'), '無色否定');
+  ok(js('WDK08-L11', 'WDK08-L11-E2').includes('"excludeCardName":"紅蓮の使い魔　ツクヨミ"'), '名前除外');
+  for (const [card, id, steps] of [['WX14-031','WX14-031-BURST',2], ['WXEX1-30','WXEX1-30-BURST',2], ['WXDi-P11-010A','WXDi-P11-010A-E2',2], ['WXDi-P00-001','WXDi-P00-001-E1',3]] as const) {
+    const a = action(card, id) as SequenceAction;
+    eq(a.type, 'SEQUENCE', `${id}: SEQUENCE`); eq(a.steps.length, steps, `${id}: 分割数`);
+  }
+});
+
+test('対象filter合成 第1波: matchesFilter成立/不成立を両方向で固定', () => {
+  const card = (CardName: string, Type: string, Color: string, CardClass: string) => ({ CardName, Type, Color, CardClass }) as unknown as CardData;
+  ok(matchesFilter(card('蟲A','シグニ','黒','凶蟲'), { cardType:'シグニ', story:'凶蟲' }), '凶蟲は成立');
+  ok(!matchesFilter(card('天使A','シグニ','白','天使'), { cardType:'シグニ', story:'凶蟲' }), '他クラスは不成立');
+  ok(matchesFilter(card('A','シグニ','白',''), { color:['白','黒'] }), 'OR白は成立');
+  ok(!matchesFilter(card('A','シグニ','赤',''), { color:['白','黒'] }), 'OR外の赤は不成立');
+  ok(matchesFilter(card('大フレイスロ小','シグニ','赤',''), { cardName:'フレイスロ' }), '名前部分一致');
+  ok(!matchesFilter(card('別名','シグニ','赤',''), { cardName:'フレイスロ' }), '名前不一致');
+  ok(matchesFilter(card('別名','シグニ','黒',''), { nonColorless:true }), '有色は成立');
+  for (const c of ['', '無', '無色']) ok(!matchesFilter(card('別名','シグニ',c,''), { nonColorless:true }), `無色表記${c || '空'}は不成立`);
+  ok(!matchesFilter(card('紅蓮の使い魔　ツクヨミ','シグニ','赤','紅蓮'), { excludeCardName:'紅蓮の使い魔　ツクヨミ' }), '完全一致名は除外');
+  ok(matchesFilter(card('別の紅蓮','シグニ','赤','紅蓮'), { excludeCardName:'紅蓮の使い魔　ツクヨミ' }), '別名は成立');
+});
+
+test('対象filter合成 第1波: 見送り3効果はcuratedへ部分採用しない', () => {
+  for (const [card, id] of [['WXEX2-06','WXEX2-06-E2'], ['WXDi-P02-003','WXDi-P02-003-E1'], ['WXK09-029','WXK09-029-BURST']] as const) {
+    const e = effectsMap.get(card)!.find(x => x.effectId === id)!;
+    const s = JSON.stringify(e.action);
+    ok(!s.includes('"nonColorless":true') && !s.includes('levelEqTrigger'), `${id}: 未採用`);
   }
 });
 

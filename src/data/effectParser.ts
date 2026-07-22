@@ -2287,7 +2287,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
   }
 
   const result =
-    parseSentencePart1(t) ??
+    parseSentencePart1(t, _parsingCardNum) ??
     parseSentencePart2(t) ??
     parseSentencePart3(t) ??
     parseSentencePart4(t) ??
@@ -6145,6 +6145,23 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。
+  // 「無色ではないシグニ→そのシグニと共通色のスペル」の複合回収は後段の動的共通色を
+  // まだ表現できない。前段だけを部分採用すると全文一致しないため、同じ効果木では否定filterも据え置く。
+  if (Object.values(card).some(v => typeof v === 'string' && v.includes('そのシグニと共通する色を持つスペル'))) {
+    const suppressPartialTrashRecovery = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.type === 'TRANSFER_TO_HAND') {
+        const source = obj.source as { type?: string; filter?: { nonColorless?: boolean } } | undefined;
+        if (source?.type === 'TRASH_CARD' && source.filter?.nonColorless) delete source.filter.nonColorless;
+      }
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) value.forEach(suppressPartialTrashRecovery);
+        else suppressPartialTrashRecovery(value);
+      }
+    };
+    for (const e of effects) suppressPartialTrashRecovery(e.action);
+  }
   for (const e of effects) e.action = foldSuppressOnPlay(e.action);
 
   return effects;

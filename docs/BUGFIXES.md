@@ -4,6 +4,16 @@
 
 ---
 
+## ROADMAPバッチ2「対象filter合成」第1波：トラッシュ→手札30効果（golden 593→596、census 1742→1715）（2026-07-22・続き253・Codex）
+
+トラッシュ回収の対象名詞句にある class／色OR・無色／カード名包含・完全一致除外／無色否定が curated JSON から落ち、任意のカード・シグニを回収できていた30効果を是正した。`parserUtils.extractNounPhraseFilter` を新設し、今回は `TRANSFER_TO_HAND{TRASH_CARD}` 入口だけへ限定配線。複合対象4効果は2～3個の `TRANSFER_TO_HAND` を持つ `SEQUENCE` に分割した。PRESERVE 11効果は兄弟効果・parseStatusに触れず該当効果だけを外科パッチし、残19効果は build/heldReview 経由で採用した。
+
+engine は `effectEngine.matchesFilter` の `nonColorless` がデータ表記 `'無'` を除外していなかったため、execUtils と同じ `'' / '無' / '無色'` の3値へ統一。golden は parser 6分岐、matchesFilter の成立/不成立、見送り3件の非採用を追加した。見送りは WXEX2-06-E2（levelEqTrigger未実装）、WXDi-P02-003-E1（レベル合計制約）、WXK09-029-BURST（直前回収カードとの共通色参照）で、部分filterだけの採用も parser 後処理で抑止した。
+
+全カード canonical 生パース差分は20効果（群B/C/E/F 19＋WDK08-L11-E2）ちょうど、outlier 0。全ゲート緑：golden 596、smoke 10722/10722、fuzz全0、census 1715、lint 0 errors/224 warnings、同型★0。報告直前の build→heldReview は署名73グループ・187枚で基準維持。
+
+---
+
 ## 状態条件節バッチ①第4波：センタールリグ条件＋ターン内履歴/出自条件22効果（golden 590→593、census 1761→1742）（2026-07-22・続き252・Codex 実装＋Claude 是正）
 
 「センタールリグが〜の場合」「このターンに〜していた場合」「このシグニがデッキ/トラッシュから場に出た場合」系の条件丸ごと脱落を消化。候補28効果は投入前実測で全件真バグ。

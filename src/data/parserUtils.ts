@@ -121,6 +121,39 @@ export function parseGuardFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+/** 対象名詞句 span から、既存の静的 TargetFilter 語彙を合成する。 */
+export function extractNounPhraseFilter(
+  span: string,
+  options: { levelText?: string | null } = {},
+): TargetFilter {
+  const levelText = options.levelText === undefined ? span : options.levelText;
+  const filter: TargetFilter = {
+    ...parseCardTypeFilter(span),
+    ...(levelText === null ? {} : parseLevelFilter(levelText)),
+    ...parseStoryFilter(span),
+    ...parseColorMatchesLrig(span),
+    ...parseGuardFilter(span),
+  };
+
+  const excludeName = span.match(/《([^》]+)》以外の/);
+  if (excludeName) filter.excludeCardName = excludeName[1];
+  const containsName = span.match(/カード名に《([^》]+)》を含む/);
+  if (containsName) filter.cardName = containsName[1];
+  if (/無色ではない/.test(span)) filter.nonColorless = true;
+
+  const positiveSpan = span.replace(/無色ではない/g, '');
+  const colorOr = positiveSpan.match(/([白赤青緑黒])(?:か|または)([白赤青緑黒])の/);
+  if (colorOr) {
+    filter.color = [...new Set([colorOr[1], colorOr[2]])];
+  } else if (/無色の/.test(positiveSpan)) {
+    filter.color = '無';
+  } else {
+    const colors = [...new Set([...positiveSpan.matchAll(/([白赤青緑黒])の(?:＜[^＞]+＞の)?(?=(?:カード|シグニ|スペル))/g)].map(m => m[1]))];
+    if (colors.length === 1) filter.color = colors[0];
+  }
+  return filter;
+}
+
 // 「この方法で〔加えた/バニッシュした/移動した等〕シグニのレベル以下」＝直前処理カードのレベル参照（動的・engine 解決済）。
 export function parseLevelLteLastProcessed(text: string): Partial<TargetFilter> {
   return /この方法で[^。]{0,20}?シグニのレベル以下/.test(text) ? { levelLteLastProcessed: true } : {};

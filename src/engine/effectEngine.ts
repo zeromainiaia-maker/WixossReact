@@ -497,7 +497,7 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   if (filter.noGuard && cardData.Guard === '1') return false;
   if (filter.nonColorless) {
     const col = cardData.Color ?? '';
-    if (col === '' || col === '無色') return false;
+    if (col === '' || col === '無' || col === '無色') return false;
   }
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
