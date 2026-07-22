@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-22・続き250・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第2波＝参照カード属性条件**＝「それ/そのカードが〈属性〉の場合」系の**真バグ13効果を採用**（census 1799→**1792**・golden 584→**588**）**
+  - **スコープ実測が要点**＝候補クラスタ41効果を全件 JSON 実測→**21件は `REVEAL_AND_PICK{filter,then}` で表現済みの census 偽陽性**（変更禁止リストとして codex に明示）・真バグは15＋要判定2＋見送り判定3に再編してから投入（ROADMAP の「候補数≠作業量」の実例）。
+  - **修正（Codex 実装12）**＝①`RevealAndPickAction.elseAction` 新設＝「そうでない場合、1枚引く」の else 枝脱落（WX05-021/WX15-037 BURST）②`AWAKEN_SIGNI{targetsLastProcessed}`＝**アーツ自身を覚醒させる誤実装**＋名前条件無条件化（WXDi-P14-053/057/065/069・053は欠落+2000も復元）③レゾナ per-target「代わりに」＝SEQUENCE 二重適用（+2000と+5000両掛け）を同一対象 then/else 化＋REMOVE_ABILITIES 幻覚除去（WX25-P2-068/070/071）④公開カードのLv4条件が相手 target filter へ誤合成（WX18-066/068）⑤《ディソナアイコン》→シグニの filter 取り違え（WXDi-P13-006-E2＝既存 `isDisona`）。`BANISH_REDIRECT` は付与形（bySource+self 1体）に限り対象登録へ修正（既存 `banish_redirect_by_source_nums` 流用＝enforcement 実在を検証で確認）。
+  - **Claude 検証で見送り1件を差し戻し採用（13枚目）**＝WXDi-P11-078-E1。codex の「同一インスタンス限定が無い」は非問題（トラッシュはカード番号管理＝同名交換可能）＝`LAST_PROCESSED_MATCHES{cardName}` ゲートだけで完全修正。
+  - **正当な見送り7件**＝G7×2（REVEAL_AND_PICK 内 did-it continuation 不在）・G8×2（hand-or-energy 宛先選択／REARRANGE の二対象照応＝新型要）・G9×3（bounce/trash watcher timing＝タスク16系／引用能力再構築／動的同レベル filter＝バッチ5）。
+  - **ゲート**＝全緑（golden **588**・smoke 10722全OK・fuzz 全0・census **1792**・lint 0 errors・同型★0・held 73グループ）。per-effect 機械 diff＝採用13ちょうど・巻き添え0。詳細 BUGFIXES 続き250。
+
 - **🆕 セッション（2026-07-22・続き249・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第1波**＝新条件型 `TURN_OWNER` 新設＋`LIFE_COUNT` 節拡張で**ターン所有者条件17＋ライフクロス枚数8＝25効果採用**（条件丸ごと脱落の無条件発火を是正）。census 1817→**1799**・golden 579→**584**）**
   - **分担（CODEX_GUIDE 運用）**＝Claude が実測（27効果スコープ切り・**IS_MY_TURN は3重多義**〔executor 常時true／did-it 慣例特別扱い／silent fallback 刻印〕ゆえ実評価化禁止の設計拘束・ExecCtx にターン情報無し）→指示書→Codex 実装→Claude 検証。
   - **修正**＝runtime `Condition` に `TURN_OWNER{self|opponent}`（`ExecCtx.isOwnerTurn?` を BattleScreen の初回解決/interaction再開×5/スペル/カットインへ配線・未設定は permissive true＝退化なし）＋`LIFE_COUNT` opponent 版 CLAUSES＋AND 複合（パワーeq20000×ライフ／ライフ×相手エナ）＋`SELF_POWER_GTE` に optional `operator`。choice.condition（②選択肢）・「代わりに」then/else・アーツ availability・トラップ節の4機構にも配線。**見送り2**＝WXDi-P11-001-E1（前ターン履歴 state 無し）・PR-K038-E2（0枚到達イベント timing 無し）＝非採用を golden で固定。
