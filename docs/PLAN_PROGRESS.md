@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-22・続き249・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第1波**＝新条件型 `TURN_OWNER` 新設＋`LIFE_COUNT` 節拡張で**ターン所有者条件17＋ライフクロス枚数8＝25効果採用**（条件丸ごと脱落の無条件発火を是正）。census 1817→**1799**・golden 579→**584**）**
+  - **分担（CODEX_GUIDE 運用）**＝Claude が実測（27効果スコープ切り・**IS_MY_TURN は3重多義**〔executor 常時true／did-it 慣例特別扱い／silent fallback 刻印〕ゆえ実評価化禁止の設計拘束・ExecCtx にターン情報無し）→指示書→Codex 実装→Claude 検証。
+  - **修正**＝runtime `Condition` に `TURN_OWNER{self|opponent}`（`ExecCtx.isOwnerTurn?` を BattleScreen の初回解決/interaction再開×5/スペル/カットインへ配線・未設定は permissive true＝退化なし）＋`LIFE_COUNT` opponent 版 CLAUSES＋AND 複合（パワーeq20000×ライフ／ライフ×相手エナ）＋`SELF_POWER_GTE` に optional `operator`。choice.condition（②選択肢）・「代わりに」then/else・アーツ availability・トラップ節の4機構にも配線。**見送り2**＝WXDi-P11-001-E1（前ターン履歴 state 無し）・PR-K038-E2（0枚到達イベント timing 無し）＝非採用を golden で固定。
+  - **Claude 検証で1件検出→修正**＝parseArtsEffect の先頭ライフ条件分岐がカード無ゲートで、スコープ外 WX16-Re20 の専用STUB（条件付き追加使用タイミング）を availability に誤変換する**誤方向 fresh ドリフト**→`STATE_HOIST_BATCH1_CARDS` ゲート追加で解消。変更集合は機械diffで**採用25効果ちょうど・巻き添え0**を確認。
+  - **ゲート**＝全緑（golden **584**・smoke 10722全OK・fuzz 全0・census **1799**・lint 0 errors・同型★0・held 73グループ）。`npm run regen` 済。詳細 BUGFIXES 続き249（条件外不一致12件の申告リスト含む）。
+
 - **🆕 セッション（2026-07-22・続き248・Opus・**タスク12(xlix) 消化＝**【常】出撃制限が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統11枚**を新設 `SELF_PLAY_RESTRICT` で表現し直し＋summon チョークポイントで**実 enforcement**。census 1825→**1817**・golden 573→**579**）**
   - **バグ**＝「このシグニ/カード/キーは〜（新たに）場に出すことができない」（カード自身の出撃制限）が「場に出す」を含むため bare `ADD_TO_FIELD` へ落ち、`CONTINUOUS ADD_TO_FIELD{owner:self}` として**制限が完全に失われていた**（意味的退化）。「対戦相手はシグニをN体まで」（`DEPLOY_RESTRICT`・場の枚数制限）とは別系統。
   - **棚卸し**＝idiom 全19枚を分類＝Type A（自身出撃制限＝本修正）11枚／Type B（場の枚数制限）8枚＝既に `DEPLOY_RESTRICT`/`fieldLimit.ts` 実装済。**engine 誤実行の懸念は現状無しと確認**（`CONTINUOUS ADD_TO_FIELD` はどの収集経路にも拾われず executor default が安全 no-op）＝現状は無害な inert no-op だが出撃制限が効かない退化。
