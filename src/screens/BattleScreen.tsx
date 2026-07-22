@@ -8458,7 +8458,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuStAfterCoin, effectStack: newStackGR, opp: humanStateAfterGrowReact ? { key: 'host_state', state: humanStateAfterGrowReact } : undefined }));
             return;
           }
-          await persist.commit({ guest_state: cpuStAfterCoin, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) });
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuStAfterCoin, opp: humanStateAfterGrowReact ? { key: 'host_state', state: humanStateAfterGrowReact } : undefined }));
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
       }
