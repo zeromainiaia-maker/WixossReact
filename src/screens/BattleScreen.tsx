@@ -338,9 +338,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!transitioningRef.current && bs.setup_phase === 'JAN_KEN' && bs.host_janken && bs.guest_janken) {
       transitioningRef.current = true;
       const winner = jankenWinner(bs.host_janken, bs.guest_janken, bs.host_id, bs.guest_id);
-      const update = winner
-        ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null as null, guest_janken: null as null }
-        : { host_janken: null as null, guest_janken: null as null };
+      const update: Partial<BattleStateRow> = winner
+        ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null, guest_janken: null }
+        : { host_janken: null, guest_janken: null };
       const t = setTimeout(() => {
         persist.commit(update)
           .then(() => { transitioningRef.current = false; });
