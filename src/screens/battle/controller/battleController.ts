@@ -47,6 +47,11 @@ export type BattleAction =
       clearPending?: boolean;
     }
   /**
+   * effect_stack のみを書き換える。`settle:true` なら「解決済みなら null にする」
+   * （`isStackDone(stack) ? null : stack`）settle イディオムを reducer 側で適用する。
+   */
+  | { type: 'SET_STACK'; stack: EffectStack | null; settle?: boolean }
+  /**
    * 決着：勝者を確定しゲームを終了する（global_phase='FINISHED'＋winner_id）。
    * 最終盤面の書き込み（my／任意で opp）も併せる。
    */
