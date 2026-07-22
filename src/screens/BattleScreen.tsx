@@ -76,6 +76,8 @@ import { useRemoveZone, useGuardResponses, useEndDiscard, useZoomOverlays } from
 import { useBattleSession } from './battle/hooks/useBattleSession';
 import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
+import { useBattlePersist } from './battle/controller/persist';
+import { reduceBattle } from './battle/controller/battleController';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
