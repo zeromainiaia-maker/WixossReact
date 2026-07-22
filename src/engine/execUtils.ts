@@ -1080,15 +1080,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'THIS_CARD_FROM_TRASH':
       // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
+    case 'THIS_CARD_FROM_DECK':
+      return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_deck?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_PLACED_BY_CLASS': {
       // このシグニが＜X＞のシグニの効果によって場に出ていた場合（出自条件・WX26-CP1-048）。
       // signi_placed_by_source に記録された発生源カードの CardClass に cardClass が含まれ、かつシグニであること。
       if (!ctx.sourceCardNum) return false;
       const srcPBC = ctx.ownerState.signi_placed_by_source?.[ctx.sourceCardNum];
       if (!srcPBC) return false;
+      if (!cond.cardClass) return true;
+      const wantedClass = cond.cardClass;
       const srcCardPBC = ctx.cardMap.get(getCardNum(srcPBC));
       if (!srcCardPBC || srcCardPBC.Type !== 'シグニ') return false;
-      return (srcCardPBC.CardClass ?? '').split(/[/／]/).map(s => s.trim()).some(c => c.includes(cond.cardClass));
+      return (srcCardPBC.CardClass ?? '').split(/[/／]/).map(s => s.trim()).some(c => c.includes(wantedClass));
     }
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': {
       // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）。
@@ -1116,6 +1120,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.phases.includes(ctx.currentPhase ?? '');
     case 'AND':
       return cond.conditions.every(c => evalCondition(c, ctx));
+    case 'OR':
+      return cond.conditions.some(c => evalCondition(c, ctx));
     // IS_MY_TURN / IS_OPPONENT_TURN は実行時には判定できない（executor は常にオーナー視点）ため、
     // どちらもプレースホルダとして true を返す。実際のターン判定は収集側（BattleScreen）が condHas で行う。
     case 'IS_MY_TURN':            return true;

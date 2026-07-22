@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 状態条件節バッチ①第4波（センタールリグ／ターン内履歴／出自条件）（2026-07-22）
+
+- `OR` 条件を Condition/ActiveCondition・executor/continuous 評価器・逆翻訳へ追加。
+- `THIS_CARD_PLACED_BY_CLASS.cardClass` を optional 化。効果起因配置 writer は自身の効果による再配置も記録し、ターン境界でクリア。
+- `signi_played_from_deck`＋`THIS_CARD_FROM_DECK` を追加。デッキ直接配置／デッキトップ配置の双方で記録し、既存 trash 出自と同じターン境界でクリア。
+- G1 8効果、G2 5効果（betChoose 2効果は既に正しく無変更）、G3 5効果、G4 4効果を採用。WD23-017-EA は PARTIAL/PRESERVE のため効果単位直パッチで UNKNOWN も既存 action に復元。
+- golden 592、smoke 10722、fuzz 全0、census 1742、lint 0 errors/224 warnings、同型★0。force-adopt／未配線 action field は不使用。
+
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
 ---

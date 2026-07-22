@@ -3258,7 +3258,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
           free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
           free_grow_next_turn: undefined,
-          signi_played_from_trash: undefined, // トラッシュ出自マーカーをターン開始時にクリア
+          signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           keyword_grants_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 次の相手ターン終了時（=自分のターン再開時）にクリア
@@ -3571,7 +3571,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
         free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
         free_grow_next_turn: undefined,
-        signi_played_from_trash: undefined, // トラッシュ出自マーカーをターン開始時にクリア
+        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
         negate_coin_abilities: undefined,
         keyword_grants_until_opp_turn: undefined,
         granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
@@ -4193,7 +4193,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
             free_grow_this_turn: nextState.free_grow_next_turn ? true : nextState.free_grow_this_turn,
             free_grow_next_turn: undefined,
-            signi_played_from_trash: undefined, // トラッシュ出自マーカーをターン開始時にクリア
+            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
             signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
             field: {
               ...nextState.field,

@@ -1288,9 +1288,9 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
 }
 
 // 効果によって場に出したシグニの発生源（sourceCardNum）を記録する（出自条件 THIS_CARD_PLACED_BY_CLASS 用・WX26-CP1-048）。
-// 通常召喚（sourceCardNum なし）や自身の再配置は記録しない。
+// 通常召喚（sourceCardNum なし）は記録しない。自身の効果による再配置も効果起因として記録する。
 function recordPlacedBySource(state: PlayerState, placedInstanceId: string, sourceCardNum?: string): PlayerState {
-  if (!sourceCardNum || sourceCardNum === placedInstanceId) return state;
+  if (!sourceCardNum) return state;
   return { ...state, signi_placed_by_source: { ...(state.signi_placed_by_source ?? {}), [placedInstanceId]: sourceCardNum } };
 }
 
@@ -1440,6 +1440,10 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         // THIS_CARD_FROM_TRASH 用に「トラッシュから出た」インスタンスを記録（直後の【出】効果が参照）
         newS = { ...newS, trash: newS.trash.filter(x => x !== n),
           signi_played_from_trash: [...(newS.signi_played_from_trash ?? []), n] };
+      } else if (srcDefined.type === 'DECK_CARD') {
+        newS = { ...newS, deck: newS.deck.filter(x => x !== n),
+          signi_played_from_deck: [...(newS.signi_played_from_deck ?? []), n],
+          signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
       } else if (srcDefined.type === 'ENERGY_CARD') {
         newS = { ...newS, energy: newS.energy.filter(x => x !== n),
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
@@ -5063,7 +5067,8 @@ export function resumeSelectZone(
       `ゾーンが埋まっているため${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をデッキに戻す`));
   }
   signi[zoneIndex] = [pending.cardNum];
-  const newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
+  const newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi },
+    signi_played_from_deck: [...(state.signi_played_from_deck ?? []), pending.cardNum] }, pending.cardNum, ctx.sourceCardNum);
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
   if (pending.continuation) return executeAction(pending.continuation, cur);

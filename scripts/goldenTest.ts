@@ -6175,6 +6175,34 @@ test('e2e WX26-CP1-048: 効果配置の出自記録＋THIS_CARD_PLACED_BY_CLASS 
   const r2 = run({ type: 'ADD_TO_FIELD', owner: 'self' } as EffectAction, mkCtx({ signi: [null, null, null], deckTop: [placed] }, {}));
   ok(!r2.ownerState.signi_placed_by_source?.[placed], '通常召喚（source無し）は記録しない');
 });
+test('状態条件第4波: OR／FROM_DECK／PLACED_BY_EFFECT は成立・不成立を両方向評価', () => {
+  const l1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const l2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const placed = 'WD01-009';
+  const mkLrig = (lrig: string) => { const c = mkCtx({}, {}); c.ownerState.field.lrig = [lrig]; return c; };
+  const or = { type:'OR', conditions:[{type:'LRIG_LEVEL',owner:'self',operator:'eq',value:1},{type:'LRIG_LEVEL',owner:'self',operator:'eq',value:4}] } as never;
+  ok(evalCondition(or, mkLrig(l1)), 'OR は level1 で成立');
+  ok(!evalCondition(or, mkLrig(l2)), 'OR は level2 で不成立');
+  const fromDeck = mkCtx({}, {}, placed); fromDeck.ownerState.signi_played_from_deck = [placed];
+  ok(evalCondition({type:'THIS_CARD_FROM_DECK'} as never, fromDeck), 'FROM_DECK 記録ありで成立');
+  fromDeck.ownerState.signi_played_from_deck = [];
+  ok(!evalCondition({type:'THIS_CARD_FROM_DECK'} as never, fromDeck), 'FROM_DECK 記録なしで不成立');
+  const byEffect = mkCtx({}, {}, placed); byEffect.ownerState.signi_placed_by_source = {[placed]:'WD01-010'};
+  ok(evalCondition({type:'THIS_CARD_PLACED_BY_CLASS'} as never, byEffect), '効果配置記録ありで成立');
+  byEffect.ownerState.signi_placed_by_source = {};
+  ok(!evalCondition({type:'THIS_CARD_PLACED_BY_CLASS'} as never, byEffect), '効果配置記録なしで不成立');
+});
+
+test('状態条件第4波: 対象カードの IS_BETTING ゲートと betChoose 文型', () => {
+  const wd = effectsMap.get('WD23-017-EA')!.find(e=>e.effectId==='WD23-017-EA-E1')!;
+  const s = JSON.stringify(wd.action);
+  ok(s.includes('"type":"IS_BETTING"') && !s.includes('"type":"UNKNOWN"'), 'WD23 は生きた IS_BETTING 条件＋既存actionのみ');
+  for (const id of ['WDK05-T10','WX18-003']) {
+    const e = effectsMap.get(id)![0];
+    const a = e.action as unknown as {betChoose?:{thenChooseCount:number;thenUpTo?:boolean}};
+    eq(a.betChoose?.thenChooseCount, 2, `${id} ベット時2択`);
+  }
+});
 test('LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: lastProcessed が指定 owner のセンタールリグと共通色でのみ true', () => {
   const redCard = 'WD02-009'; // 赤シグニ
   const redLrig = 'WD02-001'; // 赤ルリグ

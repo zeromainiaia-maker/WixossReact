@@ -333,7 +333,9 @@ function condJa(c?: any): string {
     case 'IS_BETTING': return c.minCoins != null ? `あなたが《コイン》${c.minCoins}枚以上ベットしていた` : 'あなたがベットしていた';
     case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}`;
     case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
-    case 'THIS_CARD_PLACED_BY_CLASS': return `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた`;
+    case 'THIS_CARD_PLACED_BY_CLASS': return c.cardClass ? `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた` : 'このターンにあなたの効果によってこのシグニが場に出ていた';
+    case 'THIS_CARD_FROM_DECK': return 'このシグニがデッキから場に出ていた';
+    case 'OR': return c.conditions.map(condJa).join('か');
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': return `それが${ownerJa(c.owner)}センタールリグと共通する色を持つ`;
     case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
     case 'LAST_PROCESSED_COUNT_GTE': {

@@ -49,6 +49,8 @@ export function checkActiveCondition(
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
+    case 'OR':
+      return cond.conditions.some(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase));
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
 
@@ -807,6 +809,8 @@ function evalConditionForContinuous(
     }
     case 'AND':
       return cond.conditions.every(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum, oppTrashColorLoss));
+    case 'OR':
+      return cond.conditions.some(c => evalConditionForContinuous(c, ownerState, otherState, cardMap, sourceCardNum, oppTrashColorLoss));
     default:
       return true;
   }
