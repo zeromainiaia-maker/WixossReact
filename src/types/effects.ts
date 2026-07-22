@@ -632,6 +632,20 @@ export interface NegateAttackAction {
   escapeDiscard?: number;
 }
 
+// 自身出撃制限（【常】：このシグニ/カード/キーは〜場合にしか（新たに）場に出すことができない）。
+// engine は通常召喚（handleSummonSigni）のチョークポイントで canSelfPlay により配置可否をゲートする。
+// これは「対戦相手はシグニをN体まで」（DEPLOY_RESTRICT・場の枚数制限）とは別系統＝この効果を持つカード自身の召喚可否。
+// 旧実装は「場に出す」を含むため bare ADD_TO_FIELD へ誤 parse され CONTINUOUS のまま inert no-op（＝制限が完全に失われていた）だった（Opusタスク12(xlix)）。
+export interface SelfPlayRestrictAction {
+  type: 'SELF_PLAY_RESTRICT';
+  // never=true：通常召喚では一切場に出せない（効果でのみ配置可能）。「新たに場に出すことができない」無条件・「《X》の効果以外によっては」。
+  never?: boolean;
+  // condition：通常召喚を**許可**する条件。満たさないとき配置不可。省略時（未対応語彙＝ウィルス総数/アクセ総数/クロス状態/相手ディスカード等）は
+  //   評価しない＝保守的に配置許可（＝従来の inert no-op と同値・退化なし）。
+  condition?: Condition;
+  rawText?: string; // 逆翻訳・原文照合用
+}
+
 export interface BounceAction {
   type: 'BOUNCE'; // フィールド→手札
   target: EffectTarget;
