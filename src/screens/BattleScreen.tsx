@@ -890,6 +890,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     if (!bs || !isCpuBattle || bs.global_phase !== 'FINISHED' || bs.guest_end_ack) return;
     persist.commit(reduceBattle(bs, { type: 'ACK_END', isHost: false }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCpuBattle, bs?.global_phase, bs?.guest_end_ack, roomId]);
 
   // CPU対戦: 両者ACK揃い次第ルームを自動削除
