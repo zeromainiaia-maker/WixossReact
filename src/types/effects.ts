@@ -1070,6 +1070,7 @@ export interface GrantProtectionAction {
   // from に 'BANISH' 等の軸トークンを置き、bySourceType でソース種別を絞る。バトル・ルール処理には適用されない）。
   bySourceType?: 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ';
   sourceCostMin?: number; // 保護元カード（アーツ/スペル）の使用コスト合計がN以上の効果のみ保護する（「対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない」WX15-031）。collectEffectImmuneSigni が解決中ソースカードの Cost 合計で判定
+  sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
   sourceOwner?: Owner; // 誰の効果から保護するか
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外

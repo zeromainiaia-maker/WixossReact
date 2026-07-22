@@ -522,6 +522,10 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
   if (filter.hasCrossIcon && !(cardData.EffectText?.startsWith('《クロスアイコン》'))) return false;
   if (filter.hasRiseIcon && !(cardData.EffectText?.includes('【ライズ】'))) return false;
   if (filter.noRiseIcon && (cardData.EffectText?.includes('【ライズ】'))) return false;
+  if (filter.hasLifeBurst !== undefined) {
+    const hasLB = cardData.LifeBurst === '1';
+    if (filter.hasLifeBurst !== hasLB) return false;
+  }
   // 使用コストの合計（《色×N》の合計、コインは除く。「対戦相手のコストの合計が５以上の…効果を受けない」WX15-031）
   if (filter.costMax !== undefined || filter.costMin !== undefined) {
     let total = 0;
@@ -4247,6 +4251,9 @@ export function collectEffectImmuneSigni(
 
       // sourceCostMin: 解決中ソースカード（アーツ/スペル）の使用コスト合計が閾値未満なら保護しない（WX15-031）
       if (gp.sourceCostMin !== undefined && !matchesFilter(srcCard, { costMin: gp.sourceCostMin })) continue;
+
+      // sourceFilter: 解決中ソースカードの属性が指定フィルタに非マッチなら保護しない（WXEX2-36 ライズアイコン非所持／WXK11-021 LB非所持）
+      if (gp.sourceFilter && !matchesFilter(srcCard, gp.sourceFilter)) continue;
 
       // 保護対象シグニを収集
       if (gp.subjectFilter) {

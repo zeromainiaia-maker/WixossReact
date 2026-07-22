@@ -19,6 +19,7 @@ dist-ssr
 
 # Sensitive config (contains API tokens)
 .mcp.json
+.codex/
 # .claude/ 直下は非追跡（settings.local.json 等に秘密情報）。ただし skills/ は
 # 定型ワークフローの資産＝消えると復元できないのでコミット対象にする（2026-07-14）
 .claude/*

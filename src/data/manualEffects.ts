@@ -63,6 +63,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   全アーツ/スペルを無条件遮断する過剰保護）。GRANT_FIELD_SIGNI_ABILITY は collectGrantedFromLayer 経由で各＜怪異＞シグニへ
   //   付与され、collectEffectImmuneSigni が augMap のその granted 能力を読む（sourceCostMin は解決中アーツ/スペルの Cost 合計で判定）。
   "WX15-031": [{"effectId":"WX15-031-LAYER","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX15-031-LAYER-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["スペル","アーツ"],"sourceOwner":"opponent","sourceCostMin":5,"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXEX2-36-E1 太陽の射手 カルルナ：相手ターン中、ライズ持ちの自シグニを、ライズを持たない相手シグニの効果から保護。
+  "WXEX2-36": [{"effectId":"WXEX2-36-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","hasRiseIcon":true},"sourceOwner":"opponent","from":["シグニ"],"sourceFilter":{"noRiseIcon":true},"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  // WXK11-021-E1 炎魔の先駆 アークゲイン：自ターン中、自シグニすべてを、LBを持たない相手シグニの効果から保護。
+  "WXK11-021": [{"effectId":"WXK11-021-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"self"},"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ"},"sourceOwner":"opponent","from":["シグニ"],"sourceFilter":{"hasLifeBurst":false},"duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
 
 
   // ===== 血晶武装：逆翻訳乖離の修正（「血晶武装状態であるかぎり/の場合」の条件欠落） =====
