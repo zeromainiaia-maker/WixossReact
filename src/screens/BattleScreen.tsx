@@ -5038,7 +5038,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : initStack(turnPlayerId, allEntries);
 
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const { error: summonErr } = await persist.commit({ [stateKey]: placed, effect_stack: stack, pending_effect: null, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) });
+      const { error: summonErr } = await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, effectStack: stack, clearPending: true, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined }));
       if (summonErr) console.error('[handleSummonSigni] DB error:', summonErr);
     } finally {
       setLoading(false);
