@@ -1897,6 +1897,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const desc = stubDescMap.get(a.id)?.replace(/（[A-Z][A-Z0-9_]*(?:→[A-Z][A-Z0-9_]*)+）/g, '').trim();
       return desc ? `[STUB:${desc}${extra}]` : `[STUB:${a.id}${extra}]`;
     }
+    case 'SELF_PLAY_RESTRICT': {
+      // 自身出撃制限（Opusタスク12(xlix)）。原文（rawText）をそのまま描画するのが最も忠実。
+      if (a.rawText) return a.rawText;
+      if (a.never) return 'このシグニは新たに場に出すことができない';
+      if (a.condition) return `${condJa(a.condition)}場合にしかこのシグニは新たに場に出すことができない`;
+      return 'このシグニは新たに場に出すことができない';
+    }
     default: return `[アクション:${a.type}]`;
   }
 }
