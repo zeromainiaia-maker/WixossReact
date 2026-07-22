@@ -81,14 +81,18 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
   const [bs, setBs] = useState<BattleStateRow | null>(null);
-  const [myDeckData, setMyDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
-  // CPU対戦用
-  const [isCpuBattle, setIsCpuBattle] = useState(false);
-  const [cpuDeckData, setCpuDeckData] = useState<{ main_deck: string[]; lrig_deck: string[] } | null>(null);
+  // 試合セッション/構成レベル（読み込み・自/CPU デッキ・CPU 戦フラグ）
+  const {
+    loading, setLoading, myDeckData, setMyDeckData,
+    isCpuBattle, setIsCpuBattle, cpuDeckData, setCpuDeckData,
+  } = useBattleSession();
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [mulliganSelected, setMulliganSelected] = useState<Set<number>>(new Set());
-  const [pendingSigniSummon, setPendingSigniSummon] = useState<{ cardNum: string; handIndex: number } | null>(null);
+  // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
+  const { mulliganSelected, setMulliganSelected, pendingLrigSetup, setPendingLrigSetup } = useGameStartSetup();
+  // シグニ召喚ゾーン選択フロー
+  const {
+    pendingSigniSummon, setPendingSigniSummon, closeZoneSignal, setCloseZoneSignal,
+  } = useSigniSummonFlow();
   const {
     showEndConfirm, setShowEndConfirm, showSetupLeaveConfirm, setShowSetupLeaveConfirm,
     showEnergySkipConfirm, setShowEnergySkipConfirm, showGrowSkipConfirm, setShowGrowSkipConfirm,
