@@ -408,6 +408,18 @@ export function canAffordWithExtraCost(
   return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
 }
 
+// ブーストの任意追加エナコスト（先頭の「ブースト―《色》…」）を返す。
+// アーツ本体 cost とは分離し、宣言時だけ ArtsModal の支払い検証へ加える。
+export function parseBoostCost(effectText: string): { color: string; count: number }[] {
+  const m = effectText.match(/^ブースト[―─]((?:《[白赤青緑黒無]》)+)/);
+  if (!m) return [];
+  const counts = new Map<string, number>();
+  for (const icon of m[1].matchAll(/《([白赤青緑黒無])》/g)) {
+    counts.set(icon[1], (counts.get(icon[1]) ?? 0) + 1);
+  }
+  return [...counts].map(([color, count]) => ({ color, count }));
+}
+
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）
 export function energyCostToString(costs: { color: string; count: number }[]): string {
   return costs.map(e => `《${e.color}》×${e.count}`).join('');

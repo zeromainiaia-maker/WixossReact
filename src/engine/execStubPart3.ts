@@ -2081,6 +2081,7 @@ export function execStubPart3(
         hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, canDrawBET)],
         deck: ctx.ownerState.deck.slice(canDrawBET),
         is_betting_this_effect: undefined,
+        is_boosting_this_effect: undefined,
       };
       return done(addLog({ ...ctx, ownerState: newOwnerBET }, `ベットあり：${canDrawBET}枚ドロー`));
     }
@@ -2090,7 +2091,7 @@ export function execStubPart3(
     if (moreBET) {
       const origBET = parseInt(toHWBET(moreBET[1]));
       const extraBET = parseInt(toHWBET(moreBET[2])) - origBET;
-      const clearedOwnerBET: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined };
+      const clearedOwnerBET: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined };
       if (extraBET <= 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり（追加対象なし）'));
       const candsMoreBET = clearedOwnerBET.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
       if (candsMoreBET.length === 0) return done(addLog({ ...ctx, ownerState: clearedOwnerBET }, 'ベットあり：トラッシュに追加対象なし'));
@@ -2098,7 +2099,7 @@ export function execStubPart3(
       return selectOrInteract(candsMoreBET, extraBET, true, 'self_trash', thenMoreBET as EffectAction, undefined, { ...ctx, ownerState: clearedOwnerBET });
     }
     // 未知パターン: フラグクリアのみ
-    const newOwnerBETClear: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined };
+    const newOwnerBETClear: PlayerState = { ...ctx.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined };
     return done(addLog({ ...ctx, ownerState: newOwnerBETClear }, 'ベットあり（追加効果パターン未対応）'));
   }
   // INTERNAL_BET_EXTRA_TO_HAND: ベット時の追加対象（トラッシュ→手札）を1枚処理

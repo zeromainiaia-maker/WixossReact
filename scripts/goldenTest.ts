@@ -31,7 +31,7 @@ import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/
 import { advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
-import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna } from '../src/screens/battle/costs';
+import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
@@ -129,6 +129,35 @@ function test(name: string, fn: () => void) { try { fn(); pass++; } catch (e) { 
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
+
+test('IS_BOOSTING: 非宣言は基本効果のみ／宣言時だけボーナス発火', () => {
+  const action: EffectAction = {
+    type: 'SEQUENCE', steps: [
+      { type: 'DRAW', owner: 'self', count: 1 },
+      { type: 'CONDITIONAL', condition: { type: 'IS_BOOSTING' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+    ],
+  };
+  const plain = mkCtx({ hand: 0 }, {});
+  eq(run(action, plain).ownerState.hand.length, 1, '非ブーストは基本1枚だけ');
+  const boosted = mkCtx({ hand: 0 }, {});
+  boosted.ownerState.is_boosting_this_effect = true;
+  eq(run(action, boosted).ownerState.hand.length, 3, 'ブースト時は基本1枚＋追加2枚');
+});
+
+test('ブースト4アーツ: 追加エナコストと IS_BOOSTING ゲートを構文固定', () => {
+  const expected: Record<string, { color: string; count: number }[]> = {
+    'WX25-P1-002': [{ color: '白', count: 1 }, { color: '無', count: 2 }],
+    'WX25-P1-006': [{ color: '青', count: 1 }, { color: '無', count: 1 }],
+    'WX25-P1-008': [{ color: '緑', count: 1 }, { color: '無', count: 2 }],
+    'WX25-P1-010': [{ color: '黒', count: 1 }, { color: '無', count: 1 }],
+  };
+  for (const [id, cost] of Object.entries(expected)) {
+    const card = cardMap.get(id); ok(!!card, `${id}: card`); if (!card) continue;
+    eq(JSON.stringify(parseBoostCost(card.EffectText ?? '')), JSON.stringify(cost), `${id}: boost cost`);
+    const fresh = parseCardEffects(card)[0];
+    ok(JSON.stringify(fresh.action).includes('"type":"IS_BOOSTING"'), `${id}: conditional gate`);
+  }
+});
 
 test('GUARD_LOSS_UNLESS_LRIG: 指定センタールリグのときだけ対象3枚の【ガード】を維持する', () => {
   const cases = [

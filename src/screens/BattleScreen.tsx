@@ -114,7 +114,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
     pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost,
     selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore,
-    openArtsModal, closeArtsModal, toggleArtsCost,
+    isBoosting, setIsBoosting, openArtsModal, closeArtsModal, toggleArtsCost,
   } = useArtsModal();
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones, openRemoveZone } = useRemoveZone();
   const {
@@ -3250,6 +3250,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 自分のターンを終了するタイミングがちょうど期限にあたる
           opp_signi_energy_to_deck_bottom: undefined,
           is_betting_this_effect: undefined,          // BET_CONDITION: ターン終了時にクリア
+          is_boosting_this_effect: undefined,         // BOOST: ターン終了時の安全クリア
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
@@ -3567,7 +3568,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_colors: undefined,
-        is_betting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
+        is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
       };
@@ -5523,7 +5524,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     setLoading(true);
@@ -5565,9 +5566,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((card.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
         is_betting_this_effect: betCost > 0 ? true : undefined,
+        is_boosting_this_effect: boosting ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
       };
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
+      if (boosting) appendBattleLogs([`ブースト：追加エナコストを支払い`]);
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
       const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
@@ -10892,7 +10895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} />
 
       {/* アーツ使用モーダル */}
-      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} betAmount={betAmount} setBetAmount={setBetAmount} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
+      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
 
       {/* スペル発動コスト選択 */}
       <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />

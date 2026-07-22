@@ -11,6 +11,7 @@ export interface ArtsModalState {
   selectedArtsDiscard: Set<number>;
   // ベットで支払うコイン枚数（0=ベットしない）。固定/段階(or)/可変(好きな枚数)を統一表現
   betAmount: number;
+  isBoosting: boolean;
   isEncore: boolean;
 }
 
@@ -21,6 +22,7 @@ const initialState: ArtsModalState = {
   selectedArtsCost: new Set(),
   selectedArtsDiscard: new Set(),
   betAmount: 0,
+  isBoosting: false,
   isEncore: false,
 };
 
@@ -34,15 +36,16 @@ export function useArtsModal() {
     setSelectedArtsCost: set.selectedArtsCost,
     setSelectedArtsDiscard: set.selectedArtsDiscard,
     setBetAmount: set.betAmount,
+    setIsBoosting: set.isBoosting,
     setIsEncore: set.isEncore,
     /** アーツ詳細（Phase2）を開く：対象カード＋減額後実効コストをセットし選択を白紙化 */
     openArtsModal: (card: CardData, effectiveCost: string | null) =>
-      patch({ pendingArtsCard: card, pendingArtsEffectiveCost: effectiveCost, selectedArtsCost: new Set(), showArtsModal: true }),
+      patch({ pendingArtsCard: card, pendingArtsEffectiveCost: effectiveCost, selectedArtsCost: new Set(), isBoosting: false, showArtsModal: true }),
     /** モーダルを閉じて選択・ベット・アンコールを全リセット（keySubstituteEnabled はキー側で別途） */
     closeArtsModal: () =>
       patch({
         showArtsModal: false, pendingArtsCard: null, selectedArtsCost: new Set(),
-        selectedArtsDiscard: new Set(), betAmount: 0, isEncore: false,
+        selectedArtsDiscard: new Set(), betAmount: 0, isBoosting: false, isEncore: false,
       }),
     /** コスト支払いエナの選択トグル */
     toggleArtsCost: (idx: number) =>

@@ -234,6 +234,7 @@ export type Condition =
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
   | { type: 'IS_BETTING'; minCoins?: number }                  // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う
+  | { type: 'IS_BOOSTING' }                                    // このアーツでブースト追加エナを支払っていた場合
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }

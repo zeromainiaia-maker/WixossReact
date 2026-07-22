@@ -1133,6 +1133,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // 「あなたがベットしていた場合、代わりに」の択一に使う（CONDITIONAL then=強化 / else=基本）。
     case 'IS_BETTING':            return !!ctx.ownerState.is_betting_this_effect &&
       (cond.minCoins == null || (ctx.ownerState.bet_coins_paid ?? 0) >= cond.minCoins);
+    case 'IS_BOOSTING':           return !!ctx.ownerState.is_boosting_this_effect;
     case 'BEAT_CONDITION': {
       const beatZone = ctx.ownerState.field.beat_zone ?? [];
       return checkBeatCondition(beatZone, cond.condText, ctx.cardMap);

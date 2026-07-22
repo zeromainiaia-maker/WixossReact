@@ -2078,6 +2078,17 @@ function parseSingleSentenceInner(text: string): EffectAction {
       }
     }
   }
+  // ブーストはアーツ使用時の任意追加エナコスト。支払い宣言は ArtsModal が
+  // is_boosting_this_effect に記録し、後半のボーナスだけを条件ゲートする。
+  {
+    const bm = text.trim().replace(/。$/, '').match(/^あなたがブーストしていた場合、(.+)$/s);
+    if (bm) {
+      const then = parseSingleSentence(bm[1]);
+      if (!JSON.stringify(then).includes('"UNKNOWN"')) {
+        return { type: 'CONDITIONAL', condition: { type: 'IS_BOOSTING' }, then } as import('../types/effects').ConditionalAction;
+      }
+    }
+  }
   // 「（ターン終了時まで|次のあなたのターン）、あなたの（すべての）＜X＞(と＜Y＞)*のシグニは【K】を得る」
   // → 期間つき全シグニへのキーワード付与（ストリップ前に期間/クラスフィルタを抽出）
   {
@@ -5810,10 +5821,10 @@ function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boole
 
 function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  // アンコール（《cost》（説明）本文）とベット（《cost》本文）のプレフィックスを除去してから解析
+  // アンコール／ベット／ブースト（任意追加エナ）のプレフィックスを除去してから解析
   const isBet = /^ベット[―─]/.test(card.EffectText);
   const stripped = stripRuleParens(card.EffectText)
-    .replace(/^(?:アンコール－|ベット[―─])(?:《[^》]+》)*\s*/, '')
+    .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '')
     // 【使用条件】【ドリームチーム】合計N種類以上の色を持つ（＝場の3ルリグが合計N色以上：ピースの使用条件）。
     //   engine に「チームの合計色数」条件が無いため近似省略（WXDi-P15-003 と同じ扱い）。⚠除去しないと
     //   末尾「…色を持つ」が part1 の「を持つ」キーワード付与規則に食われ GRANT_KEYWORD"使用条件" のゴミになり、
@@ -5857,6 +5868,17 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       : ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction);
   } else {
     action = parseActionText(condition ? cleaned : stripped);
+  }
+  // ブースト後半の「それ」は直前に対象とした同じシグニを指す。文分割後の既定 owner:self を
+  // 直前対象へ戻す（WX25-P1-002）。選択UI上は同一対象の再選択になるが owner/filter は保持する。
+  if (/^ブースト[―─]/.test(card.EffectText) && action.type === 'SEQUENCE') {
+    const steps = (action as SequenceAction).steps;
+    const priorTarget = (steps[0] as EffectAction & { target?: EffectTarget })?.target;
+    const bonus = steps.find(s => s.type === 'CONDITIONAL' && (s as import('../types/effects').ConditionalAction).condition.type === 'IS_BOOSTING') as import('../types/effects').ConditionalAction | undefined;
+    const bonusAction = bonus?.then as EffectAction & { target?: EffectTarget };
+    if (priorTarget && bonusAction?.target && /あなたがブーストしていた場合、それ/.test(stripped)) {
+      bonusAction.target = { ...bonusAction.target, owner: priorTarget.owner, filter: priorTarget.filter };
+    }
   }
   const artsFb = consumeSilentFallbacks();
   const hasUnknown = action.type === 'UNKNOWN'

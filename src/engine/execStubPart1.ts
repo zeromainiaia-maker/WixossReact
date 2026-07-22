@@ -302,7 +302,7 @@ export function execStubPart1(
       // ベット済み（モーダルでコイン消費・宣言済み）→ 強化数「代わりにNつまで選ぶ」を使う
       const enhCntMBET = txtBET.match(/代わりに([１-９\d])つ(?:まで)?(?:を)?選ぶ/);
       const enhCntBET = enhCntMBET ? parseInt(toHWBET(enhCntMBET[1])) : baseCntBET;
-      const clearedOwnerBET = { ...ctx.ownerState, is_betting_this_effect: undefined };
+      const clearedOwnerBET = { ...ctx.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined };
       return needsInteraction(addLog({ ...ctx, ownerState: clearedOwnerBET }, `ベット済み→${enhCntBET}択`), {
         type: 'CHOOSE', options: optsBET, count: Math.min(enhCntBET, optsBET.length),
       });
@@ -378,7 +378,7 @@ export function execStubPart1(
     }
     // BET_CONDITION: ベットしていれば（他の選択肢・他のシグニで）この効果を1回繰り返す
     if (curW7.ownerState.is_betting_this_effect) {
-      curW7 = { ...curW7, ownerState: { ...curW7.ownerState, is_betting_this_effect: undefined }, lastProcessedCards: [] };
+      curW7 = { ...curW7, ownerState: { ...curW7.ownerState, is_betting_this_effect: undefined, is_boosting_this_effect: undefined }, lastProcessedCards: [] };
       return exec({ type: 'STUB', id: 'GRANT_QUOTED_AUTO_ABILITY' } as StubAction, curW7);
     }
     return done(curW7);

@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, computeArtsEffectiveCost, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseEncoreCost, isMultiEna } from '../costs';
+import { applyContinuousCostDecreases, computeArtsEffectiveCost, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna } from '../costs';
 import type { BattleModalCtx } from './types';
 
 interface ArtsModalProps {
@@ -21,18 +21,20 @@ interface ArtsModalProps {
   setSelectedArtsDiscard: Dispatch<SetStateAction<Set<number>>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
+  isBoosting: boolean;
+  setIsBoosting: Dispatch<SetStateAction<boolean>>;
   isEncore: boolean;
   setIsEncore: Dispatch<SetStateAction<boolean>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
   artsCandidates: CardData[];
-  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean) => void;
+  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean) => void;
   toggleArtsCostCard: (idx: number) => void;
 }
 
 export function ArtsModal(p: ArtsModalProps) {
   const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
+  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
   return (
     <>
       {showArtsModal && createPortal(
@@ -67,6 +69,7 @@ export function ArtsModal(p: ArtsModalProps) {
                       .flatMap(m => m.amount);
                     const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
+                    const boostCost = parseBoostCost(card.EffectText ?? '');
                     const betSpecBadge = parseBetOptions(card.EffectText ?? '');
                     const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
                       : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
@@ -77,7 +80,8 @@ export function ArtsModal(p: ArtsModalProps) {
                         onClick={() => {
                           if (!canAfford) return;
                           setBetAmount(0);
-                          if (totalReq === 0) { executeArts(card, new Set()); }
+                          setIsBoosting(false);
+                          if (totalReq === 0 && boostCost.length === 0) { executeArts(card, new Set()); }
                           else {
                             setPendingArtsCard(card);
                             setPendingArtsEffectiveCost(costReduced ? effCost : null);
@@ -150,9 +154,12 @@ export function ArtsModal(p: ArtsModalProps) {
               const costItems = parseGrowCost(effectiveCost);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
+              const boostCostForCard = parseBoostCost(pendingArtsCard.EffectText ?? '');
+              const boostExtraEna = isBoosting ? boostCostForCard : [];
               const keySubCount = keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId ? 2 : 0;
               const baseReq = costItems.reduce((s, c) => s + c.count, 0) +
-                (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0);
+                (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0) +
+                boostExtraEna.reduce((s, e) => s + e.count, 0);
               const totalReq = Math.max(0, baseReq - keySubCount);
               const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
               const extraArtsCosts = activeCostMods.forMy
@@ -162,7 +169,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
@@ -241,6 +248,20 @@ export function ArtsModal(p: ArtsModalProps) {
                         })}
                       </div>
                     </div>
+                  )}
+                  {boostCostForCard.length > 0 && (
+                    <button
+                      onClick={() => { setIsBoosting(v => !v); setSelectedArtsCost(new Set()); }}
+                      style={{ padding: '8px 12px', borderRadius: 8,
+                        border: isBoosting ? '2px solid #66dd88' : C.borderUI,
+                        backgroundColor: isBoosting ? 'rgba(40,150,80,0.18)' : C.bgButton,
+                        color: isBoosting ? '#88ffaa' : C.text,
+                        cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span>ブーストする</span>
+                      <span style={{ fontSize: 11 }}>
+                        {isBoosting ? 'ON' : 'OFF'} / {boostCostForCard.flatMap(e => Array(e.count).fill(`《${e.color}》`)).join('')}
+                      </span>
+                    </button>
                   )}
                   {encoreCostForCard && (
                     <button
@@ -371,13 +392,13 @@ export function ArtsModal(p: ArtsModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
                       color: isValid ? (isEncore ? '#fff' : '#000') : C.text, fontSize: 14, fontWeight: 'bold',
                       cursor: (loading || !isValid) ? 'default' : 'pointer' }}>
-                    {isEncore ? 'アーツ使用（アンコール）' : betAmount > 0 ? `アーツ使用（ベット${betAmount}枚）` : 'アーツ使用'}
+                    {isEncore ? 'アーツ使用（アンコール）' : betAmount > 0 ? `アーツ使用（ベット${betAmount}枚）` : isBoosting ? 'アーツ使用（ブースト）' : 'アーツ使用'}
                   </button>
                 </>
               );

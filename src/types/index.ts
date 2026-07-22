@@ -479,6 +479,8 @@ export interface PlayerState {
   last_discarded_signi_class?: string;
   // BET_CONDITION: このアーツ/効果でベット宣言していた場合 true（execStub内でチェック）
   is_betting_this_effect?: boolean;
+  // BOOST: このアーツの任意追加エナコストを支払った場合。効果解決中だけ参照する
+  is_boosting_this_effect?: boolean;
   // ベットで実際に支払ったコイン枚数（可変ベット「好きな枚数」・段階ベット「or」のスケール用）。is_betting_this_effect と同時に設定/クリア
   bet_coins_paid?: number;
   // FUTURE SESSION③: 次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与
