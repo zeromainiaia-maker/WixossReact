@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-22・続き253・Opus 4.8＋Codex 分担・[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) バッチ2「対象フィルタ合成」第1波＝トラッシュ→手札回収のフィルタ脱落30効果を採用**（census 1742→**1715**・golden 593→**596**）
+  - **投入前実測（Claude）**＝バッチ2候補432件（クラス258/色109/名前包含29/否定28/除外8）を入口別に機械トリアージ→第1波は TRANSFER_TO_HAND{TRASH_CARD} 入口の33件＝**全件真バグ・偽陽性ゼロ**。うち**11件は PRESERVE カード封鎖**（fresh は既に正しいが MANUAL/PARTIAL 同居で build が温存＝held にも載らない不可視 drift）と判明＝直パッチが正規の直し方。engine 語彙（color配列OR・cardName部分一致・excludeCardName・nonColorless）は全て既存と確認してから投入。
+  - **修正（Codex 実装）**＝`parserUtils.extractNounPhraseFilter` 新設（バッチ2の共通 filter extractor・今回はトラッシュ→手札1入口だけへカードゲート配線＝`TTH_FILTER_BATCH2_WAVE1_CARDS`）。群A PRESERVE 11＝外科パッチ／群B 複色OR・無色4／群E 名前包含4／群F 無色否定7／群C 複合対象の SEQUENCE 分割4。**engine バグ1件同時修正**＝effectEngine ローカル matchesFilter の `nonColorless` が `'無'` を除外せず＝execUtils と3値統一。見送り3件は golden 非採用固定。
+  - **検証（Claude）**＝per-effect 機械 diff＝30効果ちょうど・巻き添え0。held 187枚/73グループ＝ベースライン一致を実測。差し戻し0件。全ゲート緑（golden 596・census 1715・同型★0・held 73）。詳細 BUGFIXES 続き253。
+
 - **🆕 セッション（2026-07-22・続き252・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第4波＝センタールリグ条件＋ターン内履歴/出自条件22効果を採用**（census 1761→**1742**・golden 590→**593**）**
   - **修正（Codex 実装）**＝LRIG_LEVEL/COLOR/STORY・SPELL_USED_THIS_TURN・THIS_CARD_FROM_TRASH・IS_BETTING 流用＋最小拡張3点（**`OR` 複合条件**・`THIS_CARD_PLACED_BY_CLASS` cardClass 省略＝効果起因配置の存在判定・**`signi_played_from_deck`+`THIS_CARD_FROM_DECK`**）。「代わりに」二重実行2件（4枚+6枚両ミル等）・choice 潰れ2件・PARTIAL カードの UNKNOWN 復元も同時是正。betChoose 2枚は既に正しかったと正直申告。見送り＝G5 5（支払い経路/遅延2回化/ブースト機構/1回目判定が無い）＋G6 新カウンタ要23（登録のみ）。
   - **⚠Claude 検証で検出→Claude 側で直接是正**（codex 差し戻しを中断・ユーザー指示）＝①**parser 完全未修正の JSON 直パッチ納品（ガードレール9違反）**＝held 73→**86 汚染**（申告「74」は stale 読み値＝乖離2連続）・drift は「fresh が条件を失う」向き＝将来 `--adopt` で修正が剥がれる危険 → **`STATE_COND_BATCH4_ACTIONS`**（curated 完全一致リテラル・batch2/3 方式）を parser に固定し held **73 復帰**。②**誤合成の除去し忘れ3件**＝WX05-052（サーチ Lv4+白限定化＝過小）・WX05-073（全体+5000 の Lv4+緑限定化＝過小）・WX16-036（無色欠落＝過剰）を JSON+parser 両修正。③BASELINE_HIGH 1742 更新＋golden 是正ガード+1。
