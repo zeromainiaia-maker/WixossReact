@@ -169,10 +169,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- センタールリグが＜X＞でないかぎり、手札にあるこのシグニは【ガード】を失う（WX12-025/034/036）----
-  // 条件節「＜X＞でないかぎり、」は上流で除去されるため残文にもマッチさせる。decompiler は原文全文を抽出。
-  // engine のガード可否判定は Guard 列直読みが分散しており未配線（§6.3）。表現はクリーンSTUBで保持。
-  if (t.match(/(センタールリグが＜[^＞]+＞でないかぎり、)?手札にあるこのシグニは【ガード】を失う/)) {
-    return { type: 'STUB', id: 'GUARD_LOSS_UNLESS_LRIG' } as StubAction;
+  // 条件節が残る経路ではクラスを直接キャプチャする。上流の genericKagiri が条件節を除去する経路では
+  // 対象3枚の cardNum から補完し、param 無しの旧 STUB は後方互換として残せるようにする。
+  const guardLossM = t.match(/(?:センタールリグが＜([^＞]+)＞でないかぎり、)?手札にあるこのシグニは【ガード】を失う/);
+  if (guardLossM) {
+    const knownClassByCard: Record<string, string> = {
+      'WX12-025': 'サシェ',
+      'WX12-034': 'アイヤイ',
+      'WX12-036': 'ミュウ',
+    };
+    return {
+      type: 'STUB',
+      id: 'GUARD_LOSS_UNLESS_LRIG',
+      lrigClass: guardLossM[1] ?? (cardNum ? knownClassByCard[cardNum] : undefined),
+    } as StubAction;
   }
 
   // ---- バニッシュ先変更（ルリグデッキ→ルリグトラッシュ: レゾナ系）----

@@ -2,6 +2,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { C } from '../../../components/BoardComponents';
+import { canCardGuard } from '../guard';
 import type { BattleModalCtx } from './types';
 
 interface GuardBarrierActModalProps {
@@ -14,7 +15,7 @@ interface GuardBarrierActModalProps {
 }
 
 export function GuardBarrierActModal(p: GuardBarrierActModalProps) {
-  const { my, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, loading, battleCardMap, effectsMap, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard, executeGuardBarrierAct } = p;
   return (
     <>
@@ -46,7 +47,7 @@ export function GuardBarrierActModal(p: GuardBarrierActModalProps) {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
               {my.hand.map((num, i) => {
                 const c = battleCardMap.get(num);
-                const isGuard = c?.Guard === '1';
+                const isGuard = canCardGuard(num, my, battleCardMap, effectsMap);
                 const isSel = selectedBarrierGuardCard === i;
                 return (
                   <div key={i}

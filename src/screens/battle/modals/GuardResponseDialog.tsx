@@ -4,6 +4,7 @@ import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
 import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
+import { canCardGuard } from '../guard';
 import type { BattleModalCtx } from './types';
 
 interface GuardResponseDialogProps {
@@ -62,7 +63,7 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const oppExtraHandOrColorless = (op.game_opp_extra_guard_hand_or_colorless ?? 0) > 0;
               // game_guard_alt_hand: 自分が能力付与→ガードアイコン代わりに手札N枚捨てでガード可
               const myGuardAltHand = my.game_guard_alt_hand ?? 0;
-              const guardCardCountInHand = my.hand.filter(cn => battleCardMap.get(cn)?.Guard === '1').length;
+              const guardCardCountInHand = my.hand.filter(cn => canCardGuard(cn, my, battleCardMap, effectsMap)).length;
               // エナゾーンが空の場合はガード不可
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
               // 追加ガードカードが1枚しかない場合はガード不可（ガード用1枚＋追加コスト用1枚=2枚必要）
@@ -82,12 +83,11 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                   // myHandGuardClasses: 特定クラスの手札シグニがガード可能 (HAND_SIGNI_HAS_GUARD_ICON)
                   const classGuardable = myHandGuardClasses.length > 0 && card?.Type === 'シグニ' &&
                     myHandGuardClasses.some(cls => card?.CardClass?.includes(cls));
-                  const isGuardable = card?.Guard === '1' || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
+                  const isGuardable = canCardGuard(num, my, battleCardMap, effectsMap) || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
                   if (!isGuardable) return false;
                   if (guardBlockedMax >= 0 && parseInt(card?.Level ?? '-1') <= guardBlockedMax) return false;
                   if (declaredRestrictLv !== undefined && parseInt(card?.Level ?? '-1') === declaredRestrictLv) return false;
                   return true;
-                  void num;
                 });
               return (
                 <>

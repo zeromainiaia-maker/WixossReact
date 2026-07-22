@@ -1606,6 +1606,9 @@ export interface AltCostOppTurnAction {
 export interface StubAction {
   type: 'STUB';
   id: string;
+  // GUARD_LOSS_UNLESS_LRIG: このクラスを持つセンタールリグでなければ、手札の自身は【ガード】を失う。
+  // 省略された既存 STUB は過剰なガード喪失を避けるため engine 側で無視する。
+  lrigClass?: string;
   // 相手効果によるパワー修正への常時耐性。subjectOwner はこの能力の持ち主基準。
   // 既存 PREVENT_* STUB の後方互換を保ちつつ、±方向・全体/属性/自身/相手側を厳密に表す。
   powerModifyProtection?: {

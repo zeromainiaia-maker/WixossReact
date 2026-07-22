@@ -32,6 +32,7 @@ import { advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna } from '../src/screens/battle/costs';
+import { canCardGuard } from '../src/screens/battle/guard';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
@@ -124,6 +125,31 @@ function test(name: string, fn: () => void) { try { fn(); pass++; } catch (e) { 
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
+
+test('GUARD_LOSS_UNLESS_LRIG: 指定センタールリグのときだけ対象3枚の【ガード】を維持する', () => {
+  const cases = [
+    ['WX12-025', 'サシェ'],
+    ['WX12-034', 'アイヤイ'],
+    ['WX12-036', 'ミュウ'],
+  ] as const;
+  const nonMatchingLrig = findCard(c => c.Type === 'ルリグ' && !cases.some(([, cls]) => (c.CardClass ?? '').includes(cls)));
+  const ordinaryGuard = findCard(c => c.Guard === '1' && !cases.some(([cn]) => c.CardNum === cn));
+
+  for (const [guardNum, lrigClass] of cases) {
+    const matchingLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '').includes(lrigClass));
+    const matching = mkState();
+    matching.field.lrig = [matchingLrig];
+    ok(canCardGuard(guardNum, matching, cardMap, effectsMap), `${guardNum}: ＜${lrigClass}＞ならガード可`);
+
+    const nonMatching = mkState();
+    nonMatching.field.lrig = [nonMatchingLrig];
+    eq(canCardGuard(guardNum, nonMatching, cardMap, effectsMap), false, `${guardNum}: 非＜${lrigClass}＞ならガード不可`);
+  }
+
+  const ordinary = mkState();
+  ordinary.field.lrig = [nonMatchingLrig];
+  ok(canCardGuard(ordinaryGuard, ordinary, cardMap, effectsMap), '条件 STUB を持たない通常ガード札は常にガード可');
+});
 
 test('(b) WX17-001: center lrig self-except effect immunity', () => {
   const em = new Map(effectsMap);

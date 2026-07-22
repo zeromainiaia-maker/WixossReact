@@ -78,6 +78,7 @@ import { useBattleLog } from './battle/hooks/useBattleLog';
 import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFlow';
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
+import { canCardGuard } from './battle/guard';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
@@ -8948,7 +8949,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         if (needsExtraGuardCard) {
-          const extraGuardIdx = my.hand.findIndex((cn, i) => i !== handIndex && (battleCardMap.get(cn)?.Guard === '1'));
+          const extraGuardIdx = my.hand.findIndex((cn, i) => i !== handIndex && canCardGuard(cn, my, battleCardMap, effectsMap));
           if (extraGuardIdx >= 0) {
             const extraGuardNum = my.hand[extraGuardIdx];
             extraTrash.push(extraGuardNum);
@@ -10629,7 +10630,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // v0.278: WX25-P2-001 付与【起】（手札ガードシグニを捨てる→ルリグバリア）
       if (my.game_guard_barrier_act && !my.actions_done?.includes('GUARD_BARRIER_ACT') && !isActionBlocked('USE_ACT')) {
-        const guardSigniInHand = my.hand.some(cn => battleCardMap.get(cn)?.Guard === '1');
+        const guardSigniInHand = my.hand.some(cn => canCardGuard(cn, my, battleCardMap, effectsMap));
         if (guardSigniInHand) {
           lrigActionsMA.push({
             label: '【起】ガードシグニ捨て→ルリグバリア',
