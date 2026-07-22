@@ -37,6 +37,8 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
   switch (action.type) {
     case 'SET_SETUP_PHASE':
       return { setup_phase: action.phase };
+    case 'SET_TURN_PHASE':
+      return { turn_phase: action.phase };
     case 'ACK_END':
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };
     case 'SUBMIT_JANKEN':
