@@ -10,6 +10,12 @@
 
 見送りは `WXDi-P11-001-E1`（直前ターンのクラッシュ履歴を保持する state が無く、当ターン専用 `life_crashed_this_turn` はターン開始時に消去）と `PR-K038-E2`（ライフ0枚到達イベントの timing/collector が無い）の2件。誤近似しないことを golden で固定。全生パースの新規変化は対象25効果のみ、スコープ外 outlier 0。同型★0、held 75グループ→74グループ、lint 0 errors / 224 warnings据置。
 
+**Claude 検証（CODEX_GUIDE §7・全ゲート独立実行＋機械diff＋原文照合で確認）**：
+- **変更集合の機械検証**＝curated 全 `effects_*.json` をベースライン `e7ea7e16` と per-effect 比較→**変更はちょうど採用25効果・同カード内巻き添え0**（申告と一致）。リスク上位4件（`WXK11-019-BURST` の then/else 方向・`WX11-032-E3` の AND eq 20000・`SPDi43-02-E1` の choice.condition・`WX16-065-E1` のトラップ節）を原文と個別照合し全て正。
+- **検証で1件検出→修正**＝`parseArtsEffect` の先頭ライフ条件 availability 持ち上げ分岐（`printedLifeM`）が**カード無ゲート**で、スコープ外 `WX16-Re20`「ライフ2枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ」（条件付き追加使用タイミング＝専用STUB `CONDITIONAL_ARTS_COST`）まで availability 条件へ誤変換する**誤方向 fresh ドリフト**（採用すると「ライフ2枚以下でしか使えないアーツ」に化ける）を held に新規発生させていた。→ `STATE_HOIST_BATCH1_CARDS` ゲートを追加して解消（curated 無変更・held 74→**73**グループ）。
+- **held「75→74」の注記**＝ベースラインの `_held_review.txt` は続き243採用済みの `BLOCK_ACTION` 系残骸（約31枚）を含む**古いレポート**だった（curated は既に fold 済みを機械確認）＝消滅は正当な再生成。
+- **横展開の留意**＝新 CLAUSES／trap 節／先頭ターン条件は `STATE_HOIST_BATCH1_CARDS`（parser 内のカード集合）でスコープ限定されている。**バッチ1第2波以降で同型カードを消化する際はこの集合へ追加**（または集合を撤廃して heldReview で全数レビュー）。「代わりに」の BOUNCE→TRASH 特例（コア型不一致でも独立対象なら else 化）は無ゲートだが現状マッチは WXK11-019 のみ（機械diffで確認）。
+
 ## §3 タスク12(xl49) 消化：【常】出撃制限が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統11枚＝`SELF_PLAY_RESTRICT` 新設＋summon チョークポイントで実 enforcement（golden 573→579・census 1825→1817・全ゲート緑）（2026-07-22・続き248・Opus）
 
 **バグ**＝「【常】：このシグニ/カード/キーは〜（新たに）場に出すことができない」という**カード自身の出撃制限**（＝この効果を持つカードを通常召喚できる条件のゲート）が、parser の bare `ADD_TO_FIELD` フォールバック（`parseSentencePart1.ts`＝「場に出す」を含み「エナ/トラッシュ」を含まない文）に誤マッチし、`CONTINUOUS ADD_TO_FIELD{owner:self}` として格納されていた系統。これは「対戦相手はシグニをN体までしか場に出せない」（`DEPLOY_RESTRICT`・場の**枚数**制限＝別系統・先取り済）とは別物で、出撃制限が**完全に失われていた**（意味的退化）。
