@@ -1645,7 +1645,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'JAN_KEN') {
       const choices = ['GU', 'CHOKI', 'PA'];
       const pick = choices[Math.floor(Math.random() * 3)];
-      await supabase.from('battle_states').update({ guest_janken: pick }).eq('room_id', roomId);
+      await persist.commit(reduceBattle(bs, { type: 'SUBMIT_JANKEN', isHost: false, pick }));
       return;
     }
 
