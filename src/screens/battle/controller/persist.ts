@@ -11,14 +11,17 @@ import { useCallback } from 'react';
 import { supabase } from '../../../supabaseClient';
 import type { BattleStateRow } from '../../../types';
 
+/** supabase のエラー形（.message を保持）。 */
+type DbError = { message: string } | null;
+
 /** battle_states への読み書きを roomId 固定で集約するハンドル。 */
 export interface BattlePersist {
   /** パッチを1回で書き込む（純粋 reducer の出力をそのまま渡す）。 */
-  commit: (patch: Partial<BattleStateRow>) => PromiseLike<{ error: unknown }>;
+  commit: (patch: Partial<BattleStateRow>) => PromiseLike<{ error: DbError }>;
   /** 最新の盤面を取得する（初期ロード・再同期用）。 */
-  fetchState: () => PromiseLike<{ data: BattleStateRow | null; error: unknown }>;
+  fetchState: () => PromiseLike<{ data: BattleStateRow | null; error: DbError }>;
   /** 対戦を破棄する（退出・リセット用）。 */
-  remove: () => PromiseLike<{ error: unknown }>;
+  remove: () => PromiseLike<{ error: DbError }>;
 }
 
 /** roomId に束ねた battle_states 永続化チョークポイント。 */

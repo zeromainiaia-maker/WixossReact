@@ -286,7 +286,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   }, [bs?.turn_phase, bs?.turn_count, bs?.active_user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    supabase.from('battle_states').select('*').eq('room_id', roomId).single()
+    persist.fetchState()
       .then(({ data, error }) => {
         if (error) console.error('battle_states 取得エラー:', error.message);
         if (data) {
@@ -322,7 +322,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       .subscribe((status) => {
         // 接続後に最新データを再取得（リロード時に Realtime が間に合わない場合の対策）
         if (status === 'SUBSCRIBED') {
-          supabase.from('battle_states').select('*').eq('room_id', roomId).single()
+          persist.fetchState()
             .then(({ data }) => { if (data) setBs(data as BattleStateRow); });
         }
       });
@@ -342,7 +342,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null as null, guest_janken: null as null }
         : { host_janken: null as null, guest_janken: null as null };
       const t = setTimeout(() => {
-        supabase.from('battle_states').update(update).eq('room_id', roomId)
+        persist.commit(update)
           .then(() => { transitioningRef.current = false; });
       }, 1800);
       return () => { clearTimeout(t); transitioningRef.current = false; };
@@ -515,9 +515,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newStack = cpuIsTurnPlayer
         ? confirmTurnOrder(stack, orderedIds)
         : confirmOppOrder(stack, orderedIds);
-      await supabase.from('battle_states')
-        .update({ effect_stack: isStackDone(newStack) ? null : newStack })
-        .eq('room_id', roomId);
+      await persist.commit({ effect_stack: isStackDone(newStack) ? null : newStack });
     }, CPU_ACTION_DELAY);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -897,7 +895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   useEffect(() => {
     if (!isCpuBattle || !bs?.host_end_ack || !bs?.guest_end_ack) return;
     leavingRef.current = true;
-    supabase.from('battle_states').delete().eq('room_id', roomId).then(() => {
+    persist.remove().then(() => {
       supabase.from('rooms').delete().eq('id', roomId).then(() => onBack());
     });
   }, [isCpuBattle, bs?.host_end_ack, bs?.guest_end_ack, roomId, onBack]);
@@ -1168,7 +1166,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     (async () => {
       setLoading(true);
       try {
-        await supabase.from('battle_states').update({ [stateKey]: cleared }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: cleared });
         await checkAndFireOnAcceTriggersForOwner(cleared, hostCardNum);
       } finally {
         setLoading(false);
@@ -1265,7 +1263,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? pushToStack(existingStack, entries)
             : initStack(bs.active_user_id ?? user.id, entries);
         }
-        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        await persist.commit(update);
       } finally {
         setLoading(false);
       }
@@ -1343,7 +1341,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? pushToStack(existingStack, entries)
             : initStack(bs.active_user_id ?? user.id, entries);
         }
-        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        await persist.commit(update);
       } finally {
         setLoading(false);
       }
@@ -1407,7 +1405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(bs.active_user_id ?? user.id, entries);
         }
         if (Object.keys(update).length > 0) {
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
         }
       } finally {
         setLoading(false);
@@ -1472,7 +1470,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(bs.active_user_id ?? user.id, entries);
         }
         if (Object.keys(update).length > 0) {
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
         }
       } finally {
         setLoading(false);
@@ -1531,7 +1529,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(bs.active_user_id ?? user.id, entries);
         }
         if (Object.keys(update).length > 0) {
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
         }
       } finally {
         setLoading(false);
@@ -1606,7 +1604,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       try {
         const existingStack = bs.effect_stack ?? null;
         const newStack = existingStack ? pushToStack(existingStack, entries) : initStack(bs.active_user_id ?? user.id, entries);
-        await supabase.from('battle_states').update({ effect_stack: newStack }).eq('room_id', roomId);
+        await persist.commit({ effect_stack: newStack });
         snapshot();
       } finally {
         setLoading(false);
@@ -1667,10 +1665,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: cpuStartCoins,
         field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
       };
-      await supabase.from('battle_states').update({
+      await persist.commit({
         guest_lrig_selected: cpuDeckData.lrig_deck[lv0Idx],
         guest_state: cpuState,
-      }).eq('room_id', roomId);
+      });
       return;
     }
 
@@ -1679,19 +1677,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newLifeCloth = cpuSt.deck.slice(0, 7);
       const newDeck = cpuSt.deck.slice(7);
       const newCpuSt: PlayerState = { ...cpuSt, deck: newDeck, life_cloth: newLifeCloth };
-      await supabase.from('battle_states').update({
+      await persist.commit({
         guest_state: newCpuSt,
         guest_mulligan_done: true,
-      }).eq('room_id', roomId);
+      });
       const { data: fresh } = await supabase
         .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')
         .eq('room_id', roomId).single();
       if (fresh?.host_mulligan_done && fresh?.guest_mulligan_done) {
-        await supabase.from('battle_states').update({
+        await persist.commit({
           global_phase: 'PLAYING',
           setup_phase: null,
           active_user_id: fresh.first_player_id as string,
-        }).eq('room_id', roomId);
+        });
       }
     }
   };
@@ -1704,7 +1702,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSetupLeave = async () => {
     setShowSetupLeaveConfirm(false);
     leavingRef.current = true;
-    await supabase.from('battle_states').delete().eq('room_id', roomId);
+    await persist.remove();
     await supabase.from('rooms').delete().eq('id', roomId);
     onBack();
   };
@@ -1768,7 +1766,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         setLoading(true);
         try {
           const myUpdate = isHost ? { host_janken: choice } : { guest_janken: choice };
-          await supabase.from('battle_states').update(myUpdate).eq('room_id', roomId);
+          await persist.commit(myUpdate);
 
           const { data: fresh } = await supabase
             .from('battle_states').select('host_janken, guest_janken')
@@ -1781,7 +1779,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ? { first_player_id: winner, setup_phase: 'LRIG_SELECT', host_janken: null, guest_janken: null }
               : { host_janken: null, guest_janken: null };
             await new Promise(resolve => setTimeout(resolve, 1800));
-            await supabase.from('battle_states').update(transUpdate).eq('room_id', roomId);
+            await persist.commit(transUpdate);
             transitioningRef.current = false;
           }
         } finally {
@@ -1913,7 +1911,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const update = isHost
           ? { host_lrig_selected: cardNum, host_state: myState }
           : { guest_lrig_selected: cardNum, guest_state: myState };
-        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        await persist.commit(update);
         setLoading(false);
       };
 
@@ -1935,7 +1933,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const update = isHost
             ? { host_lrig_selected: setup.centerCardNum, host_state: myState }
             : { guest_lrig_selected: setup.centerCardNum, guest_state: myState };
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
           setPendingLrigSetup(null);
           setLoading(false);
         };
@@ -1965,7 +1963,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const update = isHost
             ? { host_lrig_selected: setup.centerCardNum, host_state: myState }
             : { guest_lrig_selected: setup.centerCardNum, guest_state: myState };
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
           setPendingLrigSetup(null);
           setLoading(false);
         };
@@ -2112,7 +2110,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const update = isHost
             ? { host_state: newState, host_mulligan_done: true }
             : { guest_state: newState, guest_mulligan_done: true };
-          await supabase.from('battle_states').update(update).eq('room_id', roomId);
+          await persist.commit(update);
 
           // 最新状態を取得して両者が完了しているか確認
           const { data: fresh } = await supabase
@@ -2128,7 +2126,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               setup_phase: null as null,
               active_user_id: fresh.first_player_id as string,
             };
-            await supabase.from('battle_states').update(playingUpdate).eq('room_id', roomId);
+            await persist.commit(playingUpdate);
           }
         } finally {
           setLoading(false);
@@ -3025,9 +3023,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const stack = existingStack
               ? pushToStack(existingStack, endEntries)
               : initStack(turnPlayerId, endEntries);
-            await supabase.from('battle_states')
-              .update({ [stateKey]: markedMyState, effect_stack: stack, ...opUpdate })
-              .eq('room_id', roomId);
+            await persist.commit({ [stateKey]: markedMyState, effect_stack: stack, ...opUpdate });
             return; // エフェクト解決後に自動で再度ターン終了処理を行う
           }
         }
@@ -3126,8 +3122,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ①の解決結果を先に永続化してから捨て札選択へ。confirmEndDiscard は解決済み状態を参照し、
           // end_turn_effects_resolved マーカーで効果の二重適用を防ぐ
           // （特に game_turn_end_trash_to_hand は「このゲーム」持続でフラグを消せないため、マーカーで抑止）。
-          await supabase.from('battle_states')
-            .update({ [stateKey]: {
+          await persist.commit({ [stateKey]: {
               ...my,
               hand: myHandEND, deck: myDeckPreLimit,
               trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
@@ -3136,8 +3131,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               turn_end_field_trash_targets: undefined,
               flip_attack_signi_zones: undefined,
               end_turn_effects_resolved: true,
-            } })
-            .eq('room_id', roomId);
+            } });
           openEndDiscard(myHandEND.length - handLimitEND);
           return; // ユーザー選択後に confirmEndDiscard で処理
         }
@@ -3408,9 +3402,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, ...update })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState, ...update });
     } finally {
       setLoading(false);
     }
@@ -3608,9 +3600,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         update.turn_count = bs.turn_count + 1;
       }
 
-      await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, ...update })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState, ...update });
 
       closeEndDiscard();
     } finally {
@@ -3743,7 +3733,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState });
     } finally {
       setLoading(false);
     }
@@ -3771,7 +3761,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState });
     } finally {
       setLoading(false);
     }
@@ -3851,14 +3841,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       : initStack(turnPlayerId, entries);
 
     const myKey = owner?.key ?? (isHost ? 'host_state' : 'guest_state');
-    const { error } = await supabase.from('battle_states')
-      .update({
+    const { error } = await persist.commit({
         [myKey]: startMyState,
         effect_stack: stack,
         pending_effect: null,
         ...extraUpdate,
-      })
-      .eq('room_id', roomId);
+      });
     if (error) console.error('[queueCardEffects] DB error:', error);
     return true;
   };
@@ -3882,9 +3870,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const { entry, newStack } = shiftQueue(stack);
       if (!entry) {
-        await supabase.from('battle_states')
-          .update({ effect_stack: null })
-          .eq('room_id', roomId);
+        await persist.commit({ effect_stack: null });
         return;
       }
 
@@ -4229,7 +4215,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs(['ターンが強制終了されました'], { defer: true });
         }
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       // main update が確定してから flush（先に RPC が届いて stale な effect_stack で再実行されるのを防ぐ）
       await flushBattleLogs();
     } finally {
@@ -4250,9 +4236,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stack = isTurnPlayer
         ? confirmTurnOrder(bs.effect_stack, orderedIds)
         : confirmOppOrder(bs.effect_stack, orderedIds);
-      await supabase.from('battle_states')
-        .update({ effect_stack: isStackDone(stack) ? null : stack })
-        .eq('room_id', roomId);
+      await persist.commit({ effect_stack: isStackDone(stack) ? null : stack });
     } finally {
       setLoading(false);
     }
@@ -4440,7 +4424,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...targetedUsedGuestIds] };
       }
 
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       await flushBattleLogs();
       setEffectSelectedNums([]);
     } finally {
@@ -4483,7 +4467,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -4601,7 +4585,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             : initStack(bs.active_user_id ?? user.id, resumePlaceEntries);
         }
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -4640,7 +4624,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
       }
       setRearrangeSlots([null, null, null]);
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -4682,7 +4666,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -5040,9 +5024,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (ownEntries.length === 0 && fieldEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states')
-          .update({ [stateKey]: placed, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) })
-          .eq('room_id', roomId);
+        await persist.commit({ [stateKey]: placed, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) });
         return;
       }
 
@@ -5055,9 +5037,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : initStack(turnPlayerId, allEntries);
 
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const { error: summonErr } = await supabase.from('battle_states')
-        .update({ [stateKey]: placed, effect_stack: stack, pending_effect: null, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) })
-        .eq('room_id', roomId);
+      const { error: summonErr } = await persist.commit({ [stateKey]: placed, effect_stack: stack, pending_effect: null, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) });
       if (summonErr) console.error('[handleSummonSigni] DB error:', summonErr);
     } finally {
       setLoading(false);
@@ -5435,17 +5415,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         })),
       ];
       if (entries.length === 0) {
-        await supabase.from('battle_states')
-          .update({ [stateKey]: newMyState, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) })
-          .eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMyState, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) });
         return;
       }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
-      await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState, effect_stack: stack, pending_effect: null, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) });
     } finally {
       setLoading(false);
     }
@@ -5504,9 +5480,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (removeTrashEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, removeTrashEntries) : initStack(user.id, removeTrashEntries);
-        await supabase.from('battle_states').update({ [stateKey]: myAfterTrash, ...opUsageUpdate, effect_stack: stack }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: myAfterTrash, ...opUsageUpdate, effect_stack: stack });
       } else {
-        await supabase.from('battle_states').update({ [stateKey]: myAfterTrash, ...opUsageUpdate }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: myAfterTrash, ...opUsageUpdate });
       }
     } finally {
       setLoading(false);
@@ -5578,7 +5554,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, {}, 1, [...artsCoinPaidEntries, ...materialUsedEntries]);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: paidAfterMaterial }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: paidAfterMaterial });
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
@@ -5625,7 +5601,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, {}, 1, keyCoinPaidEntries);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: paidWithCoin }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: paidWithCoin });
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
@@ -5683,9 +5659,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
     } finally {
       setLoading(false);
     }
@@ -5729,9 +5703,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }));
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, entries) : initStack(bs?.active_user_id ?? user.id, entries);
-        await supabase.from('battle_states').update({ [stateKey]: newMyState, effect_stack: stack }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMyState, effect_stack: stack });
       } else {
-        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMyState });
       }
     } finally {
       setLoading(false);
@@ -5785,9 +5759,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppStateKeyAssist = isHost ? 'guest_state' : 'host_state';
       const updatePayloadAssist: Record<string, unknown> = { [stateKey]: paid, effect_stack: newStack, pending_effect: null };
       if (newOpVirusStateAssist) updatePayloadAssist[oppStateKeyAssist] = newOpVirusStateAssist;
-      await supabase.from('battle_states')
-        .update(updatePayloadAssist)
-        .eq('room_id', roomId);
+      await persist.commit(updatePayloadAssist);
     } finally {
       setLoading(false);
     }
@@ -5866,9 +5838,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, paid_energy_colors: paidEnergyColors, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
-      await supabase.from('battle_states')
-        .update({ [stateKey]: newMyState, pending_spell: spell })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState, pending_spell: spell });
     } finally {
       setLoading(false);
     }
@@ -5902,9 +5872,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const hostStateNS  = casterIsHost ? negatedCasterState : nonCasterState;
           const guestStateNS = casterIsHost ? nonCasterState : negatedCasterState;
           appendBattleLogs([`[スペル打ち消し] ${spellNameNS}（コスト${spellTotalCostNS}）が打ち消された`]);
-          await supabase.from('battle_states')
-            .update({ host_state: hostStateNS, guest_state: guestStateNS, pending_spell: null, pending_effect: null })
-            .eq('room_id', roomId);
+          await persist.commit({ host_state: hostStateNS, guest_state: guestStateNS, pending_spell: null, pending_effect: null });
           return;
         }
       }
@@ -5916,12 +5884,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effects = effectsMap.get(card_num) ?? [];
       const spellEff = effects.find(e => e.effectType === 'ACTIVATED');
       if (!spellEff) {
-        await supabase.from('battle_states')
-          .update({
+        await persist.commit({
             [casterIsHost ? 'host_state' : 'guest_state']: resolved,
             pending_spell: null, pending_effect: null,
-          })
-          .eq('room_id', roomId);
+          });
         return;
       }
 
@@ -6085,7 +6051,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         update.pending_effect = null;
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       // GROW_FREE（ゲット・グロウ等）: スペル解決後、グロウ先選択モーダルを開いて実際にグロウまで行う
       if (result.done && spellIsOwnerTurn) {
         const growFree = findGrowFreeAction(spellEff.action);
@@ -6178,13 +6144,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const myKey = isHost ? 'host_state' : 'guest_state';
         const casterKey = casterIsHost ? 'host_state' : 'guest_state';
         if (myKey === casterKey) {
-          await supabase.from('battle_states')
-            .update({ [myKey]: cutinPaid, pending_spell: null })
-            .eq('room_id', roomId);
+          await persist.commit({ [myKey]: cutinPaid, pending_spell: null });
         } else {
-          await supabase.from('battle_states')
-            .update({ [myKey]: cutinPaid, [casterKey]: newCasterState, pending_spell: null })
-            .eq('room_id', roomId);
+          await persist.commit({ [myKey]: cutinPaid, [casterKey]: newCasterState, pending_spell: null });
         }
         return;
       }
@@ -6208,7 +6170,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         update.pending_effect = null;
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
     } finally {
       setLoading(false);
     }
@@ -6514,17 +6476,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (op.life_cloth.length > 0) {
           const crashed = op.life_cloth[op.life_cloth.length - 1];
           const opKey = isHost ? 'guest_state' : 'host_state';
-          await supabase.from('battle_states')
-            .update({ [stateKey]: newMyState, [opKey]: { ...op, life_cloth: op.life_cloth.slice(0, -1), field: { ...op.field, check: crashed } } })
-            .eq('room_id', roomId);
+          await persist.commit({ [stateKey]: newMyState, [opKey]: { ...op, life_cloth: op.life_cloth.slice(0, -1), field: { ...op.field, check: crashed } } });
           appendBattleLogs([`シグニアタック：ライフクロスをクラッシュ`]);
         } else {
           const opKey = isHost ? 'guest_state' : 'host_state';
-          await supabase.from('battle_states').update({ [stateKey]: newMyState, [opKey]: newOtherState }).eq('room_id', roomId);
+          await persist.commit({ [stateKey]: newMyState, [opKey]: newOtherState });
         }
       } else {
         // 正面にシグニ → バトル（通常アタックへ委譲）
-        await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMyState });
         await handleSigniAttack(attackZone);
       }
     } finally { setLoading(false); }
@@ -6593,9 +6553,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const remaining = (op.negate_opp_signi_attacks_until ?? 1) - 1;
         const newOpForNegate: PlayerState = { ...op, negate_opp_signi_attacks_until: remaining > 0 ? remaining : undefined };
         appendBattleLogs([`${myCardName}のアタックは無効化された（残り${remaining}回）`]);
-        await supabase.from('battle_states')
-          .update({ [myKey]: newMyState, [opKey]: newOpForNegate })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: newMyState, [opKey]: newOpForNegate });
         return;
       }
       // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
@@ -6611,9 +6569,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const escMap0 = { ...(op.negated_attacks_escape ?? {}) }; delete escMap0[myTopNum];
         const newOpNA: PlayerState = { ...op, negated_attacks: clearedNA.length ? clearedNA : undefined, negated_attacks_escape: Object.keys(escMap0).length ? escMap0 : undefined };
         appendBattleLogs([`${myCardName}のアタックは無効化された`]);
-        await supabase.from('battle_states')
-          .update({ [myKey]: newMyState, [opKey]: newOpNA })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: newMyState, [opKey]: newOpNA });
         return;
       }
 
@@ -6744,13 +6700,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const stack = existingStack
           ? pushToStack(existingStack, allAttackTriggers)
           : initStack(turnPlayerId, allAttackTriggers);
-        await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown, effect_stack: stack })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown, effect_stack: stack });
       } else {
-        await supabase.from('battle_states')
-          .update({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown });
       }
     } finally {
       setLoading(false);
@@ -6803,9 +6755,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myTopNum = (myS.field.signi[zoneIndex] ?? []).at(-1);
       if (!myTopNum) {
-        await supabase.from('battle_states')
-          .update({ [myKey]: { ...myS, pending_signi_battle: undefined } })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: { ...myS, pending_signi_battle: undefined } });
         return;
       }
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
@@ -6813,7 +6763,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // NEGATE_ATTACK_ON_TRIGGER: アタックキャンセルフラグがあればバトル/ダメージを全てスキップ
       if (myS.cancel_current_signi_attack) {
         const clearedState: PlayerState = { ...myS, pending_signi_battle: undefined, cancel_current_signi_attack: undefined };
-        await supabase.from('battle_states').update({ [myKey]: clearedState }).eq('room_id', roomId);
+        await persist.commit({ [myKey]: clearedState });
         appendBattleLogs([`${myCardName}のアタックが無効になった`]);
         return;
       }
@@ -7018,9 +6968,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   else if (sac && opTopCardNum && f3PowerOf((sac as { sacrificeNum: string }).sacrificeNum) <= f3PowerOf(opTopCardNum)) applyOption(sac);
                 } else {
                   // 人間防御側に対話プロンプトを提示（中断）。攻撃側 myS.pending_signi_battle は保持して再入で再開。
-                  await supabase.from('battle_states')
-                    .update({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, options: f3Opts } } })
-                    .eq('room_id', roomId);
+                  await persist.commit({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, options: f3Opts } } });
                   appendBattleLogs([`${opCardName}のバニッシュに身代わりの選択を待っています`]);
                   return;
                 }
@@ -7328,9 +7276,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               } else {
                 // Sランサー：ライフなし → ダメージ → 相手の敗北
                 appendBattleLogs([`Sランサー：ライフなし → ダメージ → 相手の敗北`]);
-                await supabase.from('battle_states')
-                  .update({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: attackerId })
-                  .eq('room_id', roomId);
+                await persist.commit({ [myKey]: newMyState, [opKey]: newOpState, global_phase: 'FINISHED', winner_id: attackerId });
                 return;
               }
               }
@@ -7366,9 +7312,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           } else {
             // ライフなし → 相手の敗北
             appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
-            await supabase.from('battle_states')
-              .update({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: attackerId })
-              .eq('room_id', roomId);
+            await persist.commit({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: attackerId });
             return;
           }
         } else {
@@ -7717,13 +7661,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const stack = existingStack
           ? pushToStack(existingStack, allTriggers)
           : initStack(turnPlayerId, allTriggers);
-        await supabase.from('battle_states')
-          .update({ [myKey]: finalMyState, [opKey]: finalOpState, effect_stack: stack })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: finalMyState, [opKey]: finalOpState, effect_stack: stack });
       } else {
-        await supabase.from('battle_states')
-          .update({ [myKey]: finalMyState, [opKey]: finalOpState })
-          .eq('room_id', roomId);
+        await persist.commit({ [myKey]: finalMyState, [opKey]: finalOpState });
       }
     } finally {
       setLoading(false);
@@ -7751,9 +7691,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
-      await supabase.from('battle_states')
-        .update({ [myKey]: newMyState, [opKey]: newOpState })
-        .eq('room_id', roomId);
+      await persist.commit({ [myKey]: newMyState, [opKey]: newOpState });
     } finally {
       setLoading(false);
     }
@@ -7819,7 +7757,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       closeNegateEscape();
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
-      await supabase.from('battle_states').update({ [myKey]: newMy, [opKey]: newOp }).eq('room_id', roomId);
+      await persist.commit({ [myKey]: newMy, [opKey]: newOp });
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -7900,7 +7838,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existing = bs.effect_stack ?? null;
         update.effect_stack = existing ? pushToStack(existing, entries) : initStack(bs.active_user_id ?? attackerId, entries);
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
       return true;
     } finally {
       setLoading(false);
@@ -7934,7 +7872,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const crashedName = battleCardMap.get(nextCard)?.CardName ?? nextCard;
       appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${crashedName}）`]);
-      await supabase.from('battle_states').update({ [stateKey]: newMyState }).eq('room_id', roomId);
+      await persist.commit({ [stateKey]: newMyState });
     } finally {
       setLoading(false);
     }
@@ -8080,11 +8018,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (allTriggers.length > 0) {
         newStack = initStack(bs.active_user_id!, allTriggers);
       }
-      await supabase.from('battle_states').update({
+      await persist.commit({
         host_state: hostState,
         guest_state: guestState,
         ...(newStack !== bs.effect_stack ? { effect_stack: newStack } : {}),
-      }).eq('room_id', roomId);
+      });
     } finally {
       setLoading(false);
     }
@@ -8167,11 +8105,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (allTriggers.length > 0) {
         newStack = initStack(bs.active_user_id!, allTriggers);
       }
-      await supabase.from('battle_states').update({
+      await persist.commit({
         host_state: hostState,
         guest_state: guestState,
         ...(newStack !== bs.effect_stack ? { effect_stack: newStack } : {}),
-      }).eq('room_id', roomId);
+      });
     } finally {
       setLoading(false);
     }
@@ -8219,9 +8157,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if ((cpuSt.pending_crashed_cards?.length ?? 0) > 0 && !bs.effect_stack && !bs.pending_effect) {
       const [nextCard, ...remaining] = cpuSt.pending_crashed_cards!;
       appendBattleLogs([`[CPU] 同時クラッシュ：ライフクロスをクラッシュ（${battleCardMap.get(nextCard)?.CardName ?? nextCard}）`]);
-      await supabase.from('battle_states').update({
+      await persist.commit({
         guest_state: { ...cpuSt, pending_crashed_cards: remaining, field: { ...cpuSt.field, check: nextCard } },
-      }).eq('room_id', roomId);
+      });
       return;
     }
 
@@ -8229,9 +8167,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (cpuSt.pending_lrig_attack && !bs.effect_stack && !bs.pending_effect) {
       const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined };
       const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
-      await supabase.from('battle_states')
-        .update({ guest_state: cleanCpuSt, host_state: huStWithLrigAttacked })
-        .eq('room_id', roomId);
+      await persist.commit({ guest_state: cleanCpuSt, host_state: huStWithLrigAttacked });
       return;
     }
 
@@ -8270,7 +8206,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_SIGNI' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'ATTACK_SIGNI' });
       return;
     }
 
@@ -8328,16 +8264,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs(['[CPU] センタールリグのアップ条件（未払い）→ダウン状態でターン開始']);
         }
       }
-      await supabase.from('battle_states').update({
+      await persist.commit({
         guest_state: newCpuSt,
         turn_phase: 'DRAW',
-      }).eq('room_id', roomId);
+      });
       return;
     }
 
     // ─── DRAWフェイズ → ENERGYへ ───
     if (phase === 'DRAW') {
-      await supabase.from('battle_states').update({ turn_phase: 'ENERGY' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'ENERGY' });
       return;
     }
 
@@ -8357,7 +8293,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
         };
         cpuAtGrowStart = newCpuSt;
-        await supabase.from('battle_states').update({ guest_state: newCpuSt }).eq('room_id', roomId);
+        await persist.commit({ guest_state: newCpuSt });
         // 少し待ってGROWへ進む
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
@@ -8372,11 +8308,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const gpsStack = gpsCpu.entries.length > 0
         ? (bs.effect_stack ? pushToStack(bs.effect_stack, gpsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, gpsCpu.entries))
         : undefined;
-      await supabase.from('battle_states').update({
+      await persist.commit({
         turn_phase: 'GROW', guest_state: cpuAfterGps,
         ...(humanAfterGps ? { host_state: humanAfterGps } : {}),
         ...(gpsStack ? { effect_stack: gpsStack } : {}),
-      }).eq('room_id', roomId);
+      });
       return;
     }
 
@@ -8518,18 +8454,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const newStackGR = existingStackGR
               ? pushToStack(existingStackGR, cpuAllGrowEntries)
               : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuAllGrowEntries);
-            await supabase.from('battle_states')
-              .update({ guest_state: cpuStAfterCoin, effect_stack: newStackGR, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) })
-              .eq('room_id', roomId);
+            await persist.commit({ guest_state: cpuStAfterCoin, effect_stack: newStackGR, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) });
             return;
           }
-          await supabase.from('battle_states')
-            .update({ guest_state: cpuStAfterCoin, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) })
-            .eq('room_id', roomId);
+          await persist.commit({ guest_state: cpuStAfterCoin, ...(humanStateAfterGrowReact ? { host_state: humanStateAfterGrowReact } : {}) });
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
       }
-      await supabase.from('battle_states').update({ turn_phase: 'MAIN' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'MAIN' });
       return;
     }
 
@@ -8537,7 +8469,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'MAIN') {
       if (bs.turn_count === 1) {
         // 先攻1ターン目はMAINからENDへ
-        await supabase.from('battle_states').update({ turn_phase: 'END' }).eq('room_id', roomId);
+        await persist.commit({ turn_phase: 'END' });
         return;
       }
       const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
@@ -8656,9 +8588,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (cpuFt.usedHostIds.length > 0) cpuHuSt = { ...cpuHuSt, actions_done: [...(cpuHuSt.actions_done ?? []), ...cpuFt.usedHostIds] };
 
         // 1枚ずつSupabaseを更新して画面に反映させてから次へ
-        await supabase.from('battle_states')
-          .update({ guest_state: newCpuSt, ...(cpuHuSt !== huSt ? { host_state: cpuHuSt } : {}) })
-          .eq('room_id', roomId);
+        await persist.commit({ guest_state: newCpuSt, ...(cpuHuSt !== huSt ? { host_state: cpuHuSt } : {}) });
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
 
@@ -8668,7 +8598,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newStackOP = existingStackOP
           ? pushToStack(existingStackOP, cpuOnPlayEntries)
           : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuOnPlayEntries);
-        await supabase.from('battle_states').update({ effect_stack: newStackOP }).eq('room_id', roomId);
+        await persist.commit({ effect_stack: newStackOP });
         return;
       }
 
@@ -8730,13 +8660,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStackAPS, apsStackEntries)
           : initStack(cpuTurnPlayerId, apsStackEntries);
       }
-      await supabase.from('battle_states').update(apsUpdate).eq('room_id', roomId);
+      await persist.commit(apsUpdate);
       return;
     }
 
     // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
     if (phase === 'ATTACK_ARTS') {
-      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_ARTS_OP' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'ATTACK_ARTS_OP' });
       return;
     }
 
@@ -8768,7 +8698,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 全シグニアタック完了 → ATTACK_LRIGへ
-      await supabase.from('battle_states').update({ turn_phase: 'ATTACK_LRIG' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'ATTACK_LRIG' });
       return;
     }
 
@@ -8786,7 +8716,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
       if (huSt.field.lrig_attacked || huSt.field.check) return;
       // ルリグアタック済み → ENDへ
-      await supabase.from('battle_states').update({ turn_phase: 'END' }).eq('room_id', roomId);
+      await persist.commit({ turn_phase: 'END' });
       return;
     }
 
@@ -8837,13 +8767,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
         turn_arts_used: undefined, turn_arts_used_colors: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
       };
-      await supabase.from('battle_states').update({
+      await persist.commit({
         guest_state: cleanCpuSt,
         host_state: nextHuSt,
         turn_phase: 'UP',
         active_user_id: user.id,
         turn_count: bs.turn_count + 1,
-      }).eq('room_id', roomId);
+      });
     }
   };
   cpuTurnRef.current = cpuTurnAction;
@@ -8887,7 +8817,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, guardTriggers)
           : initStack(bs.active_user_id ?? user.id, guardTriggers);
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
     } finally { setLoading(false); }
   };
 
@@ -8926,7 +8856,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, guardTriggers)
           : initStack(bs.active_user_id ?? user.id, guardTriggers);
       }
-      await supabase.from('battle_states').update(update).eq('room_id', roomId);
+      await persist.commit(update);
     } finally { setLoading(false); }
   };
 
@@ -9080,9 +9010,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ルリグアタック：ライフなし → 敗北`]);
           const winnerId = attackerId;
           const clearedMyState: PlayerState = { ...my, field: { ...my.field, lrig_attacked: false } };
-          await supabase.from('battle_states')
-            .update({ [stateKey]: clearedMyState, global_phase: 'FINISHED', winner_id: winnerId })
-            .eq('room_id', roomId);
+          await persist.commit({ [stateKey]: clearedMyState, global_phase: 'FINISHED', winner_id: winnerId });
           return;
         }
       }
@@ -9106,7 +9034,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStack, guardTriggers)
           : initStack(bs.active_user_id ?? attackerId, guardTriggers);
       }
-      await supabase.from('battle_states').update(guardUpdate).eq('room_id', roomId);
+      await persist.commit(guardUpdate);
     } finally {
       setLoading(false);
     }
@@ -9319,7 +9247,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ? pushToStack(existingStack, combinedTriggers)
             : initStack(bs.active_user_id ?? ownerId, combinedTriggers);
         }
-        await supabase.from('battle_states').update(update).eq('room_id', roomId);
+        await persist.commit(update);
         return;
       }
       // LIFE_BURST効果を発火（LIFE_BURST_DOUBLEフラグがある場合は2回分キュー）
@@ -9361,9 +9289,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, burstExtraUpdate, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
-        await supabase.from('battle_states')
-          .update({ [stateKey]: baseState, pending_effect: null })
-          .eq('room_id', roomId);
+        await persist.commit({ [stateKey]: baseState, pending_effect: null });
       }
     } finally {
       setLoading(false);
@@ -9394,7 +9320,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       pending_banish_substitute: undefined,
       banish_substitute_choice: { victimNum: pend.victimNum, option },
     };
-    await supabase.from('battle_states').update({ [myKey]: newMyState }).eq('room_id', roomId);
+    await persist.commit({ [myKey]: newMyState });
   };
 
   // シグニ起動効果を実行（コスト支払い後）
@@ -9657,9 +9583,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = { ...paid, opp_virus_removed_just: true };
         updatePayload[stateKey] = paid;
       }
-      await supabase.from('battle_states')
-        .update(updatePayload)
-        .eq('room_id', roomId);
+      await persist.commit(updatePayload);
     } finally {
       setLoading(false);
     }
@@ -9700,9 +9624,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? pushToStack(existingStack, [entry])
         : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
     } finally {
       setLoading(false);
     }
@@ -9767,9 +9689,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opKey = isHost ? 'guest_state' : 'host_state';
       const updatePayload: Record<string, unknown> = { [stateKey]: paid, effect_stack: newStack, pending_effect: null };
       if (newOpVirusState) updatePayload[opKey] = newOpVirusState;
-      await supabase.from('battle_states')
-        .update(updatePayload)
-        .eq('room_id', roomId);
+      await persist.commit(updatePayload);
     } finally {
       setLoading(false);
     }
@@ -9809,9 +9729,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? pushToStack(existingStack, [entry])
         : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states')
-        .update({ [stateKey]: paid, effect_stack: newStack, pending_effect: null })
-        .eq('room_id', roomId);
+      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
     } finally {
       setLoading(false);
     }
@@ -9836,7 +9754,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       appendBattleLogs([`【起】ガードシグニ（${cardName}）を捨て→ルリグバリア+1（計${countBarrierTokens(fzGBA, LRIG_BARRIER_CARD)}）`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await supabase.from('battle_states').update({ [stateKey]: paid }).eq('room_id', roomId);
+      await persist.commit({ [stateKey]: paid });
     } finally {
       setLoading(false);
     }
@@ -9944,9 +9862,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const newStack = curStack
       ? pushToStack(curStack, triggerEntries)
       : initStack(turnPlayerId, triggerEntries);
-    await supabase.from('battle_states')
-      .update({ [stateKey]: stateToWrite, effect_stack: newStack })
-      .eq('room_id', roomId);
+    await persist.commit({ [stateKey]: stateToWrite, effect_stack: newStack });
   };
 
   // シグニ出現時コスト付き【出】効果：発動
@@ -9971,7 +9887,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     const stateKey = isHost ? 'host_state' : 'guest_state';
     if (entries.length === 0) {
-      await supabase.from('battle_states').update({ [stateKey]: placedState }).eq('room_id', roomId);
+      await persist.commit({ [stateKey]: placedState });
       return;
     }
     const turnPlayerId = bs.active_user_id ?? user.id;
@@ -9979,9 +9895,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const newStack = existingStack
       ? pushToStack(existingStack, entries)
       : initStack(turnPlayerId, entries);
-    await supabase.from('battle_states')
-      .update({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null })
-      .eq('room_id', roomId);
+    await persist.commit({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null });
   };
 
   const executeSigniOnPlayCost = async (
@@ -10171,7 +10085,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (removedV < removeVirusN) return;
         const oppKey = isHost ? 'guest_state' : 'host_state';
         const newOpState: PlayerState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
-        await supabase.from('battle_states').update({ [oppKey]: newOpState }).eq('room_id', roomId);
+        await persist.commit({ [oppKey]: newOpState });
         // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（コストによる除去も発火対象）
         paid = { ...paid, opp_virus_removed_just: true };
         payLogs.push(`相手の【ウィルス】${removedV}個をコストで取り除いた`);
@@ -10388,9 +10302,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppStateKeyLrig = isHost ? 'guest_state' : 'host_state';
       const updatePayloadLrig: Record<string, unknown> = { [stateKey]: paid, effect_stack: newStack, pending_effect: null };
       if (newOpVirusStateLrig) updatePayloadLrig[oppStateKeyLrig] = newOpVirusStateLrig;
-      await supabase.from('battle_states')
-        .update(updatePayloadLrig)
-        .eq('room_id', roomId);
+      await persist.commit(updatePayloadLrig);
     } finally {
       setLoading(false);
     }
@@ -10864,7 +10776,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: { ...my.field, free_zone: newFreeZone },
         };
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: newMy }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMy });
         setCloseZoneSignal(s => s + 1);
       },
     });
@@ -10882,7 +10794,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: { ...my.field, free_zone: newFreeZone },
         };
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await supabase.from('battle_states').update({ [stateKey]: newMy }).eq('room_id', roomId);
+        await persist.commit({ [stateKey]: newMy });
         setCloseZoneSignal(s => s + 1);
       },
     });
@@ -10894,7 +10806,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (loading) return;
     setLoading(true);
     const ackKey = isHost ? 'host_end_ack' : 'guest_end_ack';
-    await supabase.from('battle_states').update({ [ackKey]: true }).eq('room_id', roomId);
+    await persist.commit({ [ackKey]: true });
     // 最新状態を取得して両者が押したか確認
     const { data } = await supabase
       .from('battle_states')
@@ -10903,7 +10815,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       .single();
     if (data?.host_end_ack && data?.guest_end_ack) {
       leavingRef.current = true;
-      await supabase.from('battle_states').delete().eq('room_id', roomId);
+      await persist.remove();
       await supabase.from('rooms').delete().eq('id', roomId);
       onBack();
       return;
@@ -10915,7 +10827,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleEnd = async () => {
     leavingRef.current = true;
     setLoading(true);
-    await supabase.from('battle_states').delete().eq('room_id', roomId);
+    await persist.remove();
     await supabase.from('rooms').delete().eq('id', roomId);
     setLoading(false);
     setShowEndConfirm(false);
