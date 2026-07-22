@@ -4,6 +4,27 @@
 
 ---
 
+## §3 タスク14 Stage3：永続化チョークポイント移行完了＋reducer純粋化一部（battle_states 全行I/O 120箇所→persist・golden 565→566・全ゲート緑）（2026-07-22・続き245・Opus）
+
+PLAN §3 Opusタスク14の Stage3 実装に着手。前セッション（続き244）で seam（`persist` / `reduceBattle`）を骨組み着地させたのに続き、本セッションで**永続化層の移行を完了**した。
+
+**永続化チョークポイント移行＝完了**＝BattleScreen.tsx に114+箇所インライン散在していた `supabase.from('battle_states')` の**全行(whole-row) I/O 120箇所を `persist` へ移行**：
+- 単一行 `.update(X).eq('room_id',roomId)` → `persist.commit(X)` ＝58箇所（regex 一括・貪欲 `(.*)` で入れ子括弧対応）
+- 複数行 `.update({...}).eq(...)` チェーン → `persist.commit({...})` ＝53箇所（lazy `[\s\S]*?` ＋ `\)\s*\.eq` で改行後 `.eq` も捕捉）
+- `.delete().eq(...)` → `persist.remove()` ＝4箇所
+- `.select('*').eq(...).single()` → `persist.fetchState()` ＝2箇所（初期ロード＋再同期）
+- 代表手配線3（続き244分）
+
+生 supabase 参照が残るのは**特定カラム select の4箇所のみ**（`host_mulligan_done,...` / `host_janken,...` / `host_end_ack,...` の部分読み＝全行取得ではないため意図的に raw 維持）。
+
+**副産物＝厳格型が潜在的緩さを検出**＝`persist.commit(patch: Partial<BattleStateRow>)` の厳格型が、生 supabase（untyped＝any受け）では素通りしていた型の緩さ2件を surface：(1) じゃんけん解決 update の `setup_phase: 'LRIG_SELECT'` が `string` widening（`const update: Partial<BattleStateRow>` 注釈で是正）(2) `fetchState` の error に `.message` 型付け（`{message:string}|null`）。
+
+**reducer 純粋化＝一部着手**＝`reduceBattle` に `SET_TURN_PHASE` を追加し、turn_phase 遷移7箇所（ENERGY/MAIN/ATTACK_SIGNI/ATTACK_ARTS_OP/ATTACK_LRIG/END×2）を `persist.commit(reduceBattle(bs, {type:'SET_TURN_PHASE', phase}))` へ純粋化（全サイト `bs.` 直参照で非null narrowing 済を確認）。reduceBattle は4 action（SET_SETUP_PHASE/SET_TURN_PHASE/ACK_END/SUBMIT_JANKEN）・10箇所配線に。
+
+**検証**＝golden 565→566（`Stage3 reduceBattle SET_TURN_PHASE` 追加）・smoke 10722 OK 0異常・fuzz 0・census 1825維持・lint 0 error（warning は 224 で純増0＝persist 参照で新規化した exhaustive-deps 1件は narrow deps 維持のため disable コメントで抑制。既存2 effect の warning 行に persist が加わった分はカウント不変）。
+
+**残＝reducer 純粋化の本体**＝各ハンドラの `const update={...}`（host_state/guest_state/effect_stack を engine 純粋関数で計算する複雑パッチ）を `reduceBattle` の case へ寄せる約50ハンドラのテール。1件ずつ golden 先置き＋挙動同値で進める。設計/レシピ＝`docs/BATTLE_CONTROLLER.md`。
+
 ## §3 タスク14 リファクタ Stage2完了＋Stage3（純粋バトルコントローラ）骨組み着地（golden 562→565・全ゲート緑・warning 純増0）（2026-07-22・続き244・Opus）
 
 PLAN §3 Opusタスク14。ユーザー選択のスコープ＝**Stage2完了＋Stage3設計・骨組みまで**（純粋バトルコントローラのフル書き換えは DoD 未定義・ヘッドレス検証不能・稼働ゲーム破壊リスク大のため段階移行方針）。
