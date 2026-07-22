@@ -4,6 +4,19 @@
 
 ---
 
+## §3 タスク14 Stage3続き：`SET_STACK`/`END_GAME` action 追加＋条件付き opp を WRITE_STATE 化（58/114 commit が reduceBattle 経由・golden 570→573・全ゲート緑）（2026-07-22・続き247・Opus）
+
+続き246（WRITE_STATE 30箇所）に続き、reducer 純粋化をさらに前進。意味のまとまり単位で action を追加：
+
+- **`SET_STACK`**（5箇所）＝effect_stack のみ書き換え。`settle:true` で `isStackDone(stack) ? null : stack` の**settle イディオムを reducer に集約**（＝「スタック解決済みなら null 化」の判定を1箇所に・テスト可能化）。移行＝settle 形2（`{effect_stack: isStackDone(X)?null:X}`）＋素通し形3（`{effect_stack: newStack/newStackOP/null}`）。`isStackDone` を controller が import。
+- **`END_GAME`**（3箇所）＝決着遷移（`global_phase:'FINISHED'`＋`winner_id`＋最終盤面 my／任意 opp）を意味単位で命名。
+- **条件付き opp を WRITE_STATE 化**（9箇所）＝`{[k]:s, ...(cond?{[opK]:x}:{})}` を `opp: cond ? {key,state} : undefined` として payload 側で表現（reducer の `if(action.opp)` が undefined=不併記＝旧 `...{}` と同値）。effect_stack/pending 併記形・明示2キー（`{guest_state,host_state}`）も含む。
+- **手動 ACK_END**（1箇所）＝`handleEndAck` の `{[ackKey]:true}`（`ackKey=isHost?'host_end_ack':'guest_end_ack'`）を `ACK_END(isHost)` へ（bs narrowing のため関数先頭ガードを `if (loading || !bs) return` に）。
+
+reduceBattle は**7 action（SET_SETUP_PHASE/SET_TURN_PHASE/ACK_END/SUBMIT_JANKEN/WRITE_STATE/SET_STACK/END_GAME）・58/114 commit が reduceBattle 経由**に。golden に SET_STACK 2件・END_GAME 1件追加＝570→573（settle の done→null／未解決→温存／素通し／null を固定）。smoke 0異常・fuzz 0・census 1825維持・lint 0 error（warning 224・純増0）。
+
+**残＝reducer 純粋化の本体（56 commit）**＝命令的 `const update: Record<string,unknown> = {...}` のインクリメンタル構築（`'X' in update` 判定・`update.host_state={...}` 差し替え・条件付き pending/stack＝約22ハンドラ）／`pending_spell`・`pending_effect` オブジェクト（非 null）／spread（`...opUsageUpdate`/`...update`）。⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的一括変換はサイレント挙動変化を検出できない。1件ずつ手動レビュー、または先にハンドラ挙動テストを整備してから進めるべきテール。設計/レシピ＝`docs/BATTLE_CONTROLLER.md`。
+
 ## §3 タスク14 Stage3続き：`WRITE_STATE` action でプレイヤー状態書き込み30箇所を純粋化（40/114 commit が reduceBattle 経由・golden 566→570・全ゲート緑）（2026-07-22・続き246・Opus）
 
 続き245（永続化移行完了）に続き reducer 純粋化を前進。`reduceBattle` に **`WRITE_STATE` action** を新設し、プレイヤー状態書き込みを集約：
