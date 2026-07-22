@@ -89,6 +89,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     isCpuBattle, setIsCpuBattle, cpuDeckData, setCpuDeckData,
   } = useBattleSession();
   const cpuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Stage3 seam：battle_states 永続化チョークポイント（純粋 reduceBattle の出力を commit で書き込む）
+  const persist = useBattlePersist(roomId);
   // ゲーム開始時セットアップ（マリガン選択＋アシストルリグ配置の中間状態）
   const { mulliganSelected, setMulliganSelected, pendingLrigSetup, setPendingLrigSetup } = useGameStartSetup();
   // シグニ召喚ゾーン選択フロー
