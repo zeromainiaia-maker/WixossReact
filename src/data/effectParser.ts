@@ -2628,6 +2628,92 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
   return action;
 }
 
+// 状態条件節バッチ①第2波。全件を CardNum+effectId でゲートし、同型カードへ生パースを波及させない。
+function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): void {
+  const setAction = (effectId: string, action: EffectAction): void => {
+    const effect = effects.find(e => e.effectId === effectId);
+    if (effect) effect.action = action;
+  };
+  if (cardNum === 'WX18-066') setAction('WX18-066-E2', { type: 'SEQUENCE', steps: [
+    { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 4 } },
+      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 8000 } }, upToCount: false } } },
+  ] });
+  if (cardNum === 'WX18-068') setAction('WX18-068-E1', { type: 'SEQUENCE', steps: [
+    { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 4 } },
+      then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 5000 } }, upToCount: false } } },
+  ] });
+  if (cardNum === 'WX05-021') {
+    const e = effects.find(x => x.effectId === 'WX05-021-BURST');
+    if (e?.action.type === 'REVEAL_AND_PICK') e.action = { ...e.action, elseAction: { type: 'DRAW', owner: 'self', count: 1 } };
+  }
+  if (cardNum === 'WX15-037') {
+    const e = effects.find(x => x.effectId === 'WX15-037-BURST');
+    if (e?.action.type === 'REVEAL_AND_PICK') e.action = { ...e.action, elseAction: { type: 'DRAW', owner: 'self', count: 1 } };
+  }
+  const awaken = (effectId: string, name: string): void => {
+    const e = effects.find(x => x.effectId === effectId);
+    if (!e?.action || e.action.type !== 'SEQUENCE') return;
+    e.action = { ...e.action, steps: [e.action.steps[0],
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardName: name } },
+        then: { type: 'AWAKEN_SIGNI', targetsLastProcessed: true } }] };
+  };
+  if (cardNum === 'WXDi-P14-053') {
+    const e = effects.find(x => x.effectId === 'WXDi-P14-053-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps[0]?.type === 'BANISH_REDIRECT') {
+      e.action.steps[0] = { ...e.action.steps[0], target: { type: 'SIGNI', owner: 'self', count: 1,
+        filter: { cardType: 'シグニ', color: '白' }, upToCount: false } };
+    }
+    awaken('WXDi-P14-053-E1', '幻怪姫　ドーナ//フェゾーネ');
+    if (e?.action.type === 'SEQUENCE') e.action.steps.splice(1, 0,
+      { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 2000,
+        targetsLastProcessed: true, duration: 'UNTIL_OPP_TURN_END' });
+  }
+  if (cardNum === 'WXDi-P14-057') awaken('WXDi-P14-057-E1', '羅輝石　花代//フェゾーネ');
+  if (cardNum === 'WXDi-P14-065') awaken('WXDi-P14-065-E1', 'コードオーダー　メル//フェゾーネ');
+  if (cardNum === 'WXDi-P14-069') awaken('WXDi-P14-069-E1', '羅菌姫　ナナシ//フェゾーネ');
+  const replacementPower = (effectId: string, story: string | undefined, normal: number, resona: number): void => {
+    setAction(effectId, { type: 'SEQUENCE', steps: [
+      { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1,
+        filter: { cardType: 'シグニ', ...(story ? { story } : {}) }, upToCount: false }, delta: 0, excludeSelf: true,
+        duration: 'UNTIL_OPP_TURN_END' },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } },
+        then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: resona,
+          targetsLastProcessed: true, duration: 'UNTIL_OPP_TURN_END' },
+        else: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: normal,
+          targetsLastProcessed: true, duration: 'UNTIL_OPP_TURN_END' } },
+    ] });
+  };
+  if (cardNum === 'WX25-P2-068') replacementPower('WX25-P2-068-E1', '宇宙', 2000, 5000);
+  if (cardNum === 'WX25-P2-070') replacementPower('WX25-P2-070-E1', undefined, 5000, 10000);
+  if (cardNum === 'WX25-P2-071') setAction('WX25-P2-071-E1', { type: 'SEQUENCE', steps: [
+    { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1,
+      filter: { cardType: 'シグニ', story: '宇宙' }, upToCount: false }, delta: 5000, duration: 'UNTIL_OPP_TURN_END' },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } },
+      then: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsLastProcessed: true,
+        keyword: '【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。', duration: 'UNTIL_OPP_TURN_END' } },
+  ] });
+  if (cardNum === 'WXDi-P13-006') {
+    const e = effects.find(x => x.effectId === 'WXDi-P13-006-E2');
+    if (e?.action.type === 'REVEAL_AND_PICK') e.action = { ...e.action, filter: { isDisona: true } };
+  }
+  // WXDi-P11-078-E1（続き250 Claude 検証で codex 見送りを差し戻し）：「デッキ一番上をトラッシュに置く。
+  // そのカードが《融合の儀　タウィル//メモリア》の場合、そのカードを場に出してもよい」＝落ちたカードの
+  // 名前条件ゲートが脱落し、過去に落ちた同名を無条件で場に出せる過剰効果だった。TRASH は
+  // lastProcessedCards 記録済み→CONDITIONAL{LAST_PROCESSED_MATCHES{cardName}} で第2ステップをゲート。
+  // 「同一インスタンス限定が無い」は非問題＝トラッシュはカード番号管理で同名は交換可能（ゲートだけで完全修正）。
+  if (cardNum === 'WXDi-P11-078') {
+    const e = effects.find(x => x.effectId === 'WXDi-P11-078-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps.length === 2 && e.action.steps[0]?.type === 'TRASH'
+        && e.action.steps[1]?.type === 'ADD_TO_FIELD') {
+      e.action = { ...e.action, steps: [e.action.steps[0],
+        { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardName: '融合の儀　タウィル//メモリア' } },
+          then: e.action.steps[1] }] };
+    }
+  }
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -5963,6 +6049,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       }
     }
   }
+
+  applyReferenceAttributeBatch2(card.CardNum, effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

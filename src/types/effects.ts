@@ -609,6 +609,7 @@ export interface EnergyChargeFromDeckPerFieldCountAction {
 // このシグニを覚醒させる（覚醒状態になる）
 export interface AwakenSigniAction {
   type: 'AWAKEN_SIGNI';
+  targetsLastProcessed?: boolean; // 直前に対象化/配置したシグニを覚醒（WXDi-P14 フェゾーネアーツ）
 }
 
 // シグニの下にカードを置く（デッキトップ・トラッシュ・手札から）
@@ -1107,6 +1108,7 @@ export interface RevealAndPickAction {
   pickUpTo?: boolean; // pickCount を「N枚まで」（上限）として扱う（G236）。逆翻訳に「まで」を付与
   pickNoun?: string;  // ピック対象の名詞（既定「シグニ」）。色一致で任意カードを拾う等は「カード」（G236）
   then: EffectAction;
+  elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
 }

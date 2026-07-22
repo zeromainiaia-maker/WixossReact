@@ -3176,9 +3176,10 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
           ? [...state.deck.slice(count), ...restOrdered]
           : state.deck,
       };
-      return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`));
+      const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`);
+      return a.elseAction ? executeAction(a.elseAction, { ...unmatched, lastProcessedCards: visible }) : done(unmatched);
     }
-    return done(ctx);
+    return a.elseAction ? executeAction(a.elseAction, { ...ctx, lastProcessedCards: visible }) : done(ctx);
   }
 
   // デッキはスライスせず公開カードを残す（resumeSearch が picked を各領域へ、未pick公開カードを
@@ -3605,12 +3606,14 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
-function execAwakenSigni(ctx: ExecCtx): ExecResult {
-  if (!ctx.sourceCardNum) return done(ctx);
+function execAwakenSigni(a: import('../types/effects').AwakenSigniAction, ctx: ExecCtx): ExecResult {
+  const targets = a.targetsLastProcessed ? (ctx.lastProcessedCards ?? []) : (ctx.sourceCardNum ? [ctx.sourceCardNum] : []);
+  const fieldTargets = targets.filter(n => ctx.ownerState.field.signi.some(s => s?.at(-1) === n));
+  if (fieldTargets.length === 0) return done(ctx);
   const awakened = [...(ctx.ownerState.awakened_signi ?? [])];
-  if (!awakened.includes(ctx.sourceCardNum)) awakened.push(ctx.sourceCardNum);
+  for (const n of fieldTargets) if (!awakened.includes(n)) awakened.push(n);
   const newOwner = { ...ctx.ownerState, awakened_signi: awakened };
-  return done(addLog({ ...ctx, ownerState: newOwner }, `${ctx.sourceCardNum}が覚醒状態になった`));
+  return done(addLog({ ...ctx, ownerState: newOwner }, `${fieldTargets.join('・')}が覚醒状態になった`));
 }
 
 function execDrawPerFieldCount(a: import('../types/effects').DrawPerFieldCountAction, ctx: ExecCtx): ExecResult {
@@ -4422,7 +4425,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'DRAW_PER_LRIG_LEVEL':        return execDrawPerLrigLevel(action as import('../types/effects').DrawPerLrigLevelAction, ctx);
     case 'ENERGY_CHARGE_PER_LRIG_LEVEL': return execEnergyChargePerLrigLevel(action as import('../types/effects').EnergyChargePerLrigLevelAction, ctx);
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return execEnergyChargeFromDeckPerFieldCount(action as import('../types/effects').EnergyChargeFromDeckPerFieldCountAction, ctx);
-    case 'AWAKEN_SIGNI':               return execAwakenSigni(ctx);
+    case 'AWAKEN_SIGNI':               return execAwakenSigni(action as import('../types/effects').AwakenSigniAction, ctx);
     case 'NEGATE_ATTACK':              return execNegateAttack(action as import('../types/effects').NegateAttackAction, ctx);
     case 'PLACE_UNDER_SIGNI':          return execPlaceUnderSigni(action as import('../types/effects').PlaceUnderSigniAction, ctx);
     case 'STACK_SPELL': {  // §6.1 タスク7: トラッシュ等からスペルをmaxCount枚まで選び、このカードの下に置く（WX11-029）
@@ -4467,6 +4470,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
     case 'BANISH_REDIRECT': {
+      const brAction = action as BanishRedirectAction;
+      // 付与形「シグニ1体を対象とし、それは能力を得る」：対象シグニ自身を redirect 発生源として登録する。
+      if (brAction.bySource && brAction.target.owner === 'self' && brAction.target.count === 1) {
+        const cands = fieldCandidates(ctx.ownerState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
+          ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+        return selectOrInteract(cands, 1, brAction.target.upToCount ?? false, 'self_field', brAction, undefined, ctx);
+      }
       // redirectTo:'exile'＝「エナゾーンに置かれる代わりにゲームから除外」（SPDi47-05）。既定（trash）と同じ
       // ターン内フラグ方式＝banishDestination／BattleScreen のバトル・パワー0経路が参照し、ターン境界でリセット。
       if ((action as BanishRedirectAction).redirectTo === 'exile') {
@@ -5171,6 +5181,15 @@ export function resumeRearrangeSigni(
 
 function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx): ExecResult {
   switch (action.type) {
+    case 'BANISH_REDIRECT': {
+      const br = action as BanishRedirectAction;
+      if (!br.bySource || !ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) return done(ctx);
+      const prev = ctx.ownerState.banish_redirect_by_source_nums ?? [];
+      const newOwner = { ...ctx.ownerState,
+        banish_redirect_by_source_nums: prev.includes(cardNum) ? prev : [...prev, cardNum] };
+      return done({ ...addLog({ ...ctx, ownerState: newOwner }, `${cardNum}にバニッシュ先変更能力を付与`),
+        lastProcessedCards: [cardNum] });
+    }
     case 'BANISH': {
       // cardNumが opponent.field にあるか自分のフィールドにあるかを検索
       let found: Owner | null = null;

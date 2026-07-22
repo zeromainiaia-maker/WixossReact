@@ -6895,6 +6895,54 @@ test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達
   });
 }
 
+test('参照属性バッチ2: REVEAL_AND_PICK elseAction は不一致で1枚、成立でthen側を提示', () => {
+  const top = SIGNI;
+  const base = { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1,
+    then: { type: 'DRAW', owner: 'self', count: 2 }, elseAction: { type: 'DRAW', owner: 'self', count: 1 },
+    remainder: { location: 'deck', position: 'top' } } as unknown as EffectAction;
+  const no = mkCtx({}, {}); no.ownerState.deck = [top, ...no.ownerState.deck.filter(n => n !== top)];
+  const before = no.ownerState.hand.length;
+  const nr = run({ ...base, filter: { cardName: '__不一致__' } } as EffectAction, no);
+  eq(nr.ownerState.hand.length, before + 1, '不一致はelse DRAW1');
+  const yes = mkCtx({}, {}); yes.ownerState.deck = [top, ...yes.ownerState.deck.filter(n => n !== top)];
+  const yesBefore = yes.ownerState.hand.length;
+  const name = cardMap.get(top)?.CardName;
+  const yr = run({ ...base, filter: { cardName: name } } as EffectAction, yes);
+  eq(yr.ownerState.hand.length, yesBefore + 2, '成立はthen DRAW2');
+});
+
+test('参照属性バッチ2: AWAKEN_SIGNI targetsLastProcessed は一致対象だけを覚醒', () => {
+  const ctx = { ...mkCtx({ signi: [SIGNI, null, null] }, {}, 'WXDi-P14-053'), lastProcessedCards: [SIGNI] } as ExecCtx;
+  const yes = run({ type: 'AWAKEN_SIGNI', targetsLastProcessed: true } as EffectAction, ctx);
+  ok((yes.ownerState.awakened_signi ?? []).includes(SIGNI), '直前対象を覚醒');
+  const no = run({ type: 'AWAKEN_SIGNI', targetsLastProcessed: true } as EffectAction,
+    { ...ctx, lastProcessedCards: ['NOT_ON_FIELD'] });
+  eq((no.ownerState.awakened_signi ?? []).length, 0, '名前不一致相当の空対象では覚醒しない');
+});
+
+test('参照属性バッチ2: レゾナ条件のthen/elseは同じlastProcessed対象へ適用', () => {
+  const resona = [...cardMap.entries()].find(([, c]) => c.Type === 'レゾナ')?.[0];
+  ok(!!resona, 'レゾナ試験カードが存在');
+  if (!resona) return;
+  const action = { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } },
+    then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 5000, targetsLastProcessed: true },
+    else: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 2000, targetsLastProcessed: true } } as EffectAction;
+  const y = { ...mkCtx({ signi: [resona, null, null] }, {}), lastProcessedCards: [resona] } as ExecCtx;
+  eq((run(action, y).ownerState.temp_power_mods ?? [])[0]?.delta, 5000, 'レゾナthen');
+  const n = { ...mkCtx({ signi: [SIGNI, null, null] }, {}), lastProcessedCards: [SIGNI] } as ExecCtx;
+  eq((run(action, n).ownerState.temp_power_mods ?? [])[0]?.delta, 2000, '非レゾナelse');
+});
+
+test('参照属性バッチ2: 採用12効果の構造とスコープを固定', () => {
+  const json = (card: string) => JSON.stringify(effectsMap.get(card) ?? []);
+  for (const c of ['WX18-066','WX18-068']) ok(json(c).includes('LAST_PROCESSED_MATCHES') && !json(c).includes('"level":4},"upToCount"'), `${c}: 公開Lv4条件を持ち上げ`);
+  for (const c of ['WX05-021','WX15-037']) ok(json(c).includes('"elseAction":{"type":"DRAW","owner":"self","count":1}'), `${c}: else DRAW1`);
+  for (const c of ['WXDi-P14-053','WXDi-P14-057','WXDi-P14-065','WXDi-P14-069']) ok(json(c).includes('"targetsLastProcessed":true') && json(c).includes('LAST_PROCESSED_MATCHES'), `${c}: 名前条件付き対象覚醒`);
+  for (const c of ['WX25-P2-068','WX25-P2-070']) ok(json(c).includes('"cardType":"レゾナ"') && json(c).includes('"owner":"self"') && !json(c).includes('"owner":"any"'), `${c}: 同一自対象のレゾナ置換`);
+  ok(json('WX25-P2-071').includes('GRANT_KEYWORD') && !json('WX25-P2-071').includes('REMOVE_ABILITIES'), 'WX25-P2-071: 幻覚除去＋能力付与');
+  ok(json('WXDi-P13-006').includes('"isDisona":true') && !json('WXDi-P13-006').includes('"filter":{"cardType":"シグニ"}'), 'WXDi-P13-006: Dissona判定');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

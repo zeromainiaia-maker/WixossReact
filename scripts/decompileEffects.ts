@@ -876,7 +876,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
       if (a.then) {
         const condRem = (rapCnt && rapCnt > 1) ? remJa : '';
-        return `${revealJa}、それが${filterStr}の場合、${actionJa(a.then)}${condRem}`;
+        const otherwise = a.elseAction ? `。そうでない場合、${actionJa(a.elseAction)}` : '';
+        return `${revealJa}、それが${filterStr}の場合、${actionJa(a.then)}${otherwise}${condRem}`;
       }
       return `${revealJa}、その中から${filterStr}を${pickN}処理する${remJa}`;
     }
@@ -1078,7 +1079,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.targetedCenter) return `あなたのセンタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
       return `${a.permanent ? 'このゲームの間、' : ''}あなたのセンタールリグは『${glaInner}』を得る`;
     }
-    case 'AWAKEN_SIGNI': return 'このシグニを覚醒状態にする';
+    case 'AWAKEN_SIGNI': return a.targetsLastProcessed ? 'それは覚醒する' : 'このシグニを覚醒状態にする';
     case 'GAIN_BOND': return a.source === 'declared'
       ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'
       : '直前に見つけたカード名との絆を獲得する';

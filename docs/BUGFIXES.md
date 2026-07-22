@@ -4,6 +4,16 @@
 
 ---
 
+## 状態条件節バッチ①第2波：参照カード属性条件12効果（golden 584→588、census 1799→1793）（2026-07-22・続き250・Codex）
+
+参照カードの属性条件が脱落・誤合成されていた12効果を、カード番号＋effectId限定の `applyReferenceAttributeBatch2` とminified JSON直パッチで是正した。採用＝G1 2件（`REVEAL_DECK_TOP`＋`LAST_PROCESSED_MATCHES{cardType:シグニ,level:4}`、BANISH対象から誤ったlevelを除去）、G2 2件（`RevealAndPickAction.elseAction`＋不一致時DRAW1）、G3 4件（前段対象を `lastProcessedCards` に残し、名前条件一致時だけ `AWAKEN_SIGNI{targetsLastProcessed:true}`。053は対象付与形BANISH_REDIRECTと欠落していた+2000も同一対象へ復元）、G4 3件（owner:self・同一対象のレゾナthen/else、071の相手REMOVE_ABILITIES幻覚をraw keyword付与へ置換）、G6 1件（`isDisona:true`）。`AWAKEN_SIGNI` の旧sourceCardNum固定誤実装、`BANISH_REDIRECT` の対象無視も対象付与形に限って修正した。
+
+見送り＝G5 `WXDi-P11-078-E1`（条件は表せるが `ADD_TO_FIELD` に直前ミルした同一インスタンス限定が無く、旧同名カードを選べる）、G7 2件（REVEAL_AND_PICK内の任意コスト成功を後続配置へ渡すdid-it continuationが無い）、G8 `WX18-070-E1`（hand-or-energy宛先選択は新型が必要）／`WXDi-P08-037-E2`（現REARRANGE_SIGNIはアップ限定・optional・二対象照応を満たさない）、G9 3件（068はbounce/trash watcher timing、064は引用能力全再構築、063は動的同レベルfilterが必要）。
+
+全ゲート緑：golden 588、smoke 10722全OK、fuzz全0、census 1793（BASELINE_HIGH更新）、lint 0 errors / 224 warnings、同型★0、held 73グループ/193枚。curatedのベースライン差分は採用12 effectIdのみ・同カード巻き添え0・outlier 0。`npm run regen` 済。逆翻訳は意味一致だが表記完全一致0件（レゾナ2件は内部対象化の+0が露出、他も語順・助詞・名詞表記差）。
+
+---
+
 ## 状態条件節持ち上げ バッチ①第1波：`TURN_OWNER` 新設＋`LIFE_COUNT` 拡張（25採用・2見送り、golden 579→584、census 1817→1799）（2026-07-22・続き249・Codex 実装＋Claude 検証）
 
 ターン所有者条件17効果とライフクロス枚数条件8効果で、条件節が parser から脱落し無条件発火していた過剰効果を是正した。既存の多義的 `IS_MY_TURN` / `IS_OPPONENT_TURN` は変更せず、action `Condition` に `TURN_OWNER{owner:self|opponent}` を追加。`ExecCtx.isOwnerTurn?` を BattleScreen の初回解決・interaction再開・スペル・カットインへ配線し、未設定時は permissive true とした。選択肢条件は既存 `choice.condition`、ライフ条件は既存 `LIFE_COUNT` / `ENERGY_COUNT` / `AND` を使用。パワーちょうど20000は既存 `SELF_POWER_GTE` に optional `operator:'eq'` を追加した。`WXK11-019-BURST` は条件付き then/else replacement、`WXDi-P01-004-E1` は availability 条件として採用。`WX11-026-E2` は MANUAL 同居カードのため parser 修正と minified JSON 手術を併用した。
