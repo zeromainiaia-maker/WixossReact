@@ -8207,7 +8207,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await persist.commit({ turn_phase: 'ATTACK_SIGNI' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_SIGNI' }));
       return;
     }
 
@@ -8274,7 +8274,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── DRAWフェイズ → ENERGYへ ───
     if (phase === 'DRAW') {
-      await persist.commit({ turn_phase: 'ENERGY' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ENERGY' }));
       return;
     }
 
@@ -8462,7 +8462,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
       }
-      await persist.commit({ turn_phase: 'MAIN' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'MAIN' }));
       return;
     }
 
@@ -8470,7 +8470,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'MAIN') {
       if (bs.turn_count === 1) {
         // 先攻1ターン目はMAINからENDへ
-        await persist.commit({ turn_phase: 'END' });
+        await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'END' }));
         return;
       }
       const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
@@ -8667,7 +8667,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
     if (phase === 'ATTACK_ARTS') {
-      await persist.commit({ turn_phase: 'ATTACK_ARTS_OP' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_ARTS_OP' }));
       return;
     }
 
@@ -8699,7 +8699,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 全シグニアタック完了 → ATTACK_LRIGへ
-      await persist.commit({ turn_phase: 'ATTACK_LRIG' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_LRIG' }));
       return;
     }
 
@@ -8717,7 +8717,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
       if (huSt.field.lrig_attacked || huSt.field.check) return;
       // ルリグアタック済み → ENDへ
-      await persist.commit({ turn_phase: 'END' });
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'END' }));
       return;
     }
 

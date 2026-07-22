@@ -6718,6 +6718,11 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(patch.setup_phase, 'MULLIGAN', 'setup_phase');
     eq(Object.keys(patch).length, 1, 'キー数');
   });
+  test('Stage3 reduceBattle SET_TURN_PHASE: turn_phase パッチのみ', () => {
+    const patch = reduceBattle(stub, { type: 'SET_TURN_PHASE', phase: 'ATTACK_SIGNI' });
+    eq(patch.turn_phase, 'ATTACK_SIGNI', 'turn_phase');
+    eq(Object.keys(patch).length, 1, 'キー数');
+  });
   test('Stage3 reduceBattle ACK_END: host/guest で書き込み先が分岐', () => {
     eq(reduceBattle(stub, { type: 'ACK_END', isHost: true }).host_end_ack, true, 'host');
     eq(reduceBattle(stub, { type: 'ACK_END', isHost: true }).guest_end_ack, undefined, 'host は guest を触らない');
