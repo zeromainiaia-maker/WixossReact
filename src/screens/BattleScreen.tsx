@@ -8168,7 +8168,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (cpuSt.pending_lrig_attack && !bs.effect_stack && !bs.pending_effect) {
       const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined };
       const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
-      await persist.commit({ guest_state: cleanCpuSt, host_state: huStWithLrigAttacked });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleanCpuSt, opp: { key: 'host_state', state: huStWithLrigAttacked } }));
       return;
     }
 
