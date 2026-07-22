@@ -2592,6 +2592,29 @@ test('Stage2 ON_TRASH: fromAnyZone + byOpponentEffect ゲート（WX04-035-E2）
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, true, 'hand'), 'WX04-035-E2'), true, '相手効果起因で発火');
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, false, 'hand'), 'WX04-035-E2'), false, '自起因では非発火');
 });
+// §6.3 スペルの被破棄【自】2枚（WX17-045 FLASH／WXDi-P10-070 枝折）。パーサー出力＋タスク16[C]機構②の
+// 手札→トラッシュ収集経路（collectAnyZoneTrashSelfTriggers）で機能実装済み＝回帰防止の lock-in。
+// ⚠スペルは castSpell 時点で手札から pending_spell へ除かれ、使用解決は pending→trash＝手札→トラッシュ検出を
+//   通らないため「使用しても自身の【自】は発動しない」注記（WX17-045）は detectHandTrashed の before.hand 参照で担保。
+test('§6.3 ON_TRASH スペル被破棄: WX17-045-E2 は手札→トラッシュで常時発火（fromZones=hand・cause 非依存）', () => {
+  const e = (effectsMap.get('WX17-045') ?? []).find(x => x.timing?.includes('ON_TRASH'));
+  ok(!!e, 'WX17-045-E2: ON_TRASH のはず');
+  eq(JSON.stringify(e?.triggerCondition?.fromZones), '["hand"]', 'fromZones=["hand"]');
+  eq(e?.action?.type, 'DOWN', 'action=DOWN');
+  const c = collectAnyZoneTrashSelfTriggers;
+  eq(has(c(trigCtx(HOST), 'WX17-045', HOST, false, 'hand'), 'WX17-045-E2'), true, '自効果起因の手札捨てで発火');
+  eq(has(c(trigCtx(HOST), 'WX17-045', HOST, true, 'hand'), 'WX17-045-E2'), true, '相手効果起因の手札捨てでも発火（無条件）');
+  eq(has(c(trigCtx(HOST), 'WX17-045', HOST, false, 'energy'), 'WX17-045-E2'), false, 'エナからは非発火（fromZones=hand）');
+});
+test('§6.3 ON_TRASH スペル被破棄: WXDi-P10-070-E2 は自ターンの手札→トラッシュのみ発火（turnOwner=self）', () => {
+  const e = (effectsMap.get('WXDi-P10-070') ?? []).find(x => x.timing?.includes('ON_TRASH'));
+  ok(!!e, 'WXDi-P10-070-E2: ON_TRASH のはず');
+  eq(JSON.stringify(e?.triggerCondition?.fromZones), '["hand"]', 'fromZones=["hand"]');
+  eq(e?.triggerCondition?.turnOwner, 'self', 'turnOwner=self');
+  const c = collectAnyZoneTrashSelfTriggers;
+  eq(has(c(trigCtx(HOST), 'WXDi-P10-070', HOST, false, 'hand'), 'WXDi-P10-070-E2'), true, '自ターンの手札捨てで発火');
+  eq(has(c(trigCtx(GUEST), 'WXDi-P10-070', HOST, false, 'hand'), 'WXDi-P10-070-E2'), false, '相手ターンでは非発火（turnOwner=self）');
+});
 
 // Stage2⑤: ON_BANISH（collectBanishTriggers）を pure 化→自動検証。meId 視点での my/op 分岐も検証。
 test('Stage2 ON_BANISH: self バニッシュで自身が発火（WX02-025-E2）', () => {
