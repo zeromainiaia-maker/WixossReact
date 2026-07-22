@@ -515,7 +515,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newStack = cpuIsTurnPlayer
         ? confirmTurnOrder(stack, orderedIds)
         : confirmOppOrder(stack, orderedIds);
-      await persist.commit({ effect_stack: isStackDone(newStack) ? null : newStack });
+      await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: newStack, settle: true }));
     }, CPU_ACTION_DELAY);
     return () => clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1605,7 +1605,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       try {
         const existingStack = bs.effect_stack ?? null;
         const newStack = existingStack ? pushToStack(existingStack, entries) : initStack(bs.active_user_id ?? user.id, entries);
-        await persist.commit({ effect_stack: newStack });
+        await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: newStack }));
         snapshot();
       } finally {
         setLoading(false);
@@ -3871,7 +3871,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const { entry, newStack } = shiftQueue(stack);
       if (!entry) {
-        await persist.commit({ effect_stack: null });
+        await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: null }));
         return;
       }
 
@@ -4237,7 +4237,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stack = isTurnPlayer
         ? confirmTurnOrder(bs.effect_stack, orderedIds)
         : confirmOppOrder(bs.effect_stack, orderedIds);
-      await persist.commit({ effect_stack: isStackDone(stack) ? null : stack });
+      await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: stack, settle: true }));
     } finally {
       setLoading(false);
     }
@@ -8599,7 +8599,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newStackOP = existingStackOP
           ? pushToStack(existingStackOP, cpuOnPlayEntries)
           : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuOnPlayEntries);
-        await persist.commit({ effect_stack: newStackOP });
+        await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: newStackOP }));
         return;
       }
 
@@ -10804,10 +10804,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // 勝敗確定後の終了確認（両者が押したらルーム削除）
   const handleEndAck = async () => {
-    if (loading) return;
+    if (loading || !bs) return;
     setLoading(true);
-    const ackKey = isHost ? 'host_end_ack' : 'guest_end_ack';
-    await persist.commit({ [ackKey]: true });
+    await persist.commit(reduceBattle(bs, { type: 'ACK_END', isHost }));
     // 最新状態を取得して両者が押したか確認
     const { data } = await supabase
       .from('battle_states')
