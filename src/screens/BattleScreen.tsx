@@ -8294,7 +8294,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           actions_done: [...(cpuSt.actions_done ?? []), 'ENERGY'],
         };
         cpuAtGrowStart = newCpuSt;
-        await persist.commit({ guest_state: newCpuSt });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: newCpuSt }));
         // 少し待ってGROWへ進む
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
