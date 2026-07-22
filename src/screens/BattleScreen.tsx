@@ -898,6 +898,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     persist.remove().then(() => {
       supabase.from('rooms').delete().eq('id', roomId).then(() => onBack());
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isCpuBattle, bs?.host_end_ack, bs?.guest_end_ack, roomId, onBack]);
 
   // CONTINUOUS BLOCK_ACTION 効果によるアクション禁止（フィールド常駐効果）
