@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-21・続き243・Opus・**タスク12(xxix)「そのシグニの【出】能力」クラスタ（≈30効果として登録）を**忠実表現化**＝**挙動上は偽陽性**と確定したうえで死アクションを畳んだ。census 1825維持・golden 557→**562**）**
+  - **偽陽性の根拠2点**＝(1)`BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}` は **engine 未参照の完全な死アクション**（`grep` で消費0確認）＋target `owner:any/ALL`＝「全シグニ封じ」の過剰表現。(2)`ADD_TO_FIELD`/`SEARCH→field`/`LOOK_PICK_CHAIN` 経路は**効果配置シグニの自身 ON_PLAY を発火させない**（自身【出】を積むのは `REVEAL_UNTIL_TO_FIELD` のみ・当クラスタは非使用）＝抑制は既定で満たされていた。
+  - **忠実表現化（最小修正・低リスク）**＝死アクションを配置アクションの `suppressOnPlay` フラグへ畳む。型（AddToField/RevealUntilToField/LookPickChainStage）＋parser `foldSuppressOnPlay`（`parseCardEffects` 末尾の単一チョークポイント）＋engine 前方安全（REVEAL_UNTIL_TO_FIELD 3経路）＋decompiler。76効果を折込・残22効果は配置アンカー無しで据置。
+  - **ゲート**＝全ゲート緑（golden 562・census 1825維持・同型★0）。`npm run regen` 済。詳細 BUGFIXES 続き243。
+
 - **🆕 セッション（2026-07-21・続き236・Sonnet（Opusタスク16を試行）・**WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき、そのアタックしているシグニをアップする」を消化＝timing regex に「正面以外の」追加＋新設 `triggerCondition.banishedNotFront`（engine `battleBanishEntries` でアタッカー正面ゾーンと被バニッシュゾーンの不一致を判定）。UP先「そのアタックしているシグニ」は any_ally scope で能力ホスト≠実アタッカーになりうるため `thisCardOnly` は誤り＝新設 `targetsBattleAttacker`（`StackEntry.battleAttackerCardNum`／`ExecCtx.battleAttackerCardNum` 経由）で解決＝タスク16[B]が実際には新規 engine 配線を要した1例。census:timing 41→40効果・golden 540→542・census 1839→1838。詳細 BUGFIXES 続き235）**
 - **🆕 セッション（2026-07-21・続き235・Opus・**タスク16（timing 語彙センサス）継続＝**受身形トリガー2件を消化**＝ON_ACCE「アクセされたとき」＋ON_HAND_DISCARDED watcher「手札からトラッシュに置かれた」（正面ダウン engine 拡張込み）。census:timing 43→**41**効果・golden 537→**540**・census 1839 維持）**
 - **🆕 セッション（2026-07-21・続き233・Opus・**§6.3 機構待ちを3系統消化＝ON_LEAVE_FIELD「対戦相手のシグニが場を離れたとき」3枚を self 誤発火→any_opp 正発火（+凍結フィルタ+効果限定+離脱直前 state スナップショット機構）／REVEAL_AND_PICK remainder の shuffle 語彙。golden 535→**537**・census 1841→**1839**）**
