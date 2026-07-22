@@ -44,6 +44,17 @@ export type BattleAction =
       effectStack?: EffectStack | null;
       /** pending_effect を null クリアする場合。 */
       clearPending?: boolean;
+    }
+  /**
+   * 決着：勝者を確定しゲームを終了する（global_phase='FINISHED'＋winner_id）。
+   * 最終盤面の書き込み（my／任意で opp）も併せる。
+   */
+  | {
+      type: 'END_GAME';
+      winnerId: string;
+      myKey: PlayerStateKey;
+      myState: PlayerState;
+      opp?: { key: PlayerStateKey; state: PlayerState };
     };
 
 /**
