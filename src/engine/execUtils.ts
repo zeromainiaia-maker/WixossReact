@@ -837,6 +837,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
           const isPuppet = (fst.field.puppet_signi ?? []).includes(top);
           if (cond.filter.isPuppet !== isPuppet) return false;
         }
+        if (cond.filter?.hasCharm !== undefined) {
+          const hasCharm = (fst.field.signi_charms?.[zoneIdx] ?? null) !== null;
+          if (cond.filter.hasCharm !== hasCharm) return false;
+        }
         return matchesFilter(ctx.cardMap.get(top), cond.filter);
       }).map(stack => stack![stack!.length - 1]);
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
@@ -852,10 +856,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (key && !(cond.excludeSelf && srcNum && key === srcNum)
             && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
       }
-      const matched = cond.distinctNames
-        ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size
-        : matchedNums.length;
+      const matched = cond.distinctColors
+        ? new Set(matchedNums.flatMap(n => splitColors(ctx.cardMap.get(n)?.Color))).size
+        : cond.distinctNames ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size : matchedNums.length;
       return matched >= (cond.minCount ?? 1);
+    }
+    case 'HAS_KEY_IN_FIELD': {
+      const f = st(cond.owner).field;
+      return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
     }
     case 'ALL_FIELD_SIGNI_MATCH': {
       // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（各スタック頂点）が filter 一致。

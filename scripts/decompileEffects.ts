@@ -312,6 +312,8 @@ function condJa(c?: any): string {
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}ルリグがいる`;
       if (c.filter?.cardType === 'キー')
         return `${ownerJa(c.owner)}場にキーがある`;
+      if (c.distinctColors)
+        return `${ownerJa(c.owner)}場にある${c.excludeSelf ? '他の' : ''}${filterJa(c.filter)}シグニが持つ色が合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
       if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
         return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
@@ -320,6 +322,7 @@ function condJa(c?: any): string {
       if (c.distinctNames && c.distinctPhraseJa === 'kinds')
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニが${numJa(c.minCount ?? 1)}種類以上ある`;
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+    case 'HAS_KEY_IN_FIELD': return `${ownerJa(c.owner)}場にキーがある`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;

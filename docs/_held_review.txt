@@ -151,52 +151,6 @@ WXDi-P00-042 WXDi-P02-040 WXK02-060 WXK03-045 WXK09-042 WXK09-044
   + [0].action.steps[0].costColors[0] = "黒"
   …（他 2 行）
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［6枚］
-WDK09-008 WDK10-007 WDK12-008 WX24-P4-082 WXDi-P02-071 WXDi-P12-002
---- WDK09-008
-  原文: カードを２枚引く。対戦相手の場にキーがある場合、対戦相手は手札を２枚捨てる。,-
-  - [0].action.steps[1].target.type = "HAND_CARD"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 2
-  ~ [0].action.steps[1].type : "TRASH" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  + [0].action.steps[1].then.type = "TRASH"
-  + [0].action.steps[1].then.target.type = "HAND_CARD"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = 2
---- WDK10-007
-  原文: ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。対戦相手の場にキーがある場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。,-
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[1].source.filter.story = "龍獣"
-  - [0].action.steps[1].suppressOnPlay = true
-  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  …（他 9 行）
---- WDK12-008
-  原文: 対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。対戦相手の場にキーがある場合、追加でカードを１枚引き【エナチャージ１】をする。,-
-  - [0].action.steps[1].steps[0].type = "DRAW"
-  - [0].action.steps[1].steps[0].owner = "self"
-  - [0].action.steps[1].steps[0].count = 1
-  - [0].action.steps[1].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  - [0].action.steps[1].steps[1].owner = "self"
-  - [0].action.steps[1].steps[1].count = 1
-  ~ [0].action.steps[1].type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[1].condition.owner = "opponent"
-  + [0].action.steps[1].condition.filter.cardType = "キー"
-  + [0].action.steps[1].then.type = "SEQUENCE"
-  + [0].action.steps[1].then.steps[0].type = "DRAW"
-  …（他 5 行）
-
 ## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［6枚］
 WXDi-P03-002 WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
 --- WXDi-P03-002
@@ -505,53 +459,53 @@ WX24-P4-066 WX25-P2-076 WXDi-D09-H21
   + [0].action.steps[0].costColors[0] = "赤"
   …（他 2 行）
 
-## +CONDITIONAL +LAST_PROCESSED_MATCHES ［3枚］
-WX25-P2-060 WXDi-P11-078 WXK03-081
---- WX25-P2-060
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《ミュウ＝パピヨン》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－10000する。【起】《ターン１回》エナゾーンから＜凶蟲＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象と
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "any"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].delta = -10000
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.hasCharm = true
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = 1
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 3 行）
---- WXDi-P11-078
-  原文: 【出】：あなたのデッキの一番上のカードをトラッシュに置く。そのカードが《融合の儀　タウィル//メモリア》の場合、そのカードをトラッシュから場に出してもよい。【起】《黒》《白》このシグニと《融合の儀　タウィル//メモリア》１体を場からトラッシュに置く：あなたのトラッシュから白か黒のシグニ１枚を対象とし、それを場に出す。【常】：このカードの上にある《融合せし極門
+## +CONDITIONAL +HAS_CARD_IN_FIELD ［3枚］
+WX24-P4-082 WXDi-P02-071 WXDi-P12-002
+--- WX24-P4-082
+  原文: 【エナチャージ２】をする。その後、あなたの場にレベル４以上のルリグがいる場合、あなたのエナゾーンから緑のシグニを１枚まで対象とし、それを場に出す。,：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加えるか場に出す。
   - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "TRASH_CARD"
+  - [0].action.steps[1].source.type = "ENERGY_CARD"
   - [0].action.steps[1].source.owner = "self"
   - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardName = "融合の儀　タウィル//メモリア"
-  - [0].action.steps[1].optional = true
+  - [0].action.steps[1].source.upToCount = true
+  - [0].action.steps[1].source.filter.cardType = "シグニ"
+  - [0].action.steps[1].source.filter.level.min = 4
+  - [0].action.steps[1].source.filter.color = "緑"
   ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardName = "融合の儀　タウィル//メモリア"
-  + [0].action.steps[1].then.type = "ADD_TO_FIELD"
-  + [0].action.steps[1].then.owner = "self"
-  …（他 6 行）
---- WXK03-081
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが奇数のシグニの場合、ターン終了時まで、それのパワーを－1000する。,：カードを１枚引く。
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "any"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].delta = -1000
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.levelParity = "odd"
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "self"
-  + [0].action.steps[1].then.target.count = 1
-  …（他 2 行）
+  + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[1].condition.owner = "self"
+  + [0].action.steps[1].condition.filter.cardType = "ルリグ"
+  …（他 9 行）
+--- WXDi-P02-071
+  原文: 対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。その後、対戦相手の場に凍結状態のシグニが３体以上ある場合、追加で対戦相手の手札を１枚見ないで選び、捨てさせる。,-
+  - [0].action.steps[2].target.type = "HAND_CARD"
+  - [0].action.steps[2].target.owner = "opponent"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.blind = true
+  ~ [0].action.steps[2].type : "TRASH" → "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.steps[2].condition.owner = "opponent"
+  + [0].action.steps[2].condition.filter.cardType = "シグニ"
+  + [0].action.steps[2].condition.filter.isFrozen = true
+  + [0].action.steps[2].condition.minCount = 3
+  + [0].action.steps[2].then.type = "TRASH"
+  + [0].action.steps[2].then.target.type = "HAND_CARD"
+  …（他 3 行）
+--- WXDi-P12-002
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたの場に《ディソナアイコン》のシグニが３体ある場合、対戦相手のすべてのシグニをバニッシュし、その後、対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカードを２枚まで対象とし、それらをトラッシュに置く。,-
+  - [0].action.target.type = "ENERGY_CARD"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 2
+  - [0].action.target.upToCount = true
+  ~ [0].action.type : "TRASH" → "CONDITIONAL"
+  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.filter.cardType = "シグニ"
+  + [0].action.condition.filter.isDisona = true
+  + [0].action.condition.minCount = 3
+  + [0].action.then.type = "TRASH"
+  + [0].action.then.target.type = "ENERGY_CARD"
+  …（他 3 行）
 
 ## -LIFE_COMPARE_OPP ［2枚］
 WX17-040 WX18-032
@@ -609,37 +563,6 @@ WXEX2-09 WXK08-048
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
-## +CONDITIONAL +TRASH_HAS_CARD ［2枚］
-WXDi-CP01-042 WXDi-P06-060
---- WXDi-CP01-042
-  原文: 【出】：あなたのデッキの一番上のカードをトラッシュに置く。その後、あなたのトラッシュに＜バーチャル＞のシグニが１０枚以上ある場合、《無》《無》を支払ってもよい。そうした場合、あなたのトラッシュから＜バーチャル＞のシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
-  - [0].action.steps[1].id = "OPTIONAL_COST"
-  - [0].action.steps[1].costColors[0] = "無"
-  - [0].action.steps[1].costColors[1] = "無"
-  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "TRASH_HAS_CARD"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.story = "バーチャル"
-  + [0].action.steps[1].condition.minCount = 10
-  + [0].action.steps[1].then.type = "STUB"
-  + [0].action.steps[1].then.id = "OPTIONAL_COST"
-  + [0].action.steps[1].then.costColors[0] = "無"
-  …（他 1 行）
---- WXDi-P06-060
-  原文: 【自】：あなたのターン終了時、あなたのトラッシュに＜天使＞のシグニが１０枚以上ある場合、カードを１枚引く。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "DRAW" → "CONDITIONAL"
-  + [0].action.condition.type = "TRASH_HAS_CARD"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "天使"
-  + [0].action.condition.minCount = 10
-  + [0].action.then.type = "DRAW"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 1
-
 ## +GRANT_EFFECT +SIGNI ［2枚］
 WX24-P2-055 WXDi-P08-080
 --- WX24-P2-055
@@ -672,6 +595,39 @@ WX24-P2-055 WXDi-P08-080
   + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
   + [0].action.effect.action.type = "POWER_MODIFY"
   …（他 9 行）
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES ［2枚］
+WX25-P2-060 WXK03-081
+--- WX25-P2-060
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《ミュウ＝パピヨン》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－10000する。【起】《ターン１回》エナゾーンから＜凶蟲＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象と
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].delta = -10000
+  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.hasCharm = true
+  + [0].action.steps[1].then.type = "POWER_MODIFY"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "opponent"
+  + [0].action.steps[1].then.target.count = 1
+  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  …（他 3 行）
+--- WXK03-081
+  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが奇数のシグニの場合、ターン終了時まで、それのパワーを－1000する。,：カードを１枚引く。
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].delta = -1000
+  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.levelParity = "odd"
+  + [0].action.steps[1].then.type = "POWER_MODIFY"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "self"
+  + [0].action.steps[1].then.target.count = 1
+  …（他 2 行）
 
 ## -SEQUENCE ［2枚］
 WDK06-C08 WX25-P3-105
@@ -1226,6 +1182,24 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.condition.value = 3
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
+
+## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
+WXDi-CP01-042
+--- WXDi-CP01-042
+  原文: 【出】：あなたのデッキの一番上のカードをトラッシュに置く。その後、あなたのトラッシュに＜バーチャル＞のシグニが１０枚以上ある場合、《無》《無》を支払ってもよい。そうした場合、あなたのトラッシュから＜バーチャル＞のシグニ１枚を対象とし、それを手札に加える。,：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
+  - [0].action.steps[1].id = "OPTIONAL_COST"
+  - [0].action.steps[1].costColors[0] = "無"
+  - [0].action.steps[1].costColors[1] = "無"
+  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "TRASH_HAS_CARD"
+  + [0].action.steps[1].condition.owner = "self"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.story = "バーチャル"
+  + [0].action.steps[1].condition.minCount = 10
+  + [0].action.steps[1].then.type = "STUB"
+  + [0].action.steps[1].then.id = "OPTIONAL_COST"
+  + [0].action.steps[1].then.costColors[0] = "無"
+  …（他 1 行）
 
 ## -CHOOSE -CONDITIONAL -DECK_CARD -HAS_CARD_IN_FIELD -TRASH ［1枚］
 WX24-P3-057

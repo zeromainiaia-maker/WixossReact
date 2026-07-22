@@ -2714,6 +2714,57 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
   }
 }
 
+// 状態条件節バッチ①第3波。候補カードだけを effectId まで固定して補正する。
+function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void {
+  const find = (id: string) => effects.find(e => e.effectId === id);
+  const gate = (id: string, condition: Condition): void => { const e = find(id); if (!e) return; if (e.action.type === 'CONDITIONAL' && e.action.condition.type === condition.type) return; e.action = { type: 'CONDITIONAL', condition, then: e.action }; };
+  const gateTail = (id: string, condition: Condition): void => {
+    const e = find(id); if (!e || e.action.type !== 'SEQUENCE' || e.action.steps.length < 2) return;
+    const [head, ...tail] = e.action.steps;
+    if (tail[0]?.type === 'CONDITIONAL' && tail[0].condition.type === condition.type) return;
+    e.action = { type: 'SEQUENCE', steps: [head, { type: 'CONDITIONAL', condition, then: tail.length === 1 ? tail[0] : { type: 'SEQUENCE', steps: tail } }] };
+  };
+  const field = (story: string, excludeSelf = false): Condition => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story }, ...(excludeSelf ? { excludeSelf: true } : {}) });
+  const trash = (story: string, minCount: number, distinctName = false): Condition => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story }, minCount, ...(distinctName ? { distinctName: true } : {}) });
+  const colors = (minCount: number, filter: TargetFilter = { cardType: 'シグニ' }, excludeSelf = false): Condition => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter, minCount, distinctColors: true, ...(excludeSelf ? { excludeSelf: true } : {}) });
+  const energy = (story: string, value: number): Condition => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story }, operator: 'gte', value });
+  if (cardNum === 'WDK11-001') gate('WDK11-001-E2', field('英知'));
+  if (cardNum === 'WX17-031') gate('WX17-031-E3', field('凶蟲'));
+  if (cardNum === 'WX25-P3-023') gate('WX25-P3-023-E1', field('微菌'));
+  if (cardNum === 'WX20-026') gate('WX20-026-E2', field('凶蟲', true));
+  if (cardNum === 'WX25-CP1-077') { const e = find('WX25-CP1-077-E1'); if (e?.action.type === 'BANISH') { e.action.target.filter = { cardType: 'シグニ', powerRange: { max: 3000 } }; gate(e.effectId, field('ブルアカ', true)); } }
+  const rise: Condition = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true } };
+  if (cardNum === 'WX15-080') gateTail('WX15-080-E1', rise);
+  if (cardNum === 'WX16-058') { const e = find('WX16-058-E1'); if (e?.action.type === 'SEQUENCE' && e.action.steps.length >= 2) e.action = { type: 'CONDITIONAL', condition: rise, then: e.action.steps[1], else: e.action.steps[0] }; }
+  if (cardNum === 'WX12-027') gate('WX12-027-E1', trash('天使', 5, true));
+  if (cardNum === 'WXEX1-40') gate('WXEX1-40-E2', trash('原子', 5, true));
+  if (cardNum === 'WXDi-P06-060') gate('WXDi-P06-060-E1', trash('天使', 10));
+  if (cardNum === 'WX13-049') { const e = find('WX13-049-E2'); if (e?.action.type === 'TRANSFER_TO_HAND') { e.action.source.filter = { cardType: 'スペル' }; gate(e.effectId, trash('原子', 7, true)); } }
+  // WXK09-066（続き251 Claude 検証で修正）：TRANSFER_TO_DECK に targetsLastProcessed は型・executor とも
+  // 未対応（死フラグ）＝then が無フィルタの独自選択にフォールバックし「任意の相手シグニをトップ送り」の
+  // 過剰効果になる。then/else 双方が同じ選択空間（相手 Lv3以下1体）を対象化する形なら原文と挙動同値。
+  if (cardNum === 'WXK09-066') { const e = find('WXK09-066-E1'); if (e?.action.type === 'SEQUENCE') { const freeze = e.action.steps[0]; const deck = e.action.steps[1] as EffectAction & { source?: EffectTarget }; if (deck.source) { deck.source.owner = 'opponent'; deck.source.filter = { cardType: 'シグニ', level: { max: 3 } }; deck.source.upToCount = false; } e.action = { type: 'CONDITIONAL', condition: trash('天使', 15), then: deck, else: freeze }; } }
+  const frais = (n: number): Condition => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: 'フレイスロ' }, minCount: n });
+  if (cardNum === 'WX14-025') gateTail('WX14-025-BURST', frais(10));
+  if (cardNum === 'WX14-057') gate('WX14-057-E1', frais(5));
+  if (cardNum === 'WX26-CP1-090') gate('WX26-CP1-090-E1', energy('プリオケ', 4));
+  if (cardNum === 'WXDi-CP02-087') gate('WXDi-CP02-087-E1', energy('ブルアカ', 5));
+  if (cardNum === 'WXDi-CP02-056') { const e = find('WXDi-CP02-056-E2'); if (e?.action.type === 'SEQUENCE') { e.action = e.action.steps[0]; gate(e.effectId, { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: 'ブルアカ' } }); } }
+  if (cardNum === 'WX25-CP1-048') { const e = find('WX25-CP1-048-E1'); if (e?.action.type === 'POWER_MODIFY') { e.action.target.count = 1; e.action.target.filter = { cardType: 'シグニ' }; gate(e.effectId, { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: 'ブルアカ' } }); } }
+  const colorSpecs: Array<[string,string,Condition]> = [
+    ['SPDi01-134','SPDi01-134-E1',colors(2)], ['SPDi43-16','SPDi43-16-E1',colors(3)], ['WXDi-P06-010','WXDi-P06-010-E1',colors(3)], ['WXDi-P10-068','WXDi-P10-068-E1',colors(3)],
+    ['WXK11-051','WXK11-051-E1',colors(2, { cardType: 'シグニ' }, true)], ['WXK11-059','WXK11-059-E1',colors(2, { cardType: 'シグニ' }, true)],
+    ['WX21-055','WX21-055-E1',colors(2, { cardType: 'シグニ', story: '天使' })], ['WX21-060','WX21-060-E1',colors(2, { cardType: 'シグニ', story: '天使' })],
+  ];
+  for (const [cn, id, cond] of colorSpecs) if (cardNum === cn) gate(id, cond);
+  for (const [cn, id] of [['WDK09-008','WDK09-008-E1'], ['WDK10-007','WDK10-007-E1'], ['WDK12-008','WDK12-008-E1']] as const) if (cardNum === cn) gateTail(id, { type: 'HAS_KEY_IN_FIELD', owner: 'opponent' });
+  const charm: Condition = { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', hasCharm: true } };
+  if (cardNum === 'WX10-091') gate('WX10-091-E1', charm);
+  if (cardNum === 'WX10-094') gate('WX10-094-E1', charm);
+  if (cardNum === 'WX08-031') { const e = find('WX08-031-BURST'); if (e?.action.type === 'SEQUENCE') { const first = e.action.steps[0]; if (first.type === 'TRANSFER_TO_HAND') first.source.filter = { cardType: 'シグニ', story: '凶蟲' }; gateTail(e.effectId, charm); } }
+  if (cardNum === 'WX22-038') { const e = find('WX22-038-E1'); if (e?.action.type === 'SEARCH') { e.action.filter = { cardType: 'スペル', costMin: 2 }; gate(e.effectId, trash('原子', 7, true)); } }
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -6051,6 +6102,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
 
   applyReferenceAttributeBatch2(card.CardNum, effects);
+  applyBoardZoneStateBatch3(card.CardNum, effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

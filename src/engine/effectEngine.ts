@@ -32,6 +32,8 @@ import type {
 } from '../types/effects';
 import { hasKeyword } from '../utils/keywords';
 
+const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
+
 // ===== activeCondition 判定 =====
 
 export function checkActiveCondition(
@@ -71,6 +73,7 @@ export function checkActiveCondition(
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
       let matched = 0;
       const distinctNameSet = cond.distinctNames ? new Set<string>() : null;
+      const distinctColorSet = cond.distinctColors ? new Set<string>() : null;
       state.field.signi.forEach((stack, zi) => {
         const top = stack?.at(-1);
         if (!top) return;
@@ -78,7 +81,8 @@ export function checkActiveCondition(
         const c = cardMap.get(top);
         if (!matchesFilter(c, cond.filter)) return;
         if (!matchesStateFilter(state, zi, cond.filter)) return;
-        if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
+        if (distinctColorSet) splitFieldColors(c?.Color).forEach(color => distinctColorSet.add(color));
+        else if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
         else matched++;
       });
       // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
@@ -90,7 +94,11 @@ export function checkActiveCondition(
           }
         }
       }
-      return (distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
+      return (distinctColorSet ? distinctColorSet.size : distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
+    }
+    case 'HAS_KEY_IN_FIELD': {
+      const f = (cond.owner === 'self' ? ownerState : otherState).field;
+      return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
     }
 
     case 'COUNT_THRESHOLD': {
@@ -704,19 +712,26 @@ function evalConditionForContinuous(
     }
     case 'HAS_CARD_IN_FIELD': {
       const hcifState = st(cond.owner);
+      const matchedNums: string[] = [];
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
-      const signiMatch = hcifState.field.signi.some((stack, zi) => {
+      hcifState.field.signi.forEach((stack, zi) => {
         if (!stack?.length) return false;
         const top = stack[stack.length - 1];
         if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
-        return matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter);
+        if (matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter)) matchedNums.push(top);
       });
-      if (signiMatch) return true;
+      if (cond.distinctColors) return new Set(matchedNums.flatMap(n => splitFieldColors(cardMap.get(n)?.Color))).size >= (cond.minCount ?? 1);
+      if (cond.distinctNames) return new Set(matchedNums.map(n => cardMap.get(n)?.CardName ?? n)).size >= (cond.minCount ?? 1);
+      if (matchedNums.length >= (cond.minCount ?? 1)) return true;
       // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
         return lrigZoneTops(hcifState.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter));
       }
       return false;
+    }
+    case 'HAS_KEY_IN_FIELD': {
+      const f = st(cond.owner).field;
+      return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
     }
     case 'ALL_FIELD_SIGNI_MATCH': {
       // 「場のすべてのシグニが＜C＞/《X》」＝各スタック頂点が全て filter 一致（1体以上必須）。CONT ゲート用（execUtils と同実装）。

@@ -6947,6 +6947,31 @@ test('参照属性バッチ2: 採用12効果の構造とスコープを固定', 
     'WXDi-P11-078: トラッシュ落ち名条件で場出しをゲート');
 });
 
+test('状態条件節バッチ3: distinctColors / HAS_KEY / hasCharm の成立・不成立を実行評価', () => {
+  const white = findCard(c => isSigni(c) && c.Color?.includes('白'));
+  const black = findCard(c => isSigni(c) && c.Color?.includes('黒'));
+  const colorAction = { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: 2, distinctColors: true }, then: { type: 'DRAW', owner: 'self', count: 1 } } as EffectAction;
+  const c0 = mkCtx({ hand: 0 }, {}); c0.ownerState.field.signi = [[white], [black], null]; c0.ownerState.deck = [SIGNI_L1];
+  const c1 = mkCtx({ hand: 0 }, {}); c1.ownerState.field.signi = [[white], [white], null]; c1.ownerState.deck = [SIGNI_L1];
+  eq(run(colorAction, c0).ownerState.hand.length, 1, '2色なら成立'); eq(run(colorAction, c1).ownerState.hand.length, 0, '同色2体なら不成立');
+  const keyAction = { type: 'CONDITIONAL', condition: { type: 'HAS_KEY_IN_FIELD', owner: 'opponent' }, then: { type: 'DRAW', owner: 'self', count: 1 } } as EffectAction;
+  const k0 = mkCtx({ hand: 0 }, {}); k0.otherState.field.key_piece_extra = [SIGNI]; k0.ownerState.deck = [SIGNI_L1];
+  const k1 = mkCtx({ hand: 0 }, {}); k1.ownerState.deck = [SIGNI_L1];
+  eq(run(keyAction, k0).ownerState.hand.length, 1, 'extraキーでも成立'); eq(run(keyAction, k1).ownerState.hand.length, 0, 'キー無しは不成立');
+  const charmAction = { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', hasCharm: true } }, then: { type: 'DRAW', owner: 'self', count: 1 } } as EffectAction;
+  const h0 = mkCtx({ hand: 0 }, {}); h0.otherState.field.signi = [[SIGNI], null, null]; h0.otherState.field.signi_charms = [SIGNI_L2, null, null]; h0.ownerState.deck = [SIGNI_L1];
+  const h1 = mkCtx({ hand: 0 }, {}); h1.otherState.field.signi = [[SIGNI], null, null]; h1.ownerState.deck = [SIGNI_L1];
+  eq(run(charmAction, h0).ownerState.hand.length, 1, 'チャーム有りは成立'); eq(run(charmAction, h1).ownerState.hand.length, 0, 'チャーム無しは不成立');
+});
+
+test('状態条件節バッチ3: 採用32効果の条件構造を固定', () => {
+  const ids = ['WX22-038','WDK11-001','WX17-031','WX25-P3-023','WX20-026','WX25-CP1-077','WX15-080','WX16-058','WX12-027','WXEX1-40','WXDi-P06-060','WX13-049','WXK09-066','WX14-025','WX14-057','WX26-CP1-090','WXDi-CP02-087','WXDi-CP02-056','WX25-CP1-048','SPDi01-134','SPDi43-16','WXDi-P06-010','WXDi-P10-068','WXK11-051','WXK11-059','WX21-055','WX21-060','WDK09-008','WDK10-007','WDK12-008','WX10-091','WX10-094','WX08-031'];
+  for (const id of ids) ok(JSON.stringify(effectsMap.get(id) ?? []).includes('CONDITIONAL'), `${id}: CONDITIONAL`);
+  ok(JSON.stringify(effectsMap.get('SPDi01-134')).includes('distinctColors'), '色種類条件');
+  ok(JSON.stringify(effectsMap.get('WDK09-008')).includes('HAS_KEY_IN_FIELD'), 'キー条件');
+  ok(JSON.stringify(effectsMap.get('WX10-091')).includes('hasCharm'), 'チャーム条件');
+});
+
 // ── レポート ──
 console.log('\n===== goldenTest 結果 =====');
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

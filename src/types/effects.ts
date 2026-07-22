@@ -137,7 +137,8 @@ export type NumberOrRef = number | { $ref: string };
 
 export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctPhraseJa?: 'kinds' } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜美巧＞が3体あるかぎり」=minCount:3。WX04-004-E1）。distinctNames:true で名前が異なるものをN種以上数える（「それぞれ名前の異なる＜原子＞が3体」=minCount:3+distinctNames。WX12-Re01）。distinctPhraseJa:'kinds' は decompiler 表示用＝同じ述語の別語形「＜C＞のシグニがN種類以上ある」（WX25-CP1-041/045 等）を原文どおりに戻すためのヒント（意味は同一・engine は参照しない）。⚠同名メンバが `Condition` 側（下方）にもある＝両方を揃えて更新すること
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctPhraseJa?: 'kinds' }
+  | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
@@ -190,7 +191,8 @@ export type Condition =
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string } // このターンに owner がアーツを使用していた場合（turn_arts_used）。color 指定時は当該色のアーツを使用していた場合（turn_arts_used_colors。WX24-D1-11〜D4-11）
   | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctPhraseJa?: 'kinds' } // minCount: フィルタ一致シグニがN体以上あるか（省略=1。「＜空獣＞と＜地獣＞が合計3体ある場合」=minCount:3。WX04-094）。distinctNames:true は名前の異なる数をN以上数える（「＜ブルアカ＞のシグニが３種類以上ある場合」WX25-CP1-041/045・「それぞれ名前の異なる＜原子＞が3体あるかぎり」WX12-Re01）。distinctPhraseJa:'kinds' は decompiler 表示用の語形ヒント（意味は同一・engine は参照しない）
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
+  | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
