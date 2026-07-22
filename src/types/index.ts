@@ -69,6 +69,8 @@ export interface PlayerState {
   life_cloth: string[];
   trash: string[];
   lrig_trash: string[];
+  /** ゲームから除外されたカード。通常のゾーン探索・リフレッシュ対象には含めない。 */
+  excluded?: string[];
   energy: string[];
   coins: number;
   field: {
@@ -103,6 +105,8 @@ export interface PlayerState {
     heaven_state?: boolean[];         // [zone0, zone1, zone2] true=このターンヘブンヘブン済み
   };
   actions_done?: string[];      // このターンに使用済みのアクション（ターン開始時にリセット）
+  /** 場に出た後、ターン終了時または場を離れた直後に除外するカードの instance id。 */
+  pending_exile_nums?: string[];
   refresh_count_this_turn?: number; // このターン中にこのプレイヤーが行ったリフレッシュ回数（ターン開始時にリセット。ターンプレイヤーが2回目でターン終了）
   game_actions_done?: string[]; // ゲーム通じて使用済みのアクション（once_per_game追跡、ターンリセット対象外）
   last_activated_discard_count?: number; // 直前【起】コスト支払いで捨てた合計枚数（手札+エナ）。ACTIVATED_DISCARD_COUNT_GTE条件用
@@ -519,7 +523,8 @@ export type TargetScope =
   | 'self_field' | 'opp_field' | 'both_field'  // both_field: 自分・対戦相手の両シグニゾーン（「対象のシグニ」owner:'any'）
   | 'self_hand'  | 'opp_hand'
   | 'self_trash' | 'opp_trash'
-  | 'self_energy'| 'opp_energy';
+  | 'self_energy'| 'opp_energy'
+  | 'self_lrig_deck' | 'opp_lrig_deck';
 
 import type { EffectAction } from './effects';
 

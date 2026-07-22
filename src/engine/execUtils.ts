@@ -1391,6 +1391,33 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   };
 }
 
+/** 遅延除外マークを、場を離れた直後またはターン終了時に専用ゾーンへ移す。 */
+export function resolvePendingExiles(state: PlayerState, forceTurnEnd = false): PlayerState {
+  const pending = state.pending_exile_nums ?? [];
+  if (pending.length === 0) return state;
+  let next = state;
+  const remaining: string[] = [];
+  for (const num of pending) {
+    const onField = next.field.signi.some(stack => stack?.includes(num));
+    if (onField && !forceTurnEnd) { remaining.push(num); continue; }
+    if (onField) {
+      next = removeFromField(num, next);
+    } else {
+      // 同名カードの別コピー（エナ・デッキ等）を巻き込まないよう、最初の1枚だけ取り除く
+      for (const zone of ['deck', 'hand', 'trash', 'energy', 'life_cloth', 'lrig_deck', 'lrig_trash'] as const) {
+        const idx = next[zone].indexOf(num);
+        if (idx >= 0) {
+          const arr = [...next[zone]]; arr.splice(idx, 1);
+          next = { ...next, [zone]: arr };
+          break;
+        }
+      }
+    }
+    next = { ...next, excluded: [...(next.excluded ?? []), num] };
+  }
+  return { ...next, pending_exile_nums: remaining.length ? remaining : undefined };
+}
+
 // SELECT_TARGET ヘルパー：候補数によって自動実行か要インタラクションかを決める
 export function selectOrInteract(
   candidates: string[],

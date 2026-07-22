@@ -430,6 +430,7 @@ export interface EffectTarget {
     | 'DECK_CARD'
     | 'TRASH_CARD'
     | 'LRIG_TRASH_CARD'
+    | 'LRIG_DECK_CARD'
     | 'ENERGY_CARD'
     | 'LIFE_CLOTH_CARD'
     | 'PLAYER';

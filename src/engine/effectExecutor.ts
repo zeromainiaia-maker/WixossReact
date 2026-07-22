@@ -405,10 +405,26 @@ function execTrashRevealed(a: import('../types/effects').TrashRevealedAction, ct
   return done(addLog(setOwnerState(a.owner, newS, ctx), `公開した${revealed.length}枚をトラッシュに置く`));
 }
 
-// EXILE: カードをゲームから除外する（現状トラッシュからの除外のみ。除外ゾーン未実装＝取り除き＝消去で近似）。
+// EXILE: カードをゲームから除外し、専用 excluded ゾーンへ記録する。
 // 選択カードを lastProcessedCards に記録（後続の LAST_PROCESSED_SHARE_COLOR 等の参照用。WDK10-008）。
 function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
+  if (tgt.type === 'LRIG_DECK_CARD') {
+    const state = ownerState(tgt.owner, ctx);
+    const cands = state.lrig_deck.filter(n => {
+      const card = ctx.cardMap.get(getCardNum(n));
+      if (!card) return false;
+      if (tgt.filter?.cardType) {
+        const wanted = Array.isArray(tgt.filter.cardType) ? tgt.filter.cardType : [tgt.filter.cardType];
+        if (!wanted.some(t => card.Type.includes(t))) return false;
+      }
+      return true;
+    });
+    if (cands.length === 0) return done({ ...addLog(ctx, '除外できるルリグデッキのカードがない'), lastProcessedCards: [] });
+    const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
+    const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_lrig_deck' : 'self_lrig_deck';
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+  }
   // 場のシグニをゲームから除外（「このシグニとそれをゲームから除外する」等。トラッシュ経由せず消去）
   if (tgt.type === 'SIGNI') {
     let exFilter = tgt.filter;
@@ -5364,7 +5380,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       for (const o of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(o, ctx);
         if (s.field.signi.some(st => st?.includes(cardNum))) {
-          return done(addLog(setOwnerState(o, removeFromField(cardNum, s), ctx),
+          const removed = removeFromField(cardNum, s);
+          return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
         }
       }
@@ -5377,8 +5394,19 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const hi = s.hand.indexOf(cardNum);
           if (hi >= 0) {
             const newHand = [...s.hand]; newHand.splice(hi, 1);
-            return done(addLog(setOwnerState(o, { ...s, hand: newHand }, ctx),
+            return done(addLog(setOwnerState(o, { ...s, hand: newHand, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
               `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を手札からゲームから除外`));
+          }
+        }
+      }
+      if (exTgt.type === 'LRIG_DECK_CARD') {
+        for (const o of owners) {
+          const s = ownerState(o, ctx);
+          const i = s.lrig_deck.indexOf(cardNum);
+          if (i >= 0) {
+            const lrigDeck = [...s.lrig_deck]; lrigDeck.splice(i, 1);
+            return done(addLog(setOwnerState(o, { ...s, lrig_deck: lrigDeck, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
+              `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をルリグデッキからゲームから除外`));
           }
         }
       }
@@ -5387,7 +5415,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const ti = s.trash.indexOf(cardNum);
         if (ti >= 0) {
           const newTrash = [...s.trash]; newTrash.splice(ti, 1);
-          return done(addLog(setOwnerState(o, { ...s, trash: newTrash }, ctx),
+          return done(addLog(setOwnerState(o, { ...s, trash: newTrash, excluded: [...(s.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
         }
       }

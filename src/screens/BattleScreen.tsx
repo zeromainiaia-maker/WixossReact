@@ -8,7 +8,7 @@ applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, collectBanishEffect
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers } from '../engine/triggerCollect';
@@ -3066,6 +3066,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         let myDeckPreLimit = my.deck;
         let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashBeat;
+        let myExcludedEND = my.excluded;
         // DRAW_AT_TURN_END: このターン終了時に引く（このシグニが場を離れていても引く）
         if ((my.turn_end_draw_count ?? 0) > 0) {
           const nDrawEND = my.turn_end_draw_count!;
@@ -3137,6 +3138,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (unflipped.length > 0) appendBattleLogs([`フリップアタック復元：${unflipped.join('・')}を表向きに`]);
         }
 
+        // 遅延自己除外：場に残っていてもターン終了時には除外する。
+        const exileAtEnd = resolvePendingExiles({
+          ...my, hand: myHandEND, deck: myDeckPreLimit,
+          trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
+        }, true);
+        myHandEND = exileAtEnd.hand;
+        myDeckPreLimit = exileAtEnd.deck;
+        myTrashAfterCoinCheck = exileAtEnd.trash;
+        myFieldAfterCoinCheck = { ...exileAtEnd.field, beat_zone: exileAtEnd.field.beat_zone ?? [] };
+        myExcludedEND = exileAtEnd.excluded;
+
         // ENDフェーズ②：手札上限チェック（①の「ターン終了時に」効果をすべて適用した後の手札で判定）
         const handLimitEND = myEffectiveHandLimit;
         if (myHandEND.length > handLimitEND) {
@@ -3147,6 +3159,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ...my,
               hand: myHandEND, deck: myDeckPreLimit,
               trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
+              excluded: myExcludedEND, pending_exile_nums: undefined,
               turn_end_draw_count: undefined,
               coin_condition_signi_instances: undefined,
               turn_end_field_trash_targets: undefined,
@@ -3165,6 +3178,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           deck: myDeckPreLimit,
           trash: myTrashAfterCoinCheck,
           field: myFieldAfterCoinCheck,
+          excluded: myExcludedEND,
+          pending_exile_nums: undefined,
           turn_end_draw_count: undefined,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           temp_level_mods:    [],   // UNTIL_END_OF_TURN レベル修正をリセット
@@ -3258,7 +3273,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
         const opKey = isHost ? 'guest_state' : 'host_state';
-        const opState = isHost ? bs.guest_state : bs.host_state;
+        // 遅延自己除外は非ターンプレイヤー側にも適用（WX16-040/WD22-035-G 等は相手ターン中に蘇生
+        // →そのターン終了時に除外、が主用途。ターンプレイヤー側だけだと1ターン生き延びる）。
+        const opState = resolvePendingExiles(isHost ? bs.guest_state : bs.host_state, true);
         const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
         const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
         const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
@@ -3574,7 +3591,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
-      const opState = isHost ? bs.guest_state : bs.host_state;
+      // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
+      const opState = resolvePendingExiles(isHost ? bs.guest_state : bs.host_state, true);
       const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
       const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
       const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
@@ -3983,8 +4001,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
-      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const hostState  = resolvePendingExiles(ownerIsHost ? result.ownerState : result.otherState);
+      const guestState = resolvePendingExiles(ownerIsHost ? result.otherState : result.ownerState);
 
       const stackAfter = isStackDone(newStack) ? null : newStack;
       const update: Record<string, unknown> = {
@@ -4325,8 +4343,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       result = applyRefreshOnDone(result, battleCardMap);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
-      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
-      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      const hostState  = resolvePendingExiles(ownerIsHost ? result.ownerState : result.otherState);
+      const guestState = resolvePendingExiles(ownerIsHost ? result.otherState : result.ownerState);
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
 
       // ON_TARGETED（C1 配線）: SELECT_TARGET で「対戦相手のシグニ」を対象に取った瞬間に発火する。
@@ -8794,7 +8812,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = {
+      const cleanCpuSt: PlayerState = resolvePendingExiles({
         ...cpuSt,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
@@ -8813,10 +8831,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
         turn_arts_used: undefined, turn_arts_used_colors: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
-      };
+      }, true);
       await persist.commit({
         guest_state: cleanCpuSt,
-        host_state: nextHuSt,
+        // 遅延自己除外は非ターンプレイヤー（人間）側にも適用（WX16-040 等はCPUターン中に蘇生→そのターン終了時に除外）
+        host_state: resolvePendingExiles(nextHuSt, true),
         turn_phase: 'UP',
         active_user_id: user.id,
         turn_count: bs.turn_count + 1,

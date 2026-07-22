@@ -113,6 +113,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               both_field:  '自分または相手のシグニから',
               self_energy: 'エナから',
               opp_energy:  '相手のエナから',
+              self_lrig_deck: 'ルリグデッキから',
+              opp_lrig_deck: '相手のルリグデッキから',
               self_trash:  'トラッシュから',
               opp_trash:   '相手のトラッシュから',
             };

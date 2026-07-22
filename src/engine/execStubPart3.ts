@@ -4768,12 +4768,12 @@ export function execStubPart3(
     return done(addLog(ctxPDL2, `PR-Di035 ${logsPDL.join(' / ')}`));
   }
 
-  // EXILE_SELF_AFTER_USE: 使用後このカードをゲームから除外する（近似: トラッシュへ）
+  // EXILE_SELF_AFTER_USE: 使用後このカードを通常ゾーンから取り除き、excluded へ移す。
   if (stub.id === 'EXILE_SELF_AFTER_USE') {
     const srcESAU = ctx.sourceCardNum;
     if (!srcESAU) return done(addLog(ctx, 'EXILE_SELF_AFTER_USE: sourceCardNum なし'));
     const nameESAU = ctx.cardMap.get(srcESAU)?.CardName ?? srcESAU;
-    // フィールドから除去（チャーム・アクセはトラッシュ、カード本体はゲームから除外→近似でトラッシュ）
+    // フィールドから除去（付帯カードは removeFromField の通常処理に従う）。
     const removeOneESAU = (cards: string[]): [string[], boolean] => {
       const idx = cards.indexOf(srcESAU);
       if (idx < 0) return [cards, false];
@@ -4788,8 +4788,21 @@ export function execStubPart3(
       const [cards, removed] = removeOneESAU(removedESAU[zone]);
       if (removed) { removedESAU = { ...removedESAU, [zone]: cards }; foundESAU = true; }
     }
-    const newOwnerESAU: PlayerState = { ...removedESAU, trash: [...removedESAU.trash, srcESAU] };
-    return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外（近似: トラッシュ）`));
+    if (!foundESAU) return done(addLog(ctx, `${nameESAU}は既に通常ゾーンにない`));
+    const newOwnerESAU: PlayerState = { ...removedESAU, excluded: [...(removedESAU.excluded ?? []), srcESAU] };
+    return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外`));
+  }
+
+  // MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
+  if (stub.id === 'MARK_SELF_DELAYED_EXILE') {
+    const src = ctx.sourceCardNum;
+    if (!src || !ctx.ownerState.field.signi.some(stack => stack?.includes(src))) {
+      return done(addLog(ctx, '遅延除外マーク対象なし'));
+    }
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState,
+      pending_exile_nums: [...new Set([...(ctx.ownerState.pending_exile_nums ?? []), src])],
+    } }, `${ctx.cardMap.get(getCardNum(src))?.CardName ?? src}を遅延除外対象に登録`));
   }
 
   // ATTACH_SEARCHED_AS_ACCE: サーチしたカードを対象シグニのアクセとして付ける（手札経由近似）

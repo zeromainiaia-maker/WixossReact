@@ -2158,6 +2158,21 @@ export function collectArtsUseTriggers(
 }
 
 /**
+ * action が「このカード自身をトラッシュから場に出す」ステップ（ADD_TO_FIELD self TRASH_CARD thisCardOnly）を
+ * 含むか（SEQUENCE/CONDITIONAL を再帰）。トラッシュ在中カードを watcher として限定走査するためのゲート
+ * （WX21-Re06 の placedFromTrash 走査・WD22-035-G の相手アタックフェイズ開始走査で共用。
+ * 一般のトラッシュ能力は走査しない）。
+ */
+function actionRevivesSelfFromTrash(action: CardEffect['action']): boolean {
+  const a = action as unknown as Record<string, unknown>;
+  const src = a.source as { type?: string; owner?: string; filter?: { thisCardOnly?: boolean } } | undefined;
+  if (a.type === 'ADD_TO_FIELD' && src?.type === 'TRASH_CARD' && src.owner === 'self' && src.filter?.thisCardOnly) return true;
+  if (Array.isArray(a.steps) && (a.steps as CardEffect['action'][]).some(actionRevivesSelfFromTrash)) return true;
+  if (a.then && typeof a.then === 'object' && actionRevivesSelfFromTrash(a.then as CardEffect['action'])) return true;
+  return false;
+}
+
+/**
  * フィールドのシグニ/ルリグの「他のシグニが◯◯したとき」系トリガー（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）を収集する（Stage2 抽出）。
  * 自分の場＝any_ally/any、相手の場＝any_opp/any。byEffect/bySigniEffect・placedDown/placedFromTrash/placedPuppet・
  * frontLowerLevelThanSource/placedFront・triggerFilter・REMOVE_ABILITIES/FROZEN_LOSES_ABILITIES・ARTS_SELF_RECYCLE を保持。
@@ -2196,7 +2211,7 @@ export function collectFieldTriggers(
 
   // 自分のフィールド：'any_ally' または 'any' トリガー。ON_PLAY ではルリグも監視対象。
   const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
-  const allyWatchers: { topNum: string; isLrig: boolean }[] = [];
+  const allyWatchers: { topNum: string; isLrig: boolean; fromTrash?: boolean }[] = [];
   for (const stack of myState.field.signi) {
     if (stack?.length) allyWatchers.push({ topNum: stack[stack.length - 1], isLrig: false });
   }
@@ -2204,10 +2219,19 @@ export function collectFieldTriggers(
   // LRIG watcher が構造的に発火しなかった＝続き96・WX12-001/WX14-003/WXDi-P08-007 等）。scope フィルタが発火可否を担保。
   const myLrigWatcher = myState.field.lrig.at(-1);
   if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
-  for (const { topNum, isLrig } of allyWatchers) {
+  // 「あなたのシグニがトラッシュから場に出たとき、トラッシュにあるこのカードを…」は
+  // watcher 自身がトラッシュにいるため、自己回収 action を持つ該当カードだけを追加走査する。
+  if (event === 'ON_PLAY' && opts?.placedFromTrash) {
+    for (const num of myState.trash) {
+      if ((ctx.effectsMap.get(num) ?? []).some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') && e.triggerCondition?.placedFromTrash && actionRevivesSelfFromTrash(e.action))) {
+        allyWatchers.push({ topNum: num, isLrig: false, fromTrash: true });
+      }
+    }
+  }
+  for (const { topNum, isLrig, fromTrash } of allyWatchers) {
     if (topNum === triggeringCardNum) continue; // 自身は除く
     if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
-    if (myAbilitiesRemoved.has(topNum)) continue;
+    if (!fromTrash && myAbilitiesRemoved.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes(event)) continue;
@@ -2491,6 +2515,27 @@ export function collectTurnTriggers(
       const cardName = ctx.cardMap.get(opLrigNumTurn)?.CardName ?? opLrigNumTurn;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: opLrigNumTurn, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // 相手側トラッシュ在中の自己蘇生【自】（WD22-035-G「対戦相手のアタックフェイズ開始時…このシグニを
+  // トラッシュから場に出してもよい」）。watcher 自身がトラッシュにいるため場走査に掛からない。
+  // 一般のトラッシュ能力は走査しない＝自己回収 action を持つカードだけ限定走査
+  // （collectFieldTriggers の placedFromTrash 走査と同型ゲート）。
+  for (const num of opState.trash) {
+    for (const eff of (ctx.effectsMap.get(num) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp' && scope !== 'any') continue;
+      if (!actionRevivesSelfFromTrash(eff.action)) continue;
+      // condition（WD22-035-G の FIELD_COUNT eq 2 等）はカード所有者＝相手側視点で評価する
+      if (eff.condition && !evalUseCondition(eff.condition, opState, myState, ctx.cardMap, num, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOkOp(eff)) continue;
+      const cardName = ctx.cardMap.get(num)?.CardName ?? num;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: num, effectId: eff.effectId,
         label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
       });
     }

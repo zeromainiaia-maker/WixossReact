@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
@@ -7483,7 +7483,8 @@ test('WXK11-070: energy thresholds share pre-recovery count and self-exile is un
   const r = run(eff.action, ctx);
   eq(r.ownerState.energy.length, 0, 'all energy trashed');
   eq(r.ownerState.life_cloth.length, lifeBefore + 1, '10 threshold adds life');
-  eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 1, 'self-exile approximation has one trash copy');
+  eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 0, 'self-exile does not recycle into trash');
+  eq((r.ownerState.excluded ?? []).filter(n => n === 'WXK11-070').length, 1, 'self-exile has one excluded copy');
   eq(r.ownerState.deck.includes('WXK11-070'), false, 'self removed from shuffled deck');
 });
 
@@ -7514,6 +7515,85 @@ test('WXK03-039: bottom 4 distinct levels banish retained target only', () => {
   no.ownerState.deck = [...head, SIGNI_L1, SIGNI_L1, SIGNI_L1, SIGNI_L1]; no.ownerState.trash = [];
   const rn = run(eff.action, no);
   eq(rn.otherState.field.signi[0]?.at(-1), target, 'non-distinct mill does not banish');
+});
+
+test('EXILE: ルリグデッキのピースを専用 excluded へ移し lastProcessedCards に保持', () => {
+  const piece = 'PR-Di007';
+  const ctx = mkCtx({}, {}, 'WXDi-D07-004');
+  ctx.ownerState.lrig_deck = [piece];
+  const r = run({ type: 'EXILE', target: { type: 'LRIG_DECK_CARD', owner: 'self', count: 1, filter: { cardType: 'ピース' } } } as EffectAction, ctx);
+  ok(r.done, 'single piece auto resolves');
+  eq(r.ownerState.lrig_deck.length, 0, 'piece removed from lrig deck');
+  ok((r.ownerState.excluded ?? []).includes(piece), 'piece recorded in excluded');
+  eq(r.lastProcessedCards?.[0], piece, 'lastProcessedCards retained');
+});
+
+test('遅延自己除外: 場にいる間は保持し、離脱直後/ターン終了時だけ excluded へ移す', () => {
+  const num = 'WX16-040';
+  const base = mkState({ signi: [num, null, null] });
+  const marked = { ...base, pending_exile_nums: [num] } as PlayerState;
+  const stay = resolvePendingExiles(marked);
+  eq(stay.field.signi[0]?.at(-1), num, '場にいる間は除外しない');
+  const end = resolvePendingExiles(marked, true);
+  eq(end.field.signi[0], null, 'turn end removes from field');
+  ok((end.excluded ?? []).includes(num), 'turn end records excluded');
+  const left = resolvePendingExiles({ ...marked, field: { ...marked.field, signi: [null, null, null] }, trash: [num] });
+  ok(!left.trash.includes(num) && (left.excluded ?? []).includes(num), 'leave-field replacement removes from destination');
+});
+
+test('§6.3 対象カード構造: piece除外ゲート・自己除外が junk TRASH に戻らない', () => {
+  for (const num of ['WXDi-D07-004','WXDi-P04-013','WXDi-P04-016']) {
+    const s = JSON.stringify(mergeManualEffects(num, effectsMap.get(num) ?? []));
+    ok(s.includes('LRIG_DECK_CARD') && s.includes('LAST_PROCESSED_COUNT_GTE'), `${num}: piece exile + success gate`);
+  }
+  for (const num of ['PR-378','SP36-001']) {
+    const s = JSON.stringify(mergeManualEffects(num, effectsMap.get(num) ?? []));
+    ok(s.includes('EXILE_SELF_AFTER_USE'), `${num}: self exile`);
+  }
+});
+
+test('PR-378: 原文どおり count:1 強制バニッシュ＋除外は「そうした場合」の内側（検証是正）', () => {
+  const eff = mergeManualEffects('PR-378', effectsMap.get('PR-378') ?? []).find(e => e.effectId === 'PR-378-E1');
+  ok(!!eff, 'PR-378-E1'); if (!eff) return;
+  const choices = (eff.action as { choices?: { action: EffectAction }[] }).choices ?? [];
+  eq(choices.length, 2, '2択');
+  for (const ch of choices) {
+    const steps = (ch.action as { steps?: EffectAction[] }).steps ?? [];
+    const banish = steps[0] as { type?: string; target?: { count?: number; upToCount?: boolean } };
+    eq(banish.type, 'BANISH', '先頭はバニッシュ');
+    eq(banish.target?.count, 1, '原文「シグニ１体」＝count:1');
+    eq(banish.target?.upToCount ?? false, false, '「対象とし、それをバニッシュする」＝強制');
+    // EXILE_SELF_AFTER_USE は「そうした場合」ゲートの内側のみ（バニッシュ不成立なら除外されない）
+    const gated = steps.filter(s => (s as { type?: string }).type === 'CONDITIONAL');
+    ok(gated.some(s => JSON.stringify(s).includes('EXILE_SELF_AFTER_USE')), 'ゲート内に自己除外');
+    ok(!JSON.stringify(steps.filter(s => (s as { type?: string }).type !== 'CONDITIONAL')).includes('EXILE_SELF_AFTER_USE'), 'ゲート外に自己除外なし');
+  }
+});
+
+test('WD22-035-G: トラッシュ在中の自己蘇生【自】が相手アタックフェイズ開始で収集される（検証是正）', () => {
+  // codex 採用時は collectTurnTriggers がトラッシュを走査せず永久不発だった＝発火経路を lock-in
+  const merged = mergeManualEffects('WD22-035-G', effectsMap.get('WD22-035-G') ?? []);
+  const em = new Map(effectsMap); em.set('WD22-035-G', merged);
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: em };
+  // HOST=ターンプレイヤー（攻撃側）・GUEST=防御側（トラッシュに WD22-035-G・場にシグニちょうど2体）
+  const host = mkState({});
+  const guest2 = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] }); guest2.trash = ['WD22-035-G'];
+  eq(fired(cttEntries(ctx, 'ON_ATTACK_PHASE_START', host, guest2), 'WD22-035-G-E1'), true, '場2体ちょうどで発火');
+  const guest1 = mkState({ signi: [SIGNI_L1, null, null] }); guest1.trash = ['WD22-035-G'];
+  eq(fired(cttEntries(ctx, 'ON_ATTACK_PHASE_START', host, guest1), 'WD22-035-G-E1'), false, '場1体では非発火（eq 2）');
+  const guest3 = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] }); guest3.trash = ['WD22-035-G'];
+  eq(fired(cttEntries(ctx, 'ON_ATTACK_PHASE_START', host, guest3), 'WD22-035-G-E1'), false, '場3体では非発火（原文「２体ある場合」＝eq）');
+  // 自分のターンには発火しない（any_opp＝「対戦相手の」アタックフェイズ限定。自トラッシュは走査対象外）
+  const hostT = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] }); hostT.trash = ['WD22-035-G'];
+  eq(fired(cttEntries(ctx, 'ON_ATTACK_PHASE_START', hostT, mkState({})), 'WD22-035-G-E1'), false, '自ターンは非発火');
+});
+
+test('resolvePendingExiles: 同名の別コピー（エナ等）を巻き込まない（検証是正）', () => {
+  const num = 'WX16-040';
+  const st = { ...mkState({}), energy: [num, num], pending_exile_nums: [num] } as PlayerState;
+  const r = resolvePendingExiles(st);
+  eq(r.energy.filter(n => n === num).length, 1, 'エナの1枚だけが除外され残り1枚は保持');
+  eq((r.excluded ?? []).filter(n => n === num).length, 1, 'excluded には1枚だけ');
 });
 
 console.log('\n===== goldenTest 結果 =====');

@@ -4,6 +4,28 @@
 
 ---
 
+## §6.3「ゲームから除外」基盤＋遅延自己除外3枚／ピース除外3枚／使用後自己除外2枚（2026-07-23・codex実装/Claude確認）
+
+従来の `EXILE`／`EXILE_SELF_AFTER_USE` はカードを盤面から消すだけ、またはトラッシュへ再投入する近似で、リフレッシュ等から再利用できる誤動作だった。`PlayerState.excluded` を専用ゾーンとして新設し、場・手札・トラッシュ・ルリグデッキからの除外をすべて記録するよう統一。`EffectTarget` に `LRIG_DECK_CARD`、選択UIにルリグデッキ scope を追加し、選択結果は従来どおり `lastProcessedCards` に残す。
+
+遅延自己除外は `pending_exile_nums`＋`MARK_SELF_DELAYED_EXILE` で「実際にトラッシュから場へ戻った自身」だけを登録し、中央 effect/resume 完了経路で場を離れた直後の行き先を `excluded` へ置換、人間・CPU双方のターン終了時には場に残っていても除外する。トラッシュ在中 watcher が必要な WX21-Re06 のため、`collectFieldTriggers` は `placedFromTrash` イベント時に自己回収 action を持つトラッシュカードだけを限定走査する（一般のトラッシュ能力は走査しない）。
+
+MANUAL 再構成は8枚：WX16-040-E1（青の任意支払い成功時だけ自己蘇生＋マーク）、WX21-Re06-E1（自シグニがトラッシュから出た時の任意自己蘇生＋マーク）、WD22-035-G-E1（相手アタックフェイズ開始・場のシグニがちょうど2体の場合だけ任意自己蘇生＋マーク）、WXDi-D07-004/P04-013/P04-016-E3（ルリグデッキのピース1枚除外成功を `LAST_PROCESSED_COUNT_GTE:1` でゲートし、赤2体までアサシン／ガードなし3枚まで回収／相手2体まで-12000）、PR-378・SP36-001（使用後自身をトラッシュへ戻さず除外）。WXK11-070 の既存 golden も旧「トラッシュ近似1枚」から「trash 0 / excluded 1」へ意図的に更新した。
+
+調査の結果、WX17-044-E1 はトラッシュ起動・表向きトラップ発動フロー自体が §6.4 未実装であり、見かけだけ動く近似を作らず据置。WXDi-D08-012-E1（追加エクシード4の実支払い）と WXDi-D09-P15-E1（選択肢を跨ぐ先行対象保持＋手札3枚/ガード破棄の実支払い）も、現行 `OPTIONAL_COST` が costText 表示のみで支払いを評価できないため据置。いずれも junk TRASH を別の近似へ置換していない。
+
+検証：`npm run gates` 全緑（golden 620/620、smoke 10723/10723・CRASH/HANG/INVARIANT/SKIP 0、fuzz 0、census 1711 baseline維持、lint 0 errors/221 warnings）。`npm run regen` 済、カード単位の同型★0。commit/push・PLAN/PLAN_PROGRESS 簿記は依頼どおり未実施。
+
+**Claude 検証で是正した4件（CODEX_GUIDE §7・golden 620→623）**：
+1. **PR-378 の幻覚**＝原文「あなたのシグニ**１体**を対象とし」を count:2 upToCount で採用していた（過剰バニッシュ）。さらに原文では自己除外も「そうした場合」の内側（バニッシュ不成立なら除外されずトラッシュへ）だが、codex 版はゲート外で無条件除外＋cost 欄《無×0》も脱落。count:1 強制・ゲート内除外・cost 復元に是正し golden で構造固定。
+2. **WD22-035-G が死んだエンコード**＝`collectTurnTriggers` はトラッシュを走査しないため、トラッシュ在中の本カードの ON_ATTACK_PHASE_START【自】は**永久不発**だった（codex はトラッシュ走査を WX21-Re06 の collectFieldTriggers 側にしか足していない＝ガードレール2「engine が収集するか確認」の失敗モード）。`actionRevivesSelfFromTrash` を module ヘルパーへ共通化し、collectTurnTriggers に相手側トラッシュの自己蘇生カード限定走査（condition はカード所有者視点で evalUseCondition・limitOkOp 適用）を追加。golden で発火/eq 2 の正負/自ターン非発火を lock-in。
+3. **ターン終了時除外が非ターンプレイヤーに未適用**＝human END（doPhaseAdvance）・confirmEndDiscard・CPU END の3経路とも `resolvePendingExiles(…, true)` をターンプレイヤー側にしか掛けていなかった。これらのカードの主用途は**相手ターン中の蘇生**（WX16-040=トラップ発動時・WD22-035-G=相手アタックフェイズ開始時）なので、マークされた側＝非ターンプレイヤーが1ターン余分に生き延びる実害。3経路とも op 側へ適用。
+4. **`resolvePendingExiles` の全コピー剥がし**＝`filter(n => n !== num)` がゾーン内の同名別コピー（エナの支払い済みコピー等）まで巻き添え除外していた。indexOf+splice の1枚除去に是正し golden 追加。
+
+そのほか WXDi-D07-004 の GRANT_KEYWORD に upToCount:true 補筆（原文「２体まで」）、STUBS.md 再生成漏れ（EXILE_SELF_AFTER_USE の説明が旧「近似: トラッシュへ」のまま逆翻訳に露出）を是正。最終ゲート：golden **623/623**・census 1711 維持・smoke/fuzz 0・同型★0・lint 221 warnings（増減なし）。
+
+---
+
 ## ROADMAPバッチ2「対象filter合成」第2波：POWER_MODIFY対象句の class/色 脱落＝真バグ4効果（golden 596→599、census 1715→1713）（2026-07-22・続き254・Opus）
 
 **投入前実測でルートがほぼ枯渇と判明したバッチ**。続き253（トラッシュ→手札）の「次の一手」は「POWER_MODIFY 対象句（class36+color15）→TO_ENER→TO_TRASH」だったが、CODEX_GUIDE §3 に従い投げる前に全効果を実測したところ、**census の class指定249/色102 high-signal は大半がコスト・条件・トリガー節に class/色を持つ効果**で、対象フィルタ自体の脱落ではなかった（続き250「候補≠作業量」の極端版・続き213「投げる前に実測」の再現）。全 removal/buff family（POWER_MODIFY/POWER_SET/BANISH/TRASH/BOUNCE/SEND_TO_ENERGY 等）の対象filter脱落を精査した結果：SEND_TO_ENERGY=0・TRASH(場→trash)=0・BANISH=0・BOUNCE=0（全て別節の誤検知）、トラッシュ回収系32件中21件は第1波で修正済み。**genuine な真バグは4件のみ**＝codex バッチ（同機構10〜30件）にならないため Opus 分担で直接修正した。

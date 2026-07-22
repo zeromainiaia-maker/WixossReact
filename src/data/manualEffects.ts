@@ -7,6 +7,32 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WX16-040": [
+    {"effectId":"WX16-040-E1","effectType":"AUTO","timing":["ON_TRAP_ACTIVATE"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"STUB","id":"MARK_SELF_DELAYED_EXILE"}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX21-Re06": [
+    {"effectId":"WX21-Re06-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},{"type":"STUB","id":"MARK_SELF_DELAYED_EXILE"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WD22-035-G": [
+    {"effectId":"WD22-035-G-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"any_opp","condition":{"type":"FIELD_COUNT","owner":"self","operator":"eq","value":2},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},{"type":"STUB","id":"MARK_SELF_DELAYED_EXILE"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-D07-004": [
+    {"effectId":"WXDi-D07-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":3},"action":{"type":"SEQUENCE","steps":[{"type":"EXILE","target":{"type":"LRIG_DECK_CARD","owner":"self","count":1,"filter":{"cardType":"ピース"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","color":"赤"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}
+  ],
+  "WXDi-P04-013": [
+    {"effectId":"WXDi-P04-013-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":3},"action":{"type":"SEQUENCE","steps":[{"type":"EXILE","target":{"type":"LRIG_DECK_CARD","owner":"self","count":1,"filter":{"cardType":"ピース"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","noGuard":true}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}
+  ],
+  "WXDi-P04-016": [
+    {"effectId":"WXDi-P04-016-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":3},"action":{"type":"SEQUENCE","steps":[{"type":"EXILE","target":{"type":"LRIG_DECK_CARD","owner":"self","count":1,"filter":{"cardType":"ピース"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true},"delta":-12000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}
+  ],
+  // PR-378: 原文は「あなたのシグニ１体を対象とし」＝count:1 強制。除外も「そうした場合」の内側
+  // ＝バニッシュ不成立時はこのカードを除外しない（通常どおりトラッシュへ）。
+  "PR-378": [
+    {"effectId":"PR-378-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"draw","label":"自分のシグニ1体をバニッシュし、そうした場合1枚引き自身を除外","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"STUB","id":"EXILE_SELF_AFTER_USE"}]}}]}},{"choiceId":"charge","label":"自分のシグニ1体をバニッシュし、そうした場合エナチャージ1し自身を除外","action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"STUB","id":"EXILE_SELF_AFTER_USE"}]}}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "SP36-001": [
+    {"effectId":"SP36-001-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"赤","count":3},{"color":"無","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"},{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"},{"type":"STUB","id":"PREVENT_DEFEAT_THIS_TURN"},{"type":"STUB","id":"EXILE_SELF_AFTER_USE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WXK03-039": [
     {"effectId":"WXK03-039-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"STUB","id":"SELECT_OPP_SIGNI_FOR_BOTTOM_MILL"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
