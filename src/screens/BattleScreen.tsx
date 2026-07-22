@@ -8589,7 +8589,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (cpuFt.usedHostIds.length > 0) cpuHuSt = { ...cpuHuSt, actions_done: [...(cpuHuSt.actions_done ?? []), ...cpuFt.usedHostIds] };
 
         // 1枚ずつSupabaseを更新して画面に反映させてから次へ
-        await persist.commit({ guest_state: newCpuSt, ...(cpuHuSt !== huSt ? { host_state: cpuHuSt } : {}) });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: newCpuSt, opp: cpuHuSt !== huSt ? { key: 'host_state', state: cpuHuSt } : undefined }));
         await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
       }
 
