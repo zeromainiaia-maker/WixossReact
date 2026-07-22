@@ -12,6 +12,11 @@
 
 全ゲート緑：golden 588、smoke 10722全OK、fuzz全0、census 1793（BASELINE_HIGH更新）、lint 0 errors / 224 warnings、同型★0、held 73グループ/193枚。curatedのベースライン差分は採用12 effectIdのみ・同カード巻き添え0・outlier 0。`npm run regen` 済。逆翻訳は意味一致だが表記完全一致0件（レゾナ2件は内部対象化の+0が露出、他も語順・助詞・名詞表記差）。
 
+**Claude 検証（CODEX_GUIDE §7・全項目実施）**：
+- **独立検証**＝全ゲート再実行緑・同型★0・per-effect 機械 diff＝採用集合ちょうど（巻き添え0）・golden の両方向カバレッジ（elseAction match/unmatch・覚醒 一致/不一致・レゾナ then/else）を確認。`banish_redirect_by_source_nums` は**既存フィールドの流用**（BattleScreen 7180/7550 のバトル経路が読取・ターン境界クリア済み）＝付与形の enforcement は実在。AWAKEN の場内存在ガード（field 不在なら no-op）も確認。
+- **見送り1件を差し戻して採用（13枚目）**＝`WXDi-P11-078-E1`。codex の見送り理由「ADD_TO_FIELD に直前ミルした同一インスタンス限定が無い」は**非問題**＝トラッシュはカード番号管理で同名は交換可能＝`CONDITIONAL{LAST_PROCESSED_MATCHES{cardName}}` ゲート追加だけで完全修正になる。`applyReferenceAttributeBatch2` に1ブロック追加し heldReview --adopt で採用・golden に構造ガード追加・census 1793→**1792**（BASELINE_HIGH 更新）。
+- **正当な見送り7件**（G7×2=did-it continuation 不在・G8×2=新型が必要・G9×3=watcher timing／引用再構築／動的同レベル filter）は再検証の上で妥当と判断＝将来バッチへ（G7/G8 は機構1本で解けるため次波候補・G9 の watcher は タスク16 系）。
+
 ---
 
 ## 状態条件節持ち上げ バッチ①第1波：`TURN_OWNER` 新設＋`LIFE_COUNT` 拡張（25採用・2見送り、golden 579→584、census 1817→1799）（2026-07-22・続き249・Codex 実装＋Claude 検証）
