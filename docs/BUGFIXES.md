@@ -4,7 +4,7 @@
 
 ---
 
-## 状態条件節バッチ①第2波：参照カード属性条件13効果（golden 584→589、census 1799→1792）（2026-07-22・続き250・Codex 実装12＋Claude 検証・差し戻し採用1）
+## 状態条件節バッチ①第2波：参照カード属性条件13効果（golden 584→588、census 1799→1792）（2026-07-22・続き250・Codex 実装12＋Claude 検証・差し戻し採用1）
 
 参照カードの属性条件が脱落・誤合成されていた12効果を、カード番号＋effectId限定の `applyReferenceAttributeBatch2` とminified JSON直パッチで是正した。採用＝G1 2件（`REVEAL_DECK_TOP`＋`LAST_PROCESSED_MATCHES{cardType:シグニ,level:4}`、BANISH対象から誤ったlevelを除去）、G2 2件（`RevealAndPickAction.elseAction`＋不一致時DRAW1）、G3 4件（前段対象を `lastProcessedCards` に残し、名前条件一致時だけ `AWAKEN_SIGNI{targetsLastProcessed:true}`。053は対象付与形BANISH_REDIRECTと欠落していた+2000も同一対象へ復元）、G4 3件（owner:self・同一対象のレゾナthen/else、071の相手REMOVE_ABILITIES幻覚をraw keyword付与へ置換）、G6 1件（`isDisona:true`）。`AWAKEN_SIGNI` の旧sourceCardNum固定誤実装、`BANISH_REDIRECT` の対象無視も対象付与形に限って修正した。
 
