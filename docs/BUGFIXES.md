@@ -4,6 +4,31 @@
 
 ---
 
+## §3 タスク12(xl49) 消化：【常】出撃制限が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統11枚＝`SELF_PLAY_RESTRICT` 新設＋summon チョークポイントで実 enforcement（golden 573→579・census 1825→1817・全ゲート緑）（2026-07-22・続き248・Opus）
+
+**バグ**＝「【常】：このシグニ/カード/キーは〜（新たに）場に出すことができない」という**カード自身の出撃制限**（＝この効果を持つカードを通常召喚できる条件のゲート）が、parser の bare `ADD_TO_FIELD` フォールバック（`parseSentencePart1.ts`＝「場に出す」を含み「エナ/トラッシュ」を含まない文）に誤マッチし、`CONTINUOUS ADD_TO_FIELD{owner:self}` として格納されていた系統。これは「対戦相手はシグニをN体までしか場に出せない」（`DEPLOY_RESTRICT`・場の**枚数**制限＝別系統・先取り済）とは別物で、出撃制限が**完全に失われていた**（意味的退化）。
+
+**棚卸し（Sonnet 観測 (xlix) の「同型枚数を要棚卸し」に対応）**＝「場に出すことができない」idiom 全19枚を2系統に分類：
+- **Type A（自身出撃制限・本修正の対象）11枚**＝`PR-470B`/`WD16-016`/`WDK16-05H`/`WDK16-05S`/`WDK16-05T`/`WX08-025`/`WX12-022`/`WX14-033`/`WX18-075`/`WX19-030`/`WXK05-032`。全て `CONTINUOUS ADD_TO_FIELD` へ誤 parse されていた。
+- **Type B（場の枚数制限）8枚**＝「（対戦相手/すべてのプレイヤーは）シグニをN体までしか」＝既に `DEPLOY_RESTRICT`/`fieldLimit.ts` で実装済（本修正の対象外）。
+
+**engine 誤実行の懸念（Sonnet 観測「実アクションとして誤実行しうる」）は現状無しと確認**＝`CONTINUOUS ADD_TO_FIELD` は `calcContinuousSigniMutations`（BANISH/FREEZE/DOWN のみ）にも他のどの CONTINUOUS 収集経路にも拾われず、executor へも流れない（smoke は全効果を executor に通すが、default 節が `done(ctx)` の安全 no-op）。＝**現状は無害な inert no-op**。ただし出撃制限が効いていない意味的退化なので、真の解決＝表現し直し＋enforcement を実装した。
+
+**修正**：
+- **型**（`effects.ts`）＝`SelfPlayRestrictAction`（`type:'SELF_PLAY_RESTRICT'`／`never?`＝効果でのみ配置可・通常召喚は常に不可／`condition?: Condition`＝通常召喚を**許可**する条件・満たさなければ配置不可／`rawText?`）を新設し `EffectAction` union へ追加。
+- **parser**（`parseSentencePart1.ts`）＝検出ロジックを `parseSelfPlayRestrict(t)` として export。`効果以外によっては`／条件節（場合・かぎり・限り）を含まない＝`never`。既存 Condition 語彙で表せるものを機械条件化（`あなたの場にパワーN以上のシグニがある場合にしか`→`FIELD_SIGNI_POWER_COUNT`／`＜C＞のシグニがN体以上ないかぎり`→`FIELD_CLASS_COUNT`／`センタールリグが《X レベルN》の場合にしか`→`AND[LRIG_NAME_CONTAINS, LRIG_LEVEL]`）。未対応語彙（ウィルス総数/アクセ総数/クロス状態/相手ディスカード）は機械条件を付けず permissive（`rawText` のみ＝評価不能＝配置許可＝従来 no-op と同値・退化なし）。
+- **⚠ 全文先取り**（`effectParser.ts` の CONTINUOUS 分岐）＝`parseActiveCondition` の条件抽出ループが「…ないかぎり、」の条件節を先に剥がすため、残余「新たに場に出すことができない」が bare `ADD_TO_FIELD` へ落ちる（WX08-025/WX14-033）。これを避けるため、条件抽出ループ**前**に全文で `parseSelfPlayRestrict(actionText)` を呼び、マッチしたら `resolvedAction` に確定（`multiStage`/`centerColorFront` より前）。
+- **engine 表現**（`effectEngine.ts`）＝`evalConditionForContinuous` に `FIELD_SIGNI_POWER_COUNT`（CONTINUOUS 評価では effectivePowers 不在ゆえベースパワー近似）／`FIELD_CLASS_COUNT`／`LRIG_NAME_CONTAINS` を追加（execUtils.evalCondition と同実装）。`canSelfPlay(effects, ownerState, otherState, cardMap, sourceCardNum)` を新設・export（`never`→false／`condition` あり→`evalConditionForContinuous` で評価／未対応条件は default:true＝permissive で過剰制限を回避）。
+- **enforcement 配線**（`BattleScreen.tsx`）＝`handleSummonSigni` の既存デプロイ制限チェック群（DEPLOY_RESTRICT/FORCE_PLACE_FRONT 等）の直後に `if (!canSelfPlay(baseEffectsMap.get(summonCardNum), my, op, battleCardMap)) return;` を挿入。召喚カードはこの時点で手札にあり `my.field` に含まれないため「あなたの場に…」は当該カードを除いて正しく評価される。
+- **executor**（`effectExecutor.ts`）＝`case 'SELF_PLAY_RESTRICT': return done(ctx);`（CONTINUOUS＝executor では no-op・enforcement は summon 側）。
+- **decompiler**（`decompileEffects.ts`）＝`rawText` をそのまま描画（原文どおりの忠実な逆翻訳。旧「場に出す」誤訳から改善）。
+
+**enforcement 実配線＝never（WXK05-032/PR-470B）／WX12-022（パワー10000+のシグニがある場合のみ可）／WX14-033（＜アーム＞2体+ないかぎり不可）／キー3枚（LRIG名+Lv4）**。**permissive 据置＝WX19-030（ウィルス総数）/WX18-075（アクセ総数）/WX08-025（クロス状態）/WD16-016（相手ディスカード）**＝いずれも新規 Condition 語彙が要る単発機構で「過剰語彙を作らない」方針。CPU 召喚経路（`handleSummonSigni` 非経由）への enforcement は §8 CPU 拡張へ据置（従来同値・退化なし）。キーの enforcement は key-play 経路が別のため表現のみ（summon では canSelfPlay 未呼び出し）。
+
+**採用**＝11枚は build:effects の型スワップ非採用（held ドリフト・(xlvi) と同じ死角）だが、全件 fresh を検証し**非E1効果が curated と完全一致・E1のみ ADD_TO_FIELD→SELF_PLAY_RESTRICT** を機械確認して `docs/_held_fresh.json` から直接採用（minified 形式維持）。
+
+**ゲート**＝全ゲート緑（typecheck／golden 573→**579**〔parse 11枚＋canSelfPlay never/power/class/permissive/無制限の5テスト〕・smoke 10722全OK・fuzz 全0・census **1825→1817**〔11枚の ADD_TO_FIELD 高シグナル誤検出が解消〕・lint 0 errors）。`npm run regen` 済（逆翻訳が原文一致を確認）。
+
 ## §3 タスク14 Stage3続き：`SET_STACK`/`END_GAME` action 追加＋条件付き opp を WRITE_STATE 化（58/114 commit が reduceBattle 経由・golden 570→573・全ゲート緑）（2026-07-22・続き247・Opus）
 
 続き246（WRITE_STATE 30箇所）に続き、reducer 純粋化をさらに前進。意味のまとまり単位で action を追加：
