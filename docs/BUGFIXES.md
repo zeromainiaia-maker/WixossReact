@@ -4,6 +4,27 @@
 
 ---
 
+## §3 タスク14 リファクタ Stage2完了＋Stage3（純粋バトルコントローラ）骨組み着地（golden 562→565・全ゲート緑・warning 純増0）（2026-07-22・続き244・Opus）
+
+PLAN §3 Opusタスク14。ユーザー選択のスコープ＝**Stage2完了＋Stage3設計・骨組みまで**（純粋バトルコントローラのフル書き換えは DoD 未定義・ヘッドレス検証不能・稼働ゲーム破壊リスク大のため段階移行方針）。
+
+**(a) Stage2完了**＝BattleScreen.tsx 本体に残っていた useState 11本のうち、`bs`（`BattleStateRow`＝中核ゲーム状態・Stage3対象）以外の10本を、既存の `useDomainState` ベース・ドメインフック方式（useMiscBattleUI と同型）で3フックへ集約：
+- `useBattleSession`（`hooks/useBattleSession.ts`）＝loading・myDeckData・isCpuBattle・cpuDeckData（試合セッション/構成レベル）
+- `useBattleLog`（`hooks/useBattleLog.ts`）＝logExpanded・battleLogs・logScrollRef（バトルログUI）
+- `useSetupFlow`（`hooks/useSetupFlow.ts`・2フック）＝`useGameStartSetup`（mulliganSelected・pendingLrigSetup）／`useSigniSummonFlow`（pendingSigniSummon・closeZoneSignal）
+
+本体の直接 useState は `bs` のみに（宣言箇所のみ変更・使用箇所296参照は名前不変で全て型検査済）。
+
+**(b) Stage3設計＋骨組み**＝`bs` 遷移は「現在盤面から次に DB へ書く update(Partial<BattleStateRow>) を組み立てる純粋計算 → supabase 書き込み → realtime で bs 更新」に落ちる（`setBs` はロード/購読の4箇所のみ・遷移はDB経由）。この計算と副作用を分ける seam を新設：
+- `controller/persist.ts`＝永続化チョークポイント `useBattlePersist(roomId)`（`commit(patch)`/`fetchState()`/`remove()`＝battle_states I/O を1点集約。現状 `supabase...update(...).eq('room_id',roomId)` が114箇所インライン散在）
+- `controller/battleController.ts`＝純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union（代表3＝`SET_SETUP_PHASE`/`ACK_END`/`SUBMIT_JANKEN`・網羅性 never guard）
+
+代表3箇所（setup_phase LRIG_SELECT→MULLIGAN 遷移・CPU終了ACK・CPUじゃんけん提出）を `persist.commit(reduceBattle(bs, action))` へ実配線しパターンを実証。CPU終了ACK effect は `bs` narrowing のため先頭ガードを `if (!bs || ...)` へ整理（挙動同値）。
+
+**検証**＝golden 562→565（`Stage3 reduceBattle` 3件追加）・smoke 10722 OK 0異常・fuzz 0・census 1825維持・lint 0 error（warning は 224 で純増0＝新規 exhaustive-deps 1件は narrow deps 維持のため既存慣例の disable コメントで抑制）。
+
+**残＝Stage3実装本体**＝約110箇所のインライン `supabase...update` の `persist.commit` 置換＋各ハンドラのパッチ組み立ての `reduceBattle` case への純粋化。1件ずつ挙動同値＋golden 1件先置きで進める複数セッションのテール。設計/移行レシピ＝`docs/BATTLE_CONTROLLER.md`。
+
 ## §3 タスク12(xxix)「そのシグニの【出】能力は発動しない」クラスタの忠実表現化＝死アクション BLOCK_ACTION を配置アンカーへ畳み込み suppressOnPlay 化（76効果・golden 557→562・census 1825維持）（2026-07-21・続き243・Opus）
 
 PLAN §3 Opusタスク12(xxix)（semantic audit stub群 round3）残の§6.3クラスタのうち「そのシグニの【出】能力」（≈30効果として登録）を精査し、**挙動上は偽陽性**であることを確定したうえで**忠実表現へ是正**した。
