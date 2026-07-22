@@ -91,6 +91,8 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
   'WX12-019', 'WX13-028', 'WX14-009', 'WXK11-047', 'SPK01-15', 'WX15-039',
   'WD22-038-UG', 'WX14-044', 'WX15-Re15', 'WX20-047-CB', 'WX21-Re09',
   'WX14-031', 'WXEX1-30', 'WXDi-P11-010A', 'WXDi-P00-001',
+  // 第2波（Opus 分担・単発）＝「白か黒のシグニ1枚」colorOR 脱落是正
+  'WX09-020',
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
