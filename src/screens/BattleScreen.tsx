@@ -4878,6 +4878,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
       if (forcedFront.size > 0 && !forcedFront.has(zoneIndex)) return;
     }
+    // SELF_PLAY_RESTRICT（自身出撃制限・Opusタスク12(xlix)）: このカード自身の【常】出撃条件を満たさなければ通常召喚不可。
+    // never（効果でのみ配置可）＝常に不可。condition あり＝盤面で評価（未満たしなら不可）。未対応語彙は permissive（従来同値）。
+    // この時点で summonCardNum はまだ手札にあり my.field に含まれないため「あなたの場に…」は当該カードを除いて評価される（正）。
+    if (!canSelfPlay(baseEffectsMap.get(summonCardNum), my, op, battleCardMap)) return;
     setLoading(true);
     setPendingSigniSummon(null);
     try {
