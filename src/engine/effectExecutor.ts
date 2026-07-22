@@ -4398,6 +4398,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'TRANSFER_TO_DECK':        return execTransferToDeck(action as TransferToDeckAction, ctx);
     case 'PLACE_LRIGS_UNDER_CENTER': return execPlaceLrigsUnderCenter(action as import('../types/effects').PlaceLrigsUnderCenterAction, ctx);
     case 'COUNTER_SPELL':           return done(ctx); // 打ち消しログはBattleScreen側でスペル名付きで出力
+    case 'SELF_PLAY_RESTRICT':      return done(ctx); // CONTINUOUS 出撃制限。実 enforcement は handleSummonSigni の canSelfPlay（executor では no-op）
     case 'COST_REDUCTION': {
       // 次に使用するスペルのコスト軽減（WX04-008）: フラグに積み、BattleScreenのスペル使用コスト計算で消費。
       const cr = action as import('../types/effects').CostReductionAction;
