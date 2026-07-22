@@ -6732,6 +6732,33 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(reduceBattle(stub, { type: 'SUBMIT_JANKEN', isHost: true, pick: 'GU' }).host_janken, 'GU', 'host');
     eq(reduceBattle(stub, { type: 'SUBMIT_JANKEN', isHost: false, pick: 'PA' }).guest_janken, 'PA', 'guest');
   });
+  test('Stage3 reduceBattle WRITE_STATE: 単一プレイヤー状態のみ', () => {
+    const st = { hp: 1 } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: st });
+    eq(patch.host_state, st, 'host_state');
+    eq(Object.keys(patch).length, 1, 'キー数');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: 相手状態・effect_stack・pending クリア併記', () => {
+    const my = { a: 1 } as unknown as PlayerState;
+    const op = { b: 2 } as unknown as PlayerState;
+    const stk = { entries: [] } as unknown as EffectStack;
+    const patch = reduceBattle(stub, {
+      type: 'WRITE_STATE', myKey: 'guest_state', myState: my,
+      opp: { key: 'host_state', state: op }, effectStack: stk, clearPending: true,
+    });
+    eq(patch.guest_state, my, 'my');
+    eq(patch.host_state, op, 'opp');
+    eq(patch.effect_stack, stk, 'stack');
+    eq(patch.pending_effect, null, 'pending クリア');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: effectStack=null 明示でスタッククリア', () => {
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: {} as PlayerState, effectStack: null });
+    ok('effect_stack' in patch && patch.effect_stack === null, 'null 明示は書く');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: effectStack 省略時は触らない', () => {
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: {} as PlayerState });
+    ok(!('effect_stack' in patch), '省略時は effect_stack キー無し');
+  });
 }
 
 // ── レポート ──

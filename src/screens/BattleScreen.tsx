@@ -1167,7 +1167,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     (async () => {
       setLoading(true);
       try {
-        await persist.commit({ [stateKey]: cleared });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: cleared }));
         await checkAndFireOnAcceTriggersForOwner(cleared, hostCardNum);
       } finally {
         setLoading(false);
@@ -3734,7 +3734,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: newMyState });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
     } finally {
       setLoading(false);
     }
@@ -3762,7 +3762,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`エナチャージ（${name}）`]);
       }
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: newMyState });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
     } finally {
       setLoading(false);
     }
@@ -5555,7 +5555,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, {}, 1, [...artsCoinPaidEntries, ...materialUsedEntries]);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit({ [stateKey]: paidAfterMaterial });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidAfterMaterial }));
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
@@ -5602,7 +5602,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, {}, 1, keyCoinPaidEntries);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit({ [stateKey]: paidWithCoin });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidWithCoin }));
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
@@ -5660,7 +5660,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack ? pushToStack(existingStack, [entry]) : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true }));
     } finally {
       setLoading(false);
     }
@@ -5704,9 +5704,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }));
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, entries) : initStack(bs?.active_user_id ?? user.id, entries);
-        await persist.commit({ [stateKey]: newMyState, effect_stack: stack });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, effectStack: stack }));
       } else {
-        await persist.commit({ [stateKey]: newMyState });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
       }
     } finally {
       setLoading(false);
@@ -6481,11 +6481,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`シグニアタック：ライフクロスをクラッシュ`]);
         } else {
           const opKey = isHost ? 'guest_state' : 'host_state';
-          await persist.commit({ [stateKey]: newMyState, [opKey]: newOtherState });
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: { key: opKey, state: newOtherState } }));
         }
       } else {
         // 正面にシグニ → バトル（通常アタックへ委譲）
-        await persist.commit({ [stateKey]: newMyState });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
         await handleSigniAttack(attackZone);
       }
     } finally { setLoading(false); }
@@ -6554,7 +6554,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const remaining = (op.negate_opp_signi_attacks_until ?? 1) - 1;
         const newOpForNegate: PlayerState = { ...op, negate_opp_signi_attacks_until: remaining > 0 ? remaining : undefined };
         appendBattleLogs([`${myCardName}のアタックは無効化された（残り${remaining}回）`]);
-        await persist.commit({ [myKey]: newMyState, [opKey]: newOpForNegate });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpForNegate } }));
         return;
       }
       // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
@@ -6570,7 +6570,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const escMap0 = { ...(op.negated_attacks_escape ?? {}) }; delete escMap0[myTopNum];
         const newOpNA: PlayerState = { ...op, negated_attacks: clearedNA.length ? clearedNA : undefined, negated_attacks_escape: Object.keys(escMap0).length ? escMap0 : undefined };
         appendBattleLogs([`${myCardName}のアタックは無効化された`]);
-        await persist.commit({ [myKey]: newMyState, [opKey]: newOpNA });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpNA } }));
         return;
       }
 
@@ -6701,9 +6701,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const stack = existingStack
           ? pushToStack(existingStack, allAttackTriggers)
           : initStack(turnPlayerId, allAttackTriggers);
-        await persist.commit({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown, effect_stack: stack });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyStateWithPending, opp: { key: opKey, state: newOpStateAtkDown }, effectStack: stack }));
       } else {
-        await persist.commit({ [myKey]: newMyStateWithPending, [opKey]: newOpStateAtkDown });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyStateWithPending, opp: { key: opKey, state: newOpStateAtkDown } }));
       }
     } finally {
       setLoading(false);
@@ -6764,7 +6764,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // NEGATE_ATTACK_ON_TRIGGER: アタックキャンセルフラグがあればバトル/ダメージを全てスキップ
       if (myS.cancel_current_signi_attack) {
         const clearedState: PlayerState = { ...myS, pending_signi_battle: undefined, cancel_current_signi_attack: undefined };
-        await persist.commit({ [myKey]: clearedState });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: clearedState }));
         appendBattleLogs([`${myCardName}のアタックが無効になった`]);
         return;
       }
@@ -7662,9 +7662,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const stack = existingStack
           ? pushToStack(existingStack, allTriggers)
           : initStack(turnPlayerId, allTriggers);
-        await persist.commit({ [myKey]: finalMyState, [opKey]: finalOpState, effect_stack: stack });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: finalMyState, opp: { key: opKey, state: finalOpState }, effectStack: stack }));
       } else {
-        await persist.commit({ [myKey]: finalMyState, [opKey]: finalOpState });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: finalMyState, opp: { key: opKey, state: finalOpState } }));
       }
     } finally {
       setLoading(false);
@@ -7692,7 +7692,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined };
       const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
-      await persist.commit({ [myKey]: newMyState, [opKey]: newOpState });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpState } }));
     } finally {
       setLoading(false);
     }
@@ -7758,7 +7758,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       closeNegateEscape();
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
-      await persist.commit({ [myKey]: newMy, [opKey]: newOp });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMy, opp: { key: opKey, state: newOp } }));
       await flushBattleLogs();
     } finally {
       setLoading(false);
@@ -7873,7 +7873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       const crashedName = battleCardMap.get(nextCard)?.CardName ?? nextCard;
       appendBattleLogs([`ダブルクラッシュ：ライフクロスをクラッシュ（${crashedName}）`]);
-      await persist.commit({ [stateKey]: newMyState });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState }));
     } finally {
       setLoading(false);
     }
@@ -9321,7 +9321,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       pending_banish_substitute: undefined,
       banish_substitute_choice: { victimNum: pend.victimNum, option },
     };
-    await persist.commit({ [myKey]: newMyState });
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState }));
   };
 
   // シグニ起動効果を実行（コスト支払い後）
@@ -9625,7 +9625,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? pushToStack(existingStack, [entry])
         : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true }));
     } finally {
       setLoading(false);
     }
@@ -9730,7 +9730,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? pushToStack(existingStack, [entry])
         : initStack(turnPlayerId, [entry]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: paid, effect_stack: newStack, pending_effect: null });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true }));
     } finally {
       setLoading(false);
     }
@@ -9755,7 +9755,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       appendBattleLogs([`【起】ガードシグニ（${cardName}）を捨て→ルリグバリア+1（計${countBarrierTokens(fzGBA, LRIG_BARRIER_CARD)}）`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit({ [stateKey]: paid });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid }));
     } finally {
       setLoading(false);
     }
@@ -9863,7 +9863,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const newStack = curStack
       ? pushToStack(curStack, triggerEntries)
       : initStack(turnPlayerId, triggerEntries);
-    await persist.commit({ [stateKey]: stateToWrite, effect_stack: newStack });
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: stateToWrite, effectStack: newStack }));
   };
 
   // シグニ出現時コスト付き【出】効果：発動
@@ -9888,7 +9888,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     const stateKey = isHost ? 'host_state' : 'guest_state';
     if (entries.length === 0) {
-      await persist.commit({ [stateKey]: placedState });
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placedState }));
       return;
     }
     const turnPlayerId = bs.active_user_id ?? user.id;
@@ -9896,7 +9896,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const newStack = existingStack
       ? pushToStack(existingStack, entries)
       : initStack(turnPlayerId, entries);
-    await persist.commit({ [stateKey]: placedState, effect_stack: newStack, pending_effect: null });
+    await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placedState, effectStack: newStack, clearPending: true }));
   };
 
   const executeSigniOnPlayCost = async (
@@ -10086,7 +10086,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (removedV < removeVirusN) return;
         const oppKey = isHost ? 'guest_state' : 'host_state';
         const newOpState: PlayerState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
-        await persist.commit({ [oppKey]: newOpState });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: oppKey, myState: newOpState }));
         // ON_OPP_VIRUS_REMOVED/CHANGED検出用フラグ（コストによる除去も発火対象）
         paid = { ...paid, opp_virus_removed_just: true };
         payLogs.push(`相手の【ウィルス】${removedV}個をコストで取り除いた`);
@@ -10777,7 +10777,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: { ...my.field, free_zone: newFreeZone },
         };
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit({ [stateKey]: newMy });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMy }));
         setCloseZoneSignal(s => s + 1);
       },
     });
@@ -10795,7 +10795,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: { ...my.field, free_zone: newFreeZone },
         };
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit({ [stateKey]: newMy });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMy }));
         setCloseZoneSignal(s => s + 1);
       },
     });
