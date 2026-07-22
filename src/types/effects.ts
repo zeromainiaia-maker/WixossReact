@@ -1604,6 +1604,14 @@ export interface AltCostOppTurnAction {
 export interface StubAction {
   type: 'STUB';
   id: string;
+  // 相手効果によるパワー修正への常時耐性。subjectOwner はこの能力の持ち主基準。
+  // 既存 PREVENT_* STUB の後方互換を保ちつつ、±方向・全体/属性/自身/相手側を厳密に表す。
+  powerModifyProtection?: {
+    directions: Array<'plus' | 'minus'>;
+    subjectOwner: Owner;
+    subjectFilter?: TargetFilter;
+    thisCardOnly?: boolean;
+  };
   costColors?: string[]; // OPTIONAL_COST: 支払うエナの色リスト（例: ['赤','赤']）
   coinCost?: number;     // OPTIONAL_COST: 支払う《コイン》の枚数（「《コイン》を支払ってもよい」。エナと併用も可）
   costText?: string;     // OPTIONAL_COST: エナ色以外の任意コスト句を原文どおり明示（例: 「このシグニを場からトラッシュに置いてもよい」「使用コストとして追加でエクシード４を支払ってもよい」）。decompiler はこれをそのまま描画。engine 精緻化は別途（A3）

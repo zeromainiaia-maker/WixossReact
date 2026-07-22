@@ -36,7 +36,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   from が誤って全種別（＝全効果耐性）になっているものは原文の軸（BANISH 等）へ、「このシグニ」限定は count:1＋activeCondition へ。
   // WX05-024-E2 幻獣神 ライアン：「あなたのパワー15000以上のシグニは、対戦相手の、スペルとシグニの効果を受けない」
   //   （E1「シグニのパワーは増減しない」＝from:['POWER_MODIFY'] の別mis-parse は §6.3 送り）。
-  "WX05-024": [{"effectId":"WX05-024-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","powerRange":{"min":15000}},"subjectOwner":"self","from":["シグニ","スペル"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WX05-024": [
+    {"effectId":"WX05-024-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus","minus"],"subjectOwner":"any","subjectFilter":{"cardType":"シグニ"}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX05-024-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","powerRange":{"min":15000}},"subjectOwner":"self","from":["シグニ","スペル"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // POWER_MODIFY 免疫5件。方向と保護主体を明示し、裸の「シグニ」は両盤面(any)、
+  // 「あなたの」は self、「対戦相手の」は opponent、レイヤー内「このシグニ」は付与先自身だけを守る。
+  "WX12-033": [{"effectId":"WX12-033-E3","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus","minus"],"subjectOwner":"self","subjectFilter":{"cardType":"シグニ","cardClass":["空獣","地獣"]}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WX20-023": [{"effectId":"WX20-023-LAYER","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","cardClass":"怪異"},"abilities":[{"effectId":"WX20-023-LAYER-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus","minus"],"subjectOwner":"self","subjectFilter":{"cardType":"シグニ"},"thisCardOnly":true}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WX22-013": [{"effectId":"WX22-013-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus"],"subjectOwner":"any","subjectFilter":{"cardType":"シグニ"}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WXK03-018": [{"effectId":"WXK03-018-E3","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_POWER_MODIFY_BY_OPP","powerModifyProtection":{"directions":["plus"],"subjectOwner":"opponent","subjectFilter":{"cardType":"シグニ"}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-016-E1 混沌の豊穣 シュブニグラ：「あなたのダウン状態のシグニは対戦相手のシグニの効果を受けない」→ isDown。
   "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-CB02-E1（終末の回旋 チェロン）は下方の既存ブロックで是正済（from:['BANISH']＋hasCrossIcon）。

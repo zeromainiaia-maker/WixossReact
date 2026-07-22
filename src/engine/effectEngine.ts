@@ -1236,18 +1236,44 @@ export function calcFieldPowers(
     // OPP_TRASH_LOSE_COLOR_AND_CLASS: 相手が自ターン中にこの効果を持つ場合、ownerState のトラッシュが色/クラスを失う
     const oppTrashColorLoss = collectOppTrashLoseColorClass(otherState, ownerState, effectsMap, cardMap, !isOwnerTurn);
 
-    // PREVENT_POWER_MINUS_BY_OPP / PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化するシグニ
-    const otherPowerProtected = new Set<string>();
+    // 相手効果によるパワー修正を無効化するシグニ。保護能力は otherState 側から見て
+    // subjectOwner:self=otherState、opponent=ownerState。裸の「シグニ」は any で両盤面を守る。
+    const ownerPowerProtection: PowerDeltaProtection = { minus: new Set(), plus: new Set() };
+    const otherPowerProtection: PowerDeltaProtection = { minus: new Set(), plus: new Set() };
+    const otherPowerProtected = otherPowerProtection.minus!; // 既存 minus STUB 用の別名
     let allOtherSigniProtected = false;
-    for (const stack of otherState.field.signi) {
-      if (!stack || stack.length === 0) continue;
-      const topNum = stack[stack.length - 1];
+    const protectionHosts = otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
+    const lrig = otherState.field.lrig.at(-1); if (lrig) protectionHosts.push(lrig);
+    const assistL = otherState.field.assist_lrig_l?.at(-1); if (assistL) protectionHosts.push(assistL);
+    const assistR = otherState.field.assist_lrig_r?.at(-1); if (assistR) protectionHosts.push(assistR);
+    if (otherState.field.key_piece) protectionHosts.push(otherState.field.key_piece);
+    const addMatching = (state: PlayerState, set: Set<string>, filter?: TargetFilter, only?: string) => {
+      for (let zi = 0; zi < state.field.signi.length; zi++) {
+        const top = state.field.signi[zi]?.at(-1);
+        if (!top || (only && top !== only)) continue;
+        if (!matchesStateFilter(state, zi, filter)) continue;
+        if (!matchesFilter(cardMap.get(top.includes('#') ? top.slice(0, top.indexOf('#')) : top), filter)) continue;
+        set.add(top);
+      }
+    };
+    for (const topNum of protectionHosts) {
       for (const eff of (effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
         if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, topNum)) continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
         if (act.type === 'STUB' && act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtected = true;
+        const p = act.type === 'STUB' ? act.powerModifyProtection : undefined;
+        if (p) {
+          const targets: Array<[PlayerState, PowerDeltaProtection]> = [];
+          if (p.subjectOwner === 'self' || p.subjectOwner === 'any') targets.push([otherState, otherPowerProtection]);
+          if (p.subjectOwner === 'opponent' || p.subjectOwner === 'any') targets.push([ownerState, ownerPowerProtection]);
+          for (const [state, protection] of targets) {
+            const only = p.thisCardOnly && state === otherState ? topNum : undefined;
+            if (p.thisCardOnly && state !== otherState) continue;
+            for (const direction of p.directions) addMatching(state, protection[direction]!, p.subjectFilter, only);
+          }
+        }
       }
     }
     // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: フィールド全シグニをprotectedセットに追加
@@ -1270,6 +1296,13 @@ export function calcFieldPowers(
         if (act.type === 'STUB' && act.id === 'PREVENT_OPP_POWER_PLUS') { blockOwnerPosDelta = true; break; }
       }
       if (blockOwnerPosDelta) break;
+    }
+    if (blockOwnerPosDelta) {
+      // PREVENT_OPP_POWER_PLUS（WXDi-P14-048「対戦相手の【常】能力の効果によって、シグニのパワーは＋されない」）は
+      // 「シグニ」＝両盤面の全シグニを対象とする。owner の正 CONT デルタを owner 側だけでなく other 側シグニにも
+      // ブロックする（旧 blockOwnerPosDelta の effectiveDelta=0 が両ターゲット経路に効いていた挙動を厳密に保つ）。
+      ownerPowerProtection.plus = allFieldSigniNums(ownerState);
+      for (const n of allFieldSigniNums(otherState)) otherPowerProtection.plus!.add(n);
     }
 
     // POWER_FLIP: otherState のシグニが POWER_FLIP CONT を持ち、ownerState（対戦相手）の自己バフを反転
@@ -1304,7 +1337,7 @@ export function calcFieldPowers(
         const driveNums = ownerState.lrig_riding_signi ?? [];
         for (const driveNum of driveNums) {
           if (powers.has(driveNum)) {
-            powers.set(driveNum, (powers.get(driveNum) ?? 0) + 3000);
+            applyDeltaToCard(driveNum, 3000, powers, ownerPowerProtection);
           }
         }
       }
@@ -1326,7 +1359,7 @@ export function calcFieldPowers(
           const level = parseInt(cardMap.get(cn)?.Level ?? '0', 10);
           return level === 4;
         }).length;
-        if (lv4Count >= 3) powers.set(topNum, (powers.get(topNum) ?? 0) + 2000);
+        if (lv4Count >= 3) applyDeltaToCard(topNum, 2000, powers, ownerPowerProtection);
       }
     }
 
@@ -1389,7 +1422,7 @@ export function calcFieldPowers(
                 if (!matchesFilter(cardMap.get(hostBase), rest)) continue;
               }
             }
-            powers.set(hostNum, (powers.get(hostNum) ?? 0) + pmAct.delta);
+            applyDeltaToCard(hostNum, pmAct.delta, powers, ownerPowerProtection);
           }
         }
       }
@@ -1505,7 +1538,7 @@ export function calcFieldPowers(
                 powers.has(topNum)) {
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const selfDelta = flipOwnerPosDelta && delta > 0 ? -delta : delta;
-              powers.set(topNum, (powers.get(topNum) ?? 0) + selfDelta);
+              applyDeltaToCard(topNum, selfDelta, powers, ownerPowerProtection);
             }
             continue;
           }
@@ -1515,7 +1548,7 @@ export function calcFieldPowers(
           const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
 
           // PREVENT_OPP_POWER_PLUS: otherState（相手）のCONTによる正デルタをブロック
-          const effectiveDelta = (blockOwnerPosDelta && delta > 0) ? 0 : delta;
+          const effectiveDelta = delta;
           // levelLtSelf/levelGtSelf（このシグニ/このルリグより低い/高いレベル）を効果元(topNum)基準で解決
           const contFilter = resolveContSelfLevel(target.filter, topNum, cardMap);
           if (effectiveDelta === 0 && delta !== 0) { /* ブロックされた正デルタ */ }
@@ -1524,10 +1557,10 @@ export function calcFieldPowers(
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
               applyDeltaToState(ownerState, ownerDelta, contFilter, cardMap, powers,
-                undefined, undefined, mod.excludeSelf ? topNum : undefined);
+                ownerPowerProtection, undefined, mod.excludeSelf ? topNum : undefined);
             }
             if (targetIsOther) {
-              applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtected, dblOtherMult);
+              applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtection, dblOtherMult);
             }
           }
         }
@@ -1544,13 +1577,13 @@ export function calcFieldPowers(
               const target = mod.target;
               if (target.count !== 'ALL') {
                 if ((target.owner === 'self' || target.owner === 'any') && powers.has(topNum)) {
-                  powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+                  applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
                 }
               } else {
                 if (target.owner === 'self' || target.owner === 'any')
-                  applyDeltaToState(ownerState, delta, target.filter, cardMap, powers);
+                  applyDeltaToState(ownerState, delta, target.filter, cardMap, powers, ownerPowerProtection);
                 if (target.owner === 'opponent' || target.owner === 'any')
-                  applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+                  applyDeltaToState(otherState, delta, target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
               }
             }
           }
@@ -1563,7 +1596,7 @@ export function calcFieldPowers(
           const stackBelow = stack ? stack.length - 1 : 0;
           if (stackBelow <= 0) continue;
           const stackDelta = mod.deltaPerCard * stackBelow;
-          applyDeltaToState(ownerState, stackDelta, mod.target.filter, cardMap, powers);
+          applyDeltaToState(ownerState, stackDelta, mod.target.filter, cardMap, powers, ownerPowerProtection);
         }
 
         // POWER_MODIFY_PER_LEVEL_SUM: 場の他シグニのレベル合計に比例したパワー増減
@@ -1583,7 +1616,7 @@ export function calcFieldPowers(
           }
           const delta = mod.deltaPerLevel * levelSum;
           if (delta !== 0 && powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1598,11 +1631,11 @@ export function calcFieldPowers(
           if (mod.target.count === 'ALL') {
             const tgtState = mod.target.owner === 'self' ? ownerState
               : mod.target.owner === 'opponent' ? otherState : ownerState;
-            const prot = tgtState === otherState ? otherPowerProtected : undefined;
+            const prot = tgtState === otherState ? otherPowerProtection : ownerPowerProtection;
             const mult = tgtState === otherState ? dblOtherMult : 1;
             applyDeltaToState(tgtState, delta, mod.target.filter, cardMap, powers, prot, mult);
           } else if (powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1632,7 +1665,7 @@ export function calcFieldPowers(
               );
           const delta = Math.floor(count / mod.unitSize) * mod.deltaPerUnit;
           if (delta !== 0 && powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1643,7 +1676,7 @@ export function calcFieldPowers(
           const count = lifeState.life_cloth.length;
           const delta = mod.deltaPerLife * count;
           if (delta !== 0 && powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1654,7 +1687,7 @@ export function calcFieldPowers(
           const unit = mod.unitSize > 0 ? mod.unitSize : 1;
           const delta = mod.deltaPerUnit * Math.floor(deckState.deck.length / unit);
           if (delta !== 0 && powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1665,7 +1698,7 @@ export function calcFieldPowers(
           const virusCount = (vState.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);
           const delta = mod.deltaPerVirus * virusCount;
           if (delta !== 0 && powers.has(topNum)) {
-            powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+            applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
           }
         }
 
@@ -1686,13 +1719,13 @@ export function calcFieldPowers(
           if (delta !== 0) {
             if (mod.target.count !== 'ALL') {
               if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
-                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+                applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
               }
             } else {
               const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
               const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
-              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
-              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
             }
           }
         }
@@ -1706,13 +1739,13 @@ export function calcFieldPowers(
           if (delta !== 0) {
             if (mod.target.count !== 'ALL') {
               if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
-                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+                applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
               }
             } else {
               const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
               const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
-              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
-              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
             }
           }
         }
@@ -1728,13 +1761,13 @@ export function calcFieldPowers(
           if (delta !== 0) {
             if (mod.target.count !== 'ALL') {
               if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
-                powers.set(topNum, (powers.get(topNum) ?? 0) + delta);
+                applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
               }
             } else {
               const tgtIsOwner = mod.target.owner === 'self' || mod.target.owner === 'any';
               const tgtIsOther = mod.target.owner === 'opponent' || mod.target.owner === 'any';
-              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers);
-              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtected, dblOtherMult);
+              if (tgtIsOwner) applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+              if (tgtIsOther) applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
             }
           }
         }
@@ -1752,7 +1785,7 @@ export function calcFieldPowers(
             const acceCount = (ownerState.field.signi_acce ?? []).filter(a => a !== null).length;
             const m = txt.match(/【アクセ】１枚につき[＋+]([０-９\d]+)/);
             if (m && acceCount > 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + acceCount * parseN(m[1]));
+              applyDeltaToCard(topNum, acceCount * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1761,7 +1794,7 @@ export function calcFieldPowers(
             const m = txt.match(/パワーは.*?レベル１につき[＋+]([０-９\d]+)/);
             if (m && powers.has(topNum)) {
               const effLv = levelMods.get(topNum) ?? (parseInt(card?.Level ?? '0', 10) || 0);
-              powers.set(topNum, (powers.get(topNum) ?? 0) + effLv * parseN(m[1]));
+              applyDeltaToCard(topNum, effLv * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1770,7 +1803,7 @@ export function calcFieldPowers(
             const riseCount = ownerState.field.signi.filter(s => (s?.length ?? 0) >= 2).length;
             const m = txt.match(/《ライズアイコン》.*シグニ１体につき[＋+]([０-９\d]+)/);
             if (m && riseCount > 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + riseCount * parseN(m[1]));
+              applyDeltaToCard(topNum, riseCount * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1779,7 +1812,7 @@ export function calcFieldPowers(
             const charmCount = (ownerState.field.signi_charms ?? []).filter(c => c !== null).length;
             const m = txt.match(/【チャーム】１枚につき[＋+]([０-９\d]+)/);
             if (m && charmCount > 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + charmCount * parseN(m[1]));
+              applyDeltaToCard(topNum, charmCount * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1795,7 +1828,7 @@ export function calcFieldPowers(
             }
             const m = txt.match(/色１種類につき[＋+]([０-９\d]+)/);
             if (m && colorSet.size > 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + colorSet.size * parseN(m[1]));
+              applyDeltaToCard(topNum, colorSet.size * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1808,7 +1841,7 @@ export function calcFieldPowers(
               : 0;
             const m = txt.match(/ルリグタイプ１つにつき[＋+]([０-９\d]+)/);
             if (m && typeCount > 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + typeCount * parseN(m[1]));
+              applyDeltaToCard(topNum, typeCount * parseN(m[1]), powers, ownerPowerProtection);
             }
           }
 
@@ -1846,7 +1879,7 @@ export function calcFieldPowers(
             }
             const totalPMPC = countPMPC * deltaPMPC;
             if (totalPMPC !== 0 && powers.has(topNum)) {
-              powers.set(topNum, (powers.get(topNum) ?? 0) + totalPMPC);
+              applyDeltaToCard(topNum, totalPMPC, powers, ownerPowerProtection);
             }
           }
 
@@ -1950,13 +1983,34 @@ function resolveContSelfLevel(
   return rest;
 }
 
+interface PowerDeltaProtection {
+  minus?: Set<string>;
+  plus?: Set<string>;
+}
+
+function allFieldSigniNums(state: PlayerState): Set<string> {
+  return new Set(state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []));
+}
+
+function applyDeltaToCard(
+  cardNum: string,
+  delta: number,
+  powers: Map<string, number>,
+  protection?: PowerDeltaProtection | Set<string>,
+) {
+  const p = protection instanceof Set ? { minus: protection } : protection;
+  if (delta < 0 && p?.minus?.has(cardNum)) return;
+  if (delta > 0 && p?.plus?.has(cardNum)) return;
+  powers.set(cardNum, (powers.get(cardNum) ?? 0) + delta);
+}
+
 function applyDeltaToState(
   state: PlayerState,
   delta: number,
   filter: TargetFilter | undefined,
   cardMap: Map<string, CardData>,
   powers: Map<string, number>,
-  powerProtectedNums?: Set<string>,
+  powerProtection?: PowerDeltaProtection | Set<string>,
   negMultiplier?: number,
   excludeNum?: string, // excludeSelf: 効果元カード自身を除外
 ) {
@@ -1971,8 +2025,9 @@ function applyDeltaToState(
     seen.add(topNum);
     if (topNum === excludeNum) continue;
     if (!powers.has(topNum)) continue;
-    // PREVENT_POWER_MINUS_BY_OPP: 相手効果による負のパワー修正を無効化
-    if (effectiveDelta < 0 && powerProtectedNums?.has(topNum)) continue;
+    const protection = powerProtection instanceof Set ? { minus: powerProtection } : powerProtection;
+    if (effectiveDelta < 0 && protection?.minus?.has(topNum)) continue;
+    if (effectiveDelta > 0 && protection?.plus?.has(topNum)) continue;
     // ゾーン状態フィルタ（isArmored / hasCharm / hasAcce / infected / isDown / isFrozen / isUp）
     if (!matchesStateFilter(state, zoneIdx, filter)) continue;
     const card = cardMap.get(topNum);
