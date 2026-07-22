@@ -107,6 +107,6 @@
 ## 関連ドキュメント
 - `docs/PLAN.md` §5 — P1残作業と完了判定の定義／§3 — モデル分担とタスク在庫（census外の残作業）
 - `docs/PLAN.md` §2 — DoD（全体の完了定義）
-- `docs/_p1_classification.txt` — 純§6.3効果96件・混在効果88件の実IDリスト（2026-07-16 効果単位）
+- `docs/_p1_classification.txt` — 純§6.3効果94件・混在効果76件の実IDリスト（2026-07-22 効果単位・本更新で再生成）
 - `docs/_vocab_census.txt` — census 高シグナル明細（`npm run census` で再生成）
 - `docs/_partial_triage.txt` — PARTIAL刻印152件の3分類（census 外の並行計器）
