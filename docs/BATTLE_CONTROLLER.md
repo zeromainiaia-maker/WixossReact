@@ -44,14 +44,16 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 
 移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-### reducer 純粋化＝進行中（40/114 commit が reduceBattle 経由）
+### reducer 純粋化＝進行中（58/114 commit が reduceBattle 経由）
 
-現在の `BattleAction`＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `WRITE_STATE`。
+現在の `BattleAction`（7種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `WRITE_STATE` / `SET_STACK` / `END_GAME`。
 
-- **単一フィールド遷移**（10箇所）＝setup_phase 遷移1・CPU終了ACK1・CPUじゃんけん1・turn_phase 遷移7。
-- **`WRITE_STATE`**（30箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`（相手状態併記）・`effectStack`（effect_stack 併記／null 明示でクリア）・`clearPending`（pending_effect クリア）。計算済みの `PlayerState`/`EffectStack` は payload で受け取り、パッチ組み立て（どのカラムへ・opp/スタック/pending を併せるか）を reducer が担う。単一キー `{[k]:s}` 15＋複合キー `{[k]:s,effect_stack,pending_effect}`/`{[myK]:m,[opK]:o[,effect_stack]}` 15 を移行。
+- **単一フィールド遷移**（11箇所）＝setup_phase 1・turn_phase 7・ACK_END 2（CPU自動＋手動 handleEndAck）・じゃんけん1。
+- **`WRITE_STATE`**（39箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`・`effectStack`（null 明示でクリア／省略で不干渉）・`clearPending`。条件付き opp（旧 `...(cond?{[opK]:x}:{})`）は `opp: cond ? {...} : undefined` として payload 側で表現。
+- **`SET_STACK`**（5箇所）＝effect_stack のみ書き換え。`settle:true` で `isStackDone(stack)?null:stack` の settle イディオムを reducer が適用（＝スタック解決判定を1箇所に集約・テスト可能化）。
+- **`END_GAME`**（3箇所）＝決着（`global_phase:'FINISHED'`＋`winner_id`＋最終盤面）。
 
-**残＝Stage3 実装の本体（74 commit）**＝名前付き `const update = {...}`（22）や、spread（`...update`/`...opUpdate`）・条件付き opp（`...(cond?{[opK]:x}:{})`）・WRITE_STATE 外のキー（`global_phase`/`winner_id`/`pending_spell`）を含む複雑パッチ。これらは payload 完結にならず、ハンドラ固有の分岐ロジックを action へ設計移送する個別作業＝約50ハンドラの複数セッションのテール。機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならない（ロジックがハンドラに残る）ため行わない。
+**残＝Stage3 実装の本体（56 commit）**＝(a) 名前付き `const update: Record<string, unknown> = {...}` の**命令的インクリメンタル構築**（`'X' in update` 判定・`update.host_state = {...}` 差し替え・条件付き pending/stack）＝約22ハンドラ (b) `pending_spell`/`pending_effect` オブジェクト（非 null）を含む遷移 (c) spread（`...opUsageUpdate`/`...update`）。**これらは payload 完結にならず、各ハンドラの命令的ロジックを宣言的 action へ再設計する個別作業**。⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的な一括変換は「サイレントな挙動変化」を検出できない。1件ずつ手動レビュー、または先にハンドラの挙動テストを用意してから進める（機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならないため行わない）。
 
 ## 4. 段階移行レシピ（残テール＝reducer 純粋化）
 
