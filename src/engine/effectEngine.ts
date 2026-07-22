@@ -4301,9 +4301,7 @@ export function collectEffectImmuneSigni(
       || (ex.sourceType === 'アーツ' && srcIsArts);
   };
 
-  for (const stack of state.field.signi) {
-    if (!stack?.length) continue;
-    const sourceNum = stack[stack.length - 1];
+  const collectFromCard = (sourceNum: string): void => {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
@@ -4341,7 +4339,16 @@ export function collectEffectImmuneSigni(
         immune.add(sourceNum);
       }
     }
+  };
+
+  // Share the exact GRANT_PROTECTION evaluation between signi hosts and the
+  // center-lrig host. A target-less protection adds only its own sourceNum.
+  for (const stack of state.field.signi) {
+    const sourceNum = stack?.at(-1);
+    if (sourceNum) collectFromCard(sourceNum);
   }
+  const lrigTop = state.field.lrig?.at(-1);
+  if (lrigTop) collectFromCard(lrigTop);
 
   // 一時付与（AUTO/ACTIVATED/スペル）の効果耐性: keyword_grants / keyword_grants_until_opp_turn の
   // 'PROTECTION:<種別>:<owner>' を読み、解決中ソース種別が該当する場の自シグニ／センタールリグを免疫に加える。

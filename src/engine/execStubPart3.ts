@@ -4358,6 +4358,10 @@ export function execStubPart3(
   // OPP_LRIG_LOSE_ABILITY: 相手ターンの場合、ターン終了時まで相手センタールリグは能力を失う（WX20-003）
   // カットインが未実装のため自ターンに発動することはないが、構造上は otherState にフラグをセット
   if (stub.id === 'OPP_LRIG_LOSE_ABILITY') {
+    const lrigTopId = ctx.otherState.field.lrig?.at(-1);
+    if (lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
+      return done(addLog(ctx, 'センタールリグは効果を受けない（能力消失無効）'));
+    }
     const newOther = { ...ctx.otherState, lrig_abilities_disabled: true };
     return done(addLog({ ...ctx, otherState: newOther }, '相手センタールリグはターン終了時まで能力を失う'));
   }

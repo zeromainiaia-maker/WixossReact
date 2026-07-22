@@ -125,6 +125,46 @@ function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m}
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
+test('(b) WX17-001: center lrig self-except effect immunity', () => {
+  const em = new Map(effectsMap);
+  const wx17 = mergeManualEffects('WX17-001', em.get('WX17-001') ?? []);
+  em.set('WX17-001', wx17);
+  const immunity = wx17.find(e => e.effectId === 'WX17-001-E1');
+  ok(!!immunity && immunity.action.type === 'GRANT_PROTECTION', 'WX17-001-E1 manual protection exists');
+  if (!immunity || immunity.action.type !== 'GRANT_PROTECTION') return;
+  eq(immunity.action.fromAll, true, 'all opponent effect types are covered');
+  eq(immunity.action.sourceOwner, 'opponent', 'own effects are outside the immunity');
+
+  const protectedState = mkState({});
+  protectedState.field.lrig = ['WX17-001'];
+  const sourceType = cardMap.get(SIGNI)?.Type ?? '';
+  const immune = collectEffectImmuneSigni(protectedState, mkState({}), cardMap as Map<string, CardData>, em, false, sourceType, SIGNI);
+  ok(immune.has('WX17-001'), 'lrig top is collected from its printed CONT effect');
+
+  const opponentCtx = { ...mkCtx({}, {}), otherState: protectedState, otherEffectImmuneNums: immune } as ExecCtx;
+  const freeze = run({ type: 'FREEZE', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction, opponentCtx);
+  eq(freeze.otherState.field.lrig_frozen, undefined, 'opponent FREEZE is blocked');
+  const down = run({ type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction, opponentCtx);
+  eq(down.otherState.field.lrig_down, undefined, 'opponent DOWN is blocked');
+  const loseAbility = run({ type: 'STUB', id: 'OPP_LRIG_LOSE_ABILITY' } as EffectAction, opponentCtx);
+  eq(loseAbility.otherState.lrig_abilities_disabled, undefined, 'opponent ability loss is blocked');
+
+  const selfCtx = { ...mkCtx({}, {}), ownerState: protectedState, otherEffectImmuneNums: immune } as ExecCtx;
+  const selfDown = run({ type: 'DOWN', target: { type: 'LRIG', owner: 'self', count: 1 } } as EffectAction, selfCtx);
+  eq(selfDown.ownerState.field.lrig_down, true, 'self-source effect is not blocked');
+
+  const normalLrig = findCard(c => c.Type === cardMap.get('WX17-001')?.Type && c.CardNum !== 'WX17-001');
+  const normalState = mkState({});
+  normalState.field.lrig = [normalLrig];
+  const normalImmune = collectEffectImmuneSigni(normalState, mkState({}), cardMap as Map<string, CardData>, em, false, sourceType, SIGNI);
+  ok(!normalImmune.has(normalLrig), 'ordinary lrig is not immune');
+  const normalCtx = { ...mkCtx({}, {}), otherState: normalState, otherEffectImmuneNums: normalImmune } as ExecCtx;
+  const normalFreeze = run({ type: 'FREEZE', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction, normalCtx);
+  eq(normalFreeze.otherState.field.lrig_frozen, true, 'ordinary lrig can still be frozen');
+  const normalDown = run({ type: 'DOWN', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction, normalCtx);
+  eq(normalDown.otherState.field.lrig_down, true, 'ordinary lrig can still be downed');
+});
+
 // PLAN §6.3 sub-case (d): an intervening optional step must not broaden a
 // designated target to every signi.
 test('(d) WXK10-080: +5000 is applied only to the selected Aquatic Beast', () => {

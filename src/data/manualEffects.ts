@@ -7,6 +7,12 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
+  // own-other-source part of "except itself" is near-inert and intentionally
+  // deferred; sourceOwner keeps the lrig's own effects from being blocked.
+  "WX17-001": [
+    {"effectId":"WX17-001-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   // PLAN §6.3 sub-case (d): designation survives the intervening optional reveal.
   // The zero-delta POWER_MODIFY is the existing count:1 field selector/recorder;
   // OPTIONAL_COST is an honest approximation of revealing two <Aquatic Beast> signi.
