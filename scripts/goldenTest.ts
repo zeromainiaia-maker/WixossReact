@@ -6209,7 +6209,7 @@ test('状態条件第4波（続き252 Claude 是正）: 誤合成フィルタ除
   ok(!j('WX05-052').includes('"level":{"min":4}'), 'WX05-052: サーチfilterにLv4残骸なし（原文は無条件シグニ）');
   ok(!j('WX05-073').includes('"level":{"min":4}'), 'WX05-073: +5000対象にLv4残骸なし（原文は全シグニ）');
   ok(j('WX16-036').includes('"color":"無"'), 'WX16-036: 無色フィルタ復元');
-  // parser（STATE_COND_BATCH4_ACTIONS）と curated の完全一致＝held ドリfranchiseを出さない構造保証
+  // parser（STATE_COND_BATCH4_ACTIONS）と curated の完全一致＝held ドリフトを出さない構造保証
   for (const card of ['WX05-052','WX05-073','WX16-036','WX24-P2-064','WDK05-T11']) {
     const fresh = parseCardEffects(cardMap.get(card)!);
     const cur = effectsMap.get(card)!;
