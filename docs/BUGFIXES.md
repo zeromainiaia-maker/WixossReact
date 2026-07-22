@@ -1,16 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
-## 状態条件節バッチ①第4波（センタールリグ／ターン内履歴／出自条件）（2026-07-22）
-
-- `OR` 条件を Condition/ActiveCondition・executor/continuous 評価器・逆翻訳へ追加。
-- `THIS_CARD_PLACED_BY_CLASS.cardClass` を optional 化。効果起因配置 writer は自身の効果による再配置も記録し、ターン境界でクリア。
-- `signi_played_from_deck`＋`THIS_CARD_FROM_DECK` を追加。デッキ直接配置／デッキトップ配置の双方で記録し、既存 trash 出自と同じターン境界でクリア。
-- G1 8効果、G2 5効果（betChoose 2効果は既に正しく無変更）、G3 5効果、G4 4効果を採用。WD23-017-EA は PARTIAL/PRESERVE のため効果単位直パッチで UNKNOWN も既存 action に復元。
-- golden 592、smoke 10722、fuzz 全0、census 1742、lint 0 errors/224 warnings、同型★0。force-adopt／未配線 action field は不使用。
-
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
 ---
+
+## 状態条件節バッチ①第4波：センタールリグ条件＋ターン内履歴/出自条件22効果（golden 590→593、census 1761→1742）（2026-07-22・続き252・Codex 実装＋Claude 是正）
+
+「センタールリグが〜の場合」「このターンに〜していた場合」「このシグニがデッキ/トラッシュから場に出た場合」系の条件丸ごと脱落を消化。候補28効果は投入前実測で全件真バグ。
+
+**採用22効果（Codex 実装）**＝G1 センタールリグ条件8（`AND[LRIG_LEVEL,LRIG_COLOR]` の choice.condition／対象化後ゲート／`LRIG_STORY` の「代わりに」then/else／**新設 `OR` 複合条件**＝「レベル1かレベル4」WX16-036）／G2 履歴・ベット5＋既存正解2（`SPELL_USED_THIS_TURN`・`THIS_CARD_FROM_TRASH` then/else＝4枚+6枚二重ミル解消・`IS_BETTING`＋WD23-017-EA の UNKNOWN 復元〔PARTIAL=PRESERVE＝直パッチ〕。WDK05-T10/WX18-003 の betChoose は**既に正しかった**と正直申告）／G3 効果出自5（`THIS_CARD_PLACED_BY_CLASS` の cardClass optional 化＝記録存在のみ判定。writer は自己再配置も記録するよう補正）／G4 デッキ出自4（**新設 `signi_played_from_deck`＋`THIS_CARD_FROM_DECK`**＝from_trash の鏡写し・SELECT_ZONE はデッキトップ配置専用経路と確認済み）。choice 潰れ2件（「1ドローかエナチャ1」等）も復元。
+
+**見送り（再検証済み）**＝WXK05-025-E2（デッキ下4枚コストの支払い経路無し）・WX15-006-E1（ベット時遅延トリガー2回化機構無し）・ブースト2枚（支払いフラグ/コストUI機構無し）・WX16-003-E1（「1回目の使用か」の判定タイミング）＋G6 新カウンタ要23効果（デッキ移動6・《X》支払5・アタック度数6ほか）は登録のみ。
+
+**⚠Claude 検証で検出→Claude 側で是正（codex 差し戻しを中断して直接修復）**：
+- **parser 完全未修正（ガードレール9違反）**＝22効果すべて JSON 直パッチのみで `effectParser.ts` に一切手が入っておらず、build:effects→heldReview を回すと **held 73→86 グループへ汚染**（codex 申告の「74」は stale ファイルの読み値＝申告と実測の乖離2連続）。drift の向きは「fresh が条件を失う」＝**将来 `--adopt` すると修正が剥がれる**危険な向き。→ **`STATE_COND_BATCH4_ACTIONS`**（curated と完全一致する action リテラル・effectId ゲート・batch2/3 の setAction リテラル方式と同系）を parser に固定し **held 73 復帰**を機械確認。
+- **誤合成の除去し忘れ3件**＝条件を足したのに旧誤合成 filter が target 側に残存：WX05-052-E1（サーチが Lv4+白限定＝原文は無条件「シグニ1枚」＝過小）・WX05-073-E1（全シグニ+5000 が Lv4+緑限定＝過小）・WX16-036-E1（「**無色の**シグニ」の無色欠落＝過剰）。JSON＋parser 両方を修正（無色は既存 `color:'無'`＝matchesFilter の Color includes で判定可を実測確認）。
+- golden +1（誤合成残骸なし＋fresh==curated の action 一致を5カードで構造固定）＝**593**。BASELINE_HIGH 1742 更新。
+
+**最終**＝変更集合22効果ちょうど（per-effect 機械diff・巻き添え0）・全ゲート緑（golden **593**・smoke 10722・fuzz 0・census **1742**・lint 0 errors/224・同型★0・**held 73 グループ**）。`npm run regen` 済。
 
 ## 状態条件節バッチ①第3波：盤面/ゾーン状態条件の丸ごと脱落33効果（golden 588→590、census 1792→1761）（2026-07-22・続き251・Codex 実装＋Claude 検証・修復4件）
 

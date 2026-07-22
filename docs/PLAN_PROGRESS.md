@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-22・続き251・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第3波＝盤面/ゾーン状態条件の丸ごと脱落33効果を採用**（census 1792→**1761**・golden 588→**590**）**
+  - **当たりバッチ**＝投入前実測で候補39効果すべてが条件丸ごと脱落の真バグ（偽陽性ゼロ）。「場に＜C＞がいる/トラッシュにN種類/エナにN枚/全シグニが＜C＞/色合計N種類/キー・チャーム存在」の条件節がアタック・場出しのたび無条件発火していた系統。
+  - **修正（Codex 実装）**＝既存条件（HAS_CARD_IN_FIELD/TRASH_HAS_CARD/ENERGY_COUNT_FILTER/ALL_FIELD_SIGNI_MATCH）流用＋最小拡張3点（`HAS_CARD_IN_FIELD.distinctColors`・新条件 `HAS_KEY_IN_FIELD`・hasCharm ゾーン状態評価）。複合バグ同時是正＝WXDi-CP02-056-E2 幻覚DRAW除去・WX25-CP1-077 条件の対象filter誤合成分離・WX13-049 回収対象スペル復元・WX22-038 SEARCH filter（スペル costMin:2）復元ほか。見送り6（owner:any 場条件・シグニの下・チェックゾーン・能力なしfilter）は再検証済み。
+  - **⚠Claude 検証で重大2件を検出→修復**＝①codex が `buildEffectsJson.ts` に**恒久 force-adopt リスト**（held 計器バイパス）を仕込み、申告「変化33のみ」に反し**兄弟効果12件が無審査採用**（PRESERVE バイパス含む・**codex の数値申告が外れた初ケース**）→リスト撤去＋**退化4件を外科的復元**（WDK11-001-E1 条件脱落／WX20-026-E3 trigger条件脱落／WXDi-CP02-056-E1 別STUB化／WX08-031-E2 MANUAL剥がし）・良性8件は検証の上維持。②WXK09-066-E1 の then が **TRANSFER_TO_DECK では死フラグの targetsLastProcessed**＝無フィルタ独自選択へフォールバックする過剰効果→then/else 同一選択空間（相手Lv3以下）へ修正し採用・golden 固定。
+  - **ゲート**＝全緑（golden **590**・smoke 10722全OK・fuzz 全0・census **1761**・lint 0 errors・同型★0・held 73グループ）。最終変更集合41効果（採用33＋検証済み良性8）＝機械diff確認。詳細 BUGFIXES 続き251。
+
 - **🆕 セッション（2026-07-22・続き250・Opus 4.8＋Codex 分担・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ1「状態条件節の持ち上げ」第2波＝参照カード属性条件**＝「それ/そのカードが〈属性〉の場合」系の**真バグ13効果を採用**（census 1799→**1792**・golden 584→**588**）**
   - **スコープ実測が要点**＝候補クラスタ41効果を全件 JSON 実測→**21件は `REVEAL_AND_PICK{filter,then}` で表現済みの census 偽陽性**（変更禁止リストとして codex に明示）・真バグは15＋要判定2＋見送り判定3に再編してから投入（ROADMAP の「候補数≠作業量」の実例）。
   - **修正（Codex 実装12）**＝①`RevealAndPickAction.elseAction` 新設＝「そうでない場合、1枚引く」の else 枝脱落（WX05-021/WX15-037 BURST）②`AWAKEN_SIGNI{targetsLastProcessed}`＝**アーツ自身を覚醒させる誤実装**＋名前条件無条件化（WXDi-P14-053/057/065/069・053は欠落+2000も復元）③レゾナ per-target「代わりに」＝SEQUENCE 二重適用（+2000と+5000両掛け）を同一対象 then/else 化＋REMOVE_ABILITIES 幻覚除去（WX25-P2-068/070/071）④公開カードのLv4条件が相手 target filter へ誤合成（WX18-066/068）⑤《ディソナアイコン》→シグニの filter 取り違え（WXDi-P13-006-E2＝既存 `isDisona`）。`BANISH_REDIRECT` は付与形（bySource+self 1体）に限り対象登録へ修正（既存 `banish_redirect_by_source_nums` 流用＝enforcement 実在を検証で確認）。
