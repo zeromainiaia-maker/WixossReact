@@ -16,7 +16,7 @@ interface HandActivatedModalProps {
 }
 
 export function HandActivatedModal(p: HandActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost, executeHandActivated } = p;
   return (
     <>
@@ -40,7 +40,7 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
               const selectedNums = [...selectedHandActivatedCost].map(i => my.energy[i]);
               const isValid = energyTotal === 0 ||
                 (selectedHandActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -77,7 +77,7 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedHandActivatedCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i}
                               onClick={() => {

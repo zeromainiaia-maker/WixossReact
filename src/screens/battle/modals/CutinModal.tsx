@@ -22,7 +22,7 @@ interface CutinModalProps {
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { bs, user, my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, toggleCutinCostCard } = p;
   return (
     <>
@@ -80,7 +80,7 @@ export function CutinModal(p: CutinModalProps) {
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる'
@@ -144,7 +144,7 @@ export function CutinModal(p: CutinModalProps) {
               const exceedOkModal = exceedCostModal === 0 || selectedCutinExceed.size === exceedCostModal;
               const isValid = exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -176,7 +176,7 @@ export function CutinModal(p: CutinModalProps) {
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedCutinCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i} onClick={() => toggleCutinCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}

@@ -24,7 +24,7 @@ interface LrigGrantedModalProps {
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, executeLrigGranted } = p;
   return (
     <>
@@ -52,7 +52,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const canAffordEnergy = energyTotal === 0
                 ? true
                 : selectedLrigGrantedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
               const totalExceedAvail = (my.field.lrig.length - 1)
                 + Math.max(0, (my.field.assist_lrig_l ?? []).length - 1)
                 + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);

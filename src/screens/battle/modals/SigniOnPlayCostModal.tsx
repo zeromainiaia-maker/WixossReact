@@ -39,7 +39,7 @@ interface SigniOnPlayCostModalProps {
 }
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
     <>
@@ -117,7 +117,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const energyOk = energyTotal === 0
                 ? true
                 : selectedSigniOnPlayCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
               const coinOk = coinNeeded === 0 || (pState.coins ?? 0) >= coinNeeded;
               const filterLabel = (f?: import('../../../types/effects').TargetFilter) => {
                 if (!f) return '';
@@ -189,7 +189,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         {pcEnergy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i}
                               data-testid={`onplaycost-energy-${i}`}

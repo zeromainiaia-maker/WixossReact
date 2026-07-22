@@ -16,7 +16,7 @@ interface TrashActivatedModalProps {
 }
 
 export function TrashActivatedModal(p: TrashActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors } = p.ctx;
   const { pendingTrashActivated, setPendingTrashActivated, selectedTrashActivatedCost, setSelectedTrashActivatedCost, executeTrashActivated } = p;
   return (
     <>
@@ -39,7 +39,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
               const selectedNums = [...selectedTrashActivatedCost].map(i => my.energy[i]);
               const isValid = energyTotal === 0 ||
                 (selectedTrashActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -73,7 +73,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedTrashActivatedCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i}
                               onClick={() => {

@@ -22,7 +22,7 @@ interface AssistGrowModalProps {
 }
 
 export function AssistGrowModal(p: AssistGrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showAssistGrowModal, setShowAssistGrowModal, pendingAssistGrowCard, setPendingAssistGrowCard, pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost, getAssistGrowCandidates, executeAssistGrow } = p;
   return (
     <>
@@ -44,7 +44,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
                     const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                    const canAfford = canAffordGrowCost(my.energy, battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -87,7 +87,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
                 const canAfford = energyTotal === 0
                   ? true
-                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
                 return (
                   <>
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -107,7 +107,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                           {my.energy.map((num, i) => {
                             const c = battleCardMap.get(num);
                             const isSel = selectedAssistGrowCost.has(i);
-                            const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                            const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                             return (
                               <div key={i} onClick={() => setSelectedAssistGrowCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
                                 onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}

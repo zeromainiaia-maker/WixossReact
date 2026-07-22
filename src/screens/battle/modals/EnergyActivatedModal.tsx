@@ -17,7 +17,7 @@ interface EnergyActivatedModalProps {
 }
 
 export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs } = p.ctx;
   const { pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost, executeEnergyActivated } = p;
   return (
     <>
@@ -57,7 +57,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
               const canAfford = energyTotal === 0
                 ? true
                 : selectedEnergyActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -92,7 +92,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
                           // アクセカード自身は選択対象から除外
                           if (num === pendingEnergyActivated.cardNum) return null;
                           const isSel = selectedEnergyActivatedCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i}
                               onClick={() => setSelectedEnergyActivatedCost(prev => {

@@ -24,7 +24,7 @@ interface GrowModalProps {
 }
 
 export function GrowModal(p: GrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard } = p;
   return (
     <>
@@ -59,7 +59,7 @@ export function GrowModal(p: GrowModalProps) {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
+                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -126,14 +126,14 @@ export function GrowModal(p: GrowModalProps) {
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
               const isValidNormal = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
               const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
                 selectedGrowCost.size === totalReq - 1 && (() => {
                   const subSigniId = growSubEnaSigni[0];
                   const subMap = new Map([[subSigniId, growSubInfo.substituteColor]]);
                   return canAffordGrowCost(
                     [...selectedNums, subSigniId], battleCards, reducedGrowCost,
-                    my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs,
+                    my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
                     undefined, undefined, subMap,
                   );
                 })());
@@ -175,7 +175,7 @@ export function GrowModal(p: GrowModalProps) {
                     ) : my.energy.map((num, i) => {
                       const card = battleCardMap.get(num);
                       const isSel = selectedGrowCost.has(i);
-                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                       return (
                         <div key={i} onClick={() => toggleGrowCostCard(i)}
                           onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}

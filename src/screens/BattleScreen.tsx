@@ -882,6 +882,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return false;
   }, [bs, effectsMap, user.id, battleCardMap]);
 
+  // 相手フィールドの WXK11-020 により、自分のエナは印字・付与を問わずマルチエナを失う。
+  const myEnaMultiStripped = useMemo(() => {
+    if (!bs) return false;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const opIsOwnerTurn = bs.active_user_id !== user.id;
+    const hasStripEffect = (cardNum: string) =>
+      (effectsMap.get(getCardNum(cardNum)) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' &&
+        e.action?.type === 'STUB' &&
+        (e.action as import('../types/effects').StubAction).id === 'STRIP_OPP_ENA_MULTI_ENA' &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, opS, myS, opIsOwnerTurn, battleCardMap, cardNum))
+      );
+    if (opS.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); })) return true;
+    const lrigTop = opS.field.lrig.at(-1);
+    return !!lrigTop && hasStripEffect(lrigTop);
+  }, [bs, effectsMap, user.id, battleCardMap]);
+
   // ── Rules of Hooks 対策：PLAYING セクション由来の hooks を if(!bs)/SETUP return より前に置く ──
 
   // CPU対戦: ゲーム終了時にCPUのACKを自動設定
@@ -3680,7 +3699,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return (gCoin === 0 || my.coins >= gCoin) &&
             // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
             // ＝原文「あなたが《X》を支払う際」はグロウコストを含む（タスク12(xxxvi)・続き206）。
-            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs,
+            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
               undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
         });
         if (hasAffordable) {
@@ -5805,7 +5824,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
       // マルチエナは全5色、無色エナは空配列として記録する。
       const paidEnergyColors = paidNums.map(num =>
-        isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti)
+        isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped)
           ? ['白', '赤', '青', '緑', '黒']
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
@@ -6325,7 +6344,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
       const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       // コスト支払い可能か（簡易チェック：エナで賄えるか）
-      const costOk = canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+      const costOk = canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
       if (canUse && condOk && costOk) {
         actions.push({
           label: '使用',
@@ -6358,8 +6377,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
-        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
+        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
       if (canUse && costOk) {
         actions.push({
           label: '使用',
@@ -6386,7 +6405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
       const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       if (canUse && canAfford) {
         actions.push({
           label: 'キーにセット',
@@ -8346,6 +8365,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, isCpuTurnNow, effectsMap, battleCardMap);
 
         // lrig_deckはinstance IDを持つのでgetCardNum()でCardNumに変換して照合
+        const cpuEnaMultiStripped = (() => {
+          const hasStripEffect = (cardNum: string) => (effectsMap.get(getCardNum(cardNum)) ?? []).some(e =>
+            e.effectType === 'CONTINUOUS' && e.action?.type === 'STUB' &&
+            (e.action as import('../types/effects').StubAction).id === 'STRIP_OPP_ENA_MULTI_ENA' &&
+            (!e.activeCondition || checkActiveCondition(e.activeCondition, huSt, cpuSt, false, battleCardMap, cardNum)));
+          return huSt.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); }) ||
+            (!!huSt.field.lrig.at(-1) && hasStripEffect(huSt.field.lrig.at(-1)!));
+        })();
+
         const growTargetId = cpuSt.lrig_deck.find(instanceId => {
           const cardNum = getCardNum(instanceId);
           const c = cards.find(card => card.CardNum === cardNum);
@@ -8355,7 +8383,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (currentLrigCard && !lrigClassesCompatible(currentLrigCard.CardClass, c.CardClass)) return false;
           // 【グロウ】条件チェック（人間グロウと同じ）: ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限
           if (!checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard ?? undefined, battleCardMap)) return false;
-          return canAffordGrowCost(cpuSt.energy, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed));
+          return canAffordGrowCost(cpuSt.energy, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed), undefined, undefined, cpuEnaMultiStripped);
         });
 
         if (growTargetId) {
@@ -10846,7 +10874,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     onBack();
   };
 
-  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions };
+  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions };
 
   return (
     <div style={{ height: '100vh', backgroundColor: C.bgApp, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

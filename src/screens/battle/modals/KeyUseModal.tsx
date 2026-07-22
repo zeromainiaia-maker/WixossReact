@@ -18,7 +18,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -35,7 +35,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
               const coinNeeded = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
               const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs));
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
                 <>
@@ -60,7 +60,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
                         {my.energy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedKeyCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i} onClick={() => setSelectedKeyCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}

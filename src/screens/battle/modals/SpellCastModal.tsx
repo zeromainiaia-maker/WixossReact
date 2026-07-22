@@ -20,7 +20,7 @@ interface SpellCastModalProps {
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
@@ -60,7 +60,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               const totalReq = baseSpellReq + firstSpellExtra;
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                  canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -97,7 +97,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                         {my.energy.map((num, i) => {
                           const card = battleCardMap.get(num);
                           const isSel = selectedSpellCost.has(i);
-                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                          const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
                             <div key={i} data-testid={`spellcost-energy-${i}`} onClick={() => toggleSpellCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}

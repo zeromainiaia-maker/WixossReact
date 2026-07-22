@@ -27,6 +27,7 @@ export interface BattleModalCtx {
   battleCardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
   myEnaAllMulti: boolean;
+  myEnaMultiStripped: boolean;
   myColorlessOverrides: string[];
   myColorSubs: { from: string[]; to: string }[];
   pickLongPressTimer: MutableRefObject<ReturnType<typeof setTimeout> | null>;

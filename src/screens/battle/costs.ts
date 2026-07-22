@@ -236,7 +236,8 @@ export function computeArtsEffectiveCost(
 // 2. カード自身の CONTINUOUS GRANT_KEYWORD マルチエナ（count!='ALL' = 自身のみ）
 // 3. EffectText に「：【マルチエナ】」パターン（effects.json 未登録カードへのフォールバック）
 // 4. keyword_grants で動的付与された場合
-export function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean): boolean {
+export function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean, stripped?: boolean): boolean {
+  if (stripped) return false;
   if (allMulti) return true;
   const card = cards.find(c => c.CardNum === getCardNum(cardNum));
   if (card) {
@@ -260,6 +261,7 @@ export function canAffordGrowCost(
   growCost: string,
   keywordGrants?: Record<string, string[]>,
   allMulti?: boolean,
+  stripped?: boolean,                 // 相手効果によるマルチエナ喪失（印字・付与とも無効）
   colorlessOverrides?: string[],
   colorSubs?: { from: string[]; to: string }[],
   extraColorMap?: Map<string, string>,
@@ -280,7 +282,7 @@ export function canAffordGrowCost(
     const extraColor = extraColorMap?.get(n) ?? trashSubColors?.get(n);
     return {
       color: isColorless ? '無' : (c?.Color ?? '無'),
-      isWild: (!isColorless && isMultiEna(n, cards, keywordGrants, allMulti)) || isTrashWild,
+      isWild: (!isColorless && isMultiEna(n, cards, keywordGrants, allMulti, stripped)) || isTrashWild,
       extraColor,
     };
   });
@@ -369,6 +371,7 @@ export function canAffordWithExtraCost(
   extraCosts: { color: string; count: number }[],
   keywordGrants?: Record<string, string[]>,
   allMulti?: boolean,
+  stripped?: boolean,
   colorlessOverrides?: string[],
   colorSubs?: { from: string[]; to: string }[],
   extraColorMap?: Map<string, string>,
@@ -376,7 +379,7 @@ export function canAffordWithExtraCost(
   trashSubColors?: Map<string, string>,
   extraWildCount?: number,
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -402,7 +405,7 @@ export function canAffordWithExtraCost(
       return false;
     }
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
 }
 
 // EnergyCost[] を growCost 文字列に変換（altCostOppTurn 用）

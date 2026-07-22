@@ -31,7 +31,7 @@ interface ArtsModalProps {
 }
 
 export function ArtsModal(p: ArtsModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
   return (
     <>
@@ -65,7 +65,7 @@ export function ArtsModal(p: ArtsModalProps) {
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
-                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                    const canAfford = canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betSpecBadge = parseBetOptions(card.EffectText ?? '');
                     const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
@@ -162,11 +162,11 @@ export function ArtsModal(p: ArtsModalProps) {
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
-                    return c?.Color?.includes(req.color) || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti);
+                    return c?.Color?.includes(req.color) || isMultiEna(n, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                   }).length >= req.count
                 ));
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
@@ -284,7 +284,7 @@ export function ArtsModal(p: ArtsModalProps) {
                     ) : my.energy.map((num, i) => {
                       const card = battleCardMap.get(num);
                       const isSel = selectedArtsCost.has(i);
-                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti);
+                      const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                       const isTrashWild = myEnergyTrashSubInfo.wildcardInstIds.has(num);
                       const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
                       const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
