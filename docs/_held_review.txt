@@ -796,19 +796,6 @@ WX16-005
   + [0].action.choices[0].action.target.upToCount = false
   …（他 24 行）
 
-## +LIFE_COUNT +UNKNOWN -STUB ［1枚］
-WX16-Re20
---- WX16-Re20
-  原文: あなたのライフクロスが２枚以下の場合、このアーツは追加で《アタックフェイズアイコン》を持つ。あなたのトラッシュからシグニ３枚を対象とし、あなたの場にシグニがない場合、それらを能力を持たないシグニとして場に出す。ターン終了時、それらを場からトラッシュに置く。,-
-  - [0].action.steps[0].id = "CONDITIONAL_ARTS_COST"
-  + [0].condition.type = "LIFE_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "lte"
-  + [0].condition.value = 2
-  ~ [0].action.steps[0].type : "STUB" → "UNKNOWN"
-  + [0].action.steps[0].raw = "このアーツは追加で《アタックフェイズアイコン》を持つ"
-  ~ [0].parseStatus : "AUTO" → "PARTIAL"
-
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
 --- WX17-005
@@ -957,24 +944,6 @@ WXDi-P00-044
   + [1].action.then.type = "DRAW"
   + [1].action.then.owner = "self"
   …（他 1 行）
-
-## -CONDITIONAL ［1枚］
-WXDi-P01-007
---- WXDi-P01-007
-  原文: あなたのライフクロスが０枚の場合、対戦相手のルリグかシグニ１体を対象とし、それをダウンする。,-
-  - [0].action.condition.type = "LIFE_COUNT"
-  - [0].action.condition.owner = "self"
-  - [0].action.condition.operator = "eq"
-  - [0].action.condition.value = 0
-  - [0].action.then.type = "DOWN"
-  - [0].action.then.target.type = "CENTER_LRIG_OR_SIGNI"
-  - [0].action.then.target.owner = "opponent"
-  - [0].action.then.target.count = 1
-  + [0].condition.type = "LIFE_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "eq"
-  + [0].condition.value = 0
-  …（他 4 行）
 
 ## -CHOOSE -DECK_CARD -SEQUENCE -TRASH ［1枚］
 WXDi-P01-044
@@ -1135,6 +1104,24 @@ WXDi-P11-003
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
   ~ [0].action.steps[1].choices[2].action.source.type : "SIGNI" → "TRASH_CARD"
   + [0].action.steps[1].choices[2].action.position = "top"
+
+## +CONDITIONAL +TURN_OWNER -GRANT_KEYWORD -SIGNI ［1枚］
+WXDi-P11-038
+--- WXDi-P11-038
+  原文: 【出】：あなたのターンの場合、次の対戦相手のターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋10000する。」を得る。【出】：対戦相手のターンの場合、ターン終了時まで、このルリグは「【常】：あなたのシグニは【シャドウ】を得る。」を得る。,-
+  - [1].action.abilities[0].effectId = "WXDi-P11-038-sub-E1"
+  - [1].action.abilities[0].effectType = "CONTINUOUS"
+  - [1].action.abilities[0].action.type = "GRANT_KEYWORD"
+  - [1].action.abilities[0].action.target.type = "SIGNI"
+  - [1].action.abilities[0].action.target.owner = "self"
+  - [1].action.abilities[0].action.target.count = "ALL"
+  - [1].action.abilities[0].action.keyword = "シャドウ"
+  - [1].action.abilities[0].action.duration = "PERMANENT"
+  - [1].action.abilities[0].duration = "PERMANENT"
+  - [1].action.abilities[0].mandatory = true
+  - [1].action.abilities[0].parseStatus = "AUTO"
+  - [1].action.rawText = "【常】：あなたのシグニは【シャドウ】を得る。"
+  …（他 5 行）
 
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［1枚］
 WXDi-P12-007

@@ -4,7 +4,7 @@
 
 ---
 
-## 状態条件節持ち上げ バッチ①第1波：`TURN_OWNER` 新設＋`LIFE_COUNT` 拡張（25採用・2見送り、golden 579→584、census 1817→1799）（2026-07-22・Codex）
+## 状態条件節持ち上げ バッチ①第1波：`TURN_OWNER` 新設＋`LIFE_COUNT` 拡張（25採用・2見送り、golden 579→584、census 1817→1799）（2026-07-22・続き249・Codex 実装＋Claude 検証）
 
 ターン所有者条件17効果とライフクロス枚数条件8効果で、条件節が parser から脱落し無条件発火していた過剰効果を是正した。既存の多義的 `IS_MY_TURN` / `IS_OPPONENT_TURN` は変更せず、action `Condition` に `TURN_OWNER{owner:self|opponent}` を追加。`ExecCtx.isOwnerTurn?` を BattleScreen の初回解決・interaction再開・スペル・カットインへ配線し、未設定時は permissive true とした。選択肢条件は既存 `choice.condition`、ライフ条件は既存 `LIFE_COUNT` / `ENERGY_COUNT` / `AND` を使用。パワーちょうど20000は既存 `SELF_POWER_GTE` に optional `operator:'eq'` を追加した。`WXK11-019-BURST` は条件付き then/else replacement、`WXDi-P01-004-E1` は availability 条件として採用。`WX11-026-E2` は MANUAL 同居カードのため parser 修正と minified JSON 手術を併用した。
 
