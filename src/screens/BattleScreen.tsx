@@ -3190,6 +3190,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
+          banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
           banish_redirect_by_source_nums: undefined, // 限定付きバニッシュ先変更（このシグニとのバトル）をクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
           banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
@@ -3543,6 +3544,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevent_next_damage: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
+        banish_redirect_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
         double_power_minus_this_turn: undefined, no_grow: undefined,

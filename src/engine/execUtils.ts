@@ -112,6 +112,9 @@ export function banishDestination(
     effectivePowers?: Map<string, number>;
   },
 ): { state: PlayerState; log: string } {
+  if (opponent.banish_redirect_target_nums?.includes(num)) {
+    return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
+  }
   if (opponent.banish_redirect === true) {
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }

@@ -7,6 +7,19 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // PLAN §6.3 BANISH_REDIRECT target scope: retain the selected opposing signi for this turn.
+  "WX25-P2-060": [
+    {"effectId":"WX25-P2-060-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":1,"filter":{"cardType":"シグニ","story":"凶蟲"}}},"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+  ],
+  "WXDi-P12-054": [
+    {"effectId":"WXDi-P12-054-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"残黒の巫女　タマヨリヒメ"}},"then":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXDi-P15-044": [
+    {"effectId":"WXDi-P15-044-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXK06-048": [
+    {"effectId":"WXK06-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+  ],
   // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
   // own-other-source part of "except itself" is near-inert and intentionally
   // deferred; sourceOwner keeps the lrig's own effects from being blocked.

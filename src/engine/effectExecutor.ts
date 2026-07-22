@@ -4475,6 +4475,12 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
     case 'BANISH_REDIRECT': {
       const brAction = action as BanishRedirectAction;
+      // 「相手のシグニ1体を対象とし、このターン、それが…」は選択対象だけを保持する。
+      if (!brAction.bySource && brAction.redirectTo === 'trash' && brAction.target.owner === 'opponent' && brAction.target.count === 1) {
+        const cands = fieldCandidates(ctx.otherState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
+          ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+        return selectOrInteract(cands, 1, brAction.target.upToCount ?? false, 'opp_field', brAction, undefined, ctx);
+      }
       // 付与形「シグニ1体を対象とし、それは能力を得る」：対象シグニ自身を redirect 発生源として登録する。
       if (brAction.bySource && brAction.target.owner === 'self' && brAction.target.count === 1) {
         const cands = fieldCandidates(ctx.ownerState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
@@ -5188,6 +5194,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
   switch (action.type) {
     case 'BANISH_REDIRECT': {
       const br = action as BanishRedirectAction;
+      if (!br.bySource && br.redirectTo === 'trash' && br.target.owner === 'opponent' && br.target.count === 1) {
+        const prev = ctx.ownerState.banish_redirect_target_nums ?? [];
+        const newOwner = { ...ctx.ownerState,
+          banish_redirect_target_nums: prev.includes(cardNum) ? prev : [...prev, cardNum] };
+        return done({ ...addLog({ ...ctx, ownerState: newOwner }, `${cardNum}のバニッシュ先をこのターン、トラッシュへ変更`),
+          lastProcessedCards: [cardNum] });
+      }
       if (!br.bySource || !ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) return done(ctx);
       const prev = ctx.ownerState.banish_redirect_by_source_nums ?? [];
       const newOwner = { ...ctx.ownerState,

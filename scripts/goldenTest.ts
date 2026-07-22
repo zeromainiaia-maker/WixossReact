@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, matchesFilter } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
@@ -5879,6 +5879,56 @@ test('BANISH_REDIRECT 効果経路: holder の【常】置換を走査しトラ�
     const { state: onAtk } = banishDestination(victim, holder, V, { cardMap: cm, banished: attrs(), turnPhase: 'ATTACK_SIGNI' });
     ok(onAtk.trash.includes(V), 'DURING_ATTACK_PHASE + アタックフェイズ: トラッシュへ');
   }
+});
+test('BANISH_REDIRECT 属性4種: 除去前state由来の属性一致だけトラッシュへ（PLAN §6.3(a)）', () => {
+  const HOLDER = 'BR-ATTR-HOLDER';
+  const HIT = 'BR-ATTR-HIT';
+  const MISS = 'BR-ATTR-MISS';
+  const filters = [
+    { name: 'level', filter: { cardType: 'シグニ', level: { max: 1 } }, hitLevel: '1', missLevel: '2' },
+    { name: 'frozen', filter: { cardType: 'シグニ', isFrozen: true }, hitLevel: '3', missLevel: '3', stateKey: 'signi_frozen' },
+    { name: 'charm', filter: { cardType: 'シグニ', hasCharm: true }, hitLevel: '3', missLevel: '3', stateKey: 'signi_charms' },
+    { name: 'infected', filter: { cardType: 'シグニ', infected: true }, hitLevel: '3', missLevel: '3', stateKey: 'signi_virus' },
+  ] as const;
+  for (const spec of filters) {
+    const effect = { effectId: `br-${spec.name}`, effectType: 'CONTINUOUS', action: {
+      type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: spec.filter },
+      redirectTo: 'trash', until: 'PERMANENT',
+    }, duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL' } as unknown as CardEffect;
+    const cm = new Map(cardMap as Map<string, CardData>);
+    cm.set(HOLDER, { CardNum: HOLDER, Type: 'シグニ', Power: '5000', Level: '3', effects: [effect] } as unknown as CardData);
+    cm.set(HIT, { CardNum: HIT, Type: 'シグニ', Power: '5000', Level: spec.hitLevel } as unknown as CardData);
+    cm.set(MISS, { CardNum: MISS, Type: 'シグニ', Power: '5000', Level: spec.missLevel } as unknown as CardData);
+    const holder = mkState({ signi: [HOLDER, null, null] });
+    const withAttr = (num: string, enabled: boolean) => {
+      const base = mkState({ signi: [num, null, null] });
+      if (!('stateKey' in spec)) return base;
+      const value = spec.stateKey === 'signi_charms' ? (enabled ? ['CHARM', null, null] : [null, null, null])
+        : spec.stateKey === 'signi_virus' ? (enabled ? [1, 0, 0] : [0, 0, 0])
+        : (enabled ? [true, false, false] : [false, false, false]);
+      return { ...base, field: { ...base.field, [spec.stateKey]: value } } as PlayerState;
+    };
+    const hitBefore = withAttr(HIT, true);
+    const missBefore = withAttr(MISS, false);
+    const hitCtx = { ...mkCtx({}, {}), cardMap: cm } as ExecCtx;
+    const hit = banishDestination(mkState({}), holder, HIT, banishRedirectOpts(hitCtx, hitBefore, HIT)).state;
+    const miss = banishDestination(mkState({}), holder, MISS, banishRedirectOpts(hitCtx, missBefore, MISS)).state;
+    ok(hit.trash.includes(HIT) && !hit.energy.includes(HIT), `${spec.name}一致: トラッシュ`);
+    ok(miss.energy.includes(MISS) && !miss.trash.includes(MISS), `${spec.name}不一致: エナ`);
+  }
+});
+test('BANISH_REDIRECT 単体対象: 選択した相手シグニだけをこのターン保持して配送する（PLAN §6.3(b)）', () => {
+  const selected = SIGNI;
+  const unselected = SIGNI_P3000;
+  const action = { type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN' } as EffectAction;
+  const result = run(action, mkCtx({}, { signi: [selected, unselected, null] }));
+  const owner = result.ownerState as PlayerState;
+  eq((owner.banish_redirect_target_nums ?? []).join(','), selected, '選択対象だけを保持');
+  eq(owner.banish_redirect, undefined, '全体フラグは立てない');
+  const selectedDest = banishDestination(mkState({}), owner, selected).state;
+  const otherDest = banishDestination(mkState({}), owner, unselected).state;
+  ok(selectedDest.trash.includes(selected) && !selectedDest.energy.includes(selected), '選択対象はトラッシュ');
+  ok(otherDest.energy.includes(unselected) && !otherDest.trash.includes(unselected), '非選択対象はエナ');
 });
 test('BANISH_REDIRECT bySource: 実行時は無条件フラグではなく発生源シグニ限定リストへ積む', () => {
   const ctx = { ...mkCtx({}, {}), sourceCardNum: 'SRC-001' };
