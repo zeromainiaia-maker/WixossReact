@@ -6759,6 +6759,17 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: {} as PlayerState });
     ok(!('effect_stack' in patch), '省略時は effect_stack キー無し');
   });
+  test('Stage3 reduceBattle SET_STACK: settle=true は解決済みを null 化・未解決は温存', () => {
+    const doneStk = { orderTurnDone: true, orderOppDone: true, queue: [] } as unknown as EffectStack;
+    const liveStk = { orderTurnDone: true, orderOppDone: true, queue: [{}] } as unknown as EffectStack;
+    eq(reduceBattle(stub, { type: 'SET_STACK', stack: doneStk, settle: true }).effect_stack, null, '解決済み→null');
+    eq(reduceBattle(stub, { type: 'SET_STACK', stack: liveStk, settle: true }).effect_stack, liveStk, '未解決→温存');
+  });
+  test('Stage3 reduceBattle SET_STACK: settle 無しは素通し（null 含む）', () => {
+    const stk = { orderTurnDone: true, orderOppDone: true, queue: [] } as unknown as EffectStack;
+    eq(reduceBattle(stub, { type: 'SET_STACK', stack: stk }).effect_stack, stk, '解決済みでも settle なしは素通し');
+    eq(reduceBattle(stub, { type: 'SET_STACK', stack: null }).effect_stack, null, 'null 素通し');
+  });
   test('Stage3 reduceBattle END_GAME: FINISHED＋winner＋最終盤面', () => {
     const my = { a: 1 } as unknown as PlayerState;
     const op = { b: 2 } as unknown as PlayerState;
