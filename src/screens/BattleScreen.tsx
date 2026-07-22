@@ -7313,7 +7313,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           } else {
             // ライフなし → 相手の敗北
             appendBattleLogs([`${myCardName}がアタック：相手のライフなし → 相手の敗北`]);
-            await persist.commit({ [myKey]: newMyState, global_phase: 'FINISHED', winner_id: attackerId });
+            await persist.commit(reduceBattle(bs, { type: 'END_GAME', winnerId: attackerId, myKey, myState: newMyState }));
             return;
           }
         } else {
