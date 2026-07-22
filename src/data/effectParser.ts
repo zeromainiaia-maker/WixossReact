@@ -2715,6 +2715,44 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
 }
 
 // 状態条件節バッチ①第3波。候補カードだけを effectId まで固定して補正する。
+
+// ── 状態条件節バッチ①第4波（続き252）＝センタールリグ条件・ターン内履歴/出自条件の補正 ──────────
+// Codex 実装（続き252）が JSON 直パッチのみで parser 未修正（ガードレール9違反）だったため、
+// Claude 是正で curated と完全一致する action リテラルを parser 側の source of truth として固定する
+// （batch2/3 の setAction リテラル方式と同系。fresh==curated を保証し held ドリフトを出さない）。
+// 内容＝choice.condition（LRIG_LEVEL/LRIG_COLOR の AND・LRIG_LEVEL の OR）／CONDITIONAL ゲート
+// （SPELL_USED_THIS_TURN・THIS_CARD_FROM_TRASH then/else・THIS_CARD_PLACED_BY_CLASS(cardClass省略)・
+// THIS_CARD_FROM_DECK）。WD23-017-EA-E1 は PARTIAL＝PRESERVE のため対象外（直パッチのみ）。
+const STATE_COND_BATCH4_ACTIONS: Record<string, string> = {
+  'WX05-052-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2},"color":"白"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"白"}]}}]}',
+  'WX05-059-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"赤"}]},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}}}]}',
+  'WX05-066-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":3},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"青"}]}}]}',
+  'WX05-073-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000}},{"choiceId":"c1","label":"選択肢2","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"緑"}]}}]}',
+  'WX09-018-E2': '{"type":"CONDITIONAL","condition":{"type":"SPELL_USED_THIS_TURN","owner":"self","minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}',
+  'WX11-011-E1': '{"type":"CONDITIONAL","condition":{"type":"LRIG_STORY","owner":"self","story":"イオナ"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":4},"color":"白"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"else":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2},"color":"白"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}',
+  'WX11-012-E1': '{"type":"CONDITIONAL","condition":{"type":"LRIG_STORY","owner":"self","story":"タマ"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"あなたが《無》《無》《無》《無》を支払わないかぎりアタックできない","duration":"UNTIL_END_OF_TURN"},"else":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"あなたが《無》《無》《無》を支払わないかぎりアタックできない","duration":"UNTIL_END_OF_TURN"}}',
+  'WX14-026-E2': '{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LAST_PROCESSED_MATCHES","filter":{"story":["鉱石","宝石"]}},{"type":"LRIG_COLOR","owner":"self","color":"赤"}]},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"}}]}',
+  'WX16-036-E1': '{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"condition":{"type":"OR","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":1},{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":4}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"DRAW","owner":"self","count":1},"condition":{"type":"OR","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":2},{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":4}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"無"}}},"condition":{"type":"OR","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"eq","value":4}]}}]}',
+  'WX21-037-E1': '{"type":"CONDITIONAL","condition":{"type":"SPELL_USED_THIS_TURN","owner":"self","minCount":3},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}}',
+  'WX25-P2-061-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_TRASH"},"then":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":6}},"else":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":4}}}',
+  'WXDi-P07-089-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_TRASH"},"then":{"type":"DRAW","owner":"self","count":1}}',
+  'WX24-P2-064-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000,"duration":"UNTIL_OPP_TURN_END"}}',
+  'WX24-P2-077-E2': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS"},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"draw","label":"カードを1枚引く","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"discard","label":"対戦相手は手札を1枚捨てる","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}}]}}',
+  'WX25-P2-083-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS"},"then":{"type":"DRAW","owner":"self","count":1}}',
+  'WX25-P2-094-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}',
+  'WX24-P4-073-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_PLACED_BY_CLASS"},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom"}}',
+  'WDK05-T11-E2': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"draw","label":"カードを1枚引く","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"energy","label":"エナチャージ1","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]}}',
+  'WX18-037-E3': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"color":"黒"}}}}',
+  'WXK02-043-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}',
+  'WXK05-031-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"遊具"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}',
+};
+function applyStateCondBatch4(effects: CardEffect[]): void {
+  for (const e of effects) {
+    const s = STATE_COND_BATCH4_ACTIONS[e.effectId];
+    if (s) e.action = JSON.parse(s) as EffectAction;
+  }
+}
+
 function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void {
   const find = (id: string) => effects.find(e => e.effectId === id);
   const gate = (id: string, condition: Condition): void => { const e = find(id); if (!e) return; if (e.action.type === 'CONDITIONAL' && e.action.condition.type === condition.type) return; e.action = { type: 'CONDITIONAL', condition, then: e.action }; };
@@ -6103,6 +6141,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
+  applyStateCondBatch4(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

@@ -6203,6 +6203,19 @@ test('状態条件第4波: 対象カードの IS_BETTING ゲートと betChoose 
     eq(a.betChoose?.thenChooseCount, 2, `${id} ベット時2択`);
   }
 });
+test('状態条件第4波（続き252 Claude 是正）: 誤合成フィルタ除去と parser/curated 一致', () => {
+  // 条件を choice.condition へ持ち上げた後、target/filter 側に誤合成された lrig 条件の残骸を残さない。
+  const j = (card: string) => JSON.stringify(effectsMap.get(card) ?? []);
+  ok(!j('WX05-052').includes('"level":{"min":4}'), 'WX05-052: サーチfilterにLv4残骸なし（原文は無条件シグニ）');
+  ok(!j('WX05-073').includes('"level":{"min":4}'), 'WX05-073: +5000対象にLv4残骸なし（原文は全シグニ）');
+  ok(j('WX16-036').includes('"color":"無"'), 'WX16-036: 無色フィルタ復元');
+  // parser（STATE_COND_BATCH4_ACTIONS）と curated の完全一致＝held ドリfranchiseを出さない構造保証
+  for (const card of ['WX05-052','WX05-073','WX16-036','WX24-P2-064','WDK05-T11']) {
+    const fresh = parseCardEffects(cardMap.get(card)!);
+    const cur = effectsMap.get(card)!;
+    eq(JSON.stringify(fresh.map(e=>e.action)), JSON.stringify(cur.map(e=>e.action)), `${card}: fresh==curated (action)`);
+  }
+});
 test('LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: lastProcessed が指定 owner のセンタールリグと共通色でのみ true', () => {
   const redCard = 'WD02-009'; // 赤シグニ
   const redLrig = 'WD02-001'; // 赤ルリグ
