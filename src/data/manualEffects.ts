@@ -7,6 +7,18 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // PLAN §6.3 sub-case (d): designation survives the intervening optional reveal.
+  // The zero-delta POWER_MODIFY is the existing count:1 field selector/recorder;
+  // OPTIONAL_COST is an honest approximation of revealing two <Aquatic Beast> signi.
+  "WXK10-080": [
+    {"effectId":"WXK10-080-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"水獣"}},"delta":0},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"costText":"手札から＜水獣＞のシグニを2枚公開してもよい"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"targetsLastProcessed":true,"delta":5000,"duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+
+  // BET gives one selected signi a temporary CONT protection ability. The
+  // all-signi +2000 remains the first step; only the granted ability is count:1.
+  "WD18-008": [
+    {"effectId":"WD18-008-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000,"duration":"UNTIL_END_OF_TURN"},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WD18-008-E1-GRANT","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_PROTECTION","fromAll":true,"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
   // WXK11-020 羅星姫 ≡コスモウス≡：相手エナの印字・付与マルチエナをすべて失わせる。
   // 「相手の効果を受けない」の非マルチエナ部分は実在対象がほぼない near-inert な耐性のため、
   // 同じ honest STUB に保持して defer（別の近似アクションは追加しない）。支払い経路は costs.ts で実装。

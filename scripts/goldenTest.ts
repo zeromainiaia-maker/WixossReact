@@ -125,6 +125,40 @@ function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m}
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
+// PLAN §6.3 sub-case (d): an intervening optional step must not broaden a
+// designated target to every signi.
+test('(d) WXK10-080: +5000 is applied only to the selected Aquatic Beast', () => {
+  const aquatic = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('水獣')).map(c => c.CardNum);
+  ok(aquatic.length >= 2, 'Aquatic Beast fixtures');
+  const eff = mergeManualEffects('WXK10-080', effectsMap.get('WXK10-080') ?? []).find(e => e.effectId === 'WXK10-080-E1');
+  ok(!!eff, 'WXK10-080-E1 manual effect');
+  const seq = eff!.action as SequenceAction;
+  const select = seq.steps[0] as { target?: { count?: number } };
+  eq(select.target?.count, 1, 'designation is count:1');
+  const buff = (seq.steps[2] as { then: EffectAction }).then;
+  const r = run(buff, { ...mkCtx({ signi: [aquatic[0], aquatic[1], null] }, {}, 'WXK10-080'), lastProcessedCards: [aquatic[0]] });
+  const plus = (r.ownerState.temp_power_mods ?? []).filter(m => m.delta === 5000);
+  eq(plus.length, 1, `only one +5000 mod: ${JSON.stringify(plus)}`);
+  eq(plus[0]?.cardNum, aquatic[0], 'the selected first candidate receives +5000');
+  ok(!plus.some(m => m.cardNum === aquatic[1]), 'the other signi does not receive +5000');
+});
+
+test('(d) WD18-008: BET protection ability is granted to one selected signi only', () => {
+  const eff = mergeManualEffects('WD18-008', effectsMap.get('WD18-008') ?? []).find(e => e.effectId === 'WD18-008-E1');
+  ok(!!eff, 'WD18-008-E1 manual effect');
+  const seq = eff!.action as SequenceAction;
+  const power = seq.steps[0];
+  const grant = (seq.steps[1] as { then: EffectAction }).then;
+  const ctx = mkCtx({ signi: [SIGNI, SIGNI_P3000, null] }, {});
+  const r = run(grant, ctx);
+  const grants = r.ownerState.granted_effects ?? {};
+  eq(Object.keys(grants).length, 1, `one granted host: ${JSON.stringify(grants)}`);
+  ok((grants[SIGNI] ?? []).some(g => g.effectId === 'WD18-008-E1-GRANT'), 'selected signi has the protection CONT');
+  ok(!(grants[SIGNI_P3000] ?? []).some(g => g.effectId === 'WD18-008-E1-GRANT'), 'other signi has no protection CONT');
+  const plus = (run(power, ctx).ownerState.temp_power_mods ?? []).filter(m => m.delta === 2000);
+  eq(plus.length, 2, 'the base +2000 still affects all signi');
+});
+
 // ══════════════ テスト ══════════════
 test('DRAW: 手札+2 デッキ-2', () => {
   const ctx = mkCtx({ hand: 5 }, {});
