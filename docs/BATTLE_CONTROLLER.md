@@ -44,11 +44,14 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 
 移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-### reducer 純粋化＝一部着手
+### reducer 純粋化＝進行中（40/114 commit が reduceBattle 経由）
 
-単一フィールド遷移の代表を `persist.commit(reduceBattle(bs, action))` へ実配線済み（10箇所）：setup_phase 遷移1・CPU終了ACK1・CPUじゃんけん1・**turn_phase 遷移7**（ENERGY/MAIN/ATTACK_SIGNI/ATTACK_ARTS_OP/ATTACK_LRIG/END）。
+現在の `BattleAction`＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `WRITE_STATE`。
 
-**残＝Stage3 実装の本体**＝各ハンドラの `const update = {...}`（host_state/guest_state/effect_stack を engine 純粋関数で計算する複雑パッチ）を `reduceBattle` の case へ寄せる純粋化＝約50ハンドラの複数セッションのテール。
+- **単一フィールド遷移**（10箇所）＝setup_phase 遷移1・CPU終了ACK1・CPUじゃんけん1・turn_phase 遷移7。
+- **`WRITE_STATE`**（30箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`（相手状態併記）・`effectStack`（effect_stack 併記／null 明示でクリア）・`clearPending`（pending_effect クリア）。計算済みの `PlayerState`/`EffectStack` は payload で受け取り、パッチ組み立て（どのカラムへ・opp/スタック/pending を併せるか）を reducer が担う。単一キー `{[k]:s}` 15＋複合キー `{[k]:s,effect_stack,pending_effect}`/`{[myK]:m,[opK]:o[,effect_stack]}` 15 を移行。
+
+**残＝Stage3 実装の本体（74 commit）**＝名前付き `const update = {...}`（22）や、spread（`...update`/`...opUpdate`）・条件付き opp（`...(cond?{[opK]:x}:{})`）・WRITE_STATE 外のキー（`global_phase`/`winner_id`/`pending_spell`）を含む複雑パッチ。これらは payload 完結にならず、ハンドラ固有の分岐ロジックを action へ設計移送する個別作業＝約50ハンドラの複数セッションのテール。機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならない（ロジックがハンドラに残る）ため行わない。
 
 ## 4. 段階移行レシピ（残テール＝reducer 純粋化）
 
