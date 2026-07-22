@@ -6941,6 +6941,10 @@ test('参照属性バッチ2: 採用12効果の構造とスコープを固定', 
   for (const c of ['WX25-P2-068','WX25-P2-070']) ok(json(c).includes('"cardType":"レゾナ"') && json(c).includes('"owner":"self"') && !json(c).includes('"owner":"any"'), `${c}: 同一自対象のレゾナ置換`);
   ok(json('WX25-P2-071').includes('GRANT_KEYWORD') && !json('WX25-P2-071').includes('REMOVE_ABILITIES'), 'WX25-P2-071: 幻覚除去＋能力付与');
   ok(json('WXDi-P13-006').includes('"isDisona":true') && !json('WXDi-P13-006').includes('"filter":{"cardType":"シグニ"}'), 'WXDi-P13-006: Dissona判定');
+  // 続き250 Claude 検証で codex 見送りを差し戻して採用（13枚目）：落ちたカードの名前条件ゲート。
+  // 同一インスタンス限定の不在は非問題（トラッシュはカード番号管理＝同名交換可能）。
+  ok(json('WXDi-P11-078').includes('"cardName":"融合の儀　タウィル//メモリア"}},"then":{"type":"ADD_TO_FIELD"'),
+    'WXDi-P11-078: トラッシュ落ち名条件で場出しをゲート');
 });
 
 // ── レポート ──
