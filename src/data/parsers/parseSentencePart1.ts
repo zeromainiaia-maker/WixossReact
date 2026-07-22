@@ -1707,23 +1707,11 @@ export function parseSentencePart1(t: string): EffectAction | null {
   // ---- このシグニ/カード/キーは（条件）（新たに）場に出すことができない（自身出撃制限・SELF_PLAY_RESTRICT）----
   // 「対戦相手はシグニをN体まで」（DEPLOY_RESTRICT・上で先取り済）とは別系統＝この効果を持つカード自身の通常召喚可否ゲート。
   // 下の bare ADD_TO_FIELD（「場に出す」を含むため）へ誤マッチし CONTINUOUS のまま inert no-op 化していたのを先取りする（Opusタスク12(xlix)）。
-  if (/^この(?:シグニ|カード|キー)は/.test(t) && /(?:新たに)?場に出すことができない/.test(t)) {
-    const base: SelfPlayRestrictAction = { type: 'SELF_PLAY_RESTRICT', rawText: t };
-    // never＝無条件で通常召喚不可（効果でのみ配置可）：「効果以外によっては」／条件節（場合・かぎり・限り）を含まない
-    if (/効果以外によっては/.test(t) || !/(?:場合|かぎり|限り)/.test(t)) {
-      return { ...base, never: true };
-    }
-    // あなたの場にパワーN以上のシグニがある場合にしか（WX12-022）
-    const pwM = t.match(/あなたの場にパワー([０-９\d,]+)以上のシグニがある場合にしか/);
-    if (pwM) return { ...base, condition: { type: 'FIELD_SIGNI_POWER_COUNT', owner: 'self', minPower: parseInt(toHalf(pwM[1]).replace(/,/g, ''), 10), operator: 'gte', value: 1 } };
-    // あなたの場に＜C＞のシグニがN体以上ないかぎり／ある場合にしか（WX14-033）
-    const clsM = t.match(/あなたの場に[＜<]([^＞>]+)[＞>]のシグニが([０-９\d]+)体以上(?:ないかぎり|ある場合にしか)/);
-    if (clsM) return { ...base, condition: { type: 'FIELD_CLASS_COUNT', owner: 'self', story: clsM[1], operator: 'gte', value: parseNum(clsM[2]) } };
-    // あなたのセンタールリグが《X（　レベルN）》の場合にしか（キー WDK16-05H/S/T）
-    const lrigM = t.match(/あなたのセンタールリグが《([^》]+?)[　\s]*レベル([０-９\d])》の場合にしか/);
-    if (lrigM) return { ...base, condition: { type: 'AND', conditions: [ { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: lrigM[1] }, { type: 'LRIG_LEVEL', owner: 'self', operator: 'eq', value: parseNum(lrigM[2]) } ] } };
-    // それ以外（ウィルス総数/アクセ総数/クロス状態/相手ディスカード等＝未対応語彙）は machine 条件を付けず permissive（rawText のみ＝据置・退化なし）
-    return base;
+  // ⚠「…ないかぎり、新たに場に出す…」など条件節を伴うカードは effectParser の CONTINUOUS 分岐が parseActiveCondition で
+  //   条件節を先に剥がすため、全文はまず parseSelfPlayRestrict（effectParser 側で先取り）が捕捉する。ここは残余フォールバック。
+  {
+    const spr = parseSelfPlayRestrict(t);
+    if (spr) return spr;
   }
 
   // ---- 場に出す（デッキ上から / 手札から など）----
