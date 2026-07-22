@@ -6755,6 +6755,74 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   });
 }
 
+// ── 状態条件節持ち上げ バッチ①第1波 ──
+test('TURN_OWNER: self/opponent を isOwnerTurn の両方向で評価し、未設定は permissive true', () => {
+  const ctx = mkCtx({}, {});
+  const self = { type: 'TURN_OWNER', owner: 'self' } as const;
+  const opp = { type: 'TURN_OWNER', owner: 'opponent' } as const;
+  ok(evalCondition(self, { ...ctx, isOwnerTurn: true }), 'self/自ターン成立');
+  ok(!evalCondition(self, { ...ctx, isOwnerTurn: false }), 'self/相手ターン不成立');
+  ok(evalCondition(opp, { ...ctx, isOwnerTurn: false }), 'opponent/相手ターン成立');
+  ok(!evalCondition(opp, { ...ctx, isOwnerTurn: true }), 'opponent/自ターン不成立');
+  ok(evalCondition(self, ctx) && evalCondition(opp, ctx), '未設定は両方 permissive');
+});
+
+test('TURN_OWNER choice.condition: 選択肢 availability にターン情報が届く', () => {
+  const action: EffectAction = { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+    { choiceId: 'base', label: 'base', action: { type: 'DRAW', owner: 'self', count: 1 } },
+    { choiceId: 'opp', label: 'opp', condition: { type: 'TURN_OWNER', owner: 'opponent' }, action: { type: 'DRAW', owner: 'self', count: 2 } },
+  ] };
+  const own = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, { ...mkCtx({}, {}), isOwnerTurn: true });
+  ok(!own.done && own.pending.type === 'CHOOSE' && own.pending.options.find(o => o.id === 'opp')?.available === false, '自ターンは②不可');
+  const opponent = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, { ...mkCtx({}, {}), isOwnerTurn: false });
+  ok(!opponent.done && opponent.pending.type === 'CHOOSE' && opponent.pending.options.find(o => o.id === 'opp')?.available === true, '相手ターンは②可');
+});
+
+test('LIFE_COUNT/AND/SELF_POWER eq: 成立・不成立の両方向', () => {
+  const src = SIGNI_P12000;
+  const base = mkCtx({ life: 1 }, { life: 0, energy: 2 }, src);
+  const lifeOpp = { type: 'LIFE_COUNT', owner: 'opponent', operator: 'eq', value: 0 } as const;
+  ok(evalCondition(lifeOpp, base), '相手ライフ0成立');
+  ok(!evalCondition(lifeOpp, { ...base, otherState: mkState({ life: 1 }) }), '相手ライフ1不成立');
+  const both = { type: 'AND', conditions: [
+    { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: 1 } as const,
+    { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 2 } as const,
+  ] } as const;
+  ok(evalCondition(both, base), '複合成立');
+  ok(!evalCondition(both, { ...base, otherState: mkState({ life: 0, energy: 1 }) }), '複合不成立');
+  const powerEq = { type: 'SELF_POWER_GTE', operator: 'eq', value: 12000 } as const;
+  ok(evalCondition(powerEq, base), 'power eq成立');
+  ok(!evalCondition(powerEq, { ...base, effectivePowers: new Map([[src, 13000]]) }), 'power eq不成立');
+});
+
+test('バッチ①第1波 parser: 採用25効果に TURN_OWNER/LIFE_COUNT 条件が残る', () => {
+  const ids = ['PR-K054-E2','WDK06-C14-E1','WDK07-Y13-E1','WDK17-013-E1','WDK17-017-E1','WXEX1-25-E1','WXK04-036-E2','WXK08-071-E1','WXK09-093-E1','WXK11-057-E2','WXDi-P11-038-E1','WXK03-079-E1','WX09-Re04-E1','WX16-012-E1','WX21-Re07-E1','WXDi-P02-001-E1','WX16-065-E1','SPDi43-02-E1','SPDi43-07-E1','WX11-026-E2','WX11-032-E3','WX19-028-E2','WXDi-P09-047-E1','WXK11-019-BURST','WXDi-P01-004-E1'];
+  const hasState = (x: unknown): boolean => {
+    if (!x || typeof x !== 'object') return false;
+    const o = x as Record<string, unknown>;
+    if (o.type === 'TURN_OWNER' || o.type === 'LIFE_COUNT') return true;
+    return Object.values(o).some(v => Array.isArray(v) ? v.some(hasState) : hasState(v));
+  };
+  for (const id of ids) {
+    const card = id.replace(/-(?:E\d+|BURST)$/, '');
+    const parsed = parseCardEffects(cardMap.get(card)!).find(e => e.effectId === id);
+    ok(!!parsed && hasState(parsed), `${id}: condition 欠落`);
+  }
+});
+
+test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達イベントを偽の状態条件へ変換しない', () => {
+  const prevTurn = parseCardEffects(cardMap.get('WXDi-P11-001')!).find(e => e.effectId === 'WXDi-P11-001-E1')!;
+  const zeroEvent = parseCardEffects(cardMap.get('PR-K038')!).find(e => e.effectId === 'PR-K038-E2')!;
+  const treeHas = (x: unknown, type: string): boolean => {
+    if (!x || typeof x !== 'object') return false;
+    const o = x as Record<string, unknown>;
+    if (o.type === type) return true;
+    return Object.values(o).some(v => Array.isArray(v) ? v.some(y => treeHas(y, type)) : treeHas(v, type));
+  };
+  ok(!treeHas(prevTurn, 'LIFE_CRASHED_THIS_TURN'), '直前ターンを当ターンカウンタへ誤変換しない');
+  ok(zeroEvent.timing?.includes('ON_PLAY') === true && !treeHas(zeroEvent, 'LIFE_COUNT'), '未収集イベントを状態条件へ誤変換しない');
+});
+
 // Stage3 骨組み：純粋バトルコントローラ reduceBattle（現在盤面＋action → DB パッチ）の遷移を固定。
 // 代表3ケースは単一フィールド更新。将来ハンドラを純粋化して case を足すたびにここも増やす。
 {

@@ -31,6 +31,21 @@ import type {
   AddToFieldAction,
   DrawAction,
 } from '../types/effects';
+
+const STATE_HOIST_BATCH1_CARDS = new Set([
+  'PR-K054', 'WDK06-C14', 'WDK07-Y13', 'WDK17-013', 'WDK17-017', 'WXEX1-25',
+  'WXK04-036', 'WXK08-071', 'WXK09-093', 'WXK11-057', 'WXDi-P11-038', 'WXK03-079',
+  'WX09-Re04', 'WX16-012', 'WX21-Re07', 'WXDi-P02-001', 'WX16-065', 'SPDi43-02',
+  'SPDi43-07', 'WX11-026', 'WX11-032', 'WX19-028', 'WXDi-P09-047', 'WXK11-019',
+  'WXDi-P01-004',
+]);
+let _parsingCardNum = '';
+function isBatch1OnlyClause(re: RegExp): boolean {
+  return re.source.includes('ターンの場合')
+    || re.source.includes('対戦相手のライフクロス')
+    || (re.source.includes('このシグニのパワーが') && re.source.includes('ライフクロス'))
+    || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
+}
 import {
   parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget,
 } from './parserUtils';
@@ -1492,6 +1507,18 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
 // parseSingleSentence の CONDITIONAL 持ち上げと、SEQUENCE 組み立て時の「代わりに」昇格置換の
 // 両方から使う（engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+  [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
+  [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
+  [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(g[0]) },
+      { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[1]) },
+    ] })],
+  [/あなたのライフクロスが([０-９\d]+)枚以下で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) },
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
+    ] })],
   [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
   // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
@@ -1508,6 +1535,8 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   //   （§3 Opusタスク10 パターンD）。
   [/あなたのライフクロスが([０-９\d]+)枚の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+  [/対戦相手のライフクロスが([０-９\d]+)枚(以上|以下)?の場合/,
+    g => ({ type: 'LIFE_COUNT', owner: 'opponent', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
   [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
     g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
   [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
@@ -1571,6 +1600,7 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
 function matchLeadingStateCondition(text: string): { condition: Condition; rest: string } | null {
   const t = text.trim();
   for (const [re, mk] of STATE_CONDITION_CLAUSES) {
+    if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
     const m = t.match(new RegExp('^' + re.source + '、(.+)$', 's'));
     if (m) return { condition: mk(m.slice(1, m.length - 1)), rest: m[m.length - 1] };
   }
@@ -1853,6 +1883,18 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   プレフィックス空でマッチする。①が return したら②へは来ない＝二重ラップしない。
   function tryWrapLeadingStateCond(text: string): EffectAction | null {
     const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+      [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
+      [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
+      [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
+        g => ({ type: 'AND', conditions: [
+          { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(g[0]) },
+          { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[1]) },
+        ] })],
+      [/あなたのライフクロスが([０-９\d]+)枚以下で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+        g => ({ type: 'AND', conditions: [
+          { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) },
+          { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
+        ] })],
       [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
       [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
@@ -1861,6 +1903,8 @@ function parseSingleSentenceInner(text: string): EffectAction {
       //   無く、条件ゲートごと脱落して**無条件に自分の全シグニをトラッシュする**過剰効果になっていた（タスク10 パターンD）。
       [/あなたのライフクロスが([０-９\d]+)枚の場合/,
         g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+      [/対戦相手のライフクロスが([０-９\d]+)枚(以上|以下)?の場合/,
+        g => ({ type: 'LIFE_COUNT', owner: 'opponent', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
       // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
       // （WXDi-P02-005／WXDi-P07-023／SPK16-13E）。engine に状態カウンタを新設（§3 Opusタスク10 パターンF-2）。
       // ⚠これが無いと「代わりに」の置換ゲートが立たず、**SEQUENCE に化けて両方実行**される（1枚引く→3枚引く＝計4枚）。
@@ -1958,6 +2002,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     ];
     const t0 = text.trim();
     for (const [re, mk] of CLAUSES) {
+      if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
       // 先頭の任意プレフィックス（m[1]）は「…対象とし、」に加えトリガー句「このシグニがアタックしたとき、」
       // 「このルリグがアタックしたとき、」も許容する（ON_ATTACK_SIGNI/ON_ATTACK_LRIG のトリガー除去は本ループ
       // より後の 1365 行で行われるため、ここでは条件節の前に居残っている＝素の先頭マッチが外れる）。
@@ -2666,6 +2711,14 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // アーツ本文末の《トラップアイコン》節は、通常効果の続きではなくトラップ発動時だけ解決する追加節。
+  // 今回の文型はターン条件を内包するため、その追加節だけを CONDITIONAL に保つ（WX16-065）。
+  const inlineTrapM = text.match(/^(.+。)《トラップアイコン》：((?:あなた|対戦相手)のターンの場合、.+)$/s);
+  if (inlineTrapM) {
+    const base = parseActionText(inlineTrapM[1]);
+    const trap = parseActionText(inlineTrapM[2]);
+    return { type: 'SEQUENCE', steps: base.type === 'SEQUENCE' ? [...(base as SequenceAction).steps, trap] : [base, trap] };
+  }
   // ---- ベット選択数変更型（最優先）----
   // 「以下のN個からMつ(まで)選ぶ。あなたがベットしていた場合、代わりにKつ(まで)選ぶ。①…②…」
   // → CHOOSE(choose_count=M) に betChoose(thenChooseCount=K) を付与（ベット宣言で選択数が増える）。
@@ -3429,6 +3482,11 @@ function parseActionTextInner(text: string): EffectAction {
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
         if (!perTarget) {
           const then = parseSingleSentence(enhancedText);
+          if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(base).type === 'BOUNCE'
+              && coreOf(then).type === 'TRASH' && /対象とし/.test(enhancedText)) {
+            steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+            continue;
+          }
           // enhanced（then）は base（else）と同じ種類の効果の「強化版」であるべき。文脈欠落（「デッキから」
           // 等）で then が別アクションに縮退する誤マージを防ぐ＝両者のコアaction型が一致する場合のみ置換。
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(then).type === coreOf(base).type) {
@@ -3935,6 +3993,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   let costStr = afterMarker.slice(0, colonIdx).trim();
   let actionText = afterMarker.slice(colonIdx + 1).trim();
+  let leadingTurnOwnerActionCond: Condition | undefined;
+  const leadingTurnM = STATE_HOIST_BATCH1_CARDS.has(cardNum)
+    ? actionText.match(/^(あなた|対戦相手)のターンの場合、(.+)$/s)
+    : null;
+  if (leadingTurnM) {
+    leadingTurnOwnerActionCond = { type: 'TURN_OWNER', owner: leadingTurnM[1] === '対戦相手' ? 'opponent' : 'self' };
+    actionText = leadingTurnM[2];
+  }
 
   // ビートアイコン条件を costStr から抽出（《ビートアイコン》[条件]）
   let beatCondition: import('../types/effects').Condition | undefined;
@@ -5268,6 +5334,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
     resolvedAction = parseActionText(actionText);
   }
+  if (leadingTurnOwnerActionCond) {
+    resolvedAction = { type: 'CONDITIONAL', condition: leadingTurnOwnerActionCond, then: resolvedAction };
+  }
   // 無言フォールバック刻印をここで回収（以降のサブ展開 parseBlock は各自の効果内で回収する）
   const silentFb = consumeSilentFallbacks();
 
@@ -5580,12 +5649,24 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // CardEffect.condition は BattleScreen の候補表示・実行直前の双方で evalUseCondition に評価される。
   const printedColorLrig = stripped.match(/^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグがいる/);
   const withoutPrintedUseCondition = printedColorLrig ? stripped.slice(printedColorLrig[0].length) : stripped;
-  const extractedUse = extractUseCondition(withoutPrintedUseCondition);
-  const condition: Condition | undefined = printedColorLrig
+  // 印刷済み【使用条件】の直後に続くライフ枚数条件（WXDi-P01-004）。通常の
+  // 「このカードは…場合にしか使用できない」接尾辞ではないため、先頭節として availability へ持ち上げる。
+  // ⚠バッチ1カードに限定（続き249検証）：無ゲートだと WX16-Re20「ライフ2枚以下の場合、このアーツは追加で
+  //   《アタックフェイズアイコン》を持つ」（条件付き追加使用タイミング＝専用STUB CONDITIONAL_ARTS_COST）まで
+  //   availability 条件に誤変換し「ライフ2枚以下でしか使えないアーツ」に化ける（held ドリフト・誤方向）。
+  const printedLifeM = STATE_HOIST_BATCH1_CARDS.has(card.CardNum)
+    ? withoutPrintedUseCondition.match(/^(?:【使用条件】あなたの場に[^。]+のルリグがいる)?あなたのライフクロスが([０-９\d]+)枚(以上|以下)?の場合、(.+)$/s)
+    : null;
+  const extractedUse = extractUseCondition(printedLifeM ? printedLifeM[3] : withoutPrintedUseCondition);
+  let condition: Condition | undefined = printedColorLrig
     ? (extractedUse.condition
         ? { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] }, extractedUse.condition] }
         : { type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] })
     : extractedUse.condition;
+  if (printedLifeM) {
+    const lifeCond: Condition = { type: 'LIFE_COUNT', owner: 'self', operator: printedLifeM[2] === '以上' ? 'gte' : printedLifeM[2] === '以下' ? 'lte' : 'eq', value: parseNum(printedLifeM[1]) };
+    condition = condition ? { type: 'AND', conditions: [condition, lifeCond] } : lifeCond;
+  }
   const cleaned = extractedUse.cleaned;
   // ベットの多択メカニクス（「以下のN個からM個を選ぶ。…あなたがベットしていた場合、代わりに…」）。
   // parseActionTextInner の「ベット選択数変更型」ブランチが CHOOSE+betChoose に展開できればそれを採用
@@ -5701,6 +5782,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
 
   const baseType = card.Type?.split('/')[0] ?? '';
+  _parsingCardNum = card.CardNum;
   _parsingBaseType = baseType;
   if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
     // 「」『』外側にある【自】：セクションを分離してパース（ARTS_SELF_RECYCLE_ON_TRIGGER等）

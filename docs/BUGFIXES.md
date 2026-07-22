@@ -4,6 +4,12 @@
 
 ---
 
+## 状態条件節持ち上げ バッチ①第1波：`TURN_OWNER` 新設＋`LIFE_COUNT` 拡張（25採用・2見送り、golden 579→584、census 1817→1799）（2026-07-22・Codex）
+
+ターン所有者条件17効果とライフクロス枚数条件8効果で、条件節が parser から脱落し無条件発火していた過剰効果を是正した。既存の多義的 `IS_MY_TURN` / `IS_OPPONENT_TURN` は変更せず、action `Condition` に `TURN_OWNER{owner:self|opponent}` を追加。`ExecCtx.isOwnerTurn?` を BattleScreen の初回解決・interaction再開・スペル・カットインへ配線し、未設定時は permissive true とした。選択肢条件は既存 `choice.condition`、ライフ条件は既存 `LIFE_COUNT` / `ENERGY_COUNT` / `AND` を使用。パワーちょうど20000は既存 `SELF_POWER_GTE` に optional `operator:'eq'` を追加した。`WXK11-019-BURST` は条件付き then/else replacement、`WXDi-P01-004-E1` は availability 条件として採用。`WX11-026-E2` は MANUAL 同居カードのため parser 修正と minified JSON 手術を併用した。
+
+見送りは `WXDi-P11-001-E1`（直前ターンのクラッシュ履歴を保持する state が無く、当ターン専用 `life_crashed_this_turn` はターン開始時に消去）と `PR-K038-E2`（ライフ0枚到達イベントの timing/collector が無い）の2件。誤近似しないことを golden で固定。全生パースの新規変化は対象25効果のみ、スコープ外 outlier 0。同型★0、held 75グループ→74グループ、lint 0 errors / 224 warnings据置。
+
 ## §3 タスク12(xl49) 消化：【常】出撃制限が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統11枚＝`SELF_PLAY_RESTRICT` 新設＋summon チョークポイントで実 enforcement（golden 573→579・census 1825→1817・全ゲート緑）（2026-07-22・続き248・Opus）
 
 **バグ**＝「【常】：このシグニ/カード/キーは〜（新たに）場に出すことができない」という**カード自身の出撃制限**（＝この効果を持つカードを通常召喚できる条件のゲート）が、parser の bare `ADD_TO_FIELD` フォールバック（`parseSentencePart1.ts`＝「場に出す」を含み「エナ/トラッシュ」を含まない文）に誤マッチし、`CONTINUOUS ADD_TO_FIELD{owner:self}` として格納されていた系統。これは「対戦相手はシグニをN体までしか場に出せない」（`DEPLOY_RESTRICT`・場の**枚数**制限＝別系統・先取り済）とは別物で、出撃制限が**完全に失われていた**（意味的退化）。

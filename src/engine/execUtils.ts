@@ -23,6 +23,7 @@ export interface ExecCtx {
   battleAttackerCardNum?: string; // ON_SIGNI_BANISH_OPPONENT/_BATTLE のバトルアタッカー自身（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）
   forceEndTurn?: boolean;    // FORCE_END_TURN でセット → BattleScreen がターン終了処理を行う
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
+  isOwnerTurn?: boolean;     // 効果オーナーのターンか。未設定なら TURN_OWNER は後方互換で成立扱い
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
   autoTargetedCards?: string[]; // 選択UIを経ずに自動対象化したシグニ（targetsTriggerSource/targetsLastProcessed）＝ON_TARGETED 収集用（続き137・タスク12(xx)）
   fieldTrashCostCards?: string[]; // この解決ラウンドでコストとして場→トラッシュへ置いたinstanceId（ON_TRASH byEffect 原因弁別用）
@@ -772,6 +773,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(s.hand.length - o.hand.length, cond.operator, cond.value);
     case 'LIFE_COUNT':
       return cmp(st(cond.owner).life_cloth.length, cond.operator, resolveNum(cond.value));
+    case 'TURN_OWNER':
+      return ctx.isOwnerTurn == null || (cond.owner === 'self' ? ctx.isOwnerTurn : !ctx.isOwnerTurn);
     case 'LIFE_CRASHED_THIS_TURN':
       return cmp(st(cond.owner).life_crashed_this_turn ?? 0, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
@@ -1064,7 +1067,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const src = ctx.sourceCardNum;
       if (!src) return false;
       const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
-      return pw >= cond.value;
+      return cmp(pw, cond.operator ?? 'gte', cond.value);
     }
     case 'THIS_CARD_FROM_TRASH':
       // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）

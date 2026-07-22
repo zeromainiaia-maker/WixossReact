@@ -344,7 +344,7 @@ function condJa(c?: any): string {
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;
     case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
-    case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}以上`;
+    case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;
     case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
@@ -792,6 +792,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // choice.condition＝「あなたの場に〜がある場合、」等の選択肢自体の選択可否ゲート（続き105・execChoose の available 判定に対応）。
       const chOpts = (a.choices || []).map((c: any) => {
         const body = actionJa(c.action);
+        if (c.condition?.type === 'TURN_OWNER') {
+          return `${c.condition.owner === 'opponent' ? '対戦相手' : 'あなた'}のターンの場合、${body}`;
+        }
         return c.condition ? `${condJa(c.condition)}場合、${body}` : body;
       }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
@@ -806,6 +809,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
       if (a.condition?.type === 'IS_MY_TURN') {
         return `そうした場合、${actionJa(a.then)}`;
+      }
+      if (a.condition?.type === 'TURN_OWNER') {
+        const prefix = `${a.condition.owner === 'opponent' ? '対戦相手' : 'あなた'}のターンの場合、`;
+        return `${prefix}${actionJa(a.then)}${a.else ? `、そうでなければ${actionJa(a.else)}` : ''}`;
       }
       if (a.condition?.type === 'LAST_PROCESSED_COUNT_GTE' && a.then?.type === 'STUB'
           && a.then.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
