@@ -29,6 +29,8 @@ import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '.
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
+import { reduceBattle } from '../src/screens/battle/controller/battleController';
+import type { BattleStateRow } from '../src/types';
 import { canAffordGrowCost } from '../src/screens/battle/costs';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
