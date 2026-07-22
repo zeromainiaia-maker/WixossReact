@@ -9011,7 +9011,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ルリグアタック：ライフなし → 敗北`]);
           const winnerId = attackerId;
           const clearedMyState: PlayerState = { ...my, field: { ...my.field, lrig_attacked: false } };
-          await persist.commit({ [stateKey]: clearedMyState, global_phase: 'FINISHED', winner_id: winnerId });
+          await persist.commit(reduceBattle(bs, { type: 'END_GAME', winnerId, myKey: stateKey, myState: clearedMyState }));
           return;
         }
       }
