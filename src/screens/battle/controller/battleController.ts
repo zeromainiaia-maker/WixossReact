@@ -80,6 +80,15 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       if (action.clearPending) patch.pending_effect = null;
       return patch;
     }
+    case 'END_GAME': {
+      const patch: Partial<BattleStateRow> = {
+        [action.myKey]: action.myState,
+        global_phase: 'FINISHED',
+        winner_id: action.winnerId,
+      };
+      if (action.opp) patch[action.opp.key] = action.opp.state;
+      return patch;
+    }
     default: {
       // 網羅性チェック：新しい action を足したら必ず case を追加させる。
       const _exhaustive: never = action;
