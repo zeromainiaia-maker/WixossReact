@@ -4,6 +4,21 @@
 
 ---
 
+## ROADMAPバッチ2「対象filter合成」第2波：POWER_MODIFY対象句の class/色 脱落＝真バグ4効果（golden 596→599、census 1715→1713）（2026-07-22・続き254・Opus）
+
+**投入前実測でルートがほぼ枯渇と判明したバッチ**。続き253（トラッシュ→手札）の「次の一手」は「POWER_MODIFY 対象句（class36+color15）→TO_ENER→TO_TRASH」だったが、CODEX_GUIDE §3 に従い投げる前に全効果を実測したところ、**census の class指定249/色102 high-signal は大半がコスト・条件・トリガー節に class/色を持つ効果**で、対象フィルタ自体の脱落ではなかった（続き250「候補≠作業量」の極端版・続き213「投げる前に実測」の再現）。全 removal/buff family（POWER_MODIFY/POWER_SET/BANISH/TRASH/BOUNCE/SEND_TO_ENERGY 等）の対象filter脱落を精査した結果：SEND_TO_ENERGY=0・TRASH(場→trash)=0・BANISH=0・BOUNCE=0（全て別節の誤検知）、トラッシュ回収系32件中21件は第1波で修正済み。**genuine な真バグは4件のみ**＝codex バッチ（同機構10〜30件）にならないため Opus 分担で直接修正した。
+
+**修正4件**：
+- **WX10-013-E1**（水獣）・**WX11-046-E1**（空獣か地獣）＝「あなたの＜X＞のシグニN体を対象とし…それのパワー±N」の単体バフが、`parseSentencePart1.ts` のパワー修整分岐で「あなたの(状態)シグニN体」しか受けず**＜種族＞接頭辞で正規表現が外れて else（owner:any・filter脱落）に潰れていた**。分岐正規表現に class/色/level 接頭辞（`(?:＜X＞[とか])*＜X＞の|[白赤青緑黒]の|レベルNの`）を追加し `parseSigniTarget(t,'self')` へ配線＝owner:self＋story 復元。owner:any 134件は「それのパワー」の文脈依存対象が大半で意図的なため、追加は「あなたの…シグニN体」明示形のみに限定（additive・既存マッチ不変）。
+- **WX05-023-E3**（原子）＝「あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く」の `PLACE_UNDER_SIGNI` が **cardName:羅原Ｕ（include名）・count:1 に誤合成**（＝「以外」も＜原子＞も枚数も脱落）。`parseSentencePart2.ts` の「《X》…下に置く」分岐に「以外の」検出を追加し `excludeCardName + story + count` へ是正。
+- **WX09-020-BURST**（白か黒）＝「トラッシュから白か黒のシグニ1枚を…手札に加えるか場に出す」の colorOR が脱落。parser は第1波の `TTH_FILTER_BATCH2_WAVE1_CARDS` ゲート内でのみ colorOR を適用するため WX09-020 を集合に追加（parser 化）。ただし**兄弟 E1 が MANUAL＝カード全体が PRESERVE 温存で build不可視**のため、CHOOSE両枝の source filter に `color:['白','黒']` を curated 直パッチ（E1 MANUAL・E2 は不変を機械確認）。
+
+**検証**＝ベースライン `5cf9264f` との per-effect 機械 diff は**採用4効果ちょうど・巻き添え0**（WX11-046 の E2/BURST、WX05-023 の E1/E2/E4/BURST は fresh==curated で不変）。golden +3（POWER_MODIFY 接頭辞/PLACE_UNDER exclude+count/WX09-020 直パッチの両枝＋E1 MANUAL温存）＝596→599。全ゲート緑（smoke 10722・fuzz 0・census **1713**〔BASELINE_HIGH 更新〕・lint 0 errors/224 warnings・同型★0）。`npm run regen` 済。
+
+**次の一手**＝バッチ2「対象filter合成」は第1波＋過去バッチで実質完了（対象filter脱落クラスタは枯渇）。次の codex バッチは**別ルート＝ロードマップ バッチ3（固定閾値・状態フィルタ119）または バッチ4（「Nまで」上限選択88）**を投入前実測して切り直す。
+
+---
+
 ## ROADMAPバッチ2「対象filter合成」第1波：トラッシュ→手札30効果（golden 593→596、census 1742→1715）（2026-07-22・続き253・Codex）
 
 トラッシュ回収の対象名詞句にある class／色OR・無色／カード名包含・完全一致除外／無色否定が curated JSON から落ち、任意のカード・シグニを回収できていた30効果を是正した。`parserUtils.extractNounPhraseFilter` を新設し、今回は `TRANSFER_TO_HAND{TRASH_CARD}` 入口だけへ限定配線。複合対象4効果は2～3個の `TRANSFER_TO_HAND` を持つ `SEQUENCE` に分割した。PRESERVE 11効果は兄弟効果・parseStatusに触れず該当効果だけを外科パッチし、残19効果は build/heldReview 経由で採用した。
