@@ -83,7 +83,7 @@
 
 ## 重要な注意（caveat）
 1. **粗い網はまだ残る（PLAN §3 原則「件数メトリクスを信じない」）**：効果単位化で旧最大の死角（同カード別効果のマスキング）は解消したが、「小さい数285」「数値不一致125」は数値の別表現（CHOOSE内・countIsX等）を拾えない粗い網のまま＝偽陽性を含む。ただし**この2カテゴリだけに掛かる効果は 115件**で、仮に全部偽陽性でも全体の 6% にすぎない。
-2. **効率の勘所**：系統カテゴリ（条件節611・クラス389・色133・閾値184）は「1 parser規則 → 多数効果」で減らせる。手法は続き106/107/143で実証済み＝`STATE_CONDITION_CLAUSES` への条件追加・`parseHoistStateCondition`・`parseThisWayGenericCount`・`parseBareBranchCondition` の横展開。
+2. **効率の勘所**：系統カテゴリ（条件節488・クラス272・色110＋共通色73・閾値143）は「1 parser規則 → 多数効果」で減らせる。手法は続き106/107/143で実証済み＝`STATE_CONDITION_CLAUSES` への条件追加・`parseHoistStateCondition`・`parseThisWayGenericCount`・`parseBareBranchCondition` の横展開。
 3. **census外の残作業もある**：本マップは census 計器の可視範囲のみ。census が原理的に見えない残作業（参照解決の誤り・engine実装差・実行順序）は PARTIAL刻印計器（152件）・semantic audit findings（タスク12(xxvii)(xxix)）・BEHAVIOR_AUDIT が補完する（PLAN §5c「残死角」）。
 
 ## 次にやるべきこと
