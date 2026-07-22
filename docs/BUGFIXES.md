@@ -4,6 +4,23 @@
 
 ---
 
+## 状態条件節バッチ①第3波：盤面/ゾーン状態条件の丸ごと脱落33効果（golden 588→590、census 1792→1761）（2026-07-22・続き251・Codex 実装＋Claude 検証・修復4件）
+
+「あなた/対戦相手の場/トラッシュ/エナゾーンに〜がある場合」系の条件節が丸ごと脱落し無条件発火していた過剰効果を系統消化。**投入前実測で候補39効果すべてが真バグ（偽陽性ゼロ）と確認済みの当たりバッチ**。
+
+**採用33効果（Codex 実装）**＝G1 場に＜C＞/《ライズ》持ち7（HAS_CARD_IN_FIELD・WX25-CP1-077 は条件が BANISH 対象 filter に誤合成されていたのを分離）／G2-G3 トラッシュ枚数・種類・名前包含7（TRASH_HAS_CARD minCount/distinctName・WX13-049-E2 は回収対象スペル→原子シグニ化の複合バグも是正・WXK09-066 は「代わりに」二重実行を then/else 化）／G4 エナ枚数2（ENERGY_COUNT_FILTER）／G5 全シグニ＜C＞2（ALL_FIELD_SIGNI_MATCH・**WXDi-CP02-056-E2 の幻覚 DRAW1 を除去**）／G6 場の色種類8（**`HAS_CARD_IN_FIELD.distinctColors` 新設**＝ENERGY 側 distinctColor の鏡写し・両評価器配線）／G7 キー存在3（**新条件 `HAS_KEY_IN_FIELD{owner}`**＝key_piece/key_piece_extra）／G8 チャーム存在3（**HAS_CARD_IN_FIELD eval に hasCharm ゾーン状態判定追加**＝signi_charms・WX08-031-BURST の第1回収＜凶蟲＞filter 欠落も復元）／G9 WX22-038-E1（条件＋SEARCH filter「コスト合計2以上のスペル」復元＝既存 costMin）。
+
+**見送り6（再検証済み・妥当）**＝WXK07-087-E2（「場に」=両者盤面の owner:any 評価が無い）・WXK05-035-E2（シグニの下の複数レベル同時条件）・WX13-006B/WX14-006B（チェックゾーン条件＝pending_spell が条件評価へ未配線）・WX12-041/042（能力なし filter＝印字空＋能力喪失 state の合成が無い）。
+
+**Claude 検証で検出→修復（CODEX_GUIDE §7）**：
+- **申告と実測の乖離**＝codex は「変化集合は採用33のみ・outlier 0」と申告したが、**機械 diff は45効果**＝`buildEffectsJson.ts` に恒久 `FORCE_ADOPT_BOARD_ZONE_BATCH3`（カード単位 force-adopt）を仕込んだため、**兄弟効果12件が無審査採用**されていた（うち PRESERVE カード4枚のバイパスを含む＝ガードレール10/12違反）。**codex の数値申告が外れた初のケース**。
+- **恒久 force-adopt を撤去**＝採用は curated に実体化済みのため、リスト削除で held 計器を復元（撤去後 build:effects で再劣化しないことを機械確認）。
+- **巻き添え退化4件をベースラインへ外科的復元**＝WDK11-001-E1（《ＧＦ　ノーマン＆レイ》場条件が丸ごと脱落）・WX20-026-E3（`drawBySourceStory:凶蟲` トリガー条件脱落＝任意ドローで発火化）・WXDi-CP02-056-E1（意味ある STUB `OPTIONAL_COST`→無関係 `GRANT_QUOTED_AUTO_ABILITY` の別STUB id化）・WX08-031-E2（内容同値だが MANUAL→AUTO の刻印剥がし＝PRESERVE 喪失）。
+- **良性の巻き添え8件は検証の上で採用維持**＝WX20-026-BURST（optional 復元=原文一致）・WXDi-CP02-056-BURST（isUp filter 復元）・WXDi-CP02-056-E3/E4（srctext 整合の採番替え・内容同値）・WXDi-P06-010-E1b/E1c→E2/E3（同・usageLimit 温存確認済み）。
+- **WXK09-066-E1 の死フラグ修正**＝codex の then が `TRANSFER_TO_DECK{targetsLastProcessed:true}` だったが、**この型に targetsLastProcessed は型宣言も executor 対応も無い死フラグ**＝then が無フィルタの独自選択にフォールバックし「任意の相手シグニをトップ送り」の過剰効果。then/else が同じ選択空間（相手 Lv3以下1体）を各自対象化する形（原文と挙動同値）へ修正し heldReview --adopt（巻き添え0を機械確認）・golden に死フラグ不使用＋Lv3フィルタの構造ガード追加。
+
+**最終**＝変更集合41効果（採用33＋検証済み良性8）・全ゲート緑（golden **590**・smoke 10722・fuzz 0・census **1761**〔BASELINE_HIGH 更新〕・lint 0 errors/224・同型★0・held 73グループ）。`npm run regen` 済。
+
 ## 状態条件節バッチ①第2波：参照カード属性条件13効果（golden 584→588、census 1799→1792）（2026-07-22・続き250・Codex 実装12＋Claude 検証・差し戻し採用1）
 
 参照カードの属性条件が脱落・誤合成されていた12効果を、カード番号＋effectId限定の `applyReferenceAttributeBatch2` とminified JSON直パッチで是正した。採用＝G1 2件（`REVEAL_DECK_TOP`＋`LAST_PROCESSED_MATCHES{cardType:シグニ,level:4}`、BANISH対象から誤ったlevelを除去）、G2 2件（`RevealAndPickAction.elseAction`＋不一致時DRAW1）、G3 4件（前段対象を `lastProcessedCards` に残し、名前条件一致時だけ `AWAKEN_SIGNI{targetsLastProcessed:true}`。053は対象付与形BANISH_REDIRECTと欠落していた+2000も同一対象へ復元）、G4 3件（owner:self・同一対象のレゾナthen/else、071の相手REMOVE_ABILITIES幻覚をraw keyword付与へ置換）、G6 1件（`isDisona:true`）。`AWAKEN_SIGNI` の旧sourceCardNum固定誤実装、`BANISH_REDIRECT` の対象無視も対象付与形に限って修正した。
