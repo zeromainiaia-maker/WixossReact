@@ -4,6 +4,20 @@
 
 ---
 
+## §3 タスク14 Stage3続き：`WRITE_STATE` action でプレイヤー状態書き込み30箇所を純粋化（40/114 commit が reduceBattle 経由・golden 566→570・全ゲート緑）（2026-07-22・続き246・Opus）
+
+続き245（永続化移行完了）に続き reducer 純粋化を前進。`reduceBattle` に **`WRITE_STATE` action** を新設し、プレイヤー状態書き込みを集約：
+- payload＝`myKey: 'host_state'|'guest_state'` / `myState: PlayerState` ＋任意で `opp:{key,state}`（相手状態併記）・`effectStack: EffectStack|null`（effect_stack 併記／null 明示クリア／省略時は触らない）・`clearPending`（pending_effect クリア）。
+- 計算済みの PlayerState/EffectStack は payload で受け取り、**パッチ組み立て（どのカラムへ書くか・opp/スタック/pending を併せるか）を reducer に集約**。engine 純粋関数で計算した断片はハンドラ側のまま。
+
+**移行30箇所**（regex＋型検査で安全）：
+- 単一キー `persist.commit({ [stateKey]: X })` → `WRITE_STATE(myKey, myState)` ＝15箇所（key 変数は全て `isHost?'host_state':'guest_state'`／`p.attackerKey` 等で `'host_state'|'guest_state'` 型に推論＝tsc 検証）。`ackKey` 書き込み（`{[ackKey]:true}`）は PlayerState でないため除外（ACK_END で別途）。
+- 複合キー ＝ `{[k]:s, effect_stack, pending_effect:null}`（4）／`{[k]:s, effect_stack}`（2）／`{[myK]:m,[opK]:o}`（7）／`{[myK]:m,[opK]:o, effect_stack}`（2）＝15箇所。
+
+reduceBattle は5 action（SET_SETUP_PHASE/SET_TURN_PHASE/ACK_END/SUBMIT_JANKEN/WRITE_STATE）・**40/114 commit が reduceBattle 経由**に。golden に WRITE_STATE 5件追加（単一・複合・null 明示・省略時の触らない挙動を固定）＝566→570。smoke 0異常・fuzz 0・census 1825維持・lint 0 error（warning 224・純増0）。
+
+**残＝reducer 純粋化の本体（74 commit）**＝名前付き `const update={...}`（22）や、spread（`...update`/`...opUpdate`）・条件付き opp（`...(cond?{[opK]:x}:{})`）・WRITE_STATE 外キー（`global_phase`/`winner_id`/`pending_spell`）を含む複雑パッチ。payload 完結にならずハンドラ固有の分岐ロジックを action へ設計移送する必要があり、機械変換で `WRITE_RAW(patch)` に丸めても純粋化にならない（ロジックがハンドラに残る）ため行わない。約50ハンドラを1件ずつ判断して進めるテール。
+
 ## §3 タスク14 Stage3：永続化チョークポイント移行完了＋reducer純粋化一部（battle_states 全行I/O 120箇所→persist・golden 565→566・全ゲート緑）（2026-07-22・続き245・Opus）
 
 PLAN §3 Opusタスク14の Stage3 実装に着手。前セッション（続き244）で seam（`persist` / `reduceBattle`）を骨組み着地させたのに続き、本セッションで**永続化層の移行を完了**した。
