@@ -37,7 +37,7 @@ export function useBattlePersist(roomId: string): BattlePersist {
         .from('battle_states')
         .select('*')
         .eq('room_id', roomId)
-        .single() as unknown as PromiseLike<{ data: BattleStateRow | null; error: unknown }>,
+        .single() as unknown as PromiseLike<{ data: BattleStateRow | null; error: DbError }>,
     [roomId],
   );
   const remove = useCallback(
