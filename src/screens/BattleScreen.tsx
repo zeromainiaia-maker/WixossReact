@@ -5025,7 +5025,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (ownEntries.length === 0 && fieldEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit({ [stateKey]: placed, ...(opAfterPlay ? { [opKeySummon]: opAfterPlay } : {}) });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined }));
         return;
       }
 
