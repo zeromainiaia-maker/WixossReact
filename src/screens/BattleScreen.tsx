@@ -5416,7 +5416,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         })),
       ];
       if (entries.length === 0) {
-        await persist.commit({ [stateKey]: newMyState, ...(opAfterGrow ? { [opKeyGrow]: opAfterGrow } : {}) });
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: opAfterGrow ? { key: opKeyGrow, state: opAfterGrow } : undefined }));
         return;
       }
       const turnPlayerId = bs.active_user_id ?? user.id;
