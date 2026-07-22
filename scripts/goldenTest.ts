@@ -6970,6 +6970,13 @@ test('状態条件節バッチ3: 採用32効果の条件構造を固定', () => 
   ok(JSON.stringify(effectsMap.get('SPDi01-134')).includes('distinctColors'), '色種類条件');
   ok(JSON.stringify(effectsMap.get('WDK09-008')).includes('HAS_KEY_IN_FIELD'), 'キー条件');
   ok(JSON.stringify(effectsMap.get('WX10-091')).includes('hasCharm'), 'チャーム条件');
+  // 続き251 Claude 検証：WXK09-066 の then（デッキトップ送り）は targetsLastProcessed（TRANSFER_TO_DECK では
+  // 型・executor とも未対応の死フラグ）ではなく、else の凍結と同じ選択空間（相手 Lv3以下）を自前で対象化する。
+  {
+    const s = JSON.stringify(effectsMap.get('WXK09-066') ?? []);
+    ok(!s.includes('targetsLastProcessed'), 'WXK09-066: 死フラグ不使用');
+    ok(s.includes('"position":"top"') && s.includes('"level":{"max":3}'), 'WXK09-066: then にLv3以下フィルタ');
+  }
 });
 
 // ── レポート ──
