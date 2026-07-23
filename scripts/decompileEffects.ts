@@ -154,7 +154,12 @@ function filterJa(f?: any): string {
   if (f.levelLteLastProcessed) parts.push('この方法で処理したシグニのレベル以下の');
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
-  if (f.levelEqLastProcessed) parts.push('この方法で【ビート】にしたシグニと同じレベルの');
+  if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
+  if (f.nameEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じ名前の');
+  if (f.levelEqLastProcessedCount) parts.push('この方法で処理したカードの枚数と同じレベルの');
+  if (f.levelEqLastProcessedLevelSum) parts.push('この方法で処理したカードのレベル合計と同じレベルの');
+  if (f.levelEqLrig === 'self') parts.push('あなたのセンタールリグと同じレベルの');
+  if (f.levelEqLrig === 'opponent') parts.push('対戦相手のセンタールリグと同じレベルの');
   if (f.levelLteDiscardSigni) parts.push('この方法で捨てたシグニのレベル以下の');
   if (f.levelLtDiscardSigni) parts.push('この方法で捨てたシグニより低いレベルを持つ');
   if (f.levelEqDiscardSigniOffset !== undefined) parts.push(`この方法で捨てたシグニよりレベルが${f.levelEqDiscardSigniOffset}つ高い`);

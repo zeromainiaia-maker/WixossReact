@@ -2812,6 +2812,83 @@ function applyLrigColorBatch5(effects: CardEffect[]): void {
   }
 }
 
+// ROADMAP batch5b。同一性参照は曖昧な一般 regex へ広げず、原文照合済み effectId の
+// 対象 action だけに付与する。filter の実行は resolveDynamicFilter に一本化。
+const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter; value?: unknown; occurrence?: number }> = {
+  'WX03-001-E1': { type: 'BANISH', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WX10-028-E3': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WXEX1-57-E2': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WXK07-040-E1': { type: 'BANISH', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WX17-051-LAYER': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WX17-057-E1': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
+  'WX21-033-CB-E2': { type: 'BANISH', flag: 'levelEqDiscardLevelSum' },
+  'WX22-041-E2': { type: 'BOUNCE', flag: 'levelEqDiscardLevelSum' },
+  'WXK03-057-E1': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
+  'WXK05-038-E1': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
+  'WXK09-067-E2': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
+  'WXEX2-33-E3': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
+  'WDK13-011-E2': { type: 'BANISH', flag: 'levelEqDiscardLevelSum' },
+  'WXEX1-36-E1': { type: 'BANISH', flag: 'levelEqLastProcessed' },
+  'WXEX2-42-TRAP': { type: 'TRANSFER_TO_DECK', flag: 'levelEqLastProcessed' },
+  'WXK06-060-E1': { type: 'BOUNCE', flag: 'levelEqLastProcessed' },
+  'WXDi-P04-070-E1': { type: 'TRANSFER_TO_HAND', flag: 'levelEqLastProcessed' },
+  'WXDi-P05-018-E1': { type: 'ADD_TO_FIELD', flag: 'levelEqLastProcessed' },
+  'WXDi-P02-034-E2': { type: 'ADD_TO_FIELD', flag: 'levelEqLastProcessed' },
+  'WX22-024-BURST': { type: 'TRANSFER_TO_HAND', flag: 'levelEqLastProcessed' },
+  'WX17-015-E1': { type: 'BANISH', flag: 'levelEqLastProcessed' },
+  'WXK04-047-E1': { type: 'TRANSFER_TO_HAND', flag: 'nameEqLastProcessed', occurrence: 2 },
+  'WXEX2-64-E2': { type: 'TRANSFER_TO_DECK', flag: 'nameEqLastProcessed' },
+  'WX24-P3-084-E1': { type: 'POWER_MODIFY', flag: 'nameEqLastProcessed' },
+  'WXK10-082-E1': { type: 'BANISH', flag: 'levelEqualsVar', value: 'charm_trash_count' },
+  'WXK03-074-E1': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: { cardType: 'シグニ', story: '武勇' } },
+  'WXEX1-60-E2': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: true },
+  'WX21-059-E1': { type: 'SEARCH', flag: 'levelEqLastProcessedLevelSum' },
+  'WXK10-053-BURST': { type: 'TRASH', flag: 'levelEqLrig', value: 'self' },
+};
+function applyIdentityBatch5b(effects: CardEffect[]): void {
+  const addFilter = (obj: Record<string, unknown>, spec: (typeof IDENTITY_BATCH5B)[string]): void => {
+    const holder = obj.type === 'SEARCH' ? obj
+      : obj.type === 'TRANSFER_TO_HAND' || obj.type === 'TRANSFER_TO_DECK' || obj.type === 'ADD_TO_FIELD'
+        ? obj.source as Record<string, unknown> | undefined
+        : obj.type === 'POWER_MODIFY' || obj.type === 'BANISH' || obj.type === 'BOUNCE' || obj.type === 'TRASH'
+          ? obj.target as Record<string, unknown> | undefined : undefined;
+    if (!holder) return;
+    holder.filter = { ...((holder.filter as TargetFilter | undefined) ?? {}), [spec.flag]: spec.value ?? true };
+  };
+  const visit = (node: unknown, spec: (typeof IDENTITY_BATCH5B)[string], seen: { n: number }): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === spec.type && ++seen.n === (spec.occurrence ?? 1)) addFilter(obj, spec);
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(v => visit(v, spec, seen));
+      else visit(value, spec, seen);
+    }
+  };
+  for (const e of effects) {
+    const spec = IDENTITY_BATCH5B[e.effectId];
+    if (spec) visit(e.action, spec, { n: 0 });
+    if (e.effectId === 'WX03-001-E1' && e.action.type === 'BANISH') e.action.target.owner = 'any';
+    if (e.effectId === 'WXDi-P05-018-E1' && e.action.type === 'SEQUENCE') {
+      const first = e.action.steps[0];
+      if (first?.type === 'TRASH' && first.target.type === 'DECK_CARD') first.target.owner = 'opponent';
+    }
+    if (e.effectId === 'WXDi-P11-033-E1' && e.action.type === 'REVEAL_AND_PICK') {
+      e.action = { type: 'SEQUENCE', steps: [e.action, {
+        type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelEqLastProcessed: true } },
+      }] };
+    }
+    if (e.effectId === 'WXK10-001-E1') {
+      // 原文①「対戦相手のセンタールリグ1体を対象とし、ターン終了時まで『【常】：アタックできない。』を得る」は
+      // 従来 curated の GRANT_KEYWORD が正しかった＝再構成時に落とさない（Claude 是正・2026-07-23）。
+      e.action = { type: 'SEQUENCE', steps: [
+        { type: 'GRANT_KEYWORD', target: { type: 'LRIG', owner: 'opponent', count: 1 }, keyword: 'アタックできない', duration: 'UNTIL_END_OF_TURN' },
+        { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelEqLrig: 'opponent' } } },
+        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', levelLtOppLrig: true } } },
+      ] };
+    }
+  }
+}
+
 function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void {
   const find = (id: string) => effects.find(e => e.effectId === id);
   const gate = (id: string, condition: Condition): void => { const e = find(id); if (!e) return; if (e.action.type === 'CONDITIONAL' && e.action.condition.type === condition.type) return; e.action = { type: 'CONDITIONAL', condition, then: e.action }; };
@@ -6286,6 +6363,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyBoardZoneStateBatch3(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
+  applyIdentityBatch5b(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

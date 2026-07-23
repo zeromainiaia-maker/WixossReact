@@ -4,6 +4,20 @@
 
 ---
 
+## ROADMAP バッチ5b：lastProcessed／コスト／ルリグ参照の同一性filter（2026-07-23・codex実装/Claude確認）
+
+「この方法で処理したカードと同じレベル／名前」「センタールリグと同じレベル」の対象制約が脱落していた31効果を、既存 `levelEqLastProcessed` と新設 `nameEqLastProcessed`／`levelEqLastProcessedCount`／`levelEqLastProcessedLevelSum`／`levelEqLrig`、既存コスト変数2種で是正した。effectId固定チョークポイントで対象効果だけを合成し、曖昧な一般regexには波及させていない。
+
+- 既存 `levelEqualsVar`／`levelEqDiscardLevelSum` は BANISH 局所解決から共通 `resolveDynamicFilter` へ集約。固定枚数の手札捨てコストにもレベル合計記録を追加し、`trash_self` にも自身の表記レベル記録を追加した。
+- executor入口は BANISH／BOUNCE／SEARCH／TRANSFER_TO_HAND／TRANSFER_TO_DECK／ADD_TO_FIELD／POWER_MODIFY に加え、未配線だった TRASH(SIGNI) を共通解決器へ接続。参照不能時は到達不能cardNumへ解決して空ヒットとし、無制限化を防止。
+- 必須併修：WXDi-P05-018-E1 のデッキトップTRASH ownerを opponentへ、WXDi-P11-033-E1 の後段BANISHを復元。WXK10-001-E1 は相手ルリグ同レベルBOUNCE＋既存の相手ルリグ未満BANISHへ再構成。WX03-001-E1 の無指定「シグニ1体」は owner:any とした。
+- 見送り8効果：WXEX2-20-E3（引用内optional TRASH再構成）、WXDi-P16-080-E1（エナ置きコスト記録なし）、WXK11-040-E2／WXK09-032-E2（エナトラッシュコストの名前／レベル合計記録なし）、WXK04-045-E1（look内pick制約）、WXK05-044-E1（bare REVEALが公開カードを記録しない）、WXK10-067-E1（先行対象指定が欠落しlastProcessed記録なし）、WXEX2-42-E2（前段GRANTが参照を上書きするため部分filter採用不可）。
+- golden 654→657（各新語彙の一致／参照不能空ヒット、BANISH／SEARCH／TRANSFER_TO_HAND／TRASH入口）。全ゲート緑：smoke 10723/10723、fuzz 0、census 1674→1649、lint 0 errors/221 warnings。同型★0。PLAN/PLAN_PROGRESS、commit/pushは依頼どおり未実施。
+
+**Claude 検証（退化1件是正・手順違反1件・追認）**：per-effect 機械 diff＝申告どおり31効果ちょうど・巻き添え0。`noMatch` センチネル（`cardNum:'__dynamic_filter_reference_unavailable__'`）は matchesFilter の実キー（execUtils.ts:307）で正しく空ヒットになることをコードで確認。resumeLookAndReorder の lastProcessedCards 記録（WX17-015/WXDi-P11-033 の前提）も実在確認。**退化1件＝WXK10-001-E1 の再構成で codex が原文①の GRANT_KEYWORD『アタックできない』付与（従来 curated は正しかった）を落としていた**のを Claude がチョークポイント修正＋heldReview --adopt で復元し、3段構造 golden を追加（657→**658**）。**手順違反1件＝「PLAN §3 の build:effects 実行禁止」という実在しないルールを引いて held 実測をスキップ**（§6 の再実行義務に反する）＝Claude が build:effects→heldReview を実測し **held 235枚/93グループ＝基線一致（ドリフト無し）**を確認。BASELINE_HIGH の 1674→1649 更新漏れも Claude が是正。
+
+---
+
 ## ROADMAP バッチ5 第1波：ルリグ共通色フィルタ脱落（2026-07-23・codex実装/Claude確認）
 
 「（対戦相手の）センタールリグと共通する色を持たない」対象句が無条件対象へ潰れていた系統を、既存 `colorNotMatchesLrig` で是正した。原文照合済みの第1波だけを effectId 固定チョークポイントで合成し、次波候補へは波及させていない。

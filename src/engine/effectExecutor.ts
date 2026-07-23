@@ -695,7 +695,10 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   if (tgt.type === 'SIGNI') {
     // thisCardOnly: 効果元シグニ自身のみを対象（「このシグニを場からトラッシュに置く」。WXDi-P04-040 等の自己犠牲）
     // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」。WXK10-039 等）
-    let trashFilter = tgt.filter;
+    let trashFilter = resolveDynamicFilter(
+      tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards,
+      ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+    );
     let trashThisCardRestrict: string[] | null = null;
     let trashExcludeSelf = false;
     if (trashFilter?.thisCardOnly) {
@@ -1072,6 +1075,52 @@ function resolveDynamicFilter(
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
+  const noMatch = (rest: import('../types/effects').TargetFilter): import('../types/effects').TargetFilter =>
+    ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
+  // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
+  // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。
+  if (result.levelEqDiscardLevelSum || result.levelEqualsVar) {
+    const { levelEqDiscardLevelSum: _ds, levelEqualsVar: variable, ...rest } = result;
+    const value = _ds
+      ? ownerSt.last_activated_discard_level_sum
+      : variable === 'charm_trash_count'
+        ? ownerSt.last_charm_trash_count
+        : ownerSt.last_field_trash_level;
+    result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
+  }
+  if (result.levelEqLastProcessed || result.nameEqLastProcessed
+      || result.levelEqLastProcessedCount || result.levelEqLastProcessedLevelSum) {
+    const {
+      levelEqLastProcessed: levelEq, nameEqLastProcessed: nameEq,
+      levelEqLastProcessedCount: countFilter,
+      levelEqLastProcessedLevelSum: levelSum, ...rest
+    } = result;
+    const processed = lastProcessedCards ?? [];
+    if (levelEq || nameEq) {
+      const ref = processed[0] ? cardMap.get(getCardNum(processed[0])) : undefined;
+      const level = ref ? parseInt(ref.Level ?? '', 10) : NaN;
+      result = nameEq
+        ? (ref?.CardName ? { ...rest, cardName: ref.CardName } : noMatch(rest))
+        : (!isNaN(level) ? { ...rest, level } : noMatch(rest));
+    } else if (countFilter) {
+      const count = countFilter === true
+        ? processed.length
+        : processed.filter(n => matchesFilter(cardMap.get(getCardNum(n)), countFilter)).length;
+      result = processed.length > 0 ? { ...rest, level: count } : noMatch(rest);
+    } else if (levelSum) {
+      const levels = processed.map(n => parseInt(cardMap.get(getCardNum(n))?.Level ?? '', 10));
+      result = levels.length > 0 && levels.every(Number.isFinite)
+        ? { ...rest, level: levels.reduce((a, b) => a + b, 0) }
+        : noMatch(rest);
+    }
+  }
+  if (result.levelEqLrig) {
+    const { levelEqLrig: side, ...rest } = result;
+    const state = side === 'self' ? ownerSt : otherSt;
+    const lrig = state?.field.lrig.at(-1);
+    const level = lrig ? parseInt(cardMap.get(getCardNum(lrig))?.Level ?? '', 10) : NaN;
+    result = !isNaN(level) ? { ...rest, level } : noMatch(rest);
+  }
   // powerLteSelf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
   // （「このシグニ/自身よりパワーの低い・高い」。参照不能ならフラグを外すだけ＝制限なしにフォールバック）
   if ((result.powerLteSelf || result.powerLtSelf || result.powerGtSelf) && sourceCardNum) {

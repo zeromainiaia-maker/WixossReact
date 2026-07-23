@@ -9430,6 +9430,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const lv = parseInt(battleCardMap.get(cn)?.Level ?? '0', 10) || 0;
         return s + lv;
       }, 0);
+      const fixedDiscardLevelSum = discardedCards.reduce((s, cn) => {
+        const lv = parseInt(battleCardMap.get(getCardNum(cn))?.Level ?? '0', 10) || 0;
+        return s + lv;
+      }, 0);
       const baseNewHand = my.hand.filter((_, i) => !discardCostIndices.has(i) && !(discardVarIndices?.has(i)));
       // discardAll: 手札をすべて捨てる（選択不要、自動）
       const discardAllCards = effect.cost?.discardAll ? [...baseNewHand] : [];
@@ -9489,7 +9493,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
         game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: totalDiscardedCount,
-        last_activated_discard_level_sum: discardVarCards.length > 0 ? discardVarLevelSum : my.last_activated_discard_level_sum,
+        last_activated_discard_level_sum: discardVarCards.length > 0
+          ? discardVarLevelSum
+          : discardedCards.length > 0 ? fixedDiscardLevelSum : my.last_activated_discard_level_sum,
         // DISCARD_BY_POWER_MATCH: handDiscardSigniコストで捨てたシグニのパワーを記録
         last_discarded_signi_power: discardedCards.length > 0
           ? (parseInt(battleCardMap.get(discardedCards[0])?.Power ?? '0', 10) || undefined)
@@ -9512,8 +9518,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // trash_self: このシグニを場からトラッシュに置く（起動コスト）
       if (effect.cost?.trash_self) {
+        const selfLevel = parseInt(battleCardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
         const afterRemove = removeFromField(cardNum, paid);
-        paid = { ...afterRemove, trash: [...afterRemove.trash, cardNum] };
+        paid = {
+          ...afterRemove,
+          trash: [...afterRemove.trash, cardNum],
+          last_field_trash_level: isNaN(selfLevel) ? paid.last_field_trash_level : selfLevel,
+        };
       }
       // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
       const charmTrashNAct2 = effect.cost?.charmTrash ?? 0;
