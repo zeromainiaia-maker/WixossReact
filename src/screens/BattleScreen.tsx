@@ -8123,7 +8123,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
           appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
           const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
-          const bt = collectBanishTriggers(num, ownerId, hostState, guestState, targetState);
+          // cause＝CONT効果の発生源（「あなたの効果によって…バニッシュされたとき」banishedByOwnEffect/banishedSourceStory の CONT 経路。G072群C の保守的非発火を解消）
+          const bt = collectBanishTriggers(num, ownerId, hostState, guestState, targetState,
+            { ownerId: mut.sourceIsHost ? bs.host_id : bs.guest_id, sourceCardNum: mut.sourceCardNum });
           allTriggers.push(...bt.entries);
           // usageLimit 消費を actions_done へ畳み込む（同一パスで複数体バニッシュしても《ターン1回》は1度だけ）
           if (bt.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...bt.usedHostIds] };

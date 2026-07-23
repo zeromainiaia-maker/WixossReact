@@ -4,6 +4,17 @@
 
 ---
 
+## §6.3 G072群C の CONT バニッシュ経路 cause 追跡（2026-07-23・Opus直修正）
+
+第2波までの残穴＝「あなたの効果によって対戦相手のシグニがバニッシュされたとき」（`banishedByOwnEffect`/`banishedSourceStory`）が **CONTINUOUS 効果由来のバニッシュでは保守的非発火**だった（`calcContinuousSigniMutations` の `ContSigniMutation` が発生源を運ばず、BattleScreen の CONT バニッシュ経路が cause を渡せなかった）。1機構の小改修のため codex バッチにせず Opus 直修正（続き254 の分担先例）。
+
+- `ContSigniMutation` に `sourceCardNum`（CONT 効果の発生源シグニ）と `sourceIsHost` を追加＝push 地点（`effectEngine.ts` scanOwner）のスコープ内変数をそのまま格納。
+- BattleScreen の CONT バニッシュ経路（checkAndApplyContMutations 内・collectBanishTriggers 呼び出し）へ `cause:{ownerId, sourceCardNum}` を配線。
+- パワー0ルールバニッシュ（8064）は据置＝ルール処理であり「効果によってバニッシュ」ではない（公式裁定準拠の意図的非発火）。
+- golden +1（651）＝合成 CONT BANISH で mutation が発生源を運ぶこと＋その cause で WXK11-055-E2 が発火することを end-to-end 固定。既存 JSON の CONT BANISH は実質1枚（WX25-P1-056＝optional で自動適用外）のため実害は将来の付与/新カード向けの整合性確保が主。
+
+これで **G072 族（条件前置き付き相手バニッシュ反応）の機構穴は全クローズ**。全ゲート緑（golden 651・census 1695 不変）。
+
 ## §6.3 G072 被バニッシュ側ゲート第2波（9効果＋lock-in 1・2026-07-23・codex実装/Claude確認）
 
 - `collectBanishTriggers` に正面・チャーム・watcher相対レベル・中央ゾーン・アップ状態・非攻撃中ゲートを追加。watcher 経路は section2/3 対称、`banishedWasUp` だけ section1 で局所評価した。

@@ -632,6 +632,8 @@ export interface ContSigniMutation {
   type: 'BANISH' | 'FREEZE' | 'DOWN';
   targetIsHost: boolean;
   targetNums: string[];
+  sourceCardNum: string;  // CONT効果の発生源シグニ（「あなたの効果によって…バニッシュされたとき」の cause 判定用＝G072群C の CONT 経路解消）
+  sourceIsHost: boolean;  // 発生源の所有者（cause.ownerId の解決用）
 }
 
 /**
@@ -683,7 +685,7 @@ export function calcContinuousSigniMutations(
         }
         if (candidates.length === 0) continue;
         const targetNums = target.count === 'ALL' ? candidates : candidates.slice(0, 1);
-        result.push({ effectId: eff.effectId, type: act.type, targetIsHost, targetNums });
+        result.push({ effectId: eff.effectId, type: act.type, targetIsHost, targetNums, sourceCardNum: sourceNum, sourceIsHost: ownerIsHost });
       }
     }
   };
