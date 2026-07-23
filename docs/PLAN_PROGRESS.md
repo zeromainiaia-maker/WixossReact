@@ -6,6 +6,12 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-22・続き254・Opus 4.8・**[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) **バッチ2第2波の実測でルート枯渇を確認→真バグ4件を Opus 直修正＋P1完了宣言フェーズへ移行**（census 1715→**1713**・golden 596→**599**）
+  - **⚠実測でバッチ2〜4が枯渇と判明（CODEX_GUIDE §3・続き213/250 の再現）**＝codex に第2波を投げる前に候補 JSON を全件実測したところ、**census の class/色/閾値/「Nまで」high-signal は大半がコスト・条件・トリガー節・別節にあり、対象フィルタ自体の脱落ではなかった**。genuine 真バグ＝バッチ2第2波 **4件**・バッチ3（閾値）**3件**（偽陽性含む）・バッチ4（「Nまで」）**4件だが全て「代わりに」置換＝対象外機構**。SEND_TO_ENERGY=0・TRASH=0・BANISH=0・BOUNCE=0。**⇒「1 parser規則→N効果」の系統クラスタは出尽くした＝PLAN §5 の逓減限界に到達**。
+  - **Opus 直修正4件**（codex バッチにならないため分担）＝WX10-013-E1（水獣）・WX11-046-E1（空獣か地獣）＝`parseSentencePart1` のパワー修整分岐に class/色/level 接頭辞を追加し owner:any 潰れ→owner:self+story 復元（additive）／WX05-023-E3（原子）＝PLACE_UNDER_SIGNI の「《X》以外の＜種族＞N枚」を excludeCardName+story+count へ（cardName 誤合成是正）／WX09-020-BURST（白か黒）＝MANUAL 兄弟の PRESERVE 直パッチ。per-effect diff 巻き添え0・golden +3・全ゲート緑。詳細 BUGFIXES 続き254。
+  - **P1完了宣言に向けた簿記**＝純§6.3 94効果（`docs/_p1_classification.txt`）は**全件現在も AUTO・STUBノードなし＝分類有効**を機械再確認し ROADMAP に正式登録（P1完了宣言時に即 P2/P3 送り可）。ROADMAP「次にやるべきこと」冒頭にバッチ2〜4枯渇の実測を記録し「純P1 1647／16バッチ 候補上限1280」は対象filter脱落については over-estimate と明記。
+  - **次の一手＝方針判断が要る**（次セッション or ユーザー指示）＝（A）未測ルート（バッチ5 同一性/共通色109・バッチ1残の履歴カウンタ系）を実測して codex バッチが残っていないか確認、（B）残る長テール単発（続き254 の4件が典型）を Opus が BEHAVIOR_AUDIT/semantic audit ベースで逐次直修正、（C）§5「完了判定」に沿って **P1完了＋残りは機構待ち（§6.3）を正式宣言**し §2 DoD を締める。**現時点の実測は（C）が近いことを示す**（parser-fixable 系統クラスタ枯渇）。**Sonnet はタスク1（§7 実機検証）継続**。
+
 - **セッション（2026-07-22・続き253・Opus 4.8＋Codex 分担・[P1_COMPLETION_ROADMAP](./P1_COMPLETION_ROADMAP.md) バッチ2「対象フィルタ合成」第1波＝トラッシュ→手札回収のフィルタ脱落30効果を採用**（census 1742→**1715**・golden 593→**596**）
   - **投入前実測（Claude）**＝バッチ2候補432件（クラス258/色109/名前包含29/否定28/除外8）を入口別に機械トリアージ→第1波は TRANSFER_TO_HAND{TRASH_CARD} 入口の33件＝**全件真バグ・偽陽性ゼロ**。うち**11件は PRESERVE カード封鎖**（fresh は既に正しいが MANUAL/PARTIAL 同居で build が温存＝held にも載らない不可視 drift）と判明＝直パッチが正規の直し方。engine 語彙（color配列OR・cardName部分一致・excludeCardName・nonColorless）は全て既存と確認してから投入。
   - **修正（Codex 実装）**＝`parserUtils.extractNounPhraseFilter` 新設（バッチ2の共通 filter extractor・今回はトラッシュ→手札1入口だけへカードゲート配線＝`TTH_FILTER_BATCH2_WAVE1_CARDS`）。群A PRESERVE 11＝外科パッチ／群B 複色OR・無色4／群E 名前包含4／群F 無色否定7／群C 複合対象の SEQUENCE 分割4。**engine バグ1件同時修正**＝effectEngine ローカル matchesFilter の `nonColorless` が `'無'` を除外せず＝execUtils と3値統一。見送り3件は golden 非採用固定。
