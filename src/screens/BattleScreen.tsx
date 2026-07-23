@@ -4026,6 +4026,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...(entry.triggeringCardNum ? { triggeringCardNum: entry.triggeringCardNum } : {}),
           ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
           ...(result.trapActivated ? { trapActivated: true } : {}),
+          ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
         update.effect_stack = newStack;
@@ -4302,7 +4303,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -4376,6 +4377,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...peBase,
           ...(nextRespondPlayerId ? { respondPlayerId: nextRespondPlayerId } : {}),
           interaction: result.pending,
+          ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
         } satisfies PendingEffect;
         // === 途中ラウンドの盤面差分トリガー（続き75・Opus）===
         // 複数ラウンドのインタラクションを要する SEQUENCE（例 WXEX2-50＝①相手トラッシュ→相手の場に出す→
@@ -4506,7 +4508,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
-        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
         const existingStack = bs.effect_stack ?? null;
@@ -4549,7 +4551,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
-        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
         const existingStack = bs.effect_stack ?? null;
@@ -4664,7 +4666,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
-        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
         const existingStack = bs.effect_stack ?? null;
@@ -4708,7 +4710,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
-        update.pending_effect = { ...peBase, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
         const existingStack = bs.effect_stack ?? null;
@@ -6102,7 +6104,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : initStack(bs.active_user_id ?? user.id, spellUseEntries);
       }
       if (!result.done) {
-        update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
       }
@@ -6222,7 +6224,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const guestState = isHost ? result.otherState : result.ownerState;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
       if (!result.done) {
-        update.pending_effect = { sourcePlayerId: user.id, sourceCardNum: cutinCard.CardNum, effectId: cutinEff.effectId, interaction: result.pending } satisfies PendingEffect;
+        update.pending_effect = { sourcePlayerId: user.id, sourceCardNum: cutinCard.CardNum, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
       }

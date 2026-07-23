@@ -4,6 +4,25 @@
 
 ---
 
+## §6.3 コストゲート第2波（追加エクシード・複合手札コスト・保存対象適用・多段閾値）（2026-07-23・codex実装/Claude確認）
+
+`OPTIONAL_COST` の既存実支払い経路へ `exceed` と `handDiscardGroups` を追加し、エクシードは既存のルリグ下カード集合（センター／両アシストの最上段以外）からルリグトラッシュへ移す。保存対象の凍結は従来の BANISH 限定から BANISH／TRASH／BOUNCE／EXILE 共通へ拡張し、コスト支払いが `lastProcessedCards` を上書きしても先に選んだ同一 instance へ作用するようにした。
+
+MANUAL 再構成は4効果。WXDi-D08-012-E1 は相手シグニを先に固定し、追加エクシード4の支払い時は EXILE、未払い時は BANISH。WXDi-D09-P15-E1 はパワー12000以下を先に固定し、①手札3枚→BOUNCE、②手札2枚＋ガード持ちシグニ1枚→EXILE の各任意支払いを実装。WX16-033-BURST は相手対象を固定後、自シグニ1体のバニッシュ成立時だけその固定対象を TRASH。WXDi-D01-016-E1 は 20000以上の blind discard を先に評価し、else で15000以上の通常discardへ落とす相互排他的な多段閾値へ是正した。
+
+見送り：WD21-009（可変枚数＋数字2つ宣言＋3段階報酬）、PR-238（可変枚数×5の両者ミル＋他アーツ未使用）、PR-204（アーツ名履歴＋付与AUTO）、WX17-041-BURST（トラップ選択コスト）、PR-470A の25000段（自身をルリグデッキへ戻して指定レゾナを出す）は、必要な消費経路を欠くため見かけだけ動く近似を作らず据置。
+
+**Claude 検証で是正した3件（CODEX_GUIDE §7・golden 629→631）**：
+1. **WXDi-D08-012 の `snapshotLastProcessedForConditionals` 誤用＝EXILE 枝が実行前に消滅**。snapshot はシーケンス冒頭で全 CONDITIONAL を事前解決する仕様のため、`PAID_ADDITIONAL_COST` が支払い前に false 評価され then（EXILE）が削除→残った else（BANISH）が Pattern ⑤（後続 CONDITIONAL なし）に流れ、「pay しても BANISH・exceed 未払い」の壊れた CHOOSE になっていた（codex の golden は文字列構造 assert のみで検出不能＝挙動テストで捕捉）。snapshot フラグを除去し look-ahead Pattern へ復帰。
+2. **skip 側（else/base）の凍結漏れ**＝freezeStoredTargets が pay 側にしか適用されず、未払い経路の `targetsStored` が resume 後に候補空→空振り。look-ahead 両サイトの skip action にも凍結を適用。
+3. **`storedTargetCards` が BattleScreen の pause を跨いで生存しない系統穴**＝STORE→（対象選択などの pause）→適用 の形（WX16-033 で自シグニ2体以上・WXDi-D09-P15 の CHOOSE 跨ぎ）で適用が空振りする。`PendingEffect.storedTargetCards` を新設（`triggeringCardNum`/`trapActivated` と同型）し、全 persist サイト7箇所＋resume ctx 復元に配線。golden に D08-012 両経路（pay=EXILE+エクシード実払い／skip=同一対象へ BANISH）と WX16-033 の pause 跨ぎ契約を追加。
+
+最終ゲート：golden **631/631**・census 1702 維持・smoke/fuzz 0・同型★0・lint 221 warnings。
+
+検証：`npm run gates` 全緑。golden **629/629**（MANUAL構造と14999/15000/19999/20000境界を追加）、smoke **10723/10723**・CRASH/HANG/INVARIANT/SKIP 0、fuzz 0、census **1702**維持、lint 0 errors / **221 warnings**。
+
+---
+
 ## §6.3 アップ／ダウン状態ファミリ12効果（追加コスト・動的filter・watcher是正）（2026-07-23・codex実装/Claude確認）
 
 原文照合で確認した12効果を4系統で是正した。M1 は `EffectCost.signiDown` と限定正規表現を追加し、WX14-055-E1（＜鉱石＞/＜宝石＞1体）・WXK11-056-E2/E3（赤1/2体）を `down_self` と別の追加ダウンコストとして生成。`BattleScreen` の起動可否・支払い・表示へ配線し、不足時は発動不可、支払い時はアップ状態のfilter一致シグニだけをダウンする（現行 `fieldDown` と同じ決定的候補順）。

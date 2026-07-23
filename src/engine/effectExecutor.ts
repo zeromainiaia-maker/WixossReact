@@ -334,7 +334,9 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   // 動的フィルタ（powerLteLastProcessed / levelLteLastProcessed＝「この方法で処理したシグニのパワー/レベル以下」等）を解決
   const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   const allCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  const cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
+  let cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applyBounce(selected: string[], c: ExecCtx): ExecCtx {
@@ -448,6 +450,8 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     let cands = fieldCandidates(state, exFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     if (thisRestrict) cands = cands.filter(n => thisRestrict!.includes(n));
     if (triggerRestrict) cands = cands.filter(n => triggerRestrict!.includes(n));
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     if (cands.length === 0) return done({ ...addLog(ctx, '除外できるシグニがない'), lastProcessedCards: [] });
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
@@ -700,6 +704,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     if (trashExcludeSelf && ctx.sourceCardNum) allSigCands = allSigCands.filter(n => n !== ctx.sourceCardNum);
     const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
     let cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     // SELF_TRASH_PREVENT（WX07-033・§6.1）: 自分（owner:self）の効果で自シグニをトラッシュに置く場合、
     // 「自分でトラッシュに置けない」シグニを候補から除外する（相手効果によるトラッシュは対象外）。
     if (tgt.owner === 'self' && ctx.ownSelfTrashPreventNums && ctx.ownSelfTrashPreventNums.size > 0) {
@@ -2638,31 +2644,47 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const hasMaregabi = !needsMaregabi || cur.ownerState.hand.some(cn =>
           matchesFilter(cur.cardMap.get(cn), { cardName: '幻水　マレガビ' }));
         const handDiscard = stub.handDiscard;
+        const handDiscardGroups = stub.handDiscardGroups ?? [];
+        const exceed = stub.exceed ?? 0;
         const matchingHand = handDiscard
           ? cur.ownerState.hand.filter(n => !handDiscard.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard.filter))
           : [];
+        const exceedPoolCount = cur.ownerState.field.lrig.slice(0, -1).length
+          + (cur.ownerState.field.assist_lrig_l?.slice(0, -1).length ?? 0)
+          + (cur.ownerState.field.assist_lrig_r?.slice(0, -1).length ?? 0);
+        const groupsAffordable = handDiscardGroups.every(g =>
+          cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
         const canAfford = (costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap))
-          && hasMaregabi && (!handDiscard || matchingHand.length >= handDiscard.count);
+          && hasMaregabi && (!handDiscard || matchingHand.length >= handDiscard.count)
+          && groupsAffordable && exceedPoolCount >= exceed;
         const freezeStoredTargets = (action: EffectAction): EffectAction => {
-          if (action.type === 'BANISH' && action.targetsStored) {
-            return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] };
+          if ((action.type === 'BANISH' || action.type === 'BOUNCE' || action.type === 'TRASH' || action.type === 'EXILE') && action.targetsStored) {
+            return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] } as EffectAction;
           }
           if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(freezeStoredTargets) };
           return action;
         };
         const paidAction = freezeStoredTargets(conditional.then);
-        const payAction: EffectAction = handDiscard ? {
-          type: 'SEQUENCE', steps: [{
+        const costActions: EffectAction[] = [
+          ...(exceed > 0 ? [{ type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: exceed } as EffectAction] : []),
+          ...(handDiscard ? [{
             type: 'TRASH', asCost: true,
             target: { type: 'HAND_CARD', owner: 'self', count: handDiscard.count, filter: handDiscard.filter },
-          }, paidAction],
-        } : paidAction;
+          } as EffectAction] : []),
+          ...handDiscardGroups.map(g => ({ type: 'TRASH', asCost: true,
+            target: { type: 'HAND_CARD', owner: 'self', count: g.count, filter: g.filter } } as EffectAction)),
+        ];
+        const payAction: EffectAction = costActions.length > 0
+          ? { type: 'SEQUENCE', steps: [...costActions, paidAction] }
+          : paidAction;
         const payLabel = costColors.length > 0
           ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
           : '発動する';
         const options = [
           { id: 'pay', label: payLabel, action: payAction, available: canAfford, ...(costColors.length ? { costColors } : {}) },
-          { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+          // skip 側（else）も凍結する＝storedTargetCards は resume を跨いで生存しないため、
+          // else に targetsStored があると未払い経路で候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）
+          { id: 'skip', label: 'スキップ', action: freezeStoredTargets((conditional.else ?? noopAction) as EffectAction), available: true },
         ];
         const pending: PendingInteractionDef = {
           type: 'CHOOSE',
@@ -2698,8 +2720,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               : undefined;
             const isAdditional = conditional4.condition.type === 'PAID_ADDITIONAL_COST';
             const freezeStoredTargets4 = (action: EffectAction): EffectAction => {
-              if (action.type === 'BANISH' && action.targetsStored) {
-                return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] };
+              if ((action.type === 'BANISH' || action.type === 'BOUNCE' || action.type === 'TRASH' || action.type === 'EXILE') && action.targetsStored) {
+                return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] } as EffectAction;
               }
               if (action.type === 'SEQUENCE') {
                 return { ...action, steps: action.steps.map(freezeStoredTargets4) };
@@ -2714,24 +2736,39 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const paidBody4 = freezeStoredTargets4(paidBody4Raw);
             const costColors4 = stub4.costColors ?? [];
             const handDiscard4 = stub4.handDiscard;
+            const handDiscardGroups4 = stub4.handDiscardGroups ?? [];
+            const exceed4 = stub4.exceed ?? 0;
             const matchingHand4 = handDiscard4
               ? cur.ownerState.hand.filter(n => !handDiscard4.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard4.filter))
               : [];
+            const exceedPoolCount4 = cur.ownerState.field.lrig.slice(0, -1).length
+              + (cur.ownerState.field.assist_lrig_l?.slice(0, -1).length ?? 0)
+              + (cur.ownerState.field.assist_lrig_r?.slice(0, -1).length ?? 0);
+            const groupsAffordable4 = handDiscardGroups4.every(g =>
+              cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
             const canAfford4 = (costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap))
-              && (!handDiscard4 || matchingHand4.length >= handDiscard4.count);
+              && (!handDiscard4 || matchingHand4.length >= handDiscard4.count)
+              && groupsAffordable4 && exceedPoolCount4 >= exceed4;
             const discardAction4: EffectAction | undefined = handDiscard4 ? {
               type: 'TRASH', asCost: true,
               target: { type: 'HAND_CARD', owner: 'self', count: handDiscard4.count, filter: handDiscard4.filter },
             } : undefined;
-            const payAction4: EffectAction = discardAction4
-              ? { type: 'SEQUENCE', steps: [discardAction4, paidBody4] }
+            const costActions4: EffectAction[] = [
+              ...(exceed4 > 0 ? [{ type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: exceed4 } as EffectAction] : []),
+              ...(discardAction4 ? [discardAction4] : []),
+              ...handDiscardGroups4.map(g => ({ type: 'TRASH', asCost: true,
+                target: { type: 'HAND_CARD', owner: 'self', count: g.count, filter: g.filter } } as EffectAction)),
+            ];
+            const payAction4: EffectAction = costActions4.length
+              ? { type: 'SEQUENCE', steps: [...costActions4, paidBody4] }
               : paidBody4;
             const payLabel4 = costColors4.length > 0
               ? `追加コスト支払う（${costColors4.map(c => `《${c}》`).join('')}）`
               : '追加コストを支払う';
             const opts4 = [
               { id: 'pay', label: payLabel4, action: payAction4, available: canAfford4, ...(costColors4.length ? { costColors: costColors4 } : {}) },
-              { id: 'skip', label: 'スキップ（基本効果のみ）', action: baseAction4, available: true },
+              // skip 側も凍結（site A と同じ理由＝storedTargetCards は resume を跨がない）
+              { id: 'skip', label: 'スキップ（基本効果のみ）', action: freezeStoredTargets4(baseAction4), available: true },
             ];
             const pending4: PendingInteractionDef = {
               type: 'CHOOSE', options: opts4, count: 1,

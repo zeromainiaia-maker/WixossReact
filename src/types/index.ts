@@ -629,6 +629,7 @@ export interface PendingEffect {
   triggeringCardNum?: string; // pause を跨いで「それ」参照を保持（resume の ExecCtx 再構築用）
   triggeringKeyword?: string; // pause を跨いで ON_KEYWORD_GAINED の「その能力」を保持（COPY_ABILITY 用・WXDi-P04-035）
   trapActivated?: boolean;    // pause を跨いで《トラップアイコン》発動イベントを保持（完了解決後に ON_TRAP_ACTIVATE を収集）
+  storedTargetCards?: string[]; // pause を跨いで STORE_LAST_PROCESSED_TARGETS の固定対象を保持（targetsStored の resume 用。WX16-033 等）
 }
 
 // ===== 効果スタック =====

@@ -667,6 +667,8 @@ export interface BounceAction {
   target: EffectTarget;
   optional?: boolean; // true = 「してもよい」（プレイヤーがスキップ可能）
   opponentSelects?: boolean; // 「対戦相手は対象の自分のシグニ1体を手札に戻す」：対戦相手が自分のシグニを選んで手札に戻す（target.owner='opponent'。WDK05-T20/WDK16-22）
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
 }
 
 export interface BanishAction {
@@ -713,6 +715,8 @@ export interface ExileAction {
   type: 'EXILE';
   target: EffectTarget; // TRASH_CARD / SIGNI / HAND_CARD など除外元
   blind?: boolean;      // 「見ないで選び」（伏せたまま選ぶ＝相手が選ぶ。WX14-011①）
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
 }
 
 export interface TrashAction {
@@ -722,6 +726,8 @@ export interface TrashAction {
   opponentSelects?: boolean; // 「対戦相手は自分の〜1枚を対象とし、それをトラッシュに置く」：対戦相手が自分のカードを選んでトラッシュ（target.owner='opponent'。WX04-009）
   bestEffort?: boolean; // true = 対象がなくても後続SEQUENCEをスキップしない（「手札を1枚捨て、カードをN枚引く（捨てられなくても引く）」の捨て。WDK06-R20/WDK14-022）
   optional?: boolean; // true =「捨ててもよい」（スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WXDi-D08-013/P14-084）
+  targetsStored?: boolean;
+  fixedCardNums?: string[];
 }
 
 export interface EnergyChargeAction {
@@ -1616,6 +1622,8 @@ export interface AltCostOppTurnAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   handDiscard?: { count: number; filter?: TargetFilter };
+  handDiscardGroups?: { count: number; filter?: TargetFilter }[];
+  exceed?: number;
   type: 'STUB';
   id: string;
   // GUARD_LOSS_UNLESS_LRIG: このクラスを持つセンタールリグでなければ、手札の自身は【ガード】を失う。

@@ -77,6 +77,27 @@ export function execStubPart1(
       ],
     });
   }
+  if (stub.id === 'INTERNAL_PAY_EXCEED') {
+    const count = typeof stub.value === 'number' ? stub.value : 0;
+    const pool = [
+      ...ctx.ownerState.field.lrig.slice(0, -1),
+      ...(ctx.ownerState.field.assist_lrig_l?.slice(0, -1) ?? []),
+      ...(ctx.ownerState.field.assist_lrig_r?.slice(0, -1) ?? []),
+    ];
+    if (pool.length < count) return done(addLog(ctx, `エクシード${count}を支払えない`));
+    const paid = new Set(pool.slice(0, count));
+    const newOwner = {
+      ...ctx.ownerState,
+      lrig_trash: [...ctx.ownerState.lrig_trash, ...paid],
+      field: {
+        ...ctx.ownerState.field,
+        lrig: ctx.ownerState.field.lrig.filter(n => !paid.has(n)),
+        assist_lrig_l: ctx.ownerState.field.assist_lrig_l?.filter(n => !paid.has(n)),
+        assist_lrig_r: ctx.ownerState.field.assist_lrig_r?.filter(n => !paid.has(n)),
+      },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `エクシード${count}を支払った`));
+  }
   // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
   // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
   if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {
