@@ -943,6 +943,24 @@ WX17-005
   + [0].action.else.type = "STUB"
   + [0].action.else.id = "MAKE_SERVANT_ZERO"
 
+## +LAST_PROCESSED_COUNT_GTE +POWER_MODIFY +STUB×2 -BOUNCE -IS_MY_TURN ［1枚］
+WX17-041
+--- WX17-041
+  原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番下に置く。【トラップアイコン】：《青》《青》《青》《無》《無》《無》を支払ってもよい。そうした場合、対戦相手のすべてのシグニを手札に戻す。,：対戦相手のシグニ１体を対象とし、あなたの【トラップ】１つを
+  - [1].timing[0] = "ON_LIFE_BURST"
+  - [1].action.steps[0].target.upToCount = false
+  - [1].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.steps[0].optional = false
+  - [1].action.steps[1].condition.type = "IS_MY_TURN"
+  - [1].action.steps[1].then.type = "BOUNCE"
+  - [1].action.steps[1].then.target.type = "SIGNI"
+  - [1].action.steps[1].then.target.owner = "opponent"
+  - [1].action.steps[1].then.target.count = 1
+  - [1].action.steps[1].then.target.upToCount = false
+  - [1].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [1].action.steps[1].then.optional = false
+  …（他 16 行）
+
 ## +ADD_TO_LIFE +BANISH×2 +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI×2 -STUB ［1枚］
 WX18-005
 --- WX18-005
@@ -1861,6 +1879,37 @@ SPK16-13E
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 11 行）
+
+## +MILL×2 +NO_OTHER_ARTS_USED_THIS_TURN +STUB -DECK_CARD×2 -SEQUENCE -TRASH×2 ［1枚］
+PR-238
+--- PR-238
+  原文: ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、このターンにあなたが《ディストラクト・アウト》以外のアーツを使用していない場合、それらをルリグトラッシュに置く。この方法でルリグトラッシュに置かれたカード１枚につき各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。その
+  - [0].cost.energy[0].color = "黒"
+  - [0].cost.energy[0].count = 1
+  - [0].action.abilities[0].action.steps[1].steps[0].type = "TRASH"
+  - [0].action.abilities[0].action.steps[1].steps[0].target.type = "DECK_CARD"
+  - [0].action.abilities[0].action.steps[1].steps[0].target.owner = "self"
+  - [0].action.abilities[0].action.steps[1].steps[0].target.count = 5
+  - [0].action.abilities[0].action.steps[1].steps[1].type = "TRASH"
+  - [0].action.abilities[0].action.steps[1].steps[1].target.type = "DECK_CARD"
+  - [0].action.abilities[0].action.steps[1].steps[1].target.owner = "opponent"
+  - [0].action.abilities[0].action.steps[1].steps[1].target.count = 5
+  - [0].action.abilities[0].action.steps[2].condition.type = "DECK_COUNT"
+  - [0].action.abilities[0].action.steps[2].condition.owner = "self"
+  …（他 32 行）
+
+## +CONDITIONAL +SELF_POWER_GTE +STUB -ADD_TO_FIELD ［1枚］
+PR-470A
+--- PR-470A
+  原文: 【出現条件】《メインフェイズアイコン》パワーの合計が10000以上になるようにあなたのエナゾーンからシグニを好きな数トラッシュに置く【自】：あなたのデッキがシャッフルされたとき、ターン終了時まで、このシグニのパワーを＋5000する。【自】：あなたのアタックフェイズ開始時、このシグニのパワーが10000以上の場合、カードを１枚引く。25000以上の場合、このシ
+  - [1].action.steps[1].owner = "self"
+  ~ [1].action.steps[1].type : "ADD_TO_FIELD" → "CONDITIONAL"
+  + [1].action.steps[1].condition.type = "SELF_POWER_GTE"
+  + [1].action.steps[1].condition.value = 25000
+  + [1].action.steps[1].then.type = "STUB"
+  + [1].action.steps[1].then.id = "SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME"
+  + [1].action.steps[1].then.fetchCardName = "進化する筋肉　紗倉ひびき"
+  ~ [1].parseStatus : "AUTO" → "MANUAL"
 
 ## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 -STUB ［1枚］
 PR-K072
