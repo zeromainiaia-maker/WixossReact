@@ -6,6 +6,7 @@ import type {
   TargetFilter,
   Owner,
   NumberOrRef,
+  CountFromZone,
   Condition,
   SelectionConstraint,
 } from '../types/effects';
@@ -93,6 +94,26 @@ export function shuffle<T>(arr: T[]): T[] {
 
 export function resolveNum(n: NumberOrRef): number {
   return typeof n === 'number' ? n : 0;
+}
+
+export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFromZone): number {
+  if (fromZone) {
+    const state = ownerState(fromZone.owner, ctx);
+    const cards = fromZone.zone === 'field'
+      ? [
+          ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+          ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+        ]
+      : fromZone.zone === 'energy' ? state.energy
+      : fromZone.zone === 'trash' ? state.trash
+      : state.lrig_trash ?? [];
+    return cards.filter(cardNum => !fromZone.filter || matchesFilter(ctx.cardMap.get(cardNum), fromZone.filter)).length
+      * (fromZone.per ?? 1);
+  }
+  if (typeof n === 'number') return n;
+  if (n.$ref === 'last_processed_count') return ctx.lastProcessedCards?.length ?? 0;
+  console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);
+  return 0;
 }
 
 // バニッシュされたシグニの行き先を決定する（BattleScreenのバトルバニッシュと同一の優先順）。

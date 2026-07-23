@@ -2937,6 +2937,118 @@ function applyOpponentSelectsBatch11(effects: CardEffect[]): void {
   }
 }
 
+// ROADMAP batch6「1枚/1体につき」。原文照合済み effectId だけを単一チョークポイントで補正する。
+// 比例元が直前の処理結果なら last_processed_count、盤面/ゾーンなら countFromZone を使う。
+function applyProportionalCountBatch6(effects: CardEffect[]): void {
+  const ref = { $ref: 'last_processed_count' } as const;
+  const visit = (node: unknown, predicate: (o: Record<string, unknown>) => boolean,
+    mutate: (o: Record<string, unknown>) => void, limit = 1): number => {
+    if (!node || typeof node !== 'object' || limit <= 0) return 0;
+    const o = node as Record<string, unknown>;
+    let changed = 0;
+    if (predicate(o)) { mutate(o); changed++; }
+    for (const value of Object.values(o)) {
+      if (changed >= limit) break;
+      const values = Array.isArray(value) ? value : [value];
+      for (const child of values) {
+        changed += visit(child, predicate, mutate, limit - changed);
+        if (changed >= limit) break;
+      }
+    }
+    return changed;
+  };
+  const actionType = (type: string, ordinal = 1) =>
+    (e: CardEffect) => visit(e.action, o => o.type === type, o => {
+      if (type === 'DRAW' || type === 'ENERGY_CHARGE_FROM_DECK') o.count = ref;
+      else {
+        const target = (o.target ?? o.source) as Record<string, unknown> | undefined;
+        if (target) target.count = ref;
+      }
+    }, ordinal);
+  const lastOfType = (e: CardEffect, type: string, mutate: (o: Record<string, unknown>) => void): void => {
+    const found: Record<string, unknown>[] = [];
+    visit(e.action, o => { if (o.type === type) found.push(o); return false; }, () => {}, Number.MAX_SAFE_INTEGER);
+    if (found.length) mutate(found.at(-1)!);
+  };
+
+  for (const e of effects) {
+    switch (e.effectId) {
+      case 'SPDi44-16-E2':
+      case 'WX25-P1-030-E2':
+        if (e.action.type === 'ADD_TO_FIELD' && e.action.source) e.action.source.count = ref;
+        break;
+      case 'WDK05-T07-E1': lastOfType(e, 'BOUNCE', o => ((o.target as Record<string, unknown>).count = ref)); break;
+      case 'WDK15-008-E1': lastOfType(e, 'BANISH', o => ((o.target as Record<string, unknown>).count = ref)); break;
+      case 'WX20-060-E2':
+      case 'WX24-P1-012-E2':
+      case 'WXDi-P08-069-E1':
+        lastOfType(e, 'ENERGY_CHARGE_FROM_DECK', o => { o.count = ref; }); break;
+      case 'WX24-P1-014-E2': lastOfType(e, 'BOUNCE', o => {
+        const t = o.target as Record<string, unknown>; t.count = ref; t.upToCount = true;
+      }); break;
+      case 'WX24-P2-003-E1':
+      case 'WXDi-P13-007-E3':
+        lastOfType(e, 'TRASH', o => { const t = o.target as Record<string, unknown>; if (t.type === 'ENERGY_CARD') t.count = ref; }); break;
+      case 'WXDi-P10-008-E3': {
+        // Claude 検証是正（2026-07-23）: 最終 TRASH は「相手全シグニ」なので lastOfType では ENERGY ガードで
+        // 不発だった（codex 申告漏れ）。中間の相手エナ TRASH を直接特定して比例化する。
+        if (e.action.type === 'SEQUENCE') {
+          const step = e.action.steps.find((s): s is Extract<EffectAction, { type: 'TRASH' }> =>
+            s.type === 'TRASH' && s.target.type === 'ENERGY_CARD' && s.target.owner === 'opponent');
+          if (step) step.target.count = ref as EffectTarget['count'];
+        }
+        break;
+      }
+      case 'WX24-P3-074-E1':
+      case 'WX25-P3-084-E1':
+      case 'WXDi-CP02-073-E1':
+      case 'WXDi-P06-061-E1':
+      case 'WXDi-P15-065-E1':
+        actionType('DRAW')(e); break;
+      case 'WX25-CP1-047-E1':
+        lastOfType(e, 'TRASH', o => {
+          o.type = 'MILL'; o.owner = 'opponent'; o.count = 0; o.countPerLastProcessed = 2; delete o.target;
+        }); break;
+      case 'WXDi-P11-077-E1':
+        lastOfType(e, 'TRASH', o => {
+          o.type = 'MILL'; o.owner = 'opponent'; o.count = 0; o.countPerLastProcessed = 1; delete o.target;
+        }); break;
+      case 'WXK01-038-E1':
+        lastOfType(e, 'TRASH', o => ((o.target as Record<string, unknown>).count = ref)); break;
+
+      case 'WX26-CP1-009-E1':
+        lastOfType(e, 'TRASH', o => {
+          const t = o.target as Record<string, unknown>;
+          t.countFromZone = { zone: 'field', owner: 'self', filter: { story: 'プリオケ' }, per: 4 };
+        }); break;
+      case 'WXDi-CP01-048-E2':
+        if (e.action.type === 'TRASH') e.action.target.countFromZone =
+          { zone: 'field', owner: 'self', filter: { story: 'バーチャル', excludeSelf: true } };
+        break;
+      case 'WXDi-CP02-093-E1':
+        if (e.action.type === 'TRASH') e.action.target.countFromZone =
+          { zone: 'field', owner: 'self', filter: { story: 'ブルアカ' } };
+        break;
+      case 'WXEX2-21-E1':
+        lastOfType(e, 'TRASH', o => {
+          const t = o.target as Record<string, unknown>;
+          t.countFromZone = { zone: 'trash', owner: 'self', filter: { cardType: 'シグニ', story: '悪魔' } };
+        }); break;
+
+      case 'WX08-046-BURST':
+      case 'WX08-081-E1':
+      case 'WX13-037-E1':
+      case 'WX18-038-E3':
+        visit(e.action, o => o.type === 'ATTACH_CHARM', o => {
+          o.charm = { type: 'DECK_CARD', owner: 'opponent', count: 1 };
+          o.to = { type: 'SIGNI', owner: 'opponent', count: 'ALL' };
+          o.perAllSigni = true;
+        });
+        break;
+    }
+  }
+}
+
 // ROADMAP batch5b。同一性参照は曖昧な一般 regex へ広げず、原文照合済み effectId の
 // 対象 action だけに付与する。filter の実行は resolveDynamicFilter に一本化。
 const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter; value?: unknown; occurrence?: number }> = {
@@ -6568,6 +6680,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applySharedColorBatch5c2(effects);
   applyDistinctBatch5c(effects);
   applyOpponentSelectsBatch11(effects);
+  applyProportionalCountBatch6(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

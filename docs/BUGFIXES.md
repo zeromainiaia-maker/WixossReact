@@ -4,6 +4,19 @@
 
 ---
 
+## ROADMAP バッチ6：数量比例（2026-07-23・codex実装/Claude確認）
+
+**Claude 検証（是正2件）**＝per-effect 機械 diff＝申告27に対し実26＝**WXDi-P10-008-E3 が lastOfType(TRASH) の ENERGY ガード不発で silent skip**（最終 TRASH が相手全シグニのため・採用申告と実 JSON の乖離）→専用 case で中間の相手エナ TRASH を直接特定して比例化＋採用（census 1582→1581）。②同修正の型エラー（TS2352）も是正。resolveCountRef 一本化（10入口）・群C 一斉チャーム・E2E golden 3本・held --adopt・BASELINE_HIGH 本体更新は申告どおりを確認。
+
+「この方法で処理した1枚/1体につき」と場・ゾーン枚数比例、一斉チャームの脱落を系統修正した。
+
+- `resolveCountRef` を `execUtils` に新設し、`last_processed_count` と未知ref警告を一本化。採用先の BANISH/BOUNCE/TRASH/DRAW/ENERGY_CHARGE/ADD_TO_LIFE/SEARCH 等へ配線した。
+- `countFromZone {zone,owner,filter,per}` を追加し、場/トラッシュ比例の代表4効果を採用。`ATTACH_CHARM.perAllSigni` で相手の全シグニへデッキトップから各1枚を付与する4効果を実装。
+- 結果参照21カードを heldReview で採用し、PRESERVE の WX25-P3-084 は `scripts/archive/patch_batch6_preserve.mjs` で直パッチ。E2E golden 3本追加（669/669）。
+- census 1589→1582。PLAN/PLAN_PROGRESS と commit/push は依頼どおり未実施。
+
+---
+
 ## ROADMAP バッチ11：相手が選ぶ（2026-07-23・codex実装/Claude確認）
 
 **Claude 検証（差し戻し0・追加是正2件）**＝per-effect 機械 diff で **43差分すべてが opponentSelects:true 追加のみ・その他差分ゼロを機械証明**（置換テストによる厳密確認）。BASELINE_HIGH は今回正しく本体更新（1589・並行定数なし）・BUGFIXES 先頭追記・held --adopt 完了＝**前3波の教訓3種がすべて1回で定着**。blind 1件（WX14-011＝既に正しい）の実測差し戻しと偽陽性1件（WX26-CP1-060-E1）の指摘も正確。**追加是正＝codex が§5で申告した count バグ2件**（SPDi43-01-E1/WX26-CP1-060-SONG＝原文「シグニ2体」に対し count:1）を Claude がチョークポイントで 2 へ是正し採用（SPDi43-01 の「《無》《無》を支払わないかぎり」＝相手の支払い回避ゲートは機構未整備＝§6.3 送り）。

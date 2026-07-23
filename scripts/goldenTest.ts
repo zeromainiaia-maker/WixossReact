@@ -7906,6 +7906,50 @@ test('§6.3 cost-game wave 2: SELF_POWER_GTE 境界14999/15000/19999/20000', () 
   ok(!evalCondition(cond20, at(19999)) && evalCondition(cond20, at(20000)), '20000境界');
 });
 
+test('batch6 A: 前段TRASH 2体→比例BANISH 2体の選択上限', () => {
+  const action = {
+    type: 'SEQUENCE', steps: [
+      { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 2, upToCount: true } },
+      { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' } } },
+    ],
+  } as EffectAction;
+  const c = mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null] }, { signi: [SIGNI, SIGNI_P12000, null] });
+  let r = executeEffect({ effectId: 'B6-A', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, c);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '前段2体選択');
+  if (r.done) return;
+  r = resumeSelectTarget([SIGNI_L1, SIGNI_L2], r.pending as never,
+    { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '後段BANISH選択');
+  if (!r.done) eq(r.pending.count, 2, 'last_processed_count=2を選択数へ解決');
+});
+
+test('batch6 B: 場2体×4枚＝相手デッキ8枚ミル', () => {
+  const c = mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null] }, { deckTop: Array.from({ length: 10 }, () => fresh()) });
+  const before = c.otherState.deck.length;
+  const trashBefore = c.otherState.trash.length;
+  const r = run({
+    type: 'TRASH',
+    target: { type: 'DECK_CARD', owner: 'opponent', count: 0,
+      countFromZone: { zone: 'field', owner: 'self', filter: { cardType: 'シグニ' }, per: 4 } },
+  } as EffectAction, c);
+  eq(r.otherState.deck.length, before - 8, '2×4枚をデッキから除去');
+  eq(r.otherState.trash.length, trashBefore + 8, '8枚をトラッシュへ');
+});
+
+test('batch6 C: 相手シグニ2体へデッキトップ各1枚チャーム', () => {
+  const top = [fresh(), fresh(), fresh()];
+  const c = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null], deckTop: top });
+  const before = c.otherState.deck.length;
+  const r = run({
+    type: 'ATTACH_CHARM',
+    charm: { type: 'DECK_CARD', owner: 'opponent', count: 1 },
+    to: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+    perAllSigni: true,
+  } as EffectAction, c);
+  eq(r.otherState.deck.length, before - 2, 'デッキトップ2枚を消費');
+  eq(r.otherState.field.signi_charms?.filter(Boolean).length, 2, 'signi_charmsへ2枚反映');
+});
+
 console.log('\n===== goldenTest 結果 =====');
 test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
   for (const [num, id] of [['PR-204','PR-204-E1'], ['WD21-009','WD21-009-E1'], ['PR-238','PR-238-E1'], ['WX17-041','WX17-041-BURST'], ['PR-470A','PR-470A-E2']]) {

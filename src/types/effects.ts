@@ -133,6 +133,13 @@ export interface Variable {
 // 数値または変数参照
 export type NumberOrRef = number | { $ref: string };
 
+export interface CountFromZone {
+  zone: 'field' | 'energy' | 'trash' | 'lrig_trash';
+  owner: Owner;
+  filter?: TargetFilter;
+  per?: number;
+}
+
 // ===== 発動条件 =====
 
 export type ActiveCondition =
@@ -450,6 +457,7 @@ export interface EffectTarget {
     | 'PLAYER';
   owner: Owner;
   count: number | 'ALL' | { $ref: string }; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
+  countFromZone?: CountFromZone;
   filter?: TargetFilter;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
@@ -597,6 +605,7 @@ export interface DrawAction {
   type: 'DRAW';
   owner: Owner;
   count: NumberOrRef;
+  countFromZone?: CountFromZone;
   untilHandCount?: number; // 指定時、手札が N 枚になるまで（差の分だけ）引く。手札が N 枚以上なら引かない（WX05-003「手札が6枚より少ない場合、その差の分だけ引く」）
   addLastProcessedCount?: boolean; // 指定時、count に加えて直前の選択枚数（lastProcessedCards.length）分を引く（VARIABLE_DISCARD_AND_DRAW の「捨てた枚数＋bonus」用）
   perLastProcessedLevel?: boolean; // 指定時、count に加えて直前に公開/処理したカード（lastProcessedCards）のレベル合計 × count 分を引く（「公開したシグニのレベル１につきカードを１枚引く」WD21-001-E2）
@@ -758,6 +767,7 @@ export interface EnergyChargeFromDeckAction {
   type: 'ENERGY_CHARGE_FROM_DECK';
   owner: Owner;
   count: NumberOrRef;
+  countFromZone?: CountFromZone;
 }
 
 export interface LifeCrashAction {
@@ -1123,6 +1133,7 @@ export interface AttachCharmAction {
   charm: EffectTarget; // チャームにするカード
   to: EffectTarget;    // 付ける対象シグニ（to.filter.thisCardOnly=効果元シグニ自身）
   optional?: boolean;  // true=「チャームにしてもよい」（付ける/付けないを選択）
+  perAllSigni?: boolean; // 各シグニへデッキトップから1枚ずつ一斉付与
 }
 
 // デッキの上からN枚公開し、条件を満たすカードをpickする
@@ -1700,6 +1711,7 @@ export interface MILLAction {
   type: 'MILL';
   owner: Owner;
   count: number;
+  countFromZone?: CountFromZone;
   fromBottom?: boolean;
   useDeclaredCount?: boolean;
   countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）

@@ -59,7 +59,7 @@ import type {
 } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
-  done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum,
+  done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
@@ -105,8 +105,8 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   const count = a.untilHandCount !== undefined
     ? Math.max(0, a.untilHandCount - state.hand.length)
     : a.perLastProcessedLevel
-    ? resolveNum(a.count) * perLevelSum
-    : resolveNum(a.count) + (a.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
+    ? resolveCountRef(a.count, ctx, a.countFromZone) * perLevelSum
+    : resolveCountRef(a.count, ctx, a.countFromZone) + (a.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   const canDraw = Math.min(count, state.deck.length);
   const s: PlayerState = {
     ...state,
@@ -314,9 +314,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     return done({ ...applyBanish(cands, ctx), lastProcessedCards: cands });
   }
   // last_processed_count: 「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」→ 直前にトラッシュした枚数
-  const count = (typeof tgt.count === 'object' && tgt.count.$ref === 'last_processed_count')
-    ? (ctx.lastProcessedCards?.length ?? 0)
-    : resolveNum(tgt.count);
+  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
   if (count <= 0) return done(addLog(ctx, 'バニッシュ数0 → スキップ'));
   // opponentSelects: 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
@@ -505,7 +503,7 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
-  const count = resolveNum(tgt.count);
+  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
   if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
@@ -748,7 +746,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveNum(tgt.count);
+    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     // 「各プレイヤーは自分のシグニ1体を対象とし、それをトラッシュ」：相手のシグニは相手自身が選ぶ（WX04-025）
     const oppRespondsField = !!a.opponentSelects && tgt.owner === 'opponent';
     // optional:「場からトラッシュに置いてもよい」＝スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない（WXK10-055-E1）
@@ -823,7 +821,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveNum(tgt.count);
+    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
@@ -887,7 +885,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.type === 'DECK_CARD') {
-    const count = tgt.count === 'ALL' ? state.deck.length : resolveNum(tgt.count);
+    const count = tgt.count === 'ALL' ? state.deck.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     const took = state.deck.slice(0, count);
     const newS: PlayerState = {
       ...state,
@@ -954,7 +952,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     return addLog(setOwnerState(tgt.owner, newS, c), `${from}から${names}をエナゾーンへ`);
   }
 
-  const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
+  const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
   if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
   // selectionConstraint（「それぞれ名前の異なる」等）を pending へ伝搬（5c検証是正・WX20-002）
   return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
@@ -965,7 +963,7 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
   if (a.owner === 'self' && ctx.deckToEnergyBlocked) {
     return done(addLog(ctx, 'デッキ→エナ移動がブロックされた（CONT効果）'));
   }
-  const count = resolveNum(a.count);
+  const count = resolveCountRef(a.count, ctx, a.countFromZone);
   const state = ownerState(a.owner, ctx);
   const took = state.deck.slice(0, count);
   const newS: PlayerState = {
@@ -1535,7 +1533,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     // 「デッキの一番上を見る。それが〈filter〉の場合、場に出してもよい」（G141）。
     // デッキ上から count 枚を対象に filter で絞る。一致しなければ候補なし＝何も起きない。
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-    const topCount = src.count === 'ALL' ? state.deck.length : resolveNum(src.count);
+    const topCount = src.count === 'ALL' ? state.deck.length : resolveCountRef(src.count, ctx, src.countFromZone);
     const pool = state.deck.slice(0, topCount);
     cands = pool.filter(n => matchesFilter(ctx.cardMap.get(n), resolvedFilter, undefined, undefined, ctx.treatAsClassAllZones));
     // 配置は applyDirectAction(ADD_TO_FIELD) が所在（デッキ）を問わず除去・配置する。scope はUI表示用の近似。
@@ -1591,7 +1589,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
-  const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+  const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
   // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
   return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
@@ -1599,9 +1597,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
   // last_processed_count: 「トラッシュに置いたシグニ1体につき…ライフクロスに加える」→ 直前にトラッシュした枚数
-  const count = (typeof a.count === 'object' && a.count.$ref === 'last_processed_count')
-    ? (ctx.lastProcessedCards?.length ?? 0)
-    : resolveNum(a.count);
+  const count = resolveCountRef(a.count, ctx);
   if (count <= 0) return done(ctx);
   const state = ownerState(a.owner, ctx);
   if (a.fromHand) {
@@ -2186,9 +2182,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   }
 
   // maxCount の解決（{$ref:'last_processed_count'} = 直前にバニッシュ/トラッシュした枚数。「同じ枚数」）
-  const maxPick = typeof a.maxCount === 'number'
-    ? a.maxCount
-    : (a.maxCount?.$ref === 'last_processed_count' ? (ctx.lastProcessedCards?.length ?? 0) : 0);
+  const maxPick = resolveCountRef(a.maxCount, ctx);
   // 探索枚数0（同数が0等）: 探索せず afterSearch のみ実行
   if (maxPick <= 0) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
@@ -3280,6 +3274,21 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   const charmSrc   = ownerState(charmOwner, ctx);
   const toState    = ownerState(toOwner, ctx);
 
+  if (a.perAllSigni && a.charm.type === 'DECK_CARD') {
+    const targetZones = toState.field.signi
+      .map((stack, index) => ({ stack, index }))
+      .filter(({ stack }) => stack && stack.length > 0);
+    const attachCount = Math.min(targetZones.length, charmSrc.deck.length);
+    if (attachCount === 0) return done(addLog(ctx, '一斉チャーム付与対象なし'));
+    const cards = charmSrc.deck.slice(0, attachCount);
+    let ctx2 = setOwnerState(charmOwner, { ...charmSrc, deck: charmSrc.deck.slice(attachCount) }, ctx);
+    const currentTo = ownerState(toOwner, ctx2);
+    const charms = [...(currentTo.field.signi_charms ?? [null, null, null])];
+    targetZones.slice(0, attachCount).forEach(({ index }, i) => { charms[index] = cards[i]; });
+    ctx2 = setOwnerState(toOwner, { ...currentTo, field: { ...currentTo.field, signi_charms: charms } }, ctx2);
+    return done({ ...addLog(ctx2, `${attachCount}体へチャームを一斉付与`), lastProcessedCards: cards });
+  }
+
   // //
   let charmCands: string[];
   let charmFromLocation: 'hand' | 'energy' | 'trash' | 'deck';
@@ -4203,7 +4212,9 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
 function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
   // countIsLastProcessedLevelSum: 「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」＝直前ステップ
   // （LOOK_PICK_CHAIN の field 配置等）が lastProcessedCards に残したシグニのレベル合計を枚数にする（WX24-P3-039）。
-  const count = a.countIsLastProcessedLevelSum
+  const count = a.countFromZone
+    ? resolveCountRef(a.count, ctx, a.countFromZone)
+    : a.countIsLastProcessedLevelSum
     ? (ctx.lastProcessedCards ?? []).reduce((sum, cn) => sum + (parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10) || 0), 0)
     : a.countPerLastProcessed !== undefined
     ? (ctx.lastProcessedCards ?? []).length * a.countPerLastProcessed
