@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
@@ -8135,6 +8135,43 @@ test('G072群C CONT経路: mutation が発生源を運び cause で banishedByOw
   const ctx = { ...trigCtx(HOST, HOST), effectsMap: g072Map('WXK11-055') };
   const cause = { ownerId: mut.sourceIsHost ? HOST : GUEST, sourceCardNum: mut.sourceCardNum };
   eq(has(collectBanishTriggers(ctx, SIGNI_L2, GUEST, host, guest, guest, cause).entries, 'WXK11-055-E2'), true, 'CONT起因の自効果バニッシュで発火');
+});
+
+test('selectionConstraint: level/name/class/sharedColor(all/none) と無色', () => {
+  const card = (CardNum:string, CardName:string, Level:string, CardClass:string, Color:string) =>
+    ({ CardNum, CardName, Level, CardClass, Color } as CardData);
+  const m = new Map<string, CardData>([
+    ['A',card('A','同名','1','奏像：武勇','赤')],
+    ['B',card('B','同名','2','奏像：天使','赤・青')],
+    ['C',card('C','別名','2','精像：天使','緑')],
+    ['N',card('N','無色','3','精武：遊具','無')],
+  ]);
+  ok(satisfiesSelectionConstraint(['A','B'], {distinct:'level'}, m), 'level distinct');
+  ok(!satisfiesSelectionConstraint(['B','C'], {distinct:'level'}, m), 'level duplicate');
+  ok(!satisfiesSelectionConstraint(['A','B'], {distinct:'name'}, m), 'name duplicate');
+  ok(!satisfiesSelectionConstraint(['B','C'], {distinct:'class'}, m), '複数クラス分割後の天使重複');
+  ok(satisfiesSelectionConstraint(['A','B'], {sharedColor:'all'}, m), '共通赤');
+  ok(!satisfiesSelectionConstraint(['A','C'], {sharedColor:'all'}, m), '共通色なし');
+  ok(satisfiesSelectionConstraint(['A','C','N'], {sharedColor:'none'}, m), 'none は無色を空集合として許容');
+  ok(!canAddToSelection(['B'],'C',{distinct:'level'},m), '逐次追加を拒否');
+});
+// 5c検証是正（Claude）: 群2代表の end-to-end（実 executor 経路で constraint 付き選択→デッキ下→did-it ゲート）と
+// 不正 set が resume で通らない負方向。codex が未追加だった指示書要求分。
+test('selectionConstraint E2E: TRANSFER_TO_DECK distinct level 選択→デッキ下＋不正setはresumeで弾く', () => {
+  const l2b = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== getCardNumG(SIGNI_L2));
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.trash = [SIGNI_L1, SIGNI_L2, l2b, SIGNI_L3];
+  const action = { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 3,
+    filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'level' } }, shuffle: false, position: 'bottom' } as EffectAction;
+  const r = executeEffect({ effectId: 'b5c-e2e', effectType: 'AUTO', duration: 'INSTANT', mandatory: true, action } as CardEffect, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '選択へpause'); if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(r.pending.selectionConstraint), JSON.stringify({ distinct: 'level' }), 'pending に constraint を保持');
+  // 不正 set（L2 が2枚）→ greedy で後の重複が落ちる
+  const rBad = resumeSelectTarget([SIGNI_L2, l2b, SIGNI_L1], r.pending as never, { ...ctx });
+  ok(rBad.done, 'resume完走');
+  const movedBad = [SIGNI_L2, l2b, SIGNI_L1].filter(n => !rBad.ownerState.trash.includes(n));
+  eq(JSON.stringify(movedBad.sort()), JSON.stringify([SIGNI_L1, SIGNI_L2].sort()), '同レベル重複はresumeで弾かれ2枚のみ移動');
+  ok(rBad.ownerState.deck.includes(SIGNI_L2) && rBad.ownerState.deck.includes(SIGNI_L1) && !rBad.ownerState.deck.includes(l2b), 'デッキ下は正当な2枚だけ');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -529,7 +529,7 @@ export type TargetScope =
   | 'self_lrig_deck' | 'opp_lrig_deck'
   | 'self_lrig_under';
 
-import type { EffectAction } from './effects';
+import type { EffectAction, SelectionConstraint } from './effects';
 
 export type PendingInteractionDef =
   | {
@@ -545,6 +545,7 @@ export type PendingInteractionDef =
       candidatePowers?: Record<string, number>; // 各候補の実効パワー（totalPowerMax 判定・UI用）
       totalLevelMax?: number;     // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M と併用。WDK13-007）
       candidateLevels?: Record<string, number>; // 各候補のレベル（totalLevelMax 判定用）
+      selectionConstraint?: SelectionConstraint;
     }
   | {
       type: 'SEARCH';
@@ -559,6 +560,7 @@ export type PendingInteractionDef =
       // handOrField: ピックしたカードを1枚ずつ「手札に加える or 場に出す」の対話選択で処理する（「公開し手札に加えるか場に出し」）
       handOrField?: boolean;
       continuation?: EffectAction;
+      selectionConstraint?: SelectionConstraint;
     }
   | {
       type: 'CHOOSE';

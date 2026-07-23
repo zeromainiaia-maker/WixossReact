@@ -64,6 +64,7 @@ import {
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
+  canAddToSelection,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -319,7 +320,7 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (count <= 0) return done(addLog(ctx, 'バニッシュ数0 → スキップ'));
   // opponentSelects: 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds);
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
 }
 
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
@@ -359,7 +360,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   const count = resolveNum(tgt.count);
   // opponentSelects: 「対戦相手は対象の自分のシグニ1体を手札に戻す」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds);
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
 }
 
 // REVEAL: カードを公開する。source が HAND_CARD のときは手札からフィルタ一致のカードを選んで公開し、
@@ -440,7 +441,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     if (cands.length === 0) return done({ ...addLog(ctx, '除外できるルリグデッキのカードがない'), lastProcessedCards: [] });
     const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
     const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_lrig_deck' : 'self_lrig_deck';
-    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
   }
   // 場のシグニをゲームから除外（「このシグニとそれをゲームから除外する」等。トラッシュ経由せず消去）
   if (tgt.type === 'SIGNI') {
@@ -458,7 +459,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
     if (cands.length === 0) return done({ ...addLog(ctx, '除外できるシグニがない'), lastProcessedCards: [] });
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
-    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
   }
   // 手札をゲームから除外（「対戦相手はあなたの手札をN枚見ないで選び、あなたはそれらをゲームから除外する」WX14-011①）。
   // ⚠従来 HAND_CARD 分岐が無く **no-op** に落ちていた。`blind`（＝相手が伏せたまま選ぶ）は
@@ -477,7 +478,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
   const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
-  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
 }
 
 // SEND_TO_ENERGY: フィールドのシグニをエナゾーンに置く（エナ送り）。
@@ -506,7 +507,7 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
   const count = resolveNum(tgt.count);
   if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
 }
 
 // 発生元カード（ctx.sourceCardNum）の Type を返す（'シグニ'/'スペル'/'アーツ'/'ルリグ' 等）。
@@ -540,7 +541,7 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
   }
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
@@ -630,7 +631,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
   const count = resolveNum(a.target.count);
   const scope: TargetScope = isAny ? 'both_field' : (tgtOwner === 'self' ? 'self_field' : 'opp_field');
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
@@ -954,7 +955,8 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
 
   const count = tgt.count === 'ALL' ? cands.length : resolveNum(tgt.count);
   if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
-  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+  // selectionConstraint（「それぞれ名前の異なる」等）を pending へ伝搬（5c検証是正・WX20-002）
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
 }
 
 function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): ExecResult {
@@ -1348,7 +1350,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   if (src.type === 'TRASH_CARD' && src.filter?.thisCardOnly) {
     return cands.length > 0 ? done(applyTransfer(cands, ctx)) : done(ctx);
   }
-  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, src.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
 }
 
 // PLACE_SIGNI_ON_FIELD: cardNums を1枚ずつ場に出す。各カードでゾーン選択が必要なら、残りカードの配置を
@@ -1577,7 +1579,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
   if (src.count === 'ALL') return done(applyToField(cands, ctx));
   // a.optional:「場に出してもよい」→ 出す/出さないを選択可能にする（src.upToCount と同様に任意化）
-  return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, (a.optional ?? false) || (src.upToCount ?? false), scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
 }
 
 function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
@@ -1674,7 +1676,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
 
   if (a.target.count === 'ALL') return done(applyFreeze(cands, ctx));
   const count = resolveNum(a.target.count);
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
@@ -2194,6 +2196,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     maxPick,
     thenAction: a.then,
     afterAction: a.afterSearch,
+    selectionConstraint: a.selectionConstraint,
   });
 }
 
@@ -3132,7 +3135,14 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     if (a.optional && src.count !== 'ALL') {
       const count = resolveNum(src.count);
       const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
-      return selectOrInteract(cands, count, true, scope, a, undefined, ctx);
+      return selectOrInteract(cands, count, true, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+    }
+    // selectionConstraint（「それぞれレベル/名前の異なる」等）は自動 slice で不正 set を作れないため必ず選択させる
+    // （5c検証是正・Claude 2026-07-23＝この必須経路が constraint 素通りだった）。
+    if (src.selectionConstraint && src.count !== 'ALL') {
+      const count = resolveNum(src.count);
+      const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+      return selectOrInteract(cands, count, false, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
     }
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     const newS = insertToDeck({ ...state, trash: state.trash.filter(n => !cards.includes(n)) }, cards);
@@ -3753,7 +3763,7 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
     { type: 'PLACE_UNDER_SOURCE_SIGNI', fromLocation: a.source as 'trash' | 'hand' | 'energy' };
   const scope: TargetScope = a.source === 'hand' ? 'self_hand' :
                               a.source === 'energy' ? 'self_energy' : 'self_trash';
-  return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx);
+  return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, thenAction, undefined, ctx, false, { selectionConstraint: a.selectionConstraint });
 }
 
 function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigniAction, ctx: ExecCtx): ExecResult {
@@ -3804,7 +3814,7 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
   }
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execAwakenSigni(a: import('../types/effects').AwakenSigniAction, ctx: ExecCtx): ExecResult {
@@ -4883,6 +4893,13 @@ export function applyRefreshOnDone(
       return true;
     });
   }
+  if (pending.selectionConstraint) {
+    const accepted: string[] = [];
+    for (const n of selected) {
+      if (canAddToSelection(accepted, n, pending.selectionConstraint, ctx.cardMap)) accepted.push(n);
+    }
+    selected = accepted;
+  }
   // 選択されたカードに thenAction を個別適用
   let cur = ctx;
   // ADD_TO_FIELD（場に出す）: 配置先が空きゾーン2つ以上だと applyDirectAction が SELECT_SIGNI_ZONE で
@@ -4981,6 +4998,13 @@ export function resumeSearch(
   pending: PendingInteractionDef & { type: 'SEARCH' },
   ctx: ExecCtx,
 ): ExecResult {
+  if (pending.selectionConstraint) {
+    const accepted: string[] = [];
+    for (const n of picked) {
+      if (canAddToSelection(accepted, n, pending.selectionConstraint, ctx.cardMap)) accepted.push(n);
+    }
+    picked = accepted;
+  }
   let cur = ctx;
   // thenAction 欠落データへの防御: ピックの既定義（手札に加える）にフォールバック
   // （REVEAL_AND_PICK の旧不正キー pickTo:'hand' 形＝then 無しで .type 参照クラッシュしていた）

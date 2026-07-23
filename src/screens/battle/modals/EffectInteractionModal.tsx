@@ -2,7 +2,7 @@
 import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
-import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot } from '../../../engine/execUtils';
+import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection, satisfiesSelectionConstraint } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import type { BattleModalCtx } from './types';
 
@@ -141,6 +141,15 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             if (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined) {
               return `${from}パワーの合計が${inter.totalPowerMax}以下になるように${actionDesc}カードを好きな数選んでください`;
             }
+            if (inter.selectionConstraint) {
+              const c = inter.selectionConstraint;
+              const constraintJa = c.distinct === 'level' ? 'それぞれレベルの異なる'
+                : c.distinct === 'name' ? 'それぞれ名前の異なる'
+                : c.distinct === 'class' ? 'それぞれクラスの異なる'
+                : c.sharedColor === 'all' ? '全てに共通する色を持つ'
+                : 'それぞれ共通する色を持たない';
+              return `${from}${constraintJa}${actionDesc}カードを選んでください`;
+            }
             const countStr = maxPick === 1 ? '' : `${maxPick}枚`;
             return `${from}${actionDesc}カードを${countStr}選んでください`;
           })();
@@ -160,8 +169,16 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           const canConfirm = inter.type === 'SELECT_TARGET'
             ? (inter.totalPowerMax !== undefined
                 ? selectedPowerSum <= inter.totalPowerMax  // 好きな数（0体含む）。合計上限内なら確定可
-                : (inter.optional || effectSelectedNums.length >= maxPick))
-            : effectSelectedNums.length <= maxPick;
+                : ((inter.optional || effectSelectedNums.length >= maxPick)
+                  && satisfiesSelectionConstraint(
+                    effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
+                    inter.selectionConstraint,
+                    battleCardMap)))
+            : effectSelectedNums.length <= maxPick
+              && satisfiesSelectionConstraint(
+                effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
+                inter.selectionConstraint,
+                battleCardMap);
 
           // フィールド対象の場合: 各候補がどのゾーンに属するかをマッピング
           const fieldZoneInfo: number[] = (() => {
@@ -249,6 +266,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                                 const addP = inter.candidatePowers?.[rawId] ?? 0;
                                 if (curSum + addP > inter.totalPowerMax) return prev;
                                 return [...prev, idxStr];
+                              }
+                              if (inter.selectionConstraint) {
+                                const selected = prev.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined);
+                                if (!canAddToSelection(selected, rawId, inter.selectionConstraint, battleCardMap)) return prev;
                               }
                               if (prev.length >= maxPick) return prev;
                               return [...prev, idxStr];

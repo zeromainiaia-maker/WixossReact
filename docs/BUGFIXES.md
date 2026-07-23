@@ -4,6 +4,21 @@
 
 ---
 
+## ROADMAP バッチ5c 第1波：複数選択の相互制約機構＋「それぞれ異なる」系（2026-07-23・codex実装/Claude完遂）
+
+**機構（codex 実装・Opus 設計の totalPowerMax 6点雛形どおり）**＝`EffectTarget.selectionConstraint {distinct:'level'|'name'|'class'; sharedColor:'all'|'none'}` を新設。execUtils の純関数 `satisfiesSelectionConstraint`/`canAddToSelection`（クラスは「：」等で分割しペア毎素・無色は空集合）を、①型 ②executor 13入口の selectOrInteract extra ③pending（SELECT_TARGET/SEARCH）④resumeSelectTarget/resumeSearch の greedy 切り捨て ⑤BattleScreen CPU greedy ⑥EffectInteractionModal の追加可否/確定可否、へ配線。従来の `eachDistinctColor`/`eachDistinctLevel`（表示専用）は表示互換のまま enforce を constraint 側へ。`HAS_CARD_IN_FIELD.distinctLevels` も追加（WXK08-027-E1 の条件丸ごと脱落を是正）。
+
+**エンコード（codex＝32効果＋Claude 完遂＝11効果）**：「それぞれレベル/名前/クラスの異なるN枚」の set 制約脱落（同レベル3枚蘇生等の過剰効果）と、**群2＝TRANSFER_TO_DECK source 誤バインド11効果**（「トラッシュからN枚をデッキ下へ」が場のシグニ1枚に誤バインド＝移動そのものが別物）を併修。併修＝WD07-006（then count3）・WX06-025（nonColorless）・WX20-002（hasIcon アクセ）・WXEX2-41（count 15）・SPDi44-12-E2/WX25-P1-014-E2（兄弟 fresh 改善＝「次の対戦相手のターン終了時まで」が UNTIL_OPP_TURN_END へ是正される改善方向・Claude 原文照合済み）。
+
+**Claude 完遂分（codex 部分完了の残＝2段投入相当）**：
+- **PRESERVE 直パッチ10効果**（`scripts/archive/patch_b5c_preserve.mjs`）＝chokepoint は fresh に正しく出るが MANUAL/PARTIAL 兄弟の PRESERVE で curated 温存されていた分（WX17-028-E1/WD07-012-E2/WX24-P1-085-E1/WX25-P3-107-E1/WXDi-P02-031-E1/WXDi-P13-034-E1（sharedColor:'none'）/WXEX2-25-E2/WXEX1-47-E2（source 誤バインド併修込み）/WXEX1-03-E2/WXDi-CP02-010-E2）。**WXDi-CP02-010-E2 は curated の2ステップ目が幻覚の追加1枚蘇生**（原文「2枚を場に出す」）だったのを単一アクションへ併修。WXEX2-41 は held 在中を採用。
+- **機構穴2つを E2E golden で検出→修正**＝①`execTransferToDeck` TRASH_CARD **必須経路が `slice(0,N)` 自動取得＝選択なし・constraint 素通り**（本バッチ最多経路！）→ constraint 時は必ず選択させる分岐を追加＋optional 経路の extra 未渡しも修正 ②`execEnergyCharge` の extra 未渡し（WX20-002 が unenforced）。**codex の surface 13点は selectOrInteract 経由のみで、selectOrInteract を経ない自動取得経路が盲点**＝E2E golden（選択 pause→constraint 保持→不正 set の greedy 弾き→デッキ下移動）を Claude が追加して検出。
+- 未了だった E2E/負方向 golden・BUGFIXES 記載も Claude が補完。
+
+**見送り（第2波へ）**＝コスト側5件（コスト支払い選択UIの制約）・REVEAL_AND_PICK の pick 制約（WX22-008/WXK08-027-E2）・`LAST_PROCESSED_ALL_DISTINCT` 条件（WXK03-025/WXK05-051）・共通色19件への sharedColor 適用（機構は完成済み）・WX22-006-E3/WXK05-029-E3/WX21-Re07-E1。
+
+ゲート＝golden 658→**660**・census 1649 不変・held 235→**234**/93（WXEX2-41 採用分）・同型★0・smoke/fuzz 0・lint 0 errors/221 warnings。
+
 ## ROADMAP バッチ5b：lastProcessed／コスト／ルリグ参照の同一性filter（2026-07-23・codex実装/Claude確認）
 
 「この方法で処理したカードと同じレベル／名前」「センタールリグと同じレベル」の対象制約が脱落していた31効果を、既存 `levelEqLastProcessed` と新設 `nameEqLastProcessed`／`levelEqLastProcessedCount`／`levelEqLastProcessedLevelSum`／`levelEqLrig`、既存コスト変数2種で是正した。effectId固定チョークポイントで対象効果だけを合成し、曖昧な一般regexには波及させていない。

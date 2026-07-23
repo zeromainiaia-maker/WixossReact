@@ -7,6 +7,7 @@ import type {
   Owner,
   NumberOrRef,
   Condition,
+  SelectionConstraint,
 } from '../types/effects';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -864,6 +865,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       }
       const matched = cond.distinctColors
         ? new Set(matchedNums.flatMap(n => splitColors(ctx.cardMap.get(n)?.Color))).size
+        : cond.distinctLevels ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.Level ?? '')).size
         : cond.distinctNames ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size : matchedNums.length;
       return matched >= (cond.minCount ?? 1);
     }
@@ -1439,7 +1441,7 @@ export function selectOrInteract(
   continuation: EffectAction | undefined,
   ctx: ExecCtx,
   opponentResponds = false,
-  extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number>; totalLevelMax?: number; candidateLevels?: Record<string, number> },
+  extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number>; totalLevelMax?: number; candidateLevels?: Record<string, number>; selectionConstraint?: SelectionConstraint },
 ): ExecResult {
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   // both_field（owner:'any'）でも相手側の候補にはシャドウを適用する（自分側候補は対象外）
@@ -1491,7 +1493,56 @@ export function selectOrInteract(
     ...(extra?.candidatePowers ? { candidatePowers: extra.candidatePowers } : {}),
     ...(extra?.totalLevelMax !== undefined ? { totalLevelMax: extra.totalLevelMax } : {}),
     ...(extra?.candidateLevels ? { candidateLevels: extra.candidateLevels } : {}),
+    ...(extra?.selectionConstraint ? { selectionConstraint: extra.selectionConstraint } : {}),
   });
+}
+
+function cardClasses(card: CardData | undefined): Set<string> {
+  return new Set((card?.CardClass ?? '').split(/[：:／/・,\s]+/).map((s: string) => s.trim()).filter(Boolean));
+}
+
+function cardColors(card: CardData | undefined): Set<string> {
+  const raw = `${card?.Color ?? ''}`;
+  return new Set(raw.split(/[・／/,\s]+/).map(s => s.trim()).filter(s => s && s !== '無' && s !== '無色'));
+}
+
+export function satisfiesSelectionConstraint(
+  nums: string[],
+  constraint: SelectionConstraint | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!constraint || nums.length < 2) return true;
+  const cards = nums.map(n => cardMap.get(getCardNum(n)));
+  if (constraint.distinct === 'level') {
+    const values = cards.map(c => `${c?.Level ?? ''}`);
+    if (new Set(values).size !== values.length) return false;
+  } else if (constraint.distinct === 'name') {
+    const values = cards.map(c => `${c?.CardName ?? ''}`);
+    if (new Set(values).size !== values.length) return false;
+  } else if (constraint.distinct === 'class') {
+    const sets = cards.map(cardClasses);
+    for (let i = 0; i < sets.length; i++) for (let j = i + 1; j < sets.length; j++) {
+      if ([...sets[i]].some(v => sets[j].has(v))) return false;
+    }
+  }
+  const colors = cards.map(cardColors);
+  if (constraint.sharedColor === 'all') {
+    if (colors.length > 0 && ![...colors[0]].some(v => colors.every(s => s.has(v)))) return false;
+  } else if (constraint.sharedColor === 'none') {
+    for (let i = 0; i < colors.length; i++) for (let j = i + 1; j < colors.length; j++) {
+      if ([...colors[i]].some(v => colors[j].has(v))) return false;
+    }
+  }
+  return true;
+}
+
+export function canAddToSelection(
+  selected: string[],
+  candidate: string,
+  constraint: SelectionConstraint | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  return satisfiesSelectionConstraint([...selected, candidate], constraint, cardMap);
 }
 
 /**

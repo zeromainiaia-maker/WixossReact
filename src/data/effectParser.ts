@@ -2812,6 +2812,85 @@ function applyLrigColorBatch5(effects: CardEffect[]): void {
   }
 }
 
+// ROADMAP batch5c 第1波。候補単体 filter では表せない「それぞれ異なる」を
+// target.selectionConstraint（SEARCH は action 直下）へ固定する。
+const DISTINCT_BATCH5C: Record<string, 'level' | 'name' | 'class'> = {
+  'WX17-028-E1':'level','WXDi-P02-031-E1':'class','WXDi-P13-034-E1':'class',
+  'WD07-012-E2':'level','WX24-P1-085-E1':'level','WX25-P3-107-E1':'level',
+  'SPDi44-12-E1':'level','SPDi44-16-E1':'level','WX15-Re15-E1':'level',
+  'WX20-079-E1':'level','WX20-Re14-E1':'level','WXEX1-47-E2':'level',
+  'WXEX2-74-E2':'level','WX25-P1-014-E1':'level','WX25-P1-030-E1':'level',
+  'WX25-P2-063-E2':'level','WXK09-067-E1':'level',
+  'WD07-006-E1':'level','WX06-025-E1':'level','WXEX1-39-E1':'level','WXK02-028-E3':'level',
+  'WX14-030-E1':'name','WX17-025-E3':'name','WX19-080-E1':'name','WX21-026-E3':'name',
+  'WXDi-P00-023-E1':'name','WXDi-P07-090-E1':'name','WXEX1-03-E2':'name',
+  'WXEX2-31-E3':'name','WXK09-090-E1':'name',
+  'WXDi-CP01-008-E3':'level','WXDi-CP02-010-E2':'level','WXDi-P07-035-E1':'level',
+  'WXDi-P14-036-E1':'level','WXEX2-25-E2':'level','WX20-002-E1':'name',
+  'WXEX2-41-E1':'name','WXDi-D01-004-E1':'class','WX12-Re02-E1':'name','WXDi-P14-027-E1':'name',
+};
+const DISTINCT_SOURCE_FIX_BATCH5C: Record<string, number> = {
+  'SPDi44-12-E1':3,'SPDi44-16-E1':3,'WX15-Re15-E1':4,'WX20-079-E1':4,
+  'WX20-Re14-E1':4,'WXEX1-47-E2':4,'WXEX2-74-E2':4,'WX25-P1-014-E1':3,
+  'WX25-P1-030-E1':3,'WX25-P2-063-E2':3,'WXK09-067-E1':4,
+};
+function applyDistinctBatch5c(effects: CardEffect[]): void {
+  const visit = (node: unknown, kind: 'level'|'name'|'class', sourceCount: number | undefined, state: { applied: boolean }): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    if (!state.applied && obj.type === 'PLACE_UNDER_SIGNI') {
+      obj.selectionConstraint = { distinct: kind };
+      state.applied = true;
+    }
+    if (obj.type === 'SEARCH' && !state.applied) {
+      obj.selectionConstraint = { distinct: kind };
+      state.applied = true;
+    }
+    const key = obj.target ? 'target' : obj.source ? 'source' : undefined;
+    const target = key ? obj[key] as Record<string, unknown> : undefined;
+    const selectableTypes = new Set(['TRANSFER_TO_DECK','TRANSFER_TO_HAND','ADD_TO_FIELD','ENERGY_CHARGE','PLACE_UNDER_SIGNI','POWER_MODIFY']);
+    if (!state.applied && target && typeof target === 'object' && selectableTypes.has(String(obj.type))) {
+      if (sourceCount !== undefined && obj.type === 'TRANSFER_TO_DECK') {
+        obj.source = { type:'TRASH_CARD', owner:'self', count:sourceCount,
+          ...(target.filter ? { filter: target.filter } : {}),
+          ...(target.upToCount !== undefined ? { upToCount: target.upToCount } : {}) };
+      }
+      const actual = (sourceCount !== undefined && obj.type === 'TRANSFER_TO_DECK'
+        ? obj.source : target) as Record<string, unknown>;
+      if (actual && typeof actual === 'object') {
+        actual.selectionConstraint = { distinct: kind };
+        state.applied = true;
+      }
+    }
+    for (const v of Object.values(obj)) {
+      if (Array.isArray(v)) v.forEach(x => visit(x, kind, sourceCount, state));
+      else visit(v, kind, sourceCount, state);
+    }
+  };
+  for (const e of effects) {
+    if (e.effectId === 'WXK08-027-E1') {
+      e.condition = { type:'HAS_CARD_IN_FIELD', owner:'self', filter:{ cardType:'シグニ' }, minCount:3, distinctLevels:true };
+    }
+    const kind = DISTINCT_BATCH5C[e.effectId];
+    if (!kind) continue;
+    visit(e.action, kind, DISTINCT_SOURCE_FIX_BATCH5C[e.effectId], { applied:false });
+    if (e.effectId === 'WX06-025-E1' && e.action.type === 'SEARCH') e.action.filter = { ...e.action.filter, nonColorless:true };
+    if (e.effectId === 'WD07-006-E1' && e.action.type === 'SEARCH' && e.action.then.type === 'TRASH') e.action.then.target.count = 3;
+    if (e.effectId === 'WX20-002-E1' && e.action.type === 'ENERGY_CHARGE') e.action.target.filter = { ...(e.action.target.filter ?? {}), hasIcon:'アクセ' };
+    if (e.effectId === 'WXEX2-41-E1' && e.action.type === 'PLACE_UNDER_SIGNI') e.action.count = 15;
+    if (e.effectId === 'WXDi-P02-031-E1' || e.effectId === 'WXDi-P13-034-E1') {
+      const replaceClassWithColor = (node: unknown): void => {
+        if (!node || typeof node !== 'object') return;
+        const obj = node as Record<string, unknown>;
+        const candidate = (obj.source ?? obj.target) as Record<string, unknown> | undefined;
+        if (candidate?.selectionConstraint) candidate.selectionConstraint = { sharedColor:'none' };
+        Object.values(obj).forEach(v => Array.isArray(v) ? v.forEach(replaceClassWithColor) : replaceClassWithColor(v));
+      };
+      replaceClassWithColor(e.action);
+    }
+  }
+}
+
 // ROADMAP batch5b。同一性参照は曖昧な一般 regex へ広げず、原文照合済み effectId の
 // 対象 action だけに付与する。filter の実行は resolveDynamicFilter に一本化。
 const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter; value?: unknown; occurrence?: number }> = {
@@ -6364,6 +6443,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
+  applyDistinctBatch5c(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。
