@@ -16,7 +16,7 @@ import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost, getCardNum,
-  createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
+  createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts, matchesFilter,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 
@@ -25,6 +25,9 @@ export function execStubPart1(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
+  if (stub.id === 'STORE_LAST_PROCESSED_TARGETS') {
+    return done({ ...ctx, storedTargetCards: [...(ctx.lastProcessedCards ?? [])] });
+  }
   if (stub.id === 'PREVENT_NEXT_DAMAGE' || stub.id === 'PREVENT_NEXT_DAMAGE_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
@@ -51,15 +54,24 @@ export function execStubPart1(
   // ここはSEQUENCE末尾や非IS_MY_TURNパターンの33件ほどを担当
   if (stub.id === 'OPTIONAL_COST') {
     const costColorsOC = stub.costColors ?? [];
-    const canAffordOC = costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap);
+    const handDiscardOC = stub.handDiscard;
+    const matchingHandOC = handDiscardOC
+      ? ctx.ownerState.hand.filter(n => !handDiscardOC.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), handDiscardOC.filter))
+      : [];
+    const canAffordOC = (costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap))
+      && (!handDiscardOC || matchingHandOC.length >= handDiscardOC.count);
     const payLabelOC = costColorsOC.length > 0
       ? `発動する（${costColorsOC.map(c => `《${c}》`).join('')}）`
       : '発動する';
     const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
+    const payActionOC: EffectAction = handDiscardOC ? {
+      type: 'TRASH', asCost: true,
+      target: { type: 'HAND_CARD', owner: 'self', count: handDiscardOC.count, filter: handDiscardOC.filter },
+    } : noopOC;
     return needsInteraction(addLog(ctx, '任意コスト：発動しますか？'), {
       type: 'CHOOSE', count: 1,
       options: [
-        { id: 'pay',  label: payLabelOC, action: noopOC as EffectAction, available: canAffordOC,
+        { id: 'pay',  label: payLabelOC, action: payActionOC, available: canAffordOC,
           ...(costColorsOC.length ? { costColors: costColorsOC } : {}) },
         { id: 'skip', label: 'スキップ',  action: noopOC as EffectAction, available: true },
       ],

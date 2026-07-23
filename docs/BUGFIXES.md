@@ -4,6 +4,25 @@
 
 ---
 
+## §6.3 アップ／ダウン状態ファミリ12効果（追加コスト・動的filter・watcher是正）（2026-07-23・codex実装/Claude確認）
+
+原文照合で確認した12効果を4系統で是正した。M1 は `EffectCost.signiDown` と限定正規表現を追加し、WX14-055-E1（＜鉱石＞/＜宝石＞1体）・WXK11-056-E2/E3（赤1/2体）を `down_self` と別の追加ダウンコストとして生成。`BattleScreen` の起動可否・支払い・表示へ配線し、不足時は発動不可、支払い時はアップ状態のfilter一致シグニだけをダウンする（現行 `fieldDown` と同じ決定的候補順）。
+
+M2 は `OPTIONAL_COST.handDiscard` を直後CONDITIONAL・SEQUENCE先読み・単独の全経路で実支払いへ配線。対象をコスト前に `STORE_LAST_PROCESSED_TARGETS` で固定し、インタラクション生成時に `fixedCardNums` へ凍結することで、手札TRASHが `lastProcessedCards` を上書きしても同じ対象へ作用する。WXDi-P04-036-E2（手札3枚→固定相手シグニをバニッシュ）と WXK08-034-E1-G（全自シグニDOWN＋白支払い時だけ自身UP）をMANUAL再構成した。
+
+M3 は WXDi-P02-038-E1/E2 を「相手センタールリグと非共通色の相手エナ」動的filter＋`ENERGY_TRASHED_BY_OPP >= 2` へ、WXDi-P04-036-E1 を `LRIG_DECK_COUNT <= 1` へ、WXDi-P14-043-E2 を自身実効パワー以下の先行対象＋手札2枚実支払いへ是正。M4 は WX15-055/056-E1 をアタックフェイズ・正面・自身UPの三重ゲートで `collectBanishTriggers` に配線し、WX18-052-E1 をメインフェイズ・＜空獣＞/＜地獣＞ any_ally・自身DOWN限定で `collectFieldTriggers` に配線した。発火collectorはそれぞれ `collectBanishTriggers` / `collectFieldTriggers`。
+
+golden は成立・不成立の両方向4件を追加して **627/627**。`npm run regen` 済（カード単位の同型★0）。`npm run gates` 全緑：smoke **10723/10723**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 0、census **1711→1705**、lint **0 errors / 221 warnings**（増減なし）。`build:effects` 後の対象7枚は `heldReview --adopt` で採用し、JSON直パッチは行っていない。WX24-P2-069-E1（実際にダウンしたルリグとの共通色を後続バニッシュ対象へ渡す機構）と WXDi-P13-053-E1（メインフェイズ以外限定）は指示どおり defer。
+
+**Claude 検証で是正した3件（CODEX_GUIDE §7・census 1705→1702）**：
+1. **並行語彙 `signiDown` の撤去＝既存 `fieldDown` へ一本化**。「アップ状態の…シグニN体をダウンする」コストは既存 `fieldDown`（isUp filter・支払い/可否/表示の全経路完備）が既に表現しており、codex の新設 `signiDown` は語彙重複＋**WXDi-P14-040-E3 で両規則が同時マッチし二重コスト化**（申告では「無損失改善の付随差分」とされていたが実際は退化）。`fieldDown` の regex を「＜A＞か＜B＞の」（story OR）・「(色)の」へ拡張して signiDown の型/parser規則/BattleScreen 3箇所を撤去、3カードを heldReview --adopt で再採用。golden に「素の文型は fieldDown 単独（重複語彙なし）」の回帰検知を追加。**ガードレール「新しい型を乱立させない」の失敗モード＝既存語彙の regex を拡張すべき所で並行語彙を新設する**。
+2. **WX15-055/056 の `turnOwner:'self'` 欠落**＝「**あなたの**アタックフェイズの間」が `duringAttackPhase` のみ＝相手のアタックフェイズ中の正面被バニ（自トラップ等）でも発火する過剰。両カードに補筆し golden に相手ターン非発火を追加。
+3. **census ベースラインの並行定数**＝既存 `BASELINE_HIGH`（巨大履歴コメント付き）を残したまま `CENSUS_BASELINE_HIGH` を新設・旧定数を `void` で握り潰す形になっており、**今後のセッションが docs の指示どおり BASELINE_HIGH を更新しても無効になる罠**。慣例どおり本体更新（1711→1702）へ是正。ほか `LRIG_DECK_COUNT` の no-fallthrough lint error 1件（第1回納品分）も是正済み。
+
+最終ゲート：golden **627/627**・census **1702**（BASELINE 更新）・smoke/fuzz 0・同型★0・lint 221 warnings（増減なし）。
+
+---
+
 ## §6.3「ゲームから除外」基盤＋遅延自己除外3枚／ピース除外3枚／使用後自己除外2枚（2026-07-23・codex実装/Claude確認）
 
 従来の `EXILE`／`EXILE_SELF_AFTER_USE` はカードを盤面から消すだけ、またはトラッシュへ再投入する近似で、リフレッシュ等から再利用できる誤動作だった。`PlayerState.excluded` を専用ゾーンとして新設し、場・手札・トラッシュ・ルリグデッキからの除外をすべて記録するよう統一。`EffectTarget` に `LRIG_DECK_CARD`、選択UIにルリグデッキ scope を追加し、選択結果は従来どおり `lastProcessedCards` に残す。

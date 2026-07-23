@@ -220,6 +220,18 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   }
   const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
+  if (a.targetsLastProcessed) {
+    const fixed = new Set(ctx.lastProcessedCards ?? []);
+    cands = cands.filter(n => fixed.has(n));
+  }
+  if (a.targetsStored) {
+    const fixed = new Set(ctx.storedTargetCards ?? []);
+    cands = cands.filter(n => fixed.has(n));
+  }
+  if (a.fixedCardNums) {
+    const fixed = new Set(a.fixedCardNums);
+    cands = cands.filter(n => fixed.has(n));
+  }
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
@@ -1181,6 +1193,12 @@ function resolveDynamicFilter(
       const { colorNotMatchesLrig: _, ...rest } = result;
       result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
     }
+  }
+  if (result.colorNotMatchesOppLrig) {
+    const { colorNotMatchesOppLrig: _, ...rest } = result;
+    const lrigTop = otherSt?.field.lrig.at(-1);
+    const lrigColor = lrigTop ? cardMap.get(getCardNum(lrigTop))?.Color : undefined;
+    result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
   }
   // colorMatchesLastProcessed: 直前に処理したカード（lastProcessedCards[0]＝「この方法でダウンしたルリグ」等）と
   // 共通する色（1色でも一致）。owner 非依存＝相手エナを自ルリグ色で絞る（WX25-P2-112）。参照不能（スキップ／
@@ -2619,13 +2637,31 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const needsMaregabi = stub.costText?.includes('幻水マレガビ') === true;
         const hasMaregabi = !needsMaregabi || cur.ownerState.hand.some(cn =>
           matchesFilter(cur.cardMap.get(cn), { cardName: '幻水　マレガビ' }));
+        const handDiscard = stub.handDiscard;
+        const matchingHand = handDiscard
+          ? cur.ownerState.hand.filter(n => !handDiscard.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard.filter))
+          : [];
         const canAfford = (costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap))
-          && hasMaregabi;
+          && hasMaregabi && (!handDiscard || matchingHand.length >= handDiscard.count);
+        const freezeStoredTargets = (action: EffectAction): EffectAction => {
+          if (action.type === 'BANISH' && action.targetsStored) {
+            return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] };
+          }
+          if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(freezeStoredTargets) };
+          return action;
+        };
+        const paidAction = freezeStoredTargets(conditional.then);
+        const payAction: EffectAction = handDiscard ? {
+          type: 'SEQUENCE', steps: [{
+            type: 'TRASH', asCost: true,
+            target: { type: 'HAND_CARD', owner: 'self', count: handDiscard.count, filter: handDiscard.filter },
+          }, paidAction],
+        } : paidAction;
         const payLabel = costColors.length > 0
           ? `発動する（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
           : '発動する';
         const options = [
-          { id: 'pay', label: payLabel, action: conditional.then, available: canAfford, ...(costColors.length ? { costColors } : {}) },
+          { id: 'pay', label: payLabel, action: payAction, available: canAfford, ...(costColors.length ? { costColors } : {}) },
           { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
         ];
         const pending: PendingInteractionDef = {
@@ -2661,13 +2697,35 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               ? (remaining4.length === 1 ? remaining4[0] : { type: 'SEQUENCE', steps: remaining4 } as SequenceAction)
               : undefined;
             const isAdditional = conditional4.condition.type === 'PAID_ADDITIONAL_COST';
-            const payAction4: EffectAction = isAdditional
+            const freezeStoredTargets4 = (action: EffectAction): EffectAction => {
+              if (action.type === 'BANISH' && action.targetsStored) {
+                return { ...action, targetsStored: false, fixedCardNums: [...(cur.storedTargetCards ?? [])] };
+              }
+              if (action.type === 'SEQUENCE') {
+                return { ...action, steps: action.steps.map(freezeStoredTargets4) };
+              }
+              return action;
+            };
+            const paidBody4Raw: EffectAction = isAdditional
               ? (baseSteps.length === 0
                   ? conditional4.then
                   : { type: 'SEQUENCE', steps: [...baseSteps, conditional4.then] } as SequenceAction)
               : conditional4.then; // replace mode: 強化効果のみ
+            const paidBody4 = freezeStoredTargets4(paidBody4Raw);
             const costColors4 = stub4.costColors ?? [];
-            const canAfford4 = costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap);
+            const handDiscard4 = stub4.handDiscard;
+            const matchingHand4 = handDiscard4
+              ? cur.ownerState.hand.filter(n => !handDiscard4.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard4.filter))
+              : [];
+            const canAfford4 = (costColors4.length === 0 || canPayOptionalCost(costColors4, cur.ownerState, cur.cardMap))
+              && (!handDiscard4 || matchingHand4.length >= handDiscard4.count);
+            const discardAction4: EffectAction | undefined = handDiscard4 ? {
+              type: 'TRASH', asCost: true,
+              target: { type: 'HAND_CARD', owner: 'self', count: handDiscard4.count, filter: handDiscard4.filter },
+            } : undefined;
+            const payAction4: EffectAction = discardAction4
+              ? { type: 'SEQUENCE', steps: [discardAction4, paidBody4] }
+              : paidBody4;
             const payLabel4 = costColors4.length > 0
               ? `追加コスト支払う（${costColors4.map(c => `《${c}》`).join('')}）`
               : '追加コストを支払う';
@@ -2696,15 +2754,27 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : noopAction5;
           const costColors5 = stub5.costColors ?? [];
           const coinCost5 = stub5.coinCost ?? 0;
+          const handDiscard5 = stub5.handDiscard;
+          const matchingHand5 = handDiscard5
+            ? cur.ownerState.hand.filter(n => !handDiscard5.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard5.filter))
+            : [];
           const canAfford5 = (costColors5.length === 0 || canPayOptionalCost(costColors5, cur.ownerState, cur.cardMap))
-            && (cur.ownerState.coins ?? 0) >= coinCost5;
+            && (cur.ownerState.coins ?? 0) >= coinCost5
+            && (!handDiscard5 || matchingHand5.length >= handDiscard5.count);
           const costParts5 = [
             ...costColors5.map(c => `《${c}》`),
             ...(coinCost5 > 0 ? [`《コイン》×${coinCost5}`] : []),
           ];
           const payLabel5 = costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
+          const discardAction5: EffectAction | undefined = handDiscard5 ? {
+            type: 'TRASH', asCost: true,
+            target: { type: 'HAND_CARD', owner: 'self', count: handDiscard5.count, filter: handDiscard5.filter },
+          } : undefined;
+          const payAction5: EffectAction = discardAction5
+            ? { type: 'SEQUENCE', steps: [discardAction5, cont5] }
+            : cont5;
           const options5 = [
-            { id: 'pay', label: payLabel5, action: cont5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}), ...(coinCost5 > 0 ? { coinCost: coinCost5 } : {}) },
+            { id: 'pay', label: payLabel5, action: payAction5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}), ...(coinCost5 > 0 ? { coinCost: coinCost5 } : {}) },
             { id: 'skip', label: 'スキップ', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
@@ -2782,7 +2852,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (step.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = step as import('../types/effects').TrashAction;
@@ -4942,7 +5012,7 @@ export function resumeSearch(
   }
   if (pending.continuation) {
     // 選択したアクションが処理したシグニ（公開/場出し等）を continuation の「その後、そのシグニより…」が参照できるよう lastProcessedCards を継承
-    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
+    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
   }
   return result;
 }
@@ -5006,7 +5076,7 @@ export function resumeOptionalCost(
   }
   if (pending.continuation) {
     // lastProcessedCards を継承（支払い後の効果が公開/場出し等したシグニを「その後、そのシグニより…」で参照する。WXK10-031）
-    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated });
+    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated });
   }
   return result;
 }

@@ -136,6 +136,7 @@ export type NumberOrRef = number | { $ref: string };
 // ===== 発動条件 =====
 
 export type ActiveCondition =
+  | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'OR'; conditions: ActiveCondition[] }
   | { type: 'TURN_OWNER'; owner: Owner }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
@@ -199,6 +200,7 @@ export type Condition =
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
+  | { type: 'ALL_SELF_SIGNI_DOWN' }
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
@@ -222,6 +224,7 @@ export type Condition =
   | { type: 'FIELD_CLASS_COUNT'; owner: Owner; story: string; operator: CompareOp; value: number } // 場のシグニのうちCardClassがstoryを含むものの数（「場に＜天使＞が3体」等）
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number } // 場のルリグ（センター＋アシストL/R）のうちTeamがteamを含むものの数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021。Teamはチーム名でCardClass/Storyとは別）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
+  | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
   | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string } // class省略時は効果起因の配置全般
@@ -389,6 +392,7 @@ export interface TargetFilter {
   isTriggerSource?: boolean; // トリガー元カード（ctx.triggeringCardNum）のみを対象。execBanishが解決
   colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
+  colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
@@ -672,6 +676,9 @@ export interface BanishAction {
   conditional?: boolean; // true = 前ステップ（STUB等）が成功した場合のみ実行
   selfTrashCost?: boolean; // 「このシグニを場からトラッシュに置いてもよい。そうした場合〜バニッシュ」：対象を1体以上選んだ場合、効果元シグニ自身をコストとしてトラッシュ（WX21-052）
   opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」：対戦相手が自分のシグニを選んでバニッシュ（target.owner='opponent'）
+  targetsLastProcessed?: boolean; // 直前ステップで選択したシグニをバニッシュ（追加コストの前に対象を固定する効果）
+  targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象
+  fixedCardNums?: string[]; // インタラクション生成時に固定済みの対象instanceId
 }
 
 // フィールドのシグニをエナゾーンに置く（エナ送り）。
@@ -1608,6 +1615,7 @@ export interface AltCostOppTurnAction {
 
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
+  handDiscard?: { count: number; filter?: TargetFilter };
   type: 'STUB';
   id: string;
   // GUARD_LOSS_UNLESS_LRIG: このクラスを持つセンタールリグでなければ、手札の自身は【ガード】を失う。
@@ -1792,7 +1800,9 @@ export interface CardEffect {
     movedToDeckFromTrash?: boolean;                   // ON_CARD_MOVED_TO_DECK の発生源をトラッシュに限定（「あなたのトラッシュから…デッキに移動したとき」WX09-020/WX22-014）。省略=任意の発生源
     banishedFilter?: TargetFilter;                    // ON_SIGNI_BANISH_OPPONENT/_BATTLE の被バニッシュシグニ限定（「感染状態の/凍結状態の/【チャーム】が付いている…シグニをバニッシュしたとき」WX16-079/WXK02-054/WXEX2-76 等）。バニッシュ**直前**の盤面状態（matchesStateFilter＝infected/isFrozen/hasCharm）＋カードデータ（matchesFilter）で判定。triggerFilter は any_ally scope で**バニッシュした側**に使われるため別軸
     banishedNotFront?: boolean;                        // ON_SIGNI_BANISH_BATTLE/_OPPONENT の被バニッシュシグニ限定「正面**以外**の」（WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」）。banishedFilter（カード属性/ゾーン状態）とは別軸＝アタッカーの正面ゾーン（対戦相手視点のミラーゾーン）と被バニッシュゾーンの一致判定。犠牲/リダイレクトで実際の被バニッシュ位置が変わった場合も対応
+    banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
     duringAttackPhase?: boolean;                      // 「アタックフェイズの間、…したとき」＝アタックフェイズ（ATTACK_*）中のイベントのみ発火（WXEX2-01/WX20-051＝ON_SIGNI_DOWN/UP・WX11-030＝ON_DRAW）
+    duringMainPhase?: boolean;                        // 「メインフェイズの間」だけ発火（WX18-052）
     upIncludesLrig?: boolean;                         // ON_SIGNI_BECOMES_UP の「あなたのセンタールリグかシグニ1体がアップ状態になったとき」（WX20-051）＝センタールリグのアップ（lrig_down true→false）でも発火。省略＝シグニのみ
     byOwnEffect?: boolean;                            // ON_TRASH（自己discard反応「あなたの効果によって/あなたがこのカードを捨てたとき」WXDi-P08-075/P11-069）＝対戦相手の効果起因では発火しない。ON_LEAVE_FIELD any_opp（「あなたの効果によって対戦相手のシグニが…」WXK11-049/WXDi-CP01-027）＝watcher 自身の効果が原因のときのみ発火（バトル/ルール処理でも発火しない）
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）

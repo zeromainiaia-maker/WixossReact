@@ -7,6 +7,29 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WXDi-P04-036": [
+    {"effectId":"WXDi-P04-036-E1","effectType":"CONTINUOUS","activeCondition":{"type":"LRIG_DECK_COUNT","owner":"self","operator":"lte","value":1},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P04-036-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":3}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WXK08-034": [
+    {"effectId":"WXK08-034-E1","effectType":"CONTINUOUS","activeCondition":{"type":"SUBSCRIBER_COUNT","operator":"gte","value":80},"action":{"type":"GRANT_FIELD_SIGNI_ABILITY","thisCardOnly":true,"abilities":[{"effectId":"WXK08-034-E1-G","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"ALL_SELF_SIGNI_DOWN"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["白"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","usageLimit":"once_per_turn"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-P02-038": [
+    {"effectId":"WXDi-P02-038-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorNotMatchesOppLrig":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+    {"effectId":"WXDi-P02-038-E2","effectType":"AUTO","timing":["ON_TURN_END"],"condition":{"type":"ENERGY_TRASHED_BY_OPP","owner":"opponent","operator":"gte","value":2},"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-P14-043": [
+    {"effectId":"WXDi-P14-043-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true}},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":2}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WX15-055": [
+    {"effectId":"WX15-055-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","triggerCondition":{"duringAttackPhase":true,"banishedFrontOfSelf":true,"turnOwner":"self"},"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX15-056": [
+    {"effectId":"WX15-056-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","triggerCondition":{"duringAttackPhase":true,"banishedFrontOfSelf":true,"turnOwner":"self"},"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX18-052": [
+    {"effectId":"WX18-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"story":["空獣","地獣"]},"triggerCondition":{"duringMainPhase":true},"condition":{"type":"THIS_CARD_IS_DOWN"},"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+  ],
   "WX16-040": [
     {"effectId":"WX16-040-E1","effectType":"AUTO","timing":["ON_TRAP_ACTIVATE"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["青"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"STUB","id":"MARK_SELF_DELAYED_EXILE"}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],

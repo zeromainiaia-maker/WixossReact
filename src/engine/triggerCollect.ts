@@ -572,6 +572,12 @@ export function collectBanishTriggers(
   const usedGuestIds: string[] = [];
   const limitOkMy = mkLimitOk(myAfterState.actions_done, isHost ? usedHostIds : usedGuestIds);
   const limitOkOp = mkLimitOk(opAfterState.actions_done, isHost ? usedGuestIds : usedHostIds);
+  const banishedZone = prevOwnerState?.field.signi.findIndex(s => s?.at(-1) === banishedCardNum) ?? -1;
+  const isFrontOfWatcher = (watcherNum: string, watcherState: PlayerState): boolean => {
+    if (banishedZone < 0) return false;
+    const watcherZone = watcherState.field.signi.findIndex(s => s?.at(-1) === watcherNum);
+    return watcherZone >= 0 && banishedZone === 2 - watcherZone;
+  };
 
   // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
   if (prevOwnerState) {
@@ -643,6 +649,7 @@ export function collectBanishTriggers(
       // turnOwner＝反応側（me）のターン限定（'self'＝自分ターン／'opponent'＝相手ターン。「対戦相手のアタックフェイズ」等）。
       if (eff.triggerCondition?.turnOwner === 'self' && !isMyTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
+      if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, myAfterState)) continue;
       // triggerFilter＝バニッシュされたシグニ側の限定（「あなたの＜悪魔＞のシグニ1体が」の＜悪魔＞・excludeSelf）。
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
@@ -675,6 +682,7 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
       if (eff.triggerCondition?.turnOwner === 'self' && !isOpTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
+      if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
         const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
@@ -2238,6 +2246,7 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       if (!byEffectTriggerOk(eff)) continue;
+      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // placedDown（G144）: トリガー元シグニがダウン状態で出ていなければ発火しない。
       if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
         const ziTrig = myState.field.signi.findIndex(s => s?.at(-1) === triggeringCardNum);
@@ -2281,6 +2290,7 @@ export function collectFieldTriggers(
       }
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
+      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
       const oeStub = eff.action as StubAction;
       if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'

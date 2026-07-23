@@ -383,13 +383,16 @@ function parseCost(costStr: string): EffectCost | undefined {
     };
   }
   // アップ状態のシグニN体をダウン → fieldDown
+  // 「＜A＞か＜B＞の」（クラスOR＝WX14-055 鉱石/宝石）・「(色)の」（WXK11-056 赤）の絞込にも対応。
+  // 《ダウン》自身コスト（down_self）とは別の追加コストで、両方が併記されたカードでは両フィールドが立つ。
   if (!cost.fieldDown) {
-    const fdM = costStr.match(/アップ状態の(?:(?:他の)?(?:レベル([０-９\d]+)(?:以下)?の)?(?:＜([^＞]+)＞の)?)?(?:他の)?シグニ([０-９\d]+)体をダウンする/);
+    const fdM = costStr.match(/アップ状態の(?:(?:他の)?(?:レベル([０-９\d]+)(?:以下)?の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?|([白赤青緑黒無])の)?(?:他の)?シグニ([０-９\d]+)体をダウンする/);
     if (fdM) {
       const fdFilter: TargetFilter = { cardType: 'シグニ', isUp: true };
       if (fdM[1]) fdFilter.level = { max: parseNum(fdM[1]) } as TargetFilter['level'];
-      if (fdM[2]) fdFilter.story = fdM[2];
-      cost.fieldDown = { count: parseNum(fdM[3]), filter: fdFilter };
+      if (fdM[2]) fdFilter.story = fdM[3] ? [fdM[2], fdM[3]] : fdM[2];
+      if (fdM[4]) fdFilter.color = fdM[4];
+      cost.fieldDown = { count: parseNum(fdM[5]), filter: fdFilter };
     }
   }
   // 手札をすべて捨てる → discardAll

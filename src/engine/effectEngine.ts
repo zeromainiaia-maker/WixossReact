@@ -430,6 +430,20 @@ export function checkActiveCondition(
       }
     }
 
+    case 'LRIG_DECK_COUNT': {
+      const state = cond.owner === 'self' ? ownerState : otherState;
+      const count = state.lrig_deck.length;
+      switch (cond.operator) {
+        case 'gte': return count >= cond.value;
+        case 'lte': return count <= cond.value;
+        case 'gt': return count > cond.value;
+        case 'lt': return count < cond.value;
+        case 'eq': return count === cond.value;
+        case 'neq': return count !== cond.value;
+      }
+      return false;
+    }
+
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN':
       return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
 

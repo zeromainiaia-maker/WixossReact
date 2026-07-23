@@ -25,6 +25,7 @@ export interface ExecCtx {
   currentPhase?: string;     // 現在のターンフェイズ（DURING_PHASE条件チェック用）
   isOwnerTurn?: boolean;     // 効果オーナーのターンか。未設定なら TURN_OWNER は後方互換で成立扱い
   lastProcessedCards?: string[]; // 直前ステップで処理されたカード番号（POWER_MOD_PER_COUNT等で参照）
+  storedTargetCards?: string[]; // 任意コスト支払い前に固定した対象（支払いTRASHでlastProcessedCardsが上書きされても保持）
   autoTargetedCards?: string[]; // 選択UIを経ずに自動対象化したシグニ（targetsTriggerSource/targetsLastProcessed）＝ON_TARGETED 収集用（続き137・タスク12(xx)）
   fieldTrashCostCards?: string[]; // この解決ラウンドでコストとして場→トラッシュへ置いたinstanceId（ON_TRASH byEffect 原因弁別用）
   trapActivated?: boolean; // この解決中に《トラップアイコン》が実際に発動した（BattleScreen が完了解決後に watcher を収集）
@@ -75,8 +76,8 @@ export interface ExecCtx {
 }
 
 export type ExecResult =
-  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean }
-  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; fieldTrashCostCards?: string[]; trapActivated?: boolean };
+  | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean }
+  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean };
 
 // ===== ユーティリティ =====
 
@@ -234,11 +235,11 @@ export function canPayOptionalCost(costColors: string[], state: PlayerState, car
 }
 
 export function done(ctx: ExecCtx): ExecResult {
-  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated };
+  return { done: true, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, forceEndTurn: ctx.forceEndTurn, lastProcessedCards: ctx.lastProcessedCards, storedTargetCards: ctx.storedTargetCards, autoTargetedCards: ctx.autoTargetedCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated };
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
-  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated };
+  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated };
 }
 
 export function matchesFilter(
@@ -883,6 +884,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         return matchesFilter(ctx.cardMap.get(cardNum), cond.filter);
       });
     }
+    case 'ALL_SELF_SIGNI_DOWN': {
+      const occupied = ctx.ownerState.field.signi
+        .map((stack, zoneIdx) => ({ stack, zoneIdx }))
+        .filter(({ stack }) => !!stack?.at(-1));
+      return occupied.length > 0 && occupied.every(({ zoneIdx }) => ctx.ownerState.field.signi_down?.[zoneIdx] === true);
+    }
     case 'TRASH_HAS_CARD': {
       const stripCC = ctx.oppTrashColorLoss && cond.owner === 'self';
       // minCount: フィルタ一致カードがN枚以上（省略=1。「トラッシュに＜武勇＞のシグニが10枚以上ある場合」等）
@@ -1051,6 +1058,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!lrig) return false;
       return ctx.cardMap.get(lrig)?.Color?.includes(cond.color) ?? false;
     }
+    case 'LRIG_DECK_COUNT':
+      return cmp(st(cond.owner).lrig_deck.length, cond.operator, cond.value);
     case 'LRIG_TRASH_COUNT': {
       const types = cond.cardType
         ? (Array.isArray(cond.cardType) ? cond.cardType : [cond.cardType])
