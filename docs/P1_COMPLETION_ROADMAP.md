@@ -158,6 +158,8 @@
 | 粗網（小さい数262・数値不一致125）・閾値/クラス/色の残・条件節389の残 | ~800+ | 計器のみ（worklist 化しない） | バッチ2〜4 実測（続き250/254）＝別節/コスト/偽陽性主体。条件節残は履歴カウンタ系23＋単発（続き252 実測） |
 
 **結論＝生きた parser バッチは「相手が選ぶ~40」「数量比例~25」の2本（＋公開し/キーワードの精査次第で小粒2本）≈70-90効果**。これを消化すれば **P1完了宣言を実測根拠付きで行える**。
+
+**🆕バッチ11 ✅消化（同日・43効果）**＝opponentSelects 一括付与（機械証明＝全差分フラグのみ）＋新入口2＋count是正2。census 1612→**1589**・golden 666。**残＝バッチ6「数量比例」のみ→P1完了宣言へ**。
    - **バッチ2第1波✅（続き253・Codex 分担）**＝トラッシュ→手札回収（TRANSFER_TO_HAND{TRASH_CARD} 入口）のフィルタ脱落30効果採用（census 1742→1715）。共通 filter extractor `parserUtils.extractNounPhraseFilter` を新設し1入口だけへカードゲート配線＝複色OR `color:[…]`・無色 `'無'`・`cardName` 部分一致・`excludeCardName`・`nonColorless`＋複合対象「AとB」の SEQUENCE 分割。**投入前実測で候補33件全て真バグ（偽陽性ゼロ）・うち11件は PRESERVE カード封鎖**（fresh 正だが held 不可視＝直パッチが正規）。effectEngine ローカル matchesFilter の nonColorless `'無'` 欠けも同時修正。見送り3（levelEqTrigger 不在・レベル合計制約・共通色参照）は golden 非採用固定。**第2波の入口候補＝POWER_MODIFY 対象句（class36+color15）→TO_ENER→TO_TRASH の順**（トリアージ済みクラスタは BUGFIXES 続き253 参照）。詳細 BUGFIXES 続き253。
 2. **上位5バッチ消化後に census 再生成→再クラスタリングしてバッチ6〜16 を切り直す**。
 3. **純§6.3の94効果を §6.3 へ正式仕分けして PLAN に登録**（宣言を軽くする簿記）。効果IDリストは `docs/_p1_classification.txt` に保存済み。（＝戦略③の入口）
