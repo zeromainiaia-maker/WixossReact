@@ -70,6 +70,9 @@ const FIXES = [
   // SP27-016-E1: CHOOSE.choices[0].action.filter (SEARCH, empty filter)
   { file: 'effects_misc', card: 'SP27-016', eid: 'SP27-016-E1', type: 'matchesLrig',
     locate: e => e.action?.choices?.[0]?.action },
+  // 同カード②: シグニ/センタールリグの共有1回アタック無効化。
+  { file: 'effects_misc', card: 'SP27-016', eid: 'SP27-016-E1', type: 'negateNthAttack',
+    locate: e => e.action?.choices?.[1]?.action },
 
   // PR-457-E2: SEARCH.filter
   { file: 'effects_misc', card: 'PR-457', eid: 'PR-457-E2', type: 'matchesLrig',
@@ -84,6 +87,10 @@ const DIR = 'public/data';
 
 function applyFix(obj, type) {
   if (!obj) return false;
+  if (type === 'negateNthAttack') {
+    obj.negateNthAttack = { count: 1, signi: true, lrig: true };
+    return true;
+  }
   // SEARCH / ADD_TO_FIELD actions: filter is action-level property
   if (obj.type === 'SEARCH' || obj.type === 'ADD_TO_FIELD') {
     if (!obj.filter) obj.filter = {};

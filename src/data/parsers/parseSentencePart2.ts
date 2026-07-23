@@ -554,7 +554,17 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- このターン、シグニ/センタールリグのアタックを無効にする（複数回目） ----
   if (t.match(/対戦相手の(?:シグニ|センタールリグ).*アタック.*(?:一度目|二度目).*無効にする/)) {
-    return { type: 'STUB', id: 'NEGATE_NTH_ATTACK' } as StubAction;
+    // 「対戦相手の◯◯がアタック」の主語句だけを取り出し、後続の別節（WX17-006のベット節等）を混ぜない。
+    const subjM = t.match(/対戦相手の([^。]*?)がアタック/);
+    const subj = subjM ? subjM[1] : '';
+    const signi = /シグニ/.test(subj);
+    const lrig = /センタールリグ/.test(subj);
+    const count = /一度目か二度目/.test(t) ? 2 : 1;
+    return {
+      type: 'STUB',
+      id: 'NEGATE_NTH_ATTACK',
+      negateNthAttack: { count, signi: signi || !lrig, lrig },
+    } as StubAction;
   }
 
   // ---- 対戦相手はシグニをN体までしか場に出せない ----

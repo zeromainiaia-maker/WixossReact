@@ -29,6 +29,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
+import { consumeNthAttackNegation } from './battle/attackNegation';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
@@ -3247,7 +3248,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
-          negate_opp_signi_attacks_until: undefined, // N回目シグニアタック自動無効化フラグをリセット
+          negate_opp_attacks: undefined,              // N回目アタック共有カウンタをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
@@ -3584,7 +3585,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
         signi_attack_cost: undefined, lrig_riding_signi: undefined,
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
-        crash_to_trash_instead: undefined, negate_opp_signi_attacks_until: undefined,
+        crash_to_trash_instead: undefined, negate_opp_attacks: undefined,
         all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
         negate_coin_abilities: undefined, coin_condition_signi_instances: undefined,
         grid_reveal_plus_one_this_turn: undefined, deck_signi_level_override: undefined,
@@ -6615,12 +6616,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
       const newOpState = op;
 
-      // NEGATE_NTH_ATTACK: 相手（防御側）がN回目まで自動無効化フラグを持つ場合
-      if ((op.negate_opp_signi_attacks_until ?? 0) > 0) {
-        const remaining = (op.negate_opp_signi_attacks_until ?? 1) - 1;
-        const newOpForNegate: PlayerState = { ...op, negate_opp_signi_attacks_until: remaining > 0 ? remaining : undefined };
-        appendBattleLogs([`${myCardName}のアタックは無効化された（残り${remaining}回）`]);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpForNegate } }));
+      // NEGATE_NTH_ATTACK: 防御側の共有カウンタがシグニを対象にする場合
+      const signiNegation = consumeNthAttackNegation(op, 'signi');
+      if (signiNegation.negated) {
+        appendBattleLogs([`${myCardName}のアタックは無効化された（残り${signiNegation.remaining}回）`]);
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: signiNegation.defender } }));
         return;
       }
       // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
@@ -7870,8 +7870,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
       appendBattleLogs([`${lrigName}がアタック`]);
+      const attackedMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, field: { ...my.field, lrig_down: true } };
+      // NEGATE_NTH_ATTACK は「アタックしたとき」に無効化するため、追加コスト支払い・ダウン・攻撃済み化は行う。
+      // ただし pending_lrig_attack を立てず、ON_ATTACK_LRIG収集とガード/ダメージ応答へは進めない。
+      const lrigNegation = consumeNthAttackNegation(op, 'lrig');
+      if (lrigNegation.negated) {
+        const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
+        appendBattleLogs([`${lrigName}のアタックは無効化された（残り${lrigNegation.remaining}回）`]);
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE',
+          myKey,
+          myState: attackedMyState,
+          opp: { key: defenderKey, state: lrigNegation.defender },
+        }));
+        return true;
+      }
       // pending_lrig_attack: true でON_ATTACK_LRIG解決後にガード応答（lrig_attacked）をセット
-      const newMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, pending_lrig_attack: true, field: { ...my.field, lrig_down: true } };
+      const newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true };
       // lrig_attacked は ON_ATTACK_LRIG 解決後にセット（スタック解決後の useEffect で対応）
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）

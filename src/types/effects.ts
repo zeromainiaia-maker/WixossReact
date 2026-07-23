@@ -1656,6 +1656,9 @@ export interface StubAction {
   handDiscard?: { count: number; filter?: TargetFilter };
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
   exceed?: number;
+  // NEGATE_NTH_ATTACK: このターン、対戦相手のアタックを共有カウントで N 回目まで無効化。
+  // signi/lrig は無効化対象に含める攻撃種別。count は「一度目か二度目」=2 / 「一度目」=1。
+  negateNthAttack?: { count: number; signi: boolean; lrig: boolean };
   fetchCardName?: string; // SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME: 名指しフェッチ先（省略時は自身と同名。PR-470A→《進化する筋肉 紗倉ひびき》）
   type: 'STUB';
   id: string;

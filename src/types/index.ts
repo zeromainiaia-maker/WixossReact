@@ -346,8 +346,9 @@ export interface PlayerState {
   last_revealed_signi_level_sum?: number;
   // REVEAL_DECK_TOP（B2）: 直前に公開したデッキ上カード番号（TRASH_REVEALED が参照）。
   last_revealed_deck_cards?: string[];
-  // NEGATE_NTH_ATTACK: このターン、相手シグニアタックをN回目まで自動無効化する残り回数
-  negate_opp_signi_attacks_until?: number;
+  // NEGATE_NTH_ATTACK: このターン、対戦相手のアタックを共有カウントで無効化する残り回数と対象種別。
+  // signi と lrig は1つの remaining を共有し、対象種別のアタックを無効化するたびに1減る。
+  negate_opp_attacks?: { remaining: number; signi: boolean; lrig: boolean };
   // NEGATE_ALL_OPP_EFFECTS: このターン、自分のCONTINUOUS効果は何もしない（相手が効果無効化）
   all_cont_effects_negated?: boolean;
   // BANISH_BY_SELF_GOES_TO_TRASH: このシグニによってバニッシュされたシグニはエナでなくトラッシュへ

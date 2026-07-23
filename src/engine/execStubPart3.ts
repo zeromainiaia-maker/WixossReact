@@ -934,7 +934,7 @@ export function execStubPart3(
     }
     return done(addLog(ctx, 'アタック無効化（対象不明）'));
   }
-  // NEGATE_NTH_ATTACK: このターン、相手シグニのアタックをN回目まで自動無効化
+  // NEGATE_NTH_ATTACK: このターン、対象種別の相手アタックを共有カウントでN回目まで自動無効化
   if (stub.id === 'NEGATE_NTH_ATTACK') {
     const toHWNNA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const srcNNA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
@@ -944,9 +944,16 @@ export function execStubPart3(
     if (txtNNA.match(/[一1１]度目か[二2２]度目/)) nNNA = 2;
     else if (txtNNA.match(/[一1１]度目か[二2２]度目か[三3３]度目/)) nNNA = 3;
     else { const m = txtNNA.match(/([０-９\d一二三四五六七八九十]+)回目/); if (m) nNNA = parseInt(toHWNNA(m[1])) || 1; }
-    const cur = ctx.ownerState.negate_opp_signi_attacks_until ?? 0;
-    const newOwner = { ...ctx.ownerState, negate_opp_signi_attacks_until: Math.max(cur, nNNA) };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手シグニアタックを${nNNA}回目まで自動無効化`));
+    const params = stub.negateNthAttack ?? { count: nNNA, signi: true, lrig: false };
+    const cur = ctx.ownerState.negate_opp_attacks;
+    const next = {
+      remaining: Math.max(cur?.remaining ?? 0, params.count),
+      signi: (cur?.signi ?? false) || params.signi,
+      lrig: (cur?.lrig ?? false) || params.lrig,
+    };
+    const newOwner = { ...ctx.ownerState, negate_opp_attacks: next };
+    const targets = [next.signi ? 'シグニ' : '', next.lrig ? 'センタールリグ' : ''].filter(Boolean).join('・');
+    return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、相手の${targets}アタックを${next.remaining}回目まで自動無効化`));
   }
   // NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
   if (stub.id === 'NEGATE_COIN_ABILITY') {
