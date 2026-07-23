@@ -469,7 +469,7 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
-    case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.optional ? '（してもよい）' : ''}`;
+    case 'SEND_TO_ENERGY': return `${targetJa(a.target)}をエナゾーンに置く${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
     // ATTACH_ACCE: シグニを別シグニの【アクセ】にする。fromHand=手札から（デコレ）／省略時=エナゾーンから（アクセクラフト）
     case 'ATTACH_ACCE': {
       const srcJaAA = a.fromHand ? '手札' : 'エナゾーン';
@@ -637,9 +637,10 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRANSFER_TO_DECK': {
       const opt = a.optional ? '（してもよい）' : '';
       if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す${opt}`;
+      const chooser = a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return a.shuffle
-        ? `${targetJa(a.source)}をデッキに加えてシャッフルする${opt}`
-        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く${opt}`;
+        ? `${targetJa(a.source)}をデッキに加えてシャッフルする${chooser}${opt}`
+        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く${chooser}${opt}`;
     }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;

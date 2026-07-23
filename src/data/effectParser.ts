@@ -2891,6 +2891,52 @@ function applyDistinctBatch5c(effects: CardEffect[]): void {
   }
 }
 
+// ROADMAP batch11。「対戦相手は自分の〜を選び」の選択主体だけを、原文照合済み
+// effectId の該当 action へ付与する。条件・CHOOSE・SEQUENCE の周辺構造は変更しない。
+const OPPONENT_SELECTS_BATCH11: Record<string, 'TRASH' | 'SEND_TO_ENERGY' | 'TRANSFER_TO_DECK'> = {
+  'SPDi43-01-E1':'TRASH','WX24-P2-018-E2':'TRASH','WX24-P3-051-E1':'TRASH',
+  'WX24-P3-051-E2':'TRASH','WX24-P4-015-E3':'TRASH','WX25-P1-076-E1':'TRASH',
+  'WX25-P2-054-E2':'TRASH','WX25-P2-TK03-E1':'TRASH','WX25-P3-032-E1':'TRASH',
+  'WX25-P3-080-E1':'TRASH','WX26-CP1-050-E1':'TRASH','WX26-CP1-060-SONG':'TRASH',
+  'WXDi-D07-017-E1':'TRASH','WXDi-D08-011-E1':'TRASH','WXDi-D09-H14-E1':'TRASH',
+  'WXDi-P01-086-BURST':'TRASH','WXDi-P02-002-E1':'TRASH',
+  'WXDi-P02-023-E1':'SEND_TO_ENERGY','WXDi-P03-069-BURST':'TRANSFER_TO_DECK',
+  'WXDi-P04-034-E1':'TRASH','WXDi-P05-056-E1':'TRASH','WXDi-P05-058-E1':'TRASH',
+  'WXDi-P06-008-E1':'TRASH','WXDi-P06-008-E2':'TRASH','WXDi-P08-005-E1':'TRASH',
+  'WXDi-P09-047-E1':'TRASH','WXDi-P09-060-E1':'TRASH','WXDi-P10-003-E1':'TRASH',
+  'WXDi-P10-008-E3':'TRASH','WXDi-P10-036-E1':'TRASH','WXDi-P10-037-E1':'TRASH',
+  'WXDi-P10-037-E2':'TRASH','WXDi-P11-042-E2':'TRASH','WXDi-P11-048-E1':'TRASH',
+  'WXDi-P11-058-E1':'TRASH','WXDi-P12-046-E2':'TRASH','WXDi-P12-047-E1':'TRASH',
+  'WXDi-P13-007-E3':'TRASH','WXDi-P13-037-E1':'TRASH','WXDi-P13-064-E1':'TRASH',
+  'WXDi-P14-002-E1':'TRASH','WXDi-P14-057-E1':'TRASH','WXDi-P15-049-E2':'TRASH',
+  'WXDi-P16-010-E1':'TRASH',
+};
+function applyOpponentSelectsBatch11(effects: CardEffect[]): void {
+  const visit = (node: unknown, type: string): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as Record<string, unknown>;
+    const target = (obj.target ?? obj.source) as Record<string, unknown> | undefined;
+    if (obj.type === type && target?.owner === 'opponent') {
+      // TRASH HAND は既存 executor が既定で相手選択。フラグが必要な場/エナだけへ付ける。
+      if (!(type === 'TRASH' && target.type === 'HAND_CARD')) obj.opponentSelects = true;
+    }
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(v => visit(v, type));
+      else visit(value, type);
+    }
+  };
+  for (const effect of effects) {
+    const type = OPPONENT_SELECTS_BATCH11[effect.effectId];
+    if (type) visit(effect.action, type);
+    // Claude 検証是正（2026-07-23）: 原文「自分のシグニ２体を選び」に対し count:1 だった2効果を実数へ
+    // （SPDi43-01 の「《無》《無》を支払わないかぎり」＝相手の支払い回避ゲートは機構未整備＝§6.3 送り・count のみ是正）。
+    if ((effect.effectId === 'SPDi43-01-E1' || effect.effectId === 'WX26-CP1-060-SONG')
+      && effect.action.type === 'TRASH' && effect.action.target.type === 'SIGNI') {
+      effect.action.target.count = 2;
+    }
+  }
+}
+
 // ROADMAP batch5b。同一性参照は曖昧な一般 regex へ広げず、原文照合済み effectId の
 // 対象 action だけに付与する。filter の実行は resolveDynamicFilter に一本化。
 const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter; value?: unknown; occurrence?: number }> = {
@@ -6521,6 +6567,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyIdentityBatch5b(effects);
   applySharedColorBatch5c2(effects);
   applyDistinctBatch5c(effects);
+  applyOpponentSelectsBatch11(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

@@ -1406,7 +1406,7 @@ WXDi-P14-002
   - [0].action.choices[0].action.target.upToCount = false
   - [0].action.choices[1].choiceId = "c1"
   - [0].action.choices[1].label = "選択肢2"
-  …（他 35 行）
+  …（他 36 行）
 
 ## +CONDITIONAL +LRIG_LEVEL +SIGNI -LRIG ［1枚］
 WXDi-P14-070

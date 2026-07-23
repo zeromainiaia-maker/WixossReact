@@ -707,6 +707,7 @@ export interface SendToEnergyAction {
   type: 'SEND_TO_ENERGY';
   target: EffectTarget;
   optional?: boolean; // true = 「してもよい」
+  opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を選びエナゾーンに置く」
 }
 
 export interface PowerModifyAction {
@@ -1079,6 +1080,7 @@ export interface TransferToDeckAction {
   destination?: 'deck' | 'lrig_deck'; // 省略時は 'deck'
   position?: 'top' | 'bottom';        // デッキの挿入位置（省略時は top）
   optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
+  opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
 }
 
 // スペル/アーツの効果を打ち消す

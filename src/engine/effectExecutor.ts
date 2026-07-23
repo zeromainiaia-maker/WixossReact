@@ -507,7 +507,8 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
   const count = resolveNum(tgt.count);
   if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
+  const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
+  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
 }
 
 // 発生元カード（ctx.sourceCardNum）の Type を返す（'シグニ'/'スペル'/'アーツ'/'ルリグ' 等）。
@@ -3221,7 +3222,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     }
 
     if (src.count === 'ALL') return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
-    return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+    const oppResponds = !!a.opponentSelects && src.owner === 'opponent';
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, oppResponds);
   }
 
   return done(ctx);

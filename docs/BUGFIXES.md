@@ -4,6 +4,18 @@
 
 ---
 
+## ROADMAP バッチ11：相手が選ぶ（2026-07-23・codex実装/Claude確認）
+
+**Claude 検証（差し戻し0・追加是正2件）**＝per-effect 機械 diff で **43差分すべてが opponentSelects:true 追加のみ・その他差分ゼロを機械証明**（置換テストによる厳密確認）。BASELINE_HIGH は今回正しく本体更新（1589・並行定数なし）・BUGFIXES 先頭追記・held --adopt 完了＝**前3波の教訓3種がすべて1回で定着**。blind 1件（WX14-011＝既に正しい）の実測差し戻しと偽陽性1件（WX26-CP1-060-E1）の指摘も正確。**追加是正＝codex が§5で申告した count バグ2件**（SPDi43-01-E1/WX26-CP1-060-SONG＝原文「シグニ2体」に対し count:1）を Claude がチョークポイントで 2 へ是正し採用（SPDi43-01 の「《無》《無》を支払わないかぎり」＝相手の支払い回避ゲートは機構未整備＝§6.3 送り）。
+
+「対戦相手は自分のエナ/シグニを選び…」43効果で選択主体が効果使用者になっていた系統を、effectId固定チョークポイントから該当 action leaf だけへ `opponentSelects:true` を付与して是正した。`SEND_TO_ENERGY` と `TRANSFER_TO_DECK` へ型・executor の `opponentResponds` 判定・既存 `selectOrInteract` 経路を配線し、TRASH ENERGY と既定 TRASH HAND を含む golden 2本で固定した。
+
+- 39効果は `build:effects` の純改善で自動採用。PRESERVE/held の4効果（WX25-P3-032-E1、WXDi-P05-058-E1、WXDi-P10-036-E1、WXDi-P14-002-E1）は兄弟退化を採らず `scripts/archive/patch_batch11_preserve.mjs` で leaf のみ直パッチ。
+- WX14-011-E1 は既に `EXILE{HAND_CARD,self,count:2,blind:true}` が `opponentResponds:true` を立てるため据置。WX26-CP1-060-E1 は正しい【出】能力で、対象は `-SONG`。WXDi-P10-003-E1 は該当シグニ/エナ step 自体が現行木から脱落しており、周辺構造非変更の今波では見送り。
+- census 1612→1589。held は build 後 **232枚/93群**で基線一致。
+
+---
+
 ## ROADMAP バッチ5c 第2波：共通色集合・場ルリグ条件・コスト参照色（2026-07-23・codex実装/Claude確認）
 
 第1波の `selectionConstraint` と5bの動的filter解決器を再利用し、effectId固定チョークポイントで16効果を是正、既存 `WDK10-008-E1` の `LAST_PROCESSED_SHARE_COLOR` 発行を追認した。
