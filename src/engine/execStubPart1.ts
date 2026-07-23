@@ -28,6 +28,28 @@ export function execStubPart1(
   if (stub.id === 'STORE_LAST_PROCESSED_TARGETS') {
     return done({ ...ctx, storedTargetCards: [...(ctx.lastProcessedCards ?? [])] });
   }
+  // 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。
+  // PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので
+  // fetchCardName の名指しが必須（検証是正＝旧・同名フェッチは常に不発で自シグニが消えるだけだった）。
+  if (stub.id === 'SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME') {
+    const source = ctx.sourceCardNum;
+    const sourceName = source ? ctx.cardMap.get(getCardNum(source))?.CardName : undefined;
+    const zone = source ? ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === source) : -1;
+    if (!source || !sourceName || zone < 0) return done(addLog(ctx, '発生源シグニが場にいない'));
+    const fetchName = stub.fetchCardName ?? sourceName;
+    const fetched = ctx.ownerState.lrig_deck.find(cn => cn !== source && ctx.cardMap.get(getCardNum(cn))?.CardName === fetchName);
+    const signi = ctx.ownerState.field.signi.map(stack => stack ? [...stack] : null);
+    const returned = signi[zone]!.pop()!;
+    if (signi[zone]!.length === 0) signi[zone] = null;
+    const nextLrigDeck = [...ctx.ownerState.lrig_deck, returned];
+    if (fetched) {
+      const idx = nextLrigDeck.indexOf(fetched);
+      if (idx >= 0) nextLrigDeck.splice(idx, 1);
+      signi[zone] = [fetched];
+    }
+    const next = { ...ctx.ownerState, lrig_deck: nextLrigDeck, field: { ...ctx.ownerState.field, signi } };
+    return done(addLog({ ...ctx, ownerState: next, lastProcessedCards: fetched ? [fetched] : [] }, fetched ? `《${fetchName}》をルリグデッキから場に出した` : `《${fetchName}》がルリグデッキにない`));
+  }
   if (stub.id === 'PREVENT_NEXT_DAMAGE' || stub.id === 'PREVENT_NEXT_DAMAGE_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン、次のダメージを1回無効'));
@@ -98,6 +120,30 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `エクシード${count}を支払った`));
   }
+  if (stub.id === 'LRIG_UNDER_TRASH_ANY') {
+    const pool = [
+      ...ctx.ownerState.field.lrig.slice(0, -1),
+      ...(ctx.ownerState.field.assist_lrig_l?.slice(0, -1) ?? []),
+      ...(ctx.ownerState.field.assist_lrig_r?.slice(0, -1) ?? []),
+    ];
+    const action: StubAction = { type: 'STUB', id: 'INTERNAL_LRIG_UNDER_TRASH_SELECTED' };
+    return selectOrInteract(pool, pool.length, true, 'self_lrig_under', action, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_LRIG_UNDER_TRASH_SELECTED') {
+    const selected = ctx.lastProcessedCards ?? [];
+    const moved = new Set(selected);
+    const newOwner = {
+      ...ctx.ownerState,
+      lrig_trash: [...ctx.ownerState.lrig_trash, ...selected],
+      field: {
+        ...ctx.ownerState.field,
+        lrig: ctx.ownerState.field.lrig.filter(n => !moved.has(n)),
+        assist_lrig_l: ctx.ownerState.field.assist_lrig_l?.filter(n => !moved.has(n)),
+        assist_lrig_r: ctx.ownerState.field.assist_lrig_r?.filter(n => !moved.has(n)),
+      },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: selected }, `ルリグの下から${selected.length}枚をトラッシュに置いた`));
+  }
   // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
   // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
   if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {
@@ -150,6 +196,21 @@ export function execStubPart1(
     }));
     const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
     return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), pending);
+  }
+  if (stub.id === 'DECLARE_TWO_GUARD_LEVELS') {
+    const options = [1, 2, 3, 4, 5].map(n => ({
+      id: `guard_lv_${n}`, label: `${n}を宣言`,
+      action: ({ type: 'STUB', id: 'ADD_DECLARED_GUARD_LEVEL', value: n } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '異なるガード制限レベルを2つ宣言'), {
+      type: 'CHOOSE', options, count: 2, multiSelect: true,
+    });
+  }
+  if (stub.id === 'ADD_DECLARED_GUARD_LEVEL') {
+    const val = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    const levels = [...new Set([...(ctx.ownerState.declared_guard_restrict_levels ?? []), val])];
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, declared_guard_restrict_levels: levels } });
   }
   // DECLARE_NUMBER の宣言値を PlayerState に格納
   if (stub.id === 'SET_DECLARED_NUMBER') {

@@ -4,6 +4,22 @@
 
 ---
 
+## §6.3 GRANT_LRIG_ABILITY 完結バッチ（5効果・2026-07-23・codex実装/Claude確認）
+
+`turn_arts_used_names` / `NO_OTHER_ARTS_USED_THIS_TURN`、ルリグ下の任意枚数選択 `LRIG_UNDER_TRASH_ANY`、`MILL.countPerLastProcessed`、複数ガード制限レベル宣言、トリプルクラッシュの3枚クラッシュを実装。アーツ名履歴と宣言値は全ターン境界でクリアする。
+
+MANUAL 再構成は `PR-204-E1`（他アーツ未使用＋エクシード2でルリグUP）、`WD21-009-E1`（ルリグ下枚数の2/4/5段階）、`PR-238-E1`（選択枚数×5の両者MILL＋自分デッキ0でUP）、`WX17-041-BURST`（選択トラップを手札へ戻し、0枚なら bounce なし）、`PR-470A-E2`（10000でDRAW、25000で自身をルリグデッキへ戻し同名レゾナを場へ）。
+
+検証は `npm run regen` 完走、`npm run gates` 全緑。golden **635/635**、smoke **10723/10723**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 0、census **1702** 据え置き、lint 0 errors / 221 warnings。commit/push と `PLAN.md` / `PLAN_PROGRESS.md` 編集は指示どおり未実施。
+
+**Claude 検証で是正した2件（CODEX_GUIDE §7・golden 635→637）**：
+1. **PR-470A のフェッチが「同名」実装＝常に不発の有害化**。フェッチ先《進化する筋肉　紗倉ひびき》は PR-470B＝**PR-470A《現実からの逃避　タマ》とは別名カード**なのに、codex は「同名レゾナの登場」と誤読して同名検索で実装（報告にもそう明記）＝25000 到達時に**自シグニがルリグデッキへ消えるだけ**で何も出ない。`StubAction.fetchCardName` を追加し名指しフェッチへ是正・golden で正負固定（**原文照合ガードレール1系の失敗＝カード名の同一性を確認していない**）。
+2. **トリプルクラッシュのクラッシュ枚数拡張がシグニアタック経路のみ**＝WD21-009 が付与するのは**ルリグ**で、ルリグアタックのクラッシュ枚数決定（`opLrigHasDoubleCrush`・BattleScreen 9016 付近）は未拡張＝**肝心の経路で 1 枚のまま**（§5-15「同型配線が複数箇所」の再発）。ルリグアタック側にトリプル=追加2枚を配線。
+
+WD21-009 の多段（4枚＝数字2宣言＋トリクラ／5枚＝アップ／1枚＝無発動）と PR-470A の正負を resume 跨ぎ golden で lock-in。最終ゲート：golden **637/637**・census 1702・smoke/fuzz 0・同型★0・lint 221 warnings。
+
+---
+
 ## §6.3 コストゲート第2波（追加エクシード・複合手札コスト・保存対象適用・多段閾値）（2026-07-23・codex実装/Claude確認）
 
 `OPTIONAL_COST` の既存実支払い経路へ `exceed` と `handDiscardGroups` を追加し、エクシードは既存のルリグ下カード集合（センター／両アシストの最上段以外）からルリグトラッシュへ移す。保存対象の凍結は従来の BANISH 限定から BANISH／TRASH／BOUNCE／EXILE 共通へ拡張し、コスト支払いが `lastProcessedCards` を上書きしても先に選んだ同一 instance へ作用するようにした。

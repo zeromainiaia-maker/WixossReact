@@ -195,6 +195,7 @@ export type Condition =
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string } // このターンに owner がアーツを使用していた場合（turn_arts_used）。color 指定時は当該色のアーツを使用していた場合（turn_arts_used_colors。WX24-D1-11〜D4-11）
+  | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
   | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
@@ -1522,7 +1523,7 @@ export interface DiscardBothAction {
 export interface GrantLrigAbilityAction {
   type: 'GRANT_LRIG_ABILITY';
   abilities: CardEffect[];  // 付与される能力（サブエフェクト）
-  rawText: string;          // 元のテキスト（表示用）
+  rawText?: string;         // 元のテキスト（manual で構造を直接付与する場合は省略可）
   permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
   targetedCenter?: boolean; // 「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る」表記変種（WX25-P1-001系）。engine挙動は既定と同一（自分のセンタールリグへ付与）＝decompiler表示用
 }
@@ -1624,6 +1625,7 @@ export interface StubAction {
   handDiscard?: { count: number; filter?: TargetFilter };
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
   exceed?: number;
+  fetchCardName?: string; // SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME: 名指しフェッチ先（省略時は自身と同名。PR-470A→《進化する筋肉 紗倉ひびき》）
   type: 'STUB';
   id: string;
   // GUARD_LOSS_UNLESS_LRIG: このクラスを持つセンタールリグでなければ、手札の自身は【ガード】を失う。
@@ -1681,6 +1683,8 @@ export interface MILLAction {
   fromBottom?: boolean;
   useDeclaredCount?: boolean;
   countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）
+  countPerLastProcessed?: number;
+  countPerStoredTargets?: number;
 }
 
 export interface GainBondAction {

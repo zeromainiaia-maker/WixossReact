@@ -4115,6 +4115,10 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
   // （LOOK_PICK_CHAIN の field 配置等）が lastProcessedCards に残したシグニのレベル合計を枚数にする（WX24-P3-039）。
   const count = a.countIsLastProcessedLevelSum
     ? (ctx.lastProcessedCards ?? []).reduce((sum, cn) => sum + (parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10) || 0), 0)
+    : a.countPerLastProcessed !== undefined
+    ? (ctx.lastProcessedCards ?? []).length * a.countPerLastProcessed
+    : a.countPerStoredTargets !== undefined
+    ? (ctx.storedTargetCards ?? []).length * a.countPerStoredTargets
     : a.useDeclaredCount
     ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
     : a.count;

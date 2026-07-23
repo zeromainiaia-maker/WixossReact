@@ -2960,6 +2960,21 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerIST }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
   }
   // TRAP_TO_HAND: signi_trapsのカードを手札へ（全枚または選択）
+  if (stub.id === 'RETURN_TRAP_TO_HAND_ONE') {
+    const traps = (ctx.ownerState.field.signi_traps ?? []).filter(Boolean) as string[];
+    if (traps.length === 0) return done({ ...addLog(ctx, '戻せるトラップがない'), lastProcessedCards: [] });
+    const action: StubAction = { type: 'STUB', id: 'INTERNAL_RETURN_SELECTED_TRAP' };
+    return selectOrInteract(traps, 1, false, 'self_field', action as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_RETURN_SELECTED_TRAP') {
+    const selected = ctx.lastProcessedCards?.[0];
+    if (!selected) return done({ ...ctx, lastProcessedCards: [] });
+    const traps = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])];
+    const zi = traps.indexOf(selected);
+    if (zi < 0) return done({ ...ctx, lastProcessedCards: [] });
+    traps[zi] = null;
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, hand: [...ctx.ownerState.hand, selected], field: { ...ctx.ownerState.field, signi_traps: traps } }, lastProcessedCards: [selected] });
+  }
   if (stub.id === 'TRAP_TO_HAND') {
     const allTrapsTTH = (ctx.ownerState.field.signi_traps ?? [null, null, null]);
     const trapsToHandTTH = allTrapsTTH.filter(Boolean) as string[];

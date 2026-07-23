@@ -7761,6 +7761,86 @@ test('§6.3 cost-game wave 2: SELF_POWER_GTE 境界14999/15000/19999/20000', () 
 });
 
 console.log('\n===== goldenTest 結果 =====');
+test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
+  for (const [num, id] of [['PR-204','PR-204-E1'], ['WD21-009','WD21-009-E1'], ['PR-238','PR-238-E1'], ['WX17-041','WX17-041-BURST'], ['PR-470A','PR-470A-E2']]) {
+    const eff = mergeManualEffects(num, effectsMap.get(num) ?? []).find(e => e.effectId === id);
+    ok(!!eff && eff.action.type !== 'STUB', `${id} manual action`);
+  }
+});
+test('PR-204/PR-238 other-arts gate', () => {
+  const c = { type: 'NO_OTHER_ARTS_USED_THIS_TURN', exceptCardName: 'SELF' } as const;
+  ok(evalCondition(c, mkCtx({}, {})), 'none');
+  const self = mkCtx({}, {}); self.ownerState.turn_arts_used_names = ['SELF']; ok(evalCondition(c, self), 'self excluded');
+  const other = mkCtx({}, {}); other.ownerState.turn_arts_used_names = ['SELF', 'OTHER']; ok(!evalCondition(c, other), 'other blocks');
+});
+test('PR-238 five mills per selection', () => {
+  const c = { ...mkCtx({ deckTop: [SIGNI, SIGNI, SIGNI, SIGNI, SIGNI, SIGNI] }, {}), lastProcessedCards: [SIGNI_L1, SIGNI_L2] } as ExecCtx;
+  const before = c.ownerState.deck.length;
+  const trashBefore = c.ownerState.trash.length;
+  c.storedTargetCards = [...c.lastProcessedCards!];
+  const r = run({ type: 'MILL', owner: 'self', count: 0, countPerStoredTargets: 5 } as EffectAction, c);
+  eq(r.ownerState.deck.length, before - 10, 'two selections mill ten'); eq(r.ownerState.trash.length, trashBefore + 10, 'moved');
+});
+test('WX17-041 zero traps', () => {
+  const r = run({ type: 'STUB', id: 'RETURN_TRAP_TO_HAND_ONE' } as EffectAction, mkCtx({}, {}));
+  ok(r.done, 'no pause'); eq(r.lastProcessedCards?.length ?? -1, 0, 'empty');
+});
+
+test('PR-470A: 25000段＝自身をルリグデッキへ戻し《進化する筋肉 紗倉ひびき》（別名）を場に出す（検証是正）', () => {
+  // codex 版は「同名フェッチ」で実装＝PR-470A《現実からの逃避 タマ》≠《進化する筋肉 紗倉ひびき》（PR-470B）のため
+  // 常に不発＝自シグニが消えるだけの有害化だった。fetchCardName 名指しへ是正した回帰検知。
+  const eff = mergeManualEffects('PR-470A', effectsMap.get('PR-470A') ?? []).find(e => e.effectId === 'PR-470A-E2');
+  ok(JSON.stringify(eff).includes('"fetchCardName":"進化する筋肉　紗倉ひびき"'), '別名カードの名指しフェッチ');
+  const stubA = { type: 'STUB', id: 'SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME', fetchCardName: '進化する筋肉　紗倉ひびき' } as EffectAction;
+  const c1 = mkCtx({ signi: ['PR-470A', null, null] }, {}, 'PR-470A');
+  c1.ownerState.lrig_deck = ['PR-470B'];
+  const r1 = run(stubA, c1);
+  eq(r1.ownerState.field.signi[0]?.at(-1), 'PR-470B', '紗倉ひびきが同ゾーンへ');
+  ok(r1.ownerState.lrig_deck.includes('PR-470A'), '自身はルリグデッキへ');
+  ok(!r1.ownerState.lrig_deck.includes('PR-470B'), 'フェッチ元から除去');
+  const c2 = mkCtx({ signi: ['PR-470A', null, null] }, {}, 'PR-470A');
+  const r2 = run(stubA, c2);
+  eq(r2.ownerState.field.signi[0], null, '不在ならゾーンは空（自身は戻る）');
+  ok(r2.ownerState.lrig_deck.includes('PR-470A'), '自身は戻る');
+});
+
+test('WD21-009: ルリグ下N枚選択→2/4/5段（resume跨ぎ・検証是正）', () => {
+  const effW = mergeManualEffects('WD21-009', effectsMap.get('WD21-009') ?? []).find(e => e.effectId === 'WD21-009-E1');
+  const granted = (effW?.action as { abilities?: CardEffect[] } | undefined)?.abilities?.[0];
+  ok(!!granted, 'granted ability'); if (!granted) return;
+  const mkW = () => {
+    const c = mkCtx({}, {}, 'WD21-009');
+    c.ownerState.field.lrig = ['U1', 'U2', 'U3', 'U4', 'U5', 'TOP'];
+    c.ownerState.field.lrig_down = true;
+    return c;
+  };
+  const drive = (picks: string[], declares?: string[]) => {
+    const c = mkW();
+    let r = executeEffect(granted as CardEffect, c);
+    ok(!r.done && (r as { pending: { type: string } }).pending.type === 'SELECT_TARGET', 'ルリグ下選択');
+    if (r.done) throw new Error('unreachable');
+    r = resumeSelectTarget(picks, r.pending as never, { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx);
+    if (declares) {
+      ok(!r.done && (r as { pending: { type: string } }).pending.type === 'CHOOSE', '数字2つ宣言');
+      if (r.done) throw new Error('unreachable');
+      r = resumeChoose(declares, r.pending as never, { ...c, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx);
+    }
+    ok(r.done, '完走');
+    return r;
+  };
+  const r4 = drive(['U1', 'U2', 'U3', 'U4'], ['guard_lv_1', 'guard_lv_3']);
+  eq(JSON.stringify([...(r4.ownerState.declared_guard_restrict_levels ?? [])].sort()), JSON.stringify([1, 3]), '4枚＝数字2つ宣言');
+  ok((r4.ownerState.keyword_grants?.['TOP'] ?? []).includes('トリプルクラッシュ'), '4枚＝トリクラ付与');
+  eq(r4.ownerState.field.lrig_down, true, '4枚ではアップしない');
+  eq(r4.ownerState.lrig_trash.length, 4, '4枚がルリグトラッシュへ');
+  const r5 = drive(['U1', 'U2', 'U3', 'U4', 'U5'], ['guard_lv_2', 'guard_lv_4']);
+  eq(r5.ownerState.field.lrig_down, false, '5枚＝ルリグアップ');
+  const r1 = drive(['U1']);
+  eq((r1.ownerState.declared_guard_restrict_levels ?? []).length, 0, '1枚＝宣言なし');
+  ok(!(r1.ownerState.keyword_grants?.['TOP'] ?? []).includes('トリプルクラッシュ'), '1枚＝トリクラなし');
+  eq(r1.ownerState.field.lrig_down, true, '1枚＝アップなし');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

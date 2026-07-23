@@ -808,6 +808,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
       return artsSt.turn_arts_used === true;
     }
+    case 'NO_OTHER_ARTS_USED_THIS_TURN':
+      return (ctx.ownerState.turn_arts_used_names ?? []).filter(name => name !== cond.exceptCardName).length === 0;
     case 'SPELL_USED_THIS_TURN':
       // handleUseSpell が actions_done に積む 'USE_SPELL' マーカー（ターン開始時リセット）＝
       // firstSpellExtra 等の既存機能と同じ判定源を参照する

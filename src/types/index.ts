@@ -206,6 +206,7 @@ export interface PlayerState {
   double_power_minus_this_turn?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   declared_guard_restrict_level?: number;
+  declared_guard_restrict_levels?: number[];
   // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
   declared_card_name?: string;
   // COPY_LRIG_NAME_ABILITY: ルリグが別のルリグ名/タイプを持つとして扱うエイリアス
@@ -457,6 +458,7 @@ export interface PlayerState {
   turn_signi_returned_to_hand?: boolean;
   // このターンにアーツを使用したか（「このターンにあなたがアーツを使用していた場合」WX25-P1-106）。ターン境界でリセット
   turn_arts_used?: boolean;
+  turn_arts_used_names?: string[];
   // このターンに使用したアーツの色（「このターンにあなたが(色)のアーツを使用していた場合」WX24-D1-11〜D4-11）。ターン境界でリセット
   turn_arts_used_colors?: string[];
   // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
@@ -524,7 +526,8 @@ export type TargetScope =
   | 'self_hand'  | 'opp_hand'
   | 'self_trash' | 'opp_trash'
   | 'self_energy'| 'opp_energy'
-  | 'self_lrig_deck' | 'opp_lrig_deck';
+  | 'self_lrig_deck' | 'opp_lrig_deck'
+  | 'self_lrig_under';
 
 import type { EffectAction } from './effects';
 

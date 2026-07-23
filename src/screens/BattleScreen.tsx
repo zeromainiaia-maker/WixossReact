@@ -3217,7 +3217,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           suppress_life_burst: undefined,       // ライフバースト抑制フラグをリセット
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
           prevent_defeat: undefined,            // 敗北無効フラグをリセット
-          declared_guard_restrict_level: undefined, // 宣言数字をリセット
+          declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined, // 宣言数字をリセット
           declared_class: undefined,               // 宣言クラスをリセット
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
@@ -3244,7 +3244,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
-          turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
@@ -3305,7 +3305,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
           opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
-          turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           field: {
             ...opState.field,
@@ -3568,7 +3568,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         banish_redirect_by_source_nums: undefined,
         double_power_minus_this_turn: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
-        prevent_defeat: undefined, declared_guard_restrict_level: undefined,
+        prevent_defeat: undefined, declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined,
         declared_class: undefined, hand_signi_guard_enabled: undefined,
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
         draw_limit: undefined, card_class_overrides: undefined,
@@ -3584,7 +3584,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
-        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_colors: undefined,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
@@ -3618,7 +3618,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
         power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
         opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
-        turn_arts_used: undefined, turn_arts_used_colors: undefined,                 // このターンのアーツ使用フラグをリセット（相手ターン中のガード使用分。ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         field: {
           ...opState.field,
@@ -5582,6 +5582,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
         // このターンにアーツを使用したフラグ（ARTS_USED_THIS_TURN 条件。WX25-P1-106。ターン境界でリセット）
         turn_arts_used: true,
+        turn_arts_used_names: [...(my.turn_arts_used_names ?? []), card.CardName],
         // 使用したアーツの色（色別 ARTS_USED_THIS_TURN。WX24-D1-11〜D4-11。ターン境界でリセット）
         turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((card.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
         // BET_CONDITION: ベット宣言フラグ（execStub内でBET_CONDITIONが参照）
@@ -6961,6 +6962,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isAssassin    = hasGrantedKeyword('アサシン');
       const isLancer      = hasGrantedKeyword('ランサー');
       const isSLancer     = hasGrantedKeyword('Sランサー');
+      const isTripleCrush = hasGrantedKeyword('トリプルクラッシュ');
       const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
       const isShoot       = hasGrantedKeyword('シュート');
 
@@ -7353,7 +7355,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`${myCardName}の側面アタック：対象のシグニゾーンにシグニがいないため何も起こらない`]);
       } else {
         // ─── ライフへのアタック（正面空 or アサシン）───
-        const crashCount = isDoubleCrush ? 2 : 1;
+        const crashCount = isTripleCrush ? 3 : isDoubleCrush ? 2 : 1;
         const attackLabel = isAssassin && opTopCardNum
           ? `${myCardName}（アサシン）がライフをクラッシュ`
           : `${myCardName}がライフをクラッシュ`;
@@ -8793,7 +8795,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
       const nextHuSt = { ...huSt,
-        turn_arts_used: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         field: {
         ...huSt.field,
@@ -8832,7 +8834,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
-        turn_arts_used: undefined, turn_arts_used_colors: undefined,       // このターンのアーツ使用フラグをリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
       }, true);
       await persist.commit({
         guest_state: cleanCpuSt,
@@ -9012,6 +9014,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 攻撃側ルリグのダブルクラッシュ確認
         const opLrigNum = op.field.lrig.at(-1);
         const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
+        // トリプルクラッシュ（WD21-009 の付与【自】＝ルリグアタックで3枚クラッシュ。検証是正＝シグニアタック側だけでなくルリグアタック経路も消費する）
+        const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
         // PREVENT_DAMAGE ウィンドウ（scope='ALL' も 'LRIG' もルリグアタックのダメージを無効）＝期間内は回数無制限。
         // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
         if ((my.prevent_damage_windows ?? []).length > 0) {
@@ -9056,11 +9060,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const crashedName = battleCardMap.get(crashed)?.CardName ?? crashed;
           let lifeAfterCrash = my.life_cloth.slice(0, -1);
           let pendingAfterCrash = my.pending_crashed_cards ?? [];
-          if (opLrigHasDoubleCrush && lifeAfterCrash.length > 0) {
-            const secondCard = lifeAfterCrash[lifeAfterCrash.length - 1];
-            lifeAfterCrash = lifeAfterCrash.slice(0, -1);
-            pendingAfterCrash = [...pendingAfterCrash, secondCard];
-            appendBattleLogs([`ルリグアタック：ダブルクラッシュ（${crashedName}、${battleCardMap.get(secondCard)?.CardName ?? secondCard}）`]);
+          if ((opLrigHasDoubleCrush || opLrigHasTripleCrush) && lifeAfterCrash.length > 0) {
+            // ダブル=追加1枚／トリプル=追加2枚（残ライフが足りなければあるだけ）
+            const extraCount = Math.min(opLrigHasTripleCrush ? 2 : 1, lifeAfterCrash.length);
+            const extraCards = lifeAfterCrash.slice(-extraCount);
+            lifeAfterCrash = lifeAfterCrash.slice(0, -extraCount);
+            pendingAfterCrash = [...pendingAfterCrash, ...extraCards];
+            appendBattleLogs([`ルリグアタック：${opLrigHasTripleCrush ? 'トリプルクラッシュ' : 'ダブルクラッシュ'}（${crashedName}、${extraCards.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
           } else {
             appendBattleLogs([`ルリグアタック：ライフクロスをクラッシュ（${crashedName}）`]);
           }

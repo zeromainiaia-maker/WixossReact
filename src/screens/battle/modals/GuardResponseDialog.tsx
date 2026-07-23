@@ -52,6 +52,7 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                   return m ? Math.max(max, parseInt(m[1])) : max;
                 }, -1);
               const declaredRestrictLv = op.declared_guard_restrict_level;
+              const declaredRestrictLvs = op.declared_guard_restrict_levels ?? [];
               const handGuardEnabled = my.hand_signi_guard_enabled;
               // 相手のprevent_opp_guardフラグ（PREVENT_OPP_GUARD_THIS_TURN等）でガード禁止
               const guardDisabledByOpp = op.prevent_opp_guard === true;
@@ -86,7 +87,9 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                   const isGuardable = canCardGuard(num, my, battleCardMap, effectsMap) || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
                   if (!isGuardable) return false;
                   if (guardBlockedMax >= 0 && parseInt(card?.Level ?? '-1') <= guardBlockedMax) return false;
-                  if (declaredRestrictLv !== undefined && parseInt(card?.Level ?? '-1') === declaredRestrictLv) return false;
+                  const guardLevel = parseInt(card?.Level ?? '-1');
+                  if (declaredRestrictLv !== undefined && guardLevel === declaredRestrictLv) return false;
+                  if (declaredRestrictLvs.includes(guardLevel)) return false;
                   return true;
                 });
               return (
