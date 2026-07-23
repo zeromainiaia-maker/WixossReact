@@ -13,7 +13,7 @@
 - 群Cは WDA-F03-09 E1/E2 に `levelEqLrig+self colorMatchesLrig`、WX25-P1-113 の選択肢①に `colorMatchesLastProcessed`、WXK11-038 に新 `colorMatchesUnderCards` を適用。
 - 群Dは `last_cost_trashed_cards` と新 `colorMatchesCostTrashed` を実装。通常エナ支払い、明示エナトラッシュ、手札捨て、場トラッシュ、自己トラッシュを記録し WX12-030／WX14-047／WX25-P3-111／PR-380 に適用。WX14-047 の自己同名除外も `excludeCardName` へ是正。
 - 群E/Fは見送り。コスト選択モーダルへ CardEffect.cost 側の集合制約を運ぶ型・pending・resume契約、および REVEAL_AND_PICK の集合制約契約が未整備で、今波の効果解決用 `selectionConstraint` を流用すると死フラグになるため。
-- **Claude 検証（差し戻し0・是正2件）**＝per-effect 機械 diff＝15効果＋追認1。**held 採用漏れ2件（WXK11-020-BURST・WX14-047-E1）**＝申告「16採用」に対し実 JSON 15＝前波の WXEX2-41 と同型の採用漏れを Claude が fresh 照合のうえ --adopt（held 234→232）。**BUGFIXES をファイル末尾に追記**（規約は先頭）していたのを Claude が移動。E2E golden 4本（sharedColor 実選択・FIELD_LRIGS 両評価器・underCards/costTrashed 正負＋空ヒット）は指示どおり自書き＝第1波の教訓が定着。last_cost_trashed_cards は毎支払い上書き＝last_activated_discard_level_sum と同じライフサイクル（既存慣例準拠）を確認。
+- **Claude 検証（差し戻し0・是正3件）**＝per-effect 機械 diff＝15効果＋追認1。**held 採用漏れ2件（WXK11-020-BURST・WX14-047-E1）**＝申告「16採用」に対し実 JSON 15＝前波の WXEX2-41 と同型の採用漏れを Claude が fresh 照合のうえ --adopt（held 234→232）。**BUGFIXES をファイル末尾に追記**（規約は先頭）していたのを Claude が移動。**並行定数 CURRENT_BASELINE_HIGH の新設**（状態ファミリの CENSUS_BASELINE_HIGH 事故と同一の再発＝CODEX_GUIDE 記録済みの失敗モード）を撤去し既存 BASELINE_HIGH へ一本化（1644）。E2E golden 4本（sharedColor 実選択・FIELD_LRIGS 両評価器・underCards/costTrashed 正負＋空ヒット）は指示どおり自書き＝第1波の教訓が定着。last_cost_trashed_cards は毎支払い上書き＝last_activated_discard_level_sum と同じライフサイクル（既存慣例準拠）を確認。
 - fresh再生成→heldReview採用後、held **232枚/93群**（採用2件反映）（基線一致）。最終 raw diff outlier 0、同型★0。全ゲート緑：golden **664/664**（660→+4）、smoke **10724/10724**、fuzz 0、census **1649→1646**、lint 0 errors/221 warnings。PLAN/PLAN_PROGRESS、commit/pushは依頼どおり未実施。
 
 
