@@ -2968,6 +2968,82 @@ function applyIdentityBatch5b(effects: CardEffect[]): void {
   }
 }
 
+// ROADMAP batch5c 第2波。原文照合済み effectId のみを補正し、同型文へは波及させない。
+function applySharedColorBatch5c2(effects: CardEffect[]): void {
+  const find = (id: string) => effects.find(e => e.effectId === id);
+  const shared = (id: string): void => {
+    const e = find(id);
+    const visit = (node: unknown): boolean => {
+      if (!node || typeof node !== 'object') return false;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'TRANSFER_TO_HAND' || o.type === 'TRANSFER_TO_DECK' || o.type === 'ADD_TO_FIELD') {
+        const source = o.source as Record<string, unknown> | undefined;
+        if (source) { source.selectionConstraint = { sharedColor: 'all' }; return true; }
+      }
+      for (const v of Object.values(o)) {
+        if (Array.isArray(v) ? v.some(visit) : visit(v)) return true;
+      }
+      return false;
+    };
+    if (e) visit(e.action);
+  };
+  ['WXDi-P07-009-E2', 'WXK11-020-BURST', 'WXDi-P15-043-E1', 'WXDi-P05-019-E2'].forEach(shared);
+
+  const gate = (id: string, minCount: number): void => {
+    const e = find(id);
+    if (!e) return;
+    e.action = { type: 'CONDITIONAL', condition: { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount }, then: e.action };
+  };
+  gate('WXDi-P14-042-E2', 2);
+  gate('WXDi-P14-044-E1', 2);
+  gate('WXDi-P14-046-E1', 2);
+
+  const p076 = find('WXDi-P05-076-E1');
+  if (p076) {
+    p076.action = { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 2000 };
+    p076.activeCondition = { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: 2 };
+    effects.push({
+      ...p076, effectId: 'WXDi-P05-076-E1b',
+      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 1000 },
+      activeCondition: { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: 3 },
+    });
+  }
+
+  const addFilter = (id: string, flags: TargetFilter): void => {
+    const e = find(id);
+    const visit = (node: unknown): boolean => {
+      if (!node || typeof node !== 'object') return false;
+      const o = node as Record<string, unknown>;
+      const holder = o.type === 'SEARCH' ? o
+        : o.type === 'TRANSFER_TO_DECK' ? o.source as Record<string, unknown> | undefined
+        : o.type === 'BOUNCE' || o.type === 'POWER_MODIFY' ? o.target as Record<string, unknown> | undefined
+        : undefined;
+      if (holder) { holder.filter = { ...((holder.filter as TargetFilter | undefined) ?? {}), ...flags }; return true; }
+      for (const v of Object.values(o)) if (Array.isArray(v) ? v.some(visit) : visit(v)) return true;
+      return false;
+    };
+    if (e) visit(e.action);
+  };
+  addFilter('WDA-F03-09-E1', { levelEqLrig: 'self', colorMatchesLrig: true });
+  addFilter('WDA-F03-09-E2', { levelEqLrig: 'self', colorMatchesLrig: true });
+  addFilter('WX25-P1-113-E1', { colorMatchesLastProcessed: true });
+  addFilter('WXK11-038-E1', { colorMatchesUnderCards: true });
+  addFilter('WX12-030-E1', { colorMatchesCostTrashed: true });
+  addFilter('WX14-047-E1', { colorMatchesCostTrashed: true, excludeCardName: '未来の噴陰　†アークホールド†' });
+  addFilter('WX25-P3-111-E2', { colorMatchesCostTrashed: true });
+  addFilter('PR-380-E1', { colorMatchesCostTrashed: true });
+  const wx14047 = find('WX14-047-E1');
+  if (wx14047?.action.type === 'SEARCH') delete wx14047.action.filter.cardName;
+  const wx251113 = find('WX25-P1-113-E1');
+  if (wx251113?.action.type === 'SEQUENCE') {
+    const moved = wx251113.action.steps[0];
+    if (moved?.type === 'TRANSFER_TO_DECK' && moved.source.filter) delete moved.source.filter.colorMatchesLastProcessed;
+    const choose = wx251113.action.steps[1];
+    const first = choose?.type === 'CHOOSE' ? choose.choices[0]?.action : undefined;
+    if (first?.type === 'POWER_MODIFY') first.target.filter = { ...(first.target.filter ?? {}), colorMatchesLastProcessed: true };
+  }
+}
+
 function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void {
   const find = (id: string) => effects.find(e => e.effectId === id);
   const gate = (id: string, condition: Condition): void => { const e = find(id); if (!e) return; if (e.action.type === 'CONDITIONAL' && e.action.condition.type === condition.type) return; e.action = { type: 'CONDITIONAL', condition, then: e.action }; };
@@ -6443,6 +6519,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
+  applySharedColorBatch5c2(effects);
   applyDistinctBatch5c(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ

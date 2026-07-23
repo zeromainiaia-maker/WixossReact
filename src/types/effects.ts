@@ -140,6 +140,7 @@ export type ActiveCondition =
   | { type: 'OR'; conditions: ActiveCondition[] }
   | { type: 'TURN_OWNER'; owner: Owner }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
+  | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
@@ -179,6 +180,7 @@ export type Condition =
   | { type: 'OR'; conditions: Condition[] }
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
+  | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
@@ -400,6 +402,8 @@ export interface TargetFilter {
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決
+  colorMatchesUnderCards?: boolean; // 効果元シグニのスタック下カード群のいずれかと共通色。下カード無しは空ヒット
+  colorMatchesCostTrashed?: boolean; // 直前の能力コストでトラッシュに置いたカード群のいずれかと共通色。記録無しは空ヒット
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
   acceHost?:  boolean; // 「これにアクセされているシグニ」＝このカードがアクセとして装着されているホストシグニ。CONTINUOUS POWER_MODIFY のホスト宛バフ（calcFieldPowers の signi_acce ループが適用）。主体が場のシグニのときは自己適用しない

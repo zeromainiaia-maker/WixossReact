@@ -1277,6 +1277,20 @@ function resolveDynamicFilter(
     const cols = ref ? (cardMap.get(getCardNum(ref))?.Color?.match(/[白赤青緑黒無]/g) ?? []) : [];
     result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
   }
+  if (result.colorMatchesUnderCards) {
+    const { colorMatchesUnderCards: _cu, ...rest } = result;
+    const stack = ownerSt.field.signi.find(s => s?.includes(sourceCardNum ?? ''));
+    const sourceIndex = stack?.indexOf(sourceCardNum ?? '') ?? -1;
+    const refs = sourceIndex > 0 ? stack!.slice(0, sourceIndex) : [];
+    const cols = [...new Set(refs.flatMap(n => cardMap.get(getCardNum(n))?.Color?.match(/[白赤青緑黒]/g) ?? []))];
+    result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
+  }
+  if (result.colorMatchesCostTrashed) {
+    const { colorMatchesCostTrashed: _cc, ...rest } = result;
+    const cols = [...new Set((ownerSt.last_cost_trashed_cards ?? [])
+      .flatMap(n => cardMap.get(getCardNum(n))?.Color?.match(/[白赤青緑黒]/g) ?? []))];
+    result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
+  }
   if (result.powerLteRevealedSigniLevelSum != null) {
     const { powerLteRevealedSigniLevelSum: mult, ...rest } = result;
     const sum = ownerSt.last_revealed_signi_level_sum ?? 0;

@@ -33,6 +33,21 @@ import type {
 import { hasKeyword } from '../utils/keywords';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
+function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
+  const nums = [state.field.lrig.at(-1), state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)]
+    .filter((n): n is string => !!n);
+  const sets = nums.map(n => new Set(splitFieldColors(cardMap.get(n)?.Color)));
+  const choose = (start: number, picked: Set<string>[]): boolean => {
+    if (picked.length === minCount) {
+      const common = new Set(picked[0] ?? []);
+      for (const colors of picked.slice(1)) for (const c of common) if (!colors.has(c)) common.delete(c);
+      return common.size > 0;
+    }
+    for (let i = start; i < sets.length; i++) if (choose(i + 1, [...picked, sets[i]])) return true;
+    return false;
+  };
+  return minCount > 0 && sets.length >= minCount && choose(0, []);
+}
 
 // ===== activeCondition 判定 =====
 
@@ -66,6 +81,8 @@ export function checkActiveCondition(
       }
       return common.size === 0;
     }
+    case 'FIELD_LRIGS_SHARE_COLOR':
+      return fieldLrigsShareColor(cond.owner === 'opponent' ? otherState : ownerState, cond.minCount, cardMap);
 
     case 'DURING_ATTACK_PHASE': {
       // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果。turnPhase を渡さない呼び出し元では
@@ -725,6 +742,8 @@ function evalConditionForContinuous(
     }
   }
   switch (cond.type) {
+    case 'FIELD_LRIGS_SHARE_COLOR':
+      return fieldLrigsShareColor(st(cond.owner), cond.minCount, cardMap);
     case 'FIELD_COUNT': {
       const count = st(cond.owner).field.signi.filter(s => s && s.length > 0).length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);

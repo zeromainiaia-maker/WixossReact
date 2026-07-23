@@ -463,6 +463,8 @@ export interface PlayerState {
   turn_arts_used_colors?: string[];
   // v0.278: discardVariable コスト支払いで捨てたカードのレベル合計（WDK13-011用）
   last_activated_discard_level_sum?: number;
+  // 直前の能力コストで手札／エナ／場からトラッシュに置いたカード instance。
+  last_cost_trashed_cards?: string[];
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
   // 【ルリグバリア】【シグニバリア】は field.free_zone にトークンカードとして設置する
   // （旧 lrig_barrier / signi_barrier 数値カウンタは廃止。execUtils の barrier ヘルパー参照）

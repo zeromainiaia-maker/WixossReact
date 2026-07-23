@@ -1,6 +1,6 @@
 # effectId ↔ 原文ブロック 位置合わせレポート（build:effects 生成）
 
-解決 33 / 棄却カード 0 / 未解決 32
+解決 33 / 棄却カード 0 / 未解決 33
 
 ALIGN WD01-016: WD01-016-MULTIENA ← WD01-016-E2「【常】：【マルチエナ】」
 ALIGN WD01-017: WD01-017-MULTIENA ← WD01-017-E2「【常】：【マルチエナ】」
@@ -52,6 +52,7 @@ SKIP(件数不一致) WX20-072: curated 4 vs parser 3
 SKIP(件数不一致) WX25-P2-009: curated 2 vs parser 1
 SKIP(件数不一致) WX25-P2-118: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-CP02-103: curated 2 vs parser 1
+SKIP(件数不一致) WXDi-P05-076: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P07-060: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P09-048: curated 3 vs parser 2
 SKIP(件数不一致) WXDi-P15-003: curated 2 vs parser 1

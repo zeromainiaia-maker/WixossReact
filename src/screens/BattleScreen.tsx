@@ -9502,6 +9502,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_activated_discard_level_sum: discardVarCards.length > 0
           ? discardVarLevelSum
           : discardedCards.length > 0 ? fixedDiscardLevelSum : my.last_activated_discard_level_sum,
+        last_cost_trashed_cards: [
+          ...paidNums,
+          ...discardedCards, ...discardAllCards, ...discardVarCards,
+          ...energyTrashCards, ...energyTrashAllCards,
+        ],
         // DISCARD_BY_POWER_MATCH: handDiscardSigniコストで捨てたシグニのパワーを記録
         last_discarded_signi_power: discardedCards.length > 0
           ? (parseInt(battleCardMap.get(discardedCards[0])?.Power ?? '0', 10) || undefined)
@@ -9530,6 +9535,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...afterRemove,
           trash: [...afterRemove.trash, cardNum],
           last_field_trash_level: isNaN(selfLevel) ? paid.last_field_trash_level : selfLevel,
+          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), cardNum],
         };
       }
       // charmTrash: 自分の場のチャームN枚をトラッシュ（固定枚数・自動選択）
@@ -9597,6 +9603,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           field: { ...paid.field, signi: newSigniFA, signi_down: newDownFA, signi_frozen: newFrozenFA, signi_charms: newCharmsFA, signi_acce: newAcceFA },
           trash: [...paid.trash, ...toTrashFA],
           last_field_trash_level: trashedSigniLevelFA,
+          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...toTrashFA],
         };
       }
       // beat_signi: シグニを【ビート】にするコスト（自動選択・近似。beat_zone へ移し ON_BECOME_BEAT 用フラグを積む）

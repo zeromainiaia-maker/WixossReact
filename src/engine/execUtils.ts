@@ -756,6 +756,21 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
   }
   switch (cond.type) {
+    case 'FIELD_LRIGS_SHARE_COLOR': {
+      const f = st(cond.owner).field;
+      const nums = [f.lrig.at(-1), f.assist_lrig_l?.at(-1), f.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);
+      const sets = nums.map(n => new Set(splitColors(ctx.cardMap.get(getCardNum(n))?.Color)));
+      const choose = (start: number, picked: Set<string>[]): boolean => {
+        if (picked.length === cond.minCount) {
+          const common = new Set(picked[0] ?? []);
+          for (const colors of picked.slice(1)) for (const c of common) if (!colors.has(c)) common.delete(c);
+          return common.size > 0;
+        }
+        for (let i = start; i < sets.length; i++) if (choose(i + 1, [...picked, sets[i]])) return true;
+        return false;
+      };
+      return cond.minCount > 0 && sets.length >= cond.minCount && choose(0, []);
+    }
     case 'FIELD_COUNT':
       return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
         cond.operator, resolveNum(cond.value));

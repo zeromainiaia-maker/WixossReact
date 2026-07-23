@@ -187,6 +187,8 @@ function filterJa(f?: any): string {
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
+  if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
+  if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
   if (f.keyword) parts.push(`${[].concat(f.keyword).map((k: string) => `【${k}】`).join('か')}を持つ`);
   return parts.join('');
 }
@@ -229,6 +231,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
   }
   const counter = loc ? '枚' : '体';
+  const setConstraint = t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
+    : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
+    : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
+    : '';
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
     return `トラッシュに置いたシグニ1${counter}につき${own}${filterJa(t.filter)}${u}1${counter}`.trim();
@@ -240,7 +246,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   const cnt = t.count === 'ALL' ? 'すべての' : '';
   const cntSuf = t.count === 'ALL' ? '' : `${t.count}${t.upToCount ? counter + 'まで' : counter}`;
   const blind = t.blind ? '（見ないで）' : '';
-  return `${own}${cnt}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
+  return `${own}${cnt}${setConstraint}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
 }
 
 function costJa(c?: any): string {
@@ -309,6 +315,7 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
     case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
+    case 'FIELD_LRIGS_SHARE_COLOR': return `${ownerJa(c.owner)}場に共通する色を持つルリグが${numJa(c.minCount)}体以上いる`;
     case 'HAS_CARD_IN_FIELD':
       // 「場に《X》がいる」（X はルリグ名等の特定カード名）＝名前のみのフィルタは「シグニ」を付けない
       if (c.filter?.cardName && !c.filter?.cardType && !c.filter?.story && !c.filter?.color)

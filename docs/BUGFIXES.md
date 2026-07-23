@@ -4,6 +4,21 @@
 
 ---
 
+## ROADMAP バッチ5c 第2波：共通色集合・場ルリグ条件・コスト参照色（2026-07-23・codex実装/Claude確認）
+
+第1波の `selectionConstraint` と5bの動的filter解決器を再利用し、effectId固定チョークポイントで16効果を是正、既存 `WDK10-008-E1` の `LAST_PROCESSED_SHARE_COLOR` 発行を追認した。
+
+- 群A 4効果へ `selectionConstraint:{sharedColor:'all'}` を初適用。実選択とresumeの不正集合拒否をE2E goldenで固定。
+- 群Bは `FIELD_LRIGS_SHARE_COLOR{owner,minCount}` を Condition/ActiveCondition の型・`evalCondition`・`checkActiveCondition`/CONT評価へ配線。WXDi-P14-042/044/046 の無条件実行をゲート化し、WXDi-P05-076 は2体+2000／3体時に追加+1000（合計+3000）の相互排他的な最終値にした。
+- 群Cは WDA-F03-09 E1/E2 に `levelEqLrig+self colorMatchesLrig`、WX25-P1-113 の選択肢①に `colorMatchesLastProcessed`、WXK11-038 に新 `colorMatchesUnderCards` を適用。
+- 群Dは `last_cost_trashed_cards` と新 `colorMatchesCostTrashed` を実装。通常エナ支払い、明示エナトラッシュ、手札捨て、場トラッシュ、自己トラッシュを記録し WX12-030／WX14-047／WX25-P3-111／PR-380 に適用。WX14-047 の自己同名除外も `excludeCardName` へ是正。
+- 群E/Fは見送り。コスト選択モーダルへ CardEffect.cost 側の集合制約を運ぶ型・pending・resume契約、および REVEAL_AND_PICK の集合制約契約が未整備で、今波の効果解決用 `selectionConstraint` を流用すると死フラグになるため。
+- **Claude 検証（差し戻し0・是正2件）**＝per-effect 機械 diff＝15効果＋追認1。**held 採用漏れ2件（WXK11-020-BURST・WX14-047-E1）**＝申告「16採用」に対し実 JSON 15＝前波の WXEX2-41 と同型の採用漏れを Claude が fresh 照合のうえ --adopt（held 234→232）。**BUGFIXES をファイル末尾に追記**（規約は先頭）していたのを Claude が移動。E2E golden 4本（sharedColor 実選択・FIELD_LRIGS 両評価器・underCards/costTrashed 正負＋空ヒット）は指示どおり自書き＝第1波の教訓が定着。last_cost_trashed_cards は毎支払い上書き＝last_activated_discard_level_sum と同じライフサイクル（既存慣例準拠）を確認。
+- fresh再生成→heldReview採用後、held **232枚/93群**（採用2件反映）（基線一致）。最終 raw diff outlier 0、同型★0。全ゲート緑：golden **664/664**（660→+4）、smoke **10724/10724**、fuzz 0、census **1649→1646**、lint 0 errors/221 warnings。PLAN/PLAN_PROGRESS、commit/pushは依頼どおり未実施。
+
+
+---
+
 ## ROADMAP バッチ5c 第1波：複数選択の相互制約機構＋「それぞれ異なる」系（2026-07-23・codex実装/Claude完遂）
 
 **機構（codex 実装・Opus 設計の totalPowerMax 6点雛形どおり）**＝`EffectTarget.selectionConstraint {distinct:'level'|'name'|'class'; sharedColor:'all'|'none'}` を新設。execUtils の純関数 `satisfiesSelectionConstraint`/`canAddToSelection`（クラスは「：」等で分割しペア毎素・無色は空集合）を、①型 ②executor 13入口の selectOrInteract extra ③pending（SELECT_TARGET/SEARCH）④resumeSelectTarget/resumeSearch の greedy 切り捨て ⑤BattleScreen CPU greedy ⑥EffectInteractionModal の追加可否/確定可否、へ配線。従来の `eachDistinctColor`/`eachDistinctLevel`（表示専用）は表示互換のまま enforce を constraint 側へ。`HAS_CARD_IN_FIELD.distinctLevels` も追加（WXK08-027-E1 の条件丸ごと脱落を是正）。
