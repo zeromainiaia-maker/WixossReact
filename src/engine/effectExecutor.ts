@@ -166,7 +166,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_field_trash_level ?? -1 }
     : tgt.filter;
   // colorMatchesLrig / levelLteFieldVirusCount / powerLtSelf等の動的フィルタを解決（activatorはctx.ownerState固定）
-  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  const colorUsesTargetLrig = !!(preResolvedFilter?.colorMatchesLrig || preResolvedFilter?.colorNotMatchesLrig);
+  const filterOwnerSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+  const filterOtherSt = colorUsesTargetLrig && tgt.owner === 'opponent' ? ctx.ownerState : ctx.otherState;
+  let resolvedFilter = resolveDynamicFilter(preResolvedFilter, filterOwnerSt, ctx.cardMap, filterOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   // WX09-027(羅石オリハルティア): 自場にオリハルティアがあるとき、《オリハルティア》以外のシグニの
   // 「対戦相手のパワー7000以下を1体バニッシュ」→「15000以下」に書き換える
   if (tgt.owner === 'opponent' && resolvedFilter?.powerRange?.max === 7000) {
@@ -547,6 +550,12 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   const isAny = a.target.owner === 'any';
   const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
+  const colorUsesTargetLrig = !!(a.target.filter?.colorMatchesLrig || a.target.filter?.colorNotMatchesLrig);
+  const targetOwnerSt = tgtOwner === 'self' ? ctx.ownerState : ctx.otherState;
+  const targetOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
+  const resolvedTargetFilter = colorUsesTargetLrig
+    ? resolveDynamicFilter(a.target.filter, targetOwnerSt, ctx.cardMap, targetOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum)
+    : a.target.filter;
   let cands: string[];
   if (isAny) {
     const selfCands = fieldCandidates(ctx.ownerState, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
@@ -557,7 +566,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     }
     cands = [...selfCands, ...oppCands];
   } else {
-    cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    cands = fieldCandidates(state, resolvedTargetFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     // 完全効果耐性: 相手のパワーをマイナスする効果は耐性シグニに無効（プラスは利益なので除外しない）
     if (tgtOwner === 'opponent' && delta < 0 && ctx.otherEffectImmuneNums?.size) {
       cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
@@ -1262,7 +1271,8 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    cands = energyCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+    cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else {
     return done(ctx);

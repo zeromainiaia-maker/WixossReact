@@ -47,7 +47,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget,
+  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -2764,6 +2764,51 @@ function applyStateCondBatch4(effects: CardEffect[]): void {
   for (const e of effects) {
     const s = STATE_COND_BATCH4_ACTIONS[e.effectId];
     if (s) e.action = JSON.parse(s) as EffectAction;
+  }
+}
+
+// ROADMAP batch5 第1波。共通色否定句は同文型が次波候補にも広く存在するため、
+// helper 自体は一般形を認識しつつ、今波で原文照合済みの effectId だけへ局所合成する。
+const LRIG_COLOR_BATCH5_ENERGY: Record<string, number> = {
+  'WD15-014-E1': 1, 'WX10-042-E2': 1, 'WX24-P4-063-E1': 1, 'WX25-P1-073-E1': 1,
+  'WX25-P2-073-E1': 1, 'WX25-P3-112-E1': 1, 'WXDi-D08-007-E2': 1, 'WXDi-P00-035-E1': 1,
+  'WXDi-P02-011-E2': 1, 'WXDi-P06-058-E1': 1, 'WXDi-P10-023-E2': 1, 'WXDi-P12-066-E1': 1,
+  'WX24-P1-062-E1': 1, 'WX24-P2-071-E1': 1, 'WX24-P1-019-E1': 1, 'WX24-P2-003-E1': 1,
+  'WXDi-P04-020-E2': 1, 'WXDi-P10-026-E2': 1, 'WX25-P3-080-E1': 1, 'WX25-P2-078-E1': 2,
+  'WXDi-P04-057-E1': 1,
+};
+function applyLrigColorBatch5(effects: CardEffect[]): void {
+  const visitEnergyTrash = (node: unknown, remaining: { n: number }): void => {
+    if (!node || typeof node !== 'object' || remaining.n <= 0) return;
+    const obj = node as Record<string, unknown>;
+    const target = obj.target as { type?: string; owner?: string; filter?: TargetFilter } | undefined;
+    if (obj.type === 'TRASH' && target?.type === 'ENERGY_CARD' && target.owner === 'opponent') {
+      target.filter = { ...(target.filter ?? {}), colorNotMatchesLrig: true };
+      remaining.n--;
+    }
+    for (const value of Object.values(obj)) {
+      if (remaining.n <= 0) break;
+      if (Array.isArray(value)) value.forEach(v => visitEnergyTrash(v, remaining));
+      else visitEnergyTrash(value, remaining);
+    }
+  };
+  for (const e of effects) {
+    const count = LRIG_COLOR_BATCH5_ENERGY[e.effectId];
+    if (count) {
+      const source = _sourceTextLog.get(e.effectId) ?? '';
+      const parsed = parseColorMatchesLrig(source, { includeNegative: true });
+      if (parsed.colorNotMatchesLrig) visitEnergyTrash(e.action, { n: count });
+    }
+    if ((e.effectId === 'WX24-P2-034-E1' || e.effectId === 'WX25-P1-063-E1')) {
+      const source = _sourceTextLog.get(e.effectId) ?? '';
+      const parsed = parseColorMatchesLrig(source, { includeNegative: true });
+      if (parsed.colorNotMatchesLrig && (e.action.type === 'BANISH' || e.action.type === 'POWER_MODIFY')) {
+        e.action.target.filter = { ...(e.action.target.filter ?? {}), colorNotMatchesLrig: true };
+      }
+    }
+    if (e.effectId === 'WX24-P2-069-E1' && e.action.type === 'BANISH') {
+      e.action.target.filter = { ...(e.action.target.filter ?? {}), colorMatchesLastProcessed: true };
+    }
   }
 }
 
@@ -6240,6 +6285,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
   applyStateCondBatch4(effects);
+  applyLrigColorBatch5(effects);
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

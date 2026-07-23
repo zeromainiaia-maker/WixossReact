@@ -4,6 +4,20 @@
 
 ---
 
+## ROADMAP バッチ5 第1波：ルリグ共通色フィルタ脱落（2026-07-23・codex実装/Claude確認）
+
+「（対戦相手の）センタールリグと共通する色を持たない」対象句が無条件対象へ潰れていた系統を、既存 `colorNotMatchesLrig` で是正した。原文照合済みの第1波だけを effectId 固定チョークポイントで合成し、次波候補へは波及させていない。
+
+- 採用25効果：相手エナ TRASH 20、相手シグニ BANISH/POWER_MODIFY 2、自エナ→手札 `colorMatchesLrig` 1、ダウンしたルリグ基準 `colorMatchesLastProcessed` 1、引用内付与能力1。`WXDi-P12-066-E1` は同カードの held/PRESERVE により直パッチ。
+- engine は ENERGY TRASH の既存対象オーナー基準に加え、BANISH／POWER_MODIFY のルリグ色フラグだけを対象オーナー基準で動的解決し、TRANSFER_TO_HAND(ENERGY_CARD) に動的 filter 解決を追加。自己比較など他の動的語彙の基準は変更していない。
+- 見送り1効果：`WXDi-D09-H20-E1` は事前想定と異なり、現行が対象指定を丸ごと失って `手札TRASH → IS_MY_TURN → SIGNI TRASH owner:any` に化けていた。filter 追加だけでは直せず、周辺構造不変の今波スコープ外。
+- 追加調査：`WX25-P2-078-E1` は覚醒時の「代わりに」が未表現で1枚＋3枚を連続実行する過剰構造。`WX25-P3-080-E1` 選択肢②は緑＜龍獣＞＋相手エナ2枚以上の条件と相手選択が脱落。いずれも今波では未修正。
+- golden 651→654（ENERGY／SIGNI BANISH／SIGNI POWER_MODIFY／ENERGY TRANSFER の正負候補検証）、census 1695→1674、同型★0、smoke 10723/10723、fuzz 0、lint 0 errors/221 warnings、held 235枚/93グループ。
+
+**Claude 検証（差し戻し0・是正0件）**：per-effect 機械 diff＝申告どおり25効果ちょうど・兄弟巻き添え0・held 235/93 一致・全ゲート独立実行で緑。**BANISH/POWER_MODIFY の基準変更（効果使用者→対象オーナー）の安全性を全数監査**＝JSON 全体で `colorMatchesLrig`/`colorNotMatchesLrig` を保持する59効果の原文を照合し、**参照ルリグの所有者＝対象オーナーが全件で一致**（match 系は全て自分対象×自分ルリグ、notMatch 系は全て相手対象×相手ルリグ）＝挙動が変わる既存効果ゼロを確認。カードゲート（`LRIG_COLOR_BATCH5_ENERGY`＝原文再照合付き）は続き249/253 の先例準拠。BASELINE_HIGH 履歴の UTF-8 も今回は正常（前回の文字化け教訓が定着）。見送り WXDi-D09-H20-E1 と WX25-P2-078「代わりに」構造・WX25-P3-080 ②条件脱落は次波（5b/構造再構築）の実測表へ引き継ぐ。
+
+---
+
 ## §6.3 G072群C の CONT バニッシュ経路 cause 追跡（2026-07-23・Opus直修正）
 
 第2波までの残穴＝「あなたの効果によって対戦相手のシグニがバニッシュされたとき」（`banishedByOwnEffect`/`banishedSourceStory`）が **CONTINUOUS 効果由来のバニッシュでは保守的非発火**だった（`calcContinuousSigniMutations` の `ContSigniMutation` が発生源を運ばず、BattleScreen の CONT バニッシュ経路が cause を渡せなかった）。1機構の小改修のため codex バッチにせず Opus 直修正（続き254 の分担先例）。

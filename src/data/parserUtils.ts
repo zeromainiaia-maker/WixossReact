@@ -107,10 +107,16 @@ export function parseColorFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
-// 「(あなたの)センタールリグと共通する色を持つ〔シグニ/スペル/カード〕」＝colorMatchesLrig（engine が動的解決）。
+// 「(あなたの)センタールリグと共通する色を持つ／持たない〔シグニ/スペル/カード〕」
+// ＝colorMatchesLrig／colorNotMatchesLrig（engine が動的解決）。
 // 名詞句修飾形に限定（全文スキャン禁止の教訓・parser_backlog）。SEARCH/REVEAL/ADD_TO_FIELD/TRANSFER_TO_HAND の各 handler で共用。
 const LRIG_COLOR_RE = /センタールリグと共通する色を持つ(?:それぞれレベルの異なる)?(?:＜[^＞]+＞の)?(?:レベル[０-９\d＋以下上]+の)?(?:すべての)?(?:シグニ|スペル|カード)/;
-export function parseColorMatchesLrig(text: string): Partial<TargetFilter> {
+const LRIG_COLOR_NOT_RE = /センタールリグと共通する色を持たない(?:対戦相手の)?(?:シグニ|カード)/;
+export function parseColorMatchesLrig(
+  text: string,
+  options: { includeNegative?: boolean } = {},
+): Partial<TargetFilter> {
+  if (options.includeNegative && LRIG_COLOR_NOT_RE.test(text)) return { colorNotMatchesLrig: true };
   return LRIG_COLOR_RE.test(text) ? { colorMatchesLrig: true } : {};
 }
 
@@ -283,6 +289,11 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseColorFilter(text),
     ...parseStoryFilter(text),
   };
+  // 「この方法でダウンしたルリグと共通する色を持つ〜シグニ」＝直前に実処理したルリグの色基準。
+  // 名詞句修飾形に限定し、一般の「共通する色」全文スキャンには広げない。
+  if (/この方法でダウンしたルリグと共通する色を持つ(?:対戦相手の)?(?:パワー[０-９\d]+以下の)?シグニ/.test(text)) {
+    filter.colorMatchesLastProcessed = true;
+  }
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
   if (/【チャーム】が付いている/.test(text)) filter.hasCharm = true; // 「【チャーム】が付いている対戦相手のシグニ」（G153）

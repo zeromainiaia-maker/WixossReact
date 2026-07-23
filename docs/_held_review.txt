@@ -338,6 +338,8 @@ WXDi-P09-003 WXDi-P10-002 WXDi-P11-002 WXDi-P15-002
   - [0].action.steps[0].duration = "PERMANENT"
   ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
+  + [0].action.steps[1].choices[0].action.source.filter.cardType = "シグニ"
+  + [0].action.steps[1].choices[0].action.source.filter.colorMatchesLrig = true
 --- WXDi-P11-002
   原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つこのゲームの間、対戦相手は以下の能力を得る。『【自】：あなたのターン終了時、以下の３つからまだ選んでいないもの１つを選ぶ。①あなたは手札を２枚捨てる。②あなたのエナゾーンからカード２枚を選びトラッシュに置く。③あなたは自分のシグニ１体を選びトラッシュに置く。』,-
   - [0].action.steps[0].target.type = "SIGNI"
@@ -551,7 +553,7 @@ WX24-P4-082 WXDi-P02-071 WXDi-P12-002
   + [0].action.steps[1].condition.type = "HAS_CARD_IN_FIELD"
   + [0].action.steps[1].condition.owner = "self"
   + [0].action.steps[1].condition.filter.cardType = "ルリグ"
-  …（他 9 行）
+  …（他 11 行）
 --- WXDi-P02-071
   原文: 対戦相手のシグニ１体を対象とし、それを凍結する。カードを１枚引く。その後、対戦相手の場に凍結状態のシグニが３体以上ある場合、追加で対戦相手の手札を１枚見ないで選び、捨てさせる。,-
   - [0].action.steps[2].target.type = "HAND_CARD"

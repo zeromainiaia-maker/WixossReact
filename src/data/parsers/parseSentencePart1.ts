@@ -1626,10 +1626,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // filter は対象名詞句内だけから抽出する（前置き条件の＜X＞を混入させない）。
     // engine/decompiler 対応済みの class filter を source に載せる（WXEX2-45-E2）。
     const energySpan = t.match(/エナゾーンから(.*?)手札に加える/s)?.[1] ?? '';
-    const storyFilter = parseStoryFilter(energySpan);
-    const filter: TargetFilter | undefined = Object.keys(storyFilter).length > 0
-      ? { ...parseCardTypeFilter(energySpan), ...storyFilter }
-      : undefined;
+    const filterParts: TargetFilter = {
+      ...parseCardTypeFilter(energySpan),
+      ...parseStoryFilter(energySpan),
+      ...parseColorMatchesLrig(energySpan),
+    };
+    const filter: TargetFilter | undefined = Object.keys(filterParts).length > 0 ? filterParts : undefined;
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
