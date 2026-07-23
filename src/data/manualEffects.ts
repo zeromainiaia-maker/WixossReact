@@ -24,6 +24,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX15-055": [
     {"effectId":"WX15-055-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","triggerCondition":{"duringAttackPhase":true,"banishedFrontOfSelf":true,"turnOwner":"self"},"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  "WXEX2-23": [
+    {"effectId":"WXEX2-23-E2","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","triggerCondition":{"duringAttackPhase":true},"action":{"type":"STUB","id":"STEAL_OPP_TRASH_PUPPET","puppetParams":{"count":1,"optional":true,"levelLteTrigger":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WX15-056": [
     {"effectId":"WX15-056-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_opp","triggerCondition":{"duringAttackPhase":true,"banishedFrontOfSelf":true,"turnOwner":"self"},"condition":{"type":"THIS_CARD_IS_UP"},"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],

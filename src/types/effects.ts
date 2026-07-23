@@ -1813,6 +1813,9 @@ export interface CardEffect {
     banishedFilter?: TargetFilter;                    // ON_SIGNI_BANISH_OPPONENT/_BATTLE の被バニッシュシグニ限定（「感染状態の/凍結状態の/【チャーム】が付いている…シグニをバニッシュしたとき」WX16-079/WXK02-054/WXEX2-76 等）。バニッシュ**直前**の盤面状態（matchesStateFilter＝infected/isFrozen/hasCharm）＋カードデータ（matchesFilter）で判定。triggerFilter は any_ally scope で**バニッシュした側**に使われるため別軸
     banishedNotFront?: boolean;                        // ON_SIGNI_BANISH_BATTLE/_OPPONENT の被バニッシュシグニ限定「正面**以外**の」（WX17-032「あなたのシグニがバトルによって正面以外のシグニをバニッシュしたとき」）。banishedFilter（カード属性/ゾーン状態）とは別軸＝アタッカーの正面ゾーン（対戦相手視点のミラーゾーン）と被バニッシュゾーンの一致判定。犠牲/リダイレクトで実際の被バニッシュ位置が変わった場合も対応
     banishedFrontOfSelf?: boolean;                     // ON_BANISH watcher の正面ゾーンにいたシグニだけに反応（WX15-055/056）
+    banishedHadCharm?: boolean;                        // ON_BANISH watcher の被バニッシュシグニに【チャーム】が付いていた場合のみ（WXDi-P11-TK05）。除去直前の signi_charms で判定し、prevOwnerState 不明時は保守的に非発火
+    banishedByOwnEffect?: boolean;                     // ON_BANISH watcher の「あなたの効果によって」＝watcher 所有者の効果起因のみ（バトル/ルール処理・原因不明では非発火）
+    banishedSourceStory?: string;                      // ON_BANISH watcher の「あなたの＜X＞のシグニの効果によって」＝banishedByOwnEffect に加え、発生源がシグニかつ CardClass に X を含む場合のみ（trashSourceStory と同型）
     duringAttackPhase?: boolean;                      // 「アタックフェイズの間、…したとき」＝アタックフェイズ（ATTACK_*）中のイベントのみ発火（WXEX2-01/WX20-051＝ON_SIGNI_DOWN/UP・WX11-030＝ON_DRAW）
     duringMainPhase?: boolean;                        // 「メインフェイズの間」だけ発火（WX18-052）
     upIncludesLrig?: boolean;                         // ON_SIGNI_BECOMES_UP の「あなたのセンタールリグかシグニ1体がアップ状態になったとき」（WX20-051）＝センタールリグのアップ（lrig_down true→false）でも発火。省略＝シグニのみ

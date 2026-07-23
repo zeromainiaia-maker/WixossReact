@@ -2051,6 +2051,18 @@ function effJa(e: Eff): string {
         : 'アタックフェイズの間、';
       s = `${pref}${s}`;
     }
+    if (t === 'ON_BANISH' && e.triggerCondition?.duringMainPhase) {
+      const pref = e.triggerCondition?.turnOwner === 'self' ? 'あなたのメインフェイズの間、' : 'メインフェイズの間、';
+      s = `${pref}${s}`;
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedHadCharm) {
+      s = `【チャーム】が付いている${s}`;
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedSourceStory) {
+      s = `あなたの＜${e.triggerCondition.banishedSourceStory}＞のシグニの効果によって${s}`;
+    } else if (t === 'ON_BANISH' && e.triggerCondition?.banishedByOwnEffect) {
+      s = `あなたの効果によって${s}`;
+    }
     // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（タスク16[C]機構①）: scope・filter・byEffect・フェイズ限定を描画。
     if (t === 'ON_SIGNI_DOWN' || t === 'ON_SIGNI_BECOMES_UP') {
       const duTc = e.triggerCondition;
@@ -2369,7 +2381,8 @@ function effJa(e: Eff): string {
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
   // ON_BANISH の duringAttackPhase 併用時は「（対戦相手の）アタックフェイズの間、」前置きが同義のため二重表記を抑止。
-  const suppressTurnMark = (e.timing || []).includes('ON_BANISH') && e.triggerCondition?.duringAttackPhase;
+  const suppressTurnMark = (e.timing || []).includes('ON_BANISH')
+    && (e.triggerCondition?.duringAttackPhase || e.triggerCondition?.duringMainPhase);
   const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark && !(e.timing || []).includes('ON_LIFE_CLOTH_ADDED'))
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';
   const body = actionJa(e.action, e.effectType);

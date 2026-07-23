@@ -5171,6 +5171,27 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (atkPhaseM[1]) extractedTriggerCondObj = { ...extractedTriggerCondObj, turnOwner: 'opponent' };
           actionText = atkPhaseM[2];
         }
+        // 「あなたのメインフェイズの間、」＝MAIN かつ watcher 所有者のターン限定。
+        const mainPhaseM = actionText.match(/^あなたのメインフェイズの間、(?=対戦相手のシグニ(?:[０-９\d]+体)?がバニッシュされたとき)(.+)/s);
+        if (mainPhaseM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true, turnOwner: 'self' };
+          actionText = mainPhaseM[1];
+        }
+        // 被バニッシュシグニの直前状態限定。静的 triggerFilter ではなく collector が prevOwnerState で評価する。
+        const charmOppBanM = actionText.match(/^【チャーム】が付いている対戦相手のシグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (charmOppBanM) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadCharm: true };
+          actionText = charmOppBanM[1];
+        }
+        // 効果起因限定。「＜X＞のシグニ」がある場合は発生源カードの Type/CardClass も collector で照合する。
+        const ownEffectM = actionText.match(/^あなたの(?:＜([^＞]+)＞のシグニの)?効果によって(.+)/s);
+        if (ownEffectM) {
+          extractedTriggerCondObj = ownEffectM[1]
+            ? { ...(extractedTriggerCondObj ?? {}), banishedSourceStory: ownEffectM[1] }
+            : { ...(extractedTriggerCondObj ?? {}), banishedByOwnEffect: true };
+          actionText = ownEffectM[2];
+        }
         // 「対戦相手の（＜X＞の）シグニ[N体]がバニッシュされたとき」= any_opp（相手シグニのバニッシュに反応。collectBanishTriggers step2 が triggerScope で処理）
         const oppBanM = actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
         if (oppBanM) {
@@ -5182,8 +5203,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 既定の self（＝バニッシュされたカード自身）に潰れると watcher 自身がバニッシュされない限り発火せず、
           // ルリグ watcher に至っては構造的に絶対発火しなかった（20効果・Opusタスク12(vi-4) と同根）。
           // 「（対戦相手の）アタックフェイズの間、」前置きは上で剥がして triggerCondition 化済み（WX18-002/WXEX1-18）。
-          // 「【チャーム】が付いている〜」「このシグニより低いレベルを持つ〜」等の被バニッシュ側**動的状態**限定は、
-          // matchesFilter（静的カードデータ）では表現できず（charm 付帯・watcher 相対レベル）意図的に非マッチ＝据置。
+          // 「【チャーム】が付いている〜」は上で banishedHadCharm 化済み。
+          // 「このシグニより低いレベルを持つ〜」等の watcher 相対レベル限定は、意図的に非マッチ＝据置。
           const allyBanM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
           if (allyBanM) {
             extractedTriggerScope = 'any_ally';

@@ -2273,8 +2273,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterHostState: PlayerState,
     afterGuestState: PlayerState,
     prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
+    cause?: { ownerId: string; sourceCardNum?: string },
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState);
+    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState, cause);
 
   // ON_SIGNI_POWER_ZERO_OR_LESS トリガー収集（pure: triggerCollect.ts）。checkAndBanishPowerZero から呼ぶ。
   const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
@@ -2648,11 +2649,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ON_BANISH: バニッシュされたシグニ（usageLimit 消費は useHost/useGuest で actions_done へ永続化）
     for (const cardNum of detectBanishedSigni(beforeHost, h)) {
-      const bt = collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost);
+      const bt = collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
     for (const cardNum of detectBanishedSigni(beforeGuest, g)) {
-      const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest);
+      const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
 
@@ -8061,7 +8062,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (r.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...r.usedHostIds] };
           if (r.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...r.usedGuestIds] };
         };
-        const bt = collectBanishTriggers(topNum, ownerId, hostState, guestState);
+        const bt = collectBanishTriggers(topNum, ownerId, hostState, guestState, currentOwner);
         allTriggers.push(...bt.entries); usePZ(bt);
         // パワー0以下になったとき（ON_SIGNI_POWER_ZERO_OR_LESS）を監視するシグニのトリガーも収集。
         // 同パスで複数シグニが同時に0化した場合の once_per_turn 重複発火を避けるため effectId で dedup。
@@ -8119,7 +8120,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (mut.targetIsHost) hostState = withBanished; else guestState = withBanished;
           appendBattleLogs([`${cardName}をバニッシュ（常時効果）`]);
           const ownerId = mut.targetIsHost ? bs.host_id : bs.guest_id;
-          const bt = collectBanishTriggers(num, ownerId, hostState, guestState);
+          const bt = collectBanishTriggers(num, ownerId, hostState, guestState, targetState);
           allTriggers.push(...bt.entries);
           // usageLimit 消費を actions_done へ畳み込む（同一パスで複数体バニッシュしても《ターン1回》は1度だけ）
           if (bt.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...bt.usedHostIds] };

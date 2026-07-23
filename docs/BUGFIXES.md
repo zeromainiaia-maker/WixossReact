@@ -4,6 +4,18 @@
 
 ---
 
+## §6.3 G072 条件前置き付き「対戦相手のシグニがバニッシュされたとき」完結バッチ（6効果・2026-07-23・codex実装/Claude確認）
+
+ON_BANISH 前置き parser と `collectBanishTriggers` の両 watcher section を拡張し、WX05-040-E1 / WX11-027-E2 の自ターンMAIN限定、WXDi-P11-TK05-E2 の除去直前チャーム、WXK11-055-E2 の自効果起因、WX13-051-E1 の自＜龍獣＞シグニ効果起因を `any_opp` と組み合わせて配線した。効果起因の中央 board-diff 経路は cause owner/source を渡し、バトル・パワー0は cause 無し、発生源を保持しない CONTINUOUS mutation は保守的非発火とした。チャーム判定用の除去前 state は効果・バトル・パワー0・CONTINUOUS の4系統すべてで渡す。
+
+WXEX2-23-E2 は既存 `STEAL_OPP_TRASH_PUPPET` と `puppetParams.levelLteTrigger` を使う MANUAL 定義へ置換し、ON_BANISH watcher entry に被バニッシュカードを `triggeringCardNum` として保持。相手トラッシュのレベル以下候補だけをSELECTし、resume後に相手トラッシュから除去・自場へ傀儡配置するところまで golden で固定した。既存 ON_BANISH watcher action に `triggeringCardNum` 依存は検索上なく、既存効果の挙動変化は0件。
+
+初回 raw diff でスコープ外 WX20-025-E2 が1件変化したため、MAIN 前置き regex を直後の相手バニッシュ句まで要求する `^` anchored lookahead に絞り、fresh 正規形を heldReview 経由で復元。最終 live JSON の変化集合は対象AUTO 5効果のみ、兄弟効果変化0・outlier 0。WXEX2-23-E2 は `manualEffects.ts` の実行時上書きで、held は基線234枚/92群→235枚/93群（MANUAL追加1枚）となった。
+
+検証：`npm run gates` 全緑。golden **643/643**（637→643）、smoke **10723/10723**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 0、census **1702→1698**（既存 `BASELINE_HIGH` 更新）、lint 0 errors / **221 warnings**。`npm run regen` 済、カード単位の同型★0。commit/push と PLAN/PLAN_PROGRESS 編集は指示どおり未実施。
+
+**Claude 検証（是正1件・追認）**：上記「既存 ON_BANISH watcher action に `triggeringCardNum` 依存は検索上なく、既存効果の挙動変化は0件」は**誤り**＝JSON 走査で **WXK11-020-E2**（「そのシグニよりパワーの低い対戦相手のシグニ1体をバニッシュ」）が ON_BANISH any_opp watcher で `powerLtTrigger` を持つと判明。従来は entry に triggeringCardNum が無く `resolveDynamicFilter`（effectExecutor.ts:1092）が未解決＝**パワー制限なしの無制限バニッシュという潜在過剰効果**で、今回の entry 保持追加により被バニッシュシグニのパワー基準（cardMap 表記パワー）へ正しく解決される＝**改善方向の挙動変化**。golden に候補絞り込みの lock-in を1本追加（643→**644/644** PASS）。ほか per-effect 機械 diff（変更5効果ちょうど・兄弟巻き添え0）・held +1（WXEX2-23 MANUAL 署名のみ）・両 section の対称ゲート・4呼び出し系統の before-state（8006 `currentOwner`／8110 `targetState` とも除去前スナップショットであることをコードで確認）・resume 経路の pending_effect triggeringCardNum 永続化（BattleScreen.tsx:4027）を追認。BASELINE_HIGH の履歴コメントに今回分の追記が無かったため Claude が補筆。
+
 ## §6.3 GRANT_LRIG_ABILITY 完結バッチ（5効果・2026-07-23・codex実装/Claude確認）
 
 `turn_arts_used_names` / `NO_OTHER_ARTS_USED_THIS_TURN`、ルリグ下の任意枚数選択 `LRIG_UNDER_TRASH_ANY`、`MILL.countPerLastProcessed`、複数ガード制限レベル宣言、トリプルクラッシュの3枚クラッシュを実装。アーツ名履歴と宣言値は全ターン境界でクリアする。

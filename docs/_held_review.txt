@@ -1049,6 +1049,24 @@ WX21-Re06
   + [0].action.steps[1].id = "MARK_SELF_DELAYED_EXILE"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
+## +STUB -ADD_TO_FIELD -TRASH_CARD ［1枚］
+WXEX2-23
+--- WXEX2-23
+  原文: 【常】：このルリグは対戦相手のセンタールリグのルリグタイプを追加で得る。【自】：アタックフェイズの間、対戦相手のシグニ１体がバニッシュされたとき、対戦相手のトラッシュからそのシグニ以下のレベルを持つシグニ１枚を対象とし、それを傀儡状態であなたの場に出してもよい。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《黒×0》：同じ名前のシ
+  - [1].action.owner = "self"
+  - [1].action.source.type = "TRASH_CARD"
+  - [1].action.source.owner = "self"
+  - [1].action.source.count = 1
+  - [1].action.source.upToCount = false
+  - [1].action.source.filter.cardType = "シグニ"
+  - [1].action.optional = true
+  ~ [1].action.type : "ADD_TO_FIELD" → "STUB"
+  + [1].action.id = "STEAL_OPP_TRASH_PUPPET"
+  + [1].action.puppetParams.count = 1
+  + [1].action.puppetParams.optional = true
+  + [1].action.puppetParams.levelLteTrigger = true
+  …（他 2 行）
+
 ## +CONDITIONAL +SELF_POWER_GTE -SEQUENCE ［1枚］
 WXDi-D01-016
 --- WXDi-D01-016

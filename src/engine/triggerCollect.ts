@@ -558,6 +558,7 @@ export function collectBanishTriggers(
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
   prevOwnerState?: PlayerState,
+  cause?: { ownerId: string; sourceCardNum?: string },
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const meId = ctx.meId ?? ctx.hostId;
@@ -646,10 +647,17 @@ export function collectBanishTriggers(
       if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
       // duringAttackPhase＝アタックフェイズ中のバニッシュのみ発火（「（対戦相手の）アタックフェイズの間、」WX18-002/WXEX1-18）。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // turnOwner＝反応側（me）のターン限定（'self'＝自分ターン／'opponent'＝相手ターン。「対戦相手のアタックフェイズ」等）。
       if (eff.triggerCondition?.turnOwner === 'self' && !isMyTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, myAfterState)) continue;
+      if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== meId)) continue;
+      if (eff.triggerCondition?.banishedSourceStory) {
+        const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;
+        if (!cause || cause.ownerId !== meId || source?.Type !== 'シグニ' || !(source.CardClass ?? '').includes(eff.triggerCondition.banishedSourceStory)) continue;
+      }
       // triggerFilter＝バニッシュされたシグニ側の限定（「あなたの＜悪魔＞のシグニ1体が」の＜悪魔＞・excludeSelf）。
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
@@ -664,7 +672,7 @@ export function collectBanishTriggers(
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
-        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff,
+        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff, triggeringCardNum: banishedCardNum,
       });
     }
   }
@@ -680,9 +688,16 @@ export function collectBanishTriggers(
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
       // duringAttackPhase / turnOwner（反応側＝opId 視点）を section2 と対称に評価。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       if (eff.triggerCondition?.turnOwner === 'self' && !isOpTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
+      if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== opId)) continue;
+      if (eff.triggerCondition?.banishedSourceStory) {
+        const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;
+        if (!cause || cause.ownerId !== opId || source?.Type !== 'シグニ' || !(source.CardClass ?? '').includes(eff.triggerCondition.banishedSourceStory)) continue;
+      }
       if (eff.triggerFilter?.excludeSelf && banishedCardNum === topNum) continue;
       if (eff.triggerFilter) {
         const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
@@ -695,7 +710,7 @@ export function collectBanishTriggers(
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
-        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff,
+        label: `${cardName} の【自】効果（バニッシュ時）`, effect: eff, triggeringCardNum: banishedCardNum,
       });
     }
   }
