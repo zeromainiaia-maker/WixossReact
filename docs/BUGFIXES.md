@@ -4,6 +4,18 @@
 
 ---
 
+## §6.3 G072 被バニッシュ側ゲート第2波（9効果＋lock-in 1・2026-07-23・codex実装/Claude確認）
+
+- `collectBanishTriggers` に正面・チャーム・watcher相対レベル・中央ゾーン・アップ状態・非攻撃中ゲートを追加。watcher 経路は section2/3 対称、`banishedWasUp` だけ section1 で局所評価した。
+- `levelEqTrigger` を parser/動的filterへ、`ADD_TO_FIELD.targetsTriggerSource` をエナ在中確認付きで追加。バトル経路だけ `battleAttackerNum` を渡す。
+- AUTO採用: WX09-011-E1 / WX16-068-E1 / WXK11-046-E2 / WXK07-074-E1 / WXK11-041-E3 / WXK11-018-E1 / WX09-014-E2 / WX20-025-E2 / WXDi-P03-035-E2。WD14-011-E1 は既存 `levelLtTrigger` の lock-in。
+- 代表的な直前バグ＝WX09-011-E1 は「このシグニがバニッシュされたとき《赤》払いで自分をアップ」＝離場後アップの死効果に化けていた（正＝正面シグニのバニッシュ反応）。WXK11-018-E1 は action の source が丸ごと欠落。WX09-014-E2 は levelEq 語彙が無く無制限バニッシュの過剰効果。
+- golden 650/650、census 1695（1698→-3）、同型★0、smoke 10723/10723、fuzz 0、lint 0 errors/221 warnings、held 235枚/93グループ。
+
+**Claude 検証（差し戻し0・軽微是正2件）**：per-effect 機械 diff＝申告どおり9効果ちょうど・兄弟巻き添え0・held 235/93 を独立実測で一致確認。section2/3 の5ゲート完全対称・section1 は banishedWasUp のみ（他の triggerCondition を評価し始めない）＝指示どおり。`battleAttackerNum` はバトル経路（BattleScreen 7517）のみ配線・効果/パワー0/CONT は「非アタック中」扱い＝正しい近似。regex は全て `^` アンカーで途中の汎用語彙波及（4効果）も自己検出→絞り→復元済み（最終 outlier 0）。是正2件＝①codex が `BASELINE_HIGH` コメント先頭に追記した今回分の履歴が**文字化け**（`?6.3 G072?????`）していたのを正文へ置換 ②parser 5242行の「watcher 相対レベル限定は据置」コメントが stale 化したのを更新。
+
+---
+
 ## §6.3 G072 条件前置き付き「対戦相手のシグニがバニッシュされたとき」完結バッチ（6効果・2026-07-23・codex実装/Claude確認）
 
 ON_BANISH 前置き parser と `collectBanishTriggers` の両 watcher section を拡張し、WX05-040-E1 / WX11-027-E2 の自ターンMAIN限定、WXDi-P11-TK05-E2 の除去直前チャーム、WXK11-055-E2 の自効果起因、WX13-051-E1 の自＜龍獣＞シグニ効果起因を `any_opp` と組み合わせて配線した。効果起因の中央 board-diff 経路は cause owner/source を渡し、バトル・パワー0は cause 無し、発生源を保持しない CONTINUOUS mutation は保守的非発火とした。チャーム判定用の除去前 state は効果・バトル・パワー0・CONTINUOUS の4系統すべてで渡す。

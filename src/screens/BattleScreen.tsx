@@ -2274,8 +2274,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     afterGuestState: PlayerState,
     prevOwnerState?: PlayerState, // バニッシュされたカードのオーナーのバニッシュ前状態（アクセ付与ON_BANISH復元用）
     cause?: { ownerId: string; sourceCardNum?: string },
+    battleAttackerNum?: string,
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState, cause);
+    pureCollectBanishTriggers(mkTrigCtx(), banishedCardNum, banishedPlayerId, afterHostState, afterGuestState, prevOwnerState, cause, battleAttackerNum);
 
   // ON_SIGNI_POWER_ZERO_OR_LESS トリガー収集（pure: triggerCollect.ts）。checkAndBanishPowerZero から呼ぶ。
   const collectPowerZeroTriggers = (zeroedCardNum: string, zeroedOwnerId: string, afterHostState: PlayerState, afterGuestState: PlayerState): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
@@ -7521,6 +7522,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             newHostState,
             newGuestState,
             op, // 防御側のバトル前状態（アクセ付与ON_BANISH復元用）
+            undefined,
+            myTopNum,
           )
         : { entries: [] as StackEntry[], usedHostIds: [] as string[], usedGuestIds: [] as string[] };
       const banishEntries = banishRes.entries;

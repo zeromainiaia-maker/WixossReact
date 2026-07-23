@@ -1719,6 +1719,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const countM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1);
     return { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'ENERGY_CARD', owner: 'self', count, upToCount: !!upToM, filter },
+      ...(t.includes('エナゾーンからそのシグニを') ? { targetsTriggerSource: true } : {}),
+      ...(t.includes('場に出してもよい') ? { optional: true } : {}),
       ...(t.includes('ダウン状態で場に出') ? { asDown: true } : {}) };
   }
 

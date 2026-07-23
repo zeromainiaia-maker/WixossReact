@@ -1099,12 +1099,14 @@ function resolveDynamicFilter(
       result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: result.powerLtTrigger ? trigPower - 1 : trigPower } };
     }
   }
-  // levelLtTrigger / levelGtTrigger: トリガー元シグニのレベルを基準に level へ解決（「そのシグニより低い/高いレベルを持つ」）
-  if ((result.levelLtTrigger || result.levelGtTrigger) && triggeringCardNum) {
+  // levelLtTrigger / levelEqTrigger / levelGtTrigger
+  if ((result.levelLtTrigger || result.levelEqTrigger || result.levelGtTrigger) && triggeringCardNum) {
     const trigLevel = parseInt(cardMap.get(getCardNum(triggeringCardNum))?.Level ?? '', 10);
-    const { levelLtTrigger: _lt, levelGtTrigger: _gt, ...rest } = result;
+    const { levelLtTrigger: _lt, levelEqTrigger: _eq, levelGtTrigger: _gt, ...rest } = result;
     result = !isNaN(trigLevel)
-      ? (result.levelGtTrigger
+      ? (result.levelEqTrigger
+          ? { ...rest, level: trigLevel }
+          : result.levelGtTrigger
           ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), min: trigLevel + 1 } }
           : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: trigLevel - 1 } })
       : rest;
@@ -1446,6 +1448,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   } else if (src.type === 'ENERGY_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (a.targetsTriggerSource) {
+      cands = ctx.triggeringCardNum && state.energy.includes(ctx.triggeringCardNum) ? [ctx.triggeringCardNum] : [];
+    }
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else if (src.type === 'HAND_CARD') {
     cands = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);

@@ -144,6 +144,7 @@ function filterJa(f?: any): string {
   if (f.powerLtTrigger) parts.push('そのシグニよりパワーの低い');
   if (f.powerLteTrigger) parts.push('そのシグニのパワー以下の');
   if (f.levelLtTrigger) parts.push('そのシグニより低いレベルを持つ');
+  if (f.levelEqTrigger) parts.push('そのシグニと同じレベルの');
   if (f.levelGtTrigger) parts.push('そのシグニより高いレベルを持つ');
   if (f.levelLtOppLrig) parts.push('対戦相手のセンタールリグより低いレベルを持つ');
   if (f.superlative) parts.push(`最も${f.superlative.key === 'level' ? 'レベル' : 'パワー'}の${f.superlative.dir === 'max' ? '高い' : '低い'}`);
@@ -538,6 +539,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
+      if (a.targetsTriggerSource && a.source?.type === 'ENERGY_CARD')
+        return `エナゾーンからそのシグニを${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
       return (a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す')) + supAF;
     }
     case 'BLOCK_ACTION': {
@@ -2057,6 +2060,21 @@ function effJa(e: Eff): string {
     }
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedHadCharm) {
       s = `【チャーム】が付いている${s}`;
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedFrontOfSelf) {
+      s = 'このシグニの正面のシグニ1体がバニッシュされたとき';
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedLevelLtWatcher) {
+      s = 'このシグニより低いレベルを持つあなたのシグニ1体がバニッシュされたとき';
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedFromCenterZone) {
+      s = `${e.triggerCondition?.duringMainPhase ? 'あなたのメインフェイズの間、' : ''}対戦相手の中央のシグニゾーンにあるシグニがバニッシュされたとき`;
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.banishedWasUp) {
+      s = 'アップ状態のこのシグニがバニッシュされたとき';
+    }
+    if (t === 'ON_BANISH' && e.triggerCondition?.notWhileAttacking) {
+      s = `${s}、このシグニがアタック中でない場合`;
     }
     if (t === 'ON_BANISH' && e.triggerCondition?.banishedSourceStory) {
       s = `あなたの＜${e.triggerCondition.banishedSourceStory}＞のシグニの効果によって${s}`;

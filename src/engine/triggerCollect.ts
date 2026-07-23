@@ -559,6 +559,7 @@ export function collectBanishTriggers(
   afterGuestState: PlayerState,
   prevOwnerState?: PlayerState,
   cause?: { ownerId: string; sourceCardNum?: string },
+  battleAttackerNum?: string,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const meId = ctx.meId ?? ctx.hostId;
@@ -627,6 +628,8 @@ export function collectBanishTriggers(
       if (eff.condition && !evalUseCondition(eff.condition, ownerStateForCond, otherStateForCond, ctx.cardMap, banishedCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!(banishedOwnerIsMe ? limitOkMy : limitOkOp)(eff)) continue;
     }
+    if (eff.triggerCondition?.banishedWasUp
+      && (banishedZone < 0 || !prevOwnerState || prevOwnerState.field.signi_down?.[banishedZone] === true)) continue;
     // activeCondition チェック（「対戦相手のターンの間」等）
     const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
     if (!checkActiveCondition(eff.activeCondition, banishedOwnerIsMe ? myAfterState : opAfterState, banishedOwnerIsMe ? opAfterState : myAfterState, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
@@ -653,6 +656,13 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, myAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
+      if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
+      if (eff.triggerCondition?.banishedLevelLtWatcher) {
+        const banishedLevel = parseInt(ctx.cardMap.get(getCardNum(banishedCardNum))?.Level ?? '', 10);
+        const watcherLevel = parseInt(ctx.cardMap.get(getCardNum(topNum))?.Level ?? '', 10);
+        if (isNaN(banishedLevel) || isNaN(watcherLevel) || banishedLevel >= watcherLevel) continue;
+      }
       if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== meId)) continue;
       if (eff.triggerCondition?.banishedSourceStory) {
         const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;
@@ -693,6 +703,13 @@ export function collectBanishTriggers(
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
       if (eff.triggerCondition?.banishedHadCharm && (banishedZone < 0 || !prevOwnerState?.field.signi_charms?.[banishedZone])) continue;
+      if (eff.triggerCondition?.banishedFromCenterZone && banishedZone !== 1) continue;
+      if (eff.triggerCondition?.notWhileAttacking && battleAttackerNum === topNum) continue;
+      if (eff.triggerCondition?.banishedLevelLtWatcher) {
+        const banishedLevel = parseInt(ctx.cardMap.get(getCardNum(banishedCardNum))?.Level ?? '', 10);
+        const watcherLevel = parseInt(ctx.cardMap.get(getCardNum(topNum))?.Level ?? '', 10);
+        if (isNaN(banishedLevel) || isNaN(watcherLevel) || banishedLevel >= watcherLevel) continue;
+      }
       if (eff.triggerCondition?.banishedByOwnEffect && (!cause || cause.ownerId !== opId)) continue;
       if (eff.triggerCondition?.banishedSourceStory) {
         const source = cause?.sourceCardNum ? ctx.cardMap.get(getCardNum(cause.sourceCardNum)) : undefined;

@@ -344,6 +344,7 @@ export interface TargetFilter {
   level?:     number | { min?: number; max?: number };
   levelRange?: { min?: number; max?: number };
   powerRange?: { min?: number; max?: number };
+  levelEqTrigger?: boolean;
   costMax?:   number;  // 使用コストの合計（《色×N》の合計、コインを除く）がこの値以下（「コストの合計が1以下のスペル」WX04-071 等）
   costMin?:   number;  // 使用コストの合計がこの値以上（costMin と costMax を同値にすると「コストの合計がちょうどN」WX04-084 等）
   story?:     string | string[];  // ＜クラス＞フィルターの旧名（matchesFilter で cardClass と同一＝CSVの CardClass に includes でマッチ）。新規コードは cardClass を使う。
@@ -805,6 +806,7 @@ export interface AddToLifeAction {
 }
 
 export interface AddToFieldAction {
+  targetsTriggerSource?: boolean;
   type: 'ADD_TO_FIELD'; // 直前に選んだカードをフィールドへ（コスト不要で出す）
   owner: Owner;
   source?: EffectTarget; // トラッシュ・エナ・手札など出処が明示される場合
@@ -1764,6 +1766,10 @@ export interface CardEffect {
 
   // AUTO トリガーの発火条件（原因・領域の限定）。WX04-035-E2「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき」等。
   triggerCondition?: {
+    banishedLevelLtWatcher?: boolean;
+    notWhileAttacking?: boolean;
+    banishedFromCenterZone?: boolean;
+    banishedWasUp?: boolean;
     turnOwner?: 'self' | 'opponent'; // 《自分ターン》/《相手ターン》: そのターン中のみ AUTO 発火（self=効果オーナーのターン / opponent=相手のターン）。effectStack の initStack/pushToStack で現ターンと照合しゲート（WXDi-P06-033 等）
     byOpponentEffect?: boolean; // 対戦相手の効果が原因の場合のみ発火（バトル・自分の効果・ルール処理では発火しない）
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）

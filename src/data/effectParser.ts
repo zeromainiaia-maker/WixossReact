@@ -5154,6 +5154,41 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {
+        const frontBanM = actionText.match(/^このシグニの正面(?:にある|の)シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (frontBanM) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedFrontOfSelf: true };
+          actionText = frontBanM[1];
+        }
+        const charmAllyBanM = actionText.match(/^【チャーム】が付いているあなたのシグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (charmAllyBanM) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadCharm: true };
+          actionText = charmAllyBanM[1];
+        }
+        const charmAnyBanM = actionText.match(/^【チャーム】が付いているシグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (charmAnyBanM) {
+          extractedTriggerScope = 'any';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadCharm: true };
+          actionText = charmAnyBanM[1];
+        }
+        const lowerLevelAllyBanM = actionText.match(/^このシグニより低いレベルを持つあなたのシグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (lowerLevelAllyBanM) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedLevelLtWatcher: true };
+          actionText = lowerLevelAllyBanM[1];
+        }
+        const centerMainBanM = actionText.match(/^あなたのメインフェイズの間、対戦相手の中央のシグニゾーンにあるシグニがバニッシュされたとき[、,]\s*(.+)/s);
+        if (centerMainBanM) {
+          extractedTriggerScope = 'any_opp';
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true, turnOwner: 'self', banishedFromCenterZone: true };
+          actionText = centerMainBanM[1];
+        }
+        const upSelfBanM = actionText.match(/^アップ状態のこのシグニがバニッシュされたとき[、,]\s*(.+)/s);
+        if (upSelfBanM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedWasUp: true };
+          actionText = upSelfBanM[1];
+        }
         // 「(対戦相手|あなた)のターンの間、」前置き＝そのプレイヤーのターン限定（activeCondition TURN_OWNER）。
         // engine の ON_BANISH 自己トリガー収集（BattleScreen collectBanishTriggers）が activeCondition を評価する。
         // 【常】→ON_BANISH 再分類（G150）と同じ扱い。WXK04-065/067 等の【自】版がここに該当。
@@ -5204,7 +5239,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // ルリグ watcher に至っては構造的に絶対発火しなかった（20効果・Opusタスク12(vi-4) と同根）。
           // 「（対戦相手の）アタックフェイズの間、」前置きは上で剥がして triggerCondition 化済み（WX18-002/WXEX1-18）。
           // 「【チャーム】が付いている〜」は上で banishedHadCharm 化済み。
-          // 「このシグニより低いレベルを持つ〜」等の watcher 相対レベル限定は、意図的に非マッチ＝据置。
+          // 「このシグニより低いレベルを持つあなたの〜」も上で banishedLevelLtWatcher 化済み（G072第2波）。
           const allyBanM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
           if (allyBanM) {
             extractedTriggerScope = 'any_ally';
@@ -5218,6 +5253,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
             const m = actionText.match(/^(?:パワー[０-９\d]+以下の)?このシグニがバニッシュされたとき[、,]\s*(.+)/s);
             if (m) actionText = m[1];
           }
+        }
+        if (/^このシグニがアタック中でない場合[、,]/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), notWhileAttacking: true };
+          actionText = actionText.replace(/^このシグニがアタック中でない場合[、,]\s*/, '');
         }
       }
       if (timing[0] === 'ON_ZONE_MOVED') {
@@ -5543,6 +5582,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       actionText = extracted.cleaned;
     }
     resolvedAction = parseActionText(actionText);
+    if (timing?.[0] === 'ON_BANISH' && resolvedAction.type === 'BANISH' && /そのシグニと同じレベルの/.test(actionText)) {
+      const banish = resolvedAction as import('../types/effects').BanishAction;
+      banish.target.filter = { ...(banish.target.filter ?? {}), ...parseTriggerComparison(actionText, { allowLevelEq: true }) };
+    }
+    if (/^エナゾーンからそのシグニを場に出してもよい/.test(actionText)) {
+      resolvedAction = {
+        type: 'ADD_TO_FIELD',
+        owner: 'self',
+        source: { type: 'ENERGY_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } },
+        targetsTriggerSource: true,
+        optional: true,
+      };
+    }
   }
   if (leadingTurnOwnerActionCond) {
     resolvedAction = { type: 'CONDITIONAL', condition: leadingTurnOwnerActionCond, then: resolvedAction };
