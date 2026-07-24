@@ -983,6 +983,42 @@ test('LAST_PROCESSED_MATCHES{hasCharm}: チャーム持ち対象は差分追加�
     eq(sumDelta(run(eff, ctx)), -5000, 'チャーム無し→-5000のみ');
   }
 });
+// ── §3 タスク4: 「代わりに」条件節の残（WX25-P2-068/070・WX25-P3-116）──
+// (a) 「それがレゾナの場合、代わりに＋M」＝直前選択対象がレゾナなら大きい値。レゾナは「シグニの一種」なので
+//     cardType:'シグニ' の target フィルタが場のレゾナも候補に含む（matchesFilter の非対称緩和）ことが前提。
+//     この2点（レゾナ標的化＋LAST_PROCESSED_MATCHES{レゾナ} 分岐）の回帰ガード。
+test('タスク4「それがレゾナの場合、代わりに」: レゾナ標的は大きい値・通常シグニは基本値（WX25-P2-068/070）', () => {
+  const UCHU_RESONA = findCard(c => c.Type === 'レゾナ' && (c.CardClass ?? '').includes('宇宙'));
+  const UCHU_SIGNI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('宇宙'));
+  const sumDelta = (st: PlayerState, cn: string) =>
+    ((st.power_mods_until_opp_turn ?? []) as { cardNum: string; delta: number }[])
+      .filter(m => m.cardNum === cn).reduce((s, m) => s + m.delta, 0);
+  for (const [host, id, base, boosted] of [['WX25-P2-068', 'WX25-P2-068-E1', 2000, 5000], ['WX25-P2-070', 'WX25-P2-070-E1', 5000, 10000]] as const) {
+    const eff = manualEffect(host, id);
+    // レゾナを他シグニに置く → 標的化されて boosted 値
+    const rCtx = mkCtx({ signi: [host, UCHU_RESONA, null] }, {}, host);
+    eq(sumDelta(finish(executeEffect(eff, rCtx), rCtx).ownerState, UCHU_RESONA), boosted, `${host}: レゾナ標的→+${boosted}`);
+    // 通常の宇宙シグニ → 基本値
+    const sCtx = mkCtx({ signi: [host, UCHU_SIGNI, null] }, {}, host);
+    eq(sumDelta(finish(executeEffect(eff, sCtx), sCtx).ownerState, UCHU_SIGNI), base, `${host}: 通常シグニ→+${base}`);
+  }
+});
+// (b) 「このターンにあなたが黒のアーツを使用していた場合、代わりに－M」＝色別 ARTS_USED_THIS_TURN で分岐（WX25-P3-116）。
+test('タスク4「黒のアーツを使用していた場合、代わりに」: 使用済み-5000／未使用-3000（WX25-P3-116）', () => {
+  const eff = manualEffect('WX25-P3-116', 'WX25-P3-116-E1');
+  const sumDelta = (r: ExecResult) => ((r.otherState as PlayerState).temp_power_mods ?? []).reduce((s, m) => s + m.delta, 0);
+  // 黒アーツ使用済み → -5000
+  {
+    const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, 'WX25-P3-116');
+    ctx.ownerState.turn_arts_used_colors = ['黒'];
+    eq(sumDelta(finish(executeEffect(eff, ctx), ctx)), -5000, '黒アーツ使用済み→-5000');
+  }
+  // 未使用 → -3000（過剰強化の回帰ガード）
+  {
+    const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, 'WX25-P3-116');
+    eq(sumDelta(finish(executeEffect(eff, ctx), ctx)), -3000, '黒アーツ未使用→-3000');
+  }
+});
 // (2) 「あなたの場に傀儡状態のシグニがある場合、代わりに－M」＝HAS_CARD_IN_FIELD{isPuppet}（WXK09-057-E2）。
 test('HAS_CARD_IN_FIELD{isPuppet}: 自場に傀儡がいれば強化／いなければ基本値（WXK09-057）', () => {
   const eff = { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isPuppet: true } },

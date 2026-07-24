@@ -82,7 +82,7 @@
 | ~~**1**~~ | ~~引用付与の内側 ability parse~~ | — | — | **✅クローズ（続き224）**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 続き164/205/224 |
 | ~~2~~ | ~~census「動的比較」の残~~ | — | — | **✅クローズ（続き237）**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 続き237/203 |
 | ~~3~~ | ~~DRAW 脱落の parseSingleSentence 直呼び経路~~ | — | — | **✅tractable 分クローズ（続き238）**。残＝真の§6.3単発機構待ち（WXK07-042／WX20-049／WX26-CP1-066／per-count ドロー＝タスク6・§6.3 長テールへ合流）。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 続き238 |
-| 4 | §5c 条件節の残 | parser語彙 | S | 残＝「代わりに」WX25-P2-068/070（engine 置換機構＝タスク6級）・WX25-P3-116（タスク6送り）。「あり」複合条件 WXDi-P11-048 は✅続き227で消化済 |
+| ~~4~~ | ~~§5c 条件節の残~~ | — | — | **✅クローズ（続き255・Opus）**。残3枚は engine 置換機構不要と判明＝068/070 は `matchesFilter` の cardType 非対称緩和（レゾナをシグニ扱い）でレゾナ標的化を是正・116 は ARTS_USED_THIS_TURN で既に動作。golden 724→726。詳細 BUGFIXES 続き255 |
 | 5 | 小口持ち越し（隙間埋めに最適） | 単点（parser/engine/decompiler混在） | S×件数 | 残＝置換系統40枚の一般化（分離 pick 単独解決＋置換 else 機構・§6.3級）／WXEX1-65 正面 owner＋レベル比較／WXDi-P05-009「それ」先行詞解決／WX20-053「手札かデッキ」二重ソース SEARCH／WXEX2-50 動的レベル制約／catch-all「デッキに戻す」の全数再点検（続き203 (a)(b)(c)）＝いずれも単発機構待ち（§6.3送り）。個別項目（WXDi-P03-005/GRANT_LRIG_ABILITY 5枚/TRANSFER_TO_DECK 混入/WXEX2-25-E3/自己犠牲5枚/WX26-CP1-100/PR-Di038）は続き218e/218i/218k/189/232 で消化済。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 各続き |
 | 6 | 「代わりに」残テールの機構系 | engine新機構（置換） | L | **残＝すべて単発§6.3の長テール**：B1残5枚＝ターン中イベント counter（WXDi-P11-067・WX14-070・WXK06-071＝各々専用 turn-counter）＋コスト参照（WDK17-014・WX25-P2-101＝cost 内容照合機構）／D:置換ルール9／C:コスト代替6／E:リコレクト2。「過剰語彙を作らない」方針で単発機構は据置。tractable 分4枚＋WX16-021 は続き235bで消化済。詳細 BUGFIXES 続き235b |
 | ~~7~~ | ~~§6.1 未実装action型の engine 実装~~ | — | — | **✅クローズ（続き202/204/204b）＝残型0**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3・§6.1／BUGFIXES 続き202・204 |

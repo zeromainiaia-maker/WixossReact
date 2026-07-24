@@ -280,7 +280,12 @@ export function matchesFilter(
   if (!filter) return true;
   if (filter.cardType) {
     const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
-    if (!types.includes(card.Type as (typeof types)[number])) return false;
+    // レゾナは「シグニの一種」＝場のレゾナは cardType:'シグニ' フィルタの対象に含む
+    // （「あなたの＜宇宙＞のシグニ」等がレゾナも選べる。WX25-P2-068/070「それがレゾナの場合、代わりに」）。
+    // 逆（cardType:'レゾナ' フィルタ）はレゾナのみ＝非対称。この向きだけ緩める。
+    const typeMatch = types.includes(card.Type as (typeof types)[number])
+      || (card.Type === 'レゾナ' && types.includes('シグニ' as (typeof types)[number]));
+    if (!typeMatch) return false;
   }
   if (filter.color) {
     const colors = Array.isArray(filter.color) ? filter.color : [filter.color];
