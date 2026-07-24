@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-23・Opus 4.8・🏁 P1完了宣言の実施＋docs 同期**（census 1581 で3分類を機械再計測・コード変更なし）
+  - **宣言**＝§5「完了判定」の定義（高シグナル逓減限界）に従い **P1（表現）完了を正式宣言**。根拠＝バッチ2〜4の投入前実測枯渇（続き254）＋最短ルートのバッチ1〜5＋再クラスタリング生存バッチ2本（バッチ11=43・バッチ6=27）の全消化（census 1612→1581）＝「1 parser規則→N効果」の系統クラスタが出尽くした。宣言本文・以後の運用は [ROADMAP](./P1_COMPLETION_ROADMAP.md) 冒頭の宣言節。
+  - **3分類（census 1581・ROADMAP「再現方法」で機械再計測）**＝**§6.3 正式送り 282**（機構カテゴリ98＋混在68＋設計除外〔代わりに67・引用付与61〕）／**粗網のみ偽陽性主体 116**（小さい数/数値不一致だけ＝単発精査対象）／**長テール単発・別節偽陽性 1183**（BEHAVIOR_AUDIT／semantic audit で逐次）。機械2分類の更新値＝純P1 1415(90%)／混在68(4%)／純§6.3 98(6%)。`docs/_p1_classification.txt` を census 1581 で再生成（粗網のみ116の実IDを追加）。
+  - **docs 同期**＝ROADMAP（冒頭に宣言節新設・凍結基線1581へ）／PLAN §2 DoD（P1宣言の✅追加）／§5・§5c（worklist 凍結の明記）／§4 恒久指標（census 1581 基線化＋宣言直前の逓減履歴補完）／次の一手（主軸を P2/P3 へ）。
+
 - **セッション（2026-07-23・Opus 4.8＋Codex 分担・§6.3 G072 完全クローズ→**[ROADMAP](./P1_COMPLETION_ROADMAP.md)**バッチ5 全消化（5a 25＋5b 31＋5c 機構＋60）＝計134効果＋新機構2本**（census 1702→**1644**・golden 637→**664**）**（続き254 は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
   - **第1波（残6枚・commit d03ff073）**＝5枚は前置きストリッパ不足の **self 誤変換**（偽陰性＋偽陽性の両方向実害）・WXEX2-23-E2 は action 側実害（自トラッシュ奪取化）。群A メインフェイズ前置き（`duringMainPhase` を collectBanishTriggers section2/3 へ・WX05-040/WX11-027）／群B `banishedHadCharm`（除去直前 signi_charms・4呼び出し系統に before-state・WXDi-P11-TK05）／群C `banishedByOwnEffect`/`banishedSourceStory`（cause 引数＝中央 board-diff のみ・バトル/パワー0非発火が正・WXK11-055/WX13-051）／群D WXEX2-23-E2＝STEAL_OPP_TRASH_PUPPET{levelLteTrigger} MANUAL 化＋**watcher entry へ triggeringCardNum 保持**。
   - **第2波（Claude 全数再実測で発見した同族9枚＋lock-in・commit dfd3157a）**＝正面3枚（`banishedFrontOfSelf` parser 化＋新 `notWhileAttacking`＝バトル経路 7517 のみ battleAttackerNum 配線。WX09-011 は「自バニッシュ後に自分をアップ」の死効果化だった）／チャーム2枚（any_ally/any 変種・WXK07-074/WXK11-041）／相対レベル2枚（新 `banishedLevelLtWatcher`＋新 filter `levelEqTrigger`・WXK11-018 は action source 丸ごと欠落、WX09-014 は無制限バニッシュ過剰）／ゾーン・状態2枚（新 `banishedFromCenterZone`・新 `banishedWasUp`＝section1 初のゲート・WX20-025/WXDi-P03-035）。**2波とも差し戻し0**。
