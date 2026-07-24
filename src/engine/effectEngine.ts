@@ -1488,7 +1488,7 @@ export function calcFieldPowers(
 
     // REMOVE_ABILITIES: 能力を失っているシグニ（CONTINUOUS REMOVE_ABILITIES＋一過性 abilities_removed）の
     // CONTINUOUS効果（自己パワー増減・キーワード付与等）は発生させない。
-    const abilitiesRemovedCont = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap);
+    const abilitiesRemovedCont = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, '常');
 
     // 同一CardNumが複数ゾーンに存在する場合、効果元として重複処理しない
     const seenSources = new Set<string>();
@@ -3442,7 +3442,7 @@ export function collectContinuousGrantedKeywords(
   const signiTops: string[] = ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : []));
   const signiSet = new Set(signiTops);
   // REMOVE_ABILITIES: 能力を失っているシグニは付与を発生させず（発生源）、新たに得もしない（対象）。
-  const abilitiesRemoved = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap);
+  const abilitiesRemoved = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, '常');
   // 発生源: 自分の場のシグニ＋センタールリグ
   const sources: string[] = [...signiTops];
   const lrigTop = ownerState.field.lrig.at(-1);
@@ -4626,6 +4626,7 @@ export function collectContinuousAbilitiesRemovedSigni(
   isOwnerTurn: boolean,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
+  abilityType?: '常' | '自' | '起' | '出',
 ): Set<string> {
   const removed = new Set<string>();
   const RemoveAbilitiesType = 'REMOVE_ABILITIES';
@@ -4643,6 +4644,7 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
       const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'self') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
       if (act.target.count === 1 || act.target.count === 'ALL') removed.add(sourceNum);
@@ -4658,6 +4660,7 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
       const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'opponent') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, sourceNum)) continue;
       // count:1 は同ゾーン（対面）のシグニを対象とする
@@ -4665,9 +4668,13 @@ export function collectContinuousAbilitiesRemovedSigni(
         const facing = state.field.signi[zi]?.at(-1);
         if (facing) removed.add(facing);
       } else if (act.target.count === 'ALL') {
-        for (const s of state.field.signi) {
+        for (let targetZi = 0; targetZi < state.field.signi.length; targetZi++) {
+          const s = state.field.signi[targetZi];
           const top = s?.at(-1);
-          if (top) removed.add(top);
+          if (!top) continue;
+          if (act.target.filter && (!matchesFilter(cardMap.get(top), act.target.filter)
+            || !matchesStateFilter(state, targetZi, act.target.filter))) continue;
+          removed.add(top);
         }
       }
     }

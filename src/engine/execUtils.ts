@@ -2,6 +2,7 @@ import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPha
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword } from '../utils/keywords';
 import { checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, type BanishedCardAttrs } from './effectEngine';
 import type {
+  CardEffect,
   EffectAction,
   TargetFilter,
   Owner,
@@ -17,6 +18,7 @@ export interface ExecCtx {
   ownerState: PlayerState;   // "self"：効果オーナー
   otherState: PlayerState;   // "opponent"：相手
   cardMap: Map<string, CardData>;
+  effectsMap?: Map<string, CardEffect[]>;
   logs: string[];
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
@@ -793,6 +795,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       };
       return cond.minCount > 0 && sets.length >= cond.minCount && choose(0, []);
     }
+    case 'FIELD_LRIGS_HAVE_COLORS': {
+      const f = st(cond.owner).field;
+      const nums = [f.lrig.at(-1), f.assist_lrig_l?.at(-1), f.assist_lrig_r?.at(-1)]
+        .filter((n): n is string => !!n);
+      return cond.colors.every(color =>
+        nums.some(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color).includes(color)));
+    }
     case 'FIELD_COUNT':
       return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
         cond.operator, resolveNum(cond.value));
@@ -829,6 +838,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         ? new Set(matched.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn)).size
         : matched.length;
       return cmp(n, cond.operator, resolveNum(cond.value));
+    }
+    case 'ENERGY_EACH_LEVEL_FILTER_GTE': {
+      const matched = energyCandidates(st(cond.owner), cond.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+      return cond.levels.every(level =>
+        matched.filter(cn => Number(ctx.cardMap.get(getCardNum(cn))?.Level) === level).length >= cond.minEach);
+    }
+    case 'LAST_PROCESSED_HAS_NO_ABILITIES': {
+      const last = ctx.lastProcessedCards?.[0];
+      if (!last) return false;
+      const mapped = ctx.effectsMap?.get(getCardNum(last));
+      if (mapped) return mapped.length === 0;
+      const text = ctx.cardMap.get(getCardNum(last))?.EffectText ?? '';
+      return !/(?:【|\[)(?:常|自|起|出)(?:】|])/.test(text);
     }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;

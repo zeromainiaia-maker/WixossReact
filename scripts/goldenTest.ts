@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -8506,6 +8506,63 @@ test('VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: 一致レベル不在でも選んだ�
   eq(result.ownerState.energy.length, 0);
   ok(blueArchive.every(n => result.ownerState.trash.includes(n)), 'コストは支払い済み');
   eq(JSON.stringify(tops(result.otherState)), JSON.stringify([SIGNI_L1, SIGNI_L3, null]), '相手盤面不変');
+});
+
+test('PLAN §6.3 tail: lock-in and curated structures', () => {
+  const j = (card: string) => JSON.stringify(mergeManualEffects(card, effectsMap.get(card) ?? []));
+  for (const [card, needles] of [
+    ['WXDi-P01-054', ['SELF_POWER_GTE','5000','2000']],
+    ['WXDi-P12-067', ['SELF_POWER_GTE','8000','3000']],
+    ['WXDi-P03-062', ['SELF_POWER_GTE','12000','down_self']],
+    ['WXDi-P02-065', ['HAS_CARD_IN_FIELD','isFrozen','TRANSFER_TO_DECK']],
+    ['WX09-016', ['GRANT_PROTECTION','isDown']],
+    ['WX24-P1-017', ['GRANT_EFFECT','UP','REMOVE_ABILITIES']],
+  ] as Array<[string,string[]]>) for (const n of needles) ok(j(card).includes(n), `${card}: ${n}`);
+  ok(j('WX25-CP1-074').includes('"delta":3000') && j('WX25-CP1-074').includes('CANNOT_DEAL_DAMAGE_TO_OPPONENT'), 'C1');
+  ok((j('WXK09-055').match(/GRANT_EFFECT/g)?.length ?? 0) === 3 && j('WXK09-055').includes('ENERGY_EACH_LEVEL_FILTER_GTE'), 'C2');
+  ok(j('WX25-P3-038').includes('LAST_PROCESSED_HAS_NO_ABILITIES') && !j('WX25-P3-038').includes('ABILITY_CHECK_ELSE_TRASH'), 'C3');
+  ok(j('WXDi-P01-003').includes('FIELD_LRIGS_HAVE_COLORS') && j('WXDi-P01-003').includes('"count":2'), 'C5');
+  ok(j('WD23-023-E').includes('"fromSearch":true'), 'C6');
+  ok(j('WX14-026').includes('"optional":true') && !j('WX14-026').includes('IS_MY_TURN'), 'C7');
+  ok(j('WX19-Re10').includes('"fromHand":true'), 'C8');
+  const e1 = mergeManualEffects('WX19-Re10', effectsMap.get('WX19-Re10') ?? []).find(e => e.effectId === 'WX19-Re10-E1')!;
+  ok(JSON.stringify(e1).includes('"fromTop":true'), 'C8 E1 fromTop preserved');
+});
+
+test('WXEX1-02: frozen opponent loses CONT/AUTO only', () => {
+  const target = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] });
+  target.field.signi_frozen = [true, false, false];
+  const source = mkState({ signi: ['WXEX1-02', null, null] });
+  const em = new Map(effectsMap);
+  em.set('WXEX1-02', mergeManualEffects('WXEX1-02', effectsMap.get('WXEX1-02') ?? []));
+  const cont = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '常');
+  const auto = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '自');
+  const act = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '起');
+  ok(cont.has(SIGNI_L1) && auto.has(SIGNI_L1), 'frozen CONT/AUTO');
+  ok(!cont.has(SIGNI_L2) && !auto.has(SIGNI_L2) && !act.has(SIGNI_L1), 'unfrozen/ACT remain');
+});
+
+test('new conditions: each electric level and no abilities', () => {
+  const cm = new Map(cardMap);
+  const nums = [1,2,3,4].map(l => `TEST-ELEC-${l}`);
+  nums.forEach((n, i) => cm.set(n, { CardNum:n, Type:'シグニ', CardClass:'電機', Level:String(i+1), EffectText:'' } as CardData));
+  const c = mkCtx({}, {}); c.cardMap = cm; c.ownerState.energy = nums;
+  ok(evalCondition({ type:'ENERGY_EACH_LEVEL_FILTER_GTE', owner:'self', filter:{cardType:'シグニ',story:'電機'}, levels:[1,2,3,4], minEach:1 }, c));
+  c.lastProcessedCards = [nums[0]]; c.effectsMap = new Map();
+  ok(evalCondition({ type:'LAST_PROCESSED_HAS_NO_ABILITIES' }, c));
+});
+
+test('WX25-CP1-074 E1: other Blue Archive gets +3000 and two quoted abilities', () => {
+  const ba = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardClass?.includes('ブルアカ')).slice(0, 2).map(c => c.CardNum);
+  ok(ba.length === 2, 'Blue Archive fixtures');
+  const eff = mergeManualEffects('WX25-CP1-074', effectsMap.get('WX25-CP1-074') ?? []).find(e => e.effectId === 'WX25-CP1-074-E1')!;
+  const c = mkCtx({ signi: [ba[0], ba[1], null] }, {}, ba[0]);
+  c.effectsMap = effectsMap;
+  const r = run(eff.action, c);
+  ok(r.done, 'resolved');
+  eq(r.ownerState.temp_power_mods?.find(m => m.cardNum === ba[1])?.delta, 3000, '+3000');
+  eq(r.ownerState.granted_effects?.[ba[1]]?.length, 2, 'two granted abilities');
+  ok(!r.ownerState.granted_effects?.[ba[0]], 'source excluded');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

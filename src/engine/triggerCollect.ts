@@ -965,7 +965,7 @@ export function collectDrawTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isDrawerTurn = drawerId === ctx.activeUserId;
   const limitOk = mkLimitOk(drawerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(drawerState, otherState, isDrawerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(drawerState, otherState, isDrawerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = drawerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(drawerState)) {
     if (ownAutoBlocked) continue;
@@ -1020,7 +1020,7 @@ export function collectOppDrawTriggers(
   const ATTACK_PHASES = ['ATTACK_SIGNI', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_LRIG'];
   const phase = ctx.turnPhase ?? '';
   const limitOk = mkLimitOk(reactorState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(reactorState, drawerState, reactorIsTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(reactorState, drawerState, reactorIsTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = reactorState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(reactorState)) {
     if (ownAutoBlocked) continue;
@@ -1066,7 +1066,7 @@ export function collectMillTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1117,7 +1117,7 @@ export function collectCharmToTrashTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1154,7 +1154,7 @@ export function collectEnergyToTrashTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1212,7 +1212,7 @@ export function collectRefreshTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1269,7 +1269,7 @@ export function collectPowerDecreaseTriggers(
   if (decreaseOnOpp <= 0) return { entries, usedOncePerTurnIds };
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1323,7 +1323,7 @@ export function collectMoveToDeckTriggers(
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
   const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
-  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
   const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   for (const topNum of ownFieldSources(controllerState)) {
     if (ownAutoBlocked) continue;
@@ -1765,7 +1765,7 @@ export function collectSelfEventTriggers(
       )
     : false;
   const isOwnerTurnForSelfTrigger = ownerId === ctx.activeUserId;
-  const myAbilitiesRemovedSelf = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForSelfTrigger, ctx.effectsMap, ctx.cardMap);
+  const myAbilitiesRemovedSelf = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForSelfTrigger, ctx.effectsMap, ctx.cardMap, '自');
   for (let zi = 0; zi < myState.field.signi.length; zi++) {
     const topNum = myState.field.signi[zi]?.at(-1);
     if (!topNum) continue;
@@ -2246,8 +2246,8 @@ export function collectFieldTriggers(
   };
 
   const isOwnerTurnForTrigger = ownerId === ctx.activeUserId;
-  const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap);
-  const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap);
+  const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap, '自');
+  const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap, '自');
 
   // 自分のフィールド：'any_ally' または 'any' トリガー。ON_PLAY ではルリグも監視対象。
   const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
@@ -2465,8 +2465,8 @@ export function collectTurnTriggers(
 
   const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
-  const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap);
-  const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, ctx.effectsMap, ctx.cardMap);
+  const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap, '自');
+  const opAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(opState, myState, false, ctx.effectsMap, ctx.cardMap, '自');
   // 自分のフィールドシグニ（self）
   for (const stack of myState.field.signi) {
     if (!stack?.length) continue;

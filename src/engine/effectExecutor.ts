@@ -487,7 +487,8 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(tgt.owner, ctx);
   // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
   const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-  const cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
 
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
@@ -977,6 +978,16 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
 }
 
 function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
+  if (a.optional) {
+    return needsInteraction(addLog(ctx, 'ライフクロスをクラッシュしますか？'), {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'crash', label: 'クラッシュする', action: { ...a, optional: false }, available: true },
+        { id: 'skip', label: 'クラッシュしない', action: { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' }, available: true },
+      ],
+    });
+  }
   // conditional: 前ステップが lastProcessedCards を残した場合のみ実行（「そうした場合」）
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
     return done(ctx);
@@ -6077,6 +6088,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const atlOwner = atlA.owner;
       const atlS = ownerState(atlOwner, ctx);
       const hi = atlS.hand.indexOf(cardNum);
+      const di = atlS.deck.indexOf(cardNum);
+      if (atlA.fromSearch && di >= 0) {
+        const newDeck = [...atlS.deck];
+        newDeck.splice(di, 1);
+        const newAtlS: PlayerState = { ...atlS, deck: newDeck, life_cloth: [...atlS.life_cloth, cardNum] };
+        return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
+          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
+      }
       if (hi < 0) return done(ctx);
       const newHand = [...atlS.hand];
       newHand.splice(hi, 1);

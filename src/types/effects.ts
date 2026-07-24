@@ -148,6 +148,7 @@ export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
+  | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
@@ -184,6 +185,8 @@ export type ActiveCondition =
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
+  | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
+  | { type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }
   | { type: 'OR'; conditions: Condition[] }
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
@@ -197,6 +200,7 @@ export type Condition =
   | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
+  | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number }
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
@@ -715,6 +719,7 @@ export interface BanishAction {
 export interface SendToEnergyAction {
   type: 'SEND_TO_ENERGY';
   target: EffectTarget;
+  targetsStored?: boolean;
   optional?: boolean; // true = 「してもよい」
   opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を選びエナゾーンに置く」
 }
@@ -771,6 +776,7 @@ export interface EnergyChargeFromDeckAction {
 }
 
 export interface LifeCrashAction {
+  optional?: boolean;
   type: 'LIFE_CRASH';
   owner: Owner;
   count: NumberOrRef;
@@ -824,6 +830,7 @@ export interface TransferToHandAction {
 
 // デッキ上または手札からライフクロスに加える
 export interface AddToLifeAction {
+  fromSearch?: boolean;
   type: 'ADD_TO_LIFE';
   owner: Owner;
   count: NumberOrRef;
@@ -1283,6 +1290,7 @@ export interface GrowFreeAction {
 
 // シグニの能力を消去する
 export interface RemoveAbilitiesAction {
+  abilityTypes?: Array<'常' | '自' | '起' | '出'>;
   type: 'REMOVE_ABILITIES';
   target: EffectTarget;
   until: EffectDuration;

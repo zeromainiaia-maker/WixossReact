@@ -4062,6 +4062,64 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-D01-016": [
     {"effectId":"WXDi-D01-016-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":20000},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"else":{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":15000},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // PLAN §6.3 tail: quoted abilities / replacement destinations / precise burst success gates.
+  "WX25-CP1-074": [
+    {"effectId":"WX25-CP1-074-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ","story":"ブルアカ","excludeSelf":true}},"delta":3000,"duration":"UNTIL_END_OF_TURN"},
+      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-CP1-074-sub-CONT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"CANNOT_DEAL_DAMAGE_TO_OPPONENT"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}},
+      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-CP1-074-sub-AUTO","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXK09-055": [
+    {"effectId":"WXK09-055-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"電機"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK09-055-sub-EC3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":3},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},
+      {"type":"CONDITIONAL","condition":{"type":"ENERGY_EACH_LEVEL_FILTER_GTE","owner":"self","filter":{"cardType":"シグニ","story":"電機"},"levels":[1,2,3,4],"minEach":1},"then":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK09-055-sub-DRAW2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"DRAW","owner":"self","count":2},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}},
+      {"type":"CONDITIONAL","condition":{"type":"ENERGY_EACH_LEVEL_FILTER_GTE","owner":"self","filter":{"cardType":"シグニ","story":"電機"},"levels":[1,2,3,4],"minEach":2},"then":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK09-055-sub-ENERGY","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX25-P3-038": [
+    {"effectId":"WX25-P3-038-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","story":"迷宮"},"pickCount":1,"then":"hand"},{"filter":{"cardType":"シグニ","story":"迷宮"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom"}},
+      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-P3-038-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"delta":0},
+        {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+        {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_HAS_NO_ABILITIES"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true},"else":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+      ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WXEX1-02": [
+    {"effectId":"WXEX1-02-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","isFrozen":true}},"abilityTypes":["常","自"],"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-P01-003": [
+    {"effectId":"WXDi-P01-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"condition":{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白","青"]},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ","isFrozen":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WD23-023-E": [
+    {"effectId":"WD23-023-E-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":false},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{},"maxCount":1,"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":false,"fromSearch":true},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX14-026": [
+    {"effectId":"WX14-026-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"DRAW","owner":"self","count":1},
+      {"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true,"optional":true},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"DRAW","owner":"self","count":1}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX19-Re10": [
+    {"effectId":"WX19-Re10-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"TRANSFER_TO_HAND","source":{"type":"LIFE_CLOTH_CARD","owner":"self","count":1}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":false,"fromHand":true}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX24-P2-087": [
+    {"effectId":"WX24-P2-087-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"植物"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX24-P2-087-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLteSelf":true}},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true,"isUp":true}},"optional":true},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**
