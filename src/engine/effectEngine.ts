@@ -2599,7 +2599,7 @@ export function collectColorlessOverrides(
   cardMap: Map<string, CardData>,
 ): { ownerColorless: string[]; otherColorless: string[] } {
   function getColorlessForPlayer(ps: PlayerState): string[] {
-    const result: string[] = [];
+    const result: string[] = ps.energy_colorless_ability_loss_this_turn ? [...ps.energy] : [];
     for (const stack of ps.field.signi) {
       if (!stack || stack.length === 0) continue;
       const topNum = stack[stack.length - 1];

@@ -803,6 +803,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cond.colors.every(color =>
         nums.some(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color).includes(color)));
     }
+    case 'FIELD_LRIG_COLOR_COUNT': {
+      const f = st(cond.owner).field;
+      const nums = [f.lrig.at(-1), f.assist_lrig_l?.at(-1), f.assist_lrig_r?.at(-1)]
+        .filter((n): n is string => !!n);
+      if (nums.length < (cond.minLrigs ?? 0)) return false;
+      const colors = new Set(nums.flatMap(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color)));
+      return cmp(colors.size, cond.operator, cond.value);
+    }
     case 'FIELD_COUNT':
       return cmp(st(cond.owner).field.signi.filter(s => s && s.length > 0).length,
         cond.operator, resolveNum(cond.value));
@@ -829,6 +837,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return ctx.isOwnerTurn == null || (cond.owner === 'self' ? ctx.isOwnerTurn : !ctx.isOwnerTurn);
     case 'LIFE_CRASHED_THIS_TURN':
       return cmp(st(cond.owner).life_crashed_this_turn ?? 0, cond.operator, resolveNum(cond.value));
+    case 'LIFE_CRASHED_LAST_TURN':
+      return cmp(st(cond.owner).life_crashed_last_turn ?? 0, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT_FILTER': {

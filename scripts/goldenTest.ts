@@ -132,6 +132,52 @@ function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m}
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
+test('batch7 state conditions and manual encodings', () => {
+  const savedCursor = cursor;
+  const c2 = { type: 'LIFE_CRASHED_LAST_TURN', owner: 'self', operator: 'gte', value: 2 } as const;
+  ok(evalCondition(c2, { ...mkCtx({}, {}), ownerState: { ...mkState(), life_crashed_last_turn: 2 } }), 'last=2');
+  ok(!evalCondition(c2, { ...mkCtx({}, {}), ownerState: { ...mkState(), life_crashed_last_turn: 1 } }), 'last=1');
+  const piece = mergeManualEffects('WXDi-P11-001', parseCardEffects(cardMap.get('WXDi-P11-001')!)).find(e => e.effectId === 'WXDi-P11-001-E1')!;
+  ok(piece.condition?.type === 'FIELD_LRIG_COLOR_COUNT' && piece.condition.minLrigs === 3, 'dream gate');
+  const arts = mergeManualEffects('WXK10-008', parseCardEffects(cardMap.get('WXK10-008')!)).find(e => e.effectId === 'WXK10-008-E1')!;
+  const own = executeEffect(arts, { ...mkCtx({}, {}, 'WXK10-008'), isOwnerTurn: true });
+  ok(!own.done && own.pending.type === 'CHOOSE' && own.pending.options.find(o => o.id === 'energy-loss')?.available === false, 'own turn unavailable');
+  const oppCtx = { ...mkCtx({}, {}, 'WXK10-008'), isOwnerTurn: false };
+  const opp = executeEffect(arts, oppCtx);
+  if (opp.done || opp.pending.type !== 'CHOOSE') throw new Error('opponent-turn choice missing');
+  const loss = resumeChoose('energy-loss', opp.pending, { ...oppCtx, ownerState: opp.ownerState, otherState: opp.otherState, logs: opp.logs });
+  ok(loss.otherState.energy_colorless_ability_loss_this_turn === true, 'energy loss marker');
+  const choice = (arts.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices.find(c => c.choiceId === 'banish')!;
+  const target = SIGNI_P3000;
+  const unpaid = run(choice.action, mkCtx({ energy: 0 }, { signi: [target, null, null] }, 'WXK10-008'));
+  ok(unpaid.otherState.field.signi[0]?.at(-1) === target, 'unpaid does not banish');
+  const pieceAction = piece.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const p2 = executeEffect({ ...piece, action: pieceAction }, { ...mkCtx({}, {}), ownerState: { ...mkState(), life_crashed_last_turn: 2 } });
+  ok(!p2.done && p2.pending.type === 'CHOOSE'
+    && p2.pending.options.find(o => o.id === 'banish-draw')?.available === true
+    && p2.pending.options.find(o => o.id === 'life')?.available === false, 'last=2 availability');
+  const p4 = executeEffect({ ...piece, action: pieceAction }, { ...mkCtx({}, {}), ownerState: { ...mkState(), life_crashed_last_turn: 4 } });
+  ok(!p4.done && p4.pending.type === 'CHOOSE' && p4.pending.options.every(o => o.available === true), 'last=4 availability');
+  cursor = savedCursor;
+});
+
+test('batch7 virus extra cost scales', () => {
+  const savedCursor = cursor;
+  for (const [cardNum, expectedMax] of [['WX16-048', 3], ['WX16-023', 2]] as const) {
+    const eff = mergeManualEffects(cardNum, parseCardEffects(cardMap.get(cardNum)!)).find(e => e.effectId === `${cardNum}-E1`)!;
+    const base = mkCtx({}, {}, cardNum);
+    base.otherState = { ...base.otherState, field: { ...base.otherState.field, signi_virus: [1, 1, 1] } };
+    const first = executeEffect(eff, base);
+    if (first.done || first.pending.type !== 'CHOOSE') throw new Error('remove choice missing');
+    eq(first.pending.options.length, expectedMax + 1);
+    const after0 = resumeChoose('remove_0', first.pending, { ...base, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
+    ok(!after0.done && after0.pending.type === 'CHOOSE' && after0.pending.count === 1);
+    const after2 = resumeChoose('remove_2', first.pending, { ...base, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
+    ok(!after2.done && after2.pending.type === 'CHOOSE' && after2.pending.count === 3);
+  }
+  cursor = savedCursor;
+});
+
 test('PLAN §6.3 WXK04-015-E1b: キー自壊コストを保持（WXK01-028-E3も既実装）', () => {
   const k04015 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E1b');
   const k01028 = effectsMap.get('WXK01-028')!.find(e => e.effectId === 'WXK01-028-E3');

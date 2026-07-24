@@ -4851,6 +4851,13 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
 }
 
 export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
+  // Cards in an energy zone with this turn-wide marker have no abilities.
+  // The source is still in energy for 【出】/energy-zone triggered effects.
+  if (ctx.ownerState.energy_colorless_ability_loss_this_turn
+      && ctx.sourceCardNum
+      && ctx.ownerState.energy.includes(ctx.sourceCardNum)) {
+    return done(addLog(ctx, 'エナゾーンのカードは能力を失っているため効果は発動しない'));
+  }
   return executeAction(effect.action, ctx);
 }
 

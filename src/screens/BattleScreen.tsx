@@ -3203,7 +3203,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
           energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
+          life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
+          energy_colorless_ability_loss_this_turn: undefined,
           delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
@@ -3313,7 +3315,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 付与効果を次の相手ターン終了時にクリア
           power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
           opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
+          life_crashed_last_turn: opState.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
+          energy_colorless_ability_loss_this_turn: undefined,
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           field: {
@@ -3564,7 +3568,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
         energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
+        life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
+        energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
@@ -8836,6 +8842,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const nextHuSt = { ...huSt,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
+        life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
+        life_crashed_this_turn: undefined,
+        energy_colorless_ability_loss_this_turn: undefined,
         field: {
         ...huSt.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
@@ -8859,7 +8868,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...cpuSt,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
+        life_crashed_last_turn: cpuSt.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
+        energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,

@@ -4192,6 +4192,39 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       ]}}
     ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // Batch 7: an optional virus extra cost determines the following CHOOSE count.
+  "WX16-048": [
+    {"effectId":"WX16-048-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":99},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WX16-023": [
+    {"effectId":"WX16-023-E1","effectType":"ACTIVATED","timing":["ATTACK"],"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":2},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // Choice 1 is only available on the opponent's turn. Choice 2 fixes the old
+  // IS_MY_TURN placeholder by gating BANISH on the actual optional red payment.
+  "WXK10-008": [
+    {"effectId":"WXK10-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"energy-loss","label":"対戦相手のターンの場合、このターン、対戦相手のエナゾーンにあるカードは色と能力を失う","condition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"OPP_ENERGY_COLORLESS_ABILITY_LOSS"}},
+      {"choiceId":"banish","label":"対戦相手のパワー7000以下のシグニ1体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする","action":{"type":"SEQUENCE","steps":[
+        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}}},"delta":0},
+        {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+        {"type":"STUB","id":"OPTIONAL_COST","costColors":["赤"]},
+        {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // Dream Team requires all three LRIG slots and at least three distinct colors.
+  "WXDi-P11-001": [
+    {"effectId":"WXDi-P11-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"banish-draw","label":"直前のターンにライフクロスが2枚以上クラッシュされていた場合、相手シグニ1体をバニッシュし2枚引く","condition":{"type":"LIFE_CRASHED_LAST_TURN","owner":"self","operator":"gte","value":2},"action":{"type":"SEQUENCE","steps":[
+        {"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},
+        {"type":"DRAW","owner":"self","count":2}
+      ]}},
+      {"choiceId":"life","label":"直前のターンにライフクロスが4枚以上クラッシュされていた場合、デッキをシャッフルし一番上をライフクロスに加える","condition":{"type":"LIFE_CRASHED_LAST_TURN","owner":"self","operator":"gte","value":4},"action":{"type":"SEQUENCE","steps":[
+        {"type":"SHUFFLE_DECK","owner":"self"},
+        {"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

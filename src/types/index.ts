@@ -154,6 +154,10 @@ export interface PlayerState {
   granted_effects_until_opp_turn?: Record<string, import('./effects').CardEffect[]>;
   // このターンに自分のライフクロスがクラッシュされた枚数（LIFE_CRASHED_THIS_TURN 条件用。ターン開始時にリセット）
   life_crashed_this_turn?: number;
+  /** Number of this player's life cloths crashed during the immediately preceding turn. */
+  life_crashed_last_turn?: number;
+  /** This turn, cards in this player's energy zone are colorless and have no abilities. */
+  energy_colorless_ability_loss_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）
