@@ -372,3 +372,81 @@
 - **B4 引用付与の実発火**（WX24-P2-018 等）＝Opusタスク12(xiii) の timing 誤登録修正待ちで一時停止。
 
 - **WX04-005-E3**（場出し数制限）＝STUB `LIMIT_ALL_FIELD_1` が engine 未実装と確定（Opusタスク12(xix)）。
+
+---
+
+## 2026-07-24 整理：PLAN から退避した完了行の原文
+
+> 2026-07-24 の PLAN 整理（完了タスクの本文退避＋census 履歴の圧縮）で移動。各行は移動時点の原文そのまま（PLAN 側には1行✅サマリを残置）。詳細の一次記録は BUGFIXES.md 各「続きNN」にある。
+
+### §3 Opusタスク表の完了行（原文・続き218k〜248 時点）
+
+| # | タスク | 残っていた内容（原文） |
+|---|---|---|
+| **1** | 引用付与の内側 ability parse | **✅クローズ（続き224）**＝本丸 続き164・「アタックできない」家族 続き205・(d)`WX25-P3-085` 単文型 grant mis-parse は続き224（E1 は fresh 側で既に是正済＝再収穫のみ／同カード BURST の DOWN 対象 SIGNI→LRIG を parseSentencePart1 の DOWN 規則へ bare-LRIG 検出追加＝続き223 凍結の DOWN 版・11効果消化・census 1866→1865）。残の (b) 内側「代わりに」置換（WX25-P3-038）は§3タスク6と合流・(c) `GRANT_LRIG_ABILITY` ON_PLAY 誤デフォルトは続き218i（タスク5）で消化済。詳細 BUGFIXES 続き164・205・224 |
+| **2** | census「動的比較」の残 | **✅クローズ（続き237）**＝残 WXK08-005（キー）を消化。①先頭文脱落で E4（エクシード2ダウン凍結）が無条件発火していた過剰効果を `condition:LRIG_LEVEL_CMP_OPP{lt}`（既存＝新機構不要・getKeyPieceActions が evalUseCondition 済で engine 追加ゼロ）でゲート化。②E2 空 grant は機能近似のまま維持（詰めると二重発火＋granted 経路が condition 未評価）。副産物で getKeyPieceActions の timing↔phase 未照合（107+能力の広域緩さ）を Opusタスク12 (li) へ登録。詳細 BUGFIXES 続き237（他は続き203） |
+| **3** | DRAW 脱落の parseSingleSentence 直呼び経路 | **✅tractable 分クローズ（続き238）**＝(1)`対象とし`挟みのエナ置き＋バニッシュ（WX05-024/WX13-034）(2)「対象とし、それを移動連用、B」の前半移動脱落（WXDi-P13-001 の bounce＝一般化ハンドラ）(3)WX20-071（3項＋「アクセされていた場合」を engine の離脱直前 leftStateFilter{hasAcce} へ寄せ＋collectLeaveFieldTriggers の self 経路に leftStateFilter/turnOwner ゲート新設で7効果の過剰発火も是正）(4)ドリームチーム系ピース WXDi-P08-003（REVEAL 早期 return が後続その後セグメント＋先頭色条件を捨てていたのを seed 方式で白/赤/黒3分岐復元）。census 1836→1831・golden 551・詳細 BUGFIXES 続き238。残＝真の§6.3（単発機構待ち）＝WXK07-042／WX20-049／WX26-CP1-066／対戦相手ドロー idiom/per-count ドロー＝いずれもタスク6/§6.3 長テールへ合流 |
+| **7** | §6.1 未実装action型の engine 実装 | **✅クローズ（続き202/204/204b）＝残型0**（PLAY_FREE_FROM_TRASH／PREVENT_DAMAGE／COST_SUBSTITUTE。詳細 PLAN_DETAIL §3／BUGFIXES 続き202・204） |
+| **9** | §6.2 semantic audit 系統残の機構対応 | **✅クローズ（続き239・Opus）**＝(a)SEQUENCE内 GRANT_PROTECTION `WX08-017`＝step2 count:1→'ALL'＋power30000＋UNTIL_END_OF_TURN(b)LAYER付与 `WX15-031`＝内側【常】に `sourceCostMin:5`(c)広域24件の subjectFilter/新機構＝engine 中核（collectEffectImmuneSigni が `target:{count:'ALL'}` を honor せず効果元1体のみ保護する偽陰性）を subjectFilter 変換で解消＋engine に `isDrive` 状態フィルタ・`sourceCostMin`・subjectFilter.`excludeSelf`・ローカル matchesFilter への costMin/hasCrossIcon 追加。9カード是正（WX05-024-E2/WX09-016/WX09-CB02/WX13-005A/WX18-034/WX19-048/WXEX1-37/WX08-017/WX15-031）。census 1831→1826・golden +1（552）。残＝真の§6.3＝WX11-027/WX17-001/WXEX2-36/WXK11-021/WXK11-020/WX14-049/WXEX1-58/WXK10-080/WD18-008/WX12-Re09/POWER_MODIFY 免疫5件（→§6.3 へ登録・大半は後日消化済＝§6.3 台帳参照）。詳細 BUGFIXES 続き239 |
+| **11** | BEHAVIOR_AUDIT 高シグナル22 の最終仕分け | **✅クローズ（続き234）**＝続き133で22件全件精査（真no-opバグ0件）＋残件「WXK01-021-E1 の空付与」を続き234で engine コード確認＝バグではない（E2/E3/E4 がキー top-level 効果として正しく機能・空 GRANT_LRIG_ABILITY は無害 no-op・約37枚のキー系統的ノイズ）。副産物でアーツ一時付与の内側【自】parse 失敗3枚を発見しタスク12 (l) へ登録。詳細 BUGFIXES 続き234 |
+| **17** | timing 判定が本文後半/引用内のトリガー語を先に拾う | **✅続き136で修正＝判定を効果ブロック先頭のトリガー句（trigText）に限定・23効果是正**（詳細 BUGFIXES 続き136） |
+
+### §3 Opusタスク12 在庫表の完了行（原文・続き135〜248 時点）
+
+| ID | 内容（原文） |
+|---|---|
+| (i) | ~~SP27-002-E3 引用付与の内側条件の無言消費~~ **✅続き193＝二段「かぎり」を AND 平坦化して構造化・旧STUB三重バグ削除**（詳細 BUGFIXES 続き193） |
+| (ii) | ~~WXDi-P10-035 の owner エンコード精査~~ **✅続き194＝owner にバグ無しと確定・curated 退化版を fresh へ差し替え**（詳細 BUGFIXES 続き194） |
+| (iii) | ~~WXK09-050 GRANT_CHOSEN_ABILITY の held 残存~~ **✅続き195＝parser 主経路から固有ハンドラへ委譲し held ドリフト解消**（詳細 BUGFIXES 続き195） |
+| (iv) | ~~applyDirectAction の手札カウンタ3種未更新~~ **✅続き135で修正（手札保護も移植）** |
+| (v) | ~~applyDirectAction default 節の暴走再実行~~ **✅続き181＝真の再入は STORY_CHANGE のみ・case 新設で解消、他は benign と機械確認**（詳細 BUGFIXES 続き181） |
+| (vi) | ~~POWER_MODIFY_PER_DECK_COUNT が CONTINUOUS 未実装~~ **✅続き135で実装** |
+| (vi-4)／(vi-5) | ~~6コレクタの LRIG ゾーン走査漏れ・usageLimit 書き戻し~~ **✅続き181／続き135で消化＝派生の ON_BANISH any_ally 脱落16効果も根治**（詳細 BUGFIXES 続き181・135） |
+| (vii) | ~~「アップ状態のこのシグニをダウンしてもよい」系の対象/自己混同7件~~ **✅完了（続き163/164で6枚・続き220で残1枚 WX25-P2-112）**＝WX25-P2-112 は続き220で消化＝`execDown(LRIG)` がダウンしたルリグを `lastProcessedCards` に記録＋`colorMatchesLastProcessed` 動的フィルタ新設で「共通する色を持つ相手エナをトラッシュ」を実装。DOWN は SIGNI→LRIG 是正＋optional 二択。golden 520・census 1868。詳細 BUGFIXES 続き220 |
+| (viii) | ~~checkAllEffects 精査の複合バグ~~ **✅完全クローズ**＝WX25-CP1-062／WX17-028／WX16-070／WX16-038／WDK16-13・WXK08-033／WX26-CP1-048 は続き137〜197で消化。残の WXDi-P10-034（次メインフェイズ遅延+分岐）は続き221で実装完了＝(a)裏向き配置＝新ゾーン `facedown_signi`(b)ターン跨ぎ遅延＝`pending_facedown_flip`＋collectTurnTriggers の ON_MAIN_PHASE_START に RESOLVE_FACEDOWN_FLIP 注入 (c)表向き選択分岐＝CHOOSE。golden 5件追加・census 1868→1867（詳細 BUGFIXES 続き221） |
+| (x) | ~~collectFieldTriggers の usageLimit 欠落（《ターン1回》過剰発火32枚）~~ **✅続き135＝5コレクタ統一＋書き戻し12箇所・実機PASS** |
+| (xi) | ~~CONDITIONAL{条件, then:STUB OPTIONAL_COST}包み46効果のコスト踏み倒し＋ゲート無視~~ **✅続き206で engine 解消**。要実機検証＝skip 選択時に本体が発動しないこと（→§7） |
+| (xii) | ~~WXEX1-19-E2 自己再帰STUBの無限ループ~~ **✅続き202＝一括受け取り型へ変更で根治・smoke SKIP 1→0**（詳細 BUGFIXES 続き202） |
+| (xiii) | ~~WX24-P2-018-E1 の timing 誤登録~~ **✅続き136で ON_ATTACK_PHASE_START へ是正。残る付与先バグはタスク1** |
+| (xix) | ~~WX04-005-E3 場出し数制限が未実装~~ **✅続き137＝誤診断・`fieldLimit.ts` に実装済みと確認＋golden 3件**（詳細 BUGFIXES 続き137） |
+| (xx) | ~~ON_TARGETED の forced 単一対象 follow-up 未発火~~ **✅続き137＝autoTargetedCards surface で修正・実機PASS** |
+| 🆕 | ~~choice.condition と CONDITIONAL ラップの表現不整合~~ **✅続き156＝liftChoiceOptionCondition 新設・20枚採用** |
+| (xxiii) | ~~リコレクト分割8件の内容欠落~~ **✅続き173/174で8枚全件消化**（詳細 BUGFIXES 続き173/174）。派生＝WX24-P4-016 の MB 表向きトリガー収集機構は §6.3 送り（未登録） |
+| (xxiv) | ~~トリガー発生源フィルタ脱落8件~~ **✅続き162/163/206で全消化**（`discardCostSourceStory`／`powerDecreaseSourceStory`／`last_effect_mill_source`。詳細 BUGFIXES 各続き） |
+| (xxv) | ~~driver バッチの累積疲労 flakiness~~ **✅続き140＝DB側累積が真因・injectScenario で既定値張り直し**（詳細 BUGFIXES 続き140） |
+| (xxvi) | ~~フルバッチ中の Playwright ブラウザクラッシュ~~ **✅続き142＝RECYCLE_EVERY 予防リサイクル＋クラッシュ時再確立で耐障害化**（詳細 BUGFIXES 続き142） |
+| (xxi) | ~~collectOppDrawTriggers が発生源を区別せず PR-423 誤発火~~ **✅続き162＝`drawByDrawerOwnEffect` 新設で修正・E2E 反転は続き170で確認済み**（詳細 BUGFIXES 続き162） |
+| (xxx) | ~~WXEX2-76-E1 ON_PLAY の scope/対象幻覚~~ **✅続き188＝同型3枚を根治**（詳細 BUGFIXES 続き188） |
+| (xxxi) | ~~レベル比例ドロー/エナチャージの潰れ~~ **✅続き184/187/190＝`DRAW_PER_LRIG_LEVEL`／`ENERGY_CHARGE_PER_LRIG_LEVEL`／`DRAW{perLastProcessedLevel}` 新設でクローズ**（詳細 BUGFIXES 各続き） |
+| (xxxii) | ~~ON_TRASH／ON_BLOOD_CRYSTAL_ARMOR の any_ally scope 脱落~~ **✅続き182/191で消化**（詳細 BUGFIXES 続き182・191）。残2枚＝WXK07-074（チャーム付帯）・WXK11-018（watcher 相対レベル）＝§6.3級で据置 |
+| (xxxiii) | ~~any_opp watcher の usageLimit 未評価~~ **✅続き183＝`limitOkWatcher` 追加＋リムーブ経路の両 state 永続化**（詳細 BUGFIXES 続き183） |
+| (xxxiv) | ~~`fromFieldByCostOrEffect` の parser 未 emit~~ **✅続き183＝15枚全件消化**（詳細 BUGFIXES 続き183） |
+| (xxxv) | ~~ON_TRASH「〜によって」限定の近傍表記が未ゲート~~ **✅続き186で (a)(b)(d) 消化**（詳細 BUGFIXES 続き186）。(c) 3枚（WX18-062/WX22-027/WXK03-033）＝「シグニの下から」トラッシュの collector が engine に無く §6.3 送り |
+| (未確認) | ~~collectLrigGrowTriggers の usageLimit 書き戻し疑義~~ **✅続き206＝全15コレクタの全数監査で新規の穴なしを確認**（監査スクリプト `scripts/archive/auditUsageLimitWriteback.mjs`・再実行可） |
+| (xxvii) | ~~semantic audit 第2弾（seed202607）の実害37枚~~ **✅続き165〜169・207 の Cluster 別消化でクローズ**（F フィルタ50枚／A 条件節／C owner／D timing／`ON_HAND_ADDED` 新設ほか。トリアージ `docs/_semantic_audit_scaleup2_triage.txt`） |
+| (xxxvii) | ~~アタック不可付与の据置4効果~~ **✅続き205で4件とも個別に原文照合し全採用（すべて fresh が正）** |
+| (xxxviii) | ~~付与対象に閾値フィルタが乗らない過剰効果~~ **✅続き205＝対象節スコープで抽出＋兄弟規則（付与系4規則）へ横展開・色フィルタも追加** |
+| (xxxvi) | ~~エナ代替トラッシュ情報がグロウ経路に未接続~~ **✅続き206＝人間のグロウ経路5箇所へ配線（CPU 可否は据置）**。要実機検証＝グロウ支払いUIでの実選択（→§7） |
+| (xxviii) | ~~「それをエナゾーンに置く」が TRASH 等へ潰れる系統~~ **✅続き147＝7効果を SEND_TO_ENERGY へ是正**（詳細 BUGFIXES 続き147）。残＝WX24-P4-048-E2＋WX26-CP1-086/WXK05-027/WXK05-070 のコスト STUB 精緻化 |
+| (xl) | ~~【絆常/絆自/絆起/絆出】が効果ブロック境界として認識されず絆能力が飲み込まれる（134カード137能力）~~ **✅続き215＝parser marker 3箇所＋engine 絆未獲得ゲート新設・112枚一括採用**（詳細 BUGFIXES 続き215） |
+| (xli) | ~~絆分離の残ギャップ11件~~ **✅完了（続き215→217→218）**＝7件は計器ノイズ・`BANISH_REDIRECT` 本体は続き217・(b) 種類数条件と (c) は続き218・(a) 場出し欠落は続き218c（15効果の系統＝`LOOK_PICK_CHAIN[field]` 規則を新設）。詳細 BUGFIXES 続き217／218／218b／218c |
+| (xliii) | ~~census の系統的偽陽性＝`BANISH_REDIRECT` 族~~ **✅完了（続き218d・Opus）**＝「ゾーン:エナゾーンに置く」カテゴリに `extraOk` を追加し redirect イディオム句を除いた残りに「エナゾーンに置」が残らないときだけ合格。族の全22効果で残存0を機械確認。census 1895→1891。詳細 BUGFIXES 続き218d |
+| (xlv) | ~~「アタックフェイズの間」限定の CONTINUOUS 常在効果が activeCondition 脱落で PERMANENT 化~~ **✅続き218f＝`DURING_ATTACK_PHASE` を新設。13効果12カード是正・census 1888→1886**（詳細 BUGFIXES 続き218f） |
+| (xlvii) | ~~「対戦相手のルリグがアタックしたとき」に防御側の付与AUTO を発火させる収集経路が engine に無い~~ **✅完了（続き218j・Opus）**＝`collectLrigAttackDefenderTriggers` を新設。4効果が完全化（`WX15-002-E2` ほか）。golden 514→516。詳細 BUGFIXES 続き218j |
+| (xlviii) | ~~「〜てもよい」（任意アクション）が parser で optional:true を落とし engine が強制実行＋「そうした場合」did-it ゲートが常時成立~~ **✅続き225（Opus）＝4ハンドラに optional 配線。ライブ90枚を pure-superset 自動採用で一括是正。census 1865→1846・golden 528**（詳細 BUGFIXES 続き225） |
+| (xlix) | ~~【常】出撃制限が `ADD_TO_FIELD` へ mis-parse~~ **✅続き248（Opus）で消化＝11枚系統**＝新設 `SELF_PLAY_RESTRICT` アクション＋`canSelfPlay` を `handleSummonSigni` へ配線。golden 573→579・census 1825→1817。詳細 BUGFIXES 続き248 |
+| (li) | ~~`getKeyPieceActions` がキーの ACTIVATED 能力を timing↔phase 照合せず surface~~ **✅続き240（Opus）で消化**＝`keyActivatedTimingMatchesPhase` を新設しシグニ【起】と同型の照合を挿入。golden 552→554・census 1826据置。残＝《アタックフェイズアイコン》動的付与と真のカットイン窓モデル化は §6.3級で据置。詳細 BUGFIXES 続き240 |
+
+### §3 Sonnetタスク表の完了行（原文）
+
+| # | タスク | 内容（原文） |
+|---|---|---|
+| 9 | ~~PARTIAL 刻印 151件のトリアージ~~ **✅完了（続き138）**＝152件全件を3分類完了＝実害144件を Opusタスク12 (xxii)(xxiii)(xxiv) へ登録（成果物 `docs/_partial_triage.txt`） |
+
+続き208の未採用在庫40枚・続き201の未採用在庫37効果・補欠(a)(b) はいずれも✅続き214で全消化（詳細 BUGFIXES 続き214／続き172・170）。
+
+### §4 census 計測履歴（宣言前バッチ逓減・2026-07-24 に PLAN §4 恒久指標から退避）
+
+> P1完了宣言（2026-07-23・凍結基線1581）に至るまでのバッチ逓減の原文。PLAN 側には現値＋直近数件のみ残置。
+
+宣言直前の逓減履歴＝2026-07-23 バッチ5c第1波＋第2波〔新機構 selectionConstraint＋FIELD_LRIGS_SHARE_COLOR・計60効果〕1649→1644→計器較正〔バッチ5系新語彙の census keys 登録＝偽陽性32回復〕1644→1612→バッチ11〔相手が選ぶ43＝opponentSelects 一括付与〕1612→1589→バッチ6〔数量比例27＝resolveCountRef 一本化・countFromZone・perAllSigni〕1589→1581。旧・2026-07-23 ROADMAPバッチ5b＝codex実装/Claude確認・同一性参照フィルタ31効果〔既存 levelEqualsVar/levelEqDiscardLevelSum 発行＋新語彙5本の resolveDynamicFilter 共通解決＋コスト記録2経路。WXK10-001 GRANT_KEYWORD 脱落退化は Claude 復元〕＝1674→1649〔golden 654→658〕。旧・2026-07-23 ROADMAPバッチ5第1波＝codex実装/Claude確認・ルリグ共通色filter脱落25効果〔parseColorMatchesLrig 否定形拡張＋LRIG_COLOR_BATCH5_ENERGY カードゲート・BANISH/POWER_MODIFY 対象オーナー基準化＝既存59保持効果の全数監査で挙動変化ゼロ確認〕＝1695→1674〔golden 651→654〕。旧・2026-07-23 §6.3 G072続編第2波＝codex実装/Claude確認・被バニッシュ側ゲート9効果〔banishedFrontOfSelf parser化＋notWhileAttacking・banishedHadCharm 変種・banishedLevelLtWatcher＋levelEqTrigger・banishedFromCenterZone・banishedWasUp＝section1初ゲート〕＝1698→1695〔golden 644→650〕。旧・2026-07-23 §6.3 G072残6枚＝codex実装/Claude確認・条件前置き付き相手バニッシュ反応6効果〔duringMainPhase 配線・banishedHadCharm・banishedByOwnEffect/banishedSourceStory＝cause引数・WXEX2-23-E2 傀儡STUB化＋triggeringCardNum 保持＝副作用で WXK11-020-E2 の powerLtTrigger 無制限バニッシュ潜在バグも解消〕＝1702→1698〔golden 637→644〕。旧・2026-07-23 §6.3 アップ/ダウン状態ファミリ＝codex実装/Claude確認・追加ダウンコストを既存 `fieldDown` regex 拡張（＜A＞か＜B＞/色）で表現〔codex の並行語彙 signiDown は検証で撤去・WXDi-P14-040 二重コスト化を是正〕＋`OPTIONAL_COST.handDiscard` 実払い＋watcher 是正（banishedFrontOfSelf/duringMainPhase）の12効果〔golden 617→627〕＝1711→1702。旧・2026-07-22 ブースト機構＝§6.3 5番目bullet の「あなたがブーストしていた場合」ボーナス4枚を CONDITIONAL{IS_BOOSTING}＋任意追加エナUIで parse＝1713→1711。旧・続き254＝Opus・ROADMAPバッチ2第2波の実測でルート枯渇を確認し真バグ4枚を直修正（WX10-013/WX11-046 の POWER_MODIFY owner:any 潰れ＝class/色/level 接頭辞追加／WX05-023-E3 の PLACE_UNDER cardName 誤合成／WX09-020 の白か黒 PRESERVE 直パッチ）＝1715→1713〔golden 596→599〕。旧・続き253＝Opus+Codex・ROADMAPバッチ2第1波「対象フィルタ合成・トラッシュ→手札」＝30枚採用（`extractNounPhraseFilter` 新設＝複色OR/無色/cardName包含/excludeCardName/nonColorless＋複合対象の SEQUENCE 分割。PRESERVE 11件は直パッチ）＝1742→1715〔golden 593→596〕。effectEngine の nonColorless `'無'` 欠けも同時修正。旧・続き252＝Opus+Codex・ROADMAPバッチ1第4波「センタールリグ条件＋ターン内履歴/出自」＝22枚採用（OR/THIS_CARD_FROM_DECK/PLACED_BY_CLASS省略形の3拡張）＝1761→1742〔golden 590→593〕。Codex の parser 未修正納品（held 86 汚染）と誤合成残骸3件を Claude 側で是正（STATE_COND_BATCH4_ACTIONS 固定・held 73 復帰）。旧・続き251＝Opus+Codex・ROADMAPバッチ1第3波「盤面/ゾーン状態条件」＝「場/トラッシュ/エナに〜がある場合」系の丸ごと脱落33枚（distinctColors/HAS_KEY_IN_FIELD/hasCharm 拡張）を採用＝1792→1761〔golden 588→590〕。Claude 検証で恒久 force-adopt 撤去・巻き添え退化4件復元・死フラグ1件修正。旧・続き250＝Opus+Codex・ROADMAPバッチ1第2波「参照カード属性条件」＝「それ/そのカードが〈属性〉の場合」系の真バグ13枚（elseAction 新設・AWAKEN 対象覚醒・レゾナ per-target 置換・isDisona filter・名前ゲート）を採用＝1799→1792〔golden 584→588〕。同クラスタ41件中21件は REVEAL_AND_PICK filter 表現済みの census 偽陽性と実測分類。旧・続き249＝Opus+Codex・ROADMAPバッチ1第1波「状態条件節の持ち上げ」＝ターン所有者条件17＋ライフクロス枚数8の条件節丸ごと脱落（無条件発火の過剰効果）を新条件型 `TURN_OWNER`（実行時実評価・`ExecCtx.isOwnerTurn` 配線）＋`LIFE_COUNT` opponent版/AND複合で25効果採用＝1817→1799〔golden 579→584〕。旧・続き248＝Opus・タスク12(xlix)「【常】：このシグニ/カード/キーは（新たに）場に出すことができない」の自身出撃制限11枚が bare `ADD_TO_FIELD` へ誤 parse され inert no-op 化していた系統を新設 `SELF_PLAY_RESTRICT`＋`canSelfPlay` 配線で消化＝1825→1817〔golden 573→579〕。旧・続き243＝Opus・タスク12(xxix)「そのシグニの【出】能力」クラスタを忠実表現化＝死アクション `BLOCK_ACTION{ON_PLAY_ABILITY}`（engine 未参照）を配置アクションの `suppressOnPlay` フラグへ畳む fold を parser 単一チョークポイントに新設（76効果折込・22効果はアンカー無しで据置）＝block→flag の構造変換ゆえ高signal欠落計器の対象外・1825維持〔golden 557→562〕。旧・続き236＝Sonnet（Opusタスク16試行）・WX17-032「正面以外のシグニをバニッシュしたとき」の ON_PLAY 誤フォールバックを是正（trigger regex＋新設 `triggerCondition.banishedNotFront`）。UP先「そのアタックしているシグニ」は能力ホスト≠実アタッカーになりうるため新設 `targetsBattleAttacker` で解決＝'除外(〜以外の)' カテゴリの keys に `NotFront` も追加（`thisCardOnly` 採用時の偶然一致に頼らない恒久対応）。1839→1838。旧・続き233＝Opus・§6.3 機構待ち解消＝ON_LEAVE_FIELD 跨サイド any_opp watcher の `byEffect`/`leftStateFilter{isFrozen}` ゲート＋離脱直前 state スナップショット配線で WXK11-017-E1／WXEX1-30-E2／WXDi-P03-040-E1 を self 誤発火→any_opp 正発火へ（併せて REVEAL_AND_PICK remainder に shuffle 語彙）＝1841→1839〔golden 535→537〕。旧・続き232＝Opus・タスク5「このシグニを場からトラッシュに置いてもよい」自己犠牲5枚に thisCardOnly＋optional を付与＝対象/任意性の是正で語彙センサスの対象外＝1841維持〔golden 534→535〕。旧・続き231＝Opus・タスク12(xliv)(a2) 効果経路の 【常】 BANISH_REDIRECT 走査を配線＝バニッシュ先（エナ→トラッシュ）の是正で語彙センサスの対象外・1841維持〔golden 533→534〕。旧・続き229＝Opus・census クラスタ「Nまで上限選択」精査＝REVEAL_AND_PICK のフィルタ付き pick ハンドラが「スペル」noun を欠き「（色の）スペル1枚を公開し手札に加え」が LOOK_AND_REORDER に飲まれ pick 脱落していた系統を noun 群に「スペル」追加（cardType:スペル＋pickNoun:スペル）で是正＝SPDi43-17-E1（採用）＋WXK05-023-E3（MANUAL 手術）を被覆し 1843→1841（golden 532維持）。旧・続き228＝Opus・タスク3 DRAW脱落の一部＝「デッキの一番上のカードをエナゾーンに置き、X」連用中止が後続を飲み込んで脱落していた系統を連用中止 splitter に追加＝WX15-098/WX19-030-E2 の energy-charge を回復し 1845→1843（golden 532維持）。旧・続き227＝Opus・タスク4 「あり」複合条件 WXDi-P11-048-E1 を消化＝トラッシュ色枚数＋相手エナ枚数の AND を parser に1本追加。過剰効果（条件脱落）の是正は「欠落」計器を動かさず 1845 維持（golden 532維持）。旧・続き226＝Opus・タスク12(xxix)(b) 完了＝照応先ロスト系統（「対戦相手のシグニ1体を対象とし、[任意コスト]。そうした場合、それの…」で照応先が失われ owner:self+targetsTriggerSource／source:DECK_CARD へ化ける）を parser 後処理2本で復元＝ライブ84枚＋MANUAL1枚を一括是正。census は owner 変更が欠落語彙計器をほぼ動かさず1846→1845（golden 528→532）。旧・続き225＝Opus・タスク12(vii)系 完了＝「〜てもよい」任意アクションの optional 脱落（強制実行＋did-it ゲート常時成立）を4ハンドラで是正＝ライブ90枚を pure-superset 自動採用で一括是正＋optional 復元で過去 held 改善が解禁され自動採用され1865→1846（golden 527→528）。旧・続き224＝Opus・タスク1(d) 完了＝WX25-P3-085 の単文型 grant mis-parse を再収穫（E1 の GRANT_EFFECT 復元で欠落1件解消）＋同カード BURST の DOWN 対象 SIGNI→LRIG を parser 一般化で是正（DOWN 種別変更は「欠落」計器の対象外）で1866→1865（golden 527維持）。旧・続き223＝Opus・タスク12(xxix)(b) 222クラスタ・トリアージ＝「対戦相手のルリグ1体…凍結」の FREEZE 対象 SIGNI→LRIG 種別取り違え18効果を parser 一般化で消化＝凍結は「欠落」計器の対象外のため1866維持（golden 526→527）。旧・続き222＝Opus・タスク12(xxix) 残(a) クローズ＝WX06-014-E2 の step1 を「自分トラッシュから古代兵器5枚をデッキ下」へ是正し MANUAL 化・did-it ゲートで「そうした場合」を表現し1867→1866。旧・続き221＝Opus・タスク12(viii) 完全クローズ＝WXDi-P10-034 の裏向き設置→ターン跨ぎ遅延→表向き分岐を実装し1868→1867。旧・続き220＝Opus・タスク12(vii) WX25-P2-112 のダウン→共通色エナトラッシュ実装で1869→1868。旧・続き219b＝Opus・タスク12(xxxix) CHOOSE ヘッダ前の状態条件の汎用持ち上げで10枚是正し1878→1874。旧・続き219＝Opus・タスク12(xxxix) 先頭条件脱落5枚＝「各ターン終了時」strip 漏れ＋相対手札比較 `HAND_DIFF` の CONDITIONAL 未配線を是正し1880→1878。旧・続き218g＝Opus・parser は `REVEAL_AND_PICK` を出すのに curated が古い `LOOK_AND_REORDER` のまま「手札に加える」が死んでいた held ドリフト9効果を採用し1886→1880。旧・続き218f＝Opus・「アタックフェイズの間」限定の CONTINUOUS 常在効果の PERMANENT 潰れを `DURING_ATTACK_PHASE` 新設で是正し1888→1886。旧・続き218e＝Opus・「それをデッキの一番上に置く」のトラッシュ回収幻覚を是正し1891→1888。旧・続き218d＝`BANISH_REDIRECT` 族の census 偽陽性を extraOk 較正で解消し1895→1891。旧・続き218＝①「N種類以上」条件の語彙化で1919→1916／②`lrigDown` コスト限定で1916→1899。
