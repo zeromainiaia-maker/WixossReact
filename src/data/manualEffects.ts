@@ -4120,6 +4120,37 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // PLAN §6.3 B-group tractable fixes (2026-07-24).
+  // WXDi-P02-039-E1: the collector already excludes the watcher itself for any_ally ON_PLAY
+  // and supplies triggeringCardNum, so both power modifications are exact.
+  // E2: frontOfSelf is wired for BANISH, allowing the quoted attack ability to remain exact.
+  "WXDi-P02-039": [
+    {"effectId":"WXDi-P02-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"地獣"},"action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true,"delta":4000,"duration":"UNTIL_END_OF_TURN"},
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"delta":4000,"duration":"UNTIL_END_OF_TURN"}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P02-039-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","powerRange":{"min":20000}}},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P02-039-E2-GRANT","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"OPTIONAL_COST","costColors":["赤","無"]},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":12000},"frontOfSelf":true},"upToCount":false}}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // The revealed/picked SIGNI is recorded in lastProcessedCards by resumeSearch.
+  // A non-SIGNI top card produces no SEARCH interaction, so the nested action is not run.
+  "WX24-P3-063": [
+    {"effectId":"WX24-P3-063-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ"},"pickCount":1,"then":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","levelEqLastProcessed":true}},"until":"UNTIL_END_OF_TURN"},"remainder":{"location":"deck","position":"top"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // E1 is retained exactly: any allied <Demon> banish, with levelLtTrigger for the revived SIGNI.
+  // BURST choice 1 records the two discarded cards; the life-cloth add is gated on that exact count.
+  "WD14-011": [
+    {"effectId":"WD14-011-E1","effectType":"AUTO","timing":["ON_BANISH"],"triggerScope":"any_ally","triggerFilter":{"story":"悪魔"},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","levelLtTrigger":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WD14-011-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"discard-life","label":"手札を2枚捨て、この方法で2枚捨てた場合デッキの一番上をライフクロスに加える","action":{"type":"SEQUENCE","steps":[
+        {"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2}},
+        {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}
+      ]}},
+      {"choiceId":"recover-demon","label":"トラッシュから＜悪魔＞のシグニ1枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}}}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

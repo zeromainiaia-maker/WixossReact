@@ -8565,6 +8565,90 @@ test('WX25-CP1-074 E1: other Blue Archive gets +3000 and two quoted abilities', 
   ok(!r.ownerState.granted_effects?.[ba[0]], 'source excluded');
 });
 
+test('PLAN §6.3 B-group A lock-in: arts restrictions/choices and Dokuga power trigger stay intact', () => {
+  const merged = (card: string) => mergeManualEffects(card, effectsMap.get(card) ?? []);
+  const wx20 = merged('WX20-021').find(e => e.effectId === 'WX20-021-E1')!;
+  const k11 = merged('WXK11-003').find(e => e.effectId === 'WXK11-003-E1')!;
+  for (const [eff, chooseCount, fromCount] of [[wx20, 2, 3], [k11, 1, 2]] as const) {
+    const seq = eff.action as SequenceAction;
+    eq(seq.steps[0]?.type, 'BLOCK_ACTION', `${eff.effectId}: opponent-turn-only block`);
+    const choose = seq.steps[1] as Extract<EffectAction, { type: 'CHOOSE' }>;
+    eq(choose.type, 'CHOOSE', `${eff.effectId}: choice retained`);
+    eq(choose.choose_count, chooseCount, `${eff.effectId}: choose_count`);
+    eq(choose.from_count, fromCount, `${eff.effectId}: from_count`);
+  }
+  const dokuga = merged('WX25-P3-062').find(e => e.effectId === 'WX25-P3-062-E1')!;
+  eq(dokuga.timing?.[0], 'ON_OPP_POWER_DECREASED');
+  ok(JSON.stringify(dokuga.action).includes('"deltaFromOppPowerDecrease":true'), 'decreased amount is copied');
+  // Current curated data is stricter than the stale PLAN note: source story and self exclusion are wired.
+  eq(dokuga.triggerCondition?.powerDecreaseSourceStory, '毒牙');
+  eq(dokuga.triggerCondition?.powerDecreaseExcludeSelf, true);
+});
+
+test('PLAN §6.3 B-1 WXDi-P02-039-E1: another Earth Beast entering gives it and the watcher +4000', () => {
+  const host = 'WXDi-P02-039';
+  const earth = findCard(c => isSigni(c) && c.CardNum !== host && (c.CardClass ?? '').includes('地獣'));
+  const owner = mkState({ signi: [host, earth, null] });
+  const other = mkState();
+  const mergedCtx = trigCtx(HOST);
+  mergedCtx.effectsMap = new Map(effectsMap);
+  mergedCtx.effectsMap.set(host, mergeManualEffects(host, effectsMap.get(host) ?? []));
+  const collected = collectFieldTriggers(mergedCtx, 'ON_PLAY', earth, owner, other, HOST);
+  const entry = collected.entries.find(e => e.effectId === 'WXDi-P02-039-E1');
+  ok(!!entry, 'another allied Earth Beast triggers');
+  const c = mkCtx({ signi: [host, earth, null] }, {}, host);
+  c.triggeringCardNum = earth;
+  const r = run(entry!.effect.action, c);
+  eq(r.ownerState.temp_power_mods?.filter(m => m.cardNum === earth).reduce((n, m) => n + m.delta, 0), 4000, 'trigger source +4000');
+  eq(r.ownerState.temp_power_mods?.filter(m => m.cardNum === host).reduce((n, m) => n + m.delta, 0), 4000, 'watcher +4000');
+  const selfPlay = collectFieldTriggers(mergedCtx, 'ON_PLAY', host, mkState({ signi: [host, null, null] }), other, HOST);
+  ok(!selfPlay.entries.some(e => e.effectId === 'WXDi-P02-039-E1'), 'self entry is excluded');
+});
+
+test('PLAN §6.3 B-2 WX24-P3-063-E1: revealed SIGNI level only loses matching opposing abilities', () => {
+  const eff = mergeManualEffects('WX24-P3-063', effectsMap.get('WX24-P3-063') ?? []).find(e => e.effectId === 'WX24-P3-063-E1')!;
+  const r = run(eff.action, mkCtx({ deckTop: [SIGNI_L2] }, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WX24-P3-063'));
+  ok(r.otherState.abilities_removed?.includes(SIGNI_L2), 'level 2 removed');
+  ok(!r.otherState.abilities_removed?.includes(SIGNI_L3), 'level 3 retained');
+  const nonSigni = findCard(c => !isSigni(c));
+  const noOp = run(eff.action, mkCtx({ deckTop: [nonSigni] }, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WX24-P3-063'));
+  eq(noOp.otherState.abilities_removed?.length ?? 0, 0, 'non-SIGNI reveal is no-op');
+});
+
+test('PLAN §6.3 B-3 WD14-011 BURST: both choices and exact two-card success gate', () => {
+  const eff = mergeManualEffects('WD14-011', effectsMap.get('WD14-011') ?? []).find(e => e.effectId === 'WD14-011-BURST')!;
+  const addLife = run(eff.action, mkCtx({ hand: 2, life: 3 }, {}, 'WD14-011'));
+  eq(addLife.ownerState.hand.length, 0, 'choice 1 discards two');
+  eq(addLife.ownerState.life_cloth.length, 4, 'choice 1 adds one life cloth');
+
+  const demon = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+  const c = mkCtx({}, {}, 'WD14-011');
+  c.ownerState.trash = [demon, SIGNI_L2];
+  const initial = executeEffect(eff, c);
+  ok(!initial.done && initial.pending.type === 'CHOOSE', 'BURST presents two choices');
+  if (initial.done || initial.pending.type !== 'CHOOSE') return;
+  const picked = resumeChoose('recover-demon', initial.pending, {
+    ...c, ownerState: initial.ownerState, otherState: initial.otherState, logs: initial.logs,
+  });
+  const recovered = finish(picked, c);
+  ok(recovered.ownerState.hand.includes(demon), 'choice 2 recovers a Demon SIGNI');
+  ok(recovered.ownerState.trash.includes(SIGNI_L2), 'non-Demon remains in trash');
+
+  const e1 = mergeManualEffects('WD14-011', effectsMap.get('WD14-011') ?? []).find(e => e.effectId === 'WD14-011-E1')!;
+  eq(e1.triggerScope, 'any_ally');
+  eq(e1.triggerFilter?.story, '悪魔');
+  ok(JSON.stringify(e1.action).includes('"levelLtTrigger":true'), 'relative level filter retained');
+});
+
+test('PLAN §6.3 B-4 WXDi-P02-039-E2: power threshold grants exact paid front banish ability', () => {
+  const eff = mergeManualEffects('WXDi-P02-039', effectsMap.get('WXDi-P02-039') ?? []).find(e => e.effectId === 'WXDi-P02-039-E2')!;
+  const json = JSON.stringify(eff);
+  ok(json.includes('"type":"GRANT_EFFECT"') && json.includes('"min":20000'), 'only power 20000+ SIGNI receive the ability');
+  ok(json.includes('"OPTIONAL_COST"') && json.includes('["赤","無"]'), 'red/colorless optional cost retained');
+  ok(json.includes('"max":12000') && json.includes('"frontOfSelf":true'), 'banish is limited to front power 12000 or less');
+  ok(!json.includes('"min":20000,"max":12000'), 'impossible collapsed range removed');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

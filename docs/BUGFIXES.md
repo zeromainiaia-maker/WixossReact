@@ -4,6 +4,22 @@
 
 ---
 
+## PLAN §6.3 B群 tractable 分（2026-07-24・codex実装/Claude確認）
+
+現物 JSON と collector/executor 経路を照合し、`manualEffects.ts` の effectId 単位上書きで既存効果を保持した。項目別の判断は以下。
+
+- **A-1 WX20-021-E1＝lock-in**：既存の `BLOCK_ACTION{USE_ARTS_EXCEPT_OPP_TURN}`＋`CHOOSE 2/3` を改変せず golden 固定。
+- **A-2 WXK11-003-E1＝lock-in**：既存の同 block＋`CHOOSE 1/2` を改変せず golden 固定。
+- **A-3 WX25-P3-062-E1＝lock-in**：依頼時の「発生源フィルタ drop」という記述より現物が進んでおり、`powerDecreaseSourceStory:'毒牙'`＋`powerDecreaseExcludeSelf:true` まで既に厳密実装済み。退化させず現状を golden 固定。
+- **B-1 WXDi-P02-039-E1＝実装**：`SEQUENCE[POWER_MODIFY targetsTriggerSource +4000, POWER_MODIFY thisCardOnly +4000]`。`collectFieldTriggers` の `any_ally` 自身除外・`triggerFilter{story:'地獣'}`・`triggeringCardNum` 伝播も実行テストで固定。
+- **B-2 WX24-P3-063-E1＝実装**：`REVEAL_AND_PICK` が選択した公開シグニを `lastProcessedCards` に残す既存経路を使い、`REMOVE_ABILITIES.filter.levelEqLastProcessed` を付与。Lv2公開時は相手Lv2のみ喪失、非シグニ公開時は no-op を golden 固定。
+- **B-3 WD14-011-BURST＝実装**：2択を復元。①手札2枚 TRASH→`LAST_PROCESSED_COUNT_GTE:2`→山上ライフ追加、②トラッシュの＜悪魔＞シグニ1枚回収。**WD14-011-E1＝lock-in**：現物は既に `any_ally`＋`story:'悪魔'`＋`levelLtTrigger` で正しく、manual override でもそのまま保持。
+- **B-4 WXDi-P02-039-E2＝実装（defer なし）**：既存の `GRANT_EFFECT`、付与先 `powerRange.min:20000`、引用 `ON_ATTACK_SIGNI`、`OPTIONAL_COST{赤,無}`、支払いゲート、BANISH 対象 `powerRange.max:12000`＋`frontOfSelf:true` だけで忠実表現可能と確認。不可能 range `{min:20000,max:12000}` を撤去し、正面限定の近似省略もなし。
+
+検証：golden **690/690 PASS**、`npm run gates` 全緑（typecheck/golden/smoke 10724/10724/fuzz 200ゲーム/census/lint 0 errors）、`npm run census` **1580（BASELINE_HIGH=1580、増減なし）**。生成物 doc は更新なし。commit なし。
+
+---
+
 ## 🏁 P1完了宣言（2026-07-23・Opus・docs のみ）
 
 PLAN §5「完了判定」の定義（高シグナル逓減限界到達）に従い **P1（表現）完了を正式宣言**した。コード変更なし＝宣言ドキュメント＋分類再計測＋docs 同期のみ（census 1581 維持・全ゲート不変）。
