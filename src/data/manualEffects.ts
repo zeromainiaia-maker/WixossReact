@@ -4151,6 +4151,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"choiceId":"recover-demon","label":"トラッシュから＜悪魔＞のシグニ1枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}}}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // PLAN §6.3 tail / WDK07-E15. ACCE_FROM_HAND cannot represent a picked
+  // deck card or the fixed "this SIGNI" host, so use the dedicated exact path.
+  "WDK07-E15": [
+    {"effectId":"WDK07-E15-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"調理"},"pickCount":1,"then":{"type":"STUB","id":"INTERNAL_ACCE_PICKED_TO_SELF"},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

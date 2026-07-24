@@ -8649,6 +8649,47 @@ test('PLAN §6.3 B-4 WXDi-P02-039-E2: power threshold grants exact paid front ba
   ok(!json.includes('"min":20000,"max":12000'), 'impossible collapsed range removed');
 });
 
+test('PLAN §6.3 tail A lock-in: WX24-P1-026 dual pick and Lancer', () => {
+  const eff = effectsMap.get('WX24-P1-026')!.find(e => e.effectId === 'WX24-P1-026-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"type":"LOOK_PICK_CHAIN"'), 'dual pick chain retained');
+  ok(json.includes('"then":"hand"') && json.includes('"then":"field"'), 'hand and field destinations retained');
+  ok(json.includes('"targetsLastProcessed":true') && json.includes('"keyword":"ランサー"'), 'Lancer applies to field pick');
+});
+
+test('PLAN §6.3 tail A lock-in: WX25-CP1-025 white Blue Archive gate', () => {
+  const eff = effectsMap.get('WX25-CP1-025')!.find(e => e.effectId === 'WX25-CP1-025-E1')!;
+  const json = JSON.stringify(eff.action);
+  ok(json.includes('"type":"REVEAL_AND_PICK"') && json.includes('"pickCount":2'), 'two-card pick retained');
+  ok(json.includes('"type":"LAST_PROCESSED_MATCHES"') && json.includes('"color":"白"') && json.includes('"cardClass":"ブルアカ"'), 'success gate retained');
+  ok(json.includes('"type":"BOUNCE"') && json.includes('"max":10000'), 'bounded bounce retained');
+});
+
+test('PLAN §6.3 tail B-2 WX25-P2-009-E2 own-turn once-per-turn mill gate', () => {
+  const eff = effectsMap.get('WX25-P2-009')!.find(e => e.effectId === 'WX25-P2-009-E2')!;
+  eq(eff.triggerCondition?.turnOwner, 'self');
+  eq(eff.triggerCondition?.milledDeckOwner ?? 'any', 'any');
+  eq(eff.usageLimit, 'once_per_turn');
+  const hostState = mkState({ signi: ['WX25-P2-009', null, null] });
+  ok(collectMillTriggers(trigCtx(HOST), HOST, hostState, mkState(), 1, 0).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'own-turn mill fires');
+  const usedState = { ...hostState, actions_done: ['WX25-P2-009-E2'] };
+  ok(!collectMillTriggers(trigCtx(HOST), HOST, usedState, mkState(), 0, 1).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'second use is blocked');
+  ok(!collectMillTriggers(trigCtx(GUEST), HOST, hostState, mkState(), 1, 0).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'opponent turn is blocked');
+});
+
+test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () => {
+  const host = 'WDK07-E15';
+  const cooking = findCard(c => isSigni(c) && c.CardNum !== host && (c.CardClass ?? '').includes('調理'));
+  const nonCooking = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理'));
+  const eff = mergeManualEffects(host, effectsMap.get(host) ?? []).find(e => e.effectId === 'WDK07-E15-E1')!;
+  const attached = run(eff.action, mkCtx({ signi: [host, null, null], deckTop: [cooking] }, {}, host));
+  eq(attached.ownerState.field.signi_acce?.[0], cooking, 'Cooking SIGNI attaches to this SIGNI');
+  ok(!attached.ownerState.deck.includes(cooking), 'attached card leaves the deck');
+  const missed = run(eff.action, mkCtx({ signi: [host, null, null], deckTop: [nonCooking] }, {}, host));
+  eq(missed.ownerState.field.signi_acce?.[0] ?? null, null, 'non-Cooking does not attach');
+  eq(missed.ownerState.deck[0], nonCooking, 'non-Cooking remains on deck top');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

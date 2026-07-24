@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 tail 既存語彙 / lock-in（2026-07-24・codex実装/Claude確認）
+
+- **A / lock-in**: `WX24-P1-026-E1` は `LOOK_PICK_CHAIN[hand,field] → GRANT_KEYWORD{targetsLastProcessed,ランサー}`、`WX25-CP1-025-E1` は白＜ブルアカ＞の `LAST_PROCESSED_MATCHES` 成功時だけ power 10000 以下を `BOUNCE`。データは改変せず golden のみ追加。
+- **B-1 / honest defer**: `WX25-P1-052-E1` は現物 JSON に `turnOwner:'opponent'` と `usageLimit:'once_per_turn'` が既にある一方、`collectLeaveFieldTriggers` の `any_ally` 経路が `condition` を評価しない。「タウィル＝トレ在場」を足しても過剰発火するため未実装。条件付き `ON_LEAVE_FIELD any_ally` の engine gate 待ち。E2 は不変。
+- **B-2 / 実装**: `WX25-P2-009-E2` の現物 JSON は `turnOwner:'self'`・`usageLimit:'once_per_turn'`・`milledDeckOwner:any` 相当を既に保持。欠けていた `collectMillTriggers` の `turnOwner` 評価を追加し、自ターンの双方デッキ由来ミルで1回だけ発火する golden を追加。E1 は不変。
+- **C-1 / honest defer**: `WX25-P1-103-E1` の `LOOK_AND_REORDER(canTrash)` は `lastProcessedCards` に閲覧3枚全体しか残さず、実際にトラッシュした集合を残さない。古代兵器を「見た」と「トラッシュした」を区別できないため、フェイクせず未実装。専用 trash-result recorder 待ち。
+- **C-2 / 実装**: `WDK07-E15-E1` を manual override。`INTERNAL_ACCE_PICKED_TO_SELF` が `REVEAL_AND_PICK` の picked カードをデッキから除き、選択なしで効果元自身の `signi_acce` に装着する。非＜調理＞はデッキ上に残る golden も追加。
+
+---
+
 これまでに修正した主要なバグ・系統的修正の記録。新しいものを上に追記する。
 
 ---

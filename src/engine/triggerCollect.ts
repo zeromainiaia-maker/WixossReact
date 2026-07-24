@@ -1080,6 +1080,9 @@ export function collectMillTriggers(
         : owner === 'opponent' ? milledFromOppDeck
         : milledFromControllerDeck + milledFromOppDeck;
       if (relevant < minCount) continue;
+      const turnOwner = eff.triggerCondition?.turnOwner;
+      if (turnOwner === 'self' && !isControllerTurn) continue;
+      if (turnOwner === 'opponent' && isControllerTurn) continue;
       // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
       // ⚠last_effect_mill_source は execMill 以外の経路では埋まらない＝**未設定は発生源不明として従来どおり発火**
       //   させる（過剰側に倒す）。ここで落とすと部分実装が過少発火の退化になる。

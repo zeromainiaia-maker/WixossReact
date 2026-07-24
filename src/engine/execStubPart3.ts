@@ -30,6 +30,34 @@ export function execStubPart3(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
+  // WDK07-E15: REVEAL_AND_PICK passes the picked deck card in
+  // lastProcessedCards. Attach that exact card to the effect source itself.
+  if (stub.id === 'INTERNAL_ACCE_PICKED_TO_SELF') {
+    const picked = ctx.lastProcessedCards?.[0];
+    const host = ctx.sourceCardNum;
+    if (!picked || !host) return done(addLog(ctx, '公開カードまたはアクセ先がないためアクセ化できない'));
+    const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === host);
+    if (zoneIdx < 0) return done(addLog(ctx, '効果元シグニが場にいないためアクセ化できない'));
+    const currentAcce = ctx.ownerState.field.signi_acce ?? [null, null, null];
+    if (currentAcce[zoneIdx] !== null) return done(addLog(ctx, '効果元シグニには既にアクセがある'));
+    const deckIdx = ctx.ownerState.deck.indexOf(picked);
+    if (deckIdx < 0) return done(addLog(ctx, '公開カードがデッキにないためアクセ化できない'));
+
+    const deck = [...ctx.ownerState.deck];
+    deck.splice(deckIdx, 1);
+    const signiAcce = [...currentAcce];
+    signiAcce[zoneIdx] = picked;
+    const ownerState = {
+      ...ctx.ownerState,
+      deck,
+      field: { ...ctx.ownerState.field, signi_acce: signiAcce },
+      acce_just_done: host,
+    };
+    return done(addLog(
+      { ...ctx, ownerState },
+      `${ctx.cardMap.get(picked)?.CardName ?? picked}を${ctx.cardMap.get(host)?.CardName ?? host}にアクセ`,
+    ));
+  }
   if (stub.id === 'INTERNAL_RIDE_ON_APPLY') {
     const rideCandIROA = [0, 1, 2].flatMap(zi => {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
