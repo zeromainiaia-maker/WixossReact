@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-24・Opus 4.8＋Codex 分担・§6.3 個別カード＝CHOOSE 選択肢内「そうした場合／条件」の IS_MY_TURN 誤変換2枚を消化**（golden 713→715・census 1577 据置・commit bfadddb5）
+  - **投入前実測でスコープ確定**＝§6.3 残「個別カード・機構待ち」を精査。大半は §6.4級の大型機構待ちで正しく defer 継続。既存機構だけで消化できる2枚を切り出した（共通テーマ＝CHOOSE 選択肢の「そうした場合」「〜の場合」が parser で `IS_MY_TURN` 誤変換＝自ターン起動で常時 true ＝過剰実行）。
+  - **WX25-CP1-002-E1 choice④**＝STUB＋無条件BOUNCE を `LAST_PROCESSED_HAS_NO_ABILITIES`→＜ブルアカ＞任意捨て（OPTIONAL_COST/PAID_ADDITIONAL_COST）→同一対象 BOUNCE へ既存語彙で MANUAL 再エンコード。**WD22-036-G-E1 choice①②**＝自バニッシュ後を `LAST_PROCESSED_COUNT_GTE` ゲートへ（①は `REVEAL_AND_PICK handOrField`・②は `TRANSFER_TO_DECK` 遊具回収+shuffle）。parser 不変・新型ゼロ。
+  - **検証（Claude・是正0）**＝独立ゲート全緑（golden 715/0・census 1577 据置・★0・smoke/fuzz 0・lint 221w/0e）。per-effect diff は対象2枚のみ（outlier 0）。`story` フィルタが engine で CardClass 照合であることを裏取り。
+
 - **セッション（2026-07-23・Opus 4.8・🏁 P1完了宣言の実施＋docs 同期**（census 1581 で3分類を機械再計測・コード変更なし）
   - **宣言**＝§5「完了判定」の定義（高シグナル逓減限界）に従い **P1（表現）完了を正式宣言**。根拠＝バッチ2〜4の投入前実測枯渇（続き254）＋最短ルートのバッチ1〜5＋再クラスタリング生存バッチ2本（バッチ11=43・バッチ6=27）の全消化（census 1612→1581）＝「1 parser規則→N効果」の系統クラスタが出尽くした。宣言本文・以後の運用は [ROADMAP](./P1_COMPLETION_ROADMAP.md) 冒頭の宣言節。
   - **3分類（census 1581・ROADMAP「再現方法」で機械再計測）**＝**§6.3 正式送り 282**（機構カテゴリ98＋混在68＋設計除外〔代わりに67・引用付与61〕）／**粗網のみ偽陽性主体 116**（小さい数/数値不一致だけ＝単発精査対象）／**長テール単発・別節偽陽性 1183**（BEHAVIOR_AUDIT／semantic audit で逐次）。機械2分類の更新値＝純P1 1415(90%)／混在68(4%)／純§6.3 98(6%)。`docs/_p1_classification.txt` を census 1581 で再生成（粗網のみ116の実IDを追加）。
