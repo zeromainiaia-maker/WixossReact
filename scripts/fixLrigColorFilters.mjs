@@ -87,12 +87,45 @@ const FIXES = [
     locate: e => e.action },
   { file: 'effects_WX24_26', card: 'WX25-CP1-040', eid: 'WX25-CP1-040-E1b', type: 'variableEnergyTrashLevelBounce',
     locate: e => e.action },
+
+  // PLAN §6.3「続き20の近似・STUBテール」:
+  // build:effects 後も維持する個別 MANUAL 修正。
+  { file: 'effects_WXK', card: 'WXK04-015', eid: 'WXK04-015-E1b', type: 'trashKeyCost',
+    locate: e => e },
+  { file: 'effects_WX', card: 'WX14-028', eid: 'WX14-028-E1', type: 'searchColorExcludeGreen',
+    locate: e => e },
+  { file: 'effects_WX', card: 'WX14-028', eid: 'WX14-028-BURST', type: 'searchDistinctColors',
+    locate: e => e },
+  // 1シグニ複数アクセを保持できない現行 state では「アクセ3枚以上」を判定不能。
+  // 誤った「相手のアクセ持ちシグニ1体をトラッシュ」を、明示的な未実装 no-op へ戻す。
+  { file: 'effects_WX', card: 'WX20-028', eid: 'WX20-028-E2', type: 'deferMultiAcceMassTrash',
+    locate: e => e },
 ];
 
 const DIR = 'public/data';
 
 function applyFix(obj, type) {
   if (!obj) return false;
+  if (type === 'trashKeyCost') {
+    obj.cost = { ...(obj.cost ?? {}), trash_key: true };
+    obj.parseStatus = 'MANUAL';
+    return true;
+  }
+  if (type === 'searchColorExcludeGreen') {
+    obj.action.filter = { ...(obj.action.filter ?? {}), colorExclude: '緑' };
+    obj.parseStatus = 'MANUAL';
+    return true;
+  }
+  if (type === 'searchDistinctColors') {
+    obj.action.selectionConstraint = { sharedColor: 'none' };
+    obj.parseStatus = 'MANUAL';
+    return true;
+  }
+  if (type === 'deferMultiAcceMassTrash') {
+    obj.action = { type: 'STUB', id: 'MULTI_ACCE_3_MASS_TRASH' };
+    obj.parseStatus = 'MANUAL';
+    return true;
+  }
   if (type === 'negateNthAttack') {
     obj.negateNthAttack = { count: 1, signi: true, lrig: true };
     return true;

@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -130,6 +130,56 @@ function test(name: string, fn: () => void) { try { fn(); pass++; } catch (e) { 
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
+
+test('PLAN §6.3 WXK04-015-E1b: キー自壊コストを保持（WXK01-028-E3も既実装）', () => {
+  const k04015 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E1b');
+  const k01028 = effectsMap.get('WXK01-028')!.find(e => e.effectId === 'WXK01-028-E3');
+  ok(k04015?.cost?.trash_key === true, 'WXK04-015-E1b cost.trash_key');
+  ok(k01028?.cost?.trash_key === true, 'WXK01-028-E3 cost.trash_key');
+});
+
+test('PLAN §6.3 WX14-028: 緑除外サーチ／BURSTの異色2枚制約', () => {
+  const e1 = effectsMap.get('WX14-028')!.find(e => e.effectId === 'WX14-028-E1')!;
+  const burst = effectsMap.get('WX14-028')!.find(e => e.effectId === 'WX14-028-BURST')!;
+  const search = e1.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  const burstSearch = burst.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(search.filter.colorExclude, '緑', 'E1 colorExclude');
+  eq(burstSearch.selectionConstraint?.sharedColor, 'none', 'BURST distinct colors');
+
+  const greenL5 = findCard(c => isSigni(c) && c.Level === '5' && (c.Color ?? '').includes('緑'));
+  const nonGreenL5 = findCard(c => isSigni(c) && c.Level === '5' && !(c.Color ?? '').includes('緑'));
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck = [greenL5, nonGreenL5];
+  const pending = executeEffect(e1, ctx) as ExecResult & { pending?: { type: string; visibleCards?: string[] } };
+  ok(!pending.done && pending.pending?.type === 'SEARCH', 'E1 SEARCH提示');
+  eq(JSON.stringify(pending.pending?.visibleCards), JSON.stringify([nonGreenL5]), '緑Lv5は候補外');
+
+  const red = findCard(c => (c.Color ?? '').includes('赤') && !(c.Color ?? '').includes('青'));
+  const blue = findCard(c => (c.Color ?? '').includes('青') && !(c.Color ?? '').includes('赤'));
+  const red2 = findCard(c => c.CardNum !== red && (c.Color ?? '').includes('赤'));
+  ok(satisfiesSelectionConstraint([red, blue], burstSearch.selectionConstraint, cardMap), '異色2枚は選択可');
+  ok(!satisfiesSelectionConstraint([red, red2], burstSearch.selectionConstraint, cardMap), '同色を共有する2枚は選択不可');
+});
+
+test('PLAN §6.3 WXDi-P16-092: チームルリグ3体未満だけ全領域色喪失', () => {
+  const target = 'WXDi-P16-092';
+  const teamLrig = findCard(c => c.Type === 'ルリグ' && [c.Team, c.Story, c.CardClass, c.CardName].some(v => (v ?? '').includes('アンシエント・サプライズ')));
+  const under = mkState({ signi: [target, null, null] });
+  under.field.lrig = [teamLrig];
+  ok(collectColorlessOverrides(under, mkState({}), cardMap).ownerColorless.includes(target), '2体以下なら色喪失');
+  const full = mkState({ signi: [target, null, null] });
+  full.field.lrig = [teamLrig];
+  full.field.assist_lrig_l = [teamLrig];
+  full.field.assist_lrig_r = [teamLrig];
+  ok(!collectColorlessOverrides(full, mkState({}), cardMap).ownerColorless.includes(target), '3体なら色保持');
+});
+
+test('PLAN §6.3 WX20-028-E2: 多重アクセstate待ちの明示no-op（旧誤形を撤去）', () => {
+  const e2 = effectsMap.get('WX20-028')!.find(e => e.effectId === 'WX20-028-E2')!;
+  eq(e2.action.type, 'STUB', '条件無視の全体除去や旧・相手1体除去にしない');
+  eq((e2.action as { id?: string }).id, 'MULTI_ACCE_3_MASS_TRASH', '多重アクセ機構待ちID');
+  eq(e2.parseStatus, 'MANUAL', 'curated deferを維持');
+});
 
 test('IS_BOOSTING: 非宣言は基本効果のみ／宣言時だけボーナス発火', () => {
   const action: EffectAction = {
