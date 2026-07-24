@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-24 続き・Opus 4.8＋Codex 分担・§6.3 機構台帳「正面」＝`frontOfSelf` target filter で「このシグニの正面のシグニを対象」5効果を消化**（golden 715→720・census 1577→1571・commit 5ca1a96d）
+  - **スコープ**＝`docs/_p1_classification.txt` 純§6.3 98効果を機構キーワードで分類→最大クラスタ「正面25」から target 解決型5効果を切り出し。全て parser が位置指定を落として `owner:"self"`（自傷 no-op）へ誤変換していた実害。WXK11-029-E2／WXDi-P04-049-E1（REMOVE_ABILITIES）・WXK04-072-E2／WX12-038-E1／WD17-009-E1（BANISH）。
+  - **機構**＝既存 `frontOfSelf` filter の execBanish/execRemoveAbilities inline 解決を共通ヘルパー `resolveFrontOfSelfCardNum` へ集約し `opponent`＋`frontOfSelf` へ MANUAL 再エンコード。parser 不変・新型ゼロ。
+  - **⚠検証（Claude・是正1＝ガードレール10）**＝WXK04-072 は PRESERVE カード（既存 MANUAL E1b）で manualEffects 追加が built JSON に焼かれず app 不発（App.tsx は built JSON 直読み・runtime merge なし）＝`effects_WXK.json` 直パッチで真に解決（census 1572→1571）。他4効果は非 PRESERVE で焼き込み済。golden 720/0・★0・per-effect diff は対象5効果のみ。
+
 - **🆕 セッション（2026-07-24・Opus 4.8＋Codex 分担・§6.3 個別カード＝CHOOSE 選択肢内「そうした場合／条件」の IS_MY_TURN 誤変換2枚を消化**（golden 713→715・census 1577 据置・commit bfadddb5）
   - **投入前実測でスコープ確定**＝§6.3 残「個別カード・機構待ち」を精査。大半は §6.4級の大型機構待ちで正しく defer 継続。既存機構だけで消化できる2枚を切り出した（共通テーマ＝CHOOSE 選択肢の「そうした場合」「〜の場合」が parser で `IS_MY_TURN` 誤変換＝自ターン起動で常時 true ＝過剰実行）。
   - **WX25-CP1-002-E1 choice④**＝STUB＋無条件BOUNCE を `LAST_PROCESSED_HAS_NO_ABILITIES`→＜ブルアカ＞任意捨て（OPTIONAL_COST/PAID_ADDITIONAL_COST）→同一対象 BOUNCE へ既存語彙で MANUAL 再エンコード。**WD22-036-G-E1 choice①②**＝自バニッシュ後を `LAST_PROCESSED_COUNT_GTE` ゲートへ（①は `REVEAL_AND_PICK handOrField`・②は `TRANSFER_TO_DECK` 遊具回収+shuffle）。parser 不変・新型ゼロ。
