@@ -9131,6 +9131,65 @@ test('PLAN 6.3 batch 8 B-3: stored level sets white discard count and gates boun
   eq(short.ownerState.hand.length, 2, 'unaffordable optional cost discards nothing');
 });
 
+test('PLAN 6.3 CHOOSE gate: WX25-CP1-002 c3 requires no abilities and paid Blue Archive discard', () => {
+  const eff = mergeManualEffects('WX25-CP1-002', effectsMap.get('WX25-CP1-002') ?? []).find(e => e.effectId === 'WX25-CP1-002-E1')!;
+  const choice = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices.find(c => c.choiceId === 'c3')!;
+  const blueArchive = findCard(c => (c.CardClass ?? '').includes('ブルアカ'));
+  const target = SIGNI_L3;
+
+  const paidCtx = mkCtx({}, { signi: [target, null, null] }, 'WX25-CP1-002');
+  paidCtx.ownerState = { ...paidCtx.ownerState, hand: [blueArchive] };
+  paidCtx.effectsMap = new Map([[target, []]]);
+  const paid = finishPayingCosts(executeEffect({ effectId: 'wx25-c3', effectType: 'AUTO', action: choice.action, duration: 'INSTANT', mandatory: true }, paidCtx), paidCtx);
+  ok(!paid.otherState.field.signi[0] && paid.otherState.hand.includes(target), '能力なし＋ブルアカを捨てた場合だけ同じ対象をバウンス');
+  ok(paid.ownerState.trash.includes(blueArchive), 'ブルアカ1枚を任意コストとして捨てる');
+
+  const abilityCtx = mkCtx({}, { signi: [target, null, null] }, 'WX25-CP1-002');
+  abilityCtx.ownerState = { ...abilityCtx.ownerState, hand: [blueArchive] };
+  abilityCtx.effectsMap = new Map([[target, [{ effectId: 'ability', effectType: 'AUTO', action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true } as CardEffect]]]);
+  const ability = run(choice.action, abilityCtx);
+  eq(ability.otherState.field.signi[0]?.at(-1), target, '能力ありなら任意コストを提示せずバウンスしない');
+  ok(ability.ownerState.hand.includes(blueArchive), '能力ありなら手札も捨てない');
+
+  const skipCtx = mkCtx({}, { signi: [target, null, null] }, 'WX25-CP1-002');
+  skipCtx.ownerState = { ...skipCtx.ownerState, hand: [] };
+  skipCtx.effectsMap = new Map([[target, []]]);
+  const skipped = run(choice.action, skipCtx);
+  eq(skipped.otherState.field.signi[0]?.at(-1), target, '任意コストを払えない／skipならバウンスしない');
+});
+
+test('PLAN 6.3 CHOOSE gate: WD22-036-G c0/c1 only continue after successful self banish', () => {
+  const eff = mergeManualEffects('WD22-036-G', effectsMap.get('WD22-036-G') ?? []).find(e => e.effectId === 'WD22-036-G-E1')!;
+  const choices = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices;
+  const c0 = choices.find(c => c.choiceId === 'c0')!.action;
+  const c1 = choices.find(c => c.choiceId === 'c1')!.action;
+  const base = cardMap.get(SIGNI_L2)!;
+  const toy = Array.from({ length: 6 }, (_, i) => `__wd22_toy_${i}`);
+  for (const n of toy) cardMap.set(n, { ...base, CardNum: n, CardClass: '遊具' });
+  const game = '__wd22_game';
+  cardMap.set(game, { ...base, CardNum: game, CardClass: '遊戯' });
+
+  const c0Ctx = mkCtx({ signi: [toy[0], null, null], deckTop: toy.slice(1, 6) }, {}, 'WD22-036-G');
+  const c0Done = run(c0, c0Ctx);
+  ok(!c0Done.ownerState.field.signi[0], 'c0: 遊具をバニッシュ');
+  eq(c0Done.ownerState.hand.length, c0Ctx.ownerState.hand.length + 1, 'c0: 成立時だけ公開した遊具を手札へ（handOrField経路）');
+  const c0MissCtx = mkCtx({ signi: [game, null, null], deckTop: toy.slice(1, 6) }, {}, 'WD22-036-G');
+  const c0Miss = run(c0, c0MissCtx);
+  eq(c0Miss.ownerState.hand.length, c0MissCtx.ownerState.hand.length, 'c0: 遊具対象不在なら公開/pickしない');
+  eq(c0Miss.ownerState.deck.length, c0MissCtx.ownerState.deck.length, 'c0: 空振り時はデッキも動かさない');
+
+  const c1Ctx = mkCtx({ signi: [game, null, null] }, {}, 'WD22-036-G');
+  c1Ctx.ownerState = { ...c1Ctx.ownerState, trash: toy.slice(0, 5) };
+  const c1Done = run(c1, c1Ctx);
+  eq(c1Done.ownerState.trash.length, 0, 'c1: 遊戯バニッシュ成立後、トラッシュの遊具5枚までをデッキへ');
+  ok(toy.slice(0, 5).every(n => c1Done.ownerState.deck.includes(n)), 'c1: 移動した遊具はshuffle対象のデッキにある');
+  const c1MissCtx = mkCtx({ signi: [toy[0], null, null] }, {}, 'WD22-036-G');
+  c1MissCtx.ownerState = { ...c1MissCtx.ownerState, trash: toy.slice(1, 6) };
+  const c1Miss = run(c1, c1MissCtx);
+  eq(c1Miss.ownerState.trash.length, 5, 'c1: 遊戯対象不在ならトラッシュを動かさない');
+  ok(toy.slice(1, 6).every(n => c1Miss.ownerState.trash.includes(n)), 'c1: 空振り時は遊具を温存');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

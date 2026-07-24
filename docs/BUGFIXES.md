@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 個別カード＝CHOOSE 選択肢内「そうした場合／条件」の IS_MY_TURN 誤変換2枚（WX25-CP1-002-E1・WD22-036-G-E1・2026-07-24・codex実装/Claude確認）
+
+- **真因**：CHOOSE の選択肢に埋め込まれた「そうした場合」「それが〜の場合」という条件節が parser で `CONDITIONAL{IS_MY_TURN}` に誤変換され、自ターン起動のアーツ／スペルでは常に true ＝ゲートが実質無効化して過剰実行。逆翻訳では一見それらしく見える偽陰性。(1) **WX25-CP1-002-E1 choice④**＝`STUB TARGET_AND_DISCARD_HAND`（未実装＝対象取得も手札捨ても不発）＋`IS_MY_TURN`→無条件 BOUNCE。「能力を持たない場合」判定と「＜ブルアカ＞1枚捨ててもよい／そうした場合戻す」の任意コスト成立ゲートが丸ごと欠落。(2) **WD22-036-G-E1 choice①②**＝両選択肢の自シグニバニッシュ後「そうした場合」が `IS_MY_TURN` 誤変換、さらに①は「手札に加えるか場に出す」の行き先二択が別 STUB に潰れていた。
+- **実装（既存語彙のみ・新型ゼロ・parser 不変）**：両カードを `manualEffects.ts` で MANUAL 化（現状 AUTO・既存 manual エントリ無し）。choice④＝`POWER_MODIFY delta:0`（対象取得＋lastProcessedCards 記録）→`STORE_LAST_PROCESSED_TARGETS`（記録保持のまま storedTargetCards へコピー）→`CONDITIONAL{LAST_PROCESSED_HAS_NO_ABILITIES}` then [`OPTIONAL_COST{handDiscard count:1 filter:{story:ブルアカ}}`→`PAID_ADDITIONAL_COST`→`BOUNCE targetsStored`（同一対象）]。WD22-036-G＝各自バニッシュ後を `CONDITIONAL{LAST_PROCESSED_COUNT_GTE value:1}` へ是正（①後段は `REVEAL_AND_PICK{revealCount:5, filter:{story:遊具}, pickCount:1, handOrField:true, remainder:deck bottom}`＝既存 handOrField 経路／②後段は `TRANSFER_TO_DECK{source:TRASH_CARD 遊具 upTo5, shuffle:true}`）。story フィルタは engine で CardData.CardClass 照合（＜遊具＞/＜遊戯＞/＜ブルアカ＞は CardClass 列）。c0/c1/c2・recollectArts・cost・timing は原文一致のため不変。
+- **検証**：choice④＝能力なし＋ブルアカ支払い時のみ同一対象 BOUNCE／能力あり→不発／任意コスト skip・不足→非 BOUNCE。WD22-036-G＝c0/c1 とも自バニッシュ成立時のみ後段実行・対象不在の空振り時はデッキ/トラッシュ不動、を挙動 golden 両方向で固定（golden 713→715）。census 高シグナル 1577 据置・同型★0・smoke 10725件 CRASH/HANG/INVARIANT 0・fuzz 200ゲーム全0・lint 221 warnings/0 errors。per-effect JSON diff はベースライン f0f5e0f7 比で WX25-CP1-002・WD22-036-G の2枚のみ（outlier 0・parser 不変で生パース diff 0）。⚠`LAST_PROCESSED_COUNT_GTE` の decompile 表示ラベルが「手札に加えたなら」で不正確（表示専用・executor は BANISH 処理枚数を正しく評価＝空振り golden で担保）。
+
+---
+
 ## PLAN §6.3 ディスペア型「次の相手ターン限定・全ゾーンLB付与」（WX25-P3-027-E2・2026-07-24・codex実装）
 
 - **真因**：原文のディスペア本体（次の相手ターン中、自分のライフクロス／チェックゾーンの非LBカードへ任意《無》バニッシュLBを付与）が丸ごと脱落し、ACTIVATED 時点で相手シグニ1体を即バニッシュする過剰効果へ誤パースされていた。
