@@ -105,6 +105,20 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner },
       `次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスを${perTrigger}枚クラッシュする`));
   }
+  // ディスペア：次の対戦相手ターンだけ、自分の全ゾーンの非LBカードへ指定LBを付与する。
+  if (stub.id === 'SET_DISPAIR_BURST_GRANT') {
+    const grant: StubAction = {
+      type: 'STUB',
+      id: 'GRANT_ALL_ZONE_LIFEBURST',
+      burstAction: stub.burstAction,
+      burstFilter: stub.burstFilter,
+      burstAdditive: stub.burstAdditive,
+    };
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, allzone_burst_grant_until_opp_turn: grant },
+    }, '次の対戦相手ターンの間、全ゾーンの非ライフバーストカードへライフバーストを付与'));
+  }
   if (stub.id === 'NEGATE_ATTACK_ON_TRIGGER') {
     // 発動中のアタックを無効化: prevent_next_damage と同様のフラグで近似
     const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + 1 };

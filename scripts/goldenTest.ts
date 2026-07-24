@@ -31,6 +31,7 @@ import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '.
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
+import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation } from '../src/screens/battle/attackNegation';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
@@ -8884,6 +8885,67 @@ test('PLAN §6.3 WX25-P2-009 arts install -> E1 -> executor refresh replacement 
   });
   eq(direct.life_cloth.length, 0, 'battleUtils applyRefresh also honors replacement');
   eq(direct.lrig_trash.join(','), lrigDeckCard, 'battleUtils path moves one lrig card');
+});
+
+test('PLAN §6.3 WX25-P3-027-E2 ディスペア：次の相手ターン限定・非LB付与・任意《無》バニッシュ', () => {
+  const effect = mergeManualEffects('WX25-P3-027', effectsMap.get('WX25-P3-027') ?? [])
+    .find(e => e.effectId === 'WX25-P3-027-E2')!;
+  eq(effect.effectType, 'ACTIVATED', '起動能力');
+  eq(effect.timing?.join(','), 'MAIN', '自メインで起動');
+  eq(effect.usageLimit, 'once_per_game', 'ゲーム1回');
+  eq(effect.cost?.energy?.[0]?.color, '黒', 'ディスペア《黒×0》');
+  eq(effect.cost?.energy?.[0]?.count, 0, '黒コスト0');
+
+  const activatedCtx = mkCtx({}, {}, 'WX25-P3-027');
+  const activated = finish(executeEffect(effect, activatedCtx), activatedCtx);
+  const temporary = activated.ownerState.allzone_burst_grant_until_opp_turn;
+  ok(!!temporary && temporary.id === 'GRANT_ALL_ZONE_LIFEBURST', '起動でプレイヤーへ一時全ゾーンLB付与');
+  eq(resolveAllZoneBurstGrant(activated.ownerState, effectsMap, false), null, '設定した自ターン中は一時付与を読まない');
+  eq(resolveAllZoneBurstGrant(activated.ownerState, effectsMap, true)?.id, 'GRANT_ALL_ZONE_LIFEBURST', '次の相手ターン中は一時付与を読む');
+
+  const noBurst = findCard(c => isSigni(c) && c.LifeBurst !== '1'
+    && !(effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'LIFE_BURST'));
+  const nativeBurst = findCard(c => isSigni(c) && (c.LifeBurst === '1'
+    || (effectsMap.get(c.CardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')));
+  ok(allZoneBurstGrantMatches(noBurst, activated.ownerState, cardMap, effectsMap, true), 'ライフクロス／チェックゾーンの非LBカードへ付与');
+  ok(!hasNativeLifeBurst(noBurst, cardMap, effectsMap), '非LBカードを確認');
+  ok(hasNativeLifeBurst(nativeBurst, cardMap, effectsMap), 'ネイティブLBカードを確認');
+  ok(!temporary?.burstAdditive, 'burstAdditive無し＝ネイティブLBには付与分を追加しない');
+  ok(!shouldAddGrantedAllZoneBurst(nativeBurst, activated.ownerState, cardMap, effectsMap, true), 'ネイティブLBは自前バーストだけで付与バースト非追加');
+
+  const fieldGrant = { type: 'STUB', id: 'GRANT_ALL_ZONE_LIFEBURST', burstAction: { type: 'DRAW', owner: 'self', count: 1 } } as const;
+  const fieldEffects = new Map(effectsMap);
+  fieldEffects.set('WD14-001', [{ effectId: 'field-grant', effectType: 'CONTINUOUS', action: fieldGrant, duration: 'PERMANENT', mandatory: true }] as CardEffect[]);
+  const withBoth = {
+    ...activated.ownerState,
+    field: { ...activated.ownerState.field, lrig: ['WD14-001'] },
+  };
+  eq(resolveAllZoneBurstGrant(withBoth, fieldEffects, true)?.burstAction?.type, 'DRAW', '場CONTINUOUSを一時付与より優先し二重発火しない');
+  const existingGrant = (cardNum: string) => {
+    const map = new Map(effectsMap);
+    map.set(cardNum, mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []));
+    const state = { ...activated.ownerState, field: { ...activated.ownerState.field, lrig: [cardNum] } };
+    return resolveAllZoneBurstGrant(state, map, true)!;
+  };
+  eq(grantedAllZoneBurstAction(existingGrant('WD14-001')).type, 'BANISH', 'WD14-001既定BANISHは非退化');
+  const wx02 = existingGrant('WX02-002');
+  ok(wx02.burstAdditive === true && grantedAllZoneBurstAction(wx02).type === 'ENERGY_CHARGE_FROM_DECK', 'WX02-002加算エナチャージは非退化');
+  const wx17 = existingGrant('WX17-036');
+  ok(!!wx17.burstFilter?.story && grantedAllZoneBurstAction(wx17).type === 'TRASH', 'WX17-036＜怪異＞限定TRASHは非退化');
+
+  const burstAction = grantedAllZoneBurstAction(temporary ?? null);
+  const target = findCard(c => isSigni(c) && c.CardNum !== noBurst && c.CardNum !== nativeBurst);
+  const payCtx = mkCtx({ energy: 1 }, { signi: [target, null, null] }, noBurst);
+  const paid = run(burstAction, payCtx);
+  eq(paid.otherState.field.signi[0], null, '《無》を払った場合は対象の相手シグニ1体をバニッシュ');
+  const skipCtx = mkCtx({ energy: 1 }, { signi: [target, null, null] }, noBurst);
+  const offered = executeEffect({ effectId: 'granted-burst', effectType: 'LIFE_BURST', action: burstAction, duration: 'INSTANT', mandatory: false } as CardEffect, skipCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '《無》を支払うか任意選択を提示');
+  const skipped = resumeChoose('skip', offered.pending as never, { ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(!!skipped.otherState.field.signi[0], '《無》を払わない場合はバニッシュしない');
+
+  const cleared = clearAllZoneBurstGrantUntilOppTurn(activated.ownerState);
+  eq(resolveAllZoneBurstGrant(cleared, effectsMap, true), null, '自分の次ターン開始後はクリアされ2ターン後に非発火');
 });
 
 test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () => {

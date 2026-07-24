@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 ディスペア型「次の相手ターン限定・全ゾーンLB付与」（WX25-P3-027-E2・2026-07-24・codex実装）
+
+- **真因**：原文のディスペア本体（次の相手ターン中、自分のライフクロス／チェックゾーンの非LBカードへ任意《無》バニッシュLBを付与）が丸ごと脱落し、ACTIVATED 時点で相手シグニ1体を即バニッシュする過剰効果へ誤パースされていた。
+- **実装**：`PlayerState.allzone_burst_grant_until_opp_turn` に既存 `GRANT_ALL_ZONE_LIFEBURST` 同型の STUB を保持し、`SET_DISPAIR_BURST_GRANT` が設定。`getAllZoneBurstGrant` の場CONTINUOUS走査を優先したまま、付与者の相手ターン中だけ一時付与へfallbackする。既存 `matchesAllZoneBurstGrant`→`effectiveHasBurst`→`grantedBurstEntry`→`performLifeBurstResponse` のクラッシュ／チェックゾーン経路を再利用し、非ネイティブLBだけへ `OPTIONAL_COST《無》`→`PAID_ADDITIONAL_COST`→相手シグニ1体BANISHを合成する。`doPhaseAdvance`／`confirmEndDiscard` の自分ターン開始処理は共通 `clearAllZoneBurstGrantUntilOppTurn` でクリア。WX25-P3-027-E2 を MAIN・黒×0・once_per_game の MANUALへ再エンコードし、E1は不変。
+- **検証**：起動setter／設定ターン不発／次の相手ターン発火／非LB付与／ネイティブLB非加算／場CONTINUOUS優先／《無》支払い時だけバニッシュ／自分の次ターン開始後クリアを挙動goldenで固定。golden 712→713、census 1577据置、smoke 10725件 CRASH/HANG/INVARIANT 0、fuzz 200ゲーム全0、lint 221 warnings・0 errors、同型★0。JSON変更はWX25-P3-027のみ（E1不変）、parserコード不変につき生パースdiff 0。
+
+---
+
 ## PLAN §6.3 BANISH_REDIRECT 単体選択×パワー0動的ゲート（WX25-P3-104-E1・2026-07-24・codex実装/Claude確認）＝B残クローズ
 
 - **真因**：parser が「対戦相手のレベル2以下のシグニ1体を対象とし、このターン、パワーが0以下のそれがバニッシュされる場合…トラッシュへ」を `BANISH_REDIRECT count:'ALL'`（単体選択も whenPowerZero も脱落）で吐き、executor 最終 else が `banish_redirect:true` を立てて**このターン相手の全バニッシュ（バトル・効果・パワー0すべて）をトラッシュ送り**にする激しい過剰発火だった（毒牙が2体並ぶだけで相手全シグニのバニッシュ先固定）。

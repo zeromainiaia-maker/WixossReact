@@ -140,6 +140,9 @@ export interface PlayerState {
   opp_cost_up_until_opp_turn?: Array<{ targetCardType: string; amount: { color: string; count: number }[] }>;
   keyword_grants?: Record<string, string[]>; // instanceId → ['ランサー', ...]
   keyword_grants_until_opp_turn?: Record<string, string[]>; // 次の対戦相手ターン終了時までの付与キーワード
+  /** 次の対戦相手のターンの間だけ有効な全ゾーンLB付与（ディスペア）。
+   * GRANT_ALL_ZONE_LIFEBURST 同型の StubAction を保持し、自分の次ターン開始時にクリアする。 */
+  allzone_burst_grant_until_opp_turn?: import('./effects').StubAction;
   // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
   field_keyword_grants_next_turn?: string[]; // 付与予約（発動時セット → 次の自分ターン開始時に active へ移動）
   field_keyword_grants_active?: string[];    // 現在の自ターン中に全自シグニが得ているキーワード（自ターン終了時にクリア）
