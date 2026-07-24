@@ -1659,6 +1659,14 @@ export interface StubAction {
   // NEGATE_NTH_ATTACK: このターン、対戦相手のアタックを共有カウントで N 回目まで無効化。
   // signi/lrig は無効化対象に含める攻撃種別。count は「一度目か二度目」=2 / 「一度目」=1。
   negateNthAttack?: { count: number; signi: boolean; lrig: boolean };
+  // POWER_PLUS_BANISHED_POWER: バトルでバニッシュされたシグニの直前実効パワーを対象へ加算。
+  powerPlusBanishedPower?: {
+    target: { type: 'SIGNI'; owner: 'self'; count: 1; filter: TargetFilter };
+    duration: 'UNTIL_OPP_TURN_END';
+  };
+  // VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: 指定Storyのエナを0〜maxCount枚トラッシュし、
+  // 実際に置いた枚数と同レベルの相手シグニをバウンス。resolve=true はコスト選択後の内部継続。
+  variableEnergyTrashLevelBounce?: { story: string; maxCount: number; resolve?: boolean };
   fetchCardName?: string; // SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME: 名指しフェッチ先（省略時は自身と同名。PR-470A→《進化する筋肉 紗倉ひびき》）
   type: 'STUB';
   id: string;

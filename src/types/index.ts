@@ -652,6 +652,7 @@ export interface StackEntry {
   triggeringCardNum?: string;                  // any_ally/self scope で効果を引き起こしたカード番号（「それ」参照用）
   triggeringKeyword?: string;                  // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY が「その能力」として参照・WXDi-P04-035）
   battleAttackerCardNum?: string;              // ON_SIGNI_BANISH_OPPONENT/_BATTLE の battleBanishEntries：バニッシュを行ったアタッカー自身のカード番号（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）
+  banishedSigniPower?: number;                  // ON_SIGNI_BANISH_BATTLE の被バニッシュシグニのバニッシュ直前実効パワー
 }
 
 export interface EffectStack {

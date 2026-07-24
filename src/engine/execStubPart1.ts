@@ -25,6 +25,49 @@ export function execStubPart1(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
+  if (stub.id === 'POWER_PLUS_BANISHED_POWER') {
+    const params = stub.powerPlusBanishedPower;
+    const delta = Math.max(0, ctx.banishedSigniPower ?? 0);
+    if (!params || delta === 0) return done(ctx);
+    return exec({
+      type: 'POWER_MODIFY',
+      target: params.target,
+      delta,
+      duration: params.duration,
+    }, ctx);
+  }
+  if (stub.id === 'VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE') {
+    const params = stub.variableEnergyTrashLevelBounce;
+    if (!params) return done(ctx);
+    if (params.resolve) {
+      const level = ctx.lastProcessedCards?.length ?? 0;
+      if (level === 0) return done(ctx);
+      return exec({
+        type: 'BOUNCE',
+        target: {
+          type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+          filter: { cardType: 'シグニ', level },
+        },
+        optional: false,
+      }, ctx);
+    }
+    return exec({
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'TRASH',
+          target: {
+            type: 'ENERGY_CARD', owner: 'self', count: params.maxCount, upToCount: true,
+            filter: { story: params.story },
+          },
+        },
+        {
+          type: 'STUB', id: stub.id,
+          variableEnergyTrashLevelBounce: { ...params, resolve: true },
+        },
+      ],
+    }, ctx);
+  }
   if (stub.id === 'STORE_LAST_PROCESSED_TARGETS') {
     return done({ ...ctx, storedTargetCards: [...(ctx.lastProcessedCards ?? [])] });
   }

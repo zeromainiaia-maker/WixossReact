@@ -81,6 +81,12 @@ const FIXES = [
   // PR-K064-E1: CHOOSE.choices[0].action.filter (SEARCH)
   { file: 'effects_misc', card: 'PR-K064', eid: 'PR-K064-E1', type: 'matchesLrig',
     locate: e => e.action?.choices?.[0]?.action },
+
+  // PLAN §6.3 続き20: 既存MANUAL STUBへ engine 解決用の構造化パラメータを追加。
+  { file: 'effects_WX24_26', card: 'WX24-P2-049', eid: 'WX24-P2-049-E1b', type: 'powerPlusBanishedPower',
+    locate: e => e.action },
+  { file: 'effects_WX24_26', card: 'WX25-CP1-040', eid: 'WX25-CP1-040-E1b', type: 'variableEnergyTrashLevelBounce',
+    locate: e => e.action },
 ];
 
 const DIR = 'public/data';
@@ -89,6 +95,17 @@ function applyFix(obj, type) {
   if (!obj) return false;
   if (type === 'negateNthAttack') {
     obj.negateNthAttack = { count: 1, signi: true, lrig: true };
+    return true;
+  }
+  if (type === 'powerPlusBanishedPower') {
+    obj.powerPlusBanishedPower = {
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { color: '白' } },
+      duration: 'UNTIL_OPP_TURN_END',
+    };
+    return true;
+  }
+  if (type === 'variableEnergyTrashLevelBounce') {
+    obj.variableEnergyTrashLevelBounce = { story: 'ブルアカ', maxCount: 3 };
     return true;
   }
   // SEARCH / ADD_TO_FIELD actions: filter is action-level property
