@@ -75,16 +75,16 @@ export function CutinModal(p: CutinModalProps) {
                               + Math.max(0, (my.field.assist_lrig_r ?? []).length - 1);
                             const canAffordExceedCand = exceedCostCand === 0 || totalExceedAvailCand >= exceedCostCand;
                             const isHandDiscard = candidate.source === 'hand' && candidate.effect.cost?.discardSelfFromHand;
-                            const costStr = candidate.source === 'lrig_deck'
+                            const baseCostStr = candidate.source === 'lrig_deck'
                               ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === candidate.card.CardName); return r ? removeNColorFromCost(candidate.card.Cost, '無', r.colorlessReduction) : candidate.card.Cost; })()
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
+                            const costStr = `${baseCostStr}${candidate.additionalColorlessCost ? `《無》×${candidate.additionalColorlessCost}` : ''}`;
                             const canAffordEnergy = isHandDiscard
                               ? true
                               : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
-                            const energyPart = isHandDiscard ? '手札から自分を捨てる'
-                              : (candidate.source === 'lrig_deck' ? candidate.card.Cost || '' : costStr || '');
+                            const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
                             const costLabel = [exceedPart, energyPart].filter(Boolean).join('・') || 'なし';
                             return (
                               <button key={candidate.instanceId}
@@ -128,12 +128,12 @@ export function CutinModal(p: CutinModalProps) {
                 ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
                 ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
               ];
-              const cutinCostStrModal = pendingCutinCard.source === 'lrig_deck'
+              const cutinBaseCostStrModal = pendingCutinCard.source === 'lrig_deck'
                 ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === pendingCutinCard.card.CardName); return r ? removeNColorFromCost(pendingCutinCard.card.Cost, '無', r.colorlessReduction) : pendingCutinCard.card.Cost; })()
                 : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy);
+              const cutinCostStrModal = `${cutinBaseCostStrModal}${pendingCutinCard.additionalColorlessCost ? `《無》×${pendingCutinCard.additionalColorlessCost}` : ''}`;
               const exceedPartModal = exceedCostModal > 0 ? `エクシード${exceedCostModal}` : '';
-              const energyPartModal = isHandDiscardModal ? '手札から自分を捨てる'
-                : (pendingCutinCard.source === 'lrig_deck' ? pendingCutinCard.card.Cost || '' : cutinCostStrModal || '');
+              const energyPartModal = isHandDiscardModal ? '手札から自分を捨てる' : cutinCostStrModal || '';
               const cutinCostLabelModal = [exceedPartModal, energyPartModal].filter(Boolean).join('・') || 'なし';
               const costItems = isHandDiscardModal ? [] : parseGrowCost(cutinCostStrModal);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);

@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 打消し（カットイン）単独バッチ9（2026-07-24・codex実装/Claude確認）
+- **WX24-P3-036 / 実装**：manual effect を `CHOOSE 1/2`（①相手シグニ1体をDOWN／②COUNTER_SPELL）へ復元。スペルカットイン時だけ②を専用候補として提示し、`pending_spell` の対象スペルの印刷コスト合計を追加《無》コストへ展開してUIで先払いする。支払わなければ候補を使用できず、支払った場合だけ既存のスペル打消し経路へ入るため二重打消しはない。既存カットインは `countersSpell` 未指定時 true の後方互換を維持。カットイン使用も `turn_arts_used_names/colors` に記録し、新 `OPTIONAL_RETURN_SELF_ARTS_FIRST_USE` が同名使用回数1回のときだけ使用済み自身を任意でルリグデッキへ戻す。
+- **WXDi-P05-006 / choice②実装・choice① honest defer**：②を `DRAW 1 → ENERGY_CHARGE_FROM_DECK 1` で実装。①は相手チームピース使用前の応答窓、`pending_piece`、未解決効果の取消、打消し後の除外先を一体で新設する必要があり、既存スペル解決フローへの影響が大きいため `COUNTER_TEAM_PIECE_CUTIN_DEFERRED` STUB として明示。無条件除外などの代替挙動は入れていない。
+- **検証**：golden 正負（①非COUNTER／②COUNTER、初回戻し提示／2回目非提示、ピース①defer／②実装）を追加。`npm run gates` 全緑（golden 706/706、smoke 10724/10724、fuzz 200ゲーム異常0、census 1580＝baseline超過なし、lint 0 errors）。census生成docは内容不変で差分なし。commitなし。
+
+---
+
 ## PLAN §6.3 tail 既存語彙 / lock-in（2026-07-24・codex実装/Claude確認）
 
 - **A / lock-in**: `WX24-P1-026-E1` は `LOOK_PICK_CHAIN[hand,field] → GRANT_KEYWORD{targetsLastProcessed,ランサー}`、`WX25-CP1-025-E1` は白＜ブルアカ＞の `LAST_PROCESSED_MATCHES` 成功時だけ power 10000 以下を `BOUNCE`。データは改変せず golden のみ追加。

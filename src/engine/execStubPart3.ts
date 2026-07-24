@@ -4827,6 +4827,28 @@ export function execStubPart3(
     const newOwnerESAU: PlayerState = { ...removedESAU, excluded: [...(removedESAU.excluded ?? []), srcESAU] };
     return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外`));
   }
+  // OPTIONAL_RETURN_SELF_ARTS_FIRST_USE: 同名アーツの当ターン初回使用時だけ、
+  // 使用済みの自身をルリグデッキへ戻す任意選択を提示する。
+  if (stub.id === 'OPTIONAL_RETURN_SELF_ARTS_FIRST_USE') {
+    const src = ctx.sourceCardNum;
+    const cardName = src ? ctx.cardMap.get(getCardNum(src))?.CardName : undefined;
+    const uses = cardName
+      ? (ctx.ownerState.turn_arts_used_names ?? []).filter(name => name === cardName).length
+      : 0;
+    if (!src || !cardName || uses !== 1 || !ctx.ownerState.lrig_trash.includes(src)) {
+      return done(ctx);
+    }
+    const returnSelf: StubAction = { type: 'STUB', id: 'RETURN_SELF_ARTS_TO_LRIG_DECK' };
+    const noop: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
+    return needsInteraction(addLog(ctx, `${cardName}をルリグデッキに戻しますか？`), {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'return', label: 'ルリグデッキに戻す', action: returnSelf as EffectAction, available: true },
+        { id: 'skip', label: '戻さない', action: noop as EffectAction, available: true },
+      ],
+    });
+  }
 
   // MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
   if (stub.id === 'MARK_SELF_DELAYED_EXILE') {

@@ -5267,6 +5267,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           mandatory: false,
           parseStatus: 'MANUAL',
         };
+        // アンチ・スペル・バツの②は、任意支払いを「このカットインを使う」
+        // 選択そのものとして扱う。通常のアーツ使用時は manualEffects の CHOOSE を使う。
+        if (cardNum === 'WX24-P3-036' && eff?.action.type === 'CHOOSE') {
+          const counterChoice = eff.action.choices.find(c => c.action.type === 'SEQUENCE'
+            && c.action.steps.some(s => s.type === 'COUNTER_SPELL'));
+          if (counterChoice) {
+            result.push({
+              card, instanceId, source: 'lrig_deck',
+              effect: { ...eff, effectId: `${eff.effectId}-cutin-counter`, action: counterChoice.action },
+              additionalColorlessCost: pendingSpellCostTotal,
+              countersSpell: true,
+            });
+          }
+          return;
+        }
         result.push({ card, instanceId, source: 'lrig_deck', effect: dummyEff });
       });
 
@@ -6148,9 +6163,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
       // スペルを処理（打ち消し）: フェゾーネマジック等はゲームから除外＝lrig_trashへ近似、通常スペルはトラッシュへ
-      const newCasterState: PlayerState = from_lrig_deck
+      const shouldCounterSpell = candidate.countersSpell ?? true;
+      const newCasterState: PlayerState = shouldCounterSpell
+        ? (from_lrig_deck
         ? { ...casterState, lrig_trash: [...casterState.lrig_trash, card_num] }
-        : { ...casterState, trash: [...casterState.trash, card_num] };
+        : { ...casterState, trash: [...casterState.trash, card_num] })
+        : casterState;
       // コスト支払い
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
@@ -6167,6 +6185,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy: newEnergy,
           lrig_trash: [...my.lrig_trash, actualId],
           trash: [...my.trash, ...paidNums],
+          turn_arts_used: true,
+          turn_arts_used_names: [...(my.turn_arts_used_names ?? []), cutinCard.CardName],
+          turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((cutinCard.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
         };
       } else if (source === 'hand') {
         // 手札から自分を捨てる（discardSelfFromHand）
@@ -6207,12 +6228,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
       const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
       appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
-      appendBattleLogs([`${cutinCard.CardName}：「${counterSpellName}」を打ち消した`]);
+      if (shouldCounterSpell) appendBattleLogs([`${cutinCard.CardName}：「${counterSpellName}」を打ち消した`]);
       // カットイン効果発火: lrig_deckはACTIVATED、field/handはSPELL_CUTINタイミングのACTIVATEDを優先
       const effects = effectsMap.get(cutinInstanceId) ?? effectsMap.get(getCardNum(cutinInstanceId)) ?? [];
-      const cutinEff = source === 'lrig_deck'
+      const cutinEff = candidate.effect ?? (source === 'lrig_deck'
         ? effects.find(e => e.effectType === 'ACTIVATED')
-        : effects.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
+        : effects.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN')));
       if (!cutinEff) {
         const myKey = isHost ? 'host_state' : 'guest_state';
         const casterKey = casterIsHost ? 'host_state' : 'guest_state';

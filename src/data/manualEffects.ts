@@ -4236,6 +4236,31 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       ]}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // PLAN §6.3 単独バッチ9: スペルカットインの動的《無》支払いは
+  // BattleScreen が pending_spell の印刷コスト合計から候補コストへ展開する。
+  "WX24-P3-036": [
+    {"effectId":"WX24-P3-036-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"down","label":"対戦相手のシグニ1体をダウンする","action":{"type":"SEQUENCE","steps":[
+        {"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},
+        {"type":"STUB","id":"OPTIONAL_RETURN_SELF_ARTS_FIRST_USE"}
+      ]}},
+      {"choiceId":"counter","label":"対象スペルのコスト合計分《無》を支払い、その効果を打ち消す","action":{"type":"SEQUENCE","steps":[
+        {"type":"COUNTER_SPELL"},
+        {"type":"STUB","id":"OPTIONAL_RETURN_SELF_ARTS_FIRST_USE"}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // ピースカットインの pending_piece/応答窓は未実装。①を偽実装せず STUB に残し、
+  // 通常使用でも正しく解決できる②だけを実装する。
+  "WXDi-P05-006": [
+    {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"COUNTER_TEAM_PIECE_CUTIN_DEFERRED"}},
+      {"choiceId":"draw-energy","label":"カードを1枚引き、エナチャージ1","action":{"type":"SEQUENCE","steps":[
+        {"type":"DRAW","owner":"self","count":1},
+        {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

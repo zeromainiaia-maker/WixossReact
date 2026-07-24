@@ -8080,6 +8080,37 @@ test('batch6 C: 相手シグニ2体へデッキトップ各1枚チャーム', ()
   eq(r.otherState.field.signi_charms?.filter(Boolean).length, 2, 'signi_charmsへ2枚反映');
 });
 
+test('batch9: アンチ・スペル・バツはDOWN/COUNTERを分離し初回だけ戻せる', () => {
+  const eff = mergeManualEffects('WX24-P3-036', effectsMap.get('WX24-P3-036') ?? [])[0];
+  ok(eff?.action.type === 'CHOOSE', 'バツは2択');
+  if (!eff || eff.action.type !== 'CHOOSE') return;
+  ok(JSON.stringify(eff.action.choices[0].action).includes('"type":"DOWN"'), 'choice① DOWN');
+  ok(!JSON.stringify(eff.action.choices[0].action).includes('COUNTER_SPELL'), 'choice①は打消さない');
+  ok(JSON.stringify(eff.action.choices[1].action).includes('COUNTER_SPELL'), 'choice② COUNTER_SPELL');
+
+  const first = mkCtx({}, {}, 'WX24-P3-036#1');
+  first.ownerState = { ...first.ownerState, lrig_trash: ['WX24-P3-036#1'], turn_arts_used_names: ['アンチ・スペル・バツ'] };
+  const offered = executeEffect({ effectId: 'b9-return', effectType: 'AUTO',
+    action: { type: 'STUB', id: 'OPTIONAL_RETURN_SELF_ARTS_FIRST_USE' },
+    duration: 'INSTANT', mandatory: true } as CardEffect, first);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '初回は任意戻しを提示');
+
+  const second = mkCtx({}, {}, 'WX24-P3-036#1');
+  second.ownerState = { ...second.ownerState, lrig_trash: ['WX24-P3-036#1'],
+    turn_arts_used_names: ['アンチ・スペル・バツ', 'アンチ・スペル・バツ'] };
+  const notOffered = run({ type: 'STUB', id: 'OPTIONAL_RETURN_SELF_ARTS_FIRST_USE' } as EffectAction, second);
+  ok(notOffered.done && notOffered.ownerState.lrig_trash.includes('WX24-P3-036#1'), '2回目は戻せない');
+});
+
+test('batch9: きゅるきゅる～んはchoice②のみ実装しchoice①を明示defer', () => {
+  const eff = mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])[0];
+  ok(eff?.action.type === 'CHOOSE', 'ピースは2択を保持');
+  if (!eff || eff.action.type !== 'CHOOSE') return;
+  ok(JSON.stringify(eff.action.choices[0].action).includes('COUNTER_TEAM_PIECE_CUTIN_DEFERRED'), 'choice①は基盤待ちSTUB');
+  const c2 = JSON.stringify(eff.action.choices[1].action);
+  ok(c2.includes('"type":"DRAW"') && c2.includes('ENERGY_CHARGE_FROM_DECK'), 'choice② draw+energy charge');
+});
+
 console.log('\n===== goldenTest 結果 =====');
 test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
   for (const [num, id] of [['PR-204','PR-204-E1'], ['WD21-009','WD21-009-E1'], ['PR-238','PR-238-E1'], ['WX17-041','WX17-041-BURST'], ['PR-470A','PR-470A-E2']]) {

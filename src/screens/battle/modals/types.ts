@@ -14,6 +14,10 @@ export interface CutinCandidate {
   effect: CardEffect;
   zoneIdx?: number;
   handIdx?: number;
+  /** Pending spell cost total paid as additional colorless energy for this cut-in mode. */
+  additionalColorlessCost?: number;
+  /** Explicit opt-in; legacy cut-ins retain their historical always-counter behavior. */
+  countersSpell?: boolean;
 }
 
 export interface BattleModalCtx {
