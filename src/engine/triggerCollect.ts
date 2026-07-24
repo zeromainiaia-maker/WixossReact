@@ -825,6 +825,10 @@ export function collectLeaveFieldTriggers(
   const usedHostIds: string[] = [];
   const usedGuestIds: string[] = [];
   const leftCard = ctx.cardMap.get(getCardNum(leftCardNum));
+  const leftIsHost = leftPlayerId === ctx.hostId;
+  const ownerStateAfter = leftIsHost ? afterHostState : afterGuestState;
+  const otherStateAfter = leftIsHost ? afterGuestState : afterHostState;
+  const selfLimitOk = mkLimitOk(ownerStateAfter.actions_done, leftIsHost ? usedHostIds : usedGuestIds);
   // self スコープ（このシグニ自身の離脱）視点のターン。turnOwner／leftStateFilter 判定に使う。
   const selfIsTurn = ctx.activeUserId === leftPlayerId;
   for (const eff of (ctx.effectsMap.get(getCardNum(leftCardNum)) ?? [])) {
@@ -842,14 +846,14 @@ export function collectLeaveFieldTriggers(
     // leftStateFilter（離脱直前の状態限定・「このシグニがアクセされていた場合」等）: 離脱カード自身のゾーンで評価。
     //   従来は self スコープ経路が未評価で無条件発火していた（WX20-071 の hasAcce ゲート）。
     if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
+    if (eff.condition && !evalUseCondition(eff.condition, ownerStateAfter, otherStateAfter, ctx.cardMap, leftCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!selfLimitOk(eff)) continue;
     entries.push({
       id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
       effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
     });
   }
-  const leftIsHost = leftPlayerId === ctx.hostId;
-  const ownerStateAfter = leftIsHost ? afterHostState : afterGuestState;
   // watcher（味方）視点のターン。turnOwner 条件（「対戦相手/あなたのターンの間」）判定に使う。
   const watcherIsTurn = ctx.activeUserId === leftPlayerId;
   const allyLimitOk = mkLimitOk(ownerStateAfter.actions_done, leftIsHost ? usedHostIds : usedGuestIds);
@@ -881,6 +885,7 @@ export function collectLeaveFieldTriggers(
       // leftStateFilter（離脱直前の状態限定・凍結/感染/チャーム等）。
       if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       // usageLimit（《ターン1回/2回》）＝呼び出し側が usedHostIds/usedGuestIds を actions_done へ書き戻す（続き104 と同型）。
+      if (eff.condition && !evalUseCondition(eff.condition, ownerStateAfter, otherStateAfter, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!allyLimitOk(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: leftPlayerId, cardNum: topNum, effectId: eff.effectId,
@@ -918,6 +923,7 @@ export function collectLeaveFieldTriggers(
       // leftStateFilter（「対戦相手の**凍結状態の**シグニが場を離れたとき」WXEX1-30/WXDi-P03-040）: 離脱直前の状態で絞る。
       if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, oppStateAfter, ownerStateAfter, oppIsTurn, ctx.cardMap, topNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, oppStateAfter, ownerStateAfter, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!oppLimitOk(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: oppId, cardNum: topNum, effectId: eff.effectId,

@@ -582,6 +582,9 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
   }
+  if (a.targetsStored) {
+    cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+  }
   if (cands.length === 0) return done(ctx);
 
   // UNTIL_OPP_TURN_END は長期ストア power_mods_until_opp_turn へ（次の相手ターン終了時までクリアされない）
@@ -2976,7 +2979,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (step.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = step as import('../types/effects').TrashAction;
@@ -5330,7 +5333,11 @@ export function resumeOptionalCost(
   // 見た/公開したカード（reordered＝全閲覧カード）を lastProcessedCards に記録する。後続の
   //   「この方法で公開されたN枚/すべて〜の場合」（LAST_PROCESSED_COUNT_GTE/ALL_MATCH/MATCHES）が参照する。
   //   ⚠現状 parser は公開(private:false)の LOOK_AND_REORDER 前段のみ条件を emit する（呼び出し側 prevRecords）。
-  const cur = { ...addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`), lastProcessedCards: reordered };
+  const cur = {
+    ...addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`),
+    lastProcessedCards: reordered,
+    lastLookTrashedCards: trashed,
+  };
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }

@@ -34,6 +34,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
+import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
@@ -8688,6 +8689,65 @@ test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () =
   const missed = run(eff.action, mkCtx({ signi: [host, null, null], deckTop: [nonCooking] }, {}, host));
   eq(missed.ownerState.field.signi_acce?.[0] ?? null, null, 'non-Cooking does not attach');
   eq(missed.ownerState.deck[0], nonCooking, 'non-Cooking remains on deck top');
+});
+
+test('PLAN §6.3 WX25-P1-052 leave-field gates', () => {
+  const angel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('天使'));
+  const tawil = findCard(c => (c.CardName ?? '').includes('永らえし冒険者　タウィル＝トレ'));
+  const eff = mergeManualEffects('WX25-P1-052', effectsMap.get('WX25-P1-052') ?? []).find(e => e.effectId === 'WX25-P1-052-E1')!;
+  const em = new Map(effectsMap); em.set('WX25-P1-052', [eff]);
+  const state = mkState({ signi: ['WX25-P1-052', tawil, null] });
+  const collect = (active: string, st: PlayerState) =>
+    collectLeaveFieldTriggers({ ...trigCtx(active), effectsMap: em }, angel, [], HOST, st, mkState()).entries.filter(e => e.effectId === eff.effectId);
+  eq(collect(GUEST, state).length, 1, 'opponent turn + Tawil');
+  eq(collect(HOST, state).length, 0, 'own turn blocked');
+  eq(collect(GUEST, mkState({ signi: ['WX25-P1-052', null, null] })).length, 0, 'missing Tawil blocked');
+  eq(collect(GUEST, { ...state, actions_done: [eff.effectId] }).length, 0, 'second use blocked');
+});
+
+test('PLAN §6.3 WX25-P1-103 LOOK trash provenance positive/negative', () => {
+  const ancient = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('古代兵器'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('古代兵器'));
+  const action = mergeManualEffects('WX25-P1-103', effectsMap.get('WX25-P1-103') ?? []).find(e => e.effectId === 'WX25-P1-103-E1')!.action as SequenceAction;
+  const cond = (action.steps[1] as { condition: import('../src/types/effects').Condition }).condition;
+  const resolve = (trashed: string[]) => {
+    const ctx = mkCtx({ deckTop: [ancient, other, SIGNI_L1] }, {}, 'WX25-P1-103');
+    const r = executeEffect({ effectId: 'look', effectType: 'AUTO', action: action.steps[0], duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    if (r.done) throw new Error('LOOK did not pause');
+    const doneR = resumeLookAndReorder([ancient, other, SIGNI_L1], trashed, r.pending as never, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx);
+    return evalCondition(cond, { ...ctx, ownerState: doneR.ownerState, otherState: doneR.otherState, lastLookTrashedCards: doneR.lastLookTrashedCards });
+  };
+  ok(resolve([ancient]), 'Ancient Weapon trashed => true');
+  ok(!resolve([other]), 'non-Ancient trashed => false');
+});
+
+test('PLAN §6.3 stored target and self power modifications', () => {
+  const self = SIGNI_L4, target = SIGNI_L3, other = SIGNI_L2;
+  const ctx = { ...mkCtx({ signi: [self, null, null] }, { signi: [target, other, null] }, self), storedTargetCards: [target] } as ExecCtx;
+  const action = mergeManualEffects('WX25-P3-062', effectsMap.get('WX25-P3-062') ?? []).find(e => e.effectId === 'WX25-P3-062-E2')!.action as SequenceAction;
+  const eff = mergeManualEffects('WX25-P3-062', effectsMap.get('WX25-P3-062') ?? []).find(e => e.effectId === 'WX25-P3-062-E2')!;
+  const hanare = findCard(c => (c.CardName ?? '').includes('虚幸の冥者　ハナレ'));
+  ok(evalUseCondition(eff.condition!, mkState({ signi: [self, hanare, null] }), mkState(), cardMap, self), 'Hanare present');
+  ok(!evalUseCondition(eff.condition!, mkState({ signi: [self, null, null] }), mkState(), cardMap, self), 'Hanare absent');
+  eq((action.steps[3] as { condition: { type: string } }).condition.type, 'PAID_ADDITIONAL_COST', 'unpaid branch is gated');
+  const paid = (action.steps[3] as { then: SequenceAction }).then;
+  const r = run(paid, ctx);
+  ok(r.otherState.temp_power_mods?.some(m => m.cardNum === target && m.delta === -20000), 'stored opponent -20000');
+  ok(!r.otherState.temp_power_mods?.some(m => m.cardNum === other), 'other opponent untouched');
+  ok(r.ownerState.temp_power_mods?.some(m => m.cardNum === self && m.delta === -20000), 'this SIGNI -20000');
+});
+
+test('PLAN §6.3 parameterized assassin filter positive/negative', () => {
+  const keyword = 'アサシン:{"isFrozen":true,"powerLte":3000}';
+  const low = mkState({ signi: [SIGNI_P3000, null, null] }); low.field.signi_frozen = [true, false, false];
+  ok(hasApplicableAssassin([keyword], low, cardMap), 'frozen 3000 enables');
+  const notFrozen = mkState({ signi: [SIGNI_P3000, null, null] });
+  ok(!hasApplicableAssassin([keyword], notFrozen, cardMap), 'unfrozen blocks');
+  const high = mkState({ signi: [SIGNI_P12000, null, null] }); high.field.signi_frozen = [true, false, false];
+  ok(!hasApplicableAssassin([keyword], high, cardMap), 'frozen high-power blocks');
+  ok(hasApplicableAssassin(['アサシン'], high, cardMap), 'plain assassin remains unconditional');
+  const encoded = JSON.stringify(mergeManualEffects('WX25-P2-084', effectsMap.get('WX25-P2-084') ?? []));
+  ok(encoded.includes('PAID_ADDITIONAL_COST') && encoded.includes('アサシン:') && encoded.includes('powerLte'), 'grant is paid-gated');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -38,6 +38,53 @@ export function hasKeyword(
   return fieldKeywords?.some(matches) ?? false;
 }
 
+export interface AssassinScope {
+  isFrozen?: boolean;
+  powerLte?: number;
+}
+
+const ASSASSIN_PREFIX = 'アサシン:';
+
+export function encodeAssassinKeyword(scope: AssassinScope | null): string {
+  if (!scope || Object.keys(scope).length === 0) return 'アサシン';
+  return ASSASSIN_PREFIX + JSON.stringify(scope);
+}
+
+export function decodeAssassinKeyword(keyword: string): AssassinScope | null {
+  if (keyword === 'アサシン') return {};
+  if (!keyword.startsWith(ASSASSIN_PREFIX)) return null;
+  try {
+    return JSON.parse(keyword.slice(ASSASSIN_PREFIX.length)) as AssassinScope;
+  } catch {
+    return null; // 壊れたパラメータを plain アサシンへフォールバックさせない
+  }
+}
+
+/** パラメータ付きアサシンが、現在の相手盤面に対して有効かを判定する。 */
+export function hasApplicableAssassin(
+  keywords: Iterable<string>,
+  opponentState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectivePowers?: Map<string, number>,
+): boolean {
+  const baseCardNum = (cardNum: string) => cardNum.includes('#') ? cardNum.slice(0, cardNum.indexOf('#')) : cardNum;
+  for (const keyword of keywords) {
+    const scope = decodeAssassinKeyword(keyword);
+    if (scope === null) continue;
+    if (Object.keys(scope).length === 0) return true;
+    const matches = opponentState.field.signi.some((stack, zoneIdx) => {
+      const cardNum = stack?.at(-1);
+      if (!cardNum) return false;
+      if (scope.isFrozen && !(opponentState.field.signi_frozen?.[zoneIdx] ?? false)) return false;
+      const power = effectivePowers?.get(cardNum) ?? parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Power ?? '', 10);
+      if (scope.powerLte !== undefined && (!Number.isFinite(power) || power > scope.powerLte)) return false;
+      return true;
+    });
+    if (matches) return true;
+  }
+  return false;
+}
+
 /**
  * シグニがシャドウを持つかチェックする（hasKeyword の糖衣構文）。
  */

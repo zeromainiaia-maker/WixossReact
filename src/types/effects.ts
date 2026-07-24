@@ -275,6 +275,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
   | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
   | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; shareClass?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。旧 minCount は gte、operator/value で eq/lte 等、distinctName はカード名種類数、requiredCardNames は全指定名の包含、shareClass は全カードの共通クラス、levelLteCenterLrig は動的中央ルリグレベル比較。verbJa は decompiler 表示用
+  | { type: 'LAST_LOOK_TRASHED_MATCHES'; filter: TargetFilter; minCount?: number } // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   | { type: 'LAST_PROCESSED_ALL_MATCH'; filter: TargetFilter };  // lastProcessedCards が **すべて** filter 一致（空集合は false）（「この方法でトラッシュに置かれたカードがすべて黒の場合」WXK09-097／「すべてのカードがレベル１のシグニの場合」WXDi-P05-042）
 
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
@@ -731,6 +732,7 @@ export interface PowerModifyAction {
   excludeSelf?: boolean; // 「あなたの他のシグニ」: 効果元カード自身を対象から除外
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ適用（WXDi-P07-079「それが＜毒牙＞なら代わりに＋10000」。選択UIを出さず同一対象に適用）
+  targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象
   deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
 }

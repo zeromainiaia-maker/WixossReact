@@ -4156,6 +4156,42 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WDK07-E15": [
     {"effectId":"WDK07-E15-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"調理"},"pickCount":1,"then":{"type":"STUB","id":"INTERNAL_ACCE_PICKED_TO_SELF"},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // PLAN §6.3 engine-foundation wave: leave-field gates, LOOK trash provenance,
+  // fixed targets across optional costs, and parameterized assassin.
+  "WX25-P1-052": [
+    {"effectId":"WX25-P1-052-E1","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"天使"},"triggerCondition":{"turnOwner":"opponent"},"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"永らえし冒険者　タウィル＝トレ"}},"usageLimit":"once_per_turn","action":{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ","level":{"max":2},"story":"天使"},"pickCount":1,"then":"field","suppressOnPlay":true}],"remainder":{"location":"deck","position":"bottom"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX25-P1-103": [
+    {"effectId":"WX25-P1-103-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_LOOK_TRASHED_MATCHES","filter":{"cardType":"シグニ","story":"古代兵器"}},"then":{"type":"SEQUENCE","steps":[
+        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
+        {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+        {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true,"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}
+      ]}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX25-P3-062": [
+    {"effectId":"WX25-P3-062-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"虚幸の冥者　ハナレ"}},"action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[
+        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true,"delta":-20000,"duration":"UNTIL_END_OF_TURN"},
+        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":-20000,"duration":"UNTIL_END_OF_TURN"}
+      ]}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX25-P2-084": [
+    {"effectId":"WX25-P2-084-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+      {"choiceId":"c0","label":"他の＜武勇＞がいる場合、相手シグニ2体までを凍結","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"武勇"},"excludeSelf":true},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}}},
+      {"choiceId":"c1","label":"＜武勇＞をエナからトラッシュして条件付きアサシンを得る","action":{"type":"SEQUENCE","steps":[
+        {"type":"STUB","id":"OPTIONAL_TRASH_ENERGY_CLASS"},
+        {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン:{\"isFrozen\":true,\"powerLte\":3000}","duration":"UNTIL_END_OF_TURN"}}
+      ]}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**
