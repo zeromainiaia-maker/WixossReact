@@ -730,6 +730,46 @@ test('DURING_ATTACK_PHASE: calcFieldPowers に turnPhase が通り WX25-CP1-082-
   eq(calcFieldPowers(my, op, true, effectsMap, cm, 'MAIN').get(cn),         base,        'MAIN=加算なし');
   eq(calcFieldPowers(my, op, true, effectsMap, cm).get(cn),                 base + 5000, 'turnPhase未指定=従来どおり適用（permissive）');
 });
+const frontPowerCases = [
+  { cardNum: 'WX24-P1-050', effectId: 'WX24-P1-050-E1', delta: -2000 },
+  { cardNum: 'WX24-P2-057', effectId: 'WX24-P2-057-E1', delta: -3000 },
+  { cardNum: 'WX24-P2-057', effectId: 'WX24-P2-057-E2', delta: -4000, needsMaze: true },
+  { cardNum: 'WXDi-P10-044', effectId: 'WXDi-P10-044-E1', delta: -2000 },
+] as const;
+for (const c of frontPowerCases) {
+  test(`frontOfSelf CONT POWER_MODIFY: ${c.effectId} は正面だけを弱体化し条件・保護を尊重`, () => {
+    const cm = cardMap as Map<string, CardData>;
+    const em = new Map(effectsMap);
+    em.set(c.cardNum, mergeManualEffects(c.cardNum, em.get(c.cardNum) ?? []).filter(e => e.effectId === c.effectId));
+    const maze = findCard(card => isSigni(card) && (card.CardClass ?? '').includes('迷宮') && card.CardNum !== c.cardNum);
+    const front = fresh(), offLane = fresh();
+    const my = mkState({ signi: [c.cardNum, c.needsMaze ? maze : null, null] });
+    const op = mkState({ signi: [offLane, null, front] });
+    const baseHost = parseInt(cardMap.get(c.cardNum)?.Power ?? '0', 10);
+    const baseFront = parseInt(cardMap.get(front)?.Power ?? '0', 10);
+    const baseOffLane = parseInt(cardMap.get(offLane)?.Power ?? '0', 10);
+    const attack = calcFieldPowers(my, op, true, em, cm, 'ATTACK_SIGNI');
+    eq(attack.get(front), baseFront + c.delta, `${c.effectId}: zone0 の正面 zone2 だけ delta`);
+    eq(attack.get(offLane), baseOffLane, `${c.effectId}: 別ゾーンは不変`);
+    eq(attack.get(c.cardNum), baseHost, `${c.effectId}: 効果元は自傷しない`);
+    eq(calcFieldPowers(my, op, true, em, cm, 'MAIN').get(front), baseFront, `${c.effectId}: アタックフェイズ外は不発`);
+
+    const emptyFront = calcFieldPowers(my, mkState({ signi: [offLane, null, null] }), true, em, cm, 'ATTACK_SIGNI');
+    eq(emptyFront.get(offLane), baseOffLane, `${c.effectId}: 正面空なら誰も変化しない`);
+    eq(emptyFront.get(c.cardNum), baseHost, `${c.effectId}: 正面空でも自傷しない`);
+
+    if (c.needsMaze) {
+      const noMaze = mkState({ signi: [c.cardNum, null, null] });
+      eq(calcFieldPowers(noMaze, op, true, em, cm, 'ATTACK_SIGNI').get(front), baseFront, `${c.effectId}: 他の＜迷宮＞不在なら不発`);
+    }
+
+    const protectedOp = mkState({ signi: [offLane, null, 'WX05-024'] });
+    const protectedMap = new Map(em);
+    protectedMap.set('WX05-024', mergeManualEffects('WX05-024', protectedMap.get('WX05-024') ?? []));
+    const protectedBase = parseInt(cardMap.get('WX05-024')?.Power ?? '0', 10);
+    eq(calcFieldPowers(my, protectedOp, true, protectedMap, cm, 'ATTACK_SIGNI').get('WX05-024'), protectedBase, `${c.effectId}: 相手のパワー減少保護を尊重`);
+  });
+}
 test('LOOK_AT_DECK_AND_LIFE: 情報開示のみ（盤面不変）', () => {
   const ctx = mkCtx({}, { deckTop: [SIGNI], life: 7 });
   const beforeDeck = ctx.otherState.deck.length, beforeLife = ctx.otherState.life_cloth.length;

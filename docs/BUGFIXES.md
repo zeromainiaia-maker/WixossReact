@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 機構台帳「正面」続き＝CONT パワー修正「このシグニの正面のシグニ －N000」を frontOfSelf で是正（4効果・2026-07-24・codex実装/Claude確認）
+
+- **真因**：原文「【常】：（アタックフェイズの間、）このシグニの正面のシグニのパワーを－N000する」＝効果元ゾーン `zi` の対面（相手ゾーン `2-zi`）の相手シグニを弱体化する常在効果が、parser で `target:{owner:"self", thisCardOnly:true}, delta:-N` ＝**このシグニ（自分）自身を －N する自傷 CONT** へ誤変換されていた（自分のアタッカーが弱くなる実害・逆翻訳で気付けない偽陰性）。WX24-P1-050-E1（-2000）・WX24-P2-057-E1（-3000）・WX24-P2-057-E2（-4000）・WXDi-P10-044-E1（-2000）。
+- **実装（新型ゼロ）**：`calcFieldPowers`（effectEngine.ts）の CONTINUOUS POWER_MODIFY `isSelfOnly`（count!=='ALL'）分岐に `frontOfSelf` 分岐を1本追加＝ホスト `topNum` のゾーン `zi` から相手ゾーン `2-zi` の正面シグニを解決し、`applyDeltaToCard(frontNum, delta, powers, otherPowerProtection)` で delta 適用（相手のパワー減少保護を honor・残り filter は matchesFilter で AND・正面空/効果元非シグニは no-op）。`activeCondition`（`DURING_ATTACK_PHASE`／E2 の AND[自アタックフェイズ, 迷宮在場]）は分岐前の `checkActiveCondition` で既に honor 済み。4効果を `owner:"opponent"`＋`filter.frontOfSelf:true` へ MANUAL 再エンコード（前バッチの target 解決型 frontOfSelf を CONT パワー経路へ拡張）。parser 不変。
+- **検証**：正面に相手シグニ→そのシグニだけ delta／正面空→誰も変化せず**自分のシグニは無傷（自傷しない）**／別ゾーンの相手シグニ非対象／アタックフェイズ外→適用なし／E2 は迷宮不在→適用なし、を calcFieldPowers 実呼びの挙動 golden で固定（golden 720→724）。census 高シグナル 1571→**1567**（BASELINE_HIGH 更新・4効果が正面カテゴリ high-signal から抜けた）・同型★0・smoke 10725件0・fuzz 200ゲーム0・lint 221w/0e。per-effect（effectId 単位）diff はベースライン fe0778fc 比で対象4効果のみ・**兄弟効果（WX24-P1-050-E2/BURST・WX24-P2-057-E3・WXDi-P10-044-E2/E3）は byte 一致**・built JSON にも反映（4効果とも非 PRESERVE で焼き込み確認＝前バッチ WXK04-072 の PRESERVE ギャップは非再発）。**残＝WX05-019-E1（CONT REMOVE_ABILITIES front）は別経路 `collectContinuousAbilitiesRemovedSigni` が opponent+count:1 を same-zi で解決しており 2-zi 規約と食い違うため据置（要別途精査）。** WX24-P2-057-E1 の「《エニグマ/メイデン イオナ》がいるかぎり」条件は今回スコープ外（target のみ是正・条件は据置）。
+
+---
+
 ## PLAN §6.3 機構台帳「正面」＝`frontOfSelf` target filter で「このシグニの正面のシグニを対象」5効果（2026-07-24・codex実装/Claude確認）
 
 - **真因**：原文「このシグニの正面のシグニ（1体を対象とし）」＝能力保持シグニのゾーン `zi` の対面（相手ゾーン `2 - zi`）の相手シグニ、を parser が落とし、対象5効果がすべて `target.owner:"self"` や無制限へ誤変換＝**自分のシグニをバニッシュ／能力喪失させる自傷 no-op**（逆翻訳では気付けない偽陰性）。WXK11-029-E2（REMOVE_ABILITIES）・WXDi-P04-049-E1（同・triggerScope も any→self 誤り）・WXK04-072-E2（BANISH power≤3000）・WX12-038-E1（ターン終了時 BANISH）・WD17-009-E1（アタック時・自パワー15000以上で BANISH）。

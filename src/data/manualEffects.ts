@@ -7,6 +7,21 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WX24-P1-050": [
+    {"effectId":"WX24-P1-050-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX24-P1-050-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"any"},
+    {"effectId":"WX24-P1-050-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isUp":true},"upToCount":false},"delta":-15000}},{"choiceId":"c1","label":"選択肢2","action":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+  ],
+  "WX24-P2-057": [
+    {"effectId":"WX24-P2-057-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX24-P2-057-E2","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"DURING_ATTACK_PHASE","owner":"self"},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"迷宮"},"excludeSelf":true}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX24-P2-057-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+  ],
+  "WXDi-P10-044": [
+    {"effectId":"WXDi-P10-044-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P10-044-E2","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"PERMANENT","frontOnly":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"},
+    {"effectId":"WXDi-P10-044-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_CARD_OP"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+  ],
   "WXK11-029": [
     {"effectId":"WXK11-029-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"self","count":1},"actionId":"ON_PLAY_ABILITY","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK11-029-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}

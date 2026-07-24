@@ -1591,6 +1591,18 @@ export function calcFieldPowers(
 
           // count !== 'ALL' はCONTINUOUSにおける「このシグニ」= 効果元カードのみ対象
           if (isSelfOnly) {
+            if (target.filter?.frontOfSelf) {
+              const ziHost = ownerState.field.signi.findIndex(s => s?.at(-1) === topNum);
+              const frontNum = ziHost >= 0 ? otherState.field.signi[2 - ziHost]?.at(-1) : undefined;
+              if (frontNum && powers.has(frontNum)) {
+                const { frontOfSelf: _f, ...restFilter } = target.filter;
+                const frontBase = frontNum.includes('#') ? frontNum.slice(0, frontNum.indexOf('#')) : frontNum;
+                if (matchesFilter(cardMap.get(frontBase), restFilter)) {
+                  applyDeltaToCard(frontNum, delta, powers, otherPowerProtection);
+                }
+              }
+              continue;
+            }
             // acceHost:「これにアクセされているシグニ」＝このカードのアクセ装着先ホスト宛。
             // 効果元（このカード）が場のシグニのときは自己適用しない。実際のホスト加算は
             // 下の signi_acce ループ（このカードがアクセとして付いている場合）が行う。
