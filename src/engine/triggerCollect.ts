@@ -1110,6 +1110,26 @@ export function collectMillTriggers(
       });
     }
   }
+  // プレイヤーへゲーム中付与された AUTO 能力（アーツ等、解決後に場へ残らない発生源）も収集する。
+  for (const eff of controllerState.game_granted_auto_effects ?? []) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
+    const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
+    const minCount = eff.triggerCondition?.milledMinCount ?? 1;
+    const relevant = owner === 'self' ? milledFromControllerDeck
+      : owner === 'opponent' ? milledFromOppDeck
+      : milledFromControllerDeck + milledFromOppDeck;
+    if (relevant < minCount) continue;
+    const turnOwner = eff.triggerCondition?.turnOwner;
+    if (turnOwner === 'self' && !isControllerTurn) continue;
+    if (turnOwner === 'opponent' && isControllerTurn) continue;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, '')) continue;
+    if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, '', ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!limitOk(eff)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: controllerId, cardNum: eff.effectId,
+      effectId: eff.effectId, label: 'ゲーム中に得た【自】効果（デッキトラッシュ時）', effect: eff,
+    });
+  }
   return { entries, usedOncePerTurnIds };
 }
 

@@ -9283,8 +9283,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const oppCrashEventSize = 1 + (my.pending_crashed_cards?.length ?? 0);
       const oppCrashTriggers: StackEntry[] = [];
       const oppUsedIds: string[] = [];
+      const oppGameUsedIds: string[] = [];
       // usageLimit を op.actions_done の出現回数で制御（once=1 / twice=2）。
       const oppLimitOk = (eff: import('../types/effects').CardEffect): boolean => {
+        if (eff.usageLimit === 'once_per_game') {
+          if ((op.game_actions_done ?? []).includes(eff.effectId) || oppGameUsedIds.includes(eff.effectId)) return false;
+          oppGameUsedIds.push(eff.effectId);
+          return true;
+        }
         if (eff.usageLimit !== 'once_per_turn' && eff.usageLimit !== 'twice_per_turn') return true;
         const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;
         const used = (op.actions_done ?? []).filter(id => id === eff.effectId).length
@@ -9319,6 +9325,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
+      for (const eff of op.game_granted_auto_effects ?? []) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
+        if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
+        if (!oppLimitOk(eff)) continue;
+        oppCrashTriggers.push({
+          id: generateUUID(),
+          playerId: crasherId,
+          cardNum: eff.effectId,
+          effectId: eff.effectId,
+          label: 'ゲーム中に得た【自】効果（相手ライフクラッシュ時）',
+          effect: eff,
+        });
+      }
       // INSTALL_DELAYED_TRIGGER（B3）: op（クラッシュした側＝ターンプレイヤー）に設置された
       // 「このターン、…がクラッシュしたとき、…」遅延トリガーを収集する。crasherFilter があれば
       // op の場に該当シグニがいるかで近似判定（実際のクラッシュ源シグニは未追跡＝要実機検証）。
@@ -9344,8 +9363,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           },
         });
       }
-      const opStateForUsed: PlayerState | null = oppUsedIds.length > 0
-        ? { ...op, actions_done: [...(op.actions_done ?? []), ...oppUsedIds] }
+      const opStateForUsed: PlayerState | null = oppUsedIds.length > 0 || oppGameUsedIds.length > 0
+        ? {
+            ...op,
+            actions_done: [...(op.actions_done ?? []), ...oppUsedIds],
+            game_actions_done: [...(op.game_actions_done ?? []), ...oppGameUsedIds],
+          }
         : null;
       // SET_NEXT_LIFE_CRASH_COUNTER: 自分（my=クラッシュされた側）に設定されたカウンタークラッシュを消費し、
       // 対戦相手（op）のライフクロスを perTrigger 枚クラッシュし返すトリガーを積む（WX25-P1-004 / WXDi-P12-030）。

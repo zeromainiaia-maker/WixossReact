@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 WX25-P2-009 シザー・ハンズ ゲーム持続AUTO能力（2026-07-24・codex実装）
+
+- **真因**：アーツ自身に E1/E2 の AUTO を直付けしていたため、使用後に場へ残らず collector の走査対象にならなかった。E2 の従来 golden もアーツをシグニとして場へ人工配置しており、実戦経路を固定できていなかった。
+- **実装**：ACTIVATED `INSTALL_GAME_GRANTED_AUTO` でカードの AUTO を `game_granted_auto_effects` へ登録。`collectMillTriggers` と ON_OPP_LIFE_CRASHED 収集が同レジストリを走査する。E1 は相手ライフ0枚時だけ `next_refresh_replaced` を立て、共通 `applyRefreshState` が通常のライフ送りを置換してトラッシュ全量再構築＋ルリグデッキ先頭1枚をルリグトラッシュへ移し、フラグ消費とリフレッシュ回数加算を行う。`applyRefresh`／`refreshPlayerIfDeckEmpty` の両経路が共通遷移を使用。
+- **検証**：アーツ ACTIVATED 実行→AUTO 2件登録→E1 実行→effectExecutor リフレッシュまでの E2E、ライフ残存時の不成立、battleUtils 側の置換、E2 の自ターン／相手ターン／ターン1回を golden で固定。ルリグデッキから置く1枚は先頭で近似。
+
+---
+
 ## PLAN §6.3 打消し（カットイン）単独バッチ9（2026-07-24・codex実装/Claude確認）
 - **WX24-P3-036 / 実装**：manual effect を `CHOOSE 1/2`（①相手シグニ1体をDOWN／②COUNTER_SPELL）へ復元。スペルカットイン時だけ②を専用候補として提示し、`pending_spell` の対象スペルの印刷コスト合計を追加《無》コストへ展開してUIで先払いする。支払わなければ候補を使用できず、支払った場合だけ既存のスペル打消し経路へ入るため二重打消しはない。既存カットインは `countersSpell` 未指定時 true の後方互換を維持。カットイン使用も `turn_arts_used_names/colors` に記録し、新 `OPTIONAL_RETURN_SELF_ARTS_FIRST_USE` が同名使用回数1回のときだけ使用済み自身を任意でルリグデッキへ戻す。
 - **WXDi-P05-006 / choice②実装・choice① honest defer**：②を `DRAW 1 → ENERGY_CHARGE_FROM_DECK 1` で実装。①は相手チームピース使用前の応答窓、`pending_piece`、未解決効果の取消、打消し後の除外先を一体で新設する必要があり、既存スペル解決フローへの影響が大きいため `COUNTER_TEAM_PIECE_CUTIN_DEFERRED` STUB として明示。無条件除外などの代替挙動は入れていない。

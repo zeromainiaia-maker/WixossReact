@@ -2686,6 +2686,33 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwnerISF }, `歌のカケラ（${songCardDataISF?.CardName ?? selectedSF}）：効果なし`));
   }
   // ゲーム全体能力付与
+  if (stub.id === 'INSTALL_GAME_GRANTED_AUTO') {
+    const sourceNum = ctx.sourceCardNum ? getCardNum(ctx.sourceCardNum) : '';
+    const sourceCard = sourceNum ? ctx.cardMap.get(sourceNum) : undefined;
+    const sourceEffects = sourceNum
+      ? (ctx.effectsMap?.get(sourceNum) ?? (sourceCard ? parseCardEffects(sourceCard) : []))
+      : [];
+    const granted = sourceEffects.filter(e => e.effectType === 'AUTO');
+    const existing = ctx.ownerState.game_granted_auto_effects ?? [];
+    const existingIds = new Set(existing.map(e => e.effectId));
+    const additions = granted.filter(e => !existingIds.has(e.effectId));
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        game_granted_auto_effects: [...existing, ...additions],
+      },
+    }, `ゲーム持続AUTO能力を${additions.length}件インストール`));
+  }
+  if (stub.id === 'REPLACE_NEXT_OPP_REFRESH_MILL_LRIG') {
+    if (ctx.otherState.life_cloth.length !== 0) {
+      return done(addLog(ctx, '対戦相手のライフクロスが0枚ではないためリフレッシュ置換不発'));
+    }
+    return done(addLog({
+      ...ctx,
+      otherState: { ...ctx.otherState, next_refresh_replaced: true },
+    }, '対戦相手の次のリフレッシュを置換'));
+  }
   if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
     const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';

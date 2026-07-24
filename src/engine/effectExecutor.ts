@@ -1,4 +1,5 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import { applyRefreshState } from './refresh';
 import type {
   CardEffect,
   EffectAction,
@@ -4895,15 +4896,8 @@ function refreshPlayerIfDeckEmpty(
       && e.action?.type === 'STUB'
       && (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH');
   });
-  const topLife = (!preventLifeToTrash && st.life_cloth.length > 0) ? st.life_cloth[st.life_cloth.length - 1] : null;
   return {
-    state: {
-      ...st,
-      deck: shuffle([...st.trash]),
-      trash: preventLifeToTrash ? st.trash : (topLife ? [topLife] : []),
-      life_cloth: (!preventLifeToTrash && topLife) ? st.life_cloth.slice(0, -1) : st.life_cloth,
-      refresh_count_this_turn: (st.refresh_count_this_turn ?? 0) + 1,
-    },
+    state: applyRefreshState(st, preventLifeToTrash),
     refreshed: true,
   };
 }

@@ -20,6 +20,7 @@ import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, ch
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
+  applyRefreshOnDone,
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
@@ -29,7 +30,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
-import { advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { consumeNthAttackNegation } from '../src/screens/battle/attackNegation';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
@@ -8780,11 +8781,70 @@ test('PLAN §6.3 tail B-2 WX25-P2-009-E2 own-turn once-per-turn mill gate', () =
   eq(eff.triggerCondition?.turnOwner, 'self');
   eq(eff.triggerCondition?.milledDeckOwner ?? 'any', 'any');
   eq(eff.usageLimit, 'once_per_turn');
-  const hostState = mkState({ signi: ['WX25-P2-009', null, null] });
+  const hostState = { ...mkState(), game_granted_auto_effects: [eff] };
   ok(collectMillTriggers(trigCtx(HOST), HOST, hostState, mkState(), 1, 0).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'own-turn mill fires');
   const usedState = { ...hostState, actions_done: ['WX25-P2-009-E2'] };
   ok(!collectMillTriggers(trigCtx(HOST), HOST, usedState, mkState(), 0, 1).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'second use is blocked');
   ok(!collectMillTriggers(trigCtx(GUEST), HOST, hostState, mkState(), 1, 0).entries.some(e => e.effectId === 'WX25-P2-009-E2'), 'opponent turn is blocked');
+});
+
+test('PLAN §6.3 WX25-P2-009 arts install -> E1 -> executor refresh replacement E2E', () => {
+  const effects = effectsMap.get('WX25-P2-009')!;
+  const activated = effects.find(e => e.effectId === 'WX25-P2-009-ACT')!;
+  ok(!!activated && activated.effectType === 'ACTIVATED' && activated.timing?.includes('MAIN'), 'arts has a MAIN activated installer');
+
+  const usedArtsState = {
+    ...mkState(),
+    lrig_deck: [],
+    lrig_trash: ['WX25-P2-009'],
+    actions_done: ['USE_ARTS'],
+    turn_arts_used: true,
+  };
+  const installCtx = {
+    ...mkCtx({}, {}, 'WX25-P2-009'),
+    ownerState: usedArtsState,
+    effectsMap,
+  } as ExecCtx;
+  const installed = finish(executeEffect(activated, installCtx), installCtx);
+  eq(installed.ownerState.game_granted_auto_effects?.map(e => e.effectId).join(','), 'WX25-P2-009-E1,WX25-P2-009-E2', 'arts use installs both AUTO abilities');
+
+  const e1 = installed.ownerState.game_granted_auto_effects!.find(e => e.effectId === 'WX25-P2-009-E1')!;
+  const lrigDeckCard = fresh();
+  const lifeCard = fresh();
+  const trashCards = [fresh(), fresh()];
+  const e1Ctx = {
+    ...installCtx,
+    ownerState: installed.ownerState,
+    otherState: {
+      ...mkState({ life: 0 }),
+      deck: [],
+      trash: trashCards,
+      lrig_deck: [lrigDeckCard],
+      lrig_trash: [],
+      life_cloth: [],
+    },
+  };
+  const armed = finish(executeEffect(e1, e1Ctx), e1Ctx);
+  eq(armed.otherState.next_refresh_replaced, true, 'life zero trigger arms opponent replacement');
+  const refreshed = applyRefreshOnDone({ ...armed, done: true }, cardMap);
+  eq(refreshed.otherState.life_cloth.length, 0, 'replacement does not trash life');
+  eq(refreshed.otherState.lrig_deck.length, 0, 'replacement moves one lrig-deck card');
+  eq(refreshed.otherState.lrig_trash.join(','), lrigDeckCard, 'moved card enters lrig trash');
+  eq(refreshed.otherState.trash.length, 0, 'all trash is shuffled into deck');
+  eq(refreshed.otherState.deck.length, trashCards.length, 'main deck is rebuilt from all trash');
+  eq(refreshed.otherState.next_refresh_replaced, false, 'one-shot replacement is consumed');
+  eq(refreshed.otherState.refresh_count_this_turn, 1, 'replacement increments refresh count');
+
+  const nonzeroCtx = { ...e1Ctx, otherState: { ...e1Ctx.otherState, life_cloth: [lifeCard] } };
+  const blocked = finish(executeEffect(e1, nonzeroCtx), nonzeroCtx);
+  eq(blocked.otherState.next_refresh_replaced ?? false, false, 'life remaining blocks E1');
+
+  const direct = applyRefresh({
+    ...e1Ctx.otherState,
+    next_refresh_replaced: true,
+  });
+  eq(direct.life_cloth.length, 0, 'battleUtils applyRefresh also honors replacement');
+  eq(direct.lrig_trash.join(','), lrigDeckCard, 'battleUtils path moves one lrig card');
 });
 
 test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () => {

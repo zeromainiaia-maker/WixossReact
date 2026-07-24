@@ -1,6 +1,7 @@
 // バトル画面の汎用ヘルパー（ID採番・シャッフル・リフレッシュ/ドロー・じゃんけん等）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState } from '../../types';
 import { getCardNum } from '../../engine/effectExecutor';
+import { applyRefreshState } from '../../engine/refresh';
 
 // CPU専用プレイヤーID（MatchmakingScreenと共有）
 export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
@@ -86,16 +87,7 @@ export function assignGuestInstanceIds(cards: string[]): string[] {
 // リフレッシュ: トラッシュ全枚数をデッキに加えシャッフル。ライフがあれば一番上をトラッシュへ（バーストなし）。
 // ルール：トラッシュが空の場合はリフレッシュしない（保留）。発動時はリフレッシュ回数を加算する。
 export function applyRefresh(state: PlayerState, preventLifeToTrash = false): PlayerState {
-  if (state.trash.length === 0) return state; // トラッシュ空＝リフレッシュ保留（行わない）
-  const newDeck = shuffle([...state.trash]);
-  const topLife = (!preventLifeToTrash && state.life_cloth.length > 0) ? state.life_cloth[state.life_cloth.length - 1] : null;
-  return {
-    ...state,
-    deck:       newDeck,
-    trash:      preventLifeToTrash ? state.trash : (topLife ? [topLife] : []),
-    life_cloth: (!preventLifeToTrash && topLife) ? state.life_cloth.slice(0, -1) : state.life_cloth,
-    refresh_count_this_turn: (state.refresh_count_this_turn ?? 0) + 1,
-  };
+  return applyRefreshState(state, preventLifeToTrash);
 }
 
 // ドロー処理（リフレッシュ対応）。
