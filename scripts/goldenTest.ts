@@ -159,12 +159,106 @@ function finishPayingCosts(initial: ExecResult, ctx: ExecCtx): ExecResult {
   return result;
 }
 
+function manualEffect(cardNum: string, effectId: string): CardEffect {
+  const effect = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} not found`);
+  return effect;
+}
+
 // ── テストフレームワーク ──
 let pass = 0; const fails: string[] = [];
 function test(name: string, fn: () => void) { try { fn(); pass++; } catch (e) { fails.push(`${name}: ${(e as Error).message}`); } }
 function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m} expected=${b} got=${a}`); }
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
+
+test('frontOfSelf WXK11-029-E2: only the opposing front SIGNI loses abilities; empty front is no-op', () => {
+  const host = 'WXK11-029';
+  const front = SIGNI_L2;
+  const side = SIGNI_L3;
+  const ownOther = SIGNI_L4;
+  const effect = manualEffect(host, 'WXK11-029-E2');
+  const hit = finish(executeEffect(effect, mkCtx({ signi: [host, ownOther, null] }, { signi: [side, null, front] }, host)), mkCtx({}, {}, host));
+  ok(hit.otherState.abilities_removed?.includes(front), 'front opponent loses abilities');
+  ok(!hit.otherState.abilities_removed?.includes(side), 'non-front opponent is unaffected');
+  ok(!hit.ownerState.abilities_removed?.includes(ownOther), 'own SIGNI is unaffected');
+  const emptyCtx = mkCtx({ signi: [host, ownOther, null] }, { signi: [side, null, null] }, host);
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  eq(empty.otherState.abilities_removed?.length ?? 0, 0, 'empty front is no-op');
+  ok(tops(empty.ownerState).includes(ownOther), 'empty front does not harm own SIGNI');
+});
+
+test('frontOfSelf WXK04-072-E2: front-only BANISH keeps powerRange as an AND filter', () => {
+  const host = 'WXK04-072';
+  const side = SIGNI_L3;
+  const ownOther = SIGNI_L4;
+  const effect = manualEffect(host, 'WXK04-072-E2');
+  const hitCtx = mkCtx({ signi: [host, ownOther, null] }, { signi: [side, null, SIGNI_P3000] }, host);
+  const hit = finish(executeEffect(effect, hitCtx), hitCtx);
+  eq(tops(hit.otherState)[2], null, 'front power 3000 is banished');
+  eq(tops(hit.otherState)[0], side, 'non-front opponent is unaffected');
+  ok(tops(hit.ownerState).includes(ownOther), 'own SIGNI is unaffected');
+  const highCtx = mkCtx({ signi: [host, ownOther, null] }, { signi: [side, null, SIGNI_P12000] }, host);
+  const high = finish(executeEffect(effect, highCtx), highCtx);
+  eq(tops(high.otherState)[2], SIGNI_P12000, 'front power over 3000 is not banished');
+  const emptyCtx = mkCtx({ signi: [host, ownOther, null] }, { signi: [side, null, null] }, host);
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  eq(tops(empty.otherState)[0], side, 'empty front does not fall back to another opponent');
+});
+
+test('frontOfSelf WX12-038-E1: turn-end BANISH affects only the opposing front SIGNI', () => {
+  const host = 'WX12-038';
+  const front = SIGNI_L2;
+  const side = SIGNI_L3;
+  const ownOther = SIGNI_L4;
+  const effect = manualEffect(host, 'WX12-038-E1');
+  const hitCtx = mkCtx({ signi: [null, host, ownOther] }, { signi: [side, front, null] }, host);
+  const hit = finish(executeEffect(effect, hitCtx), hitCtx);
+  eq(tops(hit.otherState)[1], null, 'center front is banished');
+  eq(tops(hit.otherState)[0], side, 'non-front opponent is unaffected');
+  ok(tops(hit.ownerState).includes(ownOther), 'own SIGNI is unaffected');
+  const emptyCtx = mkCtx({ signi: [null, host, ownOther] }, { signi: [side, null, null] }, host);
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  eq(tops(empty.otherState)[0], side, 'empty front is no-op');
+});
+
+test('frontOfSelf WD17-009-E1: front BANISH also requires SELF_POWER_GTE 15000', () => {
+  const host = 'WD17-009';
+  const front = SIGNI_L2;
+  const side = SIGNI_L3;
+  const effect = manualEffect(host, 'WD17-009-E1');
+  const hitCtx = mkCtx({ signi: [host, null, null] }, { signi: [side, null, front] }, host);
+  hitCtx.effectivePowers = new Map([[host, 15000]]);
+  const hit = finish(executeEffect(effect, hitCtx), hitCtx);
+  eq(tops(hit.otherState)[2], null, 'front is banished at power 15000');
+  eq(tops(hit.otherState)[0], side, 'non-front opponent is unaffected');
+  const lowCtx = mkCtx({ signi: [host, null, null] }, { signi: [side, null, front] }, host);
+  lowCtx.effectivePowers = new Map([[host, 14999]]);
+  ok(!evalUseCondition(effect.condition!, lowCtx.ownerState, lowCtx.otherState, lowCtx.cardMap, host, 'ATTACK', lowCtx.effectivePowers),
+    'collector gate rejects power below 15000');
+  eq(tops(lowCtx.otherState)[2], front, 'rejected trigger leaves the front SIGNI untouched');
+  const emptyCtx = mkCtx({ signi: [host, null, null] }, { signi: [side, null, null] }, host);
+  emptyCtx.effectivePowers = new Map([[host, 15000]]);
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  eq(tops(empty.otherState)[0], side, 'empty front does not fall back');
+});
+
+test('frontOfSelf WXDi-P04-049-E1: attack-phase trigger removes only opposing front abilities', () => {
+  const host = 'WXDi-P04-049';
+  const front = SIGNI_L2;
+  const side = SIGNI_L3;
+  const ownOther = SIGNI_L4;
+  const effect = manualEffect(host, 'WXDi-P04-049-E1');
+  eq(effect.triggerScope, 'self', 'triggerScope is self');
+  const hitCtx = mkCtx({ signi: [ownOther, null, host] }, { signi: [front, null, side] }, host);
+  const hit = finish(executeEffect(effect, hitCtx), hitCtx);
+  ok(hit.otherState.abilities_removed?.includes(front), 'front opponent loses abilities');
+  ok(!hit.otherState.abilities_removed?.includes(side), 'non-front opponent is unaffected');
+  ok(!hit.ownerState.abilities_removed?.includes(ownOther), 'own SIGNI is unaffected');
+  const emptyCtx = mkCtx({ signi: [ownOther, null, host] }, { signi: [null, null, side] }, host);
+  const empty = finish(executeEffect(effect, emptyCtx), emptyCtx);
+  eq(empty.otherState.abilities_removed?.length ?? 0, 0, 'empty front is no-op');
+});
 
 test('batch7 state conditions and manual encodings', () => {
   const savedCursor = cursor;

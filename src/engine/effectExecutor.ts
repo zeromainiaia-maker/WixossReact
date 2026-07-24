@@ -153,6 +153,13 @@ function findEffectLeavePowerReductionSubstitute(
   return null;
 }
 
+/** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
+export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
+  const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
+  if (zi < 0) return null;
+  return ctx.otherState.field.signi[2 - zi]?.at(-1) ?? null;
+}
+
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   // conditional: true = 前ステップ（STUB等）がlastProcessedCardsを設定した場合のみ実行
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
@@ -215,13 +222,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (resolvedFilter?.frontOfSelf) {
     const { frontOfSelf: _f, ...rest } = resolvedFilter;
     resolvedFilter = rest;
-    if (tgt.owner === 'opponent' && ctx.sourceCardNum) {
-      const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
-      const frontNum = zi >= 0 ? ctx.otherState.field.signi[2 - zi]?.at(-1) : undefined;
-      frontRestrict = frontNum ? [frontNum] : [];
-    } else {
-      frontRestrict = [];
-    }
+    const frontNum = tgt.owner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : null;
+    frontRestrict = frontNum ? [frontNum] : [];
   }
   const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
@@ -4089,13 +4091,8 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   if (resolvedFilter?.frontOfSelf) {
     const { frontOfSelf: _f, ...rest } = resolvedFilter;
     resolvedFilter = rest;
-    if (tgtOwner === 'opponent' && ctx.sourceCardNum) {
-      const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
-      const frontNum = zi >= 0 ? ctx.otherState.field.signi[2 - zi]?.at(-1) : undefined;
-      frontRestrict = frontNum ? [frontNum] : [];
-    } else {
-      frontRestrict = [];
-    }
+    const frontNum = tgtOwner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : null;
+    frontRestrict = frontNum ? [frontNum] : [];
   }
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニは能力を失う」）
   let thisCardRestrict: string[] | null = null;

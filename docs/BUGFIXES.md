@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 機構台帳「正面」＝`frontOfSelf` target filter で「このシグニの正面のシグニを対象」5効果（2026-07-24・codex実装/Claude確認）
+
+- **真因**：原文「このシグニの正面のシグニ（1体を対象とし）」＝能力保持シグニのゾーン `zi` の対面（相手ゾーン `2 - zi`）の相手シグニ、を parser が落とし、対象5効果がすべて `target.owner:"self"` や無制限へ誤変換＝**自分のシグニをバニッシュ／能力喪失させる自傷 no-op**（逆翻訳では気付けない偽陰性）。WXK11-029-E2（REMOVE_ABILITIES）・WXDi-P04-049-E1（同・triggerScope も any→self 誤り）・WXK04-072-E2（BANISH power≤3000）・WX12-038-E1（ターン終了時 BANISH）・WD17-009-E1（アタック時・自パワー15000以上で BANISH）。
+- **実装（既存機構の再利用＋リファクタ・新型ゼロ）**：`frontOfSelf` target filter は既存（WX17-035 で使用済＝`FRONT_SIGNI_POWER` 条件の `zi`/`2-zi` 式と同型）。execBanish／execRemoveAbilities に散在していた inline 解決を共通ヘルパー `resolveFrontOfSelfCardNum(ctx)`（効果元ゾーン `zi` の対面 `2-zi` の相手シグニ1枚・効果元が場のシグニでない／正面空なら null＝候補ゼロで no-op）へ集約（挙動等価）。5効果を MANUAL 再エンコード（`owner:"opponent"` ＋ `filter.frontOfSelf:true`・power/level/自パワー条件は AND 維持）。parser 不変。
+- **⚠Claude 是正（ガードレール10）＝WXK04-072 の PRESERVE ギャップ**：WXK04-072 は既存 MANUAL 効果（E1b MULTI_ZONE_ATTACK）を持つ **PRESERVE カード**のため、`build:effects` が curated JSON を温存し、codex が manualEffects.ts に足した E2（frontOfSelf）が **built JSON に焼かれず**、`public/data/effects_WXK.json` の WXK04-072-E2 は旧 `owner:"self"` のまま残っていた。**app（App.tsx）は built JSON を直読みし runtime で mergeManualEffects を適用しない**ため、golden（test 側で mergeManualEffects を直呼び）は緑でも**実機では WXK04-072-E2 が未修正のまま**という hollow fix だった。`effects_WXK.json` の E2 を frontOfSelf へ直パッチして真に解決（census が 1572→1571 へ＝5効果目が実際に高シグナルから抜けた）。他4効果は非 PRESERVE で build が正しく焼き込み済み。
+- **検証**：正面に相手シグニあり→その相手だけバニッシュ/能力喪失／正面空→no-op（自分のシグニ無傷）／別ゾーンの相手シグニは非対象／WXK04-072 は power>3000 で不発／WD17-009 は自パワー<15000 で不発、を挙動 golden 両方向で固定（golden 715→720）。census 高シグナル 1577→**1571**（BASELINE_HIGH 更新）・同型★0・smoke 10725件0・fuzz 200ゲーム0・lint 221w/0e。per-effect JSON diff はベースライン 8d9d796e 比で対象5効果のみ（兄弟効果 WXK04-072-E1/E1b・WD17-009-E2/BURST 等は不変・outlier 0）。frontOfSelf の refactor は WX17-035（既存利用者）に非退化。
+
+---
+
 ## PLAN §6.3 個別カード＝CHOOSE 選択肢内「そうした場合／条件」の IS_MY_TURN 誤変換2枚（WX25-CP1-002-E1・WD22-036-G-E1・2026-07-24・codex実装/Claude確認）
 
 - **真因**：CHOOSE の選択肢に埋め込まれた「そうした場合」「それが〜の場合」という条件節が parser で `CONDITIONAL{IS_MY_TURN}` に誤変換され、自ターン起動のアーツ／スペルでは常に true ＝ゲートが実質無効化して過剰実行。逆翻訳では一見それらしく見える偽陰性。(1) **WX25-CP1-002-E1 choice④**＝`STUB TARGET_AND_DISCARD_HAND`（未実装＝対象取得も手札捨ても不発）＋`IS_MY_TURN`→無条件 BOUNCE。「能力を持たない場合」判定と「＜ブルアカ＞1枚捨ててもよい／そうした場合戻す」の任意コスト成立ゲートが丸ごと欠落。(2) **WD22-036-G-E1 choice①②**＝両選択肢の自シグニバニッシュ後「そうした場合」が `IS_MY_TURN` 誤変換、さらに①は「手札に加えるか場に出す」の行き先二択が別 STUB に潰れていた。
