@@ -215,6 +215,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // バニッシュされる側の限定「パワーが０以下の(対戦相手の)?シグニがバニッシュされる場合」（続き218）。
     // 落とすと相手の全バニッシュが常時トラッシュ送りになる（WXDi-P10-009-E3／WXDi-CP02-102-E2）。
     const whenPowerZero = /パワーが０以下の[^。]*?シグニが[^。]*?バニッシュされる場合/.test(t);
+    const frontOnly = /この(?:シグニ|カード)の正面の/.test(t);
     // バニッシュされる**側**の属性限定（タスク12(xliv)(a)）。落とすと「対戦相手の全バニッシュ」に過剰発火する
     // ＝engine の battle/power0 経路が target.filter を評価して被バニッシュシグニを絞る（レベル/凍結/感染/チャーム）。
     // レベル１以下(WXK10-053)・凍結(WXDi-P12-073)・感染(WX21-005)・【チャーム】付き(WX18-038)。
@@ -231,6 +232,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       until,
       ...(bySource ? { bySource } : {}),
       ...(whenPowerZero ? { whenPowerZero: true } : {}),
+      ...(frontOnly ? { frontOnly: true } : {}),
     } as BanishRedirectAction;
   }
 

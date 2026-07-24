@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
-applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
+applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
@@ -6918,6 +6918,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const level = isNaN(base) ? undefined
           : base + (opS.temp_level_mods ?? []).filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0);
         return {
+          zoneIdx: zi,
           level,
           frozen: (opS.field.signi_frozen?.[zi] ?? false),
           hasCharm: (opS.field.signi_charms?.[zi] ?? null) !== null,
@@ -7270,13 +7271,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myS.banish_redirect === true ||
             // bySource 付き（このシグニとの/による）＝そのシグニ自身がバトル当事者のときだけ（続き217）
             (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
-            myS.field.signi.some(s => {
+            myS.field.signi.some((s, zi) => {
               const n = s?.at(-1);
               // bySource（「このシグニとのバトルによって」等）付きは、バトル当事者＝myTopNum のときだけ適用
               // 被バニッシュシグニ＝opTopCardNum。target.filter（レベル/凍結/感染/チャーム）で絞る（タスク12(xliv)(a)）。
               return n && (effectsMap.get(n) ?? []).some(e =>
                 e.effectType === 'CONTINUOUS' &&
                 banishRedirectAppliesFrom(e.action, n, myTopNum, banishedOpAttrsOf(opTopCardNum)) &&
+                banishRedirectFrontMatches(e.action, zi, banishedOpAttrsOf(opTopCardNum)) &&
                 checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
               );
             });
@@ -7644,13 +7646,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const redirectBanishForTrigger =
         myS.banish_redirect === true ||
         (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
-        myS.field.signi.some(s => {
+        myS.field.signi.some((s, zi) => {
           const n = s?.at(-1);
           // 上の redirectBanish（実際の行き先判定）と同じ条件にする＝bySource 付きはバトル当事者のみ・
           // target.filter も同じ被バニッシュシグニ属性で評価する（トリガー発火可否を実際の行き先と一致させる）。
           return n && (effectsMap.get(n) ?? []).some(e =>
             e.effectType === 'CONTINUOUS' &&
             banishRedirectAppliesFrom(e.action, n, myTopNum, banishedOpAttrsOf(banishedOpCardNum)) &&
+            banishRedirectFrontMatches(e.action, zi, banishedOpAttrsOf(banishedOpCardNum)) &&
             checkActiveCondition(e.activeCondition, myS, opS, true, battleCardMap, n, effectivePowers),
           );
         });
@@ -8084,12 +8087,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 「対戦相手の」限定版（BANISH_REDIRECT whenPowerZero・続き218）＝設定した側の対戦相手のシグニだけ。
           // opState は消滅するシグニの持ち主から見た対戦相手＝そこに立っていれば消滅側が「対戦相手」に当たる。
           opState.power0_banish_to_trash_opp_only === true ||
-          opState.field.signi.some(s => {
+          opState.field.signi.some((s, zi) => {
             const n = s?.at(-1);
             // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない。
             // 被バニッシュ＝topNum（currentOwner の dieZoneP0）。target.filter で絞る（タスク12(xliv)(a)）。
             const base = parseInt(battleCardMap.get(topNum)?.Level ?? '', 10);
             const p0Attrs = {
+              zoneIdx: dieZoneP0 >= 0 ? dieZoneP0 : undefined,
               level: isNaN(base) ? undefined
                 : base + (currentOwner.temp_level_mods ?? []).filter(m => m.cardNum === topNum).reduce((sum, m) => sum + m.delta, 0),
               frozen: (currentOwner.field.signi_frozen?.[dieZoneP0] ?? false),
@@ -8099,6 +8103,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             return n && (effectsMap.get(n) ?? []).some(e =>
               e.effectType === 'CONTINUOUS' &&
               banishRedirectAppliesFrom(e.action, n, null, p0Attrs) &&
+              banishRedirectFrontMatches(e.action, zi, p0Attrs) &&
               checkActiveCondition(e.activeCondition, opState, currentOwner, opIsOwnerTurnP0, battleCardMap, n),
             );
           });

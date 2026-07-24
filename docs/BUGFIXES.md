@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 BANISH_REDIRECT 正面限定（2026-07-24・codex実装）
+
+- **真因**：正面限定3効果が `target.count:'ALL'` のまま位置スコープを持たず、感染／アタックフェイズ条件を満たす正面外の相手シグニまでトラッシュへ置換していた。
+- **実装**：`BanishRedirectAction.frontOnly` と除去前属性 `BanishedCardAttrs.zoneIdx` を追加。能力保持シグニの zone `zi` と被バニッシュ側の `zoneIdx` を `zoneIdx === 2 - zi` で照合し、位置不明は非置換とした。効果・バトル・パワー0の常在場効果走査へ同じ判定を配線。parser が「このシグニ／カードの正面の」を抽出し、WX19-078-E1／WXDi-D09-P14-E1／WXDi-P10-044-E2 の AUTO JSON だけへ `frontOnly:true` を付与する。
+- **検証**：正面→トラッシュ、非正面→エナ、感染不成立、アタックフェイズ不成立、zoneIdx 不明→エナを挙動 golden で固定。既存の感染 filter／`DURING_ATTACK_PHASE` は AND 条件として維持。
+
+---
+
 ## PLAN §6.3 WX25-P2-009 シザー・ハンズ ゲーム持続AUTO能力（2026-07-24・codex実装）
 
 - **真因**：アーツ自身に E1/E2 の AUTO を直付けしていたため、使用後に場へ残らず collector の走査対象にならなかった。E2 の従来 golden もアーツをシグニとして場へ人工配置しており、実戦経路を固定できていなかった。

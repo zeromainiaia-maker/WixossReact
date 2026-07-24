@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -8932,6 +8932,48 @@ test('PLAN 6.3 batch 8 A: WX26-CP1-019 dual destination picks are executable', (
     eq(r.ownerState.energy.length, e0 + 1, `${choiceId}: first Prioke goes to energy`);
     eq(r.ownerState.hand.length, h0 + 1, `${choiceId}: colored Prioke goes to hand`);
   }
+});
+test('BANISH_REDIRECT frontOnly: 正面だけを置換し、感染・アタックフェイズ限定もANDで評価', () => {
+  const HOLDER = 'BR-FRONT-HOLDER';
+  const VICTIM = 'BR-FRONT-VICTIM';
+  const effect = {
+    effectId: 'br-front', effectType: 'CONTINUOUS',
+    activeCondition: { type: 'DURING_ATTACK_PHASE' },
+    action: {
+      type: 'BANISH_REDIRECT',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', infected: true } },
+      redirectTo: 'trash', until: 'PERMANENT', frontOnly: true,
+    },
+  } as unknown as CardEffect;
+  const cm = new Map(cardMap as Map<string, CardData>);
+  cm.set(HOLDER, { CardNum: HOLDER, Type: 'シグニ', Power: '5000', Level: '3', effects: [effect] } as unknown as CardData);
+  cm.set(VICTIM, { CardNum: VICTIM, Type: 'シグニ', Power: '5000', Level: '3' } as unknown as CardData);
+  const holder = mkState({ signi: [HOLDER, null, null] }); // 正面は victim zone 2
+  const victimAt = (zi: number, infected: boolean) => {
+    const signi = [null, null, null] as (string | null)[];
+    signi[zi] = VICTIM;
+    const s = mkState({ signi });
+    return { ...s, field: { ...s.field, signi_virus: infected ? [0, 0, 1] : [0, 0, 0] } } as PlayerState;
+  };
+  const dest = (before: PlayerState, phase?: 'ATTACK_SIGNI' | 'MAIN') =>
+    banishDestination(mkState({}), holder, VICTIM, {
+      cardMap: cm,
+      banished: computeBanishedAttrs(before, VICTIM, cm),
+      turnPhase: phase,
+    }).state;
+
+  const front = dest(victimAt(2, true), 'ATTACK_SIGNI');
+  ok(front.trash.includes(VICTIM) && !front.energy.includes(VICTIM), '正面＋感染＋アタックフェイズ成立: トラッシュ');
+  const nonFront = dest(victimAt(1, true), 'ATTACK_SIGNI');
+  ok(nonFront.energy.includes(VICTIM) && !nonFront.trash.includes(VICTIM), '非正面: エナ（置換しない）');
+  const notInfected = dest(victimAt(2, false), 'ATTACK_SIGNI');
+  ok(notInfected.energy.includes(VICTIM) && !notInfected.trash.includes(VICTIM), '正面だが非感染: エナ');
+  const wrongPhase = dest(victimAt(2, true), 'MAIN');
+  ok(wrongPhase.energy.includes(VICTIM) && !wrongPhase.trash.includes(VICTIM), '正面＋感染だが非アタックフェイズ: エナ');
+  const unknownZone = banishDestination(mkState({}), holder, VICTIM, {
+    cardMap: cm, banished: { level: 3, frozen: false, hasCharm: false, infected: true }, turnPhase: 'ATTACK_SIGNI',
+  }).state;
+  ok(unknownZone.energy.includes(VICTIM) && !unknownZone.trash.includes(VICTIM), 'zoneIdx不明: 保守的にエナ');
 });
 
 test('PLAN 6.3 batch 8 B-1: granted attack trigger is banished unless opponent pays 3', () => {

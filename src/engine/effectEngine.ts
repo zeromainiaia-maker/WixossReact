@@ -1052,6 +1052,7 @@ export function hasBanishRedirectInAction(action: EffectAction): boolean {
  * （後方互換。効果経路など属性が取れない呼び出しは従来どおり）。
  */
 export interface BanishedCardAttrs {
+  zoneIdx?: number; // 除去前の signi ゾーン位置。場外/不明は undefined
   level?: number;    // 実効レベル（printed + temp_level_mods）。未取得は undefined
   frozen: boolean;   // 凍結中（signi_frozen[zone]）
   hasCharm: boolean; // 【チャーム】が付いている（signi_charms[zone]）
@@ -1096,6 +1097,16 @@ export function banishRedirectAppliesFrom(
   });
 }
 
+/** frontOnly の位置限定を、能力保持側 zi と除去前の被バニッシュ側 zoneIdx で評価する。 */
+export function banishRedirectFrontMatches(
+  action: EffectAction,
+  holderZoneIdx: number,
+  banished?: BanishedCardAttrs,
+): boolean {
+  const acts = collectBanishRedirectActions(action);
+  return acts.some(a => a.frontOnly !== true || banished?.zoneIdx === 2 - holderZoneIdx);
+}
+
 /**
  * 被バニッシュシグニの属性（レベル/凍結/チャーム/感染）を除去前の盤面から取得する（タスク12(xliv)）。
  * `banishRedirectFilterMatches` の target.filter 属性限定を評価するのに使う。
@@ -1114,6 +1125,7 @@ export function computeBanishedAttrs(
     ? undefined
     : base + (state.temp_level_mods ?? []).filter(m => m.cardNum === num).reduce((s, m) => s + m.delta, 0);
   return {
+    zoneIdx: zi,
     level,
     frozen: (state.field.signi_frozen?.[zi] ?? false),
     hasCharm: (state.field.signi_charms?.[zi] ?? null) !== null,
@@ -1141,12 +1153,15 @@ export function fieldEffectBanishRedirectToTrash(
   turnPhase?: TurnPhase,
   effectivePowers?: Map<string, number>,
 ): boolean {
-  for (const stack of holder.field.signi) {
+  for (const [zi, stack] of holder.field.signi.entries()) {
     const n = stack?.at(-1);
     if (!n) continue;
     for (const e of (cardMap.get(n)?.effects ?? [])) {
       if (e.effectType !== 'CONTINUOUS') continue;
       if (!banishRedirectAppliesFrom(e.action, n, null, banished, { excludeWhenPowerZero: true })) continue;
+      // frontOnly は能力保持側の zi が必要なので、この場効果走査でだけ位置を突き合わせる。
+      // 被バニッシュ位置が不明なら過剰 redirect を避けて不適用。
+      if (!banishRedirectFrontMatches(e.action, zi, banished)) continue;
       // フェイズ限定の置換は効果経路で phase が不明なら保守的にスキップ（過剰発火を避ける）
       if (e.activeCondition?.type === 'DURING_ATTACK_PHASE' && turnPhase === undefined) continue;
       // isOwnerTurn は turnPhase 未指定時の DURING_ATTACK_PHASE では使われず、他の condition（HAS_CARD_IN_FIELD 等）は
