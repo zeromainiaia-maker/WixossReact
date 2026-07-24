@@ -131,3 +131,8 @@ export function advancePreventDamageWindows(
     .map(w => ({ ...w, expires: 'MY_TURN_END' as const }));
   return next.length > 0 ? next : undefined;
 }
+
+/** 単体選択されたシグニに対する「パワー0以下による消滅だけ」バニッシュ先変更。 */
+export function isSelectedPowerZeroBanishRedirect(opponent: PlayerState, cardNum: string): boolean {
+  return opponent.banish_redirect_power0_target_nums?.includes(cardNum) === true;
+}

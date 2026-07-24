@@ -25,7 +25,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from './battle/battleUtils';
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -3218,6 +3218,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
+          banish_redirect_power0_target_nums: undefined, // 選択対象＋パワー0限定のバニッシュ先変更をクリア
           banish_redirect_by_source_nums: undefined, // 限定付きバニッシュ先変更（このシグニとのバトル）をクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
           banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
@@ -3320,6 +3321,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy_colorless_ability_loss_this_turn: undefined,
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
+          banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
@@ -3579,6 +3581,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
+        banish_redirect_power0_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
         double_power_minus_this_turn: undefined, no_grow: undefined,
@@ -3635,6 +3638,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
+        banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
@@ -8087,6 +8091,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 「対戦相手の」限定版（BANISH_REDIRECT whenPowerZero・続き218）＝設定した側の対戦相手のシグニだけ。
           // opState は消滅するシグニの持ち主から見た対戦相手＝そこに立っていれば消滅側が「対戦相手」に当たる。
           opState.power0_banish_to_trash_opp_only === true ||
+          // 単体選択×パワー0限定版（WX25-P3-104-E1）。通常のバトル／効果バニッシュ経路には配線しない。
+          isSelectedPowerZeroBanishRedirect(opState, topNum) ||
           opState.field.signi.some((s, zi) => {
             const n = s?.at(-1);
             // パワー0以下による消滅はバトル経路ではない＝bySource 付き（このシグニとの/による）は適用しない。
@@ -8871,6 +8877,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
+        banish_redirect_power0_target_nums: undefined,
         field: {
         ...huSt.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
@@ -8906,6 +8913,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: cpuSt.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
+        banish_redirect_power0_target_nums: undefined,
         power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_this_turn: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット

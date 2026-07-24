@@ -5508,10 +5508,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'BANISH_REDIRECT': {
       const br = action as BanishRedirectAction;
       if (!br.bySource && br.redirectTo === 'trash' && br.target.owner === 'opponent' && br.target.count === 1) {
-        const prev = ctx.ownerState.banish_redirect_target_nums ?? [];
-        const newOwner = { ...ctx.ownerState,
-          banish_redirect_target_nums: prev.includes(cardNum) ? prev : [...prev, cardNum] };
-        return done({ ...addLog({ ...ctx, ownerState: newOwner }, `${cardNum}のバニッシュ先をこのターン、トラッシュへ変更`),
+        const power0Only = br.whenPowerZero === true;
+        const prev = power0Only
+          ? (ctx.ownerState.banish_redirect_power0_target_nums ?? [])
+          : (ctx.ownerState.banish_redirect_target_nums ?? []);
+        const next = prev.includes(cardNum) ? prev : [...prev, cardNum];
+        const newOwner = power0Only
+          ? { ...ctx.ownerState, banish_redirect_power0_target_nums: next }
+          : { ...ctx.ownerState, banish_redirect_target_nums: next };
+        return done({ ...addLog({ ...ctx, ownerState: newOwner },
+          `${cardNum}の${power0Only ? 'パワー0以下による' : ''}バニッシュ先をこのターン、トラッシュへ変更`),
           lastProcessedCards: [cardNum] });
       }
       if (!br.bySource || !ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) return done(ctx);

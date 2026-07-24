@@ -30,7 +30,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
-import { applyRefresh, advancePreventDamageWindows, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { consumeNthAttackNegation } from '../src/screens/battle/attackNegation';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
@@ -7238,6 +7238,45 @@ test('batch11 opponentSelects: 相手エナ選択と新入口2種が opponentRes
     mkCtx({}, { signi: [SIGNI, null, null] }),
   );
   eq(deckPending.opponentResponds, true, 'TRANSFER_TO_DECK は相手応答');
+});
+test('WX25-P3-104-E1: 他の毒牙がいる時だけLv2以下1体をpower0限定リストへ保持', () => {
+  const eff = (effectsMap.get('WX25-P3-104') ?? []).find(e => e.effectId === 'WX25-P3-104-E1');
+  ok(!!eff, 'E1'); if (!eff) return;
+  const otherPoison = findCard(c => isSigni(c) && c.CardNum !== 'WX25-P3-104' && (c.CardClass ?? '').includes('毒牙'));
+  const level2 = SIGNI_L2;
+  const level3 = SIGNI_L3;
+  const yes = run(eff.action, mkCtx({ signi: ['WX25-P3-104', otherPoison, null] }, { signi: [level2, level3, null] }, 'WX25-P3-104'));
+  eq((yes.ownerState.banish_redirect_power0_target_nums ?? []).join(','), level2, 'Lv2以下1体だけ保持');
+  eq(yes.ownerState.banish_redirect_target_nums, undefined, '通常バニッシュ用リストには入れない');
+  eq(yes.ownerState.banish_redirect, undefined, '全体フラグは立てない');
+  const no = run(eff.action, mkCtx({ signi: ['WX25-P3-104', null, null] }, { signi: [level2, null, null] }, 'WX25-P3-104'));
+  eq(no.ownerState.banish_redirect_power0_target_nums, undefined, '他の毒牙なしでは選択・保持しない');
+});
+test('WX25-P3-104-E1: 選択対象のpower0消滅だけトラッシュ、非選択power0はエナ', () => {
+  const selected = SIGNI_L2;
+  const unselected = SIGNI_L3;
+  const holder = { ...mkState({}), banish_redirect_power0_target_nums: [selected] };
+  const routeP0 = (num: string) => {
+    const removed = mkState({});
+    return isSelectedPowerZeroBanishRedirect(holder, num)
+      ? { ...removed, trash: [...removed.trash, num] }
+      : { ...removed, energy: [...removed.energy, num] };
+  };
+  const hit = routeP0(selected);
+  ok(hit.trash.includes(selected) && !hit.energy.includes(selected), '選択対象power0→トラッシュ');
+  const miss = routeP0(unselected);
+  ok(miss.energy.includes(unselected) && !miss.trash.includes(unselected), '非選択power0→エナ');
+});
+test('WX25-P3-104-E1: 選択対象でもバトル／効果バニッシュはエナ', () => {
+  const selected = SIGNI_L2;
+  const holder = { ...mkState({}), banish_redirect_power0_target_nums: [selected] };
+  const result = banishDestination(mkState({}), holder, selected).state;
+  ok(result.energy.includes(selected) && !result.trash.includes(selected), '通常banishDestinationはpower0限定リストをconsumeしない');
+});
+test('WX25-P3-104-E1: 単体power0リストを全ターン境界・両プレイヤーでクリア', () => {
+  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 6,
+    'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
 });
 
 test('batch11 non-regression: 相手手札TRASHはフラグなしでも相手が選ぶ', () => {

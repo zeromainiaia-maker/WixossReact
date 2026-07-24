@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 BANISH_REDIRECT 単体選択×パワー0動的ゲート（WX25-P3-104-E1・2026-07-24・codex実装/Claude確認）＝B残クローズ
+
+- **真因**：parser が「対戦相手のレベル2以下のシグニ1体を対象とし、このターン、パワーが0以下のそれがバニッシュされる場合…トラッシュへ」を `BANISH_REDIRECT count:'ALL'`（単体選択も whenPowerZero も脱落）で吐き、executor 最終 else が `banish_redirect:true` を立てて**このターン相手の全バニッシュ（バトル・効果・パワー0すべて）をトラッシュ送り**にする激しい過剰発火だった（毒牙が2体並ぶだけで相手全シグニのバニッシュ先固定）。
+- **実装**：既存の単体選択(b)（`banish_redirect_target_nums`）と whenPowerZero（`power0_banish_to_trash_opp_only`）を**積**にした新フラグ `banish_redirect_power0_target_nums` を新設。BANISH_REDIRECT executor の count:1 分岐に `whenPowerZero` 判定を足し、選択番号を新フラグへ格納（既存単体選択フロー流用・新型なし）。パワー0消滅経路（`redirectBanishP0`）でのみ `isSelectedPowerZeroBanishRedirect` で consume＝バトル/効果経路（`banishDestination`）には配線しない。ターン境界クリア6箇所（doPhaseAdvance/confirmEndDiscard/CPU END × 両プレイヤー）に追加。WX25-P3-104-E1 を MANUAL 再エンコード（CONDITIONAL{毒牙 excludeSelf} then BANISH_REDIRECT{count:1, levelMax:2, whenPowerZero, until:END_OF_TURN}）＝原文の「他の/レベル2以下/1体/パワー0/このターン」を厳密表現・BURST 不変。
+- **検証**：選択+パワー0→トラッシュ／選択+バトル・効果→エナ／非選択+パワー0→エナ／毒牙不在→非選択／6箇所ターン境界クリアを golden で固定。golden 708→712・census 1578→1577（過剰発火の語彙欠落1件解消・BASELINE_HIGH 更新）・JSON は WX25-P3-104 のみ（parser 不変・生パース diff 0）。**⇒ §6.3 BANISH_REDIRECT 残(B) は完全クローズ**。
+
+---
+
 ## PLAN §6.3 BANISH_REDIRECT 正面限定（2026-07-24・codex実装）
 
 - **真因**：正面限定3効果が `target.count:'ALL'` のまま位置スコープを持たず、感染／アタックフェイズ条件を満たす正面外の相手シグニまでトラッシュへ置換していた。
