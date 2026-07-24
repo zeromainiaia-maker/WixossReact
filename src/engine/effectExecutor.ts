@@ -1844,10 +1844,12 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
       const s = ownerState(a.target.owner, cur);
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
+      const wasDown = (s.field.signi_down ?? [])[zoneIdx] === true; // 効果でダウン→アップした記録（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
       const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
       newDown[zoneIdx] = false;
       cur = addLog(setOwnerState(a.target.owner,
-        { ...s, field: { ...s.field, signi_down: newDown } }, cur),
+        { ...s, field: { ...s.field, signi_down: newDown },
+          ...(wasDown ? { upped_from_down_this_turn: [...(s.upped_from_down_this_turn ?? []), num] } : {}) }, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}をアップ`);
     }
     return cur;

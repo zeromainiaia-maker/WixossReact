@@ -1245,6 +1245,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'ACTIVATED_DISCARD_COUNT_GTE':
       return (ctx.ownerState.last_activated_discard_count ?? 0) >= cond.value;
+    // ── §3 タスク6「代わりに」B1残（per-target 値すり替えの置換ゲート）
+    case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN':
+      return !!ctx.sourceCardNum && (ctx.ownerState.upped_from_down_this_turn ?? []).includes(ctx.sourceCardNum);
+    case 'COST_TRASHED_PUPPET':
+      return ctx.ownerState.last_cost_trashed_puppet === true;
+    case 'COST_DISCARDED_SIGNI_LEVEL':
+      return (ctx.ownerState.last_discarded_signi_level ?? -1) === cond.level;
     case 'ENERGY_TRASH_COLOR_COUNT_GTE':
       return (ctx.ownerState.last_energy_trash_color_count ?? 0) >= cond.value;
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN':

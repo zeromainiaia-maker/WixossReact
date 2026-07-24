@@ -3203,6 +3203,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
           hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
           energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
+          upped_from_down_this_turn: undefined, // 効果でダウン→アップした自分のシグニをリセット（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
@@ -3570,6 +3571,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cards_drawn_by_effect_this_turn: 0,
         hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
         energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
+        upped_from_down_this_turn: undefined, // THIS_CARD_UPPED_FROM_DOWN_THIS_TURN（WX14-070）
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
@@ -10125,6 +10127,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: newHand,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         trash: [...placedState.trash, ...paidNums, ...discardNums],
+        // handDiscardSigni コストで捨てたシグニのレベルを記録（COST_DISCARDED_SIGNI_LEVEL。WX25-P2-101「レベル１→代わりに－5000」）
+        last_discarded_signi_level: discardNums.length > 0
+          ? (() => { const lv = parseInt(battleCardMap.get(getCardNum(discardNums[0]))?.Level ?? '', 10); return isNaN(lv) ? placedState.last_discarded_signi_level : lv; })()
+          : placedState.last_discarded_signi_level,
+        last_cost_trashed_cards: [...(placedState.last_cost_trashed_cards ?? []), ...paidNums, ...discardNums],
       };
       const payLogs: string[] = [];
       // handToUnderSelf: 出たシグニの下に置く
@@ -10148,13 +10155,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newCharmsF = [...(paid.field.signi_charms ?? [null, null, null])];
         const newAcceF   = [...(paid.field.signi_acce   ?? [null, null, null])];
         const toTrashF: string[] = [];
+        const removedIidsF: string[] = []; // トラッシュしたシグニの instance ID（puppet_signi クリーンアップ用）
         let trashedSigniLevel: number | undefined;
+        let trashedPuppetF = false; // 傀儡状態のシグニをコストでトラッシュしたか（COST_TRASHED_PUPPET。WDK17-014）
+        const puppetSetF = new Set(paid.field.puppet_signi ?? []);
         for (const zi of fieldTrashZones) {
           const stack = newSigniF[zi];
           if (!stack || stack.length === 0) continue;
           // この方法でトラッシュに置いたシグニ（スタック最上段）のレベルを記録（WX03-001: 同じレベルのシグニを対象）
           const topSigni = battleCardMap.get(getCardNum(stack.at(-1)!));
           if (topSigni) trashedSigniLevel = parseInt(topSigni.Level ?? '0', 10) || 0;
+          if (stack.some(iid => puppetSetF.has(iid))) trashedPuppetF = true;
+          removedIidsF.push(...stack);
           toTrashF.push(...stack.map(getCardNum));
           if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
           if (newAcceF[zi])   { toTrashF.push(newAcceF[zi]!);   newAcceF[zi]   = null; }
@@ -10164,9 +10176,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         paid = {
           ...paid,
-          field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF },
+          field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF,
+            puppet_signi: (paid.field.puppet_signi ?? []).filter(iid => !removedIidsF.includes(iid)) },
           trash: [...paid.trash, ...toTrashF],
           last_field_trash_level: trashedSigniLevel,
+          last_cost_trashed_puppet: trashedPuppetF,
+          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...toTrashF],
         };
         if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
       }

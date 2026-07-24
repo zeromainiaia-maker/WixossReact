@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク6「代わりに」B1残＝per-target 値すり替えのターン中イベント counter／コスト参照4枚（2026-07-25・続き256・Opus 4.8）
+
+- **対象**：§3 Opusタスク6「代わりに残テールの機構系」の B1残5枚のうち、条件が単発機構でも既存インフラに乗る4枚を消化。いずれも「対戦相手のシグニ1体を対象とし、それのパワーを－N。＜条件＞の場合、代わりに－M」型で、**それまで enhanced（-M）が owner:any/thisCardOnly の別対象へ無条件二重適用される過剰効果**（「それ」の先行詞ロスト）だった。
+  - **WXDi-P11-067**（幻水 ダツ）：「このターンにあなたが手札を2枚以上捨てていた場合、代わりに－3000」＝**既存 `TURN_HAND_DISCARD_GTE`（turn_hand_discarded_count）** を STATE_CONDITION_CLAUSES に追加するだけ（engine/decompiler 実装済）。
+  - **WX14-070**（毒牙）：「このターンにこのシグニが効果によってダウン状態からアップしていた場合、代わりに－7000」＝新設 `THIS_CARD_UPPED_FROM_DOWN_THIS_TURN`。engine `execUp` の applyUp に「ダウン中のシグニをアップしたら instance を `upped_from_down_this_turn` へ記録」を追加（ターン境界でリセット）。evalCondition は `ctx.sourceCardNum`（効果ホスト）が集合に在中かで判定。
+  - **WDK17-014**：「この能力のコストで傀儡状態のシグニをトラッシュに置いた場合、代わりに－10000」＝新設 `COST_TRASHED_PUPPET`。【出】コスト支払い（`executeSigniOnPlayCost` の fieldTrash）で、トラッシュしたスタックの instance が `field.puppet_signi` に在中したら `last_cost_trashed_puppet` を立てる（併せて puppet_signi クリーンアップ・last_cost_trashed_cards 記録も補完）。
+  - **WX25-P2-101**（羅星 コルンバ）：「このコストでレベル1のシグニを捨てた場合、代わりに－5000」＝新設 `COST_DISCARDED_SIGNI_LEVEL{level}`。既存 `last_discarded_signi_level` を参照（handDiscardSigni コストのシグニレベル）。【出】経路 `executeSigniOnPlayCost` は従来この値を記録していなかったため、handDiscard コストのレベル記録を追加（`executeSigniActivated` と同型）。
+- **共通機構**：4枚とも parser の per-target 値すり替え（`effectParser.ts` line 4091 の vm 分岐＝base 常時 / 条件成立時に enhanced へ置換）に乗せるため STATE_CONDITION_CLAUSES に条件節を4本追加。fresh は `CONDITIONAL{condition, then:enhanced(同一相手対象), else:base(同一相手対象)}` を生成＝別対象二重適用を撤去。build:effects→heldReview --adopt で4枚採用（兄弟効果 byte 一致・WX14-070-E2 UP 温存）。
+- **検証**：golden 726→**729**（構造固定＋4条件の両側 evalCondition＋execUp の down→up 記録の直接検証。⚠共有 cursor を save/restore＝後続 frontOfSelf テストの `fresh()` を汚さない）。smoke 10721全OK・fuzz 200ゲーム0・**census 高シグナル 1567→1563**（BASELINE_HIGH 更新）・同型★0（4枚とも原文に忠実な逆翻訳）・typecheck 0・lint 0 errors。
+- **残（タスク6）**：**WXK06-071**（対戦相手のカードが効果でデッキにN枚移動＝持続 turn-counter が要り、`countMovedToDeck` 中央差分への accumulate＋書き戻し＋多段閾値2重ゲートで別実装）／**D:置換ルール9**（バニッシュされない系＝各々別バニッシュ置換機構）／**C:コスト代替6**／**E:リコレクト2**。いずれも真の§6.3級で継続。
+
+---
+
 ## §3 タスク4 完全消化＝「代わりに」条件節の残3枚（レゾナ標的化の非対称緩和・2026-07-25・続き255・Opus 4.8）
 
 - **対象**：§3 Opusタスク4「§5c 条件節の残」の残＝WX25-P2-068（アルデバラン）・WX25-P2-070（アプス）・WX25-P3-116（コオニ）。いずれも「基本値を適用し、条件成立時は**代わりに**大きい値」型で、当初 engine 置換機構（タスク6級）待ちとして先送りされていた。

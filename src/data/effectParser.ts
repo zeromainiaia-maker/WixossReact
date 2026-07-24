@@ -1580,6 +1580,21 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // スキップし、ここで per-target 値すり替えの置換ゲートとして拾う（engine/decompiler は color 付き実装済み・続き106）。
   [/このターンにあなたが(白|赤|青|緑|黒)のアーツを使用していた場合/,
     g => ({ type: 'ARTS_USED_THIS_TURN', owner: 'self', color: g[0] })],
+  // ── §3 タスク6「代わりに」B1残（per-target 値すり替えの置換ゲート・2026-07-25）。いずれも直後が「代わりに」で
+  //    per-target 値のみ形（line 4097 vm）に乗る＝base 常時／条件成立時に enhanced へ置換。表に無いと SEQUENCE
+  //    両実行の過剰効果（別対象へ二重 POWER_MODIFY）になっていた。engine evalCondition・decompiler condToText 両対応済。
+  // 「このターンにあなたが手札をN枚以上捨てていた場合」＝既存 TURN_HAND_DISCARD_GTE（turn_hand_discarded_count）。WXDi-P11-067「代わりに－3000」
+  [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
+    g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+  // 「このターンにこのシグニが効果によってダウン状態からアップしていた場合」＝効果元シグニが upped_from_down_this_turn に在中。WX14-070「代わりに－7000」
+  [/このターンにこのシグニが効果によってダウン状態からアップしていた場合/,
+    () => ({ type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' })],
+  // 「この能力のコストで傀儡状態のシグニをトラッシュに置いた場合」＝last_cost_trashed_puppet。WDK17-014「代わりに－10000」
+  [/この能力のコストで傀儡状態のシグニをトラッシュに置いた場合/,
+    () => ({ type: 'COST_TRASHED_PUPPET' })],
+  // 「このコストでレベルNのシグニを捨てた場合」＝last_discarded_signi_level（handDiscardSigni コスト）。WX25-P2-101「レベル１→代わりに－5000」
+  [/このコストでレベル([０-９\d]+)のシグニを捨てた場合/,
+    g => ({ type: 'COST_DISCARDED_SIGNI_LEVEL', level: parseNum(g[0]) })],
   // ── 続き158（2026-07-16）：PARTIAL 刻印 IS_MY_TURN化残の盤面状態系（engine evalCondition・decompiler condJa 両対応）。
   //    従来は語彙が無く「その後、<状態条件>の場合」の条件節ごと脱落して無条件発火の過剰効果だった。
   // 「あなたの場にレゾナがある場合」＝HAS_CARD_IN_FIELD{cardType:レゾナ}（matchesFilter は Type='レゾナ' を照合。WD09/11/12-018 の「追加で」枝）。

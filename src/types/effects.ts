@@ -212,6 +212,12 @@ export type Condition =
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string } // このターンに owner がアーツを使用していた場合（turn_arts_used）。color 指定時は当該色のアーツを使用していた場合（turn_arts_used_colors。WX24-D1-11〜D4-11）
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
   | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
+  // ── §3 タスク6「代わりに」B1残（per-target 値すり替えのターン中イベント counter／コスト参照）。いずれも
+  //    「代わりに」置換ゲート（matchLeadingStateCondition 経由）専用＝ownerState の累計/直前記録を参照する。
+  //    「このターンにあなたが手札をN枚以上捨てていた場合」（WXDi-P11-067）は既存 TURN_HAND_DISCARD_GTE を使う。
+  | { type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' } // このターンに効果元シグニ（sourceCardNum）が効果によってダウン→アップしていた場合（upped_from_down_this_turn）。WX14-070「代わりに－7000」
+  | { type: 'COST_TRASHED_PUPPET' } // この能力のコストで傀儡状態のシグニをトラッシュに置いた場合（last_cost_trashed_puppet）。WDK17-014「代わりに－10000」
+  | { type: 'COST_DISCARDED_SIGNI_LEVEL'; level: number } // このコストで指定レベルのシグニを手札から捨てた場合（last_discarded_signi_level）。WX25-P2-101「レベル１→代わりに－5000」
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等

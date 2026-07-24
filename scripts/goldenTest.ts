@@ -260,6 +260,60 @@ test('frontOfSelf WXDi-P04-049-E1: attack-phase trigger removes only opposing fr
   eq(empty.otherState.abilities_removed?.length ?? 0, 0, 'empty front is no-op');
 });
 
+test('§3 タスク6「代わりに」B1残: per-target 値すり替えが別対象への二重POWER_MODIFYではなく条件置換になる', () => {
+  // 4枚とも action = CONDITIONAL{condition, then:enhanced(同一相手対象), else:base(同一相手対象)}。
+  // 旧＝base の後に owner:any/thisCardOnly へ無条件 -N する過剰効果（別対象二重適用）だった。
+  const savedCursor = cursor;
+  const check = (cardNum: string, effectId: string, condType: string, baseDelta: number, enhDelta: number) => {
+    const e = manualEffect(cardNum, effectId);
+    const a = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(a.type, 'CONDITIONAL', `${cardNum} action type`);
+    eq(a.condition?.type, condType, `${cardNum} condition`);
+    const then = a.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+    const els = a.else as Extract<EffectAction, { type: 'POWER_MODIFY' }>;
+    eq(then.delta, enhDelta, `${cardNum} then(enhanced) delta`);
+    eq(els.delta, baseDelta, `${cardNum} else(base) delta`);
+    eq(then.target.owner, 'opponent', `${cardNum} then owner`);
+    eq(els.target.owner, 'opponent', `${cardNum} else owner`);
+  };
+  check('WXDi-P11-067', 'WXDi-P11-067-E1', 'TURN_HAND_DISCARD_GTE', -2000, -3000);
+  check('WX14-070', 'WX14-070-E1', 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN', -5000, -7000);
+  check('WDK17-014', 'WDK17-014-E1', 'COST_TRASHED_PUPPET', -7000, -10000);
+  check('WX25-P2-101', 'WX25-P2-101-E1', 'COST_DISCARDED_SIGNI_LEVEL', -3000, -5000);
+  cursor = savedCursor;
+});
+
+test('§3 タスク6「代わりに」B1残: 各置換ゲートの evalCondition が両側で正しい', () => {
+  const savedCursor = cursor;
+  const cHD = { type: 'TURN_HAND_DISCARD_GTE', value: 2 } as const; // WXDi-P11-067（既存 turn_hand_discarded_count）
+  ok(evalCondition(cHD, { ...mkCtx({}, {}), ownerState: { ...mkState(), turn_hand_discarded_count: 2 } }), 'discarded 2 → true');
+  ok(!evalCondition(cHD, { ...mkCtx({}, {}), ownerState: { ...mkState(), turn_hand_discarded_count: 1 } }), 'discarded 1 → false');
+  const cUp = { type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' } as const; // WX14-070（sourceCardNum が upped_from_down_this_turn に在中）
+  ok(evalCondition(cUp, { ...mkCtx({}, {}, 'HOST'), ownerState: { ...mkState(), upped_from_down_this_turn: ['HOST'] } }), 'upped host → true');
+  ok(!evalCondition(cUp, { ...mkCtx({}, {}, 'HOST'), ownerState: { ...mkState(), upped_from_down_this_turn: ['OTHER'] } }), 'other upped → false');
+  ok(!evalCondition(cUp, { ...mkCtx({}, {}, 'HOST'), ownerState: { ...mkState() } }), 'none upped → false');
+  const cPup = { type: 'COST_TRASHED_PUPPET' } as const; // WDK17-014
+  ok(evalCondition(cPup, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_puppet: true } }), 'puppet trashed → true');
+  ok(!evalCondition(cPup, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_puppet: false } }), 'non-puppet → false');
+  const cLv = { type: 'COST_DISCARDED_SIGNI_LEVEL', level: 1 } as const; // WX25-P2-101
+  ok(evalCondition(cLv, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_discarded_signi_level: 1 } }), 'level1 → true');
+  ok(!evalCondition(cLv, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_discarded_signi_level: 2 } }), 'level2 → false');
+  cursor = savedCursor;
+});
+
+test('§3 タスク6 WX14-070: execUp が効果でダウン→アップした自シグニを upped_from_down_this_turn に記録する', () => {
+  const savedCursor = cursor;
+  const host = 'WX14-070';
+  const upEff = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } } as EffectAction;
+  const dctx = mkCtx({ signi: [host, null, null], down: [true, false, false] }, {}, host);
+  const res = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: upEff, duration: 'INSTANT', mandatory: true } as CardEffect, dctx), dctx);
+  ok((res.ownerState.upped_from_down_this_turn ?? []).includes(host), 'down→up 記録される');
+  const uctx = mkCtx({ signi: [host, null, null], down: [false, false, false] }, {}, host);
+  const res2 = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: upEff, duration: 'INSTANT', mandatory: true } as CardEffect, uctx), uctx);
+  ok(!(res2.ownerState.upped_from_down_this_turn ?? []).includes(host), 'up→up は記録しない');
+  cursor = savedCursor;
+});
+
 test('batch7 state conditions and manual encodings', () => {
   const savedCursor = cursor;
   const c2 = { type: 'LIFE_CRASHED_LAST_TURN', owner: 'self', operator: 'gte', value: 2 } as const;

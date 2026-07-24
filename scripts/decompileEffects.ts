@@ -392,6 +392,10 @@ function condJa(c?: any): string {
       : `このシグニの下にカードが${c.negate ? '無い' : 'ある'}`;
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
+    // ── §3 タスク6「代わりに」B1残
+    case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN': return 'このターンにこのシグニが効果によってダウン状態からアップしていた';
+    case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
+    case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
     case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
     case 'OPP_LIFE_CRASH_EVENT_GTE': return `相手ライフを同時に${numJa(c.value)}枚以上クラッシュした`;
     case 'HAS_BOND': return `${c.cardName ? '「' + c.cardName + '」' : 'このカード'}との絆を獲得している`;
