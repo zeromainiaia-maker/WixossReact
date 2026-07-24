@@ -1998,6 +1998,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
       //   過剰効果（WX24-P1-062/WX25-P3-090/WXK02-049 等・census 条件節クラスタ6枚）。
       [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
         g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+      // 「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」＝
+      //   opp_cards_moved_to_deck_this_turn ゲート（OPP_CARDS_MOVED_TO_DECK_THIS_TURN・engine 実装済＝
+      //   BattleScreen 中央 countMovedToDeck 差分で accumulate）。WXK06-071 の base（1枚以上→－5000）の gate。
+      [/このターンに対戦相手のカードがあなたの効果によって([０-９\d]+)枚以上デッキに移動していた場合/,
+        g => ({ type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', operator: 'gte', value: parseNum(g[0]) })],
       // 「(あなた|対戦相手)の場にシグニがN体(以上)ある場合」＝場のシグニ数ゲート（engine FIELD_COUNT 実装済）。
       //   ＜C＞/色/状態付きは先行の HAS_CARD_IN_FIELD が先にマッチ＝ここは無フィルタの総数のみ。旧3ゾーン札の
       //   「3体ある」＝満場＝gte で正しい（PR-464/WX10-065/WXK06-085）。
@@ -4076,10 +4081,12 @@ function parseActionTextInner(text: string): EffectAction {
       if (!cm) {
         // (a) 裸の多段閾値: 前段が数量条件の CONDITIONAL のときだけ、その条件の複製に新数値を入れて引き継ぐ
         // （帰結は「代わりに」＝昇格置換 か「追加で」＝追加ボーナスの CONDITIONAL 積み増し）
-        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上ある場合、((?:代わりに|追加で).+)$/s);
+        // 「N枚以上ある場合」に加え、省略形「N枚(以上)移動していた場合」（WXK06-071 の多段閾値＝前段 gate と
+        //   同じ OPP_CARDS_MOVED_TO_DECK_THIS_TURN の数値だけ差し替え）も許容する。
+        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上(?:ある|移動していた)場合、((?:代わりに|追加で).+)$/s);
         const prev = steps[steps.length - 1] as import('../types/effects').ConditionalAction;
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
-            ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT'].includes(prev.condition.type)) {
+            ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'].includes(prev.condition.type)) {
           const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number };
           if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD') cond.minCount = parseNum(bm[1]);
           else cond.value = parseNum(bm[1]);

@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク6「代わりに」B1残＝WXK06-071 多段閾値（対戦相手のカードを効果でデッキにN枚移動）をネスト CONDITIONAL へ（2026-07-25・続き257・Opus 4.8）
+
+- **対象**：§3 タスク6 B1残5枚の最後の1枚 WXK06-071-E1「【自】このシグニがアタックしたとき、対戦相手のシグニ1体を対象とし、このターンに対戦相手のカードがあなたの効果によって**1枚以上**デッキに移動していた場合、－5000。**4枚以上**移動していた場合、代わりに－12000」。従来は base の閾値ゲートが脱落＋enhanced（-12000）が owner:any の別対象へ無条件二重適用される過剰効果だった。
+- **機構**：新設 `OPP_CARDS_MOVED_TO_DECK_THIS_TURN{operator,value}` ＋持続 turn-counter `opp_cards_moved_to_deck_this_turn`。**BattleScreen 中央の `countMovedToDeck` 差分ブロック**（ON_CARD_MOVED_TO_DECK トリガー収集と同じ before/after 差分・全移動経路を一様にカバー）で、効果オーナー（`causeOwnerId`＝アクティブプレイヤー）の counter に**相手のカードが移動した枚数**を積む（ルール処理/バトル＝`causeOwnerId=undefined` は「あなたの効果」ではないので数えない）。ターン境界でリセット。evalCondition は `ctx.ownerState`（＝WXK06-071 のコントローラ）を参照。
+- **parser**：base の条件を CONDITIONAL 持ち上げ表に追加（「1枚以上デッキに移動していた場合」→ `gte,1` gate）。多段閾値の省略形「4枚以上**移動していた**場合、代わりに」を bare-threshold 規則（`ある|移動していた`）＋許容条件型に `OPP_CARDS_MOVED_TO_DECK_THIS_TURN` を追加＝前段 gate の value だけ 1→4 に差し替え。結果は **ネスト CONDITIONAL**＝`CONDITIONAL{gte4, then:-12000, else: CONDITIONAL{gte1, then:-5000}}`（4+→-12000／1-3→-5000／0→無変化・すべて同一の相手対象）。gte4 は gte1 を含むため正しい。
+- **検証**：golden 729→**730**（ネスト構造固定＋3閾値の evalCondition＝0/2/5枚）。smoke 0・fuzz 0・**census 1563→1562**（BASELINE_HIGH更新）・同型★0（逆翻訳が多段閾値を忠実描画）・typecheck/lint 0。
+- **タスク6 B1残＝5枚全消化**。残るタスク6＝**D:置換ルール9**（バニッシュされない系）／**C:コスト代替6**／**E:リコレクト2**（真の§6.3級・各々別機構）。
+
+---
+
 ## §3 タスク6「代わりに」B1残＝per-target 値すり替えのターン中イベント counter／コスト参照4枚（2026-07-25・続き256・Opus 4.8）
 
 - **対象**：§3 Opusタスク6「代わりに残テールの機構系」の B1残5枚のうち、条件が単発機構でも既存インフラに乗る4枚を消化。いずれも「対戦相手のシグニ1体を対象とし、それのパワーを－N。＜条件＞の場合、代わりに－M」型で、**それまで enhanced（-M）が owner:any/thisCardOnly の別対象へ無条件二重適用される過剰効果**（「それ」の先行詞ロスト）だった。

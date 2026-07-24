@@ -1246,6 +1246,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'ACTIVATED_DISCARD_COUNT_GTE':
       return (ctx.ownerState.last_activated_discard_count ?? 0) >= cond.value;
     // ── §3 タスク6「代わりに」B1残（per-target 値すり替えの置換ゲート）
+    case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN':
+      return cmp(ctx.ownerState.opp_cards_moved_to_deck_this_turn ?? 0, cond.operator, cond.value);
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN':
       return !!ctx.sourceCardNum && (ctx.ownerState.upped_from_down_this_turn ?? []).includes(ctx.sourceCardNum);
     case 'COST_TRASHED_PUPPET':

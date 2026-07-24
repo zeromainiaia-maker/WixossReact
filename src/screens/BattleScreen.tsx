@@ -2789,6 +2789,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...mvH.entries); useHost(mvH.usedOncePerTurnIds);
       const mvG = collectMoveToDeckTriggers(bs.guest_id, g, h, movedGuest, movedGuestFromTrash, movedHost);
       entries.push(...mvG.entries); useGuest(mvG.usedOncePerTurnIds);
+      // OPP_CARDS_MOVED_TO_DECK_THIS_TURN: 「対戦相手のカードがあなたの効果によってデッキに移動」の累計（WXK06-071）。
+      // 効果オーナー（causeOwnerId）＝アクティブプレイヤーの counter に、相手のカードが移動した枚数を積む。
+      // ルール処理/バトル（causeOwnerId=undefined）は「あなたの効果」ではないので数えない。
+      if (causeOwnerId === bs.host_id && movedGuest > 0) {
+        h = { ...h, opp_cards_moved_to_deck_this_turn: (h.opp_cards_moved_to_deck_this_turn ?? 0) + movedGuest };
+      } else if (causeOwnerId === bs.guest_id && movedHost > 0) {
+        g = { ...g, opp_cards_moved_to_deck_this_turn: (g.opp_cards_moved_to_deck_this_turn ?? 0) + movedHost };
+      }
     }
 
     // ON_HAND_ADDED: 効果によってカードが手札に移動した場合（続き207・WX25-P2-063/WXDi-P11-007/WX14-029/WD12-009）
@@ -3204,6 +3212,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
           energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
           upped_from_down_this_turn: undefined, // 効果でダウン→アップした自分のシグニをリセット（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
+          opp_cards_moved_to_deck_this_turn: 0, // 相手カードをデッキに移動させた累計をリセット（OPP_CARDS_MOVED_TO_DECK_THIS_TURN。WXK06-071）
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
@@ -3572,6 +3581,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
         energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
         upped_from_down_this_turn: undefined, // THIS_CARD_UPPED_FROM_DOWN_THIS_TURN（WX14-070）
+        opp_cards_moved_to_deck_this_turn: 0, // OPP_CARDS_MOVED_TO_DECK_THIS_TURN（WXK06-071）
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,

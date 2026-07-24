@@ -301,6 +301,30 @@ test('§3 タスク6「代わりに」B1残: 各置換ゲートの evalCondition
   cursor = savedCursor;
 });
 
+test('§3 タスク6 WXK06-071: 多段閾値がネスト CONDITIONAL（4+→-12000／1-3→-5000／0→無変化）で同一相手対象', () => {
+  const savedCursor = cursor;
+  const e = manualEffect('WXK06-071', 'WXK06-071-E1');
+  const outer = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(outer.type, 'CONDITIONAL', 'outer type');
+  eq(outer.condition?.type, 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', 'outer cond');
+  eq((outer.condition as { value: number }).value, 4, 'outer threshold 4');
+  eq((outer.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>).delta, -12000, '4+ → -12000');
+  eq((outer.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>).target.owner, 'opponent', '4+ owner');
+  const inner = outer.else as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(inner.type, 'CONDITIONAL', 'inner type');
+  eq((inner.condition as { value: number }).value, 1, 'inner threshold 1');
+  eq((inner.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>).delta, -5000, '1-3 → -5000');
+  eq((inner.then as Extract<EffectAction, { type: 'POWER_MODIFY' }>).target.owner, 'opponent', '1-3 owner');
+  // evalCondition の閾値（アクティブプレイヤーの opp_cards_moved_to_deck_this_turn 参照）
+  const at = (n: number, thr: number) => evalCondition(
+    { type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', operator: 'gte', value: thr } as const,
+    { ...mkCtx({}, {}), ownerState: { ...mkState(), opp_cards_moved_to_deck_this_turn: n } });
+  ok(!at(0, 1) && !at(0, 4), '0 moved → どちらも false（無変化）');
+  ok(at(2, 1) && !at(2, 4), '2 moved → -5000 のみ');
+  ok(at(5, 1) && at(5, 4), '5 moved → -12000');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6 WX14-070: execUp が効果でダウン→アップした自シグニを upped_from_down_this_turn に記録する', () => {
   const savedCursor = cursor;
   const host = 'WX14-070';
