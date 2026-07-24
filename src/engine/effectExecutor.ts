@@ -2733,7 +2733,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const needsMaregabi = stub.costText?.includes('幻水マレガビ') === true;
         const hasMaregabi = !needsMaregabi || cur.ownerState.hand.some(cn =>
           matchesFilter(cur.cardMap.get(cn), { cardName: '幻水　マレガビ' }));
-        const handDiscard = stub.handDiscard;
+        const targetLevelDiscardCount = stub.handDiscardCountFromTargetLevel
+          ? Math.max(0, ...(cur.storedTargetCards ?? []).map(n =>
+              Number.parseInt(cur.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0))
+          : undefined;
+        const handDiscard = targetLevelDiscardCount !== undefined
+          ? { count: targetLevelDiscardCount, filter: stub.handDiscardFilter }
+          : stub.handDiscard;
         const handDiscardGroups = stub.handDiscardGroups ?? [];
         const exceed = stub.exceed ?? 0;
         const matchingHand = handDiscard
@@ -2825,7 +2831,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               : conditional4.then; // replace mode: 強化効果のみ
             const paidBody4 = freezeStoredTargets4(paidBody4Raw);
             const costColors4 = stub4.costColors ?? [];
-            const handDiscard4 = stub4.handDiscard;
+            const targetLevelDiscardCount4 = stub4.handDiscardCountFromTargetLevel
+              ? Math.max(0, ...(cur.storedTargetCards ?? []).map(n =>
+                  Number.parseInt(cur.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0))
+              : undefined;
+            const handDiscard4 = targetLevelDiscardCount4 !== undefined
+              ? { count: targetLevelDiscardCount4, filter: stub4.handDiscardFilter }
+              : stub4.handDiscard;
             const handDiscardGroups4 = stub4.handDiscardGroups ?? [];
             const exceed4 = stub4.exceed ?? 0;
             const matchingHand4 = handDiscard4
@@ -2881,7 +2893,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             : noopAction5;
           const costColors5 = stub5.costColors ?? [];
           const coinCost5 = stub5.coinCost ?? 0;
-          const handDiscard5 = stub5.handDiscard;
+          const targetLevelDiscardCount5 = stub5.handDiscardCountFromTargetLevel
+            ? Math.max(0, ...(cur.storedTargetCards ?? []).map(n =>
+                Number.parseInt(cur.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0))
+            : undefined;
+          const handDiscard5 = targetLevelDiscardCount5 !== undefined
+            ? { count: targetLevelDiscardCount5, filter: stub5.handDiscardFilter }
+            : stub5.handDiscard;
           const matchingHand5 = handDiscard5
             ? cur.ownerState.hand.filter(n => !handDiscard5.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), handDiscard5.filter))
             : [];

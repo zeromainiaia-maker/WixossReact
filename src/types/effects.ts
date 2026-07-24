@@ -1665,6 +1665,10 @@ export interface AltCostOppTurnAction {
 
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
+  /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
+  handDiscardCountFromTargetLevel?: boolean;
+  /** Filter for a target-level-derived hand discard cost. */
+  handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number; filter?: TargetFilter };
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
   exceed?: number;

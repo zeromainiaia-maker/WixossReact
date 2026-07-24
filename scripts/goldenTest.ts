@@ -21,6 +21,7 @@ import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts,
 import {
   executeEffect, getCardNum as getCardNumG,
   resumeSelectTarget, resumeSearch, resumeChoose,
+  resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
@@ -110,7 +111,11 @@ function finish(initial: ExecResult, ctx: ExecCtx): ExecResult {
     if (++steps > 40) throw new Error('autopilot hang');
     const pending = (result as { pending: { type: string; [k: string]: unknown } }).pending;
     const p = pending as Record<string, unknown>;
-    const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+    const c: ExecCtx = {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      lastProcessedCards: result.lastProcessedCards,
+      storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards,
+    };
     switch (pending.type) {
       case 'SELECT_TARGET': { const cands = (p.candidates as string[]) ?? []; result = resumeSelectTarget(cands.slice(0, Math.min((p.count as number) ?? 1, cands.length)), pending as never, c); break; }
       case 'SEARCH': { const vis = (p.visibleCards as string[]) ?? []; result = resumeSearch(vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c); break; }
@@ -120,6 +125,33 @@ function finish(initial: ExecResult, ctx: ExecCtx): ExecResult {
       case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(steps % 3, pending as never, c); break;
       case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(steps % 3, pending as never, c); break;
       default: throw new Error(`unhandled pending ${pending.type}`);
+    }
+  }
+  return result;
+}
+
+function finishPayingCosts(initial: ExecResult, ctx: ExecCtx): ExecResult {
+  let result = initial;
+  for (let steps = 0; !result.done; steps++) {
+    if (steps > 40) throw new Error('cost autopilot hang');
+    const pending = result.pending;
+    const c: ExecCtx = {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      lastProcessedCards: result.lastProcessedCards,
+      storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards,
+    };
+    if (pending.type === 'SELECT_TARGET') {
+      result = resumeSelectTarget(pending.candidates.slice(0, pending.count), pending, c);
+    } else if (pending.type === 'CHOOSE') {
+      const pick = pending.options.find(o => o.available !== false) ?? pending.options[0];
+      const n = pick.costColors?.length ?? 0;
+      result = pending.opponentResponds
+        ? resumeOpponentPayOptional(pick.id, c.otherState.energy.slice(0, n), pending, c)
+        : n > 0
+          ? resumeOptionalCost(pick.id, c.ownerState.energy.slice(0, n), pending, c)
+          : resumeChoose(pick.id, pending, c);
+    } else {
+      throw new Error(`unhandled cost pending ${pending.type}`);
     }
   }
   return result;
@@ -8794,6 +8826,75 @@ test('PLAN §6.3 parameterized assassin filter positive/negative', () => {
   ok(hasApplicableAssassin(['アサシン'], high, cardMap), 'plain assassin remains unconditional');
   const encoded = JSON.stringify(mergeManualEffects('WX25-P2-084', effectsMap.get('WX25-P2-084') ?? []));
   ok(encoded.includes('PAID_ADDITIONAL_COST') && encoded.includes('アサシン:') && encoded.includes('powerLte'), 'grant is paid-gated');
+});
+
+test('PLAN 6.3 batch 8 A: WX26-CP1-019 dual destination picks are executable', () => {
+  const eff = mergeManualEffects('WX26-CP1-019', effectsMap.get('WX26-CP1-019') ?? []).find(e => e.effectId === 'WX26-CP1-019-E1')!;
+  const choose = eff.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  for (const [choiceId, color] of [['c0', '白'], ['c1', '黒']] as const) {
+    const energyPick = findCard(c => (c.CardClass ?? '').includes('プリオケ') && c.Color !== color);
+    const handPick = findCard(c => (c.CardClass ?? '').includes('プリオケ') && c.Color === color);
+    const action = choose.choices.find(c => c.choiceId === choiceId)!.action as SequenceAction;
+    const ctx = mkCtx({ deckTop: [energyPick, handPick, SIGNI_L1, SIGNI_L2, SIGNI_L3] }, {});
+    const h0 = ctx.ownerState.hand.length, e0 = ctx.ownerState.energy.length;
+    const r = run(action.steps[1], ctx);
+    eq(r.ownerState.energy.length, e0 + 1, `${choiceId}: first Prioke goes to energy`);
+    eq(r.ownerState.hand.length, h0 + 1, `${choiceId}: colored Prioke goes to hand`);
+  }
+});
+
+test('PLAN 6.3 batch 8 B-1: granted attack trigger is banished unless opponent pays 3', () => {
+  const outer = mergeManualEffects('WX24-P2-044', effectsMap.get('WX24-P2-044') ?? []).find(e => e.effectId === 'WX24-P2-044-E1')!.action as Extract<EffectAction, { type: 'GRANT_EFFECT' }>;
+  const action = outer.effect.action;
+  const attacker = SIGNI_L3;
+  const unpaidCtx = mkCtx({ signi: [attacker, null, null] }, { energy: 0 }, attacker);
+  ok(!run(action, unpaidCtx).ownerState.field.signi[0], 'unpaid attacker is banished');
+  const paidCtx = mkCtx({ signi: [attacker, null, null] }, { energy: 3 }, attacker);
+  const paid = finishPayingCosts(executeEffect({ effectId: 'b1', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, paidCtx), paidCtx);
+  eq(paid.ownerState.field.signi[0]?.at(-1), attacker, 'paid attacker remains');
+  eq(paid.otherState.energy.length, paidCtx.otherState.energy.length - 3, 'opponent pays exactly 3 energy');
+});
+
+test('PLAN 6.3 batch 8 B-2: named discard plus green-green-any-any gates banish', () => {
+  const eff = mergeManualEffects('WDK08-Y12', effectsMap.get('WDK08-Y12') ?? []).find(e => e.effectId === 'WDK08-Y12-E1')!;
+  const target = SIGNI_L3;
+  const named = findCard(c => c.CardName === '幻水　ダンクルテウス');
+  const greens = [...cardMap.values()].filter(c => c.Color?.includes('緑')).slice(0, 2).map(c => c.CardNum);
+  const anys = [...cardMap.values()].filter(c => !c.Color?.includes('緑')).slice(0, 2).map(c => c.CardNum);
+  if (greens.length < 2 || anys.length < 2) throw new Error('cost fixtures missing');
+  const paidCtx = mkCtx({}, { signi: [target, null, null] }, 'WDK08-Y12');
+  paidCtx.ownerState = { ...paidCtx.ownerState, hand: [named], energy: [...greens, ...anys] };
+  const paid = finishPayingCosts(executeEffect(eff, paidCtx), paidCtx);
+  ok(!paid.otherState.field.signi[0], 'both costs paid => target banished');
+  ok(paid.ownerState.trash.includes(named), 'named card was discarded as cost');
+  eq(paid.ownerState.energy.length, 0, 'four energy were paid');
+  const shortCtx = mkCtx({}, { signi: [target, null, null] }, 'WDK08-Y12');
+  shortCtx.ownerState = { ...shortCtx.ownerState, hand: [], energy: [...greens, ...anys] };
+  const short = run(eff.action, shortCtx);
+  eq(short.otherState.field.signi[0]?.at(-1), target, 'missing named card => no banish');
+  eq(short.ownerState.energy.length, 4, 'failed composite cost spends no energy');
+});
+
+test('PLAN 6.3 batch 8 B-3: stored level sets white discard count and gates bounce', () => {
+  const merged = mergeManualEffects('WX24-P2-048', effectsMap.get('WX24-P2-048') ?? []);
+  const eff = merged.find(e => e.effectId === 'WX24-P2-048-E1')!;
+  const e2 = merged.find(e => e.effectId === 'WX24-P2-048-E2')!;
+  ok(e2.effectType === 'ACTIVATED' && e2.cost?.down_self === true
+    && e2.action.type === 'CONDITIONAL' && e2.action.then.type === 'DRAW', 'E2 down + Angel gate + draw remains unchanged');
+  const choice = (eff.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices.find(c => c.choiceId === 'c0')!;
+  const whites = [...cardMap.values()].filter(c => c.Color?.includes('白')).slice(0, 3).map(c => c.CardNum);
+  if (whites.length < 3) throw new Error('white fixtures missing');
+  const paidCtx = mkCtx({}, { signi: [SIGNI_L3, null, null] }, 'WX24-P2-048');
+  paidCtx.ownerState = { ...paidCtx.ownerState, hand: whites };
+  const paid = finishPayingCosts(executeEffect({ effectId: 'b3', effectType: 'AUTO', action: choice.action, duration: 'INSTANT', mandatory: true }, paidCtx), paidCtx);
+  ok(!paid.otherState.field.signi[0], 'three white cards => level-3 target bounced');
+  ok(paid.otherState.hand.includes(SIGNI_L3), 'the stored target moved to hand');
+  eq(paid.ownerState.hand.length, 0, 'exactly three white cards discarded');
+  const shortCtx = mkCtx({}, { signi: [SIGNI_L3, null, null] }, 'WX24-P2-048');
+  shortCtx.ownerState = { ...shortCtx.ownerState, hand: whites.slice(0, 2) };
+  const short = run(choice.action, shortCtx);
+  eq(short.otherState.field.signi[0]?.at(-1), SIGNI_L3, 'two white cards => no bounce');
+  eq(short.ownerState.hand.length, 2, 'unaffordable optional cost discards nothing');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
