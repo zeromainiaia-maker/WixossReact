@@ -4180,6 +4180,43 @@ export function collectCharmShieldSigni(
 }
 
 /**
+ * CONTINUOUS BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）:
+ * 「（このシグニ／あなたの＜C＞のシグニ1体）がバニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う」。
+ * state（守られる側＝防御プレイヤー）の場に、victimNum のバニッシュを肩代わりできる source（この能力を失う側）があれば
+ * その source instance を返す（無ければ null）。source が既に abilities_removed（能力喪失済み＝同ターン再発動不可）なら対象外。
+ * banishPrevent.thisCardOnly＝source 自身のみ守る／banishPrevent.story＝当該クラスの自シグニを守る（source は別カードでも可）。
+ * isOwnerTurn＝victim オーナーのターンか（バトルでは常に false＝相手ターン）。呼び出し側は victim を場に残し source を abilities_removed へ積む。
+ */
+export function collectBanishPreventLoseAbility(
+  state: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  victimNum: string,
+): string | null {
+  const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+  const victimClass = cardMap.get(baseNum(victimNum))?.CardClass ?? '';
+  const removed = new Set(state.abilities_removed ?? []);
+  for (const stack of state.field.signi) {
+    const src = stack?.at(-1);
+    if (!src || removed.has(src)) continue; // 能力喪失済みは再発動不可
+    for (const eff of (effectsMap.get(baseNum(src)) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'BATTLE_BANISH_PREVENT_LOSE_ABILITY' || !act.banishPrevent) continue;
+      const bp = act.banishPrevent;
+      if (bp.oppTurnOnly && isOwnerTurn) continue; // 「対戦相手のターンの間」＝victim オーナーのターンでは無効
+      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, src)) continue;
+      if (bp.thisCardOnly && src !== victimNum) continue;
+      if (bp.story && !victimClass.includes(bp.story)) continue;
+      return src;
+    }
+  }
+  return null;
+}
+
+/**
  * CONTINUOUS GRANT_PROTECTION from=['BANISH'|'any'|'シグニ'|'ルリグ']: 対戦相手の効果バニッシュから保護されているシグニ番号を返す。
  * hasBanishResist の EffectText フォールバックは activeCondition を無視するため、effects.json 登録済みカードはここで評価する。
  */

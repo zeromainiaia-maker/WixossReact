@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -322,6 +322,38 @@ test('§3 タスク6 WXK06-071: 多段閾値がネスト CONDITIONAL（4+→-120
   ok(!at(0, 1) && !at(0, 4), '0 moved → どちらも false（無変化）');
   ok(at(2, 1) && !at(2, 4), '2 moved → -5000 のみ');
   ok(at(5, 1) && at(5, 4), '5 moved → -12000');
+  cursor = savedCursor;
+});
+
+test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバトルバニッシュ防止 collector', () => {
+  const savedCursor = cursor;
+  // (1) parse: 3枚が STUB BATTLE_BANISH_PREVENT_LOSE_ABILITY へ（REMOVE_ABILITIES 幻覚を撤去）
+  const bpAct = (cardNum: string, effectId: string) =>
+    manualEffect(cardNum, effectId).action as import('../src/types/effects').StubAction;
+  const a1 = bpAct('WX13-031', 'WX13-031-E1');
+  eq(a1.id, 'BATTLE_BANISH_PREVENT_LOSE_ABILITY', 'WX13-031 id');
+  ok(a1.banishPrevent?.thisCardOnly === true, 'WX13-031 thisCardOnly');
+  const a2 = bpAct('WX16-001', 'WX16-001-E1');
+  eq(a2.banishPrevent?.story, '怪異', 'WX16-001 story');
+  const a3 = bpAct('WXK04-068', 'WXK04-068-E2');
+  ok(a3.banishPrevent?.thisCardOnly === true, 'WXK04-068 thisCardOnly');
+  // (2) collector thisCardOnly（WX13-031）: victim=source のみ守る。相手ターン（isOwnerTurn=false）で発火。
+  const self13 = 'WX13-031';
+  const other = SIGNI_L4;
+  const cSelf = mkState({ signi: [self13, other, null] });
+  const cOpp = mkState({});
+  ok(collectBanishPreventLoseAbility(cSelf, cOpp, false, cardMap as Map<string, CardData>, effectsMap, self13) === self13, 'thisCardOnly: 自身を守る');
+  eq(collectBanishPreventLoseAbility(cSelf, cOpp, false, cardMap as Map<string, CardData>, effectsMap, other), null, 'thisCardOnly: 他シグニは守らない');
+  // 能力喪失済み（同ターン再発動不可）
+  eq(collectBanishPreventLoseAbility({ ...cSelf, abilities_removed: [self13] }, cOpp, false, cardMap as Map<string, CardData>, effectsMap, self13), null, '能力喪失済みは無効');
+  // (3) collector story（WX16-001＝怪異を守る・source は別カードでも可）。相手ターン限定（TURN_OWNER opponent）。
+  const kaii = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('怪異') && c.CardNum !== 'WX16-001');
+  const src16 = 'WX16-001';
+  const cStory = mkState({ signi: [src16, kaii, other] });
+  ok(collectBanishPreventLoseAbility(cStory, cOpp, false, cardMap as Map<string, CardData>, effectsMap, kaii) === src16, 'story: 怪異シグニを守る');
+  eq(collectBanishPreventLoseAbility(cStory, cOpp, false, cardMap as Map<string, CardData>, effectsMap, other), null, 'story: 非怪異は守らない');
+  // 自ターン（isOwnerTurn=true）＝「対戦相手のターンの間」条件で無効
+  eq(collectBanishPreventLoseAbility(cStory, cOpp, true, cardMap as Map<string, CardData>, effectsMap, kaii), null, 'oppTurnOnly: 自ターンは無効');
   cursor = savedCursor;
 });
 

@@ -1301,6 +1301,12 @@ function actionJa(a?: Action, effectType?: string): string {
           return `${oppTurn}${vf}あなたの${other}シグニ１体がバニッシュされる場合、代わりにこのシグニをバニッシュしてもよい`;
         }
       }
+      // BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）: バニッシュ防止＋能力喪失。
+      //   「対戦相手のターンの間」は activeCondition（TURN_OWNER opponent）側で前置されるためここには含めない。
+      if (a.id === 'BATTLE_BANISH_PREVENT_LOSE_ABILITY' && a.banishPrevent) {
+        const subj = a.banishPrevent.story ? `あなたの＜${a.banishPrevent.story}＞のシグニ１体` : 'このシグニ';
+        return `${subj}がバニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う`;
+      }
       // GRANT_TO_PLACED_SIGNI: 「この方法で場に出たシグニは…を得る」（value に原文を保持）。
       if (a.id === 'GRANT_TO_PLACED_SIGNI') return a.value ?? 'この方法で場に出たシグニは能力を得る';
       // CONDITIONAL_MULTI_CHOOSE_BY_CENTER（系）: 「以下のNつからMつ選ぶ①②③④」を実行時パースで実装する

@@ -1743,6 +1743,15 @@ export interface StubAction {
     victimFilter?: 'riseIcon' | 'otherAny';   // protect_other_sacrifice_self: 守る対象（'riseIcon'=《ライズアイコン》持ち / 'otherAny'=このシグニ以外の任意の自シグニ）
     oppTurnOnly?: boolean;                     // 対戦相手のターンの間のみ有効（CP01-032/P10-052）
   };
+  // BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）: 「（このシグニ/あなたの＜C＞のシグニ1体）が
+  // バニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う」。バトルバニッシュ経路で
+  // 自動適用＝victim を場に残し source を abilities_removed へ（同ターン中は再発動不可）。WX13-031/WX16-001/WXK04-068。
+  // activeCondition（oppTurnOnly＝「対戦相手のターンの間」）は eff.activeCondition で honor。
+  banishPrevent?: {
+    thisCardOnly?: boolean;   // true＝このシグニ自身のみ守る（source=victim）。WX13-031/WXK04-068
+    story?: string;           // 指定＝あなたの当該＜C＞のシグニを守る（source は別カードでも可）。WX16-001＝怪異
+    oppTurnOnly?: boolean;    // 「対戦相手のターンの間」のみ有効（isOwnerTurn=false のときだけ）。WX16-001/WXK04-068
+  };
 }
 
 // 生徒との絆を獲得する（ブルアカ絆メカニクス）

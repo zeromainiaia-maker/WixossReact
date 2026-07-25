@@ -6,7 +6,7 @@ import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -7120,6 +7120,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               (eff.action as import('../types/effects').StubAction).id === 'BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY' &&
               checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
             );
+          // §3タスク6 D: バニッシュ防止＋能力喪失（WX13-031/WX16-001/WXK04-068）。守れる source instance（無ければ null）。
+          const banishPreventLoseAbilitySrc = (!f3SubstituteApplied && opTopCardNum)
+            ? collectBanishPreventLoseAbility(opS, myS, false, battleCardMap, effectsMap, opTopCardNum)
+            : null;
           if (f3SubstituteApplied && f3SacrificeNum) {
             // 身代わり置換: victim は場に残り、代わりに f3SacrificeNum をバニッシュ（通常どおりエナへ／チャーム・アクセはトラッシュ）
             const sacZone = opS.field.signi.findIndex(s => s?.at(-1) === f3SacrificeNum);
@@ -7190,6 +7194,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               field: { ...opS.field, signi: newOpSigniTUE, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce },
             };
             appendBattleLogs([`${opCardName}（バニッシュ代替）ダウン＋下1枚＋エナ1枚をトラッシュしてバニッシュ回避`]);
+          } else if (opTopCardNum && banishPreventLoseAbilitySrc) {
+            // §3タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY（WX13-031/WX16-001/WXK04-068）
+            // ＝victim はバニッシュされず場に残り、source（＝守った能力の持ち主）はターン終了時までこの能力を失う。
+            //   abilities_removed（instance 単位）で同ターン再発動を封じる（powered by ターン境界の abilities_removed リセット）。
+            const newAbilBP = [...new Set([...(opS.abilities_removed ?? []), banishPreventLoseAbilitySrc])];
+            newOpFrozen[opZoneIndex] = false;
+            const newOpSigniBP = [...opS.field.signi] as (string[] | null)[];
+            newOpState = { ...opS, abilities_removed: newAbilBP, field: { ...opS.field, signi: newOpSigniBP, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
+            appendBattleLogs([`${opCardName}（バニッシュ置換）バニッシュされず、${battleCardMap.get(banishPreventLoseAbilitySrc)?.CardName ?? banishPreventLoseAbilitySrc}はターン終了時までこの能力を失う`]);
           } else {
           // COOKING_BANISH_SUBSTITUTE: 調理シグニにアクセがある場合、アクセをトラッシュしてバニッシュ回避
           // （防御側から見て相手ターンのみ＝アタックは常にアタッカーのターンなので常に該当）

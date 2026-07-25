@@ -339,6 +339,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until };
   }
 
+  // ---- §3タスク6 D（置換ルール）: バニッシュ防止＋能力喪失（能力消去ブロックより前に置く＝「この能力を失う」を先取りさせない）----
+  // 「（対戦相手のターンの間、）（このシグニ／あなたの＜C＞のシグニ1体）がバニッシュされる場合、代わりにバニッシュされず、
+  //   ターン終了時まで、この能力を失う。」＝バトルバニッシュ経路で自動適用（victim を場に残し source を能力喪失）。
+  //   ⚠「バニッシュされず」は「バニッシュされない」保護（GRANT_PROTECTION）とは別＝「代わりに…この能力を失う」で
+  //     同ターン再発動不可の一回性置換。従来は REMOVE_ABILITIES へ幻覚化し、バニッシュ防止（守り）が丸ごと脱落していた。
+  if (/がバニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う/.test(t)) {
+    const oppTurnOnlyBP = /対戦相手のターンの間/.test(t);
+    const storyBP = t.match(/あなたの＜([^＞]+)＞のシグニ[０-９\d]*体?がバニッシュされる場合/);
+    return {
+      type: 'STUB', id: 'BATTLE_BANISH_PREVENT_LOSE_ABILITY',
+      banishPrevent: {
+        ...(storyBP ? { story: storyBP[1] } : { thisCardOnly: true }),
+        ...(oppTurnOnlyBP ? { oppTurnOnly: true } : {}),
+      },
+    } as StubAction;
+  }
+
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
