@@ -840,7 +840,13 @@ function actionJa(a?: Action, effectType?: string): string {
       const betCh = a.betChoose
         ? `。あなたがベットしていた場合、代わりに${numJa(a.betChoose.thenChooseCount)}つ${a.betChoose.thenUpTo ? 'まで' : ''}選ぶ`
         : '';
-      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}【${chOpts.join(' / ')}】`;
+      // recollectArts＝「《リコレクトアイコン》［N枚以上］代わりにKつ(まで)選ぶ」（engine が excludeSource 付き
+      // ルリグトラッシュのアーツ枚数で choose_count を上書き）。§3タスク6 E＝**機構は実装済みなのに逆翻訳が
+      // 丸ごと落としており原文照合できず census 高シグナルに残っていた**（betChoose と同型なので並べて出す）。
+      const recoCh = a.recollectArts
+        ? `。《リコレクトアイコン》［${a.recollectArts.minArts}枚以上］代わりに${numJa(a.recollectArts.thenChooseCount)}つ${a.recollectArts.thenUpTo ? 'まで' : ''}選ぶ`
+        : '';
+      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる

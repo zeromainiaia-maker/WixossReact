@@ -370,7 +370,29 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const all = t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
-    return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: all ? 'ALL' : 1 }, until: dur } as RemoveAbilitiesAction;
+    const ra: RemoveAbilitiesAction = { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: all ? 'ALL' : 1 }, until: dur } as RemoveAbilitiesAction;
+    // §3タスク6 E: 「それは能力を失い、それのパワーを－Nする」＝**同一対象**への能力消去＋パワー修正の複文。
+    // 従来はここで能力消去だけを返し **パワー修正が丸ごと脱落**していた（WX26-CP1-009-E1 の－30000）。
+    // REMOVE_ABILITIES が対象を lastProcessedCards に記録するので、後段は targetsLastProcessed で同一対象に載る。
+    {
+      const pmM = t.match(/能力を失[うい]、(?:それの|その)パワーを([－\-＋+])([０-９\d]+)する/);
+      if (pmM && !isQuotedGrant && ra.target.count !== 'ALL') {
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            ra,
+            {
+              type: 'POWER_MODIFY',
+              target: { type: 'SIGNI', owner, count: 1 },
+              delta: ((pmM[1] === '－' || pmM[1] === '-') ? -1 : 1) * parseNum(pmM[2]),
+              duration: dur,
+              targetsLastProcessed: true,
+            },
+          ],
+        } as EffectAction;
+      }
+    }
+    return ra;
   }
 
   // ---- 条件付きドロー（手札が少ない場合に差分だけ引く）----

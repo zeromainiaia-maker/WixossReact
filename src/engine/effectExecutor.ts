@@ -4117,7 +4117,8 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   }
   const removed = [...new Set([...(state.abilities_removed ?? []), ...cands])];
   const newS: PlayerState = { ...state, abilities_removed: removed };
-  return done(addLog(setOwnerState(tgtOwner, newS, ctx), `${cands.length}`));
+  // 非対話経路（ALL / thisCardOnly / frontOfSelf で対象確定）も lastProcessedCards を残す（§3タスク6 E）。
+  return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
 }
 
 function execGainCoin(a: GainCoinAction, ctx: ExecCtx): ExecResult {
@@ -6110,7 +6111,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
       const raRemoved = [...new Set([...(raS.abilities_removed ?? []), cardNum])];
-      return done(addLog(setOwnerState(raOwner, { ...raS, abilities_removed: raRemoved }, ctx),
+      // §3タスク6 E: 選んだ対象を lastProcessedCards に記録＝後続の「それのパワーを－Nする」
+      //（POWER_MODIFY targetsLastProcessed）が**同じ対象**に載る（WX26-CP1-009-E1）。
+      return done(addLog({ ...setOwnerState(raOwner, { ...raS, abilities_removed: raRemoved }, ctx), lastProcessedCards: [cardNum] },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}は能力を失う`));
     }
     case 'ADD_TO_LIFE': {

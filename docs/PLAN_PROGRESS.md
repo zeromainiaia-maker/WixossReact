@@ -6,6 +6,14 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-25 続き259・Opus 5）＝§3 タスク6 C「コスト代替6」を全数消化してクローズ**（golden 732→733・census 1557→1554・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **スコープ**＝タスク6 の残2系統のうち **C:コスト代替6**。実バグ4効果を消化＋2件を既実装（偽陽性）と確定。**タスク6 の残は E:リコレクト2 のみ**。
+  - **機構(1) コスト参照の置換ゲート3効果**＝「このコストで〈X〉を捨てた／トラッシュに置いた場合、代わりに〈強化版〉」が**条件節ごと脱落して SEQUENCE 両実行**になっていた過剰効果。WX24-P1-060-E1（相手シグニを**2体**バニッシュ）・WX25-P3-076-E1（2体バニッシュ＋**enhanced の対象側に緑/龍獣 filter が漏れ**）・WXEX2-48-E3（**最大4体**を無条件配置）。新 `COST_TRASHED_MATCHES{filter}`（`last_cost_trashed_cards` × `matchesFilter`）を追加し、WXEX2-48 は**語彙は既にあった** `ACTIVATED_DISCARD_COUNT_GTE` に parser 規則を1本足すだけで配線。
+  - **⚠併せて修正した engine バグ**＝【出】コスト支払い経路が `last_cost_trashed_cards` を**支払い前 state へ追記**しており前の能力のコストが残留（「直前の能力コスト」の意味が壊れ `colorMatchesCostTrashed` も誤成立しうる）。ACTIVATED 経路と同じ**上書き**規約へ統一。
+  - **機構(2) 能力スコープの任意コスト代替1効果**＝WX07-027-E2 の**コスト宣言文が強制 TRASH ステップへ平坦化**し「能力を使うたび必ず＜原子＞を1枚捨てる」過剰効果だった。`cost.costSubstitute` 宣言へ畳む（decompiler 対応・engine 未実装＝**印刷どおりのコストで成立する安全側**フォールバック・§6.3送り）。
+  - **偽陽性2件**＝WX08-042-E1／WX21-044-E1 は `COST_SUBSTITUTE{banish_self}` として `collectColorlessOverrides` の色オーバーライドで**完全配線済**。
+  - **検証**＝全ゲート緑（golden 733/0・smoke 10725件0・fuzz 200ゲーム0・census 1554＝BASELINE_HIGH更新・**同型★0**・lint 221w/0e）。held 4枚は fresh vs live を effectId 単位で精密 diff（**兄弟効果 byte 一致**）の上で adopt。
+  - **次の一手**＝**Opus：タスク6 の残＝E:リコレクト2**（真の§6.3級）。その後は §6.3 正面の残サブ機構（BLOCK＝WXK11-029-E1／side attack＝MULTI_ZONE_ATTACK／正面 condition 型）。**🆕タスク12 に (lii) を登録**＝修飾語なし「シグニ1体を対象とし」が `owner:'self'` へ落ちる parser 既定値バグ（`parseSigniTarget`・影響範囲が広く全数機械分類が要る）。**⚠持ち越し**＝`collectContinuousAbilitiesRemovedSigni`（effectEngine.ts:4638）の opponent+count:1 分岐が **same-zi** で facing を解決＝engine 他所の `2-zi` mirrored front と規約が食い違う（WX05-019-E1 待ち）。**Sonnet：タスク1（§7 実機検証）継続**。
 - **🆕 セッション（2026-07-25 続き258・Opus 5）＝§3 タスク6 D「バニッシュ置換ルール9」を全数消化してクローズ**（golden 730→732・census 1562→1557・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
   - **スコープ**＝タスク6 の残3系統のうち **D:置換ルール9（バニッシュされない系）** を全数棚卸し。原文は全て「〜がバニッシュされる場合、代わりに〜」の**置換ルール**で、parser が文末だけを拾い**守りが丸ごと脱落した幻覚**になっていた系統。実バグ5効果を消化＋1効果を§6.3送り＋4件を既実装/偽陽性と確定。
   - **機構(1) バニッシュ防止＋能力喪失 3効果**（WX13-031-E1／WX16-001-E1／WXK04-068-E2）＝`REMOVE_ABILITIES` 幻覚（自分のシグニの能力を消す）を撤去し新 STUB `BATTLE_BANISH_PREVENT_LOSE_ABILITY`＋`banishPrevent{thisCardOnly|story|oppTurnOnly}`・engine `collectBanishPreventLoseAbility`（`abilities_removed` で同ターン再発動不可）・BattleScreen バトルバニッシュ経路で victim 存置＋source 能力喪失。

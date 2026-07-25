@@ -357,6 +357,46 @@ test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバト�
   cursor = savedCursor;
 });
 
+test('§3 タスク6 E: リコレクト選択数（recollectArts）と「能力を失い＋パワー修正」複文の脱落是正', () => {
+  const savedCursor = cursor;
+  type SeqA = import('../src/types/effects').SequenceAction;
+  type PMA = import('../src/types/effects').PowerModifyAction;
+  // (1) recollectArts は parser→engine（execChoose）まで実装済＝2枚が正しく保持していること
+  //     （census 高シグナルの原因は逆翻訳がこの句を落として原文照合できなかったこと）。
+  for (const [cn, eid] of [['WX26-CP1-005', 'WX26-CP1-005-E1'], ['WX26-CP1-009', 'WX26-CP1-009-E1']] as const) {
+    const ch = manualEffect(cn, eid).action as import('../src/types/effects').ChooseAction;
+    eq(ch.type, 'CHOOSE', `${cn} CHOOSE`);
+    eq(ch.choose_count, 1, `${cn} base choose_count`);
+    eq(ch.recollectArts?.minArts, 4, `${cn} recollect minArts`);
+    eq(ch.recollectArts?.thenChooseCount, 2, `${cn} recollect thenChooseCount`);
+    ok(ch.recollectArts?.thenUpTo === true, `${cn} recollect thenUpTo`);
+  }
+  // (2) 「それは能力を失い、それのパワーを－Nする」＝同一対象への複文。従来は**パワー修正が丸ごと脱落**していた。
+  //     REMOVE_ABILITIES→POWER_MODIFY{targetsLastProcessed} の SEQUENCE になり、duration も揃うこと。
+  const chk = (cardNum: string, effectId: string, delta: number, dur: string, pick?: (a: unknown) => unknown) => {
+    const raw = manualEffect(cardNum, effectId).action as unknown;
+    const seq = (pick ? pick(raw) : raw) as SeqA;
+    eq(seq.type, 'SEQUENCE', `${cardNum} SEQUENCE`);
+    eq(seq.steps[0].type, 'REMOVE_ABILITIES', `${cardNum} step0`);
+    const pm = seq.steps[1] as PMA;
+    eq(pm.type, 'POWER_MODIFY', `${cardNum} step1`);
+    eq(pm.delta, delta, `${cardNum} delta`);
+    ok(pm.targetsLastProcessed === true, `${cardNum} 同一対象`);
+    eq(pm.duration, dur, `${cardNum} duration`);
+    eq((seq.steps[0] as { until: string }).until, dur, `${cardNum} until 一致`);
+  };
+  chk('WX25-CP1-084', 'WX25-CP1-084-E1', -3000, 'UNTIL_END_OF_TURN');
+  chk('WX25-CP1-093', 'WX25-CP1-093-E1', -5000, 'UNTIL_OPP_TURN_END'); // 「次の対戦相手のターン終了時まで」
+  chk('SPDi43-09', 'SPDi43-09-E2', -5000, 'UNTIL_END_OF_TURN',
+    a => (a as import('../src/types/effects').ConditionalAction).then);
+  // WX26-CP1-009 は CHOOSE の選択肢②（－30000）
+  const ch9 = manualEffect('WX26-CP1-009', 'WX26-CP1-009-E1').action as import('../src/types/effects').ChooseAction;
+  const seq9 = ch9.choices[1].action as SeqA;
+  eq(seq9.type, 'SEQUENCE', 'WX26-CP1-009 選択肢2 SEQUENCE');
+  eq((seq9.steps[1] as PMA).delta, -30000, 'WX26-CP1-009 －30000 が脱落していない');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6 C: コスト参照の置換ゲート3枚＋能力スコープ costSubstitute（WX07-027）', () => {
   const savedCursor = cursor;
   type CondA = import('../src/types/effects').ConditionalAction;

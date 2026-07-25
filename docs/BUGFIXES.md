@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク6 E＝リコレクト2の消化＝**タスク6 完全クローズ**（2026-07-25・続き260・Opus 5）
+
+- **対象**：タスク6 の最後の残 **E:リコレクト2**＝WX26-CP1-005-E1／WX26-CP1-009-E1「以下の3つから1つを選ぶ。《リコレクトアイコン》［4枚以上］代わりに2つまで選ぶ」。
+- **(1) 真因は機構ではなく計器（decompiler）だった**＝`recollectArts{minArts,thenChooseCount,thenUpTo}` は **parser（effectParser 3420 の chooseRecoM）→ engine（effectExecutor 3075-3082 が excludeSource 付きルリグトラッシュのアーツ枚数で `choose_count`/`upTo` を上書き）まで既に完全実装済**。ところが**逆翻訳（`actionJa` の `CHOOSE`）がこの句を丸ごと落としていた**ため原文照合ができず、census の「代わりに(置換)」で高シグナルに残り続けていた。`betChoose` は描画済みだったので**同型の1行を並べて追加**。⚠同じ状況は D の WX10-033/WX11-029・C の WX08-042/WX21-044 にも出た＝**「census 高シグナル＝未実装」ではない**（計器較正の偽陽性が混ざる）。
+- **(2) 全文照合で見つけた実バグ＝「それは能力を失い、それのパワーを－Nする」複文でパワー修正が丸ごと脱落（4効果）**。parser の能力消去ブロックが `REMOVE_ABILITIES` を返した時点で後続句を捨てていた。`SEQUENCE[REMOVE_ABILITIES, POWER_MODIFY{targetsLastProcessed}]` へ是正（`until`/`duration` は同一）。engine 側は `REMOVE_ABILITIES` が**選んだ対象を `lastProcessedCards` に記録していなかった**ので、対話経路（resume）と非対話経路（ALL/thisCardOnly/frontOfSelf）の両方に記録を追加＝後段の「それ」が**同じ対象**に載る。
+  - **WX26-CP1-009-E1 選択肢②の－30000**／WX25-CP1-084-E1 の－3000／WX25-CP1-093-E1 の－5000（`UNTIL_OPP_TURN_END`）／SPDi43-09-E2 の－5000。**リコレクト2枚の消化から派生して他2枚＋1枚に波及した一般規則の是正**。
+- **🆕 観測（未消化・§6.3送り）**＝**「それのレベル1につき〈N倍の効果〉」＝対象のレベルに比例する count の語彙が無い**（WX26-CP1-005-E1 選択肢②「あなたの＜プリオケ＞のシグニ1体を対象とし、**それのレベル1につき**対戦相手は手札を1枚捨てる」が対象指定ごと落ちて `count:1` 固定）。**原文15効果の族**（WX13-004-E1 のエナチャージ、WX24-P4-004-E1 の手札捨て等も同じ脱落）。`POWER_MODIFY_BY_TARGET_LEVEL` はパワー専用で汎用化されていない。忠実実装には ①`resolveNum` に `$ref:'last_processed_level'` ②「対象を選ぶだけで記録する」ステップ（現状 SELECT_ONLY 相当のアクションが無い）の2点が要る＝1カードのために作らず族単位で §6.3 へ登録。
+- **検証**：golden 733→**734**。smoke 10725 全0・fuzz 全0・**census 1554→1552**（BASELINE_HIGH更新）・**同型★0**（逆翻訳がリコレクト句とパワー修正を描画するようになり原文と一致）・typecheck/lint 0 errors。held 4枚は fresh vs live を effectId 単位で精密 diff（**兄弟効果 byte 一致**）の上で `heldReview --adopt`。
+- **🏁 §3 タスク6「代わりに」残テールの機構系を完全クローズ**（B1→続き256/257・D→続き258・C→続き259・E→続き260）。
+
+---
+
 ## §3 タスク6 C＝コスト代替6の全数消化（2026-07-25・続き259・Opus 5）
 
 - **対象**：タスク6 の残 **C:コスト代替6** を全数棚卸し。実バグ4効果を消化・2件は既実装（偽陽性）と確定してクローズ。
