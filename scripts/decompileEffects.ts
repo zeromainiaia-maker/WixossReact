@@ -273,6 +273,12 @@ function costJa(c?: any): string {
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
+  // §3タスク6 C: 能力スコープの任意コスト代替（WX07-027-E2）。宣言のみで engine 未実装だが原文を保つ。
+  if (c.costSubstitute) {
+    const cs = c.costSubstitute;
+    const d = cs.discardFromHand;
+    parts.push(`《${cs.originalCost.color}》を支払う際、代わりに手札から${filterJa(d?.filter)}シグニを${d?.count ?? 1}枚捨ててもよい`);
+  }
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');
 }
@@ -397,6 +403,11 @@ function condJa(c?: any): string {
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;
     case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
+    case 'COST_TRASHED_MATCHES': {
+      // §3タスク6 C: 「このコストで<filter>を捨てた／トラッシュに置いた」
+      const cm = c as { filter?: TargetFilter; verbJa?: 'discard' | 'trash' };
+      return `このコストで${filterJa(cm.filter)}${cm.filter?.cardType === 'スペル' ? 'スペル' : 'シグニ'}を${cm.verbJa === 'trash' ? 'トラッシュに置いた' : '捨てた'}`;
+    }
     case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
     case 'OPP_LIFE_CRASH_EVENT_GTE': return `相手ライフを同時に${numJa(c.value)}枚以上クラッシュした`;
     case 'HAS_BOND': return `${c.cardName ? '「' + c.cardName + '」' : 'このカード'}との絆を獲得している`;

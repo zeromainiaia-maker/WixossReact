@@ -357,6 +357,47 @@ test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバト�
   cursor = savedCursor;
 });
 
+test('§3 タスク6 C: コスト参照の置換ゲート3枚＋能力スコープ costSubstitute（WX07-027）', () => {
+  const savedCursor = cursor;
+  type CondA = import('../src/types/effects').ConditionalAction;
+  // (1) WX24-P1-060: 「このコストでスペルを捨てた場合、代わりにパワー5000以下」＝COST_TRASHED_MATCHES で置換。
+  //     従来は SEQUENCE 両実行＝相手シグニを**2体**バニッシュする過剰効果だった。
+  const a60 = manualEffect('WX24-P1-060', 'WX24-P1-060-E1').action as CondA;
+  eq(a60.type, 'CONDITIONAL', 'WX24-P1-060 CONDITIONAL');
+  eq(a60.condition.type, 'COST_TRASHED_MATCHES', 'WX24-P1-060 cond');
+  eq((a60.then as { target: { filter: { powerRange: { max: number } } } }).target.filter.powerRange.max, 5000, 'then 5000以下');
+  eq((a60.else as { target: { filter: { powerRange: { max: number } } } }).target.filter.powerRange.max, 3000, 'else 3000以下');
+  // (2) WX25-P3-076: 「緑の＜龍獣＞をトラッシュに置いた場合」。⚠enhanced の**対象**へ緑/龍獣 filter が
+  //     漏れていた誤りも解消（対象は相手シグニ・色/クラスは支払ったコスト側の条件）。
+  const a76 = manualEffect('WX25-P3-076', 'WX25-P3-076-E1').action as CondA;
+  eq(a76.condition.type, 'COST_TRASHED_MATCHES', 'WX25-P3-076 cond');
+  const f76 = (a76.condition as { filter: { color?: string; story?: string } }).filter;
+  eq(f76.color, '緑', 'WX25-P3-076 cond color'); eq(f76.story, '龍獣', 'WX25-P3-076 cond story');
+  const t76 = (a76.then as { target: { filter: Record<string, unknown> } }).target.filter;
+  eq(t76.powerRange && (t76.powerRange as { max: number }).max, 5000, 'then 5000以下');
+  ok(t76.color === undefined && t76.story === undefined, 'then の対象に色/クラス filter が漏れていない');
+  // (3) WXEX2-48: 「この能力のコストでカードを2枚以上捨てた場合」＝既存 ACTIVATED_DISCARD_COUNT_GTE を配線。
+  const a48 = manualEffect('WXEX2-48', 'WXEX2-48-E3').action as CondA;
+  eq(a48.condition.type, 'ACTIVATED_DISCARD_COUNT_GTE', 'WXEX2-48 cond');
+  eq((a48.condition as { value: number }).value, 2, 'WXEX2-48 gte2');
+  eq((a48.then as { source: { count: number } }).source.count, 3, 'then 3枚まで');
+  eq((a48.else as { source: { count: number } }).source.count, 1, 'else 1枚');
+  // (4) COST_TRASHED_MATCHES の evalCondition（last_cost_trashed_cards を cardMap で照合）
+  const spell = findCard(c => c.Type === 'スペル');
+  const signi = findCard(c => isSigni(c));
+  const cSp = { type: 'COST_TRASHED_MATCHES', filter: { cardType: 'スペル' } } as const;
+  ok(evalCondition(cSp, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_cards: [spell] } }), 'スペルを捨てた → true');
+  ok(!evalCondition(cSp, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_cards: [signi] } }), 'シグニのみ → false');
+  ok(!evalCondition(cSp, { ...mkCtx({}, {}), ownerState: { ...mkState() } }), '記録なし → false');
+  // (5) WX07-027-E2: 能力スコープの任意コスト代替が cost 宣言へ畳まれ、action は BANISH 単体
+  //     （従来は「使うたび必ず＜原子＞を1枚捨てる」強制 TRASH ステップに平坦化していた）。
+  const e27 = manualEffect('WX07-027', 'WX07-027-E2');
+  eq(e27.action.type, 'BANISH', 'WX07-027 action は BANISH 単体');
+  eq(e27.cost?.costSubstitute?.originalCost.color, '青', 'WX07-027 costSubstitute 色');
+  eq(e27.cost?.costSubstitute?.discardFromHand?.filter?.story, '原子', 'WX07-027 costSubstitute クラス');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6 D: BANISH_SUBSTITUTE substituteCost.lifeCrash（WX14-026）と trigger.thisCardOnly（WX10-033）', () => {
   const savedCursor = cursor;
   type BSA = import('../src/types/effects').BanishSubstituteAction;

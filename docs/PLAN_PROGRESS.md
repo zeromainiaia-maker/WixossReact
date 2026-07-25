@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-25 続き258・Opus 5）＝§3 タスク6 D「バニッシュ置換ルール9」を全数消化してクローズ**（golden 730→732・census 1562→1557・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **スコープ**＝タスク6 の残3系統のうち **D:置換ルール9（バニッシュされない系）** を全数棚卸し。原文は全て「〜がバニッシュされる場合、代わりに〜」の**置換ルール**で、parser が文末だけを拾い**守りが丸ごと脱落した幻覚**になっていた系統。実バグ5効果を消化＋1効果を§6.3送り＋4件を既実装/偽陽性と確定。
+  - **機構(1) バニッシュ防止＋能力喪失 3効果**（WX13-031-E1／WX16-001-E1／WXK04-068-E2）＝`REMOVE_ABILITIES` 幻覚（自分のシグニの能力を消す）を撤去し新 STUB `BATTLE_BANISH_PREVENT_LOSE_ABILITY`＋`banishPrevent{thisCardOnly|story|oppTurnOnly}`・engine `collectBanishPreventLoseAbility`（`abilities_removed` で同ターン再発動不可）・BattleScreen バトルバニッシュ経路で victim 存置＋source 能力喪失。
+  - **機構(2) ライフを割って回避 1効果**（WX14-026-E1）＝**CONTINUOUS `LIFE_CRASH`＝「常時ライフを割り続ける」幻覚**を撤去し既存 `BANISH_SUBSTITUTE` コスト型へ `substituteCost.lifeCrash` を新設して合流（`crashOneLife` 経由＝ライフバースト確認フローに正常に乗る。CPU はライフ代替を pay の中で最後に回す）。
+  - **是正(3)(4)**＝WX10-033-E1 の `trigger.thisCardOnly` 脱落（原文「このシグニ」なのに**自分の全シグニ**を守っていた過大表現）を是正／WX25-P1-056-E1 の **所有者まで反転した `CONTINUOUS BANISH{owner:opponent}` 幻覚**を acknowledged STUB `EFFECT_LEAVE_REPLACE_BANISH` へ（非バニッシュ場離れ経路の横取りフックが要る真の§6.3＝WX06-019 の powerReduction 型と同じ待ち行列）。
+  - **検証**＝全ゲート緑（golden 732/0・smoke 10725件0・fuzz 200ゲーム0・census 1557＝BASELINE_HIGH更新・**同型★0**・lint 221w/0e）。effectId 単位 diff で対象効果のみ変更・**逆翻訳が5効果とも原文と一字一致**。held カード2枚（WX14-026／WX25-P1-056＝MANUAL 併存で PRESERVE）は fresh vs live 精密 diff の上で `heldReview --adopt`（WX14-026-BURST は「そうした場合」の `IS_MY_TURN` 誤変換→`LAST_PROCESSED_COUNT_GTE` did-it ゲート化も同時採用＝(xxii)族の副次消化）。
+  - **次の一手**＝**Opus：タスク6 の残＝C:コスト代替6／E:リコレクト2**（各々別機構・真の§6.3級）、および §6.3 正面の残サブ機構（BLOCK＝WXK11-029-E1／side attack＝MULTI_ZONE_ATTACK／正面 condition 型）。**⚠前セッションからの持ち越し発見**＝`collectContinuousAbilitiesRemovedSigni`（effectEngine.ts:4638）の opponent+count:1 分岐が **same-zi** で facing を解決＝engine 他所の `2-zi` mirrored front と規約が食い違う（WX05-019-E1 待ち）。**Sonnet：タスク1（§7 実機検証）継続**。
 - **🆕 セッション（2026-07-24 続き2・Opus 4.8＋Codex 分担・§6.3 機構台帳「正面」続き＝CONT パワー修正「正面のシグニ －N000」4効果を消化**（golden 720→724・census 1571→1567・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避・commit 269931a0）
   - **スコープ**＝正面サブ機構(a) CONT パワー修正型。「【常】：（アタックフェイズの間）このシグニの正面のシグニのパワーを－N000」が `owner:"self"+thisCardOnly` ＝**自分のシグニを弱くする自傷 CONT** へ誤変換。WX24-P1-050-E1（-2000）・WX24-P2-057-E1（-3000）・WX24-P2-057-E2（-4000）・WXDi-P10-044-E1（-2000）。
   - **機構**＝`calcFieldPowers` の CONT POWER_MODIFY `isSelfOnly` 分岐に `frontOfSelf` 分岐を1本追加（ホスト `zi`→相手 `2-zi` の正面へ delta・`otherPowerProtection` で相手保護 honor・残 filter AND・正面空 no-op）。`DURING_ATTACK_PHASE`／E2 の AND 条件は分岐前 `checkActiveCondition` で既 honor。4効果を `opponent`＋`frontOfSelf` へ MANUAL 再エンコード。parser 不変・新型ゼロ。

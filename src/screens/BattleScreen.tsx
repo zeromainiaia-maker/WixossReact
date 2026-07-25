@@ -10164,7 +10164,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_level: discardNums.length > 0
           ? (() => { const lv = parseInt(battleCardMap.get(getCardNum(discardNums[0]))?.Level ?? '', 10); return isNaN(lv) ? placedState.last_discarded_signi_level : lv; })()
           : placedState.last_discarded_signi_level,
-        last_cost_trashed_cards: [...(placedState.last_cost_trashed_cards ?? []), ...paidNums, ...discardNums],
+        // 「直前の能力コスト」の記録なので**この支払い分で上書き**する（ACTIVATED 経路 9626 と同じ規約）。
+        // 従来は支払い前 state へ追記していたため前の能力のコストが残り、COST_TRASHED_MATCHES／
+        // colorMatchesCostTrashed が古い支払いで誤成立しうる状態だった（§3タスク6 C で顕在化）。
+        last_cost_trashed_cards: [...paidNums, ...discardNums],
       };
       const payLogs: string[] = [];
       // handToUnderSelf: 出たシグニの下に置く

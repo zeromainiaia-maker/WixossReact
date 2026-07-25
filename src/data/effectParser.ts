@@ -1595,6 +1595,19 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「このコストでレベルNのシグニを捨てた場合」＝last_discarded_signi_level（handDiscardSigni コスト）。WX25-P2-101「レベル１→代わりに－5000」
   [/このコストでレベル([０-９\d]+)のシグニを捨てた場合/,
     g => ({ type: 'COST_DISCARDED_SIGNI_LEVEL', level: parseNum(g[0]) })],
+  // ── §3 タスク6 C（コスト代替・2026-07-25）。いずれも直後が「代わりに」の置換ゲート＝表に無いと
+  //    SEQUENCE 両実行の過剰効果（base と enhanced が別対象へ二重適用）になっていた。
+  // 「このコストでスペルを捨てた場合」＝last_cost_trashed_cards にスペルが含まれるか。WX24-P1-060「代わりにパワー5000以下」
+  [/この(?:能力の)?コストでスペルを捨てた場合/,
+    () => ({ type: 'COST_TRASHED_MATCHES', filter: { cardType: 'スペル' }, verbJa: 'discard' })],
+  // 「このコストで(色)の＜C＞のシグニをトラッシュに置いた場合」＝エナ/場からのコストトラッシュを色＋クラスで照合。
+  //   WX25-P3-076「緑の＜龍獣＞→代わりにパワー5000以下」
+  [/この(?:能力の)?コストで(白|赤|青|緑|黒|無)の＜([^＞]+)＞のシグニをトラッシュに置いた場合/,
+    g => ({ type: 'COST_TRASHED_MATCHES', filter: { cardType: 'シグニ', color: g[0], story: g[1] }, verbJa: 'trash' })],
+  // 「この能力のコストでカードをN枚以上捨てた場合」＝既存 ACTIVATED_DISCARD_COUNT_GTE（last_activated_discard_count）。
+  //   WXEX2-48「2枚以上→代わりに＜悪魔＞3枚まで場に出す」。語彙はあったが parser 側に規則が無く条件節ごと脱落していた。
+  [/この(?:能力の)?コストでカードを([０-９\d]+)枚以上捨てた場合/,
+    g => ({ type: 'ACTIVATED_DISCARD_COUNT_GTE', value: parseNum(g[0]) })],
   // ── 続き158（2026-07-16）：PARTIAL 刻印 IS_MY_TURN化残の盤面状態系（engine evalCondition・decompiler condJa 両対応）。
   //    従来は語彙が無く「その後、<状態条件>の場合」の条件節ごと脱落して無条件発火の過剰効果だった。
   // 「あなたの場にレゾナがある場合」＝HAS_CARD_IN_FIELD{cardType:レゾナ}（matchesFilter は Type='レゾナ' を照合。WD09/11/12-018 の「追加で」枝）。
@@ -5962,6 +5975,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   }
 
   const cost = parseCost(costStr);
+  // §3タスク6 C: 「この能力の使用コストに含まれる《X》を支払う際、代わりに手札から＜C＞のシグニをN枚捨ててもよい」
+  // ＝この能力スコープの任意コスト代替（WX07-027-E2）。**アクション文から取り除いて cost へ宣言として畳む**。
+  // 従来はこの文が強制 TRASH ステップへ平坦化し、能力を使うたび必ず＜原子＞を1枚捨てる過剰効果だった。
+  // engine 未実装（§6.3送り）＝印刷どおりのコストで支払われる安全側フォールバック。
+  if (actionText && cost) {
+    const csM = actionText.match(/。?この能力の使用コストに含まれる《([^》×]+)》を支払う際、代わりに手札から＜([^＞]+)＞のシグニを([０-９\d]+)枚捨ててもよい。?/);
+    if (csM) {
+      cost.costSubstitute = {
+        originalCost: { color: csM[1] as import('../types/effects').EnergyCost['color'], count: 1 },
+        discardFromHand: { count: parseNum(csM[3]), filter: { cardType: 'シグニ', story: csM[2] } },
+      };
+      actionText = actionText.replace(csM[0], '').trim();
+    }
+  }
   // 「手札からこのカードを捨てる」起動能力は手札カードアクションUI（getMyHandCardActions）の対象。
   const handActivated = cost?.discardSelfFromHand === true;
   // 「このシグニ/カードをトラッシュから場に出す」等のトラッシュ自己起動【起】はトラッシュゾーンUIの対象。

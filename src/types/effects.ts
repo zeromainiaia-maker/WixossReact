@@ -219,6 +219,10 @@ export type Condition =
   | { type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'; operator: CompareOp; value: number } // このターンに **あなたの効果によって** 対戦相手のカードがデッキに移動した累計枚数（opp_cards_moved_to_deck_this_turn）。WXK06-071「1枚以上→－5000／4枚以上→代わりに－12000」の多段閾値
   | { type: 'COST_TRASHED_PUPPET' } // この能力のコストで傀儡状態のシグニをトラッシュに置いた場合（last_cost_trashed_puppet）。WDK17-014「代わりに－10000」
   | { type: 'COST_DISCARDED_SIGNI_LEVEL'; level: number } // このコストで指定レベルのシグニを手札から捨てた場合（last_discarded_signi_level）。WX25-P2-101「レベル１→代わりに－5000」
+  // 「このコストで<filter に合うカード>を捨てた／トラッシュに置いた場合」＝直前のコスト支払いでトラッシュへ送った
+  // カード（last_cost_trashed_cards＝手札/エナ/場すべてを含む）に filter 一致が1枚以上あるか。§3タスク6 C（2026-07-25）。
+  // WX24-P1-060「スペルを捨てた→代わりにパワー5000以下」／WX25-P3-076「緑の＜龍獣＞をトラッシュ→代わりに5000以下」
+  | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash' }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
@@ -344,6 +348,13 @@ export interface EffectCost {
   fieldDown?: { count: number; filter?: TargetFilter }; // 場のシグニN体をダウン（コスト）
   discardUpTo?: number;        // 手札をN枚まで捨てる（任意上限）
   handBottomDeck?: number;     // 手札をN枚デッキの一番下に置く
+  // 「この能力の使用コストに含まれる《X》を支払う際、代わりに<substitute>してもよい」＝この能力スコープの
+  // 任意コスト代替（§3タスク6 C・WX07-027-E2）。**宣言のみ・engine 未実装（§6.3送り）**＝支払いフローは
+  // 常に印刷どおりのコスト（代替しない側）で成立するので安全側に倒れる。従来はこの文が action の
+  // 強制 TRASH ステップへ平坦化し、**能力を使うたび必ず＜原子＞のシグニを1枚捨てる**過剰効果だった。
+  // 忠実実装には起動時に「1つ分を手札捨てに振り替えるか」を問う支払いUIが要る（CONTINUOUS COST_SUBSTITUTE
+  // の色オーバーライド経路＝WX08-042/WX21-044 とは別＝エナゾーン外からの支払いなので表現できない）。
+  costSubstitute?: { originalCost: EnergyCost; discardFromHand?: { count: number; filter?: TargetFilter } };
   handExileSelf?: boolean;     // 手札にあるこのカードをゲームから除外する
   selfToDeckBottom?: boolean;  // このシグニをデッキの一番下に置く（コスト）
   selfPowerDown?: number;      // このシグニのパワーをN減らす（コスト）
