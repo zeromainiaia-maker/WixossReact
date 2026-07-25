@@ -375,6 +375,16 @@
 
 ---
 
+## 2026-07-25 整理：PLAN から退避した完了行の原文
+
+> 2026-07-25 の PLAN 整理で移動。行は移動時点の原文そのまま（PLAN 側には1行✅サマリを残置）。詳細の一次記録は BUGFIXES.md 各「続きNN」にある。
+
+### §3 Opusタスク6「代わりに」残テールの機構系（🏁完全クローズ・続き256〜260 時点の原文）
+
+| # | タスク | 残っていた内容（原文） |
+|---|---|---|
+| **6** | 「代わりに」残テールの機構系 | **B1残5枚 全消化（続き256/257・Opus）**＝WXDi-P11-067（既存 TURN_HAND_DISCARD_GTE）・WX14-070（新 THIS_CARD_UPPED_FROM_DOWN_THIS_TURN）・WDK17-014（新 COST_TRASHED_PUPPET）・WX25-P2-101（新 COST_DISCARDED_SIGNI_LEVEL）・WXK06-071（新 OPP_CARDS_MOVED_TO_DECK_THIS_TURN＝中央 countMovedToDeck 差分・多段閾値ネスト CONDITIONAL）。別対象二重POWER_MODIFYの過剰効果を条件置換へ。census 1567→1562・golden 730。**D:置換ルール9 全数消化（続き258・Opus）**＝実バグ5効果（WX13-031-E1/WX16-001-E1/WXK04-068-E2＝新 `BATTLE_BANISH_PREVENT_LOSE_ABILITY`〔REMOVE_ABILITIES 幻覚を撤去しバニッシュ防止＋能力喪失を実装〕・WX14-026-E1＝新 `substituteCost.lifeCrash`〔CONTINUOUS LIFE_CRASH 幻覚を撤去〕・WX10-033-E1＝trigger.thisCardOnly 脱落是正）＋WX25-P1-056-E1 を acknowledged STUB `EFFECT_LEAVE_REPLACE_BANISH` で§6.3送り、残4件は既実装/偽陽性と確定。census 1562→1557・golden 732。**C:コスト代替6 全数消化（続き259・Opus）**＝実バグ4効果（WX24-P1-060-E1/WX25-P3-076-E1＝新 `COST_TRASHED_MATCHES`・WXEX2-48-E3＝既存 `ACTIVATED_DISCARD_COUNT_GTE` へ配線〔いずれも SEQUENCE 両実行＝二重バニッシュ/最大4体配置の過剰効果を置換 CONDITIONAL へ〕・WX07-027-E2＝能力スコープ任意コスト代替を強制 TRASH ステップから `cost.costSubstitute` 宣言へ〔engine 未実装・安全側〕）＋【出】経路の `last_cost_trashed_cards` 追記バグを上書きへ統一、WX08-042/WX21-044 は色オーバーライドで既実装と確定。census 1557→1554・golden 733。**E:リコレクト2 消化＝🏁タスク6 完全クローズ（続き260・Opus）**＝真因は機構ではなく計器で、`recollectArts` は parser→engine 実装済なのに**逆翻訳が「《リコレクトアイコン》［N枚以上］代わりにKつまで選ぶ」を丸ごと落として原文照合できず**高シグナルに残っていた（decompiler へ追加）。全文照合で見つけた実バグ＝「それは能力を失い、それのパワーを－Nする」複文で**パワー修正が丸ごと脱落**していた4効果（WX26-CP1-009 の－30000／WX25-CP1-084／WX25-CP1-093／SPDi43-09）を `SEQUENCE[REMOVE_ABILITIES, POWER_MODIFY{targetsLastProcessed}]` へ是正＋engine に `REMOVE_ABILITIES` の `lastProcessedCards` 記録を追加。census 1554→1552・golden 734。**残0**。詳細 BUGFIXES 続き256/257/258/259/260/235b |
+
 ## 2026-07-24 整理：PLAN から退避した完了行の原文
 
 > 2026-07-24 の PLAN 整理（完了タスクの本文退避＋census 履歴の圧縮）で移動。各行は移動時点の原文そのまま（PLAN 側には1行✅サマリを残置）。詳細の一次記録は BUGFIXES.md 各「続きNN」にある。
