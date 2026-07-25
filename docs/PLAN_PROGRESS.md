@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-25 続き260・Opus 5）＝§3 タスク6 E「リコレクト2」を消化し🏁**タスク6を完全クローズ**（golden 733→734・census 1554→1552・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **スコープ**＝タスク6 の最後の残 E:リコレクト2（WX26-CP1-005-E1／WX26-CP1-009-E1）。これで **B1（続き256/257）・D（258）・C（259）・E（260）が全消化＝タスク6 残0**。
+  - **真因は機構ではなく計器**＝`recollectArts` は parser（`chooseRecoM`）→ engine（`execChoose` が excludeSource 付きルリグトラッシュのアーツ枚数で `choose_count`/`upTo` を上書き）まで**既に完全実装済**。ところが**逆翻訳が「《リコレクトアイコン》［N枚以上］代わりにKつまで選ぶ」を丸ごと落としており原文照合できず** census 高シグナルに残り続けていた＝decompiler に `betChoose` と同型の1行を追加して解消。
+  - **⚠横断的な教訓**＝**「census 高シグナル＝未実装」ではない**。今回のタスク6 だけで D の WX10-033/WX11-029・C の WX08-042/WX21-044・E の2枚が**実装済みなのに語彙/描画未登録で高シグナル化した偽陽性**だった。**消化前に必ず engine 配線と逆翻訳を確認する**。
+  - **全文照合で見つけた実バグ4効果**＝「それは能力を失い、**それのパワーを－Nする**」複文で**パワー修正が丸ごと脱落**（parser が能力消去を返した時点で後続句を捨てていた）。`SEQUENCE[REMOVE_ABILITIES, POWER_MODIFY{targetsLastProcessed}]` へ是正し、engine 側は `REMOVE_ABILITIES` の**選択対象を `lastProcessedCards` に記録**（対話/非対話の両経路）＝後段の「それ」が同じ対象に載る。WX26-CP1-009 の－30000／WX25-CP1-084／WX25-CP1-093（`UNTIL_OPP_TURN_END`）／SPDi43-09。
+  - **検証**＝全ゲート緑（golden 734/0・smoke 10725件0・fuzz 200ゲーム0・census 1552＝BASELINE_HIGH更新・**同型★0**・lint 221w/0e）。held 4枚は fresh vs live を effectId 単位で精密 diff（**兄弟効果 byte 一致**）の上で adopt。
+  - **次の一手**＝**Opus：§3 タスク6 は残0**。次は §6.3 正面の残サブ機構（BLOCK＝WXK11-029-E1／side attack＝MULTI_ZONE_ATTACK／正面 condition 型）か、タスク12 の新規在庫 **(liii)「それのレベル1につき」比例 count（15効果の族）**・**(lii) 修飾語なし「シグニ1体を対象とし」の `owner:'self'` 誤既定**。**⚠持ち越し**＝`collectContinuousAbilitiesRemovedSigni`（effectEngine.ts:4638）の opponent+count:1 分岐が **same-zi** で facing を解決＝engine 他所の `2-zi` mirrored front と規約が食い違う（WX05-019-E1 待ち）。**Sonnet：タスク1（§7 実機検証）継続**。
 - **🆕 セッション（2026-07-25 続き259・Opus 5）＝§3 タスク6 C「コスト代替6」を全数消化してクローズ**（golden 732→733・census 1557→1554・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
   - **スコープ**＝タスク6 の残2系統のうち **C:コスト代替6**。実バグ4効果を消化＋2件を既実装（偽陽性）と確定。**タスク6 の残は E:リコレクト2 のみ**。
   - **機構(1) コスト参照の置換ゲート3効果**＝「このコストで〈X〉を捨てた／トラッシュに置いた場合、代わりに〈強化版〉」が**条件節ごと脱落して SEQUENCE 両実行**になっていた過剰効果。WX24-P1-060-E1（相手シグニを**2体**バニッシュ）・WX25-P3-076-E1（2体バニッシュ＋**enhanced の対象側に緑/龍獣 filter が漏れ**）・WXEX2-48-E3（**最大4体**を無条件配置）。新 `COST_TRASHED_MATCHES{filter}`（`last_cost_trashed_cards` × `matchesFilter`）を追加し、WXEX2-48 は**語彙は既にあった** `ACTIVATED_DISCARD_COUNT_GTE` に parser 規則を1本足すだけで配線。

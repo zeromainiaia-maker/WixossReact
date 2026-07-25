@@ -290,6 +290,17 @@ function condJa(c?: any): string {
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
+    // §6.3「正面」サブ機構(d): 効果元シグニの正面（2-zi）を条件にする型。
+    case 'FRONT_SIGNI': {
+      const fc = c as { filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: string } };
+      if (fc.compareToSelf) {
+        const keyJa = fc.compareToSelf.key === 'level' ? 'レベル' : 'パワー';
+        if (fc.compareToSelf.operator === 'eq') return `このシグニの${keyJa}が正面のシグニと同じであるかぎり`;
+        return `このシグニより${keyJa}の${fc.compareToSelf.operator === 'gt' ? '高い' : '低い'}シグニがこの正面にあるかぎり`;
+      }
+      const st = fc.filter?.isFrozen ? '凍結状態の' : fc.filter?.isDown ? 'ダウン状態の' : fc.filter?.isUp ? 'アップ状態の' : '';
+      return `このシグニの正面に${st}${filterJa({ ...fc.filter, isFrozen: undefined, isDown: undefined, isUp: undefined })}シグニがあるかぎり`;
+    }
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
     case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
@@ -741,6 +752,14 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REMOVE_ABILITIES': {
       // action内 until が curated JSON で落ちている場合、原文の「能力を失い/失う」文から期間注記を復元（§5b・タスクA）
       const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
+      // §6.3「正面」サブ機構(b)(e): filter.frontOfSelf は原文が「このシグニの正面のシグニ」＝owner 接頭辞を出さない。
+      // abilityTypes は「【出】能力は発動しない」等の種別限定（WXK11-029-E1）。
+      if (a.target?.filter?.frontOfSelf) {
+        const kinds: string[] | undefined = a.abilityTypes;
+        return kinds?.length
+          ? `このシグニの正面のシグニの${kinds.map((k: string) => `【${k}】`).join('')}能力は発動しない`
+          : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
+      }
       return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
     }
     case 'GRANT_PROTECTION': {
@@ -2441,8 +2460,9 @@ function effJa(e: Eff): string {
   // 「〜かぎり」：述語（い形容詞「い」/動詞「る」終わり）はそのまま、名詞終わりは「である」を補う
   const acJa = e.activeCondition ? condJa(e.activeCondition) : '';
   // 「〜の間」で終わる活性条件（アタックフェイズ/ターンの間）は「〜かぎり」を付けず前置きとして描く
+  // 既に「〜かぎり」で終わる活性条件（FRONT_SIGNI 等が節ごと生成する型）は二重付与しない。
   const actCond = e.activeCondition
-    ? (acJa.endsWith('間') ? `《${acJa}》` : `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》`)
+    ? (acJa.endsWith('間') || acJa.endsWith('かぎり') ? `《${acJa}》` : `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》`)
     : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';

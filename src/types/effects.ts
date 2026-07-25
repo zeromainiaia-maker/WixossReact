@@ -148,6 +148,11 @@ export type ActiveCondition =
   | { type: 'TURN_OWNER'; owner: Owner }
   | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
+  // §6.3「正面」サブ機構(d)：効果元シグニ（sourceCardNum）の**正面**（相手ゾーン 2-zi）を条件にする型。
+  // 「このシグニの正面に〈filter〉のシグニがあるかぎり」／「このシグニより〈key〉が高いシグニがこの正面にあるかぎり」。
+  // filter は matchesFilter＋matchesStateFilter（凍結/ダウン等の盤面状態）の両方で評価する。
+  // compareToSelf は正面シグニの level/power を効果元自身と比較（power は effectivePowers があればそれを使う）。
+  | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }

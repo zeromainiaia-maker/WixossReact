@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク8 の全数棚卸し＝5/7項目は既に完了済みと確定＋§6.3「正面」サブ機構(b)(d)(e) 消化（2026-07-25・続き261・Opus 5）
+
+- **⚠まず棚卸し＝タスク8 の行が大きく古かった**。7サブ項目のうち**5項目は既に完了済み**と実測確認：①**ゲーム除外**＝`PlayerState.excluded` 実ゾーン化済（§6.3 台帳）②**canCardGuard 統一**＝共有モジュール `src/screens/battle/guard.ts` に集約済③**多段閾値 nested CONDITIONAL**＝続き257（WXK06-071）④**スペル被破棄【自】収集パス**＝WX17-045-E2／WXDi-P10-070-E2 が `triggerCondition.fromZones:['hand']` を持ち `collectAnyZoneTrashSelfTriggers` が BattleScreen から配線済⑤**ON_LEAVE_FIELD 相手scope 3枚**＝続き233（`any_opp`＋`leftStateFilter`）。**残っていた実作業は「出現条件レゾナ」と「正面」の2項目だけ**。
+- **(e) WX05-019-E1「このシグニの正面のシグニは能力を失う」**＝`REMOVE_ABILITIES{owner:'self', count:1}` ＝**自分のシグニの能力を消す自傷**だった（「正面」の語を parser が解さず、能力消去ブロックの owner 判定が「対戦相手」の語が無いため 'self' に落ちる）。`owner:'opponent'`＋`filter.frontOfSelf` へ（2026-07-24 で確立した `frontOfSelf` 解決に合流）。
+- **(b) WXK11-029-E1「このシグニの正面のシグニの【出】能力は発動しない」**＝`BLOCK_ACTION{target: PLAYER owner:'self', actionId:'ON_PLAY_ABILITY', until:'END_OF_TURN'}` ＝**自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤りだった。**既存 `abilityTypes` 語彙**で `REMOVE_ABILITIES{frontOfSelf, abilityTypes:['出']}` として表現し、engine は召喚時の ON_PLAY 収集（`handleSummonSigni`）を `collectContinuousAbilitiesRemovedSigni(..., '出')` でゲート（自身の【出】＝mandatory 版・コスト付き任意版の両方を止める）。⚠**PRESERVE ギャップ再現**＝`manualEffects.ts` の書き換えだけでは built JSON に焼かれず app 不発（ガードレール10・WXK04-072 と同型）＝`effects_WXK.json` を直パッチして真に解決。
+- **(d) WX10-036-E2「このシグニよりレベルの高いシグニがこの正面にあるかぎり」**＝条件節ごと脱落し**無条件で自シグニにアサシン付与**する過剰効果だった。**新 ActiveCondition `FRONT_SIGNI{filter?, compareToSelf?}`** を新設（parser 3規則＋engine 評価＋decompiler）。`filter` は `matchesFilter`＋`matchesStateFilter`（凍結/ダウン等）、`compareToSelf` は正面シグニの level/power を効果元自身と比較（power は `effectivePowers` を優先）。
+- **⚠engine 規約の統一（(e) の持ち越し発見を消化）**＝`collectContinuousAbilitiesRemovedSigni` の `count:1` 分岐が facing を **same-zi**（`zi`）で解決しており、engine 他所（`resolveFrontOfSelfCardNum`／バトルの `opZone = 2 - attackZone`）の **2-zi** と食い違っていた。**原文が「正面」と明示する効果（`filter.frontOfSelf`）だけ 2-zi** に統一。⚠この分岐に落ちている**残り8効果は frontOfSelf を持たない別種の誤 parse**（「対戦相手の凍結状態のシグニは能力を失う」等＝本来 `count:'ALL'`＋filter）で facing 解決自体が近似のため、規約統一のついでに挙動を変えると未検証の退化になる＝**据置してタスク12 (liv) へ登録**。
+- **🆕 §6.3 へ登録（未消化）**＝(d) の残2枚 WXDi-P13-082-E1／WXK02-084-E1 は引用付与「それは『【常】：…正面…』を得る」型で、引用内側が `keyword` に生文字列として残る。忠実化には**runtime 付与された CONTINUOUS を評価する経路**が要る（現 CONT collector は `effectsMap.get(cardNum)`＝**印刷効果しか走査しない**。GRANT_EFFECT×CONTINUOUS 内側は全体で2枚のみ＝WXEX2-25-E3／WXK10-080-E2 も同じ穴）。「正面」ではなく引用付与の族として消化する。
+- **残（タスク8）**＝**(c) MULTI_ZONE_ATTACK 6枚**（WX15-093〜096／WXEX2-71-E3／WXK04-072-E1b＝側面・正面以外へのアタック幾何）と**出現条件レゾナ55枚**（下記）。
+- **🆕 出現条件レゾナの実測**＝`【出現条件】` を持つカードは **55枚**（`docs/` 実測）。parser は effectParser 6624 で **プレフィックスを除去して捨てている**＝表現も engine 強制も無い。さらに**レゾナを lrig_deck からプレイする経路自体が存在しない**（lrig_deck の UI 候補はアーツとアシストルリグのみ＝`artsCandidates`／`getAssistGrowCandidates`）。効果駆動の `SUMMON_RESONA_FROM_LRIG_DECK`（出現条件を無視して出す）だけがある。忠実実装＝parser 表現＋召喚UI＋約15種のコスト形の支払い＋配置＋ON_PLAY の新規フロー一式＝§6.4級。
+- **検証**：golden 734→**735**（FRONT_SIGNI の 2-zi 判別＝same-zi では成立しないことを含めて固定）。smoke 10725 全0・fuzz 全0・**census 1552→1551**（BASELINE_HIGH更新）・**同型★0**・typecheck/lint 0 errors。逆翻訳は WXK11-029-E1 が原文と一字一致。副次で decompiler の活性条件ラッパが「〜かぎりであるかぎり」と二重付与する不具合も是正。
+
+---
+
 ## §3 タスク6 E＝リコレクト2の消化＝**タスク6 完全クローズ**（2026-07-25・続き260・Opus 5）
 
 - **対象**：タスク6 の最後の残 **E:リコレクト2**＝WX26-CP1-005-E1／WX26-CP1-009-E1「以下の3つから1つを選ぶ。《リコレクトアイコン》［4枚以上］代わりに2つまで選ぶ」。

@@ -357,6 +357,55 @@ test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバト�
   cursor = savedCursor;
 });
 
+test('§3 タスク8 §6.3「正面」サブ機構(b)(d)(e): FRONT_SIGNI 条件・正面能力喪失・正面【出】ブロック', () => {
+  const savedCursor = cursor;
+  type RA = import('../src/types/effects').RemoveAbilitiesAction;
+  const cm = cardMap as Map<string, CardData>;
+  // (e) WX05-019-E1「このシグニの正面のシグニは能力を失う」＝従来 owner:'self'（自分のシグニを消す自傷）だった
+  const a19 = manualEffect('WX05-019', 'WX05-019-E1').action as RA;
+  eq(a19.target.owner, 'opponent', 'WX05-019 owner');
+  ok(a19.target.filter?.frontOfSelf === true, 'WX05-019 frontOfSelf');
+  // (b) WXK11-029-E1「正面のシグニの【出】能力は発動しない」＝従来 BLOCK_ACTION{PLAYER self}（自分の【出】を全封じ）だった
+  const a29 = manualEffect('WXK11-029', 'WXK11-029-E1').action as RA;
+  eq(a29.type, 'REMOVE_ABILITIES', 'WXK11-029 type');
+  eq(a29.target.owner, 'opponent', 'WXK11-029 owner');
+  ok(a29.target.filter?.frontOfSelf === true, 'WXK11-029 frontOfSelf');
+  eq(JSON.stringify(a29.abilityTypes), JSON.stringify(['出']), 'WXK11-029 abilityTypes');
+  // (d) WX10-036-E2＝条件節ごと脱落し「無条件で自シグニにアサシン付与」の過剰効果だった
+  const e36 = manualEffect('WX10-036', 'WX10-036-E2');
+  eq(e36.activeCondition?.type, 'FRONT_SIGNI', 'WX10-036 FRONT_SIGNI');
+  eq(JSON.stringify((e36.activeCondition as { compareToSelf: unknown }).compareToSelf),
+    JSON.stringify({ key: 'level', operator: 'gt' }), 'WX10-036 compareToSelf');
+  // FRONT_SIGNI の評価＝facing は 2-zi（engine 共通規約）。zi=0 の自シグニの正面は相手 zi=2。
+  const self36 = 'WX10-036';
+  const lowLv = findCard(c => isSigni(c) && (parseInt(c.Level ?? '', 10) || 0) === 1 && c.CardNum !== self36);
+  const highLv = findCard(c => isSigni(c) && (parseInt(c.Level ?? '', 10) || 0) === 5);
+  const cond36 = { type: 'FRONT_SIGNI', compareToSelf: { key: 'level', operator: 'gt' } } as const;
+  const mine = mkState({ signi: [self36, null, null] });     // 自分 zi=0
+  // 正面（相手 zi=2）が高レベル → 成立
+  ok(checkActiveCondition(cond36, mine, mkState({ signi: [null, null, highLv] }), true, cm, self36), '正面(2-zi)が高レベル → true');
+  // 同じ zi（相手 zi=0）に置いても成立しない＝same-zi ではなく 2-zi で解決している証拠
+  ok(!checkActiveCondition(cond36, mine, mkState({ signi: [highLv, null, null] }), true, cm, self36), 'same-zi は正面ではない → false');
+  // 正面が低レベル／正面が空 → 不成立
+  ok(!checkActiveCondition(cond36, mine, mkState({ signi: [null, null, lowLv] }), true, cm, self36), '正面が低レベル → false');
+  ok(!checkActiveCondition(cond36, mine, mkState({}), true, cm, self36), '正面が空 → false');
+  // 状態フィルタ型（WXK02-084 の引用内側相当）＝正面が凍結のときだけ成立
+  const condFz = { type: 'FRONT_SIGNI', filter: { isFrozen: true } } as const;
+  const frozenOpp = mkState({ signi: [null, null, lowLv] });
+  frozenOpp.field.signi_frozen = [false, false, true];
+  ok(checkActiveCondition(condFz, mine, frozenOpp, true, cm, self36), '正面が凍結 → true');
+  ok(!checkActiveCondition(condFz, mine, mkState({ signi: [null, null, lowLv] }), true, cm, self36), '正面が非凍結 → false');
+  // (b) collector: 正面【出】ブロックが 2-zi の相手シグニを '出' で拾う
+  const victim = findCard(c => isSigni(c) && c.CardNum !== 'WXK11-029');
+  const blocked = collectContinuousAbilitiesRemovedSigni(
+    mkState({ signi: [victim, null, null] }), mkState({ signi: [null, null, 'WXK11-029'] }), true, effectsMap, cm, '出');
+  ok(blocked.has(victim), '正面(2-zi)の【出】がブロックされる');
+  const notBlocked = collectContinuousAbilitiesRemovedSigni(
+    mkState({ signi: [victim, null, null] }), mkState({ signi: ['WXK11-029', null, null] }), true, effectsMap, cm, '出');
+  ok(!notBlocked.has(victim), 'same-zi はブロックしない');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6 E: リコレクト選択数（recollectArts）と「能力を失い＋パワー修正」複文の脱落是正', () => {
   const savedCursor = cursor;
   type SeqA = import('../src/types/effects').SequenceAction;

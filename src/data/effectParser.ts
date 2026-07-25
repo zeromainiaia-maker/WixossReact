@@ -563,6 +563,43 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // §6.3「正面」サブ機構(d): 効果元シグニの正面を条件にする型（FRONT_SIGNI）。
+  // 従来は条件節ごと落ちて「無条件で自分の任意シグニ1体に付与」等の過剰効果になっていた（WX10-036-E2）。
+  {
+    // 「このシグニの正面に〈状態/クラス〉のシグニがあるかぎり、」（WXK02-084 の引用内側）
+    const frontStateM = text.match(/^このシグニの正面に(凍結状態|ダウン状態|アップ状態)のシグニがあるかぎり、/);
+    if (frontStateM) {
+      const sf = frontStateM[1] === '凍結状態' ? { isFrozen: true }
+        : frontStateM[1] === 'ダウン状態' ? { isDown: true } : { isUp: true };
+      return {
+        condition: { type: 'FRONT_SIGNI', filter: sf } as import('../types/effects').ActiveCondition,
+        rest: text.slice(frontStateM[0].length), conditionFound: true,
+      };
+    }
+    // 「このシグニより〈レベル/パワー〉の高いシグニがこの正面にあるかぎり、」（WX10-036-E2）
+    const frontCmpM = text.match(/^このシグニより(レベル|パワー)の(高い|低い)シグニがこの正面にあるかぎり、/);
+    if (frontCmpM) {
+      return {
+        condition: {
+          type: 'FRONT_SIGNI',
+          compareToSelf: { key: frontCmpM[1] === 'レベル' ? 'level' : 'power', operator: frontCmpM[2] === '高い' ? 'gt' : 'lt' },
+        } as import('../types/effects').ActiveCondition,
+        rest: text.slice(frontCmpM[0].length), conditionFound: true,
+      };
+    }
+    // 「このシグニの〈レベル/パワー〉が正面のシグニと同じであるかぎり、」（WXDi-P13-082 の引用内側）
+    const frontEqM = text.match(/^このシグニの(レベル|パワー)が正面のシグニと同じであるかぎり、/);
+    if (frontEqM) {
+      return {
+        condition: {
+          type: 'FRONT_SIGNI',
+          compareToSelf: { key: frontEqM[1] === 'レベル' ? 'level' : 'power', operator: 'eq' },
+        } as import('../types/effects').ActiveCondition,
+        rest: text.slice(frontEqM[0].length), conditionFound: true,
+      };
+    }
+  }
+
   // パターン0: 「このターン、」（ターン終了時まで適用される常時効果）
   if (text.startsWith('このターン、')) {
     return { condition: undefined, rest: text.slice('このターン、'.length), conditionFound: true, isTimingMarker: true };

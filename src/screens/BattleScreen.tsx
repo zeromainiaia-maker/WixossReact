@@ -6,7 +6,7 @@ import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -5021,10 +5021,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // 召喚したカード自身の ON_PLAY 効果
       const ownEffects = effectsMap.get(cardNum) ?? [];
+      // §6.3「正面」サブ機構(b): 相手の CONT「このシグニの正面のシグニの【出】能力は発動しない」（WXK11-029-E1）で
+      // 【出】を封じられている場合、召喚したシグニ自身の ON_PLAY を一切積まない（正面は engine 共通規約の 2-zi）。
+      const onPlayBlocked = collectContinuousAbilitiesRemovedSigni(placed, op, true, effectsMap, battleCardMap, '出').has(cardNum);
+      if (onPlayBlocked) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}の【出】能力は発動しない（正面の効果）`]);
       // 手札からの召喚は「トラッシュから場に出た」に該当しないため、THIS_CARD_FROM_TRASH 条件付き【出】は発火させない（WX03-034-E1）
       const involvesFromTrash = (c?: import('../types/effects').Condition): boolean =>
         !!c && (c.type === 'THIS_CARD_FROM_TRASH' || (c.type === 'AND' && c.conditions.some(involvesFromTrash)));
-      const ownOnPlay = ownEffects.filter(e =>
+      const ownOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         // self/未指定に加え、'any'（「シグニが場に出たとき」=自身も含む。G085）も自身召喚時に発火させる
@@ -5038,7 +5042,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (!involvesFromTrash(e.condition) || evalUseCondition(e.condition!, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
       // コスト付き任意【出】効果（mandatory: false + cost あり）
-      const ownCostOnPlay = ownEffects.filter(e =>
+      const ownCostOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
         e.effectType === 'AUTO' &&
         e.timing?.includes('ON_PLAY') &&
         (e.triggerScope === undefined || e.triggerScope === 'self') &&

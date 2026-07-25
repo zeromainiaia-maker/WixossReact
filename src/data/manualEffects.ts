@@ -23,7 +23,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P10-044-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_CARD_OP"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
   ],
   "WXK11-029": [
-    {"effectId":"WXK11-029-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"self","count":1},"actionId":"ON_PLAY_ABILITY","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    // §6.3「正面」サブ機構(b): 「このシグニの正面のシグニの【出】能力は発動しない」。
+    // 従来は BLOCK_ACTION{PLAYER owner:'self'} ＝**自分のプレイヤーの【出】をターン終了まで丸ごと封じる**自傷だった。
+    // 既存 abilityTypes 語彙＋frontOfSelf（E2 と同じ解決）で表現し、engine 側は召喚時 ON_PLAY 収集を '出' でゲートする。
+    {"effectId":"WXK11-029-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"until":"PERMANENT","abilityTypes":["出"]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK11-029-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WX12-038": [

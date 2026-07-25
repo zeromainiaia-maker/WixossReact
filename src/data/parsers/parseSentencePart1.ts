@@ -356,6 +356,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     } as StubAction;
   }
 
+  // ---- §6.3「正面」サブ機構(b)(e): このシグニの正面のシグニの能力喪失／【出】ブロック ----
+  // 「このシグニの正面のシグニは能力を失う」（WX05-019-E1）＝従来 owner:'self' へ落ちて**自分のシグニの能力を消す自傷**だった。
+  // 「このシグニの正面のシグニの【出】能力は発動しない」（WXK11-029-E1）＝従来 BLOCK_ACTION{PLAYER owner:'self'} へ落ちて
+  //   **自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤りだった。既存 `abilityTypes` 語彙で表現する。
+  // ⚠下の能力消去ブロックより前に置く（そちらの owner 判定は「対戦相手」の語が無いと 'self' に落ちるため）。
+  {
+    const frontRemoveM = t.match(/^このシグニの正面のシグニ(?:の【([常自起出])】能力は発動しない|は能力を失う)/);
+    if (frontRemoveM) {
+      return {
+        type: 'REMOVE_ABILITIES',
+        target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } },
+        until: 'PERMANENT',
+        ...(frontRemoveM[1] ? { abilityTypes: [frontRemoveM[1] as '常' | '自' | '起' | '出'] } : {}),
+      } as RemoveAbilitiesAction;
+    }
+  }
+
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';

@@ -69,6 +69,31 @@ export function checkActiveCondition(
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
 
+    // §6.3「正面」サブ機構(d): 効果元シグニの正面（相手ゾーン 2-zi）を条件にする。
+    // ⚠facing は engine 共通規約の **2 - zi**（`resolveFrontOfSelfCardNum`／バトルの `opZone = 2 - attackZone` と同じ）。
+    case 'FRONT_SIGNI': {
+      if (!sourceCardNum) return false;
+      const ziF = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      if (ziF < 0) return false;
+      const frontZi = 2 - ziF;
+      const frontNum = otherState.field.signi[frontZi]?.at(-1);
+      if (!frontNum) return false; // 正面が空＝条件不成立（no-op）
+      const baseF = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
+      const frontCard = cardMap.get(baseF(frontNum));
+      if (cond.filter && (!matchesFilter(frontCard, cond.filter) || !matchesStateFilter(otherState, frontZi, cond.filter))) return false;
+      if (cond.compareToSelf) {
+        const selfCard = cardMap.get(baseF(sourceCardNum));
+        const valOf = (num: string, card: CardData | undefined): number => cond.compareToSelf!.key === 'level'
+          ? (parseInt(card?.Level ?? '', 10) || 0)
+          : (effectivePowers?.get(num) ?? (parseInt((card?.Power ?? '').replace(/[^0-9]/g, ''), 10) || 0));
+        const lhs = valOf(frontNum, frontCard);   // 正面シグニ側
+        const rhs = valOf(sourceCardNum, selfCard); // 効果元（このシグニ）側
+        const op = cond.compareToSelf.operator;
+        if (!(op === 'gt' ? lhs > rhs : op === 'gte' ? lhs >= rhs
+          : op === 'lt' ? lhs < rhs : op === 'lte' ? lhs <= rhs : lhs === rhs)) return false;
+      }
+      return true;
+    }
     case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': {
       const signi = ownerState.field.signi
         .map(stack => stack?.at(-1))
@@ -4727,9 +4752,14 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'opponent') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, sourceNum)) continue;
-      // count:1 は同ゾーン（対面）のシグニを対象とする
+      // count:1 は対面のシグニを対象とする。
+      // §6.3「正面」サブ機構(b)(e)＝**原文が「正面」と明示する効果（filter.frontOfSelf）だけ** engine 共通規約の
+      //   **2 - zi**（`resolveFrontOfSelfCardNum`／バトルの `opZone = 2 - attackZone` と同じ）で解決する。
+      // ⚠ frontOfSelf を持たない count:1 は従来どおり same-zi のまま据置＝この分岐に落ちている残り8効果は
+      //   そもそも「正面」ではなく「対戦相手の〈状態〉のシグニすべて」等の**誤 parse**（count:'ALL'+filter が正）で、
+      //   facing 解決自体が近似。規約統一のついでに挙動を変えると未検証の退化になるためタスク12 へ登録して別途消化する。
       if (act.target.count === 1) {
-        const facing = state.field.signi[zi]?.at(-1);
+        const facing = state.field.signi[act.target.filter?.frontOfSelf ? 2 - zi : zi]?.at(-1);
         if (facing) removed.add(facing);
       } else if (act.target.count === 'ALL') {
         for (let targetZi = 0; targetZi < state.field.signi.length; targetZi++) {
