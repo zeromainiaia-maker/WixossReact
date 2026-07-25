@@ -1062,6 +1062,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- §3タスク6 D: バニッシュ以外の場離れ→バニッシュへの置換（§6.3 機構待ち・acknowledged STUB）----
+  // 「あなたの＜C＞のシグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、
+  //   代わりにそのシグニをバニッシュしてもよい」＝WX25-P1-056-E1。
+  // ⚠下の「バニッシュ」ブロックより前に置く（従来は末尾だけ拾って CONTINUOUS BANISH{owner:'opponent'}＝
+  //   「相手の＜原子＞を常時バニッシュ」という所有者まで反転した幻覚になっていた）。
+  //   忠実実装には手札戻し/トラッシュ/デッキ戻し等 非バニッシュ場離れ経路への横取りフックが要る
+  //   （既存フックは execBanish 内＝バニッシュ経路限定）ため、ここでは no-op STUB で明示化する。
+  {
+    const leaveToBanishM = t.match(/あなたの(?:＜([^＞]+)＞の)?シグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい/);
+    if (leaveToBanishM) {
+      return {
+        type: 'STUB', id: 'EFFECT_LEAVE_REPLACE_BANISH',
+        leaveReplaceBanish: { ...(leaveToBanishM[1] ? { story: leaveToBanishM[1] } : {}) },
+      } as StubAction;
+    }
+  }
+
   // ---- バニッシュ ----
   if (t.includes('バニッシュする') || t.includes('バニッシュしてもよい')) {
     // 「それをバニッシュする」= 前文で「対戦相手のシグニを対象とし」た相手シグニをバニッシュ
@@ -1698,6 +1715,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: false, fromHand: true };
     }
     return { type: 'ADD_TO_LIFE', owner: 'self', count, fromTop: true };
+  }
+
+  // ---- §3タスク6 D: バニッシュの代替コスト（ライフクロスをクラッシュ）----
+  // 「（対戦相手のターンの間、）このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい」＝WX14-026-E1。
+  // ⚠下の「ライフクロスをクラッシュ」より前に置く（従来はそちらが先に食って CONTINUOUS LIFE_CRASH＝
+  //   「常時ライフを割り続ける」幻覚になり、バニッシュ回避（守り）が丸ごと脱落していた）。
+  {
+    const banishSubstLifeM = t.match(/がバニッシュされる場合、代わりにあなたのライフクロス([０-９\d]+)枚をクラッシュしてもよい/);
+    if (banishSubstLifeM) {
+      const thisOnly = /このシグニがバニッシュされる場合/.test(t);
+      return {
+        type: 'BANISH_SUBSTITUTE',
+        trigger: { type: 'SIGNI', owner: 'self', count: 1, ...(thisOnly ? { filter: { thisCardOnly: true } } : {}) },
+        substituteCost: { lifeCrash: parseNum(banishSubstLifeM[1]) },
+        optional: true,
+      } as BanishSubstituteAction;
+    }
   }
 
   // ---- ライフクロスをクラッシュ ----
@@ -2791,9 +2825,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (banishSubstSpellM) {
       const count = parseNum(banishSubstSpellM[1]);
       const tgtCount = t.match(/あなたのシグニ([０-９\d]+)体が/);
+      // 「このシグニがバニッシュされる場合」＝自身のみを守る（WX10-033-E1）。
+      // filter 無しだと自分の全シグニを守る過大表現になっていた。
+      const thisOnlySpell = /このシグニがバニッシュされる場合/.test(t);
       return {
         type: 'BANISH_SUBSTITUTE',
-        trigger: { type: 'SIGNI', owner: 'self', count: tgtCount ? parseNum(tgtCount[1]) : 1 },
+        trigger: { type: 'SIGNI', owner: 'self', count: tgtCount ? parseNum(tgtCount[1]) : 1, ...(thisOnlySpell ? { filter: { thisCardOnly: true } } : {}) },
         substituteCost: { discardSpell: count },
         optional: true,
       } as BanishSubstituteAction;

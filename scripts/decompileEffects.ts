@@ -860,8 +860,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // cost は「て形」で終える（「トラッシュに置いて」等）→ 末尾に「もよい」を付ける
       const cost = sc.discardSpell ? `手札からスペルを${sc.discardSpell}枚捨てて`
         : sc.trashStackSpell ? `このシグニの下からスペル${sc.trashStackSpell}枚をトラッシュに置いて`
-        : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}して` : '';
-      return `${targetJa(a.trigger)}がバニッシュされる場合、代わりに${cost}もよい`;
+        : sc.powerReduction ? `このシグニのパワーを－${sc.powerReduction}して`
+        : sc.lifeCrash ? `あなたのライフクロス${sc.lifeCrash}枚をクラッシュして` : '';
+      // trigger.filter.thisCardOnly＝「このシグニが」（targetJa は「あなたのシグニ1体」に落ちるため個別に出す）
+      const subj = a.trigger?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.trigger);
+      return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
       const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : 'トラッシュに置き';
@@ -1303,6 +1306,11 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）: バニッシュ防止＋能力喪失。
       //   「対戦相手のターンの間」は activeCondition（TURN_OWNER opponent）側で前置されるためここには含めない。
+      // EFFECT_LEAVE_REPLACE_BANISH（§3タスク6 D・§6.3 機構待ち）: 非バニッシュ場離れ→バニッシュへの置換。
+      if (a.id === 'EFFECT_LEAVE_REPLACE_BANISH' && a.leaveReplaceBanish) {
+        const cls = a.leaveReplaceBanish.story ? `＜${a.leaveReplaceBanish.story}＞の` : '';
+        return `あなたの${cls}シグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい`;
+      }
       if (a.id === 'BATTLE_BANISH_PREVENT_LOSE_ABILITY' && a.banishPrevent) {
         const subj = a.banishPrevent.story ? `あなたの＜${a.banishPrevent.story}＞のシグニ１体` : 'このシグニ';
         return `${subj}がバニッシュされる場合、代わりにバニッシュされず、ターン終了時まで、この能力を失う`;

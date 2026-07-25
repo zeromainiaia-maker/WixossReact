@@ -4923,7 +4923,7 @@ export function collectRiseBanishSubstituteSigni(
  */
 export type BanishSubstituteOption =
   | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
-  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number };
+  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
 
 /**
  * BANISH_SUBSTITUTE (F-3): 防御側 state のシグニ victimNum がバニッシュされる場合に使える
@@ -4997,6 +4997,9 @@ export function collectBanishSubstitutes(
         } else if (cost.trashStackSpell) {
           const under = (stackOf.get(sourceNum) ?? []).slice(0, -1); // 下のカード（トップ以外）
           if (under.filter(isSpell).length >= cost.trashStackSpell) result.push({ kind: 'pay_cost', sourceNum, costType: 'trashStackSpell', amount: cost.trashStackSpell });
+        } else if (cost.lifeCrash) {
+          // §3タスク6 D（WX14-026）: 自分のライフクロスを割ってバニッシュを回避。ライフが足りなければ選べない。
+          if (state.life_cloth.length >= cost.lifeCrash) result.push({ kind: 'pay_cost', sourceNum, costType: 'lifeCrash', amount: cost.lifeCrash });
         }
         // powerReduction（WX06-019）は「効果による場離れ」トリガーでバトル外のため未対応
         continue;

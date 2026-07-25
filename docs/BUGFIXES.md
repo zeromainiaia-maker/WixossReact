@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク6 D＝バニッシュ置換ルール群の全数消化（2026-07-25・続き258・Opus 5）
+
+- **対象**：タスク6 の残 **D:置換ルール9（バニッシュされない系）** を全数棚卸しし、**実バグ5効果を消化・4件は既実装/偽陽性と確定**してクローズ。原文はいずれも「〜がバニッシュされる場合、代わりに〜」の**置換ルール**で、従来は文末だけを拾って**守りが丸ごと脱落した幻覚**になっていた。
+- **(1) バニッシュ防止＋能力喪失（3効果）**＝WX13-031-E1／WX16-001-E1／WXK04-068-E2「（このシグニ／あなたの＜怪異＞のシグニ1体）がバニッシュされる場合、代わりに**バニッシュされず**、ターン終了時まで、この能力を失う」。従来は「能力を失う」を先取りして `REMOVE_ABILITIES`（自分のシグニの能力を消す）へ幻覚化＝**バニッシュ防止が完全脱落**。
+  - parser: 能力消去ブロックより**前**に専用規則を置き STUB `BATTLE_BANISH_PREVENT_LOSE_ABILITY`＋`banishPrevent{thisCardOnly|story|oppTurnOnly}` へ。「対戦相手のターンの間」は既存の activeCondition（`TURN_OWNER opponent`）側で honor。
+  - engine: `collectBanishPreventLoseAbility`（victim を守れる source を探索。`abilities_removed` 済みの source は**同ターン再発動不可**）。
+  - BattleScreen: バトルバニッシュ経路で victim を場に残し source を `abilities_removed` へ積む（ターン境界でリセット）。
+  - ⚠**「バニッシュされない」保護（`GRANT_PROTECTION`）とは別物**＝「代わりに…この能力を失う」で一回性の置換。
+- **(2) ライフクロスを割ってバニッシュ回避（1効果）**＝WX14-026-E1「対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス1枚をクラッシュしてもよい」。従来は **CONTINUOUS `LIFE_CRASH`＝「常時ライフを割り続ける」幻覚**。既存 `BANISH_SUBSTITUTE` コスト型に `substituteCost.lifeCrash` を新設して合流（engine collector＋BattleScreen の pay 経路＝`crashOneLife` で `field.check` を立てライフバースト確認フローへ通常どおり乗せる）。CPU ヒューリスティックは**ライフを割る代替を pay の中で最後に回す**。置換効果でありコストではないので、クラッシュが別の置換/無効化に阻まれても victim は場に残る。
+- **(3) trigger 過大の是正（1効果）**＝WX10-033-E1 は原文「**この**シグニがバニッシュされる場合」なのに `trigger.filter` が脱落し**自分の全シグニ**を守っていた＝`thisCardOnly` を付与。
+- **(4) 非バニッシュ場離れ→バニッシュ置換（1効果・§6.3送り）**＝WX25-P1-056-E1「あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい」。従来は **`CONTINUOUS BANISH{owner:'opponent'}`＝「相手の＜原子＞を常時バニッシュ」と所有者まで反転した幻覚**。忠実実装には手札戻し/トラッシュ/デッキ戻し等**非バニッシュ場離れ経路への横取りフック**が要る（既存フック `findEffectLeavePowerReductionSubstitute` は `execBanish` 内＝バニッシュ経路限定）ため、no-op STUB `EFFECT_LEAVE_REPLACE_BANISH` で**明示化**して §6.3 へ登録（WX06-019 の powerReduction 型と同じ待ち行列）。
+- **(5) 既実装・偽陽性と確定（4件）**＝WX04-052-E1（`CHARM_PROTECTION` 実装済）／WX10-033-E1・WX11-029-E2 の `substituteCost{discardSpell|trashStackSpell}` は `collectBanishSubstitutes` に**完全配線済**＝census が語彙未登録で高シグナルに残っていただけ／WX16-021 は既にアタック幾何 STUB（別枠）。
+- **検証**：golden 730→**732**（新機構2本＝parse＋collector の分岐固定）。smoke 10725 全0・fuzz 全0・**census 1562→1557**（BASELINE_HIGH更新）・**同型★0**（逆翻訳が5効果とも原文と一字一致）・typecheck/lint 0 errors。
+- **タスク6 D クローズ**。残るタスク6＝**C:コスト代替6／E:リコレクト2**（真の§6.3級・各々別機構）。
+
+---
+
 ## §3 タスク6「代わりに」B1残＝WXK06-071 多段閾値（対戦相手のカードを効果でデッキにN枚移動）をネスト CONDITIONAL へ（2026-07-25・続き257・Opus 4.8）
 
 - **対象**：§3 タスク6 B1残5枚の最後の1枚 WXK06-071-E1「【自】このシグニがアタックしたとき、対戦相手のシグニ1体を対象とし、このターンに対戦相手のカードがあなたの効果によって**1枚以上**デッキに移動していた場合、－5000。**4枚以上**移動していた場合、代わりに－12000」。従来は base の閾値ゲートが脱落＋enhanced（-12000）が owner:any の別対象へ無条件二重適用される過剰効果だった。

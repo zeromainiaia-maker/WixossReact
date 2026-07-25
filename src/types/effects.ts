@@ -1413,6 +1413,7 @@ export interface BanishSubstituteAction {
     discardSpell?: number;    // 手札からスペルをN枚捨てる
     trashStackSpell?: number; // このシグニの下からスペルN枚をトラッシュに置く
     powerReduction?: number;  // 自分のシグニのパワーをN下げる
+    lifeCrash?: number;       // あなたのライフクロスをN枚クラッシュする（§3タスク6 D・WX14-026）
   };
   optional: boolean;
 }
@@ -1752,6 +1753,11 @@ export interface StubAction {
     story?: string;           // 指定＝あなたの当該＜C＞のシグニを守る（source は別カードでも可）。WX16-001＝怪異
     oppTurnOnly?: boolean;    // 「対戦相手のターンの間」のみ有効（isOwnerTurn=false のときだけ）。WX16-001/WXK04-068
   };
+  // EFFECT_LEAVE_REPLACE_BANISH（§3タスク6 D・§6.3 機構待ちの acknowledged STUB）: 「あなたの＜C＞のシグニが
+  // 対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニを
+  // バニッシュしてもよい」＝WX25-P1-056-E1。非バニッシュ場離れ（手札戻し/トラッシュ/デッキ戻し等）への
+  // 横取りフックが engine に無いため現状 no-op（従来は所有者反転した CONTINUOUS BANISH 幻覚だった）。
+  leaveReplaceBanish?: { story?: string };
 }
 
 // 生徒との絆を獲得する（ブルアカ絆メカニクス）

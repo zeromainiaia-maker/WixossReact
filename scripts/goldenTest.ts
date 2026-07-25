@@ -357,6 +357,36 @@ test('§3 タスク6 D: BATTLE_BANISH_PREVENT_LOSE_ABILITY の parse とバト�
   cursor = savedCursor;
 });
 
+test('§3 タスク6 D: BANISH_SUBSTITUTE substituteCost.lifeCrash（WX14-026）と trigger.thisCardOnly（WX10-033）', () => {
+  const savedCursor = cursor;
+  type BSA = import('../src/types/effects').BanishSubstituteAction;
+  // (1) parse: WX14-026-E1 が CONTINUOUS LIFE_CRASH 幻覚（＝常時ライフを割り続ける）ではなく
+  //     BANISH_SUBSTITUTE{lifeCrash:1, thisCardOnly} になる。「対戦相手のターンの間」は activeCondition 側。
+  const e26 = manualEffect('WX14-026', 'WX14-026-E1');
+  const a26 = e26.action as BSA;
+  eq(a26.type, 'BANISH_SUBSTITUTE', 'WX14-026 type');
+  eq(a26.substituteCost.lifeCrash, 1, 'WX14-026 lifeCrash');
+  ok(a26.trigger?.filter?.thisCardOnly === true, 'WX14-026 thisCardOnly');
+  ok(e26.activeCondition?.type === 'TURN_OWNER', 'WX14-026 相手ターン限定は activeCondition');
+  // (2) WX10-033-E1: 原文「このシグニがバニッシュされる場合」＝自身のみ。従来は filter 脱落で自シグニ全体を守っていた。
+  ok((manualEffect('WX10-033', 'WX10-033-E1').action as BSA).trigger?.filter?.thisCardOnly === true, 'WX10-033 thisCardOnly');
+  // (3) collector: lifeCrash 選択肢が出る（相手ターン isOwnerTurn=false）。他シグニ victim には出ない。
+  const src26 = 'WX14-026';
+  const other26 = SIGNI_L4;
+  const s26 = mkState({ signi: [src26, other26, null], life: 3 });
+  const o26 = mkState({});
+  const optsSelf = collectBanishSubstitutes(s26, o26, false, cardMap as Map<string, CardData>, effectsMap, src26);
+  ok(optsSelf.some(o => o.kind === 'pay_cost' && o.costType === 'lifeCrash' && o.amount === 1), 'lifeCrash 選択肢が出る');
+  ok(!collectBanishSubstitutes(s26, o26, false, cardMap as Map<string, CardData>, effectsMap, other26)
+    .some(o => o.kind === 'pay_cost' && o.costType === 'lifeCrash'), 'thisCardOnly: 他シグニ victim には出ない');
+  // (4) ライフ0なら払えない／自ターン（＝TURN_OWNER opponent 不成立）でも出ない
+  ok(!collectBanishSubstitutes(mkState({ signi: [src26, null, null], life: 0 }), o26, false, cardMap as Map<string, CardData>, effectsMap, src26)
+    .some(o => o.kind === 'pay_cost' && o.costType === 'lifeCrash'), 'ライフ0では選べない');
+  ok(!collectBanishSubstitutes(s26, o26, true, cardMap as Map<string, CardData>, effectsMap, src26)
+    .some(o => o.kind === 'pay_cost' && o.costType === 'lifeCrash'), '自ターンでは無効');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6 WX14-070: execUp が効果でダウン→アップした自シグニを upped_from_down_this_turn に記録する', () => {
   const savedCursor = cursor;
   const host = 'WX14-070';

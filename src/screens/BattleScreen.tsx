@@ -7063,7 +7063,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // victim = opTopCardNum（バトル防御シグニ）。防御側に身代わりがあれば対話（人間）/ヒューリスティック（CPU）で適用。
           // option=sacrifice: 別シグニを代わりにバニッシュ / option=pay_cost: コストを払って victim を残す。
           let f3SacrificeNum: string | null = null;
-          let f3PayCost: { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number } | null = null;
+          let f3PayCost: { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number } | null = null;
           {
             const f3Decision = opS.banish_substitute_choice;
             const f3DecidedForVictim = !!f3Decision && f3Decision.victimNum === opTopCardNum;
@@ -7084,7 +7084,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   // CPU ヒューリスティック: コスト払い型を優先（victim を残せて損失が小さい）。
                   // 犠牲型は「犠牲シグニのパワー <= victim」のときだけ使う（弱いものを守る自己犠牲は見送り）。
                   const f3PowerOf = (n: string) => effectivePowers.get(n) ?? parsePowerVal(battleCardMap.get(n)?.Power);
-                  const pay = f3Opts.find(o => o.kind === 'pay_cost');
+                  // ライフクロスを割る代替（§3タスク6 D・WX14-026）は損失が大きいので pay の中でも最後に回す。
+                  const pay = f3Opts.find(o => o.kind === 'pay_cost' && o.costType !== 'lifeCrash')
+                    ?? f3Opts.find(o => o.kind === 'pay_cost');
                   const sac = f3Opts.filter(o => o.kind === 'sacrifice')
                     .sort((a, b) => f3PowerOf((a as { sacrificeNum: string }).sacrificeNum) - f3PowerOf((b as { sacrificeNum: string }).sacrificeNum))[0];
                   if (pay) applyOption(pay);
@@ -7149,9 +7151,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`身代わり：${opCardName}の代わりに${battleCardMap.get(f3SacrificeNum)?.CardName ?? f3SacrificeNum}をバニッシュ`]);
           } else if (f3SubstituteApplied && f3PayCost) {
             // コスト払い型: victim は場に残り、誰もバニッシュされない（コストを支払う）
-            const pc = f3PayCost as { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number };
+            const pc = f3PayCost as { sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
             const isSpellCard = (n: string) => battleCardMap.get(getCardNum(n))?.Type === 'スペル';
-            if (pc.costType === 'discardSpell') {
+            if (pc.costType === 'lifeCrash') {
+              // §3タスク6 D（WX14-026）: 自分のライフクロスを割ってバニッシュを回避。
+              // 置換効果であってコストではないので、クラッシュが別の置換/無効化に阻まれても victim は場に残る。
+              // crashOneLife は field.check を立てる＝ライフバースト確認フローへ通常どおり乗る。
+              let afterCrash: PlayerState = { ...opS, banish_substitute_choice: undefined, pending_banish_substitute: undefined };
+              for (let i = 0; i < pc.amount; i++) afterCrash = crashOneLife(afterCrash).newState;
+              newOpState = afterCrash;
+              appendBattleLogs([`身代わり：ライフクロス${pc.amount}枚をクラッシュして${opCardName}のバニッシュを回避`]);
+            } else if (pc.costType === 'discardSpell') {
               // 手札からスペルを amount 枚（先頭から）トラッシュへ
               const picked: string[] = [];
               const restHand: string[] = [];

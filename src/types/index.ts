@@ -60,7 +60,7 @@ export interface Room {
 // BANISH_SUBSTITUTE (F-3) のオプション（engine の BanishSubstituteOption と同形・state永続用）
 export type BanishSubstituteOptionState =
   | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
-  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell'; amount: number };
+  | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
 
 export interface PlayerState {
   deck: string[];

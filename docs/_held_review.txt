@@ -585,22 +585,6 @@ WX24-P4-082 WXDi-P02-071 WXDi-P12-002
   + [0].action.then.target.type = "ENERGY_CARD"
   …（他 3 行）
 
-## +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN ［2枚］
-WX14-026 WX19-Re10
---- WX14-026
-  原文: 【常】：対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい。【出】：あなたは手札を１枚捨てる。この方法で捨てたカードが＜鉱石＞か＜宝石＞のシグニで、あなたのセンタールリグが赤の場合、ターン終了時まで、このシグニは【アサシン】を得る。,：カードを１枚引く。その後、あなたのライフクロス１枚をクラッシュし
-  + [2].action.steps[1].optional = true
-  ~ [2].action.steps[2].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [2].action.steps[2].condition.value = 1
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
---- WX19-Re10
-  原文: 【起】《ダウン》：あなたのライフクロス１枚を手札に加える。そうした場合、あなたのデッキの一番上のカードをライフクロスに加える。,：あなたのライフクロス１枚を手札に加える。そうした場合、手札１枚をライフクロスに加える。
-  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [1].action.steps[1].condition.value = 1
-  ~ [1].action.steps[1].then.fromTop : true → false
-  + [1].action.steps[1].then.fromHand = true
-  ~ [1].parseStatus : "AUTO" → "MANUAL"
-
 ## +LAST_PROCESSED_COUNT_GTE +POWER_MODIFY +SIGNI +STUB -IS_MY_TURN ［2枚］
 WX16-033 WX24-P2-087
 --- WX16-033
@@ -820,6 +804,35 @@ WDK06-C08 WX25-P3-105
   - [0].action.steps[1].condition.value = 15
   …（他 24 行）
 
+## +CONDITIONAL +OPP_CARDS_MOVED_TO_DECK_THIS_TURN ［2枚］
+WXK06-068 WXK06-070
+--- WXK06-068
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンに対戦相手のカードがあなたの効果によって３枚以上デッキに移動していた場合、【エナチャージ２】をする。,-
+  - [0].action.owner = "self"
+  - [0].action.count = 2
+  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
+  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
+  + [0].action.condition.operator = "gte"
+  + [0].action.condition.value = 3
+  + [0].action.then.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.then.owner = "self"
+  + [0].action.then.count = 2
+--- WXK06-070
+  原文: 【自】：このシグニがアタックしたとき、このターンに対戦相手のカードがあなたの効果によって２枚以上デッキに移動していた場合、あなたのデッキから青のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
+  - [0].action.from.location = "deck"
+  - [0].action.from.owner = "self"
+  - [0].action.filter.cardType = "シグニ"
+  - [0].action.filter.color = "青"
+  - [0].action.maxCount = 1
+  - [0].action.then.steps[0].type = "REVEAL"
+  - [0].action.then.steps[1].type = "ADD_TO_HAND"
+  - [0].action.then.steps[1].owner = "self"
+  - [0].action.afterSearch.type = "SHUFFLE_DECK"
+  - [0].action.afterSearch.owner = "self"
+  ~ [0].action.type : "SEARCH" → "CONDITIONAL"
+  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
+  …（他 14 行）
+
 ## +HAND_CARD +REVEAL -STUB ［2枚］
 WDK08-Y01 WXK10-081
 --- WDK08-Y01
@@ -879,6 +892,24 @@ WX12-Re09
   + [2].effectId = "WX12-Re09-E2"
   + [2].effectType = "CONTINUOUS"
   …（他 10 行）
+
+## +BANISH_SUBSTITUTE +LAST_PROCESSED_COUNT_GTE +SIGNI -IS_MY_TURN -LIFE_CRASH ［1枚］
+WX14-026
+--- WX14-026
+  原文: 【常】：対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい。【出】：あなたは手札を１枚捨てる。この方法で捨てたカードが＜鉱石＞か＜宝石＞のシグニで、あなたのセンタールリグが赤の場合、ターン終了時まで、このシグニは【アサシン】を得る。,：カードを１枚引く。その後、あなたのライフクロス１枚をクラッシュし
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  - [0].action.triggerBurst = true
+  ~ [0].action.type : "LIFE_CRASH" → "BANISH_SUBSTITUTE"
+  + [0].action.trigger.type = "SIGNI"
+  + [0].action.trigger.owner = "self"
+  + [0].action.trigger.count = 1
+  + [0].action.trigger.filter.thisCardOnly = true
+  + [0].action.substituteCost.lifeCrash = 1
+  + [0].action.optional = true
+  + [2].action.steps[1].optional = true
+  ~ [2].action.steps[2].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  …（他 2 行）
 
 ## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
 WX14-072
@@ -1047,6 +1078,16 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN ［1枚］
+WX19-Re10
+--- WX19-Re10
+  原文: 【起】《ダウン》：あなたのライフクロス１枚を手札に加える。そうした場合、あなたのデッキの一番上のカードをライフクロスに加える。,：あなたのライフクロス１枚を手札に加える。そうした場合、手札１枚をライフクロスに加える。
+  ~ [1].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  + [1].action.steps[1].condition.value = 1
+  ~ [1].action.steps[1].then.fromTop : true → false
+  + [1].action.steps[1].then.fromHand = true
+  ~ [1].parseStatus : "AUTO" → "MANUAL"
 
 ## +ADD_TO_FIELD +ENERGY_CARD -STUB ［1枚］
 WX21-004
@@ -2056,6 +2097,24 @@ WDK08-Y08
   + [0].action.steps[1].condition.value = 5
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
+
+## +CONDITIONAL×2 +OPP_CARDS_MOVED_TO_DECK_THIS_TURN×2 ［1枚］
+WDK09-014
+--- WDK09-014
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンに対戦相手のカードがあなたの効果によって４枚以上デッキに移動していた場合、カードを１枚引く。【自】：このシグニがアタックしたとき、このターンに対戦相手のカードがあなたの効果によって１枚以上デッキに移動していた場合、カードを１枚引く。,：カードを１枚引く。
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  - [1].action.owner = "self"
+  - [1].action.count = 1
+  ~ [0].action.type : "DRAW" → "CONDITIONAL"
+  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
+  + [0].action.condition.operator = "gte"
+  + [0].action.condition.value = 4
+  + [0].action.then.type = "DRAW"
+  + [0].action.then.owner = "self"
+  + [0].action.then.count = 1
+  ~ [1].action.type : "DRAW" → "CONDITIONAL"
+  …（他 6 行）
 
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007

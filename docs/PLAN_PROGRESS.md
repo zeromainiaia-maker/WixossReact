@@ -6,6 +6,11 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-24 続き2・Opus 4.8＋Codex 分担・§6.3 機構台帳「正面」続き＝CONT パワー修正「正面のシグニ －N000」4効果を消化**（golden 720→724・census 1571→1567・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避・commit 269931a0）
+  - **スコープ**＝正面サブ機構(a) CONT パワー修正型。「【常】：（アタックフェイズの間）このシグニの正面のシグニのパワーを－N000」が `owner:"self"+thisCardOnly` ＝**自分のシグニを弱くする自傷 CONT** へ誤変換。WX24-P1-050-E1（-2000）・WX24-P2-057-E1（-3000）・WX24-P2-057-E2（-4000）・WXDi-P10-044-E1（-2000）。
+  - **機構**＝`calcFieldPowers` の CONT POWER_MODIFY `isSelfOnly` 分岐に `frontOfSelf` 分岐を1本追加（ホスト `zi`→相手 `2-zi` の正面へ delta・`otherPowerProtection` で相手保護 honor・残 filter AND・正面空 no-op）。`DURING_ATTACK_PHASE`／E2 の AND 条件は分岐前 `checkActiveCondition` で既 honor。4効果を `opponent`＋`frontOfSelf` へ MANUAL 再エンコード。parser 不変・新型ゼロ。
+  - **検証（Claude・是正0）**＝独立ゲート全緑（golden 724/0・census 高シグナル 1567・★0・smoke 10725件0・fuzz 200ゲーム0・lint 221w/0e）。effectId 単位 diff で対象4効果のみ・**兄弟効果 byte 一致**・built JSON にも反映（4効果とも非 PRESERVE＝前バッチ WXK04-072 の PRESERVE ギャップ非再発）。自傷しないこと（正面空で自分無傷）を calcFieldPowers 実呼び golden で固定。
+  - **次の一手**＝**Opus：§6.3 正面の残サブ機構**＝BLOCK（WXK11-029-E1「正面の【出】能力は発動しない」）・**side attack**（WX15-093/094/095/096・WXEX2-71-E3＝MULTI_ZONE_ATTACK）・正面 condition 型（WX10-036/WXDi-P13-082/WXK02-084）。**⚠先に精査すべき発見**＝`collectContinuousAbilitiesRemovedSigni`（effectEngine.ts:4638）の opponent+count:1 分岐が **same-zi**（`state.field.signi[zi]`）で facing を解決＝engine の他所（`2-zi` mirrored front）と規約が食い違う（WX05-019-E1 の正面能力喪失もこれ待ち）。他カテゴリ＝ゲームから除外残・動的比較14・ソウル/ドライブ。**Sonnet：タスク1（§7 実機検証）継続**。
 - **🆕 セッション（2026-07-24 続き・Opus 4.8＋Codex 分担・§6.3 機構台帳「正面」＝`frontOfSelf` target filter で「このシグニの正面のシグニを対象」5効果を消化**（golden 715→720・census 1577→1571・commit 5ca1a96d）
   - **スコープ**＝`docs/_p1_classification.txt` 純§6.3 98効果を機構キーワードで分類→最大クラスタ「正面25」から target 解決型5効果を切り出し。全て parser が位置指定を落として `owner:"self"`（自傷 no-op）へ誤変換していた実害。WXK11-029-E2／WXDi-P04-049-E1（REMOVE_ABILITIES）・WXK04-072-E2／WX12-038-E1／WD17-009-E1（BANISH）。
   - **機構**＝既存 `frontOfSelf` filter の execBanish/execRemoveAbilities inline 解決を共通ヘルパー `resolveFrontOfSelfCardNum` へ集約し `opponent`＋`frontOfSelf` へ MANUAL 再エンコード。parser 不変・新型ゼロ。
