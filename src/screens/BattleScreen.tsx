@@ -48,6 +48,7 @@ import { EnergyActivatedModal } from './battle/modals/EnergyActivatedModal';
 import { GuardResponseDialog } from './battle/modals/GuardResponseDialog';
 import { StackOrderModal } from './battle/modals/StackOrderModal';
 import { SigniSummonZoneModal } from './battle/modals/SigniSummonZoneModal';
+import { ResonaSummonModal } from './battle/modals/ResonaSummonModal';
 import { RemoveZoneModal } from './battle/modals/RemoveZoneModal';
 import { LifeBurstCheckModal } from './battle/modals/LifeBurstCheckModal';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from './battle/allZoneBurst';
@@ -81,6 +82,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
+import { getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace, resonaPaymentOptions, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
@@ -100,6 +102,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     pendingSigniSummon, setPendingSigniSummon, closeZoneSignal, setCloseZoneSignal,
   } = useSigniSummonFlow();
+  const [pendingResonaSummon, setPendingResonaSummon] = useState<ResonaSummonCandidate | null>(null);
+  const [selectedResonaPayment, setSelectedResonaPayment] = useState<Set<number>>(new Set());
   const {
     showEndConfirm, setShowEndConfirm, showSetupLeaveConfirm, setShowSetupLeaveConfirm,
     showEnergySkipConfirm, setShowEnergySkipConfirm, showGrowSkipConfirm, setShowGrowSkipConfirm,
@@ -4912,12 +4916,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectArtsUseTriggers(mkTrigCtx(), casterId, casterState, opState, isCasterTurn, usedArtsNum);
 
   // シグニ召喚（ゾーン選択後に実行）
-  const handleSummonSigni = async (handIndex: number, zoneIndex: number) => {
+  const handleSummonSigni = async (
+    handIndex: number,
+    zoneIndex: number,
+    resona?: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection },
+  ) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     if (!isMyTurn || loading) return;
-    const summonCardNum = my.hand[handIndex];
+    const summonCardNum = resona?.candidate.cardNum ?? my.hand[handIndex];
+    if (!summonCardNum) return;
     const summonCardData = battleCardMap.get(summonCardNum);
-    const riseFilter = summonCardData ? getRiseFilter(summonCardData.EffectText ?? '') : null;
+    const riseFilter = resona ? null : (summonCardData ? getRiseFilter(summonCardData.EffectText ?? '') : null);
     const existingZoneStack = my.field.signi[zoneIndex] ?? [];
     // ライズ条件チェック
     if (riseFilter) {
@@ -4930,16 +4939,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 通常シグニ: 空きゾーンにしか召喚できない
       if (existingZoneStack.length > 0) return;
     }
-    if (isActionBlocked('PLAY_COLORLESS') && battleCardMap.get(my.hand[handIndex])?.Color === '無') return;
+    if (isActionBlocked('PLAY_COLORLESS') && summonCardData?.Color === '無') return;
     // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
     const czRestrict = collectCenterZoneDeployRestrict(op, my, battleCardMap, effectsMap, !isMyTurn);
     if (czRestrict !== undefined && zoneIndex === 1) {
-      const cardLvCZ = parseInt(battleCardMap.get(my.hand[handIndex])?.Level ?? '0') || 0;
+      const cardLvCZ = parseInt(summonCardData?.Level ?? '0') || 0;
       if (cardLvCZ >= czRestrict) return;
     }
     // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合、パワー上限以上のシグニ配置不可
     if (my.signi_deploy_power_limit !== undefined) {
-      const cardPwr = parsePowerVal(battleCardMap.get(my.hand[handIndex])?.Power);
+      const cardPwr = parsePowerVal(summonCardData?.Power);
       if (cardPwr >= my.signi_deploy_power_limit) return;
     }
     // DEPLOY_RESTRICT（配置数制限）: 「シグニをN体までしか場に出せない」→ 場のシグニ数が上限以上なら新規配置不可。
@@ -4950,7 +4959,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? (contCountCap !== undefined ? Math.min(my.signi_deploy_count_limit, contCountCap) : my.signi_deploy_count_limit)
         : contCountCap;
       if (countCap !== undefined) {
-        const fieldSigniCount = my.field.signi.filter(s => s && s.length > 0).length;
+        const fieldSigniCount = my.field.signi.filter(s => s && s.length > 0).length
+          - (resona?.candidate.payment.zone === 'field' ? resona.candidate.payment.count : 0);
         if (existingZoneStack.length === 0 && fieldSigniCount >= countCap) return;
       }
     }
@@ -4963,10 +4973,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // never（効果でのみ配置可）＝常に不可。condition あり＝盤面で評価（未満たしなら不可）。未対応語彙は permissive（従来同値）。
     // この時点で summonCardNum はまだ手札にあり my.field に含まれないため「あなたの場に…」は当該カードを除いて評価される（正）。
     if (!canSelfPlay(baseEffectsMap.get(summonCardNum), my, op, battleCardMap)) return;
+    // レゾナは表示後にも盤面が変わり得るため、確定時に条件・支払い・ルリグデッキ在籍を再検証する。
+    if (resona) {
+      const current = getMainSingleZoneResonaCandidate(summonCardNum, my, battleCardMap, effectsMap);
+      if (!current || current.payment.zone !== resona.selection.zone) return;
+      const paidFieldLevels = current.payment.zone === 'field'
+        ? resona.selection.indices.reduce((sum, zi) => {
+          const paidNum = getCardNum(my.field.signi[zi]?.at(-1) ?? '');
+          return sum + (parseInt(battleCardMap.get(paidNum)?.Level ?? '0', 10) || 0);
+        }, 0)
+        : 0;
+      const resonaLevel = parseInt(summonCardData?.Level ?? '0', 10) || 0;
+      if (resonaLevel > currentLrigLevel) return;
+      if (fieldSigniTotal - paidFieldLevels + resonaLevel > lrigLimit) return;
+    }
     setLoading(true);
     setPendingSigniSummon(null);
+    setPendingResonaSummon(null);
     try {
-      const cardNum = my.hand[handIndex];
+      const cardNum = summonCardNum;
       const newSigni = [...my.field.signi] as (string[] | null)[];
       const isRise = !!riseFilter;
       if (isRise) {
@@ -4991,21 +5016,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
       // ライズで元のトップシグニが下に置かれるカードになると、付いていた【ソウル】はルリグトラッシュへ（ルール処理）
       if (newSoul[zoneIndex])   { zoneExtraLrigTrash.push(newSoul[zoneIndex]!); newSoul[zoneIndex] = null; }
-      let placed: PlayerState = {
-        ...my,
-        hand: my.hand.filter((_, i) => i !== handIndex),
-        field: {
-          ...my.field,
-          signi: newSigni,
-          signi_down:   newSigniDown,
-          signi_frozen: newSigniFrozen,
-          signi_charms: newCharms,
-          signi_acce:   newAcce,
-          signi_soul:   newSoul,
-        },
-        trash: [...my.trash, ...zoneExtraTrash],
-        lrig_trash: zoneExtraLrigTrash.length > 0 ? [...my.lrig_trash, ...zoneExtraLrigTrash] : my.lrig_trash,
-      };
+      let placed: PlayerState;
+      if (resona) {
+        const paidAndPlaced = payResonaAppearanceAndPlace(
+          my, cardNum, resona.candidate.payment, resona.selection, zoneIndex, battleCardMap,
+        );
+        if (!paidAndPlaced) return;
+        placed = paidAndPlaced;
+      } else {
+        placed = {
+          ...my,
+          hand: my.hand.filter((_, i) => i !== handIndex),
+          field: {
+            ...my.field,
+            signi: newSigni,
+            signi_down:   newSigniDown,
+            signi_frozen: newSigniFrozen,
+            signi_charms: newCharms,
+            signi_acce:   newAcce,
+            signi_soul:   newSoul,
+          },
+          trash: [...my.trash, ...zoneExtraTrash],
+          lrig_trash: zoneExtraLrigTrash.length > 0 ? [...my.lrig_trash, ...zoneExtraLrigTrash] : my.lrig_trash,
+        };
+      }
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
       const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
@@ -5025,7 +5059,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 【出】を封じられている場合、召喚したシグニ自身の ON_PLAY を一切積まない（正面は engine 共通規約の 2-zi）。
       const onPlayBlocked = collectContinuousAbilitiesRemovedSigni(placed, op, true, effectsMap, battleCardMap, '出').has(cardNum);
       if (onPlayBlocked) appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}の【出】能力は発動しない（正面の効果）`]);
-      // 手札からの召喚は「トラッシュから場に出た」に該当しないため、THIS_CARD_FROM_TRASH 条件付き【出】は発火させない（WX03-034-E1）
+      // 手札／ルリグデッキからの召喚は「トラッシュから場に出た」に該当しない。
       const involvesFromTrash = (c?: import('../types/effects').Condition): boolean =>
         !!c && (c.type === 'THIS_CARD_FROM_TRASH' || (c.type === 'AND' && c.conditions.some(involvesFromTrash)));
       const ownOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
@@ -6417,6 +6451,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     const phase = bs.turn_phase;
     const actions: CardAction[] = [];
+
+    // ── レゾナ【出現条件】── 段階2は MAIN + 単一ゾーン支払いだけを安全に解放する。
+    // deferReason のある複数ゾーン／複数グループ／別タイミングは候補を一切出さない。
+    if (cardData.Type === 'レゾナ') {
+      if (!isMyTurn || phase !== 'MAIN' || bs.pending_spell || my.field.signi.every(z => (z?.length ?? 0) > 0)) return actions;
+      const candidate = getMainSingleZoneResonaCandidate(cardNum, my, battleCardMap, effectsMap);
+      const resonaLevel = parseInt(cardData.Level ?? '0', 10) || 0;
+      const maxPaidFieldLevels = candidate?.payment.zone === 'field'
+        ? resonaPaymentOptions(my, candidate.payment, battleCardMap)
+          .map(zi => parseInt(battleCardMap.get(getCardNum(my.field.signi[zi]?.at(-1) ?? ''))?.Level ?? '0', 10) || 0)
+          .sort((a, b) => b - a)
+          .slice(0, candidate.payment.count)
+          .reduce((sum, lv) => sum + lv, 0)
+        : 0;
+      const canFitLimit = fieldSigniTotal - maxPaidFieldLevels + resonaLevel <= lrigLimit;
+      if (candidate && resonaLevel <= currentLrigLevel && canFitLimit) {
+        actions.push({
+          label: '【出現条件】で召喚',
+          color: C.accent,
+          onClick: () => {
+            setSelectedResonaPayment(new Set());
+            setPendingResonaSummon(candidate);
+          },
+        });
+      }
+      return actions;
+    }
 
     // ── スペル/クラフト（フェゾーネマジック）── メインフェイズに手札スペルと同様に使用可能
     if (cardData.Type === 'スペル/クラフト') {
@@ -11144,6 +11205,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* シグニ召喚ゾーン選択 */}
       <SigniSummonZoneModal ctx={modalCtx} pendingSigniSummon={pendingSigniSummon} setPendingSigniSummon={setPendingSigniSummon} fieldSigniTotal={fieldSigniTotal} lrigLimit={lrigLimit} handleSummonSigni={handleSummonSigni} />
+      <ResonaSummonModal
+        ctx={modalCtx}
+        pending={pendingResonaSummon}
+        selected={selectedResonaPayment}
+        setSelected={setSelectedResonaPayment}
+        close={() => { setPendingResonaSummon(null); setSelectedResonaPayment(new Set()); }}
+        fieldSigniTotal={fieldSigniTotal}
+        lrigLimit={lrigLimit}
+        execute={zoneIndex => {
+          if (!pendingResonaSummon) return;
+          void handleSummonSigni(-1, zoneIndex, {
+            candidate: pendingResonaSummon,
+            selection: { zone: pendingResonaSummon.payment.zone, indices: [...selectedResonaPayment] },
+          });
+        }}
+      />
 
       {/* 強制攻撃バナー */}
       {isMyTurn && my.must_attack_signi && bs.turn_phase === 'ATTACK_SIGNI' && (

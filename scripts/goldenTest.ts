@@ -37,6 +37,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
+import { getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
@@ -890,6 +891,44 @@ test('レゾナ出現条件: 全55枚を実効果と分離したメタデータ�
 
     const builtCount = [...effectsMap.values()].filter(es => es.some(e => e.appearanceCondition)).length;
     eq(builtCount, 55, '生成effects JSONにも55枚すべて収録');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('レゾナ召喚: 条件を払える時だけ候補になり、原子的支払い・配置後に既存ON_PLAY効果を解決', () => {
+  const savedCursor = cursor;
+  try {
+    const resona = 'WX07-009'; // 白の非レゾナシグニ2体を場からトラッシュ
+    const whiteA = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白'));
+    const whiteB = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && c.CardNum !== whiteA);
+    const base = mkState({ signi: [whiteA, null, null] });
+    base.lrig_deck = [resona];
+    eq(getMainSingleZoneResonaCandidate(resona, base, cardMap, effectsMap), null, '支払い対象1体では候補外');
+
+    const payable: PlayerState = {
+      ...base,
+      field: { ...base.field, signi: [[whiteA], [whiteB], null] },
+    };
+    const candidate = getMainSingleZoneResonaCandidate(resona, payable, cardMap, effectsMap);
+    ok(!!candidate, '白の非レゾナ2体があれば候補');
+    const placed = payResonaAppearanceAndPlace(
+      payable, resona, candidate!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap,
+    );
+    ok(!!placed, '支払いと配置が同時に成功');
+    eq(placed!.lrig_deck.includes(resona), false, 'ルリグデッキから除去');
+    eq(placed!.field.signi[0], null, '支払い1体目を場から除去');
+    eq(placed!.field.signi[1], null, '支払い2体目を場から除去');
+    eq(placed!.field.signi[2]?.at(-1), resona, '空きシグニゾーンへレゾナ配置');
+    ok(placed!.trash.includes(whiteA) && placed!.trash.includes(whiteB), '支払いカードはトラッシュ');
+
+    const onPlay = effectsMap.get(resona)!.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))!;
+    const beforeEnergy = placed!.energy.length;
+    const ctx = {
+      ownerState: placed!, otherState: mkState({}), cardMap, logs: [],
+      sourceCardNum: resona, triggeringCardNum: resona, currentPhase: 'MAIN',
+    } as unknown as ExecCtx;
+    const resolved = finish(executeEffect(onPlay, ctx), ctx);
+    eq(resolved.ownerState.energy.length, beforeEnergy + 2, '既存ON_PLAY（デッキ上2枚エナチャージ）が解決');
   } finally {
     cursor = savedCursor;
   }
