@@ -119,7 +119,7 @@
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
 | ~~9~~ | ~~PARTIAL 刻印 151件のトリアージ~~ | — | — | **✅完了（続き138）＝152件全件を3分類・実害144件を Opusタスク12 (xxii)(xxiii)(xxiv) へ登録**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)・成果物 `docs/_partial_triage.txt` |
-| 1 | **§7 実機検証の横展開** | 検証（driver シナリオ追加のみ） | S×件数 | 既定order 75件まで消化済（(a)(b)(c)＋oppDrawOwnEffectOnly＋続き173/174）。**残＝§7 の未消化項目**＝(xi) skip検証・(xxxvi) グロウ支払いUI・ON_LRIG_GROW④・WX22-001-E3（§6.4）＋🆕(xlvii) 防御側ルリグアタック収集（続き218j＝ガード応答とスタック解決順が噛み合うかの要実機確認）。経緯は PLAN_DETAIL §3 |
+| 1 | **§7 実機検証の横展開** | 検証（driver シナリオ追加のみ） | S×件数 | 既定order 76件まで消化済（(a)(b)(c)＋oppDrawOwnEffectOnly＋続き173/174＋🆕`resonaMainWx08021`〔続き263・レゾナ召喚UI MAIN〕）。**残＝§7 の未消化項目**＝🆕**レゾナ召喚UIの ATTACK 窓／SPELL_CUTIN 窓／REQUIRES_NEW_FLOW／支払いトリガー発火（最優先・§4 参照）**＝(xi) skip検証・(xxxvi) グロウ支払いUI・ON_LRIG_GROW④・WX22-001-E3（§6.4）＋🆕(xlvii) 防御側ルリグアタック収集（続き218j＝ガード応答とスタック解決順が噛み合うかの要実機確認）。経緯は PLAN_DETAIL §3 |
 | 3 | driver バッチ実行の状態汚染 | scripts（engine/JSON 非依存） | M | ⏳主要因は解消済み（続き77/105/139/140/142）。**残**＝(b)`oppDraw` 単独FAIL（CPU挙動依存）(c)`lrigGrowAnyOppP03046` FRESH=1 FAIL（CPUがグロウ判断に至らない）。現在シナリオ 81定義／75既定実行 |
 | 4 | ~~BEHAVIOR_AUDIT キュー再生成＋一次トリアージ~~ **⛔枯渇（休眠）** | 計器実行＋分析 | S | 続き133 で高シグナル22件精査＝真no-opバグ0件。残る母数は監査ツールの構造的盲点（COUNTER_SPELL/SPELL_CUTIN・トリガー文脈依存）に該当＝再開なら盲点フィルタ実装が先（低収量見込み） |
 | 6 | §5c 再収穫サイクル（`/census-batch` 準拠） | JSON採用 | S | **✅続き214で在庫77件を全消化＝64枚採用**。次の在庫が発生するまで待機（Opus 新語彙着地待ち）。⚠P1宣言により新規バッチは切らない |
@@ -146,8 +146,8 @@
   - **出現条件レゾナ＝0枚 → 55/55枚が召喚可能**。着手前は parser が `【出現条件】` を正規表現で**捨てて**おり、ルリグデッキからレゾナを出す経路も存在せず**55枚は盤面に出る手段がなかった**。段階1＝`appearanceCondition` メタデータ化（新 effectType を作らないので収集器・decompiler は不変）／段階2＝`handleSummonSigni` にオプショナル引数を足して**既存経路を再利用**（支払いと配置は原子的・並行実装なし）／段階3＝複数ゾーン横断・複数グループ・合計制約・アタックフェイズ・3択2選を解放／最終＝SPELL_CUTIN 3枚を `cutinCandidates` に**判別可能ユニオン**（`kind:'effect'`/`'resona'`）で合流。
   - **⚠Claude 確認が捕まえたもの3件**＝①codex が足した `EICHI_LEVEL_SUM` が **ACTIVATED では評価されない**（上記配線漏れ）②レゾナの場/手札支払いが `fieldTrashCostCards` 経路を通らず **ON_LEAVE_FIELD／ON_TRASH／ON_HAND_DISCARDED が未発火**③**golden のフレーク**＝追加テストがグローバル `cursor` を復元せず後続 `WXK11-070` の盤面をずらし、**gates（5並列）でのみ約50%で FAIL**（単独 golden は17回とも PASS・master は 5回とも全緑という切り分けで特定）。**golden に足すときは cursor を save/restore する**。
   - **検証**＝全ゲート緑×2（golden 740/0・smoke 10725件0・fuzz 200ゲーム0・census 1549＝BASELINE_HIGH更新・lint 0e）。各段階で JSON の**意味的ドリフト検査**＝変化は常に対象カードのみ・`appearanceCondition` 以外は完全不変を機械確認。
-  - **⚠実機未検証**＝レゾナ召喚UI（MAIN／アタックフェイズ応答／スペルカットイン窓）は engine/golden レベルの検証のみ。**§7 の実機検証候補**（カットイン窓でレゾナを出した後は自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない点も要確認）。
-  - **次の一手**＝**Opus：タスク8 がクローズしたので主戦場は §6.3 の残機構（A/C/E 群）＋タスク12 の在庫（新規 (lv) ほか (liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝上記レゾナ召喚UIの実機確認が最優先**。
+  - **⚠実機検証＝MAIN のみ消化（続き263・2026-07-27）**＝driver シナリオ `resonaMainWx08021`（WX08-021・手札の＜凶蟲＞2枚支払い）で**実UIクリック列を通した召喚が2回連続 PASS・UIバグなし**（詳細 BUGFIXES 続き263）。**未検証＝①ATTACK 窓（8枚）②SPELL_CUTIN 窓（3枚・カットイン窓でレゾナを出した後は自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない点も要確認）③REQUIRES_NEW_FLOW（複数グループ／合計制約／3択2選）④支払いに伴うトリガー発火（ON_HAND_DISCARDED 等）**＝いずれも §7 の実機検証候補として継続。
+  - **次の一手**＝**Opus：タスク8 がクローズしたので主戦場は §6.3 の残機構（A/C/E 群）＋タスク12 の在庫（新規 (lv) ほか (liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝上記レゾナ召喚UIの残り①〜④が最優先**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。

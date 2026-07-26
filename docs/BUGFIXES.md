@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き263＝レゾナ召喚UI（MAIN）の実機検証＝driver シナリオ `resonaMainWx08021` 追加（2026-07-27・codex実装/Opus 5確認）
+
+**運用**＝codex（有料版 sol）へ投げ、Claude は確認・独立再現・commit のみ（[feedback_codex_delegation] の型）。**バグ修正なし＝続き262 で実装したレゾナ召喚UIが実機で意図どおり動くことの確認**（PLAN §4 の「⚠実機未検証」の1/3を消化）。
+
+- **追加シナリオ**＝`scripts/verifyBattleDrive.mjs` の `resonaMainWx08021`（+65行・既定 order 末尾に push）。対象 **WX08-021「黒幻蟲　サソリス」**（レゾナ Lv3・ミュウ限定・出現条件「＜凶蟲＞のシグニ２枚をあなたの手札から捨てる」＝`paymentShape:'SINGLE_ZONE'`／`timings:['MAIN']`）。注入＝ルリグ WX08-004 ミュウ＝フラップ（Lv4/Limit11＝限定条件・レベル・リミットを満たす）／手札 WX08-079・WX08-080（ともに＜精生：凶蟲＞シグニ）／`field.signi` は空。
+- **実UIクリック列を通す**＝`my-lrig-dk` → `zone-card-0` → 「【出現条件】で召喚」→ `resona-payment-hand-0`/`-1` → `resona-zone-0`。**盤面注入で「出たことにする」フェイク検証を構造的に排除**（`field.signi` 空注入なので、UI を通らなければ PASS 条件を満たしようがない）。
+- **アサートは実 battle_states 照会**（`queryState`）で3点＝①`field.signi[0]=["WX08-021#1"]` ②`lrig_deck` から除外 ③支払い2枚が `trash` へ移動。判定用に `sideOf()` へ `handCards`/`trashCards`/`lrigDeckCards`（生の配列）を追加。
+- **結果＝実UIバグなし**。codex 側 2回連続 PASS ＋ **Claude 側で独立に `FRESH=1 SHOTS=0 SKIP_BUILD=1` ×2回 PASS**（クリック毎の battle_states 差分ログで、支払い選択→ゾーン確定の瞬間に3点が同時成立することを確認）。UI/engine/parser/effects JSON への変更は0。`npm run gates` 全緑（golden 740・smoke 10725・fuzz 0・census 1549・lint 0e）を Claude 側でも独立再現。
+- **残（未検証・honest defer）**＝①**ATTACK 窓**（`timings` に ATTACK を含む8枚）②**SPELL_CUTIN 窓**（3枚。PLAN 記載の「レゾナ召喚後に自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない」の実機挙動も未観測）③`REQUIRES_NEW_FLOW`（複数グループ／合計制約／3択2選）④**支払いに伴うトリガー発火**（続き262 の Claude 確認②で `fieldTrashCostCards`／`discardedCostCards` 経路へ繋いだ ON_HAND_DISCARDED・ON_LEAVE_FIELD・ON_TRASH）は今回のシナリオでは観測していない＝**手札2枚捨てのコストなので ON_HAND_DISCARDED の発火源を watcher で置く次シナリオが最短の追試**。
+
 ## 続き262＝§3 タスク8 残2項目の消化（(c)アタック幾何6枚／出現条件レゾナ55枚を3段階で）（2026-07-26・codex実装/Opus 5確認）
 
 **運用**＝全工程を codex（有料版 sol）へ投げ、Claude は確認・是正・commit のみ（[feedback_codex_delegation] の型）。commit 66bbbba5／0a3b85c3／a7b0651d／3633075d／a4341092。
