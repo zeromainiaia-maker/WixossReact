@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き262＝§3 タスク8 残2項目の消化（(c)アタック幾何6枚／出現条件レゾナ55枚を3段階で）（2026-07-26・codex実装/Opus 5確認）
+
+**運用**＝全工程を codex（有料版 sol）へ投げ、Claude は確認・是正・commit のみ（[feedback_codex_delegation] の型）。commit 66bbbba5／0a3b85c3／a7b0651d／3633075d／a4341092。
+
+### (c) アタック幾何6枚＝engine は揃っていて**データ側が壊れていた**
+- **engine には既に3機構**＝`MULTI_ZONE_ATTACK`（正面以外の全ゾーン・BattleScreen:7487）／`ADJACENT_ZONE_ATTACK`（正面＋隣1つ・:7530）／キーワード `側面アタック`（正面の**代わり**に隣・:10689）。**残っていたのは parse 結果の誤り**。
+- **WX15-093-E1／WXEX2-71-E3**＝`owner:'opponent'` 誤り（原文「**あなたの**＜英知＞のシグニ1体」）＝**相手のシグニに付与**していた。加えて `keyword` が生の日本語文のままで engine が解釈できず **no-op**。→ `owner:'self'` ＋ 新ランタイムキーワード `正面以外追加アタック` を MULTI_ZONE_ATTACK 分岐へ配線（`dynamicKeywords` / `keyword_grants` の両方を見る）。同型構文の全数調査で該当はこの2件のみ。
+- **WX15-094/095/096-E1**＝原文「正面の1つ隣に**も**アタックできる」に対し既存 `側面アタック`（正面の**代わり**）は意味が違う。→ 新 `正面隣追加アタック` を ADJACENT_ZONE_ATTACK 分岐へ。`thisCardOnly` で自身限定（`collectContinuousGrantedKeywords` は `count:1` のとき発生源自身のみに付与する既存挙動に乗る）。
+- **WXEX2-71-E2/E3**＝使用条件「英知＝２／＝５」が丸ごと脱落 → `EICHI_LEVEL_SUM{eq}` へ配線。
+- **WXK04-072-E1b**＝既実装（`IS_SELF_ARMORED`＋MULTI_ZONE_ATTACK）と実測。golden で lock-in のみ。
+- **🆕副産物＝engine の配線漏れ**：シグニ【起】能力の候補フィルタ（BattleScreen `activatable`）が **`activeCondition` を一切評価していなかった**。effects JSON 全数実測で `ACTIVATED`＋`activeCondition` は `WX16-043-E2`（英知＝11）の**1件のみ**＝誰も使っていない配線漏れで、その1件も使用条件が無視される既存バグ。1行追加で解消し両者を golden で lock-in（ルリグ/アシスト/キー/アーツ/スペル/トラッシュ自己起動/カットインの各経路は該当0件のため触っていない）。
+- **honest defer 2件**＝WXEX2-71-E1（「正面以外のシグニゾーンにアタックしたとき」＝追加多面バトルが攻撃先ゾーンをトリガー収集へ渡さない）／WXEX2-71-E2（`mandatory:false`＋cost なしの自身 ON_PLAY が `ownOnPlay`〔mandatory 限定〕にも `ownCostOnPlay`〔cost 必須〕にも該当せず**元から no-op**と実測＝タスク12 **(lv)** へ登録）。
+
+### 出現条件レゾナ 55枚＝**0枚 → 55/55枚が召喚可能**（3段階＋最終）
+着手前の実測＝parser が `effectText.replace(/^【出現条件】[^【]+/, '')` で**出現条件を捨てており**、かつルリグデッキからレゾナを出す経路自体が存在しなかった＝55枚は**盤面に出る手段がなかった**。
+
+- **段階1（0a3b85c3）＝構造化**。新 `src/data/appearanceConditionParser.ts`。`CardEffect.appearanceCondition`（`rawText`/`timings`/`cost`/`combinedTrash`/`paymentShape`/`deferReason`）を**カード単位メタデータ**として effects[0] に載せる。**新 effectType や擬似効果を作らない**ので収集器・executor・decompiler は従来どおり（smoke の効果総数 10725 不変で裏付け）。`TargetFilter.excludeResona` を新設（`execUtils.ts` 1行・省略時は既存挙動）。`buildEffectsJson.ts` は richness ガードで MANUAL を温存したカードでもメタデータを失わないよう fresh とは独立に最後に重ねる。census 1551→1549。
+- **段階2（a7b0651d）＝召喚フロー**。新 `src/screens/battle/resonaSummon.ts`（純関数）＋ `modals/ResonaSummonModal.tsx`。`handleSummonSigni` に**オプショナル第3引数を足して再利用**＝ON_PLAY 収集・【出】封じ・配置制限は既存経路のまま（並行実装を作らない）。支払いと配置は単一 state 変換で**原子的**。確定時に出現条件・支払い候補・ルリグデッキ在籍・空きゾーン・重複選択を再検証。レゾナもシグニなのでレベル制限・リミット制限を課す（場支払いで減る分を差し引いて評価）。この時点で SINGLE_ZONE/MAIN の 17枚。
+- **段階3（3633075d）＝残35枚＋トリガー漏れ**。⚠**Claude が段階2 で指摘した欠落**＝場支払いでトラッシュしたシグニが既存コスト経路の `fieldTrashCostCards` メタ（BattleScreen:2653＝ON_LEAVE_FIELD／ON_TRASH 収集）を経由せず**離脱・トラッシュトリガーが未発火**だった。`collectBoardDiffTriggers` と `collectHandDiscardTriggers` へ接続（**手札支払い側にも同じ漏れがあった**）。出現条件は【出】【起】の使用コストではないので `asCost=false`＝`ON_DISCARDED_AS_COST` は発火させない。解放＝複数ゾーン横断・可変枚数・合計制約26／複数グループ8（この過程で**段階1が混在グループ3枚を単一コストに誤分類していた** parser バグも是正）／レベル・パワー合計制約2（WX07-006／PR-470A）／アタックフェイズ（`ATTACK_ARTS`／`ATTACK_ARTS_OP`）／WD11-008 の3択2選／WX08-005 の異なる行き先。グループ間で同じカードを二重使用できない割当探索を候補判定に組み込み。
+- **最終（a4341092）＝SPELL_CUTIN 3枚**。詳細は下節。
+
+### 検証と教訓
+- 各段階で JSON の**意味的ドリフト検査**を実施＝変化したカードは常に対象分のみ、かつ `appearanceCondition` 以外は完全不変であることを機械確認。最終状態は `appearanceCondition` 保有 55枚・`deferReason` 残 0枚＝**召喚可能 55枚**を機械検証。
+- **⚠golden のフレーク事故**＝codex の追加テストがグローバル `cursor`（`scripts/goldenTest.ts` の `mkState`/`fill` が消費する共有カーソル）を復元せず、後続 `WXK11-070` の盤面カードをずらして **gates（5並列）でのみ約50%の確率で FAIL** した。単独 `npm run golden` は17回とも PASS・master は gates 5回とも全緑・変更後は gates 4回中2回 FAIL という切り分けで特定。既存テストの慣例どおり save/restore を追加して gates 5回連続全緑。**golden にテストを足すときは cursor を必ず save/restore する**（このセッション以降 codex 指示書の定型ガードレールに追加済み）。
+- **⚠codex の簿記の癖**＝`BASELINE_HIGH` の**数字だけ**を書き換えてコメントを前回の理由のまま放置した（Claude が今回の理由を先頭に追記）。また census が減っても**それが機能実装とは限らない**（段階1 は召喚フロー未実装のままの語彙改善）ため、`BASELINE_HIGH` と PLAN 恒久指標の両方に「計器改善であって機能実装ではない」と明記した。
+- 全ゲート緑（golden 735→740・smoke 10725件0・fuzz 200ゲーム0・census 1551→1549＝`BASELINE_HIGH` 更新・lint 0e）。
+
+---
+
 ## §3 タスク8 完全クローズ＝SPELL_CUTIN 出現条件レゾナ最後の3枚を解放（2026-07-26・Codex）
 
 - **対象**：WX13-005B（宇宙）／WX13-006B（凶蟲）／WX14-006B（遊具）。`appearanceCondition.timings=['SPELL_CUTIN']`＋手札・エナ・場を横断する `combinedTrash{count:2,excludeResona:true}` は既存構造を利用。

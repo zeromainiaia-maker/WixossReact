@@ -139,13 +139,15 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-25 続き261・Opus 5）＝§3 タスク8 を全数棚卸しし「正面」サブ機構(b)(d)(e) を消化**（golden 734→735・census 1552→1551・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **⚠最大の成果は棚卸し**＝タスク8 の行が大きく古く、**7サブ項目のうち5項目は既に完了済み**だった（ゲーム除外＝`excluded` 実ゾーン／canCardGuard＝`battle/guard.ts` 集約／多段閾値＝続き257／スペル被破棄【自】＝`fromZones:['hand']`＋`collectAnyZoneTrashSelfTriggers` 配線済／ON_LEAVE_FIELD 相手scope＝続き233）。**着手前に必ず実測する**（行の記述を worklist として鵜呑みにしない）。
-  - **(e) WX05-019-E1**「このシグニの正面のシグニは能力を失う」＝`owner:'self'` ＝**自分のシグニの能力を消す自傷**／**(b) WXK11-029-E1**「正面のシグニの【出】能力は発動しない」＝`BLOCK_ACTION{PLAYER owner:'self'}` ＝**自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤り。どちらも `frontOfSelf`（＋(b) は既存 `abilityTypes:['出']` 語彙）へ是正し、engine は召喚時 ON_PLAY 収集を `'出'` でゲート。⚠**PRESERVE ギャップ再現**＝WXK11-029 は MANUAL カードで `manualEffects.ts` 編集が built JSON に焼かれず `effects_WXK.json` 直パッチが必須（ガードレール10・WXK04-072 と同型）。
-  - **(d) WX10-036-E2**＝条件節ごと脱落し**無条件で自シグニにアサシン付与**する過剰効果。**新 ActiveCondition `FRONT_SIGNI{filter?, compareToSelf?}`** を新設（parser 3規則＋engine 評価＋decompiler）。
-  - **⚠engine 規約の統一（2セッション持ち越しの発見を消化）**＝`collectContinuousAbilitiesRemovedSigni` の facing が **same-zi** で、engine 他所の **2-zi**（`resolveFrontOfSelfCardNum`／`opZone = 2 - attackZone`）と食い違っていた。**原文が「正面」と明示する分（`frontOfSelf`）だけ 2-zi へ統一**し、同分岐に落ちている**残り8効果は別種の誤 parse**（「対戦相手の凍結状態のシグニ」等＝本来 ALL+filter）と判明したのでタスク12 **(liv)** へ登録して据置（未検証の退化を避ける）。
-  - **検証**＝全ゲート緑（golden 735/0・smoke 10725件0・fuzz 200ゲーム0・census 1551＝BASELINE_HIGH更新・**同型★0**・lint 221w/0e）。WXK11-029-E1 は逆翻訳が原文と一字一致。副次で decompiler の活性条件ラッパの「〜かぎりであるかぎり」二重付与も是正。
-  - **次の一手**＝**タスク8 の残2項目**＝**(c) MULTI_ZONE_ATTACK 6枚**（側面・正面以外へのアタック幾何）と**出現条件レゾナ55枚**（🆕実測＝parser が `【出現条件】` を除去して捨てているうえ、**レゾナを lrig_deck からプレイする経路自体が無い**＝召喚UI＋約15種のコスト支払い＋配置＋ON_PLAY の新規フロー一式＝§6.4級で複数セッション）。ほかタスク12 の新規在庫 (lii)(liii)(liv)。**Sonnet：タスク1（§7 実機検証）継続**。
+- **🆕 セッション（2026-07-26 続き262・Opus 5 確認／codex sol 実装）＝🏁§3 タスク8 を完全クローズ**（golden 735→740・census 1551→1549・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **運用**＝全工程を codex（有料版 sol）へ投げ、**Claude は確認・是正・commit のみ**。commit 66bbbba5／0a3b85c3／a7b0651d／3633075d／a4341092。
+  - **(c) アタック幾何6枚**＝engine には既に3機構（`MULTI_ZONE_ATTACK`＝正面以外の全ゾーン／`ADJACENT_ZONE_ATTACK`＝正面＋隣1つ／キーワード`側面アタック`＝正面の**代わり**に隣）が揃っており、**壊れていたのはデータ側**だった。WX15-093-E1／WXEX2-71-E3 は `owner:'opponent'` 誤り（原文「**あなたの**」）＝**相手のシグニに付与**＋生日本語 keyword で no-op。WX15-094/095/096 は原文「隣に**も**」なのに「隣の**代わり**」の既存キーワードを使っていた。新ランタイムキーワード `正面以外追加アタック`／`正面隣追加アタック` を既存2分岐へ配線して是正。WXEX2-71 の使用条件「英知＝２／＝５」脱落も `EICHI_LEVEL_SUM` へ配線。
+  - **🆕副産物＝engine の配線漏れ**：シグニ【起】の候補フィルタが **`activeCondition` を一切評価していなかった**。全数実測で該当は `WX16-043-E2` の**1件のみ**＝誰も使っていない配線漏れで、その1件も既存バグ。1行で解消。
+  - **出現条件レゾナ＝0枚 → 55/55枚が召喚可能**。着手前は parser が `【出現条件】` を正規表現で**捨てて**おり、ルリグデッキからレゾナを出す経路も存在せず**55枚は盤面に出る手段がなかった**。段階1＝`appearanceCondition` メタデータ化（新 effectType を作らないので収集器・decompiler は不変）／段階2＝`handleSummonSigni` にオプショナル引数を足して**既存経路を再利用**（支払いと配置は原子的・並行実装なし）／段階3＝複数ゾーン横断・複数グループ・合計制約・アタックフェイズ・3択2選を解放／最終＝SPELL_CUTIN 3枚を `cutinCandidates` に**判別可能ユニオン**（`kind:'effect'`/`'resona'`）で合流。
+  - **⚠Claude 確認が捕まえたもの3件**＝①codex が足した `EICHI_LEVEL_SUM` が **ACTIVATED では評価されない**（上記配線漏れ）②レゾナの場/手札支払いが `fieldTrashCostCards` 経路を通らず **ON_LEAVE_FIELD／ON_TRASH／ON_HAND_DISCARDED が未発火**③**golden のフレーク**＝追加テストがグローバル `cursor` を復元せず後続 `WXK11-070` の盤面をずらし、**gates（5並列）でのみ約50%で FAIL**（単独 golden は17回とも PASS・master は 5回とも全緑という切り分けで特定）。**golden に足すときは cursor を save/restore する**。
+  - **検証**＝全ゲート緑×2（golden 740/0・smoke 10725件0・fuzz 200ゲーム0・census 1549＝BASELINE_HIGH更新・lint 0e）。各段階で JSON の**意味的ドリフト検査**＝変化は常に対象カードのみ・`appearanceCondition` 以外は完全不変を機械確認。
+  - **⚠実機未検証**＝レゾナ召喚UI（MAIN／アタックフェイズ応答／スペルカットイン窓）は engine/golden レベルの検証のみ。**§7 の実機検証候補**（カットイン窓でレゾナを出した後は自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない点も要確認）。
+  - **次の一手**＝**Opus：タスク8 がクローズしたので主戦場は §6.3 の残機構（A/C/E 群）＋タスク12 の在庫（新規 (lv) ほか (liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝上記レゾナ召喚UIの実機確認が最優先**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
@@ -157,7 +159,7 @@
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 737・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1549（＝`BASELINE_HIGH`・回帰ゲート）。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 740・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1549（＝`BASELINE_HIGH`・回帰ゲート）。
 >
 > **🏁 P1（表現）は 2026-07-23 に完了宣言済み**（宣言・3分類・以後の運用＝[P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) 冒頭／§2 DoD／§5）。**主軸は P2/P3**＝①**§6.3 機構台帳**（宣言で正式送りした282効果の消化先＝正面40・チーム35・ゲームから除外残・アンコール19・動的比較14・ソウル11・ドライブ9 等を機構単位で）②**§7 実機検証** ③**BEHAVIOR_AUDIT（§5a・フェーズ跨ぎで継続）**。
 >
@@ -230,11 +232,11 @@
 - **A. 動的コンテキスト追跡系**＝WX11-027（GRANT_PROTECTION 相手LB効果判定）・WXDi-D07-007（防御成功ごとのトリガー収集）・WX24-P4-006（動的ダメージ源フィルタ）。
 - **B. BANISH_REDIRECT 残**＝✅完全クローズ（2026-07-24＝正面限定3件＋WX25-P3-104-E1 単体×パワー0 動的ゲート・268）。
 - **C. IS_MY_TURN 誤変換の未消化サブ系統**＝census 残53（公開系 REVEAL 前段／エナ置き／デッキ加え／単一カード公開判定）。
-- **D. レゾナ出現条件付与 Group1**＝WX14-049/WXEX1-58（出現条件を支払ってルリグデッキからレゾナを出すフロー自体が engine 未実装）。
+- **D. レゾナ出現条件付与 Group1**＝WX14-049/WXEX1-58（「このシグニが＜宇宙＞のレゾナの**出現条件のために**場からトラッシュに置かれたとき、そのレゾナは〜の効果を受けない」）。**召喚フロー自体は✅実装済（続き262＝55/55枚が召喚可能）**。**残＝`triggerCollect.ts:471` が `eff.triggerCondition?.forResonaCondition` を無条件 `continue`（＝出現条件の経路が存在しなかった時代の名残で**永久に不発**）のままなこと**＝レゾナ召喚の支払いトラッシュであることを収集器へ伝える引数と、`そのレゾナ`（＝今出たレゾナ）への参照解決が要る。
 - **E. 個別カード機構待ち**＝WX20-028-E2（多重アクセ state・§6.4級）／permanent 付与残（WX24-P2-044 派生）／WX17-044（トラッシュ起動+表向きトラップ発動・§6.4）／WX15-016（進行中アタックのキャンセル機構）／WXDi-P05-006 choice①（ピースカットイン割込み基盤）／WXDi-P08-037（place-swap log-only）／WX25-P3-023-E2（遅延トリガー＝2ターン持続＋相手手札移動 collector）／WXEX1-08（コインベット誘発＝ベット trigger 機構無し・ライズ placed filter）／WDK14-013（ビート＝プレイヤー選択ピッカーのみ自動近似）／WXDi-P06-031・WX20-Re20（コスト増加＝起動能力/自アーツ選択数依存）。
 - **F. 保留**（core改変が過大リスク）＝WXDi-P00-026（さんばかルリグ付与・ルリグ再アタック未実装がブロッカー）／47枚の【使用条件】【チーム】（正規デッキ常時成立で機能等価＝保留妥当）。
 
-**「正面」サブ機構の残**（機構台帳・commit 5ca1a96d/269931a0）＝target 解決型5効果＋CONT パワー修正4効果は✅消化済（`frontOfSelf`）。**(b)(d)(e) ✅消化（続き261）**＝(b) WXK11-029-E1 は `abilityTypes:['出']`＋`frontOfSelf`＋召喚時 ON_PLAY ゲート／(d) WX10-036-E2 は新 `FRONT_SIGNI{compareToSelf}` 条件／(e) WX05-019-E1 は `frontOfSelf` 化＋`collectContinuousAbilitiesRemovedSigni` の facing を 2-zi へ統一。**残**＝(c) 側面・正面以外アタック WX15-093〜096・WXEX2-71-E3・WXK04-072-E1b（MULTI_ZONE_ATTACK）／(d) の引用付与2枚 WXDi-P13-082・WXK02-084（**runtime 付与 CONTINUOUS の評価経路が無い**＝引用付与の族へ）／(e) 引用付与・強制正面アタック WXDi-P08-060・WXDi-P06-042（旧 same-zi 規約食い違いの精査待ち）。
+**「正面」サブ機構の残**（機構台帳・commit 5ca1a96d/269931a0）＝target 解決型5効果＋CONT パワー修正4効果は✅消化済（`frontOfSelf`）。**(b)(d)(e) ✅消化（続き261）**＝(b) WXK11-029-E1 は `abilityTypes:['出']`＋`frontOfSelf`＋召喚時 ON_PLAY ゲート／(d) WX10-036-E2 は新 `FRONT_SIGNI{compareToSelf}` 条件／(e) WX05-019-E1 は `frontOfSelf` 化＋`collectContinuousAbilitiesRemovedSigni` の facing を 2-zi へ統一。**(c) ✅消化（続き262）**＝engine の3機構（MULTI_ZONE_ATTACK／ADJACENT_ZONE_ATTACK／キーワード`側面アタック`）は既に揃っており、壊れていたのは parse 結果（owner 誤り2件＋生日本語 keyword の no-op＋幾何の取り違え3件＋英知＝N 脱落）。新キーワード `正面以外追加アタック`／`正面隣追加アタック` で既存2分岐へ配線。**残**＝(d) の引用付与2枚 WXDi-P13-082・WXK02-084（**runtime 付与 CONTINUOUS の評価経路が無い**＝引用付与の族へ）／(e) 引用付与・強制正面アタック WXDi-P08-060・WXDi-P06-042（旧 same-zi 規約食い違いの精査待ち）。
 
 **✅消化済み機構の台帳**（実装詳細は BUGFIXES 各日付）＝GRANT_PROTECTION 効果耐性（sourceFilter・self-except・相手エナ免疫・動的盤面条件・POWER_MODIFY 免疫5）／BANISH_REDIRECT target側スコープ（属性・単体・正面・パワー0）／ガード喪失条件（canCardGuard 統一）／IS_MY_TURN action層3枚／ダメージ置換「ブースト」条件（IS_BOOSTING）／スペル被破棄【自】2枚／続き20 STUB（powerPlusBanishedPower・variableEnergyTrashLevelBounce・negateNthAttack 等）／引用AUTO付与（残＝permanent 付与）／「ゲームから除外」基盤+8枚（PlayerState.excluded 実ゾーン化）／状態フィルタ脱落12効果／GRANT_LRIG_ABILITY 低品質展開／BURST内新語彙（全クローズ）／resume経路 collector 統合／対戦相手離脱トリガー3枚（any_opp watcher）／アーツ使用条件（ARTS_USED_THIS_TURN）／自パワー閾値（全クローズ）／ON_CARD_MILLED_FROM_DECK＋ゲーム持続付与AUTO（game_granted_auto_effects）＋リフレッシュ置換／毒牙 ON_OPP_POWER_DECREASED／G072族（完全クローズ）／multi-dest pick（全クローズ）／REVEAL remainder shuffle／GRANT_TO_PLACED_SIGNI／凍結アサシン変種／公開→自身アクセ化（INTERNAL_ACCE_PICKED_TO_SELF）／公開同レベル動的フィルタ（levelEqLastProcessed）／前ターン跨ぎ保持（LIFE_CRASHED_LAST_TURN）／使用制限誤パース＋択崩壊（全クローズ）／引用・LB付与（ディスペア）／WXK10-008／任意コスト+特定札捨て複合／リコレクト択一・ウィルス数スケール・WD22-036-G・WX25-CP1-002 他。
 

@@ -6,6 +6,13 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-25 続き261・Opus 5）＝§3 タスク8 を全数棚卸しし「正面」サブ機構(b)(d)(e) を消化**（golden 734→735・census 1552→1551）
+  - **⚠最大の成果は棚卸し**＝タスク8 の行が大きく古く、**7サブ項目のうち5項目は既に完了済み**だった（ゲーム除外＝`excluded` 実ゾーン／canCardGuard＝`battle/guard.ts` 集約／多段閾値＝続き257／スペル被破棄【自】＝`fromZones:['hand']`＋`collectAnyZoneTrashSelfTriggers` 配線済／ON_LEAVE_FIELD 相手scope＝続き233）。**着手前に必ず実測する**（行の記述を worklist として鵜呑みにしない）。
+  - **(e) WX05-019-E1**「このシグニの正面のシグニは能力を失う」＝`owner:'self'` ＝**自分のシグニの能力を消す自傷**／**(b) WXK11-029-E1**「正面のシグニの【出】能力は発動しない」＝`BLOCK_ACTION{PLAYER owner:'self'}` ＝**自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤り。どちらも `frontOfSelf`（＋(b) は既存 `abilityTypes:['出']` 語彙）へ是正し、engine は召喚時 ON_PLAY 収集を `'出'` でゲート。⚠**PRESERVE ギャップ再現**＝WXK11-029 は MANUAL カードで `manualEffects.ts` 編集が built JSON に焼かれず `effects_WXK.json` 直パッチが必須（ガードレール10・WXK04-072 と同型）。
+  - **(d) WX10-036-E2**＝条件節ごと脱落し**無条件で自シグニにアサシン付与**する過剰効果。**新 ActiveCondition `FRONT_SIGNI{filter?, compareToSelf?}`** を新設（parser 3規則＋engine 評価＋decompiler）。
+  - **⚠engine 規約の統一（2セッション持ち越しの発見を消化）**＝`collectContinuousAbilitiesRemovedSigni` の facing が **same-zi** で、engine 他所の **2-zi**（`resolveFrontOfSelfCardNum`／`opZone = 2 - attackZone`）と食い違っていた。**原文が「正面」と明示する分（`frontOfSelf`）だけ 2-zi へ統一**し、同分岐に落ちている**残り8効果は別種の誤 parse**（「対戦相手の凍結状態のシグニ」等＝本来 ALL+filter）と判明したのでタスク12 **(liv)** へ登録して据置（未検証の退化を避ける）。
+  - **検証**＝全ゲート緑（golden 735/0・smoke 10725件0・fuzz 200ゲーム0・census 1551＝BASELINE_HIGH更新・**同型★0**・lint 221w/0e）。WXK11-029-E1 は逆翻訳が原文と一字一致。副次で decompiler の活性条件ラッパの「〜かぎりであるかぎり」二重付与も是正。
+
 - **🆕 セッション（2026-07-25 続き260・Opus 5）＝§3 タスク6 E「リコレクト2」を消化し🏁**タスク6を完全クローズ**（golden 733→734・census 1554→1552・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
   - **スコープ**＝タスク6 の最後の残 E:リコレクト2（WX26-CP1-005-E1／WX26-CP1-009-E1）。これで **B1（続き256/257）・D（258）・C（259）・E（260）が全消化＝タスク6 残0**。
   - **真因は機構ではなく計器**＝`recollectArts` は parser（`chooseRecoM`）→ engine（`execChoose` が excludeSource 付きルリグトラッシュのアーツ枚数で `choose_count`/`upTo` を上書き）まで**既に完全実装済**。ところが**逆翻訳が「《リコレクトアイコン》［N枚以上］代わりにKつまで選ぶ」を丸ごと落としており原文照合できず** census 高シグナルに残り続けていた＝decompiler に `betChoose` と同型の1行を追加して解消。
