@@ -287,6 +287,7 @@ export function matchesFilter(
       || (card.Type === 'レゾナ' && types.includes('シグニ' as (typeof types)[number]));
     if (!typeMatch) return false;
   }
+  if (filter.excludeResona && card.Type?.includes('レゾナ')) return false;
   if (filter.color) {
     const colors = Array.isArray(filter.color) ? filter.color : [filter.color];
     if (!colors.some(c => card.Color?.includes(c))) return false;

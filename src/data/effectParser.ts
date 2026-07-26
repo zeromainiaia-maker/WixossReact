@@ -53,6 +53,7 @@ import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSenten
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4 } from './parsers/parseSentencePart4';
+import { parseAppearanceCondition } from './appearanceConditionParser';
 import { encodeShadowScopesInText } from '../utils/keywords';
 
 function parseUseCondition(text: string): Condition {
@@ -6574,6 +6575,7 @@ function parseBurstEffect(card: CardData): CardEffect | null {
 
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
+  let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
 
   const baseType = card.Type?.split('/')[0] ?? '';
   _parsingCardNum = card.CardNum;
@@ -6659,6 +6661,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       effectText = effectText.replace(/[『』]/g, '');
       // 【出現条件】プレフィックス除去（レゾナクラフト等）
       if (effectText.includes('【出現条件】')) {
+        const appearanceMatch = effectText.match(/^【出現条件】([^【]+)/);
+        if (appearanceMatch) appearanceCondition = parseAppearanceCondition(appearanceMatch[1].trim());
         effectText = effectText.replace(/^【出現条件】[^【]+/, '');
       }
       // 【レイヤー】付与の検出：「あなたの＜X＞のシグニは《レイヤーアイコン》の能力を得る」
@@ -6789,6 +6793,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   for (const e of effects) e.action = foldSuppressOnPlay(e.action);
 
+  // 実効果を増やさずカード先頭効果のメタデータとして保持する。
+  // collector / executor / decompiler / census は従来どおり実効果だけを走査する。
+  if (appearanceCondition && effects.length > 0) {
+    effects[0] = { ...effects[0], appearanceCondition };
+  }
   return effects;
 }
 

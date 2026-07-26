@@ -852,6 +852,48 @@ test('(xlix) parse: 11枚が SELF_PLAY_RESTRICT へ（ADD_TO_FIELD 誤 parse を
   eq((effectsMap.get('WX12-022')![0].action as { condition?: { type: string } }).condition?.type, 'FIELD_SIGNI_POWER_COUNT', 'WX12-022 は FIELD_SIGNI_POWER_COUNT');
   eq((effectsMap.get('WX14-033')![0].action as { condition?: { type: string } }).condition?.type, 'FIELD_CLASS_COUNT', 'WX14-033 は FIELD_CLASS_COUNT');
 });
+
+test('レゾナ出現条件: 全55枚を実効果と分離したメタデータへ構造化', () => {
+  const savedCursor = cursor;
+  try {
+    const resonaCards = [...cardMap.values()].filter(c => c.EffectText?.includes('【出現条件】'));
+    eq(resonaCards.length, 55, 'CSV母集団');
+    const appearances = resonaCards.map(card => {
+      const parsed = parseCardEffects(card);
+      const appearance = parsed.find(e => e.appearanceCondition)?.appearanceCondition;
+      ok(!!appearance, `${card.CardNum}: appearanceCondition`);
+      // 出現条件のために実効果件数を増やしていないことも固定する。
+      eq(parsed.filter(e => e.effectId.endsWith('-APPEAR')).length, 0, `${card.CardNum}: 擬似実効果なし`);
+      return appearance!;
+    });
+    eq(appearances.filter(a => a.paymentShape === 'SINGLE_ZONE').length, 17, 'メイン＋単一ゾーン文型');
+    eq(appearances.filter(a => a.paymentShape === 'REQUIRES_NEW_FLOW').length, 38, '新しい支払いフローが必要な文型');
+
+    const field = parseCardEffects(cardMap.get('WX08-006')!).find(e => e.appearanceCondition)!.appearanceCondition!;
+    eq(field.timings[0], 'MAIN', 'WX08-006 timing');
+    eq(field.cost.fieldTrash?.count, 2, 'WX08-006 場2体');
+    eq(field.cost.fieldTrash?.filter?.story, '凶蟲', 'WX08-006 クラス');
+    eq(field.cost.fieldTrash?.filter?.excludeResona, true, 'WX08-006 非レゾナ');
+
+    const crossZone = parseCardEffects(cardMap.get('WX12-006')!).find(e => e.appearanceCondition)!.appearanceCondition!;
+    eq(crossZone.combinedTrash?.count, 3, 'WX12-006 合計3枚');
+    eq(crossZone.combinedTrash?.zones.join(','), 'hand,energy', 'WX12-006 手札＋エナ');
+    eq(crossZone.combinedTrash?.filter.story, '遊具', 'WX12-006 クラス');
+
+    const aggregate = parseCardEffects(cardMap.get('WX07-006')!).find(e => e.appearanceCondition)!.appearanceCondition!;
+    eq(aggregate.combinedTrash?.count, 3, 'WX07-006 3体');
+    eq(aggregate.combinedTrash?.totalLevelMin, 7, 'WX07-006 レベル合計7以上');
+
+    const choice = parseCardEffects(cardMap.get('WD11-008')!).find(e => e.appearanceCondition)!.appearanceCondition!;
+    eq(choice.choice?.choose, 2, 'WD11-008 3項目から2つ');
+    eq(choice.choice?.options.length, 3, 'WD11-008 選択肢3件');
+
+    const builtCount = [...effectsMap.values()].filter(es => es.some(e => e.appearanceCondition)).length;
+    eq(builtCount, 55, '生成effects JSONにも55枚すべて収録');
+  } finally {
+    cursor = savedCursor;
+  }
+});
 test('(xlix) canSelfPlay: never は常に配置不可', () => {
   const effs = effectsMap.get('WXK05-032')!;
   ok(canSelfPlay(effs, mkState({}), mkState({}), cardMap as Map<string, CardData>) === false, 'never→false');

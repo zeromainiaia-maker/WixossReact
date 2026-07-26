@@ -311,6 +311,7 @@ export interface EffectCost {
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可
   energyTrash?: { count: number; filter?: TargetFilter }; // エナゾーンから指定カードN枚をトラッシュ（色支払いでなくカード指定。「エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く」等）
+  energyTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタのエナカードを組で指定
   handDiscardSigni?: { color?: string | string[]; story?: string | string[]; count: number; level?: number }; // 手札から指定色/＜クラス＞のシグニをN枚トラッシュ（ルリグ【起】用）。配列はOR条件（「＜鉱石＞か＜宝石＞」等）
   banish_self?: boolean;  // 自身をバニッシュ
   life_crash?: number;    // 自分のライフクロスをN枚クラッシュ（【出】コスト支払いではバースト不発の近似でトラッシュへ）
@@ -371,6 +372,37 @@ export interface EffectCost {
   trapToHand?: number;         // あなたの【トラップ】N体を手札に加える（コスト）
 }
 
+// ===== レゾナ出現条件 =====
+// 単一ゾーンの支払いは EffectCost の既存語彙を使う。複数ゾーンを横断して合計N枚を
+// 選ぶ条件だけ専用構造で表す。
+export type AppearanceTiming = 'MAIN' | 'ATTACK' | 'SPELL_CUTIN';
+export type AppearanceSourceZone = 'hand' | 'energy' | 'field';
+
+export interface AppearanceTrashSelection {
+  zones: AppearanceSourceZone[];
+  count?: number;
+  variable?: boolean;
+  filter: TargetFilter;
+  destination?: 'trash' | 'lrig_trash';
+  totalLevelMin?: number;
+  totalPowerMin?: number;
+}
+
+export interface AppearanceCostChoice {
+  choose: number;
+  options: EffectCost[];
+}
+
+export interface AppearanceCondition {
+  rawText: string;
+  timings: AppearanceTiming[];
+  cost: EffectCost;
+  combinedTrash?: AppearanceTrashSelection;
+  choice?: AppearanceCostChoice;
+  paymentShape: 'SINGLE_ZONE' | 'REQUIRES_NEW_FLOW';
+  deferReason?: string;
+}
+
 // ===== ターゲットフィルタ =====
 
 export interface TargetFilter {
@@ -379,6 +411,7 @@ export interface TargetFilter {
   cardNames?: string[];    // いずれかの名前に一致（複数名指定用、完全一致）
   excludeCardName?: string; // このカード名を除外（完全一致）
   cardNum?:   string;
+  excludeResona?: boolean; // cardType:'シグニ' はレゾナも含むため「レゾナではない」を明示
   color?:     string | string[];
   level?:     number | { min?: number; max?: number };
   levelRange?: { min?: number; max?: number };
@@ -1943,6 +1976,9 @@ export interface CardEffect {
 
   // 発動コスト
   cost?: EffectCost;
+
+  // レゾナの【出現条件】。実効果ではないカード単位メタデータ。
+  appearanceCondition?: AppearanceCondition;
 
   // 効果アクション
   action: EffectAction;

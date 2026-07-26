@@ -86,6 +86,7 @@ console.log(`カード数: ${rows.length}`);
 // 語彙センサスの効果単位判定用に「effectId → 由来の原文ブロック」を収集する（続き109）
 enableSourceTextLog();
 const result: Record<string, ReturnType<typeof parseCardEffects>> = {};
+const appearanceByCard = new Map<string, NonNullable<ReturnType<typeof parseCardEffects>[number]['appearanceCondition']>>();
 let parsed = 0, unknown = 0;
 
 for (const r of rows) {
@@ -114,6 +115,8 @@ for (const r of rows) {
   };
 
   const parsedEffects = parseCardEffects(card);
+  const appearance = parsedEffects.find(e => e.appearanceCondition)?.appearanceCondition;
+  if (appearance) appearanceByCard.set(card.CardNum, appearance);
   const effects = mergeManualEffects(card.CardNum, parsedEffects);
   if (effects.length === 0) continue;
 
@@ -134,6 +137,8 @@ const report: Record<string, string[]> = {
   adopted_new: [], adopted_gain: [], preserved_manual: [],
   preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [],
 };
+// 【出現条件】は実効果ではなくカード単位メタデータ。richness ガードが MANUAL 効果を
+// 温存したカードでも失わないよう、fresh から独立して最後に重ねる。
 // parseStatus 以外が同一か（無言フォールバック刻印＝AUTO→PARTIAL のメタ差分だけで
 // held キュー/parserWorklist を汚さないためのガード。2026-07-07）
 const stripParseStatus = (effs: any[]) => effs.map(e => { const { parseStatus: _ps, ...rest } = e ?? {}; return rest; });
@@ -155,6 +160,14 @@ for (const id of allIds) {
   heldFresh[id] = fresh;
   result[id] = existing as ReturnType<typeof parseCardEffects>;          // 損失リスク→温存
   report.preserved_held.push(id);
+}
+for (const [id, appearance] of appearanceByCard) {
+  const effects = result[id];
+  if (!effects?.length) continue;
+  result[id] = effects.map((effect, index) => {
+    const { appearanceCondition: _old, ...rest } = effect;
+    return index === 0 ? { ...rest, appearanceCondition: appearance } : rest;
+  });
 }
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
