@@ -9329,16 +9329,64 @@ test('PLAN §6.3 tail: lock-in and curated structures', () => {
 });
 
 test('WXEX1-02: frozen opponent loses CONT/AUTO only', () => {
-  const target = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] });
-  target.field.signi_frozen = [true, false, false];
-  const source = mkState({ signi: ['WXEX1-02', null, null] });
-  const em = new Map(effectsMap);
-  em.set('WXEX1-02', mergeManualEffects('WXEX1-02', effectsMap.get('WXEX1-02') ?? []));
-  const cont = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '常');
-  const auto = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '自');
-  const act = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '起');
-  ok(cont.has(SIGNI_L1) && auto.has(SIGNI_L1), 'frozen CONT/AUTO');
-  ok(!cont.has(SIGNI_L2) && !auto.has(SIGNI_L2) && !act.has(SIGNI_L1), 'unfrozen/ACT remain');
+  const cursorBefore = cursor;
+  try {
+    const removeAbilityCards = [...effectsMap.keys()].filter(cardNum =>
+      mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).some(e =>
+        e.effectType === 'CONTINUOUS' && (e.action as { type: string }).type === 'REMOVE_ABILITIES'));
+    eq(removeAbilityCards.sort().join(','), ['WX05-019','WX18-038','WXEX1-02','WXK11-029'].sort().join(','),
+      'active CONTINUOUS REMOVE_ABILITIES universe is the reviewed family minus deferred WX09');
+    eq(removeAbilityCards.filter(n => cardMap.get(n)?.Type === 'ルリグ').sort().join(','),
+      'WXEX1-02', 'only unconditional WXEX1-02 remains an active LRIG source');
+    eq(['WX05-019','WXK11-029','WX18-038'].filter(n => cardMap.get(n)?.Type === 'シグニ').length, 3,
+      'reviewed family has exactly three SIGNI cards');
+    eq(['WX09-Re01','WXEX1-02'].filter(n => cardMap.get(n)?.Type === 'ルリグ').length, 2,
+      'reviewed family has exactly two LRIG cards');
+
+    const target = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] });
+    target.field.signi_frozen = [true, false, false];
+    const source = mkState({});
+    source.field.lrig = ['WXEX1-02'];
+    const em = new Map(effectsMap);
+    em.set('WXEX1-02', mergeManualEffects('WXEX1-02', effectsMap.get('WXEX1-02') ?? []));
+    const cont = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '常');
+    const auto = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '自');
+    const act = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '起');
+    ok(cont.has(SIGNI_L1) && auto.has(SIGNI_L1), 'frozen CONT/AUTO');
+    ok(!cont.has(SIGNI_L2) && !auto.has(SIGNI_L2) && !act.has(SIGNI_L1), 'unfrozen/ACT remain');
+  } finally {
+    cursor = cursorBefore;
+  }
+});
+
+test('task12(liv): frozen/charmed filters execute and deferred effects do not facing-lock', () => {
+  const cursorBefore = cursor;
+  try {
+    const cases = [
+      { source: 'WX18-038', stateKey: 'signi_charms', stateValue: SIGNI_L3 },
+    ] as const;
+    for (const c of cases) {
+      const target = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] });
+      (target.field[c.stateKey] as unknown[]) = [c.stateValue, c.stateKey === 'signi_frozen' ? false : null, c.stateKey === 'signi_frozen' ? false : null];
+      const source = mkState({ signi: [c.source, null, null] });
+      const em = new Map(effectsMap);
+      em.set(c.source, mergeManualEffects(c.source, effectsMap.get(c.source) ?? []));
+      const removed = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '常');
+      ok(removed.has(SIGNI_L1), `${c.source}: matching target loses abilities`);
+      ok(!removed.has(SIGNI_L2), `${c.source}: non-matching target keeps abilities`);
+    }
+    for (const sourceNum of ['WX09-Re01','WX12-023','WX25-P3-055','WXK01-002','WXK03-071','WXDi-P16-062']) {
+      const target = mkState({ signi: [SIGNI_L1, null, null] });
+      const source = mkState(sourceNum === 'WX09-Re01' ? {} : { signi: [sourceNum, null, null] });
+      if (sourceNum === 'WX09-Re01') source.field.lrig = [sourceNum];
+      const em = new Map(effectsMap);
+      em.set(sourceNum, mergeManualEffects(sourceNum, effectsMap.get(sourceNum) ?? []));
+      const removed = collectContinuousAbilitiesRemovedSigni(target, source, true, em, cardMap, '常');
+      ok(!removed.has(SIGNI_L1), `${sourceNum}: deferred text must not facing-lock`);
+    }
+  } finally {
+    cursor = cursorBefore;
+  }
 });
 
 test('new conditions: each electric level and no abilities', () => {

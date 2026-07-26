@@ -3343,15 +3343,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P16-062 コードライド マキナ//THE DOOR（乗機）
   // E1【常】：同ゾーンゲートで「【自】各APS開始時、相手シグニ1体を対象とし、相手が《無》を払わないかぎりターン終了時まで能力を失う」を得る。
-  //   → 近似：CONTINUOUS REMOVE_ABILITIES opponent（対面）に activeCondition SAME_ZONE_HAS_GATE を付与（旧＝無条件のフリーロックbug。相手の《無》支払い回避とAPS再付与は近似省略）。
+  //   引用付与の対象/任意支払いを忠実に表す追加機構待ち。旧 facing フリーロック近似は有害なので明示 no-op。
   // E2【常】：同じシグニゾーンに【ゲート】があるあなたのシグニのパワーを＋2000する。
   //   → CONTINUOUS POWER_MODIFY self ALL に inGateZone フィルタ（own_gate_zones のゾーンのシグニのみ）。
   'WXDi-P16-062': [
     {
       effectId: 'WXDi-P16-062-E1',
       effectType: 'CONTINUOUS',
-      activeCondition: { type: 'SAME_ZONE_HAS_GATE' },
-      action: { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, until: 'UNTIL_END_OF_TURN' },
+      action: { type: 'STUB', id: 'DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY' },
       duration: 'PERMANENT',
       mandatory: true,
       parseStatus: 'MANUAL',
@@ -4156,6 +4155,34 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WXEX1-02": [
     {"effectId":"WXEX1-02-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","isFrozen":true}},"abilityTypes":["常","自"],"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // Opus task 12 (liv): state-filtered global ability loss.
+  "WX09-Re01": [
+    // Honest defer: the printed grow condition requires the center LRIG name to
+    // contain リメンバ, but LRIG_NAME_CONTAINS is not an ActiveCondition and
+    // checkActiveCondition cannot evaluate it. Wiring this unconditionally would
+    // over-fire, so keep E1 inert until that condition mechanism is implemented.
+    {"effectId":"WX09-Re01-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX18-038": [
+    {"effectId":"WX18-038-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","hasCharm":true}},"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // Opus task 12 (liv) honest defers. These texts do not remove abilities
+  // from a field SIGNI: trash-zone immunity (WX12), replacement effects
+  // losing their own ability (WX25/K01/K03), and a nested granted AUTO
+  // ability (P16-062). Keep an explicit no-op instead of the old harmful
+  // opponent count:1 approximation.
+  "WX12-023": [
+    {"effectId":"WX12-023-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WX25-P3-055": [
+    {"effectId":"WX25-P3-055-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXK01-002": [
+    {"effectId":"WXK01-002-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXK03-071": [
+    {"effectId":"WXK03-071-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-P01-003": [
     {"effectId":"WXDi-P01-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"condition":{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白","青"]},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ","isFrozen":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}

@@ -4774,6 +4774,28 @@ export function collectContinuousAbilitiesRemovedSigni(
     }
   }
 
+  // 相手フィールドのセンタールリグ由来 CONTINUOUS REMOVE_ABILITIES。
+  // ルリグには facing を決めるシグニゾーン index が無いため count:'ALL' だけを扱う。
+  // count:1 は既存の facing 規約の対象外とし、シグニ由来の走査だけに残す。
+  const otherLrigTop = otherState.field.lrig.at(-1);
+  if (otherLrigTop) {
+    for (const eff of (effectsMap.get(otherLrigTop) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
+      const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
+      if (act.target.owner !== 'opponent' || act.target.count !== 'ALL') continue;
+      if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, otherLrigTop)) continue;
+      for (let targetZi = 0; targetZi < state.field.signi.length; targetZi++) {
+        const top = state.field.signi[targetZi]?.at(-1);
+        if (!top) continue;
+        if (act.target.filter && (!matchesFilter(cardMap.get(top), act.target.filter)
+          || !matchesStateFilter(state, targetZi, act.target.filter))) continue;
+        removed.add(top);
+      }
+    }
+  }
+
   return removed;
 }
 

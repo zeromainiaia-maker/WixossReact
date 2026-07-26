@@ -7,14 +7,14 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-07-25）
+## サマリー（最終生成: 2026-07-26）
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 569 |
+| JSON で使用中の STUB id 種類 | 573 |
 | 　└ ハンドラ実装あり | 547 |
-| 　└ フォールバック（execStub 未処理） | 22 |
-| 総 STUB ノード件数 | 2446 |
+| 　└ フォールバック（execStub 未処理） | 26 |
+| 総 STUB ノード件数 | 2452 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 285 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -30,6 +30,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
 | `BATTLE_BANISH_PREVENT_LOSE_ABILITY` | 3 | 3 | WX13-031, WX16-001, WXK04-068 |  |
+| `DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY` | 3 | 3 | WX25-P3-055, WXK01-002, WXK03-071 |  |
 | `GRANT_ALL_ZONE_LIFEBURST` | 3 | 3 | WD14-001, WX02-002, WX17-036 |  |
 | `GUARD_LOSS_UNLESS_LRIG` | 3 | 3 | WX12-025, WX12-034, WX12-036 |  |
 | `OPTIONAL_TRASH_SELF` | 3 | 3 | WX06-CB03, WX21-056, WX21-061 |  |
@@ -39,6 +40,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` | 1 | 1 | WX16-021 |  |
 | `ATTACK_NEGATE_IMMUNITY_SELF` | 1 | 1 | WX24-P4-016 |  |
+| `DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS` | 1 | 1 | WX09-Re01 |  |
+| `DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY` | 1 | 1 | WXDi-P16-062 |  |
+| `DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY` | 1 | 1 | WX12-023 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
 | `FLIP_SELF_FACE_DOWN_UP` | 1 | 1 | WX25-CP1-060 |  |
 | `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` | 1 | 1 | WXDi-P00-026 |  |

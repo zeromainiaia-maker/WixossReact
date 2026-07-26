@@ -9767,3 +9767,11 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 
 - **症状:** 《ダウン》起動効果が、対象シグニが既にダウン済みでも再発動できた（WX01-072 等）。
 - **修正:** `BattleScreen.tsx` の activatable フィルタに `down_self`（既ダウン）/`discard`（手札不足）を追加。`executeSigniActivated` 冒頭にも多重発動防止ガード。
+# 2026-07-27 — Opusタスク12 (liv): CONTINUOUS能力喪失の誤 facing 8効果（差し戻し対応）
+
+- `collectContinuousAbilitiesRemovedSigni` の相手フィールド側にセンタールリグ頂点の走査を追加。ルリグにはシグニゾーン index が無いため `owner:'opponent'` かつ `count:'ALL'` だけを評価し、`count:1` の facing 解決は従来どおりシグニ由来だけに限定した。自フィールド側は該当データ0件で要求範囲外のため追加せず、未検証の対称拡張を避けた。
+- CONTINUOUS `REMOVE_ABILITIES` の実データ母集団は5枚だけ（シグニ＝WX05-019／WXK11-029／WX18-038、ルリグ＝WX09-Re01／WXEX1-02）と golden で固定。新ルリグ分岐へ到達しうるカード種別は後者2枚だけ。ただし WX09-Re01-E1 は「センタールリグ名に《リメンバ》を含む」を表す `LRIG_NAME_CONTAINS` が `Condition` にしかなく、`ActiveCondition`／`checkActiveCondition` では評価不能だったため、無条件の過剰発火を避け `DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS` へ honest defer。したがって現時点で実挙動が有効化されるのは無条件の WXEX1-02-E1 だけ。
+- golden は共有 `cursor` の `try/finally` save/restore を維持し、WXEX1-02 を実戦どおり `field.lrig` に配置。凍結 zone0 は【常】【自】を失い、非凍結 zone1 と【起】は失わないことを engine 直呼びで確認。WX09-Re01 もルリグ配置で no-op を固定し、WX18-038 はシグニ配置でチャーム対象だけ能力喪失を確認。
+- WX12-023-E1（トラッシュ/ルリグトラッシュ）、WX25-P3-055-E2／WXK01-002-E1／WXK03-071-E1（置換帰結の「この能力」）、WXDi-P16-062-E1（引用付与）は、場の対面シグニを消す有害な近似を明示 STUB no-op に変更し honest defer。live effects JSON の意味的 diff は前ラウンド対象8効果の範囲内（WX09-Re01 は忠実化候補から明示 defer へ修正）。
+- `node scripts/genStubsMd.mjs` で `docs/STUBS.md` を再生成し、前回未登録の3 id に加えて今回の WX09 defer id も登録。census 1545（1549→1545）の減少4は MANUAL/STUB分類移動を含む計器上の減少であり、4件の機能実装を意味しない。
+- `npm run gates` 全緑：typecheck PASS、golden 741/741、smoke 10725/10725（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム（不具合0）、census 1545、lint 0 errors（既存 warnings のみ）。
