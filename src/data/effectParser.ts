@@ -6762,6 +6762,85 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     }
   }
 
+  // §3 Opusタスク5 残小口3枚。一般regexへ広げると「それ」や複数sourceの先行詞を誤るため、
+  // 原文照合済みeffectIdだけを忠実な既存語彙＋最小条件語彙へ外科的に再構成する。
+  const task5Effect = (effectId: string) => effects.find(e => e.effectId === effectId);
+  if (card.CardNum === 'WXEX1-65') {
+    const e = task5Effect('WXEX1-65-E1');
+    if (e) e.action = {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['青'] },
+        {
+          type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+          then: {
+            type: 'SEQUENCE',
+            steps: [
+              { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 1 } },
+              {
+                type: 'CONDITIONAL',
+                condition: { type: 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI' },
+                then: {
+                  type: 'TRANSFER_TO_DECK',
+                  source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } },
+                  shuffle: false,
+                  position: 'top',
+                },
+              },
+            ],
+          },
+        },
+      ],
+    };
+  }
+  if (card.CardNum === 'WXEX2-50') {
+    const e = task5Effect('WXEX2-50-E3');
+    if (e?.action.type === 'SEQUENCE') {
+      const second = e.action.steps[1];
+      if (second?.type === 'ADD_TO_FIELD' && second.source) {
+        second.source.filter = { ...(second.source.filter ?? {}), levelLteLastProcessed: true };
+      }
+    }
+  }
+  if (card.CardNum === 'WX20-053') {
+    const e = task5Effect('WX20-053-E2');
+    if (e) e.action = {
+      type: 'CHOOSE',
+      choose_count: 1,
+      from_count: 2,
+      choices: [
+        {
+          choiceId: 'hand',
+          label: '手札から《クイン》を含むシグニを場に出す',
+          condition: {
+            type: 'HAND_COUNT_FILTER', owner: 'self',
+            filter: { cardType: 'シグニ', cardName: 'クイン' }, operator: 'gte', value: 1,
+          },
+          action: {
+            type: 'ADD_TO_FIELD', owner: 'self',
+            source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', cardName: 'クイン' } },
+          },
+        },
+        {
+          choiceId: 'deck',
+          label: 'デッキから《クイン》を含むシグニを探して場に出す',
+          condition: {
+            type: 'DECK_COUNT_FILTER', owner: 'self',
+            filter: { cardType: 'シグニ', cardName: 'クイン' }, operator: 'gte', value: 1,
+          },
+          action: {
+            type: 'SEARCH',
+            from: { location: 'deck', owner: 'self' },
+            filter: { cardType: 'シグニ', cardName: 'クイン' },
+            maxCount: 1,
+            then: { type: 'ADD_TO_FIELD', owner: 'self' },
+            afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+          },
+        },
+      ],
+    };
+  }
+
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
   applyStateCondBatch4(effects);

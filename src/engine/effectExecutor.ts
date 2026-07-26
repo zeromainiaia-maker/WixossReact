@@ -3221,8 +3221,19 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   if (src.type === 'SIGNI') {
     // frontOfGateZone: THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニに限定
     let gateFrontRestrict: string[] | null = null;
+    let selfFrontRestrict: string[] | null = null;
     // levelLteDiscardSigni:「この方法で捨てたシグニのレベル以下」をキャスター側の値で解決（WXK10-044）
     let srcFilter = resolveDiscardLevelFilter(src.filter, ctx.ownerState);
+    // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）だけをデッキへ移す。
+    // filter を宣言しただけでは fieldCandidates が盤面幾何を評価しないため、ここで候補を固定する（WXEX1-65）。
+    // ⚠正面の解決は execBanish/execDown と同じ共通ヘルパーに揃える（発生源がスタックのトップでない＝
+    //   下敷きのときは正面を解決しない＝場に出ているシグニだけが発生源になりうる、という既存規約）。
+    if (srcFilter?.frontOfSelf) {
+      const { frontOfSelf: _f, ...rest } = srcFilter;
+      srcFilter = rest;
+      const front = src.owner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : null;
+      selfFrontRestrict = front ? [front] : [];
+    }
     if (srcFilter?.frontOfGateZone) {
       const { frontOfGateZone: _g, ...rest } = srcFilter;
       srcFilter = rest;
@@ -3237,6 +3248,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     }
     let cands = fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
     if (gateFrontRestrict !== null) cands = cands.filter(n => gateFrontRestrict!.includes(n));
+    if (selfFrontRestrict !== null) cands = cands.filter(n => selfFrontRestrict!.includes(n));
     const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
     const scope: TargetScope = src.owner === 'self' ? 'self_field' : 'opp_field';
 

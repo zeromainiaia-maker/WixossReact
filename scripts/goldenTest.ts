@@ -261,6 +261,91 @@ test('frontOfSelf WXDi-P04-049-E1: attack-phase trigger removes only opposing fr
   eq(empty.otherState.abilities_removed?.length ?? 0, 0, 'empty front is no-op');
 });
 
+test('§3タスク5 WXEX1-65-E1: 正面2-zi・直前ミル同レベル・相手owner・デッキ上を実戦配置で評価', () => {
+  const savedCursor = cursor;
+  const host = 'WXEX1-65';
+  const blueEnergy = findCard(c => (c.Color ?? '').includes('青'));
+  const level2Cards = [...cardMap.values()].filter(c => isSigni(c) && c.Level === '2' && c.CardNum !== host);
+  const milledL2 = level2Cards[0].CardNum;
+  const frontL2 = level2Cards[1].CardNum;
+  const side = SIGNI_L3;
+  const ownSide = SIGNI_L4;
+  const effect = manualEffect(host, 'WXEX1-65-E1');
+  const freshEffect = parseCardEffects(cardMap.get(host)!).find(e => e.effectId === 'WXEX1-65-E1')!;
+  eq(JSON.stringify(freshEffect.action), JSON.stringify(effect.action), 'parser freshとcuratedが一致');
+  const actionJson = JSON.stringify(effect.action);
+  ok(actionJson.includes('LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI'), '同レベル条件が構造化される');
+  ok(actionJson.includes('"owner":"opponent"') && actionJson.includes('"frontOfSelf":true'), '正面の相手シグニだけを対象');
+  ok(actionJson.includes('"position":"top"'), 'デッキ上指定');
+
+  // 自分zi=0の正面は相手zi=2。相手デッキトップと正面をレベル2にして支払う。
+  const hitCtx = mkCtx({ signi: [host, ownSide, null] }, { signi: [side, null, frontL2], deckTop: [milledL2] }, host);
+  hitCtx.ownerState.energy = [blueEnergy];
+  const hit = finishPayingCosts(executeEffect(effect, hitCtx), hitCtx);
+  eq(tops(hit.otherState)[2], null, '正面(2-zi)の相手シグニだけが場を離れる');
+  eq(tops(hit.otherState)[0], side, '非正面の相手シグニは残る');
+  ok(tops(hit.ownerState).includes(ownSide), '自分のシグニはデッキへ送られない');
+  eq(hit.otherState.deck[0], frontL2, '正面シグニが相手デッキの一番上へ');
+
+  // 同じzi=0は正面ではない。正面zi=2のレベルもミル札と異なるため不成立。
+  const missCtx = mkCtx({ signi: [host, ownSide, null] }, { signi: [frontL2, null, SIGNI_L3], deckTop: [milledL2] }, host);
+  missCtx.ownerState.energy = [blueEnergy];
+  const miss = finishPayingCosts(executeEffect(effect, missCtx), missCtx);
+  eq(tops(miss.otherState)[2], SIGNI_L3, '正面とミル札のレベル不一致なら戻さない');
+  eq(tops(miss.otherState)[0], frontL2, 'same-ziの同レベル札を誤対象にしない');
+  cursor = savedCursor;
+});
+
+test('§3タスク5 WXEX2-50-E3: 相手の場出しを跨いだlastProcessedCardsで凶蟲レベル上限を評価', () => {
+  const savedCursor = cursor;
+  const oppPlaced = findCard(c => isSigni(c) && c.Level === '2');
+  const lowInsect = findCard(c => isSigni(c) && c.Level === '1' && (c.CardClass ?? '').includes('凶蟲'));
+  const highInsect = findCard(c => isSigni(c) && parseInt(c.Level ?? '0', 10) > 2 && (c.CardClass ?? '').includes('凶蟲'));
+  const effect = manualEffect('WXEX2-50', 'WXEX2-50-E3');
+  const freshEffect = parseCardEffects(cardMap.get('WXEX2-50')!).find(e => e.effectId === 'WXEX2-50-E3')!;
+  eq(JSON.stringify(freshEffect.action), JSON.stringify(effect.action), 'parser freshとcuratedが一致');
+  const seq = effect.action as SequenceAction;
+  const second = seq.steps[1] as AddToFieldAction;
+  ok(second.source?.filter?.levelLteLastProcessed === true, '第2配置にlevelLteLastProcessed');
+  const ctx = mkCtx({}, {}, 'WXEX2-50');
+  ctx.otherState.trash = [oppPlaced];
+  ctx.ownerState.trash = [lowInsect, highInsect];
+  const result = finish(executeEffect(effect, ctx), ctx);
+  ok(tops(result.otherState).includes(oppPlaced), '第1配置の相手レベル2シグニが場に出る');
+  ok(tops(result.ownerState).includes(lowInsect), 'レベル2以下の凶蟲は候補になり場に出る');
+  ok(result.ownerState.trash.includes(highInsect), '上限超過の凶蟲は候補外のまま');
+  cursor = savedCursor;
+});
+
+test('§3タスク5 WX20-053-E2: 手札/デッキ二重sourceを選び、デッキ枝だけshuffle', () => {
+  const savedCursor = cursor;
+  const queen = findCard(c => isSigni(c) && (c.CardName ?? '').includes('クイン'));
+  const nonQueen = findCard(c => isSigni(c) && !(c.CardName ?? '').includes('クイン') && c.CardNum !== 'WX20-053');
+  const effect = manualEffect('WX20-053', 'WX20-053-E2');
+  const freshEffect = parseCardEffects(cardMap.get('WX20-053')!).find(e => e.effectId === 'WX20-053-E2')!;
+  eq(JSON.stringify(freshEffect.action), JSON.stringify(effect.action), 'parser freshとcuratedが一致');
+  eq(effect.condition?.type, 'FIELD_COUNT', '使用条件は自場0体');
+  const choose = effect.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(choose.type, 'CHOOSE', '二重sourceの選択UI');
+  eq(choose.choices[0].condition?.type, 'HAND_COUNT_FILTER', '手札候補availability');
+  eq(choose.choices[1].condition?.type, 'DECK_COUNT_FILTER', 'デッキ候補availability');
+
+  const handCtx = mkCtx({}, {}, 'WX20-053');
+  handCtx.ownerState.hand = [queen];
+  handCtx.ownerState.deck = [nonQueen];
+  const fromHand = finish(executeEffect(effect, handCtx), handCtx);
+  ok(tops(fromHand.ownerState).includes(queen), '手札のクインを場に出す');
+  ok(!fromHand.logs.some(l => l.includes('シャッフル')), '手札枝ではデッキをシャッフルしない');
+
+  const deckCtx = mkCtx({}, {}, 'WX20-053');
+  deckCtx.ownerState.hand = [nonQueen];
+  deckCtx.ownerState.deck = [queen, nonQueen];
+  const fromDeck = finish(executeEffect(effect, deckCtx), deckCtx);
+  ok(tops(fromDeck.ownerState).includes(queen), 'デッキのクインを探して場に出す');
+  ok(fromDeck.logs.some(l => l.includes('シャッフル')), 'デッキ枝だけデッキをシャッフルする');
+  cursor = savedCursor;
+});
+
 test('§3 タスク6「代わりに」B1残: per-target 値すり替えが別対象への二重POWER_MODIFYではなく条件置換になる', () => {
   // 4枚とも action = CONDITIONAL{condition, then:enhanced(同一相手対象), else:base(同一相手対象)}。
   // 旧＝base の後に owner:any/thisCardOnly へ無条件 -N する過剰効果（別対象二重適用）だった。

@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き265＝§3タスク5 残小口3枚（WXEX1-65／WXEX2-50／WX20-053）を忠実化＝いずれも「幻覚 or 過剰効果」の実害（golden 744→747・census 1545 維持）（2026-07-27・codex実装/Opus 5 確認・是正）
+
+**運用**＝codex（有料版 sol）へ3枚を投げ、Claude は確認・是正・簿記・commit（[feedback_codex_delegation] の型）。**3枚とも defer なしで完遂**。3枚に共通する壊れ方は「条件・source・owner が脱落した結果、**原文より強い/違う動作**になっていた」こと。
+
+- **WXEX1-65-E1「幻水　Ｄｒ．フィッシュ」**（原文＝アタック時に《青》を払ってもよい／そうしたら相手デッキトップをトラッシュ／**それが正面のシグニとレベルが同じ場合**、正面のシグニをデッキの一番上に置く）。旧 JSON は `TRANSFER_TO_DECK{SIGNI, owner:'self'}` ＝**自分のシグニ1体をデッキへ送る幻覚**の上、レベル比較条件が丸ごと無く**無条件実行**、`position:'top'` も脱落していた。→ `owner:'opponent'`＋`frontOfSelf`＋`position:'top'` へ是正し、新条件 `LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI`（直前にトラッシュしたカードと、効果元シグニの正面＝相手 `2-zi` のシグニの表記レベルを比較）を新設。**`TRANSFER_TO_DECK` の SIGNI 経路は `frontOfSelf` を宣言しても評価していなかった**（`fieldCandidates` が盤面幾何を見ない）ので engine に候補固定を配線＝**宣言だけの no-op を回避**。
+- **WXEX2-50-E3「大幻蟲　エンマコロギ」**＝「あなたのトラッシュから**この方法で場に出たシグニ以下のレベルを持つ**＜凶蟲＞」のレベル上限が無く、**任意レベルの＜凶蟲＞を出せる過剰効果**だった。既存語彙 `levelLteLastProcessed` を第2 `ADD_TO_FIELD` の filter に追加（engine 側は既存経路で評価＝新規配線なし）。第1配置（相手の場に出す＝対話的ゾーン選択）を跨いでも `lastProcessedCards` が保持されることを e2e で実測（続き203 で `placedSoFar` を補完済みの経路）。
+- **WX20-053-E2「コードメイズ　リバティ」**＝`source` なしの**丸裸 `ADD_TO_FIELD`**（＝手札/デッキ検索・カード名フィルタが全消失）＋「この方法でデッキから探していた場合」が既知系統の `IS_MY_TURN` 誤変換。→ `CHOOSE` で**手札枝**（`ADD_TO_FIELD{HAND_CARD}`）と**デッキ枝**（`SEARCH`→`ADD_TO_FIELD`→`afterSearch:SHUFFLE_DECK`）の二重 source を表現し、シャッフルを**デッキ枝にだけ構造的に属させた**（did-search 用の状態追跡が不要になる）。新条件 `DECK_COUNT_FILTER` で候補のないデッキ枝を選択不可に。使用条件 `FIELD_COUNT self eq 0` とゲーム除外コストは元から正しく据置。
+- **parser は「原文照合済み effectId だけの外科的再構成」**（一般 regex に広げると「それ」の先行詞や複数 source を誤るため）。**Claude が全10623効果を旧/新 parser で生 parse して機械 diff＝変化は上記3効果のみ・退化0**。curated も `effects_WX.json` の3 effectId だけが変化（効果単位 diff で機械確認）。**実データ語彙件数**＝`LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI` 1／`DECK_COUNT_FILTER` 1／`levelLteLastProcessed` 6（うち新規1）／`frontOfSelf` 16（うち `TRANSFER_TO_DECK` 経路は本件1件のみ＝**新経路の影響範囲は1効果**）。
+- **⚠Claude 確認が捕まえたもの＝正面解決の重複実装と規約ズレ**。codex は `resolveFrontOfSelfCardNum`（既存の共通ヘルパー・`s?.at(-1) === sourceCardNum`）があるのに自前で `stack?.includes(sourceCardNum)` を書いており、**発生源がスタックのトップでない（下敷きの）ときにも正面を解決してしまう**規約ズレだった。`execTransferToDeck` は共通ヘルパー呼び出しへ置換、`evalCondition` 側（execUtils→effectExecutor は循環 import になるため呼べない）は同じ式に揃えた。
+- **検証**＝`npm run gates` **全緑を2回連続**（golden 747/747・smoke 10725 全 OK・fuzz 200ゲーム 0・census **1545 維持**＝`BASELINE_HIGH` 更新なし・lint 0e）。`npm run regen`＋`node scripts/groupSimilar.mjs --all` で**同型★0**（5986枚）を Claude 側でも独立再現。golden は**実戦配置**（自分 zi=0 ⇔ 相手 zi=2）で成立／不成立／**same-zi の同レベル札を誤対象にしない**／自シグニ無傷／デッキ上を固定し、共有 `cursor` を save/restore。
+- **既知の軽微な表示不備（未修正）**＝逆翻訳の `HAND_COUNT_FILTER` が「あなたの手札に《クイン》カードが1枚以上**場合**」（「ある」が抜ける）。**既存 decompiler の表現バグ**で本件で新規に露出しただけ＝他カードの行も一斉に変わるため今回は触らず。
+
 ## 続き264＝§3タスク5①「デッキに戻す」catch-all の全数再点検＝場のシグニ移動への幻覚を系統除去（golden 741→744・census 1545 維持）（2026-07-27・codex実装/Opus 5確認・是正）
 
 **運用**＝codex（有料版 sol）へ PLAN §3 タスク5 の小口5項目を上から投げ、**必達①のみ完了・②以降は honest defer**（[feedback_codex_delegation] の型）。Claude は確認・追加是正・簿記・commit。

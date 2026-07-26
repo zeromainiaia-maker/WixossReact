@@ -304,6 +304,7 @@ function condJa(c?: any): string {
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
     case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'DECK_COUNT_FILTER': return `${ownerJa(c.owner)}デッキに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     case 'HAND_COUNT': return c.owner === 'any'
       ? `いずれかのプレイヤーの手札が${numJa(c.value)}枚${opJa(c.operator)}`
       : `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${opJa(c.operator)}`;
@@ -331,6 +332,7 @@ function condJa(c?: any): string {
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
     case 'LAST_PROCESSED_HAS_TYPE': return `この方法でトラッシュに置いたカードの中に${c.cardType}がある`;
+    case 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI': return 'それがこのシグニの正面のシグニとレベルが同じ';
     case 'LAST_PROCESSED_SHARE_COLOR': return 'それらがそれぞれ共通する色を持つ';
     case 'FIELD_LRIGS_SHARE_COLOR': return `${ownerJa(c.owner)}場に共通する色を持つルリグが${numJa(c.minCount)}体以上いる`;
     case 'HAS_CARD_IN_FIELD':

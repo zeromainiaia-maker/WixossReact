@@ -822,6 +822,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         cond.operator, resolveNum(cond.value));
     case 'DECK_COUNT':
       return cmp(st(cond.owner).deck.length, cond.operator, resolveNum(cond.value));
+    case 'DECK_COUNT_FILTER': {
+      const matched = st(cond.owner).deck.filter(cn =>
+        matchesFilter(ctx.cardMap.get(getCardNum(cn)), cond.filter));
+      return cmp(matched.length, cond.operator, resolveNum(cond.value));
+    }
     case 'HAND_COUNT':
       if (cond.owner === 'any') {
         return cmp(s.hand.length, cond.operator, resolveNum(cond.value)) ||
@@ -1339,6 +1344,20 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // この方法で直前に処理した（トラッシュ等）カードの中に指定Type（'スペル'等）が含まれるか（G164）
       const proc = ctx.lastProcessedCards ?? [];
       return proc.some(cn => ctx.cardMap.get(cn)?.Type === cond.cardType);
+    }
+    case 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI': {
+      const processed = ctx.lastProcessedCards?.[0];
+      const source = ctx.sourceCardNum;
+      if (!processed || !source) return false;
+      // 正面の解決は effectExecutor の resolveFrontOfSelfCardNum と同規約（発生源はスタックのトップに限る）。
+      // ⚠execUtils → effectExecutor は循環 import になるため、ここでは同じ式を保つ形で揃える。
+      const sourceZi = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === source);
+      if (sourceZi < 0) return false;
+      const front = ctx.otherState.field.signi[2 - sourceZi]?.at(-1);
+      if (!front) return false;
+      const processedLevel = parseInt(ctx.cardMap.get(getCardNum(processed))?.Level ?? '', 10);
+      const frontLevel = parseInt(ctx.cardMap.get(getCardNum(front))?.Level ?? '', 10);
+      return Number.isFinite(processedLevel) && processedLevel === frontLevel;
     }
     case 'LAST_PROCESSED_MATCHES': {
       // 直前に処理/公開/選択したカード(lastProcessedCards)のフィルタ付き件数・種類数・集合条件。

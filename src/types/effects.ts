@@ -199,6 +199,7 @@ export type Condition =
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
+  | { type: 'DECK_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef } // デッキ内のfilter一致枚数（選択肢availabilityにも使用。WX20-053）
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致する手札枚数（distinctName=名前の異なる枚数）
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札−相手の手札の符号付き差（「手札が対戦相手より少ない場合」=lt,0／「より多い場合」=gt,0）。ActiveCondition 側にも同型あり＝両方揃えて更新すること
@@ -291,6 +292,7 @@ export type Condition =
   | { type: 'FIELD_SIGNI_ALL_DISTINCT_CLASS'; owner: Owner }  // 場のすべてのシグニがそれぞれ共通するクラスを持たない（互いに異クラス）場合（プライマル系。G158）
   | { type: 'LAST_PROCESSED_HAS_BURST'; negate?: boolean }   // lastProcessedCards[0] が【ライフバースト】を持つ場合。negate=true は持たない場合
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
+  | { type: 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI' }         // 直前に処理したカードと、効果元シグニの正面（相手2-zi）のシグニの表記レベルが同じ（WXEX1-65）
   | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
   | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; shareClass?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。旧 minCount は gte、operator/value で eq/lte 等、distinctName はカード名種類数、requiredCardNames は全指定名の包含、shareClass は全カードの共通クラス、levelLteCenterLrig は動的中央ルリグレベル比較。verbJa は decompiler 表示用
   | { type: 'LAST_LOOK_TRASHED_MATCHES'; filter: TargetFilter; minCount?: number } // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
