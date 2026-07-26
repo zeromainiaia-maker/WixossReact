@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -403,6 +403,79 @@ test('§3 タスク8 §6.3「正面」サブ機構(b)(d)(e): FRONT_SIGNI 条件�
   const notBlocked = collectContinuousAbilitiesRemovedSigni(
     mkState({ signi: [victim, null, null] }), mkState({ signi: ['WXK11-029', null, null] }), true, effectsMap, cm, '出');
   ok(!notBlocked.has(victim), 'same-zi はブロックしない');
+  cursor = savedCursor;
+});
+
+test('§3 task8(c) attack geometry: six cards use self-targeted multi/adjacent attack capabilities and EICHI gates', () => {
+  // mkState/fill はグローバル cursor を進めるため、後続テストの盤面を動かさないよう復元する（既存テストの慣例）
+  const savedCursor = cursor;
+  type GK = Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  for (const id of ['WX15-093', 'WXEX2-71']) {
+    const effectId = id === 'WX15-093' ? 'WX15-093-E1' : 'WXEX2-71-E3';
+    const e = manualEffect(id, effectId);
+    const a = e.action as GK;
+    eq(a.type, 'GRANT_KEYWORD', `${effectId} action`);
+    eq(a.target.owner, 'self', `${effectId} owner`);
+    eq(a.keyword, '正面以外追加アタック', `${effectId} runtime capability`);
+  }
+  for (const id of ['WX15-094', 'WX15-095', 'WX15-096']) {
+    const e = manualEffect(id, `${id}-E1`);
+    const a = e.action as GK;
+    eq(a.keyword, '正面隣追加アタック', `${id} adjacent-additional geometry`);
+    ok(a.target.filter?.thisCardOnly === true, `${id} grants only itself`);
+    eq(e.activeCondition?.type, 'HAS_CARD_IN_FIELD', `${id} three-EICHI condition`);
+  }
+  const e2 = manualEffect('WXEX2-71', 'WXEX2-71-E2');
+  const e3 = manualEffect('WXEX2-71', 'WXEX2-71-E3');
+  eq(JSON.stringify(e2.activeCondition), JSON.stringify({ type: 'EICHI_LEVEL_SUM', operator: 'eq', value: 2 }), 'WXEX2-71-E2 EICHI=2');
+  eq(JSON.stringify(e3.activeCondition), JSON.stringify({ type: 'EICHI_LEVEL_SUM', operator: 'eq', value: 5 }), 'WXEX2-71-E3 EICHI=5');
+
+  const activatedWithActiveCondition: string[] = [];
+  for (const [id, generated] of effectsMap) {
+    for (const e of mergeManualEffects(id, generated)) {
+      if (e.effectType === 'ACTIVATED' && e.activeCondition) activatedWithActiveCondition.push(e.effectId);
+    }
+  }
+  eq(activatedWithActiveCondition.sort().join(','), 'WX16-043-E2,WXEX2-71-E3',
+    'all activeCondition-gated ACTIVATED data is limited to these two SIGNI effects');
+
+  const eichiByLevel = (level: number) => {
+    const card = [...cardMap.values()].find(c => c.CardClass?.includes('英知') && parseInt(c.Level ?? '0', 10) === level);
+    if (!card) throw new Error(`level ${level} EICHI fixture missing`);
+    return card.CardNum;
+  };
+  const emptyOpponent = mkState();
+  const sum5 = mkState({ signi: [eichiByLevel(2), eichiByLevel(3), null] });
+  const sum11 = mkState({ signi: [eichiByLevel(3), eichiByLevel(4), eichiByLevel(4)] });
+  ok(checkActiveCondition(e3.activeCondition, sum5, emptyOpponent, true, cardMap, 'WXEX2-71'),
+    'WXEX2-71-E3 is enabled at EICHI=5');
+  ok(!checkActiveCondition(e3.activeCondition, sum11, emptyOpponent, true, cardMap, 'WXEX2-71'),
+    'WXEX2-71-E3 is disabled outside EICHI=5');
+  const wx16043e2 = mergeManualEffects('WX16-043', effectsMap.get('WX16-043') ?? [])
+    .find(e => e.effectId === 'WX16-043-E2')!;
+  ok(checkActiveCondition(wx16043e2.activeCondition, sum11, emptyOpponent, true, cardMap, 'WX16-043'),
+    'WX16-043-E2 is enabled at printed EICHI=11');
+  ok(!checkActiveCondition(wx16043e2.activeCondition, sum5, emptyOpponent, true, cardMap, 'WX16-043'),
+    'WX16-043-E2 is disabled outside printed EICHI=11');
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battleSource.includes(
+    '(!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, battleCardMap, topNum, effectivePowers))',
+  ), 'signi ACTIVATED candidate filter evaluates activeCondition');
+
+  const armored = manualEffect('WXK04-072', 'WXK04-072-E1b');
+  eq(armored.action.type, 'STUB', 'WXK04-072-E1b existing MULTI_ZONE_ATTACK');
+  eq((armored.action as { type: 'STUB'; id: string }).id, 'MULTI_ZONE_ATTACK', 'WXK04-072-E1b lock-in');
+  eq(armored.activeCondition?.type, 'IS_SELF_ARMORED', 'WXK04-072-E1b armor gate');
+
+  const localMap = new Map(effectsMap);
+  for (const id of ['WX15-094', 'WX15-095', 'WX15-096']) {
+    localMap.set(id, mergeManualEffects(id, effectsMap.get(id) ?? []));
+  }
+  const host = mkState({ signi: ['WX15-094', 'WX15-095', 'WX15-096'] });
+  const kws = collectContinuousGrantedKeywords(host, mkState(), true, localMap, cardMap);
+  for (const id of ['WX15-094', 'WX15-095', 'WX15-096']) {
+    ok(kws[id]?.includes('正面隣追加アタック'), `${id} active only on its own instance`);
+  }
   cursor = savedCursor;
 });
 

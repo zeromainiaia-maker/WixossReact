@@ -110,6 +110,7 @@
 | 🆕(xlvi) | **parser は `REVEAL_AND_PICK`（手札に加える）を出すのに curated が古い `LOOK_AND_REORDER` のまま held ドリフトしカードアドバンテージが死んでいた系統**。✅続き218g で9効果を外科的採用（census 1886→1880）。**残＝真ドリフト36件中の未採用27件**＝大半が `parseStatus:MANUAL` で fresh が filter/条件を落とす過剰簡約（WXK10-022-E3 無色ではない・WXK01-004-E1 レベル奇数等）＝忠実表現する parser 拡張が要る §6.3級。詳細 BUGFIXES 続き218g |
 | 🆕(xlii) | **フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` 残2枚**（続き216・Opus）。主因を消化し WXEX2-51-E1 を実装・7枚も是正。残＝(a)WX21-004-E2「同じレベル」配置＝`levelEqTrigger` 語彙が要るが該当1枚で据置（STUB維持・no-op）(b)WX22-001-E3＝フェイズ限定の遅延 ON_LEAVE_FIELD watcher＝`INSTALL_DELAYED_TRIGGER` の ON_LEAVE_FIELD 拡張が要る §6.3級。詳細 BUGFIXES 続き216 |
 | 🆕(l) | **アーツ「ターン終了時まで、あなたのセンタールリグは「【自】…」を得る」の内側【自】parse 失敗3枚＝完全 no-op**（続き234・Opus観測）＝WD21-009／PR-204／WX15-016。`GRANT_LRIG_ABILITY{abilities:[]}` に full rawText を抱えたまま内側【自】が nest されずアーツが何もしない。同パターン11枚中8枚は正しく nest 済＝§6.3 新機構は不要・内側 ability parse 改善で直る。失敗3枚の内側は複雑（アタック時トリガー／数字宣言／バーストアイコン照合／アタック無効）。詳細 BUGFIXES 続き234 |
+| 🆕(lv) | **WXEX2-71-E2 は `mandatory:false`＋costなしの自身 ON_PLAY で収集経路から脱落し、元から no-op**（2026-07-26・タスク8(c)差し戻し実測）＝`handleSummonSigni` の `ownOnPlay` は mandatory のみ、`ownCostOnPlay` は cost ありのみを収集し、`droppedOnPlay` が同 effectId を警告する。英知=2 `activeCondition` 自体は engine で正しく評価できるが発火候補にならない。任意・無コスト【出】の共通選択機構として実装する（本差し戻しでは honest defer）。|
 
 #### Sonnet のタスク（2026-07-15 棚卸し・生きているものだけ）
 

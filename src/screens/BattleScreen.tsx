@@ -7491,7 +7491,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // activeCondition（例: 血晶武装状態であるかぎり）を満たす場合のみ有効
         && (!e.activeCondition || checkActiveCondition(e.activeCondition, newMyState, newOpState, true, battleCardMap, myTopNum))
       );
-      if (mzaEffect) {
+      // Quoted abilities granted by an activated effect cannot become entries in
+      // effectsMap at runtime. GRANT_KEYWORD stores the equivalent capability here.
+      const hasGrantedMZA = (dynamicKeywords.my[myTopNum] ?? []).includes('正面以外追加アタック')
+        || (newMyState.keyword_grants?.[myTopNum] ?? []).includes('正面以外追加アタック');
+      if (mzaEffect || hasGrantedMZA) {
         const myCardDataMZA = battleCardMap.get(myTopNum);
         const myTxtMZA = (myCardDataMZA?.EffectText ?? '') + ' ' + (myCardDataMZA?.BurstText ?? '');
         // 「アタックする」= 強制、「アタックできる」= 任意（デフォルト任意）
@@ -7527,13 +7531,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // ADJACENT_ZONE_ATTACK: 英知=10条件で隣ゾーン1つにも追加バトル（WD20-009等）
+      // ADJACENT_ZONE_ATTACK / 正面隣追加アタック:
+      // 条件成立時、正面に加えて隣ゾーン1つにも追加バトル（WD20-009・WX15-094〜096等）
       const azaEffect = (effectsMap.get(myTopNum) ?? []).find(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'STUB' &&
         (e.action as import('../types/effects').StubAction).id === 'ADJACENT_ZONE_ATTACK' &&
         checkActiveCondition(e.activeCondition, myS, newOpState, true, battleCardMap, myTopNum),
       );
-      if (azaEffect) {
+      const hasGrantedAZA = (dynamicKeywords.my[myTopNum] ?? []).includes('正面隣追加アタック')
+        || (newMyState.keyword_grants?.[myTopNum] ?? []).includes('正面隣追加アタック');
+      if (azaEffect || hasGrantedAZA) {
         const myPowerAZA = effectivePowers.get(myTopNum) ?? (parseInt(battleCardMap.get(myTopNum)?.Power ?? '0') || 0);
         const adjZones = [zoneIndex - 1, zoneIndex + 1].filter(zi => zi >= 0 && zi < 3);
         let bestAZAZi = -1;
@@ -10632,6 +10639,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
           return matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter);
         }).length < e.cost.fieldDown.count) &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, battleCardMap, topNum, effectivePowers)) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
       if (activatable.length === 0) return [];
