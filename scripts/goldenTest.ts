@@ -10018,6 +10018,47 @@ test('PLAN 6.3 CHOOSE gate: WD22-036-G c0/c1 only continue after successful self
   ok(toy.slice(1, 6).every(n => c1Miss.ownerState.trash.includes(n)), 'c1: 空振り時は遊具を温存');
 });
 
+test('WXDi-P05-009-E1: ルリグ下を任意消費した場合だけトラッシュのカードをデッキ上へ', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = manualEffect('WXDi-P05-009', 'WXDi-P05-009-E1');
+    const action = eff.action;
+    const under = findCard(c => c.Type === 'アシストルリグ');
+    const trashTarget = findCard(c => c.Type === 'スペル');
+    const untouchedSigni = findCard(c => c.Type === 'シグニ');
+
+    const payCtx = mkCtx({ signi: [untouchedSigni, null, null] }, {}, 'WXDi-P05-009');
+    payCtx.ownerState = {
+      ...payCtx.ownerState,
+      trash: [trashTarget],
+      field: { ...payCtx.ownerState.field, lrig: [under, 'WXDi-P05-009'] },
+    };
+    const paid = run(action, payCtx);
+    eq(paid.ownerState.field.lrig.join(','), 'WXDi-P05-009', '発生源は実戦どおりルリグゾーンに残る');
+    ok(paid.ownerState.lrig_trash.includes(under), 'ルリグ直下のカードをルリグトラッシュへ');
+    eq(paid.ownerState.deck[0], trashTarget, 'トラッシュで選んだ任意カードをデッキトップへ');
+    eq(paid.ownerState.field.signi[0]?.at(-1), untouchedSigni, '場の自シグニを送る旧幻覚を再発させない');
+
+    const skipCtx = mkCtx({ signi: [untouchedSigni, null, null] }, {}, 'WXDi-P05-009');
+    skipCtx.ownerState = {
+      ...skipCtx.ownerState,
+      trash: [trashTarget],
+      field: { ...skipCtx.ownerState.field, lrig: [under, 'WXDi-P05-009'] },
+    };
+    const offered = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, skipCtx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', '任意コストの選択を提示');
+    if (offered.done || offered.pending.type !== 'CHOOSE') return;
+    const skipped = resumeChoose('skip', offered.pending, {
+      ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    });
+    ok(skipped.done, 'スキップ時は対象選択へ進まない');
+    ok(skipped.ownerState.trash.includes(trashTarget), '未払いならトラッシュを動かさない');
+    eq(skipped.ownerState.field.lrig.length, 2, '未払いならルリグ下を温存');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

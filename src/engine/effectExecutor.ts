@@ -2455,6 +2455,42 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];
 
+        // ルリグ下の任意コスト。対象カードを先に保持する専用機構を持たない
+        // WXDi-P05-009 は、解決中に割り込みがないため「支払い→トラッシュ選択」で
+        // 最終盤面が一致する。消費自体は既存 INTERNAL_CONSUME_LRIG_UNDER を再利用する。
+        if (stub.id === 'OPTIONAL_LRIG_UNDER_COST') {
+          const lrigStack = cur.ownerState.field.lrig;
+          const hasUnder = lrigStack.length >= 2;
+          const underCard = hasUnder ? lrigStack.at(-2) : undefined;
+          const underName = underCard ? (cur.cardMap.get(underCard)?.CardName ?? underCard) : null;
+          const payAction: EffectAction = {
+            type: 'SEQUENCE',
+            steps: [
+              { type: 'STUB', id: 'INTERNAL_CONSUME_LRIG_UNDER', value: 1 } as import('../types/effects').StubAction,
+              conditional.then,
+            ],
+          };
+          return needsInteraction(addLog(cur, 'ルリグ下のカードを使用して発動しますか？'), {
+            type: 'CHOOSE',
+            count: 1,
+            options: [
+              {
+                id: 'pay',
+                available: hasUnder,
+                label: underName ? `ルリグ下（${underName}）を使用して発動` : 'ルリグ下のカードを使用して発動',
+                action: payAction,
+              },
+              {
+                id: 'skip',
+                available: true,
+                label: 'スキップ',
+                action: (conditional.else ?? noopAction) as EffectAction,
+              },
+            ],
+            ...(cont ? { continuation: cont } : {}),
+          });
+        }
+
         // SOUL_OP: ソウルカードを消費してコスト支払い（WXDiシリーズ）
       if (stub.id === 'SOUL_OP') {
           const srcZoneSO = cur.ownerState.field.signi.findIndex(s => s?.at(-1) === cur.sourceCardNum);

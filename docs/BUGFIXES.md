@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き266＝§3タスク5 WXDi-P05-009-E1 の有害な先行詞幻覚を解消＋HAND_COUNT_FILTER 系の逆翻訳述語を自然化（golden 747→748・census 1545維持）（2026-07-27・codex実装）
+
+**WXDi-P05-009-E1「運鳴　ノヴァ」**＝旧 JSON は「トラッシュからカード1枚を対象」が消え、`TRANSFER_TO_DECK{SIGNI,self}` で**自分の場のシグニをデッキ上へ送る幻覚**だった。新規 `STUB:OPTIONAL_LRIG_UNDER_COST` で任意のルリグ下1枚消費を提示し、既存 `INTERNAL_CONSUME_LRIG_UNDER` で実支払い後、既存 `TRANSFER_TO_DECK{TRASH_CARD,self,position:'top'}` を実行する MANUAL 定義へ是正。原文の「先に対象化」と異なり選択は支払い後だが、効果解決中にトラッシュ候補へ干渉する割り込み窓がなく最終盤面は一致するため、対象保持の大型機構は作らないと判断した。実データの新 STUB は本効果1件のみ。curated JSON の効果単位 diff は **WXDi-P05-009-E1 の1件だけ**。
+
+**逆翻訳**＝`opJa` の後ろへ一律に「ある」を足すと `eq→であるある`・`lte→以下ある` になるため、数量述語専用 `countPredicateJa`（gte=`以上ある`／lte=`以下である`／gt=`より多い`／lt=`未満である`／eq=`である`／neq=`ではない`）を追加し、`HAND_COUNT_FILTER`・`HAND_COUNT`・`FIELD_COUNT`・`FIELD_CLASS_COUNT` に適用。修正前の `decompile_sheet*.txt` 全数 grep で「枚/体/つ＋以上/以下/超/未満＋場合」は**6行**（1行内の複数出現を含む）・修正後0行。regen の機械 diff は同原因の「〜なら」を含む数量条件55効果行が述語だけ自然化され、効果構造の変化なし。`npm run regen`＋`groupSimilar --all` は**同型★0（5986枚）**。
+
+**golden**＝発生源を実戦どおり `field.lrig` に置き、ルリグ下消費→任意種別のトラッシュカード（スペル）をデッキトップ／場の自シグニ無傷／skip時は両ゾーン不変を固定。共有 `cursor` は save/restore。検証＝`npm run gates` 全緑（golden **748/748**・smoke **10725/10725**・fuzz 200ゲーム不具合0・census **1545維持**・lint 0 errors）。置換系統40枚の全数分類は今回未着手で据置。
+
+**⚠Claude 確認による事実の訂正＝旧実装は「幻覚が実機で動いていた」のではなく engine では完全 no-op だった**。旧 action は `SEQUENCE[STUB:SOUL_OP, CONDITIONAL{...}]` で、`execSequence` の `SOUL_OP` 分岐は**発生源を `field.signi` から探す**（＝シグニ下のソウルを消費する機構）。本カードは**ルリグ**なので `srcZone=-1`→`hasSoul=false`→`pay` が `available:false` となり、プレイヤーは `skip`（＝`conditional.else ?? noop`）しか選べない。engine 直呼びで実測しても**場の自シグニ・デッキトップ・ルリグ下がすべて不変**で、ログは「ソウルを使用して発動しますか？」だけだった。したがって旧状態の実害は「**アタックのたびに無意味な選択ダイアログが出て、能力は何もしない**」＋JSON/逆翻訳が幻覚、が正確で、**今回の修正は「幻覚の除去」ではなく事実上の新規機能実装**（この能力が初めて動くようになった）。⚠続き264 の残行と続き265 の PLAN 記述にある「場の自シグニをデッキ上へ送る幻覚」は JSON 表現としては正しいが engine 挙動としては不正確＝ここで訂正する。
+
+**⚠新設 STUB は既存3種と紛らわしいが重複ではない**（Claude 確認）＝`SOUL_OP`＝シグニ下のソウル（`field.signi`）／`LRIG_UNDER_CARD_OP`＝名前に反して**シグニ下**のカード（`field.signi`）／新 `OPTIONAL_LRIG_UNDER_COST`＝**ルリグ下**（`field.lrig`）。3者は消費ゾーンが異なる。なお `execStubPart1.ts` の `SOUL_OP` 内には「このルリグの下からカードN枚を…置いてもよい（WXDi-P04/05/06-009系）」を `field.lrig` で処理する分岐が既にあるが、そちらは**STUB 単独実行時の経路**で `conditional.then` との結合を持たないため、本件（`SEQUENCE[STUB, CONDITIONAL]`）には使えない。
+
+**Claude の追加是正2点**＝①`DECK_COUNT_FILTER`（続き265 で新設）の逆翻訳も `${opJa}ある` 直書きのままで、`eq` なら「であるある」になる同じ穴を抱えていたので `countPredicateJa` に統一（実データは gte 1件のみのため出力は不変）②`node scripts/genStubsMd.mjs` を回して `docs/STUBS.md` に新 STUB を登録。⚠**説明欄は空のまま**＝`genStubsMd` は説明を `execStubPart1〜3.ts` の直前コメントからしか拾わず、本 STUB は `effectExecutor.ts` の `execSequence` 内にあるため。抽出元を広げると「実装済み/未実装」の集計自体が変わるので今回は触らない。
+
 ## 続き265＝§3タスク5 残小口3枚（WXEX1-65／WXEX2-50／WX20-053）を忠実化＝いずれも「幻覚 or 過剰効果」の実害（golden 744→747・census 1545 維持）（2026-07-27・codex実装/Opus 5 確認・是正）
 
 **運用**＝codex（有料版 sol）へ3枚を投げ、Claude は確認・是正・簿記・commit（[feedback_codex_delegation] の型）。**3枚とも defer なしで完遂**。3枚に共通する壊れ方は「条件・source・owner が脱落した結果、**原文より強い/違う動作**になっていた」こと。

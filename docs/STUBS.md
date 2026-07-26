@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 573 |
+| JSON で使用中の STUB id 種類 | 574 |
 | 　└ ハンドラ実装あり | 547 |
-| 　└ フォールバック（execStub 未処理） | 26 |
-| 総 STUB ノード件数 | 2452 |
+| 　└ フォールバック（execStub 未処理） | 27 |
+| 総 STUB ノード件数 | 2454 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 285 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -51,6 +51,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC` | 1 | 1 | WX24-P4-016 |  |
 | `MULTI_ACCE_3_MASS_TRASH` | 1 | 1 | WX20-028 |  |
 | `OPP_LRIG_DECK_TO_LRIG_TRASH` | 1 | 1 | WX24-P4-014 |  |
+| `OPTIONAL_LRIG_UNDER_COST` | 1 | 1 | WXDi-P05-009 |  |
 | `PLAY_MILLED_SIGNI_DELAYED_TRASH` | 1 | 1 | WXDi-P09-079 |  |
 | `STRIP_OPP_ENA_MULTI_ENA` | 1 | 1 | WXK11-020 |  |
 | `TREAT_AS_CLASS_ALL_ZONES` | 1 | 1 | WXDi-CP02-103 |  |
@@ -74,8 +75,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_POWER_BONUS` | 39 | 34 | WD06-006, WDK08-Y08, WDK10-009 | 条件付きパワーボーナス |
 | `LRIG_GROW_RESTRICT` | 38 | 38 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `DECLARE_NUMBER` | 36 | 34 | WD06-008, WD13-008, WDK04-006 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
-| `SOUL_OP` | 32 | 32 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `LOOK_OPP_LIFE_TOP` | 31 | 30 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
+| `SOUL_OP` | 31 | 31 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `TRADE_BANISH_SELF_SIGNI` | 30 | 30 | WD22-029-G, WDK08-Y01, WDK11-011 | トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ |
 | `LRIG_UNDER_CARD_OP` | 23 | 22 | WD23-022-E, WDK09-015, WDK17-015 | ルリグデッキ下操作（多パターン） |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | サブスクライバーカウント+1 |
@@ -421,6 +422,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `EFFECT_LIMIT` | 4 | 4 | WDK06-C17, WX13-053, WX21-066 | EFFECT_LIMIT: 連続効果の上限枚数をキャップ（直前のパワー修正を上限値でキャップ） |
 | `GAIN_SIGNI_BARRIER` | 4 | 4 | SPDi43-23, WX26-CP1-001, WXDi-P12-006 | GAIN_SIGNI_BARRIER: 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効） |
 | `OPP_DECLARE_CHOICE` | 4 | 4 | PR-K060, WX05-006, WX16-Re17 | OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ |
+| `RETURN_SELF_ARTS_TO_LRIG_DECK` | 4 | 4 | WDK17-008, SP07-009, WXK06-016 | RETURN_SELF_ARTS_TO_LRIG_DECK: このアーツ（使用後＝ルリグトラッシュに置かれた自身）をルリグデッキに戻す （WXK11-003①/WDK17-008①。BattleScreen はアーツを lrig_tras… |
 | `CHOOSE_HAND_CARD` | 3 | 3 | PR-K060, WX05-006, WX16-Re17 | CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定） |
 | `COPY_LRIG_TRASH_ACTIVATED` | 3 | 3 | WX05-002, WX05-003, WX05-004 |  |
 | `DISCARD_OR_PENALTY` | 3 | 3 | WX04-047, WX24-P3-079, WXDi-P14-023 | DISCARD_OR_PENALTY: 特定カード1枚捨てるかペナルティ（N枚捨て）を選ぶ |
@@ -463,7 +465,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_ZONE_PLACEMENT_RESTRICT` | 2 | 2 | WXDi-P14-068, WXDi-P11-TK01 | OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定） |
 | `PEEP_HAND` | 2 | 2 | PR-K070, WX24-P4-105 | PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示） |
 | `REPEAT_EFFECT` | 2 | 2 | WX16-042, WX22-016 | REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す |
-| `RETURN_SELF_ARTS_TO_LRIG_DECK` | 2 | 2 | WDK17-008, WXK11-003 | RETURN_SELF_ARTS_TO_LRIG_DECK: このアーツ（使用後＝ルリグトラッシュに置かれた自身）をルリグデッキに戻す （WXK11-003①/WDK17-008①。BattleScreen はアーツを lrig_tras… |
 | `REVEAL_OPP_HAND_CARD` | 2 | 2 | PR-459A, WXDi-P14-060 | REVEAL_OPP_HAND_CARD: 相手の手札のカードを1枚公開 |
 | `SWAP_OPTIONAL` | 2 | 2 | WX13-073, WXDi-P10-047 | SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理） |
 | `TARGET_OPP_SIGNI_ONLY` | 2 | 1 | WXDi-P01-028 | TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下に送られるかを選ぶ… |

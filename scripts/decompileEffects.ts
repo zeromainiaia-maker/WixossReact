@@ -95,6 +95,16 @@ function restoreLeadDuration(anchor: RegExp): string {
 }
 const ownerJa = (o?: string) => o === 'opponent' ? '対戦相手の' : o === 'self' ? 'あなたの' : '';
 const opJa = (op?: string) => ({ gte: '以上', lte: '以下', gt: 'より多く', lt: '未満', eq: 'である', neq: 'ではない' } as Record<string, string>)[op ?? ''] ?? (op ?? '');
+// 数量条件を「〜場合」の直前に置ける述語へする。単純な「ある」後置は
+// eq→「であるある」、lte→「以下ある」になるため operator ごとに閉じる。
+const countPredicateJa = (op?: string) => ({
+  gte: '以上ある',
+  lte: '以下である',
+  gt: 'より多い',
+  lt: '未満である',
+  eq: 'である',
+  neq: 'ではない',
+} as Record<string, string>)[op ?? ''] ?? (op ?? '');
 const numJa = (n: any) => typeof n === 'object' ? '[参照値]' : String(n);
 
 function filterJa(f?: any): string {
@@ -302,13 +312,13 @@ function condJa(c?: any): string {
       return `このシグニの正面に${st}${filterJa({ ...fc.filter, isFrozen: undefined, isDown: undefined, isUp: undefined })}シグニがあるかぎり`;
     }
     case 'DURING_ATTACK_PHASE': return `${c.owner === 'self' ? 'あなたの' : c.owner === 'opponent' ? '対戦相手の' : ''}アタックフェイズの間`;
-    case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
+    case 'FIELD_COUNT': return `${ownerJa(c.owner)}場のシグニが${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'DECK_COUNT': return `${ownerJa(c.owner)}デッキが${numJa(c.value)}枚${opJa(c.operator)}`;
-    case 'DECK_COUNT_FILTER': return `${ownerJa(c.owner)}デッキに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
+    case 'DECK_COUNT_FILTER': return `${ownerJa(c.owner)}デッキに${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
     case 'HAND_COUNT': return c.owner === 'any'
-      ? `いずれかのプレイヤーの手札が${numJa(c.value)}枚${opJa(c.operator)}`
-      : `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${opJa(c.operator)}`;
-    case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${opJa(c.operator)}`;
+      ? `いずれかのプレイヤーの手札が${numJa(c.value)}枚${countPredicateJa(c.operator)}`
+      : `${ownerJa(c.owner)}手札が${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
+    case 'HAND_COUNT_FILTER': return `${ownerJa(c.owner)}手札に${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}カードが${numJa(c.value)}枚${countPredicateJa(c.operator)}`;
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
     case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
@@ -319,7 +329,7 @@ function condJa(c?: any): string {
     case 'LRIG_NAME_CONTAINS': return `${ownerJa(c.owner)}センタールリグ名が「${c.name}」を含む`;
     case 'LRIG_COLOR': return `${ownerJa(c.owner)}センタールリグが${c.color}`;
     case 'LRIG_LEVEL': return `${ownerJa(c.owner)}センタールリグがレベル${numJa(c.value)}${opJa(c.operator)}`;
-    case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${opJa(c.operator)}`;
+    case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'TRASH_HAS_CARD':
       // 「トラッシュにカード名に《X》を含むカードがある」（WX20-065）
