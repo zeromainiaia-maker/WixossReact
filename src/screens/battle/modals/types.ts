@@ -5,9 +5,11 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import type { ActiveCostMod } from '../../../engine/effectEngine';
+import type { ResonaSummonCandidate } from '../resonaSummon';
 
 // カットイン候補（スペルカットイン/カットイン起動効果の出所つきカード）
-export interface CutinCandidate {
+export interface EffectCutinCandidate {
+  kind: 'effect';
   card: CardData;
   instanceId: string;
   source: 'lrig_deck' | 'lrig_field' | 'signi_field' | 'hand';
@@ -19,6 +21,16 @@ export interface CutinCandidate {
   /** Explicit opt-in; legacy cut-ins retain their historical always-counter behavior. */
   countersSpell?: boolean;
 }
+
+export interface ResonaCutinCandidate {
+  kind: 'resona';
+  card: CardData;
+  instanceId: string;
+  source: 'lrig_deck';
+  resona: ResonaSummonCandidate;
+}
+
+export type CutinCandidate = EffectCutinCandidate | ResonaCutinCandidate;
 
 export interface BattleModalCtx {
   bs: BattleStateRow;

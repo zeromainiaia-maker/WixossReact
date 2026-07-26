@@ -37,7 +37,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
-import { appearancePayment, getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
+import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
@@ -9804,6 +9804,34 @@ test('PLAN 6.3 CHOOSE gate: WX25-CP1-002 c3 requires no abilities and paid Blue 
   skipCtx.effectsMap = new Map([[target, []]]);
   const skipped = run(choice.action, skipCtx);
   eq(skipped.otherState.field.signi[0]?.at(-1), target, '任意コストを払えない／skipならバウンスしない');
+});
+
+test('SPELL_CUTIN Resona: only the three payable icon Resona surface in the pending-spell window', () => {
+  const savedCursor = cursor;
+  try {
+    const targets = [
+      ['WX13-005B', '\u5b87\u5b99'],
+      ['WX13-006B', '\u51f6\u87f2'],
+      ['WX14-006B', '\u904a\u5177'],
+    ] as const;
+    const state = mkState({});
+    state.lrig_deck = targets.map(([id]) => id);
+    state.hand = targets.flatMap(([, story]) => [
+      findCard(c => c.Type === '\u30b7\u30b0\u30cb' && c.CardClass?.includes(story)),
+      findCard(c => c.Type === '\u30b7\u30b0\u30cb' && c.CardClass?.includes(story)),
+    ]);
+    eq(
+      getSpellCutinResonaCandidates(state, cardMap, effectsMap).map(c => c.cardNum).sort().join(','),
+      targets.map(([id]) => id).sort().join(','),
+      'the three SPELL_CUTIN Resona are payable and visible',
+    );
+
+    const cannotPay = { ...state, hand: [], energy: [], field: { ...state.field, signi: [null, null, null] } };
+    eq(getSpellCutinResonaCandidates(cannotPay, cardMap, effectsMap).length, 0, 'unpayable Resona do not surface');
+    eq(getMainSingleZoneResonaCandidate('WX13-005B', state, cardMap, effectsMap), null, 'SPELL_CUTIN timing is not exposed in MAIN');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 
 test('PLAN 6.3 CHOOSE gate: WD22-036-G c0/c1 only continue after successful self banish', () => {

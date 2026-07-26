@@ -82,7 +82,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
-import { getResonaSummonCandidate, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
+import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
@@ -260,6 +260,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
   const triggerPendingCrashRef           = useRef<(() => Promise<void>) | null>(null);
   const resolveStackNextRef              = useRef<(() => Promise<void>) | null>(null);
+  const handleCutinPassRef               = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef          = useRef<(() => Promise<void>) | null>(null);
   const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
   const resolvePendingSigniBattleRef     = useRef<(() => Promise<void>) | null>(null);
@@ -1119,6 +1120,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     resolveStackNextRef.current?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // SPELL_CUTINレゾナの支払い・配置・ON_PLAYスタックが完了したら、同じ応答者が元スペルを継続する。
+  useEffect(() => {
+    if (!bs?.pending_spell?.cutin_response_complete || !user) return;
+    if (bs.pending_spell.caster_id === user.id) return;
+    if (bs.effect_stack || bs.pending_effect || loading) return;
+    handleCutinPassRef.current?.();
+  }, [bs?.pending_spell, bs?.effect_stack, bs?.pending_effect, loading, user]);
 
   // pending_life_crashes の自動消化
   useEffect(() => {
@@ -4923,7 +4932,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
     const resonaAttackResponse = !!resona && bs.turn_phase === 'ATTACK_ARTS_OP' && !isMyTurn;
-    if ((!isMyTurn && !resonaAttackResponse) || loading) return;
+    const resonaSpellCutin = !!resona && !!bs.pending_spell
+      && bs.pending_spell.caster_id !== user.id
+      && resona.candidate.appearance.timings.includes('SPELL_CUTIN');
+    if ((!isMyTurn && !resonaAttackResponse && !resonaSpellCutin) || loading) return;
     const summonCardNum = resona?.candidate.cardNum ?? my.hand[handIndex];
     if (!summonCardNum) return;
     const summonCardData = battleCardMap.get(summonCardNum);
@@ -4980,7 +4992,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!canSelfPlay(baseEffectsMap.get(summonCardNum), my, op, battleCardMap)) return;
     // レゾナは表示後にも盤面が変わり得るため、確定時に条件・支払い・ルリグデッキ在籍を再検証する。
     if (resona) {
-      const timing = bs.turn_phase === 'MAIN' ? 'MAIN' : 'ATTACK';
+      const timing = resonaSpellCutin ? 'SPELL_CUTIN' : bs.turn_phase === 'MAIN' ? 'MAIN' : 'ATTACK';
       const current = getResonaSummonCandidate(summonCardNum, my, battleCardMap, effectsMap, timing);
       if (!current) return;
       const paidFieldLevels = (resona.selection.items ?? [])
@@ -5178,7 +5190,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (ownEntries.length === 0 && fieldEntries.length === 0 && paymentEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined }));
+        const update = reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined });
+        await persist.commit(resonaSpellCutin
+          ? { ...update, pending_spell: { ...bs.pending_spell!, cutin_response_complete: true } }
+          : update);
         return;
       }
 
@@ -5191,7 +5206,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : initStack(turnPlayerId, allEntries);
 
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const { error: summonErr } = await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, effectStack: stack, clearPending: true, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined }));
+      const summonUpdate = reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, effectStack: stack, clearPending: true, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined });
+      const { error: summonErr } = await persist.commit(resonaSpellCutin
+        ? { ...summonUpdate, pending_spell: { ...bs.pending_spell!, cutin_response_complete: true } }
+        : summonUpdate);
       if (summonErr) console.error('[handleSummonSigni] DB error:', summonErr);
     } finally {
       setLoading(false);
@@ -5321,10 +5339,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
   const cutinCandidates: CutinCandidate[] = (() => {
     if (!bs.pending_spell || bs.pending_spell.caster_id === user.id) return [];
-    // GRANT_NEXT_SPELL_UNCOUNTERABLE（WX04-008）: 使用者のスペルが対戦相手の効果で打ち消されない場合、
-    // カットイン（このエンジンでは常にスペルを打ち消す）を提示しない。
+    // GRANT_NEXT_SPELL_UNCOUNTERABLE（WX04-008）は打ち消す従来候補だけを抑止する。
+    // SPELL_CUTINレゾナはスペルを打ち消さず先にON_PLAYを解決するため、この窓自体は残す。
     const cutinCasterState = bs.pending_spell.caster_id === bs.host_id ? bs.host_state : bs.guest_state;
-    if (cutinCasterState.next_spell_uncounterable) return [];
+    const spellUncounterable = !!cutinCasterState.next_spell_uncounterable;
     const pendingSpellCard = battleCardMap.get(bs.pending_spell.card_num);
     const pendingSpellCostTotal = pendingSpellCard
       ? parseGrowCost(pendingSpellCard.Cost).reduce((s, c) => s + c.count, 0)
@@ -5332,7 +5350,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const result: CutinCandidate[] = [];
 
     // 1. lrig_deck: CSV Timing列に「スペルカットイン」を含むカード
-    my.lrig_deck
+    if (!spellUncounterable) my.lrig_deck
       .filter((id, i, arr) => arr.indexOf(id) === i)
       .forEach(instanceId => {
         const cardNum = getCardNum(instanceId);
@@ -5359,6 +5377,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             && c.action.steps.some(s => s.type === 'COUNTER_SPELL'));
           if (counterChoice) {
             result.push({
+              kind: 'effect',
               card, instanceId, source: 'lrig_deck',
               effect: { ...eff, effectId: `${eff.effectId}-cutin-counter`, action: counterChoice.action },
               additionalColorlessCost: pendingSpellCostTotal,
@@ -5367,7 +5386,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
           return;
         }
-        result.push({ card, instanceId, source: 'lrig_deck', effect: dummyEff });
+        result.push({ kind: 'effect', card, instanceId, source: 'lrig_deck', effect: dummyEff });
       });
 
     // 2. lrig_field + key_piece: ACTIVATED効果にSPELL_CUTINタイミングを持つルリグ/キー
@@ -5376,7 +5395,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       ...(my.field.key_piece ? [my.field.key_piece] : []),
       ...(my.field.key_piece_extra ?? []),
     ];
-    lrigAndKeyIds.forEach(instanceId => {
+    if (!spellUncounterable) lrigAndKeyIds.forEach(instanceId => {
       const cardNum = getCardNum(instanceId);
       const card = battleCardMap.get(cardNum);
       if (!card) return;
@@ -5389,11 +5408,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
       // 使用条件（「あなたの場に＜凶蟲＞のシグニがある場合」等）を満たさないカットインは候補から除外
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
-      result.push({ card, instanceId, source: 'lrig_field', effect: eff });
+      result.push({ kind: 'effect', card, instanceId, source: 'lrig_field', effect: eff });
     });
 
     // 3. signi_field: ACTIVATED効果にSPELL_CUTINタイミングを持つシグニ
-    my.field.signi.forEach((zone, zoneIdx) => {
+    if (!spellUncounterable) my.field.signi.forEach((zone, zoneIdx) => {
       const topId = zone?.at(-1);
       if (!topId) return;
       const cardNum = getCardNum(topId);
@@ -5405,11 +5424,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const maxCost = findCounterSpellMaxCost(eff.action);
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, topId, bs.turn_phase, effectivePowers)) return;
-      result.push({ card, instanceId: topId, source: 'signi_field', effect: eff, zoneIdx });
+      result.push({ kind: 'effect', card, instanceId: topId, source: 'signi_field', effect: eff, zoneIdx });
     });
 
     // 4. hand: ACTIVATED効果にSPELL_CUTINタイミングを持つ手札カード
-    my.hand.forEach((cardNum, handIdx) => {
+    if (!spellUncounterable) my.hand.forEach((cardNum, handIdx) => {
       const card = battleCardMap.get(cardNum);
       if (!card) return;
       const effs = effectsMap.get(cardNum) ?? [];
@@ -5418,8 +5437,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const maxCost = findCounterSpellMaxCost(eff.action);
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) return;
-      result.push({ card, instanceId: cardNum, source: 'hand', effect: eff, handIdx });
+      result.push({ kind: 'effect', card, instanceId: cardNum, source: 'hand', effect: eff, handIdx });
     });
+
+    for (const resona of getSpellCutinResonaCandidates(my, battleCardMap, effectsMap)) {
+      const card = battleCardMap.get(getCardNum(resona.cardNum));
+      if (card) result.push({ kind: 'resona', card, instanceId: resona.cardNum, source: 'lrig_deck', resona });
+    }
 
     return result;
   })();
@@ -6236,10 +6260,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       setLoading(false);
     }
   };
+  handleCutinPassRef.current = handleCutinPass;
 
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
   const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>) => {
     if (!bs.pending_spell || loading) return;
+    if (candidate.kind !== 'effect') return;
     setLoading(true);
     closeCutin();
     try {
@@ -11226,7 +11252,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <SpellCutinOverlays ctx={modalCtx} cutinSpellZoomed={cutinSpellZoomed} setCutinSpellZoomed={setCutinSpellZoomed} />
 
       {/* スペルカットインポップアップ（相手のスペル発動中に表示） */}
-      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} toggleCutinCostCard={toggleCutinCost} />
+      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} handleResonaCutinSelect={candidate => {
+        if (candidate.kind !== 'resona') return;
+        setPendingCutinCard(null);
+        setSelectedResonaPayment([]);
+        setPendingResonaSummon(candidate.resona);
+      }} toggleCutinCostCard={toggleCutinCost} />
 
       {/* フェイズ進行の小型確認ダイアログ群（エナチャージ/グロウ/UPKEEP/シグニアタック/強制攻撃警告/リムーブ封じ/ルリグアタック） */}
       <PhaseConfirmDialogs ctx={modalCtx} showEnergySkipConfirm={showEnergySkipConfirm} setShowEnergySkipConfirm={setShowEnergySkipConfirm} showGrowSkipConfirm={showGrowSkipConfirm} setShowGrowSkipConfirm={setShowGrowSkipConfirm} showUpkeepPayConfirm={showUpkeepPayConfirm} showSigniAttackSkipConfirm={showSigniAttackSkipConfirm} setShowSigniAttackSkipConfirm={setShowSigniAttackSkipConfirm} showMustAttackWarning={showMustAttackWarning} setShowMustAttackWarning={setShowMustAttackWarning} showRemoveBlockedWarn={showRemoveBlockedWarn} setShowRemoveBlockedWarn={setShowRemoveBlockedWarn} showLrigAttackSkipConfirm={showLrigAttackSkipConfirm} setShowLrigAttackSkipConfirm={setShowLrigAttackSkipConfirm} growCandidates={growCandidates} doPhaseAdvance={doPhaseAdvance} handleUpkeepPay={handleUpkeepPay} handleUpkeepDecline={handleUpkeepDecline} />
@@ -11256,6 +11287,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         close={() => { setPendingResonaSummon(null); setSelectedResonaPayment([]); }}
         fieldSigniTotal={fieldSigniTotal}
         lrigLimit={lrigLimit}
+        zIndex={bs.pending_spell && bs.pending_spell.caster_id !== user.id ? 4100 : undefined}
         execute={zoneIndex => {
           if (!pendingResonaSummon) return;
           void handleSummonSigni(-1, zoneIndex, {

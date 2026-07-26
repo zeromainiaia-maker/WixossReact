@@ -134,9 +134,6 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
         ...(totalPower ? { totalPowerMin: num(totalPower[1]) } : {}),
       },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      ...(timings.includes('SPELL_CUTIN') ? {
-        deferReason: 'pending_spell応答窓へレゾナ召喚と支払いを割り込ませる継続処理が未実装',
-      } : {}),
     };
   }
 

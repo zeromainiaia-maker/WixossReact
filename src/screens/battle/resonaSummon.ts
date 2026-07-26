@@ -228,6 +228,18 @@ export function getResonaSummonCandidate(
   return { cardNum, appearance, payment };
 }
 
+/** Payable Resona summons that exist only in the opponent's pending-spell response window. */
+export function getSpellCutinResonaCandidates(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../../types/effects').CardEffect[]>,
+): ResonaSummonCandidate[] {
+  return state.lrig_deck.flatMap(instanceId => {
+    const candidate = getResonaSummonCandidate(instanceId, state, cardMap, effectsMap, 'SPELL_CUTIN');
+    return candidate ? [candidate] : [];
+  });
+}
+
 export function getMainSingleZoneResonaCandidate(
   cardNum: string, state: PlayerState, cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../../types/effects').CardEffect[]>,

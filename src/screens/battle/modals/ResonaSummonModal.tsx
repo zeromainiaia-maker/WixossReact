@@ -14,9 +14,10 @@ interface Props {
   execute: (zoneIndex: number) => void;
   fieldSigniTotal: number;
   lrigLimit: number;
+  zIndex?: number;
 }
 
-export function ResonaSummonModal({ ctx, pending, selected, setSelected, close, execute, fieldSigniTotal, lrigLimit }: Props) {
+export function ResonaSummonModal({ ctx, pending, selected, setSelected, close, execute, fieldSigniTotal, lrigLimit, zIndex = 3550 }: Props) {
   if (!pending) return null;
   const { my, battleCardMap, loading } = ctx;
   const key = (i: ResonaPaymentItem) => `${i.zone}:${i.index}`;
@@ -45,7 +46,7 @@ export function ResonaSummonModal({ ctx, pending, selected, setSelected, close, 
   const resonaLevel = parseInt(battleCardMap.get(getCardNum(pending.cardNum))?.Level ?? '0', 10) || 0;
 
   return createPortal(
-    <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 3550, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex, backgroundColor: 'rgba(0,0,0,0.88)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div onClick={e => e.stopPropagation()} style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: '22px 18px', width: 'min(92vw, 680px)', textAlign: 'center' }}>
         <p style={{ color: C.text, fontWeight: 'bold', margin: '0 0 6px' }}>
           {battleCardMap.get(getCardNum(pending.cardNum))?.CardName ?? pending.cardNum} の【出現条件】

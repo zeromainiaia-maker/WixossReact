@@ -18,12 +18,13 @@ interface CutinModalProps {
   cutinCandidates: CutinCandidate[];
   handleCutinPass: () => void;
   handleCutinUse: (candidate: CutinCandidate, costIndices: Set<number>) => void;
+  handleResonaCutinSelect: (candidate: CutinCandidate) => void;
   toggleCutinCostCard: (idx: number) => void;
 }
 
 export function CutinModal(p: CutinModalProps) {
   const { bs, user, my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, toggleCutinCostCard } = p;
+  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   return (
     <>
       {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
@@ -65,6 +66,23 @@ export function CutinModal(p: CutinModalProps) {
                         <p style={{ color: C.textMuted, fontSize: 12, margin: 0 }}>カットインカード:</p>
                         <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                           {cutinCandidates.map(candidate => {
+                            if (candidate.kind === 'resona') {
+                              return (
+                                <button key={`resona-${candidate.instanceId}`}
+                                  onClick={() => handleResonaCutinSelect(candidate)}
+                                  disabled={loading}
+                                  style={{ display: 'flex', alignItems: 'center', gap: 10,
+                                    padding: '8px 12px', borderRadius: 8, border: C.borderUI,
+                                    backgroundColor: C.bgButton, color: C.text, cursor: loading ? 'default' : 'pointer' }}>
+                                  <img src={candidate.card.ImgURL} alt={candidate.card.CardName}
+                                    style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }} />
+                                  <div>
+                                    <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{candidate.card.CardName}</p>
+                                    <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>出現条件を支払いレゾナ召喚</p>
+                                  </div>
+                                </button>
+                              );
+                            }
                             const extraArtsCosts = activeCostMods.forMy
                               .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                               .flatMap(m => m.amount);
@@ -120,6 +138,7 @@ export function CutinModal(p: CutinModalProps) {
                 );
               }
               /* カットインのコスト選択 */
+              if (pendingCutinCard.kind === 'resona') return null;
               const isHandDiscardModal = pendingCutinCard.source === 'hand' && pendingCutinCard.effect.cost?.discardSelfFromHand;
               const exceedCostModal = pendingCutinCard.source === 'lrig_field'
                 ? (pendingCutinCard.effect.cost?.exceed ?? 0) : 0;

@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3 タスク8 完全クローズ＝SPELL_CUTIN 出現条件レゾナ最後の3枚を解放（2026-07-26・Codex）
+
+- **対象**：WX13-005B（宇宙）／WX13-006B（凶蟲）／WX14-006B（遊具）。`appearanceCondition.timings=['SPELL_CUTIN']`＋手札・エナ・場を横断する `combinedTrash{count:2,excludeResona:true}` は既存構造を利用。
+- **応答窓への合流**：既存 `cutinCandidates` に `kind:'resona'` の判別候補を追加。通常のカットイン候補は `kind:'effect'` のままなので、レゾナは `handleCutinUse`（アーツ/手札カードのコスト、使用カードのルリグトラッシュ送り、`countersSpell`）へ入らない。`next_spell_uncounterable` も打消し候補だけを抑止し、非打消しのレゾナ候補は維持する。
+- **召喚と継続**：選択後は既存 `ResonaSummonModal` → `handleSummonSigni` → `payResonaAppearanceAndPlace` に接続。確定時に `SPELL_CUTIN` timing・支払い可能性・ルリグデッキ在籍を再検証し、原子的に支払い＋配置。段階3で確立済みの `collectBoardDiffTriggers`／`collectHandDiscardTriggers` を維持し、ON_LEAVE_FIELD／ON_TRASH／ON_HAND_DISCARDED と自身・他シグニの ON_PLAY を既存経路で積む。`pending_spell.cutin_response_complete` により ON_PLAY スタック完了後だけ既存 `handleCutinPass` へ戻し、元スペルを解決する。
+- **構造化データ**：実装済みになった3枚の `deferReason` を parser と built JSON から除去。SPELL_CUTIN 以外では `getResonaSummonCandidate(...,'SPELL_CUTIN')` が呼ばれず、MAIN golden でも候補外を固定。
+- **検証**：golden 739→740（共有 `cursor` save/restore、3枚だけが支払い可能時に候補化／支払い不能時0件／MAIN非表示）、全ゲート緑。golden 740/740、smoke 10725件 CRASH/HANG/INVARIANT 0、fuzz 200ゲーム0、census 1549（BASELINE_HIGH不変）、lint 0 errors（既存warning 222）。
+- **結果**：出現条件レゾナ **55/55枚召喚可能**、PLAN §3 Opusタスク8を完全クローズ。
+
+---
+
 ## §3 タスク8 の全数棚卸し＝5/7項目は既に完了済みと確定＋§6.3「正面」サブ機構(b)(d)(e) 消化（2026-07-25・続き261・Opus 5）
 
 - **⚠まず棚卸し＝タスク8 の行が大きく古かった**。7サブ項目のうち**5項目は既に完了済み**と実測確認：①**ゲーム除外**＝`PlayerState.excluded` 実ゾーン化済（§6.3 台帳）②**canCardGuard 統一**＝共有モジュール `src/screens/battle/guard.ts` に集約済③**多段閾値 nested CONDITIONAL**＝続き257（WXK06-071）④**スペル被破棄【自】収集パス**＝WX17-045-E2／WXDi-P10-070-E2 が `triggerCondition.fromZones:['hand']` を持ち `collectAnyZoneTrashSelfTriggers` が BattleScreen から配線済⑤**ON_LEAVE_FIELD 相手scope 3枚**＝続き233（`any_opp`＋`leftStateFilter`）。**残っていた実作業は「出現条件レゾナ」と「正面」の2項目だけ**。
