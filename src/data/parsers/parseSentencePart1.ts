@@ -2208,16 +2208,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
   }
 
-  // ---- このアーツをルリグデッキに戻す（使用後＝ルリグトラッシュから自身を戻す。WXK11-003①/WDK17-008①）----
-  // ⚠下の catch-all（デッキに戻す→TRANSFER_TO_DECK{SIGNI}）より先に取らないと場のシグニ移動へ幻覚化する
-  if (t.match(/^このアーツを(?:あなたの)?ルリグデッキに戻す$/)) {
+  // ---- ドロー後、このアーツ/カードをルリグデッキに戻す ----
+  const drawReturnSelfM = t.match(/^カードを([０-９\d]+)枚引き、この(?:アーツ|カード)を(?:あなたの)?ルリグデッキに戻す$/);
+  if (drawReturnSelfM) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'DRAW', owner: 'self', count: parseNum(drawReturnSelfM[1]) },
+        { type: 'STUB', id: 'RETURN_SELF_ARTS_TO_LRIG_DECK' } as StubAction,
+      ],
+    } as SequenceAction;
+  }
+
+  // ---- このアーツ/カードをルリグデッキに戻す（使用後＝ルリグトラッシュから自身を戻す）----
+  // ⚠下のシグニ用規則より先に取らないと場のシグニ移動へ幻覚化する
+  if (t.match(/^この(?:アーツ|カード)を(?:あなたの)?ルリグデッキに戻す$/)) {
     return { type: 'STUB', id: 'RETURN_SELF_ARTS_TO_LRIG_DECK' } as StubAction;
   }
 
   // ---- シグニをデッキに戻す ----
-  // ⚠「ルリグデッキに戻す」は場のシグニ移動ではない＝この catch-all の対象外（上の専用規則や後段へ落とす。
-  //   それでも includes 判定は広すぎて「〜デッキに戻す」文脈を広く SIGNI 移動に丸める疑いあり＝PLAN §3 タスク5 に登録済み）
-  if ((t.includes('デッキに戻す') || t.includes('デッキに戻し')) && !t.includes('ルリグデッキに戻')) {
+  // 対象シグニが文中で明示される形だけを扱う。「残りを戻す」等を SIGNI に丸めない。
+  const signiToDeck =
+    /シグニ１体を対象とし、(?:それ|それら)を(?:対戦相手の)?デッキに戻[すし]/.test(t) ||
+    /(?:すべての)?シグニを(?:対戦相手の)?デッキに戻[すし]/.test(t);
+  if (signiToDeck) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStateFilter(t) };
     return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;

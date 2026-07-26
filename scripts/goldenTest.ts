@@ -7598,6 +7598,25 @@ test('RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後のアーツ（lrig_trash）をル
   ok(!r.ownerState.lrig_trash.includes(arts), 'ルリグトラッシュから除去');
   ok((r.ownerState.lrig_deck ?? []).includes(arts), 'ルリグデッキへ');
 });
+test('デッキ戻し parser: 明示シグニだけ TRANSFER_TO_DECK、残りカードは幻覚化しない', () => {
+  const signi = parseCardEffects(cardMap.get('WX04-030')!).find(e => e.effectId === 'WX04-030-E1')!;
+  ok(JSON.stringify(signi.action).includes('"type":"TRANSFER_TO_DECK"'), '明示された相手シグニはデッキ戻し');
+  const remainder = parseCardEffects(cardMap.get('WX04-015')!).find(e => e.effectId === 'WX04-015-E1')!;
+  ok(!JSON.stringify(remainder.action).includes('"source":{"type":"SIGNI"'), '公開した残りを場のシグニに丸めない');
+});
+test('WXK06-016: 打ち消し成功後のDRAWと自アーツのルリグデッキ戻しを分離', () => {
+  const eff = parseCardEffects(cardMap.get('WXK06-016')!).find(e => e.effectId === 'WXK06-016-E1')!;
+  const action = JSON.stringify(eff.action);
+  ok(action.includes('"type":"DRAW","owner":"self","count":1'), 'カードを1枚引く');
+  ok(action.includes('"id":"RETURN_SELF_ARTS_TO_LRIG_DECK"'), 'このカード自身をルリグデッキへ戻す');
+  ok(!action.includes('"source":{"type":"SIGNI"'), '場のシグニを戻す幻覚なし');
+});
+test('SP07-009: curated JSON も「このカードをルリグデッキに戻す」を自シグニ移動に丸めない', () => {
+  const eff = (effectsMap.get('SP07-009') ?? []).find(e => e.effectId === 'SP07-009-E1')!;
+  const action = JSON.stringify(eff.action);
+  ok(action.includes('"id":"RETURN_SELF_ARTS_TO_LRIG_DECK"'), 'アーツ自身をルリグデッキへ戻す');
+  ok(!action.includes('"type":"TRANSFER_TO_DECK"'), '自分の場のシグニをデッキへ戻す幻覚なし');
+});
 test('COST_INCREASE duration UNTIL_END_OF_TURN: cost_modifiers の until へ END_OF_TURN に正規化される', () => {
   const c = mkCtx({}, {});
   const r = run({ type: 'COST_INCREASE', targetCardType: 'アーツ', targetOwner: 'opponent', amount: [{ color: '無', count: 3 }], duration: 'UNTIL_END_OF_TURN' } as EffectAction, c);
