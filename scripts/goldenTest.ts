@@ -37,7 +37,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
-import { getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace } from '../src/screens/battle/resonaSummon';
+import { appearancePayment, getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
@@ -867,8 +867,8 @@ test('レゾナ出現条件: 全55枚を実効果と分離したメタデータ�
       eq(parsed.filter(e => e.effectId.endsWith('-APPEAR')).length, 0, `${card.CardNum}: 擬似実効果なし`);
       return appearance!;
     });
-    eq(appearances.filter(a => a.paymentShape === 'SINGLE_ZONE').length, 17, 'メイン＋単一ゾーン文型');
-    eq(appearances.filter(a => a.paymentShape === 'REQUIRES_NEW_FLOW').length, 38, '新しい支払いフローが必要な文型');
+    eq(appearances.filter(a => a.paymentShape === 'SINGLE_ZONE').length, 14, 'メイン＋単一ゾーン文型');
+    eq(appearances.filter(a => a.paymentShape === 'REQUIRES_NEW_FLOW').length, 41, '複数グループ混在3枚を含む共通支払いフロー文型');
 
     const field = parseCardEffects(cardMap.get('WX08-006')!).find(e => e.appearanceCondition)!.appearanceCondition!;
     eq(field.timings[0], 'MAIN', 'WX08-006 timing');
@@ -915,20 +915,74 @@ test('レゾナ召喚: 条件を払える時だけ候補になり、原子的支
       payable, resona, candidate!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap,
     );
     ok(!!placed, '支払いと配置が同時に成功');
-    eq(placed!.lrig_deck.includes(resona), false, 'ルリグデッキから除去');
-    eq(placed!.field.signi[0], null, '支払い1体目を場から除去');
-    eq(placed!.field.signi[1], null, '支払い2体目を場から除去');
-    eq(placed!.field.signi[2]?.at(-1), resona, '空きシグニゾーンへレゾナ配置');
-    ok(placed!.trash.includes(whiteA) && placed!.trash.includes(whiteB), '支払いカードはトラッシュ');
+    eq(placed!.state.lrig_deck.includes(resona), false, 'ルリグデッキから除去');
+    eq(placed!.state.field.signi[0], null, '支払い1体目を場から除去');
+    eq(placed!.state.field.signi[1], null, '支払い2体目を場から除去');
+    eq(placed!.state.field.signi[2]?.at(-1), resona, '空きシグニゾーンへレゾナ配置');
+    ok(placed!.state.trash.includes(whiteA) && placed!.state.trash.includes(whiteB), '支払いカードはトラッシュ');
+    eq(placed!.fieldTrashCostCards.join(','), `${whiteA},${whiteB}`, '中央盤面差分へ渡す場コスト識別を返す');
+    eq(placed!.discardedCostCards.length, 0, '場支払いでは手札コスト識別なし');
 
     const onPlay = effectsMap.get(resona)!.find(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'))!;
-    const beforeEnergy = placed!.energy.length;
+    const beforeEnergy = placed!.state.energy.length;
     const ctx = {
-      ownerState: placed!, otherState: mkState({}), cardMap, logs: [],
+      ownerState: placed!.state, otherState: mkState({}), cardMap, logs: [],
       sourceCardNum: resona, triggeringCardNum: resona, currentPhase: 'MAIN',
     } as unknown as ExecCtx;
     const resolved = finish(executeEffect(onPlay, ctx), ctx);
     eq(resolved.ownerState.energy.length, beforeEnergy + 2, '既存ON_PLAY（デッキ上2枚エナチャージ）が解決');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('レゾナ出現条件 段階3: ゾーン横断・複数グループ・合計制約・3択2選を支払い確定時に再検証', () => {
+  const savedCursor = cursor;
+  try {
+    const appearance = (id: string) =>
+      parseCardEffects(cardMap.get(id)!).find(e => e.appearanceCondition)!.appearanceCondition!;
+    const signis = [...cardMap.values()].filter(c => c.Type === 'シグニ');
+
+    const toys = signis.filter(c => c.CardClass?.includes('遊具')).slice(0, 3).map(c => c.CardNum);
+    const crossState = mkState({});
+    crossState.hand = toys.slice(0, 2);
+    crossState.energy = toys.slice(2);
+    const crossPlan = appearancePayment(appearance('WX12-006'))!;
+    ok(validateResonaSelection(crossState, crossPlan, { items: [
+      { zone: 'hand', index: 0 }, { zone: 'hand', index: 1 }, { zone: 'energy', index: 0 },
+    ] }, cardMap), '手札＋エナから合計3枚を横断選択');
+    ok(!validateResonaSelection(crossState, crossPlan, { items: [
+      { zone: 'hand', index: 0 }, { zone: 'energy', index: 0 },
+    ] }, cardMap), '合計枚数不足は確定不可');
+
+    const named = ['幻獣　ハチ', '幻獣　モンキ', '幻獣　キジ'].map(name =>
+      signis.find(c => c.CardName === name)!.CardNum);
+    const groupState = mkState({});
+    groupState.field = { ...groupState.field, signi: named.map(n => [n]) };
+    const groupPlan = appearancePayment(appearance('WX09-013'))!;
+    ok(validateResonaSelection(groupState, groupPlan, { items: named.map((_, group) =>
+      ({ zone: 'field' as const, index: group, group })) }, cardMap), '固有名3グループを1体ずつ');
+    ok(!validateResonaSelection(groupState, groupPlan, { items: [
+      { zone: 'field', index: 0, group: 0 }, { zone: 'field', index: 1, group: 0 }, { zone: 'field', index: 2, group: 2 },
+    ] }, cardMap), '別グループへの代用は不可');
+
+    const highPower = signis.find(c => (parseInt(c.Power ?? '0', 10) || 0) >= 10000)!.CardNum;
+    const lowPower = signis.find(c => (parseInt(c.Power ?? '0', 10) || 0) < 10000)!.CardNum;
+    const powerState = mkState({});
+    powerState.energy = [lowPower, highPower];
+    const powerPlan = appearancePayment(appearance('PR-470A'))!;
+    ok(!validateResonaSelection(powerState, powerPlan, { items: [{ zone: 'energy', index: 0 }] }, cardMap), '好きな数でもパワー合計未満は不可');
+    ok(validateResonaSelection(powerState, powerPlan, { items: [{ zone: 'energy', index: 1 }] }, cardMap), 'パワー合計10000以上で確定可');
+
+    const insects = signis.filter(c => c.CardClass?.includes('凶蟲')).slice(0, 3).map(c => c.CardNum);
+    const choiceState = mkState({});
+    choiceState.hand = [insects[0]];
+    choiceState.energy = [insects[1], insects[2]];
+    const choicePlan = appearancePayment(appearance('WD11-008'))!;
+    eq(choicePlan.chooseGroups, 2, '3択から2項目');
+    ok(validateResonaSelection(choiceState, choicePlan, { items: [
+      { zone: 'hand', index: 0, group: 0 },
+      { zone: 'energy', index: 0, group: 1 }, { zone: 'energy', index: 1, group: 1 },
+    ] }, cardMap), '手札1枚＋エナ2枚の2項目で確定');
   } finally {
     cursor = savedCursor;
   }

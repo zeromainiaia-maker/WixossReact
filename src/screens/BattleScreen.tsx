@@ -82,7 +82,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
-import { getMainSingleZoneResonaCandidate, payResonaAppearanceAndPlace, resonaPaymentOptions, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
+import { getResonaSummonCandidate, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 
 
 // ─── メインコンポーネント ────────────────────────────────────────────
@@ -103,7 +103,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingSigniSummon, setPendingSigniSummon, closeZoneSignal, setCloseZoneSignal,
   } = useSigniSummonFlow();
   const [pendingResonaSummon, setPendingResonaSummon] = useState<ResonaSummonCandidate | null>(null);
-  const [selectedResonaPayment, setSelectedResonaPayment] = useState<Set<number>>(new Set());
+  const [selectedResonaPayment, setSelectedResonaPayment] = useState<ResonaPaymentItem[]>([]);
   const {
     showEndConfirm, setShowEndConfirm, showSetupLeaveConfirm, setShowSetupLeaveConfirm,
     showEnergySkipConfirm, setShowEnergySkipConfirm, showGrowSkipConfirm, setShowGrowSkipConfirm,
@@ -4922,7 +4922,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     resona?: { candidate: ResonaSummonCandidate; selection: ResonaPaymentSelection },
   ) => {
     console.log('[handleSummonSigni] called', { handIndex, zoneIndex, isMyTurn, loading });
-    if (!isMyTurn || loading) return;
+    const resonaAttackResponse = !!resona && bs.turn_phase === 'ATTACK_ARTS_OP' && !isMyTurn;
+    if ((!isMyTurn && !resonaAttackResponse) || loading) return;
     const summonCardNum = resona?.candidate.cardNum ?? my.hand[handIndex];
     if (!summonCardNum) return;
     const summonCardData = battleCardMap.get(summonCardNum);
@@ -4936,8 +4937,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const existingTopNum = getCardNum(existingTop);
       if (!matchesRiseFilter(existingTopNum, riseFilter, battleCardMap)) return;
     } else {
-      // 通常シグニ: 空きゾーンにしか召喚できない
-      if (existingZoneStack.length > 0) return;
+      // 通常シグニは空きゾーンへ。レゾナだけは、出現条件で同時にトラッシュへ置くゾーンを召喚先にできる。
+      const paidDestination = resona?.selection.items?.some(i => i.zone === 'field' && i.index === zoneIndex);
+      if (existingZoneStack.length > 0 && !paidDestination) return;
     }
     if (isActionBlocked('PLAY_COLORLESS') && summonCardData?.Color === '無') return;
     // OPP_ZONE_PLACEMENT_RESTRICT: 相手が中央ゾーン(index=1)にLv3+配置不可
@@ -4959,8 +4961,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? (contCountCap !== undefined ? Math.min(my.signi_deploy_count_limit, contCountCap) : my.signi_deploy_count_limit)
         : contCountCap;
       if (countCap !== undefined) {
+        const paidFieldCount = resona
+          ? (resona.selection.items ?? []).filter(i => i.zone === 'field').length
+          : 0;
         const fieldSigniCount = my.field.signi.filter(s => s && s.length > 0).length
-          - (resona?.candidate.payment.zone === 'field' ? resona.candidate.payment.count : 0);
+          - paidFieldCount;
         if (existingZoneStack.length === 0 && fieldSigniCount >= countCap) return;
       }
     }
@@ -4975,14 +4980,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!canSelfPlay(baseEffectsMap.get(summonCardNum), my, op, battleCardMap)) return;
     // レゾナは表示後にも盤面が変わり得るため、確定時に条件・支払い・ルリグデッキ在籍を再検証する。
     if (resona) {
-      const current = getMainSingleZoneResonaCandidate(summonCardNum, my, battleCardMap, effectsMap);
-      if (!current || current.payment.zone !== resona.selection.zone) return;
-      const paidFieldLevels = current.payment.zone === 'field'
-        ? resona.selection.indices.reduce((sum, zi) => {
-          const paidNum = getCardNum(my.field.signi[zi]?.at(-1) ?? '');
+      const timing = bs.turn_phase === 'MAIN' ? 'MAIN' : 'ATTACK';
+      const current = getResonaSummonCandidate(summonCardNum, my, battleCardMap, effectsMap, timing);
+      if (!current) return;
+      const paidFieldLevels = (resona.selection.items ?? [])
+        .filter(i => i.zone === 'field')
+        .reduce((sum, item) => {
+          const paidNum = getCardNum(my.field.signi[item.index]?.at(-1) ?? '');
           return sum + (parseInt(battleCardMap.get(paidNum)?.Level ?? '0', 10) || 0);
-        }, 0)
-        : 0;
+        }, 0);
       const resonaLevel = parseInt(summonCardData?.Level ?? '0', 10) || 0;
       if (resonaLevel > currentLrigLevel) return;
       if (fieldSigniTotal - paidFieldLevels + resonaLevel > lrigLimit) return;
@@ -5017,12 +5023,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ライズで元のトップシグニが下に置かれるカードになると、付いていた【ソウル】はルリグトラッシュへ（ルール処理）
       if (newSoul[zoneIndex])   { zoneExtraLrigTrash.push(newSoul[zoneIndex]!); newSoul[zoneIndex] = null; }
       let placed: PlayerState;
+      let summonOpp = op;
+      let resonaPaymentMeta: { fieldTrashCostCards: string[]; discardedCostCards: string[] } | null = null;
       if (resona) {
         const paidAndPlaced = payResonaAppearanceAndPlace(
           my, cardNum, resona.candidate.payment, resona.selection, zoneIndex, battleCardMap,
         );
         if (!paidAndPlaced) return;
-        placed = paidAndPlaced;
+        placed = paidAndPlaced.state;
+        resonaPaymentMeta = paidAndPlaced;
       } else {
         placed = {
           ...my,
@@ -5042,15 +5051,36 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
-      const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, op);
+      // 出現条件の支払いも通常の盤面差分収集へ載せる。場コストは fieldTrashCostCards により
+      // ON_TRASH の byEffectCause=false を維持し、ON_LEAVE_FIELD も同じ共通経路で収集する。
+      const paymentDiff = resonaPaymentMeta
+        ? collectBoardDiffTriggers(
+          isHost ? placed : bs.host_state,
+          isHost ? bs.guest_state : placed,
+          { causeOwnerId: user.id, causeSourceCardNum: cardNum, fieldTrashCostCards: resonaPaymentMeta.fieldTrashCostCards },
+        )
+        : null;
+      if (paymentDiff) {
+        placed = isHost ? paymentDiff.hostState : paymentDiff.guestState;
+        summonOpp = isHost ? paymentDiff.guestState : paymentDiff.hostState;
+      }
+      const paymentEntries = paymentDiff?.entries ?? [];
+      // 手札支払いは中央差分の ON_TRASH に加え、既存の「手札を捨てたとき」経路にも載せる。
+      // 出現条件は【出】【起】能力の使用コストではないため asCost=false（ON_DISCARDED_AS_COST は発火させない）。
+      const discardRes = resonaPaymentMeta?.discardedCostCards.length
+        ? collectHandDiscardTriggers(resonaPaymentMeta.discardedCostCards.map(getCardNum), placed, user.id, false, summonOpp, isHost ? bs.guest_id : bs.host_id)
+        : null;
+      if (discardRes?.usedLimitIds.length) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...discardRes.usedLimitIds] };
+      paymentEntries.push(...(discardRes?.entries ?? []));
+      const fieldRes = collectFieldTriggers('ON_PLAY', cardNum, placed, summonOpp);
       const fieldEntries = fieldRes.entries;
       // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（自分側＝placed／相手側＝opAfterPlay。続き135）
       const summonUsedMine = isHost ? fieldRes.usedHostIds : fieldRes.usedGuestIds;
       const summonUsedOpp  = isHost ? fieldRes.usedGuestIds : fieldRes.usedHostIds;
       if (summonUsedMine.length > 0) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...summonUsedMine] };
       const opAfterPlay: PlayerState | null = summonUsedOpp.length > 0
-        ? { ...op, actions_done: [...(op.actions_done ?? []), ...summonUsedOpp] }
-        : null;
+        ? { ...summonOpp, actions_done: [...(summonOpp.actions_done ?? []), ...summonUsedOpp] }
+        : paymentDiff ? summonOpp : null;
       const opKeySummon = isHost ? 'guest_state' : 'host_state';
 
       // 召喚したカード自身の ON_PLAY 効果
@@ -5138,14 +5168,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           cardNum,
           costEffect: ownCostOnPlay[0],
           placedState: placed,
-          mandatoryEntries: [...ownEntries, ...fieldEntries],
+          mandatoryEntries: [...ownEntries, ...fieldEntries, ...paymentEntries],
           remainingCostEffects: ownCostOnPlay.slice(1),
           placedZone: zoneIndex,
         });
         return;
       }
 
-      if (ownEntries.length === 0 && fieldEntries.length === 0) {
+      if (ownEntries.length === 0 && fieldEntries.length === 0 && paymentEntries.length === 0) {
         // 効果なし：そのまま保存
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: placed, opp: opAfterPlay ? { key: opKeySummon, state: opAfterPlay } : undefined }));
@@ -5153,7 +5183,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // すべてをスタックに積む
-      const allEntries = [...ownEntries, ...fieldEntries];
+      const allEntries = [...ownEntries, ...fieldEntries, ...paymentEntries];
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existing = bs?.effect_stack ?? null;
       const stack = existing
@@ -6452,26 +6482,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const phase = bs.turn_phase;
     const actions: CardAction[] = [];
 
-    // ── レゾナ【出現条件】── 段階2は MAIN + 単一ゾーン支払いだけを安全に解放する。
-    // deferReason のある複数ゾーン／複数グループ／別タイミングは候補を一切出さない。
+    // ── レゾナ【出現条件】── MAIN と ATTACK_ARTS の共通支払いフロー。
     if (cardData.Type === 'レゾナ') {
-      if (!isMyTurn || phase !== 'MAIN' || bs.pending_spell || my.field.signi.every(z => (z?.length ?? 0) > 0)) return actions;
-      const candidate = getMainSingleZoneResonaCandidate(cardNum, my, battleCardMap, effectsMap);
+      const appearanceTiming = phase === 'MAIN' ? 'MAIN'
+        : (phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') ? 'ATTACK' : null;
+      const canUseWindow = (phase === 'MAIN' && isMyTurn) ||
+        (phase === 'ATTACK_ARTS' && isMyTurn) ||
+        (phase === 'ATTACK_ARTS_OP' && !isMyTurn);
+      if (!canUseWindow || !appearanceTiming || bs.pending_spell) return actions;
+      const candidate = getResonaSummonCandidate(cardNum, my, battleCardMap, effectsMap, appearanceTiming);
       const resonaLevel = parseInt(cardData.Level ?? '0', 10) || 0;
-      const maxPaidFieldLevels = candidate?.payment.zone === 'field'
-        ? resonaPaymentOptions(my, candidate.payment, battleCardMap)
-          .map(zi => parseInt(battleCardMap.get(getCardNum(my.field.signi[zi]?.at(-1) ?? ''))?.Level ?? '0', 10) || 0)
+      const fieldItems = candidate
+        ? (candidate.payment.combined
+          ? resonaCombinedOptions(my, candidate.payment, battleCardMap).filter(i => i.zone === 'field')
+          : candidate.payment.groups.flatMap(g => g.zone === 'field'
+            ? resonaPaymentOptions(my, g, battleCardMap).map(index => ({ zone: 'field' as const, index }))
+            : []))
+        : [];
+      const fieldPayCount = candidate?.payment.combined?.count
+        ?? candidate?.payment.groups.filter(g => g.zone === 'field').reduce((n, g) => n + g.count, 0)
+        ?? 0;
+      const maxPaidFieldLevels = fieldItems
+          .map(i => parseInt(battleCardMap.get(getCardNum(my.field.signi[i.index]?.at(-1) ?? ''))?.Level ?? '0', 10) || 0)
           .sort((a, b) => b - a)
-          .slice(0, candidate.payment.count)
+          .slice(0, fieldPayCount)
           .reduce((sum, lv) => sum + lv, 0)
-        : 0;
+        ;
       const canFitLimit = fieldSigniTotal - maxPaidFieldLevels + resonaLevel <= lrigLimit;
       if (candidate && resonaLevel <= currentLrigLevel && canFitLimit) {
         actions.push({
           label: '【出現条件】で召喚',
           color: C.accent,
           onClick: () => {
-            setSelectedResonaPayment(new Set());
+            setSelectedResonaPayment([]);
             setPendingResonaSummon(candidate);
           },
         });
@@ -11210,14 +11253,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending={pendingResonaSummon}
         selected={selectedResonaPayment}
         setSelected={setSelectedResonaPayment}
-        close={() => { setPendingResonaSummon(null); setSelectedResonaPayment(new Set()); }}
+        close={() => { setPendingResonaSummon(null); setSelectedResonaPayment([]); }}
         fieldSigniTotal={fieldSigniTotal}
         lrigLimit={lrigLimit}
         execute={zoneIndex => {
           if (!pendingResonaSummon) return;
           void handleSummonSigni(-1, zoneIndex, {
             candidate: pendingResonaSummon,
-            selection: { zone: pendingResonaSummon.payment.zone, indices: [...selectedResonaPayment] },
+            selection: { items: selectedResonaPayment },
           });
         }}
       />

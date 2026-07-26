@@ -67,7 +67,6 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
         ],
       },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      deferReason: '異種コスト3項目から2項目を選ぶ共通支払いUIが未実装',
     };
   }
 
@@ -79,17 +78,26 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
         fieldTrash: { count: 1, filter: { cardType: 'シグニ', level: { min: 3 }, excludeResona: true } },
       },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      deferReason: '行き先の異なる複合場コストの一括選択UIが未実装',
     };
   }
 
-  const exactNames = [...body.matchAll(/《([^》]+)》([０-９\d]+)体/g)];
-  if (exactNames.length >= 2) {
+  // 場の複数グループ。「《固有名》1体と《固有名》1体」だけでなく、
+  // 「《固有名》1体とレゾナではない＜クラス＞1体」の混在も各グループを独立に保つ。
+  const fieldGroups = [...body.matchAll(/(?:《([^》]+)》|(レゾナではない)?(?:(白|赤|青|緑|黒)の)?(?:＜([^＞]+)＞の)?シグニ)([０-９\d]+)体/g)];
+  if (fieldGroups.length >= 2 && parseZones(body).includes('field')) {
     return {
       rawText: raw, timings,
-      cost: { fieldTrashGroups: exactNames.map(m => ({ count: num(m[2]), filter: { cardType: 'シグニ', cardNames: [m[1]] } })) },
+      cost: { fieldTrashGroups: fieldGroups.map(m => ({
+        count: num(m[5]),
+        filter: {
+          cardType: 'シグニ',
+          ...(m[1] ? { cardNames: [m[1]] } : {}),
+          ...(m[3] ? { color: m[3] } : {}),
+          ...(m[4] ? { story: m[4] } : {}),
+          ...(m[2] ? { excludeResona: true } : {}),
+        },
+      })) },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      deferReason: '複数グループ場コストのレゾナ召喚UIが未実装',
     };
   }
 
@@ -104,7 +112,6 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
       rawText: raw, timings,
       cost: zone === 'hand' ? { discardGroups: groups } : { energyTrashGroups: groups },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      deferReason: '複数グループコストのレゾナ召喚UIが未実装',
     };
   }
 
@@ -127,9 +134,9 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
         ...(totalPower ? { totalPowerMin: num(totalPower[1]) } : {}),
       },
       paymentShape: 'REQUIRES_NEW_FLOW',
-      deferReason: totalLevel || totalPower
-        ? '合計レベル／パワー制約を扱うレゾナ召喚UIが未実装'
-        : '複数ゾーン横断の合計枚数コストを扱うレゾナ召喚UIが未実装',
+      ...(timings.includes('SPELL_CUTIN') ? {
+        deferReason: 'pending_spell応答窓へレゾナ召喚と支払いを割り込ませる継続処理が未実装',
+      } : {}),
     };
   }
 
@@ -139,7 +146,6 @@ export function parseAppearanceCondition(raw: string): AppearanceCondition {
       rawText: raw, timings,
       cost: singleZoneCost(zones[0], count, filter),
       paymentShape: mainOnly ? 'SINGLE_ZONE' : 'REQUIRES_NEW_FLOW',
-      ...(mainOnly ? {} : { deferReason: 'メインフェイズ以外のレゾナ使用窓が未実装' }),
     };
   }
 
