@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -30,7 +30,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
-import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, InstanceMap } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
@@ -492,6 +492,108 @@ test('§3 タスク8 §6.3「正面」サブ機構(b)(d)(e): FRONT_SIGNI 条件�
     mkState({ signi: [victim, null, null] }), mkState({ signi: ['WXK11-029', null, null] }), true, effectsMap, cm, '出');
   ok(!notBlocked.has(victim), 'same-zi はブロックしない');
   cursor = savedCursor;
+});
+
+test('§6.3 runtime GRANT_EFFECT: instanceId付与CONT/AUTOと強制正面アタックをproduction形で評価', () => {
+  const savedCursor = cursor;
+  try {
+    const cm = new InstanceMap<CardData>(cardMap);
+    const em = new InstanceMap<CardEffect[]>(effectsMap);
+    const host = `${SIGNI_P12000}#front-grant-host`;
+    const front = `${SIGNI_P12000}#front-grant-opponent`;
+    const source = 'WXK02-084#source';
+
+    // 実際のGRANT_EFFECT解決：対象が1体だけの盤面で instanceId キーに付与される。
+    const grantAction = (effectsMap.get('WXK02-084') ?? []).find(e => e.effectId === 'WXK02-084-E1')!.action;
+    const grantCtx = {
+      ...mkCtx({}, {}, source),
+      ownerState: mkState({ signi: [host, null, null] }),
+      otherState: mkState({ signi: [null, null, front] }),
+      cardMap: cm,
+    } as ExecCtx;
+    const grantedResult = run(grantAction, grantCtx);
+    const granted = grantedResult.ownerState.granted_effects?.[host] ?? [];
+    eq(granted.length, 1, 'GRANT_EFFECTは対象instanceIdだけに1能力を格納');
+    eq(granted[0]?.effectType, 'CONTINUOUS', 'WXK02-084の引用内側はCONTINUOUS');
+
+    // BattleScreen production と同じ [base, ...granted] マージ。
+    em.set(host, [...(em.get(host) ?? []), ...granted]);
+    const frozen = grantedResult.otherState;
+    frozen.field.signi_frozen = [false, false, true];
+    const positive = collectContinuousGrantedKeywords(grantedResult.ownerState, frozen, true, em, cm);
+    ok(positive[host]?.includes('アサシン'), '正面(2-zi)が凍結なら付与CONTが発火');
+    const nonFrozen = collectContinuousGrantedKeywords(grantedResult.ownerState,
+      mkState({ signi: [null, null, front] }), true, em, cm);
+    ok(!nonFrozen[host]?.includes('アサシン'), '正面が非凍結なら付与CONTは不発');
+    const sameZiFrozen = mkState({ signi: [front, null, null] });
+    sameZiFrozen.field.signi_frozen = [true, false, false];
+    ok(!collectContinuousGrantedKeywords(grantedResult.ownerState, sameZiFrozen, true, em, cm)[host]?.includes('アサシン'),
+      'same-zi凍結は正面でないため不発');
+
+    // WXDi-P13-082：同パワーの正面だけランサー。異なるパワー・空面では不発。
+    const p13 = (effectsMap.get('WXDi-P13-082') ?? []).find(e => e.effectId === 'WXDi-P13-082-E1')!;
+    const p13Inner = (p13.action as { effect?: CardEffect }).effect!;
+    const p13Map = new InstanceMap<CardEffect[]>(effectsMap);
+    p13Map.set(host, [...(p13Map.get(host) ?? []), p13Inner]);
+    const equal = collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
+      mkState({ signi: [null, null, front] }), true, p13Map, cm);
+    ok(equal[host]?.includes('ランサー'), '正面と同パワーならランサー');
+    const different = `${SIGNI_P3000}#different-power`;
+    ok(!collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
+      mkState({ signi: [null, null, different] }), true, p13Map, cm)[host]?.includes('ランサー'),
+      '正面と異なるパワーならランサー不発');
+    ok(!collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
+      mkState({}), true, p13Map, cm)[host]?.includes('ランサー'), '正面が空ならランサー不発');
+
+    // WXDi-P08-060：引用AUTOは既に展開済みで、付与先instanceIdからself攻撃時だけ収集される。
+    const p08 = (effectsMap.get('WXDi-P08-060') ?? []).find(e => e.effectId === 'WXDi-P08-060-E1')!;
+    const p08Inner = (p08.action as { effect?: CardEffect }).effect!;
+    const autoMap = new InstanceMap<CardEffect[]>(effectsMap);
+    autoMap.set(host, [...(autoMap.get(host) ?? []), p08Inner]);
+    const tctx = { hostId: 'H', guestId: 'G', activeUserId: 'H', turnPhase: 'ATTACK_SIGNI' as const,
+      effectsMap: autoMap, cardMap: cm, genId: () => 'runtime-auto' };
+    const selfAttack = collectFieldTriggers(tctx, 'ON_ATTACK_SIGNI', host,
+      mkState({ signi: [host, null, null] }), mkState({ signi: [null, null, front] }), 'H');
+    // self能力はBattleScreenの攻撃元直収集経路で拾うため、field watcher（他者監視）には混入しない。
+    eq(selfAttack.entries.length, 0, '付与self AUTOはany_ally watcherとして過剰発火しない');
+    const productionSelfAttack = (autoMap.get(host) ?? [])
+      .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI')
+        && (e.triggerScope ?? 'self') === 'self');
+    eq(productionSelfAttack.length, 1, '付与先自身のアタックではproduction直収集が1件発火');
+    eq((autoMap.get(front) ?? []).filter(e => e.effectId === p08Inner.effectId).length, 0,
+      '付与されていない別シグニのアタックでは不発');
+    eq(p08Inner.triggerScope, 'self', '付与AUTOはself限定');
+    ok(p08Inner.timing?.includes('ON_ATTACK_SIGNI'), '付与AUTOはシグニアタック時');
+    const p08Resolved = run(p08Inner.action, {
+      ...mkCtx({}, {}, host),
+      ownerState: mkState({ signi: [host, null, null] }),
+      otherState: mkState({ signi: [null, null, front] }),
+      cardMap: cm,
+    } as ExecCtx);
+    ok(!p08Resolved.otherState.field.signi[2]?.includes(front), '付与AUTOは2-zi正面だけをバニッシュ');
+    const p08SameZi = run(p08Inner.action, {
+      ...mkCtx({}, {}, host),
+      ownerState: mkState({ signi: [host, null, null] }),
+      otherState: mkState({ signi: [front, null, null] }),
+      cardMap: cm,
+    } as ExecCtx);
+    ok(p08SameZi.otherState.field.signi[0]?.includes(front), 'same-ziは正面でないためバニッシュしない');
+
+    // WXDi-P06-042：相手 zi=2 のホスト正面＝自 zi=0だけを強制。same-ziは対象外。
+    const forcedMap = new InstanceMap<CardEffect[]>(effectsMap);
+    const p06 = 'WXDi-P06-042#force-source';
+    forcedMap.set(p06, effectsMap.get('WXDi-P06-042') ?? []);
+    const forced = collectForcedFrontAttackZones(mkState({ signi: [host, null, null] }),
+      mkState({ signi: [null, null, p06] }), true, forcedMap, cm);
+    ok(forced.has(0) && forced.size === 1, '2-zi正面だけ強制アタック');
+    const notForced = collectForcedFrontAttackZones(mkState({ signi: [host, null, null] }),
+      mkState({ signi: [p06, null, null] }), true, forcedMap, cm);
+    eq(notForced.size, 0, 'same-ziは強制対象外');
+    eq(collectForcedFrontAttackZones(mkState({}), mkState({ signi: [null, null, p06] }),
+      true, forcedMap, cm).size, 0, '正面が空なら強制対象なし');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 
 test('§3 task8(c) attack geometry: six cards use self-targeted multi/adjacent attack capabilities and EICHI gates', () => {

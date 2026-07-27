@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き281＝§6.3 正面サブ機構残4枚を既存runtime付与経路へ配線・完全消化（2026-07-27・Codex）
+
+PLAN §6.3 の正面サブ機構残（引用付与3枚＋強制正面アタック1枚）を原文・生成JSON・executor/collector・BattleScreenのproduction経路まで照合。**新しいruntime stateは作らず**、既存 `granted_effects`（instanceId→`CardEffect[]`）と `BattleScreen.tsx` の `effectsMap` 拡張（`augMap.set(instanceId, [...base, ...granted])`）に載せて完全消化した。
+
+- **WXDi-P13-082-E1**＝変更前は引用全文を生keywordにした `GRANT_KEYWORD` で、ディソナ対象制限も欠落していた。変更後は対象を `{cardType:'シグニ',isDisona:true}` に限定した `GRANT_EFFECT` とし、内側を `CONTINUOUS GRANT_KEYWORD{thisCardOnly,ランサー}`＋`activeCondition:{type:'FRONT_SIGNI',compareToSelf:{key:'power',operator:'eq'}}` に構造化。正面（2-zi）が同パワーなら発火、異パワー／空なら不発を実測。
+- **WXK02-084-E1**＝変更前は「正面が凍結」を対象自身の `target.filter.isFrozen` に誤付着した生keyword `GRANT_KEYWORD`。変更後は任意の自シグニ1体への `GRANT_EFFECT` とし、内側を `CONTINUOUS GRANT_KEYWORD{thisCardOnly,アサシン}`＋`activeCondition:{type:'FRONT_SIGNI',filter:{isFrozen:true}}` に構造化。正面凍結で発火、正面非凍結／same-zi凍結で不発を実測。
+- **WXDi-P08-060-E1**＝引用内側の `GRANT_EFFECT.effect:{AUTO,timing:[ON_ATTACK_SIGNI],triggerScope:self,usageLimit:once_per_turn}` 展開と付与先instanceIdの攻撃元直収集は既に正しかったが、内側BANISHが `owner:self` の自軍任意対象になっていた過不足を発見。`owner:opponent,filter:{cardType:'シグニ',frontOfSelf:true}` へ訂正し、付与先自身で1件／別シグニ0件／any_ally watcherへ混入なし／2-zi正面だけバニッシュ／same-zi不発をgoldenで固定。
+- **WXDi-P06-042-E1**＝「旧same-zi規約食い違い」ではなかった。変更前 `CONTINUOUS FORCE_SIGNI_ATTACK{targetOwner:self}` は自軍全体を強制する誤変換。変更後は既存 `FORCE_FRONT_SIGNI_ATTACK` へ訂正し、相手ホストzi=2→自zi=0だけ強制、same-zi／正面空は不発を実測。
+- **golden盤面**＝全カードを `CardNum#suffix` のinstanceIdで `field.signi` に配置。付与先 `SIGNI_P12000#front-grant-host`（自zi=0）、正面 `SIGNI_P12000#front-grant-opponent`（相手zi=2）、付与元 `WXK02-084#source`。強制正面は `WXDi-P06-042#force-source` を相手zi=2に配置。共有`cursor`は `try/finally` で復元。
+- **検証**＝`npm run regen`（同型★0）＋`npm run gates` **10回連続・FAIL 0**。各回 golden 781/781、smoke 10725/10725（CRASH/HANG/INVARIANT 0）、fuzz 200ゲーム（不具合0）、census **1527**（baseline 1531以下）、typecheck/lint error 0。census低下は引用能力を生keywordから実構造へ直した機能実装によるもの（baselineは変更せず）。
+
+---
+
 ## 続き280＝§6.3 A群「動的コンテキスト追跡系」3枚を完全実装（2026-07-27・Codex）
 
 **WX11-027-E1（ゴルドオラ）**＝旧 `GRANT_PROTECTION{target:自SIGNI ALL,from:['any']}` は相手の通常シグニ／スペル／アーツまで遮断する過剰保護だった。カード属性を見る既存 `sourceFilter` とは別に `sourceEffectType:'LIFE_BURST'` を新設し、`BattleScreen` が解決中 `StackEntry.effect.effectType` を `collectEffectImmuneSigni` へ渡して実評価する。`subjectFilter:{cardType:'シグニ'}` で自シグニ全体を保護。golden は `WX11-027#1` と味方シグニを `field.signi` に置き、同じ相手ソースでも LIFE_BURST は両方保護／AUTO、通常スペル、通常アーツは全て非保護を固定した。
