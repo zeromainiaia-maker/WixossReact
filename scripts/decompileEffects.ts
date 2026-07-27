@@ -565,9 +565,12 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'FREEZE': return `${targetJa(a.target)}を${a.down ? 'ダウンして凍結する' : '凍結する'}`;  // down:true のときのみダウンも行う
     case 'DOWN': return `${targetJa(a.target)}をダウンする${a.optional ? '（してもよい）' : ''}`;
-    case 'PREVENT_NEXT_DAMAGE': return a.damageSource
-      ? `このターン、次にあなたが${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}によってダメージを受ける場合、代わりにダメージを受けない`
-      : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
+    case 'PREVENT_NEXT_DAMAGE':
+      if (a.millAtTurnEndPerPrevented) return `このターン、次の${a.count ?? 1}回のダメージを受けず、防いだ回数だけ「ターン終了時、デッキの上からカードを${a.millAtTurnEndPerPrevented}枚トラッシュに置く。」を得る`;
+      if (a.sourceLevelLtLastProcessed) return `このターン、次にあなたがそれより低いレベルを持つ対戦相手のシグニによってダメージを受ける場合、代わりにダメージを受けない`;
+      return a.damageSource
+        ? `このターン、次にあなたが${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}によってダメージを受ける場合、代わりにダメージを受けない`
+        : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL':
       return `このターン、次にあなたが${a.damageSource ? (a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ') + 'によって' : ''}ダメージを受ける場合、代わりにあなたのデッキの上からカードを${a.millCount}枚トラッシュに置く`;
     case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
@@ -783,6 +786,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const subjNoun = a.subjectFilter?.cardType === 'レゾナ' ? 'レゾナ' : 'シグニ';
       const subject = protThisOnly ? 'このシグニ'
         : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
+      if (a.sourceEffectType === 'LIFE_BURST') return `${subject}は${ownerJa(a.sourceOwner)}ライフバーストの効果を受けない`;
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;

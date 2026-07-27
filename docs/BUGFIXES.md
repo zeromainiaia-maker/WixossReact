@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き280＝§6.3 A群「動的コンテキスト追跡系」3枚を完全実装（2026-07-27・Codex）
+
+**WX11-027-E1（ゴルドオラ）**＝旧 `GRANT_PROTECTION{target:自SIGNI ALL,from:['any']}` は相手の通常シグニ／スペル／アーツまで遮断する過剰保護だった。カード属性を見る既存 `sourceFilter` とは別に `sourceEffectType:'LIFE_BURST'` を新設し、`BattleScreen` が解決中 `StackEntry.effect.effectType` を `collectEffectImmuneSigni` へ渡して実評価する。`subjectFilter:{cardType:'シグニ'}` で自シグニ全体を保護。golden は `WX11-027#1` と味方シグニを `field.signi` に置き、同じ相手ソースでも LIFE_BURST は両方保護／AUTO、通常スペル、通常アーツは全て非保護を固定した。
+
+**関連2枚の裏取り**＝WXEX2-36 は既に `sourceFilter:{noRiseIcon:true}`、WXK11-021 は既に `sourceFilter:{hasLifeBurst:false}` が `manualEffects.ts` にあり、golden も非ライズ／非LBソースだけを遮断する正負ケースを保持していた。欠落という依頼時観測は現行 master では解消済みだったため追加変更なし。
+
+**WX24-P4-006-E1（バタフライ・エフェクト）**＝旧 `DOWN(opponent LRIG)→PREVENT_NEXT_DAMAGE{count:1}` は次のダメージを発生源不問で消費した。`damageSource` を実行予約で honor し、さらに `sourceLevelLtLastProcessed:true` を追加。DOWN が残す相手ルリグの instanceId から解決時レベルNを予約へ固定し、実ダメージ時に相手シグニのレベルが `<N` の場合だけ消費する。同レベルN、相手ルリグ、発生源情報のない効果ダメージでは消費しない。golden はアーツ `WX24-P4-006#1` を source、相手ルリグ `CardNum#1` を `field.lrig` に置くproduction同型で、N-1防御／N非防御／ルリグ非防御を固定した。
+
+**WXDi-D07-007-E1/E2（デウスシールド）**＝旧は軽減後が `STUB LRIG_GRANT_MILL_PER_PREVENTED_DAMAGE` で停止していた。限定付き防御予約へ `millAtTurnEndPerPrevented:5` を持たせ、防御成功時だけ `turn_end_mill_count` を加算。E1は2回まで防ぎ、各回で得た能力を重複してターン終了時に解決するため、2回ならデッキ上10枚をトラッシュへ実移動する。golden は `WXDi-D07-007#1` を `field.assist` に置き、1回=5／2回=10／3回目非防御／ターン終了時10枚移動を固定した。
+
+**後方互換**＝限定なし PREVENT_NEXT_DAMAGE は既存 `prevent_next_damage` を維持。新予約配列は新軸がある場合だけ使用し、全ターン境界でクリアする。`sourceEffectType` も省略時は従来どおり。decompiler は3枚の限定と重複ミルを表示。census は1532→1531へ改善し、`BASELINE_HIGH` のコメント先頭へ本理由を追記した。
+
+**検証**＝golden 777→780、smoke 10725（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム不具合0、census 1531。`npm run gates` を10回連続実行し **10/10 PASS・FAIL 0**（各周 golden 780/780・census 1531/BASELINE 1531）を確認。コミットなし。
+
+---
+
 ## 続き279＝§6.3 D群 `forResonaCondition` 7効果をレゾナ召喚の共通盤面差分へ配線（2026-07-27・Codex）
 
 **根本原因**＝`triggerCondition.forResonaCondition` は7効果に存在したが、`collectTrashTriggers` が無条件 `continue` しており永久に不発だった。対象全数は、参照なし5件＝WX10-055-E1／WX10-076-E1／WX10-086-E1／WX21-021-E2／WX21-047-E1、今出たレゾナ参照2件＝WXEX1-58-E1（＜宇宙＞限定）／WXEX1-72-E1（＜遊具＞限定）。旧PLANの「2枚」は7効果へ訂正した。

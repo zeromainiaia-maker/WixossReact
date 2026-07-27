@@ -1192,6 +1192,7 @@ export interface GrantProtectionAction {
   bySourceType?: 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ';
   sourceCostMin?: number; // 保護元カード（アーツ/スペル）の使用コスト合計がN以上の効果のみ保護する（「対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない」WX15-031）。collectEffectImmuneSigni が解決中ソースカードの Cost 合計で判定
   sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
+  sourceEffectType?: 'LIFE_BURST'; // 発生源カードの属性ではなく、現在解決中の効果種別を限定する（WX11-027「対戦相手のライフバーストの効果」）
   sourceOwner?: Owner; // 誰の効果から保護するか
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外
@@ -1845,6 +1846,11 @@ export interface PreventNextDamageAction {
   // ダメージ源の限定（「次にあなたがルリグ/シグニによってダメージを受ける場合」）。
   // 逆翻訳の忠実化用。engine 側は現状ダメージ源を区別せず次の1回を無効化する（軽微な過剰軽減・偽陰性ではない）。
   damageSource?: 'lrig' | 'signi';
+  // 直前に処理したカード（WX24-P4-006ではダウンした相手ルリグ）のレベル未満の
+  // シグニによるダメージだけを対象にする。実行時にレベル値を予約へ固定する。
+  sourceLevelLtLastProcessed?: boolean;
+  // 防いだ1回ごとに、ターン終了時のデッキミル予約を1能力ぶん得る（デウスシールド）。
+  millAtTurnEndPerPrevented?: number;
 }
 
 // 「このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードをN枚トラッシュに置く」

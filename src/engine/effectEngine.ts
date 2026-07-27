@@ -4396,6 +4396,7 @@ export function collectEffectImmuneSigni(
   isOwnerTurn: boolean,
   sourceCardType: string,
   sourceCardNum?: string,
+  sourceEffectType?: import('../types/effects').CardEffect['effectType'],
 ): Set<string> {
   const immune = new Set<string>();
   const srcType = sourceCardType ?? '';
@@ -4444,6 +4445,7 @@ export function collectEffectImmuneSigni(
 
       // sourceFilter: 解決中ソースカードの属性が指定フィルタに非マッチなら保護しない（WXEX2-36 ライズアイコン非所持／WXK11-021 LB非所持）
       if (gp.sourceFilter && !matchesFilter(srcCard, gp.sourceFilter)) continue;
+      if (gp.sourceEffectType && gp.sourceEffectType !== sourceEffectType) continue;
 
       // 保護対象シグニを収集
       if (gp.subjectFilter) {

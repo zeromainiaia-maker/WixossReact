@@ -34,6 +34,7 @@ import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRed
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
+import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
@@ -10706,6 +10707,69 @@ test('task16 mechanism B routing: accepted escape emits; paid escape does not ne
   } finally {
     cursor = savedCursor;
   }
+});
+
+test('§6.3 A群: WX11-027 は相手ライフバースト効果だけから全自シグニを保護', () => {
+  const savedCursor = cursor;
+  try {
+    const holder = 'WX11-027#1';
+    const allyBase = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WX11-027');
+    const ally = `${allyBase}#1`;
+    const sourceBase = findCard(c => c.Type === 'シグニ' && c.CardNum !== allyBase);
+    const source = `${sourceBase}#1`;
+    const cm = new Map(cardMap);
+    cm.set(holder, cardMap.get('WX11-027')!); cm.set(ally, cardMap.get(allyBase)!); cm.set(source, cardMap.get(sourceBase)!);
+    const em = new Map(effectsMap);
+    em.set(holder, mergeManualEffects('WX11-027', effectsMap.get('WX11-027') ?? []));
+    const st = mkState({ signi: [holder, ally, null] });
+    const lb = collectEffectImmuneSigni(st, mkState({}), cm, em, false, 'シグニ', source, 'LIFE_BURST');
+    const normal = collectEffectImmuneSigni(st, mkState({}), cm, em, false, 'シグニ', source, 'AUTO');
+    ok(lb.has(holder) && lb.has(ally), '相手LB効果では自シグニ全体が保護');
+    ok(normal.size === 0, '同じ相手シグニの通常効果では保護されない');
+    eq(collectEffectImmuneSigni(st, mkState({}), cm, em, false, 'スペル', source, 'ACTIVATED').size, 0, '通常スペル効果では保護されない');
+    eq(collectEffectImmuneSigni(st, mkState({}), cm, em, false, 'アーツ', source, 'ACTIVATED').size, 0, '通常アーツ効果では保護されない');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 A群: WX24-P4-006 はダウンした相手ルリグ未満レベルのシグニダメージだけを防ぐ', () => {
+  const savedCursor = cursor;
+  try {
+    const arts = 'WX24-P4-006#1';
+    const lrigBase = findCard(c => c.Type === 'ルリグ' && parseInt(c.Level ?? '', 10) >= 2);
+    const lrig = `${lrigBase}#1`;
+    const cm = new Map(cardMap); cm.set(lrig, cardMap.get(lrigBase)!); cm.set(arts, cardMap.get('WX24-P4-006')!);
+    const owner = mkState({}); owner.field.lrig = ['WXDi-D07-007#1'];
+    const other = mkState({}); other.field.lrig = [lrig];
+    const eff = mergeManualEffects('WX24-P4-006', effectsMap.get('WX24-P4-006') ?? [])[0];
+    const ctx = { ...mkCtx({}, {}, arts), ownerState: owner, otherState: other, cardMap: cm };
+    const r = finish(executeEffect(eff, ctx), ctx);
+    ok(r.done, 'production同型の相手field.lrigを対象にアーツ解決完了');
+    if (!r.done) return;
+    const threshold = parseInt(cardMap.get(lrigBase)?.Level ?? '', 10);
+    eq(r.ownerState.prevent_next_damage_reservations?.[0]?.sourceLevelLt, threshold, '対象ルリグのレベルを予約へ固定');
+    const low = consumeNextDamagePrevention(r.ownerState, { type: 'signi', level: threshold - 1 });
+    ok(!!low, 'N-1シグニのダメージは防ぐ');
+    ok(!consumeNextDamagePrevention(r.ownerState, { type: 'signi', level: threshold }), '同レベルNのシグニダメージは防がない');
+    ok(!consumeNextDamagePrevention(r.ownerState, { type: 'lrig' }), 'ルリグダメージは防がない');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 A群: WXDi-D07-007 は防いだ回数だけターン終了時ミル能力を得る', () => {
+  const assist = 'WXDi-D07-007#1';
+  const owner = mkState({}); owner.field.assist = [assist];
+  const eff = mergeManualEffects('WXDi-D07-007', effectsMap.get('WXDi-D07-007') ?? []).find(e => e.effectId === 'WXDi-D07-007-E1')!;
+  const ctx = { ...mkCtx({}, {}, assist), ownerState: owner };
+  const r = finish(executeEffect(eff, ctx), ctx);
+  ok(r.done, 'production同型のassistゾーンからE1解決完了');
+  if (!r.done) return;
+  const once = consumeNextDamagePrevention(r.ownerState, { type: 'lrig' })!;
+  const twice = consumeNextDamagePrevention(once, { type: 'signi', level: 1 })!;
+  eq(once.turn_end_mill_count, 5, '1回防御で5枚ミル能力を1つ得る');
+  eq(twice.turn_end_mill_count, 10, '2回防御で能力を2つ得る（合計10枚）');
+  const end = resolveTurnEndPreventionMill({ ...twice, deck: Array.from({ length: 12 }, (_, i) => `D#${i}`), trash: [] });
+  eq(end.milled.length, 10, 'ターン終了時に重複した2能力ぶん10枚を実際にミル');
+  eq(end.state.trash.length, 10, 'ミルした10枚がトラッシュへ移動');
+  ok(!consumeNextDamagePrevention(twice, { type: 'signi', level: 1 }), '3回目は防がない');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

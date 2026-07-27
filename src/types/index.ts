@@ -176,6 +176,15 @@ export interface PlayerState {
   abilities_removed?: string[];
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
   prevent_next_damage?: number;
+  // 発生源限定付きの「次のダメージ」予約。count は条件に合うダメージでのみ減る。
+  prevent_next_damage_reservations?: Array<{
+    count: number;
+    damageSource?: 'lrig' | 'signi';
+    sourceLevelLt?: number;
+    millAtTurnEndPerPrevented?: number;
+  }>;
+  // デウスシールドで実際に防いだ回数ぶん得た、ターン終了時ミルの合計枚数。
+  turn_end_mill_count?: number;
   // 次のダメージを「代わりに自デッキ上N枚トラッシュ」で置き換えるキュー（REPLACE_NEXT_DAMAGE_WITH_MILL 効果。
   // 各要素=ミル枚数。デッキが枚数未満のエントリは置き換え不可＝原文注記どおりダメージ通過。ターン境界でリセット）
   damage_replace_mill?: number[];

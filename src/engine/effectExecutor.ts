@@ -4894,7 +4894,18 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
-      const newOwner = { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
+      const restricted = !!(pnd.damageSource || pnd.sourceLevelLtLastProcessed || pnd.millAtTurnEndPerPrevented);
+      const refNum = ctx.lastProcessedCards?.[0];
+      const refLevel = refNum ? parseInt(ctx.cardMap.get(getCardNum(refNum))?.Level ?? '', 10) : NaN;
+      const reservation = restricted ? {
+        count: pnd.count ?? 1,
+        ...(pnd.damageSource ? { damageSource: pnd.damageSource } : {}),
+        ...(pnd.sourceLevelLtLastProcessed && !isNaN(refLevel) ? { sourceLevelLt: refLevel } : {}),
+        ...(pnd.millAtTurnEndPerPrevented ? { millAtTurnEndPerPrevented: pnd.millAtTurnEndPerPrevented } : {}),
+      } : undefined;
+      const newOwner = restricted
+        ? { ...ctx.ownerState, prevent_next_damage_reservations: [...(ctx.ownerState.prevent_next_damage_reservations ?? []), reservation!] }
+        : { ...ctx.ownerState, prevent_next_damage: (ctx.ownerState.prevent_next_damage ?? 0) + (pnd.count ?? 1) };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次の${pnd.count ?? 1}回のダメージを無効`));
     }
     case 'PREVENT_DAMAGE': {

@@ -16,6 +16,7 @@ import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFaced
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
+import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 
 interface Props {
   user: User;
@@ -3110,6 +3111,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashBeat;
         let myExcludedEND = my.excluded;
+        if ((my.turn_end_mill_count ?? 0) > 0) {
+          const resolved = resolveTurnEndPreventionMill({ ...my, deck: myDeckPreLimit, trash: myTrashAfterCoinCheck });
+          myDeckPreLimit = resolved.state.deck;
+          myTrashAfterCoinCheck = resolved.state.trash;
+          appendBattleLogs([`ターン終了時：デウスシールドの能力でデッキの上から${resolved.milled.length}枚をトラッシュへ`]);
+        }
         // DRAW_AT_TURN_END: このターン終了時に引く（このシグニが場を離れていても引く）
         if ((my.turn_end_draw_count ?? 0) > 0) {
           const nDrawEND = my.turn_end_draw_count!;
@@ -3204,6 +3211,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
               excluded: myExcludedEND, pending_exile_nums: undefined,
               turn_end_draw_count: undefined,
+              turn_end_mill_count: undefined,
               coin_condition_signi_instances: undefined,
               turn_end_field_trash_targets: undefined,
               flip_attack_signi_zones: undefined,
@@ -3248,6 +3256,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
+          prevent_next_damage_reservations: undefined,
+          turn_end_mill_count: undefined,
           prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：このターン分は消滅・「次のターンの間」は1回だけ持ち越し
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
@@ -3615,7 +3625,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
-        prevent_next_damage: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
+        prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
@@ -4007,7 +4017,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」WX04-035-E1等）:
       // 解決中効果のソースカード種別が耐性対象に該当する場合、その美巧シグニを全保護パスへ反映する。
       const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
-      const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum);
+      const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType);
       // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
       const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType);
       const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
@@ -6667,7 +6677,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // ライフクロスを1枚クラッシュし、チェック状態にする
   // returns: crashed=null + prevented=true → ダメージ無効、crashed=null + !prevented → ライフなし（即勝利判定）
-  const crashOneLife = (state: PlayerState): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
+  const crashOneLife = (
+    state: PlayerState,
+    damageSource?: DamageSourceContext,
+  ): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
     if ((state.prevent_damage_windows ?? []).some(w => w.scope === 'ALL')) {
@@ -6683,9 +6696,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevented: true,
       };
     }
-    if ((state.prevent_next_damage ?? 0) > 0) {
+    const preventedState = consumeNextDamagePrevention(state, damageSource);
+    if (preventedState) {
       return {
-        newState: { ...state, prevent_next_damage: (state.prevent_next_damage ?? 0) - 1 },
+        newState: preventedState,
         crashed: null,
         prevented: true,
       };
@@ -7604,7 +7618,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState);
+            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined });
             if (prevented) {
               appendBattleLogs([`${label}：ダメージ無効`]);
               newOpState = afterCrash;
@@ -7641,7 +7655,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState);
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined });
         if (firstPrevented) {
           appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
           newOpState = afterFirst;
@@ -9142,7 +9156,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined,
+        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         prevent_damage_windows: advancePreventDamageWindows(cpuSt.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
@@ -9345,9 +9359,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const fzLB = removeOneBarrierToken(my.field.free_zone, LRIG_BARRIER_CARD);
           appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${countBarrierTokens(fzLB, LRIG_BARRIER_CARD)}）`]);
           newMyState = { ...my, field: { ...my.field, free_zone: fzLB, lrig_attacked: false } };
-        } else if ((my.prevent_next_damage ?? 0) > 0) {
+        } else if (consumeNextDamagePrevention(my, { type: 'lrig' })) {
           appendBattleLogs([`ルリグアタック：ダメージ無効`]);
-          newMyState = { ...my, prevent_next_damage: (my.prevent_next_damage ?? 0) - 1, field: { ...my.field, lrig_attacked: false } };
+          const consumed = consumeNextDamagePrevention(my, { type: 'lrig' })!;
+          newMyState = {
+            ...consumed,
+            field: { ...my.field, lrig_attacked: false },
+          };
         } else if ((my.damage_replace_mill ?? []).some(n => my.deck.length >= n)) {
           // REPLACE_NEXT_DAMAGE_WITH_MILL: ルリグアタックのダメージを「デッキ上N枚トラッシュ」で置き換え（crashOneLife と同仕様）
           const drmL = my.damage_replace_mill ?? [];
