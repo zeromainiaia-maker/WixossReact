@@ -1431,6 +1431,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (c?.Type !== 'シグニ') continue;
         levels.add(parseInt(c.Level ?? '0', 10) || 0);
       }
+      if (cond.allSigniDistinct) {
+        const signiCount = processedTDL.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ').length;
+        return levels.size === signiCount;
+      }
       return levels.size >= cond.count;
     }
     case 'TRASHED_STORY_COUNT_GTE': {

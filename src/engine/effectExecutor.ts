@@ -1670,18 +1670,25 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
     const targetState = ownerState(target.owner, ctx);
     let cands = fieldCandidates(targetState, target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    // ⚠場の持ち主（target.owner）とライフクロスの持ち主（a.owner）は別人でありうる。
+    // 「対戦相手のシグニ１体を対象とし…それをライフクロスに加える」（WX24-P4-045）＝原文が
+    // 加える先を修飾しない場合は**効果の使用者**のライフクロス（CSV 全文調査で、相手のライフに
+    // 加える文型は必ず「対戦相手は/対戦相手の…」と明示される）。両者を同一視すると相手に
+    // ライフを与えてしまう＝真逆の効果になる。
     const moveToLife = (selected: string[], c: ExecCtx): ExecCtx => {
-      let movingState = ownerState(target.owner, c);
+      let cur = c;
       const moved: string[] = [];
       for (const n of selected) {
-        if (!movingState.field.signi.some(stack => stack?.at(-1) === n)) continue;
-        movingState = removeFromField(n, movingState);
-        movingState = { ...movingState, life_cloth: [...movingState.life_cloth, n] };
+        const fromState = ownerState(target.owner, cur);
+        if (!fromState.field.signi.some(stack => stack?.at(-1) === n)) continue;
+        cur = setOwnerState(target.owner, removeFromField(n, fromState), cur);
+        const lifeState = ownerState(a.owner, cur);
+        cur = setOwnerState(a.owner, { ...lifeState, life_cloth: [...lifeState.life_cloth, n] }, cur);
         moved.push(n);
       }
       return addLog(
-        { ...setOwnerState(target.owner, movingState, c), lastProcessedCards: moved },
-        `${moved.length}枚を場からライフクロスへ`,
+        { ...cur, lastProcessedCards: moved },
+        `${moved.length}枚を場から${a.owner === 'opponent' ? '対戦相手の' : ''}ライフクロスへ`,
       );
     };
     if (a.targetsStored || target.count === 'ALL') {
@@ -4425,7 +4432,10 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
       if (matched >= need) break;
     }
   }
-  if (actual === 0) return done(addLog(ctx, 'デッキが空のためミルをスキップ'));
+  if (actual === 0) return done(addLog({
+    ...ctx,
+    lastProcessedCards: a.appendLastProcessed ? (ctx.lastProcessedCards ?? []) : [],
+  }, 'デッキが空のためミルをスキップ'));
   const milled = a.fromBottom ? state.deck.slice(state.deck.length - actual) : state.deck.slice(0, actual);
   const newState: PlayerState = {
     ...state,
@@ -6367,11 +6377,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const di = atlS.deck.indexOf(cardNum);
       const ti = atlS.trash.indexOf(cardNum);
       if (atlA.fromField) {
-        if (!atlS.field.signi.some(stack => stack?.at(-1) === cardNum)) return done(ctx);
-        const removed = removeFromField(cardNum, atlS);
-        const newAtlS: PlayerState = { ...removed, life_cloth: [...removed.life_cloth, cardNum] };
-        return done(addLog({ ...setOwnerState(atlOwner, newAtlS, ctx), lastProcessedCards: [cardNum] },
-          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場からライフクロスに追加`));
+        // execAddToLife と同規約＝場の持ち主（target.owner）とライフの持ち主（atlA.owner）は別人でありうる。
+        const fieldOwner = atlA.target?.owner === 'opponent' || atlA.target?.owner === 'self'
+          ? atlA.target.owner : atlOwner;
+        const fieldS = ownerState(fieldOwner, ctx);
+        if (!fieldS.field.signi.some(stack => stack?.at(-1) === cardNum)) return done(ctx);
+        let cur = setOwnerState(fieldOwner, removeFromField(cardNum, fieldS), ctx);
+        const lifeS = ownerState(atlOwner, cur);
+        cur = setOwnerState(atlOwner, { ...lifeS, life_cloth: [...lifeS.life_cloth, cardNum] }, cur);
+        return done(addLog({ ...cur, lastProcessedCards: [cardNum] },
+          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場から${atlOwner === 'opponent' ? '対戦相手の' : ''}ライフクロスに追加`));
       }
       if (atlA.fromTrash && ti >= 0) {
         const newTrash = [...atlS.trash];

@@ -279,7 +279,7 @@ export type Condition =
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number; verbJa?: string; negate?: boolean; omitGteJa?: boolean } // この方法で直前に処理したカード枚数がN以上。negate=true は「N枚処理しなかった」＝N未満（否定3件）。verbJa/omitGteJa は decompiler 表示専用
   | { type: 'LAST_PROCESSED_LEVEL_SUM'; operator: CompareOp; value: number }   // lastProcessedCardsのシグニレベル合計とNの比較（operator省略時eqだった旧LAST_PROCESSED_LEVEL_SUM_EQを一般化・続き160）
-  | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number }   // この方法でトラッシュ(lastProcessedCards)したシグニのうち相異なるレベルがcount種以上（WX03-015）
+  | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number; allSigniDistinct?: boolean }   // 相異なるレベルがcount種以上。allSigniDistinct は処理した全シグニのレベルが相異なる（WXK09-100）
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
   | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
   | { type: 'ENERGY_TRASH_COLOR_COUNT_GTE'; value: number }   // 直前コスト(energyTrashColorAll)でトラッシュした指定色カードがvalue枚以上（WX04-002-E2「この方法で赤が3枚以上」）

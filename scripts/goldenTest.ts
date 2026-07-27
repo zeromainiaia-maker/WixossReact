@@ -11311,7 +11311,11 @@ test('§6.3 C WX24-P4-045 field target to life and self Double Crush', () => {
     ctx.ownerState = { ...ctx.ownerState, energy: [red, colorless] };
     const r = finishPayingCosts(executeEffect(manualEffect('WX24-P4-045', 'WX24-P4-045-E1'), ctx), ctx);
     ok(r.done); if (!r.done) return;
-    ok(!tops(r.otherState).includes(target) && r.otherState.life_cloth.includes(target));
+    // ⚠加える先は **あなたの** ライフクロス（2026-07-28 是正）。原文「それをライフクロスに加える」は
+    //   加える先を修飾しない＝使用者側。旧 assert は otherState.life_cloth を期待しており、
+    //   「相手にライフを与える」真逆の実装を固定してしまっていた。
+    ok(!tops(r.otherState).includes(target) && r.ownerState.life_cloth.includes(target));
+    ok(!r.otherState.life_cloth.includes(target), '相手のライフクロスには入らない');
     ok(tops(r.otherState).includes(other));
     ok((r.ownerState.keyword_grants ?? {})[self]?.includes('ダブルクラッシュ'));
   } finally { cursor = savedCursor; }
@@ -11478,6 +11482,181 @@ test('WX07-027-E2: 修飾語なしバニッシュが両プレイヤーのシグ�
   const tgt = (eff.action as { target?: { owner?: string } }).target
     ?? ((eff.action as { steps?: { target?: { owner?: string } }[] }).steps ?? []).map(s => s.target).find(Boolean);
   eq(tgt?.owner, 'any', `owner が any でない (${JSON.stringify(eff.action)})`);
+});
+
+test('task12(xxii) payment gates: 4効果とも OPTIONAL_COST と PAID_ADDITIONAL_COST が同一SEQUENCEで隣接', () => {
+  for (const [card, effect] of [
+    ['WXDi-P06-036', 'WXDi-P06-036-E1'],
+    ['WXDi-P03-044', 'WXDi-P03-044-E2'],
+    ['WX24-P4-045', 'WX24-P4-045-E1'],
+    ['WDK11-001', 'WDK11-001-E1'],
+  ] as const) {
+    const json = JSON.stringify(manualEffect(card, effect).action);
+    ok(/"id":"OPTIONAL_COST".{0,200}"type":"PAID_ADDITIONAL_COST"/.test(json), `${effect}: look-ahead pair missing`);
+    ok(!/"condition":\{"type":"IS_MY_TURN"\}/.test(json), `${effect}: turn fallback remains`);
+  }
+});
+
+test('task12(xxii) result conditions: 成立／不成立を両方向固定', () => {
+  const base = mkCtx({}, {}, SIGNI_L1);
+  const yes2 = { ...base, lastProcessedCards: [SIGNI_L1, SIGNI_L2] };
+  const no1 = { ...base, lastProcessedCards: [SIGNI_L1] };
+  ok(evalCondition({ type: 'LAST_PROCESSED_COUNT_GTE', value: 2 }, yes2), 'count 2 true');
+  ok(!evalCondition({ type: 'LAST_PROCESSED_COUNT_GTE', value: 2 }, no1), 'count 1 false');
+  ok(evalCondition({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, minCount: 2 }, yes2), 'matches 2 true');
+  ok(!evalCondition({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, minCount: 2 }, no1), 'matches 1 false');
+  ok(evalCondition({ type: 'TRASHED_DISTINCT_LEVELS_GTE', count: 0, allSigniDistinct: true }, yes2), 'distinct levels true');
+  ok(!evalCondition({ type: 'TRASHED_DISTINCT_LEVELS_GTE', count: 0, allSigniDistinct: true },
+    { ...base, lastProcessedCards: [SIGNI_L1, SIGNI_L1] }), 'duplicate level false');
+});
+
+test('task12(xxii) WXDi-P01-082: 公開条件または回収が空振りなら手札を捨てない', () => {
+  const existing = `${SIGNI_L2}#hand`;
+  const revealed = `${SIGNI_L3}#reveal`;
+  const localMap = new InstanceMap(cardMap);
+  localMap.set(existing, cardMap.get(SIGNI_L2)!);
+  localMap.set(revealed, cardMap.get(SIGNI_L3)!);
+  const ctx = mkCtx({}, {}, 'WXDi-P01-082#src');
+  ctx.cardMap = localMap;
+  ctx.ownerState = { ...ctx.ownerState, hand: [existing], deck: [revealed], trash: [] };
+  const r = run(manualEffect('WXDi-P01-082', 'WXDi-P01-082-E1').action, ctx);
+  ok(r.done); if (!r.done) return;
+  ok(r.ownerState.hand.includes(existing), 'false branch discarded the existing hand');
+});
+
+// ── 続き293 検証是正（Claude）＝構造 assert では「経路が生きているか」を検査できないため実挙動 golden を足す ──
+// ⚠WX24-P4-045-E1 は codex 実装時に ADD_TO_LIFE.owner が 'opponent' で、相手シグニが**相手の**
+//   ライフクロスに入っていた（＝相手にライフを与える真逆の効果）。原文「それをライフクロスに加える」は
+//   加える先を修飾しない＝使用者側。execAddToLife の fromField を「場の持ち主／ライフの持ち主」で
+//   分離して是正した。この golden はその向きを固定する。
+test('task12(xxii) WX24-P4-045-E1 E2E: 支払うと相手シグニが【あなたの】ライフへ入りダブルクラッシュ／スキップで両方起きない', () => {
+  const RED = findCard(c => isSigni(c) && (c.Color ?? '').includes('赤'));
+  const src = SIGNI_L3;
+  const oppSigni = SIGNI_L2;
+  const base = mkCtx({ signi: [src, null, null] }, { signi: [oppSigni, null, null] }, src);
+  const ctx = { ...base, ownerState: { ...base.ownerState, energy: [RED, RED, ...base.ownerState.energy] } } as ExecCtx;
+  const selfLife0 = ctx.ownerState.life_cloth.length;
+  const oppLife0 = ctx.otherState.life_cloth.length;
+  const action = manualEffect('WX24-P4-045', 'WX24-P4-045-E1').action;
+
+  // 支払う（autopilot は最初の available 選択肢＝pay を取る）
+  const rPay = run(action, ctx);
+  ok(rPay.done, 'pay 完了'); if (!rPay.done) return;
+  ok(!rPay.otherState.field.signi.some(st => st?.at(-1) === oppSigni), 'pay: 相手シグニが場から消える');
+  eq(rPay.ownerState.life_cloth.length, selfLife0 + 1, 'pay: 自分のライフクロスが1枚増える');
+  ok(rPay.ownerState.life_cloth.includes(oppSigni), 'pay: 相手シグニは【あなたの】ライフクロスへ入る');
+  eq(rPay.otherState.life_cloth.length, oppLife0, 'pay: 相手のライフクロスは増えない（真逆化の回帰検出）');
+  ok((rPay.ownerState.keyword_grants ?? {})[src]?.includes('ダブルクラッシュ'), 'pay: ダブルクラッシュ付与');
+
+  // 支払わない＝対象選択まで進めてから skip
+  const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!r0.done, '対象選択で中断'); if (r0.done) return;
+  const p0 = (r0 as { pending: { type: string; candidates?: string[] } }).pending;
+  eq(p0.type, 'SELECT_TARGET', '先に対象を確定する（支払い前）');
+  const c1 = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const r1 = resumeSelectTarget([oppSigni], p0 as never, c1);
+  ok(!r1.done, '支払い選択で中断＝look-ahead が OPTIONAL_COST とゲートを対にしている'); if (r1.done) return;
+  const p1 = (r1 as { pending: { type: string; options?: { id: string }[] } }).pending;
+  eq(p1.type, 'CHOOSE', '支払い可否の CHOOSE が出る');
+  ok((p1.options ?? []).some(o => o.id === 'skip'), 'skip 選択肢がある');
+  const c2 = {
+    ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs,
+    lastProcessedCards: r1.lastProcessedCards, storedTargetCards: r1.storedTargetCards,
+  } as ExecCtx;
+  const rSkip = resumeChoose('skip', p1 as never, c2);
+  ok(rSkip.done, 'skip 完了'); if (!rSkip.done) return;
+  ok(rSkip.otherState.field.signi.some(st => st?.at(-1) === oppSigni), 'skip: 相手シグニは場に残る');
+  eq(rSkip.ownerState.life_cloth.length, selfLife0, 'skip: 自分のライフは増えない');
+  eq((rSkip.ownerState.keyword_grants ?? {})[src]?.includes('ダブルクラッシュ') ?? false, false, 'skip: ダブルクラッシュ非付与');
+});
+
+test('task12(xxii) WDK11-001-E1 E2E: CONDITIONAL の内側でも支払いペアが実行時に成立する／場条件が偽なら不発', () => {
+  const WHITE = findCard(c => isSigni(c) && (c.Color ?? '').includes('白'));
+  const WISDOM = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('英知'));
+  const NORMAN = 'ＷＤＫ１１－００１ＧＦ';
+  const localMap = new InstanceMap(cardMap);
+  localMap.set(NORMAN, { ...cardMap.get(SIGNI_L1)!, CardNum: NORMAN, CardName: 'ＧＦ　ノーマン＆レイ' } as CardData);
+  const action = manualEffect('WDK11-001', 'WDK11-001-E1').action;
+  const mk = (withNorman: boolean) => {
+    const base = mkCtx({ signi: withNorman ? [NORMAN, null, null] : [SIGNI_L4, null, null] }, {}, SIGNI_L1);
+    const ctx = {
+      ...base,
+      cardMap: localMap,
+      ownerState: { ...base.ownerState, energy: [WHITE, WHITE, ...base.ownerState.energy], trash: [WISDOM] },
+    } as ExecCtx;
+    return ctx;
+  };
+  // 場条件 真 → 支払い CHOOSE が出る（＝ネストされていても look-ahead がペアを見つけている）
+  const ctxYes = mk(true);
+  const rYes0 = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctxYes);
+  ok(!rYes0.done, '支払い選択で中断＝ネスト内でもペアが成立'); if (rYes0.done) return;
+  const pYes = (rYes0 as { pending: { type: string; options?: { id: string }[] } }).pending;
+  eq(pYes.type, 'CHOOSE', '支払い可否の CHOOSE');
+  const cYes = { ...ctxYes, ownerState: rYes0.ownerState, otherState: rYes0.otherState, logs: rYes0.logs } as ExecCtx;
+  const rPay = finish(resumeChoose('pay', pYes as never, cYes), cYes);
+  ok(rPay.done); if (!rPay.done) return;
+  ok(rPay.ownerState.hand.includes(WISDOM), 'pay: ＜英知＞をトラッシュから手札へ');
+  const rSkip = finish(resumeChoose('skip', pYes as never, cYes), cYes);
+  ok(rSkip.done); if (!rSkip.done) return;
+  ok(rSkip.ownerState.trash.includes(WISDOM), 'skip: ＜英知＞はトラッシュに残る');
+  // 場条件 偽 → 支払いも回収も起きない
+  const ctxNo = mk(false);
+  const rNo = run(action, ctxNo);
+  ok(rNo.done); if (!rNo.done) return;
+  ok(rNo.ownerState.trash.includes(WISDOM), '場条件が偽なら回収しない');
+});
+
+test('task12(xxii) PR-K049-E1 E2E: 両者のデッキ最下を合算しレベル合計6以上のときだけ正面シグニに-5000', () => {
+  const src = SIGNI_L3;
+  const front = SIGNI_L1;   // 相手 zoneIdx 2（自分 zoneIdx 0 の正面）
+  const notFront = SIGNI_L2; // 相手 zoneIdx 0
+  const build = (selfBottom: string, oppBottom: string) => {
+    const base = mkCtx({ signi: [src, null, null] }, { signi: [notFront, null, front] }, src);
+    return {
+      ...base,
+      ownerState: { ...base.ownerState, deck: [SIGNI_L1, selfBottom] },
+      otherState: { ...base.otherState, deck: [SIGNI_L1, oppBottom] },
+    } as ExecCtx;
+  };
+  const action = manualEffect('PR-K049', 'PR-K049-E1').action;
+  const modsOf = (r: ExecResult) => ((r.otherState as PlayerState).temp_power_mods ?? []);
+
+  // レベル3 + レベル3 = 6 → 成立
+  const rHit = run(action, build(SIGNI_L3, SIGNI_L3));
+  ok(rHit.done); if (!rHit.done) return;
+  ok(rHit.ownerState.trash.includes(SIGNI_L3) && rHit.otherState.trash.includes(SIGNI_L3), '両者のデッキ最下がトラッシュへ');
+  const hit = modsOf(rHit).filter(m => m.delta === -5000);
+  eq(hit.length, 1, '成立時は1体だけ-5000');
+  eq(hit[0]?.cardNum, front, '正面のシグニだけが対象（正面以外に載らない）');
+
+  // レベル1 + レベル1 = 2 → 不成立
+  const rMiss = run(action, build(SIGNI_L1, SIGNI_L1));
+  ok(rMiss.done); if (!rMiss.done) return;
+  eq(modsOf(rMiss).filter(m => m.delta === -5000).length, 0, '不成立時はパワー修正なし');
+});
+
+// 既存の「§6.3 C WX22-043 …exact-two draw」は成立方向のみ。(xxii) の要は**不成立方向**（1枚しか
+// 動かせなければ引かない＝旧 IS_MY_TURN では常に引いていた）なので、その向きをここで固定する。
+test('task12(xxii) WX22-043-E1 E2E: アクセが1枚しかなければ引かない（COUNT_GTE(2) 不成立方向）', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const acceBase = findCard(c => isSigni(c) && (c.EffectText ?? '').includes('【アクセ】'));
+    const plainBase = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【アクセ】'));
+    const acce = `${acceBase}#acce`, plain = `${plainBase}#plain`, draw = `${SIGNI_L1}#draw`;
+    localMap.set(acce, cardMap.get(acceBase)!);
+    localMap.set(plain, cardMap.get(plainBase)!);
+    localMap.set(draw, cardMap.get(SIGNI_L1)!);
+    const ctx = mkCtx({}, {}, 'WX22-043#src');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, hand: [acce, plain], energy: [], deck: [draw] };
+    const r = run(manualEffect('WX22-043', 'WX22-043-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.energy.length, 1, 'アクセ1枚だけがエナゾーンへ');
+    ok(!r.ownerState.energy.includes(plain), 'アクセを持たないシグニは動かない');
+    ok(!r.ownerState.hand.includes(draw), '引かない（COUNT_GTE(2) が偽）');
+    eq(r.ownerState.hand.length, 1, '手札は残り1枚のまま');
+  } finally { cursor = savedCursor; }
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

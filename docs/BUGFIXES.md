@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き293＝§3タスク12(xxii) 後置条件 IS_MY_TURN 誤変換・live実害12効果の再精査（2026-07-28・Opus）
+
+**採用9効果**＝追加支払い4件（WXDi-P06-036-E1／WXDi-P03-044-E2／WX24-P4-045-E1／WDK11-001-E1）を
+`OPTIONAL_COST → PAID_ADDITIONAL_COST` の同一SEQUENCE直結へ統一。移動結果5件は WX22-043-E1（手札アクセ2枚→エナ）、
+WXDi-P01-082-E1（レベル1公開枝の内側でトラッシュ回収成功時だけ手札捨て）、WXK03-048-E1（実際に戻った遊具2体）、
+PR-K049-E1（双方デッキ底ミルのシグニレベル合計6）、WXK09-100-E1（双方ミル結果に同レベルのシグニなし）を
+`lastProcessedCards` の実移動記録へ配線した。WX24-P4-045 は対象を支払い前に保存し、相手シグニを相手ライフへ移動、
+成功時だけ効果元へダブルクラッシュを付与。PR-K049 は正面の相手シグニだけを-5000へ是正。
+
+**既存機構の小拡張**＝`TRASHED_DISTINCT_LEVELS_GTE` に `allSigniDistinct` を追加し、処理したシグニ数と相異レベル数の
+一致を評価する（新condition型なし）。`MILL` は空デッキ時にも `lastProcessedCards` を空配列へ更新し、直前ステップの
+古い記録で後置条件が誤成立する穴を閉じた。型宣言・evalCondition・逆翻訳を同時配線。
+
+**見送り3効果**＝WXK11-024-E2（`TRANSFER_TO_DECK count:'ALL' optional` のUI対応が未完）、
+WXK06-031-E1（レベル1〜4を各1枚選ぶSEARCH集合と先行対象の同時保存が未完）、
+WDK08-Y01-E1（手札4枚公開結果と先行相手対象を別々に保持する構造が要る）。部分的な条件置換で常時偽／別対象化する退化を避けた。
+WXDi-P03-044-E2 の「このターンにデッキから3枚以上エナへ移動」は origin付きターン累計がなく、[C]として未実装のまま。
+
+**検証**＝golden 808→811（支払いlook-ahead 4件、結果条件の成立/不成立、WXDi-P01-082空振り）、
+smoke 10725/全0、fuzz 200ゲーム全0、census 1521→1519（`BASELINE_HIGH`本体を1519へ更新）、lint 222 warnings/0 errors、
+同型★0。build直後 held 267枚/112署名・PARTIAL刻印42（fresh parser残骸は不変）。live JSON は9効果だけを
+manual override と同一内容で外科的採用し、ミニファイ形式を維持。commit/push・PLAN簿記なし。
+
+### ⚠検証是正（Claude・codex 報告後）
+
+**(1) WX24-P4-045-E1 が「相手にライフを与える」真逆の実装だった**＝`ADD_TO_LIFE{owner:'opponent'}` で、
+対象にした相手シグニが**相手のライフクロス**へ入っていた（`execAddToLife` の `fromField` は場の持ち主と
+ライフの持ち主を同一視し、`target.owner` 側の `life_cloth` に押し込む実装だった）。原文「それをライフクロスに
+加える」は**加える先を修飾していない＝効果の使用者側**。CSV 全文を調査したところ、相手のライフに加える文型は
+**必ず「対戦相手は…／対戦相手の…ライフクロスに加える」と明示**されており、無修飾は自分側で一貫している。
+→ `execAddToLife` と resume 経路の両方で「場の持ち主（`target.owner`）」と「ライフの持ち主（`a.owner`）」を分離し、
+JSON を `owner:'self'` へ是正。**`fromField` の利用者はデータ全体でこの1効果のみ**＝波及なし。
+
+**(2) 誤りを固定していた golden も是正**＝`§6.3 C WX24-P4-045 field target to life and self Double Crush` は
+`r.otherState.life_cloth.includes(target)` を期待しており、**真逆の実装を golden が守っていた**。
+`ownerState` 側へ直し、「相手のライフクロスには入らない」を明示 assert に追加。
+
+**(3) codex の golden は構造 assert 中心で経路の生死を検査していない**（JSON への regex ＋ `evalCondition` の
+真偽表が主）ため、実挙動 E2E を4本追加＝**golden 811→815**：
+WX24-P4-045（支払い→自分のライフへ／skip→何も起きない）、WDK11-001（`CONDITIONAL` の内側でも
+look-ahead がペアを見つけて CHOOSE を出すこと・場条件が偽なら不発）、PR-K049（両者デッキ底の合算と
+レベル合計6の成立/不成立・正面以外に載らないこと）、WX22-043（アクセ1枚では引かない＝不成立方向）。
+
+**(4) 採用9件のうち4件は本バッチの実装ではない**＝`PR-K049` `WX24-P4-045` `WX22-043` `WXK03-048` の
+manual override は**ベースライン f1a8da50 の時点で `manualEffects.ts` に既に存在**しており、golden も通っていた。
+にもかかわらず `public/data/effects_*.json` には反映されておらず、**App は JSON を直接 fetch する**（`App.tsx:91`・
+runtime に `mergeManualEffects` を通さない）ため**ゲーム本体では壊れたままだった**。
+⚠**教訓＝`manualEffects.ts` に書いただけでは実機に載らない。`npm run build:effects` で JSON を再生成して
+コミットするまでが1セット**。goldenTest は `mergeManualEffects` 経由なので、**この乖離を golden は検出できない**
+（＝「golden 緑・実機壊れたまま」の hollow fix になる）。本バッチの再 build でこの4件がようやく実機に届いた。
+
+---
+
 ## 続き292＝§3タスク12(lii) 修飾語なし「シグニN体を対象とし」の owner:self 誤りを消化（2026-07-28・Opus）
 
 **症状**＝所有者を限定しない「シグニ1体を対象とし、それを〜する」が `owner:'self'` へ落ちていた。原文は

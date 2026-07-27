@@ -4451,6 +4451,45 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // 移動結果軸: 実際に目的ゾーンへ到達したカードで後段を判定する（ターン所有者ではなく）。
+  "WXDi-P06-036": [
+    {"effectId":"WXDi-P06-036-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"REVEAL_DECK_TOP","owner":"self","count":1},
+      {"type":"DRAW","owner":"self","count":1},
+      {"type":"STUB","id":"RESTORE_REVEALED_DECK_CARDS"},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"宝石"}},"then":{"type":"SEQUENCE","steps":[
+        {"type":"STUB","id":"OPTIONAL_COST","costColors":["青","赤","無"]},
+        {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WXDi-P03-044": [
+    {"effectId":"WXDi-P03-044-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},
+      {"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","赤","無"]},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WDK11-001": [
+    {"effectId":"WDK11-001-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"ＧＦ　ノーマン＆レイ"}},"then":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"OPTIONAL_COST","costColors":["白"]},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"英知"}}}}
+    ]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-P01-082": [
+    {"effectId":"WXDi-P01-082-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"REVEAL_DECK_TOP","owner":"self","count":1},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","level":1}},"then":{"type":"SEQUENCE","steps":[
+        {"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","noGuard":true}}},
+        {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}}
+      ]}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WXK09-100": [
+    {"effectId":"WXK09-100-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"MILL","owner":"self","count":2,"alsoOpponent":true},
+      {"type":"CONDITIONAL","condition":{"type":"TRASHED_DISTINCT_LEVELS_GTE","count":0,"allSigniDistinct":true},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-1000}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   // §6.3 C tail: accumulate both players' actual deck-bottom mill results,
   // then test the SIGNI level sum and modify only the opposing front SIGNI.
   "PR-K049": [
@@ -4461,13 +4500,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // Fix the target before the optional payment. A successful move of that
   // exact opposing SIGNI grants Double Crush only to this attacker.
+  // ⚠加える先は **あなたの** ライフクロス（ADD_TO_LIFE.owner:'self'）。原文「それをライフクロスに加える」は
+  //   加える先を修飾していない＝効果の使用者側（CSV 全文で、相手のライフに加える文型は必ず
+  //   「対戦相手は/対戦相手の…ライフクロスに加える」と明示される）。owner:'opponent' にすると
+  //   相手にライフを与える真逆の効果になる（2026-07-28 検証是正）。
   "WX24-P4-045": [
     {"effectId":"WX24-P4-045-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
       {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":0},
       {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
       {"type":"STUB","id":"OPTIONAL_COST","costColors":["赤","無"]},
       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[
-        {"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":false,"fromField":true,"target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true},
+        {"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":false,"fromField":true,"target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true},
         {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}}
       ]}}
     ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}

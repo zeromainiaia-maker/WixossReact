@@ -3,17 +3,17 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［115枚］
-PR-046 PR-Di017B SPDi47-04 WD07-006 WD10-009 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX02-032 WX04-076 WX05-025 WX06-023 WX07-027 WX07-029 WX07-035 WX08-005 WX08-006 WX08-036 WX09-012 WX10-006 WX11-006 WX11-034 WX13-002 WX13-013 WX13-041 WX14-017 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX19-007 WX19-067 WX20-042-CB WX20-074 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-047 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-26 WXEX1-58 WXEX1-60 WXEX2-01 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK07-053 WXK07-081 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-039 WXK11-066
---- PR-046
-  原文: 【常】：対戦相手のルリグの【起】能力の使用コストは《無×1》増える。【出】：対戦相手のシグニ１体を対象とし、それを凍結する。【起】《無》《無》手札から白か青のシグニを１枚捨てる：シグニ１体を対象とし、それを凍結する。【起】《ダウン》：対戦相手の凍結状態のシグニ１体を対象とし、それをバニッシュする。,-
-  ~ [2].action.target.owner : "self" → "any"
+## （type増減なし＝値/構造変更） ［95枚］
+PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX08-005 WX08-006 WX10-006 WX13-002 WX13-041 WX14-017 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-26 WXEX1-58 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
 --- SPDi47-04
   原文: 【起】《ターン１回》エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置く：このルリグはそのカードの【歌のカケラ】を使用する。【起】《ゲーム１回》《緑×0》：《リコレクトアイコン》［４枚以上］あなたのエナゾーンからシグニを３枚まで対象とし、それらを場に出す。次の対戦相手のターン終了時まで、あなたのすべてのシグニのパワーを＋10000し、それらは【シャ
   ~ [1].action.steps[2].duration : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
+--- WD07-006
+  原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
+  ~ [0].action.then.target.count : 1 → 3
 
 ## -CONDITIONAL -HAS_CARD_IN_FIELD ［10枚］
 SPDi43-08 SPDi43-20 WDK04-001 WX24-P2-047 WX24-P2-054 WX25-P1-058 WX25-P3-069 WXDi-P13-048 WXDi-P14-078 WXK10-036
@@ -330,53 +330,6 @@ PR-K044 WX08-026 WXK04-006
   + [1].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
   + [1].action.steps[1].owner = "self"
   + [1].action.steps[1].count = 1
-
-## +CONDITIONAL +IS_MY_TURN ［3枚］
-WX10-025 WXDi-P03-044 WXK09-100
---- WX10-025
-  原文: あなたのエナゾーンにあるカードが持つ色から最大５色まで選ぶ。その後、白を選んだ場合、シグニ１体を対象とし、それを手札に戻す。赤を選んだ場合、パワー12000以下のシグニ１体を対象とし、それをバニッシュする。青を選んだ場合、カードを２枚引く。緑を選んだ場合、あなたのデッキの上からカードを２枚エナゾーンに置く。黒を選んだ場合、シグニ１体を対象とし、ターン終了時ま
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.upToCount = false
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].optional = false
-  ~ [0].action.steps[1].type : "BOUNCE" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "IS_MY_TURN"
-  + [0].action.steps[1].then.type = "BOUNCE"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "any"
-  + [0].action.steps[1].then.target.count = 1
-  …（他 5 行）
---- WXDi-P03-044
-  原文: 【ハーモニー】赤のルリグ１体【常】：あなたの他のシグニのパワーを＋3000する。【自】：このシグニがアタックしたとき、【エナチャージ１】をする。その後、このターンにあなたのデッキからカードが３枚以上エナゾーンに移動していた場合、《緑》《赤》《無》を支払ってもよい。そうした場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。,-
-  - [1].action.steps[1].id = "OPTIONAL_COST"
-  - [1].action.steps[1].costColors[0] = "緑"
-  - [1].action.steps[1].costColors[1] = "赤"
-  - [1].action.steps[1].costColors[2] = "無"
-  ~ [1].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [1].action.steps[1].condition.type = "IS_MY_TURN"
-  + [1].action.steps[1].then.type = "STUB"
-  + [1].action.steps[1].then.id = "OPTIONAL_COST"
-  + [1].action.steps[1].then.costColors[0] = "緑"
-  + [1].action.steps[1].then.costColors[1] = "赤"
-  + [1].action.steps[1].then.costColors[2] = "無"
-  ~ [1].parseStatus : "AUTO" → "PARTIAL"
---- WXK09-100
-  原文: 【出】：各プレイヤーは自分のデッキの上からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたすべてのカードの中に同じレベルを持つシグニがない場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－1000する。,-
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].target.upToCount = false
-  - [0].action.steps[1].delta = -1000
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "IS_MY_TURN"
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = 1
-  …（他 4 行）
 
 ## +STUB -GRANT_PROTECTION -SIGNI ［3枚］
 WX12-033 WX20-023 WXK03-018
@@ -1162,22 +1115,6 @@ WX21-Re06
   + [0].action.steps[1].id = "MARK_SELF_DELAYED_EXILE"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
-## +ENERGY_CHARGE +HAND_CARD +LAST_PROCESSED_COUNT_GTE -IS_MY_TURN -STUB ［1枚］
-WX22-043
---- WX22-043
-  原文: 【出】：あなたの手札から《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。この方法でカードを２枚エナゾーンに置いた場合、カードを１枚引く。【起】《緑×0》：あなたのシグニ１体を対象とし、このカードをエナゾーンからそれの【アクセ】にする。【常】：これにアクセされている＜調理＞のシグニはすべての色を得る。,-
-  - [0].action.steps[0].id = "PLACE_ACCE_SIGNI_TO_ENERGY"
-  ~ [0].action.steps[0].type : "STUB" → "ENERGY_CHARGE"
-  + [0].action.steps[0].target.type = "HAND_CARD"
-  + [0].action.steps[0].target.owner = "self"
-  + [0].action.steps[0].target.count = 2
-  + [0].action.steps[0].target.upToCount = true
-  + [0].action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[0].target.filter.hasIcon = "アクセ"
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [0].action.steps[1].condition.value = 2
-  ~ [0].parseStatus : "AUTO" → "MANUAL"
-
 ## +GRANT_KEYWORD -GRANT_PROTECTION ［1枚］
 WXEX1-72
 --- WXEX1-72
@@ -1190,24 +1127,6 @@ WXEX1-72
   ~ [0].action.duration : "PERMANENT" → "UNTIL_OPP_TURN_END"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
   + [0].triggerCondition.resonaClass = "遊具"
-
-## +STUB -ADD_TO_FIELD -TRASH_CARD ［1枚］
-WXEX2-23
---- WXEX2-23
-  原文: 【常】：このルリグは対戦相手のセンタールリグのルリグタイプを追加で得る。【自】：アタックフェイズの間、対戦相手のシグニ１体がバニッシュされたとき、対戦相手のトラッシュからそのシグニ以下のレベルを持つシグニ１枚を対象とし、それを傀儡状態であなたの場に出してもよい。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《黒×0》：同じ名前のシ
-  - [1].action.owner = "self"
-  - [1].action.source.type = "TRASH_CARD"
-  - [1].action.source.owner = "self"
-  - [1].action.source.count = 1
-  - [1].action.source.upToCount = false
-  - [1].action.source.filter.cardType = "シグニ"
-  - [1].action.optional = true
-  ~ [1].action.type : "ADD_TO_FIELD" → "STUB"
-  + [1].action.id = "STEAL_OPP_TRASH_PUPPET"
-  + [1].action.puppetParams.count = 1
-  + [1].action.puppetParams.optional = true
-  + [1].action.puppetParams.levelLteTrigger = true
-  …（他 3 行）
 
 ## +EICHI_LEVEL_SUM×2 ［1枚］
 WXEX2-71
@@ -2123,24 +2042,6 @@ WD22-035-G
   - [0].action.steps[1].condition.type = "IS_MY_TURN"
   …（他 18 行）
 
-## +DOWN×2 +SEQUENCE×2 +SIGNI×2 ［1枚］
-WD23-032-A
---- WD23-032-A
-  原文: 【自】《ターン１回》：あなたの《トラップアイコン》が発動したとき、シグニ１体を対象とし、それをアップするかダウンする。【自】《ターン１回》：あなたのシグニ１体がアタックしたとき、あなたのデッキの上からカードを２枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番上に戻す。【トラップアイコン】：対
-  - [1].action.steps[3].owner = "self"
-  - [1].action.steps[3].count = 1
-  - [3].action.owner = "self"
-  - [3].action.count = 1
-  ~ [0].action.target.owner : "self" → "any"
-  ~ [1].action.steps[3].type : "DRAW" → "SEQUENCE"
-  + [1].action.steps[3].steps[0].type = "DOWN"
-  + [1].action.steps[3].steps[0].target.type = "SIGNI"
-  + [1].action.steps[3].steps[0].target.owner = "opponent"
-  + [1].action.steps[3].steps[0].target.count = 1
-  + [1].action.steps[3].steps[0].target.filter.cardType = "シグニ"
-  + [1].action.steps[3].steps[0].target.upToCount = false
-  …（他 13 行）
-
 ## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
 WDK06-R08
 --- WDK06-R08
@@ -2285,24 +2186,6 @@ PR-470A
   + [1].action.steps[1].then.id = "SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME"
   + [1].action.steps[1].then.fetchCardName = "進化する筋肉　紗倉ひびき"
   ~ [1].parseStatus : "AUTO" → "MANUAL"
-
-## +LAST_PROCESSED_LEVEL_SUM +MILL -IS_MY_TURN -STUB ［1枚］
-PR-K049
---- PR-K049
-  原文: 【自】：このシグニがアタックしたとき、あなたと対戦相手のデッキの一番下のカードをトラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が６以上の場合、ターン終了時まで、このシグニの正面のシグニのパワーを－5000する。,：カードを１枚引く。
-  - [0].action.steps[0].id = "LRIG_UNDER_CARD_OP"
-  - [0].action.steps[1].then.target.filter.thisCardOnly = true
-  ~ [0].action.steps[0].type : "STUB" → "MILL"
-  + [0].action.steps[0].owner = "self"
-  + [0].action.steps[0].count = 1
-  + [0].action.steps[0].fromBottom = true
-  + [0].action.steps[0].alsoOpponent = true
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_LEVEL_SUM"
-  + [0].action.steps[1].condition.operator = "gte"
-  + [0].action.steps[1].condition.value = 6
-  ~ [0].action.steps[1].then.target.owner : "self" → "opponent"
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 3 行）
 
 ## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 -STUB ［1枚］
 PR-K072
