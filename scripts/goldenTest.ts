@@ -11117,6 +11117,73 @@ test('§6.3 [B] 後置条件: 7効果のN/N-1を両方向で評価する', () =>
   } finally { cursor = savedCursor; }
 });
 
+test('§6.3 C PR-K049 bottom mills accumulate for the front condition', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const self = 'PR-K049#src', mine = `${SIGNI_L3}#mine`, theirs = `${SIGNI_L3}#theirs`;
+    const front = `${SIGNI_L2}#front`, side = `${SIGNI_L2}#side`;
+    for (const [inst, base] of [[self, 'PR-K049'], [mine, SIGNI_L3], [theirs, SIGNI_L3], [front, SIGNI_L2], [side, SIGNI_L2]] as const)
+      localMap.set(inst, cardMap.get(base)!);
+    const ctx = mkCtx({ signi: [self, null, null] }, { signi: [side, null, front] }, self);
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, deck: [fresh(), mine], trash: [] };
+    ctx.otherState = { ...ctx.otherState, deck: [fresh(), theirs], trash: [] };
+    const seq = manualEffect('PR-K049', 'PR-K049-E1').action as SequenceAction;
+    const milled = run(seq.steps[0], ctx);
+    ok(milled.done && evalCondition(
+      { type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 6 },
+      { ...ctx, ownerState: milled.ownerState, otherState: milled.otherState, lastProcessedCards: milled.lastProcessedCards },
+    ), `mill condition failed: ${JSON.stringify(milled.lastProcessedCards)}`);
+    const r = run(manualEffect('PR-K049', 'PR-K049-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    ok(r.ownerState.trash.includes(mine) && r.otherState.trash.includes(theirs), 'both bottom cards moved');
+    ok(r.otherState.temp_power_mods?.some(m => m.cardNum === front && m.delta === -5000),
+      `front modifier missing; processed=${JSON.stringify(r.lastProcessedCards)}`);
+    ok(!r.otherState.temp_power_mods?.some(m => m.cardNum === side), 'side changed');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 C WX24-P4-045 field target to life and self Double Crush', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const self = 'WX24-P4-045#src', target = `${SIGNI_L2}#target`, other = `${SIGNI_L3}#other`;
+    const redBase = findCard(c => c.Color === '赤'), colorlessBase = findCard(c => c.Color === '無');
+    const red = `${redBase}#cost-r`, colorless = `${colorlessBase}#cost-n`;
+    for (const [inst, base] of [[self, 'WX24-P4-045'], [target, SIGNI_L2], [other, SIGNI_L3], [red, redBase], [colorless, colorlessBase]] as const)
+      localMap.set(inst, cardMap.get(base)!);
+    const ctx = mkCtx({ signi: [self, null, null] }, { signi: [target, other, null] }, self);
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, energy: [red, colorless] };
+    const r = finishPayingCosts(executeEffect(manualEffect('WX24-P4-045', 'WX24-P4-045-E1'), ctx), ctx);
+    ok(r.done); if (!r.done) return;
+    ok(!tops(r.otherState).includes(target) && r.otherState.life_cloth.includes(target));
+    ok(tops(r.otherState).includes(other));
+    ok((r.ownerState.keyword_grants ?? {})[self]?.includes('ダブルクラッシュ'));
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 C WX22-043 hand ACCE SIGNI to energy exact-two draw', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const bases = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【アクセ】')).slice(0, 2);
+    eq(bases.length, 2);
+    const acce = bases.map((c, i) => `${c.CardNum}#acce${i}`);
+    acce.forEach((inst, i) => localMap.set(inst, bases[i]));
+    const draw = `${SIGNI_L1}#draw`; localMap.set(draw, cardMap.get(SIGNI_L1)!);
+    const ctx = mkCtx({}, {}, 'WX22-043#src');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, hand: [...acce], energy: [], deck: [draw] };
+    const r = run(manualEffect('WX22-043', 'WX22-043-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    ok(acce.every(n => r.ownerState.energy.includes(n)));
+    eq(r.ownerState.hand.length, 1);
+    eq(r.ownerState.hand[0], draw);
+  } finally { cursor = savedCursor; }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

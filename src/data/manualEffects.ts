@@ -4448,6 +4448,35 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // 移動結果軸: 実際に目的ゾーンへ到達したカードで後段を判定する（ターン所有者ではなく）。
+  // §6.3 C tail: accumulate both players' actual deck-bottom mill results,
+  // then test the SIGNI level sum and modify only the opposing front SIGNI.
+  "PR-K049": [
+    {"effectId":"PR-K049-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"MILL","owner":"self","count":1,"fromBottom":true,"alsoOpponent":true},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_LEVEL_SUM","operator":"gte","value":6},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-5000,"duration":"UNTIL_END_OF_TURN"}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // Fix the target before the optional payment. A successful move of that
+  // exact opposing SIGNI grants Double Crush only to this attacker.
+  "WX24-P4-045": [
+    {"effectId":"WX24-P4-045-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"STUB","id":"OPTIONAL_COST","costColors":["赤","無"]},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[
+        {"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":false,"fromField":true,"target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true},
+        {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}}
+      ]}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // Move up to two ACCE-icon SIGNI from hand and gate the draw on the exact
+  // number ENERGY_CHARGE recorded as actually moved.
+  "WX22-043": [
+    {"effectId":"WX22-043-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"ENERGY_CHARGE","target":{"type":"HAND_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","hasIcon":"アクセ"}}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"DRAW","owner":"self","count":1}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   "WXK03-048": [
     {"effectId":"WXK03-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
       {"type":"STUB","id":"OPTIONAL_COST","costText":"このシグニを場からトラッシュに置いてもよい"},

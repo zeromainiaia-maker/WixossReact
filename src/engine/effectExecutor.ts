@@ -589,6 +589,12 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     cands = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
   }
+  // frontOfSelf: effect source SIGNI's opposing zone (2 - source zone).
+  // Omitted filters retain the existing candidate behavior.
+  if (a.target.filter?.frontOfSelf) {
+    const frontNum = tgtOwner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : undefined;
+    cands = frontNum ? cands.filter(n => n === frontNum) : [];
+  }
   if (a.targetsStored) {
     cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   }
@@ -960,7 +966,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     }
     const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
     const from = tgt.type === 'HAND_CARD' ? '手札' : tgt.type === 'TRASH_CARD' ? 'トラッシュ' : 'フィールド';
-    return addLog(setOwnerState(tgt.owner, newS, c), `${from}から${names}をエナゾーンへ`);
+    return addLog({ ...setOwnerState(tgt.owner, newS, c), lastProcessedCards: selected }, `${from}から${names}をエナゾーンへ`);
   }
 
   const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
@@ -1629,6 +1635,32 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
   const count = resolveCountRef(a.count, ctx);
   if (count <= 0) return done(ctx);
   const state = ownerState(a.owner, ctx);
+  if (a.fromField) {
+    const target = a.target ?? { type: 'SIGNI', owner: a.owner, count: 1 };
+    const targetState = ownerState(target.owner, ctx);
+    let cands = fieldCandidates(targetState, target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    const moveToLife = (selected: string[], c: ExecCtx): ExecCtx => {
+      let movingState = ownerState(target.owner, c);
+      const moved: string[] = [];
+      for (const n of selected) {
+        if (!movingState.field.signi.some(stack => stack?.at(-1) === n)) continue;
+        movingState = removeFromField(n, movingState);
+        movingState = { ...movingState, life_cloth: [...movingState.life_cloth, n] };
+        moved.push(n);
+      }
+      return addLog(
+        { ...setOwnerState(target.owner, movingState, c), lastProcessedCards: moved },
+        `${moved.length}枚を場からライフクロスへ`,
+      );
+    };
+    if (a.targetsStored || target.count === 'ALL') {
+      const take = target.count === 'ALL' ? cands : cands.slice(0, count);
+      return done(moveToLife(take, ctx));
+    }
+    return selectOrInteract(cands, count, target.upToCount ?? false,
+      target.owner === 'opponent' ? 'opp_field' : 'self_field', a, undefined, ctx, !!a.opponentSelects);
+  }
   if (a.fromTrash) {
     const cands = trashCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
     if (cands.length === 0) return done(addLog(ctx, 'トラッシュがないためライフクロスに加えられない'));
@@ -4331,6 +4363,20 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
 }
 
 function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
+  if (a.alsoOpponent) {
+    const first = execMill({ ...a, alsoOpponent: false }, ctx);
+    if (!first.done) return first;
+    return execMill(
+      { ...a, owner: 'opponent', alsoOpponent: false, appendLastProcessed: true },
+      {
+        ...ctx,
+        ownerState: first.ownerState,
+        otherState: first.otherState,
+        logs: first.logs,
+        lastProcessedCards: first.lastProcessedCards,
+      },
+    );
+  }
   if (a.optional) {
     return needsInteraction({ ...ctx, lastProcessedCards: [] }, {
       type: 'CHOOSE',
@@ -4378,7 +4424,7 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
   };
   const updatedCtx = setOwnerState(a.owner, newState, ctx);
   return done(addLog(
-    { ...updatedCtx, lastProcessedCards: milled },
+    { ...updatedCtx, lastProcessedCards: a.appendLastProcessed ? [...(ctx.lastProcessedCards ?? []), ...milled] : milled },
     `デッキ上から${actual}枚をトラッシュに置いた`
   ));
 }
@@ -6245,6 +6291,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const hi = atlS.hand.indexOf(cardNum);
       const di = atlS.deck.indexOf(cardNum);
       const ti = atlS.trash.indexOf(cardNum);
+      if (atlA.fromField) {
+        if (!atlS.field.signi.some(stack => stack?.at(-1) === cardNum)) return done(ctx);
+        const removed = removeFromField(cardNum, atlS);
+        const newAtlS: PlayerState = { ...removed, life_cloth: [...removed.life_cloth, cardNum] };
+        return done(addLog({ ...setOwnerState(atlOwner, newAtlS, ctx), lastProcessedCards: [cardNum] },
+          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を場からライフクロスに追加`));
+      }
       if (atlA.fromTrash && ti >= 0) {
         const newTrash = [...atlS.trash];
         newTrash.splice(ti, 1);
@@ -6263,7 +6316,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newHand = [...atlS.hand];
       newHand.splice(hi, 1);
       const newAtlS: PlayerState = { ...atlS, hand: newHand, life_cloth: [...atlS.life_cloth, cardNum] };
-      return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
+      return done(addLog({ ...setOwnerState(atlOwner, newAtlS, ctx), lastProcessedCards: [cardNum] },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をライフクロスに追加`));
     }
     case 'ENERGY_CHARGE': {

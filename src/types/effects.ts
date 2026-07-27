@@ -901,6 +901,9 @@ export interface AddToLifeAction {
   fromTop: boolean; // true=デッキ上から
   fromHand?: boolean; // true=手札から1枚選ぶ
   fromTrash?: boolean; // true=トラッシュから選ぶ
+  fromField?: boolean; // true=場のシグニを選んで、そのオーナーのライフクロスへ移す
+  target?: EffectTarget; // fromField 時の対象。省略時は owner 側のシグニ1体
+  targetsStored?: boolean; // fromField 時、STORE_LAST_PROCESSED_TARGETS で固定した対象だけを移す
   opponentSelects?: boolean; // true=対戦相手が選ぶ
 }
 
@@ -1831,6 +1834,8 @@ export interface MILLAction {
   countPerLastProcessed?: number;
   countPerStoredTargets?: number;
   optional?: boolean;
+  alsoOpponent?: boolean; // true=同じ枚数・位置で両プレイヤーをミルし、結果を1つに記録
+  appendLastProcessed?: boolean; // true=直前の記録へ今回ミルしたカードを追記（両者ミルの合計参照用）
   untilFilter?: TargetFilter; // 一致カードが untilCount 枚置かれるまでミル
   untilCount?: number;
 }
