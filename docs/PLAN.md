@@ -98,7 +98,7 @@
 
 | ~~18~~ | ~~golden `WXK11-070` の非決定性フレーク（既存バグ・続き272 で特定）~~ | — | — | **✅続き274でクローズ**。対象テスト内だけ `Math.random` を固定して Fisher–Yates を決定化し、`finally` で乱数関数と共有 `cursor` を必ず復元。既存5 assertion は全維持。engine は変更なし |
 
-| 🆕19 | `EXILE_SELF_AFTER_USE` が発生源インスタンスを追跡していない（続き274・調査のみ／engine未変更） | engine機構 | S | 発生源と**同じ CardNum** を field 優先→`deck → hand → trash → energy → life_cloth` の順で探索し**最初の1枚**を除外する実装。物理カードの一意インスタンスを追跡していないため、**使用後にシャッフルで山札へ混ざった同一ID／さらにライフへ移った同一ID**を「使用したカード」とみなして引き抜ける。タスク18 のフレークはまさにこれが顕在化したもの（＝テスト側を決定化して回避済みだが、**engine の挙動自体は未検討のまま**）。要調査＝①ルール上「使用したカード」が解決中に別ゾーンへ移動した場合どう扱うか ②instanceId ベースの追跡へ寄せられるか（`InstanceMap` が既にある）。⚠実戦での影響範囲は未計測 |
+| 🆕19 | `EXILE_SELF_AFTER_USE` のゾーン探索が広すぎる（続き274 調査／続き275 で診断訂正・engine未変更） | engine機構 | S | ⚠**当初の診断「発生源インスタンスを追跡していない」は誤り**（codex 報告をそのまま記載していたもの。Opus が実測訂正）＝production では **zone にも `ctx.sourceCardNum` にも instanceId（`CardNum#N`）が入る**ので `.indexOf` は**正しく同一インスタンスだけ**を掴む（spell は `pending_spell.card_num = spellInstanceId`〔BattleScreen:6035〕→`sourceCardNum`〔:6102〕。`getCardNum` を噛ませている箇所〔:632〕が instanceId であることの裏付け）。golden で同一 CardNum の衝突が起きたのは**テストが素の CardNum を使っていた**ため。**本当の論点＝探索ゾーンの広さ**＝`field` 優先→`deck → hand → trash → energy → life_cloth` の6ゾーンを順に探し、**別の効果がそのカードを移動させた先でも掴んで除外する**（タスク18 のフレークは、自身がデッキへシャッフル→ライフへ移った先を掴んだもの）。WIXOSS の「オブジェクトはゾーンを移動すると別のオブジェクトになり以前の効果は追跡できない」原則に反する疑い。利用は3効果のみ（**PR-378-E1／WXK11-070-E1＝スペル→解決時は `trash`**・**SP36-001-E1＝アーツ→`lrig_trash`**。effects JSON には0件＝`manualEffects.ts` のみ）＝**探索を「使用済みカードの置き場」に絞れば足りるはず**。実戦での影響範囲は未計測 |
 
 **Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。**下表は残作業のある在庫のみ**。消化済み在庫〔(i)〜(li) の大半〕の完了行原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3〔2026-07-19・2026-07-24退避節〕）：
 
