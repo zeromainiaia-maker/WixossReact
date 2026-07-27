@@ -126,3 +126,52 @@ WX25-P3-088-E2 (ON_DISCARDED_AS_COST)
 - **(a) 実害あり 144件は PLAN.md §3 Opusタスク12 の在庫へ (xxii)(xxiii)(xxiv) として登録済み**（parser修正・ガードレール②によりSonnetはparser自体を触らない）。
 - **(b) multi-dest分割 11件は対応不要**（確認済み・無害）。
 - 本トリアージ自体は parser/engine 変更なし（データ分類のみ）。build:effects/held/census/golden/smoke/fuzz は無変化のはず＝ゲート実行で確認する。
+## 2026-07-27 §6.3 段3：現行41件の全経路再分類
+
+判定は原文→fresh parser action→live curated JSON→engine の recorder/evaluator の順。`[A]` は既存 action/condition/evaluator だけで parser 配線可能、`[B]` は既存 condition を使えるが前段の実結果記録など軽量 engine/action 実体化が必要、`[C]` は新しい状態・比較・選択追跡機構が必要。続き283で2効果を消化し、fresh 残39。
+
+| effectId | 原文の後置条件 | 分類 | condition／不足 |
+|---|---|---:|---|
+| SPDi44-04-E2 | この方法でカードを5枚以上手札に加えた | [B]✅ | `LAST_PROCESSED_COUNT_GTE(5)`＋`TRANSFER_TO_HAND(ALL)`結果記録 |
+| WX25-P1-026-E2 | この方法でカードを5枚以上手札に加えた | [B]✅ | 同上 |
+| WXDi-P01-082-E1 | この方法でシグニを手札に加えた | [B] | `LAST_PROCESSED_COUNT_GTE(1)`／前段公開条件ラップの実移動成功を記録・保持する必要 |
+| PR-459A-E1 | そのカードがレベル1のシグニ | [B] | `LAST_PROCESSED_MATCHES(level:1)`／`REVEAL_OPP_HAND_CARD`実体・記録 |
+| PR-K049-E1 | トラッシュに置かれたシグニのレベル合計が6以上 | [B] | `LAST_PROCESSED_LEVEL_SUM(gte,6)`／`LRIG_UNDER_CARD_OP`記録 |
+| SPDi47-03-E2 | 手札を1枚以上捨てた | [B] | `LAST_PROCESSED_COUNT_GTE(1)`／fresh の可変枚数捨て復元（live MANUALは正形） |
+| WD13-002-E1 | ＜迷宮＞のシグニを公開した | [B] | `LAST_PROCESSED_MATCHES(迷宮)`／公開STUB実体・記録 |
+| WD21-009-sub-E1 | 2枚以上をルリグトラッシュに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(2)`／ルリグ下移動結果記録（live MANUALは正形） |
+| WDK08-Y01-E1 | それぞれレベルの異なるシグニ4枚が公開 | [C] | 4枚＋レベル相異制約 condition が不足 |
+| WDK11-001-E1 | この方法で《白》を支払った | [C] | 実支払い色の追跡が不足 |
+| WDK13-017-E1 | それらのレベル合計が6以上 | [B] | `LAST_PROCESSED_LEVEL_SUM(gte,6)`／`REVEAL_AND_PICK` STUB記録 |
+| WX04-029-E1 | アタックしたシグニの正面にシグニがない | [C] | 攻撃中シグニ基準の正面幾何 condition が不足 |
+| WX05-012-E1 | 異名＜原子＞が3枚以上 | [B] | `LAST_PROCESSED_MATCHES(distinctName,min3)`／COUNT STUBを公開snapshotへ接続 |
+| WX05-013-E3 | ＜美巧＞が8種類以上公開 | [B] | `LAST_PROCESSED_MATCHES(美巧,distinctName,value8)`／手札公開記録 |
+| WX10-025-E1 | 白を選んだ | [C] | 選択色追跡 condition が不足 |
+| WX15-016-sub-E1 | トラッシュしたカードがバーストアイコン持ち | [A] | `LAST_PROCESSED_MATCHES(hasLifeBurst)`。live は続き282で修正済み、引用内fresh parserのみ残 |
+| WX15-067-E1 | ウィルスを1つ以上取り除いた | [C] | 使用時ウィルス支払い数の追跡が不足 |
+| WX16-028-E1 | トラッシュしたカードがトラップアイコン持ち | [B] | `LAST_PROCESSED_MATCHES(hasIcon:トラップ)`／前段ミルSTUB実体・記録 |
+| WX16-Re02-E1 | トラッシュした全カードが＜ウェポン＞ | [B] | `LAST_PROCESSED_ALL_MATCH(ウェポン)`／宣言数ミルSTUB実体・記録 |
+| WX20-053-E2 | デッキからカードを探していた | [C] | CHOOSE枝の did-search 状態が不足 |
+| WX22-021-E2 | 7枚以上公開 | [B] | `LAST_PROCESSED_COUNT_GTE(7)`／`DECK_REVEAL_UNTIL`実体・記録 |
+| WX22-043-E1 | 2枚エナゾーンに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(2)`／`PLACE_ACCE_SIGNI_TO_ENERGY`実体・記録 |
+| WX24-P4-045-E1 | カードをライフクロスに加えた | [B] | `LAST_PROCESSED_COUNT_GTE(1)`／ライフ追加STUBの結果記録 |
+| WXDi-P03-044-E2 | このターンにデッキから3枚以上エナ移動 | [C] | ターン累計・origin付きエナ移動カウンタが不足 |
+| WXDi-P06-036-E1 | 公開カードが＜宝石＞のシグニ | [B] | `LAST_PROCESSED_MATCHES(宝石)`／公開＋任意コスト前のsnapshot保持 |
+| WXDi-P11-010A-E1 | このルリグのリミットが9以上 | [C] | 効果元ルリグの実効limit condition が不足 |
+| WXDi-P11-076-E1 | 追加でエクシード7を支払っていた | [C] | 追加支払い種別・量の追跡が不足 |
+| WXDi-P13-003A-E1 | 5枚以上トラッシュに置かれた | [C] | 出現条件処理結果の記録機構が不足 |
+| WXEX1-06-E2 | 《フレイスロ》含みが3枚以上公開 | [B] | `LAST_PROCESSED_MATCHES(cardName,min3)`／`REVEAL_AND_PICK`全公開snapshot |
+| WXEX1-69-E1 | シグニを2枚以上公開 | [B] | `LAST_PROCESSED_MATCHES(シグニ,min2)`／任意手札公開STUB実体・記録 |
+| WXK02-055-E1 | そのカードがレベル2のシグニ | [B] | `LAST_PROCESSED_MATCHES(level:2)`／デッキ底ミルを任意コスト後に記録 |
+| WXK03-014-E2 | ライフクロスをトラッシュに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(1)`／life look/pick移動結果記録 |
+| WXK03-048-E1 | ＜遊具＞2体が手札に戻った | [B] | `LAST_PROCESSED_MATCHES(遊具,min2)`／全シグニbounce結果記録 |
+| WXK06-031-E1 | 4枚トラッシュに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(4)`／SEARCH maxCount=1誤parseの復元が先 |
+| WXK06-050-E1 | ＜龍獣＞3枚をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(龍獣,min3)`／untilミルSTUB実体・記録 |
+| WXK07-031-E2 | レベル4＜宇宙＞4枚を公開 | [B] | `LAST_PROCESSED_MATCHES(level4,宇宙,value4)`／until公開STUB実体・記録 |
+| WXK07-042-E1 | ＜原子＞2体以上をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(原子,min2)`／前段「好きな数」場トラッシュ復元 |
+| WXK08-029-E1 | 【ビート】が4枚になった | [C] | 処理後ビート総数 condition が不足 |
+| WXK09-100-E1 | 同じレベルを持つシグニがない | [C] | lastProcessed のレベル重複なし condition が不足 |
+| WXK11-024-E2 | デッキに15枚以上加えた | [B] | `LAST_PROCESSED_COUNT_GTE(15)`／対象3ゾーン一括移動STUB実体・記録 |
+| WXK11-077-sub-E1 | シグニ3体をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(シグニ,min3)`／付与能力内の場トラッシュ記録 |
+
+現行41件に「〜しなかった場合」は0件。既存の `LAST_PROCESSED_COUNT_GTE.negate` 規則・評価は変更しておらず、否定条件を肯定化していない。

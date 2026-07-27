@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き283＝§6.3 C群「IS_MY_TURN 誤変換」段3：TRANSFER_TO_HAND 結果カウント2効果（2026-07-27・Codex）
+
+`build:effects` は PLAN §3 の破壊的再生成禁止に従って未実行。同じ CSV→`parseCardEffects`→silent fallback log だけを走らせる一時 read-only 集計で `_partial_report.txt` を更新し、開始時 **44刻印／IS_MY_TURN化41**（リコレクト3・場出しpick1）を再現した。全41件を原文→fresh parser action→live JSON→engine evaluator/recorder の順で再分類し、明細を `_partial_triage.txt` 2026-07-27段3節へ記録。
+
+- **parser**：`parseThisWayGenericCount` の確認済み動詞へ「手札に加え」を追加。直結 `TRANSFER_TO_HAND` 直後の「この方法でN枚以上手札に加えた場合」を `LAST_PROCESSED_COUNT_GTE` に変換する。SPDi44-04-E2／WX25-P1-026-E2を消化。公開条件ラップ内の移動成功を証明できない WXDi-P01-082-E1 は明示ガードで据置。fresh IS_MY_TURN化 **41→39**。
+- **engine**：境界 golden が、`TRANSFER_TO_HAND` の対話選択経路は選択結果を記録する一方、`count:'ALL'` 即時経路だけ `lastProcessedCards` を残さない実バグを検出。実際に移動した `selected` を共通 `applyTransfer` で記録し、5枚条件が常時偽になる退化を解消した。
+- **境界実測**：live production action `SPDi44-04-E2` を使用。実カードの instanceId（`CardNum#C63-*`）5枚／4枚を自エナゾーンへ置き、効果全体を実行。5枚は全て手札へ移動して `GRANT_LRIG_ABILITY` 1件登録、4枚は全て移動するが登録0。共有 `cursor` と一時 cardMap instance は `finally` で復元。
+- **JSON**：対象2件の live curated は既に `TRANSFER_TO_HAND{ENERGY_CARD,count:ALL}` → `CONDITIONAL{LAST_PROCESSED_COUNT_GTE:5}` の正形だったため変更なし。fresh parser は `IS_MY_TURN` から同条件へ改善。否定条件は現行41件に0件で、`negate` を変更していない。
+- **検証**：golden **782→783**、単独 golden 783/783、最終状態で `npm run gates` **10回連続 PASS／FAIL 0**（各回 typecheck、golden 783、smoke 10725/10725、fuzz 200ゲーム不具合0、census **1527/BASELINE 1527**、lint 0 errors/222 existing warnings）。残39件は [A]/[B]/[C] 表に従い defer。`effects_*.json`／BASELINE は変更なし。
+
+---
+
 ## 続き282＝§6.3 E群を全件再診断し WX15-016 を既存の進行中アタック取消経路へ配線（2026-07-27・Codex）
 
 PLAN の「個別カード機構待ち」を信用せず、指定9項目をCSV原文・現行JSON・collector/executorまで再照合した。新規機構なしで忠実化できた `WX15-016-E1` を消化し、4項目の stale 診断を訂正した。

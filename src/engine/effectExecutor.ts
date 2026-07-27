@@ -1371,7 +1371,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     }
     const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
     const from = src.type === 'TRASH_CARD' ? 'トラッシュ' : 'エナ';
-    return addLog(setOwnerState(tgtOwner, newS, c), `${from}から${names}を手札へ`);
+    return {
+      ...addLog(setOwnerState(tgtOwner, newS, c), `${from}から${names}を手札へ`),
+      lastProcessedCards: selected,
+    };
   }
 
   const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);

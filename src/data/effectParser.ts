@@ -1230,7 +1230,7 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   // lastProcessedCards を残すと確認済みの動詞に限定。
   // ⚠「トラッシュに置」は語順で分離することがある（「トラッシュに＜X＞のシグニがN枚以上置かれた」＝
   //   フィルタ名詞句が「トラッシュに」と「置」の間に入る・WXEX1-47）＝`トラッシュに[^。]*?置` で分離形も許容。
-  if (!/(?:公開|トラッシュに[^。]*?置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|捨て)/.test(clause)) return null;
+  if (!/(?:公開|トラッシュに[^。]*?置|エナゾーンに置|ゲームから除外|バニッシュ|デッキに(?:加え|戻)|手札に加え|捨て)/.test(clause)) return null;
   // 否定条件3件。「N枚が/を処理されなかった」は lastProcessedCards.length < N。
   // 前段が実際に記録することは呼び出し側 prevRecords で保証する。肯定の COUNT_GTE を
   // negate するだけで表せるため、新しい条件型は作らない。
@@ -4449,7 +4449,13 @@ function parseActionTextInner(text: string): EffectAction {
       // 結果カウント閾値「この方法で〔フィルタ〕がN枚以上〜した場合」（Cluster B）。前段が lastProcessedCards を
       // 記録するとき（prevRecords）だけ抽出。engine の LAST_PROCESSED_MATCHES/COUNT_GTE で評価される。
       if (!condition && prevRecords && !rest.startsWith('代わりに')) {
-        condition = parseThisWayGenericCount(thenM[0]);
+        // 「手札に加えた」は、直前が手札移動そのもののときだけ結果件数として解く。
+        // LAST_PROCESSED_MATCHES ラップの then に手札移動があるだけの形は、公開カードと実移動結果が
+        // 同一とは限らず（WXDi-P01-082）、条件だけ採ると偽陰性になるため据置。
+        const directTransferToHand = prevStep?.type === 'TRANSFER_TO_HAND';
+        if (!/手札に加えた場合/.test(thenM[0]) || directTransferToHand) {
+          condition = parseThisWayGenericCount(thenM[0]);
+        }
         // 今回実体化した全手札/全エナの処理は、汎用の「手札に加えた」ではなく
         // 原文の移動動詞を逆翻訳へ残す。ALL の任意/可変枚数形に限定し、既存の
         // 通常 TRASH 文型へは波及させない。

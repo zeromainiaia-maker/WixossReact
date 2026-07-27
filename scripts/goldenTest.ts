@@ -9430,6 +9430,30 @@ test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
     ok(!!eff && eff.action.type !== 'STUB', `${id} manual action`);
   }
 });
+test('§6.3 C群 COUNT_GTE: SPDi44-04-E2 はエナから手札へ5枚なら発火・4枚なら不発', () => {
+  const effect = manualEffect('SPDi44-04', 'SPDi44-04-E2');
+  const savedCursor = cursor;
+  const added: string[] = [];
+  try {
+    const drive = (count: number) => {
+      const instances = Array.from({ length: count }, (_, i) => `${SIGNI_L1}#C63-${count}-${i + 1}`);
+      for (const instance of instances) {
+        cardMap.set(instance, cardMap.get(SIGNI_L1)!);
+        added.push(instance);
+      }
+      const ctx = mkCtx({}, {}, 'SPDi44-04#1');
+      ctx.ownerState = { ...ctx.ownerState, energy: instances };
+      const result = run(effect.action, ctx);
+      eq(result.ownerState.hand.filter(n => instances.includes(n)).length, count, `${count}枚を手札へ移動`);
+      return result.ownerState.lrig_granted_auto_effects?.length ?? 0;
+    };
+    eq(drive(5), 1, '閾値N=5は付与発火');
+    eq(drive(4), 0, '境界N-1=4は付与不発');
+  } finally {
+    cursor = savedCursor;
+    for (const instance of added) cardMap.delete(instance);
+  }
+});
 test('PR-204/PR-238 other-arts gate', () => {
   const c = { type: 'NO_OTHER_ARTS_USED_THIS_TURN', exceptCardName: 'SELF' } as const;
   ok(evalCondition(c, mkCtx({}, {})), 'none');
