@@ -8705,18 +8705,27 @@ test('WXK08-055: under-signi 2枚なら -5000 と draw のみ', () => {
 });
 
 test('WXK11-070: energy thresholds share pre-recovery count and self-exile is unique', () => {
-  const eff = mergeManualEffects('WXK11-070', effectsMap.get('WXK11-070') ?? []).find(e => e.effectId === 'WXK11-070-E1');
-  ok(!!eff, 'manual effect'); if (!eff) return;
-  const ctx = mkCtx({}, {}, 'WXK11-070');
-  ctx.ownerState.energy = fill(10);
-  ctx.ownerState.trash = ['WXK11-070'];
-  const lifeBefore = ctx.ownerState.life_cloth.length;
-  const r = run(eff.action, ctx);
-  eq(r.ownerState.energy.length, 0, 'all energy trashed');
-  eq(r.ownerState.life_cloth.length, lifeBefore + 1, '10 threshold adds life');
-  eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 0, 'self-exile does not recycle into trash');
-  eq((r.ownerState.excluded ?? []).filter(n => n === 'WXK11-070').length, 1, 'self-exile has one excluded copy');
-  eq(r.ownerState.deck.includes('WXK11-070'), false, 'self removed from shuffled deck');
+  const savedCursor = cursor;
+  const savedRandom = Math.random;
+  try {
+    // Fisher–Yates をこのテスト内だけ固定し、自己カードが偶然デッキトップへ来るフレークを防ぐ。
+    Math.random = () => 0;
+    const eff = mergeManualEffects('WXK11-070', effectsMap.get('WXK11-070') ?? []).find(e => e.effectId === 'WXK11-070-E1');
+    ok(!!eff, 'manual effect'); if (!eff) return;
+    const ctx = mkCtx({}, {}, 'WXK11-070');
+    ctx.ownerState.energy = fill(10);
+    ctx.ownerState.trash = ['WXK11-070'];
+    const lifeBefore = ctx.ownerState.life_cloth.length;
+    const r = run(eff.action, ctx);
+    eq(r.ownerState.energy.length, 0, 'all energy trashed');
+    eq(r.ownerState.life_cloth.length, lifeBefore + 1, '10 threshold adds life');
+    eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 0, 'self-exile does not recycle into trash');
+    eq((r.ownerState.excluded ?? []).filter(n => n === 'WXK11-070').length, 1, 'self-exile has one excluded copy');
+    eq(r.ownerState.deck.includes('WXK11-070'), false, 'self removed from shuffled deck');
+  } finally {
+    Math.random = savedRandom;
+    cursor = savedCursor;
+  }
 });
 
 test('MILL fromBottom: deck末尾だけをトラッシュへ移す', () => {

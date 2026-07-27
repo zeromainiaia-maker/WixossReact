@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き274＝§3タスク18 golden `WXK11-070` の非決定性フレークを決定化（2026-07-27・codex実装/Opus 5確認）
+
+**原因**＝`WXK11-070-E1` はエナ10枚をトラッシュへ置いた後、元からトラッシュに置いた自身を含む11枚を `TRANSFER_TO_DECK{shuffle:true}` でデッキへ戻し、直後にデッキトップ1枚をライフへ加える。golden が実乱数に依存していたため、自身がトップへ来る約1/31の回だけ、後続 `EXILE_SELF_AFTER_USE` が追加直後のライフから自身を除外し、`life_cloth` が +1 されずランダムに失敗していた。
+
+**修正**＝対象テストのスコープ内だけ `Math.random = () => 0` として Fisher–Yates の結果を固定し、`finally` で元の `Math.random` とテスト共通の `cursor` を必ず復元する。全エナ破棄／ライフ+1／トラッシュへ自己還流なし／除外1枚だけ／シャッフル後デッキに自身なし、の既存5 assertion は削除・緩和せず全て維持。engine の挙動は変更していない。
+
+**検証**＝⚠**単独 `npm run golden` の反復はこのフレークの検証にならない**（Claude 実測＝**修正前**のコードで単独 golden を **60回**回して FAIL 0。このフレークは `npm run gates`〔5並列〕でしか観測できていない）。したがって codex 報告の「golden 50回連続 PASS」は緑の裏付けにならず、**Claude が `npm run gates` を30回回して FAIL 0** を実測し直した（修正前の実測は master 1/30・変更後ツリー 3/52＝通算 4/82 ≈ 4.9%）。⚠30回 FAIL 0 は単独では決定的でない（4.9% なら 0.951^30 ≈ 22% は素通りする）ため、**主たる根拠は構造**＝当該テスト内で `Math.random` を固定したので**そのテストのシャッフルは決定的**になり、この経路の非決定性は原理的に消えている。回帰時は必ず gates で測ること。
+
+**別件調査（engine変更なし）**＝`EXILE_SELF_AFTER_USE` は発生源の CardNum と同じ値を、field 優先、その後 `deck → hand → trash → energy → life_cloth` の順で探索し、最初の1枚を除外する。物理カードの一意なインスタンス追跡ではないため、使用後に山札へ混ざった同一IDやライフへ移った同一IDを「使用したカード」とみなす挙動はルール意図との整合を要検討。
+
+---
+
 ## 続き273＝§3タスク16 機構B「アタックを効果によって無効にしたとき」3効果を完全配線（timing census 37→34効果・golden 767→769）（2026-07-27・codex実装/Opus 5確認）
 
 **直したバグ**＝WX05-025-E2／WX14-064-E1／WX13-040-E1 が `ON_PLAY` へ誤フォールバックし、場に出すたび誤発火していた。新 timing `ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT` を追加し、シグニアタックの効果無効化確定4地点（`NEGATE_NTH_ATTACK`／`NEGATE_THAT_ATTACK`／`NEGATE_ATTACK_ON_TRIGGER`／`resolveNegateEscapeAccept`）から**防御側**の watcher を収集する。`escapeDiscard` は、手札を支払って無効化を回避する経路では非発火、支払わず無効化を受け入れる accept 経路では発火する。ルリグアタック無効化経路には配線しない。
