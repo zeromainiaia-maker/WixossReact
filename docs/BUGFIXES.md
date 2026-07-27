@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き279＝§6.3 D群 `forResonaCondition` 7効果をレゾナ召喚の共通盤面差分へ配線（2026-07-27・Codex）
+
+**根本原因**＝`triggerCondition.forResonaCondition` は7効果に存在したが、`collectTrashTriggers` が無条件 `continue` しており永久に不発だった。対象全数は、参照なし5件＝WX10-055-E1／WX10-076-E1／WX10-086-E1／WX21-021-E2／WX21-047-E1、今出たレゾナ参照2件＝WXEX1-58-E1（＜宇宙＞限定）／WXEX1-72-E1（＜遊具＞限定）。旧PLANの「2枚」は7効果へ訂正した。
+
+**共通経路**＝続き262で実装済みの `payResonaAppearanceAndPlace` が返す `fieldTrashCostCards` を、既存の `BattleScreen.collectBoardDiffTriggers` へ渡す経路を維持したまま、同じmetaへ `resonaConditionCardNum`（今出たレゾナのinstanceId）を追加した。collectorは省略時の既存挙動を変えず、値がある場合だけ `forResonaCondition` を許可する。独自トリガー収集経路は新設していない。併せてON_TRASH自己効果のeffects参照を既存の `effsOf`（instanceId優先→cardNumフォールバック）へ寄せ、productionの付与能力とplain Mapの双方で到達可能にした。
+
+**「そのレゾナ」2件**＝StackEntryの既存`triggeringCardNum`へ今出たレゾナを保持する。WXEX1-58は`resonaClass:'宇宙'`をCardData.CardClassで照合し、そのレゾナ1体だけへ対戦相手ルリグ効果耐性を付与。WXEX1-72は`resonaClass:'遊具'`を同様に照合し、そのレゾナ1体だけへ「バニッシュされない」を付与する。いずれも`UNTIL_OPP_TURN_END`ストアを使い「次のあなたのターンまで」を保持する。カード名一致は使用していない。
+
+**golden**＝共有`cursor`を`try/finally`で復元。層1は場の`WX10-055#1`と`WX10-056#1`を、ルリグデッキの`WX07-009#1`の実出現条件で支払い・配置するproduction相当経路を通し、支払い時だけWX10-055-E1が発火することを確認。同じinstanceIdの通常効果trash／バトル・ルール処理／他能力コストは全て非発火。層2は＜宇宙＞/＜遊具＞の正負クラス照合、そのレゾナだけへの付与、他の自シグニへの非付与を固定した。golden 775→777。
+
+**defer**＝D群は7/7消化で残0。A群3枚はD群の必達実装と10周ゲートを優先し、この続きでは未着手（既存PLAN記載を維持）。
+
+**別タスク候補**＝`triggerCollect.ts` には `ctx.effectsMap.get(topNum)` の生呼びがなお複数残り、instance付与能力を含む `effsOf` への横断統一は未了。
+
+---
+
 ## 続き278＝WXEX1-08 BET限定＋ミル移動カードfilter軸（2026-07-27・codex）
 
 **WXEX1-08-E1**＝`ON_COIN_PAID` だけではグロウ・キー・起動等の全コイン支払いで過剰発火するため、既存 `condition:{type:'IS_BETTING'}` を parser/curated JSONへ追加。golden はルリグを実戦どおり `field.lrig=['WXEX1-08#1']` に置き、BETフラグあり発火／通常支払い非発火／betCost=0のエンコアのみ非発火を固定した。

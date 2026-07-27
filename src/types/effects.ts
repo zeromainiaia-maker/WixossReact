@@ -1183,6 +1183,7 @@ export interface CostReductionAction {
 export interface GrantProtectionAction {
   type: 'GRANT_PROTECTION';
   target?: EffectTarget;          // 一時付与（AUTO/ACTIVATED）: 特定ターゲットに付与
+  targetsTriggerSource?: boolean; // 「そのレゾナ」等、トリガー元シグニ（ctx.triggeringCardNum）へ無選択で付与
   subjectFilter?: TargetFilter;   // CONTINUOUS用: このフィルターの全シグニを保護
   subjectOwner?: Owner;           // subjectFilter の所有者（省略時: 'self'）
   from?: string[];    // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'BANISH' | 'any'
@@ -1915,6 +1916,7 @@ export interface CardEffect {
     fromAnyZone?: boolean;      // 場以外（手札・エナ・デッキ）からトラッシュに置かれた場合も発火（ON_TRASH triggerScope:self用）
     fromZones?: Array<'hand' | 'deck' | 'energy' | 'field' | 'under_signi'>; // ON_TRASH の発生源を限定（「手札かデッキから」=['hand','deck']／「シグニの下から」=['under_signi']。指定領域からのみ発火。WX04-102/WX18-062）
     forResonaCondition?: boolean; // レゾナの出現条件のためにトラッシュに置かれた場合のみ発火（WX10-055等）。通常のトラッシュ（バトル・効果・ルール処理）では発火しない
+    resonaClass?: string;         // 出現条件で場に出たレゾナの＜クラス＞限定（CardClass で判定。WXEX1-58/72）
     byEffect?: boolean; // 効果によるイベントのみ発火。ON_PLAY＝通常召喚を除外、ON_SIGNI_DOWN＝アタック/コストを除外、ON_TRASH＝コスト/バトル/ルール処理を除外（任意の効果起因＝自他問わず。WX18-086等）
     bySigniEffect?: boolean; // シグニの効果によって場に出た場合のみ発火（G079等「シグニの効果によって場に出たとき」）。通常召喚・スペル/アーツ/ルリグの効果では発火しない
     placedDown?: boolean; // ダウン状態で場に出た場合のみ発火（G144「あなたのシグニがダウン状態で場に出たとき」。ON_PLAY と併用）

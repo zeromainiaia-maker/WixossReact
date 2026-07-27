@@ -2279,8 +2279,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     causeByOpponent = false,
     byCostOrEffect = true,
     byEffectCause = true,
+    resonaConditionCardNum?: string,
   ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } =>
-    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect, byEffectCause);
+    pureCollectTrashTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, afterHostState, afterGuestState, causeByOpponent, byCostOrEffect, byEffectCause, resonaConditionCardNum);
 
   /**
    * バニッシュされたシグニの ON_BANISH 効果 + フィールド上の全シグニのトリガーを収集する。
@@ -2662,7 +2663,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const collectBoardDiffTriggers = (
     afterHost: PlayerState,
     afterGuest: PlayerState,
-    meta: { causeOwnerId: string; causeSourceCardNum: string; fieldTrashCostCards?: string[] },
+    meta: { causeOwnerId: string; causeSourceCardNum: string; fieldTrashCostCards?: string[]; resonaConditionCardNum?: string },
   ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
     const { causeOwnerId, causeSourceCardNum } = meta;
     const fieldTrashCostCards = new Set(meta.fieldTrashCostCards ?? []);
@@ -2687,11 +2688,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const hostTrashedByOpp  = causeOwnerId === bs.guest_id;
     const guestTrashedByOpp = causeOwnerId === bs.host_id;
     for (const cardNum of detectTrashedSigni(beforeHost, h)) {
-      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp, true, !fieldTrashCostCards.has(cardNum));
+      const tt = collectTrashTriggers(cardNum, bs.host_id, h, g, hostTrashedByOpp, true, !fieldTrashCostCards.has(cardNum), meta.resonaConditionCardNum);
       entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     for (const cardNum of detectTrashedSigni(beforeGuest, g)) {
-      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp, true, !fieldTrashCostCards.has(cardNum));
+      const tt = collectTrashTriggers(cardNum, bs.guest_id, h, g, guestTrashedByOpp, true, !fieldTrashCostCards.has(cardNum), meta.resonaConditionCardNum);
       entries.push(...tt.entries); useHost(tt.usedHostIds); useGuest(tt.usedGuestIds);
     }
     // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
@@ -5085,7 +5086,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? collectBoardDiffTriggers(
           isHost ? placed : bs.host_state,
           isHost ? bs.guest_state : placed,
-          { causeOwnerId: user.id, causeSourceCardNum: cardNum, fieldTrashCostCards: resonaPaymentMeta.fieldTrashCostCards },
+          {
+            causeOwnerId: user.id,
+            causeSourceCardNum: cardNum,
+            fieldTrashCostCards: resonaPaymentMeta.fieldTrashCostCards,
+            resonaConditionCardNum: cardNum,
+          },
         )
         : null;
       if (paymentDiff) {

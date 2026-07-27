@@ -7,6 +7,14 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WXEX1-58": [
+    // 「そのレゾナ」＝出現条件で今場に出た＜宇宙＞レゾナ。全シグニ保護ではない。
+    {"effectId":"WXEX1-58-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"from":["ルリグ"],"sourceOwner":"opponent","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"宇宙","fromZones":["field"]}}
+  ],
+  "WXEX1-72": [
+    // 「そのレゾナ」＝出現条件で今場に出た＜遊具＞レゾナ。対戦相手の効果だけでなくバトル/ルール処理のバニッシュも防ぐ。
+    {"effectId":"WXEX1-72-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"targetsTriggerSource":true,"keyword":"バニッシュされない","duration":"UNTIL_OPP_TURN_END"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"forResonaCondition":true,"resonaClass":"遊具","fromZones":["field"]}}
+  ],
   "WXDi-P05-009": [
     {"effectId":"WXDi-P05-009-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_LRIG_UNDER_COST"},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1},"shuffle":false,"position":"top"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
   ],

@@ -1021,6 +1021,86 @@ test('レゾナ召喚: 条件を払える時だけ候補になり、原子的支
     cursor = savedCursor;
   }
 });
+test('レゾナ出現条件ON_TRASH: 実召喚支払いだけ発火し、通常トラッシュ・バトル・他コストでは不発', () => {
+  const savedCursor = cursor;
+  try {
+    const hostId = 'H', guestId = 'G';
+    const fires = (entries: StackEntry[], effectId: string) => entries.some(e => e.effectId === effectId);
+    const paidInst = 'WX10-055#1';
+    const otherWhite = 'WX10-056#1';
+    const resonaInst = 'WX07-009#1'; // 白の非レゾナ2体を場からトラッシュ
+    const before = mkState({ signi: [paidInst, otherWhite, null] });
+    before.lrig_deck = [resonaInst];
+    const candidate = getMainSingleZoneResonaCandidate(resonaInst, before, cardMap, effectsMap);
+    ok(!!candidate, 'instanceId＋実戦ゾーンでレゾナ候補');
+    const paid = payResonaAppearanceAndPlace(
+      before, resonaInst, candidate!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap,
+    );
+    ok(!!paid, '実際のレゾナ召喚支払い経路を完走');
+    const after = paid!.state;
+    const ctx: TrigCtx = {
+      hostId, guestId, activeUserId: hostId, turnPhase: 'MAIN',
+      effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'resona-trigger',
+    };
+    const positive = collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, true, false, resonaInst);
+    eq(fires(positive.entries, 'WX10-055-E1'), true, 'レゾナ出現条件の場支払いは発火');
+    eq(positive.entries[0]?.cardNum, paidInst, '効果元instanceIdを保持');
+    eq(positive.entries[0]?.triggeringCardNum, resonaInst, '今出たレゾナinstanceIdを保持');
+
+    eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, true, true).entries, 'WX10-055-E1'), false, '通常の効果トラッシュは不発');
+    eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, false, false).entries, 'WX10-055-E1'), false, 'バトル/ルール処理は不発');
+    eq(fires(collectTrashTriggers(ctx, paidInst, hostId, after, mkState({}), false, true, false).entries, 'WX10-055-E1'), false, '他の能力コストは不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('レゾナ出現条件ON_TRASH: 「そのレゾナ」参照と＜クラス＞限定を保持', () => {
+  const savedCursor = cursor;
+  try {
+    const hostId = 'H', guestId = 'G';
+    const fires = (entries: StackEntry[], effectId: string) => entries.some(e => e.effectId === effectId);
+    const merged = new Map(effectsMap);
+    for (const id of ['WXEX1-58', 'WXEX1-72']) merged.set(id, mergeManualEffects(id, effectsMap.get(id) ?? []));
+    const ctx: TrigCtx = {
+      hostId, guestId, activeUserId: hostId, turnPhase: 'MAIN',
+      effectsMap: merged, cardMap: cardMap as Map<string, CardData>, genId: () => 'resona-ref-trigger',
+    };
+    const guest = mkState({});
+
+    const spaceCost = 'WXEX1-58#1';
+    const spaceResona = 'WX07-009#1';
+    const toyResona = 'WX10-019#1';
+    const spaceAfter = mkState({ signi: [spaceResona, 'WX10-056#1', null] });
+    const spaceEntries = collectTrashTriggers(ctx, spaceCost, hostId, spaceAfter, guest, false, true, false, spaceResona).entries;
+    eq(fires(spaceEntries, 'WXEX1-58-E1'), true, '＜宇宙＞レゾナなら発火');
+    eq(fires(collectTrashTriggers(ctx, spaceCost, hostId, spaceAfter, guest, false, true, false, toyResona).entries, 'WXEX1-58-E1'), false, '＜遊具＞レゾナでは不発');
+    const spaceEff = spaceEntries.find(e => e.effectId === 'WXEX1-58-E1')!;
+    const spaceResolved = finish(executeEffect(spaceEff.effect, {
+      ownerState: spaceAfter, otherState: guest, cardMap, logs: [],
+      sourceCardNum: spaceCost, triggeringCardNum: spaceEff.triggeringCardNum,
+    } as unknown as ExecCtx), {
+      ownerState: spaceAfter, otherState: guest, cardMap, logs: [],
+      sourceCardNum: spaceCost, triggeringCardNum: spaceEff.triggeringCardNum,
+    } as unknown as ExecCtx);
+    ok(spaceResolved.ownerState.keyword_grants_until_opp_turn?.[spaceResona]?.some(k => k === 'PROTECTION:ルリグ:opponent'), 'そのレゾナだけに対戦相手ルリグ効果耐性');
+    eq(spaceResolved.ownerState.keyword_grants_until_opp_turn?.['WX10-056#1'], undefined, '他の自シグニへは付与しない');
+
+    const toyCost = 'WXEX1-72#1';
+    const toyAfter = mkState({ signi: [toyResona, 'WX10-076#2', null] });
+    const toyEntries = collectTrashTriggers(ctx, toyCost, hostId, toyAfter, guest, false, true, false, toyResona).entries;
+    eq(fires(toyEntries, 'WXEX1-72-E1'), true, '＜遊具＞レゾナなら発火');
+    eq(fires(collectTrashTriggers(ctx, toyCost, hostId, toyAfter, guest, false, true, false, spaceResona).entries, 'WXEX1-72-E1'), false, '＜宇宙＞レゾナでは不発');
+    const toyEff = toyEntries.find(e => e.effectId === 'WXEX1-72-E1')!;
+    const toyCtx = {
+      ownerState: toyAfter, otherState: guest, cardMap, logs: [],
+      sourceCardNum: toyCost, triggeringCardNum: toyEff.triggeringCardNum,
+    } as unknown as ExecCtx;
+    const toyResolved = finish(executeEffect(toyEff.effect, toyCtx), toyCtx);
+    ok(toyResolved.ownerState.keyword_grants_until_opp_turn?.[toyResona]?.includes('バニッシュされない'), 'そのレゾナだけに全バニッシュ耐性');
+  } finally {
+    cursor = savedCursor;
+  }
+});
 test('レゾナ出現条件 段階3: ゾーン横断・複数グループ・合計制約・3択2選を支払い確定時に再検証', () => {
   const savedCursor = cursor;
   try {

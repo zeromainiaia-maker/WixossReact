@@ -3328,6 +3328,13 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
       `${selected.map(n => c.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}に効果耐性（${(a.from ?? []).join('/')}）を付与`);
   };
 
+  // 「そのレゾナ」＝出現条件支払いトリガーが保持した、今出たレゾナへ直接付与。
+  if (a.targetsTriggerSource) {
+    const trigger = ctx.triggeringCardNum;
+    const onField = trigger && ownerState(tgt.owner, ctx).field.signi.some(stack => stack?.at(-1) === trigger);
+    return done(trigger && onField ? applyProtection([trigger], ctx) : ctx);
+  }
+
   // センタールリグへの付与（「あなたのセンタールリグ…は効果を受けない」WX04-064 等）
   if (tgt.type === 'LRIG') {
     const lrigTop = ownerState(tgt.owner, ctx).field.lrig?.at(-1);

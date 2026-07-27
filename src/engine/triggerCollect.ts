@@ -419,6 +419,7 @@ export function collectAnyZoneTrashSelfTriggers(
  * causeByOpponent: このトラッシュが対戦相手の効果によるものか（byOpponentEffect ゲート用）。
  * byCostOrEffect: このトラッシュがコストか効果によるものか（fromFieldByCostOrEffect ゲート用。G204）。
  * byEffectCause: このトラッシュが効果によるものか（コスト・バトル・ルール処理は false。byEffect ゲート用）。
+ * resonaConditionCardNum: 出現条件の支払いなら、場に出たレゾナの instanceId。省略時は通常のトラッシュ。
  */
 export function collectTrashTriggers(
   ctx: TrigCtx,
@@ -429,6 +430,7 @@ export function collectTrashTriggers(
   causeByOpponent = false,
   byCostOrEffect = true,
   byEffectCause = true,
+  resonaConditionCardNum?: string,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   // usageLimit（《ターン1回/2回》）の消費 effectId を返す（呼び出し元が actions_done へ書き戻す＝ON_BANISH と同型。
@@ -440,7 +442,7 @@ export function collectTrashTriggers(
   // 「あなたの…シグニがトラッシュに置かれたとき」の watcher＝トラッシュされたシグニのオーナー。
   const ownerIsTurnPlayer = ctx.activeUserId === trashedPlayerId;
   // トラッシュに置かれたカード自身の ON_TRASH 効果（このパスは「場から」トラッシュ＝field origin）
-  for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
+  for (const eff of effsOf(ctx, trashedCardNum)) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'self' && scope !== 'any_ally' && scope !== 'any') continue;
@@ -470,12 +472,18 @@ export function collectTrashTriggers(
         && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
     // fromZones 指定があり 'field' を含まない場合は「場から」では発火しない（WX04-102「手札かデッキから」）
     if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;
-    // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。通常のトラッシュでは発火しない
-    if (eff.triggerCondition?.forResonaCondition) continue;
+    // レゾナの出現条件の支払いとしてトラッシュされた場合のみ発火（WX10-055等）。
+    // 「＜X＞のレゾナ」限定は、今まさに場へ出たレゾナの CardClass で判定する（カード名一致ではない）。
+    if (eff.triggerCondition?.forResonaCondition) {
+      if (!resonaConditionCardNum) continue;
+      const requiredClass = eff.triggerCondition.resonaClass;
+      if (requiredClass && !ctx.cardMap.get(getCardNum(resonaConditionCardNum))?.CardClass?.includes(requiredClass)) continue;
+    }
     const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
     entries.push({
       id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
       label: `${cardName} の【トラッシュ時】効果`, effect: eff,
+      ...(resonaConditionCardNum ? { triggeringCardNum: resonaConditionCardNum } : {}),
     });
   }
   // フィールド上シグニ＋ルリグのON_TRASHフィールドトリガー（ally_banished等）
