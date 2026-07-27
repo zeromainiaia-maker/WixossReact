@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き288＝§6.3 E群 WXDi-P06-031 のセンタールリグ【起】追加コスト＋ダウン中限定を忠実化（2026-07-27・Codex）
+
+CSV原文・live JSON・実行経路を再照合し、`build:effects` は実行せず `manualEffects.ts` のeffectId上書きと共通runtime配線で外科適用した。
+
+- **センタールリグ【起】経路**：ルリグゾーンのトップから本来の `ACTIVATED` を拾う処理を `collectCenterLrigActivatedEffects` として純関数化し、MAIN/ATTACK_ARTSの既存候補収集を同関数へ置換。支払いモーダルへ既存 `collectIncreaseActCost` を接続し、相手ターン中だけシグニと同じ追加《無》を必要エナ・色支払い判定へ加算した。
+- **E2「ダウン状態であるかぎり」**：省略時に既存挙動を変えない新 `ActiveCondition: IS_SELF_DOWN` を追加し、`WXDi-P06-031-E2` のパワー+3000とガード追加《無》の両方を同条件下へ置いた。
+- **stale訂正**：PLAN続き282の「ガード追加《無》は実装済み」は宣言上だけだった。live JSONでは `SEQUENCE` 内STUBだがcollectorは直下STUBしか読まず完全no-op。collectorを `SEQUENCE` 再帰走査へ直し、ダウン中だけ実際に発生するようにした。センタールリグ候補収集自体も既存で、真の穴は支払いモーダルへの追加コスト未接続だった。
+- **後方互換**：`IS_SELF_DOWN` は指定効果だけが利用する新variant。センタールリグ候補のphase条件は旧ループと同一。追加コストは既存collectorが0を返す盤面では従来どおり。ガードSTUB再帰走査は、従来直下STUBの挙動を保ったまま `SEQUENCE` 内の宣言済み効果だけを有効化する。
+- **余力枠 honest defer**：`WX25-P3-023-E2` は「このターンと次のターン」の2段階寿命と、原因が相手効果かつ移動元/先を問わない相手手札移動イベントpayloadが不足。`WX20-Re20` は能力なし判定に加え、手札から0〜任意枚数を複数ゾーンへ継続選択するUIと、その実配置instanceId群だけをターン終了時にtrashするwriterが不足。部分実装は行わなかった。
+
+golden 1件追加（共有cursorを`try/finally`復元）：発生源を実戦どおりシグニゾーン、対象ルリグをルリグゾーンへ置き、MAIN起動候補収集・自ターンのみ追加《無》・アップ時両効果なし・ダウン時+3000/ガード追加を一括固定。`npm run gates` 全緑（typecheck／golden 792/792／smoke 10725/10725／fuzz 200ゲーム異常0／census 1523=baseline／lint 0 errors・既存222 warnings）。
+
+---
+
 ## 続き287＝§6.3 C群 残テールの前段action誤parse 3枚を原文どおりに配線（2026-07-27・Codex）
 
 CSV `EffectText` と live JSON を再照合し、PLAN/続き286の3件はすべて現物どおりの未修正バグと確認した。`build:effects` は実行せず、`manualEffects.ts` のeffectId上書きで外科適用した。
