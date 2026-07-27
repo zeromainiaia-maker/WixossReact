@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き282＝§6.3 E群を全件再診断し WX15-016 を既存の進行中アタック取消経路へ配線（2026-07-27・Codex）
+
+PLAN の「個別カード機構待ち」を信用せず、指定9項目をCSV原文・現行JSON・collector/executorまで再照合した。新規機構なしで忠実化できた `WX15-016-E1` を消化し、4項目の stale 診断を訂正した。
+
+- **WX15-016（消化）**：変更前は `GRANT_LRIG_ABILITY{abilities:[]}`・`duration:INSTANT` で完全no-op。変更後は `duration:UNTIL_END_OF_TURN`、内側を `AUTO/ON_ATTACK_SIGNI/triggerScope:any_opp` とし、任意択 `CHOOSE[デッキトップ1枚TRASH→LAST_PROCESSED_MATCHES{hasLifeBurst:true}→SET_CANCEL_OPP_ATTACK_FLAG / skip]` へ構造化。既存の防御側ルリグ付与AUTO収集と `cancel_current_signi_attack` 消費点へ合流した。
+- **両側実測（production形）**：効果元アーツ `WX15-016#1`、センタールリグ `CardNum#1` を `owner.field.lrig`、相手アタッカー `CardNum#1` を `other.field.signi[0]` に配置。LBトップを選んでミルすると実際にtrashへ移り、攻撃側stateの取消フラグが立つ。非LBトップではミルのみで取消なし。skipではデッキも取消フラグも不変。付与scopeは `any_opp` のため自シグニ攻撃では収集対象外。
+- **stale訂正4項目**：(1) WX15-016＝キャンセル機構待ちではなく既存経路の合成で完結。(2) WXDi-P08-037＝E1覚醒中+2000/シャドウとE3覚醒化は実装済み、残はE2単体swapのみ。(3) WDK14-013＝トラッシュ→ビート、4枚条件、連鎖は実装済み、残は複数候補ピッカーのみ。(4) WXDi-P06-031＝シグニ起動コスト増加とガード追加コストは実装済み、残はセンタールリグ起動経路とE2ダウン条件。
+- **honest defer**：WX20-028-E2（多重アクセstate）、permanent引用付与残（ルリグpermanent自体は既存）、WX17-044（除外先だけでなくトラップ起動一式が必要）、WXDi-P05-006 choice①（割込み基盤・依頼どおり未着手）、WXDi-P08-037-E2（公開カードと場の単体swap＋ON_PLAY抑止）、WX25-P3-023-E2（2ターン持続＋原因/owner付き手札移動）、WDK14-013（UI選択のみ）、WXDi-P06-031残（ルリグ起動UI＋ダウン条件）、WX20-Re20（選択数コストだけでなく能力なしfilter・任意枚数場出し・同一群遅延trashも不足）。部分実装は原文不一致を残すため行わなかった。
+- 検証：golden **782/782**、census **1527**（`BASELINE_HIGH=1527`、増減なし）、smoke **10725/10725**・SKIP 0、fuzz 200ゲーム全0、typecheck/lint error 0。`npm run gates` 10回連続 FAIL 0。段3/段4は未着手。
+
 ## 続き281＝§6.3 正面サブ機構残4枚を既存runtime付与経路へ配線・完全消化（2026-07-27・Codex）
 
 PLAN §6.3 の正面サブ機構残（引用付与3枚＋強制正面アタック1枚）を原文・生成JSON・executor/collector・BattleScreenのproduction経路まで照合。**新しいruntime stateは作らず**、既存 `granted_effects`（instanceId→`CardEffect[]`）と `BattleScreen.tsx` の `effectsMap` 拡張（`augMap.set(instanceId, [...base, ...granted])`）に載せて完全消化した。

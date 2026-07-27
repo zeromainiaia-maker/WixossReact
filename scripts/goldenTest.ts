@@ -10874,6 +10874,64 @@ test('§6.3 A群: WXDi-D07-007 は防いだ回数だけターン終了時ミル�
   ok(!consumeNextDamagePrevention(twice, { type: 'signi', level: 1 }), '3回目は防がない');
 });
 
+test('§6.3 E群 WX15-016: 相手シグニ攻撃時だけ任意ミルし、LBなら進行中アタックを無効化', () => {
+  const savedCursor = cursor;
+  try {
+    const arts = 'WX15-016#1';
+    const lrigBase = findCard(c => c.Type === 'ルリグ');
+    const lrig = `${lrigBase}#1`;
+    const attackerBase = findCard(c => c.Type === 'シグニ');
+    const attacker = `${attackerBase}#1`;
+    const burstBase = findCard(c => !!c.BurstText?.trim() && c.BurstText !== '-');
+    const plainBase = findCard(c => !c.BurstText?.trim() || c.BurstText === '-');
+    const burst = `${burstBase}#1`;
+    const plain = `${plainBase}#1`;
+    const cm = new Map(cardMap);
+    for (const [inst, base] of [[arts, 'WX15-016'], [lrig, lrigBase], [attacker, attackerBase], [burst, burstBase], [plain, plainBase]] as const) {
+      cm.set(inst, cardMap.get(base)!);
+    }
+    const outer = (effectsMap.get('WX15-016') ?? []).find(e => e.effectId === 'WX15-016-E1')!;
+    const owner0 = mkState({ deckTop: [burst] });
+    owner0.field.lrig = [lrig];
+    const other0 = mkState({ signi: [attacker, null, null] });
+    const grantCtx = { ...mkCtx({}, {}, arts), ownerState: owner0, otherState: other0, cardMap: cm, currentPhase: 'ATTACK_SIGNI' };
+    const grantedResult = finish(executeEffect(outer, grantCtx), grantCtx);
+    ok(grantedResult.done, 'アーツ解決完了');
+    if (!grantedResult.done) return;
+    const granted = grantedResult.ownerState.lrig_granted_auto_effects ?? [];
+    eq(granted.length, 1, 'field.lrigのセンタールリグへAUTO能力を1件付与');
+    eq(granted[0].triggerScope, 'any_opp', '相手シグニ攻撃だけを収集するscope');
+
+    const burstCtx = { ...grantCtx, ownerState: grantedResult.ownerState, otherState: other0, sourceCardNum: lrig, triggeringCardNum: attacker };
+    const burstResult = finish(executeEffect(granted[0], burstCtx), burstCtx);
+    ok(burstResult.done, 'LBミル分岐解決完了');
+    if (!burstResult.done) return;
+    ok(burstResult.ownerState.trash.includes(burst), 'デッキトップLBを実際にトラッシュへ移動');
+    ok(!!burstResult.otherState.cancel_current_signi_attack, 'LBなら攻撃側stateの進行中アタックを取消');
+
+    const plainOwner = { ...grantedResult.ownerState, deck: [plain], trash: [] };
+    const plainCtx = { ...burstCtx, ownerState: plainOwner, otherState: other0 };
+    const plainResult = finish(executeEffect(granted[0], plainCtx), plainCtx);
+    ok(plainResult.done, '非LBミル分岐解決完了');
+    if (!plainResult.done) return;
+    ok(plainResult.ownerState.trash.includes(plain), '非LBも選んだ場合はミルする');
+    ok(!plainResult.otherState.cancel_current_signi_attack, '非LBではアタックを無効にしない');
+
+    const skipOwner = { ...grantedResult.ownerState, deck: [burst], trash: [] };
+    const skipCtx = { ...burstCtx, ownerState: skipOwner, otherState: other0 };
+    const pending = executeEffect(granted[0], skipCtx);
+    ok(!pending.done && pending.pending.type === 'CHOOSE', '「置いてもよい」を選択UIにする');
+    if (pending.done || pending.pending.type !== 'CHOOSE') return;
+    const skipped = resumeChoose('skip', pending.pending, { ...skipCtx, ownerState: pending.ownerState, otherState: pending.otherState, logs: pending.logs });
+    ok(skipped.done, '置かない分岐解決完了');
+    if (!skipped.done) return;
+    eq(skipped.ownerState.deck[0], burst, '置かない場合はデッキトップ不変');
+    ok(!skipped.otherState.cancel_current_signi_attack, '置かない場合はアタックを無効にしない');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
