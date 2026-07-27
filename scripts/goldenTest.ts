@@ -8304,6 +8304,8 @@ test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達
 // Stage3 骨組み：純粋バトルコントローラ reduceBattle（現在盤面＋action → DB パッチ）の遷移を固定。
 // 代表3ケースは単一フィールド更新。将来ハンドラを純粋化して case を足すたびにここも増やす。
 {
+  // mkState / fill が共有するグローバル cursor を、この Stage3 ブロックの増分から隔離する。
+  const savedCursor = cursor;
   const stub = {} as BattleStateRow; // 代表3ケースは盤面非依存のため最小スタブで足りる
   test('Stage3 reduceBattle SET_SETUP_PHASE: setup_phase パッチのみ', () => {
     const patch = reduceBattle(stub, { type: 'SET_SETUP_PHASE', phase: 'MULLIGAN' });
@@ -8371,6 +8373,110 @@ test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達
     eq(patch.host_state, my, 'my');
     eq(patch.guest_state, op, 'opp');
   });
+  test('Stage3 reduceBattle SELECT_LRIG: CPUルリグ選択は guest 2キーのみ', () => {
+    const state = { hand: ['cpu'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'SELECT_LRIG', isHost: false, selectedCardNum: 'WX-CPU', state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_lrig_selected', 'guest_state']), 'キー集合');
+    eq(patch.guest_lrig_selected, 'WX-CPU', '選択ルリグ');
+    eq(patch.guest_state, state, 'CPU状態');
+  });
+  test('Stage3 reduceBattle COMPLETE_MULLIGAN: CPU完了は guest state/done のみ', () => {
+    const state = { life_cloth: ['L1'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'COMPLETE_MULLIGAN', isHost: false, state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'guest_mulligan_done']), 'キー集合');
+    eq(patch.guest_state, state, 'CPU状態');
+    eq(patch.guest_mulligan_done, true, '完了');
+  });
+  test('Stage3 reduceBattle START_PLAYING: PLAYING開始の3キーを固定', () => {
+    const patch = reduceBattle(stub, { type: 'START_PLAYING', activeUserId: 'first' });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['global_phase', 'setup_phase', 'active_user_id']), 'キー集合');
+    eq(patch.global_phase, 'PLAYING', 'global');
+    eq(patch.setup_phase, null, 'setupクリア');
+    eq(patch.active_user_id, 'first', '先攻');
+  });
+  test('Stage3 reduceBattle QUEUE_SPELL: caster状態＋非null pending_spell のみ', () => {
+    const state = { hand: [] } as unknown as PlayerState;
+    const spell = { caster_id: 'u1', card_num: 'SP1', paid_energy_colors: [['白']] };
+    const patch = reduceBattle(stub, { type: 'QUEUE_SPELL', casterKey: 'host_state', casterState: state, spell });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell']), 'キー集合');
+    eq(patch.host_state, state, 'caster状態');
+    eq(patch.pending_spell, spell, 'pending spell');
+  });
+  test('Stage3 reduceBattle FINISH_SPELL: 打ち消し時は両状態＋pending 2種クリア', () => {
+    const caster = { trash: ['SP1'] } as unknown as PlayerState;
+    const other = { hand: ['O1'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, {
+      type: 'FINISH_SPELL', casterKey: 'host_state', casterState: caster,
+      other: { key: 'guest_state', state: other },
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell', 'pending_effect', 'guest_state']), 'キー集合');
+    eq(patch.host_state, caster, 'caster');
+    eq(patch.guest_state, other, 'other');
+    eq(patch.pending_spell, null, 'spellクリア');
+    eq(patch.pending_effect, null, 'effectクリア');
+  });
+  test('Stage3 reduceBattle FINISH_SPELL: 効果なしはcaster＋pending 2種クリア', () => {
+    const caster = { trash: ['SP2'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'FINISH_SPELL', casterKey: 'guest_state', casterState: caster });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell', 'pending_effect']), 'キー集合');
+    eq(patch.guest_state, caster, 'caster');
+    ok(!('host_state' in patch), '相手状態は省略');
+  });
+  test('Stage3 reduceBattle FINISH_CUTIN: caster同一時は1状態＋pending_spellのみクリア', () => {
+    const state = { lrig_trash: ['A1'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'FINISH_CUTIN', playerKey: 'host_state', playerState: state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell']), 'キー集合');
+    eq(patch.pending_spell, null, 'spellクリア');
+    ok(!('pending_effect' in patch), 'pending_effectは不干渉');
+  });
+  test('Stage3 reduceBattle FINISH_CUTIN: caster別時は2状態＋pending_spellのみクリア', () => {
+    const player = { lrig_trash: ['A2'] } as unknown as PlayerState;
+    const caster = { trash: ['SP3'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, {
+      type: 'FINISH_CUTIN', playerKey: 'guest_state', playerState: player,
+      caster: { key: 'host_state', state: caster },
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell', 'host_state']), 'キー集合');
+    eq(patch.host_state, caster, 'caster');
+    ok(!('pending_effect' in patch), 'pending_effectは不干渉');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: 攻撃元消失時は該当状態1キーのみ', () => {
+    const state = { pending_signi_battle: undefined } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state']), 'キー集合');
+    eq(patch.host_state, state, '状態');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: バニッシュ身代わり待ちは相手状態1キーのみ', () => {
+    const state = { pending_banish_substitute: { victimNum: 'V1', options: [] } } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'guest_state', myState: state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state']), 'キー集合');
+    eq(patch.guest_state, state, '状態');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: CPU同時クラッシュ繰越はguest状態1キーのみ', () => {
+    const state = { pending_crashed_cards: ['L2'] } as unknown as PlayerState;
+    const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'guest_state', myState: state });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state']), 'キー集合');
+    eq(patch.guest_state, state, '状態');
+  });
+  test('Stage3 reduceBattle ADVANCE_TURN_WITH_STATE: CPU UP完了は状態＋DRAWのみ', () => {
+    const state = { field: { lrig_down: false } } as unknown as PlayerState;
+    const patch = reduceBattle(stub, {
+      type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: state, phase: 'DRAW',
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'turn_phase']), 'キー集合');
+    eq(patch.guest_state, state, '状態');
+    eq(patch.turn_phase, 'DRAW', 'phase');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: LIFE_BURST不発は状態＋pending_effectクリアのみ', () => {
+    const state = { field: { check: null } } as unknown as PlayerState;
+    const patch = reduceBattle(stub, {
+      type: 'WRITE_STATE', myKey: 'host_state', myState: state, clearPending: true,
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_effect']), 'キー集合');
+    eq(patch.pending_effect, null, 'effectクリア');
+    ok(!('pending_spell' in patch), 'pending_spellは不干渉');
+  });
+  cursor = savedCursor;
 }
 
 test('参照属性バッチ2: REVEAL_AND_PICK elseAction は不一致で1枚、成立でthen側を提示', () => {

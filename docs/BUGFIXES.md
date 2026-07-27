@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き271＝§3タスク14（Stage3 純粋バトルコントローラ）13箇所を reduceBattle 経由へ移行（reducer 経由 59→72／残56→43・golden 752→765）（2026-07-27・codex実装/Opus 5確認）
+
+**移行13箇所**＝(a) セットアップ3件＝`cpuSetupAction` の CPUルリグ選択・CPUマリガン完了・両者完了後の対戦開始 → 新 action `SELECT_LRIG`／`COMPLETE_MULLIGAN`／`START_PLAYING`。(b) スペル／カットイン5件＝スペル発動時の非null `pending_spell` セット（`QUEUE_SPELL`）・`handleCutinPass` のスペル打ち消し完了と効果なしスペル完了（`FINISH_SPELL`＝`pending_spell`/`pending_effect` を両方クリア）・`handleCutinUse` の caster同一／別の2分岐（`FINISH_CUTIN`＝`pending_spell` のみクリアし `pending_effect` は不干渉）。(c) 既存 `WRITE_STATE` へ4件＝攻撃元消失時の pending 解除・バニッシュ身代わり選択待ち・CPU同時クラッシュ繰越・LIFE_BURST不発時（`clearPending`）。(d) `ADVANCE_TURN_WITH_STATE` 1件＝CPU の UP処理済み状態と `turn_phase:'DRAW'` を原子的に書く。`BattleAction` は 7種→14種。
+
+**挙動同値の担保**＝各遷移に `Stage3 reduceBattle *` golden を1件ずつ追加（13件・752→765）。`JSON.stringify(Object.keys(patch))` でキー集合を**順序込みで固定**し、`null` 明示クリアと省略（`ok(!('pending_effect' in patch))`）を別テストで区別。Stage3 ブロックは共有 `cursor` を save/restore（続き262 で踏んだ gates 5並列時のみのフレーク対策）。
+
+**⚠この移行の検証限界**＝golden がカバーするのは reducer（純粋関数）のみで、**ハンドラ側の payload 構築は golden 非カバー**。したがって13箇所すべて Claude が diff を手で読み、移行前後で「commit に渡るキー集合と値」が一致することを個別確認した（特に打ち消し分岐は `casterIsHost` の真偽で `host_state`/`guest_state` と `negatedCasterState`/`nonCasterState` の対応が入れ替わるため、両分岐を展開して照合）。`bs!` 等の non-null assertion 混入も0件（既存の narrowing のまま）。
+
+**残43件は honest defer**＝(a) 名前付き `const update` の命令的インクリメンタル構築（`doPhaseAdvance`／`confirmEndDiscard` 等）(b) `result.done` により `pending_effect` が null／非nullへ分岐する効果解決本体 (c) `...opUsageUpdate`／`...extraUpdate` の spread で上書き順が意味を持つ遷移 (d) CPUターン終了など複数カラム同時更新。汎用 raw patch action への丸め込み（＝純粋化にならない）は行っていない。
+
+**検証**＝`npm run gates` 全緑を**2回連続**独立再現：golden **765/765**、smoke **10725/10725**（CRASH/HANG/INVARIANT/SKIP全0）、fuzz **200ゲーム／不具合0**、census **1535/BASELINE 1535**（effects JSON 非変更の裏付け＝データ層は無変更）、lint **0 errors**（既存warning 222）。変更は4ファイルのみ（BattleScreen.tsx／battleController.ts／goldenTest.ts／BATTLE_CONTROLLER.md）＝engine/parser/effects JSON は不変。`docs/BATTLE_CONTROLLER.md` §3 は数字（72/115・14 action・残43）と残テールの説明文の**両方**を更新済み。
+
+---
+
 ## 続き270＝追加エクシードのコスト踏み倒し13効果を全封鎖＋OPTIONAL_COST文字列コスト全数監査（golden 751→752・census 1535維持）（2026-07-27・codex実装/Opus 5確認）
 
 **追加エクシード13効果**＝各カードのCSV原文を直接照合し、`OPTIONAL_COST` に WXDi-P03-005／P03-054／CP01-001／CP01-003／PR-Di013 は `exceed:4`、WXDi-P11-070／076／083 は `exceed:7`、WX25-P3-001／003／005／007／009 は `exceed:3` を設定した。PR-Di013 は選択数置換本体がSTUBのままでも、支払い可否と実コストだけを独立に忠実化。`scripts/archive/patch_optional_exceed_270.mjs` のeffectIdアンカーで外科反映し、`npm run build:effects` は未実行。

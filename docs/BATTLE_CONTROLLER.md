@@ -35,7 +35,7 @@ handler(React) → BattleAction を組む
 | ファイル | 役割 |
 |---|---|
 | `src/screens/battle/controller/persist.ts` | 永続化チョークポイント `useBattlePersist(roomId)`＝`commit(patch)` / `fetchState()` / `remove()`。battle_states への I/O を1点集約。error は `.message` を保持。 |
-| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在4 action＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN`。 |
+| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在14 action（下記）。 |
 | `scripts/goldenTest.ts` | `Stage3 reduceBattle *` で各遷移を固定。 |
 
 ### ✅ 永続化チョークポイント移行＝完了
@@ -44,16 +44,19 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 
 移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-### reducer 純粋化＝進行中（58/114 commit が reduceBattle 経由）
+### reducer 純粋化＝進行中（72/115 commit が reduceBattle 経由）
 
-現在の `BattleAction`（7種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `WRITE_STATE` / `SET_STACK` / `END_GAME`。
+現在の `BattleAction`（14種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `SELECT_LRIG` / `COMPLETE_MULLIGAN` / `START_PLAYING` / `WRITE_STATE` / `QUEUE_SPELL` / `FINISH_SPELL` / `FINISH_CUTIN` / `ADVANCE_TURN_WITH_STATE` / `SET_STACK` / `END_GAME`。
 
 - **単一フィールド遷移**（11箇所）＝setup_phase 1・turn_phase 7・ACK_END 2（CPU自動＋手動 handleEndAck）・じゃんけん1。
-- **`WRITE_STATE`**（39箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`・`effectStack`（null 明示でクリア／省略で不干渉）・`clearPending`。条件付き opp（旧 `...(cond?{[opK]:x}:{})`）は `opp: cond ? {...} : undefined` として payload 側で表現。
+- **セットアップ遷移**（3箇所）＝`SELECT_LRIG`（選択ルリグ＋初期状態）・`COMPLETE_MULLIGAN`（確定状態＋完了フラグ）・`START_PLAYING`（`PLAYING`＋setupクリア＋先攻ID）。
+- **`WRITE_STATE`**（44箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`・`effectStack`（null 明示でクリア／省略で不干渉）・`clearPending`。条件付き opp（旧 `...(cond?{[opK]:x}:{})`）は `opp: cond ? {...} : undefined` として payload 側で表現。
+- **スペル／カットイン遷移**（5箇所）＝`QUEUE_SPELL` 1（非null `pending_spell` をセット）・`FINISH_SPELL` 2（caster／任意の相手状態＋`pending_spell`/`pending_effect` を両方クリア）・`FINISH_CUTIN` 2（使用者／任意のcaster状態＋`pending_spell` のみクリア）。null と省略の差を action ごとに固定。
+- **`ADVANCE_TURN_WITH_STATE`**（1箇所）＝CPUのUP処理済み状態と `turn_phase:'DRAW'` を原子的に書く。
 - **`SET_STACK`**（5箇所）＝effect_stack のみ書き換え。`settle:true` で `isStackDone(stack)?null:stack` の settle イディオムを reducer が適用（＝スタック解決判定を1箇所に集約・テスト可能化）。
 - **`END_GAME`**（3箇所）＝決着（`global_phase:'FINISHED'`＋`winner_id`＋最終盤面）。
 
-**残＝Stage3 実装の本体（56 commit）**＝(a) 名前付き `const update: Record<string, unknown> = {...}` の**命令的インクリメンタル構築**（`'X' in update` 判定・`update.host_state = {...}` 差し替え・条件付き pending/stack）＝約22ハンドラ (b) `pending_spell`/`pending_effect` オブジェクト（非 null）を含む遷移 (c) spread（`...opUsageUpdate`/`...update`）。**これらは payload 完結にならず、各ハンドラの命令的ロジックを宣言的 action へ再設計する個別作業**。⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的な一括変換は「サイレントな挙動変化」を検出できない。1件ずつ手動レビュー、または先にハンドラの挙動テストを用意してから進める（機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならないため行わない）。
+**残＝43 commit**。単純なセットアップ、非null `pending_spell` の開始、スペル／効果なしカットインの固定クリア、CPUの小さな状態＋phase 遷移は移行済み。残テールは (a) 名前付き `const update: Record<string, unknown> = {...}` の**命令的インクリメンタル構築**（`'X' in update` 判定・`update.host_state = {...}` 差し替え・条件付き pending/stack） (b) `pending_effect` 非null生成や、効果実行結果の `done` により null／非nullが分岐する遷移 (c) `...opUsageUpdate` / `...update` / `...extraUpdate` 等のspreadで、前後の上書き順も意味を持つ遷移 (d) ENDフェイズ／CPUターン終了など複数のバトル列を同時更新する遷移。**これらは payload 完結にならず、各ハンドラの命令的ロジックを宣言的 action へ再設計する個別作業**。⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的な一括変換は「サイレントな挙動変化」を検出できない。1件ずつ手動レビュー、または先にハンドラの挙動テストを用意してから進める（機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならないため行わない）。
 
 ## 4. 段階移行レシピ（残テール＝reducer 純粋化）
 

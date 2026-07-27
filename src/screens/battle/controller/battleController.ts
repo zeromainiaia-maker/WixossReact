@@ -12,7 +12,7 @@
 // boardDiff / effectStack）なので、計算済みの断片を action payload に載せ、パッチ組み立て（どの
 // キーへ書くか・opp/スタック/pending を併せるか）を本 reducer に集約する。レシピは
 // docs/BATTLE_CONTROLLER.md。
-import type { BattleStateRow, PlayerState, EffectStack } from '../../../types';
+import type { BattleStateRow, PlayerState, EffectStack, PendingSpell } from '../../../types';
 import { isStackDone } from '../../../engine/effectStack';
 
 /** プレイヤー状態を書き込む先のカラム。 */
@@ -30,6 +30,17 @@ export type BattleAction =
   | { type: 'ACK_END'; isHost: boolean }
   /** じゃんけんの手を提出する。 */
   | { type: 'SUBMIT_JANKEN'; isHost: boolean; pick: string }
+  /** センタールリグを選択し、初期プレイヤー状態を同時に書く。 */
+  | {
+      type: 'SELECT_LRIG';
+      isHost: boolean;
+      selectedCardNum: string;
+      state: PlayerState;
+    }
+  /** マリガンを完了し、確定したプレイヤー状態を同時に書く。 */
+  | { type: 'COMPLETE_MULLIGAN'; isHost: boolean; state: PlayerState }
+  /** 両者のセットアップ完了後、対戦を開始する。 */
+  | { type: 'START_PLAYING'; activeUserId: string }
   /**
    * プレイヤー状態を書き込む（＋任意で相手状態・effect_stack・pending_effect クリアを併記）。
    * 単一プレイヤー状態書き込みと、相手状態/スタックを併せる複合書き込みを1つに集約する。
@@ -45,6 +56,37 @@ export type BattleAction =
       effectStack?: EffectStack | null;
       /** pending_effect を null クリアする場合。 */
       clearPending?: boolean;
+    }
+  /** スペルのコスト支払い済み状態を書き、カットイン待ちへ進める。 */
+  | {
+      type: 'QUEUE_SPELL';
+      casterKey: PlayerStateKey;
+      casterState: PlayerState;
+      spell: PendingSpell;
+    }
+  /**
+   * スペル解決を完了し pending_spell / pending_effect をともにクリアする。
+   * 打ち消し時は両者、効果なしスペル時は caster のみを書き込む。
+   */
+  | {
+      type: 'FINISH_SPELL';
+      casterKey: PlayerStateKey;
+      casterState: PlayerState;
+      other?: { key: PlayerStateKey; state: PlayerState };
+    }
+  /** 効果を持たないカットインを完了し pending_spell のみクリアする。 */
+  | {
+      type: 'FINISH_CUTIN';
+      playerKey: PlayerStateKey;
+      playerState: PlayerState;
+      caster?: { key: PlayerStateKey; state: PlayerState };
+    }
+  /** プレイヤー状態を書き、指定したターンフェイズへ進める。 */
+  | {
+      type: 'ADVANCE_TURN_WITH_STATE';
+      playerKey: PlayerStateKey;
+      playerState: PlayerState;
+      phase: BattleStateRow['turn_phase'];
     }
   /**
    * effect_stack のみを書き換える。`settle:true` なら「解決済みなら null にする」
@@ -79,6 +121,16 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };
     case 'SUBMIT_JANKEN':
       return action.isHost ? { host_janken: action.pick } : { guest_janken: action.pick };
+    case 'SELECT_LRIG':
+      return action.isHost
+        ? { host_lrig_selected: action.selectedCardNum, host_state: action.state }
+        : { guest_lrig_selected: action.selectedCardNum, guest_state: action.state };
+    case 'COMPLETE_MULLIGAN':
+      return action.isHost
+        ? { host_state: action.state, host_mulligan_done: true }
+        : { guest_state: action.state, guest_mulligan_done: true };
+    case 'START_PLAYING':
+      return { global_phase: 'PLAYING', setup_phase: null, active_user_id: action.activeUserId };
     case 'WRITE_STATE': {
       const patch: Partial<BattleStateRow> = { [action.myKey]: action.myState };
       if (action.opp) patch[action.opp.key] = action.opp.state;
@@ -86,6 +138,27 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       if (action.clearPending) patch.pending_effect = null;
       return patch;
     }
+    case 'QUEUE_SPELL':
+      return { [action.casterKey]: action.casterState, pending_spell: action.spell };
+    case 'FINISH_SPELL': {
+      const patch: Partial<BattleStateRow> = {
+        [action.casterKey]: action.casterState,
+        pending_spell: null,
+        pending_effect: null,
+      };
+      if (action.other) patch[action.other.key] = action.other.state;
+      return patch;
+    }
+    case 'FINISH_CUTIN': {
+      const patch: Partial<BattleStateRow> = {
+        [action.playerKey]: action.playerState,
+        pending_spell: null,
+      };
+      if (action.caster) patch[action.caster.key] = action.caster.state;
+      return patch;
+    }
+    case 'ADVANCE_TURN_WITH_STATE':
+      return { [action.playerKey]: action.playerState, turn_phase: action.phase };
     case 'SET_STACK':
       return { effect_stack: action.settle && action.stack ? (isStackDone(action.stack) ? null : action.stack) : action.stack };
     case 'END_GAME': {

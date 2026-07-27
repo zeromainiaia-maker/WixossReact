@@ -1707,10 +1707,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_deck: lrigDeckIds, trash: [], lrig_trash: [], energy: [], coins: cpuStartCoins,
         field: { lrig: [selectedId], signi: [null, null, null], assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [] },
       };
-      await persist.commit({
-        guest_lrig_selected: cpuDeckData.lrig_deck[lv0Idx],
-        guest_state: cpuState,
-      });
+      await persist.commit(reduceBattle(bs, {
+        type: 'SELECT_LRIG', isHost: false,
+        selectedCardNum: cpuDeckData.lrig_deck[lv0Idx], state: cpuState,
+      }));
       return;
     }
 
@@ -1719,19 +1719,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newLifeCloth = cpuSt.deck.slice(0, 7);
       const newDeck = cpuSt.deck.slice(7);
       const newCpuSt: PlayerState = { ...cpuSt, deck: newDeck, life_cloth: newLifeCloth };
-      await persist.commit({
-        guest_state: newCpuSt,
-        guest_mulligan_done: true,
-      });
+      await persist.commit(reduceBattle(bs, { type: 'COMPLETE_MULLIGAN', isHost: false, state: newCpuSt }));
       const { data: fresh } = await supabase
         .from('battle_states').select('host_mulligan_done, guest_mulligan_done, first_player_id')
         .eq('room_id', roomId).single();
       if (fresh?.host_mulligan_done && fresh?.guest_mulligan_done) {
-        await persist.commit({
-          global_phase: 'PLAYING',
-          setup_phase: null,
-          active_user_id: fresh.first_player_id as string,
-        });
+        await persist.commit(reduceBattle(bs, { type: 'START_PLAYING', activeUserId: fresh.first_player_id as string }));
       }
     }
   };
@@ -6034,7 +6027,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, paid_energy_colors: paidEnergyColors, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
-      await persist.commit({ [stateKey]: newMyState, pending_spell: spell });
+      await persist.commit(reduceBattle(bs, { type: 'QUEUE_SPELL', casterKey: stateKey, casterState: newMyState, spell }));
     } finally {
       setLoading(false);
     }
@@ -6065,10 +6058,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...placeUsedSpell(casterState),
             spell_negated_this_turn: undefined,
           };
-          const hostStateNS  = casterIsHost ? negatedCasterState : nonCasterState;
-          const guestStateNS = casterIsHost ? nonCasterState : negatedCasterState;
           appendBattleLogs([`[スペル打ち消し] ${spellNameNS}（コスト${spellTotalCostNS}）が打ち消された`]);
-          await persist.commit({ host_state: hostStateNS, guest_state: guestStateNS, pending_spell: null, pending_effect: null });
+          await persist.commit(reduceBattle(bs, {
+            type: 'FINISH_SPELL',
+            casterKey: casterIsHost ? 'host_state' : 'guest_state',
+            casterState: negatedCasterState,
+            other: { key: casterIsHost ? 'guest_state' : 'host_state', state: nonCasterState },
+          }));
           return;
         }
       }
@@ -6080,10 +6076,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effects = effectsMap.get(card_num) ?? [];
       const spellEff = effects.find(e => e.effectType === 'ACTIVATED');
       if (!spellEff) {
-        await persist.commit({
-            [casterIsHost ? 'host_state' : 'guest_state']: resolved,
-            pending_spell: null, pending_effect: null,
-          });
+        await persist.commit(reduceBattle(bs, {
+          type: 'FINISH_SPELL',
+          casterKey: casterIsHost ? 'host_state' : 'guest_state',
+          casterState: resolved,
+        }));
         return;
       }
 
@@ -6349,9 +6346,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const myKey = isHost ? 'host_state' : 'guest_state';
         const casterKey = casterIsHost ? 'host_state' : 'guest_state';
         if (myKey === casterKey) {
-          await persist.commit({ [myKey]: cutinPaid, pending_spell: null });
+          await persist.commit(reduceBattle(bs, {
+            type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
+          }));
         } else {
-          await persist.commit({ [myKey]: cutinPaid, [casterKey]: newCasterState, pending_spell: null });
+          await persist.commit(reduceBattle(bs, {
+            type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
+            caster: { key: casterKey, state: newCasterState },
+          }));
         }
         return;
       }
@@ -7000,7 +7002,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myTopNum = (myS.field.signi[zoneIndex] ?? []).at(-1);
       if (!myTopNum) {
-        await persist.commit({ [myKey]: { ...myS, pending_signi_battle: undefined } });
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE', myKey, myState: { ...myS, pending_signi_battle: undefined },
+        }));
         return;
       }
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
@@ -7227,7 +7231,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                   else if (sac && opTopCardNum && f3PowerOf((sac as { sacrificeNum: string }).sacrificeNum) <= f3PowerOf(opTopCardNum)) applyOption(sac);
                 } else {
                   // 人間防御側に対話プロンプトを提示（中断）。攻撃側 myS.pending_signi_battle は保持して再入で再開。
-                  await persist.commit({ [opKey]: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, options: f3Opts } } });
+                  await persist.commit(reduceBattle(bs, {
+                    type: 'WRITE_STATE', myKey: opKey,
+                    myState: { ...opS, pending_banish_substitute: { victimNum: opTopCardNum!, options: f3Opts } },
+                  }));
                   appendBattleLogs([`${opCardName}のバニッシュに身代わりの選択を待っています`]);
                   return;
                 }
@@ -8471,9 +8478,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if ((cpuSt.pending_crashed_cards?.length ?? 0) > 0 && !bs.effect_stack && !bs.pending_effect) {
       const [nextCard, ...remaining] = cpuSt.pending_crashed_cards!;
       appendBattleLogs([`[CPU] 同時クラッシュ：ライフクロスをクラッシュ（${battleCardMap.get(nextCard)?.CardName ?? nextCard}）`]);
-      await persist.commit({
-        guest_state: { ...cpuSt, pending_crashed_cards: remaining, field: { ...cpuSt.field, check: nextCard } },
-      });
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: 'guest_state',
+        myState: { ...cpuSt, pending_crashed_cards: remaining, field: { ...cpuSt.field, check: nextCard } },
+      }));
       return;
     }
 
@@ -8578,10 +8586,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs(['[CPU] センタールリグのアップ条件（未払い）→ダウン状態でターン開始']);
         }
       }
-      await persist.commit({
-        guest_state: newCpuSt,
-        turn_phase: 'DRAW',
-      });
+      await persist.commit(reduceBattle(bs, {
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: newCpuSt, phase: 'DRAW',
+      }));
       return;
     }
 
@@ -9637,7 +9644,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const fired = await queueCardEffects(cardNum, ['LIFE_BURST'], ['ON_LIFE_BURST'], baseStateForBurst, op, burstExtraUpdate, doubleBurst ? 2 : 1, allBurstExtras, { id: ownerId, key: p.ownerKey });
       if (!fired) {
         const stateKey = p.ownerKey;
-        await persist.commit({ [stateKey]: baseState, pending_effect: null });
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE', myKey: stateKey, myState: baseState, clearPending: true,
+        }));
       }
     } finally {
       setLoading(false);
