@@ -880,7 +880,10 @@ export function execStubPart1(
               field: { ...st.field, signi: newSigni },
               trash: [...st.trash, ...underCards],
             };
-            return done(addLog(setOwnerState(owner, newS, ctx), `シグニ下${underCards.length}枚をトラッシュへ`));
+            return done(addLog({
+              ...setOwnerState(owner, newS, ctx),
+              lastProcessedCards: underCards,
+            }, `シグニ下${underCards.length}枚をトラッシュへ`));
           }
         }
       }
@@ -3426,7 +3429,10 @@ export function execStubPart1(
       deck: st.deck.slice(toAdd.length),
       life_cloth: [...st.life_cloth, ...toAdd],
     };
-    return done(addLog(setOwnerState(owner, newS, ctx), `デッキ上${toAdd.length}枚をライフクロスに加えた`));
+    return done(addLog({
+      ...setOwnerState(owner, newS, ctx),
+      lastProcessedCards: toAdd,
+    }, `デッキ上${toAdd.length}枚をライフクロスに加えた`));
   }
   // カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正）
   if (stub.id === 'COUNT_BASED_DRAW_OR_POWER') {

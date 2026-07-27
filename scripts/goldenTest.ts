@@ -3790,6 +3790,39 @@ test('タスク16 ON_TRASH under_signi: 実際のシグニ下→トラッシュ�
 // under_signi ON_TRASH の「到達可能性」lock-in。コスト経路（cost.underSelfTrash・16効果）は未配線で defer したため、
 // 実戦でこのトリガーが発火する唯一の経路が TAKE_FROM_UNDER_SIGNI(destination:'trash')＝実データ10効果・engine 実装済み。
 // この経路が壊れると under_signi トリガー全体が「宣言だけの no-op」に退化するので回帰防止で固定する。
+// C群[B] 移動軸: BOUNCE が「実際に手札へ戻したカード」を lastProcessedCards へ記録する（続き286）。
+// これが無いと WXK03-048-E1「この方法で＜遊具＞のシグニ2体が手札に戻った場合」が常時偽になり後半が死ぬ。
+// ⚠BOUNCE は HEAD 時点で後段 reader が0件だったことを実データ全数走査で確認済み＝既存効果への影響なし。
+test('C群[B] 移動軸: BOUNCE が実際に戻したシグニを記録し ＜遊具＞2体の閾値が N/N-1 で切り替わる', () => {
+  const savedCursor = cursor;
+  try {
+    const YUGU_A = 'WX10-034';   // 遊具のシグニ
+    const YUGU_B = 'WX10-046';   // 遊具のシグニ
+    const OTHER  = 'WD01-009';   // 非・遊具（アーム）
+    const bounceAll: EffectAction = {
+      type: 'BOUNCE',
+      target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: false, filter: { cardType: 'シグニ' } },
+    } as EffectAction;
+    const gate = { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '遊具' }, minCount: 2 } as never;
+
+    // N=2: 遊具2体が手札へ戻る → 閾値成立
+    const ctx2 = mkCtx({ signi: [YUGU_A, YUGU_B, OTHER] }, {}, YUGU_A);
+    const r2 = run(bounceAll, ctx2);
+    eq(r2.ownerState.field.signi.filter(z => z && z.length > 0).length, 0, '全シグニが場を離れる');
+    eq(r2.ownerState.hand.filter(n => getCardNumG(n) === YUGU_A || getCardNumG(n) === YUGU_B).length, 2, '遊具2体が手札へ');
+    ok(evalCondition(gate, { ...ctx2, ownerState: r2.ownerState, lastProcessedCards: r2.lastProcessedCards } as ExecCtx),
+      '遊具2体を記録して閾値2が成立');
+
+    // N-1=1: 遊具1体だけ → 閾値不成立
+    const ctx1 = mkCtx({ signi: [YUGU_A, OTHER, null] }, {}, YUGU_A);
+    const r1 = run(bounceAll, ctx1);
+    ok(!evalCondition(gate, { ...ctx1, ownerState: r1.ownerState, lastProcessedCards: r1.lastProcessedCards } as ExecCtx),
+      '遊具1体では閾値2が不成立');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 test('タスク16 under_signi: TAKE_FROM_UNDER_SIGNI(trash) の効果経路は本体在場のまま下敷きだけをトラッシュへ送る', () => {
   const savedCursor = cursor;
   try {

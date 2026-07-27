@@ -357,7 +357,11 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
-  if (tgt.count === 'ALL') return done(applyBounce(cands, ctx));
+  if (tgt.count === 'ALL') {
+    const moved = cands.filter(num =>
+      ownerState(tgt.owner, ctx).field.signi.some(stack => stack?.at(-1) === num));
+    return done({ ...applyBounce(moved, ctx), lastProcessedCards: moved });
+  }
   const count = resolveNum(tgt.count);
   // opponentSelects: 「対戦相手は対象の自分のシグニ1体を手札に戻す」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';

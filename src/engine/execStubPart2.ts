@@ -1937,13 +1937,17 @@ export function execStubPart2(
   if (stub.id === 'ACCE_TO_ENERGY' || stub.id === 'PLACE_ACCE_SIGNI_TO_ENERGY') {
     const sATE = ctx.ownerState;
     const acceCardsATE = (sATE.field.signi_acce ?? []).filter((c): c is string => c !== null);
-    if (acceCardsATE.length === 0) return done(addLog(ctx, 'アクセなし'));
+    if (acceCardsATE.length === 0) return done({ ...addLog(ctx, 'アクセなし'), lastProcessedCards: [] });
     const newSATE: PlayerState = {
       ...sATE,
       field: { ...sATE.field, signi_acce: [null, null, null] },
       energy: [...sATE.energy, ...acceCardsATE],
     };
-    return done(addLog({ ...ctx, ownerState: newSATE }, `アクセ${acceCardsATE.length}枚をエナゾーンへ`));
+    return done(addLog({
+      ...ctx,
+      ownerState: newSATE,
+      lastProcessedCards: acceCardsATE,
+    }, `アクセ${acceCardsATE.length}枚をエナゾーンへ`));
   }
   // ACCE_BANISH_SELF_TRASH: アクセを自分のトラッシュへ
   if (stub.id === 'ACCE_BANISH_SELF_TRASH') {

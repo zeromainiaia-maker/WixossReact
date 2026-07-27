@@ -4447,6 +4447,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       ]}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // 移動結果軸: 実際に目的ゾーンへ到達したカードで後段を判定する（ターン所有者ではなく）。
+  "WXK03-048": [
+    {"effectId":"WXK03-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"OPTIONAL_COST","costText":"このシグニを場からトラッシュに置いてもよい"},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"self","count":"ALL","upToCount":false,"filter":{"cardType":"シグニ"}}}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"遊具"},"minCount":2,"verbJa":"手札に戻った"},"then":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":4,"private":true,"reorder":false,"canTrash":false,"destination":{"location":"deck","owner":"self","position":"top"}}},
+      {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":0,"private":false,"reorder":true,"destination":{"location":"deck","owner":"self","position":"top"}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

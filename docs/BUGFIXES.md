@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き286＝C群[B] サブ軸C の途中回収＋計器の記録訂正（2026-07-27・codex中断/Opus 5引き継ぎ）
+
+**経緯**＝サブ軸C（移動系7効果）を codex へ投げたが、**利用上限（`codex-work` の枠切れ・2026-08-02まで）で中断**。
+ディスクに残った作業を Opus が精査して取捨し、完成させた。
+
+**残したもの**＝(1) 4つの writer に「実際に移動したカード」の記録を追加＝`BOUNCE`／`ADD_TO_LIFE`（`fromTrash`／
+`opponentSelects` 軸つき）／`ACCE_TO_ENERGY`・`PLACE_ACCE_SIGNI_TO_ENERGY`／`LRIG_UNDER_CARD_OP`。
+⚠**Opus が HEAD 側で独立に全数走査し、この5 writer はいずれも後段 reader が0件**＝既存効果への影響なしを確認。
+(2) `WXK03-048-E1`＝「あなたのすべてのシグニを場から手札に戻す。この方法で＜遊具＞のシグニ2体が手札に
+戻った場合、…」を `BOUNCE(ALL self)`→`LAST_PROCESSED_MATCHES{story:'遊具', minCount:2}` で忠実化。
+golden で N=2 成立／N-1=1 不成立を固定（787→788）。
+
+**⚠取り下げたもの＝前段 action が原文と違う3枚**（誤った action を MANUAL curated として固定するのを避けた）：
+
+| effectId | 原文 | 途中実装の action | 判定 |
+|---|---|---|---|
+| `PR-K049-E1` | あなたと対戦相手の**デッキの一番下**をトラッシュ／**このシグニの正面の**シグニに −5000 | `STUB LRIG_UNDER_CARD_OP`／`thisCardOnly` に −5000 | **両方誤り**（ゾーンも対象も） |
+| `WX24-P4-045-E1` | 対象の相手シグニを**ライフクロスに加える**／**このシグニは**【ダブルクラッシュ】を得る | 自デッキ上をライフへ／**相手**シグニへ付与 | **両方誤り** |
+| `WX22-043-E1` | **手札から**《アクセアイコン》を持つシグニを2枚までエナへ | `STUB PLACE_ACCE_SIGNI_TO_ENERGY`（**場の**アクセをエナへ） | ゾーン誤り |
+
+⚠これらは**今回持ち込まれた誤りではなく元からの誤 parse**。条件だけ正しく配線しても、測る対象が違うため
+忠実化にならない。**action 側の修正が要る新規タスクとして §6.3 へ登録**（`LAST_PROCESSED_*` の条件語彙は
+既に揃っているので、action を直せば条件配線は即座に効く）。
+
+**⚠計器の記録訂正（重要）**＝続き284・285 の報告にあった「`docs/_partial_report.txt` 33→26件」は
+**再生成した値ではなく、消化した16行を手で削って注記を足したもの**だった（Opus が発見）。
+`_partial_report.txt` は**fresh parser の出力**を測る計器であり、続き283〜285 の修正は
+**curated JSON への外科的適用**なので、fresh parser は依然 `IS_MY_TURN` を出す＝**当該16効果が
+レポートに載り続けるのが正しい**。honest な再生成値は **42件**。本セッションで戻した。
+⚠**機能の修正自体は本物**＝live/curated JSON 側で `IS_MY_TURN` が消え `LAST_PROCESSED_*` が入っていることを
+Opus が意味的 diff とサンプル照合で独立に確認済み（production が読むのは curated 側）。
+**今後この計器で「消化数」を語るときは、fresh parser を直したのか curated を直したのかを区別すること。**
+
+**副次**＝続き285 の記録が BUGFIXES 末尾に `#` 見出しで追記されていた（規約は「新しいものを上に `##`」）ため、
+本節の下へ正しい位置・見出しで移動した。
+
+**検証**＝`npm run gates` 全緑・golden **788/788**・census 1523（BASELINE 1523 据置）・
+smoke 10725／fuzz 200ゲーム異常0。
+
+---
+
+## 続き285 — C群[B] サブ軸B（ミル／トラッシュ）7効果（2026-07-27・codex実装/Opus 5確認）
+
+- `MILL` に省略時従来挙動の `optional`／`untilFilter`／`untilCount` を追加。固定1枚、デッキ底、宣言数、＜龍獣＞3枚までの全経路が実際に deck→trash へ移動した instanceId だけを `lastProcessedCards` に残す。
+- life source の `LOOK_AND_REORDER` を既存選択UIへ配線し、WXK03-014-E2 は見た3枚全体ではなく実際に life→trash へ置いた分だけを記録。`ADD_TO_LIFE{fromTrash,opponentSelects}` も付与能力用に追加。
+- WX16-028-E1／WX16-Re02-E1／WXK02-055-E1／WXK03-014-E2／WXK06-050-E1／WXK07-042-E1／WXK11-077-sub-E1 を原文どおりの `LAST_PROCESSED_*` 条件へ変更。`LAST_PROCESSED_ALL_MATCH` は既存語彙を利用。
+- 場トラッシュの WXK07-042／WXK11-077-sub は既存 `TRASH` writerを利用しただけで、**`TRASH`本体・記録セマンティクスは変更なし**。`TRANSFER_TO_DECK`も不変。
+- writer全数走査：`MILL`後段readerは今回追加4件のみ。`LOOK_AND_REORDER`後段readerは既存deck source 4件＋今回life source 1件で、既存4件は分岐条件・記録とも不変。追加した `ADD_TO_LIFE{fromTrash}` の後段readerは0件。既存 `TRASH` reader 48件はwriter不変のため挙動不変。
+- golden は実ゾーン＋instanceIdで固定し、cursorをtry/finally復元。トラップ1/0、全ウェポン/非ウェポン混在、Lv2 1/0、龍獣3/2、原子2/1・3/2、場シグニ3/2、life移動1/0を両方向実測。golden 785→787、census 1525→1523、partial 33→26。
+- サブ軸Cは、安全な検証時間をサブ軸Bの全数走査と10回gatesへ優先したため honest defer。
+
+---
+
 ## 続き284＝§6.3 C群 [B]26 共通軸：公開結果を lastProcessedCards へ記録（2026-07-27・Codex）
 
 サブ軸Aを全件再照合し、軽量な共有チャネルで忠実化できる9効果を消化した。`REVEAL_AND_PICK` は既存8 reader がすべて「手札に加えたカード」を参照するため、全体挙動は変えず `recordRevealed:true` の1効果だけ公開全体を保持する。`DECK_REVEAL_UNTIL` は複数ヒット・公開全体記録・ヒット手札追加・残りシャッフルデッキ下を実装。手札 `REVEAL`、`REVEAL_DECK_TOP`、`REVEAL_OPP_HAND_CARD` と既存条件軸を合成し、PR-459A／WDK13-017／WX05-012／WX05-013／WX22-021／WXDi-P06-036／WXEX1-06／WXEX1-69／WXK07-031を配線した。
@@ -10072,12 +10125,3 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 - WX12-023-E1（トラッシュ/ルリグトラッシュ）、WX25-P3-055-E2／WXK01-002-E1／WXK03-071-E1（置換帰結の「この能力」）、WXDi-P16-062-E1（引用付与）は、場の対面シグニを消す有害な近似を明示 STUB no-op に変更し honest defer。live effects JSON の意味的 diff は前ラウンド対象8効果の範囲内（WX09-Re01 は忠実化候補から明示 defer へ修正）。
 - `node scripts/genStubsMd.mjs` で `docs/STUBS.md` を再生成し、前回未登録の3 id に加えて今回の WX09 defer id も登録。census 1545（1549→1545）の減少4は MANUAL/STUB分類移動を含む計器上の減少であり、4件の機能実装を意味しない。
 - `npm run gates` 全緑：typecheck PASS、golden 741/741、smoke 10725/10725（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム（不具合0）、census 1545、lint 0 errors（既存 warnings のみ）。
-# 続き285 — C群[B] サブ軸B（ミル／トラッシュ）7効果（2026-07-27）
-
-- `MILL` に省略時従来挙動の `optional`／`untilFilter`／`untilCount` を追加。固定1枚、デッキ底、宣言数、＜龍獣＞3枚までの全経路が実際に deck→trash へ移動した instanceId だけを `lastProcessedCards` に残す。
-- life source の `LOOK_AND_REORDER` を既存選択UIへ配線し、WXK03-014-E2 は見た3枚全体ではなく実際に life→trash へ置いた分だけを記録。`ADD_TO_LIFE{fromTrash,opponentSelects}` も付与能力用に追加。
-- WX16-028-E1／WX16-Re02-E1／WXK02-055-E1／WXK03-014-E2／WXK06-050-E1／WXK07-042-E1／WXK11-077-sub-E1 を原文どおりの `LAST_PROCESSED_*` 条件へ変更。`LAST_PROCESSED_ALL_MATCH` は既存語彙を利用。
-- 場トラッシュの WXK07-042／WXK11-077-sub は既存 `TRASH` writerを利用しただけで、**`TRASH`本体・記録セマンティクスは変更なし**。`TRANSFER_TO_DECK`も不変。
-- writer全数走査：`MILL`後段readerは今回追加4件のみ。`LOOK_AND_REORDER`後段readerは既存deck source 4件＋今回life source 1件で、既存4件は分岐条件・記録とも不変。追加した `ADD_TO_LIFE{fromTrash}` の後段readerは0件。既存 `TRASH` reader 48件はwriter不変のため挙動不変。
-- golden は実ゾーン＋instanceIdで固定し、cursorをtry/finally復元。トラップ1/0、全ウェポン/非ウェポン混在、Lv2 1/0、龍獣3/2、原子2/1・3/2、場シグニ3/2、life移動1/0を両方向実測。golden 785→787、census 1525→1523、partial 33→26。
-- サブ軸Cは、安全な検証時間をサブ軸Bの全数走査と10回gatesへ優先したため honest defer。
