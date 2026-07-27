@@ -22,6 +22,7 @@ export interface ExecCtx {
   logs: string[];
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
+  sourcePlacementPending?: boolean; // 使用中スペルが未配置。自己除外を解決後配置の置換として扱う
   triggeringCardNum?: string; // 効果を引き起こしたカード番号（any_ally scope の「それ」参照用）
   triggeringKeyword?: string; // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY の「その能力」参照用・WXDi-P04-035）
   battleAttackerCardNum?: string; // ON_SIGNI_BANISH_OPPONENT/_BATTLE のバトルアタッカー自身（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）

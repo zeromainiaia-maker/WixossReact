@@ -33,6 +33,7 @@ import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
+import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
@@ -8712,18 +8713,80 @@ test('WXK11-070: energy thresholds share pre-recovery count and self-exile is un
     Math.random = () => 0;
     const eff = mergeManualEffects('WXK11-070', effectsMap.get('WXK11-070') ?? []).find(e => e.effectId === 'WXK11-070-E1');
     ok(!!eff, 'manual effect'); if (!eff) return;
-    const ctx = mkCtx({}, {}, 'WXK11-070');
+    const spellId = 'WXK11-070#1';
+    const ctx = mkCtx({}, {}, spellId);
+    ctx.sourcePlacementPending = true;
     ctx.ownerState.energy = fill(10);
-    ctx.ownerState.trash = ['WXK11-070'];
     const lifeBefore = ctx.ownerState.life_cloth.length;
-    const r = run(eff.action, ctx);
+    const executed = run(eff.action, ctx);
+    const r = { ...executed, ownerState: finalizeUsedCardPlacement(executed.ownerState, spellId, 'trash') };
     eq(r.ownerState.energy.length, 0, 'all energy trashed');
     eq(r.ownerState.life_cloth.length, lifeBefore + 1, '10 threshold adds life');
-    eq(r.ownerState.trash.filter(n => n === 'WXK11-070').length, 0, 'self-exile does not recycle into trash');
-    eq((r.ownerState.excluded ?? []).filter(n => n === 'WXK11-070').length, 1, 'self-exile has one excluded copy');
-    eq(r.ownerState.deck.includes('WXK11-070'), false, 'self removed from shuffled deck');
+    eq(r.ownerState.trash.filter(n => n === spellId).length, 0, 'self-exile does not recycle into trash');
+    eq((r.ownerState.excluded ?? []).filter(n => n === spellId).length, 1, 'self-exile has one excluded copy');
+    eq(r.ownerState.deck.includes(spellId), false, 'self removed from shuffled deck');
   } finally {
     Math.random = savedRandom;
+    cursor = savedCursor;
+  }
+});
+
+test('used-card placement: pending spell is trashed only after resume completes', () => {
+  const spellId = 'WX01-001#1';
+  const ctx = mkCtx({}, {}, spellId);
+  ctx.sourcePlacementPending = true;
+  const action: EffectAction = {
+    type: 'CHOOSE', choose_count: 1, from_count: 1,
+    choices: [{ choiceId: 'resolve', label: '解決', action: { type: 'DRAW', owner: 'self', count: 1 } }],
+  };
+  const paused = executeEffect({ effectId: 'pending-spell', effectType: 'ACTIVATED', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!paused.done, 'interaction pauses');
+  eq(paused.ownerState.trash.includes(spellId), false, 'not placed while pending');
+  const resumed = resumeChoose('resolve', paused.pending as never, { ...ctx, ownerState: paused.ownerState, otherState: paused.otherState, logs: paused.logs });
+  ok(resumed.done, 'resume completes');
+  const placed = finalizeUsedCardPlacement(resumed.ownerState, spellId, 'trash');
+  eq(placed.trash.filter(n => n === spellId).length, 1, 'placed in trash exactly once after completion');
+});
+
+test('EXILE_SELF_AFTER_USE: pending spell replaces placement; arts uses lrig_trash only', () => {
+  const action = { type: 'STUB', id: 'EXILE_SELF_AFTER_USE' } as EffectAction;
+  const spellId = 'WXK11-070#1';
+  const spellCtx = mkCtx({}, {}, spellId);
+  spellCtx.sourcePlacementPending = true;
+  const spell = run(action, spellCtx);
+  const finalizedSpell = finalizeUsedCardPlacement(spell.ownerState, spellId, 'trash');
+  eq(finalizedSpell.trash.includes(spellId), false, 'pending spell trash placement replaced');
+  eq(finalizedSpell.excluded?.filter(n => n === spellId).length, 1, 'pending spell excluded once');
+
+  const artsId = 'SP36-001#1';
+  const artsCtx = mkCtx({}, {}, artsId);
+  artsCtx.ownerState.lrig_trash = [artsId];
+  const arts = run(action, artsCtx);
+  eq(arts.ownerState.lrig_trash.includes(artsId), false, 'arts removed from lrig trash');
+  eq(arts.ownerState.excluded?.filter(n => n === artsId).length, 1, 'arts excluded once');
+
+  const movedId = 'PR-378#1';
+  const movedCtx = mkCtx({}, {}, movedId);
+  movedCtx.ownerState.deck = [movedId];
+  const moved = run(action, movedCtx);
+  eq(moved.ownerState.deck.includes(movedId), true, 'moved deck object is not tracked');
+  eq(moved.ownerState.excluded?.includes(movedId) ?? false, false, 'moved deck object is not excluded');
+});
+
+test('WX04-103: pending spell replaces trash placement with its own charm attachment', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = mergeManualEffects('WX04-103', effectsMap.get('WX04-103') ?? []).find(e => e.effectId === 'WX04-103-E1');
+    ok(!!eff, 'WX04-103-E1 exists'); if (!eff) return;
+    const spellId = 'WX04-103#1';
+    const demon = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+    const ctx = mkCtx({ signi: [demon, null, null] }, { signi: [SIGNI_P12000, null, null] }, spellId);
+    ctx.sourcePlacementPending = true;
+    const executed = run(eff.action, ctx);
+    const placed = finalizeUsedCardPlacement(executed.ownerState, spellId, 'trash');
+    eq(placed.field.signi_charms?.[0], spellId, 'used spell is attached as charm');
+    eq(placed.trash.filter(n => n === spellId).length, 0, 'attached spell is not also placed in trash');
+  } finally {
     cursor = savedCursor;
   }
 });

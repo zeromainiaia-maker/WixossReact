@@ -83,7 +83,15 @@ import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
+import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 
+function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
+  if (!result.done || !pe.spellPlacement) return result;
+  return {
+    ...result,
+    ownerState: finalizeUsedCardPlacement(result.ownerState, pe.sourceCardNum, pe.spellPlacement),
+  };
+}
 
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
@@ -4347,7 +4355,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -4386,6 +4394,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // デッキ0枚→リフレッシュ（インタラクション解決後）。
       result = applyRefreshOnDone(result, battleCardMap);
+      result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = resolvePendingExiles(ownerIsHost ? result.ownerState : result.otherState);
@@ -4540,11 +4549,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap3 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -4583,11 +4593,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap5 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -4697,13 +4708,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // skip（null）= 現状の配置をそのまま渡す（恒等変換。continuation はそのまま実行される）
       const arrangement = newArrangement ?? [0, 1, 2].map(zi => targetState.field.signi[zi]?.at(-1) ?? '');
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result: ExecResult = resumeRearrangeSigni(arrangement, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap);
+      result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
@@ -4742,11 +4754,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap4 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ
+      result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
@@ -6053,6 +6066,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const placeUsedSpell = (s: PlayerState): PlayerState => from_lrig_deck
         ? { ...s, lrig_trash: [...s.lrig_trash, card_num] }
         : { ...s, trash: [...s.trash, card_num] };
+      const spellPlacement: UsedCardPlacement = from_lrig_deck ? 'lrig_trash' : 'trash';
       // NEGATE_SPELL: casterStateにspell_negated_this_turnがあればコスト合計5以下のスペルを打ち消す
       // ただし next_spell_uncounterable（WX04-008）があれば打ち消されない
       if (casterState.spell_negated_this_turn && !casterState.next_spell_uncounterable) {
@@ -6076,7 +6090,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 保護スペル（next_spell_uncounterable）はこの解決で消費＝フラグをクリア
-      const resolved: PlayerState = { ...placeUsedSpell(casterState), next_spell_uncounterable: undefined };
+      const resolved: PlayerState = { ...casterState, next_spell_uncounterable: undefined };
 
       // スペル効果を発火（casterがowner）
       const effects = effectsMap.get(card_num) ?? [];
@@ -6085,7 +6099,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await persist.commit(reduceBattle(bs, {
           type: 'FINISH_SPELL',
           casterKey: casterIsHost ? 'host_state' : 'guest_state',
-          casterState: resolved,
+          casterState: finalizeUsedCardPlacement(resolved, card_num, spellPlacement),
         }));
         return;
       }
@@ -6099,7 +6113,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellExtraColors = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState), resolved, nonCasterState, effectsMap, spellIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors };
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors };
       ctx.isOwnerTurn = spellIsOwnerTurn;
       let result = executeEffect(spellEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
@@ -6108,6 +6122,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ルリグ（WX25-P2-034 APEX2「あなたがスペルを使用したとき」）に加え、場のシグニ（WX01-033 幻獣神オサキ
       // 「あなたが緑のスペルを使用したとき」）も走査する。triggerFilter.color があれば使用スペルの色で絞る。
       let casterAfter = result.ownerState;
+      if (result.done) casterAfter = finalizeUsedCardPlacement(casterAfter, card_num, spellPlacement);
       const spellUseEntries: StackEntry[] = [];
       if (spellIsOwnerTurn) {
         const usedSpellColor = battleCardMap.get(card_num)?.Color ?? '';
@@ -6247,7 +6262,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : initStack(bs.active_user_id ?? user.id, spellUseEntries);
       }
       if (!result.done) {
-        update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
+        update.pending_effect = { sourcePlayerId: caster_id, sourceCardNum: card_num, effectId: spellEff.effectId, interaction: result.pending, spellPlacement, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
       }
@@ -6380,7 +6395,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const guestState = isHost ? result.otherState : result.ownerState;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState, pending_spell: null };
       if (!result.done) {
-        update.pending_effect = { sourcePlayerId: user.id, sourceCardNum: cutinCard.CardNum, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
+        update.pending_effect = { sourcePlayerId: user.id, sourceCardNum: cutinInstanceId, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
       }

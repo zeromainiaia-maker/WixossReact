@@ -3383,7 +3383,12 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   } else if (a.charm.type === 'TRASH_CARD') {
     // thisCardOnly:「このカードを【チャーム】にする」= 効果元カード自身（トラッシュにある）（WX04-102）
     if (a.charm.filter?.thisCardOnly) {
-      charmCands = (ctx.sourceCardNum && charmSrc.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+      // A resolving spell is not in a zone yet. Treat self-charming as a
+      // replacement for its pending post-resolution trash placement.
+      charmCands = ctx.sourceCardNum && (
+        charmSrc.trash.includes(ctx.sourceCardNum)
+        || (ctx.sourcePlacementPending && charmOwner === 'self')
+      ) ? [ctx.sourceCardNum] : [];
     } else {
       charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     }

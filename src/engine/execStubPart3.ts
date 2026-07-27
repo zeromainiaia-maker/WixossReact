@@ -4803,11 +4803,21 @@ export function execStubPart3(
     return done(addLog(ctxPDL2, `PR-Di035 ${logsPDL.join(' / ')}`));
   }
 
-  // EXILE_SELF_AFTER_USE: 使用後このカードを通常ゾーンから取り除き、excluded へ移す。
+  // EXILE_SELF_AFTER_USE: 使用後の既定配置を excluded に置換する。
+  // 使用中スペルは解決中どのゾーンにもいないため、未配置なら探索せず直接置換を記録する。
+  // 既に使用済みゾーンへ置かれるアーツ等は field / trash / lrig_trash だけを探索する。
   if (stub.id === 'EXILE_SELF_AFTER_USE') {
     const srcESAU = ctx.sourceCardNum;
     if (!srcESAU) return done(addLog(ctx, 'EXILE_SELF_AFTER_USE: sourceCardNum なし'));
-    const nameESAU = ctx.cardMap.get(srcESAU)?.CardName ?? srcESAU;
+    const nameESAU = ctx.cardMap.get(getCardNum(srcESAU))?.CardName ?? srcESAU;
+    if (ctx.sourcePlacementPending) {
+      if (ctx.ownerState.excluded?.includes(srcESAU)) return done(ctx);
+      const newOwnerESAU: PlayerState = {
+        ...ctx.ownerState,
+        excluded: [...(ctx.ownerState.excluded ?? []), srcESAU],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwnerESAU }, `${nameESAU}をゲームから除外`));
+    }
     // フィールドから除去（付帯カードは removeFromField の通常処理に従う）。
     const removeOneESAU = (cards: string[]): [string[], boolean] => {
       const idx = cards.indexOf(srcESAU);
@@ -4818,7 +4828,7 @@ export function execStubPart3(
       || ctx.ownerState.field.lrig.includes(srcESAU);
     let removedESAU = foundOnFieldESAU ? removeFromField(srcESAU, ctx.ownerState) : ctx.ownerState;
     let foundESAU = foundOnFieldESAU;
-    for (const zone of ['deck', 'hand', 'trash', 'energy', 'life_cloth'] as const) {
+    for (const zone of ['trash', 'lrig_trash'] as const) {
       if (foundESAU) break;
       const [cards, removed] = removeOneESAU(removedESAU[zone]);
       if (removed) { removedESAU = { ...removedESAU, [zone]: cards }; foundESAU = true; }

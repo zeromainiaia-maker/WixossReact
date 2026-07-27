@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き276＝§3タスク19 スペルの使用後配置を解決後へ移動し、自己除外を配置置換化（2026-07-27・codex実装/Opus 5確認）
+
+**根本原因**＝通常スペルを `executeEffect` より前にトラッシュへ置いていたため、使用中のスペル自身がトラッシュ枚数・選択候補・全回収へ混入していた。WXK11-070 修築では自身を `TRANSFER_TO_DECK{count:'ALL'}` でデッキへ戻した後、広域探索型 `EXILE_SELF_AFTER_USE` がデッキ／ライフへ移った自身を追跡していた。ルール上、スペルは効果解決中は未配置で、解決後にトラッシュへ置かれる（自己除外はその配置の置換）。
+
+**段階1（解決後配置）**＝`BattleScreen.handleCutinPass` は打ち消されなかったスペルを未配置のまま実行し、完了解決後だけ `finalizeUsedCardPlacement` で通常スペルを `trash`、ルリグデッキ由来スペルを `lrig_trash` へ置く。対話で pause した場合は `PendingEffect.spellPlacement` に既定配置先を保存し、一般 interaction／SELECT_ZONE／SELECT_SIGNI_ZONE／REARRANGE_SIGNI／SELECT_VIRUS_ZONE の全 resume ハンドラで印を引き継ぎ、`result.done` のときだけ配置する。途中ラウンドでは未配置を維持する。効果なしスペルも完了時配置する。`NEGATE_SPELL` とカットインによる打ち消しは効果を解決しないため、従来どおり即 trash／lrig_trash とした。
+
+**段階2（自己除外の置換）**＝`ExecCtx.sourcePlacementPending` がある未配置スペルの `EXILE_SELF_AFTER_USE` はゾーン探索せず `excluded` を確定し、後段の既定配置を抑止する。既に配置済みのアーツ等は `field`／`trash`／`lrig_trash` のみ探索し、SP36-001 の lrig_trash no-op を修正。`deck`／`hand`／`energy`／`life_cloth` はゾーン移動後の別オブジェクトを元効果で追跡しないルールに従い探索対象から外した。カットインの pending 発生源も素の CardNum ではなく `cutinInstanceId` を保持するよう是正。
+
+**差し戻し回帰（4つ目のカテゴリ＝自己配置置換）**＝スペルの解決後配置化により、WX04-103 エビルズ・ソウルの `ATTACH_CHARM{charm:TRASH_CARD,filter:{thisCardOnly:true}}` が、発生源自身をトラッシュから見つけられず no-op になった。これはトラッシュ枚数／全回収／トラッシュ選択とは別カテゴリであり、「このスペルを【チャーム】にする」も、解決後にトラッシュへ置く代わりにチャームとして置く配置置換である。`sourcePlacementPending` 中の同構造はトラッシュを探索せず発生源 instanceId 自身をチャーム候補にし、`finalizeUsedCardPlacement` は発生源が `field.signi_charms` に配置済みなら既定配置を抑止する。これによりチャームとトラッシュへの二重配置も防ぐ。**スペルを解決後配置へ変えると、自分自身が既にトラッシュに居る前提の効果が壊れうるため、除外だけでなくチャーム等の自己配置置換も必ず横断確認すること。**
+
+**同型横断確認**＝全 effects JSON のスペル効果を action tree（`SEQUENCE`／`CONDITIONAL`／`CHOOSE` 内側を含む）で再帰走査し、`thisCardOnly`、全 STUB id、`sourceCardNum` を直接 trash／lrig_trash と照合する executor/STUB 実装を突合した。未配置スペル自身をトラッシュ由来の移動元として使う実データは WX04-103 の自己チャームだけだった。既知の `EXILE_SELF_AFTER_USE` 3効果は段階2で対応済み。その他の直接参照は場のシグニ／トラッシュで発動するカード／使用済みアーツ向けで、使用中スペルの pending 配置には該当しない。
+
+**影響照合**＝WXK11-070 は原文どおり、解決中の全トラッシュ回収に自身が混ざらず、最後に excluded へ1枚だけ置かれる。WXK02-039 メイル・ストリームの原文は「トラッシュからすべての＜武勇＞の**シグニ**」であり、使用スペル自身は旧実装でもフィルタ不一致なので結果は変わらない。トラッシュ枚数条件／リコレクト系は解決時の枚数から使用スペル1枚が除かれ、トラッシュ選択系は使用直後の自身が候補から除かれる方向に是正される。
+
+**golden**＝盤面・発生源を production と同じ `CardNum#N` で構築。WXK11-070 の既存5 assertion（全エナ破棄／ライフ+1／自己のtrash還流なし／excluded 1枚／deckに自身なし）はすべて維持して成立。共有 `cursor` と `Math.random` は `try/finally` で復元し、乱数固定は安全側として維持。追加テストで (1) CHOOSE を挟むスペルが pause 中は未配置、resume 完了後に trash へちょうど1枚配置 (2) 未配置スペルの除外置換 (3) SP36-001型の lrig_trash→excluded (4) deckへ移動済みカードを追跡しない (5) WX04-103 が `WX04-103#1` 自身をチャームにし、trash には0枚で二重配置しない、を実行した。WX04-103 テストの共有 `cursor` も `try/finally` で復元する。
+
+**検証**＝差し戻し修正後の `npm run gates` **10/10回 PASS・FAIL 0**（各回 golden 772/772、smoke 10725/10725、fuzz 200ゲーム不具合0、census 1532、lint 0 errors）。**Claude が独立に gates 10回を再現**して FAIL 0、および WX04-103 のチャーム付与を engine 直呼びで再実測（`charms=["WX04-103#1"]`／trash 0枚）。
+
+**⚠Claude 確認の経緯（この回帰をどう捕まえたか）**＝codex は初回「defer 0・gates 10/10 緑」と報告したが、**gates では捕まらない回帰**だった（WX04-103 の golden が存在せず、smoke は CRASH/HANG しか見ないため）。捕まえ方＝**「自分自身がトラッシュに居ることを前提にする効果」を実データから機械的に洗い出した**（効果JSON のスペル全件から `TRASH_CARD` かつ `filter.thisCardOnly` を検索→WX04-103 の1枚がヒット）。さらに原文側からも `このスペルを[^。]*` / `このカードを[^。]*` を全スペルで抽出して自己再配置の表現を掃いた（大半は「このスペルを使用する際、」＝コスト修飾で無関係。実体は WX04-103 のチャーム化と除外3効果のみ）。**engine の配置タイミングを変えるときは「自分自身の居場所を前提にする効果」を実データで全数洗うこと**が再発防止策。
+
+**⚠副次の変更（指示外・Claude 確認済み）**＝カットインの `pending_effect.sourceCardNum` が素の CardNum（`cutinCard.CardNum`）だったのを `cutinInstanceId` へ是正。ゾーン配列は instanceId を持つため、素の CardNum では resume 側の `.includes()` 照合が成立しない（＝同じ instanceId 不整合の別箇所）。`cardMap`/`effectsMap` は `InstanceMap` で cardNum へフォールバックするため名前・効果引きは従来どおり。
+
+---
+
 ## 続き274＝§3タスク18 golden `WXK11-070` の非決定性フレークを決定化（2026-07-27・codex実装/Opus 5確認）
 
 **原因**＝`WXK11-070-E1` はエナ10枚をトラッシュへ置いた後、元からトラッシュに置いた自身を含む11枚を `TRANSFER_TO_DECK{shuffle:true}` でデッキへ戻し、直後にデッキトップ1枚をライフへ加える。golden が実乱数に依存していたため、自身がトップへ来る約1/31の回だけ、後続 `EXILE_SELF_AFTER_USE` が追加直後のライフから自身を除外し、`life_cloth` が +1 されずランダムに失敗していた。

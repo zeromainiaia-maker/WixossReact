@@ -660,6 +660,7 @@ export interface PendingEffect {
   triggeringKeyword?: string; // pause を跨いで ON_KEYWORD_GAINED の「その能力」を保持（COPY_ABILITY 用・WXDi-P04-035）
   trapActivated?: boolean;    // pause を跨いで《トラップアイコン》発動イベントを保持（完了解決後に ON_TRAP_ACTIVATE を収集）
   storedTargetCards?: string[]; // pause を跨いで STORE_LAST_PROCESSED_TARGETS の固定対象を保持（targetsStored の resume 用。WX16-033 等）
+  spellPlacement?: 'trash' | 'lrig_trash'; // 使用中スペルの解決後配置。pause 中は未配置のまま保持する
 }
 
 // ===== 効果スタック =====
