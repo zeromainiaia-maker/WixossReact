@@ -35,6 +35,7 @@ import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAl
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
+import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
@@ -11142,6 +11143,92 @@ test('§6.3 C PR-K049 bottom mills accumulate for the front condition', () => {
       `front modifier missing; processed=${JSON.stringify(r.lastProcessedCards)}`);
     ok(!r.otherState.temp_power_mods?.some(m => m.cardNum === side), 'side changed');
   } finally { cursor = savedCursor; }
+});
+
+test('SPK06-01-E1: アーツ実使用経路で追加赤0/2/4が排他的に1/2/3体だけバニッシュ', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = manualEffect('SPK06-01', 'SPK06-01-E1');
+    const redEnergy = [...cardMap.values()]
+      .filter(c => c.Color?.includes('赤'))
+      .slice(0, 4)
+      .map(c => c.CardNum);
+    if (redEnergy.length < 4) throw new Error('赤エナ4枚のテストデータが必要');
+
+    const resolveTier = (choiceId: 'skip' | 'pay_red2' | 'pay_red4', paid: number): ExecResult => {
+      const source = 'SPK06-01';
+      const opponents = [fresh(), fresh(), fresh()];
+      const ctx = mkCtx({}, { signi: opponents }, source);
+      ctx.ownerState.field = { ...ctx.ownerState.field, check: source };
+      ctx.ownerState.energy = [...redEnergy];
+      let result = executeEffect(effect, ctx);
+      ok(!result.done && result.pending.type === 'CHOOSE', `${choiceId}: 追加コスト三択を提示`);
+      if (result.done || result.pending.type !== 'CHOOSE') return result;
+      const resumedCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
+      result = choiceId === 'skip'
+        ? resumeChoose('skip', result.pending, resumedCtx)
+        : resumeOptionalCost(choiceId, redEnergy.slice(0, paid), result.pending, resumedCtx);
+      return finish(result, ctx);
+    };
+
+    const none = resolveTier('skip', 0);
+    eq(none.otherState.field.signi.filter(Boolean).length, 2, '追加支払いなし=1体だけ');
+    const red2 = resolveTier('pay_red2', 2);
+    eq(red2.otherState.field.signi.filter(Boolean).length, 1, '追加赤2=2体だけ');
+    const red4 = resolveTier('pay_red4', 4);
+    eq(red4.otherState.field.signi.filter(Boolean).length, 0, '追加赤4=3体だけ');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('SPK06-01-E1 UI: costColors付き三択はtier IDと選択エナ番号をresume payloadへ渡す', () => {
+  const options = [
+    { id: 'skip', costColors: undefined },
+    { id: 'pay_red2', costColors: ['赤', '赤'] },
+    { id: 'pay_red4', costColors: ['赤', '赤', '赤', '赤'] },
+  ];
+  eq(
+    JSON.stringify(optionalCostOptions(options).map(option => option.id)),
+    JSON.stringify(['pay_red2', 'pay_red4']),
+    'pay固定IDに依存せずcostColors付きtierを検出',
+  );
+  eq(
+    JSON.stringify(buildOptionalCostPayload('pay_red4', ['energy-0', 'energy-2', 'energy-3', 'energy-5'])),
+    JSON.stringify(['pay_red4', 'energy-0', 'energy-2', 'energy-3', 'energy-5']),
+    '選択tier IDの後ろにenergyNumsを保持',
+  );
+  eq(
+    JSON.stringify(buildOptionalCostPayload('pay', ['energy-1'])),
+    JSON.stringify(['pay', 'energy-1']),
+    '既存pay経路のpayloadも非回帰',
+  );
+});
+
+test('WXK06-032-E1: 双方refresh履歴で同一対象の-4000を-12000へ置換', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = manualEffect('WXK06-032', 'WXK06-032-E1');
+    const source = 'WXK06-032';
+    const targets = [fresh(), fresh(), fresh()];
+    const resolve = (ownerRefresh: number, otherRefresh: number) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, { signi: targets }, source);
+      ctx.ownerState.refresh_count_this_turn = ownerRefresh;
+      ctx.otherState.refresh_count_this_turn = otherRefresh;
+      return finish(executeEffect(effect, ctx), ctx);
+    };
+    const plain = resolve(0, 0).otherState.temp_power_mods ?? [];
+    eq(plain.filter(m => m.delta === -4000).length, 2, '履歴なし=-4000を2対象');
+    eq(plain.filter(m => m.delta === -12000).length, 0, '履歴なし=-12000は走らない');
+
+    const refreshed = resolve(0, 1).otherState.temp_power_mods ?? [];
+    eq(refreshed.filter(m => m.delta === -12000).length, 2, '相手refresh履歴でも-12000を2対象');
+    eq(refreshed.filter(m => m.delta === -4000).length, 0, '-4000加算なし（-16000化しない）');
+    const affected = refreshed.filter(m => m.delta === -12000).map(m => m.cardNum);
+    eq(JSON.stringify(affected), JSON.stringify(targets.slice(0, 2)), '最初に選んだ同一対象を保持し、3体目を選び直さない');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 
 test('§6.3 C WX24-P4-045 field target to life and self Double Crush', () => {

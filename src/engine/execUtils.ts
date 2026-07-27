@@ -1229,6 +1229,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'IS_BETTING':            return !!ctx.ownerState.is_betting_this_effect &&
       (cond.minCoins == null || (ctx.ownerState.bet_coins_paid ?? 0) >= cond.minCoins);
     case 'IS_BOOSTING':           return !!ctx.ownerState.is_boosting_this_effect;
+    case 'ANY_PLAYER_REFRESHED_THIS_TURN':
+      return (ctx.ownerState.refresh_count_this_turn ?? 0) > 0
+        || (ctx.otherState.refresh_count_this_turn ?? 0) > 0;
     case 'BEAT_CONDITION': {
       const beatZone = ctx.ownerState.field.beat_zone ?? [];
       return checkBeatCondition(beatZone, cond.condText, ctx.cardMap);

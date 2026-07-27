@@ -1,9 +1,10 @@
 // 効果インタラクション モーダル（SELECT_TARGET/SEARCH/CHOOSE/LOOK_AND_REORDER/整列/ゾーン選択等の pending_effect 解決UI）。BattleScreen.tsx から Stage 1 で抽出。
 import { createPortal } from 'react-dom';
-import type { Dispatch, SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection, satisfiesSelectionConstraint } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
+import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
 import type { BattleModalCtx } from './types';
 
 interface EffectInteractionModalProps {
@@ -30,6 +31,7 @@ interface EffectInteractionModalProps {
 }
 
 export function EffectInteractionModal(p: EffectInteractionModalProps) {
+  const [selectedOptionalCostChoiceId, setSelectedOptionalCostChoiceId] = useState<string | null>(null);
   const { bs, user, my, op, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { effectSelectedNums, setEffectSelectedNums, selectedOptCost, setSelectedOptCost, selectedMultiChoiceIds, setSelectedMultiChoiceIds, lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash, lookReorderBottom, setLookReorderBottom, rearrangeSlots, setRearrangeSlots, handleEffectInteraction, handleSelectZoneForEffect, handleSelectSigniZoneForEffect, handleSelectVirusZoneForEffect, handleRearrangeSigniConfirm } = p;
   return (
@@ -344,13 +346,65 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
 
         // CHOOSE：選択肢ボタン（任意コスト付きの場合はエナ選択UIを統合）
         if (inter.type === 'CHOOSE') {
-          const payOpt = inter.options.find(o => o.id === 'pay' && o.costColors?.length);
+          const costOptions = optionalCostOptions(inter.options);
+          const legacyPayOpt = costOptions.find(o => o.id === 'pay');
+          const isTieredOptionalCost = costOptions.length > 1 || (costOptions.length === 1 && !legacyPayOpt);
+          const payOpt = legacyPayOpt
+            ?? costOptions.find(o => o.id === selectedOptionalCostChoiceId);
           const skipOpt = inter.options.find(o => o.id === 'skip');
-          const isOptionalCost = !!payOpt;
+          const isOptionalCost = costOptions.length > 0;
 
           if (isOptionalCost) {
+            if (isTieredOptionalCost && !payOpt) {
+              return createPortal(
+                <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+                  backgroundColor: 'rgba(0,0,0,0.92)',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                      padding: '20px 16px', width: 'min(92vw, 380px)',
+                      display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                      {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                    </p>
+                    <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>追加コストを選択してください</p>
+                    {costOptions.map(opt => (
+                      <button key={opt.id}
+                        data-testid={`optcost-choice-${opt.id}`}
+                        disabled={loading || !opt.available}
+                        onClick={() => {
+                          setSelectedOptionalCostChoiceId(opt.id);
+                          setSelectedOptCost(new Set());
+                        }}
+                        style={{ padding: '12px 8px', borderRadius: 8, border: 'none',
+                          backgroundColor: opt.available ? C.success : C.disabled,
+                          color: C.text, fontSize: 13, fontWeight: 'bold',
+                          cursor: (!opt.available || loading) ? 'default' : 'pointer' }}>
+                        {opt.label}
+                      </button>
+                    ))}
+                    <button
+                      data-testid="optcost-skip"
+                      disabled={loading}
+                      onClick={() => {
+                        handleEffectInteraction([skipOpt?.id ?? 'skip']);
+                        setSelectedOptCost(new Set());
+                        setSelectedOptionalCostChoiceId(null);
+                      }}
+                      style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI,
+                        backgroundColor: 'transparent', color: C.textDim, fontSize: 13,
+                        cursor: loading ? 'default' : 'pointer' }}>
+                      {skipOpt?.label ?? 'スキップ'}
+                    </button>
+                  </div>
+                </div>,
+                document.body,
+              );
+            }
+
             // 任意コスト: エナ選択 + 発動/スキップボタン
-            const costColors = payOpt!.costColors!;
+            const selectedPayOpt = payOpt!;
+            const costColors = selectedPayOpt.costColors!;
             const totalReq = costColors.length;
             const selectedNums = [...selectedOptCost].map(i => my.energy[i]);
             const colorValid = (() => {
@@ -415,18 +469,26 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   </div>
                   <button
                     data-testid="optcost-pay"
-                    disabled={loading || !canConfirm || !payOpt.available}
-                    onClick={() => { handleEffectInteraction(['pay', ...selectedNums]); setSelectedOptCost(new Set()); }}
+                    disabled={loading || !canConfirm || !selectedPayOpt.available}
+                    onClick={() => {
+                      handleEffectInteraction(buildOptionalCostPayload(selectedPayOpt.id, selectedNums));
+                      setSelectedOptCost(new Set());
+                      setSelectedOptionalCostChoiceId(null);
+                    }}
                     style={{ padding: '12px 0', borderRadius: 8, border: 'none',
-                      backgroundColor: (canConfirm && payOpt.available) ? C.success : C.disabled,
+                      backgroundColor: (canConfirm && selectedPayOpt.available) ? C.success : C.disabled,
                       color: C.text, fontSize: 13, fontWeight: 'bold',
-                      cursor: (canConfirm && payOpt.available && !loading) ? 'pointer' : 'default' }}>
-                    {payOpt.label}
+                      cursor: (canConfirm && selectedPayOpt.available && !loading) ? 'pointer' : 'default' }}>
+                    {selectedPayOpt.label}
                   </button>
                   <button
                     data-testid="optcost-skip"
                     disabled={loading}
-                    onClick={() => { handleEffectInteraction([skipOpt?.id ?? 'skip']); setSelectedOptCost(new Set()); }}
+                    onClick={() => {
+                      handleEffectInteraction([skipOpt?.id ?? 'skip']);
+                      setSelectedOptCost(new Set());
+                      setSelectedOptionalCostChoiceId(null);
+                    }}
                     style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI,
                       backgroundColor: 'transparent', color: C.textDim, fontSize: 13,
                       cursor: loading ? 'default' : 'pointer' }}>

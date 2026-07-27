@@ -274,6 +274,7 @@ export type Condition =
   | { type: 'IS_BETTING'; minCoins?: number }                  // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う
   | { type: 'IS_BOOSTING' }                                    // このアーツでブースト追加エナを支払っていた場合
   | { type: 'PAID_ADDITIONAL_COST' }
+  | { type: 'ANY_PLAYER_REFRESHED_THIS_TURN' }                  // このターンにいずれかのプレイヤーがリフレッシュしていた場合
   | { type: 'BEAT_CONDITION'; condText: string } // 《ビートアイコン》[条件]
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number; verbJa?: string; negate?: boolean; omitGteJa?: boolean } // この方法で直前に処理したカード枚数がN以上。negate=true は「N枚処理しなかった」＝N未満（否定3件）。verbJa/omitGteJa は decompiler 表示専用
@@ -1747,6 +1748,15 @@ export interface StubAction {
   handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number; filter?: TargetFilter };
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
+  /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
+  additionalCostChoices?: Array<{
+    id: string;
+    label: string;
+    costColors: string[];
+    action: EffectAction;
+  }>;
+  /** OPTIONAL_COST: result action when no tier is paid. */
+  unpaidAction?: EffectAction;
   exceed?: number;
   // NEGATE_NTH_ATTACK: このターン、対戦相手のアタックを共有カウントで N 回目まで無効化。
   // signi/lrig は無効化対象に含める攻撃種別。count は「一度目か二度目」=2 / 「一度目」=1。

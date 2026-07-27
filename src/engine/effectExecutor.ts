@@ -2887,6 +2887,33 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       {
         const stub4 = step as import('../types/effects').StubAction;
         const optIds = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+        if (stub4.id === 'OPTIONAL_COST' && stub4.additionalCostChoices?.length) {
+          const remaining = a.steps.slice(i + 1);
+          const continuation: EffectAction | undefined = remaining.length === 0 ? undefined
+            : remaining.length === 1 ? remaining[0]
+            : { type: 'SEQUENCE', steps: remaining } as SequenceAction;
+          const options = [
+            ...stub4.additionalCostChoices.map(choice => ({
+              id: choice.id,
+              label: choice.label,
+              action: choice.action,
+              available: canPayOptionalCost(choice.costColors, cur.ownerState, cur.cardMap),
+              costColors: choice.costColors,
+            })),
+            {
+              id: 'skip',
+              label: '追加コストを支払わない',
+              action: stub4.unpaidAction ?? (({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction),
+              available: true,
+            },
+          ];
+          return needsInteraction(addLog(cur, '追加コストを選んでください'), {
+            type: 'CHOOSE',
+            options,
+            count: 1,
+            ...(continuation ? { continuation } : {}),
+          });
+        }
         if (optIds.includes(stub4.id)) {
           const condIdx = a.steps.findIndex((s, idx) => {
             if (idx <= i + 1) return false;
@@ -5381,9 +5408,9 @@ export function resumeOptionalCost(
 ): ExecResult {
   const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
   const skipOpt = pending.options.find(o => o.id === 'skip');
-  const payOpt  = pending.options.find(o => o.id === 'pay');
+  const payOpt  = pending.options.find(o => o.id === choiceId);
 
-  if (choiceId !== 'pay') {
+  if (choiceId === 'skip' || !payOpt) {
     // スキップ: スキップアクション → continuation
     const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) return result;

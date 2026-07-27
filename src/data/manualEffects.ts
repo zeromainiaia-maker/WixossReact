@@ -4488,6 +4488,24 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":0,"private":false,"reorder":true,"destination":{"location":"deck","owner":"self","position":"top"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // §6.3 G/B: the optional red payment is a three-way replacement, never cumulative.
+  "SPK06-01": [
+    {"effectId":"SPK06-01-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":2}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"OPTIONAL_COST","additionalCostChoices":[
+        {"id":"pay_red4","label":"追加で《赤×4》を支払う","costColors":["赤","赤","赤","赤"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":3,"filter":{"cardType":"シグニ"},"upToCount":false}}},
+        {"id":"pay_red2","label":"追加で《赤×2》を支払う","costColors":["赤","赤"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+      ],"unpaidAction":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},
+      {"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // §6.3 G/B: select the targets once, then replace -4000 with -12000 when either player refreshed this turn.
+  "WXK06-032": [
+    {"effectId":"WXK06-032-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"CONDITIONAL","condition":{"type":"ANY_PLAYER_REFRESHED_THIS_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2},"targetsStored":true,"delta":-12000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2},"targetsStored":true,"delta":-4000,"duration":"UNTIL_END_OF_TURN"}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**
