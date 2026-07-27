@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き272＝§3タスク16「コストか効果によってシグニの下からトラッシュに置かれたとき」3効果を実装（timing census 40→37効果・golden 765→767・census 1535→1532）（2026-07-27・codex実装/Opus 5確認）
+
+**直したバグ**＝`npm run census:timing` 上位クラスタの3効果（WX18-062-E1 肥後の虎将　カトキヨ／WX22-027-E1 井伊の赤鬼　ナオマサ／WXK03-033-E1 大装　ガディヴァ）が、原文は【自】「このカードがコストか効果によって**シグニの下から**トラッシュに置かれたとき」なのに parser が timing を判定できず **`ON_PLAY` へ誤フォールバック**していた＝**場に出すたびにエナチャージ/ドロー/ダウンが誤発火**する実挙動バグ。
+
+**実装**＝(1) `types/effects.ts` の `triggerCondition.fromZones` に `'under_signi'` を追加。(2) `boardDiff.ts` に `detectUnderSigniTrashed` 新設＝`field.signi[zi]` は末尾が場のシグニ本体・それ以外が下敷きなので、**末尾を除いた多重集合の減少数**とトラッシュ増加数の最小値を取る（同名カード複数にも対応）。(3) `triggerCollect.ts` の `collectAnyZoneTrashSelfTriggers` の `origin` に `under_signi` を追加。(4) `BattleScreen.tsx` の `collectBoardDiffTriggers`（中央 diff）へ hand/energy と**同じ経路で**合流。(5) parser に「シグニの下から」を ON_TRASH regex とゾーン抽出へ追加。
+
+**⚠「コストか効果によって」＝ルール処理の除外（1巡目の差し戻し内容）**＝codex の初回実装は**本体シグニが場を離れて下敷きが落ちるケースでも発火**していた。`execUtils.removeFromField` は本体離脱時に `oldStack.slice(0, -1)` をトラッシュへ送るが、**コード自身のコメントが「ルール処理でトラッシュへ」**と書いているとおりこれはルール処理であり、原文の「コストか効果によって」が除外している対象。Claude が使い捨てスクリプトで3ケース実測して差し戻し、`detectLeftFieldSigni`（＝場を離れた本体の判定を1箇所に統一）で得たゾーンの下敷き枚数を控除する形で是正した。修正後の実測＝下敷きだけトラッシュ**発火**／本体離脱のルール処理落ち**非発火**／ライズ本体入れ替え**非発火**。
+
+**到達可能性を実測（no-op でない根拠）**＝コスト経路 `cost.underSelfTrash`（16効果）は**未配線**（`BattleScreen.tsx:5404` でカットイン候補から除外されるだけ）のため honest defer。ただし **`TAKE_FROM_UNDER_SIGNI{destination:'trash'}` が実データ10効果あり engine 実装済み**で、`executeEffect`→`resumeSelectTarget` を実際に通して「**本体在場のまま下敷きだけがトラッシュへ移る**」ことを確認済み＝このトリガーは実戦で発火する。この経路が壊れると under_signi トリガー全体が「宣言だけの no-op」へ退化するため golden で lock-in した。
+
+**副次の是正**＝WX22-027-E1「シグニ1体を対象とし、それをアップするかダウンする」が **`DOWN` 固定かつ `owner:'self'`**（＝自分のシグニを勝手にダウンする）だったのを `CHOOSE[UP, DOWN]`・`owner:'any'` へ。WXK03-033-E1 は「捨ててもよい」＝ON_TRASH の任意トリガー規約に従い `mandatory:false` へ。
+
+**honest defer（機構B）**＝「対戦相手のシグニのアタックを効果によって無効にしたとき」3効果（WX05-025-E2／WX14-064-E1／WX13-040-E1）は未実装のまま。①アタック無効化の確定点（`attackNegation.ts` の `consumeNthAttackNegation` 等）からイベントを発行する経路 ②**トラッシュにあるカードを発生源として走査する collector**（WX13-040/WX14-064 は「トラッシュにあるこのカードをゲームから除外して」＝場ではなくトラッシュ発動）の**両方**が要り、片方だけでは JSON を忠実化しても実戦で一度も評価されない no-op になるため。PLAN §3 タスク16 の残へ登録。
+
+**検証**＝`npm run gates` 全緑を独立再現。golden **767/767**（新規2件＝3ケースの検出仕分け／効果経路の到達可能性 lock-in。いずれも共有 `cursor` を try/finally で save/restore）、smoke **10725/10725**、fuzz **200ゲーム／不具合0**、census **1532**（BASELINE_HIGH を 1535→1532 へ理由付きで更新）、lint 0 errors。効果JSONは HEAD と意味的 diff を取り**変化は対象3効果のみ＝再生成ドリフト0**。
+
+**🆕副産物＝golden `WXK11-070` の既存フレークを特定**（PLAN §3 タスク18 へ登録）。`10 threshold adds life expected=8 got=7` が約4%で FAIL する。**master 1/30・変更後 3/52 で同率＝今回の変更とは無関係の既存問題**（worktree で HEAD を30回回して確認）。原因は engine ではなく**テストが `Math.random` に依存**していること＝効果が `TRANSFER_TO_DECK{shuffle:true}` でトラッシュの `WXK11-070` 自身をデッキへ混ぜた直後に `ADD_TO_LIFE{fromTop:true}` を行うため、シャッフルで自身がトップに来た回（約1/31）だけ後続の `EXILE_SELF_AFTER_USE` がそのライフを除外して life が +1 されない。
+
+---
+
 ## 続き271＝§3タスク14（Stage3 純粋バトルコントローラ）13箇所を reduceBattle 経由へ移行（reducer 経由 59→72／残56→43・golden 752→765）（2026-07-27・codex実装/Opus 5確認）
 
 **移行13箇所**＝(a) セットアップ3件＝`cpuSetupAction` の CPUルリグ選択・CPUマリガン完了・両者完了後の対戦開始 → 新 action `SELECT_LRIG`／`COMPLETE_MULLIGAN`／`START_PLAYING`。(b) スペル／カットイン5件＝スペル発動時の非null `pending_spell` セット（`QUEUE_SPELL`）・`handleCutinPass` のスペル打ち消し完了と効果なしスペル完了（`FINISH_SPELL`＝`pending_spell`/`pending_effect` を両方クリア）・`handleCutinUse` の caster同一／別の2分岐（`FINISH_CUTIN`＝`pending_spell` のみクリアし `pending_effect` は不干渉）。(c) 既存 `WRITE_STATE` へ4件＝攻撃元消失時の pending 解除・バニッシュ身代わり選択待ち・CPU同時クラッシュ繰越・LIFE_BURST不発時（`clearPending`）。(d) `ADVANCE_TURN_WITH_STATE` 1件＝CPU の UP処理済み状態と `turn_phase:'DRAW'` を原子的に書く。`BattleAction` は 7種→14種。
