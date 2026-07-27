@@ -749,6 +749,39 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
         // REARRANGE_SIGNI：シグニを好きなように配置し直す（各シグニにゾーンを割り当て）
         if (inter.type === 'REARRANGE_SIGNI') {
           const ownerLabelRS = inter.owner === 'opponent' ? '相手の' : '自分の';
+          if (inter.mode === 'swap') {
+            const sourceCardRS = inter.swapSourceNum ? battleCardMap.get(getCardNum(inter.swapSourceNum)) : undefined;
+            return createPortal(
+              <div style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: 16,
+                  width: 'min(95vw, 440px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    {sourceCardRS?.CardName ?? inter.swapSourceNum}と入れ替える{ownerLabelRS}シグニを選択
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {inter.signiNums.map(n => {
+                      const c = battleCardMap.get(getCardNum(n));
+                      return (
+                        <button key={n} onClick={() => handleRearrangeSigniConfirm([n])} disabled={loading}
+                          style={{ border: C.borderCard, borderRadius: 7, background: C.bgButton, padding: 6, color: C.text, cursor: 'pointer' }}>
+                          <img src={c?.ImgURL} alt={c?.CardName} style={{ width: 70, height: 98, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+                          <span style={{ display: 'block', width: 70, fontSize: 10, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c?.CardName ?? n}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {inter.optional && (
+                    <button onClick={() => handleRearrangeSigniConfirm(null)} disabled={loading}
+                      style={{ padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub }}>
+                      入れ替えない
+                    </button>
+                  )}
+                </div>
+              </div>,
+              document.body,
+            );
+          }
           const assignZoneRS = (signi: string, z: number) => {
             setRearrangeSlots(prev => {
               const next = prev.map(x => (x === signi ? null : x));

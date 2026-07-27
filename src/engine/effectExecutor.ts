@@ -5636,8 +5636,30 @@ export function resumeSelectSigniZone(
 
 // REARRANGE_SIGNI: フィールドのシグニを好きなように配置し直す（count:'ALL'）。プレイヤーに配置選択を促す。
 function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, ctx: ExecCtx): ExecResult {
-  // swap や単体指定は未対応（従来どおりログのみ。WX04-041-E2 の「すべてを配置し直す」を対象）
-  if (a.swap || a.target.count !== 'ALL') {
+  if (a.swap) {
+    const tgtOwner: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
+    const state = ownerState(tgtOwner, ctx);
+    const external = a.swapWithLastProcessed ? ctx.lastProcessedCards?.[0] : undefined;
+    const source = external ?? ctx.sourceCardNum;
+    const candidates = state.field.signi
+      .map((s, zi) => ({ n: s?.at(-1), zi }))
+      .filter(({ n, zi }) => !!n && n !== source
+        && (!a.target.filter?.isUp || !state.field.signi_down?.[zi])
+        && matchesFilter(ctx.cardMap.get(getCardNum(n!)), a.target.filter))
+      .map(({ n }) => n!);
+    if (!source || candidates.length === 0) return done(addLog(ctx, '入れ替え対象がないためスキップ'));
+    return needsInteraction(ctx, {
+      type: 'REARRANGE_SIGNI',
+      owner: tgtOwner,
+      signiNums: candidates,
+      optional: a.optional ?? false,
+      mode: 'swap',
+      swapSourceNum: source,
+      swapSourceLocation: external ? 'deck' : 'field',
+      suppressOnPlay: a.suppressOnPlay,
+    } as PendingInteractionDef);
+  }
+  if (a.target.count !== 'ALL') {
     return done(addLog(ctx, 'シグニ並び替え（未対応の形式）'));
   }
   const tgtOwner: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
@@ -5662,6 +5684,39 @@ export function resumeRearrangeSigni(
 ): ExecResult {
   const state = ownerState(pending.owner, ctx);
   const f = state.field;
+  if (pending.mode === 'swap') {
+    const selected = newArrangement.find(n => pending.signiNums.includes(n));
+    if (!selected) {
+      if (pending.continuation) return executeAction(pending.continuation, ctx);
+      return done(addLog(ctx, 'シグニの入れ替えを行わなかった'));
+    }
+    const targetZone = f.signi.findIndex(s => s?.at(-1) === selected);
+    if (targetZone < 0 || !pending.swapSourceNum) return done(addLog(ctx, '入れ替え対象が見つからないためスキップ'));
+    if (pending.swapSourceLocation === 'deck') {
+      const di = state.deck.indexOf(pending.swapSourceNum);
+      if (di < 0) return done(addLog(ctx, '公開したシグニがデッキにないためスキップ'));
+      // 場を離れる側は通常の removeFromField 規約に従う（下敷き/チャーム/アクセはトラッシュ、
+      // ソウルはルリグトラッシュ、武装等は解除。ウィルスはシグニゾーンに残る）。
+      const removed = removeFromField(selected, state);
+      const deck = [...removed.deck];
+      deck.splice(di, 1);
+      deck.unshift(selected);
+      const signi = [...removed.field.signi];
+      signi[targetZone] = [pending.swapSourceNum];
+      const newField: typeof f = {
+        ...removed.field, signi,
+      };
+      const newState: PlayerState = { ...removed, deck, field: newField,
+        zone_moved_just: [...(removed.zone_moved_just ?? []), pending.swapSourceNum, selected] };
+      return done({ ...addLog(setOwnerState(pending.owner, newState, ctx), '公開したシグニと場のシグニを入れ替えた'),
+        lastProcessedCards: [pending.swapSourceNum] });
+    }
+    const sourceZone = f.signi.findIndex(s => s?.at(-1) === pending.swapSourceNum);
+    if (sourceZone < 0) return done(addLog(ctx, '交換元シグニが場にないためスキップ'));
+    const arrangement = f.signi.map(s => s?.at(-1) ?? '');
+    [arrangement[sourceZone], arrangement[targetZone]] = [arrangement[targetZone], arrangement[sourceZone]];
+    return resumeRearrangeSigni(arrangement, { ...pending, mode: 'rearrange' }, ctx);
+  }
   // 各シグニ instance の現在ゾーンを引く
   const oldZoneOf = (num: string): number => f.signi.findIndex(s => s?.at(-1) === num);
   // newArrangement[ni] のシグニが元々あったゾーン index（''は-1）
@@ -5683,6 +5738,13 @@ export function resumeRearrangeSigni(
     signi_soul:   permute(f.signi_soul, null) as typeof f.signi_soul,
     signi_armor:  permute(f.signi_armor, false) as typeof f.signi_armor,
     signi_virus:  permute(f.signi_virus, 0) as typeof f.signi_virus,
+    signi_chokkin: permute(f.signi_chokkin, 0) as typeof f.signi_chokkin,
+    signi_traps: permute(f.signi_traps, null) as typeof f.signi_traps,
+    signi_magic_boxes: permute(f.signi_magic_boxes, null) as typeof f.signi_magic_boxes,
+    signi_seeds: permute(f.signi_seeds, null) as typeof f.signi_seeds,
+    facedown_signi: permute(f.facedown_signi, null) as typeof f.facedown_signi,
+    cross_state: permute(f.cross_state, false) as typeof f.cross_state,
+    heaven_state: permute(f.heaven_state, false) as typeof f.heaven_state,
   };
   // ON_ZONE_MOVED 用：ゾーンが実際に変わったシグニを記録（旧ゾーン != 新ゾーン）
   const rearrMoved = [0, 1, 2]

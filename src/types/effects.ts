@@ -1350,6 +1350,8 @@ export interface RearrangeSigniAction {
   type: 'REARRANGE_SIGNI';
   target: EffectTarget;
   swap?: boolean; // true=このシグニと対象シグニの位置を交換
+  swapWithLastProcessed?: boolean; // true=直前に公開・選択したシグニと対象シグニを交換
+  suppressOnPlay?: boolean; // swapWithLastProcessed で場に出たシグニの【出】を発火させない
   optional?: boolean; // true=「配置し直してもよい」（プレイヤーがスキップ可能）
 }
 

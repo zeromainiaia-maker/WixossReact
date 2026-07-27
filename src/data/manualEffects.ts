@@ -4506,6 +4506,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"ANY_PLAYER_REFRESHED_THIS_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2},"targetsStored":true,"delta":-12000,"duration":"UNTIL_END_OF_TURN"},"else":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":2},"targetsStored":true,"delta":-4000,"duration":"UNTIL_END_OF_TURN"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  "WXDi-P08-037": [
+    {"effectId":"WXDi-P08-037-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ"},"pickCount":1,"then":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true}},"swap":true,"swapWithLastProcessed":true,"optional":true,"suppressOnPlay":true},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
 };
 
 /**

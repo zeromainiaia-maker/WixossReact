@@ -17,6 +17,7 @@ import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/key
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
+import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 
 interface Props {
   user: User;
@@ -4725,8 +4726,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
-      // skip（null）= 現状の配置をそのまま渡す（恒等変換。continuation はそのまま実行される）
-      const arrangement = newArrangement ?? [0, 1, 2].map(zi => targetState.field.signi[zi]?.at(-1) ?? '');
+      // rearrange の skip は恒等配置、swap の skip は候補なし（空配列）として解決する。
+      const arrangement = buildRearrangeSigniArrangement(newArrangement, inter.mode, targetState.field.signi);
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result: ExecResult = resumeRearrangeSigni(arrangement, inter, ctx);
       result = applyRefreshOnDone(result, battleCardMap);

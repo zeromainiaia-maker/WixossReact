@@ -36,6 +36,7 @@ import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/scre
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
+import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
@@ -7308,6 +7309,71 @@ test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新
   const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs };
   const r2 = resumeRearrangeSigni(reversed, pending as never, c);
   eq(JSON.stringify(tops(r2.otherState)), JSON.stringify(reversed), '新しい並び順が反映される');
+});
+test('REARRANGE_SIGNI swap: 2体の場所とゾーン状態を交換する', () => {
+  const savedCursor = cursor;
+  try {
+    const src = fresh(), target = fresh(), third = fresh();
+    const ctx = mkCtx({ signi: [src, target, third], down: [false, true, false] }, {}, src);
+    ctx.ownerState.field.signi_frozen = [false, true, false];
+    ctx.ownerState.field.signi_charms = [null, fresh(), null];
+    ctx.ownerState.field.signi_acce = [null, fresh(), null];
+    ctx.ownerState.field.signi_soul = [null, fresh(), null];
+    ctx.ownerState.field.signi_armor = [false, true, false];
+    ctx.ownerState.field.signi_virus = [0, 1, 0];
+    const r0 = executeEffect({ effectId: 'swap', effectType: 'AUTO',
+      action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'self', count: 1 }, swap: true },
+      duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!r0.done && r0.pending.type === 'REARRANGE_SIGNI' && r0.pending.mode === 'swap', 'swap専用pending');
+    const c: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const r1 = resumeRearrangeSigni([target], r0.pending as never, c);
+    eq(JSON.stringify(tops(r1.ownerState)), JSON.stringify([target, src, third]), '2体の場所を交換');
+    eq(JSON.stringify(r1.ownerState.field.signi_down), JSON.stringify([true, false, false]), 'ダウン状態も移動');
+    eq(JSON.stringify(r1.ownerState.field.signi_frozen), JSON.stringify([true, false, false]), '凍結状態も移動');
+    ok(!!r1.ownerState.field.signi_charms?.[0] && !!r1.ownerState.field.signi_acce?.[0] && !!r1.ownerState.field.signi_soul?.[0], '付属カードも移動');
+    eq(JSON.stringify(r1.ownerState.field.signi_armor), JSON.stringify([true, false, false]), '武装も移動');
+    eq(JSON.stringify(r1.ownerState.field.signi_virus), JSON.stringify([1, 0, 0]), 'ウィルスも移動');
+  } finally { cursor = savedCursor; }
+});
+test('WXDi-P08-037-E2: 公開シグニとアップ状態シグニを任意交換し、否定側を固定', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P08-037';
+    const revealed = fresh(), up = fresh(), down = fresh();
+    const eff = mergeManualEffects(source, effectsMap.get(source) ?? []).find(e => e.effectId === 'WXDi-P08-037-E2')!;
+    const ctx = mkCtx({ signi: [source, up, down], down: [false, false, true], deckTop: [revealed] }, {}, source);
+    const search = executeEffect(eff, ctx);
+    ok(!search.done && search.pending.type === 'SEARCH', 'シグニなら公開選択');
+    const c0: ExecCtx = { ...ctx, ownerState: search.ownerState, otherState: search.otherState, logs: search.logs };
+    const swap = resumeSearch([revealed], search.pending as never, c0);
+    ok(!swap.done && swap.pending.type === 'REARRANGE_SIGNI' && swap.pending.mode === 'swap', '交換先選択pending');
+    eq(JSON.stringify(swap.pending.signiNums), JSON.stringify([source, up]), 'アップ状態だけが候補');
+    ok(swap.pending.optional && swap.pending.suppressOnPlay, '任意かつ【出】抑止をpendingへ保持');
+    const c1: ExecCtx = { ...ctx, ownerState: swap.ownerState, otherState: swap.otherState, logs: swap.logs };
+    const doneSwap = resumeRearrangeSigni([up], swap.pending as never, c1);
+    eq(doneSwap.ownerState.field.signi[1]?.at(-1), revealed, '公開シグニが場へ');
+    eq(doneSwap.ownerState.deck[0], up, '交換されたシグニがデッキトップへ');
+
+    const uiSkipArrangement = buildRearrangeSigniArrangement(null, swap.pending.mode, c1.ownerState.field.signi);
+    eq(JSON.stringify(uiSkipArrangement), '[]', 'UIのnull応答をswap用の空配列へ変換');
+    const skip = resumeRearrangeSigni(uiSkipArrangement, swap.pending as never, c1);
+    eq(skip.ownerState.deck[0], revealed, '断った場合は公開札がトップのまま');
+    eq(skip.ownerState.field.signi[1]?.at(-1), up, '断った場合は場も不変');
+
+    const identity = buildRearrangeSigniArrangement(null, 'rearrange', c1.ownerState.field.signi);
+    eq(JSON.stringify(identity), JSON.stringify([source, up, down]), 'count:ALLのnullは従来どおり恒等配置');
+
+    const noUpCtx = mkCtx({ signi: [source, down, null], down: [true, true, false], deckTop: [revealed] }, {}, source);
+    const noUpSearch = executeEffect(eff, noUpCtx);
+    const noUpC: ExecCtx = { ...noUpCtx, ownerState: noUpSearch.ownerState, otherState: noUpSearch.otherState, logs: noUpSearch.logs };
+    const noUp = resumeSearch([revealed], noUpSearch.pending as never, noUpC);
+    ok(noUp.done && noUp.ownerState.deck[0] === revealed, 'アップ状態シグニ0体なら交換なし');
+
+    const spell = findCard(c => c.Type === 'スペル');
+    const nonSigniCtx = mkCtx({ signi: [source, up, null], deckTop: [spell] }, {}, source);
+    const nonSigni = executeEffect(eff, nonSigniCtx);
+    ok(nonSigni.done && nonSigni.ownerState.deck[0] === spell, '非シグニ公開なら交換pendingなし・トップ復帰');
+  } finally { cursor = savedCursor; }
 });
 test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLevelを上書き（WX04-049・条件成立時のみ）', () => {
   const st = mkState({ signi: ['WX04-049', 'WD04-009', null] }); // WD04-009=空獣/地獣
