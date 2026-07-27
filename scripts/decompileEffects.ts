@@ -2015,6 +2015,7 @@ const timingJa: Record<string, string> = {
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
   ON_GROW_PHASE_START: 'あなたのグロウフェイズ開始時',
+  ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT: 'あなたが対戦相手のシグニのアタックを効果によって無効にしたとき',
   ON_MAIN_PHASE_START: 'あなたのメインフェイズ開始時',
   ON_OPP_LIFE_CRASHED: '対戦相手のライフがクラッシュされたとき', ON_SIGNI_BATTLE: 'このシグニがバトルしたとき',
   ON_SIGNI_DAMAGE: 'このシグニが相手にダメージを与えたとき', ON_LEAVE_FIELD: 'このカードが場を離れたとき',
@@ -2223,7 +2224,7 @@ function effJa(e: Eff): string {
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
     if (t === 'ON_TRASH' && e.triggerCondition?.fromZones) {
-      const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナ', field: '場' };
+      const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナ', field: '場', under_signi: 'シグニの下' };
       const zones = e.triggerCondition.fromZones.map((z: string) => zoneJa[z] ?? z).join('か');
       s = s.replace('トラッシュに置かれたとき', `${zones}からトラッシュに置かれたとき`);
     }

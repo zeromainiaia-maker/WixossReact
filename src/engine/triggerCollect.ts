@@ -1777,7 +1777,7 @@ export function collectOppEnergyAddedTriggers(
  */
 export function collectSelfEventTriggers(
   ctx: TrigCtx,
-  timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
+  timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
   myState: PlayerState,
   opState: PlayerState,
   labelSuffix: string,
@@ -1786,6 +1786,13 @@ export function collectSelfEventTriggers(
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
   const limitOk = mkLimitOk(myState.actions_done, usedOncePerTurnIds);
+  const containsSelfTrashExile = (action: CardEffect['action']): boolean => {
+    const a = action as unknown as Record<string, unknown>;
+    if (a.type === 'STUB' && a.id === 'BANISH_FROM_GAME') return true;
+    if (Array.isArray(a.steps)) return (a.steps as CardEffect['action'][]).some(containsSelfTrashExile);
+    if (a.then && typeof a.then === 'object') return containsSelfTrashExile(a.then as CardEffect['action']);
+    return false;
+  };
   if (myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
   // FROZEN_LOSES_ABILITIES: 相手ルリグにこの常在があれば自分の凍結シグニのAUTOは発火しない
   const opLrigTop = opState.field.lrig.at(-1);
@@ -1806,6 +1813,7 @@ export function collectSelfEventTriggers(
     for (const eff of ctx.effectsMap.get(topNum) ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
+      if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' && containsSelfTrashExile(eff.action)) continue;
       // トラッシュからの自己復活（ADD_TO_FIELD source:TRASH_CARD で自身を出す）はトラッシュ専用＝場走査では除外。
       {
         const fAct = eff.action as AddToFieldAction;
@@ -1855,6 +1863,22 @@ export function collectSelfEventTriggers(
         entries.push({
           id: ctx.genId(), playerId: ownerId, cardNum: trashInstance, effectId: eff.effectId,
           label: `${cardName} の【自】効果（${labelSuffix}・トラッシュから復活）`, effect: eff,
+        });
+      }
+    }
+  }
+  // トラッシュにある自身を任意でゲームから除外することが後続効果の条件になる能力。
+  // timing だけ一致する一般のトラッシュカードは拾わず、発生源ゾーンを明記する action に限定する。
+  if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT') {
+    for (const trashInstance of myState.trash) {
+      for (const eff of ctx.effectsMap.get(trashInstance) ?? []) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing) || !containsSelfTrashExile(eff.action)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, trashInstance, ctx.turnPhase, ctx.effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = ctx.cardMap.get(trashInstance)?.CardName ?? trashInstance;
+        entries.push({
+          id: ctx.genId(), playerId: ownerId, cardNum: trashInstance, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（シグニアタック無効時・トラッシュ）`, effect: eff,
         });
       }
     }

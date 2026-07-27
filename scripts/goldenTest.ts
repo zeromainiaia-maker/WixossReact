@@ -32,7 +32,7 @@ import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNew
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
-import { consumeNthAttackNegation } from '../src/screens/battle/attackNegation';
+import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
@@ -10384,6 +10384,71 @@ test('additional exceed curated: pay/skip and insufficient pool', () => {
       ok(discardShortOffered.pending.options.find(o => o.id === 'pay')?.available === false,
         'hand discard cost: insufficient hand makes pay unavailable');
     }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 mechanism B: effect-negated SIGNI attack collects field/trash sources only in their real zones', () => {
+  const savedCursor = cursor;
+  try {
+    const mechanismEffects = new Map(effectsMap);
+    for (const n of ['WX05-025', 'WX14-064', 'WX13-040']) {
+      mechanismEffects.set(n, mergeManualEffects(n, mechanismEffects.get(n) ?? []));
+    }
+    const mechanismCtx = { ...trigCtx(HOST), effectsMap: mechanismEffects };
+    const annLrig = findCard(c => c.Type === 'ルリグ' && c.CardName.includes('アン'));
+    const defender0 = mkState({ signi: ['WX05-025', null, null], trash: 0 });
+    const defender: PlayerState = {
+      ...defender0, trash: ['WX14-064', 'WX13-040'],
+      field: { ...defender0.field, lrig: [annLrig] },
+    };
+    const attacker = mkState({ signi: [SIGNI, null, null], trash: 0 });
+    const fired = collectSelfEventTriggers(
+      mechanismCtx, 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', defender, attacker, 'test', GUEST,
+    );
+    eq(fired.entries.map(e => e.effectId).sort().join(','),
+      'WX05-025-E2,WX13-040-E1,WX14-064-E1',
+      '場のスイボク＋トラッシュのミニマリ/シンカーが発火');
+
+    const wrongZones0 = mkState({ signi: ['WX14-064', 'WX13-040', null], trash: 0 });
+    const wrongZones: PlayerState = {
+      ...wrongZones0, trash: ['WX05-025'],
+      field: { ...wrongZones0.field, lrig: [annLrig] },
+    };
+    const notFired = collectSelfEventTriggers(
+      mechanismCtx, 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', wrongZones, attacker, 'test', GUEST,
+    );
+    eq(notFired.entries.length, 0, '発生源を逆のゾーンに置くと全て非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 mechanism B routing: accepted escape emits; paid escape does not negate the attack', () => {
+  const savedCursor = cursor;
+  try {
+    const mechanismEffects = new Map(effectsMap);
+    mechanismEffects.set('WX05-025', mergeManualEffects('WX05-025', mechanismEffects.get('WX05-025') ?? []));
+    const mechanismCtx = { ...trigCtx(HOST), effectsMap: mechanismEffects };
+    const defender = mkState({ signi: ['WX05-025', null, null], trash: 0 });
+    const attacker = mkState({ signi: [SIGNI, null, null], hand: 2, trash: 0, down: [false, false, false] });
+    const nth = consumeNthAttackNegation({ ...defender, negate_opp_attacks: { remaining: 1, signi: true, lrig: true } }, 'signi');
+    ok(nth.negated, 'シグニの効果無効化確定点に到達');
+    eq(collectSelfEventTriggers(mechanismCtx, 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', nth.defender, attacker, 'test', GUEST).entries.length,
+      1, '確定したシグニ無効化は watcher 発火');
+
+    const escapeDefender = { ...defender, negated_attacks: [SIGNI], negated_attacks_escape: { [SIGNI]: 2 } };
+    const accepted = resolveNegateEscapeChoice(attacker, escapeDefender, 'accept', SIGNI, 0);
+    ok(accepted.attackNegated, 'escape accept は production helper 上でアタック無効化を確定');
+    ok(accepted.attacker.field.signi_down?.[0] === true, 'escape accept はアタックシグニをダウン');
+    eq(collectSelfEventTriggers(mechanismCtx, 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', accepted.defender, accepted.attacker, 'test', GUEST).entries.length,
+      1, 'escape accept 後の実 state から防御側 watcher が発火');
+
+    const escaped = resolveNegateEscapeChoice(attacker, escapeDefender, 'discard', SIGNI, 0, new Set([0, 1]));
+    ok(!escaped.attackNegated, 'escape discard は production helper 上で無効化を回避');
+    eq(escaped.attacker.hand.length, attacker.hand.length - 2, 'escape discard は選択した手札を支払う');
+    ok(escaped.attacker.field.signi_down?.[0] === false, 'escape discard は再攻撃前にシグニをダウンしない');
   } finally {
     cursor = savedCursor;
   }

@@ -29,7 +29,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
-import { consumeNthAttackNegation } from './battle/attackNegation';
+import { consumeNthAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
@@ -4805,7 +4805,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    */
   // ON_LIFE_CRASHED/ON_GUARD/ウィルス系 自イベント収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectSelfEventTriggers = (
-    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
+    timing: 'ON_LIFE_CRASHED' | 'ON_GUARD' | 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' | 'ON_OPP_VIRUS_PLACED' | 'ON_OPP_VIRUS_REMOVED' | 'ON_OPP_VIRUS_CHANGED',
     myState: PlayerState,
     opState: PlayerState,
     labelSuffix: string,
@@ -6805,8 +6805,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // NEGATE_NTH_ATTACK: 防御側の共有カウンタがシグニを対象にする場合
       const signiNegation = consumeNthAttackNegation(op, 'signi');
       if (signiNegation.negated) {
+        const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', signiNegation.defender, newMyState, 'シグニアタック無効時', defenderId);
+        const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
+          ? { ...signiNegation.defender, actions_done: [...(signiNegation.defender.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
+          : signiNegation.defender;
+        const stack = negatedTriggers.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
+          : undefined;
         appendBattleLogs([`${myCardName}のアタックは無効化された（残り${signiNegation.remaining}回）`]);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: signiNegation.defender } }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
         return;
       }
       // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
@@ -6821,8 +6828,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const clearedNA = (op.negated_attacks ?? []).filter(id => id !== myTopNum);
         const escMap0 = { ...(op.negated_attacks_escape ?? {}) }; delete escMap0[myTopNum];
         const newOpNA: PlayerState = { ...op, negated_attacks: clearedNA.length ? clearedNA : undefined, negated_attacks_escape: Object.keys(escMap0).length ? escMap0 : undefined };
+        const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', newOpNA, newMyState, 'シグニアタック無効時', defenderId);
+        const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
+          ? { ...newOpNA, actions_done: [...(newOpNA.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
+          : newOpNA;
+        const stack = negatedTriggers.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
+          : undefined;
         appendBattleLogs([`${myCardName}のアタックは無効化された`]);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpNA } }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
         return;
       }
 
@@ -7018,7 +7032,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // NEGATE_ATTACK_ON_TRIGGER: アタックキャンセルフラグがあればバトル/ダメージを全てスキップ
       if (myS.cancel_current_signi_attack) {
         const clearedState: PlayerState = { ...myS, pending_signi_battle: undefined, cancel_current_signi_attack: undefined };
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: clearedState }));
+        const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', opS, clearedState, 'シグニアタック無効時', defenderId);
+        const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
+          ? { ...opS, actions_done: [...(opS.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
+          : opS;
+        const stack = negatedTriggers.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
+          : undefined;
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: clearedState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
         appendBattleLogs([`${myCardName}のアタックが無効になった`]);
         return;
       }
@@ -8034,15 +8055,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const resolveNegateEscapeDiscard = async () => {
     if (!negateEscape || selectedNegateEscape.size !== negateEscape.count || loading) return;
     const { zoneIndex, targetOpZone, cardNum } = negateEscape;
-    const discardNums = [...selectedNegateEscape].map(i => my.hand[i]).filter((n): n is string => !!n);
-    const newMy: PlayerState = { ...my, hand: my.hand.filter((_, i) => !selectedNegateEscape.has(i)), trash: [...my.trash, ...discardNums] };
-    const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
-    const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
+    const escaped = resolveNegateEscapeChoice(my, op, 'discard', cardNum, zoneIndex, selectedNegateEscape);
     appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
     closeNegateEscape();
     // 無効化を解除した状態でアタックを再実行（performSigniAttack 冒頭の negated_attacks 判定を通過する）
     await performSigniAttack(zoneIndex, {
-      attacker: newMy, defender: newOp,
+      attacker: escaped.attacker, defender: escaped.defender,
       attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
       attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
     });
@@ -8054,16 +8072,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const { zoneIndex, cardNum } = negateEscape;
-      const newSigniDown = [...(my.field.signi_down ?? [false, false, false])] as boolean[];
-      newSigniDown[zoneIndex] = true;
-      const newMy: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: [...(my.attacked_signi_ids ?? []), cardNum] };
-      const escMap = { ...(op.negated_attacks_escape ?? {}) }; delete escMap[cardNum];
-      const newOp: PlayerState = { ...op, negated_attacks: (op.negated_attacks ?? []).filter(n => n !== cardNum), negated_attacks_escape: Object.keys(escMap).length ? escMap : undefined };
+      const accepted = resolveNegateEscapeChoice(my, op, 'accept', cardNum, zoneIndex);
+      const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', accepted.defender, accepted.attacker, 'シグニアタック無効時', isHost ? bs.guest_id : bs.host_id);
+      const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
+        ? { ...accepted.defender, actions_done: [...(accepted.defender.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
+        : accepted.defender;
+      const stack = negatedTriggers.entries.length > 0
+        ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? user.id, negatedTriggers.entries))
+        : undefined;
       appendBattleLogs([`${battleCardMap.get(cardNum)?.CardName ?? cardNum}のアタックは無効化された`]);
       closeNegateEscape();
       const myKey = isHost ? 'host_state' : 'guest_state';
       const opKey = isHost ? 'guest_state' : 'host_state';
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMy, opp: { key: opKey, state: newOp } }));
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: accepted.attacker, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
       await flushBattleLogs();
     } finally {
       setLoading(false);

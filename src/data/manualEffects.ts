@@ -1683,6 +1683,42 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // アタック無効化 watcher。スイボクは場、ミニマリ／シンカーはトラッシュを発生源とする。
+  'WX05-025': [
+    {
+      effectId: 'WX05-025-E2', effectType: 'AUTO',
+      timing: ['ON_GUARD', 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT'], triggerScope: 'self',
+      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+      duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+    },
+  ],
+  'WX14-064': [
+    {
+      effectId: 'WX14-064-E1', effectType: 'AUTO',
+      timing: ['ON_GUARD', 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT'], triggerScope: 'self',
+      condition: { type: 'LRIG_STORY', owner: 'self', story: 'アン' },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'BANISH_FROM_GAME' },
+        { type: 'CONDITIONAL', condition: { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+      ] },
+      duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    },
+  ],
+  'WX13-040': [
+    {
+      effectId: 'WX13-040-E1', effectType: 'AUTO',
+      timing: ['ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT'], triggerScope: 'self',
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'] },
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'BANISH_FROM_GAME' },
+          { type: 'CONDITIONAL', condition: { type: 'SELF_OPTIONAL_EFFECT_TAKEN' }, then: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } },
+        ] } },
+      ] },
+      duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX16-Re07 轟砲　ウルバン（相手ライフ2枚以上クラッシュで自身アップ）
   // 【自】《ターン１回》：【ダブルクラッシュ】によって対戦相手のライフクロスが２枚以上クラッシュされたとき、このシグニをアップする。
   // E1 を ON_PLAY の誤パース（UP）から ON_OPP_LIFE_CRASHED（相手ライフクラッシュ時）へ修正。

@@ -5037,6 +5037,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : (/このカードが(?:コストか効果によって)?捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText)) ? ['ON_TRASH']
              // 「あなたの《トラップアイコン》が発動したとき」＝実際のトラップ発動完了地点から収集。
              : /あなたの《トラップアイコン》が発動したとき/.test(trigText) ? ['ON_TRAP_ACTIVATE']
+             // 「【ガード】するか、対戦相手のシグニのアタックを効果によって無効にしたとき」＝OR timing。
+             // 無効化 event は BattleScreen の効果無効化確定3地点だけが発行し、ルリグアタック／escapeDiscard回避は除外。
+             : /あなたが対戦相手のセンタールリグのアタックを【ガード】するか[^。]*対戦相手のシグニ(?:[０-９\d]+体)?のアタックを(?:効果によって)?無効にしたとき/.test(trigText)
+                 ? ['ON_GUARD', 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT']
+             : /あなたが対戦相手のシグニ(?:[０-９\d]+体)?のアタックを(?:効果によって)?無効にしたとき/.test(trigText)
+                 ? ['ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT']
              // 「あなたが【ガード】したとき」（2件）。engine 配線済み（collectSelfEventTriggers の ON_GUARD）。
              : /あなたが【ガード】したとき/.test(trigText) ? ['ON_GUARD']
              // 攻撃側変種。「あなたがガードした」とは watcher 側が逆なので triggerCondition で弁別する。

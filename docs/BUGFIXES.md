@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き273＝§3タスク16 機構B「アタックを効果によって無効にしたとき」3効果を完全配線（timing census 37→34効果・golden 767→769）（2026-07-27・codex実装/Opus 5確認）
+
+**直したバグ**＝WX05-025-E2／WX14-064-E1／WX13-040-E1 が `ON_PLAY` へ誤フォールバックし、場に出すたび誤発火していた。新 timing `ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT` を追加し、シグニアタックの効果無効化確定4地点（`NEGATE_NTH_ATTACK`／`NEGATE_THAT_ATTACK`／`NEGATE_ATTACK_ON_TRIGGER`／`resolveNegateEscapeAccept`）から**防御側**の watcher を収集する。`escapeDiscard` は、手札を支払って無効化を回避する経路では非発火、支払わず無効化を受け入れる accept 経路では発火する。ルリグアタック無効化経路には配線しない。
+
+**トラッシュ発生源**＝`collectSelfEventTriggers` で、同 timing かつ action 内に `BANISH_FROM_GAME` を持つカードだけをトラッシュから収集する。逆に同型効果は場走査から除外し、WX14-064／WX13-040 が場にいるだけでは発火しない。golden は実戦配置（WX05-025＝場、WX14-064／WX13-040＝トラッシュ）と逆配置の両方を検証。
+
+**効果忠実化**＝WX05-025 は `ON_GUARD` との OR timing。WX14-064 はルリグタイプを照合する `LRIG_STORY(アン)`＋自身を任意除外できた場合だけ DRAW。WX13-040 は任意《白》支払い→自身を任意除外→成功時だけ相手シグニを BOUNCE。既存の `OPTIONAL_COST`／`BANISH_FROM_GAME`／成功条件語彙を再利用し、defer なし。golden の routing テストは escape 選択の production helper `resolveNegateEscapeChoice` を通し、accept の無効化確定・シグニのダウン・collector 発火と、discard 支払い時の無効化回避・手札消費・非ダウンを固定する。
+
+**検証**＝`npm run gates` 全緑。golden **769/769**、smoke **10725/10725**、fuzz **200ゲーム／不具合0**、census **1532**（変化なし）、lint 0 errors。`npm run census:timing` は **37効果/36クラスタ→34効果/34クラスタ**（対象3効果がフォールバック計器から消えたことを示す。機能実装自体は上記の実行配線と golden で保証）。
+
+**⚠Claude 確認で差し戻した3件（1巡目→2巡目）**＝(1)**発火漏れ**＝`resolveNegateEscapeAccept`（escape を提示されたアタック側が**支払わず無効化を受け入れる**経路）に emission が無く、アタックが実際に無効化されるのにトリガーが落ちていた。差し戻し後、escape 選択の state 遷移を純関数 `resolveNegateEscapeChoice`（`src/screens/battle/attackNegation.ts`）へ抽出し、discard/accept 両呼び出し元を移行したうえで4地点目を配線（half-migration なし）。(2)**過剰発火**＝「センタールリグが＜アン＞の場合」に `LRIG_NAME_CONTAINS{name:'アン'}`（**カード名**の部分一致）を使っており、実データで**10枚の誤マッチ**を実測（アンストッパブル Dr.タマゴ〔class=タマゴ〕／アンシエント・トライアングル メイデン イオナ〔class=イオナ〕／メル＝アンジュ〔class=メル〕／空崎ヒナ〔class=ヒナ〕／アンジュ レベル0〜3'〔class=アンジュ〕）。＜アン＞は名前ではなく**ルリグタイプ（CardClass）**なので既存の実績語彙 `LRIG_STORY`（効果JSON 15箇所以上で使用・`execUtils.ts:1024`）へ置換し、クラス不一致5枚を是正（class=アンジュ の部分一致は ＜X＞系語彙 全体の既存性質のため対象外）。(3)**実質空のテスト**＝`ok(!('emittedTiming' in lrig), ...)` は戻り値に**元から存在しないプロパティ**の検査で常に true、escape 判定もテスト内で production ロジックを書き写しているだけだった。(1) の純関数抽出後、`resolveNegateEscapeChoice` を実際に通して accept の無効化確定・アタックシグニのダウン・collector 発火／discard の無効化回避・手札消費・非ダウンを固定する形に置換。
+
+**🆕逆翻訳（decompiler）の語彙追加（Claude）**＝新 timing と `fromZones:'under_signi'` に日本語ラベルが無く、`docs/decompile_sheet*.txt` に生の識別子（`ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT` / `under_signi`）が漏れていた。`scripts/decompileEffects.ts` の timing 表と `zoneJa` に追加し `npm run regen` で再生成。続き272 の3効果も含め6効果すべて原文に近い日本語で逆翻訳されるようになった（逆翻訳は census/BEHAVIOR_AUDIT の計器なので生識別子のままだと照合できない）。
+
+---
+
 ## 続き272＝§3タスク16「コストか効果によってシグニの下からトラッシュに置かれたとき」3効果を実装（timing census 40→37効果・golden 765→767・census 1535→1532）（2026-07-27・codex実装/Opus 5確認）
 
 **直したバグ**＝`npm run census:timing` 上位クラスタの3効果（WX18-062-E1 肥後の虎将　カトキヨ／WX22-027-E1 井伊の赤鬼　ナオマサ／WXK03-033-E1 大装　ガディヴァ）が、原文は【自】「このカードがコストか効果によって**シグニの下から**トラッシュに置かれたとき」なのに parser が timing を判定できず **`ON_PLAY` へ誤フォールバック**していた＝**場に出すたびにエナチャージ/ドロー/ダウンが誤発火**する実挙動バグ。

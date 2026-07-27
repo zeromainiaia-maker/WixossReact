@@ -67,6 +67,7 @@ export type EffectTiming =
   | 'ON_LIFE_CRASHED'           // あなたのライフクロスがクラッシュされたとき
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
   | 'ON_GUARD'                  // あなたが【ガード】したとき
+  | 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' // あなたが対戦相手のシグニのアタックを効果によって無効にしたとき
   | 'ON_ATTACK_PHASE_START'     // あなたのアタックフェイズ開始時
   | 'ON_GROW_PHASE_START'       // あなたのグロウフェイズ開始時
   | 'ON_MAIN_PHASE_START'       // メインフェイズ開始時（GROW→MAIN 遷移で発火。triggerScope:any_opp＝「対戦相手のメインフェイズ開始時」WXDi-P00-034。collectTurnTriggers で収集）
