@@ -1902,6 +1902,10 @@ export interface CardEffect {
 
   // AUTO トリガーの発火条件（原因・領域の限定）。WX04-035-E2「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき」等。
   triggerCondition?: {
+    /** ON_CARD_MILLED_FROM_DECK: deck→trash へ移動したカード自身の属性。省略=無限定。 */
+    milledCardFilter?: TargetFilter;
+    /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH 共通の解決単位最低枚数。省略=1。 */
+    minCount?: number;
     banishedLevelLtWatcher?: boolean;
     notWhileAttacking?: boolean;
     banishedFromCenterZone?: boolean;

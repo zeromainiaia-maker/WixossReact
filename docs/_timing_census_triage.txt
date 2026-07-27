@@ -390,3 +390,68 @@ n=1  このルリグが《夢限　-Q-》から《夢限　-A-》になったと
 #
 # ⚠本台帳は「機械照合」の一次判定であり、実採用時は各クラスタの該当カードで個別に原文照合・
 # engineコード確認を行うこと（[B]は特にfilter追加の実装コストが軽微かどうか要再確認）。
+
+# ---------------------------------------------------------------------------
+# 2026-07-27 残テール34効果の全数再仕分け（現行81 timing／collector実参照で再監査）
+# 判定は「timing名が型にあるか」ではなく、triggerCollect.ts/BattleScreen.tsx の収集経路と
+# 原文限定を忠実に保持できる軸が揃うかで決定。旧一次判定より後に追加された機構も反映した。
+#
+# effectId | 原文トリガー句 | 判定 | 根拠
+# WX05-020-E1 | このシグニが1ターンにライフクロスを合計2枚以上クラッシュしたとき | [C] | ON_SIGNI_DAMAGEは単発。攻撃主体別・ターン累積クラッシュ枚数を保持するcollector/stateが無い。
+# WX14-066-E1 | ルリグかシグニの効果によって手札かデッキからエナゾーンに置かれたとき | [B] | ON_ENERGY_CHARGEはBattleScreenで収集済みだが、移動元 hand/deck と原因 lrig/signi effect の軸が無い。
+# WX19-066-E1 | あなたの【自】の【英知】能力が発動したとき | [C] | 他AUTOの解決開始を横から監視し、能力クラスを照合するイベント発行が無い。
+# WX20-046-E2 | あなたがエナゾーンからカード1枚を手札に加えたとき | [B] | 現行CSVは1枚。ON_HAND_ADDED＋fromZones:['energy']は配線済みだが、この効果への忠実なtiming採用は未実施。
+# WX20-067-E1 | カード5枚がいずれかのプレイヤーの手札に加えられたとき | [B] | ON_HAND_ADDEDは配線済みだが handOwner:'any' と最低枚数軸が無い。
+# WXEX1-08-E1 | あなたが《コインアイコン》をベットしたとき | [A]→✅ | ON_COIN_PAID collectorとBET支払い経路が既存。parserの「ベットした」regexのみ追加。
+# WXEX1-41-E1 | あなたの【トラップ】1つが設置されたとき | [C] | ON_TRAP_ACTIVATEは発動専用。設置完了イベントの発行・collectorが無い。
+# WXEX1-77-E1 | 対戦相手の場にあるシグニの【出】能力が発動したとき | [C] | 相手ON_PLAY能力の発動/解決開始を横から監視するcollectorが無い。
+# WXEX2-19-E1 | あなたの【アクセ】1枚がトラッシュに置かれたとき | [C] | ON_CHARM_TO_TRASHはチャーム専用。アクセ離脱数の差分collectorが無い。
+# WXK08-028-E1 | あなたのライフクロスが他の領域に移動したとき | [C] | ON_LIFE_CRASHEDはクラッシュ限定。任意宛先のlife移動collectorが無い（ON_ZONE_MOVEDはシグニゾーン移動用）。
+# WXK10-049-E1 | このシグニにカード2枚が付いたとき | [C] | ON_ACCE/ON_ACCE_ATTACHはアクセ限定。「カード」（下敷き等を含む）汎用付与と枚数閾値のcollectorが無い。
+# WXK10-052-E1 | あなたの効果によってあなたのデッキから＜龍獣＞のシグニ1枚がトラッシュに置かれたとき | [B] | milledCardFilter {cardType:'シグニ',cardClass:'龍獣'} は採用済み。ただし「あなたの効果によって」の原因オーナー軸がcollector payloadに無く、相手効果による自デッキミルでも発火するため残る。
+# WXK11-018-E2 | このシグニがアタックしたアタック終了時 | [C] | ON_ATTACK_SIGNIは開始時。個別シグニのアタック終了イベント/collectorが無い。
+# WD23-023-E-E1 | あなたか対戦相手のライフクロス1枚がトラッシュに置かれたとき | [B] | crash collectorはあるが、非クラッシュのlife→trashを含む汎用差分とowner:anyが不足。
+# SP27-007-E1 | あなたか対戦相手が《コインアイコン》を得たとき | [C] | ON_COIN_PAIDは減少方向。コイン獲得イベントcollectorが無い。
+# PR-K038-E2 | あなたのライフクロスが1枚になったとき | [C] | life枚数が閾値へ到達した遷移collectorが無い。
+# WXDi-D07-004-E1 | あなたのシグニ1体に【ソウル】が付いたとき | [C] | ソウル効果走査はあるが、付与イベントcollectorが無い。
+# WXDi-D07-019-E1 | このシグニに【ソウル】が付いたとき | [C] | 同上。self対象を弁別するイベントも無い。
+# WXDi-D09-H16-E1 | アシストルリグかライフバーストの能力か効果の対象になったとき | [B] | ON_TARGETEDは配線済みだが対象を取った能力のorigin種別を渡す軸が無い。
+# WXDi-D09-P16-E2 | あなたが自分の効果によってカードを2枚以上捨てたとき | [B] | ON_HAND_DISCARDEDは配線済みだが minCount と byOwnEffect の両軸が無い。
+# WXDi-P03-073-E1 | このシグニが場からエナゾーンに置かれたとき | [C] | ON_ENERGY_CHARGEは場watcherであり、移動後エナにあるカード自身を拾わない。self移動collectorが無い。
+# WXDi-P06-038-E1 | あなたのエナゾーンから効果によってカード1枚が他の領域に移動したとき | [C] | ON_ENERGY_TO_TRASHは宛先trash限定。任意宛先＋効果原因のcollectorが無い。
+# WXDi-P06-072-E1 | パワー15000以上のシグニが対戦相手のシグニ1体をバニッシュしたとき | [B] | ON_SIGNI_BANISH_OPPONENTは配線済みだが、攻撃/バニッシュ主体のpower条件軸が無い。
+# WXDi-P07-052-E1 | あなたのライフクロス1枚がクラッシュされるかトラッシュに置かれたとき | [C] | crashと汎用life→trashのOR。後者collectorと複合発火の重複排除が無い。
+# WXDi-P08-065-E2 | 【出】能力か【出】能力の効果の対象になったとき | [B] | ON_TARGETEDは配線済みだが origin abilityType='出' 軸が無い。
+# WXDi-P09-079-E1 | あなたのメインフェイズの間、あなたのデッキからレベル1のシグニ1枚がトラッシュに置かれたとき | [A]→✅ | milledCardFilter {cardType:'シグニ',level:1}＋duringMainPhaseを採用し、collectorがMAINのみ発火することを正負goldenで固定。
+# WXDi-P11-063-E2 | このカードがシグニの下に置かれたとき | [C] | ON_PLACED_UNDER_SIGNIは型宣言のみでcollector参照0件。移動後under-card自身の走査も無い。
+# WXDi-P12-079-E2 | このカードがデッキからエナゾーンに置かれたとき | [C] | ON_ENERGY_CHARGEは場watcherのみ。移動後energyのカード自身＋from deckを拾うcollectorが無い。
+# WXDi-P13-051-E3 | 対戦相手の効果1つによって、あなたの手札が1枚以上捨てられるかあなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき | [B] | 現行CSVは1枚以上のhand/energy OR。minCount軸は配線済みだが、byOpponentEffect＋2経路の重複排除を含むOR collectorが無い。
+# WXDi-CP02-068-E1 | あなたの効果によって対戦相手のシグニ1体が手札に戻るかトラッシュに置かれたとき | [C] | ON_LEAVE_FIELD any_opp/byOwnEffectはあるが宛先 hand-or-trash のORを忠実に絞る軸（trash宛先）が無い。
+# WX24-P2-051-E1 | 効果によってあなたが《ガードアイコン》を持たないカードを2枚捨てたとき | [B] | ON_HAND_DISCARDEDは配線済みだが minCount・notGuard・byEffect軸が不足。
+# WX24-P2-075-E1 | あなたのアタックフェイズ終了時 | [C] | ON_ATTACK_PHASE_STARTのみ。終了時timingの発行/collectorが無い。
+# SPDi43-11-sub-E1 | 他の効果2つによってカードが合計3枚以上あなたの手札に移動したとき | [C] | ON_HAND_ADDEDは単一解決差分。複数効果を跨ぐ累積数/効果数カウンタが無い。
+# WXDi-P11-010B-E1 | このルリグが《夢限 -Q-》から《夢限 -A-》になったとき | [C] | named form遷移イベント/collectorが無い。
+#
+# 集計: [A] 1（消化1）／[B] 12（今回はdefer）／[C] 21（§6.3送り提案）。
+# [B] defer理由: いずれもregexのみでは原文限定を保持できず、イベントpayload/差分・型・collector・正負goldenを
+# 一体で追加する必要がある。単発34件の場当たり近似を避け、共通軸（枚数閾値、移動カードfilter、target origin）
+# ごとの機構バッチとして§6.3で扱う。
+
+# ---------------------------------------------------------------------------
+# 2026-07-27 続き278：限定差し戻し＋共通軸バッチ
+# ✅ WXEX1-08-E1: ON_COIN_PAID + condition IS_BETTING。BET時のみ発火。
+# ⏸ WXK10-052-E1: milledCardFilter {cardType:'シグニ',cardClass:'龍獣'} は採用済み。ただし
+#    「あなたの効果によって」の原因オーナー軸が残るため [B]。今回は記録のみで実装しない。
+# ✅ WXDi-P09-079-E1: milledCardFilter {cardType:'シグニ',level:1}＋duringMainPhaseを採用。
+#    collector honorを追加し、メインフェイズ発火／アタックフェイズ非発火をgolden固定。
+# ⚙ 共通 minCount 軸: ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH に実装済み（省略=1）。
+# ⏸ WX20-046-E2: 現行 CardData_Sheet2.csv 原文は「エナゾーンからカード1枚を手札に加えたとき」。
+#    依頼表の3枚と不一致のため minCount:3 は採用せず、timing自体の忠実化は別途原文1枚で扱う。
+# ⏸ WXDi-P13-051-E3: 現行 CardData_Sheet8.csv 原文は「対戦相手の効果1つによって、手札が1枚以上
+#    捨てられるかエナから1枚以上trash」のOR。依頼表の3枚・不足軸なしと不一致。minCount:3 は採用せず、
+#    byOpponentEffect＋hand/energy ORを一体で配線するまでdefer。
+# ⏸ WXDi-D09-P16-E2: minCount軸は実装済みだが byOwnEffect が残る。
+# ⏸ WX20-067-E1: minCount軸は実装済みだが handOwner:'any' が残る。
+# ⏸ WX24-P2-051-E1: minCount軸は実装済みだが notGuard・byEffect が残る。
+# 再集計: 完全消化 WXEX1-08/WXDi-P09-079。WXK10-052は龍獣filterのみ消化し原因owner軸を[B] defer。
+# minCount機構は着地したが、現行原文不一致2件と追加軸残り4件は過剰発火を避けてcurated未採用。

@@ -292,6 +292,14 @@ export function countMilledFromDeck(before: PlayerState, after: PlayerState): nu
   return n;
 }
 
+/** デッキ→トラッシュへ実際に移動したカードの instanceId 群。 */
+export function detectMilledFromDeck(before: PlayerState, after: PlayerState): string[] {
+  if (!before || !after) return [];
+  const beforeDeck = new Set(before.deck);
+  const beforeTrash = new Set(before.trash);
+  return after.trash.filter(c => beforeDeck.has(c) && !beforeTrash.has(c));
+}
+
 /**
  * デッキに「新たに加わった」枚数（他領域→デッキ移動）を算出。after.deck かつ not before.deck。
  * fromTrashOnly=true のときは解決前トラッシュにあったカードのみ数える（WX09-020/WX22-014）。

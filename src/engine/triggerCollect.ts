@@ -1070,6 +1070,8 @@ export function collectMillTriggers(
   otherState: PlayerState,
   milledFromControllerDeck: number,
   milledFromOppDeck: number,
+  milledControllerCards?: string[],
+  milledOppCards?: string[],
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
@@ -1085,13 +1087,20 @@ export function collectMillTriggers(
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
       const minCount = eff.triggerCondition?.milledMinCount ?? 1;
-      const relevant = owner === 'self' ? milledFromControllerDeck
+      const relevantCards = owner === 'self' ? milledControllerCards
+        : owner === 'opponent' ? milledOppCards
+        : (milledControllerCards && milledOppCards ? [...milledControllerCards, ...milledOppCards] : undefined);
+      if (eff.triggerCondition?.milledCardFilter && !relevantCards) continue;
+      const relevant = eff.triggerCondition?.milledCardFilter
+        ? relevantCards!.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerCondition!.milledCardFilter!)).length
+        : owner === 'self' ? milledFromControllerDeck
         : owner === 'opponent' ? milledFromOppDeck
         : milledFromControllerDeck + milledFromOppDeck;
       if (relevant < minCount) continue;
       const turnOwner = eff.triggerCondition?.turnOwner;
       if (turnOwner === 'self' && !isControllerTurn) continue;
       if (turnOwner === 'opponent' && isControllerTurn) continue;
+      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
       // ⚠last_effect_mill_source は execMill 以外の経路では埋まらない＝**未設定は発生源不明として従来どおり発火**
       //   させる（過剰側に倒す）。ここで落とすと部分実装が過少発火の退化になる。
@@ -1118,13 +1127,20 @@ export function collectMillTriggers(
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_CARD_MILLED_FROM_DECK')) continue;
     const owner = eff.triggerCondition?.milledDeckOwner ?? 'any';
     const minCount = eff.triggerCondition?.milledMinCount ?? 1;
-    const relevant = owner === 'self' ? milledFromControllerDeck
+    const relevantCards = owner === 'self' ? milledControllerCards
+      : owner === 'opponent' ? milledOppCards
+      : (milledControllerCards && milledOppCards ? [...milledControllerCards, ...milledOppCards] : undefined);
+    if (eff.triggerCondition?.milledCardFilter && !relevantCards) continue;
+    const relevant = eff.triggerCondition?.milledCardFilter
+      ? relevantCards!.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerCondition!.milledCardFilter!)).length
+      : owner === 'self' ? milledFromControllerDeck
       : owner === 'opponent' ? milledFromOppDeck
       : milledFromControllerDeck + milledFromOppDeck;
     if (relevant < minCount) continue;
     const turnOwner = eff.triggerCondition?.turnOwner;
     if (turnOwner === 'self' && !isControllerTurn) continue;
     if (turnOwner === 'opponent' && isControllerTurn) continue;
+    if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, '')) continue;
     if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, '', ctx.turnPhase, ctx.effectivePowers)) continue;
     if (!limitOk(eff)) continue;
@@ -1160,7 +1176,7 @@ export function collectCharmToTrashTriggers(
       const relevant = scope === 'any_ally' ? charmsFromControllerField
         : scope === 'any_opp' ? charmsFromOppField
         : charmsFromControllerField + charmsFromOppField;
-      if (relevant <= 0) continue;
+      if (relevant < (eff.triggerCondition?.minCount ?? 1)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
@@ -1197,7 +1213,7 @@ export function collectEnergyToTrashTriggers(
       const relevant = owner === 'self' ? fromControllerEnergy
         : owner === 'opponent' ? fromOppEnergy
         : fromControllerEnergy + fromOppEnergy;
-      if (relevant <= 0) continue;
+      if (relevant < (eff.triggerCondition?.minCount ?? 1)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
@@ -1572,7 +1588,7 @@ export function collectHandAddedTriggers(
             const ho = eff.triggerCondition?.handOwner ?? 'self';
             if (ho === 'self' && !handIsWatcherOwn) continue;
             if (ho === 'opponent' && handIsWatcherOwn) continue;
-            if (matchingMoved(eff, grp.moved).length === 0) continue;
+            if (matchingMoved(eff, grp.moved).length < (eff.triggerCondition?.minCount ?? 1)) continue;
             const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
               + usedIds.filter(id => id === eff.effectId).length;
             if (used >= max) break;
@@ -1593,7 +1609,7 @@ export function collectHandAddedTriggers(
         for (const eff of effsOf(ctx, m.cardNum)) {
           if (!eff.triggerCondition?.movedSelf) continue;
           if (!evalCommon(eff, watcherId, watcherState, otherState, m.cardNum)) continue;
-          if (matchingMoved(eff, [m]).length === 0) continue;
+          if (matchingMoved(eff, [m]).length < (eff.triggerCondition?.minCount ?? 1)) continue;
           const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
           const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
             + usedIds.filter(id => id === eff.effectId).length;
@@ -2098,6 +2114,8 @@ export function collectHandDiscardTriggers(
   const limitOk = mkLimitOk(myState.actions_done, usedLimitIds);
   const matchesTrigFilter = (eff: CardEffect): boolean =>
     !eff.triggerFilter || discardedNums.some(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter));
+  const meetsMinCount = (eff: CardEffect): boolean =>
+    discardedNums.length >= (eff.triggerCondition?.minCount ?? 1);
   // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）
   // 発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして」＝コストを支払った能力の host シグニ
   //（costSourceNum）の CardClass に X を含むときだけ発火（Opusタスク12(xxiv)）。
@@ -2124,6 +2142,7 @@ export function collectHandDiscardTriggers(
     if (!topNum) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+      if (!meetsMinCount(eff)) continue;
       // any_opp＝「対戦相手が捨てたとき」＝discarder 自身の場では発火しない（相手フィールド path で拾う）。
       if (eff.triggerScope === 'any_opp') continue;
       const isAny = eff.triggerScope === 'any';
@@ -2145,6 +2164,7 @@ export function collectHandDiscardTriggers(
   if (myLrigHD) {
     for (const eff of (ctx.effectsMap.get(myLrigHD) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+      if (!meetsMinCount(eff)) continue;
       if (eff.triggerScope === 'any_opp') continue; // 相手が捨てたとき＝discarder 自身の LRIG では発火しない
       const isAny = eff.triggerScope === 'any';
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
@@ -2172,6 +2192,7 @@ export function collectHandDiscardTriggers(
       if (oppBlocked && !isLrig) continue;
       for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
+        if (!meetsMinCount(eff)) continue;
         if (eff.triggerScope !== 'any' && eff.triggerScope !== 'any_opp') continue;
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {

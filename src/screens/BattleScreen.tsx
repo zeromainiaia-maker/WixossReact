@@ -12,7 +12,7 @@ import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers } from '../engine/triggerCollect';
-import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectEnergyAdded } from '../engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectEnergyAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -2527,8 +2527,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     otherState: PlayerState,
     milledFromControllerDeck: number,
     milledFromOppDeck: number,
+    milledControllerCards?: string[],
+    milledOppCards?: string[],
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectMillTriggers(mkTrigCtx(), controllerId, controllerState, otherState, milledFromControllerDeck, milledFromOppDeck);
+    pureCollectMillTriggers(mkTrigCtx(), controllerId, controllerState, otherState, milledFromControllerDeck, milledFromOppDeck, milledControllerCards, milledOppCards);
 
   // ON_CHARM_TO_TRASH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectCharmToTrashTriggers = (
@@ -2748,10 +2750,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ON_CARD_MILLED_FROM_DECK: デッキ→トラッシュ（ミル）が起きた場合
     const milledHost  = countMilledFromDeck(beforeHost, h);
     const milledGuest = countMilledFromDeck(beforeGuest, g);
+    const milledHostCards = detectMilledFromDeck(beforeHost, h);
+    const milledGuestCards = detectMilledFromDeck(beforeGuest, g);
     if (milledHost > 0 || milledGuest > 0) {
-      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest);
+      const mtH = collectMillTriggers(bs.host_id, h, g, milledHost, milledGuest, milledHostCards, milledGuestCards);
       entries.push(...mtH.entries); useHost(mtH.usedOncePerTurnIds);
-      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost);
+      const mtG = collectMillTriggers(bs.guest_id, g, h, milledGuest, milledHost, milledGuestCards, milledHostCards);
       entries.push(...mtG.entries); useGuest(mtG.usedOncePerTurnIds);
     }
 

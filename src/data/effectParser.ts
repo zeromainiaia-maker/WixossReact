@@ -4894,7 +4894,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「あなた/対戦相手の[他の][センター]ルリグがグロウしたとき」（WXDi-P05-010 等）。⚠engine未配線。トリガー文非除去・scope は下で抽出
              : trigText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「あなたが《コイン》を1枚以上支払ったとき」（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線。トリガー文非除去
-             : trigText.match(/あなたが《コイン[^》]*》を[^。]{0,8}支払ったとき/) ? ['ON_COIN_PAID']
+             : trigText.match(/あなたが《コイン[^》]*》を(?:[^。]{0,8}支払った|ベットした)とき/) ? ['ON_COIN_PAID']
              // 「《改造素材》が使用された/あなたが《改造素材》を使用したとき」（WXK09-047 等）。⚠engine未配線。トリガー文非除去・scope/cond は下で抽出
              : trigText.match(/《改造素材》[^。]{0,12}(?:使用された|使用した)とき/) ? ['ON_MATERIAL_USED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
@@ -5449,6 +5449,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたのターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'self';
         else if (/対戦相手のターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'opponent';
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...sdCond };
+      }
+      // 「コインをベットしたとき」は一般のコイン支払いと区別する。
+      if (timing.includes('ON_COIN_PAID') && /ベットしたとき/.test(trigText)) {
+        extractedTriggerCondition = { type: 'IS_BETTING' };
       }
       // 「このカードがコストか効果によってシグニの下からトラッシュ」:
       // 移動したカード自身の ON_TRASH。自然消滅やライズ本体の入れ替えとは区別して中央 board diff で収集する。

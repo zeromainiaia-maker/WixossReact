@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き278＝WXEX1-08 BET限定＋ミル移動カードfilter軸（2026-07-27・codex）
+
+**WXEX1-08-E1**＝`ON_COIN_PAID` だけではグロウ・キー・起動等の全コイン支払いで過剰発火するため、既存 `condition:{type:'IS_BETTING'}` を parser/curated JSONへ追加。golden はルリグを実戦どおり `field.lrig=['WXEX1-08#1']` に置き、BETフラグあり発火／通常支払い非発火／betCost=0のエンコアのみ非発火を固定した。
+
+**移動カードfilter＋phase軸**＝`triggerCondition.milledCardFilter` を追加し、盤面差分から deck→trash へ実際に動いた instanceId 群を production collector へ渡して `matchesFilter` で評価。省略時は従来の枚数だけを見るため後方互換。現行CSV原文に合わせ WXK10-052-E1 は `{cardType:'シグニ',cardClass:'龍獣'}`、WXDi-P09-079-E1 は `{cardType:'シグニ',level:1}` を設定した。さらに後者へ `duringMainPhase:true` を採用し、`collectMillTriggers` の場のAUTO／ゲーム中付与AUTOの両走査で `ctx.turnPhase === 'MAIN'` を honor（省略時は無限定）。実戦同型の instanceId＋signi zone golden でメインフェイズ発火／アタックフェイズ非発火を固定した。
+
+**原因owner defer**＝WXK10-052-E1 は＜龍獣＞filterまで忠実化したが、原文の「あなたの効果によって」は未実装。`collectMillTriggers` の呼び出しpayloadに原因オーナーが無く、現状は相手効果で自分のデッキがミルされても発火するため、timing台帳に [B] と明記して機構追加までdeferした。
+
+**minCount軸**＝`ON_HAND_ADDED`／`ON_HAND_DISCARDED`／`ON_ENERGY_TO_TRASH` 共通で `triggerCondition.minCount` を実装（省略=1）し、3 collectorすべてで N-1非発火／N発火を synthetic golden で固定。ただし依頼表と現行CSV原文を照合すると WX20-046-E2 は1枚、WXDi-P13-051-E3も1枚以上かつ相手効果による手札捨てORエナtrashであり、3枚としてのcurated採用は原文改変になるため見送った。WXK10-052も依頼表の＜宇宙＞ではなく現行原文は＜龍獣＞だったため原文側を採用した。
+
+**計器**＝golden 775、census 1532据置、timing census 33/33。timing census残数が減らないのは、今回消化したミル2件が既に curated timing を持つ一方、fresh parser側の複文認識はなおフォールバックするため。台帳に現行CSVとの再照合結果を追記した。
+
+**検証**＝最終差分で `npm run gates` 10/10 PASS・FAIL 0（各回 golden 775/775、smoke 10725/10725、fuzz 200ゲーム不具合0、census 1532）。
+
+---
+
+## 続き277＝§3タスク16 残テール34件の全数仕分け＋コインBET 1件消化（2026-07-27・codex）
+
+**全数仕分け**＝`docs/_timing_census_triage.txt` の3段階基準を現行実装で再監査し、34効果を **[A]完全wired 1／[B]部分wired 12／[C]未wired 21** に確定した。`EffectTiming` の宣言だけで判定せず、`triggerCollect.ts` と `BattleScreen.tsx` のcollector実参照、必要なscope/filter/原因/枚数軸、移動後ゾーンからの発生源到達性を各行で確認した。特に `ON_PLACED_UNDER_SIGNI` は型のみ・collector参照0のため[C]。全34行の原文句と根拠は同台帳の2026-07-27節。
+
+**[A]消化**＝WXEX1-08-E1「あなたが《コインアイコン》をベットしたとき」は既存 `ON_COIN_PAID` collectorとBET支払い経路が利用可能で、parserが「支払った」しか認識しない単純な語彙穴だった。timing regexへ「ベットした」を追加し、curated JSONを `ON_PLAY` から `ON_COIN_PAID` へ採用した。action（`GAIN_COIN 2`）・usageLimit（once_per_turn）は不変。場に出しただけでは `ON_PLAY` として収集されず、コインBET支払いイベントだけで既存collectorの対象になる。
+
+**defer**＝[B]12件は、手札追加/捨て/エナ移動/ミルの最低枚数、移動カードのlevel/CardClass、原因能力種別、対象能力origin、バニッシュ主体power等の少なくとも1軸が不足するため、regexだけを足すと無条件・過剰発火になる。[C]21件はcollector/イベント発行自体が無い。いずれもフェイク実装せず、共通軸単位で§6.3へ送る提案を台帳に記録した。
+
+**golden**＝parser production入力 `WXEX1-08` を `parseCardEffects` に通し、E1が `ON_COIN_PAID` を持ち `ON_PLAY` を持たないことを固定。さらに発生源をhostのシグニゾーン0へ実戦同様の instanceId `WXEX1-08#1` で置き、同じparsed effectsをinstanceIdへ結び、BET支払いイベントでE1が1件収集されることを実測。共有`cursor`はtry/finallyで復元した。既存 `C1 ON_COIN_PAID` 正負テスト（支払い時発火・usageLimit後非発火）も継続検証する。
+
+**計器**＝`npm run census:timing` は **34効果/34クラスタ→33効果/33クラスタ**。これは唯一の[A]の実配線による減少で、単なる計器改善ではない。
+
+**検証**＝最終差分で `npm run gates` **10/10回 PASS・FAIL 0**（各回 golden 773/773、smoke 10725/10725、fuzz 200ゲーム不具合0、census 1532、lint 0 errors）。
+
+---
+
 ## 続き276＝§3タスク19 スペルの使用後配置を解決後へ移動し、自己除外を配置置換化（2026-07-27・codex実装/Opus 5確認）
 
 **根本原因**＝通常スペルを `executeEffect` より前にトラッシュへ置いていたため、使用中のスペル自身がトラッシュ枚数・選択候補・全回収へ混入していた。WXK11-070 修築では自身を `TRANSFER_TO_DECK{count:'ALL'}` でデッキへ戻した後、広域探索型 `EXILE_SELF_AFTER_USE` がデッキ／ライフへ移った自身を追跡していた。ルール上、スペルは効果解決中は未配置で、解決後にトラッシュへ置かれる（自己除外はその配置の置換）。

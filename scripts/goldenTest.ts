@@ -8731,6 +8731,108 @@ test('WXK11-070: energy thresholds share pre-recovery count and self-exile is un
   }
 });
 
+test('task16 tail A: WXEX1-08 の「コインをベットしたとき」を ON_COIN_PAID に配線', () => {
+  const savedCursor = cursor;
+  try {
+    const parsed = parseCardEffects(cardMap.get('WXEX1-08')!);
+    const eff = parsed.find(e => e.effectId === 'WXEX1-08-E1');
+    ok(!!eff?.timing?.includes('ON_COIN_PAID'), 'WXEX1-08-E1: ON_COIN_PAID');
+    ok(!eff?.timing?.includes('ON_PLAY'), 'WXEX1-08-E1: ON_PLAY 誤フォールバックなし');
+    eq(eff?.condition?.type, 'IS_BETTING', 'WXEX1-08-E1: ベット支払い限定');
+    const source = 'WXEX1-08#1';
+    const localEffects = new Map(effectsMap);
+    localEffects.set(source, parsed);
+    const host = mkState({});
+    host.field.lrig = [source];
+    host.is_betting_this_effect = true;
+    host.bet_coins_paid = 1;
+    const ctx = { ...trigCtx(HOST), effectsMap: localEffects };
+    const count = (state: PlayerState) =>
+      collectCoinPaidTriggers(ctx, HOST, state, mkState({})).entries.filter(e => e.effectId === 'WXEX1-08-E1').length;
+    eq(count(host), 1, 'lrig zone の instanceId からBET支払い時に発火');
+    eq(count({ ...host, is_betting_this_effect: false, bet_coins_paid: 0 }), 0, 'グロウ・キー・起動等の通常コイン支払いでは非発火');
+    eq(count({ ...host, is_betting_this_effect: false, bet_coins_paid: 0 }), 0, 'betCost=0 のエンコアのみ支払いでは非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 group A: ON_CARD_MILLED_FROM_DECK の移動カード filter を両方向で評価', () => {
+  const savedCursor = cursor;
+  try {
+  const space = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('龍獣'));
+  const nonSpace = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('龍獣'));
+  const level1 = findCard(c => isSigni(c) && c.Level === '1');
+  const nonLevel1 = findCard(c => isSigni(c) && c.Level !== '1');
+  const cases = [
+    ['WXK10-052', 'WXK10-052-E1', space, nonSpace],
+    ['WXDi-P09-079', 'WXDi-P09-079-E1', level1, nonLevel1],
+  ] as const;
+  for (const [sourceNum, effectId, yes, no] of cases) {
+    const source = `${sourceNum}#1`;
+    const localEffects = new Map(effectsMap);
+    localEffects.set(source, effectsMap.get(sourceNum)!);
+    const host = mkState({ signi: [source, null, null] });
+    const ctx = { ...trigCtx(HOST), effectsMap: localEffects };
+    const fires = (milled: string) =>
+      collectMillTriggers(ctx, HOST, host, mkState({}), 1, 0, [`${milled}#9`], []).entries.some(e => e.effectId === effectId);
+    eq(fires(yes), true, `${effectId}: filter 一致で発火`);
+    eq(fires(no), false, `${effectId}: filter 不一致で非発火`);
+  }
+  const source = 'WXDi-P09-079#2';
+  const localEffects = new Map(effectsMap);
+  localEffects.set(source, effectsMap.get('WXDi-P09-079')!);
+  const host = mkState({ signi: [source, null, null] });
+  const firesInPhase = (turnPhase: TrigCtx['turnPhase']) =>
+    collectMillTriggers(
+      { ...trigCtx(HOST), effectsMap: localEffects, turnPhase },
+      HOST, host, mkState({}), 1, 0, [`${level1}#10`], [],
+    ).entries.some(e => e.effectId === 'WXDi-P09-079-E1');
+  eq(firesInPhase('MAIN'), true, 'WXDi-P09-079-E1: メインフェイズで発火');
+  eq(firesInPhase('ATTACK'), false, 'WXDi-P09-079-E1: アタックフェイズでは非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 group B: 共通 minCount は N-1 非発火・N 発火', () => {
+  const energySource = 'WD15-015#1';
+  const energyEffects = new Map(effectsMap);
+  const energyBase = effectsMap.get('WD15-015')!.find(e => e.effectId === 'WD15-015-E1')!;
+  energyEffects.set(energySource, [{ ...energyBase, effectId: 'TEST-ENERGY-MIN-3', triggerCondition: { ...energyBase.triggerCondition, minCount: 3 } }]);
+  const energyHost = mkState({ signi: [energySource, null, null] });
+  const energyCtx = { ...trigCtx(HOST), effectsMap: energyEffects };
+  const energyFires = (n: number) =>
+    collectEnergyToTrashTriggers(energyCtx, HOST, energyHost, mkState({}), 0, n).entries.some(e => e.effectId === 'TEST-ENERGY-MIN-3');
+  eq(energyFires(2), false, 'ON_ENERGY_TO_TRASH: 2枚では非発火');
+  eq(energyFires(3), true, 'ON_ENERGY_TO_TRASH: 3枚で発火');
+
+  const handSource = 'WXDi-P11-007#1';
+  const handEffects = new Map(effectsMap);
+  const handBase = effectsMap.get('WXDi-P11-007')!.find(e => e.effectId === 'WXDi-P11-007-E1')!;
+  handEffects.set(handSource, [{ ...handBase, effectId: 'TEST-HAND-MIN-3', triggerCondition: { ...handBase.triggerCondition, minCount: 3 } }]);
+  const handHost = mkState({});
+  handHost.field.lrig = [handSource];
+  const handCtx = { ...trigCtx(HOST), effectsMap: handEffects };
+  const moved = (n: number) => [{ ownerId: HOST, moved: Array.from({ length: n }, (_, i) => ({ cardNum: `${SIGNI_L1}#${i + 20}`, from: 'energy' })) }];
+  const handFires = (n: number) =>
+    collectHandAddedTriggers(handCtx, moved(n), HOST, handHost, mkState({})).entries.some(e => e.effectId === 'TEST-HAND-MIN-3');
+  eq(handFires(2), false, 'ON_HAND_ADDED: 2枚では非発火');
+  eq(handFires(3), true, 'ON_HAND_ADDED: 3枚で発火');
+
+  const discardSource = 'WXK09-069#1';
+  const discardEffects = new Map(effectsMap);
+  const discardBase = effectsMap.get('WXK09-069')!.find(e => e.timing?.includes('ON_HAND_DISCARDED'))!;
+  discardEffects.set(discardSource, [{ ...discardBase, effectId: 'TEST-DISCARD-MIN-3', triggerCondition: { ...discardBase.triggerCondition, minCount: 3 } }]);
+  const discardHost = mkState({ signi: [discardSource, null, null] });
+  const discardCtx = { ...trigCtx(HOST), effectsMap: discardEffects };
+  const discardFires = (n: number) =>
+    collectHandDiscardTriggers(discardCtx, Array.from({ length: n }, (_, i) => `${SIGNI_L1}#${i + 40}`), discardHost, HOST, false)
+      .entries.some(e => e.effectId === 'TEST-DISCARD-MIN-3');
+  eq(discardFires(2), false, 'ON_HAND_DISCARDED: 2枚では非発火');
+  eq(discardFires(3), true, 'ON_HAND_DISCARDED: 3枚で発火');
+});
+
 test('used-card placement: pending spell is trashed only after resume completes', () => {
   const spellId = 'WX01-001#1';
   const ctx = mkCtx({}, {}, spellId);
