@@ -6,6 +6,15 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-27 続き291・Opus）＝§3 タスク12(liii)「それのレベル１につき」族15効果を消化**（golden 787→803・census 1523→1521）
+  - **症状**＝「〈シグニ〉１体を対象とし、**それのレベル１につき**〈X〉」を parser が丸ごと落とし、倍率も対象指定も消えて **X が 1 固定**に退化。実害は「安すぎる除去」＝WXDi-P04-020-E1 が《無》1つでレベル4をバニッシュできていた。
+  - **新設は最小**＝在庫メモが挙げていた2要件をそのまま実装。①`$ref:last_processed_level`/`stored_target_level`（`resolveCountRef`）＝任意の `count` を対象レベルで解決する汎用参照（従来 DRAW/MILL/OPTIONAL_COST にアクションごとの ad-hoc フラグで散っていた意味論の統合）。②新 STUB **`SELECT_TARGET_ONLY`**＝**盤面を変えず対象だけを選ばせ記録する**対象宣言。これが無かったのが族が消えていた根本原因。
+  - **コスト形11件は既存機構の配線**＝`SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→OPTIONAL_COST(レベル倍率)→PAID_ADDITIONAL_COST{targetsStored}`＝WX24-P2-048（MANUAL）で実証済みの正準形。`OPTIONAL_COST` にレベル倍率コスト3系統（エナ色／手札捨て／エナゾーン置き＋「それと同じレベルの」）を追加し、**対象レベル0は「0個払って発動」ではなく支払い不可**に倒す。parser 側は `applyTargetLevelScaling` 1本の post-pass（原文 `それのレベル１につき` かつ「対象とし」1つに限定＝族以外に触れない）。
+  - **結果**＝15効果中 **12を忠実化**・2は元から正しい（`POWER_MODIFY_BY_TARGET_LEVEL`）・**1は honest defer**＝WX24-P2-058-E1②（対象が「この効果でミルした3枚」＝その集合を追跡する機構が別途要）。副産物で「シグニ**を**１体まで対象とし」形の owner:self 誤り（WX26-CP1-036-E2＝自分のシグニをデッキに送る自傷）も是正。
+  - **整理**＝`OPTIONAL_COST` の支払い仕様算出が4箇所に写経されていたのを `resolveOptionalCostSpec`/`canAffordOptionalCostSpec`/`optionalCostPaySteps` へ集約、`freezeStoredTargets` の2重定義も1本化（`SEND_TO_ENERGY`/`TRANSFER_TO_DECK` を凍結対象に追加）。
+  - **検証**＝`npm run gates` 全緑。golden 6件追加（副作用なし記録／$ref 枚数解決／レベル3＝《無》×3／**レベル0で支払い不可**／エナ払い＋固定対象バニッシュ／実データ形）。`npm run regen` 後に族12効果の逆翻訳を原文と目視照合。⚠**census の減少は 2 のみ**＝語彙欠落の計器で、族の大半は「コスト1固定」という**値の誤り**のため元から未計上（実装12との差の理由）。⚠**実機未検証**。
+  - **次の一手**＝**Opus：タスク12 の在庫（(lii) bare シグニの owner:self ＝全数機械分類が要る／(lv)/(xxii)残）または §6.3 残機構／タスク14 の残43**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火**。
+
 - **🆕 セッション（2026-07-27 続き285・Codex）＝§3タスク12(xxii) C群 [B] のミル/トラッシュ軸7効果を消化**。`MILL`へ後方互換のoptional/until filterを追加し、固定・底・宣言数を含む実移動を`lastProcessedCards`へ記録。life source `LOOK_AND_REORDER`は実際にトラッシュへ置いた分だけ記録。場トラッシュ2件は既存`TRASH`を利用し、本体セマンティクス不変。WX16-028／WX16-Re02／WXK02-055／WXK03-014／WXK06-050／WXK07-042／WXK11-077-subを配線。golden 787、census 1523、partial 33→26。サブ軸Cは未着手defer。詳細は BUGFIXES 続き285。
 - **🆕 セッション（2026-07-27 続き284・Codex）＝§3タスク12(xxii) C群 [B]26 の公開snapshot軸を9効果消化**。`REVEAL_AND_PICK` は `recordRevealed` 指定時だけ公開全体を記録し、既存「手札に加えた」reader 8件は移動結果のまま維持。`DECK_REVEAL_UNTIL` を複数ヒット・公開全体記録へ拡張。PR-459A／WDK13-017／WX05-012／WX05-013／WX22-021／WXDi-P06-036／WXEX1-06／WXEX1-69／WXK07-031を配線。WD13-002はグロウ選択中の公開UI＋コスト再計算が必要でdefer。golden 785、census 1525、partial 42→33、gates 10回FAIL 0。詳細は BUGFIXES 続き284。
 - **🆕 セッション（2026-07-27 続き271・Opus 5 確認／codex sol 実装）＝§3 タスク14（Stage3 純粋バトルコントローラ）を13箇所前進**（reducer 経由 59→72／残 56→43・golden 752→765・census 1535 据置）

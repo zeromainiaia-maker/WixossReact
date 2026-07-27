@@ -65,7 +65,7 @@ import {
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
-  canAddToSelection,
+  canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
@@ -207,9 +207,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
-  const state = ownerState(tgt.owner, ctx);
-  const banishProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
-  if (tgt.owner === 'opponent') {
+  // 'any' でも相手側の候補には相手側の保護を効かせる（自分側候補には効かない＝Set は相手番号のみ）
+  const banishProtected = tgt.owner !== 'self' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
+  if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants ?? {};
     for (const [cardNum, kws] of Object.entries(grants)) {
       if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('BANISH') || kw.includes('any')) && kw.endsWith(':opponent'))) {
@@ -239,7 +239,9 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     const frontNum = tgt.owner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : null;
     frontRestrict = frontNum ? [frontNum] : [];
   }
-  const allBanishCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）。
+  // 適用は applyDirectAction の BANISH が選択カードの所属側を探索して解決する（既存実装）。
+  const { cands: allBanishCands, scope: banishScope } = fieldCandidatesByOwner(tgt.owner, resolvedFilter, ctx);
   let cands = banishProtected.size > 0 ? allBanishCands.filter(n => !banishProtected.has(n)) : allBanishCands;
   if (a.targetsLastProcessed) {
     const fixed = new Set(ctx.lastProcessedCards ?? []);
@@ -256,16 +258,20 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
-  if (tgt.owner === 'opponent') {
+  if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants;
-    cands = cands.filter(n => !hasBanishResist(n, ctx.cardMap, grants));
+    // 'any' の場合は相手側の候補にだけバニッシュ耐性を効かせる（自分の場のシグニには相手の耐性は無関係）
+    const oppSide = new Set(ctx.otherState.field.signi.flatMap(st => st?.at(-1) ? [st.at(-1)!] : []));
+    cands = cands.filter(n => (tgt.owner === 'any' && !oppSide.has(n)) || !hasBanishResist(n, ctx.cardMap, grants));
   }
-  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  const scope: TargetScope = banishScope;
 
   function applyBanish(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const s = ownerState(tgt.owner, cur);
+      // owner:'any' は選んだ1枚がどちらの場にあるかで所属を決める（タスク12(lii)）
+      const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(num, cur) : tgt.owner;
+      const s = ownerState(own, cur);
       // CHARM_PROTECTION（WX04-052-E1）: チャーム盾対象なら、チャーム1枚をトラッシュして場に残す（バニッシュ回避）
       if (cur.charmShieldNums?.has(num)) {
         const zi = s.field.signi.findIndex(st => st?.at(-1) === num);
@@ -273,27 +279,27 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
         if (charm) {
           const newCharms = [...(s.field.signi_charms ?? [null, null, null])];
           newCharms[zi] = null;
-          cur = addLog(setOwnerState(tgt.owner, { ...s, field: { ...s.field, signi_charms: newCharms }, trash: [...s.trash, charm] }, cur),
+          cur = addLog(setOwnerState(own, { ...s, field: { ...s.field, signi_charms: newCharms }, trash: [...s.trash, charm] }, cur),
             `${cur.cardMap.get(num)?.CardName ?? num}の【チャーム】をトラッシュしてバニッシュを回避`);
           continue;
         }
       }
       // 効果離場の powerReduction 身代わり（WX06-019）: tgt.owner==='opponent'＝相手効果で victim 側が場を離れる。
       // protector があれば victim を残し protector のパワーを下げてバニッシュを回避（自動適用）。
-      if (tgt.owner === 'opponent') {
+      if (own === 'opponent') {
         const sub = findEffectLeavePowerReductionSubstitute(num, s, cur.cardMap);
         if (sub) {
           const mods = [...(s.temp_power_mods ?? []), { cardNum: sub.protectorNum, delta: -sub.reduction }];
-          cur = addLog(setOwnerState(tgt.owner, { ...s, temp_power_mods: mods }, cur),
+          cur = addLog(setOwnerState(own, { ...s, temp_power_mods: mods }, cur),
             `${cur.cardMap.get(sub.protectorNum)?.CardName ?? sub.protectorNum}のパワー-${sub.reduction}で${cur.cardMap.get(num)?.CardName ?? num}の場離れを身代わり`);
           continue;
         }
       }
       const removed = removeFromField(num, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
-      const opp = ownerState(tgt.owner === 'self' ? 'opponent' : 'self', cur);
+      const opp = ownerState(own === 'self' ? 'opponent' : 'self', cur);
       const { state: dest, log } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s, num));
-      cur = addLog(setOwnerState(tgt.owner, dest, cur),
+      cur = addLog(setOwnerState(own, dest, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}${log}`);
     }
     return cur;
@@ -340,9 +346,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
 
 function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
-  const state = ownerState(tgt.owner, ctx);
-  const bounceProtected = tgt.owner === 'opponent' ? new Set(ctx.otherBounceProtectedNums ?? []) : new Set<string>();
-  if (tgt.owner === 'opponent') {
+  const bounceProtected = tgt.owner !== 'self' ? new Set(ctx.otherBounceProtectedNums ?? []) : new Set<string>();
+  if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants ?? {};
     for (const [cardNum, kws] of Object.entries(grants)) {
       if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('BOUNCE') || kw.includes('any')) && kw.endsWith(':opponent'))) {
@@ -352,20 +357,22 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
   }
   // 動的フィルタ（powerLteLastProcessed / levelLteLastProcessed＝「この方法で処理したシグニのパワー/レベル以下」等）を解決
   const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-  const allCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
+  const { cands: allCands, scope: bounceScope } = fieldCandidatesByOwner(tgt.owner, resolvedFilter, ctx);
   let cands = bounceProtected.size > 0 ? allCands.filter(n => !bounceProtected.has(n)) : allCands;
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
-  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+  const scope: TargetScope = bounceScope;
 
   function applyBounce(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const s = ownerState(tgt.owner, cur);
+      const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(num, cur) : tgt.owner;
+      const s = ownerState(own, cur);
       const removed = removeFromField(num, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, num], turn_signi_returned_to_hand: true };
-      cur = addLog(setOwnerState(tgt.owner, withHand, cur),
+      cur = addLog(setOwnerState(own, withHand, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}を手札に戻す`);
     }
     return cur;
@@ -373,7 +380,8 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.count === 'ALL') {
     const moved = cands.filter(num =>
-      ownerState(tgt.owner, ctx).field.signi.some(stack => stack?.at(-1) === num));
+      ctx.ownerState.field.signi.some(stack => stack?.at(-1) === num)
+      || ctx.otherState.field.signi.some(stack => stack?.at(-1) === num));
     return done({ ...applyBounce(moved, ctx), lastProcessedCards: moved });
   }
   const count = resolveNum(tgt.count);
@@ -554,16 +562,21 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
     return done({ ...addLog(setOwnerState(tgtO, { ...state, temp_level_mods: mods }, ctx),
       `${ctx.cardMap.get(selfNum)?.CardName ?? selfNum}のレベル${a.delta > 0 ? '+' : ''}${a.delta}`), lastProcessedCards: [selfNum] });
   }
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドが候補（タスク12(lii)）。
+  // 単体適用は applyDirectAction の LEVEL_MODIFY が選択カードの所属側で解決する（既存実装）。
+  const { cands, scope: lmScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
   if (cands.length === 0) return done({ ...addLog(ctx, 'レベル修正の対象がない'), lastProcessedCards: [] });
   if (a.target.count === 'ALL') {
-    const s = ownerState(tgtO, ctx);
-    const mods = [...(s.temp_level_mods ?? []), ...cands.map(cardNum => ({ cardNum, delta: a.delta }))];
-    return done(addLog(setOwnerState(tgtO, { ...s, temp_level_mods: mods }, ctx), `レベル${a.delta > 0 ? '+' : ''}${a.delta}`));
+    let cur = ctx;
+    for (const cardNum of cands) {
+      const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(cardNum, cur) : tgtO;
+      const s = ownerState(own, cur);
+      cur = setOwnerState(own, { ...s, temp_level_mods: [...(s.temp_level_mods ?? []), { cardNum, delta: a.delta }] }, cur);
+    }
+    return done(addLog(cur, `レベル${a.delta > 0 ? '+' : ''}${a.delta}`));
   }
   const cnt = resolveNum(a.target.count);
-  const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
+  return selectOrInteract(cands, cnt, a.target.upToCount ?? false, lmScope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
 }
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
@@ -668,19 +681,22 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
 function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   const value = resolveNum(a.value);
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
-  const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドが候補（タスク12(lii)）。
+  // 単体適用は applyDirectAction の POWER_SET が選択カードの所属側で解決する（既存実装）。
+  const { cands, scope: psScope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
   if (cands.length === 0) return done(ctx);
 
   function applyPowerSet(targets: string[], c: ExecCtx): ExecCtx {
-    const s = ownerState(tgtOwner, c);
-    const filtered = (s.temp_power_mods ?? []).filter(m => !targets.includes(m.cardNum));
-    const setMods = targets.map(cardNum => {
-      const base = parseInt(c.cardMap.get(cardNum)?.Power ?? '0') || 0;
-      return { cardNum, delta: value - base };
-    });
-    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: [...filtered, ...setMods] }, c),
-      `${targets.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}のパワーを${value}に`);
+    let cur = c;
+    for (const cardNum of targets) {
+      const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(cardNum, cur) : tgtOwner;
+      const s = ownerState(own, cur);
+      const base = parseInt(cur.cardMap.get(cardNum)?.Power ?? '0') || 0;
+      const mods = [...(s.temp_power_mods ?? []).filter(m => m.cardNum !== cardNum), { cardNum, delta: value - base }];
+      cur = addLog(setOwnerState(own, { ...s, temp_power_mods: mods }, cur),
+        `${cur.cardMap.get(cardNum)?.CardName ?? cardNum}のパワーを${value}に`);
+    }
+    return cur;
   }
 
   if (a.target.count === 'ALL') return done(applyPowerSet(cands, ctx));
@@ -690,8 +706,7 @@ function execPowerSet(a: PowerSetAction, ctx: ExecCtx): ExecResult {
   if (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
     return done(applyPowerSet([ctx.sourceCardNum], ctx));
   }
-  const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, psScope, a, undefined, ctx);
 }
 
 // POWER_MULTIPLY: シグニのパワーをN倍にする（delta = currentPower × (multiplier-1)）
@@ -1728,7 +1743,6 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     if (!side) return done(ctx);
     return execFreeze({ ...a, target: { ...a.target, owner: side } }, ctx);
   }
-  const state = ownerState(a.target.owner, ctx);
   // isTriggerSource: トリガー元カード（ctx.triggeringCardNum＝アタッカー等）のみを対象（「アタックしたそのシグニ」WX04-082-E1）
   let freezeFilter = a.target.filter;
   let triggerRestrictFZ: string[] | null = null;
@@ -1737,18 +1751,19 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     freezeFilter = rest;
     triggerRestrictFZ = ctx.triggeringCardNum ? [ctx.triggeringCardNum] : [];
   }
-  let cands = fieldCandidates(state, freezeFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
+  const { cands: rawCands, scope } = fieldCandidatesByOwner(a.target.owner, freezeFilter, ctx);
+  let cands = rawCands;
   if (triggerRestrictFZ !== null) cands = cands.filter(n => triggerRestrictFZ!.includes(n));
   // 完全効果耐性: 相手の凍結効果は耐性シグニに無効
   if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
     cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
   }
-  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
-
   function applyFreeze(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const s = ownerState(a.target.owner, cur);
+      const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
+      const s = ownerState(own, cur);
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
       const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
@@ -1761,7 +1776,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
         fieldPatch.signi_down = newDown;
       }
       const newS: PlayerState = { ...s, field: { ...s.field, ...fieldPatch } };
-      cur = addLog(setOwnerState(a.target.owner, newS, cur),
+      cur = addLog(setOwnerState(own, newS, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`);
     }
     return cur;
@@ -1814,10 +1829,10 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   if (a.target.owner === 'opponent' && ctx.otherState.prevent_signi_down_by_opp) {
     return done(addLog(ctx, 'シグニダウン防止（常時効果）'));
   }
-  const state = ownerState(a.target.owner, ctx);
-  const downProtected = a.target.owner === 'opponent' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
+  // 'any' は両側が候補になりうるため、相手側だけに効く保護は候補フィルタ側で効かせる
+  const downProtected = a.target.owner !== 'self' ? new Set(ctx.otherDownProtectedNums ?? []) : new Set<string>();
   // keyword_grants  PROTECTION:DOWN:opponent
-  if (a.target.owner === 'opponent') {
+  if (a.target.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants ?? {};
     for (const [cardNum, kws] of Object.entries(grants)) {
       if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('DOWN') || kw.includes('any')) && kw.endsWith(':opponent'))) {
@@ -1840,19 +1855,22 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       frontRestrict = [];
     }
   }
-  let cands = fieldCandidates(state, downFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
+  const { cands: rawCands, scope } = fieldCandidatesByOwner(a.target.owner, downFilter, ctx);
+  let cands = rawCands;
   if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const s = ownerState(a.target.owner, cur);
+      const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
+      const s = ownerState(own, cur);
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
       const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
       newDown[zoneIdx] = true;
-      cur = addLog(setOwnerState(a.target.owner,
+      cur = addLog(setOwnerState(own,
         { ...s, field: { ...s.field, signi_down: newDown } }, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}をダウン`);
     }
@@ -1861,7 +1879,6 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
 
   if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   const count = resolveNum(a.target.count);
-  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
   // optional:「ダウンしてもよい」（スキップ可。スキップ時は resumeSelectTarget が後続の「そうした場合」を除去）
   const downOptional = a.optional || (a.target.upToCount ?? false);
   return selectOrInteract(cands, count, downOptional, scope, a, undefined, ctx);
@@ -1876,8 +1893,9 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     const newS: PlayerState = { ...s, field: { ...s.field, lrig_down: false } };
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
   }
-  const state = ownerState(a.target.owner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
+  const { cands, scope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
+  const state = ownerState(a.target.owner === 'any' ? 'self' : a.target.owner, ctx);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
     const selfNum = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
@@ -1901,18 +1919,17 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     }
     return done(ctx);
   }
-  const scope: TargetScope = a.target.owner === 'self' ? 'self_field' : 'opp_field';
-
   function applyUp(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const s = ownerState(a.target.owner, cur);
+      const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
+      const s = ownerState(own, cur);
       const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
       if (zoneIdx < 0) continue;
       const wasDown = (s.field.signi_down ?? [])[zoneIdx] === true; // 効果でダウン→アップした記録（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
       const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
       newDown[zoneIdx] = false;
-      cur = addLog(setOwnerState(a.target.owner,
+      cur = addLog(setOwnerState(own,
         { ...s, field: { ...s.field, signi_down: newDown },
           ...(wasDown ? { upped_from_down_this_turn: [...(s.upped_from_down_this_turn ?? []), num] } : {}) }, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}をアップ`);
@@ -3367,12 +3384,18 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時までクリアされない）
   const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
 
+  // owner:'any' は選ばれた1枚がどちらの場にあるかで所属を決める（タスク12(lii)）
   const applyProtection = (selected: string[], c: ExecCtx): ExecCtx => {
-    const s = ownerState(tgt.owner, c);
-    const grants = { ...(s[gkey] ?? {}) };
-    for (const n of selected) grants[n] = [...new Set([...(grants[n] ?? []), keyword])];
-    return addLog(setOwnerState(tgt.owner, { ...s, [gkey]: grants }, c),
-      `${selected.map(n => c.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}に効果耐性（${(a.from ?? []).join('/')}）を付与`);
+    let cur = c;
+    for (const n of selected) {
+      const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(n, cur) : tgt.owner;
+      const s = ownerState(own, cur);
+      const grants = { ...(s[gkey] ?? {}) };
+      grants[n] = [...new Set([...(grants[n] ?? []), keyword])];
+      cur = setOwnerState(own, { ...s, [gkey]: grants }, cur);
+    }
+    return addLog(cur,
+      `${selected.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}に効果耐性（${(a.from ?? []).join('/')}）を付与`);
   };
 
   // 「そのレゾナ」＝出現条件支払いトリガーが保持した、今出たレゾナへ直接付与。
@@ -3388,12 +3411,10 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     return done(lrigTop ? applyProtection([lrigTop], ctx) : ctx);
   }
 
-  const state = ownerState(tgt.owner, ctx);
-  const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const { cands, scope: gpScope } = fieldCandidatesByOwner(tgt.owner, tgt.filter, ctx);
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
   const count = resolveNum(tgt.count);
-  const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, false, gpScope, a, undefined, ctx);
 }
 
 function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
@@ -6230,7 +6251,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'DOWN': {
       const downA = action as import('../types/effects').DownAction;
-      const downOwner = downA.target.owner === 'any' ? 'opponent' : downA.target.owner as Owner;
+      const downOwner: Owner = downA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : downA.target.owner as Owner;
       const downS = ownerState(downOwner, ctx);
       const zoneIdx = downS.field.signi.findIndex(st => st?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
@@ -6243,7 +6264,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // 選択式UP（「シグニ1体を対象とし、アップする」）の選択後適用。
       // UP case が無いと default→execUp 再実行で再選択ループ＝無限ループになるため明示処理（goldenTest 検出）。
       const upA = action as import('../types/effects').UpAction;
-      const upOwner = upA.target.owner === 'any' ? 'self' : upA.target.owner as Owner;
+      const upOwner: Owner = upA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : upA.target.owner as Owner;
       const upS = ownerState(upOwner, ctx);
       const zoneIdx = upS.field.signi.findIndex(st => st?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
@@ -6254,7 +6275,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'FREEZE': {
       const frzA = action as import('../types/effects').FreezeAction;
-      const frzOwner = frzA.target.owner === 'any' ? 'opponent' : frzA.target.owner as Owner;
+      const frzOwner: Owner = frzA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : frzA.target.owner as Owner;
       const frzS = ownerState(frzOwner, ctx);
       const frzIdx = frzS.field.signi.findIndex(st => st?.at(-1) === cardNum);
       if (frzIdx < 0) return done(ctx);
@@ -6411,7 +6432,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。
       const gpA = action as GrantProtectionAction;
       if (!gpA.target) return done(ctx);
-      const gpOwner = gpA.target.owner;
+      const gpOwner: Owner = gpA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : gpA.target.owner;
       const gpKeyword = `PROTECTION:${(gpA.from ?? []).join(',')}:${gpA.sourceOwner ?? ''}`;
       const gpGkey = gpA.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
       const gpS = ownerState(gpOwner, ctx);

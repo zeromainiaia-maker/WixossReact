@@ -274,6 +274,35 @@ export function parseNameFilter(text: string): Partial<TargetFilter> {
 
 // ===== シグニターゲットパース =====
 
+// 「〈修飾語〉シグニN体を対象とし」の**その名詞句だけ**を見て所有者を決める（Opusタスク12(lii)）。
+//
+// 従来はどの規則も `t.includes('対戦相手') ? 'opponent' : 'self'` と**文全体**を見ており、
+// 修飾語のない「シグニ1体を対象とし、それを〜する」が既定値 self へ落ちていた。原文が
+// 「どちらのプレイヤーのシグニでもよい」と言っている対象を自分のシグニに限ってしまう誤りで、
+// 除去系では「自分のシグニしか狙えない」＝実質使えない効果になる（WX07-027-E2）。
+//
+// 判定は対象句の直前セグメント（。、「」『』（）：区切り）に限る＝「あなたが【エナチャージ】を
+// したとき、レベル３以下のシグニ1体を対象とし」のような**トリガー節のあなた**を所有格と誤読しない。
+// 「正面の」は専用機構（filter.frontOfSelf）の領分なので触らず fallback を返す。
+const SIGNI_TARGET_CLAUSE = /シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+const CLAUSE_SEG_BREAK = /[。、「」『』（）：]/;
+
+export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner {
+  // 文中に「対戦相手」があれば従来どおり opponent（既存挙動を一切変えないための先行判定）
+  if (text.includes('対戦相手')) return 'opponent';
+  const m = text.match(SIGNI_TARGET_CLAUSE);
+  if (!m || m.index === undefined) return fallback;   // 対象化していない文＝従来どおり
+  const before = text.slice(0, m.index);
+  let start = 0;
+  for (let i = before.length - 1; i >= 0; i--) {
+    if (CLAUSE_SEG_BREAK.test(before[i])) { start = i + 1; break; }
+  }
+  const seg = before.slice(start);
+  if (/あなた|自分/.test(seg)) return 'self';
+  if (/正面/.test(seg)) return fallback;
+  return 'any';
+}
+
 export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   const all = text.includes('すべてのシグニ') || text.includes('全てのシグニ') ||
               text.includes('シグニすべて') ||

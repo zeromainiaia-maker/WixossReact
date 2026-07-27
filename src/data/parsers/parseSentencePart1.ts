@@ -55,7 +55,7 @@ import type {
   SequenceAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner,
 } from '../parserUtils';
 
 /**
@@ -1146,7 +1146,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「パワーの合計がN以下になるように好きな数対象とし、それらをバニッシュする」（合計パワー制限の複数選択）
     const sumBanishM = t.match(/パワーの合計が([０-９\d]+)以下になるように好きな数/);
     if (sumBanishM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const owner: Owner = signiClauseOwner(t);
       return {
         type: 'BANISH',
         target: {
@@ -1156,7 +1156,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         },
       };
     }
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     const isOptional = t.includes('バニッシュしてもよい');
     // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）
     if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) &&
@@ -1226,7 +1226,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- バウンス（手札に戻す / 戻してもよい）----
   if (t.includes('手札に戻す') || t.includes('手札に戻してもよい')) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     const upToM = t.match(/([０-９\d]+)体まで/);
     const countM = t.match(/([０-９\d]+)体を対象/);
     const all = t.includes('すべて');
@@ -1435,7 +1435,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   const powerSetM = t.match(/(?:基本)?パワーは([０-９\d]+)になる/)
                  ?? t.match(/(?:基本)?パワーを([０-９\d]+)にする/);
   if (powerSetM) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     const cM = t.match(/シグニ([０-９\d]+)体/);
     const count = cM ? parseNum(cM[1]) : 1;
     const target: EffectTarget = t.includes('このシグニ')
@@ -1448,7 +1448,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 「それら（＝選んだ同一対象）をダウンし凍結」。FREEZE(down:true) で同一対象にダウン＆凍結を適用
   // （SEQUENCE[DOWN, FREEZE] だと選択対象が別々になりうるため単一アクションにする）。
   if (t.includes('ダウンし凍結')) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     const signiTgt = parseSigniTarget(t, owner);
     return { type: 'FREEZE', target: signiTgt, down: true };
   }
@@ -1460,7 +1460,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「（この／）シグニ／カードの正面のシグニ」＝正面は定義上**対戦相手のゾーン**（WDA-F02-17-E2「このシグニの
     //   正面のシグニ１体を対象とし、それをダウンする」）。従来 fallback で owner:'self'＝自分のシグニをダウンに化けていた。
     const isFrontOfSelf = /(?:この)?(?:シグニ|カード)の正面の[^、。]*シグニ/.test(t);
-    const owner: Owner = (t.includes('対戦相手') || isFrontOfSelf) ? 'opponent' : 'self';
+    const owner: Owner = isFrontOfSelf ? 'opponent' : signiClauseOwner(t);
     // 「ダウンしてもよい」＝任意（player が実行するか選べる）。「そうした場合」の did-it ゲートと組で使われ、
     //   optional を落とすと engine が強制ダウンさせてしまう（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
     const downOptional = t.includes('ダウンしてもよい');
@@ -1501,7 +1501,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- 凍結 ----
   if (t.includes('凍結する')) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     // ⚠ルリグ対象を見ておらず、「対戦相手のセンタールリグ1体を対象とし、それを凍結する」（WX17-020③）が
     //   **シグニの凍結**に化けていた（§3 Opusタスク10 パターンB）。すぐ上の DOWN 規則と同じ3分岐に揃える。
     // ⚠さらに「センター」無しの素の「対戦相手のルリグ1体を対象とし、それを凍結する」（WX25-CP1-016 等・
@@ -1553,7 +1553,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「それとこのルリグをアップする」＝対象シグニ＋このルリグの両方をアップ（WXEX2-01）
     if (t.match(/それと(この|あなたの(?:センター)?)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'SEQUENCE', steps: [
-        { type: 'UP', target: parseSigniTarget(t, 'self') },
+        { type: 'UP', target: parseSigniTarget(t, signiClauseOwner(t)) },
         { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } },
       ] };
     }
@@ -1562,7 +1562,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.match(/(この|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
     }
-    return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+    return { type: 'UP', target: { type: 'SIGNI', owner: signiClauseOwner(t), count: 1 } };
   }
 
   // ---- デッキ上 → エナゾーン ----
@@ -2355,7 +2355,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- シグニの【出】能力の発動を止める ----
   if (t.match(/シグニの【出】能力は発動しない/)) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' };
   }
   // ---- この方法で場に出たシグニの【出】能力は発動しない ----
@@ -2378,7 +2378,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- 基本レベルをNにする ----
   const baseLevelM = t.match(/基本レベルは([０-９\d]+)になる/) ?? t.match(/基本レベルを([０-９\d]+)にする/);
   if (baseLevelM) {
-    const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const owner: Owner = signiClauseOwner(t);
     const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner, count: t.includes('すべて') || t.includes('場にあるシグニ') ? 'ALL' : 1 }, actionId: `SET_LEVEL_${toHalf(baseLevelM[1])}`, until };
   }
@@ -2393,6 +2393,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (from.length === 0) from.push('BANISH');
     return {
       type: 'GRANT_PROTECTION',
+      // ⚠ここは signiClauseOwner を使わない：本形の大半は「このシグニは**対戦相手の効果によって**
+      //   バニッシュされない」＝文中の「対戦相手」は**バニッシュの主体**であって対象の所有者ではない。
+      //   helper に委ねると自己保護が相手シグニへの付与に反転する（WX06-022/WX13-049/WXK01-039 等26枚）。
+      //   「＜空獣＞のシグニ1体を対象とし、それは「【常】：バニッシュされない」を得る」形（WX21-015/
+      //   WXK07-028）は引用能力付与の別系統＝タスク12(lii) の対象外として据置。
       target: { type: 'SIGNI', owner: 'self', count: 1 },
       from,
       sourceOwner: 'opponent',
@@ -2726,7 +2731,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   {
     const multiplyM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーを([０-９\d]+)倍にする/);
     if (multiplyM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const owner: Owner = signiClauseOwner(t);
       return {
         type: 'POWER_MULTIPLY',
         target: { type: 'SIGNI', owner, count: parseNum(multiplyM[1]) },
@@ -2740,7 +2745,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   {
     const levelModM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのレベルを([＋－])([０-９\d]+)する/);
     if (levelModM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const owner: Owner = signiClauseOwner(t);
       const sign = levelModM[2] === '＋' ? 1 : -1;
       return {
         type: 'LEVEL_MODIFY',
@@ -2766,7 +2771,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   {
     const perCharmM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーを場にある【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)する/);
     if (perCharmM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const owner: Owner = signiClauseOwner(t);
       const sign = perCharmM[3] === '＋' ? 1 : -1;
       return {
         type: 'POWER_MODIFY_PER_CHARM',
@@ -2792,7 +2797,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // この方法でトラッシュに置いたシグニのレベル合計×N
     const perTrashedLevelM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをこの方法でトラッシュに置いたシグニのレベル([０-９\d]+)につき([＋－])([０-９\d]+)/);
     if (perTrashedLevelM) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const owner: Owner = signiClauseOwner(t);
       const sign = perTrashedLevelM[3] === '＋' ? 1 : -1;
       return {
         type: 'POWER_MODIFY_PER_TRASHED_LEVEL',
@@ -2804,7 +2809,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // この方法でトラッシュに置いたチャーム枚数×N
     const perTrashedCharmM = t.match(/シグニ([０-９\d]+)体を対象とし.*それのパワーをこの方法でトラッシュに置いた【チャーム】([０-９\d]+)枚につき([＋－])([０-９\d]+)/);
     if (perTrashedCharmM) {
-      const targetOwner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+      const targetOwner: Owner = signiClauseOwner(t);
       const sign = perTrashedCharmM[3] === '＋' ? 1 : -1;
       return {
         type: 'POWER_MODIFY_PER_CHARM',

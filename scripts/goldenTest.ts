@@ -11429,6 +11429,57 @@ test('WXDi-P04-020-E1: 族の実データが SELECT_TARGET_ONLY＋レベル倍�
   ok((steps[3] as unknown as { then: { targetsStored?: boolean } }).then.targetsStored === true, '本体が固定対象を撃っていない');
 });
 
+// ── タスク12(lii) 修飾語なし「シグニN体を対象とし」＝owner:'any'（両プレイヤーのシグニ）──
+// 従来 parser の既定値が self で、原文が「どちらでもよい」と言う対象を自分に限っていた。
+// engine 側も 'any' を素通しして片側へ潰していたため、候補収集と適用の両方を検証する。
+test("owner:'any' BANISH: 両プレイヤーの場が候補になる", () => {
+  const ctx = mkCtx({ signi: [SIGNI_L1, null, null] }, { signi: [SIGNI_L3, null, null] });
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' } } } } as CardEffect, ctx);
+  ok(!res.done, '選択が出ていない');
+  const p = (res as { pending: { candidates: string[]; targetScope: string } }).pending;
+  eq(p.targetScope, 'both_field', 'スコープが両フィールドでない');
+  ok(p.candidates.includes(SIGNI_L1) && p.candidates.includes(SIGNI_L3),
+    `両者のシグニが候補に無い (${JSON.stringify(p.candidates)})`);
+});
+test("owner:'any' BANISH: 自分の場のシグニを選ぶと自分の場から消える（相手側ではない）", () => {
+  const ctx = mkCtx({ signi: [SIGNI_L1, null, null] }, { signi: [SIGNI_L3, null, null] });
+  const initial = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' } } } } as CardEffect, ctx);
+  ok(!initial.done);
+  const r = resumeSelectTarget([SIGNI_L1], (initial as { pending: never }).pending, ctx);
+  eq((r.ownerState as PlayerState).field.signi[0], null, '自分のシグニがバニッシュされていない');
+  eq((r.otherState as PlayerState).field.signi[0]?.at(-1), SIGNI_L3, '相手のシグニが巻き添えになった');
+});
+test("owner:'any' DOWN/UP/FREEZE: 選んだカードの所属側の状態が変わる", () => {
+  const mk = () => mkCtx({ signi: [SIGNI_L1, null, null] }, { signi: [SIGNI_L3, null, null] });
+  for (const [type, field, idx] of [['DOWN', 'signi_down', 0], ['FREEZE', 'signi_frozen', 0]] as const) {
+    const ctx = mk();
+    const initial = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+      action: { type, target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' } } } } as CardEffect, ctx);
+    ok(!initial.done, `${type}: 選択が出ていない`);
+    const r = resumeSelectTarget([SIGNI_L1], (initial as { pending: never }).pending, ctx);
+    eq(((r.ownerState as PlayerState).field[field] ?? [])[idx], true, `${type}: 自分側に適用されていない`);
+    eq(((r.otherState as PlayerState).field[field] ?? [])[idx], false, `${type}: 相手側に誤適用`);
+  }
+});
+test("owner:'any' は自分側の候補に相手側のバニッシュ耐性を適用しない", () => {
+  const ctx = mkCtx({ signi: [SIGNI_L1, null, null] }, { signi: [SIGNI_L3, null, null] });
+  const guarded = { ...ctx, otherBanishProtectedNums: new Set([SIGNI_L3]) } as ExecCtx;
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' } } } } as CardEffect, guarded);
+  ok(!res.done);
+  const cands = (res as { pending: { candidates: string[] } }).pending.candidates;
+  ok(cands.includes(SIGNI_L1), '自分側の候補が保護で消えた');
+  ok(!cands.includes(SIGNI_L3), '相手側の保護シグニが候補に残っている');
+});
+test('WX07-027-E2: 修飾語なしバニッシュが両プレイヤーのシグニを狙える（族の代表）', () => {
+  const eff = manualEffect('WX07-027', 'WX07-027-E2');
+  const tgt = (eff.action as { target?: { owner?: string } }).target
+    ?? ((eff.action as { steps?: { target?: { owner?: string } }[] }).steps ?? []).map(s => s.target).find(Boolean);
+  eq(tgt?.owner, 'any', `owner が any でない (${JSON.stringify(eff.action)})`);
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

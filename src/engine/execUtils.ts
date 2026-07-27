@@ -734,6 +734,37 @@ export function removeOneBarrierToken(freeZone: string[] | undefined, base: stri
   return fz;
 }
 
+// owner:'any'（修飾語なし「シグニ1体を対象とし」＝どちらのプレイヤーのシグニでもよい）を含む
+// 場シグニの候補集合とスコープを一括で解決する（タスク12(lii)）。
+//
+// 'any' は engine の多くの経路で `ownerState(owner)` に素通しされ、**片側だけ**（多くは相手側）に
+// 潰れていた＝原文が「どちらでもよい」と言っている対象が半分しか選べない。候補を両フィールドから
+// 集めて scope='both_field' を返す。適用側は選ばれたカードがどちらの場にあるかで所属を決める
+// （execPowerModify が先行実装していた規約を共通化したもの）。
+export function fieldCandidatesByOwner(
+  owner: Owner,
+  filter: TargetFilter | undefined,
+  ctx: ExecCtx,
+): { cands: string[]; scope: TargetScope; isAny: boolean } {
+  if (owner !== 'any') {
+    const state = ownerState(owner, ctx);
+    return {
+      cands: fieldCandidates(state, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors),
+      scope: owner === 'self' ? 'self_field' : 'opp_field',
+      isAny: false,
+    };
+  }
+  const self = fieldCandidates(ctx.ownerState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const opp = fieldCandidates(ctx.otherState, filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  return { cands: [...self, ...opp], scope: 'both_field', isAny: true };
+}
+
+// owner:'any' で選ばれた1枚が「どちらの場のシグニか」を判定する。どちらにも無ければ opponent 扱い
+// （従来の素通し挙動と同じ側へ倒す＝呼び出し側の zoneIdx 探索が空振りして no-op になる）。
+export function sideOfFieldCard(cardNum: string, ctx: ExecCtx): Owner {
+  return ctx.ownerState.field.signi.some(st => st?.at(-1) === cardNum) ? 'self' : 'opponent';
+}
+
 export function fieldCandidates(
   state: PlayerState,
   filter: TargetFilter | undefined,
