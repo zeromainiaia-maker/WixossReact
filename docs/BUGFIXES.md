@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き290＝§6.3 E群 REARRANGE_SIGNI swap基盤＋WXDi-P08-037-E2忠実化（2026-07-27・Codex）
+
+**段階1（消化）**＝従来ログだけのno-opだった `REARRANGE_SIGNI{swap:true,count:1}` を、交換元（通常は効果元シグニ）と候補1体を選ぶ `REARRANGE_SIGNI mode:'swap'` pendingへ配線した。場同士の交換は既存 `resumeRearrangeSigni` の配置順列経路へ合流する。併せて配置順列 `permute` の対象を広げ、従来追従していなかった貯菌・トラップ・マジックボックス・シード・裏向き・クロス／ヘブンの7状態もゾーンに追従するよう修正した。このため `count:'ALL'` の既存16効果も配置結果自体は同じだが、ゾーンに紐づく状態の追従範囲は広がる挙動変更となる。既存pending／resume形とWX04-041回帰goldenは維持。
+
+**段階2（消化）**＝`WXDi-P08-037-E2` だけを `manualEffects.ts` で effectId上書き。既存 `REVEAL_AND_PICK` でトップ1枚を公開し、シグニ時だけ `swapWithLastProcessed` で自分のアップ状態シグニを候補化、`optional:true` で拒否可能、`suppressOnPlay:true` をpendingまで保持する。交換時は公開シグニを選択ゾーンへ置き、場を離れるシグニをデッキトップへ戻す。場を離れる側の下敷き／付属物は既存 `removeFromField` 規約で各正規移動先へ処理される。非シグニ・拒否・アップ候補0体では公開札はデッキトップのまま。なお `suppressOnPlay` はpendingへ保持されるだけで、この経路からは現在どこにも読まれていない。`handleRearrangeSigniConfirm` 自体にON_PLAYを積む処理がないため結果として原文どおり【出】は発動しないが、抑止フィールドが止めているわけではない。残り21効果は原文別診断が必要なため未変更。
+
+**UI**＝`EffectInteractionModal.tsx` の同pending表示へ `mode:'swap'` 専用の交換先カード選択と「入れ替えない」ボタンを追加。初版では「入れ替えない」の `null` を `handleRearrangeSigniConfirm` が現状配置へ変換したため、候補と一致して交換が実行される境界バグがあった。変換を `buildRearrangeSigniArrangement` へ純関数化し、swapの `null` は空配列、`count:'ALL'` の `null` は従来どおり恒等配置へ変換する。CPUの既存null応答もswapを確実に断る。
+
+**検証**＝golden 2テスト追加（段階1 swap＋状態追従、段階2 production効果）。後者はCSVどおり発生源WXDi-P08-037（Type=シグニ）を自分シグニゾーンへ置き、公開シグニ交換、アップ限定、UI入力 `null`→swap空配列→engine no-op の境界、`count:'ALL'` のnull→恒等配置、非シグニ、アップ候補0、未参照の【出】抑止フラグ保持を固定。共有`cursor`は両テストとも`try/finally`で復元。`npm run build:effects`は未実行。
+
+---
+
 ## 続き289＝§6.3 G群 B 2件：追加コスト三段階と双方refresh置換（2026-07-27・Codex実装／Opus 確認・差し戻し1回）
 
 **SPK06-01-E1**＝既存JSONは追加赤6の任意コスト後にBANISH 1/2/3体が累積し、最大6体へ過剰実行していた。`OPTIONAL_COST.additionalCostChoices` と不払いactionを追加し、追加赤4→3体／追加赤2→2体／不払い→1体を同一対話の排他枝にした。基本使用コスト赤2は従来どおりeffect costに保持。アーツを実戦同様check zoneへ置いたgoldenで3経路を固定した。付随するレイラのコイン技《ゲーム1回》→《ゲーム2回》・次回コイン技コスト1減は、コイン技ごとのusage limitと次回cost modifier基盤が無く、既存 `ARTS_COST_REDUCTION_BY_EFFECT` も実行時no-opのためhonest defer。
