@@ -91,7 +91,7 @@
 | ~~11~~ | ~~BEHAVIOR_AUDIT 高シグナル22 の最終仕分け~~ | — | — | **✅クローズ（続き234）＝真no-opバグ0件**。副産物でアーツ一時付与の内側【自】parse 失敗3枚をタスク12 (l) へ登録。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 続き234 |
 | 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **下の在庫リスト参照** |
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L（低優先） | effect 構造そのものが原文とズレたカードの再parse。逓減テール＝他が尽きたら |
-| 14 | リファクタ Stage2→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | ✅Stage2完了＋永続化移行完了（battle_states 全行 I/O 120箇所を `persist` へ移行）＋reducer 7 action・58/114 commit 経由（続き244-247）。設計/移行レシピ `docs/BATTLE_CONTROLLER.md`。**残＝reducer純粋化の本体（56 commit）**＝命令的 `update` インクリメンタル構築（約22ハンドラ）／pending_spell・pending_effect／spread。⚠ハンドラ側 payload 構築は golden 非カバー＝機械一括変換不可・1件ずつ手動レビュー要（レシピ BATTLE_CONTROLLER.md §4） |
+| 14 | リファクタ Stage2→Stage3 純粋バトルコントローラ | BattleScreen構造 | L | ✅Stage2完了＋永続化移行完了（battle_states 全行 I/O 120箇所を `persist` へ移行）＋**reducer 14 action・72/115 commit 経由**（続き244-247＋🆕続き271＝セットアップ3／スペル・カットイン5／WRITE_STATE 4／ADVANCE_TURN_WITH_STATE 1 の計13箇所）。設計/移行レシピ `docs/BATTLE_CONTROLLER.md`。**残＝reducer純粋化の本体（43 commit）**＝(a) 命令的 `update` インクリメンタル構築（`doPhaseAdvance`／`confirmEndDiscard` 等）(b) `result.done` で pending_effect が null/非null に分岐する効果解決本体 (c) `...opUsageUpdate`／`...extraUpdate` の spread 順序依存 (d) CPUターン終了の複数カラム同時更新。⚠ハンドラ側 payload 構築は golden 非カバー＝機械一括変換不可・1件ずつ手動レビュー要（レシピ BATTLE_CONTROLLER.md §4）。**進め方＝「挙動同値と確信できるものだけ N 箇所」に必達を絞って codex へ投げ、Claude が全箇所の diff を手で照合する**のが続き271 で確立した回し方 |
 | 15 | （大型・任意）§8 CPU AI のメインフェイズ拡張 | 新規設計 | L（特大） | ⏳DESIGN §4「CPU は対人戦と同じ処理」の統一が先 |
 | ~~17~~ | ~~timing 判定が本文後半/引用内のトリガー語を先に拾う~~ | — | — | **✅続き136で修正＝23効果是正**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md) 2026-07-24節・BUGFIXES 続き136 |
 | 16 | timing 語彙センサス（`npm run census:timing`）の消化 | parser語彙 | S（ロングテール） | **残40効果/37クラスタ**（[A]完全wired はほぼ枯渇・大半 [C]§6.3 機構待ち＋[B]軽量拡張）。上位＝「シグニの下からトラッシュ」3・「アタックを効果によって無効にしたとき」2・以降ロングテール。3階層の消化経緯は PLAN_DETAIL §3・振り分け台帳 `docs/_timing_census_triage.txt`。ゲートではない（exit 0） |
@@ -139,15 +139,14 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
-- **🆕 セッション（2026-07-26 続き262・Opus 5 確認／codex sol 実装）＝🏁§3 タスク8 を完全クローズ**（golden 735→740・census 1551→1549・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
-  - **運用**＝全工程を codex（有料版 sol）へ投げ、**Claude は確認・是正・commit のみ**。commit 66bbbba5／0a3b85c3／a7b0651d／3633075d／a4341092。
-  - **(c) アタック幾何6枚**＝engine には既に3機構（`MULTI_ZONE_ATTACK`＝正面以外の全ゾーン／`ADJACENT_ZONE_ATTACK`＝正面＋隣1つ／キーワード`側面アタック`＝正面の**代わり**に隣）が揃っており、**壊れていたのはデータ側**だった。WX15-093-E1／WXEX2-71-E3 は `owner:'opponent'` 誤り（原文「**あなたの**」）＝**相手のシグニに付与**＋生日本語 keyword で no-op。WX15-094/095/096 は原文「隣に**も**」なのに「隣の**代わり**」の既存キーワードを使っていた。新ランタイムキーワード `正面以外追加アタック`／`正面隣追加アタック` を既存2分岐へ配線して是正。WXEX2-71 の使用条件「英知＝２／＝５」脱落も `EICHI_LEVEL_SUM` へ配線。
-  - **🆕副産物＝engine の配線漏れ**：シグニ【起】の候補フィルタが **`activeCondition` を一切評価していなかった**。全数実測で該当は `WX16-043-E2` の**1件のみ**＝誰も使っていない配線漏れで、その1件も既存バグ。1行で解消。
-  - **出現条件レゾナ＝0枚 → 55/55枚が召喚可能**。着手前は parser が `【出現条件】` を正規表現で**捨てて**おり、ルリグデッキからレゾナを出す経路も存在せず**55枚は盤面に出る手段がなかった**。段階1＝`appearanceCondition` メタデータ化（新 effectType を作らないので収集器・decompiler は不変）／段階2＝`handleSummonSigni` にオプショナル引数を足して**既存経路を再利用**（支払いと配置は原子的・並行実装なし）／段階3＝複数ゾーン横断・複数グループ・合計制約・アタックフェイズ・3択2選を解放／最終＝SPELL_CUTIN 3枚を `cutinCandidates` に**判別可能ユニオン**（`kind:'effect'`/`'resona'`）で合流。
-  - **⚠Claude 確認が捕まえたもの3件**＝①codex が足した `EICHI_LEVEL_SUM` が **ACTIVATED では評価されない**（上記配線漏れ）②レゾナの場/手札支払いが `fieldTrashCostCards` 経路を通らず **ON_LEAVE_FIELD／ON_TRASH／ON_HAND_DISCARDED が未発火**③**golden のフレーク**＝追加テストがグローバル `cursor` を復元せず後続 `WXK11-070` の盤面をずらし、**gates（5並列）でのみ約50%で FAIL**（単独 golden は17回とも PASS・master は 5回とも全緑という切り分けで特定）。**golden に足すときは cursor を save/restore する**。
-  - **検証**＝全ゲート緑×2（golden 740/0・smoke 10725件0・fuzz 200ゲーム0・census 1549＝BASELINE_HIGH更新・lint 0e）。各段階で JSON の**意味的ドリフト検査**＝変化は常に対象カードのみ・`appearanceCondition` 以外は完全不変を機械確認。
-  - **⚠実機検証＝MAIN のみ消化（続き263・2026-07-27）**＝driver シナリオ `resonaMainWx08021`（WX08-021・手札の＜凶蟲＞2枚支払い）で**実UIクリック列を通した召喚が2回連続 PASS・UIバグなし**（詳細 BUGFIXES 続き263）。**未検証＝①ATTACK 窓（8枚）②SPELL_CUTIN 窓（3枚・カットイン窓でレゾナを出した後は自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない点も要確認）③REQUIRES_NEW_FLOW（複数グループ／合計制約／3択2選）④支払いに伴うトリガー発火（ON_HAND_DISCARDED 等）**＝いずれも §7 の実機検証候補として継続。
-  - **次の一手**＝**Opus：タスク8 がクローズしたので主戦場は §6.3 の残機構（A/C/E 群）＋タスク12 の在庫（新規 (lv) ほか (liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝上記レゾナ召喚UIの残り①〜④が最優先**。
+- **🆕 セッション（2026-07-27 続き271・Opus 5 確認／codex sol 実装）＝§3 タスク14（Stage3 純粋バトルコントローラ）を13箇所前進**（reducer 経由 59→72／残 56→43・golden 752→765・census 1535 据置）
+  - **運用**＝実装を codex（有料版 sol）へ投げ、**Claude は確認・簿記・commit のみ**。commit fa713376。指示書は「必達ライン＝挙動同値と確信できるものだけ最低8箇所」に絞り、確信が持てないものは honest defer を明示的に歓迎する形にした（codex は13箇所で止め、残43を理由付きで defer＝判断は妥当）。
+  - **移行13箇所**＝(a) セットアップ3件（CPUルリグ選択／CPUマリガン完了／両者完了後の対戦開始＝新 `SELECT_LRIG`／`COMPLETE_MULLIGAN`／`START_PLAYING`）(b) スペル・カットイン5件（非null `pending_spell` セット＝`QUEUE_SPELL`／打ち消し・効果なしスペル完了＝`FINISH_SPELL`＝pending 2種クリア／カットイン完了2分岐＝`FINISH_CUTIN`＝`pending_spell` のみクリアし `pending_effect` 不干渉）(c) 既存 `WRITE_STATE` へ4件（攻撃元消失・バニッシュ身代わり待ち・CPU同時クラッシュ繰越・LIFE_BURST不発の `clearPending`）(d) `ADVANCE_TURN_WITH_STATE` 1件（CPU の UP済み状態＋`turn_phase:'DRAW'` を原子的に）。`BattleAction` 7種→14種。
+  - **⚠この移行に固有の検証限界**＝golden がカバーするのは reducer（純粋関数）だけで、**ハンドラ側の payload 構築は golden 非カバー**＝機械変換ではサイレントな挙動変化を検出できない。よって **13箇所すべて Claude が diff を手で読み**、commit に渡るキー集合と値の一致を個別確認した（特に打ち消し分岐は `casterIsHost` の真偽で `host_state`/`guest_state` と `negatedCasterState`/`nonCasterState` の対応が入れ替わるため両分岐を展開して照合）。`bs!` 等の non-null assertion 混入 0件。golden 側は `JSON.stringify(Object.keys(patch))` でキー集合を順序込みで固定し、`null` 明示クリアと省略（`!('pending_effect' in patch)`）を別テストで区別。Stage3 ブロックは共有 `cursor` を save/restore（続き262 のフレーク対策を踏襲）。
+  - **残43件＝honest defer**＝(a) 名前付き `const update` の命令的インクリメンタル構築（`doPhaseAdvance`／`confirmEndDiscard` 等）(b) `result.done` で `pending_effect` が null／非null に分岐する効果解決本体 (c) `...opUsageUpdate`／`...extraUpdate` の spread で上書き順が意味を持つ遷移 (d) CPUターン終了など複数カラム同時更新。汎用 raw patch action への丸め込み（＝純粋化にならない）はしていない。
+  - **検証**＝`npm run gates` 全緑を**2回連続**独立再現（golden 765/765・smoke 10725件0・fuzz 200ゲーム0・census 1535＝BASELINE 据置・lint 0e/222w）。変更は5ファイルのみで **engine/parser/effects JSON は不変**（census 不動がその裏付け）。`docs/BATTLE_CONTROLLER.md` §3 は数字（72/115・14 action・残43）と残テールの説明文の両方を更新。
+  - **⚠実機未検証**＝本セッションは BattleScreen の構造リファクタ（挙動同値が前提）であり、実UIでの回帰確認はしていない。特にスペル打ち消し／カットイン完了の2遷移は §7 実機検証の対象に含めると安全。
+  - **次の一手**＝**Opus：タスク14 の残43（上記 (a)〜(d)）を同じ要領で段階分割して codex へ／または §6.3 残機構＋タスク12 の在庫（(lv)(liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火が最優先（＋上記スペル打ち消し／カットイン遷移の回帰確認）**。
 
 ### 📊 恒久指標（維持中・逐次更新）
 - **P1 表現①の systematic 指標**：同型★0（`node scripts/groupSimilar.mjs --all`）。**parserWorklist は held 188 / LOSS 154 / VALUE 34（2026-07-19 実測・`npx tsx scripts/parserWorklist.ts`・⚠HEAD比較＝未コミットJSONは反映されない）**。続き29時点（held 79）からの増加は主に**その後の parser 改善で fresh が curated より正しくなった採用待ちバックログ側**（Sonnetタスク6の採用サイクルで消化してから実数を締め直す）。**この数字からさらに増えたら回帰**（JSON手パッチ時は パーサー同修正 or MANUAL化 or ここを実数更新）。旧内訳の詳細は PLAN_DETAIL 参照。
@@ -159,7 +158,7 @@
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 750・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1537（＝`BASELINE_HIGH`・回帰ゲート）。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝golden 765・smoke/fuzz 全0（SKIP も 0）・同型★0・census 1535（＝`BASELINE_HIGH`・回帰ゲート）。
 >
 > **🏁 P1（表現）は 2026-07-23 に完了宣言済み**（宣言・3分類・以後の運用＝[P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) 冒頭／§2 DoD／§5）。**主軸は P2/P3**＝①**§6.3 機構台帳**（宣言で正式送りした282効果の消化先＝正面40・チーム35・ゲームから除外残・アンコール19・動的比較14・ソウル11・ドライブ9 等を機構単位で）②**§7 実機検証** ③**BEHAVIOR_AUDIT（§5a・フェーズ跨ぎで継続）**。
 >

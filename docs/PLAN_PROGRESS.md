@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **セッション（2026-07-26 続き262・Opus 5 確認／codex sol 実装）＝🏁§3 タスク8 を完全クローズ**（golden 735→740・census 1551→1549・前セッション要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) 先頭へ退避）
+  - **運用**＝全工程を codex（有料版 sol）へ投げ、**Claude は確認・是正・commit のみ**。commit 66bbbba5／0a3b85c3／a7b0651d／3633075d／a4341092。
+  - **(c) アタック幾何6枚**＝engine には既に3機構（`MULTI_ZONE_ATTACK`＝正面以外の全ゾーン／`ADJACENT_ZONE_ATTACK`＝正面＋隣1つ／キーワード`側面アタック`＝正面の**代わり**に隣）が揃っており、**壊れていたのはデータ側**だった。WX15-093-E1／WXEX2-71-E3 は `owner:'opponent'` 誤り（原文「**あなたの**」）＝**相手のシグニに付与**＋生日本語 keyword で no-op。WX15-094/095/096 は原文「隣に**も**」なのに「隣の**代わり**」の既存キーワードを使っていた。新ランタイムキーワード `正面以外追加アタック`／`正面隣追加アタック` を既存2分岐へ配線して是正。WXEX2-71 の使用条件「英知＝２／＝５」脱落も `EICHI_LEVEL_SUM` へ配線。
+  - **🆕副産物＝engine の配線漏れ**：シグニ【起】の候補フィルタが **`activeCondition` を一切評価していなかった**。全数実測で該当は `WX16-043-E2` の**1件のみ**＝誰も使っていない配線漏れで、その1件も既存バグ。1行で解消。
+  - **出現条件レゾナ＝0枚 → 55/55枚が召喚可能**。着手前は parser が `【出現条件】` を正規表現で**捨てて**おり、ルリグデッキからレゾナを出す経路も存在せず**55枚は盤面に出る手段がなかった**。段階1＝`appearanceCondition` メタデータ化（新 effectType を作らないので収集器・decompiler は不変）／段階2＝`handleSummonSigni` にオプショナル引数を足して**既存経路を再利用**（支払いと配置は原子的・並行実装なし）／段階3＝複数ゾーン横断・複数グループ・合計制約・アタックフェイズ・3択2選を解放／最終＝SPELL_CUTIN 3枚を `cutinCandidates` に**判別可能ユニオン**（`kind:'effect'`/`'resona'`）で合流。
+  - **⚠Claude 確認が捕まえたもの3件**＝①codex が足した `EICHI_LEVEL_SUM` が **ACTIVATED では評価されない**（上記配線漏れ）②レゾナの場/手札支払いが `fieldTrashCostCards` 経路を通らず **ON_LEAVE_FIELD／ON_TRASH／ON_HAND_DISCARDED が未発火**③**golden のフレーク**＝追加テストがグローバル `cursor` を復元せず後続 `WXK11-070` の盤面をずらし、**gates（5並列）でのみ約50%で FAIL**（単独 golden は17回とも PASS・master は 5回とも全緑という切り分けで特定）。**golden に足すときは cursor を save/restore する**。
+  - **検証**＝全ゲート緑×2（golden 740/0・smoke 10725件0・fuzz 200ゲーム0・census 1549＝BASELINE_HIGH更新・lint 0e）。各段階で JSON の**意味的ドリフト検査**＝変化は常に対象カードのみ・`appearanceCondition` 以外は完全不変を機械確認。
+  - **⚠実機検証＝MAIN のみ消化（続き263・2026-07-27）**＝driver シナリオ `resonaMainWx08021`（WX08-021・手札の＜凶蟲＞2枚支払い）で**実UIクリック列を通した召喚が2回連続 PASS・UIバグなし**（詳細 BUGFIXES 続き263）。**未検証＝①ATTACK 窓（8枚）②SPELL_CUTIN 窓（3枚・カットイン窓でレゾナを出した後は自動で元スペルへ戻る近似＝同じ窓で打消しを重ねられない点も要確認）③REQUIRES_NEW_FLOW（複数グループ／合計制約／3択2選）④支払いに伴うトリガー発火（ON_HAND_DISCARDED 等）**＝いずれも §7 の実機検証候補として継続。
+  - **次の一手**＝**Opus：タスク8 がクローズしたので主戦場は §6.3 の残機構（A/C/E 群）＋タスク12 の在庫（新規 (lv) ほか (liv)(liii)(lii)(xxii)残ほか）**。**Sonnet：タスク1（§7 実機検証）＝上記レゾナ召喚UIの残り①〜④が最優先**。
+
 - **セッション（2026-07-25 続き261・Opus 5）＝§3 タスク8 を全数棚卸しし「正面」サブ機構(b)(d)(e) を消化**（golden 734→735・census 1552→1551）
   - **⚠最大の成果は棚卸し**＝タスク8 の行が大きく古く、**7サブ項目のうち5項目は既に完了済み**だった（ゲーム除外＝`excluded` 実ゾーン／canCardGuard＝`battle/guard.ts` 集約／多段閾値＝続き257／スペル被破棄【自】＝`fromZones:['hand']`＋`collectAnyZoneTrashSelfTriggers` 配線済／ON_LEAVE_FIELD 相手scope＝続き233）。**着手前に必ず実測する**（行の記述を worklist として鵜呑みにしない）。
   - **(e) WX05-019-E1**「このシグニの正面のシグニは能力を失う」＝`owner:'self'` ＝**自分のシグニの能力を消す自傷**／**(b) WXK11-029-E1**「正面のシグニの【出】能力は発動しない」＝`BLOCK_ACTION{PLAYER owner:'self'}` ＝**自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤り。どちらも `frontOfSelf`（＋(b) は既存 `abilityTypes:['出']` 語彙）へ是正し、engine は召喚時 ON_PLAY 収集を `'出'` でゲート。⚠**PRESERVE ギャップ再現**＝WXK11-029 は MANUAL カードで `manualEffects.ts` 編集が built JSON に焼かれず `effects_WXK.json` 直パッチが必須（ガードレール10・WXK04-072 と同型）。
