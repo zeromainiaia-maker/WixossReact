@@ -12,6 +12,7 @@ import type {
   Condition,
   SelectionConstraint,
 } from '../types/effects';
+import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -1323,6 +1324,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'LIFE_COMPARE_OPP':
       return cmp(s.life_cloth.length, cond.operator, o.life_cloth.length);
+    case 'EFFECTIVE_LRIG_LIMIT_GTE':
+      return !!ctx.effectsMap && computeEffectiveLrigLimit(
+        s, o, ctx.cardMap, ctx.effectsMap, ctx.isOwnerTurn ?? true,
+      ) >= cond.value;
     case 'DURING_PHASE':
       return cond.phases.includes(ctx.currentPhase ?? '');
     case 'AND':
@@ -1367,6 +1372,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ── §3 タスク6「代わりに」B1残（per-target 値すり替えの置換ゲート）
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN':
       return cmp(ctx.ownerState.opp_cards_moved_to_deck_this_turn ?? 0, cond.operator, cond.value);
+    case 'SELF_DECK_TO_ENERGY_THIS_TURN':
+      return cmp(ctx.ownerState.self_deck_to_energy_this_turn ?? 0, cond.operator, cond.value);
+    case 'SELECTED_COLOR':
+      return (ctx.ownerState.story_overrides?.['__selected_colors__']?.split(',') ?? []).includes(cond.color);
+    case 'BEAT_ZONE_COUNT':
+      return cmp(ctx.ownerState.field.beat_zone?.length ?? 0, cond.operator, cond.value);
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN':
       return !!ctx.sourceCardNum && (ctx.ownerState.upped_from_down_this_turn ?? []).includes(ctx.sourceCardNum);
     case 'COST_TRASHED_PUPPET':

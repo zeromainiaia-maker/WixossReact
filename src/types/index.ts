@@ -495,6 +495,7 @@ export interface PlayerState {
   upped_from_down_this_turn?: string[];
   // このターンに **このプレイヤーの効果によって** 対戦相手のカードがデッキに移動した累計枚数（OPP_CARDS_MOVED_TO_DECK_THIS_TURN。WXK06-071）。ターン境界でリセット
   opp_cards_moved_to_deck_this_turn?: number;
+  self_deck_to_energy_this_turn?: number;
   // v0.278: WX25-P2-001 GAIN_ABILITY_THIS_GAME で付与されるゲーム全体フラグ
   // 【ルリグバリア】【シグニバリア】は field.free_zone にトークンカードとして設置する
   // （旧 lrig_barrier / signi_barrier 数値カウンタは廃止。execUtils の barrier ヘルパー参照）

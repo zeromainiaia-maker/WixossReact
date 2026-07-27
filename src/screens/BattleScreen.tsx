@@ -3,7 +3,7 @@ import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectLrigColorAndLimitMods, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -31,6 +31,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
+import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
@@ -1061,16 +1062,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
     return collectHandGuardIconClasses(myS, battleCardMap, effectsMap, opS, myTurn);
-  }, [bs, battleCardMap, effectsMap, user.id]);
-
-  // CENTER_LRIG_COLOR_CHANGE_BLACK / LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグの色・リミット変更
-  const myLrigColorAndLimitMods = useMemo(() => {
-    if (!bs || bs.global_phase !== 'PLAYING') return { extraColors: [] as string[], limitDelta: 0 };
-    const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-    return collectLrigColorAndLimitMods(myS, battleCardMap, effectsMap, opS, myTurn);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
@@ -3247,6 +3238,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
           upped_from_down_this_turn: undefined, // 効果でダウン→アップした自分のシグニをリセット（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
           opp_cards_moved_to_deck_this_turn: 0, // 相手カードをデッキに移動させた累計をリセット（OPP_CARDS_MOVED_TO_DECK_THIS_TURN。WXK06-071）
+          self_deck_to_energy_this_turn: 0,
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
@@ -3618,6 +3610,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
         upped_from_down_this_turn: undefined, // THIS_CARD_UPPED_FROM_DOWN_THIS_TURN（WX14-070）
         opp_cards_moved_to_deck_this_turn: 0, // OPP_CARDS_MOVED_TO_DECK_THIS_TURN（WXK06-071）
+        self_deck_to_energy_this_turn: 0,
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
@@ -3686,6 +3679,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
         opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+        self_deck_to_energy_this_turn: 0,
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
         field: {
@@ -4043,6 +4037,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       ]);
       const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = isOwnerTurn;
+      // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
+      // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
+      ctx.effectsMap = effectsMap;
       let result = executeEffect(entry.effect, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
       {
@@ -4305,6 +4302,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             free_grow_next_turn: undefined,
             signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
             signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
+            self_deck_to_energy_this_turn: 0,
             field: {
               ...nextState.field,
               signi_down:   newSigniDown,
@@ -5296,35 +5294,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       )
     );
 
-  // シグニ召喚: リミット計算（アシストルリグ+1ずつ、lrig_limit_mod加算、LRIG_LIMIT_UP_AND_COLOR_GAIN加算）
-  // OPP_CENTER_LRIG_LIMIT_SET_5: 相手フィールドにあれば基本リミットを5に上書き
-  const oppBasicLimitOverride = op.field.signi.some(stack => {
-    const top = stack?.at(-1);
-    return top && (effectsMap.get(top) ?? []).some(eff =>
-      eff.effectType === 'CONTINUOUS' &&
-      (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-      (eff.action as import('../types/effects').StubAction).id === 'OPP_CENTER_LRIG_LIMIT_SET_5'
-    );
-  }) ? 5 : undefined;
-  // lrig_copy_opp_level_limit: WXK03-003A ルリグのリミットを相手センタールリグからコピー
-  const oppCenterLrig = battleCardMap.get(op.field.lrig.at(-1) ?? '');
-  // Limit「∞」はInfinity扱い（parseIntだとNaN→0になりシグニを出せなくなる）
-  const parseLimitVal = (s?: string) => s === '∞' ? Infinity : (parseInt(s ?? '0') || 0);
-  const copyBaseLimitFromOpp = my.lrig_copy_opp_level_limit
-    ? parseLimitVal(oppCenterLrig?.Limit)
-    : undefined;
-  // 【リミットアッパー】トークン: 場のルリグが1体（アシストなし）かつレベル3以上のかぎりリミット+2
-  const limitUpperBonus = my.limit_upper_token
-    && (my.field.assist_lrig_l ?? []).length === 0
-    && (my.field.assist_lrig_r ?? []).length === 0
-    && currentLrigLevel >= 3 ? 2 : 0;
-  const lrigLimit = (oppBasicLimitOverride ?? copyBaseLimitFromOpp ?? parseLimitVal(currentLrig?.Limit))
-    + ((my.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
-    + ((my.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
-    + (my.lrig_limit_mod ?? 0)
-    + (my.game_lrig_limit_bonus ?? 0)
-    + limitUpperBonus
-    + myLrigColorAndLimitMods.limitDelta;
+  // シグニ召喚・表示と効果条件で共有する実効リミット。
+  const lrigLimit = computeEffectiveLrigLimit(my, op, battleCardMap, effectsMap, isMyTurn);
   const fieldSigniTopLevels: number[] = my.field.signi.map(stack => {
     if (!stack || stack.length === 0) return 0;
     const top = battleCardMap.get(stack[stack.length - 1]);

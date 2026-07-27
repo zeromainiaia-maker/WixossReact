@@ -532,7 +532,11 @@ export function execStubPart3(
       return f.length > 0 ? f : null;
     }) as (string[] | null)[];
     // 場から除去 → addToBeatZone（beat_zone＋beat_became_just＝ON_BECOME_BEAT 検出用）
-    const removedIMTB: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIMTB } };
+    const removedIMTB: PlayerState = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.filter(c => c !== cardIMTB),
+      field: { ...ctx.ownerState.field, signi: newSigniIMTB },
+    };
     const newOwnerIMTB = addToBeatZone(removedIMTB, [cardIMTB]);
     return done(addLog({ ...ctx, ownerState: newOwnerIMTB },
       `${ctx.cardMap.get(cardIMTB)?.CardName ?? cardIMTB}をビートゾーンへ`));
@@ -546,13 +550,20 @@ export function execStubPart3(
       const namesTSTB = selectedTSTB.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
       return done(addLog({ ...ctx, ownerState: newOwnerTSTB }, `${namesTSTB}をビートゾーンへ`));
     }
-    const candsTSTB = ctx.ownerState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-    if (candsTSTB.length === 0) return done(addLog(ctx, 'トラッシュにシグニなし（TRASH_SIGNI_TO_BEAT）'));
+    const wxk08029TSTB = stub.value === 'WXK08-029';
+    const candsTSTB = ctx.ownerState.trash.filter(cn => {
+      const c = ctx.cardMap.get(cn);
+      return c?.Type === 'シグニ' && (!wxk08029TSTB || (c.CardClass ?? '').includes('悪魔'));
+    });
+    if (candsTSTB.length === 0) return done({ ...addLog(ctx, 'トラッシュにシグニなし（TRASH_SIGNI_TO_BEAT）'), lastProcessedCards: [] });
     const noopTSTB: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };
-    const contTSTB: StubAction = { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT' };
-    return needsInteraction(addLog(ctx, 'ビートにするシグニを最大2枚選択'), {
-      type: 'SELECT_TARGET', candidates: candsTSTB, count: Math.min(2, candsTSTB.length), optional: true,
-      targetScope: 'self_trash', thenAction: noopTSTB as EffectAction, continuation: contTSTB as EffectAction,
+    const contTSTB: StubAction = { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT', ...(wxk08029TSTB ? { value: 'WXK08-029' } : {}) };
+    const pickCountTSTB = wxk08029TSTB ? 1 : Math.min(2, candsTSTB.length);
+    return needsInteraction(addLog(ctx, wxk08029TSTB ? 'ビートにする＜悪魔＞を選択' : 'ビートにするシグニを最大2枚選択'), {
+      type: 'SELECT_TARGET', candidates: candsTSTB, count: pickCountTSTB, optional: !wxk08029TSTB,
+      targetScope: 'self_trash',
+      thenAction: (wxk08029TSTB ? ({ type: 'STUB', id: 'INTERNAL_MOVE_TO_BEAT' } as StubAction) : noopTSTB) as EffectAction,
+      ...(wxk08029TSTB ? {} : { continuation: contTSTB as EffectAction }),
     });
   }
   // SIGNI_UNDER_WEAPON_SIGNI: 自シグニ1体を自＜ウェポン＞シグニの下に置く
@@ -2936,6 +2947,9 @@ export function execStubPart3(
   // CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE
   // CHOOSE_COLOR_FROM_LIST: エナゾーンの色から選ぶ（最大N色）→ selectedColors に保存
   if (stub.id === 'CHOOSE_COLOR_FROM_LIST') {
+    const clearedOverridesCCL = { ...(ctx.ownerState.story_overrides ?? {}) };
+    delete clearedOverridesCCL['__selected_colors__'];
+    const clearedCtxCCL = { ...ctx, ownerState: { ...ctx.ownerState, story_overrides: clearedOverridesCCL } };
     const colorNames = ['白', '赤', '青', '緑', '黒'];
     // エナゾーンにある色を収集
     const enaColorsCCL = new Set<string>();
@@ -2943,7 +2957,7 @@ export function execStubPart3(
       const c = ctx.cardMap.get(cn);
       (c?.Color ?? '').split(/[・,、]/).forEach(col => { if (colorNames.includes(col.trim())) enaColorsCCL.add(col.trim()); });
     });
-    if (enaColorsCCL.size === 0) return done(addLog(ctx, '色選択：エナに色なし'));
+    if (enaColorsCCL.size === 0) return done(addLog(clearedCtxCCL, '色選択：エナに色なし'));
     const optsCCL = [...enaColorsCCL].map(col => ({
       id: `color_${col}`,
       label: `《${col}》を選ぶ`,
@@ -2954,7 +2968,7 @@ export function execStubPart3(
     const txtCCL = srcCCL ? srcCCL.EffectText ?? '' : '';
     const maxMCCL = txtCCL.match(/最大([１-５1-5])色/);
     const maxCount = maxMCCL ? parseInt(maxMCCL[1].replace(/[１-５]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0))) : 1;
-    return needsInteraction(addLog(ctx, `色を選択（最大${maxCount}色）`), {
+    return needsInteraction(addLog(clearedCtxCCL, `色を選択（最大${maxCount}色）`), {
       type: 'CHOOSE', options: optsCCL, count: Math.min(maxCount, optsCCL.length),
     });
   }

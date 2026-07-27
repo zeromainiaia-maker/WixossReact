@@ -811,30 +811,6 @@ WXK06-068 WXK06-070
   + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
   …（他 14 行）
 
-## +HAND_CARD +REVEAL -STUB ［2枚］
-WDK08-Y01 WXK10-081
---- WDK08-Y01
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたの手札から＜水獣＞のシグニを４枚公開する。そうした場合、カードを１枚引く。この方法でそれぞれレベルの異なるシグニ４枚が公開された場合、追加でそれをエナゾーンに置く。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《緑》手札から＜水獣＞のシグニを１枚捨てる：あなたの＜水獣＞のシグニ１体を対
-  - [0].action.steps[0].id = "TRADE_BANISH_SELF_SIGNI"
-  ~ [0].action.steps[0].type : "STUB" → "REVEAL"
-  + [0].action.steps[0].source.type = "HAND_CARD"
-  + [0].action.steps[0].source.owner = "self"
-  + [0].action.steps[0].source.count = 4
-  + [0].action.steps[0].source.upToCount = false
-  + [0].action.steps[0].source.filter.cardType = "シグニ"
-  + [0].action.steps[0].source.filter.story = "水獣"
-  ~ [0].parseStatus : "AUTO" → "PARTIAL"
---- WXK10-081
-  原文: 【常】：このシグニはパワーが7000以上であるかぎり、【ランサー】を得る。【出】：あなたの＜水獣＞のシグニ１体を対象とし、あなたの手札からそれぞれ名前の異なる＜水獣＞のシグニを好きな枚数公開する。ターン終了時まで、それのパワーをこの方法で公開したカード１枚につき＋1000する。,：カードを１枚引く。
-  - [1].action.steps[0].id = "REVEAL_CLASS_SIGNI_FROM_HAND"
-  ~ [1].action.steps[0].type : "STUB" → "REVEAL"
-  + [1].action.steps[0].source.type = "HAND_CARD"
-  + [1].action.steps[0].source.owner = "self"
-  + [1].action.steps[0].source.count = "ALL"
-  + [1].action.steps[0].source.upToCount = true
-  + [1].action.steps[0].source.filter.cardType = "シグニ"
-  + [1].action.steps[0].source.filter.story = "水獣"
-
 ## +ADD_TO_HAND +REVEAL +SEQUENCE×2 +SIGNI -DECK_CARD ［1枚］
 WX07-024
 --- WX07-024
@@ -1921,6 +1897,19 @@ WXK10-080
   + [0].action.steps[0].target.owner = "self"
   + [0].action.steps[0].target.count = 1
   …（他 17 行）
+
+## +HAND_CARD +REVEAL -STUB ［1枚］
+WXK10-081
+--- WXK10-081
+  原文: 【常】：このシグニはパワーが7000以上であるかぎり、【ランサー】を得る。【出】：あなたの＜水獣＞のシグニ１体を対象とし、あなたの手札からそれぞれ名前の異なる＜水獣＞のシグニを好きな枚数公開する。ターン終了時まで、それのパワーをこの方法で公開したカード１枚につき＋1000する。,：カードを１枚引く。
+  - [1].action.steps[0].id = "REVEAL_CLASS_SIGNI_FROM_HAND"
+  ~ [1].action.steps[0].type : "STUB" → "REVEAL"
+  + [1].action.steps[0].source.type = "HAND_CARD"
+  + [1].action.steps[0].source.owner = "self"
+  + [1].action.steps[0].source.count = "ALL"
+  + [1].action.steps[0].source.upToCount = true
+  + [1].action.steps[0].source.filter.cardType = "シグニ"
+  + [1].action.steps[0].source.filter.story = "水獣"
 
 ## +CONDITIONAL +LAST_PROCESSED_COUNT_GTE +SEQUENCE +STUB -TRASH -TRASH_CARD ［1枚］
 WXK11-070

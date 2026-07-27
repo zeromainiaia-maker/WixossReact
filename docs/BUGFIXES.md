@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き296＝§3タスク12(xxii) 群B 3効果を過剰実行なしでクローズ可能化（2026-07-28・Codex）
+
+- **WX15-067-E1（メルト・ファクト）**：誤った `CONDITIONAL{IS_MY_TURN}` と空の reminder STUB を撤去。ウィルス任意除去／黒×2軽減／2個除去時2択までの節は原文全文を `UNKNOWN` に保持し、その後へ本体 `CHOOSE{1/2}`（黒シグニ1枚をトラッシュ→手札／相手シグニ1体をターン終了時まで-7000）を復元した。任意除去を行わなくても本体を使えるため、本体だけは安全に実装できる。
+- **WXDi-P11-010A-E1（夢限 -Q-）**：`IS_MY_TURN` を新 condition `EFFECTIVE_LRIG_LIMIT_GTE{9}` へ置換。BattleScreen に重複していた実効リミット式（基礎／相手上書き／相手コピー／アシストL/R／`lrig_limit_mod`／`game_lrig_limit_bonus`／リミットアッパー／常在limitDelta）を `src/screens/battle/lrigLimit.ts` の共有ヘルパーへ抽出し、画面側と condition 評価側を同じ関数へ接続した。3ゾーン全戻し＋ルリグデッキ/場の除外＋自身裏向きは原子的に `UNKNOWN` とし、中途半端なゾーン移動を実行しない。
+- **WXDi-P13-003A-E1（未知の邂逅）**：自軍シグニへ存在しない「使用条件」を永続付与していた `GRANT_KEYWORD` と `IS_MY_TURN` を撤去。手札全捨て＋エナ全捨てという代償だけを実装しないため、無料グロウの見返りを含む本文全体を単一 `UNKNOWN` にした。
+- **live JSON**：3枚とも build の curated 温存対象だったため、`npm run build:effects` 後に effectId アンカーの使い捨てスクリプトで `effects_WX.json`／`effects_WXDi.json` をミニファイ1行のまま外科パッチ。build直前退避との effectId 単位diffは **3件ちょうど**（上記3効果）、巻き添え0。
+- **逆翻訳**：B1は「未実装ウィルス節→本体2択」、B2は「リミット9以上なら全リセット本文UNKNOWN」、B3は代償と見返りをまとめた全文UNKNOWN。原文の実装済み部分と defer 境界に一致。`npm run regen` 後、同型★0。
+- **golden**：824→828。B2を実戦と同じルリグゾーンに置き、実効8で本体不発／9でUNKNOWN本体へ入る両方向を engine 実行で固定。閾値9→10の一時変異で当該goldenが **1件FAIL** することを確認して復元。B1のUNKNOWN先行＋2択形・明示duration、B3が手札/エナ/トラッシュを一切変えずUNKNOWNログだけ出すこと、共有ヘルパーが抽出前の全加算項と同値であることも追加した。全テストはグローバル`cursor`をsave/restore。
+- **検証**：`npm run gates` 全緑＝typecheck PASS／golden 828・FAIL 0／smoke 10725・異常0／fuzz seed 12648430・200ゲーム・異常0／census **1517**（BASELINE_HIGH 1518から1改善、増加なし。PLAN編集禁止のため定数は据置）／lint 222 warnings・0 errors。同型★0。held は build 後265枚／109署名（3 manual override分が262→265、署名数不変）。
+- **§6.3送り**：B1＝スペル支払い前の相手ウィルス任意複数除去UI、実除去数に連動する使用コスト軽減、除去数2以上でCHOOSE上限を1→2へ変更する機構。B2＝手札/エナ/トラッシュ一括デッキ戻し＋シャッフル、ルリグデッキと場の「自身以外」一括除外、自身ルリグ裏向き状態。B3＝未グロウ/ドリームチーム使用条件、ピース両面反転、特定《未知の巫女 マユ》へのコストなしグロウ。
+- commit/push・PLAN/PLAN_PROGRESS編集・実機ブラウザ検証・上記不足機構の実装・スコープ外効果の変更は行っていない。
+
+### ⚠検証是正（Claude・codex 報告後）
+
+**(1) `EFFECTIVE_LRIG_LIMIT_GTE` が実機で常に false になる dead flag だった**＝評価器が
+`return !!ctx.effectsMap && computeEffectiveLrigLimit(...)` と書かれている一方、**BattleScreen の `ExecCtx` 構築8箇所は
+どこも `effectsMap` を渡していなかった**（`ExecCtx.effectsMap` は optional）。codex の golden は ctx を手で組んで
+`effectsMap` を入れているため**緑のまま通過**していた＝「golden 緑・実機 no-op」の再発パターン。
+engine 直呼びで実測して確定した（基礎Limit5＋`game_lrig_limit_bonus`4＝実効9 でも `effectsMap` 無しでは false、有りで true）。
+→ トリガー実行の ctx（`BattleScreen.tsx` の `ctx.isOwnerTurn = isOwnerTurn;` の直後）に `ctx.effectsMap = effectsMap;` を配線。
+⚠**今回は本体が `UNKNOWN` なので挙動差は出ないが、§6.3 で本体を実装した瞬間に「条件が絶対成立しない」形で壊れる**ため先に閉じた。
+`ExecCtx.effectsMap` のもう1人の消費者 `LAST_PROCESSED_HAS_NO_ABILITIES` は実データ1効果（WX25-CP1-002）のみで、
+かつ pending-effect 経路で解決されるため今回の配線の影響外（構造上も map 不在時は EffectText 正規表現へフォールバックする設計＝同値以上）。
+
+**(2) `BASELINE_HIGH` を実数 1517 へ更新**＝codex は「PLAN編集禁止」を理由に 1518 据置としたが、
+禁止対象は PLAN.md であって `scripts/vocabCensus.ts` の定数ではない（**減ったら実数更新**が §4 恒久指標の運用ルール）。
+コメント先頭に今回の理由を追記した。
+
+**(3) 共有ヘルパー抽出に伴う既存挙動の差分を1件確認**＝`lrigLimit.ts` の `OPP_CENTER_LRIG_LIMIT_SET_5` 判定が
+`effectsMap.get(top) ?? effectsMap.get(baseCardNum(top))` とインスタンスID フォールバック付きになった
+（旧 BattleScreen 行は `effectsMap.get(top)` のみ＝インスタンスIDだと引けず**実質不発**だった）。
+これは同種ヘルパー `fieldLimit.ts:17` の既存イディオムと一致する方向の修正で、**該当効果は実データ1件（WXEX1-26）のみ**。
+
+**(4) 独立確認したもの**＝①per-effect JSON diff（build直前退避比）＝**採用3効果ちょうど・巻き添え0**
+②`npm run gates` 全緑を独立再実行（golden 828／smoke 10725 全0／fuzz 全0／lint 222w・0e）
+③3効果の着地が原文の実装済み／defer 境界と一致すること（B3 は代償と見返りを分割せず全文 `UNKNOWN`＝手札・エナを失わない）。
+
+## 続き295＝§3タスク12(xxii) 残6効果の最終精査・群A 3効果を忠実化（2026-07-28・Codex）
+
+- **WXK11-024-E2**：誤った `LOOK_AND_REORDER` と無条件エナ送りを撤去し、`TRANSFER_TO_DECK{TRASH_CARD, count:'ALL', optional:true, shuffle:true}` → `LAST_PROCESSED_COUNT_GTE 15` → 相手シグニのエナ送りへ是正。`execTransferToDeck` に `execReveal` と同型の全件実行／全件スキップ CHOOSE を追加し、スキップ時は `INTERNAL_SKIP_OPTIONAL_ACTION` が `lastProcessedCards:[]` を返すため後続条件は不成立になる。非 optional 経路は不変。
+- **WXK06-031-E1**：相手シグニを先に対象保存し、黒のレベル1〜4を `levelRange`＋`selectionConstraint.distinct:'level'` で4枚 SEARCH→TRASH→SHUFFLE。実移動4枚を記録した場合だけ `targetsStored:true` で先行対象をバニッシュする形へ是正。
+- **WDK08-Y01-E1**：ルリグの【出】として相手シグニを先に対象保存し、手札の＜水獣＞シグニ4枚を REVEAL。4枚公開時だけ1ドローし、公開4枚のレベルがすべて異なる場合だけ保存した相手シグニをエナへ置く形へ是正。DRAW 後も公開集合が生存することを E2E で確認。
+- **Claude 訂正表の再確認**：3件とも正しかった。REVEAL は手札 source と `lastProcessedCards` を実装済み、SEARCH の selectionConstraint は `resumeSearch` が強制、`storedTargetCards` と `lastProcessedCards` は別スロット、TRASH_CARD 全戻しは既に実移動全件を記録していた。必要な engine 変更は optional×ALL の入口1箇所だけだった。
+- **群B honest defer**：`WX15-067-E1` はスペル支払い前のウィルス除去UIと除去実数の解決時引継ぎ、`WXDi-P11-010A-E1` は共有実効Limit・複数ゾーン除外・ルリグ裏向き状態、`WXDi-P13-003A-E1` は未グロウ使用条件・両面反転・特定カード指定free-growが未接続。部分 action だけを置くと支払い時点／対象カード／ゾーン意味を偽るため変更しなかった。
+- **検証**：golden 821→824（3効果とも成立／不成立 E2E、ルリグ発生源を実ゾーン配置、全テストで cursor save/restore）。閾値を A1 15→16、A2 4→5、A3 公開数4→5へ個別変異すると各対象 golden が1件 FAIL することを実測。gates 全緑＝golden 824、smoke 10725/全0、fuzz seed 12648430・200ゲーム全0、census 1519→1518、lint 222 warnings/0 errors、同型★0。最終 build→heldReview 実測は held 262枚/109署名。
+
+## 続き294＝§3タスク12(xxii) 最終10効果のうち独立して正しく閉じられる3効果＋既正1効果を消化（2026-07-28・Codex）
+
+- **WXDi-P03-044-E2**：`self_deck_to_energy_this_turn` と `SELF_DECK_TO_ENERGY_THIS_TURN` を追加。`execEnergyChargeFromDeck` だけが実移動枚数を加算し、全ターン境界でリセットするため、手札/トラッシュ由来を数えず「このターンに自デッキから3枚以上」を満たした時だけ追加支払いを提示する。
+- **WX10-025-E1**：既存 `story_overrides['__selected_colors__']` を読む `SELECTED_COLOR` を追加し、5色枝を個別条件化。`CHOOSE_COLOR_FROM_LIST` 開始時に旧記録を消して再使用時の累積過剰発火も防止。
+- **WXK08-029-E1**：既存 `TRASH_SIGNI_TO_BEAT` を WXK08-029 用に拡張し、トラッシュの＜悪魔＞1枚だけを候補化。`BEAT_ZONE_COUNT` で開始時4枚以下／処理成功後ちょうど4枚を判定して2ドロー。
+- **WX04-029-E1**：curated MANUAL と `MOVE_TO_ATTACKER_FRONT` は既に原文一致。正面空→移動可／占有→移動不可の両方向 E2E golden のみ追加して lock-in。
+- **honest defer 6効果**：WXDi-P11-010A-E1（実効limit共有計算＋全ゾーン大リセットが一体）、WX15-067-E1（スペルコスト支払い前のウィルス除去入口＋本体2択）、WXK11-024-E2／WXK06-031-E1／WDK08-Y01-E1（いずれも後置条件より前段action/対象保持の再構成が先）、WXDi-P13-003A-E1（チェック裏返し＋別カード指定free grow）。条件だけのフェイク実装は採用しなかった。
+- **検証**：live per-effect diff は上記採用3効果だけ、生パース差分0・outlier 0。golden 815→820、census 1519維持、smoke/fuzz異常0、同型★0、lint 222 warnings / 0 errors。
+
+### ⚠検証是正（Claude・codex 報告後）
+
+**(1) WXDi-P03-044-E2 の負方向 golden が空振りだった**＝`ok(!r.logs.some(x => x.includes('追加コスト')))` と書かれていたが、
+`OPTIONAL_COST` が実際に出すログは **「任意コスト：発動しますか？」**＝**'追加コスト' はどちらの向きでも現れない**。
+累計1／3の両方を engine 直呼びで実測して確認した（ゲートが開いた側でも false）。→ 実文字列 `'任意コスト'` に直し、
+**「累計3以上なら窓が出る」肯定方向の golden を1本追加**（golden 820→821）。
+**閾値を `value:3`→`1` に変異させると新 golden が FAIL する**ことを確認済み＝空振りでないことを機械証明した。
+⚠**codex の golden は「実行して done になること」までは見るが、分岐が実際に開いたかを実ログ文字列で固定しない**傾向が続き293 から継続。
+
+**(2) `self_deck_to_energy_this_turn` の加算経路が1つ漏れていた**＝`execEnergyChargeByFieldCount` は
+`ENERGY_CHARGE_FROM_DECK` に委譲せず自前でデッキ→エナを行うため累計に乗らなかった（`ENERGY_CHARGE_PER_LRIG_LEVEL` と
+`ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT` は委譲済みで問題なし＝実測確認）。同じ加算を追加。
+**残る未計上はSTUB経由のデッキ→エナ数件のみ**（`execStubPart1` の RPC/ICD・`execStubPart2:178` 等）で、
+いずれも**過小方向**（ゲートが原文より厳しくなるだけ）。JSON 実数は `ENERGY_CHARGE_FROM_DECK` 923件に対し他経路は数件。
+
+**(3) 誤検知だったので取り消した指摘**＝WX10-025 黒枝の `POWER_MODIFY` に `duration` が無い点を「恒久化の過剰」と見たが、
+`execPowerModify` は `UNTIL_OPP_TURN_END` 以外を **`temp_power_mods`（ターン境界クリア）** に入れるため
+**省略時が既にターン終了時まで**＝原文どおり。`duration ?? 'PERMANENT'` は別関数（`execCostIncrease`）の行だった。
+
+**(4) 独立確認したもの**＝①per-effect JSON diff（ベースライン `20640907` 比）は**採用3効果のみ・巻き添え0**
+②`WXK08-029-E1` を5シナリオ実測（ビート3+悪魔→4枚2ドロー／2+悪魔→3枚ドローなし／4+悪魔→5枚ドローなし／
+悪魔なし2種→移動もドローもなし）＝**「ビートが既に4枚で移動失敗」でも `lastProcessedCards:[]` により誤ドローしない**
+（続き293 の「空振り時に古い記録が残る」穴が塞がれている）③新 golden 5本すべてが `cursor` を save/restore している
+④`INTERNAL_MOVE_TO_BEAT` へ追加された `trash.filter` はインスタンス一致のため場由来カードには無影響。
+
+**(5) 受け入れたが注意が要る設計**＝decompiler の `LAST_PROCESSED_COUNT_GTE` に `verbJa:'__internal__'` で
+**逆翻訳から条件を消す抜け道**が入った（`AND` 側も空文字を filter するよう変更）。WXK08-029 の内部ガード1件のみの使用で
+逆翻訳文は原文と一致するが、**今後これを常用すると「逆翻訳に出ない条件」が量産できてしまう**＝計器の穴になりうる。
+
 ## 続き293＝§3タスク12(xxii) 後置条件 IS_MY_TURN 誤変換・live実害12効果の再精査（2026-07-28・Opus）
 
 **採用9効果**＝追加支払い4件（WXDi-P06-036-E1／WXDi-P03-044-E2／WX24-P4-045-E1／WDK11-001-E1）を

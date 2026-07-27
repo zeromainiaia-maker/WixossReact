@@ -30,6 +30,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
+import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
@@ -11510,6 +11511,151 @@ test('task12(xxii) result conditions: 成立／不成立を両方向固定', () 
     { ...base, lastProcessedCards: [SIGNI_L1, SIGNI_L1] }), 'duplicate level false');
 });
 
+test('task12(xxii) WXK11-024-E2 E2E: optional×ALL は全戻し／全スキップの二択で15枚時だけエナ送り', () => {
+  const savedCursor = cursor;
+  try {
+    const target = SIGNI_L2;
+    const action = manualEffect('WXK11-024', 'WXK11-024-E2').action;
+    const make = (trashCount: number) => {
+      const base = mkCtx({}, { signi: [target, SIGNI_L3, null] }, SIGNI_L1);
+      return { ...base, ownerState: { ...base.ownerState, trash: fill(trashCount) } } as ExecCtx;
+    };
+    const offer = (ctx: ExecCtx) =>
+      executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+
+    const yesCtx = make(15);
+    const yes0 = offer(yesCtx);
+    ok(!yes0.done, '15枚: 全戻し可否のCHOOSEが出る'); if (yes0.done) return;
+    ok(yes0.logs.some(x => x.includes('トラッシュのすべてのカードをデッキに戻しますか？')),
+      'engine実ログで optional×ALL 分岐が開いたことを確認');
+    const yes1 = resumeChoose('transfer', yes0.pending, { ...yesCtx, ownerState: yes0.ownerState, otherState: yes0.otherState, logs: yes0.logs });
+    ok(!yes1.done, '15枚戻した後は相手シグニ選択へ進む'); if (yes1.done) return;
+    const yes2 = resumeSelectTarget([target], yes1.pending as never,
+      { ...yesCtx, ownerState: yes1.ownerState, otherState: yes1.otherState, logs: yes1.logs, lastProcessedCards: yes1.lastProcessedCards });
+    ok(yes2.done); if (!yes2.done) return;
+    eq(yes2.ownerState.trash.length, 0, '全15枚をデッキへ戻す');
+    ok(yes2.otherState.energy.includes(target), '15枚以上なら対象の相手シグニをエナへ');
+
+    const skipCtx = make(15);
+    const skip0 = offer(skipCtx);
+    ok(!skip0.done); if (skip0.done) return;
+    const skipped = resumeChoose('skip', skip0.pending,
+      { ...skipCtx, ownerState: skip0.ownerState, otherState: skip0.otherState, logs: skip0.logs });
+    ok(skipped.done); if (!skipped.done) return;
+    eq(skipped.ownerState.trash.length, 15, 'スキップなら1枚も戻さない');
+    ok(skipped.otherState.field.signi.some(s => s?.at(-1) === target), 'スキップなら後続エナ送りも不発');
+
+    const lowCtx = make(14);
+    const low0 = offer(lowCtx);
+    ok(!low0.done); if (low0.done) return;
+    const low = resumeChoose('transfer', low0.pending,
+      { ...lowCtx, ownerState: low0.ownerState, otherState: low0.otherState, logs: low0.logs });
+    ok(low.done); if (!low.done) return;
+    ok(low.otherState.field.signi.some(s => s?.at(-1) === target), '14枚では全戻ししてもエナ送り不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(xxii) WXK06-031-E1 E2E: 黒レベル1〜4を各1枚トラッシュ時だけ先行対象をバニッシュ', () => {
+  const savedCursor = cursor;
+  try {
+    const blackByLevel = [1, 2, 3, 4].map(level => {
+      const found = [...cardMap.values()].find(c => isSigni(c) && (c.Color ?? '').includes('黒') && Number(c.Level) === level);
+      ok(!!found, `黒レベル${level}がテストデータに存在`);
+      return found!.CardNum;
+    });
+    const target = SIGNI_L2;
+    const action = manualEffect('WXK06-031', 'WXK06-031-E1').action;
+    const start = (deck: string[]) => {
+      const base = mkCtx({}, { signi: [target, SIGNI_L3, null] }, SIGNI_L1);
+      const ctx = { ...base, ownerState: { ...base.ownerState, deck } } as ExecCtx;
+      const p0 = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+      ok(!p0.done); if (p0.done) return { ctx, p0 };
+      const p1 = resumeSelectTarget([target], p0.pending as never,
+        { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs });
+      return { ctx, p0: p1 };
+    };
+    const yes = start(blackByLevel);
+    ok(!yes.p0.done, '先行対象保存後にSEARCHが出る'); if (yes.p0.done) return;
+    const yesR = resumeSearch(blackByLevel, yes.p0.pending as never,
+      { ...yes.ctx, ownerState: yes.p0.ownerState, otherState: yes.p0.otherState, logs: yes.p0.logs, storedTargetCards: yes.p0.storedTargetCards });
+    ok(!yesR.done && yesR.pending.type === 'SELECT_TARGET', '4枚なら保存対象だけのバニッシュ確認へ進む');
+    if (yesR.done) return;
+    eq(yesR.pending.candidates.join(','), target,
+      '4枚条件が成立し、SEARCH then TRASH＋afterSearch後も記録が生存して保存対象のバニッシュへ進む');
+    const yesDone = resumeSelectTarget([target], yesR.pending as never,
+      { ...yes.ctx, ownerState: yesR.ownerState, otherState: yesR.otherState, logs: yesR.logs,
+        lastProcessedCards: yesR.lastProcessedCards, storedTargetCards: yesR.storedTargetCards });
+    ok(yesDone.done); if (!yesDone.done) return;
+    ok(blackByLevel.every(n => yesDone.ownerState.trash.includes(n)), '選んだ4枚をトラッシュへ');
+    ok(!yesDone.otherState.field.signi.some(s => s?.at(-1) === target), '4枚なら保存した先行対象をバニッシュ');
+
+    const no = start(blackByLevel.slice(0, 3));
+    ok(!no.p0.done); if (no.p0.done) return;
+    const noR = resumeSearch(blackByLevel.slice(0, 3), no.p0.pending as never,
+      { ...no.ctx, ownerState: no.p0.ownerState, otherState: no.p0.otherState, logs: no.p0.logs, storedTargetCards: no.p0.storedTargetCards });
+    ok(noR.done, `3枚SEARCH後に未完了: ${noR.done ? '' : noR.pending.type}`); if (!noR.done) return;
+    eq(noR.lastProcessedCards?.length, 3, '3枚処理を正確に記録');
+    ok(noR.otherState.field.signi.some(s => s?.at(-1) === target), '3枚ではバニッシュ不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(xxii) WDK08-Y01-E1 E2E: ルリグ発生源で水獣4枚公開→1ドロー、全レベル相異なら先行対象をエナへ', () => {
+  const savedCursor = cursor;
+  try {
+    const waterByLevel = [1, 2, 3, 4].map(level => {
+      const found = [...cardMap.values()].find(c => isSigni(c) && (c.CardClass ?? '').includes('水獣') && Number(c.Level) === level);
+      ok(!!found, `水獣レベル${level}がテストデータに存在`);
+      return found!.CardNum;
+    });
+    const target = SIGNI_L2;
+    const source = 'WDK08-Y01';
+    const base = mkCtx({}, { signi: [target, SIGNI_L3, null] }, source);
+    const ctx = {
+      ...base,
+      ownerState: { ...base.ownerState, hand: waterByLevel, field: { ...base.ownerState.field, lrig: [source] } },
+    } as ExecCtx;
+    const action = manualEffect('WDK08-Y01', 'WDK08-Y01-E1').action;
+    const p0 = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!p0.done); if (p0.done) return;
+    const p1 = resumeSelectTarget([target], p0.pending as never,
+      { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs });
+    ok(!p1.done, '対象保存後に手札公開選択へ'); if (p1.done) return;
+    const deckBefore = p1.ownerState.deck.length;
+    const yes = resumeSelectTarget(waterByLevel, p1.pending as never,
+      { ...ctx, ownerState: p1.ownerState, otherState: p1.otherState, logs: p1.logs, storedTargetCards: p1.storedTargetCards });
+    ok(!yes.done && yes.pending.type === 'SELECT_TARGET', '相異4枚なら保存対象だけのエナ送り確認へ進む');
+    if (yes.done) return;
+    eq(yes.ownerState.deck.length, deckBefore - 1, '4枚公開で1ドロー');
+    eq(yes.pending.candidates.join(','), target,
+      'DRAW後も公開記録が生存し、相異4枚条件が成立して保存対象だけが候補になる');
+    const yesDone = resumeSelectTarget([target], yes.pending as never,
+      { ...ctx, ownerState: yes.ownerState, otherState: yes.otherState, logs: yes.logs,
+        lastProcessedCards: yes.lastProcessedCards, storedTargetCards: yes.storedTargetCards });
+    ok(yesDone.done); if (!yesDone.done) return;
+    ok(yesDone.otherState.energy.includes(target), '4枚のレベルが全て異なれば先行対象の相手シグニをエナへ');
+
+    const three = waterByLevel.slice(0, 3);
+    const noCtx = { ...ctx, ownerState: { ...ctx.ownerState, hand: three } } as ExecCtx;
+    const q0 = executeEffect({ effectId: 't2', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, noCtx);
+    ok(!q0.done); if (q0.done) return;
+    const q1 = resumeSelectTarget([target], q0.pending as never,
+      { ...noCtx, ownerState: q0.ownerState, otherState: q0.otherState, logs: q0.logs });
+    ok(!q1.done); if (q1.done) return;
+    const noDeckBefore = q1.ownerState.deck.length;
+    const no = resumeSelectTarget(three, q1.pending as never,
+      { ...noCtx, ownerState: q1.ownerState, otherState: q1.otherState, logs: q1.logs, storedTargetCards: q1.storedTargetCards });
+    ok(no.done, `3枚REVEAL後に未完了: ${no.done ? '' : no.pending.type}`); if (!no.done) return;
+    eq(no.ownerState.deck.length, noDeckBefore, '3枚しか公開できなければドロー不発');
+    ok(no.otherState.field.signi.some(s => s?.at(-1) === target), '3枚ならエナ送り不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 test('task12(xxii) WXDi-P01-082: 公開条件または回収が空振りなら手札を捨てない', () => {
   const existing = `${SIGNI_L2}#hand`;
   const revealed = `${SIGNI_L3}#reveal`;
@@ -11656,6 +11802,191 @@ test('task12(xxii) WX22-043-E1 E2E: アクセが1枚しかなければ引かな�
     ok(!r.ownerState.energy.includes(plain), 'アクセを持たないシグニは動かない');
     ok(!r.ownerState.hand.includes(draw), '引かない（COUNT_GTE(2) が偽）');
     eq(r.ownerState.hand.length, 1, '手札は残り1枚のまま');
+  } finally { cursor = savedCursor; }
+});
+
+// ⚠ 検証是正：当初この golden は `logs.includes('追加コスト')` を見ていたが、OPTIONAL_COST が実際に出すログは
+// 「任意コスト：発動しますか？」＝**どちらの向きでも false になる空振り assert** だった（実測で確認）。
+// 支払い窓が出るか出ないかを実文字列で両方向に固定し直す。
+test('task12(xxii) WXDi-P03-044-E2 E2E: 自デッキ→エナ累計が3未満なら追加支払い窓を出さない', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({}, {}, 'WXDi-P03-044');
+    ctx.ownerState = { ...ctx.ownerState, deck: [SIGNI_L1], self_deck_to_energy_this_turn: 1 };
+    const r = run(manualEffect('WXDi-P03-044', 'WXDi-P03-044-E2').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.self_deck_to_energy_this_turn, 2, 'エナチャージ1が累計に乗らない');
+    ok(!r.logs.some(x => x.includes('任意コスト')), '累計2枚（3枚未満）なのに追加支払い窓が出た');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WXDi-P03-044-E2 E2E: 自デッキ→エナ累計が3以上になれば追加支払い窓を出す', () => {
+  const savedCursor = cursor;
+  try {
+    // 累計2＋このエナチャージ1＝3 でちょうど成立する（原文「その後」＝自分のチャージも数える）
+    const ctx = mkCtx({}, {}, 'WXDi-P03-044');
+    ctx.ownerState = { ...ctx.ownerState, deck: [SIGNI_L1], self_deck_to_energy_this_turn: 2 };
+    const r = run(manualEffect('WXDi-P03-044', 'WXDi-P03-044-E2').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.self_deck_to_energy_this_turn, 3);
+    ok(r.logs.some(x => x.includes('任意コスト')), '累計3枚に達したのに追加支払い窓が出ない');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WX10-025-E1 E2E: 青だけを選ぶと2ドローだけ実行し、前回色はクリアする', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const blueBase = findCard(c => (c.Color ?? '').includes('青'));
+    const blue = `${blueBase}#ena`, d1 = `${SIGNI_L1}#d1`, d2 = `${SIGNI_L2}#d2`;
+    localMap.set(blue, cardMap.get(blueBase)!); localMap.set(d1, cardMap.get(SIGNI_L1)!); localMap.set(d2, cardMap.get(SIGNI_L2)!);
+    const ctx = mkCtx({}, {}, 'WX10-025');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, energy: [blue], deck: [d1, d2], story_overrides: { '__selected_colors__': '白,赤,黒' } };
+    const handBefore = ctx.ownerState.hand.length;
+    const r = run(manualEffect('WX10-025', 'WX10-025-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.story_overrides?.['__selected_colors__'], '青');
+    eq(r.ownerState.hand.length - handBefore, 2, '青枝の2ドロー');
+    eq(r.ownerState.energy.length, 1, '緑枝が誤発火した');
+    ok(!evalCondition({ type: 'SELECTED_COLOR', color: '白' }, { ...ctx, ownerState: r.ownerState }));
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WXK08-029-E1 E2E: トラッシュの悪魔でビートが4枚になった時だけ2ドロー', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const demonBase = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('悪魔'));
+    const demon = `${demonBase}#trash`, d1 = `${SIGNI_L1}#bd1`, d2 = `${SIGNI_L2}#bd2`;
+    localMap.set(demon, cardMap.get(demonBase)!); localMap.set(d1, cardMap.get(SIGNI_L1)!); localMap.set(d2, cardMap.get(SIGNI_L2)!);
+    const ctx = mkCtx({}, {}, 'WXK08-029');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, trash: [demon], deck: [d1, d2], field: { ...ctx.ownerState.field, beat_zone: [SIGNI, SIGNI_L2, SIGNI_L3] } };
+    const handBefore = ctx.ownerState.hand.length;
+    const r = run(manualEffect('WXK08-029', 'WXK08-029-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(r.ownerState.field.beat_zone?.length, 4);
+    ok(!r.ownerState.trash.includes(demon), `悪魔がトラッシュに残った ${JSON.stringify(r.ownerState.trash)}`);
+    eq(r.ownerState.hand.length - handBefore, 2);
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WX04-029-E1 E2E: アタッカー正面が埋まっている時は移動選択を出さない', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({ signi: [SIGNI_L1, 'WX04-029', null] }, { signi: [SIGNI_L3, null, null] }, 'WX04-029');
+    ctx.otherState = { ...ctx.otherState, attacked_signi_ids: [SIGNI_L3] };
+    const r = run(manualEffect('WX04-029', 'WX04-029-E1').action, ctx);
+    ok(r.done);
+    ok(r.done && r.ownerState.field.signi[1]?.includes('WX04-029'), '正面が埋まっているのに移動した');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WX04-029-E1 E2E: アタッカー正面が空なら移動選択が出て移動できる', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({ signi: [null, 'WX04-029', null] }, { signi: [SIGNI_L3, null, null] }, 'WX04-029');
+    ctx.otherState = { ...ctx.otherState, attacked_signi_ids: [SIGNI_L3] };
+    const r = run(manualEffect('WX04-029', 'WX04-029-E1').action, ctx);
+    ok(r.done);
+    ok(r.done && r.ownerState.field.signi[0]?.includes('WX04-029'), '空いている正面へ移動できない');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WXDi-P11-010A-E1 E2E: 実効リミット8以下では本体に入らず9以上で入る', () => {
+  const savedCursor = cursor;
+  try {
+    const make = (bonus: number): ExecCtx => {
+      const ctx = mkCtx({}, {}, 'WXDi-P11-010A');
+      ctx.effectsMap = effectsMap;
+      ctx.currentPhase = 'GROW';
+      ctx.ownerState = {
+        ...ctx.ownerState,
+        game_lrig_limit_bonus: bonus,
+        field: { ...ctx.ownerState.field, lrig: ['WXDi-P11-010A'] },
+      };
+      return ctx;
+    };
+    const action = manualEffect('WXDi-P11-010A', 'WXDi-P11-010A-E1').action;
+    const low = make(3); // base 5 + 3 = 8
+    eq(computeEffectiveLrigLimit(low.ownerState, low.otherState, low.cardMap, effectsMap, true), 8);
+    ok(!evalCondition({ type: 'EFFECTIVE_LRIG_LIMIT_GTE', value: 9 }, low));
+    const rLow = run(action, low);
+    ok(rLow.done); if (!rLow.done) return;
+    ok(!rLow.logs.some(x => x.includes('[UNKNOWN:')), '実効リミット8で本体に入った');
+
+    const high = make(4); // base 5 + 4 = 9
+    eq(computeEffectiveLrigLimit(high.ownerState, high.otherState, high.cardMap, effectsMap, true), 9);
+    ok(evalCondition({ type: 'EFFECTIVE_LRIG_LIMIT_GTE', value: 9 }, high));
+    const rHigh = run(action, high);
+    ok(rHigh.done); if (!rHigh.done) return;
+    ok(rHigh.logs.some(x => x.includes('[UNKNOWN: あなたの手札とエナゾーンとトラッシュ')),
+      '実効リミット9で honest defer 本体に入らない');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WX15-067-E1: ウィルス節はhonest deferし本体2択を復元', () => {
+  const effect = manualEffect('WX15-067', 'WX15-067-E1');
+  eq(effect.action.type, 'SEQUENCE');
+  if (effect.action.type !== 'SEQUENCE') return;
+  eq(effect.action.steps[0]?.type, 'UNKNOWN');
+  const choose = effect.action.steps[1];
+  eq(choose?.type, 'CHOOSE');
+  if (choose?.type !== 'CHOOSE') return;
+  eq(choose.choose_count, 1);
+  eq(choose.from_count, 2);
+  eq(choose.choices[0]?.action.type, 'TRANSFER_TO_HAND');
+  const power = choose.choices[1]?.action;
+  eq(power?.type, 'POWER_MODIFY');
+  if (power?.type !== 'POWER_MODIFY') return;
+  eq(power.delta, -7000);
+  eq(power.duration, 'UNTIL_END_OF_TURN');
+});
+
+test('task12(xxii) BattleScreen実効リミット共有ヘルパー: 抽出前の全加算項と同値', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({}, {}, 'WXDi-P11-010A');
+    const state = {
+      ...ctx.ownerState,
+      lrig_limit_mod: 2,
+      game_lrig_limit_bonus: 3,
+      limit_upper_token: true,
+      field: {
+        ...ctx.ownerState.field,
+        lrig: ['WXDi-P11-010A'],
+        assist_lrig_l: [SIGNI_L1],
+        assist_lrig_r: [SIGNI_L2],
+      },
+    };
+    // 抽出前式: base 5 + assist L/R 1+1 + lrig_limit_mod 2 + game bonus 3。
+    // アシストがいるためリミットアッパーは0、常在limitDeltaも0。
+    eq(computeEffectiveLrigLimit(state, ctx.otherState, ctx.cardMap, effectsMap, true), 12);
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxii) WXDi-P13-003A-E1: 代償を払わず効果全体をUNKNOWNにする', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({}, {}, 'WXDi-P13-003A');
+    ctx.ownerState = {
+      ...ctx.ownerState,
+      hand: [SIGNI_L1, SIGNI_L2],
+      energy: [SIGNI_L3],
+      field: { ...ctx.ownerState.field, key_piece: 'WXDi-P13-003A' },
+    };
+    const before = {
+      hand: [...ctx.ownerState.hand],
+      energy: [...ctx.ownerState.energy],
+      trash: [...ctx.ownerState.trash],
+    };
+    const r = run(manualEffect('WXDi-P13-003A', 'WXDi-P13-003A-E1').action, ctx);
+    ok(r.done); if (!r.done) return;
+    eq(JSON.stringify(r.ownerState.hand), JSON.stringify(before.hand), '手札を代償として捨てた');
+    eq(JSON.stringify(r.ownerState.energy), JSON.stringify(before.energy), 'エナを代償として捨てた');
+    eq(JSON.stringify(r.ownerState.trash), JSON.stringify(before.trash), 'トラッシュが変化した');
+    ok(r.logs.some(x => x.includes('[UNKNOWN: 白か黒のルリグを１体以上含む')));
   } finally { cursor = savedCursor; }
 });
 

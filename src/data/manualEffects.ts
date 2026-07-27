@@ -948,6 +948,37 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    ],
+
+  'WX10-025': [
+    {
+      effectId: 'WX10-025-E1', effectType: 'ACTIVATED', timing: ['MAIN', 'ATTACK'],
+      cost: { energy: [{ color: '白', count: 1 }, { color: '赤', count: 1 }, { color: '青', count: 1 }, { color: '緑', count: 1 }, { color: '黒', count: 1 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'CHOOSE_COLOR_FROM_LIST' },
+        { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '白' }, then: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'any', count: 1, upToCount: false, filter: { cardType: 'シグニ' } }, optional: false } },
+        { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '赤' }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false } } },
+        { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '青' }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+        { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '緑' }, then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 } },
+        { type: 'CONDITIONAL', condition: { type: 'SELECTED_COLOR', color: '黒' }, then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'any', count: 1 }, delta: -12000 } },
+      ] },
+      duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    },
+  ],
+
+  'WXK08-029': [
+    {
+      effectId: 'WXK08-029-E1', effectType: 'ACTIVATED', timing: ['MAIN'],
+      cost: { energy: [{ color: '赤', count: 0 }] },
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'CONDITIONAL', condition: { type: 'BEAT_ZONE_COUNT', operator: 'lte', value: 4 }, then: { type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT', value: 'WXK08-029' } },
+        { type: 'CONDITIONAL', condition: { type: 'AND', conditions: [
+          { type: 'BEAT_ZONE_COUNT', operator: 'eq', value: 4, thisWay: true },
+          { type: 'LAST_PROCESSED_COUNT_GTE', value: 1, verbJa: '__internal__' },
+        ] }, then: { type: 'DRAW', owner: 'self', count: 2 } },
+      ] },
+      duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL',
+    },
   ],
 
   // WX12-010 ホワイトメイズ ホデサパ（レゾナ）
@@ -4462,13 +4493,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       ]}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
   ],
-  "WXDi-P03-044": [
-    {"effectId":"WXDi-P03-044-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[
-      {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},
-      {"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","赤","無"]},
-      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
-    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
-  ],
+    "WXDi-P03-044": [
+      {"effectId":"WXDi-P03-044-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[
+        {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},
+        {"type":"CONDITIONAL","condition":{"type":"SELF_DECK_TO_ENERGY_THIS_TURN","operator":"gte","value":3},"then":{"type":"SEQUENCE","steps":[
+          {"type":"STUB","id":"OPTIONAL_COST","costColors":["緑","赤","無"]},
+          {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+        ]}}
+      ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+    ],
   "WDK11-001": [
     {"effectId":"WDK11-001-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"ＧＦ　ノーマン＆レイ"}},"then":{"type":"SEQUENCE","steps":[
       {"type":"STUB","id":"OPTIONAL_COST","costColors":["白"]},
@@ -4551,6 +4584,50 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WXDi-P08-037": [
     {"effectId":"WXDi-P08-037-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ"},"pickCount":1,"then":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true}},"swap":true,"swapWithLastProcessed":true,"optional":true,"suppressOnPlay":true},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
+  "WXK11-024": [
+    {"effectId":"WXK11-024-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true,"optional":true},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":15,"verbJa":"デッキに加えた"},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXK06-031": [
+    {"effectId":"WXK06-031-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","color":"黒","levelRange":{"min":1,"max":4}},"maxCount":4,"selectionConstraint":{"distinct":"level"},"then":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":1}},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4,"verbJa":"トラッシュに置いた"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WDK08-Y01": [
+    {"effectId":"WDK08-Y01-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":0},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"REVEAL","source":{"type":"HAND_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","story":"水獣"}}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4,"verbJa":"公開した"},"then":{"type":"DRAW","owner":"self","count":1}},
+      {"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LAST_PROCESSED_COUNT_GTE","value":4,"verbJa":"公開した"},{"type":"TRASHED_DISTINCT_LEVELS_GTE","count":4,"allSigniDistinct":true}]},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // §3 task12(xxii) B1: virus payment/cost reduction remains an honest defer; the spell's two normal modes are live.
+  "WX15-067": [
+    {"effectId":"WX15-067-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"UNKNOWN","raw":"このスペルを使用する際、対戦相手の場にある【ウィルス】を好きな数取り除いてもよい。この方法で【ウィルス】を１つ以上取り除いた場合、このスペルの使用コストは《黒×2》減る。このスペルを使用する際、【ウィルス】を２つ以上取り除いていた場合、代わりに２つまで選ぶ。"},
+      {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+        {"choiceId":"c0","label":"あなたのトラッシュから黒のシグニ１枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"黒"}}}},
+        {"choiceId":"c1","label":"対戦相手のシグニ１体のパワーを－7000する","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-7000,"duration":"UNTIL_END_OF_TURN"}}
+      ]}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // §3 task12(xxii) B2: the effective-limit gate is implemented; the all-zone reset/exile/face-down body is atomic defer.
+  "WXDi-P11-010A": [
+    {"effectId":"WXDi-P11-010A-E1","effectType":"AUTO","timing":["ON_GROW_PHASE_START"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},
+      {"type":"CONDITIONAL","condition":{"type":"EFFECTIVE_LRIG_LIMIT_GTE","value":9},"then":{"type":"UNKNOWN","raw":"あなたの手札とエナゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルし、このルリグ以外の、あなたのルリグデッキと場にあるすべてのカードをゲームから除外し、このルリグを裏向きにする。"}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // §3 task12(xxii) B3: do not charge the all-hand/all-energy cost while the paired free-grow payoff is unavailable.
+  "WXDi-P13-003A": [
+    {"effectId":"WXDi-P13-003A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"UNKNOWN","raw":"白か黒のルリグを１体以上含むこのターンにあなたがセンタールリグをグロウしていない場合、手札をすべて捨てあなたのエナゾーンからすべてのカードをトラッシュに置く。この方法でカードが５枚以上トラッシュに置かれた場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《未知の巫女　マユ》にグロウコストを支払わずにグロウする。"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 };
 

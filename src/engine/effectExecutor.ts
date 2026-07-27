@@ -1017,6 +1017,7 @@ function execEnergyChargeFromDeck(a: EnergyChargeFromDeckAction, ctx: ExecCtx): 
     ...state,
     deck: state.deck.slice(count),
     energy: [...state.energy, ...took],
+    self_deck_to_energy_this_turn: (state.self_deck_to_energy_this_turn ?? 0) + took.length,
   };
   // エナに置いたカードを lastProcessedCards に記録（「この方法で＜X＞のシグニがエナゾーンに置かれた場合」
   // ＝後続 LAST_PROCESSED_MATCHES の参照用。WXEX1-43-BURST）
@@ -3278,6 +3279,19 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   if (src.type === 'TRASH_CARD') {
     const cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // 「トラッシュからすべてのカードをデッキに加えてもよい」は、枚数選択ではなく
+    // 全件実行／全件スキップの二択。execReveal の optional×ALL と同じ形に揃える。
+    if (src.count === 'ALL' && a.optional) {
+      const transferAll = { ...a, optional: false } as TransferToDeckAction;
+      const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+      return needsInteraction(addLog(ctx, 'トラッシュのすべてのカードをデッキに戻しますか？'), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'transfer', label: 'デッキに戻す', action: transferAll, available: true },
+          { id: 'skip', label: '戻さない', action: skip, available: true },
+        ],
+      });
+    }
     // optional:「トラッシュから…をデッキに戻してもよい」（WX17-028-E1）。選択 or スキップにし、
     // スキップ（0体選択）時は resumeSelectTarget が続く「そうした場合」(CONDITIONAL IS_MY_TURN) を stripDidItConditional で無効化する。
     // ⚠従来は無条件で slice(0,N) を強制していた（続き137・タスク12(viii)）。
@@ -4275,7 +4289,12 @@ function execEnergyChargeByFieldCount(a: import('../types/effects').EnergyCharge
   const chargeCount = fieldCount + (a.bonus ?? 0);
   if (chargeCount <= 0) return done(ctx);
   const took = state.deck.slice(0, chargeCount);
-  const newS: PlayerState = { ...state, deck: state.deck.slice(chargeCount), energy: [...state.energy, ...took] };
+  // デッキ→エナの累計（SELF_DECK_TO_ENERGY_THIS_TURN）は execEnergyChargeFromDeck と同じくここでも加算する。
+  // ⚠ この経路を落とすと WXDi-P03-044-E2 のターン累計3枚ゲートが過小になる。
+  const newS: PlayerState = {
+    ...state, deck: state.deck.slice(chargeCount), energy: [...state.energy, ...took],
+    self_deck_to_energy_this_turn: (state.self_deck_to_energy_this_turn ?? 0) + took.length,
+  };
   return done(addLog(setOwnerState(a.owner, newS, ctx), `エナチャージ${chargeCount}（フィールド${fieldCount}体+${a.bonus}）`));
 }
 

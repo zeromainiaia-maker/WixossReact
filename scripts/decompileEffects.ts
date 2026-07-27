@@ -304,7 +304,7 @@ function costJa(c?: any): string {
 function condJa(c?: any): string {
   if (!c) return '';
   switch (c.type) {
-    case 'AND': return c.conditions.map(condJa).join('かつ');
+    case 'AND': return c.conditions.map(condJa).filter(Boolean).join('かつ');
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
@@ -389,6 +389,7 @@ function condJa(c?: any): string {
     case 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG': return `それが${ownerJa(c.owner)}センタールリグと共通する色を持つ`;
     case 'FIELD_SIGNI_ALL_DISTINCT_CLASS': return `${ownerJa(c.owner)}場にあるすべてのシグニがそれぞれ共通するクラスを持たない`;
     case 'LAST_PROCESSED_COUNT_GTE': {
+      if (c.verbJa === '__internal__') return '';
       if (c.negate && c.verbJa === '捨てた') return `この方法で手札を${numJa(c.value)}枚捨てなかった`;
       if (c.negate && c.verbJa === 'チャームをトラッシュに置いた') return `この方法で【チャーム】${numJa(c.value)}枚がトラッシュに置かれなかった`;
       if (c.verbJa === 'このシグニをバニッシュしていた') return 'この効果でこのシグニをバニッシュしていた';
@@ -403,6 +404,7 @@ function condJa(c?: any): string {
     case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
+    case 'EFFECTIVE_LRIG_LIMIT_GTE': return `このルリグのリミットが${numJa(c.value)}以上`;
     case 'DURING_PHASE': {
       const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK_SIGNI_OP: '対戦相手のアタック', ATTACK: 'アタック' };
       return `${(c.phases || []).map((p: string) => phaseJaMap[p] ?? p).join('/')}フェイズの間`;
@@ -432,6 +434,9 @@ function condJa(c?: any): string {
     // ── §3 タスク6「代わりに」B1残
     case 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN': return 'このターンにこのシグニが効果によってダウン状態からアップしていた';
     case 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN': return `このターンに対戦相手のカードがあなたの効果によって${numJa((c as { value: number }).value)}枚以上デッキに移動していた`;
+    case 'SELF_DECK_TO_ENERGY_THIS_TURN': return `このターンにあなたのデッキからカードが${numJa((c as { value: number }).value)}枚以上エナゾーンに移動していた`;
+    case 'SELECTED_COLOR': return `${(c as { color: string }).color}を選んだ`;
+    case 'BEAT_ZONE_COUNT': return `${c.thisWay ? 'この方法で' : ''}あなたの【ビート】が${numJa(c.value)}枚${c.operator === 'lte' ? '以下' : c.operator === 'eq' ? 'になった' : opJa(c.operator)}`;
     case 'COST_TRASHED_PUPPET': return 'この能力のコストで傀儡状態のシグニをトラッシュに置いた';
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
     case 'COST_TRASHED_MATCHES': {
@@ -1291,7 +1296,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'BANISH_TO_LRIG_TRASH_INSTEAD') return 'このカードがバニッシュされる場合、代わりにルリグトラッシュに置く';
       if (a.id === 'DECLARE_COLOR') return '色（白/赤/青/緑/黒）を1つ宣言する';
       if (a.id === 'REPLACE_NEXT_OPP_REFRESH_MILL_LRIG') return '次に対戦相手が行うリフレッシュを「トラッシュをすべてデッキに加えてシャッフルし、ルリグデッキからカード1枚をルリグトラッシュに置く」に置き換える';
-      if (a.id === 'TRASH_SIGNI_TO_BEAT') return 'トラッシュからシグニを【ビート】にする';
+      if (a.id === 'TRASH_SIGNI_TO_BEAT') return a.value === 'WXK08-029'
+        ? 'あなたのトラッシュから＜悪魔＞のシグニ1枚を対象とし、それを【ビート】にする'
+        : 'トラッシュからシグニを【ビート】にする';
       if (a.id === 'INTERNAL_MOVE_TO_BEAT') return '直前に選んだシグニを【ビート】にする';
       if (a.id === 'TRASH_ALL_SIGNI_AND_KEY') return '対象プレイヤーのシグニすべてとキーをトラッシュ／ルリグトラッシュに置く';
       if (a.id === 'SPELL_COST_REDUCTION_BY_TRASH_COUNT' || a.id === 'SPECIFIC_CARD_COST_REDUCE') return 'トラッシュ枚数等に応じてスペル／特定カードの使用コストを軽減する';

@@ -225,6 +225,9 @@ export type Condition =
   //    「このターンにあなたが手札をN枚以上捨てていた場合」（WXDi-P11-067）は既存 TURN_HAND_DISCARD_GTE を使う。
   | { type: 'THIS_CARD_UPPED_FROM_DOWN_THIS_TURN' } // このターンに効果元シグニ（sourceCardNum）が効果によってダウン→アップしていた場合（upped_from_down_this_turn）。WX14-070「代わりに－7000」
   | { type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'; operator: CompareOp; value: number } // このターンに **あなたの効果によって** 対戦相手のカードがデッキに移動した累計枚数（opp_cards_moved_to_deck_this_turn）。WXK06-071「1枚以上→－5000／4枚以上→代わりに－12000」の多段閾値
+  | { type: 'SELF_DECK_TO_ENERGY_THIS_TURN'; operator: CompareOp; value: number }
+  | { type: 'SELECTED_COLOR'; color: string }
+  | { type: 'BEAT_ZONE_COUNT'; operator: CompareOp; value: number; thisWay?: boolean }
   | { type: 'COST_TRASHED_PUPPET' } // この能力のコストで傀儡状態のシグニをトラッシュに置いた場合（last_cost_trashed_puppet）。WDK17-014「代わりに－10000」
   | { type: 'COST_DISCARDED_SIGNI_LEVEL'; level: number } // このコストで指定レベルのシグニを手札から捨てた場合（last_discarded_signi_level）。WX25-P2-101「レベル１→代わりに－5000」
   // 「このコストで<filter に合うカード>を捨てた／トラッシュに置いた場合」＝直前のコスト支払いでトラッシュへ送った
@@ -267,6 +270,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
+  | { type: 'EFFECTIVE_LRIG_LIMIT_GTE'; value: number }
   | { type: 'DURING_PHASE'; phases: string[] }
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
