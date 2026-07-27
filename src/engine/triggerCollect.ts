@@ -376,16 +376,19 @@ export function collectDeckTrashSelfTriggers(
  * 「いずれかの領域からトラッシュに置かれたとき」（WX04-035-E2）のうち、場/デッキ以外（手札・エナ）の経路を補う。
  */
 export function collectAnyZoneTrashSelfTriggers(
-  ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' = 'hand',
+  ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand',
   causeSourceCardNum?: string,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
-    // 場/デッキ以外（手札・エナ）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
+    // 場/デッキ以外（手札・エナ・シグニの下）は fromAnyZone 指定、または fromZones が当該領域を含む効果のみ
     const fromZones = eff.triggerCondition?.fromZones;
-    const okByZones = fromZones ? fromZones.includes(origin) : !!eff.triggerCondition?.fromAnyZone;
+    // under_signi は新しい明示値だけで opt-in。既存 fromAnyZone の意味（手札・エナ経路）は変えない。
+    const okByZones = fromZones
+      ? fromZones.includes(origin)
+      : origin !== 'under_signi' && !!eff.triggerCondition?.fromAnyZone;
     if (!okByZones) continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
     // byOwnEffect（「あなたの効果によって/あなたがこのカードを捨てたとき」＝タスク16[C]機構②）: 対戦相手効果起因では発火しない。

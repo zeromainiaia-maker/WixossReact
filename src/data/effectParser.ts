@@ -2261,6 +2261,23 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
+  // 「シグニ1体を対象とし、それをアップするかダウンする」＝同じ対象への2択。
+  // 単純な末尾動詞規則へ落とすと DOWN 固定かつ owner:self になるため先に捕捉する（WX22-027）。
+  if (/^シグニ[１1]体を対象とし[、,]\s*それをアップするかダウンする[。.]?$/.test(t)) {
+    const target: EffectTarget = {
+      type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' }, upToCount: false,
+    };
+    return {
+      type: 'CHOOSE',
+      choose_count: 1,
+      from_count: 2,
+      choices: [
+        { choiceId: 'c0', label: 'アップする', action: { type: 'UP', target } },
+        { choiceId: 'c1', label: 'ダウンする', action: { type: 'DOWN', target } },
+      ],
+    } as EffectAction;
+  }
+
   // トップレベル動作選択「（カードをN枚）引くか<B>」→ CHOOSE（§4タスク4）。
   // 【自】/【起】のトリガー句除去後にここへ届く単文も拾う（parseActionTextInner 冒頭と同じルール）。
   {
@@ -4892,7 +4909,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   engine 配線済み＝collectCharmToTrashTriggers（signi_charms の set-diff で検出・triggerScope any/any_ally/any_opp で発生源フィールドを判定）。scope は下で抽出。
              //   ⚠ ON_TRASH より前に置く（【チャーム】は専用受け皿）。ただし ON_TRASH regex は「場から**いずれかの**トラッシュ」を「場からトラッシュ」として拾わないので実害はない。
              : /【チャーム】[０-９\d]*枚?が(?:場から)?(?:いずれかの)?トラッシュに置かれたとき/.test(trigText) ? ['ON_CHARM_TO_TRASH']
-             : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から)トラッシュに置かれたとき/) ? ['ON_TRASH']
+             : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から|シグニの下から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : trigText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : trigText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
              // 「（対戦相手／あなた）のシグニN体のパワーが0以下になったとき」（6件・続き76）。engine 配線済み
@@ -5427,6 +5444,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         else if (/対戦相手のターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'opponent';
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...sdCond };
       }
+      // 「このカードがコストか効果によってシグニの下からトラッシュ」:
+      // 移動したカード自身の ON_TRASH。自然消滅やライズ本体の入れ替えとは区別して中央 board diff で収集する。
+      if (timing[0] === 'ON_TRASH'
+          && /このカードがコストか効果によってシグニの下からトラッシュに置かれたとき/.test(trigText)) {
+        extractedTriggerScope = 'self';
+        extractedTriggerCondObj = {
+          ...(extractedTriggerCondObj ?? {}),
+          fromZones: ['under_signi'],
+        };
+      }
       // ON_DRAW（self）の限定軸（タスク16[C]機構④）: 「あなたのターンの間」「アタックフェイズの間に」「あなたの効果1つによって」。
       if (timing[0] === 'ON_DRAW' && /あなたがカードを[０-９\d]+枚(?:以上)?引いたとき/.test(trigText)) {
         const drCond: NonNullable<typeof extractedTriggerCondObj> = {};
@@ -5863,7 +5890,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           };
           actionText = allyTrashM[4];
         }
-        const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域)からトラッシュに置かれたとき[、,]\s*(.+)/s);
+        const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域|シグニの下)からトラッシュに置かれたとき[、,]\s*(.+)/s);
         if (m) {
           // 出自ゾーンを fromZones に記録（「デッキから」=deck／「場から」=field／「手札かデッキから」=hand+deck）。
           const zoneStr = m[1];
@@ -5871,7 +5898,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (zoneStr.includes('手札')) zones.push('hand');
           if (zoneStr.includes('デッキ')) zones.push('deck');
           if (zoneStr === '場') zones.push('field');
-          if (zones.length) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: zones as ('hand' | 'deck' | 'field')[] };
+          if (zoneStr === 'シグニの下') zones.push('under_signi');
+          if (zones.length) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromZones: zones as ('hand' | 'deck' | 'field' | 'under_signi')[] };
           actionText = m[2];
         }
         else {

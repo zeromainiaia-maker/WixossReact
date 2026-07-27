@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［83枚］
-PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-02 WXEX1-65 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK06-050 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
+## （type増減なし＝値/構造変更） ［95枚］
+PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX06-023 WX07-029 WX07-035 WX08-005 WX08-006 WX10-006 WX13-002 WX13-041 WX14-017 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-062 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-26 WXK01-036 WXK01-044 WXK02-047 WXK03-033 WXK04-037 WXK05-040 WXK06-048 WXK06-050 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -893,24 +893,6 @@ WX12-Re09
   + [2].effectType = "CONTINUOUS"
   …（他 10 行）
 
-## +BANISH_SUBSTITUTE +LAST_PROCESSED_COUNT_GTE +SIGNI -IS_MY_TURN -LIFE_CRASH ［1枚］
-WX14-026
---- WX14-026
-  原文: 【常】：対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚をクラッシュしてもよい。【出】：あなたは手札を１枚捨てる。この方法で捨てたカードが＜鉱石＞か＜宝石＞のシグニで、あなたのセンタールリグが赤の場合、ターン終了時まで、このシグニは【アサシン】を得る。,：カードを１枚引く。その後、あなたのライフクロス１枚をクラッシュし
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  - [0].action.triggerBurst = true
-  ~ [0].action.type : "LIFE_CRASH" → "BANISH_SUBSTITUTE"
-  + [0].action.trigger.type = "SIGNI"
-  + [0].action.trigger.owner = "self"
-  + [0].action.trigger.count = 1
-  + [0].action.trigger.filter.thisCardOnly = true
-  + [0].action.substituteCost.lifeCrash = 1
-  + [0].action.optional = true
-  + [2].action.steps[1].optional = true
-  ~ [2].action.steps[2].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  …（他 2 行）
-
 ## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
 WX14-072
 --- WX14-072
@@ -1140,6 +1122,21 @@ WXEX2-23
   + [1].action.puppetParams.optional = true
   + [1].action.puppetParams.levelLteTrigger = true
   …（他 2 行）
+
+## +EICHI_LEVEL_SUM×2 ［1枚］
+WXEX2-71
+--- WXEX2-71
+  原文: 【自】《ターン１回》：あなたのシグニ１体が正面以外のシグニゾーンにアタックしたとき、ターン終了時まで、そのシグニは【ランサー】を得る。【出】英知＝２：あなたのエナゾーンからレベル３以下の＜英知＞のシグニ１枚を対象とし、それを場に出す。【起】英知＝５《ターン１回》《緑×0》：あなたの他の＜英知＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグ
+  + [1].activeCondition.type = "EICHI_LEVEL_SUM"
+  + [1].activeCondition.operator = "eq"
+  + [1].activeCondition.value = 2
+  ~ [1].parseStatus : "AUTO" → "MANUAL"
+  + [2].activeCondition.type = "EICHI_LEVEL_SUM"
+  + [2].activeCondition.operator = "eq"
+  + [2].activeCondition.value = 5
+  ~ [2].action.target.owner : "opponent" → "self"
+  ~ [2].action.keyword : "このシグニは、このシグニの正面以外の対戦相手のシグニゾーンにもアタックできる" → "正面以外追加アタック"
+  ~ [2].parseStatus : "AUTO" → "MANUAL"
 
 ## +CONDITIONAL +SELF_POWER_GTE -SEQUENCE ［1枚］
 WXDi-D01-016
@@ -1801,22 +1798,6 @@ WXK04-034
   ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
   + [0].action.steps[1].condition.filter.cardType = "シグニ"
   + [0].action.steps[1].condition.minCount = 3
-
-## +UNKNOWN -DRAW -SEQUENCE -SIGNI -TRANSFER_TO_DECK ［1枚］
-WXK06-016
---- WXK06-016
-  原文: このアーツの使用コストはあなたの場にあるシグニ１体につき《青×1》減る。スペル１つを対象とし、それの効果を打ち消す。そうした場合、カードを１枚引き、このカードをルリグデッキに戻す。,-
-  - [0].action.steps[2].then.steps[0].type = "DRAW"
-  - [0].action.steps[2].then.steps[0].owner = "self"
-  - [0].action.steps[2].then.steps[0].count = 1
-  - [0].action.steps[2].then.steps[1].type = "TRANSFER_TO_DECK"
-  - [0].action.steps[2].then.steps[1].source.type = "SIGNI"
-  - [0].action.steps[2].then.steps[1].source.owner = "self"
-  - [0].action.steps[2].then.steps[1].source.count = 1
-  - [0].action.steps[2].then.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[2].then.steps[1].shuffle = false
-  ~ [0].action.steps[2].then.type : "SEQUENCE" → "UNKNOWN"
-  + [0].action.steps[2].then.raw = "カードを１枚引き、このカードをルリグデッキに戻す"
 
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028

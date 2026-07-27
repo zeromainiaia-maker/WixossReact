@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -28,7 +28,7 @@ import {
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded } from '../src/engine/boardDiff';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
@@ -3568,6 +3568,58 @@ test('Stage2 ON_TRASH: fromAnyZone + byOpponentEffect ゲート（WX04-035-E2）
   const c = collectAnyZoneTrashSelfTriggers;
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, true, 'hand'), 'WX04-035-E2'), true, '相手効果起因で発火');
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, false, 'hand'), 'WX04-035-E2'), false, '自起因では非発火');
+});
+test('タスク16 ON_TRASH under_signi: 実際のシグニ下→トラッシュだけを検出しカード自身が発火', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX18-062';
+    const top = fresh();
+    const before = mkState({});
+    before.field.signi = [[source, top], null, null];
+    const after = { ...before, trash: [...before.trash, source], field: { ...before.field, signi: [[top], null, null] } };
+    eq(JSON.stringify(detectUnderSigniTrashed(before, after)), `["${source}"]`, 'シグニ下から抜けてtrashへ入ったカードを検出');
+    const entries = collectAnyZoneTrashSelfTriggers(trigCtx(HOST), source, HOST, false, 'under_signi');
+    eq(has(entries, 'WX18-062-E1'), true, 'トラッシュに移動したカード自身のON_TRASHが発火');
+    eq(has(collectAnyZoneTrashSelfTriggers(trigCtx(HOST), source, HOST, false, 'hand'), 'WX18-062-E1'), false, '手札originでは非発火');
+
+    const ruleBefore = mkState({});
+    const ruleTop = fresh();
+    ruleBefore.field.signi = [[source, ruleTop], null, null];
+    const ruleAfter = removeFromField(ruleTop, ruleBefore);
+    eq(ruleAfter.trash.includes(source), true, 'removeFromFieldが下敷きをルール処理でtrashへ置く');
+    eq(detectUnderSigniTrashed(ruleBefore, ruleAfter).length, 0, '本体離脱時の下敷きルール処理落ちは非発火');
+
+    const riseBefore = mkState({});
+    const oldTop = fresh();
+    const riseTop = fresh();
+    riseBefore.field.signi = [[source, oldTop], null, null];
+    const riseAfter = {
+      ...riseBefore,
+      trash: [...riseBefore.trash, oldTop],
+      field: { ...riseBefore.field, signi: [[source, riseTop], null, null] },
+    };
+    eq(detectUnderSigniTrashed(riseBefore, riseAfter).length, 0, 'ライズによる場のシグニ本体入れ替えはunder移動に数えない');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+// under_signi ON_TRASH の「到達可能性」lock-in。コスト経路（cost.underSelfTrash・16効果）は未配線で defer したため、
+// 実戦でこのトリガーが発火する唯一の経路が TAKE_FROM_UNDER_SIGNI(destination:'trash')＝実データ10効果・engine 実装済み。
+// この経路が壊れると under_signi トリガー全体が「宣言だけの no-op」に退化するので回帰防止で固定する。
+test('タスク16 under_signi: TAKE_FROM_UNDER_SIGNI(trash) の効果経路は本体在場のまま下敷きだけをトラッシュへ送る', () => {
+  const savedCursor = cursor;
+  try {
+    const top = fresh();
+    const ctx = mkCtx({ signi: [top, null, null] }, {}, top);
+    const before = ctx.ownerState;
+    before.field.signi = [['WX18-062', top], null, null];
+    const r = run({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } as EffectAction, ctx);
+    eq(r.ownerState.field.signi[0]?.at(-1), top, '本体シグニは場に残る');
+    eq(r.ownerState.trash.includes('WX18-062'), true, '下敷きがトラッシュへ置かれる');
+    eq(JSON.stringify(detectUnderSigniTrashed(before, r.ownerState)), '["WX18-062"]', '効果経路の下敷き→トラッシュが検出される＝トリガーは実戦で到達可能');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 // §6.3 スペルの被破棄【自】2枚（WX17-045 FLASH／WXDi-P10-070 枝折）。パーサー出力＋タスク16[C]機構②の
 // 手札→トラッシュ収集経路（collectAnyZoneTrashSelfTriggers）で機能実装済み＝回帰防止の lock-in。

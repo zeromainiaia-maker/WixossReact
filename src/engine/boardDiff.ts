@@ -178,6 +178,42 @@ export function detectEnergyTrashed(before: PlayerState, after: PlayerState): st
   return after.trash.filter(n => beforeEnergy.has(n) && !beforeTrash.has(n));
 }
 
+/**
+ * シグニの下→トラッシュに移動したカードを検出（ON_TRASH「シグニの下から」用）。
+ * 各スタック末尾の場のシグニ本体は比較対象から外すため、ライズ等の本体入れ替えを
+ * 下敷きの移動と誤認しない。また、本体が同じ差分で場を離れたゾーンの下敷きは
+ * ルール処理でトラッシュへ置かれたものなので除外する。同名カードが複数ある場合も
+ * 多重集合の減少数で扱う。
+ */
+export function detectUnderSigniTrashed(before: PlayerState, after: PlayerState): string[] {
+  const counts = (nums: string[]): Map<string, number> => {
+    const result = new Map<string, number>();
+    for (const n of nums) result.set(n, (result.get(n) ?? 0) + 1);
+    return result;
+  };
+  const underCards = (state: PlayerState): string[] =>
+    state.field.signi.flatMap(stack => stack ? stack.slice(0, -1) : []);
+  const beforeUnder = counts(underCards(before));
+  const afterUnder = counts(underCards(after));
+  // detectLeftFieldSigni と同じ判定を直接再利用し、場を離れた本体のゾーンに
+  // 付いていた下敷き（removeFromField のルール処理落ち）を候補から除外する。
+  const ruleProcessedUnder = counts(detectLeftFieldSigni(before, after).flatMap(x => x.under));
+  const beforeTrash = counts(before.trash);
+  const afterTrash = counts(after.trash);
+  const result: string[] = [];
+  for (const [cardNum, beforeCount] of beforeUnder) {
+    const removedFromUnder = beforeCount - (afterUnder.get(cardNum) ?? 0);
+    const removedByCostOrEffect = Math.max(
+      0,
+      removedFromUnder - Math.min(removedFromUnder, ruleProcessedUnder.get(cardNum) ?? 0),
+    );
+    const addedToTrash = (afterTrash.get(cardNum) ?? 0) - (beforeTrash.get(cardNum) ?? 0);
+    const movedCount = Math.min(removedByCostOrEffect, addedToTrash);
+    for (let i = 0; i < movedCount; i++) result.push(cardNum);
+  }
+  return result;
+}
+
 /** 場の【チャーム】（signi_charms）がトラッシュに置かれた枚数を算出（ON_CHARM_TO_TRASH）。 */
 export function countCharmsToTrash(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
