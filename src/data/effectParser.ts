@@ -3399,6 +3399,8 @@ function applyLeadingTrashHandAnaphora(text: string, action: EffectAction): Effe
   return action;
 }
 
+let _resolvingSeparatedPick = false;
+
 function parseActionText(text: string): EffectAction {
   return applyLeadingSelfComparison(text,
     applyLeadingTrashHandAnaphora(text,
@@ -4089,12 +4091,37 @@ function parseActionTextInner(text: string): EffectAction {
       loopSentences = sentences.slice(2);
     }
   }
+  const resolveSeparatedPick = (pickText: string, revealCount: number): EffectAction | null => {
+    if (_resolvingSeparatedPick) return null;
+    const combined = `あなたのデッキの上からカードを${revealCount}枚見る。${pickText}`;
+    _resolvingSeparatedPick = true;
+    try {
+      const resolved = parseActionText(combined);
+      return resolved.type === 'REVEAL_AND_PICK' ? resolved : null;
+    } finally {
+      _resolvingSeparatedPick = false;
+    }
+  };
   for (const s of loopSentences) {
     const clean = s.trim();
     if (!clean) continue;
     // 直前文の原文（2文型規則が S1 の対象節を参照するために保持。continue で飛んでも常に直前の非空文を指す）
     const prevRaw = prevRawSentence;
     prevRawSentence = clean;
+
+    // 「N枚見る。」「その中から…」が改行で別文になった pick 文を、直前の LOOK と単独で再結合する。
+    // 置換枝の「代わりにその中から…」にも同じ resolver を使い、revealCount と公開集合を維持する。
+    if (/^その中から/.test(clean) && steps.length > 0) {
+      const prev = steps[steps.length - 1];
+      if (prev?.type === 'LOOK_AND_REORDER' && prev.source.location === 'deck' && prev.source.owner === 'self'
+          && typeof prev.count === 'number') {
+        const resolved = resolveSeparatedPick(clean, prev.count);
+        if (resolved) {
+          steps[steps.length - 1] = resolved;
+          continue;
+        }
+      }
+    }
 
     // 「＜盤面状態条件＞の場合、代わりに＜enhanced＞」= 昇格置換（else付きCONDITIONAL）。（2026-07-05 続き28）
     // 直前ステップ（base）を else に、enhanced を then にして CONDITIONAL で前ステップを置換する。
@@ -4287,7 +4314,10 @@ function parseActionTextInner(text: string): EffectAction {
     if (additionalPaidM && steps.length > 0) {
       const isReplace = !!additionalPaidM[1];
       const rest = clean.slice(additionalPaidM[0].length);
-      const thenAction = parseSingleSentence(rest);
+      const baseReveal = [...steps].reverse().find((step): step is RevealAndPickAction => step.type === 'REVEAL_AND_PICK');
+      const thenAction = isReplace && /^その中から/.test(rest) && baseReveal && typeof baseReveal.revealCount === 'number'
+        ? (resolveSeparatedPick(rest, baseReveal.revealCount) ?? parseSingleSentence(rest))
+        : parseSingleSentence(rest);
       const condition = isReplace
         ? { type: 'IS_MY_TURN' as const }
         : { type: 'PAID_ADDITIONAL_COST' as const };

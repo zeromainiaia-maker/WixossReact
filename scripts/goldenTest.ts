@@ -10059,6 +10059,53 @@ test('WXDi-P05-009-E1: ルリグ下を任意消費した場合だけトラッシ
   }
 });
 
+test('置換一般化: 分離pick文を追加エクシードのreplace枝へ単独解決する', () => {
+  const parsed = parseCardEffects(cardMap.get('WXDi-P03-005')!).find(e => e.effectId === 'WXDi-P03-005-E1')!;
+  const action = parsed.action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  eq(action.type, 'SEQUENCE', '追加コスト＋基本＋置換の列');
+  const base = action.steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  const replacement = action.steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(base.type, 'REVEAL_AND_PICK', '基本pickを構造化');
+  eq(base.pickCount, 1, '未払いは1枚まで');
+  eq(replacement.type, 'CONDITIONAL', '追加コスト置換条件');
+  eq(replacement.condition.type, 'IS_MY_TURN', 'Pattern④ replaceモード');
+  eq(replacement.then.type, 'REVEAL_AND_PICK', '分離pick文を単独解決');
+  eq((replacement.then as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>).pickCount, 2, '支払い時は同じ5枚から2枚まで');
+});
+
+test('WX21-002-E3 curated実行: ＜龍獣＞でない公開カードはREVEAL_AND_PICK候補にも手札にも入らない', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX21-002';
+    const dragon = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('龍獣'));
+    const nonDragon = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('龍獣') && c.CardNum !== dragon);
+    const ctx = mkCtx({ deckTop: [nonDragon, dragon] }, {}, source);
+    ctx.ownerState.field.lrig = [source];
+    const effect = manualEffect(source, 'WX21-002-E3');
+    const first = executeEffect(effect, ctx);
+    ok(!first.done && first.pending.type === 'SEARCH', '実データがREVEAL_AND_PICKを実行');
+    if (first.done || first.pending.type !== 'SEARCH') return;
+    ok(first.pending.visibleCards.includes(dragon), '＜龍獣＞を選択候補に含める');
+    ok(!first.pending.visibleCards.includes(nonDragon), 'filter不一致カードを選択候補から除外');
+    const result = resumeSearch([dragon], first.pending, {
+      ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs,
+    });
+    ok(result.ownerState.hand.includes(dragon), '＜龍獣＞は手札に加わる');
+    ok(!result.ownerState.hand.includes(nonDragon), '非＜龍獣＞は手札に入らない');
+    ok(result.ownerState.trash.includes(nonDragon), '非対象の公開カードは原文どおりトラッシュへ');
+
+    const missCtx = mkCtx({ deckTop: [nonDragon, nonDragon] }, {}, source);
+    missCtx.ownerState.deck = [nonDragon, nonDragon];
+    missCtx.ownerState.field.lrig = [source];
+    const miss = executeEffect(effect, missCtx);
+    ok(miss.done, '一致候補0件なら選択待ちを出さない');
+    eq(miss.ownerState.deck.length, 0, '一致候補0件でも公開札をデッキに残さない');
+    eq(miss.ownerState.trash.filter(n => n === nonDragon).length, 2, '一致候補0件の公開札も原文どおりトラッシュへ');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

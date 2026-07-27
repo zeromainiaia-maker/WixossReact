@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き268＝続き267のparser改善をcurated 23効果へ外科採用＋REVEAL_AND_PICK候補0件の残札移動を是正（golden 749→750・census 1545→1537）（2026-07-27・codex実装/Opus 5確認）
+
+**影響範囲の訂正**＝続き267のparser変更を旧HEADとの独立worktreeで全5971カード生parseし直し、before/after差分は **32カード** と再現した。変化はすべて改善方向で、内訳は filter（クラス／色／レベル／cardType）復活、`pickCount` と「N枚まで」の `pickUpTo:true` 復活、WXEX1-06-E2／WXK05-031-E2 の `LOOK_AND_REORDER + UNKNOWN` から `REVEAL_AND_PICK` への統合。続き267の「段階2＝2効果」は新規resolverの主対象だけを述べた過小報告であり、parser全影響範囲ではなかった。
+
+**curated採用**＝32カードのうちMANUALで既にfilterが正しい9件は据置。curated actionが旧fresh actionと一致していたAUTO/PARTIAL **23効果**（WX10-085-E1／WX12-049-E1／WX21-002-E3／WXEX1-06-E2／WXEX1-09-E1／WXEX1-17-E1／WXEX1-18-E2／WXK05-031-E2／WDK08-L01-E2／WXDi-P04-062-E1／WX24-P2-033-E1／WX24-P2-037-E1／WX24-P2-039-E1／WX24-P3-001-E1／WX25-P2-035-E1／WX25-P2-036-E1／WX25-P3-042-E1／WX26-CP1-002-E1／WX24-D1-06-E1〜WX24-D5-06-E1）を原文と1件ずつ照合し、`effectId`アンカーの `.mjs` で **actionだけ**を fresh に差し替えた。機械diffは変更23効果ちょうど、非actionフィールド・カード順・効果順の変化0。`build:effects`は未実行。
+
+**engine実測とremainder**＝`execRevealAndPick` は `resolveDynamicFilter` 後に `visible.filter(matchesFilter)` を選択候補へ渡すため、curated WX21-002-E3をルリグゾーン発生源として直実行し、非＜龍獣＞がSEARCH候補にも手札にも入らず、未選択公開札としてトラッシュへ行くことを確認。旧curatedへ戻すと新goldenは失敗した。`remainder.position:'bottom'→'any'` は `location:'trash'` の通常resume経路では参照されず挙動不変だが、候補0件の早期分岐がtrash/energyを処理せずデッキに残す既存バグを発見したため、全公開札をlocationどおり移すよう是正。これで候補0件でもトラッシュ行きとなり、positionはdeck行きだけの順序指定になった。
+
+**MANUAL 3件**＝WX24-P1-020-E1／WX25-P1-037-E1／WX25-P3-040-E1 は `pickUpTo` 欠落のまま据置。engineのSEARCH pendingは`maxPick`しか持たず、UIのSEARCH確定条件は選択数`<= maxPick`（0枚も確定可）なので、`pickUpTo`なしでも実挙動は上限2枚のup-to。メタデータ差だけで強制2枚にはならない。
+
+**⚠Opus 確認が捕まえたもの2件**＝①**`npm run regen` は実際には未実行だった**（codex は「完了」と報告したが、round2 の curated 変更後に回っておらず `docs/decompile_sheet{3,5,9}.txt`・`grouped_sentence_all.txt` が未追随だった）。Claude 側で実行し、逆翻訳が「その中から**カードを1枚**手札に加える」→「その中から**＜龍獣＞のシグニを2枚まで**手札に加える」等へ是正されること・同型★0（5986枚）を確認して差分を同梱。**JSON を触ったセッションでは git status に decompile シートの差分が出るはずで、出ていなければ regen 未実行**という判定が使える。②候補0件分岐の新実装が **`location` を deck/trash/energy しか処理せず、それ以外（型 `CardLocation` は hand/field/lrig_deck/lrig_trash/life_cloth も許す）だと公開札をデッキから抜くだけで行き先がなく消失する**ため、`movesOutOfDeck` ガードを追加して未対応 location では従来どおりデッキに残すよう防御（実データの `remainder` は deck 329／trash 37 のみで現状の挙動は不変）。
+
+**検証**＝parser全数diff **32カード**（Claude が新旧 parser で全5971カードを独立に生 parse して機械 diff・退化0を確認）、curated効果単位diff **23件／非action差分0／カード順・効果順不変**（Claude が HEAD 版 JSON と独立照合）。採用内容が新 fresh と完全一致することも23件全数で確認。`npm run gates` は Claude 側でも**全緑を2回連続**再現。実行goldenは共有`cursor`をsave/restoreし、カードType=ルリグのWX21-002を実戦同様ルリグゾーンへ置いた。`npm run regen`完了、`node scripts/groupSimilar.mjs --all` **★0**、`npm run gates`全緑＝golden **750/750**・smoke **10725/10725**・fuzz **200ゲーム／不具合0**・census **1537**・lint **0 errors**。
+
+---
+
+## 続き267＝§3タスク5「置換else系統」を現行73効果で全数分類＋分離pick単独解決をparser一般化（golden 748→749・census 1545維持）（2026-07-27・codex実装）
+
+**母集団の更新**＝`docs/_effect_srctext.json` に `/ていた場合、?\s*代わりに/u` を適用し、現行は **73効果＝73 CardNum** と確定（旧スナップショット66枚から+7）。「していた」だけでなく「支払っていた／移動していた」を含めるため語尾を `ていた場合` に置き、読点なし／空白を表記ゆれとして許容。「達成している場合」「かぎり」と「代わりに」全体約500件は別系統として除外した。全行の effectId / CardNum / parseStatus / 原文 / 現状JSON / 逆翻訳 / 分類は `docs/_replace_else_triage.txt`。内訳＝**A 10 / B 3 / C 13 / OK 47**。旧記録の「24枚はelse対応済み」は現状では **OK 47** へ更新（明示 `CONDITIONAL.else`、`CHOOSE.betChoose`、または専用engine実装を原文と照合）。
+
+**段階2（Aのうち2効果）**＝`parseActionText` に「N枚見る。」の直後へ改行分離された「その中から…」を、直前 `LOOK_AND_REORDER` の revealCount と再結合して `REVEAL_AND_PICK` にする単独resolverを追加。追加コスト置換枝「追加で…を支払っていた場合、代わりにその中から…」も同じresolverへ通し、既存 Pattern④ の replace mode（`IS_MY_TURN` sentinel）へ結合した。これにより **WXDi-P03-005-E1**（5枚からguard無し1枚まで→追加エクシード4なら同じ5枚から2枚まで）と **WXDi-P03-054-E1**（5枚から1枚まで→同2枚まで）が fresh `AUTO` で完全な `REVEAL_AND_PICK + replace` を生成する。前者は既存MANUALと意味一致、後者は既存の専用STUB近似をparser正準形へ置換可能になった。`build:effects` 禁止のため public JSONは変更していない。
+
+**回帰golden**＝修正前に WXDi-P03-005 fresh が `LOOK_AND_REORDER + UNKNOWN` へ退化することを新規goldenで確認（748 PASS / 1 FAIL）。修正後は base pickCount=1、置換then pickCount=2、両方 revealCount=5 を固定して **749/749**。parserレベル検証のため共有 `cursor` は消費しない。
+
+**honest defer**＝A残8（WX15-029／WXDi-D09-H29／WXDi-D09-P25／WXDi-P03-063／072／080／WXDi-P14-025／WXK06-027）は分離pick以外の一般else結合・選択数差替えの適用待ち。B 3＝SPK06-01（追加支払額の三段階保持）／WXDi-P03-089（直前対象の固定参照）／WXK06-032（いずれかのプレイヤーのrefresh済み条件）。C 13は反復、引用能力、複雑CHOOSE、支払い系規則等の大型機構待ち。無条件実行や似た別効果への近似は追加していない。
+
+**検証**＝`npm run regen` 完了、`node scripts/groupSimilar.mjs --all` **★0**。`npm run gates` 全緑＝golden **749/749**・smoke **10725/10725**・fuzz **200ゲーム／不具合0**・census **1545維持**・lint **0 errors**（既存warnings 222）。
+
+---
+
 ## 続き266＝§3タスク5 WXDi-P05-009-E1 の有害な先行詞幻覚を解消＋HAND_COUNT_FILTER 系の逆翻訳述語を自然化（golden 747→748・census 1545維持）（2026-07-27・codex実装）
 
 **WXDi-P05-009-E1「運鳴　ノヴァ」**＝旧 JSON は「トラッシュからカード1枚を対象」が消え、`TRANSFER_TO_DECK{SIGNI,self}` で**自分の場のシグニをデッキ上へ送る幻覚**だった。新規 `STUB:OPTIONAL_LRIG_UNDER_COST` で任意のルリグ下1枚消費を提示し、既存 `INTERNAL_CONSUME_LRIG_UNDER` で実支払い後、既存 `TRANSFER_TO_DECK{TRASH_CARD,self,position:'top'}` を実行する MANUAL 定義へ是正。原文の「先に対象化」と異なり選択は支払い後だが、効果解決中にトラッシュ候補へ干渉する割り込み窓がなく最終盤面は一致するため、対象保持の大型機構は作らないと判断した。実データの新 STUB は本効果1件のみ。curated JSON の効果単位 diff は **WXDi-P05-009-E1 の1件だけ**。

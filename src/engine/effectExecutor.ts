@@ -3489,13 +3489,17 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   if (pickable.length === 0) {
     // ピック対象なし：残りを指定場所へ
     if (a.remainder) {
-      const pos = a.remainder.position;
       const restOrdered = a.remainder.shuffle ? shuffle([...visible]) : visible;
+      const deckRest = state.deck.slice(visible.length);
+      // 行き先を実装していない location（hand/field/lrig_* 等）ではデッキから抜かない＝公開札の消失を防ぐ。
+      const movesOutOfDeck = a.remainder.location === 'trash' || a.remainder.location === 'energy';
       const newS: PlayerState = {
         ...state,
-        deck: pos === 'bottom'
-          ? [...state.deck.slice(count), ...restOrdered]
-          : state.deck,
+        deck: a.remainder.location === 'deck'
+          ? (a.remainder.position === 'bottom' ? [...deckRest, ...restOrdered] : [...restOrdered, ...deckRest])
+          : movesOutOfDeck ? deckRest : state.deck,
+        ...(a.remainder.location === 'trash' ? { trash: [...state.trash, ...restOrdered] } : {}),
+        ...(a.remainder.location === 'energy' ? { energy: [...state.energy, ...restOrdered] } : {}),
       };
       const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`);
       return a.elseAction ? executeAction(a.elseAction, { ...unmatched, lastProcessedCards: visible }) : done(unmatched);
