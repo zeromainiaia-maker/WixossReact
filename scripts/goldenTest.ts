@@ -2578,7 +2578,11 @@ test('WXDi-P03-005: エクシード置換で pay=2枚・skip=1枚を手札へ（
   const noG1 = findCard(c => isSigni(c) && c.Guard !== '1');
   const noG2 = findCard(c => isSigni(c) && c.Guard !== '1' && c.CardNum !== noG1);
   // デッキトップにガード無しシグニを5枚（noGuard filter が全部通る）
-  const mkP03 = () => mkCtx({ deckTop: [noG1, noG2, noG1, noG2, noG1] }, {});
+  const mkP03 = () => {
+    const ctx = mkCtx({ deckTop: [noG1, noG2, noG1, noG2, noG1] }, {}, 'WXDi-P03-005');
+    ctx.ownerState.field = { ...ctx.ownerState.field, lrig: [...fill(4), fresh()], check: 'WXDi-P03-005' };
+    return ctx;
+  };
   // pay 経路：autopilot は最初の available（=追加コスト支払う）を選ぶ → 2枚版
   {
     const ctx = mkP03();
@@ -10101,6 +10105,127 @@ test('WX21-002-E3 curated実行: ＜龍獣＞でない公開カードはREVEAL_A
     ok(miss.done, '一致候補0件なら選択待ちを出さない');
     eq(miss.ownerState.deck.length, 0, '一致候補0件でも公開札をデッキに残さない');
     eq(miss.ownerState.trash.filter(n => n === nonDragon).length, 2, '一致候補0件の公開札も原文どおりトラッシュへ');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('置換else本体: WXDi-P03-063 は追加エクシード4の支払い有無で排他的に分岐する', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P03-063';
+    eq(cardMap.get(source)?.Type, 'スペル', '発生源カード種別をCSVで固定');
+    const low = findCard(c => c.Type === 'シグニ' && Number(c.Power) > 0 && Number(c.Power) <= 8000);
+    const high = findCard(c => c.Type === 'シグニ' && Number(c.Power) > 8000 && c.CardNum !== low);
+    const under = fill(4);
+    const effect = manualEffect(source, 'WXDi-P03-063-E1');
+
+    const makeCtx = () => {
+      const ctx = mkCtx({}, { signi: [high, low, null] }, source);
+      ctx.ownerState.field = { ...ctx.ownerState.field, lrig: [...under, fresh()], check: source };
+      return ctx;
+    };
+
+    const payCtx = makeCtx();
+    const paid = finish(executeEffect(effect, payCtx), payCtx);
+    ok(!paid.otherState.field.signi[0], '支払い時はパワー制限なし枝で高パワーをバニッシュ');
+    eq(paid.otherState.field.signi[1]?.at(-1), low, '支払い時は基本枝を重ねず低パワー側を残す');
+    eq(paid.ownerState.field.lrig.length, 1, '支払い時はルリグ下4枚を実際に消費');
+    eq(paid.ownerState.lrig_trash.length, payCtx.ownerState.lrig_trash.length + 4, 'エクシード4をルリグトラッシュへ移す');
+
+    const skipCtx = makeCtx();
+    const offered = executeEffect(effect, skipCtx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', '追加エクシードのpay/skipを提示');
+    if (offered.done || offered.pending.type !== 'CHOOSE') return;
+    const skipped0 = resumeChoose('skip', offered.pending, {
+      ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    });
+    const skipped = finish(skipped0, skipCtx);
+    eq(skipped.otherState.field.signi[0]?.at(-1), high, '未払い時は高パワーを対象にできない');
+    ok(!skipped.otherState.field.signi[1], '未払い時は8000以下の基本枝だけを実行');
+    eq(skipped.ownerState.field.lrig.length, 5, '未払い時はルリグ下を消費しない');
+    eq(skipped.ownerState.lrig_trash.length, skipCtx.ownerState.lrig_trash.length, '未払い時はルリグトラッシュも不変');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('additional exceed curated: pay/skip and insufficient pool', () => {
+  const savedCursor = cursor;
+  try {
+    for (const [source, effectId, exceed] of [
+      ['WXDi-CP01-001', 'WXDi-CP01-001-E1', 4],
+      ['WXDi-P11-083', 'WXDi-P11-083-E1', 7],
+    ] as const) {
+      const effect = (effectsMap.get(source) ?? []).find(e => e.effectId === effectId)!;
+      const makeCtx = (underCount: number) => {
+        const ctx = mkCtx({}, { signi: [SIGNI_P12000, null, null] }, source);
+        // CSV Type is relay-piece/spell; a currently used card belongs in the check zone.
+        ctx.ownerState.field = {
+          ...ctx.ownerState.field,
+          lrig: [...fill(underCount), fresh()],
+          check: source,
+        };
+        return ctx;
+      };
+
+      const payCtx = makeCtx(exceed);
+      const offered = executeEffect(effect, payCtx);
+      ok(!offered.done && offered.pending.type === 'CHOOSE', `${effectId}: offers pay/skip`);
+      if (offered.done || offered.pending.type !== 'CHOOSE') continue;
+      ok(offered.pending.options.find(o => o.id === 'pay')?.available !== false,
+        `${effectId}: pay is available with ${exceed} cards`);
+      const paid0 = resumeChoose('pay', offered.pending, {
+        ...payCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+      });
+      const paid = finish(paid0, payCtx);
+      eq(paid.ownerState.field.lrig.length, 1, `${effectId}: consumes ${exceed} lrig-under cards`);
+      eq(paid.ownerState.lrig_trash.length, payCtx.ownerState.lrig_trash.length + exceed,
+        `${effectId}: adds ${exceed} cards to lrig trash`);
+
+      const skipCtx = makeCtx(exceed);
+      const skipOffered = executeEffect(effect, skipCtx);
+      ok(!skipOffered.done && skipOffered.pending.type === 'CHOOSE', `${effectId}: offers skip`);
+      if (!skipOffered.done && skipOffered.pending.type === 'CHOOSE') {
+        const skipped0 = resumeChoose('skip', skipOffered.pending, {
+          ...skipCtx, ownerState: skipOffered.ownerState, otherState: skipOffered.otherState, logs: skipOffered.logs,
+        });
+        const skipped = finish(skipped0, skipCtx);
+        eq(skipped.ownerState.field.lrig.length, exceed + 1, `${effectId}: skip preserves lrig-under`);
+        eq(skipped.ownerState.lrig_trash.length, skipCtx.ownerState.lrig_trash.length,
+          `${effectId}: skip preserves lrig trash`);
+      }
+
+      const shortCtx = makeCtx(exceed - 1);
+      const shortOffered = executeEffect(effect, shortCtx);
+      ok(!shortOffered.done && shortOffered.pending.type === 'CHOOSE', `${effectId}: insufficient pool offers skip`);
+      if (!shortOffered.done && shortOffered.pending.type === 'CHOOSE') {
+        ok(shortOffered.pending.options.find(o => o.id === 'pay')?.available === false,
+          `${effectId}: insufficient pool makes pay unavailable`);
+      }
+    }
+
+    const discardSource = 'WXDi-CP02-056';
+    const discardEffect = (effectsMap.get(discardSource) ?? []).find(e => e.effectId === 'WXDi-CP02-056-E1')!;
+    const discardCtx = mkCtx({ signi: [discardSource, null, null], hand: 2 }, {}, discardSource);
+    const discardOffered = executeEffect(discardEffect, discardCtx);
+    ok(!discardOffered.done && discardOffered.pending.type === 'CHOOSE', 'hand discard cost: offers pay/skip');
+    if (!discardOffered.done && discardOffered.pending.type === 'CHOOSE') {
+      const paid0 = resumeChoose('pay', discardOffered.pending, {
+        ...discardCtx, ownerState: discardOffered.ownerState, otherState: discardOffered.otherState, logs: discardOffered.logs,
+      });
+      const paid = finish(paid0, discardCtx);
+      eq(paid.ownerState.hand.length, 0, 'hand discard cost: consumes two cards');
+      eq(paid.ownerState.trash.length, discardCtx.ownerState.trash.length + 2, 'hand discard cost: adds two cards to trash');
+    }
+    const discardShort = mkCtx({ signi: [discardSource, null, null], hand: 1 }, {}, discardSource);
+    const discardShortOffered = executeEffect(discardEffect, discardShort);
+    ok(!discardShortOffered.done && discardShortOffered.pending.type === 'CHOOSE',
+      'hand discard cost: insufficient hand still offers skip');
+    if (!discardShortOffered.done && discardShortOffered.pending.type === 'CHOOSE') {
+      ok(discardShortOffered.pending.options.find(o => o.id === 'pay')?.available === false,
+        'hand discard cost: insufficient hand makes pay unavailable');
+    }
   } finally {
     cursor = savedCursor;
   }

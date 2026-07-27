@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き270＝追加エクシードのコスト踏み倒し13効果を全封鎖＋OPTIONAL_COST文字列コスト全数監査（golden 751→752・census 1535維持）（2026-07-27・codex実装/Opus 5確認）
+
+**追加エクシード13効果**＝各カードのCSV原文を直接照合し、`OPTIONAL_COST` に WXDi-P03-005／P03-054／CP01-001／CP01-003／PR-Di013 は `exceed:4`、WXDi-P11-070／076／083 は `exceed:7`、WX25-P3-001／003／005／007／009 は `exceed:3` を設定した。PR-Di013 は選択数置換本体がSTUBのままでも、支払い可否と実コストだけを独立に忠実化。`scripts/archive/patch_optional_exceed_270.mjs` のeffectIdアンカーで外科反映し、`npm run build:effects` は未実行。
+
+**同種全数監査**＝認識済み字段（`costColors`／`handDiscard`／`handDiscardGroups`／`exceed`等）が空のOPTIONAL_COSTは70効果（`costText`あり47／空23）。47から今回の追加エクシード13を除いた非エクシード文字列コストは34効果。うち既存字段へ誤差なく載る代表 WXDi-CP02-056-E1「手札を2枚捨てる」を `handDiscard:{count:2}` へ修正し、残33はフィルタ付き／複数群の手札捨て、自己場カード・ライフクロスの移動、手札公開、複合支払い等で個別機構・照合が必要なため honest defer。空23も原文からの字段脱落候補として別途精査対象であり、文字列を推測変換していない。
+
+**engine実測／golden**＝CSV Typeどおり WXDi-CP01-001（リレーピース）とWXDi-P11-083（スペル）をチェックゾーン発生源、WXDi-CP02-056（シグニ）をシグニゾーン発生源として `executeEffect` を直呼び。エクシード4／7のpayでルリグ下が各N枚減りルリグトラッシュがN枚増加、skipでは両方不変、N-1枚盤面ではpayが `available:false`。手札2枚コストもpayで手札2枚減・トラッシュ2枚増、1枚盤面ではpay不可。共有`cursor`はsave/restore。既存WXDi-P03-005のreplace回帰も実コスト4枚を用意する実戦盤面へ更新した。
+
+**機械diff／検証**＝続き269終了時点からのcurated意味差分は **14 effectIdだけ**（追加エクシード13＋手札捨て代表1）、各対象は指定字段1個の追加だけでカード順・効果順・兄弟効果は不変。`npm run gates` 全緑：golden **752/752**、smoke **10725/10725**（CRASH/HANG/INVARIANT/SKIP全0）、fuzz **200ゲーム／不具合0**、census **1535/BASELINE 1535**（更新不要）、lint **0 errors**（既存warning 222）。`npm run regen` 完走後、既存続き269分を含む `docs/decompile_sheet{2,3,7,8}.txt` の差分を `git status` で確認（今回追加字段は既存`costText`の逆翻訳を変えないため新規シート行差分なし）。`node scripts/groupSimilar.mjs --all` は **★0**。
+
+**⚠Opus 確認が捕まえたもの（続き267〜270 の横断）**＝①**「実害の診断」自体が2度更新された**＝当初 codex は「A残8＝排他されていない実バグ」と分類し Claude もそれを前提に指示したが、`effectExecutor.ts` Pattern④ を読むと `isAdditional ? [...baseSteps, then] : then` で **`IS_MY_TURN` は replace sentinel として元から正しく解釈**されており、排他は成立していた。真の実害は `exceed` 欠落による**コスト踏み倒し**で、これは**全数走査（原文に「追加でエクシードN」を含む `OPTIONAL_COST` 20効果）して初めて「残り13効果にも同じ穴」と分かった**＝**「対象カードを直す」のではなく「同じ穴を全数で数える」ことが系統バグの正しい閉じ方**。②続き269 の作業後に **`node_modules` が消えており**、Claude 側の検証で `npm install` が必要だった（codex 側のゲート報告は再現不能な状態で残っていた）。③`package-lock.json` の version 差分（0.476→0.477）は Claude の `npm install` による副作用のため本コミットから除外。
+
+**Claude の独立検証**＝curated 実データ（`mergeManualEffects` 適用後）を HEAD と全数比較し **23 effectId のみ変化・カード順/効果順/兄弟効果は不変**を確認。`exceed` 未設定の残存を再走査して **0件**（エクシード要求 20効果すべてに設定済み）。`npm run gates` 全緑を**2回連続**独立再現（golden 752・census 1535・smoke 10725・fuzz 0・lint 0e）。
+
+---
+
+## 続き269＝§3タスク5 置換else A残8を全消化＋B固定参照1件も忠実化、残C13+B2を§6.3へ正式送り（golden 750→751・census 1537→1535）（2026-07-27・codex実装/Opus 5確認）
+
+**A残8**＝追加エクシード5件（WXDi-D09-H29／D09-P25／P03-063／072／080）は `OPTIONAL_COST{exceed:N}` と `CONDITIONAL{PAID_ADDITIONAL_COST, then:enhanced, else:base}` の明示形へ統一。旧JSONの `IS_MY_TURN` はPattern④のreplace sentinelとしてengineが元から正しく解釈しており、pay→enhanced／skip→baseの排他は成立していた。**実害は `costText` しかなく `exceed` が未設定だったため、ルリグ下を消費せず強化枝を撃てたコスト踏み倒し**であり、`exceed:N`追加がその修正。H29はBANISH閾値2000/12000、P25は単体能力喪失／1ドロー＋全体能力喪失、063は8000以下／制限なしBANISH、072は2ドロー1捨て／3ドロー、080は誤ったEC1×2を撤去し、単体／全体へ+5000と `ON_ATTACK_SIGNI→ENERGY_CHARGE_FROM_DECK(1)` の引用能力を付与する原文どおりの効果へ復元した。WX15-029は `IS_BETTING` で共通色シグニ回収1/2枚、WXDi-P14-025は `SPELL_USED_THIS_TURN{owner:opponent}` でDOWN/BANISH、WXK06-027は効果レベルのデッキ移動1枚以上ゲート＋3枚以上時だけCHOOSEを1→2枚までへ置換した。
+
+**B 1件も消化**＝WXDi-P03-089 は相手シグニを先に対象化して `STORE_LAST_PROCESSED_TARGETS`、追加エクシード4の支払い後も同一対象へ－12000、未払いなら－5000を適用。旧enhanced枝の `owner:'self'`（自分シグニを弱体化）も撤去した。残Bは SPK06-01（赤2/赤4の三段階支払額保持）とWXK06-032（双方refresh履歴＋同一対象固定）の2件。C13と合わせ PLAN §6.3 Gへ正式送りし、§3タスク5をクローズした。
+
+**engine実測**＝CSVで Type=スペルを確認したWXDi-P03-063を発生源として `field.check` に置き、`executeEffect` を直呼び。支払い時＝パワー>8000の相手シグニだけをバニッシュ、8000以下側は残存、ルリグ下4枚→ルリグトラッシュ（4枚増）。未払い時＝>8000側は残存、8000以下側だけバニッシュ、ルリグ下／ルリグトラッシュ不変。共有 `cursor` はsave/restore。旧curatedへ戻すと `costText` だけで `exceed` が無いため「支払い」でもルリグ下4枚が消費されず新goldenが落ちる。
+
+**parser/curated差分**＝HEAD `9147f0f2` の独立worktreeと全6,712カードを生parse比較し、変化は対象9カードだけ（A残8＋WXDi-P03-089）、他6,703カード変化0＝退化0。curatedは `scripts/archive/patch_replace_else_269.mjs` でeffectIdアンカー外科パッチし、HEAD比で上記9 effectIdだけ、カード順・効果順不変。`npm run build:effects` は未実行。
+
+**検証**＝`npm run gates` 全緑：golden **751/751**、smoke **10725/10725**（CRASH/HANG/INVARIANT/SKIP全0）、fuzz **200ゲーム／不具合0**、census **1535/BASELINE 1535**、lint **0 errors**（既存warning 222）。`npm run regen` 完走し `docs/decompile_sheet{2,3,7,8}.txt` にcurated追随差分が出たことを `git status` で確認。`node scripts/groupSimilar.mjs --all` は **★0**。
+
+---
+
 ## 続き268＝続き267のparser改善をcurated 23効果へ外科採用＋REVEAL_AND_PICK候補0件の残札移動を是正（golden 749→750・census 1545→1537）（2026-07-27・codex実装/Opus 5確認）
 
 **影響範囲の訂正**＝続き267のparser変更を旧HEADとの独立worktreeで全5971カード生parseし直し、before/after差分は **32カード** と再現した。変化はすべて改善方向で、内訳は filter（クラス／色／レベル／cardType）復活、`pickCount` と「N枚まで」の `pickUpTo:true` 復活、WXEX1-06-E2／WXK05-031-E2 の `LOOK_AND_REORDER + UNKNOWN` から `REVEAL_AND_PICK` への統合。続き267の「段階2＝2効果」は新規resolverの主対象だけを述べた過小報告であり、parser全影響範囲ではなかった。
