@@ -26,7 +26,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects } from './battle/battleUtils';
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -10944,10 +10944,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // センタールリグ本来のACTIVATED効果（SONG_FRAGMENT等）
       if (lrigTopMA && !isActionBlocked('USE_ACT')) {
-        const lrigEffsMA = effectsMap.get(lrigTopMA) ?? [];
+        const lrigEffsMA = collectCenterLrigActivatedEffects(my, effectsMap, 'MAIN');
         for (const eff of lrigEffsMA) {
-          if (eff.effectType !== 'ACTIVATED') continue;
-          if (!eff.timing?.includes('MAIN')) continue;
           // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
           if (eff.kizunaIcon && !isKizunaActive(my, lrigTopMA, battleCardMap)) continue;
           // ルリグの【起】効果は基本何度でも使用可（ターン1回アイコンを持つ場合のみ usageLimit で制限）。
@@ -11078,9 +11076,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
       if (lrigTopAA && !isActionBlocked('USE_ACT')) {
-        for (const eff of (effectsMap.get(lrigTopAA) ?? [])) {
-          if (eff.effectType !== 'ACTIVATED') continue;
-          if (!eff.timing?.includes('ATTACK_ARTS')) continue;
+        for (const eff of collectCenterLrigActivatedEffects(my, effectsMap, 'ATTACK_ARTS')) {
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;

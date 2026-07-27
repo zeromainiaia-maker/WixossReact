@@ -1,5 +1,6 @@
 // バトル画面の汎用ヘルパー（ID採番・シャッフル・リフレッシュ/ドロー・じゃんけん等）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState } from '../../types';
+import type { CardEffect } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
 import { applyRefreshState } from '../../engine/refresh';
 
@@ -88,6 +89,19 @@ export function assignGuestInstanceIds(cards: string[]): string[] {
 // ルール：トラッシュが空の場合はリフレッシュしない（保留）。発動時はリフレッシュ回数を加算する。
 export function applyRefresh(state: PlayerState, preventLifeToTrash = false): PlayerState {
   return applyRefreshState(state, preventLifeToTrash);
+}
+
+/** センタールリグ本来の【起】だけを、実際のルリグゾーンから拾う。 */
+export function collectCenterLrigActivatedEffects(
+  state: PlayerState,
+  effectsMap: Map<string, CardEffect[]>,
+  timing: 'MAIN' | 'ATTACK_ARTS',
+): CardEffect[] {
+  const centerLrig = state.field.lrig.at(-1);
+  if (!centerLrig) return [];
+  return (effectsMap.get(centerLrig) ?? []).filter(effect =>
+    effect.effectType === 'ACTIVATED' && effect.timing?.includes(timing),
+  );
 }
 
 // ドロー処理（リフレッシュ対応）。

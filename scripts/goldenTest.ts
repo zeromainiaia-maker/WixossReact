@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -30,7 +30,7 @@ import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTrigge
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
-import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, InstanceMap } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
@@ -11181,6 +11181,35 @@ test('§6.3 C WX22-043 hand ACCE SIGNI to energy exact-two draw', () => {
     ok(acce.every(n => r.ownerState.energy.includes(n)));
     eq(r.ownerState.hand.length, 1);
     eq(r.ownerState.hand[0], draw);
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 E WXDi-P06-031 center-lrig ACT cost and down-only continuous effects', () => {
+  const savedCursor = cursor;
+  try {
+    const localEffects = new InstanceMap<CardEffect[]>(effectsMap);
+    const localCards = new InstanceMap(cardMap);
+    const source = 'WXDi-P06-031#src';
+    const centerBase = findCard(c => c.Type === 'ルリグ' && (c.effects ?? []).some(e => e.effectType === 'ACTIVATED' && e.timing?.includes('MAIN')));
+    const center = `${centerBase}#center`;
+    localCards.set(source, cardMap.get('WXDi-P06-031')!);
+    localCards.set(center, cardMap.get(centerBase)!);
+    localEffects.set('WXDi-P06-031', mergeManualEffects('WXDi-P06-031', effectsMap.get('WXDi-P06-031') ?? []));
+    const base = mkState();
+    const owner = { ...base, field: { ...base.field, signi: [[source], [], []], signi_down: [false, false, false] } };
+    const opponent = { ...mkState(), field: { ...mkState().field, lrig: [center] } };
+
+    const candidates = collectCenterLrigActivatedEffects(opponent, localEffects, 'MAIN');
+    ok(candidates.length > 0, 'center-lrig ACTIVATED candidate was not collected from lrig zone');
+    eq(collectIncreaseActCost(owner, true, localEffects), 1);
+    eq(collectIncreaseActCost(owner, false, localEffects), 0);
+
+    const upPower = calcFieldPowers(owner, opponent, false, localEffects, localCards).get(source);
+    eq(collectOppGuardExtraColorlessCost(owner, opponent, localCards, localEffects, false), false);
+    const downOwner = { ...owner, field: { ...owner.field, signi_down: [true, false, false] } };
+    const downPower = calcFieldPowers(downOwner, opponent, false, localEffects, localCards).get(source);
+    eq((downPower ?? 0) - (upPower ?? 0), 3000);
+    eq(collectOppGuardExtraColorlessCost(downOwner, opponent, localCards, localEffects, false), true);
   } finally { cursor = savedCursor; }
 });
 

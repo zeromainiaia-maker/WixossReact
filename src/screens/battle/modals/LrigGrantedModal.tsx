@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
+import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, canAffordGrowCost } from '../costs';
 import type { BattleModalCtx } from './types';
@@ -24,7 +25,7 @@ interface LrigGrantedModalProps {
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, executeLrigGranted } = p;
   return (
     <>
@@ -41,13 +42,18 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               display: 'flex', flexDirection: 'column', gap: 12 }}>
             {(() => {
               const eff = pendingLrigGranted.effect;
-              const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const baseEnergyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+              const actCostExtra = collectIncreaseActCost(op, isMyTurn, effectsMap);
+              const energyTotal = baseEnergyTotal + actCostExtra;
               const exceedCost = eff.cost?.exceed ?? 0;
               const hdSigniCost = eff.cost?.handDiscardSigni;
               const lgGroups = eff.cost?.discardGroups;
               const lgDiscardTotal = lgGroups ? lgGroups.reduce((s, g) => s + g.count, 0) : (hdSigniCost?.count ?? 0);
               const lgGroupsLabel = lgGroups ? lgGroups.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と') : '';
-              const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
+              const costStr = [
+                ...(eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`),
+                ...(actCostExtra > 0 ? [`《無》×${actCostExtra}`] : []),
+              ].join('');
               const selectedNums = [...selectedLrigGrantedCost].map(i => my.energy[i]);
               const canAffordEnergy = energyTotal === 0
                 ? true

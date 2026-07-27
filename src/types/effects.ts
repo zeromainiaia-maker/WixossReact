@@ -172,6 +172,7 @@ export type ActiveCondition =
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
+  | { type: 'IS_SELF_DOWN' }                                    // このシグニがダウン状態であるかぎり
   | { type: 'IS_SELF_IN_CENTER_ZONE' }                          // このシグニが中央のシグニゾーンにあるかぎり
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
   | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter }      // このシグニの下にカードがあるかぎり（filter=「下にレベルNのシグニがあるかぎり」等の下カード条件。WX24-P1-043）

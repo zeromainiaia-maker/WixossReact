@@ -7,6 +7,9 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WXDi-P06-031": [
+    {"effectId":"WXDi-P06-031-E2","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_DOWN"},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},{"type":"STUB","id":"GUARD_EXTRA_COST_BY_OPP"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   "WX11-027": [{"effectId":"WX11-027-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ"},"sourceOwner":"opponent","from":["any"],"sourceEffectType":"LIFE_BURST","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   "WX24-P4-006": [{"effectId":"WX24-P4-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1},{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"PREVENT_NEXT_DAMAGE","count":1,"damageSource":"signi","sourceLevelLtLastProcessed":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],
   "WXDi-D07-007": [{"effectId":"WXDi-D07-007-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PREVENT_NEXT_DAMAGE","count":2,"millAtTurnEndPerPrevented":5},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},{"effectId":"WXDi-D07-007-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":1},{"color":"無","count":1}]},"action":{"type":"PREVENT_NEXT_DAMAGE","count":1,"millAtTurnEndPerPrevented":5},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}],

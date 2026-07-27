@@ -355,6 +355,12 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.awakened_signi?.includes(sourceCardNum) ?? false;
 
+    case 'IS_SELF_DOWN': {
+      if (!sourceCardNum) return false;
+      const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      return zoneIdx >= 0 && (ownerState.field.signi_down?.[zoneIdx] ?? false);
+    }
+
     case 'IS_SELF_IN_CENTER_ZONE':
       // このシグニが中央のシグニゾーン（index 1）にあるかぎり
       if (!sourceCardNum) return false;
@@ -3032,6 +3038,13 @@ export function collectOppGuardExtraColorlessCost(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   isOwnerTurn: boolean,
 ): boolean {
+  const containsGuardCostStub = (action: import('../types/effects').EffectAction): boolean => {
+    if (action.type === 'STUB') {
+      return action.id === 'OPP_GUARD_COST_COLORLESS' || action.id === 'GUARD_EXTRA_COST_BY_OPP';
+    }
+    if (action.type === 'SEQUENCE') return action.steps.some(containsGuardCostStub);
+    return false;
+  };
   // シグニゾーン走査
   const candidates: string[] = [];
   for (const stack of ownerState.field.signi) {
@@ -3045,8 +3058,7 @@ export function collectOppGuardExtraColorlessCost(
     const effs = effectsMap.get(cn) ?? [];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      const act = eff.action as import('../types/effects').StubAction;
-      if (act.type !== 'STUB' || (act.id !== 'OPP_GUARD_COST_COLORLESS' && act.id !== 'GUARD_EXTRA_COST_BY_OPP')) continue;
+      if (!containsGuardCostStub(eff.action)) continue;
       // activeConditionがある場合はチェック
       if (eff.activeCondition) {
         if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
