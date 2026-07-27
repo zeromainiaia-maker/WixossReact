@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き287＝§6.3 C群 残テールの前段action誤parse 3枚を原文どおりに配線（2026-07-27・Codex）
+
+CSV `EffectText` と live JSON を再照合し、PLAN/続き286の3件はすべて現物どおりの未修正バグと確認した。`build:effects` は実行せず、`manualEffects.ts` のeffectId上書きで外科適用した。
+
+- `PR-K049-E1`：`LRIG_UNDER_CARD_OP` を撤去。新しい省略可能な `MILL.alsoOpponent`／`appendLastProcessed` で両者のデッキ最下1枚を実移動し、2枚の記録に対する `LAST_PROCESSED_LEVEL_SUM >= 6` から `frontOfSelf` の相手シグニだけを−5000。併せて `POWER_MODIFY` の既存filter宣言に未配線だった `frontOfSelf` 実行経路を接続。
+- `WX24-P4-045-E1`：対象選択を任意コスト前に固定し、支払い後に新しい省略可能な `ADD_TO_LIFE.fromField/target/targetsStored` でその相手シグニを相手ライフへ移動。実移動writerが1枚を記録した場合だけ、このシグニへ【ダブルクラッシュ】を付与。
+- `WX22-043-E1`：場のアクセを見るSTUBを撤去し、`ENERGY_CHARGE{HAND_CARD, upToCount:2, hasIcon:'アクセ'}` へ変更。`ENERGY_CHARGE` の対話・即時両経路が実移動を `lastProcessedCards` に記録し、2枚の場合だけドロー。
+
+後方互換：追加フィールドはすべて省略可能で、`MILL`／`ADD_TO_LIFE` の従来分岐は省略時不変。`POWER_MODIFY.frontOfSelf` も指定効果だけを限定する。`ENERGY_CHARGE` writer追加の既存live JSON後段readerを全数走査し、`ENERGY_CHARGE` 後に `LAST_PROCESSED_*` を読む既存効果は0件だった。
+
+golden 3件追加（実戦どおり3枚ともシグニゾーン発生源、共有cursorは全件try/finally復元）：両者底ミル＋閾値成立＋正面限定、固定対象の相手ライフ移動＋自己キーワード、手札アクセ2枚の実移動＋2枚条件ドロー。`npm run gates` 全緑（typecheck／golden 791/791／smoke 10725/10725／fuzz 200ゲーム異常0／census 1523=baseline／lint 0 errors・既存222 warnings）。
+
+---
+
 ## 続き286＝C群[B] サブ軸C の途中回収＋計器の記録訂正（2026-07-27・codex中断/Opus 5引き継ぎ）
 
 **経緯**＝サブ軸C（移動系7効果）を codex へ投げたが、**利用上限（`codex-work` の枠切れ・2026-08-02まで）で中断**。
