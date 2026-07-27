@@ -143,6 +143,7 @@
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 
+- **🆕 セッション（2026-07-27 続き284・Codex）＝§3タスク12(xxii) C群 [B]26 の公開snapshot軸を9効果消化**。`REVEAL_AND_PICK` は `recordRevealed` 指定時だけ公開全体を記録し、既存「手札に加えた」reader 8件は移動結果のまま維持。`DECK_REVEAL_UNTIL` を複数ヒット・公開全体記録へ拡張。PR-459A／WDK13-017／WX05-012／WX05-013／WX22-021／WXDi-P06-036／WXEX1-06／WXEX1-69／WXK07-031を配線。WD13-002はグロウ選択中の公開UI＋コスト再計算が必要でdefer。golden 785、census 1525、partial 42→33、gates 10回FAIL 0。詳細は BUGFIXES 続き284。
 - **🆕 セッション（2026-07-27 続き271・Opus 5 確認／codex sol 実装）＝§3 タスク14（Stage3 純粋バトルコントローラ）を13箇所前進**（reducer 経由 59→72／残 56→43・golden 752→765・census 1535 据置）
   - **運用**＝実装を codex（有料版 sol）へ投げ、**Claude は確認・簿記・commit のみ**。commit fa713376。指示書は「必達ライン＝挙動同値と確信できるものだけ最低8箇所」に絞り、確信が持てないものは honest defer を明示的に歓迎する形にした（codex は13箇所で止め、残43を理由付きで defer＝判断は妥当）。
   - **移行13箇所**＝(a) セットアップ3件（CPUルリグ選択／CPUマリガン完了／両者完了後の対戦開始＝新 `SELECT_LRIG`／`COMPLETE_MULLIGAN`／`START_PLAYING`）(b) スペル・カットイン5件（非null `pending_spell` セット＝`QUEUE_SPELL`／打ち消し・効果なしスペル完了＝`FINISH_SPELL`＝pending 2種クリア／カットイン完了2分岐＝`FINISH_CUTIN`＝`pending_spell` のみクリアし `pending_effect` 不干渉）(c) 既存 `WRITE_STATE` へ4件（攻撃元消失・バニッシュ身代わり待ち・CPU同時クラッシュ繰越・LIFE_BURST不発の `clearPending`）(d) `ADVANCE_TURN_WITH_STATE` 1件（CPU の UP済み状態＋`turn_phase:'DRAW'` を原子的に）。`BattleAction` 7種→14種。

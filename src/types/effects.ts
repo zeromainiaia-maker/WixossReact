@@ -1240,6 +1240,8 @@ export interface RevealAndPickAction {
   elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
+  // 後段が「この方法で公開したカード」を参照する場合、選んで移動したカードではなく公開 snapshot 全体を残す。
+  recordRevealed?: boolean;
 }
 
 // コストなしでカードを使用する（手札・相手手札・相手トラッシュ・ルリグデッキから）

@@ -10956,6 +10956,83 @@ test('§6.3 E群 WX15-016: 相手シグニ攻撃時だけ任意ミルし、LBな
   }
 });
 
+test('§6.3 [B]26 公開writer: 公開snapshotと手札追加結果を分離し、instanceIdで記録する', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardName ?? '').includes('フレイスロ')).slice(0, 5).map((c, i) => `${c.CardNum}#${i + 1}`);
+    const rap = manualEffect('WXEX1-06', 'WXEX1-06-E2').action as SequenceAction;
+    const ctx = mkCtx({ deckTop: signi }, {}, 'WXEX1-06#1');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, deck: [...signi] };
+    const first = executeEffect({ effectId: 't', effectType: 'AUTO', action: rap, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!first.done && first.pending.type === 'SEARCH', '公開5枚からSEARCH対話');
+    if (!first.done && first.pending.type === 'SEARCH') eq(first.pending.lastProcessedCardsAfter?.length, 5, 'pendingに公開snapshot');
+    const result = run(rap, ctx);
+    ok(result.done, 'REVEAL_AND_PICK解決');
+    if (!result.done) return;
+    eq(result.lastProcessedCards?.length, 5, '公開5枚全体を記録（手札に加えた1枚ではない）');
+    ok(signi.every(n => result.lastProcessedCards?.includes(n)), 'instanceIdの公開snapshotを保持');
+
+    const ordinary = {
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 5, filter: { cardType: 'シグニ' },
+      pickCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' },
+      remainder: { location: 'deck', position: 'bottom' },
+    } as EffectAction;
+    const ordinaryCtx = mkCtx({ deckTop: signi }, {}, 'WX24-P4-069#1');
+    ordinaryCtx.cardMap = localMap;
+    ordinaryCtx.ownerState = { ...ordinaryCtx.ownerState, deck: [...signi] };
+    const ordinaryResult = run(ordinary, ordinaryCtx);
+    ok(ordinaryResult.done, '通常REVEAL_AND_PICK解決');
+    if (!ordinaryResult.done) return;
+    eq(ordinaryResult.lastProcessedCards?.length, 1, '既存「手札に加えた」readerは移動成功1枚のまま');
+
+    const hand = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('龍獣')).slice(0, 3).map((c, i) => `${c.CardNum}#h${i}`);
+    const revealCtx = mkCtx({}, {}, 'WXEX1-69#1');
+    revealCtx.cardMap = localMap;
+    revealCtx.ownerState = { ...revealCtx.ownerState, hand };
+    const reveal = (manualEffect('WXEX1-69', 'WXEX1-69-E1').action as SequenceAction).steps[0];
+    const revealed = run(reveal, revealCtx);
+    ok(revealed.done, '手札公開解決');
+    if (!revealed.done) return;
+    eq(revealed.lastProcessedCards?.length, 3, '公開した手札3枚を移動せず記録');
+    eq(revealed.ownerState.hand.length, 3, '公開札は手札に残る');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('§6.3 [B]26 公開条件: 各閾値をN/N-1の両方向でengine評価する', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const cards = (pred: (c: CardData) => boolean, n: number, tag: string) =>
+      [...cardMap.values()].filter(pred).slice(0, n).map((c, i) => `${c.CardNum}#${tag}${i}`);
+    const check = (condition: ActiveCondition, yes: string[], no: string[], label: string) => {
+      const base = mkCtx({}, {}, 'PR-459A#1');
+      base.cardMap = localMap;
+      ok(evalCondition(condition, { ...base, lastProcessedCards: yes }), `${label} N`);
+      ok(!evalCondition(condition, { ...base, lastProcessedCards: no }), `${label} N-1`);
+    };
+    const atoms = cards(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('原子'), 5, 'a');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '原子' }, distinctName: true, minCount: 3 }, atoms.slice(0, 3), atoms.slice(0, 2), '原子異名3');
+    const arts = cards(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('美巧'), 8, 'b');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '美巧' }, distinctName: true, minCount: 8 }, arts, arts.slice(0, 7), '美巧8種');
+    const spaces = cards(c => c.Type === 'シグニ' && c.Level === '4' && (c.CardClass ?? '').includes('宇宙'), 4, 'u');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 4, story: '宇宙' }, operator: 'eq', value: 4 }, spaces, spaces.slice(0, 3), 'レベル4宇宙4');
+    const fries = cards(c => (c.CardName ?? '').includes('フレイスロ'), 3, 'f');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardName: 'フレイスロ' }, minCount: 3 }, fries, fries.slice(0, 2), 'フレイスロ3');
+    const level = cards(c => c.Type === 'シグニ' && c.Level === '1', 1, 'l');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 1 } }, level, [], '公開札レベル1');
+    const count7 = cards(_c => true, 7, 'c');
+    check({ type: 'LAST_PROCESSED_COUNT_GTE', value: 7 }, count7, count7.slice(0, 6), '公開7枚');
+    const sum6 = cards(c => c.Type === 'シグニ' && c.Level === '3', 2, 's');
+    check({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 6 }, sum6, sum6.slice(0, 1), 'レベル合計6');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

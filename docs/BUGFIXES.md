@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き284＝§6.3 C群 [B]26 共通軸：公開結果を lastProcessedCards へ記録（2026-07-27・Codex）
+
+サブ軸Aを全件再照合し、軽量な共有チャネルで忠実化できる9効果を消化した。`REVEAL_AND_PICK` は既存8 reader がすべて「手札に加えたカード」を参照するため、全体挙動は変えず `recordRevealed:true` の1効果だけ公開全体を保持する。`DECK_REVEAL_UNTIL` は複数ヒット・公開全体記録・ヒット手札追加・残りシャッフルデッキ下を実装。手札 `REVEAL`、`REVEAL_DECK_TOP`、`REVEAL_OPP_HAND_CARD` と既存条件軸を合成し、PR-459A／WDK13-017／WX05-012／WX05-013／WX22-021／WXDi-P06-036／WXEX1-06／WXEX1-69／WXK07-031を配線した。
+
+- 公開snapshotと手札追加結果を明示的に分離。WXEX1-06は公開5枚を条件へ渡し、通常 `REVEAL_AND_PICK` は選んで手札へ移した1枚のまま。
+- writer後段reader全数走査：`REVEAL_AND_PICK` 既存8件、`REVEAL` 既存2件、`REVEAL_DECK_TOP` 既存20件はいずれも従来の意味を維持。変更した `DECK_REVEAL_UNTIL` の既存後段readerは0件。新規 `RESTORE_REVEALED_DECK_CARDS` はWXDi-P06-036専用。
+- goldenを783→785へ追加し、instanceId＋実戦ゾーンで公開snapshot 5対1を実測。条件評価は原子3/2、美巧8/7、宇宙4/3、フレイスロ3/2、公開7/6、レベル合計6/3、公開レベル1/0の両側を確認。
+- honest defer：WD13-002はCONTINUOUSグロウコスト軽減で、グロウ選択中の手札公開UIと支払額再計算が必要。通常の効果action実行へ偽装しない。サブ軸B/Cとparse復元2件は今回未着手。
+- census 1527→1525。`docs/_partial_report.txt` は42→33（IS_MY_TURN化39→30）。最終状態で `npm run gates` 10回連続PASS／FAIL 0（golden 785、smoke 10725、fuzz 200ゲーム、lint error 0）。
+
+---
+
 ## 続き283＝§6.3 C群「IS_MY_TURN 誤変換」段3：TRANSFER_TO_HAND 結果カウント2効果（2026-07-27・Codex）
 
 `build:effects` は PLAN §3 の破壊的再生成禁止に従って未実行。同じ CSV→`parseCardEffects`→silent fallback log だけを走らせる一時 read-only 集計で `_partial_report.txt` を更新し、開始時 **44刻印／IS_MY_TURN化41**（リコレクト3・場出しpick1）を再現した。全41件を原文→fresh parser action→live JSON→engine evaluator/recorder の順で再分類し、明細を `_partial_triage.txt` 2026-07-27段3節へ記録。

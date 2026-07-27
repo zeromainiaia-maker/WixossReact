@@ -388,7 +388,7 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
         ],
       });
     }
-    return selectOrInteract(cands, revealCount, false, scope, { type: 'REVEAL' }, undefined, ctx);
+    return selectOrInteract(cands, revealCount, src.upToCount ?? false, scope, { type: 'REVEAL' }, undefined, ctx);
   }
   return done(addLog(ctx, 'カードを公開'));
 }
@@ -3517,9 +3517,9 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
         ...(a.remainder.location === 'energy' ? { energy: [...state.energy, ...restOrdered] } : {}),
       };
       const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`);
-      return a.elseAction ? executeAction(a.elseAction, { ...unmatched, lastProcessedCards: visible }) : done(unmatched);
+      return a.elseAction ? executeAction(a.elseAction, { ...unmatched, lastProcessedCards: visible }) : done(a.recordRevealed ? { ...unmatched, lastProcessedCards: visible } : unmatched);
     }
-    return a.elseAction ? executeAction(a.elseAction, { ...ctx, lastProcessedCards: visible }) : done(ctx);
+    return a.elseAction ? executeAction(a.elseAction, { ...ctx, lastProcessedCards: visible }) : done(a.recordRevealed ? { ...ctx, lastProcessedCards: visible } : ctx);
   }
 
   // デッキはスライスせず公開カードを残す（resumeSearch が picked を各領域へ、未pick公開カードを
@@ -3532,6 +3532,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
     ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}) } } : {}),
+    ...(a.recordRevealed ? { lastProcessedCardsAfter: visible } : {}),
   });
 }
 
@@ -5234,7 +5235,7 @@ export function resumeSearch(
     }
     if (logMsg && remaining.length > 0) cur = addLog(cur, logMsg);
   }
-  cur = { ...cur, lastProcessedCards: picked };
+  cur = { ...cur, lastProcessedCards: pending.lastProcessedCardsAfter ?? picked };
   if (pending.afterAction) {
     const r = executeAction(pending.afterAction, cur);
     if (!r.done) return r;

@@ -2547,15 +2547,18 @@ export function execStubPart1(
     const txtRU = srcRU ? (srcRU.EffectText ?? '') + ' ' + (srcRU.BurstText ?? '') : '';
     const toHWRU = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 停止条件を解析
-    const classM = txtRU.match(/＜([^＞]+)＞のシグニがめくれるまで/);
+    const classM = txtRU.match(/＜([^＞]+)＞のシグニが(?:[０-９\d]+枚)?めくれるまで/);
     const targetClassRU = classM ? classM[1] : null;
     const lvM = txtRU.match(/レベル([０-９\d]+)を持つ/);
     const targetLvRU = lvM ? parseInt(toHWRU(lvM[1])) : null;
-    const untilSigniRU = !!txtRU.match(/シグニがめくれるまで/);
+    const untilSigniRU = !!txtRU.match(/シグニが(?:[０-９\d]+枚)?めくれるまで/);
+    const untilSigniCountM = txtRU.match(/シグニが([０-９\d]+)枚めくれるまで/);
+    const untilSigniCountRU = untilSigniCountM ? parseInt(toHWRU(untilSigniCountM[1])) : 1;
     const untilNameRU = !!txtRU.match(/宣言したカードがめくれるまで|宣言したカードが公開されるまで/);
     const declaredNameRU = ctx.ownerState.declared_card_name ?? null;
     const toTrashRestRU = !!txtRU.match(/残りをトラッシュに置く/);
     const toBottomRestRU = !!txtRU.match(/残り.*デッキの一番下/);
+    const hitToHandRU = !!txtRU.match(/それを手札に加える/);
     // 「公開したカードをトラッシュに置く」＝ヒットシグニを含む公開カード全てをトラッシュへ（WXK10-031）。
     // ヒットシグニはレベル参照（lastProcessedCards）としてのみ使い、物理的にはトラッシュに置く。未対応だと deck から除去され行き場を失い消失していた。
     const toTrashAllRU = !!txtRU.match(/公開したカードをトラッシュに置く/);
@@ -2563,13 +2566,17 @@ export function execStubPart1(
     const deckRU = [...stateRU.deck];
     const revealedRU: string[] = [];
     let hitCardRU: string | null = null;
+    let hitCountRU = 0;
     for (const cn of deckRU) {
       revealedRU.push(cn);
       const card = ctx.cardMap.get(cn);
       let stop = false;
       if (untilSigniRU && card?.Type === 'シグニ') {
         if (!targetClassRU || card?.CardClass?.includes(targetClassRU)) {
-          if (!targetLvRU || parseInt(card?.Level ?? '0') === targetLvRU) stop = true;
+          if (!targetLvRU || parseInt(card?.Level ?? '0') === targetLvRU) {
+            hitCountRU++;
+            if (hitCountRU >= untilSigniCountRU) stop = true;
+          }
         }
       }
       if (untilNameRU && declaredNameRU && card?.CardName === declaredNameRU) stop = true;
@@ -2580,10 +2587,14 @@ export function execStubPart1(
     let newStateRU = { ...stateRU, deck: deckRU.filter(cn => !revealedRU.includes(cn)) };
     if (toTrashAllRU && revealedRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...revealedRU] };
     else if (toTrashRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, trash: [...newStateRU.trash, ...nonHitRU] };
-    if (toBottomRestRU && nonHitRU.length > 0) newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...nonHitRU] };
+    if (hitToHandRU && hitCardRU) newStateRU = { ...newStateRU, hand: [...newStateRU.hand, hitCardRU] };
+    if (toBottomRestRU && nonHitRU.length > 0) {
+      const bottomRU = txtRU.match(/残りをシャッフルして/) ? shuffle([...nonHitRU]) : nonHitRU;
+      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...bottomRU] };
+    }
     const newCtxRU = isOpp
-      ? { ...ctx, otherState: newStateRU, lastProcessedCards: hitCardRU ? [hitCardRU] : [] }
-      : { ...ctx, ownerState: newStateRU, lastProcessedCards: hitCardRU ? [hitCardRU] : [] };
+      ? { ...ctx, otherState: newStateRU, lastProcessedCards: revealedRU }
+      : { ...ctx, ownerState: newStateRU, lastProcessedCards: revealedRU };
     const hitNameRU = hitCardRU ? ctx.cardMap.get(hitCardRU)?.CardName ?? hitCardRU : 'ヒットなし';
     return done(addLog(newCtxRU, `デッキ公開 ${revealedRU.length}枚 → ヒット: ${hitNameRU}`));
   }

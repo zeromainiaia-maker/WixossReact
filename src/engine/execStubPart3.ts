@@ -3231,6 +3231,9 @@ export function execStubPart3(
     return done(addLog({ ...ctx, lastProcessedCards: [randROHC] },
       `相手の手札を公開：${ctx.cardMap.get(randROHC)?.CardName ?? randROHC}`));
   }
+  if (stub.id === 'RESTORE_REVEALED_DECK_CARDS') {
+    return done({ ...ctx, lastProcessedCards: [...(ctx.ownerState.last_revealed_deck_cards ?? [])] });
+  }
   // OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ
   if (stub.id === 'OPP_REVEAL_HAND_AND_LRIG_DECK' || stub.id === 'OPP_REVEAL_LRIG_DECK' || stub.id === 'OPP_REVEAL_TOP_AND_HAND') {
     const handNames = ctx.otherState.hand.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
