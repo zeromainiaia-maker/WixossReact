@@ -10072,3 +10072,12 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 - WX12-023-E1（トラッシュ/ルリグトラッシュ）、WX25-P3-055-E2／WXK01-002-E1／WXK03-071-E1（置換帰結の「この能力」）、WXDi-P16-062-E1（引用付与）は、場の対面シグニを消す有害な近似を明示 STUB no-op に変更し honest defer。live effects JSON の意味的 diff は前ラウンド対象8効果の範囲内（WX09-Re01 は忠実化候補から明示 defer へ修正）。
 - `node scripts/genStubsMd.mjs` で `docs/STUBS.md` を再生成し、前回未登録の3 id に加えて今回の WX09 defer id も登録。census 1545（1549→1545）の減少4は MANUAL/STUB分類移動を含む計器上の減少であり、4件の機能実装を意味しない。
 - `npm run gates` 全緑：typecheck PASS、golden 741/741、smoke 10725/10725（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム（不具合0）、census 1545、lint 0 errors（既存 warnings のみ）。
+# 続き285 — C群[B] サブ軸B（ミル／トラッシュ）7効果（2026-07-27）
+
+- `MILL` に省略時従来挙動の `optional`／`untilFilter`／`untilCount` を追加。固定1枚、デッキ底、宣言数、＜龍獣＞3枚までの全経路が実際に deck→trash へ移動した instanceId だけを `lastProcessedCards` に残す。
+- life source の `LOOK_AND_REORDER` を既存選択UIへ配線し、WXK03-014-E2 は見た3枚全体ではなく実際に life→trash へ置いた分だけを記録。`ADD_TO_LIFE{fromTrash,opponentSelects}` も付与能力用に追加。
+- WX16-028-E1／WX16-Re02-E1／WXK02-055-E1／WXK03-014-E2／WXK06-050-E1／WXK07-042-E1／WXK11-077-sub-E1 を原文どおりの `LAST_PROCESSED_*` 条件へ変更。`LAST_PROCESSED_ALL_MATCH` は既存語彙を利用。
+- 場トラッシュの WXK07-042／WXK11-077-sub は既存 `TRASH` writerを利用しただけで、**`TRASH`本体・記録セマンティクスは変更なし**。`TRANSFER_TO_DECK`も不変。
+- writer全数走査：`MILL`後段readerは今回追加4件のみ。`LOOK_AND_REORDER`後段readerは既存deck source 4件＋今回life source 1件で、既存4件は分岐条件・記録とも不変。追加した `ADD_TO_LIFE{fromTrash}` の後段readerは0件。既存 `TRASH` reader 48件はwriter不変のため挙動不変。
+- golden は実ゾーン＋instanceIdで固定し、cursorをtry/finally復元。トラップ1/0、全ウェポン/非ウェポン混在、Lv2 1/0、龍獣3/2、原子2/1・3/2、場シグニ3/2、life移動1/0を両方向実測。golden 785→787、census 1525→1523、partial 33→26。
+- サブ軸Cは、安全な検証時間をサブ軸Bの全数走査と10回gatesへ優先したため honest defer。

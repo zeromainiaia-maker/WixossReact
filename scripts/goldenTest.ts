@@ -11033,6 +11033,57 @@ test('§6.3 [B]26 公開条件: 各閾値をN/N-1の両方向でengine評価す�
   }
 });
 
+test('§6.3 [B] ミルwriter: instanceIdを実デッキから移動し、固定/底/宣言数/untilを記録する', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const beasts = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('龍獣')).slice(0, 3);
+    const others = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('龍獣')).slice(0, 2);
+    const deck = [beasts[0], others[0], beasts[1], others[1], beasts[2]].map((c, i) => `${c.CardNum}#m${i}`);
+    const ctx = mkCtx({ deckTop: deck }, {}, 'WXK06-050#1');
+    ctx.cardMap = localMap;
+    ctx.ownerState = { ...ctx.ownerState, deck: [...deck] };
+    const until = run({ type: 'MILL', owner: 'self', count: 999, untilFilter: { cardType: 'シグニ', story: '龍獣' }, untilCount: 3 }, ctx);
+    ok(until.done, 'untilミル解決');
+    if (!until.done) return;
+    eq(until.lastProcessedCards?.length, 5, '龍獣3枚目まで実際に置いた全5枚を記録');
+    ok(deck.every(n => until.ownerState.trash.includes(n)), 'instanceIdのままdeck→trash');
+
+    const bottomCtx = mkCtx({ deckTop: deck.slice(0, 2) }, {}, 'WXK02-055#1');
+    bottomCtx.cardMap = localMap;
+    bottomCtx.ownerState = { ...bottomCtx.ownerState, deck: deck.slice(0, 2) };
+    const bottom = run({ type: 'MILL', owner: 'self', count: 1, fromBottom: true }, bottomCtx);
+    ok(bottom.done && bottom.lastProcessedCards?.[0] === deck[1], 'デッキ底1枚を記録');
+  } finally { cursor = savedCursor; }
+});
+
+test('§6.3 [B] 後置条件: 7効果のN/N-1を両方向で評価する', () => {
+  const savedCursor = cursor;
+  try {
+    const localMap = new InstanceMap(cardMap);
+    const cards = (pred: (c: CardData) => boolean, n: number, tag: string) =>
+      [...cardMap.values()].filter(pred).slice(0, n).map((c, i) => `${c.CardNum}#${tag}${i}`);
+    const check = (condition: ActiveCondition, yes: string[], no: string[], label: string) => {
+      const base = mkCtx({}, {}, 'WX16-028#1'); base.cardMap = localMap;
+      ok(evalCondition(condition, { ...base, ownerState: { ...base.ownerState, trash: yes }, lastProcessedCards: yes }), `${label} N`);
+      ok(!evalCondition(condition, { ...base, ownerState: { ...base.ownerState, trash: no }, lastProcessedCards: no }), `${label} N-1`);
+    };
+    const traps = cards(c => (c.EffectText ?? '').includes('《トラップアイコン》：'), 1, 't');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { hasIcon: 'トラップ' } }, traps, [], 'トラップ1');
+    const weapons = cards(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('ウェポン'), 2, 'w');
+    const nonWeapon = cards(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('ウェポン'), 1, 'nw');
+    check({ type: 'LAST_PROCESSED_ALL_MATCH', filter: { cardType: 'シグニ', story: 'ウェポン' } }, weapons, [...weapons, ...nonWeapon], '全てウェポン');
+    const lv2 = cards(c => c.Type === 'シグニ' && c.Level === '2', 1, 'l');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 2 } }, lv2, [], 'レベル2');
+    const beasts = cards(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('龍獣'), 3, 'b');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '龍獣' }, minCount: 3 }, beasts, beasts.slice(0, 2), '龍獣3');
+    const atoms = cards(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('原子'), 3, 'a');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '原子' }, minCount: 2 }, atoms.slice(0, 2), atoms.slice(0, 1), '原子2');
+    check({ type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, minCount: 3 }, atoms, atoms.slice(0, 2), '場シグニ3');
+    check({ type: 'LAST_PROCESSED_COUNT_GTE', value: 1 }, atoms.slice(0, 1), [], 'ライフトラッシュ1');
+  } finally { cursor = savedCursor; }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

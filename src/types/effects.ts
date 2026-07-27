@@ -445,6 +445,7 @@ export interface TargetFilter {
   crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
+  levelEqDeclaredNumber?: boolean; // レベルがこの効果で宣言した数と一致
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
@@ -899,6 +900,8 @@ export interface AddToLifeAction {
   count: NumberOrRef;
   fromTop: boolean; // true=デッキ上から
   fromHand?: boolean; // true=手札から1枚選ぶ
+  fromTrash?: boolean; // true=トラッシュから選ぶ
+  opponentSelects?: boolean; // true=対戦相手が選ぶ
 }
 
 export interface AddToFieldAction {
@@ -1827,6 +1830,9 @@ export interface MILLAction {
   countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）
   countPerLastProcessed?: number;
   countPerStoredTargets?: number;
+  optional?: boolean;
+  untilFilter?: TargetFilter; // 一致カードが untilCount 枚置かれるまでミル
+  untilCount?: number;
 }
 
 export interface GainBondAction {

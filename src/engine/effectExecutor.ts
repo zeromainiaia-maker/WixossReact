@@ -1095,6 +1095,11 @@ function resolveDynamicFilter(
   let result = filter;
   const noMatch = (rest: import('../types/effects').TargetFilter): import('../types/effects').TargetFilter =>
     ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
+  if (result.levelEqDeclaredNumber) {
+    const { levelEqDeclaredNumber: _dn, ...rest } = result;
+    const value = ownerSt.declared_guard_restrict_level;
+    result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
+  }
   // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
   // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。
   if (result.levelEqDiscardLevelSum || result.levelEqualsVar) {
@@ -1620,6 +1625,12 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
   const count = resolveCountRef(a.count, ctx);
   if (count <= 0) return done(ctx);
   const state = ownerState(a.owner, ctx);
+  if (a.fromTrash) {
+    const cands = trashCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
+    if (cands.length === 0) return done(addLog(ctx, 'トラッシュがないためライフクロスに加えられない'));
+    const scope: TargetScope = a.owner === 'self' ? 'self_trash' : 'opp_trash';
+    return selectOrInteract(cands, count, false, scope, a, undefined, ctx, !!a.opponentSelects);
+  }
   if (a.fromHand) {
     // 手札から1枚選んでライフクロスに追加
     const cands = handCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
@@ -3143,16 +3154,21 @@ function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
 function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.source.owner as Owner, ctx);
   const count = resolveNum(a.count);
-  const cards = state.deck.slice(0, count);
+  const sourceCards = a.source.location === 'life_cloth' ? state.life_cloth : state.deck;
+  const cards = a.source.location === 'life_cloth'
+    ? sourceCards.slice(Math.max(0, sourceCards.length - count))
+    : sourceCards.slice(0, count);
   if (cards.length === 0) return done(ctx);
-  // 一時的にデッキからカードを取り除く
-  const newS: PlayerState = { ...state, deck: state.deck.slice(count) };
+  // 一時的に元ゾーンからカードを取り除く
+  const newS: PlayerState = a.source.location === 'life_cloth'
+    ? { ...state, life_cloth: state.life_cloth.slice(0, Math.max(0, state.life_cloth.length - cards.length)) }
+    : { ...state, deck: state.deck.slice(cards.length) };
   const newCtx = setOwnerState(a.source.owner as Owner, newS, ctx);
   return needsInteraction(newCtx, {
     type: 'LOOK_AND_REORDER',
     cards,
     canTrash: a.canTrash ?? false,
-    destLocation: 'deck',
+    destLocation: a.destination.location === 'life_cloth' ? 'life' : 'deck',
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
     private: a.private,
@@ -4311,6 +4327,16 @@ function execGainBond(a: import('../types/effects').GainBondAction, ctx: ExecCtx
 }
 
 function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
+  if (a.optional) {
+    return needsInteraction({ ...ctx, lastProcessedCards: [] }, {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'mill', label: 'トラッシュに置く', action: { ...a, optional: false }, available: true },
+        { id: 'skip', label: '置かない', action: { type: 'SEQUENCE', steps: [] }, available: true },
+      ],
+    });
+  }
   // countIsLastProcessedLevelSum: 「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」＝直前ステップ
   // （LOOK_PICK_CHAIN の field 配置等）が lastProcessedCards に残したシグニのレベル合計を枚数にする（WX24-P3-039）。
   const count = a.countFromZone
@@ -4325,7 +4351,17 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
     : a.count;
   const state = ownerState(a.owner, ctx);
-  const actual = Math.min(count, state.deck.length);
+  let actual = Math.min(count, state.deck.length);
+  if (a.untilFilter) {
+    const need = a.untilCount ?? 1;
+    let matched = 0;
+    actual = 0;
+    for (const cn of (a.fromBottom ? [...state.deck].reverse() : state.deck)) {
+      actual++;
+      if (matchesFilter(ctx.cardMap.get(getCardNum(cn)), a.untilFilter)) matched++;
+      if (matched >= need) break;
+    }
+  }
   if (actual === 0) return done(addLog(ctx, 'デッキが空のためミルをスキップ'));
   const milled = a.fromBottom ? state.deck.slice(state.deck.length - actual) : state.deck.slice(0, actual);
   const newState: PlayerState = {
@@ -5412,7 +5448,9 @@ export function resumeOptionalCost(
   const destOwner = pending.destOwner;
   const state = ownerState(destOwner, ctx);
   let newS: PlayerState;
-  if (pending.destPosition === 'top') {
+  if (pending.destLocation === 'life') {
+    newS = { ...state, life_cloth: [...state.life_cloth, ...keep], trash: [...state.trash, ...trashed] };
+  } else if (pending.destPosition === 'top') {
     newS = { ...state, deck: [...keep, ...state.deck], trash: [...state.trash, ...trashed] };
   } else if (pending.destPosition === 'bottom') {
     newS = { ...state, deck: [...state.deck, ...keep], trash: [...state.trash, ...trashed] };
@@ -5433,7 +5471,7 @@ export function resumeOptionalCost(
   //   ⚠現状 parser は公開(private:false)の LOOK_AND_REORDER 前段のみ条件を emit する（呼び出し側 prevRecords）。
   const cur = {
     ...addLog(setOwnerState(destOwner, newS, ctx), `デッキを並べ替え`),
-    lastProcessedCards: reordered,
+    lastProcessedCards: pending.destLocation === 'life' ? trashed : reordered,
     lastLookTrashedCards: trashed,
   };
   if (pending.continuation) return executeAction(pending.continuation, cur);
@@ -6202,6 +6240,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const atlS = ownerState(atlOwner, ctx);
       const hi = atlS.hand.indexOf(cardNum);
       const di = atlS.deck.indexOf(cardNum);
+      const ti = atlS.trash.indexOf(cardNum);
+      if (atlA.fromTrash && ti >= 0) {
+        const newTrash = [...atlS.trash];
+        newTrash.splice(ti, 1);
+        const newAtlS: PlayerState = { ...atlS, trash: newTrash, life_cloth: [...atlS.life_cloth, cardNum] };
+        return done(addLog(setOwnerState(atlOwner, newAtlS, ctx),
+          `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュからライフクロスに追加`));
+      }
       if (atlA.fromSearch && di >= 0) {
         const newDeck = [...atlS.deck];
         newDeck.splice(di, 1);

@@ -149,8 +149,8 @@ WX25-P3-088-E2 (ON_DISCARDED_AS_COST)
 | WX10-025-E1 | 白を選んだ | [C] | 選択色追跡 condition が不足 |
 | WX15-016-sub-E1 | トラッシュしたカードがバーストアイコン持ち | [A] | `LAST_PROCESSED_MATCHES(hasLifeBurst)`。live は続き282で修正済み、引用内fresh parserのみ残 |
 | WX15-067-E1 | ウィルスを1つ以上取り除いた | [C] | 使用時ウィルス支払い数の追跡が不足 |
-| WX16-028-E1 | トラッシュしたカードがトラップアイコン持ち | [B] | `LAST_PROCESSED_MATCHES(hasIcon:トラップ)`／前段ミルSTUB実体・記録 |
-| WX16-Re02-E1 | トラッシュした全カードが＜ウェポン＞ | [B] | `LAST_PROCESSED_ALL_MATCH(ウェポン)`／宣言数ミルSTUB実体・記録 |
+| WX16-028-E1 | トラッシュしたカードがトラップアイコン持ち | ✅続き285 | 任意`MILL`＋`LAST_PROCESSED_MATCHES(hasIcon:トラップ)` |
+| WX16-Re02-E1 | トラッシュした全カードが＜ウェポン＞ | ✅続き285 | 宣言数`MILL`＋既存`LAST_PROCESSED_ALL_MATCH(ウェポン)` |
 | WX20-053-E2 | デッキからカードを探していた | [C] | CHOOSE枝の did-search 状態が不足 |
 | WX22-021-E2 | 7枚以上公開 | [B]✅ | until公開全体を記録＋7枚ゲート |
 | WX22-043-E1 | 2枚エナゾーンに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(2)`／`PLACE_ACCE_SIGNI_TO_ENERGY`実体・記録 |
@@ -162,16 +162,16 @@ WX25-P3-088-E2 (ON_DISCARDED_AS_COST)
 | WXDi-P13-003A-E1 | 5枚以上トラッシュに置かれた | [C] | 出現条件処理結果の記録機構が不足 |
 | WXEX1-06-E2 | 《フレイスロ》含みが3枚以上公開 | [B]✅ | `recordRevealed`で公開5枚と手札追加1枚を分離＋3枚ゲート |
 | WXEX1-69-E1 | シグニを2枚以上公開 | [B]✅ | ＜龍獣＞3枚までを公開し2枚/3枚ゲートを配線 |
-| WXK02-055-E1 | そのカードがレベル2のシグニ | [B] | `LAST_PROCESSED_MATCHES(level:2)`／デッキ底ミルを任意コスト後に記録 |
-| WXK03-014-E2 | ライフクロスをトラッシュに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(1)`／life look/pick移動結果記録 |
+| WXK02-055-E1 | そのカードがレベル2のシグニ | ✅続き285 | 任意コスト後の底`MILL`＋`LAST_PROCESSED_MATCHES(level:2)` |
+| WXK03-014-E2 | ライフクロスをトラッシュに置いた | ✅続き285 | life source `LOOK_AND_REORDER`の実移動結果＋`LAST_PROCESSED_COUNT_GTE(1)` |
 | WXK03-048-E1 | ＜遊具＞2体が手札に戻った | [B] | `LAST_PROCESSED_MATCHES(遊具,min2)`／全シグニbounce結果記録 |
 | WXK06-031-E1 | 4枚トラッシュに置いた | [B] | `LAST_PROCESSED_COUNT_GTE(4)`／SEARCH maxCount=1誤parseの復元が先 |
-| WXK06-050-E1 | ＜龍獣＞3枚をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(龍獣,min3)`／untilミルSTUB実体・記録 |
+| WXK06-050-E1 | ＜龍獣＞3枚をトラッシュに置いた | ✅続き285 | `MILL{untilFilter:龍獣,untilCount:3}`＋結果記録 |
 | WXK07-031-E2 | レベル4＜宇宙＞4枚を公開 | [B]✅ | untilを4ヒット対応し公開全体trash＋一致4枚ゲート |
-| WXK07-042-E1 | ＜原子＞2体以上をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(原子,min2)`／前段「好きな数」場トラッシュ復元 |
+| WXK07-042-E1 | ＜原子＞2体以上をトラッシュに置いた | ✅続き285 | 既存`TRASH`の「3体まで」選択＋2/3体条件 |
 | WXK08-029-E1 | 【ビート】が4枚になった | [C] | 処理後ビート総数 condition が不足 |
 | WXK09-100-E1 | 同じレベルを持つシグニがない | [C] | lastProcessed のレベル重複なし condition が不足 |
 | WXK11-024-E2 | デッキに15枚以上加えた | [B] | `LAST_PROCESSED_COUNT_GTE(15)`／対象3ゾーン一括移動STUB実体・記録 |
-| WXK11-077-sub-E1 | シグニ3体をトラッシュに置いた | [B] | `LAST_PROCESSED_MATCHES(シグニ,min3)`／付与能力内の場トラッシュ記録 |
+| WXK11-077-sub-E1 | シグニ3体をトラッシュに置いた | ✅続き285 | 付与AUTO内の既存`TRASH`＋3体条件＋相手選択life追加 |
 
 現行41件に「〜しなかった場合」は0件。既存の `LAST_PROCESSED_COUNT_GTE.negate` 規則・評価は変更しておらず、否定条件を肯定化していない。
