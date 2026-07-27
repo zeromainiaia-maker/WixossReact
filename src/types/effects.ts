@@ -785,6 +785,7 @@ export interface SendToEnergyAction {
   type: 'SEND_TO_ENERGY';
   target: EffectTarget;
   targetsStored?: boolean;
+  fixedCardNums?: string[]; // インタラクション生成時に固定済みの対象instanceId（任意コストの pay 分岐で凍結）
   optional?: boolean; // true = 「してもよい」
   opponentSelects?: boolean; // 「対戦相手は自分のシグニ1体を選びエナゾーンに置く」
 }
@@ -1169,6 +1170,8 @@ export interface TransferToDeckAction {
   position?: 'top' | 'bottom';        // デッキの挿入位置（省略時は top）
   optional?: boolean;                 // 「…してもよい」＝TRASH_CARD 経路で選択/スキップ可（WX17-028-E1・続き137）
   opponentSelects?: boolean;          // 「対戦相手は自分のシグニ1体を選びデッキに置く」
+  targetsStored?: boolean;            // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象（SIGNI 経路）
+  fixedCardNums?: string[];           // インタラクション生成時に固定済みの対象instanceId
 }
 
 // スペル/アーツの効果を打ち消す
@@ -1749,6 +1752,22 @@ export interface StubAction {
   /** Filter for a target-level-derived hand discard cost. */
   handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number; filter?: TargetFilter };
+  // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----
+  // 対象シグニのレベル分だけコスト単位を繰り返す任意コスト。単位は3系統あり、いずれも
+  // STORE_LAST_PROCESSED_TARGETS で固定した対象（storedTargetCards）のレベルを倍率にする。
+  // ①エナ色：costColorsPerTargetLevel=['無'] → レベル3なら《無》《無》《無》
+  // ②手札を捨てる：既存 handDiscardCountFromTargetLevel（+handDiscardFilter）
+  // ③エナゾーンから置く：energyTrash（+energyTrashCountFromTargetLevel）
+  /** OPTIONAL_COST: 対象のレベル1につき繰り返す単位エナコスト（例 ['無']）。 */
+  costColorsPerTargetLevel?: string[];
+  /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
+  energyTrash?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: energyTrash.count を対象シグニのレベルにする。 */
+  energyTrashCountFromTargetLevel?: boolean;
+  /** OPTIONAL_COST: energyTrash の候補を「対象と同じレベル」に限定（「それと同じレベルの緑のシグニ」）。 */
+  energyTrashSameLevelAsTarget?: boolean;
+  /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */
+  selectTarget?: EffectTarget;
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{

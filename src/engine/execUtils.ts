@@ -4,6 +4,7 @@ import { checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTr
 import type {
   CardEffect,
   EffectAction,
+  StubAction,
   TargetFilter,
   Owner,
   NumberOrRef,
@@ -117,8 +118,85 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   if (typeof n === 'number') return n;
   if (n.$ref === 'last_processed_count') return ctx.lastProcessedCards?.length ?? 0;
+  if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
+  if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);
   console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);
   return 0;
+}
+
+// 「それのレベル１につき」族（タスク12(liii)）の倍率。対象は常に単数なので最大値＝そのカードのレベル。
+// instanceId（`CardNum#N`）で来ることがあるため getCardNum で素の番号に戻してから引く。
+export function maxCardLevel(cardNums: string[] | undefined, ctx: ExecCtx): number {
+  if (!cardNums || cardNums.length === 0) return 0;
+  return Math.max(0, ...cardNums.map(n =>
+    Number.parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0));
+}
+
+// ===== OPTIONAL_COST の支払い仕様 =====
+
+// OPTIONAL_COST の「何をいくつ払うか」を1本にまとめて解決する。Pattern ③/④/⑤ の3サイトで
+// 同じ算出が写経されていたため（handDiscardCountFromTargetLevel だけで既に3重）ここへ集約した。
+//
+// タスク12(liii)「それのレベル１につき〈コスト単位〉を支払ってもよい」族＝支払い量が
+// **対象シグニのレベル** で決まる。対象は SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS で
+// storedTargetCards に固定済みなので、そのレベルを単位コストに掛ける。
+// 対象が取れなかった（level=0）ときは「0個払って発動」ではなく **支払い不可** に倒す。
+export interface OptionalCostSpec {
+  costColors: string[];
+  handDiscard?: { count: number; filter?: TargetFilter };
+  energyTrash?: { count: number; filter?: TargetFilter };
+  /** レベル倍率が要るのに対象レベルが 0＝支払い自体が成立しない */
+  levelUnavailable: boolean;
+}
+
+export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCostSpec {
+  const level = maxCardLevel(ctx.storedTargetCards, ctx);
+  const perLevel = !!(a.costColorsPerTargetLevel || a.handDiscardCountFromTargetLevel || a.energyTrashCountFromTargetLevel);
+  const costColors = a.costColorsPerTargetLevel
+    ? Array.from({ length: level }, () => a.costColorsPerTargetLevel!).flat()
+    : (a.costColors ?? []);
+  const handDiscard = a.handDiscardCountFromTargetLevel
+    ? { count: level, filter: a.handDiscardFilter }
+    : a.handDiscard;
+  const energyTrash = a.energyTrash
+    ? {
+        count: a.energyTrashCountFromTargetLevel ? level : a.energyTrash.count,
+        // 「それと同じレベルの緑のシグニ」＝候補側にも対象のレベルを課す（翠英　マキトミ）
+        filter: a.energyTrashSameLevelAsTarget ? { ...a.energyTrash.filter, level } : a.energyTrash.filter,
+      }
+    : undefined;
+  return { costColors, handDiscard, energyTrash, levelUnavailable: perLevel && level <= 0 };
+}
+
+// 支払い可能か（エナ色・手札・エナゾーンの在庫）。exceed/handDiscardGroups は呼び出し側の既存判定に残す。
+export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx): boolean {
+  if (spec.levelUnavailable) return false;
+  if (spec.costColors.length > 0 && !canPayOptionalCost(spec.costColors, ctx.ownerState, ctx.cardMap)) return false;
+  if (spec.handDiscard) {
+    const matching = ctx.ownerState.hand.filter(n =>
+      !spec.handDiscard!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handDiscard!.filter));
+    if (matching.length < spec.handDiscard.count) return false;
+  }
+  if (spec.energyTrash) {
+    const matching = ctx.ownerState.energy.filter(n =>
+      !spec.energyTrash!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.energyTrash!.filter));
+    if (matching.length < spec.energyTrash.count) return false;
+  }
+  return true;
+}
+
+// 支払いそのものを表す前置ステップ（エナ色は pending の costColors で UI が徴収するためここには含めない）。
+export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
+  return [
+    ...(spec.handDiscard ? [{
+      type: 'TRASH', asCost: true,
+      target: { type: 'HAND_CARD', owner: 'self', count: spec.handDiscard.count, filter: spec.handDiscard.filter },
+    } as EffectAction] : []),
+    ...(spec.energyTrash ? [{
+      type: 'TRASH', asCost: true,
+      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter },
+    } as EffectAction] : []),
+  ];
 }
 
 // バニッシュされたシグニの行き先を決定する（BattleScreenのバトルバニッシュと同一の優先順）。

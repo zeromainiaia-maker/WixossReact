@@ -105,7 +105,11 @@ const countPredicateJa = (op?: string) => ({
   eq: 'である',
   neq: 'ではない',
 } as Record<string, string>)[op ?? ''] ?? (op ?? '');
-const numJa = (n: any) => typeof n === 'object' ? '[参照値]' : String(n);
+// タスク12(liii)「それのレベル１につき」族＝対象シグニのレベルが枚数になる動的値
+const LEVEL_REFS = ['last_processed_level', 'stored_target_level'];
+const numJa = (n: any) => typeof n === 'object'
+  ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の' : '[参照値]')
+  : String(n);
 
 function filterJa(f?: any): string {
   if (!f) return '';
@@ -248,6 +252,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
     return `トラッシュに置いたシグニ1${counter}につき${own}${filterJa(t.filter)}${u}1${counter}`.trim();
+  }
+  // 動的数：対象シグニのレベル（タスク12(liii)「それのレベル１につき１枚」）
+  if (typeof t.count === 'object' && LEVEL_REFS.includes(t.count?.$ref)) {
+    return `${own}${filterJa(t.filter)}${u}をそれのレベル1につき1${counter}`.trim();
   }
   // 「好きな数」（count:'ALL' + upToCount）
   if (t.count === 'ALL' && t.upToCount) {
@@ -544,7 +552,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : t?.type === 'HAND_CARD' && t?.owner === 'opponent'
         ? (t.blind ? '（見ないでランダム）' : t.actingPlayerSelects ? '（自分が見て選ぶ）' : '（相手が選ぶ）')
         : '';
-      const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて') : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
+      const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて')
+        : (typeof t?.count === 'object' && LEVEL_REFS.includes(t?.count?.$ref)) ? 'それのレベル1につき1枚'
+        : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': {
@@ -581,7 +591,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.target) return `${targetJa(a.target)}を対象とし、それらをエナゾーンに置く`;
       return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     }
-    case 'ENERGY_CHARGE_FROM_DECK': return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
+    case 'ENERGY_CHARGE_FROM_DECK':
+      if (typeof a.count === 'object' && LEVEL_REFS.includes(a.count?.$ref))
+        return `それのレベル1につき${ownerJa(a.owner)}デッキの上から1枚をエナゾーンに置く`;
+      return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
     case 'ADD_TO_LIFE': {
       if (typeof a.count === 'object' && a.count?.$ref === 'last_processed_count') {
         return `トラッシュに置いたシグニ1体につき${ownerJa(a.owner)}デッキの一番上から1枚をライフクロスに加える`;
@@ -1394,9 +1407,28 @@ function actionJa(a?: Action, effectType?: string): string {
         const costJaOPO = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
         return `対戦相手は${costJaOPO || 'コスト'}を支払ってもよい`;
       }
+      // SELECT_TARGET_ONLY: 盤面を変えない対象宣言（タスク12(liii)「〜１体を対象とし、」）
+      if (a.id === 'SELECT_TARGET_ONLY') {
+        return `${a.selectTarget ? targetJa(a.selectTarget) : '対象'}を対象とする`;
+      }
       if (a.id === 'OPTIONAL_COST' || a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
         // costText（エナ色以外の任意コスト句）が明示されていれば原文どおり描画（A3）
         if (a.costText) return a.costText;
+        // タスク12(liii): 対象のレベルが倍率になる任意コスト
+        if (a.costColorsPerTargetLevel) {
+          const unit = a.costColorsPerTargetLevel.map((c: string) => `《${c}》`).join('');
+          return `それのレベル1につき${unit}を支払ってもよい`;
+        }
+        if (a.handDiscardCountFromTargetLevel) {
+          const f = a.handDiscardFilter ? filterJa(a.handDiscardFilter) : '';
+          return `それのレベル1につき手札から${f}カードを1枚捨ててもよい`;
+        }
+        if (a.energyTrashCountFromTargetLevel) {
+          const same = a.energyTrashSameLevelAsTarget ? 'それと同じレベルの' : '';
+          const noun = a.energyTrash?.filter?.cardType ?? 'カード';
+          const f = a.energyTrash?.filter ? `${filterJa(a.energyTrash.filter)}${noun}` : 'カード';
+          return `それのレベル1につきあなたのエナゾーンから${same}${f}1枚をトラッシュに置いてもよい`;
+        }
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
         const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
           + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
@@ -1473,6 +1505,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // engine が no-op スキップする説明テキスト系STUB（execStubPart1.ts と同一）は逆翻訳でも描画しない（空文字）。
       // SEQUENCE/CHOOSE 結合側で空文字ステップを除外する。
       if (a.id === 'RULE_REMINDER_TEXT' || a.id === 'USE_CONDITION_TEXT' || a.id === 'UNLIMITED_KEYS') return '';
+      // 内部簿記ステップ（原文に対応する語が無い）は逆翻訳では無音にする
+      if (a.id === 'STORE_LAST_PROCESSED_TARGETS' || a.id === 'INTERNAL_NOOP') return '';
       // 敗北/ルリグダメージ防止系STUB（engine実装済み＝prevent_defeat/prevent_lrig_damage フラグ）を原文の意味文で描画。
       // 生STUB（id露出）や `[STUB:〜フラグ]` を逆翻訳語彙に置換（条件・限定は周辺の activeCondition/CHOOSE 側で描画）。
       const preventDmgMap: Record<string, string> = {

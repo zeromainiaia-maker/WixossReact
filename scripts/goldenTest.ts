@@ -11366,6 +11366,69 @@ test('§6.3 E WXDi-P06-031 center-lrig ACT cost and down-only continuous effects
   } finally { cursor = savedCursor; }
 });
 
+// ── タスク12(liii)「それのレベル１につき」族 ──
+// 対象シグニのレベルが倍率になる文型。従来は倍率も対象指定も落ち count:1 固定に退化していた。
+test('SELECT_TARGET_ONLY: 盤面を変えず対象だけを lastProcessedCards に記録する', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI_L3, null, null] });
+  const r = run({ type: 'STUB', id: 'SELECT_TARGET_ONLY',
+    selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  eq(r.lastProcessedCards?.[0], SIGNI_L3, '対象が記録されていない');
+  eq((r.otherState as PlayerState).field.signi[0]?.at(-1), SIGNI_L3, '盤面が変化した（対象宣言は副作用なし）');
+});
+test('$ref last_processed_level: 直前に対象化したシグニのレベルが枚数になる（WX13-004 エナチャージ）', () => {
+  const ctx = mkCtx({}, { signi: [SIGNI_L3, null, null] });
+  const r = run({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+    { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: { $ref: 'last_processed_level' } },
+  ] } as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).energy.length, mkState({}).energy.length + 3, 'レベル3ぶんチャージされていない');
+});
+test('OPTIONAL_COST costColorsPerTargetLevel: 対象レベル分だけエナ色コストが積まれる（WXDi-P04-020）', () => {
+  const ctx = { ...mkCtx({}, { signi: [SIGNI_L3, null, null] }), storedTargetCards: [SIGNI_L3] } as ExecCtx;
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevel: ['無'] },
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsStored: true } },
+    ] } } as CardEffect, ctx);
+  ok(!res.done, '任意コストの選択が出ていない');
+  const pay = (res as { pending: { options: { id: string; costColors?: string[] }[] } }).pending.options.find(o => o.id === 'pay');
+  eq(pay?.costColors?.length, 3, `レベル3なら《無》×3（got ${JSON.stringify(pay?.costColors)}）`);
+});
+test('OPTIONAL_COST: 対象レベルが0（対象なし）なら支払い不可に倒れる', () => {
+  const ctx = mkCtx({}, {});
+  const res = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPTIONAL_COST', costColorsPerTargetLevel: ['無'] },
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsStored: true } },
+    ] } } as CardEffect, ctx);
+  ok(!res.done, '選択が出ていない');
+  const pay = (res as { pending: { options: { id: string; available?: boolean }[] } }).pending.options.find(o => o.id === 'pay');
+  eq(pay?.available, false, '対象なしでも支払い可能になっている');
+});
+test('OPTIONAL_COST energyTrash: 対象レベル分だけエナゾーンからトラッシュして本体が通る（WX25-CP1-045）', () => {
+  const ctx = { ...mkCtx({ energy: 6 }, { signi: [SIGNI_L3, null, null] }), storedTargetCards: [SIGNI_L3] } as ExecCtx;
+  const initial = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPTIONAL_COST', energyTrash: { count: 1 }, energyTrashCountFromTargetLevel: true },
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsStored: true } },
+    ] } } as CardEffect, ctx);
+  const r = finish(initial, ctx);
+  eq((r.ownerState as PlayerState).energy.length, 3, 'エナがレベル3枚ぶん減っていない');
+  eq((r.otherState as PlayerState).field.signi[0], null, '固定した対象がバニッシュされていない');
+});
+test('WXDi-P04-020-E1: 族の実データが SELECT_TARGET_ONLY＋レベル倍率コストになっている', () => {
+  const eff = manualEffect('WXDi-P04-020', 'WXDi-P04-020-E1');
+  const steps = (eff.action as { steps: { type: string; id?: string; costColorsPerTargetLevel?: string[] }[] }).steps;
+  eq(steps[0].id, 'SELECT_TARGET_ONLY');
+  eq(steps[1].id, 'STORE_LAST_PROCESSED_TARGETS');
+  eq(steps[2].costColorsPerTargetLevel?.[0], '無');
+  eq((steps[3] as unknown as { condition: { type: string } }).condition.type, 'PAID_ADDITIONAL_COST');
+  ok((steps[3] as unknown as { then: { targetsStored?: boolean } }).then.targetsStored === true, '本体が固定対象を撃っていない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

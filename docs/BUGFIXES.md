@@ -1,5 +1,33 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き291＝§3タスク12(liii)「それのレベル１につき」族15効果の消化（2026-07-27・Opus）
+
+**症状**＝「〈シグニ〉１体を対象とし、**それのレベル１につき**〈X〉」という文型を parser が丸ごと落とし、レベル倍率も対象指定も消えて **X が 1 固定**に退化していた。原文15効果の族。実害は「安すぎる除去」＝WXDi-P04-020-E1 は《無》1つでレベル4のシグニをバニッシュでき、WX26-CP1-005-E1② は対象指定ごと落ちて常に手札1枚を捨てさせるだけだった。
+
+**分類**＝倍率の掛かる先で3形に割れる。
+- **パワー形2効果**（WX06-021-BURST／WX06-037-E1）＝専用アクション `POWER_MODIFY_BY_TARGET_LEVEL` が既に忠実＝**不変**。
+- **コスト形11効果**＝「それのレベル１につき〈コスト単位〉してもよい。そうした場合、〈本体〉」。支払い額が対象のレベルで決まるため、**対象を先に確定しないと選択肢を提示できない**。
+- **枚数形2効果**（WX13-004-E1／WX26-CP1-005-E1②）＝効果の実行回数そのものが対象のレベル。
+
+**機構（新設は最小・既存機構の配線が主）**
+- `SELECT_TARGET_ONLY`（新 STUB・`execStubPart1`）＝**盤面を一切変えずに対象だけを選ばせ `lastProcessedCards` に記録する**対象宣言。これが無かったのが族が消えていた根本原因（PLAN の在庫メモが挙げていた要件②）。選択後の適用は新 `INTERNAL_NOOP` で、`resumeSelectTarget` が記録だけ残す。
+- `$ref:'last_processed_level'` / `'stored_target_level'`（`resolveCountRef`・要件①）＝任意の `count: NumberOrRef` を対象のレベルで解決する汎用参照。従来この意味論は `perLastProcessedLevel`(DRAW)／`countIsLastProcessedLevelSum`(MILL)／`handDiscardCountFromTargetLevel`(OPTIONAL_COST) とアクションごとの ad-hoc フラグに散っていた。
+- `OPTIONAL_COST` にレベル倍率のコスト3系統を追加＝`costColorsPerTargetLevel`（エナ色をレベル分繰り返す）／既存 `handDiscardCountFromTargetLevel`／`energyTrash`＋`energyTrashCountFromTargetLevel`（＋「それと同じレベルの」＝`energyTrashSameLevelAsTarget`）。**対象レベルが 0（対象なし）のときは「0個払って発動」ではなく支払い不可に倒す**。
+- 併せて `OPTIONAL_COST` の支払い仕様算出を `resolveOptionalCostSpec`／`canAffordOptionalCostSpec`／`optionalCostPaySteps` へ集約（`effectExecutor` の Pattern ③④⑤＋`execStubPart1` の計4箇所に写経されていた）。`freezeStoredTargets` も2重定義を1本化し、`SEND_TO_ENERGY`／`TRANSFER_TO_DECK` を凍結対象に追加（両者に `targetsStored`/`fixedCardNums` を新設）。
+
+**parser**＝`applyTargetLevelScaling`（`parseActionText` の最外 post-pass）が族を検出し、コスト形を
+`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST(レベル倍率) → CONDITIONAL(PAID_ADDITIONAL_COST){本体 targetsStored}` の正準形へ組み替える。この4段は WX24-P2-048（MANUAL 実装済み）で実証済みの形＝**新機構ではなく既存機構の配線**。枚数形は末尾アクションの `count` を `$ref` にし、対象宣言が同文にあるときだけ `SELECT_TARGET_ONLY` を本体と同スコープの先頭へ差し込む（遅延トリガーなら遅延本体の中＝宣言時ではなく発火時に選ぶ）。適用は原文 `それのレベル１につき` かつ「対象とし」が1つの文に限定＝族15効果以外には触れない。
+
+**副産物の是正2件**＝(a)「対戦相手のシグニ**を**１体まで対象とし」形は `applyLeadingOpponentDesignation` の regex（「を対象とし」前提）から外れて owner:self のまま落ちていた（WX26-CP1-036-E2＝自分のシグニをデッキに送る自傷）。`bindToStoredTarget` が designation の owner を焼き込んで是正。(b) WX24-P2-048-E1 の MANUAL 実装が使っていた「`POWER_MODIFY delta:0` で対象だけ選ぶ」慣用句を `SELECT_TARGET_ONLY` へ置き換え（逆翻訳から「パワーを+0する」というノイズが消える）。
+
+**消化結果**＝15効果中 **12効果を忠実化**・2効果は元から正しい（パワー形）・**1効果は honest defer**＝WX24-P2-058-E1②「この方法でトラッシュに置かれたカードの中からシグニを１枚まで対象とし…それのレベル１につき《無》を支払ってもよい」。対象がフィールドのシグニではなく**この効果でミルした3枚**であり、その集合を追跡して対象化する機構が無い（別途要）。
+
+**decompiler**＝新語彙を原文語で描画（`SELECT_TARGET_ONLY`→「〜を対象とする」／レベル倍率コスト3形／`$ref` 枚数）。`STORE_LAST_PROCESSED_TARGETS`・`INTERNAL_NOOP` は原文に対応語の無い内部簿記なので逆翻訳では無音にした。
+
+**検証**＝`npm run gates` 全緑（golden **803**／smoke 10725件 CRASH0／fuzz 200ゲーム 0／census **1523→1521**／lint 0e）。golden に6件追加＝`SELECT_TARGET_ONLY` の副作用なし記録・`$ref last_processed_level` の枚数解決・`costColorsPerTargetLevel` のレベル3＝《無》×3・**対象レベル0で支払い不可**・`energyTrash` のレベル分支払い＋固定対象バニッシュ・WXDi-P04-020-E1 の実データ形。`npm run regen` で全10枚を再生成し、族12効果の逆翻訳を原文と目視照合済み。⚠**census の減少は 2 のみ**＝この計器は語彙欠落を測るもので、族の大半は「コストが1固定」という**値の誤り**だったため元から計上されていない（実装数12との差はそのため）。⚠**実機未検証**＝engine/parser 単位の検証のみ。
+
+---
+
 ## 続き290＝§6.3 E群 REARRANGE_SIGNI swap基盤＋WXDi-P08-037-E2忠実化（2026-07-27・Codex）
 
 **段階1（消化）**＝従来ログだけのno-opだった `REARRANGE_SIGNI{swap:true,count:1}` を、交換元（通常は効果元シグニ）と候補1体を選ぶ `REARRANGE_SIGNI mode:'swap'` pendingへ配線した。場同士の交換は既存 `resumeRearrangeSigni` の配置順列経路へ合流する。併せて配置順列 `permute` の対象を広げ、従来追従していなかった貯菌・トラップ・マジックボックス・シード・裏向き・クロス／ヘブンの7状態もゾーンに追従するよう修正した。このため `count:'ALL'` の既存16効果も配置結果自体は同じだが、ゾーンに紐づく状態の追従範囲は広がる挙動変更となる。既存pending／resume形とWX04-041回帰goldenは維持。

@@ -3416,12 +3416,164 @@ function applyLeadingTrashHandAnaphora(text: string, action: EffectAction): Effe
   return action;
 }
 
+// ===== 「それのレベル１につき」族（Opusタスク12(liii)）=====
+//
+// 「〈シグニ〉１体を対象とし、**それのレベル１につき**〈X〉」＝対象シグニのレベルが倍率になる文型。
+// 原文15効果。従来 parser はレベル倍率も対象指定も丸ごと落とし、コスト/枚数が 1 固定に退化していた
+// （WXDi-P04-020 は《無》1つでレベル4をバニッシュできる／WX26-CP1-005-E1② は常に1枚捨てさせるだけ）。
+//
+// 倍率の掛かる先で2形に分かれる：
+//  A) コスト形（11効果）＝「それのレベル１につき〈コスト単位〉してもよい。そうした場合、〈本体〉」
+//     → 対象を先に確定しないと支払い額が決まらないため
+//        SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST(レベル倍率)
+//        → CONDITIONAL(PAID_ADDITIONAL_COST){本体 targetsStored} へ組み替える。
+//     この4段は WX24-P2-048（MANUAL 実装済み）で実証済みの正準形＝新機構ではなく既存機構の配線。
+//  B) 枚数形（2効果）＝「それのレベル１につき〈N枚の効果〉」→ 末尾アクションの count を
+//     $ref:'last_processed_level'（＝直前に対象化/処理したカードのレベル）にする。
+//
+// ⚠パワー修正形（「それのパワーをそれのレベル１につき－3000する」WX06-021/WX06-037）は
+//   専用アクション POWER_MODIFY_BY_TARGET_LEVEL が既に忠実＝触らない。
+const TARGET_LEVEL_SCALE_RE = /それのレベル１につき/;
+
+// 「そうした場合」ゲート（parser 慣例＝IS_MY_TURN / 明示 PAID_ADDITIONAL_COST）か
+function isDidItGate(a: EffectAction | undefined): a is import('../types/effects').ConditionalAction {
+  return a?.type === 'CONDITIONAL'
+    && ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes((a as import('../types/effects').ConditionalAction).condition.type);
+}
+
+// 置き換え対象の「落ちたコストステップ」＝任意コスト STUB か、任意の手札捨て TRASH
+function isDroppedCostStep(a: EffectAction | undefined): boolean {
+  if (!a) return false;
+  if (a.type === 'STUB') {
+    return ['OPTIONAL_COST', 'OPTIONAL_TRASH_ENERGY_CLASS', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'].includes((a as StubAction).id);
+  }
+  const t = a as import('../types/effects').TrashAction;
+  return a.type === 'TRASH' && !!t.optional && t.target?.type === 'HAND_CARD';
+}
+
+// 原文のコスト句（「それのレベル１につき」と「てもよい」の間）から OPTIONAL_COST のレベル倍率フィールドを作る。
+// 解釈できない句は null＝据置（誤変換より無変換を選ぶ）。
+function parseTargetLevelCostFields(costClause: string): Partial<StubAction> | null {
+  // ①《色》を支払う
+  const colorM = costClause.match(/^《([赤青緑黒白無])》を支払っ$/);
+  if (colorM) return { costColorsPerTargetLevel: [colorM[1]] };
+  // ②手札を捨てる（色/クラス指定つきもある）
+  const handM = costClause.match(/^手札(?:から(.+?))?を?[０-９\d]+枚捨て$/);
+  if (handM) {
+    const spec = handM[1] ?? '';
+    const filter: TargetFilter = { ...parseColorFilter(spec), ...parseStoryFilter(spec) };
+    return {
+      handDiscardCountFromTargetLevel: true,
+      ...(Object.keys(filter).length > 0 ? { handDiscardFilter: filter } : {}),
+    };
+  }
+  // ③エナゾーンからトラッシュに置く
+  const enaM = costClause.match(/^(?:あなたの)?エナゾーンから(.+?)[０-９\d]+枚をトラッシュに置い$/);
+  if (enaM) {
+    const spec = enaM[1];
+    const filter: TargetFilter = {
+      ...(spec.includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
+      ...parseColorFilter(spec), ...parseStoryFilter(spec),
+    };
+    return {
+      energyTrash: { count: 1, ...(Object.keys(filter).length > 0 ? { filter } : {}) },
+      energyTrashCountFromTargetLevel: true,
+      // 「それと同じレベルの〜」＝候補側にも対象のレベルを課す（翠英　マキトミ）
+      ...(/それと同じレベルの/.test(spec) ? { energyTrashSameLevelAsTarget: true } : {}),
+    };
+  }
+  return null;
+}
+
+// 本体アクションを「固定した対象だけを撃つ」形にする。target / source どちらの語彙でも受ける。
+// owner も designation に揃える＝「対戦相手のシグニを１体まで対象とし」形は applyLeadingOpponentDesignation
+// の regex（「を」なし前提）に外れて owner:self のまま落ちるため（WX26-CP1-036-E2）。
+// targetsStored が対象を実選択済みの1体に固定するので、owner を上書きしても過剰対象化にはならない。
+function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction {
+  const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE'];
+  if (a.type === 'SEQUENCE') return { ...a, steps: (a as SequenceAction).steps.map(s => bindToStoredTarget(s, desig)) };
+  if (!BINDABLE.includes(a.type)) return a;
+  const withTgt = a as EffectAction & { target?: EffectTarget; source?: EffectTarget };
+  const key = withTgt.target ? 'target' : withTgt.source ? 'source' : null;
+  const tgt = key ? withTgt[key] : undefined;
+  if (!key || !tgt || tgt.type !== 'SIGNI') return a;
+  return { ...a, [key]: { ...tgt, owner: desig.owner }, targetsStored: true } as EffectAction;
+}
+
+function applyTargetLevelScaling(text: string, action: EffectAction): EffectAction {
+  if (!TARGET_LEVEL_SCALE_RE.test(text)) return action;
+  if (/それのパワーをそれのレベル１につき/.test(text)) return action; // POWER_MODIFY_BY_TARGET_LEVEL の領分
+  // 「それ」の指し先が一意でない文（対象宣言が複数）は触らない
+  // ⚠「シグニを１体まで対象とし」形があるため「を対象とし」ではなく「対象とし」で数える
+  if ((text.match(/対象とし/g)?.length ?? 0) !== 1) return action;
+
+  // 対象宣言が「それのレベル１につき」と同じ文の中で直前にあるか（＝先に対象を選ぶ必要がある形）
+  const desigM = text.match(/((?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、(?:[^。]*?、)?それのレベル１につき/);
+  const target = desigM
+    ? parseSigniTarget(desigM[1], desigM[1].startsWith('対戦相手') ? 'opponent' : 'self')
+    : null;
+  const selectStep: StubAction | null = target
+    ? { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target }
+    : null;
+
+  // ---- A) コスト形 ----
+  const costM = text.match(/それのレベル１につき(.+?)てもよい/);
+  if (costM) {
+    const costFields = parseTargetLevelCostFields(costM[1]);
+    if (!costFields || !selectStep || !target) return action;
+    if (action.type !== 'SEQUENCE') return action;
+    const steps = [...(action as SequenceAction).steps];
+    const gateIdx = steps.findIndex(isDidItGate);
+    if (gateIdx < 0) return action;
+    const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+    // ゲート直前の「落ちたコストステップ」は組み替えで置き換わるので取り除く
+    const prefixEnd = isDroppedCostStep(steps[gateIdx - 1]) ? gateIdx - 1 : gateIdx;
+    const rebuilt: EffectAction[] = [
+      ...steps.slice(0, prefixEnd),
+      selectStep as EffectAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      { type: 'STUB', id: 'OPTIONAL_COST', ...costFields } as StubAction,
+      { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: bindToStoredTarget(gate.then, target) },
+      ...steps.slice(gateIdx + 1),
+    ];
+    return { ...action, steps: rebuilt } as EffectAction;
+  }
+
+  // ---- B) 枚数形 ----
+  // 末尾アクションの count を「対象のレベル」参照へ差し替える。対象宣言が同じ文にあるなら
+  // 先に SELECT_TARGET_ONLY で選ばせてから参照する（無いなら直前ステップの処理結果を参照）。
+  const levelRef = { $ref: 'last_processed_level' } as const;
+  // INSTALL_DELAYED_TRIGGER は findTailAction が中へ降りない（遅延本体は別スコープ）ため明示的に開く
+  const delayed = action.type === 'INSTALL_DELAYED_TRIGGER'
+    ? (action as import('../types/effects').InstallDelayedTriggerAction)
+    : null;
+  const tail = findTailAction(delayed ? delayed.effect : action) as (EffectAction & { count?: unknown; target?: EffectTarget }) | null;
+  if (!tail) return action;
+  if (tail.count !== undefined) {
+    tail.count = levelRef;
+  } else if (tail.target && typeof tail.target === 'object' && 'count' in tail.target) {
+    (tail.target as { count: unknown }).count = levelRef;
+  } else {
+    return action;
+  }
+  if (!selectStep) return action;
+  // 対象化ステップは倍率を参照する本体と同じスコープの先頭へ差し込む
+  // （遅延トリガーなら遅延本体の中＝発火時に選ぶ。外に置くと宣言時に選んでしまう）
+  if (delayed) {
+    return { ...delayed, effect: { type: 'SEQUENCE', steps: [selectStep as EffectAction, delayed.effect] } } as EffectAction;
+  }
+  return action.type === 'SEQUENCE'
+    ? { ...action, steps: [selectStep as EffectAction, ...(action as SequenceAction).steps] } as EffectAction
+    : { type: 'SEQUENCE', steps: [selectStep as EffectAction, action] } as EffectAction;
+}
+
 let _resolvingSeparatedPick = false;
 
 function parseActionText(text: string): EffectAction {
-  return applyLeadingSelfComparison(text,
-    applyLeadingTrashHandAnaphora(text,
-      applyLeadingOpponentDesignation(text, parseActionTextInner(text))));
+  return applyTargetLevelScaling(text,
+    applyLeadingSelfComparison(text,
+      applyLeadingTrashHandAnaphora(text,
+        applyLeadingOpponentDesignation(text, parseActionTextInner(text)))));
 }
 
 function parseActionTextInner(text: string): EffectAction {

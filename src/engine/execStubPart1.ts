@@ -15,8 +15,9 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, canPayOptionalCost, getCardNum,
-  createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts, matchesFilter,
+  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum,
+  createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
+  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 
@@ -71,6 +72,25 @@ export function execStubPart1(
   if (stub.id === 'STORE_LAST_PROCESSED_TARGETS') {
     return done({ ...ctx, storedTargetCards: [...(ctx.lastProcessedCards ?? [])] });
   }
+  // SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。
+  // 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため
+  // **対象を先に確定**しないと支払い額を提示できない。従来この宣言を表すステップが無く、対象指定ごと
+  // 落ちて count:1 固定になっていた（WX26-CP1-005-E1② 等15効果）。
+  // 直後に STORE_LAST_PROCESSED_TARGETS を置いて storedTargetCards へ固定し、OPTIONAL_COST が
+  // そのレベルを倍率に使い、支払い後の本体は targetsStored で同じ対象を撃つ、という組で使う。
+  // 選択後の適用アクションは INTERNAL_NOOP＝resumeSelectTarget が lastProcessedCards だけを残す。
+  if (stub.id === 'SELECT_TARGET_ONLY') {
+    const tgt = stub.selectTarget;
+    if (!tgt || tgt.type !== 'SIGNI') return done({ ...ctx, lastProcessedCards: [] });
+    const state = ownerState(tgt.owner, ctx);
+    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+    const count = typeof tgt.count === 'number' ? tgt.count : 1;
+    const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope,
+      { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx);
+  }
+  // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
+  if (stub.id === 'INTERNAL_NOOP') return done(ctx);
   // 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。
   // PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので
   // fetchCardName の名指しが必須（検証是正＝旧・同名フェッチは常に不発で自シグニが消えるだけだった）。
@@ -132,21 +152,17 @@ export function execStubPart1(
   // 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パターンを処理済み
   // ここはSEQUENCE末尾や非IS_MY_TURNパターンの33件ほどを担当
   if (stub.id === 'OPTIONAL_COST') {
-    const costColorsOC = stub.costColors ?? [];
-    const handDiscardOC = stub.handDiscard;
-    const matchingHandOC = handDiscardOC
-      ? ctx.ownerState.hand.filter(n => !handDiscardOC.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), handDiscardOC.filter))
-      : [];
-    const canAffordOC = (costColorsOC.length === 0 || canPayOptionalCost(costColorsOC, ctx.ownerState, ctx.cardMap))
-      && (!handDiscardOC || matchingHandOC.length >= handDiscardOC.count);
+    const specOC = resolveOptionalCostSpec(stub, ctx);
+    const costColorsOC = specOC.costColors;
+    const canAffordOC = canAffordOptionalCostSpec(specOC, ctx);
     const payLabelOC = costColorsOC.length > 0
       ? `発動する（${costColorsOC.map(c => `《${c}》`).join('')}）`
       : '発動する';
     const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
-    const payActionOC: EffectAction = handDiscardOC ? {
-      type: 'TRASH', asCost: true,
-      target: { type: 'HAND_CARD', owner: 'self', count: handDiscardOC.count, filter: handDiscardOC.filter },
-    } : noopOC;
+    const payStepsOC = optionalCostPaySteps(specOC);
+    const payActionOC: EffectAction = payStepsOC.length === 0 ? noopOC
+      : payStepsOC.length === 1 ? payStepsOC[0]
+      : { type: 'SEQUENCE', steps: payStepsOC };
     return needsInteraction(addLog(ctx, '任意コスト：発動しますか？'), {
       type: 'CHOOSE', count: 1,
       options: [
