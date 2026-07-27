@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 続き289＝§6.3 G群 B 2件：追加コスト三段階と双方refresh置換（2026-07-27・Codex実装／Opus 確認・差し戻し1回）
+
+**SPK06-01-E1**＝既存JSONは追加赤6の任意コスト後にBANISH 1/2/3体が累積し、最大6体へ過剰実行していた。`OPTIONAL_COST.additionalCostChoices` と不払いactionを追加し、追加赤4→3体／追加赤2→2体／不払い→1体を同一対話の排他枝にした。基本使用コスト赤2は従来どおりeffect costに保持。アーツを実戦同様check zoneへ置いたgoldenで3経路を固定した。付随するレイラのコイン技《ゲーム1回》→《ゲーム2回》・次回コイン技コスト1減は、コイン技ごとのusage limitと次回cost modifier基盤が無く、既存 `ARTS_COST_REDUCTION_BY_EFFECT` も実行時no-opのためhonest defer。
+
+**WXK06-032-E1**＝新しい履歴stateは作らず、既存の両PlayerStateの `refresh_count_this_turn` を読む `ANY_PLAYER_REFRESHED_THIS_TURN` 条件を追加。対象2体までを一度だけ選び `STORE_LAST_PROCESSED_TARGETS` で固定し、履歴なし－4000／どちらかに履歴あり－12000をelseで置換した。－16000の加算なし、3体目への選び直しなしをgoldenで固定。
+
+**⚠Opus 確認で差し戻した half-migration（初回提出の欠陥）**＝三択の option id を `pay_red2`/`pay_red4` にしたが、`EffectInteractionModal.tsx` の任意コストUI が **`o.id === 'pay'` 前提**でエナ選択UIを出していたため、新3択は通常CHOOSEボタンにフォールバックし `handleEffectInteraction([opt.id])`＝**energyNums を渡さないまま resume** されていた。結果 `resumeOptionalCost` が「コスト支払いエラー: エナ不足」で終了＝**実機では「追加を支払う」を選んでもバニッシュ0体・コスト未徴収**。golden は engine を直接呼び energyNums を自前で渡すため素通りしていた。差し戻し後、UI を「tier 選択→エナ選択」の2段に一般化（`optionalCostOptions`/`buildOptionalCostPayload` を `src/screens/battle/optionalCostUi.ts` へ純関数抽出）。**非回帰の根拠**＝engine が `costColors` を載せる CHOOSE option は実データで全て `id:'pay'`（effectExecutor 2650/2814/2871/2989/3040）＝旧条件 `id==='pay' && costColors?.length` と新条件 `costColors.length>0` は同一集合を拾う。既存 `optcost-energy-*`／`optcost-pay`／`optcost-skip` の testid も維持。
+
+**後方互換**＝新しい任意コストフィールドは存在時だけ専用三択へ入り、省略時の既存 `OPTIONAL_COST` pay/skip処理は不変。`resumeOptionalCost` は選択されたoption idを参照する一般化で、従来id=`pay`も同じ結果。refresh条件も新conditionを明示した効果だけが評価する。`build:effects`は未実行。
+
+**C 1件の再確認**＝WXDi-P02-042-E1は対象固定・排他置換は既存語彙で届くが、「このターンに対戦相手が手札を2枚以上捨てた」条件は既存 `TURN_HAND_DISCARD_GTE` が自分側専用。相手側履歴条件軸が不足するためhonest deferし、近似実装しなかった。分類Cはstaleではない。
+
+**検証**＝golden 792→795。`npm run gates` 全緑を独立に3回再現（typecheck、golden 795/795、smoke 10725/10725、fuzz 200ゲーム不具合0、census 1523/BASELINE 1523、lint 0 errors）。⚠**UI の tier 選択2段モーダルは実機未検証**＝golden で検証したのは payload 組み立ての純関数までで、モーダル本体がその payload を渡すことは未確認。§7 driver のシナリオ候補（`optcost-choice-<id>` の testid を追加済み）。
+
+---
+
 ## 続き288＝§6.3 E群 WXDi-P06-031 のセンタールリグ【起】追加コスト＋ダウン中限定を忠実化（2026-07-27・Codex）
 
 CSV原文・live JSON・実行経路を再照合し、`build:effects` は実行せず `manualEffects.ts` のeffectId上書きと共通runtime配線で外科適用した。
