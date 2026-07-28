@@ -1242,7 +1242,7 @@ export interface LookPickChainAction {
   owner: Owner;
   revealCount: NumberOrRef;
   stages: LookPickChainStage[];
-  remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any' };
+  remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
   _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
 }
 

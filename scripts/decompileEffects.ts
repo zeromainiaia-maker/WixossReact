@@ -961,6 +961,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
         : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'
+        : a.remainder?.shuffle ? '残りをシャッフルしてデッキの一番下に置く'
         : '残りを好きな順番でデッキの一番下に置く';
       const supLPC = (a.stages || []).some((s: any) => s.then === 'field' && s.suppressOnPlay) ? '。その【出】能力は発動しない' : '';
       return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。その中から${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}`;

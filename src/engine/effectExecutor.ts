@@ -3686,7 +3686,8 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   if (rest.length === 0) return done(cur);
   const deckRest = state.deck.filter(n => !rest.includes(n));
   if (a.remainder.location === 'deck') {
-    const newDeck = a.remainder.position === 'bottom' ? [...deckRest, ...rest] : [...rest, ...deckRest];
+    const orderedRest = a.remainder.shuffle ? shuffle([...rest]) : rest;
+    const newDeck = a.remainder.position === 'bottom' ? [...deckRest, ...orderedRest] : [...orderedRest, ...deckRest];
     return done(addLog(setOwnerState(owner, { ...state, deck: newDeck }, cur), `残り${rest.length}枚をデッキの${a.remainder.position === 'bottom' ? '一番下' : '上'}へ`));
   }
   if (a.remainder.location === 'trash') {

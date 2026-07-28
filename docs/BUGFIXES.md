@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## `LOOK_AND_REORDER` に消えていた多段/複数グループ pick 第2波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+- **12効果を既存 `LOOK_PICK_CHAIN` へ展開**：D3 7効果は色/レベル/カード種別ごとの独立SEARCH、D5 5効果は hand＋trash/energy の独立SEARCHとして生成し、合計枚数への誤簡約を避けた。`WXK05-023-BURST` は PRESERVE カードのため parser 同修正＋effectIdアンカー外科採用（`MANUAL`）とし、兄弟3効果の完全不変を確認。
+- **既存機構の最小拡張**：`LookPickChainAction.remainder.shuffle?: boolean` を追加し、`execLookPickChain` の deck remainder だけで省略時と同値・指定時のみ残り札をshuffleする。既存40効果は action JSON 不変、全件 `shuffle` 省略、旧式との差分0を機械確認。`then:'deck_top'` が要る群3は未配線の宣言だけを避けて honest defer。
+- **外科性・実行検証**：HEADとの全カード生parser effectId差分は対象12件だけ（outlier 0）、live JSON per-effect差分も対象12件だけ。各効果に実データ action を `execLookPickChain → SEARCH → resumeSearch → continuation再入` で全段完走させ、hand/trash/energy/remainder の盤面をassertする golden を各1本追加（910→922）。
+- **計器**：census高シグナル 1471→1469（`BASELINE_HIGH` 本体更新）、held 268→257（対象11カードを `heldReview --adopt`、PRESERVE 1カードは外科採用）、同型★0。commit/push・PLAN編集なし。
+
 ## `LOOK_AND_REORDER` に消えていた単一 pick-to-hand 第1波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - 既存 `pk` 規則を `hasRiseIcon`／`isDisona`／`hasLifeBurst`／色ORへ拡張し5効果を復元。PRESERVE の WX16-037-E2 は parser 生出力を effectId 単位で外科採用し `MANUAL` 化、兄弟効果は不変。

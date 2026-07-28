@@ -39,6 +39,14 @@ const STATE_HOIST_BATCH1_CARDS = new Set([
   'SPDi43-07', 'WX11-026', 'WX11-032', 'WX19-028', 'WXDi-P09-047', 'WXK11-019',
   'WXDi-P01-004',
 ]);
+
+// PLAN §3 task12(xlvi) wave2: a single reveal followed by independent pick groups.
+// Card gating keeps the new multi-stage grammar from changing superficially similar LOOK_AND_REORDER text.
+const LOOK_PICK_CHAIN_WAVE2_CARDS = new Set([
+  'WXDi-P00-010', 'WXDi-P16-032', 'WXDi-P01-035', 'WXDi-D05-006',
+  'WXDi-P01-009', 'WXDi-CP01-014', 'WXK05-023',
+  'WXEX1-25', 'WXDi-P16-008', 'WXK01-069', 'WXEX1-15', 'WXDi-P14-079',
+]);
 let _parsingCardNum = '';
 function isBatch1OnlyClause(re: RegExp): boolean {
   return re.source.includes('ターンの場合')
@@ -3816,6 +3824,87 @@ function parseActionTextInner(text: string): EffectAction {
     if (fdm) {
       const bonusFdm = text.match(/パワーを＋([０-９\d]+)する/);
       return { type: 'STUB', id: 'LOOK_PLACE_FACEDOWN_DELAYED', count: parseNum(fdm[1]), value: bonusFdm ? parseNum(bonusFdm[1]) : 5000 } as StubAction as unknown as EffectAction;
+    }
+  }
+
+  // ---- 1度見たカードから複数の独立グループ／行き先へ順にpickする LOOK_PICK_CHAIN。
+  //      単一 filter/then の REVEAL_AND_PICK へ合計枚数で潰すと「それぞれ」の独立上限や行き先が失われる。
+  //      既存の hand+field 規則とは文型も行き先も異なるため、その直前で同じ action 型へ正規化する。
+  if (LOOK_PICK_CHAIN_WAVE2_CARDS.has(_parsingCardNum)
+    && (_parsingCardNum !== 'WXK05-023' || text.includes('赤のシグニ１枚と赤のスペル１枚'))) {
+    const revealM = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚見る。/);
+    if (revealM) {
+      type Stage = import('../types/effects').LookPickChainStage;
+      type Remainder = import('../types/effects').LookPickChainAction['remainder'];
+      let stages: Stage[] | undefined;
+      const remainder: Remainder = {
+        location: 'deck',
+        position: text.includes('残りをデッキの一番上に戻す') ? 'top' : 'bottom',
+        ...(/残りをシャッフルしてデッキの一番下/.test(text) ? { shuffle: true } : {}),
+      };
+      switch (_parsingCardNum) {
+        case 'WXDi-P00-010':
+          stages = ['赤', '青', '緑'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, then: 'hand' }));
+          break;
+        case 'WXDi-P16-032':
+          stages = [1, 2, 3].map(level => ({ filter: { cardType: 'シグニ', level }, pickCount: 1, then: 'hand' }));
+          break;
+        case 'WXDi-P01-035':
+          stages = [
+            { filter: { cardType: 'スペル' }, pickCount: 1, then: 'hand', pickNoun: 'スペル' },
+            { filter: { color: '白', cardType: 'シグニ' }, pickCount: 1, then: 'hand' },
+          ];
+          break;
+        case 'WXDi-D05-006':
+          stages = ['白', '青'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, then: 'hand' }));
+          break;
+        case 'WXDi-P01-009':
+          stages = ['白', '赤'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, then: 'hand' }));
+          break;
+        case 'WXDi-CP01-014':
+          stages = ['白', '黒'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, then: 'hand' }));
+          break;
+        case 'WXK05-023':
+          stages = [
+            { filter: { color: '赤', cardType: 'シグニ' }, pickCount: 1, then: 'hand' },
+            { filter: { color: '赤', cardType: 'スペル' }, pickCount: 1, then: 'hand', pickNoun: 'スペル' },
+          ];
+          break;
+        case 'WXEX1-25':
+          stages = [
+            { pickCount: 1, then: 'hand', pickNoun: 'カード' },
+            { pickCount: 1, then: 'trash', pickNoun: 'カード' },
+          ];
+          break;
+        case 'WXDi-P16-008':
+        case 'WXK01-069':
+          stages = [
+            { pickCount: 1, then: 'hand', pickNoun: 'カード' },
+            { pickCount: 1, then: 'trash', pickNoun: 'カード' },
+          ];
+          break;
+        case 'WXEX1-15':
+          stages = [
+            { filter: { color: '緑' }, pickCount: 1, then: 'hand', pickNoun: 'カード' },
+            { filter: { color: '白' }, pickCount: 1, then: 'energy', pickNoun: 'カード' },
+          ];
+          break;
+        case 'WXDi-P14-079':
+          stages = [
+            { filter: { cardNames: ['電音部　白金煌', '電音部　灰島銀華'] }, pickCount: 1, then: 'hand', pickNoun: 'カード' },
+            { filter: { story: '電音部', cardType: 'シグニ' }, pickCount: 1, then: 'energy' },
+          ];
+          break;
+      }
+      if (stages) {
+        return {
+          type: 'LOOK_PICK_CHAIN',
+          owner: 'self',
+          revealCount: parseNum(revealM[1]),
+          stages,
+          remainder,
+        } as import('../types/effects').LookPickChainAction;
+      }
     }
   }
 

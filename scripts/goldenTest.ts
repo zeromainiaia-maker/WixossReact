@@ -2897,6 +2897,69 @@ test('LOOK_PICK_CHAIN remainder=energy: 残りがエナゾーンへ（デッキ�
   eq(r.ownerState.field.signi.filter(Boolean).length, 1, '1枚が場へ');
   eq(r.ownerState.energy.length, beforeEnergy + 2, '残り2枚がエナゾーンへ（従来は黙ってデッキに残っていた）');
 });
+
+// task12(xlvi) wave2: 実データ12効果を各1本ずつ、全SEARCH continuationを跨いで完走させる。
+// JSON構造だけでなく、各段の行き先と remainder の実盤面を固定する。
+const xlviWave2Cases = [
+  { cardNum: 'WXDi-P00-010', effectId: 'WXDi-P00-010-E1', dests: ['hand', 'hand', 'hand'] },
+  { cardNum: 'WXDi-P16-032', effectId: 'WXDi-P16-032-E1', dests: ['hand', 'hand', 'hand'] },
+  { cardNum: 'WXDi-P01-035', effectId: 'WXDi-P01-035-E2', dests: ['hand', 'hand'] },
+  { cardNum: 'WXDi-D05-006', effectId: 'WXDi-D05-006-E1', dests: ['hand', 'hand'] },
+  { cardNum: 'WXDi-P01-009', effectId: 'WXDi-P01-009-E1', dests: ['hand', 'hand'] },
+  { cardNum: 'WXDi-CP01-014', effectId: 'WXDi-CP01-014-E1', dests: ['hand', 'hand'] },
+  { cardNum: 'WXK05-023', effectId: 'WXK05-023-BURST', dests: ['hand', 'hand'] },
+  { cardNum: 'WXEX1-25', effectId: 'WXEX1-25-E2', dests: ['hand', 'trash'] },
+  { cardNum: 'WXDi-P16-008', effectId: 'WXDi-P16-008-E2', dests: ['hand', 'trash'] },
+  { cardNum: 'WXK01-069', effectId: 'WXK01-069-E1', dests: ['hand', 'trash'] },
+  { cardNum: 'WXEX1-15', effectId: 'WXEX1-15-E2', dests: ['hand', 'energy'] },
+  { cardNum: 'WXDi-P14-079', effectId: 'WXDi-P14-079-E2', dests: ['hand', 'energy'] },
+] as const;
+for (const spec of xlviWave2Cases) {
+  test(`(xlvi) ${spec.effectId}: LOOK_PICK_CHAIN全段resume E2E`, () => {
+    const savedCursor = cursor;
+    try {
+      const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+      ok(!!effect && effect.action.type === 'LOOK_PICK_CHAIN', `${spec.effectId}: live LOOK_PICK_CHAIN`);
+      const action = effect!.action as import('../src/types/effects').LookPickChainAction;
+      const used = new Set<string>();
+      const picks = action.stages.map((stage, i) => {
+        const card = [...cardMap.values()].find(c =>
+          !used.has(c.CardNum) && (!stage.filter || matchesFilter(c, stage.filter)));
+        ok(!!card, `${spec.effectId}: stage ${i + 1} candidate`);
+        used.add(card!.CardNum);
+        return `${card!.CardNum}#xlvi-${i}`;
+      });
+      const remainderBase = [...cardMap.values()].find(c => !used.has(c.CardNum))!.CardNum;
+      const remainder = `${remainderBase}#xlvi-rest`;
+      const ctx = mkCtx({ deckTop: [...picks, remainder] }, {}, spec.cardNum);
+      const before = {
+        hand: ctx.ownerState.hand.length,
+        trash: ctx.ownerState.trash.length,
+        energy: ctx.ownerState.energy.length,
+      };
+      const result = run(action as EffectAction, ctx);
+      ok(result.done, `${spec.effectId}: 全stage continuation完走`);
+      eq(result.ownerState.hand.length, before.hand + spec.dests.filter(d => d === 'hand').length, `${spec.effectId}: hand stages`);
+      eq(result.ownerState.trash.length, before.trash + spec.dests.filter(d => d === 'trash').length, `${spec.effectId}: trash stages`);
+      eq(result.ownerState.energy.length, before.energy + spec.dests.filter(d => d === 'energy').length, `${spec.effectId}: energy stages`);
+      for (let i = 0; i < picks.length; i++) {
+        const zone = spec.dests[i];
+        const actual = zone === 'hand' ? result.ownerState.hand : zone === 'trash' ? result.ownerState.trash : result.ownerState.energy;
+        ok(actual.includes(picks[i]), `${spec.effectId}: stage ${i + 1} -> ${zone}`);
+      }
+      ok(result.ownerState.deck.includes(remainder), `${spec.effectId}: remainderはデッキに残る`);
+      if (typeof action.revealCount === 'number' && action.revealCount > picks.length) {
+        const restCount = action.revealCount - picks.length;
+        const remainderZone = action.remainder.position === 'top'
+          ? result.ownerState.deck.slice(0, restCount)
+          : result.ownerState.deck.slice(-restCount);
+        ok(remainderZone.includes(remainder), `${spec.effectId}: remainder deck ${action.remainder.position}`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。
