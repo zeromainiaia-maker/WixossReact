@@ -89,6 +89,7 @@ import { canCardGuard } from './battle/guard';
 import { clearEndOfAttackEffects } from './battle/attackDuration';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
+import { pendingEffectCardNums } from './battle/pendingEffectCards';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -644,6 +645,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // pending_spell.card_num と pending_effect.sourceCardNum も明示的にロード対象へ含める。
     if (bs?.pending_spell?.card_num) nums.add(getCardNum(bs.pending_spell.card_num));
     if (bs?.pending_effect?.sourceCardNum) nums.add(getCardNum(bs.pending_effect.sourceCardNum));
+    for (const n of pendingEffectCardNums(bs?.pending_effect)) nums.add(n);
     return nums;
   }, [myDeckData, bs]);
 
@@ -4600,13 +4602,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      const existingStack = bs.effect_stack ?? null;
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
         update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
-        const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
+      const srcEff = (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
+        .find(e => e.effectId === pe.effectId);
+      const bd = collectBoardDiffTriggers(hostState, guestState, {
+        causeOwnerId: pe.sourcePlayerId,
+        causeSourceCardNum: pe.sourceCardNum,
+        fieldTrashCostCards: result.fieldTrashCostCards,
+        ...fieldPlacementOnPlayOpts(srcEff),
+      });
+      update.host_state = bd.hostState;
+      update.guest_state = bd.guestState;
+      if (bd.entries.length > 0) {
+        const canReuse = existingStack && !isStackDone(existingStack);
+        update.effect_stack = canReuse
+          ? pushToStack(existingStack, bd.entries)
+          : initStack(bs.active_user_id ?? user.id, bd.entries);
       }
       await persist.commit(update);
       await flushBattleLogs();
@@ -4644,74 +4662,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const hostState  = ownerIsHost ? result.ownerState : result.otherState;
       const guestState = ownerIsHost ? result.otherState : result.ownerState;
       const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      const existingStack = bs.effect_stack ?? null;
       if (!result.done) {
         const { respondPlayerId: _drop, ...peBase } = pe;
         update.pending_effect = { ...peBase, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect;
       } else {
         update.pending_effect = null;
-        const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
+      }
 
-        const srcEffects = effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [];
-        const srcEff = srcEffects.find(e => e.effectId === pe.effectId);
-        const bd = collectBoardDiffTriggers(hostState, guestState, {
-          causeOwnerId: pe.sourcePlayerId,
-          causeSourceCardNum: pe.sourceCardNum,
-          fieldTrashCostCards: result.fieldTrashCostCards,
-          ...fieldPlacementOnPlayOpts(srcEff),
-        });
-        update.host_state = bd.hostState;
-        update.guest_state = bd.guestState;
-        if (bd.entries.length > 0) {
-          const canReuse = existingStack && !isStackDone(existingStack);
-          update.effect_stack = canReuse
-            ? pushToStack(existingStack, bd.entries)
-            : initStack(bs.active_user_id ?? user.id, bd.entries);
-        }
-
-        // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニへの他シグニの反応（G144/G145/WX11-054）。
-        // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
-        const resumePlaceSourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
-        const hostBloomedRSZ  = detectBloomedSigni(bs.host_state, hostState);
-        const guestBloomedRSZ = detectBloomedSigni(bs.guest_state, guestState);
-        const bloomedSetRSZ = new Set<string>([...hostBloomedRSZ, ...guestBloomedRSZ,
-          ...detectFacedownFlipped(bs.host_state, hostState), ...detectFacedownFlipped(bs.guest_state, guestState)]);
-        const resumePlaceEntries: StackEntry[] = [];
-        const hostTrashBeforeRSZ = new Set(bs.host_state?.trash ?? []);
-        const guestTrashBeforeRSZ = new Set(bs.guest_state?.trash ?? []);
-        // 各収集が返す usageLimit 消費 effectId は、収集の合間に actions_done へ畳み込む（次の収集がそれを見て
-        // 再発火を止める＝同一 resume 内で複数体が場に出た場合の《ターン1回》多重発火防止）。
-        let hostStateRP = hostState, guestStateRP = guestState;
-        const useRP = (r: { usedHostIds: string[]; usedGuestIds: string[] }) => {
-          if (r.usedHostIds.length > 0) hostStateRP = { ...hostStateRP, actions_done: [...(hostStateRP.actions_done ?? []), ...r.usedHostIds] };
-          if (r.usedGuestIds.length > 0) guestStateRP = { ...guestStateRP, actions_done: [...(guestStateRP.actions_done ?? []), ...r.usedGuestIds] };
-        };
-        for (const placedNum of detectPlacedSigni(bs.host_state, hostStateRP)) {
-          if (bloomedSetRSZ.has(placedNum)) continue;
-          const ft = collectFieldTriggers('ON_PLAY', placedNum, hostStateRP, guestStateRP, bs.host_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: hostTrashBeforeRSZ.has(placedNum) });
-          resumePlaceEntries.push(...ft.entries); useRP(ft);
-        }
-        for (const placedNum of detectPlacedSigni(bs.guest_state, guestStateRP)) {
-          if (bloomedSetRSZ.has(placedNum)) continue;
-          const ft = collectFieldTriggers('ON_PLAY', placedNum, guestStateRP, hostStateRP, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: resumePlaceSourceIsSigni, placedFromTrash: guestTrashBeforeRSZ.has(placedNum) });
-          resumePlaceEntries.push(...ft.entries); useRP(ft);
-        }
-        for (const bloomedNum of hostBloomedRSZ) {
-          const bl = collectBloomTriggers(bloomedNum, hostStateRP, guestStateRP, bs.host_id);
-          resumePlaceEntries.push(...bl.entries); useRP(bl);
-        }
-        for (const bloomedNum of guestBloomedRSZ) {
-          const bl = collectBloomTriggers(bloomedNum, guestStateRP, hostStateRP, bs.guest_id);
-          resumePlaceEntries.push(...bl.entries); useRP(bl);
-        }
-        if (hostStateRP !== hostState) update.host_state = hostStateRP;
-        if (guestStateRP !== guestState) update.guest_state = guestStateRP;
-        if (resumePlaceEntries.length > 0) {
-          const baseRP = (update.effect_stack as ReturnType<typeof initStack> | null) ?? (existingStack && !isStackDone(existingStack) ? existingStack : null);
-          update.effect_stack = baseRP
-            ? pushToStack(baseRP, resumePlaceEntries)
-            : initStack(bs.active_user_id ?? user.id, resumePlaceEntries);
-        }
+      const srcEff = (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
+        .find(e => e.effectId === pe.effectId);
+      const bd = collectBoardDiffTriggers(hostState, guestState, {
+        causeOwnerId: pe.sourcePlayerId,
+        causeSourceCardNum: pe.sourceCardNum,
+        fieldTrashCostCards: result.fieldTrashCostCards,
+        ...fieldPlacementOnPlayOpts(srcEff),
+      });
+      update.host_state = bd.hostState;
+      update.guest_state = bd.guestState;
+      if (bd.entries.length > 0) {
+        const canReuse = existingStack && !isStackDone(existingStack);
+        update.effect_stack = canReuse
+          ? pushToStack(existingStack, bd.entries)
+          : initStack(bs.active_user_id ?? user.id, bd.entries);
       }
       await persist.commit(update);
       await flushBattleLogs();

@@ -1,6 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
-## 🔴 実機検証で発見＝`SELECT_SIGNI_ZONE` を経由すると効果配置シグニの【出】が発火しない（2026-07-28・未修正）
+## ✅ `SELECT_SIGNI_ZONE` 経由の効果配置で配置シグニ自身の【出】が発火しない（2026-07-28・Codex）
+
+- **根本原因は事前4択のいずれでもなく、その直後のカード定義ロード脱落。** 修正前の実機へ一時診断を入れ、`srcEffFound=true`／`result.done=true`／`detectPlacedSigni=["WX15-073#1"]`／`collectPlacedSelfOnPlay=true`／`suppressOnPlay=false` を同時確認した一方、配置カードの `effectsMap` 参照は空・collector entryも空だった。`resumeSelectTarget` が対象をトラッシュから除去して `SELECT_SIGNI_ZONE.interaction.cardNum` だけに保持した中間状態を永続化すると、`battleCardNums` が pending 内カードを走査しないため、再描画後の `effectsMap` から `WX15-073-E2` が脱落していた。
+- **自動配置だけ動いた理由**：空き1ゾーンでは対象カードがトラッシュに存在する同一レンダー内で配置・収集まで完了し、効果定義が残る。空き2ゾーン以上では SELECT_TARGET→SELECT_SIGNI_ZONE の間に中間状態をDBへコミットするため、通常ゾーンから一時離脱したカード定義だけが消えた。
+- `pendingEffectCardNums` を追加し、`pending_effect.interaction.cardNum`（SELECT_SIGNI_ZONE／SELECT_ZONE）もカードロード集合へ維持。加えて横断点検で、`handleSelectZoneForEffect` が統合collector未配線、`handleSelectSigniZoneForEffect` が `done` 時しか収集せず REVEAL_UNTIL_TO_FIELD の中間ラウンドを取りこぼす穴を確認したため、両専用resumeの各ラウンドを `collectBoardDiffTriggers` へ統一。SELECT_SIGNI_ZONE に残っていた重複ON_PLAY inline収集は中央collectorへ一本化した。
+- golden 888→891。①WX02-042-E1を実行してSELECT_TARGET→SELECT_SIGNI_ZONEを実際に跨ぎ、pending保持カードの効果定義維持→resume配置→WX15-073-E2 entry/stack=1、②段階1 `WX10-081-E1` もSELECT_SIGNI_ZONE resume後stack=1、③空き1ゾーン自動配置もWX15-073-E2 stack=1を固定。3件すべて共有`cursor`を`finally`で復元。既存の通常召喚二重積みなし／REVEAL_UNTIL_TO_FIELD 1件も含め891/891 PASS。
+- 実機：`effectPlacedOnPlay`（空き1）PASS。新設 `effectPlacedOnPlayZoneSelect`（空き2）は最終コードで2回連続PASS（8秒／9秒）。両回とも `H.queryState` で `WX15-073#1` 配置・host.hand 1→2、`H.findLog(/^1枚ドロー$/)`＝`1枚ドロー`。
+- gates全緑：typecheck PASS／golden 891（+3）／smoke 10726/10726・全異常0（差分0）／fuzz全異常0・seed 12648430（差分0）／census 1479（差分0）／manual-fields 0（差分0）／lint 0 errors・226 warnings（-8。旧inline collector削除による既知hooks誤検出減）。
+- **やっていないこと**：effects JSON／parser／PLAN／PLAN_PROGRESSの変更、判定緩和、段階3の任意【出】実装、commit、push。本修正と無関係なデータ・機構には触れていない。
+
+- **⚠Opus 検証で追記＝根本原因は Claude が提示した4択のどれでもなかった**。真因は **`resumeSelectTarget` が配置予定カードをトラッシュから除去し `SELECT_SIGNI_ZONE.interaction.cardNum` だけに保持したまま DB へ永続化する**ため、再描画時のカードロード集合がそれを走査しておらず、**配置予定カード自身の効果定義が `effectsMap` から脱落**していたこと。collector は正しく呼ばれ `detectPlacedSigni` も配置を検出していたのに、**そのカードの効果が1件も見つからないので entry が0件**になっていた。**「配線が無い」でも「検出できていない」でもなく「効果定義が消えていた」**＝Opus の4択はすべて外れており、codex の実測（`srcEffFound=true` / `collectPlacedSelfOnPlay=true` / `detectPlacedSigni=["WX15-073#1"]` / effectsMap 空）が正解を出した。**推測で直させず実測で切り分けさせたのが効いた。**
+- **副産物で2つの穴も塞がった**＝①`handleSelectZoneForEffect`（`SELECT_ZONE`）に **collector が一切配線されていなかった** ②`handleSelectSigniZoneForEffect` が `result.done` 時しか収集せず、**`REVEAL_UNTIL_TO_FIELD` のようにゾーン選択を繰り返す途中ラウンドを取りこぼしていた**。重複していた inline 収集ブロックを共有 `collectBoardDiffTriggers` へ寄せたことで **lint warning が 234→226（-8）** と減った。
+- **Opus 独立検証**：`node scripts/verifyBattleDrive.mjs effectPlacedOnPlay effectPlacedOnPlayZoneSelect` を自分で実行し **両シナリオ ALL PASS** を再現（7秒／9秒）。ゾーン選択経路のステップ列に `pEff=SELECT_SIGNI_ZONE` →「ゾーン2」→「発動順序を確定」→ `hHand=2(差分1)` `drawLog=1枚ドロー` が出ることを確認。gates 全緑（golden 891）。
+- **この一連が示すこと＝自動ゲートの穴は実在し、実際にバグを隠していた**。`selfPlayFuzz.ts:12-13` が明記する「BattleScreen のオーケストレーションは検証しない」範囲は、**実機ドライバでしか捕まらない**。(xxix) 段階2 のような BattleScreen 側の大きな挙動変更は、**golden だけで完了扱いにしない**こと。
+
+## `SELECT_SIGNI_ZONE` を経由すると効果配置シグニの【出】が発火しない（2026-07-28・発見時記録／上記で修正済み）
 
 - **(xxix) 段階2 の実機検証（`verifyBattleDrive.mjs` に `effectPlacedOnPlay` シナリオを新設）で発見。** golden・smoke・fuzz はいずれも緑のまま素通りしていた＝**`selfPlayFuzz.ts:12-13` が明記するとおり BattleScreen のオーケストレーションは自動ゲートの対象外**という穴が、実際にバグを隠していた実例。
 - **PASS した経路（空きシグニゾーン1つ＝自動配置）**：`WX02-042`【起】《黒》《ダウン》でトラッシュから `WX15-073` を場に出す → `WX15-073-E2`【出】が発火し **手札 1→2（+1）**・実ログ `1枚ドロー` を確認。2回連続 PASS（8秒／7秒）。

@@ -35,6 +35,7 @@ import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRed
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
+import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
@@ -12794,6 +12795,122 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         placedByEffect: true, sourceIsSigni: false, suppressOnPlay: true,
       });
       eq(stackCount(r.entries), 0, 'suppressOnPlay時のスタック数');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) SELECT_SIGNI_ZONE resume E2E: pending保持カードの定義を維持し段階2【出】を積む', () => {
+    const savedCursor = cursor;
+    try {
+      const sourceCard = 'WX02-042';
+      const placedCard = 'WX15-073';
+      const sourceEffect = effectsMap.get(sourceCard)?.find(e => e.effectId === 'WX02-042-E1');
+      ok(!!sourceEffect, '配置元効果 lookup');
+      const before = mkState({ signi: [`${sourceCard}#1`, null, null] });
+      before.trash = [`${placedCard}#1`];
+      const baseCtx: ExecCtx = {
+        ...mkCtx({}, {}, `${sourceCard}#1`), ownerState: before,
+        cardMap: new InstanceMap(cardMap),
+      };
+      const selectTarget = executeEffect(sourceEffect!, baseCtx);
+      ok(!selectTarget.done && selectTarget.pending.type === 'SELECT_TARGET',
+        `対象選択で中断（done=${selectTarget.done}, pending=${selectTarget.done ? '-' : selectTarget.pending.type}）`);
+      const selectZone = resumeSelectTarget(
+        [`${placedCard}#1`], selectTarget.pending,
+        { ...baseCtx, ownerState: selectTarget.ownerState, otherState: selectTarget.otherState, logs: selectTarget.logs },
+      );
+      ok(!selectZone.done && selectZone.pending.type === 'SELECT_SIGNI_ZONE', '配置先選択で再中断');
+      ok(!selectZone.ownerState.trash.includes(`${placedCard}#1`), '配置予定カードは通常ゾーンから一時離脱');
+
+      const pe = {
+        sourcePlayerId: 'host', sourceCardNum: `${sourceCard}#1`, effectId: sourceEffect!.effectId,
+        interaction: selectZone.pending,
+      } as import('../src/types').PendingEffect;
+      const pendingNums = pendingEffectCardNums(pe);
+      eq(pendingNums.join(','), placedCard, 'pending cardNumをロード集合へ残す');
+      const resumedEffects = new Map<string, CardEffect[]>();
+      for (const n of [sourceCard, ...pendingNums]) {
+        const effs = effectsMap.get(n);
+        if (effs) resumedEffects.set(n, effs);
+      }
+      const resumed = resumeSelectSigniZone(1, selectZone.pending, {
+        ...baseCtx, ownerState: selectZone.ownerState, otherState: selectZone.otherState, logs: selectZone.logs,
+      });
+      ok(resumed.done, 'SELECT_SIGNI_ZONE resume完了');
+      const placed = detectPlacedSigni(selectZone.ownerState, resumed.ownerState);
+      eq(placed.join(','), `${placedCard}#1`, 'resumeで実配置');
+      const collected = collectPlacedSelfOnPlayTriggers(
+        { ...trigCtx(), effectsMap: resumedEffects }, placed[0],
+        resumed.ownerState, resumed.otherState, 'host',
+        { placedByEffect: true, sourceIsSigni: true },
+      );
+      eq(collected.entries.filter(e => e.effectId === 'WX15-073-E2').length, 1, '段階2【出】entry');
+      eq(stackCount(collected.entries.filter(e => e.effectId === 'WX15-073-E2')), 1, '段階2【出】stack');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) SELECT_SIGNI_ZONE resume E2E: 段階1 byEffect【出】も積む', () => {
+    const savedCursor = cursor;
+    try {
+      const placedCard = 'WX10-081';
+      const before = mkState({ signi: [fresh(), null, null] });
+      before.trash = [`${placedCard}#1`];
+      const ctx: ExecCtx = {
+        ...mkCtx({}, {}, findCard(c => c.Type === 'スペル')), ownerState: before,
+        cardMap: new InstanceMap(cardMap),
+      };
+      const first = executeEffect({
+        effectId: 'phase1-place', effectType: 'ACTIVATED', timing: ['MAIN'],
+        action: {
+          type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [`${placedCard}#1`],
+        } as EffectAction,
+        duration: 'INSTANT', mandatory: true,
+      }, ctx);
+      ok(!first.done && first.pending.type === 'SELECT_SIGNI_ZONE',
+        `段階1カードが配置先選択で中断（done=${first.done}, pending=${first.done ? '-' : first.pending.type}）`);
+      const pe = {
+        sourcePlayerId: 'host', sourceCardNum: ctx.sourceCardNum!, effectId: 'phase1-source',
+        interaction: first.pending,
+      } as import('../src/types').PendingEffect;
+      const pendingNums = pendingEffectCardNums(pe);
+      const resumed = resumeSelectSigniZone(1, first.pending, {
+        ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs,
+      });
+      const placed = detectPlacedSigni(first.ownerState, resumed.ownerState);
+      const resumedEffects = new Map<string, CardEffect[]>();
+      for (const n of pendingNums) {
+        const effs = effectsMap.get(n);
+        if (effs) resumedEffects.set(n, effs);
+      }
+      const collected = collectPlacedSelfOnPlayTriggers(
+        { ...trigCtx(), effectsMap: resumedEffects }, placed[0],
+        resumed.ownerState, resumed.otherState, 'host',
+        { placedByEffect: true, sourceIsSigni: false },
+      );
+      eq(stackCount(collected.entries.filter(e => e.effectId === 'WX10-081-E1')), 1, '段階1【出】stack');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) 自動配置E2E: 空き1ゾーン経路も段階2【出】を1件積む', () => {
+    const savedCursor = cursor;
+    try {
+      const sourceEffect = effectsMap.get('WX02-042')?.find(e => e.effectId === 'WX02-042-E1');
+      ok(!!sourceEffect, '配置元効果 lookup');
+      const before = mkState({ signi: ['WX02-042', fresh(), null] });
+      before.trash = ['WX15-073'];
+      const result = run(sourceEffect!.action, { ...mkCtx({}, {}, 'WX02-042'), ownerState: before });
+      ok(result.done, '空き1ゾーンは中断なしで完了');
+      const placed = detectPlacedSigni(before, result.ownerState);
+      const collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), placed[0], result.ownerState, result.otherState, 'host',
+        { placedByEffect: true, sourceIsSigni: true },
+      );
+      eq(stackCount(collected.entries.filter(e => e.effectId === 'WX15-073-E2')), 1, '自動配置の段階2【出】stack');
     } finally {
       cursor = savedCursor;
     }

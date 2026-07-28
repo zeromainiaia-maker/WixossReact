@@ -5405,12 +5405,12 @@ const scenarios = {
   },
 
   // (xxix) 段階2＝効果で場に出したシグニ自身の mandatory【出】を BattleScreen が収集する経路。
-  effectPlacedOnPlay: {
-    title: 'WX02-042【起】でWX15-073をトラッシュから場出し→mandatory【出】1枚ドロー',
+  effectPlacedOnPlayZoneSelect: {
+    title: 'WX02-042【起】でWX15-073をトラッシュから場出し（SELECT_SIGNI_ZONE経由）→mandatory【出】1枚ドロー',
     spec: {
       hostSet: {
         'field.lrig': ['WXK09-018#1'], // Lv3 / Limit6（場Lv4＋配置Lv2＝6）
-        'field.signi': [['WX02-042#1'], ['WXK05-047#1'], null], // Lv0で埋め、空き1ゾーンへ自動配置
+        'field.signi': [['WX02-042#1'], null, null], // 空き2ゾーン＝SELECT_SIGNI_ZONEを経由
         'field.signi_down': [false, false, false],
         'energy': ['WX05-080#1'],       // 黒エナ1
         'trash': ['WX15-073#1'],
@@ -5456,6 +5456,19 @@ const scenarios = {
       const fin = await H.queryState();
       const drawLog = await H.findLog(/^1枚ドロー$/);
       return { pass: false, detail: `効果配置【出】DRAW未確認（hHand=${before?.host?.hand}→${fin?.host?.hand}, drawLog=${drawLog ?? '-'}, hField=${JSON.stringify(fin?.host?.fieldSigni)}, pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+};
+
+// 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
+scenarios.effectPlacedOnPlay = {
+  ...scenarios.effectPlacedOnPlayZoneSelect,
+  title: 'WX02-042【起】でWX15-073をトラッシュから自動配置→mandatory【出】1枚ドロー',
+  spec: {
+    ...scenarios.effectPlacedOnPlayZoneSelect.spec,
+    hostSet: {
+      ...scenarios.effectPlacedOnPlayZoneSelect.spec.hostSet,
+      'field.signi': [['WX02-042#1'], ['WXK05-047#1'], null],
     },
   },
 };
