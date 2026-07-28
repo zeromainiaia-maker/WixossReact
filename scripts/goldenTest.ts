@@ -31,7 +31,7 @@ import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '.
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
-import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
@@ -8514,6 +8514,67 @@ test('WX25-P3-104-E1: 単体power0リストを全ターン境界・両プレイ�
   const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   eq((source.match(/banish_redirect_power0_target_nums: undefined/g) ?? []).length, 6,
     'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
+});
+
+test('WXDi-P15-078-E2: バトル限定個体redirectはバトルだけtrash・効果と非対象はenergy（タスク12(xliv)(b2)）', () => {
+  const savedCursor = cursor;
+  try {
+    const selected = SIGNI_L1;
+    const unselected = SIGNI_L2;
+    const effect = manualEffect('WXDi-P15-078', 'WXDi-P15-078-E2');
+    const armed = run(effect.action, mkCtx({}, { signi: [selected, unselected, null] }, 'WXDi-P15-078'));
+    eq((armed.ownerState.banish_redirect_battle_target_nums ?? []).join(','), selected, '選択個体をバトル限定リストへ保持');
+    eq(armed.ownerState.banish_redirect_target_nums, undefined, '通常個体リストへは積まない');
+
+    const battleRoute = (num: string) => {
+      const removed = mkState({});
+      return isSelectedBattleBanishRedirect(armed.ownerState, num)
+        ? { ...removed, trash: [...removed.trash, num] }
+        : { ...removed, energy: [...removed.energy, num] };
+    };
+    const battleHit = battleRoute(selected);
+    ok(battleHit.trash.includes(selected) && !battleHit.energy.includes(selected), '対象をバトルでバニッシュ→trash');
+    const battleMiss = battleRoute(unselected);
+    ok(battleMiss.energy.includes(unselected) && !battleMiss.trash.includes(unselected), '非対象をバトルでバニッシュ→energy');
+
+    const effectHit = banishDestination(mkState({}), armed.ownerState, selected).state;
+    ok(effectHit.energy.includes(selected) && !effectHit.trash.includes(selected), '対象を効果でバニッシュ→energy');
+    const effectMiss = banishDestination(mkState({}), armed.ownerState, unselected).state;
+    ok(effectMiss.energy.includes(unselected) && !effectMiss.trash.includes(unselected), '非対象を効果でバニッシュ→energy');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('WXDi-P15-078-E2: バトル限定個体リストを全ターン境界・両プレイヤーでクリア', () => {
+  const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((source.match(/banish_redirect_battle_target_nums: undefined/g) ?? []).length, 6,
+    'human通常/手札超過/CPUの各ターン境界でターン側・非ターン側の計6箇所');
+});
+
+test('WXDi-P14-053-E1: 白1体へ次の相手ターン終了まで常在redirectと+2000を付与しドーナを覚醒（タスク12(xliv)(b3)）', () => {
+  const savedCursor = cursor;
+  try {
+    const dona = findCard(c => c.CardName === '幻怪姫　ドーナ//フェゾーネ');
+    const nonWhite = findCard(c => isSigni(c) && c.Color !== '白');
+    const effect = manualEffect('WXDi-P14-053', 'WXDi-P14-053-E1');
+    const result = run(effect.action, mkCtx({ signi: [dona, nonWhite, null] }, {}, 'WXDi-P14-053'));
+    const grants = result.ownerState.granted_effects_until_opp_turn?.[dona] ?? [];
+    eq(grants.length, 1, '選択した白シグニだけ長期付与ストアへ');
+    eq(result.ownerState.granted_effects_until_opp_turn?.[nonWhite], undefined, '非白シグニには付与しない');
+    const grantedAction = grants[0]?.action;
+    ok(grantedAction?.type === 'BANISH_REDIRECT', '付与能力はCONTINUOUS BANISH_REDIRECT');
+    if (grantedAction?.type === 'BANISH_REDIRECT') {
+      eq(grantedAction.bySource, 'battle_with_this', 'このシグニとのバトル限定');
+      ok(banishRedirectAppliesFrom(grantedAction, dona, dona), '付与先自身がバトル当事者なら適用');
+      ok(!banishRedirectAppliesFrom(grantedAction, dona, nonWhite), '別シグニのバトルには不適用');
+    }
+    ok((result.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === dona && m.delta === 2000),
+      '同じ選択対象へ+2000を長期保存');
+    ok(result.ownerState.awakened_signi?.includes(dona), 'ドーナ//フェゾーネなら覚醒');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 
 test('batch11 non-regression: 相手手札TRASHはフラグなしでも相手が選ぶ', () => {

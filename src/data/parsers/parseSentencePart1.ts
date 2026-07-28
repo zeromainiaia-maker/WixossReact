@@ -218,6 +218,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 直前に対象とした単体を受ける「それが」型。文分割後も照応語は残るため、全体置換にしない。
     // 「パワーが０以下のそれが」「それがバトルによって」も同じ選択対象1体への限定。
     const selectedOne = /(?:パワーが０以下の)?それが(?:バトルによって)?バニッシュされる場合/.test(t);
+    const battleOnly = /それがバトルによってバニッシュされる場合/.test(t);
     // 句点後の「このターン、それが…」は同じ効果の直前文で対象化済み（WXK06-048）。
     // 同じ解析文内に「対象とし」がある単独文型は BANISH_REDIRECT 自身の選択が必要なので付けない。
     const targetsLastProcessed = selectedOne && /^(?:このターン、)?それが/.test(t) && !/対象とし/.test(t);
@@ -238,6 +239,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       until,
       ...(targetsLastProcessed ? { targetsLastProcessed: true } : {}),
       ...(bySource ? { bySource } : {}),
+      ...(battleOnly ? { battleOnly: true } : {}),
       ...(whenPowerZero ? { whenPowerZero: true } : {}),
       ...(frontOnly ? { frontOnly: true } : {}),
     } as BanishRedirectAction;

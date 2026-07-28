@@ -5804,15 +5804,20 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const br = action as BanishRedirectAction;
       if (!br.bySource && br.redirectTo === 'trash' && br.target.owner === 'opponent' && br.target.count === 1) {
         const power0Only = br.whenPowerZero === true;
+        const battleOnly = br.battleOnly === true;
         const prev = power0Only
           ? (ctx.ownerState.banish_redirect_power0_target_nums ?? [])
-          : (ctx.ownerState.banish_redirect_target_nums ?? []);
+          : battleOnly
+            ? (ctx.ownerState.banish_redirect_battle_target_nums ?? [])
+            : (ctx.ownerState.banish_redirect_target_nums ?? []);
         const next = prev.includes(cardNum) ? prev : [...prev, cardNum];
         const newOwner = power0Only
           ? { ...ctx.ownerState, banish_redirect_power0_target_nums: next }
-          : { ...ctx.ownerState, banish_redirect_target_nums: next };
+          : battleOnly
+            ? { ...ctx.ownerState, banish_redirect_battle_target_nums: next }
+            : { ...ctx.ownerState, banish_redirect_target_nums: next };
         return done({ ...addLog({ ...ctx, ownerState: newOwner },
-          `${cardNum}の${power0Only ? 'パワー0以下による' : ''}バニッシュ先をこのターン、トラッシュへ変更`),
+          `${cardNum}の${power0Only ? 'パワー0以下による' : battleOnly ? 'バトルによる' : ''}バニッシュ先をこのターン、トラッシュへ変更`),
           lastProcessedCards: [cardNum] });
       }
       if (!br.bySource || !ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) return done(ctx);
@@ -6372,9 +6377,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) geOwner = 'opponent';
       if (!geOwner) return done(ctx);
       const geS = ownerState(geOwner, ctx);
-      const geGranted = { ...(geS.granted_effects ?? {}) };
+      const geKey = geA.duration === 'UNTIL_OPP_TURN_END' ? 'granted_effects_until_opp_turn' : 'granted_effects';
+      const geGranted = { ...(geS[geKey] ?? {}) };
       geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geEff];
-      return done(addLog(setOwnerState(geOwner, { ...geS, granted_effects: geGranted }, ctx),
+      return done(addLog(setOwnerState(geOwner, { ...geS, [geKey]: geGranted }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'TAKE_FROM_UNDER_SIGNI': {

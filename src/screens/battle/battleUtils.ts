@@ -170,3 +170,8 @@ export function isSelectedPowerZeroBanishRedirect(opponent: PlayerState, cardNum
 export function isSelectedBanishRedirect(opponent: PlayerState, cardNum: string): boolean {
   return opponent.banish_redirect_target_nums?.includes(cardNum) === true;
 }
+
+/** 単体対象かつ「バトルによって」限定の BANISH_REDIRECT。効果経路では使用しない。 */
+export function isSelectedBattleBanishRedirect(opponent: PlayerState, cardNum: string): boolean {
+  return opponent.banish_redirect_battle_target_nums?.includes(cardNum) === true;
+}

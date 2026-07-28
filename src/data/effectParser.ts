@@ -2774,8 +2774,26 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
   if (cardNum === 'WXDi-P14-053') {
     const e = effects.find(x => x.effectId === 'WXDi-P14-053-E1');
     if (e?.action.type === 'SEQUENCE' && e.action.steps[0]?.type === 'BANISH_REDIRECT') {
-      e.action.steps[0] = { ...e.action.steps[0], target: { type: 'SIGNI', owner: 'self', count: 1,
-        filter: { cardType: 'シグニ', color: '白' }, upToCount: false } };
+      e.action.steps[0] = {
+        type: 'GRANT_EFFECT',
+        target: { type: 'SIGNI', owner: 'self', count: 1,
+          filter: { cardType: 'シグニ', color: '白' }, upToCount: false },
+        duration: 'UNTIL_OPP_TURN_END',
+        effect: {
+          effectId: 'WXDi-P14-053-E1-granted',
+          effectType: 'CONTINUOUS',
+          action: {
+            type: 'BANISH_REDIRECT',
+            target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+            redirectTo: 'trash',
+            until: 'PERMANENT',
+            bySource: 'battle_with_this',
+          },
+          duration: 'PERMANENT',
+          mandatory: true,
+          parseStatus: 'MANUAL',
+        },
+      };
     }
     awaken('WXDi-P14-053-E1', '幻怪姫　ドーナ//フェゾーネ');
     if (e?.action.type === 'SEQUENCE') e.action.steps.splice(1, 0,

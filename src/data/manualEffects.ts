@@ -3365,6 +3365,47 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WXDi-P14-053: 選択した白シグニへ、次の相手ターン終了時まで
+  // 「このシグニとのバトルで相手シグニをバニッシュする場合トラッシュへ」を付与し、同じ対象を+2000・条件付き覚醒。
+  'WXDi-P14-053': [
+    {
+      effectId: 'WXDi-P14-053-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '白', count: 0 }] },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'GRANT_EFFECT',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', color: '白' }, upToCount: false },
+            duration: 'UNTIL_OPP_TURN_END',
+            effect: {
+              effectId: 'WXDi-P14-053-E1-granted',
+              effectType: 'CONTINUOUS',
+              action: {
+                type: 'BANISH_REDIRECT',
+                target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+                redirectTo: 'trash',
+                until: 'PERMANENT',
+                bySource: 'battle_with_this',
+              },
+              duration: 'PERMANENT',
+              mandatory: true,
+              parseStatus: 'MANUAL',
+            },
+          },
+          { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 2000, targetsLastProcessed: true, duration: 'UNTIL_OPP_TURN_END' },
+          { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardName: '幻怪姫　ドーナ//フェゾーネ' } },
+            then: { type: 'AWAKEN_SIGNI', targetsLastProcessed: true } },
+        ],
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P15-078 爆砲 WOLF//THE DOOR
   // E1【常】：同じゾーンにゲートあるかぎり「【自】APS開始時、【エナチャージ1】」を得る。→ condition SAME_ZONE_HAS_GATE 付き AUTO。
   // E2【自】APS開始時、場にゲートがある場合、相手シグニ1体を対象とし、このターンそれがバトルでバニッシュされるならエナでなくトラッシュへ。
@@ -3387,7 +3428,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['ON_ATTACK_PHASE_START'],
       triggerScope: 'self',
       condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
-      action: { type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN' },
+      action: { type: 'BANISH_REDIRECT', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, redirectTo: 'trash', until: 'END_OF_TURN', battleOnly: true },
       duration: 'INSTANT',
       mandatory: true,
       parseStatus: 'MANUAL',

@@ -28,7 +28,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -3305,6 +3305,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
+          banish_redirect_battle_target_nums: undefined, // 選択対象＋バトル限定のバニッシュ先変更をクリア
           banish_redirect_power0_target_nums: undefined, // 選択対象＋パワー0限定のバニッシュ先変更をクリア
           banish_redirect_by_source_nums: undefined, // 限定付きバニッシュ先変更（このシグニとのバトル）をクリア
           banish_redirect_to_hand: undefined,   // バニッシュ先→手札フラグをクリア
@@ -3409,6 +3410,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
+          banish_redirect_battle_target_nums: undefined,
           field: {
             ...opState.field,
             signi_down:   newSigniDown,
@@ -3671,6 +3673,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
+        banish_redirect_battle_target_nums: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
@@ -3730,6 +3733,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         self_deck_to_energy_this_turn: 0,
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
+        banish_redirect_battle_target_nums: undefined,
         field: {
           ...opState.field,
           signi_down:   newSigniDown,
@@ -7478,6 +7482,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myS.banish_redirect === true ||
             // ACTIVATED/AUTO で選んだ個体だけに適用する単体置換。
             isSelectedBanishRedirect(myS, opTopCardNum) ||
+            isSelectedBattleBanishRedirect(myS, opTopCardNum) ||
             // bySource 付き（このシグニとの/による）＝そのシグニ自身がバトル当事者のときだけ（続き217）
             (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
             myS.field.signi.some((s, zi) => {
@@ -7862,6 +7867,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const redirectBanishForTrigger =
         myS.banish_redirect === true ||
         (banishedOpCardNum != null && isSelectedBanishRedirect(myS, banishedOpCardNum)) ||
+        (banishedOpCardNum != null && isSelectedBattleBanishRedirect(myS, banishedOpCardNum)) ||
         (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
         myS.field.signi.some((s, zi) => {
           const n = s?.at(-1);
@@ -9124,6 +9130,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         banish_redirect_power0_target_nums: undefined,
+        banish_redirect_battle_target_nums: undefined,
         field: {
         ...huSt.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
@@ -9160,6 +9167,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_granted_auto_effects: cpuSt.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
         banish_redirect_power0_target_nums: undefined,
+        banish_redirect_battle_target_nums: undefined,
         power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_this_turn: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット

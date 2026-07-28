@@ -5118,6 +5118,58 @@ const scenarios = {
     },
   },
 
+  // タスク12(xliv)(b2)：単体対象 redirect の BattleScreen 実配送を確認する。
+  battleOnlySelectedRedirect: {
+    title: 'WXDi-P15-078-E2（単体対象＋バトル限定BANISH_REDIRECT＝対象だけトラッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD03-009#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'banish_redirect_battle_target_nums': ['WD01-013#1'],
+        'banish_redirect_target_nums': null,
+        'hand': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, ['WD01-013#1']],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'trash': [],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let modalOpened = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/battleOnlySelectedRedirect-${s}.png`, fullPage: true });
+        let did = null;
+        if (!modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const attack = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await attack.count() && await attack.isVisible().catch(() => false)) {
+            await attack.click().catch(() => {}); did = 'btn:アタック';
+          }
+        }
+        if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'ガードしない', 'しない', 'スキップ']);
+        const st = await H.queryState();
+        const targetGone = !(st?.guest?.fieldSigni?.[2] ?? []).includes?.('WD01-013#1');
+        const inTrash = st?.guest?.trashCards?.includes?.('WD01-013#1');
+        H.log(`  battleOnlyRedirect[${s}] -> ${did ?? 'なし'} | gone=${targetGone} trash=${inTrash} energy=${st?.guest?.energy}`);
+        if (targetGone && inTrash && st?.guest?.energy === 0) {
+          return { pass: true, detail: '専用個体リスト対象 WD01-013 をバトルでバニッシュし、guest energy=0・trashに対象個体を確認' };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `対象のbattle redirect未確認（gZone2=${JSON.stringify(fin?.guest?.fieldSigni?.[2])} trash=${JSON.stringify(fin?.guest?.trashCards)} energy=${fin?.guest?.energy}）` };
+    },
+  },
+
   // 続き178＝ON_SIGNI_BATTLE の battleOpponent level filter。手札も明示的に空にし、正面のLv4だけを固定する。
   battleLevel4Filter: {
     title: 'WX05-047（ON_SIGNI_BATTLE＋level:4＝正面のLv4シグニとのバトル時のみバニッシュ）',

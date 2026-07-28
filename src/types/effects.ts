@@ -1340,6 +1340,12 @@ export interface BanishRedirectAction {
    */
   bySource?: 'battle_with_this' | 'by_this';
   /**
+   * true＝「それがバトルによってバニッシュされる場合」。
+   * 選択した被バニッシュ側だけをバトル経路で置換する。
+   * 能力保持者を発生源限定する bySource:'battle_with_this' とは別概念。
+   */
+  battleOnly?: boolean;
+  /**
    * 位置の限定。省略＝位置限定なし。
    * true＝この能力を持つシグニの正面ゾーンのシグニがバニッシュされる場合のみ置換する。
    */

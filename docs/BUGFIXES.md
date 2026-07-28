@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## `BANISH_REDIRECT` 残テール(b2)(b3)＝バトル限定個体と次の相手ターン終了時までの付与型（2026-07-29・タスク12(xliv)・Codex）
+- **(b2) 修正前実測**：`WXDi-P15-078-E2` を実行して対象を選び、同じ対象へ効果 `BANISH` を実行すると、対象が通常個体リスト `banish_redirect_target_nums` に積まれて **energy ではなく trash** へ移動した。原文の「バトルによって」が live で失われていた。
+- **修正**：`BanishRedirectAction.battleOnly` と `PlayerState.banish_redirect_battle_target_nums` を新設。`applyDirectAction` はバトル限定個体を専用リストへ保存し、効果経路 `banishDestination` はこのリストを参照しない。BattleScreen の実配送 `redirectBanish` と ON_TRASH 判定 `redirectBanishForTrigger` の両方だけが専用リストを見る。ターン境界は human 通常／手札超過相当／CPU の両プレイヤー計6箇所でクリア。
+- **(b2) 修正後実測**：対象のバトルバニッシュ→trash、対象の効果バニッシュ→energy、非対象のバトル／効果バニッシュ→energy。golden は構造だけでなく候補選択後の state と全配送結果を固定。実機 driver `battleOnlySelectedRedirect` は最新ソースを強制 build 後 **2回連続PASS**（対象 `WD01-013#1` が guest trash、guest energy=0）。
+- **⚠(b3) の副産物は (xliv) を超える波及がある（Opus 検証で全数確認）**＝「選択経由の `GRANT_EFFECT` が duration を無視して短期 `granted_effects` へ保存していた」取りこぼしの是正は、**`GRANT_EFFECT{duration:'UNTIL_OPP_TURN_END'}` を持つ全7効果**に効く：`WXDi-P06-077-E1`／`WXDi-P09-069-E1`／`WXDi-P10-049-E1`／`WXDi-P14-053-E1`／`WXDi-P14-057-E1`／`WXDi-P16-039-E2`／`WXDi-CP02-084-E1`。**7件とも原文が「次の対戦相手のターン終了時まで」**であることを CSV で照合済み＝従来は**付与した側のターン終了時に消えていた過小実行**で、7件すべてが正しい寿命になる（(xliv) 以外の6件も同時に is-fixed）。
+- **Opus 検証で独立再現**＝実機 driver `battleOnlySelectedRedirect` を Claude 側でも実行し PASS（`SKIP_BUILD=0` の強制ビルド版でも PASS＝dist がソース最新であることを確認）。engine 直実行でも (b2) 3ケース（バトル→trash／効果→energy／非対象→energy）と (b3)（`granted_effects_until_opp_turn` へ付与・`power_mods_until_opp_turn` に+2000・同一個体）を再現。
+- **(b3)**：`WXDi-P14-053-E1` を `GRANT_EFFECT{duration:'UNTIL_OPP_TURN_END'}` へ忠実化。選択した白シグニへ内側 CONTINUOUS `BANISH_REDIRECT{bySource:'battle_with_this'}` を `granted_effects_until_opp_turn` に保存し、同じ対象へ `POWER_MODIFY +2000`、カード名一致時 `AWAKEN_SIGNI`。選択経由の `GRANT_EFFECT` が duration を無視して短期 `granted_effects` へ保存していた engine 取りこぼしも修正。golden で白限定・長期ストア・付与先自身のバトルのみ適用・別シグニ不適用・+2000・ドーナ覚醒を実測。
+
 ## `BANISH_REDIRECT` の「それ」が直前対象を受けず、WXK06-048-E1で対象選択が2回出る（2026-07-29・タスク12(xliv)(b1)・Codex）
 
 - **バグ**：`SEQUENCE[POWER_MODIFY, BANISH_REDIRECT]` の両段が独立した `SELECT_TARGET` を出し、－7000したシグニとは別の個体へバニッシュ先変更を設定できた。
