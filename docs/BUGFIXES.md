@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 🔴 実機検証で発見＝`SELECT_SIGNI_ZONE` を経由すると効果配置シグニの【出】が発火しない（2026-07-28・未修正）
+
+- **(xxix) 段階2 の実機検証（`verifyBattleDrive.mjs` に `effectPlacedOnPlay` シナリオを新設）で発見。** golden・smoke・fuzz はいずれも緑のまま素通りしていた＝**`selfPlayFuzz.ts:12-13` が明記するとおり BattleScreen のオーケストレーションは自動ゲートの対象外**という穴が、実際にバグを隠していた実例。
+- **PASS した経路（空きシグニゾーン1つ＝自動配置）**：`WX02-042`【起】《黒》《ダウン》でトラッシュから `WX15-073` を場に出す → `WX15-073-E2`【出】が発火し **手札 1→2（+1）**・実ログ `1枚ドロー` を確認。2回連続 PASS（8秒／7秒）。
+- **FAIL した経路（空きシグニゾーン2つ以上＝`SELECT_SIGNI_ZONE` のゾーン選択を挟む）**：`WX15-073` は場に配置されるが **【出】が積まれない**。`effect_stack=0` / `pending_effect=null` / 手札 1→1 / `1枚ドロー` ログなし。**既存ルームと `FRESH=1` の新規ルームの両方で再現。**
+- 配線自体は存在する（`BattleScreen.tsx:4661` の `fieldPlacementOnPlayOpts(srcEff)`）ので、`meta.collectPlacedSelfOnPlay` が false になっているか `detectPlacedSigni` が差分を検出できていないかのいずれか。**根本原因は未特定・未修正**（別バッチで扱う）。
+- **同じ穴は段階1（`byEffect` 限定10効果）にも当てはまる可能性がある**＝ゾーン選択を挟む配置では段階1の10効果も発火しないおそれ。修正時に併せて確認すること。
+
 ## mandatory【出】先頭ゲート脱落46効果を全数分類・25効果修正（2026-07-28・Codex）
 
 - CSV原文とeffectId本体を46件全数照合し、[A]25／[B]20／[C]1へ分類。[A]は既存Conditionだけで activeCondition 18件／実行時CONDITIONAL 7件へ配線。[B]は能力なし・チェックゾーン・トラップ・付帯カード・出自/支払い等の既存語彙不足として非変更。[C] WXDi-D01-007-E1 は赤/青/緑の独立3枝で、先頭条件は能力全体のゲートではないため非変更。

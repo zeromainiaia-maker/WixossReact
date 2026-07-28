@@ -5403,6 +5403,61 @@ const scenarios = {
       return { pass: false, detail: `レゾナ召喚完了未確認（field=${JSON.stringify(fin?.host?.fieldSigni)} lrigDeck=${JSON.stringify(fin?.host?.lrigDeckCards)} trash=${JSON.stringify(fin?.host?.trashCards)}）` };
     },
   },
+
+  // (xxix) 段階2＝効果で場に出したシグニ自身の mandatory【出】を BattleScreen が収集する経路。
+  effectPlacedOnPlay: {
+    title: 'WX02-042【起】でWX15-073をトラッシュから場出し→mandatory【出】1枚ドロー',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXK09-018#1'], // Lv3 / Limit6（場Lv4＋配置Lv2＝6）
+        'field.signi': [['WX02-042#1'], ['WXK05-047#1'], null], // Lv0で埋め、空き1ゾーンへ自動配置
+        'field.signi_down': [false, false, false],
+        'energy': ['WX05-080#1'],       // 黒エナ1
+        'trash': ['WX15-073#1'],
+        'hand': ['WD01-013#1'],         // 絶対値1→2、差分+1を同時確認
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [null, null, null], // E1のバニッシュ候補をなくす
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log(`開始時: hHand=${before?.host?.hand} hField=${JSON.stringify(before?.host?.fieldSigni)} hTrash=${JSON.stringify(before?.host?.trashCards)}`);
+      H.log('配置元ゾーン0:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let activatedOpened = false;
+      let energySelected = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(800);
+        await page.screenshot({ path: `${SHOT}/effectPlacedOnPlay-${s}.png`, fullPage: true });
+        let did = null;
+        if (!activatedOpened) {
+          did = await H.clickBtn(/【起】/, { exact: false });
+          if (did) activatedOpened = true;
+        }
+        if (!did && activatedOpened && !energySelected) {
+          did = await H.clickModalImage('使命の怠惰　ヘカーテ');
+          if (did) energySelected = true;
+        }
+        if (!did && energySelected) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickZone();
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX15-073#1'));
+        const drawLog = await H.findLog(/^1枚ドロー$/);
+        const handDelta = (st?.host?.hand ?? NaN) - (before?.host?.hand ?? NaN);
+        H.log(`  eponp[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand}(開始${before?.host?.hand},差分${handDelta}) placed=${placed} drawLog=${drawLog ?? '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed && handDelta === 1 && st?.host?.hand === 2 && drawLog) {
+          return { pass: true, detail: `WX15-073を効果配置→【出】DRAW発火（battle_states host.hand ${before.host.hand}→${st.host.hand}, 差分+${handDelta}／実ログ「${drawLog}」）` };
+        }
+      }
+      const fin = await H.queryState();
+      const drawLog = await H.findLog(/^1枚ドロー$/);
+      return { pass: false, detail: `効果配置【出】DRAW未確認（hHand=${before?.host?.hand}→${fin?.host?.hand}, drawLog=${drawLog ?? '-'}, hField=${JSON.stringify(fin?.host?.fieldSigni)}, pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
