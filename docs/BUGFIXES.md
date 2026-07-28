@@ -1,5 +1,10 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(lvi) バッチ3＝アーツ condition の正規配置（2026-07-28・Codex）
+- 原文照合済みの4訂正（`WXK01-020-E1`＝手札 `lte 1`、`WXK07-001-E1`＝花代またはLv4以上、`WDK01-009-E1`＝センタールリグ赤、`WDK06-C06-E1`＝トラッシュ20枚以上）を、`effectId` アンカーの外科パッチで `effects_WXK.json` / `effects_misc.json` の `condition` へ直接反映した。値と前バッチのアーツ condition 配線・20枚原文照合は不変。
+- `mergeManualEffects` 本体に埋め込まれていたカード固有 `conditionOverrides` と `parseStatus:'MANUAL'` 強制上書きを完全撤去し、`e4e0f4ba` 時点の正規マージ実装へ戻した。これにより `check:manual-fields` を迂回する裏口と census / heldReview / decompile の分類歪曲を除去した。
+- 適用スクリプトは `scripts/archive/patchTask12LviBatch3Conditions.mjs` に保管。`build:effects` は未実行、golden は無変更。`npm run regen` で decompile 下流を正規 JSON / `parseStatus` 分類へ同期。census 高シグナル総数は 1511→1511 で不変（内訳のみ隠し MANUAL 分類撤去に追随）＝語彙・機能実装による減少ではない。
+
 ## §3タスク12(lvi) バッチ2＝アーツ使用条件の実経路配線＋前バッチ報告訂正（2026-07-28・Codex）
 
 - **新規実装（実害解消）**：アーツの `ACTIVATED.condition` を共通 `canUseArtsCondition` で評価し、通常候補 `artsCandidates`／カード操作候補、通常実行 `executeArts`、スペルカットイン候補 `cutinCandidates`／実行 `handleCutinUse` の候補・実行両面へ配線した。CPU専用アーツ実行関数はなく、通常使用は `executeArts` を共有する。現行母集団は **20効果・20枚（PR-204を含む。20＋1ではない）**。
