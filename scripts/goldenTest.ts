@@ -12729,8 +12729,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !e.cost);
     eq(eligible.length, 1437, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1419, '段階2 条件なし');
-    eq(conditional.length, 18, '段階2 条件あり');
+    eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    eq(conditional.length, 36, '段階2 condition/activeConditionあり');
     eq(optionalCost.length, 933, '今回除外する任意costあり');
     eq(optionalNoCost.length, 65, '段階3在庫');
     for (const [cardNum, label] of [['WX01-007', '任意costあり'], ['WX04-041', '段階3 costなし']] as const) {
@@ -13076,6 +13076,118 @@ test('ON_PLAY watcher 34効果: [A]30件は本来契機だけで収集し、自�
     eq(mismatchResult.entries.filter(e => e.effectId === 'WX05-026-E1').length, 0, 'WX05-026-E1: 非＜古代兵器＞はstack 0件');
   } finally {
     for (const id of syntheticCards) cardMap.delete(id);
+    cursor = savedCursor;
+  }
+});
+
+test('mandatory【出】先頭ゲート25効果: 通常召喚・効果配置の成立/不成立を両方向固定', () => {
+  const savedCursor = cursor;
+  try {
+    const activeIds = [
+      'WX10-062-E1', 'WX12-Re15-E1', 'WX14-039-E1', 'WX15-046-E1', 'WX20-070-E1',
+      'WX20-077-E2', 'WXDi-P00-044-E2', 'WXDi-P03-031-E1', 'WXDi-P03-076-E1',
+      'WXDi-P11-038-E2', 'WX25-P1-062-E2', 'WX25-P3-071-E1', 'WXK03-040-E1',
+      'WXK03-044-E1', 'WXK06-045-E1', 'WD19-015-E1', 'WDK05-R12-E2', 'WDK09-017-E1',
+    ] as const;
+    const conditionalIds = [
+      'WX13-035-E2', 'WX21-044-E3', 'WXK09-083-E1',
+      'WX26-CP1-045-E2', 'WX26-CP1-051-E2', 'WX26-CP1-054-E2', 'WX26-CP1-057-E2',
+    ] as const;
+    const byId = (id: string) => [...effectsMap.values()].flat().find(e => e.effectId === id)!;
+    const cardNumOf = (id: string) => [...effectsMap.entries()].find(([, es]) => es.some(e => e.effectId === id))![0];
+    const signi = (pred: (c: CardData) => boolean) => findCard(c => c.Type === 'シグニ' && pred(c));
+    const weapon = signi(c => (c.CardClass ?? '').includes('ウェポン'));
+    const arm = signi(c => (c.CardClass ?? '').includes('アーム'));
+    const plant = signi(c => (c.CardClass ?? '').includes('植物'));
+    const microbe = signi(c => (c.CardClass ?? '').includes('微菌'));
+    const frozen = signi(() => true);
+    const spell = findCard(c => c.Type === 'スペル');
+    const p1000 = signi(c => c.Power === '1000');
+    const greenSen = [...cardMap.values()].find(c => c.CardName === 'コード２４３４　緑仙')!.CardNum;
+    const dora = [...cardMap.values()].find(c => c.CardName === 'コード２４３４　ドーラ')!.CardNum;
+    const yamino = [...cardMap.values()].find(c => c.CardName === '創造の針姫　ヤミノ＝Ⅲ')!.CardNum;
+    const colors = ['白', '赤', '青'].map(color => signi(c => c.Color?.includes(color)));
+    const electricByLevel = [1, 2, 3, 4].map(level => signi(c => c.Level === String(level) && (c.CardClass ?? '').includes('電機')));
+    const mkPair = (id: string): { yes: PlayerState; no: PlayerState; otherYes: PlayerState; otherNo: PlayerState; active: string; phase: string } => {
+      const cn = cardNumOf(id);
+      let yes = mkState({ signi: [cn, null, null] });
+      const no = mkState({ signi: [cn, null, null] });
+      let otherYes = mkState();
+      const otherNo = mkState();
+      let active = 'host';
+      const phase = 'MAIN';
+      switch (id) {
+        case 'WX10-062-E1': yes = mkState({ signi: [cn, weapon, arm] }); break;
+        case 'WX12-Re15-E1': otherYes = mkState({ signi: [frozen, null, null] }); otherYes.field.signi_frozen = [true, false, false]; break;
+        case 'WX14-039-E1': otherYes.trash = [spell]; otherNo.trash = []; break;
+        case 'WX15-046-E1': otherYes = mkState({ signi: [p1000, null, null] }); break;
+        case 'WX20-070-E1': yes.energy = Array(7).fill(plant); no.energy = Array(6).fill(plant); break;
+        case 'WX20-077-E2': yes.trash = [[...cardMap.values()].find(c => c.CardName?.includes('リカブト'))!.CardNum]; no.trash = []; break;
+        case 'WXDi-P00-044-E2': yes = mkState({ signi: [cn, greenSen, dora] }); break;
+        case 'WXDi-P03-031-E1': yes.energy = colors; no.energy = colors.slice(0, 2); break;
+        case 'WXDi-P03-076-E1':
+        case 'WDK09-017-E1': yes = mkState({ signi: [null, cn, null] }); break;
+        case 'WXDi-P11-038-E2': active = 'guest'; break;
+        case 'WX25-P1-062-E2': yes = mkState({ signi: [cn, yamino, null] }); break;
+        case 'WX25-P3-071-E1': yes = mkState({ signi: [cn, microbe, null] }); break;
+        case 'WXK03-040-E1': active = 'host'; break;
+        case 'WXK03-044-E1': yes.trash = fill(15); no.trash = fill(14); break;
+        case 'WXK06-045-E1': yes.deck = fill(25); no.deck = fill(24); break;
+        case 'WD19-015-E1': otherYes.field.signi_virus = [0, 0, 0]; otherNo.field.signi_virus = [1, 0, 0]; break;
+        case 'WDK05-R12-E2':
+          otherYes = mkState({ signi: [frozen, frozen, frozen] }); otherYes.field.signi_frozen = [true, true, true];
+          break;
+      }
+      if (id === 'WXK03-040-E1') {
+        // no 側だけ相手ターンにする（yes は自ターン）。
+      }
+      return { yes, no, otherYes, otherNo, active, phase };
+    };
+    const collect = (id: string, owner: PlayerState, other: PlayerState, activeUserId: string, placedByEffect: boolean, phase = 'MAIN') =>
+      collectPlacedSelfOnPlayTriggers({
+        hostId: 'host', guestId: 'guest', activeUserId, turnPhase: phase, effectsMap, cardMap, genId: () => `gate-${id}`,
+      }, cardNumOf(id), owner, other, 'host', { placedByEffect, sourceIsSigni: true }).entries.filter(e => e.effectId === id);
+
+    for (const id of activeIds) {
+      const p = mkPair(id);
+      const noActive = id === 'WXK03-040-E1' ? 'guest' : p.active === 'guest' ? 'host' : p.active;
+      eq(collect(id, p.yes, p.otherYes, p.active, true).length, 1, `${id}: 効果配置・成立`);
+      eq(collect(id, p.no, p.otherNo, noActive, true).length, 0, `${id}: 効果配置・不成立`);
+      eq(collect(id, p.yes, p.otherYes, p.active, false).length, 1, `${id}: 通常召喚・成立`);
+      eq(collect(id, p.no, p.otherNo, noActive, false).length, 0, `${id}: 通常召喚・不成立`);
+    }
+
+    const conditionalPair = (id: string, yes: boolean): ExecCtx => {
+      const cn = cardNumOf(id);
+      const owner = mkState({ signi: [cn, null, null] });
+      const other = mkState({ signi: [fresh(), null, null] });
+      owner.deck = fill(20);
+      if (id === 'WX13-035-E2') return { ...mkCtx({}, {}, cn), ownerState: owner, otherState: other, currentPhase: yes ? 'ATTACK_SIGNI' : 'MAIN' };
+      if (id === 'WX21-044-E3') {
+        owner.trash = [signi(c => (c.CardClass ?? '').includes('遊具'))];
+        owner.signi_played_from_trash = yes ? [cn] : [];
+        owner.signi_placed_by_source = yes ? { [cn]: signi(c => (c.CardClass ?? '').includes('遊具')) } : {};
+      } else if (id === 'WXK09-083-E1') {
+        owner.energy = yes ? electricByLevel : electricByLevel.slice(0, 3);
+      } else {
+        owner.signi_placed_by_source = yes ? { [cn]: signi(c => (c.CardClass ?? '').includes('プリオケ')) } : {};
+      }
+      return { ...mkCtx({}, {}, cn), ownerState: owner, otherState: other, currentPhase: 'MAIN' };
+    };
+    for (const id of conditionalIds) {
+      const eff = byId(id);
+      const yesCtx = conditionalPair(id, true);
+      const noCtx = conditionalPair(id, false);
+      const yes = run(eff.action, yesCtx);
+      const no = run(eff.action, noCtx);
+      ok(JSON.stringify(yes.ownerState) !== JSON.stringify(yesCtx.ownerState)
+        || JSON.stringify(yes.otherState) !== JSON.stringify(yesCtx.otherState), `${id}: 成立時に本体が実行される`);
+      eq(JSON.stringify(no.ownerState), JSON.stringify(noCtx.ownerState), `${id}: 不成立時owner不変`);
+      eq(JSON.stringify(no.otherState), JSON.stringify(noCtx.otherState), `${id}: 不成立時other不変`);
+      eq(collect(id, yesCtx.ownerState, yesCtx.otherState, 'host', true).length, 1, `${id}: 効果配置経路に到達`);
+      eq(collect(id, yesCtx.ownerState, yesCtx.otherState, 'host', false).length, 1, `${id}: 通常召喚経路に到達`);
+    }
+  } finally {
     cursor = savedCursor;
   }
 });

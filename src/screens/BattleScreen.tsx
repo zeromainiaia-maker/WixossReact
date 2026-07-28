@@ -5149,7 +5149,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
         isMandatoryOwnOnPlayForNormalSummon(e) &&
         // activeCondition（英知=N等）を満たさない【出】は発火しない
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, true, battleCardMap, cardNum)) &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, isMyTurn, battleCardMap, cardNum)) &&
         // THIS_CARD_FROM_TRASH 条件のみ収集時に評価（手札召喚では false）
         (!involvesFromTrash(e.condition) || evalUseCondition(e.condition!, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );

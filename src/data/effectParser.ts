@@ -7217,6 +7217,51 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   for (const e of effects) e.action = foldSuppressOnPlay(e.action);
 
+  // mandatory【出】先頭ゲート修復（2026-07-28）。
+  // 一般化すると「場合」が後置条件・置換節である効果へ波及するため、CSV原文を全数照合した effectId のみ。
+  // 収集時に判定可能な盤面条件は activeCondition、出自記録を使う条件だけは実行時 CONDITIONAL に置く。
+  const gate = (id: string, condition: ActiveCondition): void => {
+    const effect = effects.find(e => e.effectId === id);
+    if (effect) effect.activeCondition = condition;
+  };
+  const wrap = (id: string, condition: Condition): void => {
+    const effect = effects.find(e => e.effectId === id);
+    if (effect) effect.action = { type: 'CONDITIONAL', condition, then: effect.action };
+  };
+  gate('WX10-062-E1', { type: 'AND', conditions: [
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'ウェポン' }, excludeSelf: true },
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'アーム' }, excludeSelf: true },
+  ] });
+  gate('WX12-Re15-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } });
+  wrap('WX13-035-E2', { type: 'DURING_PHASE', phases: ['ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_LRIG'] });
+  gate('WX14-039-E1', { type: 'TRASH_HAS_CARD', owner: 'opponent', filter: { cardType: 'スペル' } });
+  gate('WX15-046-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', powerRange: { min: 1000, max: 1000 } } });
+  gate('WX20-070-E1', { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: '植物' }, minCount: 7 });
+  gate('WX20-077-E2', { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: 'リカブト' } });
+  wrap('WX21-044-E3', { type: 'AND', conditions: [
+    { type: 'THIS_CARD_FROM_TRASH' },
+    { type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: '遊具' },
+  ] });
+  gate('WXK03-040-E1', { type: 'TURN_OWNER', owner: 'self' });
+  gate('WXK03-044-E1', { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'eq', value: 15 });
+  gate('WXK06-045-E1', { type: 'COUNT_THRESHOLD', location: 'deck', owner: 'self', operator: 'gte', value: 25 });
+  wrap('WXK09-083-E1', { type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self', filter: { cardType: 'シグニ', story: '電機' }, levels: [1, 2, 3, 4], minEach: 1 });
+  gate('WXDi-P00-044-E2', { type: 'AND', conditions: [
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'コード２４３４　緑仙' } },
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'コード２４３４　ドーラ' } },
+  ] });
+  gate('WXDi-P03-031-E1', { type: 'ENERGY_COLOR_TYPES', owner: 'self', operator: 'gte', value: 3 });
+  gate('WXDi-P03-076-E1', { type: 'IS_SELF_IN_CENTER_ZONE' });
+  gate('WXDi-P11-038-E2', { type: 'TURN_OWNER', owner: 'opponent' });
+  gate('WX25-P1-062-E2', { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: '創造の針姫　ヤミノ＝Ⅲ' } });
+  gate('WX25-P3-071-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '微菌' }, excludeSelf: true });
+  for (const id of ['WX26-CP1-045-E2', 'WX26-CP1-051-E2', 'WX26-CP1-054-E2', 'WX26-CP1-057-E2']) {
+    wrap(id, { type: 'THIS_CARD_PLACED_BY_CLASS', cardClass: 'プリオケ' });
+  }
+  gate('WD19-015-E1', { type: 'VIRUS_COUNT', owner: 'opponent', operator: 'eq', value: 0 });
+  gate('WDK05-R12-E2', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true }, minCount: 3 });
+  gate('WDK09-017-E1', { type: 'IS_SELF_IN_CENTER_ZONE' });
+
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。
   if (appearanceCondition && effects.length > 0) {

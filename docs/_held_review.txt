@@ -1211,24 +1211,6 @@ WXDi-P00-004
   ~ [0].action.target.owner : "self" → "any"
   ~ [0].action.keyword : "使用条件" → "ランサー"
 
-## +AND +CONDITIONAL +HAS_CARD_IN_FIELD×2 ［1枚］
-WXDi-P00-044
---- WXDi-P00-044
-  原文: 【出】：あなたの＜バーチャル＞のシグニ１体を対象とし、それをアップする。【出】：あなたの場に《コード２４３４　緑仙》と《コード２４３４　ドーラ》がある場合、カードを１枚引く。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。カードを１枚引く。
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "DRAW" → "CONDITIONAL"
-  + [1].action.condition.type = "AND"
-  + [1].action.condition.conditions[0].type = "HAS_CARD_IN_FIELD"
-  + [1].action.condition.conditions[0].owner = "self"
-  + [1].action.condition.conditions[0].filter.cardName = "コード２４３４　緑仙"
-  + [1].action.condition.conditions[1].type = "HAS_CARD_IN_FIELD"
-  + [1].action.condition.conditions[1].owner = "self"
-  + [1].action.condition.conditions[1].filter.cardName = "コード２４３４　ドーラ"
-  + [1].action.then.type = "DRAW"
-  + [1].action.then.owner = "self"
-  …（他 1 行）
-
 ## +FIELD_LRIGS_HAVE_COLORS +TRASH -GRANT_KEYWORD ［1枚］
 WXDi-P01-003
 --- WXDi-P01-003
@@ -1424,24 +1406,6 @@ WXDi-P11-003
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
   ~ [0].action.steps[1].choices[2].action.source.type : "SIGNI" → "TRASH_CARD"
   + [0].action.steps[1].choices[2].action.position = "top"
-
-## +CONDITIONAL +TURN_OWNER -GRANT_KEYWORD -SIGNI ［1枚］
-WXDi-P11-038
---- WXDi-P11-038
-  原文: 【出】：あなたのターンの場合、次の対戦相手のターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋10000する。」を得る。【出】：対戦相手のターンの場合、ターン終了時まで、このルリグは「【常】：あなたのシグニは【シャドウ】を得る。」を得る。,-
-  - [1].action.abilities[0].effectId = "WXDi-P11-038-sub-E1"
-  - [1].action.abilities[0].effectType = "CONTINUOUS"
-  - [1].action.abilities[0].action.type = "GRANT_KEYWORD"
-  - [1].action.abilities[0].action.target.type = "SIGNI"
-  - [1].action.abilities[0].action.target.owner = "self"
-  - [1].action.abilities[0].action.target.count = "ALL"
-  - [1].action.abilities[0].action.keyword = "シャドウ"
-  - [1].action.abilities[0].action.duration = "PERMANENT"
-  - [1].action.abilities[0].duration = "PERMANENT"
-  - [1].action.abilities[0].mandatory = true
-  - [1].action.abilities[0].parseStatus = "AUTO"
-  - [1].action.rawText = "【常】：あなたのシグニは【シャドウ】を得る。"
-  …（他 5 行）
 
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［1枚］
 WXDi-P12-007

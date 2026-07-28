@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## mandatory【出】先頭ゲート脱落46効果を全数分類・25効果修正（2026-07-28・Codex）
+
+- CSV原文とeffectId本体を46件全数照合し、[A]25／[B]20／[C]1へ分類。[A]は既存Conditionだけで activeCondition 18件／実行時CONDITIONAL 7件へ配線。[B]は能力なし・チェックゾーン・トラップ・付帯カード・出自/支払い等の既存語彙不足として非変更。[C] WXDi-D01-007-E1 は赤/青/緑の独立3枝で、先頭条件は能力全体のゲートではないため非変更。
+- parser にeffectId限定の補正を追加し、PRESERVE/held対象はfresh parser値をeffectIdアンカーで外科採用。通常召喚の activeCondition 評価は固定 `true` から実際の `isMyTurn` へ直し、相手ターン【出】も正しく評価する。
+- golden 887→888。25効果すべてについて条件成立/不成立を、通常召喚相当と `collectPlacedSelfOnPlayTriggers` の効果配置経路で両方向固定。共有cursorはfinallyで復元。
+- `build:effects`→外科採用→`heldReview` 実測は262枚/113署名→260枚/111署名（-2/-2）。effectId差分は added=0 / removed=0 / changed=25 / 対象外=0。`npm run regen` 同型★0。census 1498→1479の純改善を既存 `BASELINE_HIGH` 本体へ反映。
+- やっていないこと：新Condition型、[B]20件の近似実装/`timing:[]`化、[C]の独立3枝修正、除外済み置換節10件、任意cost933、段階3の65効果、PLAN/PLAN_PROGRESS、commit/push、ブラウザ実機対戦。
+
+- **⚠この46件は (xxix) 段階2 の副作用ではなく、従来から通常召喚のたびに条件を無視して発動していた**（`handleSummonSigni` の `ownOnPlay`＝`BattleScreen.tsx:5149` が mandatory【出】を無条件で積む）。段階2 で効果配置でも起きるようになり発生頻度が増えたため、この機に是正した。
+- **Opus 独立検証**：①per-effect JSON diff＝変更25／追加0／削除0／**スコープ外0** ②`grep ? effects_*.json`＝**0件**（前バッチの `"???"` 事故の再発なし）③held 262→**260枚**（減少＝改善）④[C] `WXDi-D01-007-E1` の判定は正しい＝原文が「赤のシグニがある場合、…。青のシグニがある場合、…。緑のシグニがある場合、…」の**3独立枝**で、赤の条件は能力全体の先頭ゲートではない ⑤gates を4回連続で回しフレーク無し。
+- **⚠codex が付随で直した既存バグ＝`checkActiveCondition` の `isOwnerTurn` が通常召喚経路でハードコード `true` だった**（`BattleScreen.tsx:5152`）。`handleSummonSigni` は `resonaAttackResponse`／`resonaSpellCutin` の分岐で **`isMyTurn === false` でも走る**（＝相手ターン中のレゾナ召喚・スペルカットイン）ため、そこで「自分のターン」と誤評価していた。`isMyTurn` を渡すよう是正。CPU 召喚はこの関数を通らない（唯一の呼び出し元は `ResonaSummonModal` の execute＝`BattleScreen.tsx:11391`）ことを確認済み。
+
 ## 効果で場に出したシグニの一般のmandatory【出】1437効果を配線（2026-07-28・Codex）
 
 - `collectPlacedSelfOnPlayTriggers` の段階1限定を撤去し、一般の自身【出】を効果配置でも収集するようにした。対象は mandatory 1437効果（条件なし1419／条件あり18）ちょうど。`mandatory:false` はcost有無を問わず明示除外し、任意costあり933効果と段階3在庫65効果は非変更。
