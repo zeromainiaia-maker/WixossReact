@@ -1327,6 +1327,7 @@ export interface MutualDiscardAndDrawAction {
 export interface BanishRedirectAction {
   type: 'BANISH_REDIRECT';
   target: EffectTarget;
+  targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ適用（選択UIを出さず同一対象に適用）
   redirectTo: 'trash' | 'exile'; // exile＝「エナゾーンに置かれる代わりにゲームから除外」（SPDi47-05。除外ゾーン未実装＝どのゾーンにも置かず取り除く近似）
   until: 'END_OF_TURN' | 'PERMANENT';
   /**

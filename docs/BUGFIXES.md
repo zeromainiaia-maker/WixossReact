@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## `BANISH_REDIRECT` の「それ」が直前対象を受けず、WXK06-048-E1で対象選択が2回出る（2026-07-29・タスク12(xliv)(b1)・Codex）
+
+- **バグ**：`SEQUENCE[POWER_MODIFY, BANISH_REDIRECT]` の両段が独立した `SELECT_TARGET` を出し、－7000したシグニとは別の個体へバニッシュ先変更を設定できた。
+- **修正**：`BanishRedirectAction.targetsLastProcessed` を追加。指定時は `lastProcessedCards` の個体だけを `banish_redirect_target_nums` へ積み、空なら no-op。省略時の単体選択・全体・`bySource`・`whenPowerZero` は従来どおり。parser は句点後の「このターン、それが…」だけに照応を付け、同一解析文中に「対象とし」がある4効果には付けない。
+- **built JSON**：build は全 effects JSON 差分0（新フィールドが curated 温存を越えず）。`WXK06-048-E1` だけへ一回きりの外科パッチを適用し、恒久 force-sync は追加していない。`?` 混入0。
+- **実測**：旧形2対話→新形1対話。`banish_redirect_target_nums=["WD01-013"]`（－7000対象と同一）のみ。相手場0体は0対話・記録空・全体フラグなし。golden 894→895。
+- **Opus 検証で発見した別バグ（同時是正）＝`WX25-P3-104-E1` の「レベル２以下」が死んでいた**。curated JSON が `filter.levelMax:2` という **`matchesFilter` が知らないキー**を持っており、engine が黙って無視して**レベル3以上のシグニも対象候補に出ていた**（実測＝レベル4シグニが候補に並ぶ）。canonical な `filter.level:{max:2}` へ外科パッチし、`build:effects` 後も温存されることを確認。⚠**codex が足した golden は `levelMax===2` を構造 assert しており、死んだキーをそのまま固定していた**＝**候補列挙で振る舞いを確認する形に書き換えた**（旧形に戻すと当該 assertion が FAIL することを実測）。**教訓＝「フィールドが JSON にある」ことは「engine が読む」ことを意味しない。フィルタ系を assert するときは必ず候補/結果で確認する。**
+
 ## 単体対象の `BANISH_REDIRECT` 4効果が `count:'ALL'` で「相手シグニ全体がそのターン trash 送り」になっていた（2026-07-29・タスク12(xliv)(b) 群A・codex-work実装／Opus検証）
 
 - **バグ**＝原文「対戦相手のシグニ**１体を対象とし**、このターン、**それが**バニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」の4効果（`WXK06-048-E1`／`WXDi-P12-054-E2`／`WXDi-P15-044-E1`／`WX25-P2-060-E2`）が `target.count:'ALL'` にパースされ、実行すると **全体フラグ `banish_redirect` が立って相手シグニ全部のバニッシュ先が trash になっていた**（相手のエナ加速を丸ごと止める live 実害）。

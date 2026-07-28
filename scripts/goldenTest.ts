@@ -7338,6 +7338,30 @@ test('BANISH_REDIRECT 単体対象: 選択した相手シグニだけをこの�
   ok(isSelectedBanishRedirect(owner, selected), 'バトル経路: 選択対象だけredirect判定');
   ok(!isSelectedBanishRedirect(owner, unselected), 'バトル経路: 非選択対象はredirectしない');
 });
+test('BANISH_REDIRECT targetsLastProcessed: 直前対象だけへ無選択で適用し、空振りはno-op（タスク12(xliv)(b1)）', () => {
+  const savedCursor = cursor;
+  try {
+    const selected = SIGNI;
+    const unselected = SIGNI_P3000;
+    const action = {
+      type: 'BANISH_REDIRECT',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+      targetsLastProcessed: true,
+      redirectTo: 'trash',
+      until: 'END_OF_TURN',
+    } as EffectAction;
+    const hit = run(action, { ...mkCtx({}, { signi: [selected, unselected, null] }), lastProcessedCards: [selected] });
+    eq((hit.ownerState.banish_redirect_target_nums ?? []).join(','), selected, '直前対象だけを保持');
+    eq(hit.ownerState.banish_redirect, undefined, '全体フラグは立てない');
+    ok(hit.done, '選択UIなしで完了');
+
+    const miss = run(action, { ...mkCtx({}, { signi: [selected, unselected, null] }), lastProcessedCards: [] });
+    eq(miss.ownerState.banish_redirect_target_nums, undefined, '直前対象なしなら何も記録しない');
+    eq(miss.ownerState.banish_redirect, undefined, '空振りでも全体フラグは立てない');
+  } finally {
+    cursor = savedCursor;
+  }
+});
 test('BANISH_REDIRECT 単体対象7効果: 群A built JSONは全4件count:1（タスク12(xliv)(b)）', () => {
   const ids = ['WXK06-048-E1', 'WXDi-P12-054-E2', 'WXDi-P15-044-E1', 'WX25-P2-060-E2'];
   const findRedirect = (action: EffectAction): import('../src/types/effects').BanishRedirectAction | undefined => {
@@ -7357,6 +7381,27 @@ test('BANISH_REDIRECT 単体対象7効果: 群A built JSONは全4件count:1（�
     const redirect = effect && findRedirect(effect.action);
     ok(redirect != null, `${id}: BANISH_REDIRECTあり`);
     eq(redirect!.target.count, 1, `${id}: built JSON count:1`);
+    eq(redirect!.targetsLastProcessed, id === 'WXK06-048-E1' ? true : undefined,
+      `${id}: 直前文の対象を受けるWXK06-048だけtargetsLastProcessed`);
+  }
+  const powerZero = effectsMap.get('WX25-P3-104')?.find(e => e.effectId === 'WX25-P3-104-E1');
+  const powerZeroRedirect = powerZero && findRedirect(powerZero.action);
+  eq(powerZeroRedirect?.targetsLastProcessed, undefined, 'WX25-P3-104-E1: 単独文型は自前選択のまま');
+  eq(powerZeroRedirect?.whenPowerZero, true, 'WX25-P3-104-E1: パワー0以下限定を維持');
+  // ⚠「レベル2以下」は matchesFilter が読める形（filter.level.max）でなければ効かない。
+  // 旧 curated は未対応キー `levelMax` を持っており、engine が黙って無視して**レベル3以上も対象にできた**
+  // （Opus 検証で実測。構造 assert だけでは死んだキーを固定してしまうので候補列挙でも確認する）。
+  const savedCursorPZ = cursor;
+  try {
+    eq(powerZeroRedirect?.target.filter?.level?.max, 2, 'WX25-P3-104-E1: レベル2以下を engine が読める形で保持');
+    const candCtx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L4, null] });
+    const cand = executeEffect({ effectId: 't', effectType: 'AUTO', action: powerZeroRedirect as EffectAction,
+      duration: 'INSTANT', mandatory: true } as CardEffect, candCtx);
+    const list = (cand as { pending?: { candidates?: string[] } }).pending?.candidates ?? [];
+    ok(list.includes(SIGNI_L1), 'WX25-P3-104-E1: レベル1は対象候補');
+    ok(!list.includes(SIGNI_L4), 'WX25-P3-104-E1: レベル4は対象候補にならない');
+  } finally {
+    cursor = savedCursorPZ;
   }
 });
 test('BANISH_REDIRECT bySource: 実行時は無条件フラグではなく発生源シグニ限定リストへ積む', () => {

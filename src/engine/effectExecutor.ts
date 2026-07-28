@@ -4955,6 +4955,16 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
     case 'BANISH_REDIRECT': {
       const brAction = action as BanishRedirectAction;
+      // targetsLastProcessed: 「それ」= 直前ステップで選択/処理したシグニへ選択UIなしで適用。
+      // 直前ステップが空振りなら did-it ゲートとして no-op（全体フラグや全候補へのフォールバックはしない）。
+      if (brAction.targetsLastProcessed) {
+        let cur = ctx;
+        for (const cardNum of ctx.lastProcessedCards ?? []) {
+          const applied = applyDirectAction(brAction, cardNum, cur);
+          cur = { ...cur, ownerState: applied.ownerState, otherState: applied.otherState, logs: applied.logs };
+        }
+        return done(cur);
+      }
       // 「相手のシグニ1体を対象とし、このターン、それが…」は選択対象だけを保持する。
       if (!brAction.bySource && brAction.redirectTo === 'trash' && brAction.target.owner === 'opponent' && brAction.target.count === 1) {
         const cands = fieldCandidates(ctx.otherState, brAction.target.filter, ctx.cardMap, ctx.effectivePowers,
