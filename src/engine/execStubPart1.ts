@@ -1312,6 +1312,12 @@ export function execStubPart1(
     s = { ...s, hand: [...s.hand, card] };
     return done(addLog({ ...ctx, ownerState: s, lastProcessedCards: [card] }, `${ctx.cardMap.get(card)?.CardName ?? card}を手札に加える`));
   }
+  // INTERNAL_KEEP_ON_DECK_TOP: LOOK_PICK_CHAIN の then:'deck_top' 段のマーカー。ここでは盤面を動かさない
+  // （公開中のカードはデッキに残ったまま）。resumeSearch が lastProcessedCards にピックを載せ、
+  // execLookPickChain が remainder 処理のあとでデッキの一番上へ置く。
+  if (stub.id === 'INTERNAL_KEEP_ON_DECK_TOP') {
+    return done(ctx);
+  }
   if (stub.id === 'INTERNAL_TRASH_TO_LIFE') {
     if (ctx.ownerState.trash.length === 0) return done(addLog(ctx, 'トラッシュが空（INTERNAL_TRASH_TO_LIFE）'));
     const cardNum = ctx.ownerState.trash[ctx.ownerState.trash.length - 1];

@@ -2960,6 +2960,57 @@ for (const spec of xlviWave2Cases) {
     }
   });
 }
+// task12(xlvi) wave3: pick と remainder の間に「1枚をデッキの一番上へ戻す」段が挟まる3段形（deck_top ステージ）。
+// 従来は汎用 LOOK_AND_REORDER に飲まれて**手札加えもトップ戻しも消えた単なる並べ替え**だった。
+// 実データ action を SEARCH continuation 跨ぎで完走させ、hand／デッキ先頭／デッキ末尾の実盤面を固定する。
+const xlviWave3Cases = [
+  { cardNum: 'WXK08-056', effectId: 'WXK08-056-E1' },
+  { cardNum: 'WXDi-P00-034', effectId: 'WXDi-P00-034-E2' },
+  { cardNum: 'WXDi-P06-068', effectId: 'WXDi-P06-068-E1' },
+  { cardNum: 'WXDi-P08-050', effectId: 'WXDi-P08-050-E1' },
+] as const;
+for (const spec of xlviWave3Cases) {
+  test(`(xlvi) ${spec.effectId}: LOOK_PICK_CHAIN[hand,deck_top] 全段resume E2E`, () => {
+    const savedCursor = cursor;
+    try {
+      const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+      ok(!!effect && effect.action.type === 'LOOK_PICK_CHAIN', `${spec.effectId}: live LOOK_PICK_CHAIN`);
+      const action = effect!.action as import('../src/types/effects').LookPickChainAction;
+      eq(action.stages.length, 2, `${spec.effectId}: [hand段, deck_top段]`);
+      eq(action.stages[0].then, 'hand', `${spec.effectId}: 1段目は手札`);
+      eq(action.stages[1].then, 'deck_top', `${spec.effectId}: 2段目はデッキの一番上へ戻す`);
+      const used = new Set<string>();
+      const picks = action.stages.map((stage, i) => {
+        const card = [...cardMap.values()].find(c =>
+          !used.has(c.CardNum) && (!stage.filter || matchesFilter(c, stage.filter)));
+        ok(!!card, `${spec.effectId}: stage ${i + 1} candidate`);
+        used.add(card!.CardNum);
+        return `${card!.CardNum}#xlvi3-${i}`;
+      });
+      const remainderBase = [...cardMap.values()].find(c => !used.has(c.CardNum))!.CardNum;
+      const remainder = `${remainderBase}#xlvi3-rest`;
+      const ctx = mkCtx({ deckTop: [...picks, remainder] }, {}, spec.cardNum);
+      const beforeHand = ctx.ownerState.hand.length;
+      const result = run(action as EffectAction, ctx);
+      ok(result.done, `${spec.effectId}: 全stage continuation完走`);
+      // 1段目＝手札へ（従来はここが丸ごと消えていた＝カードアドバンテージが死んでいた本体）
+      eq(result.ownerState.hand.length, beforeHand + 1, `${spec.effectId}: 手札+1`);
+      ok(result.ownerState.hand.includes(picks[0]), `${spec.effectId}: stage1 -> hand`);
+      // 2段目＝デッキに残ったまま一番上へ（トラッシュ/エナ/手札のどこにも行かない）
+      eq(result.ownerState.deck[0], picks[1], `${spec.effectId}: stage2 はデッキの一番上`);
+      ok(!result.ownerState.hand.includes(picks[1]), `${spec.effectId}: stage2 は手札に行かない`);
+      ok(!result.ownerState.trash.includes(picks[1]) && !result.ownerState.energy.includes(picks[1]),
+         `${spec.effectId}: stage2 はトラッシュ/エナへ行かない`);
+      // 残りは remainder（全4効果ともデッキの一番下）へ＝トップ戻し分を巻き込まない。
+      // revealCount が picks+1 より大きい札は素のデッキ札も一緒に下へ行くため、下 N 枚の中で判定する。
+      eq(action.remainder.position, 'bottom', `${spec.effectId}: 残りはデッキの一番下`);
+      const restCount = (action.revealCount as number) - picks.length;
+      ok(result.ownerState.deck.slice(-restCount).includes(remainder), `${spec.effectId}: remainder はデッキの一番下へ`);
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

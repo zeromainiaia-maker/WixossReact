@@ -3636,8 +3636,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
+  // 'deck_top': 盤面は動かさない（デッキ内に残したまま）。execLookPickChain が remainder 処理時に
+  // lastProcessedCards 経由で受け取った予約カードを一番上へ置く。
+  if (then === 'deck_top') return { type: 'STUB', id: 'INTERNAL_KEEP_ON_DECK_TOP' } as EffectAction;
   if (then === 'energy') return { type: 'ADD_TO_ENERGY', owner } as EffectAction;
   // 'field': resumeSearch の ADD_TO_FIELD 分岐がゾーン選択チェーン＋外側 continuation を処理する
   if (then === 'field') return { type: 'ADD_TO_FIELD', owner } as EffectAction;
@@ -3657,6 +3660,9 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   if (revealed.length === 0) return done(ctx);
   const cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
   let prevPicks: string[] = isCont ? (cur.lastProcessedCards ?? []) : [];
+  // then:'deck_top' のピックは盤面を動かさずここで予約し、remainder 処理でまとめて一番上へ置く。
+  // 直前ステージが deck_top だった再入（_pendingTop）でだけ lastProcessedCards を予約へ移す。
+  const topReserved: string[] = [...(a._topReserved ?? []), ...(a._pendingTop ? prevPicks : [])];
   let stages = a.stages;
   while (stages.length > 0) {
     const stage = stages[0];
@@ -3670,8 +3676,12 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
         return prevClasses.some(pc => cls.includes(pc));
       });
     }
+    // deck_top 段は「デッキに残す」ため、既に予約済みのカードを再度選ばせない
+    if (stage.then === 'deck_top') cands = cands.filter(n => !topReserved.includes(n));
     if (cands.length === 0) { stages = stages.slice(1); prevPicks = []; continue; }
-    const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed } as import('../types/effects').LookPickChainAction;
+    const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed,
+      ...(topReserved.length > 0 ? { _topReserved: topReserved } : {}),
+      ...(stage.then === 'deck_top' ? { _pendingTop: true } : {}) } as import('../types/effects').LookPickChainAction;
     return needsInteraction(cur, {
       type: 'SEARCH',
       visibleCards: cands,
@@ -3680,15 +3690,33 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       continuation: cont as EffectAction,
     });
   }
-  // 残り（公開してまだデッキにあるカード）を remainder へ
+  // 残り（公開してまだデッキにあるカード）を remainder へ。
+  // then:'deck_top' の予約分は「残り」から外し、remainder を動かしたあとのデッキの一番上に置く。
   const state = ownerState(owner, cur);
-  const rest = revealed.filter(n => state.deck.includes(n));
-  if (rest.length === 0) return done(cur);
-  const deckRest = state.deck.filter(n => !rest.includes(n));
+  const stillInDeck = revealed.filter(n => state.deck.includes(n));
+  const reservedTop = topReserved.filter(n => stillInDeck.includes(n));
+  const rest = stillInDeck.filter(n => !reservedTop.includes(n));
+  if (rest.length === 0 && reservedTop.length === 0) return done(cur);
+  const deckRest = state.deck.filter(n => !stillInDeck.includes(n));
+  const withTop = (deck: string[]) => (reservedTop.length > 0 ? [...reservedTop, ...deck] : deck);
+  const topLog = (c: ExecCtx) => (reservedTop.length > 0 ? addLog(c, `${reservedTop.length}枚をデッキの一番上へ戻す`) : c);
   if (a.remainder.location === 'deck') {
     const orderedRest = a.remainder.shuffle ? shuffle([...rest]) : rest;
-    const newDeck = a.remainder.position === 'bottom' ? [...deckRest, ...orderedRest] : [...orderedRest, ...deckRest];
-    return done(addLog(setOwnerState(owner, { ...state, deck: newDeck }, cur), `残り${rest.length}枚をデッキの${a.remainder.position === 'bottom' ? '一番下' : '上'}へ`));
+    const newDeck = withTop(a.remainder.position === 'bottom' ? [...deckRest, ...orderedRest] : [...orderedRest, ...deckRest]);
+    const moved = setOwnerState(owner, { ...state, deck: newDeck }, cur);
+    return done(topLog(rest.length > 0
+      ? addLog(moved, `残り${rest.length}枚をデッキの${a.remainder.position === 'bottom' ? '一番下' : '上'}へ`)
+      : moved));
+  }
+  if (reservedTop.length > 0) {
+    // 残りの行き先がデッキ以外（トラッシュ/エナ）でも、予約分はデッキの一番上へ戻す
+    if (a.remainder.location === 'trash') {
+      return done(topLog(addLog(setOwnerState(owner, { ...state, deck: withTop(deckRest), trash: [...state.trash, ...rest] }, cur), `残り${rest.length}枚をトラッシュへ`)));
+    }
+    if (a.remainder.location === 'energy') {
+      return done(topLog(addLog(setOwnerState(owner, { ...state, deck: withTop(deckRest), energy: [...state.energy, ...rest] }, cur), `残り${rest.length}枚をエナゾーンへ`)));
+    }
+    return done(topLog(setOwnerState(owner, { ...state, deck: withTop(deckRest) }, cur)));
   }
   if (a.remainder.location === 'trash') {
     return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, trash: [...state.trash, ...rest] }, cur), `残り${rest.length}枚をトラッシュへ`));

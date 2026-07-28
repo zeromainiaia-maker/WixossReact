@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## `LOOK_AND_REORDER` に消えていた「1枚をデッキの一番上へ戻す」中段 第3波（2026-07-29・PLAN §3 タスク12(xlvi)・Opus）
+
+- **壊れ方**：「デッキの上からN枚見る。**その中から1枚を手札に加え、1枚をデッキの一番上に戻し、残りを（好きな順番で）デッキの一番下に置く**」という**pick と remainder の間に中段が挟まる3段形**が、どの pick 規則にも掛からず汎用 `LOOK_AND_REORDER` に飲まれていた。既存の `pk` 規則は pick 動詞の直後に「、残りを」を要求するため、中段があると必ず外れる。結果**手札加えもトップ戻しも丸ごと消えた単なるデッキ並べ替え**に退化＝4効果（`WXK08-056-E1`／`WXDi-P00-034-E2`／`WXDi-P06-068-E1`／`WXDi-P08-050-E1`）が live で no-op だった。
+- **engine＝第2波が defer した `then:'deck_top'` を実装**：`LookPickChainStage.then` に `'deck_top'` を追加。この段のピックは**盤面を動かさずデッキ内に予約**し（`INTERNAL_KEEP_ON_DECK_TOP` マーカー＋内部フィールド `_topReserved`／`_pendingTop` で SEARCH continuation を跨いで引き継ぐ）、`execLookPickChain` の remainder 処理の**あと**にデッキの一番上へ置く。**先に動かすと「残りを一番下へ」がその1枚まで巻き込む**ため順序が要点。remainder が trash/energy の場合も予約分はデッキトップへ戻す。既存の hand/energy/trash/field/beat 段は経路不変。
+- **parser**：中段（`（カード）N枚をデッキの一番上に戻し/置き`）を必須アンカーにした狭い規則を `pk` の手前へ追加し、`LOOK_PICK_CHAIN[hand段, deck_top段]` を生成。filter は class/color/level に加え `《カード名》`（`WXDi-P06-068`＝《幻水姫　エルドラ//メモリア》／`WXDi-P08-050`＝《大装　タマ//メモリア》）を拾う。
+- **外科性**：HEAD との**全カード生 parser 出力 effectId 差分は対象4件だけ**（outlier 0）。`WXDi-P00-034` は兄弟 E1 が `MANUAL` の PRESERVE カードで build がカード丸ごと温存するため、**effectId アンカーの外科採用＋`MANUAL` 化＋E1 完全不変の機械確認**で着地（第1波 `WX16-037-E2`・第2波 `WXK05-023-BURST` と同じ型＝3波連続で再発）。他3枚は held に落ちたので `heldReview --adopt`。**live JSON の per-effect 差分も対象4件だけ**、採用後の再 build 差分0（冪等）、held は 257→260→**257** で新規ドリフトなし。
+- **⚠ 計器の罠を再度踏んだ**：parser 修正後の `build:effects` で **live JSON 差分が0**だった（3枚とも held に落ちて温存された）。PLAN §4 が警告する「差分0でもドリフト無しの証明にならない」そのもので、held を数えて初めて反映漏れが見えた。
+- **検証**：4効果とも実データ action を `execLookPickChain → SEARCH → resumeSearch → continuation再入` で完走させ、**手札+1／2段目がデッキ先頭（手札・トラッシュ・エナのいずれにも行かない）／remainder が下 N 枚**を assert する golden を各1本追加（922→**926**）。census 1469→**1468**（`BASELINE_HIGH` 更新）、smoke 10726 全0、fuzz 全0、同型★0、lint 226 据置。
+- **残**：この系統（curated が `LOOK_AND_REORDER` のみで原文の「手札に加える」が live で実行されない効果）は**まだ31効果**ある。分類は PLAN §3 (xlvi) 行を参照。
+
 ## `LOOK_AND_REORDER` に消えていた多段/複数グループ pick 第2波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 - **12効果を既存 `LOOK_PICK_CHAIN` へ展開**：D3 7効果は色/レベル/カード種別ごとの独立SEARCH、D5 5効果は hand＋trash/energy の独立SEARCHとして生成し、合計枚数への誤簡約を避けた。`WXK05-023-BURST` は PRESERVE カードのため parser 同修正＋effectIdアンカー外科採用（`MANUAL`）とし、兄弟3効果の完全不変を確認。
 - **既存機構の最小拡張**：`LookPickChainAction.remainder.shuffle?: boolean` を追加し、`execLookPickChain` の deck remainder だけで省略時と同値・指定時のみ残り札をshuffleする。既存40効果は action JSON 不変、全件 `shuffle` 省略、旧式との差分0を機械確認。`then:'deck_top'` が要る群3は未配線の宣言だけを避けて honest defer。

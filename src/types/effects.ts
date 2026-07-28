@@ -1232,7 +1232,11 @@ export interface AttachCharmAction {
 export interface LookPickChainStage {
   filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
   pickCount: number;              // 上限枚数（「N枚まで」）
-  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat'; // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化）
+  // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化／デッキの一番上へ戻す）。
+  // 'deck_top'＝「その中から１枚をデッキの一番上に戻し、残りを（好きな順番で）デッキの一番下に置く」の中段。
+  // このステージのピックは盤面を動かさず**デッキ内に留めたまま予約**し、remainder 処理時に一番上へ置く
+  // （remainder より先に動かすと「残り」を下へ送る操作でその1枚まで巻き込まれるため）。
+  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top';
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
   suppressOnPlay?: boolean;       // then:'field' 限定。「その（それらの）シグニの【出】能力は発動しない」（AddToFieldAction 参照）
@@ -1244,6 +1248,8 @@ export interface LookPickChainAction {
   stages: LookPickChainStage[];
   remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
   _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
+  _topReserved?: string[]; // 内部用: then:'deck_top' で確定済みの「一番上へ戻す」カード（JSONには書かない）
+  _pendingTop?: boolean;   // 内部用: 直前ステージが then:'deck_top'（再入時に lastProcessedCards を予約へ移す）
 }
 
 export interface RevealAndPickAction {

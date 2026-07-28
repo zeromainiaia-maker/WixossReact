@@ -4192,6 +4192,35 @@ function parseActionTextInner(text: string): EffectAction {
           } as RevealAndPickAction;
         }
       }
+      // ---- その中から〔filter〕N枚(まで)(公開し)手札に加え、（カード）N枚をデッキの一番上に戻し、残りをデッキの一番下 ----
+      //   pick と remainder の**間に「1枚をデッキの一番上へ」段が挟まる**3段形（タスク12(xlvi) 第3波）。
+      //   下の pk 規則は pick 動詞の直後に「、残りを」を要求するため掛からず、汎用 LOOK_AND_REORDER に飲まれて
+      //   **手札加えもデッキトップ戻しも丸ごと消えた単なる並べ替え**に退化していた（WXK08-056-E1／WXDi-P00-034-E2／
+      //   WXDi-P06-068-E1／WXDi-P08-050-E1）。LOOK_PICK_CHAIN の [hand段, deck_top段] で忠実表現する
+      //   （deck_top 段は engine 側で「デッキに残したまま予約→remainder 後に一番上へ」＝第2波が defer した群3）。
+      {
+        const topBackM = nextS.match(/^その中から(.*?)([０-９\d]+)枚(まで)?を?(?:公開し)?手札に加え、(?:カード)?([０-９\d]+)枚をデッキの一番上に(?:戻し|置き)、残りを(?:好きな順番で)?(?:シャッフルして)?デッキの一番(下|上)に(?:置く|戻す)/);
+        if (topBackM) {
+          const desc = topBackM[1].replace(/を$/, '');
+          const nameM = desc.match(/《([^》]+)》/);
+          const noun = /シグニ/.test(desc) ? 'シグニ' : /スペル/.test(desc) ? 'スペル' : 'カード';
+          const handFilter: TargetFilter = {
+            ...parseStoryFilter(desc), ...parseColorFilter(desc), ...parseLevelFilter(desc),
+            ...(nameM ? { cardName: nameM[1] } : {}),
+            ...(noun === 'シグニ' ? { cardType: 'シグニ' as const } : noun === 'スペル' ? { cardType: 'スペル' as const } : {}),
+          };
+          type Stage = import('../types/effects').LookPickChainStage;
+          const stages: Stage[] = [
+            { ...(Object.keys(handFilter).length > 0 ? { filter: handFilter } : {}), pickCount: parseNum(topBackM[2]), then: 'hand',
+              ...(noun !== 'シグニ' ? { pickNoun: noun } : {}) },
+            { pickCount: parseNum(topBackM[4]), then: 'deck_top', pickNoun: 'カード' },
+          ];
+          return {
+            type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(cM[1]), stages,
+            remainder: { location: 'deck', position: topBackM[5] === '下' ? 'bottom' : 'top' },
+          } as unknown as EffectAction;
+        }
+      }
       // ---- その中から〔class/color/level filter〕(の)シグニ/カード(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
       // 「見る。その中から＜C＞のシグニM枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く」系（census
       // クラス指定/色/レベル filter の look-pick）。従来は下の汎用 LOOK_AND_REORDER が「その中から…デッキ」に先にマッチし
