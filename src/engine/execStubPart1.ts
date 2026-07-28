@@ -2945,6 +2945,21 @@ export function execStubPart1(
     const name = ctx.cardMap.get(top)?.CardName ?? top;
     return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）を手札へ`));
   }
+  // 対象プレイヤーのライフクロス上1枚を、そのプレイヤーのエナゾーンへ置く。
+  // クラッシュではないためライフバースト/check は発生させない。
+  if (stub.id === 'LIFE_TO_ENERGY') {
+    const target = stub.owner ?? 'self';
+    const st = ownerState(target, ctx);
+    if (st.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし（LIFE_TO_ENERGY）'));
+    const top = st.life_cloth[st.life_cloth.length - 1];
+    const newSt: PlayerState = {
+      ...st,
+      life_cloth: st.life_cloth.slice(0, -1),
+      energy: [...st.energy, top],
+    };
+    const name = ctx.cardMap.get(top)?.CardName ?? top;
+    return done(addLog(setOwnerState(target, newSt, ctx), `ライフクロス上（${name}）をエナゾーンへ`));
+  }
   // クラス/色宣言
   // DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存
   if (stub.id === 'DECLARE_CLASS') {

@@ -85,6 +85,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
+import { clearEndOfAttackEffects } from './battle/attackDuration';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 
@@ -4035,7 +4036,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...collectCharmShieldSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap),
         ...collectCharmShieldSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap),
       ]);
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = isOwnerTurn;
       // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
       // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
@@ -4089,6 +4090,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           effectId: entry.effectId,
           interaction: result.pending,
           ...(entry.triggeringCardNum ? { triggeringCardNum: entry.triggeringCardNum } : {}),
+          ...(entry.leftFieldUnderCards ? { leftFieldUnderCards: entry.leftFieldUnderCards } : {}),
           ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
           ...(result.trapActivated ? { trapActivated: true } : {}),
           ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
@@ -4369,7 +4371,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -9184,8 +9186,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       appendBattleLogs([`ガード代替コスト：エナ＜${altCost.signiClass}＞（${battleCardMap.get(trashTarget)?.CardName ?? trashTarget}）をトラッシュ`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
       const newOpState = attackGuard.usedOncePerTurnIds.length > 0
-        ? { ...op, actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
-        : op;
+        ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : clearEndOfAttackEffects(op);
       const update: Record<string, unknown> = { [stateKey]: newMyState, [opKey]: newOpState };
       if (guardTriggers.length > 0) {
         const existingStack = bs.effect_stack ?? null;
@@ -9223,8 +9225,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       appendBattleLogs([`ガード代替：手札${altN}枚を捨てる（${discarded.map(cn => battleCardMap.get(cn)?.CardName ?? cn).join('、')}）`]);
       const opKey = isHost ? 'guest_state' : 'host_state';
       const newOpState = attackGuard.usedOncePerTurnIds.length > 0
-        ? { ...op, actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
-        : op;
+        ? { ...clearEndOfAttackEffects(op), actions_done: [...(op.actions_done ?? []), ...attackGuard.usedOncePerTurnIds] }
+        : clearEndOfAttackEffects(op);
       const update: Record<string, unknown> = { [stateKey]: newMyState, [opKey]: newOpState };
       if (guardTriggers.length > 0) {
         const existingStack = bs.effect_stack ?? null;
@@ -9404,7 +9406,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
       const oppStateKey = stateKey === 'host_state' ? 'guest_state' : 'host_state';
-      let newOpState = op;
+      let newOpState: PlayerState = clearEndOfAttackEffects(op);
       if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
         const rem = op.lrig_attack_remaining - 1;
         newOpState = { ...op, lrig_attack_remaining: rem > 0 ? rem : undefined };

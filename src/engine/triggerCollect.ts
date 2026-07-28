@@ -863,6 +863,7 @@ export function collectLeaveFieldTriggers(
       id: ctx.genId(), playerId: leftPlayerId, cardNum: leftCardNum, effectId: eff.effectId,
       label: `${leftCard?.CardName ?? leftCardNum} の【自】効果（場を離れたとき）`,
       effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+      leftFieldUnderCards: [...leftUnder],
     });
   }
   // watcher（味方）視点のターン。turnOwner 条件（「対戦相手/あなたのターンの間」）判定に使う。
@@ -902,6 +903,7 @@ export function collectLeaveFieldTriggers(
         id: ctx.genId(), playerId: leftPlayerId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（味方が場を離れたとき）`,
         effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+        leftFieldUnderCards: [...leftUnder],
       });
     }
   }
@@ -940,6 +942,7 @@ export function collectLeaveFieldTriggers(
         id: ctx.genId(), playerId: oppId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（相手シグニが場を離れたとき）`,
         effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+        leftFieldUnderCards: [...leftUnder],
       });
     }
   }

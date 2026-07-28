@@ -519,7 +519,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'DRAW_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につきカードを${a.drawPerLevel}枚引く`;
     case 'ENERGY_CHARGE_PER_LRIG_LEVEL': return `${a.lrigOwner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグのレベル1につき【エナチャージ${a.chargePerLevel}】をする`;
     case 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきデッキの一番上のカードを${a.chargePerUnit}枚エナゾーンに置く`;
-    case 'BANISH': return a.opponentSelects
+    case 'BANISH': return a.targetsStored ? 'それをバニッシュする' : a.opponentSelects
       ? `対戦相手は自分の${filterJa(a.target?.filter)}シグニ${a.target?.count === 'ALL' ? 'すべて' : `${a.target?.count ?? 1}体`}を選んでバニッシュする`
       : `${targetJa(a.target)}をバニッシュする${a.optional ? '（してもよい）' : ''}`;
     case 'BOUNCE': return `${targetJa(a.target)}を手札に戻す${a.optional ? '（してもよい）' : ''}${a.opponentSelects && a.target?.owner === 'opponent' ? '（相手が選ぶ）' : ''}`;
@@ -610,6 +610,8 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'ADD_TO_FIELD': {
       const supAF = a.suppressOnPlay ? '。その【出】能力は発動しない' : '';
+      if (a.source?.fromLeftFieldUnder)
+        return `トラッシュにある、このシグニの下にあったシグニ1枚を${a.asDown ? 'ダウン状態で' : ''}場に出す${supAF}`;
       // 「このシグニをトラッシュから場に出す」自己蘇生（thisCardOnly source）
       if (a.source?.filter?.thisCardOnly && a.source?.type === 'TRASH_CARD')
         return `このシグニをトラッシュから${a.asDown ? 'ダウン状態で' : ''}場に出す${a.optional ? '（してもよい）' : ''}${supAF}`;
@@ -621,7 +623,7 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
       const ownerWord = a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
-      const untilPre = a.until === 'END_OF_TURN' ? 'このターン、' : a.until === 'NEXT_TURN' ? '次のターンの間、' : '';
+      const untilPre = a.until === 'END_OF_TURN' ? 'このターン、' : a.until === 'NEXT_TURN' ? '次のターンの間、' : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
       // 完成文型（主語/肯定否定が特殊＝テンプレートを使わず直接返す）。許可系（〜できる）含む。
       const fullMap: Record<string, string> = {
         IGNORE_LRIG_TYPE: `${ownerWord}はレベル５のシグニの限定条件を無視して場に出すことができる`,
@@ -670,6 +672,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
       const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
       const cntJa = a.count === 99 ? '' : numJa(a.count) + '枚';
+      if (a.shuffle && a.destination?.location === 'deck' && a.destination.position === 'bottom') {
+        return `${src}${loc}から${cntJa}を公開し、公開したカードをシャッフルしてデッキの一番下に置く`;
+      }
       if (a.destination?.position === 'split_top_bottom') {
         return `${src}${loc}${cntJa}を見て、好きな枚数を好きな順番でデッキの一番上に置き、残りを好きな順番でデッキの一番下に置く`;
       }
@@ -695,7 +700,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする${a.conditional ? '（そうした場合）' : ''}`;
-    case 'TRANSFER_TO_HAND': return `${targetJa(a.source)}を手札に加える`;
+    case 'TRANSFER_TO_HAND': return a.source?.fromLeftFieldUnder
+      ? 'トラッシュにある、このシグニの下にあったシグニ1枚を手札に加える'
+      : `${targetJa(a.source)}を手札に加える`;
     case 'TRANSFER_TO_DECK': {
       const opt = a.optional ? '（してもよい）' : '';
       if (a.destination === 'lrig_deck') return `${targetJa(a.source)}をルリグデッキに戻す${opt}`;
@@ -963,6 +970,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : rem.location === 'deck'
           ? (rem.position === 'bottom' ? '、残りをデッキの一番下に置く' : '、残りをデッキの上に戻す')
           : '、残りを戻す';
+      if ((a.pickCount ?? 1) === 0 && rem?.location === 'deck' && rem.position === 'bottom') {
+        return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚公開し、公開したカードを${rem.shuffle ? 'シャッフルして' : ''}デッキの一番下に置く`;
+      }
       // 配置系（公開カードを手札/場/エナ/トラッシュ等へ）＝「その中から[filter]を[pickN][動詞]」
       const placeVerb =
         a.handOrField ? '手札に加えるか場に出す'
@@ -1233,6 +1243,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
       if (a.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';

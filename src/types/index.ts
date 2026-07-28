@@ -615,6 +615,7 @@ export type PendingInteractionDef =
       destOwner: 'self' | 'opponent';
       destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';
       private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
+      shuffle?: boolean;
       continuation?: EffectAction;
     }
   | {
@@ -675,6 +676,7 @@ export interface PendingEffect {
   triggeringKeyword?: string; // pause を跨いで ON_KEYWORD_GAINED の「その能力」を保持（COPY_ABILITY 用・WXDi-P04-035）
   trapActivated?: boolean;    // pause を跨いで《トラップアイコン》発動イベントを保持（完了解決後に ON_TRAP_ACTIVATE を収集）
   storedTargetCards?: string[]; // pause を跨いで STORE_LAST_PROCESSED_TARGETS の固定対象を保持（targetsStored の resume 用。WX16-033 等）
+  leftFieldUnderCards?: string[]; // ON_LEAVE_FIELD 発火元の離場直前の下カード（対話pause越し参照用）
   spellPlacement?: 'trash' | 'lrig_trash'; // 使用中スペルの解決後配置。pause 中は未配置のまま保持する
 }
 
@@ -688,6 +690,7 @@ export interface StackEntry {
   label: string;                               // 表示用 e.g. "サーバント O の【自】効果"
   effect: import('./effects').CardEffect;
   triggeringCardNum?: string;                  // any_ally/self scope で効果を引き起こしたカード番号（「それ」参照用）
+  leftFieldUnderCards?: string[];              // ON_LEAVE_FIELD 発火元の離場直前の下カード
   triggeringKeyword?: string;                  // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY が「その能力」として参照・WXDi-P04-035）
   battleAttackerCardNum?: string;              // ON_SIGNI_BANISH_OPPONENT/_BATTLE の battleBanishEntries：バニッシュを行ったアタッカー自身のカード番号（triggeringCardNum は被バニッシュ相手用に既に使用中のため別軸。「そのアタックしているシグニ」参照用・WX17-032）
   banishedSigniPower?: number;                  // ON_SIGNI_BANISH_BATTLE の被バニッシュシグニのバニッシュ直前実効パワー

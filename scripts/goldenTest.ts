@@ -42,6 +42,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
+import { clearEndOfAttackEffects } from '../src/screens/battle/attackDuration';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
@@ -129,6 +130,7 @@ function finish(initial: ExecResult, ctx: ExecCtx): ExecResult {
       case 'SEARCH': { const vis = (p.visibleCards as string[]) ?? []; result = resumeSearch(vis.slice(0, Math.min((p.maxPick as number) ?? 0, vis.length)), pending as never, c); break; }
       case 'CHOOSE': { const opts = (p.options as { id: string; available?: boolean }[]) ?? []; const pick = opts.find(o => o.available !== false) ?? opts[0]; result = resumeChoose(pick.id, pending as never, c); break; }
       case 'LOOK_AND_REORDER': result = resumeLookAndReorder((p.cards as string[]) ?? [], [], pending as never, c); break;
+      case 'REVEAL_CARDS': result = resumeRevealCards(pending as never, c); break;
       case 'SELECT_ZONE': result = resumeSelectZone(steps % 3, pending as never, c); break;
       case 'SELECT_SIGNI_ZONE': result = resumeSelectSigniZone(steps % 3, pending as never, c); break;
       case 'SELECT_VIRUS_ZONE': result = resumeSelectVirusZone(steps % 3, pending as never, c); break;
@@ -12270,6 +12272,87 @@ test('task12(xxxix) batch3 WX24-P3-050-E2: only absence of another own Trick dow
     const ally = finish(executeEffect(manualEffect(source, 'WX24-P3-050-E2'), allyCtx), allyCtx);
     eq(ally.ownerState.field.signi_down[0], false, 'another own Trick prevents self-down');
     eq(ally.ownerState.field.signi_down[1], false, 'the other Trick is never downed');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch4 WXEX1-66-E2: fixed target survives reveal pause; four distinct Atom types gate banish', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXEX1-66';
+    const atoms = ['WX12-031', 'WX12-Re14', 'WX13-049', 'WX14-038'];
+    eq(atoms.length, 4, 'four distinct Atom SIGNI fixtures exist');
+    const target = 'WX24-D5-15';
+    const yesCtx = { ...mkCtx({ deckTop: atoms }, { signi: [target, null, null] }, source),
+      ownerState: { ...mkState({ signi: [source, null, null], deckTop: atoms }), deck: atoms } } as ExecCtx;
+    const yes = finish(executeEffect(manualEffect(source, 'WXEX1-66-E2'), yesCtx), yesCtx);
+    ok(!yes.otherState.field.signi[0] && yes.otherState.energy.includes(target), `preselected target is banished after reveal confirmation logs=${yes.logs.join('|')}`);
+    eq(yes.ownerState.deck.length, 4, 'all revealed cards return to deck bottom');
+    const noDeck = [atoms[0], atoms[0], atoms[1], atoms[2]];
+    const noCtx = { ...mkCtx({ deckTop: noDeck }, { signi: [target, null, null] }, source),
+      ownerState: { ...mkState({ signi: [source, null, null], deckTop: noDeck }), deck: noDeck } } as ExecCtx;
+    const no = finish(executeEffect(manualEffect(source, 'WXEX1-66-E2'), noCtx), noCtx);
+    ok(no.otherState.field.signi[0]?.includes(target) === true, 'fewer than four distinct Atom names does not banish');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch4 WXDi-P06-039-E1: only former under-SIGNI is selected; paid/down and unpaid/hand branches', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P06-039';
+    const under = 'WX24-D5-15';
+    const decoy = 'WX24-D5-19';
+    const energy = ['WX14-038', 'WX14-039'];
+    const paidBase = mkCtx({}, {}, source);
+    const paidCtx = { ...paidBase, ownerState: { ...paidBase.ownerState, trash: [source, under, decoy], energy }, leftFieldUnderCards: [under], isOwnerTurn: false } as ExecCtx;
+    const p0 = executeEffect(manualEffect(source, 'WXDi-P06-039-E1'), paidCtx);
+    ok(!p0.done && p0.pending.type === 'CHOOSE', 'optional colorless cost is offered');
+    const paid0 = resumeOptionalCost('pay', energy, p0.pending as never, { ...paidCtx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs });
+    const paid = finish(paid0, paidCtx);
+    ok(paid.ownerState.field.signi.some((s, i) => s?.includes(under) && paid.ownerState.field.signi_down[i]), `former under-SIGNI enters down logs=${paid.logs.join('|')}`);
+    ok(paid.ownerState.trash.includes(decoy), 'unrelated trash SIGNI is not selectable');
+    const skipBase = mkCtx({}, {}, source);
+    const skipCtx = { ...skipBase, ownerState: { ...skipBase.ownerState, trash: [source, under, decoy], energy: [] }, leftFieldUnderCards: [under], isOwnerTurn: false } as ExecCtx;
+    const s0 = executeEffect(manualEffect(source, 'WXDi-P06-039-E1'), skipCtx);
+    const skipped = resumeOptionalCost('skip', [], (s0 as Extract<ExecResult,{done:false}>).pending as never, { ...skipCtx, ownerState: s0.ownerState, otherState: s0.otherState, logs: s0.logs });
+    const noPay = finish(skipped, skipCtx);
+    ok(noPay.ownerState.hand.includes(under) && noPay.ownerState.trash.includes(decoy), 'unpaid branch adds only former under-SIGNI to hand');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch4 WXK09-003-E1 red branch: opponent life top moves to opponent energy without burst/check', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXK09-003';
+    const redLrig = 'WDK14-001';
+    const life = 'WX14-039';
+    const ctxBase = mkCtx({}, { signi: ['WX24-D5-15', null, null] }, source);
+    const ctx = { ...ctxBase, ownerState: { ...ctxBase.ownerState, lrig_trash: [source] }, otherState: { ...ctxBase.otherState, life_cloth: [life], field: { ...ctxBase.otherState.field, lrig: [redLrig] } } } as ExecCtx;
+    const yes = finish(executeEffect(manualEffect(source, 'WXK09-003-E1'), ctx), ctx);
+    ok(yes.otherState.life_cloth.length === 0 && yes.otherState.energy.includes(life), `red branch moves opponent life to opponent energy logs=${yes.logs.join('|')}`);
+    eq(yes.otherState.field.check, null, 'move is not a crash and does not open life burst');
+    const emptyBase = mkCtx({}, { signi: ['WX24-D5-15', null, null] }, source);
+    const emptyCtx = { ...emptyBase, ownerState: { ...emptyBase.ownerState, lrig_trash: [source] }, otherState: { ...emptyBase.otherState, life_cloth: [], field: { ...emptyBase.otherState.field, lrig: [redLrig] } } } as ExecCtx;
+    const empty = finish(executeEffect(manualEffect(source, 'WXK09-003-E1'), emptyCtx), emptyCtx);
+    ok(!empty.otherState.energy.includes(life), 'no life means no life card is created or moved');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch4 WXEX2-21-E1: guard block lasts only the current attack', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXEX2-21';
+    const devils = ['WX24-D5-15', 'WX24-D5-19'];
+    const deck = [...cardMap.keys()].filter(n => n !== source && !devils.includes(n)).slice(0, 2);
+    const yesBase = mkCtx({}, {}, source);
+    const yesCtx = { ...yesBase, ownerState: { ...yesBase.ownerState, trash: devils, field: { ...yesBase.ownerState.field, lrig: [source] } }, otherState: { ...yesBase.otherState, deck } } as ExecCtx;
+    const yes = finish(executeEffect(manualEffect(source, 'WXEX2-21-E1'), yesCtx), yesCtx);
+    eq(yes.ownerState.prevent_opp_guard, true, `deck reaching zero blocks guard for this attack logs=${yes.logs.join('|')}`);
+    const nextAttack = clearEndOfAttackEffects(yes.ownerState);
+    eq(nextAttack.prevent_opp_guard, undefined, 'attack end restores guard availability for a second attack in the same turn');
+    const noBase = mkCtx({}, {}, source);
+    const noCtx = { ...noBase, ownerState: { ...noBase.ownerState, trash: devils.slice(0, 1), field: { ...noBase.ownerState.field, lrig: [source] } }, otherState: { ...noBase.otherState, deck } } as ExecCtx;
+    const no = finish(executeEffect(manualEffect(source, 'WXEX2-21-E1'), noCtx), noCtx);
+    eq(no.ownerState.prevent_opp_guard, undefined, 'deck not reaching zero does not block guard');
   } finally { cursor = savedCursor; }
 });
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

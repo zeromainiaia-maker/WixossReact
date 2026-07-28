@@ -4664,6 +4664,43 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-P13-003A": [
     {"effectId":"WXDi-P13-003A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"UNKNOWN","raw":"白か黒のルリグを１体以上含むこのターンにあなたがセンタールリグをグロウしていない場合、手札をすべて捨てあなたのエナゾーンからすべてのカードをトラッシュに置く。この方法でカードが５枚以上トラッシュに置かれた場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《未知の巫女　マユ》にグロウコストを支払わずにグロウする。"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // §3 task12(xxxix) final batch: preserve the pre-reveal target across the reveal confirmation pause.
+  "WXEX1-66": [
+    {"effectId":"WXEX1-66-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":4,"private":false,"reorder":false,"canTrash":false,"shuffle":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"原子"},"operator":"eq","value":4,"distinctName":true,"verbJa":"公開された"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // ON_LEAVE_FIELD already snapshots the former under-stack; restrict both optional-cost branches to that set.
+  "WXDi-P06-039": [
+    {"effectId":"WXDi-P06-039-E1","effectType":"AUTO","timing":["ON_LEAVE_FIELD"],"triggerScope":"self","triggerCondition":{"turnOwner":"opponent"},"action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無"]},
+      {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},
+        "then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"},"fromLeftFieldUnder":true},"asDown":true,"suppressOnPlay":true},
+        "else":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ"},"fromLeftFieldUnder":true}}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // Red branch: move the opponent's top life cloth to their energy (not a crash, so no life burst).
+  "WXK09-003": [
+    {"effectId":"WXK09-003-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"緑","count":5}]},"action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"ARTS_COST_REDUCTION_BY_CENTER_LRIG"},
+      {"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"白"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"赤"},"then":{"type":"STUB","id":"LIFE_TO_ENERGY","owner":"opponent"}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"青"},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":3}}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"緑"},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":3},{"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ"}}}]}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"黒"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},
+      {"type":"CONDITIONAL","condition":{"type":"LRIG_COLOR","owner":"opponent","color":"無色"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}
+    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "WXEX2-21": [
+    {"effectId":"WXEX2-21-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":1,"countFromZone":{"zone":"trash","owner":"self","filter":{"cardType":"シグニ","story":"悪魔"}}}},
+      {"type":"CONDITIONAL","condition":{"type":"DECK_COUNT","owner":"opponent","operator":"eq","value":0},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_ATTACK"}}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
 };
 
 /**

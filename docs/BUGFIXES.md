@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxxix) バッチ4（最終）＝機構待ち残り4効果を全採用（2026-07-28・Codex）
+
+- **WXEX1-66-E2**：`SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→LOOK_AND_REORDER{公開4,shuffle,bottom}→LAST_PROCESSED_MATCHES{原子,4種類}→BANISH{targetsStored}` へ変更。`storedTargetCards` は変更前18効果／途中pending 16効果、変更後19効果／17効果。`done`・`needsInteraction`・`executeSequence`・`resumeSelectTarget`・`resumeSearch`・`resumeChoose` と BattleScreen `PendingEffect` は既に値を継承しており、バッチ3の「保持機構欠落」診断を訂正。追加は同じ公開4枚を二重公開せずシャッフルしてデッキ下へ置く省略可能 `LOOK_AND_REORDER.shuffle`（`execLookAndReorder`→`resumeLookAndReorder`）。既存18効果は新フラグなしで不変。
+- **WXDi-P06-039-E1**：既存 `collectLeaveFieldTriggers` が全離場経路で持つ離場直前 `leftUnder` を `StackEntry.leftFieldUnderCards`→`ExecCtx`→`PendingEffect` へ配線し、`EffectTarget.fromLeftFieldUnder` でトラッシュ候補を限定。支払い枝はダウン場出し＋`suppressOnPlay`、未払い枝は手札。関与関数は `collectLeaveFieldTriggers`（self/any_ally/any_opp全3枝）、`execAddToField`、`execTransferToHand`、`handleEffectInteraction`。新フラグ採用は本効果1件のみ、既存効果の新規有効化0件。
+- **WXK09-003-E1**：赤分岐を `UNKNOWN` から `STUB{LIFE_TO_ENERGY,owner:opponent}` へ変更。`execStub` は相手ライフ末尾（トップ）1枚を相手エナへ直接移動。`CRASH_LIFE_TO_HAND` と同じトップ規約だが、クラッシュではないため `check`／ライフバーストは発生しない。ライフ0枚はno-op。兄弟色分岐は不変。
+- **WXEX2-21-E1**：`BLOCK_ACTION.until` に `END_OF_ATTACK` を追加し、`execBlockAction` が攻撃側 `prevent_opp_guard` を立てる。終端は `clearEndOfAttackEffects` に一本化し、通常 `performGuardResponse`／エナ代替 `handleGuardWithEnergyAlternative`／手札代替 `handleGuardWithHandAlternative` の全3経路でクリア。Guard UI の既存 `op.prevent_opp_guard` 判定へ接続。同ターン2回目は解除済み。既存4 duration値は分岐外で不変。
+- **検証と計器**：4効果すべて実戦ゾーン発生源＋成立/不成立のE2E golden（共有`cursor`を`try/finally`復元）。`build:effects`→4カード`heldReview --adopt`→再build。HEAD比live JSONのeffectId変化集合は上記4件のみ、兄弟効果/outlier 0。`regen`同型★0。census 1513→1511（本体`BASELINE_HIGH`更新）。held前後262枚/109署名。`npm run gates`全緑＝golden 844/844、smoke 10725/10725全0、fuzz 200ゲーム全0、census 1511/1511、lint 222 warnings/0 errors。
+- **やらなかったこと**：commit/push、PLAN/PLAN_PROGRESS編集、parser規則変更、実機ブラウザ対戦、対象外効果のJSON採用は未実施。honest defer／スコープ外の原文食い違いは0件。
+
 ## §3タスク12(xxxix) バッチ3＝公開集合の照応・条件の向き誤り4効果（2026-07-28・Codex）
 
 - **WD07-007-E1**：デッキ上4枚をトラッシュへ置いた直後に `SEQUENCE{snapshotLastProcessedForConditionals:true}` で黒/白の2条件を包み、両分岐が同じ4枚を見る形へ修正。黒回収が live `lastProcessedCards` を上書きしても白条件は先行解決済みで、白が無い場合の無条件サーチを解消した。

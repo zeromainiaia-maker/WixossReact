@@ -539,6 +539,7 @@ export interface EffectTarget {
   selectionConstraint?: SelectionConstraint; // 候補単体ではなく、選択集合全体に対する相互制約
   totalLevelMax?: number; // 「レベルの合計がN以下になるようにM体まで」: 選択カードのレベル合計の上限（count=M・upToCount と併用。WDK13-007）
   fromTop?: boolean;     // DECK_CARD: デッキ上から count 枚を対象（「一番上を見る。それが〜の場合、場に出す」＝WX10-007/WX16-038）。execAddToField は deck.slice(0,count) で先頭前提
+  fromLeftFieldUnder?: boolean; // ON_LEAVE_FIELD: 離場直前にトリガー元シグニの下にあったカードだけを候補にする
 }
 
 export interface SelectionConstraint {
@@ -953,7 +954,7 @@ export interface BlockActionAction {
   type: 'BLOCK_ACTION'; // アクションを封じる
   target: EffectTarget; // 封じる対象プレイヤー
   actionId: string;     // 封じるアクションID（例: 'ATTACK_SIGNI'）
-  until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT' | 'END_OF_GAME';
+  until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT' | 'END_OF_GAME' | 'END_OF_ATTACK';
 }
 
 export interface StoryChangeAction {
@@ -1028,6 +1029,7 @@ export interface LookAndReorderAction {
   private: boolean;   // true = 自分だけ確認（相手に見せない）
   reorder: boolean;   // true = 順番を自由に決められる
   canTrash?: boolean; // true = 一部をトラッシュに置ける（残りをデッキに戻す）
+  shuffle?: boolean; // 戻すカードをシャッフルする（公開したカードをシャッフルしてデッキ下へ）
   destination: {
     location: CardLocation;
     owner: Owner;
@@ -1751,6 +1753,7 @@ export interface AltCostOppTurnAction {
 
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
+  owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
   handDiscardCountFromTargetLevel?: boolean;
   /** Filter for a target-level-derived hand discard cost. */

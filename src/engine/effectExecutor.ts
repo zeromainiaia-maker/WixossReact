@@ -1396,6 +1396,10 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
       cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
     }
+    if (src.fromLeftFieldUnder) {
+      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
+      cands = cands.filter(n => allowed.has(n));
+    }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
@@ -1583,6 +1587,10 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    }
+    if (src.fromLeftFieldUnder) {
+      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
+      cands = cands.filter(n => allowed.has(n));
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
@@ -1969,6 +1977,10 @@ const BLOCK_ACTION_LABELS: Record<string, string> = {
 };
 
 function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
+  if (a.actionId === 'GUARD' && a.until === 'END_OF_ATTACK') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_opp_guard: true } },
+      '相手はこのアタックの間【ガード】できない'));
+  }
   // シグニへのアタックブロック（ATTACK）は keyword_grants 経由で処理する。
   // blocked_actions に 'ATTACK'（カードIDなし）で追加しても CPU の
   // 'ATTACK:${topId}' チェックと一致しないため。また、CPU ターン開始の
@@ -3221,6 +3233,7 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
     private: a.private,
+    ...(a.shuffle ? { shuffle: true } : {}),
   });
 }
 
@@ -5529,14 +5542,15 @@ export function resumeOptionalCost(
 }
 
 // LOOK_AND_REORDER: reordered[] =export
- export function resumeLookAndReorder(
+export function resumeLookAndReorder(
   reordered: string[],
   trashed: string[],
   pending: PendingInteractionDef & { type: 'LOOK_AND_REORDER' },
   ctx: ExecCtx,
   bottomCards: string[] = [],
 ): ExecResult {
-  const keep = reordered.filter(n => !trashed.includes(n));
+  const keepRaw = reordered.filter(n => !trashed.includes(n));
+  const keep = pending.shuffle ? shuffle(keepRaw) : keepRaw;
   const destOwner = pending.destOwner;
   const state = ownerState(destOwner, ctx);
   let newS: PlayerState;
