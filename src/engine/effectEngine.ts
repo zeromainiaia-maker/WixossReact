@@ -3484,7 +3484,7 @@ export function filterKizunaGated(
 
 /**
  * 動的キーワード付与の収集（バッジ表示用）。
- * CONTINUOUS GRANT_KEYWORD で activeCondition が現在満たされている付与を、各シグニ instanceId 単位で集める。
+ * CONTINUOUS GRANT_KEYWORD で activeCondition が現在満たされている付与を、各シグニ／センタールリグ instanceId 単位で集める。
  * - 「このシグニは【ランサー】を得る」型（count:1, owner:self, source=シグニ自身）＝ WD04-010 等の動的キーワード
  * - 「あなたの＜X＞のシグニはランサーを得る」型（count:ALL, owner:self/any/all, filter一致）＝ 場全体付与
  * keyword_grants（解決済み付与）とは別に、毎フレーム条件評価で変動する付与を表示するためのもの。
@@ -3521,6 +3521,11 @@ export function collectContinuousGrantedKeywords(
       // 場全体付与は target.count === 'ALL' で表現されるため owner は self/any のみ対象（Owner型に 'all' は無い）。
       if (gk.target.owner !== 'self' && gk.target.owner !== 'any') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, effectivePowers)) continue;
+      // 「このルリグは【X】を得る」型。発生源自身＝自分のセンタールリグへ動的付与する。
+      if (gk.target.type === 'LRIG') {
+        if (lrigTop && srcNum === lrigTop) add(lrigTop, gk.keyword);
+        continue;
+      }
       const targetsAll = gk.target.count === 'ALL';
       for (const num of signiTops) {
         if (abilitiesRemoved.has(num)) continue; // 能力喪失シグニは新たにキーワードを得ない

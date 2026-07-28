@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxxix) バッチ2＝対象/所有者/フィルタ脱落4効果＋バッチ1積み残し段階1（2026-07-28・Codex）
+
+- **WDK05-T01-E1**：`HAS_CARD_IN_FIELD{燃盛　遊月・鍵}` を activeCondition に復元し、付与先を相手を含む任意シグニから自分のセンタールリグへ是正。既存の動的キーワード collector がルリグ対象を捨て、ルリグダメージ経路も保存済み付与しか見ない dead-path を発見したため、collector と共通ガード応答経路を最小拡張した。
+- **WXK09-063-E1**：自トラッシュの通常場出しを `STEAL_OPP_TRASH_PUPPET{count:1}` へ置換。相手トラッシュから選び、配置時に `field.puppet_signi` へ登録するため、既存の傀儡2体条件からエナチャージへ実際につながる。
+- **WX22-006-E3**：TRASH_CARD source に `cardClassExclude:'精元'` と `selectionConstraint:{distinct:'name'}` を追加。`execTransferToDeck` は集合制約付き必須移動を select/resume 経路へ送り、同名選択を除外するため死フラグではない。
+- **WXK01-005-E1**：黒シグニ回収成立枝を `SEQUENCE[RETURN_SELF_ARTS_TO_LRIG_DECK, BLOCK_CARD_USE]` 化。BattleScreen は使用アーツを先に lrig_trash へ置き、STUB は同ゾーンの `sourceCardNum` をルリグデッキへ戻す。`BLOCK_CARD_USE` は owner 指定なしで効果オーナー自身の `blocked_card_names` を更新する（逆翻訳器の「対戦相手」は既存の表示バグ）。
+- **WX24-P3-069-E1（段階1）**：LBなし枝を `SEQUENCE[SET_CANCEL_ATTACK_FLAG, UNKNOWN{ガード封じ節全文}]` へ変更。攻撃無効化を実装し、誤った相手ルリグ対象UI／生文字列keyword no-opを撤去した。段階2は見送り＝`collectOppGuardExtraColorlessCost` が boolean/1枚固定であるだけでなく、元 `effectsMap` の CONTINUOUS しか走査せず、ターン中の付与能力ストアを見ないため。
+- **WX24-P3-050-E1 golden補完**：既存の《無》×5支払い→ダメージなしを維持し、未払い→`LIFE_CRASH` で相手ライフ7→6も engine 実行で固定。
+- **live JSON / curated**：対象5効果を `manualEffects.ts` へ effectId override として追加し、`build:effects` 後に heldReview でカード単位採用。最終再buildで curated温存されることを確認。ベースライン比 effectId 差分は5効果ちょうど、兄弟効果・スコープ外 outlier 0。
+- **検証**：gates 全緑＝golden 836、smoke 10725/全0、fuzz 200ゲーム/全0、census 1517→1515（5効果の忠実化による機能実装。本体 `BASELINE_HIGH` と理由履歴を更新）、lint 222 warnings/0 errors。最終 heldReview は262枚/109署名。
+- commit/push・PLAN/PLAN_PROGRESS編集・parser/decompiler変更・⑤段階2・新action/STUB/condition追加・実機ブラウザ検証は行っていない。
+
 ## §3タスク12(xxxix) バッチ1＝マジックボックス攻撃時2効果の攻撃無効化＋後続限定を忠実化（2026-07-28・Codex）
 
 - **WX24-P3-050-E1**：LBなし枝を `SEQUENCE[SET_CANCEL_ATTACK_FLAG, OPPONENT_PAY_OPTIONAL{無×5}, CONDITIONAL{PAID_ADDITIONAL_COST→LIFE_CRASH}]` へ修正。executor の既存 look-ahead 規約により、相手が支払わない場合だけ `LIFE_CRASH{triggerBurst:true}` を実行する。LBあり枝・《ちより　第三章》条件・MB非公開時は両枝不発、という既存挙動は維持した。

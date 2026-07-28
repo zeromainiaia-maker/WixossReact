@@ -12044,6 +12044,143 @@ test('task12(xxxix) WX24-P4-067-E1: live signi opens MB; non-LB cancels attack a
     eq(withoutBurst.otherState.energy.filter(cn => cn === red).length, 0, 'three nonmatching red energy cards are trashed');
   } finally { cursor = savedCursor; }
 });
+
+test('task12(xxxix) batch2 WDK05-T01-E1: named ally gates Double Crush on this lrig', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WDK05-T01';
+    const ally = findCard(c => c.CardName === '燃盛　遊月・鍵');
+    const effect = manualEffect(source, 'WDK05-T01-E1');
+    const yes = mkCtx({ signi: [ally, null, null] }, {}, source);
+    yes.ownerState.field.lrig = [source];
+    const granted = collectContinuousGrantedKeywords(yes.ownerState, yes.otherState, true, new Map([[source, [effect]]]), yes.cardMap);
+    ok(granted[source]?.includes('ダブルクラッシュ'), 'live collector grants Double Crush to source lrig');
+    const no = mkCtx({}, {}, source);
+    no.ownerState.field.lrig = [source];
+    const inactive = collectContinuousGrantedKeywords(no.ownerState, no.otherState, true, new Map([[source, [effect]]]), no.cardMap);
+    eq(inactive[source], undefined, 'without named ally live collector grants nothing');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch2 WXK09-063-E1: only opponent trash signi enters as puppet and enables EC1', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXK09-063';
+    const stolen = SIGNI_L2;
+    const existing = SIGNI_L1;
+    const ownTrash = SIGNI_L3;
+    const ctx = mkCtx({ signi: [existing, null, null], deckTop: [SIGNI_L4] }, {}, source);
+    ctx.ownerState.field.puppet_signi = [existing];
+    ctx.ownerState.trash = [ownTrash];
+    ctx.otherState.trash = [stolen];
+    const r = finish(executeEffect(manualEffect(source, 'WXK09-063-E1'), ctx), ctx);
+    ok(r.done, 'effect completes');
+    ok(r.ownerState.field.signi.some(s => s?.at(-1) === stolen), 'opponent trash signi enters own field');
+    ok(r.ownerState.field.puppet_signi?.includes(stolen), 'placed signi is marked puppet');
+    ok(r.ownerState.trash.includes(ownTrash), 'own trash is untouched');
+    eq(r.ownerState.energy.length, ctx.ownerState.energy.length + 1, 'two puppets enable EC1');
+    const empty = mkCtx({}, {}, source);
+    empty.ownerState.trash = [ownTrash];
+    const no = finish(executeEffect(manualEffect(source, 'WXK09-063-E1'), empty), empty);
+    ok(no.done && no.ownerState.trash.includes(ownTrash), 'no opponent target never steals own trash');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch2 WX22-006-E3: trash-to-deck enforces non-精元 and distinct names', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX22-006';
+    const allowed = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('精元'))
+      .filter((c, i, a) => a.findIndex(x => x.CardName === c.CardName) === i).slice(0, 7).map(c => c.CardNum);
+    eq(allowed.length, 7, 'seven legal cards exist');
+    const ctx = mkCtx({}, {}, source);
+    ctx.ownerState.field.key_piece = source;
+    ctx.ownerState.trash = [...allowed];
+    const first = executeEffect(manualEffect(source, 'WX22-006-E3'), ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'constraint forces interactive selection');
+    const good = finish(resumeSelectTarget(allowed, first.pending as never, { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs }), ctx);
+    ok(good.done && allowed.every(n => good.ownerState.deck.includes(n)), 'seven legal distinct names move to deck');
+    const sameName = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('精元'))
+      .reduce((groups, c) => groups.set(c.CardName, [...(groups.get(c.CardName) ?? []), c.CardNum]), new Map<string, string[]>());
+    const pair = [...sameName.values()].find(nums => nums.length >= 2)!;
+    ok(!!pair, 'two distinct card numbers with the same name exist');
+    const rest = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('精元') && c.CardName !== cardMap.get(pair[0])?.CardName)
+      .filter((c, i, a) => a.findIndex(x => x.CardName === c.CardName) === i).slice(0, 5).map(c => c.CardNum);
+    const duplicate = [pair[0], pair[1], ...rest];
+    const badCtx = mkCtx({}, {}, source);
+    badCtx.ownerState.trash = duplicate;
+    const badFirst = executeEffect(manualEffect(source, 'WX22-006-E3'), badCtx);
+    ok(!badFirst.done && badFirst.pending.type === 'SELECT_TARGET', 'duplicate-name candidates open selection');
+    const bad = resumeSelectTarget(duplicate, badFirst.pending as never, { ...badCtx, ownerState: badFirst.ownerState, otherState: badFirst.otherState, logs: badFirst.logs });
+    ok(bad.done && bad.lastProcessedCards?.length === 6, 'duplicate-name card is filtered out before transfer');
+    const gen = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('精元'));
+    const excludedCtx = mkCtx({}, {}, source);
+    excludedCtx.ownerState.trash = [gen];
+    const excluded = executeEffect(manualEffect(source, 'WX22-006-E3'), excludedCtx);
+    ok(excluded.done && excluded.ownerState.trash.includes(gen), '精元 is excluded from candidates');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch2 WXK01-005-E1: black salvage returns source arts; nonblack does not', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXK01-005';
+    const black = findCard(c => c.Type === 'シグニ' && c.Color?.includes('黒'));
+    const white = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && !c.Color?.includes('黒'));
+    const resolve = (picked: string) => {
+      const ctx = mkCtx({}, {}, source);
+      ctx.ownerState.trash = [picked];
+      ctx.ownerState.lrig_trash = [source];
+      return finish(executeEffect(manualEffect(source, 'WXK01-005-E1'), ctx), ctx);
+    };
+    const yes = resolve(black);
+    ok(yes.done && yes.ownerState.lrig_deck.includes(source) && !yes.ownerState.lrig_trash.includes(source), 'black salvage returns source arts');
+    ok((yes.ownerState.blocked_card_names ?? []).includes('インサイダー・サルベージ'), 'self use is blocked');
+    const no = resolve(white);
+    ok(no.done && no.ownerState.lrig_trash.includes(source) && !no.ownerState.lrig_deck.includes(source), 'nonblack salvage leaves arts in lrig trash');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch2 WX24-P3-069-E1: non-LB cancels attack and guard clause is honest UNKNOWN', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX24-P3-069';
+    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
+    const resolve = (mb: string) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+      ctx.ownerState.field.signi_magic_boxes = [mb, null, null];
+      return finish(executeEffect(manualEffect(source, 'WX24-P3-069-E1'), ctx), ctx);
+    };
+    const no = resolve(noBurst);
+    eq(no.ownerState.cancel_current_signi_attack, true, 'non-LB cancels current attack');
+    ok(no.logs.some(x => x.includes('[UNKNOWN: あなたのルリグ１体を対象とし')), 'full guard clause is retained as UNKNOWN');
+    eq(no.otherState.keyword_grants, undefined, 'no erroneous opponent-lrig grant UI/state');
+    const yes = resolve(burst);
+    eq(yes.ownerState.cancel_current_signi_attack, undefined, 'LB branch does not cancel attack');
+    ok(!yes.logs.some(x => x.includes('[UNKNOWN: あなたのルリグ１体を対象とし')), 'LB branch does not run deferred clause');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) WX24-P3-050-E1: refusing five colorless takes LIFE_CRASH branch', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX24-P3-050';
+    const chiyori = findCard(c => c.CardName === 'ちより　第三章');
+    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const ctx = mkCtx({ signi: [source, chiyori, null] }, { life: 7, energy: 5 }, source);
+    ctx.ownerState.field.signi_magic_boxes = [noBurst, null, null];
+    const open = executeEffect(manualEffect(source, 'WX24-P3-050-E1'), ctx);
+    ok(!open.done && open.pending.type === 'CHOOSE' && !open.pending.opponentResponds, 'optional MB choice opens first');
+    const reveal = open.pending.options.find(o => o.id === 'open') ?? open.pending.options[0];
+    const first = resumeChoose(reveal.id, open.pending, { ...ctx, ownerState: open.ownerState, otherState: open.otherState, logs: open.logs });
+    ok(!first.done && first.pending.type === 'CHOOSE' && first.pending.opponentResponds, `opponent payment choice opens: ${first.done ? 'done' : first.pending.type}`);
+    const skip = first.pending.options.find(o => o.id === 'skip')!;
+    const r = resumeOpponentPayOptional(skip.id, [], first.pending, { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs, lastProcessedCards: first.lastProcessedCards });
+    ok(r.done, 'refusal branch completes');
+    eq(r.otherState.life_cloth.length, 6, 'refusal executes LIFE_CRASH');
+  } finally { cursor = savedCursor; }
+});
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

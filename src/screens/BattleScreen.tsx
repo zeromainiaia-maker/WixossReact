@@ -9319,7 +9319,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ガードしない → ライフクロスをクラッシュ
         // 攻撃側ルリグのダブルクラッシュ確認
         const opLrigNum = op.field.lrig.at(-1);
-        const opLrigHasDoubleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ'));
+        const opDynamicKeywords = collectContinuousGrantedKeywords(op, my, true, effectsMap, battleCardMap);
+        const opLrigHasDoubleCrush = !!(opLrigNum && (
+          (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ')
+          || (opDynamicKeywords[opLrigNum] ?? []).includes('ダブルクラッシュ')
+        ));
         // トリプルクラッシュ（WD21-009 の付与【自】＝ルリグアタックで3枚クラッシュ。検証是正＝シグニアタック側だけでなくルリグアタック経路も消費する）
         const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
         // PREVENT_DAMAGE ウィンドウ（scope='ALL' も 'LRIG' もルリグアタックのダメージを無効）＝期間内は回数無制限。
