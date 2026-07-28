@@ -215,6 +215,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // バニッシュされる側の限定「パワーが０以下の(対戦相手の)?シグニがバニッシュされる場合」（続き218）。
     // 落とすと相手の全バニッシュが常時トラッシュ送りになる（WXDi-P10-009-E3／WXDi-CP02-102-E2）。
     const whenPowerZero = /パワーが０以下の[^。]*?シグニが[^。]*?バニッシュされる場合/.test(t);
+    // 直前に対象とした単体を受ける「それが」型。文分割後も照応語は残るため、全体置換にしない。
+    // 「パワーが０以下のそれが」「それがバトルによって」も同じ選択対象1体への限定。
+    const selectedOne = /(?:パワーが０以下の)?それが(?:バトルによって)?バニッシュされる場合/.test(t);
     const frontOnly = /この(?:シグニ|カード)の正面の/.test(t);
     // バニッシュされる**側**の属性限定（タスク12(xliv)(a)）。落とすと「対戦相手の全バニッシュ」に過剰発火する
     // ＝engine の battle/power0 経路が target.filter を評価して被バニッシュシグニを絞る（レベル/凍結/感染/チャーム）。
@@ -227,7 +230,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (/【チャーム】が付いている[^。]*?シグニが[^。]*?バニッシュされ/.test(t)) redirectFilter.hasCharm = true;
     return {
       type: 'BANISH_REDIRECT',
-      target: { type: 'SIGNI', owner, count: 'ALL', filter: redirectFilter },
+      target: { type: 'SIGNI', owner, count: selectedOne ? 1 : 'ALL', filter: redirectFilter },
       redirectTo: 'trash',
       until,
       ...(bySource ? { bySource } : {}),

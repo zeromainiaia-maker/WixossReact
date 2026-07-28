@@ -28,7 +28,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -7476,6 +7476,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const redirectBanish =
             isShoot ||
             myS.banish_redirect === true ||
+            // ACTIVATED/AUTO で選んだ個体だけに適用する単体置換。
+            isSelectedBanishRedirect(myS, opTopCardNum) ||
             // bySource 付き（このシグニとの/による）＝そのシグニ自身がバトル当事者のときだけ（続き217）
             (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
             myS.field.signi.some((s, zi) => {
@@ -7859,6 +7861,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const trashEntriesSA: StackEntry[] = [];
       const redirectBanishForTrigger =
         myS.banish_redirect === true ||
+        (banishedOpCardNum != null && isSelectedBanishRedirect(myS, banishedOpCardNum)) ||
         (myS.banish_redirect_by_source_nums ?? []).includes(myTopNum) ||
         myS.field.signi.some((s, zi) => {
           const n = s?.at(-1);

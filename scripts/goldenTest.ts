@@ -31,7 +31,7 @@ import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '.
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
-import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
@@ -7335,6 +7335,29 @@ test('BANISH_REDIRECT 単体対象: 選択した相手シグニだけをこの�
   const otherDest = banishDestination(mkState({}), owner, unselected).state;
   ok(selectedDest.trash.includes(selected) && !selectedDest.energy.includes(selected), '選択対象はトラッシュ');
   ok(otherDest.energy.includes(unselected) && !otherDest.trash.includes(unselected), '非選択対象はエナ');
+  ok(isSelectedBanishRedirect(owner, selected), 'バトル経路: 選択対象だけredirect判定');
+  ok(!isSelectedBanishRedirect(owner, unselected), 'バトル経路: 非選択対象はredirectしない');
+});
+test('BANISH_REDIRECT 単体対象7効果: 群A built JSONは全4件count:1（タスク12(xliv)(b)）', () => {
+  const ids = ['WXK06-048-E1', 'WXDi-P12-054-E2', 'WXDi-P15-044-E1', 'WX25-P2-060-E2'];
+  const findRedirect = (action: EffectAction): import('../src/types/effects').BanishRedirectAction | undefined => {
+    if (action.type === 'BANISH_REDIRECT') return action;
+    if (action.type === 'SEQUENCE') {
+      for (const step of action.steps) {
+        const found = findRedirect(step);
+        if (found) return found;
+      }
+    }
+    if (action.type === 'CONDITIONAL') return findRedirect(action.then);
+    return undefined;
+  };
+  for (const id of ids) {
+    const cardNum = id.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)?.find(e => e.effectId === id);
+    const redirect = effect && findRedirect(effect.action);
+    ok(redirect != null, `${id}: BANISH_REDIRECTあり`);
+    eq(redirect!.target.count, 1, `${id}: built JSON count:1`);
+  }
 });
 test('BANISH_REDIRECT bySource: 実行時は無条件フラグではなく発生源シグニ限定リストへ積む', () => {
   const ctx = { ...mkCtx({}, {}), sourceCardNum: 'SRC-001' };

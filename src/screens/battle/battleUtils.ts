@@ -165,3 +165,8 @@ export function advancePreventDamageWindows(
 export function isSelectedPowerZeroBanishRedirect(opponent: PlayerState, cardNum: string): boolean {
   return opponent.banish_redirect_power0_target_nums?.includes(cardNum) === true;
 }
+
+/** 単体対象の BANISH_REDIRECT が、いまバニッシュされる個体に適用されるか。 */
+export function isSelectedBanishRedirect(opponent: PlayerState, cardNum: string): boolean {
+  return opponent.banish_redirect_target_nums?.includes(cardNum) === true;
+}

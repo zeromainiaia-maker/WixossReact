@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 単体対象の `BANISH_REDIRECT` 4効果が `count:'ALL'` で「相手シグニ全体がそのターン trash 送り」になっていた（2026-07-29・タスク12(xliv)(b) 群A・codex-work実装／Opus検証）
+
+- **バグ**＝原文「対戦相手のシグニ**１体を対象とし**、このターン、**それが**バニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる」の4効果（`WXK06-048-E1`／`WXDi-P12-054-E2`／`WXDi-P15-044-E1`／`WX25-P2-060-E2`）が `target.count:'ALL'` にパースされ、実行すると **全体フラグ `banish_redirect` が立って相手シグニ全部のバニッシュ先が trash になっていた**（相手のエナ加速を丸ごと止める live 実害）。
+- ⚠**PLAN の「(b) は対象選択フローが無い＝§6.3級」は stale だった**＝個体単位の機構は既に実在（`PlayerState.banish_redirect_target_nums`／`effectExecutor.applyDirectAction` の `count===1` 分岐／`BattleScreen.tsx:3307,3673` のターン境界クリア）。`count:'ALL'` なのでその分岐に入っていなかっただけ。
+- **修正**：(1) parser（`parseSentencePart1.ts`）に `selectedOne`＝`/(?:パワーが０以下の)?それが(?:バトルによって)?バニッシュされる場合/` を追加し `count: 1` を出す。(2) engine/UI＝`battleUtils.isSelectedBanishRedirect` を新設し、**バトル経路の2箇所**（実際の行き先 `redirectBanish`／ON_TRASH トリガー判定 `redirectBanishForTrigger`）へ配線。**従来は効果経路（`banishDestination`）とパワー0経路しか個体リストを見ておらず、バトルで倒したときだけ反映されない不整合があった**。
+- **実測**（engine 直実行）＝4効果とも `banish_redirect_target_nums=["選択した1体"]`・**全体フラグは立たない**。効果経路で選択対象は trash・非選択対象は energy。バトル経路も選択対象のみ true。
+- **Opus検証での是正1件**＝codex は curated 温存を突破するため `buildEffectsJson.ts` に **4 effectId の恒久 force-sync フック**を足していたが、**built JSON が `count:1` になった後は不要**（フックを外して `build:effects` を再実行し、全カード差分0＝同一出力を実測）。恒久フックは将来の parser 退化を隠すため撤去した（過去にも続き251/252 で同種の force-adopt を撤去している）。
+- **残**（PLAN (xliv) へ登録）＝**(b1)** `WXK06-048-E1` は SEQUENCE の各ステップが別々に対象選択を出す＝原文「それ」の照応が失われ**パワー－7000とバニッシュ先変更で別のシグニを選べる**（`BanishRedirectAction.targetsLastProcessed` の新設が要る）。**(b2)** `WXDi-P15-078-E2` のバトル限定・**(b3)** `WXDi-P14-053-E1` の付与型は honest defer。`WX25-P3-104-E1` は `whenPowerZero` 個体リストで既に動作＝是正不要と実測。
+- **ゲート**＝全ゲート緑を2回連続再現（golden **894**・smoke 10726・fuzz 全0・census **1477** 据置・lint 0 errors）。⚠**BattleScreen 側の変更だが実機 driver シナリオは未追加**＝golden と engine 直実行のみで検証している（`selfPlayFuzz` は BattleScreen のオーケストレーションを通らない）。
+
 ## Opus検証の副産物＝`WX12-033-E2` の【ランサー】が無条件付与（PRESERVE カードで parser 修正が built JSON に届かない held ドリフト）（2026-07-29・タスク12(xliv) 検証・Opus）
 
 - **経緯**＝下の (a3) で追加した parser 規則「あなたのトラッシュにカード名に《X》を含むカードがあるかぎり、」の該当は CSV 全数で **WX09-022 と WX12-033 の2枚**。build 後に変わったのは WX09-022 だけで、**WX12-033 は E3 が MANUAL の PRESERVE カードのため build:effects が curated を温存し、fresh 側にしか `activeCondition` が乗らなかった**（`docs/_held_fresh.json` の WX12-033 で確認）。
