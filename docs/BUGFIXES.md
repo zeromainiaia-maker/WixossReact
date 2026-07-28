@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxxix) バッチ3＝公開集合の照応・条件の向き誤り4効果（2026-07-28・Codex）
+
+- **WD07-007-E1**：デッキ上4枚をトラッシュへ置いた直後に `SEQUENCE{snapshotLastProcessedForConditionals:true}` で黒/白の2条件を包み、両分岐が同じ4枚を見る形へ修正。黒回収が live `lastProcessedCards` を上書きしても白条件は先行解決済みで、白が無い場合の無条件サーチを解消した。
+- **WXK10-060-E2**：`REVEAL_DECK_TOP{3}` の公開snapshotで＜植物＞3種類を判定し、成立時だけ同じデッキ上3枚を `REVEAL_AND_PICK{pickCount:1,then:ADD_TO_ENERGY,remainder:{deck,bottom,shuffle:true}}` へ送る。未成立枝は `pickCount:0` で3枚すべてをシャッフルしてデッキ下へ戻す。公開外カードのエナ化と全デッキshuffleを解消した。
+- **WXDi-P11-039-E1**：レベル合計10の条件内へ `SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→TRASH{白シグニ1枚}→LAST_PROCESSED_COUNT_GTE{1}→BOUNCE{targetsStored:true}` を配置。白シグニを捨てられない場合と合計10でない場合はバウンスせず、誤った外側 `IS_MY_TURN` の常時発火を撤去した。
+- **WX24-P3-050-E2**：`HAS_CARD_IN_FIELD{owner:self,story:トリック,excludeSelf:true}` の **else** を否定枝として `DOWN{thisCardOnly}` を実行。他の自軍＜トリック＞がいる場合は何もせず、相手側＜トリック＞は条件へ数えず、味方を対象に取り直す逆挙動を解消した。「場に」は同型カードの明記形「あなたの場に他の…」とengineの自己参照条件規約から自分の場と判定した。
+- **WXEX1-66-E2 は honest defer**：公開集合を `remainder.shuffle:true` でデッキ下へ戻す機構自体は実在するが、`STORE_LAST_PROCESSED_TARGETS` は通常の公開/SEARCH pendingを跨いで保持されず、任意コスト先読みの `freezeStoredTargets` 経路でだけ後続actionへ固定対象を焼き込む。実測では4種類成立でも `BANISH{targetsStored:true}` が空振りしたため、公開前対象固定と公開後の「それ」バニッシュを既存JSONだけで同時に満たせず未変更。必要なのは通常pending継続へ固定対象を保持/焼き込む既存機構の拡張。
+- **live JSON / curated**：WD07-007／WXK10-060／WXDi-P11-039 は build後 heldReview で採用。既存MANUAL同居の WX24-P3-050 はE2だけを外科反映。最終再buildで curated温存を確認し、HEAD比 effectId 差分は上記4効果だけ、兄弟効果・スコープ外 outlier 0。
+- **検証**：採用4効果ごとに実戦ゾーンへ発生源を置いたE2E goldenを追加し、成立/不成立を両方向固定（WD07白なし、WXK10三種類未達、WXDi白なし＋合計不一致、WX24他の自軍トリックあり）。共有 `cursor` は全テストで `try/finally` 復元。golden 836→840、census 1515→1513（4効果の機能実装。本体 `BASELINE_HIGH` と理由履歴を更新）、最終 heldReview 262枚/109署名、同型★0。
+- commit/push・PLAN/PLAN_PROGRESS編集・engine/parser/action/STUB/condition型の新設・実機ブラウザ検証・WXEX1-66の部分採用は行っていない。
+
 ## §3タスク12(xxxix) バッチ2＝対象/所有者/フィルタ脱落4効果＋バッチ1積み残し段階1（2026-07-28・Codex）
 
 - **WDK05-T01-E1**：`HAS_CARD_IN_FIELD{燃盛　遊月・鍵}` を activeCondition に復元し、付与先を相手を含む任意シグニから自分のセンタールリグへ是正。既存の動的キーワード collector がルリグ対象を捨て、ルリグダメージ経路も保存済み付与しか見ない dead-path を発見したため、collector と共通ガード応答経路を最小拡張した。

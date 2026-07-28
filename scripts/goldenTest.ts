@@ -12181,6 +12181,97 @@ test('task12(xxxix) WX24-P3-050-E1: refusing five colorless takes LIFE_CRASH bra
     eq(r.otherState.life_cloth.length, 6, 'refusal executes LIFE_CRASH');
   } finally { cursor = savedCursor; }
 });
+
+test('task12(xxxix) batch3 WD07-007-E1: both color gates use the same milled-four snapshot', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WD07-007';
+    const black = findCard(c => c.Type === 'シグニ' && c.Color?.includes('黒') && !c.Color?.includes('白'));
+    const whiteMilled = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && c.CardNum !== black);
+    const whiteSearch = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && c.CardNum !== whiteMilled);
+    const fillers = [...cardMap.values()].filter(c => !c.Color?.includes('白') && c.CardNum !== black).slice(0, 3).map(c => c.CardNum);
+    const resolve = (milled: string[]) => {
+      const ctx = mkCtx({}, {}, source);
+      ctx.ownerState.field.check = source;
+      ctx.ownerState.deck = [...milled, whiteSearch];
+      ctx.ownerState.trash = [];
+      ctx.ownerState.hand = [];
+      return finish(executeEffect(manualEffect(source, 'WD07-007-E1'), ctx), ctx);
+    };
+    const noWhite = resolve([black, ...fillers]);
+    ok(noWhite.ownerState.hand.includes(black), 'black branch resolves first');
+    ok(!noWhite.ownerState.hand.includes(whiteSearch) && noWhite.ownerState.deck.includes(whiteSearch), 'white-absent branch does not search');
+    const yesWhite = resolve([black, whiteMilled, ...fillers.slice(0, 2)]);
+    ok(yesWhite.ownerState.hand.includes(black), 'black branch still resolves');
+    ok(yesWhite.ownerState.hand.includes(whiteSearch) && !yesWhite.ownerState.deck.includes(whiteSearch), 'white-present branch searches despite black branch overwriting live lastProcessed');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch3 WXK10-060-E2: conditional pick comes from the revealed three and remainder goes to bottom', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXK10-060';
+    const plants = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('植物'))
+      .filter((c, i, a) => a.findIndex(x => x.CardName === c.CardName) === i).slice(0, 3).map(c => c.CardNum);
+    eq(plants.length, 3, 'three distinct plant SIGNI exist');
+    const nonPlant = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('植物') && c.CardNum !== source);
+    const middle = findCard(c => !plants.includes(c.CardNum) && c.CardNum !== nonPlant && c.CardNum !== source);
+    const resolve = (top: string[]) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+      ctx.ownerState.deck = [...top, middle];
+      ctx.ownerState.energy = [];
+      return finish(executeEffect(manualEffect(source, 'WXK10-060-E2'), ctx), ctx);
+    };
+    const yes = resolve(plants);
+    eq(yes.ownerState.energy.length, 1, 'exactly one revealed plant moves to energy');
+    ok(plants.includes(yes.ownerState.energy[0]), 'energy card belongs to the revealed set');
+    eq(yes.ownerState.deck[0], middle, 'non-revealed card remains above the remainder');
+    ok(plants.filter(n => n !== yes.ownerState.energy[0]).every(n => yes.ownerState.deck.slice(-2).includes(n)), 'the two unpicked revealed cards return to bottom');
+    const no = resolve([plants[0], plants[1], nonPlant]);
+    eq(no.ownerState.energy.length, 0, 'condition failure picks no card');
+    eq(no.ownerState.deck[0], middle, 'condition failure still removes the revealed set from the top');
+    ok([plants[0], plants[1], nonPlant].every(n => no.ownerState.deck.slice(-3).includes(n)), 'condition failure returns all revealed cards to bottom');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch3 WXDi-P11-039-E1: bounce requires level sum ten and an actual white SIGNI discard', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P11-039';
+    const white3 = findCard(c => c.Type === 'シグニ' && c.Level === '3' && c.Color?.includes('白') && c.CardNum !== source);
+    const nonWhite3 = findCard(c => c.Type === 'シグニ' && c.Level === '3' && !c.Color?.includes('白'));
+    const nonWhite4 = findCard(c => c.Type === 'シグニ' && c.Level === '4' && !c.Color?.includes('白'));
+    const target = findCard(c => c.Type === 'シグニ' && ![source, white3, nonWhite3, nonWhite4].includes(c.CardNum));
+    const resolve = (hand: string[]) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, { signi: [target, null, null] }, source);
+      ctx.ownerState.hand = hand;
+      return finish(executeEffect(manualEffect(source, 'WXDi-P11-039-E1'), ctx), ctx);
+    };
+    const yes = resolve([white3, nonWhite3, nonWhite4]);
+    ok(yes.ownerState.trash.includes(white3), 'white SIGNI is actually discarded');
+    ok(yes.otherState.hand.includes(target) && !yes.otherState.field.signi[0], 'the preselected target is bounced');
+    const noWhite = resolve([nonWhite3, nonWhite3, nonWhite4]);
+    ok(noWhite.otherState.field.signi[0]?.includes(target) === true && !noWhite.otherState.hand.includes(target), 'no white SIGNI means no bounce');
+    const wrongSum = resolve([white3, nonWhite3]);
+    ok(wrongSum.otherState.field.signi[0]?.includes(target) === true && !wrongSum.ownerState.trash.includes(white3), 'wrong level sum does not discard or bounce');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) batch3 WX24-P3-050-E2: only absence of another own Trick downs this SIGNI', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX24-P3-050';
+    const trick = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('トリック') && c.CardNum !== source);
+    const aloneCtx = mkCtx({ signi: [source, null, null] }, { signi: [trick, null, null] }, source);
+    const alone = finish(executeEffect(manualEffect(source, 'WX24-P3-050-E2'), aloneCtx), aloneCtx);
+    eq(alone.ownerState.field.signi_down[0], true, 'opponent Trick does not satisfy your-field condition; this SIGNI downs');
+    eq(alone.otherState.field.signi_down[0], false, 'opponent SIGNI is untouched');
+    const allyCtx = mkCtx({ signi: [source, trick, null] }, {}, source);
+    const ally = finish(executeEffect(manualEffect(source, 'WX24-P3-050-E2'), allyCtx), allyCtx);
+    eq(ally.ownerState.field.signi_down[0], false, 'another own Trick prevents self-down');
+    eq(ally.ownerState.field.signi_down[1], false, 'the other Trick is never downed');
+  } finally { cursor = savedCursor; }
+});
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
