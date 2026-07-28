@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 効果で場に出したシグニの一般のmandatory【出】1437効果を配線（2026-07-28・Codex）
+
+- `collectPlacedSelfOnPlayTriggers` の段階1限定を撤去し、一般の自身【出】を効果配置でも収集するようにした。対象は mandatory 1437効果（条件なし1419／条件あり18）ちょうど。`mandatory:false` はcost有無を問わず明示除外し、任意costあり933効果と段階3在庫65効果は非変更。
+- `phase1Only` と `fieldPlacementOnPlayOpts` の `topIsRevealUntil` 特例を型・呼び出し・collectorから削除。通常召喚の payment diff は引き続きcollectorへopt-inせず、`REVEAL_UNTIL_TO_FIELD` は統合collectorから1件だけ積む。
+- golden（882→887）は、対象集合と除外集合、実在する抑止付き `WX02-028-BURST`、`scope:any` の WX19-051/052/053 各1件、`twice_per_turn` の3回目抑止、WX17-026→WX02-070の2段【出】連鎖を固定。全テストで共有 `cursor` をsave/restore。
+- 連鎖は `ADD_TO_FIELD` が空きゾーンだけを候補にし、空き0なら配置しない非置換実装を再確認。2段連鎖goldenでも既存2体を維持したまま3枠目だけを使用した。
+- 原文15効果を安定擬似無作為抽出で目視し、すべて自身の【出】／【クロス出】ブロック、watcher主語なし、抑止文なしと確認。新たな誤分類は0。
+- 検証：`npm run regen` 同型★0、`npm run gates` 全緑（typecheck、golden 887、smoke 10726/10726、fuzz全異常0、census 1498維持、manual-fields 0、lint 0 errors/234 warnings）。⚠smoke/fuzzはBattleScreenのcollector配線を通らないため、安全性の根拠は追加goldenとコード照合。
+- heldは `build:effects`→`heldReview` 再実行で264枚/113署名。提示ベースライン262より+2（WX07-001／WXEX2-58が値/構造差グループへ出現）だが、本バッチはparser/JSONを変更せず、生成JSON差分も0のため非採用・生成レポートはHEADへ復元。lint 234 warningはベースライン同数で新規0。
+- **⚠Opus 検証で判明＝この held +2 は「無関係」ではなく、直前の watcher バッチ（commit `55144b6f`）が残した実バグだった**。`WX07-001-E1` と `WXEX2-58-E2` の `triggerFilter.cardType` が **JSON 側で文字化けして `"???"` になっていた**（parser は正しく `レゾナ` を出力）。`matchesFilter` が `"???"` に一致することは無いので、**[A] として配線したはずの watcher が2件とも永久不発**になっていた。外科パッチで `レゾナ` へ是正し、held は 262枚へ復帰・JSON 内の `?` 残存 0 を確認。
+  - **教訓1＝`build:effects` 再実行で JSON 差分が0でもドリフトが無い証明にはならない。**held は「curated を温存した＝fresh と食い違う」カードなので、**差分0かつ held 増**という組み合わせが起きる。Opus は前バッチでこの取り違えをして「ドリフト無し」と結論していた。**held は必ず枚数で比較する。**
+  - **教訓2＝非ASCII 値を JSON へ書くパッチは文字化けし得る**（[[feedback_powershell_encoding]] と同型）。**外科パッチ後は `grep '?' effects_*.json` で置換漏れ・化けを機械確認する。**
+- やっていないこと：任意costあり933効果、段階3の65効果、タスク12(lv)、WX19-051/052/053のデータ変更、新action/STUB/timing、JSON、PLAN/PLAN_PROGRESS、commit/push、ブラウザ実機対戦。
+
 ## ON_PLAY watcher 34効果の `triggerScope:self` 誤分類を是正（2026-07-28・Codex）
 
 - CSV原文を34件全数照合し、既存語彙だけで忠実化できる30件を [A]（`any_ally` 28件／`any_opp` 2件＋story/color/cardName/Cross/Rise/excludeSelf filter＋byEffect/bySigniEffect/placedFromTrash/placedDown/duringMainPhase/turnOwner condition）として配線した。[B]4件（WX08-042-E2＝エナ由来、WX14-024-E2/WXEX1-15-E1＝手札以外由来、WXDi-P07-058-E1＝【出】能力保有）は限定語彙が無いため `timing:[]` で安全停止。[C]0件。

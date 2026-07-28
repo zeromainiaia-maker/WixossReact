@@ -2641,11 +2641,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const fieldPlacementOnPlayOpts = (effect?: CardEffect): {
     collectPlacedSelfOnPlay: boolean;
-    phase1Only: boolean;
     suppressOnPlay: boolean;
   } => {
-    if (!effect) return { collectPlacedSelfOnPlay: false, phase1Only: true, suppressOnPlay: false };
-    const topIsRevealUntil = effect.action.type === 'REVEAL_UNTIL_TO_FIELD';
+    if (!effect) return { collectPlacedSelfOnPlay: false, suppressOnPlay: false };
     const visit = (value: unknown): boolean => {
       if (!value || typeof value !== 'object') return false;
       const action = value as Record<string, unknown>;
@@ -2658,8 +2656,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
     return {
       collectPlacedSelfOnPlay: true,
-      // 段階1。REVEAL_UNTIL_TO_FIELD だけは従来どおり一般の自身【出】も収集する。
-      phase1Only: !topIsRevealUntil,
       suppressOnPlay: visit(effect.action),
     };
   };
@@ -2689,7 +2685,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       fieldTrashCostCards?: string[];
       resonaConditionCardNum?: string;
       collectPlacedSelfOnPlay?: boolean;
-      phase1Only?: boolean;
       suppressOnPlay?: boolean;
     },
   ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
@@ -2970,7 +2965,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, h, g, bs.host_id, {
           placedByEffect: true,
           sourceIsSigni: placeSourceIsSigni,
-          phase1Only: meta.phase1Only !== false,
           suppressOnPlay: meta.suppressOnPlay,
         });
         entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
@@ -2984,7 +2978,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, g, h, bs.guest_id, {
           placedByEffect: true,
           sourceIsSigni: placeSourceIsSigni,
-          phase1Only: meta.phase1Only !== false,
           suppressOnPlay: meta.suppressOnPlay,
         });
         entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
@@ -6226,7 +6219,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, hostState, guestState, bs.host_id, {
               placedByEffect: true,
               sourceIsSigni: spellPlaceSourceIsSigni,
-              phase1Only: selfOnPlayOpts.phase1Only,
               suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
             });
             spellUseEntries.push(...self.entries); useSU(self);
@@ -6240,7 +6232,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, guestState, hostState, bs.guest_id, {
               placedByEffect: true,
               sourceIsSigni: spellPlaceSourceIsSigni,
-              phase1Only: selfOnPlayOpts.phase1Only,
               suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
             });
             spellUseEntries.push(...self.entries); useSU(self);

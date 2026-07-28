@@ -42,8 +42,8 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
 
 /**
  * 効果で場に出たシグニ自身の【出】を収集する。
- * phase1Only=true は「効果によって／シグニの効果によって」と明記された能力だけに絞る。
- * mandatory:false+costなしは通常召喚と同じく収集しない（タスク12(lv)＝段階3の在庫）。
+ * mandatory:false はコスト有無を問わず収集しない。コスト付き任意【出】は支払いプロンプトが
+ * 別フローのため、costなし任意【出】（タスク12(lv)＝段階3）とともにここでは扱わない。
  */
 export function collectPlacedSelfOnPlayTriggers(
   ctx: TrigCtx,
@@ -51,7 +51,7 @@ export function collectPlacedSelfOnPlayTriggers(
   controllerState: PlayerState,
   otherState: PlayerState,
   ownerId: string,
-  opts: { placedByEffect: boolean; sourceIsSigni: boolean; phase1Only: boolean; suppressOnPlay?: boolean },
+  opts: { placedByEffect: boolean; sourceIsSigni: boolean; suppressOnPlay?: boolean },
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const usedHostIds: string[] = [];
@@ -73,10 +73,9 @@ export function collectPlacedSelfOnPlayTriggers(
     if (scope !== 'self' && scope !== 'any') continue;
     const byEffect = !!eff.triggerCondition?.byEffect;
     const bySigniEffect = !!eff.triggerCondition?.bySigniEffect;
-    if (opts.phase1Only && !byEffect && !bySigniEffect) continue;
     if ((byEffect || bySigniEffect) && !opts.placedByEffect) continue;
     if (bySigniEffect && !opts.sourceIsSigni) continue;
-    if (eff.mandatory === false && !eff.cost) continue;
+    if (eff.mandatory === false) continue;
     if (eff.activeCondition && !checkActiveCondition(
       eff.activeCondition, controllerState, otherState, isOwnerTurn, ctx.cardMap, placedInstanceId,
     )) continue;

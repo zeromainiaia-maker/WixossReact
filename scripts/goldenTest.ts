@@ -12711,6 +12711,37 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(JSON.stringify(actual), JSON.stringify([...phase1Ids].sort()), `新規発火集合=${actual.length}件`);
   });
 
+  test('(xxix) 段階2の新規発火集合はmandatory 1437効果ちょうど（任意cost 933・段階3 65を除外）', () => {
+    const eligible = [...effectsMap.values()].flat().filter(e =>
+      e.effectType === 'AUTO'
+      && e.timing?.includes('ON_PLAY')
+      && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+      && e.mandatory !== false
+      && !e.triggerCondition?.byEffect
+      && !e.triggerCondition?.bySigniEffect);
+    const conditional = eligible.filter(e => !!e.condition || !!e.activeCondition);
+    const optionalCost = [...effectsMap.values()].flat().filter(e =>
+      e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+      && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+      && e.mandatory === false && !!e.cost);
+    const optionalNoCost = [...effectsMap.values()].flat().filter(e =>
+      e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+      && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+      && e.mandatory === false && !e.cost);
+    eq(eligible.length, 1437, '段階2 mandatory集合');
+    eq(eligible.length - conditional.length, 1419, '段階2 条件なし');
+    eq(conditional.length, 18, '段階2 条件あり');
+    eq(optionalCost.length, 933, '今回除外する任意costあり');
+    eq(optionalNoCost.length, 65, '段階3在庫');
+    for (const [cardNum, label] of [['WX01-007', '任意costあり'], ['WX04-041', '段階3 costなし']] as const) {
+      const state = mkState({ signi: [cardNum, null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.length, 0, `${label}をcollectorへ巻き込まない`);
+    }
+  });
+
   test('(xxix) 段階1: byEffect/bySigniEffect 10効果は実ADD_TO_FIELD後に各1件だけスタックへ積む', () => {
     const savedCursor = cursor;
     try {
@@ -12720,7 +12751,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         const bySigni = effectId.startsWith('WX15-');
         const p = placeByEffect(cardNum!, bySigni ? 'WX15-039' : findCard(c => c.Type === 'スペル'));
         const r = collectPlacedSelfOnPlayTriggers(trigCtx(), p.placed, p.after, p.other, 'host', {
-          placedByEffect: true, sourceIsSigni: bySigni, phase1Only: true,
+          placedByEffect: true, sourceIsSigni: bySigni,
         });
         eq(r.entries.filter(e => e.effectId === effectId).length, 1, `${effectId}: collector entry`);
         eq(stackCount(r.entries.filter(e => e.effectId === effectId)), 1, `${effectId}: stack entry`);
@@ -12736,7 +12767,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       const cardNum = 'WX10-081';
       const state = mkState({ signi: [cardNum, null, null] });
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
-        placedByEffect: false, sourceIsSigni: false, phase1Only: true,
+        placedByEffect: false, sourceIsSigni: false,
       });
       eq(stackCount(r.entries), 0, '通常召喚のbyEffect限定【出】スタック数');
       const normal = [...effectsMap.entries()].map(([cn, effs]) => ({
@@ -12760,9 +12791,105 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     try {
       const p = placeByEffect('WX10-081', findCard(c => c.Type === 'スペル'));
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), p.placed, p.after, p.other, 'host', {
-        placedByEffect: true, sourceIsSigni: false, phase1Only: true, suppressOnPlay: true,
+        placedByEffect: true, sourceIsSigni: false, suppressOnPlay: true,
       });
       eq(stackCount(r.entries), 0, 'suppressOnPlay時のスタック数');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) suppressOnPlay実効果: WX02-028-BURSTで配置した一般【出】は0件', () => {
+    const savedCursor = cursor;
+    try {
+      const placedCard = 'WX02-070';
+      const sourceEffect = effectsMap.get('WX02-028')?.find(e => e.effectId === 'WX02-028-BURST');
+      ok(!!sourceEffect, 'WX02-028-BURST lookup');
+      const before = mkState({ signi: [fresh(), fresh(), null] });
+      before.trash = [placedCard];
+      const result = run(sourceEffect!.action, {
+        ...mkCtx({}, {}, 'WX02-028'), ownerState: before,
+      });
+      const placed = detectPlacedSigni(before, result.ownerState);
+      eq(placed.length, 1, '抑止付き実効果の配置数');
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), placed[0], result.ownerState, result.otherState, 'host', {
+        placedByEffect: true, sourceIsSigni: false, suppressOnPlay: true,
+      });
+      eq(stackCount(r.entries), 0, '抑止付き実効果で一般【出】を積まない');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) scope:any 3効果: 自身配置collector+watcher collectorの合計は各1件', () => {
+    const savedCursor = cursor;
+    try {
+      for (const cardNum of ['WX19-051', 'WX19-052', 'WX19-053']) {
+        const state = mkState({ signi: [cardNum, null, null] });
+        const self = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
+          placedByEffect: true, sourceIsSigni: false,
+        });
+        const watcher = collectFieldTriggers(trigCtx(), 'ON_PLAY', cardNum, state, mkState(), 'host', {
+          placedByEffect: true, placeSourceIsSigni: false,
+        });
+        const effectId = `${cardNum}-E1`;
+        eq(self.entries.filter(e => e.effectId === effectId).length, 1, `${effectId}: 自身collector`);
+        eq(watcher.entries.filter(e => e.effectId === effectId).length, 0, `${effectId}: watcher側の自己除外`);
+        eq([...self.entries, ...watcher.entries].filter(e => e.effectId === effectId).length, 1, `${effectId}: 合計`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) usageLimit: scope:any《ターン2回》は効果配置3体目で積まない', () => {
+    const savedCursor = cursor;
+    try {
+      const effectId = 'WX19-051-E1';
+      const first = mkState({ signi: ['WX19-051', null, null] });
+      let r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX19-051', first, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.filter(e => e.effectId === effectId).length, 1, '1回目');
+      const second = { ...first, actions_done: [...r.usedHostIds] };
+      r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX19-051', second, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.filter(e => e.effectId === effectId).length, 1, '2回目');
+      const third = { ...second, actions_done: [...(second.actions_done ?? []), ...r.usedHostIds] };
+      r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX19-051', third, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.filter(e => e.effectId === effectId).length, 0, '3回目は上限');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) 2段連鎖: 効果配置WX17-026の【出】がWX02-070を配置し、その一般【出】も積む', () => {
+    const savedCursor = cursor;
+    try {
+      const firstCard = 'WX17-026';
+      const secondCard = 'WX02-070';
+      const firstEffect = effectsMap.get(firstCard)?.find(e => e.effectId === 'WX17-026-E3');
+      ok(!!firstEffect, 'WX17-026-E3 lookup');
+      const beforeFirst = mkState({ signi: [firstCard, fresh(), null] });
+      beforeFirst.trash = [secondCard];
+      const first = collectPlacedSelfOnPlayTriggers(trigCtx(), firstCard, beforeFirst, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(first.entries.filter(e => e.effectId === 'WX17-026-E3').length, 1, '1段目【出】');
+      const resolved = run(firstEffect!.action, {
+        ...mkCtx({}, {}, firstCard), ownerState: beforeFirst,
+      });
+      const placed = detectPlacedSigni(beforeFirst, resolved.ownerState);
+      eq(placed.length, 1, '2段目シグニの実配置');
+      eq(placed[0], secondCard, '2段目のカード');
+      const second = collectPlacedSelfOnPlayTriggers(trigCtx(), secondCard, resolved.ownerState, resolved.otherState, 'host', {
+        placedByEffect: true, sourceIsSigni: true,
+      });
+      eq(second.entries.filter(e => e.effectId === 'WX02-070-E1').length, 1, '2段目の一般【出】');
+      eq(resolved.ownerState.field.signi.filter(Boolean).length, 3, '空き3ゾーンのみ使用し既存シグニ非置換');
     } finally {
       cursor = savedCursor;
     }
@@ -12778,7 +12905,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       const placed = detectPlacedSigni(before, result.ownerState);
       eq(placed.length, 1, '公開配置1体');
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), placed[0], result.ownerState, result.otherState, 'host', {
-        placedByEffect: true, sourceIsSigni: false, phase1Only: false,
+        placedByEffect: true, sourceIsSigni: false,
       });
       eq(stackCount(r.entries.filter(e => e.effectId === 'WX10-081-E1')), 1, 'WX04-093経路の自身【出】スタック数');
     } finally {
