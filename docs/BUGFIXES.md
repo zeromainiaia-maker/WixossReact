@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxix) 残＝BET 9効果の実行時選択肢を原文照合（2026-07-28・Codex）
+
+- **真因**：`BET_MECHANIC` 自体と26選択肢の分割は正常だったが、選択肢本文を本体パーサとは別系統の `choiceTextParser.parseSingleChoiceText` が再解析し、条件・複文後半・動的フィルタを落としていた。カード別の既存分岐を狭く拡張し、新 action 型／新 STUB id は追加していない。
+- **忠実化9件**：`WX19-005-E1②`＝相手エナ4枚以上＋相手選択、同③＝3ドロー後のblind手札1枚破棄、`SPK16-13E-E1②/③`＝既存 `ENERGY_TRASHED_BY_OPP` / `HAND_TRASHED_BY_OPP` 履歴ゲート、`WX19-006-E1①`＝Lv4以上を直接トラッシュ（BANISHではない）、同③＝相手トラッシュの全スペル除外→2枚以上なら2ドロー、`PR-K072-E1①`＝DOWN→1ドロー、`WDK06-R08-E1①`＝ライズ持ちを先行対象化→`powerLtLastProcessed`、`WX16-005-E1②`＝死アクション `BLOCK_ACTION{ON_PLAY_ABILITY}` を `ADD_TO_FIELD.suppressOnPlay` へ畳み込み。
+- **安全側defer 3件**：`SPK16-13E-E1①` は「相手効果で自シグニが場を離れたターン履歴」の既存 Condition が無いため、従来の無条件BANISHを `INTERNAL_NOOP` へ停止。`PR-K072-E1②` は「この方法で場に出した個体」への `REMOVE_ABILITIES` 固定語彙が無く、場出しメリットだけの実行を避けて同じく no-op。`WDK12-007-E1①` は `ATTACH_CHARM_FROM_TRASH` がログのみ近似で、後半の相手ターン中バニッシュ耐性も未実装のため据置defer。
+- **証跡**：`tmp_choice_diff.ts` が HEAD `3fb48f53` の parser を動的bundleして全4ファミリをbefore/after比較。BET 9効果26選択肢のうち6効果が変更、共有する他3ファミリ（CHOOSE_N_FROM_LIST 6／CONDITIONAL_MULTI_CHOOSE_BY_CENTER 11／BET_ALTERNATIVE 4）は変更0。`tmp_choice_delegate_estimate.ts` によりBET 26選択肢を本体 `parseCardEffects` へ委譲した構造差を全件採取（構造同一5／差分21）。原文目視の意味試算は改善3／退化13／同一10で、現時点の一括委譲は不可。
+- **盤面golden**：条件成立/不成立の両方向（A1/A3/A4）、全スペル除外＋閾値ドロー、blind破棄、DOWN＋ドロー、Lv4直接トラッシュ、ライズ参照パワー比較を実行盤面で固定。全テストが共有 `cursor` を save/restore。golden 871→874。
+- **ゲート**：`npm run regen`＝全10 sheet＋下流再生成・同型★0。`npm run gates` 全緑＝typecheck PASS、golden 874/874、smoke 10725/10725・全0、fuzz全0、census 1510（基線差0）、manual-fields 0、lint 0 errors/222 warnings。JSON・census baseline・PLAN/PLAN_PROGRESS は非変更、commit/pushなし。
+- **⚠Opus 検証で判明（記録用・是正不要）＝`WX16-005-E1②` の `suppressOnPlay` は現時点で読まれていない**。自身【出】を積む3経路（`BattleScreen.tsx:4205`／`4638`／`6199`）はいずれも**効果のトップレベル action が `REVEAL_UNTIL_TO_FIELD` の場合しか走らず**、`ADD_TO_FIELD` 経路は自身【出】をそもそも発火させない（＝(xxix) の残項目「ADD_TO_FIELD 自身【出】が未発火」そのもの）。よって抑止は既定で満たされており**挙動は原文どおり**だが、置き換え前の死アクション `BLOCK_ACTION{ON_PLAY_ABILITY}` と同じく**flag も未消費**である点は変わらない（宣言として意図が読める分だけ改善）。**ADD_TO_FIELD の自身【出】を配線する際は、この flag の消費を同時に入れないと「【出】は発動しない」と書かれたカードで発動してしまう。**
+- **Opus 独立検証**：4ファミリ30効果を baseline `3fb48f53` の parser と突き合わせる自前スクリプトで再現し、**BET 6効果変更／他3ファミリ outlier 0** を確認（codex 申告と一致）。`INTERNAL_NOOP` は新規追加ではなく既存 STUB（`execStubPart1.ts:93` が `done(ctx)`）であることも確認。`PR-K072-E1②` の defer 理由も妥当＝`RemoveAbilitiesAction` には `targetsLastProcessed` が無く（`targetsTriggerSource` のみ）、配置した個体を指す手段が実在しない。
+
 ## §3タスク12(xxix)＝「ルリグかシグニ union ＋ escapeDiscard」16効果と negated_attacks 規約の統一（2026-07-28・codex-work実装／Opus検証・是正）
 
 - **PLAN の「⛔§6.3級＝新機構が要る」は stale だった**。投入前実測で、union 対象型 `CENTER_LRIG_OR_SIGNI`（`effects.ts:522`・executor 3箇所で候補生成）も unless 機構 `NegateAttackAction.escapeDiscard`（`effects.ts:748`→`negated_attacks_escape`→`BattleScreen` の回避モーダル→`attackNegation.resolveNegateEscapeChoice`）も**engine に実在**しており、`escapeDiscard` を持つ効果が全 JSON で2件（`WX24-D3-25`／`SPDi37-06` の manual）しかない＝**逐語一致の同文が他に12件あって全部 parser で落ちていた**ことが判明した。今回の実体は新機構ではなく parser の穴埋め。

@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・是正3件）＝§3 タスク12(xxix) の union/unless 系統を消化**（golden 868→871・census 1511→**1510**・JSON は16効果＋held採用3枚のみ変更）
+  - **PLAN の「⛔§6.3級＝新機構が要る」が stale だった**＝投入前実測で union 対象型 `CENTER_LRIG_OR_SIGNI`（`effects.ts:522`）も unless 機構 `escapeDiscard`（`effects.ts:748`→`negated_attacks_escape`→回避モーダル→`attackNegation.ts`）も**engine に全部実在**。`escapeDiscard` 持ちが全 JSON で2件（manual の `WX24-D3-25`／`SPDi37-06`）しかなく、**逐語一致の同文が他に12件あって全部 parser で落ちていた**だけ。**「§6.3級」と書かれた在庫でも、投げる前に機構の実在を grep で確かめる価値が高い**（CODEX_GUIDE §3-3）。
+  - **群A 12効果**＝ライフバーストの三重バグ（①シグニ限定に潰れ**ルリグアタックを止められない** ②`escapeDiscard` 欠落で**相手が手札3枚捨てても回避できない** ③余計な `STUB TARGET_ONLY` で**対象を2回選ばせる**）を manual 2枚の正準形へ統一。**群B 4効果**＝「アタックできない」付与の union 脱落（判定が「センタールリグ」表記必須だった）。
+  - **⚠Opus 検証で見つけた半端移行を是正**＝`negated_attacks` の保存先規約が**2系統に割れていた**（書き手4つのうち `NEGATE_THAT_ATTACK` だけ逆側／読み手もシグニ経路は `op`・ルリグ経路は `my` と不一致）。codex は読み手だけ統一したため、そのままでは `WXEX2-17-E1`／`WXDi-D06-010-E1` が no-op 化していた。書き手を統一し規約を golden で固定（修正を戻すと当該 golden が実 FAIL することを確認）。**「同型の配線が複数箇所にある」失敗モードの再現＝経路の全書き手/全読み手を数えるまで受け入れない**。
+  - **副産物＝`REMOVE_ABILITIES` の「N体まで」未実装**。census が +1 したのを追うと、原因は**計器のマスクが剥がれたこと**＝census のキー `'upTo'` が無意味な `upToCount:false` にも部分一致して「対応済み」に見えていた偽陰性だった。上限選択を実装し4効果が原文どおり**2体まで**消せるように（従来は常に1体）。**census の増加は退化とは限らず、真の欠落の可視化のことがある**。
+  - **`WXDi-P15-091` はカード単位 PRESERVE**（同居 E1 が MANUAL）＝PLAN:44 の正規手順どおり `effectId` アンカーの外科パッチで JSON を訂正し、codex が代替に置いた `manualEffects.ts` の同形 override は二重管理になるため撤去。
+  - **defer 4件を §6.3 へ**＝`SPDi43-24-E2`（遅延トリガー）／`WX24-P1-041-E2`（文字列 keyword が engine 未評価）／`WX24-P1-006-E1`（DOWN 版 unless）／`WX12-005-E1`（action 全体が未 parse）。
+  - **次の一手**＝**Opus：(xxix) 残（BET 9件・ADD_TO_FIELD 自身【出】未発火）／(xliv)・(xlii) の残／§6.3 残機構（H1〜H3・I）／タスク14 の残43／タスク16 の `cost.underSelfTrash` 未配線16効果**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火＋アーツ使用条件20枚＋🆕本バッチのルリグアタック無効化・回避モーダルの実機確認（今回は golden のみ）**。
+
+
 - **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・差し戻し1）＝§3 タスク12(lvi) を完全クローズ（3バッチ）**（golden 844→868・census 1511 据置・JSON変更は4 effectId の condition のみ）
   - **(lvi) の在庫が 0 になった**＝PLAN 記載は「12効果」だったが**実測21効果**（`appearanceCondition` 欠落9件は未登録の新規発見）。`mergeManualEffects`（`manualEffects.ts:4711`）は **effectId 単位の完全置換**なので、manual に書かれていないトップレベルフィールドが消える。
   - **バッチ1（21効果復元＋常設ゲート）**＝欠落フィールドを CSV 原文照合のうえ manual へ明示復元（cost 10／cost+condition 1／timing 1／appearanceCondition 9・defer 0）。再発防止に `scripts/checkManualFieldLoss.ts`＋`npm run check:manual-fields` を新設し `runGates.mjs` へ組み込み（許可リストなし）。

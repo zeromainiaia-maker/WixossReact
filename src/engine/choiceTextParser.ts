@@ -16,10 +16,10 @@ import type {
   AddToLifeAction,
   EnergyChargeFromDeckAction,
   AddToFieldAction,
-  BlockActionAction,
   SearchAction,
   ShuffleDeckAction,
   BloodCrystalArmorAction,
+  ExileAction,
 } from '../types/effects';
 
 export interface ParsedChoiceOption {
@@ -51,23 +51,69 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   }
   // 「トラッシュから、レベルが場にある【ウィルス】の数以下のシグニ１枚を対象とし、それを場に出す。そのシグニの【出】能力は発動しない」（WX16-005②）
   if (choiceTxt.match(/トラッシュから.*レベルが場にある【ウィルス】の数以下のシグニ[１1]枚を対象とし.*場に出す/)) {
-    const steps: EffectAction[] = [
-      {
-        type: 'ADD_TO_FIELD', owner: 'self',
-        source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', levelLteFieldVirusCount: true } },
-      } as AddToFieldAction,
-    ];
-    if (choiceTxt.match(/【出】能力は発動しない/)) {
-      steps.push({
-        type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 },
-        actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN',
-      } as BlockActionAction);
-    }
-    return steps.length === 1 ? steps[0] : ({ type: 'SEQUENCE', steps } as SequenceAction);
+    return {
+      type: 'ADD_TO_FIELD', owner: 'self',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', levelLteFieldVirusCount: true } },
+      ...(choiceTxt.match(/【出】能力は発動しない/) ? { suppressOnPlay: true } : {}),
+    } as AddToFieldAction;
+  }
+  // SPK16-13E①: 対戦相手効果による「自シグニが場を離れた」ターン履歴は既存 Condition に無い。
+  // 無条件バニッシュを続けず、選択肢を残したまま安全側 no-op で honest defer する。
+  if (choiceTxt.match(/このターンに対戦相手の効果によってあなたのシグニが場を離れていた場合/)) {
+    return ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction;
   }
   // 「手札がN枚より少ない分だけカードを引く」→ STUB(DRAW_UP_TO_N)（SPK16-13E③用。通常のDRAWより先に判定）
   if (choiceTxt.match(/手札が[６6]枚より少ない分だけカードを引く/)) {
-    return ({ type: 'STUB', id: 'DRAW_UP_TO_SIX' } as StubAction) as EffectAction;
+    const drawUp = ({ type: 'STUB', id: 'DRAW_UP_TO_SIX' } as StubAction) as EffectAction;
+    return choiceTxt.match(/このターンに対戦相手の効果によってあなたの手札からカードがトラッシュに移動していた場合/)
+      ? {
+          type: 'CONDITIONAL',
+          condition: { type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 },
+          then: drawUp,
+        } as EffectAction
+      : drawUp;
+  }
+  // WX19-006③: 相手トラッシュの全スペルを除外し、実際に2枚以上除外した場合だけ2枚引く。
+  if (choiceTxt.match(/対戦相手のトラッシュにあるすべてのスペルをゲームから除外する/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'EXILE',
+          target: { type: 'TRASH_CARD', owner: 'opponent', count: 'ALL', filter: { cardType: 'スペル' } },
+        } as ExileAction,
+        {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 2 },
+          then: { type: 'DRAW', owner: 'self', count: 2 } as DrawAction,
+        } as EffectAction,
+      ],
+    } as SequenceAction;
+  }
+  // WX19-005③: 3枚引いた後、相手がこちらの手札を見ずに1枚選んで捨てさせる。
+  if (choiceTxt.match(/カードを[３3]枚引く。.*対戦相手はあなたの手札を[１1]枚見ないで選び/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'DRAW', owner: 'self', count: 3 } as DrawAction,
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1, blind: true } } as TrashAction,
+      ],
+    } as SequenceAction;
+  }
+  // PR-K072①: ダウンとドローの複文。汎用 DRAW より先に復元する。
+  if (choiceTxt.match(/対戦相手のシグニ[１1]体を対象とし.*ダウンする。カードを[１1]枚引く/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction,
+        { type: 'DRAW', owner: 'self', count: 1 } as DrawAction,
+      ],
+    } as SequenceAction;
+  }
+  // PR-K072②は「この方法で場に出した個体」への能力喪失を既存 action/filter だけでは固定できない。
+  // メリット側だけの実行を避け、選択肢を安全側 no-op として残す（新語彙は本バッチで作らない）。
+  if (choiceTxt.match(/手札から＜調理＞のシグニ[１1]枚を場に出す。.*そのシグニは能力を失う/)) {
+    return ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction;
   }
   // 「カードをN枚引く。…＜クラス＞のシグニをM枚捨てないかぎり、カードをK枚捨てる」（WXK04-014①。汎用DRAWより先に判定）
   const drawUnlessM = choiceTxt.match(/カードを([１-９1-9])枚引く。[^。]*＜([^＞]+)＞のシグニを[１-９1-9]枚捨てないかぎり、カードを([１-９1-9])枚捨てる/);
@@ -90,7 +136,14 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   // 「あなたのデッキの上からカードをN枚エナゾーンに置く」
   const deckEnergyM = choiceTxt.match(/デッキの上からカードを([０-９\d]+)枚エナゾーンに置く/);
   if (deckEnergyM) {
-    return { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseInt(toHW(deckEnergyM[1])) } as EnergyChargeFromDeckAction;
+    const charge = { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseInt(toHW(deckEnergyM[1])) } as EnergyChargeFromDeckAction;
+    return choiceTxt.match(/このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに置かれていた場合/)
+      ? {
+          type: 'CONDITIONAL',
+          condition: { type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: 1 },
+          then: charge,
+        } as EffectAction
+      : charge;
   }
   // 「あなたのデッキの一番上のカードをライフクロスに加える」
   if (choiceTxt.match(/デッキの一番上のカードをライフクロスに加える/) && !choiceTxt.match(/取り除く/)) {
@@ -113,9 +166,12 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/対戦相手のシグニ[１1]体を対象とし.*ダウン/)) {
     return { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as DownAction;
   }
-  // 「対戦相手のシグニ1体をトラッシュに置く」→ BANISHの近似（レベル制限等は近似で無視）
-  if (choiceTxt.match(/対戦相手の.*シグニ[１1]体.*トラッシュに置く/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+  // WX19-006①: 「トラッシュに置く」はバニッシュではない。レベル4以上も保持する。
+  if (choiceTxt.match(/対戦相手のレベル[４4]以上のシグニ[１1]体を対象とし.*トラッシュに置く/)) {
+    return {
+      type: 'TRASH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', level: { min: 4 } } },
+    } as TrashAction;
   }
   // 「ルリグによってダメージを受けない」→ PREVENT_LRIG_DAMAGE_THIS_TURN
   if (choiceTxt.match(/ルリグ.*ダメージを受けない|ダメージを受けない.*ルリグ/)) {
@@ -149,10 +205,21 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/対戦相手は手札を[１1]枚捨てる/)) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as TrashAction;
   }
-  // 「対戦相手は自分のエナゾーンからカードN枚…トラッシュに置く」（枚数条件は許容近似で無条件実行）
+  // WX19-005②: 相手が自分のエナ2枚を対象にし、相手エナが4枚以上ならトラッシュへ。
   const oppEnergyTrashM = choiceTxt.match(/対戦相手は自分のエナゾーンからカード([０-９\d]+)枚.*トラッシュに置く/);
   if (oppEnergyTrashM) {
-    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: parseInt(toHW(oppEnergyTrashM[1])) } } as TrashAction;
+    const trash = {
+      type: 'TRASH',
+      target: { type: 'ENERGY_CARD', owner: 'opponent', count: parseInt(toHW(oppEnergyTrashM[1])) },
+      opponentSelects: true,
+    } as TrashAction;
+    return choiceTxt.match(/対戦相手のエナゾーンにカードが[４4]枚以上ある場合/)
+      ? {
+          type: 'CONDITIONAL',
+          condition: { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 4 },
+          then: trash,
+        } as EffectAction
+      : trash;
   }
   // 「あなたのすべてのシグニのパワーを＋N」
   const pwAllPlusM = choiceTxt.match(/あなたのすべてのシグニのパワーを[＋+]([０-９\d]+)/);
@@ -278,9 +345,22 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
       then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
     } as EffectAction;
   }
-  // 「N体よりパワーの低い対戦相手のシグニ1体をバニッシュする」（WDK06-R08①。パワー比較なし近似。通常バニッシュより先に判定）
-  if (choiceTxt.match(/[１1]体よりパワーの低い.*バニッシュ/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+  // WDK06-R08①: 先に自分のライズアイコン持ちを対象化し、その個体未満のパワーだけを候補にする。
+  if (choiceTxt.match(/《ライズアイコン》を持つシグニ[１1]体よりパワーの低い.*バニッシュ/)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'STUB',
+          id: 'SELECT_TARGET_ONLY',
+          selectTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', hasIcon: 'ライズ' } },
+        } as StubAction,
+        {
+          type: 'BANISH',
+          target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtLastProcessed: true } },
+        } as BanishAction,
+      ],
+    } as SequenceAction;
   }
   // 「バニッシュする」（パワー制限なし、または以上）
   if (choiceTxt.match(/シグニ[１1]体.*バニッシュする/)) {

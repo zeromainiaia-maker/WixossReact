@@ -43,6 +43,7 @@ import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects } from '../src/screens/battle/attackDuration';
+import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
@@ -12591,6 +12592,94 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'アタッカー側（otherState）へ登録される');
     ok(!(r.ownerState.negated_attacks ?? []).includes(attackerNum),
       '効果使用者（防御側 ownerState）へは積まない');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxix) BET choices: 条件成立/不成立を両方向で盤面固定（A1/A3/A4）', () => {
+  const savedCursor = cursor;
+  try {
+    const wx19005 = (cardMap.get('WX19-005')?.EffectText ?? '');
+    const spk = (cardMap.get('SPK16-13E')?.EffectText ?? '');
+    const energyGate = parseChoiceOptionsFromText(wx19005)[1].action;
+    const energyChargeGate = parseChoiceOptionsFromText(spk)[1].action;
+    const drawGate = parseChoiceOptionsFromText(spk)[2].action;
+
+    const eNo = run(energyGate, mkCtx({}, { energy: 3, trash: 0 }));
+    eq(eNo.otherState.energy.length, 3, 'A1不成立: 相手エナ3枚は維持');
+    const eYes = run(energyGate, mkCtx({}, { energy: 4, trash: 0 }));
+    eq(eYes.otherState.energy.length, 2, 'A1成立: 相手が選んだ2枚をトラッシュ');
+    eq(eYes.otherState.trash.length, 2, 'A1成立: トラッシュが2枚増える');
+
+    const ecNoCtx = mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2, SIGNI_L3], energy: 0 }, {});
+    const ecNo = run(energyChargeGate, ecNoCtx);
+    eq(ecNo.ownerState.energy.length, 0, 'A3不成立: エナチャージしない');
+    const ecYesCtx = { ...mkCtx({ deckTop: [SIGNI_L1, SIGNI_L2, SIGNI_L3], energy: 0 }, {}), ownerState: { ...ecNoCtx.ownerState, energy_trashed_by_opp_this_turn: 1 } };
+    const ecYes = run(energyChargeGate, ecYesCtx);
+    eq(ecYes.ownerState.energy.length, 3, 'A3成立: デッキ上3枚をエナへ');
+
+    const dNoCtx = mkCtx({ hand: 2 }, {});
+    const dNo = run(drawGate, dNoCtx);
+    eq(dNo.ownerState.hand.length, 2, 'A4不成立: 6枚まで引かない');
+    const dYesCtx = { ...mkCtx({ hand: 2 }, {}), ownerState: { ...dNoCtx.ownerState, hand_trashed_by_opp_this_turn: 1 } };
+    const dYes = run(drawGate, dYesCtx);
+    eq(dYes.ownerState.hand.length, 6, 'A4成立: 手札6枚まで引く');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxix) BET choices: 脱落サブアクションが盤面を変える（B1/B2/B3）', () => {
+  const savedCursor = cursor;
+  try {
+    const wx19006 = cardMap.get('WX19-006')?.EffectText ?? '';
+    const wx19005 = cardMap.get('WX19-005')?.EffectText ?? '';
+    const prk072 = cardMap.get('PR-K072')?.EffectText ?? '';
+    const exileDraw = parseChoiceOptionsFromText(wx19006)[2].action;
+    const drawBlindTrash = parseChoiceOptionsFromText(wx19005)[2].action;
+    const downDraw = parseChoiceOptionsFromText(prk072)[0].action;
+    const spell1 = findCard(c => c.Type === 'スペル');
+    const spell2 = findCard(c => c.Type === 'スペル' && c.CardNum !== spell1);
+    const nonSpell = findCard(c => c.Type === 'シグニ' && c.CardNum !== spell1 && c.CardNum !== spell2);
+
+    const exBase = mkCtx({ hand: 0 }, { trash: 0 });
+    exBase.otherState = { ...exBase.otherState, trash: [spell1, spell2, nonSpell] };
+    const ex = run(exileDraw, exBase);
+    ok(!ex.otherState.trash.includes(spell1) && !ex.otherState.trash.includes(spell2), 'B1スペル2枚を除外');
+    ok(ex.otherState.trash.includes(nonSpell), 'B1非スペルは相手トラッシュに残る');
+    eq(ex.ownerState.hand.length, 2, `B1 2枚以上除外したので2ドロー logs=${JSON.stringify(ex.logs)} last=${JSON.stringify(ex.lastProcessedCards)}`);
+
+    const blindBase = mkCtx({ hand: 2 }, {});
+    const blind = run(drawBlindTrash, blindBase);
+    eq(blind.ownerState.hand.length, 4, 'B2 3ドロー後にblind 1枚破棄（純増2）');
+    eq(blind.ownerState.trash.length, blindBase.ownerState.trash.length + 1, 'B2 blind破棄がトラッシュを増やす');
+
+    const victim = SIGNI_L2;
+    const downBase = mkCtx({ hand: 0 }, { signi: [victim, null, null], down: [false, false, false] });
+    const down = run(downDraw, downBase);
+    ok(down.otherState.field.signi_down?.[0], 'B3 相手シグニをダウン');
+    eq(down.ownerState.hand.length, 1, 'B3 1ドロー');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxix) BET choices: 対象フィルタと移動種別を盤面固定（C1/C2）', () => {
+  const savedCursor = cursor;
+  try {
+    const wx19006 = cardMap.get('WX19-006')?.EffectText ?? '';
+    const wdk06 = cardMap.get('WDK06-R08')?.EffectText ?? '';
+    const trashLv4 = parseChoiceOptionsFromText(wx19006)[0].action;
+    const lowerThanRise = parseChoiceOptionsFromText(wdk06)[0].action;
+    const c1Base = mkCtx({}, { signi: [SIGNI_L3, SIGNI_L4, null], trash: 0 });
+    const c1 = run(trashLv4, c1Base);
+    ok(tops(c1.otherState).includes(SIGNI_L3), 'C1 レベル3は対象外');
+    ok(!tops(c1.otherState).includes(SIGNI_L4), 'C1 レベル4は場からトラッシュ');
+    ok(c1.otherState.trash.includes(SIGNI_L4), 'C1 バニッシュでなく直接トラッシュ');
+    eq(c1.otherState.energy.length, c1Base.otherState.energy.length, 'C1 バニッシュ先エナへ送らない');
+
+    const rise = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【ライズ】'));
+    const high = findCard(c => c.Type === 'シグニ' && parseInt(c.Power || '0') >= 12000 && c.CardNum !== rise);
+    const low = findCard(c => c.Type === 'シグニ' && parseInt(c.Power || '0') > 0 && parseInt(c.Power || '0') < parseInt(cardMap.get(rise)?.Power || '0'));
+    const c2Base = mkCtx({ signi: [rise, null, null] }, { signi: [high, low, null] });
+    const c2 = run(lowerThanRise, c2Base);
+    ok(tops(c2.otherState).includes(high), 'C2 参照シグニ以上のパワーは対象外');
+    ok(!tops(c2.otherState).includes(low), `C2 参照シグニ未満だけをバニッシュ rise=${rise}:${cardMap.get(rise)?.Power} high=${high}:${cardMap.get(high)?.Power} low=${low}:${cardMap.get(low)?.Power} logs=${JSON.stringify(c2.logs)} last=${JSON.stringify(c2.lastProcessedCards)}`);
   } finally { cursor = savedCursor; }
 });
 
