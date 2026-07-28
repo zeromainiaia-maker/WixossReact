@@ -11990,6 +11990,60 @@ test('task12(xxii) WXDi-P13-003A-E1: 代償を払わず効果全体をUNKNOWNに
   } finally { cursor = savedCursor; }
 });
 
+test('task12(xxxix) WX24-P3-050-E1: live signi opens MB; burst/no-burst branches and no-burst cancels current attack', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX24-P3-050';
+    const chiyori = findCard(c => c.CardName === 'ちより　第三章');
+    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
+    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const effect = manualEffect(source, 'WX24-P3-050-E1');
+    const resolveWithMb = (mb: string) => {
+      const ctx = mkCtx({ signi: [source, chiyori, null] }, { life: 7, energy: 5 }, source);
+      ctx.ownerState.field.signi_magic_boxes = [mb, null, null];
+      return finish(executeEffect(effect, ctx), ctx);
+    };
+    const withBurst = resolveWithMb(burst);
+    ok(withBurst.done, 'LB branch completes');
+    if (!withBurst.done) return;
+    eq(withBurst.ownerState.cancel_current_signi_attack, undefined, 'LB branch does not cancel attack');
+    const withoutBurst = resolveWithMb(noBurst);
+    ok(withoutBurst.done, 'non-LB branch completes');
+    if (!withoutBurst.done) return;
+    eq(withoutBurst.ownerState.cancel_current_signi_attack, true, 'non-LB branch sets attacker cancel flag');
+    eq(withoutBurst.otherState.life_cloth.length, 7, 'opponent payment of five colorless prevents damage');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxxix) WX24-P4-067-E1: live signi opens MB; non-LB cancels attack and trashes only opponent-lrig nonmatching energy', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WX24-P4-067';
+    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
+    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const whiteLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('白'));
+    const white = findCard(c => c.Color?.includes('白') && c.Type === 'シグニ');
+    const red = findCard(c => c.Color?.includes('赤') && !c.Color?.includes('白') && c.Type === 'シグニ');
+    const effect = manualEffect(source, 'WX24-P4-067-E1');
+    const resolveWithMb = (mb: string) => {
+      const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+      ctx.ownerState.field.signi_magic_boxes = [mb, null, null];
+      ctx.otherState.field.lrig = [whiteLrig];
+      ctx.otherState.energy = [white, red, red, red];
+      return finish(executeEffect(effect, ctx), ctx);
+    };
+    const withBurst = resolveWithMb(burst);
+    ok(withBurst.done, 'LB branch completes');
+    if (!withBurst.done) return;
+    eq(withBurst.ownerState.cancel_current_signi_attack, undefined, 'LB branch does not cancel attack');
+    const withoutBurst = resolveWithMb(noBurst);
+    ok(withoutBurst.done, 'non-LB branch completes');
+    if (!withoutBurst.done) return;
+    eq(withoutBurst.ownerState.cancel_current_signi_attack, true, 'non-LB branch sets attacker cancel flag');
+    eq(withoutBurst.otherState.energy.filter(cn => cn === white).length, 1, 'white energy matching opponent center lrig remains');
+    eq(withoutBurst.otherState.energy.filter(cn => cn === red).length, 0, 'three nonmatching red energy cards are trashed');
+  } finally { cursor = savedCursor; }
+});
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

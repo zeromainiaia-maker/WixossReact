@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxxix) バッチ1＝マジックボックス攻撃時2効果の攻撃無効化＋後続限定を忠実化（2026-07-28・Codex）
+
+- **WX24-P3-050-E1**：LBなし枝を `SEQUENCE[SET_CANCEL_ATTACK_FLAG, OPPONENT_PAY_OPTIONAL{無×5}, CONDITIONAL{PAID_ADDITIONAL_COST→LIFE_CRASH}]` へ修正。executor の既存 look-ahead 規約により、相手が支払わない場合だけ `LIFE_CRASH{triggerBurst:true}` を実行する。LBあり枝・《ちより　第三章》条件・MB非公開時は両枝不発、という既存挙動は維持した。
+- **WX24-P4-067-E1**：LBなし枝の先頭へ `SET_CANCEL_ATTACK_FLAG` を追加し、相手エナ対象へ `filter.colorNotMatchesLrig:true` を付与。ENERGY_CARD 経路の `resolveDynamicFilter` は対象オーナー（相手）のセンタールリグ色を基準に `colorExclude` へ解決する。
+- **WX24-P3-069-E1 は見送り**：既存 `GUARD_EXTRA_COST_BY_OPP` は実際にガード経路から徴収されるが、`collectOppGuardExtraColorlessCost` が boolean を返し、Guard UI／確定処理も追加エナ1枚固定である。原文の《無》×3を既存機構だけでは表現できず、新機構禁止のため不正確な部分採用をしなかった。現行の攻撃無効化脱落・付与先相手ルリグ・生文字列keyword no-opは未修正のまま。
+- **golden**：発生源を実戦同様 `field.signi` に置き、同ゾーンMBを実際に公開して、採用2効果それぞれのLBあり／LBなしを実行。LBなしで `cancel_current_signi_attack=true`、050は相手の無×5支払い時にダメージなし、067は相手センタールリグと共通色のエナを残して非共通色3枚だけをトラッシュすることを固定。全テストで共有 `cursor` をsave/restoreした。
+- **live JSON**：`manualEffects.ts` の effectId override を `npm run build:effects` 後に `heldReview --adopt` で採用。effectId単位diffは上記2効果だけ、兄弟効果・他カード巻き添え0。
+- commit/push・PLAN/PLAN_PROGRESS編集・engine/parser/decompiler変更・新action/STUB/condition追加・実機ブラウザ検証・WX24-P3-069の部分修正は行っていない。
+
 ## 続き296＝§3タスク12(xxii) 群B 3効果を過剰実行なしでクローズ可能化（2026-07-28・Codex）
 
 - **WX15-067-E1（メルト・ファクト）**：誤った `CONDITIONAL{IS_MY_TURN}` と空の reminder STUB を撤去。ウィルス任意除去／黒×2軽減／2個除去時2択までの節は原文全文を `UNKNOWN` に保持し、その後へ本体 `CHOOSE{1/2}`（黒シグニ1枚をトラッシュ→手札／相手シグニ1体をターン終了時まで-7000）を復元した。任意除去を行わなくても本体を使えるため、本体だけは安全に実装できる。
