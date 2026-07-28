@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## タスク16 検証時の追加是正＝`PR-461` の effectId 対応ズレ（2026-07-28・Opus）
+
+- **codex の [C] 判定（`PR-461-E2` は真の【出】なので `ON_PLAY` 維持）は正しかった**。Opus 側が「effectId↔原文の対応表（`docs/_effect_srctext.json`）」を信用して一度は誤りと判断したが、**JSON の `PR-461-E2` に格納されている action は実際に【出】の本体**（デッキからシグニ3枚をサーチして場に出す）だった。**effectId で照合するときは、原文表ではなく JSON 側の action 本体を読む**。
+- ただしその過程で**別の実バグを発見**＝`PR-461`（ルリグ《風月の巫女　タマヨリヒメ》）の curated JSON は**effectId の対応が1つズレていた**。原文は【常】ダブルクラッシュ／【自】アタック時／【出】サーチの3ブロックだが、curated は2効果しか持たず **E1 のスロットに【自】の本体が `timing` なしの `CONTINUOUS` として入り、E2 に【出】が入り、【常】ダブルクラッシュは丸ごと欠落**していた。
+- **実害2点**＝①**ダブルクラッシュが機能しない**（ライフクラッシュ枚数が原文より少ない）②**【自】が timing 無しで永久不発**（「このルリグがアタックしたとき、シグニ1体をトラッシュに置いてアップする」が動かない）。
+- **カード単位 PRESERVE（`parseStatus:PARTIAL` 同居）で `build:effects` も `heldReview` も触れない位置**にあったため、パーサが既に正解（E1=`GRANT_KEYWORD` ダブルクラッシュ／E2=`ON_ATTACK_LRIG`／E3=`ON_PLAY`）を出しているのに反映されていなかった。production parser の出力を確認したうえで**外科パッチで3効果へ是正**。
+- codex が追加した golden は旧（ズレた）対応を前提に `PR-461-E2` の通常召喚スタック1件を期待していたため、是正後の実態（E2=`ON_ATTACK_LRIG` は積まない／E3 が【出】／E1 にダブルクラッシュが復元）へ書き換えた。
+- census 1509→**1507**（`BASELINE_HIGH` 本体を更新）・smoke 効果総数 10725→10726（欠落していた1効果の復活）・golden 881 据置。
+
+## timing `ON_PLAY` 誤分類36効果の通常召喚誤発火を停止（2026-07-28・Codex）
+
+- CSV原文を36件すべて再照合し、正規collectorへ接続できる6件を [A] として差し替え、collector/限定軸が不足する29件を [B] として `timing:[]`（正直な no-op）へ変更した。`PR-461-E2` は effectId が指す本文が【出】だったため [C]（抽出誤検出）として `ON_PLAY` を維持。
+- [A] は `WX05-025-E2`／`WX13-040-E1`／`WX14-064-E1`（`collectSelfEventTriggers` の `ON_GUARD`／`ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT`）、`WX20-046-E2`（`collectHandAddedTriggers`＋`fromZones:['energy']`）、`WXK05-023-E2`（BattleScreen のスペル使用collector＋赤filter）、`WXK10-044-E1`（`collectFieldTriggers`＋`placedOnGateZone`）。通常召喚の production 選別を pure helper 化し、35件すべてスタック0件／`PR-461-E2`のみ1件を golden 固定した。
+- parser は既知の未配線トリガー文型を `ON_PLAY` に黙ってフォールバックせず `timing:[]` とする。正規 timing がある上記6件は parser も同じ構造を生成。live JSON の effectId 差分は追加0・削除0・変更35で、36件外の変更0。
+- 最終計器は golden 881/881（+2）、smoke 10725/10725、fuzz 全異常0、timing census 33→32、vocab census 1510→1509。vocab の1件減は `WX20-046-E2` のエナ→手札契機を parser が正しく認識した純改善なので、既存 `BASELINE_HIGH` を1509へ更新した。
+- やっていないこと：未配線29件の新collector/action/STUB/timing実装、(xxix)段階2、【絆出】【クロス出】【チーム出】変更、PLAN/PLAN_PROGRESS簿記、commit/push、ブラウザ実機対戦。
+
 ## §3タスク12(xxix) 最終＝効果配置シグニ自身の条件付き【出】を配線（2026-07-28・Codex）
 
 - **真因**：通常召喚・グロウ・アシスト・COLLAB・トップレベル `REVEAL_UNTIL_TO_FIELD` だけが自身【出】を個別収集し、一般の `ADD_TO_FIELD` は `detectPlacedSigni` 後に「他のシグニ」の watcher しか収集していなかった。`byEffect` / `bySigniEffect` を持つ10効果は通常召喚側でも明示除外されるため、全経路で永久不発だった。

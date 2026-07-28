@@ -4886,6 +4886,44 @@ function stripKeywordPrefixes(text: string): string {
 // シグニは ON_ACCE〔場のシグニ〕。引用付与の内側 parseBlock も外側カードの種別を引き継ぐ）。
 let _parsingBaseType = '';
 
+/**
+ * 【自】の契機を engine がまだ表現できない既知の文型。
+ * ON_PLAY へ黙って倒すと通常召喚で誤発火するため、timing を付けず正直な no-op にする。
+ */
+function isKnownUnwiredAutoTrigger(text: string): boolean {
+  return [
+    /[１1]ターンにライフクロスを合計[０-９\d]+枚以上クラッシュしたとき/,
+    /ルリグかシグニの効果によって手札かデッキからエナゾーンに置かれたとき/,
+    /【自】の【英知】能力が発動したとき/,
+    /カード[０-９\d]+枚がいずれかのプレイヤーの手札に加えられたとき/,
+    /【トラップ】[０-９\d]+つが設置されたとき/,
+    /対戦相手の場にあるシグニの【出】能力が発動したとき/,
+    /あなたの【アクセ】[０-９\d]+枚がトラッシュに置かれたとき/,
+    /ライフクロスが他の領域に移動したとき/,
+    /このシグニにカード[０-９\d]+枚が付いたとき/,
+    /このシグニがアタックしたアタック終了時/,
+    /シグニ[０-９\d]+体に【ソウル】が付いたとき/,
+    /このシグニに【ソウル】が付いたとき/,
+    /アシストルリグかライフバーストの能力か効果の対象になったとき/,
+    /自分の効果によってカードを[０-９\d]+枚以上捨てたとき/,
+    /このシグニが場からエナゾーンに置かれたとき/,
+    /エナゾーンから効果によってカード[０-９\d]+枚が他の領域に移動したとき/,
+    /パワー[０-９\d]+以上のシグニが対戦相手のシグニ[０-９\d]+体をバニッシュしたとき/,
+    /ライフクロス[０-９\d]+枚がクラッシュされるかトラッシュに置かれたとき/,
+    /【出】能力か【出】能力の効果の対象になったとき/,
+    /このカードがシグニの下に置かれたとき/,
+    /このカードがデッキからエナゾーンに置かれたとき/,
+    /対戦相手の効果[０-９\d]+つによって[^。]*(?:手札|エナゾーン)[^。]*(?:捨てられるか|トラッシュに置かれたとき)/,
+    /あなたの効果によって対戦相手のシグニ[０-９\d]+体が手札に戻るかトラッシュに置かれたとき/,
+    /コストか効果によってあなたが《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/,
+    /あなたのアタックフェイズ終了時/,
+    /このルリグが《夢限　-Q-》から《夢限　-A-》になったとき/,
+    /あなたか対戦相手のライフクロス[０-９\d]+枚がトラッシュに置かれたとき/,
+    /あなたか対戦相手が《コインアイコン》を得たとき/,
+    /あなたのライフクロスが[０-９\d]+枚になったとき/,
+  ].some(re => re.test(text));
+}
+
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
   const typeM = block.match(/^【(クロス)?(ドライブ|チーム|絆)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
@@ -5265,6 +5303,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : /対戦相手の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上対戦相手の手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
              // 「あなたのエナゾーンからシグニ1枚が手札に加わるか場に出たとき」（WXDi-P11-007）＝手札枝＋場枝の OR（timing 併記）。
              : /エナゾーンから[^。]{0,10}手札に加わるか場に出たとき/.test(trigText) ? ['ON_HAND_ADDED', 'ON_ENERGY_TO_FIELD']
+             // 「あなたがエナゾーンからカード1枚を手札に加えたとき」（WX20-046）。
+             // collectHandAddedTriggers の fromZones 軸で実配線済み。
+             : /あなたがエナゾーンからカード[０-９\d]+枚を手札に加えたとき/.test(trigText) ? ['ON_HAND_ADDED']
              // 「（カード1枚が／このシグニが）あなたのエナゾーンから手札に移動したとき」（WX14-029/WD12-009/WD12-010）。
              : /エナゾーンから手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
              // 「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026・CSV原文は「離た」）＝
@@ -5288,7 +5329,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.includes('ターン開始時') ? ['ON_TURN_START']
              // ⚠ここに落ちる＝【自】なのに timing 判定が全て外れて ON_PLAY（「場に出たとき」）になった。原文に
              //   「…とき/…時」があるならそれは別トリガーの取りこぼし＝timing 語彙の欠落。計器に刻む（parseStatus は不変）。
-             : (logTimingFallback(`${cardNum}-E${index + 1}`, actionText), ['ON_PLAY']);
+             : isKnownUnwiredAutoTrigger(trigText)
+               ? (logTimingFallback(`${cardNum}-E${index + 1}`, actionText), [])
+               : (logTimingFallback(`${cardNum}-E${index + 1}`, actionText), ['ON_PLAY']);
       // ON_TURN_END / ON_TURN_START: トリガー元ターンの所有者を triggerScope に抽出（actionText 非改変）。
       //   「対戦相手のターン終了/開始時」= any_opp（能力保持シグニが相手のターン境界に反応。collectTurnTriggers の
       //     相手フィールド any_opp/any 分岐が拾う）／「あなたの/自分のターン…」or 無指定 = self（既定）。
@@ -5594,7 +5637,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/エナゾーンからシグニ[０-９\d]+枚が/.test(trigText)) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), cardType: 'シグニ' };
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...haCond };
         // トリガー句を action 本文から除去（「エナ」等が後続の対象パースのガードに誤マッチするのを防ぐ）
-        actionText = actionText.replace(/^[^。「」]*?(?:手札に移動したとき|手札に加わるか場に出たとき)[、,]\s*/, '');
+        actionText = actionText.replace(/^[^。「」]*?(?:手札に移動したとき|手札に加えたとき|手札に加わるか場に出たとき)[、,]\s*/, '');
       }
       if (timing[0] === 'ON_LIFE_CLOTH_ADDED') {
         const lcCond: NonNullable<typeof extractedTriggerCondObj> = {};

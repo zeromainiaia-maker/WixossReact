@@ -6,6 +6,17 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・3バッチ連投）＝§3 タスク12(xxix) を union/unless＋BET＋自身【出】配線で消化**（golden 868→**879**・census 1511→**1510**）
+  - **3バッチ連続で「§6.3級＝新機構が要る」という在庫メモが stale だった**。①union/unless＝`CENTER_LRIG_OR_SIGNI` も `escapeDiscard` も engine に実在し、逐語一致の同文12効果が parser で落ちていただけ ②BET＝`BET_MECHANIC` も26選択肢の分割も正常で、真因は**選択肢本文を本体パーサと別系統の `choiceTextParser.parseSingleChoiceText`（手書き regex 群）が再解析していた**こと ③自身【出】＝`BattleScreen.tsx:2922` のコメント「出たシグニ自身の ON_PLAY は各配置経路が個別収集済み」が**効果配置については成立していなかった**。**教訓＝在庫メモもコード中のコメントも、投げる前に全収集サイトを列挙して実測する**（CODEX_GUIDE §3-3）。
+  - **バッチ1（union/unless・16効果）**＝ライフバースト12効果の三重バグ（ルリグを止められない／相手が回避できない／対象を2回選ばせる）と「アタックできない」付与の union 脱落4効果。**⚠Opus 検証で半端移行を是正**＝`negated_attacks` の保存先規約が2系統に割れており、codex は読み手だけ統一したため2効果が no-op 化していた。書き手を統一し規約を golden で固定（戻すと実 FAIL することを確認）。副産物で `REMOVE_ABILITIES` の「N体まで」未実装も是正。
+  - **バッチ2（BET・9効果26選択肢）**＝9件忠実化・3件を安全側 defer。最悪例 `WX19-006-E1③` は**「相手トラッシュの全スペル除外」本体が消えて「2枚引く」だけ**になっていた。他3ファミリ21効果への波及を Opus 側でも独立再現し outlier 0。**本体パーサへの一括委譲は試算で改善3／退化13／同一10＝現時点で不可**。
+  - **バッチ3（自身【出】配線・段階1）**＝新 pure collector `collectPlacedSelfOnPlayTriggers` を全配置経路へ**明示 opt-in**で配線し、`REVEAL_UNTIL_TO_FIELD` の既存3ブロックを統合。**`byEffect`/`bySigniEffect` 限定の10効果＝通常召喚側でも明示除外されていて全経路で永久不発だったものが発火**。二重発火の罠（通常召喚も同じ中央 diff を呼ぶ・既存3ブロックとの併存）を行番号つきで先出ししたのが効き、差し戻し0。
+  - **⚠段階2（一般の自身【出】）は意図的に未実施**＝母数が自身【出】2511効果・`ADD_TO_FIELD` 651効果で影響が桁違い。段階1の安定を確認してから別バッチで扱う。**必達を1つに絞って段階分割し「無理な分は honest defer」と書くと codex は正確に止まる**（3バッチとも守られた）。
+  - **PLAN の自己矛盾を1件修正**＝PLAN:44「`build:effects` は破壊的＝絶対に実行しない」が §5c パイプライン（PLAN:72/73/198/347＝`heldReview` の前提）と矛盾。`buildEffectsJson.ts:158-162` の2段の温存機構により非破壊なので、「実行禁止」ではなく**「実行後に effectId 単位で全数比較する」**へ書き換えた。
+  - **⚠既知の計器ノイズ**＝lint warning 222→234 は**新規ではなく既存 false positive の増殖**（`collectBoardDiffTriggers` 内のローカルヘルパ `useHost`/`useGuest`/`useSU` が `use` 始まりで `react-hooks/rules-of-hooks` に誤検出され、呼び出し箇所が増えるたび2件ずつ増える）。**ヘルパ名を `use` 以外へ改名すれば恒久的に消える**（別バッチ・低優先）。
+  - **次の一手**＝**Opus：(xxix) 段階2（自身【出】一般化＝要影響測定）／(xliv)・(xlii) の残／§6.3 残機構（H1〜H3・I）／タスク14 の残43／タスク16 の `cost.underSelfTrash` 未配線16効果／タスク12(lv)（段階3）**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火＋アーツ使用条件20枚＋🆕ルリグアタック無効化・escapeDiscard 回避モーダル・BET 選択肢・効果配置【出】の実機確認（今回は golden のみ）**。
+
+
 - **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・2バッチ連投）＝§3 タスク12(xxix) を union/unless＋BET の2系統で消化**（golden 868→**874**・census 1511→**1510**）
   - **2バッチ連続で「§6.3級＝新機構が要る」という在庫メモが stale だった**。①union/unless＝`CENTER_LRIG_OR_SIGNI` も `escapeDiscard` も engine に実在し、逐語一致の同文12効果が parser で落ちていただけ ②BET＝`BET_MECHANIC` も26選択肢の分割も正常で、真因は**選択肢本文を本体パーサと別系統の `choiceTextParser.parseSingleChoiceText`（手書き regex 群）が再解析し、条件・複文後半・動的フィルタを落としていた**こと。**教訓＝「§6.3級」と書かれた在庫でも、投げる前に機構の実在を grep で確かめる**（CODEX_GUIDE §3-3）。
   - **バッチ1（union/unless・16効果）**＝ライフバースト12効果の三重バグ（ルリグを止められない／相手が回避できない／対象を2回選ばせる）と「アタックできない」付与の union 脱落4効果を消化。**⚠Opus 検証で半端移行を是正**＝`negated_attacks` の保存先規約が2系統に割れており（`NEGATE_THAT_ATTACK` だけ逆側／読み手もシグニ経路とルリグ経路で不一致）、codex は読み手だけ統一したため2効果が no-op 化していた。書き手を統一し規約を golden で固定（戻すと実 FAIL することを確認）。副産物で `REMOVE_ABILITIES` の「N体まで」未実装（4効果が常に1体）も是正。

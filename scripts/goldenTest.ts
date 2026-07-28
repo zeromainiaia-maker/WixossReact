@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -8638,7 +8638,8 @@ test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達
     return Object.values(o).some(v => Array.isArray(v) ? v.some(y => treeHas(y, type)) : treeHas(v, type));
   };
   ok(!treeHas(prevTurn, 'LIFE_CRASHED_THIS_TURN'), '直前ターンを当ターンカウンタへ誤変換しない');
-  ok(zeroEvent.timing?.includes('ON_PLAY') === true && !treeHas(zeroEvent, 'LIFE_COUNT'), '未収集イベントを状態条件へ誤変換しない');
+  ok(zeroEvent.timing?.length === 0 && !treeHas(zeroEvent, 'LIFE_COUNT'),
+    '未収集イベントは偽の状態条件にもON_PLAYにも変換しない');
 });
 
 // Stage3 骨組み：純粋バトルコントローラ reduceBattle（現在盤面＋action → DB パッチ）の遷移を固定。
@@ -10895,6 +10896,12 @@ test('task16 mechanism B: effect-negated SIGNI attack collects field/trash sourc
     eq(fired.entries.map(e => e.effectId).sort().join(','),
       'WX05-025-E2,WX13-040-E1,WX14-064-E1',
       '場のスイボク＋トラッシュのミニマリ/シンカーが発火');
+    const guarded = collectSelfEventTriggers(
+      mechanismCtx, 'ON_GUARD', defender, attacker, 'test', GUEST,
+    );
+    eq(guarded.entries.map(e => e.effectId).sort().join(','),
+      'WX05-025-E2,WX14-064-E1',
+      'ルリグアタックをガードすると場のスイボク＋トラッシュのシンカーが発火');
 
     const wrongZones0 = mkState({ signi: ['WX14-064', 'WX13-040', null], trash: 0 });
     const wrongZones: PlayerState = {
@@ -10905,6 +10912,75 @@ test('task16 mechanism B: effect-negated SIGNI attack collects field/trash sourc
       mechanismCtx, 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', wrongZones, attacker, 'test', GUEST,
     );
     eq(notFired.entries.length, 0, '発生源を逆のゾーンに置くと全て非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 timing triage: 誤分類36効果は通常召喚スタック0件（PR-461 は effectId 対応ズレを是正し E3 が【出】）', () => {
+  const savedCursor = cursor;
+  try {
+    const ids = `WX05-020-E1 WX05-025-E2 WX13-040-E1 WX14-064-E1 WX14-066-E1 WX19-066-E1
+WX20-046-E2 WX20-067-E1 WXEX1-41-E1 WXEX1-77-E1 WXEX2-19-E1 WXK05-023-E2
+WXK08-028-E1 WXK10-044-E1 WXK10-049-E1 WXK11-018-E2 WXDi-D07-004-E1 WXDi-D07-019-E1
+WXDi-D09-H16-E1 WXDi-D09-P16-E2 WXDi-P03-073-E1 WXDi-P06-038-E1 WXDi-P06-072-E1
+WXDi-P07-052-E1 WXDi-P08-065-E2 WXDi-P11-063-E2 WXDi-P12-079-E2 WXDi-P13-051-E3
+WXDi-CP02-068-E1 WXDi-P11-010B-E1 WX24-P2-051-E1 WX24-P2-075-E1 WD23-023-E-E1
+SP27-007-E1 PR-461-E2 PR-K038-E2`.split(/\s+/);
+    // PR-461 は curated JSON の effectId 対応が1つズレており、E2 のスロットに【出】の本体が入っていた
+    // （【常】ダブルクラッシュは丸ごと欠落）。カード単位 PRESERVE で build も heldReview も触れないため
+    // 外科パッチで是正済み＝現在は E2=ON_ATTACK_LRIG／E3=【出】。よって通常召喚で積むのは E3 だけ。
+    const byId = new Map([...effectsMap.values()].flat().map(e => [e.effectId, e]));
+    for (const id of ids) {
+      const eff = byId.get(id);
+      ok(!!eff, `${id}: effect exists`);
+      const entries: StackEntry[] = isMandatoryOwnOnPlayForNormalSummon(eff!) ? [{
+        id: `summon-${id}`, playerId: HOST, cardNum: id.replace(/-E\d+$/, ''),
+        effectId: id, label: '通常召喚自身【出】', effect: eff!,
+      }] : [];
+      const stack = initStack(HOST, entries);
+      const count = stack.pendingTurn.length + stack.pendingOpp.length;
+      eq(count, 0, `${id}: 通常召喚スタック件数`);
+    }
+    // 是正後の PR-461: E2 は ON_ATTACK_LRIG（通常召喚で積まない）／E3 が【出】として積む
+    {
+      const e2 = byId.get('PR-461-E2')!;
+      const e3 = byId.get('PR-461-E3')!;
+      eq(JSON.stringify(e2.timing), JSON.stringify(['ON_ATTACK_LRIG']), 'PR-461-E2 はルリグアタック契機');
+      ok(!isMandatoryOwnOnPlayForNormalSummon(e2), 'PR-461-E2 は通常召喚で積まない');
+      ok(isMandatoryOwnOnPlayForNormalSummon(e3), 'PR-461-E3（真の【出】）は積む');
+      const e1 = byId.get('PR-461-E1')!;
+      ok(JSON.stringify(e1.action).includes('ダブルクラッシュ'), 'PR-461-E1 の【常】ダブルクラッシュが復元されている');
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task16 timing triage [A]: ON_HAND_ADDED / ゲート上ON_PLAY collectorが正規契機だけを収集', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = trigCtx(HOST);
+    const handWatcher = mkState({ signi: ['WX20-046', null, null] });
+    const hand = collectHandAddedTriggers(
+      ctx, [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }],
+      HOST, handWatcher, mkState(),
+    );
+    eq(hand.entries.filter(e => e.effectId === 'WX20-046-E2').length, 1, 'WX20-046-E2: エナ→手札で1件');
+    const wrongFrom = collectHandAddedTriggers(
+      ctx, [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'deck' }] }],
+      HOST, handWatcher, mkState(),
+    );
+    eq(wrongFrom.entries.filter(e => e.effectId === 'WX20-046-E2').length, 0, 'WX20-046-E2: デッキ→手札では0件');
+
+    const played = mkState({ signi: [SIGNI, null, null] });
+    played.own_gate_zones = [0];
+    const gateWatcher = mkState({ signi: ['WXK10-044', null, null] });
+    const onGate = collectFieldTriggers(ctx, 'ON_PLAY', SIGNI, played, gateWatcher, GUEST);
+    eq(onGate.entries.filter(e => e.effectId === 'WXK10-044-E1').length, 1, 'WXK10-044-E1: ゲート上配置で1件');
+    played.own_gate_zones = [];
+    const offGate = collectFieldTriggers(ctx, 'ON_PLAY', SIGNI, played, gateWatcher, GUEST);
+    eq(offGate.entries.filter(e => e.effectId === 'WXK10-044-E1').length, 0, 'WXK10-044-E1: ゲート無し配置で0件');
   } finally {
     cursor = savedCursor;
   }

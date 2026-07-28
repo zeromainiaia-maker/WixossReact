@@ -30,6 +30,16 @@ export interface TrigCtx {
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
+/** 手札からの通常召喚で自身の mandatory【出】として積める構造か。 */
+export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
+  return eff.effectType === 'AUTO'
+    && !!eff.timing?.includes('ON_PLAY')
+    && (eff.triggerScope === undefined || eff.triggerScope === 'self' || eff.triggerScope === 'any')
+    && eff.mandatory !== false
+    && !eff.triggerCondition?.byEffect
+    && !eff.triggerCondition?.bySigniEffect;
+}
+
 /**
  * 効果で場に出たシグニ自身の【出】を収集する。
  * phase1Only=true は「効果によって／シグニの効果によって」と明記された能力だけに絞る。
@@ -1953,7 +1963,7 @@ export function collectSelfEventTriggers(
   }
   // トラッシュにある自身を任意でゲームから除外することが後続効果の条件になる能力。
   // timing だけ一致する一般のトラッシュカードは拾わず、発生源ゾーンを明記する action に限定する。
-  if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT') {
+  if (timing === 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' || timing === 'ON_GUARD') {
     for (const trashInstance of myState.trash) {
       for (const eff of ctx.effectsMap.get(trashInstance) ?? []) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing) || !containsSelfTrashExile(eff.action)) continue;
@@ -1962,7 +1972,7 @@ export function collectSelfEventTriggers(
         const cardName = ctx.cardMap.get(trashInstance)?.CardName ?? trashInstance;
         entries.push({
           id: ctx.genId(), playerId: ownerId, cardNum: trashInstance, effectId: eff.effectId,
-          label: `${cardName} の【自】効果（シグニアタック無効時・トラッシュ）`, effect: eff,
+          label: `${cardName} の【自】効果（${timing === 'ON_GUARD' ? 'ガード時' : 'シグニアタック無効時'}・トラッシュ）`, effect: eff,
         });
       }
     }
