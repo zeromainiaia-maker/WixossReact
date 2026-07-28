@@ -6,6 +6,18 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・差し戻し0）＝§3 タスク12(xxxix) を完全クローズ（4バッチ・15効果消化）**（golden 828→844・census 1517→1511・held 265→262枚/109署名）
+  - **(xxxix) の在庫が 0 になった**＝24効果を全数実測し、今回15効果を消化＋PR-238 は manual に実装済み・WXDi-P05-086 は JSON が元から正しい（`POWER_MODIFY` の duration 省略時＝ターン終了まで）と確定。以後 (xxxix) は worklist から外す。
+  - **⚠PLAN 記述が stale だった**＝「残＝真の§6.3級のみ（攻撃無効化 action 型が engine に無い）」は誤りで、**`SET_CANCEL_ATTACK_FLAG`（`execStubPart3.ts:5176`）が実在**し「攻撃側=効果オーナー自身のアタック無効化」用に作られていた（Phase2 の `BattleScreen.tsx:7044` がバトル/ダメージを全スキップ）。⚠`NEGATE_ATTACK`/`negated_attacks` は**判定が ON_ATTACK_SIGNI 収集より前**（6831 vs 6854）なので使うと「次回のアタックが無効化される」誤動作になる＝指示書に罠として明記した。
+  - **バッチ1（2効果）**＝Magic Box の WX24-P3-050-E1（アタック無効化脱落＋「相手が《無》×5 を支払わないかぎり」脱落＝**無条件ダメージ**）／WX24-P4-067-E1（同＋「共通色を持たない」脱落＝**相手エナを無制限に3枚トラッシュ**）。
+  - **バッチ2（5効果）**＝WDK05-T01-E1（`activeCondition` 脱落＋付与先が `SIGNI/any` ＝**無条件ダブルクラッシュ**。codex が「JSON だけでは実戦 no-op」を自力で発見し `collectContinuousGrantedKeywords` のルリグ dead-path を拡張）／WXK09-063-E1（**自分**のトラッシュから出して傀儡にもならず主目的が死亡→`STEAL_OPP_TRASH_PUPPET`）／WX22-006-E3（「＜精元＞ではない」「名前の異なる」脱落）／WXK01-005-E1（「ルリグデッキに戻し」脱落）／WX24-P3-069-E1（段階1＝無効化を実装しガード封じは `UNKNOWN{raw}` で defer）。
+  - **バッチ3（4効果）**＝WD07-007-E1（白分岐の条件脱落＝無条件サーチ。黒分岐が `lastProcessedCards` を上書きする問題を**内側 SEQUENCE の `snapshotLastProcessedForConditionals`** で解決）／WXK10-060-E2（エナに置く1枚が公開集合と無関係）／WXDi-P11-039-E1（「そうした場合」が `IS_MY_TURN` 化＝**条件を満たさず捨てもしないのに毎ターンバウンス**）／WX24-P3-050-E2（「他の＜トリック＞が**いない場合に自分を**ダウン」が「他のトリック**を**ダウン」に反転）。
+  - **バッチ4（4効果・engine 機構4本）**＝WXEX1-66-E2（事前対象の喪失＋`remainder.shuffle` 新設。⚠バッチ3の defer 理由「`storedTargetCards` が pending を跨いで失われる」は **codex 自身が実測で訂正**＝各 resume 経路は既に引き継いでいた）／WXDi-P06-039-E1（未払い側が**デッキ**→手札だった誤り＋新 `ExecCtx.leftFieldUnderCards`＋`filter.fromLeftFieldUnder` で「このシグニの下にあった」照応）／WXK09-003-E1（赤分岐 `UNKNOWN` を新 STUB `LIFE_TO_ENERGY` で実装＝クラッシュではないのでライフバースト非発動）／WXEX2-21-E1（「そのアタックの間」が `END_OF_TURN` に化けて**同ターンの他アタックでもガード不可**→新 `until:'END_OF_ATTACK'`＋`clearEndOfAttackEffects`）。
+  - **Opus 検証**＝4バッチとも gates を独立実行し全緑、**per-effect 機械 diff は毎回「意図した効果ちょうど・outlier 0」**。collector/走査範囲を広げた変更は**実データ全数走査で波及を確認**（LRIG 対象 CONTINUOUS `GRANT_KEYWORD` は1件のみ・新機構3本の利用も各1効果のみ）。逆翻訳の再生成差分も今回触った効果に限定。**差し戻し0**。⚠**実機未検証**（ルリグアタックのダブルクラッシュ徴収・END_OF_ATTACK のガード窓は §7 driver 候補）。
+  - **🆕 副産物＝新在庫 (lvi) を登録**＝`manualEffects.ts` の override が JSON の `cost`/`condition`/`timing` を落とし、**実機でコスト踏み倒しになる12効果**を全数検出（`mergeManualEffects` は effectId 単位の**完全置換**で、`eff.cost.energy` は `BattleScreen.tsx:6475` 等で実徴収に使われる）。あわせて **CODEX_GUIDE §5-16 の「App は JSON 直 fetch なので manual は実機に届かない」が不正確**と判明（BattleScreen は `buildEffectsMap`→`mergeManualEffects` を通る）。
+  - **§6.3 へ送る不足機構**＝I. `WX24-P3-069` のガード追加コスト枚数化（collector の boolean→枚数化・UI の N 枚徴収・付与能力ストアの走査の3点が一体で要る）。
+  - **次の一手**＝**Opus：🆕タスク12(lvi)（cost 欠落12効果＝実害・小口で確実）／(xliv)・(xlii) の残／§6.3 残機構（H1〜H3・I）／タスク14 の残43**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火＋🆕今回の未検証2件**。
+
 - **🆕 セッション（2026-07-28 続き294〜296・Opus指示＋codex実装／Opus検証・是正3件）＝§3 タスク12(xxii) を完全クローズ（残10効果を3バッチで消化）**（golden 815→828・census 1519→1517・held 263→265枚/109署名据置）
   - **(xxii) の在庫が 0 になった**＝残10件（[C]7＋見送り3）を全数処理し、機械検証で **10件すべて `IS_MY_TURN` 誤変換が解消**（未解消0）。以後 (xxii) は worklist から外す。
   - **続き294（4効果）**＝WXDi-P03-044-E2 に新カウンタ `self_deck_to_energy_this_turn`＋`SELF_DECK_TO_ENERGY_THIS_TURN`（先例 `opp_cards_moved_to_deck_this_turn` を踏襲）／WX10-025-E1 は**死んでいた記録**（`story_overrides['__selected_colors__']` は書き込み3箇所・読み出し0）を読む `SELECTED_COLOR` を新設し**5色枝すべてが無条件実行だった過剰**を停止＋記録クリアも配線／WXK08-029-E1 に `BEAT_ZONE_COUNT`／WX04-029-E1 は**元から正しかった**ので golden で lock-in のみ。
