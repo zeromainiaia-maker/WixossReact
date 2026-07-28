@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## Opus検証の副産物＝`WX12-033-E2` の【ランサー】が無条件付与（PRESERVE カードで parser 修正が built JSON に届かない held ドリフト）（2026-07-29・タスク12(xliv) 検証・Opus）
+
+- **経緯**＝下の (a3) で追加した parser 規則「あなたのトラッシュにカード名に《X》を含むカードがあるかぎり、」の該当は CSV 全数で **WX09-022 と WX12-033 の2枚**。build 後に変わったのは WX09-022 だけで、**WX12-033 は E3 が MANUAL の PRESERVE カードのため build:effects が curated を温存し、fresh 側にしか `activeCondition` が乗らなかった**（`docs/_held_fresh.json` の WX12-033 で確認）。
+- **実害**＝built JSON を直読みするアプリ側では `WX12-033-E2`（「あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る」）が **条件なしの常時【ランサー】** だった。
+- **修正**＝effects_WX.json の当該 effectId に `activeCondition:{TRASH_HAS_CARD, owner:self, filter:{cardName:'セイリュ'}}` を外科パッチ（`filter.cardName` は `matchesFilter` で部分一致＝「カード名に《X》を含む」と一致）。**カード単位の全数 diff で変更は WX09-022／WX12-033 の2枚のみ**、`?` 混入0を機械確認。
+- **golden**（`WX12-033-E2: トラッシュに《セイリュ》があるかぎりランサー…`）＝トラッシュに《セイリュ》があれば付与／無ければ不発を `collectContinuousGrantedKeywords` で固定。**パッチを一時的に戻すと当該 assertion だけが FAIL することを実測**（892/893）。共有 `cursor` は `try/finally` で復元。
+- census **1478→1477**（`BASELINE_HIGH` と PLAN 恒久指標を理由付きで更新）。golden 893・gates 全緑。
+- ⚠**教訓（既知の落とし穴の再確認）**＝parser 規則を足したら **「その規則に該当する原文を CSV で全数拾い、built JSON が全件変わったか」** を確認する。PRESERVE カードは差分に出ないので、`build:effects` の diff だけ見ていると取りこぼす。
+
+## `BANISH_REDIRECT bySource:'by_this'` が効果バニッシュでは永久に不適用＝発生源インスタンスを効果経路走査へ配線（2026-07-28・タスク12(xliv)(a3)・Codex）
+
+- **修正前実測**：実カード `WX09-022#1` をシグニゾーンに置き、トラッシュに《エナジェ》を用意して同カードの【起】`WX09-022-E2`（相手シグニ2体までバニッシュ）を engine で完走すると、2体とも **energy**。発生源を別シグニへ替えても energy。一方、既存バトル判定は holder 自身とのバトルだけ true、別シグニ／非バトルは false だった。原因は効果経路の `fieldEffectBanishRedirectToTrash` が `battlingNum=null` を渡し、`bySource` を種類によらず一律除外していたこと。
+- **修正**：`banishRedirectOpts` が省略可能な `effectSourceNum: ctx.sourceCardNum` を組み立て、`banishDestination`→`fieldEffectBanishRedirectToTrash`→`banishRedirectAppliesFrom` まで通す。`by_this` は holder インスタンスと効果発生源インスタンスが一致した場合だけ効果経路で適用する。`battle_with_this` は従来どおり効果経路では不適用。新引数未指定時は従来挙動のまま。
+- **修正後実測**：同じ WX09-022【起】の2体は **trash**、別シグニを発生源にすると2体とも **energy**。`WX09-022`／`WXK11-032`／`WXDi-D04-016` の3枚について、自身発生源は trash・別発生源は energy・バトル経路の自身 true／別シグニ false を golden で固定した。WX09-022 の《エナジェ》条件と WXDi-D04-016 のスペル条件が不成立なら energy も固定。
+- **34効果の全数棚卸し**：現行 JSON は36ではなく **34効果**。`bySource` は10（`by_this` 3＋`battle_with_this` 7）。今回挙動が変わるのは `by_this` 3だけで、残り31は省略可能引数の非一致／未指定経路により不変。単体対象は `target.count:1` の3効果に加え、原文が単体なのに JSON が `count:'ALL'` の旧4効果（`WX25-P2-060-E2`／`WXDi-P12-054-E2`／`WXDi-P15-044-E1`／`WXK06-048-E1`）が残っており、**実件数7**。段階2はこのデータ不整合とバトル経路の対象インスタンス照合を一体で直す必要があるため defer（近似実装なし）。
+- 初回 gates が WX09-022 の条件不成立ケースを落とし、curated JSON に《エナジェ》条件自体が欠落していた既存 parser バグも検出。`parseActiveCondition` に同文型を追加して `build:effects` で `activeCondition:TRASH_HAS_CARD{cardName:'エナジェ'}` を純改善採用（held 温存への退化なし）。effects JSON の `?` 混入0。census 1479→1478 は計器だけでなく条件不成立時の過剰発火を防ぐ機能修正。golden 名は「`BANISH_REDIRECT by_this 効果経路: 発生源シグニ自身だけ適用しバトル経路も維持（タスク12(xliv)(a3)）`」。共有 `cursor` は `try/finally` で復元し、3 holder はすべて実戦どおりシグニゾーンへ配置。
+- 最終 gates 全緑：golden **892/892**、smoke 10726/10726、fuzz異常0、census **1478/1478**、manual-fields 0、lint 0 errors（既知warning 226）。
+
 ## ✅ `SELECT_SIGNI_ZONE` 経由の効果配置で配置シグニ自身の【出】が発火しない（2026-07-28・Codex）
 
 - **根本原因は事前4択のいずれでもなく、その直後のカード定義ロード脱落。** 修正前の実機へ一時診断を入れ、`srcEffFound=true`／`result.done=true`／`detectPlacedSigni=["WX15-073#1"]`／`collectPlacedSelfOnPlay=true`／`suppressOnPlay=false` を同時確認した一方、配置カードの `effectsMap` 参照は空・collector entryも空だった。`resumeSelectTarget` が対象をトラッシュから除去して `SELECT_SIGNI_ZONE.interaction.cardNum` だけに保持した中間状態を永続化すると、`battleCardNums` が pending 内カードを走査しないため、再描画後の `effectsMap` から `WX15-073-E2` が脱落していた。

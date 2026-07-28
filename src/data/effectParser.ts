@@ -552,6 +552,16 @@ type ConditionParseResult = {
 };
 
 function parseActiveCondition(text: string): ConditionParseResult {
+  // 「カード名に《X》を含むカードがあるかぎり」（WX09-022）。
+  // parseConditionText は同句を理解するが、CONTINUOUS の先頭条件はこの剥離器を通るため明示する。
+  const trashNameContainsM = text.match(/^あなたのトラッシュにカード名に《([^》]+)》を含むカードがあるかぎり、/);
+  if (trashNameContainsM) {
+    return {
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: trashNameContainsM[1] } },
+      rest: text.slice(trashNameContainsM[0].length),
+      conditionFound: true,
+    };
+  }
   // パターン-1: 「英知=N：」（英知シグニのレベル合計条件）
   const eichiM = text.match(/^英知=([０-９\d]+)：/);
   if (eichiM) {

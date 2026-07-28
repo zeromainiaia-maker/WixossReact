@@ -7215,6 +7215,77 @@ test('BANISH_REDIRECT 効果経路: holder の【常】置換を走査しトラ�
     ok(onAtk.trash.includes(V), 'DURING_ATTACK_PHASE + アタックフェイズ: トラッシュへ');
   }
 });
+test('BANISH_REDIRECT by_this 効果経路: 発生源シグニ自身だけ適用しバトル経路も維持（タスク12(xliv)(a3)）', () => {
+  const savedCursor = cursor;
+  try {
+    const bases = ['WX09-022', 'WXK11-032', 'WXDi-D04-016'];
+    const holders = bases.map((n, i) => `${n}#${i + 1}`);
+    const victims = [`${SIGNI_L1}#701`, `${SIGNI_L2}#702`];
+    const otherSource = `${SIGNI_L3}#703`;
+    const enaje = 'WXK11-032#704';
+    const spellBase = findCard(c => c.Type === 'スペル');
+    const spell = `${spellBase}#705`;
+    const cm = new Map(cardMap as Map<string, CardData>);
+    for (const id of [...holders, ...victims, otherSource, enaje, spell]) {
+      const base = getCardNumG(id);
+      cm.set(id, { ...cardMap.get(base)!, CardNum: id });
+    }
+    const victimBefore = mkState({ signi: [victims[0], victims[1], null] });
+    const emptyVictim = { ...victimBefore, field: { ...victimBefore.field, signi: [null, null, null] } } as PlayerState;
+    for (const [i, holder] of holders.entries()) {
+      const trashCondition = i === 0 ? [enaje] : i === 2 ? [spell] : [];
+      const holderState = mkState({ signi: [holder, otherSource, null] });
+      holderState.trash = trashCondition;
+      const holderEffect = cm.get(holder)!.effects!.find(e => e.effectType === 'CONTINUOUS' && JSON.stringify(e.action).includes('BANISH_REDIRECT'))!;
+      const hitCtx = { ...mkCtx({}, {}), ownerState: holderState, otherState: victimBefore, cardMap: cm, sourceCardNum: holder } as ExecCtx;
+      const missCtx = { ...hitCtx, sourceCardNum: otherSource };
+      const hit = banishDestination(emptyVictim, holderState, victims[0], banishRedirectOpts(hitCtx, victimBefore, victims[0])).state;
+      const miss = banishDestination(emptyVictim, holderState, victims[1], banishRedirectOpts(missCtx, victimBefore, victims[1])).state;
+      ok(hit.trash.includes(victims[0]) && !hit.energy.includes(victims[0]), `${bases[i]}: 自身の効果ならトラッシュ`);
+      ok(miss.energy.includes(victims[1]) && !miss.trash.includes(victims[1]), `${bases[i]}: 別カードの効果ならエナ`);
+      if (i !== 1) {
+        const inactiveHolder = { ...holderState, trash: [] };
+        const inactiveCtx = { ...hitCtx, ownerState: inactiveHolder };
+        const inactive = banishDestination(emptyVictim, inactiveHolder, victims[0],
+          banishRedirectOpts(inactiveCtx, victimBefore, victims[0])).state;
+        ok(inactive.energy.includes(victims[0]) && !inactive.trash.includes(victims[0]), `${bases[i]}: activeCondition不成立ならエナ`);
+      }
+      ok(banishRedirectAppliesFrom(holderEffect.action, holder, holder), `${bases[i]}: 自身とのバトルは従来どおり適用`);
+      ok(!banishRedirectAppliesFrom(holderEffect.action, holder, otherSource), `${bases[i]}: 別シグニのバトルは従来どおり不適用`);
+    }
+    // 実カード WX09-022 の【起】（相手2体までバニッシュ）を、能力保持シグニ自身を発生源にして完走する。
+    const wx09State = mkState({ signi: [holders[0], otherSource, null] });
+    wx09State.trash = [enaje];
+    const wx09Ctx = { ...mkCtx({}, {}), ownerState: wx09State, otherState: victimBefore, cardMap: cm, sourceCardNum: holders[0] } as ExecCtx;
+    const activated = cm.get(holders[0])!.effects!.find(e => e.effectId === 'WX09-022-E2')!;
+    const result = finish(executeEffect(activated, wx09Ctx), wx09Ctx);
+    ok(victims.every(n => result.otherState.trash.includes(n)) && victims.every(n => !result.otherState.energy.includes(n)),
+      'WX09-022-E2: 対象2体ともトラッシュへ');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+// タスク12(xliv)(a3) の検証で発見した held ドリフト（Opus）: WX09-022 と同文型の
+// 「あなたのトラッシュにカード名に《X》を含むカードがあるかぎり、」は WX12-033-E2 にもあるが、
+// 同カードは E3 が MANUAL の PRESERVE カードのため build:effects が curated を温存し、
+// parser 修正後も built JSON に activeCondition が届かず【ランサー】が無条件付与のままだった（ライブ過剰発火）。
+test('WX12-033-E2: トラッシュに《セイリュ》があるかぎりランサー（activeCondition の held ドリフト是正）', () => {
+  const savedCursor = cursor;
+  try {
+    const HOST = 'WX12-033';       // シグニ＝実戦どおりシグニゾーンへ置く
+    const SEIRYU = 'WD04-009';     // 幻獣　セイリュ
+    const my = mkState({ signi: [HOST, null, null] });
+    const op = mkState({});
+    const em = effectsMap;
+    const cm = cardMap as Map<string, CardData>;
+    const hit = collectContinuousGrantedKeywords({ ...my, trash: [SEIRYU] }, op, true, em, cm);
+    ok(hit[HOST]?.includes('ランサー'), 'トラッシュに《セイリュ》があればランサー');
+    const miss = collectContinuousGrantedKeywords({ ...my, trash: [SIGNI_L1] }, op, true, em, cm);
+    ok(!miss[HOST]?.includes('ランサー'), 'トラッシュに《セイリュ》が無ければランサー不発');
+  } finally {
+    cursor = savedCursor;
+  }
+});
 test('BANISH_REDIRECT 属性4種: 除去前state由来の属性一致だけトラッシュへ（PLAN §6.3(a)）', () => {
   const HOLDER = 'BR-ATTR-HOLDER';
   const HIT = 'BR-ATTR-HIT';

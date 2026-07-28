@@ -1115,12 +1115,17 @@ export function banishRedirectAppliesFrom(
   holderNum: string,
   battlingNum: string | null,
   banished?: BanishedCardAttrs,
-  opts?: { excludeWhenPowerZero?: boolean },
+  opts?: { excludeWhenPowerZero?: boolean; effectSourceNum?: string },
 ): boolean {
   const acts = collectBanishRedirectActions(action);
   if (acts.length === 0) return false;
   return acts.some(a => {
-    if (a.bySource !== undefined && !(battlingNum !== null && holderNum === battlingNum)) return false;
+    if (a.bySource === 'battle_with_this' && !(battlingNum !== null && holderNum === battlingNum)) return false;
+    if (a.bySource === 'by_this'
+        && !((battlingNum !== null && holderNum === battlingNum)
+          || (opts?.effectSourceNum !== undefined && holderNum === opts.effectSourceNum))) return false;
+    if (a.bySource !== undefined && a.bySource !== 'battle_with_this' && a.bySource !== 'by_this'
+        && !(battlingNum !== null && holderNum === battlingNum)) return false;
     // 効果経路（バトルでもパワー0消滅でもない）は whenPowerZero 限定を弾く（パワー0経路専用の置換を効果バニッシュに掛けない）
     if (opts?.excludeWhenPowerZero && a.whenPowerZero === true) return false;
     if (banished !== undefined && !banishRedirectFilterMatches(a, banished)) return false;
@@ -1169,7 +1174,9 @@ export function computeBanishedAttrs(
  * 【常】 BANISH_REDIRECT（redirectTo:'trash'）が適用されるかを、on-the-fly で走査する（タスク12(xliv)(a2)）。
  *
  * BattleScreen のバトル・パワー0経路と同じく `banishRedirectAppliesFrom` で判定するが、効果経路なので
- * `battlingNum=null`（bySource 付き＝「このシグニとのバトル/による」は不適用）＋`excludeWhenPowerZero`
+ * `battlingNum=null`（`bySource:'battle_with_this'`＝「このシグニとのバトルによる」は不適用。
+ * `bySource:'by_this'`＝「このシグニによる」は `effectSourceNum` が holder 自身のときだけ適用＝タスク12(xliv)(a3)）
+ * ＋`excludeWhenPowerZero`
  * （パワー0専用の置換は不適用）で絞る。`banished` 属性で target.filter（レベル/凍結/感染/チャーム）も評価する。
  *
  * activeCondition は holder 視点で評価する。`DURING_ATTACK_PHASE` 限定の置換は turnPhase が判らない効果経路
@@ -1183,13 +1190,14 @@ export function fieldEffectBanishRedirectToTrash(
   banished?: BanishedCardAttrs,
   turnPhase?: TurnPhase,
   effectivePowers?: Map<string, number>,
+  effectSourceNum?: string,
 ): boolean {
   for (const [zi, stack] of holder.field.signi.entries()) {
     const n = stack?.at(-1);
     if (!n) continue;
     for (const e of (cardMap.get(n)?.effects ?? [])) {
       if (e.effectType !== 'CONTINUOUS') continue;
-      if (!banishRedirectAppliesFrom(e.action, n, null, banished, { excludeWhenPowerZero: true })) continue;
+      if (!banishRedirectAppliesFrom(e.action, n, null, banished, { excludeWhenPowerZero: true, effectSourceNum })) continue;
       // frontOnly は能力保持側の zi が必要なので、この場効果走査でだけ位置を突き合わせる。
       // 被バニッシュ位置が不明なら過剰 redirect を避けて不適用。
       if (!banishRedirectFrontMatches(e.action, zi, banished)) continue;

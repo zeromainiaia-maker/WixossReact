@@ -218,6 +218,7 @@ export function banishDestination(
     banished?: BanishedCardAttrs;       // 除去前盤面から取った被バニッシュ属性（computeBanishedAttrs）
     turnPhase?: TurnPhase;
     effectivePowers?: Map<string, number>;
+    effectSourceNum?: string;
   },
 ): { state: PlayerState; log: string } {
   if (opponent.banish_redirect_target_nums?.includes(num)) {
@@ -235,7 +236,7 @@ export function banishDestination(
   }
   // 効果経路の 【常】 BANISH_REDIRECT（redirectTo:'trash'）走査（タスク12(xliv)(a2)）。
   // ターン内フラグに載らない常在置換をここで拾う。redirectBanish はデッキ下より優先（バトル経路と同順）。
-  if (opts?.cardMap && fieldEffectBanishRedirectToTrash(opponent, removed, opts.cardMap, opts.banished, opts.turnPhase, opts.effectivePowers)) {
+  if (opts?.cardMap && fieldEffectBanishRedirectToTrash(opponent, removed, opts.cardMap, opts.banished, opts.turnPhase, opts.effectivePowers, opts.effectSourceNum)) {
     return { state: { ...removed, trash: [...removed.trash, num] }, log: 'をバニッシュ（トラッシュへ）' };
   }
   if (removed.opp_signi_energy_to_deck_bottom === true) {
@@ -254,6 +255,7 @@ export function banishRedirectOpts(ctx: ExecCtx, victimState: PlayerState, num: 
     banished: computeBanishedAttrs(victimState, num, ctx.cardMap),
     turnPhase: ctx.currentPhase as TurnPhase | undefined,
     effectivePowers: ctx.effectivePowers,
+    effectSourceNum: ctx.sourceCardNum,
   };
 }
 
