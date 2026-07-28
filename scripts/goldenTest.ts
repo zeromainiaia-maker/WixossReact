@@ -12355,6 +12355,64 @@ test('task12(xxxix) batch4 WXEX2-21-E1: guard block lasts only the current attac
     eq(no.ownerState.prevent_opp_guard, undefined, 'deck not reaching zero does not block guard');
   } finally { cursor = savedCursor; }
 });
+test('task12(lvi) cost: runtime merge restores payment and zero-cost objects remain payable', () => {
+  const paid = manualEffect('WXK08-055', 'WXK08-055-E1');
+  eq(paid.cost?.energy?.reduce((sum, item) => sum + item.count, 0), 1, '黒1を実徴収する形');
+  eq(mkState({ energy: 0 }).energy.length >= (paid.cost?.energy?.reduce((sum, item) => sum + item.count, 0) ?? 0), false, 'エナ0では発動不可');
+  const zero = manualEffect('WXK11-070', 'WXK11-070-E1');
+  eq(zero.cost?.energy?.reduce((sum, item) => sum + item.count, 0), 0, '緑0を保持');
+  eq(mkState({ energy: 0 }).energy.length >= (zero.cost?.energy?.reduce((sum, item) => sum + item.count, 0) ?? 0), true, '0コストは支払い不能にならない');
+});
+
+test('task12(lvi) condition: PR-204 runtime use gate rejects center LRIG level 5', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = manualEffect('PR-204', 'PR-204-E1');
+    const l4 = findCard(c => c.Type.includes('ルリグ') && c.Level === '4');
+    const l5 = findCard(c => c.Type.includes('ルリグ') && c.Level === '5');
+    const state = (lrig: string) => {
+      const st = mkState({});
+      st.field.lrig = [lrig];
+      return st;
+    };
+    ok(evalUseCondition(eff.condition!, state(l4), mkState({}), cardMap, 'PR-204', 'MAIN'), 'レベル4は使用可');
+    ok(!evalUseCondition(eff.condition!, state(l5), mkState({}), cardMap, 'PR-204', 'MAIN'), 'レベル5は使用不可');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(lvi) timing: WX17-041 life-burst queue filter fires exactly once', () => {
+  const effects = mergeManualEffects('WX17-041', effectsMap.get('WX17-041') ?? []);
+  const queued = effects.filter(e =>
+    e.effectType === 'LIFE_BURST' && e.timing?.some(t => ['ON_LIFE_BURST'].includes(t)));
+  eq(queued.length, 1, 'ライフバースト経路で1件だけ収集');
+  eq(queued[0].effectId, 'WX17-041-BURST', '対象BURSTを収集');
+});
+
+test('task12(lvi) appearanceCondition: runtime Resona route requires and consumes WX08-006 payment', () => {
+  const savedCursor = cursor;
+  try {
+    const resona = 'WX08-006';
+    const insects = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && c.CardClass?.includes('凶蟲') && c.CardNum !== resona)
+      .slice(0, 2).map(c => c.CardNum);
+    eq(insects.length, 2, '凶蟲シグニ2体fixture');
+    const merged = new Map(effectsMap);
+    merged.set(resona, mergeManualEffects(resona, effectsMap.get(resona) ?? []));
+    const insufficient = mkState({ signi: [insects[0], null, null] });
+    insufficient.lrig_deck = [resona];
+    eq(getMainSingleZoneResonaCandidate(resona, insufficient, cardMap, merged), null, '1体では候補外');
+    const payable = mkState({ signi: [insects[0], insects[1], null] });
+    payable.lrig_deck = [resona];
+    const candidate = getMainSingleZoneResonaCandidate(resona, payable, cardMap, merged);
+    ok(!!candidate, '2体で候補化');
+    const placed = payResonaAppearanceAndPlace(
+      payable, resona, candidate!.payment, { zone: 'field', indices: [0, 1] }, 2, cardMap);
+    ok(!!placed, '実支払い経路を完走');
+    ok(insects.every(card => placed!.state.trash.includes(card)), '2体をトラッシュへ徴収');
+    eq(placed!.state.field.signi[2]?.at(-1), resona, 'レゾナを配置');
+  } finally { cursor = savedCursor; }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

@@ -1,0 +1,189 @@
+
+=== WXK08-055-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"黒","count":1}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRASH_UNDER_SIGNI_UP_TO_ALL"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"oppon
+NAME=ダーク・フラッシュ TYPE=スペル COST列=《黒》×１
+EffectText: あなたのシグニの下にあるカードを好きな枚数対象とし、それらをトラッシュに置く。その後、この方法でカードを１枚以上トラッシュに置いた場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。２枚以上置いた場合、追加でカードを１枚引く。３枚以上置いた場合、追加で対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。４枚以上置いた場合、追加であなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。
+BurstText: ：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。
+
+=== WXK11-070-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"緑","count":0}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":5},"then":{"type":"TRANSFER_TO_DECK","source"
+NAME=修築 TYPE=スペル COST列=《緑》×０
+EffectText: あなたのエナゾーンからすべてのカードをトラッシュに置く。この方法でカードを５枚以上トラッシュに置いた場合、あなたのトラッシュからすべてのカードをデッキに加えてシャッフルする。１０枚以上トラッシュに置いた場合、追加であなたのデッキの一番上のカードをライフクロスに加える。このスペルをゲームから除外する。
+BurstText: ：あなたのライフクロスが２枚以下の場合、あなたのデッキの一番上のカードをライフクロスに加える。
+
+=== PR-204-E1 ===
+LOST: cost, condition
+  JSON.cost = {"energy":[{"color":"白","count":1},{"color":"無","count":2}]}
+  JSON.condition = {"type":"LRIG_LEVEL","owner":"self","operator":"lte","value":4}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-204-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"アーク・ディストラクト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","exc
+NAME=アーク・ディストラクト TYPE=アーツ COST列=《白》×１《無》×２
+EffectText: このカードはあなたのセンタールリグがレベル４以下の場合にしか使用できない。ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このターンにあなたが《アーク・ディストラクト》以外のアーツを使用していない場合、このルリグの下からカードを２枚ルリグトラッシュに置いてもよい。そうした場合、このルリグをアップする。」を得る。
+BurstText: -
+
+=== WD21-009-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"赤","count":1},{"color":"無","count":2}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WD21-009-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_ANY"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"typ
+NAME=燐廻転生 TYPE=アーツ COST列=《赤》×１《無》×２
+EffectText: ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、それらをルリグトラッシュに置く。その後、この方法で２枚以上のカードをルリグトラッシュに置いた場合、数字２つを宣言する。このターン、対戦相手は宣言された数字と同じレベルのシグニで【ガード】ができない。４枚以上の場合、ターン終了時まで、このルリグは【トリプルクラッシュ】を得る。５枚以上の場合、このルリグをアップする。」を得る。
+BurstText: -
+
+=== PR-238-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"黒","count":1}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-238-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"ディストラクト・アウト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_AN
+NAME=ディストラクト・アウト TYPE=アーツ COST列=《黒》×１
+EffectText: ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、このターンにあなたが《ディストラクト・アウト》以外のアーツを使用していない場合、それらをルリグトラッシュに置く。この方法でルリグトラッシュに置かれたカード１枚につき各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。その後、あなたのデッキが０枚の場合、このルリグをアップする。」を得る。
+BurstText: -
+
+=== WX17-041-BURST ===
+LOST: timing
+  JSON.timing = ["ON_LIFE_BURST"]
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"RETURN_TRAP_TO_HAND_ONE"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"the
+NAME=超罠　タイマーボム TYPE=シグニ COST列=-
+EffectText: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番下に置く。【トラップアイコン】：《青》《青》《青》《無》《無》《無》を支払ってもよい。そうした場合、対戦相手のすべてのシグニを手札に戻す。
+BurstText: ：対戦相手のシグニ１体を対象とし、あなたの【トラップ】１つを手札に戻す。そうした場合、それを手札に戻す。
+
+=== WX13-005A-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》合計３枚のレゾナではない＜宇宙＞のシグニをあなたの手札と場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","field"],"count":3,"filter":{"cardType":"シグニ","story":"宇宙","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"}
+NAME=白羅星　フルムーン TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》合計３枚のレゾナではない＜宇宙＞のシグニをあなたの手札と場からトラッシュに置く【常】：あなたの他のレゾナは対戦相手のシグニの効果を受けない。【出】：次のあなたのターンまで、対戦相手は各シグニアタックステップにシグニで合計一度しかアタックできない。
+BurstText: -
+
+=== WX12-010-E2 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる","timings":["MAIN","ATTACK"],"cost":{"discardGroups":[{"count":1,"filter":{"cardType":"シグニ","color":"白"}},{"count":1,"filter":{"cardType":"シグニ","color":"黒"}}]},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, timing, triggerScope, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsTriggerSource":true,"delta":-2000}
+NAME=ホワイトメイズ　ホデサパ TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる【常】：対戦相手のシグニは可能ならばアタックしなければならない。【自】：対戦相手のシグニ１体がアタックしたとき、ターン終了時まで、そのシグニのパワーを－2000する。【出】：対戦相手のすべてのシグニを好きなように配置し直してもよい。あなたはこの方法で他のシグニゾーンに移動したシグニをアップしてもよい。
+BurstText: -
+
+=== WXDi-P11-TK01-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":2,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, activeCondition, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"OPP_ZONE_PLACEMENT_RESTRICT"}
+NAME=白羅星姫　サタン TYPE=シグニ/レゾナクラフト COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く【常】：あなたのターンの間、対戦相手はシグニを２体までしか場に出すことができない。（すでに場に３体以上ある場合は２体になるようにシグニをトラッシュに置く）（レゾナでありクラフトであるシグニはリムーブできず場を離れるとゲームから除外される）
+BurstText: -
+
+=== WX25-P2-TK05-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":2,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"OPP_DRAW_LIMIT_PER_TURN"}
+NAME=蒼穹将姫　ニヴルヘイム TYPE=シグニ/レゾナクラフト COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く【常】：対戦相手はドローフェイズの間にカードを合計１枚までしか引けない。【自】：このシグニが場を離れたとき、カードを２枚引くか、対戦相手は手札を２枚捨てる。（レゾナでありクラフトであるシグニはリムーブできず場を離れるとゲームから除外される）
+BurstText: -
+
+=== WX08-005-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》レゾナ１体をあなたの場からルリグトラッシュに置き、レゾナではないレベル３以上のシグニ１体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldToLrigTrash":{"count":1,"filter":{"cardType":"レゾナ"}},"fieldTrash":{"count":1,"filter":{"cardType":"シグニ","level":{"min":3},"excludeResona":true}}},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"CARDS_OUTSIDE_ENERGY_BECOME_WHITE"}
+NAME=白羅星　ウラヌス TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》レゾナ１体をあなたの場からルリグトラッシュに置き、レゾナではないレベル３以上のシグニ１体をあなたの場からトラッシュに置く【常】：エナゾーン以外の領域にあるカードは白になる。【常】：このシグニは対戦相手の白のカードの効果を受けない。
+BurstText: -
+
+=== WX08-006-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"凶蟲","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"RESTRICT_CHARMED_SIGNI_ACTIVATED"}
+NAME=黒幻蟲　アラクネ・パイダ TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く【常】：対戦相手は【チャーム】が付いているシグニの【起】能力を使用できない。【自】：対戦相手のシグニ１体が場に出たとき、対戦相手は自分のデッキの一番上のカードをそのシグニの【チャーム】にする。【自】：各アタックフェイズ開始時、対戦相手は【チャーム】が付いている自分のシグニ１体を対象とし、それをバニッシュする。
+BurstText: -
+
+=== WX10-006-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》レゾナではない＜遊具＞のシグニ３体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":3,"filter":{"cardType":"シグニ","story":"遊具","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"TRANSFER_TO_HAND","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":true}}
+NAME=緑肆ノ遊　メリゴラン TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》レゾナではない＜遊具＞のシグニ３体をあなたの場からトラッシュに置く【自】：このシグニがアタックしたとき、あなたのエナゾーンからカード１枚を対象とし、それを手札に加えてもよい。【自】：このシグニがバニッシュされたとき、あなたのエナゾーンからカードを２枚まで対象とし、それらを手札に加えてもよい。【出】：あなたのデッキの上からカードを２枚エナゾーンに置く。
+BurstText: -
+
+=== WX14-017-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》レゾナではない＜植物＞のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"植物","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"ENERGY_NON_COLORLESS_ALL_COLORS"}
+NAME=緑羅植　ユグドラ TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》レゾナではない＜植物＞のシグニ２体をあなたの場からトラッシュに置く【常】：あなたのエナゾーンにある無色ではないカードはすべての色を持つ。（エナを支払う際にはどの色として支払うか選ぶ）【常】：あなたは無色のシグニを場に出せず、無色のスペルを使用できない。（すでに場に出ている無色のシグニはトラッシュに置かれる）
+BurstText: -
+
+=== WXEX1-26-E1 ===
+LOST: appearanceCondition
+  JSON.appearanceCondition = {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》合計５枚のレゾナではない＜宇宙＞のシグニをあなたのエナゾーンと場からトラッシュに置く","timings":["MAIN","ATTACK"],"cost":{},"combinedTrash":{"zones":["energy","field"],"count":5,"filter":{"cardType":"シグニ","story":"宇宙","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}
+MANUAL keys: effectId, effectType, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"OPP_CENTER_LRIG_LIMIT_SET_5"}
+NAME=白羅星　ジ・アース TYPE=レゾナ COST列=-
+EffectText: 【出現条件】《メインフェイズアイコン》《アタックフェイズアイコン》合計５枚のレゾナではない＜宇宙＞のシグニをあなたのエナゾーンと場からトラッシュに置く【常】：対戦相手のセンタールリグの基本リミットは５になる。【自】：あなたのアタックフェイズ開始時、ターン終了時まで、あなたのすべての＜宇宙＞のシグニは【アサシン】と【ダブルクラッシュ】を得る。
+BurstText: -
+
+=== WX16-048-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"黒","count":1}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":99}
+NAME=バッド・アドバンテージ TYPE=スペル COST列=《黒》×１
+EffectText: このスペルを使用する際、使用コストとして追加で対戦相手の場にある【ウィルス】を好きな数取り除いてもよい。以下の４つから、追加で取り除いた【ウィルス】の数に１を加えた数だけ選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。②ターン終了時まで、対戦相手のすべてのシグニのパワーを－2000する。③あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。④各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。
+BurstText: -
+
+=== WX16-023-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"黒","count":1}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":2}
+NAME=ブラック・エイク TYPE=アーツ COST列=《黒》×１
+EffectText: このアーツを使用する際、使用コストとして追加で対戦相手の場にある【ウィルス】を２つまで取り除いてもよい。以下の３つから、これの使用コストで取り除いた【ウィルス】の数に１を加えた数だけ選ぶ。①あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。②対戦相手のトラッシュにあるカードを２枚まで対象とし、それらをゲームから除外する。③対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。
+BurstText: -
+
+=== WXK10-008-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"赤","count":0}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"energy-loss","label":"対戦相手のターンの場合、このターン、対戦相手のエナゾーンにあるカードは色と能力を失う","condition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"OPP_ENERGY_COLORLESS_ABILITY_LOSS"}},{"choiceId":"banish","label":"対戦相手のパワー700
+NAME=怒髪衝炎 TYPE=アーツ COST列=《赤》×０
+EffectText: アンコール－《コインアイコン》《コインアイコン》（アンコールコストを追加で支払って使用してもよい。そうした場合、これは追加で「このカードをルリグデッキに戻す。」を得る）以下の２つから１つを選ぶ。①対戦相手のターンの場合、このターン、対戦相手のエナゾーンにあるカードは色と能力を失う。②対戦相手のパワー7000以下のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする。
+BurstText: -
+
+=== WXDi-P11-001-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"無","count":1}]}
+MANUAL keys: effectId, effectType, timing, condition, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"banish-draw","label":"直前のターンにライフクロスが2枚以上クラッシュされていた場合、相手シグニ1体をバニッシュし2枚引く","condition":{"type":"LIFE_CRASHED_LAST_TURN","owner":"self","operator":"gte","value":2},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"t
+
+=== WX24-P3-036-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"青","count":1}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"down","label":"対戦相手のシグニ1体をダウンする","action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"STUB","id":"OPTIONAL_RETURN_SEL
+NAME=アンチ・スペル・バツ TYPE=アーツ COST列=《青》×１
+EffectText: 以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。②スペル１つを対象とし、それのコストの合計１につき《無》を支払ってもよい。そうした場合、それの効果を打ち消す。このターンにあなたが《アンチ・スペル・バツ》を使用したのが一度目の場合、このカードをルリグデッキに戻してもよい。（コストの合計とは、カードの左上のエナコストの数字の合計である。例えばコストが《白×1》《無×2》の場合、コストの合計は３である）
+BurstText: -
+
+=== WXDi-P05-006-E1 ===
+LOST: cost
+  JSON.cost = {"energy":[{"color":"青","count":0}]}
+MANUAL keys: effectId, effectType, timing, action, duration, mandatory, parseStatus
+MANUAL.action = {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"COUNTER_TEAM_PIECE_CUTIN_DEFERRED"}},{"choiceId":"draw-energy","label":"カードを1枚引き、エナチャージ1","action":{"type":"SEQUENCE","steps":[{"type":"DRAW"
+NAME=永遠♡不滅　きゅるきゅる～ん☆ TYPE=ピース COST列=《青》×０
+EffectText: 【使用条件】【チーム】＜きゅるきゅるーん☆＞このピースは、対戦相手が【使用条件】【チーム】を持つピースを使用する際、カットインして使用できる。以下の２つから１つを選ぶ。①【使用条件】【チーム】を持つ対戦相手のピース１枚を対象とし、それの効果を打ち消す。この方法で打ち消されたピースはゲームから除外される。②カードを１枚引き【エナチャージ１】をする。
+BurstText: -
+
+--- total 21 effects with lost top-level fields ---

@@ -159,22 +159,22 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXK03-039-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"STUB","id":"SELECT_OPP_SIGNI_FOR_BOTTOM_MILL"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXK08-055": [
-    {"effectId":"WXK08-055-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRASH_UNDER_SIGNI_UP_TO_ALL"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-5000,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":3},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-10000,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"color":"\u9ed2","cardType":"\u30b7\u30b0\u30cb"}}}}]}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WXK08-055-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRASH_UNDER_SIGNI_UP_TO_ALL"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-5000,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":3},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-10000,"duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"color":"\u9ed2","cardType":"\u30b7\u30b0\u30cb"}}}}]}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXK11-070": [
-    {"effectId":"WXK11-070-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":5},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},{"type":"STUB","id":"EXILE_SELF_AFTER_USE"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WXK11-070-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":5},"then":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":10},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},{"type":"STUB","id":"EXILE_SELF_AFTER_USE"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "PR-204": [
-    {"effectId":"PR-204-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-204-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"アーク・ディストラクト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","exceed":2},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"PR-204-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1},{"color":"無","count":2}]},"condition":{"type":"LRIG_LEVEL","owner":"self","operator":"lte","value":4},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-204-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"アーク・ディストラクト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","exceed":2},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WD21-009": [
-    {"effectId":"WD21-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WD21-009-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_ANY"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"STUB","id":"DECLARE_TWO_GUARD_LEVELS"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4},"then":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"トリプルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":5},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}] }]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WD21-009-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"無","count":2}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WD21-009-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_ANY"},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"STUB","id":"DECLARE_TWO_GUARD_LEVELS"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":4},"then":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"トリプルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":5},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}] }]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "PR-238": [
-    {"effectId":"PR-238-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-238-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"ディストラクト・アウト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_ANY"},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"MILL","owner":"self","count":0,"countPerStoredTargets":5},{"type":"MILL","owner":"opponent","count":0,"countPerStoredTargets":5},{"type":"CONDITIONAL","condition":{"type":"DECK_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"PR-238-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-238-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"triggerScope":"self","condition":{"type":"NO_OTHER_ARTS_USED_THIS_TURN","exceptCardName":"ディストラクト・アウト"},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_TRASH_ANY"},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"MILL","owner":"self","count":0,"countPerStoredTargets":5},{"type":"MILL","owner":"opponent","count":0,"countPerStoredTargets":5},{"type":"CONDITIONAL","condition":{"type":"DECK_COUNT","owner":"self","operator":"eq","value":0},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WX17-041": [
-    {"effectId":"WX17-041-BURST","effectType":"LIFE_BURST","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"RETURN_TRAP_TO_HAND_ONE"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WX17-041-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":0},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"RETURN_TRAP_TO_HAND_ONE"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "PR-470A": [
     {"effectId":"PR-470A-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":10000},"then":{"type":"DRAW","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"SELF_POWER_GTE","value":25000},"then":{"type":"STUB","id":"SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME","fetchCardName":"進化する筋肉　紗倉ひびき"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
@@ -262,7 +262,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX09-016": [{"effectId":"WX09-016-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","isDown":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX09-CB02-E1（終末の回旋 チェロン）は下方の既存ブロックで是正済（from:['BANISH']＋hasCrossIcon）。
   // WX13-005A-E1 白羅星 フルムーン：「あなたの他のレゾナは対戦相手のシグニの効果を受けない」→ cardType:レゾナ＋excludeSelf。
-  "WX13-005A": [{"effectId":"WX13-005A-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
+  "WX13-005A": [{"effectId":"WX13-005A-E1","effectType":"CONTINUOUS","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計３枚のレゾナではない＜宇宙＞のシグニをあなたの手札と場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","field"],"count":3,"filter":{"cardType":"シグニ","story":"宇宙","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"},"action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"レゾナ","excludeSelf":true},"subjectOwner":"self","from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
   // WX18-034-E1 コードオーダー モツナ：「このシグニはアクセされているかぎり、対戦相手のルリグの効果を受けない」。
   //   広域ではなく「このシグニ」限定＋アクセ条件 → count:1（＝効果元自身を保護）＋activeCondition:IS_SELF_ACCED。
   "WX18-034": [{"effectId":"WX18-034-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_ACCED"},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["ルリグ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}],
@@ -1024,6 +1024,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX12-010-E2',
       effectType: 'AUTO',
       timing: ['ON_ATTACK_SIGNI'],
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる","timings":["MAIN","ATTACK"],"cost":{"discardGroups":[{"count":1,"filter":{"cardType":"シグニ","color":"白"}},{"count":1,"filter":{"cardType":"シグニ","color":"黒"}}]},"paymentShape":"REQUIRES_NEW_FLOW"},
       triggerScope: 'any_opp',
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsTriggerSource: true, delta: -2000 },
       duration: 'UNTIL_END_OF_TURN',
@@ -2673,6 +2674,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WXDi-P11-TK01-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":2,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"},
       activeCondition: { type: 'TURN_OWNER', owner: 'self' },
       action: { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
@@ -2767,6 +2769,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WX25-P2-TK05-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計２枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":2,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"},
       action: { type: 'STUB', id: 'OPP_DRAW_LIMIT_PER_TURN' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
@@ -2807,6 +2810,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WX08-005-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナ１体をあなたの場からルリグトラッシュに置き、レゾナではないレベル３以上のシグニ１体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldToLrigTrash":{"count":1,"filter":{"cardType":"レゾナ"}},"fieldTrash":{"count":1,"filter":{"cardType":"シグニ","level":{"min":3},"excludeResona":true}}},"paymentShape":"REQUIRES_NEW_FLOW"},
       action: { type: 'STUB', id: 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
@@ -2819,6 +2823,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WX08-006-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナではない＜凶蟲＞のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"凶蟲","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"},
       action: { type: 'STUB', id: 'RESTRICT_CHARMED_SIGNI_ACTIVATED' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
@@ -2849,6 +2854,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX10-006-E1',
       effectType: 'AUTO',
       timing: ['ON_ATTACK_SIGNI'],
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナではない＜遊具＞のシグニ３体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":3,"filter":{"cardType":"シグニ","story":"遊具","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"},
       action: {
         type: 'TRANSFER_TO_HAND',
         source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true },
@@ -2864,6 +2870,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WX14-017-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》レゾナではない＜植物＞のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"植物","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"},
       action: { type: 'STUB', id: 'ENERGY_NON_COLORLESS_ALL_COLORS' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
@@ -2876,6 +2883,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {
       effectId: 'WXEX1-26-E1',
       effectType: 'CONTINUOUS',
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》合計５枚のレゾナではない＜宇宙＞のシグニをあなたのエナゾーンと場からトラッシュに置く","timings":["MAIN","ATTACK"],"cost":{},"combinedTrash":{"zones":["energy","field"],"count":5,"filter":{"cardType":"シグニ","story":"宇宙","excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"},
       action: { type: 'STUB', id: 'OPP_CENTER_LRIG_LIMIT_SET_5' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
@@ -4460,15 +4468,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WX24-P2-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"満月の使徒　小湊るう子"}},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"対象のレベルにつき白1枚を捨て、手札に戻す","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"STUB","id":"OPTIONAL_COST","handDiscardCountFromTargetLevel":true,"handDiscardFilter":{"color":"白"}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}]}},{"choiceId":"c1","label":"手札をすべて捨て、6枚以上ならライフクロスを手札に加える","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"},"optional":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":6,"verbJa":"捨てた"},"then":{"type":"STUB","id":"CRASH_LIFE_TO_HAND"}}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WX16-048": [
-    {"effectId":"WX16-048-E1","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":99},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX16-048-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":99},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   "WX16-023": [
-    {"effectId":"WX16-023-E1","effectType":"ACTIVATED","timing":["ATTACK"],"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":2},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX16-023-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"STUB","id":"EXTRA_COST_REMOVE_VIRUS","value":2},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // Choice 1 is only available on the opponent's turn. Choice 2 fixes the old
   // IS_MY_TURN placeholder by gating BANISH on the actual optional red payment.
   "WXK10-008": [
-    {"effectId":"WXK10-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+    {"effectId":"WXK10-008-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"energy-loss","label":"対戦相手のターンの場合、このターン、対戦相手のエナゾーンにあるカードは色と能力を失う","condition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"STUB","id":"OPP_ENERGY_COLORLESS_ABILITY_LOSS"}},
       {"choiceId":"banish","label":"対戦相手のパワー7000以下のシグニ1体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする","action":{"type":"SEQUENCE","steps":[
         {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}}},"delta":0},
@@ -4480,7 +4488,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // Dream Team requires all three LRIG slots and at least three distinct colors.
   "WXDi-P11-001": [
-    {"effectId":"WXDi-P11-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+    {"effectId":"WXDi-P11-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"banish-draw","label":"直前のターンにライフクロスが2枚以上クラッシュされていた場合、相手シグニ1体をバニッシュし2枚引く","condition":{"type":"LIFE_CRASHED_LAST_TURN","owner":"self","operator":"gte","value":2},"action":{"type":"SEQUENCE","steps":[
         {"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},
         {"type":"DRAW","owner":"self","count":2}
@@ -4494,7 +4502,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // PLAN §6.3 単独バッチ9: スペルカットインの動的《無》支払いは
   // BattleScreen が pending_spell の印刷コスト合計から候補コストへ展開する。
   "WX24-P3-036": [
-    {"effectId":"WX24-P3-036-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+    {"effectId":"WX24-P3-036-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"down","label":"対戦相手のシグニ1体をダウンする","action":{"type":"SEQUENCE","steps":[
         {"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},
         {"type":"STUB","id":"OPTIONAL_RETURN_SELF_ARTS_FIRST_USE"}
@@ -4508,7 +4516,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // ピースカットインの pending_piece/応答窓は未実装。①を偽実装せず STUB に残し、
   // 通常使用でも正しく解決できる②だけを実装する。
   "WXDi-P05-006": [
-    {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+    {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"COUNTER_TEAM_PIECE_CUTIN_DEFERRED"}},
       {"choiceId":"draw-energy","label":"カードを1枚引き、エナチャージ1","action":{"type":"SEQUENCE","steps":[
         {"type":"DRAW","owner":"self","count":1},

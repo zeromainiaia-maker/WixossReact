@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(lvi)＝manual override のトップレベルフィールド脱落21効果を完全クローズ（2026-07-28・Codex）
+
+- **全21効果を是正・defer 0**：CSV原文と JSON の値を1件ずつ照合し、`manualEffects.ts` の完全置換 override へ欠落値を明示復元した。cost 10件＝WXK08-055-E1／WXK11-070-E1／WD21-009-E1／PR-238-E1／WX16-048-E1／WX16-023-E1／WXK10-008-E1／WXDi-P11-001-E1／WX24-P3-036-E1／WXDi-P05-006-E1、cost＋condition 1件＝PR-204-E1、timing 1件＝WX17-041-BURST、appearanceCondition 9件＝WX13-005A-E1／WX12-010-E2／WXDi-P11-TK01-E1／WX25-P2-TK05-E1／WX08-005-E1／WX08-006-E1／WX10-006-E1／WX14-017-E1／WXEX1-26-E1。原文と JSON の不一致0件。
+- **実経路の前後実測**：WXK08-055 は修正前 required=0／エナ0で使用可、修正後 required=1／使用不可。PR-204 は修正前レベル5可、修正後 `evalUseCondition` で不可。WX17-041-BURST は BattleScreen と同じ queue filter で0→1件（同 effectId は1件のみで二重発火なし）。WX08-006 は修正前候補なし、修正後は凶蟲2体を実際にトラッシュして配置成功。appearance 9件は他効果による救済0件で、修正前の実害は「出現条件踏み倒し」ではなく「召喚不能」だった。
+- **0コスト非回帰**：WXK11-070（緑0）／WXK10-008（赤0）／WXDi-P05-006（青0）は cost object を保持しても `(energy ?? []).reduce(...)` が0となり、エナ0で支払い可能。BattleScreen の同型分岐は `energyTotal > 0` のときだけ支払いUIへ進むため、支払い不能・UI消失にはならない。
+- **回帰防止**：`scripts/checkManualFieldLoss.ts` と `npm run check:manual-fields` を新設し、JSON と同 effectId の manual override がトップレベルフィールドを1つでも落とすと exit 1。許可リストなし。`scripts/runGates.mjs` の並列ゲートへ追加。golden は cost／condition／timing／appearanceCondition の実経路を各1本追加し 844→848。
+- **CODEX_GUIDE §5-16訂正**：App は JSON を fetch するが、BattleScreen は `buildEffectsMap`→`mergeManualEffects` を必ず通すため manual は実機へ届く。続き293の「runtime に mergeManualEffects を通さない」は誤診断。JSON 直読みの計器・成果物へ curated 値を焼く場合と runtime manual 修正を区別した。当時4効果が不発だった真因は現行コードと記録だけでは確定不能として推測を書かなかった。
+- **禁止事項の遵守**：`mergeManualEffects` の浅いマージ化なし、`build:effects` 未実行、`public/data/effects_*.json` 変更なし、census baseline 変更なし、deferなし。
+
 ## §3タスク12(xxxix) バッチ4（最終）＝機構待ち残り4効果を全採用（2026-07-28・Codex）
 
 - **WXEX1-66-E2**：`SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→LOOK_AND_REORDER{公開4,shuffle,bottom}→LAST_PROCESSED_MATCHES{原子,4種類}→BANISH{targetsStored}` へ変更。`storedTargetCards` は変更前18効果／途中pending 16効果、変更後19効果／17効果。`done`・`needsInteraction`・`executeSequence`・`resumeSelectTarget`・`resumeSearch`・`resumeChoose` と BattleScreen `PendingEffect` は既に値を継承しており、バッチ3の「保持機構欠落」診断を訂正。追加は同じ公開4枚を二重公開せずシャッフルしてデッキ下へ置く省略可能 `LOOK_AND_REORDER.shuffle`（`execLookAndReorder`→`resumeLookAndReorder`）。既存18効果は新フラグなしで不変。

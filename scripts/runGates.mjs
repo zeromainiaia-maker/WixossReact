@@ -39,6 +39,7 @@ const results = await Promise.all([
   run('smoke', 'smoke'),
   run('fuzz', 'fuzz'),
   run('census', 'census'),
+  run('manual-fields', 'check:manual-fields'),
   run('lint', 'lint'),
 ]);
 for (const r of results) show(r);

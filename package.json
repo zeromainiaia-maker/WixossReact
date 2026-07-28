@@ -16,6 +16,7 @@
     "audit:queue": "tsx scripts/behaviorAudit.ts --queue",
     "audit:html": "tsx scripts/behaviorAudit.ts --html",
     "census": "tsx scripts/vocabCensus.ts",
+    "check:manual-fields": "tsx scripts/checkManualFieldLoss.ts",
     "census:clusters": "tsx scripts/vocabCensus.ts --clusters",
     "regen": "tsx scripts/decompileEffects.ts --sheets && node scripts/genReviewRepr.mjs && node scripts/groupSimilar.mjs --all && node scripts/groupBySentence.mjs --all",
     "gates": "node scripts/runGates.mjs",
