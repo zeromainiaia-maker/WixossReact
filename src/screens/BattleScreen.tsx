@@ -86,7 +86,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
-import { clearEndOfAttackEffects } from './battle/attackDuration';
+import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -3434,6 +3434,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else {
         update.turn_phase = PHASE_NEXT[phase];
+        // 「このアタックフェイズの間」の遅延 watcher は ATTACK_LRIG→END で両者から消滅。
+        // collector 側にもフェイズ判定を持たせ、stale state が残ってもフェイズ外発火しない。
+        if (phase === 'ATTACK_LRIG') {
+          newMyState = clearEndOfAttackPhaseDelayedTriggers(newMyState);
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          update[opKey] = clearEndOfAttackPhaseDelayedTriggers(op);
+        }
         // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
         if (phase === 'ENERGY' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
           const glp = newMyState.game_grow_phase_limit_plus!;

@@ -43,7 +43,7 @@ import { reduceBattle } from '../src/screens/battle/controller/battleController'
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
-import { clearEndOfAttackEffects } from '../src/screens/battle/attackDuration';
+import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
@@ -3982,6 +3982,87 @@ test('Stage2 ON_LEAVE_FIELD levelLtTrigger 解決: 離脱カード基準で leve
   eq(f.levelLtTrigger, undefined, 'levelLtTrigger は収集時に level へ解決され除去される');
   eq((f.level as { max: number }).max, lv - 1, `離脱レベル${lv}→level.max=${lv - 1}`);
   eq(f.cardName, 'ユラギ', 'cardName ユラギ を保持（低レベルのユラギのみ配置）');
+});
+test('Stage2 ON_LEAVE_FIELD levelEqTrigger: ルリグ《ママ♥５》がアタック中の英知離脱だけを同レベルへ解決（WX21-004-E2）', () => {
+  const savedCursor = cursor;
+  try {
+    const parsed = parseCardEffects(cardMap.get('WX21-004')!).find(e => e.effectId === 'WX21-004-E2')!;
+    const parsedFilter = (parsed.action as { source: { filter: Record<string, unknown> } }).source.filter;
+    eq(parsedFilter.levelEqTrigger, true, 'parser は「そのシグニと同じレベル」→levelEqTrigger');
+
+    const eichiLv2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('英知') && c.Level === '2');
+    const eichiLv3 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('英知') && c.Level === '3');
+    const nonEichiLv2 = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('英知') && c.Level === '2');
+    const host = mkState({});
+    host.field.lrig = ['WX21-004']; // 発生源はルリグ。シグニゾーンに置く偽陽性テストにしない
+    const guest = mkState({});
+    const localEffects = new Map(effectsMap);
+    localEffects.set('WX21-004', parseCardEffects(cardMap.get('WX21-004')!));
+    const atk = { ...trigCtx(HOST), effectsMap: localEffects, turnPhase: 'ATTACK_SIGNI' };
+    const main = { ...trigCtx(HOST), effectsMap: localEffects, turnPhase: 'MAIN' };
+
+    const entry = collectLeaveFieldTriggers(atk, eichiLv2, [], HOST, host, guest).entries.find(e => e.effectId === 'WX21-004-E2');
+    ok(!!entry, 'アタックフェイズ×英知離脱でルリグ watcher が発火');
+    const filter = (entry!.effect.action as { source: { filter: Record<string, unknown> } }).source.filter;
+    eq(filter.levelEqTrigger, undefined, 'levelEqTrigger は収集時に具体レベルへ解決され除去');
+    eq(filter.level, 2, '離脱した英知Lv2を基準に level:2 へ解決');
+    ok(matchesFilter(cardMap.get(eichiLv2), filter), '同レベルの英知は配置候補');
+    ok(!matchesFilter(cardMap.get(eichiLv3), filter), 'レベル不一致の英知は配置候補外');
+    ok(!matchesFilter(cardMap.get(nonEichiLv2), filter), '同レベルでもクラス不一致は配置候補外');
+
+    eq(has(collectLeaveFieldTriggers(main, eichiLv2, [], HOST, host, guest).entries, 'WX21-004-E2'), false,
+      'メインフェイズでは duringAttackPhase により非発火');
+    eq(has(collectLeaveFieldTriggers(atk, nonEichiLv2, [], HOST, host, guest).entries, 'WX21-004-E2'), false,
+      '英知以外の離脱では triggerFilter により非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('INSTALL_DELAYED_TRIGGER ON_LEAVE_FIELD: 《悲願の駄姫 グズ子》を設置→遊具離脱時だけ低レベル遊具を手札候補化・APS終了で消滅（WX22-001-E3）', () => {
+  const savedCursor = cursor;
+  try {
+    const parsed = parseCardEffects(cardMap.get('WX22-001')!).find(e => e.effectId === 'WX22-001-E3')!;
+    const install = parsed.action as import('../src/types/effects').InstallDelayedTriggerAction;
+    eq(install.type, 'INSTALL_DELAYED_TRIGGER', 'parser は即時配置/STUBでなく遅延 watcher を生成');
+    eq(install.duration, 'THIS_ATTACK_PHASE', '寿命はこのアタックフェイズだけ');
+    eq(install.trigger.timing, 'ON_LEAVE_FIELD', '離脱イベントを監視');
+
+    const yuguLv3 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && c.Level === '3');
+    const yuguLv2 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && c.Level === '2');
+    const yuguLv4 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具') && c.Level === '4');
+    const nonYuguLv2 = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具') && c.Level === '2');
+    const installCtx = mkCtx({}, {}, 'WX22-001');
+    installCtx.ownerState.field.lrig = ['WX22-001']; // 実戦どおり発生源はルリグゾーン
+    const installed = run(install as unknown as EffectAction, installCtx);
+    eq(installed.ownerState.delayed_triggers?.length, 1, '起動解決時に player state へ watcher を設置');
+
+    const atk = { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' };
+    const main = { ...trigCtx(HOST), turnPhase: 'MAIN' };
+    const entry = collectLeaveFieldTriggers(atk, yuguLv3, [], HOST, installed.ownerState, installed.otherState)
+      .entries.find(e => e.effectId === 'DELAYED_TRIGGER');
+    ok(!!entry, '設置後のアタックフェイズ中、味方遊具離脱で発火');
+    const filter = (entry!.effect.action as { source: { filter: Record<string, unknown> } }).source.filter;
+    eq(filter.levelLtTrigger, undefined, '離脱基準の levelLtTrigger は収集時に除去');
+    eq((filter.level as { max: number }).max, 2, '離脱Lv3→手札のLv2以下へ解決');
+    ok(matchesFilter(cardMap.get(yuguLv2), filter), '低レベル遊具は候補');
+    ok(!matchesFilter(cardMap.get(yuguLv4), filter), '同値以上の遊具は候補外');
+    ok(!matchesFilter(cardMap.get(nonYuguLv2), filter), '低レベルでも遊具以外は候補外');
+
+    eq(collectLeaveFieldTriggers(main, yuguLv3, [], HOST, installed.ownerState, installed.otherState)
+      .entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, 'メインフェイズでは stale watcher が残っても非発火');
+    eq(collectLeaveFieldTriggers(atk, nonYuguLv2, [], HOST, installed.ownerState, installed.otherState)
+      .entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '遊具以外の離脱では非発火');
+    eq(collectLeaveFieldTriggers(atk, yuguLv3, [], GUEST, installed.ownerState, installed.otherState)
+      .entries.some(e => e.effectId === 'DELAYED_TRIGGER'), false, '相手の遊具離脱では leftOwner:self により非発火');
+
+    const turnLong = { ...install, duration: 'THIS_TURN' as const };
+    const withBoth = { ...installed.ownerState, delayed_triggers: [install, turnLong] };
+    const cleared = clearEndOfAttackPhaseDelayedTriggers(withBoth);
+    eq(cleared.delayed_triggers?.length, 1, 'APS終了で THIS_ATTACK_PHASE だけ消滅');
+    eq(cleared.delayed_triggers?.[0].duration, 'THIS_TURN', '既存 THIS_TURN watcher は保持');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 
 // §6.3 機構待ち解消: ON_LEAVE_FIELD any_opp（跨サイド watcher）の byEffect / leftStateFilter ゲート。

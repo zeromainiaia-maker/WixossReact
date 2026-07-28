@@ -90,13 +90,12 @@
 
 > **✅消化済のタスク（1〜9・11・17〜19）は 2026-07-29 の整理で退避**＝完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節。生きているのは上表の **12〜16** のみ。
 
-**Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。**下表は残作業のある在庫のみ**。消化済み在庫〔(i)〜(lvi) の大半〕の完了行原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3〔2026-07-19・2026-07-24・2026-07-28・**2026-07-29**の各退避節〕。直近クローズ＝**(xliv) `BANISH_REDIRECT` 残テールは 2026-07-29 に残0で完全クローズ**〔(a3) by_this 効果経路／(b) 単体対象7効果／(b1) 「それ」照応／(b2) バトル限定／(b3) 付与型。BUGFIXES 2026-07-29節〕）：
+**Opusタスク12＝未消化の在庫**（Sonnet が観測して積んだ engine/parser バグ。**下表は残作業のある在庫のみ**。消化済み在庫〔(i)〜(lvi) の大半〕の完了行原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md) §3〔2026-07-19・2026-07-24・2026-07-28・**2026-07-29**の各退避節〕。直近クローズ＝**(xliv) `BANISH_REDIRECT` 残テール**と **(xlii) `GRANT_LEAVE_PLACE_PENDING` 残2枚**は 2026-07-29 に残0で完全クローズ〔詳細 BUGFIXES 2026-07-29節〕）：
 
 | ID | 内容 |
 |---|---|
 | 🆕(xxix) | **semantic audit stub群 round3（2,101枚・findings 2,799件）**＝①duration系統／②選択肢欠落／③「そうした場合」did-it ゲート／(a)／(b)／(b1)／**(b2-i)〜(b2-vi)** は**すべて✅消化済**（1437効果の自身【出】配線まで到達。消化経緯の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節、一次記録は BUGFIXES 2026-07-28節／続き148・149・218h・222・223・226・243）。<br>**残＝(1) 自身【出】の任意+cost 933効果**（支払いプロンプトが別フロー）**(2) 段階3＝`mandatory:false`＋cost無しの65効果**（＝在庫(lv) と同根）**(3) watcher [B]4件**（エナ由来／手札以外由来／【出】能力保有＝限定語彙が無く `timing:[]` で安全停止中）**(4) defer 3件**（相手効果による自シグニ場離れのターン履歴 Condition／配置個体への `REMOVE_ABILITIES` 固定語彙／`ATTACH_CHARM_FROM_TRASH` 本実装）**(5) (b2-ii) の defer 4件**→(3)〜(5) は §6.3 送り。<br>⚠**この経路は `fuzz`/`smoke` が通らず golden だけが網**（`selfPlayFuzz.ts:12-13` が自ら明記）＝BattleScreen 側の変更は実機 driver でも確認する。明細と表 `docs/_semantic_audit_stub_round3_triage.txt` §6 |
 | 🆕(xlvi) | **parser は `REVEAL_AND_PICK`（手札に加える）を出すのに curated が古い `LOOK_AND_REORDER` のまま held ドリフトしカードアドバンテージが死んでいた系統**。✅続き218g で9効果を外科的採用（census 1886→1880）。**残＝真ドリフト36件中の未採用27件**＝大半が `parseStatus:MANUAL` で fresh が filter/条件を落とす過剰簡約（WXK10-022-E3 無色ではない・WXK01-004-E1 レベル奇数等）＝忠実表現する parser 拡張が要る §6.3級。詳細 BUGFIXES 続き218g |
-| 🆕(xlii) | **フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` 残2枚**（続き216・Opus）。主因を消化し WXEX2-51-E1 を実装・7枚も是正。残＝(a)WX21-004-E2「同じレベル」配置＝`levelEqTrigger` 語彙が要るが該当1枚で据置（STUB維持・no-op）(b)WX22-001-E3＝フェイズ限定の遅延 ON_LEAVE_FIELD watcher＝`INSTALL_DELAYED_TRIGGER` の ON_LEAVE_FIELD 拡張が要る §6.3級。詳細 BUGFIXES 続き216 |
 | 🆕(l) | **アーツ「ターン終了時まで、あなたのセンタールリグは「【自】…」を得る」の内側【自】parse 失敗3枚＝完全 no-op**（続き234・Opus観測）＝WD21-009／PR-204／WX15-016。`GRANT_LRIG_ABILITY{abilities:[]}` に full rawText を抱えたまま内側【自】が nest されずアーツが何もしない。同パターン11枚中8枚は正しく nest 済＝§6.3 新機構は不要・内側 ability parse 改善で直る。失敗3枚の内側は複雑（アタック時トリガー／数字宣言／バーストアイコン照合／アタック無効）。詳細 BUGFIXES 続き234 |
 | 🆕(lv) | **WXEX2-71-E2 は `mandatory:false`＋costなしの自身 ON_PLAY で収集経路から脱落し、元から no-op**（2026-07-26・タスク8(c)差し戻し実測）＝`handleSummonSigni` の `ownOnPlay` は mandatory のみ、`ownCostOnPlay` は cost ありのみを収集し、`droppedOnPlay` が同 effectId を警告する。英知=2 `activeCondition` 自体は engine で正しく評価できるが発火候補にならない。任意・無コスト【出】の共通選択機構として実装する（本差し戻しでは honest defer）。|
 

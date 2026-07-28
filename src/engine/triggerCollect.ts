@@ -817,7 +817,7 @@ export function collectBanishTriggers(
  *  levelBelowLeftCard → level:{max: 離れたカードのレベル-1}
  *  powerBelowLeftCard → powerRange:{max: 離れたカードのパワー-1}
  *  underLeftCard → cardNames:[下にあった《ライズアイコン》を持たないシグニ名]（該当なしなら空＝候補なし）
- *  levelLtTrigger/levelGtTrigger/powerLtTrigger/powerLteTrigger → 「そのシグニより低い/高い」のトリガー相対比較。
+ *  levelLtTrigger/levelEqTrigger/levelGtTrigger/powerLtTrigger/powerLteTrigger → 「そのシグニより低い/同じ/高い」のトリガー相対比較。
  *    ON_LEAVE_FIELD のトリガー元＝場を離れたカードなので、離れたカード基準で level/powerRange へ解決する
  *    （any_ally 監視では実行元が watcher シグニで triggeringCardNum が離脱カードにならないため、収集時に確定させる。WXEX2-51-E1）。
  */
@@ -827,7 +827,7 @@ export function resolveLeaveFieldDynamicFilters(
   leftCard: CardData | undefined,
   underCards: string[],
 ): CardEffect {
-  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard|levelLtTrigger|levelGtTrigger|powerLtTrigger|powerLteTrigger)":true/.test(JSON.stringify(eff.action))) return eff;
+  if (!/"(levelBelowLeftCard|powerBelowLeftCard|underLeftCard|levelLtTrigger|levelEqTrigger|levelGtTrigger|powerLtTrigger|powerLteTrigger)":true/.test(JSON.stringify(eff.action))) return eff;
   const clone = JSON.parse(JSON.stringify(eff)) as CardEffect;
   const leftLevel = parseInt(leftCard?.Level ?? '', 10);
   const leftPower = parseInt((leftCard?.Power ?? '').replace(/[^\d]/g, ''), 10);
@@ -855,6 +855,10 @@ export function resolveLeaveFieldDynamicFilters(
       const base = isNaN(leftLevel) ? 0 : leftLevel;
       const prev = (typeof obj.level === 'object' && obj.level) ? obj.level : {};
       obj.level = { ...prev, ...(gt ? { min: base + 1 } : { max: base - 1 }) };
+    }
+    if (obj.levelEqTrigger === true) {
+      delete obj.levelEqTrigger;
+      obj.level = isNaN(leftLevel) ? 0 : leftLevel;
     }
     if (obj.powerLtTrigger === true || obj.powerLteTrigger === true) {
       const lte = obj.powerLteTrigger === true;
@@ -1008,6 +1012,34 @@ export function collectLeaveFieldTriggers(
         id: ctx.genId(), playerId: oppId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（相手シグニが場を離れたとき）`,
         effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, leftCard, leftUnder),
+        leftFieldUnderCards: [...leftUnder],
+      });
+    }
+  }
+
+  // INSTALL_DELAYED_TRIGGER: プレイヤーに設置された ON_LEAVE_FIELD watcher。
+  // 設置者視点の leftOwner/triggerFilter を評価し、離脱カード基準の動的フィルタを収集時に確定する。
+  // THIS_ATTACK_PHASE はフェイズ外では発火させない（BattleScreen の ATTACK_LRIG→END でも物理削除）。
+  for (const [controllerId, controllerState] of [
+    [ctx.hostId, afterHostState],
+    [ctx.guestId, afterGuestState],
+  ] as const) {
+    for (const dt of controllerState.delayed_triggers ?? []) {
+      if (dt.trigger?.timing !== 'ON_LEAVE_FIELD') continue;
+      if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+      const leftOwner = dt.trigger.leftOwner ?? 'any';
+      const isOwnLeaver = controllerId === leftPlayerId;
+      if (leftOwner === 'self' && !isOwnLeaver) continue;
+      if (leftOwner === 'opponent' && isOwnLeaver) continue;
+      if (dt.trigger.triggerFilter && !matchesFilter(leftCard, dt.trigger.triggerFilter)) continue;
+      const delayedEffect: CardEffect = {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_LEAVE_FIELD'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      };
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+        label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（場を離れたとき）`,
+        effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, delayedEffect, leftCard, leftUnder),
         leftFieldUnderCards: [...leftUnder],
       });
     }

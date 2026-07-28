@@ -1062,11 +1062,13 @@ export interface GrantEffectAction {
 // 特定シグニへの能力付与（GRANT_EFFECT）と異なり、設置後に出たシグニ・プレイヤーレベルの誘発を捕捉できる。
 export interface InstallDelayedTriggerAction {
   type: 'INSTALL_DELAYED_TRIGGER';
-  duration: 'THIS_TURN';
+  duration: 'THIS_TURN' | 'THIS_ATTACK_PHASE';
   trigger: {
     timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED' / 'ON_REFRESH'）
     crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（設置者から見て）。省略=any。WX11-024=opponent
+    leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
+    triggerFilter?: TargetFilter;                  // ON_LEAVE_FIELD の離脱カード条件
   };
   effect: EffectAction;           // 発火時に実行するアクション
   conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置

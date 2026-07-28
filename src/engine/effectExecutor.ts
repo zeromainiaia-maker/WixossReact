@@ -1084,7 +1084,8 @@ function execInstallDelayedTrigger(
   }
   const state = ctx.ownerState;
   const newS: PlayerState = { ...state, delayed_triggers: [...(state.delayed_triggers ?? []), a] };
-  return done(addLog(setOwnerState('self', newS, ctx), 'このターンの遅延トリガーを設置'));
+  const label = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン';
+  return done(addLog(setOwnerState('self', newS, ctx), `${label}の遅延トリガーを設置`));
 }
 
 function execShuffleDeck(a: ShuffleDeckAction, ctx: ExecCtx): ExecResult {

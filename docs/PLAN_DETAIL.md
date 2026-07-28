@@ -4,6 +4,12 @@
 
 > **最新の退避＝「2026-07-29 整理」節（末尾）**＝§3 Opus タスク表の完了行（1〜9・11・17〜19）／Opusタスク12 在庫表の完了行（(liv)(liii)(lii)(xxii)(xxxix)(lvi)(xliv)）／タスク12(xxix) の消化履歴全文／タスク16 の消化履歴／Sonnet タスク表の完了行。
 
+## 2026-07-29 タスク12(xlii) `GRANT_LEAVE_PLACE_PENDING` 完全クローズ
+
+- **WX21-004-E2**：エナ配置 parser に既存 `levelEqTrigger` を配線し、ON_LEAVE_FIELD 収集時に離脱カードの具体レベルへ解決。fresh 全数差分は当該1カードのみ。
+- **WX22-001-E3**：`INSTALL_DELAYED_TRIGGER` に ON_LEAVE_FIELD 条件と `THIS_ATTACK_PHASE` 寿命を追加。設置者側の＜遊具＞離脱だけを拾い、離脱カードより低いレベルの手札＜遊具＞を配置する。ATTACK_LRIG→END で当該寿命だけ削除。
+- 2カードを held 採用し live JSON の意味差分は2効果のみ。`GRANT_LEAVE_PLACE_PENDING` は実データ残0。golden 900、smoke 10726、fuzz全0、census高シグナル1476据置、gates 3回全緑。詳細は BUGFIXES 2026-07-29先頭節。
+
 
 ---
 

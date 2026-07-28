@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［91枚］
-PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
+## （type増減なし＝値/構造変更） ［89枚］
+PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-053 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -732,7 +732,7 @@ WX25-P2-060 WXK03-081
   + [0].action.steps[1].then.target.owner = "opponent"
   + [0].action.steps[1].then.target.count = 1
   + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 5 行）
+  …（他 4 行）
 --- WXK03-081
   原文: 【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが奇数のシグニの場合、ターン終了時まで、それのパワーを－1000する。,：カードを１枚引く。
   - [0].action.steps[1].target.type = "SIGNI"
@@ -1065,10 +1065,10 @@ WX21-004
   + [1].action.source.upToCount = true
   + [1].action.source.filter.cardType = "シグニ"
   + [1].action.source.filter.story = "英知"
+  + [1].action.source.filter.levelEqTrigger = true
   + [1].action.asDown = true
   + [1].triggerScope = "any_ally"
-  + [1].triggerFilter.story = "英知"
-  …（他 1 行）
+  …（他 2 行）
 
 ## +STUB -CONDITIONAL -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
 WX21-Re06
@@ -1085,6 +1085,24 @@ WX21-Re06
   ~ [0].action.steps[1].type : "CONDITIONAL" → "STUB"
   + [0].action.steps[1].id = "MARK_SELF_DELAYED_EXILE"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
+
+## +ADD_TO_FIELD +HAND_CARD +INSTALL_DELAYED_TRIGGER -STUB ［1枚］
+WX22-001
+--- WX22-001
+  原文: 【出】：あなたのトラッシュから＜遊具＞のシグニを２枚まで対象とし、それらを場に出す。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、あなたの＜遊具＞のシグニ１体を場からトラッシュに置く。そうした場合、ターン終了時まで、それのパワーを－12000する。【起】《アタックフェイズアイコン》《コイ
+  - [2].action.id = "GRANT_LEAVE_PLACE_PENDING"
+  ~ [2].action.type : "STUB" → "INSTALL_DELAYED_TRIGGER"
+  + [2].action.duration = "THIS_ATTACK_PHASE"
+  + [2].action.trigger.timing = "ON_LEAVE_FIELD"
+  + [2].action.trigger.leftOwner = "self"
+  + [2].action.trigger.triggerFilter.cardType = "シグニ"
+  + [2].action.trigger.triggerFilter.story = "遊具"
+  + [2].action.effect.type = "ADD_TO_FIELD"
+  + [2].action.effect.owner = "self"
+  + [2].action.effect.source.type = "HAND_CARD"
+  + [2].action.effect.source.owner = "self"
+  + [2].action.effect.source.count = 1
+  …（他 3 行）
 
 ## +GRANT_KEYWORD -GRANT_PROTECTION ［1枚］
 WXEX1-72

@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` 残2枚を完全消化（2026-07-29・PLAN §3 タスク12(xlii)・Codex）
+
+- **WX21-004-E2《ママ♥５》**：live JSON は no-op STUB のままだったが fresh parse は既に ON_LEAVE_FIELD watcher まで復旧済みで、欠落は「そのシグニと同じレベル」だけだった。エナ→場ハンドラへ既存 `parseTriggerComparison(...allowLevelEq)` を配線し、`resolveLeaveFieldDynamicFilters` が離脱カードのレベルで `levelEqTrigger` を concrete `level:N` へ収集時解決するよう修正。fresh 全数差分は **WX21-004だけ**、増分は E2 の `levelEqTrigger:true` 一点。ルリグゾーンの watcher、アタック中のみ、英知のみ、同レベル英知だけが候補、メイン／クラス不一致／レベル不一致の非発火を golden で固定した。
+- **WX22-001-E3《悲願の駄姫 グズ子》**：`INSTALL_DELAYED_TRIGGER` を ON_LEAVE_FIELD に拡張。`trigger.leftOwner`／`triggerFilter`、寿命 `THIS_ATTACK_PHASE` を追加し、【起】解決時に「このアタックフェイズ中、味方＜遊具＞が離脱したら、手札のそれより低いレベルの＜遊具＞を出す」watcher を設置する。collector は設置者側・離脱クラス・アタックフェイズを評価し、`levelLtTrigger` を離脱カード基準へ解決。`ATTACK_LRIG→END` で両プレイヤーの `THIS_ATTACK_PHASE` だけを削除し、既存 `THIS_TURN` は保持する。collector にもフェイズゲートを置き、stale state でも過剰発火しない。
+- **engine 直接実測**：使い捨て `tmp_*` プローブで synthetic WX22-001 原文を parser に通し、watcher 1件設置→遊具Lv3離脱→filter `{story:"遊具",level:{max:2}}`→手札候補がLv2遊具だけ→`SELECT_TARGET`／`SELECT_SIGNI_ZONE` を完走して実際に手札から場へ配置、を確認。プローブは削除済み。UI は既存 pending 2種を再利用し、新しい pending/id は追加なし。
+- **採用diff**：`build:effects`→`heldReview --adopt WX21-004,WX22-001`。live effects の意味差分は **この2カード・2効果だけ**。`GRANT_LEAVE_PLACE_PENDING` 実データ残0。逆翻訳は WX21 の既存 `levelEqTrigger` 文言を確認し、WX22 の ON_LEAVE_FIELD／アタックフェイズ寿命を追加。
+- **計器・検証**：golden **899→900**、smoke **10726/10726**、fuzz全0、census高シグナル **1476据置**（STUB/MANUAL格納は動的比較18→17・同一性78→77・クラス指定228→226）。`npm run gates` を3プロセスで全緑、並列実行でもフレーク0。lintは既知warning 226・error 0。
+
 ## `BANISH_REDIRECT` 残テール(b2)(b3)＝バトル限定個体と次の相手ターン終了時までの付与型（2026-07-29・タスク12(xliv)・Codex）
 - **(b2) 修正前実測**：`WXDi-P15-078-E2` を実行して対象を選び、同じ対象へ効果 `BANISH` を実行すると、対象が通常個体リスト `banish_redirect_target_nums` に積まれて **energy ではなく trash** へ移動した。原文の「バトルによって」が live で失われていた。
 - **修正**：`BanishRedirectAction.battleOnly` と `PlayerState.banish_redirect_battle_target_nums` を新設。`applyDirectAction` はバトル限定個体を専用リストへ保存し、効果経路 `banishDestination` はこのリストを参照しない。BattleScreen の実配送 `redirectBanish` と ON_TRASH 判定 `redirectBanishForTrigger` の両方だけが専用リストを見る。ターン境界は human 通常／手札超過相当／CPU の両プレイヤー計6箇所でクリア。

@@ -782,6 +782,13 @@ function actionJa(a?: Action, effectType?: string): string {
         const effIDT = a.effect?.type === 'FORCE_END_TURN' ? 'このターンを終了する' : actionJa(a.effect);
         return `このターン、${whoIDT}が次にリフレッシュをした場合、その後で${effIDT}`;
       }
+      if (a.trigger?.timing === 'ON_LEAVE_FIELD') {
+        const whoIDT = a.trigger.leftOwner === 'opponent' ? '対戦相手の'
+          : a.trigger.leftOwner === 'any' ? 'いずれかのプレイヤーの' : 'あなたの';
+        const triggerFilterJa = filterJa(a.trigger.triggerFilter ?? {});
+        const durationIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        return `${durationIDT}、${whoIDT}${triggerFilterJa}シグニ1体が場を離れたとき、${actionJa(a.effect)}`;
+      }
       const cf = a.trigger?.crasherFilter;
       const subjIDT = cf
         ? `あなたの${cf.color ? [].concat(cf.color).join('・') + 'の' : ''}${cf.story ? '＜' + [].concat(cf.story).join('・') + '＞の' : ''}${cf.cardClass ? '＜' + [].concat(cf.cardClass).join('・') + '＞の' : ''}シグニが`

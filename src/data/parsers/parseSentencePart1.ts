@@ -53,6 +53,7 @@ import type {
   TrashAction,
   SendToEnergyAction,
   SequenceAction,
+  InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
   parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner,
@@ -1802,6 +1803,34 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----
+  // 【起】で「このアタックフェイズの間」の watcher を設置する WX22-001-E3。
+  // 即時配置ではなく、設置後の味方＜遊具＞離脱を拾い、その離脱カードより低いレベルの＜遊具＞を手札から出す。
+  if (t.includes('このアタックフェイズの間')
+      && /あなたの＜遊具＞のシグニ(?:１体)?が場を離れたとき/.test(t)
+      && t.includes('あなたの手札から')
+      && t.includes('そのシグニより低いレベル')
+      && t.includes('＜遊具＞のシグニ')
+      && t.includes('場に出す')) {
+    return {
+      type: 'INSTALL_DELAYED_TRIGGER',
+      duration: 'THIS_ATTACK_PHASE',
+      trigger: {
+        timing: 'ON_LEAVE_FIELD',
+        leftOwner: 'self',
+        triggerFilter: { cardType: 'シグニ', story: '遊具' },
+      },
+      effect: {
+        type: 'ADD_TO_FIELD',
+        owner: 'self',
+        source: {
+          type: 'HAND_CARD',
+          owner: 'self',
+          count: 1,
+          filter: { cardType: 'シグニ', story: '遊具', levelLtTrigger: true },
+        },
+      },
+    } as InstallDelayedTriggerAction;
+  }
   // 即時配置ではなく付与トリガーなので、bare ADD_TO_FIELD（=デッキトップ誤配置）や手札ハンドラの
   // 即時配置を避けて no-op STUB に。忠実実装には「場を離れたとき手札から配置」を期間付きで付与する
   // 機構が必要（WX22-001-E3）。※【自】ON_LEAVE_FIELD はトリガー文が除去済みで此処に来ない。
@@ -1829,6 +1858,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準（WXDi-P03-078）。resolveDynamicFilter が解決
+      ...parseTriggerComparison(t, { allowPlacement: true, allowLevelEq: true }), // 「そのシグニと同じレベル」等＝トリガー元基準（WX21-004）
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
