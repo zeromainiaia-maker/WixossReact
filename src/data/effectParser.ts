@@ -5743,6 +5743,70 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           }
         }
       }
+
+      {
+      const watcherScopeRepairIds = new Set(`WX05-026-E1 WX07-001-E1 WX07-003-E1 WX08-002-E1 WX08-003-E1 WX08-042-E2
+        WX10-003-E1 WX14-024-E2 WX14-025-E1 WX16-002-E3 WX17-030-E2 WX18-071-E1 WX18-072-E1 WX20-027-E1
+        WX22-Re08-E1 WX22-Re17-E1 WXEX1-08-E2 WXEX1-15-E1 WXEX1-25-E1 WXEX2-25-E1 WXEX2-58-E2
+        WXK10-021-E1 WXDi-P07-008-E1 WXDi-P07-058-E1 WXDi-P09-078-E1 WXDi-P11-005-E1 WXDi-CP01-050-E1
+        WX24-P2-092-E1 WX25-P2-026-E1 WX25-P2-077-E1 WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2`.split(/\s+/));
+      if (timing[0] === 'ON_PLAY' && watcherScopeRepairIds.has(`${cardNum}-E${index + 1}`)) {
+        // ON_PLAY watcher の表記揺れを、既存の triggerScope / triggerFilter /
+        // triggerCondition 語彙へ正規化する。「あなたの〜シグニが場に出たとき」は
+        // 自身の【出】ではなく、場（またはトラッシュ）から他カードの配置を監視する能力。
+        // 上の基本形で拾えなかった、由来句・色・アイコン・カード名が主語に挟まる形を扱う。
+        if (extractedTriggerScope === undefined) {
+          const onPlayText = trigText;
+          const unsupportedOrigin = /(?:エナゾーンから|手札以外(?:の領域)?から)場に出たとき/.test(onPlayText);
+          const unsupportedAbilityFilter = /【出】能力を持つあなたのシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
+          if (unsupportedOrigin || unsupportedAbilityFilter) {
+            // 既存語彙で限定を表現できないものは、限定を落として過剰発火させず安全停止する。
+            timing = [];
+          } else {
+            const detailText = actionText;
+            const isOpponent = /対戦相手のシグニ(?:[０-９\d]+体)?が(?:対戦相手の)?効果によって場に出たとき|対戦相手のシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
+            const isAllyWatcher = /あなたの.+(?:シグニ|レゾナ)(?:[０-９\d]+体)?が.*場に出たとき|(?:効果によって)?あなたのシグニ(?:[０-９\d]+体)?が.*場に出たとき|あなたの《[^》]+》(?:[０-９\d]+体)?が場に出たとき|《ライズアイコン[^》]*》[^を]*を持つあなたのシグニ(?:[０-９\d]+体)?が場に出たとき/.test(onPlayText);
+            if (isOpponent) extractedTriggerScope = 'any_opp';
+            else if (isAllyWatcher) extractedTriggerScope = 'any_ally';
+
+            if (extractedTriggerScope !== undefined) {
+              const tf: NonNullable<typeof extractedTriggerFilter> = { ...(extractedTriggerFilter ?? {}) };
+              const storyM = detailText.match(/＜([^＞]+)＞のシグニ[^。]*場に出たとき/);
+              const colorM = detailText.match(/あなたの([白赤青緑黒])のシグニ[^。]*場に出たとき/);
+              const nameM = detailText.match(/(?:カード名に)?《([^》]+)》[^。]*(?:シグニ[^。]*)?場に出たとき/);
+              if (storyM) tf.story = storyM[1];
+              if (colorM) tf.color = colorM[1];
+              if (/あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき/.test(detailText)) tf.cardType = 'レゾナ';
+              if (/《クロスアイコン》を持つ/.test(onPlayText)) tf.hasCrossIcon = true;
+              if (/《ライズアイコン(?:_[^》]+)?》[^を]*を持つ/.test(onPlayText)) tf.hasRiseIcon = true;
+              if (nameM && !nameM[1].includes('アイコン')) tf.cardName = nameM[1];
+              const triggerPowerM = detailText.match(/そのシグニのパワーが([０-９\d]+)以下/);
+              if (triggerPowerM) tf.powerRange = { max: parseNum(triggerPowerM[1]) };
+              if (/あなたの(?:効果によって)?他の＜[^＞]+＞のシグニ|あなたの他の＜[^＞]+＞のシグニ/.test(onPlayText)) tf.excludeSelf = true;
+              if (Object.keys(tf).length) extractedTriggerFilter = tf;
+
+              if (/トラッシュから[^。]*場に出たとき/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFromTrash: true };
+              }
+              if (/ダウン状態で場に出たとき/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedDown: true };
+              }
+              if (/シグニの効果によって場に出たとき/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), bySigniEffect: true };
+              } else if (/効果(?:[１-９\d０-９]+つ)?によって[^。]*場に出たとき|効果によってあなたのシグニ[^。]*場に出たとき/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
+              }
+              if (/あなたのメインフェイズの間/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringMainPhase: true };
+              }
+              if (/あなたのターンの間|《自分ターン》/.test(onPlayText)) {
+                extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: 'self' };
+              }
+            }
+          }
+        }
+      }
+      }
       // ON_BLOOM: トリガー元のスコープを抽出（「このシグニが開花したとき」=self／「あなたの[他の]シグニが開花したとき」=any_ally）
       if (timing[0] === 'ON_BLOOM') {
         if (/^このシグニが開花したとき[、,]/.test(actionText)) {

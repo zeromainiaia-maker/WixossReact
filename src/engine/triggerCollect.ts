@@ -2416,9 +2416,15 @@ export function collectFieldTriggers(
   if (myLrigWatcher) allyWatchers.push({ topNum: myLrigWatcher, isLrig: true });
   // 「あなたのシグニがトラッシュから場に出たとき、トラッシュにあるこのカードを…」は
   // watcher 自身がトラッシュにいるため、自己回収 action を持つ該当カードだけを追加走査する。
-  if (event === 'ON_PLAY' && opts?.placedFromTrash) {
+  if (event === 'ON_PLAY') {
     for (const num of myState.trash) {
-      if ((ctx.effectsMap.get(num) ?? []).some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') && e.triggerCondition?.placedFromTrash && actionRevivesSelfFromTrash(e.action))) {
+      if ((ctx.effectsMap.get(num) ?? []).some(e =>
+        e.effectType === 'AUTO'
+        && e.timing?.includes('ON_PLAY')
+        && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')
+        && actionRevivesSelfFromTrash(e.action)
+        && (!e.triggerCondition?.placedFromTrash || !!opts?.placedFromTrash)
+      )) {
         allyWatchers.push({ topNum: num, isLrig: false, fromTrash: true });
       }
     }
@@ -2477,6 +2483,7 @@ export function collectFieldTriggers(
       }
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
+      if (!byEffectTriggerOk(eff)) continue;
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
       const oeStub = eff.action as StubAction;

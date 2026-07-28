@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## ON_PLAY watcher 34効果の `triggerScope:self` 誤分類を是正（2026-07-28・Codex）
+
+- CSV原文を34件全数照合し、既存語彙だけで忠実化できる30件を [A]（`any_ally` 28件／`any_opp` 2件＋story/color/cardName/Cross/Rise/excludeSelf filter＋byEffect/bySigniEffect/placedFromTrash/placedDown/duringMainPhase/turnOwner condition）として配線した。[B]4件（WX08-042-E2＝エナ由来、WX14-024-E2/WXEX1-15-E1＝手札以外由来、WXDi-P07-058-E1＝【出】能力保有）は限定語彙が無いため `timing:[]` で安全停止。[C]0件。
+- parser は対象effectIdだけを表記揺れ込みで正規化し、live JSON は HEAD を基底にeffectId外科パッチ。`collectFieldTriggers` は相手側でも `byEffect/bySigniEffect` を評価し、トラッシュ所在の自己蘇生watcher（WXEX2-58）を配置元にかかわらず既存 action/condition で走査するよう対称化した。
+- golden は [A]30件それぞれ「本来契機stack=1／自身の通常召喚stack=0」、[B]4件stack=0、非＜古代兵器＞で WX05-026-E1 stack=0 を固定（881→882）。
+- `build:effects` 実行後、生成上の依頼外差分を採用せず再外科パッチ。effectId比較は added=0 / removed=0 / changed=34 / 対象外=0。held は HEAD実測262枚/113署名→262枚/113署名（増減0）。census 1507→1498 の純改善を既存 `BASELINE_HIGH` 本体へ反映。
+- 最終 `npm run gates` 全緑（golden 882、smoke 10726/10726、fuzz 全異常0、census 1498、manual-fields 0、lint 0 errors/234 warnings）／`npm run regen` 同型★0。
+- やっていないこと：表現不能4件の新しい配置元/能力保有filter語彙、新 action/STUB/timing/triggerCondition field、WX19-051/052/053、(xxix)段階2、PLAN/PLAN_PROGRESS簿記、commit/push、ブラウザ実機対戦。
+- **⚠この34件を見つけた経緯＝codex が (xxix) 段階2 を2回連続で honest defer し、その反例が計器の穴を突いた**。1回目 `WX13-040-E1`（→ ON_PLAY 誤分類36件の別バッチへ）・2回目 `WX25-P2-026-E1`（→ 本バッチ34件）。Opus 側の抽出条件は「原文に『場に出たとき』を含めば ON_PLAY で正しい」と判定しており、**watcher（主語が他カード）を自身の【出】と区別できていなかった**。**defer が2回とも、より価値の高いバッチを生んだ。**
+- **Opus 独立検証**：①per-effect JSON diff＝変更34／追加0／削除0／**スコープ外0**／34件すべて変更済み ②**parser ドリフト無し**＝`build:effects` を再実行しても差分0（parser 出力と curated JSON が完全一致。codex が「依頼外差分が出たので採用しなかった」と申告した点の裏取り）③held は HEAD の**コミット済みファイル**が265枚だが、HEAD で `build` を回し直すと262枚＝**コミット済み `_held_review.txt` の方が stale**だった（codex の 262 が正しい）。現行も262枚で増減0 ④`WX24-P2-092-E1`（`any_ally`＋story迷宮＋`excludeSelf`＋`duringMainPhase`）を原文照合し完全一致を確認。
+- **⚠既知の近似2点（実害ほぼ無しと実測・記録用）**：
+  - `WXEX2-25-E1` は原文が「**対戦相手の**効果によって場に出たとき」だが `byEffect`（＝任意の効果）で近似している。ON_PLAY watcher ループの `byEffectTriggerOk`（`triggerCollect.ts:2328` 付近）は `byOpponentEffect` を評価しないため厳密表現は不可。**誤発火するのは「自分の効果で相手の場にシグニを出した」場合だけで、そんな効果は全カード中 `WXEX2-50-E3` の1件のみ**＝実質無害。
+  - `WX14-025-E1` は原文が「そのシグニのパワーが8000以下の**場合**」（効果内の条件）だが `triggerFilter.powerRange.max:8000`（トリガー時のゲート）へ移している。このカードは間に選択・コストが無いため両者は一致するが、**厳密には評価タイミングが異なる**。
+
 ## タスク16 検証時の追加是正＝`PR-461` の effectId 対応ズレ（2026-07-28・Opus）
 
 - **codex の [C] 判定（`PR-461-E2` は真の【出】なので `ON_PLAY` 維持）は正しかった**。Opus 側が「effectId↔原文の対応表（`docs/_effect_srctext.json`）」を信用して一度は誤りと判断したが、**JSON の `PR-461-E2` に格納されている action は実際に【出】の本体**（デッキからシグニ3枚をサーチして場に出す）だった。**effectId で照合するときは、原文表ではなく JSON 側の action 本体を読む**。

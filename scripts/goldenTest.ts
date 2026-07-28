@@ -12875,6 +12875,84 @@ test('task12(xxix) BET choices: 対象フィルタと移動種別を盤面固定
   } finally { cursor = savedCursor; }
 });
 
+test('ON_PLAY watcher 34効果: [A]30件は本来契機だけで収集し、自身の通常召喚スタックは0件 / [B]4件は停止', () => {
+  const savedCursor = cursor;
+  const syntheticCards: string[] = [];
+  try {
+    const aIds = `WX05-026-E1 WX07-001-E1 WX07-003-E1 WX08-002-E1 WX08-003-E1
+      WX10-003-E1 WX14-025-E1 WX16-002-E3 WX17-030-E2 WX18-071-E1 WX18-072-E1
+      WX20-027-E1 WX22-Re08-E1 WX22-Re17-E1 WXEX1-08-E2 WXEX1-25-E1 WXEX2-25-E1
+      WXEX2-58-E2 WXK10-021-E1 WXDi-P07-008-E1 WXDi-P09-078-E1 WXDi-P11-005-E1
+      WXDi-CP01-050-E1 WX24-P2-092-E1 WX25-P2-026-E1 WX25-P2-077-E1
+      WDK15-001-E1 WDK17-015-E1 PR-195-E1 PR-466-E2`.split(/\s+/);
+    const bIds = ['WX08-042-E2', 'WX14-024-E2', 'WXEX1-15-E1', 'WXDi-P07-058-E1'];
+    const localEffects = new Map(effectsMap);
+    for (const id of [...aIds, ...bIds]) {
+      const cardNum = id.replace(/-E\d+$/, '');
+      localEffects.set(cardNum, parseCardEffects(cardMap.get(cardNum)!));
+    }
+    for (const id of aIds) {
+      const cardNum = id.replace(/-E\d+$/, '');
+      const eff = localEffects.get(cardNum)!.find(e => e.effectId === id)!;
+      const filter = eff.triggerFilter;
+      let triggering = [...cardMap.values()].find(c =>
+        (c.Type === 'シグニ' || c.Type === 'レゾナ') && c.CardNum !== cardNum && (!filter || matchesFilter(c, filter)))?.CardNum;
+      if (!triggering && (filter?.cardName || filter?.cardType === 'レゾナ')) {
+        triggering = `TEST-WATCH-${syntheticCards.length}`;
+        syntheticCards.push(triggering);
+        cardMap.set(triggering, {
+          CardNum: triggering, CardName: filter.cardName ?? triggering, Type: filter.cardType === 'レゾナ' ? 'レゾナ' : 'シグニ',
+          CardClass: typeof filter.story === 'string' ? filter.story : '', Color: typeof filter.color === 'string' ? filter.color : '無',
+        } as CardData);
+      }
+      ok(!!triggering, `${id}: triggerFilter一致fixture`);
+      const ownerIsHost = eff.triggerScope !== 'any_opp';
+      const watcher = mkState({});
+      if (cardNum === 'WXEX2-58') watcher.trash = [cardNum];
+      else if (cardMap.get(cardNum)?.Type === 'ルリグ') watcher.field.lrig = [cardNum];
+      else watcher.field.signi = [[cardNum], null, null];
+      const openZone = watcher.field.signi.findIndex(s => !s);
+      if (openZone >= 0) watcher.field.signi[openZone] = [triggering];
+      const triggerOwner = mkState({ signi: [triggering!, null, null] });
+      if (eff.triggerCondition?.placedDown) {
+        const state = ownerIsHost ? watcher : triggerOwner;
+        const zi = state.field.signi.findIndex(s => s?.at(-1) === triggering);
+        state.field.signi_down![zi] = true;
+      }
+      const opts = {
+        placedByEffect: !!(eff.triggerCondition?.byEffect || eff.triggerCondition?.bySigniEffect),
+        placeSourceIsSigni: !!eff.triggerCondition?.bySigniEffect,
+        placedFromTrash: !!eff.triggerCondition?.placedFromTrash,
+      };
+      const active = ownerIsHost ? HOST : GUEST;
+      const ctx = { ...trigCtx(active, active), effectsMap: localEffects };
+      const r = ownerIsHost
+        ? collectFieldTriggers(ctx, 'ON_PLAY', triggering!, watcher, mkState({}), HOST, opts)
+        : collectFieldTriggers(ctx, 'ON_PLAY', triggering!, triggerOwner, watcher, HOST, opts);
+      eq(r.entries.filter(e => e.effectId === id).length, 1, `${id}: 本来契機のstack件数`);
+      eq(isMandatoryOwnOnPlayForNormalSummon(eff) ? 1 : 0, 0, `${id}: 自身の通常召喚stack件数`);
+    }
+    for (const id of bIds) {
+      const cardNum = id.replace(/-E\d+$/, '');
+      const eff = localEffects.get(cardNum)!.find(e => e.effectId === id)!;
+      eq(eff.timing?.length ?? 0, 0, `${id}: 表現不能限定はtiming停止`);
+      eq(isMandatoryOwnOnPlayForNormalSummon(eff) ? 1 : 0, 0, `${id}: 自身の通常召喚stack件数`);
+    }
+
+    // triggerFilter の実効性：古代兵器でないシグニは WX05-026 watcher を発火させない。
+    const watcher = mkState({ signi: ['WX05-026', null, null] });
+    const mismatch = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('古代兵器'));
+    const mismatchResult = collectFieldTriggers(
+      { ...trigCtx(HOST, HOST), effectsMap: localEffects },
+      'ON_PLAY', mismatch, watcher, mkState({}), HOST, { placedFromTrash: true },
+    );
+    eq(mismatchResult.entries.filter(e => e.effectId === 'WX05-026-E1').length, 0, 'WX05-026-E1: 非＜古代兵器＞はstack 0件');
+  } finally {
+    for (const id of syntheticCards) cardMap.delete(id);
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
