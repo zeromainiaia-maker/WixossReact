@@ -3011,6 +3011,139 @@ for (const spec of xlviWave3Cases) {
     }
   });
 }
+// ── task12(xlvi) wave4 ((e) 表記ゆれ/後続セグメント・(f) OR filter）──────────────────────────
+// 7効果とも live では pick（手札加え）が丸ごと消えた LOOK_AND_REORDER か、**フィルタだけ落ちた**
+// REVEAL_AND_PICK（＝どのカードでも拾える過剰実行）に退化していた。
+// ⚠ フィルタは構造ではなく**候補集合＝実際に手札へ入るか**で assert する（続き(xliv) の教訓＝
+//    「JSON にキーがある」ことは「engine が読む」ことを意味しない）。公開窓に必ず非該当カードを混ぜ、
+//    それが手札に入らないことまで見る。
+function findRevealAndPick(a: unknown): import('../src/types/effects').RevealAndPickAction | null {
+  if (!a || typeof a !== 'object') return null;
+  const o = a as Record<string, unknown>;
+  if (o.type === 'REVEAL_AND_PICK') return o as unknown as import('../src/types/effects').RevealAndPickAction;
+  for (const v of Object.values(o)) {
+    if (Array.isArray(v)) { for (const x of v) { const f = findRevealAndPick(x); if (f) return f; } }
+    else { const f = findRevealAndPick(v); if (f) return f; }
+  }
+  return null;
+}
+const xlviWave4Cases = [
+  // (e) 原文が「３枚**を**見る」＝表記ゆれで規則ごと外れ STUB+UNKNOWN だった（CSV 全数でこの1枚のみ）
+  { cardNum: 'WXDi-P05-050', effectId: 'WXDi-P05-050-E1', why: '「N枚を見る」表記ゆれ' },
+  // (e) ディソナ複合＋後続文（バリア）。後続を落とす早期 return を避けるため SEQUENCE で引き連れる
+  { cardNum: 'WXDi-P12-001', effectId: 'WXDi-P12-001-E1', why: 'ディソナ pick＋バリア後続' },
+  // (f) OR 記述子「スペルか＜X＞のシグニ」＝anyOf（cardType 配列では＜X＞がスペルにも掛かる）
+  { cardNum: 'WX25-P1-022', effectId: 'WX25-P1-022-E1', why: 'スペルか＜原子＞のシグニ' },
+  { cardNum: 'WX25-P2-045', effectId: 'WX25-P2-045-E1', why: 'スペルか＜電機＞のシグニ 2枚まで' },
+  { cardNum: 'WX24-P1-023', effectId: 'WX24-P1-023-E1', why: 'スペルか＜電機＞のシグニ（filter落ちの過剰実行）' },
+  { cardNum: 'WX25-P2-037', effectId: 'WX25-P2-037-E1', why: 'スペルか＜電機＞のシグニ（filter落ちの過剰実行）' },
+  // (f) 名詞共有の色 OR「白か黒のシグニ」＝color 配列。従来は filter も pickUpTo も落ちていた
+  { cardNum: 'WXEX1-20', effectId: 'WXEX1-20-E1', why: '白か黒のシグニ 2枚まで・残りトラッシュ' },
+] as const;
+for (const spec of xlviWave4Cases) {
+  test(`(xlvi) ${spec.effectId}: look-pick が filter どおり手札へ入る（${spec.why}）`, () => {
+    const savedCursor = cursor;
+    try {
+      const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+      ok(!!effect, `${spec.effectId}: live 効果が存在`);
+      const reveal = findRevealAndPick(effect!.action);
+      ok(!!reveal, `${spec.effectId}: live が REVEAL_AND_PICK（LOOK_AND_REORDER への退化なし）`);
+      const filter = reveal!.filter;
+      ok(!!filter, `${spec.effectId}: filter を保持（フィルタ落ち＝どのカードでも拾える過剰実行なし）`);
+      const wantPick = reveal!.pickCount as number;
+      ok(typeof wantPick === 'number' && wantPick >= 1, `${spec.effectId}: pickCount は実数`);
+      // 公開窓＝該当 wantPick 枚＋非該当（残り全部）。非該当が0だとフィルタ検証が空振りになる。
+      const matching: string[] = [];
+      const nonMatching: string[] = [];
+      for (const c of cardMap.values()) {
+        const hit = matchesFilter(c, filter);
+        if (hit && matching.length < wantPick) matching.push(c.CardNum);
+        else if (!hit && nonMatching.length < reveal!.revealCount - wantPick) nonMatching.push(c.CardNum);
+        if (matching.length >= wantPick && nonMatching.length >= reveal!.revealCount - wantPick) break;
+      }
+      eq(matching.length, wantPick, `${spec.effectId}: filter 成立カードを ${wantPick} 枚用意`);
+      ok(nonMatching.length > 0, `${spec.effectId}: 非該当カードを公開窓へ混ぜる（空振りテスト防止）`);
+      const top = [...matching, ...nonMatching];
+      const ctx = mkCtx({ deckTop: top }, {}, spec.cardNum);
+      const countIn = (xs: string[], n: string) => xs.filter(x => x === n).length;
+      const handBefore = new Map(top.map(n => [n, countIn(ctx.ownerState.hand, n)]));
+      const hand0 = ctx.ownerState.hand.length;
+      const deck0 = ctx.ownerState.deck.length;
+      const trash0 = ctx.ownerState.trash.length;
+      const r = run(reveal! as EffectAction, ctx);
+      ok(r.done, `${spec.effectId}: SEARCH continuation を完走`);
+      eq(r.ownerState.hand.length, hand0 + wantPick, `${spec.effectId}: 該当分だけ手札へ（従来は0枚＝カードアドバンテージが死んでいた）`);
+      for (const n of matching) {
+        ok(countIn(r.ownerState.hand, n) > handBefore.get(n)!, `${spec.effectId}: 該当 ${n} が手札へ`);
+      }
+      for (const n of nonMatching) {
+        eq(countIn(r.ownerState.hand, n), handBefore.get(n)!, `${spec.effectId}: 非該当 ${n} は手札に入らない`);
+      }
+      // 残りの行き先（デッキ下 or トラッシュ）＝公開札の消失なし
+      const rem = reveal!.remainder!;
+      if (rem.location === 'trash') {
+        eq(r.ownerState.trash.length, trash0 + nonMatching.length, `${spec.effectId}: 残りはトラッシュへ`);
+        eq(r.ownerState.deck.length, deck0 - top.length, `${spec.effectId}: 公開分はデッキから抜ける`);
+      } else {
+        eq(r.ownerState.deck.length, deck0 - wantPick, `${spec.effectId}: pick 以外はデッキに保持（消失なし）`);
+        const tail = r.ownerState.deck.slice(-nonMatching.length);
+        for (const n of nonMatching) ok(tail.includes(n), `${spec.effectId}: 残り ${n} がデッキの一番下へ`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
+// anyOf のOR意味論そのもの（cardType 配列との違い）。「スペルか＜原子＞のシグニ」で
+// **＜原子＞以外のシグニは拾えない／スペルはクラス無関係に拾える**ことを matchesFilter 直で固定する。
+test('(xlvi) anyOf filter: 「スペルか＜原子＞のシグニ」＝種別ごとに条件が違う OR', () => {
+  const f = { anyOf: [{ cardType: 'スペル' }, { cardType: 'シグニ', story: '原子' }] } as import('../src/types/effects').TargetFilter;
+  const mk = (Type: string, CardClass: string) => ({ CardNum: 'x', CardName: 'x', Type, CardClass, Color: '青', Level: '1', Power: '1000', EffectText: '' } as unknown as CardData);
+  ok(matchesFilter(mk('スペル', ''), f), 'スペルは（クラス無関係に）該当');
+  ok(matchesFilter(mk('スペル', '電機'), f), '別クラスのスペルも該当＝＜原子＞はスペル側に掛からない');
+  ok(matchesFilter(mk('シグニ', '原子'), f), '＜原子＞のシグニは該当');
+  ok(!matchesFilter(mk('シグニ', '電機'), f), '＜原子＞以外のシグニは非該当（cardType 配列だと誤って通っていた形）');
+  ok(!matchesFilter(mk('ルリグ', '原子'), f), 'シグニでもスペルでもないカードは非該当');
+  // 兄弟キーとは AND（anyOf を通っても level が合わなければ落ちる）
+  const withLevel = { ...f, level: { max: 1 } } as import('../src/types/effects').TargetFilter;
+  ok(matchesFilter(mk('シグニ', '原子'), withLevel), 'anyOf 成立＋level 成立で該当');
+  ok(!matchesFilter({ ...mk('シグニ', '原子'), Level: '4' } as CardData, withLevel), 'anyOf 成立でも level 不成立なら非該当（AND合成）');
+});
+// (e) WX24-P2-049-E2＝filter 無しの純粋な「カードを1枚まで手札に加え」。MANUAL の E1b を持つ PRESERVE カードで
+// build が curated を温存し、fresh 側の pick（effectId は E3 へずれる）が live へ届いていなかった＝外科採用案件。
+test('(xlvi) WX24-P2-049-E2: filter無し look-pick が手札へ入る（PRESERVE カードの外科採用）', () => {
+  const savedCursor = cursor;
+  try {
+    const effs = effectsMap.get('WX24-P2-049') ?? [];
+    const eff = effs.find(e => e.effectId === 'WX24-P2-049-E2');
+    ok(!!eff, 'live 効果が存在');
+    const a = eff!.action as import('../src/types/effects').RevealAndPickAction;
+    eq(a.type, 'REVEAL_AND_PICK', 'LOOK_AND_REORDER（pick 丸ごと消失）へ戻っていない');
+    eq(`${a.revealCount}/${a.pickCount}/${a.pickUpTo}/${a.remainder?.location}/${a.remainder?.position}`,
+       '3/1/true/deck/bottom', '公開3枚・1枚まで・残りデッキ下');
+    const top = fill(3);
+    const ctx = mkCtx({ deckTop: top }, {}, 'WX24-P2-049');
+    const hand0 = ctx.ownerState.hand.length;
+    const deck0 = ctx.ownerState.deck.length;
+    const r = run(eff!.action as EffectAction, ctx);
+    eq(r.ownerState.hand.length, hand0 + 1, '1枚が手札へ');
+    eq(r.ownerState.deck.length, deck0 - 1, '残り2枚はデッキに保持（消失なし）');
+    // 兄弟効果は不変（外科採用が他効果を巻き込んでいない）
+    eq(effs.find(e => e.effectId === 'WX24-P2-049-E1')?.action.type, 'GRANT_KEYWORD', 'E1【常】シュートは不変');
+    eq((effs.find(e => e.effectId === 'WX24-P2-049-E1b')?.action as { id?: string })?.id, 'POWER_PLUS_BANISHED_POWER', 'E1b MANUAL は不変');
+    eq(effs.find(e => e.effectId === 'WX24-P2-049-BURST')?.action.type, 'TRASH', 'BURST は不変');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+// (e) WXDi-P12-001＝後続文（バリア）を落とさないこと。従来は pick もバリアも丸ごと消えていた。
+test('(xlvi) WXDi-P12-001-E1: ディソナ pick の後続【シグニバリア】【ルリグバリア】が残る', () => {
+  const effect = effectsMap.get('WXDi-P12-001')?.find(e => e.effectId === 'WXDi-P12-001-E1');
+  ok(!!effect, 'live 効果が存在');
+  const s = JSON.stringify(effect!.action);
+  ok(s.includes('REVEAL_AND_PICK') && s.includes('"isDisona":true'), `pick が《ディソナアイコン》filter つきで残る（実際 ${s.slice(0, 160)}）`);
+  ok(s.includes('GAIN_SIGNI_BARRIER') && s.includes('GAIN_LRIG_BARRIER'), '後続のバリア2種が落ちていない');
+});
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

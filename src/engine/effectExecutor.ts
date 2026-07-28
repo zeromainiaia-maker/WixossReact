@@ -1135,6 +1135,14 @@ function resolveDynamicFilter(
 ): import('../types/effects').TargetFilter | undefined {
   if (!filter) return filter;
   let result = filter;
+  // anyOf の下位フィルタも個別に解決する（下位が動的語彙を持つ場合に取り残さない）
+  if (result.anyOf) {
+    result = {
+      ...result,
+      anyOf: result.anyOf.map(sub =>
+        resolveDynamicFilter(sub, ownerSt, cardMap, otherSt, lastProcessedCards, effectivePowers, sourceCardNum, triggeringCardNum) ?? sub),
+    };
+  }
   const noMatch = (rest: import('../types/effects').TargetFilter): import('../types/effects').TargetFilter =>
     ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
   if (result.levelEqDeclaredNumber) {

@@ -64,6 +64,60 @@ import { parseSentencePart4 } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
 import { encodeShadowScopesInText } from '../utils/keywords';
 
+// ---- 「AかB（かC…）」形の pick 記述子 → TargetFilter（タスク12(xlvi)(f)）----
+// look-pick 系の「その中から**スペルか＜原子＞のシグニ**１枚を…手札に加え」等。2つの形を区別する：
+//   (1) 各要素が自分の名詞（シグニ/スペル/カード）を持つ＝独立節の OR → `anyOf`。
+//       cardType の配列では表せない（「＜原子＞の」がスペル側にも掛かってしまう）。
+//   (2) 先行要素が名詞を持たない修飾断片＝末尾の名詞を共有する色/クラスの OR → color/story の配列。
+// 忠実表現できない形（レベル比較・動的filter・色とクラスの混在・想定外トークン）は null を返し、
+// 呼び出し側は従来経路（＝この規則を使わない）へ落ちる。過剰な filter を出すより取りこぼす方を選ぶ。
+const OR_PICK_NOUN_RE = /(シグニ|スペル|カード)$/;
+const OR_PICK_TOKEN_RE = /^(?:＜[^＞]+＞の?|[白赤青緑黒]の?|無色の?|レベル[０-９\d]+(?:以上|以下)?の?)*(?:シグニ|スペル|カード)?$/;
+function parseOrPickDescriptor(desc: string): { filter: TargetFilter; noun: 'シグニ' | 'スペル' | 'カード' } | null {
+  // ＜＞ の外側の「か」だけで分割する（クラス名の内側は割らない）
+  const tokens: string[] = [];
+  let buf = '', depth = 0;
+  for (const ch of desc.trim()) {
+    if (ch === '＜') depth++;
+    else if (ch === '＞') depth--;
+    else if (ch === 'か' && depth === 0) { tokens.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  tokens.push(buf);
+  if (tokens.length < 2 || tokens.some(t => t === '')) return null;
+  if (!tokens.every(t => OR_PICK_TOKEN_RE.test(t))) return null;
+  const last = tokens[tokens.length - 1];
+  const lastNoun = last.match(OR_PICK_NOUN_RE)?.[1] as 'シグニ' | 'スペル' | 'カード' | undefined;
+  if (!lastNoun) return null;
+  const heads = tokens.slice(0, -1);
+  const nounFilter = (n: string): TargetFilter =>
+    n === 'シグニ' ? { cardType: 'シグニ' } : n === 'スペル' ? { cardType: 'スペル' } : {};
+
+  if (heads.some(t => OR_PICK_NOUN_RE.test(t))) {
+    // (1) 独立節の OR。名詞を持たない要素が混ざる形（「スペルか青のシグニ」の「青」が単独等）は表現不能。
+    if (!heads.every(t => OR_PICK_NOUN_RE.test(t))) return null;
+    const anyOf = tokens.map(t => ({
+      ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t),
+      ...nounFilter(t.match(OR_PICK_NOUN_RE)![1]),
+    }));
+    if (anyOf.some(f => Object.keys(f).length === 0)) return null;
+    return { filter: { anyOf }, noun: 'カード' };
+  }
+
+  // (2) 名詞共有の修飾断片 OR。色とクラスの混在（「白か＜天使＞のシグニ」）は AND/OR が曖昧なので受けない。
+  const classes = [...new Set(tokens.flatMap(t => [...t.matchAll(/＜([^＞]+)＞/g)].map(m => m[1])))];
+  const colors = [...new Set(tokens.flatMap(t => [...t.replace(/＜[^＞]+＞/g, '').matchAll(/[白赤青緑黒]/g)].map(m => m[0])))];
+  if (classes.length > 0 && colors.length > 0) return null;
+  if (classes.length === 0 && colors.length === 0) return null;
+  const filter: TargetFilter = {
+    ...(classes.length > 0 ? { story: classes.length === 1 ? classes[0] : classes } : {}),
+    ...(colors.length > 0 ? { color: colors.length === 1 ? colors[0] : colors } : {}),
+    ...parseLevelFilter(tokens.join('')),
+    ...nounFilter(lastNoun),
+  };
+  return { filter, noun: lastNoun };
+}
+
 function parseUseCondition(text: string): Condition {
   const n = (s: string) => parseInt(toHalf(s), 10);
   const op = (s: string): import('../types/effects').CompareOp => s === '以上' ? 'gte' : s === '以下' ? 'lte' : 'eq';
@@ -4170,8 +4224,10 @@ function parseActionTextInner(text: string): EffectAction {
     : null;
 
   // ---- デッキ上からN枚見る → その中から好きな枚数をトラッシュ/デッキへ ----
-  if (!dreamRevealLead && sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚見る/) && sentences.length >= 2) {
-    const cM = sentences[0].match(/([０-９\d]+)枚見る/);
+  //   ⚠「N枚**を**見る」は原文の表記ゆれ（CSV 全数で WXDi-P05-050 の1枚のみ）。`を` を許さないと
+  //   この規則ごと外れ、pick が丸ごと消えた STUB+UNKNOWN に退化する（タスク12(xlvi)(e)）。
+  if (!dreamRevealLead && sentences[0].trim().match(/デッキの上からカードを([０-９\d]+)枚を?見る/) && sentences.length >= 2) {
+    const cM = sentences[0].match(/([０-９\d]+)枚を?見る/);
     if (cM) {
       const nextS = sentences[1].trim();
       // 「その中からカードをN枚まで手札に加え、残りを好きな順番でデッキの一番上/下に置く」＝pick＋remainder が
@@ -4221,6 +4277,38 @@ function parseActionTextInner(text: string): EffectAction {
           } as unknown as EffectAction;
         }
       }
+      // ---- その中から〔AかB〕をN枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
+      //   OR 記述子（「スペルか＜原子＞のシグニ」「＜天使＞か＜悪魔＞のシグニ」「白か黒のシグニ」）。
+      //   下の pk 規則は OR を（`白か黒の` の1形を除き）表現できないため除外しており、汎用 LOOK_AND_REORDER に
+      //   飲まれて **pick が丸ごと消えていた**（タスク12(xlvi)(f)）。parseOrPickDescriptor が忠実表現できる形だけを
+      //   受け、それ以外（レベル比較・動的filter・色とクラスの混在）は null を返して従来経路へ落ちる。
+      {
+        const orPk = nextS.match(/^その中から(.*?)を?(?:合計)?([０-９\d]+)枚(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
+        const orDesc = orPk && orPk[1].includes('か') ? parseOrPickDescriptor(orPk[1]) : null;
+        if (orPk && orDesc) {
+          const remainder: RevealAndPickAction['remainder'] =
+            orPk[4] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+            : orPk[4] === 'デッキの一番上' ? { location: 'deck', position: 'top' }
+            : { location: 'deck', position: 'bottom' };
+          const revealAction = {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+            filter: orDesc.filter,
+            pickCount: parseNum(orPk[2]),
+            ...(orPk[3] === 'まで' ? { pickUpTo: true } : {}),
+            ...(orDesc.noun !== 'シグニ' ? { pickNoun: orDesc.noun } : {}),
+            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            remainder,
+          } as RevealAndPickAction;
+          // 「残りをデッキに加えてシャッフル」（orPk[4] 無し）は既存 pk と同じく SHUFFLE_DECK 合成で表す。
+          if (!orPk[4]) {
+            const trailing = sentences.slice(2).map(s => parseSingleSentence(s.trim()));
+            return { type: 'SEQUENCE', steps: [revealAction, { type: 'SHUFFLE_DECK', owner: 'self' }, ...trailing] } as SequenceAction;
+          }
+          return revealAction;
+        }
+      }
       // ---- その中から〔class/color/level filter〕(の)シグニ/カード(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
       // 「見る。その中から＜C＞のシグニM枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く」系（census
       // クラス指定/色/レベル filter の look-pick）。従来は下の汎用 LOOK_AND_REORDER が「その中から…デッキ」に先にマッチし
@@ -4242,7 +4330,15 @@ function parseActionTextInner(text: string): EffectAction {
         //   （WXK05-023-E3／SPDi43-17-E1 等・census クラスタ「Nまで上限選択」）。
         const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
         // ドリームチーム等の後続効果を伴う複合形は、この早期 return で後続を落とすため対象外。
-        if (pk && !(sentences.length > 2 && /《ディソナアイコン》/.test(pk[1]))) {
+        // ⚠ 後続文を一律に SEQUENCE へ足すのは不可＝「この方法で〜した場合、」等の**条件付き**後続が
+        //   parseSingleSentence で条件ごと落ちて無条件実行になる（WX25-CP1-025-E1 の BOUNCE 等21効果で実測）。
+        //   ここは pick が丸ごと消えるのを避ける最小手当てだけを入れる（下の keepTrailing）。
+        const dropsTrailing = sentences.length > 2 && /《ディソナアイコン》/.test(pk?.[1] ?? '');
+        // 後続文が**無条件の追加アクション**だけなら、pick を捨てずに SEQUENCE で引き連れる（タスク12(xlvi)(e)）。
+        //   条件・置換・照応（「この方法で」「場合」「代わりに」「それ」）を含む後続は従来どおり対象外。
+        const keepTrailing = dropsTrailing
+          && sentences.slice(2).every(s => !/この方法で|場合|かぎり|代わりに|それら?を/.test(s));
+        if (pk && (!dropsTrailing || keepTrailing)) {
           const filterSrc = pk[1] + (pk[2] ?? '');
           const pickCount: number | 'ALL' = (pk[3] === 'すべて' || pk[3] === '好きな枚数') ? 'ALL' : parseNum(pk[3]);
           const pickUpTo = pk[4] === 'まで' || pk[3] === '好きな枚数';
@@ -4275,6 +4371,10 @@ function parseActionTextInner(text: string): EffectAction {
           if (!pk[5]) {
             const trailing = sentences.slice(2).map(s => parseSingleSentence(s.trim()));
             return { type: 'SEQUENCE', steps: [revealAction, { type: 'SHUFFLE_DECK', owner: 'self' }, ...trailing] } as SequenceAction;
+          }
+          if (keepTrailing) {
+            const trailing = sentences.slice(2).map(s => parseSingleSentence(s.trim()));
+            return { type: 'SEQUENCE', steps: [revealAction, ...trailing] } as SequenceAction;
           }
           return revealAction;
         }

@@ -415,6 +415,11 @@ export interface AppearanceCondition {
 // ===== ターゲットフィルタ =====
 
 export interface TargetFilter {
+  // いずれかの下位フィルタに一致すれば通す（OR）。同一 TargetFilter 内の他キーとは AND で合成される。
+  // 「スペルか＜原子＞のシグニ」のように **種別ごとに条件が違う OR** は cardType の配列（＝種別だけの OR）
+  // では表現できず、＜原子＞がスペルにも掛かってしまう。matchesFilter が再帰評価し、resolveDynamicFilter は
+  // 各下位フィルタを個別に解決する（タスク12(xlvi)(f)）。
+  anyOf?:     TargetFilter[];
   cardType?:  CardTypeFilter | CardTypeFilter[];
   cardName?:  string;      // 部分一致（cardName を含む）
   cardNames?: string[];    // いずれかの名前に一致（複数名指定用、完全一致）

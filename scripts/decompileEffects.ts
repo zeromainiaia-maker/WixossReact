@@ -111,9 +111,16 @@ const numJa = (n: any) => typeof n === 'object'
   ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の' : '[参照値]')
   : String(n);
 
+// anyOf（OR フィルタ）＝下位フィルタごとに名詞まで出して「AかB」に組む。
+// 下位ごとに cardType が違う（「スペルか＜原子＞のシグニ」）ため、filterJa の接頭辞だけでは表せない。
+function anyOfJa(list: any[]): string {
+  return list.map((s: any) => `${filterJa(s)}${([] as string[]).concat(s.cardType ?? []).join('か') || 'カード'}`).join('か');
+}
+
 function filterJa(f?: any): string {
   if (!f) return '';
   const parts: string[] = [];
+  if (f.anyOf) parts.push(`${anyOfJa(f.anyOf)}である`);
   if (f.thisCardOnly) parts.push('このシグニ自身');
   if (f.excludeSelf) parts.push('他の');
   if (f.frontOfSelf) parts.push('このシグニの正面の');
@@ -971,7 +978,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const rapCnt = a.revealCount ?? a.count;
       const rapFilter = a.filter ?? a.pickFilter;
       const pickN = a.pickCount === 'ALL' ? (a.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
-      const filterStr = rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
+      // anyOf 単独なら「スペルか＜原子＞のシグニ」がそのまま名詞句になる＝pickNoun を後置しない
+      const filterStr = rapFilter?.anyOf && Object.keys(rapFilter).length === 1
+        ? anyOfJa(rapFilter.anyOf)
+        : rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
       const revealJa = `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
@@ -1685,9 +1695,15 @@ function actionJa(a?: Action, effectType?: string): string {
       // バリア獲得（GAIN_LRIG_BARRIER・engine実装済み）＝「【ルリグバリア】/【シグニバリア】N つを得る」。
       // バリア種別/個数がカードごとに異なるため currentCardText から抽出。
       if (a.id === 'GAIN_LRIG_BARRIER' || a.id === 'GAIN_SIGNI_BARRIER') {
+        // 種別は stub 側が持っているので、まず**自分の種別**の原文断片を探す。
+        // 「【シグニバリア】１つと【ルリグバリア】１つを得る」（WXDi-P12-001）は片方に「つを得る」が
+        // 続かないため、種別を問わない旧 regex だと両方の stub が【ルリグバリア】と表示されていた。
+        const kind = a.id === 'GAIN_SIGNI_BARRIER' ? 'シグニ' : 'ルリグ';
+        const own = currentCardText.match(new RegExp(`【${kind}バリア】[０-９\\d]*つ(?:を得る)?`));
+        if (own) return own[0].endsWith('を得る') ? own[0] : `${own[0]}を得る`;
         const m = currentCardText.match(/【(?:ルリグ|シグニ)バリア】[０-９\d]*つを得る/);
         if (m) return m[0];
-        return a.id === 'GAIN_SIGNI_BARRIER' ? '【シグニバリア】１つを得る' : '【ルリグバリア】１つを得る';
+        return `【${kind}バリア】１つを得る`;
       }
       // バリア喪失（LOSE_SIGNI_BARRIER/LOSE_LRIG_BARRIER・engine実装済み）＝「対戦相手は【○バリア】１つを失う」（WX24-P1-043）
       if (a.id === 'LOSE_SIGNI_BARRIER' || a.id === 'LOSE_LRIG_BARRIER') {

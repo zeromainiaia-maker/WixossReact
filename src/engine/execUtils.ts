@@ -361,6 +361,10 @@ export function matchesFilter(
 ): boolean {
   if (!card) return false;
   if (!filter) return true;
+  // anyOf: 下位フィルタのいずれかに一致（OR）。他キーとは AND。空配列は「候補なし」＝false。
+  if (filter.anyOf) {
+    if (!filter.anyOf.some(sub => matchesFilter(card, sub, effectivePower, classOverride, allZoneClassOverrides, effectiveLevel))) return false;
+  }
   if (filter.cardType) {
     const types = Array.isArray(filter.cardType) ? filter.cardType : [filter.cardType];
     // レゾナは「シグニの一種」＝場のレゾナは cardType:'シグニ' フィルタの対象に含む
