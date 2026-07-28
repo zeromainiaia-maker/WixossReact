@@ -4110,9 +4110,10 @@ function parseActionTextInner(text: string): EffectAction {
       // → クリーンな単一 pick-to-hand のみここで REVEAL_AND_PICK に解決する。
       // ⚠除外（filter/構造を faithfully 表現できない＝過剰化/取りこぼしになる形は LOOK_AND_REORDER に残す）：
       //   多目的（「…手札に加え、X枚を…に置き、残り」）・それぞれ multi-filter・OR（「か」「と」）・hand-or-energy
-      //   （「手札に加えるかエナゾーンに置き」）・場に出し（上流 2547 handOrField）・アイコン/名前 filter（＜C＞/色/
-      //   レベル/無色 以外）・「残りをデッキに加えてシャッフル」（行き先が一番上/下でない）。pick 動詞直後に「、残りを」を
-      //   要求して多目的・hand-or-X を弾き、filter 前置詞を class/color/level に限定して OR/アイコン/名前を弾く。
+      //   （「手札に加えるかエナゾーンに置き」）・場に出し（上流 2547 handOrField）・カード名 filter・
+      //   複数ルリグ参照。単一 filter のライズ／ディソナ／ライフバーストは既存 TargetFilter で忠実表現できる。
+      //   「残りをデッキに加えてシャッフル」は REVEAL_AND_PICK 後の SHUFFLE_DECK 合成で扱う。
+      //   pick 動詞直後に「、残りを」を要求して多目的・hand-or-X を弾く。
       {
         // 「《ガードアイコン》を持たない」は `の` を伴わず直接 名詞に続く（＜C＞の／色の／レベルNの と接続形が違う）ため
         // 別枝で許容する。**noGuard は型にも matchesFilter にも実装済み（G237）＝忠実に表現できる**ので、
@@ -4121,14 +4122,19 @@ function parseActionTextInner(text: string): EffectAction {
         //   で忠実表現できる（engine matchesFilter・MANUAL 正解 WXDi-D04-012/WXDi-P09-048-E3 と同形）。従来は
         //   noun 群に無く「その中から…デッキ」の汎用 LOOK_AND_REORDER に飲まれて pick が丸ごと脱落していた
         //   （WXK05-023-E3／SPDi43-17-E1 等・census クラスタ「Nまで上限選択」）。
-        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|《ガードアイコン》を持たない)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)/);
-        if (pk) {
+        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
+        // ドリームチーム等の後続効果を伴う複合形は、この早期 return で後続を落とすため対象外。
+        if (pk && !(sentences.length > 2 && /《ディソナアイコン》/.test(pk[1]))) {
           const filterSrc = pk[1] + (pk[2] ?? '');
           const pickCount: number | 'ALL' = (pk[3] === 'すべて' || pk[3] === '好きな枚数') ? 'ALL' : parseNum(pk[3]);
           const pickUpTo = pk[4] === 'まで' || pk[3] === '好きな枚数';
           const filter: TargetFilter = {
             ...parseStoryFilter(filterSrc), ...parseColorFilter(filterSrc), ...parseLevelFilter(filterSrc),
             ...(/《ガードアイコン》を持たない/.test(filterSrc) ? { noGuard: true } : {}),
+            ...(/《ライズアイコン》を持つ/.test(filterSrc) ? { hasRiseIcon: true } : {}),
+            ...(/《ディソナアイコン》/.test(filterSrc) ? { isDisona: true } : {}),
+            ...(/【ライフバースト】を持つ/.test(filterSrc) ? { hasLifeBurst: true } : {}),
+            ...(/白か黒/.test(filterSrc) ? { color: ['白', '黒'] } : {}),
             ...(pk[2] === 'シグニ' ? { cardType: 'シグニ' as const }
               : pk[2] === 'スペル' ? { cardType: 'スペル' as const } : {}),
           };
@@ -4136,7 +4142,7 @@ function parseActionTextInner(text: string): EffectAction {
             pk[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
             : pk[5] === 'デッキの一番下' ? { location: 'deck', position: 'bottom' }
             : { location: 'deck', position: 'top' };
-          return {
+          const revealAction = {
             type: 'REVEAL_AND_PICK',
             owner: 'self',
             revealCount: parseNum(cM[1]),
@@ -4146,8 +4152,13 @@ function parseActionTextInner(text: string): EffectAction {
             // 原文が「シグニ」でなく「カード」「スペル」を拾う形なら逆翻訳の名詞を保持（既定は「シグニ」・G236）。
             ...(pk[2] === 'カード' ? { pickNoun: 'カード' } : pk[2] === 'スペル' ? { pickNoun: 'スペル' } : {}),
             then: { type: 'ADD_TO_HAND', owner: 'self' },
-            remainder,
+            remainder: pk[5] ? remainder : { location: 'deck', position: 'bottom' },
           } as RevealAndPickAction;
+          if (!pk[5]) {
+            const trailing = sentences.slice(2).map(s => parseSingleSentence(s.trim()));
+            return { type: 'SEQUENCE', steps: [revealAction, { type: 'SHUFFLE_DECK', owner: 'self' }, ...trailing] } as SequenceAction;
+          }
+          return revealAction;
         }
       }
       if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {

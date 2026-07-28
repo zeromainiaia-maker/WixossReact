@@ -186,6 +186,8 @@ function filterJa(f?: any): string {
   if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
   if (f.nonColorless) parts.push('無色ではない');
   if (f.isDisona) parts.push('《ディソナアイコン》を持つ');
+  if (f.hasLifeBurst === true) parts.push('【ライフバースト】を持つ');
+  if (f.hasLifeBurst === false) parts.push('【ライフバースト】を持たない');
   if (f.levelParity) parts.push(f.levelParity === 'odd' ? 'レベルが奇数の' : 'レベルが偶数の');
   if (f.commonClass) parts.push('共通するクラスを持つ');
   if (f.hasIcon) parts.push(`《${f.hasIcon}アイコン》を持つ`);
@@ -967,7 +969,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const rapOwner = a.owner ?? a.from?.owner;
       const rapCnt = a.revealCount ?? a.count;
       const rapFilter = a.filter ?? a.pickFilter;
-      const pickN = a.pickCount === 'ALL' ? 'すべて' : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
+      const pickN = a.pickCount === 'ALL' ? (a.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(a.pickCount ?? 1)}枚${a.pickUpTo ? 'まで' : ''}`;
       const filterStr = rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
       const revealJa = `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先

@@ -2760,6 +2760,46 @@ test('REVEAL_AND_PICK remainder: 公開カードが消失しない（続き36 �
   eq(r.ownerState.deck.length + r.ownerState.hand.length, before, '公開カードの消失なし（旧実装は2枚ロスト）');
   eq(r.ownerState.hand.length, ctx.ownerState.hand.length + 1, 'ピック1枚が手札へ');
 });
+// タスク12(xlvi) 第1波：curated の LOOK_AND_REORDER が pick を丸ごと落としていた実カード。
+// 各 effectId を実際に executeEffect → SEARCH resume まで通し、手札増加と公開残りの保存を固定する。
+for (const [cardNum, effectId] of [
+  ['WX16-057', 'WX16-057-E1'],
+  ['WX16-037', 'WX16-037-E2'],
+  ['WXDi-P13-057', 'WXDi-P13-057-E1'],
+  ['WXDi-P06-037', 'WXDi-P06-037-E2'],
+  ['WX19-Re04', 'WX19-Re04-E2'],
+  ['WX24-P4-012', 'WX24-P4-012-E2'],
+  ['SP38-007', 'SP38-007-E1'],
+  ['SP38-007', 'SP38-007-BURST'],
+  ['WX24-P1-032', 'WX24-P1-032-E1'],
+] as const) {
+  test(`${effectId}: curated実行でpickが手札へ入り公開残りを保持`, () => {
+    const savedCursor = cursor;
+    try {
+      const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+      ok(!!eff, `${effectId}: 実効果が存在`);
+      const reveal = (eff.action.type === 'SEQUENCE' ? eff.action.steps[0] : eff.action) as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+      eq(reveal.type, 'REVEAL_AND_PICK', `${effectId}: pick実行型`);
+      const candidates = [...cardMap.values()]
+        .filter(c => !reveal.filter || matchesFilter(c, reveal.filter))
+        .slice(0, reveal.pickCount === 'ALL' ? reveal.revealCount : Math.max(1, reveal.pickCount))
+        .map(c => c.CardNum);
+      ok(candidates.length > 0, `${effectId}: filter成立カードを用意`);
+      const fillers = [...cardMap.values()].filter(c => !candidates.includes(c.CardNum)).slice(0, reveal.revealCount - candidates.length).map(c => c.CardNum);
+      const top = [...candidates, ...fillers];
+      const ctx = mkCtx({ deckTop: top }, {}, cardNum);
+      const hand0 = ctx.ownerState.hand.length;
+      const deck0 = ctx.ownerState.deck.length;
+      const r = run(eff.action as EffectAction, ctx);
+      const expectedPick = reveal.pickCount === 'ALL' ? candidates.length : Math.min(reveal.pickCount, candidates.length);
+      eq(r.ownerState.hand.length, hand0 + expectedPick, `${effectId}: 手札増加`);
+      eq(r.ownerState.deck.length, deck0 - expectedPick, `${effectId}: pick以外はデッキに保持`);
+      for (const n of top.slice(expectedPick)) ok(r.ownerState.deck.includes(n), `${effectId}: 公開残り ${n} がデッキに残る`);
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
 // WXDi-P03-005（続き218k・§3 タスク5）＝「デッキ5枚見てガード無しシグニ1枚まで手札／追加でエクシード4を
 // 払っていた場合、代わりに2枚まで」。curated MANUAL が「自分のシグニをデッキに戻す」幻覚だったのを
 // REVEAL_AND_PICK + OPTIONAL_COST replace モードへ是正。pay=2枚／skip=1枚を engine 挙動込みで固定する。

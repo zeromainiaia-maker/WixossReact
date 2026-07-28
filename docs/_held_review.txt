@@ -1052,24 +1052,6 @@ WX19-Re10
   + [1].action.steps[1].then.fromHand = true
   ~ [1].parseStatus : "AUTO" → "MANUAL"
 
-## +ADD_TO_FIELD +ENERGY_CARD -STUB ［1枚］
-WX21-004
---- WX21-004
-  原文: 【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上のカードをエナゾーンに置く。その後、あなたのエナゾーンから＜英知＞のシグニを１枚まで対象とし、それを手札に加える。【自】《ターン１回》：アタックフェイズの間、あなたの＜英知＞のシグニが場を離れたとき、あなたのエナゾーンからそのシグニと同じレベルの＜英知＞のシグニを１枚まで対象とし、それをダウン状態で
-  - [1].action.id = "GRANT_LEAVE_PLACE_PENDING"
-  ~ [1].action.type : "STUB" → "ADD_TO_FIELD"
-  + [1].action.owner = "self"
-  + [1].action.source.type = "ENERGY_CARD"
-  + [1].action.source.owner = "self"
-  + [1].action.source.count = 1
-  + [1].action.source.upToCount = true
-  + [1].action.source.filter.cardType = "シグニ"
-  + [1].action.source.filter.story = "英知"
-  + [1].action.source.filter.levelEqTrigger = true
-  + [1].action.asDown = true
-  + [1].triggerScope = "any_ally"
-  …（他 2 行）
-
 ## +STUB -CONDITIONAL -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
 WX21-Re06
 --- WX21-Re06
@@ -1085,24 +1067,6 @@ WX21-Re06
   ~ [0].action.steps[1].type : "CONDITIONAL" → "STUB"
   + [0].action.steps[1].id = "MARK_SELF_DELAYED_EXILE"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
-
-## +ADD_TO_FIELD +HAND_CARD +INSTALL_DELAYED_TRIGGER -STUB ［1枚］
-WX22-001
---- WX22-001
-  原文: 【出】：あなたのトラッシュから＜遊具＞のシグニを２枚まで対象とし、それらを場に出す。【起】《ターン１回》《メインフェイズアイコン》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、あなたの＜遊具＞のシグニ１体を場からトラッシュに置く。そうした場合、ターン終了時まで、それのパワーを－12000する。【起】《アタックフェイズアイコン》《コイ
-  - [2].action.id = "GRANT_LEAVE_PLACE_PENDING"
-  ~ [2].action.type : "STUB" → "INSTALL_DELAYED_TRIGGER"
-  + [2].action.duration = "THIS_ATTACK_PHASE"
-  + [2].action.trigger.timing = "ON_LEAVE_FIELD"
-  + [2].action.trigger.leftOwner = "self"
-  + [2].action.trigger.triggerFilter.cardType = "シグニ"
-  + [2].action.trigger.triggerFilter.story = "遊具"
-  + [2].action.effect.type = "ADD_TO_FIELD"
-  + [2].action.effect.owner = "self"
-  + [2].action.effect.source.type = "HAND_CARD"
-  + [2].action.effect.source.owner = "self"
-  + [2].action.effect.source.count = 1
-  …（他 3 行）
 
 ## +GRANT_KEYWORD -GRANT_PROTECTION ［1枚］
 WXEX1-72

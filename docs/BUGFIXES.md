@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## `LOOK_AND_REORDER` に消えていた単一 pick-to-hand 第1波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- 既存 `pk` 規則を `hasRiseIcon`／`isDisona`／`hasLifeBurst`／色ORへ拡張し5効果を復元。PRESERVE の WX16-037-E2 は parser 生出力を effectId 単位で外科採用し `MANUAL` 化、兄弟効果は不変。
+- 「残りをデッキに加えてシャッフル」は既存 `SEQUENCE[REVEAL_AND_PICK, SHUFFLE_DECK]` で4効果を表現し、WX24-P1-032-E1 の【リミットアッパー】設置も保持。忠実表現不能の3効果は据置。
+- 実カード9効果を executeEffect→resumeSearch まで通す golden を追加。golden 901→910、census 1476→1471、smoke 10726/10726、fuzz全0、同型★0、lint 0 errors/226 warnings。
+
 ## フォールバックSTUB `GRANT_LEAVE_PLACE_PENDING` 残2枚を完全消化（2026-07-29・PLAN §3 タスク12(xlii)・Codex）
 
 - **WX21-004-E2《ママ♥５》**：live JSON は no-op STUB のままだったが fresh parse は既に ON_LEAVE_FIELD watcher まで復旧済みで、欠落は「そのシグニと同じレベル」だけだった。エナ→場ハンドラへ既存 `parseTriggerComparison(...allowLevelEq)` を配線し、`resolveLeaveFieldDynamicFilters` が離脱カードのレベルで `levelEqTrigger` を concrete `level:N` へ収集時解決するよう修正。fresh 全数差分は **WX21-004だけ**、増分は E2 の `levelEqTrigger:true` 一点。ルリグゾーンの watcher、アタック中のみ、英知のみ、同レベル英知だけが候補、メイン／クラス不一致／レベル不一致の非発火を golden で固定した。
