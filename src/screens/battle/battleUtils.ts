@@ -1,11 +1,26 @@
 // バトル画面の汎用ヘルパー（ID採番・シャッフル・リフレッシュ/ドロー・じゃんけん等）。BattleScreen.tsx から Stage 0 で抽出。
-import type { PlayerState } from '../../types';
+import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
+import { evalUseCondition } from '../../engine/execUtils';
 import { applyRefreshState } from '../../engine/refresh';
 
 // CPU専用プレイヤーID（MatchmakingScreenと共有）
 export const CPU_PLAYER_ID = '00000000-0000-0000-0000-000000000001';
+/** Evaluate an ARTS ACTIVATED use condition identically at discovery and execution time. */
+export function canUseArtsCondition(
+  effects: readonly CardEffect[],
+  ownerState: PlayerState,
+  oppState: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum: string,
+  currentPhase: string,
+  effectivePowers?: Map<string, number>,
+): boolean {
+  const effect = effects.find(e => e.effectType === 'ACTIVATED');
+  return !effect?.condition
+    || evalUseCondition(effect.condition, ownerState, oppState, cardMap, sourceCardNum, currentPhase, effectivePowers);
+}
 export const CPU_ACTION_DELAY = 900; // CPU行動の遅延ms（オンライン感を出す）
 
 export function generateUUID(): string {

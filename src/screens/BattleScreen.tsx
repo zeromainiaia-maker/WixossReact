@@ -27,7 +27,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
 import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -5311,7 +5311,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const artsCandidates: CardData[] = my.lrig_deck
     .filter((num, i, arr) => arr.indexOf(num) === i)
     .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData => !!c && (c.Type === 'アーツ' || c.Type === 'アーツ/クラフト'));
+    .filter((c): c is CardData => !!c && (c.Type === 'アーツ' || c.Type === 'アーツ/クラフト'))
+    .filter(c => canUseArtsCondition(
+      effectsMap.get(c.CardNum) ?? [], my, op, battleCardMap, c.CardNum, bs.turn_phase, effectivePowers));
 
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
@@ -5365,6 +5367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!meetsRestriction(card.Restriction, lrigClass, ignoreRestriction)) return;
         const effs = effectsMap.get(instanceId) ?? effectsMap.get(cardNum) ?? [];
         const eff = effs.find(e => e.effectType === 'ACTIVATED');
+        if (!canUseArtsCondition(effs, my, op, battleCardMap, instanceId, bs.turn_phase, effectivePowers)) return;
         const maxCost = eff ? findCounterSpellMaxCost(eff.action) : undefined;
         if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
         const dummyEff: import('../types/effects').CardEffect = eff ?? {
@@ -5692,6 +5695,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
+    if (!canUseArtsCondition(
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, effectivePowers)) return;
     setLoading(true);
     closeArtsModal();
     setKeySubstituteEnabled(false);
@@ -6278,6 +6283,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>) => {
     if (!bs.pending_spell || loading) return;
     if (candidate.kind !== 'effect') return;
+    if (!canUseArtsCondition(
+      [candidate.effect], my, op, battleCardMap, candidate.instanceId, bs.turn_phase, effectivePowers)) return;
     setLoading(true);
     closeCutin();
     try {
@@ -6610,7 +6617,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const costOk = effectiveCostStr
         ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
         : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
-      if (canUse && costOk) {
+      const condOk = canUseArtsCondition(
+        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
+      if (canUse && condOk && costOk) {
         actions.push({
           label: '使用',
           color: C.coin,

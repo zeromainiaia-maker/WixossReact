@@ -1,9 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(lvi) バッチ2＝アーツ使用条件の実経路配線＋前バッチ報告訂正（2026-07-28・Codex）
+
+- **新規実装（実害解消）**：アーツの `ACTIVATED.condition` を共通 `canUseArtsCondition` で評価し、通常候補 `artsCandidates`／カード操作候補、通常実行 `executeArts`、スペルカットイン候補 `cutinCandidates`／実行 `handleCutinUse` の候補・実行両面へ配線した。CPU専用アーツ実行関数はなく、通常使用は `executeArts` を共有する。現行母集団は **20効果・20枚（PR-204を含む。20＋1ではない）**。
+- **全数原文照合**：20枚すべてが「〜場合にしか使用できない」という使用制限で、効果内分岐の誤混入・配線除外は0枚。照合で `WXK01-020-E1` の原文「手札1枚以下」に対して JSON が `eq 1`、`WXK07-001-E1` の「＜花代＞またはLv4以上」がLv4以上だけ、`WDK01-009-E1`／`WDK06-C06-E1` が `COND_STUB` と判明したため、effects JSONを変えず runtime merge の condition-only override を `lte 1`／`OR[LRIG_NAME 花代, LRIG_LEVEL gte 4]`／`LRIG_COLOR 赤`／`TRASH_COUNT gte 20` へ忠実化した。
+- **回帰**：20枚それぞれを実戦と同じ `lrig_deck` に置き、条件成立時＝使用可／不成立時＝使用不可を共通実経路ヘルパーで両方向固定。golden **848→868（+20）**、各テストは共有 `cursor` を save/restore。最低3具体例の生出力は `WX04-010 opponentEnergy=4 => true / 3 => false`、`WX07-012 crossState=true => true / false => false`、`PR-204 centerLrigLevel=4 => true / 5 => false`。
+- **前バッチ報告の訂正**：実害を前バッチで解消したのは `appearanceCondition` 9件（召喚不能）と `timing` 1件（ライフバースト不発）。cost 10件＋PR-204のcostはデータ忠実性の回復であり、スペル／アーツ／ピースの実機エナ徴収はCSV `Cost` 列を `parseGrowCost` 系経路が読む。旧「required=0→1」はeffect object上の算術で実機前後比較ではない。PR-204の旧「`evalUseCondition`で不可」も関数直呼びで、実機に効いたのは本バッチの配線後が初めて。
+- **禁止事項順守**：`build:effects` 未実行、`public/data/effects_*.json` 非変更、census baseline非変更。
+
 ## §3タスク12(lvi)＝manual override のトップレベルフィールド脱落21効果を完全クローズ（2026-07-28・Codex）
 
 - **全21効果を是正・defer 0**：CSV原文と JSON の値を1件ずつ照合し、`manualEffects.ts` の完全置換 override へ欠落値を明示復元した。cost 10件＝WXK08-055-E1／WXK11-070-E1／WD21-009-E1／PR-238-E1／WX16-048-E1／WX16-023-E1／WXK10-008-E1／WXDi-P11-001-E1／WX24-P3-036-E1／WXDi-P05-006-E1、cost＋condition 1件＝PR-204-E1、timing 1件＝WX17-041-BURST、appearanceCondition 9件＝WX13-005A-E1／WX12-010-E2／WXDi-P11-TK01-E1／WX25-P2-TK05-E1／WX08-005-E1／WX08-006-E1／WX10-006-E1／WX14-017-E1／WXEX1-26-E1。原文と JSON の不一致0件。
-- **実経路の前後実測**：WXK08-055 は修正前 required=0／エナ0で使用可、修正後 required=1／使用不可。PR-204 は修正前レベル5可、修正後 `evalUseCondition` で不可。WX17-041-BURST は BattleScreen と同じ queue filter で0→1件（同 effectId は1件のみで二重発火なし）。WX08-006 は修正前候補なし、修正後は凶蟲2体を実際にトラッシュして配置成功。appearance 9件は他効果による救済0件で、修正前の実害は「出現条件踏み倒し」ではなく「召喚不能」だった。
+- **検証結果（バッチ2で訂正）**：WXK08-055 の required=0→1 はeffect object上の算術で、実機の使用可否ではなかった。スペル／アーツ／ピースのエナはCSV `Cost` 列から徴収され、復元した `cost.energy` はこのカード種別の経路では読まれない。PR-204 のレベル5判定も `evalUseCondition` の直呼びであり、当時のアーツ実経路には未配線だった。実経路で前後確認できていたのは、WX17-041-BURST の queue filter 0→1件と、WX08-006を含む appearance 9件の召喚不能→正規出現条件支払い・配置である。
 - **0コスト非回帰**：WXK11-070（緑0）／WXK10-008（赤0）／WXDi-P05-006（青0）は cost object を保持しても `(energy ?? []).reduce(...)` が0となり、エナ0で支払い可能。BattleScreen の同型分岐は `energyTotal > 0` のときだけ支払いUIへ進むため、支払い不能・UI消失にはならない。
 - **回帰防止**：`scripts/checkManualFieldLoss.ts` と `npm run check:manual-fields` を新設し、JSON と同 effectId の manual override がトップレベルフィールドを1つでも落とすと exit 1。許可リストなし。`scripts/runGates.mjs` の並列ゲートへ追加。golden は cost／condition／timing／appearanceCondition の実経路を各1本追加し 844→848。
 - **CODEX_GUIDE §5-16訂正**：App は JSON を fetch するが、BattleScreen は `buildEffectsMap`→`mergeManualEffects` を必ず通すため manual は実機へ届く。続き293の「runtime に mergeManualEffects を通さない」は誤診断。JSON 直読みの計器・成果物へ curated 値を焼く場合と runtime manual 修正を区別した。当時4効果が不発だった真因は現行コードと記録だけでは確定不能として推測を書かなかった。

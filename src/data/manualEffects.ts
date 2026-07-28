@@ -4721,12 +4721,28 @@ export function mergeManualEffects(
   parsed: CardEffect[],
 ): CardEffect[] {
   const manuals = MANUAL_EFFECTS[cardNum];
-  if (!manuals || manuals.length === 0) return parsed;
+  const merged = !manuals || manuals.length === 0 ? parsed : (() => {
+    const manualMap = new Map(manuals.map(e => [e.effectId, e]));
+    const result = parsed.map(e => manualMap.has(e.effectId) ? manualMap.get(e.effectId)! : e);
+    for (const m of manuals) {
+      if (!result.some(e => e.effectId === m.effectId)) result.push(m);
+    }
+    return result;
+  })();
 
-  const manualMap = new Map(manuals.map(e => [e.effectId, e]));
-  const merged = parsed.map(e => manualMap.has(e.effectId) ? manualMap.get(e.effectId)! : e);
-  for (const m of manuals) {
-    if (!merged.some(e => e.effectId === m.effectId)) merged.push(m);
-  }
-  return merged;
+  // ARTS use gates audited against CSV. Keep actions from built JSON while correcting only
+  // legacy condition metadata; build:effects is intentionally not required for these overrides.
+  const conditionOverrides: Record<string, CardEffect['condition']> = {
+    'WXK01-020-E1': { type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: 1 },
+    'WXK07-001-E1': { type: 'OR', conditions: [
+      { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: '花代' },
+      { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 4 },
+    ] },
+    'WDK01-009-E1': { type: 'LRIG_COLOR', owner: 'self', color: '赤' },
+    'WDK06-C06-E1': { type: 'TRASH_COUNT', owner: 'self', operator: 'gte', value: 20 },
+  };
+  return merged.map(effect => {
+    const condition = conditionOverrides[effect.effectId];
+    return condition ? { ...effect, condition, parseStatus: 'MANUAL' } : effect;
+  });
 }

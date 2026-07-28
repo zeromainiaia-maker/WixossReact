@@ -31,7 +31,7 @@ import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '.
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
-import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
@@ -12379,6 +12379,85 @@ test('task12(lvi) condition: PR-204 runtime use gate rejects center LRIG level 5
     ok(!evalUseCondition(eff.condition!, state(l5), mkState({}), cardMap, 'PR-204', 'MAIN'), 'レベル5は使用不可');
   } finally { cursor = savedCursor; }
 });
+
+const task12LviArtsGateIds = [
+  'WX04-010', 'WX07-012', 'WX07-014', 'WX07-018', 'WX07-020',
+  'WX08-011', 'WX08-013', 'WX08-014', 'WX08-015', 'WX08-018',
+  'WX10-011', 'WX10-014', 'WXK01-020', 'WXK07-001', 'WXK11-002',
+  'WDK01-009', 'WDK02-007', 'WDK06-C06', 'SP10-001', 'PR-204',
+] as const;
+
+for (const cardNum of task12LviArtsGateIds) {
+  test(`task12(lvi) ARTS runtime gate both directions: ${cardNum}`, () => {
+    const savedCursor = cursor;
+    try {
+      const effects = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []);
+      const effect = effects.find(e => e.effectType === 'ACTIVATED' && e.condition);
+      ok(!!effect, `${cardNum} has an ACTIVATED use condition`);
+      const yes = mkState({});
+      const no = mkState({});
+      const yesOpp = mkState({});
+      const noOpp = mkState({});
+      const cond = effect!.condition!;
+      const lrig = (level: number, color?: string) => findCard(c =>
+        c.Type.includes('ルリグ') && c.Level === String(level) && (!color || c.Color.includes(color)));
+      switch (cond.type) {
+        case 'ENERGY_COUNT':
+          (cond.owner === 'self' ? yes : yesOpp).energy = fill(cond.value as number);
+          (cond.owner === 'self' ? no : noOpp).energy = fill((cond.value as number) - 1);
+          break;
+        case 'HAS_CARD_IN_FIELD':
+          yes.field.signi = [[fresh()], null, null];
+          yes.field.cross_state = [true, false, false];
+          no.field.signi = [[fresh()], null, null];
+          no.field.cross_state = [false, false, false];
+          break;
+        case 'LIFE_COUNT':
+          yes.life_cloth = [];
+          no.life_cloth = [fresh()];
+          break;
+        case 'HAND_COUNT': {
+          const target = cond.owner === 'self' ? yes : yesOpp;
+          const reject = cond.owner === 'self' ? no : noOpp;
+          target.hand = cond.operator === 'lte' ? [fresh()] : [];
+          reject.hand = cond.operator === 'lte' ? [fresh(), fresh()] : [fresh()];
+          break;
+        }
+        case 'LRIG_LEVEL': {
+          const target = cond.owner === 'self' ? yes : yesOpp;
+          const reject = cond.owner === 'self' ? no : noOpp;
+          const value = cond.value as number;
+          target.field.lrig = [lrig(value)];
+          reject.field.lrig = [lrig(cond.operator === 'lte' ? value + 1 : value - 1)];
+          break;
+        }
+        case 'LRIG_COLOR':
+          yes.field.lrig = [lrig(0, cond.color)];
+          no.field.lrig = [findCard(c => c.Type.includes('ルリグ') && !c.Color.includes(cond.color))];
+          break;
+        case 'TRASH_COUNT':
+          yes.trash = fill(cond.value as number);
+          no.trash = fill((cond.value as number) - 1);
+          break;
+        case 'OR': {
+          const hanayo = findCard(c => c.Type.includes('ルリグ') && c.CardName.includes('花代') && Number(c.Level) < 4);
+          yes.field.lrig = [hanayo];
+          no.field.lrig = [findCard(c =>
+            c.Type.includes('ルリグ') && !c.CardName.includes('花代') && Number(c.Level) < 4)];
+          break;
+        }
+        default:
+          throw new Error(`${cardNum} has unhandled gate ${cond.type}`);
+      }
+      yes.lrig_deck = [cardNum];
+      no.lrig_deck = [cardNum];
+      ok(canUseArtsCondition(effects, yes, yesOpp, cardMap, cardNum, 'MAIN'),
+        `${cardNum} is usable when its printed condition is met from lrig_deck`);
+      ok(!canUseArtsCondition(effects, no, noOpp, cardMap, cardNum, 'MAIN'),
+        `${cardNum} is rejected when its printed condition is not met from lrig_deck`);
+    } finally { cursor = savedCursor; }
+  });
+}
 
 test('task12(lvi) timing: WX17-041 life-burst queue filter fires exactly once', () => {
   const effects = mergeManualEffects('WX17-041', effectsMap.get('WX17-041') ?? []);
