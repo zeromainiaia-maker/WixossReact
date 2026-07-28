@@ -6,6 +6,17 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・差し戻し1）＝§3 タスク12(lvi) を完全クローズ（3バッチ）**（golden 844→868・census 1511 据置・JSON変更は4 effectId の condition のみ）
+  - **(lvi) の在庫が 0 になった**＝PLAN 記載は「12効果」だったが**実測21効果**（`appearanceCondition` 欠落9件は未登録の新規発見）。`mergeManualEffects`（`manualEffects.ts:4711`）は **effectId 単位の完全置換**なので、manual に書かれていないトップレベルフィールドが消える。
+  - **バッチ1（21効果復元＋常設ゲート）**＝欠落フィールドを CSV 原文照合のうえ manual へ明示復元（cost 10／cost+condition 1／timing 1／appearanceCondition 9・defer 0）。再発防止に `scripts/checkManualFieldLoss.ts`＋`npm run check:manual-fields` を新設し `runGates.mjs` へ組み込み（許可リストなし）。
+  - **⚠Opus 検証で「実害」の内訳を訂正**＝**本当に実害だったのは `appearanceCondition` 9件と `timing` 1件だけ**。前者は `getResonaSummonCandidate`（`resonaSummon.ts:227`）が appearance 無しで null を返す＝**踏み倒しではなく召喚不能**（PLAN の当初診断も誤り）。後者は `queueCardEffects`（`BattleScreen.tsx:3905-3908`）の timing 照合で収集されず**ライフバースト完全不発**。**cost 10件はデータ忠実性の回復にすぎない**＝スペル/アーツ/ピースのエナ徴収は CSV `Cost` 列（`ArtsModal.tsx:154`・`BattleScreen.tsx:6578/6612/6639`）で、`eff.cost.energy` を読むのは【起】能力系の経路だけ。
+  - **バッチ2（既存バグの発見と修正）**＝**アーツの使用可否に `eff.condition` が一切評価されていなかった**（`evalUseCondition` は BattleScreen に20箇所あるがアーツ経路だけ欠落）。共通 `canUseArtsCondition` を新設し**候補生成3経路＋実行2経路**（`artsCandidates`／`getMyLrigDeckCardActions`／`cutinCandidates`／`executeArts`／`handleCutinUse`）へ配線。対象20効果20枚を全数原文照合し使用制限でないものは0＝除外0。20枚×正負の golden を追加（848→868）。
+  - **バッチ3（配置の正規化・差し戻し1）**＝バッチ2 が4件の condition 訂正を `mergeManualEffects` 本体のカード固有テーブルに埋めていた（CODEX_GUIDE §5-13 と同型の隠しパッチ＝自身が新設した `check:manual-fields` を迂回し `parseStatus` も実行時に歪めていた）。テーブルを撤去し、**PLAN:44 の正規手順どおり effectId アンカーの外科パッチで JSON へ移設**（`WXK01-020` eq→lte／`WXK07-001` 花代 OR 欠落／`COND_STUB` 2件を実型へ）。**JSON 差分は4 effectId の condition のみ**を構造比較で確認。golden は書き換えず 868 のまま緑。
+  - **⚠この混乱の一因は Opus 側の指示書**＝バッチ1限定の「JSON は変更しない」制約をバッチ2でも書いてしまい、codex が裏口を作る誘因になった。バッチ3で明示解除。
+  - **CODEX_GUIDE 訂正**＝§5-16 の「App は JSON 直 fetch なので manual は実機に届かない」は不正確（`BattleScreen.tsx:671` の `buildEffectsMap`→`mergeManualEffects` を通る）。真の危険は完全置換によるフィールド脱落。あわせて「カード種別ごとに cost/使用条件の評価経路が違う」「値の誤りは JSON 外科パッチ・共有関数に固有テーブルを埋めるのは禁止」の2行を追加。
+  - **次の一手**＝**Opus：(xliv)・(xlii) の残／§6.3 残機構（H1〜H3・I）／タスク14 の残43／タスク16 の `cost.underSelfTrash` 未配線16効果**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火＋🆕アーツ使用条件20枚の実機確認（今回は golden のみ）**。
+
+
 - **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・差し戻し0）＝§3 タスク12(xxxix) を完全クローズ（4バッチ・15効果消化）**（golden 828→844・census 1517→1511・held 265→262枚/109署名）
   - **(xxxix) の在庫が 0 になった**＝24効果を全数実測し、今回15効果を消化＋PR-238 は manual に実装済み・WXDi-P05-086 は JSON が元から正しい（`POWER_MODIFY` の duration 省略時＝ターン終了まで）と確定。以後 (xxxix) は worklist から外す。
   - **⚠PLAN 記述が stale だった**＝「残＝真の§6.3級のみ（攻撃無効化 action 型が engine に無い）」は誤りで、**`SET_CANCEL_ATTACK_FLAG`（`execStubPart3.ts:5176`）が実在**し「攻撃側=効果オーナー自身のアタック無効化」用に作られていた（Phase2 の `BattleScreen.tsx:7044` がバトル/ダメージを全スキップ）。⚠`NEGATE_ATTACK`/`negated_attacks` は**判定が ON_ATTACK_SIGNI 収集より前**（6831 vs 6854）なので使うと「次回のアタックが無効化される」誤動作になる＝指示書に罠として明記した。

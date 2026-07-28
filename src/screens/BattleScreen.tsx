@@ -32,7 +32,7 @@ import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeN
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
-import { consumeNthAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
+import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
@@ -6838,27 +6838,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
         return;
       }
-      // NEGATE_THAT_ATTACK: 相手がop.negated_attacksにmyTopNumを登録していた場合、このアタックを無効化
-      if ((op.negated_attacks ?? []).includes(myTopNum)) {
+      // NEGATE_THAT_ATTACK: 対象側（アタッカー）の state に myTopNum が登録されていた場合、このアタックを無効化
+      if ((my.negated_attacks ?? []).includes(myTopNum)) {
         // escapeDiscard（G154 BURST）: アタック側が手札をN枚捨てれば無効化を回避できる。手札が足りればモーダルで選択させる。
-        const escapeCount = op.negated_attacks_escape?.[myTopNum];
+        const escapeCount = my.negated_attacks_escape?.[myTopNum];
         if (escapeCount && my.hand.length >= escapeCount) {
           openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount });
           setLoading(false);
           return; // アタックを保留してプレイヤーの選択を待つ
         }
-        const clearedNA = (op.negated_attacks ?? []).filter(id => id !== myTopNum);
-        const escMap0 = { ...(op.negated_attacks_escape ?? {}) }; delete escMap0[myTopNum];
-        const newOpNA: PlayerState = { ...op, negated_attacks: clearedNA.length ? clearedNA : undefined, negated_attacks_escape: Object.keys(escMap0).length ? escMap0 : undefined };
-        const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', newOpNA, newMyState, 'シグニアタック無効時', defenderId);
+        const clearedNA = (my.negated_attacks ?? []).filter(id => id !== myTopNum);
+        const escMap0 = { ...(my.negated_attacks_escape ?? {}) }; delete escMap0[myTopNum];
+        const newMyNA: PlayerState = {
+          ...newMyState,
+          negated_attacks: clearedNA.length ? clearedNA : undefined,
+          negated_attacks_escape: Object.keys(escMap0).length ? escMap0 : undefined,
+        };
+        const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', op, newMyNA, 'シグニアタック無効時', defenderId);
         const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
-          ? { ...newOpNA, actions_done: [...(newOpNA.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
-          : newOpNA;
+          ? { ...op, actions_done: [...(op.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
+          : op;
         const stack = negatedTriggers.entries.length > 0
           ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
           : undefined;
         appendBattleLogs([`${myCardName}のアタックは無効化された`]);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyNA, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
         return;
       }
 
@@ -8080,12 +8084,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const escaped = resolveNegateEscapeChoice(my, op, 'discard', cardNum, zoneIndex, selectedNegateEscape);
     appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
     closeNegateEscape();
-    // 無効化を解除した状態でアタックを再実行（performSigniAttack 冒頭の negated_attacks 判定を通過する）
-    await performSigniAttack(zoneIndex, {
-      attacker: escaped.attacker, defender: escaped.defender,
-      attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
-      attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
-    });
+    // 無効化を解除した状態でアタックを再実行。zoneIndex=-1 はルリグアタック。
+    if (zoneIndex < 0) {
+      await performLrigAttack({
+        attacker: escaped.attacker, defender: escaped.defender,
+        attackerId: user.id, attackerKey: isHost ? 'host_state' : 'guest_state',
+      });
+    } else {
+      await performSigniAttack(zoneIndex, {
+        attacker: escaped.attacker, defender: escaped.defender,
+        attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
+        attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
+      });
+    }
   };
 
   // G154 BURST: 手札を捨てず、アタック無効化を受け入れる
@@ -8095,7 +8106,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const { zoneIndex, cardNum } = negateEscape;
       const accepted = resolveNegateEscapeChoice(my, op, 'accept', cardNum, zoneIndex);
-      const negatedTriggers = collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', accepted.defender, accepted.attacker, 'シグニアタック無効時', isHost ? bs.guest_id : bs.host_id);
+      const negatedTriggers = zoneIndex < 0
+        ? { entries: [], usedOncePerTurnIds: [] }
+        : collectSelfEventTriggers('ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT', accepted.defender, accepted.attacker, 'シグニアタック無効時', isHost ? bs.guest_id : bs.host_id);
       const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
         ? { ...accepted.defender, actions_done: [...(accepted.defender.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
         : accepted.defender;
@@ -8131,10 +8144,34 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
     ));
     if ((my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
-    // PREVENT_TARGET_LRIG_ATTACK_THIS_TURN: negated_attacks にルリグIDがある場合アタック不可
-    if (myLrigNumLA && (my.negated_attacks ?? []).includes(myLrigNumLA)) return false;
     // keyword_grants で「アタックできない」が付与されている場合アタック不可
     if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
+    // NEGATE_ATTACK: ルリグもアタック宣言時に無効化。escapeDiscard があり手札を払える場合は既存回避UIへ。
+    // （旧 PREVENT_TARGET_LRIG_ATTACK_THIS_TURN の判定を統合＝同じ negated_attacks を見る）
+    // ⚠回避モーダルを開けるのは自分のアタックのときだけ。CPU/リモート側のアタックは払わず無効化を受け入れる。
+    const targetedLrigNegation = getTargetedAttackNegation(my, myLrigNumLA);
+    if (targetedLrigNegation.negated) {
+      const escapeCount = targetedLrigNegation.escapeDiscard;
+      if (escapeCount && my.hand.length >= escapeCount && attackerId === user.id) {
+        openNegateEscape({ zoneIndex: -1, cardNum: myLrigNumLA!, count: escapeCount });
+        return false;
+      }
+      setLoading(true);
+      try {
+        const accepted = resolveNegateEscapeChoice(my, op, 'accept', myLrigNumLA!, -1);
+        const defenderKey: 'host_state' | 'guest_state' = p.attackerKey === 'host_state' ? 'guest_state' : 'host_state';
+        appendBattleLogs([`${battleCardMap.get(myLrigNumLA!)?.CardName ?? myLrigNumLA}のアタックは無効化された`]);
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE',
+          myKey: p.attackerKey,
+          myState: accepted.attacker,
+          opp: { key: defenderKey, state: accepted.defender },
+        }));
+      } finally {
+        setLoading(false);
+      }
+      return true;
+    }
     setLoading(true);
     try {
       const myKey = p.attackerKey;

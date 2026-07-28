@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［95枚］
-PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX08-005 WX08-006 WX10-006 WX13-002 WX13-041 WX14-017 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-26 WXEX1-58 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
+## （type増減なし＝値/構造変更） ［94枚］
+PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-024 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-054 WXDi-P12-066 WXDi-P13-043 WXDi-P14-071 WXDi-P14-081 WXDi-P15-044 WXDi-P15-053 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-016 WXK10-051 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -979,7 +979,6 @@ WX17-005
 WX17-041
 --- WX17-041
   原文: 【起】《ダウン》：あなたのデッキの上からカードを３枚見る。その中から１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番下に置く。【トラップアイコン】：《青》《青》《青》《無》《無》《無》を支払ってもよい。そうした場合、対戦相手のすべてのシグニを手札に戻す。,：対戦相手のシグニ１体を対象とし、あなたの【トラップ】１つを
-  - [1].timing[0] = "ON_LIFE_BURST"
   - [1].action.steps[0].target.upToCount = false
   - [1].action.steps[0].target.filter.cardType = "シグニ"
   - [1].action.steps[0].optional = false
@@ -991,7 +990,8 @@ WX17-041
   - [1].action.steps[1].then.target.upToCount = false
   - [1].action.steps[1].then.target.filter.cardType = "シグニ"
   - [1].action.steps[1].then.optional = false
-  …（他 16 行）
+  ~ [1].action.steps[0].type : "BOUNCE" → "POWER_MODIFY"
+  …（他 15 行）
 
 ## +ADD_TO_LIFE +BANISH×2 +CHOOSE +ENERGY_CHARGE_FROM_DECK +SIGNI×2 -STUB ［1枚］
 WX18-005
@@ -1402,8 +1402,6 @@ WXDi-P10-001
 WXDi-P11-001
 --- WXDi-P11-001
   原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ以下の２つから１つを選ぶ。①直前のターンにあなたのライフクロスが２枚以上クラッシュされていた場合、対戦相手のシグニ１体を対象とし、それをバニッシュし、カードを２枚引く。②直前のターンにあなたのライフクロスが４枚以上クラッシュされていた場合、あなたのデッキをシャッフルし一番上のカードをライフクロスに加える。
-  - [0].cost.energy[0].color = "無"
-  - [0].cost.energy[0].count = 1
   - [0].action.choices[0].action.owner = "self"
   - [0].action.choices[0].action.count = 2
   - [0].action.choices[1].action.owner = "self"
@@ -1414,7 +1412,9 @@ WXDi-P11-001
   + [0].condition.operator = "gte"
   + [0].condition.value = 3
   + [0].condition.minLrigs = 3
-  …（他 30 行）
+  ~ [0].action.choices[0].choiceId : "c0" → "banish-draw"
+  ~ [0].action.choices[0].label : "選択肢1" → "直前のターンにライフクロスが2枚以上クラッシュされていた場合、相手シグニ1体をバニッシュし2枚引く"
+  …（他 28 行）
 
 ## +STUB +TRASH_CARD -GRANT_KEYWORD -SIGNI×2 ［1枚］
 WXDi-P11-003
@@ -1555,6 +1555,14 @@ WXDi-CP01-042
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
 
+## +CENTER_LRIG_OR_SIGNI -SIGNI ［1枚］
+WX24-P1-041
+--- WX24-P1-041
+  原文: 【常】《相手ターン》：このシグニのパワーは＋3000される。【自】：対戦相手のアタックフェイズ開始時、対戦相手のルリグかシグニ１体を対象とし、ターン終了時まで、それは「【常】：《無》を支払わないかぎりアタックできない。」を得る。【起】《白》《無》《ダウン》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。,：対戦相手の
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  ~ [1].action.target.type : "SIGNI" → "CENTER_LRIG_OR_SIGNI"
+
 ## +CONDITIONAL×2 +PAID_ADDITIONAL_COST×2 +SEQUENCE×2 +STUB×2 ［1枚］
 WX24-P2-044
 --- WX24-P2-044
@@ -1577,8 +1585,6 @@ WX24-P2-044
 WX24-P3-036
 --- WX24-P3-036
   原文: 以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。②スペル１つを対象とし、それのコストの合計１につき《無》を支払ってもよい。そうした場合、それの効果を打ち消す。このターンにあなたが《アンチ・スペル・バツ》を使用したのが一度目の場合、このカードをルリグデッキに戻してもよい。,-
-  - [0].cost.energy[0].color = "青"
-  - [0].cost.energy[0].count = 1
   - [0].action.choices[0].action.target.type = "SIGNI"
   - [0].action.choices[0].action.target.owner = "opponent"
   - [0].action.choices[0].action.target.count = 1
@@ -1589,7 +1595,9 @@ WX24-P3-036
   - [0].action.choices[1].action.steps[1].condition.type = "IS_MY_TURN"
   - [0].action.choices[1].action.steps[1].then.type = "UNKNOWN"
   - [0].action.choices[1].action.steps[1].then.raw = "それの効果を打ち消す"
-  …（他 19 行）
+  - [0].action.choices[1].action.steps[2].type = "UNKNOWN"
+  - [0].action.choices[1].action.steps[2].raw = "このターンにあなたが《アンチ・スペル・バツ》を使用したのが一度目の場合、このカードをルリグデッキに戻してもよい"
+  …（他 17 行）
 
 ## -CHOOSE -CONDITIONAL -DECK_CARD -HAS_CARD_IN_FIELD -TRASH ［1枚］
 WX24-P3-057
@@ -1818,6 +1826,22 @@ WXK06-049
   + [0].action.until = "PERMANENT"
   …（他 1 行）
 
+## -LRIG_NAME_CONTAINS -OR ［1枚］
+WXK07-001
+--- WXK07-001
+  原文: このアーツはあなたのセンタールリグが＜花代＞の場合か、あなたのセンタールリグがレベル４以上の場合にしか使用できない。あなたのセンタールリグ１体を対象とし、このゲームの間、それは「【自】：あなたのアタックフェイズ開始時、数字１つを宣言する。対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えず、宣言された数字と同じレベルのシグニで【ガード】がで
+  - [0].condition.conditions[0].type = "LRIG_NAME_CONTAINS"
+  - [0].condition.conditions[0].owner = "self"
+  - [0].condition.conditions[0].name = "花代"
+  - [0].condition.conditions[1].type = "LRIG_LEVEL"
+  - [0].condition.conditions[1].owner = "self"
+  - [0].condition.conditions[1].operator = "gte"
+  - [0].condition.conditions[1].value = 4
+  ~ [0].condition.type : "OR" → "LRIG_LEVEL"
+  + [0].condition.owner = "self"
+  + [0].condition.operator = "gte"
+  + [0].condition.value = 4
+
 ## +LRIG_LEVEL_CMP_OPP ［1枚］
 WXK08-005
 --- WXK08-005
@@ -1834,8 +1858,6 @@ WXK08-005
 WXK08-055
 --- WXK08-055
   原文: あなたのシグニの下にあるカードを好きな枚数対象とし、それらをトラッシュに置く。その後、この方法でカードを１枚以上トラッシュに置いた場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。２枚以上置いた場合、追加でカードを１枚引く。３枚以上置いた場合、追加で対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－1000
-  - [0].cost.energy[0].color = "黒"
-  - [0].cost.energy[0].count = 1
   - [0].action.steps[0].target.type = "SIGNI"
   - [0].action.steps[0].target.owner = "self"
   - [0].action.steps[0].target.count = 1
@@ -1846,7 +1868,9 @@ WXK08-055
   - [0].action.steps[1].then.type = "POWER_MODIFY"
   - [0].action.steps[1].then.target.type = "SIGNI"
   - [0].action.steps[1].then.target.owner = "opponent"
-  …（他 60 行）
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  …（他 58 行）
 
 ## +CONDITIONAL +SUBSCRIBER_COUNT ［1枚］
 WXK08-066
@@ -1915,8 +1939,6 @@ WXK10-081
 WXK11-070
 --- WXK11-070
   原文: あなたのエナゾーンからすべてのカードをトラッシュに置く。この方法でカードを５枚以上トラッシュに置いた場合、あなたのトラッシュからすべてのカードをデッキに加えてシャッフルする。１０枚以上トラッシュに置いた場合、追加であなたのデッキの一番上のカードをライフクロスに加える。このスペルをゲームから除外する。,：あなたのライフクロスが２枚以下の場合、あなたのデッキの一
-  - [0].cost.energy[0].color = "緑"
-  - [0].cost.energy[0].count = 0
   - [0].action.steps[1].condition.type = "LAST_PROCESSED_COUNT_GTE"
   - [0].action.steps[1].condition.value = 5
   - [0].action.steps[1].then.type = "TRANSFER_TO_DECK"
@@ -1927,7 +1949,9 @@ WXK11-070
   - [0].action.steps[2].owner = "self"
   - [0].action.steps[2].count = 1
   - [0].action.steps[2].fromTop = true
-  …（他 25 行）
+  - [0].action.steps[3].type = "TRASH"
+  - [0].action.steps[3].target.type = "TRASH_CARD"
+  …（他 23 行）
 
 ## +LAST_PROCESSED_COUNT_GTE×2 +SEQUENCE +STUB×2 -IS_MY_TURN×2 -TRASH -TRASH_CARD ［1枚］
 PR-378
@@ -2031,6 +2055,15 @@ WD22-035-G
   - [0].action.steps[1].condition.type = "IS_MY_TURN"
   …（他 18 行）
 
+## +COND_STUB -LRIG_COLOR ［1枚］
+WDK01-009
+--- WDK01-009
+  原文: このアーツはあなたのセンタールリグが赤の場合にしか使用できない。対戦相手のシグニ１体を対象とし、それをバニッシュする。手札を２枚捨てる。,-
+  - [0].condition.owner = "self"
+  - [0].condition.color = "赤"
+  ~ [0].condition.type : "LRIG_COLOR" → "COND_STUB"
+  + [0].condition.raw = "あなたのセンタールリグが赤の"
+
 ## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
 WDK06-R08
 --- WDK06-R08
@@ -2048,6 +2081,16 @@ WDK06-R08
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 17 行）
+
+## +COND_STUB -TRASH_COUNT ［1枚］
+WDK06-C06
+--- WDK06-C06
+  原文: このアーツはあなたのトラッシュにカードが２０枚以上ある場合にしか使用できない。対戦相手のシグニを２体まで対象とし、それらをバニッシュする。,-
+  - [0].condition.owner = "self"
+  - [0].condition.operator = "gte"
+  - [0].condition.value = 20
+  ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
+  + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
 
 ## +CONDITIONAL +HAND_COUNT +UNKNOWN -STUB ［1枚］
 WDK08-Y08
@@ -2149,8 +2192,6 @@ SPK16-13E
 PR-238
 --- PR-238
   原文: ターン終了時まで、あなたのセンタールリグは「【自】：このルリグがアタックしたとき、このルリグの下からカードを好きな枚数対象とし、このターンにあなたが《ディストラクト・アウト》以外のアーツを使用していない場合、それらをルリグトラッシュに置く。この方法でルリグトラッシュに置かれたカード１枚につき各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。その
-  - [0].cost.energy[0].color = "黒"
-  - [0].cost.energy[0].count = 1
   - [0].action.abilities[0].action.steps[1].steps[0].type = "TRASH"
   - [0].action.abilities[0].action.steps[1].steps[0].target.type = "DECK_CARD"
   - [0].action.abilities[0].action.steps[1].steps[0].target.owner = "self"
@@ -2161,7 +2202,9 @@ PR-238
   - [0].action.abilities[0].action.steps[1].steps[1].target.count = 5
   - [0].action.abilities[0].action.steps[2].condition.type = "DECK_COUNT"
   - [0].action.abilities[0].action.steps[2].condition.owner = "self"
-  …（他 32 行）
+  - [0].action.abilities[0].action.steps[2].condition.operator = "eq"
+  - [0].action.abilities[0].action.steps[2].condition.value = 0
+  …（他 30 行）
 
 ## +CONDITIONAL +SELF_POWER_GTE +STUB -ADD_TO_FIELD ［1枚］
 PR-470A

@@ -33,7 +33,7 @@ import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
-import { consumeNthAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
+import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
@@ -12489,6 +12489,108 @@ test('task12(lvi) appearanceCondition: runtime Resona route requires and consume
     ok(!!placed, '実支払い経路を完走');
     ok(insects.every(card => placed!.state.trash.includes(card)), '2体をトラッシュへ徴収');
     eq(placed!.state.field.signi[2]?.at(-1), resona, 'レゾナを配置');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxix) G154同文12効果とunion付与4効果をproduction parserで固定', () => {
+  const savedCursor = cursor;
+  try {
+    const negateIds = [
+      'WX24-P4-075-BURST', 'WX25-CP1-064-BURST', 'WX25-P1-084-BURST', 'WX25-P2-082-BURST',
+      'WXDi-CP02-079-BURST', 'WXDi-P04-068-BURST', 'WXDi-P06-062-BURST', 'WXDi-P09-065-BURST',
+      'WXDi-P10-060-BURST', 'WXDi-P12-075-BURST', 'WXDi-P13-072-BURST', 'WXDi-P15-091-BURST',
+    ];
+    for (const effectId of negateIds) {
+      const cardNum = effectId.replace(/-BURST$/, '');
+      const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+      eq(JSON.stringify(effect.action), JSON.stringify({
+        type: 'NEGATE_ATTACK',
+        target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 },
+        escapeDiscard: 3,
+      }), `${effectId} はSTUBなしの正準形`);
+    }
+    const grantIds = ['WX24-P1-002-E1', 'WX24-P4-027-E1', 'WX25-CP1-026-E1', 'WX25-CP1-036-E1'];
+    for (const effectId of grantIds) {
+      const cardNum = effectId.replace(/-E1$/, '');
+      const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+      const targets: unknown[] = [];
+      const walk = (a: EffectAction): void => {
+        if (a.type === 'GRANT_KEYWORD' && a.keyword === 'アタックできない') targets.push(a.target);
+        if (a.type === 'SEQUENCE') a.steps.forEach(walk);
+        if (a.type === 'CHOOSE') a.choices.forEach(c => walk(c.action));
+        if (a.type === 'CONDITIONAL') { walk(a.then); if (a.else) walk(a.else); }
+      };
+      walk(effect.action);
+      ok(targets.some(t => JSON.stringify(t) === JSON.stringify({ type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 })),
+        `${effectId} の該当付与先はルリグ∨シグニ`);
+    }
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(xxix) NEGATE_ATTACK union選択とescapeDiscardをルリグ/シグニ両経路で実行', () => {
+  const savedCursor = cursor;
+  try {
+    const lrigBase = findCard(c => c.Type === 'ルリグ');
+    const lrig = `${lrigBase}#negate`;
+    const signi = `${SIGNI}#negate`;
+    const cm = new Map(cardMap);
+    cm.set(lrig, cardMap.get(lrigBase)!);
+    cm.set(signi, cardMap.get(SIGNI)!);
+    const action = {
+      type: 'NEGATE_ATTACK',
+      target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 },
+      escapeDiscard: 3,
+    } as EffectAction;
+    const base = mkCtx({}, {});
+    const owner = base.ownerState;
+    const attacker0 = mkState({ signi: [signi, null, null], hand: 3, trash: 0, down: [false, false, false] });
+    attacker0.field.lrig = [lrig];
+    const ctx = { ...base, ownerState: owner, otherState: attacker0, cardMap: cm };
+
+    const start = executeEffect({ effectId: 'xxix', effectType: 'LIFE_BURST', timing: ['ON_LIFE_BURST'], action, duration: 'INSTANT', mandatory: false }, ctx);
+    ok(!start.done && start.pending.type === 'SELECT_TARGET', 'union は対象選択経路へ入る');
+    if (start.done || start.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+    ok(start.pending.candidates.includes(lrig) && start.pending.candidates.includes(signi), '候補にルリグとシグニの両方');
+
+    const choose = (cardNum: string) => resumeSelectTarget([cardNum], start.pending as never, {
+      ...ctx, ownerState: start.ownerState, otherState: start.otherState, logs: start.logs,
+    });
+    const lrigRegistered = choose(lrig).otherState as PlayerState;
+    ok(getTargetedAttackNegation(lrigRegistered, lrig).escapeDiscard === 3, 'ルリグcardNumへ回避3枚つきで登録');
+    const lrigAccepted = resolveNegateEscapeChoice(lrigRegistered, owner, 'accept', lrig, -1);
+    ok(lrigAccepted.attackNegated && lrigAccepted.attacker.field.lrig_down && lrigAccepted.attacker.lrig_has_attacked,
+      'ルリグは捨てない場合にダウン・攻撃済みで無効化');
+
+    const signiRegistered = choose(signi).otherState as PlayerState;
+    const signiEscaped = resolveNegateEscapeChoice(signiRegistered, owner, 'discard', signi, 0, new Set([0, 1, 2]));
+    ok(!signiEscaped.attackNegated && signiEscaped.attacker.hand.length === 0 && signiEscaped.attacker.trash.length === 3,
+      'シグニは手札3枚を捨てて無効化を回避');
+    ok(!getTargetedAttackNegation(signiEscaped.attacker, signi).negated && !signiEscaped.attacker.field.signi_down?.[0],
+      '回避後は登録解除されアタック前状態を維持');
+  } finally { cursor = savedCursor; }
+});
+
+// negated_attacks は「アタックできなくなるカードの持ち主の state」に積む規約。消費側（BattleScreen の
+// シグニ/ルリグアタック判定）はいずれも自分 state を見るため、防御側 state へ積むと no-op になる。
+// NEGATE_THAT_ATTACK だけ ownerState へ積んでおり、消費側の統一で不発化していたのを固定する。
+test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録する（規約統一）', () => {
+  const savedCursor = cursor;
+  try {
+    const attackerNum = `${SIGNI}#nta`;
+    const cm = new Map(cardMap);
+    cm.set(attackerNum, cardMap.get(SIGNI)!);
+    const base = mkCtx({}, {});
+    const ctx = { ...base, cardMap: cm, lastProcessedCards: [attackerNum] };
+    const r = executeEffect({
+      effectId: 'nta', effectType: 'AUTO', timing: ['ON_ATTACK'],
+      action: { type: 'STUB', id: 'NEGATE_THAT_ATTACK' } as EffectAction,
+      duration: 'INSTANT', mandatory: true,
+    }, ctx);
+    if (!r.done) throw new Error('NEGATE_THAT_ATTACK は即完了する');
+    ok((r.otherState.negated_attacks ?? []).includes(attackerNum),
+      'アタッカー側（otherState）へ登録される');
+    ok(!(r.ownerState.negated_attacks ?? []).includes(attackerNum),
+      '効果使用者（防御側 ownerState）へは積まない');
   } finally { cursor = savedCursor; }
 });
 

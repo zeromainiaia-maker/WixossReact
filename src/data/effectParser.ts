@@ -3577,6 +3577,18 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // ---- G154 BURST: 2文を跨ぐ対象照応＋手札捨てによる回避 ----
+  // 全文が正準形に一致する場合だけ先取りし、一般の「ないかぎり」へ波及させない。
+  {
+    const negateEscapeM = text.match(/^対戦相手のルリグかシグニ[１1]体を対象とする。このターン、それがアタックしたとき、対戦相手が手札を([０-９\d]+)枚捨てないかぎり、そのアタックを無効にする。?$/);
+    if (negateEscapeM) {
+      return {
+        type: 'NEGATE_ATTACK',
+        target: { type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: 1 },
+        escapeDiscard: parseNum(negateEscapeM[1]),
+      } as import('../types/effects').NegateAttackAction;
+    }
+  }
   // アーツ本文末の《トラップアイコン》節は、通常効果の続きではなくトラップ発動時だけ解決する追加節。
   // 今回の文型はターン条件を内包するため、その追加節だけを CONDITIONAL に保つ（WX16-065）。
   const inlineTrapM = text.match(/^(.+。)《トラップアイコン》：((?:あなた|対戦相手)のターンの場合、.+)$/s);

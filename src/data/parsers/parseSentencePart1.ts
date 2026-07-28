@@ -387,7 +387,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const all = t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
-    const ra: RemoveAbilitiesAction = { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner, count: all ? 'ALL' : 1 }, until: dur } as RemoveAbilitiesAction;
+    // 「対戦相手のシグニを**N体まで**対象とし、…能力を失う」＝上限選択。従来は枚数を読まず常に count:1 で、
+    // 2体まで消せる効果が1体しか消せない**過小実行**だった（WXDi-P03-024-E1／WXDi-P13-043-E1／WXK10-016-E3 ほか）。
+    // ⚠「すべての」側は別枝なので触らない（count:'ALL' を維持）。
+    const upToM = all ? null : t.match(/シグニを?([０-９\d]+)体まで対象とし/);
+    const ra: RemoveAbilitiesAction = {
+      type: 'REMOVE_ABILITIES',
+      target: {
+        type: 'SIGNI', owner,
+        count: all ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1),
+        ...(upToM ? { upToCount: true } : {}),
+      },
+      until: dur,
+    } as RemoveAbilitiesAction;
     // §3タスク6 E: 「それは能力を失い、それのパワーを－Nする」＝**同一対象**への能力消去＋パワー修正の複文。
     // 従来はここで能力消去だけを返し **パワー修正が丸ごと脱落**していた（WX26-CP1-009-E1 の－30000）。
     // REMOVE_ABILITIES が対象を lastProcessedCards に記録するので、後段は targetsLastProcessed で同一対象に載る。
@@ -2036,7 +2048,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (grantQuotedM) {
     const keyword = grantQuotedM[1].replace(/。$/, '');
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    const target: EffectTarget = t.includes('シグニ') && t.includes('センタールリグ')
+    const target: EffectTarget = /(?:センター)?ルリグかシグニ/.test(t)
       ? { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 1 }
       : t.includes('シグニ')
         ? parseSigniTarget(t, owner)

@@ -965,11 +965,15 @@ export function execStubPart3(
   // NEGATE_THAT_ATTACK: 現在のアタックを無効化
   if (stub.id === 'NEGATE_THAT_ATTACK') {
     // lastProcessedCards の1枚目を攻撃中のシグニとして無効化
+    // ⚠negated_attacks は「アタックできなくなるカードの持ち主の state」に積む（execNegateAttack・
+    //   PREVENT_TARGET_LRIG_ATTACK_THIS_TURN・INTERNAL_GRANT_NO_ATTACK_LRIG と同じ規約）。
+    //   本 STUB は防御側が使う＝対象アタッカーは otherState 側。ownerState へ積むと消費側
+    //   （BattleScreen のシグニ/ルリグアタック判定＝いずれも自分 state を見る）に届かず no-op になる。
     const attackerNTA = ctx.lastProcessedCards?.[0];
     if (attackerNTA) {
-      const negatedNTA = [...(ctx.ownerState.negated_attacks ?? []), attackerNTA];
-      const newSNTA: PlayerState = { ...ctx.ownerState, negated_attacks: negatedNTA };
-      return done(addLog({ ...ctx, ownerState: newSNTA }, `${ctx.cardMap.get(attackerNTA)?.CardName ?? attackerNTA}のアタックを無効化`));
+      const negatedNTA = [...new Set([...(ctx.otherState.negated_attacks ?? []), attackerNTA])];
+      const newSNTA: PlayerState = { ...ctx.otherState, negated_attacks: negatedNTA };
+      return done(addLog({ ...ctx, otherState: newSNTA }, `${ctx.cardMap.get(attackerNTA)?.CardName ?? attackerNTA}のアタックを無効化`));
     }
     return done(addLog(ctx, 'アタック無効化（対象不明）'));
   }
