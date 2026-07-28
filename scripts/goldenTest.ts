@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -46,7 +46,7 @@ import { clearEndOfAttackEffects } from '../src/screens/battle/attackDuration';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
-import { detectBanishedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -12594,6 +12594,122 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       '効果使用者（防御側 ownerState）へは積まない');
   } finally { cursor = savedCursor; }
 });
+
+// ── タスク12(xxix) 最終: 効果配置シグニ自身の【出】（段階1）──
+{
+  const phase1Ids = [
+    'WX10-081-E1', 'WX10-084-E1', 'WX11-045-E1', 'WX11-076-E1', 'WX11-079-E1',
+    'WD23-023-E-E2', 'WX15-039-E2', 'WX15-108-E1', 'WX15-109-E1', 'WX15-110-E1',
+  ];
+  const stackCount = (entries: StackEntry[]) => {
+    const stack = initStack('host', entries);
+    return stack.pendingTurn.length + stack.pendingOpp.length;
+  };
+  const trigCtx = (): TrigCtx => ({
+    hostId: 'host', guestId: 'guest', meId: 'host', activeUserId: 'host', turnPhase: 'MAIN',
+    effectsMap, cardMap, genId: () => `xxix-${Math.random()}`,
+  });
+  const placeByEffect = (cardNum: string, sourceCardNum: string) => {
+    const before = mkState();
+    before.trash = [cardNum];
+    const ctx: ExecCtx = { ...mkCtx({}, {}, sourceCardNum), ownerState: before };
+    const result = run({
+      type: 'ADD_TO_FIELD',
+      owner: 'self',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } },
+    } as EffectAction, ctx);
+    ok(result.done, `${cardNum}: ADD_TO_FIELD 完了`);
+    const placed = detectPlacedSigni(before, result.ownerState);
+    eq(placed.length, 1, `${cardNum}: 実配置1体`);
+    return { before, after: result.ownerState, other: result.otherState, placed: placed[0] };
+  };
+
+  test('(xxix) 段階1の新規発火集合は実測10効果ちょうど', () => {
+    const actual = [...effectsMap.values()].flat().filter(e =>
+      e.effectType === 'AUTO'
+      && e.timing?.includes('ON_PLAY')
+      && (e.triggerCondition?.byEffect || e.triggerCondition?.bySigniEffect)
+      && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+      && !(e.mandatory === false && !e.cost)
+    ).map(e => e.effectId).sort();
+    eq(JSON.stringify(actual), JSON.stringify([...phase1Ids].sort()), `新規発火集合=${actual.length}件`);
+  });
+
+  test('(xxix) 段階1: byEffect/bySigniEffect 10効果は実ADD_TO_FIELD後に各1件だけスタックへ積む', () => {
+    const savedCursor = cursor;
+    try {
+      for (const effectId of phase1Ids) {
+        const cardNum = [...effectsMap.entries()].find(([, effs]) => effs.some(e => e.effectId === effectId))?.[0];
+        ok(!!cardNum, `${effectId}: cardNum lookup`);
+        const bySigni = effectId.startsWith('WX15-');
+        const p = placeByEffect(cardNum!, bySigni ? 'WX15-039' : findCard(c => c.Type === 'スペル'));
+        const r = collectPlacedSelfOnPlayTriggers(trigCtx(), p.placed, p.after, p.other, 'host', {
+          placedByEffect: true, sourceIsSigni: bySigni, phase1Only: true,
+        });
+        eq(r.entries.filter(e => e.effectId === effectId).length, 1, `${effectId}: collector entry`);
+        eq(stackCount(r.entries.filter(e => e.effectId === effectId)), 1, `${effectId}: stack entry`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) 通常召喚: byEffect限定【出】は0件（既存自身【出】との二重積みなし）', () => {
+    const savedCursor = cursor;
+    try {
+      const cardNum = 'WX10-081';
+      const state = mkState({ signi: [cardNum, null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
+        placedByEffect: false, sourceIsSigni: false, phase1Only: true,
+      });
+      eq(stackCount(r.entries), 0, '通常召喚のbyEffect限定【出】スタック数');
+      const normal = [...effectsMap.entries()].map(([cn, effs]) => ({
+        cn,
+        effs: effs.filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+          && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+          && e.mandatory !== false && !e.triggerCondition?.byEffect && !e.triggerCondition?.bySigniEffect),
+      })).find(x => x.effs.length === 1)!;
+      const ownEntry: StackEntry = {
+        id: 'normal-own-on-play', playerId: 'host', cardNum: normal.cn,
+        effectId: normal.effs[0].effectId, label: '通常召喚自身【出】', effect: normal.effs[0],
+      };
+      eq(stackCount([ownEntry]), 1, '通常召喚の既存自身【出】スタック数（中央diffは既定opt-out）');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) suppressOnPlay: 効果配置しても自身【出】は0件', () => {
+    const savedCursor = cursor;
+    try {
+      const p = placeByEffect('WX10-081', findCard(c => c.Type === 'スペル'));
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), p.placed, p.after, p.other, 'host', {
+        placedByEffect: true, sourceIsSigni: false, phase1Only: true, suppressOnPlay: true,
+      });
+      eq(stackCount(r.entries), 0, 'suppressOnPlay時のスタック数');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  test('(xxix) REVEAL_UNTIL_TO_FIELD: 既存自身【出】は移設後も1件だけ積む', () => {
+    const savedCursor = cursor;
+    try {
+      const before = mkState({ deckTop: ['WX10-081'] });
+      const ctx: ExecCtx = { ...mkCtx({}, {}, 'WX04-093'), ownerState: before };
+      const result = run({ type: 'REVEAL_UNTIL_TO_FIELD', owner: 'self', repeat: 1 } as EffectAction, ctx);
+      ok(result.done, 'REVEAL_UNTIL_TO_FIELD 完了');
+      const placed = detectPlacedSigni(before, result.ownerState);
+      eq(placed.length, 1, '公開配置1体');
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), placed[0], result.ownerState, result.otherState, 'host', {
+        placedByEffect: true, sourceIsSigni: false, phase1Only: false,
+      });
+      eq(stackCount(r.entries.filter(e => e.effectId === 'WX10-081-E1')), 1, 'WX04-093経路の自身【出】スタック数');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
 
 test('task12(xxix) BET choices: 条件成立/不成立を両方向で盤面固定（A1/A3/A4）', () => {
   const savedCursor = cursor;

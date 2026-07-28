@@ -6,6 +6,16 @@
 
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
+- **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・2バッチ連投）＝§3 タスク12(xxix) を union/unless＋BET の2系統で消化**（golden 868→**874**・census 1511→**1510**）
+  - **2バッチ連続で「§6.3級＝新機構が要る」という在庫メモが stale だった**。①union/unless＝`CENTER_LRIG_OR_SIGNI` も `escapeDiscard` も engine に実在し、逐語一致の同文12効果が parser で落ちていただけ ②BET＝`BET_MECHANIC` も26選択肢の分割も正常で、真因は**選択肢本文を本体パーサと別系統の `choiceTextParser.parseSingleChoiceText`（手書き regex 群）が再解析し、条件・複文後半・動的フィルタを落としていた**こと。**教訓＝「§6.3級」と書かれた在庫でも、投げる前に機構の実在を grep で確かめる**（CODEX_GUIDE §3-3）。
+  - **バッチ1（union/unless・16効果）**＝ライフバースト12効果の三重バグ（ルリグを止められない／相手が回避できない／対象を2回選ばせる）と「アタックできない」付与の union 脱落4効果を消化。**⚠Opus 検証で半端移行を是正**＝`negated_attacks` の保存先規約が2系統に割れており（`NEGATE_THAT_ATTACK` だけ逆側／読み手もシグニ経路とルリグ経路で不一致）、codex は読み手だけ統一したため2効果が no-op 化していた。書き手を統一し規約を golden で固定（戻すと実 FAIL することを確認）。副産物で `REMOVE_ABILITIES` の「N体まで」未実装（4効果が常に1体）も是正。
+  - **バッチ2（BET・9効果26選択肢）**＝9件を忠実化・3件を安全側 defer。最悪例は `WX19-006-E1③` で、**「相手トラッシュの全スペルをゲームから除外」本体が消えて「2枚引く」だけ**になっていた。共有関数のため他3ファミリ21効果への波及を Opus 側でも独立再現して **outlier 0** を確認。
+  - **`parseSingleChoiceText` の本体パーサ委譲は現時点で不可**＝26選択肢の試算で**改善3／退化13／同一10**。委譲するなら本体側の13退化（履歴条件・動的パワー比較・ウィルス数レベル制限・`opponentSelects` 等）を先に解消し、4ファミリ30効果の一括比較ゲートが要る。
+  - **⚠記録＝`WX16-005-E1②` の `suppressOnPlay` は現時点で読まれていない**。自身【出】を積む3経路（`BattleScreen.tsx:4205`/`4638`/`6199`）は**トップレベル action が `REVEAL_UNTIL_TO_FIELD` の場合しか走らず**、`ADD_TO_FIELD` 経路は自身【出】をそもそも発火させない＝抑止は既定で満たされ挙動は正しいが flag は未消費。**ADD_TO_FIELD の自身【出】を配線するときは flag の消費も同時に入れること。**
+  - **PLAN の自己矛盾を1件修正**＝PLAN:44「`build:effects` は破壊的＝絶対に実行しない」が、同じ文書の §5c パイプライン（PLAN:72/73/198/347＝`heldReview` の前提）と矛盾していた。`buildEffectsJson.ts:158-162` に2段の温存機構があり非破壊なので、「実行禁止」ではなく**「実行後に effectId 単位で全数比較する」**へ書き換えた。
+  - **次の一手**＝**Opus：(xxix) 残（ADD_TO_FIELD 自身【出】未発火・defer 7件は §6.3 送り）／(xliv)・(xlii) の残／§6.3 残機構（H1〜H3・I）／タスク14 の残43／タスク16 の `cost.underSelfTrash` 未配線16効果**。**Sonnet：タスク1（§7 実機検証）＝レゾナ召喚UIの残り①ATTACK 窓 ②SPELL_CUTIN 窓 ③REQUIRES_NEW_FLOW ④支払いトリガー発火＋アーツ使用条件20枚＋🆕ルリグアタック無効化・escapeDiscard 回避モーダル・BET 選択肢の実機確認（今回は golden のみ）**。
+
+
 - **🆕 セッション（2026-07-28・Opus指示＋codex-work実装／Opus検証・是正3件）＝§3 タスク12(xxix) の union/unless 系統を消化**（golden 868→871・census 1511→**1510**・JSON は16効果＋held採用3枚のみ変更）
   - **PLAN の「⛔§6.3級＝新機構が要る」が stale だった**＝投入前実測で union 対象型 `CENTER_LRIG_OR_SIGNI`（`effects.ts:522`）も unless 機構 `escapeDiscard`（`effects.ts:748`→`negated_attacks_escape`→回避モーダル→`attackNegation.ts`）も**engine に全部実在**。`escapeDiscard` 持ちが全 JSON で2件（manual の `WX24-D3-25`／`SPDi37-06`）しかなく、**逐語一致の同文が他に12件あって全部 parser で落ちていた**だけ。**「§6.3級」と書かれた在庫でも、投げる前に機構の実在を grep で確かめる価値が高い**（CODEX_GUIDE §3-3）。
   - **群A 12効果**＝ライフバーストの三重バグ（①シグニ限定に潰れ**ルリグアタックを止められない** ②`escapeDiscard` 欠落で**相手が手札3枚捨てても回避できない** ③余計な `STUB TARGET_ONLY` で**対象を2回選ばせる**）を manual 2枚の正準形へ統一。**群B 4効果**＝「アタックできない」付与の union 脱落（判定が「センタールリグ」表記必須だった）。

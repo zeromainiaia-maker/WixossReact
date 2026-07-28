@@ -31,6 +31,63 @@ const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
 /**
+ * 効果で場に出たシグニ自身の【出】を収集する。
+ * phase1Only=true は「効果によって／シグニの効果によって」と明記された能力だけに絞る。
+ * mandatory:false+costなしは通常召喚と同じく収集しない（タスク12(lv)＝段階3の在庫）。
+ */
+export function collectPlacedSelfOnPlayTriggers(
+  ctx: TrigCtx,
+  placedInstanceId: string,
+  controllerState: PlayerState,
+  otherState: PlayerState,
+  ownerId: string,
+  opts: { placedByEffect: boolean; sourceIsSigni: boolean; phase1Only: boolean; suppressOnPlay?: boolean },
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  if (opts.suppressOnPlay) return { entries, usedHostIds, usedGuestIds };
+
+  const ownerIsHost = ownerId === ctx.hostId;
+  const usedIds = ownerIsHost ? usedHostIds : usedGuestIds;
+  const limitOk = mkLimitOk(controllerState.actions_done, usedIds);
+  const isOwnerTurn = ownerId === ctx.activeUserId;
+  const blocked = collectContinuousAbilitiesRemovedSigni(
+    controllerState, otherState, isOwnerTurn, ctx.effectsMap, ctx.cardMap, '出',
+  ).has(placedInstanceId);
+  if (blocked) return { entries, usedHostIds, usedGuestIds };
+
+  for (const eff of effsOf(ctx, placedInstanceId)) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+    const scope = eff.triggerScope ?? 'self';
+    if (scope !== 'self' && scope !== 'any') continue;
+    const byEffect = !!eff.triggerCondition?.byEffect;
+    const bySigniEffect = !!eff.triggerCondition?.bySigniEffect;
+    if (opts.phase1Only && !byEffect && !bySigniEffect) continue;
+    if ((byEffect || bySigniEffect) && !opts.placedByEffect) continue;
+    if (bySigniEffect && !opts.sourceIsSigni) continue;
+    if (eff.mandatory === false && !eff.cost) continue;
+    if (eff.activeCondition && !checkActiveCondition(
+      eff.activeCondition, controllerState, otherState, isOwnerTurn, ctx.cardMap, placedInstanceId,
+    )) continue;
+    if (eff.condition && !evalUseCondition(
+      eff.condition, controllerState, otherState, ctx.cardMap, placedInstanceId, ctx.turnPhase, ctx.effectivePowers,
+    )) continue;
+    if (!limitOk(eff)) continue;
+    const cardName = ctx.cardMap.get(getCardNum(placedInstanceId))?.CardName ?? getCardNum(placedInstanceId);
+    entries.push({
+      id: ctx.genId(),
+      playerId: ownerId,
+      cardNum: placedInstanceId,
+      effectId: eff.effectId,
+      label: `${cardName} の【出】効果`,
+      effect: eff,
+    });
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * kizunaIcon 効果（【絆自】【絆起】【絆出】）のゲート。
  * 効果を持つ側のプレイヤーが発生源カード名との絆を獲得していなければ発動しない。
  * 各コレクタの effect ループ先頭で `if (!kizunaOk(ctx, eff, watcherState, topNum)) continue;` と使う。

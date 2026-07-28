@@ -926,8 +926,7 @@ export interface AddToFieldAction {
   // suppressOnPlay: true =「その（それらの）シグニの【出】能力は発動しない」＝この配置で場に出したシグニ自身の
   // ON_PLAY を発火させない（他シグニの watcher 反応は従来どおり発火）。旧・全体 BLOCK_ACTION{ON_PLAY_ABILITY}
   // （engine 未参照の死アクション）を parser の foldSuppressOnPlay が配置アクションへ畳み込んだ忠実表現。
-  // ⚠ ADD_TO_FIELD 経路自体は現状シグニ自身の ON_PLAY を発火させない（§6.3・REVEAL_UNTIL_TO_FIELD のみ発火）ため
-  // 当フラグは前方安全用フック。将来 ADD_TO_FIELD 自身 ON_PLAY を配線する際にこのフラグでゲートする。
+  // ADD_TO_FIELD の自身 ON_PLAY 収集経路が、このフラグを配置効果単位のゲートとして消費する。
   suppressOnPlay?: boolean;
 }
 

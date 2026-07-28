@@ -2,6 +2,7 @@
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
+import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
 import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
@@ -10,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbi
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, type TrigCtx } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectEnergyAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
@@ -2638,6 +2639,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries, hostState: h, guestState: g };
   };
 
+  const fieldPlacementOnPlayOpts = (effect?: CardEffect): {
+    collectPlacedSelfOnPlay: boolean;
+    phase1Only: boolean;
+    suppressOnPlay: boolean;
+  } => {
+    if (!effect) return { collectPlacedSelfOnPlay: false, phase1Only: true, suppressOnPlay: false };
+    const topIsRevealUntil = effect.action.type === 'REVEAL_UNTIL_TO_FIELD';
+    const visit = (value: unknown): boolean => {
+      if (!value || typeof value !== 'object') return false;
+      const action = value as Record<string, unknown>;
+      if ((action.type === 'ADD_TO_FIELD' || action.type === 'REVEAL_UNTIL_TO_FIELD') && action.suppressOnPlay === true) return true;
+      if (action.type === 'LOOK_PICK_CHAIN' && Array.isArray(action.stages)
+          && action.stages.some(s => !!s && typeof s === 'object'
+            && (s as { then?: string; suppressOnPlay?: boolean }).then === 'field'
+            && (s as { suppressOnPlay?: boolean }).suppressOnPlay === true)) return true;
+      return Object.values(action).some(v => Array.isArray(v) ? v.some(visit) : visit(v));
+    };
+    return {
+      collectPlacedSelfOnPlay: true,
+      // 段階1。REVEAL_UNTIL_TO_FIELD だけは従来どおり一般の自身【出】も収集する。
+      phase1Only: !topIsRevealUntil,
+      suppressOnPlay: visit(effect.action),
+    };
+  };
+
   // === 盤面差分トリガーの統合収集（続き61・Opus）===
   // resolveStackNext の中央 diff（result.done===true 分岐）と handleEffectInteraction の resume 完了分岐の
   // 双方から呼べる「盤面 before/after を比べてトリガーを収集する」共通関数。
@@ -2657,7 +2683,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const collectBoardDiffTriggers = (
     afterHost: PlayerState,
     afterGuest: PlayerState,
-    meta: { causeOwnerId: string; causeSourceCardNum: string; fieldTrashCostCards?: string[]; resonaConditionCardNum?: string },
+    meta: {
+      causeOwnerId: string;
+      causeSourceCardNum: string;
+      fieldTrashCostCards?: string[];
+      resonaConditionCardNum?: string;
+      collectPlacedSelfOnPlay?: boolean;
+      phase1Only?: boolean;
+      suppressOnPlay?: boolean;
+    },
   ): { entries: StackEntry[]; hostState: PlayerState; guestState: PlayerState } => {
     const { causeOwnerId, causeSourceCardNum } = meta;
     const fieldTrashCostCards = new Set(meta.fieldTrashCostCards ?? []);
@@ -2919,8 +2953,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ON_KEYWORD_GAINED（C1・WXDi-P04-035）
     { const kg = collectKeywordGainedInline(h, g); entries.push(...kg.entries); h = kg.hostState; g = kg.guestState; }
 
-    // ON_PLAY（any_ally/any・効果配置）＋ON_BLOOM: 効果で新たに場に出たシグニに対する場の他シグニの反応（G144/G145/WX11-054）と、
-    // 開花したシグニ自身＋場の他シグニの開花監視。出たシグニ自身の ON_PLAY は各配置経路が個別収集済み。
+    // ON_PLAY（自身＋any_ally/any・効果配置）＋ON_BLOOM。自身【出】は呼び出し側の明示 opt-in 時だけ収集するため、
+    // 同じ diff を通る通常召喚の支払い差分では二重発火しない。
     // 場出しした効果元（causeSourceCardNum）がシグニかで bySigniEffect 発火可否を判定。開花は「場に出た」扱いでないため ON_PLAY 除外。
     const placeSourceIsSigni = battleCardMap.get(causeSourceCardNum)?.Type === 'シグニ';
     const hostBloomedSE  = detectBloomedSigni(beforeHost, h);
@@ -2932,11 +2966,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const guestTrashBefore = new Set(beforeGuest?.trash ?? []);
     for (const placedNum of detectPlacedSigni(beforeHost, h)) {
       if (bloomedSetSE.has(placedNum)) continue;
+      if (meta.collectPlacedSelfOnPlay) {
+        const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, h, g, bs.host_id, {
+          placedByEffect: true,
+          sourceIsSigni: placeSourceIsSigni,
+          phase1Only: meta.phase1Only !== false,
+          suppressOnPlay: meta.suppressOnPlay,
+        });
+        entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
+      }
       const ft = collectFieldTriggers('ON_PLAY', placedNum, h, g, bs.host_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: hostTrashBefore.has(placedNum) });
       entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
     }
     for (const placedNum of detectPlacedSigni(beforeGuest, g)) {
       if (bloomedSetSE.has(placedNum)) continue;
+      if (meta.collectPlacedSelfOnPlay) {
+        const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, g, h, bs.guest_id, {
+          placedByEffect: true,
+          sourceIsSigni: placeSourceIsSigni,
+          phase1Only: meta.phase1Only !== false,
+          suppressOnPlay: meta.suppressOnPlay,
+        });
+        entries.push(...self.entries); useHost(self.usedHostIds); useGuest(self.usedGuestIds);
+      }
       const ft = collectFieldTriggers('ON_PLAY', placedNum, g, h, bs.guest_id, { placedByEffect: true, placeSourceIsSigni, placedFromTrash: guestTrashBefore.has(placedNum) });
       entries.push(...ft.entries); useHost(ft.usedHostIds); useGuest(ft.usedGuestIds);
     }
@@ -4108,6 +4160,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             causeOwnerId: entry.playerId,
             causeSourceCardNum: entry.cardNum,
             fieldTrashCostCards: result.fieldTrashCostCards,
+            ...fieldPlacementOnPlayOpts(entry.effect),
           });
           update.host_state = bd.hostState;
           update.guest_state = bd.guestState;
@@ -4195,37 +4248,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 開花（ON_BLOOM）トリガーは上の detectBloomedSigni / collectBloomTriggers で収集済み。
         // ルール上「開花」は「場に出た」扱いではないため、ここで ON_PLAY（出現時）は発火させない。
 
-        // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: 効果で場に出したシグニの【出】(ON_PLAY) を積む。
-        // lastProcessedCards に場へ出した instanceId が全て入る（トラッシュ送りのシグニは含まれない）。
-        // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ 複数エントリを積めば整列UIで順番を選べる。
-        if ((entry.effect.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
-          // bySigniEffect 限定の【出】はソース（場出しした効果元）がシグニの場合のみ発火（G079）。
-          const sourceIsSigni = battleCardMap.get(entry.cardNum)?.Type === 'シグニ';
-          // suppressOnPlay:「その（それらの）シグニの【出】能力は発動しない」＝出したシグニ自身の ON_PLAY を積まない（タスク12(xxix)）
-          const suppressOnPlay = !!(entry.effect.action as import('../types/effects').RevealUntilToFieldAction)?.suppressOnPlay;
-          const rutfOnPlayEntries: StackEntry[] = [];
-          for (const instanceId of suppressOnPlay ? [] : (result.lastProcessedCards ?? [])) {
-            const cn = getCardNum(instanceId);
-            for (const eff of (effectsMap.get(cn) ?? [])) {
-              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-              if (eff.triggerCondition?.bySigniEffect && !sourceIsSigni) continue;
-              rutfOnPlayEntries.push({
-                id: generateUUID(),
-                playerId: entry.playerId,
-                cardNum: instanceId,
-                effectId: eff.effectId,
-                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
-                effect: eff,
-              });
-            }
-          }
-          if (rutfOnPlayEntries.length > 0) {
-            const baseStackR = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackR
-              ? pushToStack(baseStackR, rutfOnPlayEntries)
-              : initStack(stack.turnPlayerId, rutfOnPlayEntries);
-          }
-        }
+        // REVEAL_UNTIL_TO_FIELD の自身【出】も上の opt-in 中央 diff に統合済み。
 
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
@@ -4461,6 +4484,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           causeOwnerId: pe.sourcePlayerId,
           causeSourceCardNum: pe.sourceCardNum,
           fieldTrashCostCards: result.fieldTrashCostCards,
+          ...fieldPlacementOnPlayOpts(
+            (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
+              .find(e => e.effectId === pe.effectId),
+          ),
         });
         update.host_state = midBd.hostState;
         update.guest_state = midBd.guestState;
@@ -4481,6 +4508,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           causeOwnerId: pe.sourcePlayerId,
           causeSourceCardNum: pe.sourceCardNum,
           fieldTrashCostCards: result.fieldTrashCostCards,
+          ...fieldPlacementOnPlayOpts(
+            (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
+              .find(e => e.effectId === pe.effectId),
+          ),
         });
         update.host_state = bd.hostState;
         update.guest_state = bd.guestState;
@@ -4628,36 +4659,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existingStack = bs.effect_stack ?? null;
         if (existingStack && isStackDone(existingStack)) update.effect_stack = null;
 
-        // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）でゾーン選択を挟んだ場合、最終解決はこの resume パスに来る。
-        // 場に出した全シグニ（lastProcessedCards：placedSoFar 連鎖で中断跨ぎ維持）の【出】(ON_PLAY) をここで積む。
         const srcEffects = effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [];
         const srcEff = srcEffects.find(e => e.effectId === pe.effectId);
-        if ((srcEff?.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD') {
-          // bySigniEffect 限定の【出】はソース（場出しした効果元）がシグニの場合のみ発火（G079）。
-          const sourceIsSigni = battleCardMap.get(getCardNum(pe.sourceCardNum))?.Type === 'シグニ';
-          const suppressOnPlay = !!(srcEff?.action as import('../types/effects').RevealUntilToFieldAction)?.suppressOnPlay; // タスク12(xxix)
-          const rutfOnPlayEntries: StackEntry[] = [];
-          for (const instanceId of suppressOnPlay ? [] : (result.lastProcessedCards ?? [])) {
-            const cn = getCardNum(instanceId);
-            for (const eff of (effectsMap.get(cn) ?? [])) {
-              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-              if (eff.triggerCondition?.bySigniEffect && !sourceIsSigni) continue;
-              rutfOnPlayEntries.push({
-                id: generateUUID(),
-                playerId: pe.sourcePlayerId,
-                cardNum: instanceId,
-                effectId: eff.effectId,
-                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
-                effect: eff,
-              });
-            }
-          }
-          if (rutfOnPlayEntries.length > 0) {
-            const canReuse = existingStack && !isStackDone(existingStack);
-            update.effect_stack = canReuse
-              ? pushToStack(existingStack, rutfOnPlayEntries)
-              : initStack(bs.active_user_id ?? user.id, rutfOnPlayEntries);
-          }
+        const bd = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: pe.sourcePlayerId,
+          causeSourceCardNum: pe.sourceCardNum,
+          fieldTrashCostCards: result.fieldTrashCostCards,
+          ...fieldPlacementOnPlayOpts(srcEff),
+        });
+        update.host_state = bd.hostState;
+        update.guest_state = bd.guestState;
+        if (bd.entries.length > 0) {
+          const canReuse = existingStack && !isStackDone(existingStack);
+          update.effect_stack = canReuse
+            ? pushToStack(existingStack, bd.entries)
+            : initStack(bs.active_user_id ?? user.id, bd.entries);
         }
 
         // ON_PLAY（any_ally/any・効果配置）: 効果で新たに場に出たシグニへの他シグニの反応（G144/G145/WX11-054）。
@@ -6193,33 +6209,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           result = { ...result, otherState: { ...result.otherState, actions_done: [...(result.otherState.actions_done ?? []), ...usedIdsSUOpp] } };
         }
       }
-      // REVEAL_UNTIL_TO_FIELD（WX04-093「惰眠」等）: スペル効果で場に出したシグニの【出】(ON_PLAY) を積む。
-      // 原文「【出】能力はこのスペルを処理したあとに好きな順番で発動する」→ スペル解決後にスタックへ積み、整列UIで順番を選べる。
-      if (result.done && (spellEff.action as import('../types/effects').RevealUntilToFieldAction)?.type === 'REVEAL_UNTIL_TO_FIELD'
-          && !(spellEff.action as import('../types/effects').RevealUntilToFieldAction)?.suppressOnPlay) { // suppressOnPlay: 自身 ON_PLAY を積まない（タスク12(xxix)）
-        for (const instanceId of result.lastProcessedCards ?? []) {
-          const cn = getCardNum(instanceId);
-          for (const eff of (effectsMap.get(cn) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-            // bySigniEffect 限定の【出】はスペルの効果による場出しでは発火しない（G079）
-            if (eff.triggerCondition?.bySigniEffect) continue;
-            spellUseEntries.push({
-              id: generateUUID(),
-              playerId: caster_id,
-              cardNum: instanceId,
-              effectId: eff.effectId,
-              label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
-              effect: eff,
-            });
-          }
-        }
-      }
       let hostState  = casterIsHost ? casterAfter : result.otherState;
       let guestState = casterIsHost ? result.otherState : casterAfter;
       // ON_PLAY（any_ally/any・効果配置）: スペル効果で新たに場に出たシグニへの他シグニの反応（G145「他のシグニが効果で場に出たとき」等）。
       // ソースはスペルのため placeSourceIsSigni=false（bySigniEffect は非発火、byEffect は発火）。
       if (result.done) {
         const spellPlaceSourceIsSigni = battleCardMap.get(card_num)?.Type === 'シグニ';
+        const selfOnPlayOpts = fieldPlacementOnPlayOpts(spellEff);
         // 開花（【シード】→シグニ）は「場に出た」扱いではないため ON_PLAY から除外し、ON_BLOOM として別収集する。
         const hostBloomedSU  = detectBloomedSigni(bs.host_state, hostState);
         const guestBloomedSU = detectBloomedSigni(bs.guest_state, guestState);
@@ -6232,11 +6228,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         };
         for (const placedNum of detectPlacedSigni(bs.host_state, hostState)) {
           if (bloomedSetSU.has(placedNum)) continue;
+          if (selfOnPlayOpts.collectPlacedSelfOnPlay) {
+            const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, hostState, guestState, bs.host_id, {
+              placedByEffect: true,
+              sourceIsSigni: spellPlaceSourceIsSigni,
+              phase1Only: selfOnPlayOpts.phase1Only,
+              suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
+            });
+            spellUseEntries.push(...self.entries); useSU(self);
+          }
           const ft = collectFieldTriggers('ON_PLAY', placedNum, hostState, guestState, bs.host_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni });
           spellUseEntries.push(...ft.entries); useSU(ft);
         }
         for (const placedNum of detectPlacedSigni(bs.guest_state, guestState)) {
           if (bloomedSetSU.has(placedNum)) continue;
+          if (selfOnPlayOpts.collectPlacedSelfOnPlay) {
+            const self = pureCollectPlacedSelfOnPlayTriggers(mkTrigCtx(), placedNum, guestState, hostState, bs.guest_id, {
+              placedByEffect: true,
+              sourceIsSigni: spellPlaceSourceIsSigni,
+              phase1Only: selfOnPlayOpts.phase1Only,
+              suppressOnPlay: selfOnPlayOpts.suppressOnPlay,
+            });
+            spellUseEntries.push(...self.entries); useSU(self);
+          }
           const ft = collectFieldTriggers('ON_PLAY', placedNum, guestState, hostState, bs.guest_id, { placedByEffect: true, placeSourceIsSigni: spellPlaceSourceIsSigni });
           spellUseEntries.push(...ft.entries); useSU(ft);
         }

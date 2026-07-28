@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## §3タスク12(xxix) 最終＝効果配置シグニ自身の条件付き【出】を配線（2026-07-28・Codex）
+
+- **真因**：通常召喚・グロウ・アシスト・COLLAB・トップレベル `REVEAL_UNTIL_TO_FIELD` だけが自身【出】を個別収集し、一般の `ADD_TO_FIELD` は `detectPlacedSigni` 後に「他のシグニ」の watcher しか収集していなかった。`byEffect` / `bySigniEffect` を持つ10効果は通常召喚側でも明示除外されるため、全経路で永久不発だった。
+- **段階1**：`triggerCollect.collectPlacedSelfOnPlayTriggers` を追加し、効果配置時は条件付き自身【出】だけを収集。`activeCondition`・`triggerScope`・`usageLimit`・`suppressOnPlay`・能力喪失を honor し、`mandatory:false`＋cost無しはタスク12(lv)在庫のまま除外した。`collectBoardDiffTriggers` は明示 opt-in のみ有効で、通常召喚の payment diff は opt-in しない。
+- **面配線**：stack解決 done／対話途中／resume 完了、`SELECT_SIGNI_ZONE` 専用 resume、スペル直通の全経路へ配線。既存 `REVEAL_UNTIL_TO_FIELD` 自身【出】3ブロックは中央 collector へ統合し、二重発火を除去した。開花・裏向き→表向きは従来どおり除外。
+- **実測**：新規発火集合は10効果ちょうど。golden は実 `ADD_TO_FIELD` 後の10効果各1件、通常召喚0件、`suppressOnPlay` 0件、WX04-093経路1件をスタック数で固定（874→879）。78 suppress効果の action tree を全走査し、抑止配置と非抑止配置の混在は0件。段階2（一般の自身【出】）と段階3は未実施。
+- **検証**：`npm run gates` 全緑（golden 879、smoke 10725/10725、fuzz 200ゲーム全0、census 1510維持、manual-fields 0、lint 0 errors）／`npm run regen` 同型★0。
+- **Opus 独立検証**：①**新規発火は10効果ちょうど**＝10効果とも `mandatory:true`／cost無し／`activeCondition`・`condition` 無しで、collector のどのフィルタにも掛からないことを全数確認 ②**`suppressOnPlay` の per-effect 解決が健全**＝抑止フラグを持つ78効果の action tree を自前スクリプトで再走査し、抑止配置と非抑止配置の混在**0件**を再現（混在があれば効果単位ゲートは不正になる）③**通常召喚の二重発火なし**＝`handleSummonSigni` の `paymentDiff`（`BattleScreen.tsx:5112`）が `collectPlacedSelfOnPlay` を渡していないことをコードで確認 ④**`REVEAL_UNTIL_TO_FIELD` の非回帰**＝`phase1Only: !topIsRevealUntil`（`BattleScreen.tsx:2662`）により当該効果だけ従来どおり一般の自身【出】も収集する設計を確認（撤去した3ブロックの意味論が保たれている）⑤gates を4回連続実行しフレーク無し。
+- **⚠lint warning 222→234（+12）の内訳**＝**新規の警告ではなく既存 false positive の増殖**。`collectBoardDiffTriggers` 内のローカルヘルパ `useHost`／`useGuest`／`useSU` が `use` 始まりのため `react-hooks/rules-of-hooks` に誤検出されており、呼び出し箇所が増えるたび2件ずつ増える（`useHost`/`useGuest` 25→27・同ループ判定 12→14・`useSU` 4→6＝計+12）。ルール別に集計して差分がこの3ヘルパのみであることを確認済み。**コード品質の劣化ではない**が、ヘルパ名を `use` 以外へ改名すれば恒久的に消せる（別バッチ）。
+- **残（§6.3 送り）**＝**段階2＝一般の自身【出】**（`byEffect` 条件なし）を効果配置でも発火させる。母数は自身【出】2511効果・`ADD_TO_FIELD` 651効果で影響が桁違いのため、段階1の安定を確認してから別バッチで扱う。段階3＝`mandatory:false`＋cost無しの収集漏れはタスク12(lv) の在庫のまま。
+
 ## §3タスク12(xxix) 残＝BET 9効果の実行時選択肢を原文照合（2026-07-28・Codex）
 
 - **真因**：`BET_MECHANIC` 自体と26選択肢の分割は正常だったが、選択肢本文を本体パーサとは別系統の `choiceTextParser.parseSingleChoiceText` が再解析し、条件・複文後半・動的フィルタを落としていた。カード別の既存分岐を狭く拡張し、新 action 型／新 STUB id は追加していない。
