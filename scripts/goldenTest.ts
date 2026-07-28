@@ -4064,6 +4064,43 @@ test('INSTALL_DELAYED_TRIGGER ON_LEAVE_FIELD: 《悲願の駄姫 グズ子》を
     cursor = savedCursor;
   }
 });
+// 「このアタックフェイズの間、〜が場を離れたとき、〜を場に出す」規則がカード決め打ちでないことを固定する。
+// クラス（＜X＞）・離脱側オーナー・配置元ゾーン・レベル比較・枚数・任意/ダウンを**すべて原文から読む**。
+// ⚠parse のみ（mkState/mkCtx を呼ばない）ので共有 cursor は消費しない。
+test('INSTALL_DELAYED_TRIGGER ON_LEAVE_FIELD: 監視クラス・ゾーン・比較を原文から読む（カード決め打ちにしない）', () => {
+  const parseOne = (num: string, text: string) =>
+    parseCardEffects({ CardNum: num, Type: 'ルリグ', EffectText: text } as unknown as CardData)[0]
+      .action as import('../src/types/effects').InstallDelayedTriggerAction;
+
+  // ①別クラス＜精羅＞＋トラッシュ由来＋「同じレベル」＋ダウン配置
+  const a = parseOne('TEST-APSW1',
+    '【起】《アタックフェイズアイコン》：このアタックフェイズの間、あなたの＜精羅＞のシグニ１体が場を離れたとき、あなたのトラッシュからそのシグニと同じレベルの＜精羅＞のシグニ１枚をダウン状態で場に出す。');
+  eq(a.type, 'INSTALL_DELAYED_TRIGGER', '別クラスでも watcher 設置として解ける');
+  eq(a.trigger.triggerFilter?.story, '精羅', '監視クラスを原文から読む（遊具の決め打ちでない）');
+  const aSrc = (a.effect as { source: { type: string; filter: Record<string, unknown> } }).source;
+  eq(aSrc.type, 'TRASH_CARD', '配置元ゾーンを原文から読む');
+  eq(aSrc.filter.levelEqTrigger, true, '「同じレベル」は levelEqTrigger');
+  eq((a.effect as { asDown?: boolean }).asDown, true, '「ダウン状態で場に出す」を保持');
+
+  // ②相手側の離脱を監視＋クラス無指定＋エナ由来＋色フィルタ＋「N枚まで」＋任意
+  const b = parseOne('TEST-APSW2',
+    '【起】《アタックフェイズアイコン》：このアタックフェイズの間、対戦相手のシグニ１体が場を離れたとき、あなたのエナゾーンから青のシグニを２枚まで場に出してもよい。');
+  eq(b.trigger.leftOwner, 'opponent', '離脱側オーナーを原文から読む');
+  eq(b.trigger.triggerFilter?.story, undefined, 'クラス無指定ならクラス条件を作らない');
+  const bSrc = (b.effect as { source: { type: string; count: number; upToCount?: boolean; filter: Record<string, unknown> } }).source;
+  eq(bSrc.type, 'ENERGY_CARD', 'エナ由来を原文から読む');
+  eq(bSrc.count, 2, '「２枚まで」の枚数');
+  eq(bSrc.upToCount, true, '「まで」は上限選択');
+  eq(bSrc.filter.color, '青', '色フィルタを原文から読む');
+  eq((b.effect as { optional?: boolean }).optional, true, '「してもよい」は任意');
+
+  // ③「この」の無い「アタックフェイズの間」は【自】の常時条件＝この規則では拾わない（WX21-004-E2 型）
+  const c = parseCardEffects({ CardNum: 'TEST-APSW3', Type: 'ルリグ',
+    EffectText: '【自】：アタックフェイズの間、あなたの＜英知＞のシグニが場を離れたとき、あなたの手札からそのシグニより低いレベルを持つ＜英知＞のシグニ１枚を場に出す。' } as unknown as CardData)[0];
+  eq(c.action.type, 'ADD_TO_FIELD', '「この」無しは設置型でなく【自】の即時配置');
+  eq(c.timing?.[0], 'ON_LEAVE_FIELD', '【自】ON_LEAVE_FIELD として解ける');
+  eq(c.triggerCondition?.duringAttackPhase, true, 'アタックフェイズ限定は triggerCondition 側');
+});
 
 // §6.3 機構待ち解消: ON_LEAVE_FIELD any_opp（跨サイド watcher）の byEffect / leftStateFilter ゲート。
 // WXK11-017-E1「あなたのターンの間、対戦相手のシグニが効果によって場を離れたとき、エナチャージ」

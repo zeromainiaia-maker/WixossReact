@@ -1803,33 +1803,55 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 「（このアタックフェイズの間、）〜が場を離れたとき、〜を場に出す」付与型の遅延トリガー ----
-  // 【起】で「このアタックフェイズの間」の watcher を設置する WX22-001-E3。
-  // 即時配置ではなく、設置後の味方＜遊具＞離脱を拾い、その離脱カードより低いレベルの＜遊具＞を手札から出す。
-  if (t.includes('このアタックフェイズの間')
-      && /あなたの＜遊具＞のシグニ(?:１体)?が場を離れたとき/.test(t)
-      && t.includes('あなたの手札から')
-      && t.includes('そのシグニより低いレベル')
-      && t.includes('＜遊具＞のシグニ')
-      && t.includes('場に出す')) {
-    return {
-      type: 'INSTALL_DELAYED_TRIGGER',
-      duration: 'THIS_ATTACK_PHASE',
-      trigger: {
-        timing: 'ON_LEAVE_FIELD',
-        leftOwner: 'self',
-        triggerFilter: { cardType: 'シグニ', story: '遊具' },
-      },
-      effect: {
-        type: 'ADD_TO_FIELD',
-        owner: 'self',
-        source: {
-          type: 'HAND_CARD',
-          owner: 'self',
-          count: 1,
-          filter: { cardType: 'シグニ', story: '遊具', levelLtTrigger: true },
+  // 【起】で「**この**アタックフェイズの間」の watcher を設置する形（WX22-001-E3）。
+  // ⚠「この」が要る＝【起】を撃った時点から当該アタックフェイズ終了までの設置型。「この」の無い
+  //   「アタックフェイズの間、〜が場を離れたとき」は【自】の常時条件（triggerCondition.duringAttackPhase）で、
+  //   effectParser の ON_LEAVE_FIELD ブロックがトリガー句を除去して別経路で解く＝此処には来ない（WX21-004-E2）。
+  // 監視対象クラス（＜X＞）・離脱側オーナー・配置元ゾーン・レベル比較は**すべて原文から読む**（カード決め打ちにしない）。
+  {
+    const instM = t.match(/このアタックフェイズの間[、,](あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき[、,]\s*(.+)/s);
+    const rest = instM?.[3] ?? '';
+    // 配置元ゾーン（手札／トラッシュ／エナ）も原文から。いずれでもなければ従来どおり下の STUB へ落とす。
+    const srcType = /手札から/.test(rest) ? 'HAND_CARD'
+      : /トラッシュから/.test(rest) ? 'TRASH_CARD'
+      : /エナゾーンから/.test(rest) ? 'ENERGY_CARD'
+      : undefined;
+    if (instM && srcType && /場に出/.test(rest)) {
+      const filter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseLevelFilter(rest),
+        ...parseColorFilter(rest),
+        ...parseStoryFilter(rest),
+        ...parseNameFilter(rest),
+        // 「そのシグニより低いレベル／と同じレベル」＝離脱カード基準の相対比較。
+        // 収集時に resolveLeaveFieldDynamicFilters が離脱カードの具体値へ解決する。
+        ...parseTriggerComparison(rest, { allowPlacement: true, allowLevelEq: true }),
+      };
+      const upToM = rest.match(/([０-９\d]+)枚まで/);
+      const countM = rest.match(/([０-９\d]+)枚/);
+      return {
+        type: 'INSTALL_DELAYED_TRIGGER',
+        duration: 'THIS_ATTACK_PHASE',
+        trigger: {
+          timing: 'ON_LEAVE_FIELD',
+          leftOwner: instM[1] === '対戦相手' ? 'opponent' : 'self',
+          triggerFilter: { cardType: 'シグニ', ...(instM[2] ? { story: instM[2] } : {}) },
         },
-      },
-    } as InstallDelayedTriggerAction;
+        effect: {
+          type: 'ADD_TO_FIELD',
+          owner: 'self',
+          source: {
+            type: srcType,
+            owner: 'self',
+            count: upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1),
+            ...(upToM ? { upToCount: true } : {}),
+            filter,
+          },
+          ...(rest.includes('ダウン状態で場に出') ? { asDown: true } : {}),
+          ...(rest.includes('場に出してもよい') ? { optional: true } : {}),
+        },
+      } as InstallDelayedTriggerAction;
+    }
   }
   // 即時配置ではなく付与トリガーなので、bare ADD_TO_FIELD（=デッキトップ誤配置）や手札ハンドラの
   // 即時配置を避けて no-op STUB に。忠実実装には「場を離れたとき手札から配置」を期間付きで付与する
