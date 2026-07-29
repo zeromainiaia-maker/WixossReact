@@ -210,6 +210,21 @@ export function execStubPart1(
       lastProcessedCards: paid.paidCards,
     }, `ルリグ${cost.count}体をコストでダウンした`));
   }
+  if (stub.id === 'INTERNAL_PAY_LRIG_DOWN_VARIABLE') {
+    const count = stub.lrigDownVariableCount ?? 0;
+    const paid = payLrigDownCost(ctx.ownerState, { count }, ctx.cardMap);
+    if (!paid) return done(addLog(ctx, `ルリグ${count}体をコストでダウンできない`));
+    const levelSum = paid.paidCards.reduce((sum, id) => {
+      const lv = Number(ctx.cardMap.get(getCardNum(id))?.Level);
+      return sum + (Number.isFinite(lv) ? lv : 0);
+    }, 0);
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...paid.state, last_lrig_down_level_sum: levelSum },
+      lastProcessedCards: paid.paidCards,
+      seqVars: { ...ctx.seqVars, lastDownedLrigLevelSum: levelSum },
+    }, `ルリグ${count}体（レベル合計${levelSum}）をコストでダウンした`));
+  }
   if (stub.id === 'INTERNAL_PAY_BEAT_SIGNI') {
     let paidState = ctx.ownerState;
     const moved: string[] = [];
@@ -254,6 +269,25 @@ export function execStubPart1(
         ...ctx.ownerState,
         trash: [...ctx.ownerState.trash, ...moved],
         field: { ...ctx.ownerState.field, signi_charms: charms },
+      },
+      lastProcessedCards: moved,
+    }, `チャーム${count}枚をコストでトラッシュに置いた`));
+  }
+  if (stub.id === 'INTERNAL_PAY_CHARM_TRASH_VARIABLE') {
+    const count = stub.charmTrash ?? 0;
+    const charms = [...(ctx.ownerState.field.signi_charms ?? [null, null, null])];
+    const moved: string[] = [];
+    for (let zi = 0; zi < charms.length && moved.length < count; zi++) {
+      if (charms[zi]) { moved.push(charms[zi]!); charms[zi] = null; }
+    }
+    if (moved.length < count) return done(addLog(ctx, `チャーム${count}枚をコストでトラッシュに置けない`));
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        trash: [...ctx.ownerState.trash, ...moved],
+        field: { ...ctx.ownerState.field, signi_charms: charms },
+        last_charm_trash_count: count,
       },
       lastProcessedCards: moved,
     }, `チャーム${count}枚をコストでトラッシュに置いた`));

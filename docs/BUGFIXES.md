@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第15波：可変枚数コスト2効果を0..N選択＋動的倍率へ配線（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
+- **採用2効果**：`WX07-045-E1` を `charmTrashVariable:{min:0}`、`WX24-P4-103-E1` を `lrigDownVariable:{min:0}` として構造化。Pattern ⑤に Pattern ⑦同型の0..N `CHOOSE` を追加し、新 interaction 種別は作らず支払い枚数を選択可能にした。
+- **動的参照**：チャームは既存 `last_charm_trash_count` → `POWER_MODIFY_PER_CHARM` を engine 経路でも実働化。ルリグは共通 `payLrigDownCost` の `paidCards` からレベル合計を記録し、`POWER_MODIFY_PER_LRIG_LEVEL.useLastDownedLrigLevelSum` が `-1000×合計` を適用する。通常召喚UIも同じ純関数で0..N体を支払い、合計を `last_lrig_down_level_sum` に渡す。
+- **E2E**：発生源を実戦同様のシグニゾーンへ置き `collectPlacedSelfOnPlayTriggers` を通して、両効果の0・途中・最大を固定。実移動と `-7000×N`／`-1000×レベル合計` まで検証。golden 1074→1075。
+- **明示保留4効果**：`WXDi-P12-031-E2` は複数ゾーン全捨て枚数条件の1効果専用配線、`WXDi-P03-019-E1` は「すべてのシグニ」の所有者範囲が確定できず全場退避機構も必要、`WXDi-CP02-100-E1` はトラッシュ選択→デッキ下の新コスト経路、`WXK03-070-E1` は本体の「エナへ置く」が欠落し2対象の一体解決が必要。半実装を避け `costUnparsed` のまま不発を維持した。
+- **在庫**：`wrapOptionalOnPlay=null` は6→4。census 1394据置（計器の可変ルリグダウン語形のみ既存 `lrigDown` 較正へ追加）、engineで新たに実働2効果。
+- **スコープ外観測**：`WXDi-P12-031-E1` は CSV 原文が「【出】：対戦相手のシグニ１体を対象とし…」で、コロン前のコスト句が空。原文表記または切り出し問題の可能性があるため本波では変更していない。
+
 ## `costUnparsed` 第14波：「あなたのシグニの下」コストを分離し【出】2効果を両経路へ配線（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
 - **意味分離**：既存 `underSelfTrash` は原文「このシグニの下」A群13効果のまま不変とし、「あなたのシグニの下」B群4効果を新 `underAnySigniTrash:{count}` へ分離。「2枚合計／合計2枚」両語順を parser で構造化し `WXK08-082-E1` の `costUnparsed` を解消した。
 - **実働2効果**：ON_PLAY の `WXK08-051-E1`（1枚→エナチャージ1）／`WXK08-082-E1`（合計2枚→相手基本パワー0）を `optionalOnPlayCostStub`→`OptionalCostSpec`→`canAffordOptionalCostSpec`→`optionalCostPaySteps` の engine 経路と、`BattleScreen.executeSigniOnPlayCost`＋`SigniOnPlayCostModal` の通常召喚経路へ配線。共通純関数 `underAnySigniCostCandidates`／`canPayUnderAnySigniTrash`／`payUnderAnySigniTrash` が複数シグニを横断する候補・支払いを担う。

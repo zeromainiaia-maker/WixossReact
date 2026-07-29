@@ -72,9 +72,9 @@ export function optionalOnPlayCostStub(
     'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
     'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
     'fieldToLrigTrash',
-    'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
+    'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     'beat_signi', 'beat_signi_from_trash',
-    'deckTrash', 'charmTrash', 'trashArtsFromLrigDeck', 'removeOppVirus',
+    'deckTrash', 'charmTrash', 'charmTrashVariable', 'trashArtsFromLrigDeck', 'removeOppVirus',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
@@ -115,6 +115,7 @@ export function optionalOnPlayCostStub(
     ...(cost.fieldTrashGroups ? { fieldTrashGroups: cost.fieldTrashGroups } : {}),
     ...(cost.fieldToLrigTrash ? { fieldToLrigTrash: cost.fieldToLrigTrash } : {}),
     ...(cost.lrigDown ? { lrigDown: cost.lrigDown } : {}),
+    ...(cost.lrigDownVariable ? { lrigDownVariable: cost.lrigDownVariable } : {}),
     ...(cost.down_self ? { down_self: true } : {}),
     ...(cost.beat_signi ? { beat_signi: cost.beat_signi } : {}),
     ...(cost.beat_signi_from_trash ? { beat_signi_from_trash: cost.beat_signi_from_trash } : {}),
@@ -123,6 +124,7 @@ export function optionalOnPlayCostStub(
     ...(cost.lifeToHand ? { lifeToHand: cost.lifeToHand } : {}),
     ...(cost.deckTrash ? { deckTrash: cost.deckTrash } : {}),
     ...(cost.charmTrash ? { charmTrash: cost.charmTrash } : {}),
+    ...(cost.charmTrashVariable ? { charmTrashVariable: cost.charmTrashVariable } : {}),
     ...(cost.trashArtsFromLrigDeck ? { trashArtsFromLrigDeck: cost.trashArtsFromLrigDeck } : {}),
     ...(cost.removeOppVirus ? { removeOppVirus: cost.removeOppVirus } : {}),
   } as StubAction;

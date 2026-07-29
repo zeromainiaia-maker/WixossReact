@@ -202,9 +202,9 @@ const PATTERNS: Pattern[] = [
     //  parser/支払い経路を直してからここを緩めている）。
     // ⚠ 無条件マスクにはしない＝コスト句を除いた残りに状態語が残るならフラグを維持する
     //   （lrigDown コストと「アップ状態のシグニ」フィルタを併せ持つ将来のカードを隠さないため）。
-    extraOk: (js, t) => js.includes('lrigDown')
+    extraOk: (js, t) => (js.includes('lrigDown') || js.includes('lrigDownVariable'))
       && !/(ダウン状態の|アップ状態の)/.test(
-        t.replace(/アップ状態の(?:レベル[０-９\d]+の)?(?:センター)?ルリグ[０-９\d]+体をダウンする/g, ''),
+        t.replace(/アップ状態の(?:レベル[０-９\d]+の)?(?:センター)?ルリグ(?:[０-９\d]+体を|を好きな数)ダウンする/g, ''),
       ),
   },
   {

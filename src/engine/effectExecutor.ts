@@ -3178,6 +3178,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const cont5: EffectAction = remaining5.length > 0
             ? (remaining5.length === 1 ? remaining5[0] : { type: 'SEQUENCE', steps: remaining5 } as SequenceAction)
             : noopAction5;
+          // 可変枚数コストは Pattern ⑦ と同じく 0..N の CHOOSE で解決する。
+          if (stub5.charmTrashVariable || stub5.lrigDownVariable) {
+            const max5 = stub5.charmTrashVariable
+              ? (cur.ownerState.field.signi_charms ?? []).filter(Boolean).length
+              : [
+                  cur.ownerState.field.lrig.length > 0 && !cur.ownerState.field.lrig_down,
+                  (cur.ownerState.field.assist_lrig_l?.length ?? 0) > 0 && !cur.ownerState.field.assist_lrig_l_down,
+                  (cur.ownerState.field.assist_lrig_r?.length ?? 0) > 0 && !cur.ownerState.field.assist_lrig_r_down,
+                ].filter(Boolean).length;
+            const min5 = stub5.charmTrashVariable?.min ?? stub5.lrigDownVariable?.min ?? 0;
+            const options5 = Array.from({ length: max5 - min5 + 1 }, (_, offset) => {
+              const n = min5 + offset;
+              const payStub = stub5.charmTrashVariable
+                ? ({ type: 'STUB', id: 'INTERNAL_PAY_CHARM_TRASH_VARIABLE', charmTrash: n } as import('../types/effects').StubAction)
+                : ({ type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN_VARIABLE', lrigDownVariableCount: n } as import('../types/effects').StubAction);
+              return {
+                id: `variable_cost_${n}`,
+                label: stub5.charmTrashVariable ? `【チャーム】${n}枚をトラッシュ` : `ルリグ${n}体をダウン`,
+                action: ({ type: 'SEQUENCE', steps: [payStub, freezeStoredTargets(cont5, cur)] } as SequenceAction) as EffectAction,
+                available: true,
+              };
+            });
+            return needsInteraction(addLog(cur, '支払う枚数を選択'), {
+              type: 'CHOOSE', options: options5, count: 1,
+            });
+          }
           const spec5 = resolveOptionalCostSpec(stub5, cur);
           const costColors5 = spec5.costColors;
           const coinCost5 = stub5.coinCost ?? 0;
@@ -4351,7 +4377,9 @@ function execEnergyChargeFromDeckPerFieldCount(a: import('../types/effects').Ene
 function execPowerModifyPerLrigLevel(a: PowerModifyPerLrigLevelAction, ctx: ExecCtx): ExecResult {
   const lrigState = a.lrigOwner === 'self' ? ctx.ownerState : ctx.otherState;
   const lrigNum = lrigState.field.lrig.at(-1);
-  const lv = parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
+  const lv = a.useLastDownedLrigLevelSum
+    ? (ctx.seqVars?.lastDownedLrigLevelSum ?? ctx.ownerState.last_lrig_down_level_sum ?? 0)
+    : parseInt(ctx.cardMap.get(lrigNum ?? '')?.Level ?? '0', 10);
   if (isNaN(lv) || lv === 0) return done(ctx);
 
   const delta = a.deltaPerLevel * lv;

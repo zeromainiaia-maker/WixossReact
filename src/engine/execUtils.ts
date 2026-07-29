@@ -86,7 +86,7 @@ export interface ExecCtx {
   // マルチエナは全5色、無色エナは空配列。これを基に「支払った色の種類」分のシグニを探す。
   paidEnergyColorSets?: string[][];
   // SEQUENCE内で動的に決まる値（ステップ間の受け渡し用、最上位効果呼び出し単位でリセット）
-  seqVars?: { lastDownedLrigLevel?: number; declaredNumber?: number };
+  seqVars?: { lastDownedLrigLevel?: number; lastDownedLrigLevelSum?: number; declaredNumber?: number };
 }
 
 export type ExecResult =

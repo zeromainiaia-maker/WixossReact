@@ -337,6 +337,7 @@ export interface EffectCost {
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // 手札からN枚をこのシグニの下に置く
   lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
+  lrigDownVariable?: { min: number }; // アップ状態のルリグを好きな数ダウン（0を含む）
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
@@ -1451,6 +1452,7 @@ export interface PowerModifyPerLrigLevelAction {
   target: EffectTarget;
   deltaPerLevel: number;
   lrigOwner: Owner; // どちらのルリグのレベルを参照するか
+  useLastDownedLrigLevelSum?: boolean; // 直前の可変ルリグダウンコストで記録したレベル合計を参照
 }
 
 // このターンを強制終了する（例: ジャッジメント・クロス）
@@ -1830,6 +1832,12 @@ export interface StubAction {
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
+  /** OPTIONAL_COST: アップ状態のルリグを好きな数ダウンする。 */
+  lrigDownVariable?: { min: number };
+  /** INTERNAL_PAY_LRIG_DOWN_VARIABLE の選択枚数。 */
+  lrigDownVariableCount?: number;
+  /** OPTIONAL_COST: 場のチャームを好きな数トラッシュする。 */
+  charmTrashVariable?: { min: number };
   /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */
   down_self?: boolean;
   /** OPTIONAL_COST: 場のシグニを【ビート】にする任意コスト。原文上の自身/他の区別は共通解析器が担う。 */

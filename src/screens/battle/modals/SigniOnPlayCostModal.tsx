@@ -108,6 +108,9 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_l?.length ?? 0) > 0 && !pState.field.assist_lrig_l_down && ldLevelOk(pState.field.assist_lrig_l) ? 1 : 0)
                 + (!lrigDownCost?.centerOnly && (pState.field.assist_lrig_r?.length ?? 0) > 0 && !pState.field.assist_lrig_r_down && ldLevelOk(pState.field.assist_lrig_r) ? 1 : 0);
               const lrigDownOk = !lrigDownCost || upLrigCount >= lrigDownCost.count;
+              const lrigDownVariableM = eff.cost?.lrigDownVariable;
+              const lrigDownVariableOk = !lrigDownVariableM
+                || (signiOnPlayCharmTrashVar >= lrigDownVariableM.min && signiOnPlayCharmTrashVar <= upLrigCount);
               const lifeNeeded = (eff.cost?.lifeTrash ?? 0) + (eff.cost?.life_crash ?? 0) + (eff.cost?.lifeToHand ?? 0);
               const lifeOk = lifeNeeded === 0 || pState.life_cloth.length >= lifeNeeded;
               const charmNeeded = eff.cost?.charmTrash ?? 0;
@@ -154,7 +157,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
@@ -566,6 +569,24 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         </p>
                       )}
                     </>
+                  )}
+                  {lrigDownVariableM && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: lrigDownVariableOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        ダウンするアップ状態のルリグ数を選択（{lrigDownVariableM.min}体以上）: 候補 {upLrigCount}体
+                      </p>
+                      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                        <button onClick={() => setSigniOnPlayCharmTrashVar(v => Math.max(0, v - 1))}
+                          disabled={signiOnPlayCharmTrashVar <= 0}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton, color: C.text, fontSize: 18 }}>−</button>
+                        <span style={{ minWidth: 40, textAlign: 'center', color: C.text, fontSize: 16, fontWeight: 'bold' }}>
+                          {signiOnPlayCharmTrashVar}体
+                        </span>
+                        <button onClick={() => setSigniOnPlayCharmTrashVar(v => Math.min(upLrigCount, v + 1))}
+                          disabled={signiOnPlayCharmTrashVar >= upLrigCount}
+                          style={{ width: 32, height: 32, borderRadius: 6, border: C.borderUI, backgroundColor: C.bgButton, color: C.text, fontSize: 18 }}>＋</button>
+                      </div>
+                    </div>
                   )}
 
                   {underTrashNeeded > 0 && (

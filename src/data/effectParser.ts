@@ -509,6 +509,12 @@ function parseCost(costStr: string): EffectCost | undefined {
   // 可変枚数チャームトラッシュ → charmTrashVariable
   const ctVarM = costStr.match(/【チャーム】を([０-９\d]+)枚以上トラッシュに置く/);
   if (ctVarM && !cost.charmTrash) cost.charmTrashVariable = { min: parseNum(ctVarM[1]) };
+  else if (/あなたの場にある【チャーム】を好きな数トラッシュに置く/.test(costStr)) {
+    cost.charmTrashVariable = { min: 0 };
+  }
+  if (/アップ状態のルリグを好きな数ダウンする/.test(costStr)) {
+    cost.lrigDownVariable = { min: 0 };
+  }
   // デッキ上からN枚トラッシュ → deckTrash
   const dtM = costStr.match(/デッキの(?:一番)?上からカードを?([０-９\d]+)枚トラッシュに置く/);
   if (dtM) cost.deckTrash = parseNum(dtM[1]);
@@ -7436,6 +7442,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     && /この方法で捨てたカード[０-９\d]+枚につき(?:カードを[０-９\d]+枚引く|【エナチャージ[０-９\d]+】をする|[－＋][０-９\d]+する)/.test(block);
   if (variableHandDiscardText) {
     resolvedAction = { type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' } as StubAction;
+  }
+  // WX24-P4-103: 可変ルリグダウンで実際にダウンしたルリグのレベル合計を倍率にする。
+  // 「好きな数」かつこの参照句を持つ具体文型だけに限定し、通常の中央ルリグレベル倍率へ波及させない。
+  if (effectType === 'AUTO' && timing?.includes('ON_PLAY')
+      && /アップ状態のルリグを好きな数ダウンする/.test(costStr)
+      && /この方法でダウンしたルリグのレベルの合計１につき－1000する/.test(block)) {
+    resolvedAction = {
+      type: 'POWER_MODIFY_PER_LRIG_LEVEL',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+      deltaPerLevel: -1000,
+      lrigOwner: 'self',
+      useLastDownedLrigLevelSum: true,
+    };
   }
   const actionOwnsVariableHandDiscard =
     variableHandDiscardText

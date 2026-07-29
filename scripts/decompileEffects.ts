@@ -321,6 +321,7 @@ function costJa(c?: any): string {
   if (c.fieldDown) parts.push(`場の${filterJa(c.fieldDown.filter)}シグニ${c.fieldDown.count}体をダウン`);
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);
+  if (c.lrigDownVariable) parts.push('アップ状態のルリグを好きな数ダウンする');
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
   if (c.underSelfTrash != null) parts.push(`あなたのシグニの下からカード${c.underSelfTrash}枚をトラッシュに置く`);
@@ -1152,6 +1153,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // POWER_MODIFY_PER_CHARM で「この方法でトラッシュに置いた」変種は原文どおりに描く
       const per = (a.type === 'POWER_MODIFY_PER_CHARM' && a.sourceLocation === 'trashed_this_effect')
         ? 'この方法でトラッシュに置いた【チャーム】の枚数'
+        : (a.type === 'POWER_MODIFY_PER_LRIG_LEVEL' && a.useLastDownedLrigLevelSum)
+          ? 'この方法でダウンしたルリグのレベルの合計'
         : (perJaMap[a.type] ?? a.type.replace('POWER_MODIFY_PER_', '') + '数');
       const d = a.deltaPerUnit ?? a.deltaPerLevel ?? a.deltaPerLife ?? a.deltaPerCharm ?? a.deltaPerCard ?? a.deltaPerVirus ?? a.delta ?? a.deltaPerColor ?? 0;
       // count!=='ALL' かつ self/any =「このシグニ」（常時自己強化）

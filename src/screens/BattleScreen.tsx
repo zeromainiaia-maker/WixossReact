@@ -10590,6 +10590,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = lrigPaid.state;
         payLogs.push(`ルリグ${lrigDownCost.count}体をコストでダウン`);
       }
+      // lrigDownVariable: モーダルで選んだ0..N体を既存の共通支払い関数でダウンし、レベル合計を記録。
+      const lrigDownVariable = cost?.lrigDownVariable;
+      if (lrigDownVariable) {
+        const count = signiOnPlayCharmTrashVar;
+        if (count < lrigDownVariable.min) return;
+        const lrigPaid = payLrigDownCost(paid, { count }, battleCardMap);
+        if (!lrigPaid) return;
+        const levelSum = lrigPaid.paidCards.reduce((sum, id) => {
+          const lv = Number(battleCardMap.get(getCardNum(id))?.Level);
+          return sum + (Number.isFinite(lv) ? lv : 0);
+        }, 0);
+        paid = { ...lrigPaid.state, last_lrig_down_level_sum: levelSum };
+        payLogs.push(`ルリグ${count}体（レベル合計${levelSum}）をコストでダウン`);
+      }
       // ライフコスト: クラッシュだけは check/pending に載せ、既存ライフバースト処理へ接続する。
       if ((cost?.lifeTrash ?? 0) + (cost?.life_crash ?? 0) + (cost?.lifeToHand ?? 0) > 0) {
         const lifePaid = payLifeOnPlayCost(paid, cost!);

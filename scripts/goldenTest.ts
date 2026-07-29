@@ -14745,8 +14745,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 963, '任意costあり（第14波の「あなたのシグニの下」追加を含む）');
-    eq(optionalNoCost.length, 18, '任意costなし（第14波でWXK08-082のコストを構造化後）');
+    eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
+    eq(optionalNoCost.length, 16, '任意costなし（第15波で可変枚数2効果を構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14775,17 +14775,17 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
       'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
       'fieldToLrigTrash',
-      'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
+      'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
-      'deckTrash', 'charmTrash', 'trashArtsFromLrigDeck', 'removeOppVirus',
+      'deckTrash', 'charmTrash', 'charmTrashVariable', 'trashArtsFromLrigDeck', 'removeOppVirus',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 963, '母集団');
-    eq(mapped.length, 959, 'OPTIONAL_COST へ写せる＝「あなたのシグニの下」2件を共有支払いへ追加');
+    eq(optionalCost.length, 965, '母集団');
+    eq(mapped.length, 961, 'OPTIONAL_COST へ写せる＝第15波の可変枚数2効果を追加');
     eq(optionalCost.length - mapped.length, 4, '未対応コストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -14919,7 +14919,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 12, '包む＝真に任意5効果＋action自身が選択・徴収する可変捨て7効果');
-    eq(deferred, 6, '据え置き＝新機構が要るため cost 未表現の6効果（parser 在庫）');
+    eq(deferred, 4, '据え置き＝明示保留した cost 未表現の4効果（parser 在庫）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -15481,10 +15481,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     } finally { cursor = savedCursor; }
   });
 
-  test('(xxix)(2) 第14波後の新機構待ち6効果は costUnparsed のまま保持する', () => {
+  test('(xxix)(2) 第15波後の明示保留4効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
-      'WXK03-070-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
-      'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
+      'WXK03-070-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
     ];
     for (const effectId of deferredIds) {
       const cardNum = effectId.replace(/-E\d+$/, '');
@@ -17209,6 +17208,66 @@ test('task12(xxix)(1) wave14 E2E: 実戦同様のシグニゾーンからON_PLAY
       ok(!blocked.done && blocked.pending.type === 'CHOOSE', `${effectId}: 不足時もskip`);
       if (!blocked.done && blocked.pending.type === 'CHOOSE') {
         eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${effectId}: 不足時pay unavailable`);
+      }
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(xxix)(1) wave15 E2E: 可変チャーム/ルリグダウンを0・途中・最大で支払い倍率へ反映', () => {
+  const savedCursor = cursor;
+  try {
+    const oppSigni = findCard(c => c.Type === 'シグニ');
+    for (const n of [0, 1, 3]) {
+      const cardNum = 'WX07-045';
+      const owner = mkState({ signi: [cardNum, null, null] });
+      owner.field.signi_charms = ['CHARM-A', 'CHARM-B', 'CHARM-C'];
+      const other = mkState({ signi: [oppSigni, null, null] });
+      const entry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, owner, other, 'host', { placedByEffect: true, sourceIsSigni: true },
+      ).entries.find(e => e.effectId === 'WX07-045-E1');
+      ok(!!entry, `WX07-045-E1: collector収集 n=${n}`);
+      const ctx = { ...mkCtx({}, {}, cardNum), ownerState: owner, otherState: other };
+      const offered = executeEffect(entry!.effect, ctx);
+      ok(!offered.done && offered.pending.type === 'CHOOSE', `WX07-045-E1: 枚数CHOOSE n=${n}`);
+      if (!offered.done && offered.pending.type === 'CHOOSE') {
+        const paid = finish(resumeChoose(`variable_cost_${n}`, offered.pending, {
+          ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+        }), ctx);
+        eq(paid.ownerState.last_charm_trash_count, n, `WX07-045-E1: 支払い枚数記録 n=${n}`);
+        eq(paid.ownerState.trash.length, owner.trash.length + n, `WX07-045-E1: 実トラッシュ n=${n}`);
+        const charmDelta = (paid.otherState.temp_power_mods ?? [])
+          .filter(m => m.cardNum === oppSigni).reduce((sum, m) => sum + m.delta, 0);
+        eq(charmDelta, -7000 * n, `WX07-045-E1: -7000×${n}`);
+      }
+    }
+
+    const lrigByLevel = [1, 2, 3].map(level => findCard(c => c.Type === 'ルリグ' && Number(c.Level) === level));
+    for (const n of [0, 1, 3]) {
+      const cardNum = 'WX24-P4-103';
+      const owner = mkState({ signi: [cardNum, null, null] });
+      owner.field.lrig = [lrigByLevel[0]];
+      owner.field.assist_lrig_l = [lrigByLevel[1]];
+      owner.field.assist_lrig_r = [lrigByLevel[2]];
+      owner.field.lrig_down = owner.field.assist_lrig_l_down = owner.field.assist_lrig_r_down = false;
+      const other = mkState({ signi: [oppSigni, null, null] });
+      const entry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, owner, other, 'host', { placedByEffect: true, sourceIsSigni: true },
+      ).entries.find(e => e.effectId === 'WX24-P4-103-E1');
+      ok(!!entry, `WX24-P4-103-E1: collector収集 n=${n}`);
+      const ctx = { ...mkCtx({}, {}, cardNum), ownerState: owner, otherState: other };
+      const offered = executeEffect(entry!.effect, ctx);
+      ok(!offered.done && offered.pending.type === 'CHOOSE', `WX24-P4-103-E1: 枚数CHOOSE n=${n}`);
+      if (!offered.done && offered.pending.type === 'CHOOSE') {
+        const paid = finish(resumeChoose(`variable_cost_${n}`, offered.pending, {
+          ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+        }), ctx);
+        const levelSum = n === 0 ? 0 : n === 1 ? 1 : 6;
+        eq(paid.ownerState.last_lrig_down_level_sum, levelSum, `WX24-P4-103-E1: レベル合計 n=${n}`);
+        const lrigDelta = (paid.otherState.temp_power_mods ?? [])
+          .filter(m => m.cardNum === oppSigni).reduce((sum, m) => sum + m.delta, 0);
+        eq(lrigDelta, -1000 * levelSum, `WX24-P4-103-E1: -1000×レベル合計${levelSum}`);
       }
     }
   } finally {
