@@ -15196,6 +15196,94 @@ test('mandatory【出】先頭ゲート25効果: 通常召喚・効果配置の�
   }
 });
 
+test('(xlvi) 第15波: 歌本文の重複混入6枚は通常能力を保持し、E1とSONGを分離', () => {
+  const expected: Record<string, string[]> = {
+    'WX26-CP1-068': ['"ON_ATTACK_SIGNI"', '"type":"CHOOSE"', '"type":"DRAW"', '"type":"ENERGY_CHARGE_FROM_DECK"'],
+    'WX26-CP1-069': ['"ON_PLAY"', '"powerRange":{"max":5000}'],
+    'WX26-CP1-076': ['"ON_TURN_END"', '"id":"POWER_MOD_BY_HAND_COUNT"'],
+    'WX26-CP1-084': ['"ON_ATTACK_PHASE_START"', '"id":"OPTIONAL_TRASH_ENERGY_CLASS"', '"keyword":"ランサー"'],
+    'WX26-CP1-092': ['"ON_TURN_END"', '"type":"TRASH"', '"type":"LAST_PROCESSED_MATCHES"', '"delta":5000'],
+    'WX26-CP1-093': ['"ON_PLAY"', '"type":"TRASH_HAS_CARD"', '"delta":-5000', '"delta":-3000'],
+  };
+  for (const [cardNum, needles] of Object.entries(expected)) {
+    const effects = effectsMap.get(cardNum) ?? [];
+    const e1 = effects.find(e => e.effectId === `${cardNum}-E1`);
+    const song = effects.find(e => e.effectId === `${cardNum}-SONG`);
+    ok(!!e1, `${cardNum}: E1が残る`);
+    ok(!!song && song.effectType === 'SONG_ICON', `${cardNum}: SONGが別効果で残る`);
+    const e1Json = JSON.stringify(e1);
+    const songJson = JSON.stringify(song);
+    for (const needle of needles) ok(e1Json.includes(needle), `${cardNum}: 通常能力の ${needle} が残る`);
+    ok(!e1Json.includes('"keyword":"歌のカケラ"'), `${cardNum}: E1から歌キーワード残骸を除去`);
+    if (cardNum === 'WX26-CP1-068') ok(!e1Json.includes('"type":"BLOCK_ACTION"'), `${cardNum}: E1から歌のガード禁止を除去`);
+    if (cardNum === 'WX26-CP1-069') ok(!e1Json.includes('"powerRange":{"max":10000}'), `${cardNum}: E1から歌のバニッシュを除去`);
+    if (cardNum === 'WX26-CP1-076') ok(!e1Json.includes('"type":"GRANT_EFFECT"'), `${cardNum}: E1から歌の能力付与を除去`);
+    if (cardNum === 'WX26-CP1-084') eq((e1Json.match(/"keyword":"ランサー"/g) ?? []).length, 1, `${cardNum}: E1の本来のランサーだけ残る`);
+    if (cardNum === 'WX26-CP1-092') ok(!e1Json.includes('"type":"TRANSFER_TO_HAND"'), `${cardNum}: E1から歌の回収を除去`);
+    if (cardNum === 'WX26-CP1-093') eq((e1Json.match(/"type":"POWER_MODIFY"/g) ?? []).length, 2, `${cardNum}: E1は通常の-3000/-5000分岐だけ残る`);
+    ok(songJson.length > 0, `${cardNum}: SONG本文は空でない`);
+  }
+});
+
+test('(xlvi) 第15波 WX25-P3-052-E1: 既存語彙でpick→レベル合計の完全二分', () => {
+  const e = effectsMap.get('WX25-P3-052')?.find(x => x.effectId === 'WX25-P3-052-E1');
+  ok(!!e, 'E1が存在');
+  const json = JSON.stringify(e);
+  for (const needle of [
+    '"type":"REVEAL_AND_PICK"', '"revealCount":4', '"cardType":"シグニ"', '"pickCount":2',
+    '"pickUpTo":true', '"type":"ADD_TO_ENERGY"', '"position":"bottom"',
+    '"type":"LAST_PROCESSED_LEVEL_SUM"', '"operator":"lte"', '"value":4',
+    '"type":"TRANSFER_TO_HAND"', '"type":"ENERGY_CARD"', '"count":2', '"upToCount":true',
+    '"else":{"type":"DRAW","owner":"self","count":2}',
+  ]) ok(json.includes(needle), `構造に ${needle}`);
+  eq(cardMap.get('WX25-P3-052')?.Type, 'アシストルリグ', '発生源種別はアシストルリグ');
+});
+
+test('(xlvi) 第15波 WX25-P3-052-E1: 0枚pickは合計0で4以下枝、収支保存・複製0', () => {
+  const savedCursor = cursor;
+  try {
+    const action = effectsMap.get('WX25-P3-052')!.find(e => e.effectId === 'WX25-P3-052-E1')!.action;
+    const nonSigni = [...cardMap.values()].filter(c => c.Type !== 'シグニ').slice(0, 4).map((c, i) => `${c.CardNum}#z${i}`);
+    const energy = [SIGNI_L1, SIGNI_L2, SIGNI_L3].map((n, i) => `${n}#e${i}`);
+    const localMap = new InstanceMap(cardMap);
+    const source = 'WX25-P3-052#assist';
+    const ctx = mkCtx({ deckTop: nonSigni, hand: 0, energy: 0, assistL: [source] }, {}, source);
+    ctx.ownerState.energy = [...energy];
+    ctx.cardMap = localMap;
+    const beforeTotal = ctx.ownerState.deck.length + ctx.ownerState.hand.length + ctx.ownerState.energy.length;
+    const result = run(action, ctx);
+    eq(result.ownerState.energy.length, 1, '0枚pickでも4以下枝でエナ2枚まで手札へ');
+    eq(result.ownerState.hand.length, 2, '4以下枝で手札+2');
+    eq(result.ownerState.deck.length, ctx.ownerState.deck.length, 'pick 0枚なのでデッキ枚数不変');
+    eq(result.ownerState.deck.length + result.ownerState.hand.length + result.ownerState.energy.length, beforeTotal, 'デッキ/手札/エナ総数保存');
+    eq(new Set([...result.ownerState.deck, ...result.ownerState.hand, ...result.ownerState.energy]).size, beforeTotal, '複製0');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('(xlvi) 第15波 WX25-P3-052-E1: レベル合計5以上は2ドロー、収支保存・複製0', () => {
+  const savedCursor = cursor;
+  try {
+    const action = effectsMap.get('WX25-P3-052')!.find(e => e.effectId === 'WX25-P3-052-E1')!.action;
+    const picked = [`${SIGNI_L2}#p2`, `${SIGNI_L3}#p3`];
+    const rest = [...cardMap.values()].filter(c => c.Type !== 'シグニ').slice(0, 2).map((c, i) => `${c.CardNum}#r${i}`);
+    const localMap = new InstanceMap(cardMap);
+    const source = 'WX25-P3-052#assist';
+    const ctx = mkCtx({ deckTop: [...picked, ...rest], hand: 0, energy: 0, assistL: [source] }, {}, source);
+    ctx.cardMap = localMap;
+    const beforeTotal = ctx.ownerState.deck.length + ctx.ownerState.hand.length + ctx.ownerState.energy.length;
+    const result = run(action, ctx);
+    eq(result.ownerState.energy.length, 2, 'レベル2+3のpickをエナへ');
+    eq(result.ownerState.hand.length, 2, '合計5以上枝で2ドロー');
+    eq(result.ownerState.deck.length, ctx.ownerState.deck.length - 4, 'pick2枚＋draw2枚でデッキ-4');
+    eq(result.ownerState.deck.length + result.ownerState.hand.length + result.ownerState.energy.length, beforeTotal, 'デッキ/手札/エナ総数保存');
+    eq(new Set([...result.ownerState.deck, ...result.ownerState.hand, ...result.ownerState.energy]).size, beforeTotal, '複製0');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

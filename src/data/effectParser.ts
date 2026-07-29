@@ -3662,6 +3662,42 @@ function applyFieldSigniNameLookPickWave14(cardNum: string, effects: CardEffect[
   }
 }
 
+// タスク12(xlvi) 第15波。WX25-P3-052 は公開4枚からシグニ2枚までをエナへ置き、
+// その pick 結果のレベル合計で「4以下／5以上」を二分する。
+// REVEAL_AND_PICK は選んで移動したカードを lastProcessedCards に残すため snapshot 新設は不要。
+// またレベル合計は非負整数なので、lte:4 の else が原文の gte:5 と完全に同値になる。
+// 2本の独立 CONDITIONAL にすると先のエナ→手札が lastProcessedCards を上書きし得るため、
+// 単一 CONDITIONAL の then/else にして pick snapshot を評価する時点を1回に固定する。
+function applyPickedLevelSumLookPickWave15(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum !== 'WX25-P3-052') return;
+  const e = effects.find(effect => effect.effectId === 'WX25-P3-052-E1');
+  if (!e) return;
+  e.action = {
+    type: 'SEQUENCE',
+    steps: [
+      {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 4,
+        filter: { cardType: 'シグニ' },
+        pickCount: 2,
+        pickUpTo: true,
+        then: { type: 'ADD_TO_ENERGY', owner: 'self' },
+        remainder: { location: 'deck', position: 'bottom' },
+      } as RevealAndPickAction,
+      {
+        type: 'CONDITIONAL',
+        condition: { type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'lte', value: 4 },
+        then: {
+          type: 'TRANSFER_TO_HAND',
+          source: { type: 'ENERGY_CARD', owner: 'self', count: 2, upToCount: true },
+        },
+        else: { type: 'DRAW', owner: 'self', count: 2 },
+      },
+    ],
+  };
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7802,6 +7838,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyLookPickProportionalDiscardWave12(card.CardNum, effects);
   applyDeclaredColorLookPickWave13(card.CardNum, effects);
   applyFieldSigniNameLookPickWave14(card.CardNum, effects);
+  applyPickedLevelSumLookPickWave15(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
