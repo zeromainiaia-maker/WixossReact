@@ -1771,8 +1771,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ACTIVATE_EICHI_ABILITY' } as StubAction;
   }
 
-  // ---- アタックフェイズの間レベル参照変更 ----
-  if (t.match(/アタックフェイズの間.*レベルを参照する場合.*レベルは.*として扱う/)) {
+  // ---- 【英知】条件でだけレベルを読み替える（位相限定の有無は収集時に原文から読む）----
+  // 「アタックフェイズの間、…レベルは１～９であるとして扱う」（WX21-029/WXEX2-47）に加え、
+  // **位相限定なしの**「【英知】能力の条件が…レベルは１であり２であり３であるとして扱う」（WX20-044-CB）も拾う。
+  // 後者は従来 RULE_REMINDER_TEXT に落ちて**能力が丸ごと未実装**だった。
+  // ⚠「あなたの能力か効果１つによって…いずれかのレベル１つとして扱ってもよい」（LEVEL_REFERENCE_OVERRIDE）
+  //   とは別物なので、【英知】能力の条件 か アタックフェイズの間 を必須アンカーにする。
+  if (t.match(/アタックフェイズの間.*レベルを参照する場合.*レベルは.*として扱う/)
+      || t.match(/【英知】能力の条件が.*レベルを参照する場合.*レベルは.*として扱う/)) {
     return { type: 'STUB', id: 'ATTACK_PHASE_LEVEL_OVERRIDE' } as StubAction;
   }
 

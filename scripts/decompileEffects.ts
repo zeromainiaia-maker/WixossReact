@@ -1272,6 +1272,9 @@ function actionJa(a?: Action, effectType?: string): string {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
+      // 英知条件でのレベル読み替え（実装済み＝collectAttackPhaseLevelOverrides→eichi_level_options）。
+      // 旧ラベルは STUBS.md 由来の「ダメージ特殊」で、内容と無関係な誤表示だった。
+      if (a.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') return '【英知】条件の判定でこのシグニのレベルを原文どおりの複数値として扱う';
       // アーツ/スペルの使用コスト改変句（ARTS_COST_REDUCTION_BY_EFFECT/BY_CENTER_LRIG）。
       // 軽減/増加量は支払い時に computeArtsEffectiveCost が原文 EffectText を再パースして算出する
       // ため JSON には数値が無い。逆翻訳は原文の「…使用コストは…減る/増える/になる」文を復元する。

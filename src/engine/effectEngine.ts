@@ -295,23 +295,35 @@ export function checkActiveCondition(
     }
 
     case 'EICHI_LEVEL_SUM': {
-      // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計
+      // 英知=N: 自分のフィールドの＜英知＞シグニのレベル合計が**ちょうど N**（カードのルール補足
+      // 「レベルの合計がちょうどNであるかぎり有効になる」）。
+      // ⚠ 合計は単一値ではなく**取りうる値の集合**になりうる＝「このシグニのレベルは１であり２であり
+      //   ３であるとして扱う」札があると、1体で3通りの合計が同時に成立する（WX20-044-CB のルール補足
+      //   「【英知＝６】と【英知＝７】と【英知＝８】はすべてその条件を満たす」）。
       const eichiLevelOverrides = ownerState.attack_phase_level_overrides ?? {};
-      const eichiSum = ownerState.field.signi.reduce((sum, stack) => {
+      const eichiOptions = ownerState.eichi_level_options ?? {};
+      let eichiSums = new Set<number>([0]);
+      for (const stack of ownerState.field.signi) {
         const top = stack?.at(-1);
-        if (!top) return sum;
+        if (!top) continue;
         const card = cardMap.get(top);
-        if (!card?.CardClass?.includes('英知')) return sum;
-        const level = eichiLevelOverrides[top] ?? (parseInt(card.Level ?? '0') || 0);
-        return sum + level;
-      }, 0);
+        if (!card?.CardClass?.includes('英知')) continue;
+        const opts = eichiOptions[top] ?? [eichiLevelOverrides[top] ?? (parseInt(card.Level ?? '0') || 0)];
+        const next = new Set<number>();
+        for (const base of eichiSums) for (const o of opts) next.add(base + o);
+        eichiSums = next;
+      }
+      const eichiSum = Math.max(...eichiSums);
+      const eichiMin = Math.min(...eichiSums);
       switch (cond.operator) {
+        // eq は集合への所属。それ以外は「満たしうるか」＝集合の最大/最小で判定する
+        // （現データの英知条件はすべて eq。他の演算子は将来用の素直な拡張）。
+        case 'eq':  return eichiSums.has(cond.value);
+        case 'neq': return eichiSums.size > 1 || !eichiSums.has(cond.value);
         case 'gte': return eichiSum >= cond.value;
-        case 'lte': return eichiSum <= cond.value;
         case 'gt':  return eichiSum >  cond.value;
-        case 'lt':  return eichiSum <  cond.value;
-        case 'eq':  return eichiSum === cond.value;
-        case 'neq': return eichiSum !== cond.value;
+        case 'lte': return eichiMin <= cond.value;
+        case 'lt':  return eichiMin <  cond.value;
       }
       return false;
     }
@@ -2806,28 +2818,48 @@ export function collectProtectedZones(
 }
 
 /**
- * ATTACK_PHASE_LEVEL_OVERRIDE: アタックフェイズ中に英知レベルをオーバーライドするシグニを収集。
- * CardNum → 使用するレベル（範囲の最大値）のマップを返す。
+ * ATTACK_PHASE_LEVEL_OVERRIDE: 【英知】条件の判定でだけレベルを読み替えるシグニを収集する。
+ * CardNum → **取りうるレベル群**（`number[]`）を返す。
+ *
+ * ⚠ 原文は「このシグニのレベルは１～９であるとして扱う」＝**そのどれでもよい**（合計は集合になる）。
+ *   旧実装は範囲の**最大値1つ**へ潰しており、`WX21-029` 自身の【出】英知＝８が
+ *   （単独設置時の合計が常に9になるため）**永久に成立しない**状態だった。
+ * ⚠ 位相（アタックフェイズ限定かどうか）も原文から読む＝「アタックフェイズの間」を書いていない
+ *   `WX20-044-CB` は常時有効。呼び出し側は位相を渡すだけでよい。
  */
 export function collectAttackPhaseLevelOverrides(
   state: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
-): Record<string, number> {
-  const overrides: Record<string, number> = {};
+  turnPhase?: string,
+): Record<string, number[]> {
+  const overrides: Record<string, number[]> = {};
   const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const inAttackPhase = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(turnPhase ?? '');
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
     if (!top) continue;
-    const effs = effectsMap.get(top) ?? [];
-    for (const eff of effs) {
+    for (const eff of effectsMap.get(top) ?? []) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB' || act.id !== 'ATTACK_PHASE_LEVEL_OVERRIDE') continue;
       const txt = (cardMap.get(top)?.EffectText ?? '') + ' ' + (cardMap.get(top)?.BurstText ?? '');
-      const m = txt.match(/レベルは([０-９\d]+)～([０-９\d]+)であるとして扱う/);
-      if (m) {
-        overrides[top] = parseInt(toHW(m[2]));
+      // 「アタックフェイズの間」を明記している札はその位相でだけ有効
+      if (/アタックフェイズの間/.test(txt) && !inAttackPhase) continue;
+      // 形1: 「レベルはN～Mであるとして扱う」＝N..M のどれでも
+      const range = txt.match(/レベルは([０-９\d]+)～([０-９\d]+)であるとして扱う/);
+      if (range) {
+        const lo = parseInt(toHW(range[1])), hi = parseInt(toHW(range[2]));
+        if (!isNaN(lo) && !isNaN(hi) && hi >= lo) {
+          overrides[top] = Array.from({ length: hi - lo + 1 }, (_v, i) => lo + i);
+        }
+        continue;
+      }
+      // 形2: 「レベルはAでありBでありCであるとして扱う」＝列挙（WX20-044-CB）
+      const enumM = txt.match(/レベルは((?:[０-９\d]+であり)+[０-９\d]+)であるとして扱う/);
+      if (enumM) {
+        const vals = [...enumM[1].matchAll(/[０-９\d]+/g)].map(x => parseInt(toHW(x[0]))).filter(n => !isNaN(n));
+        if (vals.length > 0) overrides[top] = [...new Set(vals)];
       }
     }
   }

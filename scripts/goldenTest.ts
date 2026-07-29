@@ -16,7 +16,7 @@ import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, Active
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -601,6 +601,66 @@ test('§6.3 runtime GRANT_EFFECT: instanceId付与CONT/AUTOと強制正面アタ
   } finally {
     cursor = savedCursor;
   }
+});
+
+// ── 英知（EICHI_LEVEL_SUM）＝「レベルの合計が**ちょうど**N」＋レベル読み替えで合計は**集合**になる ──
+// カード自身のルール補足が仕様を明記している：
+//   「（あなたの場にある＜英知＞のシグニのレベルの合計がちょうどNであるかぎり有効になる）」
+//   「（例えばこのシグニの他にレベル２と３の＜英知＞のシグニがある場合、【英知＝６】と【英知＝７】と
+//     【英知＝８】はすべてその条件を満たす）」＝ WX20-044-CB
+// 旧実装は範囲を**最大値1つ**へ潰しており、WX21-029 自身の【出】英知＝８が永久に成立しなかった。
+test('英知: レベル読み替えは「取りうるレベル群」として収集され、位相限定も原文から読む', () => {
+  const st = (nums: (string | null)[]) => mkState({ signi: nums });
+  // WX21-029「アタックフェイズの間、…レベルは１～９であるとして扱う」
+  const atk = collectAttackPhaseLevelOverrides(st(['WX21-029', null, null]), effectsMap, cardMap, 'ATTACK_SIGNI');
+  eq(JSON.stringify(atk['WX21-029']), JSON.stringify([1, 2, 3, 4, 5, 6, 7, 8, 9]), '範囲は全展開（最大値へ潰さない）');
+  const main = collectAttackPhaseLevelOverrides(st(['WX21-029', null, null]), effectsMap, cardMap, 'MAIN');
+  eq(Object.keys(main).length, 0, '「アタックフェイズの間」の札はメインでは無効');
+  // WX20-044-CB「レベルは１であり２であり３であるとして扱う」＝位相限定なし・範囲表記でもない
+  const enumOv = collectAttackPhaseLevelOverrides(st(['WX20-044-CB', null, null]), effectsMap, cardMap, 'MAIN');
+  eq(JSON.stringify(enumOv['WX20-044-CB']), JSON.stringify([1, 2, 3]), '「AでありBでありC」列挙も拾う（位相限定なしなのでメインでも有効）');
+});
+
+test('英知: 合計は集合＝カードのルール補足の実例（＝6/＝7/＝8 がすべて成立）を再現する', () => {
+  const savedCursor = cursor;
+  try {
+    // 補足の実例＝「このシグニ(1/2/3)の他にレベル２と３の＜英知＞のシグニがある場合」
+    const eichiOfLevel = (n: number) => findCard(c =>
+      c.Type === 'シグニ' && (c.CardClass ?? '').includes('英知') && c.Level === String(n)
+      && !(c.EffectText ?? '').includes('として扱う'));
+    const field = ['WX20-044-CB', eichiOfLevel(2), eichiOfLevel(3)];
+    const state = mkState({ signi: field });
+    const opts = collectAttackPhaseLevelOverrides(state, effectsMap, cardMap, 'MAIN');
+    const withOpts = { ...state, eichi_level_options: opts };
+    const holds = (v: number) => checkActiveCondition(
+      { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: v } as ActiveCondition,
+      withOpts, mkState({}), true, cardMap, 'WX20-044-CB');
+    for (const v of [6, 7, 8]) ok(holds(v), `英知＝${v} は成立（ルール補足の明示例）`);
+    for (const v of [5, 9]) ok(!holds(v), `英知＝${v} は不成立（合計の集合は {6,7,8}）`);
+  } finally { cursor = savedCursor; }
+});
+
+test('英知: WX21-029 自身の【出】英知＝８がアタックフェイズに成立する（旧実装では永久に不成立）', () => {
+  const savedCursor = cursor;
+  try {
+    const state = mkState({ signi: ['WX21-029', null, null] });
+    const opts = collectAttackPhaseLevelOverrides(state, effectsMap, cardMap, 'ATTACK_SIGNI');
+    const withOpts = { ...state, eichi_level_options: opts };
+    const holds = (v: number) => checkActiveCondition(
+      { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: v } as ActiveCondition,
+      withOpts, mkState({}), true, cardMap, 'WX21-029');
+    for (const v of [1, 5, 8, 9]) ok(holds(v), `英知＝${v} は成立（レベル1〜9として扱う）`);
+    ok(!holds(10), '英知＝10 は不成立（上限を超える）');
+    // 読み替えの無い素の英知シグニは印刷レベルちょうどでのみ成立＝「ちょうどN」の確認
+    const plain = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('英知')
+      && c.Level === '3' && !(c.EffectText ?? '').includes('として扱う'));
+    const plainState = mkState({ signi: [plain, null, null] });
+    const holdsPlain = (v: number) => checkActiveCondition(
+      { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: v } as ActiveCondition,
+      plainState, mkState({}), true, cardMap, plain);
+    ok(holdsPlain(3), '素のLv3英知シグニ1体なら英知＝3が成立');
+    ok(!holdsPlain(2) && !holdsPlain(4), '英知は「ちょうどN」＝2も4も不成立（gte ではない）');
+  } finally { cursor = savedCursor; }
 });
 
 test('§3 task8(c) attack geometry: six cards use self-targeted multi/adjacent attack capabilities and EICHI gates', () => {

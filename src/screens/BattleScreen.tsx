@@ -4044,11 +4044,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnerTurn = bs.active_user_id === entry.playerId;
       const who = entry.playerId === user.id ? '自分' : '相手';
       appendBattleLogs([`[${who}] ${entry.label}`], { defer: true });
-      // ATTACK_PHASE_LEVEL_OVERRIDE: アタックフェイズ中は英知レベルオーバーライドを計算
-      const isAttackPhaseBS = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase ?? '');
-      const ownerLevelOverrides = isAttackPhaseBS ? collectAttackPhaseLevelOverrides(ownerState, effectsMap, battleCardMap) : {};
+      // 【英知】条件のレベル読み替えを収集（位相限定かどうかは収集側が原文から判定する）。
+      // 値は**取りうるレベル群**なので `eichi_level_options` に入れる（単一値の
+      // `attack_phase_level_overrides` は SET_BASE_LEVEL 等が使う別物）。
+      const ownerLevelOverrides = collectAttackPhaseLevelOverrides(ownerState, effectsMap, battleCardMap, bs.turn_phase ?? undefined);
       const ownerStateForCtx = Object.keys(ownerLevelOverrides).length > 0
-        ? { ...ownerState, attack_phase_level_overrides: ownerLevelOverrides } : ownerState;
+        ? { ...ownerState, eichi_level_options: ownerLevelOverrides } : ownerState;
       const ctxPowers = calcFieldPowers(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap, bs.turn_phase);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手（otherState）の保護ゾーンを動的計算してctxに渡す
       const otherProtectedZones = collectProtectedZones(otherState, battleCardMap, effectsMap);

@@ -305,8 +305,13 @@ export interface PlayerState {
   face_down_signi?: string[];
   // このターン、自分の効果による特定シグニへのパワー-を2倍にする（DOUBLE_OWN_POWER_MINUS）
   double_power_minus_targets?: string[];
-  // アタックフェイズ中の英知レベルオーバーライド（CardNum → 扱うレベル）
+  // 基本レベルの一時変更（CardNum → 扱うレベル。SET_BASE_LEVEL/CHANGE_BASE_LEVEL 等が単一値で書く）
   attack_phase_level_overrides?: Record<string, number>;
+  // 【英知】条件の判定でだけ「このシグニのレベルは１であり２であり３である」のように**同時に複数値**として
+  // 扱う指定（CardNum → 取りうるレベル群）。英知の合計は単一値ではなく**取りうる合計の集合**になり、
+  // 「例えばレベル２と３の＜英知＞のシグニがある場合、【英知＝６】【＝７】【＝８】はすべて条件を満たす」
+  // （WX20-044-CB のルール補足）。上の単一値オーバーライドとは意味が違うので別フィールドで持つ。
+  eichi_level_options?: Record<string, number[]>;
   // COPY_SIGNI: このターン、フィールドシグニが別のカードとして扱われる（field_cardNum → copy_source_cardNum）
   card_identity_overrides?: Record<string, string>;
   // DEPLOY_RESTRICT: このターンと次のターン、このパワー以上のシグニを場に出せない（自ターン基準）
