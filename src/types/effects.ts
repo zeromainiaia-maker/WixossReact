@@ -319,7 +319,7 @@ export interface EffectCost {
   discard?: number;       // 手札を任意のカードN枚トラッシュ
   discardFilter?: TargetFilter; // discardで捨てられるカードの制限（「手札から＜天使＞のシグニを１枚捨てる」等）
   discardGroups?: { count: number; filter?: TargetFilter }[]; // 混合手札捨てコスト（「スペル１枚と＜原子＞のシグニ１枚を捨てる」等、異なるフィルタの組）。discard/discardFilterと併用不可
-  energyTrash?: { count: number; filter?: TargetFilter }; // エナゾーンから指定カードN枚をトラッシュ（色支払いでなくカード指定。「エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く」等）
+  energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // エナゾーンから指定カードN枚をトラッシュ（色支払いでなくカード指定。「エナゾーンから＜天使＞のシグニ３枚をトラッシュに置く」等）
   energyTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタのエナカードを組で指定
   handDiscardSigni?: { color?: string | string[]; story?: string | string[]; count: number; level?: number }; // 手札から指定色/＜クラス＞のシグニをN枚トラッシュ（ルリグ【起】用）。配列はOR条件（「＜鉱石＞か＜宝石＞」等）
   banish_self?: boolean;  // 自身をバニッシュ
@@ -335,7 +335,7 @@ export interface EffectCost {
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean }; // 場の自分シグニN体をトラッシュ（「他の＜原子＞のシグニ１体を場からトラッシュに置く」等）
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[]; // 異なるフィルタの場シグニを組で指定（「＜アーム＞1体と＜ウェポン＞1体を場からトラッシュ」WX04-040-E2）。fieldTrashと併用不可
   handToEnergy?: { count: number; filter?: TargetFilter };    // 手札からN枚をエナゾーンに置く
-  handToUnderSelf?: { count: number; filter?: TargetFilter }; // 手札からN枚をこのシグニの下に置く
+  handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // 手札からN枚をこのシグニの下に置く
   lrigDown?: { count: number; centerOnly?: boolean; level?: number }; // アップ状態の自分ルリグN体をダウン（センター→アシストL→Rの順で自動支払い）。centerOnly=「センタールリグ」限定・level=「レベルNのルリグ」限定（WXDi-P02-016/P03-009/P04-042。指定時は該当レベルのゾーンだけが支払い候補）
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
@@ -1816,7 +1816,7 @@ export interface StubAction {
   /** OPTIONAL_COST: 手札からエナゾーンへ置く任意コスト。 */
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
-  handToUnderSelf?: { count: number; filter?: TargetFilter };
+  handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
@@ -1847,7 +1847,7 @@ export interface StubAction {
   /** OPTIONAL_COST: 対象のレベル1につき繰り返す単位エナコスト（例 ['無']）。 */
   costColorsPerTargetLevel?: string[];
   /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
-  energyTrash?: { count: number; filter?: TargetFilter };
+  energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: energyTrash.count を対象シグニのレベルにする。 */
   energyTrashCountFromTargetLevel?: boolean;
   /** OPTIONAL_COST: energyTrash の候補を「対象と同じレベル」に限定（「それと同じレベルの緑のシグニ」）。 */

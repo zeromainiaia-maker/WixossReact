@@ -392,11 +392,16 @@ function parseCost(costStr: string): EffectCost | undefined {
     };
   }
   // 手札から＜story＞のシグニN枚をこのシグニの下に置く → handToUnderSelf
-  const htuM = costStr.match(/手札から(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)枚をこのシグニの下に置く/);
+  const htuM = costStr.match(/手札から(?:(共通するクラスを持たない)([白赤青緑黒])の|(?:＜([^＞]+)＞の)?)シグニ([０-９\d]+)枚をこのシグニの下に置く/);
   if (htuM) {
     cost.handToUnderSelf = {
-      count: parseNum(htuM[2]),
-      filter: { cardType: 'シグニ', ...(htuM[1] ? { story: htuM[1] } : {}) },
+      count: parseNum(htuM[4]),
+      filter: {
+        cardType: 'シグニ',
+        ...(htuM[2] ? { color: htuM[2] } : {}),
+        ...(htuM[3] ? { story: htuM[3] } : {}),
+      },
+      ...(htuM[1] ? { selectionConstraint: { distinct: 'class' } } : {}),
     };
   }
   // 場のチャームN枚をトラッシュ → charmTrash
@@ -407,7 +412,7 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.energyTrashAll = true;
   }
   // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash（前置き形）
-  const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(?:それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
+  const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(それぞれ異なるクラスを持つ|共通する色を持つ|それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
   // エナゾーンから後置き形（「シグニN枚をエナゾーンからトラッシュに置く」）
   const etRevM = !etM && !cost.energyTrashAll ? costStr.match(/(?:(?:それぞれ?レベルの異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
   // エナゾーンから＜クラス＞のカードN枚をトラッシュ（カード型）
@@ -416,9 +421,17 @@ function parseCost(costStr: string): EffectCost | undefined {
   const etKwM = !etM && !etRevM && !etCardM && !cost.energyTrashAll ? costStr.match(/エナゾーンから【([^】]+)】を持つカード([０-９\d]+)枚をトラッシュに置く/) : null;
   if (etM) {
     const etFilter: TargetFilter = { cardType: 'シグニ' };
-    if (etM[1]) etFilter.level = parseNum(etM[1]);
-    if (etM[2]) etFilter.story = etM[2];
-    cost.energyTrash = { count: parseNum(etM[3]), filter: etFilter };
+    if (etM[2]) etFilter.level = parseNum(etM[2]);
+    if (etM[3]) etFilter.story = etM[3];
+    cost.energyTrash = {
+      count: parseNum(etM[4]),
+      filter: etFilter,
+      ...(etM[1] === 'それぞれ異なるクラスを持つ'
+        ? { selectionConstraint: { distinct: 'class' } }
+        : etM[1] === '共通する色を持つ'
+          ? { selectionConstraint: { sharedColor: 'all' } }
+          : {}),
+    };
   } else if (etRevM) {
     const etRFilter: TargetFilter = { cardType: 'シグニ' };
     if (etRevM[1]) etRFilter.story = etRevM[1];

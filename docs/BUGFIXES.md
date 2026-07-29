@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第11波：相互制約つきコスト4効果を構造化（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
+
+- `EffectCost.energyTrash`／`handToUnderSelf` に既存 `SelectionConstraint` を通し、`StubAction`→`OptionalCostSpec`→支払可否→`TRASH`／`PLACE_UNDER_SIGNI` の選択まで配線。可否判定は単純枚数ではなく、制約を満たす部分集合の存在を backtracking で確認する。
+- `distinct:'class'` は既存 `satisfiesSelectionConstraint` が複数クラスを集合化し、カード対ごとの共通クラスを拒否するため「共通するクラスを持たない」と一致。`PLACE_UNDER_SIGNI` は既存の `selectOrInteract(...selectionConstraint)` 経路を使用する。
+- 採用：`WXDi-D01-017-E1`／`WXDi-P00-022-E2`（異なるクラス3枚）、`WX25-P1-090-E2`（共通クラスを持たない緑2枚）、`WXK09-032-E1`（共通色2枚）の cost 構造化。前3件は collector から支払いまで実働。`WXK09-032-E1` は本体の「支払ったシグニのレベル合計」参照が live action／engine に無いため `OPTIONAL_ON_PLAY_COST_REF_DEFERRED` へ登録し、安全側に不発維持。
+- 生 parse の live effect diff は changed 4／added 0／removed 0、対象4件のみ・outlier 0。JSON の連続 `?`／U+FFFD 新規出現はいずれも0。同型★0。census 1399→1397（コスト語彙の構造化による計器改善を含む）。
+- 見送り：段階2 `WXK03-070-E1`、段階3 `WX07-045-E1`／`WX24-P4-103-E1` は未着手。スコープ外7効果も不変。PLAN／PLAN_PROGRESS、通常召喚UI、commit／push は未変更。
+- 🔴**Claude 検証で是正1件＝文字化けの再発（第10波と同型・別ファイル）**。`scripts/vocabCensus.ts` の `BASELINE_HIGH` へ**今回追記したコメント冒頭だけ**が `2026-07-30 ???12(xxix)(1) ?11?: …` と CP932 で潰れていた（既存の履歴部分は無傷＝新規に書いた文字列だけが壊れる）。第10波の教訓を受けて入れたエンコーディング検査は **`public/data/effects_*.json` しか見ていなかった**ため素通りした。**検査対象は「そのバッチで書き換えた全ファイル」に広げる**＝`git diff --name-only` の全件について `U+FFFD` と 2文字以上連続の `?` をベースライン比で数える。ゲートには検出器が無く、typecheck も lint もコメント内の文字化けは通す。減少内訳（実働3効果／保留1効果）を明記した文へ書き直した。
+
 ## 任意【出】ゾーン徴収4語彙・12効果を engine Pattern⑤へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第10波・Codex）
 
 - `OptionalCostSpec`／`resolveOptionalCostSpec`／`canAffordOptionalCostSpec`／`optionalCostPaySteps` と `optionalOnPlayCostStub.SUPPORTED` に `trashArtsFromLrigDeck` 6効果、`deckTrash` 2効果、`charmTrash` 1効果、`removeOppVirus` 3効果を追加。効果配置されたシグニの任意【出】も `collectPlacedSelfOnPlayTriggers` → `SEQUENCE[OPTIONAL_COST, 本体]` → Pattern⑤で支払い可能になった。

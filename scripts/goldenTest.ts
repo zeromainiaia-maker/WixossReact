@@ -14744,8 +14744,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 958, '任意costあり（可変捨て2効果をaction徴収へ移行後）');
-    eq(optionalNoCost.length, 23, '任意costなし（可変捨て2効果をaction徴収へ移行後）');
+    eq(optionalCost.length, 962, '任意costあり（第11波の相互制約コスト4効果を含む）');
+    eq(optionalNoCost.length, 19, '任意costなし（相互制約コスト4効果を構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14782,9 +14782,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 950, 'OPTIONAL_COST へ写せる＝ゾーン徴収12件を共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 8, 'wave10採用後も表現できないコストだけを安全側に据え置く');
+    eq(optionalCost.length, 962, '母集団');
+    eq(mapped.length, 953, 'OPTIONAL_COST へ写せる＝相互制約コスト3件を共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 9, '参照未解決1件を含む表現不能コストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14794,7 +14794,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
       const allSupported = keys.every(k => SUPPORTED.has(k));
-      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1';
+      const semanticallySafe = !['WXDi-P16-080-E1', 'WXK09-032-E1'].includes(e.effectId);
       eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0 && semanticallySafe,
         `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
     }
@@ -14918,7 +14918,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 12, '包む＝真に任意5効果＋action自身が選択・徴収する可変捨て7効果');
-    eq(deferred, 11, '据え置き＝新機構が要るため cost 未表現の11効果（parser 在庫）');
+    eq(deferred, 7, '据え置き＝新機構が要るため cost 未表現の7効果（parser 在庫）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -15225,9 +15225,106 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(p16Result.ownerState.trash.length, 0, 'WXDi-P16-038-E1: 0枚捨て');
   });
 
-  test('(xxix)(2) 新機構待ち11効果は costUnparsed のまま保持する', () => {
+  test('(xxix)(1) 第11波: 相互制約つきコスト4効果を構造化し、参照未解決1件だけ収集保留', () => {
+    const expected: Record<string, import('../src/types/effects').EffectCost> = {
+      'WXDi-D01-017-E1': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },
+      'WXDi-P00-022-E2': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },
+      'WX25-P1-090-E2': { handToUnderSelf: { count: 2, filter: { cardType: 'シグニ', color: '緑' }, selectionConstraint: { distinct: 'class' } } },
+      'WXK09-032-E1': { energyTrash: { count: 2, filter: { cardType: 'シグニ' }, selectionConstraint: { sharedColor: 'all' } } },
+    };
+    for (const [effectId, cost] of Object.entries(expected)) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live 効果が存在`);
+      eq(JSON.stringify(effect!.cost), JSON.stringify(cost), `${effectId}: cost`);
+      ok(!effect!.costUnparsed, `${effectId}: costUnparsed を除去`);
+      const collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, mkState({ signi: [cardNum, null, null] }), mkState(), 'host',
+        { placedByEffect: true, sourceIsSigni: false },
+      ).entries.some(e => e.effectId === effectId);
+      eq(collected, effectId !== 'WXK09-032-E1',
+        `${effectId}: 参照を解決できる3件だけ実戦 collector で発火`);
+    }
+  });
+
+  test('(xxix)(1) 第11波: distinct class コストは成立集合だけ支払え、不正集合を拒否する', () => {
+    const savedCursor = cursor;
+    try {
+      const signis = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardNum).map(c => c.CardNum!);
+      let good: string[] | undefined;
+      for (let i = 0; i < signis.length && !good; i++) for (let j = i + 1; j < signis.length && !good; j++) {
+        for (let k = j + 1; k < signis.length; k++) {
+          const pick = [signis[i], signis[j], signis[k]];
+          if (satisfiesSelectionConstraint(pick, { distinct: 'class' }, cardMap)) { good = pick; break; }
+        }
+      }
+      ok(!!good, 'クラス非共有のシグニ3枚を用意');
+      const sameClass = signis.filter((n, _, all) =>
+        all.some(m => m !== n && !satisfiesSelectionConstraint([n, m], { distinct: 'class' }, cardMap))).slice(0, 3);
+      // 上の抽出は3枚相互の重複を保証しないため、先頭とクラス重複する2枚へ固定する。
+      const anchor = signis.find(n => signis.filter(m => m !== n
+        && !satisfiesSelectionConstraint([n, m], { distinct: 'class' }, cardMap)).length >= 2)!;
+      const bad = [anchor, anchor, anchor];
+      eq(bad.length, 3, `不正集合を3枚用意 (${sameClass.length})`);
+
+      const run = (energy: string[]) => {
+        const cardNum = 'WXDi-D01-017';
+        const entry = collectPlacedSelfOnPlayTriggers(
+          trigCtx(), cardNum, mkState({ signi: [cardNum, null, null] }), mkState(), 'host',
+          { placedByEffect: true, sourceIsSigni: false },
+        ).entries.find(e => e.effectId === 'WXDi-D01-017-E1')!;
+        const ctx = mkCtx({ signi: [cardNum, null, null] }, {}, cardNum);
+        ctx.ownerState = { ...ctx.ownerState, energy, trash: [] };
+        return { first: executeEffect(entry.effect, ctx), ctx };
+      };
+      const valid = run(good!);
+      ok(!valid.first.done && valid.first.pending.type === 'CHOOSE', '成立集合で支払い選択を提示');
+      ok(valid.first.pending.type === 'CHOOSE' && valid.first.pending.options.find(o => o.id === 'pay')?.available !== false,
+        '成立集合なら pay available');
+      const paid = finishPayingCosts(valid.first, valid.ctx);
+      eq(paid.ownerState.trash.length, 3, '異なるクラス3枚を実際にエナからトラッシュへ支払う');
+
+      const invalid = run(bad);
+      ok(!invalid.first.done && invalid.first.pending.type === 'CHOOSE', '不正集合でもskip選択は提示');
+      ok(invalid.first.pending.type === 'CHOOSE' && invalid.first.pending.options.find(o => o.id === 'pay')?.available === false,
+        '枚数が3枚あってもクラス共有なら pay unavailable');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(1) 第11波: handToUnderSelf はクラス非共有の緑2枚だけを下へ置く', () => {
+    const savedCursor = cursor;
+    try {
+      const greens = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.Color?.includes('緑') && c.CardNum).map(c => c.CardNum!);
+      const a = greens.find(n => greens.some(m => m !== n
+        && satisfiesSelectionConstraint([n, m], { distinct: 'class' }, cardMap)))!;
+      const goodMate = greens.find(m => m !== a
+        && satisfiesSelectionConstraint([a, m], { distinct: 'class' }, cardMap))!;
+      const badMate = greens.find(m => m !== a
+        && !satisfiesSelectionConstraint([a, m], { distinct: 'class' }, cardMap))!;
+      ok(!!a && !!goodMate && !!badMate, '緑シグニの成立／不成立ペアを用意');
+      const run = (hand: string[]) => {
+        const cardNum = 'WX25-P1-090';
+        const entry = collectPlacedSelfOnPlayTriggers(
+          trigCtx(), cardNum, mkState({ signi: [cardNum, null, null] }), mkState(), 'host',
+          { placedByEffect: true, sourceIsSigni: false },
+        ).entries.find(e => e.effectId === 'WX25-P1-090-E2')!;
+        const ctx = mkCtx({ signi: [cardNum, null, null] }, {}, cardNum);
+        ctx.ownerState = { ...ctx.ownerState, hand, deck: fill(2) };
+        return { first: executeEffect(entry.effect, ctx), ctx };
+      };
+      const valid = run([a, goodMate]);
+      const paid = finishPayingCosts(valid.first, valid.ctx);
+      eq(paid.ownerState.field.signi[0]?.slice(0, 2).sort().join(','), [a, goodMate].sort().join(','),
+        'クラス非共有の緑2枚を効果元の下へ置く');
+      const invalid = run([a, badMate]);
+      ok(!invalid.first.done && invalid.first.pending.type === 'CHOOSE'
+        && invalid.first.pending.options.find(o => o.id === 'pay')?.available === false,
+      'クラス共有ペアしかない場合は pay unavailable');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(2) 新機構待ち7効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
-      'WX25-P1-090-E2', 'WXDi-D01-017-E1', 'WXDi-P00-022-E2', 'WXK09-032-E1',
       'WXK03-070-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
       'WXK08-082-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
     ];
@@ -15827,8 +15924,8 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
       if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
       else deferred.push(effect.effectId);
     }
-    eq(collectedCount, 157, 'ライフコスト対応を含む157件を通常アシスト経路で収集');
-    eq(deferred.length, 3, '表現不能コスト3件は不発のまま据え置く');
+    eq(collectedCount, 158, '相互制約コスト対応を含む158件を通常アシスト経路で収集');
+    eq(deferred.length, 2, '表現不能コスト2件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }

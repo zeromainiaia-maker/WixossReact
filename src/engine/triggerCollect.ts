@@ -62,8 +62,10 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * - `WXDi-P16-080-E1`：本体が「この方法でエナゾーンに置いたシグニと**同じレベル**のシグニ1枚を回収」。
  *   live action に該当の動的 filter が無く、エナ置きコストの記録契約も未整備なので、
  *   包むと**エナから無制限に回収できる**（タスク12(xxix)(1) 第3波で明示保留）。
+ * - `WXK09-032-E1`：本体が「この方法でトラッシュに置いたシグニの**レベル合計と同じレベル**」を参照。
+ *   live action は無条件の SEND_TO_ENERGY で、コスト選択札のレベル合計を filter へ渡す契約も無いため明示保留。
  */
-export const OPTIONAL_ON_PLAY_COST_REF_DEFERRED = new Set(['WXDi-P16-080-E1']);
+export const OPTIONAL_ON_PLAY_COST_REF_DEFERRED = new Set(['WXDi-P16-080-E1', 'WXK09-032-E1']);
 
 export function optionalOnPlayCostStub(
   cost: import('../types/effects').EffectCost,

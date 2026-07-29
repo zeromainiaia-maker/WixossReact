@@ -150,8 +150,8 @@ export interface OptionalCostSpec {
   costColors: string[];
   handDiscard?: { count: number; filter?: TargetFilter };
   handToEnergy?: { count: number; filter?: TargetFilter };
-  handToUnderSelf?: { count: number; filter?: TargetFilter };
-  energyTrash?: { count: number; filter?: TargetFilter };
+  handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
@@ -182,6 +182,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
         count: a.energyTrashCountFromTargetLevel ? level : a.energyTrash.count,
         // 「それと同じレベルの緑のシグニ」＝候補側にも対象のレベルを課す（翠英　マキトミ）
         filter: a.energyTrashSameLevelAsTarget ? { ...a.energyTrash.filter, level } : a.energyTrash.filter,
+        selectionConstraint: a.energyTrash.selectionConstraint,
       }
     : undefined;
   return {
@@ -193,6 +194,24 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     trashArtsFromLrigDeck: a.trashArtsFromLrigDeck, removeOppVirus: a.removeOppVirus,
     levelUnavailable: perLevel && level <= 0,
   };
+}
+
+function hasValidConstrainedSelection(
+  candidates: string[],
+  count: number,
+  constraint: SelectionConstraint | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!constraint) return candidates.length >= count;
+  const pick = (start: number, selected: string[]): boolean => {
+    if (selected.length === count) return true;
+    for (let i = start; i < candidates.length; i++) {
+      if (canAddToSelection(selected, candidates[i], constraint, cardMap)
+        && pick(i + 1, [...selected, candidates[i]])) return true;
+    }
+    return false;
+  };
+  return pick(0, []);
 }
 
 // 支払い可能か（エナ色・手札・エナゾーンの在庫）。exceed/handDiscardGroups は呼び出し側の既存判定に残す。
@@ -208,6 +227,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = ctx.ownerState.energy.filter(n =>
       !spec.energyTrash!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.energyTrash!.filter));
     if (matching.length < spec.energyTrash.count) return false;
+    if (!hasValidConstrainedSelection(matching, spec.energyTrash.count, spec.energyTrash.selectionConstraint, ctx.cardMap)) return false;
   }
   if (spec.handToEnergy) {
     const matching = ctx.ownerState.hand.filter(n =>
@@ -218,6 +238,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = ctx.ownerState.hand.filter(n =>
       !spec.handToUnderSelf!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handToUnderSelf!.filter));
     if (matching.length < spec.handToUnderSelf.count) return false;
+    if (!hasValidConstrainedSelection(matching, spec.handToUnderSelf.count, spec.handToUnderSelf.selectionConstraint, ctx.cardMap)) return false;
     if (!ctx.sourceCardNum || !ctx.ownerState.field.signi.some(stack => stack?.includes(ctx.sourceCardNum!))) return false;
   }
   if (spec.fieldTrash) {
@@ -276,7 +297,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     } as EffectAction] : []),
     ...(spec.energyTrash ? [{
       type: 'TRASH', asCost: true,
-      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter },
+      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
     } as EffectAction] : []),
     ...(spec.handToEnergy ? [{
       type: 'ENERGY_CHARGE',
@@ -284,6 +305,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     } as EffectAction] : []),
     ...(spec.handToUnderSelf ? [{
       type: 'PLACE_UNDER_SIGNI', source: 'hand', count: spec.handToUnderSelf.count, filter: spec.handToUnderSelf.filter,
+      selectionConstraint: spec.handToUnderSelf.selectionConstraint,
     } as EffectAction] : []),
     ...(spec.fieldTrash ? [{
       type: 'TRASH', asCost: true,

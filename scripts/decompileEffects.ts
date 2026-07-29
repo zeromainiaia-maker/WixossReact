@@ -283,6 +283,15 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   return `${own}${cnt}${setConstraint}${filterJa(t.filter)}${u}${cntSuf ? cntSuf : ''}${blind}`.trim();
 }
 
+function constraintJa(c?: import('../src/types/effects').SelectionConstraint): string {
+  if (c?.sharedColor === 'all') return '共通する色を持つ';
+  if (c?.sharedColor === 'none') return '共通する色を持たない';
+  if (c?.distinct === 'class') return '共通するクラスを持たない';
+  if (c?.distinct === 'level') return 'それぞれレベルの異なる';
+  if (c?.distinct === 'name') return 'それぞれ名前の異なる';
+  return '';
+}
+
 function costJa(c?: any): string {
   if (!c) return '';
   const parts: string[] = [];
@@ -293,12 +302,12 @@ function costJa(c?: any): string {
   if (c.discard != null) parts.push(c.discardFilter ? `手札から${filterJa(c.discardFilter)}カード${c.discard}枚を捨てる` : `手札${c.discard}枚を捨てる`);
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
-  if (c.handToUnderSelf) parts.push(`手札から${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
+  if (c.handToUnderSelf) parts.push(`手札から${constraintJa(c.handToUnderSelf.selectionConstraint)}${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
   if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
   if (c.beat_signi != null) parts.push(`シグニ${c.beat_signi}体を【ビート】にする`);
   if (c.beat_signi_from_trash) parts.push(`トラッシュから${filterJa(c.beat_signi_from_trash.filter)}シグニ${c.beat_signi_from_trash.count}枚を【ビート】にする`);
-  if (c.energyTrash) parts.push(`エナゾーンから${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
+  if (c.energyTrash) parts.push(`エナゾーンから${constraintJa(c.energyTrash.selectionConstraint)}${filterJa(c.energyTrash.filter)}カード${c.energyTrash.count}枚をトラッシュに置く`);
   if (c.charmTrash != null) parts.push(`場の【チャーム】${c.charmTrash}枚をトラッシュ`);
   if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
   if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
