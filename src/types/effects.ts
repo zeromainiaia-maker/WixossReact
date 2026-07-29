@@ -1268,6 +1268,7 @@ export interface RevealAndPickAction {
   then: EffectAction;
   elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
+  handOrEnergy?: boolean; // ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理（「手札に加えるかエナゾーンに置き」WXK06-011 等）。true のとき then は無視
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
   // 後段が「この方法で公開したカード」を参照する場合、選んで移動したカードではなく公開 snapshot 全体を残す。
   recordRevealed?: boolean;
@@ -1837,11 +1838,18 @@ export interface StubAction {
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';
     then: 'hand' | 'energy';
+    // ピック対象の絞り込み（タスク12(xlvi)(h)）。融合規則が filter を運ばず「どのカードでも拾える」
+    // 過剰実行になっていたため、pick 記述子から復元して REVEAL_AND_PICK へ渡す。
+    filter?: TargetFilter;
+    pickUpTo?: boolean;    // 「N枚まで」（上限）
+    pickNoun?: string;     // 逆翻訳の名詞（既定「シグニ」）
+    handOrEnergy?: boolean; // 「手札に加えるかエナゾーンに置く」＝1枚ずつ対話選択
     // 1段目（手札）の後に、残りから特定クラスを1枚までエナゾーンへ送る2段階ピック（FUTURE SESSION ②）
     secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' };
   };
   seedCards?: string[]; // INTERNAL_SEEDS_PLACE_LOOP / INTERNAL_SET_SEED: 【シード】として順次設置するカード（複数枚設置をインタラクション跨ぎで保持。WXK04-010 アンコール・シード）
   revealed?: string[]; // REVEAL_SECOND_PICK_ENERGY: 1段目で公開したカード一覧（残り算出用）
+  pickQueue?: string[]; // INTERNAL_HAND_OR_ENERGY: 「手札に加えるかエナゾーンに置く」を1枚ずつ問う残りのカード
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
   count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数

@@ -55,7 +55,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig,
+  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -64,58 +64,57 @@ import { parseSentencePart4 } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
 import { encodeShadowScopesInText } from '../utils/keywords';
 
-// ---- 「AかB（かC…）」形の pick 記述子 → TargetFilter（タスク12(xlvi)(f)）----
-// look-pick 系の「その中から**スペルか＜原子＞のシグニ**１枚を…手札に加え」等。2つの形を区別する：
-//   (1) 各要素が自分の名詞（シグニ/スペル/カード）を持つ＝独立節の OR → `anyOf`。
-//       cardType の配列では表せない（「＜原子＞の」がスペル側にも掛かってしまう）。
-//   (2) 先行要素が名詞を持たない修飾断片＝末尾の名詞を共有する色/クラスの OR → color/story の配列。
-// 忠実表現できない形（レベル比較・動的filter・色とクラスの混在・想定外トークン）は null を返し、
-// 呼び出し側は従来経路（＝この規則を使わない）へ落ちる。過剰な filter を出すより取りこぼす方を選ぶ。
-const OR_PICK_NOUN_RE = /(シグニ|スペル|カード)$/;
-const OR_PICK_TOKEN_RE = /^(?:＜[^＞]+＞の?|[白赤青緑黒]の?|無色の?|レベル[０-９\d]+(?:以上|以下)?の?)*(?:シグニ|スペル|カード)?$/;
-function parseOrPickDescriptor(desc: string): { filter: TargetFilter; noun: 'シグニ' | 'スペル' | 'カード' } | null {
-  // ＜＞ の外側の「か」だけで分割する（クラス名の内側は割らない）
-  const tokens: string[] = [];
-  let buf = '', depth = 0;
-  for (const ch of desc.trim()) {
-    if (ch === '＜') depth++;
-    else if (ch === '＞') depth--;
-    else if (ch === 'か' && depth === 0) { tokens.push(buf); buf = ''; continue; }
-    buf += ch;
-  }
-  tokens.push(buf);
-  if (tokens.length < 2 || tokens.some(t => t === '')) return null;
-  if (!tokens.every(t => OR_PICK_TOKEN_RE.test(t))) return null;
-  const last = tokens[tokens.length - 1];
-  const lastNoun = last.match(OR_PICK_NOUN_RE)?.[1] as 'シグニ' | 'スペル' | 'カード' | undefined;
-  if (!lastNoun) return null;
-  const heads = tokens.slice(0, -1);
-  const nounFilter = (n: string): TargetFilter =>
-    n === 'シグニ' ? { cardType: 'シグニ' } : n === 'スペル' ? { cardType: 'スペル' } : {};
-
-  if (heads.some(t => OR_PICK_NOUN_RE.test(t))) {
-    // (1) 独立節の OR。名詞を持たない要素が混ざる形（「スペルか青のシグニ」の「青」が単独等）は表現不能。
-    if (!heads.every(t => OR_PICK_NOUN_RE.test(t))) return null;
-    const anyOf = tokens.map(t => ({
-      ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t),
-      ...nounFilter(t.match(OR_PICK_NOUN_RE)![1]),
-    }));
-    if (anyOf.some(f => Object.keys(f).length === 0)) return null;
-    return { filter: { anyOf }, noun: 'カード' };
-  }
-
-  // (2) 名詞共有の修飾断片 OR。色とクラスの混在（「白か＜天使＞のシグニ」）は AND/OR が曖昧なので受けない。
-  const classes = [...new Set(tokens.flatMap(t => [...t.matchAll(/＜([^＞]+)＞/g)].map(m => m[1])))];
-  const colors = [...new Set(tokens.flatMap(t => [...t.replace(/＜[^＞]+＞/g, '').matchAll(/[白赤青緑黒]/g)].map(m => m[0])))];
-  if (classes.length > 0 && colors.length > 0) return null;
-  if (classes.length === 0 && colors.length === 0) return null;
-  const filter: TargetFilter = {
-    ...(classes.length > 0 ? { story: classes.length === 1 ? classes[0] : classes } : {}),
-    ...(colors.length > 0 ? { color: colors.length === 1 ? colors[0] : colors } : {}),
-    ...parseLevelFilter(tokens.join('')),
-    ...nounFilter(lastNoun),
+// ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)）----
+// 受ける3形だけを明示的に書く。どれにも当たらない／名詞句に未知の修飾語が残る場合は null を返し、
+// 呼び出し側は従来経路へ落ちる（過剰な filter・群の取り違えより取りこぼす方を選ぶ）。
+type LookPickStage = import('../types/effects').LookPickChainStage;
+const PICK_DEST_RE = /^(手札に加え|エナゾーンに置|トラッシュに置|場に出)/;
+function pickDest(verb: string): LookPickStage['then'] | null {
+  const m = verb.match(PICK_DEST_RE);
+  if (!m) return null;
+  return m[1] === '手札に加え' ? 'hand' : m[1] === 'エナゾーンに置' ? 'energy' : m[1] === 'トラッシュに置' ? 'trash' : 'field';
+}
+function makeLookPickStage(desc: string, noun: string, count: string, upTo: boolean, verb: string): LookPickStage | null {
+  const filter = parsePickNounPhraseFilter(desc, noun);
+  const then = pickDest(verb);
+  if (!filter || !then) return null;
+  // LookPickChainStage.pickCount は常に「N枚まで」の上限。固定枚数（「まで」なし）も上限として扱う
+  // ＝engine は maxPick に使うだけで、公開札が足りない場合の挙動は同じ。
+  void upTo;
+  return {
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+    pickCount: parseNum(count), then,
+    ...(noun !== 'シグニ' ? { pickNoun: noun } : {}),
   };
-  return { filter, noun: lastNoun };
+}
+function parseLookPickGroups(clause: string): LookPickStage[] | null {
+  // 形A：「＜原子＞のシグニ１枚とスペル１枚を手札に加え」＝行き先を共有する「と」連結
+  const a = clause.match(/^([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?と([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+  if (a) {
+    const s1 = makeLookPickStage(a[1], a[2], a[3], a[4] === 'まで', a[9]);
+    const s2 = makeLookPickStage(a[5], a[6], a[7], a[8] === 'まで', a[9]);
+    return s1 && s2 ? [s1, s2] : null;
+  }
+  // 形B：「＜天使＞と＜悪魔＞のシグニをそれぞれ１枚まで公開し手札に加え」＝名詞・枚数・行き先を共有する「と」連結
+  const b = clause.match(/^(＜[^＞]+＞|[白赤青緑黒])と(＜[^＞]+＞|[白赤青緑黒])の(シグニ|スペル|カード)を?それぞれ([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+  if (b) {
+    const s1 = makeLookPickStage(`${b[1]}の`, b[3], b[4], b[5] === 'まで', b[6]);
+    const s2 = makeLookPickStage(`${b[2]}の`, b[3], b[4], b[5] === 'まで', b[6]);
+    return s1 && s2 ? [s1, s2] : null;
+  }
+  // 形C：「＜プリオケ＞のカードを１枚までエナゾーンに置き、赤の＜プリオケ＞のカードを１枚まで公開し手札に加え」
+  //      ＝読点区切りの独立セグメント（各群が自分の名詞・枚数・行き先を持つ）
+  const segs = clause.split('、').map(s => s.trim()).filter(Boolean);
+  if (segs.length < 2) return null;
+  const stages: LookPickStage[] = [];
+  for (const seg of segs) {
+    const c = seg.match(/^([^、。]*?)(シグニ|スペル|カード)を?([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+    if (!c) return null;
+    const st = makeLookPickStage(c[1], c[2], c[3], c[4] === 'まで', c[5]);
+    if (!st) return null;
+    stages.push(st);
+  }
+  return stages;
 }
 
 function parseUseCondition(text: string): Condition {
@@ -4035,6 +4034,37 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- 1度公開したカードから **複数の pick 群** へ振り分ける汎用形 → LOOK_PICK_CHAIN（タスク12(xlvi)(h)）----
+  //      「その中から＜原子＞のシグニ１枚とスペル１枚を手札に加え」「＜天使＞と＜悪魔＞のシグニをそれぞれ１枚まで…」
+  //      「＜プリオケ＞のカードを１枚までエナゾーンに置き、赤の＜プリオケ＞のカードを１枚まで…手札に加え」。
+  //      従来はどの規則にも掛からず LOOK_AND_REORDER+STUB へ落ち、融合で**単一 filter 無し pick**へ潰れていた
+  //      （＝どのカードでも1枚拾える過剰実行＋2群目の消失）。群ごとの filter/枚数/行き先を stages で保つ。
+  {
+    const mg = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:見る|公開する)。\s*その中から(.+?)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)に置く。/);
+    const mgStages = mg ? parseLookPickGroups(mg[2]) : null;
+    if (mg && mgStages && mg.index !== undefined) {
+      const remainder: import('../types/effects').LookPickChainAction['remainder'] =
+        mg[3] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+        : { location: 'deck', position: mg[3] === 'デッキの一番上' ? 'top' : 'bottom',
+            ...(/残りをシャッフルして/.test(mg[0]) ? { shuffle: true } : {}) };
+      const lpcMg: EffectAction = {
+        type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(mg[1]), stages: mgStages, remainder,
+      } as unknown as EffectAction;
+      const beforeMg = text.slice(0, mg.index).trim();
+      const afterMg = text.slice(mg.index + mg[0].length).trim();
+      const stepsMg: EffectAction[] = [];
+      const pushFlatMg = (a: EffectAction) => {
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') stepsMg.push(st); else markSilentFallback('multi-group look-pick分割:UNKNOWNステップ除去'); }
+        else if (a.type !== 'UNKNOWN') stepsMg.push(a);
+        else markSilentFallback('multi-group look-pick分割:UNKNOWNアクション除去');
+      };
+      if (beforeMg) pushFlatMg(parseActionText(beforeMg));
+      stepsMg.push(lpcMg);
+      if (afterMg) pushFlatMg(parseActionText(afterMg));
+      return stepsMg.length === 1 ? stepsMg[0] : { type: 'SEQUENCE', steps: stepsMg } as SequenceAction;
+    }
+  }
+
   // ---- デッキ上N枚見て「（＜C＞の）シグニM枚を公開し手札に加えるか場に出し、残りをデッキ下」＝REVEAL_AND_PICK（handOrField）----
   // 2文（「…見る。その中から…」）にまたがるため splitSentences 前に全文で捕捉する（22枚の系統・pick 脱落を防ぐ）。
   {
@@ -5040,11 +5070,17 @@ function parseActionTextInner(text: string): EffectAction {
         const remainder = restDest === 'trash'
           ? { location: 'trash' as import('../types/effects').CardLocation, position: 'bottom' as const }
           : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const };
+        // filter/上限/名詞/手札orエナは pick 記述子から復元済み（makeRevealPickStub・タスク12(xlvi)(h)）。
+        // 従来はここで一切運ばれず「どのカードでも拾える」過剰実行に退化していた。
         merged.push({
           type: 'REVEAL_AND_PICK',
           owner: 'self',
           revealCount: look.count,
+          ...(rpp?.filter ? { filter: rpp.filter } : {}),
           pickCount,
+          ...(rpp?.pickUpTo ? { pickUpTo: true } : {}),
+          ...(rpp?.pickNoun ? { pickNoun: rpp.pickNoun } : {}),
+          ...(rpp?.handOrEnergy ? { handOrEnergy: true } : {}),
           then: thenAction,
           remainder,
         } as RevealAndPickAction);

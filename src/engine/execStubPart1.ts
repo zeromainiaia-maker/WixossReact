@@ -15,7 +15,7 @@ import type {
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
-  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum,
+  removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
 } from './execUtils';
@@ -1311,6 +1311,34 @@ export function execStubPart1(
     else { const ti = s.trash.indexOf(card); if (ti >= 0) { const t = [...s.trash]; t.splice(ti, 1); s = { ...s, trash: t }; } }
     s = { ...s, hand: [...s.hand, card] };
     return done(addLog({ ...ctx, ownerState: s, lastProcessedCards: [card] }, `${ctx.cardMap.get(card)?.CardName ?? card}を手札に加える`));
+  }
+  // INTERNAL_PICK_TO_ENERGY: 公開中のカード（stub.value）をデッキ/トラッシュからエナゾーンへ（handOrEnergy のエナ分岐）。
+  if (stub.id === 'INTERNAL_PICK_TO_ENERGY') {
+    const card = stub.value != null ? String(stub.value) : '';
+    if (!card) return done(ctx);
+    let s = { ...ctx.ownerState };
+    const di = s.deck.indexOf(card);
+    if (di >= 0) { const dk = [...s.deck]; dk.splice(di, 1); s = { ...s, deck: dk }; }
+    else { const ti = s.trash.indexOf(card); if (ti >= 0) { const t = [...s.trash]; t.splice(ti, 1); s = { ...s, trash: t }; } }
+    s = { ...s, energy: [...s.energy, card] };
+    return done(addLog({ ...ctx, ownerState: s, lastProcessedCards: [card] }, `${ctx.cardMap.get(getCardNum(card))?.CardName ?? card}をエナゾーンへ`));
+  }
+  // INTERNAL_HAND_OR_ENERGY: 「それぞれ手札に加えるかエナゾーンに置き」を1枚ずつ問うチェーン（タスク12(xlvi)(h)）。
+  // 先頭1枚の行き先を CHOOSE で決め、残りは自分自身を continuation に積んで再入する。
+  if (stub.id === 'INTERNAL_HAND_OR_ENERGY') {
+    const queue = stub.pickQueue ?? [];
+    if (queue.length === 0) return done(ctx);
+    const card = queue[0];
+    const rest = queue.slice(1);
+    return needsInteraction(ctx, {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'hand', label: '手札に加える', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: card } as EffectAction },
+        { id: 'energy', label: 'エナゾーンに置く', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_ENERGY', value: card } as EffectAction },
+      ],
+      ...(rest.length > 0 ? { continuation: { type: 'STUB', id: 'INTERNAL_HAND_OR_ENERGY', pickQueue: rest } as EffectAction } : {}),
+    });
   }
   // INTERNAL_KEEP_ON_DECK_TOP: LOOK_PICK_CHAIN の then:'deck_top' 段のマーカー。ここでは盤面を動かさない
   // （公開中のカードはデッキに残ったまま）。resumeSearch が lastProcessedCards にピックを載せ、
@@ -3092,7 +3120,7 @@ export function execStubPart1(
   }
   // デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ
   if (stub.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') {
-    const params = (stub as StubAction & { revealPickParams?: { pickCount: number | 'ALL'; restDest: 'deck_bottom' | 'trash' | 'energy'; then: 'hand' | 'energy'; secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' } } }).revealPickParams
+    const params = stub.revealPickParams
       ?? { pickCount: 1, restDest: 'deck_bottom' as const, then: 'hand' as const };
     const effText = ctx.sourceCardNum
       ? (ctx.cardMap.get(ctx.sourceCardNum)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(ctx.sourceCardNum)?.BurstText ?? '')
@@ -3119,14 +3147,42 @@ export function execStubPart1(
       };
       return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで手札に）`), pending2);
     }
+    // filter は融合前（＝REVEAL_AND_PICK に解決されない経路）でも効かせる。従来は絞り込みが一切なく
+    // 「どのカードでも拾える」過剰実行だった（タスク12(xlvi)(h)）。
+    // ⚠ 絞り込むときは残りの行き先を restDest（visibleCards 基準）ではなく revealRemainder（公開全体基準）で渡す。
+    //   restDest のままだと**非対象の公開カードがデッキ上に取り残される**（remainder の取りこぼし）。
+    const restLoc = params.restDest === 'trash' ? 'trash' as const : params.restDest === 'energy' ? 'energy' as const : 'deck' as const;
+    const restPos = params.restDest === 'deck_bottom' ? 'bottom' as const : 'any' as const;
+    if (params.filter) {
+      const pickable = deckCards.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), params.filter));
+      if (pickable.length === 0) {
+        // 対象なし：公開した全カードを残りの行き先へ
+        const deckRest = ctx.ownerState.deck.slice(deckCards.length);
+        const s = { ...ctx.ownerState,
+          deck: restLoc === 'deck' ? [...deckRest, ...deckCards] : deckRest,
+          ...(restLoc === 'trash' ? { trash: [...ctx.ownerState.trash, ...deckCards] } : {}),
+          ...(restLoc === 'energy' ? { energy: [...ctx.ownerState.energy, ...deckCards] } : {}) };
+        return done(addLog({ ...ctx, ownerState: s }, `デッキ上${deckCards.length}枚公開（対象なし）`));
+      }
+      const pendingF: PendingInteractionDef = {
+        type: 'SEARCH',
+        visibleCards: pickable,
+        maxPick: Math.min(maxPick, pickable.length),
+        thenAction: pickDestAction,
+        revealRemainder: { cards: deckCards, location: restLoc, position: restPos },
+        ...(params.handOrEnergy ? { handOrEnergy: true } : {}),
+      };
+      return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで${params.handOrEnergy ? '手札かエナへ' : params.then === 'energy' ? 'エナへ' : '手札に'}）`), pendingF);
+    }
     const pending: PendingInteractionDef = {
       type: 'SEARCH',
       visibleCards: deckCards,
       maxPick,
       thenAction: pickDestAction,
       restDest: params.restDest,
+      ...(params.handOrEnergy ? { handOrEnergy: true } : {}),
     };
-    return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで${params.then === 'energy' ? 'エナへ' : '手札に'}）`), pending);
+    return needsInteraction(addLog(ctx, `デッキ上${deckCards.length}枚公開（${maxPick}枚まで${params.handOrEnergy ? '手札かエナへ' : params.then === 'energy' ? 'エナへ' : '手札に'}）`), pending);
   }
   // REVEAL_SECOND_PICK_ENERGY: 2段階ピックの2段目。1段目で公開した残りのうち、
   // 指定クラスを toMax 枚までエナゾーンへ、それ以外の残りはデッキ下/トラッシュへ。

@@ -19,6 +19,10 @@ export function extractCostColors(text: string): string[] {
 
 // REVEAL_PICK_HAND_SHUFFLE_BOTTOM STUBのメタデータを抽出して返す
 export function makeRevealPickStub(t: string): StubAction {
+  // タスク12(xlvi)(h)：pick 記述子（filter・枚数・上限・行き先）を先に解く。忠実表現できた場合だけ
+  // 従来の粗い枚数抽出を上書きする（従来は「その中から白のカードを３枚まで選び」を拾えず 1枚固定＝過小実行、
+  // かつ filter を一切運ばず**どのカードでも拾える過剰実行**だった）。
+  const desc = parseRevealPickDescriptor(t);
   let pickCount: number | 'ALL' = 1;
   // パターン1: "その中からN枚" (直接)
   const countM = t.match(/その中から([０-９\d]+|好きな枚数|すべて)/);
@@ -36,7 +40,18 @@ export function makeRevealPickStub(t: string): StubAction {
   else if (t.match(/残り.*エナゾーン|エナゾーンに置く$/)) restDest = 'energy';
   const then: 'hand' | 'energy' =
     (t.match(/エナゾーンに置く/) && !t.match(/手札に加え/)) ? 'energy' : 'hand';
-  return { type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM', revealPickParams: { pickCount, restDest, then } } as StubAction;
+  return {
+    type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM',
+    revealPickParams: {
+      pickCount: desc ? desc.pickCount : pickCount,
+      restDest,
+      then: desc ? (desc.dest === 'energy' ? 'energy' : 'hand') : then,
+      ...(desc && Object.keys(desc.filter).length > 0 ? { filter: desc.filter } : {}),
+      ...(desc?.pickUpTo ? { pickUpTo: true } : {}),
+      ...(desc && desc.noun !== 'シグニ' ? { pickNoun: desc.noun } : {}),
+      ...(desc?.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
+    },
+  } as StubAction;
 }
 
 
@@ -395,4 +410,153 @@ export function parseEnergyCosts(str: string): EnergyCost[] {
     }
   }
   return costs;
+}
+
+// ---- 「AかB（かC…）」形の pick 記述子 → TargetFilter（タスク12(xlvi)(f)）----
+// look-pick 系の「その中から**スペルか＜原子＞のシグニ**１枚を…手札に加え」等。2つの形を区別する：
+//   (1) 各要素が自分の名詞（シグニ/スペル/カード）を持つ＝独立節の OR → `anyOf`。
+//       cardType の配列では表せない（「＜原子＞の」がスペル側にも掛かってしまう）。
+//   (2) 先行要素が名詞を持たない修飾断片＝末尾の名詞を共有する色/クラスの OR → color/story の配列。
+// 忠実表現できない形（レベル比較・動的filter・色とクラスの混在・想定外トークン）は null を返し、
+// 呼び出し側は従来経路（＝この規則を使わない）へ落ちる。過剰な filter を出すより取りこぼす方を選ぶ。
+const OR_PICK_NOUN_RE = /(シグニ|スペル|カード)$/;
+const OR_PICK_TOKEN_RE = /^(?:＜[^＞]+＞の?|[白赤青緑黒]の?|無色の?|レベル[０-９\d]+(?:以上|以下)?の?)*(?:シグニ|スペル|カード)?$/;
+export function parseOrPickDescriptor(desc: string): { filter: TargetFilter; noun: 'シグニ' | 'スペル' | 'カード' } | null {
+  // ＜＞ の外側の「か」だけで分割する（クラス名の内側は割らない）
+  const tokens: string[] = [];
+  let buf = '', depth = 0;
+  for (const ch of desc.trim()) {
+    if (ch === '＜') depth++;
+    else if (ch === '＞') depth--;
+    else if (ch === 'か' && depth === 0) { tokens.push(buf); buf = ''; continue; }
+    buf += ch;
+  }
+  tokens.push(buf);
+  if (tokens.length < 2 || tokens.some(t => t === '')) return null;
+  if (!tokens.every(t => OR_PICK_TOKEN_RE.test(t))) return null;
+  const last = tokens[tokens.length - 1];
+  const lastNoun = last.match(OR_PICK_NOUN_RE)?.[1] as 'シグニ' | 'スペル' | 'カード' | undefined;
+  if (!lastNoun) return null;
+  const heads = tokens.slice(0, -1);
+  const nounFilter = (n: string): TargetFilter =>
+    n === 'シグニ' ? { cardType: 'シグニ' } : n === 'スペル' ? { cardType: 'スペル' } : {};
+
+  if (heads.some(t => OR_PICK_NOUN_RE.test(t))) {
+    // (1) 独立節の OR。名詞を持たない要素が混ざる形（「スペルか青のシグニ」の「青」が単独等）は表現不能。
+    if (!heads.every(t => OR_PICK_NOUN_RE.test(t))) return null;
+    const anyOf = tokens.map(t => ({
+      ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t),
+      ...nounFilter(t.match(OR_PICK_NOUN_RE)![1]),
+    }));
+    if (anyOf.some(f => Object.keys(f).length === 0)) return null;
+    return { filter: { anyOf }, noun: 'カード' };
+  }
+
+  // (2) 名詞共有の修飾断片 OR。色とクラスの混在（「白か＜天使＞のシグニ」）は AND/OR が曖昧なので受けない。
+  const classes = [...new Set(tokens.flatMap(t => [...t.matchAll(/＜([^＞]+)＞/g)].map(m => m[1])))];
+  const colors = [...new Set(tokens.flatMap(t => [...t.replace(/＜[^＞]+＞/g, '').matchAll(/[白赤青緑黒]/g)].map(m => m[0])))];
+  if (classes.length > 0 && colors.length > 0) return null;
+  if (classes.length === 0 && colors.length === 0) return null;
+  const filter: TargetFilter = {
+    ...(classes.length > 0 ? { story: classes.length === 1 ? classes[0] : classes } : {}),
+    ...(colors.length > 0 ? { color: colors.length === 1 ? colors[0] : colors } : {}),
+    ...parseLevelFilter(tokens.join('')),
+    ...nounFilter(lastNoun),
+  };
+  return { filter, noun: lastNoun };
+}
+
+// ---- look-pick の融合経路（LOOK_AND_REORDER + REVEAL_PICK_HAND_SHUFFLE_BOTTOM）の pick 記述子 ----
+// タスク12(xlvi)(h)。融合規則は revealCount/pickCount/行き先しか運ばず **filter を一切運ばない**ため、
+// 「その中から＜美巧＞のシグニ１枚を…」が **どのカードでも拾える過剰実行** に退化していた。
+// ここで「その中から」直後の名詞句を全消費でトークン走査し、忠実表現できる形だけ filter を返す。
+// ⚠未知の修飾語が1つでも残ったら null（＝従来どおり filter 無し）。部分解釈は「＜天使＞ではない」等の
+//   否定修飾を取りこぼして**意味を反転**させるため、絞り込みを増やすより取りこぼす方に倒す。
+export interface RevealPickDescriptor {
+  filter: TargetFilter;
+  pickCount: number | 'ALL';
+  pickUpTo: boolean;
+  noun: 'シグニ' | 'スペル' | 'カード';
+  dest: 'hand' | 'energy' | 'hand_or_energy';
+}
+
+// 記述子の先頭から1トークンずつ食べる規則表。全消費できなければ呼び出し側で null 扱い。
+const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { filter: TargetFilter; classes: string[]; colors: string[] }) => boolean }[] = [
+  { re: /^＜([^＞]+)＞の?/, apply: (m, a) => { a.classes.push(m[1]); return true; } },
+  { re: /^([白赤青緑黒])の?/, apply: (m, a) => { a.colors.push(m[1]); return true; } },
+  { re: /^レベル[０-９\d]+(?:以上|以下)?の?/, apply: (m, a) => { Object.assign(a.filter, parseLevelFilter(m[0])); return true; } },
+  { re: /^カード名に《([^》]+)》を含む/, apply: (m, a) => { a.filter.cardName = m[1]; return true; } },
+  { re: /^《アクセアイコン》を持つ/, apply: (_m, a) => { a.filter.hasIcon = 'アクセ'; return true; } },
+  { re: /^《クロスアイコン》を持つ/, apply: (_m, a) => { a.filter.hasCrossIcon = true; return true; } },
+  { re: /^《ライズアイコン》を持たない/, apply: (_m, a) => { a.filter.noRiseIcon = true; return true; } },
+  { re: /^《ライズアイコン》を持つ/, apply: (_m, a) => { a.filter.hasRiseIcon = true; return true; } },
+  { re: /^《ガードアイコン》を持たない/, apply: (_m, a) => { a.filter.noGuard = true; return true; } },
+  { re: /^《ディソナアイコン》(?:を持つ|の)?/, apply: (_m, a) => { a.filter.isDisona = true; return true; } },
+  { re: /^【ライフバースト】を持つ/, apply: (_m, a) => { a.filter.hasLifeBurst = true; return true; } },
+  { re: /^共通する色を持たない/, apply: (_m, a) => { a.filter.eachDistinctColor = true; return true; } },
+  { re: /^それぞれレベルの異なる/, apply: (_m, a) => { a.filter.eachDistinctLevel = true; return true; } },
+];
+
+function nounCardType(noun: string): Partial<TargetFilter> {
+  return noun === 'シグニ' ? { cardType: 'シグニ' } : noun === 'スペル' ? { cardType: 'スペル' } : {};
+}
+
+/** pick 名詞句（「＜原子＞の」＋「シグニ」等）→ TargetFilter。未知の修飾語が残れば null（部分解釈しない）。 */
+export function parsePickNounPhraseFilter(desc: string, noun: string): TargetFilter | null {
+  return revealPickDescFilter(desc, noun);
+}
+
+function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
+  const acc = { filter: {} as TargetFilter, classes: [] as string[], colors: [] as string[] };
+  let rest = desc;
+  while (rest.length > 0) {
+    const rule = REVEAL_PICK_DESC_RULES.find(r => r.re.test(rest));
+    if (!rule) return null;
+    const m = rest.match(rule.re)!;
+    if (!rule.apply(m, acc)) return null;
+    rest = rest.slice(m[0].length);
+  }
+  // 複数クラス／複数色の並列（「＜天使＞と＜悪魔＞の」）は AND か OR か記述子だけでは決まらない＝受けない。
+  if (acc.classes.length > 1 || acc.colors.length > 1) return null;
+  return {
+    ...acc.filter,
+    ...(acc.classes.length === 1 ? { story: acc.classes[0] } : {}),
+    ...(acc.colors.length === 1 ? { color: acc.colors[0] } : {}),
+    ...nounCardType(noun),
+  };
+}
+
+export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | null {
+  // 記述子に「枚」を含めない＝「＜原子＞のシグニ１枚とスペル１枚を」のような複数グループ形で
+  // 後半だけを拾ってしまうのを防ぐ（複数グループは LOOK_PICK_CHAIN の担当）。
+  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?([０-９\d]+|すべて|好きな枚数)枚(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置)[^、。]*)/);
+  if (!m || m.index === undefined) return null;
+  // 後続にもう1つ pick 群がある形（「…を１枚までエナゾーンに置き、…を１枚まで手札に加え」）は
+  // 単一 filter へ潰すと後段が丸ごと消える＝この規則では受けない。
+  const tail = t.slice(m.index + m[0].length);
+  if (/[０-９\d]+枚(?:まで)?を?(?:公開し)?(?:手札に加え|エナゾーンに置|場に出|トラッシュに置)/.test(tail)) return null;
+
+  const desc = m[1];
+  const noun = m[2] as 'シグニ' | 'スペル' | 'カード';
+  // ＜＞《》【】の内側を除いた「か」があれば OR 記述子（「青か黒のスペル」）として解く。
+  const bare = desc.replace(/＜[^＞]*＞|《[^》]*》|【[^】]*】/g, '');
+  let filter: TargetFilter | null;
+  let outNoun = noun;
+  if (bare.includes('か')) {
+    const or = parseOrPickDescriptor(desc + noun);
+    if (!or) return null;
+    filter = or.filter;
+    outNoun = or.noun;
+  } else {
+    filter = revealPickDescFilter(desc, noun);
+  }
+  if (!filter) return null;
+
+  const cntTok = m[3];
+  const pickCount: number | 'ALL' = (cntTok === 'すべて' || cntTok === '好きな枚数') ? 'ALL' : parseNum(cntTok);
+  const destPhrase = m[5];
+  const toHand = destPhrase.includes('手札に加え');
+  const toEnergy = destPhrase.includes('エナゾーンに置');
+  const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toEnergy ? 'energy' : 'hand';
+  return { filter, pickCount, pickUpTo: m[4] === 'まで' || cntTok === '好きな枚数', noun: outNoun, dest };
 }

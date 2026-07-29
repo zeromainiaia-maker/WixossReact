@@ -996,6 +996,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 配置系（公開カードを手札/場/エナ/トラッシュ等へ）＝「その中から[filter]を[pickN][動詞]」
       const placeVerb =
         a.handOrField ? '手札に加えるか場に出す'
+        : a.handOrEnergy ? '手札に加えるかエナゾーンに置く'
         : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
         : a.then?.type === 'ADD_TO_FIELD' ? '場に出す'
         : a.then?.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'

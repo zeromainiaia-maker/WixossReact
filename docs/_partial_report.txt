@@ -1,11 +1,12 @@
 # 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）
 
-生成: 2026-07-28T21:46:52.256Z / 刻印効果 42件
+生成: 2026-07-29T02:40:36.452Z / 刻印効果 43件
 
 ## カテゴリ別件数
 
 - IS_MY_TURN化: 39
 - リコレクト分割: 3
+- multi-group look-pick分割: 2
 - 場出しpick分割: 1
 
 ## 明細（effectId → 理由）
@@ -33,6 +34,7 @@ WX22-043-E1	IS_MY_TURN化:この方法でカードを２枚エナゾーンに置
 WX24-P4-016-E3	リコレクト分割:UNKNOWNステップ除去
 WX24-P4-045-E1	IS_MY_TURN化:この方法でカードをライフクロスに加えた場合、
 WX25-P1-052-E1	場出しpick分割:UNKNOWNアクション除去
+WX26-CP1-019-E1	multi-group look-pick分割:UNKNOWNアクション除去 / multi-group look-pick分割:UNKNOWNアクション除去
 WXDi-P01-082-E1	IS_MY_TURN化:この方法でシグニを手札に加えた場合、
 WXDi-P03-044-E2	IS_MY_TURN化:その後、このターンにあなたのデッキからカードが３枚以上エナゾーンに移動していた場合、
 WXDi-P06-036-E1	IS_MY_TURN化:その後、この効果で公開したカードが＜宝石＞のシグニの場合、

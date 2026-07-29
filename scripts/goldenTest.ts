@@ -3144,6 +3144,208 @@ test('(xlvi) WXDi-P12-001-E1: ディソナ pick の後続【シグニバリア�
   ok(s.includes('REVEAL_AND_PICK') && s.includes('"isDisona":true'), `pick が《ディソナアイコン》filter つきで残る（実際 ${s.slice(0, 160)}）`);
   ok(s.includes('GAIN_SIGNI_BARRIER') && s.includes('GAIN_LRIG_BARRIER'), '後続のバリア2種が落ちていない');
 });
+// ── task12(xlvi) wave5 ((h) 融合規則が filter を運ばず「どのカードでも拾える」過剰実行だった系統）────
+// LOOK_AND_REORDER + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) の融合が revealCount/枚数/行き先しか運ばず、
+// filter・「N枚まで」・「手札に加えるかエナゾーンに置く」が丸ごと落ちていた17効果。
+// wave4 と同じ流儀で**候補集合**（実際に手札へ入るか／非該当が入らないか）で assert する。
+// want＝`filter|pickCount|pickUpTo|handOrEnergy|remainder`。**候補集合 assert は filter 自体から候補を作るため
+// 「間違った filter」は検出できない**（filter の**消失**だけを検出する）ので、内容はここで原文どおりに固定する。
+const xlviWave5Cases = [
+  { cardNum: 'WX21-028', effectId: 'WX21-028-BURST', why: '＜天使＞2枚まで・残りトラッシュ（PRESERVE 外科採用）',
+    want: '{"eachDistinctColor":true,"story":"天使","cardType":"シグニ"}|2|true|false|trash/bottom' },
+  { cardNum: 'WX21-037', effectId: 'WX21-037-E2', why: '青か黒のスペル（OR記述子）',
+    want: '{"color":["青","黒"],"cardType":"スペル"}|1|false|false|deck/bottom' },
+  { cardNum: 'WX22-030', effectId: 'WX22-030-E1', why: '《アクセアイコン》を持つシグニ',
+    want: '{"hasIcon":"アクセ","cardType":"シグニ"}|1|false|false|deck/bottom' },
+  { cardNum: 'WXK08-027', effectId: 'WXK08-027-E2', why: 'それぞれレベルの異なるシグニ4枚まで',
+    want: '{"eachDistinctLevel":true,"cardType":"シグニ"}|4|true|false|trash/bottom' },
+  { cardNum: 'WDK01-008', effectId: 'WDK01-008-E1', why: '＜乗機＞のシグニ3枚まで（CHOOSE 内・従来は1枚固定）',
+    want: '{"story":"乗機","cardType":"シグニ"}|3|true|false|deck/bottom' },
+  // handOrEnergy 群（オートパイロットは先頭 available 選択肢＝手札を選ぶので手札着地で見る）
+  { cardNum: 'WX08-043', effectId: 'WX08-043-E1', why: '＜美巧＞・手札かエナ（PRESERVE 外科採用）',
+    want: '{"story":"美巧","cardType":"シグニ"}|1|false|true|deck/bottom' },
+  { cardNum: 'WX20-072', effectId: 'WX20-072-E1', why: 'カード名《ウェディング》・手札かエナ（PRESERVE 外科採用）',
+    want: '{"cardName":"ウェディング","cardType":"シグニ"}|1|false|true|deck/bottom' },
+  { cardNum: 'WXK06-011', effectId: 'WXK06-011-E1', why: '白のカード3枚まで・手札かエナ（従来は1枚固定＋無差別）',
+    want: '{"color":"白"}|3|true|true|trash/bottom' },
+  { cardNum: 'WXK07-024', effectId: 'WXK07-024-E1', why: '黒のカード3枚まで・手札かエナ',
+    want: '{"color":"黒"}|3|true|true|trash/bottom' },
+] as const;
+for (const spec of xlviWave5Cases) {
+  test(`(xlvi)(h) ${spec.effectId}: 融合 look-pick が filter どおり手札へ入る（${spec.why}）`, () => {
+    const savedCursor = cursor;
+    try {
+      const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+      ok(!!effect, `${spec.effectId}: live 効果が存在`);
+      const reveal = findRevealAndPick(effect!.action);
+      ok(!!reveal, `${spec.effectId}: live が REVEAL_AND_PICK`);
+      const filter = reveal!.filter;
+      ok(!!filter, `${spec.effectId}: filter を保持（従来は融合規則が運ばず**どのカードでも拾えた**）`);
+      const rem0 = reveal!.remainder!;
+      eq(`${JSON.stringify(filter)}|${reveal!.pickCount}|${!!reveal!.pickUpTo}|${!!reveal!.handOrEnergy}|${rem0.location}/${rem0.position}`,
+        spec.want, `${spec.effectId}: filter/枚数/上限/手札orエナ/残り先が原文どおり`);
+      const declared = reveal!.pickCount as number;
+      const revealN = reveal!.revealCount as number;
+      ok(typeof declared === 'number' && declared >= 1, `${spec.effectId}: pickCount は実数`);
+      // 公開窓には必ず非該当カードを1枚以上混ぜる（空振りテスト防止）。pickCount==revealCount の札
+      // （WXK08-027-E2 の「4枚公開して4枚まで」）では該当を1枚減らして枠を空ける。
+      const wantPick = Math.min(declared, revealN - 1);
+      ok(wantPick >= 1, `${spec.effectId}: 該当枠を1枚以上確保`);
+      const matching: string[] = [];
+      const nonMatching: string[] = [];
+      for (const c of cardMap.values()) {
+        const hit = matchesFilter(c, filter);
+        if (hit && matching.length < wantPick) matching.push(c.CardNum);
+        else if (!hit && nonMatching.length < revealN - wantPick) nonMatching.push(c.CardNum);
+        if (matching.length >= wantPick && nonMatching.length >= revealN - wantPick) break;
+      }
+      eq(matching.length, wantPick, `${spec.effectId}: filter 成立カードを ${wantPick} 枚用意`);
+      ok(nonMatching.length > 0, `${spec.effectId}: 非該当カードを公開窓へ混ぜる（空振りテスト防止）`);
+      const top = [...matching, ...nonMatching];
+      const ctx = mkCtx({ deckTop: top }, {}, spec.cardNum);
+      const countIn = (xs: string[], n: string) => xs.filter(x => x === n).length;
+      const handBefore = new Map(top.map(n => [n, countIn(ctx.ownerState.hand, n)]));
+      const hand0 = ctx.ownerState.hand.length;
+      const deck0 = ctx.ownerState.deck.length;
+      const trash0 = ctx.ownerState.trash.length;
+      const r = run(reveal! as EffectAction, ctx);
+      ok(r.done, `${spec.effectId}: SEARCH/CHOOSE continuation を完走`);
+      eq(r.ownerState.hand.length, hand0 + wantPick, `${spec.effectId}: 該当分だけ手札へ`);
+      for (const n of matching) ok(countIn(r.ownerState.hand, n) > handBefore.get(n)!, `${spec.effectId}: 該当 ${n} が手札へ`);
+      for (const n of nonMatching) eq(countIn(r.ownerState.hand, n), handBefore.get(n)!, `${spec.effectId}: 非該当 ${n} は手札に入らない`);
+      const rem = reveal!.remainder!;
+      if (rem.location === 'trash') {
+        eq(r.ownerState.trash.length, trash0 + nonMatching.length, `${spec.effectId}: 残りはトラッシュへ`);
+        eq(r.ownerState.deck.length, deck0 - top.length, `${spec.effectId}: 公開分はデッキから抜ける`);
+      } else {
+        eq(r.ownerState.deck.length, deck0 - wantPick, `${spec.effectId}: pick 以外はデッキに保持（消失なし）`);
+        const tail = r.ownerState.deck.slice(-nonMatching.length);
+        for (const n of nonMatching) ok(tail.includes(n), `${spec.effectId}: 残り ${n} がデッキの一番下へ`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
+// handOrEnergy の**エナ側**分岐。オートパイロットは常に先頭選択肢（手札）を取るので、
+// ここだけ CHOOSE を明示的に 'energy' で解決して「エナゾーンへ置く」経路が実働することを固定する。
+test('(xlvi)(h) WXK06-011-E1: 手札に加えるかエナゾーンに置く＝エナ側を選ぶとエナゾーンへ入る', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('WXK06-011')?.find(e => e.effectId === 'WXK06-011-E1');
+    const reveal = findRevealAndPick(effect!.action)!;
+    ok(reveal.handOrEnergy === true, 'handOrEnergy を保持（従来は手札固定）');
+    const white = [...cardMap.values()].filter(c => matchesFilter(c, reveal.filter!)).slice(0, 3).map(c => c.CardNum);
+    eq(white.length, 3, '白のカードを3枚用意');
+    const other = [...cardMap.values()].find(c => !matchesFilter(c, reveal.filter!))!.CardNum;
+    const ctx = mkCtx({ deckTop: [...white, other] }, {}, 'WXK06-011');
+    const energy0 = ctx.ownerState.energy.length;
+    const hand0 = ctx.ownerState.hand.length;
+    // SEARCH → 3枚ピック → 1枚ずつ CHOOSE。全て 'energy' を選ぶ。
+    let result = executeEffect({ effectId: 't', effectType: 'AUTO', action: reveal as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    let steps = 0;
+    while (!result.done) {
+      if (++steps > 20) throw new Error('autopilot hang');
+      const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards };
+      const pending = result.pending as { type: string; [k: string]: unknown };
+      if (pending.type === 'SEARCH') {
+        const vis = pending.visibleCards as string[];
+        result = resumeSearch(vis.slice(0, Math.min(pending.maxPick as number, vis.length)), pending as never, c);
+      } else if (pending.type === 'CHOOSE') {
+        result = resumeChoose('energy', pending as never, c);
+      } else throw new Error(`unhandled pending ${pending.type}`);
+    }
+    eq(result.ownerState.energy.length, energy0 + 3, '3枚ともエナゾーンへ');
+    eq(result.ownerState.hand.length, hand0, '手札は増えない');
+    for (const n of white) ok(result.ownerState.energy.includes(n), `${n} がエナゾーンへ`);
+    ok(!result.ownerState.energy.includes(other), '非該当カードはエナゾーンに入らない');
+    ok(result.ownerState.trash.includes(other), '非該当カードは残りとしてトラッシュへ');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+// (h) 複数 pick 群（「AとB」「A１枚とB１枚」「…置き、…加え」）＝LOOK_PICK_CHAIN。
+// 従来は単一 filter 無し REVEAL_AND_PICK へ潰れ、**2群目が丸ごと消えていた**。
+const xlviWave5LpcCases = [
+  { cardNum: 'WXEX1-12', effectId: 'WXEX1-12-E1', dests: ['hand', 'hand'] as const,
+    want: '[{"filter":{"story":"原子","cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"cardType":"スペル"},"pickCount":1,"then":"hand","pickNoun":"スペル"}]|trash/any/false' },
+  { cardNum: 'WX24-P2-031', effectId: 'WX24-P2-031-E1', dests: ['hand', 'hand'] as const,
+    want: '[{"filter":{"story":"天使","cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"story":"悪魔","cardType":"シグニ"},"pickCount":1,"then":"hand"}]|deck/bottom/true' },
+  { cardNum: 'WX26-CP1-012', effectId: 'WX26-CP1-012-E1', dests: ['energy', 'hand'] as const,
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"赤"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+  { cardNum: 'WX26-CP1-014', effectId: 'WX26-CP1-014-E1', dests: ['energy', 'hand'] as const,
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"青"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+  { cardNum: 'WX26-CP1-016', effectId: 'WX26-CP1-016-E1', dests: ['energy', 'hand'] as const,
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"緑"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+] as const;
+function findLookPickChain(a: unknown): import('../src/types/effects').LookPickChainAction | null {
+  if (!a || typeof a !== 'object') return null;
+  const o = a as Record<string, unknown>;
+  if (o.type === 'LOOK_PICK_CHAIN') return o as unknown as import('../src/types/effects').LookPickChainAction;
+  for (const v of Object.values(o)) {
+    if (Array.isArray(v)) { for (const x of v) { const f = findLookPickChain(x); if (f) return f; } }
+    else { const f = findLookPickChain(v); if (f) return f; }
+  }
+  return null;
+}
+for (const spec of xlviWave5LpcCases) {
+  test(`(xlvi)(h) ${spec.effectId}: 複数 pick 群が LOOK_PICK_CHAIN の段ごとに実働する`, () => {
+    const savedCursor = cursor;
+    try {
+      const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+      ok(!!effect, `${spec.effectId}: live 効果が存在`);
+      const lpc = findLookPickChain(effect!.action);
+      ok(!!lpc, `${spec.effectId}: LOOK_PICK_CHAIN（単一 REVEAL_AND_PICK への潰れなし）`);
+      eq(lpc!.stages.length, spec.dests.length, `${spec.effectId}: 段数`);
+      lpc!.stages.forEach((s, i) => {
+        ok(!!s.filter, `${spec.effectId}: stage ${i + 1} が filter を持つ`);
+        eq(s.then, spec.dests[i], `${spec.effectId}: stage ${i + 1} の行き先`);
+      });
+      eq(`${JSON.stringify(lpc!.stages)}|${lpc!.remainder.location}/${lpc!.remainder.position}/${!!lpc!.remainder.shuffle}`,
+        spec.want, `${spec.effectId}: 各段の filter/枚数/行き先と残り先が原文どおり`);
+      const revealN = lpc!.revealCount as number;
+      // 走行A：各段の該当カードを1枚ずつ公開窓へ → 段ごとの行き先が実際に動くこと
+      const used = new Set<string>();
+      const picks = lpc!.stages.map((stage, i) => {
+        const card = [...cardMap.values()].find(c => !used.has(c.CardNum) && matchesFilter(c, stage.filter!));
+        ok(!!card, `${spec.effectId}: stage ${i + 1} の該当カードを用意`);
+        used.add(card!.CardNum);
+        return `${card!.CardNum}#xlvi5-${i}`;
+      });
+      const ctxA = mkCtx({ deckTop: picks }, {}, spec.cardNum);
+      const beforeA = { hand: ctxA.ownerState.hand.length, energy: ctxA.ownerState.energy.length };
+      const rA = run(lpc! as EffectAction, ctxA);
+      ok(rA.done, `${spec.effectId}: 全stage continuation 完走`);
+      eq(rA.ownerState.hand.length, beforeA.hand + spec.dests.filter(d => d === 'hand').length, `${spec.effectId}: hand 段の枚数`);
+      eq(rA.ownerState.energy.length, beforeA.energy + spec.dests.filter(d => d === 'energy').length, `${spec.effectId}: energy 段の枚数`);
+      picks.forEach((p, i) => {
+        const zone = spec.dests[i] === 'hand' ? rA.ownerState.hand : rA.ownerState.energy;
+        ok(zone.includes(p), `${spec.effectId}: stage ${i + 1} のピックが ${spec.dests[i]} へ`);
+      });
+      // 走行B（filter の証明）：公開窓を**どの段にも該当しないカードだけ**で埋める。
+      //   従来の filter 落ち（どのカードでも1枚拾える過剰実行）ならここで手札/エナが増える。
+      const offs: string[] = [];
+      for (const c of cardMap.values()) {
+        if (lpc!.stages.every(s => !matchesFilter(c, s.filter!))) offs.push(`${c.CardNum}#xlvi5-off${offs.length}`);
+        if (offs.length >= revealN) break;
+      }
+      eq(offs.length, revealN, `${spec.effectId}: 非該当カードを公開枚数ぶん用意`);
+      const ctxB = mkCtx({ deckTop: offs }, {}, spec.cardNum);
+      const beforeB = { hand: ctxB.ownerState.hand.length, energy: ctxB.ownerState.energy.length, trash: ctxB.ownerState.trash.length };
+      const rB = run(lpc! as EffectAction, ctxB);
+      ok(rB.done, `${spec.effectId}: 非該当のみでも完走`);
+      eq(rB.ownerState.hand.length, beforeB.hand, `${spec.effectId}: 非該当は手札に入らない（過剰実行なし）`);
+      eq(rB.ownerState.energy.length, beforeB.energy, `${spec.effectId}: 非該当はエナゾーンに入らない（過剰実行なし）`);
+      if (lpc!.remainder.location === 'trash') {
+        eq(rB.ownerState.trash.length, beforeB.trash + revealN, `${spec.effectId}: 公開分すべてが残りとしてトラッシュへ`);
+      } else {
+        for (const n of offs) ok(rB.ownerState.deck.includes(n), `${spec.effectId}: 残り ${n} がデッキに保持（消失なし）`);
+      }
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+}
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

@@ -3639,6 +3639,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     maxPick,
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
+    ...(a.handOrEnergy ? { handOrEnergy: true } : {}),
     ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}) } } : {}),
     ...(a.recordRevealed ? { lastProcessedCardsAfter: visible } : {}),
   });
@@ -5375,6 +5376,27 @@ export function resumeSearch(
     ];
     return needsInteraction(addLog(cur, `${cur.cardMap.get(getCardNum(card))?.CardName ?? card}を手札に加えるか場に出すか選択`), {
       type: 'CHOOSE', options: optsHF, count: 1, ...(contHF ? { continuation: contHF } : {}),
+    });
+  }
+  // handOrEnergy: ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理
+  //   （「白のカードを３枚まで選び、それぞれ手札に加えるかエナゾーンに置き」WXK06-011 等・タスク12(xlvi)(h)）。
+  //   handOrField と違い**枚数が複数ありうる**ため、2枚目以降は INTERNAL_HAND_OR_ENERGY で1枚ずつ問い直す。
+  if (pending.handOrEnergy && picked.length > 0) {
+    const card = picked[0];
+    const contPartsHE: EffectAction[] = [];
+    if (picked.length > 1) contPartsHE.push({ type: 'STUB', id: 'INTERNAL_HAND_OR_ENERGY', pickQueue: picked.slice(1) } as EffectAction);
+    if (pending.afterAction) contPartsHE.push(pending.afterAction);
+    if (pending.continuation) contPartsHE.push(pending.continuation);
+    const contHE: EffectAction | undefined = contPartsHE.length === 0 ? undefined
+      : contPartsHE.length === 1 ? contPartsHE[0] : { type: 'SEQUENCE', steps: contPartsHE } as SequenceAction;
+    return needsInteraction(addLog(cur, `${cur.cardMap.get(getCardNum(card))?.CardName ?? card}を手札に加えるかエナゾーンに置くか選択`), {
+      type: 'CHOOSE',
+      count: 1,
+      options: [
+        { id: 'hand', label: '手札に加える', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: card } as EffectAction },
+        { id: 'energy', label: 'エナゾーンに置く', available: true, action: { type: 'STUB', id: 'INTERNAL_PICK_TO_ENERGY', value: card } as EffectAction },
+      ],
+      ...(contHE ? { continuation: contHE } : {}),
     });
   }
   // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
