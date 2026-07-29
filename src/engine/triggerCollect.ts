@@ -49,8 +49,8 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * （「任意コスト：支払いますか？」CHOOSE）へ載せる。engine 内で完結するので golden で検証できる。
  *
  * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／手札からエナ／手札から自身の下／
- *   エナゾーン捨て／エクシード／場シグニトラッシュ**。
- *   それ以外のコスト（lrigDown・beat_signi・life_crash…）が1つでも混ざる効果は
+ *   エナゾーン捨て／エクシード／場シグニトラッシュ／センタールリグ1体ダウン／自身シグニダウン／ライフ**。
+ *   それ以外のコスト（アシストを含むlrigDown・beat_signi…）が1つでも混ざる効果は
  *   **null を返して収集しない**＝従来どおり不発のまま据え置く。**払っていないコストを踏み倒して
  *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
  */
@@ -72,11 +72,14 @@ export function optionalOnPlayCostStub(
   const SUPPORTED = new Set([
     'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
     'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
-    'life_crash', 'lifeTrash', 'lifeToHand',
+    'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
+  // 既存 DOWN{LRIG} はセンターだけを対象にし、アシストL/Rをダウンできない。
+  // UI の「センター→アシストL→R」と結果が割れる一般形／2体形は安全に写せないため収集しない。
+  if (cost.lrigDown && (cost.lrigDown.count !== 1 || !cost.lrigDown.centerOnly)) return null;
 
   const costColors = (cost.energy ?? []).flatMap(e => Array.from({ length: e.count }, () => e.color as string));
   let handDiscard: { count: number; filter?: TargetFilter } | undefined;
@@ -110,6 +113,8 @@ export function optionalOnPlayCostStub(
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
     ...(cost.exceed ? { exceed: cost.exceed } : {}),
     ...(cost.fieldTrash ? { fieldTrash: cost.fieldTrash } : {}),
+    ...(cost.lrigDown ? { lrigDown: cost.lrigDown } : {}),
+    ...(cost.down_self ? { down_self: true } : {}),
     ...(cost.life_crash ? { life_crash: cost.life_crash } : {}),
     ...(cost.lifeTrash ? { lifeTrash: cost.lifeTrash } : {}),
     ...(cost.lifeToHand ? { lifeToHand: cost.lifeToHand } : {}),

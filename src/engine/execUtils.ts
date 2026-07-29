@@ -151,6 +151,8 @@ export interface OptionalCostSpec {
   handToUnderSelf?: { count: number; filter?: TargetFilter };
   energyTrash?: { count: number; filter?: TargetFilter };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number };
+  down_self?: boolean;
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;
@@ -176,7 +178,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    energyTrash, fieldTrash: a.fieldTrash,
+    energyTrash, fieldTrash: a.fieldTrash, lrigDown: a.lrigDown, down_self: a.down_self,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     levelUnavailable: perLevel && level <= 0,
   };
@@ -216,6 +218,21 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldTrash.count) return false;
   }
+  if (spec.lrigDown) {
+    const stack = ctx.ownerState.field.lrig;
+    const top = stack.at(-1);
+    const levelOk = spec.lrigDown.level === undefined
+      || Number(ctx.cardMap.get(getCardNum(top ?? ''))?.Level) === spec.lrigDown.level;
+    // 既存 DOWN{LRIG} が対象にできるのはセンタールリグだけ。アシストを含む一般形は
+    // optionalOnPlayCostStub 側で収集しないため、ここもセンター1体の可否だけを厳密に判定する。
+    if (spec.lrigDown.count !== 1 || !spec.lrigDown.centerOnly
+        || !top || ctx.ownerState.field.lrig_down || !levelOk) return false;
+  }
+  if (spec.down_self) {
+    if (!ctx.sourceCardNum) return false;
+    const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === ctx.sourceCardNum);
+    if (zoneIdx < 0 || (ctx.ownerState.field.signi_down?.[zoneIdx] ?? false)) return false;
+  }
   const lifeCount = (spec.life_crash ?? 0) + (spec.lifeTrash ?? 0) + (spec.lifeToHand ?? 0);
   if (ctx.ownerState.life_cloth.length < lifeCount) return false;
   return true;
@@ -248,6 +265,14 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
           ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
+    } as EffectAction] : []),
+    ...(spec.lrigDown ? [{
+      type: 'DOWN',
+      target: { type: 'LRIG', owner: 'self', count: 1 },
+    } as EffectAction] : []),
+    ...(spec.down_self ? [{
+      type: 'DOWN',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
     } as EffectAction] : []),
     ...(spec.life_crash ? [{
       type: 'LIFE_CRASH', owner: 'self', count: spec.life_crash, triggerBurst: true,

@@ -1819,6 +1819,10 @@ export interface StubAction {
   handToUnderSelf?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
+  lrigDown?: { count: number; centerOnly?: boolean; level?: number };
+  /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */
+  down_self?: boolean;
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;

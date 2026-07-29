@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 「ダウンする」任意【出】コスト2効果を既存 `DOWN` 経路へ配線・一般ルリグ6効果は安全側に保留（2026-07-29・PLAN §3 タスク12(xxix)(1) 第5波・Codex）
+- **採用2件**＝`PR-K064-E1`〈アップ状態のセンタールリグ1体をダウン〉は `DOWN{target:LRIG,self,count:1}`、`WXDi-P08-042-E3`〈《ダウン》＝効果元シグニ自身〉は `DOWN{target:SIGNI,self,count:1,filter:{thisCardOnly:true}}`。両件とも `collectPlacedSelfOnPlayTriggers`／`collectAssistOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → `execDown` → 元action。自分側だけをダウンし、前者は3択、後者は次の相手ターン終了時まで+8000へ進む。
+- **見送り6件**＝`WXDi-P14-041-E3`／`043-E3`／`045-E3`／`047-E3`／`049-E2`（ルリグ2体）と `WX24-P2-069-E1`（ルリグ1体）。既存 `execDown(LRIG)` はセンターだけを対象にし、アシストL/Rをダウンできないため、UI のセンター→アシストL→Rと同じ支払いを表現不能。`WX24-P2-069-E1` の本体参照自体は `execDown` がダウンしたルリグを `lastProcessedCards` に記録し、`colorMatchesLastProcessed` が読むため成立するが、一般ルリグ支払いの対象面が不足するので収集しない。新action/STUBやアシストDOWN拡張は本波の禁止範囲として作らなかった。
+- **正負固定**＝センターがアップなら pay で自センターだけがダウンして本体へ進み、センターがダウン済みならアシストがアップでも `pay.available:false`。`down_self` は効果元が在場かつアップのときだけ pay でき、自身をダウンして+8000を付与し、既ダウン／不在は `pay.available:false`。8件すべての `count`／`centerOnly`／`down_self` payload と採否を per-effect golden で固定。
+- **データ／計器**＝parser・live JSON・生パースdiff変更0、8効果の outlier 0。build は新規0／純改善5／温存(手修正)590／温存(要レビュー)293／fresh空2／parseStatusのみ79、held **293枚／107署名**（増減0）、manual field loss 0。「写せない」**35→33**（採用2件ぶん）、母集団958据置。
+- **検証**＝golden **1053→1056**、census 1400、smoke 10726/10726 全0、fuzz全0、同型★0、lint 0 errors / 228 warnings（増減0）。`npm run gates` 全緑。
+- **やっていないこと**＝一般ルリグ／アシストを対象にする新DOWN機構、上記見送り6件の収集、JSON/parser/PRESERVE補正、`OPTIONAL_ON_PLAY_COST_REF_DEFERRED` 追加（色参照自体は既存契約で成立）、force-adopt、新STUB、他コスト、ブラウザ実機、PLAN/PLAN_PROGRESS、commit/push。
+
 ## ライフクロス任意【出】8効果の支払い経路＋UI複数クラッシュ順序是正（2026-07-29・PLAN §3 タスク12(xxix)(1) 第4波・Codex）
 - **採用8件**＝`WX24-P3-052-E3`／`WXDi-P10-027-E2`（2枚）／`WXDi-P12-035-E2`／`WXDi-P14-006-E1` は `LIFE_CRASH{owner:'self',triggerBurst:true}`、`WD06-013-E1`／`WXDi-P16-041-E1`／`WXK06-030-E2` は `TRASH{asCost,target:LIFE_CLOTH_CARD,self}`、`WX24-P3-044-E1` は `TRANSFER_TO_HAND{source:LIFE_CLOTH_CARD,self}`。全件 `collectPlacedSelfOnPlayTriggers`／`collectAssistOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → 各 executor。見送り0。
 - **バースト方針(a)**＝engine の自己クラッシュは `execLifeCrash` が自分の `life_cloth` を減らして `field.check`／`pending_crashed_cards` へ送る。通常召喚UIも純関数 `payLifeOnPlayCost` から同じ既存 `performLifeBurstResponse` 待ち状態へ接続し、`lifeTrash`／`lifeToHand` は check を立てない。追加確認で、UI の2枚クラッシュが `slice` 順のまま先頭を check にしていたため本来最上段の2枚目を先に処理するバグを `reverse()` で是正。

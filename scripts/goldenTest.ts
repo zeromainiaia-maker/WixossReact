@@ -14768,11 +14768,11 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // ── (xxix)(1) 任意+cost 効果を OPTIONAL_COST 包みで積む ─────────────────────────────────
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
-  test('(xxix)(1) 任意cost【出】の内訳＝handToEnergy/handToUnderSelf追加後も安全側へ分類', () => {
+  test('(xxix)(1) 任意cost【出】の内訳＝lrigDown/down_self追加後も安全側へ分類', () => {
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
       'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
-      'life_crash', 'lifeTrash', 'lifeToHand',
+      'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
@@ -14780,8 +14780,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 923, 'OPTIONAL_COST へ写せる＝ライフコスト8件を追加');
-    eq(optionalCost.length - mapped.length, 35, '表現できないコストを含むため据え置き（参照欠落1件を含む）');
+    eq(mapped.length, 925, 'OPTIONAL_COST へ写せる＝センター限定1件＋down_self1件を追加');
+    eq(optionalCost.length - mapped.length, 33, '表現できないコストを含むため据え置き（一般lrigDown6件・参照欠落1件を含む）');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14791,7 +14791,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
       const allSupported = keys.every(k => SUPPORTED.has(k));
-      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1';
+      const ld = e.cost?.lrigDown;
+      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1'
+        && (!ld || (ld.count === 1 && ld.centerOnly === true));
       eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0 && semanticallySafe,
         `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
     }
@@ -16495,6 +16497,97 @@ test('task12(xxix)(1) wave4 UI: crash uses check/pending; trash and hand do not 
   eq(paid.state.hand.join(','), 'L1', 'lifeToHand to hand');
   eq(paid.state.life_crashed_this_turn, 2, 'only crashes counted');
   ok(payLifeOnPlayCost({ ...base, life_cloth: ['L1'] }, { life_crash: 2 }) === null, 'UI rejects shortage');
+});
+
+test('task12(xxix)(1) wave5: eight down costs are classified per effect and preserve payload', () => {
+  const expected: Record<string, { adopted: boolean; key: 'lrigDown' | 'down_self'; count?: number; centerOnly?: boolean }> = {
+    'WXDi-P14-041-E3': { adopted: false, key: 'lrigDown', count: 2 },
+    'WXDi-P14-043-E3': { adopted: false, key: 'lrigDown', count: 2 },
+    'WXDi-P14-045-E3': { adopted: false, key: 'lrigDown', count: 2 },
+    'WXDi-P14-047-E3': { adopted: false, key: 'lrigDown', count: 2 },
+    'WXDi-P14-049-E2': { adopted: false, key: 'lrigDown', count: 2 },
+    'WX24-P2-069-E1': { adopted: false, key: 'lrigDown', count: 1 },
+    'PR-K064-E1': { adopted: true, key: 'lrigDown', count: 1, centerOnly: true },
+    'WXDi-P08-042-E3': { adopted: true, key: 'down_self' },
+  };
+  for (const [effectId, want] of Object.entries(expected)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    if (want.key === 'lrigDown') {
+      eq(effect.cost?.lrigDown?.count, want.count, `${effectId}: lrigDown count`);
+      eq(!!effect.cost?.lrigDown?.centerOnly, !!want.centerOnly, `${effectId}: centerOnly`);
+    } else {
+      eq(effect.cost?.down_self, true, `${effectId}: down_self`);
+    }
+    const stub = optionalOnPlayCostStub(effect.cost!, effectId);
+    eq(!!stub, want.adopted, `${effectId}: 既存DOWNで忠実に払えるものだけ収集`);
+    if (stub && want.key === 'lrigDown') {
+      eq(JSON.stringify(stub.lrigDown), JSON.stringify(effect.cost!.lrigDown), `${effectId}: lrigDown payload`);
+    }
+    if (stub && want.key === 'down_self') eq(stub.down_self, true, `${effectId}: down_self payload`);
+  }
+});
+
+test('task12(xxix)(1) wave5: centerOnly lrigDown pays own center and rejects assist-only availability', () => {
+  const effect = effectsMap.get('PR-K064')!.find(e => e.effectId === 'PR-K064-E1')!;
+  const wrapped = wrapOptionalOnPlay(effect)!;
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const ctx = mkCtx({}, {}, 'PR-K064');
+  ctx.ownerState.field.lrig = [lrig];
+  ctx.ownerState.field.lrig_down = false;
+  ctx.ownerState.field.assist_lrig_l = [lrig];
+  ctx.ownerState.field.assist_lrig_l_down = false;
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'centerOnly pay/skip');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, 'アップのセンターがあればpay可能');
+    const paid = resumeChoose('pay', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    });
+    eq(paid.ownerState.field.lrig_down, true, '自分のセンタールリグをダウン');
+    eq(paid.ownerState.field.assist_lrig_l_down, false, 'アシストはダウンしない');
+    ok(!paid.done && paid.pending.type === 'CHOOSE', '支払い後に3択の効果本体が走る');
+  }
+  const blockedCtx = mkCtx({}, {}, 'PR-K064');
+  blockedCtx.ownerState.field.lrig = [lrig];
+  blockedCtx.ownerState.field.lrig_down = true;
+  blockedCtx.ownerState.field.assist_lrig_l = [lrig];
+  blockedCtx.ownerState.field.assist_lrig_l_down = false;
+  const blocked = executeEffect(wrapped, blockedCtx);
+  ok(!blocked.done && blocked.pending.type === 'CHOOSE', '支払い不能でもskipを提示');
+  if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+    eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, 'センターdownならassistがupでもpay不可');
+    eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, 'skipのみ可能');
+  }
+});
+
+test('task12(xxix)(1) wave5: down_self requires the source SIGNI in field and up, then runs body', () => {
+  const effect = effectsMap.get('WXDi-P08-042')!.find(e => e.effectId === 'WXDi-P08-042-E3')!;
+  const wrapped = wrapOptionalOnPlay(effect)!;
+  const ctx = mkCtx({ signi: ['WXDi-P08-042', null, null] }, {}, 'WXDi-P08-042');
+  ctx.ownerState.field.signi_down = [false, false, false];
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'down_self pay/skip');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, '在場かつアップならpay可能');
+    const paid = finish(resumeChoose('pay', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    }), ctx);
+    eq(paid.ownerState.field.signi_down[0], true, '効果元自身をダウン');
+    ok(paid.ownerState.power_mods_until_opp_turn?.some(m => m.cardNum === 'WXDi-P08-042' && m.delta === 8000),
+      '支払い後に+8000（次の相手ターン終了時まで）が走る');
+  }
+  for (const [label, blockedCtx] of [
+    ['既にダウン', (() => { const c = mkCtx({ signi: ['WXDi-P08-042', null, null] }, {}, 'WXDi-P08-042'); c.ownerState.field.signi_down = [true, false, false]; return c; })()],
+    ['場にいない', mkCtx({}, {}, 'WXDi-P08-042')],
+  ] as const) {
+    const blocked = executeEffect(wrapped, blockedCtx);
+    ok(!blocked.done && blocked.pending.type === 'CHOOSE', `${label}: skipを提示`);
+    if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+      eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${label}: pay不可`);
+      eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, `${label}: skipのみ`);
+    }
+  }
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
