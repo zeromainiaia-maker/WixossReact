@@ -5106,7 +5106,17 @@ function parseActionTextInner(text: string): EffectAction {
           : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
         const remainder = restDest === 'trash'
           ? { location: 'trash' as import('../types/effects').CardLocation, position: 'bottom' as const }
-          : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const };
+          : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const,
+              ...(rpp?.restShuffle ? { shuffle: true } : {}) };
+        // 宣言参照 pick（タスク12(xlvi)(c)）は「数字を宣言する」を**ガード制限なし**の宣言へ差し替える。
+        // 直前の DECLARE_NUMBER は declared_guard_restrict_level を立てる専用STUB＝そのままだと
+        // 「対戦相手はそのレベルのシグニでガードできない」という原文に無い制限が付く過剰実行になる（PR-434）。
+        if (rpp?.filter?.levelEqDeclaredNumber) {
+          const prev = merged[merged.length - 1] as StubAction | undefined;
+          if (prev?.type === 'STUB' && prev.id === 'DECLARE_NUMBER') {
+            merged[merged.length - 1] = { type: 'STUB', id: 'DECLARE_NUMBER_PLAIN' } as StubAction;
+          }
+        }
         // filter/上限/名詞/手札orエナは pick 記述子から復元済み（makeRevealPickStub・タスク12(xlvi)(h)）。
         // 従来はここで一切運ばれず「どのカードでも拾える」過剰実行に退化していた。
         merged.push({

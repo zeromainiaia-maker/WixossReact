@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 宣言参照 pick（数字/カード名/クラスを宣言 → 公開札をその宣言で絞る）第7波（2026-07-29・PLAN §3 タスク12(xlvi)(c)・Opus〔Claude Opus 5〕）
+
+- **系統は原文検索で全数6効果**（`その中から[^。]*宣言` で CSV 全数走査）。壊れ方は**3種**あった：
+  - **① pick が丸ごと `UNKNOWN`＝no-op（4効果）**＝`PR-434-E1`／`PR-434-BURST`／`WX11-037-E1`／`WX24-P1-035-E1`。「その中から宣言した〜」がどの pick 規則にも掛からず、公開だけして何も拾わなかった。
+  - **🔴② filter だけ落ちた過剰実行（1効果）**＝`PR-431-E2`。`REVEAL_AND_PICK` は出ていたが filter が空＝**公開した4枚のどれでも1枚手札に入る**（原文は「宣言したクラスを持つシグニ」）。宣言文自体も `UNKNOWN` で、宣言すら起きていなかった。
+  - **🔴③ 公開札の総取り（1効果）**＝`WX13-054-E1`。「その中から宣言したカードを**すべて**エナゾーンに置く」が上流の汎用「デッキ上→エナ」規則に飲まれ **`ENERGY_CHARGE_FROM_DECK{count:4}`＝デッキ上4枚を全部エナへ**に化けていた。
+- **新機構**：
+  - **`TargetFilter.nameEqDeclaredName`／`classEqDeclaredClass`**（`levelEqDeclaredNumber` は既存）。`resolveDynamicFilter` が `declared_card_name`→`cardNames`（**完全一致**。`cardName` は部分一致なので使えない）、`declared_class`→`story`（CardClass 部分一致＝多クラス対応）へ解決する。⚠**未宣言なら `noMatch` センチネル＝候補ゼロ**（「宣言していないのにどの公開札でも拾える」過剰実行を塞ぐ側に倒す）。
+  - **`DECLARE_NUMBER_PLAIN`／`SET_DECLARED_NUMBER_PLAIN`＋`PlayerState.declared_number`**。既存 `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる**ガード制限専用**STUB（`GuardResponseDialog` が読む）で、PR-434 にそのまま使うと**「対戦相手はそのレベルのシグニでガードできない」という原文に無い制限**まで付く。融合規則側で「pick の filter が `levelEqDeclaredNumber` のときだけ」直前の `DECLARE_NUMBER` を PLAIN へ差し替える＝**データ駆動**で、既存の宣言ガード札には触れない。
+  - **`StubAction.declareOptions`**＝原文がクラスを列挙する形（`＜精像＞か＜精武＞か…から１つを宣言する` PR-431）の候補。列挙を無視して盤面から動的収集した全クラスを選ばせるのは別種の過剰実行なので明示で絞る（実測：動的収集だと `＜精像：天使＞ ＜精械：電機＞ …` の7候補が出る）。
+- **parser**：
+  - `REVEAL_PICK_DESC_RULES` に宣言参照3種を追加。⚠**具体形（`宣言した数字と同じレベルを持つ`／`宣言したクラスを持つ`）を裸の `宣言した` より前に置く**（`.find` の先着優先＝順序を崩すとレベル参照が名前一致に化ける）。
+  - `parseRevealPickDescriptor` の枚数トークンを緩めた＝**「すべて」「好きな枚数」はそれ自体が枚数語なので「枚」を任意**にし、名詞直後の読点（`シグニを、好きな枚数…`）も許容。
+  - `makeRevealPickStub` の `restDest` を**記述子が解けたときだけ「残り」明示句アンカーに切替**。従来の文末アンカー（`エナゾーンに置く$`）は pick の行き先を**残りの行き先と誤読**しており、`WX16-Re04-E1`（「＜美巧＞1枚を手札に加えるかエナゾーンに置く。残りを…デッキの一番下に置く」）で**残りをエナへ送る過剰実行**になっていた（本波で同時是正）。`restShuffle`（「残りをシャッフルして…」）も新設。
+  - 新 `fusedLookPickSentence`＝**読点で1文に畳まれた look-pick**（`デッキの上からN枚公開し、その中から…`）の判定。上流の汎用「デッキ上公開/見る」規則と「デッキ上→エナ」規則がこれを先取りして pick を落としていたので、**記述子が忠実に解けるときだけ**両規則から譲り、part4 の新規則が `REVEAL_AND_PICK` に解く。
+- **外科性**：全カード生 parser 出力の effectId 単位差分は **8件だけ**（対象6＋同系統2）。同系統2＝`WX16-Re04-E1`（上記 remainder 誤読）と `WXK05-021-E2`（1文畳み形が裸 STUB のままだったのが `REVEAL_AND_PICK{revealCount:3}` へ）。live JSON の per-effect 差分も**同じ8件だけ**、再 build 差分0（冪等）、held 258→**254**（新規ドリフト0）。**PRESERVE カードの外科採用は3件**＝`PR-431`／`WX11-037`／`WX24-P1-035`（effectId アンカーで action だけ差し替え `MANUAL` 化・兄弟効果の不変を機械確認）。**7波連続で再発している型。**
+- **検証**：golden 968→**978**（新規10本）。①6効果の構造を `宣言STUB|filter|pickCount|pickUpTo|pickNoun|handOrEnergy|then|remainder` の期待値文字列で固定 ②宣言参照 filter 3種の候補集合＋**未宣言なら候補ゼロ** ③`DECLARE_NUMBER_PLAIN` は `declared_number` だけを立て**ガード制限を立てない**（対照で従来 `DECLARE_NUMBER` は立てる） ④`PR-431` の宣言候補が列挙どおりの5クラス ⑤**`WX13-054` の E2E＝宣言名に一致した1枚だけがエナへ行き残り3枚がデッキに残る**（総取りの回帰ガード）。**変異4種で狙った本数だけ FAIL することを実測**＝live JSON を HEAD へ戻す（8本）／`resolveDynamicFilter` の宣言2語彙を無効化（2本）／`DECLARE_NUMBER_PLAIN` にガード制限を立てさせる（1本）／`declareOptions` を無視させる（1本）。
+- **計器**：decompiler に `levelEqDeclaredNumber`／`classEqDeclaredClass`／`nameEqDeclaredName`・`DECLARE_NUMBER_PLAIN`・`declareOptions` を追加。ついでに **`remainder.shuffle` が逆翻訳で丸ごと落ちていた**（`PR-370-E2`／`WXEX1-06-E2`／`WXK10-060-E2` で「シャッフルして」が消えていた）のと、**`ENERGY_CHARGE{DECK_CARD}` を配置動詞として認識せず「それが〜の場合」条件文に化けて見えていた**のを是正。census 1452→**1453**（`BASELINE_HIGH` 更新）。⚠**高シグナル集合への新規追加は `WXK05-021-E2` の1件だけ**＝STUB 格納（判定保留）から高シグナル側への**移動**で、第5波の `WX12-024-BURST` と同型の再発。原因は **census のキー表（「Nまで」上限選択＝`['"upToCount":true','maxCount','upTo']`）に `pickUpTo` が無い**こと＝**119効果に効く計器の盲点**（較正は本波と混ぜず別作業に切り出し・PLAN §3 に登録）。smoke 10726 全0・fuzz 全0・lint 0 errors・`npm run gates` 全緑。
+- **残**：(xlvi) は **16件**（(c) が残0。在庫20−(c)4。同系統2は在庫外の新規発見）。内訳＝(a) 残2／(b) 10／(d) 残2／(g) 2。
+
 ## 英知＝N の仕様確定と「レベル読み替えで合計は集合になる」の実装（2026-07-29・PLAN §3 タスク12(xxix)(2b)・Opus〔Claude Opus 5〕）
 
 - **仕様はカード自身のルール補足に書いてあった**（推測不要）＝「（あなたの場にある＜英知＞のシグニのレベルの合計が**ちょうど**Nであるかぎり有効になる）」。**`operator:'eq'` が正しい**ことが確定し、直前セッションで登録した「`gte` の可能性」は**誤り**。(2b) はクローズ。

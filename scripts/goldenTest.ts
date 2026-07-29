@@ -3533,6 +3533,173 @@ test('(xlvi)(a) WXK08-025-E3: 「共通するクラスを持つシグニ2枚」�
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi)(c) wave7 宣言参照 pick（数字/カード名/クラスを宣言 → 公開札をその宣言で絞る）─────────
+// 壊れ方は3種あった：①pick が丸ごと UNKNOWN＝no-op（PR-434-E1/BURST・WX11-037-E1・WX24-P1-035-E1）
+// ②filter だけ落ちて**どの公開札でも拾える過剰実行**（PR-431-E2）
+// ③「宣言したカードだけエナへ」が ENERGY_CHARGE_FROM_DECK 4 ＝**デッキ上4枚を全部エナへ送る**（WX13-054-E1）。
+// want＝`declare|filter|pickCount|pickUpTo|pickNoun|handOrEnergy|then|remainder`。
+// ⚠候補集合 assert は filter 自体から候補を作るので「間違った filter」を検出できない＝ここで内容も固定する。
+const xlviWave7Cases = [
+  { cardNum: 'PR-434', effectId: 'PR-434-E1',
+    want: 'DECLARE_NUMBER_PLAIN|{"levelEqDeclaredNumber":true,"cardType":"シグニ"}|2|true|-|-|ADD_TO_HAND|deck/bottom+shuffle' },
+  { cardNum: 'PR-434', effectId: 'PR-434-BURST',
+    want: 'DECLARE_NUMBER_PLAIN|{"levelEqDeclaredNumber":true,"cardType":"シグニ"}|2|true|-|-|ADD_TO_HAND|deck/bottom+shuffle' },
+  { cardNum: 'WX11-037', effectId: 'WX11-037-E1',
+    want: 'DECLARE_CARD_NAME|{"nameEqDeclaredName":true}|1|-|カード|-|ADD_TO_HAND|deck/bottom' },
+  { cardNum: 'WX13-054', effectId: 'WX13-054-E1',
+    want: 'DECLARE_CARD_NAME|{"nameEqDeclaredName":true}|ALL|-|カード|-|ENERGY_CHARGE|deck/bottom' },
+  { cardNum: 'PR-431', effectId: 'PR-431-E2',
+    want: 'DECLARE_CLASS|{"classEqDeclaredClass":true,"cardType":"シグニ"}|1|-|-|-|ADD_TO_HAND|trash/bottom' },
+  { cardNum: 'WX24-P1-035', effectId: 'WX24-P1-035-E1',
+    want: 'DECLARE_CLASS|{"classEqDeclaredClass":true,"cardType":"シグニ"}|ALL|true|-|true|ADD_TO_HAND|deck/bottom' },
+] as const;
+function findStubId(a: unknown, ids: readonly string[]): Record<string, unknown> | null {
+  if (!a || typeof a !== 'object') return null;
+  const o = a as Record<string, unknown>;
+  if (o.type === 'STUB' && ids.includes(o.id as string)) return o;
+  for (const v of Object.values(o)) {
+    if (Array.isArray(v)) { for (const x of v) { const f = findStubId(x, ids); if (f) return f; } }
+    else { const f = findStubId(v, ids); if (f) return f; }
+  }
+  return null;
+}
+const DECLARE_IDS = ['DECLARE_NUMBER', 'DECLARE_NUMBER_PLAIN', 'DECLARE_CARD_NAME', 'DECLARE_CLASS'] as const;
+for (const spec of xlviWave7Cases) {
+  test(`(xlvi)(c) ${spec.effectId}: 宣言参照 pick の構造（宣言STUB＋filter＋行き先）を固定`, () => {
+    const effect = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+    ok(!!effect, `${spec.effectId}: live 効果が存在`);
+    const decl = findStubId(effect!.action, DECLARE_IDS);
+    ok(!!decl, `${spec.effectId}: 宣言 STUB が残っている`);
+    const rap = findRevealAndPick(effect!.action);
+    ok(!!rap, `${spec.effectId}: REVEAL_AND_PICK（UNKNOWN/LOOK_AND_REORDER への退化なし）`);
+    const rem = rap!.remainder;
+    const got = [
+      decl!.id,
+      JSON.stringify(rap!.filter),
+      rap!.pickCount,
+      rap!.pickUpTo ?? '-',
+      rap!.pickNoun ?? '-',
+      rap!.handOrEnergy ?? '-',
+      (rap!.then as { type: string }).type,
+      rem ? `${rem.location}/${rem.position}${rem.shuffle ? '+shuffle' : ''}` : '-',
+    ].join('|');
+    eq(got, spec.want, `${spec.effectId}: 構造`);
+  });
+}
+
+// 宣言参照 filter の解決（engine）。⚠**未宣言なら候補ゼロ**が要点＝「宣言していないのにどの公開札でも
+// 拾える」過剰実行を塞ぐ（resolveDynamicFilter の noMatch センチネル）。
+test('(xlvi)(c) 宣言参照 filter は宣言値だけを候補にし、未宣言なら候補ゼロ', () => {
+  const savedCursor = cursor;
+  try {
+    const lv3 = findCard(c => c.Type === 'シグニ' && c.Level === '3');
+    const lv1 = findCard(c => c.Type === 'シグニ' && c.Level === '1');
+    const mkRap = (filter: unknown) => ({
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 2, filter, pickCount: 1,
+      then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: { location: 'deck', position: 'bottom' },
+    } as unknown as EffectAction);
+
+    // levelEqDeclaredNumber ＝ declared_number（ガード制限フィールドではない）を読む
+    const ctxN = mkCtx({ deckTop: [lv3, lv1] }, {});
+    (ctxN.ownerState as { declared_number?: number }).declared_number = 3;
+    const visN = stepSearch(runEffect(mkRap({ levelEqDeclaredNumber: true, cardType: 'シグニ' }), ctxN), ctxN).visible;
+    ok(visN.includes(lv3), '宣言レベル3のシグニが候補');
+    ok(!visN.includes(lv1), 'レベル1は候補外');
+
+    // 未宣言 → 候補ゼロ（SEARCH に入らず即 done。手札は増えない）
+    const ctxU = mkCtx({ deckTop: [lv3, lv1] }, {});
+    const before = ctxU.ownerState.hand.length;
+    const rU = run(mkRap({ levelEqDeclaredNumber: true, cardType: 'シグニ' }), ctxU);
+    ok(rU.done, '未宣言でも完走する');
+    eq(rU.ownerState.hand.length, before, '未宣言なら1枚も手札に入らない（過剰実行なし）');
+
+    // classEqDeclaredClass
+    const withClass = [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.CardClass ?? '').trim() !== '' && (c.CardClass ?? '') !== '-')!;
+    const cls = (withClass.CardClass ?? '').replace(/[＜＞]/g, '').split(/[/／]/)[0].trim();
+    const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes(cls));
+    const ctxC = mkCtx({ deckTop: [withClass.CardNum, other] }, {});
+    (ctxC.ownerState as { declared_class?: string }).declared_class = cls;
+    const visC = stepSearch(runEffect(mkRap({ classEqDeclaredClass: true, cardType: 'シグニ' }), ctxC), ctxC).visible;
+    ok(visC.includes(withClass.CardNum), `宣言クラス＜${cls}＞のシグニが候補`);
+    ok(!visC.includes(other), '別クラスのシグニは候補外');
+
+    // nameEqDeclaredName は**完全一致**（cardName の部分一致ではない）
+    const named = cardMap.get(lv3)!;
+    const diffName = findCard(c => (c.CardName ?? '') !== (named.CardName ?? ''));
+    const ctxNm = mkCtx({ deckTop: [lv3, diffName] }, {});
+    (ctxNm.ownerState as { declared_card_name?: string }).declared_card_name = named.CardName ?? '';
+    const visNm = stepSearch(runEffect(mkRap({ nameEqDeclaredName: true }), ctxNm), ctxNm).visible;
+    ok(visNm.includes(lv3), '宣言したカード名のカードが候補');
+    ok(!visNm.includes(diffName), '別名のカードは候補外');
+  } finally { cursor = savedCursor; }
+});
+
+// 🔴 DECLARE_NUMBER をそのまま使うと「対戦相手はそのレベルのシグニでガードできない」という原文に無い
+//    制限まで付く（GuardResponseDialog が declared_guard_restrict_level を読む）。PLAIN 版はそれを立てない。
+test('(xlvi)(c) DECLARE_NUMBER_PLAIN は declared_number だけを立て、ガード制限は立てない', () => {
+  const savedCursor = cursor;
+  try {
+    const step = (id: string, optionIdx: number) => {
+      const ctx = mkCtx({}, {});
+      const r0 = runEffect({ type: 'STUB', id } as unknown as EffectAction, ctx);
+      ok(!r0.done, `${id}: 宣言 CHOOSE で停止`);
+      const pending = r0.pending as unknown as { type: string; options: { id: string }[] };
+      eq(pending.type, 'CHOOSE', `${id}: CHOOSE`);
+      eq(pending.options.length, 5, `${id}: 1〜5 の5択`);
+      const c: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+      return finish(resumeChoose(pending.options[optionIdx].id, pending as never, c), c);
+    };
+    const plain = step('DECLARE_NUMBER_PLAIN', 2); // 3を宣言
+    eq((plain.ownerState as { declared_number?: number }).declared_number, 3, 'declared_number に格納');
+    eq((plain.ownerState as { declared_guard_restrict_level?: number }).declared_guard_restrict_level, undefined,
+      '🔴ガード制限フィールドは立てない（原文に無い制限を付けない）');
+    // 対照：従来の DECLARE_NUMBER はガード制限用（この経路は変えていない）
+    const guard = step('DECLARE_NUMBER', 2);
+    eq((guard.ownerState as { declared_guard_restrict_level?: number }).declared_guard_restrict_level, 3,
+      'DECLARE_NUMBER は従来どおりガード制限を立てる');
+  } finally { cursor = savedCursor; }
+});
+
+// PR-431 は原文がクラスを5つ列挙する。列挙を無視して全クラスから選ばせるのは別種の過剰実行。
+test('(xlvi)(c) PR-431-E2: クラス宣言の候補は原文が列挙した5クラスだけ', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('PR-431')?.find(e => e.effectId === 'PR-431-E2');
+    const decl = findStubId(effect!.action, ['DECLARE_CLASS'])!;
+    eq(JSON.stringify(decl.declareOptions), JSON.stringify(['精像', '精武', '精羅', '精械', '精生']), 'declareOptions');
+    const ctx = mkCtx({}, {});
+    const r0 = runEffect(decl as unknown as EffectAction, ctx);
+    ok(!r0.done, 'クラス宣言 CHOOSE で停止');
+    const pending = r0.pending as unknown as { type: string; options: { id: string; label: string }[] };
+    eq(pending.options.map(o => o.label).join(','), '＜精像＞,＜精武＞,＜精羅＞,＜精械＞,＜精生＞', '候補は列挙どおり');
+  } finally { cursor = savedCursor; }
+});
+
+// 🔴 WX13-054 の退化は「宣言したカードだけエナへ」が**デッキ上4枚を全部エナへ**（ENERGY_CHARGE_FROM_DECK 4）
+//    だった＝公開札の総取り。宣言名に一致した1枚だけがエナへ行き、残り3枚がデッキに残ることを見る。
+test('(xlvi)(c) WX13-054-E1: 宣言名に一致した公開札だけがエナへ行く（4枚総取りの過剰実行なし）', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('WX13-054')?.find(e => e.effectId === 'WX13-054-E1');
+    const rap = findRevealAndPick(effect!.action)!;
+    const target = cardMap.get(findCard(c => (c.CardName ?? '') !== ''))!;
+    const others: string[] = [];
+    for (const c of cardMap.values()) {
+      if (others.length >= 3) break;
+      if ((c.CardName ?? '') !== (target.CardName ?? '')) others.push(c.CardNum);
+    }
+    eq(others.length, 3, '別名カードを3枚用意');
+    const ctx = mkCtx({ deckTop: [target.CardNum, ...others] }, {}, 'WX13-054');
+    (ctx.ownerState as { declared_card_name?: string }).declared_card_name = target.CardName ?? '';
+    const beforeEnergy = ctx.ownerState.energy.length;
+    const r = run(rap as EffectAction, ctx);
+    ok(r.done, '完走');
+    eq(r.ownerState.energy.length, beforeEnergy + 1, '🔴エナへ行くのは宣言名の1枚だけ（従来は4枚すべて）');
+    ok(r.ownerState.energy.includes(target.CardNum), '宣言名のカードがエナゾーンにある');
+    for (const o of others) ok(r.ownerState.deck.includes(o), `非該当 ${o} はデッキに残る（消失も総取りもなし）`);
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

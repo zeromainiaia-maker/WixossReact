@@ -211,6 +211,11 @@ function filterJa(f?: any): string {
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
   if (f.colorMatchesAnyLrig) parts.push('場のルリグと共通色の');
   if (f.colorMatchesNonCenterLrig) parts.push('センタールリグ以外のルリグと共通色の');
+  // 宣言参照（タスク12(xlvi)(c)）。未実装だと逆翻訳が黙って条件を落とし、
+  // 「宣言したクラスを持つシグニ」が単なる「シグニ」に見えてしまう。
+  if (f.levelEqDeclaredNumber) parts.push('宣言した数字と同じレベルを持つ');
+  if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
+  if (f.nameEqDeclaredName) parts.push('宣言したカード名の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
   if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
   if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
@@ -987,10 +992,12 @@ function actionJa(a?: Action, effectType?: string): string {
       const revealJa = `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
+      // remainder.shuffle（「残りをシャッフルしてデッキの一番下に置く」PR-434）を落とさない
+      const remShuf = rem?.shuffle ? 'シャッフルして' : '';
       const remJa = !rem ? ''
-        : rem.location === 'trash' ? '、残りをトラッシュに置く'
+        : rem.location === 'trash' ? `、残りを${remShuf}トラッシュに置く`
         : rem.location === 'deck'
-          ? (rem.position === 'bottom' ? '、残りをデッキの一番下に置く' : '、残りをデッキの上に戻す')
+          ? (rem.position === 'bottom' ? `、残りを${remShuf}デッキの一番下に置く` : `、残りを${remShuf}デッキの上に戻す`)
           : '、残りを戻す';
       if ((a.pickCount ?? 1) === 0 && rem?.location === 'deck' && rem.position === 'bottom') {
         return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚公開し、公開したカードを${rem.shuffle ? 'シャッフルして' : ''}デッキの一番下に置く`;
@@ -1001,7 +1008,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.handOrEnergy ? '手札に加えるかエナゾーンに置く'
         : (a.then?.type === 'ADD_TO_HAND' || a.then?.type === 'TRANSFER_TO_HAND') ? '手札に加える'
         : a.then?.type === 'ADD_TO_FIELD' ? '場に出す'
-        : a.then?.type === 'ADD_TO_ENERGY' ? 'エナゾーンに置く'
+        // ENERGY_CHARGE{DECK_CARD} は「選んだ公開札をエナゾーンへ」＝ADD_TO_ENERGY と同義の配置動詞。
+        // 落とすと下の「それが〜の場合」枝に流れ、原文にない条件文へ化けて見える（WX13-054）。
+        : (a.then?.type === 'ADD_TO_ENERGY'
+           || (a.then?.type === 'ENERGY_CHARGE' && a.then?.target?.type === 'DECK_CARD')) ? 'エナゾーンに置く'
         : a.then?.type === 'TRASH' ? 'トラッシュに置く'
         : a.then?.type === 'BANISH' ? 'バニッシュする'
         : !a.then ? (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : null)
@@ -1513,6 +1523,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // DECLARE_NUMBER: 数字宣言（CHOOSE UIで1〜5を選択。declared_guard_restrict_level に保存＝実装済み）
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
       if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
+      // DECLARE_NUMBER_PLAIN: ガード制限を伴わない汎用の数字宣言（タスク12(xlvi)(c)）
+      if (a.id === 'DECLARE_NUMBER_PLAIN') return '数字1つを宣言する';
       // DECK_TOP_CHECK_LEVEL_HAND: デッキトップ公開→宣言レベルのシグニなら手札へ（execStubPart2 で実装済み）
       if (a.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         return 'あなたのデッキの一番上を公開し、それが宣言した数字と同じレベルを持つシグニである場合、それを手札に加える';
@@ -1866,6 +1878,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // クラス宣言（DECLARE_CLASS・engine実装済み）＝「クラスN つを宣言する」（後続の探索は別描画）。
       if (a.id === 'DECLARE_CLASS') {
+        // 候補列挙つき（「＜精像＞か＜精武＞か…から1つを宣言する」PR-431・タスク12(xlvi)(c)）
+        if (a.declareOptions?.length) return `${a.declareOptions.map((c: string) => `＜${c}＞`).join('か')}から1つを宣言する`;
         const m = currentCardText.match(/クラス[０-９\d一]*つを宣言する/);
         if (m) return m[0];
       }

@@ -1147,8 +1147,22 @@ function resolveDynamicFilter(
     ({ ...rest, cardNum: '__dynamic_filter_reference_unavailable__' });
   if (result.levelEqDeclaredNumber) {
     const { levelEqDeclaredNumber: _dn, ...rest } = result;
-    const value = ownerSt.declared_guard_restrict_level;
+    // declared_number（ガード制限を伴わない汎用宣言）を優先し、旧来の DECLARE_NUMBER 保存先へフォールバック。
+    const value = ownerSt.declared_number ?? ownerSt.declared_guard_restrict_level;
     result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
+  }
+  // 宣言参照 filter（タスク12(xlvi)(c)）。⚠未宣言なら noMatch＝「宣言していないのにどのカードでも拾える」
+  // 過剰実行を避ける（従来この2語彙が無く、宣言参照の pick は filter ごと落ちて全公開札が候補になっていた）。
+  if (result.nameEqDeclaredName) {
+    const { nameEqDeclaredName: _nd, ...rest } = result;
+    const name = ownerSt.declared_card_name;
+    // cardName は部分一致なのでカード名の完全一致には cardNames（配列＝完全一致）を使う。
+    result = name ? { ...rest, cardNames: [name] } : noMatch(rest);
+  }
+  if (result.classEqDeclaredClass) {
+    const { classEqDeclaredClass: _cd, ...rest } = result;
+    const cls = ownerSt.declared_class;
+    result = cls ? { ...rest, story: cls } : noMatch(rest);
   }
   // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
   // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。

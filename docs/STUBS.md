@@ -11,11 +11,11 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 574 |
-| 　└ ハンドラ実装あり | 549 |
+| JSON で使用中の STUB id 種類 | 575 |
+| 　└ ハンドラ実装あり | 550 |
 | 　└ フォールバック（execStub 未処理） | 25 |
 | 総 STUB ノード件数 | 2463 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 290 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 291 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -59,7 +59,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（110 種）
+### execStubPart1.ts（111 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -72,7 +72,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 40 | 40 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `CONDITIONAL_POWER_BONUS` | 38 | 33 | WD06-006, WDK08-Y08, WDK10-009 | 条件付きパワーボーナス |
 | `LRIG_GROW_RESTRICT` | 38 | 38 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
-| `DECLARE_NUMBER` | 36 | 34 | WD06-008, WD13-008, WDK04-006 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
+| `DECLARE_NUMBER` | 34 | 33 | WD06-008, WD13-008, WDK04-006 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
 | `LOOK_OPP_LIFE_TOP` | 31 | 30 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
 | `SOUL_OP` | 31 | 31 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `TRADE_BANISH_SELF_SIGNI` | 29 | 29 | WD22-029-G, WDK11-011, WX07-031 | トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ |
@@ -95,11 +95,11 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ARTS_USE_DISCARD_LRIG_DECK` | 10 | 10 | WX24-P2-002, WX24-P2-004, WX24-P2-006 | アーツ使用時にルリグデッキからアーツを任意でルリグトラッシュへ |
 | `DECK_REVEAL_UNTIL` | 10 | 10 | WDK04-006, WDK13-017, WX17-039 | デッキを条件が満たされるまで公開する |
 | `LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END` | 10 | 10 | WX24-P3-001, WX24-P3-003, WX24-P3-005 | ルリグリミット修正（エナフェイズ終了まで） |
-| `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` | 10 | 10 | WD23-041-EA, WDK13-011, WDK13-022 | デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ |
 | `BET_MECHANIC` | 9 | 9 | WDK06-R08, WDK12-007, SPK16-13E | BET_MECHANIC: ①②③④選択（ベット時は強化数まで選べる） ベット可否・コイン消費はアーツ使用モーダル側（parseBetCost/is_betting_this_effect、BET_CONDITIONと共通）で 既に確定済… |
 | `COUNT_BASED_DRAW_OR_POWER` | 9 | 9 | WX19-Re18, WX24-P4-103, WXDi-D07-018 | カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正） |
 | `GRANT_GUARD_ICON_HAND_SIGNI` | 9 | 9 | WXDi-P04-049, WXDi-P10-049, WXDi-P13-044 | 手札のシグニにガードアイコンを付与（このターン） |
 | `GRANT_QUOTED_AUTO_ABILITY` | 9 | 9 | WD21-007, PR-K076, SPDi43-05 | WD21-007型: 「以下の５つから１つを選ぶ。…対象のシグニ１体は選んだ能力を得る。あなたがベットしていた場合、この効果を１回繰り返す。」 |
+| `REVEAL_PICK_HAND_SHUFFLE_BOTTOM` | 9 | 9 | WD23-041-EA, WDK13-011, WDK13-022 | デッキ上N枚公開してM枚を手札に加え残りをデッキ下/トラッシュ/エナゾーンへ |
 | `TRASH_SIGNI_UNDER_FIELD_SIGNI` | 9 | 9 | WDK15-001, WDK15-007, WX22-035 | トラッシュからシグニをフィールドシグニの下に置く（ライズ補充） |
 | `REMOVE_VIRUS` | 8 | 8 | WD19-001, WX15-028, WX15-040 | ウイルス除去：テキストを解析して適切な数のウイルスを取り除く |
 | `DOUBLE_POWER_MINUS` | 7 | 7 | SPDi43-04, WX13-058, WX22-023 |  |
@@ -118,6 +118,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PREVENT_LRIG_DAMAGE_THIS_TURN` | 5 | 5 | PR-K019, WX26-CP1-004, WX26-CP1-023 | このターンのルリグダメージ無効：ownerState に prevent_lrig_damage フラグをセット |
 | `STEAL_OPP_TRASH_PUPPET` | 5 | 4 | WDK17-007, WXEX2-23, WXK09-063 | STEAL_OPP_TRASH_PUPPET: 対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（WDK17-007）。 ベット時は2枚、非ベットは1枚。空きゾーン数・候補数で上限。選択した各カードを INTERNAL_PLAC… |
 | `BET_ALTERNATIVE` | 4 | 4 | WX17-003, WX17-005, WXDi-P07-059 | BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み） |
+| `DECLARE_CLASS` | 4 | 4 | PR-431, WX24-P1-035, WX25-P1-058 | クラス/色宣言 DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存 |
 | `DECLARE_COLOR` | 4 | 4 | WX22-042, WXDi-P07-059, WXDi-P13-051 |  |
 | `MASS_TRASH` | 4 | 4 | WX11-020, WX24-P2-026, WXDi-P05-007 | 大量トラッシュ: 相手エナ全体+相手シグニ全体、またはシグニ+キー |
 | `REVEAL_CLASS_SIGNI_FROM_HAND` | 4 | 4 | WDK08-Y11, WXK04-034, WXK05-043 | 手札のクラスシグニを好きな枚数公開（公開＝SELECT_TARGET、デッキに触れない） |
@@ -125,9 +126,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SUPPRESS_LIFE_BURST_ON_CARD` | 4 | 4 | WX24-P1-003, WX25-P3-032, WXDi-D09-H11 | ライフバースト抑制：対戦相手の suppress_life_burst フラグをセット |
 | `UNKNOWN_NESTED` | 4 | 4 | WX24-P2-060, WX24-P3-018, WXDi-P04-033 | UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動） |
 | `BANISH_FROM_GAME` | 3 | 3 | WX12-035, WX13-040, WX14-064 | ゲームから除外：トラッシュにある自シグニを任意で除外（後続効果条件） |
-| `DECLARE_CLASS` | 3 | 3 | WX24-P1-035, WX25-P1-058, WXDi-P09-004 | クラス/色宣言 DECLARE_CLASS: クラスを宣言してownerState.declared_classに保存 |
 | `OPP_CHOOSE_YOUR_HAND_DISCARD` | 3 | 3 | WD21-004, WX17-014, WXK01-013 | 対戦相手が手札を1枚選んで捨てる |
 | `CRASH_LIFE_TO_HAND` | 2 | 2 | WX24-P2-048, WXDi-P07-001 | ライフクロスの一番上を手札に加える |
+| `DECLARE_NUMBER_PLAIN` | 2 | 1 | PR-434 | 数字宣言（ガード制限を伴わない汎用版・タスク12(xlvi)(c)）。「数字１つを宣言する。…宣言した数字と同じ レベルを持つシグニを手札に加える」（PR-434）のように宣言値を filter に使うだけの効果はこちら。 DECLARE… |
 | `DISCARD_IF_ATTACKED_THIS_TURN` | 2 | 2 | WX12-047, WX12-048 | このターンにこのシグニがアタックしていた場合、手札を1枚捨てる |
 | `DISRUPT_OPP_LRIG_UNDER_BY_TYPE` | 2 | 2 | SPK16-8C, PR-465 | DISRUPT_OPP_LRIG_UNDER_BY_TYPE: このシグニがアタックしたとき、対戦相手のセンタールリグの下のカードを最大2枚、 あなたのルリグデッキから「あなたのセンタールリグと同じルリグタイプ（CardClass）」のル… |
 | `DRAW_AND_PUT_HAND_TO_DECK_BOTTOM` | 2 | 2 | WX26-CP1-006, WXK10-043 | 各プレイヤーがカードを1枚引き手札を1枚デッキ下に置く |
@@ -626,7 +627,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 290 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 291 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -908,6 +909,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME` | 0 | 0 |  | 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。 PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので fe… |
 | `SELF_TRASH_UNLESS_TRASH_OTHERS` | 0 | 0 |  | SELF_TRASH_UNLESS_TRASH_OTHERS: 他の＜原子＞2体をトラッシュしないかぎり自分をトラッシュ（WXK10-039【出】） |
 | `SET_DECLARED_NUMBER` | 0 | 0 |  | DECLARE_NUMBER の宣言値を PlayerState に格納 |
+| `SET_DECLARED_NUMBER_PLAIN` | 0 | 0 |  |  |
 | `STACK_SIGNI_UNDER` | 0 | 0 |  | シグニの下にカードを置く |
 | `SUMMON_FROM_TRASH` | 0 | 0 |  | SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用） |
 | `SUMMON_FROM_TRASH_TO_HAND_BLACK` | 0 | 0 |  |  |

@@ -3318,6 +3318,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
           prevent_defeat: undefined,            // 敗北無効フラグをリセット
           declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined, // 宣言数字をリセット
+          declared_number: undefined,              // 宣言数字（ガード制限なし版）をリセット
           declared_class: undefined,               // 宣言クラスをリセット
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
@@ -3687,6 +3688,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         double_power_minus_this_turn: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
         prevent_defeat: undefined, declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined,
+        declared_number: undefined,
         declared_class: undefined, hand_signi_guard_enabled: undefined,
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
         draw_limit: undefined, card_class_overrides: undefined,

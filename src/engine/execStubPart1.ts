@@ -285,6 +285,22 @@ export function execStubPart1(
     const levels = [...new Set([...(ctx.ownerState.declared_guard_restrict_levels ?? []), val])];
     return done({ ...ctx, ownerState: { ...ctx.ownerState, declared_guard_restrict_levels: levels } });
   }
+  // 数字宣言（ガード制限を伴わない汎用版・タスク12(xlvi)(c)）。「数字１つを宣言する。…宣言した数字と同じ
+  // レベルを持つシグニを手札に加える」（PR-434）のように宣言値を filter に使うだけの効果はこちら。
+  // DECLARE_NUMBER を使うと declared_guard_restrict_level が立ち「相手がそのレベルでガードできない」
+  // 過剰実行になる（GuardResponseDialog が参照する）。
+  if (stub.id === 'DECLARE_NUMBER_PLAIN') {
+    const options = [1, 2, 3, 4, 5].map(n => ({
+      id: `numplain_${n}`, label: `${n}を宣言`,
+      action: ({ type: 'STUB', id: 'SET_DECLARED_NUMBER_PLAIN', value: n } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), { type: 'CHOOSE', options, count: 1 });
+  }
+  if (stub.id === 'SET_DECLARED_NUMBER_PLAIN') {
+    const valP = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_number: valP } }, `数字「${valP}」を宣言`));
+  }
   // DECLARE_NUMBER の宣言値を PlayerState に格納
   if (stub.id === 'SET_DECLARED_NUMBER') {
     const val = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
@@ -3003,6 +3019,19 @@ export function execStubPart1(
       const newOwnerDCLS: PlayerState = { ...ctx.ownerState, declared_class: stub.value };
       return done(addLog({ ...ctx, ownerState: newOwnerDCLS, lastProcessedCards: [...(ctx.lastProcessedCards ?? []), stub.value] },
         `クラス「${stub.value}」を宣言`));
+    }
+    // 原文がクラスを列挙している場合（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）はその候補だけを出す。
+    // 列挙があるのに動的収集の全クラスから選ばせると、原文にない有利なクラスを宣言できる過剰実行になる。
+    if (stub.declareOptions?.length) {
+      return needsInteraction(addLog(ctx, 'クラスを宣言してください'), {
+        type: 'CHOOSE',
+        options: stub.declareOptions.map(cls => ({
+          id: `dcls_${cls}`, label: `＜${cls}＞`,
+          action: ({ type: 'STUB', id: 'DECLARE_CLASS', value: cls } as StubAction) as EffectAction,
+          available: true,
+        })),
+        count: 1,
+      });
     }
     // クラス一覧を自トラッシュ・手札・相手フィールドから動的収集
     const classSetDCLS = new Set<string>();

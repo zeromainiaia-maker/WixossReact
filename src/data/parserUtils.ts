@@ -36,8 +36,15 @@ export function makeRevealPickStub(t: string): StubAction {
     if (countM2) pickCount = parseNum(countM2[1]);
   }
   let restDest: 'deck_bottom' | 'trash' | 'energy' = 'deck_bottom';
-  if (t.match(/残り.*トラッシュ|トラッシュに置く$|トラッシュに置いてもよい$/)) restDest = 'trash';
+  if (desc) {
+    // 記述子が解けたときは pick の行き先が文末に来る（「宣言したカードをすべてエナゾーンに置く」WX13-054）。
+    // 従来の文末アンカー（`エナゾーンに置く$`）はそれを**残りの行き先**と誤読し、非対象の公開札まで
+    // エナへ送る過剰実行になるため、「残り」を明示する句だけを見る。
+    if (/残り[^。]*トラッシュ/.test(t)) restDest = 'trash';
+    else if (/残り[^。]*エナゾーン/.test(t)) restDest = 'energy';
+  } else if (t.match(/残り.*トラッシュ|トラッシュに置く$|トラッシュに置いてもよい$/)) restDest = 'trash';
   else if (t.match(/残り.*エナゾーン|エナゾーンに置く$/)) restDest = 'energy';
+  const restShuffle = /残り[^。]*シャッフル/.test(t);
   const then: 'hand' | 'energy' =
     (t.match(/エナゾーンに置く/) && !t.match(/手札に加え/)) ? 'energy' : 'hand';
   return {
@@ -45,6 +52,7 @@ export function makeRevealPickStub(t: string): StubAction {
     revealPickParams: {
       pickCount: desc ? desc.pickCount : pickCount,
       restDest,
+      ...(restShuffle ? { restShuffle: true } : {}),
       then: desc ? (desc.dest === 'energy' ? 'energy' : 'hand') : then,
       ...(desc && Object.keys(desc.filter).length > 0 ? { filter: desc.filter } : {}),
       ...(desc?.pickUpTo ? { pickUpTo: true } : {}),
@@ -501,6 +509,11 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { 
   { re: /^(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesAnyLrig = true; return true; } },
   { re: /^共通する色を持たない/, apply: (_m, a) => { a.filter.eachDistinctColor = true; return true; } },
   { re: /^それぞれレベルの異なる/, apply: (_m, a) => { a.filter.eachDistinctLevel = true; return true; } },
+  // 宣言参照（タスク12(xlvi)(c)）。⚠具体形（数字／クラス）を裸の「宣言した」より**前**に置く
+  // （`.find` の先着優先なので順序を入れ替えると「宣言した数字と同じレベルを持つ」が名前一致に化ける）。
+  { re: /^宣言した数字と同じレベルを持つ/, apply: (_m, a) => { a.filter.levelEqDeclaredNumber = true; return true; } },
+  { re: /^宣言したクラスを持つ/, apply: (_m, a) => { a.filter.classEqDeclaredClass = true; return true; } },
+  { re: /^宣言した(?=カード|シグニ|スペル|$)/, apply: (_m, a) => { a.filter.nameEqDeclaredName = true; return true; } },
 ];
 
 function nounCardType(noun: string): Partial<TargetFilter> {
@@ -532,10 +545,28 @@ function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
   };
 }
 
+/**
+ * 「（あなたの）デッキの上からカードをN枚公開し（見て）、その中から〜」＝**1文に畳まれた** look-pick か。
+ * 文が分かれている形は effectParser の LOOK_AND_REORDER + STUB 融合が拾うが、読点で1文になった形は
+ * 上流の汎用「デッキ上公開/見る」規則・「デッキ上→エナ」規則が先取りして **pick が丸ごと落ちる**
+ * （WX13-054＝「宣言したカードだけエナへ」が「デッキ上4枚を全部エナへ」に化けていた。タスク12(xlvi)(c)）。
+ * ⚠pick 記述子が忠実に解けるときだけ true＝解けない形は従来経路のまま（取りこぼしを増やさない）。
+ * 返り値が true の文は parseSentencePart4 の combined 規則が REVEAL_AND_PICK として受ける。
+ */
+export function fusedLookPickSentence(t: string): { revealCount: number; pick: string; desc: RevealPickDescriptor } | null {
+  const m = t.match(/^(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:公開し|見て)、(その中から.+)$/);
+  if (!m) return null;
+  const desc = parseRevealPickDescriptor(m[2]);
+  return desc ? { revealCount: parseNum(m[1]), pick: m[2], desc } : null;
+}
+
 export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | null {
   // 記述子に「枚」を含めない＝「＜原子＞のシグニ１枚とスペル１枚を」のような複数グループ形で
   // 後半だけを拾ってしまうのを防ぐ（複数グループは LOOK_PICK_CHAIN の担当）。
-  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?([０-９\d]+|すべて|好きな枚数)枚(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置)[^、。]*)/);
+  // 枚数トークン＝「N枚」は必ず「枚」を伴うが、「すべて」「好きな枚数」はそれ自体が枚数語なので「枚」を任意にする
+  // （「宣言したカードをすべてエナゾーンに置く」WX13-054／「好きな枚数公開し手札に加えて…」WX24-P1-035）。
+  // 名詞の直後の読点（「シグニを、好きな枚数…」）も許容する。
+  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?、?(?:([０-９\d]+)枚|(すべて|好きな枚数)枚?)(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置)[^、。]*)/);
   if (!m || m.index === undefined) return null;
   // 後続にもう1つ pick 群がある形（「…を１枚までエナゾーンに置き、…を１枚まで手札に加え」）は
   // 単一 filter へ潰すと後段が丸ごと消える＝この規則では受けない。
@@ -558,11 +589,10 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   }
   if (!filter) return null;
 
-  const cntTok = m[3];
-  const pickCount: number | 'ALL' = (cntTok === 'すべて' || cntTok === '好きな枚数') ? 'ALL' : parseNum(cntTok);
-  const destPhrase = m[5];
+  const pickCount: number | 'ALL' = m[4] ? 'ALL' : parseNum(m[3]);
+  const destPhrase = m[6];
   const toHand = destPhrase.includes('手札に加え');
   const toEnergy = destPhrase.includes('エナゾーンに置');
   const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toEnergy ? 'energy' : 'hand';
-  return { filter, pickCount, pickUpTo: m[4] === 'まで' || cntTok === '好きな枚数', noun: outNoun, dest };
+  return { filter, pickCount, pickUpTo: m[5] === 'まで' || m[4] === '好きな枚数', noun: outNoun, dest };
 }

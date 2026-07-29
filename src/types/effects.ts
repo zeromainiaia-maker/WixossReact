@@ -457,6 +457,13 @@ export interface TargetFilter {
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
   levelEqDeclaredNumber?: boolean; // レベルがこの効果で宣言した数と一致
+  // カード名がこの効果で宣言したカード名と完全一致（「その中から宣言したカード１枚を手札に加え」WX11-037／WX13-054）。
+  // resolveDynamicFilter が declared_card_name を cardNames（完全一致）へ解決する。未宣言なら空ヒット
+  // （＝宣言していないのにどのカードでも拾える過剰実行を避ける）。
+  nameEqDeclaredName?: boolean;
+  // クラスがこの効果で宣言したクラスと一致（「その中から宣言したクラスを持つシグニ」PR-431／WX24-P1-035）。
+  // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
+  classEqDeclaredClass?: boolean;
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
@@ -1849,6 +1856,7 @@ export interface StubAction {
   revealPickParams?: {   // REVEAL_PICK_HAND_SHUFFLE_BOTTOM: REVEAL_AND_PICK マージ用メタデータ
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';
+    restShuffle?: boolean; // 「残りをシャッフルしてデッキの一番下に置く」（PR-434）
     then: 'hand' | 'energy';
     // ピック対象の絞り込み（タスク12(xlvi)(h)）。融合規則が filter を運ばず「どのカードでも拾える」
     // 過剰実行になっていたため、pick 記述子から復元して REVEAL_AND_PICK へ渡す。
@@ -1864,6 +1872,9 @@ export interface StubAction {
   pickQueue?: string[]; // INTERNAL_HAND_OR_ENERGY: 「手札に加えるかエナゾーンに置く」を1枚ずつ問う残りのカード
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
+  // DECLARE_CLASS: 宣言できるクラスを原文が列挙している場合の候補（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。
+  // 省略時は従来どおり盤面/手札/トラッシュから動的収集する。列挙があるのに無制限に宣言させるのは過剰実行なので明示で絞る。
+  declareOptions?: string[];
   count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数
   // STEAL_OPP_TRASH_PUPPET の汎用化パラメータ（WXK10-055 等）。省略時は従来挙動（ベット時2枚/非ベット1枚・必須・レベル制限なし）。
   puppetParams?: {

@@ -56,7 +56,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence,
 } from '../parserUtils';
 
 /**
@@ -1590,7 +1590,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- デッキ上 → エナゾーン ----
   // 「場のシグニ1体につき…エナゾーンに置く」は動的回数（part3 の
   // ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT）に委譲する。汎用版が先取りすると固定枚数に潰れる。
-  if (!t.includes('体につき') &&
+  // ⚠「デッキの上からN枚公開し、**その中から**〜をエナゾーンに置く」は公開札からの**ピック**であって
+  //   デッキトップN枚の一括エナチャージではない。ここで潰すと非対象の公開札までエナへ送る過剰実行になる
+  //   （WX13-054＝「宣言したカード」だけのはずがデッキ上4枚すべてエナ。タスク12(xlvi)(c)）。
+  //   pick 記述子が忠実に解ける文だけ譲る（解けない形は従来どおりこの規則が受ける＝取りこぼしを増やさない）。
+  const isFusedLookPick = !!fusedLookPickSentence(t);
+  if (!t.includes('体につき') && !isFusedLookPick &&
       ((t.includes('デッキの一番上のカードをエナゾーンに置')) ||
        (t.includes('デッキの上からカードを') && t.includes('エナゾーンに置')))) {
     const cM = t.match(/カードを([０-９\d]+)枚/);
@@ -2370,7 +2375,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
-  const deckLookM = t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る|公開し)/);
+  // ⚠「N枚公開し、その中から〜」の1文畳み形は pick まで含めて part4 が REVEAL_AND_PICK に解く。
+  //   ここで掴むと公開だけが残り **pick が丸ごと no-op** になる（タスク12(xlvi)(c)）。
+  const deckLookM = fusedLookPickSentence(t) ? null : t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る|公開し)/);
   if (deckLookM) {
     return {
       type: 'LOOK_AND_REORDER',

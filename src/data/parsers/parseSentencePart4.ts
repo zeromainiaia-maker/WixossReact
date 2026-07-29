@@ -10,7 +10,7 @@ import type {
   PlaceVirusAction,
 } from '../../types/effects';
 import {
-  parseNum, makeRevealPickStub,
+  parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -19,6 +19,42 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 手札からカードを【トラップ】として設置する ----
   if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
     return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
+
+  // ---- その中から宣言した〈数字/クラス/カード名〉のカードをピック（タスク12(xlvi)(c)）----
+  // 「数字/カード名/クラス１つを宣言する。デッキの上からN枚公開する。その中から宣言した〜を手札に加え、…」の
+  // 系統。従来はどの pick 規則にも掛からず **UNKNOWN＝pick が丸ごと no-op**（PR-434／WX11-037／WX24-P1-035）か、
+  // filter だけ落ちた **どの公開札でも拾える過剰実行**（PR-431）だった。
+  // ⚠記述子が**忠実に解けたときだけ**受ける（`parseRevealPickDescriptor` が null なら従来経路のまま）。
+  if (/^その中から宣言した/.test(t) && parseRevealPickDescriptor(t))
+    return makeRevealPickStub(t);
+
+  // ---- 「デッキの上からN枚公開し（見て）、その中から〜」＝1文に畳まれた look-pick（タスク12(xlvi)(c)）----
+  // 文が分かれている形は effectParser の LOOK_AND_REORDER + STUB 融合が拾うが、読点で1文に畳まれた形は
+  // 融合の対象外。従来は上流の汎用「デッキ上→エナ」規則に飲まれて**公開札を全部エナへ送る過剰実行**だった。
+  // 記述子が忠実に解けたときだけ受ける。
+  {
+    const comb = fusedLookPickSentence(t);
+    if (comb) {
+      const combD = comb.desc;
+      const rpp = makeRevealPickStub(comb.pick).revealPickParams!;
+      return {
+        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: comb.revealCount,
+        ...(Object.keys(combD.filter).length > 0 ? { filter: combD.filter } : {}),
+        pickCount: combD.pickCount,
+        ...(combD.pickUpTo ? { pickUpTo: true } : {}),
+        ...(combD.noun !== 'シグニ' ? { pickNoun: combD.noun } : {}),
+        ...(combD.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
+        then: combD.dest === 'energy'
+          ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction
+          : { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: rpp.restDest === 'trash'
+          ? { location: 'trash', position: 'bottom' }
+          : rpp.restDest === 'energy'
+            ? { location: 'energy', position: 'bottom' }
+            : { location: 'deck', position: 'bottom', ...(rpp.restShuffle ? { shuffle: true } : {}) },
+      } as EffectAction;
+    }
+  }
 
   // ---- その中から〈クラス〉/レベル/色シグニを手札に加え残りをトラッシュ ----
   if (t.match(/その中から.*[＜〈<].*[＞〉>].*シグニ.*手札に加え/) ||
@@ -1603,6 +1639,18 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction;
 
   // ---- 数字/クラス/色を宣言する（種別選択）----
+  // 原文が候補クラスを列挙する形（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。従来は UNKNOWN で
+  // **宣言そのものが起きず**、後段の「宣言したクラスを持つシグニ」も参照先を失っていた。列挙を declareOptions
+  // で運び、engine 側の宣言 UI をその候補だけに絞る（列挙を無視して全クラスから選ばせるのは過剰実行）。
+  {
+    const listM = t.match(/^(?:その後、)?((?:＜[^＞]+＞か)+＜[^＞]+＞)から[１-９\d０-９]*つを宣言する$/);
+    if (listM) {
+      return {
+        type: 'STUB', id: 'DECLARE_CLASS',
+        declareOptions: listM[1].split('か').map(s => s.replace(/[＜＞]/g, '')).filter(Boolean),
+      } as StubAction;
+    }
+  }
   if (t.match(/^(?:その後、)?クラス[１-９\d０-９]*つを宣言する$/) || t.match(/^クラス[１-９\d０-９]*つを宣言する$/))
     return { type: 'STUB', id: 'DECLARE_CLASS' } as StubAction;
   if (t.match(/^(?:その後、)?色[１-９\d０-９]*つを宣言する$/))

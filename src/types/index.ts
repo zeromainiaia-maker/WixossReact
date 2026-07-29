@@ -233,6 +233,11 @@ export interface PlayerState {
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
   declared_guard_restrict_level?: number;
   declared_guard_restrict_levels?: number[];
+  // DECLARE_NUMBER_PLAIN で宣言された数字（ガード制限を**伴わない**汎用の数字宣言）。
+  // 「数字１つを宣言する。…宣言した数字と同じレベルを持つシグニを手札に加える」（PR-434）のように
+  // 宣言値をフィルタに使うだけの効果で、上の declared_guard_restrict_level（＝相手のガード制限）を
+  // 立ててしまうと「相手がそのレベルでガードできない」過剰実行になるため別枠で持つ。
+  declared_number?: number;
   // DECLARE_CARD_NAME で宣言されたカード名（デッキ上確認効果等で使用）
   declared_card_name?: string;
   // COPY_LRIG_NAME_ABILITY: ルリグが別のルリグ名/タイプを持つとして扱うエイリアス
