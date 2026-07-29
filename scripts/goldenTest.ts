@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -14718,7 +14718,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(JSON.stringify(actual), JSON.stringify([...phase1Ids].sort()), `新規発火集合=${actual.length}件`);
   });
 
-  test('(xxix) 段階2の新規発火集合はmandatory 1453効果ちょうど（任意cost・段階3は別扱い）', () => {
+  test('(xxix) 段階2の新規発火集合はmandatory 1454効果ちょうど（任意cost・段階3は別扱い）', () => {
     const eligible = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO'
       && e.timing?.includes('ON_PLAY')
@@ -14737,12 +14737,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !e.cost);
     // 1437→1451＝英知＝N（全角）14効果、1451→1453＝内側だけ任意のLOOK→場出し2効果が
     // 「任意・コストなし」の穴から mandatory へ戻った分。
-    // （タスク12(xxix)(2)）。今回の2件是正後、段階3在庫は 41→39。
-    eq(eligible.length, 1453, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    // （タスク12(xxix)(2)）。さらに WXDi-P15-034-E1 は【出】自体の2択が強制で、
+    // 任意なのはchoice②内の支払いだけなので mandatory へ戻す。段階3在庫は 39→38。
+    eq(eligible.length, 1454, '段階2 mandatory集合');
+    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
     eq(optionalCost.length, 943, '任意costあり（(xxix)(1) の母集団）');
-    eq(optionalNoCost.length, 39, '段階3在庫（内側だけ任意の2効果を mandatory へ是正後）');
+    eq(optionalNoCost.length, 38, '段階3在庫（内側だけ任意の3効果を mandatory へ是正後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14903,7 +14904,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         } else deferred++;
       }
     }
-    eq(wrapped, 6, '包む＝効果全体が真に任意の6効果（内側だけ任意の2効果は mandatory）');
+    eq(wrapped, 5, '包む＝効果全体が真に任意の5効果（内側だけ任意の3効果は mandatory）');
     eq(deferred, 33, '据え置き＝コスト句があるのに cost 未表現の33効果（parser 在庫）');
   });
 
@@ -15410,6 +15411,92 @@ test('task12(lv) COLLAB: アシスト実戦ゾーン配置→共通【出】coll
       eq(paid.ownerState.trash.length, 1, '手札コスト1枚がトラッシュへ移る');
       eq(paid.ownerState.deck.length, 1, '効果で3枚引く');
     }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(lv) 通常アシスト配置: 実戦ゾーン→共通【出】collector→pay/skip', () => {
+  const savedCursor = cursor;
+  try {
+    const assist = 'WXDi-D06-006';
+    const before = mkState({ assistL: [], assistR: [] });
+    const placed = {
+      ...before,
+      lrig_deck: before.lrig_deck.filter(n => getCardNumG(n) !== assist),
+      field: { ...before.field, assist_lrig_l: [assist] },
+      hand: before.hand.slice(0, 2),
+      deck: before.deck.slice(0, 4),
+      trash: [],
+    };
+    eq(placed.field.assist_lrig_l.at(-1), assist, 'assist_lrig_lへ実配置');
+    eq(placed.field.signi.filter(Boolean).length, 0, 'シグニゾーンには置かない');
+
+    const collected = collectAssistOnPlayTriggers(trigCtx(), assist, placed, mkState(), 'host');
+    const entries = collected.entries.filter(e => e.effectId === 'WXDi-D06-006-E1');
+    eq(entries.length, 1, '通常アシスト経路で任意コスト【出】を1件積む');
+    const entry = entries[0]!;
+    const seq = entry.effect.action as SequenceAction;
+    eq(seq.type, 'SEQUENCE', '任意コスト包み');
+    eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST', '先頭にOPTIONAL_COST');
+
+    const onPlayCtx = { ...mkCtx({}, {}, assist), ownerState: placed } as ExecCtx;
+    const offered = executeEffect(entry.effect, onPlayCtx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', '支払い選択で停止');
+    if (offered.done || offered.pending.type !== 'CHOOSE') return;
+    eq(offered.pending.options.map(o => o.id).join(','), 'pay,skip', '支払う/スキップを提示');
+    eq(offered.ownerState.hand.length, 2, '選択前は手札不変');
+    eq(offered.ownerState.trash.length, 0, '選択前はトラッシュ不変');
+
+    const resumeCtx = {
+      ...onPlayCtx,
+      ownerState: offered.ownerState,
+      otherState: offered.otherState,
+      logs: offered.logs,
+    };
+    const skipped = finish(resumeChoose('skip', offered.pending, resumeCtx), onPlayCtx);
+    eq(skipped.ownerState.hand.length, 2, 'skipで手札不変');
+    eq(skipped.ownerState.trash.length, 0, 'skipでトラッシュ不変');
+    eq(skipped.ownerState.deck.length, 4, 'skipでデッキ不変');
+
+    const paid = finish(resumeChoose('pay', offered.pending, resumeCtx), onPlayCtx);
+    eq(paid.ownerState.hand.length, 4, 'payで手札1枚を払い3枚引く（2-1+3）');
+    eq(paid.ownerState.trash.length, 1, 'payで手札コスト1枚をトラッシュへ');
+    eq(paid.ownerState.deck.length, 1, 'payで3枚引く');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件のうち147件を収集し13件は据え置く', () => {
+  const savedCursor = cursor;
+  try {
+    const assistNums = new Set(
+      [...cardMap.values()].filter(c => c.Type === 'アシストルリグ').map(c => c.CardNum),
+    );
+    // WXDi-P15-034-E1 は今回 mandatory:true へ直したため、旧 false 母集団へ明示的に戻して比較する。
+    const formerlyOptional = [...effectsMap.entries()].flatMap(([cardNum, effects]) =>
+      !assistNums.has(cardNum) ? [] : effects.filter(e =>
+        e.effectType === 'AUTO'
+        && e.timing?.includes('ON_PLAY')
+        && (e.mandatory === false || e.effectId === 'WXDi-P15-034-E1')
+      ).map(e => ({ cardNum, effect: e })),
+    );
+    eq(formerlyOptional.length, 160, '旧mandatory:false母集団');
+    eq(formerlyOptional.filter(({ effect }) =>
+      effect.triggerCondition?.byEffect || effect.triggerCondition?.bySigniEffect
+    ).length, 0, '通常配置で除外されるbyEffect/bySigniEffectは0件');
+
+    let collectedCount = 0;
+    const deferred: string[] = [];
+    for (const { cardNum, effect } of formerlyOptional) {
+      const state = mkState({ assistL: [cardNum], assistR: [] });
+      const result = collectAssistOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host');
+      if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
+      else deferred.push(effect.effectId);
+    }
+    eq(collectedCount, 147, '旧0件→147件を通常アシスト経路で収集');
+    eq(deferred.length, 13, '表現不能コスト13件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }

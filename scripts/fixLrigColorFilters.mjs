@@ -90,6 +90,9 @@ const FIXES = [
     locate: e => e },
   { file: 'effects_WX', card: 'WX10-021', eid: 'WX10-021-E1', type: 'mandatoryOnPlay',
     locate: e => e },
+  // タスク12(lv) 続き: 【出】自体の2択は強制。任意なのはchoice②内の《白》《無》支払いだけ。
+  { file: 'effects_WXDi', card: 'WXDi-P15-034', eid: 'WXDi-P15-034-E1', type: 'mandatoryOnPlay',
+    locate: e => e },
 
   // PR-K064-E1: CHOOSE.choices[0].action.filter (SEARCH)
   { file: 'effects_misc', card: 'PR-K064', eid: 'PR-K064-E1', type: 'matchesLrig',

@@ -221,6 +221,23 @@ export function collectPlacedSelfOnPlayTriggers(
 }
 
 /**
+ * 通常手順でルリグデッキから配置したアシストルリグ自身の【出】を収集する。
+ * 効果による配置ではないため byEffect / bySigniEffect は発火させない。
+ */
+export function collectAssistOnPlayTriggers(
+  ctx: TrigCtx,
+  placedInstanceId: string,
+  controllerState: PlayerState,
+  otherState: PlayerState,
+  ownerId: string,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  return collectPlacedSelfOnPlayTriggers(
+    ctx, placedInstanceId, controllerState, otherState, ownerId,
+    { placedByEffect: false, sourceIsSigni: false },
+  );
+}
+
+/**
  * kizunaIcon 効果（【絆自】【絆起】【絆出】）のゲート。
  * 効果を持つ側のプレイヤーが発生源カード名との絆を獲得していなければ発動しない。
  * 各コレクタの effect ループ先頭で `if (!kizunaOk(ctx, eff, watcherState, topNum)) continue;` と使う。
