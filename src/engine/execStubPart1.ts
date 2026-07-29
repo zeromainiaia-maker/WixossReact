@@ -18,6 +18,7 @@ import {
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
+  payBeatSigniCost, payBeatSigniFromTrashCost,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
@@ -207,6 +208,33 @@ export function execStubPart1(
       ownerState: paid.state,
       lastProcessedCards: paid.paidCards,
     }, `ルリグ${cost.count}体をコストでダウンした`));
+  }
+  if (stub.id === 'INTERNAL_PAY_BEAT_SIGNI') {
+    let paidState = ctx.ownerState;
+    const moved: string[] = [];
+    if (stub.beat_signi) {
+      if (!ctx.sourceCardNum) return done(addLog(ctx, '【ビート】コストの効果元がありません'));
+      const paid = payBeatSigniCost(
+        paidState, ctx.sourceCardNum, ctx.cardMap, stub.beat_signi,
+      );
+      if (!paid.ok) return done(addLog(ctx, paid.log));
+      paidState = paid.state;
+      moved.push(...paid.moved);
+    }
+    if (stub.beat_signi_from_trash) {
+      const paid = payBeatSigniFromTrashCost(
+        paidState, ctx.cardMap,
+        stub.beat_signi_from_trash.count, stub.beat_signi_from_trash.filter,
+      );
+      if (!paid.ok) return done(addLog(ctx, paid.log));
+      paidState = paid.state;
+      moved.push(...paid.moved);
+    }
+    return done(addLog({
+      ...ctx,
+      ownerState: paidState,
+      lastProcessedCards: moved,
+    }, `【ビート】コストで${moved.length}枚を支払った`));
   }
   if (stub.id === 'LRIG_UNDER_TRASH_ANY') {
     const pool = [

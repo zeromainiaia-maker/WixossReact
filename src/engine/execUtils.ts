@@ -154,6 +154,8 @@ export interface OptionalCostSpec {
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
+  beat_signi?: number;
+  beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;
@@ -180,6 +182,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     energyTrash, fieldTrash: a.fieldTrash, lrigDown: a.lrigDown, down_self: a.down_self,
+    beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     levelUnavailable: perLevel && level <= 0,
   };
@@ -227,6 +230,21 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === ctx.sourceCardNum);
     if (zoneIdx < 0 || (ctx.ownerState.field.signi_down?.[zoneIdx] ?? false)) return false;
   }
+  if (spec.beat_signi) {
+    if (!ctx.sourceCardNum) return false;
+    const analysis = analyzeBeatSigniCost(
+      ctx.ownerState, ctx.sourceCardNum, ctx.cardMap, spec.beat_signi,
+    );
+    if ((analysis.includeSelf && analysis.selfZone < 0)
+      || analysis.eligibleOtherZones.length < analysis.otherPart) return false;
+  }
+  if (spec.beat_signi_from_trash) {
+    const paid = payBeatSigniFromTrashCost(
+      ctx.ownerState, ctx.cardMap,
+      spec.beat_signi_from_trash.count, spec.beat_signi_from_trash.filter,
+    );
+    if (!paid.ok) return false;
+  }
   const lifeCount = (spec.life_crash ?? 0) + (spec.lifeTrash ?? 0) + (spec.lifeToHand ?? 0);
   if (ctx.ownerState.life_cloth.length < lifeCount) return false;
   return true;
@@ -266,6 +284,11 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.down_self ? [{
       type: 'DOWN',
       target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+    } as EffectAction] : []),
+    ...((spec.beat_signi || spec.beat_signi_from_trash) ? [{
+      type: 'STUB', id: 'INTERNAL_PAY_BEAT_SIGNI',
+      beat_signi: spec.beat_signi,
+      beat_signi_from_trash: spec.beat_signi_from_trash,
     } as EffectAction] : []),
     ...(spec.life_crash ? [{
       type: 'LIFE_CRASH', owner: 'self', count: spec.life_crash, triggerBurst: true,
@@ -662,13 +685,15 @@ export function analyzeBeatSigniCost(
   const text = cardMap.get(srcNum)?.EffectText ?? '';
   const includeSelf = /このシグニ(を|と他のシグニ[０-９0-9]*体)[^。：]*【ビート】に/.test(text);
   const selfOtherM = text.match(/このシグニと他のシグニ([０-９0-9]+)体/);
+  const excludedName = text.match(/《([^》]+)》以外のシグニ/)?.[1];
   const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30)), 10);
   const otherPart = includeSelf ? (selfOtherM ? toN(selfOtherM[1]) : 0) : Math.max(1, count);
   const signi = state.field.signi;
   const selfZone = signi.findIndex(s => getCardNum(s?.at(-1) ?? '') === srcNum && (s?.length ?? 0) > 0);
   const eligibleOtherZones = signi
     .map((s, zi) => ({ zi, cn: s?.at(-1) }))
-    .filter(z => z.cn && z.zi !== selfZone)
+    .filter(z => z.cn && z.zi !== selfZone
+      && (!excludedName || cardMap.get(getCardNum(z.cn))?.CardName !== excludedName))
     .map(z => z.zi);
   return { includeSelf, selfZone, otherPart, eligibleOtherZones };
 }
@@ -682,7 +707,8 @@ export function payBeatSigniCost(
   count: number,
   selectedOtherZones?: number[],
 ): { state: PlayerState; moved: string[]; ok: boolean; log: string } {
-  const { includeSelf, selfZone, otherPart } = analyzeBeatSigniCost(state, sourceCardNum, cardMap, count);
+  const { includeSelf, selfZone, otherPart, eligibleOtherZones } =
+    analyzeBeatSigniCost(state, sourceCardNum, cardMap, count);
 
   const signi = [...state.field.signi] as (string[] | null)[];
   const moved: string[] = [];
@@ -695,7 +721,7 @@ export function payBeatSigniCost(
   // なければレベル低い順の自動近似で otherPart 枚選ぶ。
   const otherCandZones = signi
     .map((s, zi) => ({ zi, cn: s?.at(-1) }))
-    .filter(z => z.cn && !movedZones.has(z.zi) && z.zi !== selfZone);
+    .filter(z => z.cn && !movedZones.has(z.zi) && eligibleOtherZones.includes(z.zi));
   const chosenZones: number[] = (selectedOtherZones && selectedOtherZones.length > 0)
     ? selectedOtherZones.filter(zi => otherCandZones.some(z => z.zi === zi)).slice(0, otherPart)
     : otherCandZones

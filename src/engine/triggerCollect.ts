@@ -73,6 +73,7 @@ export function optionalOnPlayCostStub(
     'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
     'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
     'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
+    'beat_signi', 'beat_signi_from_trash',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
@@ -111,6 +112,8 @@ export function optionalOnPlayCostStub(
     ...(cost.fieldTrash ? { fieldTrash: cost.fieldTrash } : {}),
     ...(cost.lrigDown ? { lrigDown: cost.lrigDown } : {}),
     ...(cost.down_self ? { down_self: true } : {}),
+    ...(cost.beat_signi ? { beat_signi: cost.beat_signi } : {}),
+    ...(cost.beat_signi_from_trash ? { beat_signi_from_trash: cost.beat_signi_from_trash } : {}),
     ...(cost.life_crash ? { life_crash: cost.life_crash } : {}),
     ...(cost.lifeTrash ? { lifeTrash: cost.lifeTrash } : {}),
     ...(cost.lifeToHand ? { lifeToHand: cost.lifeToHand } : {}),

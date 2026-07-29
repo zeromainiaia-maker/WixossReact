@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 【ビート】任意【出】コスト7効果をUI/engine共有支払いへ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第7波・Codex）
+- **原文照合／採用7件・見送り0**＝`WDK14-012-E1`／`WXK08-068-E1` は「このシグニ＋他1体」＝計2体、`WXK08-075-E1` は他1体のみ、`WDK14-014-E2`／`WXK08-043-E1`／`WXK10-041-E3` は指定カード名以外1体、`WDK14-013-E1` はトラッシュの＜悪魔＞1枚。既存 `analyzeBeatSigniCost` が EffectText から自身＋他を区別する形を流用し、`《名前》以外` は発生源だけでなく同名の別コピーも候補から除くよう補強。`payBeatSigniCost` も同じ候補集合を使うためUI選択とengine自動支払いは一致する。
+- **共有経路**＝`OptionalCostSpec`／`optionalOnPlayCostStub.SUPPORTED` に既存キー `beat_signi`／`beat_signi_from_trash` を転記し、可否は `analyzeBeatSigniCost`／`payBeatSigniFromTrashCost`、支払いは新内部STUB `INTERNAL_PAY_BEAT_SIGNI` から既存純関数 `payBeatSigniCost`／`payBeatSigniFromTrashCost` を呼ぶ。効果配置は `collectPlacedSelfOnPlayTriggers`（アシストは `collectAssistOnPlayTriggers`）→`wrapOptionalOnPlay`→`optionalOnPlayCostStub`→`optionalCostPaySteps`、通常召喚は `handleSummonSigni`→`SigniOnPlayCostModal`→`executeSigniOnPlayCost`。個別Pattern③④⑤追加・新action型・JSON/parser変更なし。
+- **使用条件**＝7件すべて live JSON に `condition:{type:'BEAT_CONDITION',condText:'４枚以下'}` があり、`collectPlacedSelfOnPlayTriggers` が `activeCondition`→`condition` の順で評価する。goldenで【ビート】4枚は収集、5枚は効果配置／アシスト経路とも不発を全7件固定。
+- **正負固定**＝自身＋他1体は計2体だけを【ビート】へ送って蘇生へ進み、他不足時は `pay.available:false`。名前以外1体は発生源を残して1体だけを送りドローへ進み、同名別コピーも候補外。trash型は＜悪魔＞1枚を移して4枚到達時ドロー、在庫0なら `pay.available:false`。UIは候補過多時だけ選択、同数時は自動、engineは同じ候補集合からレベル低い順の自動近似。
+- **データ／計器**＝parser・live JSON・生パースdiff変更 **0件**、対象7効果の outlier **0**。build は新規0／純改善5／温存(手修正)590／温存(要レビュー)293／fresh空2／parseStatusのみ79、held **293枚／107署名**（増減0）、manual field loss 0。「写せない」**27→20**、母集団958据置。
+- **検証**＝golden **1059→1063**、census 1400、smoke 10726/10726 全0、fuzz全0、同型★0、lint 0 errors / 228 warnings（増減0）。最終 `build:effects`→`heldReview` 再実測後も同値、`npm run gates` 全緑。
+- **やっていないこと**＝JSON/parser/decompiler/PRESERVE/force-adopt、対象外コスト、ブラウザ実機、PLAN/PLAN_PROGRESS、commit/push。生成時刻だけの `_partial_report.txt` 差分は残していない。
+
 ## 一般ルリグダウン任意【出】コスト6効果をUI/engine共有支払いへ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第6波・Codex）
 - **機構**＝通常召喚UIのセンター→アシストL→R・`level`・`centerOnly`・不足時nullという既存規則を純関数 `payLrigDownCost` へ切り出し、`executeSigniOnPlayCost` と engine の新内部STUB `INTERNAL_PAY_LRIG_DOWN` が共有。`canAffordOptionalCostSpec` も同関数で一般形を判定し、既存 `execDown(LRIG)` のセンター専用という一般効果の意味は変更していない。
 - **採用6件**＝`WXDi-P14-041-E3`／`043-E3`／`045-E3`／`047-E3`／`049-E2` は〈アップ状態のルリグ2体をダウン〉→ `OPTIONAL_COST` → `INTERNAL_PAY_LRIG_DOWN{count:2}` → 覚醒、`WX24-P2-069-E1` は〈同1体〉→同STUB `{count:1}` → 共通色・パワー3000以下の相手シグニをバニッシュ。効果配置時は `collectPlacedSelfOnPlayTriggers`（アシスト変種は `collectAssistOnPlayTriggers` 経由）→`wrapOptionalOnPlay`→`optionalOnPlayCostStub`→`optionalCostPaySteps`、通常召喚時は `handleSummonSigni`→`executeSigniOnPlayCost`→共有純関数。

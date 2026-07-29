@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -14774,6 +14774,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
       'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
       'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
+      'beat_signi', 'beat_signi_from_trash',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
@@ -14781,13 +14782,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 931, 'OPTIONAL_COST へ写せる＝一般lrigDown6件も共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 27, '一般lrigDown6件を回収後も表現できないコストだけを安全側に据え置く');
+    eq(mapped.length, 938, 'OPTIONAL_COST へ写せる＝ビート支払い7件も共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 20, 'ビート支払い7件を回収後も表現できないコストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる931件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる938件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
@@ -16612,6 +16613,125 @@ test('task12(xxix)(1) wave6 WX24-P2-069: paid LRIG color limits opponent SIGNI c
   } else {
     ok(false, '不一致盤面でもpay/skipを提示');
   }
+});
+
+test('task12(xxix)(1) wave7: seven beat costs preserve per-effect shape and are collectable', () => {
+  const expected: Record<string, { includeSelf: boolean; otherPart: number; key: 'beat_signi' | 'beat_signi_from_trash' }> = {
+    'WDK14-012-E1': { includeSelf: true, otherPart: 1, key: 'beat_signi' },
+    'WXK08-068-E1': { includeSelf: true, otherPart: 1, key: 'beat_signi' },
+    'WXK08-075-E1': { includeSelf: false, otherPart: 1, key: 'beat_signi' },
+    'WDK14-014-E2': { includeSelf: false, otherPart: 1, key: 'beat_signi' },
+    'WXK08-043-E1': { includeSelf: false, otherPart: 1, key: 'beat_signi' },
+    'WXK10-041-E3': { includeSelf: false, otherPart: 1, key: 'beat_signi' },
+    'WDK14-013-E1': { includeSelf: false, otherPart: 0, key: 'beat_signi_from_trash' },
+  };
+  const other = findCard(c => c.Type === 'シグニ' && !c.CardNum.startsWith('WDK14-'));
+  for (const [effectId, want] of Object.entries(expected)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const stub = optionalOnPlayCostStub(effect.cost!, effectId);
+    ok(!!stub, `${effectId}: shared OPTIONAL_COST に収集`);
+    if (want.key === 'beat_signi') {
+      eq(stub!.beat_signi, 1, `${effectId}: beat_signi payload`);
+      const state = mkState({ signi: [cardNum, other, null] });
+      const a = analyzeBeatSigniCost(state, cardNum, cardMap, effect.cost!.beat_signi!);
+      eq(a.includeSelf, want.includeSelf, `${effectId}: 自身を支払いに含むか`);
+      eq(a.otherPart, want.otherPart, `${effectId}: 自身以外の必要数`);
+      ok(!a.eligibleOtherZones.includes(a.selfZone), `${effectId}: 自身は他シグニ候補へ重複しない`);
+      if (['WDK14-014-E2', 'WXK08-043-E1', 'WXK10-041-E3'].includes(effectId)) {
+        const duplicate = mkState({ signi: [cardNum, `${cardNum}#duplicate`, other] });
+        const named = analyzeBeatSigniCost(duplicate, cardNum, cardMap, effect.cost!.beat_signi!);
+        eq(named.eligibleOtherZones.join(','), '2', `${effectId}: 除外名の別コピーも候補にしない`);
+      }
+    } else {
+      eq(JSON.stringify(stub!.beat_signi_from_trash), JSON.stringify(effect.cost!.beat_signi_from_trash),
+        `${effectId}: trash beat payload/filter`);
+    }
+  }
+});
+
+test('task12(xxix)(1) wave7 condition: beat 4 collects, beat 5 rejects on engine placement/assist path', () => {
+  const ids = [
+    'WDK14-012-E1', 'WXK08-068-E1', 'WXK08-075-E1', 'WDK14-014-E2',
+    'WXK08-043-E1', 'WXK10-041-E3', 'WDK14-013-E1',
+  ];
+  for (const effectId of ids) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const atFour = mkState({ signi: [cardNum, null, null] });
+    atFour.field.beat_zone = fill(4);
+    const collected = collectPlacedSelfOnPlayTriggers(
+      trigCtx(), cardNum, atFour, mkState(), 'host', { placedByEffect: true, sourceIsSigni: true },
+    );
+    eq(collected.entries.some(e => e.effectId === effectId), true, `${effectId}: 4枚以下なら収集`);
+    const atFive = mkState({ signi: [cardNum, null, null] });
+    atFive.field.beat_zone = fill(5);
+    const rejected = collectAssistOnPlayTriggers(trigCtx(), cardNum, atFive, mkState(), 'host');
+    eq(rejected.entries.some(e => e.effectId === effectId), false, `${effectId}: 5枚ならassist経路でも不発`);
+  }
+});
+
+test('task12(xxix)(1) wave7 engine: self+other pays exactly two and then runs original effect', () => {
+  const effect = effectsMap.get('WDK14-012')!.find(e => e.effectId === 'WDK14-012-E1')!;
+  const wrapped = wrapOptionalOnPlay(effect)!;
+  const ctx = mkCtx({ signi: ['WDK14-012', 'WXK08-075', null], hand: 0 }, {}, 'WDK14-012');
+  ctx.ownerState.field.beat_zone = [];
+  ctx.ownerState.trash = ['WDK14-014'];
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'pay/skipを提示');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, '自身＋他1体があればpay可能');
+    const paid = finish(resumeChoose('pay', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    }), ctx);
+    eq(paid.ownerState.field.beat_zone?.join(','), 'WDK14-012,WXK08-075', '自身＋他1体の計2体だけをビートへ');
+    ok(paid.ownerState.field.signi.some(s => s?.at(-1) === 'WDK14-014'), '支払い後に元の蘇生効果が走る');
+  }
+  const short = mkCtx({ signi: ['WDK14-012', null, null] }, {}, 'WDK14-012');
+  short.ownerState.trash = ['WDK14-014'];
+  const blocked = executeEffect(wrapped, short);
+  ok(!blocked.done && blocked.pending.type === 'CHOOSE', '他シグニ不足でもskipを提示');
+  if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+    eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, '自身だけではpay不可');
+    eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, 'skipのみ可能');
+  }
+});
+
+test('task12(xxix)(1) wave7 engine: other-only and trash beat pay one; shortages disable pay', () => {
+  const drawEffect = effectsMap.get('WDK14-014')!.find(e => e.effectId === 'WDK14-014-E2')!;
+  const drawCtx = mkCtx({ signi: ['WDK14-014', 'WXK08-075', null], hand: 0 }, {}, 'WDK14-014');
+  drawCtx.ownerState.deck = ['WXK08-068'];
+  drawCtx.ownerState.field.beat_zone = [];
+  const drawOffer = executeEffect(wrapOptionalOnPlay(drawEffect)!, drawCtx);
+  if (!drawOffer.done && drawOffer.pending.type === 'CHOOSE') {
+    const paid = finish(resumeChoose('pay', drawOffer.pending, {
+      ...drawCtx, ownerState: drawOffer.ownerState, otherState: drawOffer.otherState, logs: drawOffer.logs,
+    }), drawCtx);
+    eq(paid.ownerState.field.beat_zone?.join(','), 'WXK08-075', 'カード名以外の他1体だけをビートへ');
+    ok(paid.ownerState.field.signi.some(s => s?.at(-1) === 'WDK14-014'), '発生源自身は場に残る');
+    eq(paid.ownerState.hand.join(','), 'WXK08-068', '支払い後にドローが走る');
+  } else ok(false, 'other-only pay/skipを提示');
+
+  const trashEffect = effectsMap.get('WDK14-013')!.find(e => e.effectId === 'WDK14-013-E1')!;
+  const trashCtx = mkCtx({ signi: ['WDK14-013', null, null], hand: 0 }, {}, 'WDK14-013');
+  trashCtx.ownerState.deck = ['WXK08-068'];
+  trashCtx.ownerState.trash = ['WDK14-014'];
+  trashCtx.ownerState.field.beat_zone = fill(3);
+  const trashOffer = executeEffect(wrapOptionalOnPlay(trashEffect)!, trashCtx);
+  if (!trashOffer.done && trashOffer.pending.type === 'CHOOSE') {
+    const paid = finish(resumeChoose('pay', trashOffer.pending, {
+      ...trashCtx, ownerState: trashOffer.ownerState, otherState: trashOffer.otherState, logs: trashOffer.logs,
+    }), trashCtx);
+    ok(paid.ownerState.field.beat_zone?.includes('WDK14-014'), 'trashの悪魔1枚をビートへ');
+    eq(paid.ownerState.trash.length, 0, '支払った悪魔はtrashから除く');
+    eq(paid.ownerState.hand.join(','), 'WXK08-068', '4枚になったので元効果のドローが走る');
+  } else ok(false, 'trash beat pay/skipを提示');
+  const empty = mkCtx({ signi: ['WDK14-013', null, null] }, {}, 'WDK14-013');
+  empty.ownerState.trash = [];
+  const unavailable = executeEffect(wrapOptionalOnPlay(trashEffect)!, empty);
+  if (!unavailable.done && unavailable.pending.type === 'CHOOSE') {
+    eq(unavailable.pending.options.find(o => o.id === 'pay')?.available, false, '悪魔不在ならpay不可');
+    eq(unavailable.pending.options.find(o => o.id === 'skip')?.available, true, 'skipのみ可能');
+  } else ok(false, 'trash不足でもpay/skipを提示');
 });
 
 test('task12(xxix)(1) wave5: centerOnly lrigDown pays own center and rejects assist-only availability', () => {

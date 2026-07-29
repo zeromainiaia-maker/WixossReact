@@ -1823,6 +1823,10 @@ export interface StubAction {
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */
   down_self?: boolean;
+  /** OPTIONAL_COST: 場のシグニを【ビート】にする任意コスト。原文上の自身/他の区別は共通解析器が担う。 */
+  beat_signi?: number;
+  /** OPTIONAL_COST: トラッシュのシグニを【ビート】にする任意コスト。 */
+  beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;
