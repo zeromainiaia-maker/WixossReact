@@ -407,21 +407,6 @@ WX17-001 WXEX2-36 WXK11-021
   + [0].action.sourceFilter.hasLifeBurst = false
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
-## +DURING_ATTACK_PHASE ［3枚］
-WX21-029 WXEX2-30 WXEX2-47
---- WX21-029
-  原文: 【常】：アタックフェイズの間、あなたの【英知】能力の条件がこのシグニのレベルを参照する場合、このシグニのレベルは１～９であるとして扱う。【出】英知＝８：対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。【自】英知＝１２：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。,：【エナチャージ３】
-  + [0].activeCondition.type = "DURING_ATTACK_PHASE"
-  ~ [0].action.id : "ATTACK_PHASE_LEVEL_OVERRIDE" → "RULE_REMINDER_TEXT"
---- WXEX2-30
-  原文: 【常】：アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる。【出】《白》：このシグニをチアガールにする。【起】《ターン１回》他の＜迷宮＞のシグニ１体を場からトラッシュに置く：あなたのデッキから＜迷宮＞のシグニ１枚を探して場に出し、デッキをシャッフルする。その後、対戦相手のシグニ１体を対象とし、ターン終了時ま
-  - [1].action.target.filter.thisCardOnly = true
-  + [0].activeCondition.type = "DURING_ATTACK_PHASE"
---- WXEX2-47
-  原文: 【常】：アタックフェイズの間、あなたの【英知】能力の条件がこのシグニのレベルを参照する場合、このシグニのレベルは０～４であるとして扱う。【常】英知＝１５：このシグニはバニッシュされない。【出】《緑》：このシグニをチアガールにする。【起】《ターン１回》《緑》：あなたのデッキからレベルの異なる＜英知＞のシグニ２枚を探して場に出し、デッキをシャッフルする。,：対戦
-  + [0].activeCondition.type = "DURING_ATTACK_PHASE"
-  ~ [0].action.id : "ATTACK_PHASE_LEVEL_OVERRIDE" → "RULE_REMINDER_TEXT"
-
 ## -CONDITIONAL -ENERGY_COUNT ［3枚］
 WX24-P4-066 WX25-P2-076 WXDi-D09-H21
 --- WX24-P4-066
@@ -586,6 +571,7 @@ WX17-040 WX18-032
   原文: 【自】《ターン２回》：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、対戦相手のライフクロスがあなたより多い場合、このシグニをアップする。【出】：対戦相手の手札が６枚以上ある場合、対戦相手は手札が３枚になるようにカードを捨てる。,：どちらか１つを選ぶ。①対戦相手の手札があなたより多い場合、カードを２枚引く。②対戦相手のシグニ１体を対象とし、対戦相
   - [2].action.choices[1].condition.type = "LIFE_COMPARE_OPP"
   - [2].action.choices[1].condition.operator = "lt"
+  + [0].costUnparsed = true
 
 ## -CONDITIONAL -LIFE_COUNT ［2枚］
 WX17-044 WXDi-P16-049
@@ -636,6 +622,7 @@ WXEX2-09 WXK08-048
 WXEX2-18 WXEX2-70
 --- WXEX2-18
   原文: 【自】《ターン１回》：あなたの＜遊具＞のシグニ１体がアタックしたとき、そのシグニをアップする。【起】《ターン１回》《緑×0》：対戦相手のシグニ１体を対象とし、レゾナではないあなたの＜遊具＞のシグニ１体をバニッシュする。そうした場合、それをエナゾーンに置く。【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》：【エナチャージ３】をする。その後
+  + [0].costUnparsed = true
   ~ [1].action.steps[1].then.type : "ENERGY_CHARGE" → "SEND_TO_ENERGY"
   ~ [1].action.steps[1].then.target.type : "DECK_CARD" → "SIGNI"
   ~ [1].action.steps[1].then.target.owner : "self" → "opponent"
@@ -645,6 +632,7 @@ WXEX2-18 WXEX2-70
   + [2].action.steps[1].source.filter.story = "遊具"
 --- WXEX2-70
   原文: 【自】《ターン１回》：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、あなたの他の＜遊具＞のシグニ１体をバニッシュしてもよい。そうした場合、それをエナゾーンに置く。【出】：あなたのデッキから＜遊具＞のシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。,-
+  + [0].costUnparsed = true
   ~ [0].action.steps[1].then.type : "ENERGY_CHARGE" → "SEND_TO_ENERGY"
   ~ [0].action.steps[1].then.target.type : "DECK_CARD" → "SIGNI"
   ~ [0].action.steps[1].then.target.owner : "self" → "opponent"
@@ -699,7 +687,7 @@ WX24-P2-055 WXDi-P08-080
   - [0].action.steps[1].then.count = 1
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
-  …（他 28 行）
+  …（他 29 行）
 --- WXDi-P08-080
   原文: 【自】：対戦相手のアタックフェイズ開始時、ターン終了時まで、対戦相手のすべてのレベル１のシグニは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－8000する。」を得る。,：どちらか１つを選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。②あなたのトラッシュから《ガードアイコン》を持たないシ
   - [0].action.target.filter.thisCardOnly = true
@@ -1081,20 +1069,12 @@ WXEX1-72
   ~ [0].parseStatus : "AUTO" → "MANUAL"
   + [0].triggerCondition.resonaClass = "遊具"
 
-## +EICHI_LEVEL_SUM×2 ［1枚］
-WXEX2-71
---- WXEX2-71
-  原文: 【自】《ターン１回》：あなたのシグニ１体が正面以外のシグニゾーンにアタックしたとき、ターン終了時まで、そのシグニは【ランサー】を得る。【出】英知＝２：あなたのエナゾーンからレベル３以下の＜英知＞のシグニ１枚を対象とし、それを場に出す。【起】英知＝５《ターン１回》《緑×0》：あなたの他の＜英知＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグ
-  + [1].activeCondition.type = "EICHI_LEVEL_SUM"
-  + [1].activeCondition.operator = "eq"
-  + [1].activeCondition.value = 2
-  ~ [1].parseStatus : "AUTO" → "MANUAL"
-  + [2].activeCondition.type = "EICHI_LEVEL_SUM"
-  + [2].activeCondition.operator = "eq"
-  + [2].activeCondition.value = 5
-  ~ [2].action.target.owner : "opponent" → "self"
-  ~ [2].action.keyword : "このシグニは、このシグニの正面以外の対戦相手のシグニゾーンにもアタックできる" → "正面以外追加アタック"
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
+## +DURING_ATTACK_PHASE ［1枚］
+WXEX2-30
+--- WXEX2-30
+  原文: 【常】：アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる。【出】《白》：このシグニをチアガールにする。【起】《ターン１回》他の＜迷宮＞のシグニ１体を場からトラッシュに置く：あなたのデッキから＜迷宮＞のシグニ１枚を探して場に出し、デッキをシャッフルする。その後、対戦相手のシグニ１体を対象とし、ターン終了時ま
+  - [1].action.target.filter.thisCardOnly = true
+  + [0].activeCondition.type = "DURING_ATTACK_PHASE"
 
 ## +CONDITIONAL +SELF_POWER_GTE -SEQUENCE ［1枚］
 WXDi-D01-016

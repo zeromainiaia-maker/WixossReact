@@ -90,6 +90,41 @@ export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCo
 }
 
 /**
+ * 任意【出】を「発動可否／支払い可否を問う包み」へ変換する（タスク12(xxix)(1)(2)）。
+ * - コストあり＆`OptionalCostSpec` で表現できる → `SEQUENCE[OPTIONAL_COST, 元action]`
+ * - コストなし（「〜してもよい」／【出】英知＝N） → `SEQUENCE[OPTIONAL_ACTIVATE, 元action]`
+ * - コストありだが表現できない → **null**（積まない＝コストの踏み倒しを避ける）
+ * `cost` は包みへ移すので落とす（二重徴収・UI重複の防止）。
+ */
+export function wrapOptionalOnPlay(eff: CardEffect): CardEffect | null {
+  // 原文にコスト句があるのに parser が解釈できなかった効果は**絶対に包まない**。
+  // 包むと「発動しますか？」だけ出てコストを払わずに撃ててしまう（＝踏み倒し）。
+  if (eff.costUnparsed) return null;
+  let stub: StubAction | null;
+  if (eff.cost) {
+    stub = optionalOnPlayCostStub(eff.cost);
+    if (!stub) return null;
+  } else {
+    stub = { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction;
+  }
+  return {
+    ...eff,
+    cost: undefined,
+    action: { type: 'SEQUENCE', steps: [stub as unknown as import('../types/effects').EffectAction, eff.action] } as unknown as import('../types/effects').EffectAction,
+  };
+}
+
+/** 通常召喚で「自身の任意【出】」として支払い/発動可否を問う対象か（mandatory は別関数）。 */
+export function isOptionalOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
+  return eff.effectType === 'AUTO'
+    && !!eff.timing?.includes('ON_PLAY')
+    && (eff.triggerScope === undefined || eff.triggerScope === 'self' || eff.triggerScope === 'any')
+    && eff.mandatory === false
+    && !eff.triggerCondition?.byEffect
+    && !eff.triggerCondition?.bySigniEffect;
+}
+
+/**
  * 効果で場に出たシグニ自身の【出】を収集する。
  * mandatory:false のうち **コスト付き**は `OPTIONAL_COST` を前置した action で積む（タスク12(xxix)(1)）。
  * cost なしの任意【出】（タスク12(lv)＝段階3）と、`OptionalCostSpec` で表現できないコストを持つものは
@@ -127,11 +162,12 @@ export function collectPlacedSelfOnPlayTriggers(
     if (bySigniEffect && !opts.sourceIsSigni) continue;
     // 任意【出】＝コストがあり、かつそのコストを OPTIONAL_COST で表現できるものだけを
     // 「支払いますか？」プロンプト付きで積む。それ以外（cost なし＝(lv)／表現不能なコスト）は据え置き。
-    let optionalCostStub: StubAction | null = null;
+    // 任意【出】は「支払いますか？／発動しますか？」の包みに変換して積む。
+    // 変換できない（コストを表現できない）ものだけ従来どおり据え置き。
+    let wrapped: CardEffect | null = null;
     if (eff.mandatory === false) {
-      if (!eff.cost) continue;
-      optionalCostStub = optionalOnPlayCostStub(eff.cost);
-      if (!optionalCostStub) continue;
+      wrapped = wrapOptionalOnPlay(eff);
+      if (!wrapped) continue;
     }
     if (eff.activeCondition && !checkActiveCondition(
       eff.activeCondition, controllerState, otherState, isOwnerTurn, ctx.cardMap, placedInstanceId,
@@ -141,18 +177,13 @@ export function collectPlacedSelfOnPlayTriggers(
     )) continue;
     if (!limitOk(eff)) continue;
     const cardName = ctx.cardMap.get(getCardNum(placedInstanceId))?.CardName ?? getCardNum(placedInstanceId);
-    // 任意コスト付きは action を SEQUENCE[OPTIONAL_COST, 元action] に包んで積む。
-    // `cost` は落とす＝支払いはこの包みが担うので、二重徴収や UI の重複表示を避ける。
-    const effToPush: CardEffect = optionalCostStub
-      ? { ...eff, cost: undefined, action: { type: 'SEQUENCE', steps: [optionalCostStub as unknown as import('../types/effects').EffectAction, eff.action] } as unknown as import('../types/effects').EffectAction }
-      : eff;
     entries.push({
       id: ctx.genId(),
       playerId: ownerId,
       cardNum: placedInstanceId,
       effectId: eff.effectId,
-      label: `${cardName} の【出】効果${optionalCostStub ? '（任意コスト）' : ''}`,
-      effect: effToPush,
+      label: `${cardName} の【出】効果${wrapped ? (eff.cost ? '（任意コスト）' : '（任意）') : ''}`,
+      effect: wrapped ?? eff,
     });
   }
   return { entries, usedHostIds, usedGuestIds };

@@ -2082,6 +2082,9 @@ export interface CardEffect {
 
   // 発動コスト
   cost?: EffectCost;
+  // 原文にコスト句があるのに `parseCost` が1つも解釈できなかった＝**コストが未表現**の印（タスク12(xxix)(2)）。
+  // 任意効果の発動プロンプト機構はこの印がある効果を扱わない（無料で撃たせないため）。parser 改善の在庫でもある。
+  costUnparsed?: boolean;
 
   // レゾナの【出現条件】。実効果ではないカード単位メタデータ。
   appearanceCondition?: AppearanceCondition;

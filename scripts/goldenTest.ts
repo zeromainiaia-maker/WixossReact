@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -633,8 +633,10 @@ test('§3 task8(c) attack geometry: six cards use self-targeted multi/adjacent a
       if (e.effectType === 'ACTIVATED' && e.activeCondition) activatedWithActiveCondition.push(e.effectId);
     }
   }
-  eq(activatedWithActiveCondition.sort().join(','), 'WX16-043-E2,WXEX2-71-E3',
-    'all activeCondition-gated ACTIVATED data is limited to these two SIGNI effects');
+  // タスク12(xxix)(2) で英知＝N（全角＝）の取りこぼしを直した結果、activeCondition 付き ACTIVATED は
+  // 2件から5件に増えた（増分3件はいずれも【起】英知＝N＝**従来は条件なしで使えていた**過剰実行の是正）。
+  eq(activatedWithActiveCondition.sort().join(','), 'WX16-043-E2,WX19-041-E1,WX19-041-E2,WXEX1-45-E1,WXEX2-71-E3',
+    'all activeCondition-gated ACTIVATED data is limited to these SIGNI effects');
 
   const eichiByLevel = (level: number) => {
     const card = [...cardMap.values()].find(c => c.CardClass?.includes('英知') && parseInt(c.Level ?? '0', 10) === level);
@@ -13661,18 +13663,30 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !e.cost);
-    eq(eligible.length, 1437, '段階2 mandatory集合');
+    // 1437→1451＝英知＝N（全角）14効果が「任意・コストなし」の穴から mandatory＋activeCondition へ移った分
+    // （タスク12(xxix)(2)）。同じ理由で段階3在庫は 65→51 に減っている。
+    eq(eligible.length, 1451, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
-    eq(conditional.length, 36, '段階2 condition/activeConditionあり');
+    eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
     eq(optionalCost.length, 933, '任意costあり（(xxix)(1) の母集団）');
-    eq(optionalNoCost.length, 65, '段階3在庫');
-    // 段階3（cost なし任意）は据え置き＝collector へ入らない
+    eq(optionalNoCost.length, 51, '段階3在庫（英知14件が mandatory 化して 65→51）');
+    // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
+    // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
+    {
+      const state = mkState({ signi: ['WX16-045', null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX16-045', state, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.filter(e => e.effectId === 'WX16-045-E1').length, 0,
+        'costUnparsed（原文にコスト句あり）はcollectorへ巻き込まない＝踏み倒し防止');
+    }
     {
       const state = mkState({ signi: ['WX04-041', null, null] });
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX04-041', state, mkState(), 'host', {
         placedByEffect: true, sourceIsSigni: false,
       });
-      eq(r.entries.length, 0, '段階3 costなしをcollectorへ巻き込まない');
+      eq(r.entries.filter(e => e.effectId === 'WX04-041-E2').length, 1,
+        '真の「〜してもよい」は発動可否を問う包みとして積む');
     }
   });
 
@@ -13736,6 +13750,87 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       eq(r.entries.filter(x => x.effectId === e.effectId).length, 0,
         `${e.effectId}: 未対応コスト（${Object.keys(e.cost!).join('+')}）は積まない＝コストの踏み倒しなし`);
     }
+  });
+
+  // ── (xxix)(2) 段階3＝任意・コストなし【出】 ─────────────────────────────────────────────
+  // 「〜してもよい」は mandatory:false かつ cost なしで、mandatory 収集にも cost 収集にも入らず**丸ごと無発火**
+  // だった。OPTIONAL_ACTIVATE 包み（「発動しますか？」）で通常召喚・効果配置の両方から積む。
+  test('(xxix)(2) 任意・コストなし【出】は OPTIONAL_ACTIVATE で包まれる（cost ありは OPTIONAL_COST のまま）', () => {
+    const noCost = effectsMap.get('WX04-041')!.find(e => e.effectId === 'WX04-041-E2')!;
+    const wrappedNC = wrapOptionalOnPlay(noCost)!;
+    ok(!!wrappedNC, '任意・コストなしを包む');
+    const seqNC = wrappedNC.action as import('../src/types/effects').SequenceAction;
+    eq((seqNC.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_ACTIVATE', 'コストなしは OPTIONAL_ACTIVATE');
+    const withCost = effectsMap.get('WX01-007')!.find(e => e.effectId === 'WX01-007-E1')!;
+    const seqWC = wrapOptionalOnPlay(withCost)!.action as import('../src/types/effects').SequenceAction;
+    eq((seqWC.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST', 'コストありは OPTIONAL_COST');
+  });
+
+  // 🔴 これが本機構の安全弁。原文に「【出】〈コスト句〉：」がある効果を包むと、**コストを払わずに
+  //    効果だけ撃てる**（＝踏み倒し）。parser の `costUnparsed` 印＋PRESERVE カードへの外科パッチで
+  //    塞いであるが、新カード追加で穴が開かないよう**母集団全数**で不変条件として固定する。
+  test('(xxix)(2) 🔴 包む対象は必ず原文のコスト句が空＝コストの踏み倒しが起きない', () => {
+    const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+    const headOf = (id: string): string | null => {
+      const m = (srcText[id] ?? '').trim().match(/^【[^】]*出】([^：:]*)[：:]/);
+      return m ? m[1].trim() : null;
+    };
+    let wrapped = 0, deferred = 0;
+    for (const effs of effectsMap.values()) {
+      for (const e of effs) {
+        if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_PLAY')) continue;
+        const scope = e.triggerScope ?? 'self';
+        if (scope !== 'self' && scope !== 'any') continue;
+        if (e.mandatory !== false || e.cost) continue;
+        if (wrapOptionalOnPlay(e)) {
+          wrapped++;
+          eq(headOf(e.effectId) ?? '', '', `${e.effectId}: 包むならコスト句は空のはず（原文にコストがあるなら踏み倒し）`);
+        } else deferred++;
+      }
+    }
+    eq(wrapped, 8, '包む＝真の「〜してもよい」8効果');
+    eq(deferred, 43, '据え置き＝コスト句があるのに cost 未表現の43効果（parser 在庫）');
+  });
+
+  test('(xxix)(2) OPTIONAL_ACTIVATE は「発動する/発動しない」を出し、断ると盤面が動かない', () => {
+    const savedCursor = cursor;
+    try {
+      const eff = effectsMap.get('WX04-052')!.find(e => e.effectId === 'WX04-052-E2')!;
+      const wrappedAct = wrapOptionalOnPlay(eff)!;
+      const ctx = mkCtx({ signi: ['WX04-052', null, null] }, {}, 'WX04-052');
+      const first = executeEffect(wrappedAct, ctx);
+      ok(!first.done, '発動可否の CHOOSE で止まる');
+      const pending = first.pending as unknown as { type: string; options: { id: string; label: string; available: boolean }[] };
+      eq(pending.type, 'CHOOSE', '選択が出る');
+      eq(pending.options.map(o => `${o.id}:${o.label}`).join(','), 'pay:発動する,skip:発動しない',
+        'コスト0で「支払う」と言わない');
+      ok(pending.options.every(o => o.available), 'コストが無いので常に選べる');
+      const before = JSON.stringify({ d: ctx.ownerState.deck, h: ctx.ownerState.hand, f: ctx.ownerState.field });
+      const skipped = finish(resumeChoose('skip', pending as never, ctx), ctx);
+      eq(JSON.stringify({ d: skipped.ownerState.deck, h: skipped.ownerState.hand, f: skipped.ownerState.field }), before,
+        '発動しないを選ぶと盤面は一切動かない');
+    } finally { cursor = savedCursor; }
+  });
+
+  // 英知＝N は**コストではなく使用条件**。全角「＝」を取りこぼしていたため activeCondition が丸ごと落ち、
+  // 【常】【自】【起】は**条件なしで発動する過剰実行**、【出】は mandatory:false で**無発火**になっていた。
+  test('(xxix)(2) 英知＝N（全角）が activeCondition として復元され【出】は mandatory になる', () => {
+    const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+    let checked = 0;
+    for (const effs of effectsMap.values()) {
+      for (const e of effs) {
+        const m = (srcText[e.effectId] ?? '').match(/^【[^】]*】英知[=＝]([０-９\d]+)/);
+        if (!m) continue;
+        checked++;
+        const want = parseInt(m[1].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+        eq(e.activeCondition?.type, 'EICHI_LEVEL_SUM', `${e.effectId}: 英知条件を保持（落とすと無条件発動）`);
+        eq((e.activeCondition as { value?: number } | undefined)?.value, want, `${e.effectId}: 閾値`);
+        if (e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')) {
+          eq(e.mandatory, true, `${e.effectId}: 英知は使用条件なので【出】は mandatory（任意扱いだと収集の穴に落ちる）`);
+        }
+      }
+    }
+    ok(checked >= 24, `英知＝N 効果を全数検査（${checked}件）`);
   });
 
   test('(xxix)(1) OPTIONAL_COST 包みは「支払う/スキップ」を提示し、スキップで元actionを実行しない', () => {

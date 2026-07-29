@@ -653,7 +653,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
   // パターン-1: 「英知=N：」（英知シグニのレベル合計条件）
-  const eichiM = text.match(/^英知=([０-９\d]+)：/);
+  const eichiM = text.match(/^英知[=＝]([０-９\d]+)：/);
   if (eichiM) {
     const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
     const value = parseInt(toHW(eichiM[1]));
@@ -5292,9 +5292,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     costStr = costStr.slice(beatIconM[0].length).trim();
   }
 
-  // 英知=N 条件を costStr から抽出（AUTO/ACTIVATED 効果の使用条件）
+  // 英知=N 条件を costStr から抽出（AUTO/ACTIVATED 効果の使用条件）。
+  // ⚠「＝」は全角のカードが多数（実測14件中11件）＝半角限定だと activeCondition が丸ごと落ちて
+  //   **条件なしで発動する過剰実行**になる。3箇所とも [=＝] で受ける。
   let eichiCondition: ActiveCondition | undefined;
-  const eichiInCostM = costStr.match(/^英知=([０-９\d]+)\s*/);
+  const eichiInCostM = costStr.match(/^英知[=＝]([０-９\d]+)\s*/);
   if (eichiInCostM) {
     const toHWEC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
     eichiCondition = { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: parseInt(toHWEC(eichiInCostM[1])) } as ActiveCondition;
@@ -5342,7 +5344,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       break;
     case '出':
       effectType = 'AUTO'; timing = ['ON_PLAY'];
-      mandatory = costStr === '' && !eichiCondition;
+      // 英知＝N は**コストではなく使用条件**（上で costStr から抽出済み）＝満たしていれば強制発動。
+      // v0.263 で「英知14件は mandatory:true＋EICHI_LEVEL_SUM ゲート化」と決めた経緯があり（BUGFIXES）、
+      // `&& !eichiCondition` はその後の退行。任意扱いだと mandatory でも cost ありでもない**収集の穴**に落ちて
+      // 丸ごと無発火になっていた（タスク12(xxix)(2)）。
+      mandatory = costStr === '';
       // 「このシグニが（シグニの）効果によって場に出たとき」限定（G079）。通常召喚・グロウでは発火しない。
       // 「シグニの効果によって」= bySigniEffect（シグニの効果のみ。スペル/アーツ/ルリグの効果では発火しない）。
       // 「効果によって」（シグニの無し）= byEffect（任意の効果）。
@@ -6688,6 +6694,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   }
 
   const cost = parseCost(costStr);
+  // ⚠「コスト句はあるのに parseCost が1つも解釈できなかった」印（タスク12(xxix)(2)）。
+  // これが無いと `mandatory:false` かつ `cost` 無しに見えるため、任意【出】の発動プロンプト機構が
+  // **コストを踏み倒して効果だけ通す**（原文にコストがあるのに無料で撃てる）。
+  // 収集側はこの印がある効果を積まない＝従来どおり不発のまま据え置く。
+  const costUnparsed = costStr !== '' && cost === undefined;
   // §3タスク6 C: 「この能力の使用コストに含まれる《X》を支払う際、代わりに手札から＜C＞のシグニをN枚捨ててもよい」
   // ＝この能力スコープの任意コスト代替（WX07-027-E2）。**アクション文から取り除いて cost へ宣言として畳む**。
   // 従来はこの文が強制 TRASH ステップへ平坦化し、能力を使うたび必ず＜原子＞を1枚捨てる過剰効果だった。
@@ -6715,7 +6726,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   if (effectType === 'CONTINUOUS') {
     // costStr に「英知=N」条件が含まれる場合（「【常】英知=N：効果テキスト」形式）
-    const eichiCostM = costStr.match(/^英知=([０-９\d]+)$/);
+    const eichiCostM = costStr.match(/^英知[=＝]([０-９\d]+)$/);
     if (eichiCostM) {
       const toHWE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
       activeCondition = { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: parseInt(toHWE(eichiCostM[1])) } as ActiveCondition;
@@ -7007,6 +7018,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     condition: mergedCondition,
     altCostOppTurn,
     cost,
+    ...(costUnparsed ? { costUnparsed: true } : {}),
     action: resolvedAction,
     duration,
     mandatory,

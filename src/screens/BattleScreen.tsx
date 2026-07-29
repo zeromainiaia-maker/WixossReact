@@ -11,7 +11,7 @@ collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbi
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, type TrigCtx } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, wrapOptionalOnPlay, type TrigCtx } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectEnergyAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
@@ -5148,13 +5148,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 使用条件（《ビートアイコン》[N枚以下]ゲート＝BEAT_CONDITION や「〜の場合にしか使用できない」）を満たさない【出】コスト効果は提示しない
         (!e.condition || evalUseCondition(e.condition, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
-      // 収集漏れ検出: mandatory:false+costなしはどちらの収集にも入らず無発火（v0.261コインバグと同型。JSON側のcost表現が必要）
-      const droppedOnPlay = ownEffects.filter(e =>
-        e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY') &&
-        (e.triggerScope === undefined || e.triggerScope === 'self') &&
-        e.mandatory === false && !e.cost,
+      // mandatory:false + cost なしの自身【出】（「〜してもよい」／【出】英知＝N）＝タスク12(xxix)(2)。
+      // `ownOnPlay`（mandatory のみ）にも `ownCostOnPlay`（cost ありのみ）にも入らず**丸ごと無発火**だった
+      // （旧実装はここで console.warn するだけ）。engine の OPTIONAL_ACTIVATE 包み（「発動しますか？」）へ
+      // 変換してスタックへ積む＝支払いモーダルは要らない。
+      const optionalNoCostOnPlay = (onPlayBlocked ? [] : ownEffects).filter(e =>
+        isOptionalOwnOnPlayForNormalSummon(e) && !e.cost &&
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, placed, op, isMyTurn, battleCardMap, cardNum)) &&
+        (!e.condition || evalUseCondition(e.condition, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
       );
-      if (droppedOnPlay.length > 0) console.warn(`[handleSummonSigni] mandatory:false+costなしのON_PLAY効果は発火しません: ${droppedOnPlay.map(e => e.effectId).join(', ')}`);
 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       appendBattleLogs([`${cardName}を召喚`]);
@@ -5168,6 +5170,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: `${cardName} の【出】/【自】効果`,
         effect: eff,
       }));
+      for (const eff of optionalNoCostOnPlay) {
+        const wrappedOpt = wrapOptionalOnPlay(eff);
+        if (!wrappedOpt) continue;
+        ownEntries.push({
+          id: generateUUID(),
+          playerId: user.id,
+          cardNum,
+          effectId: eff.effectId,
+          label: `${cardName} の【出】効果（任意）`,
+          effect: wrappedOpt,
+        });
+      }
 
       // ON_RISE: ライズ配置時、ライズされたシグニ自身の「このシグニがライズされたとき」を収集（self）。
       // risedOntoNameContains: ライズで下に置かれた元シグニ（existingTopNum）の名前で限定（WX20-056-E2《オダノブ》）。

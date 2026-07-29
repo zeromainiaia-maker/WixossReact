@@ -3035,8 +3035,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       // pay → 残りステップ実行; skip → 残りステップをスキップ
       {
         const stub5 = step as import('../types/effects').StubAction;
-        const optIds5 = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS'];
+        // OPTIONAL_ACTIVATE＝**コストの無い**任意効果（「〜してもよい」／【出】英知＝N）の発動可否だけを問う形
+        // （タスク12(xxix)(2)）。支払い機構は同じで良いが、コスト0で「支払う」と表示すると意味が通らないので
+        // 文言だけ分ける。resolveOptionalCostSpec は空 spec を返し canAfford は常に true。
+        const optIds5 = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS', 'OPTIONAL_ACTIVATE'];
         if (optIds5.includes(stub5.id)) {
+          const activateOnly5 = stub5.id === 'OPTIONAL_ACTIVATE';
           const remaining5 = a.steps.slice(i + 1);
           const noopAction5: SequenceAction = { type: 'SEQUENCE', steps: [] };
           const cont5: EffectAction = remaining5.length > 0
@@ -3051,17 +3055,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...costColors5.map(c => `《${c}》`),
             ...(coinCost5 > 0 ? [`《コイン》×${coinCost5}`] : []),
           ];
-          const payLabel5 = costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
+          const payLabel5 = activateOnly5 ? '発動する'
+            : costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
           const paySteps5 = optionalCostPaySteps(spec5);
           const payAction5: EffectAction = paySteps5.length > 0
             ? { type: 'SEQUENCE', steps: [...paySteps5, freezeStoredTargets(cont5, cur)] }
             : cont5;
           const options5 = [
             { id: 'pay', label: payLabel5, action: payAction5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}), ...(coinCost5 > 0 ? { coinCost: coinCost5 } : {}) },
-            { id: 'skip', label: 'スキップ', action: noopAction5 as EffectAction, available: true },
+            { id: 'skip', label: activateOnly5 ? '発動しない' : 'スキップ', action: noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
-          return needsInteraction(addLog(cur, '任意コスト：支払いますか？'), pending5);
+          return needsInteraction(addLog(cur, activateOnly5 ? '任意効果：発動しますか？' : '任意コスト：支払いますか？'), pending5);
         }
       }
       // Pattern ⑥: TARGET_AND_DISCARD_HAND
