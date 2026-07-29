@@ -41,9 +41,59 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
 }
 
 /**
+ * 任意【出】の `EffectCost` を engine 既存の `OPTIONAL_COST` スタブへ写す（タスク12(xxix)(1)）。
+ *
+ * 通常召喚は `handleSummonSigni` → `SigniOnPlayCostModal` という **BattleScreen 側の支払いフロー**を持つが、
+ * 効果で場に出た場合はスタック解決の途中なのでそのフローに入れない。そこで**支払い選択そのものを
+ * action に埋め込む**＝`SEQUENCE[OPTIONAL_COST, 元のaction]` にして、解決時に engine の Pattern ⑤
+ * （「任意コスト：支払いますか？」CHOOSE）へ載せる。engine 内で完結するので golden で検証できる。
+ *
+ * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／エナゾーン捨て** だけ。
+ *   それ以外のコスト（exceed・fieldTrash・lrigDown・beat_signi・life_crash…）が1つでも混ざる効果は
+ *   **null を返して収集しない**＝従来どおり不発のまま据え置く。**払っていないコストを踏み倒して
+ *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
+ */
+export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCost): StubAction | null {
+  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'handDiscardSigni', 'energyTrash']);
+  const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
+  if (keys.length === 0) return null;
+  if (keys.some(k => !SUPPORTED.has(k))) return null;
+
+  const costColors = (cost.energy ?? []).flatMap(e => Array.from({ length: e.count }, () => e.color as string));
+  let handDiscard: { count: number; filter?: TargetFilter } | undefined;
+  if (cost.discard !== undefined) {
+    handDiscard = { count: cost.discard, ...(cost.discardFilter ? { filter: cost.discardFilter } : {}) };
+  } else if (cost.handDiscardSigni) {
+    const hds = cost.handDiscardSigni;
+    handDiscard = {
+      count: hds.count,
+      filter: {
+        cardType: 'シグニ',
+        ...(hds.story !== undefined ? { story: hds.story } : {}),
+        ...(hds.color !== undefined ? { color: hds.color } : {}),
+        ...(hds.level !== undefined ? { level: hds.level } : {}),
+      },
+    };
+  } else if (cost.discardFilter) {
+    // discardFilter だけがあり枚数が無い形は解釈できない（枚数不明のまま捨てさせない）
+    return null;
+  }
+  // 「何も払わない」形（energy:[{count:0}] のみ等）は OPTIONAL_COST を挟む意味が無い＝発動可否の確認だけになるが、
+  // 原文が「〜してもよい」である以上その確認自体が正しい挙動なので通す。
+  return {
+    type: 'STUB', id: 'OPTIONAL_COST',
+    ...(costColors.length > 0 ? { costColors } : {}),
+    ...(cost.coin ? { coinCost: cost.coin } : {}),
+    ...(handDiscard ? { handDiscard } : {}),
+    ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
+  } as StubAction;
+}
+
+/**
  * 効果で場に出たシグニ自身の【出】を収集する。
- * mandatory:false はコスト有無を問わず収集しない。コスト付き任意【出】は支払いプロンプトが
- * 別フローのため、costなし任意【出】（タスク12(lv)＝段階3）とともにここでは扱わない。
+ * mandatory:false のうち **コスト付き**は `OPTIONAL_COST` を前置した action で積む（タスク12(xxix)(1)）。
+ * cost なしの任意【出】（タスク12(lv)＝段階3）と、`OptionalCostSpec` で表現できないコストを持つものは
+ * 従来どおり収集しない。
  */
 export function collectPlacedSelfOnPlayTriggers(
   ctx: TrigCtx,
@@ -75,7 +125,14 @@ export function collectPlacedSelfOnPlayTriggers(
     const bySigniEffect = !!eff.triggerCondition?.bySigniEffect;
     if ((byEffect || bySigniEffect) && !opts.placedByEffect) continue;
     if (bySigniEffect && !opts.sourceIsSigni) continue;
-    if (eff.mandatory === false) continue;
+    // 任意【出】＝コストがあり、かつそのコストを OPTIONAL_COST で表現できるものだけを
+    // 「支払いますか？」プロンプト付きで積む。それ以外（cost なし＝(lv)／表現不能なコスト）は据え置き。
+    let optionalCostStub: StubAction | null = null;
+    if (eff.mandatory === false) {
+      if (!eff.cost) continue;
+      optionalCostStub = optionalOnPlayCostStub(eff.cost);
+      if (!optionalCostStub) continue;
+    }
     if (eff.activeCondition && !checkActiveCondition(
       eff.activeCondition, controllerState, otherState, isOwnerTurn, ctx.cardMap, placedInstanceId,
     )) continue;
@@ -84,13 +141,18 @@ export function collectPlacedSelfOnPlayTriggers(
     )) continue;
     if (!limitOk(eff)) continue;
     const cardName = ctx.cardMap.get(getCardNum(placedInstanceId))?.CardName ?? getCardNum(placedInstanceId);
+    // 任意コスト付きは action を SEQUENCE[OPTIONAL_COST, 元action] に包んで積む。
+    // `cost` は落とす＝支払いはこの包みが担うので、二重徴収や UI の重複表示を避ける。
+    const effToPush: CardEffect = optionalCostStub
+      ? { ...eff, cost: undefined, action: { type: 'SEQUENCE', steps: [optionalCostStub as unknown as import('../types/effects').EffectAction, eff.action] } as unknown as import('../types/effects').EffectAction }
+      : eff;
     entries.push({
       id: ctx.genId(),
       playerId: ownerId,
       cardNum: placedInstanceId,
       effectId: eff.effectId,
-      label: `${cardName} の【出】効果`,
-      effect: eff,
+      label: `${cardName} の【出】効果${optionalCostStub ? '（任意コスト）' : ''}`,
+      effect: effToPush,
     });
   }
   return { entries, usedHostIds, usedGuestIds };

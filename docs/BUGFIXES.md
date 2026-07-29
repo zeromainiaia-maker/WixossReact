@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 効果で場に出たシグニの任意+cost【出】853効果を `OPTIONAL_COST` 包みで配線（2026-07-29・PLAN §3 タスク12(xxix)(1)・Opus〔Claude Opus 5〕）
+
+- **壊れ方**：`collectPlacedSelfOnPlayTriggers`（＝**効果で**場に出たシグニ自身の【出】を集める collector）が `if (eff.mandatory === false) continue;` で任意【出】を**コストの有無を問わず全部落として**いた。通常召喚には `handleSummonSigni` →`SigniOnPlayCostModal` という支払いフローがあるのに、**効果配置ではその933効果が丸ごと不発**だった（「トラッシュから場に出す」「デッキから場に出す」等で出したシグニの【出】《白》が一切使えない）。
+- **なぜ別フローだったか**：`SigniOnPlayCostModal` は「召喚を確定させる前に支払いを問う」BattleScreen の非同期フローで、**スタック解決の途中からは入れない**（collector は同期関数で entries を返すだけ）。前バッチはこれを理由に honest defer していた。
+- **直し方＝支払い選択を action に埋める**。collector が `SEQUENCE[STUB(OPTIONAL_COST), 元のaction]` に包んで積み、解決時に **engine 既存の Pattern ⑤**（`effectExecutor` の「任意コスト：支払いますか？」CHOOSE）へ載せる。BattleScreen は無改造で、既存の `EffectInteractionModal`＋`resumeOptionalCost` がそのまま支払いUIになる。**engine 内で完結するので golden で検証できる**（この経路は `fuzz`/`smoke` が通らないので計器上も重要）。
+- **写せる範囲を機械的に区切った**＝`OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／エナゾーン捨て** だけ。新関数 `optionalOnPlayCostStub` は**未対応キーが1つでも混ざれば null を返し、その効果は従来どおり積まない**。⚠**払っていないコストを踏み倒して効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒した。
+  - 内訳＝**933件中853件を新たに配線**（energy 529／discard系167／handDiscardSigni 69／coin 48／energyTrash 28 ほか）。**据え置き80件**の理由はすべて未対応コスト＝exceed 21／fieldTrash 18／lrigDown 7／trashArtsFromLrigDeck 6／discardUpTo 6／beat_signi 6／life_crash 4／removeOppVirus 3／その他9。
+  - `cost` は包みに移して**元 effect からは落とす**（二重徴収と UI の重複表示を防ぐ）。
+- **⚠ `usageLimit` の落とし穴を確認済み**＝`limitOk` は**収集時**に《ターン1回》を消費するので、スキップしても焼いてしまう。**現データでは853件のうち usageLimit 持ちが0件**なので実害なし。**ここが0でなくなったら「スキップ時の消費戻し」が要る**ため、golden に不変条件として固定した。
+- **JSON／parser は一切変更なし**（純粋に engine/collector の配線）。census 1454 据置はそのため。
+- **検証**：golden 957→**961**。①853/80 の内訳と「写せるかどうかが対応キー集合と完全に一致する」ことを**933件全数**で assert（＝表現できるのに落としている取りこぼしが0）②`WX01-007-E1` で `SEQUENCE[OPTIONAL_COST{costColors:['白']}, 元action]`・`cost` 落ち・ラベルを固定 ③未対応コストの実例12件が積まれないこと ④**支払い/スキップの E2E**＝スキップでエナも手札も動かない／支払うとエナが1枚減り元 action（デッキ検索→手札）まで走る。collector の分岐を旧実装（`mandatory===false` で一律 continue）へ戻すと**新規4本のうち2本だけが FAIL** することを実測。⚠**同じ CardNum を2枚エナに置くと支払いが値一致で両方消える**ため、テストでは別カードを2枚用意している。
+- **残**：(xxix)(1) は **853/933 完了・80件据え置き**（未対応コストの支払い表現が要る＝§6.3 送り候補）。(2) 段階3＝`mandatory:false`＋cost 無し65効果（タスク(lv) と同根）は非変更。
+- **⚠要実機検証**：コード変更は engine 側だが、**表面化するのは BattleScreen の effect-stack 解決**（`EffectInteractionModal` の任意コスト選択）。効果で場に出したシグニの【出】《色》プロンプトが実機で出ることは未確認。
+
 ## look-pick の hand-or-energy と動的filter（ルリグ色・照応クラス）第6波（2026-07-29・PLAN §3 タスク12(xlvi)(d)(a)・Opus〔Claude Opus 5〕）
 
 - **(d) `WX24-P1-039-E2`**：第5波で `handOrEnergy` の engine 機構はそろっていたが、単一 pick の `pk` 規則が pick 動詞を「手札に加える」だけに限っており、「＜アーム＞のシグニを１枚まで公開し**手札に加えるかエナゾーンに置き**、残りを…」が汎用 `LOOK_AND_REORDER` に飲まれて **pick が丸ごと no-op** だった。動詞の選択肢を捕獲群にして `handOrEnergy` を立てる。**全カードで新たに hand-or-energy が付くのはこの1枚だけ**を機械確認（規則を緩めても波及しない）。

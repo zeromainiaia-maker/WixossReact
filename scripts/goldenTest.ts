@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -13644,7 +13644,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(JSON.stringify(actual), JSON.stringify([...phase1Ids].sort()), `新規発火集合=${actual.length}件`);
   });
 
-  test('(xxix) 段階2の新規発火集合はmandatory 1437効果ちょうど（任意cost 933・段階3 65を除外）', () => {
+  test('(xxix) 段階2の新規発火集合はmandatory 1437効果ちょうど（任意cost 933・段階3 65は別扱い）', () => {
     const eligible = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO'
       && e.timing?.includes('ON_PLAY')
@@ -13664,14 +13664,113 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1437, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 36, '段階2 condition/activeConditionあり');
-    eq(optionalCost.length, 933, '今回除外する任意costあり');
+    eq(optionalCost.length, 933, '任意costあり（(xxix)(1) の母集団）');
     eq(optionalNoCost.length, 65, '段階3在庫');
-    for (const [cardNum, label] of [['WX01-007', '任意costあり'], ['WX04-041', '段階3 costなし']] as const) {
-      const state = mkState({ signi: [cardNum, null, null] });
-      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
+    // 段階3（cost なし任意）は据え置き＝collector へ入らない
+    {
+      const state = mkState({ signi: ['WX04-041', null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX04-041', state, mkState(), 'host', {
         placedByEffect: true, sourceIsSigni: false,
       });
-      eq(r.entries.length, 0, `${label}をcollectorへ巻き込まない`);
+      eq(r.entries.length, 0, '段階3 costなしをcollectorへ巻き込まない');
+    }
+  });
+
+  // ── (xxix)(1) 任意+cost 933効果を OPTIONAL_COST 包みで積む ───────────────────────────────
+  // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
+  // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
+  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる853件／表現できない80件', () => {
+    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'handDiscardSigni', 'energyTrash']);
+    const optionalCost = [...effectsMap.values()].flat().filter(e =>
+      e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+      && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+      && e.mandatory === false && !!e.cost);
+    const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
+    eq(optionalCost.length, 933, '母集団');
+    eq(mapped.length, 853, 'OPTIONAL_COST へ写せる＝新たに積める');
+    eq(optionalCost.length - mapped.length, 80, '表現できないコストを含むため据え置き');
+    // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
+    //   現データでは 853件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
+    //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
+    eq(mapped.filter(e => !!e.usageLimit).length, 0,
+      '写せる853件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+    // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
+    for (const e of optionalCost) {
+      const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
+      const allSupported = keys.every(k => SUPPORTED.has(k));
+      eq(!!optionalOnPlayCostStub(e.cost!), allSupported && keys.length > 0,
+        `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
+    }
+  });
+
+  test('(xxix)(1) 任意cost【出】は SEQUENCE[OPTIONAL_COST, 元action] で積まれ cost は落ちる', () => {
+    const state = mkState({ signi: ['WX01-007', null, null] });
+    const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX01-007', state, mkState(), 'host', {
+      placedByEffect: true, sourceIsSigni: false,
+    });
+    eq(r.entries.length, 1, 'WX01-007-E1（《白》×1 の任意【出】）を積む');
+    const pushed = r.entries[0].effect;
+    eq(pushed.cost, undefined, '包みが支払いを担うので cost は落とす（二重徴収防止）');
+    const seq = pushed.action as import('../src/types/effects').SequenceAction;
+    eq(seq.type, 'SEQUENCE', 'SEQUENCE で包む');
+    const stub = seq.steps[0] as import('../src/types/effects').StubAction;
+    eq(stub.id, 'OPTIONAL_COST', '先頭が OPTIONAL_COST');
+    eq(JSON.stringify(stub.costColors), '["白"]', 'エナ色コストを引き継ぐ');
+    const orig = effectsMap.get('WX01-007')!.find(e => e.effectId === 'WX01-007-E1')!;
+    eq(JSON.stringify(seq.steps[1]), JSON.stringify(orig.action), '2段目は元の action そのまま');
+    ok(r.entries[0].label.includes('任意コスト'), 'ラベルで任意コストと分かる');
+  });
+
+  test('(xxix)(1) 表現できないコスト（exceed/fieldTrash 等）は従来どおり積まない', () => {
+    const bad = [...effectsMap.entries()].flatMap(([cn, effs]) => effs
+      .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+        && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+        && e.mandatory === false && !!e.cost && !optionalOnPlayCostStub(e.cost!))
+      .map(e => ({ cn, e })));
+    ok(bad.length > 0, '未対応コストの実例がある');
+    for (const { cn, e } of bad.slice(0, 12)) {
+      const state = mkState({ signi: [cn, null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cn, state, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      eq(r.entries.filter(x => x.effectId === e.effectId).length, 0,
+        `${e.effectId}: 未対応コスト（${Object.keys(e.cost!).join('+')}）は積まない＝コストの踏み倒しなし`);
+    }
+  });
+
+  test('(xxix)(1) OPTIONAL_COST 包みは「支払う/スキップ」を提示し、スキップで元actionを実行しない', () => {
+    const savedCursor = cursor;
+    try {
+      const state = mkState({ signi: ['WX01-007', null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX01-007', state, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      const pushed = r.entries[0].effect;
+      // 白エナを持つ盤面で解決する
+      // ⚠ 同じ CardNum を2枚置くと支払いが値一致で両方消えるので、別カードを2枚用意する
+      const whites: string[] = [];
+      for (const c of cardMap.values()) { if ((c.Color ?? '') === '白' && whites.length < 2) whites.push(c.CardNum); }
+      eq(whites.length, 2, '白カードを2枚用意');
+      const ctx = mkCtx({ energy: 0 }, {});
+      const ctxWithEna: ExecCtx = { ...ctx, ownerState: { ...ctx.ownerState, energy: [...whites] } };
+      const first = executeEffect(pushed, ctxWithEna);
+      ok(!first.done, '任意コストの CHOOSE で止まる');
+      const pending = first.pending as unknown as { type: string; options: { id: string; label: string; available: boolean; costColors?: string[] }[] };
+      eq(pending.type, 'CHOOSE', '支払い選択が出る');
+      eq(pending.options.map(o => o.id).join(','), 'pay,skip', '支払う/スキップの2択');
+      ok(pending.options[0].available, '白エナ2枚あるので支払える');
+      eq(JSON.stringify(pending.options[0].costColors), '["白"]', '徴収する色を UI へ渡す');
+      // スキップ＝盤面が動かない
+      const skipped = finish(resumeChoose('skip', pending as never, ctxWithEna), ctxWithEna);
+      eq(skipped.ownerState.energy.length, 2, 'スキップでエナは減らない');
+      eq(skipped.ownerState.hand.length, ctxWithEna.ownerState.hand.length, 'スキップで手札も動かない');
+      // 支払い＝エナが1枚減り、元 action（デッキ検索→手札）まで走る
+      const hand0 = ctxWithEna.ownerState.hand.length;
+      const paid = finish(resumeOptionalCost('pay', [ctxWithEna.ownerState.energy[0]], pending as never, ctxWithEna), ctxWithEna);
+      eq(paid.ownerState.energy.length, 1, '支払うとエナが1枚減る');
+      eq(paid.ownerState.hand.length, hand0 + 1, '支払うと元 action（レベル2以下シグニを手札へ）が走る');
+    } finally {
+      cursor = savedCursor;
     }
   });
 

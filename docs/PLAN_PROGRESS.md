@@ -7,6 +7,16 @@
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
 
+- **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第5波＋第6波＝(h)17効果を残0にし、続けて (d)1＋(a)5 を消化（計28効果＋同系統9効果）**（golden 936→**957**・census 1463→**1454**〔`BASELINE_HIGH` 更新〕・smoke 10726 全0・fuzz 全0・同型★0・held 257→**257**〔新規ドリフト0〕・live 差分は対象27カードだけ・再 build 冪等）
+  - **第5波 (h)＝真因は融合規則1箇所**＝`LOOK_AND_REORDER + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK` が **revealCount／pickCount／残りの行き先しか運んでいなかった**。名詞句 filter も「N枚まで」も「手札に加えるかエナゾーンに置く」も落ち、**公開したどのカードでも拾える過剰実行**に退化（枚数も 1枚固定＝過小実行を併発）。新設 `parseRevealPickDescriptor` が名詞句を**全消費のトークン走査**で解く。⚠**未知の修飾語が1つでも残ったら null**＝部分解釈は否定修飾を取りこぼして**意味を反転**させる。新機構 `handOrEnergy`（1枚ずつ CHOOSE）＋複数 pick 群3形を `LOOK_PICK_CHAIN` へ。
+  - **第6波 (d)**＝`WX24-P1-039-E2`。engine 機構は第5波でそろっていたが `pk` 規則が pick 動詞を「手札に加える」だけに限っていて **pick が丸ごと no-op** だった。
+  - **🔴第6波 (a) で engine の潜在バグを発見**＝**`execLookPickChain` が `stage.filter` を `resolveDynamicFilter` に通していなかった**。`matchesFilter` は `colorMatchesLrig` 等を**理解せず黙って無視する**ため、動的filter を parser で表現した瞬間に「センタールリグと共通する色を持つシグニ」が**単なる「シグニ」に化ける**。既存 LPC は全部静的 filter だったので live 実害は無かった。
+  - **第6波 (a) 新語彙**＝`colorMatchesAnyLrig`（場のルリグ＝センター＋アシストの色の和。既存 `colorMatchesLrig` はセンター限定で**アシスト色でしか一致しない札を取りこぼす**）／`colorMatchesNonCenterLrig`／`LookPickChainStage.notSharesClassWithPrev`。parser 側は形D（記述子だけ違う「と、」連結）と形E（「共通するクラスを持つシグニN枚」）を追加。
+  - **PRESERVE カードの外科採用は第5波2件＋第6波2件**。**6波連続で再発している型。**
+  - **golden の教訓を2段深めた**＝①**候補集合 assert は filter 自体から候補を作るので「間違った filter」を検出できない**（filter の*消失*しか見ない）→期待値文字列を併記。②**動的filter は `matchesFilter` では判定できない**（実行時解決）→**盤面を作って pending SEARCH の `visibleCards` を直に見る**。HEAD 差し戻し／filter 弱体化／`resolveDynamicFilter` 外しの3種の変異で、それぞれ狙った本数だけ FAIL することを実測。
+  - **⚠ census の内訳**＝第5波は −7＋1（`WX12-024-BURST` が STUB 格納から高シグナル側へ**移動**した計器上の +1。`LOOK_PICK_CHAIN` に「まで」の明示マーカーが無いだけで engine は元から上限扱い＝挙動の退化ではない）、第6波は −3。
+  - **次の一手**＝**Opus：(xlvi) 残20件**〔(a) 残2／(b) 複合・条件10／(c) 宣言系STUB4／(d) 残2／(g) トラップ設置併記2〕。残っているのは**いずれも新機構が要る**もの＝(a)`WXK04-045-E1`（対象選択＋`nameEqLastProcessed` の連結）／(a)`WXDi-P15-005-E1`（ルリグ数で段数が動く＋2フェーズ）／(d)`WXDi-P16-086-E1`（stage `then:'deck_bottom'`＋`_bottomReserved`）／(d)`WX11-074-E1`（色宣言との連動）。**費用対効果で見るなら (xlvi) より (xxix) 残＝任意+cost 933効果（タスク12(lv)）やゲート脱落 [B]20件（Condition 語彙の新設）へ移る判断もある**。**／タスク16 の [B]29件＋watcher [B]4件／(l) 内側【自】parse 失敗3枚／§6.3 残機構（H1〜H3・I）**。**Sonnet：§7 実機検証の横展開**＝レゾナ召喚UI の ATTACK/SPELL_CUTIN 窓・escapeDiscard 回避モーダル・BET 選択肢・アーツ使用条件20枚。
+
 - **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第5波＝(h)「filter だけ落ちた `REVEAL_AND_PICK`」17効果を残0にし、同系統9効果も同時是正**（golden 936→**951**・census 1463→**1457**〔`BASELINE_HIGH` 更新〕・smoke 10726 全0・fuzz 全0・同型★0・held 257→**262→257**〔新規ドリフト0〕・live 差分は対象21カードだけ・再 build 冪等）
   - **真因は融合規則1箇所**＝`LOOK_AND_REORDER + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK` が **revealCount／pickCount／残りの行き先しか運んでいなかった**。名詞句 filter も「N枚まで」も「手札に加えるかエナゾーンに置く」も落ち、**公開したどのカードでも拾える過剰実行**に退化。さらに枚数抽出が「３枚まで選び、それぞれ…」形を拾えず **1枚固定＝過小実行**を併発していた（`WXK06-011` 系5枚・`WDK01-008`）。
   - **新設 `parseRevealPickDescriptor`**（`parserUtils.ts`）＝「その中から」直後の名詞句を**全消費のトークン走査**で解く。⚠**未知の修飾語が1つでも残ったら null**（従来どおり filter 無し）＝部分解釈は「＜天使＞ではない」等の否定修飾を取りこぼして**意味を反転**させるため、絞り込みを増やすより取りこぼす側に倒す。OR は第4波の `parseOrPickDescriptor` を `parserUtils` へ移設して共有。
