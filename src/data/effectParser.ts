@@ -342,13 +342,19 @@ function parseCost(costStr: string): EffectCost | undefined {
   // 手札からこのカードを捨てる → discardSelfFromHand（「捨てる：」終止形と「捨て、…を取り除く：」複合コストの連用形両対応）
   if (/手札からこのカードを捨て[る、]/.test(costStr)) cost.discardSelfFromHand = true;
   // 場のシグニN体をトラッシュ（フィールドから、クラス指定あり） → fieldTrash
-  const ftM = costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/);
+  const ftLevelGroups = costStr.match(/レベル([０-９\d]+)のシグニ([０-９\d]+)体とレベル([０-９\d]+)のシグニ([０-９\d]+)体を場からトラッシュに置く/);
+  const ftM = !ftLevelGroups ? costStr.match(/(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/) : null;
   const ftVerbM = !ftM ? costStr.match(/シグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/) : null;
   const ftArmWep = !ftM && !ftVerbM ? costStr.match(/＜アーム＞のシグニ[１1]体と＜ウェポン＞のシグニ[１1]体を場からトラッシュに置く/) : null;
   // 「他の…シグニを場からトラッシュ」= 効果元自身を除く（excludeSelf）。WX03-035「他の＜古代兵器＞のシグニ1体」等
   const ftOther = /他の(?:＜[^＞]+＞の)?シグニ([０-９\d]+)体(?:まで)?を場からトラッシュに置く/.test(costStr)
     || /他のシグニを([０-９\d]+)体(?:まで)?場からトラッシュに置く/.test(costStr);
-  if (ftArmWep) {
+  if (ftLevelGroups) {
+    cost.fieldTrashGroups = [
+      { count: parseNum(ftLevelGroups[2]), filter: { cardType: 'シグニ', level: parseNum(ftLevelGroups[1]) } },
+      { count: parseNum(ftLevelGroups[4]), filter: { cardType: 'シグニ', level: parseNum(ftLevelGroups[3]) } },
+    ];
+  } else if (ftArmWep) {
     cost.fieldTrash = { count: 2 };
   } else if (ftM) {
     const ftFilter: TargetFilter = { cardType: 'シグニ' };
@@ -356,6 +362,21 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.fieldTrash = { count: parseNum(ftM[2]), filter: ftFilter, ...(ftOther ? { excludeSelf: true } : {}) };
   } else if (ftVerbM) {
     cost.fieldTrash = { count: parseNum(ftVerbM[1]), filter: { cardType: 'シグニ' } };
+  }
+  // fieldTrash の状態・アイコン・色限定。いずれも【出】ヘッダから切り出した costStr 内の
+  // 具体句だけに限定し、効果本文の「場からトラッシュ」へ波及させない。
+  if (cost.fieldTrash && /傀儡状態のシグニ[０-９\d]+体を場からトラッシュに置く/.test(costStr)) {
+    cost.fieldTrash.filter = { ...(cost.fieldTrash.filter ?? { cardType: 'シグニ' }), isPuppet: true };
+  }
+  if (cost.fieldTrash && /《ライズアイコン》を持つシグニ[０-９\d]+体を場からトラッシュに置く/.test(costStr)) {
+    cost.fieldTrash.filter = { ...(cost.fieldTrash.filter ?? { cardType: 'シグニ' }), hasIcon: 'ライズ' };
+  }
+  if (cost.fieldTrash && /他の赤のシグニ[０-９\d]+体を場からトラッシュに置く/.test(costStr)) {
+    cost.fieldTrash = {
+      ...cost.fieldTrash,
+      filter: { ...(cost.fieldTrash.filter ?? { cardType: 'シグニ' }), color: '赤' },
+      excludeSelf: true,
+    };
   }
   // 手札から[フィルター]カード/シグニN枚をエナゾーンに置く → handToEnergy
   // 【出】ヘッダから切り出された costStr だけを受けるため、効果本体の同文型には波及しない。
@@ -3318,6 +3339,7 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   'WX10-028-E3': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
   'WXEX1-57-E2': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
   'WXK07-040-E1': { type: 'BANISH', flag: 'levelEqualsVar', value: 'field_trash_level' },
+  'WXDi-P00-067-E1': { type: 'BANISH', flag: 'powerLtLastProcessed' },
   'WX17-051-LAYER': { type: 'BOUNCE', flag: 'levelEqualsVar', value: 'field_trash_level' },
   'WX17-057-E1': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
   'WX21-033-CB-E2': { type: 'BANISH', flag: 'levelEqDiscardLevelSum' },

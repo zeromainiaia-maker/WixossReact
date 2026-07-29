@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { PlayerState, StackEntry } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
+import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied } from '../fieldLimit';
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
@@ -82,19 +83,17 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const enaTrashFilter = eff.cost?.energyTrash?.filter;
               // 場のシグニトラッシュコスト
               const ftCost = eff.cost?.fieldTrash;
-              const ftNeeded = ftCost?.count ?? 0;
+              const ftGroups = eff.cost?.fieldTrashGroups;
+              const ftNeeded = ftCost?.count ?? ftGroups?.reduce((n, g) => n + g.count, 0) ?? 0;
               const selfZoneFT = pendingSigniOnPlayCost.placedZone
                 ?? pState.field.signi.findIndex(s => s?.at(-1) === pendingSigniOnPlayCost.cardNum);
               // beat_signi: 「他の/任意」beat対象のゾーン選択。候補が必要数より多いときだけプレイヤーに選ばせる（同数以下は自動）。
               const beatCostM = analyzeBeatSigniCost(pState, pendingSigniOnPlayCost.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
               const beatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && beatCostM.otherPart > 0 && beatCostM.eligibleOtherZones.length > beatCostM.otherPart;
               const beatSelectOk = !beatNeedSelect || selectedSigniOnPlayBeat.size === beatCostM.otherPart;
-              const ftSelectableZones = [0, 1, 2].filter(zi => {
-                const top = pState.field.signi[zi]?.at(-1);
-                if (!top) return false;
-                if (ftCost?.excludeSelf && zi === selfZoneFT) return false;
-                return !ftCost?.filter || matchesFilter(battleCardMap.get(getCardNum(top)), ftCost.filter);
-              });
+              const ftSelectableZones = ftGroups?.length
+                ? fieldTrashGroupsSelectableZones(ftGroups, pState, battleCardMap)
+                : fieldTrashSelectableZones(ftCost, pState, battleCardMap, selfZoneFT);
               // 自動支払いコスト（選択不要）
               const lrigDownCost = eff.cost?.lrigDown;
               // level 指定時は該当レベルのルリグゾーンだけを支払い候補に数える（BattleScreen の支払い側と同じ判定）
@@ -151,7 +150,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
-                && selectedSigniOnPlayFieldTrash.size >= ftNeeded;
+                && fieldTrashSelectionSatisfied(
+                  ftCost, ftGroups, [...selectedSigniOnPlayFieldTrash],
+                  pState, battleCardMap, selfZoneFT,
+                );
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
@@ -176,7 +178,9 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                               ? discardGroups.map(g => `${filterLabel(g.filter) || 'カード'}${g.count}枚`).join('と') + `を${handCostLabel}`
                               : `手札${handFilter ? `の${filterLabel(handFilter)}` : ''}${handNeeded}枚を${handCostLabel}` : null,
                             enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
-                            ftNeeded > 0 ? `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体をトラッシュ` : null,
+                            ftNeeded > 0 ? ftGroups?.length
+                              ? `場の${ftGroups.map(g => `${filterLabel(g.filter) || 'シグニ'}${g.count}体`).join('と')}をトラッシュ`
+                              : `場の${filterLabel(ftCost?.filter) || 'シグニ'}${ftNeeded}体をトラッシュ` : null,
                             lrigDownCost ? `アップ状態の${lrigDownCost.level !== undefined ? `レベル${lrigDownCost.level}の` : ''}${lrigDownCost.centerOnly ? 'センター' : ''}ルリグ${lrigDownCost.count}体をダウン` : null,
                             (eff.cost?.lifeTrash ?? 0) > 0 ? `ライフクロス${eff.cost!.lifeTrash}枚トラッシュ` : null,
                             (eff.cost?.life_crash ?? 0) > 0 ? `ライフクロス${eff.cost!.life_crash}枚クラッシュ` : null,
@@ -382,7 +386,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         場からトラッシュするシグニを選択: {selectedSigniOnPlayFieldTrash.size} / {ftNeeded}体
-                        {ftCost?.filter ? `（${filterLabel(ftCost.filter)}のみ）` : ''}{ftCost?.excludeSelf ? '（このシグニ以外）' : ''}
+                        {ftGroups?.length ? `（${ftGroups.map(g => `${filterLabel(g.filter) || 'シグニ'}${g.count}体`).join('＋')}）` : ftCost?.filter ? `（${filterLabel(ftCost.filter)}のみ）` : ''}{ftCost?.excludeSelf ? '（このシグニ以外）' : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                         {[0, 1, 2].map(zi => {

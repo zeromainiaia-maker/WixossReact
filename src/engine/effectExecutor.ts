@@ -777,6 +777,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     }
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     function applyTrashField(selected: string[], c: ExecCtx): ExecCtx {
+      const before = ownerState(tgt.owner, c);
+      const costCards = selected.map(getCardNum);
+      const costLevels = selected
+        .map(n => parseInt(c.cardMap.get(getCardNum(n))?.Level ?? '', 10))
+        .filter(n => !Number.isNaN(n));
+      const trashedPuppet = selected.some(n => (before.field.puppet_signi ?? []).includes(n));
       let cur = c;
       for (const num of selected) {
         const s = ownerState(tgt.owner, cur);
@@ -786,7 +792,16 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
           `${cur.cardMap.get(num)?.CardName ?? num}をトラッシュへ`);
       }
       if (a.asCost && selected.length > 0) {
-        cur = { ...cur, fieldTrashCostCards: [...(cur.fieldTrashCostCards ?? []), ...selected] };
+        cur = {
+          ...cur,
+          fieldTrashCostCards: [...(cur.fieldTrashCostCards ?? []), ...selected],
+          ownerState: {
+            ...cur.ownerState,
+            last_field_trash_level: costLevels.at(-1),
+            last_cost_trashed_puppet: trashedPuppet,
+            last_cost_trashed_cards: [...(cur.ownerState.last_cost_trashed_cards ?? []), ...costCards],
+          },
+        };
       }
       return cur;
     }
@@ -6119,11 +6134,22 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const owner = tgt.owner as Owner;
         const s = ownerState(owner, ctx);
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
+          const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
+          const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
           const removed = removeFromField(cardNum, s);
           const newS: PlayerState = { ...removed, trash: [...removed.trash, cardNum] };
           const movedCtx = setOwnerState(owner, newS, ctx);
           const causeCtx = trashAction.asCost
-            ? { ...movedCtx, fieldTrashCostCards: [...(movedCtx.fieldTrashCostCards ?? []), cardNum] }
+            ? {
+                ...movedCtx,
+                fieldTrashCostCards: [...(movedCtx.fieldTrashCostCards ?? []), cardNum],
+                ownerState: {
+                  ...movedCtx.ownerState,
+                  last_field_trash_level: Number.isNaN(trashedLevel) ? undefined : trashedLevel,
+                  last_cost_trashed_puppet: wasPuppet,
+                  last_cost_trashed_cards: [...(movedCtx.ownerState.last_cost_trashed_cards ?? []), getCardNum(cardNum)],
+                },
+              }
             : movedCtx;
           return done(addLog(causeCtx, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
         }

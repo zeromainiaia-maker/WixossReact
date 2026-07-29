@@ -29,7 +29,7 @@ import {
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
-import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
+import { computeFieldSigniLimit, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
@@ -14768,15 +14768,15 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
   test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる887件／表現できない73件', () => {
-    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed']);
+    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed', 'fieldTrash']);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 887, 'OPTIONAL_COST へ写せる＝新たに積める');
-    eq(optionalCost.length - mapped.length, 71, '表現できないコストを含むため据え置き');
+    eq(mapped.length, 904, 'OPTIONAL_COST へ写せる＝fieldTrash 17効果を追加');
+    eq(optionalCost.length - mapped.length, 54, '表現できないコストを含むため据え置き');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14809,11 +14809,12 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     ok(r.entries[0].label.includes('任意コスト'), 'ラベルで任意コストと分かる');
   });
 
-  test('(xxix)(1) 表現できないコスト（exceed/fieldTrash 等）は従来どおり積まない', () => {
+  test('(xxix)(1) 表現できないコスト（fieldTrashGroups 等）は従来どおり積まない', () => {
     const bad = [...effectsMap.entries()].flatMap(([cn, effs]) => effs
       .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
         && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
-        && e.mandatory === false && !!e.cost && !optionalOnPlayCostStub(e.cost!))
+        && e.mandatory === false && !!e.cost && !optionalOnPlayCostStub(e.cost!)
+        && !(e.action.type === 'STUB' && e.action.id === 'COUNT_BASED_DRAW_OR_POWER'))
       .map(e => ({ cn, e })));
     ok(bad.length > 0, '未対応コストの実例がある');
     for (const { cn, e } of bad.slice(0, 12)) {
@@ -15698,7 +15699,7 @@ test('task12(lv) 通常アシスト配置: 実戦ゾーン→共通【出】coll
   }
 });
 
-test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件のうち151件を収集し9件は据え置く', () => {
+test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件のうち153件を収集し7件は据え置く', () => {
   const savedCursor = cursor;
   try {
     const assistNums = new Set(
@@ -15725,8 +15726,8 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
       if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
       else deferred.push(effect.effectId);
     }
-    eq(collectedCount, 151, '可変捨てactionを含む151件を通常アシスト経路で収集');
-    eq(deferred.length, 9, '表現不能コスト9件は不発のまま据え置く');
+    eq(collectedCount, 153, 'fieldTrash対応を含む153件を通常アシスト経路で収集');
+    eq(deferred.length, 7, '表現不能コスト7件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }
@@ -16221,6 +16222,102 @@ test('task12(xxix)(1) WX20-058-E1 Pattern⑤: 鉱石1枚＋宝石1枚を実際�
   eq(paid.ownerState.hand.length, 3, '2枚支払い後に3枚ドロー');
   ok(paid.ownerState.trash.includes(ore) && paid.ownerState.trash.includes(gem), '鉱石と宝石を各1枚トラッシュ');
   eq(paid.ownerState.deck.length, ctx.ownerState.deck.length - 3, '効果本体の3ドローを実行');
+});
+
+test('task12(xxix)(1) fieldTrash Pattern⑤: 支払い成立/不足/excludeSelfを両方向固定', () => {
+  const source = 'WDK17-014';
+  const payCard = findCard(c => c.Type === 'シグニ' && c.CardNum !== source);
+  const effect: CardEffect = {
+    effectId: 'golden-optional-on-play-field-trash',
+    effectType: 'AUTO', timing: ['ON_PLAY'], mandatory: false,
+    action: {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', fieldTrash: { count: 1, filter: { cardType: 'シグニ' }, excludeSelf: true } },
+        { type: 'DRAW', owner: 'self', count: 1 },
+      ],
+    } as SequenceAction,
+  };
+  const enoughCtx = mkCtx({ signi: [source, payCard, null], hand: 0 }, {}, source);
+  const offered = executeEffect(effect, enoughCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '場コストのpay/skipを提示');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, '他のシグニがいればpay available');
+  const paid = finish(resumeChoose('pay', offered.pending, {
+    ...enoughCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  }), enoughCtx);
+  eq(paid.ownerState.field.signi[1], null, '選んだ他のシグニが場から消える');
+  ok(paid.ownerState.trash.includes(payCard), '選んだシグニがトラッシュへ入る');
+  eq(paid.ownerState.hand.length, 1, '支払い後に本体が走る');
+
+  const selfOnlyCtx = mkCtx({ signi: [source, null, null], hand: 0 }, {}, source);
+  const selfOnly = executeEffect(effect, selfOnlyCtx);
+  ok(!selfOnly.done && selfOnly.pending.type === 'CHOOSE', '自分しかいなくてもskipを提示');
+  if (selfOnly.done || selfOnly.pending.type !== 'CHOOSE') return;
+  eq(selfOnly.pending.options.find(o => o.id === 'pay')?.available, false, 'excludeSelfで自分自身は払えない');
+});
+
+test('task12(xxix)(1) fieldTrash 群A: 傀儡/ライズ/赤以外ではpay不可、UI groupsはレベル1+2だけ確定', () => {
+  const source = 'WDK17-011';
+  const plain = findCard(c => c.Type === 'シグニ' && !c.EffectText?.includes('【ライズ】') && !c.Color?.includes('赤') && c.CardNum !== source);
+  const rise = findCard(c => c.Type === 'シグニ' && c.EffectText?.includes('【ライズ】'));
+  const red = findCard(c => c.Type === 'シグニ' && c.Color?.includes('赤') && c.CardNum !== source);
+  const offeredWith = (fieldTrash: import('../src/types/effects').StubAction['fieldTrash'], candidate: string, puppet = false) => {
+    const ctx = mkCtx({ signi: [source, candidate, null], hand: 0 }, {}, source);
+    if (puppet) ctx.ownerState.field.puppet_signi = [candidate];
+    const eff: CardEffect = {
+      effectId: 'golden-field-trash-filter', effectType: 'AUTO', timing: ['ON_PLAY'], mandatory: false,
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', fieldTrash },
+        { type: 'DRAW', owner: 'self', count: 1 },
+      ] } as SequenceAction,
+    };
+    return executeEffect(eff, ctx);
+  };
+  const payAvailable = (r: ExecResult) => !r.done && r.pending.type === 'CHOOSE'
+    ? r.pending.options.find(o => o.id === 'pay')?.available
+    : undefined;
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', isPuppet: true } }, plain)), false, '非傀儡だけでは不可');
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', isPuppet: true } }, plain, true)), true, '傀儡なら可');
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', hasIcon: 'ライズ' } }, plain)), false, 'ライズ非所持だけでは不可');
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', hasIcon: 'ライズ' } }, rise)), true, 'ライズ所持なら可');
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', color: '赤' }, excludeSelf: true }, plain)), false, '赤以外だけでは不可');
+  eq(payAvailable(offeredWith({ count: 1, filter: { cardType: 'シグニ', color: '赤' }, excludeSelf: true }, red)), true, '他の赤なら可');
+
+  const uiState = mkState({ signi: [SIGNI_L1, SIGNI_L2, SIGNI_L3] });
+  const groups = [
+    { count: 1, filter: { cardType: 'シグニ' as const, level: 1 } },
+    { count: 1, filter: { cardType: 'シグニ' as const, level: 2 } },
+  ];
+  ok(fieldTrashSelectionSatisfied(undefined, groups, [0, 1], uiState, cardMap), 'レベル1+2で確定可');
+  ok(!fieldTrashSelectionSatisfied(undefined, groups, [0, 2], uiState, cardMap), 'レベル1+3では確定不可');
+  eq(fieldTrashSelectableZones({ count: 1, filter: { cardType: 'シグニ', isPuppet: true } }, uiState, cardMap).length, 0,
+    'UI候補も非傀儡を除外');
+  uiState.field.puppet_signi = [SIGNI_L2];
+  eq(fieldTrashSelectableZones({ count: 1, filter: { cardType: 'シグニ', isPuppet: true } }, uiState, cardMap).join(','), '1',
+    'UI候補は傀儡ゾーンだけ');
+});
+
+test('task12(xxix)(1) fieldTrash コスト参照: 傀儡フラグ・レベル・lastProcessedがengine経路でも成立', () => {
+  const puppet = findCard(c => c.Type === 'シグニ' && c.Level === '2');
+  const source = 'WDK17-014';
+  const lowOpp = findCard(c => c.Type === 'シグニ' && parseInt(c.Power ?? '0', 10) > 0 && parseInt(c.Power ?? '0', 10) < 10000);
+  const ctx = mkCtx({ signi: [source, puppet, null] }, { signi: [lowOpp, null, null] }, source);
+  ctx.effectivePowers = new Map([[puppet, 10000], [lowOpp, 5000]]);
+  ctx.ownerState.field.puppet_signi = [puppet];
+  const action: SequenceAction = {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'TRASH', asCost: true, target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', excludeSelf: true } } },
+      { type: 'CONDITIONAL', condition: { type: 'COST_TRASHED_PUPPET' },
+        then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtLastProcessed: true } } } },
+    ],
+  };
+  const result = finish(run(action, ctx), ctx);
+  eq(result.ownerState.last_cost_trashed_puppet, true, 'COST_TRASHED_PUPPET用フラグ');
+  eq(result.ownerState.last_field_trash_level, 2, '同レベル参照用の支払いシグニレベル');
+  ok(result.ownerState.last_cost_trashed_cards?.includes(puppet), 'コストで置いたカードを記録');
+  eq(result.otherState.field.signi[0], null, 'lastProcessedのパワー未満だけを後続が処理');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

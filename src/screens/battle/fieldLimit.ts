@@ -1,6 +1,50 @@
 // 場のシグニ上限（LIMIT_ALL_FIELD_N）と fieldTrashGroups コストの判定。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
 import { getCardNum, matchesFilter } from '../../engine/effectExecutor';
+import { matchesStateFilter } from '../../engine/effectEngine';
+
+export function fieldTrashSelectableZones(
+  cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean } | undefined,
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceZone?: number,
+): number[] {
+  if (!cost) return [];
+  return [0, 1, 2].filter(zi => {
+    const top = state.field.signi[zi]?.at(-1);
+    if (!top || (cost.excludeSelf && zi === sourceZone)) return false;
+    return matchesStateFilter(state, zi, cost.filter)
+      && (!cost.filter || matchesFilter(cardMap.get(getCardNum(top)), cost.filter));
+  });
+}
+
+export function fieldTrashGroupsSelectableZones(
+  groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+): number[] {
+  if (!groups?.length) return [];
+  return [0, 1, 2].filter(zi => {
+    const top = state.field.signi[zi]?.at(-1);
+    if (!top) return false;
+    return groups.some(g => matchesStateFilter(state, zi, g.filter)
+      && (!g.filter || matchesFilter(cardMap.get(getCardNum(top)), g.filter)));
+  });
+}
+
+export function fieldTrashSelectionSatisfied(
+  cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean } | undefined,
+  groups: { count: number; filter?: import('../../types/effects').TargetFilter }[] | undefined,
+  selectedZones: number[],
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceZone?: number,
+): boolean {
+  if (groups?.length) return fieldTrashGroupsSatisfied(groups, selectedZones, state.field.signi, cardMap);
+  if (!cost) return selectedZones.length === 0;
+  const selectable = new Set(fieldTrashSelectableZones(cost, state, cardMap, sourceZone));
+  return selectedZones.length === cost.count && selectedZones.every(zi => selectable.has(zi));
+}
 
 // LIMIT_ALL_FIELD_N: すべてのプレイヤーのシグニ場出し数上限を継続STUBから算出（WX04-005-E3）。
 // 自分／相手いずれかのセンタールリグが当該STUBを持てば両者に適用。最小値を採用。無ければ3。

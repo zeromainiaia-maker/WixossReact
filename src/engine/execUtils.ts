@@ -148,6 +148,7 @@ export interface OptionalCostSpec {
   costColors: string[];
   handDiscard?: { count: number; filter?: TargetFilter };
   energyTrash?: { count: number; filter?: TargetFilter };
+  fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** レベル倍率が要るのに対象レベルが 0＝支払い自体が成立しない */
   levelUnavailable: boolean;
 }
@@ -168,7 +169,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
         filter: a.energyTrashSameLevelAsTarget ? { ...a.energyTrash.filter, level } : a.energyTrash.filter,
       }
     : undefined;
-  return { costColors, handDiscard, energyTrash, levelUnavailable: perLevel && level <= 0 };
+  return { costColors, handDiscard, energyTrash, fieldTrash: a.fieldTrash, levelUnavailable: perLevel && level <= 0 };
 }
 
 // 支払い可能か（エナ色・手札・エナゾーンの在庫）。exceed/handDiscardGroups は呼び出し側の既存判定に残す。
@@ -185,6 +186,15 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       !spec.energyTrash!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.energyTrash!.filter));
     if (matching.length < spec.energyTrash.count) return false;
   }
+  if (spec.fieldTrash) {
+    const filter = {
+      ...(spec.fieldTrash.filter ?? {}),
+      ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
+    };
+    const matching = fieldCandidates(ctx.ownerState, filter, ctx.cardMap)
+      .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
+    if (matching.length < spec.fieldTrash.count) return false;
+  }
   return true;
 }
 
@@ -198,6 +208,16 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.energyTrash ? [{
       type: 'TRASH', asCost: true,
       target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter },
+    } as EffectAction] : []),
+    ...(spec.fieldTrash ? [{
+      type: 'TRASH', asCost: true,
+      target: {
+        type: 'SIGNI', owner: 'self', count: spec.fieldTrash.count,
+        filter: {
+          ...(spec.fieldTrash.filter ?? {}),
+          ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
+        },
+      },
     } as EffectAction] : []),
   ];
 }
@@ -809,6 +829,10 @@ export function fieldCandidates(
     if (filter?.isFrozen !== undefined) {
       const isFrozen = state.field.signi_frozen?.[zoneIdx] ?? false;
       if (filter.isFrozen !== isFrozen) return [];
+    }
+    if (filter?.isPuppet !== undefined) {
+      const isPuppet = (state.field.puppet_signi ?? []).includes(cardNum);
+      if (filter.isPuppet !== isPuppet) return [];
     }
     if (filter?.crossState !== undefined) {
       const isCross = state.field.cross_state?.[zoneIdx] ?? false;

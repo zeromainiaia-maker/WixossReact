@@ -665,6 +665,11 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     const v = top ? (state.awakened_signi ?? []).includes(top) : false;
     if (filter.isAwakened !== v) return false;
   }
+  if (filter.isPuppet !== undefined) {
+    const top = state.field.signi[zoneIdx]?.at(-1);
+    const v = top ? (state.field.puppet_signi ?? []).includes(top) : false;
+    if (filter.isPuppet !== v) return false;
+  }
   if (filter.isUp !== undefined) {
     const v = !(state.field.signi_down?.[zoneIdx] ?? false);
     if (filter.isUp !== v) return false;

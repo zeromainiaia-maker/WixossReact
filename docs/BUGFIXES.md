@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 場シグニトラッシュ任意【出】17効果を既存 `TRASH{asCost}` 経路へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第2波・Codex）
+
+- **群A（先行是正）**：`WDK17-011-E2` に `isPuppet:true`、`WX16-055-E1` に `hasIcon:'ライズ'`、`WXDi-P02-057-E1` に `color:'赤'+excludeSelf` を具体的な【出】コスト句だけから生成。`WX14-045-E1` は誤った `fieldTrash{1}` を `fieldTrashGroups[{level:1,count:1},{level:2,count:1}]` へ直し、`SigniOnPlayCostModal` の候補表示・確定判定を純関数 `fieldTrashSelectionSatisfied` へ接続した。live JSON の per-effect 差分はこの4件＋後述参照1件だけ（added 0 / removed 0 / changed 5）、outlier 0。
+- **群B**：`OptionalCostSpec`／`optionalOnPlayCostStub` に単一 `fieldTrash` を追加し、支払可否は自分の場の filter 一致数（`excludeSelf` は `ctx.sourceCardNum` を除外）、支払いは既存 `{type:'TRASH',asCost:true,target:{type:'SIGNI',owner:'self',count,filter}}` へ一本化。Pattern③④⑤への個別実装・新STUBは追加していない。18件中、異種グループ支払いの `WX14-045-E1` だけ効果配置経路では安全側に見送り、残17件を収集可能にした。「写せない」効果は **71→54**（golden の `optionalCost.length - mapped.length` と一致・Claude 独立実測も54）。⚠指示書が挙げた「59」は 32696691 時点の値で、その後の (xxix)(2) 第1波が `handToEnergy`／`handToUnderSelf`／`lifeTrash`／`lifeToHand` を新たに構造化した分だけ母数が増えており stale だった（本波の着地は 71→54＝fieldTrash 17件ぶんで正しい）。
+- **状態依存・コスト参照**：`fieldCandidates`／`matchesStateFilter` が `isPuppet` を `field.puppet_signi` で判定するよう配線。engine の場 `TRASH{asCost}` も通常召喚支払いと同じ `last_field_trash_level`／`last_cost_trashed_puppet`／`last_cost_trashed_cards` を記録するため、`WDK17-014-E1` の `COST_TRASHED_PUPPET` と `WXK07-040-E1` の同レベル参照が成立する。`WXDi-P00-067-E1` は parser が落としていた既存 `powerLtLastProcessed:true` を復元し、「コストで置いたシグニよりパワーの低い」を無条件バニッシュにしない。
+- **UI経路**：通常召喚は `SigniOnPlayCostModal` → `fieldTrashSelectableZones` / `fieldTrashSelectionSatisfied` → `executeSigniOnPlayCost`。傀儡・ライズ・他の赤・レベル1+2の限定外では確定不可を golden で固定した。実支払い側は選択済みゾーンだけを移し、傀儡・レベル・コストカード記録も維持。
+- **検証**：golden **1044→1047**（成立・不足・excludeSelf・群A限定外・groups・傀儡/レベル/パワー参照を両方向固定）、census **1402→1400**（唯一の `BASELINE_HIGH` を更新）、smoke **10726/10726** 全0、fuzz 全0、manual field loss 0、lint 0 errors / **228 warnings**、同型★0。held は報告直前の build→review 実測値を別途報告。
+- **既知の非コスト差異（今回非変更）**：`WX20-063-E2` は検索先の「コスト合計0」filter、`WXK06-082-E1` は回収先の「《幻竜 ドラマジ》以外」が既存JSONで欠落している。fieldTrash支払いの忠実化とは独立のため本波では触らず、全体原文一致とは申告しない。
+- **やっていないこと**：`fieldTrashGroups` の engine Pattern⑤支払い（`WX14-045-E1` の効果配置/アシスト経路）、上記2件の本体filter修正、fieldTrash以外の未対応コスト、CPU任意効果方針、PLAN/PLAN_PROGRESS、ブラウザ実機対戦、commit/push。
+
 ## 可変枚数手札捨て7効果を既存 action 徴収経路へ統合（2026-07-29・PLAN §3 タスク12(xxix)(2) 第2波・Codex実装）
 
 - **対象**＝`WX24-P3-074-E1`／`WX25-P3-084-E1`／`WXDi-P15-065-E1`／`WXDi-CP02-073-E1`／`WXDi-P06-061-E1`／`WXDi-P08-069-E1`／`WXDi-P13-041-E1`。`costUnparsed` または UI 非対応 `cost.discardUpTo` のため、捨てずに `$ref:last_processed_count=0` を読む no-op だった。
