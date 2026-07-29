@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 任意【出】ゾーン徴収4語彙・12効果を engine Pattern⑤へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第10波・Codex）
+
+- `OptionalCostSpec`／`resolveOptionalCostSpec`／`canAffordOptionalCostSpec`／`optionalCostPaySteps` と `optionalOnPlayCostStub.SUPPORTED` に `trashArtsFromLrigDeck` 6効果、`deckTrash` 2効果、`charmTrash` 1効果、`removeOppVirus` 3効果を追加。効果配置されたシグニの任意【出】も `collectPlacedSelfOnPlayTriggers` → `SEQUENCE[OPTIONAL_COST, 本体]` → Pattern⑤で支払い可能になった。
+- アーツ候補判定を `battle/artsTrashCost.ts` の純関数へ切り出し、通常召喚UIとengineで `Type=アーツ`＋任意色一致を共有。engine は `self_lrig_deck` 選択後に `lrig_deck`→`lrig_trash`、デッキ徴収は既存 `MILL`、チャーム／ウィルスは通常召喚UIと同じ左ゾーン優先で徴収する。ウィルス除去時は `opp_virus_removed_just` も設定。
+- 原文照合で `WX25-P1-107-E1` の対象を `owner:self`＋`story:'天使'` に、`WXK06-084-E1` の脱落コストを `discard:1`＋`deckTrash:1` に是正して MANUAL 温存。後者のパワー修正は `duration` 省略時の既定 `temp_power_mods`＝ターン終了時までで原文一致。
+- `underSelfTrash` 1効果（`WXK08-051-E1`）は見送り。型コメントは「このシグニの下」、原文は「あなたのシグニの下」全体で候補範囲が異なり、通常召喚UIにも支払い実装が無い。既存語彙の意味を無検証で広げず、別機構判断まで `wrapOptionalOnPlay=null` の安全停止を維持。
+- E2E golden は対象12枚を実際のシグニゾーンへ置き、`collectPlacedSelfOnPlayTriggers` から全件を収集。各効果で資源十分時の実徴収／不足時の pay unavailable を両方向固定し **1064/1064 PASS**。census **1400→1399**（`WX25-P1-107-E1` の対象filter復元による機能修正）、smoke **10726/10726** 全0、fuzz 全0、lint 0 errors/**228 warnings**、同型★0、held **293→292枚／107署名**、manual field loss 0。
+- live JSON の HEAD 比 per-effect diff は changed 2（上記2効果）／added 0／removed 0、outlier 0。再集計は任意【出】母集団981、`wrapOptionalOnPlay=null` **27→15**（costUnparsed 11／underSelfTrash 1／fieldToLrigTrash 1／fieldTrashGroups 1／明示保留 handToEnergy 1）。
+- 🔴**Claude 検証で是正1件＝JSON 直パッチの文字化け**。上記2効果の filter が live JSON 上で `"cardType":"???"`／`"story":"??"`（ASCII の `?`＝0x3f）に潰れていた。`manualEffects.ts` 側は正しい UTF-8 で、実機は `buildEffectsMap`→`mergeManualEffects` を通るため**挙動は無傷**、`check:manual-fields` も golden も緑のまま素通りした（JSON を直接読む census/decompile/held だけが汚染される形）。effectId アンカーで manual と同一内容へ復元し、`build:effects`→`regen`→`gates` を再実行して changed 2／outlier 0 と全ゲート緑を再確認。**教訓＝JSON 直パッチは書き戻し経路のエンコーディングを必ず検査する**（`?`／`U+FFFD` の新規出現をベースライン比で数える。ゲートには検出器が無い）。
+
 ## 【ビート】任意【出】コスト7効果をUI/engine共有支払いへ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第7波・Codex）
 - **原文照合／採用7件・見送り0**＝`WDK14-012-E1`／`WXK08-068-E1` は「このシグニ＋他1体」＝計2体、`WXK08-075-E1` は他1体のみ、`WDK14-014-E2`／`WXK08-043-E1`／`WXK10-041-E3` は指定カード名以外1体、`WDK14-013-E1` はトラッシュの＜悪魔＞1枚。既存 `analyzeBeatSigniCost` が EffectText から自身＋他を区別する形を流用し、`《名前》以外` は発生源だけでなく同名の別コピーも候補から除くよう補強。`payBeatSigniCost` も同じ候補集合を使うためUI選択とengine自動支払いは一致する。
 - **共有経路**＝`OptionalCostSpec`／`optionalOnPlayCostStub.SUPPORTED` に既存キー `beat_signi`／`beat_signi_from_trash` を転記し、可否は `analyzeBeatSigniCost`／`payBeatSigniFromTrashCost`、支払いは新内部STUB `INTERNAL_PAY_BEAT_SIGNI` から既存純関数 `payBeatSigniCost`／`payBeatSigniFromTrashCost` を呼ぶ。効果配置は `collectPlacedSelfOnPlayTriggers`（アシストは `collectAssistOnPlayTriggers`）→`wrapOptionalOnPlay`→`optionalOnPlayCostStub`→`optionalCostPaySteps`、通常召喚は `handleSummonSigni`→`SigniOnPlayCostModal`→`executeSigniOnPlayCost`。個別Pattern③④⑤追加・新action型・JSON/parser変更なし。

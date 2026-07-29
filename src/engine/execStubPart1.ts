@@ -22,6 +22,7 @@ import {
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
+import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
 export function execStubPart1(
   stub: StubAction,
@@ -235,6 +236,72 @@ export function execStubPart1(
       ownerState: paidState,
       lastProcessedCards: moved,
     }, `【ビート】コストで${moved.length}枚を支払った`));
+  }
+  if (stub.id === 'INTERNAL_PAY_CHARM_TRASH') {
+    const count = stub.charmTrash ?? 0;
+    const charms = [...(ctx.ownerState.field.signi_charms ?? [null, null, null])];
+    const moved: string[] = [];
+    for (let zi = 0; zi < charms.length && moved.length < count; zi++) {
+      if (charms[zi]) {
+        moved.push(charms[zi]!);
+        charms[zi] = null;
+      }
+    }
+    if (moved.length < count) return done(addLog(ctx, `チャーム${count}枚をコストでトラッシュに置けない`));
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        trash: [...ctx.ownerState.trash, ...moved],
+        field: { ...ctx.ownerState.field, signi_charms: charms },
+      },
+      lastProcessedCards: moved,
+    }, `チャーム${count}枚をコストでトラッシュに置いた`));
+  }
+  if (stub.id === 'INTERNAL_PAY_TRASH_ARTS_FROM_LRIG_DECK') {
+    const cost = stub.trashArtsFromLrigDeck;
+    if (!cost) return done(addLog(ctx, 'ルリグデッキのアーツコストを支払えない'));
+    const candidates = ctx.ownerState.lrig_deck.filter(n =>
+      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), cost));
+    const action: StubAction = {
+      type: 'STUB', id: 'INTERNAL_TRASH_SELECTED_ARTS_FROM_LRIG_DECK',
+    };
+    return selectOrInteract(candidates, cost.count, false, 'self_lrig_deck', action, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_TRASH_SELECTED_ARTS_FROM_LRIG_DECK') {
+    const selected = ctx.lastProcessedCards ?? [];
+    if (selected.length !== 1) return done(addLog(ctx, 'ルリグデッキのアーツを選べなかった'));
+    const cardNum = selected[0];
+    const index = ctx.ownerState.lrig_deck.indexOf(cardNum);
+    if (index < 0) return done(addLog(ctx, '選んだアーツがルリグデッキにない'));
+    const lrigDeck = [...ctx.ownerState.lrig_deck];
+    lrigDeck.splice(index, 1);
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        lrig_deck: lrigDeck,
+        lrig_trash: [...ctx.ownerState.lrig_trash, cardNum],
+      },
+      lastProcessedCards: [cardNum],
+    }, 'ルリグデッキからアーツ1枚をコストでルリグトラッシュに置いた'));
+  }
+  if (stub.id === 'INTERNAL_PAY_REMOVE_OPP_VIRUS') {
+    const count = stub.removeOppVirus ?? 0;
+    const virus = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
+    let removed = 0;
+    for (let zi = 0; zi < virus.length && removed < count; zi++) {
+      while (virus[zi] > 0 && removed < count) {
+        virus[zi]--;
+        removed++;
+      }
+    }
+    if (removed < count) return done(addLog(ctx, `相手の【ウィルス】${count}個をコストで取り除けない`));
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, opp_virus_removed_just: true },
+      otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: virus } },
+    }, `相手の【ウィルス】${count}個をコストで取り除いた`));
   }
   if (stub.id === 'LRIG_UNDER_TRASH_ANY') {
     const pool = [

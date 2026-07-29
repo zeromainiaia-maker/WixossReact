@@ -8,6 +8,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna } from '../costs';
+import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import type { BattleModalCtx } from './types';
 
 export interface PendingSigniOnPlayCost {
@@ -116,10 +117,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const charmVarOPOk = !charmVarOPCostM || signiOnPlayCharmTrashVar >= charmVarOPCostM.min;
               // trashArtsFromLrigDeck
               const artsTrashOPCostM = eff.cost?.trashArtsFromLrigDeck;
-              const artsFilteredCardsM = artsTrashOPCostM ? pState.lrig_deck.filter(cn => {
-                const c = battleCardMap.get(cn);
-                return c?.Type === 'アーツ' && (!artsTrashOPCostM.color || c.Color?.includes(artsTrashOPCostM.color));
-              }) : [];
+              const artsFilteredCardsM = artsTrashOPCostM
+                ? pState.lrig_deck.filter(cn =>
+                    matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(cn)), artsTrashOPCostM))
+                : [];
               const artsOkM = !artsTrashOPCostM || (artsFilteredCardsM.length >= artsTrashOPCostM.count && selectedSigniOnPlayArtsTrash !== null);
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);

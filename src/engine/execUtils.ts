@@ -14,6 +14,7 @@ import type {
 } from '../types/effects';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
+import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -159,6 +160,10 @@ export interface OptionalCostSpec {
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;
+  deckTrash?: number;
+  charmTrash?: number;
+  trashArtsFromLrigDeck?: { color?: string; count: number };
+  removeOppVirus?: number;
   /** レベル倍率が要るのに対象レベルが 0＝支払い自体が成立しない */
   levelUnavailable: boolean;
 }
@@ -184,6 +189,8 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     energyTrash, fieldTrash: a.fieldTrash, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
+    deckTrash: a.deckTrash, charmTrash: a.charmTrash,
+    trashArtsFromLrigDeck: a.trashArtsFromLrigDeck, removeOppVirus: a.removeOppVirus,
     levelUnavailable: perLevel && level <= 0,
   };
 }
@@ -247,6 +254,16 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   }
   const lifeCount = (spec.life_crash ?? 0) + (spec.lifeTrash ?? 0) + (spec.lifeToHand ?? 0);
   if (ctx.ownerState.life_cloth.length < lifeCount) return false;
+  if (spec.deckTrash && ctx.ownerState.deck.length < spec.deckTrash) return false;
+  if (spec.charmTrash
+    && (ctx.ownerState.field.signi_charms ?? []).filter(Boolean).length < spec.charmTrash) return false;
+  if (spec.trashArtsFromLrigDeck) {
+    const matching = ctx.ownerState.lrig_deck.filter(n =>
+      matchesTrashArtsFromLrigDeckCost(ctx.cardMap.get(getCardNum(n)), spec.trashArtsFromLrigDeck!));
+    if (matching.length < spec.trashArtsFromLrigDeck.count) return false;
+  }
+  if (spec.removeOppVirus
+    && (ctx.otherState.field.signi_virus ?? []).reduce((sum, n) => sum + n, 0) < spec.removeOppVirus) return false;
   return true;
 }
 
@@ -300,6 +317,19 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.lifeToHand ? [{
       type: 'TRANSFER_TO_HAND',
       source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: spec.lifeToHand },
+    } as EffectAction] : []),
+    ...(spec.deckTrash ? [{
+      type: 'MILL', owner: 'self', count: spec.deckTrash,
+    } as EffectAction] : []),
+    ...(spec.charmTrash ? [{
+      type: 'STUB', id: 'INTERNAL_PAY_CHARM_TRASH', charmTrash: spec.charmTrash,
+    } as EffectAction] : []),
+    ...(spec.trashArtsFromLrigDeck ? [{
+      type: 'STUB', id: 'INTERNAL_PAY_TRASH_ARTS_FROM_LRIG_DECK',
+      trashArtsFromLrigDeck: spec.trashArtsFromLrigDeck,
+    } as EffectAction] : []),
+    ...(spec.removeOppVirus ? [{
+      type: 'STUB', id: 'INTERNAL_PAY_REMOVE_OPP_VIRUS', removeOppVirus: spec.removeOppVirus,
     } as EffectAction] : []),
   ];
 }

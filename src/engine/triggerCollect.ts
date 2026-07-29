@@ -49,7 +49,8 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * （「任意コスト：支払いますか？」CHOOSE）へ載せる。engine 内で完結するので golden で検証できる。
  *
  * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／手札からエナ／手札から自身の下／
- *   エナゾーン捨て／エクシード／場シグニトラッシュ／ルリグダウン／自身シグニダウン／ライフ**。
+ *   エナゾーン捨て／エクシード／場シグニトラッシュ／ルリグダウン／自身シグニダウン／ライフ／
+ *   デッキ上トラッシュ／チャームトラッシュ／ルリグデッキのアーツトラッシュ／相手ウィルス除去**。
  *   それ以外のコスト（beat_signi 等）が1つでも混ざる効果は
  *   **null を返して収集しない**＝従来どおり不発のまま据え置く。**払っていないコストを踏み倒して
  *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
@@ -74,6 +75,7 @@ export function optionalOnPlayCostStub(
     'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
     'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     'beat_signi', 'beat_signi_from_trash',
+    'deckTrash', 'charmTrash', 'trashArtsFromLrigDeck', 'removeOppVirus',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
@@ -117,6 +119,10 @@ export function optionalOnPlayCostStub(
     ...(cost.life_crash ? { life_crash: cost.life_crash } : {}),
     ...(cost.lifeTrash ? { lifeTrash: cost.lifeTrash } : {}),
     ...(cost.lifeToHand ? { lifeToHand: cost.lifeToHand } : {}),
+    ...(cost.deckTrash ? { deckTrash: cost.deckTrash } : {}),
+    ...(cost.charmTrash ? { charmTrash: cost.charmTrash } : {}),
+    ...(cost.trashArtsFromLrigDeck ? { trashArtsFromLrigDeck: cost.trashArtsFromLrigDeck } : {}),
+    ...(cost.removeOppVirus ? { removeOppVirus: cost.removeOppVirus } : {}),
   } as StubAction;
 }
 

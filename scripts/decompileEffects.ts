@@ -307,6 +307,9 @@ function costJa(c?: any): string {
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
+  if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
+  if (c.underSelfTrash != null) parts.push(`あなたのシグニの下からカード${c.underSelfTrash}枚をトラッシュに置く`);
+  if (c.removeOppVirus != null) parts.push(`対戦相手の場の【ウィルス】${c.removeOppVirus}個を取り除く`);
   // §3タスク6 C: 能力スコープの任意コスト代替（WX07-027-E2）。宣言のみで engine 未実装だが原文を保つ。
   if (c.costSubstitute) {
     const cs = c.costSubstitute;

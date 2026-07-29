@@ -14769,12 +14769,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // ── (xxix)(1) 任意+cost 効果を OPTIONAL_COST 包みで積む ─────────────────────────────────
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
-  test('(xxix)(1) 任意cost【出】の内訳＝lrigDown/down_self追加後も安全側へ分類', () => {
+  test('(xxix)(1) 任意cost【出】の内訳＝wave10の4語彙追加後も安全側へ分類', () => {
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
       'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
       'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
+      'deckTrash', 'charmTrash', 'trashArtsFromLrigDeck', 'removeOppVirus',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
@@ -14782,13 +14783,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 938, 'OPTIONAL_COST へ写せる＝ビート支払い7件も共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 20, 'ビート支払い7件を回収後も表現できないコストだけを安全側に据え置く');
+    eq(mapped.length, 950, 'OPTIONAL_COST へ写せる＝ゾーン徴収12件を共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 8, 'wave10採用後も表現できないコストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる938件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる950件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
@@ -16793,6 +16794,86 @@ test('task12(xxix)(1) wave5: down_self requires the source SIGNI in field and up
       eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${label}: pay不可`);
       eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, `${label}: skipのみ`);
     }
+  }
+});
+
+test('task12(xxix)(1) wave10: 12 zone-cost effects use the real placement collector and pay/reject both ways', () => {
+  const savedCursor = cursor;
+  try {
+    const ids = [
+      'SPK01-03-E1', 'WX03-016-E1', 'WX03-017-E1', 'WX03-018-E1', 'WX03-019-E1', 'WX06-036-E1',
+      'WX25-P1-107-E1', 'WXK06-084-E1', 'WXK07-045-E1',
+      'WX16-077-E1', 'WX19-030-E2', 'WX21-069-E1',
+    ];
+    const cardNumOf = (effectId: string) => [...effectsMap.entries()]
+      .find(([, effects]) => effects.some(e => e.effectId === effectId))![0];
+    const matchingArts = (color?: string) => findCard(c =>
+      c.Type === 'アーツ' && (!color || c.Color?.includes(color)));
+    for (const effectId of ids) {
+      const cardNum = cardNumOf(effectId);
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const owner = mkState({ signi: [cardNum, null, null], hand: 4 });
+      const other = mkState({ signi: [fresh(), null, null] });
+      owner.deck = fill(8);
+      owner.trash = [];
+      if (effect.cost?.energy) {
+        owner.energy = effect.cost.energy.flatMap(ec =>
+          Array.from({ length: ec.count }, () => findCard(c => c.Type === 'シグニ' && c.Color?.includes(ec.color))));
+      }
+      if (effect.cost?.trashArtsFromLrigDeck) {
+        owner.lrig_deck = [matchingArts(effect.cost.trashArtsFromLrigDeck.color)];
+      }
+      if (effect.cost?.charmTrash) owner.field.signi_charms = [fresh(), null, null];
+      if (effect.cost?.removeOppVirus) other.field.signi_virus = [1, 0, 0];
+
+      const collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, owner, other, 'host', { placedByEffect: true, sourceIsSigni: true },
+      );
+      const entry = collected.entries.find(e => e.effectId === effectId);
+      ok(!!entry, `${effectId}: 実戦と同じシグニゾーン配置collectorで収集`);
+      if (!entry) continue;
+      const ctx: ExecCtx = {
+        ...mkCtx({}, {}, cardNum), ownerState: owner, otherState: other,
+        cardMap, effectsMap, currentPhase: 'MAIN',
+      };
+      const offered = executeEffect(entry.effect, ctx);
+      ok(!offered.done && offered.pending.type === 'CHOOSE', `${effectId}: pay/skipを提示`);
+      if (offered.done || offered.pending.type !== 'CHOOSE') continue;
+      eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, `${effectId}: 資源十分ならpay可能`);
+      const paid = finish(resumeChoose('pay', offered.pending, {
+        ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+      }), ctx);
+      if (effect.cost?.trashArtsFromLrigDeck) {
+        const art = owner.lrig_deck[0];
+        ok(!paid.ownerState.lrig_deck.includes(art) && paid.ownerState.lrig_trash.includes(art),
+          `${effectId}: 選んだアーツをルリグデッキからルリグトラッシュへ`);
+      }
+      if (effect.cost?.deckTrash) {
+        ok(paid.ownerState.trash.includes(owner.deck[0]), `${effectId}: デッキ最上段をコストでトラッシュ`);
+      }
+      if (effect.cost?.charmTrash) {
+        eq(paid.ownerState.field.signi_charms?.[0], null, `${effectId}: 左のチャームを除去`);
+      }
+      if (effect.cost?.removeOppVirus) {
+        eq(paid.ownerState.opp_virus_removed_just, true, `${effectId}: ON_OPP_VIRUS_REMOVEDフラグを立てる`);
+      }
+
+      const shortOwner = { ...owner, field: { ...owner.field } };
+      const shortOther = { ...other, field: { ...other.field } };
+      if (effect.cost?.trashArtsFromLrigDeck) shortOwner.lrig_deck = [];
+      if (effect.cost?.deckTrash) shortOwner.deck = fill(Math.max(0, effect.cost.deckTrash - 1));
+      if (effect.cost?.charmTrash) shortOwner.field.signi_charms = [null, null, null];
+      if (effect.cost?.removeOppVirus) shortOther.field.signi_virus = [0, 0, 0];
+      const shortCtx = { ...ctx, ownerState: shortOwner, otherState: shortOther };
+      const blocked = executeEffect(entry.effect, shortCtx);
+      ok(!blocked.done && blocked.pending.type === 'CHOOSE', `${effectId}: 不足時もskipを提示`);
+      if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+        eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${effectId}: 資源不足ならpay不可`);
+        eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, `${effectId}: skip可能`);
+      }
+    }
+  } finally {
+    cursor = savedCursor;
   }
 });
 

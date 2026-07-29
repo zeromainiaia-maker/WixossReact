@@ -1830,6 +1830,14 @@ export interface StubAction {
   life_crash?: number;
   lifeTrash?: number;
   lifeToHand?: number;
+  /** OPTIONAL_COST: デッキ上からN枚をトラッシュへ置く任意コスト。 */
+  deckTrash?: number;
+  /** OPTIONAL_COST: 自分の場のチャームN枚を左のゾーンからトラッシュへ置く任意コスト。 */
+  charmTrash?: number;
+  /** OPTIONAL_COST: ルリグデッキから条件一致アーツを選んでルリグトラッシュへ置く任意コスト。 */
+  trashArtsFromLrigDeck?: { color?: string; count: number };
+  /** OPTIONAL_COST: 相手の場のウィルスN個を左のゾーンから取り除く任意コスト。 */
+  removeOppVirus?: number;
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----
   // 対象シグニのレベル分だけコスト単位を繰り返す任意コスト。単位は3系統あり、いずれも
   // STORE_LAST_PROCESSED_TARGETS で固定した対象（storedTargetCards）のレベルを倍率にする。
