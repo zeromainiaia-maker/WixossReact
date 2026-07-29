@@ -6,7 +6,7 @@ import type { CardEffect } from '../../../types/effects';
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, isMultiEna } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna } from '../costs';
 import type { BattleModalCtx } from './types';
 
 export interface PendingSigniOnPlayCost {
@@ -29,19 +29,21 @@ interface SigniOnPlayCostModalProps {
   setSelectedSigniOnPlayEnergyTrash: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniOnPlayFieldTrash: Set<number>;
   setSelectedSigniOnPlayFieldTrash: Dispatch<SetStateAction<Set<number>>>;
+  selectedSigniOnPlayExceed: Set<number>;
+  setSelectedSigniOnPlayExceed: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniOnPlayBeat: Set<number>;
   setSelectedSigniOnPlayBeat: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniOnPlayArtsTrash: string | null;
   setSelectedSigniOnPlayArtsTrash: Dispatch<SetStateAction<string | null>>;
   signiOnPlayCharmTrashVar: number;
   setSigniOnPlayCharmTrashVar: Dispatch<SetStateAction<number>>;
-  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>) => void;
+  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>, exceedIndices?: Set<number>) => void;
   skipSigniOnPlayCost: (cardNum: string, placedState: PlayerState, mandatoryEntries: StackEntry[], remainingCostEffects?: CardEffect[], placedZone?: number) => void;
 }
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
+  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
     <>
       {pendingSigniOnPlayCost && createPortal(
@@ -72,6 +74,10 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const discardGroupsOk = !discardGroups || canSatisfyDiscardGroups(selectedHandCards, discardGroups);
               const handCostLabel = handToEnergyNeeded > 0 ? 'エナゾーンに置く' : handToUnderNeeded > 0 ? 'このシグニの下に置く' : '捨てる';
               const coinNeeded = eff.cost?.coin ?? 0;
+              const exceedNeeded = eff.cost?.exceed ?? 0;
+              const exceedPool = exceedPoolOf(pState);
+              const exceedOk = canPayExceed(pState, exceedNeeded)
+                && (exceedNeeded === 0 || selectedSigniOnPlayExceed.size === exceedNeeded);
               const enaTrashNeeded = eff.cost?.energyTrash?.count ?? 0;
               const enaTrashFilter = eff.cost?.energyTrash?.filter;
               // 場のシグニトラッシュコスト
@@ -141,7 +147,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM && beatSelectOk
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
@@ -165,6 +171,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         <p style={{ color: C.textFaint, fontSize: 11, margin: 0 }}>
                           コスト: {[
                             energyTotal > 0 ? costStr : null,
+                            exceedNeeded > 0 ? `エクシード${exceedNeeded}` : null,
                             handNeeded > 0 ? discardGroups
                               ? discardGroups.map(g => `${filterLabel(g.filter) || 'カード'}${g.count}枚`).join('と') + `を${handCostLabel}`
                               : `手札${handFilter ? `の${filterLabel(handFilter)}` : ''}${handNeeded}枚を${handCostLabel}` : null,
@@ -234,6 +241,39 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                                   <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
                                 </div>
                               )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+                  {exceedNeeded > 0 && (
+                    <>
+                      <p style={{ color: exceedOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        エクシード選択: {selectedSigniOnPlayExceed.size} / {exceedNeeded}枚（ルリグの下から選択）
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {exceedPool.map((num, i) => {
+                          const c = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedSigniOnPlayExceed.has(i);
+                          return (
+                            <div key={`${num}-${i}`}
+                              onClick={() => setSelectedSigniOnPlayExceed(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) next.delete(i);
+                                else if (next.size < exceedNeeded) next.add(i);
+                                return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <div style={{ fontSize: 7, color: C.textFaint }}>{num}</div>}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                              </div>}
                             </div>
                           );
                         })}
@@ -543,6 +583,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         selectedSigniOnPlayFieldTrash,
                         pendingSigniOnPlayCost.placedZone,
                         selectedSigniOnPlayBeat,
+                        selectedSigniOnPlayExceed,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',

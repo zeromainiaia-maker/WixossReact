@@ -75,6 +75,11 @@ import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
 
+const exceedPoolCountOf = (state: PlayerState): number =>
+  state.field.lrig.slice(0, -1).length
+  + (state.field.assist_lrig_l?.slice(0, -1).length ?? 0)
+  + (state.field.assist_lrig_r?.slice(0, -1).length ?? 0);
+
 // 任意コストの pay/skip 分岐に埋め込む本体アクションの対象を、いま固定されている storedTargetCards へ
 // 焼き込む。storedTargetCards はインタラクションの resume を跨いで生存しないため、targetsStored のまま
 // 分岐に渡すと支払い後に候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）。
@@ -2953,9 +2958,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const payColors = spec.costColors;
         const handDiscardGroups = stub.handDiscardGroups ?? [];
         const exceed = stub.exceed ?? 0;
-        const exceedPoolCount = cur.ownerState.field.lrig.slice(0, -1).length
-          + (cur.ownerState.field.assist_lrig_l?.slice(0, -1).length ?? 0)
-          + (cur.ownerState.field.assist_lrig_r?.slice(0, -1).length ?? 0);
+        const exceedPoolCount = exceedPoolCountOf(cur.ownerState);
         const groupsAffordable = handDiscardGroups.every(g =>
           cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
         const canAfford = canAffordOptionalCostSpec(spec, cur)
@@ -3050,9 +3053,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const costColors4 = spec4.costColors;
             const handDiscardGroups4 = stub4.handDiscardGroups ?? [];
             const exceed4 = stub4.exceed ?? 0;
-            const exceedPoolCount4 = cur.ownerState.field.lrig.slice(0, -1).length
-              + (cur.ownerState.field.assist_lrig_l?.slice(0, -1).length ?? 0)
-              + (cur.ownerState.field.assist_lrig_r?.slice(0, -1).length ?? 0);
+            const exceedPoolCount4 = exceedPoolCountOf(cur.ownerState);
             const groupsAffordable4 = handDiscardGroups4.every(g =>
               cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
             const canAfford4 = canAffordOptionalCostSpec(spec4, cur)
@@ -3100,15 +3101,27 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const spec5 = resolveOptionalCostSpec(stub5, cur);
           const costColors5 = spec5.costColors;
           const coinCost5 = stub5.coinCost ?? 0;
+          const handDiscardGroups5 = stub5.handDiscardGroups ?? [];
+          const exceed5 = stub5.exceed ?? 0;
+          const groupsAffordable5 = handDiscardGroups5.every(g =>
+            cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
           const canAfford5 = canAffordOptionalCostSpec(spec5, cur)
-            && (cur.ownerState.coins ?? 0) >= coinCost5;
+            && (cur.ownerState.coins ?? 0) >= coinCost5
+            && groupsAffordable5
+            && exceedPoolCountOf(cur.ownerState) >= exceed5;
           const costParts5 = [
             ...costColors5.map(c => `《${c}》`),
             ...(coinCost5 > 0 ? [`《コイン》×${coinCost5}`] : []),
+            ...(exceed5 > 0 ? [`エクシード${exceed5}`] : []),
           ];
           const payLabel5 = activateOnly5 ? '発動する'
             : costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
-          const paySteps5 = optionalCostPaySteps(spec5);
+          const paySteps5: EffectAction[] = [
+            ...(exceed5 > 0 ? [{ type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: exceed5 } as EffectAction] : []),
+            ...optionalCostPaySteps(spec5),
+            ...handDiscardGroups5.map(g => ({ type: 'TRASH', asCost: true,
+              target: { type: 'HAND_CARD', owner: 'self', count: g.count, filter: g.filter } } as EffectAction)),
+          ];
           const payAction5: EffectAction = paySteps5.length > 0
             ? { type: 'SEQUENCE', steps: [...paySteps5, freezeStoredTargets(cont5, cur)] }
             : cont5;

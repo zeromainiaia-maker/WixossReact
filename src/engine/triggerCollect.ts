@@ -48,13 +48,13 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * action に埋め込む**＝`SEQUENCE[OPTIONAL_COST, 元のaction]` にして、解決時に engine の Pattern ⑤
  * （「任意コスト：支払いますか？」CHOOSE）へ載せる。engine 内で完結するので golden で検証できる。
  *
- * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／エナゾーン捨て** だけ。
- *   それ以外のコスト（exceed・fieldTrash・lrigDown・beat_signi・life_crash…）が1つでも混ざる効果は
+ * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／エナゾーン捨て／エクシード** だけ。
+ *   それ以外のコスト（fieldTrash・lrigDown・beat_signi・life_crash…）が1つでも混ざる効果は
  *   **null を返して収集しない**＝従来どおり不発のまま据え置く。**払っていないコストを踏み倒して
  *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
  */
 export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCost): StubAction | null {
-  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash']);
+  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed']);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
@@ -87,6 +87,7 @@ export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCo
     ...(handDiscard ? { handDiscard } : {}),
     ...(cost.discardGroups ? { handDiscardGroups: cost.discardGroups } : {}),
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
+    ...(cost.exceed ? { exceed: cost.exceed } : {}),
   } as StubAction;
 }
 

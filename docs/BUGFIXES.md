@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 任意【出】エクシード21効果／discardGroups 1効果の Pattern⑤・UI 支払い配線（2026-07-29・PLAN §3 タスク12(xxix)(1)・Codex実装）
+
+- **壊れ方**＝(A) 効果配置経路では `optionalOnPlayCostStub` が `exceed` を未対応扱いして21効果を収集せず、(B) 通常召喚／グロウ経路では `SigniOnPlayCostModal` と `executeSigniOnPlayCost` が `exceed` を読まず21効果を無償発動、(C) engine Pattern⑤が `handDiscardGroups` を無視して `WX20-058-E1` を手札2枚無償で発動していた。
+- **engine**＝既存 `INTERNAL_PAY_EXCEED` と Pattern③/④の実装を流用。`optionalOnPlayCostStub` の対応キーと stub 転記に `exceed` を追加し、Pattern⑤の affordability／支払い列へ `exceed` と `handDiscardGroups` を追加した。ルリグ下プール数は Pattern③/④/⑤で共通の小さな純関数へ集約。未指定時の分岐は不変。
+- **UI**＝`battle/costs.ts` に `exceedPoolOf`／`canPayExceed`／`paySelectedExceed` を追加し、必ずモーダルへ渡された `placedState`（グロウ後 state）からセンター／左右アシストのトップを除くプールを算出。`SigniOnPlayCostModal` にコスト表示・枚数選択・確定不可判定、`executeSigniOnPlayCost` に選択カードの `lrig_trash` 移動を配線した。選択 state は `useSigniOnPlayCost` の close 時にリセットする。
+- **live 原文照合**＝exceed 21効果は全て `mandatory:false`／ON_PLAY で、`WX24-P4-011-E2`〜`WX25-P3-028-E2` の16効果は原文・JSONともエクシード4、`WXDi-P05-075-E1`／`WXDi-P05-082-E2`／`WXDi-P06-063-E1`／`WXDi-P08-072-E2`／`WXDi-P10-075-E2` の5効果は原文・JSONともエクシード3。`WX20-058-E1` も鉱石1枚＋宝石1枚の `discardGroups` と一致。JSON変更は0件。
+- **golden**＝1033→**1037**。UI純関数の placedState プール・選択支払い後 state、Pattern⑤のプール十分時（pay available→`INTERNAL_PAY_EXCEED` で3枚移動→本体DRAW）／不足時（pay unavailable・skipのみ）、live 21効果の4/3転記、`WX20-058-E1` の鉱石＋宝石実支払い後3ドローを固定。
+- **スコープ外で発見した効果本体の既存不一致（未修正）**＝`WX24-P4-011-E2`（次回アタック時アップ→即時UP）、`WX24-P4-014-E2`（4枚との差分ドロー→固定1枚）、`WX24-P4-015-E2`（任意ライフクラッシュ＋動的対象数→強制クラッシュ＋固定1体）、`WX24-P4-017-E2`（スペル＋青シグニ各1枚まで→青シグニ1枚だけ）、`WX24-P4-018-E2`（相手の手札3枚支払い回避→無条件バニッシュ）、`WX25-P3-028-E2`（リフレッシュ不可が `LRIG_GROW_RESTRICT` に誤分類、3回の自己/相手選択も脱落）。今回の「コスト配線だけ」のスコープを守り、いずれも触っていない。
+
 ## アシストルリグ配置の任意【出】160件が丸ごと不発だったのを共通 collector へ統合（2026-07-29・PLAN §3 タスク12(lv) 続き2・Codex実装／Claude確認）
 
 - **壊れ方の分類＝過小実行（no-op）**。`BattleScreen` の `assistOnPlay` は `e.mandatory !== false` だけで絞っており、**任意【出】をコストの有無を問わず丸ごと捨てていた**（`activeCondition`／`condition`／`usageLimit`／`triggerScope`／`triggerCondition` も未評価）。COLLAB（続き1）が**過剰実行**だったのに対し、こちらは同じ母集団に対する**逆向きの穴**。

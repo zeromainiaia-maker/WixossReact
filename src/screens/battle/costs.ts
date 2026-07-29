@@ -4,6 +4,37 @@ import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { toHalfWidth } from './battleUtils';
 
+/** エクシードで選べる「各ルリグの一番上を除いたカード」。placedState 基準で呼ぶ。 */
+export function exceedPoolOf(state: PlayerState): string[] {
+  return [
+    ...state.field.lrig.slice(0, -1),
+    ...(state.field.assist_lrig_l?.slice(0, -1) ?? []),
+    ...(state.field.assist_lrig_r?.slice(0, -1) ?? []),
+  ];
+}
+
+export function canPayExceed(state: PlayerState, count: number): boolean {
+  return count <= 0 || exceedPoolOf(state).length >= count;
+}
+
+/** UI で選んだプール index のカードをルリグトラッシュへ移す。選択不正時は null。 */
+export function paySelectedExceed(state: PlayerState, count: number, selectedIndices: Set<number>): PlayerState | null {
+  if (count <= 0) return state;
+  const pool = exceedPoolOf(state);
+  if (selectedIndices.size !== count || [...selectedIndices].some(i => i < 0 || i >= pool.length)) return null;
+  const selected = new Set([...selectedIndices].map(i => pool[i]));
+  return {
+    ...state,
+    lrig_trash: [...state.lrig_trash, ...selected],
+    field: {
+      ...state.field,
+      lrig: state.field.lrig.filter(id => !selected.has(id)),
+      assist_lrig_l: state.field.assist_lrig_l?.filter(id => !selected.has(id)),
+      assist_lrig_r: state.field.assist_lrig_r?.filter(id => !selected.has(id)),
+    },
+  };
+}
+
 // handDiscardSigniコストの色/クラス部ラベル（配列はOR=「か」結合）
 export function fmtHandDiscardSigniLabel(hd: { color?: string | string[]; story?: string | string[] }): string {
   const colors = hd.color ? (Array.isArray(hd.color) ? hd.color : [hd.color]) : [];

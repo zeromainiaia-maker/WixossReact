@@ -41,7 +41,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
-import { canAffordGrowCost, canAffordWithExtraCost, isMultiEna, parseBoostCost } from '../src/screens/battle/costs';
+import { canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
@@ -14767,21 +14767,21 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // ── (xxix)(1) 任意+cost 933効果を OPTIONAL_COST 包みで積む ───────────────────────────────
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
-  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる853件／表現できない80件', () => {
-    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash']);
+  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる884件／表現できない59件', () => {
+    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed']);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
     eq(optionalCost.length, 943, '母集団');
-    eq(mapped.length, 863, 'OPTIONAL_COST へ写せる＝新たに積める');
-    eq(optionalCost.length - mapped.length, 80, '表現できないコストを含むため据え置き');
+    eq(mapped.length, 884, 'OPTIONAL_COST へ写せる＝新たに積める');
+    eq(optionalCost.length - mapped.length, 59, '表現できないコストを含むため据え置き');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
-    //   現データでは 853件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
+    //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる853件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる884件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
@@ -15896,6 +15896,101 @@ test('(l) WXDi-P02-034: 付与前0枚・付与後だけレベル3×2=6枚ミル'
   } finally {
     cursor = savedCursor;
   }
+});
+
+test('task12(xxix)(1) UI exceed純関数: placedStateの全ルリグ下を数え、選択分だけトラッシュへ移す', () => {
+  const state = mkState({
+    lrig: ['CENTER-UNDER-1', 'CENTER-UNDER-2', 'CENTER-TOP'],
+    assistL: ['LEFT-UNDER', 'LEFT-TOP'],
+    assistR: ['RIGHT-UNDER', 'RIGHT-TOP'],
+  });
+  eq(exceedPoolOf(state).join(','), 'CENTER-UNDER-1,CENTER-UNDER-2,LEFT-UNDER,RIGHT-UNDER', 'placedState基準のプール');
+  ok(canPayExceed(state, 4), '4枚なら支払える');
+  ok(!canPayExceed(state, 5), '5枚は支払えない');
+  const paid = paySelectedExceed(state, 3, new Set([0, 2, 3]));
+  ok(!!paid, '正しい3枚選択を受理');
+  eq(paid!.lrig_trash.slice(-3).join(','), 'CENTER-UNDER-1,LEFT-UNDER,RIGHT-UNDER', '選択カードだけルリグトラッシュへ');
+  eq(paid!.field.lrig.join(','), 'CENTER-UNDER-2,CENTER-TOP', '未選択のセンター下とトップを維持');
+  eq(paid!.field.assist_lrig_l?.join(','), 'LEFT-TOP', '左アシストトップを維持');
+  eq(paid!.field.assist_lrig_r?.join(','), 'RIGHT-TOP', '右アシストトップを維持');
+  eq(paySelectedExceed(state, 4, new Set([0, 1, 2])), null, '枚数不足の選択は拒否');
+});
+
+test('task12(xxix)(1) Pattern⑤ exceed: 十分ならpayで実支払い後に本体、不足ならpay unavailable', () => {
+  const effect: CardEffect = {
+    effectId: 'golden-optional-on-play-exceed',
+    effectType: 'AUTO',
+    timing: ['ON_PLAY'],
+    mandatory: false,
+    action: {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', exceed: 3 },
+        { type: 'DRAW', owner: 'self', count: 1 },
+      ],
+    } as SequenceAction,
+  };
+  const enoughCtx = mkCtx({ lrig: ['UNDER-1', 'UNDER-2', 'UNDER-3', 'TOP'], hand: 0 }, {});
+  const offered = executeEffect(effect, enoughCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '十分時にpay/skipを提示');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, '十分時pay available');
+  const paid = finish(resumeChoose('pay', offered.pending, {
+    ...enoughCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  }), enoughCtx);
+  eq(paid.ownerState.field.lrig.join(','), 'TOP', 'ルリグ下3枚を除去');
+  eq(paid.ownerState.lrig_trash.slice(-3).join(','), 'UNDER-1,UNDER-2,UNDER-3', 'INTERNAL_PAY_EXCEEDが3枚を移動');
+  eq(paid.ownerState.hand.length, 1, '支払い後に効果本体を実行');
+
+  const shortCtx = mkCtx({ lrig: ['UNDER-1', 'UNDER-2', 'TOP'], hand: 0 }, {});
+  const short = executeEffect(effect, shortCtx);
+  ok(!short.done && short.pending.type === 'CHOOSE', '不足時もskip選択を提示');
+  if (short.done || short.pending.type !== 'CHOOSE') return;
+  eq(short.pending.options.find(o => o.id === 'pay')?.available, false, '不足時pay unavailable');
+  eq(short.pending.options.find(o => o.id === 'skip')?.available, true, '不足時skip available');
+  const skipped = finish(resumeChoose('skip', short.pending, {
+    ...shortCtx, ownerState: short.ownerState, otherState: short.otherState, logs: short.logs,
+  }), shortCtx);
+  eq(skipped.ownerState.lrig_trash.length, 0, '不足skipで支払いなし');
+  eq(skipped.ownerState.hand.length, 0, '不足skipで効果本体も不発');
+});
+
+test('task12(xxix)(1) live exceed21効果: 原文どおり4/3をcollectorがPattern⑤へ運ぶ', () => {
+  const ids4 = `WX24-P4-011-E2 WX24-P4-012-E2 WX24-P4-013-E2 WX24-P4-014-E2
+    WX24-P4-015-E2 WX24-P4-016-E2 WX24-P4-017-E2 WX24-P4-018-E2
+    WX24-P4-019-E2 WX24-P4-020-E2 WX24-P4-021-E2 WX24-P4-022-E2
+    WX24-P4-023-E2 WX24-P4-024-E2 WX24-P4-025-E2 WX25-P3-028-E2`.split(/\s+/);
+  const ids3 = `WXDi-P05-075-E1 WXDi-P05-082-E2 WXDi-P06-063-E1 WXDi-P08-072-E2 WXDi-P10-075-E2`.split(/\s+/);
+  for (const [id, count] of [...ids4.map(id => [id, 4] as const), ...ids3.map(id => [id, 3] as const)]) {
+    const cardNum = id.replace(/-E\d+$/, '');
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === id)!;
+    eq(eff.cost?.exceed, count, `${id}: live cost.exceed`);
+    eq(eff.mandatory, false, `${id}: 任意【出】`);
+    const wrapped = wrapOptionalOnPlay(eff);
+    ok(!!wrapped, `${id}: collectorで収集可能`);
+    const first = ((wrapped!.action as SequenceAction).steps[0] as import('../src/types/effects').StubAction);
+    eq(first.id, 'OPTIONAL_COST', `${id}: OPTIONAL_COST`);
+    eq(first.exceed, count, `${id}: 支払い枚数をstubへ維持`);
+  }
+});
+
+test('task12(xxix)(1) WX20-058-E1 Pattern⑤: 鉱石1枚＋宝石1枚を実際に捨ててから3枚引く', () => {
+  const ore = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('鉱石'));
+  const gem = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宝石') && c.CardNum !== ore);
+  const eff = effectsMap.get('WX20-058')!.find(e => e.effectId === 'WX20-058-E1')!;
+  const wrapped = wrapOptionalOnPlay(eff)!;
+  const ctx = mkCtx({ hand: 0, deckTop: fill(4), trash: 0 }, {});
+  ctx.ownerState = { ...ctx.ownerState, hand: [ore, gem] };
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'discardGroupsのpay/skipを提示');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, '両クラス所持でpay available');
+  const paid = finish(resumeChoose('pay', offered.pending, {
+    ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  }), ctx);
+  eq(paid.ownerState.hand.length, 3, '2枚支払い後に3枚ドロー');
+  ok(paid.ownerState.trash.includes(ore) && paid.ownerState.trash.includes(gem), '鉱石と宝石を各1枚トラッシュ');
+  eq(paid.ownerState.deck.length, ctx.ownerState.deck.length - 3, '効果本体の3ドローを実行');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

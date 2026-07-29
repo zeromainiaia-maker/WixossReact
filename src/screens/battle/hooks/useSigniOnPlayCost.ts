@@ -19,6 +19,8 @@ export interface SigniOnPlayCostState {
   selectedSigniOnPlayEnergyTrash: Set<number>;
   // 場のシグニをトラッシュするコスト（cost.fieldTrash）のゾーン選択
   selectedSigniOnPlayFieldTrash: Set<number>;
+  // ルリグの下からエクシードで支払うカードのプール index
+  selectedSigniOnPlayExceed: Set<number>;
   // 「シグニを【ビート】にする」コスト（cost.beat_signi）の「他の/任意」beat対象ゾーン選択（自動近似の代替）
   selectedSigniOnPlayBeat: Set<number>;
   // ルリグデッキからアーツを選択するコスト（trashArtsFromLrigDeck）
@@ -35,6 +37,7 @@ const initialState: SigniOnPlayCostState = {
   selectedSigniOnPlayDiscard: new Set(),
   selectedSigniOnPlayEnergyTrash: new Set(),
   selectedSigniOnPlayFieldTrash: new Set(),
+  selectedSigniOnPlayExceed: new Set(),
   selectedSigniOnPlayBeat: new Set(),
   selectedSigniOnPlayArtsTrash: null,
   signiOnPlayCharmTrashVar: 0,
@@ -53,6 +56,7 @@ export function useSigniOnPlayCost() {
         selectedSigniOnPlayDiscard: new Set(),
         selectedSigniOnPlayEnergyTrash: new Set(),
         selectedSigniOnPlayFieldTrash: new Set(),
+        selectedSigniOnPlayExceed: new Set(),
         selectedSigniOnPlayBeat: new Set(),
         selectedSigniOnPlayArtsTrash: null,
         signiOnPlayCharmTrashVar: 0,
@@ -62,6 +66,7 @@ export function useSigniOnPlayCost() {
     setSelectedSigniOnPlayDiscard: set.selectedSigniOnPlayDiscard,
     setSelectedSigniOnPlayEnergyTrash: set.selectedSigniOnPlayEnergyTrash,
     setSelectedSigniOnPlayFieldTrash: set.selectedSigniOnPlayFieldTrash,
+    setSelectedSigniOnPlayExceed: set.selectedSigniOnPlayExceed,
     setSelectedSigniOnPlayBeat: set.selectedSigniOnPlayBeat,
     setSelectedSigniOnPlayArtsTrash: set.selectedSigniOnPlayArtsTrash,
     setSigniOnPlayCharmTrashVar: set.signiOnPlayCharmTrashVar,
