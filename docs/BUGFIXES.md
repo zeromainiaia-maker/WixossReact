@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## pick＋振り分け（`remainder.position:'split_top_bottom'`）第10波（2026-07-29・PLAN §3 タスク12(lix)・Opus〔Claude Opus 5〕）
+
+- **壊れ方**：第9波で pick の**無い**振り分けは是正したが、**ピックしてから振り分ける**形は `pk` 規則が「pick 動詞の直後に『、残りを』」を要求するため掛からず、汎用 `LOOK_AND_REORDER` に飲まれて **pick が丸ごと no-op ＋ 見た全部がデッキ下**という二重の退化になっていた（`WXDi-P16-086-E1`＝1枚まで手札orエナ／`WX24-P3-031-E1`＝＜宇宙＞2枚まで手札）。
+- **⚠自分の前セッションの見立てを2点訂正した**：
+  - 「`WXDi-P16-086-E1` は chain ステージ側の hand-or-energy が要る」→**誤り**。単一 pick 群なので `REVEAL_AND_PICK.handOrEnergy`（第5波で実装済）でそのまま表せる。
+  - つまり **要る新機構は `remainder.position:'split_top_bottom'` の1つだけ**だった（当初「機構2つ」と登録していた）。
+- **直し方（engine）**：`resumeSearch` の先頭で `revealRemainder.position==='split_top_bottom'` を検出し、**残りをデッキから抜いたうえで分割UI（G168）を `continuation` の先頭に差し込む**。⚠**この書き換えは早期 return 分岐より前に置く必要がある**＝`handOrField`／`handOrEnergy`／`ADD_TO_FIELD` の各分岐は `pending.continuation` を読んで自分のチェーンを組むため、後ろに置くと hand-or-energy 経路だけ**分割が丸ごと落ちる**（変異で実測）。新スタブ `INTERNAL_SPLIT_REVEALED` は抜いておいた札を `LOOK_AND_REORDER{destPosition:'split_top_bottom'}` に載せるだけ。
+- **外科性**：全カード生 parser 出力の effectId 差分・live JSON の per-effect 差分ともに**対象2件だけ**。再 build 差分0（冪等）、held 256→**254**（新規ドリフト0）。
+- **検証**：golden 984→**988**（新規4本）。①2効果の構造を期待値文字列で固定 ②**E2E＝＜宇宙＞2枚が手札へ→続けて分割UIが出る→選んだ1枚だけがデッキの一番下・選ばなかった札は上に残る・デッキ枚数は手札に行った分だけ減る** ③hand-or-energy 経路でも分割UIまで到達する（continuation が落ちていない）。**変異3種でそれぞれ 4/2/1 本だけ FAIL** することを実測＝live JSON を HEAD へ／`resumeSearch` の書き換えを外す（**hand-or-energy 経路の脱落も同時に検出**）／残りをデッキから抜かない（**デッキ枚数が合わない＝複製**）。
+- **計器**：decompiler の `REVEAL_AND_PICK` remainder に split を追加（未対応だと「残りをデッキの上に戻す」と表示され**振り分けが見えない**）。census 1415→**1414**（`BASELINE_HIGH` 更新）。smoke 10726 全0・fuzz 全0・lint 0 errors・`npm run gates` 全緑。
+- **残**：(lix) は **2件**＝`WXK02-032-E1`（revealCount が「７－あなたのライフクロスの枚数」＝動的枚数で `cM` の `N枚見る` に掛からない）／`WXK03-048-E1`（pick 先が「場に出す」＝`parseRevealPickDescriptor` の行き先語彙が 手札／エナ しか受けない）。どちらも**この波の機構ではなく入口の語彙**の問題。
+
 ## census 計器の較正＝「Nまで」上限選択のキー表に `pickUpTo` を追加（2026-07-29・PLAN §3 タスク12(lvii)・Opus〔Claude Opus 5〕）
 
 - **⚠これは機能実装ではなく計器の較正**。engine/parser/JSON は一切変更していない（commit の diff は `scripts/vocabCensus.ts` のキー表＋コメントと、再生成された `docs/_vocab_census.txt` だけ）。**較正を機能修正の波と混ぜると「何効果直したか」が読めなくなる**ので単独 commit に切り出した。

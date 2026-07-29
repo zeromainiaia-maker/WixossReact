@@ -1290,7 +1290,9 @@ export interface RevealAndPickAction {
   elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
   handOrEnergy?: boolean; // ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理（「手札に加えるかエナゾーンに置き」WXK06-011 等）。true のとき then は無視
-  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
+  // position:'split_top_bottom'＝「好きな枚数を（好きな順番で）デッキの一番下に置き、残りを一番上に戻す」
+  // ＝ピックの**あと**に残りの振り分けをプレイヤーへ問う（G168 の分割UIを resumeSearch から再利用する）。
+  remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };
   // 後段が「この方法で公開したカード」を参照する場合、選んで移動したカードではなく公開 snapshot 全体を残す。
   recordRevealed?: boolean;
 }

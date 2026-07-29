@@ -5399,6 +5399,26 @@ export function resumeSearch(
   if (!pending.thenAction) {
     pending = { ...pending, thenAction: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction };
   }
+  // remainder が 'split_top_bottom'（「好きな枚数をデッキの一番下に置き、残りを一番上に戻す」）のときは
+  //   **行き先が対話**になる。ここで即座に動かさず、デッキから抜いたうえで分割UI（G168）を
+  //   **continuation の先頭に差し込む**＝ピック処理（thenAction／handOrEnergy／ADD_TO_FIELD の各分岐）が
+  //   終わったあとに問う形になる。⚠この書き換えは下の早期 return 分岐より**前**に置く必要がある
+  //   （それらは pending.continuation を読んで自分のチェーンを組み立てるため）。タスク12(lix)。
+  if (pending.revealRemainder?.position === 'split_top_bottom') {
+    const rrSplit = pending.revealRemainder;
+    const restSplit = rrSplit.cards.filter(n => !picked.includes(n));
+    let sSplit = { ...cur.ownerState };
+    const deckSplit = [...sSplit.deck];
+    const movedSplit: string[] = [];
+    for (const cn of restSplit) { const di = deckSplit.indexOf(cn); if (di >= 0) { deckSplit.splice(di, 1); movedSplit.push(cn); } }
+    sSplit = { ...sSplit, deck: deckSplit };
+    cur = { ...cur, ownerState: sSplit };
+    const splitStub: EffectAction = { type: 'STUB', id: 'INTERNAL_SPLIT_REVEALED', revealed: movedSplit } as StubAction as EffectAction;
+    const contSplit: EffectAction = pending.continuation
+      ? { type: 'SEQUENCE', steps: [splitStub, pending.continuation] } as SequenceAction
+      : splitStub;
+    pending = { ...pending, revealRemainder: undefined, continuation: contSplit };
+  }
   // revealRemainder: 公開したがピックしなかった全カード（非対象カード含む）を指定場所へ移す（REVEAL_AND_PICK）。
   //   デッキ非スライス設計＝picked も未pick も公開時点でデッキに残っており、ここで未pick分を先に退避する。
   if (pending.revealRemainder) {

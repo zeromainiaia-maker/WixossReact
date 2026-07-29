@@ -2950,6 +2950,22 @@ export function execStubPart2(
       type: 'CHOOSE', options: zoneOptsCTZ, count: 1,
     });
   }
+  // INTERNAL_SPLIT_REVEALED（タスク12(lix)）: 公開してピックしなかった残りを「好きな枚数をデッキの一番下・
+  // 残りを一番上」へ振り分けさせる。カードは resumeSearch が既にデッキから抜いてあるので、
+  // G168 の分割UI（LOOK_AND_REORDER + destPosition:'split_top_bottom'）へそのまま載せるだけ。
+  if (stub.id === 'INTERNAL_SPLIT_REVEALED') {
+    const cardsSR = stub.revealed ?? [];
+    if (cardsSR.length === 0) return done(ctx);
+    return needsInteraction(ctx, {
+      type: 'LOOK_AND_REORDER',
+      cards: cardsSR,
+      canTrash: false,
+      destLocation: 'deck',
+      destOwner: 'self',
+      destPosition: 'split_top_bottom',
+      private: true,
+    });
+  }
   // INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。
   // ⚠既存の INTERNAL_SET_TRAP は **手札からの設置専用**（`hand.filter` でしか元ゾーンから抜かない）ため、
   //   デッキ公開札には使えない（デッキに残ったままトラップゾーンにも現れる＝複製バグになる）。

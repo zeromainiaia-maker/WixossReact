@@ -998,7 +998,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const remJa = !rem ? ''
         : rem.location === 'trash' ? `、残りを${remShuf}トラッシュに置く`
         : rem.location === 'deck'
-          ? (rem.position === 'bottom' ? `、残りを${remShuf}デッキの一番下に置く` : `、残りを${remShuf}デッキの上に戻す`)
+          // split_top_bottom＝ピックのあとに残りを上下へ振り分ける（タスク12(lix)）。落とすと分割が見えない。
+          ? (rem.position === 'split_top_bottom' ? '、好きな枚数を好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す'
+             : rem.position === 'bottom' ? `、残りを${remShuf}デッキの一番下に置く` : `、残りを${remShuf}デッキの上に戻す`)
           : '、残りを戻す';
       if ((a.pickCount ?? 1) === 0 && rem?.location === 'deck' && rem.position === 'bottom') {
         return `${ownerJa(rapOwner)}デッキの上からカードを${numJa(rapCnt)}枚公開し、公開したカードを${rem.shuffle ? 'シャッフルして' : ''}デッキの一番下に置く`;

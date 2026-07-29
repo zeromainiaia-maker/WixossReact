@@ -3837,6 +3837,96 @@ test('(xlvi)(d) split_top_bottom: 選んだ分だけデッキ下・残りはデ�
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(lix) wave10 pick＋振り分け（remainder.position:'split_top_bottom'）─────────────────
+// 第9波で pick の**無い**振り分けは是正したが、**ピックしてから振り分ける**形は `pk` 規則が
+// 「pick 動詞の直後に『、残りを』」を要求するため掛からず、汎用 LOOK_AND_REORDER に飲まれて
+// **pick が丸ごと no-op ＋ 見た全部がデッキ下**に退化していた。
+const xlviWave10 = [
+  { cardNum: 'WXDi-P16-086', effectId: 'WXDi-P16-086-E1',
+    want: '-|1|true|カード|true|deck/split_top_bottom' },
+  { cardNum: 'WX24-P3-031', effectId: 'WX24-P3-031-E1',
+    want: '{"story":"宇宙","cardType":"シグニ"}|2|true|-|-|deck/split_top_bottom' },
+] as const;
+for (const spec of xlviWave10) {
+  test(`(lix) ${spec.effectId}: pick が残り、remainder が split_top_bottom`, () => {
+    const eff = effectsMap.get(spec.cardNum)?.find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    const rap = findRevealAndPick(eff!.action);
+    ok(!!rap, `${spec.effectId}: REVEAL_AND_PICK（bare LOOK_AND_REORDER への退化なし＝pick が消えていない）`);
+    const rem = rap!.remainder;
+    const got = [
+      rap!.filter ? JSON.stringify(rap!.filter) : '-',
+      rap!.pickCount, rap!.pickUpTo ?? '-', rap!.pickNoun ?? '-', rap!.handOrEnergy ?? '-',
+      rem ? `${rem.location}/${rem.position}` : '-',
+    ].join('|');
+    eq(got, spec.want, `${spec.effectId}: 構造`);
+  });
+}
+
+// E2E：ピックのあとに分割UIが出て、選んだ分だけデッキ下・残りはデッキ上に行く。
+// 🔴 従来はここが「pick なし＋全部デッキ下」だった。
+test('(lix) WX24-P3-031-E1: ＜宇宙＞を手札へ → 残りを上下に振り分ける（全部デッキ下ではない）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX24-P3-031')?.find(e => e.effectId === 'WX24-P3-031-E1');
+    const rap = findRevealAndPick(eff!.action)!;
+    const uchu = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙'));
+    ok(uchu.length >= 2, '＜宇宙＞のシグニが2枚以上ある');
+    const nonUchu: string[] = [];
+    for (const c of cardMap.values()) {
+      if (nonUchu.length >= 3) break;
+      if (c.Type === 'シグニ' && !(c.CardClass ?? '').includes('宇宙')) nonUchu.push(c.CardNum);
+    }
+    const top = [uchu[0].CardNum, uchu[1].CardNum, ...nonUchu];
+    const ctx = mkCtx({ deckTop: top.slice(0, 5) }, {}, 'WX24-P3-031');
+    const deckLen = ctx.ownerState.deck.length;
+    const beforeHand = ctx.ownerState.hand.length;
+
+    // 1) SEARCH（＜宇宙＞2枚まで）
+    const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: rap as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!r0.done, 'SEARCH で停止');
+    const pSearch = r0.pending as unknown as { type: string; visibleCards: string[]; maxPick: number };
+    eq(pSearch.type, 'SEARCH', 'pending は SEARCH');
+    ok(pSearch.visibleCards.every(n => (cardMap.get(n)?.CardClass ?? '').includes('宇宙')),
+      '候補は＜宇宙＞のシグニだけ（filter が効いている）');
+    const c1: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const r1 = resumeSearch(pSearch.visibleCards.slice(0, 2), pSearch as never, c1);
+
+    // 2) 続けて分割UI（LOOK_AND_REORDER split_top_bottom）が出る
+    ok(!r1.done, '🔴ピックのあとに分割UIが出る（従来は remainder を即デッキ下へ流して終わっていた）');
+    const pSplit = r1.pending as unknown as { type: string; cards: string[]; destPosition: string };
+    eq(pSplit.type, 'LOOK_AND_REORDER', 'pending は LOOK_AND_REORDER');
+    eq(pSplit.destPosition, 'split_top_bottom', '分割UIとして出る');
+    eq(pSplit.cards.length, 3, '振り分け対象は未ピックの3枚');
+    const c2: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+    const toBottom = [pSplit.cards[0]];
+    const r2 = resumeLookAndReorder(pSplit.cards, [], pSplit as never, c2, toBottom);
+    ok(r2.done, '完走');
+
+    eq(r2.ownerState.hand.length, beforeHand + 2, '＜宇宙＞2枚が手札へ（従来は0枚＝pick が no-op）');
+    eq(r2.ownerState.deck.length, deckLen - 2, 'デッキは手札に行った2枚分だけ減る（消失なし）');
+    eq(r2.ownerState.deck.at(-1), toBottom[0], '🔴選んだ1枚がデッキの一番下');
+    ok(r2.ownerState.deck.slice(0, 2).includes(pSplit.cards[1]),
+      '🔴選ばなかった札はデッキの上に残る（従来の bottom 一括なら全部下へ送られていた）');
+  } finally { cursor = savedCursor; }
+});
+
+// hand-or-energy 版も同じ経路で分割UIに到達する（早期 return 分岐が continuation を落としていないこと）。
+test('(lix) WXDi-P16-086-E1: 手札orエナの選択を挟んでも分割UIまで到達する', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXDi-P16-086')?.find(e => e.effectId === 'WXDi-P16-086-E1');
+    const rap = findRevealAndPick(eff!.action)!;
+    const ctx = mkCtx({ deckTop: [fresh(), fresh(), fresh(), fresh()] }, {}, 'WXDi-P16-086');
+    const beforeHand = ctx.ownerState.hand.length, beforeEnergy = ctx.ownerState.energy.length;
+    const r = run(rap as EffectAction, ctx); // オートパイロットが SEARCH→CHOOSE→分割 を順に消化する
+    ok(r.done, '完走（continuation が落ちていない）');
+    eq(r.ownerState.hand.length + r.ownerState.energy.length, beforeHand + beforeEnergy + 1,
+      '1枚だけが手札かエナへ（従来は pick が丸ごと no-op）');
+    ok(r.logs.some(l => l.includes('デッキを並べ替え')), '分割UIまで到達している');
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

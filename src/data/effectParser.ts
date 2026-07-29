@@ -55,7 +55,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder,
+  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -4388,6 +4388,31 @@ function parseActionTextInner(text: string): EffectAction {
             return { type: 'SEQUENCE', steps: [revealAction, { type: 'SHUFFLE_DECK', owner: 'self' }, ...trailing] } as SequenceAction;
           }
           return revealAction;
+        }
+      }
+      // ---- その中から〔pick〕、好きな枚数を一番下に置き、残りを一番上に戻す（pick＋振り分け）----
+      //   タスク12(lix)。第9波で pick の**無い**振り分けは `split_top_bottom` に是正したが、**ピックしてから
+      //   振り分ける**形は下の `pk` 規則が「pick 動詞の直後に『、残りを』」を要求するため掛からず、
+      //   汎用 LOOK_AND_REORDER に飲まれて **pick が丸ごと no-op ＋ 見た全部がデッキ下**に退化していた。
+      //   remainder に `position:'split_top_bottom'` を許し、engine 側はピック処理のあとに分割UIを出す。
+      {
+        const splitTail = /、好きな枚数の?(?:カード)?を(?:好きな順番で)?デッキの一番下に置き、残りを(?:好きな順番で)?デッキの一番上に(?:戻す|置く)/;
+        const splitDesc = splitTail.test(nextS) ? parseRevealPickDescriptor(nextS) : null;
+        if (splitDesc) {
+          return {
+            type: 'REVEAL_AND_PICK',
+            owner: 'self',
+            revealCount: parseNum(cM[1]),
+            ...(Object.keys(splitDesc.filter).length > 0 ? { filter: splitDesc.filter } : {}),
+            pickCount: splitDesc.pickCount,
+            ...(splitDesc.pickUpTo ? { pickUpTo: true } : {}),
+            ...(splitDesc.noun !== 'シグニ' ? { pickNoun: splitDesc.noun } : {}),
+            ...(splitDesc.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
+            then: splitDesc.dest === 'energy'
+              ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
+              : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction,
+            remainder: { location: 'deck', position: 'split_top_bottom' },
+          } as RevealAndPickAction;
         }
       }
       // ---- その中から〔class/color/level filter〕(の)シグニ/カード(を)N枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
