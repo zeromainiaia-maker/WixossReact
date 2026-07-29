@@ -4,6 +4,14 @@
 
 > **最新の退避＝「2026-07-29 整理」節（末尾）**＝§3 Opus タスク表の完了行（1〜9・11・17〜19）／Opusタスク12 在庫表の完了行（(liv)(liii)(lii)(xxii)(xxxix)(lvi)(xliv)）／タスク12(xxix) の消化履歴全文／タスク16 の消化履歴／Sonnet タスク表の完了行。
 
+## 2026-07-30 タスク12(xxix) 完全クローズ（PLAN §3 の全文をここへ退避）
+
+> (xxix) は 2026-07-29〜30 の計15波で「実働 or 明示保留」に全件仕分けを終えた。
+> 消化経緯の要約は [PLAN.md](./PLAN.md) §4 進捗サマリと [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)、
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) の 2026-07-29／07-30 節。以下はクローズ時点の PLAN §3 の行の全文。
+
+**semantic audit stub群 round3（2,101枚・findings 2,799件）**＝①duration系統／②選択肢欠落／③「そうした場合」did-it ゲート／(a)／(b)／(b1)／**(b2-i)〜(b2-vi)** は**すべて✅消化済**（1437効果の自身【出】配線まで到達。消化経緯の全文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節、一次記録は BUGFIXES 2026-07-28節／続き148・149・218h・222・223・226・243）。<br>✅**(1) 自身【出】の任意+cost 933効果は 853件を配線済**（2026-07-29）＝collector が `SEQUENCE[OPTIONAL_COST, 元action]` に包んで積み、engine 既存の Pattern ⑤（「任意コスト：支払いますか？」）へ載せる。BattleScreen 無改造で `EffectInteractionModal`＋`resumeOptionalCost` がそのまま支払いUIになる＝**golden で検証できる**。**残＝(1) 未対応コスト80件**〔exceed 21／fieldTrash 18／lrigDown 7／trashArtsFromLrigDeck 6／discardUpTo 6／beat_signi 6／life_crash 4／removeOppVirus 3／その他9。`OptionalCostSpec` が**エナ色／《コイン》／手札捨て／エナゾーン捨て**しか表現できないため。⚠**払っていないコストを踏み倒して効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒してある〕✅**(2) 段階3の65効果は3種の混在だった**（2026-07-29 に分類・消化）＝🔴**英知＝N の全角「＝」を parser が取りこぼして24効果が `activeCondition` を丸ごと失っていた**（**うち15効果は live で条件なしに発動する過剰実行**＝【常】英知＝５で無条件+3000／【常】英知＝８で無条件アサシン等）。英知はコストではなく使用条件なので【出】14効果は **mandatory へ復帰**（v0.263 の決定に戻す＝既存の mandatory 経路に乗る）、真の「〜してもよい」8効果は新 **`OPTIONAL_ACTIVATE`** 包み（「発動しますか？」）で通常召喚・効果配置の両方から配線。✅**(2) filter付き手札捨て12効果を構造化**（2026-07-29）＝アイコン／クラス／色／カード名部分一致／カード種別／漢数字と、異種filter複数枚（`discardGroups`）を既存の共通手札捨て支払い経路へ配線。段階3の残43件は **33件**。⚠初期 `costUnparsed` は実測 **336件（A:回数制限のみ185／B:実コスト句65／C:判定不能86）**で、非空ヘッダを全て印す条件のため偽陽性が大半だった。実コスト構文がある場合だけに絞り、live は **47件（AUTO 47／ACTIVATED 0）**へ較正。「包むなら原文のコスト句は必ず空」の golden 不変条件は維持し、構造化済みは印を外す〕✅**(2b) `EICHI_LEVEL_SUM` は `eq`（ちょうどN）で確定**（2026-07-29）＝カード自身のルール補足「（＜英知＞のシグニのレベルの合計が**ちょうど**Nであるかぎり有効になる）」が明記。`gte` 説は誤りだった。🔴**同時に第2の半分＝「レベル読み替えで合計は集合になる」を実装**（`WX20-044-CB` の補足「レベル２と３の英知シグニがある場合【英知＝６】【＝７】【＝８】はすべて条件を満たす」）。旧実装は範囲を**最大値1つ**へ潰しており `WX21-029` 自身の【出】英知＝８が**永久に不成立**、`WX20-044-CB` は位相限定なし＋列挙表記のため**能力が丸ごと未実装**だった。新 `PlayerState.eichi_level_options`（取りうるレベル群）＋合計の集合判定で解消**(3) watcher [B]4件**（エナ由来／手札以外由来／【出】能力保有＝限定語彙が無く `timing:[]` で安全停止中）**(4) defer 3件**（相手効果による自シグニ場離れのターン履歴 Condition／配置個体への `REMOVE_ABILITIES` 固定語彙／`ATTACH_CHARM_FROM_TRASH` 本実装）**(5) (b2-ii) の defer 4件**→(3)〜(5) は §6.3 送り。<br>⚠**この経路は `fuzz`/`smoke` が通らず golden だけが網**（`selfPlayFuzz.ts:12-13` が自ら明記）＝BattleScreen 側の変更は実機 driver でも確認する。明細と表 `docs/_semantic_audit_stub_round3_triage.txt` §6
+
 ## 2026-07-29 タスク12(xlii) `GRANT_LEAVE_PLACE_PENDING` 完全クローズ
 
 - **WX21-004-E2**：エナ配置 parser に既存 `levelEqTrigger` を配線し、ON_LEAVE_FIELD 収集時に離脱カードの具体レベルへ解決。fresh 全数差分は当該1カードのみ。
