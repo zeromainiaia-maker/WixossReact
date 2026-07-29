@@ -21,6 +21,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageS
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost } from './battle/lrigDownCost';
+import { payUnderAnySigniTrash } from './battle/underAnySigniCost';
 
 interface Props {
   user: User;
@@ -186,6 +187,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed,
     selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat,
     selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash,
+    selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash,
     signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar,
     selectedOptCost, setSelectedOptCost, closeSigniOnPlayCost,
   } = useSigniOnPlayCost();
@@ -10437,6 +10439,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     placedZone?: number,
     beatZones: Set<number> = new Set(),
     exceedIndices: Set<number> = new Set(),
+    underTrashKeys: Set<string> = new Set(),
   ) => {
     if (loading) return;
     setLoading(true);
@@ -10489,6 +10492,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : undefined,
       };
       const payLogs: string[] = [];
+      const underAnyCost = cost?.underAnySigniTrash;
+      if (underAnyCost) {
+        const underPaid = payUnderAnySigniTrash(paid, underTrashKeys, underAnyCost.count);
+        if (!underPaid) return;
+        paid = underPaid.state;
+        paid = { ...paid, last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...underPaid.moved] };
+        payLogs.push(`シグニの下から${underPaid.moved.length}枚をコストでトラッシュ`);
+      }
       const exceedCostOP = cost?.exceed ?? 0;
       if (exceedCostOP > 0) {
         const exceedPaid = paySelectedExceed(paid, exceedCostOP, exceedIndices);
@@ -11666,7 +11677,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <EnergyActivatedModal ctx={modalCtx} pendingEnergyActivated={pendingEnergyActivated} setPendingEnergyActivated={setPendingEnergyActivated} selectedEnergyActivatedCost={selectedEnergyActivatedCost} setSelectedEnergyActivatedCost={setSelectedEnergyActivatedCost} executeEnergyActivated={executeEnergyActivated} />
 
       {/* ===== シグニ出現時コスト付き【出】効果 モーダル ===== */}
-      <SigniOnPlayCostModal ctx={modalCtx} pendingSigniOnPlayCost={pendingSigniOnPlayCost} selectedSigniOnPlayCost={selectedSigniOnPlayCost} setSelectedSigniOnPlayCost={setSelectedSigniOnPlayCost} selectedSigniOnPlayDiscard={selectedSigniOnPlayDiscard} setSelectedSigniOnPlayDiscard={setSelectedSigniOnPlayDiscard} selectedSigniOnPlayEnergyTrash={selectedSigniOnPlayEnergyTrash} setSelectedSigniOnPlayEnergyTrash={setSelectedSigniOnPlayEnergyTrash} selectedSigniOnPlayFieldTrash={selectedSigniOnPlayFieldTrash} setSelectedSigniOnPlayFieldTrash={setSelectedSigniOnPlayFieldTrash} selectedSigniOnPlayExceed={selectedSigniOnPlayExceed} setSelectedSigniOnPlayExceed={setSelectedSigniOnPlayExceed} selectedSigniOnPlayBeat={selectedSigniOnPlayBeat} setSelectedSigniOnPlayBeat={setSelectedSigniOnPlayBeat} selectedSigniOnPlayArtsTrash={selectedSigniOnPlayArtsTrash} setSelectedSigniOnPlayArtsTrash={setSelectedSigniOnPlayArtsTrash} signiOnPlayCharmTrashVar={signiOnPlayCharmTrashVar} setSigniOnPlayCharmTrashVar={setSigniOnPlayCharmTrashVar} executeSigniOnPlayCost={executeSigniOnPlayCost} skipSigniOnPlayCost={skipSigniOnPlayCost} />
+      <SigniOnPlayCostModal ctx={modalCtx} pendingSigniOnPlayCost={pendingSigniOnPlayCost} selectedSigniOnPlayCost={selectedSigniOnPlayCost} setSelectedSigniOnPlayCost={setSelectedSigniOnPlayCost} selectedSigniOnPlayDiscard={selectedSigniOnPlayDiscard} setSelectedSigniOnPlayDiscard={setSelectedSigniOnPlayDiscard} selectedSigniOnPlayEnergyTrash={selectedSigniOnPlayEnergyTrash} setSelectedSigniOnPlayEnergyTrash={setSelectedSigniOnPlayEnergyTrash} selectedSigniOnPlayFieldTrash={selectedSigniOnPlayFieldTrash} setSelectedSigniOnPlayFieldTrash={setSelectedSigniOnPlayFieldTrash} selectedSigniOnPlayExceed={selectedSigniOnPlayExceed} setSelectedSigniOnPlayExceed={setSelectedSigniOnPlayExceed} selectedSigniOnPlayBeat={selectedSigniOnPlayBeat} setSelectedSigniOnPlayBeat={setSelectedSigniOnPlayBeat} selectedSigniOnPlayArtsTrash={selectedSigniOnPlayArtsTrash} setSelectedSigniOnPlayArtsTrash={setSelectedSigniOnPlayArtsTrash} selectedSigniOnPlayUnderTrash={selectedSigniOnPlayUnderTrash} setSelectedSigniOnPlayUnderTrash={setSelectedSigniOnPlayUnderTrash} signiOnPlayCharmTrashVar={signiOnPlayCharmTrashVar} setSigniOnPlayCharmTrashVar={setSigniOnPlayCharmTrashVar} executeSigniOnPlayCost={executeSigniOnPlayCost} skipSigniOnPlayCost={skipSigniOnPlayCost} />
 
       {/* ===== ルリグ付与能力（GRANT_LRIG_ABILITY）発動モーダル ===== */}
       <LrigGrantedModal ctx={modalCtx} pendingLrigGranted={pendingLrigGranted} setPendingLrigGranted={setPendingLrigGranted} selectedLrigGrantedCost={selectedLrigGrantedCost} setSelectedLrigGrantedCost={setSelectedLrigGrantedCost} selectedLrigGrantedHandDiscard={selectedLrigGrantedHandDiscard} setSelectedLrigGrantedHandDiscard={setSelectedLrigGrantedHandDiscard} selectedLrigGrantedEnergyTrash={selectedLrigGrantedEnergyTrash} setSelectedLrigGrantedEnergyTrash={setSelectedLrigGrantedEnergyTrash} selectedLrigGrantedTrashExile={selectedLrigGrantedTrashExile} setSelectedLrigGrantedTrashExile={setSelectedLrigGrantedTrashExile} executeLrigGranted={executeLrigGranted} />

@@ -504,9 +504,7 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // このシグニの下からカード/スペルN枚をトラッシュ → underSelfTrash
   const ustM = costStr.match(/(?:このシグニ)の下から(?:同名の)?(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
-  const ustAnyM = !ustM ? costStr.match(/(?:あなたのシグニ(?:[０-９\d]+体)?)の下からカードを?合計([０-９\d]+)枚トラッシュに置く/) : null;
   if (ustM) cost.underSelfTrash = parseNum(ustM[1]);
-  else if (ustAnyM) cost.underSelfTrash = parseNum(ustAnyM[1]);
   else if (/このシグニの下からカード(?:１枚|一枚)をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
   // 可変枚数チャームトラッシュ → charmTrashVariable
   const ctVarM = costStr.match(/【チャーム】を([０-９\d]+)枚以上トラッシュに置く/);
@@ -662,9 +660,11 @@ function parseCost(costStr: string): EffectCost | undefined {
   }
   // エナゾーンからこのカード自身をトラッシュ → energyTrashSelf
   if (/エナゾーンからこのカードをトラッシュに置く/.test(costStr)) cost.energyTrashSelf = true;
-  // あなたのシグニの下からカード1枚をトラッシュに置く → underSelfTrash (任意シグニ)
-  if (!cost.underSelfTrash) {
-    if (/あなたのシグニの下からカード[１1]枚をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
+  // あなたのシグニの下からカードを合計N枚トラッシュ → underAnySigniTrash
+  // 「N枚合計」「合計N枚」の両語順を受け、自分の場の全シグニを横断する別コストとして保持する。
+  if (!cost.underAnySigniTrash) {
+    const uasM = costStr.match(/あなたのシグニの下からカード(?:を)?(?:(?:([０-９\d]+)枚合計)|(?:合計([０-９\d]+)枚)|(?:([０-９\d]+)枚))(?:を)?トラッシュに置く/);
+    if (uasM) cost.underAnySigniTrash = { count: parseNum(uasM[1] ?? uasM[2] ?? uasM[3]) };
   }
   // あなたの【アクセ】N枚をトラッシュに置く → acceTrash
   if (!cost.acceTrash) {

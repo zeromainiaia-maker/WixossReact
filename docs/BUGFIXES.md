@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第14波：「あなたのシグニの下」コストを分離し【出】2効果を両経路へ配線（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
+- **意味分離**：既存 `underSelfTrash` は原文「このシグニの下」A群13効果のまま不変とし、「あなたのシグニの下」B群4効果を新 `underAnySigniTrash:{count}` へ分離。「2枚合計／合計2枚」両語順を parser で構造化し `WXK08-082-E1` の `costUnparsed` を解消した。
+- **実働2効果**：ON_PLAY の `WXK08-051-E1`（1枚→エナチャージ1）／`WXK08-082-E1`（合計2枚→相手基本パワー0）を `optionalOnPlayCostStub`→`OptionalCostSpec`→`canAffordOptionalCostSpec`→`optionalCostPaySteps` の engine 経路と、`BattleScreen.executeSigniOnPlayCost`＋`SigniOnPlayCostModal` の通常召喚経路へ配線。共通純関数 `underAnySigniCostCandidates`／`canPayUnderAnySigniTrash`／`payUnderAnySigniTrash` が複数シグニを横断する候補・支払いを担う。
+- **分類のみ2効果**：ACTIVATED の `WXEX1-61-E2`／`WXK10-054-E2` も新キーへ正しく移したが、【起】支払いフローは本波スコープ外のため未配線。変更前は `underSelfTrash` 17効果すべてが engine／BattleScreen の支払い実装なし＝実際に支払えるもの0件だった。
+- **機械検証**：全カード生パースdiffは B群4効果だけ（outlier 0）、A群13効果は JSON変更0。golden は実戦同様に発生源をシグニゾーンへ置き `collectPlacedSelfOnPlayTriggers` を通し、2体から1枚ずつの横断支払い・不足時pay unavailable・UI共通候補を固定（cursor復元あり）。
+- **計器**：golden 1074/1074、census 1395→1394（減少1／engine新規実働2）、smoke 10726/10726、fuzz全0、lint 0 errors/228 warnings、同型★0、held 292枚/107署名、manual field loss 0。`wrapOptionalOnPlay=null` は8→6（残りcostUnparsed 6）。
+
 ## `costUnparsed` 第13波：ゾーン徴収2効果を engine／通常召喚の両経路へ配線（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
 
 - **採用2件**：`WX14-045-E1` の `fieldTrashGroups`（レベル1＋レベル2）と `WX13-063-E1` の `energy:[白1] + fieldToLrigTrash:{レゾナ1体}` を `OPTIONAL_COST` へ配線。`OptionalCostSpec` の解決・支払可否・支払いステップ、collector の `SUPPORTED` を一式拡張した。

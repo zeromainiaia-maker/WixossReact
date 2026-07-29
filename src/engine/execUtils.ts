@@ -16,6 +16,7 @@ import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
+import { canPayUnderAnySigniTrash } from '../screens/battle/underAnySigniCost';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -152,6 +153,7 @@ export interface OptionalCostSpec {
   handDiscard?: { count: number; filter?: TargetFilter };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  underAnySigniTrash?: { count: number };
   energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
@@ -190,6 +192,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
+    underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
@@ -245,6 +248,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (!hasValidConstrainedSelection(matching, spec.handToUnderSelf.count, spec.handToUnderSelf.selectionConstraint, ctx.cardMap)) return false;
     if (!ctx.sourceCardNum || !ctx.ownerState.field.signi.some(stack => stack?.includes(ctx.sourceCardNum!))) return false;
   }
+  if (spec.underAnySigniTrash
+    && !canPayUnderAnySigniTrash(ctx.ownerState, spec.underAnySigniTrash.count)) return false;
   if (spec.fieldTrash) {
     const filter = {
       ...(spec.fieldTrash.filter ?? {}),
@@ -316,6 +321,10 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.handToUnderSelf ? [{
       type: 'PLACE_UNDER_SIGNI', source: 'hand', count: spec.handToUnderSelf.count, filter: spec.handToUnderSelf.filter,
       selectionConstraint: spec.handToUnderSelf.selectionConstraint,
+    } as EffectAction] : []),
+    ...(spec.underAnySigniTrash ? [{
+      type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash',
+      count: spec.underAnySigniTrash.count, upToCount: false,
     } as EffectAction] : []),
     ...(spec.fieldTrash ? [{
       type: 'TRASH', asCost: true,

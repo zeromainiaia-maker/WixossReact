@@ -341,6 +341,7 @@ export interface EffectCost {
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
   underSelfTrash?: number; // このシグニの下からカードN枚をトラッシュに置く（【起】コスト）
+  underAnySigniTrash?: { count: number }; // あなたのシグニの下から合計N枚をトラッシュ（自分の場の全シグニを横断）
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
   trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
@@ -1819,6 +1820,8 @@ export interface StubAction {
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。 */
+  underAnySigniTrash?: { count: number };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 異なる条件の場シグニを組でトラッシュへ置く任意コスト。 */

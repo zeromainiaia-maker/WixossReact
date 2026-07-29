@@ -25,6 +25,8 @@ export interface SigniOnPlayCostState {
   selectedSigniOnPlayBeat: Set<number>;
   // ルリグデッキからアーツを選択するコスト（trashArtsFromLrigDeck）
   selectedSigniOnPlayArtsTrash: string | null;
+  // 自分の全シグニの下からトラッシュするカード（"zone:index"）
+  selectedSigniOnPlayUnderTrash: Set<string>;
   // 可変チャームトラッシュコスト - ON_PLAY効果用
   signiOnPlayCharmTrashVar: number;
   // 任意コスト支払い（OPTIONAL_COST）のエナ選択
@@ -40,6 +42,7 @@ const initialState: SigniOnPlayCostState = {
   selectedSigniOnPlayExceed: new Set(),
   selectedSigniOnPlayBeat: new Set(),
   selectedSigniOnPlayArtsTrash: null,
+  selectedSigniOnPlayUnderTrash: new Set(),
   signiOnPlayCharmTrashVar: 0,
   selectedOptCost: new Set(),
 };
@@ -59,6 +62,7 @@ export function useSigniOnPlayCost() {
         selectedSigniOnPlayExceed: new Set(),
         selectedSigniOnPlayBeat: new Set(),
         selectedSigniOnPlayArtsTrash: null,
+        selectedSigniOnPlayUnderTrash: new Set(),
         signiOnPlayCharmTrashVar: 0,
       }),
     setPendingSigniOnPlayCost: set.pendingSigniOnPlayCost,
@@ -69,6 +73,7 @@ export function useSigniOnPlayCost() {
     setSelectedSigniOnPlayExceed: set.selectedSigniOnPlayExceed,
     setSelectedSigniOnPlayBeat: set.selectedSigniOnPlayBeat,
     setSelectedSigniOnPlayArtsTrash: set.selectedSigniOnPlayArtsTrash,
+    setSelectedSigniOnPlayUnderTrash: set.selectedSigniOnPlayUnderTrash,
     setSigniOnPlayCharmTrashVar: set.signiOnPlayCharmTrashVar,
     setSelectedOptCost: set.selectedOptCost,
   };

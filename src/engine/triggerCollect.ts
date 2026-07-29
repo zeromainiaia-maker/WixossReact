@@ -70,7 +70,7 @@ export function optionalOnPlayCostStub(
   if (effectId && OPTIONAL_ON_PLAY_COST_REF_DEFERRED.has(effectId)) return null;
   const SUPPORTED = new Set([
     'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
-    'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
+    'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
     'fieldToLrigTrash',
     'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     'beat_signi', 'beat_signi_from_trash',
@@ -107,6 +107,7 @@ export function optionalOnPlayCostStub(
     ...(handDiscard ? { handDiscard } : {}),
     ...(cost.handToEnergy ? { handToEnergy: cost.handToEnergy } : {}),
     ...(cost.handToUnderSelf ? { handToUnderSelf: cost.handToUnderSelf } : {}),
+    ...(cost.underAnySigniTrash ? { underAnySigniTrash: cost.underAnySigniTrash } : {}),
     ...(cost.discardGroups ? { handDiscardGroups: cost.discardGroups } : {}),
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
     ...(cost.exceed ? { exceed: cost.exceed } : {}),

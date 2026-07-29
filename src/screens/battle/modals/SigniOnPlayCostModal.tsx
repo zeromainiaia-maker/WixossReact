@@ -9,6 +9,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
+import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
 
 export interface PendingSigniOnPlayCost {
@@ -37,15 +38,17 @@ interface SigniOnPlayCostModalProps {
   setSelectedSigniOnPlayBeat: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniOnPlayArtsTrash: string | null;
   setSelectedSigniOnPlayArtsTrash: Dispatch<SetStateAction<string | null>>;
+  selectedSigniOnPlayUnderTrash: Set<string>;
+  setSelectedSigniOnPlayUnderTrash: Dispatch<SetStateAction<Set<string>>>;
   signiOnPlayCharmTrashVar: number;
   setSigniOnPlayCharmTrashVar: Dispatch<SetStateAction<number>>;
-  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>, exceedIndices?: Set<number>) => void;
+  executeSigniOnPlayCost: (cardNum: string, costEffect: CardEffect, costIndices: Set<number>, discardIndices: Set<number>, placedState: PlayerState, mandatoryEntries: StackEntry[], energyTrashIndices?: Set<number>, remainingCostEffects?: CardEffect[], fieldTrashZones?: Set<number>, placedZone?: number, beatZones?: Set<number>, exceedIndices?: Set<number>, underTrashKeys?: Set<string>) => void;
   skipSigniOnPlayCost: (cardNum: string, placedState: PlayerState, mandatoryEntries: StackEntry[], remainingCostEffects?: CardEffect[], placedZone?: number) => void;
 }
 
 export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
   const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
+  const { pendingSigniOnPlayCost, selectedSigniOnPlayCost, setSelectedSigniOnPlayCost, selectedSigniOnPlayDiscard, setSelectedSigniOnPlayDiscard, selectedSigniOnPlayEnergyTrash, setSelectedSigniOnPlayEnergyTrash, selectedSigniOnPlayFieldTrash, setSelectedSigniOnPlayFieldTrash, selectedSigniOnPlayExceed, setSelectedSigniOnPlayExceed, selectedSigniOnPlayBeat, setSelectedSigniOnPlayBeat, selectedSigniOnPlayArtsTrash, setSelectedSigniOnPlayArtsTrash, selectedSigniOnPlayUnderTrash, setSelectedSigniOnPlayUnderTrash, signiOnPlayCharmTrashVar, setSigniOnPlayCharmTrashVar, executeSigniOnPlayCost, skipSigniOnPlayCost } = p;
   return (
     <>
       {pendingSigniOnPlayCost && createPortal(
@@ -123,6 +126,9 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     matchesTrashArtsFromLrigDeckCost(battleCardMap.get(getCardNum(cn)), artsTrashOPCostM))
                 : [];
               const artsOkM = !artsTrashOPCostM || (artsFilteredCardsM.length >= artsTrashOPCostM.count && selectedSigniOnPlayArtsTrash !== null);
+              const underTrashNeeded = eff.cost?.underAnySigniTrash?.count ?? 0;
+              const underTrashCandidates = underAnySigniCostCandidates(pState);
+              const underTrashOk = underTrashNeeded === 0 || selectedSigniOnPlayUnderTrash.size === underTrashNeeded;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedSigniOnPlayCost].map(i => pcEnergy[i]);
               const energyOk = energyTotal === 0
@@ -148,7 +154,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
               }).length >= beatTrashCostM.count;
-              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && beatTrashOkM && beatSelectOk
+              const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
                 && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
@@ -562,6 +568,39 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     </>
                   )}
 
+                  {underTrashNeeded > 0 && (
+                    <>
+                      <p style={{ color: C.textSub, fontSize: 12, margin: 0 }}>
+                        あなたのシグニの下から選択: {selectedSigniOnPlayUnderTrash.size} / {underTrashNeeded}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
+                        {underTrashCandidates.map(candidate => {
+                          const key = `${candidate.zone}:${candidate.index}`;
+                          const c = battleCardMap.get(getCardNum(candidate.cardNum));
+                          const isSel = selectedSigniOnPlayUnderTrash.has(key);
+                          return (
+                            <div key={key}
+                              onClick={() => setSelectedSigniOnPlayUnderTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(key)) next.delete(key);
+                                else if (next.size < underTrashNeeded) next.add(key);
+                                return next;
+                              })}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3,
+                                border: isSel ? '2px solid #4caf50' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <span style={{ fontSize: 7 }}>{candidate.cardNum}</span>}
+                              <span style={{ position: 'absolute', left: 1, bottom: 1, fontSize: 8,
+                                color: '#fff', background: 'rgba(0,0,0,.7)' }}>ゾーン{candidate.zone + 1}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
+                  )}
+
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
                       onClick={() => skipSigniOnPlayCost(
@@ -590,6 +629,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         pendingSigniOnPlayCost.placedZone,
                         selectedSigniOnPlayBeat,
                         selectedSigniOnPlayExceed,
+                        selectedSigniOnPlayUnderTrash,
                       )}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',

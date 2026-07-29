@@ -41,6 +41,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
+import { canPayUnderAnySigniTrash, payUnderAnySigniTrash, underAnySigniCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
@@ -14744,8 +14745,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 962, '任意costあり（第11波の相互制約コスト4効果を含む）');
-    eq(optionalNoCost.length, 19, '任意costなし（相互制約コスト4効果を構造化後）');
+    eq(optionalCost.length, 963, '任意costあり（第14波の「あなたのシグニの下」追加を含む）');
+    eq(optionalNoCost.length, 18, '任意costなし（第14波でWXK08-082のコストを構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14772,7 +14773,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   test('(xxix)(1) 任意cost【出】の内訳＝wave10の4語彙追加後も安全側へ分類', () => {
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
-      'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
+      'handToEnergy', 'handToUnderSelf', 'underAnySigniTrash', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
       'fieldToLrigTrash',
       'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
@@ -14783,9 +14784,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
-    eq(optionalCost.length, 962, '母集団');
-    eq(mapped.length, 957, 'OPTIONAL_COST へ写せる＝ゾーン徴収2件を共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 5, '未対応コストだけを安全側に据え置く');
+    eq(optionalCost.length, 963, '母集団');
+    eq(mapped.length, 959, 'OPTIONAL_COST へ写せる＝「あなたのシグニの下」2件を共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 4, '未対応コストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14825,7 +14826,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         && e.mandatory === false && !!e.cost && !optionalOnPlayCostStub(e.cost!)
         && !(e.action.type === 'STUB' && e.action.id === 'COUNT_BASED_DRAW_OR_POWER'))
       .map(e => ({ cn, e })));
-    ok(bad.length > 0, '未対応コストの実例がある');
+    eq(bad.length, 0, '構造化済みcostに未対応キーの取りこぼしはない');
     for (const { cn, e } of bad.slice(0, 12)) {
       const state = mkState({ signi: [cn, null, null] });
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cn, state, mkState(), 'host', {
@@ -14918,7 +14919,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 12, '包む＝真に任意5効果＋action自身が選択・徴収する可変捨て7効果');
-    eq(deferred, 7, '据え置き＝新機構が要るため cost 未表現の7効果（parser 在庫）');
+    eq(deferred, 6, '据え置き＝新機構が要るため cost 未表現の6効果（parser 在庫）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -15480,10 +15481,10 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     } finally { cursor = savedCursor; }
   });
 
-  test('(xxix)(2) 新機構待ち7効果は costUnparsed のまま保持する', () => {
+  test('(xxix)(2) 第14波後の新機構待ち6効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
       'WXK03-070-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
-      'WXK08-082-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
+      'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
     ];
     for (const effectId of deferredIds) {
       const cardNum = effectId.replace(/-E\d+$/, '');
@@ -17124,6 +17125,90 @@ test('task12(xxix)(1) wave10: 12 zone-cost effects use the real placement collec
       if (!blocked.done && blocked.pending.type === 'CHOOSE') {
         eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${effectId}: 資源不足ならpay不可`);
         eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, `${effectId}: skip可能`);
+      }
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(xxix)(1) wave14: A群13件はunderSelf、B群4件だけunderAnyに分離', () => {
+  const groupA = [
+    'SP27-017-E2', 'WDK15-012-E1', 'WX11-029-E3', 'WX18-061-E1', 'WX20-037-E2',
+    'WXDi-P09-044-E3', 'WXDi-P11-047-E2', 'WXDi-P11-047-E3', 'WXEX2-41-E2',
+    'WXEX2-41-E3', 'WXEX2-61-E2', 'WXK03-021-E2', 'WXK08-031-E1',
+  ];
+  const groupB: Record<string, number> = {
+    'WXK08-051-E1': 1, 'WXK08-082-E1': 2, 'WXEX1-61-E2': 1, 'WXK10-054-E2': 2,
+  };
+  for (const effectId of groupA) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const e = effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!;
+    ok((e.cost?.underSelfTrash ?? 0) > 0, `${effectId}: このシグニの下`);
+    eq(e.cost?.underAnySigniTrash, undefined, `${effectId}: B群キーなし`);
+  }
+  for (const [effectId, count] of Object.entries(groupB)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const e = effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!;
+    eq(e.cost?.underAnySigniTrash?.count, count, `${effectId}: 全シグニ横断count`);
+    eq(e.cost?.underSelfTrash, undefined, `${effectId}: A群キーなし`);
+    eq(e.costUnparsed, undefined, `${effectId}: costUnparsed解消`);
+  }
+});
+
+test('task12(xxix)(1) wave14 UI helper: 複数シグニを跨ぐ合計2枚を候補化・支払い', () => {
+  const state = mkState({});
+  state.field.signi = [['UNDER-A', 'WXK08-082'], ['UNDER-B', 'HOST-B'], null];
+  eq(underAnySigniCostCandidates(state).map(c => `${c.zone}:${c.cardNum}`).join(','), '0:UNDER-A,1:UNDER-B',
+    '各シグニの下を横断して候補化');
+  ok(canPayUnderAnySigniTrash(state, 2), '横断合計2枚を支払える');
+  const paid = payUnderAnySigniTrash(state, new Set(['0:0', '1:0']), 2)!;
+  eq(paid.moved.join(','), 'UNDER-A,UNDER-B', '両ゾーンから1枚ずつ移動');
+  eq(paid.state.field.signi[0]?.join(','), 'WXK08-082', '発生源は場に残る');
+  eq(paid.state.field.signi[1]?.join(','), 'HOST-B', '他シグニも場に残る');
+  ok(payUnderAnySigniTrash(state, new Set(['0:0']), 2) === null, '選択不足は原子的に拒否');
+});
+
+test('task12(xxix)(1) wave14 E2E: 実戦同様のシグニゾーンからON_PLAY 2件を収集・横断支払い', () => {
+  const savedCursor = cursor;
+  try {
+    for (const effectId of ['WXK08-051-E1', 'WXK08-082-E1']) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const count = effectId === 'WXK08-082-E1' ? 2 : 1;
+      const owner = mkState({});
+      owner.field.signi = [['UNDER-A', cardNum], ...(count === 2 ? [['UNDER-B', 'HOST-B'] as string[]] : [null]), null];
+      owner.deck = ['DECK-PAYLOAD'];
+      const other = mkState({ signi: ['OPP-SIGNI', null, null] });
+      const collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, owner, other, 'host', { placedByEffect: true, sourceIsSigni: true },
+      );
+      const entry = collected.entries.find(e => e.effectId === effectId);
+      ok(!!entry, `${effectId}: collectPlacedSelfOnPlayTriggersで収集`);
+      const ctx = mkCtx({}, {}, cardNum);
+      ctx.ownerState = owner;
+      ctx.otherState = other;
+      const offered = executeEffect(entry!.effect, ctx);
+      ok(!offered.done && offered.pending.type === 'CHOOSE', `${effectId}: pay/skip`);
+      if (!offered.done && offered.pending.type === 'CHOOSE') {
+        eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, `${effectId}: pay可能`);
+        const paid = finish(resumeChoose('pay', offered.pending, {
+          ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+        }), ctx);
+        eq(paid.ownerState.trash.filter(n => n.startsWith('UNDER-')).length, count, `${effectId}: 必要枚数をトラッシュ`);
+        ok(paid.ownerState.field.signi.some(s => s?.at(-1) === cardNum), `${effectId}: 発生源は実戦ゾーンに残る`);
+      }
+      const short = { ...owner, field: { ...owner.field, signi: [[cardNum], null, null] as (string[] | null)[] } };
+      const shortCollected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), cardNum, short, other, 'host', { placedByEffect: true, sourceIsSigni: true },
+      );
+      const shortEntry = shortCollected.entries.find(e => e.effectId === effectId)!;
+      const shortCtx = mkCtx({}, {}, cardNum);
+      shortCtx.ownerState = short;
+      shortCtx.otherState = other;
+      const blocked = executeEffect(shortEntry.effect, shortCtx);
+      ok(!blocked.done && blocked.pending.type === 'CHOOSE', `${effectId}: 不足時もskip`);
+      if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+        eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, `${effectId}: 不足時pay unavailable`);
       }
     }
   } finally {
