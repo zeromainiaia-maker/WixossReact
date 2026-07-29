@@ -14783,8 +14783,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 962, '母集団');
-    eq(mapped.length, 953, 'OPTIONAL_COST へ写せる＝相互制約コスト3件を共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 9, '参照未解決1件を含む表現不能コストだけを安全側に据え置く');
+    eq(mapped.length, 955, 'OPTIONAL_COST へ写せる＝支払い札参照2件も共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 7, '未対応コストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14794,8 +14794,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
       const allSupported = keys.every(k => SUPPORTED.has(k));
-      const semanticallySafe = !['WXDi-P16-080-E1', 'WXK09-032-E1'].includes(e.effectId);
-      eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0 && semanticallySafe,
+      eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0,
         `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
     }
   });
@@ -14977,10 +14976,11 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     ok(!matchesFilter(cardMap.get(signi), spellFilter), 'シグニだけならスペル捨ては不成立');
   });
 
-  test('(xxix)(1) 第3波: handToEnergy 7件／handToUnderSelf 4件を収集し、参照欠落1件は見送る', () => {
+  test('(xxix)(1) 第3波＋第12波: handToEnergy 8件／handToUnderSelf 4件を収集する', () => {
     const adopted = [
       'WXK04-089-E1', 'WXK09-079-E1', 'WXK09-039-E2', 'WXK09-043-E1',
       'WXDi-CP02-057-E1', 'WXDi-CP02-083-E1', 'WXDi-CP02-091-E1',
+      'WXDi-P16-080-E1',
       'WXDi-P15-050-E2', 'WXDi-P15-051-E2', 'WXDi-P15-066-E2', 'WXDi-P16-073-E1',
     ];
     for (const effectId of adopted) {
@@ -14995,13 +14995,6 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST',
         `${effectId}: OPTIONAL_COST を前置`);
     }
-    const deferredNum = 'WXDi-P16-080';
-    const deferred = collectPlacedSelfOnPlayTriggers(
-      trigCtx(), deferredNum, mkState({ signi: [deferredNum, null, null] }), mkState(), 'host',
-      { placedByEffect: true, sourceIsSigni: false },
-    );
-    eq(deferred.entries.filter(e => e.effectId === 'WXDi-P16-080-E1').length, 0,
-      'WXDi-P16-080-E1: コスト札レベル参照が live action に無いため収集しない');
   });
 
   test('(xxix)(1) 第3波: handToEnergy はfilter一致札だけを必要枚数エナへ置き、本体を実行する', () => {
@@ -15225,7 +15218,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(p16Result.ownerState.trash.length, 0, 'WXDi-P16-038-E1: 0枚捨て');
   });
 
-  test('(xxix)(1) 第11波: 相互制約つきコスト4効果を構造化し、参照未解決1件だけ収集保留', () => {
+  test('(xxix)(1) 第11波＋第12波: 相互制約つきコスト4効果を構造化し全件収集', () => {
     const expected: Record<string, import('../src/types/effects').EffectCost> = {
       'WXDi-D01-017-E1': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },
       'WXDi-P00-022-E2': { energyTrash: { count: 3, filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'class' } } },
@@ -15242,9 +15235,105 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         trigCtx(), cardNum, mkState({ signi: [cardNum, null, null] }), mkState(), 'host',
         { placedByEffect: true, sourceIsSigni: false },
       ).entries.some(e => e.effectId === effectId);
-      eq(collected, effectId !== 'WXK09-032-E1',
-        `${effectId}: 参照を解決できる3件だけ実戦 collector で発火`);
+      ok(collected, `${effectId}: 実戦 collector で発火`);
     }
+  });
+
+  test('(xxix)(1) 第12波: 支払い札レベル参照2件はE2Eで正しい対象だけを処理し、古い記録を持ち越さない', () => {
+    const savedCursor = cursor;
+    try {
+      const signis = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardNum);
+      const byLevel = (level: number) => signis.find(c => parseInt(c.Level || '', 10) === level)!.CardNum!;
+
+      const handPaid = byLevel(3);
+      const energySame = signis.find(c => c.CardNum !== handPaid && parseInt(c.Level || '', 10) === 3)!.CardNum!;
+      const energyStale = byLevel(1);
+      const p16State = mkState({ signi: ['WXDi-P16-080', null, null] });
+      p16State.hand = [handPaid];
+      p16State.energy = [energyStale, energySame];
+      p16State.last_cost_hand_to_energy_level = 1; // 前ラウンドの値。今回の支払い開始時に消えるべき。
+      const p16Collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), 'WXDi-P16-080', p16State, mkState(), 'host',
+        { placedByEffect: true, sourceIsSigni: true },
+      ).entries.find(e => e.effectId === 'WXDi-P16-080-E1')!;
+      ok(!!p16Collected, 'WXDi-P16-080-E1: 実戦collectorで収集');
+      const p16Ctx = mkCtx({ signi: ['WXDi-P16-080', null, null] }, {}, 'WXDi-P16-080');
+      p16Ctx.ownerState = p16State;
+      const p16Result = finishPayingCosts(executeEffect(p16Collected.effect, p16Ctx), p16Ctx);
+      eq(p16Result.ownerState.last_cost_hand_to_energy_level, 3, 'handToEnergyで実際に置いたレベルを記録');
+      ok(p16Result.ownerState.hand.includes(energySame), '同じレベル3だけをエナから手札へ回収');
+      ok(p16Result.ownerState.energy.includes(energyStale), '古い記録のレベル1は候補にならない');
+
+      const sameColorPair = (() => {
+        for (let i = 0; i < signis.length; i++) for (let j = i + 1; j < signis.length; j++) {
+          const a = signis[i], b = signis[j];
+          const sum = parseInt(a.Level || '', 10) + parseInt(b.Level || '', 10);
+          if (sum > 0 && sum <= 4 && satisfiesSelectionConstraint([a.CardNum!, b.CardNum!], { sharedColor: 'all' }, cardMap)
+            && signis.some(c => parseInt(c.Level || '', 10) === sum)) return [a.CardNum!, b.CardNum!, sum] as const;
+        }
+        throw new Error('同色かつレベル合計対象を用意できない');
+      })();
+      const [trashA, trashB, levelSum] = sameColorPair;
+      const oppMatch = signis.find(c => parseInt(c.Level || '', 10) === levelSum)!.CardNum!;
+      const oppStale = signis.find(c => c.CardNum !== oppMatch && parseInt(c.Level || '', 10) === 1)!.CardNum!;
+      const k09State = mkState({ signi: ['WXK09-032', null, null] });
+      k09State.energy = [trashA, trashB];
+      k09State.last_cost_energy_trash_level_sum = 1;
+      const k09Other = mkState({ signi: [oppStale, oppMatch, null] });
+      const k09Collected = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), 'WXK09-032', k09State, k09Other, 'host',
+        { placedByEffect: true, sourceIsSigni: true },
+      ).entries.find(e => e.effectId === 'WXK09-032-E1')!;
+      ok(!!k09Collected, 'WXK09-032-E1: 実戦collectorで収集');
+      const k09Ctx = mkCtx({ signi: ['WXK09-032', null, null] }, { signi: [oppStale, oppMatch, null] }, 'WXK09-032');
+      k09Ctx.ownerState = k09State;
+      k09Ctx.otherState = k09Other;
+      const k09Result = finishPayingCosts(executeEffect(k09Collected.effect, k09Ctx), k09Ctx);
+      eq(k09Result.ownerState.last_cost_energy_trash_level_sum, levelSum, 'energyTrashで実際の2枚のレベル合計を記録');
+      ok(k09Result.otherState.energy.includes(oppMatch), 'レベル合計と同じ相手シグニだけをエナへ送る');
+      ok(k09Result.otherState.field.signi.some(s => s?.includes(oppStale)), '古い記録のレベル1は場に残る');
+
+      const noRecord = run({
+        type: 'TRANSFER_TO_HAND',
+        source: { type: 'ENERGY_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ', levelEqualsVar: 'cost_hand_to_energy_level' } },
+      } as EffectAction, (() => {
+        const c = mkCtx({}, {});
+        c.ownerState = { ...c.ownerState, energy: [energySame], last_cost_hand_to_energy_level: undefined };
+        return c;
+      })());
+      ok(noRecord.ownerState.energy.includes(energySame) && !noRecord.ownerState.hand.includes(energySame),
+        '記録なしは動的filterが空ヒットになり候補を広げない');
+    } finally {
+      cursor = savedCursor;
+    }
+  });
+
+  // ⚠ 上のテストが示すとおり「記録が無い＝候補ゼロ＝効果まるごと no-op」なので、**支払いを行う経路すべてが
+  //   記録を書かなければならない**。engine 経路（効果配置＝OPTIONAL_COST）は execEnergyCharge / execTrash が
+  //   書くが、**通常召喚は BattleScreen の executeSigniOnPlayCost が唯一の支払い地点**で、第12波の実装直後は
+  //   そこに記録が無く（＝主要な出し方で常に不発）Claude 検証で追加した。BattleScreen は React なので
+  //   golden から直接叩けない。ここではせめて「参照する側と払う側の対応」をデータ不変条件として固定し、
+  //   コスト無しの効果に動的 filter だけが付く（＝必ず空ヒット）状態を検出する。
+  test('(xxix)(1) 第12波: 支払い札レベル参照は対応するコストを持つ効果にだけ付く', () => {
+    const VAR_TO_COST: Record<string, keyof import('../src/types/effects').EffectCost> = {
+      cost_hand_to_energy_level: 'handToEnergy',
+      cost_energy_trash_level_sum: 'energyTrash',
+    };
+    const varsIn = (node: unknown): string[] => {
+      if (Array.isArray(node)) return node.flatMap(varsIn);
+      if (!node || typeof node !== 'object') return [];
+      const o = node as Record<string, unknown>;
+      const here = typeof o.levelEqualsVar === 'string' && o.levelEqualsVar in VAR_TO_COST ? [o.levelEqualsVar] : [];
+      return [...here, ...Object.values(o).flatMap(varsIn)];
+    };
+    let checked = 0;
+    for (const effs of effectsMap.values()) for (const e of effs) {
+      for (const v of new Set(varsIn(e.action))) {
+        checked++;
+        ok(!!e.cost?.[VAR_TO_COST[v]], `${e.effectId}: ${v} を参照するなら cost.${VAR_TO_COST[v]} が要る`);
+      }
+    }
+    eq(checked, 2, '現行の参照は第12波の2効果だけ（増えたら支払い経路の網羅を再確認する）');
   });
 
   test('(xxix)(1) 第11波: distinct class コストは成立集合だけ支払え、不正集合を拒否する', () => {

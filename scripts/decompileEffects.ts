@@ -143,6 +143,8 @@ function filterJa(f?: any): string {
   else if (f.level?.min != null) parts.push(`レベル${f.level.min}以上の`);
   if (f.levelEqualsVar === 'field_trash_level') parts.push('この方法でトラッシュしたシグニと同じレベルの');
   else if (f.levelEqualsVar === 'charm_trash_count') parts.push('トラッシュしたチャーム枚数と同じレベルの');
+  else if (f.levelEqualsVar === 'cost_hand_to_energy_level') parts.push('この方法でエナゾーンに置いたシグニと同じレベルの');
+  else if (f.levelEqualsVar === 'cost_energy_trash_level_sum') parts.push('この方法でトラッシュに置いたシグニのレベルの合計と同じレベルの');
   if (f.levelEqDiscardLevelSum) parts.push('捨てたカードのレベル合計と同じレベルの');
   if (f.levelRange?.max != null) parts.push(`レベル${f.levelRange.max}以下の`);
   if (f.levelRange?.min != null) parts.push(`レベル${f.levelRange.min}以上の`);

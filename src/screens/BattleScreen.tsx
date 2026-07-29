@@ -10472,6 +10472,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 従来は支払い前 state へ追記していたため前の能力のコストが残り、COST_TRASHED_MATCHES／
         // colorMatchesCostTrashed が古い支払いで誤成立しうる状態だった（§3タスク6 C で顕在化）。
         last_cost_trashed_cards: [...paidNums, ...discardNums],
+        // 本体が「この方法で〜したカード」を参照する任意【出】（levelEqualsVar）の記録。
+        // engine 経路（効果配置＝OPTIONAL_COST 支払い）は execEnergyCharge / execTrash が同じ値を書くが、
+        // **通常召喚はここが唯一の支払い地点**なので同じ契約をこちらにも置く。書かないと本体の
+        // 動的 filter が noMatch へ倒れて**効果が丸ごと no-op になる**（タスク12(xxix)(1) 第12波の検証で実測）。
+        // 上と同じく**この支払い分で上書き**する（前の召喚の値を持ち越さない）。
+        last_cost_hand_to_energy_level: isHandToEnergy && handPickedNums.length > 0
+          ? (() => { const lv = parseInt(battleCardMap.get(getCardNum(handPickedNums.at(-1)!))?.Level ?? '', 10); return Number.isFinite(lv) ? lv : undefined; })()
+          : undefined,
+        // 色コスト（costIndices）は「トラッシュに置いたシグニ」ではないので energyTrashIndices だけを数える
+        last_cost_energy_trash_level_sum: energyTrashIndices.size > 0
+          ? [...energyTrashIndices].reduce((sum, i) => {
+              const lv = parseInt(battleCardMap.get(getCardNum(placedState.energy[i]))?.Level ?? '', 10);
+              return sum + (Number.isFinite(lv) ? lv : 0);
+            }, 0)
+          : undefined,
       };
       const payLogs: string[] = [];
       const exceedCostOP = cost?.exceed ?? 0;

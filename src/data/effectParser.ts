@@ -3374,6 +3374,8 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   'WXEX2-64-E2': { type: 'TRANSFER_TO_DECK', flag: 'nameEqLastProcessed' },
   'WX24-P3-084-E1': { type: 'POWER_MODIFY', flag: 'nameEqLastProcessed' },
   'WXK10-082-E1': { type: 'BANISH', flag: 'levelEqualsVar', value: 'charm_trash_count' },
+  'WXDi-P16-080-E1': { type: 'TRANSFER_TO_HAND', flag: 'levelEqualsVar', value: 'cost_hand_to_energy_level' },
+  'WXK09-032-E1': { type: 'SEND_TO_ENERGY', flag: 'levelEqualsVar', value: 'cost_energy_trash_level_sum' },
   'WXK03-074-E1': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: { cardType: 'シグニ', story: '武勇' } },
   'WXEX1-60-E2': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: true },
   'WX21-059-E1': { type: 'SEARCH', flag: 'levelEqLastProcessedLevelSum' },
@@ -3384,7 +3386,7 @@ function applyIdentityBatch5b(effects: CardEffect[]): void {
     const holder = obj.type === 'SEARCH' ? obj
       : obj.type === 'TRANSFER_TO_HAND' || obj.type === 'TRANSFER_TO_DECK' || obj.type === 'ADD_TO_FIELD'
         ? obj.source as Record<string, unknown> | undefined
-        : obj.type === 'POWER_MODIFY' || obj.type === 'BANISH' || obj.type === 'BOUNCE' || obj.type === 'TRASH'
+        : obj.type === 'POWER_MODIFY' || obj.type === 'BANISH' || obj.type === 'BOUNCE' || obj.type === 'TRASH' || obj.type === 'SEND_TO_ENERGY'
           ? obj.target as Record<string, unknown> | undefined : undefined;
     if (!holder) return;
     holder.filter = { ...((holder.filter as TargetFilter | undefined) ?? {}), [spec.flag]: spec.value ?? true };

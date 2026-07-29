@@ -300,7 +300,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
     } as EffectAction] : []),
     ...(spec.handToEnergy ? [{
-      type: 'ENERGY_CHARGE',
+      type: 'ENERGY_CHARGE', asCost: true,
       target: { type: 'HAND_CARD', owner: 'self', count: spec.handToEnergy.count, filter: spec.handToEnergy.filter },
     } as EffectAction] : []),
     ...(spec.handToUnderSelf ? [{

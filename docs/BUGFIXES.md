@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第12波：「この方法で」支払い札レベル参照2効果を解放（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
+
+- **採用2件**：`WXDi-P16-080-E1` は handToEnergy で実際に置いたシグニのレベル、`WXK09-032-E1` は energyTrash で実際に置いた2枚のレベル合計を、既存 `PlayerState.last_*` 記録→`TargetFilter.levelEqualsVar`→`preResolvedFilter`／`resolveDynamicFilter` の両経路で解決。`OPTIONAL_ON_PLAY_COST_REF_DEFERRED` から2件を外し、効果配置時の `collectPlacedSelfOnPlayTriggers` から実働化した。
+- **実測した既存穴**：`TRASH{asCost:true,target:ENERGY_CARD}` は `removeFromField` 側の記録ブロックへ到達せず、選択再開点 `applyDirectAction(TRASH)` にも記録が無かった。`handToEnergy` も `ENERGY_CHARGE` の選択再開点に記録が無かった。両者の実際の選択確定地点へ記録を追加し、`ENERGY_CHARGE.asCost` は任意コスト支払いステップだけに付与した。
+- **残存防止**：Pattern⑤の `OPTIONAL_COST` 解決開始時（pay/skip 分岐前）に今回追加した2記録を消去。golden は前ラウンド値を仕込んだ実戦ゾーンから collector を通し、今回支払い値だけで正しい対象を処理すること、記録なしは動的filterが空ヒットになることを固定した。
+- **データ／逆翻訳**：原文照合済み effectId 限定の `IDENTITY_BATCH5B` へ2件を追加。live JSON は `WXDi-P16-080-E1` の `TRANSFER_TO_HAND.source.filter.levelEqualsVar:'cost_hand_to_energy_level'` と `WXK09-032-E1` の `SEND_TO_ENERGY.target.filter.levelEqualsVar:'cost_energy_trash_level_sum'` のみ変更。生パース変化集合2件・outlier 0、同型★0。逆翻訳は両件とも原文と意味一致。
+- **見送り**：段階2の `WX07-045-E1`／`WX24-P4-103-E1`、段階3の `WXK08-051-E1`／`WX13-063-E1`／`WX14-045-E1` は余力枠のため未着手。スコープ外5件も不変。コスト以外の原文不一致は0件。
+- **計器／ゲート**：`wrapOptionalOnPlay=null` は **12→10**（costUnparsed 7／underSelfTrash 1／fieldToLrigTrash 1／fieldTrashGroups 1）。census **1397→1395**（減少2／engineで新たに実働2）、golden **1067→1068**、smoke **10726/10726** 全0、fuzz 全0、lint 0 errors/**228 warnings**、held **292枚／107署名**（増減0）、manual field loss 0。
+- 🔴**Claude 検証で是正1件＝通常召喚経路が丸ごと no-op だった（半分だけの配線）**。記録を書いたのは engine 側（`execEnergyCharge`／`execTrash`＝**効果で場に出た**場合の支払い）だけで、**通常召喚の支払い地点 `BattleScreen.executeSigniOnPlayCost`** には無かった。対象2枚はシグニなので**主要な出し方は通常召喚**であり、そちらでは動的 filter が `noMatch` へ倒れて**効果が丸ごと不発**になる。使い捨てスクリプトで両経路を実測して確認（effect経路＝レベル合計5を正しく記録しレベル5の相手シグニだけをエナへ／通常召喚経路＝手札に何も加わらずログも空）。⚠**変更前は本体に filter が無く「エナから任意のシグニを回収できる」過剰実行**だったので、第12波は通常召喚に限れば「過剰実行→不発」への置き換えになっていた。`executeSigniOnPlayCost` の既存記録（`last_cost_trashed_cards`）と同じ**上書き**規約で2記録を追加して解消。色コスト（`costIndices`）は「トラッシュに置いたシグニ」ではないので `energyTrashIndices` だけを合計する。
+- ⚠**教訓＝「コスト支払いの記録」を新設したら、支払い地点は engine と BattleScreen の2つある**。engine 側だけ書くと、golden は緑・census も減るのに**実機の主要経路では不発**という、計器に一切映らない穴になる。BattleScreen は React で golden から叩けないため、代わりに「参照する側（`levelEqualsVar`）と払う側（`cost.*`）の対応」をデータ不変条件として golden に固定した（参照が増えたら支払い経路の網羅を再確認させる）。
+
 ## `costUnparsed` 第11波：相互制約つきコスト4効果を構造化（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
 
 - `EffectCost.energyTrash`／`handToUnderSelf` に既存 `SelectionConstraint` を通し、`StubAction`→`OptionalCostSpec`→支払可否→`TRASH`／`PLACE_UNDER_SIGNI` の選択まで配線。可否判定は単純枚数ではなく、制約を満たす部分集合の存在を backtracking で確認する。

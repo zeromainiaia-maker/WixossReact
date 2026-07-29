@@ -192,6 +192,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_charm_trash_count ?? 0 }
     : tgt.filter?.levelEqualsVar === 'field_trash_level'
     ? { ...tgt.filter, levelEqualsVar: undefined, level: ctx.ownerState.last_field_trash_level ?? -1 }
+    : tgt.filter?.levelEqualsVar === 'cost_hand_to_energy_level'
+    ? { ...tgt.filter, levelEqualsVar: undefined, level: typeof ctx.ownerState.last_cost_hand_to_energy_level === 'number' ? ctx.ownerState.last_cost_hand_to_energy_level : -1 }
+    : tgt.filter?.levelEqualsVar === 'cost_energy_trash_level_sum'
+    ? { ...tgt.filter, levelEqualsVar: undefined, level: typeof ctx.ownerState.last_cost_energy_trash_level_sum === 'number' ? ctx.ownerState.last_cost_energy_trash_level_sum : -1 }
     : tgt.filter;
   // colorMatchesLrig / levelLteFieldVirusCount / powerLtSelf等の動的フィルタを解決（activatorはctx.ownerState固定）
   const colorUsesTargetLrig = !!(preResolvedFilter?.colorMatchesLrig || preResolvedFilter?.colorNotMatchesLrig);
@@ -938,6 +942,14 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...s,
         energy: s.energy.filter(n => !selected.includes(n)),
         trash: [...s.trash, ...selected],
+        ...(a.asCost && selected.length > 0 ? {
+          last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), ...selected.map(getCardNum)],
+          last_cost_energy_trash_level_sum:
+            (s.last_cost_energy_trash_level_sum || 0) + selected.reduce((sum, n) => {
+              const level = parseInt(c.cardMap.get(getCardNum(n))?.Level || '', 10);
+              return sum + (Number.isFinite(level) ? level : 0);
+            }, 0),
+        } : {}),
         // 「このターンに対戦相手の効果によってあなたのエナゾーンからカードがトラッシュに移動していた場合」条件用
         // （ENERGY_TRASHED_BY_OPP・WXDi-P02-005②）。上の手札版と同じ考え方。
         energy_trashed_by_opp_this_turn: tgt.owner === 'opponent' && selected.length > 0
@@ -1033,6 +1045,13 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     }
     const names = selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・');
     const from = tgt.type === 'HAND_CARD' ? '手札' : tgt.type === 'TRASH_CARD' ? 'トラッシュ' : 'フィールド';
+    if (a.asCost && tgt.type === 'HAND_CARD' && selected.length > 0) {
+      const level = parseInt(c.cardMap.get(getCardNum(selected.at(-1)!))?.Level || '', 10);
+      newS = {
+        ...newS,
+        last_cost_hand_to_energy_level: Number.isFinite(level) ? level : undefined,
+      };
+    }
     return addLog({ ...setOwnerState(tgt.owner, newS, c), lastProcessedCards: selected }, `${from}から${names}をエナゾーンへ`);
   }
 
@@ -1236,7 +1255,11 @@ function resolveDynamicFilter(
       ? ownerSt.last_activated_discard_level_sum
       : variable === 'charm_trash_count'
         ? ownerSt.last_charm_trash_count
-        : ownerSt.last_field_trash_level;
+        : variable === 'field_trash_level'
+          ? ownerSt.last_field_trash_level
+          : variable === 'cost_hand_to_energy_level'
+            ? ownerSt.last_cost_hand_to_energy_level
+            : ownerSt.last_cost_energy_trash_level_sum;
     result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
   }
   if (result.levelEqLastProcessed || result.nameEqLastProcessed
@@ -3136,6 +3159,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // 文言だけ分ける。resolveOptionalCostSpec は空 spec を返し canAfford は常に true。
         const optIds5 = ['OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS', 'OPTIONAL_ACTIVATE'];
         if (optIds5.includes(stub5.id)) {
+          // 「この方法で払ったカード」参照は任意コスト1解決ごとの値。前の効果の記録を
+          // pay/skip のどちらでも持ち越さない（参照不能時は resolveDynamicFilter が空ヒットへ倒す）。
+          cur = {
+            ...cur,
+            ownerState: {
+              ...cur.ownerState,
+              last_cost_hand_to_energy_level: undefined,
+              last_cost_energy_trash_level_sum: undefined,
+            },
+          };
           const activateOnly5 = stub5.id === 'OPTIONAL_ACTIVATE';
           const remaining5 = a.steps.slice(i + 1);
           const noopAction5: SequenceAction = { type: 'SEQUENCE', steps: [] };
@@ -6208,7 +6241,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               return done(addLog(ctx, 'エナ保護により効果なし'));
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
-            const newS: PlayerState = { ...s, energy: newEnergy, trash: [...s.trash, cardNum] };
+            const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level || '', 10);
+            const newS: PlayerState = {
+              ...s,
+              energy: newEnergy,
+              trash: [...s.trash, cardNum],
+              ...(trashAction.asCost ? {
+                last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), getCardNum(cardNum)],
+                last_cost_energy_trash_level_sum:
+                  (s.last_cost_energy_trash_level_sum || 0) + (Number.isFinite(trashedLevel) ? trashedLevel : 0),
+              } : {}),
+            };
             return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をエナからトラッシュへ`));
           }
         }
@@ -6771,7 +6814,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (ecS.deck.includes(cardNum)) ecNew = { ...ecNew, deck: ecNew.deck.filter(x => x !== cardNum) };
       else if (ecS.field.signi.some(st => st?.at(-1) === cardNum)) ecNew = removeFromField(cardNum, ecNew);
       else return done(ctx);
-      ecNew = { ...ecNew, energy: [...ecNew.energy, cardNum] };
+      const ecAction = action as EnergyChargeAction;
+      const chargedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level || '', 10);
+      ecNew = {
+        ...ecNew,
+        energy: [...ecNew.energy, cardNum],
+        ...(ecAction.asCost && ecAction.target.type === 'HAND_CARD' ? {
+          last_cost_hand_to_energy_level: Number.isFinite(chargedLevel) ? chargedLevel : undefined,
+        } : {}),
+      };
       return done(addLog(setOwnerState(ecOwner, ecNew, ctx),
         `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をエナゾーンへ`));
     }

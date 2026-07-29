@@ -59,13 +59,9 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * コスト自体は `SUPPORTED` で表現できるが、**効果本体がそのコストで動かしたカードを参照している**ため、
  * 参照が解決できないまま包むと過剰実行になる効果の明示ゲート（カードゲート）。
  * ここに載せる条件＝「包める」かつ「包むと原文より強くなる」。参照側を直した波でこのリストから外す。
- * - `WXDi-P16-080-E1`：本体が「この方法でエナゾーンに置いたシグニと**同じレベル**のシグニ1枚を回収」。
- *   live action に該当の動的 filter が無く、エナ置きコストの記録契約も未整備なので、
- *   包むと**エナから無制限に回収できる**（タスク12(xxix)(1) 第3波で明示保留）。
- * - `WXK09-032-E1`：本体が「この方法でトラッシュに置いたシグニの**レベル合計と同じレベル**」を参照。
- *   live action は無条件の SEND_TO_ENERGY で、コスト選択札のレベル合計を filter へ渡す契約も無いため明示保留。
+ * 第12波で上記2件の記録→levelEqualsVar解決を実装し、現在の保留対象は0件。
  */
-export const OPTIONAL_ON_PLAY_COST_REF_DEFERRED = new Set(['WXDi-P16-080-E1', 'WXK09-032-E1']);
+export const OPTIONAL_ON_PLAY_COST_REF_DEFERRED = new Set<string>();
 
 export function optionalOnPlayCostStub(
   cost: import('../types/effects').EffectCost,

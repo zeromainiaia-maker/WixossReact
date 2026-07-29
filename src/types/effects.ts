@@ -471,7 +471,7 @@ export interface TargetFilter {
   // 自分の場のルリグ（センター→左アシスト→右アシスト）の指定番目と共通色。
   // 指定位置にルリグがいなければ空ヒット（WXDi-P15-005 の固定3段用）。
   colorMatchesLrigIndex?: number;
-  levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
+  levelEqualsVar?: 'charm_trash_count' | 'field_trash_level' | 'cost_hand_to_energy_level' | 'cost_energy_trash_level_sum'; // 直前コストの既存 last_* 記録とレベルが一致するか
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
   levelEqLastProcessedLevelSum?: boolean; // 直前に処理したカードの表記レベル合計と一致
@@ -863,6 +863,7 @@ export interface TrashAction {
 export interface EnergyChargeAction {
   type: 'ENERGY_CHARGE';
   target: EffectTarget; // エナゾーンに置くカード（手札やトラッシュから指定して選ぶ場合）
+  asCost?: boolean; // true = 任意【出】の handToEnergy 支払い。移動札レベルを直後の本体filter用に記録する
 }
 
 // 【エナチャージN】：デッキ上からN枚をエナゾーンに置く（選ばない）
