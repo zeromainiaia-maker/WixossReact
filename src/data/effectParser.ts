@@ -4336,6 +4336,28 @@ function parseActionTextInner(text: string): EffectAction {
           } as unknown as EffectAction;
         }
       }
+      // ---- その中から(カード)M枚(まで)を【トラップ】として設置し、(N枚を手札に加え、)残りを… ----
+      //   タスク12(xlvi)(g)。従来は `PLACE_TRAP_FROM_REVEALED` STUB が**残りの行き先をデッキ下に決め打ち**で
+      //   持っており、原文が「残りを**手札に加える**」（WX15-083-TRAP）でもデッキ下へ送る過小実行だった。
+      //   さらに設置と手札加えが併記される形（WX19-039-E1）はどの規則にも掛からず**丸ごと no-op**。
+      //   → `LOOK_PICK_CHAIN` の新ステージ `then:'trap'` と remainder の 'hand' 対応で忠実表現する。
+      //   ⚠remainder 節が**同じ文にある形だけ**を受ける（別文に分かれる形は従来の STUB 経路のまま＝
+      //     そちらは remainder がデッキ下で原文と一致しており、触ると19効果へ無用に波及する）。
+      {
+        const trapM = nextS.match(/^その中から(?:カード)?([０-９\d]+)枚(まで)?を?【トラップ】として(?:あなたの)?シグニゾーンに設置(?:してもよい|し|する)、(?:(?:カード)?([０-９\d]+)枚を?手札に加え、)?(?:その後、)?残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ|手札)に(?:置く|戻す|加える)/);
+        if (trapM) {
+          type Stage = import('../types/effects').LookPickChainStage;
+          const stages: Stage[] = [{ pickCount: parseNum(trapM[1]), then: 'trap', pickNoun: 'カード' }];
+          if (trapM[3]) stages.push({ pickCount: parseNum(trapM[3]), then: 'hand', pickNoun: 'カード' });
+          const remainder: import('../types/effects').LookPickChainAction['remainder'] =
+            trapM[4] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+            : trapM[4] === '手札' ? { location: 'hand', position: 'any' }
+            : { location: 'deck', position: trapM[4] === 'デッキの一番下' ? 'bottom' : 'top' };
+          return {
+            type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(cM[1]), stages, remainder,
+          } as unknown as EffectAction;
+        }
+      }
       // ---- その中から〔AかB〕をN枚(まで)(公開し)手札に加え、残りをデッキ/トラッシュ ----
       //   OR 記述子（「スペルか＜原子＞のシグニ」「＜天使＞か＜悪魔＞のシグニ」「白か黒のシグニ」）。
       //   下の pk 規則は OR を（`白か黒の` の1形を除き）表現できないため除外しており、汎用 LOOK_AND_REORDER に

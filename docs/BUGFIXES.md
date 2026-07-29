@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 【トラップ】設置併記の look-pick（`LOOK_PICK_CHAIN` の新ステージ `then:'trap'`）第8波（2026-07-29・PLAN §3 タスク12(xlvi)(g)・Opus〔Claude Opus 5〕）
+
+- **壊れ方**：
+  - **`WX15-083-TRAP`**＝既存 `PLACE_TRAP_FROM_REVEALED` STUB が **残りの行き先を `deck_bottom` に決め打ち**しているため、原文「残りを**手札に加える**」がデッキ下送りになっていた（**カードアドバンテージの取りこぼし**）。
+  - **🔴`WX19-039-E1`**＝「その中からカード１枚を【トラップ】として設置し、**１枚を手札に加え**、残りをデッキの一番上に戻す」の3段形がどの規則にも掛からず、**bare `LOOK_AND_REORDER`＝設置も手札加えも丸ごと no-op**。逆翻訳が「あなたのデッキの上3枚を見る」だけになっていたことで一目でわかる。
+- **新機構 `LookPickChainStage.then:'trap'`**＝ピックしたカードをデッキから抜いて `field.signi_traps[zone]` へ置く（ゾーンは対話選択）。**`remainder.location:'hand'`** も同時に配線した。
+  - ⚠**既存 `INTERNAL_SET_TRAP` は流用できない**＝あれは**手札からの設置専用**で `hand.filter` でしか元ゾーンから抜かず、`LOOK_PICK_CHAIN`（デッキを**スライスしない**設計）で使うと**デッキに残ったままトラップゾーンにも現れる複製バグ**になる。新 `INTERNAL_PICK_TO_TRAP` で明示的にデッキから抜く。
+  - ⚠**ゾーン選択の CHOOSE は `resumeSearch` の専用分岐から出す**。`applyDirectAction` のループは **`!done` で即 return する**ため、対話を伴う thenAction をそこに載せると**外側 continuation（後続ステージ・remainder）が丸ごと落ちる**（`ADD_TO_FIELD` が同じ理由で専用分岐になっている）。ピック複数枚は `INTERNAL_ASK_TRAP_ZONE` を SEQUENCE に並べ、`execSequence` の「pending なら残りを continuation へ」に載せて解決する。
+  - 既に【トラップ】のあるゾーンを選ぶと元のカードはトラッシュへ（シグニゾーン1つにつき1つまで）。選択肢のラベルで明示する。
+- **parser**：`cM` ブロック（「デッキの上からカードをN枚を?見る」）に狭い規則を1本追加。⚠**remainder 節が同じ文にある形だけ**を受ける＝別文に分かれる形（`WX15-002`／`WX15-035` 等13効果）は remainder がデッキ下で原文と一致しているため従来の STUB 経路のまま触らない。
+- **外科性**：全カード生 parser 出力の effectId 差分・live JSON の per-effect 差分ともに**対象2件だけ**。再 build 差分0（冪等）、held 256→**254**（新規ドリフト0）。PRESERVE カードなし＝`heldReview --adopt` で採用。
+- **検証**：golden 978→**981**（新規3本）。①2効果の構造（stages＋remainder）を期待値文字列で固定 ②E2E で **トラップゾーン／手札／デッキ先頭の3方向を同時に assert**（`WX19-039` は従来 0枚だった手札加えを名指し）③**トラップにしたカードがデッキから消えている**（複製ガード）④既存【トラップ】の上書き→トラッシュ。**変異4種でそれぞれ 2/2/1/2 本だけ FAIL** することを実測＝live JSON を HEAD へ／`resumeSearch` の trap 分岐を外す（**continuation が落ちて remainder と2段目が消える**ことを確認）／`remainder:'hand'` を外す／デッキからの除去を外す（**手札が +2 になる＝複製**）。
+- **計器**：decompiler に `then:'trap'`（「【トラップ】としてシグニゾーンに設置し」）と remainder `'hand'` を追加。census 1453 据置（JSON の語彙は元から「トラップ」を含み計器が動かない位置）。smoke 10726 全0・fuzz 全0・lint 0 errors・`npm run gates` 全緑。
+- **⚠同系統で残した既知バグ（新規登録）**＝`PLACE_TRAP_FROM_REVEALED` は `restDest` を `deck_bottom` に決め打ちしているため、**原文が「残りを…デッキの一番上に戻す」の3効果（`SP26-001-E1`／`WD23-032-A-E2`／`WX20-012-E1`）で残りの行き先が逆**になっている。カードの喪失ではなく順序の誤りなので優先度は低いが実バグ＝PLAN §3 タスク12(lviii) に登録。
+- **残**：(xlvi) は **14件**（(c)(g) が残0）。内訳＝(a) 残2／(b) 10／(d) 残2。
+
 ## 宣言参照 pick（数字/カード名/クラスを宣言 → 公開札をその宣言で絞る）第7波（2026-07-29・PLAN §3 タスク12(xlvi)(c)・Opus〔Claude Opus 5〕）
 
 - **系統は原文検索で全数6効果**（`その中から[^。]*宣言` で CSV 全数走査）。壊れ方は**3種**あった：

@@ -7,6 +7,17 @@
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
 
+- **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第7波「宣言参照 pick」8効果（(c) 残0）**（golden 968→**978**・census 1452→**1453**〔`BASELINE_HIGH` 更新・内訳は計器上の移動1件のみ〕・smoke 10726 全0・fuzz 全0・lint 0 errors・held 258→**254**〔新規ドリフト0〕・build 冪等・gates 全緑）
+  - **系統は原文全数走査で6効果**（`その中から[^。]*宣言`）。壊れ方が**3種混在**していた＝①pick が丸ごと `UNKNOWN`＝no-op 4件 ②🔴filter だけ落ちて**どの公開札でも拾える過剰実行**（`PR-431-E2`）③🔴**公開札の総取り**（`WX13-054-E1` が `ENERGY_CHARGE_FROM_DECK{4}`＝「宣言したカードだけエナへ」のはずがデッキ上4枚全部エナへ）。
+  - **新機構**＝`TargetFilter.nameEqDeclaredName`／`classEqDeclaredClass`（未宣言なら `noMatch`＝候補ゼロに倒す）／**`DECLARE_NUMBER_PLAIN`＋`PlayerState.declared_number`**（既存 `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる**ガード制限専用**で、そのまま使うと原文に無い「相手はそのレベルでガード不可」が付く）／`StubAction.declareOptions`（原文が列挙したクラスだけを宣言候補にする）。
+  - **parser の副産物2件**＝`makeRevealPickStub` の `restDest` が文末アンカーで **pick の行き先を「残りの行き先」と誤読**していた（`WX16-Re04-E1` が残りをエナへ送っていた）／新 `fusedLookPickSentence` で**読点で1文に畳まれた look-pick** を上流の汎用規則から取り戻した（`WXK05-021-E2` も同時是正）。
+  - **外科性**＝全カード生 parser 出力の effectId 差分・live JSON の per-effect 差分ともに**8件だけ**。**PRESERVE カードの外科採用3件**（`PR-431`／`WX11-037`／`WX24-P1-035`）＝**7波連続で再発している型**。
+  - **golden の教訓（本波）**＝**「危険な側」を単体テストで名指しする**。①未宣言→候補ゼロ ②`DECLARE_NUMBER_PLAIN` はガード制限を立てない（対照で従来版は立てる）③`WX13-054` は1枚だけエナへ・残り3枚はデッキに残る、を独立に固定した。**変異4種（live JSON を HEAD へ／宣言filter 無効化／PLAIN にガード制限を立てさせる／`declareOptions` 無視）でそれぞれ 8/2/1/1 本だけ FAIL** することを実測。
+  - **🆕計器の盲点を登録**＝census「「Nまで」上限選択」のキー表に **`pickUpTo` が無い**（該当**119効果**）。look-pick を STUB→実アクションへ直すたび +1 される構造で、第5波・第7波と**2度再発**。較正は機能修正の波と混ぜず単独作業へ切り出した（PLAN §3 タスク12(lvii)）。
+  - **⚠要実機検証**＝宣言 CHOOSE →公開 SEARCH の連結は engine 内で完結し golden で見ているが、`PR-431` の候補5クラス表示と `WX24-P1-035` の hand-or-energy 逐次選択は実機 UI 未確認。
+  - **次の一手**＝**Opus：(xlvi) 残16件**〔(a)残2・(b)10・(d)残2・(g)2＝いずれも新機構が要る。**(g) トラップ設置併記2 は `LookPickChainStage.then:'trap'` を足すだけで届く可能性があり最も安い**〕**／(xxix) 残**〔(2)(B) 43件＝`parseCost` の在庫（`costUnparsed` 331効果が機械的 worklist）／(1) 未対応コスト80件〕**／(lvii) census 較正（S・単独）／ゲート脱落 [B]20件／タスク16 の [B]29件＋watcher [B]4件／(l) 内側【自】parse 失敗3枚／§6.3 残機構**。**Sonnet：§7 実機検証の横展開**＝直前2セッション分の (xxix)(1)(2)＋本波の宣言UI＋レゾナ召喚UI の ATTACK/SPELL_CUTIN 窓。
+
+
 - **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝(xlvi) 第5〜6波（28効果）→ (xxix)(1) 任意+cost 853効果 → (xxix)(2) で英知の全角「＝」取りこぼし24効果を発見・是正**（golden 936→**968**・census 1463→**1452**〔`BASELINE_HIGH` 更新〕・smoke 10726 全0・fuzz 全0・同型★0・held 257→**254**〔減少＝改善〕・build 冪等）
   - **(xlvi) 第5波 (h)**＝融合規則 `LOOK_AND_REORDER + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM)` が **revealCount／pickCount／残りの行き先しか運ばず**、filter も「N枚まで」も「手札に加えるかエナゾーンに置く」も落ちて**どのカードでも拾える過剰実行**だった。新 `parseRevealPickDescriptor`＋新機構 `handOrEnergy`＋複数 pick 群3形の `LOOK_PICK_CHAIN` 展開で **17効果＋同系統9効果**。
   - **(xlvi) 第6波 (d)1＋(a)5**。🔴**`execLookPickChain` が `stage.filter` を `resolveDynamicFilter` に通していなかった**engine バグを同時是正（`matchesFilter` は `colorMatchesLrig` 等を**黙って無視する**＝動的filter を parser で表現した瞬間に「センタールリグと共通する色を持つシグニ」が**単なる「シグニ」に化ける**位置にあった）。

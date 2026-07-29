@@ -3677,8 +3677,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
+  // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
+  // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
+  if (then === 'trap') return { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction;
   // 'deck_top': 盤面は動かさない（デッキ内に残したまま）。execLookPickChain が remainder 処理時に
   // lastProcessedCards 経由で受け取った予約カードを一番上へ置く。
   if (then === 'deck_top') return { type: 'STUB', id: 'INTERNAL_KEEP_ON_DECK_TOP' } as EffectAction;
@@ -3774,6 +3777,9 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     if (a.remainder.location === 'energy') {
       return done(topLog(addLog(setOwnerState(owner, { ...state, deck: withTop(deckRest), energy: [...state.energy, ...rest] }, cur), `残り${rest.length}枚をエナゾーンへ`)));
     }
+    if (a.remainder.location === 'hand') {
+      return done(topLog(addLog(setOwnerState(owner, { ...state, deck: withTop(deckRest), hand: [...state.hand, ...rest] }, cur), `残り${rest.length}枚を手札へ`)));
+    }
     return done(topLog(setOwnerState(owner, { ...state, deck: withTop(deckRest) }, cur)));
   }
   if (a.remainder.location === 'trash') {
@@ -3782,6 +3788,10 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   // 「残りをエナゾーンに置く」（WX24-P4-022-E2 等）。未対応だと残りが黙ってデッキに残る＝原文と違う盤面になる。
   if (a.remainder.location === 'energy') {
     return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, energy: [...state.energy, ...rest] }, cur), `残り${rest.length}枚をエナゾーンへ`));
+  }
+  // 「残りを手札に加える」（WX15-083-TRAP＝トラップ設置1枚＋残り手札・タスク12(xlvi)(g)）
+  if (a.remainder.location === 'hand') {
+    return done(addLog(setOwnerState(owner, { ...state, deck: deckRest, hand: [...state.hand, ...rest] }, cur), `残り${rest.length}枚を手札へ`));
   }
   return done(cur);
 }
@@ -5447,6 +5457,21 @@ export function resumeSearch(
       ],
       ...(contHE ? { continuation: contHE } : {}),
     });
+  }
+  // 【トラップ】設置（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）: ピックしたカードを1枚ずつ
+  //   ゾーン選択の CHOOSE で `field.signi_traps` へ置く。⚠下の applyDirectAction ループは **!done で即 return**
+  //   するため、対話を伴うこの処理をそこに載せると外側 continuation（後続ステージ・remainder）が落ちる。
+  //   SEQUENCE に積めば execSequence が残りステップを continuation へ繋いでくれる。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_ASK_TRAP_ZONE' && picked.length > 0) {
+    const trapSteps: EffectAction[] = picked.map(
+      cn => ({ type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE', value: cn } as StubAction) as EffectAction);
+    if (pending.afterAction) trapSteps.push(pending.afterAction);
+    if (pending.continuation) trapSteps.push(pending.continuation);
+    return executeAction(
+      trapSteps.length === 1 ? trapSteps[0] : { type: 'SEQUENCE', steps: trapSteps } as SequenceAction,
+      { ...cur, lastProcessedCards: picked },
+    );
   }
   // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
   // afterAction（シャッフル等）と外側 continuation は全配置後に実行する。

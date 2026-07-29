@@ -969,11 +969,12 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : 'トラッシュに置き';
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : 'トラッシュに置き';
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
+        : a.remainder?.location === 'hand' ? '残りを手札に加える'
         : a.remainder?.position === 'top' ? '残りをデッキの上に戻す'
         : a.remainder?.shuffle ? '残りをシャッフルしてデッキの一番下に置く'
         : '残りを好きな順番でデッキの一番下に置く';

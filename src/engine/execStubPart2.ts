@@ -2950,6 +2950,45 @@ export function execStubPart2(
       type: 'CHOOSE', options: zoneOptsCTZ, count: 1,
     });
   }
+  // INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。
+  // ⚠既存の INTERNAL_SET_TRAP は **手札からの設置専用**（`hand.filter` でしか元ゾーンから抜かない）ため、
+  //   デッキ公開札には使えない（デッキに残ったままトラップゾーンにも現れる＝複製バグになる）。
+  //   LOOK_PICK_CHAIN はデッキをスライスしない設計なので、ここで明示的にデッキから抜く。
+  if (stub.id === 'INTERNAL_ASK_TRAP_ZONE') {
+    const cardAT = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
+    if (!cardAT) return done(addLog(ctx, 'トラップ設置：対象カードなし'));
+    const trapsAT = ctx.ownerState.field.signi_traps ?? [null, null, null];
+    const nameAT = ctx.cardMap.get(getCardNum(cardAT))?.CardName ?? cardAT;
+    const optsAT = [0, 1, 2].map(zi => ({
+      id: `lpc_trap_zone_${zi}`,
+      // 既に【トラップ】があるゾーンを選ぶと元のカードはトラッシュへ行く＝ラベルで明示する
+      label: trapsAT[zi] ? `ゾーン${zi + 1}に設置（既存の【トラップ】をトラッシュ）` : `ゾーン${zi + 1}に設置`,
+      action: ({ type: 'STUB', id: 'INTERNAL_PICK_TO_TRAP', value: cardAT, count: zi } as StubAction) as EffectAction,
+      available: true,
+    }));
+    return needsInteraction(addLog(ctx, `${nameAT}を【トラップ】として設置するゾーンを選択`), {
+      type: 'CHOOSE', options: optsAT, count: 1,
+    });
+  }
+  if (stub.id === 'INTERNAL_PICK_TO_TRAP') {
+    const cardPT = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
+    const zonePT = typeof stub.count === 'number' ? stub.count : 0;
+    if (!cardPT) return done(addLog(ctx, 'トラップ設置：対象カードなし'));
+    const trapsPT = [...(ctx.ownerState.field.signi_traps ?? [null, null, null])] as (string | null)[];
+    const trashPT = [...ctx.ownerState.trash];
+    if (trapsPT[zonePT]) trashPT.push(trapsPT[zonePT]!);
+    trapsPT[zonePT] = cardPT;
+    const newOwnerPT: PlayerState = {
+      ...ctx.ownerState,
+      // 元ゾーン（デッキ／手札）から抜く。どちらにも無ければ何も抜かない（冪等）。
+      deck: ctx.ownerState.deck.filter(c => c !== cardPT),
+      hand: ctx.ownerState.hand.filter(c => c !== cardPT),
+      trash: trashPT,
+      field: { ...ctx.ownerState.field, signi_traps: trapsPT },
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerPT, lastProcessedCards: [cardPT] },
+      `${ctx.cardMap.get(getCardNum(cardPT))?.CardName ?? cardPT}を【トラップ】としてゾーン${zonePT + 1}に設置`));
+  }
   // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
   if (stub.id === 'INTERNAL_SET_TRAP') {
     const zoneIdxIST = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));

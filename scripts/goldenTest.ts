@@ -3700,6 +3700,80 @@ test('(xlvi)(c) WX13-054-E1: 宣言名に一致した公開札だけがエナへ
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi)(g) wave8 【トラップ】設置併記（LOOK_PICK_CHAIN の then:'trap'）──────────────────
+// 従来 `PLACE_TRAP_FROM_REVEALED` STUB は**残りの行き先をデッキ下に決め打ち**しており、原文が
+// 「残りを手札に加える」でもデッキ下へ送っていた（WX15-083-TRAP＝カードアドバンテージの取りこぼし）。
+// 設置と手札加えが併記される WX19-039-E1 はどの規則にも掛からず**丸ごと no-op**だった。
+test('(xlvi)(g) WX15-083-TRAP: 1枚を【トラップ】へ・残りは手札へ（デッキ下ではない）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX15-083')?.find(e => e.effectId === 'WX15-083-TRAP');
+    const lpc = findLookPickChain(eff!.action);
+    ok(!!lpc, 'LOOK_PICK_CHAIN（STUB への退化なし）');
+    eq(`${JSON.stringify(lpc!.stages)}|${lpc!.remainder.location}/${lpc!.remainder.position}`,
+      '[{"pickCount":1,"then":"trap","pickNoun":"カード"}]|hand/any', '構造＝trap 1段＋残りは手札');
+    const a = fresh(), b = fresh();
+    const ctx = mkCtx({ deckTop: [a, b] }, {}, 'WX15-083');
+    const beforeHand = ctx.ownerState.hand.length;
+    const r = run(lpc as EffectAction, ctx);
+    ok(r.done, '完走');
+    const traps = r.ownerState.field.signi_traps ?? [];
+    eq(traps.filter(Boolean).length, 1, '【トラップ】が1つ設置される');
+    eq(traps[0], a, '公開1枚目がゾーン1のトラップに（オートパイロットは先頭の選択肢を選ぶ）');
+    eq(r.ownerState.hand.length, beforeHand + 1, '🔴残り1枚は手札へ（従来はデッキ下＝取りこぼし）');
+    ok(r.ownerState.hand.includes(b), '残りの b が手札にある');
+    // ⚠既存 INTERNAL_SET_TRAP は手札からしか元ゾーンを抜かないため、そのまま使うと
+    //   「デッキに残ったままトラップにも現れる」複製バグになる。デッキから消えていることを見る。
+    ok(!r.ownerState.deck.includes(a), '🔴トラップにしたカードはデッキから抜けている（複製なし）');
+    ok(!r.ownerState.deck.includes(b), '手札へ行ったカードもデッキから抜けている');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi)(g) WX19-039-E1: 【トラップ】1枚＋手札1枚＋残りはデッキの一番上（従来は完全 no-op）', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX19-039')?.find(e => e.effectId === 'WX19-039-E1');
+    const lpc = findLookPickChain(eff!.action);
+    ok(!!lpc, 'LOOK_PICK_CHAIN（bare LOOK_AND_REORDER への退化なし＝pick が消えていない）');
+    eq(`${JSON.stringify(lpc!.stages)}|${lpc!.remainder.location}/${lpc!.remainder.position}`,
+      '[{"pickCount":1,"then":"trap","pickNoun":"カード"},{"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/top',
+      '構造＝trap 段＋hand 段＋残りはデッキの一番上');
+    const a = fresh(), b = fresh(), c = fresh();
+    const ctx = mkCtx({ deckTop: [a, b, c] }, {}, 'WX19-039');
+    const beforeHand = ctx.ownerState.hand.length;
+    const r = run(lpc as EffectAction, ctx);
+    ok(r.done, '完走');
+    const traps = r.ownerState.field.signi_traps ?? [];
+    eq(traps.filter(Boolean).length, 1, '【トラップ】が1つ設置される');
+    eq(traps[0], a, '1段目のピックがトラップへ');
+    eq(r.ownerState.hand.length, beforeHand + 1, '2段目のピックが手札へ（従来は0枚＝no-op）');
+    ok(r.ownerState.hand.includes(b), '2枚目が手札にある');
+    eq(r.ownerState.deck[0], c, '残り1枚がデッキの一番上に戻る');
+    ok(!r.ownerState.deck.includes(a) && !r.ownerState.deck.includes(b), 'ピック済み2枚はデッキから抜けている');
+  } finally { cursor = savedCursor; }
+});
+
+// 既存【トラップ】があるゾーンを選ぶと、そのカードはトラッシュへ（シグニゾーン1つにつき1つまで）。
+test('(xlvi)(g) then:trap は既存の【トラップ】を上書きしトラッシュへ送る', () => {
+  const savedCursor = cursor;
+  try {
+    const old = fresh(), a = fresh(), b = fresh();
+    const ctx = mkCtx({ deckTop: [a, b] }, {}, 'WX15-083');
+    (ctx.ownerState.field as { signi_traps: (string | null)[] }).signi_traps = [old, null, null];
+    const beforeTrash = ctx.ownerState.trash.length;
+    const lpc = {
+      type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 2,
+      stages: [{ pickCount: 1, then: 'trap', pickNoun: 'カード' }],
+      remainder: { location: 'hand', position: 'any' },
+    } as unknown as EffectAction;
+    const r = run(lpc, ctx);
+    ok(r.done, '完走');
+    eq((r.ownerState.field.signi_traps ?? [])[0], a, '新しいカードがゾーン1のトラップに');
+    eq(r.ownerState.trash.length, beforeTrash + 1, '元の【トラップ】がトラッシュへ');
+    ok(r.ownerState.trash.includes(old), `元の ${old} がトラッシュにある`);
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

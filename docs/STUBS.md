@@ -14,8 +14,8 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | JSON で使用中の STUB id 種類 | 575 |
 | 　└ ハンドラ実装あり | 550 |
 | 　└ フォールバック（execStub 未処理） | 25 |
-| 総 STUB ノード件数 | 2463 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 291 |
+| 総 STUB ノード件数 | 2462 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 293 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -181,7 +181,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 |---|---:|---:|---|---|
 | `TRAP_OPERATION` | 19 | 14 | SP26-001, WX15-047, WX15-053 | TRAP_OPERATION: トラップ/チェックゾーン操作の統合ハンドラ |
 | `DESIGNATE_SIGNI_ZONE` | 13 | 13 | WDK10-009, WX08-021, WX10-051 | DESIGNATE_SIGNI_ZONE: 相手シグニゾーンを1つ指定する |
-| `PLACE_TRAP_FROM_REVEALED` | 11 | 11 | WD23-032-A, WD23-040-A, SP26-001 | PLACE_TRAP_FROM_REVEALED: 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置 |
+| `PLACE_TRAP_FROM_REVEALED` | 10 | 10 | WD23-032-A, WD23-040-A, SP26-001 | PLACE_TRAP_FROM_REVEALED: 前のLOOK_AND_REORDERで公開されたデッキ上N枚からトラップ設置 |
 | `PLACE_SEED_FROM_REVEALED` | 8 | 8 | WDK07-Y02, WDK07-Y03, WDK07-Y04 | PLACE_SEED_FROM_REVEALED: デッキ上4枚を見て1枚を【シード】として設置 |
 | `PLAY_FREE` | 8 | 8 | PR-474, WX07-014, WX14-002 | フリープレイ系：lastProcessedCards[0] のカードをコストなしでプレイ |
 | `PLACE_TRAP_OPTIONAL` | 7 | 7 | WX15-084, WX15-086, WX16-015 | PLACE_TRAP_OPTIONAL / SET_HAND_CARD_AS_TRAP: 手札からトラップ設置 |
@@ -627,7 +627,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 291 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 293 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -684,6 +684,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_APPLY_CLASS_CHANGE` | 0 | 0 |  | INTERNAL_APPLY_CLASS_CHANGE: 選択シグニのクラスを変更 |
 | `INTERNAL_APPLY_POWER_DELTA_OPP` | 0 | 0 |  | INTERNAL_APPLY_POWER_DELTA_OPP: SELECT_TARGET後に対象シグニへparent deltaを適用 |
 | `INTERNAL_APPLY_PRIOKE_ATTACK_TRASH` | 0 | 0 |  | INTERNAL_APPLY_PRIOKE_ATTACK_TRASH: 予約したアタック時トラッシュ能力を対象プリオケシグニに適用 |
+| `INTERNAL_ASK_TRAP_ZONE` | 0 | 0 |  | INTERNAL_ASK_TRAP_ZONE / INTERNAL_PICK_TO_TRAP（LOOK_PICK_CHAIN の then:'trap'・タスク12(xlvi)(g)）。 ⚠既存の INTERNAL_SET_TRAP は … |
 | `INTERNAL_ATTACH_SOUL_FROM_LRIG` | 0 | 0 |  | ソウル付与（ルリグの下カードを選択シグニに付与） |
 | `INTERNAL_BANISH_ALL_POWER_GTE` | 0 | 0 |  | INTERNAL_BANISH_ALL_POWER_GTE: パワーN以上のすべてのシグニ（両プレイヤー）をバニッシュ |
 | `INTERNAL_BANISH_FROM_GAME_DO` | 0 | 0 |  |  |
@@ -788,6 +789,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_PAY_EXCEED` | 0 | 0 |  |  |
 | `INTERNAL_PICK_TO_ENERGY` | 0 | 0 |  | INTERNAL_PICK_TO_ENERGY: 公開中のカード（stub.value）をデッキ/トラッシュからエナゾーンへ（handOrEnergy のエナ分岐）。 |
 | `INTERNAL_PICK_TO_HAND` | 0 | 0 |  | INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし） INTERNAL_PICK_TO_HAND: 公開中のカード（stub.value）をデッキ/トラッシュ/エナから手札へ（… |
+| `INTERNAL_PICK_TO_TRAP` | 0 | 0 |  |  |
 | `INTERNAL_PLACE_LRIG_UNDER_CENTER` | 0 | 0 |  | INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置 |
 | `INTERNAL_PLACE_PUPPET` | 0 | 0 |  | INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ） |
 | `INTERNAL_PLACE_SELF_UNDER_SIGNI` | 0 | 0 |  | INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動 |
