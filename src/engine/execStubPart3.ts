@@ -1193,7 +1193,7 @@ export function execStubPart3(
       newFieldIDC = { ...newFieldIDC, assist_lrig_r: [toPlaceIDC] };
     }
     const newOwnerIDC: PlayerState = { ...ctx.ownerState, lrig_deck: newDkIDC, field: newFieldIDC };
-    return done(addLog({ ...ctx, ownerState: newOwnerIDC },
+    return done(addLog({ ...ctx, ownerState: newOwnerIDC, lastProcessedCards: [toPlaceIDC] },
       `コラボ: ${ctx.cardMap.get(getCardNum(toPlaceIDC))?.CardName ?? toPlaceIDC}を召喚`));
   }
   // GATE: ゲート効果（ログのみ）

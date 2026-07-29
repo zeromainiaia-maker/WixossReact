@@ -15348,6 +15348,98 @@ test('task12(xxix) BET choices: 条件成立/不成立を両方向で盤面固�
   } finally { cursor = savedCursor; }
 });
 
+test('task12(lv) COLLAB: アシスト実戦ゾーン配置→共通【出】collector→任意コスト選択', () => {
+  const savedCursor = cursor;
+  try {
+    const assist = 'WXDi-D06-006';
+    const before = mkState({ assistL: [], assistR: [] });
+    before.lrig_deck = [assist];
+    const collab = executeEffect({
+      effectId: 'golden-collab',
+      effectType: 'AUTO',
+      action: { type: 'STUB', id: 'COLLAB' },
+      duration: 'INSTANT',
+      mandatory: true,
+    } as CardEffect, {
+      ...mkCtx({}, {}, 'WXDi-CP01-006'),
+      ownerState: before,
+    });
+    ok(collab.done, '強制COLLABは配置まで完了');
+    eq(collab.ownerState.field.assist_lrig_l.at(-1), assist, 'assist_lrig_lへ実配置');
+    eq(collab.ownerState.field.signi.filter(Boolean).length, 0, 'シグニゾーンには置かない');
+    eq(collab.lastProcessedCards?.join(','), assist, '配置アシストをtrigger収集へsurface');
+
+    const collected = collectPlacedSelfOnPlayTriggers(
+      trigCtx(), assist, collab.ownerState, collab.otherState, 'host',
+      { placedByEffect: true, sourceIsSigni: false },
+    );
+    const entry = collected.entries.find(e => e.effectId === 'WXDi-D06-006-E1');
+    ok(!!entry, 'コスト付き【出】を1件積む');
+    eq(collected.entries.filter(e => e.effectId === 'WXDi-D06-006-E1').length, 1, '重複して積まない');
+    const seq = entry!.effect.action as SequenceAction;
+    eq(seq.type, 'SEQUENCE', '任意コスト包み');
+    eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST', '先頭にOPTIONAL_COST');
+
+    const collabOnPlayCtx: ExecCtx = {
+      ...mkCtx({}, {}, assist),
+      ownerState: {
+        ...collab.ownerState,
+        hand: collab.ownerState.hand.slice(0, 2),
+        deck: collab.ownerState.deck.slice(0, 4),
+        trash: [],
+      },
+    };
+    const offered = executeEffect(entry!.effect, collabOnPlayCtx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', '支払い選択で停止');
+    if (!offered.done && offered.pending.type === 'CHOOSE') {
+      eq(offered.pending.options.map(o => o.id).join(','), 'pay,skip', '支払う/スキップを提示');
+    }
+    eq(offered.ownerState.hand.length, 2, '選択前に手札コストも効果の3枚ドローも動かない');
+    eq(offered.ownerState.trash.length, 0, '選択前に捨て札なし');
+    if (!offered.done && offered.pending.type === 'CHOOSE') {
+      const paid = finish(
+        resumeChoose('pay', offered.pending, {
+          ...collabOnPlayCtx,
+          ownerState: offered.ownerState,
+          otherState: offered.otherState,
+          logs: offered.logs,
+        }),
+        collabOnPlayCtx,
+      );
+      eq(paid.ownerState.hand.length, 4, '手札1枚を払ってから3枚引く（2-1+3）');
+      eq(paid.ownerState.trash.length, 1, '手札コスト1枚がトラッシュへ移る');
+      eq(paid.ownerState.deck.length, 1, '効果で3枚引く');
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(lv) INTERNAL_DO_COLLAB: 任意COLLAB枝も配置カードをsurfaceする', () => {
+  const savedCursor = cursor;
+  try {
+    const assist = 'WXDi-D06-006';
+    const before = mkState({ assistL: [], assistR: [] });
+    before.lrig_deck = [assist];
+    const result = executeEffect({
+      effectId: 'golden-internal-collab',
+      effectType: 'AUTO',
+      action: { type: 'STUB', id: 'INTERNAL_DO_COLLAB', value: 1 },
+      duration: 'INSTANT',
+      mandatory: true,
+    } as CardEffect, {
+      ...mkCtx({}, {}, 'WXDi-CP01-005'),
+      ownerState: before,
+    });
+    ok(result.done, 'INTERNAL_DO_COLLAB完了');
+    eq(result.ownerState.field.assist_lrig_l.at(-1), assist, 'assist_lrig_lへ実配置');
+    eq(result.ownerState.field.signi.filter(Boolean).length, 0, 'シグニゾーンには置かない');
+    eq(result.lastProcessedCards?.join(','), assist, 'CHOOSE resume後も配置アシストをsurface');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 test('task12(xxix) BET choices: 脱落サブアクションが盤面を変える（B1/B2/B3）', () => {
   const savedCursor = cursor;
   try {

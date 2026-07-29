@@ -4228,22 +4228,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
-        // COLLAB: コラボライバー呼び出しで配置されたアシストルリグのON_PLAY効果を積む
+        // COLLAB: コラボライバー呼び出しで配置されたアシストルリグ自身の【出】を、
+        // 効果配置シグニと同じ共通 collector に載せる。任意コスト/任意発動・条件・使用制限・
+        // 【出】封じをここで統一し、raw effect の直積みによるコスト踏み倒しを防ぐ。
         if ((entry.effect.action as import('../types/effects').StubAction)?.type === 'STUB' &&
             (entry.effect.action as import('../types/effects').StubAction)?.id === 'COLLAB') {
           const collabOnPlayEntries: StackEntry[] = [];
           for (const instanceId of result.lastProcessedCards ?? []) {
-            const cn = getCardNum(instanceId);
-            for (const eff of (effectsMap.get(cn) ?? [])) {
-              if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-              collabOnPlayEntries.push({
-                id: generateUUID(),
-                playerId: entry.playerId,
-                cardNum: instanceId,
-                effectId: eff.effectId,
-                label: `${battleCardMap.get(cn)?.CardName ?? cn} の【出】効果`,
-                effect: eff,
-              });
+            const controllerState = entry.playerId === bs.host_id ? hostState : guestState;
+            const otherState = entry.playerId === bs.host_id ? guestState : hostState;
+            const collected = pureCollectPlacedSelfOnPlayTriggers(
+              mkTrigCtx(), instanceId, controllerState, otherState, entry.playerId,
+              { placedByEffect: true, sourceIsSigni: false },
+            );
+            collabOnPlayEntries.push(...collected.entries);
+            if (collected.usedHostIds.length > 0) {
+              const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+              update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...collected.usedHostIds] };
+            }
+            if (collected.usedGuestIds.length > 0) {
+              const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+              update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...collected.usedGuestIds] };
             }
           }
           if (collabOnPlayEntries.length > 0) {
@@ -4536,6 +4541,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const existingStack = bs.effect_stack ?? null;
           if (existingStack && isStackDone(existingStack)) {
             update.effect_stack = null;
+          }
+        }
+
+        // 任意COLLABは CHOOSE→INTERNAL_DO_COLLAB の resume でここへ完了するため、
+        // resolveStackNext 側の COLLAB 専用ブロックには戻らない。配置札を同じ共通 collector へ載せる。
+        const sourceEffect = (effectsMap.get(pe.sourceCardNum) ?? effectsMap.get(getCardNum(pe.sourceCardNum)) ?? [])
+          .find(e => e.effectId === pe.effectId);
+        if ((sourceEffect?.action as import('../types/effects').StubAction | undefined)?.type === 'STUB'
+            && (sourceEffect?.action as import('../types/effects').StubAction).id === 'COLLAB') {
+          const collabOnPlayEntries: StackEntry[] = [];
+          for (const instanceId of result.lastProcessedCards ?? []) {
+            const latestHost = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+            const latestGuest = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            const controllerState = pe.sourcePlayerId === bs.host_id ? latestHost : latestGuest;
+            const otherState = pe.sourcePlayerId === bs.host_id ? latestGuest : latestHost;
+            const collected = pureCollectPlacedSelfOnPlayTriggers(
+              mkTrigCtx(), instanceId, controllerState, otherState, pe.sourcePlayerId,
+              { placedByEffect: true, sourceIsSigni: false },
+            );
+            collabOnPlayEntries.push(...collected.entries);
+            if (collected.usedHostIds.length > 0) {
+              update.host_state = { ...latestHost, actions_done: [...(latestHost.actions_done ?? []), ...collected.usedHostIds] };
+            }
+            if (collected.usedGuestIds.length > 0) {
+              update.guest_state = { ...latestGuest, actions_done: [...(latestGuest.actions_done ?? []), ...collected.usedGuestIds] };
+            }
+          }
+          if (collabOnPlayEntries.length > 0) {
+            const turnPlayerId = bs.active_user_id ?? user.id;
+            const baseStackC = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
+            update.effect_stack = baseStackC
+              ? pushToStack(baseStackC, collabOnPlayEntries)
+              : initStack(turnPlayerId, collabOnPlayEntries);
           }
         }
 

@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## COLLAB 配置【出】の任意コスト踏み倒し／任意枝 no-op を共通 collector へ統合（2026-07-29・PLAN §3 タスク12(lv) 続き・Codex実装／Claude確認）
+
+- **修正前実測**：`WXDi-D06-006-E1`（【出】手札1枚を捨てる：3枚引く）を旧 COLLAB と同じ raw entry で engine 解決すると、entry 1件・interaction なし・手札 **2→5**・トラッシュ **0→0**・デッキ **4→1**。コストを払わず効果だけ通ることを確定。
+- **穴A**：`BattleScreen` の COLLAB 専用 raw 直積みを廃止し、配置した各アシストを `collectPlacedSelfOnPlayTriggers(..., { placedByEffect:true, sourceIsSigni:false })` へ通す。`OPTIONAL_COST`／`OPTIONAL_ACTIVATE`、`activeCondition`／`condition`、usageLimit、未表現コスト除外、【出】封じを既存共通経路へ統一。封じ collector はシグニゾーンの対象だけを集合化するため、アシストを正面シグニとして誤封鎖しない。
+- **穴B**：`INTERNAL_DO_COLLAB` が配置した instance ID を `lastProcessedCards` に設定。CHOOSE の「コラボする」枝も、元 COLLAB entry の解決完了時に穴Aと同じ収集経路へ届く。
+- **回帰**：golden は実戦ゾーン `field.assist_lrig_l` への配置、シグニゾーン非使用、entry 1件、`OPTIONAL_COST` の pay/skip 提示、支払い後の手札 **2→4**・トラッシュ **0→1**・デッキ **4→1**、INTERNAL 枝の surface を固定。グローバル `cursor` は全テストで `try/finally` 復元。
+- **原文機械分類**：提示済み live 母集団（mandatory:false 91件）を任意句で照合すると、「内側だけ任意」の混入候補は **1件**＝`WXDi-P15-034-E1`（選択肢②だけが「《白》《無》を支払ってもよい」）。今回はデータを変更せず、残る通常アシスト配置経路の着手前判定として据え置き。`WXDi-P04-018` にも「捨ててもよい」があるが別の【自】能力内で、当該【出】全体は手札1枚コストなので混入に数えない。
+- **母集団の内訳（Claude 実測）**＝CSV `Type === 'アシストルリグ'` × 全 effects JSON で **ON_PLAY(AUTO) 293効果**、うち `mandatory:false` **91**（旧 COLLAB が無条件に積んでいた）、そのうち **`cost` あり 88**（＝踏み倒しの実体）、`costUnparsed` 3、`activeCondition` 1、`condition`／`usageLimit`／self 以外の `triggerScope`／`byEffect` は **いずれも0**。
+- **⚠Claude 追加実測＝「コラボしない」枝で誤収集しないこと**（穴B の修正が逆向きの過剰実行を作っていないかの確認）。CHOOSE が出る発生源で両枝を実行し、**`collab_no`＝`lastProcessedCards` は `null`・アシストゾーン空・ルリグデッキ据置／`collab_yes`＝`lastProcessedCards` に配置 instance・アシストゾーンへ移動**を確認。断った場合に前段の `lastProcessedCards` が残って積まれる、という事故は起きていない。
+- **⚠state の鮮度は問題なし**＝`resolveStackNext` 側の `hostState`／`guestState` は `resolvePendingExiles(result.ownerState / result.otherState)` ＝**効果解決後**の値なので、COLLAB で配置した直後の盤面が collector に渡る。`handleEffectInteraction` 側（穴B）は同じ理由で `update.host_state` から取っており、スコープごとに正しい方を見ている（見た目の非対称は誤りではない）。
+
 ## 任意・無コスト【出】のグロウ経路配線＋二重任意指定2枚の是正（2026-07-29・PLAN §3 タスク12(lv)・Codex実装／Claude確認・差し戻し）
 
 - **(lv) の元記述は半分すでに解消済みだった**＝原票「`WXEX2-71-E2` が `mandatory:false`＋cost なしの自身 ON_PLAY で収集経路から脱落し no-op」は、(xxix)(2) の「英知＝N はコストではなく使用条件」決着で当該効果が `mandatory:true` になり消滅していた。`OPTIONAL_ACTIVATE` 包み機構（`wrapOptionalOnPlay`／`effectExecutor.ts` Pattern ⑤）も実装済みで、**人間の通常召喚**（`handleSummonSigni`）と**効果配置**（`collectPlacedSelfOnPlayTriggers`）には配線済みだった。**したがって残作業は機構の新設ではなく「機構が届いていない収集経路を塞ぐこと」**。
