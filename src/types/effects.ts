@@ -468,6 +468,9 @@ export interface TargetFilter {
   classEqDeclaredClass?: boolean;
   // DECLARE_COLORS で宣言した色のうち指定番目と一致。参照不能時は空ヒット。
   colorEqDeclaredColorIndex?: number;
+  // 自分の場のルリグ（センター→左アシスト→右アシスト）の指定番目と共通色。
+  // 指定位置にルリグがいなければ空ヒット（WXDi-P15-005 の固定3段用）。
+  colorMatchesLrigIndex?: number;
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
@@ -1295,6 +1298,9 @@ export interface RevealAndPickAction {
   elseAction?: EffectAction; // 公開カードが filter に一致しない場合に実行（「そうでない場合」）
   handOrField?: boolean; // ピックしたシグニを1枚ずつ「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」WX24-P1-056 等）。true のとき then は無視
   handOrEnergy?: boolean; // ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理（「手札に加えるかエナゾーンに置き」WXK06-011 等）。true のとき then は無視
+  // 公開札を picked / remainder の2束として保持し、対戦相手がトラッシュへ置く束を選ぶ。
+  // 選ばれなかった束は手札へ（WXDi-P05-015）。通常の then/remainder 移動より先に専用の相手CHOOSEへ進む。
+  opponentChoosesPileToTrash?: boolean;
   // position:'split_top_bottom'＝「好きな枚数を（好きな順番で）デッキの一番下に置き、残りを一番上に戻す」
   // ＝ピックの**あと**に残りの振り分けをプレイヤーへ問う（G168 の分割UIを resumeSearch から再利用する）。
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };
@@ -1881,6 +1887,8 @@ export interface StubAction {
   seedCards?: string[]; // INTERNAL_SEEDS_PLACE_LOOP / INTERNAL_SET_SEED: 【シード】として順次設置するカード（複数枚設置をインタラクション跨ぎで保持。WXK04-010 アンコール・シード）
   revealed?: string[]; // REVEAL_SECOND_PICK_ENERGY: 1段目で公開したカード一覧（残り算出用）
   pickQueue?: string[]; // INTERNAL_HAND_OR_ENERGY: 「手札に加えるかエナゾーンに置く」を1枚ずつ問う残りのカード
+  pileTrashCards?: string[]; // INTERNAL_RESOLVE_PILES: トラッシュへ置く明示instanceId群
+  pileHandCards?: string[];  // INTERNAL_RESOLVE_PILES: 手札へ加える明示instanceId群
   secondPick?: { classContains: string; toMax: number; restDest: 'deck_bottom' | 'trash' }; // 同上
   value?: number | string; // 汎用値（SET_DECLARED_NUMBER等で使用）
   // DECLARE_CLASS: 宣言できるクラスを原文が列挙している場合の候補（「＜精像＞か＜精武＞か…から１つを宣言する」PR-431）。

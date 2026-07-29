@@ -612,6 +612,7 @@ export type PendingInteractionDef =
       handOrField?: boolean;
       // handOrEnergy: ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理する（「手札に加えるかエナゾーンに置き」）
       handOrEnergy?: boolean;
+      opponentChoosesPileToTrash?: boolean;
       continuation?: EffectAction;
       selectionConstraint?: SelectionConstraint;
     }

@@ -1178,6 +1178,19 @@ function resolveDynamicFilter(
     const color = ownerSt.declared_colors?.[index];
     result = color ? { ...rest, color } : noMatch(rest);
   }
+  if (result.colorMatchesLrigIndex != null) {
+    const { colorMatchesLrigIndex: index, ...rest } = result;
+    const lrigNums = [
+      ownerSt.field.lrig.at(-1),
+      ownerSt.field.assist_lrig_l?.at(-1),
+      ownerSt.field.assist_lrig_r?.at(-1),
+    ];
+    const lrig = lrigNums[index];
+    const colors = lrig
+      ? (cardMap.get(getCardNum(lrig))?.Color ?? '').split(/[/／、]/).map(s => s.trim()).filter(Boolean)
+      : [];
+    result = colors.length > 0 ? { ...rest, color: colors.length === 1 ? colors[0] : colors } : noMatch(rest);
+  }
   // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
   // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。
   if (result.levelEqDiscardLevelSum || result.levelEqualsVar) {
@@ -3696,6 +3709,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
     ...(a.handOrEnergy ? { handOrEnergy: true } : {}),
+    ...(a.opponentChoosesPileToTrash ? { opponentChoosesPileToTrash: true } : {}),
     ...(a.remainder ? { revealRemainder: { cards: visible, location: a.remainder.location as 'deck' | 'trash' | 'energy', position: a.remainder.position, ...(a.remainder.shuffle ? { shuffle: true } : {}) } } : {}),
     ...(a.recordRevealed ? { lastProcessedCardsAfter: visible } : {}),
   });
@@ -5423,6 +5437,37 @@ export function resumeSearch(
   // （REVEAL_AND_PICK の旧不正キー pickTo:'hand' 形＝then 無しで .type 参照クラッシュしていた）
   if (!pending.thenAction) {
     pending = { ...pending, thenAction: { type: 'ADD_TO_HAND', owner: 'self' } as EffectAction };
+  }
+  if (pending.opponentChoosesPileToTrash) {
+    const revealed = pending.revealRemainder?.cards ?? pending.visibleCards;
+    const pickedSet = new Set(picked);
+    const remainder = revealed.filter(n => !pickedSet.has(n));
+    const resolvePile = (trashCards: string[], handCards: string[]): EffectAction => ({
+      type: 'STUB',
+      id: 'INTERNAL_RESOLVE_PILES',
+      pileTrashCards: trashCards,
+      pileHandCards: handCards,
+    } as StubAction);
+    return needsInteraction({ ...cur, lastProcessedCards: picked }, {
+      type: 'CHOOSE',
+      count: 1,
+      opponentResponds: true,
+      options: [
+        {
+          id: 'face_up',
+          label: '表向きの束をトラッシュに置く',
+          available: true,
+          action: resolvePile(picked, remainder),
+        },
+        {
+          id: 'face_down',
+          label: '裏向きの束をトラッシュに置く',
+          available: true,
+          action: resolvePile(remainder, picked),
+        },
+      ],
+      ...(pending.continuation ? { continuation: pending.continuation } : {}),
+    });
   }
   // remainder が 'split_top_bottom'（「好きな枚数をデッキの一番下に置き、残りを一番上に戻す」）のときは
   //   **行き先が対話**になる。ここで即座に動かさず、デッキから抜いたうえで分割UI（G168）を

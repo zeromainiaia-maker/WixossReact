@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 最終2効果の look-pick 実働化・(xlvi) クローズ 第17波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **`WXDi-P15-005-E1`（俯瞰者からの啓示・ピース）— no-op を是正**：従来は `LOOK_AND_REORDER` だけで、ルリグ色ごとの公開も公開札の手札／エナ振り分けも丸ごと不発。「場にいるルリグ」は盤面のセンター＋左右アシスト（最大3体）と確定し、`LOOK_PICK_CHAIN` 固定3段へ変更した。新 filter `colorMatchesLrigIndex` はセンター→左→右を参照し、不在 index は候補ゼロ。公開後は既存 `handOrEnergy`、残りはデッキ下。**動的stage・新アクション型は不要**だった。
+- **`WXDi-P05-015-E2`（掲げし者 タウィル＝トレ・ルリグ）— no-op を是正**：従来は `LOOK_AND_REORDER` STUB×2で束分け以降が丸ごと不発。既存 `REVEAL_AND_PICK{6→3}` と `opponentResponds` CHOOSE を再利用した。既存型には「選択した3枚」と「補集合3枚」の明示 instanceId を相手選択後の各 action へ渡すフィールドがなく、通常の `then/remainder` は相手選択前に移動するため、最小の `opponentChoosesPileToTrash` と内部 `INTERNAL_RESOLVE_PILES` を追加。相手が選んだ束だけをトラッシュ、残りだけを手札へ移す。
+- **engine実測・golden**：`cardMap` は全て `InstanceMap`。①はピースを `field.check`、②はルリグを `field.lrig` に置いた。①はルリグ0体／1体で不在段が空振りし、1体時はデッキ−1・選択先＋1・総数保存・複製0。②はデッキ−6・手札＋3・トラッシュ＋3・総数保存・複製0で、表向き／裏向きのどちらを相手が選んでも向きが逆転しない。golden 4本追加（共有 `cursor` は全て save/restore）。
+- **変異テスト**：①の不在 index を制限なしへ変異すると狙った2本だけ FAIL（1011中 PASS1009/FAIL2）。②の2択 action を逆接続すると束方向を固定した狙いの2本だけ FAIL（同 PASS1009/FAIL2）。変異を戻して 1011/1011 PASS。
+- **外科性・held**：生 parser と live JSON の effectId 差分は **changed 2 / added 0 / removed 0**。changed は上記2件だけで、いずれも原文照合済みの no-op 解消。MANUAL定義なし。`heldReview --adopt` は2カードだけを採用し、採用前 254枚/110署名→採用後 **252枚/108署名**（採用済み2枚をレビュー対象から除外）。無関係カードの採用0。
+- **計器・クローズ**：census **1410据置**（`BASELINE_HIGH=1410` 据置）、golden **1007→1011**。第1〜16波71効果＋本波2効果＝**計73効果、残0**で **(xlvi) をクローズ**。PLAN の「最後の2件は機構コスト最大」という見立ても過大で、①は既存機構だけ、②も既存の選択機構を主体に束ID保持の最小拡張だけで着地した。
+
 ## 対話3択を独立に3回行う look-pick 第16波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **着地1効果・壊れ方＝no-op**：`WXDi-P08-007-E3`。live は `STUB{REPEAT_N_TIMES}`＋`LOOK_AND_REORDER` で、相手への3択も3回反復も、相手が何もしなかった場合の手札pickも実行されなかった。

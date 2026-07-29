@@ -3729,6 +3729,41 @@ function applyOpponentChoiceRepeatLookPickWave16(cardNum: string, effects: CardE
   effect.action = { type: 'SEQUENCE', steps: [...round(), ...round(), ...round()] };
 }
 
+// タスク12(xlvi) 第17波。場のルリグはセンター＋左右アシストの最大3体なので固定3段で表す。
+// 不在indexは colorMatchesLrigIndex が空ヒットにし、公開した各カードは既存 handOrEnergy で振り分ける。
+// タウィルは自分が選んだ3枚と残り3枚を保持し、既存の opponentResponds CHOOSE で相手に捨てる束を問う。
+function applyFinalLookPickWave17(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum === 'WXDi-P15-005') {
+    const effect = effects.find(e => e.effectId === 'WXDi-P15-005-E1');
+    if (!effect) return;
+    effect.action = {
+      type: 'LOOK_PICK_CHAIN',
+      owner: 'self',
+      revealCount: 5,
+      stages: [0, 1, 2].map(index => ({
+        filter: { colorMatchesLrigIndex: index },
+        pickCount: 1,
+        then: 'hand',
+        handOrEnergy: true,
+      })),
+      remainder: { location: 'deck', position: 'bottom' },
+    } as import('../types/effects').LookPickChainAction;
+  }
+  if (cardNum === 'WXDi-P05-015') {
+    const effect = effects.find(e => e.effectId === 'WXDi-P05-015-E2');
+    if (!effect) return;
+    effect.action = {
+      type: 'REVEAL_AND_PICK',
+      owner: 'self',
+      revealCount: 6,
+      pickCount: 3,
+      then: { type: 'SEQUENCE', steps: [] },
+      remainder: { location: 'deck', position: 'top' },
+      opponentChoosesPileToTrash: true,
+    } as RevealAndPickAction;
+  }
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7871,6 +7906,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyFieldSigniNameLookPickWave14(card.CardNum, effects);
   applyPickedLevelSumLookPickWave15(card.CardNum, effects);
   applyOpponentChoiceRepeatLookPickWave16(card.CardNum, effects);
+  applyFinalLookPickWave17(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

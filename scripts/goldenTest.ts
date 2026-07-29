@@ -14044,6 +14044,103 @@ test('(xlvi) wave16 WXDi-P08-007-E3: 相手の手札捨て選択もpickを止め
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi) wave17: 最後の2効果 ────────────────────────────────────────
+test('(xlvi) wave17 WXDi-P15-005-E1: ピース実戦ゾーンでルリグ不在段は空振りし、5枚すべてデッキ下', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P15-005#1';
+    eq(cardMap.get('WXDi-P15-005')?.Type, 'ピース', '発生源はピース');
+    const ctx = mkCtx({}, {}, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    ctx.ownerState.field.check = source;
+    ctx.ownerState.deck = fill(5).map((n, i) => `${n}#${500 + i}`);
+    const deck0 = [...ctx.ownerState.deck];
+    const result = executeEffect(manualEffect('WXDi-P15-005', 'WXDi-P15-005-E1'), ctx);
+    ok(result.done, 'ルリグ0体なら3段とも候補ゼロで対話なし');
+    eq(result.ownerState.hand.length, ctx.ownerState.hand.length, '手札に過剰取得しない');
+    eq(result.ownerState.energy.length, ctx.ownerState.energy.length, 'エナにも過剰取得しない');
+    eq(result.ownerState.deck.slice(-5).join('|'), deck0.join('|'), '見た5枚はデッキ下');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) wave17 WXDi-P15-005-E1: ルリグ1体ならそのindexの1段だけ走り、公開札をhandOrEnergyへ', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P15-005#1';
+    const redLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤'));
+    const redCard = findCard(c => c.CardNum !== redLrig && (c.Color ?? '').includes('赤'));
+    const ctx = mkCtx({ lrig: [`${redLrig}#1`] }, {}, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    ctx.ownerState.field.check = source;
+    const pick = `${redCard}#601`;
+    ctx.ownerState.deck = [pick, ...fill(4).map((n, i) => `${n}#${610 + i}`)];
+    const total0 = ctx.ownerState.deck.length + ctx.ownerState.hand.length + ctx.ownerState.energy.length + ctx.ownerState.trash.length;
+    let result = executeEffect(manualEffect('WXDi-P15-005', 'WXDi-P15-005-E1'), ctx);
+    ok(!result.done && result.pending.type === 'SEARCH', 'センタールリグ色の段だけSEARCH');
+    eq(result.pending.visibleCards.join('|'), pick, '共通色だけ候補');
+    let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeSearch([pick], result.pending, c);
+    ok(!result.done && result.pending.type === 'CHOOSE', '公開札の手札/エナ選択');
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeChoose('energy', result.pending, c);
+    ok(result.done, '不在の左右アシスト段は空振りして完了');
+    ok(result.ownerState.energy.includes(pick), '選んだ公開札をエナへ');
+    eq(result.ownerState.hand.length, ctx.ownerState.hand.length, '手札は増えない');
+    eq(result.ownerState.deck.length, 4, '選んだ1枚だけデッキから抜ける');
+    const total1 = result.ownerState.deck.length + result.ownerState.hand.length + result.ownerState.energy.length + result.ownerState.trash.length;
+    eq(total1, total0, '4領域でカード総数保存');
+    eq(new Set([...result.ownerState.deck, ...result.ownerState.hand, ...result.ownerState.energy, ...result.ownerState.trash]).size, total1, '複製0');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) wave17 WXDi-P05-015-E2: 相手が表向き束を選ぶとその3枚だけ捨て、裏向き束を手札へ', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P05-015#1';
+    eq(cardMap.get('WXDi-P05-015')?.Type, 'ルリグ', '発生源はルリグ');
+    const ctx = mkCtx({ lrig: [source] }, {}, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    const six = fill(6).map((n, i) => `${n}#${700 + i}`);
+    ctx.ownerState.deck = [...six, ...ctx.ownerState.deck.map((n, i) => `${n}#${800 + i}`)];
+    const hand0 = ctx.ownerState.hand.length, trash0 = ctx.ownerState.trash.length, deck0 = ctx.ownerState.deck.length;
+    let result = executeEffect(manualEffect('WXDi-P05-015', 'WXDi-P05-015-E2'), ctx);
+    ok(!result.done && result.pending.type === 'SEARCH', '自分が6枚から表向き3枚を選ぶ');
+    let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeSearch(six.slice(0, 3), result.pending, c);
+    ok(!result.done && result.pending.type === 'CHOOSE' && result.pending.opponentResponds, '束の選択権は対戦相手');
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+    result = resumeOpponentPayOptional('face_up', [], result.pending, c);
+    ok(result.done, '相手選択後に完了');
+    eq(result.ownerState.trash.slice(trash0).join('|'), six.slice(0, 3).join('|'), '相手が選んだ表向き束がトラッシュ');
+    eq(result.ownerState.hand.slice(hand0).join('|'), six.slice(3).join('|'), '選ばれなかった裏向き束が手札');
+    eq(result.ownerState.deck.length, deck0 - 6, '公開6枚をデッキから除く');
+    eq(new Set([...result.ownerState.deck, ...result.ownerState.hand, ...result.ownerState.energy, ...result.ownerState.trash]).size,
+      result.ownerState.deck.length + result.ownerState.hand.length + result.ownerState.energy.length + result.ownerState.trash.length, '複製0');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) wave17 WXDi-P05-015-E2: 相手が裏向き束を選ぶと向きが逆転せず、表向き束を手札へ', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P05-015#1';
+    const ctx = mkCtx({ lrig: [source] }, {}, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    const six = fill(6).map((n, i) => `${n}#${900 + i}`);
+    ctx.ownerState.deck = six;
+    const hand0 = ctx.ownerState.hand.length;
+    const trash0 = ctx.ownerState.trash.length;
+    let result = executeEffect(manualEffect('WXDi-P05-015', 'WXDi-P05-015-E2'), ctx);
+    let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeSearch(six.slice(0, 3), (result as Extract<ExecResult, { done: false }>).pending as never, c);
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+    result = resumeOpponentPayOptional('face_down', [], (result as Extract<ExecResult, { done: false }>).pending as never, c);
+    ok(result.done, '裏向き束選択も完了');
+    eq(result.ownerState.trash.slice(trash0).join('|'), six.slice(3).join('|'), '相手が選んだ裏向き束がトラッシュ');
+    eq(result.ownerState.hand.slice(hand0).join('|'), six.slice(0, 3).join('|'), '残る表向き束が手札');
+    eq(result.ownerState.deck.length, 0, '6枚すべてを一度だけ移動');
+  } finally { cursor = savedCursor; }
+});
+
 test('task12(xxxix) batch3 WD07-007-E1: both color gates use the same milled-four snapshot', () => {
   const savedCursor = cursor;
   try {

@@ -3066,6 +3066,25 @@ export function execStubPart1(
       type: 'CHOOSE', options: optsDCLS, count: 1,
     });
   }
+  if (stub.id === 'INTERNAL_RESOLVE_PILES') {
+    const trashCards = stub.pileTrashCards ?? [];
+    const handCards = stub.pileHandCards ?? [];
+    const moving = new Set([...trashCards, ...handCards]);
+    const deckCards = ctx.ownerState.deck.filter(n => moving.has(n));
+    const deckSet = new Set(deckCards);
+    const toTrash = trashCards.filter(n => deckSet.has(n));
+    const toHand = handCards.filter(n => deckSet.has(n));
+    const newOwner = {
+      ...ctx.ownerState,
+      deck: ctx.ownerState.deck.filter(n => !moving.has(n)),
+      trash: [...ctx.ownerState.trash, ...toTrash],
+      hand: [...ctx.ownerState.hand, ...toHand],
+    };
+    return done(addLog(
+      { ...ctx, ownerState: newOwner, lastProcessedCards: [...toTrash, ...toHand] },
+      `対戦相手が選んだ束${toTrash.length}枚をトラッシュへ、残り${toHand.length}枚を手札へ`,
+    ));
+  }
   // DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。
   // CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
   if (stub.id === 'DECLARE_COLORS') {
