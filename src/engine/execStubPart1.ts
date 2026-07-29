@@ -83,7 +83,10 @@ export function execStubPart1(
     const tgt = stub.selectTarget;
     if (!tgt || tgt.type !== 'SIGNI') return done({ ...ctx, lastProcessedCards: [] });
     const state = ownerState(tgt.owner, ctx);
-    const cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+    let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+    if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
+      cands = cands.filter(n => n !== ctx.sourceCardNum);
+    }
     const count = typeof tgt.count === 'number' ? tgt.count : 1;
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope,

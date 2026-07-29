@@ -3602,6 +3602,66 @@ function applyDeclaredColorLookPickWave13(cardNum: string, effects: CardEffect[]
   };
 }
 
+// タスク12(xlvi) 第14波。「場のシグニと同じ名前」の2形を effectId 固定で復元する。
+// WXK04-045 は既存 SELECT_TARGET_ONLY → nameEqLastProcessed の連結だけで足りる。
+// WX26-CP1-061-SONG は選んだ各札を自分の場のシグニ名集合で絞り、E1 に漏れた歌効果の残骸も除く。
+function applyFieldSigniNameLookPickWave14(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum === 'WXK04-045') {
+    const e = effects.find(effect => effect.effectId === 'WXK04-045-E1');
+    if (!e) return;
+    e.action = {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'STUB',
+          id: 'SELECT_TARGET_ONLY',
+          selectTarget: {
+            type: 'SIGNI',
+            owner: 'self',
+            count: 1,
+            filter: {
+              cardType: 'シグニ',
+              anyOf: [{ story: '紅蓮' }, { story: '古代兵器' }],
+              excludeSelf: true,
+            },
+          },
+        } as StubAction,
+        {
+          type: 'REVEAL_AND_PICK',
+          owner: 'self',
+          revealCount: 4,
+          filter: { cardType: 'シグニ', nameEqLastProcessed: true },
+          pickCount: 1,
+          then: { type: 'ADD_TO_HAND', owner: 'self' },
+          remainder: { location: 'deck', position: 'bottom', shuffle: true },
+        } as RevealAndPickAction,
+      ],
+    };
+    return;
+  }
+
+  if (cardNum === 'WX26-CP1-061') {
+    const e1 = effects.find(effect => effect.effectId === 'WX26-CP1-061-E1');
+    const song = effects.find(effect => effect.effectId === 'WX26-CP1-061-SONG');
+    if (e1?.action.type === 'SEQUENCE') {
+      const power = e1.action.steps.find(step => step.type === 'CONDITIONAL');
+      if (power) e1.action = power;
+    }
+    if (song) {
+      song.action = {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 10,
+        filter: { cardType: 'シグニ', nameMatchesAnyFieldSigni: true },
+        pickCount: 2,
+        pickUpTo: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: { location: 'deck', position: 'top', shuffle: true },
+      } as RevealAndPickAction;
+    }
+  }
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7542,6 +7602,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     if (card.EffectText && card.EffectText !== '-') {
       // 【シャドウ（X）】のスコープ条件を stripRuleParens で括弧除去される前に符号化する
       let effectText = encodeShadowScopesInText(card.EffectText);
+      // 【歌のカケラ】は下段で独立した SONG effect として解析する。通常能力ブロックへ残すと、
+      // 直前の【自】等へ歌本文が連結され、E1 に UNKNOWN/STUB が漏れる（WX26-CP1-061）。
+      effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
       // クロスアイコン prefix の検出と除去
       if (effectText.startsWith('《クロスアイコン》')) {
         card.hasCrossIcon = true;
@@ -7738,6 +7801,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyConditionalLookPickWave11(card.CardNum, effects);
   applyLookPickProportionalDiscardWave12(card.CardNum, effects);
   applyDeclaredColorLookPickWave13(card.CardNum, effects);
+  applyFieldSigniNameLookPickWave14(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

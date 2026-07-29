@@ -1159,6 +1159,15 @@ function resolveDynamicFilter(
     // cardName は部分一致なのでカード名の完全一致には cardNames（配列＝完全一致）を使う。
     result = name ? { ...rest, cardNames: [name] } : noMatch(rest);
   }
+  if (result.nameMatchesAnyFieldSigni) {
+    const { nameMatchesAnyFieldSigni: _nf, ...rest } = result;
+    const names = [...new Set(ownerSt.field.signi
+      .map(stack => stack?.at(-1))
+      .filter((n): n is string => !!n)
+      .map(n => cardMap.get(getCardNum(n))?.CardName)
+      .filter((name): name is string => !!name))];
+    result = names.length > 0 ? { ...rest, cardNames: names } : noMatch(rest);
+  }
   if (result.classEqDeclaredClass) {
     const { classEqDeclaredClass: _cd, ...rest } = result;
     const cls = ownerSt.declared_class;

@@ -461,6 +461,8 @@ export interface TargetFilter {
   // resolveDynamicFilter が declared_card_name を cardNames（完全一致）へ解決する。未宣言なら空ヒット
   // （＝宣言していないのにどのカードでも拾える過剰実行を避ける）。
   nameEqDeclaredName?: boolean;
+  /** 公開札のカード名が、自分の場にあるシグニのいずれかのカード名と完全一致。参照先なしは空ヒット。 */
+  nameMatchesAnyFieldSigni?: boolean;
   // クラスがこの効果で宣言したクラスと一致（「その中から宣言したクラスを持つシグニ」PR-431／WX24-P1-035）。
   // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
   classEqDeclaredClass?: boolean;

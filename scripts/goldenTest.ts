@@ -4083,6 +4083,77 @@ test('(xlvi) WX11-074-E1: 宣言した2色ごとにシグニ1枚を手札/エナ
   } finally { cursor = savedCursor; }
 });
 
+test('(xlvi) 第14波 WXK04-045-E1: 場で対象にした別シグニと同名だけを拾う', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('WXK04-045')?.find(e => e.effectId === 'WXK04-045-E1');
+    if (!effect) throw new Error('WXK04-045-E1 が存在');
+    const target = findCard(c => c.Type === 'シグニ'
+      && ((c.CardClass ?? '').includes('紅蓮') || (c.CardClass ?? '').includes('古代兵器'))
+      && c.CardNum !== 'WXK04-045');
+    const miss = findCard(c => c.Type === 'シグニ' && c.CardName !== cardMap.get(target)?.CardName);
+    const ctx = mkCtx({ signi: ['WXK04-045', target, null], deckTop: [miss, target] }, {}, 'WXK04-045');
+    const hand0 = ctx.ownerState.hand.length;
+    const total0 = ctx.ownerState.deck.length + ctx.ownerState.hand.length;
+
+    const r0 = executeEffect(effect, ctx);
+    ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '場の参照元を先に対象選択する');
+    eq(r0.pending.candidates.join(','), target, '🔴自身を除く＜紅蓮＞/＜古代兵器＞だけが参照候補');
+    const r1 = resumeSelectTarget([target], r0.pending, {
+      ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs,
+    });
+    ok(!r1.done && r1.pending.type === 'SEARCH', '同名pickへ進む');
+    eq(r1.pending.visibleCards.join(','), target, '🔴対象と同名のシグニだけが候補（filter落ち禁止）');
+    const r2 = resumeSearch([target], r1.pending, {
+      ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs,
+      lastProcessedCards: r1.lastProcessedCards,
+    });
+    ok(r2.done, 'pick完走');
+    eq(r2.ownerState.hand.length, hand0 + 1, '同名1枚を手札へ');
+    ok(r2.ownerState.hand.includes(target), '対象と同名の公開札が手札にある');
+    eq(r2.ownerState.deck.length + r2.ownerState.hand.length, total0, 'デッキ・手札のカード総数保存（複製0）');
+    ok(r2.ownerState.deck.includes(miss), '非対象札はデッキ下へ残る');
+
+    const noRefCtx = mkCtx({ signi: ['WXK04-045', null, null], deckTop: [target, miss] }, {}, 'WXK04-045');
+    const noRefHand = noRefCtx.ownerState.hand.length;
+    const noRef = run(effect.action, noRefCtx);
+    eq(noRef.ownerState.hand.length, noRefHand,
+      '🔴場に参照元が無いとき候補ゼロ（同名札が公開されても拾わない）');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) 第14波 WX26-CP1-061: SONGだけが場のいずれかと同名を拾い、E1へ漏れない', () => {
+  const savedCursor = cursor;
+  try {
+    const effects = effectsMap.get('WX26-CP1-061') ?? [];
+    const e1 = effects.find(e => e.effectId === 'WX26-CP1-061-E1');
+    const song = effects.find(e => e.effectId === 'WX26-CP1-061-SONG');
+    if (!e1 || !song) throw new Error('WX26-CP1-061 の2効果が存在');
+    eq(e1.action.type, 'CONDITIONAL', 'E1 はターン終了時+5000だけ（歌の公開STUB漏れなし）');
+    eq(song.action.type, 'REVEAL_AND_PICK', 'SONG が独立したlive pick');
+
+    const field = findCard(c => c.Type === 'シグニ' && c.CardNum !== 'WX26-CP1-061');
+    const miss = findCard(c => c.Type === 'シグニ' && c.CardName !== cardMap.get(field)?.CardName);
+    const ctx = mkCtx({ signi: [field, null, null], deckTop: [miss, field] }, {}, 'WX26-CP1-061');
+    const hand0 = ctx.ownerState.hand.length;
+    const r0 = executeEffect(song, ctx);
+    ok(!r0.done && r0.pending.type === 'SEARCH', 'SONG のpick選択へ');
+    eq(r0.pending.visibleCards.join(','), field, '🔴場のシグニと同名だけが候補');
+    const r1 = resumeSearch([field], r0.pending, {
+      ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs,
+    });
+    ok(r1.done, 'SONG完走');
+    eq(r1.ownerState.hand.length, hand0 + 1, '同名札を手札へ');
+    ok(r1.ownerState.deck.includes(miss), '残りはシャッフル後もデッキに保存');
+
+    const noFieldCtx = mkCtx({ signi: [null, null, null], deckTop: [field, miss] }, {}, 'WX26-CP1-061');
+    const noFieldHand = noFieldCtx.ownerState.hand.length;
+    const noField = run(song.action, noFieldCtx);
+    eq(noField.ownerState.hand.length, noFieldHand,
+      '🔴場にシグニがいないと候補ゼロ（filter落ちの無差別pick禁止）');
+  } finally { cursor = savedCursor; }
+});
+
 test('(xlvi) WX12-Re10-E1: 天使3枚のときだけ1枚を手札へ', () => {
   const savedCursor = cursor;
   try {

@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［89枚］
-PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX26-CP1-076 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-053 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
+## （type増減なし＝値/構造変更） ［88枚］
+PR-Di017B SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-005 WX25-P1-061 WX25-P1-083 WX25-P1-102 WX25-P1-107 WX25-P2-030 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WXDi-CP01-026 WXDi-CP02-063 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-049 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-070 WXDi-P08-072 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-066 WXDi-P14-071 WXDi-P14-081 WXDi-P15-053 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-040 WXK06-048 WXK08-023 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -1578,6 +1578,101 @@ WX25-CP1-074
   + [0].action.steps[0].target.filter.excludeSelf = true
   + [0].action.steps[0].delta = 3000
   …（他 31 行）
+
+## -BLOCK_ACTION -CONDITIONAL -GRANT_KEYWORD -IS_MY_TURN -PLAYER -SIGNI ［1枚］
+WX26-CP1-068
+--- WX26-CP1-068
+  原文: 【自】：このシグニがアタックしたとき、あなたの場に他の＜プリオケ＞のシグニがある場合、以下の２つから２つまで選ぶ。①手札を１枚捨てる。そうした場合、カードを１枚引く。②手札を１枚捨てる。そうした場合、【エナチャージ１】をする。【歌のカケラ】：《無》を支払ってもよい。そうした場合、このターン、次にあなたのルリグがアタックしたとき、そのアタックの間、対戦相手は【
+  - [0].action.choices[1].action.steps[2].type = "GRANT_KEYWORD"
+  - [0].action.choices[1].action.steps[2].target.type = "SIGNI"
+  - [0].action.choices[1].action.steps[2].target.owner = "self"
+  - [0].action.choices[1].action.steps[2].target.count = 1
+  - [0].action.choices[1].action.steps[2].keyword = "歌のカケラ"
+  - [0].action.choices[1].action.steps[2].duration = "PERMANENT"
+  - [0].action.choices[1].action.steps[3].type = "CONDITIONAL"
+  - [0].action.choices[1].action.steps[3].condition.type = "IS_MY_TURN"
+  - [0].action.choices[1].action.steps[3].then.type = "BLOCK_ACTION"
+  - [0].action.choices[1].action.steps[3].then.target.type = "PLAYER"
+  - [0].action.choices[1].action.steps[3].then.target.owner = "opponent"
+  - [0].action.choices[1].action.steps[3].then.target.count = 1
+  …（他 2 行）
+
+## -BANISH -SEQUENCE -SIGNI ［1枚］
+WX26-CP1-069
+--- WX26-CP1-069
+  原文: 【出】手札から＜プリオケ＞のカードを１枚捨てる：対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。【歌のカケラ】：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。,-
+  - [0].action.steps[0].type = "BANISH"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "opponent"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.powerRange.max = 5000
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[1].type = "BANISH"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.filter.cardType = "シグニ"
+  …（他 9 行）
+
+## -GRANT_EFFECT -SEQUENCE -SIGNI -STUB ［1枚］
+WX26-CP1-076
+--- WX26-CP1-076
+  原文: 【自】：あなたのターン終了時、あなたの他の＜プリオケ＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーをあなたの手札１枚につき＋1000する。【歌のカケラ】：あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたの手札１枚につき－
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "POWER_MOD_BY_HAND_COUNT"
+  - [0].action.steps[1].type = "GRANT_EFFECT"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.filter.cardType = "シグニ"
+  - [0].action.steps[1].target.upToCount = false
+  - [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  - [0].action.steps[1].effect.effectId = "WX26-CP1-076-sub-E1"
+  - [0].action.steps[1].effect.effectType = "AUTO"
+  - [0].action.steps[1].effect.timing[0] = "ON_ATTACK_SIGNI"
+  …（他 9 行）
+
+## -GRANT_KEYWORD -SIGNI ［1枚］
+WX26-CP1-084
+--- WX26-CP1-084
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜プリオケ＞のシグニ１体を対象とし、あなたのエナゾーンから＜プリオケ＞のカード１枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それは【ランサー】を得る。【歌のカケラ】：あなたのシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。,-
+  - [0].action.steps[2].type = "GRANT_KEYWORD"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "self"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].keyword = "歌のカケラ"
+  - [0].action.steps[2].duration = "UNTIL_END_OF_TURN"
+
+## -TRANSFER_TO_HAND -TRASH_CARD ［1枚］
+WX26-CP1-092
+--- WX26-CP1-092
+  原文: 【自】：あなたのターン終了時、あなたの他の＜プリオケ＞のシグニ１体を対象とし、あなたのデッキの上からカードを２枚トラッシュに置いてもよい。この方法で＜プリオケ＞のカードが１枚以上トラッシュに置かれた場合、次の対戦相手のターン終了時まで、それのパワーを＋5000する。【歌のカケラ】：あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを
+  - [0].action.steps[2].type = "TRANSFER_TO_HAND"
+  - [0].action.steps[2].source.type = "TRASH_CARD"
+  - [0].action.steps[2].source.owner = "self"
+  - [0].action.steps[2].source.count = 1
+  - [0].action.steps[2].source.upToCount = false
+  - [0].action.steps[2].source.filter.cardType = "シグニ"
+  - [0].action.steps[2].source.filter.noGuard = true
+
+## -GRANT_KEYWORD -SEQUENCE -SIGNI ［1枚］
+WX26-CP1-093
+--- WX26-CP1-093
+  原文: 【出】手札から＜プリオケ＞のカードを１枚捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。あなたのトラッシュに＜プリオケ＞のカードが５枚以上ある場合、代わりにターン終了時まで、それのパワーを－5000する。【歌のカケラ】：対戦相手のシグニを２体まで対象とし、ターン終了時まで、それらのパワーをそれぞれ－5000する。,-
+  - [0].action.steps[0].type = "CONDITIONAL"
+  - [0].action.steps[0].condition.type = "TRASH_HAS_CARD"
+  - [0].action.steps[0].condition.owner = "self"
+  - [0].action.steps[0].condition.filter.story = "プリオケ"
+  - [0].action.steps[0].condition.minCount = 5
+  - [0].action.steps[0].then.type = "POWER_MODIFY"
+  - [0].action.steps[0].then.target.type = "SIGNI"
+  - [0].action.steps[0].then.target.owner = "opponent"
+  - [0].action.steps[0].then.target.count = 1
+  - [0].action.steps[0].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[0].then.target.upToCount = false
+  - [0].action.steps[0].then.delta = -5000
+  …（他 32 行）
 
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022

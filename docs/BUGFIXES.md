@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 場のシグニと同じ名前を参照する look-pick 第14波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **着地3 effectId・壊れ方**：`WXK04-045-E1` と `WX26-CP1-061-SONG` は公開後の手札加えが live で走らない **no-op**。`WX26-CP1-061-E1` は本来の「他の＜プリオケ＞があるなら次の相手ターン終了時まで自身+5000」の後ろに SONG 側の UNKNOWN/STUB が漏れた **過剰な構造混入**（実体はSTUBのため追加盤面変化はない）があった。
+- **PLAN の見立て訂正・機構**：`WXK04-045-E1` の「場の対象→同名」は新連結機構不要。既存 `SELECT_TARGET_ONLY`（盤面不変で対象を `lastProcessedCards` へ記録）→既存 `nameEqLastProcessed` を接続し、対象filterを「自身以外の＜紅蓮＞か＜古代兵器＞」にした。新設は SONG 用 `TargetFilter.nameMatchesAnyFieldSigni` だけ（自分の場のシグニ名集合へ完全一致、参照元0体なら noMatch）。`SELECT_TARGET_ONLY` の既存 `excludeSelf` が候補収集で評価されていなかったため、その配線も是正。
+- **原文どおりの移動**：WXK04 は上4枚から同名シグニ1枚を手札、残りをシャッフルしてデッキ下。SONG は上10枚から場のいずれかと同名のシグニ2枚までを手札、残りをデッキに加えてシャッフル。`WX26-CP1-061-E1` は CONDITIONAL +5000 本体だけへ分離し、SONG と混ぜていない。
+- **実測・危険側固定**：両カードを実カード種別どおりシグニゾーン発生源で engine 直通実行。参照元ありでは同名だけが SEARCH 候補、参照元なし（WXK04 は自身しかいない／SONG は場シグニ0）では同名公開札があっても候補0。デッキ/手札総数保存・複製0、非対象札のデッキ残存を確認。変異2種（`nameMatchesAnyFieldSigni` 無制限化／`nameEqLastProcessed` 無制限化）は各 **1000本中1本だけFAIL**（999 PASS / 1 FAIL）し、復元後1000/1000。
+- **外科性・二層**：両カードとも `manualEffects.ts` 定義なし。fresh は held に上がったため `heldReview --adopt WXK04-045,WX26-CP1-061` で原文・兄弟効果を照合して明示採用。HEAD→作業ツリーの live JSON per-effect 差分は intended 3件（上記 effectId）だけ、added/removed 0。
+- **計器・ゲート**：新 filter を census の同一性キーへ登録し、通常 E1 の原文ブロックから SONG 本文を分離。従来は SONG 原文が `WX26-CP1-061-E1` にも割り当たり複数カテゴリで偽陽性化していたため、census **1412→1410**、回帰ゲート実数も1410へ更新。golden **998→1000**。held **258枚/114署名**。build冪等。
+- **⚠held が 253枚/108署名→258枚/114署名へ増えた理由（Claude 確認・劣化ではない）**：本波で入れた `【歌のカケラ】：…` を通常能力ブロックから除去する regex は**この系統の全カードに効く汎用変更**で、`WX26-CP1-068/069/076/084/092/093` の6枚でも fresh から歌本文が抜けた。これらは **curated 側が誤り**＝例えば `WX26-CP1-068` は【自】の選択肢②の中に `GRANT_KEYWORD{keyword:"歌のカケラ"}` と歌本文の `CONDITIONAL{IS_MY_TURN}→BLOCK_ACTION{PLAYER}`（＝対戦相手はガードできない）が**重複混入**していた。6枚とも `-SONG` effect が別に存在し、**fresh でも `-SONG` は生成されている**ことを確認済み＝歌能力の欠落はない。したがって held 増は「parser 改善で fresh が curated より正しくなった採用待ちバックログ」（PLAN 恒久指標が想定する増え方）で、**この6枚の採用は次波の worklist**。
+- **honest defer（残4）**：`WXDi-P15-005-E1`（場ルリグ個別色ぶんの動的stage＋公開後の手札/エナ二分配）／`WX25-P3-052-E1`（pick結果のレベル合計snapshotを保持した二分岐）／`WXDi-P05-015-E2`（相手が選ぶ表裏2束）／`WXDi-P08-007-E3`（相手の捨てる/支払う分岐を含む対話REPEAT）。部分近似は条件・選択を踏み倒すため据置。
+
 ## 宣言2色ごとの look-pick 第13波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **着地1効果・壊れ方**：`WX11-074-E1`。live は `CHOOSE_COLOR_FROM_LIST`（未実装）＋`LOOK_AND_REORDER` のため、色宣言も「宣言色1つにつきシグニ1枚を手札かエナへ」も丸ごと **no-op** だった。
