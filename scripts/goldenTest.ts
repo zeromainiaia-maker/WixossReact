@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -14740,17 +14740,17 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1451, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 933, '任意costあり（(xxix)(1) の母集団）');
-    eq(optionalNoCost.length, 51, '段階3在庫（英知14件が mandatory 化して 65→51）');
+    eq(optionalCost.length, 943, '任意costあり（(xxix)(1) の母集団）');
+    eq(optionalNoCost.length, 41, '段階3在庫（手札捨て10効果の構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
-      const state = mkState({ signi: ['WX16-045', null, null] });
-      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WX16-045', state, mkState(), 'host', {
+      const state = mkState({ signi: ['WD06-013', null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WD06-013', state, mkState(), 'host', {
         placedByEffect: true, sourceIsSigni: false,
       });
-      eq(r.entries.filter(e => e.effectId === 'WX16-045-E1').length, 0,
-        'costUnparsed（原文にコスト句あり）はcollectorへ巻き込まない＝踏み倒し防止');
+      eq(r.entries.filter(e => e.effectId === 'WD06-013-E1').length, 0,
+        '残 costUnparsed（原文にライフコスト句あり）はcollectorへ巻き込まない＝踏み倒し防止');
     }
     {
       const state = mkState({ signi: ['WX04-041', null, null] });
@@ -14766,14 +14766,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
   test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる853件／表現できない80件', () => {
-    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'handDiscardSigni', 'energyTrash']);
+    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash']);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
-    eq(optionalCost.length, 933, '母集団');
-    eq(mapped.length, 853, 'OPTIONAL_COST へ写せる＝新たに積める');
+    eq(optionalCost.length, 943, '母集団');
+    eq(mapped.length, 863, 'OPTIONAL_COST へ写せる＝新たに積める');
     eq(optionalCost.length - mapped.length, 80, '表現できないコストを含むため据え置き');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 853件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
@@ -14841,7 +14841,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // 🔴 これが本機構の安全弁。原文に「【出】〈コスト句〉：」がある効果を包むと、**コストを払わずに
   //    効果だけ撃てる**（＝踏み倒し）。parser の `costUnparsed` 印＋PRESERVE カードへの外科パッチで
   //    塞いであるが、新カード追加で穴が開かないよう**母集団全数**で不変条件として固定する。
-  test('(xxix)(2) 🔴 包む対象は必ず原文のコスト句が空＝コストの踏み倒しが起きない', () => {
+  test('(xxix)(2) 🔴 コスト無しで包む対象は必ず原文のコスト句が空＝踏み倒しが起きない', () => {
     const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
     const headOf = (id: string): string | null => {
       const m = (srcText[id] ?? '').trim().match(/^【[^】]*出】([^：:]*)[：:]/);
@@ -14861,7 +14861,52 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 8, '包む＝真の「〜してもよい」8効果');
-    eq(deferred, 43, '据え置き＝コスト句があるのに cost 未表現の43効果（parser 在庫）');
+    eq(deferred, 33, '据え置き＝コスト句があるのに cost 未表現の33効果（parser 在庫）');
+  });
+
+  test('(xxix)(2) filter付き手札捨てコストは払える時だけ完走し、対象外カードを捨てない', () => {
+    const savedCursor = cursor;
+    try {
+      const base = effectsMap.get('WX08-055')!.find(e => e.effectId === 'WX08-055-E1')!;
+      eq(JSON.stringify(base.cost), JSON.stringify({ discard: 1, discardFilter: { cardType: 'シグニ', hasIcon: 'クロス' } }),
+        'WX08-055-E1 のクロスアイコン＋シグニfilter');
+      const wrapped = wrapOptionalOnPlay({ ...base, action: { type: 'DRAW', owner: 'self', count: 1 } })!;
+      const valid = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【クロス'));
+      const invalid = findCard(c => c.Type === 'シグニ' && !(c.EffectText ?? '').includes('【クロス'));
+      const draw = findCard(c => c.CardNum !== valid && c.CardNum !== invalid);
+
+      const payableCtx = mkCtx({}, {}, 'WX08-055');
+      payableCtx.cardMap = new InstanceMap(cardMap);
+      payableCtx.ownerState = { ...payableCtx.ownerState, hand: [invalid, valid], deck: [draw] };
+      const paid = finishPayingCosts(executeEffect(wrapped, payableCtx), payableCtx);
+      ok(paid.done, '払える場合は pending を完走');
+      eq(paid.ownerState.hand.includes(valid), false, 'filter一致カードを1枚捨てる');
+      ok(paid.ownerState.hand.includes(invalid), '対象外カードは手札に残る');
+      ok(paid.ownerState.trash.includes(valid) && !paid.ownerState.trash.includes(invalid), '対象外カードはトラッシュへ行かない');
+      ok(paid.ownerState.hand.includes(draw), '支払い後に元効果が実行される');
+
+      const blockedCtx = mkCtx({}, {}, 'WX08-055');
+      blockedCtx.cardMap = new InstanceMap(cardMap);
+      blockedCtx.ownerState = { ...blockedCtx.ownerState, hand: [invalid], deck: [draw] };
+      const blocked = finishPayingCosts(executeEffect(wrapped, blockedCtx), blockedCtx);
+      ok(blocked.done, '払えない場合も skip で完走');
+      eq(blocked.ownerState.hand.join(','), invalid, '払えない場合は手札を1枚も捨てない');
+      eq(blocked.ownerState.deck.join(','), draw, '払えない場合は元効果を実行しない');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(2) 異なるfilterの2枚コストは両群を満たす時だけ支払える', () => {
+    const base = effectsMap.get('WX20-058')!.find(e => e.effectId === 'WX20-058-E1')!;
+    const groups = base.cost?.discardGroups;
+    if (!groups) throw new Error('WX20-058-E1 discardGroups missing');
+    eq(groups.length, 2, '鉱石1枚＋宝石1枚の2群');
+    const ore = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('鉱石'));
+    const gem = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宝石'));
+    const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('鉱石') && !(c.CardClass ?? '').includes('宝石'));
+    ok(canSatisfyDiscardGroups([cardMap.get(ore), cardMap.get(gem)], groups), '鉱石＋宝石なら支払い可能');
+    ok(!canSatisfyDiscardGroups([cardMap.get(ore), cardMap.get(other)], groups), '鉱石＋対象外では支払い不能');
+    const stub = optionalOnPlayCostStub(base.cost!)!;
+    eq(JSON.stringify(stub.handDiscardGroups), JSON.stringify(groups), '効果配置も共通 OPTIONAL_COST の群支払いへ写す');
   });
 
   test('(xxix)(2) OPTIONAL_ACTIVATE は「発動する/発動しない」を出し、断ると盤面が動かない', () => {

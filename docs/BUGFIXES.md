@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## filter付き手札捨てコストの構造化（2026-07-29・PLAN §3 タスク12(xxix)(2)・Codex）
+
+- **壊れ方の分類：過剰実行（コスト踏み倒し）＋計器偽陽性**。原文が「【出】手札から〈filter〉をN枚捨てる：」でも JSON は `cost` なし／`costUnparsed:true` のため、効果だけ実行できた。`parseCost` をアイコン（ライフバースト／クロス／ライズ／トラップ／アクセ）、クラス、色、カード名部分一致、カード種別、漢数字「一枚」に対応させた。
+- **構造化12効果**：`WD23-024-E-E1`、`PR-457-E1`、`WX08-055-E1`、`WX08-057-E1`、`WX12-019-E2`、`WX12-026-E3`、`WX15-042-E1`、`WX16-041-E1`、`WX16-045-E1`、`WX16-056-E2`、`WX17-037-E1`、`WX20-058-E1`。最後の異種filter複数枚は `discardGroups` として表現し、collector／支払い可否／選択UI／支払い検証を共通経路へ配線した。対象系統の defer は0。
+- **`costUnparsed` 診断**：初期336件（AUTO 333／ACTIVATED 3）は、コストヘッダが非空なら付ける条件だったため、《ターン1回》等の `usageLimit` まで印していた。依頼時の実測分類 A185（回数制限のみ）／B65（実コスト）／C86（判定不能）を記録し、実コスト構文がある場合だけに絞った。live は47件（AUTO 47／ACTIVATED 0）まで減少し、未解析実コストの worklist として利用可能になった。
+- **支払い実測**：`InstanceMap` を用いた engine 直叩きで `done===true` を必須assert。対象札がある場合は手札2→1・対象札だけtrash 0→1・後続DRAW実行、対象外札だけの場合は手札1→1・trash 0→0・後続DRAW不発を確認した。異種2群も鉱石＋宝石を各1枚だけ支払うことを確認。
+- **危険側の変異テスト**：踏み倒しゲート除去は狙いどおり2 FAIL、filter伝播除去は1 FAIL、filterを過剰制限へ変えると1 FAIL。いずれも修復後 **1027/1027 PASS**。golden のグローバル `cursor` は save/restore し、発生源カード種別はCSVと一致させた。
+- **外科性・MANUAL 2層**：live JSON は **changed 291 / added 0 / removed 0**。内訳は構造変更12効果＋`costUnparsed` 偽陽性印だけの変更279効果。`WX16-045-E1` は `manualEffects.ts` と built JSON の双方を確認。built effects 全体で日本語の `?` 化0件。
+- **計器・ゲート**：census **1414→1412** のためトップレベル唯一の `BASELINE_HIGH=1412` と PLAN 恒久指標を更新。`npm run gates` は golden **1027/1027**、smoke **10726/10726** 全0、fuzz 全0、census **1412/1412**、manual field loss 0、lint 0 errors。`npm run build:effects` は2回目差分0で冪等。
+
+- **⚠Claude 確認：`costUnparsed` の印外し279件は「無害な印の変更」ではなく挙動変化**＝この印は `src/engine/triggerCollect.ts` の `wrapOptionalOnPlay` が読んでおり、**印が付いていると `return null` で「任意【出】を発動プロンプトで包む」経路から外される**（踏み倒し防止の安全弁）。したがって印を外した279件は**新たに発動可否を問われるようになる**＝これまで誤った印で発火経路から締め出されていた効果が動くようになる。**方向としては修正だが、影響は279効果に及ぶ**。
+- **踏み倒しリスクを機械監査＝0件**（Claude）＝印を外した279件のうち「`cost` が空」かつ「`timing` に `ON_PLAY` を含む」かつ「原文の【出】ブロックにコスト句（捨てる／トラッシュに置く／支払／エナゾーンに置く／ライフクロス）がある」ものは**0件**。コスト句を持つ24件はいずれも今回 `cost` を構造化した12件か【起】（`wrapOptionalOnPlay` を通らない）だった。⚠なお `WX16-056` は**【出】が2つあるカード**で、E2 は2つ目の《ライズアイコン》側＝`hasIcon:"ライズ"` は正しい（原文の1つ目「＜武勇＞のシグニ」と取り違えないこと）。
+- **⚠golden の網外の挙動変更が1件**＝`SigniOnPlayCostModal` の確定条件が `selectedSigniOnPlayDiscard.size >= handNeeded` から **`=== handNeeded`** に変わった。**既存のすべての手札捨てコストに効く**（従来は必要枚数より多く選んでも確定できた）。ルール上はちょうどの枚数が正しく方向は妥当だが、**ここは BattleScreen のハンドラで golden がカバーしない**ので §7 の実機 driver で確認したい。
+
 ## (lix) 最終波：動的公開枚数＋公開札の場出しで残0クローズ（2026-07-29・PLAN §3 タスク12(lix)・Codex）
 
 - **`WXK02-032-E1`・主分類＝入口語彙欠落による pick 完全 no-op／動的値誤読**：原文「7－自分のライフクロス枚数」が固定 `N枚見る` に掛からず `STUB{LOOK_TOP_BY_LIFE_COUNT}+LOOK_AND_REORDER{0}` へ退化していた。さらに旧STUBは減算でなくライフ枚数そのものを見ていた。既存 `NumberOrRef` 解決へ `seven_minus_self_life_count` を通し、`REVEAL_AND_PICK{1枚→手札,remainder:split_top_bottom}` にした。ライフ7＝公開0で正常終了、ライフ0＝公開7を engine 実測。

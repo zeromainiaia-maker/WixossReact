@@ -302,11 +302,12 @@ function extractUseCondition(text: string): { cleaned: string; condition?: Condi
 function parseCost(costStr: string): EffectCost | undefined {
   if (!costStr || costStr === '-') return undefined;
   const cost: EffectCost = {};
+  const costCount = (s: string): number => s === '一' ? 1 : parseNum(s);
   const energy = parseEnergyCosts(costStr);
   if (energy.length > 0) cost.energy = energy;
   if (costStr.includes('《ダウン》')) cost.down_self = true;
-  const dm = costStr.match(/手札を([０-９\d]+)枚捨てる/);
-  if (dm) cost.discard = parseNum(dm[1]);
+  const dm = costStr.match(/手札を([０-９\d]+|一)枚捨てる/);
+  if (dm) cost.discard = costCount(dm[1]);
   const em = costStr.match(/エクシード([０-９\d]+)/);
   if (em) cost.exceed = parseNum(em[1]);
   // このルリグの下からカードN枚をルリグトラッシュに置く → exceed（エクシードの文章表現）
@@ -427,6 +428,17 @@ function parseCost(costStr: string): EffectCost | undefined {
       cost.handDiscardSigni = { count: parseNum(hcLvSigniM[2]), level: parseNum(hcLvSigniM[1]) };
     }
   }
+  // 手札から《Xアイコン》を持つカード/シグニをN枚捨てる。
+  if (!cost.handDiscardSigni && !cost.discard && !cost.discardFilter && !cost.discardGroups) {
+    const hcIconM = costStr.match(/手札から《(ライフバースト|クロスアイコン|ライズアイコン|トラップアイコン|アクセアイコン)》を持つ(カード|シグニ)を([０-９\d]+|一)枚捨てる/);
+    if (hcIconM) {
+      const iconFilter: TargetFilter = { cardType: hcIconM[2] as CardTypeFilter };
+      if (hcIconM[1] === 'ライフバースト') iconFilter.hasLifeBurst = true;
+      else iconFilter.hasIcon = hcIconM[1].replace('アイコン', '') as NonNullable<TargetFilter['hasIcon']>;
+      cost.discard = costCount(hcIconM[3]);
+      cost.discardFilter = iconFilter;
+    }
+  }
   // このシグニの下からカード/スペルN枚をトラッシュ → underSelfTrash
   const ustM = costStr.match(/(?:このシグニ)の下から(?:同名の)?(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
   const ustAnyM = !ustM ? costStr.match(/(?:あなたのシグニ(?:[０-９\d]+体)?)の下からカードを?合計([０-９\d]+)枚トラッシュに置く/) : null;
@@ -531,12 +543,22 @@ function parseCost(costStr: string): EffectCost | undefined {
       ];
     }
   }
+  // 手札から＜A＞のシグニN枚と＜B＞のシグニN枚を捨てる → discardGroups
+  if (!cost.handDiscardSigni && !cost.discardGroups) {
+    const hdsStoryGroupM = costStr.match(/手札から＜([^＞]+)＞のシグニ([０-９\d]+|一)枚と＜([^＞]+)＞のシグニ([０-９\d]+|一)枚を捨てる/);
+    if (hdsStoryGroupM) {
+      cost.discardGroups = [
+        { count: costCount(hdsStoryGroupM[2]), filter: { cardType: 'シグニ', story: hdsStoryGroupM[1] } },
+        { count: costCount(hdsStoryGroupM[4]), filter: { cardType: 'シグニ', story: hdsStoryGroupM[3] } },
+      ];
+    }
+  }
   // 手札からカード名に《XXX》を含むカードをN枚捨てる → discard + discardFilter
   if (!cost.discard && !cost.discardFilter && !cost.discardGroups) {
-    const hcNameM = costStr.match(/手札からカード名に《([^》]+)》を含むカードを([０-９\d]+)枚捨てる/);
+    const hcNameM = costStr.match(/手札からカード名に《([^》]+)》を含む(カード|シグニ)を([０-９\d]+|一)枚捨てる/);
     if (hcNameM) {
-      cost.discard = parseNum(hcNameM[2]);
-      cost.discardFilter = { cardName: hcNameM[1] };
+      cost.discard = costCount(hcNameM[3]);
+      cost.discardFilter = { cardName: hcNameM[1], cardType: hcNameM[2] as CardTypeFilter };
     }
   }
   // 手札から《keyword》のカードをN枚捨てる → discard + discardFilter
@@ -3483,7 +3505,6 @@ function applyConditionalLookPickWave11(cardNum: string, effects: CardEffect[]):
       }
     }
   }
-
   if (cardNum === 'WX24-P4-037') {
     const e = find('WX24-P4-037-E1');
     if (e) {
@@ -7084,7 +7105,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // これが無いと `mandatory:false` かつ `cost` 無しに見えるため、任意【出】の発動プロンプト機構が
   // **コストを踏み倒して効果だけ通す**（原文にコストがあるのに無料で撃てる）。
   // 収集側はこの印がある効果を積まない＝従来どおり不発のまま据え置く。
-  const costUnparsed = costStr !== '' && cost === undefined;
+  // costStr には《ターン1回》《自分ターン》など、コストではないヘッダ修飾も入る。
+  // 「非空」だけで印を付けると usageLimit 群が大量に偽陽性になるため、未解釈の支払い動詞が
+  // 実際に残っている場合だけ worklist 印を立てる。既に cost を一部でも解釈できた複合コストは
+  // 従来どおり cost 側を正とし、部分欠落は別の原文照合ゲートで扱う。
+  const hasUnparsedCostSyntax = /(?:支払|捨て|トラッシュに置|手札に加え|場から|下に置|ダウンする|取り除|ゲームから除外|デッキ(?:の一番下)?に置|クラッシュ|【ビート】にする|エナゾーンに置)/.test(costStr);
+  const costUnparsed = cost === undefined && hasUnparsedCostSyntax;
   // §3タスク6 C: 「この能力の使用コストに含まれる《X》を支払う際、代わりに手札から＜C＞のシグニをN枚捨ててもよい」
   // ＝この能力スコープの任意コスト代替（WX07-027-E2）。**アクション文から取り除いて cost へ宣言として畳む**。
   // 従来はこの文が強制 TRASH ステップへ平坦化し、能力を使うたび必ず＜原子＞を1枚捨てる過剰効果だった。

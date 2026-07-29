@@ -77,6 +77,13 @@ const FIXES = [
   // PR-457-E2: SEARCH.filter
   { file: 'effects_misc', card: 'PR-457', eid: 'PR-457-E2', type: 'matchesLrig',
     locate: e => e.action },
+  // タスク12(xxix)(2): PRESERVEカードへ parser の手札捨てコスト改善を外科反映。
+  { file: 'effects_misc', card: 'PR-457', eid: 'PR-457-E1', type: 'discardAnyOne',
+    locate: e => e },
+  { file: 'effects_misc', card: 'WD23-024-E', eid: 'WD23-024-E-E1', type: 'discardLifeBurstOne',
+    locate: e => e },
+  { file: 'effects_WX', card: 'WX16-045', eid: 'WX16-045-E1', type: 'discardAcceSigniOne',
+    locate: e => e },
 
   // PR-K064-E1: CHOOSE.choices[0].action.filter (SEARCH)
   { file: 'effects_misc', card: 'PR-K064', eid: 'PR-K064-E1', type: 'matchesLrig',
@@ -103,9 +110,26 @@ const FIXES = [
 ];
 
 const DIR = 'public/data';
+const sourceText = JSON.parse(fs.readFileSync('docs/_effect_srctext.json', 'utf8'));
+const REAL_COST_SYNTAX = /(?:支払|捨て|トラッシュに置|手札に加え|場から|下に置|ダウンする|取り除|ゲームから除外|デッキ(?:の一番下)?に置|クラッシュ|【ビート】にする|エナゾーンに置)/;
 
 function applyFix(obj, type) {
   if (!obj) return false;
+  if (type === 'discardAnyOne') {
+    obj.cost = { discard: 1 };
+    delete obj.costUnparsed;
+    return true;
+  }
+  if (type === 'discardLifeBurstOne') {
+    obj.cost = { discard: 1, discardFilter: { cardType: 'カード', hasLifeBurst: true } };
+    delete obj.costUnparsed;
+    return true;
+  }
+  if (type === 'discardAcceSigniOne') {
+    obj.cost = { discard: 1, discardFilter: { cardType: 'シグニ', hasIcon: 'アクセ' } };
+    delete obj.costUnparsed;
+    return true;
+  }
   if (type === 'trashKeyCost') {
     obj.cost = { ...(obj.cost ?? {}), trash_key: true };
     obj.parseStatus = 'MANUAL';
@@ -176,6 +200,21 @@ for (const fix of FIXES) {
   if (ok) {
     console.log(`[FIX] ${fix.eid} → ${fix.type}`);
     totalFixed++;
+  }
+  fs.writeFileSync(path, JSON.stringify(db), 'utf-8');
+}
+
+// 旧 curated/PRESERVE JSON に残った costUnparsed 偽陽性を再較正する。
+// 原文ブロック先頭のコロン前に実コスト動詞が無い（《ターン1回》等だけ）場合に限り印を外す。
+for (const file of ['effects_WX', 'effects_WXDi', 'effects_WX24_26', 'effects_WXK', 'effects_misc']) {
+  const path = `${DIR}/${file}.json`;
+  const db = JSON.parse(fs.readFileSync(path, 'utf-8'));
+  for (const effects of Object.values(db)) {
+    for (const effect of effects) {
+      if (!effect.costUnparsed) continue;
+      const header = sourceText[effect.effectId]?.match(/^【(?:自|出|起)】([^：:]*?)[：:]/)?.[1];
+      if (header !== undefined && !REAL_COST_SYNTAX.test(header)) delete effect.costUnparsed;
+    }
   }
   fs.writeFileSync(path, JSON.stringify(db), 'utf-8');
 }

@@ -54,7 +54,7 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
  */
 export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCost): StubAction | null {
-  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'handDiscardSigni', 'energyTrash']);
+  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash']);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
@@ -85,6 +85,7 @@ export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCo
     ...(costColors.length > 0 ? { costColors } : {}),
     ...(cost.coin ? { coinCost: cost.coin } : {}),
     ...(handDiscard ? { handDiscard } : {}),
+    ...(cost.discardGroups ? { handDiscardGroups: cost.discardGroups } : {}),
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
   } as StubAction;
 }
