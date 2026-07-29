@@ -546,6 +546,19 @@ function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
 }
 
 /**
+ * 「その中から好きな枚数を（好きな順番で）デッキの一番◯に置き、残りを（好きな順番で）デッキの一番●に置く」
+ * ＝**プレイヤーが上下の振り分けを選ぶ**形か（G168 の `destination.position:'split_top_bottom'`）。
+ * ⚠上下が同じ語（両方「一番下」等）は分割ではないので受けない。
+ * 従来この文型は「一番下」を含むだけで `position:'bottom'` に潰れ、**見た全部がデッキの一番下へ送られる**
+ * （＝良い札を上に残せる原文の意味が消える）過小実行になっていた。G168 で機構は入っていたが
+ * 手書き MANUAL の WX13-081/082 だけが使っており、parser 側の規則が無かった（タスク12(xlvi)(d)）。
+ */
+export function isSplitTopBottomReorder(t: string): boolean {
+  const m = t.match(/その中から好きな枚数の?(?:カード)?を(?:好きな順番で)?デッキの一番(上|下)に(?:置き|戻し)、残りを(?:好きな順番で)?デッキの一番(上|下)に(?:置く|戻す)/);
+  return !!m && m[1] !== m[2];
+}
+
+/**
  * 「（あなたの）デッキの上からカードをN枚公開し（見て）、その中から〜」＝**1文に畳まれた** look-pick か。
  * 文が分かれている形は effectParser の LOOK_AND_REORDER + STUB 融合が拾うが、読点で1文になった形は
  * 上流の汎用「デッキ上公開/見る」規則・「デッキ上→エナ」規則が先取りして **pick が丸ごと落ちる**

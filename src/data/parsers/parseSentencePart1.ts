@@ -56,7 +56,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder,
 } from '../parserUtils';
 
 /**
@@ -1745,14 +1745,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       (t.includes('デッキの一番上に戻す') || t.includes('デッキの一番下に置き'))) {
     const cM = t.match(/カードを([０-９\d]+)枚見/);
     const toBottom = t.includes('デッキの一番下に置き');
+    // 「好きな枚数を一番下に置き、残りを一番上に戻す」＝プレイヤーが振り分けを選ぶ（G168・タスク12(xlvi)(d)）。
+    // 従来は position:'bottom' に潰れ**見た全部がデッキ下**へ送られていた。
+    const splitLR = isSplitTopBottomReorder(t);
     return {
       type: 'LOOK_AND_REORDER',
       source: { location: 'deck', owner: 'self' },
       count: cM ? parseNum(cM[1]) : 3,
       private: true,
-      reorder: t.includes('好きな順番'),
+      reorder: splitLR || t.includes('好きな順番'),
       canTrash: t.includes('トラッシュに置き'),
-      destination: { location: 'deck', owner: 'self', position: toBottom ? 'bottom' : 'top' },
+      destination: { location: 'deck', owner: 'self', position: splitLR ? 'split_top_bottom' : toBottom ? 'bottom' : 'top' },
     };
   }
 

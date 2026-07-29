@@ -55,7 +55,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter,
+  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -4469,14 +4469,18 @@ function parseActionTextInner(text: string): EffectAction {
         }
       }
       if (nextS.match(/その中から.*(?:デッキ|トラッシュ)/)) {
+        // 「好きな枚数を一番下に置き、残りを一番上に戻す」＝**プレイヤーが振り分けを選ぶ**（G168）。
+        // 従来は「一番下」を含むだけで position:'bottom' に潰れ、**見た全部がデッキ下へ**送られていた
+        // （良い札を上に残せる原文の意味が丸ごと消える過小実行）。タスク12(xlvi)(d)。
+        const split = isSplitTopBottomReorder(nextS);
         return {
           type: 'LOOK_AND_REORDER',
           source: { location: 'deck', owner: 'self' },
           count: parseNum(cM[1]),
           private: true,
-          reorder: nextS.includes('好きな順番'),
+          reorder: split || nextS.includes('好きな順番'),
           canTrash: nextS.includes('トラッシュ'),
-          destination: { location: 'deck', owner: 'self', position: nextS.includes('一番下') ? 'bottom' : 'top' },
+          destination: { location: 'deck', owner: 'self', position: split ? 'split_top_bottom' : nextS.includes('一番下') ? 'bottom' : 'top' },
         };
       }
     }

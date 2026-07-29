@@ -3322,6 +3322,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WXDi-P15-081 羅石 レイ//THE DOOR
   // E1【常】：同じゾーンにゲートあるかぎり「【自】APS開始時、カード1枚引く」を得る。→ condition SAME_ZONE_HAS_GATE 付き AUTO。
   // E2【出】：場にゲートがある場合、デッキ上3枚を見て並べ替え。→ CONDITIONAL(FIELD_HAS_GATE){then: LOOK_AND_REORDER}。
+  //   ⚠原文は「好きな枚数を…デッキの一番下に置き、**残りを**…デッキの一番上に戻す」＝プレイヤーが振り分ける形。
+  //   position:'bottom' だと**見た3枚すべてがデッキ下**へ行き、上に残す選択が消える（G168 の split_top_bottom が正）。
   'WXDi-P15-081': [
     {
       effectId: 'WXDi-P15-081-E1',
@@ -3341,7 +3343,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: {
         type: 'CONDITIONAL',
         condition: { type: 'FIELD_HAS_GATE', owner: 'self' },
-        then: { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 3, private: true, reorder: true, canTrash: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } },
+        then: { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 3, private: true, reorder: true, canTrash: false, destination: { location: 'deck', owner: 'self', position: 'split_top_bottom' } },
       },
       duration: 'INSTANT',
       mandatory: true,

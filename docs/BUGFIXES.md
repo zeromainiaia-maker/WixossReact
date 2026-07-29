@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 「好きな枚数を一番下・残りを一番上」＝振り分けを選ぶ形（`split_top_bottom`）を parser が知らなかった 第9波（2026-07-29・PLAN §3 タスク12(xlvi)(d)・Opus〔Claude Opus 5〕）
+
+- **🔴機構は G168（2026-06-24）で入っていたのに parser 側の規則が無く、手書き MANUAL の `WX13-081`／`WX13-082` の2枚だけが使っていた**。同じ文型の他効果は「一番下」という語を含むという理由だけで `destination.position:'bottom'` に潰れ、**見たカードが全部デッキの一番下へ送られていた**＝「良い札を上に残す」という原文の意味が丸ごと消える過小実行。`destination.position` は型・engine（`resumeLookAndReorder`）・BattleScreen の分割UI・逆翻訳のすべてに実装済みで、**欠けていたのは parser の1行だけ**だった。
+- **直し方**：`parserUtils` に `isSplitTopBottomReorder`（「その中から好きな枚数を…デッキの一番◯に置き、残りを…デッキの一番●に置く」で**◯と●が異なる**ときだけ true）を新設し、`LOOK_AND_REORDER` を作る2箇所（`effectParser` の `cM` ブロック末尾の汎用フォールバック／`parseSentencePart1` の「デッキ上を見て並び替え」）から参照。上下どちらが先に来る形（「一番上に戻し、残りを一番下」＝`WXDi-P08-063`）も同じ分割として受ける（どちらの集合を選ぶかの違いで、機構としては同値）。
+- **是正した6効果**：`WX05-011-E2`／`WXDi-D09-P21-E1`／`WXDi-P08-063-E1`／`WXK02-003-E1`（AUTO＝`heldReview --adopt`）＋`WXDi-P11-070-E1`／`WXDi-P15-081-E2`（MANUAL＝外科パッチ）。
+- **✅規則が「人手の答え」を独立に再現した**＝`WX13-081`/`082` は G168 で人が手書きした MANUAL だが、新規則の生 parser 出力が**その手書きと完全一致**した（corpus diff で確認）。文型→機構の対応付けが正しいことの独立した裏取りになる。
+- **🔴 MANUAL カードは fresh を丸ごと採用してはいけない**＝`WXDi-P15-081-E2` の fresh は「あなたの場に【ゲート】がある場合」（`FIELD_HAS_GATE`）を**落とす**ため、採用すると無条件発動の過剰実行になる。`LOOK_AND_REORDER` リーフの `position`／`reorder` だけを外科パッチした。
+- **🔴 さらに層を間違えかけた**＝`WXDi-P15-081` は **`manualEffects.ts` にも定義がある**ため、built JSON だけを直すと2層が食い違う（app は built JSON 直読み・golden の `cardMap.effects` は merge 済み）。**TS ソース側を直すのが正**で、両層の一致を golden の不変条件に固定した（`manualEffects.ts` だけ戻す変異で FAIL することを実測）。
+- **外科性**：全カード生 parser 出力の effectId 差分は**8件**（うち2件は WX13-081/082＝fresh が curated に追いついただけで live 不変）、live JSON の per-effect 差分は**6件だけ**。再 build 差分0（冪等）、held 258→**254**（新規ドリフト0）。
+- **検証**：golden 981→**984**（新規3本）。①8効果が `split_top_bottom`＋`reorder:true` であることを全数固定 ②`WXDi-P15-081-E2` の【ゲート】条件が残り、かつ TS/JSON 両層が一致 ③**engine E2E＝選んだ1枚だけがデッキの一番下・選ばなかった2枚はデッキ上側に残る**（従来の `bottom` 一括なら全部下へ）＋デッキ枚数不変。**変異4種でそれぞれ 3/1/1/1 本だけ FAIL** することを実測＝live JSON を HEAD へ／engine の `split_top_bottom` 分岐を無効化／fresh 丸ごと採用（ゲート脱落）を模擬／`manualEffects.ts` だけ戻す。
+- **計器**：decompiler は G168 で対応済みのため変更なし＝**逆翻訳の差分がそのまま是正の証拠**になった（「デッキの上から3枚を見て、好きな順番でデッキの一番下に置く」→「…好きな枚数を好きな順番でデッキの一番上に置き、残りを…一番下に置く」）。census 1453 据置・smoke 10726 全0・fuzz 全0・lint 0 errors・`npm run gates` 全緑。
+- **⚠PLAN の (d) 予測は誤りだったので訂正した**＝「`WXDi-P16-086-E1` は stage に `then:'deck_bottom'` と `_bottomReserved` が要る」と書かれていたが、**振り分け自体は既存の `split_top_bottom` で表せる**。本当に足りないのは **(1) `REVEAL_AND_PICK`／`LOOK_PICK_CHAIN` の remainder を分割UIにする**ことと **(2) chain ステージ側の hand-or-energy**（`handOrEnergy` は `REVEAL_AND_PICK` にしかない）の2点。詳細は PLAN §3 タスク12(xlvi)(d) 行。
+- **残**：(xlvi) は **13件**（(c)(g) 残0・(d) は残1）。内訳＝(a) 残2／(b) 10／(d) 残1（`WX11-074-E1`＝「選んだ色1つにつき」）。**pick を伴う分割4効果**（`WXDi-P16-086-E1`／`WX24-P3-031-E1`／`WXK02-032-E1`／`WXK03-048-E1`）は新設のタスク12(lix)へ。
+
 ## 【トラップ】設置併記の look-pick（`LOOK_PICK_CHAIN` の新ステージ `then:'trap'`）第8波（2026-07-29・PLAN §3 タスク12(xlvi)(g)・Opus〔Claude Opus 5〕）
 
 - **壊れ方**：

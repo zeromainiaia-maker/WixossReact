@@ -3774,6 +3774,69 @@ test('(xlvi)(g) then:trap は既存の【トラップ】を上書きしトラッ
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi)(d) wave9 「好きな枚数を一番下、残りを一番上」＝振り分けを選ぶ形（split_top_bottom）─────
+// 機構（`destination.position:'split_top_bottom'`＋分割UI）は G168 で入っていたが **parser 側の規則が無く**、
+// 手書き MANUAL の WX13-081/082 だけが使っていた。同じ文型の他6効果は「一番下」を含むという理由だけで
+// `position:'bottom'` に潰れ、**見た全部がデッキの一番下へ**送られていた（良い札を上に残せる原文の意味が消失）。
+const xlviWave9Split = [
+  'WX05-011-E2', 'WXDi-D09-P21-E1', 'WXDi-P08-063-E1', 'WXK02-003-E1',
+  'WXDi-P11-070-E1', 'WXDi-P15-081-E2',
+  'WX13-081-E1', 'WX13-082-E1', // G168 で手書き MANUAL 済み＝規則が同じ答えを再現することの確認
+] as const;
+test('(xlvi)(d) 「好きな枚数を一番下・残りを一番上」8効果が split_top_bottom になっている', () => {
+  for (const id of xlviWave9Split) {
+    const card = id.replace(/-(E\d+[a-z]?|BURST|TRAP|SONG)$/, '');
+    const eff = effectsMap.get(card)?.find(e => e.effectId === id);
+    ok(!!eff, `${id}: live 効果が存在`);
+    const s = JSON.stringify(eff!.action);
+    ok(s.includes('"position":"split_top_bottom"'),
+      `${id}: split_top_bottom のはず（'bottom' なら見た全部がデッキ下＝過小実行）`);
+    ok(s.includes('"reorder":true'), `${id}: 好きな順番＝reorder:true`);
+  }
+});
+
+// 🔴 MANUAL カードは fresh を丸ごと採用してはいけない（fresh は条件を落とす）＝リーフだけ外科パッチした。
+//    その条件が生き残っていることを固定する。
+test('(xlvi)(d) WXDi-P15-081-E2: split 化しても【ゲート】条件が残っている（fresh 丸ごと採用なら消える）', () => {
+  const eff = effectsMap.get('WXDi-P15-081')?.find(e => e.effectId === 'WXDi-P15-081-E2');
+  eq(eff!.action.type, 'CONDITIONAL', '先頭は CONDITIONAL のまま');
+  eq((eff!.action as unknown as { condition: { type: string } }).condition.type, 'FIELD_HAS_GATE',
+    '「あなたの場に【ゲート】がある場合」ゲートが残る（無条件発動への退化なし）');
+  ok(JSON.stringify(eff!.action).includes('"position":"split_top_bottom"'), '内側は split_top_bottom');
+  // ⚠このカードは `manualEffects.ts` にも定義がある＝**JSON だけ直すと2層が食い違う**（app は built JSON を
+  //   直読み、golden の cardMap.effects は merge 済み）。両層が一致していることを固定する。
+  const mergedP15 = mergeManualEffects('WXDi-P15-081', []).find(e => e.effectId === 'WXDi-P15-081-E2');
+  eq(JSON.stringify(mergedP15?.action), JSON.stringify(eff!.action),
+    'manualEffects.ts と built JSON が一致（片方だけ直すと build で巻き戻る）');
+});
+
+// engine: split_top_bottom は「選んだ集合を一番下・残りを一番上」に置く。
+// 🔴 従来の 'bottom' との差はここ＝**選ばなかったカードがデッキの一番上に残る**こと。
+test('(xlvi)(d) split_top_bottom: 選んだ分だけデッキ下・残りはデッキ上（bottom 一括ではない）', () => {
+  const savedCursor = cursor;
+  try {
+    const a = fresh(), b = fresh(), c = fresh();
+    const eff = effectsMap.get('WX05-011')?.find(e => e.effectId === 'WX05-011-E2');
+    const look = eff!.action as unknown as { count: number };
+    const ctx = mkCtx({ deckTop: [a, b, c] }, {}, 'WX05-011');
+    const deckLen = ctx.ownerState.deck.length;
+    const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff!.action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    ok(!r0.done, 'LOOK_AND_REORDER で停止');
+    const pending = r0.pending as unknown as { type: string; cards: string[]; destPosition: string };
+    eq(pending.type, 'LOOK_AND_REORDER', 'pending 種別');
+    eq(pending.destPosition, 'split_top_bottom', 'pending に split が渡る');
+    eq(pending.cards.length, look.count, `公開枚数 ${look.count}`);
+    // b だけを「デッキ下へ」に選ぶ（a・c は未選択＝一番上へ）
+    const cnext: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const r = resumeLookAndReorder(pending.cards, [], pending as never, cnext, [b]);
+    ok(r.done, '完走');
+    eq(r.ownerState.deck.length, deckLen, 'デッキ枚数は不変（消失なし）');
+    eq(r.ownerState.deck.at(-1), b, '🔴選んだ b がデッキの一番下');
+    ok(r.ownerState.deck.indexOf(a) < 3 && r.ownerState.deck.indexOf(c) < 3,
+      '🔴選ばなかった a・c はデッキの上側に残る（従来の bottom 一括なら両方とも一番下へ送られていた）');
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

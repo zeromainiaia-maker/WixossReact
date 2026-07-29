@@ -7,6 +7,17 @@
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
 
+- **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) を第7波（宣言参照 pick 8効果・(c) 残0）→第8波（【トラップ】設置併記 2効果・(g) 残0）で連続消化**（golden 968→**981**・census 1452→**1453**〔`BASELINE_HIGH` 更新・+1 は計器上の移動1件のみ〕・smoke 10726 全0・fuzz 全0・lint 0 errors・held 254→**254**〔新規ドリフト0〕・build 冪等・gates 全緑）
+  - **第7波（(c) 宣言参照 pick）**＝原文全数走査で6効果。壊れ方が**3種混在**＝①pick が丸ごと `UNKNOWN`＝no-op 4件 ②🔴filter 落ちで**どの公開札でも拾える過剰実行**（`PR-431-E2`）③🔴**公開札の総取り**（`WX13-054-E1` が `ENERGY_CHARGE_FROM_DECK{4}`）。新 filter `nameEqDeclaredName`／`classEqDeclaredClass`（未宣言なら候補ゼロ）＋新 STUB `DECLARE_NUMBER_PLAIN`（**既存 `DECLARE_NUMBER` はガード制限専用**で流用すると原文に無い制限が付く）＋`StubAction.declareOptions`。同系統2効果（`WX16-Re04-E1` の remainder 誤読・`WXK05-021-E2` の裸STUB）も同時是正。
+  - **第8波（(g) 【トラップ】設置併記）**＝新ステージ **`LookPickChainStage.then:'trap'`＋`remainder.location:'hand'`**。🔴`WX19-039-E1` は**設置も手札加えも丸ごと no-op**（逆翻訳が「デッキの上3枚を見る」だけだった）、`WX15-083-TRAP` は STUB が残りの行き先をデッキ下に決め打ちしていた。
+  - **⚠engine の落とし穴を2つ踏み抜いた（どちらも golden の変異で実証）**＝①**既存 `INTERNAL_SET_TRAP` は手札からの設置専用**で、デッキをスライスしない `LOOK_PICK_CHAIN` から使うと**デッキに残ったままトラップにも現れる複製バグ**になる ②**`resumeSearch` の `applyDirectAction` ループは `!done` で即 return する**ので、対話を伴う thenAction をそこに載せると**外側 continuation（後続ステージ・remainder）が丸ごと落ちる**（`ADD_TO_FIELD` が専用分岐になっているのと同じ理由）。
+  - **外科性**＝両波とも「全カード生 parser 出力の effectId 差分」＝「live JSON の per-effect 差分」で、第7波8件／第8波2件**だけ**。第7波は PRESERVE カード3件を effectId アンカーで外科採用（**7波連続で再発している型**）。
+  - **golden の教訓**＝**「危険な側」を単体テストで名指しする**。未宣言→候補ゼロ／`DECLARE_NUMBER_PLAIN` はガード制限を立てない／`WX13-054` は1枚だけエナへ／トラップにしたカードがデッキから消えている、を独立に固定した。**変異8種（両波合計）でそれぞれ狙った本数だけ FAIL** することを実測。
+  - **🆕計器・既知バグを2件登録**＝**(lvii)** census「「Nまで」上限選択」のキー表に `pickUpTo` が無い（該当**119効果**。look-pick を STUB→実アクションへ直すたび +1 される構造で第5波・第7波と2度再発。較正は機能修正の波と混ぜず単独作業へ）／**(lviii)** `PLACE_TRAP_FROM_REVEALED` が remainder を `deck_bottom` 決め打ちで、原文が「デッキの一番上」の3効果で行き先が逆（本命は同 STUB を使う13効果の `LOOK_PICK_CHAIN{then:'trap'}` 移行＝機構は第8波で揃った）。
+  - **⚠要実機検証**＝宣言 CHOOSE→公開 SEARCH の連結とトラップのゾーン選択 CHOOSE は engine 内で完結し golden で見ているが、実機 UI（`PR-431` の候補5クラス表示／`WX24-P1-035` の hand-or-energy 逐次選択／トラップゾーン選択ラベル）は未確認。
+  - **次の一手**＝**Opus：(xlvi) 残14件**〔(a)残2・(b)10・(d)残2＝いずれも新機構が要る。**(d) `WXDi-P16-086-E1` は `then:'deck_bottom'` 予約を足すだけで、第3波の `deck_top` と同型＝最も安い**〕**／(lviii) トラップ STUB 13効果の LPC 移行（機構は揃った・M）／(xxix) 残**〔(2)(B) 43件＝`costUnparsed` 331効果が機械的 worklist／(1) 未対応コスト80件〕**／(lvii) census 較正（S・単独）／ゲート脱落 [B]20件／タスク16 の [B]29件＋watcher [B]4件／(l) 内側【自】parse 失敗3枚／§6.3 残機構**。**Sonnet：§7 実機検証の横展開**＝直近3セッション分の (xxix)(1)(2)＋宣言UI＋トラップ設置UI＋レゾナ召喚UI の ATTACK/SPELL_CUTIN 窓。
+
+
 - **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第7波「宣言参照 pick」8効果（(c) 残0）**（golden 968→**978**・census 1452→**1453**〔`BASELINE_HIGH` 更新・内訳は計器上の移動1件のみ〕・smoke 10726 全0・fuzz 全0・lint 0 errors・held 258→**254**〔新規ドリフト0〕・build 冪等・gates 全緑）
   - **系統は原文全数走査で6効果**（`その中から[^。]*宣言`）。壊れ方が**3種混在**していた＝①pick が丸ごと `UNKNOWN`＝no-op 4件 ②🔴filter だけ落ちて**どの公開札でも拾える過剰実行**（`PR-431-E2`）③🔴**公開札の総取り**（`WX13-054-E1` が `ENERGY_CHARGE_FROM_DECK{4}`＝「宣言したカードだけエナへ」のはずがデッキ上4枚全部エナへ）。
   - **新機構**＝`TargetFilter.nameEqDeclaredName`／`classEqDeclaredClass`（未宣言なら `noMatch`＝候補ゼロに倒す）／**`DECLARE_NUMBER_PLAIN`＋`PlayerState.declared_number`**（既存 `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる**ガード制限専用**で、そのまま使うと原文に無い「相手はそのレベルでガード不可」が付く）／`StubAction.declareOptions`（原文が列挙したクラスだけを宣言候補にする）。
