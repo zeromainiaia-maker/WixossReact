@@ -20,6 +20,7 @@ import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
+import { payLrigDownCost } from './battle/lrigDownCost';
 
 interface Props {
   user: User;
@@ -10548,18 +10549,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）
       const lrigDownCost = cost?.lrigDown;
       if (lrigDownCost) {
-        let remainingLD = lrigDownCost.count;
-        const f = { ...paid.field };
-        // level 指定時は該当レベルのルリグゾーンだけが支払い候補（「アップ状態のレベル２のルリグ２体をダウンする」）
-        const ldLevelOk = (stack?: string[]) => lrigDownCost.level === undefined
-          || Number(battleCardMap.get(getCardNum(stack?.[stack.length - 1] ?? ''))?.Level) === lrigDownCost.level;
-        if (remainingLD > 0 && f.lrig.length > 0 && !f.lrig_down && ldLevelOk(f.lrig)) { f.lrig_down = true; remainingLD--; }
-        if (!lrigDownCost.centerOnly) {
-          if (remainingLD > 0 && (f.assist_lrig_l?.length ?? 0) > 0 && !f.assist_lrig_l_down && ldLevelOk(f.assist_lrig_l)) { f.assist_lrig_l_down = true; remainingLD--; }
-          if (remainingLD > 0 && (f.assist_lrig_r?.length ?? 0) > 0 && !f.assist_lrig_r_down && ldLevelOk(f.assist_lrig_r)) { f.assist_lrig_r_down = true; remainingLD--; }
-        }
-        if (remainingLD > 0) return; // 支払い不能（UI側でも無効化済み）
-        paid = { ...paid, field: f };
+        const lrigPaid = payLrigDownCost(paid, lrigDownCost, battleCardMap);
+        if (!lrigPaid) return; // 支払い不能（UI側でも無効化済み）
+        paid = lrigPaid.state;
         payLogs.push(`ルリグ${lrigDownCost.count}体をコストでダウン`);
       }
       // ライフコスト: クラッシュだけは check/pending に載せ、既存ライフバースト処理へ接続する。

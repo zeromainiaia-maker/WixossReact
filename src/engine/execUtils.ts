@@ -12,6 +12,7 @@ import type {
   Condition,
   SelectionConstraint,
 } from '../types/effects';
+import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -219,14 +220,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (matching.length < spec.fieldTrash.count) return false;
   }
   if (spec.lrigDown) {
-    const stack = ctx.ownerState.field.lrig;
-    const top = stack.at(-1);
-    const levelOk = spec.lrigDown.level === undefined
-      || Number(ctx.cardMap.get(getCardNum(top ?? ''))?.Level) === spec.lrigDown.level;
-    // 既存 DOWN{LRIG} が対象にできるのはセンタールリグだけ。アシストを含む一般形は
-    // optionalOnPlayCostStub 側で収集しないため、ここもセンター1体の可否だけを厳密に判定する。
-    if (spec.lrigDown.count !== 1 || !spec.lrigDown.centerOnly
-        || !top || ctx.ownerState.field.lrig_down || !levelOk) return false;
+    if (!payLrigDownCost(ctx.ownerState, spec.lrigDown, ctx.cardMap)) return false;
   }
   if (spec.down_self) {
     if (!ctx.sourceCardNum) return false;
@@ -267,8 +261,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       },
     } as EffectAction] : []),
     ...(spec.lrigDown ? [{
-      type: 'DOWN',
-      target: { type: 'LRIG', owner: 'self', count: 1 },
+      type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN', lrigDown: spec.lrigDown,
     } as EffectAction] : []),
     ...(spec.down_self ? [{
       type: 'DOWN',

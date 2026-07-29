@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 一般ルリグダウン任意【出】コスト6効果をUI/engine共有支払いへ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第6波・Codex）
+- **機構**＝通常召喚UIのセンター→アシストL→R・`level`・`centerOnly`・不足時nullという既存規則を純関数 `payLrigDownCost` へ切り出し、`executeSigniOnPlayCost` と engine の新内部STUB `INTERNAL_PAY_LRIG_DOWN` が共有。`canAffordOptionalCostSpec` も同関数で一般形を判定し、既存 `execDown(LRIG)` のセンター専用という一般効果の意味は変更していない。
+- **採用6件**＝`WXDi-P14-041-E3`／`043-E3`／`045-E3`／`047-E3`／`049-E2` は〈アップ状態のルリグ2体をダウン〉→ `OPTIONAL_COST` → `INTERNAL_PAY_LRIG_DOWN{count:2}` → 覚醒、`WX24-P2-069-E1` は〈同1体〉→同STUB `{count:1}` → 共通色・パワー3000以下の相手シグニをバニッシュ。効果配置時は `collectPlacedSelfOnPlayTriggers`（アシスト変種は `collectAssistOnPlayTriggers` 経由）→`wrapOptionalOnPlay`→`optionalOnPlayCostStub`→`optionalCostPaySteps`、通常召喚時は `handleSummonSigni`→`executeSigniOnPlayCost`→共有純関数。
+- **結果参照**＝内部STUBは実際にダウンした自分のルリグを支払い順で `lastProcessedCards` へ設定する。`colorMatchesLastProcessed` は参照不能時 `['__NONE__']` へ解決して空ヒットになる既存安全側規約を確認。goldenで赤ルリグ支払い後は赤の相手シグニだけが候補、不一致しかいなければバニッシュなしを固定。
+- **正負固定**＝純関数を直接呼び、順序・level・centerOnly・不足時に入力盤面を途中変更しないことを固定。engine E2Eでアップ3体から2体支払うとセンター＋アシストLだけがダウンして本体へ進み、アップ1体だけなら `pay.available:false`／skipのみを固定。6効果の既存cost payloadもper-effectで固定。
+- **データ／計器**＝parser・live JSON・生パースdiff変更0、対象6効果の outlier 0。build は新規0／純改善5／温存(手修正)590／温存(要レビュー)293／fresh空2／parseStatusのみ79、held **293枚／107署名**（増減0）、manual field loss 0。「写せない」**33→27**、母集団958据置。
+- **検証**＝golden **1056→1059**、census 1400、smoke 10726/10726 全0、fuzz全0、同型★0、lint 0 errors / 228 warnings（増減0）。`npm run gates` 全緑。
+- **やっていないこと**＝既存 `execDown`／一般 `DOWN{LRIG}` のアシスト拡張、JSON/parser/decompiler/PRESERVE補正、force-adopt、対象外コスト、ブラウザ実機、PLAN/PLAN_PROGRESS、commit/push。見送り0（指定6件はいずれも共有支払いと結果参照が成立）。
+
 ## 「ダウンする」任意【出】コスト2効果を既存 `DOWN` 経路へ配線・一般ルリグ6効果は安全側に保留（2026-07-29・PLAN §3 タスク12(xxix)(1) 第5波・Codex）
 - **採用2件**＝`PR-K064-E1`〈アップ状態のセンタールリグ1体をダウン〉は `DOWN{target:LRIG,self,count:1}`、`WXDi-P08-042-E3`〈《ダウン》＝効果元シグニ自身〉は `DOWN{target:SIGNI,self,count:1,filter:{thisCardOnly:true}}`。両件とも `collectPlacedSelfOnPlayTriggers`／`collectAssistOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → `execDown` → 元action。自分側だけをダウンし、前者は3択、後者は次の相手ターン終了時まで+8000へ進む。
 - **見送り6件**＝`WXDi-P14-041-E3`／`043-E3`／`045-E3`／`047-E3`／`049-E2`（ルリグ2体）と `WX24-P2-069-E1`（ルリグ1体）。既存 `execDown(LRIG)` はセンターだけを対象にし、アシストL/Rをダウンできないため、UI のセンター→アシストL→Rと同じ支払いを表現不能。`WX24-P2-069-E1` の本体参照自体は `execDown` がダウンしたルリグを `lastProcessedCards` に記録し、`colorMatchesLastProcessed` が読むため成立するが、一般ルリグ支払いの対象面が不足するので収集しない。新action/STUBやアシストDOWN拡張は本波の禁止範囲として作らなかった。

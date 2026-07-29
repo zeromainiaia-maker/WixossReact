@@ -40,6 +40,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../sr
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
+import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
@@ -14780,20 +14781,18 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 925, 'OPTIONAL_COST へ写せる＝センター限定1件＋down_self1件を追加');
-    eq(optionalCost.length - mapped.length, 33, '表現できないコストを含むため据え置き（一般lrigDown6件・参照欠落1件を含む）');
+    eq(mapped.length, 931, 'OPTIONAL_COST へ写せる＝一般lrigDown6件も共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 27, '一般lrigDown6件を回収後も表現できないコストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる923件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる931件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
       const allSupported = keys.every(k => SUPPORTED.has(k));
-      const ld = e.cost?.lrigDown;
-      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1'
-        && (!ld || (ld.count === 1 && ld.centerOnly === true));
+      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1';
       eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0 && semanticallySafe,
         `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
     }
@@ -16499,14 +16498,14 @@ test('task12(xxix)(1) wave4 UI: crash uses check/pending; trash and hand do not 
   ok(payLifeOnPlayCost({ ...base, life_cloth: ['L1'] }, { life_crash: 2 }) === null, 'UI rejects shortage');
 });
 
-test('task12(xxix)(1) wave5: eight down costs are classified per effect and preserve payload', () => {
+test('task12(xxix)(1) wave6: eight down costs are classified per effect and preserve payload', () => {
   const expected: Record<string, { adopted: boolean; key: 'lrigDown' | 'down_self'; count?: number; centerOnly?: boolean }> = {
-    'WXDi-P14-041-E3': { adopted: false, key: 'lrigDown', count: 2 },
-    'WXDi-P14-043-E3': { adopted: false, key: 'lrigDown', count: 2 },
-    'WXDi-P14-045-E3': { adopted: false, key: 'lrigDown', count: 2 },
-    'WXDi-P14-047-E3': { adopted: false, key: 'lrigDown', count: 2 },
-    'WXDi-P14-049-E2': { adopted: false, key: 'lrigDown', count: 2 },
-    'WX24-P2-069-E1': { adopted: false, key: 'lrigDown', count: 1 },
+    'WXDi-P14-041-E3': { adopted: true, key: 'lrigDown', count: 2 },
+    'WXDi-P14-043-E3': { adopted: true, key: 'lrigDown', count: 2 },
+    'WXDi-P14-045-E3': { adopted: true, key: 'lrigDown', count: 2 },
+    'WXDi-P14-047-E3': { adopted: true, key: 'lrigDown', count: 2 },
+    'WXDi-P14-049-E2': { adopted: true, key: 'lrigDown', count: 2 },
+    'WX24-P2-069-E1': { adopted: true, key: 'lrigDown', count: 1 },
     'PR-K064-E1': { adopted: true, key: 'lrigDown', count: 1, centerOnly: true },
     'WXDi-P08-042-E3': { adopted: true, key: 'down_self' },
   };
@@ -16520,11 +16519,98 @@ test('task12(xxix)(1) wave5: eight down costs are classified per effect and pres
       eq(effect.cost?.down_self, true, `${effectId}: down_self`);
     }
     const stub = optionalOnPlayCostStub(effect.cost!, effectId);
-    eq(!!stub, want.adopted, `${effectId}: 既存DOWNで忠実に払えるものだけ収集`);
+    eq(!!stub, want.adopted, `${effectId}: 共有ルリグダウン支払いで忠実に払えるものを収集`);
     if (stub && want.key === 'lrigDown') {
       eq(JSON.stringify(stub.lrigDown), JSON.stringify(effect.cost!.lrigDown), `${effectId}: lrigDown payload`);
     }
     if (stub && want.key === 'down_self') eq(stub.down_self, true, `${effectId}: down_self payload`);
+  }
+});
+
+test('task12(xxix)(1) wave6 UI pure helper: center→assist L→R, level/centerOnly, and atomic shortage', () => {
+  const level1 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 1);
+  const level2 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 2);
+  const base = mkState({ lrig: [level2], assistL: [level2], assistR: [level1] });
+  base.field.lrig_down = false;
+  base.field.assist_lrig_l_down = false;
+  base.field.assist_lrig_r_down = false;
+  const paid = payLrigDownCost(base, { count: 2, level: 2 }, cardMap)!;
+  eq(paid.paidCards.join(','), `${level2},${level2}`, '支払いカードはセンター→アシストL順');
+  eq(paid.state.field.lrig_down, true, 'センターを先にダウン');
+  eq(paid.state.field.assist_lrig_l_down, true, '次にアシストLをダウン');
+  eq(paid.state.field.assist_lrig_r_down, false, 'level不一致のアシストRは残す');
+  ok(payLrigDownCost(base, { count: 2, centerOnly: true }, cardMap) === null, 'centerOnlyで2体要求は不能');
+  eq(base.field.lrig_down, false, '支払い不能時は入力stateを変更しない');
+  eq(base.field.assist_lrig_l_down, false, '支払い不能時は途中結果も反映しない');
+});
+
+test('task12(xxix)(1) wave6 engine: two LRIGs pay center then assist L; one up makes pay unavailable', () => {
+  const effect = effectsMap.get('WXDi-P14-041')!.find(e => e.effectId === 'WXDi-P14-041-E3')!;
+  const wrapped = wrapOptionalOnPlay(effect)!;
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const ctx = mkCtx({}, {}, 'WXDi-P14-041');
+  ctx.ownerState.field.lrig = [`${lrig}#center`];
+  ctx.ownerState.field.assist_lrig_l = [`${lrig}#left`];
+  ctx.ownerState.field.assist_lrig_r = [`${lrig}#right`];
+  ctx.ownerState.field.lrig_down = false;
+  ctx.ownerState.field.assist_lrig_l_down = false;
+  ctx.ownerState.field.assist_lrig_r_down = false;
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '2体ダウンのpay/skip');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, 'アップ3体ならpay可能');
+    const paid = finish(resumeChoose('pay', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    }), ctx);
+    eq(paid.ownerState.field.lrig_down, true, '自センターをダウン');
+    eq(paid.ownerState.field.assist_lrig_l_down, true, '自アシストLをダウン');
+    eq(paid.ownerState.field.assist_lrig_r_down, false, '3体目の自アシストRはアップのまま');
+    eq(paid.lastProcessedCards?.join(','), `${lrig}#center,${lrig}#left`, '支払った2体を順序どおり記録');
+  }
+  const blockedCtx = mkCtx({}, {}, 'WXDi-P14-041');
+  blockedCtx.ownerState.field.lrig = [lrig];
+  blockedCtx.ownerState.field.assist_lrig_l = [lrig];
+  blockedCtx.ownerState.field.lrig_down = true;
+  blockedCtx.ownerState.field.assist_lrig_l_down = false;
+  const blocked = executeEffect(wrapped, blockedCtx);
+  ok(!blocked.done && blocked.pending.type === 'CHOOSE', '不足時もskipを提示');
+  if (!blocked.done && blocked.pending.type === 'CHOOSE') {
+    eq(blocked.pending.options.find(o => o.id === 'pay')?.available, false, 'アップ1体だけなら2体要求pay不可');
+    eq(blocked.pending.options.find(o => o.id === 'skip')?.available, true, 'skipのみ可能');
+  }
+});
+
+test('task12(xxix)(1) wave6 WX24-P2-069: paid LRIG color limits opponent SIGNI candidates', () => {
+  const effect = effectsMap.get('WX24-P2-069')!.find(e => e.effectId === 'WX24-P2-069-E1')!;
+  const wrapped = wrapOptionalOnPlay(effect)!;
+  const redLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤'));
+  const redSigni = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('赤') && Number(c.Power) <= 3000);
+  const offColorSigni = findCard(c => c.Type === 'シグニ' && !(c.Color ?? '').includes('赤') && Number(c.Power) <= 3000);
+  const ctx = mkCtx({}, { signi: [redSigni, offColorSigni, null] }, 'WX24-P2-069');
+  ctx.ownerState.field.lrig = [`${redLrig}#paid`];
+  ctx.ownerState.field.lrig_down = false;
+  const offered = executeEffect(wrapped, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '1体ダウンのpay/skip');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    const target = resumeChoose('pay', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    });
+    ok(!target.done && target.pending.type === 'SELECT_TARGET', '支払い後に相手シグニ選択へ');
+    if (!target.done && target.pending.type === 'SELECT_TARGET') {
+      eq(target.pending.candidates.join(','), redSigni, '支払った赤ルリグと共通色の相手シグニだけが候補');
+    }
+  }
+  const missCtx = mkCtx({}, { signi: [offColorSigni, null, null] }, 'WX24-P2-069');
+  missCtx.ownerState.field.lrig = [redLrig];
+  missCtx.ownerState.field.lrig_down = false;
+  const missOffer = executeEffect(wrapped, missCtx);
+  if (!missOffer.done && missOffer.pending.type === 'CHOOSE') {
+    const miss = finish(resumeChoose('pay', missOffer.pending, {
+      ...missCtx, ownerState: missOffer.ownerState, otherState: missOffer.otherState, logs: missOffer.logs,
+    }), missCtx);
+    ok(!miss.otherState.trash.includes(offColorSigni), '不一致しかいなければ対象なし・バニッシュなし');
+  } else {
+    ok(false, '不一致盤面でもpay/skipを提示');
   }
 });
 

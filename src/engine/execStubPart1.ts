@@ -20,6 +20,7 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
+import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 
 export function execStubPart1(
   stub: StubAction,
@@ -195,6 +196,17 @@ export function execStubPart1(
       },
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `エクシード${count}を支払った`));
+  }
+  if (stub.id === 'INTERNAL_PAY_LRIG_DOWN') {
+    const cost = stub.lrigDown;
+    if (!cost) return done(addLog(ctx, 'ルリグダウンコストを支払えない'));
+    const paid = payLrigDownCost(ctx.ownerState, cost, ctx.cardMap);
+    if (!paid) return done(addLog(ctx, `ルリグ${cost.count}体をコストでダウンできない`));
+    return done(addLog({
+      ...ctx,
+      ownerState: paid.state,
+      lastProcessedCards: paid.paidCards,
+    }, `ルリグ${cost.count}体をコストでダウンした`));
   }
   if (stub.id === 'LRIG_UNDER_TRASH_ANY') {
     const pool = [
