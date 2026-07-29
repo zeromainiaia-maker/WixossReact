@@ -84,6 +84,12 @@ const FIXES = [
     locate: e => e },
   { file: 'effects_WX', card: 'WX16-045', eid: 'WX16-045-E1', type: 'discardAcceSigniOne',
     locate: e => e },
+  // タスク12(lv) 差し戻し: 「してもよい」は内側の ADD_TO_FIELD.optional だけに掛かる。
+  // LOOK_AND_REORDER は強制なので、効果ヘッダの二重任意指定を除去する。
+  { file: 'effects_WX', card: 'WX10-007', eid: 'WX10-007-E1', type: 'mandatoryOnPlay',
+    locate: e => e },
+  { file: 'effects_WX', card: 'WX10-021', eid: 'WX10-021-E1', type: 'mandatoryOnPlay',
+    locate: e => e },
 
   // PR-K064-E1: CHOOSE.choices[0].action.filter (SEARCH)
   { file: 'effects_misc', card: 'PR-K064', eid: 'PR-K064-E1', type: 'matchesLrig',
@@ -128,6 +134,10 @@ function applyFix(obj, type) {
   if (type === 'discardAcceSigniOne') {
     obj.cost = { discard: 1, discardFilter: { cardType: 'シグニ', hasIcon: 'アクセ' } };
     delete obj.costUnparsed;
+    return true;
+  }
+  if (type === 'mandatoryOnPlay') {
+    obj.mandatory = true;
     return true;
   }
   if (type === 'trashKeyCost') {

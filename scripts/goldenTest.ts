@@ -26,7 +26,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -14718,7 +14718,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(JSON.stringify(actual), JSON.stringify([...phase1Ids].sort()), `新規発火集合=${actual.length}件`);
   });
 
-  test('(xxix) 段階2の新規発火集合はmandatory 1437効果ちょうど（任意cost 933・段階3 65は別扱い）', () => {
+  test('(xxix) 段階2の新規発火集合はmandatory 1453効果ちょうど（任意cost・段階3は別扱い）', () => {
     const eligible = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO'
       && e.timing?.includes('ON_PLAY')
@@ -14735,13 +14735,14 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !e.cost);
-    // 1437→1451＝英知＝N（全角）14効果が「任意・コストなし」の穴から mandatory＋activeCondition へ移った分
-    // （タスク12(xxix)(2)）。同じ理由で段階3在庫は 65→51 に減っている。
-    eq(eligible.length, 1451, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    // 1437→1451＝英知＝N（全角）14効果、1451→1453＝内側だけ任意のLOOK→場出し2効果が
+    // 「任意・コストなし」の穴から mandatory へ戻った分。
+    // （タスク12(xxix)(2)）。今回の2件是正後、段階3在庫は 41→39。
+    eq(eligible.length, 1453, '段階2 mandatory集合');
+    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
     eq(optionalCost.length, 943, '任意costあり（(xxix)(1) の母集団）');
-    eq(optionalNoCost.length, 41, '段階3在庫（手札捨て10効果の構造化後）');
+    eq(optionalNoCost.length, 39, '段階3在庫（内側だけ任意の2効果を mandatory へ是正後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14838,6 +14839,48 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq((seqWC.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST', 'コストありは OPTIONAL_COST');
   });
 
+  test('(lv) センタールリグの任意・無コスト【出】を実戦ゾーンから OPTIONAL_ACTIVATE として収集する', () => {
+    const savedCursor = cursor;
+    try {
+      const cardNum = 'GOLDEN-LRIG-OPTIONAL-ON-PLAY';
+      const syntheticEffect: import('../src/types/effects').CardEffect = {
+        effectId: 'GOLDEN-LRIG-OPTIONAL-ON-PLAY-E1',
+        effectType: 'AUTO',
+        timing: ['ON_PLAY'],
+        action: { type: 'DRAW', owner: 'self', count: 1 },
+        duration: 'INSTANT',
+        mandatory: false,
+        parseStatus: 'MANUAL',
+      };
+      const state = mkState();
+      state.field.lrig = [cardNum];
+      const result = collectOptionalNoCostOnPlayForGrow(
+        [syntheticEffect], state, mkState(), true, cardMap, cardNum, 'GROW',
+      );
+      eq(result.effects.length, 1, 'グロウ先ルリグ自身の任意【出】を1件収集');
+      eq(result.effects[0].effectId, syntheticEffect.effectId, '合成した任意【出】を収集');
+      const seq = result.effects[0].action as import('../src/types/effects').SequenceAction;
+      eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_ACTIVATE',
+        '発動可否を尋ねる包みで積む');
+      eq(result.deferred.length, 0, '表現可能な無コスト効果は警告対象に残さない');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(lv) LOOK後に任意で場へ出す同型効果はヘッダを二重任意にしない', () => {
+    const sameShape = [...effectsMap.values()].flatMap(effs => effs).filter(e => {
+      if (e.action.type !== 'SEQUENCE') return false;
+      const steps = e.action.steps;
+      return steps.length === 2
+        && steps[0].type === 'LOOK_AND_REORDER'
+        && steps[1].type === 'ADD_TO_FIELD'
+        && steps[1].optional === true;
+    });
+    eq(sameShape.length, 5, 'live の同型効果は5件');
+    for (const e of sameShape) {
+      ok(e.mandatory !== false, `${e.effectId}: 内側 optional をヘッダへ二重指定しない`);
+    }
+  });
+
   // 🔴 これが本機構の安全弁。原文に「【出】〈コスト句〉：」がある効果を包むと、**コストを払わずに
   //    効果だけ撃てる**（＝踏み倒し）。parser の `costUnparsed` 印＋PRESERVE カードへの外科パッチで
   //    塞いであるが、新カード追加で穴が開かないよう**母集団全数**で不変条件として固定する。
@@ -14860,7 +14903,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         } else deferred++;
       }
     }
-    eq(wrapped, 8, '包む＝真の「〜してもよい」8効果');
+    eq(wrapped, 6, '包む＝効果全体が真に任意の6効果（内側だけ任意の2効果は mandatory）');
     eq(deferred, 33, '据え置き＝コスト句があるのに cost 未表現の33効果（parser 在庫）');
   });
 

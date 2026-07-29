@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 任意・無コスト【出】のグロウ経路配線＋二重任意指定2枚の是正（2026-07-29・PLAN §3 タスク12(lv)・Codex実装／Claude確認・差し戻し）
+
+- **(lv) の元記述は半分すでに解消済みだった**＝原票「`WXEX2-71-E2` が `mandatory:false`＋cost なしの自身 ON_PLAY で収集経路から脱落し no-op」は、(xxix)(2) の「英知＝N はコストではなく使用条件」決着で当該効果が `mandatory:true` になり消滅していた。`OPTIONAL_ACTIVATE` 包み機構（`wrapOptionalOnPlay`／`effectExecutor.ts` Pattern ⑤）も実装済みで、**人間の通常召喚**（`handleSummonSigni`）と**効果配置**（`collectPlacedSelfOnPlayTriggers`）には配線済みだった。**したがって残作業は機構の新設ではなく「機構が届いていない収集経路を塞ぐこと」**。
+- **実測で洗い出した未配線経路5つ**（すべて `BattleScreen.tsx`）＝①`executeGrow`（人間のセンタールリググロウ）＝任意・無コスト【出】を `console.warn` するだけで捨てていた＝**(lv) の症状そのもの** ②アシストルリグ配置＝`mandatory !== false` のみ収集 ③CPU シグニ召喚＝同上 ④CPU グロウ＝mandatory＋「コインのみ」を手書き対応 ⑤**COLLAB でのアシスト配置＝mandatory 判定が一切なく全 ON_PLAY を無条件に積む＝逆向きの過剰実行**。
+- **今回は①だけを配線**（必達1本に絞った）＝新 `collectOptionalNoCostOnPlayForGrow`（`triggerCollect.ts`）で `activeCondition`→`condition` の順に評価し `wrapOptionalOnPlay` で包む。包めないもの（`costUnparsed` 等）だけを警告に残し、コスト踏み倒しは作らない。②〜⑤は経路ごとの live 件数を数えたうえで honest defer（PLAN §3 タスク12 へ登録）。実装と食い違っていた `collectPlacedSelfOnPlayTriggers` の JSDoc も同時に修正。
+- **🔴Claude 確認で発見＝配線した先の live 該当2件は、そもそも `mandatory:false` が誤りだった**。`WX10-007`／`WX10-021`（ともにルリグ）の原文は **「【出】：あなたのデッキの一番上を見る。それがレベル３以下の＜宇宙／凶蟲＞のシグニの場合、それを場に出してもよい。」**＝**「してもよい」がかかるのは後半だけで、前半の「見る」は強制**。JSON はその任意性を既に内側の `ADD_TO_FIELD.optional:true` で表現しており、engine も `effectExecutor.ts` の `execAddToField`（「`a.optional`:「場に出してもよい」→ 出す/出さないを選択可能にする」）で尊重していた。**効果ヘッダの `mandatory:false` は二重指定**。
+- **決定打＝同型効果の全数比較**：live に `SEQUENCE[LOOK_AND_REORDER, ADD_TO_FIELD{optional:true}]` は5件あり、`effectParser.ts` の正準形規則（「デッキの一番上を見る」→「それが〜シグニの場合、〜場に出してもよい」）が生成する3件（`WX15-001-E2`／`WX16-038-E1`／`WX16-038-E2`）は**すべて `mandatory:true`**。parser は「もよい」を `optional:true` へ落とすだけで効果ヘッダには触らない。`false` なのは MANUAL の2件だけ＝**データ側の誤り**と確定。
+- **そのまま包むと生じる不正確さ2点**＝①原文に無い「発動する/発動しない」プロンプトが1枚増え、`ADD_TO_FIELD.optional` の「出す/出さない」と**二重プロンプト**になる ②「発動しない」を選ぶと**原文では強制の「デッキの一番上を見る」すら実行されない**。(xxix)(2) の「英知＝N は使用条件だから mandatory へ復帰」と**同型の論理**＝「任意なのが効果の一部だけで、その任意性が内側の action で表現済みなら、効果ヘッダは mandatory」。
+- **是正**＝2件の `mandatory` を `true` へ。`parseStatus:MANUAL` で `manualEffects.ts` には定義が無く curated JSON 温存対象だったため、**再生成耐性を持たせて `scripts/fixLrigColorFilters.mjs` の外科補正層（`build:effects` の後段で必ず走る）へ `mandatoryOnPlay` 補正として登録**。機構（グロウ経路の配線）は将来の真の全体任意【出】と他経路のために**保持**。
+- **外科性**＝live JSON は effectId 単位 全数比較で **changed 2 / added 0 / removed 0**。`npm run build:effects` 再実行後の差分 **0件**＝冪等・再生成耐性あり（Claude 独立再現）。
+- **engine 直叩き実測（Claude 独立再現）**＝是正前 `CHOOSE`（発動確認）→`LOOK_AND_REORDER`→`SELECT_TARGET`、**是正後 `LOOK_AND_REORDER`→`SELECT_TARGET`**＝LOOK が必ず先に走る。「出さない」で盤面・デッキ不変、**「出す」で `SELECT_SIGNI_ZONE` まで到達しデッキから当該カードが除かれる**（過小実行なし）。
+- **golden・計器**＝**1025→1029**。合成効果（実カード非依存）で `OPTIONAL_ACTIVATE` 配線を固定し、加えて**「同型5件は `mandatory:false` を持たない」を live 全数の不変条件として固定**＝同じ誤りの再発を止める。母集団カウントも整合更新（段階2 mandatory 1451→**1453**／段階3在庫 41→**39**／包み対象 8→**6**。6 = 通常召喚経路のシグニ5件＋アシスト1件）。census **1412 据置**（`BASELINE_HIGH` 変更なし）。`npm run gates` 全緑（smoke 10726 全0・fuzz 全0・manual field loss 0・lint 0 errors）、同型★0、`npm run regen` 実施。
+- **⚠通常召喚経路の5件は触っていない**＝`WX04-041-E2`（対戦相手のすべてのシグニを配置し直してもよい）／`WX04-052-E2`（デッキの一番上を【チャーム】にしてもよい）／`WX04-058-E2`／`WX04-061-E2`／`WX06-033-E1` は Claude が原文照合し、**いずれも効果全体が任意で `mandatory:false` は正しい**と確認済み。
+- **🆕新たに見つけて直さなかったもの（PLAN §3 タスク12 へ登録）**＝①**COLLAB（`BattleScreen.tsx` のアシスト配置）が mandatory 判定なしで任意【出】も無条件に積む過剰実行** ②**`WXDi-P15-034-E1`（アシスト）は「②…《白》《無》を支払ってもよい」＝内側だけ任意なのに `mandatory:false`**＝今回の2枚と同型の疑い。アシスト経路が未配線なので現状は無害だが、その経路を塞ぐ前に判定が要る ③CPU 2経路は「任意効果は発動しない」を維持（方針を明示して据え置き）。
+- **⚠委譲運用の教訓**＝codex は「指示された経路を塞ぐ」ことは正確にやるが、**その経路が拾うデータ自体が正しいかは疑わない**。今回は Claude 側の原文照合＋同型効果の全数比較で初めて二重任意指定が見えた。**「機構を配線したら、その機構が拾う live 該当を全数、原文と突き合わせる」までが確認フロー**。
+
 ## filter付き手札捨てコストの構造化（2026-07-29・PLAN §3 タスク12(xxix)(2)・Codex）
 
 - **壊れ方の分類：過剰実行（コスト踏み倒し）＋計器偽陽性**。原文が「【出】手札から〈filter〉をN枚捨てる：」でも JSON は `cost` なし／`costUnparsed:true` のため、効果だけ実行できた。`parseCost` をアイコン（ライフバースト／クロス／ライズ／トラップ／アクセ）、クラス、色、カード名部分一致、カード種別、漢数字「一枚」に対応させた。

@@ -126,10 +126,42 @@ export function isOptionalOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
 }
 
 /**
+ * センタールリグのグロウ時に、任意・無コスト【出】を発動確認つきへ変換する。
+ * activeCondition → condition の順は executeGrow の既存収集順に合わせる。
+ * costUnparsed など包めないものは deferred に残し、コスト踏み倒しを避ける。
+ */
+export function collectOptionalNoCostOnPlayForGrow(
+  effects: CardEffect[],
+  controllerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
+  sourceCardNum: string,
+  turnPhase: string,
+  effectivePowers?: Map<string, number>,
+): { effects: CardEffect[]; deferred: CardEffect[] } {
+  const wrappedEffects: CardEffect[] = [];
+  const deferred: CardEffect[] = [];
+  for (const eff of effects) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
+    if (eff.mandatory !== false || eff.cost) continue;
+    if (eff.activeCondition && !checkActiveCondition(
+      eff.activeCondition, controllerState, otherState, isOwnerTurn, cardMap, sourceCardNum,
+    )) continue;
+    if (eff.condition && !evalUseCondition(
+      eff.condition, controllerState, otherState, cardMap, sourceCardNum, turnPhase, effectivePowers,
+    )) continue;
+    const wrapped = wrapOptionalOnPlay(eff);
+    if (wrapped) wrappedEffects.push(wrapped);
+    else deferred.push(eff);
+  }
+  return { effects: wrappedEffects, deferred };
+}
+
+/**
  * 効果で場に出たシグニ自身の【出】を収集する。
- * mandatory:false のうち **コスト付き**は `OPTIONAL_COST` を前置した action で積む（タスク12(xxix)(1)）。
- * cost なしの任意【出】（タスク12(lv)＝段階3）と、`OptionalCostSpec` で表現できないコストを持つものは
- * 従来どおり収集しない。
+ * mandatory:false は、コスト付きなら `OPTIONAL_COST`、無コストなら `OPTIONAL_ACTIVATE` を
+ * 前置した action で積む。`OptionalCostSpec` で表現できないコストは収集せず、踏み倒しを避ける。
  */
 export function collectPlacedSelfOnPlayTriggers(
   ctx: TrigCtx,
@@ -161,8 +193,6 @@ export function collectPlacedSelfOnPlayTriggers(
     const bySigniEffect = !!eff.triggerCondition?.bySigniEffect;
     if ((byEffect || bySigniEffect) && !opts.placedByEffect) continue;
     if (bySigniEffect && !opts.sourceIsSigni) continue;
-    // 任意【出】＝コストがあり、かつそのコストを OPTIONAL_COST で表現できるものだけを
-    // 「支払いますか？」プロンプト付きで積む。それ以外（cost なし＝(lv)／表現不能なコスト）は据え置き。
     // 任意【出】は「支払いますか？／発動しますか？」の包みに変換して積む。
     // 変換できない（コストを表現できない）ものだけ従来どおり据え置き。
     let wrapped: CardEffect | null = null;
