@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第1波17効果を既存コスト語彙へ構造化（2026-07-29・PLAN §3 タスク12(xxix)(2)・Codex実装）
+
+- **壊れ方**＝AUTO / ON_PLAY / `mandatory:false` なのに原文コスト句が `costUnparsed:true` のままだった17効果は、通常召喚の cost モーダルにも任意無コスト collector にも入らず完全不発だった。
+- **parser**＝`parseCost` に【出】ヘッダ限定の具体文型を追加し、既存 `EffectCost` の `handToEnergy` 6効果、`handToUnderSelf` 4効果、`lifeTrash` 3効果、`lifeToHand` 1効果、`discard+discardFilter` 3効果へ構造化。新フィールドは作らず、`story`／`cardType`／`hasIcon:'ガード'` は既存 filter 語彙を使用。`costUnparsed` は対象17件から除去した。
+- **支払い経路**＝17件はすべてシグニの任意【出】で、通常召喚 `handleSummonSigni` → `SigniOnPlayCostModal` → `executeSigniOnPlayCost` の経路を使う。実コード上、手札→エナ、手札→配置シグニ下、ライフ→トラッシュ、ライフ→手札、filter付き手札捨ての選択・不足判定・移動処理を確認した。`optionalOnPlayCostStub.SUPPORTED` は変更せず、効果配置経路で未対応コストを踏み倒さない安全弁を維持（discard 3件だけは既存 engine 支払いへ自動的に載る）。
+- **採用**＝17カードすべて AUTO で PRESERVE(MANUAL/PARTIAL) 該当0。`build:effects` 後に held へ上がった17カードを `heldReview --adopt` で採用。effectId 単位の HEAD 比較は changed **17** / added 0 / removed 0、指定外 outlier **0**。`costUnparsed` は **47→30**、AUTO / ON_PLAY / mandatory:false は **33→16**。
+- **golden**＝1037→**1040**。17効果の厳密な cost と `costUnparsed` 除去、filter/ライフ資源の成立・不成立両方向、新機構待ち16効果が `costUnparsed` のままであることを固定。census は **1412→1408** のため既存 `BASELINE_HIGH` だけを更新。
+- **見送り16効果**＝選択集合の相互制約4効果、カード名3群同時エナ支払い1効果、可変枚数と効果量連動3効果、filter付き `discardUpTo` 4効果、複数シグニ下の合計指定1効果、複数ゾーン同時全捨て2効果、トラッシュ→デッキ下一番下コスト1効果。既存型を再確認したが、ON_PLAY cost モーダル／支払い処理まで忠実に通る語彙が無いか、制約・連動値を保持できないため不完全な近似を避けた。
+- **既存の効果本体不一致（未修正）**＝`WXDi-P16-080-E1` は支払ったシグニと同レベルの参照が脱落、`WXDi-CP02-083-E1` は「自分の他の＜ブルアカ＞」が owner:any・filterなし、`WXK06-030-E2` は1体＋1枚選択が STUB の「すべて」表記、`WX24-P3-044-E1` は手札からライフへ置く本体がデッキ上から加える形。今回のコスト構造化スコープを守り触っていない。既存 decompiler にも life系コストの専用描画欠落と hand/discard 系の名詞固定表示があり、生成 cost は正しいが逆翻訳文面は原文と完全一致しない。
+- **ゲート**＝golden 1040/1040、census 1408、smoke 10726/10726 全0、fuzz 全0、lint 0 errors / 228 warnings、同型★0、manual field loss 0。
+
 ## 任意【出】エクシード21効果／discardGroups 1効果の Pattern⑤・UI 支払い配線（2026-07-29・PLAN §3 タスク12(xxix)(1)・Codex実装）
 
 - **壊れ方**＝(A) 効果配置経路では `optionalOnPlayCostStub` が `exceed` を未対応扱いして21効果を収集せず、(B) 通常召喚／グロウ経路では `SigniOnPlayCostModal` と `executeSigniOnPlayCost` が `exceed` を読まず21効果を無償発動、(C) engine Pattern⑤が `handDiscardGroups` を無視して `WX20-058-E1` を手札2枚無償で発動していた。

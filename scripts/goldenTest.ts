@@ -14742,8 +14742,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 943, '任意costあり（(xxix)(1) の母集団）');
-    eq(optionalNoCost.length, 38, '段階3在庫（内側だけ任意の3効果を mandatory へ是正後）');
+    eq(optionalCost.length, 960, '任意costあり（costUnparsed 第1波17効果の構造化後）');
+    eq(optionalNoCost.length, 21, '段階3在庫（costUnparsed 第1波17効果の構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14767,21 +14767,21 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   // ── (xxix)(1) 任意+cost 933効果を OPTIONAL_COST 包みで積む ───────────────────────────────
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
-  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる884件／表現できない59件', () => {
+  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる887件／表現できない73件', () => {
     const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed']);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
-    eq(optionalCost.length, 943, '母集団');
-    eq(mapped.length, 884, 'OPTIONAL_COST へ写せる＝新たに積める');
-    eq(optionalCost.length - mapped.length, 59, '表現できないコストを含むため据え置き');
+    eq(optionalCost.length, 960, '母集団');
+    eq(mapped.length, 887, 'OPTIONAL_COST へ写せる＝新たに積める');
+    eq(optionalCost.length - mapped.length, 73, '表現できないコストを含むため据え置き');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる884件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる887件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
@@ -14905,7 +14905,79 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       }
     }
     eq(wrapped, 5, '包む＝効果全体が真に任意の5効果（内側だけ任意の3効果は mandatory）');
-    eq(deferred, 33, '据え置き＝コスト句があるのに cost 未表現の33効果（parser 在庫）');
+    eq(deferred, 16, '据え置き＝新機構が要るため cost 未表現の16効果（parser 在庫）');
+  });
+
+  test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
+    const expected: Record<string, import('../src/types/effects').EffectCost> = {
+      'WXK09-039-E2': { handToEnergy: { count: 1, filter: { cardType: 'シグニ', story: '天使' } } },
+      'WXK09-043-E1': { handToEnergy: { count: 3, filter: { cardType: 'シグニ', story: '天使' } } },
+      'WXDi-CP02-057-E1': { handToEnergy: { count: 1, filter: { story: 'ブルアカ' } } },
+      'WXDi-CP02-083-E1': { handToEnergy: { count: 1, filter: { story: 'ブルアカ' } } },
+      'WXDi-CP02-091-E1': { handToEnergy: { count: 1, filter: { story: 'ブルアカ' } } },
+      'WXDi-P16-080-E1': { handToEnergy: { count: 1, filter: { cardType: 'シグニ' } } },
+      'WXDi-P15-050-E2': { handToUnderSelf: { count: 1, filter: { cardType: 'シグニ', story: '解放派' } } },
+      'WXDi-P15-051-E2': { handToUnderSelf: { count: 1, filter: { cardType: 'シグニ', story: '解放派' } } },
+      'WXDi-P15-066-E2': { handToUnderSelf: { count: 1, filter: { cardType: 'シグニ', story: '解放派' } } },
+      'WXDi-P16-073-E1': { handToUnderSelf: { count: 1, filter: { cardType: 'シグニ', story: '解放派' } } },
+      'WD06-013-E1': { lifeTrash: 1 },
+      'WXDi-P16-041-E1': { lifeTrash: 1 },
+      'WXK06-030-E2': { lifeTrash: 1 },
+      'WX24-P3-044-E1': { lifeToHand: 1 },
+      'WXDi-P08-056-E2': { discard: 1, discardFilter: { cardType: 'スペル' } },
+      'WXDi-P10-053-E1': { discard: 1, discardFilter: { cardType: 'スペル' } },
+      'WXDi-P04-033-E2': { discard: 1, discardFilter: { cardType: 'シグニ', hasIcon: 'ガード' } },
+    };
+    for (const [effectId, want] of Object.entries(expected)) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live 効果が存在`);
+      eq(JSON.stringify(effect!.cost), JSON.stringify(want), `${effectId}: cost`);
+      ok(!effect!.costUnparsed, `${effectId}: costUnparsed を除去`);
+    }
+  });
+
+  test('(xxix)(2) 第1波コストは支払い資源の成立／不成立を両方向で判定できる', () => {
+    const angel = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('天使'));
+    const nonAngel = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('天使'));
+    const angelFilter = effectsMap.get('WXK09-039')!.find(e => e.effectId === 'WXK09-039-E2')!.cost!.handToEnergy!.filter!;
+    ok(matchesFilter(cardMap.get(angel), angelFilter), '天使シグニがあれば handToEnergy:1 は成立');
+    ok(!matchesFilter(cardMap.get(nonAngel), angelFilter), '天使でないシグニだけなら不成立');
+
+    const liberation = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('解放派'));
+    const nonLiberation = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('解放派'));
+    const underFilter = effectsMap.get('WXDi-P15-050')!.find(e => e.effectId === 'WXDi-P15-050-E2')!.cost!.handToUnderSelf!.filter!;
+    ok(matchesFilter(cardMap.get(liberation), underFilter), '解放派シグニがあれば handToUnderSelf:1 は成立');
+    ok(!matchesFilter(cardMap.get(nonLiberation), underFilter), '解放派でないシグニだけなら不成立');
+
+    const lifeTrash = effectsMap.get('WD06-013')!.find(e => e.effectId === 'WD06-013-E1')!.cost!.lifeTrash!;
+    ok(['life'].length >= lifeTrash, 'ライフ1枚なら lifeTrash:1 は成立');
+    ok([].length < lifeTrash, 'ライフ0枚なら lifeTrash:1 は不成立');
+    const lifeToHand = effectsMap.get('WX24-P3-044')!.find(e => e.effectId === 'WX24-P3-044-E1')!.cost!.lifeToHand!;
+    ok(['life'].length >= lifeToHand, 'ライフ1枚なら lifeToHand:1 は成立');
+    ok([].length < lifeToHand, 'ライフ0枚なら lifeToHand:1 は不成立');
+
+    const spell = findCard(c => c.Type === 'スペル');
+    const signi = findCard(c => c.Type === 'シグニ');
+    const spellFilter = effectsMap.get('WXDi-P08-056')!.find(e => e.effectId === 'WXDi-P08-056-E2')!.cost!.discardFilter!;
+    ok(matchesFilter(cardMap.get(spell), spellFilter), 'スペルがあれば discard:1 は成立');
+    ok(!matchesFilter(cardMap.get(signi), spellFilter), 'シグニだけならスペル捨ては不成立');
+  });
+
+  test('(xxix)(2) 新機構待ち16効果は costUnparsed のまま保持する', () => {
+    const deferredIds = [
+      'WX25-P1-090-E2', 'WXDi-D01-017-E1', 'WXDi-P00-022-E2', 'WXK09-032-E1',
+      'WXK03-070-E1', 'WXDi-P13-041-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
+      'WX24-P3-074-E1', 'WX25-P3-084-E1', 'WXDi-P15-065-E1', 'WXDi-CP02-073-E1',
+      'WXK08-082-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
+    ];
+    for (const effectId of deferredIds) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live 効果が存在`);
+      ok(effect!.costUnparsed === true, `${effectId}: 不完全な既存語彙へ載せず costUnparsed を維持`);
+      eq(effect!.cost, undefined, `${effectId}: 不完全な cost を生成しない`);
+    }
   });
 
   test('(xxix)(2) filter付き手札捨てコストは払える時だけ完走し、対象外カードを捨てない', () => {

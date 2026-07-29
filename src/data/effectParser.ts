@@ -357,6 +357,27 @@ function parseCost(costStr: string): EffectCost | undefined {
   } else if (ftVerbM) {
     cost.fieldTrash = { count: parseNum(ftVerbM[1]), filter: { cardType: 'シグニ' } };
   }
+  // 手札から[フィルター]カード/シグニN枚をエナゾーンに置く → handToEnergy
+  // 【出】ヘッダから切り出された costStr だけを受けるため、効果本体の同文型には波及しない。
+  const hteM = costStr.match(/手札から(?:(?:＜([^＞]+)＞の)?(カード|シグニ)|シグニ)(?:を)?([０-９\d]+)枚を?エナゾーンに置く/);
+  if (hteM) {
+    const cardType = hteM[2] === 'シグニ' || (!hteM[1] && !hteM[2]) ? 'シグニ' : undefined;
+    cost.handToEnergy = {
+      count: parseNum(hteM[3]),
+      filter: {
+        ...(cardType ? { cardType } : {}),
+        ...(hteM[1] ? { story: hteM[1] } : {}),
+      },
+    };
+  }
+  // 手札から＜story＞のシグニN枚をこのシグニの下に置く → handToUnderSelf
+  const htuM = costStr.match(/手札から(?:＜([^＞]+)＞の)?シグニ([０-９\d]+)枚をこのシグニの下に置く/);
+  if (htuM) {
+    cost.handToUnderSelf = {
+      count: parseNum(htuM[2]),
+      filter: { cardType: 'シグニ', ...(htuM[1] ? { story: htuM[1] } : {}) },
+    };
+  }
   // 場のチャームN枚をトラッシュ → charmTrash
   const ctM = costStr.match(/(?:あなたの)?(?:場にある)?【チャーム】([０-９\d]+)枚をトラッシュに置く/);
   if (ctM) cost.charmTrash = parseNum(ctM[1]);
@@ -428,9 +449,17 @@ function parseCost(costStr: string): EffectCost | undefined {
       cost.handDiscardSigni = { count: parseNum(hcLvSigniM[2]), level: parseNum(hcLvSigniM[1]) };
     }
   }
+  // 【出】ヘッダの「スペルをN枚捨てる」（「手札から」省略形）。
+  if (!cost.discard && !cost.discardFilter) {
+    const spellM = costStr.match(/^スペルを([０-９\d]+)枚捨てる$/);
+    if (spellM) {
+      cost.discard = parseNum(spellM[1]);
+      cost.discardFilter = { cardType: 'スペル' };
+    }
+  }
   // 手札から《Xアイコン》を持つカード/シグニをN枚捨てる。
   if (!cost.handDiscardSigni && !cost.discard && !cost.discardFilter && !cost.discardGroups) {
-    const hcIconM = costStr.match(/手札から《(ライフバースト|クロスアイコン|ライズアイコン|トラップアイコン|アクセアイコン)》を持つ(カード|シグニ)を([０-９\d]+|一)枚捨てる/);
+    const hcIconM = costStr.match(/手札から《(ライフバースト|クロスアイコン|ライズアイコン|トラップアイコン|アクセアイコン|ガードアイコン)》を持つ(カード|シグニ)を([０-９\d]+|一)枚捨てる/);
     if (hcIconM) {
       const iconFilter: TargetFilter = { cardType: hcIconM[2] as CardTypeFilter };
       if (hcIconM[1] === 'ライフバースト') iconFilter.hasLifeBurst = true;
@@ -456,6 +485,11 @@ function parseCost(costStr: string): EffectCost | undefined {
   const lcM = costStr.match(/ライフクロス([０-９\d]+)枚をクラッシュ(?:する)?/);
   if (lcM) cost.life_crash = parseNum(lcM[1]);
   else if (/ライフクロス[１1]枚をクラッシュ/.test(costStr)) cost.life_crash = 1;
+  // 「トラッシュに置く」はクラッシュ（ライフバースト判定あり）とは別コスト。
+  const ltM = costStr.match(/ライフクロス([０-９\d]+)枚をトラッシュに置く/);
+  if (ltM) cost.lifeTrash = parseNum(ltM[1]);
+  const lhM = costStr.match(/ライフクロス([０-９\d]+)枚を手札に加える/);
+  if (lhM) cost.lifeToHand = parseNum(lhM[1]);
   // トラッシュにあるカードをゲームから除外するコスト → trashExile
   if (costStr.match(/トラッシュにあるこのカードをゲームから除外する/)) {
     cost.trashExile = { self: true };
