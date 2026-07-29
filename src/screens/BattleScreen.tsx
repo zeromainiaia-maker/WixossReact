@@ -19,6 +19,7 @@ import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
+import { payLifeOnPlayCost } from './battle/lifeCost';
 
 interface Props {
   user: User;
@@ -10561,20 +10562,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         paid = { ...paid, field: f };
         payLogs.push(`ルリグ${lrigDownCost.count}体をコストでダウン`);
       }
-      // ライフコスト: lifeTrash（トラッシュへ）/ life_crash（クラッシュ＝バースト不発の近似でトラッシュへ）/ lifeToHand（手札へ）
-      const lifeTrashN = (cost?.lifeTrash ?? 0) + (cost?.life_crash ?? 0);
-      if (lifeTrashN > 0) {
-        if (paid.life_cloth.length < lifeTrashN) return;
-        const movedL = paid.life_cloth.slice(-lifeTrashN);
-        paid = { ...paid, life_cloth: paid.life_cloth.slice(0, -lifeTrashN), trash: [...paid.trash, ...movedL] };
-        payLogs.push(`ライフクロス${lifeTrashN}枚をコストでトラッシュ${(cost?.life_crash ?? 0) > 0 ? '（クラッシュ近似・バースト不発）' : ''}`);
-      }
-      const lifeToHandN = cost?.lifeToHand ?? 0;
-      if (lifeToHandN > 0) {
-        if (paid.life_cloth.length < lifeToHandN) return;
-        const movedLH = paid.life_cloth.slice(-lifeToHandN);
-        paid = { ...paid, life_cloth: paid.life_cloth.slice(0, -lifeToHandN), hand: [...paid.hand, ...movedLH] };
-        payLogs.push(`ライフクロス${lifeToHandN}枚を手札に加えた（コスト）`);
+      // ライフコスト: クラッシュだけは check/pending に載せ、既存ライフバースト処理へ接続する。
+      if ((cost?.lifeTrash ?? 0) + (cost?.life_crash ?? 0) + (cost?.lifeToHand ?? 0) > 0) {
+        const lifePaid = payLifeOnPlayCost(paid, cost!);
+        if (!lifePaid) return;
+        paid = lifePaid.state;
+        payLogs.push(...lifePaid.logs);
       }
       // deckTrash: デッキ上からN枚トラッシュ
       const deckTrashN = cost?.deckTrash ?? 0;

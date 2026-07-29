@@ -744,6 +744,23 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
 
+  if (tgt.type === 'LIFE_CLOTH_CARD') {
+    const count = tgt.count === 'ALL' ? state.life_cloth.length : resolveNum(tgt.count);
+    const moved = state.life_cloth.slice(Math.max(0, state.life_cloth.length - count));
+    const newS: PlayerState = {
+      ...state,
+      life_cloth: state.life_cloth.slice(0, Math.max(0, state.life_cloth.length - moved.length)),
+      trash: [...state.trash, ...moved],
+      ...(a.asCost && moved.length > 0
+        ? { last_cost_trashed_cards: [...(state.last_cost_trashed_cards ?? []), ...moved] }
+        : {}),
+    };
+    return done({
+      ...addLog(setOwnerState(tgt.owner, newS, ctx), `ライフクロス${moved.length}枚をトラッシュへ`),
+      lastProcessedCards: moved,
+    });
+  }
+
   if (tgt.type === 'SIGNI') {
     // thisCardOnly: 効果元シグニ自身のみを対象（「このシグニを場からトラッシュに置く」。WXDi-P04-040 等の自己犠牲）
     // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」。WXK10-039 等）
@@ -1471,7 +1488,19 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
   let cands: string[];
   let scope: TargetScope;
 
-  if (src.type === 'TRASH_CARD') {
+  if (src.type === 'LIFE_CLOTH_CARD') {
+    const count = src.count === 'ALL' ? state.life_cloth.length : resolveNum(src.count);
+    const moved = state.life_cloth.slice(Math.max(0, state.life_cloth.length - count));
+    const newS: PlayerState = {
+      ...state,
+      life_cloth: state.life_cloth.slice(0, Math.max(0, state.life_cloth.length - moved.length)),
+      hand: [...state.hand, ...moved],
+    };
+    return done({
+      ...addLog(setOwnerState(tgtOwner, newS, ctx), `ライフクロス${moved.length}枚を手札へ`),
+      lastProcessedCards: moved,
+    });
+  } else if (src.type === 'TRASH_CARD') {
     // thisCardOnly: 効果元カード自身のみ（「このシグニを手札に加える」。トラッシュに置かれた自身を回収。WX04-035-E2）
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];

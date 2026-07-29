@@ -1819,6 +1819,9 @@ export interface StubAction {
   handToUnderSelf?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  life_crash?: number;
+  lifeTrash?: number;
+  lifeToHand?: number;
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----
   // 対象シグニのレベル分だけコスト単位を繰り返す任意コスト。単位は3系統あり、いずれも
   // STORE_LAST_PROCESSED_TARGETS で固定した対象（storedTargetCards）のレベルを倍率にする。

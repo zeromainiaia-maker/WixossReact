@@ -151,6 +151,9 @@ export interface OptionalCostSpec {
   handToUnderSelf?: { count: number; filter?: TargetFilter };
   energyTrash?: { count: number; filter?: TargetFilter };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  life_crash?: number;
+  lifeTrash?: number;
+  lifeToHand?: number;
   /** レベル倍率が要るのに対象レベルが 0＝支払い自体が成立しない */
   levelUnavailable: boolean;
 }
@@ -173,7 +176,9 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    energyTrash, fieldTrash: a.fieldTrash, levelUnavailable: perLevel && level <= 0,
+    energyTrash, fieldTrash: a.fieldTrash,
+    life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
+    levelUnavailable: perLevel && level <= 0,
   };
 }
 
@@ -211,6 +216,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldTrash.count) return false;
   }
+  const lifeCount = (spec.life_crash ?? 0) + (spec.lifeTrash ?? 0) + (spec.lifeToHand ?? 0);
+  if (ctx.ownerState.life_cloth.length < lifeCount) return false;
   return true;
 }
 
@@ -241,6 +248,17 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
           ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
+    } as EffectAction] : []),
+    ...(spec.life_crash ? [{
+      type: 'LIFE_CRASH', owner: 'self', count: spec.life_crash, triggerBurst: true,
+    } as EffectAction] : []),
+    ...(spec.lifeTrash ? [{
+      type: 'TRASH', asCost: true,
+      target: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: spec.lifeTrash },
+    } as EffectAction] : []),
+    ...(spec.lifeToHand ? [{
+      type: 'TRANSFER_TO_HAND',
+      source: { type: 'LIFE_CLOTH_CARD', owner: 'self', count: spec.lifeToHand },
     } as EffectAction] : []),
   ];
 }

@@ -72,6 +72,7 @@ export function optionalOnPlayCostStub(
   const SUPPORTED = new Set([
     'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
     'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
+    'life_crash', 'lifeTrash', 'lifeToHand',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
@@ -109,6 +110,9 @@ export function optionalOnPlayCostStub(
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
     ...(cost.exceed ? { exceed: cost.exceed } : {}),
     ...(cost.fieldTrash ? { fieldTrash: cost.fieldTrash } : {}),
+    ...(cost.life_crash ? { life_crash: cost.life_crash } : {}),
+    ...(cost.lifeTrash ? { lifeTrash: cost.lifeTrash } : {}),
+    ...(cost.lifeToHand ? { lifeToHand: cost.lifeToHand } : {}),
   } as StubAction;
 }
 

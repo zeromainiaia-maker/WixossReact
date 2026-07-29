@@ -39,6 +39,7 @@ import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards'
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
+import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
@@ -14771,6 +14772,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
       'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
+      'life_crash', 'lifeTrash', 'lifeToHand',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
@@ -14778,13 +14780,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 915, 'OPTIONAL_COST へ写せる＝handToEnergy 7＋handToUnderSelf 4を追加');
-    eq(optionalCost.length - mapped.length, 43, '表現できないコストを含むため据え置き（参照欠落1件を含む）');
+    eq(mapped.length, 923, 'OPTIONAL_COST へ写せる＝ライフコスト8件を追加');
+    eq(optionalCost.length - mapped.length, 35, '表現できないコストを含むため据え置き（参照欠落1件を含む）');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる915件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる923件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
