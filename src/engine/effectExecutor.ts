@@ -4582,6 +4582,8 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     ? resolveCountRef(a.count, ctx, a.countFromZone)
     : a.countIsLastProcessedLevelSum
     ? (ctx.lastProcessedCards ?? []).reduce((sum, cn) => sum + (parseInt(ctx.cardMap.get(cn)?.Level ?? '0', 10) || 0), 0)
+    : a.countPerSourceLevel !== undefined
+    ? (parseInt(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0', 10) || 0) * a.countPerSourceLevel
     : a.countPerLastProcessed !== undefined
     ? (ctx.lastProcessedCards ?? []).length * a.countPerLastProcessed
     : a.countPerStoredTargets !== undefined

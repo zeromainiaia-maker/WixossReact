@@ -15468,6 +15468,42 @@ test('(xlvi) 第15波 WX25-P3-052-E1: レベル合計5以上は2ドロー、収�
   }
 });
 
+test('(l) 引用能力3件は rawText no-op ではなく内側能力を保持', () => {
+  const p11 = effectsMap.get('WXDi-P11-038')!.find(e => e.effectId === 'WXDi-P11-038-E2')!;
+  const cp = effectsMap.get('WX26-CP1-005')!.find(e => e.effectId === 'WX26-CP1-005-E1')!;
+  const p02 = effectsMap.get('WXDi-P02-034')!.find(e => e.effectId === 'WXDi-P02-034-E1')!;
+  const p11j = JSON.stringify(p11);
+  const cpj = JSON.stringify(cp);
+  const p02j = JSON.stringify(p02);
+  ok(p11j.includes('"abilities":[{"effectId":"WXDi-P11-038-E2-GRANT"'), 'P11: 付与【常】がnest済み');
+  ok(p11j.includes('"keyword":"シャドウ"'), 'P11: 内側はシャドウ付与');
+  ok(cpj.includes('"effectId":"WX26-CP1-005-E1-GRANT"'), 'CP1-005: 付与【自】がnest済み');
+  ok(cpj.includes('"timing":["ON_ATTACK_SIGNI"]') && cpj.includes('"position":"bottom"'), 'CP1-005: アタック時デッキ下');
+  ok(p02j.includes('"effectId":"WXDi-P02-034-E1-GRANT"'), 'P02-034: 付与【自】がnest済み');
+  ok(p02j.includes('"timing":["ON_BANISH"]') && p02j.includes('"countPerSourceLevel":2'), 'P02-034: バニッシュ時レベル×2ミル');
+});
+
+test('(l) WXDi-P02-034: 付与前0枚・付与後だけレベル3×2=6枚ミル', () => {
+  const savedCursor = cursor;
+  try {
+    const outer = effectsMap.get('WXDi-P02-034')!.find(e => e.effectId === 'WXDi-P02-034-E1')!.action as any;
+    const victim = SIGNI_L3;
+    const source = 'WXDi-P02-034#source';
+    const base = mkCtx({ deckTop: fill(8), hand: 0 }, { signi: [victim, null, null] }, source);
+    base.cardMap = new InstanceMap(cardMap);
+    const before = base.ownerState.deck.length;
+    eq(before - base.ownerState.deck.length, 0, '付与前はミル0');
+    const nested = (outer as any).effect as CardEffect;
+    const granted = { ...base, otherState: { ...base.otherState, granted_effects: { [victim]: [nested] } } };
+    eq(granted.otherState.granted_effects[victim].length, 1, '対象個体にだけ付与');
+    const fired = run(nested.action, { ...granted, sourceCardNum: victim });
+    eq(before - fired.ownerState.deck.length, 6, '付与後だけレベル3×2=6枚ミル');
+    eq(fired.ownerState.trash.length - granted.ownerState.trash.length, 6, '6枚がトラッシュへ移動');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

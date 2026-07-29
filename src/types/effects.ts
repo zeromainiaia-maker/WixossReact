@@ -1939,6 +1939,7 @@ export interface MILLAction {
   fromBottom?: boolean;
   useDeclaredCount?: boolean;
   countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）
+  countPerSourceLevel?: number; // 誘発元シグニのレベル1につきN枚（付与AUTOの「このシグニのレベル1につき」。WXDi-P02-034）
   countPerLastProcessed?: number;
   countPerStoredTargets?: number;
   optional?: boolean;

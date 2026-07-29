@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 付与能力の内側が未 nest で完全 no-op（2026-07-29・PLAN §3 タスク12(l)・Codex）
+
+- **分類・着地3件**：`GRANT_LRIG_ABILITY`／`GRANT_EFFECT` が引用能力を `rawText` に抱え、`abilities`／`effect` が空のため executor で完全 no-op だった構造化欠落。`WXDi-P11-038-E2`（【常】シャドウ）／`WX26-CP1-005-E1`（【自】アタック時デッキ下）／`WXDi-P02-034-E1`（【自】被バニッシュ時レベル×2ミル）を nest。P02-034 にだけ誘発元個体を読む `MILL.countPerSourceLevel` を最小追加。
+- **MANUAL 2層・外科性**：3カードとも `manualEffects.ts` の effectId 単位定義を正とした。P11/CP1-005 は held fresh を採用。既存 live が `PARTIAL` で build 保護対象の P02-034 は live のE1リーフだけを同じ形へ外科更新。live差分は **changed 3 / added 0 / removed 0**。
+- **実測**：`InstanceMap` 使用。P02-034 は付与前 **ミル0**、付与後のレベル3個体で **デッキ−6／トラッシュ＋6**。golden でnest構造と倍率を固定（1011→1013）。`countPerSourceLevel:2→0` の一時変異で狙った **2本だけFAIL**（1011 PASS / 2 FAIL）、復元後1013/1013。
+- **WX15-016**：今回の群にはいない。続き282で既に `abilities[ON_ATTACK_SIGNI, any_opp]`＋任意ミル＋LB判定＋攻撃キャンセルへ実働化済み。
+- **残8件**：`WX26-CP1-076-SONG`（手札枚数比例）／`WXK11-052-E1`（任意場2体コスト）／`WX24-P4-026-E1`（ガード支払い置換）／`WX16-004-E1`（公開置換）／`SPDi44-08-E2`・`WX25-P1-018-E2`（場離れ置換＋能力喪失）／`WD21-009-E1`（任意下敷き・宣言・多段閾値）／`PR-204-E1`（他アーツ不使用＋任意コスト）。部分近似は過剰実行になるためdefer。
+- **B群36件**：`WDK02-009-E1`／`PR-K022-E1`／`WXK01-007-E1` をCSV照合。親文「センタールリグは以下の能力を得る。」の句点だけが `rawText:"。"` に入り、直後の【起】群はE2以降へトップレベルflattenされていた。引用境界抽出ズレによる付与スコープ喪失としてPLANへ別在庫登録し、本波では未実装。
+- **🔴Claude 確認で発見した2件（codex の報告に無い）**：
+  1. **built JSON でエンコーディング破壊**＝`WXDi-P02-034-E1` の付与対象 filter が `"cardType":"シグニ"` から **`"cardType":"???"`**（日本語3文字が `?` 3つに化けた）になっていた。`manualEffects.ts` 側は正しく「シグニ」。この状態では **matchesFilter が誰にも一致せず付与対象0体＝依然として完全 no-op**（実測で `otherState.granted_effects={}`・ログが「**に**AUTOを付与」と対象名が空）。⚠**`npm run build:effects` では直らない**（PRESERVE 機構で既存値を温存）ため built JSON を直接修復した。修復後は相手シグニ3体すべてに付与されることを実測。
+  2. **⚠この破壊を golden が検出できなかった**（破壊されたままでも 1013 PASS）＝**golden の `cardMap.effects` は `mergeManualEffects` 済みを見るのに対し、アプリは built JSON を直読みする**ため。**MANUAL 定義を持つ効果では golden は built JSON の破壊に対する網にならない**という構造的盲点。MANUAL 層を触った波では 「built JSON 側を直接読んで値を確認する」ことを確認手順に加える。
+- **⚠codex の差分報告の誤り**：「added 0」と報告されたが実際は `-GRANT` 3件が追加されていた（`WX26-CP1-005-E1-GRANT`／`WXDi-P02-034-E1-GRANT`／`WXDi-P11-038-E2-GRANT`）。ただしこれらは**親効果の内側に nest されており、カード配下の effects 配列には現れない**（`WX26-CP1-005` 配下は `["WX26-CP1-005-E1"]` のみ）＝**付与前に発火する過剰実行にはならない**ことを確認済み。第15波の `WX26-CP1-076-sub-E1`（本体 effects に登録されていて付与前に発火しうる形）とは別物。
+- **計器・検証**：census **1410→1409**、トップレベル `BASELINE_HIGH=1409` とPLAN恒久指標を更新。`npm run gates` 全緑（golden **1013/1013**、smoke **10726/10726** 全0、fuzz全0、lint 0 errors）。build 2回目はeffects差分0で冪等。
+
 ## 最終2効果の look-pick 実働化・(xlvi) クローズ 第17波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **`WXDi-P15-005-E1`（俯瞰者からの啓示・ピース）— no-op を是正**：従来は `LOOK_AND_REORDER` だけで、ルリグ色ごとの公開も公開札の手札／エナ振り分けも丸ごと不発。「場にいるルリグ」は盤面のセンター＋左右アシスト（最大3体）と確定し、`LOOK_PICK_CHAIN` 固定3段へ変更した。新 filter `colorMatchesLrigIndex` はセンター→左→右を参照し、不在 index は候補ゼロ。公開後は既存 `handOrEnergy`、残りはデッキ下。**動的stage・新アクション型は不要**だった。
