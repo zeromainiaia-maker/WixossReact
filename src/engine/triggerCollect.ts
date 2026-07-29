@@ -102,6 +102,17 @@ export function wrapOptionalOnPlay(eff: CardEffect): CardEffect | null {
   // 原文にコスト句があるのに parser が解釈できなかった効果は**絶対に包まない**。
   // 包むと「発動しますか？」だけ出てコストを払わずに撃ててしまう（＝踏み倒し）。
   if (eff.costUnparsed) return null;
+  // 可変枚数捨ては COUNT_BASED_DRAW_OR_POWER 自身が任意 SELECT_TARGET を提示し、
+  // continuation で実際に手札→トラッシュへ移す。外側の OPTIONAL_ACTIVATE / OPTIONAL_COST は
+  // 二重プロンプトまたは偽の支払いUIになるため、action をそのまま積む。
+  // ⚠ 落としてよい cost は **action 自身が徴収する `discardUpTo` だけ**。他のコスト（エナ・コイン等）が
+  //   混ざっている効果まで無条件に落とすと、そのコストを踏み倒して action だけ通る。
+  //   `discardUpTo` 以外を持つ場合は下の通常経路（包むか、包めなければ null）へ落とす。
+  if (eff.action.type === 'STUB' && eff.action.id === 'COUNT_BASED_DRAW_OR_POWER') {
+    const otherCostKeys = Object.keys(eff.cost ?? {})
+      .filter(k => k !== 'discardUpTo' && (eff.cost as Record<string, unknown>)[k] !== undefined);
+    if (otherCostKeys.length === 0) return { ...eff, cost: undefined };
+  }
   let stub: StubAction | null;
   if (eff.cost) {
     stub = optionalOnPlayCostStub(eff.cost);

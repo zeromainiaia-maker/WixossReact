@@ -7388,6 +7388,25 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = markSelfPM(resolvedAction);
   }
 
+  // 「N枚まで／好きな枚数捨てる」は支払いコストではなく、選んだ枚数を後段で参照する
+  // action の一部。COUNT_BASED_DRAW_OR_POWER が SELECT_TARGET → continuation で実際に
+  // 手札からトラッシュへ移すため、この具体文型では cost/costUnparsed を出力しない。
+  // 既存の「捨てたカードの枚数（に1を加えた枚数）」形は curated JSON を不変に保つ。
+  const variableHandDiscardText =
+    effectType === 'AUTO'
+    && timing?.includes('ON_PLAY')
+    && /^【出】手札(?:から(?:＜[^＞]+＞の)?(?:シグニ|カード))?を?(?:[０-９\d]+枚まで|好きな枚数)捨てる：/.test(block)
+    && /この方法で捨てたカード[０-９\d]+枚につき(?:カードを[０-９\d]+枚引く|【エナチャージ[０-９\d]+】をする|[－＋][０-９\d]+する)/.test(block);
+  if (variableHandDiscardText) {
+    resolvedAction = { type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' } as StubAction;
+  }
+  const actionOwnsVariableHandDiscard =
+    variableHandDiscardText
+    && resolvedAction.type === 'STUB'
+    && (resolvedAction as StubAction).id === 'COUNT_BASED_DRAW_OR_POWER';
+  const outputCost = actionOwnsVariableHandDiscard ? undefined : cost;
+  const outputCostUnparsed = actionOwnsVariableHandDiscard ? false : costUnparsed;
+
   const duration: EffectDuration = effectType === 'CONTINUOUS' ? 'PERMANENT'
     : actionText.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
     : 'INSTANT';
@@ -7463,8 +7482,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     activeCondition: finalActiveCondition,
     condition: mergedCondition,
     altCostOppTurn,
-    cost,
-    ...(costUnparsed ? { costUnparsed: true } : {}),
+    cost: outputCost,
+    ...(outputCostUnparsed ? { costUnparsed: true } : {}),
     action: resolvedAction,
     duration,
     mandatory,

@@ -3611,7 +3611,7 @@ export function execStubPart1(
     const processed = ctx.lastProcessedCards ?? [];
     const count = processed.length;
     // 「捨てた枚数のカードを引く」パターン
-    if (txtCBDP.match(/(?:捨てた|置かれた|ダウンした).*枚数.*(?:引く|カードを引)/)) {
+    if (count > 0 && txtCBDP.match(/(?:捨てた|置かれた|ダウンした).*枚数.*(?:引く|カードを引)/)) {
       const bonusM = txtCBDP.match(/枚数に([０-９\d]+)を加えた枚数/);
       const bonus = bonusM ? parseInt(toHWCBDP(bonusM[1])) : 0;
       const drawCount = count + bonus;
@@ -3741,11 +3741,25 @@ export function execStubPart1(
         newOwnerICD = { ...newOwnerICD, hand: newH, trash: [...newOwnerICD.trash, cn] };
       }
     }
-    if (countICD === 0) return done(addLog({ ...ctx, ownerState: newOwnerICD }, '捨てなし（効果スキップ）'));
-    const ctxICD = { ...ctx, ownerState: newOwnerICD };
     const srcICD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtICD = srcICD ? (srcICD.EffectText ?? '') + ' ' + (srcICD.BurstText ?? '') : '';
     const toHWICD = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+    if (countICD === 0) {
+      // 「捨てた枚数に1を加えた枚数」は0枚選択でも1枚引く。それ以外の「まで」は no-op。
+      const bonusM = txtICD.match(/枚数に([０-９\d]+)を加えた枚数/);
+      const bonus = bonusM ? parseInt(toHWICD(bonusM[1])) : 0;
+      if (bonus > 0) {
+        const canDraw = Math.min(bonus, newOwnerICD.deck.length);
+        const newS: PlayerState = {
+          ...newOwnerICD,
+          hand: [...newOwnerICD.hand, ...newOwnerICD.deck.slice(0, canDraw)],
+          deck: newOwnerICD.deck.slice(canDraw),
+        };
+        return done(addLog({ ...ctx, ownerState: newS }, `手札0枚捨て→${canDraw}枚ドロー`));
+      }
+      return done(addLog({ ...ctx, ownerState: newOwnerICD }, '捨てなし（効果スキップ）'));
+    }
+    const ctxICD = { ...ctx, ownerState: newOwnerICD };
     // 「この方法で捨てたカード１枚につき【エナチャージＮ】」（バン//メモリア等）
     const chargePerICD = txtICD.match(/捨てたカード１枚につき【エナチャージ([０-９\d]+)】/);
     if (chargePerICD) {
@@ -3783,7 +3797,7 @@ export function execStubPart1(
       return done(addLog({ ...ctxICD, ownerState: newS }, `手札${countICD}枚捨て→${canDraw}枚ドロー`));
     }
     // 「捨てたカードの枚数（に1を加えた枚数）カードを引く」
-    if (txtICD.match(/捨てたカードの枚数|枚数に等しい枚数.*引く|枚数のカードを引く/)) {
+    if (txtICD.match(/捨てたカードの枚数.*(?:カードを引く|枚数のカードを引く)|枚数に等しい枚数.*引く|枚数のカードを引く/)) {
       const bonusM = txtICD.match(/枚数に([０-９\d]+)を加えた枚数/);
       const bonus = bonusM ? parseInt(toHWICD(bonusM[1])) : 0;
       const drawCount = countICD + bonus;

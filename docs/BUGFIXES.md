@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 可変枚数手札捨て7効果を既存 action 徴収経路へ統合（2026-07-29・PLAN §3 タスク12(xxix)(2) 第2波・Codex実装）
+
+- **対象**＝`WX24-P3-074-E1`／`WX25-P3-084-E1`／`WXDi-P15-065-E1`／`WXDi-CP02-073-E1`／`WXDi-P06-061-E1`／`WXDi-P08-069-E1`／`WXDi-P13-041-E1`。`costUnparsed` または UI 非対応 `cost.discardUpTo` のため、捨てずに `$ref:last_processed_count=0` を読む no-op だった。
+- **parser / curated**＝【出】ヘッダに限定した具体文型を既存 `STUB{COUNT_BASED_DRAW_OR_POWER}` へ寄せ、可変捨てを `cost` から除外。6カードは `heldReview --adopt`、兄弟E2がPARTIALの `WX25-P3-084` は PRESERVE のため `effectId` アンカー外科補正。live effect diff は changed 7 / added 0 / removed 0、指定外 outlier 0。`costUnparsed` は **30→25**、AUTO/ON_PLAY/任意は **16→11**。
+- **engine / collector**＝既存 `COUNT_BASED_DRAW_OR_POWER` → `SELECT_TARGET(optional)` → `INTERNAL_CBDOP_AFTER_DISCARD` のみを使用。collector はこの action 自身の任意選択・徴収を認識し、外側の `OPTIONAL_ACTIVATE`／偽の `OPTIONAL_COST` を重ねない。`lastProcessedCards` は `resumeSelectTarget` が選択値へ設定し、continuation が手札→トラッシュ移動後に枚数を読む。
+- **incumbent 回帰で判明した既存欠陥も同経路内で是正**＝初回 `lastProcessedCards=[]` を「捨てた枚数ドロー」が先取りして選択前に終了する分岐、P05の「捨てたカードの枚数と同じ数の相手シグニ」をドロー文型へ誤認する広すぎるregex、P16の0枚捨て時+1ドローを早期no-opにする分岐。既存4効果のJSONは不変。
+- **golden**＝1040→**1044**。filter一致2枚の手札消滅・トラッシュ移動・2ドロー、0枚選択、候補0枚、比例エナチャージ、群Cの相手シグニ1体だけへの−20000、既存4効果のJSON/実盤面、P16の0枚捨て+1ドローを固定。
+- **計器**＝census **1408→1402** のため既存 `BASELINE_HIGH` を更新。held **293枚/107署名据置**、smoke 10726/10726 全0、fuzz全0、lint 0 errors/228 warnings、同型★0、manual field loss 0。
+- **見送り**＝`WX24-P4-072-E1`（捨て枚数を動的スペルコスト上限にするACTIVATED別機構）、`WX07-045-E1`（チャーム資源）、`WX24-P4-103-E1`（ルリグ資源＋レベル合計）は今回の手札可変捨て経路と異なるため未変更。
+
 ## `costUnparsed` 第1波17効果を既存コスト語彙へ構造化（2026-07-29・PLAN §3 タスク12(xxix)(2)・Codex実装）
 
 - **壊れ方**＝AUTO / ON_PLAY / `mandatory:false` なのに原文コスト句が `costUnparsed:true` のままだった17効果は、通常召喚の cost モーダルにも任意無コスト collector にも入らず完全不発だった。

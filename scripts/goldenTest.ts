@@ -14742,8 +14742,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
-    eq(optionalCost.length, 960, '任意costあり（costUnparsed 第1波17効果の構造化後）');
-    eq(optionalNoCost.length, 21, '段階3在庫（costUnparsed 第1波17効果の構造化後）');
+    eq(optionalCost.length, 958, '任意costあり（可変捨て2効果をaction徴収へ移行後）');
+    eq(optionalNoCost.length, 23, '任意costなし（可変捨て2効果をaction徴収へ移行後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -14774,9 +14774,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
-    eq(optionalCost.length, 960, '母集団');
+    eq(optionalCost.length, 958, '母集団');
     eq(mapped.length, 887, 'OPTIONAL_COST へ写せる＝新たに積める');
-    eq(optionalCost.length - mapped.length, 73, '表現できないコストを含むため据え置き');
+    eq(optionalCost.length - mapped.length, 71, '表現できないコストを含むため据え置き');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14900,12 +14900,15 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         if (e.mandatory !== false || e.cost) continue;
         if (wrapOptionalOnPlay(e)) {
           wrapped++;
-          eq(headOf(e.effectId) ?? '', '', `${e.effectId}: 包むならコスト句は空のはず（原文にコストがあるなら踏み倒し）`);
+          const selfPaidVariableDiscard = e.action.type === 'STUB' && e.action.id === 'COUNT_BASED_DRAW_OR_POWER';
+          if (!selfPaidVariableDiscard) {
+            eq(headOf(e.effectId) ?? '', '', `${e.effectId}: 包むならコスト句は空のはず（原文にコストがあるなら踏み倒し）`);
+          }
         } else deferred++;
       }
     }
-    eq(wrapped, 5, '包む＝効果全体が真に任意の5効果（内側だけ任意の3効果は mandatory）');
-    eq(deferred, 16, '据え置き＝新機構が要るため cost 未表現の16効果（parser 在庫）');
+    eq(wrapped, 12, '包む＝真に任意5効果＋action自身が選択・徴収する可変捨て7効果');
+    eq(deferred, 11, '据え置き＝新機構が要るため cost 未表現の11効果（parser 在庫）');
   });
 
   test('(xxix)(2) costUnparsed 第1波17効果は既存コスト語彙へ正確に構造化される', () => {
@@ -14964,11 +14967,166 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     ok(!matchesFilter(cardMap.get(signi), spellFilter), 'シグニだけならスペル捨ては不成立');
   });
 
-  test('(xxix)(2) 新機構待ち16効果は costUnparsed のまま保持する', () => {
+  test('(xxix)(2) 第2波7効果は可変捨てを既存 action 経路へ載せる', () => {
+    const ids = [
+      'WX24-P3-074-E1', 'WX25-P3-084-E1', 'WXDi-P15-065-E1', 'WXDi-CP02-073-E1',
+      'WXDi-P06-061-E1', 'WXDi-P08-069-E1', 'WXDi-P13-041-E1',
+    ];
+    for (const effectId of ids) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live 効果が存在`);
+      eq(JSON.stringify(effect!.action), JSON.stringify({ type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' }),
+        `${effectId}: 既存の可変捨て action`);
+      eq(effect!.cost, undefined, `${effectId}: discardUpTo を偽の cost UI に残さない`);
+      ok(!effect!.costUnparsed, `${effectId}: action が徴収するので costUnparsed を除去`);
+    }
+  });
+
+  test('(xxix)(2) 第2波filter付き可変捨ては2枚／0枚／候補0枚を正しく処理する', () => {
+    const effect = effectsMap.get('WX24-P3-074')!.find(e => e.effectId === 'WX24-P3-074-E1')!;
+    const waterBeasts = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('水獣'))
+      .map(c => c.CardNum)
+      .filter(cn => cn !== 'WX24-P3-074')
+      .slice(0, 2);
+    eq(waterBeasts.length, 2, '水獣シグニを2枚用意');
+    const nonWater = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('水獣'));
+
+    const start = mkCtx({ deckTop: fill(4), hand: 0 }, {}, 'WX24-P3-074');
+    start.ownerState = { ...start.ownerState, hand: [...waterBeasts, nonWater], trash: [] };
+    const initial = executeEffect(effect, start);
+    ok(!initial.done && initial.pending.type === 'SELECT_TARGET', '対象クラスだけの可変捨て選択を提示');
+    if (initial.done || initial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    eq(JSON.stringify(initial.pending.candidates), JSON.stringify(waterBeasts), '候補は水獣2枚だけ');
+    const afterTwo = finish(resumeSelectTarget(waterBeasts, initial.pending, {
+      ...start, ownerState: initial.ownerState, otherState: initial.otherState, logs: initial.logs,
+      lastProcessedCards: initial.lastProcessedCards,
+    }), start);
+    eq(afterTwo.ownerState.hand.includes(nonWater), true, '対象外カードは手札に残る');
+    eq(waterBeasts.every(cn => !afterTwo.ownerState.hand.includes(cn)), true, '選んだ2枚は手札から消える');
+    eq(waterBeasts.every(cn => afterTwo.ownerState.trash.includes(cn)), true, '選んだ2枚はトラッシュへ入る');
+    eq(afterTwo.ownerState.hand.length, 3, '残した1枚＋2ドロー');
+
+    const zeroStart = mkCtx({ deckTop: fill(3), hand: 0 }, {}, 'WX24-P3-074');
+    zeroStart.ownerState = { ...zeroStart.ownerState, hand: [...waterBeasts], trash: [] };
+    const zeroInitial = executeEffect(effect, zeroStart);
+    ok(!zeroInitial.done && zeroInitial.pending.type === 'SELECT_TARGET', '0枚選択可能な pending');
+    if (zeroInitial.done || zeroInitial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    const afterZero = finish(resumeSelectTarget([], zeroInitial.pending, {
+      ...zeroStart, ownerState: zeroInitial.ownerState, otherState: zeroInitial.otherState, logs: zeroInitial.logs,
+      lastProcessedCards: zeroInitial.lastProcessedCards,
+    }), zeroStart);
+    eq(JSON.stringify(afterZero.ownerState.hand), JSON.stringify(zeroStart.ownerState.hand), '0枚選択は捨てず引かない');
+    eq(afterZero.ownerState.trash.length, 0, '0枚選択はトラッシュ不変');
+
+    const noneStart = mkCtx({ deckTop: fill(3), hand: 0 }, {}, 'WX24-P3-074');
+    noneStart.ownerState = { ...noneStart.ownerState, hand: [nonWater], trash: [] };
+    const afterNone = executeEffect(effect, noneStart);
+    ok(afterNone.done, '対象クラス0枚は interaction なしで完了');
+    eq(JSON.stringify(afterNone.ownerState.hand), JSON.stringify(noneStart.ownerState.hand), '対象クラス0枚は no-op');
+  });
+
+  test('(xxix)(2) 第2波のエナチャージと単体パワー修正は捨て枚数だけ適用する', () => {
+    const charge = effectsMap.get('WXDi-P08-069')!.find(e => e.effectId === 'WXDi-P08-069-E1')!;
+    const chargeStart = mkCtx({ deckTop: fill(4), hand: 0, energy: 0 }, {}, 'WXDi-P08-069');
+    chargeStart.ownerState = { ...chargeStart.ownerState, hand: fill(2), trash: [] };
+    const chargeInitial = executeEffect(charge, chargeStart);
+    ok(!chargeInitial.done && chargeInitial.pending.type === 'SELECT_TARGET', 'エナチャージも可変捨てを提示');
+    if (chargeInitial.done || chargeInitial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    const chargePicked = chargeInitial.pending.candidates.slice(0, 2);
+    const charged = finish(resumeSelectTarget(chargePicked, chargeInitial.pending, {
+      ...chargeStart, ownerState: chargeInitial.ownerState, otherState: chargeInitial.otherState, logs: chargeInitial.logs,
+      lastProcessedCards: chargeInitial.lastProcessedCards,
+    }), chargeStart);
+    eq(charged.ownerState.trash.length, 2, '2枚を捨てる');
+    eq(charged.ownerState.energy.length, 2, '捨てた2枚につきエナチャージ1');
+
+    const power = effectsMap.get('WXDi-P13-041')!.find(e => e.effectId === 'WXDi-P13-041-E1')!;
+    const opp = fill(3);
+    const powerStart = mkCtx({ hand: 0 }, { signi: opp }, 'WXDi-P13-041');
+    powerStart.ownerState = { ...powerStart.ownerState, hand: fill(2), trash: [] };
+    const powerInitial = executeEffect(power, powerStart);
+    ok(!powerInitial.done && powerInitial.pending.type === 'SELECT_TARGET', '好きな枚数捨てる選択を提示');
+    if (powerInitial.done || powerInitial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    const powerPicked = powerInitial.pending.candidates.slice(0, 2);
+    const powered = finish(resumeSelectTarget(powerPicked, powerInitial.pending, {
+      ...powerStart, ownerState: powerInitial.ownerState, otherState: powerInitial.otherState, logs: powerInitial.logs,
+      lastProcessedCards: powerInitial.lastProcessedCards,
+    }), powerStart);
+    const mods = powered.otherState.temp_power_mods ?? [];
+    eq(mods.length, 1, '3体いても修正対象は1体だけ');
+    eq(mods[0]?.cardNum, opp[0], '選ばれた単体だけに適用');
+    eq(mods[0]?.delta, -20000, '2枚×-10000');
+  });
+
+  test('(xxix)(2) 既存可変捨て4効果のJSONと挙動を固定する', () => {
+    const expected: Record<string, { max: number; duration: CardEffect['duration'] }> = {
+      'WXDi-D07-018-E1': { max: 3, duration: 'INSTANT' },
+      'WXDi-P04-029-E2': { max: 3, duration: 'INSTANT' },
+      'WXDi-P05-031-E2': { max: 3, duration: 'UNTIL_END_OF_TURN' },
+      'WXDi-P16-038-E1': { max: 4, duration: 'INSTANT' },
+    };
+    for (const [effectId, want] of Object.entries(expected)) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      eq(JSON.stringify(effect.cost), JSON.stringify({ discardUpTo: want.max }), `${effectId}: curated cost不変`);
+      eq(JSON.stringify(effect.action), JSON.stringify({ type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' }),
+        `${effectId}: incumbent action不変`);
+      eq(effect.duration, want.duration, `${effectId}: duration不変`);
+    }
+
+    for (const effectId of ['WXDi-D07-018-E1', 'WXDi-P04-029-E2']) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const start = mkCtx({ deckTop: fill(4), hand: 0 }, {}, cardNum);
+      start.ownerState = { ...start.ownerState, hand: fill(2), trash: [] };
+      const initial = executeEffect(effect, start);
+      ok(!initial.done && initial.pending.type === 'SELECT_TARGET', `${effectId}: 捨て選択を提示`);
+      if (initial.done || initial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+      const picked = initial.pending.candidates.slice(0, 2);
+      const result = finish(resumeSelectTarget(picked, initial.pending, {
+        ...start, ownerState: initial.ownerState, otherState: initial.otherState, logs: initial.logs,
+        lastProcessedCards: initial.lastProcessedCards,
+      }), start);
+      eq(result.ownerState.trash.length, 2, `${effectId}: 2枚捨てる`);
+      eq(result.ownerState.hand.length, 2, `${effectId}: 捨てた2枚を2枚引いて補充`);
+    }
+
+    const p05 = effectsMap.get('WXDi-P05-031')!.find(e => e.effectId === 'WXDi-P05-031-E2')!;
+    const p05Start = mkCtx({ hand: 0 }, { signi: fill(3) }, 'WXDi-P05-031');
+    p05Start.ownerState = { ...p05Start.ownerState, hand: fill(2), trash: [] };
+    const p05Initial = executeEffect(p05, p05Start);
+    ok(!p05Initial.done && p05Initial.pending.type === 'SELECT_TARGET', 'WXDi-P05-031-E2: 捨て選択を提示');
+    if (p05Initial.done || p05Initial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    const p05Picked = p05Initial.pending.candidates.slice(0, 2);
+    const p05Result = finish(resumeSelectTarget(p05Picked, p05Initial.pending, {
+      ...p05Start, ownerState: p05Initial.ownerState, otherState: p05Initial.otherState, logs: p05Initial.logs,
+      lastProcessedCards: p05Initial.lastProcessedCards,
+    }), p05Start);
+    eq((p05Result.otherState.temp_power_mods ?? []).length, 2,
+      `WXDi-P05-031-E2: 捨てた枚数と同じ2体 logs=${JSON.stringify(p05Result.logs)}`);
+    eq((p05Result.otherState.temp_power_mods ?? []).every(m => m.delta === -5000), true,
+      'WXDi-P05-031-E2: 各体-5000');
+
+    const p16 = effectsMap.get('WXDi-P16-038')!.find(e => e.effectId === 'WXDi-P16-038-E1')!;
+    const p16Start = mkCtx({ deckTop: fill(3), hand: 0 }, {}, 'WXDi-P16-038');
+    p16Start.ownerState = { ...p16Start.ownerState, hand: fill(2), trash: [] };
+    const p16Initial = executeEffect(p16, p16Start);
+    ok(!p16Initial.done && p16Initial.pending.type === 'SELECT_TARGET', 'WXDi-P16-038-E1: 0枚選択前にも捨て選択を提示');
+    if (p16Initial.done || p16Initial.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET pending expected');
+    const p16Result = finish(resumeSelectTarget([], p16Initial.pending, {
+      ...p16Start, ownerState: p16Initial.ownerState, otherState: p16Initial.otherState, logs: p16Initial.logs,
+      lastProcessedCards: p16Initial.lastProcessedCards,
+    }), p16Start);
+    eq(p16Result.ownerState.hand.length, 3, 'WXDi-P16-038-E1: 0枚捨てでも1枚引く');
+    eq(p16Result.ownerState.trash.length, 0, 'WXDi-P16-038-E1: 0枚捨て');
+  });
+
+  test('(xxix)(2) 新機構待ち11効果は costUnparsed のまま保持する', () => {
     const deferredIds = [
       'WX25-P1-090-E2', 'WXDi-D01-017-E1', 'WXDi-P00-022-E2', 'WXK09-032-E1',
-      'WXK03-070-E1', 'WXDi-P13-041-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
-      'WX24-P3-074-E1', 'WX25-P3-084-E1', 'WXDi-P15-065-E1', 'WXDi-CP02-073-E1',
+      'WXK03-070-E1', 'WX07-045-E1', 'WX24-P4-103-E1',
       'WXK08-082-E1', 'WXDi-P03-019-E1', 'WXDi-P12-031-E2', 'WXDi-CP02-100-E1',
     ];
     for (const effectId of deferredIds) {
@@ -15540,7 +15698,7 @@ test('task12(lv) 通常アシスト配置: 実戦ゾーン→共通【出】coll
   }
 });
 
-test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件のうち147件を収集し13件は据え置く', () => {
+test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件のうち151件を収集し9件は据え置く', () => {
   const savedCursor = cursor;
   try {
     const assistNums = new Set(
@@ -15567,8 +15725,8 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
       if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
       else deferred.push(effect.effectId);
     }
-    eq(collectedCount, 147, '旧0件→147件を通常アシスト経路で収集');
-    eq(deferred.length, 13, '表現不能コスト13件は不発のまま据え置く');
+    eq(collectedCount, 151, '可変捨てactionを含む151件を通常アシスト経路で収集');
+    eq(deferred.length, 9, '表現不能コスト9件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }
