@@ -493,6 +493,12 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { 
   { re: /^《ガードアイコン》を持たない/, apply: (_m, a) => { a.filter.noGuard = true; return true; } },
   { re: /^《ディソナアイコン》(?:を持つ|の)?/, apply: (_m, a) => { a.filter.isDisona = true; return true; } },
   { re: /^【ライフバースト】を持つ/, apply: (_m, a) => { a.filter.hasLifeBurst = true; return true; } },
+  // ルリグ色参照（タスク12(xlvi)(a)）。「持たない」を「持つ」より先に置く必要はない（末尾が別語）が、
+  // **センター／場全体／センター以外**の3種を取り違えると候補集合が丸ごとずれるので独立トークンで持つ。
+  { re: /^(?:あなたの)?センタールリグと共通する色を持たない/, apply: (_m, a) => { a.filter.colorNotMatchesLrig = true; return true; } },
+  { re: /^(?:あなたの)?センタールリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesLrig = true; return true; } },
+  { re: /^センタールリグではない(?:あなたの)?いずれかのルリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesNonCenterLrig = true; return true; } },
+  { re: /^(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesAnyLrig = true; return true; } },
   { re: /^共通する色を持たない/, apply: (_m, a) => { a.filter.eachDistinctColor = true; return true; } },
   { re: /^それぞれレベルの異なる/, apply: (_m, a) => { a.filter.eachDistinctLevel = true; return true; } },
 ];

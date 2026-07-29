@@ -64,8 +64,8 @@ import { parseSentencePart4 } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
 import { encodeShadowScopesInText } from '../utils/keywords';
 
-// ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)）----
-// 受ける3形だけを明示的に書く。どれにも当たらない／名詞句に未知の修飾語が残る場合は null を返し、
+// ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)(a)）----
+// 受ける形だけを明示的に書く。どれにも当たらない／名詞句に未知の修飾語が残る場合は null を返し、
 // 呼び出し側は従来経路へ落ちる（過剰な filter・群の取り違えより取りこぼす方を選ぶ）。
 type LookPickStage = import('../types/effects').LookPickChainStage;
 const PICK_DEST_RE = /^(手札に加え|エナゾーンに置|トラッシュに置|場に出)/;
@@ -74,8 +74,17 @@ function pickDest(verb: string): LookPickStage['then'] | null {
   if (!m) return null;
   return m[1] === '手札に加え' ? 'hand' : m[1] === 'エナゾーンに置' ? 'energy' : m[1] === 'トラッシュに置' ? 'trash' : 'field';
 }
+// 直前ステージのピックを参照する照応修飾（filter ではなく stage フラグ）。名詞句の先頭から剥がす。
+function stripAnaphoricClass(desc: string): { rest: string; flags: Partial<LookPickStage> } {
+  let m = desc.match(/^その(?:シグニ|カード)と共通するクラスを持たない/);
+  if (m) return { rest: desc.slice(m[0].length), flags: { notSharesClassWithPrev: true } };
+  m = desc.match(/^その(?:シグニ|カード)と共通するクラスを持つ/);
+  if (m) return { rest: desc.slice(m[0].length), flags: { sharesClassWithPrev: true } };
+  return { rest: desc, flags: {} };
+}
 function makeLookPickStage(desc: string, noun: string, count: string, upTo: boolean, verb: string): LookPickStage | null {
-  const filter = parsePickNounPhraseFilter(desc, noun);
+  const { rest, flags } = stripAnaphoricClass(desc);
+  const filter = parsePickNounPhraseFilter(rest, noun);
   const then = pickDest(verb);
   if (!filter || !then) return null;
   // LookPickChainStage.pickCount は常に「N枚まで」の上限。固定枚数（「まで」なし）も上限として扱う
@@ -85,11 +94,12 @@ function makeLookPickStage(desc: string, noun: string, count: string, upTo: bool
     ...(Object.keys(filter).length > 0 ? { filter } : {}),
     pickCount: parseNum(count), then,
     ...(noun !== 'シグニ' ? { pickNoun: noun } : {}),
+    ...flags,
   };
 }
 function parseLookPickGroups(clause: string): LookPickStage[] | null {
   // 形A：「＜原子＞のシグニ１枚とスペル１枚を手札に加え」＝行き先を共有する「と」連結
-  const a = clause.match(/^([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?と([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+  const a = clause.match(/^([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?と、?([^、。]*?)(シグニ|スペル|カード)([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
   if (a) {
     const s1 = makeLookPickStage(a[1], a[2], a[3], a[4] === 'まで', a[9]);
     const s2 = makeLookPickStage(a[5], a[6], a[7], a[8] === 'まで', a[9]);
@@ -101,6 +111,25 @@ function parseLookPickGroups(clause: string): LookPickStage[] | null {
     const s1 = makeLookPickStage(`${b[1]}の`, b[3], b[4], b[5] === 'まで', b[6]);
     const s2 = makeLookPickStage(`${b[2]}の`, b[3], b[4], b[5] === 'まで', b[6]);
     return s1 && s2 ? [s1, s2] : null;
+  }
+  // 形D：「〔記述子A〕シグニと、〔記述子B〕シグニを、それぞれ１枚まで公開し手札に加え」
+  //      ＝**名詞・枚数・行き先を共有**し、記述子だけが違う「と、」連結（形B の記述子が長い版）。
+  //      ルリグ色参照（センター／センター以外／場全体）や照応クラスがここに来る（タスク12(xlvi)(a)）。
+  const d = clause.match(/^([^、。]*?)(シグニ|スペル|カード)と、?([^、。]*?)(シグニ|スペル|カード)を?、?それぞれ([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+  if (d) {
+    const s1 = makeLookPickStage(d[1], d[2], d[5], d[6] === 'まで', d[7]);
+    const s2 = makeLookPickStage(d[3], d[4], d[5], d[6] === 'まで', d[7]);
+    return s1 && s2 ? [s1, s2] : null;
+  }
+  // 形E：「共通するクラスを持つシグニ２枚を手札に加え」＝**選んだN枚どうしが**クラスを共有する。
+  //      1枚目は無条件、2枚目以降を sharesClassWithPrev にした N 段で表す（engine 実装済みの機構）。
+  const e = clause.match(/^共通するクラスを持つ(シグニ|スペル|カード)を?([０-９\d]+)枚(まで)?を?(?:公開し)?((?:手札に加え|エナゾーンに置|トラッシュに置|場に出).*)$/);
+  if (e) {
+    const n = parseNum(e[2]);
+    if (n < 2) return null;
+    const base = makeLookPickStage('', e[1], '1', false, e[4]);
+    if (!base) return null;
+    return Array.from({ length: n }, (_v, i) => (i === 0 ? base : { ...base, sharesClassWithPrev: true }));
   }
   // 形C：「＜プリオケ＞のカードを１枚までエナゾーンに置き、赤の＜プリオケ＞のカードを１枚まで公開し手札に加え」
   //      ＝読点区切りの独立セグメント（各群が自分の名詞・枚数・行き先を持つ）
@@ -4358,7 +4387,10 @@ function parseActionTextInner(text: string): EffectAction {
         //   で忠実表現できる（engine matchesFilter・MANUAL 正解 WXDi-D04-012/WXDi-P09-048-E3 と同形）。従来は
         //   noun 群に無く「その中から…デッキ」の汎用 LOOK_AND_REORDER に飲まれて pick が丸ごと脱落していた
         //   （WXK05-023-E3／SPDi43-17-E1 等・census クラスタ「Nまで上限選択」）。
-        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(?:手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
+        // pick 動詞は「手札に加える」に加え **「手札に加えるかエナゾーンに置く」**（＝`handOrEnergy`・タスク12(xlvi)(d)）
+        // も受ける。engine 機構は第5波で入っており、従来はこの規則が hand-or-energy を弾いていたせいで
+        // 下の汎用 LOOK_AND_REORDER に飲まれ **pick が丸ごと no-op** だった（`WX24-P1-039-E2`）。
+        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ|(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ|(?:あなたの)?センタールリグと共通する色を持たない|(?:あなたの)?センタールリグと共通する色を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(手札に加えるかエナゾーンに置[きく]|エナゾーンに置くか手札に加える?|手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
         // ドリームチーム等の後続効果を伴う複合形は、この早期 return で後続を落とすため対象外。
         // ⚠ 後続文を一律に SEQUENCE へ足すのは不可＝「この方法で〜した場合、」等の**条件付き**後続が
         //   parseSingleSentence で条件ごと落ちて無条件実行になる（WX25-CP1-025-E1 の BOUNCE 等21効果で実測）。
@@ -4379,12 +4411,16 @@ function parseActionTextInner(text: string): EffectAction {
             ...(/《ディソナアイコン》/.test(filterSrc) ? { isDisona: true } : {}),
             ...(/【ライフバースト】を持つ/.test(filterSrc) ? { hasLifeBurst: true } : {}),
             ...(/白か黒/.test(filterSrc) ? { color: ['白', '黒'] } : {}),
+            // ルリグ色参照（タスク12(xlvi)(a)）。**センター／場全体**を取り違えると候補集合が丸ごとずれる。
+            ...(/場に(?:いる|ある)ルリグと共通する色を持つ/.test(filterSrc) ? { colorMatchesAnyLrig: true } : {}),
+            ...(/センタールリグと共通する色を持たない/.test(filterSrc) ? { colorNotMatchesLrig: true }
+              : /センタールリグと共通する色を持つ/.test(filterSrc) ? { colorMatchesLrig: true } : {}),
             ...(pk[2] === 'シグニ' ? { cardType: 'シグニ' as const }
               : pk[2] === 'スペル' ? { cardType: 'スペル' as const } : {}),
           };
           const remainder: RevealAndPickAction['remainder'] =
-            pk[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
-            : pk[5] === 'デッキの一番下' ? { location: 'deck', position: 'bottom' }
+            pk[6] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+            : pk[6] === 'デッキの一番下' ? { location: 'deck', position: 'bottom' }
             : { location: 'deck', position: 'top' };
           const revealAction = {
             type: 'REVEAL_AND_PICK',
@@ -4395,10 +4431,11 @@ function parseActionTextInner(text: string): EffectAction {
             ...(pickUpTo ? { pickUpTo: true } : {}),
             // 原文が「シグニ」でなく「カード」「スペル」を拾う形なら逆翻訳の名詞を保持（既定は「シグニ」・G236）。
             ...(pk[2] === 'カード' ? { pickNoun: 'カード' } : pk[2] === 'スペル' ? { pickNoun: 'スペル' } : {}),
+            ...(/エナゾーン/.test(pk[5]) ? { handOrEnergy: true } : {}),
             then: { type: 'ADD_TO_HAND', owner: 'self' },
-            remainder: pk[5] ? remainder : { location: 'deck', position: 'bottom' },
+            remainder: pk[6] ? remainder : { location: 'deck', position: 'bottom' },
           } as RevealAndPickAction;
-          if (!pk[5]) {
+          if (!pk[6]) {
             const trailing = sentences.slice(2).map(s => parseSingleSentence(s.trim()));
             return { type: 'SEQUENCE', steps: [revealAction, { type: 'SHUFFLE_DECK', owner: 'self' }, ...trailing] } as SequenceAction;
           }

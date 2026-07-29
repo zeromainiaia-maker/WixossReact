@@ -89,16 +89,16 @@ const fresh = () => { const v = POOL[cursor % POOL.length]; cursor++; return v; 
 const fill = (n: number) => Array.from({ length: n }, () => fresh());
 
 // ── 盤面ビルダー ──
-interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: number; trash?: number; energy?: number; life?: number; coins?: number; down?: boolean[]; }
+interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: number; trash?: number; energy?: number; life?: number; coins?: number; down?: boolean[]; lrig?: string[]; assistL?: string[]; assistR?: string[]; }
 function mkState(o: StateOpts = {}): PlayerState {
   return {
     deck: [...(o.deckTop ?? []), ...fill(20)],
     lrig_deck: [], hand: fill(o.hand ?? 5), life_cloth: fill(o.life ?? 7),
     trash: fill(o.trash ?? 3), lrig_trash: [], energy: fill(o.energy ?? 5), coins: o.coins ?? 3, bonds: [],
     field: {
-      lrig: [], signi: o.signi ? o.signi.map(s => (s ? [s] : null)) : [null, null, null],
+      lrig: o.lrig ?? [], signi: o.signi ? o.signi.map(s => (s ? [s] : null)) : [null, null, null],
       signi_down: o.down ?? [false, false, false], signi_frozen: [false, false, false],
-      assist_lrig_l: [], assist_lrig_r: [], check: null, key_piece: null, free_zone: [], signi_traps: [null, null, null],
+      assist_lrig_l: o.assistL ?? [], assist_lrig_r: o.assistR ?? [], check: null, key_piece: null, free_zone: [], signi_traps: [null, null, null],
     },
   } as unknown as PlayerState;
 }
@@ -3170,6 +3170,9 @@ const xlviWave5Cases = [
     want: '{"color":"白"}|3|true|true|trash/bottom' },
   { cardNum: 'WXK07-024', effectId: 'WXK07-024-E1', why: '黒のカード3枚まで・手札かエナ',
     want: '{"color":"黒"}|3|true|true|trash/bottom' },
+  // (d) `pk` 規則が hand-or-energy を弾いていたため bare LOOK_AND_REORDER＝pick が丸ごと no-op だった
+  { cardNum: 'WX24-P1-039', effectId: 'WX24-P1-039-E2', why: '＜アーム＞1枚まで・手札かエナ（(d)）',
+    want: '{"story":"アーム","cardType":"シグニ"}|1|true|true|deck/bottom' },
 ] as const;
 for (const spec of xlviWave5Cases) {
   test(`(xlvi)(h) ${spec.effectId}: 融合 look-pick が filter どおり手札へ入る（${spec.why}）`, () => {
@@ -3346,6 +3349,128 @@ for (const spec of xlviWave5LpcCases) {
     }
   });
 }
+// ── task12(xlvi)(a) 動的filter（ルリグ色参照・照応クラス）────────────────────────────────
+// ⚠ これらは `matchesFilter` では判定できない（`resolveDynamicFilter` が実行時に具体値へ解決する）ため、
+//    上の候補集合ループは使えない。**盤面を作って pending SEARCH の visibleCards を直に見る**。
+//    従来は対象効果とも bare `LOOK_AND_REORDER`＝pick が丸ごと no-op だった。
+const lrigOfColor = (color: string): string =>
+  findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === color);
+const signiOfColor = (color: string, used: Set<string>): string => {
+  for (const c of cardMap.values()) {
+    if (c.Type === 'シグニ' && (c.Color ?? '') === color && !used.has(c.CardNum)) { used.add(c.CardNum); return c.CardNum; }
+  }
+  throw new Error(`${color}のシグニなし`);
+};
+// pending SEARCH を1段ぶん取り出す（ピックは maxPick 枚を先頭から選ぶ）
+function stepSearch(result: ExecResult, ctx: ExecCtx): { visible: string[]; next: ExecResult } {
+  ok(!result.done, 'SEARCH 待ちのはず');
+  const pending = result.pending as unknown as { type: string; visibleCards: string[]; maxPick: number };
+  eq(pending.type, 'SEARCH', 'pending は SEARCH');
+  const c: ExecCtx = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards };
+  const picked = pending.visibleCards.slice(0, Math.min(pending.maxPick, pending.visibleCards.length));
+  return { visible: pending.visibleCards, next: resumeSearch(picked, pending as never, c) };
+}
+const runEffect = (a: EffectAction, ctx: ExecCtx): ExecResult =>
+  executeEffect({ effectId: 't', effectType: 'AUTO', action: a, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+
+test('(xlvi)(a) SPDi01-131-E1: 「場にいるルリグと共通する色」＝センター＋アシストの色の和で絞る', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('SPDi01-131')?.find(e => e.effectId === 'SPDi01-131-E1');
+    const rap = findRevealAndPick(eff!.action)!;
+    eq(`${JSON.stringify(rap.filter)}|${rap.pickCount}|${rap.pickNoun}`, '{"colorMatchesAnyLrig":true}|1|カード',
+      'colorMatchesAnyLrig（センター限定の colorMatchesLrig ではない）');
+    const used = new Set<string>();
+    const white = signiOfColor('白', used), red = signiOfColor('赤', used), green = signiOfColor('緑', used);
+    const ctx = mkCtx({ deckTop: [white, red, green], lrig: [lrigOfColor('白')], assistL: [lrigOfColor('赤')] }, {}, 'SPDi01-131');
+    const { visible } = stepSearch(runEffect(rap as EffectAction, ctx), ctx);
+    ok(visible.includes(white), 'センタールリグの色（白）が候補');
+    ok(visible.includes(red), 'アシストルリグの色（赤）も候補＝ここが colorMatchesLrig との差');
+    ok(!visible.includes(green), 'どのルリグとも共通しない色（緑）は候補外（従来は無差別に拾えた）');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi)(a) WXDi-P15-031-E1: センタールリグと共通色/非共通色の2段で候補が反転する', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXDi-P15-031')?.find(e => e.effectId === 'WXDi-P15-031-E1');
+    const lpc = findLookPickChain(eff!.action)!;
+    eq(`${JSON.stringify(lpc.stages)}|${lpc.remainder.location}/${lpc.remainder.position}`,
+      '[{"filter":{"colorMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"colorNotMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand"}]|deck/bottom',
+      '2段（共通色／非共通色）');
+    const used = new Set<string>();
+    const white = signiOfColor('白', used), red = signiOfColor('赤', used);
+    const ctx = mkCtx({ deckTop: [white, red], lrig: [lrigOfColor('白')] }, {}, 'WXDi-P15-031');
+    const s1 = stepSearch(runEffect(lpc as EffectAction, ctx), ctx);
+    ok(s1.visible.includes(white), '1段目にセンタールリグ（白）と共通色が入る');
+    ok(!s1.visible.includes(red), '1段目に非共通色（赤）は入らない');
+    const s2 = stepSearch(s1.next, ctx);
+    ok(s2.visible.includes(red), '2段目に非共通色（赤）が入る');
+    ok(!s2.visible.includes(white), '2段目に共通色（白）は入らない＝候補が反転する');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi)(a) WXDi-P02-017-E1: 2段目は「センタールリグではないルリグ」の色で絞る', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXDi-P02-017')?.find(e => e.effectId === 'WXDi-P02-017-E1');
+    const lpc = findLookPickChain(eff!.action)!;
+    eq(JSON.stringify(lpc.stages[1].filter), '{"colorMatchesNonCenterLrig":true,"cardType":"シグニ"}', '2段目はセンター以外のルリグ色');
+    const used = new Set<string>();
+    const white = signiOfColor('白', used), red = signiOfColor('赤', used), green = signiOfColor('緑', used);
+    const ctx = mkCtx({ deckTop: [white, red, green], lrig: [lrigOfColor('白')], assistR: [lrigOfColor('赤')] }, {}, 'WXDi-P02-017');
+    const s1 = stepSearch(runEffect(lpc as EffectAction, ctx), ctx);
+    ok(s1.visible.includes(white), '1段目にセンター（白）と共通色が入る');
+    ok(!s1.visible.includes(red), '1段目にアシスト色（赤）は入らない');
+    const s2 = stepSearch(s1.next, ctx);
+    ok(s2.visible.includes(red), '2段目にアシスト（赤）と共通色が入る');
+    ok(!s2.visible.includes(white), '2段目にセンター色（白）は入らない');
+    ok(!s2.visible.includes(green), '2段目にどのルリグとも無関係な色（緑）は入らない');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi)(a) WX25-P1-041-E1: 2段目は1段目で選んだシグニと共通クラスを持たないもののみ', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX25-P1-041')?.find(e => e.effectId === 'WX25-P1-041-E1');
+    const lpc = findLookPickChain(eff!.action)!;
+    ok(lpc.stages[1].notSharesClassWithPrev === true, 'notSharesClassWithPrev を保持');
+    // 緑シグニを**同じクラス**で2枚、別クラスの緑シグニを1枚用意する
+    const greens = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.Color ?? '') === '緑' && (c.CardClass ?? '') !== '');
+    const cls = greens[0].CardClass ?? '';
+    const same = greens.find(c => c.CardClass === cls && c.CardNum !== greens[0].CardNum);
+    const diff = greens.find(c => !(c.CardClass ?? '').split(/[/／]/).some(x => cls.includes(x.trim())));
+    ok(!!same && !!diff, '同クラス/別クラスの緑シグニを用意');
+    const ctx = mkCtx({ deckTop: [greens[0].CardNum, same!.CardNum, diff!.CardNum, fresh()] }, {}, 'WX25-P1-041');
+    const s1 = stepSearch(runEffect(lpc as EffectAction, ctx), ctx);
+    ok(s1.visible.includes(greens[0].CardNum), '1段目＝緑のシグニが候補');
+    const s2 = stepSearch(s1.next, ctx);
+    ok(!s2.visible.includes(same!.CardNum), `2段目に同クラス ${same!.CardNum} は入らない`);
+    ok(s2.visible.includes(diff!.CardNum), `2段目に別クラス ${diff!.CardNum} が入る`);
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi)(a) WXK08-025-E3: 「共通するクラスを持つシグニ2枚」＝2段目が1段目とクラスを共有する', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXK08-025')?.find(e => e.effectId === 'WXK08-025-E3');
+    const lpc = findLookPickChain(eff!.action)!;
+    eq(lpc.stages.length, 2, '2枚＝2段');
+    ok(lpc.stages[1].sharesClassWithPrev === true, '2段目は sharesClassWithPrev');
+    const signis = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '') !== '');
+    const cls = signis[0].CardClass ?? '';
+    const same = signis.find(c => c.CardClass === cls && c.CardNum !== signis[0].CardNum);
+    const diff = signis.find(c => !(c.CardClass ?? '').split(/[/／]/).some(x => cls.includes(x.trim())));
+    ok(!!same && !!diff, '同クラス/別クラスのシグニを用意');
+    const ctx = mkCtx({ deckTop: [signis[0].CardNum, same!.CardNum, diff!.CardNum, fresh()] }, {}, 'WXK08-025');
+    const s1 = stepSearch(runEffect(lpc as EffectAction, ctx), ctx);
+    ok(s1.visible.includes(signis[0].CardNum), '1段目は無条件（シグニなら候補）');
+    const s2 = stepSearch(s1.next, ctx);
+    ok(s2.visible.includes(same!.CardNum), `2段目に同クラス ${same!.CardNum} が入る`);
+    ok(!s2.visible.includes(diff!.CardNum), `2段目に別クラス ${diff!.CardNum} は入らない（従来は無差別2枚）`);
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。

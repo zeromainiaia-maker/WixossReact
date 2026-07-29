@@ -7,6 +7,17 @@
 > ⚠ 以下は PLAN.md から移した時点の並び順をそのまま保持している（続き35 の同日ラウンドは R1→R7 の昇順、それ以前は降順）。厳密な時系列ではない点に注意。
 
 
+- **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第5波＝(h)「filter だけ落ちた `REVEAL_AND_PICK`」17効果を残0にし、同系統9効果も同時是正**（golden 936→**951**・census 1463→**1457**〔`BASELINE_HIGH` 更新〕・smoke 10726 全0・fuzz 全0・同型★0・held 257→**262→257**〔新規ドリフト0〕・live 差分は対象21カードだけ・再 build 冪等）
+  - **真因は融合規則1箇所**＝`LOOK_AND_REORDER + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK` が **revealCount／pickCount／残りの行き先しか運んでいなかった**。名詞句 filter も「N枚まで」も「手札に加えるかエナゾーンに置く」も落ち、**公開したどのカードでも拾える過剰実行**に退化。さらに枚数抽出が「３枚まで選び、それぞれ…」形を拾えず **1枚固定＝過小実行**を併発していた（`WXK06-011` 系5枚・`WDK01-008`）。
+  - **新設 `parseRevealPickDescriptor`**（`parserUtils.ts`）＝「その中から」直後の名詞句を**全消費のトークン走査**で解く。⚠**未知の修飾語が1つでも残ったら null**（従来どおり filter 無し）＝部分解釈は「＜天使＞ではない」等の否定修飾を取りこぼして**意味を反転**させるため、絞り込みを増やすより取りこぼす側に倒す。OR は第4波の `parseOrPickDescriptor` を `parserUtils` へ移設して共有。
+  - **新機構 `handOrEnergy`**＝「手札に加えるかエナゾーンに置く」を1枚ずつ CHOOSE で問う（2枚目以降は新スタブ `INTERNAL_HAND_OR_ENERGY`／エナ着地は `INTERNAL_PICK_TO_ENERGY`）。`handOrField` と違い**枚数が複数ありうる**のが差分（最大3枚）。
+  - **複数 pick 群3形を `LOOK_PICK_CHAIN` へ展開**（「A１枚とB１枚を〜」「AとBのシグニをそれぞれN枚まで」「〜置き、〜加え」）。⚠**既存の dual-pick／場出し規則の後ろ**に置くこと＝前に置くと同じ文型を横取りして filter のキー順だけが揺れる（実測3効果）。
+  - **engine の融合前 STUB 経路にも filter を配線**。⚠絞り込むときは残りの行き先を `restDest`（`visibleCards` 基準）ではなく **`revealRemainder`（公開全体基準）**で渡す＝そのままだと**非対象の公開カードがデッキ上に取り残される**。
+  - **PRESERVE カードの外科採用は今回も2件**（`WX20-072`／`WX21-028`）。**5波連続で再発している型。**
+  - **golden の教訓を1段深めた**＝**候補集合 assert は filter 自体から候補を作るので「間違った filter」を検出できない**（filter の**消失**しか見ない）。各ケースに `filter|pickCount|pickUpTo|handOrEnergy|remainder` の期待値文字列を併記して内容も固定し、**HEAD 差し戻しで新規15本だけ FAIL／filter 弱体化の変異でも1本だけ FAIL** を実測。
+  - **⚠ census の +1 は挙動退化ではない**＝`WX12-024-BURST` が「STUB 格納（判定保留）」から高シグナル側へ**移動**した分（`LOOK_PICK_CHAIN` に「まで」の明示マーカーが無い計器上の理由。engine は stages の枚数を元から上限として扱う）。実質は −7＋1＝**−6**。
+  - **次の一手**＝**Opus：(xlvi) 残26件**〔(a) 動的filter7／(b) 複合・条件10／(c) 宣言系STUB4／(d) hand-or-energy 3／(g) トラップ設置併記2〕。**(d)→(a) の順**が費用対効果が高い（(d) は `handOrEnergy` 機構が今回そろって着手コストが下がった。ただし parser は未着手＝3件とも今も bare `LOOK_AND_REORDER`＝pick が丸ごと no-op。最も安いのは `WX24-P1-039-E2`＝`pk` 規則が hand-or-energy を除外しているだけ）。**／(xxix) 残＝任意+cost 933効果と段階3 65効果（タスク12(lv)）／ゲート脱落 [B]20件（Condition 語彙の新設）／タスク16 の [B]29件＋watcher [B]4件／(l) 内側【自】parse 失敗3枚／§6.3 残機構（H1〜H3・I）**。**Sonnet：§7 実機検証の横展開**＝レゾナ召喚UI の ATTACK/SPELL_CUTIN 窓・escapeDiscard 回避モーダル・BET 選択肢・アーツ使用条件20枚。
+
 - **🆕 セッション（2026-07-29・Opus〔Claude Opus 5〕単独）＝タスク12(xlvi) 第4波＝look-pick の表記ゆれ・後続セグメント・OR記述子を消化し8効果を復元**（golden 926→**936**・census 1468→**1463**〔`BASELINE_HIGH` 更新〕・smoke 10726 全0・fuzz 全0・同型★0・held 257→**263→257**〔対象6カードを `heldReview --adopt`・新規ドリフト0〕）
   - **PLAN が指定した (e)3件・(f)2件を残0でクローズ**し、同じ規則が届いた**同系統3効果**も同時に是正した。live JSON のカード単位差分は**対象8カードだけ**（再 build 冪等）。
   - **(e) 表記ゆれ**＝`WXDi-P05-050-E1` は原文が「カードを３枚**を**見る」で look-pick の入口 regex ごと外れ **完全 no-op**（`STUB`＋`UNKNOWN`）だった。入口を `枚を?見る` に緩めた（**CSV 全数で該当はこの1枚のみ**を機械確認）。

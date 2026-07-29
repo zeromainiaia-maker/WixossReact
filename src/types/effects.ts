@@ -484,6 +484,13 @@ export interface TargetFilter {
   excludeSelf?: boolean;  // 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」等。execTrash/execBanishが解決）
   isTriggerSource?: boolean; // トリガー元カード（ctx.triggeringCardNum）のみを対象。execBanishが解決
   colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）
+  // 「あなたの**場にいるルリグ**と共通する色を持つ」＝センター＋アシストの色の**和**（SPDi01-131-E1）。
+  // colorMatchesLrig（センターのみ）だとアシストの色でしか一致しないカードを取りこぼす。
+  // resolveDynamicFilter が color 配列（OR）へ解決。ルリグ不在なら制限なし（＝colorMatchesLrig と同じ扱い）
+  colorMatchesAnyLrig?: boolean;
+  // 「**センタールリグではない**あなたのいずれかのルリグと共通する色を持つ」＝アシストルリグの色の和
+  // （WXDi-P02-017-E1）。アシスト不在なら候補ゼロ（参照先が無い＝絞れないので過剰実行しない側へ）
+  colorMatchesNonCenterLrig?: boolean;
   colorNotMatchesLrig?: boolean; // センタールリグと共通する色を持たない。ENERGY_CARD対象では対象オーナー（＝相手エナなら相手）のルリグ基準で解決（WX21-035①等）
   colorNotMatchesOppLrig?: boolean; // 対戦相手のセンタールリグと共通する色を持たない（効果使用者基準。WXDi-P02-038）
   colorMatchesLastProcessed?: boolean; // 直前に処理したカード（lastProcessedCards[0]＝この方法でダウンしたルリグ等）と共通する色を持つか。owner非依存＝相手エナを自ルリグ色で絞る用途（WX25-P2-112）。参照不能なら空ヒット＝did-it ゲートを兼ねる。resolveDynamicFilterが解決
@@ -1243,6 +1250,11 @@ export interface LookPickChainStage {
   // （remainder より先に動かすと「残り」を下へ送る操作でその1枚まで巻き込まれるため）。
   then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top';
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
+  // 直前ステージで選んだカードと**共通するクラスを持たない**もののみ（「緑のシグニ1枚と、そのシグニと
+  // 共通するクラスを持たないシグニ1枚」WX25-P1-041-E1・タスク12(xlvi)(a)）。直前ステージが空振りした場合は
+  // 参照先が無い＝制限なし（sharesClassWithPrev は逆に候補ゼロ＝どちらも「原文どおりに絞れないなら
+  // 過剰実行しない側」に寄せた解釈）。
+  notSharesClassWithPrev?: boolean;
   pickNoun?: string;              // 逆翻訳の名詞（既定「シグニ」。任意カードは「カード」）
   suppressOnPlay?: boolean;       // then:'field' 限定。「その（それらの）シグニの【出】能力は発動しない」（AddToFieldAction 参照）
 }

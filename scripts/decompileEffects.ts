@@ -209,6 +209,8 @@ function filterJa(f?: any): string {
   if (f.infected) parts.push('感染状態の');
   if (f.colorMatchesLrig) parts.push('センタールリグと共通色の');
   if (f.colorNotMatchesLrig) parts.push('センタールリグと共通色でない');
+  if (f.colorMatchesAnyLrig) parts.push('場のルリグと共通色の');
+  if (f.colorMatchesNonCenterLrig) parts.push('センタールリグ以外のルリグと共通色の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
   if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
   if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
@@ -963,7 +965,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'LOOK_PICK_CHAIN': {
       const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : 'トラッシュに置き';
-      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'

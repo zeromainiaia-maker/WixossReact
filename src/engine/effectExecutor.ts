@@ -1333,6 +1333,19 @@ function resolveDynamicFilter(
       result = lrigColor ? { ...rest, colorExclude: lrigColor } : rest;
     }
   }
+  // 場のルリグ（センター＋アシスト）の色の和／アシストのみの色の和（タスク12(xlvi)(a)）。
+  // color 配列は matchesFilter で OR＝「いずれかのルリグと共通する色」を素直に表す。
+  if (result.colorMatchesAnyLrig || result.colorMatchesNonCenterLrig) {
+    const center = ownerSt.field.lrig.at(-1);
+    const assists = [...(ownerSt.field.assist_lrig_l ?? []), ...(ownerSt.field.assist_lrig_r ?? [])];
+    const srcLrigs = result.colorMatchesAnyLrig ? [...(center ? [center] : []), ...assists] : assists;
+    const colors = [...new Set(srcLrigs.flatMap(n => (cardMap.get(getCardNum(n))?.Color ?? '').split(/[/／、]/).map(s => s.trim()).filter(Boolean)))];
+    const { colorMatchesAnyLrig: _a, colorMatchesNonCenterLrig: _n, ...rest } = result;
+    // アシスト限定で参照先が無いときは候補ゼロ（到達不能色）＝原文どおりに絞れないなら過剰実行しない側へ。
+    // 場のルリグ全体なら（センター不在は起きない前提で）制限なしへフォールバック。
+    result = colors.length > 0 ? { ...rest, color: colors }
+      : result.colorMatchesNonCenterLrig ? { ...rest, color: '__none__' } : rest;
+  }
   if (result.colorNotMatchesOppLrig) {
     const { colorNotMatchesOppLrig: _, ...rest } = result;
     const lrigTop = otherSt?.field.lrig.at(-1);
@@ -3677,12 +3690,29 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     const stage = stages[0];
     const state = ownerState(owner, cur);
     let cands = revealed.filter(n => state.deck.includes(n));
-    if (stage.filter) cands = cands.filter(n => matchesFilter(cur.cardMap.get(getCardNum(n)), stage.filter));
+    // ⚠ stage.filter は **resolveDynamicFilter を通してから** matchesFilter に渡す。
+    //   matchesFilter は colorMatchesLrig 等の動的語彙を理解せず**黙って無視する**ため、素通しすると
+    //   「センタールリグと共通する色を持つシグニ」が単なる「シグニ」に化ける（タスク12(xlvi)(a) で実測）。
+    if (stage.filter) {
+      const stageOwnerSt = owner === 'self' ? cur.ownerState : cur.otherState;
+      const stageOtherSt = owner === 'self' ? cur.otherState : cur.ownerState;
+      const resolved = resolveDynamicFilter(stage.filter, stageOwnerSt, cur.cardMap, stageOtherSt, cur.lastProcessedCards, cur.effectivePowers, cur.sourceCardNum, cur.triggeringCardNum);
+      cands = cands.filter(n => matchesFilter(cur.cardMap.get(getCardNum(n)), resolved));
+    }
     if (stage.sharesClassWithPrev) {
       const prevClasses = prevPicks.flatMap(p => (cur.cardMap.get(getCardNum(p))?.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean));
       cands = prevClasses.length === 0 ? [] : cands.filter(n => {
         const cls = cur.cardMap.get(getCardNum(n))?.CardClass ?? '';
         return prevClasses.some(pc => cls.includes(pc));
+      });
+    }
+    // 直前ステージのピックと**共通クラスを持たない**もののみ（「そのシグニと共通するクラスを持たないシグニ」）。
+    // 直前が空振り（prevPicks 無し）なら参照先が無い＝制限なしのまま通す。
+    if (stage.notSharesClassWithPrev && prevPicks.length > 0) {
+      const prevClasses = prevPicks.flatMap(p => (cur.cardMap.get(getCardNum(p))?.CardClass ?? '').split(/[/／]/).map(s => s.trim()).filter(Boolean));
+      cands = cands.filter(n => {
+        const cls = cur.cardMap.get(getCardNum(n))?.CardClass ?? '';
+        return !prevClasses.some(pc => cls.includes(pc));
       });
     }
     // deck_top 段は「デッキに残す」ため、既に予約済みのカードを再度選ばせない

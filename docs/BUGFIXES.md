@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## look-pick の hand-or-energy と動的filter（ルリグ色・照応クラス）第6波（2026-07-29・PLAN §3 タスク12(xlvi)(d)(a)・Opus〔Claude Opus 5〕）
+
+- **(d) `WX24-P1-039-E2`**：第5波で `handOrEnergy` の engine 機構はそろっていたが、単一 pick の `pk` 規則が pick 動詞を「手札に加える」だけに限っており、「＜アーム＞のシグニを１枚まで公開し**手札に加えるかエナゾーンに置き**、残りを…」が汎用 `LOOK_AND_REORDER` に飲まれて **pick が丸ごと no-op** だった。動詞の選択肢を捕獲群にして `handOrEnergy` を立てる。**全カードで新たに hand-or-energy が付くのはこの1枚だけ**を機械確認（規則を緩めても波及しない）。
+- **🔴(a) engine の実バグ＝`execLookPickChain` が `stage.filter` を `resolveDynamicFilter` に通していなかった**。`matchesFilter` は `colorMatchesLrig` 等の動的語彙を**理解せず黙って無視する**ため、「センタールリグと共通する色を持つシグニ」が実行時に**単なる「シグニ」に化けて**いた。既存 LPC 効果の filter はすべて静的だったので live 実害は無かったが、(a) を parser で表現した瞬間に効かなくなる潜在バグ。golden で `resolveDynamicFilter` の呼び出しを外す変異を入れると当該2本だけが FAIL することを実測。
+- **(a) 新 `TargetFilter` 2種**＝`colorMatchesAnyLrig`（「あなたの**場にいる**ルリグと共通する色」＝センター＋アシストの色の**和**。既存 `colorMatchesLrig` はセンター限定なので**アシストの色でしか一致しないカードを取りこぼす**）／`colorMatchesNonCenterLrig`（「センタールリグ**ではない**あなたのいずれかのルリグと共通する色」＝アシストの色の和。アシスト不在なら候補ゼロ＝絞れないなら過剰実行しない側へ）。どちらも `resolveDynamicFilter` が `color` 配列（matchesFilter で OR）へ解決する。
+- **(a) 新 `LookPickChainStage.notSharesClassWithPrev`**＝「そのシグニと**共通するクラスを持たない**シグニ」（既存 `sharesClassWithPrev` の否定）。直前ステージが空振りなら参照先が無い＝制限なしのまま通す。
+- **(a) parser**＝`parseLookPickGroups` に **形D**（「〔記述子A〕シグニと、〔記述子B〕シグニを、それぞれN枚まで…」＝名詞・枚数・行き先を共有し記述子だけ違う「と、」連結）と **形E**（「共通するクラスを持つシグニN枚」＝1枚目無条件＋2枚目以降 `sharesClassWithPrev` の N 段）を追加。照応修飾（「そのシグニと共通するクラスを持つ/持たない」）は filter ではなく stage フラグなので `stripAnaphoricClass` で名詞句の先頭から剥がしてから `parsePickNounPhraseFilter` に渡す。ルリグ色トークンは共有規則表（`REVEAL_PICK_DESC_RULES`）と `pk` 規則の両方へ。
+- **直った効果（6件）**：`WX24-P1-039-E2`（(d)）／`SPDi01-131-E1`（場のルリグ色）／`WXDi-P15-031-E1`（共通色↔非共通色の2段）／`WXDi-P02-017-E1`（センター↔センター以外の2段）／`WX25-P1-041-E1`（緑シグニ＋共通クラス**でない**シグニ）／`WXK08-025-E3`（共通クラス2枚）。**6件とも従来は bare `LOOK_AND_REORDER`＝pick が丸ごと no-op**。
+- **PRESERVE カードの外科採用は2件**＝`WX25-P1-041`（E1 自体が `PARTIAL`）と `WXK08-025`（E3 自体が `PARTIAL`）。**6波連続で再発している型。**
+- **検証**：live JSON のカード単位差分は**対象6カードだけ**、再 build 差分0（冪等）、held 257→260→**257**（新規ドリフト0）。golden 951→**957**。⚠**動的filter は `matchesFilter` では判定できない**（実行時解決）ので第5波の候補集合ループは使えず、**盤面（センタールリグ白＋アシスト赤など）を作って pending SEARCH の `visibleCards` を直に見る**形にした。HEAD 差し戻しで新規6本が FAIL、`resolveDynamicFilter` を外す engine 変異で当該2本が FAIL することを別々に実測。
+- **計器**：decompiler に `colorMatchesAnyLrig`／`colorMatchesNonCenterLrig`／`notSharesClassWithPrev` の描画を追加（未追加だと逆翻訳が**黙って条件を落とす**）。census 1457→**1454**、smoke 10726 全0・fuzz 全0・同型★0・lint 0 errors。
+- **残**：(xlvi) は **20件**（(a) 残2／(b) 10／(c) 4／(d) 残2／(g) 2）。**(a) 残2**＝`WXK04-045-E1`（場のシグニを対象に取ってから「それと同じ名前」＝対象選択ステップ＋`nameEqLastProcessed` の連結）／`WXDi-P15-005-E1`（「場にいるルリグ1体につき」＝ルリグ数で段数が動く＋「公開→好きな枚数を手札、残りをエナ」の2フェーズ）。**(d) 残2**＝`WXDi-P16-086-E1`（残りが3分割＝stage に `then:'deck_bottom'` と `_bottomReserved` が要る）／`WX11-074-E1`（「選んだ色1つにつき」＝色宣言との連動）。
+
 ## 融合 look-pick が filter を運ばず「どのカードでも拾える」過剰実行 第5波（2026-07-29・PLAN §3 タスク12(xlvi)(h)・Opus〔Claude Opus 5〕）
 
 - **真因**：`effectParser.ts` の融合規則 `LOOK_AND_REORDER(reveal) + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK` が **revealCount／pickCount／残りの行き先しか運んでいなかった**。原文の名詞句（＜クラス＞・色・カード名・アイコン）も「N枚**まで**」も「手札に加える**か**エナゾーンに置く」も丸ごと落ち、**公開したどのカードでも1枚拾える過剰実行**に退化していた。さらに `makeRevealPickStub` の枚数抽出は「その中から白のカードを**３枚まで選び**、それぞれ…」形を拾えず **1枚固定＝過小実行**を同時併発（`WXK06-011` 系5枚・`WDK01-008`）。
