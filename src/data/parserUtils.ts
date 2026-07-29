@@ -485,7 +485,7 @@ export interface RevealPickDescriptor {
   pickCount: number | 'ALL';
   pickUpTo: boolean;
   noun: 'シグニ' | 'スペル' | 'カード';
-  dest: 'hand' | 'energy' | 'hand_or_energy';
+  dest: 'hand' | 'energy' | 'field' | 'hand_or_energy';
 }
 
 // 記述子の先頭から1トークンずつ食べる規則表。全消費できなければ呼び出し側で null 扱い。
@@ -579,7 +579,7 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   // 枚数トークン＝「N枚」は必ず「枚」を伴うが、「すべて」「好きな枚数」はそれ自体が枚数語なので「枚」を任意にする
   // （「宣言したカードをすべてエナゾーンに置く」WX13-054／「好きな枚数公開し手札に加えて…」WX24-P1-035）。
   // 名詞の直後の読点（「シグニを、好きな枚数…」）も許容する。
-  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?、?(?:([０-９\d]+)枚|(すべて|好きな枚数)枚?)(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置)[^、。]*)/);
+  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?、?(?:([０-９\d]+)枚|(すべて|好きな枚数)枚?)(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置|場に出)[^、。]*)/);
   if (!m || m.index === undefined) return null;
   // 後続にもう1つ pick 群がある形（「…を１枚までエナゾーンに置き、…を１枚まで手札に加え」）は
   // 単一 filter へ潰すと後段が丸ごと消える＝この規則では受けない。
@@ -606,6 +606,7 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   const destPhrase = m[6];
   const toHand = destPhrase.includes('手札に加え');
   const toEnergy = destPhrase.includes('エナゾーンに置');
-  const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toEnergy ? 'energy' : 'hand';
+  const toField = destPhrase.includes('場に出');
+  const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toField ? 'field' : toEnergy ? 'energy' : 'hand';
   return { filter, pickCount, pickUpTo: m[5] === 'まで' || m[4] === '好きな枚数', noun: outNoun, dest };
 }

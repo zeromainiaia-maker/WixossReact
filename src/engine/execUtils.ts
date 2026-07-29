@@ -119,6 +119,7 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
       * (fromZone.per ?? 1);
   }
   if (typeof n === 'number') return n;
+  if (n.$ref === 'seven_minus_self_life_count') return Math.max(0, 7 - ctx.ownerState.life_cloth.length);
   if (n.$ref === 'last_processed_count') return ctx.lastProcessedCards?.length ?? 0;
   if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
   if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);

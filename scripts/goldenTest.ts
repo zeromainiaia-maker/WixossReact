@@ -3922,6 +3922,74 @@ for (const spec of xlviWave10) {
   });
 }
 
+test('(lix) 残2件: 動的公開枚数／遊具2体ゲート・filter・場出し上限を live 構造で固定', () => {
+  const k02 = effectsMap.get('WXK02-032')?.find(e => e.effectId === 'WXK02-032-E1');
+  const k03 = effectsMap.get('WXK03-048')?.find(e => e.effectId === 'WXK03-048-E1');
+  const a02 = findRevealAndPick(k02!.action)!;
+  const s03 = (k03!.action as SequenceAction).steps;
+  const gate = s03.find(s => s.type === 'CONDITIONAL' && s.condition.type === 'LAST_PROCESSED_MATCHES') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const a03 = findRevealAndPick(gate.then)!;
+  eq(JSON.stringify(a02.revealCount), '{"$ref":"seven_minus_self_life_count"}', 'WXK02 は 7－自ライフ枚数');
+  eq(`${a02.pickCount}|${a02.pickNoun}|${a02.remainder?.position}`, '1|カード|split_top_bottom', 'WXK02 pick＋分割');
+  eq(JSON.stringify(gate.condition), '{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"遊具"},"minCount":2,"verbJa":"手札に戻った"}',
+    'WXK03 はこの方法で戻った遊具2体を必須ゲートにする');
+  eq(`${JSON.stringify(a03.filter)}|${a03.pickCount}|${a03.pickUpTo}|${a03.then.type}|${a03.remainder?.position}`,
+    '{"cardType":"シグニ","story":"遊具"}|3|true|ADD_TO_FIELD|split_top_bottom',
+    'WXK03 は遊具3枚までを場へ＋残り分割');
+});
+
+test('(lix) WXK02-032-E1: ライフ7→公開0で正常終了／ライフ0→公開7、カード総数保存・複製0', () => {
+  const savedCursor = cursor;
+  try {
+    const action = findRevealAndPick(effectsMap.get('WXK02-032')!.find(e => e.effectId === 'WXK02-032-E1')!.action)!;
+    const map = new InstanceMap<CardData>(cardMap);
+    const z = mkCtx({ life: 7, deckTop: fill(7) }, {}, 'WXK02-032'); z.cardMap = map;
+    const zTotal = z.ownerState.deck.length + z.ownerState.hand.length + z.ownerState.energy.length + z.ownerState.trash.length + z.ownerState.life_cloth.length;
+    const rz = run(action as EffectAction, z);
+    ok(rz.done, '公開0枚でも落ちず正常終了');
+    eq(rz.ownerState.hand.length, z.ownerState.hand.length, 'ライフ7では手札増加0');
+    eq(rz.ownerState.deck.length + rz.ownerState.hand.length + rz.ownerState.energy.length + rz.ownerState.trash.length + rz.ownerState.life_cloth.length, zTotal, '公開0枚でも総数保存');
+
+    const top = fill(7);
+    const n = mkCtx({ life: 0, deckTop: top }, {}, 'WXK02-032'); n.cardMap = map;
+    const nTotal = n.ownerState.deck.length + n.ownerState.hand.length + n.ownerState.energy.length + n.ownerState.trash.length;
+    const rn = run(action as EffectAction, n);
+    ok(rn.done, '公開7枚経路が完走');
+    eq(rn.ownerState.hand.length, n.ownerState.hand.length + 1, 'ライフ0では7枚から1枚を手札へ');
+    eq(rn.ownerState.deck.length + rn.ownerState.hand.length + rn.ownerState.energy.length + rn.ownerState.trash.length, nTotal, 'カード総数保存');
+    eq(new Set([...rn.ownerState.deck, ...rn.ownerState.hand, ...rn.ownerState.energy, ...rn.ownerState.trash]).size,
+      [...rn.ownerState.deck, ...rn.ownerState.hand, ...rn.ownerState.energy, ...rn.ownerState.trash].length, '複製0');
+  } finally { cursor = savedCursor; }
+});
+
+test('(lix) WXK03-048-E1: ゲート不成立なら不発／非遊具を場に出さず、空き1なら最大1体', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXK03-048')!.find(e => e.effectId === 'WXK03-048-E1')!;
+    const gate = (eff.action as SequenceAction).steps.find(s => s.type === 'CONDITIONAL' && s.condition.type === 'LAST_PROCESSED_MATCHES') as EffectAction;
+    const yugu = ['WX10-034', 'WX10-046', 'WX10-047'];
+    const other = 'WD01-009';
+    const occupied = ['WD01-010', 'WD01-011'];
+    const map = new InstanceMap<CardData>(cardMap);
+    const no = mkCtx({ signi: [occupied[0], occupied[1], null], deckTop: [...yugu, other] }, {}, 'WXK03-048'); no.cardMap = map; no.lastProcessedCards = [yugu[0]];
+    no.ownerState.deck = no.ownerState.deck.map((n, i) => `${getCardNumG(n)}#no${i}`);
+    const rNo = run(gate, no);
+    eq(rNo.ownerState.field.signi.filter(Boolean).length, 2, '遊具1体しか戻っていなければ後半不発');
+
+    const yes = mkCtx({ signi: [occupied[0], occupied[1], null], deckTop: [...yugu, other] }, {}, 'WXK03-048'); yes.cardMap = map; yes.lastProcessedCards = [yugu[0], yugu[1]];
+    yes.ownerState.deck = yes.ownerState.deck.map((n, i) => `${getCardNumG(n)}#yes${i}`);
+    const beforeTotal = yes.ownerState.deck.length + yes.ownerState.hand.length + yes.ownerState.energy.length + yes.ownerState.trash.length
+      + yes.ownerState.field.signi.flatMap(x => x ?? []).length;
+    const rYes = run(gate, yes);
+    const placed = rYes.ownerState.field.signi.flatMap(x => x ?? []).filter(n => yugu.includes(getCardNumG(n)));
+    eq(placed.length, 1, '空き1ゾーンなら場に出すのは最大1体');
+    ok(!rYes.ownerState.field.signi.flatMap(x => x ?? []).some(n => getCardNumG(n) === other), '非遊具は場に出ない');
+    eq(rYes.ownerState.deck.length + rYes.ownerState.hand.length + rYes.ownerState.energy.length + rYes.ownerState.trash.length
+      + rYes.ownerState.field.signi.flatMap(x => x ?? []).length, beforeTotal,
+      `カード総数保存 ${JSON.stringify({ deck: rYes.ownerState.deck.length, hand: rYes.ownerState.hand.length, energy: rYes.ownerState.energy.length, trash: rYes.ownerState.trash.length, field: rYes.ownerState.field.signi })}`);
+  } finally { cursor = savedCursor; }
+});
+
 // E2E：ピックのあとに分割UIが出て、選んだ分だけデッキ下・残りはデッキ上に行く。
 // 🔴 従来はここが「pick なし＋全部デッキ下」だった。
 test('(lix) WX24-P3-031-E1: ＜宇宙＞を手札へ → 残りを上下に振り分ける（全部デッキ下ではない）', () => {

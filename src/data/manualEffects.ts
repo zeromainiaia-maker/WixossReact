@@ -4656,8 +4656,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXK03-048-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
       {"type":"STUB","id":"OPTIONAL_COST","costText":"このシグニを場からトラッシュに置いてもよい"},
       {"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"self","count":"ALL","upToCount":false,"filter":{"cardType":"シグニ"}}}},
-      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"遊具"},"minCount":2,"verbJa":"手札に戻った"},"then":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":4,"private":true,"reorder":false,"canTrash":false,"destination":{"location":"deck","owner":"self","position":"top"}}},
-      {"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":0,"private":false,"reorder":true,"destination":{"location":"deck","owner":"self","position":"top"}}
+      {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","story":"遊具"},"minCount":2,"verbJa":"手札に戻った"},"then":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":4,"filter":{"cardType":"シグニ","story":"遊具"},"pickCount":3,"pickUpTo":true,"then":{"type":"ADD_TO_FIELD","owner":"self"},"remainder":{"location":"deck","position":"split_top_bottom"}}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // §6.3 G/B: the optional red payment is a three-way replacement, never cumulative.

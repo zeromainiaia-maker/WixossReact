@@ -4001,6 +4001,23 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // 「7－自分のライフクロス枚数」枚を見る（WXK02-032）。
+  // 固定 N の入口と同じ REVEAL_AND_PICK へ載せ、枚数だけ既存 NumberOrRef で実行時解決する。
+  {
+    const m = text.match(/^あなたのデッキの上からカードを「?[７7]－あなたのライフクロスの枚数」?枚見る。?\s*(その中から[\s\S]+)$/);
+    const splitTail = /、好きな枚数の?(?:カード)?を(?:好きな順番で)?デッキの一番下に置き、残りを(?:好きな順番で)?デッキの一番上に(?:戻す|置く)/;
+    if (m && /^その中から[１1]枚を手札に加え/.test(m[1]) && splitTail.test(m[1])) {
+      return {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: { $ref: 'seven_minus_self_life_count' },
+        pickCount: 1,
+        pickNoun: 'カード',
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: { location: 'deck', position: 'split_top_bottom' },
+      } as RevealAndPickAction;
+    }
+  }
   // ---- G154 BURST: 2文を跨ぐ対象照応＋手札捨てによる回避 ----
   // 全文が正準形に一致する場合だけ先取りし、一般の「ないかぎり」へ波及させない。
   {
@@ -4716,6 +4733,8 @@ function parseActionTextInner(text: string): EffectAction {
             ...(splitDesc.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
             then: splitDesc.dest === 'energy'
               ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
+              : splitDesc.dest === 'field'
+              ? { type: 'ADD_TO_FIELD', owner: 'self' } as import('../types/effects').AddToFieldAction
               : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction,
             remainder: { location: 'deck', position: 'split_top_bottom' },
           } as RevealAndPickAction;

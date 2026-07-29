@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## (lix) 最終波：動的公開枚数＋公開札の場出しで残0クローズ（2026-07-29・PLAN §3 タスク12(lix)・Codex）
+
+- **`WXK02-032-E1`・主分類＝入口語彙欠落による pick 完全 no-op／動的値誤読**：原文「7－自分のライフクロス枚数」が固定 `N枚見る` に掛からず `STUB{LOOK_TOP_BY_LIFE_COUNT}+LOOK_AND_REORDER{0}` へ退化していた。さらに旧STUBは減算でなくライフ枚数そのものを見ていた。既存 `NumberOrRef` 解決へ `seven_minus_self_life_count` を通し、`REVEAL_AND_PICK{1枚→手札,remainder:split_top_bottom}` にした。ライフ7＝公開0で正常終了、ライフ0＝公開7を engine 実測。
+- **`WXK03-048-E1`・主分類＝行き先語彙欠落による条件付き look-pick 完全 no-op**：MANUAL の前半（任意コスト→全自シグニBOUNCE）を保持し、後半を `LAST_PROCESSED_MATCHES{遊具,minCount:2}` の内側だけで `REVEAL_AND_PICK{4枚,遊具3枚まで→ADD_TO_FIELD,remainder:split_top_bottom}` に更新。前段条件なしの無条件発動、非遊具の場出し、3枚固定選択のいずれも禁止した。
+- **直実測で発見した engine バグ・分類＝場容量上限漏れによるカード消失**：空きシグニゾーン1に対し SEARCH が3枚を選択済みにし、配置は1枚だけ成功、未配置札が remainder からも除外されカード総数が1減っていた。`REVEAL_AND_PICK.then=ADD_TO_FIELD` の `maxPick` を空きゾーン数へ制限。空き1では最大1体、カード総数保存、複製0を `InstanceMap`＋instanceId で固定。
+- **外科性・MANUAL 2層**：live effect差分は **changed 2 / added 0 / removed 0**（指定2効果のみ）。`WXK03-048` は `manualEffects.ts` と built `effects_WXK.json` の両方を更新し、built JSON を直接読んで `遊具`／`シグニ` が保持され `?` 化0件を確認。`WXK02-032` は fresh を heldReview で採用。buildを2回流し effects JSON hash一致で冪等。
+- **golden・変異**：golden **1022→1025**。ライフ動的値変異は **1023 PASS / 2 FAIL**、前段ゲートを無効化する変異は **1023 / 2**、遊具filterを落とす変異は **1024 / 1** と、狙った網だけがFAIL。復元後 **1025/1025**。
+- **計器・検証**：census **1414据置**のため `BASELINE_HIGH=1414` は変更なし。held **251枚/107署名**。`npm run gates` 全緑（smoke **10726/10726** 全0、fuzz全0、manual field loss 0、lint 0 errors）。**(lix) は全4効果・残0でクローズ。新アクション型／新UI機構はゼロ**（既存動的参照・field配置・split機構の入口と安全上限のみ）。
+- **(l) 残8件は honest defer**：余力枠は部分近似を避けて未変更。`WX26-CP1-076-SONG` は手札枚数比例値、`WXK11-052-E1` は任意の自シグニ2体トラッシュを付与能力内コストとして支払う対話、`WX24-P4-026-E1`／`WX16-004-E1`／`SPDi44-08-E2`／`WX25-P1-018-E2` は置換イベント横取りと能力喪失、`WD21-009-E1`／`PR-204-E1` は宣言・複雑条件／付与能力内追加コストの不足があり、内側だけ動かすと条件・コスト踏み倒しになる。
+
+- **🆕Claude 確認で発見した既存欠落（今回の変更範囲外・要登録）**＝`WXK03-048-E1` は原文が**「《白》《白》《無》《無》を支払い、このシグニを場からトラッシュに置いてもよい。そうした場合、〜」**なのに、JSON は `cost:null` かつ `STUB{OPTIONAL_COST, costText:"このシグニを場からトラッシュに置いてもよい"}` の**文字列のみ**で、**エナコストも自身のトラッシュも構造化されていない**。engine 直叩きで実測すると `energy±0`／`trash±0` のままバウンスと look-pick が実行される＝**コストを払わずに効果が通る過剰実行**。⚠**今回 look-pick を実働化したことでこの踏み倒しの実害が顕在化した**（従来は後段が no-op だったため見えなかった）。系統としては (xxix)(2)「原文にコスト句があるのに JSON に cost が無い」＝`costUnparsed` の worklist と同型なので、そちらへ登録する。
+- **⚠Claude 側の検証で踏んだハーネス不備2件（engine は正しい）**＝①`SELECT_SIGNI_ZONE` に常に同じゾーン0を返すと**上書きで配置札が消える**（空きゾーンを順に選ぶ必要がある）②`LOOK_AND_REORDER` pending を処理せず打ち切ると`done=false` のまま集計され、**remainder がデッキに戻る前の盤面を見て「カード消失」と誤診**する。両方を直したうえで**全ゾーン合計（deck/hand/trash/energy/life/field）で総数保存 OK（37→37）**を確認した。**この経路の実測ハーネスは「完走（`done=true`）したか」を必ず assert すること。**
+
 ## トラップ公開 STUB の remainder 順序違いと LPC 移行（2026-07-29・PLAN §3 タスク12(lviii)・Codex）
 
 - **実測10効果・主分類＝順序違い**：`PLACE_TRAP_FROM_REVEALED` は未選択の公開札を常に `deck_bottom` へ送る実行時regex STUBだった。原文を1件ずつ確認し、`SP26-001-E1`／`WD23-032-A-E2`／`WX20-012-E1` の3件は「デッキの一番上」、ほか7件は「一番下」。指定3件以外の remainder 食い違いは0件。

@@ -3655,7 +3655,7 @@ function getLevelReferenceOverride(card: import('../types').CardData | undefined
 
 function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
-  const count = resolveNum(a.revealCount);
+  const count = resolveCountRef(a.revealCount, ctx);
   const visible = state.deck.slice(0, count);
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
   const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
@@ -3676,7 +3676,13 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
       if (overridable.length > 0) pickable = [...pickable, ...overridable];
     }
   }
-  const maxPick = a.pickCount === 'ALL' ? pickable.length : a.pickCount;
+  let maxPick = a.pickCount === 'ALL' ? pickable.length : a.pickCount;
+  // 公開札を場に出す場合、選択上限を空きシグニゾーン数までに絞る。
+  // 配置段階だけで切り捨てると、選択済みだが置けなかった札が remainder からも除外され消失する。
+  if (a.then.type === 'ADD_TO_FIELD') {
+    const emptyZones = state.field.signi.filter(zone => !zone || zone.length === 0).length;
+    maxPick = Math.min(maxPick, emptyZones);
+  }
 
   if (pickable.length === 0) {
     // ピック対象なし：残りを指定場所へ
@@ -3738,7 +3744,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   const owner = a.owner;
   const isCont = !!a._revealed;
   const deck0 = ownerState(owner, ctx).deck;
-  const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(resolveNum(a.revealCount), deck0.length));
+  const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(resolveCountRef(a.revealCount, ctx), deck0.length));
   if (revealed.length === 0) return done(ctx);
   const cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
   let prevPicks: string[] = isCont ? (cur.lastProcessedCards ?? []) : [];
