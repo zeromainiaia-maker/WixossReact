@@ -29,7 +29,7 @@ import {
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
-import { computeFieldSigniLimit, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
+import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
@@ -14772,7 +14772,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
   test('(xxix)(1) 任意cost【出】の内訳＝wave10の4語彙追加後も安全側へ分類', () => {
     const SUPPORTED = new Set([
       'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
-      'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
+      'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash', 'fieldTrashGroups',
+      'fieldToLrigTrash',
       'lrigDown', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
       'deckTrash', 'charmTrash', 'trashArtsFromLrigDeck', 'removeOppVirus',
@@ -14783,8 +14784,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       && e.mandatory === false && !!e.cost);
     const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 962, '母集団');
-    eq(mapped.length, 955, 'OPTIONAL_COST へ写せる＝支払い札参照2件も共有支払いへ追加');
-    eq(optionalCost.length - mapped.length, 7, '未対応コストだけを安全側に据え置く');
+    eq(mapped.length, 957, 'OPTIONAL_COST へ写せる＝ゾーン徴収2件を共有支払いへ追加');
+    eq(optionalCost.length - mapped.length, 5, '未対応コストだけを安全側に据え置く');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
@@ -14817,7 +14818,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     ok(r.entries[0].label.includes('任意コスト'), 'ラベルで任意コストと分かる');
   });
 
-  test('(xxix)(1) 表現できないコスト（fieldTrashGroups 等）は従来どおり積まない', () => {
+  test('(xxix)(1) 表現できないコストは従来どおり積まない', () => {
     const bad = [...effectsMap.entries()].flatMap(([cn, effs]) => effs
       .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
         && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
@@ -15409,6 +15410,73 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       ok(!invalid.first.done && invalid.first.pending.type === 'CHOOSE'
         && invalid.first.pending.options.find(o => o.id === 'pay')?.available === false,
       'クラス共有ペアしかない場合は pay unavailable');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(1) 第13波: fieldTrashGroups はUIと同じ候補でレベル1+2を徴収する', () => {
+    const savedCursor = cursor;
+    try {
+      const source = 'WX14-045';
+      const groups = effectsMap.get(source)!.find(e => e.effectId === 'WX14-045-E1')!.cost!.fieldTrashGroups!;
+      const owner = mkState({ signi: [source, SIGNI_L1, SIGNI_L2] });
+      eq(fieldTrashGroupsSelectableZones(groups, owner, cardMap).join(','), '1,2', '通常召喚UIの候補はレベル1/2の2ゾーン');
+      ok(fieldTrashGroupsAffordable(groups, owner.field.signi, cardMap), 'engine支払可否も同じ盤面で成立');
+
+      const entry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), source, owner, mkState({ signi: [SIGNI_L3, null, null] }), 'host',
+        { placedByEffect: true, sourceIsSigni: false },
+      ).entries.find(e => e.effectId === 'WX14-045-E1')!;
+      const ctx = mkCtx({ signi: [source, SIGNI_L1, SIGNI_L2] }, { signi: [SIGNI_L3, null, null] }, source);
+      const paid = finishPayingCosts(executeEffect(entry.effect, ctx), ctx);
+      eq(paid.ownerState.field.signi.filter(Boolean).length, 1, 'レベル1と2を場から徴収');
+      ok(paid.ownerState.trash.includes(SIGNI_L1) && paid.ownerState.trash.includes(SIGNI_L2), '2枚ともトラッシュへ置く');
+      eq(paid.otherState.field.signi.filter(Boolean).length, 0, '本体で相手シグニ1体をトラッシュ');
+
+      const blockedCtx = mkCtx({ signi: [source, SIGNI_L1, null] }, { signi: [SIGNI_L3, null, null] }, source);
+      const blockedEntry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), source, blockedCtx.ownerState, blockedCtx.otherState, 'host',
+        { placedByEffect: true, sourceIsSigni: false },
+      ).entries.find(e => e.effectId === 'WX14-045-E1')!;
+      const blocked = executeEffect(blockedEntry.effect, blockedCtx);
+      ok(!blocked.done && blocked.pending.type === 'CHOOSE'
+        && blocked.pending.options.find(o => o.id === 'pay')?.available === false,
+      'レベル2不足ならpay unavailable');
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(1) 第13波: fieldToLrigTrash はレゾナだけを候補にしルリグトラッシュへ徴収する', () => {
+    const savedCursor = cursor;
+    try {
+      const source = 'WX13-063';
+      const resona = findCard(c => c.Type === 'レゾナ');
+      const white = findCard(c => c.Color === '白' && c.CardNum !== source && c.CardNum !== resona);
+      const cost = effectsMap.get(source)!.find(e => e.effectId === 'WX13-063-E1')!.cost!.fieldToLrigTrash!;
+      const uiCandidates = fieldTrashSelectableZones(cost, mkState({ signi: [source, resona, SIGNI_L1] }), cardMap);
+      eq(uiCandidates.join(','), '1', '通常召喚UIと同じ共通候補関数はレゾナだけを返す');
+
+      const owner = mkState({ signi: [source, resona, SIGNI_L1] });
+      owner.energy = [white];
+      const other = mkState({ signi: [SIGNI_L2, SIGNI_L3, null] });
+      const entry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), source, owner, other, 'host', { placedByEffect: true, sourceIsSigni: false },
+      ).entries.find(e => e.effectId === 'WX13-063-E1')!;
+      const ctx = mkCtx({ signi: [source, resona, SIGNI_L1] }, { signi: [SIGNI_L2, SIGNI_L3, null] }, source);
+      ctx.ownerState = { ...ctx.ownerState, energy: [white] };
+      const paid = finishPayingCosts(executeEffect(entry.effect, ctx), ctx);
+      ok(paid.ownerState.lrig_trash.includes(resona), 'レゾナをルリグトラッシュへ置く');
+      ok(!paid.ownerState.trash.includes(resona), '通常トラッシュへ誤送しない');
+      eq(paid.otherState.hand.filter(n => n === SIGNI_L2 || n === SIGNI_L3).length, 2, '本体で相手レベル3以下を2体まで戻す');
+
+      const blockedCtx = mkCtx({ signi: [source, SIGNI_L1, null] }, {}, source);
+      blockedCtx.ownerState = { ...blockedCtx.ownerState, energy: [white] };
+      const blockedEntry = collectPlacedSelfOnPlayTriggers(
+        trigCtx(), source, blockedCtx.ownerState, blockedCtx.otherState, 'host',
+        { placedByEffect: true, sourceIsSigni: false },
+      ).entries.find(e => e.effectId === 'WX13-063-E1')!;
+      const blocked = executeEffect(blockedEntry.effect, blockedCtx);
+      ok(!blocked.done && blocked.pending.type === 'CHOOSE'
+        && blocked.pending.options.find(o => o.id === 'pay')?.available === false,
+      'レゾナ不足ならpay unavailable');
     } finally { cursor = savedCursor; }
   });
 

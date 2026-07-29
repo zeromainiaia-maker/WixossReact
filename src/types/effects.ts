@@ -852,6 +852,7 @@ export interface ExileAction {
 export interface TrashAction {
   type: 'TRASH'; // 指定カードをトラッシュへ
   target: EffectTarget;
+  destination?: 'trash' | 'lrig_trash'; // 場からの移動先。省略時は従来どおりトラッシュ
   asCost?: boolean; // true = 効果処理ではなくコスト支払いによる field→trash（ON_TRASH byEffect を発火させない原因追跡用）
   opponentSelects?: boolean; // 「対戦相手は自分の〜1枚を対象とし、それをトラッシュに置く」：対戦相手が自分のカードを選んでトラッシュ（target.owner='opponent'。WX04-009）
   bestEffort?: boolean; // true = 対象がなくても後続SEQUENCEをスキップしない（「手札を1枚捨て、カードをN枚引く（捨てられなくても引く）」の捨て。WDK06-R20/WDK14-022）
@@ -1820,6 +1821,10 @@ export interface StubAction {
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** OPTIONAL_COST: 異なる条件の場シグニを組でトラッシュへ置く任意コスト。 */
+  fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
+  /** OPTIONAL_COST: 自分の場のカードをルリグトラッシュへ置く任意コスト。 */
+  fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */

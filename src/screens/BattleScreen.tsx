@@ -10509,7 +10509,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           paid = { ...paid, trash: [...paid.trash, ...handPickedNums] };
         }
       }
-      // fieldTrash: 場のシグニをトラッシュ（チャーム/アクセも一緒にトラッシュへ）
+      // fieldTrash / fieldToLrigTrash: 場のシグニを指定先へ（付属カードはルールどおりトラッシュへ）
       if (fieldTrashZones.size > 0) {
         const newSigniF  = [...paid.field.signi] as (string[] | null)[];
         const newDownF   = [...(paid.field.signi_down   ?? [false, false, false])];
@@ -10517,6 +10517,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newCharmsF = [...(paid.field.signi_charms ?? [null, null, null])];
         const newAcceF   = [...(paid.field.signi_acce   ?? [null, null, null])];
         const toTrashF: string[] = [];
+        const toLrigTrashF: string[] = [];
         const removedIidsF: string[] = []; // トラッシュしたシグニの instance ID（puppet_signi クリーンアップ用）
         let trashedSigniLevel: number | undefined;
         let trashedPuppetF = false; // 傀儡状態のシグニをコストでトラッシュしたか（COST_TRASHED_PUPPET。WDK17-014）
@@ -10529,23 +10530,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (topSigni) trashedSigniLevel = parseInt(topSigni.Level ?? '0', 10) || 0;
           if (stack.some(iid => puppetSetF.has(iid))) trashedPuppetF = true;
           removedIidsF.push(...stack);
-          toTrashF.push(...stack.map(getCardNum));
+          if (cost?.fieldToLrigTrash) {
+            toLrigTrashF.push(getCardNum(stack.at(-1)!));
+            toTrashF.push(...stack.slice(0, -1).map(getCardNum));
+          } else {
+            toTrashF.push(...stack.map(getCardNum));
+          }
           if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
           if (newAcceF[zi])   { toTrashF.push(newAcceF[zi]!);   newAcceF[zi]   = null; }
           newSigniF[zi] = null;
           newDownF[zi] = false;
           newFrozenF[zi] = false;
         }
+        const fieldDestination = cost?.fieldToLrigTrash ? 'lrig_trash' : 'trash';
         paid = {
           ...paid,
           field: { ...paid.field, signi: newSigniF, signi_down: newDownF, signi_frozen: newFrozenF, signi_charms: newCharmsF, signi_acce: newAcceF,
             puppet_signi: (paid.field.puppet_signi ?? []).filter(iid => !removedIidsF.includes(iid)) },
           trash: [...paid.trash, ...toTrashF],
+          lrig_trash: fieldDestination === 'lrig_trash' ? [...paid.lrig_trash, ...toLrigTrashF] : paid.lrig_trash,
           last_field_trash_level: trashedSigniLevel,
           last_cost_trashed_puppet: trashedPuppetF,
           last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...toTrashF],
         };
-        if (toTrashF.length > 0) payLogs.push(`場のシグニ${fieldTrashZones.size}体をコストでトラッシュ`);
+        if (toTrashF.length + toLrigTrashF.length > 0) payLogs.push(
+          `場のシグニ${fieldTrashZones.size}体をコストで${fieldDestination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`,
+        );
       }
       // beat_signi: シグニを【ビート】にするコスト（beatZones=プレイヤー選択。空なら自動近似）
       if ((cost?.beat_signi ?? 0) > 0) {

@@ -83,7 +83,8 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const enaTrashNeeded = eff.cost?.energyTrash?.count ?? 0;
               const enaTrashFilter = eff.cost?.energyTrash?.filter;
               // 場のシグニトラッシュコスト
-              const ftCost = eff.cost?.fieldTrash;
+              const ftCost = eff.cost?.fieldTrash
+                ?? (eff.cost?.fieldToLrigTrash ? { ...eff.cost.fieldToLrigTrash, excludeSelf: false } : undefined);
               const ftGroups = eff.cost?.fieldTrashGroups;
               const ftNeeded = ftCost?.count ?? ftGroups?.reduce((n, g) => n + g.count, 0) ?? 0;
               const selfZoneFT = pendingSigniOnPlayCost.placedZone

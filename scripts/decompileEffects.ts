@@ -314,6 +314,10 @@ function costJa(c?: any): string {
   if (c.charmTrashVariable) parts.push('場の【チャーム】を好きな枚数トラッシュ');
   if (c.fieldTrash) parts.push(`場から${c.fieldTrash.excludeSelf ? '他の' : ''}${filterJa(c.fieldTrash.filter)}シグニ${c.fieldTrash.count}体をトラッシュ`);
   if (c.fieldTrashGroups) parts.push(`場から${c.fieldTrashGroups.map((g: any) => `${filterJa(g.filter)}シグニ${g.count}体`).join('と')}をトラッシュ`);
+  if (c.fieldToLrigTrash) {
+    const unit = c.fieldToLrigTrash.filter?.cardType === 'レゾナ' ? 'レゾナ' : 'カード';
+    parts.push(`場から${filterJa(c.fieldToLrigTrash.filter)}${unit}${c.fieldToLrigTrash.count}体をルリグトラッシュに置く`);
+  }
   if (c.fieldDown) parts.push(`場の${filterJa(c.fieldDown.filter)}シグニ${c.fieldDown.count}体をダウン`);
   // 従来 costJa が lrigDown を知らず、逆翻訳がコストを丸ごと落としていた（続き218）
   if (c.lrigDown) parts.push(`アップ状態の${c.lrigDown.level !== undefined ? `レベル${c.lrigDown.level}の` : ''}${c.lrigDown.centerOnly ? 'センター' : ''}ルリグ${c.lrigDown.count}体をダウンする`);

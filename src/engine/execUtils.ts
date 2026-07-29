@@ -15,6 +15,7 @@ import type {
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
+import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -153,6 +154,8 @@ export interface OptionalCostSpec {
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
+  fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
   beat_signi?: number;
@@ -187,7 +190,8 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     : undefined;
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
-    energyTrash, fieldTrash: a.fieldTrash, lrigDown: a.lrigDown, down_self: a.down_self,
+    energyTrash, fieldTrash: a.fieldTrash, fieldTrashGroups: a.fieldTrashGroups,
+    fieldToLrigTrash: a.fieldToLrigTrash, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash,
@@ -249,6 +253,12 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = fieldCandidates(ctx.ownerState, filter, ctx.cardMap)
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldTrash.count) return false;
+  }
+  if (spec.fieldTrashGroups
+    && !fieldTrashGroupsAffordable(spec.fieldTrashGroups, ctx.ownerState.field.signi, ctx.cardMap)) return false;
+  if (spec.fieldToLrigTrash) {
+    const matching = fieldCandidates(ctx.ownerState, spec.fieldToLrigTrash.filter, ctx.cardMap);
+    if (matching.length < spec.fieldToLrigTrash.count) return false;
   }
   if (spec.lrigDown) {
     if (!payLrigDownCost(ctx.ownerState, spec.lrigDown, ctx.cardMap)) return false;
@@ -316,6 +326,14 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
           ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
+    } as EffectAction] : []),
+    ...(spec.fieldTrashGroups ?? []).map(group => ({
+      type: 'TRASH', asCost: true,
+      target: { type: 'SIGNI', owner: 'self', count: group.count, filter: group.filter },
+    } as EffectAction)),
+    ...(spec.fieldToLrigTrash ? [{
+      type: 'TRASH', asCost: true, destination: 'lrig_trash',
+      target: { type: 'SIGNI', owner: 'self', count: spec.fieldToLrigTrash.count, filter: spec.fieldToLrigTrash.filter },
     } as EffectAction] : []),
     ...(spec.lrigDown ? [{
       type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN', lrigDown: spec.lrigDown,

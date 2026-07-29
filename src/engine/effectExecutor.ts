@@ -808,9 +808,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       for (const num of selected) {
         const s = ownerState(tgt.owner, cur);
         const removed = removeFromField(num, s);
+        const destination = a.destination ?? 'trash';
         cur = addLog(setOwnerState(tgt.owner,
-          { ...removed, trash: [...removed.trash, num] }, cur),
-          `${cur.cardMap.get(num)?.CardName ?? num}をトラッシュへ`);
+          destination === 'lrig_trash'
+            ? { ...removed, lrig_trash: [...removed.lrig_trash, num] }
+            : { ...removed, trash: [...removed.trash, num] }, cur),
+          `${cur.cardMap.get(num)?.CardName ?? num}を${destination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`);
       }
       if (a.asCost && selected.length > 0) {
         cur = {
@@ -6199,7 +6202,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
           const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
           const removed = removeFromField(cardNum, s);
-          const newS: PlayerState = { ...removed, trash: [...removed.trash, cardNum] };
+          const destination = trashAction.destination ?? 'trash';
+          const newS: PlayerState = destination === 'lrig_trash'
+            ? { ...removed, lrig_trash: [...removed.lrig_trash, cardNum] }
+            : { ...removed, trash: [...removed.trash, cardNum] };
           const movedCtx = setOwnerState(owner, newS, ctx);
           const causeCtx = trashAction.asCost
             ? {
@@ -6213,7 +6219,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
                 },
               }
             : movedCtx;
-          return done(addLog(causeCtx, `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をトラッシュへ`));
+          return done(addLog(causeCtx,
+            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を${destination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`));
         }
         return done(ctx);
       }

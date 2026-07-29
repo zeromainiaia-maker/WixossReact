@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## `costUnparsed` 第13波：ゾーン徴収2効果を engine／通常召喚の両経路へ配線（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
+
+- **採用2件**：`WX14-045-E1` の `fieldTrashGroups`（レベル1＋レベル2）と `WX13-063-E1` の `energy:[白1] + fieldToLrigTrash:{レゾナ1体}` を `OPTIONAL_COST` へ配線。`OptionalCostSpec` の解決・支払可否・支払いステップ、collector の `SUPPORTED` を一式拡張した。
+- **候補集合／徴収先**：`fieldTrashGroups` の engine 支払可否は UI 共通純関数 `fieldTrashGroupsAffordable` を直接利用。`fieldToLrigTrash` は通常召喚モーダルも `fieldTrashSelectableZones` を使い、engine の `execTrash` と `BattleScreen.executeSigniOnPlayCost` の両方でレゾナ本体だけをルリグトラッシュへ、下カード・チャーム・アクセを通常トラッシュへ送る。
+- **見送り**：`WXK08-051-E1` は原文が「あなたのシグニの下」で、既存 `underSelfTrash` 16効果の「このシグニの下」と意味が異なる。任意シグニと下カードを選ぶ通常召喚 UI／engine 共通フローが無いため、既存16効果へ波及させず切り分ける条件を満たせず未配線を維持。段階2・3も未着手。
+- **検証**：golden 2件追加（支払可／不足で pay unavailable、実戦シグニゾーン→collector E2E、cursor 復元）。`golden 1071/1071`、`census 1395`、`smoke 10726/10726`、fuzz 全0、lint 0 errors/228 warnings、同型★0、held 292枚/107署名。`wrapOptionalOnPlay=null` は 10→8（costUnparsed 7、underSelfTrash 1）。
+
 ## `costUnparsed` 第12波：「この方法で」支払い札レベル参照2効果を解放（2026-07-30・PLAN §3 タスク12(xxix)(1)・Codex実装）
 
 - **採用2件**：`WXDi-P16-080-E1` は handToEnergy で実際に置いたシグニのレベル、`WXK09-032-E1` は energyTrash で実際に置いた2枚のレベル合計を、既存 `PlayerState.last_*` 記録→`TargetFilter.levelEqualsVar`→`preResolvedFilter`／`resolveDynamicFilter` の両経路で解決。`OPTIONAL_ON_PLAY_COST_REF_DEFERRED` から2件を外し、効果配置時の `collectPlacedSelfOnPlayTriggers` から実働化した。
