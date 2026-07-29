@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## トラップ公開 STUB の remainder 順序違いと LPC 移行（2026-07-29・PLAN §3 タスク12(lviii)・Codex）
+
+- **実測10効果・主分類＝順序違い**：`PLACE_TRAP_FROM_REVEALED` は未選択の公開札を常に `deck_bottom` へ送る実行時regex STUBだった。原文を1件ずつ確認し、`SP26-001-E1`／`WD23-032-A-E2`／`WX20-012-E1` の3件は「デッキの一番上」、ほか7件は「一番下」。指定3件以外の remainder 食い違いは0件。
+- **9効果を LPC へ移行**：上記3件に `WD23-040-A-E1`／`WX15-002-E1`／`WX15-035-E2`／`WX15-049-E1`／`WX15-082-E1`／`WX15-092-E1` を加え、parser 時点で `LOOK_PICK_CHAIN{stages:[{then:'trap'}],remainder}` へ固定。STUBの実行時原文regex依存を除去した。`WX15-035-E2` はE1の「同じシグニゾーンのトラップを発動」とは別能力で、デッキ上2枚を公開する【出】なので移行対象。
+- **honest defer 1件**：`WXEX1-13-E1` も原文にはデッキ公開があるため文脈上は移行対象候補。ただし live は前段の「自分のトラップ1つを手札に戻してもよい」を SIGNI の `BOUNCE` に誤変換し、「そうした場合」を `IS_MY_TURN` に誤変換している。LPCだけを移すと did-it 条件を踏み倒すため据え置き。trap-to-hand＋did-itゲートを一体で直す別波が必要。
+- **外科性・MANUAL 2層**：対象10カードに `manualEffects.ts` 定義なし。生 parser fresh と採用後liveをeffectId単位で照合し、差分は **changed 9 / added 0 / removed 0**（上記移行9件のみ）。各 built JSON を直接読み、9件がLPC・旧STUBなし、WXEX1-13だけ旧STUB据置であることを確認。
+- **engine直叩き**：全9件を `InstanceMap`＋`CardNum#instanceId` で実行。CSVどおり発生源をシグニ4／スペル2／アーツ1／ルリグ2の実戦ゾーンへ置き、各公開枚数、トラップ1枚、remainderのtop/bottom、カード総数保存、複製0を数字で固定。golden **1013→1022**。
+- **変異テスト**：remainderを全件bottomへ決め打ちする変異で、top原文の狙った3本だけFAIL（1019 PASS / 3 FAIL）。公開札をデッキから抜かない複製変異では新規9本すべて＋既存trap網2本の狙った11本だけFAIL（1011 PASS / 11 FAIL）。復元後1022/1022。
+- **計器・検証**：STUB格納からLPCへ移ったことで census は **1409→1414**（5件が判定保留から高シグナル側へ露出した計器上の増加）。トップレベル `BASELINE_HIGH=1414` とPLAN恒久指標を更新。`npm run gates` 全緑（golden **1022/1022**、smoke **10726/10726** 全0、fuzz全0、census **1414/1414**、manual field loss 0、lint 0 errors）。buildを2回流し effects JSON 差分0で冪等。
+
+- **⚠census +5 の正体＝計器の誤検出（Claude 実測で確認）**：内訳は「任意(してもよい)」+5／「条件節」+1／「triggerScope」+1 で、**いずれも STUB・MANUAL 格納（判定保留）から高シグナル側へ移動した分**（STUB を実アクションへ移すと STUB の一括免除を失うため。第5波・第7波と同型）。ただし「任意(してもよい)」+5 は**原文「【トラップ】として設置**してもよい**」に対し LPC の `stages[].pickCount:1` に `upToCount` 相当のフラグが無い**ことによるもので、一見すると任意性の欠落に見える。**engine 直叩きで 0枚選択が通ることを実測**（`WX15-002-E1`＝pick 1枚→トラップ設置1・デッキ11／**pick 0枚→設置0・デッキ12（全部戻る）**・どちらも完了）＝**LPC の `pickCount` は上限として扱われており原文の任意性は保たれている**。つまり census 側が LPC の上限扱いを知らないための誤検出で、(lvii) で「LPC を『Nまで』カテゴリのキーに足すのは意図的に見送り」とした判断の延長にある同じ現象。**この系統を LPC へ移すたび census が増えるので、キー表に LPC を足すかは改めて判断が要る**。
+
 ## 付与能力の内側が未 nest で完全 no-op（2026-07-29・PLAN §3 タスク12(l)・Codex）
 
 - **分類・着地3件**：`GRANT_LRIG_ABILITY`／`GRANT_EFFECT` が引用能力を `rawText` に抱え、`abilities`／`effect` が空のため executor で完全 no-op だった構造化欠落。`WXDi-P11-038-E2`（【常】シャドウ）／`WX26-CP1-005-E1`（【自】アタック時デッキ下）／`WXDi-P02-034-E1`（【自】被バニッシュ時レベル×2ミル）を nest。P02-034 にだけ誘発元個体を読む `MILL.countPerSourceLevel` を最小追加。

@@ -7625,6 +7625,54 @@ function parseBurstEffect(card: CardData): CardEffect | null {
   };
 }
 
+// `LOOK_AND_REORDER → PLACE_TRAP_FROM_REVEALED → remainder` を parser 時点の
+// LOOK_PICK_CHAIN へ畳み込む。旧 STUB は実行時にカード全文を regex で再解釈し、
+// remainder を常に deck_bottom に決め打ちしていた（タスク12(lviii)）。
+function foldPlaceTrapFromRevealed(
+  action: EffectAction,
+  sourceText: string,
+): EffectAction {
+  const trapM = sourceText.match(/その中から(?:カード)?([０-９\d]+)枚(まで)?を?【トラップ】として(?:あなたの)?シグニゾーンに設置(?:してもよい|し|する)。(?:その後、)?残りを(?:好きな順番で|シャッフルして)?デッキの一番(上|下)に(?:置く|戻す)/);
+  if (!trapM) return action;
+  const makeLpc = (look: import('../types/effects').LookAndReorderAction): EffectAction => ({
+    type: 'LOOK_PICK_CHAIN',
+    owner: 'self',
+    revealCount: look.count,
+    stages: [{ pickCount: parseNum(trapM[1]), then: 'trap', pickNoun: 'カード' }],
+    remainder: { location: 'deck', position: trapM[3] === '上' ? 'top' : 'bottom' },
+  } as import('../types/effects').LookPickChainAction);
+  const visit = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(visit);
+      for (let i = 0; i + 1 < steps.length; i++) {
+        const first = steps[i];
+        const second = steps[i + 1];
+        const directLook = first.type === 'LOOK_AND_REORDER' ? first : undefined;
+        const conditionalLook = first.type === 'CONDITIONAL' && first.then.type === 'LOOK_AND_REORDER'
+          ? first.then : undefined;
+        if ((!directLook && !conditionalLook) || second.type !== 'STUB' || second.id !== 'PLACE_TRAP_FROM_REVEALED') continue;
+        const lpc = makeLpc((directLook ?? conditionalLook)!);
+        steps[i] = directLook ? lpc : { ...first, then: lpc } as EffectAction;
+        steps.splice(i + 1, 1);
+        const remainderMarker = steps[i + 1];
+        if (
+          (remainderMarker?.type === 'LOOK_AND_REORDER' && remainderMarker.count === 0)
+          || (remainderMarker?.type === 'STUB' && remainderMarker.id === 'LOOK_AND_REORDER')
+        ) steps.splice(i + 1, 1);
+      }
+      return { ...node, steps };
+    }
+    if (node.type === 'CHOOSE') {
+      return { ...node, choices: node.choices.map(c => ({ ...c, action: visit(c.action) })) };
+    }
+    if (node.type === 'CONDITIONAL') {
+      return { ...node, then: visit(node.then), ...(node.else ? { else: visit(node.else) } : {}) };
+    }
+    return node;
+  };
+  return visit(action);
+}
+
 // ===== メインエクスポート =====
 
 export function parseCardEffects(card: CardData): CardEffect[] {
@@ -7914,6 +7962,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDistinctBatch5c(effects);
   applyOpponentSelectsBatch11(effects);
   applyProportionalCountBatch6(effects);
+
+  // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
+  // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると
+  // 条件を踏み倒すため、この1件は honest defer。ほかは原文の remainder を action に固定する。
+  if (card.CardNum !== 'WXEX1-13') {
+    for (const e of effects) e.action = foldPlaceTrapFromRevealed(e.action, card.EffectText ?? '');
+  }
 
   // 「そのシグニの【出】能力は発動しない」の死アクション BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ
   // 畳み込む（タスク12(xxix)）。全 effect-assembly 経路（AUTO/ARTS/スペル/バースト等）を通す単一チョークポイント。

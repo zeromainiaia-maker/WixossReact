@@ -889,24 +889,6 @@ WX15-033
   + [1].action.target.count = 1
   …（他 2 行）
 
-## +SEQUENCE ［1枚］
-WX15-049
---- WX15-049
-  原文: 【出】：あなたの場に【トラップ】がない場合、あなたのデッキの上からカードを２枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番下に置く。,-
-  - [0].action.steps[0].source.location = "deck"
-  - [0].action.steps[0].source.owner = "self"
-  - [0].action.steps[0].count = 2
-  - [0].action.steps[0].private = true
-  - [0].action.steps[0].reorder = false
-  - [0].action.steps[0].canTrash = false
-  - [0].action.steps[0].destination.location = "deck"
-  - [0].action.steps[0].destination.owner = "self"
-  - [0].action.steps[0].destination.position = "top"
-  - [0].action.steps[1].id = "PLACE_TRAP_FROM_REVEALED"
-  - [0].action.steps[2].type = "LOOK_AND_REORDER"
-  - [0].action.steps[2].source.location = "deck"
-  …（他 29 行）
-
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
 --- WX16-005
@@ -1351,24 +1333,6 @@ WXDi-P11-003
   ~ [0].action.steps[1].choices[2].action.source.type : "SIGNI" → "TRASH_CARD"
   + [0].action.steps[1].choices[2].action.position = "top"
 
-## +GRANT_KEYWORD +SIGNI ［1枚］
-WXDi-P11-038
---- WXDi-P11-038
-  原文: 【出】：あなたのターンの場合、次の対戦相手のターン終了時まで、このルリグは「【常】：あなたのシグニのパワーを＋10000する。」を得る。【出】：対戦相手のターンの場合、ターン終了時まで、このルリグは「【常】：あなたのシグニは【シャドウ】を得る。」を得る。,-
-  + [1].action.then.abilities[0].effectId = "WXDi-P11-038-E2-GRANT"
-  + [1].action.then.abilities[0].effectType = "CONTINUOUS"
-  + [1].action.then.abilities[0].action.type = "GRANT_KEYWORD"
-  + [1].action.then.abilities[0].action.target.type = "SIGNI"
-  + [1].action.then.abilities[0].action.target.owner = "self"
-  + [1].action.then.abilities[0].action.target.count = "ALL"
-  + [1].action.then.abilities[0].action.target.filter.cardType = "シグニ"
-  + [1].action.then.abilities[0].action.keyword = "シャドウ"
-  + [1].action.then.abilities[0].action.duration = "PERMANENT"
-  + [1].action.then.abilities[0].duration = "PERMANENT"
-  + [1].action.then.abilities[0].mandatory = true
-  + [1].action.then.abilities[0].parseStatus = "MANUAL"
-  …（他 1 行）
-
 ## -ALL_FIELD_SIGNI_MATCH -CONDITIONAL ［1枚］
 WXDi-P12-007
 --- WXDi-P12-007
@@ -1596,24 +1560,6 @@ WX25-CP1-074
   + [0].action.steps[0].target.filter.excludeSelf = true
   + [0].action.steps[0].delta = 3000
   …（他 31 行）
-
-## +SIGNI +TRANSFER_TO_DECK ［1枚］
-WX26-CP1-005
---- WX26-CP1-005
-  原文: 以下の３つから１つを選ぶ。《リコレクトアイコン》［４枚以上］代わりに２つまで選ぶ。①カードを５枚引き、手札を２枚捨てる。②次のあなたのアタックフェイズ開始時、あなたの＜プリオケ＞のシグニ１体を対象とし、それのレベル１につき対戦相手は手札を１枚捨てる。③次のあなたのアタックフェイズ開始時、あなたの＜プリオケ＞のシグニ１体を対象とし、ターン終了時まで、それは「【
-  - [0].action.choices[2].action.effect.rawText = "【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。"
-  + [0].action.choices[2].action.effect.effect.effectId = "WX26-CP1-005-E1-GRANT"
-  + [0].action.choices[2].action.effect.effect.effectType = "AUTO"
-  + [0].action.choices[2].action.effect.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.choices[2].action.effect.effect.triggerScope = "self"
-  + [0].action.choices[2].action.effect.effect.action.type = "TRANSFER_TO_DECK"
-  + [0].action.choices[2].action.effect.effect.action.source.type = "SIGNI"
-  + [0].action.choices[2].action.effect.effect.action.source.owner = "opponent"
-  + [0].action.choices[2].action.effect.effect.action.source.count = 1
-  + [0].action.choices[2].action.effect.effect.action.source.filter.cardType = "シグニ"
-  + [0].action.choices[2].action.effect.effect.action.source.upToCount = false
-  + [0].action.choices[2].action.effect.effect.action.shuffle = false
-  …（他 5 行）
 
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022

@@ -3774,6 +3774,65 @@ test('(xlvi)(g) then:trap は既存の【トラップ】を上書きしトラッ
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(lviii) PLACE_TRAP_FROM_REVEALED → LOOK_PICK_CHAIN（別文 remainder）────────────
+const lviiiTrapCases = [
+  ['WD23-032-A-E2', 2, 'top', 'シグニ'],
+  ['WD23-040-A-E1', 3, 'bottom', 'スペル'],
+  ['SP26-001-E1', 5, 'top', 'アーツ'],
+  ['WX15-002-E1', 2, 'bottom', 'ルリグ'],
+  ['WX15-035-E2', 2, 'bottom', 'シグニ'],
+  ['WX15-049-E1', 2, 'bottom', 'シグニ'],
+  ['WX15-082-E1', 2, 'bottom', 'シグニ'],
+  ['WX15-092-E1', 4, 'bottom', 'スペル'],
+  ['WX20-012-E1', 4, 'top', 'ルリグ'],
+] as const;
+for (const [effectId, revealCount, position, cardType] of lviiiTrapCases) {
+  test(`(lviii) ${effectId}: trap設置・remainder ${position}・総数保存/複製0`, () => {
+    const savedCursor = cursor;
+    try {
+      const cardNum = effectId.replace(/-(E\d+[a-z]?|BURST|TRAP|SONG)$/, '');
+      const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+      const lpc = findLookPickChain(effect!.action);
+      ok(!!lpc, `${effectId}: LOOK_PICK_CHAIN（実行時原文regex STUBを経由しない）`);
+      eq(lpc!.revealCount, revealCount, `${effectId}: 公開枚数`);
+      eq(`${lpc!.remainder.location}/${lpc!.remainder.position}`, `deck/${position}`, `${effectId}: remainder`);
+      ok(!JSON.stringify(effect!.action).includes('PLACE_TRAP_FROM_REVEALED'), `${effectId}: 旧STUB残存なし`);
+
+      const revealed = Array.from({ length: revealCount }, (_, i) => `${SIGNI}#${effectId}-r${i}`);
+      const source = `${cardNum}#source`;
+      const ctx = mkCtx({ deckTop: revealed }, {}, source);
+      ctx.cardMap = new InstanceMap(cardMap);
+      // 発生源をCSVのTypeどおりに置く（シグニ4・スペル2・アーツ1・ルリグ2）。
+      if (cardType === 'シグニ') ctx.ownerState.field.signi[0] = [source];
+      else if (cardType === 'スペル') ctx.ownerState.hand.push(source);
+      else if (cardType === 'アーツ') ctx.ownerState.field.check = source;
+      else ctx.ownerState.field.lrig = [source];
+      const zoneCards = (st: PlayerState): string[] => [
+        ...st.deck, ...st.hand, ...st.trash, ...st.energy, ...st.life_cloth, ...st.lrig_deck, ...st.lrig_trash,
+        ...st.field.signi.flatMap(s => s ?? []), ...st.field.lrig,
+        ...(st.field.assist_lrig_l ?? []), ...(st.field.assist_lrig_r ?? []),
+        ...st.field.signi_traps.filter((x): x is string => !!x),
+        ...(st.field.check ? [st.field.check] : []),
+      ];
+      const before = zoneCards(ctx.ownerState);
+      const r = run(lpc as EffectAction, ctx);
+      ok(r.done, `${effectId}: 完走`);
+      const traps = r.ownerState.field.signi_traps.filter((x): x is string => !!x);
+      eq(traps.length, 1, `${effectId}: トラップ1枚`);
+      eq(traps[0], revealed[0], `${effectId}: 選択札を設置`);
+      ok(!r.ownerState.deck.includes(revealed[0]), `${effectId}: 🔴設置札がデッキにも残る複製なし`);
+      const remainder = revealed.slice(1);
+      eq(position === 'top'
+        ? JSON.stringify(r.ownerState.deck.slice(0, remainder.length))
+        : JSON.stringify(r.ownerState.deck.slice(-remainder.length)),
+      JSON.stringify(remainder), `${effectId}: 🔴remainderを原文と逆端へ送らない`);
+      const after = zoneCards(r.ownerState);
+      eq(after.length, before.length, `${effectId}: カード総数保存`);
+      eq(new Set(after).size, after.length, `${effectId}: instanceId複製0`);
+    } finally { cursor = savedCursor; }
+  });
+}
+
 // ── task12(xlvi)(d) wave9 「好きな枚数を一番下、残りを一番上」＝振り分けを選ぶ形（split_top_bottom）─────
 // 機構（`destination.position:'split_top_bottom'`＋分割UI）は G168 で入っていたが **parser 側の規則が無く**、
 // 手書き MANUAL の WX13-081/082 だけが使っていた。同じ文型の他6効果は「一番下」を含むという理由だけで
