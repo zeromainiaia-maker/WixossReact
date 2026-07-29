@@ -3698,6 +3698,37 @@ function applyPickedLevelSumLookPickWave15(cardNum: string, effects: CardEffect[
   };
 }
 
+// タスク12(xlvi) 第16波：固定3回は新しい REPEAT 型を作らず SEQUENCE に展開する。
+// 各回の OPPONENT_PAY_OPTIONAL は独立した対話で、相手がエナを支払うか手札を捨てた場合は
+// pick を行わず、どちらもしなかった場合だけ REVEAL_AND_PICK を実行する。
+function applyOpponentChoiceRepeatLookPickWave16(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum !== 'WXDi-P08-007') return;
+  const effect = effects.find(e => e.effectId === 'WXDi-P08-007-E3');
+  if (!effect) return;
+  const round = (): EffectAction[] => [
+    {
+      type: 'STUB',
+      id: 'OPPONENT_PAY_OPTIONAL',
+      costColors: ['無'],
+      opponentHandDiscard: 1,
+    } as StubAction,
+    {
+      type: 'CONDITIONAL',
+      condition: { type: 'IS_MY_TURN' },
+      then: {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 3,
+        pickCount: 1,
+        pickUpTo: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: { location: 'deck', position: 'bottom' },
+      } as RevealAndPickAction,
+    },
+  ];
+  effect.action = { type: 'SEQUENCE', steps: [...round(), ...round(), ...round()] };
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7839,6 +7870,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyDeclaredColorLookPickWave13(card.CardNum, effects);
   applyFieldSigniNameLookPickWave14(card.CardNum, effects);
   applyPickedLevelSumLookPickWave15(card.CardNum, effects);
+  applyOpponentChoiceRepeatLookPickWave16(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

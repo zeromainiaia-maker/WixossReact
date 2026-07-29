@@ -13957,6 +13957,93 @@ test('task12(xxxix) WX24-P3-050-E1: refusing five colorless takes LIFE_CRASH bra
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi) wave16: WXDi-P08-007-E3 対話3回 ─────────────────────────────
+test('(xlvi) wave16 WXDi-P08-007-E3: 相手が3回とも支払うとpickは一度も走らず、各回を独立に問う', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P08-007#1';
+    eq(cardMap.get('WXDi-P08-007')?.Type, 'ルリグ', '発生源はルリグ');
+    const ctx = mkCtx({ lrig: [source] }, { energy: 3, hand: 3 }, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    const deck0 = [...ctx.ownerState.deck];
+    const hand0 = [...ctx.ownerState.hand];
+    let result = executeEffect(manualEffect('WXDi-P08-007', 'WXDi-P08-007-E3'), ctx);
+    let prompts = 0;
+    while (!result.done) {
+      ok(result.pending.type === 'CHOOSE' && result.pending.opponentResponds, `支払い確認${prompts + 1}回目`);
+      eq(result.pending.options.filter(o => ['pay', 'discard', 'skip'].includes(o.id)).length, 3, '3択');
+      prompts++;
+      const c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+      result = resumeOpponentPayOptional('pay', c.otherState.energy.slice(0, 1), result.pending, c);
+    }
+    eq(prompts, 3, '支払っても次の回を独立に問う');
+    eq(result.ownerState.hand.join('|'), hand0.join('|'), '支払ったのにpickが走らない');
+    eq(result.ownerState.deck.join('|'), deck0.join('|'), 'デッキも不変');
+    eq(result.otherState.energy.length, ctx.otherState.energy.length - 3, '相手エナ-3');
+    eq(result.otherState.trash.length, ctx.otherState.trash.length + 3, '支払いカードは相手トラッシュ+3');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) wave16 WXDi-P08-007-E3: 相手が3回とも支払わないと各回pickが走り、残りはデッキ下', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P08-007#1';
+    const ctx = mkCtx({ lrig: [source] }, { energy: 3, hand: 3 }, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    ctx.ownerState.deck = [
+      `${SIGNI_L1}#101`, `${SIGNI_L2}#102`, `${SIGNI_L3}#103`,
+      `${SIGNI_L4}#104`, `${SIGNI}#105`, `${SIGNI_P3000}#106`,
+      ...ctx.ownerState.deck.map((n, i) => `${n}#${200 + i}`),
+    ];
+    const total0 = ctx.ownerState.deck.length + ctx.ownerState.hand.length
+      + ctx.ownerState.energy.length + ctx.ownerState.trash.length;
+    const bottomExpected: string[] = [];
+    let result = executeEffect(manualEffect('WXDi-P08-007', 'WXDi-P08-007-E3'), ctx);
+    let prompts = 0;
+    while (!result.done) {
+      ok(result.pending.type === 'CHOOSE' && result.pending.opponentResponds, `不払い確認${prompts + 1}回目`);
+      prompts++;
+      let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+      result = resumeOpponentPayOptional('skip', [], result.pending, c);
+      ok(!result.done && result.pending.type === 'SEARCH', `不払い${prompts}回目だけpickが開く`);
+      const visible = result.pending.visibleCards;
+      bottomExpected.push(...visible.slice(1));
+      c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+      result = resumeSearch(visible.slice(0, 1), result.pending, c);
+    }
+    eq(prompts, 3, '不払いでも3回を独立に問う');
+    eq(result.ownerState.hand.length, ctx.ownerState.hand.length + 3, 'pickで手札+3');
+    eq(result.ownerState.deck.length, ctx.ownerState.deck.length - 3, '各3枚中1枚だけデッキから抜ける');
+    eq(result.ownerState.deck.slice(-bottomExpected.length).join('|'), bottomExpected.join('|'), '各回の残り6枚はデッキ下');
+    const total1 = result.ownerState.deck.length + result.ownerState.hand.length
+      + result.ownerState.energy.length + result.ownerState.trash.length;
+    eq(total1, total0, '自分の4領域でカード総数保存');
+    eq(new Set([...result.ownerState.deck, ...result.ownerState.hand, ...result.ownerState.energy, ...result.ownerState.trash]).size,
+      total1, '複製0');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) wave16 WXDi-P08-007-E3: 相手の手札捨て選択もpickを止めて次の独立確認へ進む', () => {
+  const savedCursor = cursor;
+  try {
+    const source = 'WXDi-P08-007#1';
+    const ctx = mkCtx({ lrig: [source] }, { energy: 3, hand: 3 }, source);
+    ctx.cardMap = new InstanceMap(cardMap);
+    const deck0 = [...ctx.ownerState.deck];
+    let result = executeEffect(manualEffect('WXDi-P08-007', 'WXDi-P08-007-E3'), ctx);
+    ok(!result.done && result.pending.type === 'CHOOSE' && result.pending.opponentResponds, '1回目の3択');
+    let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeOpponentPayOptional('discard', [], result.pending, c);
+    ok(!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.opponentResponds, '相手が捨てる手札を選ぶ');
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeSelectTarget(result.pending.candidates.slice(0, 1), result.pending, c);
+    ok(!result.done && result.pending.type === 'CHOOSE' && result.pending.opponentResponds, 'pickを開かず2回目の確認へ');
+    eq(result.ownerState.deck.join('|'), deck0.join('|'), '手札捨て時は自分のデッキ不変');
+    eq(result.otherState.hand.length, ctx.otherState.hand.length - 1, '相手手札-1');
+    eq(result.otherState.trash.length, ctx.otherState.trash.length + 1, '相手トラッシュ+1');
+  } finally { cursor = savedCursor; }
+});
+
 test('task12(xxxix) batch3 WD07-007-E1: both color gates use the same milled-four snapshot', () => {
   const savedCursor = cursor;
   try {

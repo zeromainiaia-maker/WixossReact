@@ -2909,11 +2909,21 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // pay → 何も起きない（対戦相手のエナ消費）、skip → 効果発動（conditional.then）
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
           const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
+          const opponentHandDiscard = stub.opponentHandDiscard ?? 0;
           const payLabel = costColors.length > 0
             ? `支払う（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
             : '支払う';
           const options = [
             { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColors.length ? { costColors } : {}) },
+            ...(opponentHandDiscard > 0 ? [{
+              id: 'discard',
+              label: `手札を${opponentHandDiscard}枚捨てる`,
+              action: {
+                type: 'TRASH',
+                target: { type: 'HAND_CARD', owner: 'opponent', count: opponentHandDiscard },
+              } as EffectAction,
+              available: cur.otherState.hand.length >= opponentHandDiscard,
+            }] : []),
             { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];
           const pending: PendingInteractionDef = {
@@ -5682,7 +5692,8 @@ export function resumeOptionalCost(
 
   if (choiceId !== 'pay') {
     // 対戦相手が支払わない → 効果発動
-    const result = executeAction(skipOpt?.action ?? noopAction, ctx);
+    const selectedOpt = pending.options.find(o => o.id === choiceId);
+    const result = executeAction(selectedOpt?.action ?? skipOpt?.action ?? noopAction, ctx);
     if (!result.done) {
       if (pending.continuation) {
         const merged: EffectAction = result.pending.continuation

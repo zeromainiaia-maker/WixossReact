@@ -1824,6 +1824,8 @@ export interface StubAction {
   /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */
   selectTarget?: EffectTarget;
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
+  /** OPPONENT_PAY_OPTIONAL: energy payment alternative may instead be paid by discarding this many hand cards. */
+  opponentHandDiscard?: number;
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 対話3択を独立に3回行う look-pick 第16波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **着地1効果・壊れ方＝no-op**：`WXDi-P08-007-E3`。live は `STUB{REPEAT_N_TIMES}`＋`LOOK_AND_REORDER` で、相手への3択も3回反復も、相手が何もしなかった場合の手札pickも実行されなかった。
+- **PLAN の見立て訂正**：固定3回は既存 `SEQUENCE` に展開でき、新しい `REPEAT` アクション型／engine機構は不要だった。既存 `OPPONENT_PAY_OPTIONAL`・`pending.opponentResponds`・continuation をそのまま使い、不足していた「相手が手札1枚を捨てる」支払手段だけ `opponentHandDiscard` として最小拡張。したがって **新アクション型ゼロ・REPEAT新機構ゼロ、既存対話機構の選択肢拡張1点**。PLAN の「対話REPEAT新機構が要る」は過大だった。
+- **向きと独立性**：各回を `OPPONENT_PAY_OPTIONAL → CONDITIONAL → REVEAL_AND_PICK` とし、相手が《無》を支払う／手札を捨てる場合は pick なし、どちらもしない場合だけデッキ上3枚から1枚までを手札、残りをデッキ下へ置く。支払っても次の回の確認へ進み、3回を独立に問う。
+- **実測・発生源**：CSVどおりルリグゾーンを発生源にし、`InstanceMap`＋`CardNum#N` を使用。全支払いは自分の deck/hand 不変・相手 energy−3/trash＋3。全不払いは hand＋3/deck−3、残り6枚bottom、自分の deck/hand/energy/trash 総数保存・複製0。手札捨ては相手自身が対象を選び hand−1/trash＋1、pickを開かず次の確認へ進む。
+- **golden・変異**：golden **1004→1007**。全支払い／全不払い／手札捨ての3本を追加し、全テストでグローバル `cursor` を save/restore。危険側「相手が支払ったのに pick が走る」へ一時反転すると **1006本中狙った1本だけFAIL**（1005 PASS / 1 FAIL）し、復元後 **1007/1007**。
+- **外科性・二層**：`manualEffects.ts` 定義なし。HEAD→live の effectId 機械差分は **changed 1 (`WXDi-P08-007-E3`) / added 0 / removed 0**。生 parser fresh と採用後liveの当該カードは一致し、意図外effect差分なし。
+- **計器・held・ゲート**：census **1410据置**（`BASELINE_HIGH=1410` 据置）、held は raw 253枚のうち curated一致の採用済み1枚を除外して **252枚/108署名据置**。`npm run gates` 全緑（golden 1007/1007、smoke 10726/10726・全0、fuzz全0、census 1410/1410、manual field loss 0、lint 0 errors/226 warnings）。`build:effects` 2回で全 `effects_*.json` hash差分0（時刻を含む `_partial_report.txt` だけ生成時刻が変わる）。
+- **honest defer・残2**：`WXDi-P15-005-E1` は場のルリグ個体ごとの共通色を参照する動的stage＋公開集合を好きな枚数手札／残りエナへ二分配する後段が不足。`WXDi-P05-015-E2` は自分が3枚を表向き束に分けた後、相手が捨てる束を選ぶ所有者分離2段階選択が不足。部分近似は選択権を踏み倒すため据置。よって **(xlvi) は残2で未クローズ**。
+
 ## 歌本文重複6枚の採用＋pickレベル合計分岐 第15波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **採用6枚・壊れ方＝過剰実行**：`WX26-CP1-068/069/076/084/092/093` を1枚ずつ原文照合し、全件 fresh を採用。据え置き0枚。通常 `E1` に重複混入していた歌本文（ガード禁止／追加バニッシュ／引用能力付与／ランサー付与／トラッシュ回収／追加パワー修正）だけを除去し、本来の【自】【出】と別 `-SONG` を保持した。`-076` は混線で `ON_ATTACK_SIGNI` になっていた通常【自】も原文どおり `ON_TURN_END` へ復帰。分類は原文にない処理が走る **過剰実行**（一部 STUB を含む構造混入）で、能力消失の過小実行はない。
