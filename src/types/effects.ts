@@ -1813,6 +1813,10 @@ export interface StubAction {
   /** Filter for a target-level-derived hand discard cost. */
   handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: 手札からエナゾーンへ置く任意コスト。 */
+  handToEnergy?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
+  handToUnderSelf?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----

@@ -48,13 +48,31 @@ export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
  * action に埋め込む**＝`SEQUENCE[OPTIONAL_COST, 元のaction]` にして、解決時に engine の Pattern ⑤
  * （「任意コスト：支払いますか？」CHOOSE）へ載せる。engine 内で完結するので golden で検証できる。
  *
- * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／エナゾーン捨て／エクシード／場シグニトラッシュ**。
+ * ⚠ `OptionalCostSpec` が表現できるのは **エナ色／《コイン》／手札捨て／手札からエナ／手札から自身の下／
+ *   エナゾーン捨て／エクシード／場シグニトラッシュ**。
  *   それ以外のコスト（lrigDown・beat_signi・life_crash…）が1つでも混ざる効果は
  *   **null を返して収集しない**＝従来どおり不発のまま据え置く。**払っていないコストを踏み倒して
  *   効果だけ通す方が、発火しないことより有害**なので取りこぼす側に倒す。
  */
-export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCost): StubAction | null {
-  const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed', 'fieldTrash']);
+/**
+ * コスト自体は `SUPPORTED` で表現できるが、**効果本体がそのコストで動かしたカードを参照している**ため、
+ * 参照が解決できないまま包むと過剰実行になる効果の明示ゲート（カードゲート）。
+ * ここに載せる条件＝「包める」かつ「包むと原文より強くなる」。参照側を直した波でこのリストから外す。
+ * - `WXDi-P16-080-E1`：本体が「この方法でエナゾーンに置いたシグニと**同じレベル**のシグニ1枚を回収」。
+ *   live action に該当の動的 filter が無く、エナ置きコストの記録契約も未整備なので、
+ *   包むと**エナから無制限に回収できる**（タスク12(xxix)(1) 第3波で明示保留）。
+ */
+export const OPTIONAL_ON_PLAY_COST_REF_DEFERRED = new Set(['WXDi-P16-080-E1']);
+
+export function optionalOnPlayCostStub(
+  cost: import('../types/effects').EffectCost,
+  effectId?: string,
+): StubAction | null {
+  if (effectId && OPTIONAL_ON_PLAY_COST_REF_DEFERRED.has(effectId)) return null;
+  const SUPPORTED = new Set([
+    'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
+    'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
+  ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
   if (keys.some(k => !SUPPORTED.has(k))) return null;
@@ -85,6 +103,8 @@ export function optionalOnPlayCostStub(cost: import('../types/effects').EffectCo
     ...(costColors.length > 0 ? { costColors } : {}),
     ...(cost.coin ? { coinCost: cost.coin } : {}),
     ...(handDiscard ? { handDiscard } : {}),
+    ...(cost.handToEnergy ? { handToEnergy: cost.handToEnergy } : {}),
+    ...(cost.handToUnderSelf ? { handToUnderSelf: cost.handToUnderSelf } : {}),
     ...(cost.discardGroups ? { handDiscardGroups: cost.discardGroups } : {}),
     ...(cost.energyTrash ? { energyTrash: cost.energyTrash } : {}),
     ...(cost.exceed ? { exceed: cost.exceed } : {}),
@@ -103,6 +123,9 @@ export function wrapOptionalOnPlay(eff: CardEffect): CardEffect | null {
   // 原文にコスト句があるのに parser が解釈できなかった効果は**絶対に包まない**。
   // 包むと「発動しますか？」だけ出てコストを払わずに撃ててしまう（＝踏み倒し）。
   if (eff.costUnparsed) return null;
+  // 本体がコストで動かしたカードを参照していて、参照が未実装のまま包むと過剰実行になる効果は収集しない
+  // （理由と対象は `OPTIONAL_ON_PLAY_COST_REF_DEFERRED` の定義コメント参照）。
+  if (OPTIONAL_ON_PLAY_COST_REF_DEFERRED.has(eff.effectId)) return null;
   // 可変枚数捨ては COUNT_BASED_DRAW_OR_POWER 自身が任意 SELECT_TARGET を提示し、
   // continuation で実際に手札→トラッシュへ移す。外側の OPTIONAL_ACTIVATE / OPTIONAL_COST は
   // 二重プロンプトまたは偽の支払いUIになるため、action をそのまま積む。
@@ -116,7 +139,7 @@ export function wrapOptionalOnPlay(eff: CardEffect): CardEffect | null {
   }
   let stub: StubAction | null;
   if (eff.cost) {
-    stub = optionalOnPlayCostStub(eff.cost);
+    stub = optionalOnPlayCostStub(eff.cost, eff.effectId);
     if (!stub) return null;
   } else {
     stub = { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction;

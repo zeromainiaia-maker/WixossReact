@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 手札→別ゾーン任意【出】11効果を既存 action 支払い経路へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第3波・Codex）
+- **機構**＝`OptionalCostSpec`／`OPTIONAL_COST` に `handToEnergy` と `handToUnderSelf` を追加。可否判定は手札の `matchesFilter` 一致数、支払いは前者が `ENERGY_CHARGE{HAND_CARD}`、後者が `PLACE_UNDER_SIGNI{source:'hand'}` → 選択後 `PLACE_UNDER_SOURCE_SIGNI`。Pattern③④⑤は既存 `optionalCostPaySteps` の1本だけを通し、新STUB・並行実装なし。`story`／`cardClass` はどちらも `CardClass.includes` で解決されるためJSON統一なし。
+- **群A採用7件（原文コスト／step／経路）**＝`WXK04-089-E1`〈手札から＜水獣＞のシグニ1枚をエナへ〉、`WXK09-079-E1`〈＜電機＞1枚〉、`WXK09-039-E2`〈＜天使＞1枚〉、`WXK09-043-E1`〈＜天使＞3枚〉、`WXDi-CP02-057-E1`／`083-E1`／`091-E1`〈＜ブルアカ＞のカード1枚〉。全件 `collectPlacedSelfOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → `ENERGY_CHARGE{HAND_CARD,count,filter}` → `resumeSelectTarget`／`applyDirectAction`。コストの枚数・「シグニ」対「カード」・filter は全件原文一致。
+- **群B採用4件（原文コスト／step／経路）**＝`WXDi-P15-050-E2`／`051-E2`／`066-E2`／`WXDi-P16-073-E1`〈手札から＜解放派＞のシグニ1枚をこのシグニの下へ〉。全件 collector～`optionalCostPaySteps` は上記共通、step は `PLACE_UNDER_SIGNI{source:'hand',count:1,filter:{cardType:'シグニ',story:'解放派'}}` → `execPlaceUnderSigni` → `resumeSelectTarget` → `PLACE_UNDER_SOURCE_SIGNI`／`applyDirectAction`。`ctx.sourceCardNum` の存在ゾーンへ `[選択札, 効果元]` と積まれ、その後DRAWが走ることをE2E goldenで確認。
+- **見送り1件**＝`WXDi-P16-080-E1`。原文本体は「この方法でエナに置いたシグニと同じレベル」だが、live action は裸の `cardType:'シグニ'` で、エナ置きコストのレベル記録契約も未整備（既知5bテール）。収集するとエナの任意シグニを回収できる過剰実行になるため `optionalOnPlayCostStub(..., effectId)`／`wrapOptionalOnPlay` がこの1件だけ null。コスト参照と本体filterを一体で直す波まで不発を維持。
+- **UIとの一致**＝通常召喚の `SigniOnPlayCostModal` → `executeSigniOnPlayCost` は、選択手札を hand から除去し、`handToEnergy` は energy へ、`handToUnderSelf` は `placedZone`／効果元ゾーン下へ置く。engine E2Eで同じゾーン差分、filter不一致・3枚不足時 `pay.available:false`／skipのみ、支払い成功後の本体実行を固定。なお既知の本体データ不一致 `WXDi-CP02-083-E1`（「他の＜ブルアカ＞」filter脱落）は今回のコスト配線とは独立のため未修正。
+- **データ差分**＝parser／live JSON変更0、12効果の生パースdiff変化0、outlier 0。build は新規0／純改善5／温存(手修正)590／温存(要レビュー)293／fresh空2／parseStatusのみ79、held 293枚・107署名（増減0）、manual field loss 0。
+- **検証**＝golden **1047→1050**（収集全11＋見送り1、hand→energyの成立/3枚不足/filter不一致/実移動/後続、hand→underの成立/filter不一致/効果元下配置/後続）、census **1400維持**、smoke **10726/10726** 全0、fuzz全0、同型★0、lint 0 errors / **228 warnings**（増減0）。報告直前の build→held は別途再実測。
+- **やっていないこと**＝JSON/parser/PRESERVE補正、`WXDi-P16-080-E1` の参照機構、本体不一致の修正、他コスト、新STUB、force-adopt、PLAN/PLAN_PROGRESS、ブラウザ実機、commit/push。
+
 ## 場シグニトラッシュ任意【出】17効果を既存 `TRASH{asCost}` 経路へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第2波・Codex）
 
 - **群A（先行是正）**：`WDK17-011-E2` に `isPuppet:true`、`WX16-055-E1` に `hasIcon:'ライズ'`、`WXDi-P02-057-E1` に `color:'赤'+excludeSelf` を具体的な【出】コスト句だけから生成。`WX14-045-E1` は誤った `fieldTrash{1}` を `fieldTrashGroups[{level:1,count:1},{level:2,count:1}]` へ直し、`SigniOnPlayCostModal` の候補表示・確定判定を純関数 `fieldTrashSelectionSatisfied` へ接続した。live JSON の per-effect 差分はこの4件＋後述参照1件だけ（added 0 / removed 0 / changed 5）、outlier 0。

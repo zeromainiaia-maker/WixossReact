@@ -14764,29 +14764,33 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     }
   });
 
-  // ── (xxix)(1) 任意+cost 933効果を OPTIONAL_COST 包みで積む ───────────────────────────────
+  // ── (xxix)(1) 任意+cost 効果を OPTIONAL_COST 包みで積む ─────────────────────────────────
   // 通常召喚は BattleScreen の支払いモーダルを通るが、効果配置はスタック解決の途中で
   // そのフローに入れない。支払い選択そのものを action に埋めて engine の Pattern ⑤ に載せる。
-  test('(xxix)(1) 任意cost【出】の内訳＝OPTIONAL_COST で表現できる887件／表現できない73件', () => {
-    const SUPPORTED = new Set(['energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni', 'energyTrash', 'exceed', 'fieldTrash']);
+  test('(xxix)(1) 任意cost【出】の内訳＝handToEnergy/handToUnderSelf追加後も安全側へ分類', () => {
+    const SUPPORTED = new Set([
+      'energy', 'coin', 'discard', 'discardFilter', 'discardGroups', 'handDiscardSigni',
+      'handToEnergy', 'handToUnderSelf', 'energyTrash', 'exceed', 'fieldTrash',
+    ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
       && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
       && e.mandatory === false && !!e.cost);
-    const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!));
+    const mapped = optionalCost.filter(e => !!optionalOnPlayCostStub(e.cost!, e.effectId));
     eq(optionalCost.length, 958, '母集団');
-    eq(mapped.length, 904, 'OPTIONAL_COST へ写せる＝fieldTrash 17効果を追加');
-    eq(optionalCost.length - mapped.length, 54, '表現できないコストを含むため据え置き');
+    eq(mapped.length, 915, 'OPTIONAL_COST へ写せる＝handToEnergy 7＋handToUnderSelf 4を追加');
+    eq(optionalCost.length - mapped.length, 43, '表現できないコストを含むため据え置き（参照欠落1件を含む）');
     // ⚠ `limitOk` は**収集時**に usageLimit を消費するため、スキップしても《ターン1回》を焼いてしまう。
     //   現データでは 884件のうち usageLimit 持ちが0件なので実害はない。**ここが0でなくなったら
     //   「スキップ時に消費を戻す」処理が要る**＝データ側の変化を検知するための不変条件として固定する。
     eq(mapped.filter(e => !!e.usageLimit).length, 0,
-      '写せる887件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
+      '写せる915件に usageLimit 持ちは無い（あるならスキップ時の消費戻しが必要）');
     // 据え置き側は**必ず**未対応キーを含む（＝「表現できるのに落としている」取りこぼしが無い）
     for (const e of optionalCost) {
       const keys = Object.keys(e.cost!).filter(k => (e.cost as Record<string, unknown>)[k] !== undefined);
       const allSupported = keys.every(k => SUPPORTED.has(k));
-      eq(!!optionalOnPlayCostStub(e.cost!), allSupported && keys.length > 0,
+      const semanticallySafe = e.effectId !== 'WXDi-P16-080-E1';
+      eq(!!optionalOnPlayCostStub(e.cost!, e.effectId), allSupported && keys.length > 0 && semanticallySafe,
         `${e.effectId}: 写せるかどうかが対応キー集合と一致`);
     }
   });
@@ -14966,6 +14970,98 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     const spellFilter = effectsMap.get('WXDi-P08-056')!.find(e => e.effectId === 'WXDi-P08-056-E2')!.cost!.discardFilter!;
     ok(matchesFilter(cardMap.get(spell), spellFilter), 'スペルがあれば discard:1 は成立');
     ok(!matchesFilter(cardMap.get(signi), spellFilter), 'シグニだけならスペル捨ては不成立');
+  });
+
+  test('(xxix)(1) 第3波: handToEnergy 7件／handToUnderSelf 4件を収集し、参照欠落1件は見送る', () => {
+    const adopted = [
+      'WXK04-089-E1', 'WXK09-079-E1', 'WXK09-039-E2', 'WXK09-043-E1',
+      'WXDi-CP02-057-E1', 'WXDi-CP02-083-E1', 'WXDi-CP02-091-E1',
+      'WXDi-P15-050-E2', 'WXDi-P15-051-E2', 'WXDi-P15-066-E2', 'WXDi-P16-073-E1',
+    ];
+    for (const effectId of adopted) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const state = mkState({ signi: [cardNum, null, null] });
+      const r = collectPlacedSelfOnPlayTriggers(trigCtx(), cardNum, state, mkState(), 'host', {
+        placedByEffect: true, sourceIsSigni: false,
+      });
+      const entry = r.entries.find(e => e.effectId === effectId);
+      ok(!!entry, `${effectId}: 効果配置経路で収集`);
+      const seq = entry!.effect.action as import('../src/types/effects').SequenceAction;
+      eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'OPTIONAL_COST',
+        `${effectId}: OPTIONAL_COST を前置`);
+    }
+    const deferredNum = 'WXDi-P16-080';
+    const deferred = collectPlacedSelfOnPlayTriggers(
+      trigCtx(), deferredNum, mkState({ signi: [deferredNum, null, null] }), mkState(), 'host',
+      { placedByEffect: true, sourceIsSigni: false },
+    );
+    eq(deferred.entries.filter(e => e.effectId === 'WXDi-P16-080-E1').length, 0,
+      'WXDi-P16-080-E1: コスト札レベル参照が live action に無いため収集しない');
+  });
+
+  test('(xxix)(1) 第3波: handToEnergy はfilter一致札だけを必要枚数エナへ置き、本体を実行する', () => {
+    const savedCursor = cursor;
+    try {
+      const base = effectsMap.get('WXK09-043')!.find(e => e.effectId === 'WXK09-043-E1')!;
+      const wrapped = wrapOptionalOnPlay({ ...base, action: { type: 'DRAW', owner: 'self', count: 1 } })!;
+      const angels = [...cardMap.values()]
+        .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('天使'))
+        .slice(0, 3).map(c => c.CardNum!);
+      eq(angels.length, 3, '天使シグニを3枚用意');
+      const nonAngel = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('天使'));
+      const draw = findCard(c => !angels.includes(c.CardNum!) && c.CardNum !== nonAngel);
+
+      const ctx = mkCtx({ signi: ['WXK09-043', null, null] }, {}, 'WXK09-043');
+      ctx.ownerState = { ...ctx.ownerState, hand: [nonAngel, ...angels], deck: [draw] };
+      const paid = finishPayingCosts(executeEffect(wrapped, ctx), ctx);
+      ok(paid.done, '3枚支払いを完走');
+      eq(angels.filter(n => paid.ownerState.hand.includes(n)).length, 0, '天使3枚が手札から消える');
+      ok(paid.ownerState.hand.includes(nonAngel), '非天使は手札に残る');
+      eq(angels.filter(n => paid.ownerState.energy.includes(n)).length, 3, '天使3枚がエナへ移る');
+      ok(paid.ownerState.hand.includes(draw), '支払い後に本体DRAWが走る');
+
+      for (const hand of [[angels[0], angels[1]], [nonAngel, nonAngel]]) {
+        const blockedCtx = mkCtx({ signi: ['WXK09-043', null, null] }, {}, 'WXK09-043');
+        blockedCtx.ownerState = { ...blockedCtx.ownerState, hand, deck: [draw] };
+        const first = executeEffect(wrapped, blockedCtx);
+        ok(!first.done && first.pending.type === 'CHOOSE', '支払い選択を提示');
+        const pay = first.pending.type === 'CHOOSE' ? first.pending.options.find(o => o.id === 'pay') : undefined;
+        ok(pay?.available === false, '一致3枚未満／非一致だけなら pay unavailable');
+        const skipped = finishPayingCosts(first, blockedCtx);
+        eq(skipped.ownerState.hand.join(','), hand.join(','), '支払い不能時は手札を動かさない');
+        eq(skipped.ownerState.deck.join(','), draw, '支払い不能時は本体を実行しない');
+      }
+    } finally { cursor = savedCursor; }
+  });
+
+  test('(xxix)(1) 第3波: handToUnderSelf は解放派シグニを効果元の下へ置き、本体を実行する', () => {
+    const savedCursor = cursor;
+    try {
+      const base = effectsMap.get('WXDi-P15-050')!.find(e => e.effectId === 'WXDi-P15-050-E2')!;
+      const wrapped = wrapOptionalOnPlay({ ...base, action: { type: 'DRAW', owner: 'self', count: 1 } })!;
+      const liberation = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('解放派'));
+      const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('解放派'));
+      const draw = findCard(c => c.CardNum !== liberation && c.CardNum !== other);
+      const ctx = mkCtx({ signi: ['WXDi-P15-050', null, null] }, {}, 'WXDi-P15-050');
+      ctx.ownerState = { ...ctx.ownerState, hand: [other, liberation], deck: [draw] };
+      const paid = finishPayingCosts(executeEffect(wrapped, ctx), ctx);
+      ok(paid.done, 'シグニ下支払いを完走');
+      ok(!paid.ownerState.hand.includes(liberation) && paid.ownerState.hand.includes(other),
+        '解放派だけが手札から消える');
+      eq(paid.ownerState.field.signi[0]?.join(','), `${liberation},WXDi-P15-050`,
+        '選んだ解放派を効果元シグニの下へ置く');
+      ok(paid.ownerState.hand.includes(draw), '支払い後に本体DRAWが走る');
+
+      const blockedCtx = mkCtx({ signi: ['WXDi-P15-050', null, null] }, {}, 'WXDi-P15-050');
+      blockedCtx.ownerState = { ...blockedCtx.ownerState, hand: [other], deck: [draw] };
+      const first = executeEffect(wrapped, blockedCtx);
+      ok(!first.done && first.pending.type === 'CHOOSE', '非一致だけでもskip選択を提示');
+      const pay = first.pending.type === 'CHOOSE' ? first.pending.options.find(o => o.id === 'pay') : undefined;
+      ok(pay?.available === false, '解放派でなければ pay unavailable');
+      const skipped = finishPayingCosts(first, blockedCtx);
+      eq(skipped.ownerState.hand.join(','), other, '支払い不能時は手札を動かさない');
+      eq(skipped.ownerState.deck.join(','), draw, '支払い不能時は本体を実行しない');
+    } finally { cursor = savedCursor; }
   });
 
   test('(xxix)(2) 第2波7効果は可変捨てを既存 action 経路へ載せる', () => {
