@@ -19,7 +19,7 @@ export function payLifeOnPlayCost(
   const take = (count: number) => {
     const moved = life.slice(Math.max(0, life.length - count));
     life = life.slice(0, Math.max(0, life.length - moved.length));
-    return moved;
+    return moved.reverse();
   };
   const crashed = take(crashN);
   const trashed = take(trashN);

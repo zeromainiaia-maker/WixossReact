@@ -14752,8 +14752,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       const r = collectPlacedSelfOnPlayTriggers(trigCtx(), 'WD06-013', state, mkState(), 'host', {
         placedByEffect: true, sourceIsSigni: false,
       });
-      eq(r.entries.filter(e => e.effectId === 'WD06-013-E1').length, 0,
-        '残 costUnparsed（原文にライフコスト句あり）はcollectorへ巻き込まない＝踏み倒し防止');
+      eq(r.entries.filter(e => e.effectId === 'WD06-013-E1').length, 1,
+        'lifeTrash対応後はcollectorへ安全に収集');
     }
     {
       const state = mkState({ signi: ['WX04-041', null, null] });
@@ -15824,8 +15824,8 @@ test('task12(lv) 通常アシスト配置: 旧mandatory:false母集団160件の�
       if (result.entries.some(e => e.effectId === effect.effectId)) collectedCount++;
       else deferred.push(effect.effectId);
     }
-    eq(collectedCount, 153, 'fieldTrash対応を含む153件を通常アシスト経路で収集');
-    eq(deferred.length, 7, '表現不能コスト7件は不発のまま据え置く');
+    eq(collectedCount, 157, 'ライフコスト対応を含む157件を通常アシスト経路で収集');
+    eq(deferred.length, 3, '表現不能コスト3件は不発のまま据え置く');
   } finally {
     cursor = savedCursor;
   }
@@ -16416,6 +16416,85 @@ test('task12(xxix)(1) fieldTrash コスト参照: 傀儡フラグ・レベル・
   eq(result.ownerState.last_field_trash_level, 2, '同レベル参照用の支払いシグニレベル');
   ok(result.ownerState.last_cost_trashed_cards?.includes(puppet), 'コストで置いたカードを記録');
   eq(result.otherState.field.signi[0], null, 'lastProcessedのパワー未満だけを後続が処理');
+});
+
+test('task12(xxix)(1) wave4: eight life costs use distinct payment actions', () => {
+  const expected: Record<string, { key: 'life_crash' | 'lifeTrash' | 'lifeToHand'; count: number; type: string }> = {
+    'WX24-P3-052-E3': { key: 'life_crash', count: 1, type: 'LIFE_CRASH' },
+    'WXDi-P10-027-E2': { key: 'life_crash', count: 2, type: 'LIFE_CRASH' },
+    'WXDi-P12-035-E2': { key: 'life_crash', count: 1, type: 'LIFE_CRASH' },
+    'WXDi-P14-006-E1': { key: 'life_crash', count: 1, type: 'LIFE_CRASH' },
+    'WD06-013-E1': { key: 'lifeTrash', count: 1, type: 'TRASH' },
+    'WXDi-P16-041-E1': { key: 'lifeTrash', count: 1, type: 'TRASH' },
+    'WXK06-030-E2': { key: 'lifeTrash', count: 1, type: 'TRASH' },
+    'WX24-P3-044-E1': { key: 'lifeToHand', count: 1, type: 'TRANSFER_TO_HAND' },
+  };
+  for (const [effectId, want] of Object.entries(expected)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    eq((effect.cost as unknown as Record<string, unknown>)[want.key], want.count, `${effectId}: cost key/count`);
+    const wrapped = wrapOptionalOnPlay(effect)!;
+    ok(!!wrapped, `${effectId}: collected`);
+    const stub = (wrapped.action as SequenceAction).steps[0] as import('../src/types/effects').StubAction;
+    eq(stub.id, 'OPTIONAL_COST', `${effectId}: OPTIONAL_COST`);
+    eq((stub as unknown as Record<string, unknown>)[want.key], want.count, `${effectId}: payload`);
+    const ctx = mkCtx({}, {}, cardNum);
+    ctx.ownerState.life_cloth = Array.from({ length: want.count }, (_, i) => `LIFE-${effectId}-${i}`);
+    ctx.ownerState.trash = [];
+    const offered = executeEffect(wrapped, ctx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', `${effectId}: pay/skip`);
+    if (!offered.done && offered.pending.type === 'CHOOSE') {
+      eq(offered.pending.options.find(o => o.id === 'pay')?.available, true, `${effectId}: affordable`);
+      const paid = finish(resumeChoose('pay', offered.pending, {
+        ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+      }), ctx);
+      ok(!paid.ownerState.life_cloth.some(n => n.startsWith(`LIFE-${effectId}-`)), `${effectId}: own life paid`);
+      if (want.type === 'LIFE_CRASH') {
+        ok(!!paid.ownerState.field.check, `${effectId}: crash to check`);
+        eq(paid.ownerState.trash.length, 0, `${effectId}: crash not trashed`);
+      } else if (want.type === 'TRASH') {
+        eq(paid.ownerState.trash.length, want.count, `${effectId}: lifeTrash to trash`);
+        ok(!paid.ownerState.field.check, `${effectId}: lifeTrash no burst`);
+      } else {
+        ok(paid.ownerState.hand.some(n => n.startsWith('LIFE-')), `${effectId}: lifeToHand to hand`);
+        ok(!paid.ownerState.field.check, `${effectId}: lifeToHand no burst`);
+      }
+    }
+  }
+});
+
+test('task12(xxix)(1) wave4: insufficient life makes pay unavailable', () => {
+  for (const [cost, life] of [[{ lifeTrash: 1 }, []], [{ life_crash: 2 }, ['LIFE-ONLY']]] as const) {
+    const effect: CardEffect = {
+      effectId: 'golden-life-short', effectType: 'AUTO', timing: ['ON_PLAY'],
+      action: { type: 'DRAW', owner: 'self', count: 1 }, cost,
+      duration: 'INSTANT', mandatory: false,
+    };
+    const wrapped = wrapOptionalOnPlay(effect)!;
+    const ctx = mkCtx({ hand: 0 }, {});
+    ctx.ownerState.life_cloth = [...life];
+    const offered = executeEffect(wrapped, ctx);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', 'short life offers skip');
+    if (!offered.done && offered.pending.type === 'CHOOSE') {
+      eq(offered.pending.options.find(o => o.id === 'pay')?.available, false, 'pay unavailable');
+      eq(offered.pending.options.find(o => o.id === 'skip')?.available, true, 'skip available');
+    }
+  }
+});
+
+test('task12(xxix)(1) wave4 UI: crash uses check/pending; trash and hand do not burst', () => {
+  const base = mkState({});
+  base.life_cloth = ['L1', 'L2', 'L3', 'L4'];
+  base.trash = [];
+  base.hand = [];
+  const paid = payLifeOnPlayCost(base, { life_crash: 2, lifeTrash: 1, lifeToHand: 1 })!;
+  eq(paid.state.life_cloth.length, 0, 'combined affordability/payment');
+  eq(paid.state.field.check, 'L4', 'first crash to check');
+  eq(paid.state.pending_crashed_cards?.join(','), 'L3', 'second crash pending');
+  eq(paid.state.trash.join(','), 'L2', 'lifeTrash to trash');
+  eq(paid.state.hand.join(','), 'L1', 'lifeToHand to hand');
+  eq(paid.state.life_crashed_this_turn, 2, 'only crashes counted');
+  ok(payLifeOnPlayCost({ ...base, life_cloth: ['L1'] }, { life_crash: 2 }) === null, 'UI rejects shortage');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

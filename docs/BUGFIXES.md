@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## ライフクロス任意【出】8効果の支払い経路＋UI複数クラッシュ順序是正（2026-07-29・PLAN §3 タスク12(xxix)(1) 第4波・Codex）
+- **採用8件**＝`WX24-P3-052-E3`／`WXDi-P10-027-E2`（2枚）／`WXDi-P12-035-E2`／`WXDi-P14-006-E1` は `LIFE_CRASH{owner:'self',triggerBurst:true}`、`WD06-013-E1`／`WXDi-P16-041-E1`／`WXK06-030-E2` は `TRASH{asCost,target:LIFE_CLOTH_CARD,self}`、`WX24-P3-044-E1` は `TRANSFER_TO_HAND{source:LIFE_CLOTH_CARD,self}`。全件 `collectPlacedSelfOnPlayTriggers`／`collectAssistOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → 各 executor。見送り0。
+- **バースト方針(a)**＝engine の自己クラッシュは `execLifeCrash` が自分の `life_cloth` を減らして `field.check`／`pending_crashed_cards` へ送る。通常召喚UIも純関数 `payLifeOnPlayCost` から同じ既存 `performLifeBurstResponse` 待ち状態へ接続し、`lifeTrash`／`lifeToHand` は check を立てない。追加確認で、UI の2枚クラッシュが `slice` 順のまま先頭を check にしていたため本来最上段の2枚目を先に処理するバグを `reverse()` で是正。
+- **敗北順序**＝`WXDi-P16-041-E1` は最後のライフをコストでトラッシュしても支払い時点に敗北判定はなく、同じ効果解決で `PREVENT_DEFEAT_THIS_TURN` が `prevent_defeat` を立てる。敗北判定は後続のライフ0へのルリグアタック時なので本体が間に合う。
+- **データ／計器**＝parser・live JSON・生パース差分0、対象8件の outlier 0。build は新規0／純改善5／温存(手修正)590／温存(要レビュー)293／fresh空2／parseStatusのみ79、held 293枚・107署名（増減0）、manual field loss 0。「写せない」43→35、母集団958据置。
+- **検証**＝golden **1050→1053**（8件全 payload・成立・行き先・不足0枚／2枚要求に1枚・UI三行き先・2枚クラッシュ順）、census 1400、smoke 10726/10726 全0、fuzz全0、同型★0、lint 0 errors / 228 warnings（増減0）。
+- **やっていないこと**＝JSON/parser/PRESERVE補正、force-adopt、新STUB、他コスト、ブラウザ実機、commit/push。作業中に外部から HEAD `7ff58bfb`→`c2ad97c2`（同波実装＋PLAN/PLAN_PROGRESS簿記）が入ったため、その外部コミットは巻き戻さず、今回の未commit差分は UI 順序修正・golden・本項のみ。
+
 ## 手札→別ゾーン任意【出】11効果を既存 action 支払い経路へ配線（2026-07-29・PLAN §3 タスク12(xxix)(1) 第3波・Codex）
 - **機構**＝`OptionalCostSpec`／`OPTIONAL_COST` に `handToEnergy` と `handToUnderSelf` を追加。可否判定は手札の `matchesFilter` 一致数、支払いは前者が `ENERGY_CHARGE{HAND_CARD}`、後者が `PLACE_UNDER_SIGNI{source:'hand'}` → 選択後 `PLACE_UNDER_SOURCE_SIGNI`。Pattern③④⑤は既存 `optionalCostPaySteps` の1本だけを通し、新STUB・並行実装なし。`story`／`cardClass` はどちらも `CardClass.includes` で解決されるためJSON統一なし。
 - **群A採用7件（原文コスト／step／経路）**＝`WXK04-089-E1`〈手札から＜水獣＞のシグニ1枚をエナへ〉、`WXK09-079-E1`〈＜電機＞1枚〉、`WXK09-039-E2`〈＜天使＞1枚〉、`WXK09-043-E1`〈＜天使＞3枚〉、`WXDi-CP02-057-E1`／`083-E1`／`091-E1`〈＜ブルアカ＞のカード1枚〉。全件 `collectPlacedSelfOnPlayTriggers` → `wrapOptionalOnPlay` → `optionalOnPlayCostStub` → `resolveOptionalCostSpec` → `canAffordOptionalCostSpec` → `optionalCostPaySteps` → `ENERGY_CHARGE{HAND_CARD,count,filter}` → `resumeSelectTarget`／`applyDirectAction`。コストの枚数・「シグニ」対「カード」・filter は全件原文一致。
