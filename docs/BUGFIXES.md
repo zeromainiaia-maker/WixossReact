@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## pick枚数比例の後段捨て 第12波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **着地1効果・壊れ方**：`WXDi-P03-061-E2`。live は `LOOK_AND_REORDER` のため「スペルを好きな枚数公開し手札に加える」が丸ごと **no-op**。held の前半だけを採用すると、原文の「この方法で手札に加えたカード1枚につき手札を1枚捨てる」が落ち、手札が純増する **過剰実行**になるため一体で修復した。
+- **実装**：新型・新engine機構は **ゼロ**。既存 `REVEAL_AND_PICK` が選択札を `lastProcessedCards` に残す continuation と、既存 `EffectTarget.count:{$ref:'last_processed_count'}`／`resolveCountRef` を接続し、effectId 固定の `SEQUENCE[pick, TRASH{HAND,count:$ref}]` にした。スペル限定・好きな枚数・残りデッキ下を保持。
+- **実測**：engine 直プローブで2枚pick時に deck 5→3／hand 3→3／trash 0→2／3ゾーン総数8→8（複製0）。0枚pickは捨て0枚。golden は構造＋実盤面2本を追加し 995→**997**。比例捨て後段だけを落とす変異で **追加2本だけ FAIL**（997中995 PASS）を実測し、変異は除去済み。
+- **外科性・計器**：生 parser の意図差分と live JSON の per-effect 差分は `WXDi-P03-061-E2` **1件だけ**。MANUAL 定義なし。held **254枚/109署名→253枚/108署名**。census **1413→1412** は当該機能実装による改善で、`BASELINE_HIGH` と PLAN §4 恒久指標も1412へ更新。
+- **ゲート**：`npm run gates` 全緑（golden **997/997**、smoke **10726/10726**・CRASH/HANG/INVARIANT/SKIP全0、fuzz全0、census **1412/1412**、manual field loss 0、lint 0 errors/226 warnings）。`build:effects` 2回目の全effects hash不変で冪等。
+- **honest defer（残8）**：`WX11-074-E1`（宣言色数ぶんの動的stage）／`WXK04-045-E1`（場対象→同名連結）／`WXDi-P15-005-E1`（場ルリグ数の動的stage＋公開後二分配）／`WX25-P3-052-E1`（pick結果レベル合計snapshot二分岐）／`WX26-CP1-061-E1`・`-SONG`（歌効果分離＋各札と場カード名の対応検査）／`WXDi-P05-015-E2`（相手が選ぶ2束）／`WXDi-P08-007-E3`（捨てる/支払う分岐を含む対話REPEAT）。部分近似は条件・支払いを踏み倒すため据置。
+
 ## 複合・条件つき look-pick を既存機構へ着地 第11波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **着地3効果**：`WX12-Re10-E1`／`WX24-P4-037-E1` は `LOOK_AND_REORDER` のまま pick が丸ごと **no-op**、`WXK02-001-E2` は公開札のシグニ条件を失い末尾の裸 `ADD_TO_FIELD` が別の手札シグニを場に出しうる **過剰実行**だった。

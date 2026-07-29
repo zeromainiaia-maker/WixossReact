@@ -3953,6 +3953,78 @@ test('(xlvi) WXK02-001-E2: 任意コスト・filter・手札or場の構造固定
     'WXK02-001-E2: シグニだけを手札or場へ（公開札を無条件に場へ出さない）');
 });
 
+// ── task12(xlvi) wave12 pick枚数比例の後段捨て（既存 last_processed_count 接続）────
+test('(xlvi) WXDi-P03-061-E2: スペルpickと同数の手札捨てを一体で固定', () => {
+  const eff = effectsMap.get('WXDi-P03-061')?.find(e => e.effectId === 'WXDi-P03-061-E2');
+  const seq = eff?.action as SequenceAction;
+  eq(seq?.type, 'SEQUENCE', '前半だけのREVEAL_AND_PICK採用は禁止');
+  const rap = seq.steps[0] as unknown as {
+    type: string; revealCount: number; pickCount: string; pickUpTo: boolean;
+    filter?: { cardType?: string }; remainder?: { position?: string };
+  };
+  eq(`${rap.type}|${rap.revealCount}|${rap.pickCount}|${rap.pickUpTo}|${rap.filter?.cardType}|${rap.remainder?.position}`,
+    'REVEAL_AND_PICK|5|ALL|true|スペル|bottom',
+    'スペルを好きな枚数だけ手札へ・残りはデッキ下');
+  const discard = seq.steps[1] as unknown as {
+    type: string; target?: { type?: string; owner?: string; count?: { $ref?: string } };
+  };
+  eq(`${discard.type}|${discard.target?.type}|${discard.target?.owner}|${discard.target?.count?.$ref}`,
+    'TRASH|HAND_CARD|self|last_processed_count',
+    '🔴後段はpick実数と同数を必ず捨てる（固定値・後段欠落を許さない）');
+});
+
+test('(xlvi) WXDi-P03-061-E2: 2枚pickなら手札純増0・2枚捨て、0枚pickなら0枚捨て', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXDi-P03-061')?.find(e => e.effectId === 'WXDi-P03-061-E2');
+    if (!eff) throw new Error('WXDi-P03-061-E2 が存在');
+    const spells = [...cardMap.values()].filter(c => c.Type === 'スペル').slice(0, 2).map(c => c.CardNum);
+    eq(spells.length, 2, 'スペルを2枚確保');
+    const nonSpells = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
+
+    const ctx = mkCtx({ deckTop: [...spells, ...nonSpells] }, {}, 'WXDi-P03-061');
+    const before = {
+      deck: ctx.ownerState.deck.length,
+      hand: ctx.ownerState.hand.length,
+      trash: ctx.ownerState.trash.length,
+    };
+    const r0 = executeEffect(eff, ctx);
+    ok(!r0.done && r0.pending.type === 'SEARCH', 'スペルだけを選ぶSEARCHで停止');
+    eq(r0.pending.visibleCards.length, 2, 'filter落ちでシグニを拾えない');
+    const r1 = resumeSearch(spells, r0.pending, {
+      ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs,
+    });
+    ok(!r1.done && r1.pending.type === 'SELECT_TARGET', 'pick後に同数の手札捨て選択へ進む');
+    eq(r1.pending.count, 2, '🔴捨てる枚数はpickした2枚に比例');
+    const r2 = resumeSelectTarget(r1.pending.candidates.slice(0, 2), r1.pending, {
+      ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs,
+      lastProcessedCards: r1.lastProcessedCards,
+    });
+    ok(r2.done, '2枚捨てまで完走');
+    eq(r2.ownerState.hand.length, before.hand, '🔴2枚加えて2枚捨てるため手札は純増しない');
+    eq(r2.ownerState.deck.length, before.deck - 2, 'デッキは手札へ加えた2枚分だけ減る');
+    eq(r2.ownerState.trash.length, before.trash + 2, '手札から2枚がトラッシュへ');
+    eq(r2.ownerState.deck.length + r2.ownerState.hand.length + r2.ownerState.trash.length,
+      before.deck + before.hand + before.trash,
+      'デッキ・手札・トラッシュ間でカード総数保存（複製0）');
+
+    const zeroCtx = mkCtx({ deckTop: [...spells, ...nonSpells] }, {}, 'WXDi-P03-061');
+    const zeroHand = zeroCtx.ownerState.hand.length, zeroTrash = zeroCtx.ownerState.trash.length;
+    const z0 = executeEffect(eff, zeroCtx);
+    const z1 = resumeSearch([], z0.pending as never, {
+      ...zeroCtx, ownerState: z0.ownerState, otherState: z0.otherState, logs: z0.logs,
+    });
+    if (!z1.done) {
+      eq(z1.pending.type, 'SELECT_TARGET', '0枚参照の後段は対象選択経路へ入る場合もある');
+      eq(z1.pending.count, 0, '0枚pickの動的捨て枚数は0');
+    }
+    const z2 = finish(z1, zeroCtx);
+    ok(z2.done, '0枚pickは0枚選択で完走');
+    eq(z2.ownerState.hand.length, zeroHand, '0枚pickなら手札増減0');
+    eq(z2.ownerState.trash.length, zeroTrash, '0枚pickなら捨ても0');
+  } finally { cursor = savedCursor; }
+});
+
 test('(xlvi) WX12-Re10-E1: 天使3枚のときだけ1枚を手札へ', () => {
   const savedCursor = cursor;
   try {

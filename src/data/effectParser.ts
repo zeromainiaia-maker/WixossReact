@@ -3529,6 +3529,40 @@ function applyConditionalLookPickWave11(cardNum: string, effects: CardEffect[]):
   }
 }
 
+// タスク12(xlvi) 第12波：WXDi-P03-061-E2 の「好きな枚数のスペルを手札に加え、
+// この方法で加えた枚数ぶん手札を捨てる」を、既存の lastProcessedCards 動的枚数参照へ接続する。
+// REVEAL_AND_PICK の SEARCH 再開時に picked が lastProcessedCards へ入り、SEQUENCE continuation の
+// TRASH.count={$ref:'last_processed_count'} がその実数を読む。前半だけを採用すると手札純増の
+// 過剰実行になるため、effectId 固定で必ず比例後段と一体にする。
+function applyLookPickProportionalDiscardWave12(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum !== 'WXDi-P03-061') return;
+  const e = effects.find(effect => effect.effectId === 'WXDi-P03-061-E2');
+  if (!e) return;
+  e.action = {
+    type: 'SEQUENCE',
+    steps: [
+      {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 5,
+        filter: { cardType: 'スペル' },
+        pickCount: 'ALL',
+        pickUpTo: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: { location: 'deck', position: 'bottom' },
+      } as RevealAndPickAction,
+      {
+        type: 'TRASH',
+        target: {
+          type: 'HAND_CARD',
+          owner: 'self',
+          count: { $ref: 'last_processed_count' },
+        },
+      },
+    ],
+  };
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7663,6 +7697,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
   applyConditionalLookPickWave11(card.CardNum, effects);
+  applyLookPickProportionalDiscardWave12(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
