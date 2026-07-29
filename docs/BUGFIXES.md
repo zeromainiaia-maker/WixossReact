@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 宣言2色ごとの look-pick 第13波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **着地1効果・壊れ方**：`WX11-074-E1`。live は `CHOOSE_COLOR_FROM_LIST`（未実装）＋`LOOK_AND_REORDER` のため、色宣言も「宣言色1つにつきシグニ1枚を手札かエナへ」も丸ごと **no-op** だった。
+- **PLAN の見立て訂正**：「宣言色数ぶん動的stage」は過大。原文は白・赤・青・黒から**必ず2色**なので `LOOK_PICK_CHAIN` の2段固定で表現できた。新しい動的stage機構はゼロ。ただし既存には複数色宣言と chain 段ごとの hand-or-energy が無かったため、`DECLARE_COLORS`（列挙候補から重複なし複数選択）、`TargetFilter.colorEqDeclaredColorIndex`（未宣言は空ヒット）、`LookPickChainStage.handOrEnergy`（既存 SEARCH continuation を再利用）を追加した。remainder は原文どおり `position:'top'`。
+- **実測**：白・赤を宣言し、公開した白シグニだけが第1段、赤シグニだけが第2段の候補になること、白を手札・赤をエナへ分配できること、参照元なしでは候補0、残りはデッキ上、デッキ/手札/エナの総数保存・複製0を engine 直通 golden で確認。変異2種（色filterを無制限化／参照元なしを無制限化）は各 **998本中1本だけFAIL**（997 PASS / 1 FAIL）し、復元後998/998。
+- **外科性・二層**：生 parser fresh は held に上がったため `heldReview --adopt WX11-074` で明示採用。`manualEffects.ts` 定義は無い。HEAD→作業ツリーの全 live JSON を effectId 単位で機械比較し **added 0 / removed 0 / changed 1 (`WX11-074-E1`)**。
+- **計器**：census **1412据置**（改善を検知しないカテゴリのため `BASELINE_HIGH=1412` 据置）、golden **997→998**、held 実測 **253枚/108署名**。PLAN 恒久指標を実数へ更新。
+- **honest defer（残7）**：`WXK04-045-E1`（自場の「このシグニ以外」の＜紅蓮＞/＜古代兵器＞を先に対象化し、その対象名を公開札filterへ保持する連結）／`WXDi-P15-005-E1`（場ルリグ個別の色を参照する動的stage＋公開後の手札/エナ二分配）／`WX25-P3-052-E1`（pick結果レベル合計snapshot二分岐）／`WX26-CP1-061-E1`・`-SONG`（歌効果分離＋各札と場カード名の対応検査）／`WXDi-P05-015-E2`（相手が選ぶ2束）／`WXDi-P08-007-E3`（捨てる/支払う分岐を含む対話REPEAT）。部分近似は過剰実行になるため据置。
+
 ## pick枚数比例の後段捨て 第12波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
 
 - **着地1効果・壊れ方**：`WXDi-P03-061-E2`。live は `LOOK_AND_REORDER` のため「スペルを好きな枚数公開し手札に加える」が丸ごと **no-op**。held の前半だけを採用すると、原文の「この方法で手札に加えたカード1枚につき手札を1枚捨てる」が落ち、手札が純増する **過剰実行**になるため一体で修復した。

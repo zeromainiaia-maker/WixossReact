@@ -464,6 +464,8 @@ export interface TargetFilter {
   // クラスがこの効果で宣言したクラスと一致（「その中から宣言したクラスを持つシグニ」PR-431／WX24-P1-035）。
   // resolveDynamicFilter が declared_class を story（CardClass 部分一致＝多クラス対応）へ解決する。未宣言なら空ヒット。
   classEqDeclaredClass?: boolean;
+  // DECLARE_COLORS で宣言した色のうち指定番目と一致。参照不能時は空ヒット。
+  colorEqDeclaredColorIndex?: number;
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level'; // レベルがlast_charm_trash_count/last_field_trash_levelと一致するか（WXK10-082 / WX03-001用）
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
@@ -1258,6 +1260,7 @@ export interface LookPickChainStage {
   // 'trap'＝「その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置し」（タスク12(xlvi)(g)）。
   // ピックしたカードをデッキから抜いて `field.signi_traps[zone]` へ裏向きに置く（ゾーンは対話選択）。
   then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap';
+  handOrEnergy?: boolean;         // 選んだ各カードを手札かエナへ（SEARCH continuation の既存対話を再利用）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   // 直前ステージで選んだカードと**共通するクラスを持たない**もののみ（「緑のシグニ1枚と、そのシグニと
   // 共通するクラスを持たないシグニ1枚」WX25-P1-041-E1・タスク12(xlvi)(a)）。直前ステージが空振りした場合は

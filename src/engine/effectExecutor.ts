@@ -1164,6 +1164,11 @@ function resolveDynamicFilter(
     const cls = ownerSt.declared_class;
     result = cls ? { ...rest, story: cls } : noMatch(rest);
   }
+  if (result.colorEqDeclaredColorIndex != null) {
+    const { colorEqDeclaredColorIndex: index, ...rest } = result;
+    const color = ownerSt.declared_colors?.[index];
+    result = color ? { ...rest, color } : noMatch(rest);
+  }
   // コスト記録参照。従来 execBanish だけにあった前処理を共通解決器へ集約し、
   // BOUNCE/SEARCH/TRASH 等でも同じ語彙を使えるようにする。
   if (result.levelEqDiscardLevelSum || result.levelEqualsVar) {
@@ -3749,6 +3754,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       maxPick: stage.pickCount,
       thenAction: lookPickThenAction(stage.then, owner),
       continuation: cont as EffectAction,
+      ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
     });
   }
   // 残り（公開してまだデッキにあるカード）を remainder へ。

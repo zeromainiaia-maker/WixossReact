@@ -286,6 +286,8 @@ export interface PlayerState {
   draw_on_opp_power_zero?: boolean;
   // 宣言したクラス（DECLARE_CLASS効果）
   declared_class?: string;
+  // DECLARE_COLORS で同時に宣言した色（WX11-074）。選択順を LOOK_PICK_CHAIN の固定段へ対応付ける。
+  declared_colors?: string[];
   // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
   designated_zone?: number;
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）

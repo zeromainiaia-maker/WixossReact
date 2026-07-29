@@ -3563,6 +3563,45 @@ function applyLookPickProportionalDiscardWave12(cardNum: string, effects: CardEf
   };
 }
 
+// タスク12(xlvi) 第13波。WX11-074 は「色を2つ」固定なので動的 stage は不要。
+// 4色から2色宣言し、公開2枚を宣言色ごとの固定2段で最大1枚ずつ手札/エナへ振り分ける。
+function applyDeclaredColorLookPickWave13(cardNum: string, effects: CardEffect[]): void {
+  if (cardNum !== 'WX11-074') return;
+  const e = effects.find(effect => effect.effectId === 'WX11-074-E1');
+  if (!e) return;
+  e.action = {
+    type: 'SEQUENCE',
+    steps: [
+      {
+        type: 'STUB',
+        id: 'DECLARE_COLORS',
+        declareOptions: ['白', '赤', '青', '黒'],
+        count: 2,
+      } as StubAction,
+      {
+        type: 'LOOK_PICK_CHAIN',
+        owner: 'self',
+        revealCount: 2,
+        stages: [
+          {
+            filter: { cardType: 'シグニ', colorEqDeclaredColorIndex: 0 },
+            pickCount: 1,
+            then: 'hand',
+            handOrEnergy: true,
+          },
+          {
+            filter: { cardType: 'シグニ', colorEqDeclaredColorIndex: 1 },
+            pickCount: 1,
+            then: 'hand',
+            handOrEnergy: true,
+          },
+        ],
+        remainder: { location: 'deck', position: 'top' },
+      } as import('../types/effects').LookPickChainAction,
+    ],
+  };
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7698,6 +7737,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyBoardZoneStateBatch3(card.CardNum, effects);
   applyConditionalLookPickWave11(card.CardNum, effects);
   applyLookPickProportionalDiscardWave12(card.CardNum, effects);
+  applyDeclaredColorLookPickWave13(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

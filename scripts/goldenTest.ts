@@ -4025,6 +4025,64 @@ test('(xlvi) WXDi-P03-061-E2: 2枚pickなら手札純増0・2枚捨て、0枚pic
   } finally { cursor = savedCursor; }
 });
 
+test('(xlvi) WX11-074-E1: 宣言した2色ごとにシグニ1枚を手札/エナへ', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('WX11-074')?.find(e => e.effectId === 'WX11-074-E1');
+    if (!effect) throw new Error('WX11-074-E1 が存在');
+    const seq = effect.action as SequenceAction;
+    const decl = seq.steps[0] as import('../src/types/effects').StubAction;
+    const chain = seq.steps[1] as import('../src/types/effects').LookPickChainAction;
+    eq(`${decl.id}|${decl.declareOptions?.join(',')}|${decl.count}`, 'DECLARE_COLORS|白,赤,青,黒|2',
+      '原文列挙4色から必ず2色を宣言');
+    eq(`${chain.revealCount}|${chain.stages.length}|${chain.remainder.position}`, '2|2|top',
+      '動的stageではなく固定2段・残りはデッキ上');
+    eq(JSON.stringify(chain.stages.map(s => [s.filter, s.pickCount, s.handOrEnergy])),
+      JSON.stringify([
+        [{ cardType: 'シグニ', colorEqDeclaredColorIndex: 0 }, 1, true],
+        [{ cardType: 'シグニ', colorEqDeclaredColorIndex: 1 }, 1, true],
+      ]), '各宣言色を別段で参照し、各1枚を手札/エナへ');
+
+    const white = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('白'));
+    const red = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('赤') && c.CardNum !== white);
+    const green = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('緑')
+      && !(c.Color ?? '').includes('白') && !(c.Color ?? '').includes('赤'));
+    const ctx = mkCtx({ deckTop: [white, red] }, {}, 'WX11-074');
+    const total0 = ctx.ownerState.deck.length + ctx.ownerState.hand.length + ctx.ownerState.energy.length;
+    const r0 = executeEffect(effect, ctx);
+    ok(!r0.done && r0.pending.type === 'CHOOSE', '色宣言の複数選択で停止');
+    eq(r0.pending.count, 2, '宣言数は必ず2');
+    eq(r0.pending.options.map(o => o.label).join(','), '白,赤,青,黒', '候補は原文の4色だけ');
+    const r1 = resumeChoose(['dcolor_白', 'dcolor_赤'], r0.pending,
+      { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs });
+    ok(!r1.done && r1.pending.type === 'SEARCH', '第1宣言色のpickへ');
+    eq(r1.pending.visibleCards.join(','), white, '🔴第1段は白シグニだけ（filter落ちで赤も拾えない）');
+    const r2 = resumeSearch([white], r1.pending,
+      { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs });
+    ok(!r2.done && r2.pending.type === 'CHOOSE', '白札の手札/エナ選択');
+    const r3 = resumeChoose('hand', r2.pending,
+      { ...ctx, ownerState: r2.ownerState, otherState: r2.otherState, logs: r2.logs, lastProcessedCards: r2.lastProcessedCards });
+    ok(!r3.done && r3.pending.type === 'SEARCH', '第2宣言色のpickへ');
+    eq(r3.pending.visibleCards.join(','), red, '🔴第2段は赤シグニだけ（宣言色の混同なし）');
+    const r4 = resumeSearch([red], r3.pending,
+      { ...ctx, ownerState: r3.ownerState, otherState: r3.otherState, logs: r3.logs, lastProcessedCards: r3.lastProcessedCards });
+    ok(!r4.done && r4.pending.type === 'CHOOSE', '赤札の手札/エナ選択');
+    const donePick = resumeChoose('energy', r4.pending,
+      { ...ctx, ownerState: r4.ownerState, otherState: r4.otherState, logs: r4.logs, lastProcessedCards: r4.lastProcessedCards });
+    ok(donePick.done, '2段を完走');
+    ok(donePick.ownerState.hand.includes(white), '白札は選択どおり手札へ');
+    ok(donePick.ownerState.energy.includes(red), '赤札は選択どおりエナへ');
+    eq(donePick.ownerState.deck.length + donePick.ownerState.hand.length + donePick.ownerState.energy.length, total0,
+      'デッキ・手札・エナ間でカード総数保存（複製0）');
+
+    const noDeclCtx = mkCtx({ deckTop: [green] }, {}, 'WX11-074');
+    const noDecl = run(chain as EffectAction, noDeclCtx);
+    ok(!noDecl.ownerState.hand.includes(green) && !noDecl.ownerState.energy.includes(green),
+      '🔴宣言色参照なしでは何も拾わない（filter落ちの無差別pick禁止）');
+    eq(noDecl.ownerState.deck[0], green, '非対象の残りはデッキの一番上へ戻る');
+  } finally { cursor = savedCursor; }
+});
+
 test('(xlvi) WX12-Re10-E1: 天使3枚のときだけ1枚を手札へ', () => {
   const savedCursor = cursor;
   try {

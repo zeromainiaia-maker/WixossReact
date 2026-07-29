@@ -3063,6 +3063,31 @@ export function execStubPart1(
       type: 'CHOOSE', options: optsDCLS, count: 1,
     });
   }
+  // DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。
+  // CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
+  if (stub.id === 'DECLARE_COLORS') {
+    if (typeof stub.value === 'string') {
+      const declared = [...(ctx.ownerState.declared_colors ?? []), stub.value];
+      return done(addLog(
+        { ...ctx, ownerState: { ...ctx.ownerState, declared_colors: declared } },
+        `色「${stub.value}」を宣言`,
+      ));
+    }
+    const options = stub.declareOptions ?? [];
+    const count = stub.count ?? 1;
+    if (options.length < count || count <= 0) return done(addLog(ctx, '色宣言：候補不足（スキップ）'));
+    const cleared = { ...ctx, ownerState: { ...ctx.ownerState, declared_colors: [] } };
+    return needsInteraction(addLog(cleared, '色を宣言してください'), {
+      type: 'CHOOSE',
+      options: options.map(color => ({
+        id: `dcolor_${color}`,
+        label: color,
+        action: { type: 'STUB', id: 'DECLARE_COLORS', value: color } as StubAction,
+        available: true,
+      })),
+      count,
+    });
+  }
   // INTERNAL_DC_TRASH_RETRIEVE: WXDi-P09-004用
   // 宣言クラスを持ち《ガードアイコン》を持たないLv1/Lv2/Lv3のシグニをトラッシュから各1枚まで手札へ
   if (stub.id === 'INTERNAL_DC_TRASH_RETRIEVE') {
