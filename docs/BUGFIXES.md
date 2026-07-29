@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 複合・条件つき look-pick を既存機構へ着地 第11波（2026-07-29・PLAN §3 タスク12(xlvi)・Codex）
+
+- **着地3効果**：`WX12-Re10-E1`／`WX24-P4-037-E1` は `LOOK_AND_REORDER` のまま pick が丸ごと **no-op**、`WXK02-001-E2` は公開札のシグニ条件を失い末尾の裸 `ADD_TO_FIELD` が別の手札シグニを場に出しうる **過剰実行**だった。
+- **parser 修復**：新型・engine 機構は追加せず、原文照合済み effectId 固定チョークポイント `applyConditionalLookPickWave11` で既存 `REVEAL_AND_PICK` に接続。`WX12-Re10` は `LAST_PROCESSED_MATCHES` 条件を保持、`WX24-P4-037` は `pickUpTo`／`handOrEnergy`／`remainder.shuffle`、`WXK02-001` は `OPTIONAL_COST{白}`／filter シグニ／`handOrField` を保持した。3枚とも held 群だったため `heldReview --adopt` で採用。
+- **外科性**：生 parser の意図差分・live JSON の per-effect 差分とも **3件だけ**（上記 effectId）。2回 build 後の effects JSON hash は完全一致（冪等）。MANUAL 定義カードは0。
+- **golden**：988→**995**（新規7本）。カード種別どおり WX12 はシグニ、WX24 はアーツ、WXK02 はルリグゾーンを発生源にし、成立/不成立、pick枚数、行き先、任意コスト、非シグニを拾わないことを固定。旧 live 3効果へ戻す一時変異で **追加6本だけ FAIL**（構造3＋E2E3）を実測し、変異は除去済み。
+- **計器**：census 1414→**1413**、`BASELINE_HIGH` も **1413 へ実数更新**（据置だと 1413→1414 の退化がゲートを素通りするため。コメント先頭に今回の理由を追記）。golden 988→**995**・smoke 10726 全0・fuzz 全0・held **254枚/109署名**（不変＝新規ドリフト0）。PLAN §4 恒久指標も golden 995／census 1413 へ更新。
+- **偽陽性1件**：`WXDi-P09-066-E1` の原文は「手札1枚をルリグゾーンへ裏向きに置く→引用能力で戻す」で、デッキ公開/pick は存在しない。curated の余分な `STUB{LOOK_AND_REORDER}` 自体は別の parser 誤生成だが (xlvi) のカードアドバンテージ欠落ではないため在庫から除外。
+- **honest defer（残9）**：`WXK04-045-E1`（場対象→同名連結）／`WXDi-P15-005-E1`（ルリグ数の動的stage＋公開後二分配）／`WXDi-P03-061-E2`（pick枚数ぶん捨てる）／`WX26-CP1-061-E1`・`-SONG`（歌効果分離＋各札の場カード名対応）／`WXDi-P05-015-E2`（相手が選ぶ束分け）／`WXDi-P08-007-E3`（対話分岐を含むREPEAT）／`WX25-P3-052-E1`（pick結果レベル合計snapshotの二分岐）／`WX11-074-E1`（宣言2色と動的stageの連動）。前半だけの採用は過剰実行になるため据置。
+
 ## pick＋振り分け（`remainder.position:'split_top_bottom'`）第10波（2026-07-29・PLAN §3 タスク12(lix)・Opus〔Claude Opus 5〕）
 
 - **壊れ方**：第9波で pick の**無い**振り分けは是正したが、**ピックしてから振り分ける**形は `pk` 規則が「pick 動詞の直後に『、残りを』」を要求するため掛からず、汎用 `LOOK_AND_REORDER` に飲まれて **pick が丸ごと no-op ＋ 見た全部がデッキ下**という二重の退化になっていた（`WXDi-P16-086-E1`＝1枚まで手札orエナ／`WX24-P3-031-E1`＝＜宇宙＞2枚まで手札）。

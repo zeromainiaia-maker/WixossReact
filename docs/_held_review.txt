@@ -640,39 +640,6 @@ WXEX2-18 WXEX2-70
   + [0].action.steps[1].then.target.filter.level.max = 3
   + [0].action.steps[1].then.target.upToCount = false
 
-## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER ［2枚］
-WXDi-P03-061 WXDi-P16-086
---- WXDi-P03-061
-  原文: 【常】：あなたのトラッシュにスペルがあるかぎり、このシグニのパワーは＋3000される。【出】：あなたのデッキの上からカードを５枚見る。その中からスペルを好きな枚数公開し手札に加え、残りを好きな順番でデッキの一番下に置く。この方法で手札に加えたカード１枚につき手札を１枚捨てる。,：あなたのトラッシュからスペルを２枚まで対象とし、それらを手札に加える。
-  - [1].action.source.location = "deck"
-  - [1].action.source.owner = "self"
-  - [1].action.count = 5
-  - [1].action.private = true
-  - [1].action.reorder = true
-  - [1].action.canTrash = false
-  - [1].action.destination.location = "deck"
-  - [1].action.destination.owner = "self"
-  - [1].action.destination.position = "bottom"
-  ~ [1].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
-  + [1].action.owner = "self"
-  + [1].action.revealCount = 5
-  …（他 8 行）
---- WXDi-P16-086
-  原文: 【チーム】＜CardJockey＞【チーム出】手札を１枚捨てる：あなたのデッキの上からカードを４枚見る。その中からカードを１枚まで手札に加えるかエナゾーンに置き、好きな枚数のカードを好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す。【常】：あなたの場に＜CardJockey＞のルリグが３体いないかぎり、このカードはすべての領域で色を失
-  - [0].action.source.location = "deck"
-  - [0].action.source.owner = "self"
-  - [0].action.count = 4
-  - [0].action.private = true
-  - [0].action.reorder = true
-  - [0].action.canTrash = false
-  - [0].action.destination.location = "deck"
-  - [0].action.destination.owner = "self"
-  - [0].action.destination.position = "bottom"
-  ~ [0].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
-  + [0].action.owner = "self"
-  + [0].action.revealCount = 4
-  …（他 8 行）
-
 ## +EXILE +LAST_PROCESSED_COUNT_GTE +LRIG_DECK_CARD -DECK_CARD -IS_MY_TURN -TRASH ［2枚］
 WXDi-P04-013 WXDi-P04-016
 --- WXDi-P04-013
@@ -1242,6 +1209,24 @@ WXDi-P01-044
   - [0].action.choices[1].action.target.type = "DECK_CARD"
   …（他 42 行）
 
+## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER ［1枚］
+WXDi-P03-061
+--- WXDi-P03-061
+  原文: 【常】：あなたのトラッシュにスペルがあるかぎり、このシグニのパワーは＋3000される。【出】：あなたのデッキの上からカードを５枚見る。その中からスペルを好きな枚数公開し手札に加え、残りを好きな順番でデッキの一番下に置く。この方法で手札に加えたカード１枚につき手札を１枚捨てる。,：あなたのトラッシュからスペルを２枚まで対象とし、それらを手札に加える。
+  - [1].action.source.location = "deck"
+  - [1].action.source.owner = "self"
+  - [1].action.count = 5
+  - [1].action.private = true
+  - [1].action.reorder = true
+  - [1].action.canTrash = false
+  - [1].action.destination.location = "deck"
+  - [1].action.destination.owner = "self"
+  - [1].action.destination.position = "bottom"
+  ~ [1].action.type : "LOOK_AND_REORDER" → "REVEAL_AND_PICK"
+  + [1].action.owner = "self"
+  + [1].action.revealCount = 5
+  …（他 8 行）
+
 ## +ADD_TO_FIELD +CHOOSE +DECK_CARD×2 +POWER_MODIFY +SEQUENCE +TRANSFER_TO_HAND +TRASH_CARD×2 +TRASH×2 -GRANT_KEYWORD ［1枚］
 WXDi-P06-003
 --- WXDi-P06-003
@@ -1516,24 +1501,6 @@ WX24-P2-044
   ~ [0].action.effect.action.type : "BANISH" → "SEQUENCE"
   + [0].action.effect.action.steps[0].type = "STUB"
   …（他 31 行）
-
-## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER×2 ［1枚］
-WX24-P3-031
---- WX24-P3-031
-  原文: 対戦相手のパワー8000以下のシグニ１体を対象とし、それを手札に戻す。あなたのデッキの上からカードを５枚見る。その中から＜宇宙＞のシグニを２枚まで公開し手札に加え、好きな枚数のカードを好きな順番でデッキの一番下に置き、残りを好きな順番でデッキの一番上に戻す。,-
-  - [0].action.steps[1].source.location = "deck"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].count = 5
-  - [0].action.steps[1].private = true
-  - [0].action.steps[1].reorder = false
-  - [0].action.steps[1].canTrash = false
-  - [0].action.steps[1].destination.location = "deck"
-  - [0].action.steps[1].destination.owner = "self"
-  - [0].action.steps[1].destination.position = "top"
-  - [0].action.steps[2].type = "LOOK_AND_REORDER"
-  - [0].action.steps[2].source.location = "deck"
-  - [0].action.steps[2].source.owner = "self"
-  …（他 17 行）
 
 ## +COUNTER_SPELL +SEQUENCE +STUB -CONDITIONAL -IS_MY_TURN -UNKNOWN×2 ［1枚］
 WX24-P3-036

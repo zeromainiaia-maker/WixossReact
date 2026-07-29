@@ -3458,6 +3458,77 @@ function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void
   if (cardNum === 'WX22-038') { const e = find('WX22-038-E1'); if (e?.action.type === 'SEARCH') { e.action.filter = { cardType: 'スペル', costMin: 2 }; gate(e.effectId, trash('原子', 7, true)); } }
 }
 
+// タスク12(xlvi) 第11波：複合・条件つき look-pick のうち、既存 REVEAL_AND_PICK だけで
+// 忠実に表現できる3効果を effectId 固定で修復する。一般化すると「この方法で」の後段条件や
+// 任意コスト境界を落として無条件実行へ退化しうるため、原文照合済みの3点だけをチョークポイントにする。
+function applyConditionalLookPickWave11(cardNum: string, effects: CardEffect[]): void {
+  const find = (effectId: string) => effects.find(e => e.effectId === effectId);
+
+  if (cardNum === 'WX12-Re10') {
+    const e = find('WX12-Re10-E1');
+    if (e?.action.type === 'SEQUENCE') {
+      const conditional = e.action.steps.find(
+        (step): step is import('../types/effects').ConditionalAction =>
+          step.type === 'CONDITIONAL' && step.condition.type === 'LAST_PROCESSED_MATCHES',
+      );
+      if (conditional) {
+        conditional.then = {
+          type: 'REVEAL_AND_PICK',
+          owner: 'self',
+          revealCount: 3,
+          pickCount: 1,
+          then: { type: 'ADD_TO_HAND', owner: 'self' },
+          remainder: { location: 'deck', position: 'top' },
+        } as RevealAndPickAction;
+      }
+    }
+  }
+
+  if (cardNum === 'WX24-P4-037') {
+    const e = find('WX24-P4-037-E1');
+    if (e) {
+      e.action = {
+        type: 'REVEAL_AND_PICK',
+        owner: 'self',
+        revealCount: 10,
+        pickCount: 2,
+        pickUpTo: true,
+        pickNoun: 'カード',
+        handOrEnergy: true,
+        then: { type: 'ADD_TO_HAND', owner: 'self' },
+        remainder: { location: 'deck', position: 'top', shuffle: true },
+      } as RevealAndPickAction;
+    }
+  }
+
+  if (cardNum === 'WXK02-001') {
+    const e = find('WXK02-001-E2');
+    if (e?.action.type === 'SEQUENCE') {
+      const optionalCost = e.action.steps.find(
+        step => step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'OPTIONAL_COST',
+      );
+      if (optionalCost) {
+        e.action = {
+          type: 'SEQUENCE',
+          steps: [
+            optionalCost,
+            {
+              type: 'REVEAL_AND_PICK',
+              owner: 'self',
+              revealCount: 1,
+              filter: { cardType: 'シグニ' },
+              pickCount: 1,
+              handOrField: true,
+              then: { type: 'ADD_TO_HAND', owner: 'self' },
+              remainder: { location: 'deck', position: 'top' },
+            } as RevealAndPickAction,
+          ],
+        } as SequenceAction;
+      }
+    }
+  }
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
@@ -7591,6 +7662,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
+  applyConditionalLookPickWave11(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

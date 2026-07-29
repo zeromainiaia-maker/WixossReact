@@ -3927,6 +3927,112 @@ test('(lix) WXDi-P16-086-E1: 手札orエナの選択を挟んでも分割UIま�
   } finally { cursor = savedCursor; }
 });
 
+// ── task12(xlvi) wave11 複合・条件つき look-pick（既存機構だけで3効果）──────────────
+test('(xlvi) WX12-Re10-E1: 条件つき pick の構造固定', () => {
+  const re10 = effectsMap.get('WX12-Re10')?.find(e => e.effectId === 'WX12-Re10-E1');
+  const re10Json = JSON.stringify(re10?.action);
+  ok(re10Json.includes('"LAST_PROCESSED_MATCHES"') && re10Json.includes('"REVEAL_AND_PICK"'),
+    'WX12-Re10-E1: 公開3枚の条件を保持した成立枝だけが pick（条件消失・count:0 no-op への退化なし）');
+});
+
+test('(xlvi) WX24-P4-037-E1: 2枚を手札orエナへ送る構造固定', () => {
+  const p4 = effectsMap.get('WX24-P4-037')?.find(e => e.effectId === 'WX24-P4-037-E1');
+  const rapP4 = findRevealAndPick(p4!.action)!;
+  eq(`${rapP4.revealCount}|${rapP4.pickCount}|${rapP4.pickUpTo}|${rapP4.handOrEnergy}|${rapP4.remainder?.shuffle}`,
+    '10|2|true|true|true',
+    'WX24-P4-037-E1: 2枚まで選択→各札を手札orエナ・残りをshuffle');
+});
+
+test('(xlvi) WXK02-001-E2: 任意コスト・filter・手札or場の構造固定', () => {
+  const k02 = effectsMap.get('WXK02-001')?.find(e => e.effectId === 'WXK02-001-E2');
+  const k02Json = JSON.stringify(k02?.action);
+  ok(k02Json.includes('"OPTIONAL_COST"') && k02Json.includes('"costColors":["白"]'),
+    'WXK02-001-E2: 任意の白コストを保持（無条件発動への退化なし）');
+  ok(k02Json.includes('"REVEAL_AND_PICK"') && k02Json.includes('"handOrField":true')
+      && k02Json.includes('"cardType":"シグニ"') && !k02Json.includes('"ADD_TO_FIELD","owner":"self"}'),
+    'WXK02-001-E2: シグニだけを手札or場へ（公開札を無条件に場へ出さない）');
+});
+
+test('(xlvi) WX12-Re10-E1: 天使3枚のときだけ1枚を手札へ', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX12-Re10')?.find(e => e.effectId === 'WX12-Re10-E1');
+    if (!eff) throw new Error('WX12-Re10-E1 が存在');
+    const angels = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('天使')).slice(0, 3).map(c => c.CardNum);
+    const nonAngel = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('天使'));
+    eq(angels.length, 3, '天使シグニを3枚確保');
+
+    const yesCtx = mkCtx({ deckTop: angels }, {}, 'WX12-Re10');
+    const yesHand = yesCtx.ownerState.hand.length;
+    const yes = run(eff.action, yesCtx);
+    eq(yes.ownerState.hand.length, yesHand + 1, '成立時は1枚を手札へ（従来は0枚＝no-op）');
+
+    const noCtx = mkCtx({ deckTop: [angels[0], angels[1], nonAngel] }, {}, 'WX12-Re10');
+    const noHand = noCtx.ownerState.hand.length;
+    const no = run(eff.action, noCtx);
+    eq(no.ownerState.hand.length, noHand, '不成立時は手札に加えない（条件消失による過剰実行なし）');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) WX24-P4-037-E1: 10枚から2枚までを手札orエナへ・残りはデッキ', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX24-P4-037')?.find(e => e.effectId === 'WX24-P4-037-E1');
+    if (!eff) throw new Error('WX24-P4-037-E1 が存在');
+    const ctx = mkCtx({ deckTop: fill(10) }, {}, 'WX24-P4-037');
+    const beforeDeck = ctx.ownerState.deck.length;
+    const beforeDest = ctx.ownerState.hand.length + ctx.ownerState.energy.length;
+    const r = run(eff.action, ctx);
+    eq(r.ownerState.hand.length + r.ownerState.energy.length, beforeDest + 2,
+      '選んだ2枚が手札かエナへ（従来は0枚＝pick no-op）');
+    eq(r.ownerState.deck.length, beforeDeck - 2, '選ばなかった8枚はデッキに残り、複製・消失なし');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) WXK02-001-E2: 実戦ゾーンのルリグから白コスト支払い後、シグニだけを手札or場へ', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXK02-001')?.find(e => e.effectId === 'WXK02-001-E2');
+    if (!eff) throw new Error('WXK02-001-E2 が存在');
+    const topSigni = findCard(c => c.Type === 'シグニ');
+    const whiteEnergy = findCard(c => c.Color === '白');
+    const ctx = mkCtx({ deckTop: [topSigni], lrig: ['WXK02-001'] }, {}, 'WXK02-001');
+    ctx.ownerState = { ...ctx.ownerState, energy: [whiteEnergy, ...ctx.ownerState.energy] };
+    const beforeDest = ctx.ownerState.hand.length + ctx.ownerState.field.signi.filter(Boolean).length;
+    const r0 = executeEffect(eff, ctx);
+    ok(!r0.done && r0.pending.type === 'CHOOSE', '任意の白コスト選択で停止');
+    const pay = r0.pending.options.find(o => o.costColors?.includes('白') && o.available !== false);
+    ok(!!pay, '白コストを支払う選択肢がある');
+    const c1: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const r1 = resumeOptionalCost(pay!.id, [whiteEnergy], r0.pending, c1);
+    const done = finish(r1, c1);
+    eq(done.ownerState.hand.length + done.ownerState.field.signi.filter(Boolean).length, beforeDest + 1,
+      '公開したシグニ1枚だけが手札か場へ（従来はpick no-op／無条件ADD_TO_FIELD）');
+  } finally { cursor = savedCursor; }
+});
+
+test('(xlvi) WXK02-001-E2: 公開札がシグニでなければ何も拾わない', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WXK02-001')?.find(e => e.effectId === 'WXK02-001-E2');
+    if (!eff) throw new Error('WXK02-001-E2 が存在');
+    const topSpell = findCard(c => c.Type === 'スペル');
+    const whiteEnergy = findCard(c => c.Color === '白');
+    const ctx = mkCtx({ deckTop: [topSpell], lrig: ['WXK02-001'] }, {}, 'WXK02-001');
+    ctx.ownerState = { ...ctx.ownerState, energy: [whiteEnergy, ...ctx.ownerState.energy] };
+    const beforeHand = ctx.ownerState.hand.length;
+    const beforeField = ctx.ownerState.field.signi.filter(Boolean).length;
+    const r0 = executeEffect(eff, ctx);
+    const pay = r0.done ? undefined : r0.pending.options.find(o => o.costColors?.includes('白') && o.available !== false);
+    ok(!r0.done && !!pay, '白コストを支払える');
+    const c1: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+    const done = finish(resumeOptionalCost(pay!.id, [whiteEnergy], r0.pending, c1), c1);
+    eq(done.ownerState.hand.length, beforeHand, '非シグニを手札に加えない');
+    eq(done.ownerState.field.signi.filter(Boolean).length, beforeField, '手札の別カードを勝手に場へ出さない');
+    eq(done.ownerState.deck[0], topSpell, '公開した非シグニはデッキトップに残る');
+  } finally { cursor = savedCursor; }
+});
+
 // look-pick（別文＋公開し＋filter）構造固定：「デッキの上からN枚見る。その中から＜C＞のシグニM枚を公開し
 // 手札に加え、残りを好きな順番でデッキの一番下に置く」が、汎用 LOOK_AND_REORDER に pick（手札加え）を丸ごと
 // 食われて単なるデッキ並べ替えに退化していた回帰ガード（40枚一括是正・census クラス指定/色/レベル look-pick）。
