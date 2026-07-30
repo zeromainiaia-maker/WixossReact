@@ -2110,6 +2110,24 @@ function parseSingleSentenceInner(text: string): EffectAction {
       } as import('../types/effects').ConditionalAction;
     }
   }
+  // 「(タイミング句、)このターンに〔owner〕のライフクロスが〔N枚以上〕クラッシュされていた場合、〜」
+  // → CONDITIONAL(LIFE_CRASHED_THIS_TURN)（WX18-063/064・WXDi-P16-065）。
+  // 【自】ターン終了時札は actionText 先頭に timing 句（「各ターン終了時、」「あなたのターン終了時、」）が
+  // 残るため正規表現で吸収する。
+  // 「対戦相手の効果によってクラッシュ」（WX11-021-E1②）は engine にクラッシュ発生源を区別する counter が
+  // 無く、アタックによるクラッシュでも真になって過剰発動するため除外＝この条件では近似しない。
+  {
+    const m = text.trim().match(/^(?:[^、]*?(?:終了時|開始時)、)?このターンに(あなた|対戦相手)の?ライフ(?:クロス)?が([^、]*?)クラッシュされ(?:てい)?た場合、(.+)/s);
+    if (m && !/効果によって/.test(m[2])) {
+      const owner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const vm = m[2].match(/([０-９\d]+)枚以上/);
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'LIFE_CRASHED_THIS_TURN', owner, operator: 'gte', value: vm ? parseNum(vm[1]) : 1 },
+        then: parseSingleSentence(m[3]),
+      } as import('../types/effects').ConditionalAction;
+    }
+  }
   // 「(その後、)それが〔色/＜C＞〕のシグニの場合、追加で〜」→ CONDITIONAL(LAST_PROCESSED_MATCHES{filter})。
   // ＝直前の対象処理アクション（DOWN/SEND_TO_ENERGY/BANISH/GRANT 等が lastProcessedCards をセット・SEQUENCE で
   //   step 間伝播・SELECT_TARGET の continuation にも伝播）で処理したカードが filter 一致なら追加効果を実行する。
