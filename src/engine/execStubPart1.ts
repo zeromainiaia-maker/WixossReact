@@ -29,6 +29,62 @@ export function execStubPart1(
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
+  // WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write.
+  // Field SIGNI leave triggers are collected later by BattleScreen's board diff.
+  if (stub.id === 'MUGEN_Q_RESET_AND_FLIP') {
+    const lrig = ctx.ownerState.field.lrig;
+    const sourceInstance = lrig.at(-1);
+    if (!sourceInstance || getCardNum(sourceInstance) !== 'WXDi-P11-010A') {
+      return done(addLog(ctx, '夢限 -Q- の反転条件を満たすセンタールリグがないため処理なし'));
+    }
+    const field = ctx.ownerState.field;
+    const cards = (values: Array<string | null | undefined> | undefined): string[] =>
+      (values ?? []).filter((value): value is string => typeof value === 'string' && value.length > 0);
+    const exiledFromField = [
+      ...lrig.slice(0, -1),
+      ...field.signi.flatMap(stack => stack ?? []),
+      ...cards(field.assist_lrig_l), ...cards(field.assist_lrig_r),
+      ...cards([field.key_piece]), ...cards(field.key_piece_extra),
+      ...cards(field.signi_charms), ...cards(field.signi_acce), ...cards(field.signi_soul),
+      ...cards(field.signi_traps), ...cards(field.signi_magic_boxes), ...cards(field.signi_seeds),
+      ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone),
+    ];
+    const newOwnerState: PlayerState = {
+      ...ctx.ownerState,
+      deck: shuffle([...ctx.ownerState.deck, ...ctx.ownerState.hand, ...ctx.ownerState.energy, ...ctx.ownerState.trash]),
+      hand: [], energy: [], trash: [], lrig_deck: [],
+      excluded: [...(ctx.ownerState.excluded ?? []), ...ctx.ownerState.lrig_deck, ...exiledFromField],
+      card_identity_overrides: {
+        ...(ctx.ownerState.card_identity_overrides ?? {}),
+        [sourceInstance]: 'WXDi-P11-010B',
+      },
+      // The accumulated modifier belongs specifically to cards named 夢限 -Q-.
+      // Once the same physical LRIG is the -A- face, its printed Limit 9 applies.
+      game_grow_phase_limit_plus: undefined,
+      game_lrig_limit_bonus: undefined,
+      field: {
+        ...field,
+        lrig: [sourceInstance],
+        signi: [null, null, null],
+        signi_down: [false, false, false], signi_frozen: [false, false, false],
+        assist_lrig_l: [], assist_lrig_r: [],
+        assist_lrig_l_down: false, assist_lrig_r_down: false,
+        key_piece: null, key_piece_extra: [],
+        signi_charms: [null, null, null], signi_acce: [null, null, null],
+        signi_virus: [0, 0, 0], signi_chokkin: [0, 0, 0],
+        signi_soul: [null, null, null], signi_traps: [null, null, null],
+        signi_magic_boxes: [null, null, null], signi_seeds: [null, null, null],
+        facedown_signi: [null, null, null], signi_armor: [false, false, false],
+        puppet_signi: [], free_zone: [], beat_zone: [],
+        cross_state: [false, false, false], heaven_state: [false, false, false],
+      },
+      deck_shuffled_count: (ctx.ownerState.deck_shuffled_count ?? 0) + 1,
+    };
+    return done(addLog(
+      { ...ctx, ownerState: newOwnerState },
+      `全領域を再編し、夢限 -Q- が夢限 -A- に反転（${ctx.ownerState.lrig_deck.length + exiledFromField.length}枚をゲームから除外）`,
+    ));
+  }
   if (stub.id === 'POWER_PLUS_BANISHED_POWER') {
     const params = stub.powerPlusBanishedPower;
     const delta = Math.max(0, ctx.banishedSigniPower ?? 0);

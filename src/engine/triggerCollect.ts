@@ -30,6 +30,27 @@ export interface TrigCtx {
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
+/** Collect the new face's own AUTO ability after a permanent LRIG identity flip. */
+export function collectLrigFlipTriggers(
+  ctx: TrigCtx,
+  beforeState: PlayerState,
+  afterState: PlayerState,
+  ownerId: string,
+): StackEntry[] {
+  const instanceId = afterState.field.lrig.at(-1);
+  if (!instanceId || beforeState.field.lrig.at(-1) !== instanceId) return [];
+  const beforeIdentity = beforeState.card_identity_overrides?.[instanceId] ?? getCardNum(instanceId);
+  const afterIdentity = afterState.card_identity_overrides?.[instanceId] ?? getCardNum(instanceId);
+  if (beforeIdentity === afterIdentity) return [];
+  return (ctx.effectsMap.get(afterIdentity) ?? [])
+    .filter(effect => effect.effectType === 'AUTO' && effect.timing?.includes('ON_LRIG_FLIP'))
+    .map(effect => ({
+      id: ctx.genId(), playerId: ownerId, cardNum: instanceId, effectId: effect.effectId,
+      label: `${ctx.cardMap.get(afterIdentity)?.CardName ?? afterIdentity} の【自】効果（反転時）`,
+      effect,
+    }));
+}
+
 /** 手札からの通常召喚で自身の mandatory【出】として積める構造か。 */
 export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
   return eff.effectType === 'AUTO'

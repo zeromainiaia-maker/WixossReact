@@ -4753,8 +4753,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-P11-010A": [
     {"effectId":"WXDi-P11-010A-E1","effectType":"AUTO","timing":["ON_GROW_PHASE_START"],"action":{"type":"SEQUENCE","steps":[
       {"type":"STUB","id":"GAIN_ABILITY_THIS_GAME"},
-      {"type":"CONDITIONAL","condition":{"type":"EFFECTIVE_LRIG_LIMIT_GTE","value":9},"then":{"type":"UNKNOWN","raw":"あなたの手札とエナゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルし、このルリグ以外の、あなたのルリグデッキと場にあるすべてのカードをゲームから除外し、このルリグを裏向きにする。"}}
+      {"type":"CONDITIONAL","condition":{"type":"EFFECTIVE_LRIG_LIMIT_GTE","value":9},"then":{"type":"STUB","id":"MUGEN_Q_RESET_AND_FLIP"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXDi-P11-010B": [
+    {"effectId":"WXDi-P11-010B-E1","effectType":"AUTO","timing":["ON_LRIG_FLIP"],"action":{"type":"SEQUENCE","steps":[
+      {"type":"DRAW","owner":"self","count":5},
+      {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":5}
+    ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WXDi-P11-010B-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
   ],
   // §3 task12(xxii) B3: do not charge the all-hand/all-energy cost while the paired free-grow payoff is unavailable.
   "WXDi-P13-003A": [

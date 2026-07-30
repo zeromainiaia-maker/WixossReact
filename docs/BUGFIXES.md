@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 H2 `WXDi-P11-010A-E1`（夢限 -Q-）両面反転を完全実装（2026-07-30・Codex）
+
+- `MUGEN_Q_RESET_AND_FLIP` を追加し、手札・エナ・トラッシュの全デッキ戻し＋シャッフル、ルリグデッキと場の「センタールリグ最上段以外」全カードの `excluded` 移動、同一センタールリグinstanceの `card_identity_overrides → WXDi-P11-010B` を単一state構築・単一returnで原子的に実行する。前提不成立時はstate参照自体を変えない。
+- 場の対象はシグニ全スタック（下敷き・トークン含む）、センター旧ルリグ下敷き、左右アシスト全スタック、キー/追加キー、アクセ、チャーム、ソウル、トラップ、マジックボックス、シード、裏向きシグニ、フリーゾーン、ビートゾーン。ウィルス/貯菌/血晶武装/クロス/ヘブン/傀儡はカードではない付随状態なので消去し、`check` は場ではないため対象外。盤面差分の通常経路を維持し、最上段シグニの `ON_LEAVE_FIELD` は発火させる。
+- B面 E1 に専用 `ON_LRIG_FLIP` timing を付け、identity差分から1回だけスタックへ積む。5 JSON全走査で既存同timingは0効果、追加対象は `WXDi-P11-010B-E1` 1効果だけ。反転後はB面E1（5ドロー＋エナチャージ5）、B面E2【起】、printed Limit 9を使用し、A面能力は解決対象から外れる。Q専用の累積limit値と将来加算フラグも反転時に除去する。
+- `card_identity_overrides` は描画・`battleCardMap`・`effectsMap` の既存差し替え経路を再利用。既存 `AWAKEN` はログのみで共通ルリグ変身基盤はなかった。反転値はターン終了リセット対象に存在せず、場を離れた時だけ既存 `removeFromField` が消す。goldenを1本追加（共有cursorはtry/finally復元）し、全サブゾーン、失敗時no-op、反転トリガー、Limit 9、B面E2候補を固定。
+
 ## PLAN §6.3 I′「ガード追加コスト族」11効果を完全クローズ（2026-07-30・Codex）
 - `opp_guard_extra_colorless_this_turn?: number` を追加し、AUTO/ACTIVATED の `GUARD_EXTRA_COST_BY_OPP` / `OPP_GUARD_COST_COLORLESS` は `until:'END_OF_TURN'` のときだけ `count ?? 1` を加算する。collector は常在・ルリグ付与・ゲーム永続にこの値を合算し、既存UIの警告・不足判定・N枚徴収へ同じ合計を渡す。
 - `prevent_opp_guard` は `PREVENT_OPP_GUARD_THIS_TURN` / `BLOCK_ACTION` 専用へ是正。追加《無》は支払えばガード可能で、完全禁止にはしない。「このゲームの間」2件に並ぶ重複STUBは `until` 省略のため従来どおりログのみで、ゲーム永続値を二重加算しない。

@@ -13,8 +13,10 @@ export function computeEffectiveLrigLimit(
   isOwnerTurn: boolean,
 ): number {
   const parseLimit = (value?: string) => value === '∞' ? Infinity : (parseInt(value ?? '0', 10) || 0);
-  const center = cardMap.get(baseCardNum(state.field.lrig.at(-1) ?? ''));
-  const otherCenter = cardMap.get(baseCardNum(otherState.field.lrig.at(-1) ?? ''));
+  const centerInstance = state.field.lrig.at(-1) ?? '';
+  const otherCenterInstance = otherState.field.lrig.at(-1) ?? '';
+  const center = cardMap.get(state.card_identity_overrides?.[centerInstance] ?? baseCardNum(centerInstance));
+  const otherCenter = cardMap.get(otherState.card_identity_overrides?.[otherCenterInstance] ?? baseCardNum(otherCenterInstance));
   const basicOverride = otherState.field.signi.some(stack => {
     const top = stack?.at(-1);
     return !!top && (effectsMap.get(top) ?? effectsMap.get(baseCardNum(top)) ?? []).some(effect =>

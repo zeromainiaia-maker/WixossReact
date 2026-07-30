@@ -29,6 +29,7 @@ import {
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
+import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
@@ -13956,8 +13957,8 @@ test('task12(xxii) WXDi-P11-010A-E1 E2E: 実効リミット8以下では本体�
     ok(evalCondition({ type: 'EFFECTIVE_LRIG_LIMIT_GTE', value: 9 }, high));
     const rHigh = run(action, high);
     ok(rHigh.done); if (!rHigh.done) return;
-    ok(rHigh.logs.some(x => x.includes('[UNKNOWN: あなたの手札とエナゾーンとトラッシュ')),
-      '実効リミット9で honest defer 本体に入らない');
+    eq(rHigh.ownerState.card_identity_overrides?.['WXDi-P11-010A'], 'WXDi-P11-010B',
+      '実効リミット9で原子的リセット＋B面反転に入る');
   } finally { cursor = savedCursor; }
 });
 
@@ -17907,6 +17908,56 @@ test('cost-total batch: 支払い枚数の記録は効果をまたいで累算�
   const st = r.ownerState;
   eq(st.last_cost_energy_trash_count, undefined, '枚数記録がクリアされる');
   eq(st.last_cost_energy_trash_level_sum, undefined, 'レベル合計も同じ寿命（既存挙動）');
+});
+
+test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () => {
+  const savedCursor = cursor;
+  try {
+    const q = 'WXDi-P11-010A#q';
+    const before = mkState({ lrig: ['old-lrig', q], signi: [null, null, null] });
+    const originalDeck = Array.from({ length: 12 }, (_, i) => `deck-${i + 1}`);
+    before.deck = originalDeck; before.hand = ['hand-1']; before.energy = ['energy-1']; before.trash = ['trash-1'];
+    before.lrig_deck = ['arts-1']; before.excluded = ['excluded-0'];
+    before.game_grow_phase_limit_plus = 1; before.game_lrig_limit_bonus = 4;
+    before.field = {
+      ...before.field, lrig: ['old-lrig', q], signi: [['under-1', 'signi-top'], null, ['token-signi']],
+      assist_lrig_l: ['assist-l'], assist_lrig_r: ['assist-r'], key_piece: 'key-1', key_piece_extra: ['key-2'],
+      signi_charms: ['charm-1', null, null], signi_acce: ['acce-1', null, null],
+      signi_soul: ['soul-1', null, null], signi_traps: ['trap-1', null, null],
+      signi_magic_boxes: ['box-1', null, null], signi_seeds: ['seed-1', null, null],
+      facedown_signi: [null, 'facedown-1', null], free_zone: ['free-token'], beat_zone: ['beat-token'],
+      puppet_signi: ['signi-top'], signi_virus: [2, 1, 0], signi_chokkin: [1, 0, 0],
+    };
+    const ctx = mkCtx({}, {}, q); ctx.ownerState = before;
+    const result = run({ type: 'STUB', id: 'MUGEN_Q_RESET_AND_FLIP' } as EffectAction, ctx);
+    eq([...result.ownerState.deck].sort().join(','), [...originalDeck, 'hand-1', 'energy-1', 'trash-1'].sort().join(','), 'all three zones return to deck');
+    eq(result.ownerState.hand.length + result.ownerState.energy.length + result.ownerState.trash.length, 0, 'returned zones empty');
+    eq(result.ownerState.field.lrig.join(','), q, 'only current center LRIG remains');
+    const exiled = ['excluded-0', 'arts-1', 'old-lrig', 'under-1', 'signi-top', 'token-signi', 'assist-l', 'assist-r',
+      'key-1', 'key-2', 'charm-1', 'acce-1', 'soul-1', 'trap-1', 'box-1', 'seed-1', 'facedown-1', 'free-token', 'beat-token'];
+    eq([...(result.ownerState.excluded ?? [])].sort().join(','), exiled.sort().join(','), 'all physical field/lrig-deck cards exiled');
+    eq(result.ownerState.card_identity_overrides?.[q], 'WXDi-P11-010B', 'same LRIG instance resolves to B face');
+    eq(result.ownerState.game_grow_phase_limit_plus, undefined, 'Q future gain stops');
+    eq(result.ownerState.game_lrig_limit_bonus, undefined, 'Q accumulated bonus stops applying');
+
+    const bEffects = mergeManualEffects('WXDi-P11-010B', effectsMap.get('WXDi-P11-010B') ?? []);
+    const flipMap = new Map(effectsMap); flipMap.set('WXDi-P11-010B', bEffects);
+    const trigCtx = { hostId: 'p1', guestId: 'p2', activeUserId: 'p1', turnPhase: 'GROW',
+      effectsMap: flipMap, cardMap, genId: () => 'flip-trigger' } as TrigCtx;
+    const triggers = collectLrigFlipTriggers(trigCtx, before, result.ownerState, 'p1');
+    eq(triggers.map(t => t.effectId).join(','), 'WXDi-P11-010B-E1', 'B-face E1 fires once');
+    const e1 = run(triggers[0].effect.action, { ...ctx, ownerState: result.ownerState });
+    eq(e1.ownerState.hand.length, 5, 'B E1 draw 5'); eq(e1.ownerState.energy.length, 5, 'B E1 energy charge 5');
+
+    const resolvedCards = new Map(cardMap); resolvedCards.set(q, cardMap.get('WXDi-P11-010B')!);
+    const resolvedEffects = new Map(flipMap); resolvedEffects.set(q, bEffects);
+    eq(computeEffectiveLrigLimit(result.ownerState, result.otherState, resolvedCards, resolvedEffects, true), 9, 'B printed Limit 9');
+    eq(collectCenterLrigActivatedEffects(result.ownerState, resolvedEffects, 'MAIN').map(e => e.effectId).join(','), 'WXDi-P11-010B-E2', 'B E2 is available and A abilities are absent');
+
+    const invalid = mkCtx({}, {}); const invalidBefore = invalid.ownerState;
+    const untouched = run({ type: 'STUB', id: 'MUGEN_Q_RESET_AND_FLIP' } as EffectAction, invalid);
+    ok(untouched.ownerState === invalidBefore, 'failed precondition leaves state untouched');
+  } finally { cursor = savedCursor; }
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
