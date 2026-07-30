@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-30 — タスク12(lxi) 第2波：「対戦相手**は**〜しないかぎり」＝主語分配形（8カード9効果）
+
+**⚠まず前セッションの簿記を訂正する**＝第1波の残として「『対戦相手は』形13効果＝同一文型の最大の弾」と書いたが、**これは私の粗い括りで誤り**。原文を1件ずつ engine ハンドラまで追うと**6種類の別バグ**だった。「ゲートが無い」と決めつけず、まず**現状 JSON と engine ハンドラの実装**を読むべきだった：
+
+| 効果 | 実際の診断 |
+|---|---|
+| `SPDi43-01-E1` | ゲート欠落＝**過剰実行**（帰結 `TRASH{SIGNI opp 2, opponentSelects}` は元から正しい） |
+| `WXK05-001-E1`／`WX15-033-BURST` | ゲート欠落＝過剰実行。回避が「手札N枚**または**自分のエナN枚トラッシュ」で engine に選択肢型が無かった |
+| `WX24-P4-023-E3` | 帰結が `TRASH{HAND_CARD owner:**self** count:ALL}`＝**自分の手札を全部捨てる**という別物（正しくは相手の全シグニ） |
+| `WX11-044-BURST` | 型 `CONDITIONAL_DISCARD` を吐くが**executor に dispatch が無く完全 no-op**（型宣言と STUB-id ハンドラはあるが繋がっていない） |
+| `WDK10-001-E2` | 専用 STUB `OPP_ENERGY_OR_DISCARD_CONDITION` の非回避枝が `ENERGY_CHARGE`＝**相手にエナを与える**符号逆バグ（正しくは相手のエナをトラッシュ） |
+| `WXDi-P01-028-E1/E2` | 専用 STUB `TARGET_OPP_SIGNI_ONLY` が**対象選択→相手の回避 CHOOSE→デッキ下移動まで完全実装済み**なのに、原文が2文構成のため2文目から独立に `TRANSFER_TO_DECK` が生まれて SEQUENCE に並んでいた＝**回避を選んでも後続がシグニをデッキ下へ送る二重実行**で回避が実質無効 |
+| `WXDi-P16-091-E1` | 専用 STUB `OPP_DISCARD_OR_PAY_ENERGY` で**概ね正しかった**（手札0・エナ有りで支払いを強制する微小な過剰のみ） |
+
+**engine 拡張（既存語彙の水平展開・新機構なし）**＝`StubAction` の `opponentHandDiscard` と同形で ①`opponentEnergyTrash?: number \| 'ALL'`（自分のエナをN枚トラッシュして回避）②`opponentHandDiscardFilter?: TargetFilter`（回避に使える手札の色制約）③`opponentHandDiscard` を `number \| 'ALL'` へ拡張。`OPPONENT_PAY_OPTIONAL` の選択肢ビルダー（`effectExecutor.ts`）に `energyTrash` 枝を足しただけで、resume 経路（`resumeOpponentPayOptional`）は `choiceId !== 'pay'` を汎用に扱うので無改修。**available 判定つき**＝資源不足の回避手段は選べない／`ALL` は該当0枚なら枝自体を出さない（0枚回避の抜け道を作らない）。
+
+**parser（`matchOpponentWaUnlessGate`）**＝「対戦相手は」＋（対象宣言）＋回避クローズ＋帰結の4分割。⚠**帰結は第1波のように「従来の読み」を流用できない**＝`opponentSelects` や対象数の是正は `parseSingleSentence` の**後段 post-pass**（`applyOpponentSelectsBatch11` 等）が `e.action` に対して行うため、文内で包んだ時点で post-pass の射程から外れて**静かに落ちる**（`SPDi43-01-E1` で対象数 2→1・`opponentSelects` 脱落を実測）。よって帰結は原文どおり**明示構築**する（相手のシグニ／手札／エナの3系統＋「選び」＝`opponentSelects` と「対象の」＝効果側ターゲットの区別）。**拾えない帰結は据置**＝誤った帰結にゲートだけ足して体裁を整えるより無配線のまま計器に残す。
+
+**`WXDi-P01-028` は標準ペアへ寄せずに STUB を残した**＝`TARGET_OPP_SIGNI_ONLY` は「**対象を見てから**相手が支払いを判断する」順序で、標準ペア（ゲート→対象選択）より原文に忠実。冗長な後続ステップだけを構造 post-pass `dropRedundantStepAfterTargetOppSigniOnly` で落とした（「この STUB は自己完結だから後続の重複を落とす」という機構についての規則＝カード番号ハードコードではない）。
+
+**採用**＝held 6カードを `heldReview.mjs --adopt`。**`WX15-033` と `WX11-044` はカード単位 PRESERVE のため curated JSON へ直接配線**＝前者は同カードの `WX15-033-E2` で fresh が `CONDITIONAL{LIFE_COMPARE_OPP}` を落とす**既存ドリフト**があり、カード単位で採用すると無条件バニッシュへ退化する（本バッチと無関係の別件＝下の「新たに開いた課題」へ登録）。後者は同居する `WX11-044-E1` が MANUAL。live per-effect 差分 **changed 9 / added 0 / removed 0**（8カード9効果）で採用リストと完全一致＝巻き込み0。`build:effects` 冪等。
+
+**逆翻訳も追随**＝`OPPONENT_PAY_OPTIONAL` の描画が**回避手段を1つしか出しておらず**（`costColors` と `opponentHandDiscard` が両方あると前者が消える既存の穴も含む）、新しい回避手段が逆翻訳から無言で消えていた。全部を「AするかBしてもよい」形で併記するよう是正（末尾だけ て形にしないと「捨ててか」になる）。例＝`WXK05-001-E1`「対戦相手は手札を2枚捨てるか、エナゾーンからカードを3枚トラッシュに置いてもよい。そうしなかった場合、対戦相手のシグニ1体をトラッシュに置く」。
+
+**計器**＝golden **1120→1128**（+8＝は形5文型／TARGET_OPP_SIGNI_ONLY 二重実行／未知帰結の据置／**engine 直叩き1本**＝`energyTrash` 枝の提示・資源不足での非提示・`ALL` の0枚時非提示）、census **1375→1373**（`BASELINE_HIGH` 更新済み）、smoke **10679/10679** 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/**230 warnings 据置**、同型★0（265群）、held **288枚/106署名 据置**、manual field loss 0、BOM/U+FFFD 新規0。
+⚠**golden に engine 直叩きテストを足すときは共有 `cursor` を save/restore する**（`mkCtx` がインスタンスID採番を進めるため、忘れると後続の (xlvi) wave17 テストがIDずれで落ちる＝実際に1回踏んだ）。
+
+**残（honest defer・17効果）**＝①複文「以下の2つから1つを選ぶ」2（`SPDi43-02-E1`／`SPDi43-07-E1`）②回避コストが engine 非対応 5（`WX22-025-E3`／`WXDi-P16-088-E1`／`WXK05-009-E2`〔可変《無》〕／`WXK06-047-E1`／`WXK06-067-E1`〔いずれも「自分のシグニ／カードをデッキの上に置く」型の回避〕）③対象節以外の前置き 5（`WX24-P2-022-E1`／`WX24-P4-011-E3`／`WX25-CP1-012-E1`／`WXDi-P06-023-E2`／`WXDi-P13-075-E1`）④「そのシグニ」照応 2（`WXDi-P08-007-E1`／`WXEX2-25-E1`）⑤純加算チェック不一致 1（`WXDi-P05-TK01A-E1`）⑥3機構一体 1（`WX24-P4-007-E1`＝`DO_THREE_THINGS` は**別カード用の text パターンで、この原文にはどれも一致せず完全 no-op**。①回避が「自分のシグニをトラッシュ」②標準形③トラッシュ移動禁止の制限、の3つが一体）⑦制限系で別機構 1（`WXDi-P11-009-E3`＝配置制限を `LRIG_GROW_RESTRICT`〔グロウ制限〕にすり替えている）。
+
+**🆕 新たに開いた課題（PLAN §3 へ登録）**＝①**`CONDITIONAL_DISCARD` は型宣言だけあって executor に dispatch が無い**。本バッチで `WX11-044-BURST` が抜けた結果、残る唯一の使用者 `WD16-016-BURST`（「対戦相手の手札が5枚以下の場合1枚、6枚以上の場合は代わりに2枚捨てる」＝手札枚数分岐で本 family とは別物）が**完全 no-op のまま**になった。②**`WX15-033-E2` の fresh が `CONDITIONAL{LIFE_COMPARE_OPP}` を落とす**（「対戦相手のライフクロスの枚数があなたより多い場合」）＝採用すると無条件バニッシュへ退化するので held に留めてある。③`OPP_ENERGY_OR_DISCARD_CONDITION` は live 使用0になったが**符号逆の実装が残っている**ので、新しいカードをそこへ流さないよう注記を入れた。
+
+**⚠要実機検証（Sonnet §7 へ登録）**＝相手側 CHOOSE に**3つ目の枝（エナトラッシュ）**が出るケースの UI。
+
 ## 2026-07-30 — タスク12(lxi) 本消化：「対戦相手が〜しないかぎり」＝支払い回避クローズの文中形（29カード30効果）
 
 **真因**＝原文「[<対象節>、]対戦相手が《無》を支払わない／手札をN枚捨てないかぎり、X」は**相手が任意で回避コストを払える対話ゲート**（払えば X は起きない）だが、parser の規則が `^対戦相手が《色》…を支払わないかぎり、` の**エナ型かつ文頭形**しか拾っていなかった。対象節が1つ前置きされた瞬間（「対戦相手のパワー12000以下のシグニ１体を対象とし、」）にマッチが外れ、**下流の非アンカー規則が帰結 X だけを拾って回避クローズごと無言消費**する。結果 X が**無条件実行**される過剰実行が29カード30効果に残っていた（例：`WX25-P1-038-E1` は「相手が《無》×3を払わなければバニッシュ」が**常にバニッシュ**）。

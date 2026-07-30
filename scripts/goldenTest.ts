@@ -9470,6 +9470,107 @@ test('parse ガード⑦＝クローズを外すと読みが変わる文（owner
   const s = JSON.stringify(e.action);
   ok(!s.includes('"owner":"self"'), '「このシグニゾーンにあるシグニ」が self へ反転したら据置する（純加算チェック）');
 });
+// ── タスク12(lxi) 第2波：「対戦相手**は**」＝主語分配形（2026-07-30）──
+// 帰結の実行主体も対戦相手なので、帰結は原文どおり明示構築する（従来出力の流用は post-pass の
+// 是正〔opponentSelects・対象数〕を取りこぼすため不可＝SPDi43-01 で実測）。
+test('parse は形：エナ回避＋「自分のシグニN体を選びトラッシュに置く」→ opponentSelects と対象数を保つ（SPDi43-01）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-ENE', Type: 'ルリグ', EffectText: '【自】：あなたのターン終了時、対戦相手は《無》《無》を支払わないかぎり自分のシグニ２体を選びトラッシュに置く。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { id?: string; costColors?: string[]; then?: { type: string; opponentSelects?: boolean; target?: { owner: string; count: number } } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件で2体トラッシュ）');
+  eq(seq.steps[0]?.costColors?.length, 2, '《無》×2');
+  eq(seq.steps[1]?.then?.target?.count, 2, '対象数2を落とさない（従来出力の流用だと1に退化した）');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '相手のシグニ');
+  eq(seq.steps[1]?.then?.opponentSelects, true, '「選び」＝相手が選ぶ（post-pass 由来の情報を保つ）');
+});
+test('parse は形：手札捨てかエナトラッシュの二者択一回避 → opponentEnergyTrash（WX15-033 / WXK05-001）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-ENT', Type: 'シグニ', EffectText: '【出】：対戦相手は、自分の手札を２枚捨てるか、自分のエナゾーンから対象のカードを３枚トラッシュに置かないかぎり、対象の自分のシグニ１体を場からトラッシュに置く。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { id?: string; opponentHandDiscard?: number; opponentEnergyTrash?: number; then?: { type: string; opponentSelects?: boolean; target?: { owner: string } } }[] };
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件トラッシュ）');
+  eq(seq.steps[0]?.opponentHandDiscard, 2, '手札2枚で回避');
+  eq(seq.steps[0]?.opponentEnergyTrash, 3, 'エナ3枚トラッシュでも回避');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '相手のシグニ');
+  eq(seq.steps[1]?.then?.opponentSelects, undefined, '「対象の」＝効果側が対象を取る（opponentSelects は付けない）');
+});
+test('parse は形：「すべて」回避と全シグニトラッシュ（WX24-P4-023＝従来は自分の手札を全部捨てていた）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-ALL', Type: 'ルリグ', EffectText: '【起】《ゲーム１回》デザイア　シグニ１体を場からトラッシュに置く：対戦相手は、手札をすべて捨てるか、自分のエナゾーンにあるすべてのカードをトラッシュに置かないかぎり、自分のすべてのシグニをトラッシュに置く。' } as unknown as CardData)[0];
+  const s = JSON.stringify(e.action);
+  ok(!s.includes('"type":"HAND_CARD","owner":"self"'), '自分の手札を全部捨てる誤読を復活させない');
+  const seq = e.action as unknown as { steps: { id?: string; opponentHandDiscard?: string; opponentEnergyTrash?: string; then?: { target?: { owner: string; count: string } } }[] };
+  const gate = seq.steps.find(x => x.id === 'OPPONENT_PAY_OPTIONAL');
+  eq(gate?.opponentHandDiscard, 'ALL', '手札すべてで回避');
+  eq(gate?.opponentEnergyTrash, 'ALL', 'エナすべてで回避');
+  const cond = seq.steps.find(x => x.then);
+  eq(cond?.then?.target?.owner, 'opponent', '帰結は相手のシグニ');
+  eq(cond?.then?.target?.count, 'ALL', '相手のすべてのシグニ');
+});
+test('parse は形：対象宣言が相手エナの「それをトラッシュに置く」（WDK10-001＝従来はエナを与える符号逆バグ）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-ENZ', Type: 'ルリグ', EffectText: '【起】《ターン１回》トラッシュにあるカード１枚をゲームから除外する：対戦相手は、自分のエナゾーンからカード１枚を対象とし、手札を１枚捨てないかぎりそれをトラッシュに置く。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { id?: string; opponentHandDiscard?: number; then?: { type: string; target?: { type: string; owner: string } } }[] };
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化');
+  eq(seq.steps[0]?.opponentHandDiscard, 1, '手札1枚で回避');
+  eq(seq.steps[1]?.then?.type, 'TRASH', 'エナは「トラッシュに置く」＝ENERGY_CHARGE ではない');
+  eq(seq.steps[1]?.then?.target?.type, 'ENERGY_CARD', '相手のエナゾーン');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '相手のエナ');
+});
+test('parse は形：色制約つき回避（「無色のカードを1枚捨てないかぎり」＝WX11-044）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-COL', Type: 'シグニ', EffectText: '【出】：対戦相手は無色のカードを１枚捨てないかぎり手札を２枚捨てる。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { id?: string; opponentHandDiscard?: number; opponentHandDiscardFilter?: { color?: string }; then?: { target?: { type: string; owner: string; count: number } } }[] };
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は dispatch の無い CONDITIONAL_DISCARD ＝完全 no-op）');
+  eq(seq.steps[0]?.opponentHandDiscard, 1, '回避は1枚');
+  eq(seq.steps[0]?.opponentHandDiscardFilter?.color, '無', '回避に使えるのは無色のカードだけ');
+  eq(seq.steps[1]?.then?.target?.count, 2, '回避しなければ2枚捨てる');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '捨てるのは相手');
+});
+test('parse は形：TARGET_OPP_SIGNI_ONLY の後続 TRANSFER_TO_DECK は落とす（WXDi-P01-028 の二重実行）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-TOSO', Type: 'シグニ', EffectText: '【出】：対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string }[] };
+  eq(seq.steps.length, 1, 'STUB 1本だけ＝回避しても後続がデッキ下へ送る二重実行を作らない');
+  eq(seq.steps[0]?.id, 'TARGET_OPP_SIGNI_ONLY', 'ゲートは STUB 側が自己完結で持つ（対象→相手の回避選択→デッキ下）');
+  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '標準ペアを二重に被せない');
+});
+// engine 側：新しい回避手段（エナトラッシュ／色制約つき手札捨て／ALL）が CHOOSE に載ることを直叩きで固定する。
+test('engine は形：opponentEnergyTrash / 色制約 / ALL が相手の CHOOSE 選択肢として提示される', () => {
+  const savedCursor = cursor;   // mkCtx が共有 cursor を進めるため後続テストのため復元する
+  const gateOf = (stub: Record<string, unknown>, then: EffectAction): EffectAction => ({
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...stub } as unknown as EffectAction,
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as unknown as EffectAction,
+    ],
+  } as unknown as EffectAction);
+  const trashOppSigni: EffectAction = { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  const optIds = (eff: EffectAction, ctx: ExecCtx): string[] => {
+    const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: eff, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    const p = (r as { pending?: { options?: { id: string; available: boolean }[] } }).pending;
+    return (p?.options ?? []).filter(o => o.available).map(o => o.id);
+  };
+  // エナ回避（3枚）＋手札回避（2枚）＝相手にエナ5・手札5 → 3択すべて選べる
+  const rich = mkCtx({ signi: ['WX01-001'] }, { signi: ['WX01-001'], hand: 5, energy: 5 });
+  const both = optIds(gateOf({ opponentHandDiscard: 2, opponentEnergyTrash: 3 }, trashOppSigni), rich);
+  ok(both.includes('discard'), '手札回避が出る');
+  ok(both.includes('energyTrash'), 'エナ回避が出る');
+  ok(both.includes('skip'), '「支払わない」は常に出る');
+  // エナ2枚しかない → エナ3枚回避は選べない（available:false）
+  const poor = mkCtx({ signi: ['WX01-001'] }, { signi: ['WX01-001'], hand: 5, energy: 2 });
+  const poorIds = optIds(gateOf({ opponentHandDiscard: 2, opponentEnergyTrash: 3 }, trashOppSigni), poor);
+  ok(!poorIds.includes('energyTrash'), 'エナ不足なら エナ回避は選べない');
+  ok(poorIds.includes('discard'), '手札はあるので手札回避は残る');
+  // 色制約つき手札回避：手札に無色が無ければ選べない（fill() は無色でないカードを積む前提の否定側だけ見る）
+  const filtered = optIds(gateOf({ opponentHandDiscard: 1, opponentHandDiscardFilter: { color: '無' } },
+    { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 2 } } as unknown as EffectAction), rich);
+  ok(filtered.includes('skip'), '色制約つきでも「支払わない」は出る');
+  // ALL：エナ0・手札0 の相手には回避枝が立たない（0枚回避という抜け道を作らない）
+  const emptyOpp = mkCtx({ signi: ['WX01-001'] }, { signi: ['WX01-001'], hand: 0, energy: 0 });
+  const allIds = optIds(gateOf({ opponentHandDiscard: 'ALL', opponentEnergyTrash: 'ALL' }, trashOppSigni), emptyOpp);
+  ok(!allIds.includes('discard') && !allIds.includes('energyTrash'), '手札もエナも0なら ALL 回避は提示しない');
+  cursor = savedCursor;
+});
+test('parse は形ガード：帰結が未知形なら据置＝誤った帰結にゲートだけ足さない', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-DEFER', Type: 'シグニ', EffectText: '【出】：対戦相手は、自分のシグニ１体を対象とし、それをデッキの一番上に置かないかぎり手札を１枚デッキの一番下に置く。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '回避コストが「デッキの上に置く」＝engine の選択肢に無い形は据置');
+});
+
 test('parse ガード④＝制限系の帰結（【ガード】不可／アタック不可）は専用機構の領分として据置（WX19-001 / WX10-024）', () => {
   const guard = parseCardEffects({ CardNum: 'TEST-LXI-GUARD', Type: 'ルリグ', EffectText: '【常】：対戦相手は、手札から《ガードアイコン》を持つカードを追加で１枚捨てないかぎり【ガード】ができない。' } as unknown as CardData)[0];
   ok(!JSON.stringify(guard.action).includes('OPPONENT_PAY_OPTIONAL'), '【ガード】不可は GUARD_EXTRA_COST_BY_OPP の領分');

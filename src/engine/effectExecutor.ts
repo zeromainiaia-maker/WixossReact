@@ -3083,20 +3083,40 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // pay → 何も起きない（対戦相手のエナ消費）、skip → 効果発動（conditional.then）
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
           const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
-          const opponentHandDiscard = stub.opponentHandDiscard ?? 0;
           const payLabel = costColors.length > 0
             ? `支払う（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
             : '支払う';
+          // 回避手段は「エナ支払い」以外に**手札捨て**と**自分のエナをトラッシュ**を取りうる（タスク12(lxi) 第2波）。
+          // いずれも相手が自分の資源を払って効果を回避する枝＝選んだ時点で conditional.then は実行しない。
+          // 'ALL' は「手札をすべて捨てる」「エナゾーンにあるすべてのカードをトラッシュに置く」（WX24-P4-023）。
+          const handSpec = stub.opponentHandDiscard;
+          const handFilter = stub.opponentHandDiscardFilter;
+          const eligibleHand = handFilter
+            ? cur.otherState.hand.filter(cn => matchesFilter(cur.cardMap.get(getCardNum(cn)), handFilter))
+            : cur.otherState.hand;
+          const handCount = handSpec === 'ALL' ? eligibleHand.length : (handSpec ?? 0);
+          const handLabelNoun = handFilter?.color ? `${handFilter.color}のカード` : '手札';
+          const enSpec = stub.opponentEnergyTrash;
+          const enCount = enSpec === 'ALL' ? cur.otherState.energy.length : (enSpec ?? 0);
           const options = [
             { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColors.length ? { costColors } : {}) },
-            ...(opponentHandDiscard > 0 ? [{
+            ...(handSpec !== undefined && handCount > 0 ? [{
               id: 'discard',
-              label: `手札を${opponentHandDiscard}枚捨てる`,
+              label: handSpec === 'ALL' ? '手札をすべて捨てる' : `${handLabelNoun}を${handCount}枚捨てる`,
               action: {
                 type: 'TRASH',
-                target: { type: 'HAND_CARD', owner: 'opponent', count: opponentHandDiscard },
+                target: { type: 'HAND_CARD', owner: 'opponent', count: handSpec === 'ALL' ? 'ALL' : handCount, ...(handFilter ? { filter: handFilter } : {}) },
               } as EffectAction,
-              available: cur.otherState.hand.length >= opponentHandDiscard,
+              available: eligibleHand.length >= handCount,
+            }] : []),
+            ...(enSpec !== undefined && enCount > 0 ? [{
+              id: 'energyTrash',
+              label: enSpec === 'ALL' ? 'エナゾーンのすべてのカードをトラッシュに置く' : `エナゾーンからカードを${enCount}枚トラッシュに置く`,
+              action: {
+                type: 'TRASH',
+                target: { type: 'ENERGY_CARD', owner: 'opponent', count: enSpec === 'ALL' ? 'ALL' : enCount },
+              } as EffectAction,
+              available: cur.otherState.energy.length >= enCount,
             }] : []),
             { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];

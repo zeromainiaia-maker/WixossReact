@@ -2754,6 +2754,11 @@ export function execStubPart2(
     });
   }
   // OPP_ENERGY_OR_DISCARD_CONDITION: 相手はエナゾーンかトラッシュか選択
+  // ⚠2026-07-30（タスク12(lxi) 第2波）で**live 使用0**になった。唯一の使用元だった WDK10-001-E2 は
+  //   標準ペア STUB{OPPONENT_PAY_OPTIONAL, opponentHandDiscard}＋CONDITIONAL へ移行済み。
+  //   ⚠この実装は非回避枝が `ENERGY_CHARGE`（相手に**エナを与える**）になっており原文（相手のエナを
+  //   トラッシュに置く）と符号が逆。新しいカードをここへ流さないこと＝回避クローズ形は
+  //   OPPONENT_PAY_OPTIONAL を使う。
   if (stub.id === 'OPP_ENERGY_OR_DISCARD_CONDITION') {
     const toEnaOEODC: EnergyChargeAction = { type: 'ENERGY_CHARGE', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } };
     const toTrashOEODC: TrashAction = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } };

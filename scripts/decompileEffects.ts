@@ -1540,10 +1540,27 @@ function actionJa(a?: Action, effectType?: string): string {
       // OPPONENT_PAY_OPTIONAL: 対戦相手の任意コスト支払い（兄弟 CONDITIONAL(IS_MY_TURN) が
       // 「そうしなかった場合」の本体＝SEQUENCE 描画側でラベルを反転する）
       if (a.id === 'OPPONENT_PAY_OPTIONAL') {
+        // 回避手段は複数を併記できる（エナ支払い／手札捨て〔色制約可〕／自分のエナをトラッシュ）。
+        // ⚠従来は1つしか描画せず、併記型やタスク12(lxi) 第2波の新しい回避手段が逆翻訳から
+        //   無言で消えていた（原文照合で気づけなくなるため全部出す）。
+        // 併記は「AするかBしてもよい」＝末尾だけ て形にする（全部 て形にすると「捨ててか」になる）
+        const optsOPO: { dict: string; te: string }[] = [];
         const costJaOPO = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
-        return a.opponentHandDiscard
-          ? `対戦相手は手札を${a.opponentHandDiscard}枚捨ててもよい`
-          : `対戦相手は${costJaOPO || 'コスト'}を支払ってもよい`;
+        if (costJaOPO) optsOPO.push({ dict: `${costJaOPO}を支払う`, te: `${costJaOPO}を支払って` });
+        if (a.opponentHandDiscard !== undefined) {
+          const colOPO = a.opponentHandDiscardFilter?.color;
+          const nounOPO = colOPO ? `${colOPO === '無' ? '無色' : colOPO}のカード` : '手札';
+          const bodyOPO = a.opponentHandDiscard === 'ALL' ? `${nounOPO}をすべて` : `${nounOPO}を${a.opponentHandDiscard}枚`;
+          optsOPO.push({ dict: `${bodyOPO}捨てる`, te: `${bodyOPO}捨てて` });
+        }
+        if (a.opponentEnergyTrash !== undefined) {
+          const bodyOPO = a.opponentEnergyTrash === 'ALL'
+            ? 'エナゾーンのすべてのカードを' : `エナゾーンからカードを${a.opponentEnergyTrash}枚`;
+          optsOPO.push({ dict: `${bodyOPO}トラッシュに置く`, te: `${bodyOPO}トラッシュに置いて` });
+        }
+        if (optsOPO.length === 0) return '対戦相手はコストを支払ってもよい';
+        const headOPO = optsOPO.slice(0, -1).map(o => o.dict + 'か、').join('');
+        return `対戦相手は${headOPO}${optsOPO[optsOPO.length - 1].te}もよい`;
       }
       // SELECT_TARGET_ONLY: 盤面を変えない対象宣言（タスク12(liii)「〜１体を対象とし、」）
       if (a.id === 'SELECT_TARGET_ONLY') {

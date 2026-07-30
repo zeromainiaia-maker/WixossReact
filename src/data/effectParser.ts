@@ -2052,6 +2052,102 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
   ] } as SequenceAction;
 }
 
+// ── タスク12(lxi) 第2波「対戦相手は〜しないかぎり、X」＝主語分配形（2026-07-30）──
+// 第1波の「対戦相手**が**」形と違い、帰結 X の**実行主体も対戦相手**（「自分のシグニをトラッシュに置く」＝
+// 置くのは相手／「手札を2枚捨てる」＝捨てるのは相手）。帰結を単独パースすると owner が self へ反転するため
+// 第1波では丸ごと除外していた。
+//
+// 鍵＝**既存 parser は「は」形の帰結を既に正しく作れている**（主語分配を織り込んだ専用規則が古くからある）。
+// なので帰結は作り直さず、**本規則を止めた1回パスの読み（＝回避クローズを無言消費した従来の出力）を
+// そのまま `then` に使う**。第1波の「純加算チェック」を検査ではなく供給源として使う形＝新語彙0・退化0。
+//   例 SPDi43-01-E1「対戦相手は《無》《無》を支払わないかぎり自分のシグニ２体を選びトラッシュに置く」
+//      → 従来出力 TRASH{SIGNI opponent 2, opponentSelects} は**正しい**。欠けていたのはゲートだけ。
+//
+// ⚠従来出力が正しくない3文型（下の explicit 群）は先に個別規則で拾う。放置すると誤った帰結にゲートだけ
+//   足して「バグを保存したまま体裁を整える」ことになる：
+//   ①「<色>のカードをN枚捨てないかぎり手札をM枚捨てる」＝従来は `CONDITIONAL_DISCARD` 型を吐くが
+//     **executor に dispatch が無く完全 no-op**（WX11-044）。
+//   ②「自分のエナゾーンからカードN枚を対象とし、手札をM枚捨てないかぎりそれをトラッシュに置く」＝従来の
+//     `OPP_ENERGY_OR_DISCARD_CONDITION` は非回避枝が `ENERGY_CHARGE`（相手に**エナを与える**）で符号が逆（WDK10-001）。
+//   ③「…かぎり、自分のすべてのシグニをトラッシュに置く」＝従来は `TRASH{HAND_CARD owner:self ALL}`＝
+//     **自分の手札を全部捨てる**という別物（WX24-P4-023）。
+function parseOpponentWaUnlessCost(phrase: string):
+  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL' } | undefined {
+  const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
+  const p = phrase.replace(/^[、,]/, '');
+  let m = p.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
+  if (m) return { costColors: colorsOf(m[1]) };
+  // 「(自分の)?手札をN枚捨てるか、?(自分の)?エナゾーンから(対象の)?カード(をN枚|N枚を)トラッシュに置か」
+  m = p.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨てるか[、,]?(?:自分の)?エナゾーンから(?:対象の)?カード(?:を([０-９\d一二三四五六七八九十]+)枚|([０-９\d一二三四五六七八九十]+)枚を)トラッシュに置か$/);
+  if (m) return { opponentHandDiscard: parseNum(m[1]), opponentEnergyTrash: parseNum(m[2] ?? m[3]) };
+  // 「手札をすべて捨てるか、自分のエナゾーンにあるすべてのカードをトラッシュに置か」
+  if (/^(?:自分の)?手札をすべて捨てるか[、,]?(?:自分の)?エナゾーンにあるすべてのカードをトラッシュに置か$/.test(p)) {
+    return { opponentHandDiscard: 'ALL', opponentEnergyTrash: 'ALL' };
+  }
+  // 「無色のカードをN枚捨て」＝捨てられる手札に色制約がつく形
+  m = p.match(/^(無色|[白赤青緑黒])のカードを([０-９\d一二三四五六七八九十]+)枚捨て$/);
+  if (m) return { opponentHandDiscard: parseNum(m[2]), opponentHandDiscardFilter: { color: m[1] === '無色' ? '無' : m[1] } };
+  m = p.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
+  if (m) return { opponentHandDiscard: parseNum(m[1]) };
+  return undefined;
+}
+
+// 「は」形の帰結を**明示構築**する。
+// ⚠従来出力（本規則を止めた1回パス）を流用する案は捨てた＝`opponentSelects` や対象数の是正は
+//   parseSingleSentence の**後段 post-pass**（applyOpponentSelectsBatch11 等）が e.action に対して行う
+//   ため、文内で包んだ時点で post-pass の射程から外れて**静かに落ちる**（SPDi43-01 の count 2→1・
+//   opponentSelects 脱落で実測）。この family の帰結は数えるほどしか無いので原文どおり組む。
+// ⚠ここで拾わない帰結は**据置**＝ゲートだけ足して誤った帰結を温存するより、無配線のまま計器に残す。
+function parseOpponentWaExplicitConsequent(targetPrefix: string, thenText: string): EffectAction | undefined {
+  const th = thenText.replace(/。$/, '');
+  // 相手が自分のシグニをトラッシュ。「選び」＝相手が選ぶ（opponentSelects）／「対象の」＝効果側が対象を取る。
+  const sgM = th.match(/^(対象の)?自分の(すべての)?シグニ(?:([０-９\d一二三四五六七八九十]+)体)?を(選び|場から)?トラッシュに置く$/);
+  if (sgM) {
+    const all = !!sgM[2];
+    const count: number | 'ALL' = all ? 'ALL' : (sgM[3] ? parseNum(sgM[3]) : 1);
+    const opponentSelects = sgM[4] === '選び';
+    return { type: 'TRASH',
+      target: { type: 'SIGNI', owner: 'opponent', count, ...(all ? { filter: { cardType: 'シグニ' } } : {}) },
+      ...(opponentSelects ? { opponentSelects: true } : {}) } as EffectAction;
+  }
+  // 対象宣言が相手エナの「それをトラッシュに置く」
+  const enM = targetPrefix.match(/^(?:自分の)?エナゾーンからカード([０-９\d一二三四五六七八九十]+)枚を対象とし[、,]$/);
+  if (enM && /^それをトラッシュに置く$/.test(th)) {
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: parseNum(enM[1]) } } as EffectAction;
+  }
+  // 相手が手札を N 枚捨てる
+  const hM = th.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨てる$/);
+  if (hM) {
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hM[1]) } } as EffectAction;
+  }
+  // 「それをデッキの一番下に置く」（WXDi-P01-028）は**扱わない**＝直前文の STUB{TARGET_OPP_SIGNI_ONLY} が
+  // 対象選択からデッキ下移動まで自己完結で持っており、ここで包むと相手に2回 CHOOSE が出る。
+  // 冗長な後続ステップの除去は dropRedundantStepAfterTargetOppSigniOnly が行う。
+  return undefined;
+}
+
+function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
+  if (_unlessGateBaselinePass) return undefined;
+  const waM = t.match(/^対戦相手は(.*?)ないかぎり[、,]?(.+)$/s);
+  if (!waM) return undefined;
+  let costPart = waM[1];
+  const thenText = waM[2];
+  // 回避クローズの前に対象宣言（「…を対象とし、」）が挟まる形を切り出す
+  let targetPrefix = '';
+  const tp = costPart.match(/^([^。]*?を対象とし[、,])(.*)$/s);
+  if (tp) { targetPrefix = tp[1].replace(/^[、,]/, ''); costPart = tp[2]; }
+  const cost = parseOpponentWaUnlessCost(costPart);
+  if (!cost) return undefined;
+  if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined;
+
+  const then = parseOpponentWaExplicitConsequent(targetPrefix, thenText);
+  if (!then) return undefined;
+  return { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as EffectAction,
+  ] } as SequenceAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
@@ -2553,6 +2649,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ここで「対象節（任意）＋回避クローズ＋帰結」の3分割へ一般化する。
   {
     const gate = matchOpponentUnlessGate(t);
+    if (gate) return gate;
+  }
+  // 第2波：主語分配形「対戦相手は〜しないかぎり、X」（詳細は matchOpponentWaUnlessGate の注記）
+  {
+    const gate = matchOpponentWaUnlessGate(t);
     if (gate) return gate;
   }
 
@@ -3179,6 +3280,34 @@ const STATE_COND_BATCH4_ACTIONS: Record<string, string> = {
   'WXK02-043-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}',
   'WXK05-031-E1': '{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_FROM_DECK"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"遊具"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}',
 };
+// タスク12(lxi) 第2波：`TARGET_OPP_SIGNI_ONLY` は**自己完結の STUB**＝対象選択→相手の
+// 「手札2枚を捨てて回避／デッキの一番下に置かれるのを許す」CHOOSE→デッキ下移動まで engine 側で
+// 完結している（execStubPart3 の INTERNAL_TOSO_* 群）。ところが原文が2文構成
+// 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」
+// のため、2文目からも独立に TRANSFER_TO_DECK が生まれ SEQUENCE に並んでいた＝**回避を選んでも
+// 後続ステップがシグニをデッキ下へ送る二重実行**で、相手の回避が実質無効だった（WXDi-P01-028-E1/E2）。
+// STUB が済ませた移動を後続が繰り返す形なので、続く TRANSFER_TO_DECK を落とす。
+// ⚠ゲート順は STUB 側のほうが原文に忠実（対象を見てから相手が支払いを判断する）ので、
+//   第1波の標準ペアへ寄せ替えるのではなく STUB 実装を残す。
+function dropRedundantStepAfterTargetOppSigniOnly(effects: CardEffect[]): void {
+  const walk = (a: EffectAction | undefined): void => {
+    if (!a || typeof a !== 'object') return;
+    const seq = a as { type?: string; steps?: EffectAction[] };
+    if (seq.type === 'SEQUENCE' && Array.isArray(seq.steps)) {
+      for (let i = 0; i < seq.steps.length - 1; i++) {
+        const cur = seq.steps[i] as { type?: string; id?: string };
+        const nxt = seq.steps[i + 1] as { type?: string };
+        if (cur.type === 'STUB' && cur.id === 'TARGET_OPP_SIGNI_ONLY' && nxt.type === 'TRANSFER_TO_DECK') {
+          seq.steps.splice(i + 1, 1);
+          i--;
+        }
+      }
+      for (const s of seq.steps) walk(s);
+    }
+  };
+  for (const e of effects) walk(e.action);
+}
+
 function applyStateCondBatch4(effects: CardEffect[]): void {
   for (const e of effects) {
     const s = STATE_COND_BATCH4_ACTIONS[e.effectId];
@@ -8440,6 +8569,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyOpponentChoiceRepeatLookPickWave16(card.CardNum, effects);
   applyFinalLookPickWave17(card.CardNum, effects);
   applyExceedBodyFixes(card.CardNum, effects);
+  dropRedundantStepAfterTargetOppSigniOnly(effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
