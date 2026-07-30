@@ -9422,6 +9422,61 @@ test('parse 「対戦相手は《無》を支払わないかぎり、手札を�
   ok(!s.includes('"owner":"self"') || !s.includes('HAND_CARD') || !s.includes('OPPONENT_PAY_OPTIONAL'), '「は」形で自分の手札捨てへ owner 反転しない');
 });
 
+// ── タスク12(lxi) 本消化：回避クローズの**文中形**（対象節つき）と手札捨て型（2026-07-30）──
+// 従来は「エナ型かつ文頭形」しか拾えず、対象節が前置きされた瞬間に節全体が無言消費され
+// X が無条件実行されていた（26カード27効果の過剰実行）。
+test('parse 文中形「<対象節>、対戦相手が《無》×3を支払わないかぎり、それをバニッシュする」→ ゲート化（WX25-P1-038）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-ENE', Type: 'アーツ', EffectText: '対戦相手のパワー12000以下のシグニ１体を対象とし、対戦相手が《無》《無》《無》を支払わないかぎり、それをバニッシュする。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; costColors?: string[]; then?: { type: string; target?: { owner: string; filter?: { powerRange?: { max?: number } } } } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', '対象節が前置きでもゲート化する（従来は無条件バニッシュ）');
+  eq(seq.steps[0]?.costColors?.length, 3, '《無》×3');
+  eq(seq.steps[1]?.then?.type, 'BANISH', 'then=BANISH');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '対象は対戦相手のシグニ');
+  eq(seq.steps[1]?.then?.target?.filter?.powerRange?.max, 12000, '対象節の powerRange が then 側へ保たれる');
+});
+test('parse 手札捨て型「対戦相手が手札をN枚捨てないかぎり、X」→ opponentHandDiscard（WXDi-P05-014 / WXDi-P07-024）', () => {
+  const draw = parseCardEffects({ CardNum: 'TEST-LXI-HAND', Type: 'シグニ', EffectText: '【出】：対戦相手が手札を１枚捨てないかぎり、あなたはカードを２枚引く。' } as unknown as CardData)[0];
+  const dseq = draw.action as unknown as { type: string; steps: { id?: string; opponentHandDiscard?: number; then?: { type: string } }[] };
+  eq(dseq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件2枚ドロー）');
+  eq(dseq.steps[0]?.opponentHandDiscard, 1, '手札1枚捨てで回避');
+  eq(dseq.steps[1]?.then?.type, 'DRAW', 'then=DRAW');
+  const down = parseCardEffects({ CardNum: 'TEST-LXI-HAND2', Type: 'シグニ', EffectText: '【出】《青》《無》：対戦相手のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、それをダウンする。' } as unknown as CardData)[0];
+  const dnseq = down.action as unknown as { steps: { id?: string; opponentHandDiscard?: number; then?: { type: string } }[] };
+  eq(dnseq.steps[0]?.opponentHandDiscard, 3, '手札3枚捨てで回避');
+  eq(dnseq.steps[1]?.then?.type, 'DOWN', 'then=DOWN');
+});
+test('parse 併記型「手札を１枚捨てるか《無》を支払わないかぎり」→ costColors と opponentHandDiscard の両方（WXDi-P05-TK01A 系）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-BOTH', Type: 'シグニ', EffectText: '【出】：対戦相手のシグニ１体を対象とし、対戦相手が手札を１枚捨てるか《無》を支払わないかぎり、それをバニッシュする。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { id?: string; costColors?: string[]; opponentHandDiscard?: number }[] };
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化');
+  eq(seq.steps[0]?.costColors?.length, 1, '《無》×1 も選べる');
+  eq(seq.steps[0]?.opponentHandDiscard, 1, '手札1枚捨ても選べる');
+});
+test('parse ガード⑥＝引用「」の内側のクローズは外側へホイストしない（WX24-P1-071 / WX24-P2-073 / WX25-P3-091）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-QUOTE', Type: 'アーツ', EffectText: 'あなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、対戦相手が手札を２枚捨てないかぎり、それをバニッシュする。」を得る。' } as unknown as CardData)[0];
+  const act = e.action as unknown as { type: string; effect?: { action?: { type: string; steps?: { id?: string }[] } } };
+  eq(act.type, 'GRANT_EFFECT', '付与そのものはゲートされない（相手が捨てても付与は起きる）');
+  eq(act.effect?.action?.type, 'SEQUENCE', '付与される能力の内側がゲート化される');
+  eq(act.effect?.action?.steps?.[0]?.id, 'OPPONENT_PAY_OPTIONAL', '内側に OPPONENT_PAY_OPTIONAL');
+});
+test('parse ガード②＝対象節以外の前置き（「カードを１枚引き、」）は取り込まない（WX24-P2-022）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-PRE', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、カードを１枚引き、対戦相手が手札を３枚捨てないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  const s = JSON.stringify(e.action);
+  ok(!s.includes('OPPONENT_PAY_OPTIONAL'), 'ドローまでゲートに巻き込む過少実行を作らない＝据置');
+});
+test('parse ガード⑦＝クローズを外すと読みが変わる文（owner 反転）は据置（WXDi-P05-TK01A）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-ZONE', Type: 'シグニ', EffectText: '【自】：あなたのアタックフェイズ開始時、対戦相手が手札を１枚捨てるか《無》を支払わないかぎり、このシグニゾーンにあるシグニをバニッシュする。' } as unknown as CardData)[0];
+  const s = JSON.stringify(e.action);
+  ok(!s.includes('"owner":"self"'), '「このシグニゾーンにあるシグニ」が self へ反転したら据置する（純加算チェック）');
+});
+test('parse ガード④＝制限系の帰結（【ガード】不可／アタック不可）は専用機構の領分として据置（WX19-001 / WX10-024）', () => {
+  const guard = parseCardEffects({ CardNum: 'TEST-LXI-GUARD', Type: 'ルリグ', EffectText: '【常】：対戦相手は、手札から《ガードアイコン》を持つカードを追加で１枚捨てないかぎり【ガード】ができない。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(guard.action).includes('OPPONENT_PAY_OPTIONAL'), '【ガード】不可は GUARD_EXTRA_COST_BY_OPP の領分');
+  const atk = parseCardEffects({ CardNum: 'TEST-LXI-ATK', Type: 'シグニ', EffectText: '【出】：対戦相手のシグニ１体を対象とし、対戦相手が《無》《無》《無》を支払わないかぎりそれはアタックできない。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(atk.action).includes('OPPONENT_PAY_OPTIONAL'), 'アタック制限は negated_attacks_escape の領分');
+});
+
 // §3 Opusタスク12(xxvii) Cluster F＝回収対象の単点 filter 脱落。
 test('parse トラッシュ回収の level 範囲は対象名詞句から復元（WD19-008 / WX18-082）', () => {
   const below = parseCardEffects({ CardNum: 'TEST-F-TRASH-LTE', Type: 'アーツ', EffectText: 'あなたのトラッシュからレベル３以下の黒のシグニ１枚を対象とし、それを手札に加える。' } as unknown as CardData)[0];

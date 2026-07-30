@@ -1972,6 +1972,86 @@ function wrapHandOrField(action: EffectAction, text: string): EffectAction {
   } as ChooseAction;
 }
 
+// ── タスク12(lxi)「対戦相手が〜しないかぎり、X」＝支払い回避クローズの一般化（2026-07-30）──
+// 原文は「[<対象節>、]対戦相手が《無》を支払わない／手札をN枚捨てないかぎり、X」で、**相手が任意で
+// 回避コストを払える対話ゲート**＝払えば X は起きない。engine は完備＝STUB{OPPONENT_PAY_OPTIONAL,
+// costColors, opponentHandDiscard} と**直後**の CONDITIONAL(IS_MY_TURN) の look-ahead ペアが
+// 「支払う／手札をN枚捨てる／支払わない」の相手側 CHOOSE を生成する（effectExecutor:2772〜3084）。
+//
+// 帰結 X は対象節と切り離すと「それ」の照応先を失うため、**対象節を X の前へ戻して再パース**する
+// （「対戦相手のシグニ1体を対象とし、」＋「それをバニッシュする」→ 既存の対象パース機構がそのまま効く）。
+// これにより新語彙ゼロで文中形が閉じる。
+//
+// ⚠適用範囲を意図的に絞る（PLAN §3 タスク12(lxi) の除外リスト）：
+//  ① 主語は「対戦相手**が**」のみ。「対戦相手**は**」は主語が帰結節にも分配される別形
+//     （「対戦相手は…支払わないかぎり自分のシグニをトラッシュに置く」＝置くのは相手）で、帰結を
+//     単文パースすると owner が self へ反転する退化を起こす＝別バッチ。
+//  ② 対象節は「…を対象とし、」で終わるものだけ。それ以外の前置き（「カードを1枚引き、」等）を
+//     取り込むと**回避されると引きも消える**過少実行になる（WX24-P2-022-E1）。
+//  ③ 帰結が「そのシグニ」照応（トリガー元参照）は owner 反転を起こすため据置。
+//  ④ 帰結が【ガード】不可／アタック不可・無効／アップしない／配置できない の**制限系**は
+//     GUARD_EXTRA_COST_BY_OPP・negated_attacks_escape 等の専用機構の領分＝ここでは扱わない。
+//  ⑤ 回避コストがエナ／手札捨て以外（自分のシグニをトラッシュ・エナをトラッシュ等）は
+//     engine の CHOOSE 選択肢に無いため据置（＝従来どおり無配線のまま計器に残す）。
+//  ⑥ 引用「」『』の**内側**にあるクローズ（付与される能力側の回避クローズ）は扱わない。
+//     文全体で拾うと STUB が引用の外＝付与そのものへホイストされ「相手が捨てれば付与も起きない」
+//     という別物になる（WX24-P1-071／WX24-P2-073／WX25-P3-091／WXDi-P15-083 で実測）。
+//     引用は expandGrantEffectRawTexts が sub 効果として再パースするため、その経路で本規則が
+//     正しく内側に当たる（WX25-P1-005-sub-E2／WXDi-P07-004-sub-E1 が実例）。
+//  ⑦ **純加算チェック**＝クローズを外した文の読みが、外す前の読みと一致しない場合は据置。
+//     回避クローズは「Xをゲートする」だけで X 自体を変えないはずなので、分割で action が変わったら
+//     それは owner 等の解決が分割で狂った合図（WXDi-P05-TK01A＝「このシグニゾーンにあるシグニ」の
+//     owner が opponent→self へ反転した）。
+let _unlessGateBaselinePass = false;
+function parseOpponentUnlessCost(phrase: string): { costColors?: string[]; opponentHandDiscard?: number } | undefined {
+  const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
+  let m = phrase.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
+  if (m) return { costColors: colorsOf(m[1]) };
+  m = phrase.match(/^手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
+  if (m) return { opponentHandDiscard: parseNum(m[1]) };
+  m = phrase.match(/^手札を([０-９\d一二三四五六七八九十]+)枚捨てるか((?:《[白赤青緑黒無]》)+)を支払わ$/);
+  if (m) return { costColors: colorsOf(m[2]), opponentHandDiscard: parseNum(m[1]) };
+  m = phrase.match(/^((?:《[白赤青緑黒無]》)+)を支払うか手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
+  if (m) return { costColors: colorsOf(m[1]), opponentHandDiscard: parseNum(m[2]) };
+  return undefined;
+}
+
+// 位置 idx が引用（「」/『』）の内側かどうか。
+function isInsideQuote(text: string, idx: number): boolean {
+  let depth = 0;
+  for (let i = 0; i < idx; i++) {
+    const c = text[i];
+    if (c === '「' || c === '『') depth++;
+    else if (c === '」' || c === '』') depth--;
+  }
+  return depth > 0;
+}
+
+function matchOpponentUnlessGate(t: string): EffectAction | undefined {
+  if (_unlessGateBaselinePass) return undefined;   // 除外⑦の基準読み計算中は自分を無効化
+  const gateM = t.match(/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/);
+  if (!gateM || gateM.index === undefined) return undefined;
+  const cost = parseOpponentUnlessCost(gateM[1]);
+  if (!cost) return undefined;                                     // 除外⑤
+  if (isInsideQuote(t, gateM.index)) return undefined;             // 除外⑥
+  const prefix = t.slice(0, gateM.index);
+  const thenText = t.slice(gateM.index + gateM[0].length);
+  if (prefix !== '' && !/を?対象とし[、,]$/.test(prefix)) return undefined;   // 除外②
+  if (/^(?:ターン終了時まで[、,])?そのシグニ/.test(thenText)) return undefined; // 除外③
+  if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined; // 除外④
+  const unlessThen = parseSingleSentence(prefix + thenText);
+  if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
+  // 除外⑦：クローズを外す前の読み（本規則を止めた1回パス）と一致しなければ据置。
+  _unlessGateBaselinePass = true;
+  let baseline: EffectAction;
+  try { baseline = parseSingleSentence(t); } finally { _unlessGateBaselinePass = false; }
+  if (JSON.stringify(baseline) !== JSON.stringify(unlessThen)) return undefined;
+  return { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: unlessThen } as EffectAction,
+  ] } as SequenceAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
@@ -2467,31 +2547,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   （part3:2095 等の専用規則の領分）＝ここでは「対戦相手**が**」形のみ扱う。
   // ⚠帰結が「そのシグニ」照応（トリガー元シグニ参照＝WXDi-P08-007）は、単文パースで owner が self に
   //   反転する退化を起こすため据置（従来どおり条件脱落の既知バグとして残る＝タスク12 在庫）。
+  // タスク12(lxi) 本消化（2026-07-30）：従来はエナ型かつ**文頭形**しか拾えず、
+  // 「<対象節>、対戦相手が…ないかぎり、X」の文中形が下流の非アンカー規則に X だけ拾われて
+  // 節全体が無言消費されていた（＝X が無条件実行される過剰実行が 50件規模で残存）。
+  // ここで「対象節（任意）＋回避クローズ＋帰結」の3分割へ一般化する。
   {
-    const directM = t.match(/^対戦相手が((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
-    // 文中形は今回の対象文型だけに限定する。引用付与・反復・攻撃無効・自己支払い型へ波及させない。
-    const targetedHandM = t.match(/^対戦相手のシグニ([０-９\d一二三四五六七八九十]+)体を対象とし、対戦相手が手札を([０-９\d一二三四五六七八九十]+)枚捨てないかぎり、それをバニッシュする$/s);
-    const oppUnlessPayM = directM;
-    if (targetedHandM) {
-      const count = parseNum(targetedHandM[1]);
-      return { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: parseNum(targetedHandM[2]) } as StubAction,
-        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
-          type: 'BANISH',
-          target: { type: 'SIGNI', owner: 'opponent', count, filter: { cardType: 'シグニ' }, upToCount: false },
-        } } as EffectAction,
-      ] } as SequenceAction;
-    }
-    if (oppUnlessPayM && !/^(?:ターン終了時まで、)?そのシグニ/.test(oppUnlessPayM[2])) {
-      const costColors = [...oppUnlessPayM[1].matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
-      const unlessThen = parseSingleSentence(oppUnlessPayM[2]);
-      if (!JSON.stringify(unlessThen).includes('"UNKNOWN"')) {
-        return { type: 'SEQUENCE', steps: [
-          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors } as StubAction,
-          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: unlessThen } as EffectAction,
-        ] } as SequenceAction;
-      }
-    }
+    const gate = matchOpponentUnlessGate(t);
+    if (gate) return gate;
   }
 
   // 「[<トリガー句>、]このシグニをアップし、<残り>」＝2動作の複合文（「アップ＋ターン終了時まで能力を失う」＝
