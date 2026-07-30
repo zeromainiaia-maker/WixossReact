@@ -9417,17 +9417,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const guardCardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
         // OPP_GUARD_COST_COLORLESS: 相手フィールドにアクティブな場合、追加で無色エナを1枚消費
         // （ガードは常に相手ターン中＝防御側は非ターンプレイヤー）
-        const needsExtraEnergy = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, true);
+        const extraEnergyCount = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, true);
+        // UIだけに依存せず、CPU/直接呼出でも不足時はガードを成立させない。
+        if (my.energy.length < extraEnergyCount) return;
         // EXTRA_GUARD_COST_FROM_HAND: 相手フィールドにアクティブな場合、手札から追加でガードカードを1枚捨てる
         const needsExtraGuardCard = collectOppExtraGuardFromHand(op, battleCardMap, effectsMap);
         // game_opp_extra_guard_hand_or_colorless: 相手が能力付与→ガード時に追加でエナか手札捨て
         const needsOppHandOrColorless = (op.game_opp_extra_guard_hand_or_colorless ?? 0) > 0;
         let energyAfterGuard = my.energy;
         const extraTrash: string[] = [];
-        if (needsExtraEnergy && my.energy.length > 0) {
-          const removedEnergy = my.energy[my.energy.length - 1];
-          energyAfterGuard = my.energy.slice(0, -1);
-          extraTrash.push(removedEnergy);
+        if (extraEnergyCount > 0 && my.energy.length >= extraEnergyCount) {
+          const removedEnergy = my.energy.slice(-extraEnergyCount);
+          energyAfterGuard = my.energy.slice(0, -extraEnergyCount);
+          extraTrash.push(...removedEnergy);
         }
         if (needsOppHandOrColorless) {
           // エナがあれば消費、なければ手札を1枚捨てる
@@ -9451,8 +9453,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         } else if (needsOppHandOrColorless) {
           appendBattleLogs([`ガード（${guardCardName}）＋追加コスト（手札か《無》）消費`]);
-        } else if (needsExtraEnergy && energyAfterGuard.length < my.energy.length) {
-          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》消費`]);
+        } else if (extraEnergyCount > 0 && energyAfterGuard.length < my.energy.length) {
+          appendBattleLogs([`ガード（${guardCardName}）＋追加コスト《無》×${extraEnergyCount}消費`]);
         } else {
           appendBattleLogs([`ガード（${guardCardName}）`]);
         }
@@ -10647,7 +10649,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // beat_signi_from_trash: トラッシュからシグニを【ビート】にするコスト（WDK14-013・自動選択近似）
       if ((cost?.beat_signi_from_trash?.count ?? 0) > 0) {
-        const btPay = payBeatSigniFromTrashCost(paid, battleCardMap, cost!.beat_signi_from_trash!.count, cost!.beat_signi_from_trash!.filter);
+        const btPay = payBeatSigniFromTrashCost(
+          paid, battleCardMap, cost!.beat_signi_from_trash!.count,
+          cost!.beat_signi_from_trash!.filter, [...beatZones],
+        );
         if (!btPay.ok) { setLoading(false); return; } // 支払い不能（トラッシュにシグニ不足）
         paid = btPay.state;
         payLogs.push(btPay.log);

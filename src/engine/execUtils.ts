@@ -833,23 +833,35 @@ export function payBeatSigniCost(
 
 // cost.beat_signi_from_trash の支払い：トラッシュから filter 一致のシグニ count 枚を beat_zone へ移す
 // （WDK14-013「トラッシュから＜悪魔＞のシグニ1枚を【ビート】にする」）。beat_became_just に積み ON_BECOME_BEAT 連鎖を発火。
-// 近似：トラッシュ順の先頭から自動選択（プレイヤー選択UIは別タスク）。payBeatSigniCost と同型の戻り値。
+export function beatSigniFromTrashCandidates(
+  state: PlayerState,
+  cardMap: Map<string, CardData>,
+  filter?: import('../types/effects').TargetFilter,
+): number[] {
+  const eff = filter ?? { cardType: 'シグニ' };
+  return state.trash.flatMap((n, i) => {
+    const c = cardMap.get(getCardNum(n));
+    return c && c.Type === 'シグニ' && matchesFilter(c, eff) ? [i] : [];
+  });
+}
+
+// 候補超過時は selectedIndices をUIから受け取る。省略時は従来どおり先頭から自動選択。
 export function payBeatSigniFromTrashCost(
   state: PlayerState,
   cardMap: Map<string, CardData>,
   count: number,
   filter?: import('../types/effects').TargetFilter,
+  selectedIndices?: number[],
 ): { state: PlayerState; moved: string[]; ok: boolean; log: string } {
-  const eff = filter ?? { cardType: 'シグニ' };
-  const matchIdx: number[] = [];
-  state.trash.forEach((n, i) => {
-    const c = cardMap.get(getCardNum(n));
-    if (c && c.Type === 'シグニ' && matchesFilter(c, eff)) matchIdx.push(i);
-  });
+  const matchIdx = beatSigniFromTrashCandidates(state, cardMap, filter);
   if (matchIdx.length < count) {
     return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（トラッシュにシグニ不足）' };
   }
-  const take = new Set(matchIdx.slice(0, count));
+  const selected = selectedIndices && selectedIndices.length > 0 ? selectedIndices : matchIdx.slice(0, count);
+  if (selected.length !== count || selected.some(i => !matchIdx.includes(i)) || new Set(selected).size !== count) {
+    return { state, moved: [], ok: false, log: '【ビート】コスト支払い不能（選択不正）' };
+  }
+  const take = new Set(selected);
   const moved = [...take].map(i => state.trash[i]);
   const newTrash = state.trash.filter((_, i) => !take.has(i));
   const newState = addToBeatZone({ ...state, trash: newTrash }, moved);

@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 支払い前UIバッチ：ガード追加《無》枚数化＋トラッシュ【ビート】選択（2026-07-30・Codex）
+
+- **I `WX24-P3-069-E1` を消化**：非LB分岐のアタック無効化後、既存 `GRANT_LRIG_ABILITY` に `CONTINUOUS` 能力をターン終了時まで載せ、`OPP_GUARD_COST_COLORLESS{count:3}` を付与する。collector は boolean から合計枚数へ変更し、STUB `count` 省略時は1を維持。既存ルリグ付与ストア2本も走査する。
+- `GuardResponseDialog` の警告、`energy.length < N` の不足判定、`performGuardResponse` のN枚徴収を同時に移行。UIを迂回するCPU/直接呼出も不足時はガード不成立。実データ5 JSON＋manual全数走査では静的該当6効果、今回新たに付与ストア経由で有効になる既存効果は **1効果（`WX24-P3-069-E1-G`）だけ**。
+- **E `WDK14-013-E1` を消化**：トラッシュの＜悪魔＞候補が必要数を超える場合だけ `SigniOnPlayCostModal` に複数候補ピッカーを出し、選択したインデックスを支払い純関数で候補・枚数・重複まで再検証する。選択省略時は従来の先頭自動支払いを維持するため、候補数＝必要数の既存経路は不変。「4枚になった場合」の既存ドローと `ON_BECOME_BEAT` 連鎖は変更していない。
+- **H1 `WX15-067-E1` は honest defer**：スペル使用前の相手ウィルス任意除去を、コスト計算・スペルキュー・解決時CHOOSE上限へ原子的に渡す専用状態がまだ無い。既存 `next_spell_cost_reduction` を先に立てると「このスペル自身」ではなく別スペルへ漏れ得るため、本体2択とUNKNOWNを維持した。
+- golden は既存boolean期待を0/1へ移行し、3枚付与と任意のトラッシュ候補選択を固定。parserは変更せず、`build:effects` の生成差分は計器 `docs/_partial_report.txt` のUNKNOWN集計のみ。
+
 ## Opusタスク16 `cost.underSelfTrash` 13効果の支払可否・選択・実支払いを配線（2026-07-30・Codex）
 
 - `underSelfTrash` を `{count, filter?, selectionConstraint?}` へ統一し、通常【起】の候補判定・コスト表示・`SigniActivatedModal`・`executeSigniActivated`を、ゾーン限定純関数 `underSelfCostCandidates`／`canPayUnderSelfTrash`／`payUnderSelfTrash`へ配線した。移動札は`last_cost_trashed_cards`にも記録する。

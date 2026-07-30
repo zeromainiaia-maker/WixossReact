@@ -3074,7 +3074,7 @@ export function collectForcedTargets(
 /**
  * OPP_GUARD_COST_COLORLESS: 自分のフィールド（ルリグ含む）に
  * 「対戦相手は追加で《無》を支払わないかぎりガードができない」CONTINUOUS効果が
- * アクティブかどうかを返す。アクティブであれば相手はガード時に追加エナ1枚(無色)が必要。
+ * アクティブな追加《無》の合計枚数を返す。STUB の count 省略時は従来どおり1枚。
  */
 export function collectOppGuardExtraColorlessCost(
   ownerState: PlayerState,
@@ -3082,13 +3082,15 @@ export function collectOppGuardExtraColorlessCost(
   cardMap: Map<string, CardData>,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   isOwnerTurn: boolean,
-): boolean {
-  const containsGuardCostStub = (action: import('../types/effects').EffectAction): boolean => {
+): number {
+  const guardCostInAction = (action: import('../types/effects').EffectAction): number => {
     if (action.type === 'STUB') {
-      return action.id === 'OPP_GUARD_COST_COLORLESS' || action.id === 'GUARD_EXTRA_COST_BY_OPP';
+      return action.id === 'OPP_GUARD_COST_COLORLESS' || action.id === 'GUARD_EXTRA_COST_BY_OPP'
+        ? (action.count ?? 1)
+        : 0;
     }
-    if (action.type === 'SEQUENCE') return action.steps.some(containsGuardCostStub);
-    return false;
+    if (action.type === 'SEQUENCE') return action.steps.reduce((sum, step) => sum + guardCostInAction(step), 0);
+    return 0;
   };
   // シグニゾーン走査
   const candidates: string[] = [];
@@ -3099,11 +3101,13 @@ export function collectOppGuardExtraColorlessCost(
   // ルリグゾーン（センタールリグ）
   if (ownerState.field.lrig.length > 0) candidates.push(ownerState.field.lrig.at(-1)!);
 
+  let total = 0;
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!containsGuardCostStub(eff.action)) continue;
+      const count = guardCostInAction(eff.action);
+      if (count === 0) continue;
       // activeConditionがある場合はチェック
       if (eff.activeCondition) {
         if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
@@ -3128,12 +3132,18 @@ export function collectOppGuardExtraColorlessCost(
           continue; // 複雑条件のため安全のためスキップ
         }
       }
-      return true;
+      total += count;
     }
   }
+  for (const eff of [
+    ...(ownerState.lrig_granted_auto_effects ?? []),
+    ...(ownerState.lrig_granted_auto_effects_until_opp_turn ?? []),
+  ]) {
+    if (eff.effectType === 'CONTINUOUS') total += guardCostInAction(eff.action);
+  }
   // game_opp_guard_extra_colorless: GAIN_ABILITY_THIS_GAME で付与された永続コスト（WX25-P2-001）
-  if (ownerState.game_opp_guard_extra_colorless) return true;
-  return false;
+  if (ownerState.game_opp_guard_extra_colorless) total += 1;
+  return total;
 }
 
 /**

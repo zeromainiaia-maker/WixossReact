@@ -66,7 +66,7 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const myGuardAltHand = Math.max(my.game_guard_alt_hand ?? 0, my.guard_alt_hand_until_opp_turn ?? 0);
               const guardCardCountInHand = my.hand.filter(cn => canCardGuard(cn, my, battleCardMap, effectsMap)).length;
               // エナゾーンが空の場合はガード不可
-              const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;
+              const guardBlockedByExtraCost = my.energy.length < oppGuardExtraColorless;
               // 追加ガードカードが1枚しかない場合はガード不可（ガード用1枚＋追加コスト用1枚=2枚必要）
               const guardBlockedByExtraGuard = oppExtraGuardFromHand && guardCardCountInHand < 2;
               // GUARD_ALTERNATIVE_COST: エナゾーンから指定クラスシグニをトラッシュしてガード可能
@@ -109,12 +109,12 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                       ルリグバリア発動（残{countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD)}→{countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) - 1}）攻撃無効
                     </button>
                   )}
-                  {oppGuardExtraColorless && (
+                  {oppGuardExtraColorless > 0 && (
                     <p style={{ color: '#f0a030', fontSize: 12, margin: '0 0 6px',
                       padding: '6px 10px', background: 'rgba(240,160,48,0.1)', borderRadius: 6,
                       border: '1px solid rgba(240,160,48,0.3)' }}>
-                      ⚠ 追加で《無》×1（エナ1枚）を支払わないとガードできません
-                      {guardBlockedByExtraCost && '（エナゾーンが空のためガード不可）'}
+                      ⚠ 追加で《無》×{oppGuardExtraColorless}（エナ{oppGuardExtraColorless}枚）を支払わないとガードできません
+                      {guardBlockedByExtraCost && `（エナ${my.energy.length}枚では不足）`}
                     </p>
                   )}
                   {oppExtraGuardFromHand && (

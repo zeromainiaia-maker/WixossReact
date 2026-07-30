@@ -17,7 +17,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
-import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost } from '../src/engine/execUtils';
+import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -13398,11 +13398,11 @@ test('§6.3 E WXDi-P06-031 center-lrig ACT cost and down-only continuous effects
     eq(collectIncreaseActCost(owner, false, localEffects), 0);
 
     const upPower = calcFieldPowers(owner, opponent, false, localEffects, localCards).get(source);
-    eq(collectOppGuardExtraColorlessCost(owner, opponent, localCards, localEffects, false), false);
+    eq(collectOppGuardExtraColorlessCost(owner, opponent, localCards, localEffects, false), 0);
     const downOwner = { ...owner, field: { ...owner.field, signi_down: [true, false, false] } };
     const downPower = calcFieldPowers(downOwner, opponent, false, localEffects, localCards).get(source);
     eq((downPower ?? 0) - (upPower ?? 0), 3000);
-    eq(collectOppGuardExtraColorlessCost(downOwner, opponent, localCards, localEffects, false), true);
+    eq(collectOppGuardExtraColorlessCost(downOwner, opponent, localCards, localEffects, false), 1);
   } finally { cursor = savedCursor; }
 });
 
@@ -14176,7 +14176,7 @@ test('task12(xxxix) batch2 WXK01-005-E1: black salvage returns source arts; nonb
   } finally { cursor = savedCursor; }
 });
 
-test('task12(xxxix) batch2 WX24-P3-069-E1: non-LB cancels attack and guard clause is honest UNKNOWN', () => {
+test('PLAN §6.3 I WX24-P3-069-E1: non-LB cancels attack and grants guard extra cost 3', () => {
   const savedCursor = cursor;
   try {
     const source = 'WX24-P3-069';
@@ -14189,11 +14189,13 @@ test('task12(xxxix) batch2 WX24-P3-069-E1: non-LB cancels attack and guard claus
     };
     const no = resolve(noBurst);
     eq(no.ownerState.cancel_current_signi_attack, true, 'non-LB cancels current attack');
-    ok(no.logs.some(x => x.includes('[UNKNOWN: あなたのルリグ１体を対象とし')), 'full guard clause is retained as UNKNOWN');
-    eq(no.otherState.keyword_grants, undefined, 'no erroneous opponent-lrig grant UI/state');
+    const granted = no.ownerState.lrig_granted_auto_effects ?? [];
+    eq(granted.length, 1, 'own lrig receives one continuous ability');
+    eq(collectOppGuardExtraColorlessCost(no.ownerState, no.otherState, cardMap, new Map(), true), 3,
+      'granted store requires three colorless energy');
     const yes = resolve(burst);
     eq(yes.ownerState.cancel_current_signi_attack, undefined, 'LB branch does not cancel attack');
-    ok(!yes.logs.some(x => x.includes('[UNKNOWN: あなたのルリグ１体を対象とし')), 'LB branch does not run deferred clause');
+    eq(yes.ownerState.lrig_granted_auto_effects?.length ?? 0, 0, 'LB branch does not grant guard cost');
   } finally { cursor = savedCursor; }
 });
 
@@ -17117,6 +17119,15 @@ test('task12(xxix)(1) wave7 engine: other-only and trash beat pay one; shortages
     eq(unavailable.pending.options.find(o => o.id === 'pay')?.available, false, '悪魔不在ならpay不可');
     eq(unavailable.pending.options.find(o => o.id === 'skip')?.available, true, 'skipのみ可能');
   } else ok(false, 'trash不足でもpay/skipを提示');
+
+  const choiceState = mkState();
+  choiceState.trash = ['WDK14-012', 'WDK14-014'];
+  const picked = payBeatSigniFromTrashCost(
+    choiceState, cardMap, 1, { cardType: 'シグニ', cardClass: '悪魔' }, [1],
+  );
+  ok(picked.ok, '複数の＜悪魔＞候補から指定した1枚を支払える');
+  eq(picked.moved.join(','), 'WDK14-014', '先頭自動選択ではなくプレイヤー指定を採用');
+  eq(picked.state.trash.join(','), 'WDK14-012', '選ばなかった候補はトラッシュに残る');
 });
 
 test('task12(xxix)(1) wave5: centerOnly lrigDown pays own center and rejects assist-only availability', () => {

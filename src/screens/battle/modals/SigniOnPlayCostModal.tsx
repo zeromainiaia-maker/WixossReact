@@ -5,7 +5,7 @@ import type { PlayerState, StackEntry } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied } from '../fieldLimit';
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
-import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
+import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
@@ -95,7 +95,14 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               // beat_signi: 「他の/任意」beat対象のゾーン選択。候補が必要数より多いときだけプレイヤーに選ばせる（同数以下は自動）。
               const beatCostM = analyzeBeatSigniCost(pState, pendingSigniOnPlayCost.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
               const beatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && beatCostM.otherPart > 0 && beatCostM.eligibleOtherZones.length > beatCostM.otherPart;
-              const beatSelectOk = !beatNeedSelect || selectedSigniOnPlayBeat.size === beatCostM.otherPart;
+              const beatTrashCostM = eff.cost?.beat_signi_from_trash;
+              const beatTrashCandidates = beatTrashCostM
+                ? beatSigniFromTrashCandidates(pState, battleCardMap, beatTrashCostM.filter)
+                : [];
+              const beatTrashNeedSelect = !!beatTrashCostM && beatTrashCandidates.length > beatTrashCostM.count;
+              const beatSelectOk = beatTrashNeedSelect
+                ? selectedSigniOnPlayBeat.size === beatTrashCostM!.count
+                : (!beatNeedSelect || selectedSigniOnPlayBeat.size === beatCostM.otherPart);
               const ftSelectableZones = ftGroups?.length
                 ? fieldTrashGroupsSelectableZones(ftGroups, pState, battleCardMap)
                 : fieldTrashSelectableZones(ftCost, pState, battleCardMap, selfZoneFT);
@@ -152,7 +159,6 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                 return parts.join('の');
               };
               // beat_signi_from_trash: トラッシュに filter 一致シグニが必要数あるか（WDK14-013）
-              const beatTrashCostM = eff.cost?.beat_signi_from_trash;
               const beatTrashOkM = !beatTrashCostM || pState.trash.filter(n => {
                 const c = battleCardMap.get(getCardNum(n));
                 return c && c.Type === 'シグニ' && matchesFilter(c, beatTrashCostM.filter ?? { cardType: 'シグニ' });
@@ -568,6 +574,44 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                           ルリグデッキに{artsTrashOPCostM.color ? artsTrashOPCostM.color + 'の' : ''}アーツがありません
                         </p>
                       )}
+                    </>
+                  )}
+                  {/* beat_signi_from_trash: 候補超過時だけ、支払いに使うカードをプレイヤーが選ぶ */}
+                  {beatTrashNeedSelect && beatTrashCostM && (
+                    <>
+                      <p style={{ color: beatSelectOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        トラッシュから【ビート】にするシグニを選択: {selectedSigniOnPlayBeat.size} / {beatTrashCostM.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {beatTrashCandidates.map(ti => {
+                          const num = pState.trash[ti];
+                          const c = battleCardMap.get(getCardNum(num));
+                          const isSel = selectedSigniOnPlayBeat.has(ti);
+                          return (
+                            <div key={ti}
+                              onClick={() => setSelectedSigniOnPlayBeat(prev => {
+                                const next = new Set(prev);
+                                if (next.has(ti)) { next.delete(ti); return next; }
+                                if (next.size >= beatTrashCostM.count) return prev;
+                                next.add(ti); return next;
+                              })}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #ff9800' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(255,152,0,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ color: '#fff', fontSize: 12, fontWeight: 'bold' }}>ビート</span>
+                              </div>}
+                            </div>
+                          );
+                        })}
+                      </div>
                     </>
                   )}
                   {lrigDownVariableM && (
