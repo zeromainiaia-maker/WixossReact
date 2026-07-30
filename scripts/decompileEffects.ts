@@ -431,6 +431,8 @@ function condJa(c?: any): string {
       if (c.verbJa === 'このシグニをバニッシュしていた') return 'この効果でこのシグニをバニッシュしていた';
       return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '手札に加えた'}`;
     }
+    case 'LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED':
+      return 'この方法で公開されたシグニのレベルが宣言と異なる';
     case 'LRIG_STORY': return `${ownerJa(c.owner)}センタールリグが＜${c.story}＞`;
     case 'LRIG_LEVEL_EQ_OPP': return '自分と対戦相手のセンタールリグのレベルが同じ';
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;
@@ -1550,6 +1552,8 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
       // DECLARE_NUMBER_PLAIN: ガード制限を伴わない汎用の数字宣言（タスク12(xlvi)(c)）
       if (a.id === 'DECLARE_NUMBER_PLAIN') return '数字1つを宣言する';
+      // DECLARE_PARITY_OPPONENT: 対戦相手が偶数/奇数を宣言する（declared_number に偶=0/奇=1。タスク12(l) WDK04-006）
+      if (a.id === 'DECLARE_PARITY_OPPONENT') return '対戦相手は偶数か奇数かを宣言する';
       // DECK_TOP_CHECK_LEVEL_HAND: デッキトップ公開→宣言レベルのシグニなら手札へ（execStubPart2 で実装済み）
       if (a.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
         return 'あなたのデッキの一番上を公開し、それが宣言した数字と同じレベルを持つシグニである場合、それを手札に加える';

@@ -2771,10 +2771,15 @@ export function execStubPart1(
     const declaredNameRU = ctx.ownerState.declared_card_name ?? null;
     const toTrashRestRU = !!txtRU.match(/残りをトラッシュに置く/);
     const toBottomRestRU = !!txtRU.match(/残り.*デッキの一番下/);
+    const toBottomAllRU = !!txtRU.match(/公開された?カードを(?:シャッフルして)?デッキの一番下に置く/);
+    const toBottomOtherRU = !!txtRU.match(/公開した他のカードを(?:シャッフルして)?デッキの一番下に置く/);
     const hitToHandRU = !!txtRU.match(/それを手札に加える/);
     // 「公開したカードをトラッシュに置く」＝ヒットシグニを含む公開カード全てをトラッシュへ（WXK10-031）。
     // ヒットシグニはレベル参照（lastProcessedCards）としてのみ使い、物理的にはトラッシュに置く。未対応だと deck から除去され行き場を失い消失していた。
-    const toTrashAllRU = !!txtRU.match(/公開したカードをトラッシュに置く/);
+    // 「（この方法で）公開されたカードをトラッシュに置く」も同義（WXK01-037）。従来はどの廃棄分岐にも掛からず
+    // 公開札が消滅していた＝安全網（デッキ下へ戻す）でも原文の「トラッシュ」と食い違うため、ここで受ける。
+    const toTrashAllRU = !!txtRU.match(/公開した(?:カード|カードすべて)をトラッシュに置く/)
+      || !!txtRU.match(/(?:この方法で)?公開されたカードをトラッシュに置く/);
     // デッキを先頭から公開していく
     const deckRU = [...stateRU.deck];
     const revealedRU: string[] = [];
@@ -2804,6 +2809,14 @@ export function execStubPart1(
     if (toBottomRestRU && nonHitRU.length > 0) {
       const bottomRU = txtRU.match(/残りをシャッフルして/) ? shuffle([...nonHitRU]) : nonHitRU;
       newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...bottomRU] };
+    }
+    if (toBottomAllRU && revealedRU.length > 0) {
+      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...revealedRU])] };
+    } else if (toBottomOtherRU && nonHitRU.length > 0) {
+      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...nonHitRU])] };
+    } else if (!toTrashAllRU && !toTrashRestRU && !toBottomRestRU && !hitToHandRU && revealedRU.length > 0) {
+      // 未知文型でも公開カードをゲームから消さない安全網。
+      newStateRU = { ...newStateRU, deck: [...newStateRU.deck, ...shuffle([...revealedRU])] };
     }
     const newCtxRU = isOpp
       ? { ...ctx, otherState: newStateRU, lastProcessedCards: revealedRU }
@@ -3206,6 +3219,22 @@ export function execStubPart1(
     return needsInteraction(addLog(ctx, 'クラスを宣言してください'), {
       type: 'CHOOSE', options: optsDCLS, count: 1,
     });
+  }
+  // WDK04-006: 対戦相手が偶数/奇数を宣言する。値は汎用 declared_number に偶=0/奇=1で保存し、
+  // ガード制限用 declared_guard_restrict_level は立てない。
+  if (stub.id === 'DECLARE_PARITY_OPPONENT') {
+    const options = [
+      { id: 'parity_even', label: '偶数を宣言', action: { type: 'STUB', id: 'SET_DECLARED_PARITY', value: 0 } as EffectAction, available: true },
+      { id: 'parity_odd', label: '奇数を宣言', action: { type: 'STUB', id: 'SET_DECLARED_PARITY', value: 1 } as EffectAction, available: true },
+    ];
+    return needsInteraction(addLog(ctx, '対戦相手が偶数か奇数を宣言'), {
+      type: 'CHOOSE', options, count: 1, opponentResponds: true,
+    });
+  }
+  if (stub.id === 'SET_DECLARED_PARITY') {
+    const parity = Number(stub.value) === 1 ? 1 : 0;
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_number: parity } },
+      `${parity === 0 ? '偶数' : '奇数'}を宣言`));
   }
   if (stub.id === 'INTERNAL_RESOLVE_PILES') {
     const trashCards = stub.pileTrashCards ?? [];

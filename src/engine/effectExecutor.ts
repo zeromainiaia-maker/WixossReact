@@ -4201,7 +4201,8 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   const delta = a.deltaPerUnit * fieldCount;
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (a.excludeSelf && ctx.sourceCardNum) cands = cands.filter(cn => cn !== ctx.sourceCardNum);
 
   function applyMod(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgtOwner, c);
@@ -4859,7 +4860,8 @@ function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPe
 
   const tgtO = a.target.owner === 'opponent' ? 'opponent' : 'self' as 'self' | 'opponent';
   const state = ownerState(tgtO, ctx);
-  const cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (a.excludeSelf && ctx.sourceCardNum) cands = cands.filter(cn => cn !== ctx.sourceCardNum);
   // UNTIL_OPP_TURN_END は長期ストアへ（次の相手ターン終了時までクリアされない）
   const powerModKey = a.until === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
 
@@ -4875,6 +4877,7 @@ function execPowerModifyPerHandCount(a: import('../types/effects').PowerModifyPe
   const scope: TargetScope = tgtO === 'self' ? 'self_field' : 'opp_field';
   // delta 算出済み＝POWER_MODIFY に変換（PER_TRASH_COUNT と同じ理由。UNTIL_OPP_TURN_END は duration で伝播）
   const pmHC: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta,
+    ...(a.excludeSelf ? { excludeSelf: true } : {}),
     ...(a.until === 'UNTIL_OPP_TURN_END' ? { duration: 'UNTIL_OPP_TURN_END' as const } : {}) };
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, pmHC, undefined, ctx);
 }

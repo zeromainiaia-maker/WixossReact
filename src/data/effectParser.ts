@@ -8074,6 +8074,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const raw = stripRuleParens(songM[1]).trim();
       if (raw) {
         const action = parseActionText(raw);
+        const grantPartial = expandGrantEffectRawTexts(action, card.CardNum);
         const songFb = consumeSilentFallbacks();
         logSilentFallbacks(`${card.CardNum}-SONG`, songFb);
         logSourceText(`${card.CardNum}-SONG`, songM[0]);
@@ -8084,7 +8085,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
           action,
           duration: 'INSTANT',
           mandatory: false,
-          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : songFb.length > 0 ? 'PARTIAL' : 'AUTO',
+          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : songFb.length > 0 || grantPartial ? 'PARTIAL' : 'AUTO',
         });
       }
     }
@@ -8097,6 +8098,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const raw = stripRuleParens(trapM[1]).trim();
       if (raw) {
         const action = parseActionText(raw);
+        const grantPartial = expandGrantEffectRawTexts(action, card.CardNum);
         const trapFb = consumeSilentFallbacks();
         logSilentFallbacks(`${card.CardNum}-TRAP`, trapFb);
         logSourceText(`${card.CardNum}-TRAP`, trapM[0]);
@@ -8107,7 +8109,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
           action,
           duration: 'INSTANT',
           mandatory: false,
-          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : trapFb.length > 0 ? 'PARTIAL' : 'AUTO',
+          parseStatus: action.type === 'UNKNOWN' ? 'UNKNOWN' : trapFb.length > 0 || grantPartial ? 'PARTIAL' : 'AUTO',
         });
       }
     }

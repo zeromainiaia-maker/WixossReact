@@ -1619,6 +1619,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const matched = (ctx.lastProcessedCards?.length ?? 0) >= cond.value;
       return cond.negate ? !matched : matched;
     }
+    case 'LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED': {
+      const signi = (ctx.lastProcessedCards ?? [])
+        .map(cn => ctx.cardMap.get(cn))
+        .find(card => card?.Type === 'シグニ');
+      const declared = ctx.ownerState.declared_number;
+      if (!signi || (declared !== 0 && declared !== 1)) return false;
+      const level = parseInt(signi.Level ?? '', 10);
+      return Number.isFinite(level) && Math.abs(level % 2) !== declared;
+    }
     case 'LAST_PROCESSED_LEVEL_SUM': {
       // lastProcessedCardsのシグニのレベル合計と value を operator で比較（合計がN／N以上／N以下。WD21-012等）
       const processed = ctx.lastProcessedCards ?? [];

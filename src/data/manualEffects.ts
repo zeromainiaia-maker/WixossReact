@@ -7,6 +7,15 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  "WDK04-006": [
+    {"effectId":"WDK04-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WDK04-006-E1-G","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_PARITY_OPPONENT"},{"type":"STUB","id":"DECK_REVEAL_UNTIL"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED"},"then":{"type":"NEGATE_ATTACK","target":{"type":"LRIG","owner":"opponent","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"}],"rawText":"【自】：対戦相手のセンタールリグがアタックしたとき、対戦相手は偶数か奇数かを宣言する。あなたのデッキの上からシグニがめくれるまで公開する。この方法で公開されたシグニのレベルが宣言と異なる場合、そのアタックを無効にする。公開されたカードをシャッフルしてデッキの一番下に置く。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  "WXK11-052": [
+    {"effectId":"WXK11-052-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":3}]},"action":{"type":"GRANT_EFFECT","target":{"type":"LRIG","owner":"self","count":1},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK11-052-E1-G","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"trash_and_up","label":"シグニ２体をトラッシュしてルリグをアップ","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":2}},{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}]}},{"choiceId":"skip","label":"トラッシュしない","action":{"type":"SEQUENCE","steps":[]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerScope":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  "PR-461": [
+    {"effectId":"PR-461-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"trash_and_up","label":"シグニ１体をトラッシュしてルリグをアップ","action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1}},{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}]}},{"choiceId":"skip","label":"トラッシュしない","action":{"type":"SEQUENCE","steps":[]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
   "WX25-P1-107": [
     {"effectId":"WX25-P1-107-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"deckTrash":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"天使"}},"delta":3000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
   ],

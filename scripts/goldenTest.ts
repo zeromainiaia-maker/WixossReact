@@ -16486,7 +16486,7 @@ test('(xlvi) 第15波: 歌本文の重複混入6枚は通常能力を保持し�
   const expected: Record<string, string[]> = {
     'WX26-CP1-068': ['"ON_ATTACK_SIGNI"', '"type":"CHOOSE"', '"type":"DRAW"', '"type":"ENERGY_CHARGE_FROM_DECK"'],
     'WX26-CP1-069': ['"ON_PLAY"', '"powerRange":{"max":5000}'],
-    'WX26-CP1-076': ['"ON_TURN_END"', '"id":"POWER_MOD_BY_HAND_COUNT"'],
+    'WX26-CP1-076': ['"ON_TURN_END"', '"type":"POWER_MODIFY_PER_HAND_COUNT"', '"owner":"self"', '"story":"プリオケ"', '"excludeSelf":true'],
     'WX26-CP1-084': ['"ON_ATTACK_PHASE_START"', '"id":"OPTIONAL_TRASH_ENERGY_CLASS"', '"keyword":"ランサー"'],
     'WX26-CP1-092': ['"ON_TURN_END"', '"type":"TRASH"', '"type":"LAST_PROCESSED_MATCHES"', '"delta":5000'],
     'WX26-CP1-093': ['"ON_PLAY"', '"type":"TRASH_HAS_CARD"', '"delta":-5000', '"delta":-3000'],
@@ -17394,6 +17394,105 @@ test('task12(xxix)(1) wave15 E2E: 可変チャーム/ルリグダウンを0・�
     }
   } finally {
     cursor = savedCursor;
+  }
+});
+
+test('task12(l) POWER_MODIFY_PER_HAND_COUNT: owner/count/filter/until/excludeSelf を実経路で評価', () => {
+  const source = 'WX26-CP1-076';
+  const otherPrio = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('プリオケ') && c.CardNum !== source);
+  const owner = mkState({ signi: [source, otherPrio, null], hand: 3 });
+  const ctx = { ...mkCtx({}, {}, source), ownerState: owner };
+  const r = run({
+    type: 'POWER_MODIFY_PER_HAND_COUNT',
+    target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { story: 'プリオケ' } },
+    deltaPerCard: 1000, handOwner: 'self', excludeSelf: true, until: 'UNTIL_OPP_TURN_END',
+  } as EffectAction, ctx);
+  const mods = r.ownerState.power_mods_until_opp_turn ?? [];
+  ok(!mods.some(m => m.cardNum === source), '効果元自身を除外');
+  ok(mods.some(m => m.cardNum === otherPrio && m.delta === 3000), '他の＜プリオケ＞へ手札3枚×1000');
+  eq((r.otherState.temp_power_mods ?? []).length, 0, '相手側を誤って強化しない');
+});
+
+test('task12(l) SONG/TRAPを含むfresh全効果: AUTOの未展開GRANT_EFFECTは0件', () => {
+  const bad: string[] = [];
+  const walk = (a: EffectAction, id: string) => {
+    if (a.type === 'GRANT_EFFECT' && a.rawText && !a.effect) bad.push(id);
+    if (a.type === 'SEQUENCE') a.steps.forEach(s => walk(s, id));
+    if (a.type === 'CONDITIONAL') { walk(a.then, id); if (a.else) walk(a.else, id); }
+    if (a.type === 'CHOOSE') a.choices.forEach(c => walk(c.action, id));
+  };
+  for (const card of cardMap.values()) {
+    for (const e of parseCardEffects(card)) if (e.parseStatus === 'AUTO') walk(e.action, e.effectId);
+  }
+  eq(bad.length, 0, `未展開AUTO: ${bad.join(',')}`);
+});
+
+test('task12(l) WDK04-006: 防御側collector→相手偶奇宣言resume→公開レベル不一致時だけLRIGアタック無効', () => {
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const odd = findCard(c => c.Type === 'シグニ' && Number(c.Level) % 2 === 1);
+  const granted = mergeManualEffects('WDK04-006', effectsMap.get('WDK04-006') ?? [])[0]
+    .action as import('../src/types/effects').GrantLrigAbilityAction;
+  const ability = granted.abilities![0];
+  const defender = mkState({ deckTop: [odd], lrig: [lrig] });
+  defender.lrig_granted_auto_effects = [ability];
+  const attacker = mkState({ lrig: [lrig] });
+  const collected = collectLrigAttackDefenderTriggers(trigCtx(), defender, 'host').entries;
+  const entry = collected.find(e => e.effectId === 'WDK04-006-E1-G');
+  ok(!!entry, 'collectLrigAttackDefenderTriggers が防御側付与を収集');
+  const ctx = { ...mkCtx({}, {}, lrig), ownerState: defender, otherState: attacker };
+  const offered = executeEffect(entry!.effect, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE' && offered.pending.opponentResponds === true, '相手応答の偶奇CHOOSE');
+  if (!offered.done && offered.pending.type === 'CHOOSE') {
+    const resumed = resumeChoose('parity_even', offered.pending, {
+      ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+    });
+    const done = finish(resumed, ctx);
+    ok((done.otherState.negated_attacks ?? []).includes(lrig), '奇数Lvと偶数宣言の不一致で相手LRIGアタックを無効');
+    ok(done.ownerState.deck.includes(odd), '公開カードはデッキへ戻り消滅しない');
+  }
+});
+
+test('task12(l) 任意場トラッシュ→UP: pay/skipが分離され、PR-461兄弟effectIdは維持', () => {
+  const effs = mergeManualEffects('PR-461', effectsMap.get('PR-461') ?? []);
+  eq(effs.map(e => e.effectId).join(','), 'PR-461-E1,PR-461-E2,PR-461-E3', '兄弟効果不変');
+  const e2 = effs.find(e => e.effectId === 'PR-461-E2')!;
+  ok(e2.action.type === 'CHOOSE', 'E2はCHOOSE');
+  if (e2.action.type === 'CHOOSE') {
+    const pay = e2.action.choices.find(c => c.choiceId === 'trash_and_up')!.action;
+    const skip = e2.action.choices.find(c => c.choiceId === 'skip')!.action;
+    ok(pay.type === 'SEQUENCE' && pay.steps[0]?.type === 'TRASH' && pay.steps[1]?.type === 'UP', 'payだけがコスト後UP');
+    ok(skip.type === 'SEQUENCE' && skip.steps.length === 0, 'skipはno-op');
+  }
+});
+
+test('task12(l) DECK_REVEAL_UNTIL: 廃棄先3文型の弁別（検証是正・公開札を1枚も失わない）', () => {
+  // WXK01-037「この方法で公開されたカードをトラッシュに置く」＝旧regexが「公開した」しか見ておらず
+  // どの分岐にも掛からず公開札が消滅していた（安全網でデッキ下へ戻すのも原文と食い違う）。
+  // WDK04-006「公開されたカードをシャッフルしてデッキの一番下」／WX17-039「公開した他のカード…一番下」と弁別する。
+  const signi = findCard(c => c.Type === 'シグニ');
+  const cases: Array<[string, 'trash' | 'deck']> = [['WXK01-037', 'trash'], ['WDK04-006', 'deck'], ['WX17-039', 'deck']];
+  for (const [cardNum, dest] of cases) {
+    const ctx = { ...mkCtx({ deckTop: [signi] }, {}, cardNum) };
+    const total = (s: PlayerState) => s.deck.length + s.hand.length + s.trash.length;
+    const before = total(ctx.ownerState);
+    const r = run({ type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as EffectAction, ctx);
+    const trashed = r.ownerState.trash.length - ctx.ownerState.trash.length;
+    // 消滅ゼロ＝デッキ/手札/トラッシュの総枚数が保存される（旧実装はここで公開札が丸ごと消えていた）
+    eq(total(r.ownerState), before, `${cardNum}: 公開札が1枚も消滅しない`);
+    if (dest === 'trash') ok(trashed > 0, `${cardNum}: 公開札はトラッシュへ（trashed=${trashed}）`);
+    else eq(trashed, 0, `${cardNum}: トラッシュへは行かずデッキへ戻る`);
+  }
+});
+
+test('task12(l) honest defer 4効果: 未展開かつAUTOではない状態を固定', () => {
+  for (const [cardNum, effectId] of [
+    ['WX24-P4-026', 'WX24-P4-026-E1'], ['WX16-004', 'WX16-004-E1'],
+    ['SPDi44-08', 'SPDi44-08-E2'], ['WX25-P1-018', 'WX25-P1-018-E2'],
+  ] as const) {
+    const e = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId)!;
+    ok(e.parseStatus !== 'AUTO', `${effectId}: AUTOではない`);
+    const json = JSON.stringify(e.action);
+    ok((json.includes('"rawText"') || json.includes('"UNKNOWN"')) && !json.includes('"effect":'), `${effectId}: 未展開を維持`);
   }
 });
 

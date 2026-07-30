@@ -587,7 +587,26 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'FROM_TRASH_TO_CENTER_ZONE' } as StubAction;
   }
 
-  // ---- 対戦相手のシグニ1体を対象とし、手札1枚につきパワー修正 ----
+  // ---- 手札枚数につきパワー修正（対象・所有者・作品クラス・持続を構造化） ----
+  const handPowerM = t.match(/手札[１1]枚につき([－＋][０-９\d]+)する/);
+  if (handPowerM && !/この方法で捨てた手札/.test(t)) {
+    const isAll = /すべての/.test(t);
+    const owner = /対戦相手の(?:すべての)?シグニ|対戦相手のシグニ[１1]体/.test(t) ? 'opponent' : 'self';
+    const storyM = t.match(/＜([^＞]+)＞のシグニ/);
+    const until = /次の対戦相手のターン終了時まで/.test(t) ? 'UNTIL_OPP_TURN_END' as const : undefined;
+    return {
+      type: 'POWER_MODIFY_PER_HAND_COUNT',
+      target: {
+        type: 'SIGNI', owner, count: isAll ? 'ALL' : 1,
+        ...(storyM ? { filter: { story: storyM[1] } } : {}),
+        ...(isAll ? {} : { upToCount: false }),
+      },
+      deltaPerCard: parseSignedNum(handPowerM[1]),
+      handOwner: 'self',
+      ...(/あなたの他の/.test(t) ? { excludeSelf: true } : {}),
+      ...(until ? { until } : {}),
+    };
+  }
   if (t.match(/手札[１-９\d]+枚につき[－＋][０-９\d]+/)) {
     return { type: 'STUB', id: 'POWER_MOD_BY_HAND_COUNT' } as StubAction;
   }
