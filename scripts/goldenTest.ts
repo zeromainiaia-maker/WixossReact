@@ -33,6 +33,7 @@ import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
+import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
@@ -14003,7 +14004,7 @@ test('task12(xxii) BattleScreen実効リミット共有ヘルパー: 抽出前�
   } finally { cursor = savedCursor; }
 });
 
-test('task12(xxii) WXDi-P13-003A-E1: 代償を払わず効果全体をUNKNOWNにする', () => {
+test('task12(xxii) WXDi-P13-003A-E1: UI atomic bridgeへ送りengine単独では代償を取らない', () => {
   const savedCursor = cursor;
   try {
     const ctx = mkCtx({}, {}, 'WXDi-P13-003A');
@@ -14023,7 +14024,8 @@ test('task12(xxii) WXDi-P13-003A-E1: 代償を払わず効果全体をUNKNOWNに
     eq(JSON.stringify(r.ownerState.hand), JSON.stringify(before.hand), '手札を代償として捨てた');
     eq(JSON.stringify(r.ownerState.energy), JSON.stringify(before.energy), 'エナを代償として捨てた');
     eq(JSON.stringify(r.ownerState.trash), JSON.stringify(before.trash), 'トラッシュが変化した');
-    ok(r.logs.some(x => x.includes('[UNKNOWN: 白か黒のルリグを１体以上含む')));
+    eq(manualEffect('WXDi-P13-003A', 'WXDi-P13-003A-E1').action.type, 'STUB');
+    ok(r.logs.some(x => x.includes('MAYU_ENCOUNTER_FLIP_AND_GROW')));
   } finally { cursor = savedCursor; }
 });
 
@@ -17980,6 +17982,75 @@ test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () =>
     const invalid = mkCtx({}, {}); const invalidBefore = invalid.ownerState;
     const untouched = run({ type: 'STUB', id: 'MUGEN_Q_RESET_AND_FLIP' } as EffectAction, invalid);
     ok(untouched.ownerState === invalidBefore, 'failed precondition leaves state untouched');
+  } finally { cursor = savedCursor; }
+});
+
+test('WXDi-P13-003A-E1: actual moves gate the same-instance B-face center grow', () => {
+  const savedCursor = cursor;
+  try {
+    const piece = 'WXDi-P13-003A#piece';
+    const before = mkState({ lrig: ['center-lrig'], signi: [null, null, null] });
+    before.field = { ...before.field, key_piece: piece };
+    before.hand = ['h1', 'h2', 'h3'];
+    before.energy = ['e1', 'e2'];
+    before.trash = ['old-trash'];
+    before.actions_done = [];
+
+    const prep = prepareMayuEncounter(before);
+    ok(prep !== null, 'A-face key_piece instance is recognized');
+    if (!prep) return;
+    eq(prep.movedCount, 5, 'gate uses the number of cards actually removed from the two zones');
+    eq(prep.movedFromHand.join(','), 'h1,h2,h3', 'all hand cards moved');
+    eq(prep.movedFromEnergy.join(','), 'e1,e2', 'all energy cards moved');
+    eq(prep.state.hand.length + prep.state.energy.length, 0, 'both source zones empty');
+    eq(prep.state.trash.join(','), 'old-trash,h1,h2,h3,e1,e2', 'actual moved instances reach trash');
+    eq(prep.state.field.key_piece, null, 'piece leaves key_piece only when payoff succeeds');
+    eq(prep.state.card_identity_overrides?.[piece], MAYU_ENCOUNTER_B, 'same physical instance resolves as B face');
+    const mayuOnPlay = mergeManualEffects(
+      MAYU_ENCOUNTER_B, effectsMap.get(MAYU_ENCOUNTER_B) ?? [],
+    ).filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY'));
+    eq(
+      mayuOnPlay.map(e => e.effectId).join(','),
+      'WXDi-P13-003B-E1,WXDi-P13-003B-E2',
+      'normal grow ON_PLAY lookup sees both B-face abilities',
+    );
+    const optionalB = collectOptionalNoCostOnPlayForGrow(
+      mayuOnPlay,
+      { ...prep.state, field: { ...prep.state.field, lrig: [...prep.state.field.lrig, piece] } },
+      mkState(), true, cardMap, MAYU_ENCOUNTER_B, 'MAIN',
+    );
+    const stackedB = [
+      ...mayuOnPlay.filter(e => e.mandatory !== false).map(e => e.effectId),
+      ...optionalB.effects.map(e => e.effectId),
+    ];
+    eq(
+      stackedB.join(','),
+      'WXDi-P13-003B-E1,WXDi-P13-003B-E2',
+      'executeGrow mandatory/optional collectors stack both B-face ON_PLAY effects',
+    );
+    ok(evalCondition(
+      { type: 'CENTER_LRIG_NOT_GROWN_THIS_TURN', owner: 'self' },
+      mkCtx({ actions_done: [] }, {}),
+    ), 'UI sentinel state without GROW permits use');
+    const grownCtx = mkCtx({}, {});
+    grownCtx.ownerState = { ...grownCtx.ownerState, actions_done: ['GROW'] };
+    ok(!evalCondition(
+      { type: 'CENTER_LRIG_NOT_GROWN_THIS_TURN', owner: 'self' },
+      grownCtx,
+    ), 'normal/free center grow marker blocks same-turn use');
+
+    const short = mkState({ lrig: ['center-lrig'], signi: [null, null, null] });
+    short.field = { ...short.field, key_piece: piece };
+    short.hand = ['h1', 'h2'];
+    short.energy = ['e1', 'e2'];
+    const noPayoff = prepareMayuEncounter(short)!;
+    eq(noPayoff.movedCount, 4, 'short payment counts four actual moves');
+    ok(!noPayoff.canGrow, 'fewer than five does not unlock payoff');
+    eq(noPayoff.state.field.key_piece, piece, 'failed threshold does not flip or remove piece');
+    eq(noPayoff.state.card_identity_overrides?.[piece], undefined, 'failed threshold leaves identity unchanged');
+
+    const missing = mkState({ lrig: ['center-lrig'], signi: [null, null, null] });
+    ok(prepareMayuEncounter(missing) === null, 'missing physical key_piece makes the whole preparation a no-op');
   } finally { cursor = savedCursor; }
 });
 

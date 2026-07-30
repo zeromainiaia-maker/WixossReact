@@ -1109,6 +1109,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
   }
   switch (cond.type) {
+    case 'CENTER_LRIG_NOT_GROWN_THIS_TURN':
+      return !(st(cond.owner).actions_done ?? []).includes('GROW');
     case 'FIELD_LRIGS_SHARE_COLOR': {
       const f = st(cond.owner).field;
       const nums = [f.lrig.at(-1), f.assist_lrig_l?.at(-1), f.assist_lrig_r?.at(-1)].filter((n): n is string => !!n);

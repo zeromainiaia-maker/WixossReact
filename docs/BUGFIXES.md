@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-30 — PLAN §6.3 H3 `WXDi-P13-003A-E1` 未知の邂逅を原子的に実装
+
+- `CENTER_LRIG_NOT_GROWN_THIS_TURN` 条件を追加し、キーピース候補表示と実行直前の双方で `actions_done` の `GROW` を確認するようにした。【ドリームチーム】白/黒1体以上は PLAN §6.3 F の正規デッキ常時成立方針に従い保留。
+- `prepareMayuEncounter` で手札・エナから実際に取り出した instance 数を数え、5枚以上のときだけ `key_piece` の同一instanceを除去して `card_identity_overrides[instanceId]='WXDi-P13-003B'` を立てる。移動は中央盤面差分 collector と既存の手札捨て collector に載せる。
+- `executeGrow` に optional の `instanceId` / `baseState` / `opponentState` / `freeCost` / `consumeGrowAction` / `extraEntries` を追加。省略時は通常グロウ・ゲットグロウの従来値を保ち、H3だけは無料でもセンターグロウとして `GROW` を積む。代償・反転・配置は最終stateを組んでから既存グロウ経路の単一commitへ渡すため、見返りだけ失敗した中間盤面を保存しない。
+- golden は共有 `cursor` を `try/finally` で復元し、実移動5/4枚境界、同一instance反転、未グロウ条件、B面ON_PLAY E1/E2の2件を固定。
+- **⚠Claude 確認で計測した「指示外の副作用」2件**（どちらも妥当と判断して残置）：
+  - **キー/ピース全体に `canUseArtsCondition` の使用条件ゲートが新たに掛かった**（従来キー/ピースは `condition` を無視して常に使用可）。実データで新たにゲートされる既存効果は**2件のみ**＝`WXDi-P03-001-E1`（SONG OF WIXOSS。原文が【使用条件】あなたの場に青のルリグがいる＝**ゲートは正しい是正**）と `WXDi-P01-004-E1`（code:L/O。JSON の `condition` は【使用条件】ではなく本体側の「ライフクロスが０枚の場合」なので**厳密には使用可否ではない**が、既存アーツも同じ conflation で運用されているため揃える方を採った。空振り使用ができなくなるだけで実害は小）。
+  - **`collectGrowCostSubstitute` を free grow 時に呼ばなくした**（`wasFreeGrow ? null : ...`）。従来はコスト0の横グロウでも「選択枚数＝必要数−1」条件でエナのシグニを代替トラッシュし得た＝無料グロウで支払いが起きる潜在バグ。実データの該当は `SP07-001-E1` の**1件のみ**で、グロウコストが1枚の相手へ free grow したときだけ差が出る。
+
 ## PLAN §6.3 H1 `WX15-067-E1`（メルト・ファクト）完全実装（2026-07-30・Codex）
 - `pendingSpellCast.virusRemovalByZone` に相手3ゾーンからの任意除去数を保持し、`castSpell` 確定時に現物数を再検証して相手 `field.signi_virus` と同一 `QUEUE_SPELL` 更新で減算する。0個も許可し、選択変更時は支払いエナ選択をクリアして旧コストの選択を持ち越さない。
 - 実除去数は `pending_spell.pre_use_virus_removed` に載せ、解決ctxの `preUseVirusRemoved` までこのスペル1回だけ運ぶ。1個以上の《黒×2》軽減は `applyMeltFactPreUseCost` がカード番号を限定して適用し、2個以上は `ChooseAction.preUseVirusChoose` で `count:2/upTo:true` にする。既存 `next_spell_cost_reduction` は読み書きとも追加せず、次スペル1回規約を汚していない。

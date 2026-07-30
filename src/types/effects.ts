@@ -193,6 +193,7 @@ export type ActiveCondition =
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
 
 export type Condition =
+  | { type: 'CENTER_LRIG_NOT_GROWN_THIS_TURN'; owner: Owner }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'FIELD_LRIG_COLOR_COUNT'; owner: Owner; operator: CompareOp; value: number; minLrigs?: number }
   | { type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }

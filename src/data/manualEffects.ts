@@ -4762,7 +4762,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // §3 task12(xxii) B3: do not charge the all-hand/all-energy cost while the paired free-grow payoff is unavailable.
   "WXDi-P13-003A": [
-    {"effectId":"WXDi-P13-003A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"UNKNOWN","raw":"白か黒のルリグを１体以上含むこのターンにあなたがセンタールリグをグロウしていない場合、手札をすべて捨てあなたのエナゾーンからすべてのカードをトラッシュに置く。この方法でカードが５枚以上トラッシュに置かれた場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《未知の巫女　マユ》にグロウコストを支払わずにグロウする。"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WXDi-P13-003A-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"CENTER_LRIG_NOT_GROWN_THIS_TURN","owner":"self"},"action":{"type":"STUB","id":"MAYU_ENCOUNTER_FLIP_AND_GROW"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // §3 task12(xxxix) final batch: preserve the pre-reveal target across the reveal confirmation pause.
   "WXEX1-66": [

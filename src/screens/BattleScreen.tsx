@@ -35,6 +35,7 @@ import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, pa
 import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
+import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
@@ -5547,21 +5548,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   })();
 
-  const executeGrow = async (card: CardData, costIndices: Set<number>) => {
+  const executeGrow = async (
+    card: CardData,
+    costIndices: Set<number>,
+    options: {
+      instanceId?: string;
+      baseState?: PlayerState;
+      freeCost?: boolean;
+      consumeGrowAction?: boolean;
+      extraEntries?: StackEntry[];
+      opponentState?: PlayerState;
+    } = {},
+  ) => {
     if (!isMyTurn || loading) return;
     setLoading(true);
-    const wasFreeGrow = freeGrowFilter !== null;
+    const growBase = options.baseState ?? my;
+    const growOp = options.opponentState ?? op;
+    const wasFreeGrow = options.freeCost ?? (freeGrowFilter !== null);
+    const consumeGrowAction = options.consumeGrowAction ?? !wasFreeGrow;
     closeGrowModal();
     try {
       const cardNum = card.CardNum;
-      const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
-      const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
-      const newLrigDeck = idx === -1 ? my.lrig_deck
-        : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      let newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const idx = options.instanceId === undefined
+        ? growBase.lrig_deck.findIndex(id => getCardNum(id) === cardNum)
+        : -1;
+      const instanceId = options.instanceId ?? (idx >= 0 ? growBase.lrig_deck[idx] : cardNum);
+      const newLrigDeck = idx === -1 ? growBase.lrig_deck
+        : [...growBase.lrig_deck.slice(0, idx), ...growBase.lrig_deck.slice(idx + 1)];
+      const paidNums = [...costIndices].map(i => growBase.energy[i]);
+      let newEnergy = growBase.energy.filter((_, i) => !costIndices.has(i));
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
-      const growSubInfoExec = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
+      const growSubInfoExec = wasFreeGrow ? null : collectGrowCostSubstitute(growBase, battleCardMap, effectsMap);
       const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
@@ -5578,13 +5595,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // フリーグロウ（ゲット・グロウ等）はグロウコストのコインを支払わず、通常グロウ枠も消費しない（横グロウ）
       const growCoinCost = wasFreeGrow ? 0 : parseCoinCost(card.GrowCost);
       let newMyState: PlayerState = {
-        ...my,
+        ...growBase,
         lrig_deck: newLrigDeck,
-        field: { ...my.field, lrig: [...my.field.lrig, instanceId] },
+        field: { ...growBase.field, lrig: [...growBase.field.lrig, instanceId] },
         energy: newEnergy,
-        trash: [...my.trash, ...paidNums],
-        actions_done: wasFreeGrow ? (my.actions_done ?? []) : [...(my.actions_done ?? []), 'GROW'],
-        coins: Math.min(5, Math.max(0, my.coins - growCoinCost) + coinGain),
+        trash: [...growBase.trash, ...paidNums],
+        actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
+        coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
         free_grow_this_turn: undefined,
       };
       // グロウ条件の追加効果（ルリグをデッキから下に置く・除外する等）
@@ -5594,7 +5611,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: グロウ先がこの継続効果を持つなら、各プレイヤーが
       //「自分のシグニを超過分だけ選んでトラッシュに置く」（残り上限体）。スタックに積んで選択させる。
-      const grownFieldLimit = computeFieldSigniLimit(newMyState, op, effectsMap, getCardNum);
+      const grownFieldLimit = computeFieldSigniLimit(newMyState, growOp, effectsMap, getCardNum);
       const opponentId = isHost ? bs.guest_id : bs.host_id;
       const fieldLimitEntries: StackEntry[] = [];
       if (grownFieldLimit < 3) {
@@ -5613,7 +5630,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         };
         mkLimitEntry(user.id, newMyState.field.signi.filter(s => (s ?? []).length > 0).length);
-        mkLimitEntry(opponentId, op.field.signi.filter(s => (s ?? []).length > 0).length);
+        mkLimitEntry(opponentId, growOp.field.signi.filter(s => (s ?? []).length > 0).length);
       }
       const cardName = card.CardName;
       const coinLog = coinGain > 0 ? `（コイン+${coinGain}）` : '';
@@ -5631,7 +5648,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownEffects = effectsMap.get(cardNum) ?? [];
       // SUPPRESS_CENTER_ON_PLAY: このターンセンタールリグの【出】能力を抑制
       const suppressLrigPlay = newMyState.suppress_center_on_play === true;
-      const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, op, isMyTurn)
+      const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, growOp, isMyTurn)
         .filter(e => e.timing?.includes('ON_PLAY'));
       const allOnPlayEffects = suppressLrigPlay ? [] : [...ownEffects, ...copiedOnPlayEffects];
       const mandatoryOnPlay = allOnPlayEffects.filter(e =>
@@ -5648,7 +5665,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.cost,
       );
       const optionalNoCostGrow = collectOptionalNoCostOnPlayForGrow(
-        allOnPlayEffects, newMyState, op, true, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
+        allOnPlayEffects, newMyState, growOp, true, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );
       // costUnparsed など、包むとコスト踏み倒しになるものだけは発火させず警告する。
       if (optionalNoCostGrow.deferred.length > 0) {
@@ -5662,18 +5679,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 【出】（ON_PLAY・ターンプレイヤー側）が先に解決され any_opp watcher は後で処理される
       // （2026-07-12・PLAN §7 ON_LRIG_GROW③検証で訂正＝旧コメントは順序を逆に記載していた誤り。
       // golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」参照）。
-      const growTrig = collectLrigGrowTriggers(user.id, newMyState, op);
+      const growTrig = collectLrigGrowTriggers(user.id, newMyState, growOp);
       const growTriggerEntries = growTrig.entries;
       // usageLimit（《ターン1回》）消費を actions_done へ永続化（従来は「読むだけ」で書き戻しが無く実質ノーガードだった。続き135）
       const growUsedMine = isHost ? growTrig.usedHostIds : growTrig.usedGuestIds;
       const growUsedOpp  = isHost ? growTrig.usedGuestIds : growTrig.usedHostIds;
       if (growUsedMine.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...growUsedMine] };
       const opAfterGrow: PlayerState | null = growUsedOpp.length > 0
-        ? { ...op, actions_done: [...(op.actions_done ?? []), ...growUsedOpp] }
-        : null;
+        ? { ...growOp, actions_done: [...(growOp.actions_done ?? []), ...growUsedOpp] }
+        : (growOp !== op ? growOp : null);
       const opKeyGrow = isHost ? 'guest_state' : 'host_state';
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
-      const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, growOp) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const growCoinPaidEntries = growCoin.entries;
       newMyState = applyCoinPaidUsed(newMyState, growCoin); // 《ターン1回/2回》消化を actions_done に永続化
 
@@ -5681,6 +5698,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
         const mandatoryEntries: StackEntry[] = [
+          ...(options.extraEntries ?? []),
           ...fieldLimitEntries,
           ...growTriggerEntries,
           ...growCoinPaidEntries,
@@ -5703,6 +5721,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // mandatory ON_PLAY 効果＋場出し数制限の選択トラッシュ＋グロウ反応＋コイン支払反応をスタックに積む
       const entries: StackEntry[] = [
+        ...(options.extraEntries ?? []),
         ...fieldLimitEntries,
         ...growTriggerEntries,
         ...growCoinPaidEntries,
@@ -5871,6 +5890,85 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ── キーピース使用 ──
   const executeKeyPiece = async (card: CardData, costIndices: Set<number>) => {
     if (loading) return;
+    if (!canUseArtsCondition(
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, effectivePowers,
+    )) return;
+
+    // WXDi-P13-003A is a piece whose resolution turns the same physical instance into
+    // a LRIG. Build the entire payment/flip state first, then let executeGrow perform
+    // the single commit and the normal ON_PLAY/ON_LRIG_GROW collection.
+    if (card.CardNum === MAYU_ENCOUNTER_A) {
+      const idx = my.lrig_deck.findIndex(id => getCardNum(id) === MAYU_ENCOUNTER_A);
+      if (idx < 0) return;
+      const instanceId = my.lrig_deck[idx];
+      const placed: PlayerState = {
+        ...my,
+        lrig_deck: [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)],
+        field: { ...my.field, key_piece: instanceId },
+      };
+      const prep = prepareMayuEncounter(placed);
+      if (!prep) return;
+      closeKeyModal();
+
+      const afterHost = isHost ? prep.state : bs.host_state;
+      const afterGuest = isHost ? bs.guest_state : prep.state;
+      const bd = collectBoardDiffTriggers(afterHost, afterGuest, {
+        causeOwnerId: user.id,
+        causeSourceCardNum: instanceId,
+      });
+      let preparedMine = isHost ? bd.hostState : bd.guestState;
+      const preparedOpp = isHost ? bd.guestState : bd.hostState;
+      const handDiscard = prep.movedFromHand.length > 0
+        ? collectHandDiscardTriggers(
+            prep.movedFromHand.map(getCardNum), preparedMine, user.id, false,
+            preparedOpp, isHost ? bs.guest_id : bs.host_id,
+          )
+        : { entries: [] as StackEntry[], usedLimitIds: [] as string[] };
+      if (handDiscard.usedLimitIds.length > 0) {
+        preparedMine = {
+          ...preparedMine,
+          actions_done: [...(preparedMine.actions_done ?? []), ...handDiscard.usedLimitIds],
+        };
+      }
+      const movementEntries = [...bd.entries, ...handDiscard.entries];
+
+      // Fewer than five cards still pays the stated price, but does not flip/grow.
+      if (!prep.canGrow) {
+        setLoading(true);
+        try {
+          const stateKey = isHost ? 'host_state' : 'guest_state';
+          const opKey = isHost ? 'guest_state' : 'host_state';
+          const stack = movementEntries.length > 0
+            ? (bs.effect_stack
+                ? pushToStack(bs.effect_stack, movementEntries)
+                : initStack(bs.active_user_id ?? user.id, movementEntries))
+            : undefined;
+          await persist.commit(reduceBattle(bs, {
+            type: 'WRITE_STATE',
+            myKey: stateKey,
+            myState: preparedMine,
+            opp: preparedOpp !== op ? { key: opKey, state: preparedOpp } : undefined,
+            ...(stack ? { effectStack: stack } : {}),
+          }));
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      const mayu = battleCardMap.get(MAYU_ENCOUNTER_B);
+      if (!mayu) return;
+      await executeGrow(mayu, new Set(), {
+        instanceId: prep.instanceId,
+        baseState: preparedMine,
+        opponentState: preparedOpp,
+        freeCost: true,
+        consumeGrowAction: true,
+        extraEntries: movementEntries,
+      });
+      return;
+    }
+
     setLoading(true);
     closeKeyModal();
     try {
@@ -6782,7 +6880,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
       const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
       const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
-      if (canUse && canAfford) {
+      const condOk = canUseArtsCondition(
+        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
+      );
+      if (canUse && canAfford && condOk) {
         actions.push({
           label: 'キーにセット',
           color: '#cc8800',
