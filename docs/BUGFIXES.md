@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-30 — エクシードルリグ本体不一致 A〜E（PLAN §4 次の一手①）
+
+- A `WX24-P4-014-E2` と兄弟 `WD16-012-E3`／`WX13-016-E1`／`WX26-CP1-004-E1` を、固定1枚/条件包みから既存 `DRAW.untilHandCount` へ修正。`WX05-003-E3` のMANUAL正準形とfresh一致、逆向き `WDK08-Y08-E1` 非マッチをgoldenで固定。`WX24-P4-014` は同居MANUALによりカード単位PRESERVEされるため、後段外科補正をeffectIdアンカーで追加。
+- B `WX24-P4-018-E2` は既存 `OPPONENT_PAY_OPTIONAL{opponentHandDiscard:3}`＋直後CONDITIONALへ限定配線。手札3枚を捨てる枝はバニッシュ回避、不払い枝だけ1体バニッシュを実行する。
+- C `WX24-P4-015-E2` は `LIFE_CRASH.optional:true` と `EffectTarget.addLastProcessedCount` を配線。skipは1体、crashはLB check状態を跨いで2体を対象にする。
+- D `WX24-P4-011-E2` は `lrig_granted_auto_effects` に `ON_ATTACK_LRIG` AUTOを積み、`consumeOnTrigger` を最初の収集時に除去することで「このターン、次に」1回だけ発火。既存ターン境界クリアに載る。
+- E `WX24-P4-017-E2` は `TransferToHandAction.transferGroups`（既存 `*Groups` と同形）を追加し、トラッシュのスペル1枚まで＋青シグニ1枚までを順次選択して手札へ移す。executor/decompiler/型を同時配線。
+- 群F `WX25-P3-028-E2` は部分実装を避け丸ごとdefer。リフレッシュ不可の2ターン寿命＋反復アクション＋各回のowner選択の3機構を一体で実装する必要があり、A〜Eの検証を優先した。
+- live effectId差分は8件のみ（上記A 4件＋B〜E）。golden 1109→1113、census 1386→1384（`untilHandCount`／`transferGroups` の既存語彙認識を較正）、smoke 10679全0、fuzz全0、manual field loss 0、lint 0 errors/230 warnings、同型★0。
+- **⚠投入前 Claude 実測で PLAN の見立てを訂正した**＝PLAN の「本体不一致」は「機構が無い」と読めるが、実測すると**6件中5件は engine 機構が完備で parser／データ側の穴**だった（`untilHandCount`／`OPPONENT_PAY_OPTIONAL.opponentHandDiscard`／`LifeCrashAction.optional`＋`lastProcessedCards`／`lrig_granted_auto_effects`／`*Groups` の先例）。指示書で「新機構を作るな・この既存語彙を拡張しろ」と名指ししたため、新設は `transferGroups`／`addLastProcessedCount`（既存名の水平展開）／`consumeOnTrigger` の3本に収まり、並行語彙の新設事故は起きていない。
+- **Claude 確認（codex 実装／Claude 検証・是正3点）**＝①`npm run gates` 独立実行で全緑（golden **1113**・census **1384/1384**・smoke 10679 全0 SKIP0・fuzz seed 12648430・lint 0 errors/230 warnings・manual field loss 0・同型★0） ②**live per-effect 機械 diff（ベースライン `0df24c1f` 比）＝changed 8／removed 0／added 1**（added は入れ子 `WX24-P4-011-E2-next-attack`＝想定内）で申告と一致。8件すべて原文と1件ずつ突き合わせ済み ③**`WX24-P4-015-E2` の `triggerBurst:true` が温存されている**ことを確認（落とすとライフバーストが不発になる最重要点） ④**罠1（中断跨ぎ）は実際には回避されていた**＝crash 後の pending は `field.check` が埋まった状態のまま `SELECT_TARGET count:2` に到達しており、`lastProcessedCards` は同一 continuation 内で生存する ⑤**群D の寿命を独立確認**＝`lrig_granted_auto_effects` はターン終了時の**3経路すべて**（`BattleScreen.tsx:3321` PvP通常／`3702` PvP確認後／`9433` CPU）で `permanentGrant` のみ残してクリアされ、今回の付与は `permanentGrant` 無し＝「このターン」が正しく効く（⚠指示書で挙げた `effectExecutor.ts:190-191` は別関数への誤引用だった） ⑥`scripts/fixLrigColorFilters.mjs` への追記は `build:effects` に組み込まれた**既存の effectId アンカー外科パッチ表**への1行追加＝隠しパッチではない ⑦`BASELINE_HIGH` は**既存定数を書き換え**（過去2回の並行定数事故は非再発）。
+  - **是正1＝BOM 混入2件**（`scripts/vocabCensus.ts`／`src/screens/BattleScreen.tsx` の先頭に U+FEFF）。**§5-19 のエンコーディング検査（U+FFFD と3連続以上の `?`）では BOM が検出できない**＝検査項目に **BOM（`efbbbf`）** を追加すること。ゲートは BOM を通すため全緑のまま素通りしていた。
+  - **是正2＝`WX24-P4-017-E2` の逆翻訳から移動元ゾーンが脱落**（「あなたのトラッシュから」が出ない＝JSON は正しく `TRASH_CARD`）。`transferGroups` は群ごとの filter しか持たないため、`transferGroupZoneJa()` を新設して source からゾーンを前置きするよう是正。
+  - **是正3＝`BASELINE_HIGH` のコメントに本バッチの履歴が追記されていなかった**（数値だけ 1386→1384 に書き換わっていた）。履歴先頭追記の規約どおり補った。
+  - **⚠codex の説明が1点誤り＝held +2（288→290枚／106→107署名）の帰属**。codex は「今回の live 差分外＝HEAD 時点の未再生成ドリフト」と説明したが、**`docs/_held_fresh.json` を実測すると `WX24-P1-071` と `WX25-P1-005` は本バッチの群B規則で新たに `OPPONENT_PAY_OPTIONAL` を獲得しており、増加の原因は本バッチ**。ただし**live 挙動は不変**（held＝未採用）で、方向は正しい（curated が落としている回避クローズを fresh が獲得した）。＝**群Bの regex は指示書で除外した「引用付与の内側」族へ fresh レベルでは届いている**。この2件は次バッチの採用候補。
+
 ## 2026-07-30 — PLAN §6.3 H4 `WXDi-P13-003B-E2` 追加ターンの自分側配置数制限
 
 - `DEPLOY_RESTRICT` は配置数制限を含む1文だけから主語（対戦相手／あなた／すべてのプレイヤー）と上限を読み、`そのターンの間` かつ直前の追加ターン取得で `ownerState.extra_turn` が立った場合だけ `signi_deploy_count_limit_next_turn` へ予約する。既存の対戦相手6効果は相手側即時capのまま、`WXK06-004-E1` の全プレイヤー文は両者capへ是正。

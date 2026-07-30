@@ -225,6 +225,17 @@ function filterJa(f?: any): string {
   return parts.join('');
 }
 
+// transferGroups は群ごとの filter しか持たないため、移動元ゾーンは source から前置きする
+// （落とすと逆翻訳から「あなたのトラッシュから」が消えて、どこから回収するのか読めなくなる）
+const TRANSFER_ZONE_JA: Record<string, string> = {
+  TRASH_CARD: 'トラッシュから', ENERGY_CARD: 'エナゾーンから',
+  DECK_CARD: 'デッキから', LRIG_TRASH_CARD: 'ルリグトラッシュから',
+};
+function transferGroupZoneJa(src?: any): string {
+  const zone = src?.type ? TRANSFER_ZONE_JA[src.type] : undefined;
+  return zone ? `${ownerJa(src.owner)}${zone}` : '';
+}
+
 function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   if (!t) return '';
   // excludeSelf は filter の外（target 直下・action 直下）にも置かれるため、ここで filter にマージして「他の」を出す
@@ -270,6 +281,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
     return `トラッシュに置いたシグニ1${counter}につき${own}${filterJa(t.filter)}${u}1${counter}`.trim();
+  }
+  if (t.addLastProcessedCount) {
+    return `${own}${filterJa(t.filter)}${u}をこの方法で処理した枚数に${t.count}を加えた数`.trim();
   }
   // 動的数：対象シグニのレベル（タスク12(liii)「それのレベル１につき１枚」）
   if (typeof t.count === 'object' && LEVEL_REFS.includes(t.count?.$ref)) {
@@ -757,8 +771,14 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
-      : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュする${a.conditional ? '（そうした場合）' : ''}`;
-    case 'TRANSFER_TO_HAND': return a.source?.fromLeftFieldUnder
+      : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;
+    case 'TRANSFER_TO_HAND': return a.transferGroups?.length
+      ? `${transferGroupZoneJa(a.source)}${a.transferGroups.map((g: any) => {
+          const noun = g.filter?.cardType === 'スペル' ? 'スペル'
+            : `${g.filter?.color ? `${g.filter.color}の` : ''}${g.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
+          return `${noun}${g.count}枚まで`;
+        }).join('と')}対象とし、それらを手札に加える`
+      : a.source?.fromLeftFieldUnder
       ? 'トラッシュにある、このシグニの下にあったシグニ1枚を手札に加える'
       : `${targetJa(a.source)}を手札に加える`;
     case 'TRANSFER_TO_DECK': {
@@ -1268,6 +1288,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する${a.optional ? '（してもよい）' : ''}`;
       return `${ownerJa(a.owner)}デッキの上を公開する`;
     case 'GRANT_LRIG_ABILITY': {
+      if (a.abilities?.length === 1 && a.abilities[0]?.consumeOnTrigger
+          && a.abilities[0]?.timing?.includes('ON_ATTACK_LRIG')) {
+        return 'このターン、次にこのルリグがアタックしたとき、このルリグをアップする';
+      }
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
       const glaDuration = a.permanent ? 'このゲームの間、'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
@@ -1517,7 +1541,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「そうしなかった場合」の本体＝SEQUENCE 描画側でラベルを反転する）
       if (a.id === 'OPPONENT_PAY_OPTIONAL') {
         const costJaOPO = (a.costColors ?? []).map((c: string) => `《${c}》`).join('');
-        return `対戦相手は${costJaOPO || 'コスト'}を支払ってもよい`;
+        return a.opponentHandDiscard
+          ? `対戦相手は手札を${a.opponentHandDiscard}枚捨ててもよい`
+          : `対戦相手は${costJaOPO || 'コスト'}を支払ってもよい`;
       }
       // SELECT_TARGET_ONLY: 盤面を変えない対象宣言（タスク12(liii)「〜１体を対象とし、」）
       if (a.id === 'SELECT_TARGET_ONLY') {

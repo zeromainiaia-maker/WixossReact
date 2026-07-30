@@ -97,6 +97,9 @@ const FIXES = [
   // parser の可変捨て action 化を effectId アンカーで外科反映。
   { file: 'effects_WX24_26', card: 'WX25-P3-084', eid: 'WX25-P3-084-E1', type: 'variableDiscardAction',
     locate: e => e },
+  // 同居E3がMANUALのためカード単位PRESERVEされる。差分ドローだけをeffectIdで外科反映。
+  { file: 'effects_WX24_26', card: 'WX24-P4-014', eid: 'WX24-P4-014-E2', type: 'untilHandFour',
+    locate: e => e },
 
   // PR-K064-E1: CHOOSE.choices[0].action.filter (SEARCH)
   { file: 'effects_misc', card: 'PR-K064', eid: 'PR-K064-E1', type: 'matchesLrig',
@@ -151,6 +154,10 @@ function applyFix(obj, type) {
     obj.action = { type: 'STUB', id: 'COUNT_BASED_DRAW_OR_POWER' };
     delete obj.cost;
     delete obj.costUnparsed;
+    return true;
+  }
+  if (type === 'untilHandFour') {
+    obj.action = { type: 'DRAW', owner: 'self', count: 0, untilHandCount: 4 };
     return true;
   }
   if (type === 'trashKeyCost') {

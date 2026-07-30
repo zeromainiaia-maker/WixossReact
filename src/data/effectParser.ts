@@ -1984,6 +1984,11 @@ function parseSingleSentence(text: string): EffectAction {
 }
 
 function parseSingleSentenceInner(text: string): EffectAction {
+  const untilHandM = text.trim().replace(/。$/, '')
+    .match(/^あなたの手札が([０-９\d一二三四五六七八九十]+)枚より少ない場合、その差の分だけカードを引く$/);
+  if (untilHandM) {
+    return { type: 'DRAW', owner: 'self', count: 0, untilHandCount: parseNum(untilHandM[1]) };
+  }
   // 「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニN体を対象とし、…」＝相手中央ルリグの
   // レベルを基準にした動的レベルフィルタ（levelLtOppLrig）。この先頭修飾句を剥がさないと汎用ターゲット解析が
   // 「対戦相手のセンタールリグ」に釣られて対象を LRIG に誤選択し、本来の self シグニ対象と動的フィルタが丸ごと
@@ -2443,6 +2448,16 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ①のプレフィックス許可リストに無いトリガー句（「ターン終了時、」等）直後の条件は、1668 除去で t 先頭へ来る。
   { const _w = tryWrapLeadingStateCond(t); if (_w) return _w; }
 
+  // 「手札がN枚より少ない場合、その差の分だけカードを引く」。
+  // 固定1枚DRAWへ落とすと手札が N-2 枚以下のとき過小実行になるため、
+  // 既存の untilHandCount で差分ドローを直接表す。
+  {
+    const untilHandM = t.match(/^あなたの手札が([０-９\d一二三四五六七八九十]+)枚より少ない場合、その差の分だけカードを引く$/);
+    if (untilHandM) {
+      return { type: 'DRAW', owner: 'self', count: 0, untilHandCount: parseNum(untilHandM[1]) };
+    }
+  }
+
   // 「対戦相手が《…》…を支払わないかぎり、X」＝相手が任意コストを支払わなければ X を実行する対話ゲート。
   // STUB OPPONENT_PAY_OPTIONAL ＋ CONDITIONAL(IS_MY_TURN) の標準ペア＝effectExecutor:2339 が
   // 「支払う（pay＝何も起きない）／支払わない（skip＝X 実行）」の相手側 CHOOSE を生成する。
@@ -2453,7 +2468,20 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ⚠帰結が「そのシグニ」照応（トリガー元シグニ参照＝WXDi-P08-007）は、単文パースで owner が self に
   //   反転する退化を起こすため据置（従来どおり条件脱落の既知バグとして残る＝タスク12 在庫）。
   {
-    const oppUnlessPayM = t.match(/^対戦相手が((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
+    const directM = t.match(/^対戦相手が((?:《[白赤青緑黒無]》)+)を支払わないかぎり、(.+)$/s);
+    // 文中形は今回の対象文型だけに限定する。引用付与・反復・攻撃無効・自己支払い型へ波及させない。
+    const targetedHandM = t.match(/^対戦相手のシグニ([０-９\d一二三四五六七八九十]+)体を対象とし、対戦相手が手札を([０-９\d一二三四五六七八九十]+)枚捨てないかぎり、それをバニッシュする$/s);
+    const oppUnlessPayM = directM;
+    if (targetedHandM) {
+      const count = parseNum(targetedHandM[1]);
+      return { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: parseNum(targetedHandM[2]) } as StubAction,
+        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+          type: 'BANISH',
+          target: { type: 'SIGNI', owner: 'opponent', count, filter: { cardType: 'シグニ' }, upToCount: false },
+        } } as EffectAction,
+      ] } as SequenceAction;
+    }
     if (oppUnlessPayM && !/^(?:ターン終了時まで、)?そのシグニ/.test(oppUnlessPayM[2])) {
       const costColors = [...oppUnlessPayM[1].matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
       const unlessThen = parseSingleSentence(oppUnlessPayM[2]);
@@ -3886,6 +3914,56 @@ function applyFinalLookPickWave17(cardNum: string, effects: CardEffect[]): void 
       remainder: { location: 'deck', position: 'top' },
       opponentChoosesPileToTrash: true,
     } as RevealAndPickAction;
+  }
+}
+
+function applyExceedBodyFixes(cardNum: string, effects: CardEffect[]): void {
+  const effect = (id: string) => effects.find(e => e.effectId === id);
+  if (cardNum === 'WX24-P4-014') {
+    const e = effect('WX24-P4-014-E2');
+    if (e) e.action = { type: 'DRAW', owner: 'self', count: 0, untilHandCount: 4 };
+  }
+  if (cardNum === 'WX24-P4-015') {
+    const e = effect('WX24-P4-015-E2');
+    if (e) e.action = {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: true, optional: true },
+        { type: 'BANISH', target: {
+          type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' },
+          upToCount: false, addLastProcessedCount: true,
+        } },
+      ],
+    };
+  }
+  if (cardNum === 'WX24-P4-011') {
+    const e = effect('WX24-P4-011-E2');
+    if (e) e.action = {
+      type: 'GRANT_LRIG_ABILITY',
+      rawText: 'このターン、次にこのルリグがアタックしたとき、このルリグをアップする。',
+      abilities: [{
+        effectId: 'WX24-P4-011-E2-next-attack',
+        effectType: 'AUTO',
+        timing: ['ON_ATTACK_LRIG'],
+        triggerScope: 'self',
+        action: { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } },
+        duration: 'INSTANT',
+        mandatory: true,
+        parseStatus: 'MANUAL',
+        consumeOnTrigger: true,
+      }],
+    };
+  }
+  if (cardNum === 'WX24-P4-017') {
+    const e = effect('WX24-P4-017-E2');
+    if (e) e.action = {
+      type: 'TRANSFER_TO_HAND',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 1 },
+      transferGroups: [
+        { count: 1, filter: { cardType: 'スペル' } },
+        { count: 1, filter: { cardType: 'シグニ', color: '青' } },
+      ],
+    };
   }
 }
 
@@ -8299,6 +8377,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyPickedLevelSumLookPickWave15(card.CardNum, effects);
   applyOpponentChoiceRepeatLookPickWave16(card.CardNum, effects);
   applyFinalLookPickWave17(card.CardNum, effects);
+  applyExceedBodyFixes(card.CardNum, effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);

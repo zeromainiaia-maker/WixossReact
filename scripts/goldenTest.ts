@@ -52,6 +52,7 @@ import type { BattleStateRow, EffectStack } from '../src/types';
 import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
+import { consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
@@ -16819,6 +16820,68 @@ test('task12(xxix)(1) live exceed21効果: 原文どおり4/3をcollectorがPatt
     eq(first.id, 'OPTIONAL_COST', `${id}: OPTIONAL_COST`);
     eq(first.exceed, count, `${id}: 支払い枚数をstubへ維持`);
   }
+});
+
+test('task12 exceed本体A: 差分ドローは0枚/境界/不足を untilHandCount で解決', () => {
+  const freshEffect = parseCardEffects(cardMap.get('WX24-P4-014')!).find(e => e.effectId === 'WX24-P4-014-E2')!;
+  eq(JSON.stringify(freshEffect.action), JSON.stringify({ type: 'DRAW', owner: 'self', count: 0, untilHandCount: 4 }), 'fresh parser');
+  for (const [hand, expected] of [[0, 4], [3, 1], [4, 0], [5, 0]] as const) {
+    const ctx = mkCtx({ hand, deckTop: fill(6) }, {});
+    const result = finish(executeEffect(freshEffect, ctx), ctx);
+    eq(result.ownerState.hand.length, hand + expected, `hand ${hand}`);
+  }
+  const reverse = parseCardEffects(cardMap.get('WDK08-Y08')!);
+  ok(!JSON.stringify(reverse).includes('"untilHandCount":5'), '逆向きの多い場合→エナは拾わない');
+});
+
+test('task12 exceed本体B: 相手手札3枚discardなら回避、skipならbanish対象選択', () => {
+  const effect = effectsMap.get('WX24-P4-018')!.find(e => e.effectId === 'WX24-P4-018-E2')!;
+  const target = fresh();
+  const ctx = mkCtx({}, { signi: [target], hand: 3 });
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '相手へ支払い選択');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const discarded = finish(resumeOpponentPayOptional('discard', [], offered.pending, {
+    ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  }), ctx);
+  eq(discarded.otherState.hand.length, 0, '3枚捨てて回避');
+  ok(discarded.otherState.field.signi.some(stack => stack?.includes(target)), '支払い時はbanishしない');
+  const skipped = resumeOpponentPayOptional('skip', [], offered.pending, {
+    ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  });
+  ok(!skipped.done && skipped.pending.type === 'SELECT_TARGET' && skipped.pending.count === 1, '不払い時だけbanish選択');
+});
+
+test('task12 exceed本体C: 任意クラッシュの両枝でbanish数が1/2', () => {
+  const effect = effectsMap.get('WX24-P4-015')!.find(e => e.effectId === 'WX24-P4-015-E2')!;
+  const opp = [fresh(), fresh()];
+  const ctx = mkCtx({ life: 2 }, { signi: opp });
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'crash/skip選択');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const skip = resumeChoose('skip', offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(!skip.done && skip.pending.type === 'SELECT_TARGET' && skip.pending.count === 1, 'skipでも1体');
+  const crash = resumeChoose('crash', offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(!crash.done && crash.pending.type === 'SELECT_TARGET' && crash.pending.count === 2, 'crash後は2体');
+  if (!crash.done) ok(!!crash.ownerState.field.check, 'LB check中断状態でも枚数文脈を維持');
+});
+
+test('task12 exceed本体D/E: 次回ルリグAUTOは消費印付き、回収はスペル+青シグニ各1枚まで', () => {
+  const d = effectsMap.get('WX24-P4-011')!.find(e => e.effectId === 'WX24-P4-011-E2')!;
+  const granted = finish(executeEffect(d, mkCtx({}, {})), mkCtx({}, {})).ownerState.lrig_granted_auto_effects ?? [];
+  eq(granted.length, 1, '付与AUTOを1本登録');
+  eq(granted[0].timing?.[0], 'ON_ATTACK_LRIG', '自ルリグアタック時');
+  eq(granted[0].consumeOnTrigger, true, '最初の収集で消費');
+  const afterFirstAttack = consumeTriggeredGrantedAutos({ ...mkState({}), lrig_granted_auto_effects: granted }, granted);
+  eq(afterFirstAttack.lrig_granted_auto_effects?.length ?? 0, 0, '1回目のアタック収集で除去');
+  eq(consumeTriggeredGrantedAutos(afterFirstAttack, afterFirstAttack.lrig_granted_auto_effects ?? [])
+    .lrig_granted_auto_effects?.length ?? 0, 0, '2回目には発火元が残らない');
+  const e = effectsMap.get('WX24-P4-017')!.find(x => x.effectId === 'WX24-P4-017-E2')!;
+  const groups = (e.action as import('../src/types/effects').TransferToHandAction).transferGroups!;
+  eq(groups.length, 2, '2グループ');
+  eq(groups[0].filter?.cardType, 'スペル', 'スペル枠');
+  eq(groups[1].filter?.cardType, 'シグニ', 'シグニ枠');
+  eq(groups[1].filter?.color, '青', '青限定');
 });
 
 test('task12(xxix)(1) WX20-058-E1 Pattern⑤: 鉱石1枚＋宝石1枚を実際に捨ててから3枚引く', () => {

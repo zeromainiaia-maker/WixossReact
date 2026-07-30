@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { supabase } from '../supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
@@ -91,6 +91,7 @@ import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
+import { consumeTriggeredGrantedAutos } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -8445,7 +8446,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return true;
       }
       // pending_lrig_attack: true でON_ATTACK_LRIG解決後にガード応答（lrig_attacked）をセット
-      const newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true };
+      let newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true };
       // lrig_attacked は ON_ATTACK_LRIG 解決後にセット（スタック解決後の useEffect で対応）
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
@@ -8453,6 +8454,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
       const grantedAttackEffects = (my.lrig_granted_auto_effects ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
+      newMyState = consumeTriggeredGrantedAutos(newMyState, grantedAttackEffects);
       const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の

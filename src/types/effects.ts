@@ -561,6 +561,8 @@ export interface EffectTarget {
     | 'PLAYER';
   owner: Owner;
   count: number | 'ALL' | { $ref: string }; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
+  /** count に直前の処理枚数を加算する（「この方法で～した枚数にNを加えた数」）。 */
+  addLastProcessedCount?: boolean;
   countFromZone?: CountFromZone;
   filter?: TargetFilter;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
@@ -932,6 +934,8 @@ export interface PlaceSigniOnFieldAction {
 export interface TransferToHandAction {
   type: 'TRANSFER_TO_HAND';
   source: EffectTarget; // どこから何を（TRASH_CARD, ENERGY_CARD など）
+  /** 同じ移動元から異なる条件の組をそれぞれ選ぶ。source と併用せず、source の owner/type を共有する。 */
+  transferGroups?: { count: number; filter?: TargetFilter }[];
 }
 
 // デッキ上または手札からライフクロスに加える
@@ -2184,6 +2188,8 @@ export interface CardEffect {
   action: EffectAction;
 
   usageLimit?: UsageLimit;
+  /** 一時付与AUTOを最初の該当イベント収集時にレジストリから消費する。 */
+  consumeOnTrigger?: boolean;
   duration: EffectDuration;
 
   // false=任意発動（デフォルト）、true=強制発動

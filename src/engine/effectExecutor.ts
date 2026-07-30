@@ -393,7 +393,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     return done({ ...applyBanish(cands, ctx), lastProcessedCards: cands });
   }
   // last_processed_count: 「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」→ 直前にトラッシュした枚数
-  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+    + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   if (count <= 0) return done(addLog(ctx, 'バニッシュ数0 → スキップ'));
   // opponentSelects: 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
@@ -608,7 +609,8 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
-  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+    + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
@@ -907,7 +909,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+      + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     // 「各プレイヤーは自分のシグニ1体を対象とし、それをトラッシュ」：相手のシグニは相手自身が選ぶ（WX04-025）
     const oppRespondsField = !!a.opponentSelects && tgt.owner === 'opponent';
     // optional:「場からトラッシュに置いてもよい」＝スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない（WXK10-055-E1）
@@ -982,7 +985,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+      + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
@@ -1055,7 +1059,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
   }
 
   if (tgt.type === 'DECK_CARD') {
-    const count = tgt.count === 'ALL' ? state.deck.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+    const count = tgt.count === 'ALL' ? state.deck.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+      + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     const took = state.deck.slice(0, count);
     const newS: PlayerState = {
       ...state,
@@ -1129,7 +1134,8 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     return addLog({ ...setOwnerState(tgt.owner, newS, c), lastProcessedCards: selected }, `${from}から${names}をエナゾーンへ`);
   }
 
-  const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
+  const count = tgt.count === 'ALL' ? cands.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+    + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   if (tgt.count === 'ALL') return done(applyCharge(cands, ctx));
   // selectionConstraint（「それぞれ名前の異なる」等）を pending へ伝搬（5c検証是正・WX20-002）
   return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: tgt.selectionConstraint });
@@ -1572,6 +1578,15 @@ function resolveDynamicFilter(
 }
 
 function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
+  if (a.transferGroups?.length) {
+    return executeAction({
+      type: 'SEQUENCE',
+      steps: a.transferGroups.map(group => ({
+        type: 'TRANSFER_TO_HAND',
+        source: { ...a.source, count: group.count, filter: group.filter, upToCount: true },
+      })),
+    }, ctx);
+  }
   const src = a.source;
   const tgtOwner = src.owner;
   const state = ownerState(tgtOwner, ctx);
