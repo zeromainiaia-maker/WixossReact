@@ -5131,7 +5131,18 @@ export function execStubPart3(
   if (stub.id === 'PREVENT_SELF_MOVE_BY_OPP') return done(addLog(ctx, '対戦相手効果による場移動不可（effectEngine保護処理）'));
   if (stub.id === 'PREVENT_ABILITY_GAIN_BY_OPP') return done(addLog(ctx, '対戦相手効果での能力付与不可（effectEngine保護処理）'));
   if (stub.id === 'CHANGE_ALL_SIGNI_COLOR_TO_BLACK') return done(addLog(ctx, 'エナゾーン以外のシグニは黒（effectEngine collectFieldSigniExtraColors処理）'));
-  if (stub.id === 'GUARD_EXTRA_COST_BY_OPP') return done(addLog(ctx, 'ガード追加コスト（effectEngine collectOppGuardExtraColorlessCost処理）'));
+  if (stub.id === 'GUARD_EXTRA_COST_BY_OPP') {
+    // 「このゲームの間」2件に並ぶ重複STUBは until 省略なので従来どおりログのみ。
+    if (stub.until !== 'END_OF_TURN') {
+      return done(addLog(ctx, 'ガード追加コスト（effectEngine collectOppGuardExtraColorlessCost処理）'));
+    }
+    const count = stub.count ?? 1;
+    const total = (ctx.ownerState.opp_guard_extra_colorless_this_turn ?? 0) + count;
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, opp_guard_extra_colorless_this_turn: total },
+    }, `このターン、対戦相手のガード追加コスト《無》×${count}`));
+  }
 
   // BUFF_HOST_WHEN_PLACED_UNDER: このカードがシグニの下に置かれたとき上のシグニ+2000（WXDi-P11-063）
   if (stub.id === 'BUFF_HOST_WHEN_PLACED_UNDER') {

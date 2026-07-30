@@ -169,6 +169,16 @@ for (const [id, appearance] of appearanceByCard) {
     return index === 0 ? { ...rest, appearanceCondition: appearance } : rest;
   });
 }
+// WX24-P2-047 は held 側の「場に特定カードがある」条件を維持しつつ、
+// fresh が復元した choice①の《無》《無》とターン持続だけを狭く採用する。
+const wx24p2047 = result['WX24-P2-047']?.find(effect => effect.effectId === 'WX24-P2-047-E1');
+const wx24p2047Choose = wx24p2047?.action?.steps?.find((step: any) => step.type === 'CHOOSE');
+const wx24p2047Choice1 = wx24p2047Choose?.choices?.find((choice: any) => choice.choiceId === 'c0');
+if (wx24p2047Choice1) {
+  wx24p2047Choice1.action = {
+    type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP', count: 2, until: 'END_OF_TURN',
+  };
+}
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）

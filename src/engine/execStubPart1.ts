@@ -4537,10 +4537,22 @@ export function execStubPart1(
     return done(addLog({ ...ctx, ownerState: newOwner },
       `${ctx.cardMap.get(targetCnPR)?.CardName ?? targetCnPR}パワー${totalDelta > 0 ? '+' : ''}${totalDelta}（${revCount}枚公開）`));
   }
-  // このターン相手はガードできない（ガードコスト無色版 or ガード禁止）
-  if (stub.id === 'OPP_GUARD_COST_COLORLESS' || stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
+  // このターン相手はガードできない（追加コストを払えば可能な語彙とは分離）
+  if (stub.id === 'PREVENT_OPP_GUARD_THIS_TURN') {
     const newOwner = { ...ctx.ownerState, prevent_opp_guard: true };
     return done(addLog({ ...ctx, ownerState: newOwner }, 'このターン対戦相手はガードできない'));
+  }
+  // 実行型の「このターン、追加で《無》N枚」。until 省略の CONTINUOUS 宣言は collector が処理する。
+  if (stub.id === 'OPP_GUARD_COST_COLORLESS') {
+    if (stub.until !== 'END_OF_TURN') {
+      return done(addLog(ctx, 'ガード追加《無》コスト（継続効果collector処理）'));
+    }
+    const count = stub.count ?? 1;
+    const total = (ctx.ownerState.opp_guard_extra_colorless_this_turn ?? 0) + count;
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, opp_guard_extra_colorless_this_turn: total },
+    }, `このターン、対戦相手のガード追加コスト《無》×${count}`));
   }
   // キー１枚を任意でルリグトラッシュに置く（追加効果条件）
   if (stub.id === 'TRASH_OWN_KEY_OPTIONAL') {

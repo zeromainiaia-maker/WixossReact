@@ -3141,6 +3141,8 @@ export function collectOppGuardExtraColorlessCost(
   ]) {
     if (eff.effectType === 'CONTINUOUS') total += guardCostInAction(eff.action);
   }
+  // AUTO/ACTIVATED の実行で設定された「このターン」の追加コスト。
+  total += ownerState.opp_guard_extra_colorless_this_turn ?? 0;
   // game_opp_guard_extra_colorless: GAIN_ABILITY_THIS_GAME で付与された永続コスト（WX25-P2-001）
   if (ownerState.game_opp_guard_extra_colorless) total += 1;
   return total;

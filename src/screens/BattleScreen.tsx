@@ -3334,6 +3334,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
           prevent_opp_guard: undefined,            // 相手ガード禁止フラグをリセット
+          opp_guard_extra_colorless_this_turn: undefined, // 相手ガード追加《無》をリセット
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
           card_class_overrides: undefined,         // クラスオーバーライドリセット
           signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
@@ -3704,6 +3705,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         declared_number: undefined,
         declared_class: undefined, hand_signi_guard_enabled: undefined,
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
+        opp_guard_extra_colorless_this_turn: undefined,
         draw_limit: undefined, card_class_overrides: undefined,
         signi_color_overrides: undefined, disabled_signi_zones: undefined,
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
@@ -9292,6 +9294,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: cpuSt.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
+        opp_guard_extra_colorless_this_turn: undefined,
         holograph_reveal_replace_this_turn: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
         banish_redirect_power0_target_nums: undefined,

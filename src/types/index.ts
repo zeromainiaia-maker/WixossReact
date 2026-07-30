@@ -272,8 +272,10 @@ export interface PlayerState {
   subscriber_count?: number;
   // ルリグリミット加算修正（エナフェイズ終了まで）
   lrig_limit_mod?: number;
-  // このターン、相手はガードできない（追加無色支払いなし版：OPP_GUARD_COST_COLORLESS）
+  // このターン、相手はガードできない（PREVENT_OPP_GUARD_THIS_TURN / BLOCK_ACTION）
   prevent_opp_guard?: boolean;
+  // このターン、対戦相手が【ガード】する際に追加で支払う《無》の合計枚数
+  opp_guard_extra_colorless_this_turn?: number;
   // 次の自分のターンのドロー枚数上限（LIMIT_OPP_DRAW_COUNT等）
   draw_limit?: number;
   // ターン終了時まで有効なカードクラスオーバーライド（CardNum → 新クラス名）

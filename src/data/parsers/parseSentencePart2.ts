@@ -2181,8 +2181,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手は追加コストを払わないかぎり【ガード】できない ----
-  if (t.match(/対戦相手は追加で.*を支払わないかぎり【ガード】ができない/)) {
-    return { type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP' } as StubAction;
+  const guardExtraCostMatch = t.match(/対戦相手は追加で((?:《無》)+)を支払わないかぎり【ガード】ができない/);
+  if (guardExtraCostMatch) {
+    const count = guardExtraCostMatch[1].match(/《無》/g)?.length ?? 1;
+    return {
+      type: 'STUB',
+      id: 'GUARD_EXTRA_COST_BY_OPP',
+      ...(count === 1 ? {} : { count }),
+      ...(t.includes('このターン') ? { until: 'END_OF_TURN' as const } : {}),
+    } as StubAction;
   }
 
   // ---- 場離れ代替：下のカードをトラッシュに置く ----

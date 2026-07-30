@@ -331,7 +331,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手は追加で無を支払わないかぎりガードできない ----
   if (t.match(/追加で《無》を支払わないかぎり【ガード】ができない/)) {
-    return { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS' } as StubAction;
+    return {
+      type: 'STUB',
+      id: 'OPP_GUARD_COST_COLORLESS',
+      ...(t.includes('このターン') ? { until: 'END_OF_TURN' as const } : {}),
+    } as StubAction;
   }
 
   // ---- 対戦相手のアーツ・スペル・起使用不可（複合） ----

@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 I′「ガード追加コスト族」11効果を完全クローズ（2026-07-30・Codex）
+- `opp_guard_extra_colorless_this_turn?: number` を追加し、AUTO/ACTIVATED の `GUARD_EXTRA_COST_BY_OPP` / `OPP_GUARD_COST_COLORLESS` は `until:'END_OF_TURN'` のときだけ `count ?? 1` を加算する。collector は常在・ルリグ付与・ゲーム永続にこの値を合算し、既存UIの警告・不足判定・N枚徴収へ同じ合計を渡す。
+- `prevent_opp_guard` は `PREVENT_OPP_GUARD_THIS_TURN` / `BLOCK_ACTION` 専用へ是正。追加《無》は支払えばガード可能で、完全禁止にはしない。「このゲームの間」2件に並ぶ重複STUBは `until` 省略のため従来どおりログのみで、ゲーム永続値を二重加算しない。
+- parser は連続する `《無》` を数え、1枚時は `count` を省略、複数時だけ明示する。`build:effects` の意味差は **HEAD 比で4効果**（`WX24-P2-047-E1`＝`count:2`+`until`／`WX24-D1-05-E1`＝`until`／`WXDi-P01-035-E1`＝`count:2`／`WXDi-P13-046-E1` choice②＝`until`）で、他カードの意味差は0（Claude が effectId 単位の全数比較で実測。⚠codex の当初報告「2効果だけ」は誤り）。`WX24-P2-047` は held が optional-cost 条件を手修正済みで fresh 全体を採用できないため、**`buildEffectsJson.ts` の外科パッチ1箇所だけ**で choice① を狭く補正する（codex は同じ補正を `mergeManualEffects` にも二重に置いていたので Claude が撤去＝JSON 側に値があるため挙動不変・ゲート全緑で確認）。
+- リセットは人間ターン終了通常経路・手札上限経由・CPUターン終了の3箇所。golden 2本を追加し、2枚加算・省略時1・加算蓄積・ゲーム永続重複STUB no-op・完全禁止との分離・対象4効果の count/until を固定した。`WX20-Re20` は選択数依存コスト、能力なしfilter、任意複数配置、同一instance群の終了時trashを同時に満たす機構が不足するため部分実装せず honest defer。
+
 ## PLAN §6.3 支払い前UIバッチ：ガード追加《無》枚数化＋トラッシュ【ビート】選択（2026-07-30・Codex）
 
 - **I `WX24-P3-069-E1` を消化**：非LB分岐のアタック無効化後、既存 `GRANT_LRIG_ABILITY` に `CONTINUOUS` 能力をターン終了時まで載せ、`OPP_GUARD_COST_COLORLESS{count:3}` を付与する。collector は boolean から合計枚数へ変更し、STUB `count` 省略時は1を維持。既存ルリグ付与ストア2本も走査する。

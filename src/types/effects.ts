@@ -1910,6 +1910,8 @@ export interface StubAction {
   fetchCardName?: string; // SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME: 名指しフェッチ先（省略時は自身と同名。PR-470A→《進化する筋肉 紗倉ひびき》）
   type: 'STUB';
   id: string;
+  /** 実行時に設定するターン持続 state の寿命。省略時は宣言型／既存 no-op のまま。 */
+  until?: 'END_OF_TURN';
   // GUARD_LOSS_UNLESS_LRIG: このクラスを持つセンタールリグでなければ、手札の自身は【ガード】を失う。
   // 省略された既存 STUB は過剰なガード喪失を避けるため engine 側で無視する。
   lrigClass?: string;

@@ -14199,6 +14199,73 @@ test('PLAN §6.3 I WX24-P3-069-E1: non-LB cancels attack and grants guard extra 
   } finally { cursor = savedCursor; }
 });
 
+test('PLAN §6.3 I′: 実行型ガード追加《無》は枚数加算され、完全禁止とは分離される', () => {
+  const savedCursor = cursor;
+  try {
+    const ctx = mkCtx({}, {});
+    const first = run({
+      type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP', count: 2, until: 'END_OF_TURN',
+    } as unknown as EffectAction, ctx);
+    eq(first.ownerState.opp_guard_extra_colorless_this_turn, 2, '《無》×2をstateへ保持');
+    eq(first.ownerState.prevent_opp_guard, undefined, '追加コストはガード完全禁止にしない');
+    eq(collectOppGuardExtraColorlessCost(first.ownerState, first.otherState, cardMap, new Map(), true), 2,
+      'collectorがターンstateを合算');
+
+    const secondCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState };
+    const second = run({
+      type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP', until: 'END_OF_TURN',
+    } as unknown as EffectAction, secondCtx);
+    eq(second.ownerState.opp_guard_extra_colorless_this_turn, 3, 'count省略は後方互換の1枚として加算');
+
+    const gameDuplicate = run({
+      type: 'STUB', id: 'GUARD_EXTRA_COST_BY_OPP',
+    } as unknown as EffectAction, ctx);
+    eq(gameDuplicate.ownerState.opp_guard_extra_colorless_this_turn, undefined,
+      'until省略の「このゲーム」重複STUBはターンstateを増やさない');
+
+    const blocked = run({
+      type: 'STUB', id: 'PREVENT_OPP_GUARD_THIS_TURN',
+    } as unknown as EffectAction, ctx);
+    eq(blocked.ownerState.prevent_opp_guard, true, '完全禁止語彙だけがprevent_opp_guardを立てる');
+  } finally { cursor = savedCursor; }
+});
+
+test('PLAN §6.3 I′ parser: 2枚族とこのターン3効果だけが count/until を持つ', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = (card: string, id: string) =>
+      (effectsMap.get(card) ?? []).find(e => e.effectId === id)!;
+    const findGuardStub = (action: EffectAction): import('../src/types/effects').StubAction | undefined => {
+      if (action.type === 'STUB' &&
+          (action.id === 'GUARD_EXTRA_COST_BY_OPP' || action.id === 'OPP_GUARD_COST_COLORLESS')) return action;
+      if (action.type === 'SEQUENCE') {
+        for (const step of action.steps) {
+          const found = findGuardStub(step);
+          if (found) return found;
+        }
+      }
+      if (action.type === 'CHOOSE') {
+        for (const choice of action.choices) {
+          const found = findGuardStub(choice.action);
+          if (found) return found;
+        }
+      }
+      return undefined;
+    };
+    const expected = [
+      ['WXDi-P01-035', 'WXDi-P01-035-E1', 2, undefined],
+      ['WX24-P2-047', 'WX24-P2-047-E1', 2, 'END_OF_TURN'],
+      ['WX24-D1-05', 'WX24-D1-05-E1', undefined, 'END_OF_TURN'],
+      ['WXDi-P13-046', 'WXDi-P13-046-E1', undefined, 'END_OF_TURN'],
+    ] as const;
+    for (const [card, id, count, until] of expected) {
+      const stub = findGuardStub(effect(card, id).action);
+      eq(stub?.count, count, `${id} count`);
+      eq(stub?.until, until, `${id} until`);
+    }
+  } finally { cursor = savedCursor; }
+});
+
 test('task12(xxxix) WX24-P3-050-E1: refusing five colorless takes LIFE_CRASH branch', () => {
   const savedCursor = cursor;
   try {
