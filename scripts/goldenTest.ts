@@ -172,8 +172,21 @@ function finishPayingCosts(initial: ExecResult, ctx: ExecCtx): ExecResult {
   return result;
 }
 
+// GRANT_LRIG_ABILITY / GRANT_FIELD_SIGNI_ABILITY 等の `abilities` へ入れ子化された付与能力も
+// effectId で引ける深さ優先探索（タスク12(l) で 47 効果がトップレベルから入れ子へ移った）。
+function findEffectDeep(effects: readonly CardEffect[], effectId: string): CardEffect | undefined {
+  for (const e of effects) {
+    if (e.effectId === effectId) return e;
+    const abilities = (e.action as { abilities?: CardEffect[] } | undefined)?.abilities;
+    if (Array.isArray(abilities)) {
+      const hit = findEffectDeep(abilities, effectId);
+      if (hit) return hit;
+    }
+  }
+  return undefined;
+}
 function manualEffect(cardNum: string, effectId: string): CardEffect {
-  const effect = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  const effect = findEffectDeep(mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []), effectId);
   if (!effect) throw new Error(`${effectId} not found`);
   return effect;
 }
@@ -911,11 +924,11 @@ test('batch7 virus extra cost scales', () => {
   cursor = savedCursor;
 });
 
-test('PLAN §6.3 WXK04-015-E1b: キー自壊コストを保持（WXK01-028-E3も既実装）', () => {
+test('PLAN §6.3 WXK04-015-E1b: キー自壊コストを保持（WXK01-028-E4も既実装）', () => {
   const k04015 = effectsMap.get('WXK04-015')!.find(e => e.effectId === 'WXK04-015-E1b');
-  const k01028 = effectsMap.get('WXK01-028')!.find(e => e.effectId === 'WXK01-028-E3');
+  const k01028 = effectsMap.get('WXK01-028')!.find(e => e.effectId === 'WXK01-028-E4');
   ok(k04015?.cost?.trash_key === true, 'WXK04-015-E1b cost.trash_key');
-  ok(k01028?.cost?.trash_key === true, 'WXK01-028-E3 cost.trash_key');
+  ok(k01028?.cost?.trash_key === true, 'WXK01-028-E4 cost.trash_key');
 });
 
 test('PLAN §6.3 WX14-028: 緑除外サーチ／BURSTの異色2枚制約', () => {
@@ -2307,14 +2320,17 @@ test('LRIG_LEVEL_CMP_OPP: 自中央ルリグ vs 相手中央ルリグのレベ�
 });
 // ── タスク2 完了: WXK08-005（キー）の《アタックフェイズアイコン》エクシード2 が動的レベル比較でゲートされる ──
 // 先頭文「あなたのセンタールリグのレベルが対戦相手より低いかぎり《アタックフェイズアイコン》を得る」が parser 脱落で
-// E4 が無条件発火していた過剰効果を、E4.condition:LRIG_LEVEL_CMP_OPP{lt} で是正（getKeyPieceActions:10772 が
-// evalUseCondition で評価）。MANUAL 効果が正しく condition を持ち、lt ゲートが自<相手のみ成立する回帰ガード。
-test('WXK08-005-E4: エクシード2ダウン凍結が LRIG_LEVEL_CMP_OPP{lt} でゲート（自<相手→使用可/自≥相手→不可・タスク2）', () => {
+// 無条件発火していた過剰効果を、condition:LRIG_LEVEL_CMP_OPP{lt} で是正（付与【起】経路が evalUseCondition で評価）。
+// ⚠タスク12(l) でこの能力は**センタールリグへの付与能力**として `-E2-G2` へ入れ子化された（旧 `-E4`）。
+// 入れ子化しないとキー経路の executeKeyActivated が cost.exceed を無視して踏み倒しになる。
+test('WXK08-005-E2-G2: エクシード2ダウン凍結が LRIG_LEVEL_CMP_OPP{lt} でゲート（自<相手→使用可/自≥相手→不可・タスク2）', () => {
   const KEY = 'WXK08-005';
   const effs = (cardMap.get(KEY) as { effects?: CardEffect[] })?.effects ?? [];
-  const e4 = effs.find(e => e.effectId === 'WXK08-005-E4');
-  ok(!!e4, 'E4 が存在する');
-  eq(e4!.condition?.type, 'LRIG_LEVEL_CMP_OPP', 'E4.condition が LRIG_LEVEL_CMP_OPP');
+  ok(!effs.some(e => e.effectId === 'WXK08-005-E4'), '旧トップレベル E4 は残っていない（二重発火しない）');
+  const e4 = findEffectDeep(effs, 'WXK08-005-E2-G2');
+  ok(!!e4, '付与能力 -E2-G2 が存在する');
+  eq(e4!.cost?.exceed, 2, 'エクシード2 コストを保持');
+  eq(e4!.condition?.type, 'LRIG_LEVEL_CMP_OPP', '付与能力の condition が LRIG_LEVEL_CMP_OPP');
   eq((e4!.condition as { operator?: string })?.operator, 'lt', 'operator=lt（より低い）');
   const L2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
   const L4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
@@ -2330,6 +2346,102 @@ test('WXK08-005-E4: エクシード2ダウン凍結が LRIG_LEVEL_CMP_OPP{lt} �
     my.field.lrig = [L4]; op.field.lrig = [L2];
     ok(!evalUseCondition(e4!.condition!, my, op, cardMap as Map<string, CardData>, KEY, 'ATTACK_ARTS'), '自Lv4≥相手Lv2→使用不可');
   }
+});
+// ── タスク12 (l): 「あなたの（レベルN以上の）センタールリグは以下の能力を得る。」の入れ子化 ──
+// キーは宣言文の**直後の別ブロック**として付与能力を並べる（原文に入れ子マーカーが無い）。従来は宣言文の
+// rawText が「。」だけ＝abilities 空で executor 完全 no-op、付与能力は**キー自身のトップレベル効果**として
+// 登録されていた。これは (a) 付与スコープ条件の脱落 (b) エクシードコストの踏み倒し（キー経路の
+// executeKeyActivated は cost.exceed を払わない）という2つの過剰実行を生む。
+// 以下は「境界抽出（どこまでが付与能力か）」「スコープ条件の保持」「二重登録しない」の全数ガード。
+test('(l) センタールリグ付与の入れ子化: 36枚すべてで abilities が埋まり rawText:"。" が消える', () => {
+  const decl = /センタールリグは以下の能力を得る/;
+  let nested = 0;
+  const punctOnly: string[] = [];
+  for (const [num, card] of cardMap) {
+    if (!decl.test(card.EffectText ?? '')) continue;
+    // 引用符形式（ピース等）は従来から expandGrantLrigAbilities が展開する＝ここでは block 隣接形だけを見る
+    if (/センタールリグは以下の能力を得る。?[『「]/.test(card.EffectText ?? '')) continue;
+    for (const e of effectsMap.get(num) ?? []) {
+      const a = e.action as { type?: string; abilities?: CardEffect[]; rawText?: string };
+      if (a?.type !== 'GRANT_LRIG_ABILITY') continue;
+      if ((a.abilities?.length ?? 0) > 0) nested++;
+      if (/^[。、\s]*$/.test(a.rawText ?? '')) punctOnly.push(e.effectId);
+    }
+  }
+  ok(nested >= 36, `付与能力が入れ子化された宣言効果 got=${nested}`);
+  eq(punctOnly.length, 0, `rawText が句点のみ（内側 no-op）の残存: ${punctOnly.join(' / ')}`);
+});
+test('(l) 付与スコープ条件を activeCondition へ保持（WDK02-009=自Lv2以上／WXK02-023=相手Lv2以上）', () => {
+  const gla = (cardNum: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => (x.action as { type?: string })?.type === 'GRANT_LRIG_ABILITY');
+    ok(!!e, `${cardNum}: GRANT_LRIG_ABILITY がある`);
+    return e!;
+  };
+  const self2 = gla('WDK02-009');
+  eq(JSON.stringify(self2.activeCondition), JSON.stringify({ type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 2 }),
+    'WDK02-009「あなたのレベル２以上のセンタールリグ」');
+  const opp2 = gla('WXK02-023');
+  eq(JSON.stringify(opp2.activeCondition), JSON.stringify({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: 2 }),
+    'WXK02-023「対戦相手のセンタールリグがレベル２以上であるかぎり」');
+  // checkActiveCondition が実際にゲートする（collectLrigGrantedEffects が評価する条件）
+  const L1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const L2 = findCard(c => c.Type === 'ルリグ' && c.Level === '2');
+  const lo = mkState({}); const hi = mkState({});
+  lo.field.lrig = [L1]; hi.field.lrig = [L2];
+  ok(!checkActiveCondition(self2.activeCondition, lo, hi, true, cardMap as Map<string, CardData>, 'WDK02-009'), '自Lv1では付与されない');
+  ok(checkActiveCondition(self2.activeCondition, hi, lo, true, cardMap as Map<string, CardData>, 'WDK02-009'), '自Lv2では付与される');
+  ok(!checkActiveCondition(opp2.activeCondition, hi, lo, true, cardMap as Map<string, CardData>, 'WXK02-023'), '相手Lv1では付与されない');
+  ok(checkActiveCondition(opp2.activeCondition, lo, hi, true, cardMap as Map<string, CardData>, 'WXK02-023'), '相手Lv2では付与される');
+});
+test('(l) 境界抽出: エクシード【起】だけを飲み込み、キー自身の【出】/【常】/「このキーを…」【起】は残す', () => {
+  // WXK01-007＝【常】宣言 →【起】exceed4 ×2（付与）→【出】（キー自身）→【起】このキーを…（キー自身）
+  const k7 = effectsMap.get('WXK01-007') ?? [];
+  const g7 = k7.find(e => (e.action as { type?: string })?.type === 'GRANT_LRIG_ABILITY')!;
+  const ab7 = (g7.action as { abilities: CardEffect[] }).abilities;
+  eq(ab7.length, 2, 'WXK01-007: 付与は2本');
+  ok(ab7.every(a => (a.cost?.exceed ?? 0) === 4), '付与2本はエクシード4');
+  eq(k7.filter(e => e !== g7).map(e => e.effectType).sort().join(','), 'ACTIVATED,AUTO',
+    'キー自身の【出】(AUTO)と「このキーを…」【起】(ACTIVATED)はトップレベルに残る');
+  ok(!!k7.find(e => e.cost?.trash_key), '「このキーを場からルリグトラッシュに置く」は入れ子化しない');
+  // WXK02-028＝宣言直後の【自】も付与（「このルリグがアタックしたとき」＝キーには無い主語）
+  const g28 = (effectsMap.get('WXK02-028') ?? []).find(e => (e.action as { type?: string })?.type === 'GRANT_LRIG_ABILITY')!;
+  const ab28 = (g28.action as { abilities: CardEffect[] }).abilities;
+  eq(ab28.map(a => a.effectType).join(','), 'AUTO,ACTIVATED', 'WXK02-028: 宣言直後の【自】＋エクシード【起】');
+  // WXK11-015＝エクシード【起】の**後**に来る【自】はキー自身（飲み込まない）
+  const k15 = effectsMap.get('WXK11-015') ?? [];
+  const g15 = k15.find(e => (e.action as { type?: string })?.type === 'GRANT_LRIG_ABILITY')!;
+  eq((g15.action as { abilities: CardEffect[] }).abilities.length, 1, 'WXK11-015: 付与は1本');
+  ok(k15.some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_SIGNI_DOWN')),
+    'エクシード【起】の後の【自】はキー自身としてトップレベルに残る');
+});
+test('(l) 入れ子化した付与能力は cost.exceed を保持し、トップレベルには二重登録されない', () => {
+  const decl = /センタールリグは以下の能力を得る/;
+  const dupes: string[] = [];
+  const nonExceed: string[] = [];
+  let exceedKept = 0;
+  for (const [num, card] of cardMap) {
+    if (!decl.test(card.EffectText ?? '')) continue;
+    const effs = effectsMap.get(num) ?? [];
+    const topIds = new Set(effs.map(e => e.effectId));
+    for (const e of effs) {
+      const abilities = (e.action as { abilities?: CardEffect[] } | undefined)?.abilities;
+      if (!Array.isArray(abilities)) continue;
+      for (const ab of abilities) {
+        if (topIds.has(ab.effectId)) dupes.push(ab.effectId);
+        if ((ab.cost?.exceed ?? 0) > 0) exceedKept++;
+        // 境界の全数ガード＝入れ子に入るのは「エクシード【起】」と「宣言直後の【自】」だけ。
+        // エナ/コイン/「このキーを場からルリグトラッシュに置く」コストの【起】はキー自身の能力で、
+        // 飲み込むとキーの能力がルリグ付与へ化ける（＝境界が緩んだときの検出器）。
+        if (ab.effectType === 'ACTIVATED' && (ab.cost?.exceed ?? 0) === 0) {
+          nonExceed.push(`${ab.effectId} cost=${JSON.stringify(ab.cost ?? null)}`);
+        }
+        if (ab.cost?.trash_key) nonExceed.push(`${ab.effectId} trash_key`);
+      }
+    }
+  }
+  ok(exceedKept >= 40, `入れ子側にエクシードコストが保持されている got=${exceedKept}`);
+  eq(dupes.length, 0, `入れ子とトップレベルの二重登録: ${dupes.join(' / ')}`);
+  eq(nonExceed.length, 0, `エクシード以外のコストの【起】を飲み込んだ（境界の緩み）: ${nonExceed.join(' / ')}`);
 });
 // ── タスク12 (li): キー【起】の timing↔phase 照合（getKeyPieceActions の過剰緩さ是正） ──
 // 従来 getKeyPieceActions は timing を無視し「アクションが撃てる phase なら全 ACTIVATED を surface」していた。
@@ -2354,20 +2466,30 @@ test('(li) keyActivatedTimingMatchesPhase: MAIN専用/ATTACK_ARTS専用/SPELL_CU
 });
 // 退化ゼロの全数ガード：全キー ACTIVATED 効果が「少なくとも1つの eligible phase で surface される」ことを固定する。
 // （新ゲート導入で完全に消える＝どこでも撃てなくなる効果が1件も無いことを機械確認）
-test('(li) 全キー ACTIVATED 効果は少なくとも1つの phase で surface される（退化ゼロ）', () => {
+// ⚠タスク12(l) で 47 効果がキーのトップレベル ACTIVATED から `GRANT_LRIG_ABILITY.abilities` へ移った
+//   （＝センタールリグへの付与能力）。退化ゼロの母集団を保つため**入れ子側も同じ走査に含める**
+//   （付与【起】経路の MAIN 分岐も同じ keyActivatedTimingMatchesPhase を通す）。
+test('(li) 全キー ACTIVATED 効果（付与入れ子を含む）は少なくとも1つの phase で surface される（退化ゼロ）', () => {
   const PHASES: string[] = ['MAIN', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
   let keyActCount = 0;
+  let grantedActCount = 0;
   const orphans: string[] = [];
-  for (const [num, card] of cardMap) {
-    if (card.Type !== 'キー') continue;
-    for (const e of effectsMap.get(num) ?? []) {
+  const scan = (effs: readonly CardEffect[], granted: boolean) => {
+    for (const e of effs) {
+      const abilities = (e.action as { abilities?: CardEffect[] } | undefined)?.abilities;
+      if (Array.isArray(abilities)) scan(abilities, true);
       if (e.effectType !== 'ACTIVATED') continue;
-      keyActCount++;
+      if (granted) grantedActCount++; else keyActCount++;
       const surfaces = PHASES.some(p => keyActivatedTimingMatchesPhase(e.timing as string[] | undefined, p));
       if (!surfaces) orphans.push(`${e.effectId} timing=${JSON.stringify(e.timing)}`);
     }
+  };
+  for (const [num, card] of cardMap) {
+    if (card.Type !== 'キー') continue;
+    scan(effectsMap.get(num) ?? [], false);
   }
-  ok(keyActCount >= 100, `キー ACTIVATED 効果を十分に走査した got=${keyActCount}`);
+  ok(keyActCount + grantedActCount >= 100, `キー ACTIVATED 効果を十分に走査した got=${keyActCount}+${grantedActCount}`);
+  ok(grantedActCount >= 40, `付与入れ子側の ACTIVATED も走査した got=${grantedActCount}`);
   eq(orphans.length, 0, `どの phase でも surface されない孤児効果: ${orphans.join(' / ')}`);
 });
 // ── 続き54: 「対戦相手のセンタールリグより低いレベルを持つ、あなたの＜X＞のシグニ」＝levelLtOppLrig ──
@@ -7637,11 +7759,11 @@ test('task12(xxii) 第1バッチ5効果: 原文条件JSON＋成立/不成立の�
     { cardNum: 'WX13-037', effectId: 'WX13-037-E3', value: 2, negate: true, verbJa: 'チャームをトラッシュに置いた', omitGteJa: false },
     { cardNum: 'WX13-057', effectId: 'WX13-057-E2', value: 1, negate: true, verbJa: 'チャームをトラッシュに置いた', omitGteJa: false },
     { cardNum: 'WXEX1-03', effectId: 'WXEX1-03-E1', value: 7, negate: false, verbJa: 'トラッシュに置いた', omitGteJa: true },
-    { cardNum: 'WXK02-028', effectId: 'WXK02-028-E3', value: 4, negate: false, verbJa: 'トラッシュに置いた', omitGteJa: true },
+    { cardNum: 'WXK02-028', effectId: 'WXK02-028-E1-G2', value: 4, negate: false, verbJa: 'トラッシュに置いた', omitGteJa: true },
   ] as const;
   for (const tc of cases) {
     const card = cardMap.get(tc.cardNum)!;
-    const eff = parseCardEffects(card).find(e => e.effectId === tc.effectId)!;
+    const eff = findEffectDeep(parseCardEffects(card), tc.effectId)!;
     const seq = eff.action as SequenceAction;
     const gated = seq.steps.find(s => s.type === 'CONDITIONAL') as unknown as {
       condition: { type: string; value: number; negate?: boolean; verbJa?: string; omitGteJa?: boolean };
@@ -7680,11 +7802,11 @@ test('続き209 先頭対象指定の照応: 「この方法で〜場合、そ�
   // targetsTriggerSource）へ落ちていた＝自分のシグニを巻き込む/自分自身に効果が乗る過剰・誤効果。
   const cases: { card: string; effectId: string; act: string }[] = [
     { card: 'WXEX1-03', effectId: 'WXEX1-03-E1', act: 'TRASH' },
-    { card: 'WXK02-028', effectId: 'WXK02-028-E3', act: 'POWER_MODIFY' },
+    { card: 'WXK02-028', effectId: 'WXK02-028-E1-G2', act: 'POWER_MODIFY' },
     { card: 'WXK02-063', effectId: 'WXK02-063-E1', act: 'POWER_MODIFY' },
   ];
   for (const c of cases) {
-    const eff = parseCardEffects(cardMap.get(c.card)!).find(e => e.effectId === c.effectId)!;
+    const eff = findEffectDeep(parseCardEffects(cardMap.get(c.card)!), c.effectId)!;
     const seq = eff.action as SequenceAction;
     const gated = seq.steps.find(s => s.type === 'CONDITIONAL') as unknown as
       { then?: { type: string; target?: { owner?: string; filter?: { cardType?: string } }; targetsTriggerSource?: boolean } };
@@ -10003,7 +10125,7 @@ test('タスク12(xxii) 第3バッチ10効果: condition成立/不成立の両�
     { id: 'WX06-018-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: 'ウェポン' }, operator: 'eq', value: 1 }, yes: lp([weapon1, other, other]), no: lp([weapon1, weapon2, other]) },
     { id: 'WX11-041-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: ['鉱石', '宝石'] }, operator: 'eq', value: 2 }, yes: lp([ore, gem]), no: lp([ore, other]) },
     { id: 'WX15-106-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { hasIcon: 'アクセ' }, operator: 'gte', value: 1 }, yes: lp([acce, other]), no: lp([other, other]) },
-    { id: 'WX22-006-E3', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'eq', value: 7, shareClass: true }, yes: lp(common), no: lp([...common.slice(0, 6), other]) },
+    { id: 'WX22-006-E1-G2', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, operator: 'eq', value: 7, shareClass: true }, yes: lp(common), no: lp([...common.slice(0, 6), other]) },
     { id: 'WXEX1-66-E2', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', story: '原子' }, operator: 'eq', value: 4, distinctName: true }, yes: lp(atom), no: lp([atom[0], `${atom[0]}#2`, atom[1], atom[2]]) },
     { id: 'WXK01-005-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: '黒' }, operator: 'gte', value: 1 }, yes: lp([black]), no: lp([other]) },
     { id: 'WXK09-091-E1', cond: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, requiredCardNames: ['星銀の童話　バズイール', '星銀の童話　ブロト'] }, yes: lp([buzz, broto, other]), no: lp([buzz, other, other]) },
@@ -13991,7 +14113,7 @@ test('task12(xxxix) batch2 WXK09-063-E1: only opponent trash signi enters as pup
   } finally { cursor = savedCursor; }
 });
 
-test('task12(xxxix) batch2 WX22-006-E3: trash-to-deck enforces non-精元 and distinct names', () => {
+test('task12(xxxix) batch2 WX22-006-E1-G2: trash-to-deck enforces non-精元 and distinct names', () => {
   const savedCursor = cursor;
   try {
     const source = 'WX22-006';
@@ -14001,7 +14123,7 @@ test('task12(xxxix) batch2 WX22-006-E3: trash-to-deck enforces non-精元 and di
     const ctx = mkCtx({}, {}, source);
     ctx.ownerState.field.key_piece = source;
     ctx.ownerState.trash = [...allowed];
-    const first = executeEffect(manualEffect(source, 'WX22-006-E3'), ctx);
+    const first = executeEffect(manualEffect(source, 'WX22-006-E1-G2'), ctx);
     ok(!first.done && first.pending.type === 'SELECT_TARGET', 'constraint forces interactive selection');
     const good = finish(resumeSelectTarget(allowed, first.pending as never, { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs }), ctx);
     ok(good.done && allowed.every(n => good.ownerState.deck.includes(n)), 'seven legal distinct names move to deck');
@@ -14014,14 +14136,14 @@ test('task12(xxxix) batch2 WX22-006-E3: trash-to-deck enforces non-精元 and di
     const duplicate = [pair[0], pair[1], ...rest];
     const badCtx = mkCtx({}, {}, source);
     badCtx.ownerState.trash = duplicate;
-    const badFirst = executeEffect(manualEffect(source, 'WX22-006-E3'), badCtx);
+    const badFirst = executeEffect(manualEffect(source, 'WX22-006-E1-G2'), badCtx);
     ok(!badFirst.done && badFirst.pending.type === 'SELECT_TARGET', 'duplicate-name candidates open selection');
     const bad = resumeSelectTarget(duplicate, badFirst.pending as never, { ...badCtx, ownerState: badFirst.ownerState, otherState: badFirst.otherState, logs: badFirst.logs });
     ok(bad.done && bad.lastProcessedCards?.length === 6, 'duplicate-name card is filtered out before transfer');
     const gen = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('精元'));
     const excludedCtx = mkCtx({}, {}, source);
     excludedCtx.ownerState.trash = [gen];
-    const excluded = executeEffect(manualEffect(source, 'WX22-006-E3'), excludedCtx);
+    const excluded = executeEffect(manualEffect(source, 'WX22-006-E1-G2'), excludedCtx);
     ok(excluded.done && excluded.ownerState.trash.includes(gen), '精元 is excluded from candidates');
   } finally { cursor = savedCursor; }
 });

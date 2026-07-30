@@ -40,8 +40,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK09-063": [
     {"effectId":"WXK09-063-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"RULE_REMINDER_TEXT"},{"type":"STUB","id":"STEAL_OPP_TRASH_PUPPET","puppetParams":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","isPuppet":true},"minCount":2},"then":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // WX22-006（キー）：原文は「【常】：あなたのセンタールリグは以下の能力を得る。【起】…エクシード２：…【起】…エクシード２：…」＝
+  //   2本の【起】は**キー自身の能力ではなくセンタールリグへの付与能力**。タスク12(l) で parser が
+  //   GRANT_LRIG_ABILITY.abilities へ入れ子化するようになったため、旧 `-E3`（トップレベルのキー【起】）は
+  //   effectId が `-E1-G2` へ移動する。＜精元＞除外と「それぞれ名前の異なる」制約は parser が出せないので
+  //   親 `-E1` ごと MANUAL で持つ。⚠`-E1-G` は **parser の生出力ではなく curated（旧 `-E2`）を正とする**＝
+  //   原文「そのシグニの【出】能力は発動しない」は curated の `ADD_TO_FIELD.suppressOnPlay`（出した1体だけ抑止）が
+  //   正しく、現 parser の `BLOCK_ACTION{PLAYER, ON_PLAY_ABILITY, END_OF_TURN}` は**そのターンの全【出】を止める**
+  //   過剰実行。
   "WX22-006": [
-    {"effectId":"WX22-006-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":7,"filter":{"cardType":"シグニ","cardClassExclude":"精元"},"selectionConstraint":{"distinct":"name"}},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ"},"operator":"eq","value":7,"shareClass":true,"verbJa":"デッキに加えた"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+    {"effectId":"WX22-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[
+      {"effectId":"WX22-006-E1-G","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":4}},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self","suppressOnPlay":true},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
+      {"effectId":"WX22-006-E1-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":7,"filter":{"cardType":"シグニ","cardClassExclude":"精元"},"selectionConstraint":{"distinct":"name"}},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ"},"operator":"eq","value":7,"shareClass":true,"verbJa":"デッキに加えた"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
+    ],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》エクシード２：あなたのデッキからレベル４以下のシグニ１枚を探して場に出し、デッキをシャッフルする。そのシグニの【出】能力は発動しない。【起】《ターン１回》《アタックフェイズアイコン》エクシード２：あなたのトラッシュから＜精元＞ではないそれぞれ名前の異なる対象のシグニ７枚をデッキに加えてシャッフルする。この方法で共通するクラスを持つシグニ７枚をデッキに加えた場合、対象の対戦相手のシグニ１体をトラッシュに置く。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXK01-005": [
     {"effectId":"WXK01-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","color":"黒"},"operator":"gte","value":1,"verbJa":"手札に加えた"},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"RETURN_SELF_ARTS_TO_LRIG_DECK"},{"type":"BLOCK_CARD_USE","cardName":"インサイダー・サルベージ"}]}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
@@ -344,14 +355,19 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //      E4（エクシード２のダウン＋凍結）が無条件で撃てる過剰効果になっていた。→ E4 に condition:LRIG_LEVEL_CMP_OPP{lt}
   //      （自センタールリグレベル＜相手・engine/decompiler 実装済＝WXK07-025/WXK10-068 と同型）を付与してゲート化。
   //      getKeyPieceActions が eff.condition を evalUseCondition で評価済みのため engine 追加は不要。
-  //   ② E2「以下の能力を得る」の GRANT_LRIG_ABILITY は abilities 空のまま維持（機能近似）。E3/E4 はキー自身の
-  //      ACTIVATED としてカットイン経路(effs SPELL_CUTIN)/getKeyPieceActions で機能する。abilities に詰めると
-  //      granted 経路と二重発火し、かつ granted ATTACK_ARTS 経路(BattleScreen 10721)は condition 未評価でゲートが
-  //      外れるため、キー top-level のまま保持するのが正しい。
+  //   ② 🆕タスク12(l)：E2「以下の能力を得る」の 2本の【起】は**センタールリグへの付与能力**なので
+  //      `GRANT_LRIG_ABILITY.abilities` へ入れ子にする（旧 `-E3`/`-E4` → `-E2-G`/`-E2-G2`）。
+  //      旧コメントは「abilities に詰めると二重発火・granted 経路は condition 未評価」を理由に top-level 維持を
+  //      正としていたが、**両方とも解消済み**＝(a) 入れ子化した能力はキー配下の effects から取り除かれるので
+  //      二重発火しない (b) granted【起】経路（MAIN/ATTACK_ARTS の両分岐）に `evalUseCondition` と
+  //      timing↔phase 照合を追加した。**入れ子化しないとエクシードコストが支払われない**（キー経路の
+  //      executeKeyActivated は cost.exceed を無視する）＝踏み倒しになるため、入れ子が正しい。
+  //      SPELL_CUTIN 側は付与ルリグ用のカットイン収集（BattleScreen「2b.」）から拾う。
   "WXK08-005": [
-    {"effectId":"WXK08-005-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[],"rawText":"【起】《スペルカットインアイコン》エクシード１：スペル１つを対象とし、それの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WXK08-005-E3","effectType":"ACTIVATED","timing":["SPELL_CUTIN"],"cost":{"exceed":1},"action":{"type":"COUNTER_SPELL"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WXK08-005-E4","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"condition":{"type":"LRIG_LEVEL_CMP_OPP","operator":"lt"},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"down":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK08-005-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[
+      {"effectId":"WXK08-005-E2-G","effectType":"ACTIVATED","timing":["SPELL_CUTIN"],"cost":{"exceed":1},"action":{"type":"COUNTER_SPELL"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+      {"effectId":"WXK08-005-E2-G2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"condition":{"type":"LRIG_LEVEL_CMP_OPP","operator":"lt"},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"down":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    ],"rawText":"【起】《スペルカットインアイコン》エクシード１：スペル１つを対象とし、それの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WXK08-005-E5","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // WXK04-044 紅蓮の使い魔 オズマ姫：E1【常】このシグニは血晶武装状態であるかぎり、「【自】正面のシグニ1体をバニッシュしたとき、このシグニをアップする」を得る。

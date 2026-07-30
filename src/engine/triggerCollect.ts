@@ -372,18 +372,24 @@ export function collectTargetedTriggers(
  * defenderId＝アタックされた側（＝この能力の持ち主）。scope が any_opp/any のものだけを拾う
  * （未設定＝既定 'self' は「自分のルリグがアタックしたとき」であり BattleScreen 側の既存収集が担当する）。
  * usageLimit（《ターン1回/2回》）は消費した effectId を usedIds で返し、呼び出し元が actions_done へ書き戻す（他コレクタと同型）。
+ *
+ * contGranted＝場のシグニ/キーの CONTINUOUS `GRANT_LRIG_ABILITY` 由来の付与能力（`collectLrigGrantedEffects`
+ * の結果）。実行時付与（`lrig_granted_auto_effects`）とは別ソースで、**アタック側は BattleScreen が既に
+ * 合流させている**のに防御側だけ経路が無かった（タスク12(l)＝WDK04-006「対戦相手のセンタールリグが
+ * アタックしたとき」をキー本体の【自】からルリグ付与へ入れ子化したため、この経路が無いと丸ごと不発になる）。
  */
 export function collectLrigAttackDefenderTriggers(
   ctx: TrigCtx,
   defenderState: PlayerState,
   defenderId: string,
+  contGranted: readonly CardEffect[] = [],
 ): { entries: StackEntry[]; usedIds: string[] } {
   const entries: StackEntry[] = [];
   const usedIds: string[] = [];
   if (defenderState.lrig_abilities_disabled) return { entries, usedIds };
   const limitOk = mkLimitOk(defenderState.actions_done, usedIds);
   const defLrigNum = defenderState.field.lrig.at(-1) ?? '';
-  for (const eff of (defenderState.lrig_granted_auto_effects ?? [])) {
+  for (const eff of [...(defenderState.lrig_granted_auto_effects ?? []), ...contGranted]) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'any_opp' && scope !== 'any') continue;

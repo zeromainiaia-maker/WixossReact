@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［129枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WD16-014 WDK04-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-031 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX19-014 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-001 WX25-CP1-005 WX25-CP1-079 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-006 WX25-P2-030 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-063 WXDi-CP02-086 WXDi-CP02-090 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-037 WXDi-P00-049 WXDi-P02-018 WXDi-P02-030 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-013 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-061 WXDi-P08-070 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-041 WXDi-P12-066 WXDi-P14-057 WXDi-P14-071 WXDi-P14-081 WXDi-P15-053 WXDi-P15-084 WXDi-P16-088 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-023 WXK02-047 WXK04-037 WXK05-022 WXK05-040 WXK06-048 WXK08-023 WXK08-056 WXK09-040 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-019 WXK11-066
+## （type増減なし＝値/構造変更） ［127枚］
+PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WD16-014 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX13-002 WX13-031 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-029 WX17-Re02 WX18-077 WX19-014 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-050 WX24-P4-079 WX25-CP1-001 WX25-CP1-005 WX25-CP1-079 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-006 WX25-P2-030 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-063 WXDi-CP02-086 WXDi-CP02-090 WXDi-CP02-100 WXDi-D01-014 WXDi-D02-04L WXDi-D02-13A WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-D09-H20 WXDi-D09-H24 WXDi-P00-037 WXDi-P00-049 WXDi-P02-018 WXDi-P02-030 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P03-059 WXDi-P05-045 WXDi-P05-058 WXDi-P06-013 WXDi-P06-038 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-059 WXDi-P08-061 WXDi-P08-070 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P10-036 WXDi-P10-054 WXDi-P11-005 WXDi-P11-TK01 WXDi-P11-TK02 WXDi-P12-041 WXDi-P12-066 WXDi-P14-057 WXDi-P14-071 WXDi-P14-081 WXDi-P15-053 WXDi-P15-084 WXDi-P16-088 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-022 WXK05-040 WXK06-048 WXK08-023 WXK08-056 WXK09-040 WXK09-080 WXK09-081 WXK09-084 WXK10-051 WXK11-019 WXK11-066
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -285,100 +285,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
 
-## +BANISH +SEQUENCE +SIGNI ［3枚］
-PR-K044 WX08-026 WXK04-006
---- PR-K044
-  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュし、【エナチャージ１】をする。【出】：以下の３つから２つまで選ぶ。①あなたの赤か緑のシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。②対戦相手のシグニ１体を対象とし、それをエナゾーンに置く
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "ENERGY_CHARGE_FROM_DECK" → "SEQUENCE"
-  + [1].action.steps[0].type = "BANISH"
-  + [1].action.steps[0].target.type = "SIGNI"
-  + [1].action.steps[0].target.owner = "opponent"
-  + [1].action.steps[0].target.count = 1
-  + [1].action.steps[0].target.filter.cardType = "シグニ"
-  + [1].action.steps[0].target.upToCount = false
-  + [1].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  + [1].action.steps[1].owner = "self"
-  + [1].action.steps[1].count = 1
---- WX08-026
-  原文: このスペルの使用コストはあなたのライフクロス１枚につき《赤×1》増え、あなたの場にある＜鉱石＞か＜宝石＞のシグニ１体につき《赤×1》減る。対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュし、対戦相手のライフクロス１枚をクラッシュする。,：対戦相手のシグニ１体を対象とし、手札から＜鉱石＞か＜宝石＞のシグニを１枚捨てる。そうした場合、それを
-  - [0].action.steps[1].owner = "opponent"
-  - [0].action.steps[1].count = 1
-  - [0].action.steps[1].triggerBurst = true
-  ~ [0].action.steps[1].type : "LIFE_CRASH" → "SEQUENCE"
-  + [0].action.steps[1].steps[0].type = "BANISH"
-  + [0].action.steps[1].steps[0].target.type = "SIGNI"
-  + [0].action.steps[1].steps[0].target.owner = "opponent"
-  + [0].action.steps[1].steps[0].target.count = 1
-  + [0].action.steps[1].steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[1].steps[0].target.filter.powerRange.max = 12000
-  + [0].action.steps[1].steps[0].target.upToCount = false
-  + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
-  …（他 3 行）
---- WXK04-006
-  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュし、【エナチャージ１】をし、カードを１枚引く。【起】《ターン１回》《無×0》：ターン終了時まで、あなたのすべての赤と青と緑のシグニはクラスを失い、＜天使＞を得る。【起】《ターン１回》《赤》《青》《緑》：対戦相手のシ
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "ENERGY_CHARGE_FROM_DECK" → "SEQUENCE"
-  + [1].action.steps[0].type = "BANISH"
-  + [1].action.steps[0].target.type = "SIGNI"
-  + [1].action.steps[0].target.owner = "opponent"
-  + [1].action.steps[0].target.count = 1
-  + [1].action.steps[0].target.filter.cardType = "シグニ"
-  + [1].action.steps[0].target.upToCount = false
-  + [1].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  + [1].action.steps[1].owner = "self"
-  + [1].action.steps[1].count = 1
-
-## +STUB -GRANT_PROTECTION -SIGNI ［3枚］
-WX12-033 WX20-023 WXK03-018
---- WX12-033
-  原文: 【常】：あなたの場にカード名に《セイリュ》を含むシグニがあるかぎり、あなたのシグニの基本パワーを15000にする。【常】：あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る。【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。,-
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = "ALL"
-  - [2].action.from[0] = "POWER_MODIFY"
-  - [2].action.sourceOwner = "opponent"
-  - [2].action.duration = "PERMANENT"
-  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
-  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [2].action.powerModifyProtection.directions[0] = "plus"
-  + [2].action.powerModifyProtection.directions[1] = "minus"
-  + [2].action.powerModifyProtection.subjectOwner = "self"
-  + [2].action.powerModifyProtection.subjectFilter.cardType = "シグニ"
-  …（他 3 行）
---- WX20-023
-  原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：対戦相手の効果によって、このシグニのパワーは増減しない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》：あなたのトラッシュから＜怪異＞のシグニ１枚を対象とし、ターン終了時まで、このシグニはそれの《レイヤーアイコン》能力１つを得る。,：あなたの
-  - [0].action.filter.story = "怪異"
-  - [0].action.abilities[0].action.target.type = "SIGNI"
-  - [0].action.abilities[0].action.target.owner = "self"
-  - [0].action.abilities[0].action.target.count = "ALL"
-  - [0].action.abilities[0].action.from[0] = "POWER_MODIFY"
-  - [0].action.abilities[0].action.sourceOwner = "opponent"
-  - [0].action.abilities[0].action.duration = "PERMANENT"
-  + [0].action.filter.cardClass = "怪異"
-  ~ [0].action.abilities[0].action.type : "GRANT_PROTECTION" → "STUB"
-  + [0].action.abilities[0].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [0].action.abilities[0].action.powerModifyProtection.directions[0] = "plus"
-  + [0].action.abilities[0].action.powerModifyProtection.directions[1] = "minus"
-  …（他 5 行）
---- WXK03-018
-  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《ターン１回》エクシード１：対戦相手のシグニ１体を対象とし、あなたのシグニ１体をバニッシュする。そうした場合、ターン終了時まで、それのパワーをこの方法でバニッシュしたシグニのパワーと同じだけ－する。【常】：対戦相手の効果によって、対戦相手のシグニのパワーは＋されない。【起】《ターン１回》《黒×0》：あな
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "opponent"
-  - [2].action.target.count = "ALL"
-  - [2].action.from[0] = "POWER_MODIFY"
-  - [2].action.sourceOwner = "opponent"
-  - [2].action.duration = "PERMANENT"
-  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
-  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [2].action.powerModifyProtection.directions[0] = "plus"
-  + [2].action.powerModifyProtection.subjectOwner = "opponent"
-  + [2].action.powerModifyProtection.subjectFilter.cardType = "シグニ"
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
-  …（他 4 行）
-
 ## -SIGNI ［3枚］
 WX17-001 WXEX2-36 WXK11-021
 --- WX17-001
@@ -527,6 +433,39 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.type = "UP"
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
+
+## +STUB -GRANT_PROTECTION -SIGNI ［2枚］
+WX12-033 WX20-023
+--- WX12-033
+  原文: 【常】：あなたの場にカード名に《セイリュ》を含むシグニがあるかぎり、あなたのシグニの基本パワーを15000にする。【常】：あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る。【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。,-
+  - [2].action.target.type = "SIGNI"
+  - [2].action.target.owner = "self"
+  - [2].action.target.count = "ALL"
+  - [2].action.from[0] = "POWER_MODIFY"
+  - [2].action.sourceOwner = "opponent"
+  - [2].action.duration = "PERMANENT"
+  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
+  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
+  + [2].action.powerModifyProtection.directions[0] = "plus"
+  + [2].action.powerModifyProtection.directions[1] = "minus"
+  + [2].action.powerModifyProtection.subjectOwner = "self"
+  + [2].action.powerModifyProtection.subjectFilter.cardType = "シグニ"
+  …（他 3 行）
+--- WX20-023
+  原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：対戦相手の効果によって、このシグニのパワーは増減しない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》：あなたのトラッシュから＜怪異＞のシグニ１枚を対象とし、ターン終了時まで、このシグニはそれの《レイヤーアイコン》能力１つを得る。,：あなたの
+  - [0].action.filter.story = "怪異"
+  - [0].action.abilities[0].action.target.type = "SIGNI"
+  - [0].action.abilities[0].action.target.owner = "self"
+  - [0].action.abilities[0].action.target.count = "ALL"
+  - [0].action.abilities[0].action.from[0] = "POWER_MODIFY"
+  - [0].action.abilities[0].action.sourceOwner = "opponent"
+  - [0].action.abilities[0].action.duration = "PERMANENT"
+  + [0].action.filter.cardClass = "怪異"
+  ~ [0].action.abilities[0].action.type : "GRANT_PROTECTION" → "STUB"
+  + [0].action.abilities[0].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
+  + [0].action.abilities[0].action.powerModifyProtection.directions[0] = "plus"
+  + [0].action.abilities[0].action.powerModifyProtection.directions[1] = "minus"
+  …（他 5 行）
 
 ## +LAST_PROCESSED_COUNT_GTE +POWER_MODIFY +SIGNI +STUB -IS_MY_TURN ［2枚］
 WX16-033 WX24-P2-087
@@ -813,6 +752,24 @@ WX07-024
   - [0].action.steps[2].afterSearch.owner = "self"
   ~ [0].action.steps[2].type : "SEARCH" → "SEQUENCE"
   …（他 18 行）
+
+## +BANISH +SEQUENCE +SIGNI ［1枚］
+WX08-026
+--- WX08-026
+  原文: このスペルの使用コストはあなたのライフクロス１枚につき《赤×1》増え、あなたの場にある＜鉱石＞か＜宝石＞のシグニ１体につき《赤×1》減る。対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュし、対戦相手のライフクロス１枚をクラッシュする。,：対戦相手のシグニ１体を対象とし、手札から＜鉱石＞か＜宝石＞のシグニを１枚捨てる。そうした場合、それを
+  - [0].action.steps[1].owner = "opponent"
+  - [0].action.steps[1].count = 1
+  - [0].action.steps[1].triggerBurst = true
+  ~ [0].action.steps[1].type : "LIFE_CRASH" → "SEQUENCE"
+  + [0].action.steps[1].steps[0].type = "BANISH"
+  + [0].action.steps[1].steps[0].target.type = "SIGNI"
+  + [0].action.steps[1].steps[0].target.owner = "opponent"
+  + [0].action.steps[1].steps[0].target.count = 1
+  + [0].action.steps[1].steps[0].target.filter.cardType = "シグニ"
+  + [0].action.steps[1].steps[0].target.filter.powerRange.max = 12000
+  + [0].action.steps[1].steps[0].target.upToCount = false
+  + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
+  …（他 3 行）
 
 ## +NO_COMMON_COLOR_AMONG_FIELD_SIGNI×2 +POWER_SET ［1枚］
 WX12-Re09
@@ -1723,18 +1680,6 @@ WXK07-001
   + [0].condition.owner = "self"
   + [0].condition.operator = "gte"
   + [0].condition.value = 4
-
-## +LRIG_LEVEL_CMP_OPP ［1枚］
-WXK08-005
---- WXK08-005
-  原文: アタックフェイズの間、あなたのセンタールリグのレベルが対戦相手のセンタールリグより低いかぎり、このキーは《アタックフェイズアイコン》を得る。【常】：あなたのセンタールリグは以下の能力を得る。【起】《スペルカットインアイコン》エクシード１：スペル１つを対象とし、それの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし
-  ~ [0].action.rawText : "。" → "【起】《スペルカットインアイコン》エクシード１：スペル１つを対象とし、それの効果を打ち消す。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。"
-  ~ [0].parseStatus : "AUTO" → "MANUAL"
-  ~ [1].parseStatus : "AUTO" → "MANUAL"
-  + [2].condition.type = "LRIG_LEVEL_CMP_OPP"
-  + [2].condition.operator = "lt"
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
-  ~ [3].parseStatus : "AUTO" → "MANUAL"
 
 ## +CONDITIONAL×3 +LAST_PROCESSED_COUNT_GTE×3 +SEQUENCE +STUB -SIGNI -TRASH ［1枚］
 WXK08-055

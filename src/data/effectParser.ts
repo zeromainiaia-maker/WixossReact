@@ -7827,6 +7827,83 @@ function foldPlaceTrapFromRevealed(
   return visit(action);
 }
 
+// ===== センタールリグへの能力付与（ブロック隣接形）の入れ子化 =====
+// キーカードは【常】宣言文の**直後に続く別ブロック**として付与能力を並べる（引用符が無い＝原文に入れ子
+// マーカーがない）。従来は宣言文ブロックの rawText が「。」だけになり `abilities` 空＝executor で完全
+// no-op、後続の付与能力が**キー自身のトップレベル効果**として登録されていた（タスク12(l) B群36枚）。
+// この平坦化は2つの過剰実行を生む：
+//   ① 付与スコープ条件が丸ごと落ちる（「あなたの**レベル２以上の**センタールリグ」＝WDK02-009／
+//      「**対戦相手のセンタールリグがレベル２以上であるかぎり**」＝WXK02-023）
+//   ② エクシードコストが**支払われない**＝キー経路（BattleScreen の executeKeyActivated）はエナ・手札・
+//      trash_key しか払わず `cost.exceed` を無視する。付与経路（executeLrigGranted）だけが支払う。
+// そこで宣言文の直後から「付与能力の走り」を切り出し、`GRANT_LRIG_ABILITY.abilities` へ入れ子にする。
+const CENTER_GRANT_DECL_RE =
+  /^【常】：(?:(.+?)[、,])?あなたの(?:レベル([０-９\d]+)以上の)?センタールリグは以下の能力を得る。?$/;
+
+// 宣言文から付与スコープ条件を取り出す。**未知の修飾が残る場合は null を返して入れ子化そのものを諦める**
+// （条件を黙って捨てて能力だけ動かすのは踏み倒しになるため）。
+function parseCenterGrantScope(decl: string): { activeCondition?: ActiveCondition } | null {
+  const m = decl.match(CENTER_GRANT_DECL_RE);
+  if (!m) return null;
+  const conds: ActiveCondition[] = [];
+  if (m[2]) conds.push({ type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseInt(toHalf(m[2]), 10) });
+  if (m[1]) {
+    const oppM = m[1].match(/^対戦相手のセンタールリグがレベル([０-９\d]+)以上であるかぎり$/);
+    if (!oppM) return null; // 未対応の前置条件（新カードで増えたら規則を足す）
+    conds.push({ type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: parseInt(toHalf(oppM[1]), 10) });
+  }
+  if (conds.length === 0) return {};
+  return { activeCondition: conds.length === 1 ? conds[0] : { type: 'AND', conditions: conds } };
+}
+
+// 「宣言文の直後に並ぶ付与能力」の走りを判定して親効果を組む。原文に入れ子マーカーが無いため構造で切る
+// （境界規則は live 36枚＝47効果の全数照合で一致を確認済み）：
+//   ・【起】でコストに エクシード を持つ → 付与能力（エクシードはルリグ専用コスト＝キー自身には付かない）
+//   ・【自】は**まだエクシード【起】を見ていない間だけ**付与能力（宣言文の直後に置かれる形＝WXK02-028/WDK04-006）
+//   ・それ以外で打ち切る（【出】＝キーの登場時能力／【常】＝キー自身の常在／「このキーを…」等の非エクシード【起】）
+// 返り値の lastBlockIndex は「飲み込んだ最後のブロック添字」＝呼び出し側はここまで読み飛ばす。
+function nestCenterLrigGrantBlocks(
+  cardNum: string, blocks: string[], i: number,
+): { effect: CardEffect; abilityBlocks: string[]; lastBlockIndex: number } | null {
+  const scope = parseCenterGrantScope(blocks[i]);
+  if (!scope) return null;
+  const abilities: CardEffect[] = [];
+  const abilityBlocks: string[] = [];
+  let seenExceed = false;
+  let j = i + 1;
+  for (; j < blocks.length; j++) {
+    const b = blocks[j];
+    const isAct = b.startsWith('【起】');
+    const isAuto = b.startsWith('【自】');
+    if (!isAct && !isAuto) break;
+    if (isAuto && seenExceed) break;
+    const sub = parseBlock(cardNum, b, i);
+    if (!sub) break;
+    if (isAct && !((sub.cost?.exceed ?? 0) > 0)) break;
+    if (isAct) seenExceed = true;
+    sub.effectId = `${cardNum}-E${i + 1}-G${abilities.length > 0 ? abilities.length + 1 : ''}`;
+    abilities.push(sub);
+    abilityBlocks.push(b);
+  }
+  if (abilities.length === 0) return null;
+  const action: GrantLrigAbilityAction = {
+    type: 'GRANT_LRIG_ABILITY', abilities, rawText: abilityBlocks.join(''),
+  };
+  return {
+    effect: {
+      effectId: `${cardNum}-E${i + 1}`,
+      effectType: 'CONTINUOUS',
+      ...(scope.activeCondition ? { activeCondition: scope.activeCondition } : {}),
+      action,
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: abilities.some(e => e.parseStatus !== 'AUTO') ? 'PARTIAL' : 'AUTO',
+    },
+    abilityBlocks,
+    lastBlockIndex: j - 1,
+  };
+}
+
 // ===== メインエクスポート =====
 
 export function parseCardEffects(card: CardData): CardEffect[] {
@@ -7933,7 +8010,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
       const layerAbilities: CardEffect[] = [];
       const layerBlocks: string[] = [];
-      splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText))).forEach((block, i) => {
+      const allBlocks = splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText)));
+      for (let i = 0; i < allBlocks.length; i++) {
+        const block = allBlocks[i];
         if (layerM && block.startsWith('《レイヤーアイコン》')) {
           const e = parseBlock(card.CardNum, block.replace(/^《レイヤーアイコン》/, ''), i);
           if (e) {
@@ -7942,11 +8021,24 @@ export function parseCardEffects(card: CardData): CardEffect[] {
             layerBlocks.push(block);
             layerAbilities.push({ ...e, effectId: lid });
           }
-          return;
+          continue;
+        }
+        // 「あなたのセンタールリグは以下の能力を得る。」＋後続ブロック＝付与能力を親へ入れ子化（タスク12(l)）。
+        // 親の原文は宣言文＋内側ブロックを併せて記録する（宣言文だけにすると内側の語彙欠落を計器が見落とす）。
+        if (block.startsWith('【常】')) {
+          const nested = nestCenterLrigGrantBlocks(card.CardNum, allBlocks, i);
+          if (nested) {
+            (nested.effect.action as GrantLrigAbilityAction).abilities.forEach((ab, ai) =>
+              logSourceText(ab.effectId, nested.abilityBlocks[ai]));
+            logSourceText(nested.effect.effectId, [block, ...nested.abilityBlocks].join(''));
+            effects.push(nested.effect);
+            i = nested.lastBlockIndex;
+            continue;
+          }
         }
         const e = parseBlock(card.CardNum, block, i);
         if (e) { logSourceText(e.effectId, block); effects.push(e); }
-      });
+      }
 
       if (layerM && layerAbilities.length > 0) {
         // 付与親（-LAYER）の JSON は内側能力（abilities）を内包する＝原文側も内側ブロックを含めて

@@ -2330,8 +2330,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectCoinPaidTriggers(mkTrigCtx(), payerId, afterPayerState, afterOpState);
   // 「対戦相手のルリグがアタックしたとき」＝**防御側**の付与AUTO（any_opp/any scope）を収集（タスク12(xlvii)）。
   // 従来この経路が無く、防御側の付与能力が ON_ATTACK_LRIG で一切拾われなかった。
-  const collectLrigAttackDefenderTriggers = (defenderState: PlayerState, defenderId: string): { entries: StackEntry[]; usedIds: string[] } =>
-    pureCollectLrigAttackDefenderTriggers(mkTrigCtx(), defenderState, defenderId);
+  // 場のシグニ/キーの CONTINUOUS GRANT_LRIG_ABILITY 由来（アタック側は下の contGrantedLrigEffects で合流済み）も渡す。
+  const collectLrigAttackDefenderTriggers = (defenderState: PlayerState, attackerState: PlayerState, defenderId: string): { entries: StackEntry[]; usedIds: string[] } =>
+    pureCollectLrigAttackDefenderTriggers(mkTrigCtx(), defenderState, defenderId,
+      collectLrigGrantedEffects(defenderState, attackerState, false, effectsMap, battleCardMap));
   // ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻すヘルパー（続き106）。
   const applyCoinPaidUsed = (st: PlayerState, coin: { usedIds: string[] }): PlayerState =>
     coin.usedIds.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...coin.usedIds] } : st;
@@ -5468,6 +5470,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       result.push({ kind: 'effect', card, instanceId, source: 'lrig_field', effect: eff });
     });
 
+    // 2b. センタールリグへ**付与**された SPELL_CUTIN の【起】（タスク12(l)）。
+    // キーの「あなたのセンタールリグは以下の能力を得る。【起】《スペルカットインアイコン》エクシード１：…」を
+    // GRANT_LRIG_ABILITY.abilities へ入れ子にしたため、キーカード自身の effects を走査する 2. では拾えない。
+    // 2. と同じガード（uncounterable / underSelfTrash / coin / maxCost / condition）を通す。
+    if (!spellUncounterable) {
+      const cutinLrigId = my.field.lrig.at(-1);
+      const cutinLrigCard = cutinLrigId ? battleCardMap.get(getCardNum(cutinLrigId)) : undefined;
+      if (cutinLrigId && cutinLrigCard) {
+        for (const eff of grantedMyLrigEffects) {
+          if (eff.effectType !== 'ACTIVATED' || !eff.timing?.includes('SPELL_CUTIN')) continue;
+          if (eff.cost?.underSelfTrash) continue;
+          if (eff.cost?.coin) continue;
+          const maxCost = findCounterSpellMaxCost(eff.action);
+          if (maxCost !== undefined && pendingSpellCostTotal > maxCost) continue;
+          if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cutinLrigId, bs.turn_phase, effectivePowers)) continue;
+          result.push({ kind: 'effect', card: cutinLrigCard, instanceId: cutinLrigId, source: 'lrig_field', effect: eff });
+        }
+      }
+    }
+
     // 3. signi_field: ACTIVATED効果にSPELL_CUTINタイミングを持つシグニ
     if (!spellUncounterable) my.field.signi.forEach((zone, zoneIdx) => {
       const topId = zone?.at(-1);
@@ -8271,15 +8293,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
       // ON_ATTACK_LRIG 付与能力（WXDi-P05-032 等）。lrig_granted_auto_effects（実行時付与）とは別ソース。
+      // ⚠triggerScope:'any_opp'（「**対戦相手の**センタールリグがアタックしたとき」）は防御側の能力なので
+      //   アタック側では拾わない（下の collectLrigAttackDefenderTriggers が担当。タスク12(l)＝WDK04-006）。
       const contGrantedLrigEffects = collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap)
-        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
+        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG')
+          && (e.triggerScope ?? 'self') !== 'any_opp');
       const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects, ...contGrantedLrigEffects];
       const update: Partial<BattleStateRow> = { [myKey]: newMyState };
       // 防御側の付与AUTO（「対戦相手のルリグがアタックしたとき」＝any_opp/any scope・タスク12(xlvii)）。
       // アタック側とは playerId も usageLimit の書き戻し先も異なるため、別の entries として結合する。
       const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
       const defenderId = attackerId === bs.host_id ? bs.guest_id : bs.host_id;
-      const defRes = collectLrigAttackDefenderTriggers(op, defenderId);
+      const defRes = collectLrigAttackDefenderTriggers(op, my, defenderId);
       if (defRes.usedIds.length > 0) {
         update[defenderKey] = { ...op, actions_done: [...(op.actions_done ?? []), ...defRes.usedIds] };
       }
@@ -11143,13 +11168,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 付与された ACTIVATED 能力
+      // ⚠timing↔phase 照合と使用条件・once_per_game は**キー【起】経路と同じゲート**を通す（タスク12(l)）。
+      //   従来ここは timing も condition も見ておらず、《アタックフェイズアイコン》専用の付与【起】が
+      //   メインでも撃て、使用条件つき付与【起】が条件を無視して撃てた（付与スコープを構造化して
+      //   キーの【起】群を GRANT_LRIG_ABILITY.abilities へ入れ子にした結果、この緩さが36枚に効くようになる）。
       const grantedActionsMA = grantedMyLrigEffects
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
+          keyActivatedTimingMatchesPhase(e.timing, 'MAIN') &&
           !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
+          !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
-          !isActionBlocked('USE_ACT'),
+          !isActionBlocked('USE_ACT') &&
+          (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopMA, 'MAIN', effectivePowers)),
         )
         .map(eff => {
           const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
@@ -11215,14 +11247,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // 付与された ACTIVATED 能力（timing ATTACK_ARTS）
+      // ⚠使用条件・once_per_game はキー【起】経路と同じゲートを通す（タスク12(l)。MAIN 分岐と同趣旨）。
       const grantedActionsAA = grantedMyLrigEffects
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
           !!e.timing?.includes('ATTACK_ARTS') &&
           !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
+          !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
-          !isActionBlocked('USE_ACT'),
+          !isActionBlocked('USE_ACT') &&
+          (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopAA, 'ATTACK_ARTS', effectivePowers)),
         )
         .map(eff => ({
           label: `【起】${buildCostLabelAA(eff)}`,
