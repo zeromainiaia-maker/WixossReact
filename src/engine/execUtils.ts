@@ -86,6 +86,8 @@ export interface ExecCtx {
   // COST_COLOR_SELECT（WX04-063）: スペル使用コストとして実際に支払われたエナ1枚ごとの色配列。
   // マルチエナは全5色、無色エナは空配列。これを基に「支払った色の種類」分のシグニを探す。
   paidEnergyColorSets?: string[][];
+  /** 使用前処理でこのスペル自身が実際に取り除いたウィルス数。 */
+  preUseVirusRemoved?: number;
   // SEQUENCE内で動的に決まる値（ステップ間の受け渡し用、最上位効果呼び出し単位でリセット）
   seqVars?: { lastDownedLrigLevel?: number; lastDownedLrigLevelSum?: number; declaredNumber?: number };
 }

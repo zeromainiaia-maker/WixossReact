@@ -37,6 +37,7 @@ import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, is
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
+import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
@@ -13962,16 +13963,16 @@ test('task12(xxii) WXDi-P11-010A-E1 E2E: 実効リミット8以下では本体�
   } finally { cursor = savedCursor; }
 });
 
-test('task12(xxii) WX15-067-E1: ウィルス節はhonest deferし本体2択を復元', () => {
+test('task12(xxii) WX15-067-E1: ウィルス使用前処理と本体2択を構造化', () => {
   const effect = manualEffect('WX15-067', 'WX15-067-E1');
-  eq(effect.action.type, 'SEQUENCE');
-  if (effect.action.type !== 'SEQUENCE') return;
-  eq(effect.action.steps[0]?.type, 'UNKNOWN');
-  const choose = effect.action.steps[1];
-  eq(choose?.type, 'CHOOSE');
-  if (choose?.type !== 'CHOOSE') return;
+  eq(effect.action.type, 'CHOOSE');
+  if (effect.action.type !== 'CHOOSE') return;
+  const choose = effect.action;
   eq(choose.choose_count, 1);
   eq(choose.from_count, 2);
+  eq(choose.preUseVirusChoose?.minRemoved, 2);
+  eq(choose.preUseVirusChoose?.thenChooseCount, 2);
+  eq(choose.preUseVirusChoose?.thenUpTo, true);
   eq(choose.choices[0]?.action.type, 'TRANSFER_TO_HAND');
   const power = choose.choices[1]?.action;
   eq(power?.type, 'POWER_MODIFY');
@@ -17908,6 +17909,28 @@ test('cost-total batch: 支払い枚数の記録は効果をまたいで累算�
   const st = r.ownerState;
   eq(st.last_cost_energy_trash_count, undefined, '枚数記録がクリアされる');
   eq(st.last_cost_energy_trash_level_sum, undefined, 'レベル合計も同じ寿命（既存挙動）');
+});
+
+test('WX15-067-E1: pre-use virus count is scoped to cost and CHOOSE 0/1/2+', () => {
+  const savedCursor = cursor;
+  try {
+    const costCount = (removed: number[]) =>
+      parseGrowCost(applyMeltFactPreUseCost('WX15-067', '《黒》×２', removed)).reduce((sum, item) => sum + item.count, 0);
+    eq(costCount([0, 0, 0]), 2, '0 viruses: printed black x2 remains');
+    eq(costCount([1, 0, 0]), 0, '1 virus: black x2 is reduced to zero');
+    eq(costCount([1, 1, 0]), 0, '2 viruses: cost remains zero');
+    eq(applyMeltFactPreUseCost('WX04-008', '《黒》×２', [2, 0, 0]), '《黒》×２', 'other spells are untouched');
+
+    const effect = mergeManualEffects('WX15-067', effectsMap.get('WX15-067') ?? [])
+      .find(e => e.effectId === 'WX15-067-E1')!;
+    const choose = (removed: number) => executeEffect(effect, { ...mkCtx({}, {}, 'WX15-067#spell'), preUseVirusRemoved: removed });
+    const r0 = choose(0);
+    ok(!r0.done && r0.pending.type === 'CHOOSE' && r0.pending.count === 1 && !r0.pending.upTo, '0 viruses: choose exactly 1');
+    const r1 = choose(1);
+    ok(!r1.done && r1.pending.type === 'CHOOSE' && r1.pending.count === 1 && !r1.pending.upTo, '1 virus: choose exactly 1');
+    const r2 = choose(2);
+    ok(!r2.done && r2.pending.type === 'CHOOSE' && r2.pending.count === 2 && r2.pending.upTo === true, '2 viruses: choose up to 2');
+  } finally { cursor = savedCursor; }
 });
 
 test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () => {

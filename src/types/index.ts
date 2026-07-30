@@ -578,6 +578,8 @@ export interface PendingSpell {
   // 使用コストとして実際に支払われたエナ1枚ごとの色配列（WX04-063 等の「支払ったエナの色」参照用）。
   // マルチエナは全5色、無色エナは空配列。
   paid_energy_colors?: string[][];
+  /** WX15-067: このスペルの使用前に実際に取り除いた相手ウィルス数。 */
+  pre_use_virus_removed?: number;
   /** A non-countering SPELL_CUTIN Resona was summoned; finish its triggers before continuing the spell. */
   cutin_response_complete?: boolean;
 }

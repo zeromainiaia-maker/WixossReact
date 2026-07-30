@@ -3468,6 +3468,10 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     effectiveCount = a.betChoose.thenChooseCount;
     effectiveUpTo = a.betChoose.thenUpTo ?? false;
   }
+  if (a.preUseVirusChoose && (ctx.preUseVirusRemoved ?? 0) >= a.preUseVirusChoose.minRemoved) {
+    effectiveCount = a.preUseVirusChoose.thenChooseCount;
+    effectiveUpTo = a.preUseVirusChoose.thenUpTo ?? false;
+  }
   return needsInteraction(ctx, {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),

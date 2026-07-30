@@ -4,6 +4,13 @@ import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { toHalfWidth } from './battleUtils';
 
+/** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
+export function applyMeltFactPreUseCost(cardNum: string, cost: string, virusRemovalByZone?: number[]): string {
+  if (cardNum !== 'WX15-067') return cost;
+  const removed = (virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0);
+  return removed >= 1 ? removeNColorFromCost(cost, '黒', 2) : cost;
+}
+
 /** 【起】UIで実際に捨てた各コストを、動的効果が読む1つの枚数へ集約する。 */
 export function activatedDiscardPaidCount(
   fixedDiscardCount: number,

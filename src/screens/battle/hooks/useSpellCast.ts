@@ -3,8 +3,16 @@
 import { useDomainState } from './useDomainState';
 
 export interface SpellCastState {
-  pendingSpellCast: { cardNum: string; handIndex: number; fromLrigDeck?: boolean } | null;
+  pendingSpellCast: PendingSpellCast | null;
   selectedSpellCost: Set<number>;
+}
+
+export interface PendingSpellCast {
+  cardNum: string;
+  handIndex: number;
+  fromLrigDeck?: boolean;
+  /** WX15-067: 使用宣言中のこの1回だけに属する、相手各シグニゾーンから取り除くウィルス数。 */
+  virusRemovalByZone?: number[];
 }
 
 const initialState: SpellCastState = {

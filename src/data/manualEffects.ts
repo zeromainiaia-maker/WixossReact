@@ -4739,14 +4739,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LAST_PROCESSED_COUNT_GTE","value":4,"verbJa":"公開した"},{"type":"TRASHED_DISTINCT_LEVELS_GTE","count":4,"allSigniDistinct":true}]},"then":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  // §3 task12(xxii) B1: virus payment/cost reduction remains an honest defer; the spell's two normal modes are live.
+  // §6.3 H1: use-prep virus removal is carried by pending_spell; 2+ removals change this CHOOSE to "up to 2".
   "WX15-067": [
-    {"effectId":"WX15-067-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"SEQUENCE","steps":[
-      {"type":"UNKNOWN","raw":"このスペルを使用する際、対戦相手の場にある【ウィルス】を好きな数取り除いてもよい。この方法で【ウィルス】を１つ以上取り除いた場合、このスペルの使用コストは《黒×2》減る。このスペルを使用する際、【ウィルス】を２つ以上取り除いていた場合、代わりに２つまで選ぶ。"},
-      {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
-        {"choiceId":"c0","label":"あなたのトラッシュから黒のシグニ１枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"黒"}}}},
-        {"choiceId":"c1","label":"対戦相手のシグニ１体のパワーを－7000する","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1},"delta":-7000,"duration":"UNTIL_END_OF_TURN"}}
-      ]}
+    {"effectId":"WX15-067-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":2}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"preUseVirusChoose":{"minRemoved":2,"thenChooseCount":2,"thenUpTo":true},"choices":[
+      {"choiceId":"c0","label":"トラッシュから黒のシグニ1枚を手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}}}},
+      {"choiceId":"c1","label":"対戦相手のシグニ1体をターン終了時まで－7000","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000,"duration":"UNTIL_END_OF_TURN"}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
   // §3 task12(xxii) B2: the effective-limit gate is implemented; the all-zone reset/exile/face-down body is atomic defer.

@@ -4,19 +4,20 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions } from '../costs';
+import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions } from '../costs';
 import type { BattleModalCtx } from './types';
+import type { PendingSpellCast } from '../hooks/useSpellCast';
 
 interface SpellCastModalProps {
   ctx: BattleModalCtx;
-  pendingSpellCast: { cardNum: string; handIndex: number; fromLrigDeck?: boolean } | null;
-  setPendingSpellCast: Dispatch<SetStateAction<{ cardNum: string; handIndex: number; fromLrigDeck?: boolean } | null>>;
+  pendingSpellCast: PendingSpellCast | null;
+  setPendingSpellCast: Dispatch<SetStateAction<PendingSpellCast | null>>;
   selectedSpellCost: Set<number>;
   setSelectedSpellCost: Dispatch<SetStateAction<Set<number>>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
   toggleSpellCostCard: (idx: number) => void;
-  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number) => void;
+  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number, virusRemovalByZone?: number[]) => void;
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
@@ -44,6 +45,10 @@ export function SpellCastModal(p: SpellCastModalProps) {
                 'スペル', spellCard.Color, activeCostMods.forMy);
               // 次スペルコスト軽減（WX04-008《白×2》減）を適用
               for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);
+              const meltFactVirusCount = pendingSpellCast.cardNum.startsWith('WX15-067')
+                ? (pendingSpellCast.virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0)
+                : 0;
+              effSpellCost = applyMeltFactPreUseCost(spellCard.CardNum, effSpellCost, pendingSpellCast.virusRemovalByZone);
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
@@ -73,6 +78,38 @@ export function SpellCastModal(p: SpellCastModalProps) {
                       スペル発動
                     </p>
                   </div>
+                  {pendingSpellCast.cardNum.startsWith('WX15-067') && (
+                    <div style={{ padding: '8px 10px', borderRadius: 8, border: C.borderUI, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
+                        相手の場の【ウィルス】を取り除く（任意）: {meltFactVirusCount}個
+                      </p>
+                      {(op.field.signi_virus ?? [0, 0, 0]).map((available, zoneIdx) => {
+                        const selected = pendingSpellCast.virusRemovalByZone?.[zoneIdx] ?? 0;
+                        return (
+                          <div key={zoneIdx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={{ color: C.textDim, fontSize: 11 }}>シグニゾーン{zoneIdx + 1}（{available}個）</span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <button onClick={() => setPendingSpellCast(prev => {
+                                if (!prev) return prev;
+                                const next = [...(prev.virusRemovalByZone ?? [0, 0, 0])];
+                                next[zoneIdx] = Math.max(0, selected - 1);
+                                setSelectedSpellCost(new Set());
+                                return { ...prev, virusRemovalByZone: next };
+                              })} disabled={selected === 0}>－</button>
+                              <span style={{ color: C.text, fontSize: 12 }}>{selected}</span>
+                              <button onClick={() => setPendingSpellCast(prev => {
+                                if (!prev) return prev;
+                                const next = [...(prev.virusRemovalByZone ?? [0, 0, 0])];
+                                next[zoneIdx] = Math.min(available, selected + 1);
+                                setSelectedSpellCost(new Set());
+                                return { ...prev, virusRemovalByZone: next };
+                              })} disabled={selected >= available}>＋</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={spellCard.ImgURL} alt={spellCard.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
@@ -173,7 +210,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                       </div>
                     );
                   })()}
-                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount)}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount, pendingSpellCast.virusRemovalByZone)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.accent : C.disabled,

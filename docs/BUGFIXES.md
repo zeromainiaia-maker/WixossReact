@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## PLAN §6.3 H1 `WX15-067-E1`（メルト・ファクト）完全実装（2026-07-30・Codex）
+- `pendingSpellCast.virusRemovalByZone` に相手3ゾーンからの任意除去数を保持し、`castSpell` 確定時に現物数を再検証して相手 `field.signi_virus` と同一 `QUEUE_SPELL` 更新で減算する。0個も許可し、選択変更時は支払いエナ選択をクリアして旧コストの選択を持ち越さない。
+- 実除去数は `pending_spell.pre_use_virus_removed` に載せ、解決ctxの `preUseVirusRemoved` までこのスペル1回だけ運ぶ。1個以上の《黒×2》軽減は `applyMeltFactPreUseCost` がカード番号を限定して適用し、2個以上は `ChooseAction.preUseVirusChoose` で `count:2/upTo:true` にする。既存 `next_spell_cost_reduction` は読み書きとも追加せず、次スペル1回規約を汚していない。
+- `WX15-067` の旧 `UNKNOWN` を除去し、本体2択を単一 `CHOOSE` として lock-in。省略された新フィールドはすべて `undefined → 0/従来挙動` で後方互換。永続PlayerStateは増やしておらず、明示リセットは不要（モーダルcloseと `pending_spell:null` が寿命終端）。
+- goldenは共有`cursor`をtry/finallyで復元し、除去0/1/2個でコスト2/0/0、選択上限1/1/最大2、および別スペルのコスト不変を固定。H3は、解決中の`key_piece`インスタンスを通常`executeGrow`経路へ渡す共通化を伴わず代償だけ入れると退化するため、3要素ともhonest deferを維持。
+- **⚠Claude 確認で1件是正**＝新しいウィルス除去サイトが `opp_virus_removed_just` を立てておらず、`ON_OPP_VIRUS_REMOVED`／`ON_OPP_VIRUS_CHANGED` のトリガーが落ちていた（実データ該当4効果＝`WD19-009-E1`／`WX21-045-E1`／`WX21-068-E1`／`WX21-030-E1`）。既存のウィルス除去サイト6箇所（`execStubPart1.ts:392/1648/1664/1677/1709/1764`）はいずれもこのフラグを立てるのが規約なので、`castSpell` の実除去時にも同じフラグを立てるよう追加。
+
 ## PLAN §6.3 H2 `WXDi-P11-010A-E1`（夢限 -Q-）両面反転を完全実装（2026-07-30・Codex）
 
 - `MUGEN_Q_RESET_AND_FLIP` を追加し、手札・エナ・トラッシュの全デッキ戻し＋シャッフル、ルリグデッキと場の「センタールリグ最上段以外」全カードの `excluded` 移動、同一センタールリグinstanceの `card_identity_overrides → WXDi-P11-010B` を単一state構築・単一returnで原子的に実行する。前提不成立時はstate参照自体を変えない。

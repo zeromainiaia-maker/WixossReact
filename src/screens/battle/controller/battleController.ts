@@ -63,6 +63,7 @@ export type BattleAction =
       casterKey: PlayerStateKey;
       casterState: PlayerState;
       spell: PendingSpell;
+      other?: { key: PlayerStateKey; state: PlayerState };
     }
   /**
    * スペル解決を完了し pending_spell / pending_effect をともにクリアする。
@@ -139,7 +140,11 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       return patch;
     }
     case 'QUEUE_SPELL':
-      return { [action.casterKey]: action.casterState, pending_spell: action.spell };
+      return {
+        [action.casterKey]: action.casterState,
+        ...(action.other ? { [action.other.key]: action.other.state } : {}),
+        pending_spell: action.spell,
+      };
     case 'FINISH_SPELL': {
       const patch: Partial<BattleStateRow> = {
         [action.casterKey]: action.casterState,

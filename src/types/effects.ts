@@ -1035,6 +1035,8 @@ export interface ChooseAction {
     thenChooseCount: number; // ベット時のchoose_count
     thenUpTo?: boolean;      // ベット時のupTo
   };
+  /** 使用前に相手ウィルスをminRemoved個以上取り除いた場合の選択数上書き。 */
+  preUseVirusChoose?: { minRemoved: number; thenChooseCount: number; thenUpTo?: boolean };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 

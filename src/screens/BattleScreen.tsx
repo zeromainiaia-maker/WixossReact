@@ -6072,7 +6072,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0) => {
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[]) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
@@ -6105,6 +6105,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       // ベット：UIで選んだコイン枚数を支払う（所持を超えない）。is_betting_this_effect は handleCutinPass の効果解決まで持続
       const betCost = Math.min(Math.max(0, betCoins), my.coins);
+      const isMeltFact = card.CardNum === 'WX15-067';
+      const currentOppVirus = op.field.signi_virus ?? [0, 0, 0];
+      const requestedVirus = isMeltFact ? (virusRemovalByZone ?? [0, 0, 0]) : [0, 0, 0];
+      const validVirusSelection = requestedVirus.every((n, i) =>
+        Number.isInteger(n) && n >= 0 && n <= (currentOppVirus[i] ?? 0));
+      if (!validVirusSelection) return;
+      const removedVirusCount = requestedVirus.reduce((sum, n) => sum + n, 0);
+      const newOpState: PlayerState = removedVirusCount > 0 ? {
+        ...op,
+        field: {
+          ...op.field,
+          signi_virus: currentOppVirus.map((n, i) => n - (requestedVirus[i] ?? 0)),
+        },
+      } : op;
       let spellInstanceId: string;
       let newMyState: PlayerState;
       if (fromLrigDeck) {
@@ -6140,10 +6154,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           bet_coins_paid: betCost > 0 ? betCost : undefined,
         };
       }
+      // 相手ウィルスを実際に取り除いたら ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED の
+      // 監視フラグを立てる（既存のウィルス除去サイト＝execStubPart1 の6箇所と同じ規約。
+      // 立てないと WD19-009 / WX21-045 / WX21-068 / WX21-030 のトリガーが落ちる）。
+      if (removedVirusCount > 0) newMyState = { ...newMyState, opp_virus_removed_just: true };
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      const spell: PendingSpell = { caster_id: user.id, card_num: spellInstanceId, paid_energy_colors: paidEnergyColors, ...(fromLrigDeck ? { from_lrig_deck: true } : {}) };
-      await persist.commit(reduceBattle(bs, { type: 'QUEUE_SPELL', casterKey: stateKey, casterState: newMyState, spell }));
+      const spell: PendingSpell = {
+        caster_id: user.id,
+        card_num: spellInstanceId,
+        paid_energy_colors: paidEnergyColors,
+        ...(removedVirusCount > 0 ? { pre_use_virus_removed: removedVirusCount } : {}),
+        ...(fromLrigDeck ? { from_lrig_deck: true } : {}),
+      };
+      await persist.commit(reduceBattle(bs, {
+        type: 'QUEUE_SPELL',
+        casterKey: stateKey,
+        casterState: newMyState,
+        spell,
+        ...(removedVirusCount > 0 ? { other: { key: isHost ? 'guest_state' : 'host_state', state: newOpState } } : {}),
+      }));
     } finally {
       setLoading(false);
     }
@@ -6210,7 +6240,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellExtraColors = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState), resolved, nonCasterState, effectsMap, spellIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors };
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors, preUseVirusRemoved: bs.pending_spell.pre_use_virus_removed };
       ctx.isOwnerTurn = spellIsOwnerTurn;
       let result = executeEffect(spellEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
