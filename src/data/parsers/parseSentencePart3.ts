@@ -1566,10 +1566,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' } as StubAction;
   }
 
-  // ---- 特定条件の場合、手札を捨てる/捨てない選択 ----
-  if (t.match(/の場合、手札を[０-９\d]+枚捨ててもよい/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_DISCARD' } as StubAction;
-  }
+  // 「〜の場合、手札をN枚捨ててもよい」＝**この規則は退役（タスク12(lxii)）**。全CSVで到達0（該当2枚
+  // `WXDi-CP02-075`／`WXDi-CP02-080` は上流の `ALL_FIELD_SIGNI_MATCH` ゲート規則が先に拾って
+  // `CONDITIONAL{...} then TRASH{HAND_CARD self, optional}` に正しく解けている）。吐いていた
+  // `STUB{CONDITIONAL_DISCARD}` は条件を見ずに自分の手札を1枚捨てるだけの別物なので、id ごと退役した。
 
   // ---- エナから特定クラスのカードをトラッシュに置いてもよい（任意）----
   if (t.match(/あなたのエナゾーンから.+のカード[０-９\d]+枚?をトラッシュに置いてもよい/)) {

@@ -648,7 +648,6 @@ export type EffectAction =
   | BanishSubstituteAction
   | StackSpellAction
   | ColorInheritAction
-  | ConditionalDiscardAction
   | EnergyChargeByFieldCountAction
   | LookAtDeckAndLifeAction
   | GrowCostReductionAction
@@ -1585,15 +1584,6 @@ export interface ColorInheritAction {
   type: 'COLOR_INHERIT';
   source: 'energy';
   owner: Owner;
-}
-
-// 条件付き強制ディスカード（N枚捨てないかぎりM枚捨てる）
-export interface ConditionalDiscardAction {
-  type: 'CONDITIONAL_DISCARD';
-  owner: Owner;
-  avoidCount: number;
-  avoidFilter?: TargetFilter;
-  elseCount: number;
 }
 
 // フィールドシグニ数+bonus枚デッキからエナゾーンに置く

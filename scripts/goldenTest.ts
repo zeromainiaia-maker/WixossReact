@@ -18136,6 +18136,26 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   eq(banished.otherState.energy.filter(n => n === atom).length, 1, 'バニッシュはそのまま1回だけ処理される');
 });
 
+test('task12(lxii) WD16-016-BURST: 相手手札5枚以下→1枚／6枚以上→代わりに2枚（自分の手札は減らない）', () => {
+  const eff = effectsMap.get('WD16-016')!.find(e => e.effectId === 'WD16-016-BURST')!;
+  ok(!JSON.stringify(eff).includes('CONDITIONAL_DISCARD'), '退役した CONDITIONAL_DISCARD が残っていない');
+  const cond = eff.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(cond.type, 'CONDITIONAL', '昇格置換＝then/else の1本');
+  ok(JSON.stringify(cond.condition).includes('"operator":"gte"'), '「6枚以上」は gte（数値だけ差し替えると lte 6 という真逆になる）');
+  const check = (oppHand: number, expectDiscard: number) => {
+    const r = run(eff.action, mkCtx({ hand: 4 }, { hand: oppHand }));
+    eq(r.otherState.hand.length, oppHand - expectDiscard, `相手手札${oppHand}枚→${expectDiscard}枚捨てる`);
+    eq(r.otherState.trash.length, 3 + expectDiscard, `捨てた${expectDiscard}枚が相手トラッシュへ`);
+    // 旧 STUB CONDITIONAL_DISCARD は ctx.ownerState.hand から1枚捨てさせていた（owner 反転の別物）
+    eq(r.ownerState.hand.length, 4, '自分の手札は減らない');
+    eq(r.ownerState.trash.length, 3, '自分のトラッシュも増えない');
+  };
+  check(5, 1);   // 5枚以下＝else 枝
+  check(6, 2);   // 6枚以上＝then 枝（代わりに2枚）
+  check(9, 2);   // 閾値より多くても2枚のまま
+  check(0, 0);   // 手札0枚でも落ちない
+});
+
 test('task12(lx)② WX12-020-E3: 「この方法で捨てた手札1枚につき－6000」は捨てた枚数だけ固定対象へ乗る', () => {
   const eff = effectsMap.get('WX12-020')!.find(e => e.effectId === 'WX12-020-E3')!;
   const seq = eff.action as SequenceAction;

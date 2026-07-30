@@ -1144,7 +1144,6 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'MOVE_TO_ENERGY':
     case 'TRANSFER_TO_ENERGY': return `${targetJa(a.source ?? a.target)}をエナゾーンに置く`;
     case 'REMOVE_CHARM': return `${ownerJa(a.targetOwner)}シグニのチャームを${a.count === 'ALL' ? 'すべて' : a.count}外す`;
-    case 'CONDITIONAL_DISCARD': return `${condJa(a.condition)}なら、${actionJa(a.then)}`;
     case 'POWER_MODIFY_PER_TRASH_COUNT': {
       // 「対象のパワーを〈trashOwner〉のトラッシュにある〈countFilter〉シグニ〈unitSize〉枚につき±Nする」
       const d = a.deltaPerUnit ?? 0;

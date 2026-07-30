@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxii) `CONDITIONAL_DISCARD` を退役し `WD16-016-BURST` を昇格置換で組み直す＝**(lxii) 残0クローズ**（PLAN §3 タスク12(lxii)・Opus 5）
+
+**原文**：`WD16-016-BURST`「：対戦相手の手札が５枚以下の場合、対戦相手は手札を１枚捨てる。６枚以上の場合、代わりに２枚捨てる。」
+
+**旧**＝`SEQUENCE[CONDITIONAL{HAND_COUNT opp lte 5} then TRASH{HAND opp 1}, STUB{CONDITIONAL_DISCARD}]`。第2ステップの `STUB{CONDITIONAL_DISCARD}` は**「条件付き手札捨て」と称して条件を一切見ず、`ctx.ownerState.hand`＝バースト側＝自分の手札を1枚捨てさせる**という別物だった（対戦相手が捨てる側なのに owner が反転）。結果：
+- 相手手札 ≤5 → 相手が1枚捨てる＋**自分も1枚捨てる**（余計な自傷）
+- 相手手札 ≥6 → 相手は**0枚**（「代わりに2枚」が実装されていない）＋**自分が1枚捨てる**
+
+⚠**PLAN の記載「executor に dispatch が無い＝完全 no-op」は本件には当てはまらなかった**。それはアクション型 `{type:'CONDITIONAL_DISCARD'}` の話で、`WD16-016-BURST` が持っていたのは **STUB 形 `{type:'STUB', id:'CONDITIONAL_DISCARD'}`＝ハンドラは存在し、動いていた**（動いた結果が別物だった）。**「no-op だろう」と決めつけず実装を読むこと**が今回も教訓（(lxi) 第2波と同じ）。
+
+### 直し方＝既存の「多段閾値の昇格置換」に載せる（新語彙0本）
+
+`effectParser` の (a) 裸の多段閾値 → (c) 枚数のみ形、の2箇所を拡張して `CONDITIONAL{HAND_COUNT opp gte 6} then TRASH{HAND opp 2} else <前段の CONDITIONAL>` に組み替えた。
+
+- **(a) 裸形と比較演算子**＝旧regexは「N枚以上**ある**場合／N枚**移動していた**場合」だけを見ており、動詞なしの「N枚以上**の**場合」に届いていなかった。`(?:ある|移動していた|の)?` を許容し、**比較演算子を原文の以上/以下から取る**ようにした。⚠従来は前段条件の**数値だけ**差し替えていたため、前段が `lte 5` の本件では `lte 6`＝**真逆の条件**になる。既存利用はすべて gte 基底の以上形なので挙動不変（裸形は全CSVでこの1枚のみ＝機械確認済み）。
+- **(c) 枚数のみ形「代わりに(手札を)N枚捨てる」**＝文が主語を省くため素直に再パースすると owner が self へ反転する。base（前段）の `TRASH{HAND_CARD}` を複製して **count だけ差し替える**（既存の (b) per-target 値のみ形＝「代わりにパワーを－Nする」と同じ考え方）。
+
+### 退役したもの（型ごと）
+
+- `ConditionalDiscardAction`（`types/effects.ts` の型＋union）＝**executor に dispatch が無く完全 no-op**。唯一の生成元 `parseSentencePart1`「対戦相手は無色のカードをN枚捨てないかぎり手札をM枚捨てる」は、該当 `WX11-044-BURST` がタスク12(lxi) 第2波で標準の支払い回避ゲートへ移ったため到達0。
+- `STUB{CONDITIONAL_DISCARD}` のハンドラ（`execStubPart2`）と生成元2箇所＝`parseSentencePart4`「N枚以上の場合、代わりにM枚捨てる」（本件・上記へ移行）と `parseSentencePart3`「〜の場合、手札をN枚捨ててもよい」（**到達0**＝該当2枚 `WXDi-CP02-075`／`WXDi-CP02-080` は上流の `ALL_FIELD_SIGNI_MATCH` ゲート規則が先に拾って正しく解けている）。
+- decompiler の action 型 case も削除。STUBS.md は 使用中 577→**576** 種／実装 548→**547**。
+
+**ゲート**：typecheck ✅／golden **1130→1131**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1373 据置**／lint 0 errors・230 warnings 据置／manual field loss 0／同型★0（265群）／held **288枚 据置**（1枚 held に落ち同じ回で採用）。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WD16-016-BURST`）、`build:effects` 冪等。golden は相手手札 5／6／9／0 の4点で「捨てる枚数」と「自分の手札・トラッシュが動かないこと」を固定。
+
 ## 2026-07-31 — タスク12(lx) 残2件を実働化＝**(lx) 残0クローズ**（PLAN §3 タスク12(lx)・Opus 5）
 
 ### ① `WX25-P1-056-E1`（`leaveReplaceBanish`）＝非バニッシュ離場→バニッシュ置換を engine に実装

@@ -1828,6 +1828,24 @@ WD14-011
   + [2].action.choices[0].action.steps[0].target.type = "HAND_CARD"
   …（他 19 行）
 
+## +CONDITIONAL +HAND_CARD +HAND_COUNT +TRASH -SEQUENCE -STUB ［1枚］
+WD16-016
+--- WD16-016
+  原文: 【常】：このシグニは、このターンに対戦相手が手札を捨てていた場合にしか新たに場に出すことができない。,：対戦相手の手札が５枚以下の場合、対戦相手は手札を１枚捨てる。６枚以上の場合、代わりに２枚捨てる。
+  - [1].action.steps[0].type = "CONDITIONAL"
+  - [1].action.steps[0].condition.type = "HAND_COUNT"
+  - [1].action.steps[0].condition.owner = "opponent"
+  - [1].action.steps[0].condition.operator = "lte"
+  - [1].action.steps[0].condition.value = 5
+  - [1].action.steps[0].then.type = "TRASH"
+  - [1].action.steps[0].then.target.type = "HAND_CARD"
+  - [1].action.steps[0].then.target.owner = "opponent"
+  - [1].action.steps[0].then.target.count = 1
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "CONDITIONAL_DISCARD"
+  ~ [1].action.type : "SEQUENCE" → "CONDITIONAL"
+  …（他 17 行）
+
 ## +GRANT_EFFECT +TURN_OWNER ［1枚］
 WD18-008
 --- WD18-008

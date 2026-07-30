@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 577 |
-| 　└ ハンドラ実装あり | 548 |
+| JSON で使用中の STUB id 種類 | 576 |
+| 　└ ハンドラ実装あり | 547 |
 | 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2487 |
+| 総 STUB ノード件数 | 2486 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -180,7 +180,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TOP_TO_BOTTOM_OPTIONAL` | 1 | 1 | WXDi-P03-050 | デッキトップを見て下に置いてもよい |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 |  |
 
-### execStubPart2.ts（211 種）
+### execStubPart2.ts（210 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -267,14 +267,13 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `BLOCK_OPP_ZONE_PLACEMENT` | 1 | 1 | WX10-051 | BLOCK_OPP_ZONE_PLACEMENT: 指定ゾーンへの配置を禁止（disabled_signi_zones に追加） |
 | `BOTH_DISCARD_BY_CENTER_LEVEL` | 1 | 1 | WX16-016 | BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て |
 | `CHOSEN_TO_ENERGY_OR_HAND` | 1 | 1 | WX22-050 | CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加 |
-| `CONDITIONAL_DISCARD` | 1 | 1 | WD16-016 | CONDITIONAL_DISCARD: 条件付き手札捨て |
 | `CONDITIONAL_FREE_GROW` | 1 | 1 | WX19-007 | グロウコスト変更（engine: グロウコスト処理未実装） |
 | `CONDITIONAL_SEARCH_IF_FIELD` | 1 | 1 | WX09-041 | CONDITIONAL_SEARCH_IF_FIELD: フィールドにシグニがある場合サーチ |
 | `CONDITIONAL_SEARCH_IF_RESONA` | 1 | 1 | WD09-018 | CONDITIONAL_SEARCH_IF_RESONA: フィールドにレゾナがある場合サーチ |
 | `CONDITIONAL_TRASH_TO_ENERGY` | 1 | 1 | WX14-029 | 条件付きトラッシュ→エナ（センタールリグ名条件付き） |
 | `COPY_ABILITY` | 1 | 1 | WXDi-P04-035 | COPY_ABILITY: このシグニはその能力を得る |
 | `DECLARE_COLOR_COND_ENERGY_TRASH` | 1 | 1 | SPDi43-22 | 相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ） DECLARE_COLOR_COND_ENERGY_TRASH: 色を宣言し、エナから宣言色のカードを任意でトラッシュ |
-| `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ） TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log） … |
+| `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | CONDITIONAL_DISCARD は退役（タスク12(lxii)・2026-07-31）。「条件付き手札捨て」と称して**条件を一切見ず `ctx.ownerState.hand`＝自分の手札を1枚捨てる**だけの別物で、唯一の使用… |
 | `DRAW` | 1 | 1 | WXDi-P10-006 | DRAW: N枚ドロー |
 | `DRAW_BY_CHARM_COUNT` | 1 | 1 | WX18-038 | チャーム数だけドロー |
 | `ENERGY_TO_HAND_ON_DECK` | 1 | 1 | WXDi-P12-079 | エナゾーンからカードを手札へ（SELECT→INTERNAL） |

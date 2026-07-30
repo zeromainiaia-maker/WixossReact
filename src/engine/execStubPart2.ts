@@ -2471,15 +2471,10 @@ export function execStubPart2(
     const newSCAH: PlayerState = { ...sCAH, deck: sCAH.deck.slice(1), hand: [...sCAH.hand, drawnCAH] };
     return done(addLog({ ...ctx, ownerState: newSCAH }, '条件達成→手札に1枚追加'));
   }
-  // CONDITIONAL_DISCARD: 条件付き手札捨て
-  if (stub.id === 'CONDITIONAL_DISCARD') {
-    if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札なし（条件捨てなし）'));
-    const thenCD: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: ctx.ownerState.hand, count: 1, optional: false,
-      targetScope: 'self_hand', thenAction: thenCD,
-    });
-  }
+  // CONDITIONAL_DISCARD は退役（タスク12(lxii)・2026-07-31）。「条件付き手札捨て」と称して**条件を一切見ず
+  // `ctx.ownerState.hand`＝自分の手札を1枚捨てる**だけの別物で、唯一の使用者 `WD16-016-BURST`
+  // （対戦相手が捨てる側）では owner が反転していた。parser 側で `CONDITIONAL{HAND_COUNT}` の
+  // 昇格置換へ組み替え、id ごと（アクション型 `ConditionalDiscardAction` も）退役させた。
   // PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ）
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log）
   // OPP_DECLARE_COLOR: 相手が色を宣言（log）

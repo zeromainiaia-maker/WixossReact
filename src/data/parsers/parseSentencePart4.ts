@@ -2033,9 +2033,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^そうした場合.*デッキの上から.*枚.*見る$/))
     return { type: 'STUB', id: 'LOOK_TOP_N' } as StubAction;
 
-  // ---- 6枚以上の場合、代わりに2枚捨てる ----
-  if (t.match(/枚以上の場合.*代わりに.*枚捨てる/))
-    return { type: 'STUB', id: 'CONDITIONAL_DISCARD' } as StubAction;
+  // 「N枚以上の場合、代わりにM枚捨てる」＝**多段閾値の昇格置換**なので、ここでは拾わない（タスク12(lxii)）。
+  // 旧 `STUB{CONDITIONAL_DISCARD}` は①条件を一切見ず②`ctx.ownerState.hand`＝**自分の手札**を1枚捨てさせる
+  // という別物だった（`WD16-016-BURST` は「対戦相手が」捨てる側）。effectParser の (a) 裸の多段閾値＋
+  // (c) 枚数のみ形「代わりにN枚捨てる」で `CONDITIONAL{HAND_COUNT gte N} then/else` に組み替え済み。
 
   // ---- 追加で手札を捨てていた場合代わりに選ぶ数が増える ----
   if (t.match(/追加で手札を[０-９\d]+枚捨てていた場合.*代わりに/))

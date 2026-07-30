@@ -5467,14 +5467,21 @@ function parseActionTextInner(text: string): EffectAction {
         // （帰結は「代わりに」＝昇格置換 か「追加で」＝追加ボーナスの CONDITIONAL 積み増し）
         // 「N枚以上ある場合」に加え、省略形「N枚(以上)移動していた場合」（WXK06-071 の多段閾値＝前段 gate と
         //   同じ OPP_CARDS_MOVED_TO_DECK_THIS_TURN の数値だけ差し替え）も許容する。
-        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体]以上(?:ある|移動していた)場合、((?:代わりに|追加で).+)$/s);
+        // 🆕 動詞なしの裸形「N枚以上／以下の場合、」も許容し、**比較演算子を原文の以上/以下から取る**
+        //   （タスク12(lxii)＝`WD16-016-BURST`「対戦相手の手札が５枚以下の場合…。６枚以上の場合、代わりに２枚捨てる」＝
+        //    前段が `HAND_COUNT lte 5` なので数値だけ差し替えると `lte 6` という真逆の条件になる）。
+        //   以上/以下を明示する既存利用（すべて gte 基底の以上形）は挙動不変。裸形は全CSVでこの1枚のみ。
+        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体](以上|以下)(?:ある|移動していた|の)?場合、((?:代わりに|追加で).+)$/s);
         const prev = steps[steps.length - 1] as import('../types/effects').ConditionalAction;
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
             ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'].includes(prev.condition.type)) {
-          const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number };
+          const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number; operator?: CompareOp };
           if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD') cond.minCount = parseNum(bm[1]);
-          else cond.value = parseNum(bm[1]);
-          cm = { condition: cond, rest: bm[2] };
+          else {
+            cond.value = parseNum(bm[1]);
+            if (cond.operator !== undefined) cond.operator = bm[2] === '以上' ? 'gte' : 'lte';
+          }
+          cm = { condition: cond, rest: bm[3] };
         }
       }
       // 「N枚以上ある場合、追加で<X>」＝置換ではなく追加ボーナス＝CONDITIONAL を新ステップとして積む
@@ -5507,6 +5514,18 @@ function parseActionTextInner(text: string): EffectAction {
           const thenPM = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').PowerModifyAction;
           thenPM.delta = ((vm[1] === '－' || vm[1] === '-') ? -1 : 1) * parseNum(vm[2]);
           steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenPM, else: base };
+          continue;
+        }
+        // (c) 枚数のみ形「代わりに(手札を)N枚捨てる」＝base の手札トラッシュの**枚数だけ**差し替える
+        //   （タスク12(lxii)＝`WD16-016-BURST`「対戦相手は手札を１枚捨てる。６枚以上の場合、代わりに２枚捨てる」）。
+        //   文が主語を省くため素直に再パースすると owner が self へ反転する＝base を複製して count だけ差し替える
+        //   （上の (b) per-target 値のみ形と同じ考え方）。
+        const cmm = enhancedText.match(/^(?:手札を)?([０-９\d]+)枚捨てる。?$/);
+        if (cmm && baseCore.type === 'TRASH'
+            && (baseCore as import('../types/effects').TrashAction).target?.type === 'HAND_CARD') {
+          const thenTR = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').TrashAction;
+          thenTR.target = { ...thenTR.target, count: parseNum(cmm[1]) };
+          steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: base };
           continue;
         }
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);

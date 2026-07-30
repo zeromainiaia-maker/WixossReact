@@ -34,7 +34,6 @@ import type {
   BanishSubstituteAction,
   StackSpellAction,
   ColorInheritAction,
-  ConditionalDiscardAction,
   PowerModifyPerTrashedLevelAction,
   RemoveCharmAction,
   ForceSigniAttackAction,
@@ -3028,19 +3027,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'COLOR_INHERIT', source: 'energy', owner: 'self' } as ColorInheritAction;
   }
 
-  // ---- 条件付きディスカード（無色カードN枚捨てないかぎりM枚捨てる）----
-  {
-    const condDiscM = t.match(/対戦相手は無色のカードを([０-９\d]+)枚捨てないかぎり手札を([０-９\d]+)枚捨てる/);
-    if (condDiscM) {
-      return {
-        type: 'CONDITIONAL_DISCARD',
-        owner: 'opponent',
-        avoidCount: parseNum(condDiscM[1]),
-        avoidFilter: { color: '無' },
-        elseCount: parseNum(condDiscM[2]),
-      } as ConditionalDiscardAction;
-    }
-  }
+  // 「対戦相手は無色のカードをN枚捨てないかぎり手札をM枚捨てる」＝**この規則は退役（タスク12(lxii)）**。
+  // 吐いていた `CONDITIONAL_DISCARD`（アクション型）は **executor に dispatch が無く完全 no-op** だった。
+  // 唯一の該当 `WX11-044-BURST` はタスク12(lxi) 第2波で標準の支払い回避ゲート
+  // （`STUB{OPPONENT_PAY_OPTIONAL}`＋直後 `CONDITIONAL` の look-ahead ペア）へ移っており、ここには到達しない。
 
   return null;
 }
