@@ -334,6 +334,8 @@ export interface PlayerState {
   // DEPLOY_RESTRICT（配置数制限）: このターン、このプレイヤーはシグニをこの数までしか場に出せない
   // （「対戦相手はシグニをN体までしか場に出せない」＝WXK11-074等・AUTO時のフラグ。超過分は設置時に即トラッシュ）。
   signi_deploy_count_limit?: number;
+  // DEPLOY_RESTRICT（配置数制限）: 次の自分ターン開始時に有効化する予約
+  signi_deploy_count_limit_next_turn?: number;
   // ACTIVATE_COST_ZERO_BLACK: このカードの次の起動能力コストを《黒×0》にする（CardNum）
   activate_cost_zero_signi?: string;
   // DECLARE_COLOR: 宣言された色（白/赤/青/緑/黒）

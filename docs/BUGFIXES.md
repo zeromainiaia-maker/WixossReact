@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-30 — PLAN §6.3 H4 `WXDi-P13-003B-E2` 追加ターンの自分側配置数制限
+
+- `DEPLOY_RESTRICT` は配置数制限を含む1文だけから主語（対戦相手／あなた／すべてのプレイヤー）と上限を読み、`そのターンの間` かつ直前の追加ターン取得で `ownerState.extra_turn` が立った場合だけ `signi_deploy_count_limit_next_turn` へ予約する。既存の対戦相手6効果は相手側即時capのまま、`WXK06-004-E1` の全プレイヤー文は両者capへ是正。
+- 次の自分ターン開始時は `activateNextTurnDeployCountLimit` が予約を1回だけ有効化し、場の超過分を既存近似どおり末尾ゾーン側から自動トラッシュする。通常END、手札上限経由END、強制終了、CPU END、人間追加ターン2経路へ配線し、追加ターンで開始しない相手側の予約は保持する。
+- live `WXDi-P13-003B-E2` の `UNKNOWN` だけを `STUB DEPLOY_RESTRICT` へ外科反映。goldenは追加ターン取得＋自分予約／相手非反転、予約有無、3→1トリム、既存相手2効果、全プレイヤー両者適用を共有cursor復元つきで固定。
+- 既知の近似・未対応：トリム対象はプレイヤー選択ではなく末尾ゾーン自動選択で、ターン遷移の直接state更新なので `ON_LEAVE_FIELD` は発火しない。効果による配置はcapをすり抜ける既存挙動、CPU追加ターン、追加ターンupkeepの既存近似、`WXK05-001-E2`／`SP38-006-E4` は未着手。
+- **⚠この地雷の見つけ方（記録）**＝原文が未実装のとき、**fresh parser が既に何を吐いているか**を実測すると「UNKNOWN が消えた瞬間に反転する」型のドリフトが出てくる。今回は fresh が主語を見ない `DEPLOY_RESTRICT` を生成し、engine は `otherState` 固定だったため、**live の `UNKNOWN` だけが過剰効果を止めていた**。UNKNOWN 実装バッチでは毎回 fresh を先に見ること。
+- **Claude 確認（codex 実装／Claude 検証・是正1点のみ）**＝①`npm run gates` を独立3回で全緑（golden 1106→**1109**・census 1386 据置・smoke 10679 全0・fuzz seed 12648430・lint 0 errors/230 warnings）＝フレーク無し ②live per-effect diff は `WXDi-P13-003B-E2` の**1件だけ**（`d4f99432` 比・ミニファイ1行維持・`parseStatus:"PARTIAL"` のままカード単位 PRESERVE を維持） ③`signi_deploy_count_limit_next_turn` は engine が書き `activateNextTurnDeployCountLimit` が消すだけで、**どのターン境界リセットにも入っていない**ことを全数 grep で確認（3296 で消えると機構が死ぬ最重要点） ④cap を読む3箇所（通常召喚・召喚ゾーンモーダル・CPU）は**フラグを読むだけなので無変更で効く**ことをコードで確認＝half-migration なし ⑤`src/engine/execStubPart3.ts` → `src/screens/battle/` の import 方向は `execUtils.ts:15-19`／`execStubPart1.ts:24-25` の既存慣例と同じ（新規の逆依存ではない） ⑥エンコーディングは全変更8ファイルで U+FFFD・3連続以上 `?` の新規増**0**（独立実測） ⑦**是正**＝`BattleScreen.tsx:3776` のインデント崩れを整形。⑧`docs/_partial_report.txt` は**タイムスタンプのみ差分だったので破棄**。`docs/_held_review.txt` の +2枚（`WXDi-P05-005`／`WXDi-P11-010B`）は**今回の変更に由来しない**（変更した live 効果は当該カードに無く、parser/manual は不変＝HEAD 時点の未再生成ドリフトが顕在化しただけ）ので、実態を反映した新しい方を採用。
+
 ## 2026-07-30 — PLAN §6.3 H3 `WXDi-P13-003A-E1` 未知の邂逅を原子的に実装
 
 - `CENTER_LRIG_NOT_GROWN_THIS_TURN` 条件を追加し、キーピース候補表示と実行直前の双方で `actions_done` の `GROW` を確認するようにした。【ドリームチーム】白/黒1体以上は PLAN §6.3 F の正規デッキ常時成立方針に従い保留。

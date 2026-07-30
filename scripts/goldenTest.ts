@@ -40,6 +40,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
+import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
@@ -1665,6 +1666,63 @@ test('DEPLOY_RESTRICT 配置数制限: 相手3体→超過1体トラッシュ＋
   eq(cnt, 2, '相手シグニが2体になる');
   eq(r.otherState.signi_deploy_count_limit, 2, '配置数上限フラグ=2');
   eq(r.otherState.trash.length, 1, '超過1体をトラッシュ');
+});
+test('§6.3 H4 WXDi-P13-003B-E2: 追加ターンの配置数制限は自分側へ予約し、相手側へ反転しない', () => {
+  const savedCursor = cursor;
+  try {
+    const effect = effectsMap.get('WXDi-P13-003B')!.find(e => e.effectId === 'WXDi-P13-003B-E2')!;
+    const ctx = mkCtx({}, {}, 'WXDi-P13-003B');
+    const r = run(effect.action, ctx);
+    eq(r.ownerState.extra_turn, true, '追加ターンを取得');
+    eq(r.ownerState.signi_deploy_count_limit_next_turn, 1, '自分側にcap=1を予約');
+    eq(r.ownerState.signi_deploy_count_limit, undefined, '現在ターンにはまだ有効化しない');
+    eq(r.otherState.signi_deploy_count_limit, undefined, '相手側へ反転適用しない');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('§6.3 H4 配置数予約の有効化: cap移動・3体→1体トリム／予約なしは完全no-op', () => {
+  const savedCursor = cursor;
+  try {
+    const reserved = mkState({ signi: [fresh(), fresh(), fresh()], trash: 0 });
+    reserved.signi_deploy_count_limit_next_turn = 1;
+    const activated = activateNextTurnDeployCountLimit(reserved);
+    eq(activated.state.signi_deploy_count_limit, 1, 'cap=1を有効化');
+    eq(activated.state.signi_deploy_count_limit_next_turn, undefined, '予約をクリア');
+    eq(activated.state.field.signi.filter(Boolean).length, 1, '場を1体へトリム');
+    eq(activated.state.trash.length, 2, '超過2体をトラッシュ');
+    const untouched = mkState({ signi: [fresh(), fresh(), null], trash: 0 });
+    const noReservation = activateNextTurnDeployCountLimit(untouched);
+    eq(noReservation.state, untouched, '予約なしは同一stateを返す');
+    eq(noReservation.trashedCount, 0, '予約なしはトリムしない');
+    const notStarting = activateNextTurnDeployCountLimit(reserved, false);
+    eq(notStarting.state, reserved, '別プレイヤーの追加ターンなら予約を保持');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+test('§6.3 H4 DEPLOY_RESTRICT主語: 既存相手2件は不変／すべてのプレイヤーは両者へ適用', () => {
+  const savedCursor = cursor;
+  try {
+    for (const cardNum of ['WXK11-074', 'WXDi-P05-024']) {
+      const ctx = mkCtx({}, { signi: [fresh(), fresh(), fresh()], trash: 0 }, cardNum);
+      const r = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as EffectAction, ctx);
+      eq(r.otherState.signi_deploy_count_limit, 2, `${cardNum}: 相手cap=2`);
+      eq(r.ownerState.signi_deploy_count_limit, undefined, `${cardNum}: 自分capなし`);
+    }
+    const bothCtx = mkCtx(
+      { signi: [fresh(), fresh(), fresh()], trash: 0 },
+      { signi: [fresh(), fresh(), fresh()], trash: 0 },
+      'WXK06-004',
+    );
+    const both = run({ type: 'STUB', id: 'DEPLOY_RESTRICT' } as EffectAction, bothCtx);
+    eq(both.ownerState.signi_deploy_count_limit, 2, '全プレイヤー: 自分cap=2');
+    eq(both.otherState.signi_deploy_count_limit, 2, '全プレイヤー: 相手cap=2');
+    eq(both.ownerState.field.signi.filter(Boolean).length, 2, '全プレイヤー: 自分を2体へトリム');
+    eq(both.otherState.field.signi.filter(Boolean).length, 2, '全プレイヤー: 相手を2体へトリム');
+  } finally {
+    cursor = savedCursor;
+  }
 });
 test('LEVEL_MODIFY 相手シグニ-1: temp_level_mods に記録＆レベルフィルタに反映', () => {
   // レベル2のシグニに -1 → レベル1扱いになり「レベル1以下」フィルタで対象化される

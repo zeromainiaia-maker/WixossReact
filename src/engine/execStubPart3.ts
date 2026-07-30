@@ -24,6 +24,7 @@ import {
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
+import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
 
 export function execStubPart3(
   stub: StubAction,
@@ -1419,25 +1420,38 @@ export function execStubPart3(
     const srcDR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDR = srcDR ? (srcDR.EffectText ?? '') : '';
     const toHWDR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // 「対戦相手はシグニをN体までしか(新たに)場に出せない」→ 相手に配置数上限を設定。
-    // （すでに場にN体超がある場合は、超過分をトラッシュに置く＝相手が選ぶルールの近似で末尾ゾーンから自動トラッシュ）。
-    const countCapM = txtDR.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
+    // 配置数制限を含む文だけを切り出し、同じカードの別能力から主語・期間を誤読しない。
+    const countSentence = txtDR
+      .split(/[。\n]/)
+      .find(sentence => /シグニを[０-９\d]+体までしか[^。]*?場に出/.test(sentence));
+    const countCapM = countSentence?.match(/シグニを([０-９\d]+)体までしか[^。]*?場に出/);
     if (countCapM) {
       const cap = parseInt(toHWDR(countCapM[1]));
-      let other = ctx.otherState;
-      const tops = other.field.signi.map(s => s?.at(-1)).filter((x): x is string => !!x);
-      let trashedN = 0;
-      if (tops.length > cap) {
-        // 超過分（末尾ゾーン側）を即トラッシュ。removeFromField でチャーム/アクセ/ソウルも正しく処理。
-        for (const cn of tops.slice(cap)) {
-          other = removeFromField(cn, other);
-          other = { ...other, trash: [...other.trash, cn] };
-          trashedN++;
-        }
+      const subject = countSentence?.includes('すべてのプレイヤーは')
+        ? 'both'
+        : countSentence?.includes('あなたは')
+          ? 'self'
+          : 'opponent';
+      const isExtraTurnReservation = countSentence?.includes('そのターンの間')
+        && ctx.ownerState.extra_turn === true;
+      if (subject === 'self' && isExtraTurnReservation) {
+        const ownerState = { ...ctx.ownerState, signi_deploy_count_limit_next_turn: cap };
+        return done(addLog({ ...ctx, ownerState },
+          `次の自分の追加ターンはシグニを${cap}体までしか場に出せない（予約）`));
       }
-      other = { ...other, signi_deploy_count_limit: cap };
-      return done(addLog({ ...ctx, otherState: other },
-        `対戦相手はシグニを${cap}体までしか場に出せない${trashedN > 0 ? `（超過${trashedN}体をトラッシュ）` : ''}`));
+      const ownerApplied = subject === 'self' || subject === 'both'
+        ? applyDeployCountLimit(ctx.ownerState, cap)
+        : undefined;
+      const otherApplied = subject === 'opponent' || subject === 'both'
+        ? applyDeployCountLimit(ctx.otherState, cap)
+        : undefined;
+      const trashedN = (ownerApplied?.trashedCount ?? 0) + (otherApplied?.trashedCount ?? 0);
+      const subjectLabel = subject === 'both' ? 'すべてのプレイヤー' : subject === 'self' ? 'あなた' : '対戦相手';
+      return done(addLog({
+        ...ctx,
+        ownerState: ownerApplied?.state ?? ctx.ownerState,
+        otherState: otherApplied?.state ?? ctx.otherState,
+      }, `${subjectLabel}はシグニを${cap}体までしか場に出せない${trashedN > 0 ? `（超過${trashedN}体をトラッシュ）` : ''}`));
     }
     // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー上限を設定
     const powerCapM = txtDR.match(/パワー([０-９\d万]+)以上.*(?:新たに)?場に出せない/);

@@ -94,6 +94,7 @@ import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '.
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
+import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -3405,7 +3406,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-        update[opKey] = {
+        update[opKey] = activateNextTurnDeployCountLimit({
           ...clearAllZoneBurstGrantUntilOppTurn(opState),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
@@ -3439,10 +3440,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l_down: false,
             assist_lrig_r_down: false,
           },
-        };
+        }, !my.extra_turn).state;
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
         if (my.extra_turn) {
-          newMyState = { ...newMyState, extra_turn: undefined };
+          newMyState = activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state;
           update.turn_phase = 'UP';
           update.turn_count = bs.turn_count + 1;
           appendBattleLogs(['追加ターン取得！']);
@@ -3742,7 +3743,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-      update[opKey] = {
+      update[opKey] = activateNextTurnDeployCountLimit({
         ...clearAllZoneBurstGrantUntilOppTurn(opState),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
@@ -3773,10 +3774,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           assist_lrig_l_down: false,
           assist_lrig_r_down: false,
         },
-      };
+      }, !my.extra_turn).state;
       // 追加ターン / ターンプレイヤー交代
       if (my.extra_turn) {
-        newMyState = { ...newMyState, extra_turn: undefined };
+        newMyState = activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state;
         update.turn_phase = 'UP';
         update.turn_count = bs.turn_count + 1;
         appendBattleLogs(['追加ターン取得！']);
@@ -4352,7 +4353,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const convertedBlocked = (nextState.blocked_actions ?? [])
             .filter((a: string) => a.endsWith(':NEXT_TURN'))
             .map((a: string) => a.replace(':NEXT_TURN', ''));
-          const nextStateUpd = {
+          const nextStateUpd = activateNextTurnDeployCountLimit({
             ...nextState,
             blocked_actions: convertedBlocked,
             field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
@@ -4372,7 +4373,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               assist_lrig_l_down: false,
               assist_lrig_r_down: false,
             },
-          };
+          }).state;
 
           Object.assign(update, {
             [activeKey]:     clearedActive,
@@ -9386,7 +9387,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
-      const nextHuSt = { ...huSt,
+      const nextHuSt = activateNextTurnDeployCountLimit({ ...huSt,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
@@ -9403,7 +9404,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_frozen:  false,
         assist_lrig_l_down: false,
         assist_lrig_r_down: false,
-      }};
+      }}).state;
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuSt.hand;
       let cpuDeckEND = cpuSt.deck;
