@@ -55,7 +55,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -4853,6 +4853,33 @@ function parseActionTextInner(text: string): EffectAction {
         ...(nameInlineM[3] === 'カード' ? { pickNoun: 'カード' } : {}),
         pickCount: parseNum(nameInlineM[4]), then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder,
       } as RevealAndPickAction;
+    }
+  }
+
+  // ---- 「〈対象〉を対象とし、手札を好きな枚数捨ててもよい。…この方法で捨てた手札1枚につき－N」（タスク12(lx)②）----
+  // 倍率元が**現在の手札枚数ではなく「この方法で捨てた枚数」**なので POWER_MODIFY_PER_HAND_COUNT では意味が混ざる。
+  // 対象宣言（SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS）→ 0..N枚の任意捨て → 捨てた枚数×delta を
+  // 固定対象へ、の正準形（タスク12(liii) と同じ組み立て）に落とす。2文にまたがるため splitSentences 前に捕捉し、
+  // **平坦な SEQUENCE** を返す（文ごとの push は入れ子 SEQUENCE を畳まないため、pause 時に内側の継続が落ちる）。
+  // 実データは WX12-020-E3 の1件（「好きな枚数」形）。固定枚数形「手札をN枚捨ててもよい」は従来どおり
+  // TARGET_AND_DISCARD_HAND に残す（そちらは倍率を持たない別文型）。
+  {
+    const m = text.trim().match(/^(?:[^。]*?とき、)?対戦相手のシグニ([０-９\d]*)体?を対象とし、手札を好きな枚数捨ててもよい。(?:ターン終了時まで、)?それのパワーをこの方法で捨てた手札([０-９\d]+)枚につき([－＋][０-９\d]+)する。?$/);
+    if (m && parseNum(m[2]) === 1) {
+      const cnt = m[1] ? parseNum(m[1]) : 1;
+      const target = { type: 'SIGNI' as const, owner: 'opponent' as const, count: cnt, filter: { cardType: 'シグニ' }, upToCount: false };
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true } } as EffectAction,
+          {
+            type: 'POWER_MODIFY', target, targetsStored: true,
+            delta: parseSignedNum(m[3]), deltaPerLastProcessedCount: true, duration: 'UNTIL_END_OF_TURN',
+          } as EffectAction,
+        ],
+      } as SequenceAction;
     }
   }
 

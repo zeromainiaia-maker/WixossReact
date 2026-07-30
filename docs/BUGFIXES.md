@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lx) 残2件を実働化＝**(lx) 残0クローズ**（PLAN §3 タスク12(lx)・Opus 5）
+
+### ① `WX25-P1-056-E1`（`leaveReplaceBanish`）＝非バニッシュ離場→バニッシュ置換を engine に実装
+
+**原文**：「【常】：あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動がバニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい。」
+**旧**：acknowledged STUB `EFFECT_LEAVE_REPLACE_BANISH` で**完全 no-op**（さらにその前は `CONTINUOUS BANISH{owner:'opponent'}`＝所有者まで反転した幻覚だった）。
+
+- **新設**＝`applyEffectLeaveReplaceBanishSubstitute`（`effectExecutor.ts`）。被害側の場に当該【常】を宣言するシグニがあり、victim が ＜C＞ フィルタに合致すれば、元の移動を捨てて `removeFromField`→`banishDestination`（＝execBanish と同じバニッシュ先処理。エナ／トラッシュ／手札／デッキ下の置換走査つき）へ差し替える。
+- **配線＝非バニッシュ離場の9サイト**（`execBounce`／`execSendToEnergy`／`execTrash`（場）／`execTransferToDeck` の各 apply ループ＋`applyDirectAction` の BOUNCE／SEND_TO_ENERGY／TRASH／EXILE／TRANSFER_TO_DECK）。**バニッシュ経路には入れない**（原文「その移動がバニッシュによるものでないなら」）。
+- **「対戦相手の効果によって」**＝`victimOwner === 'opponent'`（ctx の効果主から見た相手側）でガード＝既存 `applyEffectLeaveLrigAbilitySubstitute` と同じ判定。自分の効果で自分のシグニを動かす場合は置換しない。
+- **「してもよい」は自動適用**＝場離れ各経路は同期的な ctx 変換で対話 pause を張れないため、既存の2つの離場置換（`findEffectLeavePowerReductionSubstitute`／`applyEffectLeaveLrigAbilitySubstitute`）と同じ決定論的近似に揃えた。対話実装があるのはバトルバニッシュの `BANISH_SUBSTITUTE`（BattleScreen 側）だけ。⚠ここが唯一の近似＝実機で選択させたくなったら3つまとめて対話化する。
+- バニッシュ耐性（`otherBanishProtectedNums`／`hasBanishResist`）を持つ victim は置換しない＝元の移動をそのまま通す（置換で耐性を踏み越えない）。
+- 既存の離場置換との順序＝ルリグ付与能力の喪失（＝場に残る防御）が先、こちらが後。
+- golden +1（6経路＋所有者ガード＋クラス不一致＋バニッシュ経路の非二重化を固定）。**JSON は無変更**（STUB id をそのまま engine 側の宣言として読む＝`BANISH_SUBSTITUTE` と同じ慣例）。
+
+### ② `WX12-020-E3`＝「この方法で捨てた手札１枚につき－6000」
+
+**原文**：「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、手札を好きな枚数捨ててもよい。ターン終了時まで、それのパワーをこの方法で捨てた手札１枚につき－6000する。」
+**旧**＝`SEQUENCE[STUB TARGET_AND_DISCARD_HAND, STUB POWER_MOD_BY_HAND_COUNT]` で**三重に間違っていた**：(a) `TARGET_AND_DISCARD_HAND` は直後が `CONDITIONAL(IS_MY_TURN)` でないと既定の帰結が **BANISH** になるため、**相手シグニを1体バニッシュ**していた。(b) 捨てる枚数が **1枚固定**（「好きな枚数」でない）。(c) `POWER_MOD_BY_HAND_COUNT` が **現在の手札枚数**×－6000 を**相手シグニ全体**に乗せていた（対象1体でもない）。
+
+- **新語彙は1本**＝`PowerModifyAction.deltaPerLastProcessedCount`（delta を「直前ステップで実際に処理した枚数」倍にする）。**現在の手札枚数比例の `POWER_MODIFY_PER_HAND_COUNT` とは別物**＝倍率元が違うので既存型の拡張では意味が混ざる（(lx)② が据置されていた理由）。
+- parser＝2文にまたがるため `splitSentences` **前**に全文で捕捉し、**平坦な** `SEQUENCE[SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → TRASH{HAND_CARD, count:'ALL', upToCount} → POWER_MODIFY{targetsStored, deltaPerLastProcessedCount}]` を返す（タスク12(liii) の正準形と同じ組み立て）。⚠**文ごとの `steps.push` は入れ子 SEQUENCE を畳まない**＝内側が pause すると外側 continuation が内側を上書きして残りステップが落ちるため、必ず平坦に返すこと。
+- **`execPowerModify` の `targetsStored` を自動適用に**＝「それのパワーを…」の対象は先行の対象宣言ステップで確定済み。従来は候補1件の選択UIを再提示し、同じ対象へ **ON_TARGETED が二度**立っていた（対象宣言は1回）。`autoTargetedCards` には積まない。実データの該当は `WXDi-P03-089`（2箇所）と本件のみ。
+- decompiler＝`deltaPerLastProcessedCount` の逆翻訳を追加。ついでに `POWER_MODIFY{targetsStored}` の主語を「それ」に（原文どおり）＝`WXDi-P03-089`／`WXK06-032`／`WX25-P1-103` の逆翻訳も原文一致に改善（表示のみ・JSON 無変更）。
+- 捨てた枚数0（手札なし／0枚選択）は SEQUENCE の既存「TRASH対象なし→残りスキップ」で修正なしに落ちる＝ －6000×0 と同値。
+- golden +1（3枚捨て＝－18000 が**宣言した1体だけ**に乗ること／0枚なら乗らないこと／他シグニに乗らないことを固定）。
+
+**ゲート**：typecheck ✅／golden **1128→1130**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1373 据置**（`BASELINE_HIGH=1373`）／lint 0 errors・230 warnings 据置／manual field loss 0／同型★0（265群）／held **288枚 据置**（(lx)② で1枚 held に落ち、同じ回で採用）。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WX12-020-E3`）、`build:effects` 冪等。
+
 ## 2026-07-30 — タスク12(lxi) 第2波：「対戦相手**は**〜しないかぎり」＝主語分配形（8カード9効果）
 
 **⚠まず前セッションの簿記を訂正する**＝第1波の残として「『対戦相手は』形13効果＝同一文型の最大の弾」と書いたが、**これは私の粗い括りで誤り**。原文を1件ずつ engine ハンドラまで追うと**6種類の別バグ**だった。「ゲートが無い」と決めつけず、まず**現状 JSON と engine ハンドラの実装**を読むべきだった：

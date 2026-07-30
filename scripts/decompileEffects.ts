@@ -637,8 +637,12 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': {
-      const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsLastProcessed ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
+      const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : (a.targetsLastProcessed || a.targetsStored) ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
       if (a.deltaFromOppPowerDecrease) return `${pmSubj}のパワーを減った値と同じだけ＋する`;
+      // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）
+      if (a.deltaPerLastProcessedCount) {
+        return `${pmSubj}のパワーをこの方法で捨てた手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
+      }
       return `${pmSubj}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
     }
     case 'POWER_SET': {

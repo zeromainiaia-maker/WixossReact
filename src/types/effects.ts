@@ -837,6 +837,10 @@ export interface PowerModifyAction {
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニを自動対象（ctx.triggeringCardNum → ctx.sourceCardNum の順で解決）
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ適用（WXDi-P07-079「それが＜毒牙＞なら代わりに＋10000」。選択UIを出さず同一対象に適用）
   targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で任意コスト前に固定した対象
+  // 「この方法で捨てた手札１枚につき－6000」（WX12-020-E3・タスク12(lx)②）＝倍率元が**現在の手札枚数ではなく
+  // 直前ステップで実際に処理した枚数**（lastProcessedCards.length）。delta は1枚あたりの値として扱う。
+  // ⚠ 現在の手札枚数比例は別型 POWER_MODIFY_PER_HAND_COUNT（handOwner の手札を数える）。混同しないこと。
+  deltaPerLastProcessedCount?: boolean;
   deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
 }

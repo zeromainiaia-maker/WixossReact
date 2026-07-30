@@ -214,6 +214,56 @@ export function applyEffectLeaveLrigAbilitySubstitute(
   return { ctx, replaced: false };
 }
 
+/**
+ * 相手効果による**非バニッシュ**の場離れ（手札戻し／トラッシュ／エナ送り／デッキ戻し／除外）を、
+ * 被害側の場が宣言する CONTINUOUS STUB `EFFECT_LEAVE_REPLACE_BANISH` でバニッシュへ置換する
+ * （WX25-P1-056-E1「あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動が
+ *   バニッシュによるものでないなら、代わりにそのシグニをバニッシュしてもよい」＝タスク12(lx)①）。
+ *
+ * - `victimOwner === 'opponent'` ＝ ctx の効果主から見た相手側＝**「対戦相手の効果によって」** を満たす側だけを置換する
+ *   （自分の効果で自分のシグニを動かす場合は対象外）。`applyEffectLeaveLrigAbilitySubstitute` と同じガード。
+ * - **バニッシュ経路からは呼ばない**（「その移動がバニッシュによるものでないなら」）。
+ * - 「してもよい」は**自動適用**＝`findEffectLeavePowerReductionSubstitute` /
+ *   `applyEffectLeaveLrigAbilitySubstitute` と同じ決定論的近似。場離れ各経路は同期的な ctx 変換で
+ *   対話 pause を張れない（バトルバニッシュの BANISH_SUBSTITUTE だけが BattleScreen 側で対話実装）。
+ * - バニッシュ先は execBanish と同じ `banishDestination`（エナ／トラッシュ／手札／デッキ下への置換走査つき）を通す。
+ * - バニッシュ耐性（【常】バニッシュされない／PROTECTION 付与）を持つ victim は置換しない＝元の移動をそのまま通す。
+ */
+export function applyEffectLeaveReplaceBanishSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  const victim = ctx.cardMap.get(getCardNum(victimNum));
+  if (!victim) return { ctx, replaced: false };
+  // バニッシュできない相手は置換しない（置換で耐性を踏み越えない）
+  if (ctx.otherBanishProtectedNums?.has(victimNum)) return { ctx, replaced: false };
+  if (hasBanishResist(victimNum, ctx.cardMap, state.keyword_grants)) return { ctx, replaced: false };
+  const declarer = state.field.signi.some(stack => {
+    const top = stack?.at(-1);
+    if (!top) return false;
+    return (ctx.cardMap.get(getCardNum(top))?.effects ?? []).some(eff => {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') return false;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.id !== 'EFFECT_LEAVE_REPLACE_BANISH' || !act.leaveReplaceBanish) return false;
+      const story = act.leaveReplaceBanish.story;
+      return matchesFilter(victim, { cardType: 'シグニ', ...(story ? { story } : {}) });
+    });
+  });
+  if (!declarer) return { ctx, replaced: false };
+  const removed = removeFromField(victimNum, state);
+  const opp = ownerState('self', ctx); // victim から見た対戦相手＝効果主側（バニッシュ先置換の持ち主候補）
+  const { state: dest, log } = banishDestination(removed, opp, victimNum, banishRedirectOpts(ctx, state, victimNum));
+  return {
+    ctx: addLog(setOwnerState(victimOwner, dest, ctx),
+      `${victim.CardName ?? victimNum}の場離れを代わりにバニッシュへ置換${log}`),
+    replaced: true,
+  };
+}
+
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
@@ -430,6 +480,11 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
         cur = lrigSub.ctx;
         continue;
       }
+      const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, own, cur);
+      if (banishSub.replaced) {
+        cur = banishSub.ctx;
+        continue;
+      }
       const s = ownerState(own, cur);
       const removed = removeFromField(num, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
@@ -599,6 +654,11 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
+      const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
+      if (banishSub.replaced) {
+        cur = banishSub.ctx;
+        continue;
+      }
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
@@ -656,7 +716,11 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
 }
 
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
-  const delta = resolveNum(a.delta);
+  // deltaPerLastProcessedCount: 「この方法で捨てた手札1枚につき－N」＝直前ステップで実際に処理した枚数が倍率
+  // （WX12-020-E3・タスク12(lx)②）。現在の手札枚数を数える POWER_MODIFY_PER_HAND_COUNT とは別物。
+  const delta = a.deltaPerLastProcessedCount
+    ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
+    : resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
   // owner:'any'（「対象のシグニ」）= 自分・対戦相手どちらのシグニも選べる
   const isAny = a.target.owner === 'any';
@@ -747,6 +811,11 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     // targetsTriggerSource と同型＝選択UIを経ない自動対象化を ON_TARGETED 収集用に surface（続き137・タスク12(xx)）。
     return done({ ...applied, autoTargetedCards: [...(ctx.autoTargetedCards ?? []), ...autoNums] });
   }
+
+  // targetsStored:「それのパワーを…」＝対象は先行の SELECT_TARGET_ONLY / 対象宣言ステップで**すでに確定**している。
+  // 再び選択UIを出すのは冗長で、しかも同じ対象へ ON_TARGETED が二度立つ（対象宣言は1回）。ここで自動適用する
+  // （autoTargetedCards には積まない＝対象化はその宣言ステップで済んでいる。タスク12(lx)②）。
+  if (a.targetsStored) return done(applyPowerMod(cands, ctx));
 
   if (a.target.count === 'ALL') return done(applyPowerMod(cands, ctx));
   const count = resolveNum(a.target.count);
@@ -876,6 +945,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, tgt.owner, cur);
         if (lrigSub.replaced) {
           cur = lrigSub.ctx;
+          continue;
+        }
+        const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
+        if (banishSub.replaced) {
+          cur = banishSub.ctx;
           continue;
         }
         const s = ownerState(tgt.owner, cur);
@@ -3719,6 +3793,11 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
           cur = lrigSub.ctx;
           continue;
         }
+        const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, src.owner, cur);
+        if (banishSub.replaced) {
+          cur = banishSub.ctx;
+          continue;
+        }
         const s = ownerState(src.owner, cur);
         const removed = removeFromField(num, s);
         const newS = insertToDeck(removed, [num]);
@@ -6392,6 +6471,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
       if (lrigSub.replaced) return done(lrigSub.ctx);
+      const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
+      if (banishSub.replaced) return done(banishSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
@@ -6407,6 +6488,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
       if (lrigSub.replaced) return done(lrigSub.ctx);
+      const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
+      if (banishSub.replaced) return done(banishSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
@@ -6423,6 +6506,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
           const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, owner, ctx);
           if (lrigSub.replaced) return done(lrigSub.ctx);
+          const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, owner, ctx);
+          if (banishSub.replaced) return done(banishSub.ctx);
           const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
           const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
           const removed = removeFromField(cardNum, s);
@@ -6527,6 +6612,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(st => st?.includes(cardNum))) {
           const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, o, ctx);
           if (lrigSub.replaced) return done(lrigSub.ctx);
+          const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, o, ctx);
+          if (banishSub.replaced) return done(banishSub.ctx);
           const removed = removeFromField(cardNum, s);
           return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
@@ -7070,6 +7157,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
         const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, tdOwner, ctx);
         if (lrigSub.replaced) return done(lrigSub.ctx);
+        const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, tdOwner, ctx);
+        if (banishSub.replaced) return done(banishSub.ctx);
         tdNew = removeFromField(cardNum, tdNew);
       }
       else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };

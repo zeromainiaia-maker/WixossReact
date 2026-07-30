@@ -24,7 +24,7 @@ import {
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
-  applyEffectLeaveLrigAbilitySubstitute,
+  applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
@@ -18093,6 +18093,73 @@ test('task12(l) C群: 相手効果の全離場置換は1体だけ守り、自分
   ok(bounced.otherState.field.signi.some(s => s?.at(-1) === victim1), '非バニッシュ離場（手札戻し）の1体目を実際に場へ残す');
   ok(!bounced.otherState.field.signi.some(s => s?.at(-1) === victim2), '能力消費後の2体目は実際に手札へ戻る');
   ok(bounced.otherState.hand.includes(victim2), '2体目の移動先は手札');
+});
+
+test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を＜原子＞だけバニッシュへ置換', () => {
+  const DECLARER = 'WX25-P1-056';
+  const atom = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('原子') && c.CardNum !== DECLARER);
+  const plain = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('原子'));
+  // 被害側（＝ctx から見た otherState）に宣言者と＜原子＞・非＜原子＞を並べる
+  const mk = () => mkCtx({}, { signi: [DECLARER, atom, plain] });
+  const tgt = (owner: 'opponent') => ({ type: 'SIGNI' as const, owner, count: 1, filter: { cardType: 'シグニ' } });
+  ok(JSON.stringify(cardMap.get(DECLARER)?.effects ?? []).includes('EFFECT_LEAVE_REPLACE_BANISH'),
+    '宣言者の【常】が EFFECT_LEAVE_REPLACE_BANISH で載っている');
+
+  // ① 手札戻し（BOUNCE）→ ＜原子＞はバニッシュ（既定のエナ送り）へ置換、非＜原子＞は素通り
+  const bounced = run({ type: 'BOUNCE', target: tgt('opponent'), fixedCardNums: [atom] } as EffectAction, mk());
+  ok(!bounced.otherState.field.signi.some(s => s?.at(-1) === atom), '＜原子＞は場を離れる（置換は防御ではない）');
+  ok(bounced.otherState.energy.includes(atom), '＜原子＞の移動先はバニッシュ先＝エナゾーン');
+  ok(!bounced.otherState.hand.includes(atom), '手札には戻らない');
+  const bouncedPlain = run({ type: 'BOUNCE', target: tgt('opponent'), fixedCardNums: [plain] } as EffectAction, mk());
+  ok(bouncedPlain.otherState.hand.includes(plain), '＜原子＞以外は従来どおり手札に戻る');
+
+  // ② トラッシュ／エナ送り／デッキ戻し／除外の各経路でも置換される
+  const trashed = run({ type: 'TRASH', target: tgt('opponent'), fixedCardNums: [atom] } as EffectAction, mk());
+  ok(trashed.otherState.energy.includes(atom) && !trashed.otherState.trash.includes(atom), 'トラッシュ移動もバニッシュへ置換');
+  const sent = run({ type: 'SEND_TO_ENERGY', target: tgt('opponent'), fixedCardNums: [atom] } as EffectAction, mk());
+  ok(sent.otherState.energy.includes(atom), 'エナ送りもバニッシュ経由でエナへ');
+  const toDeck = run({ type: 'TRANSFER_TO_DECK', source: tgt('opponent'), fixedCardNums: [atom], position: 'bottom' } as unknown as EffectAction, mk());
+  ok(!toDeck.otherState.deck.includes(atom) && toDeck.otherState.energy.includes(atom), 'デッキ戻しもバニッシュへ置換');
+  const exiled = run({ type: 'EXILE', target: tgt('opponent'), fixedCardNums: [atom] } as unknown as EffectAction, mk());
+  ok(!(exiled.otherState.excluded ?? []).includes(atom) && exiled.otherState.energy.includes(atom), '除外もバニッシュへ置換');
+
+  // ③ 「対戦相手の効果によって」＝自分の効果で自分の＜原子＞を動かす場合は置換しない
+  const own = mkCtx({ signi: [DECLARER, atom, plain] }, {});
+  eq(applyEffectLeaveReplaceBanishSubstitute(atom, 'self', own).replaced, false, '自分の効果による離場は置換しない');
+  // ④ 宣言者が場にいなければ置換しない
+  const noDeclarer = mkCtx({}, { signi: [atom, plain, null] });
+  eq(applyEffectLeaveReplaceBanishSubstitute(atom, 'opponent', noDeclarer).replaced, false, '宣言者不在なら置換しない');
+  // ⑤ ＜原子＞以外は置換しない
+  eq(applyEffectLeaveReplaceBanishSubstitute(plain, 'opponent', mk()).replaced, false, 'クラス不一致は置換しない');
+  // ⑥ バニッシュ経路からは呼ばれない＝execBanish は従来どおり（置換で二重に処理しない）
+  const banished = run({ type: 'BANISH', target: tgt('opponent'), fixedCardNums: [atom] } as EffectAction, mk());
+  eq(banished.otherState.energy.filter(n => n === atom).length, 1, 'バニッシュはそのまま1回だけ処理される');
+});
+
+test('task12(lx)② WX12-020-E3: 「この方法で捨てた手札1枚につき－6000」は捨てた枚数だけ固定対象へ乗る', () => {
+  const eff = effectsMap.get('WX12-020')!.find(e => e.effectId === 'WX12-020-E3')!;
+  const seq = eff.action as SequenceAction;
+  eq(seq.steps.length, 4, '対象宣言→固定→任意捨て→パワー修正の4ステップ');
+  ok(JSON.stringify(seq.steps[3]).includes('"deltaPerLastProcessedCount":true'), '倍率元は捨てた枚数');
+  const victim = fresh();
+  const other = fresh();
+  // 手札から N 枚捨てる（autopilot は候補を上限まで選ぶ＝手札全部）→ 対象1体だけに -6000×N
+  const runWithHand = (handSize: number) => {
+    const ctx = mkCtx({ hand: handSize }, { signi: [victim, other, null] });
+    return run(eff.action, ctx);
+  };
+  const r3 = runWithHand(3);
+  const mods3 = (r3.otherState.temp_power_mods ?? []) as { cardNum: string; delta: number }[];
+  eq(mods3.length, 1, '対象は宣言した1体だけ（従来は相手シグニ全体へ乗る過剰実行だった）');
+  eq(mods3[0].cardNum, victim, '固定した対象へ適用');
+  eq(mods3[0].delta, -18000, '捨てた3枚 × －6000');
+  eq(r3.ownerState.hand.length, 0, '捨てた分だけ手札が減る');
+  eq(r3.ownerState.trash.length, 3 + 3, '捨てた札はトラッシュへ（初期3枚＋3枚）');
+  // 手札0枚＝捨てられない → パワー修正は乗らない（0枚 × －6000）
+  const r0 = runWithHand(0);
+  eq((r0.otherState.temp_power_mods ?? []).length, 0, '0枚なら修正なし');
+  // 従来の誤実装（対象を無視して相手シグニ全体を -6000×現在の手札枚数）に戻っていないこと
+  ok(!mods3.some(m => m.cardNum === other), '宣言していないシグニには乗らない');
 });
 
 test('cost-total batch: 静的8効果とPLAY_FREE静的3効果の生成JSONを全件固定', () => {
