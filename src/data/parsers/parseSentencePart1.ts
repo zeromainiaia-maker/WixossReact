@@ -56,7 +56,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder,
 } from '../parserUtils';
 
 /**
@@ -97,6 +97,17 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // 同じ相手シグニを2回対象化する二段除去。先にエナへ移すため、後段の手札戻しでは
+  // 1体目が候補から外れ、必ず別のシグニを選ぶ（WXK03-070）。
+  if (/対象の対戦相手のシグニ[１1]体をエナゾーンに置き、対象の対戦相手のシグニ[１1]体を手札に戻す/.test(t)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+        { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } }, optional: false },
+      ],
+    } as SequenceAction;
+  }
   // ---- 【シグニバリア】/【ルリグバリア】を得る ----
   // 純粋なバリア付与文のみマッチ（「白のルリグ1体につき【ルリグバリア】…」等の複雑文は別stubで処理するため除外）。
   // 従来は汎用 GRANT_KEYWORD(keyword:○バリア) になり no-op だった。エンジン実装済みの
@@ -307,7 +318,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- ルリグトラッシュ→ルリグデッキ ----
   if (t.match(/ルリグトラッシュから.*ルリグデッキに加える/)) {
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t) };
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseCostTotalFilter(t) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
@@ -897,7 +908,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- PlayFree: 手札からスペルをコストなしで使用 ----
   if (t.match(/手札から.*スペル.*コストを支払わずに使用する/)) {
     const filter: TargetFilter = { cardType: 'スペル', ...parseColorFilter(t) };
-    return { type: 'PLAY_FREE', source: 'hand', filter, ignoreCost: true, optional: false } as PlayFreeAction;
+    const staticThreshold = t.match(/コストの合計が([０-９\d]+)以下/);
+    const fromDiscard = /コストの合計が「この方法で捨てたカードの枚数」以下/.test(t);
+    const fromEnergyTrash = /コストの合計が「この方法でトラッシュに置いたカードの枚数＋１」以下/.test(t);
+    return {
+      type: 'PLAY_FREE', source: 'hand', filter, ignoreCost: true, optional: false,
+      ...(staticThreshold ? { costThreshold: parseNum(staticThreshold[1]) } : {}),
+      ...(fromDiscard ? { costThresholdFromPaidCount: { source: 'discard' as const } } : {}),
+      ...(fromEnergyTrash ? { costThresholdFromPaidCount: { source: 'energyTrash' as const, plus: 1 } } : {}),
+    } as PlayFreeAction;
   }
 
   // ---- PlayFree: 対戦相手手札からスペルを使用 ----
@@ -1320,6 +1339,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       (t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t),
+      ...parseCostTotalFilter(t),
       ...parseLevelFilter(t),
       ...parseLevelLteLastProcessed(t),
       ...parseLastProcessedComparison(t),
@@ -1662,12 +1682,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
     const extracted = extractNounPhraseFilter(spanTxt, { levelText: trashTargetPhrase });
     const filter: TargetFilter = {
-      ...parseCardTypeFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt),
+      ...parseCardTypeFilter(t), ...parseCostTotalFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt),
       ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt),
     };
     // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
+    const excludeNameM = trashTargetPhrase.match(/《([^》]+)》以外のレベル[０-９\d]+以下の＜龍獣＞/);
+    if (excludeNameM) filter.excludeCardName = excludeNameM[1];
     if (useBatch2FilterComposition) {
       if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
       if (extracted.cardName) filter.cardName = extracted.cardName;

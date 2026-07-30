@@ -32,7 +32,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
-import { fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
@@ -9933,7 +9933,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
       }
       // 捨てた合計枚数（ACTIVATED_DISCARD_COUNT_GTE条件用）
-      const totalDiscardedCount = discardedCards.length + discardAllCards.length + energyTrashAllCards.length;
+      const totalDiscardedCount = activatedDiscardPaidCount(
+        discardedCards.length, discardAllCards.length, energyTrashAllCards.length, discardVarCards.length,
+      );
       const isGameOnceAct = effect.usageLimit === 'once_per_game';
       let paid: PlayerState = {
         ...my,
@@ -9956,6 +9958,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...discardedCards, ...discardAllCards, ...discardVarCards,
           ...energyTrashCards, ...energyTrashAllCards,
         ],
+        last_cost_energy_trash_count: activatedEnergyTrashPaidCount(energyTrashIndices),
         // DISCARD_BY_POWER_MATCH: handDiscardSigniコストで捨てたシグニのパワーを記録
         last_discarded_signi_power: discardedCards.length > 0
           ? (parseInt(battleCardMap.get(discardedCards[0])?.Power ?? '0', 10) || undefined)
@@ -10813,6 +10816,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         last_activated_discard_count: lgTotalDiscarded,
+        last_cost_energy_trash_count: activatedEnergyTrashPaidCount(energyTrashIndices),
         last_energy_trash_color_count: lgEnergyTrashColor ? lgEnergyTrashColorCards.length : my.last_energy_trash_color_count,
       };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）

@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 「コストの合計」束縛14効果の過剰実行是正（2026-07-30・PLAN §4 単独バッチ・Codex実装／Claude検証是正）
+
+- **静的filter 8効果**：既存 `TargetFilter.costMin/costMax` へ parser を接続。`WX06-030-E1`／`WX20-063-E2` は cost=0、`WX11-043-E1` は cost≥4、`WX19-004-E1`③はアーツ cost≥2、`SPDi43-14/15/16-E2` は各色アーツ cost≤3、`WXK06-082-E1` は CSV 完全一致名 `幻竜　ドラマジ` の `excludeCardName`。`WX11-043` は PARTIAL 兄弟同居の PRESERVE カードなので parser 修正に加えて E1 のみ live 外科反映。SPDi43 3件の「《リコレクトアイコン》を持たない」は既存 `hasIcon` union/判定に語彙が無く、本波では未表現のまま。
+- **静的PLAY_FREE 3効果**：`WX21-038-E1=3`、`PR-466-E3=5`、付与内側 `WXK01-021-E1-G=3` を既存 `costThreshold` へ。PR-466 の《新鋭の巫女　タマヨリヒメ》場条件は既に `condition:HAS_CARD_IN_FIELD` で存在。
+- **動的PLAY_FREE 2効果**：既存 action を `costThresholdFromPaidCount{source,plus}` で拡張。`WX24-P4-072-E1` は実際に捨てた手札枚数、`WX24-P1-044-E2` は指定 `energyTrash` 枚数+1を `execPlayFree` の候補列挙で上限評価。後者の「1枚以上」は既存 `energyTrash` に `atLeast:true` を足し、実機 `SigniActivatedModal` で上限を固定せず複数選択可能にした。engine の `execTrash`（inline/`applyDirectAction` 再開点）と実機 `BattleScreen.executeSigniActivated` の両支払い地点で正確な枚数を記録し、色エナコストは後者へ混入させない。0枚捨ては0コストスペルだけに制限。
+- **本体欠落1効果**：`WXK03-070-E1` を `SEQUENCE[SEND_TO_ENERGY(opponent SIGNI 1),BOUNCE(opponent SIGNI 1)]` へ。1体目を相手（カード持ち主）のエナへ移した後に2体目を選ぶため同一体の再選択は不可。指定3枚エナコストの `costUnparsed:true` は意図どおり据置＝コスト踏み倒しは残る。
+- **⚠Claude検証で是正1件＝動的閾値の膨張**：`last_cost_energy_trash_count` は `execTrash{asCost}` が **`+=` で累算**するのに、任意コスト解決の冒頭でクリアされる兄弟 `last_cost_energy_trash_level_sum` と**寿命が揃っていなかった**＝前の効果で払った枚数が `costThresholdFromPaidCount` の閾値に足し込まれ、**コスト0の支払いで高コストスペルが撃てる方向**に上限が膨らむ。`execSequence` の任意コストクリア地点に枚数側も追加し、golden で寿命を固定。
+- **検証**：golden **1085→1090**（静的境界の許可/拒否、全生成構造、PLAY_FREE候補列挙、engine/UI支払い枚数、二段別対象、支払い枚数の寿命）、smoke **10679/10679** 全0、fuzz 全0（seed 12648430）、census **1391→1386**（`BASELINE_HIGH=1386`）、manual field loss 0、lint 0 errors/**228 warnings**、同型★0（5986枚・265群）。held **286枚/106署名据置**。意図外に fresh/live へ波及した既存「《別名》以外」9効果は全件HEADへ復元し、最終 per-effect live diff は指定14効果のみ・outlier 0。偽陽性11効果とスコープ外14効果は live JSON 差分0。
+- **Claude 独立検証（実測）**：①`npm run gates` 全緑（typecheck/golden 1090/smoke/fuzz/census 1386/manual-fields/lint） ②live per-effect 差分 **changed 14 / added 0 / removed 0**＝申告14効果と完全一致（巻き添え0） ③`build:effects` 再実行で **per-effect 差分0＝冪等**（`WX11-043` の live 外科反映も再現） ④`npm run regen` 再実行で decompile シート10枚＋`grouped_sentence_all` の**ハッシュ不変**＝シートは JSON と同期済み ⑤14効果すべて原文↔逆翻訳を目視照合（`docs/decompile_sheet*.txt`）で束縛の反映を確認 ⑥変更ファイル全27件のエンコーディング検査＝BOM/UTF-16/置換文字 0（`BattleScreen.tsx` の UTF-8 BOM は HEAD 由来の既存） ⑦**変異試験**＝`execPlayFree` の動的閾値配線を外す／`execSequence` の枚数クリアを外す、の2変異でそれぞれ**狙った1本だけ FAIL**することを確認（テストが実際に効いている）。
+- **やっていないこと**：SPDi43のリコレクト無し判定、WXK03-070の3枚指定エナコスト、スコープ外STUB/UNKNOWN 14効果、他の原文不一致、ブラウザ実機。**原文照合で見つけた在庫外の既存ズレ1件（本波では未着手・次以降へ）**＝`WX11-043-E1` は原文が「《クロスアイコン》《コードアート　Ｃ・Ｍ・Ｃ》の右【出】」なのに JSON は `crossOnly` を持たず（兄弟の E2 は `crossOnly:true`）、**クロスしていなくても【出】が発火する**。
+
 ## 付与能力の内側 A群残＋手札枚数比例5効果＋公開カード消滅（2026-07-30・PLAN §3 タスク12(l)・Codex実装／Claude検証是正）
 
 - **投入前実測で簿記を2点訂正**。①PLAN「A群 残8」は**残6**＝`WD21-009-E1`／`PR-204-E1` は 2026-07-23 の §6.3 ルリグ付与バッチで `manualEffects.ts` に付与 `abilities` を埋めた MANUAL 定義があり golden も通っている（live JSON の `abilities:[]` は override が完全置換するため実機には届いている＝ガードレール §5-16）。②在庫が挙げていた不足機構「手札枚数比例値」は**機構不足ではなく既存機構への未接続**＝`POWER_MODIFY_PER_HAND_COUNT`（型 `effects.ts` / executor `execPowerModifyPerHandCount`）は既にあり、parser 側が `parseSentencePart3.ts` で無条件に STUB へ倒していた。

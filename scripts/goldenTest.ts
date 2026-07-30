@@ -44,7 +44,7 @@ import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canPayUnderAnySigniTrash, payUnderAnySigniTrash, underAnySigniCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
-import { canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
@@ -17494,6 +17494,101 @@ test('task12(l) honest defer 4効果: 未展開かつAUTOではない状態を�
     const json = JSON.stringify(e.action);
     ok((json.includes('"rawText"') || json.includes('"UNKNOWN"')) && !json.includes('"effect":'), `${effectId}: 未展開を維持`);
   }
+});
+
+test('cost-total batch: 静的8効果とPLAY_FREE静的3効果の生成JSONを全件固定', () => {
+  const json = (cardNum: string) => JSON.stringify(effectsMap.get(cardNum) ?? []);
+  for (const [cardNum, effectId, needle] of [
+    ['WX06-030', 'WX06-030-E1', '"costMin":0,"costMax":0'],
+    ['WX20-063', 'WX20-063-E2', '"costMin":0,"costMax":0'],
+    ['WX11-043', 'WX11-043-E1', '"costMin":4'],
+    ['WX19-004', 'WX19-004-E1', '"cardType":"アーツ","costMin":2'],
+    ['SPDi43-14', 'SPDi43-14-E2', '"color":"黒","costMax":3'],
+    ['SPDi43-15', 'SPDi43-15-E2', '"color":"青","costMax":3'],
+    ['SPDi43-16', 'SPDi43-16-E2', '"color":"緑","costMax":3'],
+    ['WXK06-082', 'WXK06-082-E1', '"excludeCardName":"幻竜　ドラマジ"'],
+    ['WX21-038', 'WX21-038-E1', '"costThreshold":3'],
+    ['PR-466', 'PR-466-E3', '"costThreshold":5'],
+    ['WXK01-021', 'WXK01-021-E1-G', '"costThreshold":3'],
+  ] as const) {
+    const text = json(cardNum);
+    ok(text.includes(effectId) && text.includes(needle), `${effectId}: ${needle}`);
+  }
+  const wx19 = effectsMap.get('WX19-004')![0].action as SequenceAction;
+  const choose = wx19.steps.find(s => s.type === 'CHOOSE');
+  ok(choose?.type === 'CHOOSE' && choose.choices[0].action.type === 'TRASH'
+    && choose.choices[1].action.type === 'ADD_TO_FIELD', 'WX19-004 ①②不変');
+});
+
+test('cost-total batch: costMin/costMax は境界内を許可し上下の範囲外を拒否', () => {
+  const mk = (cost: string) => ({ CardNum: `C-${cost}`, Type: 'スペル', Cost: cost }) as unknown as CardData;
+  ok(matchesFilter(mk(''), { cardType: 'スペル', costMin: 0, costMax: 0 }), 'exact0 accepts 0');
+  ok(!matchesFilter(mk('《白》×1'), { cardType: 'スペル', costMin: 0, costMax: 0 }), 'exact0 rejects 1');
+  ok(matchesFilter(mk('《白》×4'), { cardType: 'スペル', costMin: 4 }), 'min4 accepts 4');
+  ok(!matchesFilter(mk('《白》×3'), { cardType: 'スペル', costMin: 4 }), 'min4 rejects 3');
+  ok(matchesFilter(mk('《青》×3'), { cardType: 'スペル', costMax: 3 }), 'max3 accepts 3');
+  ok(!matchesFilter(mk('《青》×4'), { cardType: 'スペル', costMax: 3 }), 'max3 rejects 4');
+});
+
+test('cost-total batch: PLAY_FREE 静的/動的上限が候補列挙を実際に制限', () => {
+  const spellByTotal = (total: number) => findCard(c => c.Type === 'スペル'
+    && [...(c.Cost ?? '').matchAll(/[×xX]([０-９\d]+)/g)]
+      .reduce((s, m) => s + parseInt(m[1].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10), 0) === total);
+  const s0 = spellByTotal(0), s1 = spellByTotal(1), s3 = spellByTotal(3), s4 = spellByTotal(4), s5 = spellByTotal(5), s6 = spellByTotal(6);
+  const candidates = (label: string, action: EffectAction, state: Partial<PlayerState>) => {
+    const base = mkCtx({}, {});
+    const c = { ...base, ownerState: { ...base.ownerState, hand: [s0, s1, s3, s4, s5, s6], ...state } } as ExecCtx;
+    const r = executeEffect({ effectId: 'pf', effectType: 'ACTIVATED', action, duration: 'INSTANT', mandatory: false } as CardEffect, c);
+    ok(!r.done && r.pending.type === 'SEARCH', `${label}: PLAY_FREE opens SEARCH`);
+    return !r.done && r.pending.type === 'SEARCH' ? r.pending.visibleCards : [];
+  };
+  const static3 = (effectsMap.get('WX21-038')![0].action);
+  const static5 = (effectsMap.get('PR-466')!.find(e => e.effectId === 'PR-466-E3')!.action);
+  const dynDiscard = effectsMap.get('WX24-P4-072')![0].action;
+  const dynEnergyEffect = effectsMap.get('WX24-P1-044')!.find(e => e.effectId === 'WX24-P1-044-E2')!;
+  const dynEnergy = dynEnergyEffect.action;
+  eq(dynEnergyEffect.cost?.energyTrash?.atLeast, true, 'energyTrash payment accepts one or more cards');
+  eq(candidates('static3', static3, {}).join(','), [s0, s1, s3].join(','), 'static3');
+  eq(candidates('static5', static5, {}).join(','), [s0, s1, s3, s4, s5].join(','), 'static5');
+  eq(candidates('discard0', dynDiscard, { last_activated_discard_count: 0 }).join(','), [s0].join(','), 'discard0');
+  eq(candidates('discard3', dynDiscard, { last_activated_discard_count: 3 }).join(','), [s0, s1, s3].join(','), 'discard3');
+  eq(candidates('energy1', dynEnergy, { last_cost_energy_trash_count: 1 }).join(','), [s0, s1].join(','), 'energy1 plus1');
+  eq(candidates('energy4', dynEnergy, { last_cost_energy_trash_count: 4 }).join(','), [s0, s1, s3, s4, s5].join(','), 'energy4 plus1');
+});
+
+test('cost-total batch: engine energyTrash支払い枚数記録とWXK03-070二段別対象', () => {
+  eq(activatedDiscardPaidCount(0, 0, 0, 3), 3, 'BattleScreen discardUpTo UI records selected 3');
+  eq(activatedDiscardPaidCount(0, 0, 0, 0), 0, 'BattleScreen discardUpTo UI records selected 0');
+  eq(activatedEnergyTrashPaidCount(new Set([1, 3, 5])), 3, 'BattleScreen energyTrash UI records selected 3');
+  const e1 = findCard(c => c.Type === 'シグニ' && c.Level === '1');
+  const e2 = findCard(c => c.Type === 'シグニ' && c.Level === '2');
+  const payCtx = mkCtx({}, {});
+  payCtx.ownerState = { ...payCtx.ownerState, energy: [e1, e2] };
+  const pay = run({ type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 2 }, asCost: true } as EffectAction, payCtx);
+  eq(pay.ownerState.last_cost_energy_trash_count, 2, 'execTrash ENERGY_CARD asCost records 2');
+
+  const a = findCard(c => c.Type === 'シグニ' && c.Level === '3');
+  const b = findCard(c => c.Type === 'シグニ' && c.Level === '4');
+  const action = effectsMap.get('WXK03-070')![0].action;
+  const moved = run(action, mkCtx({}, { signi: [a, b, null] }, 'WXK03-070'));
+  ok(moved.otherState.energy.includes(a), '1体目は持ち主である相手のエナへ');
+  ok(moved.otherState.hand.includes(b), '2体目は別対象として相手の手札へ');
+  ok(!moved.otherState.hand.includes(a), '同一体を2回処理しない');
+});
+
+test('cost-total batch: 支払い枚数の記録は効果をまたいで累算しない（検証是正・動的上限の膨張防止）', () => {
+  // execTrash{asCost} は last_cost_energy_trash_count を「+=」で積むため、任意コスト解決の
+  // 冒頭でクリアしないと前の効果で払った枚数が costThresholdFromPaidCount の閾値に足し込まれる
+  // （＝コスト0の支払いで高コストスペルが撃てる方向の膨張）。level_sum と同じ寿命であることを固定する。
+  const e = [1, 2, 3].map(lv => findCard(c => c.Type === 'シグニ' && c.Level === String(lv)));
+  const ctx = mkCtx({}, {});
+  ctx.ownerState = { ...ctx.ownerState, energy: [...e], last_cost_energy_trash_count: 5, last_cost_energy_trash_level_sum: 9 };
+  // OPTIONAL_COST（任意コスト）を含む SEQUENCE を1歩進めるだけでクリアされる
+  const seq: EffectAction = { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as EffectAction] } as EffectAction;
+  const r = executeEffect({ effectId: 'reset', effectType: 'ACTIVATED', action: seq, duration: 'INSTANT', mandatory: false } as CardEffect, ctx);
+  const st = r.ownerState;
+  eq(st.last_cost_energy_trash_count, undefined, '枚数記録がクリアされる');
+  eq(st.last_cost_energy_trash_level_sum, undefined, 'レベル合計も同じ寿命（既存挙動）');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

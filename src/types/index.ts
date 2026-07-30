@@ -116,6 +116,7 @@ export interface PlayerState {
   last_field_trash_level?: number; // 直前コスト支払いで場からトラッシュしたシグニのレベル（BanishFilter: levelEqualsVar='field_trash_level'用。WX03-001）
   last_cost_hand_to_energy_level?: number; // 直前の任意【出】コストで手札からエナへ置いたシグニのレベル（WXDi-P16-080）
   last_cost_energy_trash_level_sum?: number; // 直前の任意【出】コストでエナからトラッシュへ置いたシグニのレベル合計（WXK09-032）
+  last_cost_energy_trash_count?: number; // 直前の指定 energyTrash コストで実際にトラッシュへ置いた枚数
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
   blocked_card_names_game?: string[]; // このゲームの間使用禁止のカード名（NAME_BAN 効果。ターン境界でリセットしない）

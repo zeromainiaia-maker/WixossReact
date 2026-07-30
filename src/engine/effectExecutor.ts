@@ -947,6 +947,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         trash: [...s.trash, ...selected],
         ...(a.asCost && selected.length > 0 ? {
           last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), ...selected.map(getCardNum)],
+          last_cost_energy_trash_count: (s.last_cost_energy_trash_count || 0) + selected.length,
           last_cost_energy_trash_level_sum:
             (s.last_cost_energy_trash_level_sum || 0) + selected.reduce((sum, n) => {
               const level = parseInt(c.cardMap.get(getCardNum(n))?.Level || '', 10);
@@ -3170,6 +3171,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               ...cur.ownerState,
               last_cost_hand_to_energy_level: undefined,
               last_cost_energy_trash_level_sum: undefined,
+              // 枚数側も同じ寿命（execTrash{asCost} が累算するため、クリアしないと前の効果の
+              // 支払い枚数が costThresholdFromPaidCount の閾値に足し込まれて上限が膨らむ）。
+              last_cost_energy_trash_count: undefined,
             },
           };
           const activateOnly5 = stub5.id === 'OPTIONAL_ACTIVATE';
@@ -4094,11 +4098,18 @@ function execPlayFree(a: PlayFreeAction, ctx: ExecCtx): ExecResult {
   }
 
   // costThreshold: 使用コストの合計が閾値以下のカードに限定（WX04-011「コストの合計が３以下の青のアーツ」）
-  if (a.costThreshold != null) {
+  const dynamicThreshold = a.costThresholdFromPaidCount
+    ? (a.costThresholdFromPaidCount.source === 'discard'
+        ? (ctx.ownerState.last_activated_discard_count ?? 0)
+        : (ctx.ownerState.last_cost_energy_trash_count ?? 0))
+      + (a.costThresholdFromPaidCount.plus ?? 0)
+    : undefined;
+  const costThreshold = dynamicThreshold ?? a.costThreshold;
+  if (costThreshold != null) {
     cands = cands.filter(n => {
       const c = ctx.cardMap.get(n);
       const total = parseEnergyCosts(c?.Cost ?? '').reduce((s, e) => s + e.count, 0);
-      return total <= a.costThreshold!;
+      return total <= costThreshold;
     });
   }
   // useTimingIncludes: 使用タイミングに指定アイコンを含むカードに限定（WX04-011「使用タイミングに《メインフェイズアイコン》を含む」）
@@ -6286,6 +6297,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               trash: [...s.trash, cardNum],
               ...(trashAction.asCost ? {
                 last_cost_trashed_cards: [...(s.last_cost_trashed_cards || []), getCardNum(cardNum)],
+                last_cost_energy_trash_count: (s.last_cost_energy_trash_count || 0) + 1,
                 last_cost_energy_trash_level_sum:
                   (s.last_cost_energy_trash_level_sum || 0) + (Number.isFinite(trashedLevel) ? trashedLevel : 0),
               } : {}),

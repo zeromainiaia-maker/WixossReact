@@ -449,7 +449,7 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (etVarM) {
       const etVFilter: TargetFilter = { cardType: 'シグニ' };
       if (etVarM[1]) etVFilter.story = etVarM[1];
-      cost.energyTrash = { count: parseNum(etVarM[2]), filter: etVFilter };
+      cost.energyTrash = { count: parseNum(etVarM[2]), atLeast: true, filter: etVFilter };
     }
   }
   // エナゾーンから《keyword》のカードN枚をトラッシュ（アイコン型）

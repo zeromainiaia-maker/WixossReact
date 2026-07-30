@@ -405,7 +405,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                               onClick={() => matches && setSelectedSigniActivatedEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= actEnergyTrashCost.count) return prev;
+                                if (!actEnergyTrashCost.atLeast && next.size >= actEnergyTrashCost.count) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}

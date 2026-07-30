@@ -4,6 +4,21 @@ import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { toHalfWidth } from './battleUtils';
 
+/** 【起】UIで実際に捨てた各コストを、動的効果が読む1つの枚数へ集約する。 */
+export function activatedDiscardPaidCount(
+  fixedDiscardCount: number,
+  discardAllCount: number,
+  energyTrashAllCount: number,
+  variableDiscardCount: number,
+): number {
+  return fixedDiscardCount + discardAllCount + energyTrashAllCount + variableDiscardCount;
+}
+
+/** 指定 energyTrash コストで選んだ枚数（通常の色エナコストは含めない）。 */
+export function activatedEnergyTrashPaidCount(selected: Set<number>): number {
+  return selected.size;
+}
+
 /** エクシードで選べる「各ルリグの一番上を除いたカード」。placedState 基準で呼ぶ。 */
 export function exceedPoolOf(state: PlayerState): string[] {
   return [

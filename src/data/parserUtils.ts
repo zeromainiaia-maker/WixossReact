@@ -271,6 +271,16 @@ export function parseCardTypeFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+/** 「コストの合計がN以下／以上／ちょうどN」のカード対象フィルタ。 */
+export function parseCostTotalFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(/コストの合計が([０-９\d]+)(以下|以上)?/);
+  if (!m) return {};
+  const value = parseNum(m[1]);
+  if (m[2] === '以下') return { costMax: value };
+  if (m[2] === '以上') return { costMin: value };
+  return { costMin: value, costMax: value };
+}
+
 // ＜クラス名＞ を配列で抽出（例: ＜鉱石＞か＜宝石＞ → ['鉱石','宝石']）
 export function parseStoryFilter(text: string): Partial<TargetFilter> {
   // 同一クラス名が複数回出る場合（条件文＋フィルタ文で＜X＞が2回など）は重複除去
