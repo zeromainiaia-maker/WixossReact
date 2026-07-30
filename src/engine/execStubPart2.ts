@@ -2475,6 +2475,8 @@ export function execStubPart2(
   // `ctx.ownerState.hand`＝自分の手札を1枚捨てる**だけの別物で、唯一の使用者 `WD16-016-BURST`
   // （対戦相手が捨てる側）では owner が反転していた。parser 側で `CONDITIONAL{HAND_COUNT}` の
   // 昇格置換へ組み替え、id ごと（アクション型 `ConditionalDiscardAction` も）退役させた。
+  // ⚠この下の空行は必須＝genStubsMd の説明抽出（直前のコメント塊を拾う）に本コメントが混ざるのを防ぐ。
+
   // PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ）
   // TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log）
   // OPP_DECLARE_COLOR: 相手が色を宣言（log）

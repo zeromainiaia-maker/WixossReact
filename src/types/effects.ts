@@ -272,6 +272,10 @@ export type Condition =
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
+  // 両プレイヤーの手札/エナ枚数を直接比較する（cmp(自分, operator, 対戦相手)＝LIFE_COMPARE_OPP と同じ向き）。
+  // 「対戦相手の手札があなたより多い場合」＝自分 lt 相手。閾値比較の HAND_COUNT/ENERGY_COUNT（値と比べる）とは別物。
+  | { type: 'HAND_COMPARE_OPP'; operator: CompareOp }
+  | { type: 'ENERGY_COMPARE_OPP'; operator: CompareOp }
   | { type: 'EFFECTIVE_LRIG_LIMIT_GTE'; value: number }
   | { type: 'DURING_PHASE'; phases: string[] }
   | { type: 'AND'; conditions: Condition[] }

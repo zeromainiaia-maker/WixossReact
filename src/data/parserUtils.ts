@@ -356,6 +356,12 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (/この方法でダウンしたルリグと共通する色を持つ(?:対戦相手の)?(?:パワー[０-９\d]+以下の)?シグニ/.test(text)) {
     filter.colorMatchesLastProcessed = true;
   }
+  // 「（対戦相手|あなた）の中央のシグニゾーンにある〈filter〉シグニN体」＝ゾーン限定（centerZoneOnly・engine の
+  //   matchesStateFilter が zoneIdx===1 で判定）。従来は落ちて**どのゾーンのシグニでも選べる過剰実行**だった
+  //   （WX15-033-E2／WX20-025-E3／WXDi-P02-065／WX24-P2-091＝タスク12(lxiii)）。
+  //   ⚠「このシグニが中央のシグニゾーンにあるかぎり／場合、…対戦相手のシグニ1体を対象とし」＝**効果元の位置条件**を
+  //     巻き込まないよう、名詞句が読点を挟まずシグニへ続く形に限定する。
+  if (/中央のシグニゾーンにある[^。、]*シグニ/.test(text)) filter.centerZoneOnly = true;
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
   if (/【チャーム】が付いている/.test(text)) filter.hasCharm = true; // 「【チャーム】が付いている対戦相手のシグニ」（G153）

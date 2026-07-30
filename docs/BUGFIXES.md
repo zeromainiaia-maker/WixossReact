@@ -1,5 +1,40 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxiii)「対戦相手の〈ゾーン〉があなたより多い場合」＝両者比較ゲートの脱落 4枚＋中央ゾーン限定の脱落 4枚＝**(lxiii) 残0クローズ**（PLAN §3 タスク12(lxiii)・Opus 5）
+
+登録内容は「`WX15-033-E2` の fresh が `CONDITIONAL{LIFE_COMPARE_OPP}` を落とすドリフト（held 据置中）」だったが、**原因は fresh 側のドリフトではなく「カードゲートに載っていないから条件節が黙って落ちる」構造**で、同型が全CSVで4枚あり **curated 側も大半が落としていた**（＝held を解く前に、curated が正だという前提が誤りだった）。
+
+### ① 両者比較ゲート「対戦相手の〈ゾーン〉があなたより多い場合」（4枚8箇所）
+
+`isBatch1OnlyClause` が `対戦相手のライフクロス` を含む条件節を **25枚のカード allowlist（`STATE_HOIST_BATCH1_CARDS`）に限定**しており、この4枚はどれも載っていなかった＝条件節ごと落ちて**無条件発火**していた。
+
+| 効果 | 旧 | 新 |
+|---|---|---|
+| `WX15-033-E2` | 無条件バニッシュ（curated は条件つきだが fresh が落とす＝held 据置の原因） | `CONDITIONAL{LIFE_COMPARE_OPP lt}` |
+| `WX17-040-E1` ①② | **条件なしでドロー／エナチャージ** | `HAND_COMPARE_OPP`／`ENERGY_COMPARE_OPP`（新語彙） |
+| `WX17-040-E1` ③・`WX18-032-BURST` ② | curated は choice.condition（選択肢を選べなくする）／fresh は条件なし | **選択肢の内側に `CONDITIONAL`**（原文は「対象とし」が条件より前＝解決時判定。`liftChoiceOptionCondition` の既存ガードどおり） |
+| `WX18-032-E1` | **無条件でこのシグニをアップ** | `CONDITIONAL{LIFE_COMPARE_OPP lt}` |
+| `WX18-032-BURST` ① | 条件なしで2枚ドロー | `HAND_COMPARE_OPP` |
+| `WXK11-031-E1` | **無条件で「手札1枚捨ててもよい→バニッシュ」** | 条件が任意ディスカードに掛かる |
+
+- **新語彙2本**＝`HAND_COMPARE_OPP` / `ENERGY_COMPARE_OPP`（既存 `LIFE_COMPARE_OPP` と同形＝`cmp(自分, operator, 相手)`）。閾値比較の `HAND_COUNT`/`ENERGY_COUNT`（値と比べる）とは別物。
+- ゲート緩和は**「あなたより多い」形だけ**＝`isBatch1OnlyClause` は閾値形（「対戦相手のライフクロスがN枚以下の場合」等）を引き続き batch1 限定に保つ。表記ゆれ「ライフクロス**の枚数**が」の有無も吸収した。
+
+### ② 「中央のシグニゾーンにある〈filter〉シグニN体」＝ゾーン限定の脱落（4枚）
+
+`parseSigniTarget` が `centerZoneOnly` を読んでおらず、**どのゾーンのシグニでも対象に取れる過剰実行**だった（`WX15-033-E2`／`WX20-025-E3`／`WXDi-P02-065-E2`／`WX24-P2-091-E1`）。engine 側の `centerZoneOnly`（`matchesStateFilter` が zoneIdx===1 で判定）は実装済みで、**parser が渡していなかっただけ**。⚠「このシグニが中央のシグニゾーンにある**かぎり／場合**、…対戦相手のシグニ1体を対象とし」＝**効果元の位置条件**を巻き込まないよう、名詞句が読点を挟まずシグニへ続く形に限定した。
+
+### ③ did-it ゲートを「条件で包まれた前段」にも効かせる（engine）
+
+`WXK11-031-E1` は条件付与の副作用で**新しい過剰実行が生まれるところだった**：包む前は `TRASH{HAND_CARD self}` が SEQUENCE の直下ステップで「対象なし→残りスキップ」ゲートに掛かっていたが、`CONDITIONAL` で包んだ途端にゲートが外れ、**条件不成立でも「そうした場合」のバニッシュが撃てる**。`execSequence` の3つの did-it ゲート（TRASH／DOWN／`DID_IT_GATED_TYPES`）を、**else なし `CONDITIONAL` の `then` を見る**ように変更した（`gateStep`）。golden で「条件不成立ならバニッシュも手札減もしない／成立なら両方起きる」を固定。
+
+### 残（別機構・PLAN §3 へ登録）
+
+- `WXK11-031-E1` の対象「パワー5000以下」フィルタと「それ」の照応＝対象宣言が条件・任意コストより前にある形（タスク12(liii) の正準形が要る）。
+- `WX18-032-E2`／`WXK11-031-E2`「対戦相手は手札が**N枚になるように**カードを捨てる」が `TRASH{count:N}`＝**N枚捨てる**に化けている（手札枚数依存の「N枚まで減らす」語彙が無い）。
+
+**ゲート**：typecheck ✅／golden **1131→1132**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1373 据置**／lint 0 errors・230 warnings 据置／manual field loss 0／同型★0（265群）／held **288枚 据置**（署名グループ 106→**104**）。live per-effect 差分 **changed 7 / added 0 / removed 0**（`WX15-033`／`WX17-040`／`WX18-032`／`WX20-025`／`WXDi-P02-065`／`WX24-P2-091`／`WXK11-031`）、`build:effects` 冪等。⚠`WX15-033`・`WX20-025`・`WXDi-P02-065`・`WX24-P2-091` は**純改善＝自動採用**、残り3枚は held に落ちたので per-effect で原文照合してから `--adopt`。
+
 ## 2026-07-31 — タスク12(lxii) `CONDITIONAL_DISCARD` を退役し `WD16-016-BURST` を昇格置換で組み直す＝**(lxii) 残0クローズ**（PLAN §3 タスク12(lxii)・Opus 5）
 
 **原文**：`WD16-016-BURST`「：対戦相手の手札が５枚以下の場合、対戦相手は手札を１枚捨てる。６枚以上の場合、代わりに２枚捨てる。」

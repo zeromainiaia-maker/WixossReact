@@ -3494,9 +3494,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       return { ...result, pending };
     }
       cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+    // did-it ゲートは「条件で包まれた前段」も対象にする（タスク12(lxiii)＝`WXK11-031-E1`
+    // 「〈ライフ比較〉の場合、手札を1枚捨ててもよい。そうした場合、それをバニッシュする」）。
+    // 包む前は TRASH が直下ステップだったので下のゲートが効いていたが、条件を付与した途端に外れて
+    // **条件不成立でも本体が撃てる過剰実行**になる。else 付き（分岐が別にある）は対象外。
+    const gateStep: EffectAction = (step.type === 'CONDITIONAL' && !(step as ConditionalAction).else)
+      ? (step as ConditionalAction).then : step;
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
-    if (step.type === 'TRASH' && i + 1 < a.steps.length) {
-      const tA = step as import('../types/effects').TrashAction;
+    if (gateStep.type === 'TRASH' && i + 1 < a.steps.length) {
+      const tA = gateStep as import('../types/effects').TrashAction;
       if (tA.target.owner === 'self' && !tA.bestEffort &&
           (tA.target.type === 'HAND_CARD' || tA.target.type === 'SIGNI' || tA.target.type === 'ENERGY_CARD') &&
           (cur.lastProcessedCards ?? []).length === 0) {
@@ -3504,8 +3510,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       }
     }
     // 自分の DOWN がダウン不可（アップ状態でない等で対象なし＝done だが lastProcessedCards 空）→ 残り（「そうした場合」）をスキップ
-    if (step.type === 'DOWN' && i + 1 < a.steps.length) {
-      const dA = step as DownAction;
+    if (gateStep.type === 'DOWN' && i + 1 < a.steps.length) {
+      const dA = gateStep as DownAction;
       if (dA.target.owner === 'self' && (cur.lastProcessedCards ?? []).length === 0) {
         return done(addLog(cur, 'ダウン不可：残りのSEQUENCEをスキップ'));
       }
@@ -3517,7 +3523,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // ここでは**プレースホルダ1ステップだけを消費**して以降の独立ステップは残す（過剰も過小も作らない）。
     // 対象は「処理したカードを lastProcessedCards に記録する＝空振りを判定できる」型に限定する
     // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
-    if (DID_IT_GATED_TYPES.has(step.type) && i + 1 < a.steps.length
+    if (DID_IT_GATED_TYPES.has(gateStep.type) && i + 1 < a.steps.length
         && (cur.lastProcessedCards ?? []).length === 0) {
       const nextDI = a.steps[i + 1];
       if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {

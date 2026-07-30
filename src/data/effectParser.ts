@@ -49,8 +49,12 @@ const LOOK_PICK_CHAIN_WAVE2_CARDS = new Set([
 ]);
 let _parsingCardNum = '';
 function isBatch1OnlyClause(re: RegExp): boolean {
+  // ⚠「対戦相手のライフクロス〜があなたより多い場合」族はカードゲートを外した（タスク12(lxiii)）。
+  //   全CSVで4枚（WX15-033／WX17-040／WX18-032／WXK11-031）しかなく、いずれもゲートに載っておらず
+  //   条件が黙って落ちて**無条件発火**していたため。閾値形（「対戦相手のライフクロスがN枚以下の場合」等）は
+  //   引き続きゲート内＝`ライフクロスが[０-９\d]` を含む source だけを batch1 限定にする。
   return re.source.includes('ターンの場合')
-    || re.source.includes('対戦相手のライフクロス')
+    || (re.source.includes('対戦相手のライフクロス') && !re.source.includes('あなたより多い'))
     || (re.source.includes('このシグニのパワーが') && re.source.includes('ライフクロス'))
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
@@ -1686,10 +1690,15 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   isFrozen 状態フィルタ＝execUtils が signi_frozen を走査・実装済）。従来は無条件発火（WXDi-P02-065/071 等）。
   [/(あなた|対戦相手)の場に凍結状態のシグニが([０-９\d]+)体以上ある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isFrozen: true }, minCount: parseNum(g[1]) })],
-  // 「対戦相手のライフクロスの枚数があなたより多い場合」＝相手ライフ>自ライフ＝自ライフ<相手ライフ（LIFE_COMPARE_OPP・
-  //   cmp(自ライフ, operator, 相手ライフ) なので 'lt'）。従来は無条件発火（WX15-033/WX17-040/WX18-032 等）。
-  [/対戦相手のライフクロスの枚数があなたより多い場合/,
+  // 「対戦相手の〈ゾーン〉があなたより多い場合」＝両プレイヤーの枚数比較（cmp(自分, operator, 相手) なので 'lt'）。
+  //   従来は無条件発火（WX15-033／WX17-040／WX18-032／WXK11-031＝全CSVでこの4枚だけ・タスク12(lxiii)）。
+  //   ⚠「の枚数」の有無は表記ゆれ（`WX18-032-E1`／`WXK11-031-E1` は「対戦相手のライフクロスがあなたより多い場合」）。
+  [/対戦相手のライフクロス(?:の枚数)?があなたより多い場合/,
     () => ({ type: 'LIFE_COMPARE_OPP', operator: 'lt' })],
+  [/対戦相手の手札(?:の枚数)?があなたより多い場合/,
+    () => ({ type: 'HAND_COMPARE_OPP', operator: 'lt' })],
+  [/対戦相手のエナゾーンにあるカード(?:の枚数)?があなたより多い場合/,
+    () => ({ type: 'ENERGY_COMPARE_OPP', operator: 'lt' })],
   // 「あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合」＝両中央ルリグ同レベル（LRIG_LEVEL_EQ_OPP）。
   [/あなたのセンタールリグと対戦相手のセンタールリグのレベルが同じ場合/,
     () => ({ type: 'LRIG_LEVEL_EQ_OPP' })],

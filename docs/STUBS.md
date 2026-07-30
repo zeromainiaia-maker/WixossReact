@@ -273,7 +273,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_TRASH_TO_ENERGY` | 1 | 1 | WX14-029 | 条件付きトラッシュ→エナ（センタールリグ名条件付き） |
 | `COPY_ABILITY` | 1 | 1 | WXDi-P04-035 | COPY_ABILITY: このシグニはその能力を得る |
 | `DECLARE_COLOR_COND_ENERGY_TRASH` | 1 | 1 | SPDi43-22 | 相手が宣言した色に応じてエナをトラッシュ（相手の宣言が必要→スキップ） DECLARE_COLOR_COND_ENERGY_TRASH: 色を宣言し、エナから宣言色のカードを任意でトラッシュ |
-| `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | CONDITIONAL_DISCARD は退役（タスク12(lxii)・2026-07-31）。「条件付き手札捨て」と称して**条件を一切見ず `ctx.ownerState.hand`＝自分の手札を1枚捨てる**だけの別物で、唯一の使用… |
+| `DISCARD_BY_POWER_MATCH` | 1 | 1 | WXK10-026 | PICK_FROM_TRASHED_CARDS の後半 / CONDITIONAL_ALTERNATE_EFFECT: 代替効果（スキップ） TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（log） … |
 | `DRAW` | 1 | 1 | WXDi-P10-006 | DRAW: N枚ドロー |
 | `DRAW_BY_CHARM_COUNT` | 1 | 1 | WX18-038 | チャーム数だけドロー |
 | `ENERGY_TO_HAND_ON_DECK` | 1 | 1 | WXDi-P12-079 | エナゾーンからカードを手札へ（SELECT→INTERNAL） |

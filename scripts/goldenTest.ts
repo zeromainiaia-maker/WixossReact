@@ -18136,6 +18136,39 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   eq(banished.otherState.energy.filter(n => n === atom).length, 1, 'バニッシュはそのまま1回だけ処理される');
 });
 
+test('task12(lxiii) 「対戦相手の〈ゾーン〉があなたより多い場合」＝両者比較ゲートが4枚すべてに載る', () => {
+  const json = (id: string) => JSON.stringify(effectsMap.get(id) ?? []);
+  // ① 条件が落ちて無条件発火していた4枚（全CSVでこの文型はこの4枚だけ）
+  ok(json('WX15-033').includes('"LIFE_COMPARE_OPP"'), 'WX15-033-E2 のライフ比較');
+  ok(json('WX17-040').includes('"HAND_COMPARE_OPP"') && json('WX17-040').includes('"ENERGY_COMPARE_OPP"')
+    && json('WX17-040').includes('"LIFE_COMPARE_OPP"'), 'WX17-040 の①手札②エナ③ライフ');
+  ok(json('WX18-032').includes('"HAND_COMPARE_OPP"') && json('WX18-032').includes('"LIFE_COMPARE_OPP"'), 'WX18-032 の手札/ライフ');
+  ok(json('WXK11-031').includes('"LIFE_COMPARE_OPP"'), 'WXK11-031-E1 のライフ比較');
+  // ② 中央シグニゾーン限定（従来はどのゾーンのシグニも選べる過剰実行）
+  for (const id of ['WX15-033', 'WX20-025', 'WXDi-P02-065', 'WX24-P2-091']) {
+    ok(json(id).includes('"centerZoneOnly":true'), `${id}: 中央のシグニゾーン限定`);
+  }
+  // ③ engine 評価＝cmp(自分, operator, 相手)。相手が多いときだけ成立する
+  const gate = (mine: number, theirs: number, cond: EffectAction extends never ? never : object) => {
+    const ctx = mkCtx({ hand: mine, energy: mine, life: mine }, { hand: theirs, energy: theirs, life: theirs });
+    return evalCondition(cond as never, ctx as never);
+  };
+  for (const t of ['LIFE_COMPARE_OPP', 'HAND_COMPARE_OPP', 'ENERGY_COMPARE_OPP']) {
+    eq(gate(2, 5, { type: t, operator: 'lt' }), true, `${t}: 相手が多い→成立`);
+    eq(gate(5, 2, { type: t, operator: 'lt' }), false, `${t}: 自分が多い→不成立`);
+    eq(gate(3, 3, { type: t, operator: 'lt' }), false, `${t}: 同数→不成立`);
+  }
+  // ④ WXK11-031-E1: 条件で包んだ前段の did-it ゲート＝ライフ条件を満たさなければ本体バニッシュも起きない
+  const eff = effectsMap.get('WXK11-031')!.find(e => e.effectId === 'WXK11-031-E1')!;
+  const victim = fresh();
+  const notMore = run(eff.action, mkCtx({ life: 5, hand: 3 }, { life: 2, signi: [victim, null, null] }));
+  ok(notMore.otherState.field.signi.some(s => s?.at(-1) === victim), '条件不成立ならバニッシュしない（旧＝条件脱落で常時バニッシュ）');
+  eq(notMore.ownerState.hand.length, 3, '条件不成立なら手札も捨てない');
+  const more = run(eff.action, mkCtx({ life: 2, hand: 3 }, { life: 5, signi: [victim, null, null] }));
+  eq(more.ownerState.hand.length, 2, '条件成立＋捨てるを選ぶと手札が1枚減る');
+  ok(!more.otherState.field.signi.some(s => s?.at(-1) === victim), 'そうした場合＝バニッシュされる');
+});
+
 test('task12(lxii) WD16-016-BURST: 相手手札5枚以下→1枚／6枚以上→代わりに2枚（自分の手札は減らない）', () => {
   const eff = effectsMap.get('WD16-016')!.find(e => e.effectId === 'WD16-016-BURST')!;
   ok(!JSON.stringify(eff).includes('CONDITIONAL_DISCARD'), '退役した CONDITIONAL_DISCARD が残っていない');
