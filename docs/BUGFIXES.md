@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## タスク12(l) B「ホログラフ公開置換」を既存並べ替え対話へ配線＝**(l) 残0クローズ**（2026-07-30・PLAN §3 タスク12(l)・Codex実装／Claude検証是正）
+
+- **投入前実測で codex の defer 理由3点のうち1点を訂正した**＝「上3枚の順序選択後にトップを公開する pause/resume が未実装」は誤りで、`LOOK_AND_REORDER` は既に対話アクション（`execLookAndReorder`→`needsInteraction`→`resumeLookAndReorder`、実機は `BattleScreen.tsx:4453`）。**不足していたのは①ホログラフ識別と②公開2地点の横取りだけ**で、指示書にそれを書いたら新 interaction 型を作らずに着地した。
+- `WX16-004-E1` の空だった `GRANT_LRIG_ABILITY.abilities` を `HOLOGRAPH_REVEAL_REPLACE` へ展開し、ターン終了時までの保持フラグを人間END／手札上限経由END／CPU ENDの3経路でクリアする（`BattleScreen.tsx:3314`／`3693`／`9277`）。前2ステップとベット判定（`IS_BETTING minCoins:2`）は元から正しく、不変。
+- 置換対象は**公開2地点だけ**＝`WXEX2-15-E2` の `REVEAL_DECK_TOP` と `WX15-002-E2` 付与AUTO内の公開形 `LOOK_AND_REORDER{count:1,private:false}`。どちらも **①置換フラグ ②解決中効果がホログラフ ③自分のデッキ** の3条件が揃ったときだけ、既存 `LOOK_AND_REORDER` の3枚・**非公開**（原文「見る」）並べ替えへ差し替える。`resumeLookAndReorder` は戻した後の**トップ1枚だけ**を公開記録へ載せる（原文「戻してからデッキの一番上を公開する」）。
+- **⚠Claude 検証で是正1件＝ホログラフ識別が共有関数内のカード固有ハードコード表だった**。`executeEffect` に `ctx.sourceEffectId === 'WX15-002-sub-E1' || 'WXEX2-15-E2'` を直書きする実装で、これは CODEX_GUIDE §5-18 が禁じる「共有関数にカード固有テーブルを埋める隠しパッチ」。しかも `WX15-002-sub-E1` は **parser が生成する採番**（過去に legacy 採番から parser 採番へ揃えた実績がある）＝**採番が変われば計器に一切映らないまま機構が静かに死ぬ**。データ側マーカー `CardEffect.holograph` へ移行し、**parser がコスト表記「ホログラフ」（マーカーと「：」の間＝ベットと同じ位置）から立て、ホログラフ効果が付与した能力へ伝播**させる形に置き換えた（`is_betting_this_effect` と同じ設計）。engine は `!!effect.holograph` を読むだけ。
+- **死フラグ検査を golden に追加**＝live データで `WX15-002-E2`／その付与能力／`WXEX2-15-E2` に `holograph` が立ち、**同カードの非ホログラフ兄弟には立たない**こと、全カード走査で `holograph` を持つのが該当2カードだけであることを固定。⚠live JSON は PRESERVE/held で据え置かれ parser 回帰を映さないため、**伝播規則は fresh parse でも別途固定**した（伝播を外す変異でこの1本だけ FAIL することを確認）。
+- **ゲート（Claude 独立実測）**：`npm run gates` 全緑（typecheck／golden **1092→1096**〔codex 3本＋Claude 1本〕／smoke **10679/10679** 全0・SKIP0／fuzz 全0 seed 12648430／census **1386 据置**／manual field loss 0／lint 0 errors・**228 warnings** 据置）。`npm run regen` 後 **同型★0**（5986枚・265群）。held **286枚/106署名 据置**。live per-effect 差分 **changed 3 / added 0 / removed 0**＝`WX16-004-E1`（本体）＋`WX15-002-E2`／`WXEX2-15-E2`（`holograph` マーカーのみ・他フィールド不変を機械確認）。`build:effects` 冪等。エンコーディング新規増0。
+- **codex の申告品質**＝**BUGFIXES を先頭に `##` で追記**（3回連続の末尾追記が今回ようやく定着）。数値申告・変異試験（両フックの単独無効化で対応テストだけ FAIL）・見送り0の申告はすべて独立実測と一致。**外したのは上記のハードコード1点だけ**で、これも「カード単位判定は `WX15-002-E1` を巻き込む」という Claude の指摘には正しく対応した上での取り違え（効果単位にはしたが、データではなくコードに置いた）。
+- **やっていないこと**：`WX15-002-E2` 内の宣言 `UNKNOWN`／`WXEX2-15-E1` の `TRAP_OP`・`TRAP_OPERATION`（スコープ外・未着手）、汎用ホログラフ基盤（該当3効果しかないため作らない判断）、ブラウザ実機（3枚並べ替えUI→トップ公開の目視）。
+
+## タスク12(l) A/C「置換イベント横取り」3効果を実働化（2026-07-30・PLAN §3 タスク12(l)・Codex実装／Claude検証是正。Bホログラフは honest defer 維持）
+
+- `WX24-P4-026-E1` は、白1枚＋赤青緑黒1枚を実際に手札へ加えた場合だけ、既存ガード代替を次の相手ターン終了時まで付与する形へ修正。0/1枚・白2枚では付与しない。
+- `SPDi44-08-E2` / `WX25-P1-018-E2` は、相手効果によるクロス状態シグニの場離れを1回だけルリグ付与能力の自己喪失へ置換。BANISH / BOUNCE / TRASH / SEND_TO_ENERGY / TRANSFER_TO_DECK / EXILE の effectExecutor 経路へ共通 helper を配線した。
+- `lrig_granted_auto_effects_until_opp_turn` と `guard_alt_hand_until_opp_turn` を既存 `*_until_opp_turn` ライフサイクルへ追加し、BattleScreen の2クリア地点・ガードUI・確定ハンドラを同時更新。
+- `WX16-004-E1` のホログラフ限定公開置換は実行コンテキスト識別と2公開actionへの限定フックが未実装のため、従来の honest defer を維持した。
+- golden は A の成立/不成立4方向、C の相手効果/自分効果・クロス/非クロス・1回盾・実 BOUNCE を固定。`npm run gates` 全緑、census 1386（増減なし）。
+- **⚠Claude 検証で是正1件＝A群の色条件が「2枚の割り当て」を色の独立カウントで書いていた**。当初の `AND[白 eq1, 赤青緑黒 eq1]` は、多色シグニ（白黒等・実データに**30枚**）が**1枚で色フィルタ2本を同時に満たす**ため両方向に外れる＝①**白黒1枚だけ pick で付与が成立**（原文は「もう１枚」が必要＝過剰実行）②**白黒＋赤の2枚では他色が2枚と数えられ不成立**（過小実行）。既存語彙のみで `AND[白 gte1, 赤青緑黒 gte1, 白赤青緑黒 eq2]` へ置き換え＝「両方の札が有色で、白が1枚以上、他色が1枚以上」＝pick 上限2枚のもとで原文と完全一致する（無色シグニ36枚が相方のときだけ不成立、が正しい挙動）。多色1枚／多色+赤／多色+白／多色+無色／白+無色／赤+赤の6ケースを golden に追加し、旧 `eq` 形へ戻す変異で**狙った1本だけ FAIL** することを確認。
+- **Claude 独立検証（実測）**：①`npm run gates` 全緑（typecheck／golden **1090→1092**／smoke **10679/10679** 全0・SKIP0／fuzz 全0 seed 12648430／census **1386 据置**／manual field loss 0／lint 0 errors・**228 warnings** 据置） ②`npm run regen` 後 **同型★0**（5986枚・265群） ③live per-effect 差分 **changed 3 / added 0 / removed 0**＝申告3効果と完全一致（兄弟効果・スコープ外の巻き添え0） ④`build:effects` 再実行で per-effect 差分0＝**冪等**、held は **286枚/106署名でベースライン据置**（codex 申告の「288枚」は build 途中の一過性で、クリーンな再 build では再現しない） ⑤C群の共通 helper は `lrig_granted_auto_effects*` に当該 STUB を持つ盤面でしか発火しない＝**該当2カード以外への波及は構造的に0** ⑥新フィールド2本は死フラグでない＝`guard_alt_hand_until_opp_turn` は実機ハンドラ（`BattleScreen.handleGuardWithHandAlternative`）と UI（`GuardResponseDialog`）の**両方**が `Math.max` で既存 `game_guard_alt_hand` と合流、クリアは既存 `*_until_opp_turn` ファミリと同じ2地点 ⑦変更ファイル全件のエンコーディング検査＝U+FFFD 新規増0／3文字以上連続 `?` 新規増0。
+- **やっていないこと**：`WX16-004-E1`（B群ホログラフ）、`WX25-P1-056-E1` の `leaveReplaceBanish`（共通 helper で閉じられる見込みだが任意選択とバニッシュ先処理が別途要る）、`WX12-020-E3`（捨て枚数比例）、ブラウザ実機（ガード代替ボタンの表示と手札1枚捨て確定）。
+
 ## 「コストの合計」束縛14効果の過剰実行是正（2026-07-30・PLAN §4 単独バッチ・Codex実装／Claude検証是正）
 
 - **静的filter 8効果**：既存 `TargetFilter.costMin/costMax` へ parser を接続。`WX06-030-E1`／`WX20-063-E2` は cost=0、`WX11-043-E1` は cost≥4、`WX19-004-E1`③はアーツ cost≥2、`SPDi43-14/15/16-E2` は各色アーツ cost≤3、`WXK06-082-E1` は CSV 完全一致名 `幻竜　ドラマジ` の `excludeCardName`。`WX11-043` は PARTIAL 兄弟同居の PRESERVE カードなので parser 修正に加えて E1 のみ live 外科反映。SPDi43 3件の「《リコレクトアイコン》を持たない」は既存 `hasIcon` union/判定に語彙が無く、本波では未表現のまま。

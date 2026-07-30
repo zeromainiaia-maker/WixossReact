@@ -203,6 +203,8 @@ export interface PlayerState {
   life_burst_double_next?: boolean;
   // スペル/アーツ効果でターン終了まで付与されたルリグの AUTO 能力
   lrig_granted_auto_effects?: import('./effects').CardEffect[];
+  // 次の対戦相手のターン終了時まで付与されたルリグ能力
+  lrig_granted_auto_effects_until_opp_turn?: import('./effects').CardEffect[];
   // 「このゲームの間、あなたは以下の能力を得る」でプレイヤーに付与された AUTO 能力。
   // ゲーム中持続するためターン境界ではクリアしない。
   game_granted_auto_effects?: import('./effects').CardEffect[];
@@ -459,6 +461,7 @@ export interface PlayerState {
   game_no_coin_gain?: boolean;                     // WXDi-P07-006: このゲームコイン獲得禁止
   game_opp_extra_guard_hand_or_colorless?: number; // WXDi-P05-005: 相手ガード時追加コスト（手札N枚か《無》）
   game_guard_alt_hand?: number;                    // WXDi-P06-006: ガード代替（手札N枚捨て）
+  guard_alt_hand_until_opp_turn?: number;           // WX24-P4-026: 次の対戦相手ターン終了時までのガード代替
   game_turn_end_trash_to_hand?: { class: string; count: number }; // WXDi-P04-006: ターン終了時トラッシュ→手札
   game_grow_phase_limit_plus?: number;             // WXDi-P11-010A: グロウフェイズ開始時リミット+N（累積）
   game_lrig_limit_bonus?: number;                  // ゲーム通じて累積するリミット増加量（リセット対象外）
@@ -541,6 +544,10 @@ export interface PlayerState {
   is_boosting_this_effect?: boolean;
   // ベットで実際に支払ったコイン枚数（可変ベット「好きな枚数」・段階ベット「or」のスケール用）。is_betting_this_effect と同時に設定/クリア
   bet_coins_paid?: number;
+  // WX16-004: ターン終了時まで、ホログラフによる自分のデッキトップ公開を3枚並べ替え後の公開へ置換
+  holograph_reveal_replace_this_turn?: boolean;
+  // 解決中の効果単位マーカー。カード単位ではなく effectId から立て、完了解決時にクリアする
+  is_holograph_this_effect?: boolean;
   // FUTURE SESSION③: 次のアタックフェイズ開始時にプリオケシグニへアタック時トラッシュ能力を付与
   pending_prioke_attack_trash_grant?: boolean;
   // PR-Di035: 次のアタックフェイズ開始時にプリパラ共通色・レベル3種類チェックして色別効果
@@ -637,6 +644,7 @@ export type PendingInteractionDef =
       destOwner: 'self' | 'opponent';
       destPosition: 'top' | 'bottom' | 'any' | 'first_top_rest_bottom' | 'split_top_bottom';
       private: boolean;       // true=自分だけ見る（見る）/ false=両者公開（公開する）
+      revealTopAfterReorder?: boolean; // WX16-004: 非公開で戻した後、トップ1枚だけを公開
       shuffle?: boolean;
       continuation?: EffectAction;
     }

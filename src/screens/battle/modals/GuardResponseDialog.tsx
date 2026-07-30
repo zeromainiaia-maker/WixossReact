@@ -63,7 +63,7 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               // game_opp_extra_guard_hand_or_colorless: 相手が能力付与→追加で手札1枚か《無》必要
               const oppExtraHandOrColorless = (op.game_opp_extra_guard_hand_or_colorless ?? 0) > 0;
               // game_guard_alt_hand: 自分が能力付与→ガードアイコン代わりに手札N枚捨てでガード可
-              const myGuardAltHand = my.game_guard_alt_hand ?? 0;
+              const myGuardAltHand = Math.max(my.game_guard_alt_hand ?? 0, my.guard_alt_hand_until_opp_turn ?? 0);
               const guardCardCountInHand = my.hand.filter(cn => canCardGuard(cn, my, battleCardMap, effectsMap)).length;
               // エナゾーンが空の場合はガード不可
               const guardBlockedByExtraCost = oppGuardExtraColorless && my.energy.length === 0;

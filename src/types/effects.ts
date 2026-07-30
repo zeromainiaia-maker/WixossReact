@@ -1060,6 +1060,7 @@ export interface LookAndReorderAction {
   reorder: boolean;   // true = 順番を自由に決められる
   canTrash?: boolean; // true = 一部をトラッシュに置ける（残りをデッキに戻す）
   shuffle?: boolean; // 戻すカードをシャッフルする（公開したカードをシャッフルしてデッキ下へ）
+  revealTopAfterReorder?: boolean; // 戻した後にデッキトップ1枚を公開（ホログラフ置換）
   destination: {
     location: CardLocation;
     owner: Owner;
@@ -1722,6 +1723,7 @@ export interface GrantLrigAbilityAction {
   abilities: CardEffect[];  // 付与される能力（サブエフェクト）
   rawText?: string;         // 元のテキスト（manual で構造を直接付与する場合は省略可）
   permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
+  duration?: EffectDuration; // UNTIL_OPP_TURN_END は長期ストアへ格納
   targetedCenter?: boolean; // 「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る」表記変種（WX25-P1-001系）。engine挙動は既定と同一（自分のセンタールリグへ付与）＝decompiler表示用
 }
 
@@ -1820,6 +1822,8 @@ export interface AltCostOppTurnAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
+  leaveVictimFilter?: TargetFilter;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
   handDiscardCountFromTargetLevel?: boolean;
   /** Filter for a target-level-derived hand discard cost. */
@@ -2186,6 +2190,11 @@ export interface CardEffect {
   crossOnly?: boolean;
   // 絆アイコン有効時のみ発動（【絆常】【絆出】【絆自】【絆起】）: 表示フラグ兼ロジックフラグ
   kizunaIcon?: boolean;
+  // コストキーワード「ホログラフ」を持つ効果（【出】ホログラフ《コイン》《コイン》等）。
+  // 「ホログラフの効果によって〜する場合、代わりに」の置換（WX16-004-E1）が発動元の判定に使う＝
+  // ベットの is_betting_this_effect と同じく「いま解決中の効果がそれか」を engine が読む。
+  // 付与能力（GRANT_LRIG_ABILITY.abilities）にはホログラフ効果から生えた子として伝播させる。
+  holograph?: boolean;
   // ターン1制限なし（デフォルトは1ターン1回）
   repeatable?: boolean;
   // v0.277: 手札から発動できる【起】（手札から自身を捨てることでフィールドなしで発動）

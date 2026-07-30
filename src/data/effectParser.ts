@@ -4291,6 +4291,8 @@ function parseActionTextInner(text: string): EffectAction {
     if (quotedLrigM) {
       // abilities は parseBlock / parseSpellEffect で rawText から埋められる
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim(),
+        ...(/【ガード】する際.*代わりに手札を[１1]枚捨ててもよい/.test(quotedLrigM[1])
+          && text.includes('次の対戦相手のターン終了時まで') ? { duration: 'UNTIL_OPP_TURN_END' as const } : {}),
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
@@ -4298,8 +4300,10 @@ function parseActionTextInner(text: string): EffectAction {
   // GRANT_LRIG_ABILITY の省略デフォルト＝ターン終了時まで。「次の対戦相手のターン終了時まで」は表現語彙が無いため据置。
   {
     const quotedSelfLrigM = text.match(/(?:ターン終了時まで、)?このルリグは[「『]([\s\S]+?)[」』]を得る/);
-    if (quotedSelfLrigM && !text.includes('次の対戦相手のターン終了時まで、このルリグは')) {
+    if (quotedSelfLrigM && (!text.includes('次の対戦相手のターン終了時まで、このルリグは')
+        || /クロス状態のシグニ[１1]体が対戦相手の効果によって場を離れる場合/.test(quotedSelfLrigM[1]))) {
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedSelfLrigM[1].trim(),
+        ...(text.includes('次の対戦相手のターン終了時まで') ? { duration: 'UNTIL_OPP_TURN_END' as const } : {}),
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
@@ -5758,6 +5762,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (colonIdx < 0) return null;
 
   let costStr = afterMarker.slice(0, colonIdx).trim();
+  // コストキーワード「ホログラフ」はマーカーと「：」の間に出る（ベットと同じ位置）。
+  // costStr は以降の抽出で削られるので、ここで確定させる。
+  const isHolograph = /ホログラフ/.test(costStr);
   let actionText = afterMarker.slice(colonIdx + 1).trim();
   let leadingTurnOwnerActionCond: Condition | undefined;
   const leadingTurnM = STATE_HOIST_BATCH1_CARDS.has(cardNum)
@@ -7296,6 +7303,32 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (leadingTurnOwnerActionCond) {
     resolvedAction = { type: 'CONDITIONAL', condition: leadingTurnOwnerActionCond, then: resolvedAction };
   }
+  // 「この方法で手札に加えたカード1枚が白で、もう1枚が赤/青/緑/黒」:
+  // pickUpTo のため、白ちょうど1枚かつ他色ちょうど1枚（合計2枚）のときだけ後段を実行する。
+  // ⚠2枚の色は「独立に数える」では表せない＝多色（白黒等・実データに30枚）は色フィルタ2本を1枚で
+  //   同時に満たすため、白ちょうど1/他色ちょうど1 だと ①白黒1枚だけで成立（過剰）②白黒+赤で他色2枚に
+  //   なり不成立（過小）の両方が起きる。「白≥1 かつ 他色≥1 かつ 有色ちょうど2枚」なら全組み合わせで原文
+  //   と一致する（無色シグニ36枚が相方のときだけ成立しない、が正しい）。
+  if (/この方法で手札に加えたカード[１1]枚が白で、もう[１1]枚が赤か青か緑か黒の場合/.test(actionText)
+      && resolvedAction.type === 'SEQUENCE') {
+    const seq = resolvedAction as SequenceAction;
+    const last = seq.steps.at(-1);
+    if (last?.type === 'GRANT_LRIG_ABILITY') {
+      (last as GrantLrigAbilityAction).duration = 'UNTIL_OPP_TURN_END';
+      seq.steps[seq.steps.length - 1] = {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'AND',
+          conditions: [
+            { type: 'LAST_PROCESSED_MATCHES', filter: { color: '白' }, operator: 'gte', value: 1 },
+            { type: 'LAST_PROCESSED_MATCHES', filter: { color: ['赤', '青', '緑', '黒'] }, operator: 'gte', value: 1 },
+            { type: 'LAST_PROCESSED_MATCHES', filter: { color: ['白', '赤', '青', '緑', '黒'] }, operator: 'eq', value: 2 },
+          ],
+        },
+        then: last,
+      };
+    }
+  }
   // 無言フォールバック刻印をここで回収（以降のサブ展開 parseBlock は各自の効果内で回収する）
   const silentFb = consumeSilentFallbacks();
 
@@ -7324,6 +7357,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
     const hasUnknownSub = expandGrantLrigAbilities(resolvedAction, cardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
+    // ホログラフ効果が付与した能力は、その能力の実行もホログラフ由来として扱う
+    // （WX15-002-E2＝【出】ホログラフで付与した【自】の中で「デッキの一番上を公開する」が起きる）。
+    if (isHolograph) {
+      for (const sub of (resolvedAction as GrantLrigAbilityAction).abilities ?? []) sub.holograph = true;
+    }
   } else
   // GRANT_FIELD_SIGNI_ABILITY: rawStages（多段「<条件>かぎり、「Q」を得る。」＝WX24-P1-043）を段ごとに
   // parseBlock し、各段の activeCondition（THIS_CARD_HAS_UNDER{filter} 等）を CardEffect へ注入して展開。
@@ -7546,6 +7584,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     parseStatus,
     ...(isCrossOnly ? { crossOnly: true } : {}),
     ...(isKizuna ? { kizunaIcon: true } : {}),
+    // engine が「いま解決中の効果がホログラフか」を読むためのデータ側マーカー。
+    ...(isHolograph ? { holograph: true } : {}),
     ...(handActivated ? { handActivated: true } : {}),
     ...(trashActivated ? { trashActivated: true } : {}),
     ...(extractedTriggerScope !== undefined ? { triggerScope: extractedTriggerScope } : {}),
@@ -7566,12 +7606,41 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
       const gla = a as GrantLrigAbilityAction;
       if (gla.rawText && (!gla.abilities || gla.abilities.length === 0)) {
         const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
+        if (/【ガード】する際.*代わりに手札を[１1]枚捨ててもよい/.test(cleanRaw)) {
+          gla.abilities = [{
+            effectId: `${cardNum}-GRANT`,
+            effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'GUARD_ALT_HAND_REPLACE', count: 1 },
+            duration: gla.duration ?? 'UNTIL_END_OF_TURN',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          }];
+        } else if (/ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりに/.test(cleanRaw)) {
+          gla.abilities = [{
+            effectId: `${cardNum}-GRANT`,
+            effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'HOLOGRAPH_REVEAL_REPLACE' },
+            duration: gla.duration ?? 'UNTIL_END_OF_TURN',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          }];
+        } else if (/クロス状態のシグニ[１1]体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う/.test(cleanRaw)) {
+          gla.abilities = [{
+            effectId: `${cardNum}-GRANT`,
+            effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', leaveVictimFilter: { crossState: true } },
+            duration: gla.duration ?? 'UNTIL_END_OF_TURN',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          }];
+        } else {
         // 「【起】…。」「【起】…。」の複数引用形式は 」「 境界で各能力に分割してから展開する
         const pieces = cleanRaw.split(/[」』]\s*[「『]/);
         gla.abilities = pieces
           .flatMap(p => splitEffectBlocks(p))
           .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
+        }
       }
       const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);
       if (!rawTextOnlyPunct && (gla.abilities.length === 0 || gla.abilities.some(e => e.parseStatus === 'UNKNOWN'))) {

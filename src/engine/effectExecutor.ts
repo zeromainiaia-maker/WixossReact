@@ -172,6 +172,48 @@ function findEffectLeavePowerReductionSubstitute(
   return null;
 }
 
+/**
+ * 相手効果による場離れを、被害側ルリグに付与された「代わりにこの能力を失う」で1回だけ置換する。
+ * 該当する付与 CardEffect そのものだけを長期ストアから除き、他の付与能力と同時付与の POWER_SET は残す。
+ */
+export function applyEffectLeaveLrigAbilitySubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const baseNum = victimNum.includes('#') ? victimNum.slice(0, victimNum.indexOf('#')) : victimNum;
+  const victim = ctx.cardMap.get(baseNum);
+  const victimZone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  const stores = [
+    'lrig_granted_auto_effects_until_opp_turn',
+    'lrig_granted_auto_effects',
+  ] as const;
+  for (const key of stores) {
+    const effects = state[key] ?? [];
+    const index = effects.findIndex(effect => {
+      const action = effect.action as import('../types/effects').StubAction;
+      const filter = action.leaveVictimFilter;
+      const { crossState: _cross, ...cardFilter } = filter ?? {};
+      return effect.effectType === 'CONTINUOUS'
+        && action.type === 'STUB'
+        && action.id === 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY'
+        && (filter?.crossState === undefined || (state.field.cross_state?.[victimZone] ?? false) === filter.crossState)
+        && matchesFilter(victim, cardFilter);
+    });
+    if (index < 0) continue;
+    const kept = effects.filter((_, i) => i !== index);
+    const nextState = { ...state, [key]: kept.length > 0 ? kept : undefined };
+    return {
+      ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+        `${victim?.CardName ?? victimNum}の場離れをルリグ付与能力の喪失で置換`),
+      replaced: true,
+    };
+  }
+  return { ctx, replaced: false };
+}
+
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
@@ -293,6 +335,11 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
           continue;
         }
       }
+      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, own, cur);
+      if (lrigSub.replaced) {
+        cur = lrigSub.ctx;
+        continue;
+      }
       // 効果離場の powerReduction 身代わり（WX06-019）: tgt.owner==='opponent'＝相手効果で victim 側が場を離れる。
       // protector があれば victim を残し protector のパワーを下げてバニッシュを回避（自動適用）。
       if (own === 'opponent') {
@@ -377,6 +424,11 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const num of selected) {
       const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(num, cur) : tgt.owner;
+      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, own, cur);
+      if (lrigSub.replaced) {
+        cur = lrigSub.ctx;
+        continue;
+      }
       const s = ownerState(own, cur);
       const removed = removeFromField(num, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
@@ -431,6 +483,19 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
 // REVEAL_DECK_TOP（B2）: デッキの上から count 枚を公開（ピックしない）。公開シグニのレベル合計と公開カード番号を記録。
 // デッキからは取り除かない（公開のみ）。後続の動的閾値フィルタ・TRASH_REVEALED が記録を参照する。WX17-028。
 function execRevealDeckTop(a: import('../types/effects').RevealDeckTopAction, ctx: ExecCtx): ExecResult {
+  if (a.owner === 'self'
+      && ctx.ownerState.holograph_reveal_replace_this_turn
+      && ctx.ownerState.is_holograph_this_effect) {
+    return execLookAndReorder({
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: 3,
+      private: true,
+      reorder: true,
+      destination: { location: 'deck', owner: 'self', position: 'top' },
+      revealTopAfterReorder: true,
+    }, ctx);
+  }
   const state = ownerState(a.owner, ctx);
   const n = resolveNum(a.count);
   const revealed = state.deck.slice(0, Math.min(n, state.deck.length));
@@ -806,6 +871,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const trashedPuppet = selected.some(n => (before.field.puppet_signi ?? []).includes(n));
       let cur = c;
       for (const num of selected) {
+        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, tgt.owner, cur);
+        if (lrigSub.replaced) {
+          cur = lrigSub.ctx;
+          continue;
+        }
         const s = ownerState(tgt.owner, cur);
         const removed = removeFromField(num, s);
         const destination = a.destination ?? 'trash';
@@ -3414,6 +3484,20 @@ function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
 }
 
 function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
+  if (a.source.location === 'deck'
+      && a.source.owner === 'self'
+      && a.count === 1
+      && a.private === false
+      && ctx.ownerState.holograph_reveal_replace_this_turn
+      && ctx.ownerState.is_holograph_this_effect) {
+    return execLookAndReorder({
+      ...a,
+      count: 3,
+      private: true,
+      reorder: true,
+      revealTopAfterReorder: true,
+    }, ctx);
+  }
   const state = ownerState(a.source.owner as Owner, ctx);
   const count = resolveNum(a.count);
   const sourceCards = a.source.location === 'life_cloth' ? state.life_cloth : state.deck;
@@ -3434,6 +3518,7 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     destOwner: (a.destination.owner === 'any' ? 'self' : a.destination.owner) as 'self' | 'opponent',
     destPosition: a.destination.position,
     private: a.private,
+    ...(a.revealTopAfterReorder ? { revealTopAfterReorder: true } : {}),
     ...(a.shuffle ? { shuffle: true } : {}),
   });
 }
@@ -3590,6 +3675,11 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     function applyToBottom(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
       for (const num of selected) {
+        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, src.owner, cur);
+        if (lrigSub.replaced) {
+          cur = lrigSub.ctx;
+          continue;
+        }
         const s = ownerState(src.owner, cur);
         const removed = removeFromField(num, s);
         const newS = insertToDeck(removed, [num]);
@@ -5215,12 +5305,26 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_LRIG_ABILITY': {
       const ga = action as GrantLrigAbilityAction;
       if (ga.abilities && ga.abilities.length > 0) {
-        const existing = ctx.ownerState.lrig_granted_auto_effects ?? [];
+        const untilOppTurn = ga.duration === 'UNTIL_OPP_TURN_END';
+        const storeKey = untilOppTurn ? 'lrig_granted_auto_effects_until_opp_turn' : 'lrig_granted_auto_effects';
+        const existing = ctx.ownerState[storeKey] ?? [];
         // permanent（「このゲームの間」）は各能力に permanentGrant を刻み、ターン境界リセットで残す
         const granted = ga.permanent ? ga.abilities.map(ab => ({ ...ab, permanentGrant: true })) : ga.abilities;
+        const guardAlt = ga.abilities
+          .map(ab => ab.action)
+          .find((act): act is import('../types/effects').StubAction =>
+            act.type === 'STUB' && act.id === 'GUARD_ALT_HAND_REPLACE');
+        const holographReplace = ga.abilities.some(ab =>
+          ab.action.type === 'STUB' && ab.action.id === 'HOLOGRAPH_REVEAL_REPLACE');
         const newOwner: PlayerState = {
           ...ctx.ownerState,
-          lrig_granted_auto_effects: [...existing, ...granted],
+          [storeKey]: [...existing, ...granted],
+          ...(guardAlt
+            ? (untilOppTurn
+              ? { guard_alt_hand_until_opp_turn: guardAlt.count ?? 1 }
+              : { game_guard_alt_hand: guardAlt.count ?? 1 })
+            : {}),
+          ...(holographReplace ? { holograph_reveal_replace_this_turn: true } : {}),
         };
         return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
       }
@@ -5387,7 +5491,17 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
       && ctx.ownerState.energy.includes(ctx.sourceCardNum)) {
     return done(addLog(ctx, 'エナゾーンのカードは能力を失っているため効果は発動しない'));
   }
-  return executeAction(effect.action, ctx);
+  // 「ホログラフの効果によって〜する場合、代わりに」（WX16-004-E1）の発動元判定。
+  // 判定は **データ側の CardEffect.holograph**（parser がコスト表記「ホログラフ」から立て、
+  // ホログラフ効果が付与した能力へも伝播させる）で行う。effectId のハードコード表は使わない
+  // ＝共有関数にカード固有テーブルを埋めると parser の採番変更で静かに死ぬ（CODEX_GUIDE §5-18）。
+  const holographEffect = !!effect.holograph;
+  const markedCtx = holographEffect
+    ? { ...ctx, ownerState: { ...ctx.ownerState, is_holograph_this_effect: true } }
+    : ctx;
+  const result = executeAction(effect.action, markedCtx);
+  if (!result.done || !holographEffect) return result;
+  return { ...result, ownerState: { ...result.ownerState, is_holograph_this_effect: undefined } };
 }
 
 // デッキが0枚（かつトラッシュにカードあり）のプレイヤーをリフレッシュする。
@@ -5958,6 +6072,27 @@ export function resumeLookAndReorder(
     lastProcessedCards: pending.destLocation === 'life' ? trashed : reordered,
     lastLookTrashedCards: trashed,
   };
+  if (pending.revealTopAfterReorder) {
+    const revealState = ownerState(destOwner, cur);
+    const revealed = revealState.deck.slice(0, 1);
+    const levelSum = revealed.reduce((sum, num) => {
+      const card = ctx.cardMap.get(getCardNum(num));
+      if (card?.Type !== 'シグニ') return sum;
+      const level = parseInt(card.Level ?? '', 10);
+      return sum + (Number.isNaN(level) ? 0 : level);
+    }, 0);
+    const withReveal = setOwnerState(destOwner, {
+      ...revealState,
+      last_revealed_signi_level_sum: levelSum,
+      last_revealed_deck_cards: revealed,
+    }, cur);
+    const revealedCtx = {
+      ...addLog(withReveal, `デッキの一番上を公開`),
+      lastProcessedCards: revealed,
+    };
+    if (pending.continuation) return executeAction(pending.continuation, revealedCtx);
+    return done(revealedCtx);
+  }
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
@@ -6201,6 +6336,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
+      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
+      if (lrigSub.replaced) return done(lrigSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
@@ -6214,6 +6351,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
+      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
+      if (lrigSub.replaced) return done(lrigSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
@@ -6227,6 +6366,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
+      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
+      if (lrigSub.replaced) return done(lrigSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
@@ -6241,6 +6382,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const owner = tgt.owner as Owner;
         const s = ownerState(owner, ctx);
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
+          const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, owner, ctx);
+          if (lrigSub.replaced) return done(lrigSub.ctx);
           const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
           const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
           const removed = removeFromField(cardNum, s);
@@ -6343,6 +6486,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       for (const o of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(o, ctx);
         if (s.field.signi.some(st => st?.includes(cardNum))) {
+          const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, o, ctx);
+          if (lrigSub.replaced) return done(lrigSub.ctx);
           const removed = removeFromField(cardNum, s);
           return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
@@ -6883,7 +7028,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const tdOwner = tdA.source.owner;
       const tdS = ownerState(tdOwner, ctx);
       let tdNew = { ...tdS };
-      if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) tdNew = removeFromField(cardNum, tdNew);
+      if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
+        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, tdOwner, ctx);
+        if (lrigSub.replaced) return done(lrigSub.ctx);
+        tdNew = removeFromField(cardNum, tdNew);
+      }
       else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };
       else if (tdS.trash.includes(cardNum)) tdNew = { ...tdNew, trash: tdNew.trash.filter(x => x !== cardNum) };
       else if (tdS.energy.includes(cardNum)) tdNew = { ...tdNew, energy: tdNew.energy.filter(x => x !== cardNum) };
@@ -6937,4 +7086,3 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       return executeAction(action, { ...ctx, lastProcessedCards: [cardNum] });
   }
 }
-

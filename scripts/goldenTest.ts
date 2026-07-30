@@ -24,6 +24,7 @@ import {
   resumeSelectTarget, resumeSearch, resumeChoose,
   resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
+  applyEffectLeaveLrigAbilitySubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
@@ -17484,16 +17485,161 @@ test('task12(l) DECK_REVEAL_UNTIL: 廃棄先3文型の弁別（検証是正・�
   }
 });
 
-test('task12(l) honest defer 4効果: 未展開かつAUTOではない状態を固定', () => {
-  for (const [cardNum, effectId] of [
-    ['WX24-P4-026', 'WX24-P4-026-E1'], ['WX16-004', 'WX16-004-E1'],
-    ['SPDi44-08', 'SPDi44-08-E2'], ['WX25-P1-018', 'WX25-P1-018-E2'],
-  ] as const) {
-    const e = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId)!;
-    ok(e.parseStatus !== 'AUTO', `${effectId}: AUTOではない`);
-    const json = JSON.stringify(e.action);
-    ok((json.includes('"rawText"') || json.includes('"UNKNOWN"')) && !json.includes('"effect":'), `${effectId}: 未展開を維持`);
+test('task12(l) B群: WX16-004-E1 の引用【常】をターン中ホログラフ公開置換へ展開', () => {
+  const e = mergeManualEffects('WX16-004', effectsMap.get('WX16-004') ?? []).find(x => x.effectId === 'WX16-004-E1')!;
+  ok(e.parseStatus !== 'AUTO', 'WX16-004-E1: AUTOではない');
+  const json = JSON.stringify(e.action);
+  ok(json.includes('"rawText"') && json.includes('HOLOGRAPH_REVEAL_REPLACE'), 'WX16-004-E1: 引用【常】を置換フラグへ展開');
+  const seq = e.action as SequenceAction;
+  const gate = seq.steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const grant = gate.then as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>;
+  const granted = run(grant, mkCtx({}, {}));
+  eq(granted.ownerState.holograph_reveal_replace_this_turn, true, '付与時にターン中置換フラグが立つ');
+});
+
+test('task12(l) B群: ホログラフ判定は live データの CardEffect.holograph で立つ（死フラグ検査）', () => {
+  // 置換の発動元判定を effectId のハードコード表ではなくデータ側マーカーで行う。
+  // 実データに holograph が立っていなければ engine 側の分岐は永久に不発なので、live を直接検査する。
+  const holoOf = (cardNum: string, effectId: string) =>
+    mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+  const wx15 = holoOf('WX15-002', 'WX15-002-E2')!;
+  eq(wx15.holograph, true, 'WX15-002-E2（【出】ホログラフ）に holograph が立つ');
+  const granted = (wx15.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities ?? [];
+  ok(granted.length > 0 && granted.every(a => a.holograph === true),
+    'ホログラフ効果が付与した能力にも伝播する（公開は付与された【自】の中で起きる）');
+  // live JSON は PRESERVE/held で据え置かれるため、parser 回帰は live 検査では捕まらない。
+  // 伝播規則そのものを fresh parse で固定する（外すとここだけ FAIL する）。
+  const freshWx15 = parseCardEffects(cardMap.get('WX15-002')!).find(x => x.effectId === 'WX15-002-E2')!;
+  const freshSubs = (freshWx15.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>).abilities ?? [];
+  eq(freshWx15.holograph, true, 'fresh parse でも【出】ホログラフに holograph が立つ');
+  ok(freshSubs.length > 0 && freshSubs.every(a => a.holograph === true),
+    'fresh parse でも付与能力へ伝播する');
+  eq(holoOf('WXEX2-15', 'WXEX2-15-E2')!.holograph, true, 'WXEX2-15-E2（【起】ホログラフ）に holograph が立つ');
+  // 非ホログラフの兄弟には立たない＝カード単位の偽陽性を作っていない
+  eq(holoOf('WX15-002', 'WX15-002-E1')!.holograph, undefined, '同カードの非ホログラフ効果には立たない');
+  eq(holoOf('WXEX2-15', 'WXEX2-15-E1')!.holograph, undefined, '同カードの非ホログラフ効果には立たない');
+  // 全カード走査：ホログラフ表記のある3カード以外へ波及していない
+  const holoCards = new Set<string>();
+  for (const [cardNum, effs] of effectsMap) {
+    for (const e of mergeManualEffects(cardNum, effs)) if (e.holograph) holoCards.add(cardNum);
   }
+  eq([...holoCards].sort().join(','), 'WX15-002,WXEX2-15', 'holograph が立つのはホログラフ表記のある2カードだけ');
+});
+
+test('task12(l) B群: WX15-002-E2 の公開は3枚を非公開で並べ替え、戻したトップだけ公開', () => {
+  const top = fill(3);
+  const ctx = mkCtx({ deckTop: top }, {});
+  ctx.ownerState = { ...ctx.ownerState, holograph_reveal_replace_this_turn: true };
+  const effect: CardEffect = {
+    effectId: 'WX15-002-sub-E1', effectType: 'AUTO', holograph: true,
+    action: { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } },
+    duration: 'INSTANT', mandatory: true,
+  };
+  const started = executeEffect(effect, ctx);
+  ok(!started.done && started.pending.type === 'LOOK_AND_REORDER', '既存LOOK_AND_REORDER interactionへ置換');
+  if (started.done || started.pending.type !== 'LOOK_AND_REORDER') return;
+  eq(started.pending.cards.length, 3, '3枚を見る');
+  eq(started.pending.private, true, '3枚は相手に公開しない');
+  eq(started.pending.revealTopAfterReorder, true, '戻した後のトップ公開をresumeへ保持');
+  const order = [top[2], top[0], top[1]];
+  const resumed = resumeLookAndReorder(order, [], started.pending, { ...ctx, ownerState: started.ownerState, otherState: started.otherState });
+  ok(resumed.done, '並べ替え後に完了');
+  eq(resumed.ownerState.deck[0], top[2], '選んだ順のトップを維持');
+  eq(resumed.lastProcessedCards?.join(','), top[2], '後半でトップ1枚だけを公開記録へ載せる');
+  eq(resumed.ownerState.last_revealed_deck_cards?.join(','), top[2], 'REVEAL_DECK_TOP互換の公開記録');
+});
+
+test('task12(l) B群: WXEX2-15-E2 のREVEAL_DECK_TOPも置換し、3枚未満でも壊れない', () => {
+  const top = fill(2);
+  const ctx = mkCtx({ deckTop: [] }, {});
+  ctx.ownerState = { ...ctx.ownerState, deck: top, holograph_reveal_replace_this_turn: true };
+  const effect: CardEffect = {
+    effectId: 'WXEX2-15-E2', effectType: 'ACTIVATED', holograph: true,
+    action: { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+    duration: 'INSTANT', mandatory: false,
+  };
+  const started = executeEffect(effect, ctx);
+  ok(!started.done && started.pending.type === 'LOOK_AND_REORDER', 'REVEAL_DECK_TOPを既存interactionへ置換');
+  if (started.done || started.pending.type !== 'LOOK_AND_REORDER') return;
+  eq(started.pending.cards.length, 2, 'デッキ2枚なら見られる2枚だけを見る');
+  const resumed = resumeLookAndReorder([...top].reverse(), [], started.pending, { ...ctx, ownerState: started.ownerState, otherState: started.otherState });
+  eq(resumed.lastProcessedCards?.length, 1, '並べ替え後はトップ1枚だけ公開');
+});
+
+test('task12(l) B群: 付与前・非ホログラフ・相手保持フラグでは公開を置換しない', () => {
+  const reveal: CardEffect = {
+    effectId: 'plain', effectType: 'AUTO',
+    action: { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 },
+    duration: 'INSTANT', mandatory: true,
+  };
+  const before = executeEffect({ ...reveal, holograph: true }, mkCtx({}, {}));
+  ok(before.done, '付与前は置換しない');
+  const nonHoloCtx = mkCtx({}, {});
+  nonHoloCtx.ownerState = { ...nonHoloCtx.ownerState, holograph_reveal_replace_this_turn: true };
+  ok(executeEffect(reveal, nonHoloCtx).done, '非ホログラフ効果は置換しない');
+  const oppOnly = mkCtx({}, {});
+  oppOnly.otherState = { ...oppOnly.otherState, holograph_reveal_replace_this_turn: true };
+  ok(executeEffect({ ...reveal, holograph: true }, oppOnly).done, '相手だけが保持する置換は自分の公開に働かない');
+});
+
+test('task12(l) A群: 白+他色2枚だけガード代替を次の相手ターン終了時まで付与', () => {
+  const e = mergeManualEffects('WX24-P4-026', effectsMap.get('WX24-P4-026') ?? []).find(x => x.effectId === 'WX24-P4-026-E1')!;
+  const seq = e.action as SequenceAction;
+  const gate = seq.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  ok(JSON.stringify(gate).includes('GUARD_ALT_HAND_REPLACE'), '引用【常】を既存ガード代替へ展開');
+  ok(JSON.stringify(gate).includes('UNTIL_OPP_TURN_END'), '次の相手ターン終了時までの持続');
+  const white = findCard(c => c.Type === 'シグニ' && c.Color === '白');
+  const red = findCard(c => c.Type === 'シグニ' && c.Color === '赤');
+  const white2 = findCard(c => c.Type === 'シグニ' && c.Color === '白' && c.CardNum !== white);
+  const apply = (picked: string[]) => run(gate, { ...mkCtx({}, {}), lastProcessedCards: picked });
+  eq(apply([white, red]).ownerState.guard_alt_hand_until_opp_turn, 1, '白+赤なら付与');
+  eq(apply([white, white2]).ownerState.guard_alt_hand_until_opp_turn, undefined, '白+白なら不成立');
+  eq(apply([white]).ownerState.guard_alt_hand_until_opp_turn, undefined, '1枚だけなら不成立');
+  eq(apply([]).ownerState.guard_alt_hand_until_opp_turn, undefined, '0枚なら不成立');
+  // 原文は「１枚が白で、**もう１枚**が赤か青か緑か黒」＝2枚の割り当て条件。色を独立に数える素朴な
+  // 「白ちょうど1／他色ちょうど1」では、多色（白黒等・実データに30枚）が両方の色フィルタを1枚で満たすため
+  // ①白黒1枚だけで成立（過剰）②白黒+赤で他色2枚になり不成立（過小）の両方が起きる。両方向を固定する。
+  const whiteMulti = findCard(c => c.Type === 'シグニ' && /白/.test(c.Color ?? '') && /[赤青緑黒]/.test(c.Color ?? ''));
+  const colorless = findCard(c => c.Type === 'シグニ' && !/[白赤青緑黒]/.test(c.Color ?? ''));
+  eq(apply([whiteMulti]).ownerState.guard_alt_hand_until_opp_turn, undefined, '多色1枚だけなら不成立');
+  eq(apply([whiteMulti, red]).ownerState.guard_alt_hand_until_opp_turn, 1, '多色白+赤の2枚なら付与');
+  eq(apply([whiteMulti, white]).ownerState.guard_alt_hand_until_opp_turn, 1, '多色白+単色白なら付与（多色側が他色を担う）');
+  eq(apply([whiteMulti, colorless]).ownerState.guard_alt_hand_until_opp_turn, undefined, '多色白+無色なら不成立（もう1枚が他色でない）');
+  eq(apply([white, colorless]).ownerState.guard_alt_hand_until_opp_turn, undefined, '白+無色なら不成立');
+  eq(apply([red, red]).ownerState.guard_alt_hand_until_opp_turn, undefined, '赤+赤なら不成立');
+});
+
+test('task12(l) C群: 相手効果の全離場置換は1体だけ守り、自分効果と非クロスは守らない', () => {
+  const victim1 = fresh();
+  const victim2 = fresh();
+  const ability: CardEffect = {
+    effectId: 'shield', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', leaveVictimFilter: { crossState: true } },
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
+  };
+  const base = mkCtx({}, { signi: [victim1, victim2, null] });
+  base.otherState = {
+    ...base.otherState,
+    field: { ...base.otherState.field, cross_state: [true, true, false] },
+    lrig_granted_auto_effects_until_opp_turn: [ability],
+  };
+  const selfEffect = applyEffectLeaveLrigAbilitySubstitute(victim1, 'self', base);
+  eq(selfEffect.replaced, false, '自分の効果による離場は横取りしない');
+  const first = applyEffectLeaveLrigAbilitySubstitute(victim1, 'opponent', base);
+  eq(first.replaced, true, '相手効果のクロス状態シグニ離場を横取り');
+  ok(first.ctx.otherState.field.signi.some(s => s?.at(-1) === victim1), '1体目は場に残る');
+  eq(first.ctx.otherState.lrig_granted_auto_effects_until_opp_turn, undefined, '該当付与能力だけ失う');
+  eq(applyEffectLeaveLrigAbilitySubstitute(victim2, 'opponent', first.ctx).replaced, false, '2体目は守らない');
+  const nonCross = { ...base, otherState: { ...base.otherState, field: { ...base.otherState.field, cross_state: [false, true, false] } } };
+  eq(applyEffectLeaveLrigAbilitySubstitute(victim1, 'opponent', nonCross).replaced, false, '非クロス状態は守らない');
+  const bounced = run({
+    type: 'BOUNCE',
+    target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+    optional: false,
+  }, base);
+  ok(bounced.otherState.field.signi.some(s => s?.at(-1) === victim1), '非バニッシュ離場（手札戻し）の1体目を実際に場へ残す');
+  ok(!bounced.otherState.field.signi.some(s => s?.at(-1) === victim2), '能力消費後の2体目は実際に手札へ戻る');
+  ok(bounced.otherState.hand.includes(victim2), '2体目の移動先は手札');
 });
 
 test('cost-total batch: 静的8効果とPLAY_FREE静的3効果の生成JSONを全件固定', () => {

@@ -340,7 +340,22 @@ function costJa(c?: any): string {
 function condJa(c?: any): string {
   if (!c) return '';
   switch (c.type) {
-    case 'AND': return c.conditions.map(condJa).filter(Boolean).join('かつ');
+    case 'AND': {
+      // WX24-P4-026「1枚が白で、もう1枚が赤か青か緑か黒」＝2枚の割り当て条件を
+      // 「白≥1 かつ 他色≥1 かつ 有色ちょうど2枚」の3本で表す（多色シグニが色フィルタ2本を
+      // 1枚で満たすため、色を独立に数える形では原文と一致しない）。逆翻訳では原文へ畳む。
+      const [a, b, d] = c.conditions ?? [];
+      const isLpm = (x: any, op: string, v: number, color: unknown) =>
+        x?.type === 'LAST_PROCESSED_MATCHES' && (x.operator ?? 'gte') === op && (x.value ?? x.minCount) === v
+        && JSON.stringify(x.filter?.color) === JSON.stringify(color);
+      if (c.conditions?.length === 3
+          && isLpm(a, 'gte', 1, '白')
+          && isLpm(b, 'gte', 1, ['赤', '青', '緑', '黒'])
+          && isLpm(d, 'eq', 2, ['白', '赤', '青', '緑', '黒'])) {
+        return 'この方法で手札に加えたカード1枚が白で、もう1枚が赤か青か緑か黒';
+      }
+      return c.conditions.map(condJa).filter(Boolean).join('かつ');
+    }
     case 'SAME_ZONE_HAS_GATE': return '同じシグニゾーンに【ゲート】がある';
     case 'FIELD_HAS_GATE': return `${ownerJa(c.owner)}場に【ゲート】がある`;
     case 'TURN_OWNER': return c.owner === 'opponent' ? '対戦相手のターンの間' : '自分のターンの間';
@@ -1249,9 +1264,12 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキの上を公開する`;
     case 'GRANT_LRIG_ABILITY': {
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
+      const glaDuration = a.permanent ? 'このゲームの間、'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        : '';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
       if (a.targetedCenter) return `あなたのセンタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
-      return `${a.permanent ? 'このゲームの間、' : ''}あなたのセンタールリグは『${glaInner}』を得る`;
+      return `${glaDuration}あなたのセンタールリグは『${glaInner}』を得る`;
     }
     case 'AWAKEN_SIGNI': return a.targetsLastProcessed ? 'それは覚醒する' : 'このシグニを覚醒状態にする';
     case 'GAIN_BOND': return a.source === 'declared'
@@ -1312,6 +1330,9 @@ function actionJa(a?: Action, effectType?: string): string {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
       }
       if (a.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS') return 'あなたは対戦相手の効果によってダメージを受けない';
+      if (a.id === 'GUARD_ALT_HAND_REPLACE') return `あなたが【ガード】する際、《ガードアイコン》を持つカードを1枚捨てる代わりに手札を${a.count ?? 1}枚捨ててもよい`;
+      if (a.id === 'HOLOGRAPH_REVEAL_REPLACE') return 'ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりにあなたはデッキの上からカードを3枚見て、それらを好きな順番でデッキの上に戻してからデッキの一番上を公開する';
+      if (a.id === 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY') return 'あなたのクロス状態のシグニ1体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う';
       // 英知条件でのレベル読み替え（実装済み＝collectAttackPhaseLevelOverrides→eichi_level_options）。
       // 旧ラベルは STUBS.md 由来の「ダメージ特殊」で、内容と無関係な誤表示だった。
       if (a.id === 'ATTACK_PHASE_LEVEL_OVERRIDE') return '【英知】条件の判定でこのシグニのレベルを原文どおりの複数値として扱う';

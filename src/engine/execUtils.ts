@@ -28,6 +28,7 @@ export interface ExecCtx {
   logs: string[];
   effectivePowers?: Map<string, number>; // CONTINUOUS+temp_power_mods 適用済みパワー（powerRangeフィルタ用）
   sourceCardNum?: string;    // 効果発動元カード番号（「このシグニ」参照用）
+  sourceEffectId?: string;   // 解決中の効果ID（カード内の別効果を区別する）
   sourcePlacementPending?: boolean; // 使用中スペルが未配置。自己除外を解決後配置の置換として扱う
   triggeringCardNum?: string; // 効果を引き起こしたカード番号（any_ally scope の「それ」参照用）
   triggeringKeyword?: string; // ON_KEYWORD_GAINED で得られたキーワード（COPY_ABILITY の「その能力」参照用・WXDi-P04-035）
