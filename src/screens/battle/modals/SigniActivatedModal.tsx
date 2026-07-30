@@ -8,6 +8,7 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMultiEna } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
+import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
 
 interface SigniActivatedModalProps {
@@ -22,6 +23,8 @@ interface SigniActivatedModalProps {
   setSelectedSigniActivatedDiscardVar: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniActivatedFieldTrash: Set<number>;
   setSelectedSigniActivatedFieldTrash: Dispatch<SetStateAction<Set<number>>>;
+  selectedSigniActivatedUnderTrash: Set<string>;
+  setSelectedSigniActivatedUnderTrash: Dispatch<SetStateAction<Set<string>>>;
   selectedSigniActivatedEnergyTrash: Set<number>;
   setSelectedSigniActivatedEnergyTrash: Dispatch<SetStateAction<Set<number>>>;
   selectedSigniActivatedTrashExile: Set<number>;
@@ -32,17 +35,17 @@ interface SigniActivatedModalProps {
   setSigniActCharmTrashVar: Dispatch<SetStateAction<number>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
-  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>) => void;
+  executeSigniActivated: (cardNum: string, effect: CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub?: boolean, discardVarIndices?: Set<number>, energyTrashIndices?: Set<number>, trashExileIndices?: Set<number>, fieldTrashZones?: Set<number>, beatZones?: Set<number>, underTrashKeys?: Set<string>) => void;
 }
 
 export function SigniActivatedModal(p: SigniActivatedModalProps) {
   const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
+  const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
   return (
     <>
       {pendingSigniActivated && createPortal(
         <div
-          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); setSelectedSigniActivatedFieldTrash(new Set()); }}
+          onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setKeySubstituteEnabled(false); setSelectedSigniActivatedFieldTrash(new Set()); setSelectedSigniActivatedUnderTrash(new Set()); }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -132,11 +135,20 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actFieldTrashOk = actFieldTrashGroups
                 ? fieldTrashGroupsSatisfied(actFieldTrashGroups, [...selectedSigniActivatedFieldTrash], my.field.signi, battleCardMap)
                 : (actFtNeeded === 0 || selectedSigniActivatedFieldTrash.size === actFtNeeded);
+              const actUnderTrashCost = eff.cost?.underSelfTrash;
+              const actUnderZone = my.field.signi.findIndex(stack => stack?.at(-1) === pendingSigniActivated.cardNum);
+              const actUnderCandidates = actUnderTrashCost && actUnderZone >= 0
+                ? underSelfCostCandidates(my, actUnderZone, battleCardMap, actUnderTrashCost.filter)
+                : [];
+              const actUnderTrashOk = !actUnderTrashCost || (actUnderZone >= 0 && payUnderSelfTrash(
+                my, actUnderZone, selectedSigniActivatedUnderTrash, actUnderTrashCost.count, battleCardMap,
+                actUnderTrashCost.filter, actUnderTrashCost.selectionConstraint,
+              ) !== null);
               // beat_signi: 「他の/任意」シグニを【ビート】にする対象のゾーン選択（候補が必要数より多いとき）
               const actBeatCost = analyzeBeatSigniCost(my, pendingSigniActivated.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
               const actBeatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
               const actBeatSelectOk = !actBeatNeedSelect || selectedSigniActivatedBeat.size === actBeatCost.otherPart;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actBeatSelectOk;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actBeatSelectOk;
 
               return (
                 <>
@@ -166,10 +178,53 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             charmVarActCostM ? `チャーム${charmVarActCostM.min}枚以上トラッシュ（現在${totalActCharmsM}枚）` : null,
                             actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
                             actTrashExileCost?.self ? 'このカードをゲームから除外' : actTrashExileCost ? `トラッシュから${actTrashExileCost.count ?? 1}枚ゲーム除外` : null,
+                            actUnderTrashCost ? `このシグニの下から${actUnderTrashCost.count}枚トラッシュ` : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
                       </div>
                     </div>
+                  )}
+
+                  {actUnderTrashCost && (
+                    <>
+                      <p style={{ color: actUnderTrashOk ? C.text : C.warn, fontSize: 12, margin: 0 }}>
+                        このシグニの下から{actUnderTrashCost.filter?.cardType === 'スペル' ? 'スペル' : 'カード'}をトラッシュ:
+                        {' '}{selectedSigniActivatedUnderTrash.size} / {actUnderTrashCost.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                        {actUnderCandidates.map(candidate => {
+                          const key = `${candidate.zone}:${candidate.index}`;
+                          const c = battleCardMap.get(getCardNum(candidate.cardNum));
+                          const isSel = selectedSigniActivatedUnderTrash.has(key);
+                          return (
+                            <div key={key}
+                              onClick={() => setSelectedSigniActivatedUnderTrash(prev => {
+                                const next = new Set(prev);
+                                if (next.has(key)) { next.delete(key); return next; }
+                                if (next.size >= actUnderTrashCost.count) return prev;
+                                if (actUnderTrashCost.selectionConstraint?.same === 'name' && next.size > 0) {
+                                  const firstKey = [...next][0];
+                                  const first = actUnderCandidates.find(x => `${x.zone}:${x.index}` === firstKey);
+                                  const firstName = first ? battleCardMap.get(getCardNum(first.cardNum))?.CardName : undefined;
+                                  if (!firstName || c?.CardName !== firstName) return prev;
+                                }
+                                next.add(key); return next;
+                              })}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #9c27b0' : C.borderCard,
+                                cursor: 'pointer', overflow: 'hidden' }}>
+                              {c ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : null}
+                              {isSel && <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(156,39,176,0.4)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                              </div>}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </>
                   )}
 
                   {/* キーピース代替トグル */}
@@ -593,14 +648,14 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
 
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); setSelectedSigniActivatedFieldTrash(new Set()); setSelectedSigniActivatedBeat(new Set()); }}
+                      onClick={() => { setPendingSigniActivated(null); setSelectedSigniActivatedCost(new Set()); setSelectedSigniActivatedDiscard(new Set()); setSelectedSigniActivatedDiscardVar(new Set()); setSigniActCharmTrashVar(0); setKeySubstituteEnabled(false); setSelectedSigniActivatedEnergyTrash(new Set()); setSelectedSigniActivatedTrashExile(new Set()); setSelectedSigniActivatedFieldTrash(new Set()); setSelectedSigniActivatedUnderTrash(new Set()); setSelectedSigniActivatedBeat(new Set()); }}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textSub, fontSize: 13, cursor: 'pointer' }}>
                       キャンセル
                     </button>
                     <button
-                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat)}
+                      onClick={() => executeSigniActivated(pendingSigniActivated.cardNum, eff, selectedSigniActivatedCost, selectedSigniActivatedDiscard, keySubstituteEnabled, selectedSigniActivatedDiscardVar, selectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, selectedSigniActivatedFieldTrash, selectedSigniActivatedBeat, selectedSigniActivatedUnderTrash)}
                       disabled={loading || !canAfford}
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : C.success,

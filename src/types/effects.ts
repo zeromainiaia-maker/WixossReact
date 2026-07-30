@@ -342,7 +342,7 @@ export interface EffectCost {
   lifeTrash?: number;     // ライフクロス上からN枚をトラッシュに置く
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
-  underSelfTrash?: number; // このシグニの下からカードN枚をトラッシュに置く（【起】コスト）
+  underSelfTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // このシグニの下から指定カードN枚をトラッシュに置く（【起】コスト）
   underAnySigniTrash?: { count: number }; // あなたのシグニの下から合計N枚をトラッシュ（自分の場の全シグニを横断）
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
@@ -573,6 +573,7 @@ export interface EffectTarget {
 
 export interface SelectionConstraint {
   distinct?: 'level' | 'name' | 'class';
+  same?: 'name';
   sharedColor?: 'all' | 'none';
 }
 

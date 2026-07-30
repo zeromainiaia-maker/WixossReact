@@ -1960,6 +1960,10 @@ export function satisfiesSelectionConstraint(
 ): boolean {
   if (!constraint || nums.length < 2) return true;
   const cards = nums.map(n => cardMap.get(getCardNum(n)));
+  if (constraint.same === 'name') {
+    const values = cards.map(c => `${c?.CardName ?? ''}`);
+    if (new Set(values).size !== 1) return false;
+  }
   if (constraint.distinct === 'level') {
     const values = cards.map(c => `${c?.Level ?? ''}`);
     if (new Set(values).size !== values.length) return false;

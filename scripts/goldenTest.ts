@@ -42,7 +42,7 @@ import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/ba
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
-import { canPayUnderAnySigniTrash, payUnderAnySigniTrash, underAnySigniCostCandidates } from '../src/screens/battle/underAnySigniCost';
+import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack } from '../src/types';
 import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
@@ -5424,8 +5424,15 @@ test('タスク16 ON_TRASH under_signi: 実際のシグニ下→トラッシュ�
     cursor = savedCursor;
   }
 });
-// under_signi ON_TRASH の「到達可能性」lock-in。コスト経路（cost.underSelfTrash・16効果）は未配線で defer したため、
-// 実戦でこのトリガーが発火する唯一の経路が TAKE_FROM_UNDER_SIGNI(destination:'trash')＝実データ10効果・engine 実装済み。
+// under_signi ON_TRASH の「到達可能性」lock-in。engine 側でこのトリガーが発火する経路が
+// TAKE_FROM_UNDER_SIGNI(destination:'trash')＝実データ10効果・engine 実装済み。
+// ⚠2026-07-30 更新：旧コメントの「コスト経路（cost.underSelfTrash・16効果）は未配線」は**もう成立しない**
+// （タスク16 で実データ13効果ぶんの【起】コスト支払いを配線済み＝`payUnderSelfTrash`）。ただしその支払いは
+// BattleScreen が state を直接書きコスト支払いとスタック初期化を1コミットにまとめるため、中央 diff の
+// detectUnderSigniTrashed（BattleScreen.tsx の before スナップショット＝bs.host_state）からは見えない＝
+// **コスト起因では下記3効果が発火しない**（WX18-062-E1 / WX22-027-E1 / WXK03-033-E1。原文はいずれも
+// 「このカードが**コストか**効果によってシグニの下からトラッシュに置かれたとき」＝コストを明示的に含む）。
+// 退化ではない（配線前はカードが動かず発火機会自体が無かった）が、未到達の残穴として PLAN に登録済み。
 // この経路が壊れると under_signi トリガー全体が「宣言だけの no-op」に退化するので回帰防止で固定する。
 // C群[B] 移動軸: BOUNCE が「実際に手札へ戻したカード」を lastProcessedCards へ記録する（続き286）。
 // これが無いと WXK03-048-E1「この方法で＜遊具＞のシグニ2体が手札に戻った場合」が常時偽になり後半が死ぬ。
@@ -17266,7 +17273,7 @@ test('task12(xxix)(1) wave14: A群13件はunderSelf、B群4件だけunderAnyに�
   for (const effectId of groupA) {
     const cardNum = effectId.replace(/-E\d+$/, '');
     const e = effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!;
-    ok((e.cost?.underSelfTrash ?? 0) > 0, `${effectId}: このシグニの下`);
+    ok((e.cost?.underSelfTrash?.count ?? 0) > 0, `${effectId}: このシグニの下`);
     eq(e.cost?.underAnySigniTrash, undefined, `${effectId}: B群キーなし`);
   }
   for (const [effectId, count] of Object.entries(groupB)) {
@@ -17276,6 +17283,93 @@ test('task12(xxix)(1) wave14: A群13件はunderSelf、B群4件だけunderAnyに�
     eq(e.cost?.underSelfTrash, undefined, `${effectId}: A群キーなし`);
     eq(e.costUnparsed, undefined, `${effectId}: costUnparsed解消`);
   }
+});
+
+test('task16 underSelf: 効果元ゾーンの下カードだけを必要枚数支払う', () => {
+  const state = mkState({});
+  state.field.signi = [['WX18-062', 'WX10-034', 'WXEX2-41'], null, null];
+  const candidates = underSelfCostCandidates(state, 0, cardMap);
+  eq(candidates.map(c => `${c.zone}:${c.index}`).join(','), '0:0,0:1', '最上段を除く2枚だけが候補');
+  ok(canPayUnderSelfTrash(state, 0, 2, cardMap), '下2枚なら支払い可能');
+  const paid = payUnderSelfTrash(state, 0, new Set(['0:0', '0:1']), 2, cardMap)!;
+  eq(paid.moved.join(','), 'WX18-062,WX10-034', '選択した2枚を移動');
+  eq(paid.state.field.signi[0]?.join(','), 'WXEX2-41', '最上段の効果元シグニは残る');
+  eq(paid.state.trash.slice(-2).join(','), 'WX18-062,WX10-034', '支払い札がトラッシュへ増える');
+});
+
+test('task16 underSelf: count-1枚では発動コストを支払えない', () => {
+  const state = mkState({});
+  state.field.signi = [['WX18-062', 'WXEX2-41'], null, null];
+  ok(!canPayUnderSelfTrash(state, 0, 2, cardMap), '下1枚では2枚コスト不可');
+  ok(payUnderSelfTrash(state, 0, new Set(['0:0']), 2, cardMap) === null, '不足選択を原子的に拒否');
+});
+
+test('task16 underSelf: 別ゾーンの下カードを合算しない', () => {
+  const state = mkState({});
+  state.field.signi = [['WXEX2-41'], ['WX10-034', 'WX10-046', 'HOST-B'], null];
+  ok(!canPayUnderSelfTrash(state, 0, 2, cardMap), '効果元の下0枚だけを数える');
+  eq(underSelfCostCandidates(state, 0, cardMap).length, 0, '別ゾーン候補を列挙しない');
+  ok(payUnderSelfTrash(state, 0, new Set(['1:0', '1:1']), 2, cardMap) === null, '別ゾーン選択を拒否');
+});
+
+test('task16 underSelf B群: スペル限定と同名限定を成立/不成立の両方向で固定', () => {
+  const spellEffect = effectsMap.get('WX11-029')!.find(e => e.effectId === 'WX11-029-E3')!;
+  eq(JSON.stringify(spellEffect.cost?.underSelfTrash), JSON.stringify({ count: 1, filter: { cardType: 'スペル' } }),
+    'WX11-029-E3はスペル限定を保持');
+  const spell = findCard(c => c.Type === 'スペル');
+  const signi = findCard(c => c.Type === 'シグニ');
+  const spellState = mkState({});
+  spellState.field.signi = [[signi, spell, 'WX11-029'], null, null];
+  eq(underSelfCostCandidates(spellState, 0, cardMap, { cardType: 'スペル' }).map(c => c.cardNum).join(','), spell,
+    'スペルだけを候補化');
+  ok(canPayUnderSelfTrash(spellState, 0, 1, cardMap, { cardType: 'スペル' }), 'スペルがあれば成立');
+  const noSpellState = mkState({});
+  noSpellState.field.signi = [[signi, 'WX11-029'], null, null];
+  eq(underSelfCostCandidates(noSpellState, 0, cardMap, { cardType: 'スペル' }).length, 0, 'シグニだけなら不成立');
+
+  const sameEffect = effectsMap.get('WXDi-P09-044')!.find(e => e.effectId === 'WXDi-P09-044-E3')!;
+  eq(JSON.stringify(sameEffect.cost?.underSelfTrash), JSON.stringify({ count: 2, selectionConstraint: { same: 'name' } }),
+    'WXDi-P09-044-E3は同名限定を保持');
+  const sameA = 'WX10-034';
+  const sameB = `${sameA}#2`;
+  const sameState = mkState({});
+  sameState.field.signi = [[sameA, sameB, 'WXDi-P09-044'], null, null];
+  ok(canPayUnderSelfTrash(sameState, 0, 2, cardMap, undefined, { same: 'name' }), '同名2枚なら成立');
+  const mixedState = mkState({});
+  mixedState.field.signi = [[sameA, 'WX10-046', 'WXDi-P09-044'], null, null];
+  ok(!canPayUnderSelfTrash(mixedState, 0, 2, cardMap, undefined, { same: 'name' }), '異名2枚なら不成立');
+});
+
+// 死フラグ検査（CODEX_GUIDE §5-14）＝underSelfTrash の限定は matchesUnderSelfFilter /
+// satisfiesUnderSelfConstraint が honor できる語彙だけに保つ。parser が honor されないキーを吐くと
+// 「限定を無視した過剰支払い」になり、golden も census も緑のまま素通りするので live を全数走査する。
+test('task16 underSelf: live の限定語彙が支払い側の honor 範囲を超えない（死フラグ検査）', () => {
+  const HONORED_FILTER_KEYS = ['cardType'];
+  const HONORED_CONSTRAINT_KEYS = ['same'];
+  const found: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    const walk = (list: CardEffect[]): void => {
+      for (const e of list) {
+        const c = e.cost?.underSelfTrash;
+        if (c) {
+          found.push(e.effectId);
+          ok((c.count ?? 0) > 0, `${e.effectId}: count が正`);
+          for (const k of Object.keys(c.filter ?? {})) {
+            ok(HONORED_FILTER_KEYS.includes(k),
+              `${e.effectId}: filter.${k} は matchesUnderSelfFilter が honor しない＝過剰支払いになる`);
+          }
+          for (const k of Object.keys(c.selectionConstraint ?? {})) {
+            ok(HONORED_CONSTRAINT_KEYS.includes(k),
+              `${e.effectId}: selectionConstraint.${k} は satisfiesUnderSelfConstraint が honor しない`);
+          }
+        }
+        const nested = (e.action as { abilities?: CardEffect[] })?.abilities;
+        if (nested) walk(nested);
+      }
+    };
+    walk(mergeManualEffects(cardNum, effs));
+  }
+  eq(found.length, 13, 'underSelfTrash を持つ効果は実データ13件（増減したら支払い配線の再確認が要る）');
 });
 
 test('task12(xxix)(1) wave14 UI helper: 複数シグニを跨ぐ合計2枚を候補化・支払い', () => {

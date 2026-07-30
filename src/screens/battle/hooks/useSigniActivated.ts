@@ -10,6 +10,8 @@ export interface SigniActivatedState {
   selectedSigniActivatedDiscardVar: Set<number>;
   // 起動能力 fieldTrash コスト（場のシグニを場からトラッシュ）のゾーン選択
   selectedSigniActivatedFieldTrash: Set<number>;
+  // 「このシグニの下から」コストの zone:index 選択
+  selectedSigniActivatedUnderTrash: Set<string>;
   // シグニ起動効果: energyTrash（エナゾーンから指定カードをトラッシュ）選択インデックス
   selectedSigniActivatedEnergyTrash: Set<number>;
   // シグニ起動効果: trashExile（トラッシュからカードをゲーム除外）選択インデックス
@@ -26,6 +28,7 @@ const initialState = (): SigniActivatedState => ({
   selectedSigniActivatedDiscard: new Set(),
   selectedSigniActivatedDiscardVar: new Set(),
   selectedSigniActivatedFieldTrash: new Set(),
+  selectedSigniActivatedUnderTrash: new Set(),
   selectedSigniActivatedEnergyTrash: new Set(),
   selectedSigniActivatedTrashExile: new Set(),
   selectedSigniActivatedBeat: new Set(),
@@ -43,6 +46,7 @@ export function useSigniActivated() {
         selectedSigniActivatedCost: new Set(),
         selectedSigniActivatedDiscardVar: new Set(),
         selectedSigniActivatedFieldTrash: new Set(),
+        selectedSigniActivatedUnderTrash: new Set(),
       }),
     /** シグニ【起】モーダルを閉じて選択を全リセット（keySubstituteEnabled はキー側で別途） */
     closeSigniActivated: () => patch(initialState()),
@@ -51,6 +55,7 @@ export function useSigniActivated() {
     setSelectedSigniActivatedDiscard: set.selectedSigniActivatedDiscard,
     setSelectedSigniActivatedDiscardVar: set.selectedSigniActivatedDiscardVar,
     setSelectedSigniActivatedFieldTrash: set.selectedSigniActivatedFieldTrash,
+    setSelectedSigniActivatedUnderTrash: set.selectedSigniActivatedUnderTrash,
     setSelectedSigniActivatedEnergyTrash: set.selectedSigniActivatedEnergyTrash,
     setSelectedSigniActivatedTrashExile: set.selectedSigniActivatedTrashExile,
     setSelectedSigniActivatedBeat: set.selectedSigniActivatedBeat,

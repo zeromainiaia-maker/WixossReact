@@ -5,6 +5,7 @@ import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
 import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr } from '../costs';
 import type { BattleModalCtx, CutinCandidate } from './types';
+import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 
 interface CutinModalProps {
   ctx: BattleModalCtx;
@@ -14,17 +15,19 @@ interface CutinModalProps {
   setSelectedCutinCost: Dispatch<SetStateAction<Set<number>>>;
   selectedCutinExceed: Set<number>;
   setSelectedCutinExceed: Dispatch<SetStateAction<Set<number>>>;
+  selectedCutinUnderTrash: Set<string>;
+  setSelectedCutinUnderTrash: Dispatch<SetStateAction<Set<string>>>;
   setCutinSpellZoomed: Dispatch<SetStateAction<boolean>>;
   cutinCandidates: CutinCandidate[];
   handleCutinPass: () => void;
-  handleCutinUse: (candidate: CutinCandidate, costIndices: Set<number>) => void;
+  handleCutinUse: (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys?: Set<string>) => void;
   handleResonaCutinSelect: (candidate: CutinCandidate) => void;
   toggleCutinCostCard: (idx: number) => void;
 }
 
 export function CutinModal(p: CutinModalProps) {
   const { bs, user, my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
+  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   return (
     <>
       {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
@@ -106,7 +109,7 @@ export function CutinModal(p: CutinModalProps) {
                             const costLabel = [exceedPart, energyPart].filter(Boolean).join('・') || 'なし';
                             return (
                               <button key={candidate.instanceId}
-                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); } }}
+                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); setSelectedCutinUnderTrash(new Set()); } }}
                                 disabled={loading || !canAfford}
                                 style={{ display: 'flex', alignItems: 'center', gap: 10,
                                   padding: '8px 12px', borderRadius: 8, border: C.borderUI,
@@ -161,7 +164,15 @@ export function CutinModal(p: CutinModalProps) {
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
               const exceedOkModal = exceedCostModal === 0 || selectedCutinExceed.size === exceedCostModal;
-              const isValid = exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
+              const underCostModal = pendingCutinCard.effect.cost?.underSelfTrash;
+              const underZoneModal = pendingCutinCard.zoneIdx ?? -1;
+              const underCandidatesModal = underCostModal && underZoneModal >= 0
+                ? underSelfCostCandidates(my, underZoneModal, battleCardMap, underCostModal.filter) : [];
+              const underOkModal = !underCostModal || (underZoneModal >= 0 && payUnderSelfTrash(
+                my, underZoneModal, selectedCutinUnderTrash, underCostModal.count, battleCardMap,
+                underCostModal.filter, underCostModal.selectionConstraint,
+              ) !== null);
+              const isValid = underOkModal && exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
                   canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
               return (
@@ -174,6 +185,28 @@ export function CutinModal(p: CutinModalProps) {
                     </button>
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0 }}>カットインコスト選択</p>
                   </div>
+                  {underCostModal && (
+                    <>
+                      <p style={{ color: underOkModal ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
+                        このシグニの下からスペルを選択: {selectedCutinUnderTrash.size} / {underCostModal.count}枚
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
+                        {underCandidatesModal.map(candidate => {
+                          const key = `${candidate.zone}:${candidate.index}`;
+                          const card = battleCardMap.get(getCardNum(candidate.cardNum));
+                          const selected = selectedCutinUnderTrash.has(key);
+                          return <div key={key} onClick={() => setSelectedCutinUnderTrash(prev => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key);
+                            else if (next.size < underCostModal.count) next.add(key);
+                            return next;
+                          })} style={{ width: 44, height: 62, border: selected ? '2px solid #9c27b0' : C.borderCard, cursor: 'pointer' }}>
+                            {card && <img src={card.ImgURL} alt={card.CardName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
+                          </div>;
+                        })}
+                      </div>
+                    </>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <img src={pendingCutinCard.card.ImgURL} alt={pendingCutinCard.card.CardName}
                       style={{ width: 36, height: 50, objectFit: 'cover', borderRadius: 3, flexShrink: 0 }}
@@ -273,7 +306,7 @@ export function CutinModal(p: CutinModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost)}
+                  <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost, selectedCutinUnderTrash)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.danger : C.disabled,

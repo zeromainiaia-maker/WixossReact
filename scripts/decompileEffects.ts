@@ -324,7 +324,12 @@ function costJa(c?: any): string {
   if (c.lrigDownVariable) parts.push('アップ状態のルリグを好きな数ダウンする');
   if (c.trashArtsFromLrigDeck) parts.push(`ルリグデッキから${c.trashArtsFromLrigDeck.color ? c.trashArtsFromLrigDeck.color + 'の' : ''}アーツ${c.trashArtsFromLrigDeck.count}枚をルリグトラッシュに置く`);
   if (c.deckTrash != null) parts.push(`デッキの上からカードを${c.deckTrash}枚トラッシュに置く`);
-  if (c.underSelfTrash != null) parts.push(`あなたのシグニの下からカード${c.underSelfTrash}枚をトラッシュに置く`);
+  if (c.underSelfTrash != null) {
+    const kind = c.underSelfTrash.filter?.cardType === 'スペル'
+      ? 'スペル'
+      : c.underSelfTrash.selectionConstraint?.same === 'name' ? '同名のカード' : 'カード';
+    parts.push(`このシグニの下から${kind}${c.underSelfTrash.count}枚をトラッシュに置く`);
+  }
   if (c.underAnySigniTrash) parts.push(`あなたのシグニの下からカードを合計${c.underAnySigniTrash.count}枚トラッシュに置く`);
   if (c.removeOppVirus != null) parts.push(`対戦相手の場の【ウィルス】${c.removeOppVirus}個を取り除く`);
   // §3タスク6 C: 能力スコープの任意コスト代替（WX07-027-E2）。宣言のみで engine 未実装だが原文を保つ。

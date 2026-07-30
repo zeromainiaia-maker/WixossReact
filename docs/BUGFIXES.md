@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## Opusタスク16 `cost.underSelfTrash` 13効果の支払可否・選択・実支払いを配線（2026-07-30・Codex）
+
+- `underSelfTrash` を `{count, filter?, selectionConstraint?}` へ統一し、通常【起】の候補判定・コスト表示・`SigniActivatedModal`・`executeSigniActivated`を、ゾーン限定純関数 `underSelfCostCandidates`／`canPayUnderSelfTrash`／`payUnderSelfTrash`へ配線した。移動札は`last_cost_trashed_cards`にも記録する。
+- 13効果を全件採用。`WX11-029-E3`は`filter.cardType:'スペル'`、`WXDi-P09-044-E3`は新設した既存制約フィールド`SelectionConstraint.same:'name'`で原文の限定を保持した。前者が通るSPELL_CUTIN候補・選択・確定支払い経路にも同じ純関数を配線した。
+- golden 4本を追加（支払い成立と本体温存／count-1不成立／別ゾーン合算禁止／B群2制約の成立・不成立）。各本体変異で対応テストだけがFAILすることを確認後に復元。`npm run gates`全緑：golden **1096→1100**、smoke **10679/10679**全0、fuzz全0、census **1386据置**、manual field loss 0、lint 0 errors/**228 warnings**据置。同型★0、held **286枚/106署名**据置、live per-effect差分は対象13件だけ、エンコーディング新規増0。
+- **やっていないこと**：無関係なルリグ／キーSPELL_CUTIN経路の既存`underSelfTrash`除外は維持。timingセンサス残群、PLAN／PLAN_PROGRESS簿記、ブラウザ実機、commit／pushは未実施。
+- **⚠Claude 検証で是正2件＋残穴1件の記録**（いずれも**ゲートが検査しない次元**）：
+  - ①**parser regex が honor できない種別まで受理していた**＝`(カード|スペル|シグニ)` と書きながら filter へ写すのは `スペル` だけ（`effectParser.ts`）。現データに `シグニ` 版は無く実害0だが「受理範囲 > honor 範囲」＝§5-14 と同型。**`(カード|スペル)` へ絞り**、支払い側 `matchesUnderSelfFilter` が `cardType` しか見ない契約（import 方向の都合で engine の `matchesFilter` を使えない）をコメントで明示した。あわせて**死フラグ検査 golden** を追加＝live 全数走査で `underSelfTrash.filter` のキーが `cardType` 以外／`selectionConstraint` のキーが `same` 以外なら FAIL、かつ保有効果数13を固定。**変異試験**（parser に `level:1` を混ぜる）で当該2本だけが FAIL することを確認。
+  - ②**`goldenTest.ts` の陳腐化コメント**「コスト経路（cost.underSelfTrash・**16効果**）は未配線で defer」を更新（配線済み＋実数は13）。**古い停止理由の簿記は次のセッションを実際に誤誘導する**（本タスクの投入前実測でも PLAN の「16効果」「除外されるだけ」が両方外れていた）。
+  - ③**残穴＝コスト起因では `ON_TRASH under_signi` の3効果が発火しない**（`WX18-062-E1`／`WX22-027-E1`／`WXK03-033-E1`。原文はいずれも「このカードが**コストか**効果によってシグニの下からトラッシュに置かれたとき」）。`payUnderSelfTrash` は state を直接書き、`executeSigniActivated` がコスト支払いとスタック初期化を1コミットにまとめるため、中央 diff の `detectUnderSigniTrashed`（before スナップショット＝`bs.host_state`）が移動を見ない。**退化ではない**（配線前はカードが動かず発火機会自体が無かった）＝新規に露出した未到達経路として goldenTest 側にも経緯コメントを残した。
+  - ⚠**変異試験の副作用に注意**＝parser を変異させて `npm run build:effects` を回すと、**戻したあとも live JSON に変異値が残る**（PRESERVE/curated 温存＝§5-10）。今回は `effects_WX.json` を effectId アンカーで外科的に戻した（ミニファイ1行維持）。**parser 変異試験のあとは live JSON を必ず実測で確認する。**
+
 ## タスク12(l) B「ホログラフ公開置換」を既存並べ替え対話へ配線＝**(l) 残0クローズ**（2026-07-30・PLAN §3 タスク12(l)・Codex実装／Claude検証是正）
 
 - **投入前実測で codex の defer 理由3点のうち1点を訂正した**＝「上3枚の順序選択後にトップを公開する pause/resume が未実装」は誤りで、`LOOK_AND_REORDER` は既に対話アクション（`execLookAndReorder`→`needsInteraction`→`resumeLookAndReorder`、実機は `BattleScreen.tsx:4453`）。**不足していたのは①ホログラフ識別と②公開2地点の横取りだけ**で、指示書にそれを書いたら新 interaction 型を作らずに着地した。

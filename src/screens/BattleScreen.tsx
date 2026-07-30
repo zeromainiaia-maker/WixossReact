@@ -21,7 +21,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageS
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost } from './battle/lrigDownCost';
-import { payUnderAnySigniTrash } from './battle/underAnySigniCost';
+import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 
 interface Props {
   user: User;
@@ -165,6 +165,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
     selectedCutinExceed, setSelectedCutinExceed, closeCutin, toggleCutinCost,
+    selectedCutinUnderTrash, setSelectedCutinUnderTrash,
   } = useCutin();
   // シグニ起動効果
   const {
@@ -172,6 +173,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard,
     selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar,
     selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash,
+    selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash,
     selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash,
     selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile,
     selectedSigniActivatedBeat, setSelectedSigniActivatedBeat,
@@ -5509,6 +5511,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effs = effectsMap.get(topId) ?? effectsMap.get(cardNum) ?? [];
       const eff = effs.find(e => e.effectType === 'ACTIVATED' && e.timing?.includes('SPELL_CUTIN'));
       if (!eff) return;
+      if (eff.cost?.underSelfTrash && !canPayUnderSelfTrash(
+        my, zoneIdx, eff.cost.underSelfTrash.count, battleCardMap,
+        eff.cost.underSelfTrash.filter, eff.cost.underSelfTrash.selectionConstraint,
+      )) return;
       const maxCost = findCounterSpellMaxCost(eff.action);
       if (maxCost !== undefined && pendingSpellCostTotal > maxCost) return;
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, topId, bs.turn_phase, effectivePowers)) return;
@@ -6363,7 +6369,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   handleCutinPassRef.current = handleCutinPass;
 
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
-  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>) => {
+  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys: Set<string> = new Set()) => {
     if (!bs.pending_spell || loading) return;
     if (candidate.kind !== 'effect') return;
     if (!canUseArtsCondition(
@@ -6437,6 +6443,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_r: my.field.assist_lrig_r?.filter(id => !exceedCards.has(id)),
           },
         };
+        if (source === 'signi_field' && candidate.effect.cost?.underSelfTrash) {
+          const zoneIdx = candidate.zoneIdx ?? cutinPaid.field.signi.findIndex(stack => stack?.at(-1) === cutinInstanceId);
+          const underPaid = payUnderSelfTrash(
+            cutinPaid, zoneIdx, underTrashKeys, candidate.effect.cost.underSelfTrash.count, battleCardMap,
+            candidate.effect.cost.underSelfTrash.filter, candidate.effect.cost.underSelfTrash.selectionConstraint,
+          );
+          if (!underPaid) return;
+          cutinPaid = {
+            ...underPaid.state,
+            last_cost_trashed_cards: [...paidNums, ...underPaid.moved],
+          };
+        }
       }
       // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
       const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
@@ -9869,7 +9887,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set()) => {
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set()) => {
     if (loading) return;
     // down_self コストは、対象シグニが既にダウンしていると支払えない（多重発動防止）
     if (effect.cost?.down_self) {
@@ -9982,6 +10000,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? (battleCardMap.get(discardedCards[0])?.CardClass ?? my.last_discarded_signi_class)
           : my.last_discarded_signi_class,
       };
+      // underSelfTrash: 効果元シグニの下から、UIで選んだカードだけをトラッシュへ置く。
+      if (effect.cost?.underSelfTrash) {
+        const zoneIdx = paid.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+        if (zoneIdx < 0) return;
+        const underPaid = payUnderSelfTrash(
+          paid, zoneIdx, underTrashKeys, effect.cost.underSelfTrash.count, battleCardMap,
+          effect.cost.underSelfTrash.filter, effect.cost.underSelfTrash.selectionConstraint,
+        );
+        if (!underPaid) return;
+        paid = {
+          ...underPaid.state,
+          last_cost_trashed_cards: [...(paid.last_cost_trashed_cards ?? []), ...underPaid.moved],
+        };
+      }
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (effect.cost?.trashExile?.self) {
         paid = { ...paid, trash: paid.trash.filter(cn => cn !== cardNum), lrig_trash: [...paid.lrig_trash, cardNum] };
@@ -10992,6 +11024,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !isCharmActivateBlocked &&
         !(e.cost?.down_self && isAlreadyDown) &&
         !(e.cost?.discard && handCount < e.cost.discard) &&
+        !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
+          my, rawZoneIdx, e.cost.underSelfTrash.count, battleCardMap,
+          e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,
+        )) &&
         // fieldTrash: 場からトラッシュ可能なシグニ（excludeSelf=自身を除く）が必要数いないと支払えない
         !(e.cost?.fieldTrash && [0, 1, 2].filter(zi => {
           const ftTop = my.field.signi[zi]?.at(-1);
@@ -11026,6 +11062,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               eff.cost.energyTrashAll ? 'エナすべトラッシュ' : null,
               eff.cost.discardVariable ? `手札${eff.cost.discardVariable.min}枚以上捨て` : null,
               eff.cost.down_self ? 'ダウン' : null,
+              eff.cost.underSelfTrash ? `このシグニの下${eff.cost.underSelfTrash.count}枚トラッシュ` : null,
               eff.cost.removeOppVirus ? `ウィルス${eff.cost.removeOppVirus}除去` : null,
               eff.cost.trash_self ? 'このシグニをトラッシュ' : null,
               eff.cost.trash_key ? 'このキーをルリグトラッシュ' : null,
@@ -11500,7 +11537,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <SpellCutinOverlays ctx={modalCtx} cutinSpellZoomed={cutinSpellZoomed} setCutinSpellZoomed={setCutinSpellZoomed} />
 
       {/* スペルカットインポップアップ（相手のスペル発動中に表示） */}
-      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} handleResonaCutinSelect={candidate => {
+      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} selectedCutinUnderTrash={selectedCutinUnderTrash} setSelectedCutinUnderTrash={setSelectedCutinUnderTrash} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} handleResonaCutinSelect={candidate => {
         if (candidate.kind !== 'resona') return;
         setPendingCutinCard(null);
         setSelectedResonaPayment([]);
@@ -11734,7 +11771,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <AssistActivatedModal ctx={modalCtx} pendingAssistActivated={pendingAssistActivated} setPendingAssistActivated={setPendingAssistActivated} selectedAssistActivatedCost={selectedAssistActivatedCost} setSelectedAssistActivatedCost={setSelectedAssistActivatedCost} selectedAssistActivatedDiscard={selectedAssistActivatedDiscard} setSelectedAssistActivatedDiscard={setSelectedAssistActivatedDiscard} executeAssistActivated={executeAssistActivated} />
 
       {/* ===== シグニ起動効果 コスト支払いモーダル ===== */}
-      <SigniActivatedModal ctx={modalCtx} pendingSigniActivated={pendingSigniActivated} setPendingSigniActivated={setPendingSigniActivated} selectedSigniActivatedCost={selectedSigniActivatedCost} setSelectedSigniActivatedCost={setSelectedSigniActivatedCost} selectedSigniActivatedDiscard={selectedSigniActivatedDiscard} setSelectedSigniActivatedDiscard={setSelectedSigniActivatedDiscard} selectedSigniActivatedDiscardVar={selectedSigniActivatedDiscardVar} setSelectedSigniActivatedDiscardVar={setSelectedSigniActivatedDiscardVar} selectedSigniActivatedFieldTrash={selectedSigniActivatedFieldTrash} setSelectedSigniActivatedFieldTrash={setSelectedSigniActivatedFieldTrash} selectedSigniActivatedEnergyTrash={selectedSigniActivatedEnergyTrash} setSelectedSigniActivatedEnergyTrash={setSelectedSigniActivatedEnergyTrash} selectedSigniActivatedTrashExile={selectedSigniActivatedTrashExile} setSelectedSigniActivatedTrashExile={setSelectedSigniActivatedTrashExile} selectedSigniActivatedBeat={selectedSigniActivatedBeat} setSelectedSigniActivatedBeat={setSelectedSigniActivatedBeat} signiActCharmTrashVar={signiActCharmTrashVar} setSigniActCharmTrashVar={setSigniActCharmTrashVar} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeSigniActivated={executeSigniActivated} />
+      <SigniActivatedModal ctx={modalCtx} pendingSigniActivated={pendingSigniActivated} setPendingSigniActivated={setPendingSigniActivated} selectedSigniActivatedCost={selectedSigniActivatedCost} setSelectedSigniActivatedCost={setSelectedSigniActivatedCost} selectedSigniActivatedDiscard={selectedSigniActivatedDiscard} setSelectedSigniActivatedDiscard={setSelectedSigniActivatedDiscard} selectedSigniActivatedDiscardVar={selectedSigniActivatedDiscardVar} setSelectedSigniActivatedDiscardVar={setSelectedSigniActivatedDiscardVar} selectedSigniActivatedFieldTrash={selectedSigniActivatedFieldTrash} setSelectedSigniActivatedFieldTrash={setSelectedSigniActivatedFieldTrash} selectedSigniActivatedUnderTrash={selectedSigniActivatedUnderTrash} setSelectedSigniActivatedUnderTrash={setSelectedSigniActivatedUnderTrash} selectedSigniActivatedEnergyTrash={selectedSigniActivatedEnergyTrash} setSelectedSigniActivatedEnergyTrash={setSelectedSigniActivatedEnergyTrash} selectedSigniActivatedTrashExile={selectedSigniActivatedTrashExile} setSelectedSigniActivatedTrashExile={setSelectedSigniActivatedTrashExile} selectedSigniActivatedBeat={selectedSigniActivatedBeat} setSelectedSigniActivatedBeat={setSelectedSigniActivatedBeat} signiActCharmTrashVar={signiActCharmTrashVar} setSigniActCharmTrashVar={setSigniActCharmTrashVar} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeSigniActivated={executeSigniActivated} />
 
       {/* ===== エナゾーンACTIVATED（アクセカード）モーダル ===== */}
       <EnergyActivatedModal ctx={modalCtx} pendingEnergyActivated={pendingEnergyActivated} setPendingEnergyActivated={setPendingEnergyActivated} selectedEnergyActivatedCost={selectedEnergyActivatedCost} setSelectedEnergyActivatedCost={setSelectedEnergyActivatedCost} executeEnergyActivated={executeEnergyActivated} />

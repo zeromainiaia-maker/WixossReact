@@ -503,9 +503,18 @@ function parseCost(costStr: string): EffectCost | undefined {
     }
   }
   // このシグニの下からカード/スペルN枚をトラッシュ → underSelfTrash
-  const ustM = costStr.match(/(?:このシグニ)の下から(?:同名の)?(?:カード|スペル|シグニ)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
-  if (ustM) cost.underSelfTrash = parseNum(ustM[1]);
-  else if (/このシグニの下からカード(?:１枚|一枚)をトラッシュに置く/.test(costStr)) cost.underSelfTrash = 1;
+  // ⚠種別の選択肢は「下の matchesUnderSelfFilter が honor できるもの」だけに限定する。
+  // 受理だけ広げて filter を出さないと、限定を無視した過剰支払いになる（cf. CODEX_GUIDE §5-14）。
+  const ustM = costStr.match(/(?:このシグニ)の下から(同名の)?(カード|スペル)(?:を?合計)?([０-９\d]+)枚をトラッシュに置く/);
+  if (ustM) {
+    cost.underSelfTrash = {
+      count: parseNum(ustM[3]),
+      ...(ustM[2] === 'スペル' ? { filter: { cardType: 'スペル' as const } } : {}),
+      ...(ustM[1] ? { selectionConstraint: { same: 'name' as const } } : {}),
+    };
+  } else if (/このシグニの下からカード(?:１枚|一枚)をトラッシュに置く/.test(costStr)) {
+    cost.underSelfTrash = { count: 1 };
+  }
   // 可変枚数チャームトラッシュ → charmTrashVariable
   const ctVarM = costStr.match(/【チャーム】を([０-９\d]+)枚以上トラッシュに置く/);
   if (ctVarM && !cost.charmTrash) cost.charmTrashVariable = { min: parseNum(ctVarM[1]) };
