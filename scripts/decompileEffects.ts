@@ -2585,6 +2585,9 @@ function effJa(e: Eff): string {
       const subjJa = e.triggerScope === 'any_ally' ? 'あなたのシグニ' : 'このシグニ';
       s = `${subjJa}がバトルによって${charmJa}${frontJa}対戦相手の${stJa}シグニをバニッシュしたとき`;
     }
+    if (t === 'ON_SIGNI_BANISH_OPPONENT' && e.triggerScope === 'any_ally' && e.triggerFilter?.powerRange?.min !== undefined) {
+      s = `あなたのパワー${e.triggerFilter.powerRange.min}以上のシグニが対戦相手のシグニ１体をバニッシュしたとき`;
+    }
     // ON_ARTS_USE の triggerFilter.color（「あなたが緑のアーツを使用したとき」WXK01-043）
     if (t === 'ON_ARTS_USE' && e.triggerFilter?.color && !e.timing?.includes('ON_OPP_ARTS_USE')) {
       const acJa = Array.isArray(e.triggerFilter.color) ? e.triggerFilter.color.join('か') : e.triggerFilter.color;

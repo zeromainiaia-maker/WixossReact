@@ -6575,7 +6575,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 同上の「バトルによって」が明記されない表記（19件）。**効果によるバニッシュは必ず「効果によって」と
              // 明記される**ため、明記が無い＝バトルによるバニッシュ（WX10-048「このシグニが対戦相手のシグニ1体を
              // バニッシュしたとき」等）。上の BY_EFFECT 判定が先に走るので効果バニッシュを奪わない。
-             : trigText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
+             : trigText.match(/(?:この(?:シグニ|カード)|あなたの(?:他の)?(?:パワー[０-９\d]+以上の|＜[^＞]+＞の)?シグニ)(?:[０-９\d]+体)?が対戦相手のシグニ[^。]{0,6}をバニッシュしたとき/) ? ['ON_SIGNI_BANISH_OPPONENT']
              // 「このシグニが（正面の）（感染状態の）シグニN体をバニッシュしたとき」（「対戦相手の」明記なし・バトルバニッシュ・§3 Opusタスク16）。
              //   バトルでバニッシュする相手は常に正面＝相手シグニなので owner/正面 filter は不要（WX17-046 英知=7／WXK04-044 血晶武装 granted）。
              //   ⚠「効果によって」「あなたのシグニを」は含まない（前者は上の BY_EFFECT、後者は主語違いで非マッチ）。
@@ -7460,12 +7460,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   「このシグニが」＝self（既定・バニッシュしたアタッカー自身のみ）／「あなたの[他の][＜X＞の]シグニが」＝any_ally（＋triggerFilter）。
       if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT') {
         // 「あなたの[他の][＜X＞の]シグニが（バトルによって／対戦相手の）…」＝any_ally。「このシグニが」＝self。
-        const subjM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が(?:バトルによって|対戦相手の)/);
+        const subjM = actionText.match(/あなたの(他の)?(?:(?:パワー([０-９\d]+)以上の)|(?:＜([^＞]+)＞の))?シグニ(?:[０-９\d]+体)?が(?:バトルによって|対戦相手の)/);
         if (subjM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
           if (subjM[1]) tf.excludeSelf = true;
-          if (subjM[2]) tf.story = subjM[2];
+          if (subjM[2]) tf.powerRange = { min: parseNum(subjM[2]) };
+          if (subjM[3]) tf.story = subjM[3];
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
         } else {
           extractedTriggerScope = 'self';

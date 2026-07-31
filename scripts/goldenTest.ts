@@ -28,7 +28,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
-import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -19116,6 +19116,24 @@ for (const [watcherNum, effectId] of [['WXDi-P03-056', 'WXDi-P03-056-E1'], ['WXD
     eq(collectLiveTargeted(watcherNum, targetedOriginCard('ルリグ'), targetedOriginEffect('AUTO')), 0);
   });
 }
+
+const ponyBanishEffect = parseCardEffects(cardMap.get('WXDi-P06-072')!).find(e => e.effectId === 'WXDi-P06-072-E1')!;
+test('WXDi-P06-072-E1: parser は主体パワー8000以上のバニッシュ timing/filter を生成', () => {
+  eq(ponyBanishEffect.timing?.join(','), 'ON_SIGNI_BANISH_OPPONENT');
+  eq(ponyBanishEffect.triggerScope, 'any_ally');
+  eq(ponyBanishEffect.triggerFilter?.powerRange?.min, 8000);
+});
+test('WXDi-P06-072-E1: 実効パワー8000以上の味方がバニッシュすると発火', () => {
+  ok(battleBanisherMatchesTrigger(ponyBanishEffect, 'WXDi-P06-072', 'banisher', cardMap.get('WXDi-P06-072'), 8000));
+});
+test('WXDi-P06-072-E1: 実効パワー8000未満なら非発火', () => {
+  ok(!battleBanisherMatchesTrigger(ponyBanishEffect, 'WXDi-P06-072', 'banisher', cardMap.get('WXDi-P06-072'), 7999));
+});
+test('WXDi-P06-072-E1: 表記3000でも実効8000なら発火し、ターン内2回目は非発火', () => {
+  eq(cardMap.get('WXDi-P06-072')?.Power, '3000');
+  ok(battleBanisherMatchesTrigger(ponyBanishEffect, 'WXDi-P06-072', 'banisher', cardMap.get('WXDi-P06-072'), 8000));
+  ok(!battleBanisherMatchesTrigger(ponyBanishEffect, 'WXDi-P06-072', 'banisher', cardMap.get('WXDi-P06-072'), 8000, [ponyBanishEffect.effectId]));
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

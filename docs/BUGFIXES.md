@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16第4波：`WXDi-P06-072-E1` バニッシュ主体の実効パワー条件（1効果）
+
+「あなたのパワー8000以上のシグニが対戦相手のシグニ1体をバニッシュしたとき」を `ON_SIGNI_BANISH_OPPONENT`／`triggerScope:any_ally`／`triggerFilter.powerRange.min:8000` として生成する parser 規則を追加した。台帳の「15000」「triggerFilter は被バニッシュ側」という記述はどちらも誤りで、原文は8000、当該 timing の filter はバニッシュした側へ適用される。
+
+BattleScreen のバトルバニッシュ収集は、表記パワーではなく CONTINUOUS と `temp_power_mods` 適用済みの `effectivePowers` を pure helper `battleBanisherMatchesTrigger` へ渡す。helper は scope/filter と《ターン1回》既使用判定をまとめ、golden から成立／不成立／表記3000・実効8000／2回目非発火を直接検査する。既存 `ON_SIGNI_BANISH_OPPONENT/_BATTLE` の filter は powerRange を持たないため挙動不変。
+
+**🔴 Claude 検証で是正1件＝`effectivePowers` のキー形が違う**。codex は helper へ `effectivePowers.get(getCardNum(myTopNum))` と**素の cardNum へ丸めて**渡していたが、**`calcFieldPowers` は場のスタック頂点をそのままキーにする**（`effectEngine.ts:1345` の `powers.set(topNum, base)`）ため、`#N` 付きインスタンスID（トークン/複製シグニ＝`execUtils.ts:902`/`933`・`effectExecutor.ts:1846` が生成）では **lookup が外れて `undefined` → 黙って表記パワーへフォールバック**する＝**このバッチの目的そのものが無効化される**。同ファイルの他の `effectivePowers.get(...)` は**全て raw**（直近の類例＝`BattleScreen.tsx:8205` の `battleOpponentNum`）。`effectivePowers.get(myTopNum)` へ是正し、**「cardMap は `getCardNum()` 必須／effectivePowers は raw」という2つの Map のキー形の違い**をコメントで固定した。⚠**この穴は golden では検出できない**（golden は helper に実効パワーを直接渡すため、実機のキー引きを通らない）＝§3-3 で申告された「未検査の実機経路」に正確に該当する。
+
+近似は既存どおり残る。`ON_SIGNI_BANISH_OPPONENT` は `BattleScreen.resolvePendingSigniBattleFor` 内の `battleBanishEntries`（バトルバニッシュ経路）だけに配線され、効果によるバニッシュでは発火しない。live per-effect 差分は `WXDi-P06-072-E1` だけ（added 0 / removed 0 / changed 1 / outlier 0）。本体 SEQUENCE と usageLimit は不変。golden 1174、smoke 10679/10679、census 1363、timing census 21、held 251枚/98署名、manual field loss 0、同型★0、lint 0 errors/234 warnings、fuzz 全0。
+
 ## 2026-07-31 — タスク16第3波：エナへ移動したカード自身の `ON_ENERGY_CHARGE`（3効果）
 
 中央 board diff に移動元付き `detectEnergyAddedWithSource` と `collectEnergyAddedSelfTriggers` を追加し、`triggerCondition.movedSelf:true` のカード自身だけをエナゾーンから収集するようにした。既存 React watcher は `movedSelf` を除外し、新 collector は `movedSelf` 必須なので二重発火しない。中央 diff は通常完了／対話 resume 共通で、人間・CPU両ターンを通る。

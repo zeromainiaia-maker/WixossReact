@@ -37,6 +37,26 @@ export interface TrigCtx {
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
+/** バトルで相手シグニをバニッシュした側に対する watcher の scope/filter/使用回数判定。 */
+export function battleBanisherMatchesTrigger(
+  effect: CardEffect,
+  watcherNum: string,
+  banisherNum: string,
+  banisherCard: CardData | undefined,
+  effectivePower: number | undefined,
+  actionsDone: readonly string[] = [],
+  pendingUsedIds: readonly string[] = [],
+): boolean {
+  const scope = effect.triggerScope ?? 'self';
+  if (scope === 'self' && watcherNum !== banisherNum) return false;
+  if (scope !== 'self') {
+    if (effect.triggerFilter?.excludeSelf && watcherNum === banisherNum) return false;
+    if (effect.triggerFilter && !matchesFilter(banisherCard, effect.triggerFilter, effectivePower)) return false;
+  }
+  return effect.usageLimit !== 'once_per_turn'
+    || (!actionsDone.includes(effect.effectId) && !pendingUsedIds.includes(effect.effectId));
+}
+
 /** Collect the new face's own AUTO ability after a permanent LRIG identity flip. */
 export function collectLrigFlipTriggers(
   ctx: TrigCtx,
