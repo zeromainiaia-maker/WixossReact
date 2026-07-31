@@ -3222,6 +3222,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               } as EffectAction,
               available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniTrash,
             }] : []),
+            ...(stub.opponentSigniToDeckTop !== undefined && stub.opponentSigniToDeckTop > 0 ? [{
+              id: 'signiToDeckTop',
+              label: `自分のシグニを${stub.opponentSigniToDeckTop}体デッキの一番上に置く`,
+              action: {
+                type: 'TRANSFER_TO_DECK',
+                source: { type: 'SIGNI', owner: 'opponent', count: stub.opponentSigniToDeckTop, filter: { cardType: 'シグニ' } },
+                shuffle: false,
+                position: 'top',
+                opponentSelects: true,
+              } as EffectAction,
+              available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniToDeckTop,
+            }] : []),
             { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];
           const pending: PendingInteractionDef = {

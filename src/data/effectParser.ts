@@ -2210,8 +2210,8 @@ function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectA
 //     `OPP_ENERGY_OR_DISCARD_CONDITION` は非回避枝が `ENERGY_CHARGE`（相手に**エナを与える**）で符号が逆（WDK10-001）。
 //   ③「…かぎり、自分のすべてのシグニをトラッシュに置く」＝従来は `TRASH{HAND_CARD owner:self ALL}`＝
 //     **自分の手札を全部捨てる**という別物（WX24-P4-023）。
-function parseOpponentWaUnlessCost(phrase: string):
-  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL' } | undefined {
+function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
+  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL'; opponentSigniToDeckTop?: number } | undefined {
   const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
   const p = phrase.replace(/^[、,]/, '');
   let m = p.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
@@ -2228,6 +2228,10 @@ function parseOpponentWaUnlessCost(phrase: string):
   if (m) return { opponentHandDiscard: parseNum(m[2]), opponentHandDiscardFilter: { color: m[1] === '無色' ? '無' : m[1] } };
   m = p.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
   if (m) return { opponentHandDiscard: parseNum(m[1]) };
+  const signiTarget = targetPrefix.match(/^自分のシグニ([０-９\d一二三四五六七八九十]+)体を対象とし[、,]$/);
+  if (signiTarget && /^それをデッキの一番上に置か$/.test(p)) {
+    return { opponentSigniToDeckTop: parseNum(signiTarget[1]) };
+  }
   return undefined;
 }
 
@@ -2259,6 +2263,13 @@ function parseOpponentWaExplicitConsequent(targetPrefix: string, thenText: strin
   if (hM) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hM[1]) } } as EffectAction;
   }
+  // 相手が自分の手札を N 枚デッキの一番下に置く（WXK06-047-E1）。
+  const hbM = th.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚デッキの(?:一番)?下に置く$/);
+  if (hbM) {
+    return { type: 'TRANSFER_TO_DECK',
+      source: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hbM[1]) },
+      shuffle: false, position: 'bottom' } as EffectAction;
+  }
   // 「それをデッキの一番下に置く」（WXDi-P01-028）は**扱わない**＝直前文の STUB{TARGET_OPP_SIGNI_ONLY} が
   // 対象選択からデッキ下移動まで自己完結で持っており、ここで包むと相手に2回 CHOOSE が出る。
   // 冗長な後続ステップの除去は dropRedundantStepAfterTargetOppSigniOnly が行う。
@@ -2267,7 +2278,7 @@ function parseOpponentWaExplicitConsequent(targetPrefix: string, thenText: strin
 
 function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
   if (_unlessGateBaselinePass) return undefined;
-  const waM = t.match(/^対戦相手は(.*?)ないかぎり[、,]?(.+)$/s);
+  const waM = t.match(/^(?:その後[、,])?対戦相手は(.*?)ないかぎり[、,]?(.+)$/s);
   if (!waM) return undefined;
   let costPart = waM[1];
   const thenText = waM[2];
@@ -2275,7 +2286,7 @@ function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
   let targetPrefix = '';
   const tp = costPart.match(/^([^。]*?を対象とし[、,])(.*)$/s);
   if (tp) { targetPrefix = tp[1].replace(/^[、,]/, ''); costPart = tp[2]; }
-  const cost = parseOpponentWaUnlessCost(costPart);
+  const cost = parseOpponentWaUnlessCost(costPart, targetPrefix);
   if (!cost) return undefined;
   if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined;
 
@@ -6157,7 +6168,16 @@ function parseActionTextInner(text: string): EffectAction {
         } else if (lrigColorBranch) {
           steps.push({ type: 'CONDITIONAL', condition: { type: 'LRIG_COLOR', owner: 'opponent', color: lrigColorBranch[1] }, then: parseSingleSentence(lrigColorBranch[2]) });
         } else {
-          steps.push(parseSingleSentence(clean));
+          const parsed = parseSingleSentence(clean);
+          // 「その後、対戦相手は…ないかぎり…」の標準ペアは直前アクションと同じ SEQUENCE に置く。
+          // OPPONENT_PAY_OPTIONAL の look-ahead は直後の CONDITIONAL を見るため、文単位の入れ子にしない。
+          if (/^その後[、,]対戦相手は/.test(clean) && parsed.type === 'SEQUENCE' &&
+              parsed.steps.length === 2 && parsed.steps[0]?.type === 'STUB' &&
+              parsed.steps[0].id === 'OPPONENT_PAY_OPTIONAL' && parsed.steps[1]?.type === 'CONDITIONAL') {
+            steps.push(...parsed.steps);
+          } else {
+            steps.push(parsed);
+          }
         }
       }
     }

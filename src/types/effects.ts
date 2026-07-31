@@ -1907,6 +1907,8 @@ export interface StubAction {
   opponentEnergyTrash?: number | 'ALL';
   /** OPPONENT_PAY_OPTIONAL: avoidance by trashing this many of the opponent's own field SIGNI（「自分のシグニ１体を場からトラッシュに置かないかぎり」＝WX22-025-E3／WXDi-P16-088-E1。タスク12(lxi) 第3波）。 */
   opponentSigniTrash?: number;
+  /** OPPONENT_PAY_OPTIONAL: avoidance by putting this many of the opponent's own field SIGNI on top of their deck（タスク12(lxi) 第5波）。 */
+  opponentSigniToDeckTop?: number;
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

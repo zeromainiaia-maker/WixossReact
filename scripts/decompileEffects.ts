@@ -1574,6 +1574,10 @@ function actionJa(a?: Action, effectType?: string): string {
           const bodyOPO = `自分のシグニを${a.opponentSigniTrash}体`;
           optsOPO.push({ dict: `${bodyOPO}場からトラッシュに置く`, te: `${bodyOPO}場からトラッシュに置いて` });
         }
+        if (a.opponentSigniToDeckTop !== undefined) {
+          const bodyOPO = `自分のシグニを${a.opponentSigniToDeckTop}体`;
+          optsOPO.push({ dict: `${bodyOPO}デッキの一番上に置く`, te: `${bodyOPO}デッキの一番上に置いて` });
+        }
         if (optsOPO.length === 0) return '対戦相手はコストを支払ってもよい';
         const headOPO = optsOPO.slice(0, -1).map(o => o.dict + 'か、').join('');
         return `対戦相手は${headOPO}${optsOPO[optsOPO.length - 1].te}もよい`;

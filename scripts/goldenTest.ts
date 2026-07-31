@@ -9686,9 +9686,71 @@ test('engine は形：opponentEnergyTrash / 色制約 / ALL が相手の CHOOSE 
   ok(!allIds.includes('discard') && !allIds.includes('energyTrash'), '手札もエナも0なら ALL 回避は提示しない');
   cursor = savedCursor;
 });
-test('parse は形ガード：帰結が未知形なら据置＝誤った帰結にゲートだけ足さない', () => {
-  const e = parseCardEffects({ CardNum: 'TEST-WA-DEFER', Type: 'シグニ', EffectText: '【出】：対戦相手は、自分のシグニ１体を対象とし、それをデッキの一番上に置かないかぎり手札を１枚デッキの一番下に置く。' } as unknown as CardData)[0];
-  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '回避コストが「デッキの上に置く」＝engine の選択肢に無い形は据置');
+test('parse 第5波：WXK06-047 のシグニ→デッキトップ回避と相手手札→デッキボトム帰結を構造化', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-WA-DEFER', Type: 'スペル', Color: '青', Cost: '《青》×２', EffectText: 'カードを２枚引き、手札を１枚捨てる。その後、対戦相手は、自分のシグニ１体を対象とし、それをデッキの一番上に置かないかぎり手札を１枚デッキの一番下に置く。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { steps: { id?: string; opponentSigniToDeckTop?: number; then?: { type: string; source?: { type: string; owner: string; count: number }; position?: string } }[] };
+  eq(seq.steps[1]?.id, 'OPPONENT_PAY_OPTIONAL', '前置きのドロー＋手札捨ての後をゲート化');
+  eq(seq.steps[1]?.opponentSigniToDeckTop, 1, '相手自身のシグニ1体をデッキトップに置いて回避');
+  eq(seq.steps[2]?.then?.type, 'TRANSFER_TO_DECK', '不払い時は手札をデッキへ');
+  eq(seq.steps[2]?.then?.source?.type, 'HAND_CARD', '移動元は相手の手札');
+  eq(seq.steps[2]?.then?.source?.owner, 'opponent', '相手の手札');
+  eq(seq.steps[2]?.then?.position, 'bottom', '移動先はデッキボトム');
+});
+test('engine 第5波：相手がシグニ→デッキトップ回避を選ぶと手札は減らない', () => {
+  const savedCursor = cursor;
+  const target = fresh();
+  const ctx = mkCtx({}, { signi: [target, null, null], hand: 3, deckTop: [] });
+  const hand0 = [...ctx.otherState.hand];
+  const effect: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentSigniToDeckTop: 1 } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+      type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      shuffle: false, position: 'bottom',
+    } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action: effect, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE' && result.pending.opponentResponds, '相手へ回避選択を提示');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  ok(result.pending.options.some(o => o.id === 'signiToDeckTop' && o.available), 'シグニ回避枝が選択可能');
+  let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+  result = resumeOpponentPayOptional('signiToDeckTop', [], result.pending, c);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET' && result.pending.opponentResponds, '相手が自分のシグニを選ぶ');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+  const done = finish(resumeSelectTarget([target], result.pending, c), c);
+  eq(done.otherState.deck[0], target, '選んだシグニが相手のデッキトップへ行く');
+  eq(done.otherState.hand.join('|'), hand0.join('|'), '回避したので相手の手札は減らない');
+  ok(done.otherState.field.signi.every(s => !s?.includes(target)), '選んだシグニは場から離れる');
+  cursor = savedCursor;
+});
+test('engine 第5波：相手が支払わないと手札→デッキボトム、場は変わらない', () => {
+  const savedCursor = cursor;
+  const target = fresh();
+  const ctx = mkCtx({}, { signi: [target, null, null], hand: 3, deckTop: [] });
+  const hand0 = [...ctx.otherState.hand];
+  const deckLen0 = ctx.otherState.deck.length;
+  const effect: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentSigniToDeckTop: 1 } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+      type: 'TRANSFER_TO_DECK', source: { type: 'HAND_CARD', owner: 'opponent', count: 1 },
+      shuffle: false, position: 'bottom',
+    } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action: effect, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE', '相手へ回避選択を提示');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+  result = resumeOpponentPayOptional('skip', [], result.pending, c);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', '不払い時は戻す相手手札の選択へ進む');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  const moved = hand0[0];
+  c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+  const done = finish(resumeSelectTarget([moved], result.pending, c), c);
+  eq(done.otherState.hand.length, hand0.length - 1, '相手の手札が1枚減る');
+  eq(done.otherState.deck.length, deckLen0 + 1, '相手のデッキが1枚増える');
+  eq(done.otherState.deck[done.otherState.deck.length - 1], moved, '選んだ手札が相手のデッキボトムへ行く');
+  ok(done.otherState.field.signi.some(s => s?.includes(target)), '不払い枝では相手の場は変わらない');
+  cursor = savedCursor;
 });
 
 test('parse ガード④＝制限系の帰結（【ガード】不可／アタック不可）は専用機構の領分として据置（WX19-001 / WX10-024）', () => {
