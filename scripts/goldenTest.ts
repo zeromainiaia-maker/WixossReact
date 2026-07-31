@@ -13342,6 +13342,43 @@ test('task16 timing triage [A]: ON_HAND_ADDED / ゲート上ON_PLAY collectorが
   }
 });
 
+test('task16 wave1: WX20-067-E1 は両者の手札追加にアタックフェイズ中だけ発火し、任意コスト成功時だけバウンス', () => {
+  const savedCursor = cursor;
+  try {
+    const eff = effectsMap.get('WX20-067')?.find(e => e.effectId === 'WX20-067-E1');
+    ok(!!eff, 'WX20-067-E1 exists');
+    eq(JSON.stringify(eff!.timing), JSON.stringify(['ON_HAND_ADDED']), 'ON_HAND_ADDED');
+    eq(eff!.triggerCondition?.handOwner, 'any', 'いずれかのプレイヤーの手札');
+    eq(eff!.triggerCondition?.minCount, 1, 'カード1枚以上');
+    eq(JSON.stringify(eff!.condition), JSON.stringify({
+      type: 'DURING_PHASE',
+      phases: ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'],
+    }), 'アタックフェイズ限定');
+    eq(JSON.stringify(eff!.action), JSON.stringify({
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'], down_self: true },
+        { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+      ],
+    }), '《白》＋自身ダウンを払った場合だけ相手シグニをバウンス');
+
+    const watcher = mkState({ signi: ['WX20-067', null, null] });
+    const opponent = mkState();
+    const movedSelf = [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'deck' }] }];
+    const movedOpponent = [{ ownerId: GUEST, moved: [{ cardNum: SIGNI, from: 'deck' }] }];
+    const attackCtx = { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' as const };
+    const mainCtx = { ...trigCtx(HOST), turnPhase: 'MAIN' as const };
+    eq(collectHandAddedTriggers(attackCtx, movedSelf, HOST, watcher, opponent).entries
+      .filter(e => e.effectId === 'WX20-067-E1').length, 1, '自分の手札追加で発火');
+    eq(collectHandAddedTriggers(attackCtx, movedOpponent, HOST, watcher, opponent).entries
+      .filter(e => e.effectId === 'WX20-067-E1').length, 1, '相手の手札追加でも発火');
+    eq(collectHandAddedTriggers(mainCtx, movedSelf, HOST, watcher, opponent).entries
+      .filter(e => e.effectId === 'WX20-067-E1').length, 0, 'メインフェイズでは非発火');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 test('task16 mechanism B routing: accepted escape emits; paid escape does not negate the attack', () => {
   const savedCursor = cursor;
   try {

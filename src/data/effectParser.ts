@@ -1268,6 +1268,11 @@ export function getSilentFallbackLog(): readonly SilentFallbackEntry[] { return 
 export interface TimingFallbackEntry { effectId: string; text: string }
 const _timingFallbackLog: TimingFallbackEntry[] = [];
 export function getTimingFallbackLog(): readonly TimingFallbackEntry[] { return _timingFallbackLog; }
+function clearTimingFallback(effectId: string): void {
+  for (let i = _timingFallbackLog.length - 1; i >= 0; i--) {
+    if (_timingFallbackLog[i].effectId === effectId) _timingFallbackLog.splice(i, 1);
+  }
+}
 function logTimingFallback(effectId: string, text: string): void {
   if (_timingFallbackLog.length < 100000) _timingFallbackLog.push({ effectId, text });
 }
@@ -8904,6 +8909,38 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         },
       ],
     };
+  }
+  // Opusタスク16 第1波: WX20-067-E1。
+  // 「アタックフェイズの間、カード1枚がいずれかのプレイヤーの手札に加えられたとき」
+  // ＋任意コスト《白》/アップ状態の自身ダウン＋「そうした場合」バウンスを既存語彙で忠実化する。
+  // OPTIONAL_COST の直後を結果にする形は executor Pattern⑤ が pay のときだけ残りを実行する。
+  if (card.CardNum === 'WX20-067') {
+    const e = task5Effect('WX20-067-E1');
+    if (e) {
+      e.timing = ['ON_HAND_ADDED'];
+      e.condition = {
+        type: 'DURING_PHASE',
+        phases: ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'],
+      };
+      e.triggerCondition = { handOwner: 'any', minCount: 1 };
+      e.action = {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['白'], down_self: true },
+          {
+            type: 'BOUNCE',
+            target: {
+              type: 'SIGNI', owner: 'opponent', count: 1,
+              filter: { cardType: 'シグニ' },
+            },
+          },
+        ],
+      };
+      e.mandatory = true;
+      e.parseStatus = 'MANUAL';
+      // parseBlock時点のフォールバック記録は外科パッチ後には偽陽性なので計器から除く。
+      clearTimingFallback(e.effectId);
+    }
   }
 
   applyReferenceAttributeBatch2(card.CardNum, effects);

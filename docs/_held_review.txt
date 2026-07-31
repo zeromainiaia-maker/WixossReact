@@ -792,6 +792,24 @@ WX19-Re10
   + [1].action.steps[1].then.fromHand = true
   ~ [1].parseStatus : "AUTO" → "MANUAL"
 
+## +DURING_PHASE +STUB -CONDITIONAL -DOWN -IS_MY_TURN -SIGNI ［1枚］
+WX20-067
+--- WX20-067
+  原文: 【自】：アタックフェイズの間、カード１枚がいずれかのプレイヤーの手札に加えられたとき、対戦相手のシグニ１体を対象とし、《白》を支払い、アップ状態のこのシグニをダウンしてもよい。そうした場合、それを手札に戻す。【出】：あなたのトラッシュにカード名に《コンテンポラ》を含むカードがある場合、あなたのデッキから＜美巧＞のシグニ１枚を探してエナゾーンに置き、デッキをシ
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "opponent"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.isUp = true
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[0].optional = true
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BOUNCE"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  …（他 21 行）
+
 ## +STUB -CONDITIONAL -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
 WX21-Re06
 --- WX21-Re06
