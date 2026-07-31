@@ -2720,6 +2720,11 @@ function effJa(e: Eff): string {
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any_opp') {
       s = 'あなたの効果によって対戦相手が手札を捨てたとき';
     }
+    // byOwnEffect（「あなたが**自分の効果によって**カードをN枚以上捨てたとき」WXDi-D09-P16-E2）を主語に反映。
+    // コスト捨て／相手効果による捨てでは発火しない原因限定なので、逆翻訳から落とすと原文照合できない。
+    if (t === 'ON_HAND_DISCARDED' && e.triggerCondition?.byOwnEffect) {
+      s = 'あなたが自分の効果によって手札を捨てたとき';
+    }
     return s;
   }).filter(Boolean).join('/');
   // 主語に反映できなかった scope のみマーカー表示

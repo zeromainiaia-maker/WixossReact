@@ -1010,6 +1010,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         trash: [...state.trash, ...picked],
         // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
         hand_discarded_just: picked.length > 0 ? [...(state.hand_discarded_just ?? []), ...picked] : state.hand_discarded_just,
+        // 相手側に捨てさせた＝その相手から見れば「対戦相手の効果によって」（byOwnEffect の否定材料）
+        hand_discarded_just_by_opp: tgt.owner === 'opponent' && picked.length > 0 ? true : state.hand_discarded_just_by_opp,
         turn_hand_discarded_count: tgt.owner === 'self' && picked.length > 0
           ? (state.turn_hand_discarded_count ?? 0) + picked.length : state.turn_hand_discarded_count,
         // 「見ないで選ぶ」経路でも相手効果による手札喪失としてカウントする（HAND_TRASHED_BY_OPP）。
@@ -1036,6 +1038,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         ...s, hand: remaining, trash: [...s.trash, ...toTrash],
         // ON_HAND_DISCARDEDトリガー検出用（BattleScreenが消化してクリア）
         hand_discarded_just: toTrash.length > 0 ? [...(s.hand_discarded_just ?? []), ...toTrash] : s.hand_discarded_just,
+        // 相手側に捨てさせた＝その相手から見れば「対戦相手の効果によって」（byOwnEffect の否定材料）
+        hand_discarded_just_by_opp: tgt.owner === 'opponent' && toTrash.length > 0 ? true : s.hand_discarded_just_by_opp,
         turn_hand_discarded_count: tgt.owner === 'self' && toTrash.length > 0
           ? (s.turn_hand_discarded_count ?? 0) + toTrash.length : s.turn_hand_discarded_count,
         // 「このターンに**対戦相手の効果によって**あなたの手札からカードがトラッシュに移動していた場合」条件用
@@ -5209,7 +5213,9 @@ function execDiscardBoth(a: DiscardBothAction, ctx: ExecCtx): ExecResult {
     ownerState: { ...ctx.ownerState, hand: ctx.ownerState.hand.slice(selfDiscard), trash: [...ctx.ownerState.trash, ...selfDiscarded],
       hand_discarded_just: selfDiscarded.length > 0 ? [...(ctx.ownerState.hand_discarded_just ?? []), ...selfDiscarded] : ctx.ownerState.hand_discarded_just },
     otherState: { ...ctx.otherState, hand: ctx.otherState.hand.slice(otherDiscard), trash: [...ctx.otherState.trash, ...otherDiscarded],
-      hand_discarded_just: otherDiscarded.length > 0 ? [...(ctx.otherState.hand_discarded_just ?? []), ...otherDiscarded] : ctx.otherState.hand_discarded_just },
+      hand_discarded_just: otherDiscarded.length > 0 ? [...(ctx.otherState.hand_discarded_just ?? []), ...otherDiscarded] : ctx.otherState.hand_discarded_just,
+      // otherState 側＝相手から見れば「対戦相手の効果によって」（ownerState 側は自分の効果なので立てない）
+      hand_discarded_just_by_opp: otherDiscarded.length > 0 ? true : ctx.otherState.hand_discarded_just_by_opp },
   };
   return done(addLog(newCtx, `各プレイヤー手札${a.count}枚捨て`));
 }
@@ -6691,6 +6697,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const newS: PlayerState = {
             ...s, hand: newHand, trash: [...s.trash, cardNum],
             hand_discarded_just: [...(s.hand_discarded_just ?? []), cardNum], // ON_HAND_DISCARDED 検出用（BattleScreenが消化）
+            // 相手側に捨てさせた＝その相手から見れば「対戦相手の効果によって」（byOwnEffect の否定材料）
+            hand_discarded_just_by_opp: owner === 'opponent' ? true : s.hand_discarded_just_by_opp,
             turn_hand_discarded_count: owner === 'self'
               ? (s.turn_hand_discarded_count ?? 0) + 1 : s.turn_hand_discarded_count,
             // owner==='opponent' ＝ 実行者から見た相手の手札を捨てさせた＝その相手から見れば「対戦相手の効果で捨てられた」

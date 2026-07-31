@@ -19174,6 +19174,33 @@ test('タスク12(lxix) 巻き添え確認: WX01-029-E1（赤・any_ally）は�
   ok(matchesFilter(cardMap.get('WX01-029'), e.triggerFilter, undefined), 'WX01-029 自身は赤なので filter を通る');
 });
 
+// タスク16: WXDi-D09-P16-E2「あなたが自分の効果によってカードを1枚以上捨てたとき」＝原因限定。
+// 従来は timing:[] の安全停止。コスト捨て／相手効果による捨てでは発火しないことを両方向で固定する。
+test('WXDi-D09-P16-E2: parser は ON_HAND_DISCARDED＋byOwnEffect を生成', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-D09-P16')!).find(x => x.effectId === 'WXDi-D09-P16-E2')!;
+  eq(e.timing?.join(','), 'ON_HAND_DISCARDED');
+  eq(e.triggerCondition?.byOwnEffect, true);
+});
+test('WXDi-D09-P16-E2: 自分の効果による手札捨てでのみ発火する', () => {
+  const watcher = mkState({ signi: ['WXDi-D09-P16', null, null] });
+  const hit = (asCost: boolean, byOpp: boolean) => fired(
+    collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], watcher, HOST, asCost, mkState({}), GUEST, undefined, byOpp).entries,
+    'WXDi-D09-P16-E2');
+  eq(hit(false, false), true, '自分の効果による捨て＝発火');
+  eq(hit(true, false), false, 'コスト支払いの捨てでは非発火');
+  eq(hit(false, true), false, '対戦相手の効果で捨てさせられた場合は非発火');
+});
+test('タスク16: byOwnEffect を持たない既存 ON_HAND_DISCARDED は原因に関わらず従来どおり発火', () => {
+  // 巻き添え確認＝新軸は byOwnEffect 宣言のある効果だけを絞る（実データでは本効果1件のみ）。
+  const watcher = mkState({ signi: [null, null, null] });
+  watcher.field.lrig = ['WXEX2-12'];
+  const hit = (byOpp: boolean) => fired(
+    collectHandDiscardTriggers(trigCtx(HOST), [SIGNI], watcher, HOST, false, mkState({}), GUEST, undefined, byOpp).entries,
+    'WXEX2-12-E2');
+  eq(hit(false), true, '自分の効果＝従来どおり発火');
+  eq(hit(true), true, '相手の効果でも従来どおり発火（byOwnEffect 未宣言なので絞らない）');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

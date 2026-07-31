@@ -352,6 +352,13 @@ export interface PlayerState {
   hand_revealed_just?: string[] | null;
   // 効果による手札捨て直後にセット: 捨てられたカードのCardNum（BattleScreenでON_HAND_DISCARDEDトリガー検出用）
   hand_discarded_just?: string[] | null;
+  // 上の hand_discarded_just が「**対戦相手の**効果によるもの」かどうか（このプレイヤー視点）。
+  // 1回の効果解決では ctx.ownerState=効果の持ち主／ctx.otherState=その相手で固定されるため、
+  // 「他方の state 側へ書いた＝相手の効果で捨てさせた」が成り立つ＝state ごとの boolean で厳密に表せる
+  // （既存の hand_trashed_by_opp_this_turn が同じ規約でカウントしている）。
+  // triggerCondition.byOwnEffect（「あなたが自分の効果によって捨てたとき」WXDi-D09-P16-E2）の判定に使う。
+  // hand_discarded_just と同じ地点で BattleScreen がクリアする。
+  hand_discarded_just_by_opp?: boolean | null;
   // このプレイヤーから見て対戦相手の場に【ウィルス】が置かれた/取り除かれた直後にセット
   // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
   opp_virus_placed_just?: boolean | null;

@@ -1297,23 +1297,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_HAND_DISCARDED: 効果による手札捨て（コスト捨てはコスト支払い側で別途収集）
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
           discardedHJ, localMy, user.id, false,
-          localIsHost ? bs.guest_state : bs.host_state, localIsHost ? bs.guest_id : bs.host_id);
+          localIsHost ? bs.guest_state : bs.host_state, localIsHost ? bs.guest_id : bs.host_id,
+          // byOppEffect＝この手札捨てが「対戦相手の効果によるもの」か（triggerCondition.byOwnEffect の判定材料）。
+          // executor が捨てた側の state に立てる（自分の効果なら立たない）。
+          undefined, !!localMy.hand_discarded_just_by_opp);
         entries.push(...hdEntries);
         const cleared: PlayerState = {
           ...localMy,
           hand_revealed_just: null,
           hand_discarded_just: null,
+          hand_discarded_just_by_opp: null,
           actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
         };
         const update: Record<string, unknown> = { [stateKey]: cleared };
         // CPU戦: CPU(guest)が捨てた手札 → CPU自身の self/any 効果 + 人間(host)の 'any' 効果を収集し、guest フラグをクリア
         if (cpuDiscardedHJ.length > 0) {
           const { entries: cpuHd, usedLimitIds: cpuUsed } = collectHandDiscardTriggers(
-            cpuDiscardedHJ, bs.guest_state, CPU_PLAYER_ID, false, bs.host_state, bs.host_id);
+            cpuDiscardedHJ, bs.guest_state, CPU_PLAYER_ID, false, bs.host_state, bs.host_id,
+            undefined, !!bs.guest_state.hand_discarded_just_by_opp);
           entries.push(...cpuHd);
           update.guest_state = {
             ...bs.guest_state,
             hand_discarded_just: null,
+            hand_discarded_just_by_opp: null,
             actions_done: cpuUsed.length > 0 ? [...(bs.guest_state.actions_done ?? []), ...cpuUsed] : bs.guest_state.actions_done,
           };
         }
@@ -5010,8 +5016,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     opState?: PlayerState,
     opId?: string,
     costSourceNum?: string,
+    byOppEffect?: boolean,
   ): { entries: StackEntry[]; usedLimitIds: string[] } =>
-    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum);
+    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect);
 
   /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。

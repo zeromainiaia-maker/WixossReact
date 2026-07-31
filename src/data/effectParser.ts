@@ -6704,7 +6704,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //     （「手札から」直後に「トラッシュ」が来る＝「カードN枚が」が挟まらない）ので競合しない。
              : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(trigText)
                 || /対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(trigText)
-                || /あなたが(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(trigText)
+                || /あなたが(?:自分の効果によって)?(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(trigText)
                 || /(?:あなたの)?手札からカード[０-９\d]*枚がトラッシュに置かれたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
@@ -6880,6 +6880,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_HAND_DISCARDED') {
         if (/いずれかのプレイヤーが手札を/.test(actionText)) extractedTriggerScope = 'any';
         else if (/対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(actionText)) extractedTriggerScope = 'any_opp';
+        // 「あなたが**自分の効果によって**カードをN枚以上捨てたとき」（WXDi-D09-P16-E2）＝原因限定。
+        // コスト支払いによる手札捨てと、対戦相手の効果で捨てさせられた場合では発火しない
+        // （engine 側は collectHandDiscardTriggers の byOwnEffect＋byOppEffect で判定）。
+        if (/あなたが自分の効果によって(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
+        }
       }
       // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
       //   「あなたのシグニN体に」＝any_ally＝あなたの場のシグニ全体が反応）。

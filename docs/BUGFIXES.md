@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16：`WXDi-D09-P16-E2`「あなたが自分の効果によって捨てたとき」の原因軸（1効果・Claude 実装）
+
+原文「【自】《ターン１回》：あなたが**自分の効果によって**カードを１枚以上捨てたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。」。live は `timing:[]` の**安全停止**で、本体（`TRASH{HAND_CARD, owner:opponent, count:1, blind:true}`）は既に原文どおりだった＝**足りないのは timing と原因軸だけ**。
+
+**engine には既に「誰の効果が原因か」を表せる構造があった**のが要点。1回の効果解決では `ctx.ownerState`＝効果の持ち主／`ctx.otherState`＝その相手で**固定**されるので、**「どちらの state 側へ `hand_discarded_just` を書いたか」がそのまま原因の所在**になる（既存の `hand_trashed_by_opp_this_turn` が同じ規約でカウントしている）。**同じ state が1回の解決で「自分の効果」と「相手の効果」の両方を受けることは構造上ありえない**ため、**state ごとの boolean で厳密に表せる**。
+
+- **`PlayerState.hand_discarded_just_by_opp`（新設・boolean）** を `hand_discarded_just` と同じ5地点で立てる＝`effectExecutor.ts` のランダム捨て／`applyTrashHand`／`execDiscardBoth` の otherState 側／SELECT_TARGET 再開経路（`owner==='opponent'`）と、`execStubPart1.ts` の otherState 直書き。**相手側へ捨てさせたときだけ true**。`hand_discarded_just` をクリアする2地点（`BattleScreen.tsx` の人間/CPU watcher）で一緒にクリアする。
+- **`collectHandDiscardTriggers` に `byOppEffect` 引数を追加**し、`triggerCondition.byOwnEffect` を **`!asCost && !byOppEffect`** で判定（**コスト支払いの手札捨ては「効果によって」ではない**ので除外／ターン終了時の手札上限処理はそもそも `hand_discarded_just` を立てないのでこの経路に来ない）。⚠**相手フィールド側の watcher ループ（`any`/`any_opp`）では `byOwnEffect` は意味が確定しない**（watcher の持ち主が discarder ではない）ため、実データ0件を確認のうえ**保守的に非発火**にした。
+- **呼び出し元7箇所のうち引数を渡すのは watcher の2箇所だけ**（`BattleScreen.tsx` の人間/CPU）。残る5箇所はコスト支払い or 自分起因なので既定 `false` のままで正しい。
+- **parser**＝トリガー regex に「自分の効果によって」を通し、`triggerCondition.byOwnEffect` を出す。
+- **decompiler**＝逆翻訳に原因限定を反映（当初「ガードステップ以外であなたが手札を捨てたとき」と出て**原因が落ちていた**のを是正。新フィールドが逆翻訳から落ちるのは既知の失敗モード）。
+
+**波及範囲は投入前に全数実測してゼロ**＝`ON_HAND_DISCARDED` は live 31効果あるが **`byOwnEffect` を持つものは0件**（`triggerCondition` 持ち4件はすべて `turnOwner` のみ）。golden で「`byOwnEffect` 未宣言の既存効果（`WXEX2-12-E2`）は原因に関わらず従来どおり発火」も固定した。
+
+golden **1181→1184**（parser 出力／自分の効果で発火・コスト捨てで非発火・相手効果で非発火の3分岐／巻き添え無し）、census **1361 据置**、`census:timing` **21→20**、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/234 warnings 据置、同型★0、held 251枚/98署名 据置、manual field loss 0。live per-effect 差分 **changed 1 / added 0 / removed 0**。⚠**実機UI 未検証**。
+
 ## 2026-07-31 — タスク12(lxix)：「あなたのパワーN以上のシグニがアタックしたとき」の主語＋閾値が丸ごと落ちていた2効果（Claude 実装）
 
 **codex のトークン枯渇によりユーザー指示で Claude が実装した回。** 対象は `WXDi-P02-079-E2`（パワー15000以上→【エナチャージ１】）と `WXK07-030-E2`（同→1枚引き＋【エナチャージ１】）。live はどちらも `timing:['ON_ATTACK_SIGNI']`／**`triggerScope:'self'`／`triggerFilter:null`** で、**両方向に誤っていた**＝①能力保持シグニ自身がアタックすれば**パワー不問で発火**（過剰実行）②**他の適格シグニがアタックしても発火しない**（過小実行）。⚠ timing は付いているので **`census:timing` には出ない＝計器の外にあった**（タスク16 第4波の実測中に発見）。

@@ -2606,6 +2606,7 @@ export function collectBeatBecameTriggers(
 export function collectHandDiscardTriggers(
   ctx: TrigCtx, discardedNums: string[], myState: PlayerState, discarderId: string, asCost: boolean,
   opState?: PlayerState, opId?: string, costSourceNum?: string,
+  byOppEffect = false,
 ): { entries: StackEntry[]; usedLimitIds: string[] } {
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
@@ -2615,6 +2616,14 @@ export function collectHandDiscardTriggers(
     !eff.triggerFilter || discardedNums.some(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter));
   const meetsMinCount = (eff: CardEffect): boolean =>
     discardedNums.length >= (eff.triggerCondition?.minCount ?? 1);
+  // byOwnEffect（「あなたが**自分の効果によって**カードをN枚以上捨てたとき」WXDi-D09-P16-E2）＝
+  // 捨てた本人（discarder）自身の効果が原因のときだけ発火する。除外するのは
+  //   ①コスト支払いによる手札捨て（asCost＝コストで捨てるのは「効果によって」ではない）
+  //   ②対戦相手の効果で捨てさせられた場合（byOppEffect＝discarder 側 state の
+  //     hand_discarded_just_by_opp を呼び出し元が渡す）。
+  // ⚠ターン終了時の手札上限処理はそもそも hand_discarded_just を立てないのでこの経路に来ない。
+  const ownEffectOk = (eff: CardEffect): boolean =>
+    !eff.triggerCondition?.byOwnEffect || (!asCost && !byOppEffect);
   // ON_DISCARDED_AS_COST: 捨てられたカード自身（コストとして捨てられた場合のみ）
   // 発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして」＝コストを支払った能力の host シグニ
   //（costSourceNum）の CardClass に X を含むときだけ発火（Opusタスク12(xxiv)）。
@@ -2644,6 +2653,7 @@ export function collectHandDiscardTriggers(
       if (!meetsMinCount(eff)) continue;
       // any_opp＝「対戦相手が捨てたとき」＝discarder 自身の場では発火しない（相手フィールド path で拾う）。
       if (eff.triggerScope === 'any_opp') continue;
+      if (!ownEffectOk(eff)) continue;
       const isAny = eff.triggerScope === 'any';
       if (myBlocked) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
@@ -2665,6 +2675,7 @@ export function collectHandDiscardTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
       if (!meetsMinCount(eff)) continue;
       if (eff.triggerScope === 'any_opp') continue; // 相手が捨てたとき＝discarder 自身の LRIG では発火しない
+      if (!ownEffectOk(eff)) continue;
       const isAny = eff.triggerScope === 'any';
       if (eff.triggerCondition?.turnOwner === 'opponent') { if (myIsTurn) continue; }
       else if (!isAny && !myIsTurn) continue;
@@ -2693,6 +2704,9 @@ export function collectHandDiscardTriggers(
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_DISCARDED')) continue;
         if (!meetsMinCount(eff)) continue;
         if (eff.triggerScope !== 'any' && eff.triggerScope !== 'any_opp') continue;
+        // byOwnEffect は「捨てた本人の効果が原因」を指す軸なので、watcher の持ち主が discarder でない
+        // このループでは意味が確定しない（実データ0件）。過剰発火を避けて保守的に非発火にする。
+        if (eff.triggerCondition?.byOwnEffect) continue;
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
           const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;

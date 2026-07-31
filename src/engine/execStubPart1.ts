@@ -543,6 +543,8 @@ export function execStubPart1(
       hand: oppHandTD.filter(cn => !discardTD.includes(cn)),
       trash: [...ctx.otherState.trash, ...discardTD],
       hand_discarded_just: [...(ctx.otherState.hand_discarded_just ?? []), ...discardTD],
+      // otherState 側＝その相手から見れば「対戦相手の効果によって」（byOwnEffect の否定材料）
+      hand_discarded_just_by_opp: discardTD.length > 0 ? true : ctx.otherState.hand_discarded_just_by_opp,
     };
     const namesTD = discardTD.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('、');
     return done(addLog({ ...ctx, otherState: newOtherTD },
