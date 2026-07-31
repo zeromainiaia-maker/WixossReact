@@ -2129,21 +2129,51 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
   let baseline: EffectAction;
   try { baseline = parseSingleSentence(t); } finally { _unlessGateBaselinePass = false; }
   const baselineS = JSON.stringify(baseline);
+  // 基準読みを供給源に使う A/C 系統に共通のガード。UNKNOWN 混じりは信用できず、この family の
+  // 専用 STUB が既に居る場合は二重に包むと相手に CHOOSE が2回出る。
+  if (baselineS.includes('"UNKNOWN"')) return undefined;
+  if (OPP_PAY_DEDICATED_STUB_RE.test(baselineS)) return undefined;
 
   // ── A) クローズが本文の先頭（＝前にアクションが無い）⇒ X は本文まるごと＝基準読みを供給源に使う
   if (prefix === '' || isNoActionPrefix(prefix)) {
-    if (baselineS.includes('"UNKNOWN"')) return undefined;
-    if (OPP_PAY_DEDICATED_STUB_RE.test(baselineS)) return undefined;
     return seq(bindUnlessGateAnaphora(thenText, baseline));
   }
 
   // ── B) 対象節が前置きされた文中形 ⇒ 対象節を帰結の前へ戻して再パース（第1波の形）
-  if (!/を?対象とし[、,]$/.test(prefix)) return undefined;   // 除外②
-  const unlessThen = parseSingleSentence(prefix + thenText);
-  if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
-  // 純加算チェック＝分割で読みが変わったら分割が解決を狂わせた合図なので据置
-  if (baselineS !== JSON.stringify(unlessThen)) return undefined;
-  return seq(unlessThen);
+  if (/を?対象とし[、,]$/.test(prefix)) {
+    const unlessThen = parseSingleSentence(prefix + thenText);
+    if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
+    // 純加算チェック＝分割で読みが変わったら分割が解決を狂わせた合図なので据置
+    if (baselineS !== JSON.stringify(unlessThen)) return undefined;
+    return seq(unlessThen);
+  }
+
+  // ── C) tail-splice（タスク12(lxi) 第4波）＝前置きが**別のアクション**の形
+  //   （`WX24-P2-022-E1`「…そうした場合、カードを１枚引き、対戦相手が手札を３枚捨てないかぎり、
+  //    対戦相手にダメージを与える」）。前置きまで包むと「**回避されたら引きも消える**」過少実行に
+  //   なるため第1波では丸ごと据置していた（除外②）。前置きを外に出し**末尾の帰結だけ**を包む。
+  //
+  // ⚠前置きは**再パースしない**＝基準読みの前段ステップをそのまま使う。前置き（連用形「〜引き、」）を
+  //   単独文として読み直すのは変換が要り、そこで別の退化を招く。代わりに
+  //   **「基準読みの最終ステップ ＝ クローズ以降の帰結の読み」であることを実測で確認できたときだけ**
+  //   スプライスする＝分割で読みが変わっていないことの証明（第1波の純加算チェックと同じ役割）。
+  //   一致しなければ「どこからが X か」を同定できていないので据置。
+  // 正準形の実在証明＝`WX24-P3-050-E1`（MANUAL 手配線）が
+  //   `SEQUENCE[SET_CANCEL_ATTACK_FLAG, OPPONENT_PAY_OPTIONAL, CONDITIONAL{…, LIFE_CRASH}]`
+  //   ＝まさにこの形（前置きの「このアタックを無効にし、」はゲートの外）。
+  if (baseline.type === 'SEQUENCE') {
+    const bSteps = (baseline as SequenceAction).steps;
+    const tail = bSteps.length >= 2 ? parseSingleSentence(thenText) : undefined;
+    const tailS = tail ? JSON.stringify(tail) : '';
+    if (tail && !tailS.includes('"UNKNOWN"') && tailS === JSON.stringify(bSteps[bSteps.length - 1])) {
+      return { type: 'SEQUENCE', steps: [
+        ...bSteps.slice(0, -1),
+        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
+        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: tail } as EffectAction,
+      ] } as SequenceAction;
+    }
+  }
+  return undefined;   // 除外②＝「どこからが X か」を同定できない形は触らない
 }
 
 // 帰結が「（ターン終了時まで、）そのシグニ〜」＝**トリガー元シグニ**への照応なら、対象選択ではなく

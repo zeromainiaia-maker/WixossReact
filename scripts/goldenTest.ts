@@ -9460,10 +9460,61 @@ test('parse ガード⑥＝引用「」の内側のクローズは外側へホ�
   eq(act.effect?.action?.type, 'SEQUENCE', '付与される能力の内側がゲート化される');
   eq(act.effect?.action?.steps?.[0]?.id, 'OPPONENT_PAY_OPTIONAL', '内側に OPPONENT_PAY_OPTIONAL');
 });
-test('parse ガード②＝対象節以外の前置き（「カードを１枚引き、」）は取り込まない（WX24-P2-022）', () => {
+// ── タスク12(lxi) 第4波（2026-07-31）＝tail-splice：前置きのアクションは外に出し末尾の帰結だけ包む ──
+test('parse 第4波 tail-splice：前置きの「カードを１枚引き、」はゲートの外・帰結だけ包む（WX24-P2-022）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-PRE', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、カードを１枚引き、対戦相手が手札を３枚捨てないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
-  const s = JSON.stringify(e.action);
-  ok(!s.includes('OPPONENT_PAY_OPTIONAL'), 'ドローまでゲートに巻き込む過少実行を作らない＝据置');
+  const seq = e.action as unknown as { type: string; steps: { type: string; id?: string; opponentHandDiscard?: number; then?: { type: string } }[] };
+  eq(seq.type, 'SEQUENCE', 'SEQUENCE');
+  eq(seq.steps[0]?.type, 'DRAW', 'ドローはゲートの**前**＝回避されても引きは消えない（第1波はこれが作れず丸ごと据置だった）');
+  eq(seq.steps[1]?.id, 'OPPONENT_PAY_OPTIONAL', '回避クローズがゲート化される（従来は無条件ダメージ）');
+  eq(seq.steps[1]?.opponentHandDiscard, 3, '手札3枚で回避');
+  eq(seq.steps[2]?.then?.type, 'LIFE_CRASH', 'ゲートされるのは末尾のダメージだけ');
+});
+test('parse 第4波ガード：基準読みの最終ステップと帰結の読みが一致しなければ据置', () => {
+  // 「どこからが X か」を同定できない形＝前置きが読めず基準読みが SEQUENCE にならない
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-TAILDEFER', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '遅延トリガーの設置が前置きの形は tail-splice にも乗せない（WX24-P4-011-E3）');
+});
+test('第4波 triage 訂正：WXDi-P13-075-E1 は専用 STUB で既に回避まで実装済み＝包まない', () => {
+  // (lxi) 第3波の簿記で「前置きにアクションがある」側へ入れていたが誤り。原文
+  // 「対戦相手のすべてのシグニを凍結する。次の対戦相手のアップフェイズに、対戦相手が手札を１枚捨てるか
+  //  《無》を支払わないかぎり、対戦相手のセンタールリグはアップしない。」は UPKEEP_OR_NO_UP が
+  // 回避条件ごと持っている（engine が lrig_upkeep_condition を立て、UPフェイズで支払い/捨てを選ばせる）。
+  // 標準ペアで二重に包むと相手に CHOOSE が2回出るので**包まないのが正しい**。
+  const eff = effectsMap.get('WXDi-P13-075')!.find(e => e.effectId === 'WXDi-P13-075-E1')!;
+  const seq = eff.action as SequenceAction;
+  eq((seq.steps[0] as { type: string }).type, 'FREEZE', '前段は相手全シグニの凍結');
+  eq((seq.steps[1] as { id?: string }).id, 'UPKEEP_OR_NO_UP', '回避つきアップ制限は専用 STUB が持つ');
+  ok(!JSON.stringify(eff.action).includes('OPPONENT_PAY_OPTIONAL'), '標準ペアを二重に被せない');
+  // engine：STUB が「手札1枚捨てるか《無》1枚」の回避条件を相手に立てる
+  const savedCursorU = cursor;
+  const ctxU = mkCtx({}, {}, 'WXDi-P13-075');
+  const rU = run(seq.steps[1] as EffectAction, ctxU);
+  eq(rU.otherState.lrig_upkeep_condition, 'discard_or_colorless1',
+    '回避手段（手札1枚 or 《無》1枚）が相手側の状態として立つ＝ゲートは実装済み');
+  cursor = savedCursorU;
+});
+test('engine 第4波：tail-splice 形は「回避されても前置きは起きる／帰結だけ止まる」', () => {
+  const savedCursor = cursor;
+  const gated: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'DRAW', owner: 'self', count: 1 } as unknown as EffectAction,
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 3 } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: false } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  const ctx = mkCtx({ hand: 4 }, { hand: 5, life: 4 });
+  const first = executeEffect({ effectId: 't', effectType: 'AUTO', action: gated, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  eq(first.ownerState.hand.length, 5, 'ドローはゲート判定より前に済んでいる（回避の可否と無関係）');
+  ok(!first.done && first.pending.type === 'CHOOSE' && first.pending.opponentResponds === true, '相手に回避の選択が出る');
+  const pick = (id: string) => {
+    const c: ExecCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs };
+    return finish(resumeOpponentPayOptional(id, [], first.pending as never, c), c);
+  };
+  const avoided = pick('discard');
+  eq(avoided.otherState.life_cloth.length, 4, '回避（手札3枚捨て）＝ライフは減らない');
+  eq(avoided.otherState.hand.length, 2, '回避コストとして手札3枚を捨てている');
+  const taken = pick('skip');
+  eq(taken.otherState.life_cloth.length, 3, '回避しなければライフクロスが1枚クラッシュされる');
+  cursor = savedCursor;
 });
 // ── タスク12(lxi) 第3波（2026-07-31）＝クローズが本文先頭にある形は「基準読み」を供給源に使う ──
 // 分割再パースをやめたので、第1波で据え置いた「複文／owner 反転／そのシグニ照応」が同時に開く。
