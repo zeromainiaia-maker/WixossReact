@@ -19233,6 +19233,48 @@ test('WX24-P2-051-E1: STUB がトリガー元のカードをトラッシュ→�
   ok(!r.ownerState.trash.includes(plainCard), 'トラッシュから抜けた');
 });
 
+// タスク16: WXDi-CP02-068-E1「あなたのターンの間、あなたの効果によって対戦相手のシグニ1体が
+// 手札に戻るかトラッシュに置かれたとき」＝WXK11-049-E1（hand のみ）の行き先 OR 版。
+test('WXDi-CP02-068-E1: parser は any_opp＋byOwnEffect＋leftToZone:[hand,trash]＋turnOwner:self を生成', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-CP02-068')!).find(x => x.effectId === 'WXDi-CP02-068-E1')!;
+  eq(e.timing?.join(','), 'ON_LEAVE_FIELD');
+  eq(e.triggerScope, 'any_opp');
+  eq(JSON.stringify(e.triggerCondition?.leftToZone), '["hand","trash"]');
+  eq(e.triggerCondition?.byOwnEffect, true);
+  eq(e.triggerCondition?.turnOwner, 'self');
+});
+test('WXDi-CP02-068-E1: 手札／トラッシュのどちらへ移動しても発火し、他領域では非発火', () => {
+  const left = SIGNI; // 場を離れた相手シグニ
+  // watcher（＝効果を使った側）は HOST。離れたのは GUEST 側のシグニ。
+  const run = (dest: 'hand' | 'trash' | 'energy') => {
+    const oppAfter = mkState({ signi: [null, null, null] });      // 離脱後の相手（＝leftPlayer）
+    if (dest === 'hand') oppAfter.hand = [...oppAfter.hand, left];
+    if (dest === 'trash') oppAfter.trash = [...oppAfter.trash, left];
+    if (dest === 'energy') oppAfter.energy = [...oppAfter.energy, left];
+    const watcher = mkState({ signi: ['WXDi-CP02-068', null, null] });
+    return collectLeaveFieldTriggers(
+      { ...trigCtx(HOST), turnPhase: 'MAIN' }, left, [], GUEST, watcher, oppAfter, HOST,
+    ).entries.filter(x => x.effectId === 'WXDi-CP02-068-E1').length;
+  };
+  eq(run('hand'), 1, '手札に戻った＝発火');
+  eq(run('trash'), 1, 'トラッシュに置かれた＝発火');
+  eq(run('energy'), 0, 'エナゾーンへ行った場合は非発火（行き先 OR は hand/trash のみ）');
+});
+test('WXK11-049-E1: 既存の素の leftToZone:"hand" は従来どおり手札のみで発火（互換表記）', () => {
+  const left = SIGNI;
+  const run = (dest: 'hand' | 'trash') => {
+    const oppAfter = mkState({ signi: [null, null, null] });
+    if (dest === 'hand') oppAfter.hand = [...oppAfter.hand, left];
+    else oppAfter.trash = [...oppAfter.trash, left];
+    const watcher = mkState({ signi: ['WXK11-049', null, null] });
+    return collectLeaveFieldTriggers(
+      { ...trigCtx(HOST), turnPhase: 'MAIN' }, left, [], GUEST, watcher, oppAfter, HOST,
+    ).entries.filter(x => x.effectId === 'WXK11-049-E1').length;
+  };
+  eq(run('hand'), 1, '手札＝従来どおり発火');
+  eq(run('trash'), 0, 'トラッシュでは発火しない（互換表記が配列化で緩まないこと）');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

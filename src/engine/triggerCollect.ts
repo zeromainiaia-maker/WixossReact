@@ -1157,6 +1157,18 @@ export function resolveLeaveFieldDynamicFilters(
  * triggerFilter があれば離れたカードがそれを満たす場合のみ）を集める。
  * leftUnder=離れたカードの下にあったカード（動的フィルタ解決用）。
  */
+/**
+ * ON_LEAVE_FIELD の `triggerCondition.leftToZone`（行き先限定）判定。
+ * 素の 'hand' は既存6効果の互換表記で ['hand'] と同義。配列は OR（「手札に戻るかトラッシュに置かれたとき」）。
+ * 省略時は行き先不問＝常に true。
+ */
+function leftToZoneOk(eff: CardEffect, ownerStateAfter: PlayerState, leftCardNum: string): boolean {
+  const ltz = eff.triggerCondition?.leftToZone;
+  if (!ltz) return true;
+  const zones = typeof ltz === 'string' ? [ltz] : ltz;
+  return zones.some(z => (z === 'hand' ? ownerStateAfter.hand : ownerStateAfter.trash).includes(leftCardNum));
+}
+
 export function collectLeaveFieldTriggers(
   ctx: TrigCtx,
   leftCardNum: string,
@@ -1233,8 +1245,9 @@ export function collectLeaveFieldTriggers(
       const to = eff.triggerCondition?.turnOwner;
       if (to === 'self' && !watcherIsTurn) continue;
       if (to === 'opponent' && watcherIsTurn) continue;
-      // leftToZone:'hand'（「場から手札に戻ったとき」WXK02-041）: 離れたカードが所有者の手札に在中する場合のみ発火
-      if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
+      // leftToZone（「場から手札に戻ったとき」WXK02-041／「手札に戻るかトラッシュに置かれたとき」WXDi-CP02-068-E1）:
+      // 離れたカードが所有者の当該領域に在中する場合のみ発火。配列は OR。
+      if (!leftToZoneOk(eff, ownerStateAfter, leftCardNum)) continue;
       // byOpponentEffect（「対戦相手の効果によって場を離れたとき」WX19-026）: 原因効果のオーナーが watcher の相手側のときのみ。
       if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === undefined) continue;
       if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === leftPlayerId) continue;
@@ -1273,7 +1286,7 @@ export function collectLeaveFieldTriggers(
       const to = eff.triggerCondition?.turnOwner;
       if (to === 'self' && !oppIsTurn) continue;
       if (to === 'opponent' && oppIsTurn) continue;
-      if (eff.triggerCondition?.leftToZone === 'hand' && !ownerStateAfter.hand.includes(leftCardNum)) continue;
+      if (!leftToZoneOk(eff, ownerStateAfter, leftCardNum)) continue;
       // byOwnEffect（「**あなたの効果によって**対戦相手のシグニが…」）: watcher 自身の効果が原因のときのみ
       // （バトル・ルール処理・相手自身の効果では発火しない）。
       if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== oppId) continue;

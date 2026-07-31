@@ -2337,9 +2337,18 @@ function effJa(e: Eff): string {
     else if (scopeSubj !== null && s.startsWith('このルリグ')) s = `${scopeSubj}ルリグ${s.slice('このルリグ'.length)}`;
     // ON_LEAVE_FIELD の leftToZone:'hand'（「シグニ１体が場から手札に戻ったとき」WXK02-041）
     if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
+    // leftToZone が配列（「手札に戻るかトラッシュに置かれたとき」WXDi-CP02-068-E1）＝行き先 OR を落とさない
+    if (t === 'ON_LEAVE_FIELD' && Array.isArray(e.triggerCondition?.leftToZone)) {
+      const zonesJa = (e.triggerCondition!.leftToZone as string[])
+        .map(z => (z === 'hand' ? '手札に戻る' : 'トラッシュに置かれた')).join('か');
+      s = `対戦相手のシグニ１体が${zonesJa}とき`;
+    }
     // ON_LEAVE_FIELD 跨サイド any_opp（「あなたの効果によって対戦相手のシグニが場から手札に移動したとき」WXK11-049/WXDi-CP01-027）
     if (t === 'ON_LEAVE_FIELD' && e.triggerScope === 'any_opp' && e.triggerCondition?.byOwnEffect) {
-      const toJa = e.triggerCondition?.leftToZone === 'hand' ? '場から手札に移動した' : '場を離れた';
+      const ltzArr = e.triggerCondition?.leftToZone;
+      const toJa = Array.isArray(ltzArr)
+        ? ltzArr.map((z: string) => (z === 'hand' ? '手札に戻る' : 'トラッシュに置かれた')).join('か')
+        : (ltzArr === 'hand' ? '場から手札に移動した' : '場を離れた');
       const turnJa = e.triggerCondition?.turnOwner === 'self' ? 'あなたのターンの間、' : '';
       s = `${turnJa}あなたの効果によって対戦相手のシグニ１体が${toJa}とき`;
     }

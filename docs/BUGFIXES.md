@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16：`WXDi-CP02-068-E1` 離脱先の OR（手札かトラッシュ）（1効果・Claude 実装）
+
+原文「【自】《ターン１回》：あなたのターンの間、あなたの効果によって対戦相手のシグニ１体が**手札に戻るかトラッシュに置かれた**とき、あなたのデッキの一番上を公開する。そのカードが＜ブルアカ＞の場合、【エナチャージ１】をする。」。live は `timing:[]` の**安全停止**で、本体（`REVEAL_AND_PICK{filter:＜ブルアカ＞, then:エナチャージ}`）は既に原文どおり。
+
+**`WXK11-049-E1` がほぼ同一のテンプレートだった**＝「あなたのターンの間、あなたの効果によって対戦相手のシグニ１体が場から**手札に**移動したとき」で、`timing:['ON_LEAVE_FIELD']`／`triggerScope:'any_opp'`／`triggerCondition:{leftToZone:'hand', byOwnEffect:true, turnOwner:'self'}`。**差分は行き先が「手札 **か** トラッシュ」の OR になっただけ**＝`byOwnEffect`・`turnOwner`・any_opp 走査はすべて既存で動いている。
+
+- **`triggerCondition.leftToZone` を `'hand' | Array<'hand'|'trash'>` へ拡張**（配列は OR）。既存6効果は素の `'hand'` のままで**表記も挙動も不変**＝`['hand']` と同義として扱う（並行フィールドは新設しない）。
+- 判定を `leftToZoneOk()` ヘルパーに集約し、`collectLeaveFieldTriggers` の**2つの走査（any_ally/any 側と any_opp 側）を対称に**書き換えた。
+- parser＝トリガー regex と cond 抽出に「手札に戻るかトラッシュに置かれたとき」を追加（既存2文型と同じ分岐に相乗り）。
+- decompiler＝配列形の行き先 OR を逆翻訳に反映（**素の `'hand'` の既存表示は不変**）。
+
+**波及ゼロ**＝`leftToZone` を持つ効果は live で6件、すべて素の `'hand'`。golden に **`WXK11-049-E1` は手札で発火・トラッシュでは非発火**（互換表記が配列化で緩まないこと）を明示的に固定した。
+
+⚠ **本体の `filter.cardType:'シグニ'` は過剰制限ではない**＝＜ブルアカ＞は `CardClass`（「奏武：ブルアカ」）であり、実データで CardClass に「ブルアカ」を持つのは **シグニ109＋シグニ/クラフト6 のみ**（アーツ/ピース/ルリグには付かない）。原文「そのカードが＜ブルアカ＞の場合」と矛盾しないことを確認済み。
+
+golden **1187→1190**（parser 出力／手札・トラッシュ双方で発火・エナでは非発火／既存 `'hand'` の非緩和）、census **1361 据置**、`census:timing` **19→18**、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/234 warnings 据置、同型★0、held 251枚/98署名 据置、manual field loss 0。live per-effect 差分 **changed 1 / added 0 / removed 0**。⚠**実機UI 未検証**。
+
 ## 2026-07-31 — タスク16：`WX24-P2-051-E1`「《ガードアイコン》を持たないカードを捨てたとき」（1効果・Claude 実装）
 
 原文「【自】《ターン１回》：コストか効果によってあなたが《ガードアイコン》を持たないカードを１枚捨てたとき、**そのカード**をトラッシュからエナゾーンに置く。」。live は `timing:[]` の**安全停止**。

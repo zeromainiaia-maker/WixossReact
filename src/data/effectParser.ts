@@ -6813,6 +6813,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   効果が原因のときのみ・中央diff の causeOwnerId で判定）。cond/scope は下で抽出。
              : /あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が場から手札に移動したとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              : /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText) ? ['ON_LEAVE_FIELD']
+             // 「（あなたのターンの間、）あなたの効果によって対戦相手のシグニN体が手札に戻るかトラッシュに置かれたとき」
+             //   （WXDi-CP02-068）＝上2件と同じ any_opp＋byOwnEffect で、行き先が hand か trash の OR になった変種。
+             : /あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が手札に戻るかトラッシュに置かれたとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              // ON_HAND_ADDED（続き207・タスク16[C]）: 効果によってカードが手札に移動（増加）したとき。
              //   「場から手札に移動」（ON_LEAVE_FIELD leftToZone:hand）は上の規則が先取り＝ここは非・場由来。
              //   engine 配線＝collectHandAddedTriggers（detectHandAdded の set-diff・handOwner/fromZones/movedSelf は下で抽出）。
@@ -6993,10 +6996,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   移動した/手札に戻ったとき」＝効果を与えた側（watcher）の any_opp＋byOwnEffect＋leftToZone:'hand'。
       if (timing[0] === 'ON_LEAVE_FIELD'
           && (/あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が場から手札に移動したとき/.test(trigText)
-              || /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText))) {
+              || /対戦相手のシグニ(?:[０-９\d]+体)?があなたの効果によって手札に戻ったとき/.test(trigText)
+              || /あなたの効果によって対戦相手のシグニ(?:[０-９\d]+体)?が手札に戻るかトラッシュに置かれたとき/.test(trigText))) {
         extractedTriggerScope = 'any_opp';
+        // 行き先＝「手札に戻るかトラッシュに置かれた」なら hand/trash の OR、それ以外は従来どおり hand 限定。
+        const leftToZoneJa: 'hand' | Array<'hand' | 'trash'> =
+          /手札に戻るかトラッシュに置かれたとき/.test(trigText) ? ['hand', 'trash'] : 'hand';
         extractedTriggerCondObj = {
-          ...(extractedTriggerCondObj ?? {}), leftToZone: 'hand', byOwnEffect: true,
+          ...(extractedTriggerCondObj ?? {}), leftToZone: leftToZoneJa, byOwnEffect: true,
           ...(/あなたのターンの間[、,]/.test(trigText) ? { turnOwner: 'self' as const } : {}),
         };
       }
