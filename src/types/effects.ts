@@ -66,6 +66,8 @@ export type EffectTiming =
   | 'ON_OPPONENT_SIGNI_TRASHED' // 相手シグニがトラッシュに置かれたとき
   | 'ON_OPPONENT_SIGNI_PLAY'    // 相手がシグニを場に出したとき
   | 'ON_LIFE_CRASHED'           // あなたのライフクロスがクラッシュされたとき
+  | 'ON_SIGNI_CRASHED_LIFE_TOTAL' // このシグニが1ターンに対戦相手のライフクロスを合計N枚以上クラッシュしたとき（クラッシュした側が反応。閾値は triggerCondition.crashedTotalThisTurn）
+  | 'ON_HAND_OR_ENERGY_LOST_BY_OPP' // 対戦相手の効果1つによって、あなたの手札が捨てられるか あなたのエナゾーンからカードがトラッシュに置かれたとき（2経路の OR。1解決につき1度だけ発火＝中央 diff で両方をまとめて見るため構造的に重複しない）
   | 'ON_OPP_LIFE_CRASHED'       // 対戦相手のライフクロスがクラッシュされたとき（クラッシュした側＝ターンプレイヤーのフィールドで反応）
   | 'ON_GUARD'                  // あなたが【ガード】したとき
   | 'ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT' // あなたが対戦相手のシグニのアタックを効果によって無効にしたとき
@@ -2171,7 +2173,17 @@ export interface CardEffect {
     powerDecreaseExcludeSelf?: boolean; // 「あなたの**他の**＜X＞のシグニの効果によって」＝効果元自身は発生源から除く
     discardCostSourceStory?: string; // ON_DISCARDED_AS_COST の発生源限定「あなたの＜X＞のシグニの【出】【起】能力のコストとして捨てられたとき」（WX25-P3-071/077/084/085/088）。コストを支払った能力の host シグニの CardClass に X を含む場合のみ発火＝他クラスのコスト捨てでは誤発火しない（続き162・Opusタスク12(xxiv)）
     milledDeckOwner?: 'self' | 'opponent' | 'any';   // ON_CARD_MILLED_FROM_DECK の発生源デッキ（トリガー所有者から見た self/opponent/any）。省略=any
+    // ON_SIGNI_CRASHED_LIFE_TOTAL のしきい値＝「1ターンに合計N枚以上」。
+    // 判定は単発イベントではなく PlayerState.life_crashed_by_signi_this_turn の**累計**で行う
+    // （1回のアタックで2枚クラッシュしても、1枚ずつ2回でも、合計が閾値に達した時点で1度だけ発火する）。
+    crashedTotalThisTurn?: number;
     energyTrashedOwner?: 'self' | 'opponent' | 'any'; // ON_ENERGY_TO_TRASH の発生源エナゾーン（トリガー所有者から見た self/opponent/any）。省略=any。WD15-015=opponent。⚠「あなたの効果によって」の発生源限定は未表現（効果解決経路で発火＝相手効果による自エナトラッシュも発火しうる近似）
+    // ON_ENERGY_TO_TRASH の行き先拡張＝「エナゾーンから効果によってカードN枚が**他の領域に移動**したとき」
+    // （WXDi-P06-038-E1）。true のとき collector は「エナ→トラッシュ」ではなく「エナゾーンから出て行った枚数」
+    // （行き先を問わない＝手札/場/デッキ/ライフ/除外も含む）で判定する。省略時は従来どおりトラッシュ限定。
+    // 「効果によって」＝コスト支払いは中央 diff を通らないので構造的に除外される（コスト支払いは
+    // executeSigniActivated 等が state を直接書き、collectBoardDiffTriggers を呼ばない）。
+    energyLeftToAnyZone?: boolean;
     accedSelf?: boolean;        // ON_ACCE_ATTACH の変種弁別：true＝「このカードが【アクセ】として（…の）シグニに付いたとき」（アクセカード自身の反応）。省略＝「あなたのシグニ1体に【アクセ】が付いたとき」（ルリグ監視・WXK04-003）。engine は走査ループが役割で分かれるため無視（逆翻訳の主語切替専用）
     accedHostMinLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以上のシグニに付いたとき」host レベル条件（WXK05-041=4）。host シグニの Level がN未満なら発火しない
     accedHostMaxLevel?: number; // ON_ACCE_ATTACH（アクセカード自身）の「レベルN以下のシグニに付いたとき」host レベル条件（WX17-076-E2=2）。host シグニの Level がN超なら発火しない

@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16 `[B維持]` 残3件を全消化（`WXDi-P06-038-E1`／`WX05-020-E1`／`WXDi-P13-051-E3`・Claude 実装）
+
+3件とも live は `timing:[]` の**安全停止**（過剰実行ではない）。タスク16 はこれで**残0**。
+
+### ① `WXDi-P06-038-E1`「あなたのエナゾーンから効果によってカード１枚が**他の領域に移動**したとき、【エナチャージ１】」
+
+既存 `ON_ENERGY_TO_TRASH`（エナ→**トラッシュ**限定）の**行き先を問わない**変種。新 timing は作らず、既存収集経路に
+`triggerCondition.energyLeftToAnyZone` で相乗りさせた（省略時は従来どおりトラッシュ限定＝既存効果は不変）。
+
+- `boardDiff.countEnergyLeftZone`＝「エナゾーンから出て行った枚数」を**多重集合の減少数**で数える新設計器（`countEnergyToTrash` の上位集合）。Set 差分だと「同名2枚のうち1枚だけ移動」を0と誤読する。
+- collector は枚数の選択を `relevantCount(eff)` に集約し、フラグの有無で trash 枚数／出て行った枚数を切り替える。
+- **「効果によって」は構造的に満たされる**＝コスト支払いは `collectBoardDiffTriggers` を通らない（`executeSigniActivated` 等が state を直接書き、手札捨てとコイン以外の collector を呼ばない）。⇒ 原因軸の追加は不要だった。
+
+### ② `WX05-020-E1`「このシグニが**1ターンに**ライフクロスを**合計2枚以上**クラッシュしたとき、このシグニをアップする」
+
+単発イベントではなく**主体別・ターン累計**が要る唯一の在庫。`PlayerState.life_crashed_by_signi_this_turn`
+（クラッシュした側＝攻撃側の state に載る `Record<signiNum, number>`）を新設し、**2経路の両方**で加算する：
+
+- **アタック**（`BattleScreen`）＝`opS.life_cloth.length - finalOpState.life_cloth.length` の**実差分**で数える。こうするとランサー／ダブル・トリプルクラッシュ／ダメージ無効（0枚）が自動的に正しく数えられる（クラッシュ地点を個別に数え上げると必ず取りこぼす）。
+- **効果**（`execLifeCrash`）＝`a.owner==='opponent'` かつ効果元が場のシグニのときだけ加算（自分のライフを自分で削る効果は「クラッシュした主体」として数えない）。**同カードの E2**（相手アーツの効果を受けたときのダメージ）がこの経路なので、アタック1枚＋効果1枚＝合計2枚でも発火する。
+
+判定は新 collector `collectSigniCrashTotalTriggers`（閾値＝`triggerCondition.crashedTotalThisTurn`）。
+アタック経路は攻撃解決から直接、効果経路は中央 diff が**カウンタの増加キーだけ**を見て呼ぶ。ターン境界5地点で `life_crashed_this_turn` と一緒にリセットする。
+
+### ③ `WXDi-P13-051-E3`「**対戦相手の効果1つによって**、あなたの手札が1枚以上捨てられる**か**あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき、カードを1枚引く**か**【エナチャージ１】をする」
+
+**台帳が「最も重い」と評価していた在庫**。難所は「効果1つによって」＝**1解決につき1度だけ**という重複排除。
+
+- 🔴 **2経路を別 timing に割ると二重発火する**＝手札捨ては React watcher（`hand_discarded_just`）、エナ→トラッシュは中央 diff と**収集経路が分かれている**ため、同じ解決で2エントリ積まれる。⚠**1効果で両方やる相手カードは実在する**（`WXK02-004`／`WXDi-P10-003`／`WXDi-P13-003A`）＝机上の心配ではない。
+- ⇒ 新 timing `ON_HAND_OR_ENERGY_LOST_BY_OPP` を作り、**中央 diff だけで両方を数える** collector（`collectOppResourceLossTriggers`）1本に畳んだ。手札側は既存 `detectHandTrashed`、エナ側は既存 `countEnergyToTrash` を流用＝新しい検出器はゼロ。原因（対戦相手の効果か）は `causeOwnerId` で判定する。
+- **本体も要修正だった**＝原文「カードを1枚引く**か**【エナチャージ１】」なのに live は `ENERGY_CHARGE_FROM_DECK` 単体＝**CHOOSE が潰れて引く選択肢が消えていた**。真因は `parseDrawOrChoice` が「とき」を含む文を弾く（トリガー文との誤読回避）ことで、**トリガー句を除去していないと本体に届かない**。新 timing のトリガー句除去を足したら 2択が復元した。
+
+🆕**同型の未消化が10効果ある**（`WXEX1-41-E1`／`WXEX2-66-E1,E2`／`WXK10-006-E1`／`WXDi-D07-002-E1`／`WXDi-P02-030-E1`／`WXDi-P11-008-E1`／`WXDi-P13-061-E1`／`WXDi-P15-004-E1`／`WXDi-CP01-027-E2`）＝「カードを1枚引くか【エナチャージ１】をする」23件のうち **14件は CHOOSE になっているのに、トリガー句/条件句が前置される形と引用付与の内側では引く選択肢が黙って落ちている**。本バッチの対象外なので PLAN §3 タスク12 へ登録した（同じ `parseDrawOrChoice` の「とき」ガードが原因）。
+
+### 計測
+
+golden **1195→1203**、census **1358→1357**（`BASELINE_HIGH=1357`）、`census:timing` **17→14 効果/14クラスタ**（⚠**実質12**＝`WXDi-P09-079-E1`／`WXK10-052-E1` は既知の偽陽性）、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/**234→240 warnings**（⚠**退化ではない**＝`useHost`/`useGuest` の `react-hooks/rules-of-hooks` 偽陽性が新経路2本で 102→108。stash 比較で実測）、同型★0（5986枚・265群）、held **251→250枚／署名グループ 98 据置**、manual field loss 0。live per-effect 差分 **changed 4 / added 0 / removed 0**（`WX05-020-E1`／`WXDi-P06-038-E1`／`WXDi-P06-038-E2`／`WXDi-P13-051-E3`）、`build:effects`・`regen` 冪等。
+
+⚠`WXDi-P06-038-E2` の変化は**別件の同時改善**＝【シャドウ】付与の duration が原文「次の対戦相手のターン終了時まで」どおり `UNTIL_OPP_TURN_END` になった（live は `UNTIL_END_OF_TURN` で短すぎた）。⚠同 E2 の「このシグニのパワーを＋2000し」は**依然として落ちたまま**（従来から・本バッチ対象外）。
+⚠`WX05-020` は収穫マージが**純改善として自動採用**した（E2 の `activeCondition` は `manualEffects.ts` 由来で保持される＝損失なし）。
+⚠**実機UI 未検証**（3件とも）。
+
 ## 2026-07-31 — タスク16：`WXDi-P11-063-E2`「このカードがシグニの下に置かれたとき」＋「このカードの上にあるシグニ」（5効果・Claude 実装）
 
 原文「【自】：このカードがシグニの下に置かれたとき、ターン終了時まで、**このカードの上にあるシグニ**のパワーを＋2000する。」（スペル《無心の豪圧》＝本体で自分自身をメモリア3種のいずれかの下に置ける）。live は `timing:[]` の**安全停止**で、本体も `POWER_MODIFY{target:{owner:'any',count:1}}`＝**場のシグニ1体を任意選択**という別物になっていた。

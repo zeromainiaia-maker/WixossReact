@@ -27,7 +27,7 @@ import {
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -58,7 +58,7 @@ import { consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto'
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
-import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -19338,6 +19338,103 @@ test('INTERNAL_PLACE_SELF_UNDER_SIGNI: 配置後に ON_PLACED_UNDER_SIGNI が発
   const mods = (r.ownerState.temp_power_mods ?? []) as { cardNum: string; delta: number }[];
   eq(mods.length, 1, '【自】が1回だけ発火');
   eq(mods[0].cardNum, host); eq(mods[0].delta, 2000);
+});
+
+// タスク16: WXDi-P06-038-E1「あなたのエナゾーンから効果によってカード1枚が他の領域に移動したとき」
+//   ＝ON_ENERGY_TO_TRASH の行き先を問わない変種（energyLeftToAnyZone）。従来は timing:[] の安全停止。
+test('WXDi-P06-038-E1: parser は ON_ENERGY_TO_TRASH＋energyLeftToAnyZone＋energyTrashedOwner:self を生成', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P06-038')!).find(x => x.effectId === 'WXDi-P06-038-E1')!;
+  eq(e.timing?.join(','), 'ON_ENERGY_TO_TRASH');
+  eq(e.triggerCondition?.energyLeftToAnyZone, true);
+  eq(e.triggerCondition?.energyTrashedOwner, 'self');
+  eq(e.usageLimit, 'once_per_turn');
+});
+test('collectEnergyToTrashTriggers: energyLeftToAnyZone はトラッシュ以外の行き先でも発火／素の効果は従来どおり', () => {
+  const host = mkState({ signi: ['WXDi-P06-038', null, null] }); const guest = mkState({});
+  const fire = (trash: number, leftAny: number) =>
+    has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, trash, 0, leftAny, 0).entries, 'WXDi-P06-038-E1');
+  eq(fire(0, 1), true, 'トラッシュ0でも「エナから出た」1枚で発火（手札/場/デッキ行き）');
+  eq(fire(1, 1), true, 'トラッシュ行きも当然発火（上位集合）');
+  eq(fire(0, 0), false, 'エナから何も出ていなければ非発火');
+  // 相手エナが動いただけでは発火しない（energyTrashedOwner:self）
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1, 0, 1).entries, 'WXDi-P06-038-E1'),
+    false, '相手エナの移動では非発火');
+  // 素の ON_ENERGY_TO_TRASH（フラグなし）は any 枚数を渡しても trash 枚数だけを見る＝緩まない
+  const host2 = mkState({ signi: ['WD15-015', null, null] });
+  eq(has(collectEnergyToTrashTriggers(trigCtx(HOST), HOST, host2, guest, 0, 0, 0, 1).entries, 'WD15-015-E1'),
+    false, 'フラグなしの既存効果は「エナから出た」だけでは発火しない');
+});
+test('countEnergyLeftZone: 行き先を問わず減った枚数を数える（同名複数は多重集合で数える）', () => {
+  const a = SIGNI, b = SIGNI_L1;
+  const before = mkState({}); before.energy = [a, a, b];
+  const toHand = mkState({}); toHand.energy = [a, b]; toHand.hand = [...toHand.hand, a];
+  eq(countEnergyLeftZone(before, toHand), 1, '同名2枚のうち1枚が手札へ→1');
+  eq(countEnergyToTrash(before, toHand), 0, 'トラッシュ行きではないので trash 計器は0');
+  const same = mkState({}); same.energy = [a, a, b];
+  eq(countEnergyLeftZone(before, same), 0, '変化なしは0');
+});
+
+// タスク16: WX05-020-E1「このシグニが1ターンにライフクロスを合計2枚以上クラッシュしたとき、このシグニをアップする」
+//   ＝主体別・ターン累計のカウンタ（life_crashed_by_signi_this_turn）で判定する新 timing。
+test('WX05-020-E1: parser は ON_SIGNI_CRASHED_LIFE_TOTAL＋crashedTotalThisTurn:2＋scope self を生成', () => {
+  const e = parseCardEffects(cardMap.get('WX05-020')!).find(x => x.effectId === 'WX05-020-E1')!;
+  eq(e.timing?.join(','), 'ON_SIGNI_CRASHED_LIFE_TOTAL');
+  eq(e.triggerCondition?.crashedTotalThisTurn, 2);
+  eq(e.triggerScope, 'self');
+  eq(e.usageLimit, 'once_per_turn');
+});
+test('collectSigniCrashTotalTriggers: 累計が閾値に達したときだけ発火／他人のシグニでは発火しない', () => {
+  const host = mkState({ signi: ['WX05-020', null, null] }); const guest = mkState({});
+  const fire = (total: number) =>
+    has(collectSigniCrashTotalTriggers(trigCtx(HOST), HOST, host, guest, 'WX05-020', total).entries, 'WX05-020-E1');
+  eq(fire(1), false, '合計1枚では発火しない');
+  eq(fire(2), true, '合計2枚で発火');
+  eq(fire(3), true, '2枚以上なので3枚でも発火');
+  eq(fire(0), false, '0枚は発火しない');
+  // 場に居ないシグニ（クラッシュ後に離場）は候補にならない
+  const empty = mkState({});
+  eq(has(collectSigniCrashTotalTriggers(trigCtx(HOST), HOST, empty, guest, 'WX05-020', 2).entries, 'WX05-020-E1'),
+    false, '場に居なければ発火しない');
+  // 《ターン1回》を消費済みなら発火しない
+  const used = mkState({ signi: ['WX05-020', null, null] });
+  used.actions_done = ['WX05-020-E1'];
+  eq(has(collectSigniCrashTotalTriggers(trigCtx(HOST), HOST, used, guest, 'WX05-020', 2).entries, 'WX05-020-E1'),
+    false, 'usageLimit 消費後は発火しない');
+});
+test('execLifeCrash: 効果によるクラッシュは効果元シグニ別に累計される（自分のライフを削る場合は数えない）', () => {
+  const act = (owner: 'self' | 'opponent') =>
+    ({ type: 'LIFE_CRASH', owner, count: 2, triggerBurst: false } as unknown as EffectAction);
+  const ctx = mkCtx({ signi: ['WX05-020', null, null] }, {}, 'WX05-020');
+  const r = run(act('opponent'), ctx);
+  eq(r.ownerState.life_crashed_by_signi_this_turn?.['WX05-020'], 2, '相手ライフ2枚クラッシュ＝主体別に+2');
+  const r2 = run(act('self'), mkCtx({ signi: ['WX05-020', null, null] }, {}, 'WX05-020'));
+  eq(r2.ownerState.life_crashed_by_signi_this_turn?.['WX05-020'], undefined, '自分のライフを削る場合は数えない');
+});
+
+// タスク16: WXDi-P13-051-E3「対戦相手の効果1つによって、あなたの手札が1枚以上捨てられるか
+//   あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき、カードを1枚引くか【エナチャージ1】をする」
+//   ＝2経路の OR を1つの collector で見る（1解決＝1発火）。本体の CHOOSE も潰れていた。
+test('WXDi-P13-051-E3: parser は ON_HAND_OR_ENERGY_LOST_BY_OPP＋本体 CHOOSE（引く／エナチャージ）を生成', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P13-051')!).find(x => x.effectId === 'WXDi-P13-051-E3')!;
+  eq(e.timing?.join(','), 'ON_HAND_OR_ENERGY_LOST_BY_OPP');
+  eq(e.usageLimit, 'twice_per_turn');
+  const a = e.action as { type: string; choices: { action: { type: string } }[] };
+  eq(a.type, 'CHOOSE', '「引くか【エナチャージ】」は2択（従来はエナチャージ単体に潰れていた）');
+  eq(a.choices.length, 2);
+  eq(a.choices[0].action.type, 'DRAW');
+  eq(a.choices[1].action.type, 'ENERGY_CHARGE_FROM_DECK');
+});
+test('collectOppResourceLossTriggers: 手札／エナのどちらでも発火・両方でも1回・自分の効果では非発火', () => {
+  const host = mkState({ signi: ['WXDi-P13-051', null, null] }); const guest = mkState({});
+  const n = (hand: number, energy: number, byOpp = true) =>
+    collectOppResourceLossTriggers(trigCtx(HOST), HOST, host, guest, hand, energy, byOpp)
+      .entries.filter(x => x.effectId === 'WXDi-P13-051-E3').length;
+  eq(n(1, 0), 1, '手札1枚捨てられた＝発火');
+  eq(n(0, 1), 1, 'エナ1枚トラッシュ＝発火');
+  eq(n(1, 1), 1, '⚠両方起きても「効果1つによって」なので1回だけ');
+  eq(n(3, 2), 1, '枚数が増えても1回');
+  eq(n(0, 0), 0, 'どちらも起きていなければ非発火');
+  eq(n(1, 1, false), 0, '自分の効果（byOppEffect=false）では非発火');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

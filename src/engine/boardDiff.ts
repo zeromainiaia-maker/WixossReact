@@ -308,6 +308,26 @@ export function countEnergyToTrash(before: PlayerState, after: PlayerState): num
   return count;
 }
 
+/**
+ * エナゾーンから出て行った枚数を算出（行き先を問わない＝「エナゾーンからカードN枚が他の領域に移動したとき」
+ * ＝`triggerCondition.energyLeftToAnyZone`。WXDi-P06-038-E1）。
+ * `countEnergyToTrash` の上位集合＝トラッシュ行きもここに含まれる。
+ * ⚠同名カードが複数枚ある場合を取りこぼさないよう**多重集合の減少数**で数える（Set 差分だと
+ *   「エナに同名2枚 → 1枚だけ移動」を0と誤読する）。
+ */
+export function countEnergyLeftZone(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  const counts = new Map<string, number>();
+  for (const c of (after.energy ?? [])) counts.set(c, (counts.get(c) ?? 0) + 1);
+  let count = 0;
+  for (const c of (before.energy ?? [])) {
+    const n = counts.get(c) ?? 0;
+    if (n > 0) counts.set(c, n - 1);
+    else count++;
+  }
+  return count;
+}
+
 /** リフレッシュ回数の差を算出（ON_REFRESH。refresh_count_this_turn の delta）。 */
 export function countRefresh(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;

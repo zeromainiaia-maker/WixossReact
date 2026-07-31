@@ -2246,6 +2246,8 @@ const timingJa: Record<string, string> = {
   ON_SIGNI_BANISH_BATTLE: 'このシグニがバトルで対戦相手のシグニをバニッシュしたとき',
   ON_TURN_START: 'ターン開始時', ON_TURN_END: 'ターン終了時',
   ON_ATTACK_PHASE_START: 'あなたのアタックフェイズ開始時', ON_LIFE_CRASHED: 'あなたのライフがクラッシュされたとき',
+  ON_SIGNI_CRASHED_LIFE_TOTAL: 'このシグニが１ターンにライフクロスを合計１枚以上クラッシュしたとき',
+  ON_HAND_OR_ENERGY_LOST_BY_OPP: '対戦相手の効果１つによって、あなたの手札が１枚以上捨てられるかあなたのエナゾーンからカードが１枚以上トラッシュに置かれたとき',
   ON_GROW_PHASE_START: 'あなたのグロウフェイズ開始時',
   ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT: 'あなたが対戦相手のシグニのアタックを効果によって無効にしたとき',
   ON_MAIN_PHASE_START: 'あなたのメインフェイズ開始時',
@@ -2688,7 +2690,14 @@ function effJa(e: Eff): string {
     if (t === 'ON_ENERGY_TO_TRASH') {
       const eo = e.triggerCondition?.energyTrashedOwner ?? 'any';
       const who = eo === 'self' ? 'あなたの' : eo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
-      s = `あなたの効果によって${who}エナゾーンからカードが１枚トラッシュに置かれたとき`;
+      // energyLeftToAnyZone＝行き先を問わない変種（「他の領域に移動したとき」。WXDi-P06-038-E1）
+      s = e.triggerCondition?.energyLeftToAnyZone
+        ? `${who}エナゾーンから効果によってカード１枚が他の領域に移動したとき`
+        : `あなたの効果によって${who}エナゾーンからカードが１枚トラッシュに置かれたとき`;
+    }
+    // ON_SIGNI_CRASHED_LIFE_TOTAL の閾値（合計N枚以上）を反映
+    if (t === 'ON_SIGNI_CRASHED_LIFE_TOTAL') {
+      s = `このシグニが１ターンにライフクロスを合計${e.triggerCondition?.crashedTotalThisTurn ?? 1}枚以上クラッシュしたとき`;
     }
     // ON_CHARM_TO_TRASH（【チャーム】が場→トラッシュ）の triggerScope を主語に反映
     if (t === 'ON_CHARM_TO_TRASH') {

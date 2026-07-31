@@ -608,3 +608,33 @@ n=1  このルリグが《夢限　-Q-》から《夢限　-A-》になったと
 #     WX05-020-E1 / WXDi-P06-038-E1 / WXDi-P13-051-E3
 # ⚠3件とも live は timing:[] の安全停止（過剰実行ではない）。
 # ⚠census:timing は 18→17 効果（実質15＝WXDi-P09-079-E1／WXK10-052-E1 は既知の偽陽性）。
+
+# ---------------------------------------------------------------------------
+# 2026-07-31 タスク16 [B維持] 残0クローズ（Claude 実装）
+# ---------------------------------------------------------------------------
+# 最後の3件を1バッチで消化。停止理由の再判定と実装の要点：
+#
+# WXDi-P06-038-E1「energy→任意宛先＋効果原因」
+#   台帳は「任意宛先を束ねる collector／原因軸無し」→ **原因軸は不要だった**。
+#   コスト支払いは collectBoardDiffTriggers を通らない（executeSigniActivated は手札捨てとコインしか
+#   collector を呼ばない）＝中央 diff にいる時点で「効果によって」は満たされている。
+#   ⇒ 新 timing ゼロ。既存 ON_ENERGY_TO_TRASH に triggerCondition.energyLeftToAnyZone で相乗り。
+#
+# WX05-020-E1「主体別ターン累計 life crash」
+#   台帳どおり「カウンタ加算/ターンリセットのみ、閾値到達 collector 無し」。
+#   ⇒ PlayerState.life_crashed_by_signi_this_turn（攻撃側 state・signi 別）を新設し
+#     アタック解決（ライフ枚数の実差分）と execLifeCrash の2経路で加算。閾値判定は
+#     collectSigniCrashTotalTriggers（triggerCondition.crashedTotalThisTurn）。
+#
+# WXDi-P13-051-E3「byOpponentEffect＋hand discard / energy trash の OR」
+#   台帳の「解決単位 OR/重複排除が無い」は正しく、しかも**実在の問題**だった
+#   （1効果で両方やる相手カード＝WXK02-004 / WXDi-P10-003 / WXDi-P13-003A）。
+#   手札捨ては React watcher、エナ→トラッシュは中央 diff と収集経路が分かれているため
+#   2 timing に割ると二重発火する。⇒ 新 timing ON_HAND_OR_ENERGY_LOST_BY_OPP を作り
+#   **中央 diff だけで両方を数える collector 1本**に畳んだ（検出器は既存流用＝新設ゼロ）。
+#   本体も要修正だった（「引くか【エナチャージ】」の CHOOSE 潰れ）＝トリガー句を除去しないと
+#   parseDrawOrChoice に届かない（同ガードで10効果が同じ症状＝PLAN §3 タスク12(lxx) へ登録）。
+#
+# ⇒ タスク16 の残 = 0（クローズ）。
+# ⚠ census:timing 17→14 効果（実質12＝WXDi-P09-079-E1 / WXK10-052-E1 は既知の偽陽性）。
+#   残る14件は §6.3 J（collector 不在＝機構台帳側）と未再検証1件 SPDi43-11-sub-E1。

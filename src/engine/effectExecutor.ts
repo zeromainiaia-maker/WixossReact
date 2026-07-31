@@ -1324,8 +1324,27 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       trash: [...state.trash, ...crashed],
     };
   }
+  let afterCtx = setOwnerState(a.owner, newS, ctx);
+  // ON_SIGNI_CRASHED_LIFE_TOTAL 用の主体別カウンタ＝「このシグニが1ターンに合計N枚クラッシュしたか」。
+  // 対戦相手のライフを削った場合だけ、効果元シグニ（場のスタック頂点にいるときのみ）に加算する
+  // （自分のライフを自分で削る効果は「クラッシュした」主体としては数えない）。
+  // ⚠アタックによるクラッシュは BattleScreen の攻撃解決側で同じキーへ加算する（経路が別なので両方に要る）。
+  if (a.owner === 'opponent' && crashed.length > 0 && ctx.sourceCardNum
+      && afterCtx.ownerState.field.signi.some(st => st?.at(-1) === ctx.sourceCardNum)) {
+    const prevMap = afterCtx.ownerState.life_crashed_by_signi_this_turn ?? {};
+    afterCtx = {
+      ...afterCtx,
+      ownerState: {
+        ...afterCtx.ownerState,
+        life_crashed_by_signi_this_turn: {
+          ...prevMap,
+          [ctx.sourceCardNum]: (prevMap[ctx.sourceCardNum] ?? 0) + crashed.length,
+        },
+      },
+    };
+  }
   // crashed を lastProcessedCards に残す（後続の conditional LIFE_CRASH「そうした場合」用）
-  return done({ ...addLog(setOwnerState(a.owner, newS, ctx), `ライフクロスを${crashed.length}枚クラッシュ`), lastProcessedCards: crashed });
+  return done({ ...addLog(afterCtx, `ライフクロスを${crashed.length}枚クラッシュ`), lastProcessedCards: crashed });
 }
 
 // INSTALL_DELAYED_TRIGGER（B3）: 「このターン、…したとき、…」の遅延トリガーを効果オーナーに設置する。

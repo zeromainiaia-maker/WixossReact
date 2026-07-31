@@ -163,6 +163,10 @@ export interface PlayerState {
   life_crashed_this_turn?: number;
   /** Number of this player's life cloths crashed during the immediately preceding turn. */
   life_crashed_last_turn?: number;
+  // このターンに「自分のどのシグニが対戦相手のライフクロスを何枚クラッシュしたか」（クラッシュした側＝攻撃側の
+  // state に載る。ON_SIGNI_CRASHED_LIFE_TOTAL＝「このシグニが1ターンにライフクロスを合計N枚以上クラッシュ
+  // したとき」用。キーは場のスタック頂点の表記（インスタンスIDの '#N' 付きもありうる）。ターン境界でリセット）。
+  life_crashed_by_signi_this_turn?: Record<string, number>;
   /** This turn, cards in this player's energy zone are colorless and have no abilities. */
   energy_colorless_ability_loss_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）

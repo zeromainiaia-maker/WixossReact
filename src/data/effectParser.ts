@@ -6390,7 +6390,6 @@ let _parsingBaseType = '';
  */
 function isKnownUnwiredAutoTrigger(text: string): boolean {
   return [
-    /[１1]ターンにライフクロスを合計[０-９\d]+枚以上クラッシュしたとき/,
     /【自】の【英知】能力が発動したとき/,
     /カード[０-９\d]+枚がいずれかのプレイヤーの手札に加えられたとき/,
     /【トラップ】[０-９\d]+つが設置されたとき/,
@@ -6403,11 +6402,9 @@ function isKnownUnwiredAutoTrigger(text: string): boolean {
     /このシグニに【ソウル】が付いたとき/,
     /アシストルリグかライフバーストの能力か効果の対象になったとき/,
     /自分の効果によってカードを[０-９\d]+枚以上捨てたとき/,
-    /エナゾーンから効果によってカード[０-９\d]+枚が他の領域に移動したとき/,
     /パワー[０-９\d]+以上のシグニが対戦相手のシグニ[０-９\d]+体をバニッシュしたとき/,
     /ライフクロス[０-９\d]+枚がクラッシュされるかトラッシュに置かれたとき/,
     /【出】能力か【出】能力の効果の対象になったとき/,
-    /対戦相手の効果[０-９\d]+つによって[^。]*(?:手札|エナゾーン)[^。]*(?:捨てられるか|トラッシュに置かれたとき)/,
     /あなたの効果によって対戦相手のシグニ[０-９\d]+体が手札に戻るかトラッシュに置かれたとき/,
     /コストか効果によってあなたが《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/,
     /あなたのアタックフェイズ終了時/,
@@ -6729,6 +6726,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // engine 配線済み（collectEnergyToTrashTriggers＝triggerCondition.energyTrashedOwner で発生源エナを判定）。
              // ⚠「あなたの効果によって」限定は engine 側で未表現＝既知の近似（engine の doc コメント参照）。
              : (/(?:エナゾーンからカード[^。]{0,8}が|エナゾーンからカードが合計[０-９\d]+枚以上)トラッシュに置かれたとき/.test(trigText)) ? ['ON_ENERGY_TO_TRASH']
+             // 「あなたのエナゾーンから効果によってカードN枚が**他の領域に移動**したとき」（WXDi-P06-038-E1＝1件）。
+             // 上のトラッシュ限定規則の**行き先を問わない**変種＝同じ ON_ENERGY_TO_TRASH 収集経路に
+             // `triggerCondition.energyLeftToAnyZone`（下で抽出）で相乗りする。手札/場/デッキ行きでも発火する。
+             : /エナゾーンから効果によってカード[０-９\d]+枚が他の領域に移動したとき/.test(trigText) ? ['ON_ENERGY_TO_TRASH']
              // 「（対戦相手／あなた）のシグニN体が凍結状態になったとき」（3件）。engine 配線済み
              // （collectFreezeTriggers＝triggerScope any_opp 既定／any_ally／any）。scope は下で抽出。
              : /シグニ(?:[０-９\d]+体)?が凍結状態になったとき/.test(trigText) ? ['ON_SIGNI_FROZEN']
@@ -6845,6 +6846,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 実トリガーの「ターン終了時、/に」のみ ON_TURN_END とする。
              : /ターン終了時(?!まで)/.test(trigText) ? ['ON_TURN_END']
              : trigText.includes('ターン開始時') ? ['ON_TURN_START']
+             // 「対戦相手の効果1つによって、あなたの手札が1枚以上捨てられるか あなたのエナゾーンから
+             //   カードが1枚以上トラッシュに置かれたとき」（WXDi-P13-051-E3＝1件）。engine 配線済み＝
+             //   collectOppResourceLossTriggers が**中央 diff で2経路をまとめて**見る（「効果1つによって」＝
+             //   1解決につき1度だけ発火。別 timing に割ると両方やる相手効果で2回積まれる）。
+             : /対戦相手の効果[０-９\d]+つによって[、,]?あなたの手札が[０-９\d]+枚以上捨てられるか[^。]*トラッシュに置かれたとき/.test(trigText) ? ['ON_HAND_OR_ENERGY_LOST_BY_OPP']
+             // 「このシグニが1ターンにライフクロスを合計N枚以上クラッシュしたとき」（WX05-020-E1＝1件）。
+             // engine 配線済み＝主体別の累計カウンタ `PlayerState.life_crashed_by_signi_this_turn`
+             // （アタック解決と execLifeCrash の両経路で加算）を collectSigniCrashTotalTriggers が閾値判定する。
+             // 閾値は下で triggerCondition.crashedTotalThisTurn に抽出する。
+             : /このシグニが[１1]ターンにライフクロスを合計[０-９\d]+枚以上クラッシュしたとき/.test(trigText) ? ['ON_SIGNI_CRASHED_LIFE_TOTAL']
              // 「このカードがシグニの下に置かれたとき」（WXDi-P11-063-E2＝1件）。engine 配線済み＝
              // INTERNAL_PLACE_SELF_UNDER_SIGNI（execStubPart2）が配置直後に、この timing を持つ AUTO を
              // 直接実行する（汎用 collector は無く、下に置く経路がここ1本しかないため）。timing が無いと
@@ -7121,6 +7132,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const eo = /対戦相手のエナゾーンから/.test(actionText) ? 'opponent'
           : /あなたのエナゾーンから/.test(actionText) ? 'self' : undefined;
         if (eo) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), energyTrashedOwner: eo };
+        // 行き先を問わない変種（「他の領域に移動したとき」）＝collector が「エナから出て行った枚数」で判定する。
+        if (/エナゾーンから効果によってカード[０-９\d]+枚が他の領域に移動したとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), energyLeftToAnyZone: true };
+        }
+      }
+      // ON_SIGNI_CRASHED_LIFE_TOTAL: 「合計N枚以上」の N を triggerCondition.crashedTotalThisTurn に抽出。
+      if (timing[0] === 'ON_SIGNI_CRASHED_LIFE_TOTAL') {
+        const ctm = trigText.match(/ライフクロスを合計([０-９\d]+)枚以上クラッシュしたとき/);
+        if (ctm) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), crashedTotalThisTurn: parseNum(ctm[1]) };
+        extractedTriggerScope = 'self'; // 「このシグニが」＝クラッシュした当のシグニ自身だけが反応
       }
       // ON_SIGNI_FROZEN: 凍結されたシグニの持ち主で scope を決める（「対戦相手の」＝any_opp〔engine 既定〕／「あなたの」＝any_ally）。
       if (timing[0] === 'ON_SIGNI_FROZEN') {
@@ -7575,6 +7596,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
       }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
+      // ON_HAND_OR_ENERGY_LOST_BY_OPP: トリガー句を落とさないと本体が「カードを1枚引くか【エナチャージ1】」
+      // の2択に解けない（parseDrawOrChoice は「とき」を含む文を弾く＝トリガー文との誤読を避けるため）。
+      if (timing[0] === 'ON_HAND_OR_ENERGY_LOST_BY_OPP') {
+        const m = actionText.match(/トラッシュに置かれたとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];

@@ -1595,7 +1595,18 @@ export function collectCharmToTrashTriggers(
 export function collectEnergyToTrashTriggers(
   ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
   fromControllerEnergy: number, fromOppEnergy: number,
+  // 行き先を問わない「エナゾーンから出て行った枚数」（`triggerCondition.energyLeftToAnyZone` 用）。
+  // 省略時はトラッシュ枚数で代用＝従来挙動（フラグを持つ効果が無ければ差は出ない）。
+  fromControllerEnergyAny?: number, fromOppEnergyAny?: number,
 ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  // フラグの有無で参照する枚数を切り替える（省略時は従来の trash 枚数へフォールバック）。
+  const relevantCount = (eff: CardEffect): number => {
+    const anyZone = !!eff.triggerCondition?.energyLeftToAnyZone;
+    const ownCount = anyZone ? (fromControllerEnergyAny ?? fromControllerEnergy) : fromControllerEnergy;
+    const oppCount = anyZone ? (fromOppEnergyAny ?? fromOppEnergy) : fromOppEnergy;
+    const owner = eff.triggerCondition?.energyTrashedOwner ?? 'any';
+    return owner === 'self' ? ownCount : owner === 'opponent' ? oppCount : ownCount + oppCount;
+  };
   const entries: StackEntry[] = [];
   const usedOncePerTurnIds: string[] = [];
   const isControllerTurn = controllerId === ctx.activeUserId;
@@ -1607,11 +1618,7 @@ export function collectEnergyToTrashTriggers(
     if (removed.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
-      const owner = eff.triggerCondition?.energyTrashedOwner ?? 'any';
-      const relevant = owner === 'self' ? fromControllerEnergy
-        : owner === 'opponent' ? fromOppEnergy
-        : fromControllerEnergy + fromOppEnergy;
-      if (relevant < (eff.triggerCondition?.minCount ?? 1)) continue;
+      if (relevantCount(eff) < (eff.triggerCondition?.minCount ?? 1)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
@@ -1629,11 +1636,7 @@ export function collectEnergyToTrashTriggers(
   if (lrigTop && !controllerState.lrig_abilities_disabled) {
     for (const eff of controllerState.lrig_granted_auto_effects ?? []) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
-      const owner = eff.triggerCondition?.energyTrashedOwner ?? 'any';
-      const relevant = owner === 'self' ? fromControllerEnergy
-        : owner === 'opponent' ? fromOppEnergy
-        : fromControllerEnergy + fromOppEnergy;
-      if (relevant <= 0) continue;
+      if (relevantCount(eff) <= 0) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, lrigTop)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, lrigTop, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
@@ -2192,6 +2195,89 @@ export function collectLifeClothAddedTriggers(
     }
   }
   return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
+ * ON_SIGNI_CRASHED_LIFE_TOTAL＝「このシグニが1ターンにライフクロスを合計N枚以上クラッシュしたとき」
+ * （WX05-020-E1）。**単発イベントではなく累計**で判定するため、呼び出し側は
+ * `controllerState.life_crashed_by_signi_this_turn[signiNum]`（＝加算後の合計）を `total` に渡す。
+ *
+ * ⚠ triggerScope は self 固定＝反応するのは**クラッシュした当のシグニ自身**（原文「このシグニが」）。
+ *   場に居ないシグニ（クラッシュ後に離場した等）は候補にならない＝ownFieldSources で自然に落ちる。
+ * ⚠ 「合計N枚以上」なので閾値到達後もアタックが続けば毎回条件を満たすが、
+ *   usageLimit（《ターン1回》）が実質の重複排除になる（原文もそうなっている）。
+ */
+export function collectSigniCrashTotalTriggers(
+  ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
+  signiNum: string, total: number,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (!signiNum || total <= 0) return { entries, usedOncePerTurnIds };
+  const isControllerTurn = controllerId === ctx.activeUserId;
+  const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
+  if (controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
+  if (removed.has(signiNum)) return { entries, usedOncePerTurnIds };
+  // 「このシグニが」＝当のシグニが場に居ることが前提（スタック頂点のみ）。
+  if (!ownFieldSources(controllerState).includes(signiNum)) return { entries, usedOncePerTurnIds };
+  for (const eff of (ctx.effectsMap.get(signiNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SIGNI_CRASHED_LIFE_TOTAL')) continue;
+    if (total < (eff.triggerCondition?.crashedTotalThisTurn ?? 1)) continue;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, signiNum)) continue;
+    if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, signiNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!limitOk(eff)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: controllerId, cardNum: signiNum, effectId: eff.effectId,
+      label: `${ctx.cardMap.get(getCardNum(signiNum))?.CardName ?? signiNum} の【自】効果（ライフクロス累計クラッシュ）`,
+      effect: eff,
+    });
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
+ * ON_HAND_OR_ENERGY_LOST_BY_OPP＝「**対戦相手の効果1つによって**、あなたの手札が1枚以上捨てられるか
+ * あなたのエナゾーンからカードが1枚以上トラッシュに置かれたとき」（WXDi-P13-051-E3）。
+ *
+ * ⚠**2経路の OR を1つの collector で見るのが要点**＝原文の「効果1つによって」は、1回の解決で手札捨てと
+ *   エナトラッシュが**両方**起きても発火は1度だけ、という意味。手札捨ては React watcher（hand_discarded_just）、
+ *   エナトラッシュは中央 diff と収集経路が分かれているため、別々の timing に割ると同じ解決で2回積まれる
+ *   （実在する＝WXK02-004／WXDi-P10-003／WXDi-P13-003A は1効果で両方やる）。そこで**中央 diff だけで
+ *   両方を数え**、entries を1本に畳む。
+ * @param handDiscarded 対象プレイヤーの手札→トラッシュ枚数（この解決内）
+ * @param energyTrashed 対象プレイヤーのエナ→トラッシュ枚数（この解決内）
+ * @param byOppEffect   原因が対戦相手の効果か（causeOwnerId ≠ 対象プレイヤー）。false なら発火しない
+ */
+export function collectOppResourceLossTriggers(
+  ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
+  handDiscarded: number, energyTrashed: number, byOppEffect: boolean,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (!byOppEffect) return { entries, usedOncePerTurnIds };
+  const isControllerTurn = controllerId === ctx.activeUserId;
+  const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
+  if (controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
+  for (const topNum of ownFieldSources(controllerState)) {
+    if (removed.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_HAND_OR_ENERGY_LOST_BY_OPP')) continue;
+      const minCount = eff.triggerCondition?.minCount ?? 1;
+      // どちらか一方でも閾値に達していれば発火（OR）。両方起きても entry は1つ＝この1回の走査で畳まれる。
+      if (handDiscarded < minCount && energyTrashed < minCount) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum} の【自】効果（相手効果による手札／エナ喪失時）`,
+        effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
 }
 
 /** ON_LIFE_CLOTH_MOVED を宛先・owner・到達枚数で収集する。 */

@@ -11,9 +11,9 @@ collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbi
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
-import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
+import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers } from '../engine/triggerCollect';
-import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
@@ -2569,8 +2569,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     otherState: PlayerState,
     fromControllerEnergy: number,
     fromOppEnergy: number,
+    fromControllerEnergyAny?: number,
+    fromOppEnergyAny?: number,
   ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
-    pureCollectEnergyToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, fromControllerEnergy, fromOppEnergy);
+    pureCollectEnergyToTrashTriggers(mkTrigCtx(), controllerId, controllerState, otherState, fromControllerEnergy, fromOppEnergy, fromControllerEnergyAny, fromOppEnergyAny);
+
+  // ON_SIGNI_CRASHED_LIFE_TOTAL トリガー収集（「このシグニが1ターンに合計N枚以上クラッシュしたとき」）。
+  const collectSigniCrashTotalTriggers = (
+    controllerId: string,
+    controllerState: PlayerState,
+    otherState: PlayerState,
+    signiNum: string,
+    total: number,
+  ): { entries: StackEntry[]; usedOncePerTurnIds: string[] } =>
+    pureCollectSigniCrashTotalTriggers(mkTrigCtx(), controllerId, controllerState, otherState, signiNum, total);
 
   // ON_REFRESH トリガー収集（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectRefreshTriggers = (
@@ -2820,14 +2832,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...chG.entries); useGuest(chG.usedOncePerTurnIds);
     }
 
-    // ON_ENERGY_TO_TRASH: エナゾーン→トラッシュが起きた場合
+    // ON_ENERGY_TO_TRASH: エナゾーン→トラッシュが起きた場合。
+    // ⚠あわせて「エナゾーンから出て行った枚数（行き先を問わない）」も渡す＝`energyLeftToAnyZone` を持つ効果
+    //   （WXDi-P06-038-E1「他の領域に移動したとき」）は手札/場/デッキ行きでも発火する。ここは効果解決の
+    //   中央 diff なので「効果によって」の限定は構造的に満たされる（コスト支払いはこの関数を通らない）。
     const energyTrashHost  = countEnergyToTrash(beforeHost, h);
     const energyTrashGuest = countEnergyToTrash(beforeGuest, g);
-    if (energyTrashHost > 0 || energyTrashGuest > 0) {
-      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest);
+    const energyLeftHost   = countEnergyLeftZone(beforeHost, h);
+    const energyLeftGuest  = countEnergyLeftZone(beforeGuest, g);
+    if (energyTrashHost > 0 || energyTrashGuest > 0 || energyLeftHost > 0 || energyLeftGuest > 0) {
+      const etH = collectEnergyToTrashTriggers(bs.host_id, h, g, energyTrashHost, energyTrashGuest, energyLeftHost, energyLeftGuest);
       entries.push(...etH.entries); useHost(etH.usedOncePerTurnIds);
-      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost);
+      const etG = collectEnergyToTrashTriggers(bs.guest_id, g, h, energyTrashGuest, energyTrashHost, energyLeftGuest, energyLeftHost);
       entries.push(...etG.entries); useGuest(etG.usedOncePerTurnIds);
+    }
+
+    // ON_HAND_OR_ENERGY_LOST_BY_OPP: 「対戦相手の効果1つによって、あなたの手札が捨てられるか
+    // あなたのエナゾーンからカードがトラッシュに置かれたとき」（WXDi-P13-051-E3）。
+    // ⚠**2経路を1回の走査でまとめて見る**のが要点＝原文の「効果1つによって」は、1解決で両方起きても
+    //   発火は1度だけ、という意味。手札捨てだけ React watcher（ON_HAND_DISCARDED）に任せると、
+    //   同じ解決で2回積まれる（両方やる相手効果は実在＝WXK02-004／WXDi-P10-003／WXDi-P13-003A）。
+    // 原因（対戦相手の効果か）は causeOwnerId で判定する。コスト支払いはこの関数を通らない。
+    {
+      const handLostHost = detectHandTrashed(beforeHost, h).length;
+      const handLostGuest = detectHandTrashed(beforeGuest, g).length;
+      if (handLostHost > 0 || handLostGuest > 0 || energyTrashHost > 0 || energyTrashGuest > 0) {
+        const rlH = pureCollectOppResourceLossTriggers(
+          mkTrigCtx(), bs.host_id, h, g, handLostHost, energyTrashHost, causeOwnerId === bs.guest_id);
+        entries.push(...rlH.entries); useHost(rlH.usedOncePerTurnIds);
+        const rlG = pureCollectOppResourceLossTriggers(
+          mkTrigCtx(), bs.guest_id, g, h, handLostGuest, energyTrashGuest, causeOwnerId === bs.host_id);
+        entries.push(...rlG.entries); useGuest(rlG.usedOncePerTurnIds);
+      }
+    }
+
+    // ON_SIGNI_CRASHED_LIFE_TOTAL: 効果によるライフクラッシュ（execLifeCrash が主体別カウンタへ加算）で
+    // 合計が閾値に達したシグニを収集する。攻撃によるクラッシュは攻撃解決側で同じ collector を呼ぶ
+    // （経路が別＝アタックはこの中央 diff を通らない）。増えたキーだけを見るので既存効果に波及しない。
+    for (const side of ['host', 'guest'] as const) {
+      const isHostSide = side === 'host';
+      const before = isHostSide ? beforeHost : beforeGuest;
+      const beforeMap = before.life_crashed_by_signi_this_turn ?? {};
+      // 走査のたびに最新の h/g を読む（useHost/useGuest が actions_done を積むため）。
+      for (const [signiNum, total] of Object.entries((isHostSide ? h : g).life_crashed_by_signi_this_turn ?? {})) {
+        if (total <= (beforeMap[signiNum] ?? 0)) continue;
+        const ct = pureCollectSigniCrashTotalTriggers(
+          mkTrigCtx(), isHostSide ? bs.host_id : bs.guest_id,
+          isHostSide ? h : g, isHostSide ? g : h, signiNum, total,
+        );
+        entries.push(...ct.entries);
+        if (isHostSide) useHost(ct.usedOncePerTurnIds); else useGuest(ct.usedOncePerTurnIds);
+      }
     }
 
     // ON_REFRESH: いずれかのプレイヤーがリフレッシュした場合
@@ -3337,6 +3392,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
           life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
+          life_crashed_by_signi_this_turn: undefined,  // 主体別の累計もリセット（ON_SIGNI_CRASHED_LIFE_TOTAL）
           energy_colorless_ability_loss_this_turn: undefined,
           delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
@@ -3452,6 +3508,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           life_crashed_last_turn: opState.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
+          life_crashed_by_signi_this_turn: undefined,
           energy_colorless_ability_loss_this_turn: undefined,
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
@@ -3717,6 +3774,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
+        life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
@@ -8291,8 +8349,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // ON_SIGNI_CRASHED_LIFE_TOTAL（WX05-020-E1「このシグニが1ターンにライフクロスを合計2枚以上
+      // クラッシュしたとき」）: このアタックで実際に減ったライフ枚数を**アタックしたシグニ別に累計**し、
+      // 合計が閾値へ達したらそのシグニ自身の【自】を収集する。枚数は opS→finalOpState の実差分で数えるので
+      // ランサー／ダブル・トリプルクラッシュ／ダメージ無効（0枚）も自動的に正しく数えられる。
+      // ⚠効果によるクラッシュ（LIFE_CRASH アクション）は execLifeCrash が同じキーへ加算する（経路が別）。
+      const crashTotalEntries: StackEntry[] = [];
+      {
+        const crashedThisAttack = Math.max(0, opS.life_cloth.length - finalOpState.life_cloth.length);
+        if (crashedThisAttack > 0) {
+          const prevCrashMap = finalMyState.life_crashed_by_signi_this_turn ?? {};
+          const crashTotal = (prevCrashMap[myTopNum] ?? 0) + crashedThisAttack;
+          finalMyState = {
+            ...finalMyState,
+            life_crashed_by_signi_this_turn: { ...prevCrashMap, [myTopNum]: crashTotal },
+          };
+          const ct = collectSigniCrashTotalTriggers(attackerId, finalMyState, finalOpState, myTopNum, crashTotal);
+          crashTotalEntries.push(...ct.entries);
+          if (ct.usedOncePerTurnIds.length > 0) {
+            finalMyState = { ...finalMyState, actions_done: [...(finalMyState.actions_done ?? []), ...ct.usedOncePerTurnIds] };
+          }
+        }
+      }
+
       // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
-      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries, ...charmEntries];
+      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries, ...charmEntries, ...crashTotalEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
@@ -9435,6 +9516,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
+        life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
@@ -9463,6 +9545,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
         life_crashed_last_turn: cpuSt.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
+        life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
