@@ -692,6 +692,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DO_THREE_THINGS' } as StubAction;
   }
 
+  // ---- 次の対戦相手のメイン/アタックフェイズの間、相手のトラッシュは相手の効果で動かない ----
+  // （タスク12(lxi) 第9波・`WX24-P4-007-E1` の③／`WXDi-P14-005-E1` の③。全CSVでこの2枚だけ）
+  // ⚠**engine 未実装の宣言 STUB**＝トラッシュを発生源にする移動を「その所有者自身の効果のときだけ」
+  //   止める機構が無い（`trashCandidates` の7呼び出し地点に加え、トラッシュから直接動かす STUB 群が
+  //   別経路で存在する）。UNKNOWN のまま埋もれるより **STUBS.md と census に載る名前を付けて可視化**する。
+  //   実装方針は PLAN §3 タスク12 の該当行を参照。
+  if (t.match(/^次の対戦相手のメインフェイズとアタックフェイズの間[、,]対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない$/)) {
+    return { type: 'STUB', id: 'LOCK_OPP_TRASH_MOVE' } as StubAction;
+  }
+
   // ---- 捨てたカード枚数に1加えた枚数ドロー ----
   if (t.match(/捨てた(?:カードの)?枚数に[０-９\d]+を加えた枚数.*カードを引く/)) {
     return { type: 'STUB', id: 'DRAW_DISCARD_COUNT_PLUS_N' } as StubAction;

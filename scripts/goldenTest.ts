@@ -9711,6 +9711,51 @@ test('第7波 collect：ON_SIGNI_BANISH_BATTLE の遅延トリガーをバニッ
   eq(collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, other).length, 0, '別 timing の遅延は非発火');
   cursor = savedCursor;
 });
+// ── タスク12(lxi) 第9波（2026-07-31）：「以下のNつを行う。①②③」＝選択ではなく逐次実行（WX24-P4-007-E1）──
+test('parse 第9波：「以下の３つを行う。①②③」→ SEQUENCE（従来は DO_THREE_THINGS 1本＝完全 no-op）', () => {
+  const eff = effectsMap.get('WX24-P4-007')!.find(e => e.effectId === 'WX24-P4-007-E1')!;
+  const seq = eff.action as SequenceAction;
+  eq(seq.type, 'SEQUENCE', '3項目の逐次実行');
+  eq(seq.steps.length, 3, '①②③');
+  const p0 = seq.steps[0] as unknown as { steps: { id?: string; opponentSigniTrash?: number; then?: { target?: { type?: string; owner?: string; count?: number } } }[] };
+  eq(p0.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', '①＝標準ペア');
+  eq(p0.steps[0]?.opponentSigniTrash, 1, '①回避＝自分のシグニ1体を場からトラッシュ');
+  eq(p0.steps[1]?.then?.target?.type, 'HAND_CARD', '①不払い＝手札を捨てる');
+  eq(p0.steps[1]?.then?.target?.count, 3, '①は3枚');
+  const p1 = seq.steps[1] as unknown as { steps: { id?: string; opponentHandDiscard?: number; then?: { target?: { type?: string }; opponentSelects?: boolean } }[] };
+  eq(p1.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', '②＝標準ペア（回避と帰結が①と逆）');
+  eq(p1.steps[0]?.opponentHandDiscard, 3, '②回避＝手札3枚');
+  eq(p1.steps[1]?.then?.target?.type, 'SIGNI', '②不払い＝自分のシグニをトラッシュ');
+  eq(p1.steps[1]?.then?.opponentSelects, true, '②は「選び」＝相手が選ぶ');
+  eq((seq.steps[2] as unknown as { id?: string }).id, 'LOCK_OPP_TRASH_MOVE', '③は engine 未実装の宣言 STUB（no-op のまま計器に残す）');
+});
+test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提示され、両方の不払い帰結が走る（WX24-P4-007-E1）', () => {
+  const savedCursor = cursor;
+  const eff = effectsMap.get('WX24-P4-007')!.find(e => e.effectId === 'WX24-P4-007-E1')!;
+  const ctx = mkCtx({}, { hand: 6, signi: [SIGNI_P12000, SIGNI_P3000, null] });
+  // 両方とも「支払わない」を選ぶ＝①で手札3枚捨て、②で相手が自分のシグニ1体をトラッシュ
+  let r = executeEffect(eff, ctx);
+  const seen: string[][] = [];
+  for (let i = 0; !r.done && i < 12; i++) {
+    const c: ExecCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs, lastProcessedCards: r.lastProcessedCards };
+    if (r.pending.type === 'CHOOSE' && r.pending.opponentResponds) {
+      seen.push(r.pending.options.map(o => o.id));
+      r = resumeOpponentPayOptional('skip', [], r.pending, c);
+    } else if (r.pending.type === 'SELECT_TARGET') {
+      r = resumeSelectTarget(r.pending.candidates.slice(0, r.pending.count), r.pending, c);
+    } else {
+      r = resumeChoose((r.pending.options ?? [])[0].id, r.pending as never, c);
+    }
+  }
+  ok(r.done, '解決が完了する（入れ子 SEQUENCE でも continuation が途切れない）');
+  eq(seen.length, 2, '相手に回避の選択が2回出る＝①②が両方走った（従来は完全 no-op）');
+  ok(seen[0].includes('signiTrash'), '①の回避枝＝自分のシグニをトラッシュ');
+  ok(seen[1].includes('discard'), '②の回避枝＝手札を捨てる');
+  eq(r.otherState.hand.length, 3, '①不払い＝手札6→3');
+  eq(r.otherState.field.signi.filter(s => s && s.length > 0).length, 1, '②不払い＝シグニ2体→1体');
+  cursor = savedCursor;
+});
+
 // ── タスク12(lxi) 第8波（2026-07-31）：`WXK05-009-E2`＝防御側が設置する ON_ATTACK_SIGNI 遅延＋可変《無》 ──
 test('parse 第8波：「このターン、対戦相手のシグニがアタックしたとき、」→ 遅延設置＋アタック回数比例の可変《無》（WXK05-009-E2）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-ATKDELAY', Type: 'キー', EffectText: '【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：このターン、対戦相手のシグニがアタックしたとき、対戦相手が、このターンにシグニがアタックした回数１回につき《無》を支払わないかぎりそのシグニをトラッシュに置く。' } as unknown as CardData)[0];

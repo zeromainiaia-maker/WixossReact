@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 576 |
+| JSON で使用中の STUB id 種類 | 577 |
 | 　└ ハンドラ実装あり | 547 |
-| 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2633 |
+| 　└ フォールバック（execStub 未処理） | 30 |
+| 総 STUB ノード件数 | 2640 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -36,6 +36,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_TRASH_SELF` | 3 | 3 | WX06-CB03, WX21-056, WX21-061 |  |
 | `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` | 2 | 2 | SPDi44-08, WX25-P1-018 |  |
 | `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` | 2 | 2 | WDK16-01T, WXK10-015 |  |
+| `LOCK_OPP_TRASH_MOVE` | 2 | 2 | WX24-P4-007, WXDi-P14-005 |  |
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` | 1 | 1 | WX16-021 |  |
 | `ATTACK_NEGATE_IMMUNITY_SELF` | 1 | 1 | WX24-P4-016 |  |
@@ -67,17 +68,17 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 408 | 400 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
+| `OPTIONAL_COST` | 409 | 401 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 115 | 114 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 113 | 111 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み） |
 | `STORE_LAST_PROCESSED_TARGETS` | 89 | 88 | WD12-009, WDK08-Y01, SPK01-05 |  |
 | `SELECT_TARGET_ONLY` | 84 | 83 | WD12-009, SPK01-05, SPDi43-29 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
-| `OPPONENT_PAY_OPTIONAL` | 64 | 58 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
+| `OPPONENT_PAY_OPTIONAL` | 70 | 63 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `POWER_MOD_PER_COUNT` | 61 | 61 | WD19-001, WDK06-C17, WDK10-009 | 動的パワー修正（COUNT依存） |
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
 | `RULE_REMINDER_TEXT` | 41 | 40 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 40 | 40 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
-| `LRIG_GROW_RESTRICT` | 38 | 38 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
+| `LRIG_GROW_RESTRICT` | 37 | 37 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `CONDITIONAL_POWER_BONUS` | 36 | 32 | WD06-006, WDK08-Y08, WDK10-009 | 条件付きパワーボーナス |
 | `DECLARE_NUMBER` | 33 | 32 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
 | `LOOK_OPP_LIFE_TOP` | 31 | 30 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
@@ -409,22 +410,21 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GAIN_LRIG_BARRIER` | 8 | 8 | SPDi43-26, WX24-P1-001, WX24-P3-026 | GAIN_LRIG_BARRIER: 【ルリグバリア】を得る（フリーゾーンにトークンとして設置。ルリグアタック1回を無効） |
 | `LEVEL_REFERENCE_OVERRIDE` | 8 | 8 | WD21-012, WX17-059, WX17-061 |  |
 | `LOSE_COLOR_ALL_ZONES` | 8 | 8 | WXDi-P16-086, WXDi-P16-087, WXDi-P16-088 | LOSE_COLOR_ALL_ZONES: CONTINUOUS効果（effectEngine.collectColorlessOverridesで動的計算） |
-| `DO_THREE_THINGS` | 7 | 7 | WX24-P4-002, WX24-P4-007, WXK11-002 | DO_THREE_THINGS: 3〜4つの処理を動的解析して実行 |
 | `DOWN_UP_SIGNI_AND_CHOOSE` | 7 | 7 | SPDi43-23, WX06-024, WX07-024 | DOWN_UP_SIGNI_AND_CHOOSE: シグニをダウン/アップして選択 DOWN_UP_SIGNI_AND_CHOOSE: アップ状態の特定クラスシグニを好きな数ダウン（コスト軽減素材） |
 | `CHOOSE_N_FROM_LIST` | 6 | 6 | WX13-003, WXEX2-44, WXDi-P06-050 | CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行 |
 | `COLLAB` | 6 | 5 | WXDi-CP01-004, WXDi-CP01-005, WXDi-CP01-006 | COLLAB: コラボ効果 |
+| `DO_THREE_THINGS` | 6 | 6 | WX24-P4-002, WXK11-002, WXK11-007 | DO_THREE_THINGS: 3〜4つの処理を動的解析して実行 |
+| `RETURN_SELF_ARTS_TO_LRIG_DECK` | 6 | 6 | WDK17-008, SP07-009, WXDi-P06-023 | RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後の自身をルリグデッキに戻す。 アーツは lrig_trash、アシストルリグは左右いずれかのアシストルリグスタックにある。 |
 | `BANISH_SUBSTITUTE` | 5 | 5 | WX12-024, WX20-055, WXEX2-60 | BANISH_SUBSTITUTE (F-3): バニッシュ時の任意身代わり置換（CONTINUOUS宣言・BattleScreen側で対話処理） |
 | `BANISH_TO_LRIG_TRASH_INSTEAD` | 5 | 5 | WX10-008, WX10-020, WX10-024 |  |
 | `GAIN_SIGNI_BARRIER` | 5 | 5 | SPDi43-23, WX26-CP1-001, WXDi-P12-001 | GAIN_SIGNI_BARRIER: 【シグニバリア】を得る（フリーゾーンにトークンとして設置。相手シグニからのダメージ1回を無効） |
 | `OPEN_MAGIC_BOX` | 5 | 5 | WX24-P3-050, WX24-P3-066, WX24-P3-069 | OPEN_MAGIC_BOX: このシグニと同ゾーンのMBを表向きにしてトラッシュへ（任意） |
-| `RETURN_SELF_ARTS_TO_LRIG_DECK` | 5 | 5 | WDK17-008, SP07-009, WXK01-005 | RETURN_SELF_ARTS_TO_LRIG_DECK: このアーツ（使用後＝ルリグトラッシュに置かれた自身）をルリグデッキに戻す （WXK11-003①/WDK17-008①。BattleScreen はアーツを lrig_tras… |
 | `CENTER_LRIG_RIDES_ON_SIGNI` | 4 | 4 | WDK01-008, SPK01-01, WXK01-008 | CENTER_LRIG_RIDES_ON_SIGNI: センタールリグが選択した1体の乗機シグニに乗る（乗り換え可） |
 | `CHOOSE_HAND_OR_ENERGY` | 4 | 4 | WX24-P1-025, WX24-P2-042, WXDi-CP01-004 | CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後） |
 | `CLASS_CHANGE` | 4 | 4 | WX21-049, WXEX2-06, WX25-P1-058 | CLASS_CHANGE: シグニのクラスを一時変更 |
 | `DECLARE_NUMBER_RANGE` | 4 | 4 | WX25-CP1-007, WXDi-P06-013, WXK03-076 | DECLARE_NUMBER_RANGE: 0〜5の数字宣言（DECLARE_NUMBERと同様だが0を含む） |
 | `EFFECT_LIMIT` | 4 | 4 | WDK06-C17, WX13-053, WX21-066 | EFFECT_LIMIT: 連続効果の上限枚数をキャップ（直前のパワー修正を上限値でキャップ） |
 | `OPP_DECLARE_CHOICE` | 4 | 4 | PR-K060, WX05-006, WX16-Re17 | OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ |
-| `REPEAT_N_TIMES` | 4 | 4 | WX25-P3-028, WXDi-P07-007, WXDi-CP01-024 | REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す |
 | `ATTACK_PHASE_LEVEL_OVERRIDE` | 3 | 3 | WX20-044-CB, WX21-029, WXEX2-47 | ダメージ特殊（engine: ダメージ処理拡張必要） |
 | `CHOOSE_COLOR_FROM_LIST` | 3 | 3 | WX10-025, WX11-077, WX11-080 | CHOOSE_COLOR_FROM_LIST / CHOOSE_SAME_OPTION_TWICE / CHOOSE_SAME_OPTION_MULTIPLE CHOOSE_COLOR_FROM_LIST: エナゾーンの色から選ぶ（最大N… |
 | `CHOOSE_HAND_CARD` | 3 | 3 | PR-K060, WX05-006, WX16-Re17 | CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定） |
@@ -441,6 +441,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PLACE_MAGIC_BOX` | 3 | 3 | WX24-P3-018, WX24-P3-089, WX24-P4-064 | PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX） |
 | `PLACE_OWN_GATE` | 3 | 3 | WXDi-P15-003, WXDi-P15-010, WXDi-P15-011 | PLACE_OWN_GATE: あなたのシグニゾーン1つにTHE DOOR【ゲート】を置く（own_gate_zones）。 signi_gate_zones（相手ゾーンのアタック妨害ゲート）とは別概念。THE DOORシグニが参照する自… |
 | `PREVENT_ABILITY_GAIN_BY_OPP` | 3 | 3 | WX24-P1-043, WXDi-P06-057, WXDi-P13-052 |  |
+| `REPEAT_N_TIMES` | 3 | 3 | WXDi-P07-007, WXDi-CP01-024, WXDi-CP02-047 | REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す |
 | `REVEAL_TOP_CONDITIONAL_ROUTE` | 3 | 3 | WX08-025, WX10-030, WXK05-021 | REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐 |
 | `REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI` | 3 | 3 | WDK05-T15, WXK02-071, WXK10-057 | REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: このシグニを手札に戻した場合のみ、デッキの一番上を公開し、シグニならアタッカーの元ゾーンにダウン状態で出してアタックを継続する（G186） |
 | `SET_ACCE_CHOICE` | 3 | 1 | SPK01-11 | SET_ACCE_CHOICE: アクセ装着時に選んだ付与能力のインデックスを記録（SPK01-11 ラズベリー）。 sourceCardNum（=このアクセカード）をキーに ownerState.acce_choice へ保存。GRAN… |
@@ -800,7 +801,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_PICK_TO_TRAP` | 0 | 0 |  |  |
 | `INTERNAL_PLACE_LRIG_UNDER_CENTER` | 0 | 0 |  | INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置 |
 | `INTERNAL_PLACE_PUPPET` | 0 | 0 |  | INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ） |
-| `INTERNAL_PLACE_SELF_UNDER_SIGNI` | 0 | 0 |  | INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動 |
+| `INTERNAL_PLACE_SELF_UNDER_SIGNI` | 0 | 0 |  | INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動。 ⚠同名スタブが execStubPart2 にもあり、そちらは「スペル自身を stub.value のシグニの下に置き   ON_… |
 | `INTERNAL_PMBTSL_APPLY` | 0 | 0 |  |  |
 | `INTERNAL_PMBUC_APPLY` | 0 | 0 |  |  |
 | `INTERNAL_PMOP_APPLY` | 0 | 0 |  |  |

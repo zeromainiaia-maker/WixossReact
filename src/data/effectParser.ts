@@ -2266,7 +2266,7 @@ function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectA
 //   ③「…かぎり、自分のすべてのシグニをトラッシュに置く」＝従来は `TRASH{HAND_CARD owner:self ALL}`＝
 //     **自分の手札を全部捨てる**という別物（WX24-P4-023）。
 function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
-  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL'; opponentSigniToDeckTop?: number } | undefined {
+  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL'; opponentSigniToDeckTop?: number; opponentSigniTrash?: number } | undefined {
   const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
   const p = phrase.replace(/^[、,]/, '');
   let m = p.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
@@ -2287,6 +2287,10 @@ function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
   if (signiTarget && /^それをデッキの一番上に置か$/.test(p)) {
     return { opponentSigniToDeckTop: parseNum(signiTarget[1]) };
   }
+  // 「自分のシグニN体を場からトラッシュに置か」＝「が」形（parseOpponentUnlessCost）には既にある
+  // `opponentSigniTrash` の「は」形への水平展開（タスク12(lxi) 第9波・`WX24-P4-007-E1` の①）。
+  m = p.match(/^(?:対象の)?自分のシグニ([０-９\d一二三四五六七八九十]+)体を場からトラッシュに置か$/);
+  if (m) return { opponentSigniTrash: parseNum(m[1]) };
   return undefined;
 }
 
@@ -5289,6 +5293,35 @@ function parseActionTextInner(text: string): EffectAction {
       }
       const chosen = buildChoose(text, parseNum(headM[1]));
       if (chosen) return chosen;
+    }
+  }
+
+  // ── タスク12(lxi) 第9波（2026-07-31）：「以下のNつを行う。①…②…③…」＝**選択ではなく全部やる** ──
+  // 従来は `STUB{DO_THREE_THINGS}` 1本に丸めており、engine 側は**別カード用の text パターン照合**で
+  // 動くだけ（`execStubPart3`）。`WX24-P4-007-E1` はどのパターンにも当たらず**完全 no-op** だった。
+  //
+  // ⚠**素朴に「全項目が UNKNOWN でなければ SEQUENCE 化」すると退化する**（実測）。母集団10枚のうち
+  //   9枚は DO_THREE_THINGS の text パターンが**実際に動いており**、単独パースのほうが情報が少ない：
+  //   `WX24-P4-002`「①対戦相手の**すべての**ルリグとシグニをダウンし凍結する」は単独パースだと
+  //   `FREEZE{SIGNI opponent count:1}`＝**ルリグが消えて1体になる**。held が 250→260 に膨らむのも同じ理由。
+  // ⇒ **本規則の射程は (lxi) の族＝支払い回避クローズの項目だけ**に絞る。全項目が
+  //   「標準ペア（`SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL]`）」か
+  //   「本波が出す宣言 STUB」で、かつ標準ペアを1つ以上含むときだけ SEQUENCE にする。
+  //   残り9枚の per-card 監査は PLAN §3 タスク12 の該当行へ登録した。
+  {
+    const doAllM = text.trim().match(/^以下の[０-９\d２-９]+つを行う。/);
+    if (doAllM && /[①②③④⑤]/.test(text)) {
+      const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+      if (items.length >= 2) {
+        const steps = items.map(m => parseActionText(m[1].replace(/[。）\s]+$/, '').trim()));
+        const isPayPair = (s: EffectAction): boolean => s.type === 'SEQUENCE'
+          && (s as SequenceAction).steps.length === 2
+          && ((s as SequenceAction).steps[0] as StubAction).id === 'OPPONENT_PAY_OPTIONAL';
+        const isWaveDecl = (s: EffectAction): boolean => s.type === 'STUB' && (s as StubAction).id === 'LOCK_OPP_TRASH_MOVE';
+        if (steps.some(isPayPair) && steps.every(s => isPayPair(s) || isWaveDecl(s))) {
+          return { type: 'SEQUENCE', steps } as SequenceAction;
+        }
+      }
     }
   }
 
