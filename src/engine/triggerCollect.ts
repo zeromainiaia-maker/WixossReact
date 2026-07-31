@@ -13,6 +13,13 @@ import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, P
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isKizunaActive, matchesStateFilter } from './effectEngine';
 
+export interface TargetedOrigin {
+  cardNum: string;
+  effect: CardEffect;
+}
+
+const TARGET_ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly'] as const;
+
 /** トリガー収集の依存（BattleScreen の bs/effectsMap/battleCardMap 等を注入）。 */
 export interface TrigCtx {
   hostId: string;
@@ -337,6 +344,9 @@ export function collectTargetedTriggers(
   targetedOwnerId: string,
   afterHostState: PlayerState,
   afterGuestState: PlayerState,
+  origin?: TargetedOrigin,
+  beforeHostState: PlayerState = afterHostState,
+  beforeGuestState: PlayerState = afterGuestState,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
   const entries: StackEntry[] = [];
   const usedHostIds: string[] = [];
@@ -357,11 +367,35 @@ export function collectTargetedTriggers(
           if (!targetedSet.has(topNum)) continue;
         } else if (scope === 'any_ally') {
           if (!targetedIsWatcherOwn) continue;
-          if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
+          if (eff.triggerFilter && !targetedNums.some(n => {
+            if (!matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter)) return false;
+            const needsZoneState = TARGET_ZONE_STATE_KEYS.some(k => (eff.triggerFilter as Record<string, unknown>)[k] !== undefined);
+            if (!needsZoneState) return true;
+            const targetState = targetedOwnerId === ctx.hostId ? beforeHostState : beforeGuestState;
+            const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === n);
+            return zoneIdx >= 0 && matchesStateFilter(targetState, zoneIdx, eff.triggerFilter);
+          })) continue;
         } else if (scope === 'any_opp') {
           if (targetedIsWatcherOwn) continue;
-          if (eff.triggerFilter && !targetedNums.some(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter))) continue;
+          if (eff.triggerFilter && !targetedNums.some(n => {
+            if (!matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter)) return false;
+            const needsZoneState = TARGET_ZONE_STATE_KEYS.some(k => (eff.triggerFilter as Record<string, unknown>)[k] !== undefined);
+            if (!needsZoneState) return true;
+            const targetState = targetedOwnerId === ctx.hostId ? beforeHostState : beforeGuestState;
+            const zoneIdx = targetState.field.signi.findIndex(s => s?.at(-1) === n);
+            return zoneIdx >= 0 && matchesStateFilter(targetState, zoneIdx, eff.triggerFilter);
+          })) continue;
         } // 'any' は無条件
+        const origins = eff.triggerCondition?.targetedOrigins;
+        if (origins?.length) {
+          if (!origin) continue;
+          const source = ctx.cardMap.get(getCardNum(origin.cardNum));
+          if (!origins.some(rule =>
+            (rule.sourceType === undefined || source?.Type === rule.sourceType)
+            && (rule.effectType === undefined || origin.effect.effectType === rule.effectType)
+            && (rule.abilityTiming === undefined || origin.effect.timing?.includes(rule.abilityTiming))
+          )) continue;
+        }
         const to = eff.triggerCondition?.turnOwner;
         if (to === 'self' && !watcherIsTurn) continue;
         if (to === 'opponent' && watcherIsTurn) continue;

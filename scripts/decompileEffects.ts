@@ -2391,6 +2391,23 @@ function effJa(e: Eff): string {
     } else if (t === 'ON_BANISH' && e.triggerCondition?.banishedByOwnEffect) {
       s = `あなたの効果によって${s}`;
     }
+    if (t === 'ON_TARGETED' && e.triggerCondition?.targetedOrigins?.length) {
+      const origins = e.triggerCondition.targetedOrigins;
+      const originJa = origins.length === 2
+          && origins.some((o: any) => o.sourceType === 'アシストルリグ')
+          && origins.some((o: any) => o.effectType === 'LIFE_BURST')
+        ? 'アシストルリグかライフバーストの能力か効果'
+        : origins.map((o: any) => {
+          if (o.sourceType === 'シグニ' && o.abilityTiming === 'ON_PLAY') return 'シグニの、【出】能力か【出】能力の効果';
+          if (o.sourceType) return `${o.sourceType}の、能力か効果`;
+          if (o.effectType === 'LIFE_BURST') return 'ライフバーストの能力か効果';
+          return '能力か効果';
+        }).join('か');
+      const subj = (e.triggerScope ?? 'self') === 'self'
+        ? 'このシグニ'
+        : `あなたの${e.triggerFilter ? filterJa(e.triggerFilter) : ''}シグニ１体`;
+      s = `${subj}が対戦相手の${originJa}の対象になったとき`;
+    }
     // ON_SIGNI_DOWN / ON_SIGNI_BECOMES_UP（タスク16[C]機構①）: scope・filter・byEffect・フェイズ限定を描画。
     if (t === 'ON_SIGNI_DOWN' || t === 'ON_SIGNI_BECOMES_UP') {
       const duTc = e.triggerCondition;

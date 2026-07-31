@@ -2175,6 +2175,12 @@ export interface CardEffect {
     lifeMovedOwner?: 'self' | 'opponent' | 'any'; // ON_LIFE_CLOTH_MOVED の離脱元（watcher 所有者から見て）。省略=self
     lifeMovedTo?: Array<'trash' | 'hand' | 'energy' | 'deck' | 'other'>; // ON_LIFE_CLOTH_MOVED の宛先限定。省略=全領域
     lifeCountReached?: number; // ON_LIFE_CLOTH_MOVED の到達枚数。before!==value && after===value の遷移だけを発火
+    /** ON_TARGETED: 対象を取った能力・効果の origin 限定。配列要素間は OR、要素内の各キーは AND。省略=無限定。 */
+    targetedOrigins?: Array<{
+      sourceType?: CardTypeFilter;
+      effectType?: 'LIFE_BURST';
+      abilityTiming?: EffectTiming;
+    }>;
     excludeGrowPhase?: boolean; // 「グロウフェイズ以外で」＝ctx.turnPhase が GROW のときは発火しない（WX25-P2-063。ON_HAND_ADDED と併用）
     movedSelf?: boolean; // ON_HAND_ADDED の変種弁別：true＝「このシグニが（あなたのエナゾーンから）手札に移動したとき」＝移動したカード自身が手札から発火（WD12-009-E2/WD12-010-E1）。省略＝場の watcher（自身が手札に移動しても発火しない）
     leftToZone?: 'hand'; // ON_LEAVE_FIELD の行き先限定（「場から手札に戻ったとき」WXK02-041）。離れたカードが所有者の手札に在中する場合のみ発火。省略=行き先不問

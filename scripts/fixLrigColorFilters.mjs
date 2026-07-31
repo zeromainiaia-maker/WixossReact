@@ -139,6 +139,7 @@ const REAL_COST_SYNTAX = /(?:支払|捨て|トラッシュに置|手札に加え
 function applyFix(obj, type) {
   if (type === 'lifeCrashOrTrash') {
     obj.timing = ['ON_LIFE_CRASHED', 'ON_LIFE_CLOTH_MOVED'];
+    delete obj.triggerScope; // self は既定値。fresh の冗長出力を除き curated の安定差分を保つ。
     obj.triggerCondition = { ...(obj.triggerCondition ?? {}), lifeMovedTo: ['trash'] };
     return true;
   }

@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16第2波：`ON_TARGETED` origin 種別軸（4効果）
+
+既存 `collectTargetedTriggers` に、対象を取った能力・効果の origin を OR-of-AND 条件で限定する `triggerCondition.targetedOrigins` を追加した。origin 不明時は限定効果を保守的に非発火とし、手動 `SELECT_TARGET` と `autoTargetedCards` の両経路から発生源カード・解決中効果・対象宣言前盤面を渡す。
+
+- `WXDi-D09-H16-E1`：アップ状態の味方シグニがアシストルリグ能力またはライフバーストの対象になった場合だけ発火。ゾーン状態は効果適用後でなく対象宣言前の `signi_down` を評価する。
+- `WXDi-P08-065-E2`：味方の＜宝石＞が相手シグニの【出】能力またはその効果の対象になった場合だけ発火。
+- `WXDi-P03-056-E1`／`WXDi-P13-089-E2`：既存の `ON_TARGETED` 発火を相手シグニ origin に限定し、ルリグ・アーツ・スペル等による対象化での過剰発火を停止。
+- parser は上記2つの新文型と既存「相手シグニの、能力か効果」だけを限定抽出。全カード生パース差分は4 effectId のみ、outlier 0。golden は各効果の正 origin／誤 origin、H16 の対象宣言前アップ／ダウンを固定した。
+- census 1365→1364、`census:timing` 27→25。新 timing・action・collector は追加していない。
+
+**Claude 検証で判明した2件（codex 報告に無し・いずれも本バッチ由来ではない）**：
+- **decompile シートに既存の未再生成ドリフトがあった**＝`WXK08-028-E1`／`WD23-023-E-E1`／`PR-K038-E2`／`WXDi-P07-052-E1` の逆翻訳が `ON_LIFE_CLOTH_MOVED` を出すようになったが、これら4効果の JSON は本バッチで**不変**（per-effect diff は4件のみ）で、`decompileEffects.ts` の差分も ON_TARGETED ブロックの**純追加のみ**。⇒ **前回 J-3 セッションが `npm run regen` を最後の実装後に回していなかった**だけ＝今回のシート再生成で解消。**シート差分を本バッチの影響と読むと誤帰属する**（CODEX_GUIDE §8 の held +2 誤説明と同型）。
+- **`scripts/fixLrigColorFilters.mjs` の `delete obj.triggerScope` は挙動不変**＝collector が `eff.triggerScope ?? 'self'` で既定を補うため `'self'` の有無は等価。`build:effects` の冪等性を保つための安定化で、live JSON への影響0（2回実行して per-effect diff が4件で不変であることを確認）。
+
+**⚠ 本バッチで露出した既存バグ＝Opusタスク12 (lxviii) へ登録**：散文形の「**対戦相手のターンの間、**」が `triggerCondition.turnOwner:'opponent'` を生まない（《相手ターン》アイコン形は生む）。`ON_TARGETED` 内で実測すると `WX24-P4-102-E1`／`WX25-CP1-060-E2`／`WXDi-P11-040-E2`（アイコン形）は `turnOwner:'opponent'` を持つのに、`WXDi-P12-074-E1`／`WXDi-P13-089-E2`（散文形）は**持たない＝自分のターンにも発火する過剰実行**。原文に当該前置きを持つ効果は**145件**あるが大半は CONTINUOUS（`duration`／`activeCondition` 側で表現）＝**AUTO 部分集合の実測が先**。本バッチのスコープ外として未修正。
+
 ## 2026-07-31 — §6.3 J-3 差し戻し修正：クラッシュの check 経路を忠実化（4効果）
 
 安全停止中だった `WXK08-028-E1`／`PR-K038-E2`／`WD23-023-E-E1`／`WXDi-P07-052-E1` を1家族として実装した。初版はクラッシュを誤って `life→trash` とみなしていたため、実戦の `life→field.check→energy`（置換時のみ `check→trash`）に合わせて訂正した。

@@ -19008,6 +19008,62 @@ test('WX25-P3-028-E2: three independent CHOOSE decisions mill exactly 18 cards t
   } finally { cursor = savedCursor; }
 });
 
+const targetedOriginCard = (type: string): string => findCard(c => c.Type === type);
+const targetedOriginEffect = (effectType: string, timing: string[] = []): CardEffect => ({
+  effectId: `origin-${effectType}-${timing.join('-')}`, effectType, timing,
+  action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+} as unknown as CardEffect);
+const collectLiveTargeted = (
+  watcherNum: string,
+  originCardNum: string | undefined,
+  originEffect: CardEffect | undefined,
+  beforeDown = false,
+  afterDown = beforeDown,
+): number => {
+  const localEffects = new Map(effectsMap);
+  localEffects.set(watcherNum, parseCardEffects(cardMap.get(watcherNum)!));
+  const host = mkState({});
+  const beforeGuest = mkState({ signi: [watcherNum, null, null] });
+  beforeGuest.field.signi_down = [beforeDown, false, false];
+  const afterGuest = mkState({ signi: [watcherNum, null, null] });
+  afterGuest.field.signi_down = [afterDown, false, false];
+  return collectTargetedTriggers(
+    { ...trigCtx(HOST), effectsMap: localEffects },
+    [watcherNum], GUEST, host, afterGuest,
+    originCardNum && originEffect ? { cardNum: originCardNum, effect: originEffect } : undefined,
+    host, beforeGuest,
+  ).entries.length;
+};
+test('ON_TARGETED origin A-1: WXDi-D09-H16 はアシストルリグ能力で発火', () => {
+  eq(collectLiveTargeted('WXDi-D09-H16', targetedOriginCard('アシストルリグ'), targetedOriginEffect('AUTO')), 1);
+});
+test('ON_TARGETED origin A-1: WXDi-D09-H16 はライフバーストで発火', () => {
+  eq(collectLiveTargeted('WXDi-D09-H16', targetedOriginCard('シグニ'), targetedOriginEffect('LIFE_BURST', ['ON_LIFE_BURST'])), 1);
+});
+test('ON_TARGETED origin A-1: WXDi-D09-H16 は通常シグニ能力で非発火', () => {
+  eq(collectLiveTargeted('WXDi-D09-H16', targetedOriginCard('シグニ'), targetedOriginEffect('AUTO', ['ON_PLAY'])), 0);
+});
+test('ON_TARGETED origin A-1: 対象宣言前アップなら適用後ダウンでも発火し、宣言前ダウンなら非発火', () => {
+  const assist = targetedOriginCard('アシストルリグ');
+  const eff = targetedOriginEffect('AUTO');
+  eq(collectLiveTargeted('WXDi-D09-H16', assist, eff, false, true), 1, 'before 状態で評価');
+  eq(collectLiveTargeted('WXDi-D09-H16', assist, eff, true, true), 0, '宣言前ダウンは非発火');
+});
+test('ON_TARGETED origin A-2: WXDi-P08-065 はシグニの【出】能力で発火', () => {
+  eq(collectLiveTargeted('WXDi-P08-065', targetedOriginCard('シグニ'), targetedOriginEffect('AUTO', ['ON_PLAY'])), 1);
+});
+test('ON_TARGETED origin A-2: WXDi-P08-065 はシグニの【起】能力で非発火', () => {
+  eq(collectLiveTargeted('WXDi-P08-065', targetedOriginCard('シグニ'), targetedOriginEffect('ACTIVATED', ['MAIN'])), 0);
+});
+for (const [watcherNum, effectId] of [['WXDi-P03-056', 'WXDi-P03-056-E1'], ['WXDi-P13-089', 'WXDi-P13-089-E2']] as const) {
+  test(`ON_TARGETED origin B: ${effectId} は相手シグニ能力で発火`, () => {
+    eq(collectLiveTargeted(watcherNum, targetedOriginCard('シグニ'), targetedOriginEffect('AUTO')), 1);
+  });
+  test(`ON_TARGETED origin B: ${effectId} は相手ルリグ能力で非発火`, () => {
+    eq(collectLiveTargeted(watcherNum, targetedOriginCard('ルリグ'), targetedOriginEffect('AUTO')), 0);
+  });
+}
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

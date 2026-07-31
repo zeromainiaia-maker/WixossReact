@@ -6593,9 +6593,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : /このシグニが対戦相手にダメージを与えたとき|対戦相手がダメージを受けたとき/.test(trigText) ? ['ON_SIGNI_DAMAGE']
              // 「あなたの他の＜X＞のシグニが場に出るか、あなたの効果によって対戦相手が手札を捨てたとき」（WXDi-P11-064）＝複合ORトリガー。⚠engine未配線。トリガー文非除去・filter は下で抽出
              : trigText.match(/あなたの他の＜[^＞]+＞のシグニ[^。]{0,4}が場に出るか[、,]?\s*あなたの効果によって対戦相手が手札を[^。]{0,4}捨てたとき/) ? ['ON_ALLY_PLAY_OR_OPP_HAND_DISCARD']
-             // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。⚠engine未配線
+             // 「このシグニが対戦相手の、能力か効果の対象になったとき」（WXDi-P11-040/WX25-P2-055/WX25-CP1-060）。
              // 「対戦相手の**シグニの**、能力か効果の対象になったとき」（WXDi-P03-056/WXDi-P13-089）も同じ受け皿。
-             : trigText.match(/対戦相手の(?:シグニの)?[、,]?\s*能力か効果の対象になったとき/) ? ['ON_TARGETED']
+             // origin 句を挟む2文型は限定して受ける（WXDi-D09-H16/WXDi-P08-065）。
+             : (trigText.match(/対戦相手の(?:シグニの)?[、,]?\s*能力か効果の対象になったとき/)
+               || trigText.match(/対戦相手の、?アシストルリグかライフバーストの能力か効果の対象になったとき/)
+               || trigText.match(/対戦相手のシグニの、?【出】能力か【出】能力の効果の対象になったとき/)) ? ['ON_TARGETED']
              // 「あなたのデッキがシャッフルされたとき」（PR-470A）。⚠engine未配線。トリガー文は除去しない（action 解析を変えないため）
              : trigText.match(/デッキがシャッフルされたとき/) ? ['ON_DECK_SHUFFLED']
              // 「あなたの他のシグニが【アサシン】か【ランサー】か【ダブルクラッシュ】を得たとき」（WXDi-P04-035）。⚠engine未配線。トリガー文非除去
@@ -7513,14 +7516,31 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   （トリガー句は parseSentence 側で前置きとして消費される）。timing のみ ON_TARGETED に確定する。
       //   ただし主語が「あなたの[＜X＞/色]のシグニ」の場合は triggerScope:any_ally＋triggerFilter を抽出（actionText は非改変）。
       if (timing[0] === 'ON_TARGETED') {
-        const subjM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の|([赤青白緑黒])の)?シグニ(?:[０-９\d]+体)?が対戦相手の[、,]?\s*能力か効果の対象になったとき/);
+        const subjM = actionText.match(/^あなたの(他の)?(?:(アップ状態の)|＜([^＞]+)＞の|([赤青白緑黒])の)?シグニ(?:[０-９\d]+体)?が対戦相手の(?:[、,]?\s*能力か効果|、?アシストルリグかライフバーストの能力か効果|シグニの、?【出】能力か【出】能力の効果)の対象になったとき/);
         if (subjM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
           if (subjM[1]) tf.excludeSelf = true;
-          if (subjM[2]) tf.story = subjM[2];
-          if (subjM[3]) tf.color = subjM[3];
+          if (subjM[2]) tf.isUp = true;
+          if (subjM[3]) tf.story = subjM[3];
+          if (subjM[4]) tf.color = subjM[4];
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
+        }
+        if (/対戦相手の、?アシストルリグかライフバーストの能力か効果の対象になったとき/.test(trigText)) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            targetedOrigins: [{ sourceType: 'アシストルリグ' }, { effectType: 'LIFE_BURST' }],
+          };
+        } else if (/対戦相手のシグニの、?【出】能力か【出】能力の効果の対象になったとき/.test(trigText)) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            targetedOrigins: [{ sourceType: 'シグニ', abilityTiming: 'ON_PLAY' }],
+          };
+        } else if (/対戦相手のシグニの[、,]?\s*能力か効果の対象になったとき/.test(trigText)) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            targetedOrigins: [{ sourceType: 'シグニ' }],
+          };
         }
       }
       // トリガー文を除去してアクション部分のみparseSentenceに渡す
