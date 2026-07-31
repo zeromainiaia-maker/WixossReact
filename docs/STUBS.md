@@ -7,14 +7,14 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-07-30）
+## サマリー（最終生成: 2026-07-31）
 
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 576 |
 | 　└ ハンドラ実装あり | 547 |
 | 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2486 |
+| 総 STUB ノード件数 | 2608 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -70,6 +70,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_COST` | 413 | 405 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 113 | 111 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み） |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 110 | 109 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `STORE_LAST_PROCESSED_TARGETS` | 81 | 81 | WD12-009, WDK08-Y01, SPK01-05 |  |
+| `SELECT_TARGET_ONLY` | 76 | 76 | WD12-009, SPK01-05, SPDi43-29 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `POWER_MOD_PER_COUNT` | 61 | 61 | WD19-001, WDK06-C17, WDK10-009 | 動的パワー修正（COUNT依存） |
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
 | `OPPONENT_PAY_OPTIONAL` | 55 | 51 | WDK10-001, SPDi43-01, SPDi43-06 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
@@ -84,12 +86,10 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `LRIG_UNDER_CARD_OP` | 22 | 21 | WD23-022-E, WDK09-015, WDK17-015 | ルリグデッキ下操作（多パターン） |
 | `GAIN_SUBSCRIBER_COUNT` | 21 | 20 | WDK16-01T, WDK16-02T, WDK16-03T | サブスクライバーカウント+1 |
 | `DECLARE_CARD_NAME` | 20 | 18 | PR-257, PR-K046, WX10-068 | カード名宣言（手札のカード名から選択） |
-| `STORE_LAST_PROCESSED_TARGETS` | 20 | 20 | WDK08-Y01, SPDi43-29, WX12-020 |  |
 | `GAIN_ABILITY_THIS_GAME` | 19 | 18 | WX08-015, WX10-011, WX24-P4-036 |  |
 | `COPY_LRIG_NAME_ABILITY` | 16 | 16 | WX24-P4-011, WX24-P4-012, WX24-P4-013 | カード名コピー系 COPY_LRIG_NAME_ABILITY: ルリグトラッシュのルリグ名/タイプを現在のルリグに追加 |
 | `COUNT_BASED_DRAW_OR_POWER` | 15 | 15 | WX19-Re18, WX24-P3-074, WX25-P3-084 | カウント基準ドロー/パワー（lastProcessedCardsの枚数だけドロー or パワー修正） |
 | `GRANT_QUOTED_ABILITY` | 15 | 14 | WX22-Re04, WX24-P1-042, WX24-P3-003 | 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects） |
-| `SELECT_TARGET_ONLY` | 15 | 15 | SPDi43-29, WX12-020, WXEX1-66 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `ARTS_COST_REDUCTION_BY_CENTER_LRIG` | 14 | 14 | WX11-015, WXK05-002, WXK05-004 | アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み） |
 | `GRANT_ABILITY_INNER_TEXT` | 14 | 14 | SPDi43-01, WX07-065, WXEX1-32 |  |
 | `REVEAL_PICK_PLAY` | 14 | 14 | WDA-F01-08, WX13-002, WX18-028 | デッキ公開してシグニを場に出す |

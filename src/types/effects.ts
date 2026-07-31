@@ -874,6 +874,9 @@ export interface TrashAction {
   optional?: boolean; // true =「捨ててもよい」（スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WXDi-D08-013/P14-084）
   targetsStored?: boolean;
   fixedCardNums?: string[];
+  // 「手札がN枚になるようにカードを捨てる」＝**現在の手札枚数との差**だけ捨てる（DrawAction.untilHandCount の対）。
+  // 従来は「閾値−N」を固定枚数で焼き込んでおり、閾値ちょうどのときしか正しくなかった（WX18-032-E2・タスク12(lxiv)②）。
+  untilHandCount?: number;
 }
 
 export interface EnergyChargeAction {
@@ -979,12 +982,14 @@ export interface FreezeAction {
   type: 'FREEZE'; // 凍結付与
   target: EffectTarget;
   down?: boolean; // true=「ダウンし凍結」：同一対象をダウンも行う。省略時は凍結のみ（現在のアップ/ダウン状態は変えない）
+  targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それを凍結する」。タスク12(lxiv)）
 }
 
 export interface DownAction {
   type: 'DOWN'; // ダウン
   target: EffectTarget;
   optional?: boolean; // true =「ダウンしてもよい」（スキップ可能。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WD12-013/015）
+  targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それをダウンする」。タスク12(lxiv)）
 }
 
 export interface UpAction {
@@ -992,6 +997,7 @@ export interface UpAction {
   target: EffectTarget;
   targetsTriggerSource?: boolean; // 「それ」= トリガー元シグニ（ダウン状態で場に出たシグニ等）をアップ（ctx.triggeringCardNum → ctx.sourceCardNum）
   targetsBattleAttacker?: boolean; // 「そのアタックしているシグニ」= バトルを行ったアタッカー自身をアップ（ctx.battleAttackerCardNum。ON_SIGNI_BANISH_OPPONENT any_ally 等・能力ホストと攻撃者が別カードになりうるため thisCardOnly/targetsTriggerSource とは別軸。WX17-032）
+  targetsStored?: boolean; // STORE_LAST_PROCESSED_TARGETS で固定した対象（「それをアップする」。タスク12(lxiv)）
 }
 
 export interface BlockActionAction {

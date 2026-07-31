@@ -1059,7 +1059,12 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashHand(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
+    // untilHandCount:「手札がN枚になるようにカードを捨てる」＝**実行時の**手札枚数との差だけ捨てる
+    // （DRAW の untilHandCount と対。タスク12(lxiv)②＝従来は「閾値−N」を固定枚数で焼き込んでおり、
+    //  手札が閾値ちょうどのときしか正しくなかった）。
+    const count = a.untilHandCount !== undefined
+      ? Math.max(0, state.hand.length - a.untilHandCount)
+      : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
       + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
@@ -2069,6 +2074,8 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
   const { cands: rawCands, scope } = fieldCandidatesByOwner(a.target.owner, freezeFilter, ctx);
   let cands = rawCands;
   if (triggerRestrictFZ !== null) cands = cands.filter(n => triggerRestrictFZ!.includes(n));
+  // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それを凍結する」。タスク12(lxiv)）
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   // 完全効果耐性: 相手の凍結効果は耐性シグニに無効
   if (a.target.owner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
     cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
@@ -2173,6 +2180,8 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   const { cands: rawCands, scope } = fieldCandidatesByOwner(a.target.owner, downFilter, ctx);
   let cands = rawCands;
   if (downProtected.size > 0) cands = cands.filter(n => !downProtected.has(n));
+  // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それをダウンする」。タスク12(lxiv)）
+  if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
@@ -2208,7 +2217,9 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
   }
   // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
-  const { cands, scope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
+  const { cands: rawCandsUp, scope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);
+  // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それをアップする」。タスク12(lxiv)）
+  const cands = a.targetsStored ? rawCandsUp.filter(n => (ctx.storedTargetCards ?? []).includes(n)) : rawCandsUp;
   const state = ownerState(a.target.owner === 'any' ? 'self' : a.target.owner, ctx);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをアップする」。WX16-Re07/G145等）→ 選択不要で即アップ
   if (a.target.filter?.thisCardOnly) {
@@ -3481,6 +3492,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       const dA = step as DownAction;
       if (dA.target.owner === 'self') cur = { ...cur, lastProcessedCards: [] };
     }
+    const ctxBeforeStep = cur;
     const result = executeAction(step, cur);
     if (!result.done) {
       // インタラクション必要：残りのステップをcontinuationに入れる
@@ -3500,19 +3512,25 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // **条件不成立でも本体が撃てる過剰実行**になる。else 付き（分岐が別にある）は対象外。
     const gateStep: EffectAction = (step.type === 'CONDITIONAL' && !(step as ConditionalAction).else)
       ? (step as ConditionalAction).then : step;
+    // 包み条件が不成立なら中身は動いていない＝空振り扱いにする。lastProcessedCards の中身だけを見ると、
+    // 先行の SELECT_TARGET_ONLY（対象宣言）が残した値を「前段が処理した」と誤読して本体が撃ててしまう
+    // （タスク12(lxiv) で対象宣言ステップを前置したため顕在化）。
+    const wrapCondFalse = gateStep !== step
+      && !evalCondition((step as ConditionalAction).condition, ctxBeforeStep);
+    const effLastProcessed = wrapCondFalse ? [] : (cur.lastProcessedCards ?? []);
     // 自分のTRASH（HAND_CARD/SIGNI/ENERGY_CARD）が対象なし（done だが lastProcessedCards 空）→ 残りSEQUENCEをスキップ
     if (gateStep.type === 'TRASH' && i + 1 < a.steps.length) {
       const tA = gateStep as import('../types/effects').TrashAction;
       if (tA.target.owner === 'self' && !tA.bestEffort &&
           (tA.target.type === 'HAND_CARD' || tA.target.type === 'SIGNI' || tA.target.type === 'ENERGY_CARD') &&
-          (cur.lastProcessedCards ?? []).length === 0) {
+          effLastProcessed.length === 0) {
         return done(addLog(cur, 'TRASH対象なし：残りのSEQUENCEをスキップ'));
       }
     }
     // 自分の DOWN がダウン不可（アップ状態でない等で対象なし＝done だが lastProcessedCards 空）→ 残り（「そうした場合」）をスキップ
     if (gateStep.type === 'DOWN' && i + 1 < a.steps.length) {
       const dA = gateStep as DownAction;
-      if (dA.target.owner === 'self' && (cur.lastProcessedCards ?? []).length === 0) {
+      if (dA.target.owner === 'self' && effLastProcessed.length === 0) {
         return done(addLog(cur, 'ダウン不可：残りのSEQUENCEをスキップ'));
       }
     }
@@ -3524,7 +3542,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     // 対象は「処理したカードを lastProcessedCards に記録する＝空振りを判定できる」型に限定する
     // （DRAW/SHUFFLE_DECK 等の常に成功する型を入れると逆に正しい発火を殺すため入れない）。
     if (DID_IT_GATED_TYPES.has(gateStep.type) && i + 1 < a.steps.length
-        && (cur.lastProcessedCards ?? []).length === 0) {
+        && effLastProcessed.length === 0) {
       const nextDI = a.steps[i + 1];
       if (nextDI?.type === 'CONDITIONAL' && (nextDI as ConditionalAction).condition.type === 'IS_MY_TURN') {
         cur = addLog(cur, '前段が空振り：「そうした場合」の効果は発生しない');

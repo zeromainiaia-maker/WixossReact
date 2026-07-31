@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxiv) 対象宣言のフィルタが「そうした場合」の本体まで届かない 61枚＋「手札がN枚になるように捨てる」＝**(lxiv) 残0クローズ**（PLAN §3 タスク12(lxiv)・Opus 5）
+
+### ① 「〈対象宣言〉を対象とし、〈任意コスト〉てもよい。そうした場合、それを〈除去〉」（61枚）
+
+登録時は `WXK11-031-E1` 1枚のつもりだったが、**同型を機械走査したら 93効果**で、いずれも対象宣言の**フィルタ／体数／owner** が帰結に届かず「**どのシグニでも撃てる**」過剰実行だった（BANISH 77／TRANSFER_TO_DECK 8／BOUNCE 4 ほか）。
+
+- **新機構0**＝タスク12(liii) と同じ正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈コスト〉→ gate{targetsStored}` へ組み替える post-pass `applyDroppedTargetDesignation` を追加（`bindToStoredTarget` は既存を流用）。
+- **⚠SELECT/STORE はコストステップより前に挿す**。コストとゲートの間に挟むと `execSequence` の「そうした場合」did-it ゲート（前段の直後が `CONDITIONAL{IS_MY_TURN}` であることを見る）が外れ、**コストを払わなくても本体が撃てる**別のバグになる。コスト位置を同定できない形は触らない。
+- **踏んだ落とし穴を3つ潰した**（いずれも投入前の実測で発見）：
+  1. **owner の反転**＝名詞句の先頭一致で owner を取ると「レベルが**あなたの**場にいる白のルリグの数以下の**対戦相手の**シグニ１体」（`WXDi-P06-032`）で self に化け、`bindToStoredTarget` が**自分のシグニを撃つ**別物にしていた → **最後の**「対戦相手の／あなたの」から取る。
+  2. **束縛が効かない型**＝`bindToStoredTarget` の BINDABLE に `UP/DOWN/FREEZE` があるのに **executor が `targetsStored` を honor していなかった**（フィールドが黙って無視され「対象を選び直させるだけ」の退化）。3つとも executor 側を配線し、UP を BINDABLE に追加。束縛が実際に効かない場合は組み替えない。
+  3. **`lastProcessedCards` 依存の破壊**＝`WXDi-P01-059-E1` はデッキ上を公開して「そのカードがレベル１のシグニの場合」を `LAST_PROCESSED_MATCHES` で見ており、対象宣言を前に挿すと参照先が対象シグニに化ける → 挿入位置〜帰結に `LAST_PROCESSED` 系があれば触らない。
+- **体数も宣言に揃えた**＝`WXDi-P02-043-E1`「シグニを**２体まで**対象とし…それらをバニッシュする」は帰結が `count:1` に落ちており、固定対象が2体でも1体しか撃てなかった（`bindToStoredTarget` に count/upToCount の同期を追加。副次で `WX26-CP1-036-E2` の「１体まで」も復元）。
+- **engine：did-it ゲートが「包み条件が不成立」を空振りと読めるようにした**。対象宣言ステップを前置した結果、`lastProcessedCards` に宣言済みの対象が残り、**条件不成立でも「そうした場合」の本体が撃てる**ようになっていた（(lxiii) で入れた `gateStep` だけでは足りなかった）。包み `CONDITIONAL` の条件を実行前 ctx で再評価し、false なら空振り扱いにする（`effLastProcessed`）。
+- **採用は 61枚**（うち52枚は本バッチで新たに held に落ちた分＝全数 per-effect 照合、9枚は「curated が持っていたフィルタを fresh が失っていた既存ドリフト」で本改修により fresh が curated 以上になったもの）。⚠**残り15枚は据置**＝`IF(<gate>)[OPTIONAL_COST]` の条件節を fresh が落とす等の**本バッチと無関係な既存ドリフト**を同時に取り込むことになるため（held の既存バックログ）。
+
+### ② 「対戦相手は手札が**N枚になるように**カードを捨てる」（`WX18-032-E2`）
+
+`TRASH{HAND_CARD opp count: 閾値−N}` と**固定枚数を焼き込んで**おり、手札がちょうど閾値のときしか正しくなかった（6枚なら3枚捨てるが、8枚でも3枚しか捨てない＝過小）。`TrashAction.untilHandCount` を新設（`DrawAction.untilHandCount` の対）し、execTrash が**実行時の手札枚数との差**を捨てるようにした。⚠エナ版「エナゾーンのカードがN枚になるように」は既存 `EQUALIZE_ENERGY` で正しく、該当は手札のこの1枚だけ（全CSV機械確認）。
+
+**ゲート**：typecheck ✅／golden **1132→1134**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1373→1370**（`BASELINE_HIGH=1370`）／lint 0 errors・230 warnings 据置／manual field loss 0／同型★0（265群）／held **288→277枚**（署名グループ 104→109）。live per-effect 差分 **changed 63 / added 0 / removed 0**、`build:effects` 冪等。
+
 ## 2026-07-31 — タスク12(lxiii)「対戦相手の〈ゾーン〉があなたより多い場合」＝両者比較ゲートの脱落 4枚＋中央ゾーン限定の脱落 4枚＝**(lxiii) 残0クローズ**（PLAN §3 タスク12(lxiii)・Opus 5）
 
 登録内容は「`WX15-033-E2` の fresh が `CONDITIONAL{LIFE_COMPARE_OPP}` を落とすドリフト（held 据置中）」だったが、**原因は fresh 側のドリフトではなく「カードゲートに載っていないから条件節が黙って落ちる」構造**で、同型が全CSVで4枚あり **curated 側も大半が落としていた**（＝held を解く前に、curated が正だという前提が誤りだった）。

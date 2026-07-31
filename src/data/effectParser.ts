@@ -4317,14 +4317,96 @@ function parseTargetLevelCostFields(costClause: string): Partial<StubAction> | n
 // の regex（「を」なし前提）に外れて owner:self のまま落ちるため（WX26-CP1-036-E2）。
 // targetsStored が対象を実選択済みの1体に固定するので、owner を上書きしても過剰対象化にはならない。
 function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction {
-  const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE'];
+  // ⚠この表は **executor が targetsStored を honor する型**と一致させること（honor しない型に付けると
+  //   フィールドが黙って無視され「対象を選び直させるだけ」の退化になる）。UP/DOWN/FREEZE は
+  //   タスク12(lxiv) で executor 側を配線して追加した。
+  const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE', 'UP'];
   if (a.type === 'SEQUENCE') return { ...a, steps: (a as SequenceAction).steps.map(s => bindToStoredTarget(s, desig)) };
   if (!BINDABLE.includes(a.type)) return a;
   const withTgt = a as EffectAction & { target?: EffectTarget; source?: EffectTarget };
   const key = withTgt.target ? 'target' : withTgt.source ? 'source' : null;
   const tgt = key ? withTgt[key] : undefined;
   if (!key || !tgt || tgt.type !== 'SIGNI') return a;
-  return { ...a, [key]: { ...tgt, owner: desig.owner }, targetsStored: true } as EffectAction;
+  // 体数も宣言側に揃える（「シグニを２体まで対象とし…それらをバニッシュする」WXDi-P02-043＝
+  // 帰結側は「それら」しか書いていないので count が 1 に落ちており、固定対象が2体でも1体しか撃てなかった）。
+  return {
+    ...a,
+    [key]: { ...tgt, owner: desig.owner, count: desig.count, ...(desig.upToCount ? { upToCount: true } : {}) },
+    targetsStored: true,
+  } as EffectAction;
+}
+
+// ── タスク12(lxiv)①：対象宣言のフィルタが帰結に届かない形の一般是正 ──
+// 「〈対象宣言〉を対象とし、〈任意コスト〉てもよい。そうした場合、それを〈除去〉」で、対象宣言の
+// フィルタ（パワーN以下／レベルN以下／＜クラス＞／状態）が落ち、帰結が **どのシグニでも撃てる**
+// 過剰実行になっていた（実測93効果・BANISH 77／TRANSFER_TO_DECK 8／BOUNCE 4 ほか）。
+// (liii) と同じ正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈コスト〉→ gate{targetsStored}`
+// へ組み替える（新機構ではなく既存機構の配線）。
+//
+// ⚠ SELECT/STORE は**コストステップより前**に挿す。コストとゲートの間に挟むと execSequence の
+//   「そうした場合」did-it ゲート（前段の直後が CONDITIONAL{IS_MY_TURN} であることを見る）が外れ、
+//   コストを払わなくても本体が撃てる別のバグになる。コストステップを同定できない形は**触らない**。
+const DESIG_BEFORE_COST_RE = /((?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?てもよい。そうした場合、それ/;
+
+// else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
+function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
+  return (a?.type === 'CONDITIONAL' && !(a as import('../types/effects').ConditionalAction).else)
+    ? (a as import('../types/effects').ConditionalAction).then : a;
+}
+
+function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
+  if ((text.match(/対象とし/g)?.length ?? 0) !== 1) return action;   // 「それ」の指し先が一意でない
+  if (JSON.stringify(action).includes('SELECT_TARGET_ONLY')) return action; // 既に対象宣言済み
+  const m = text.match(DESIG_BEFORE_COST_RE);
+  if (!m) return action;
+  // ⚠所有者は名詞句の**最後の**「対戦相手の／あなたの」から取る。前方に別プレイヤーの語が混ざる修飾
+  //   （「レベルが**あなたの**場にいる白のルリグの数以下の**対戦相手の**シグニ１体」WXDi-P06-032）で
+  //   先頭一致に頼ると owner が反転し、bindToStoredTarget が**自分のシグニを撃つ**別物にしてしまう。
+  const desig0 = m[1];
+  const cut = Math.max(desig0.lastIndexOf('あなたの'), desig0.lastIndexOf('対戦相手の'));
+  const desig = cut > 0 ? desig0.slice(cut) : desig0;
+  const target = parseSigniTarget(desig, desig.startsWith('対戦相手') ? 'opponent' : 'self');
+  const extraKeys = Object.keys(target.filter ?? {}).filter(k => k !== 'cardType');
+  if (extraKeys.length === 0) return action;   // 素の「シグニN体」＝フィルタが無いので脱落しても等価
+
+  const steps = [...(action as SequenceAction).steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 0) return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  // 帰結が「宣言フィルタを取りこぼした SIGNI 対象」でなければ触らない（既に正しい形は据置）
+  const thenTgt = (gate.then as EffectAction & { target?: EffectTarget; source?: EffectTarget }).target
+    ?? (gate.then as EffectAction & { source?: EffectTarget }).source;
+  if (!thenTgt || thenTgt.type !== 'SIGNI') return action;
+  const got = (thenTgt.filter ?? {}) as Record<string, unknown>;
+  const want = (target.filter ?? {}) as Record<string, unknown>;
+  if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k]))) return action;
+
+  // コストステップ（任意コスト STUB か任意の手札捨て TRASH。条件で包まれていても可）を同定する
+  let costIdx = -1;
+  for (let i = gateIdx - 1; i >= 0; i--) {
+    if (isDroppedCostStep(coreOfCondWrap(steps[i]))) { costIdx = i; break; }
+  }
+  if (costIdx < 0) return action;   // コスト位置を同定できない形は触らない
+  // ⚠挿入位置から帰結までに「直前に処理したカード」を読むステップがあると、SELECT_TARGET_ONLY が
+  //   lastProcessedCards を対象シグニで上書きして条件が壊れる（`WXDi-P01-059-E1`＝デッキ上を公開し
+  //   「そのカードがレベル１のシグニの場合」を LAST_PROCESSED_MATCHES で見ている）。その形は触らない。
+  if (/LAST_PROCESSED|LAST_LOOK|last_processed/.test(JSON.stringify(steps.slice(costIdx, gateIdx + 1)))) return action;
+
+  // 束縛が実際に効かない帰結（BINDABLE 外の型）は触らない＝対象を選び直させるだけの退化を防ぐ
+  const boundThen = bindToStoredTarget(gate.then, target);
+  if (JSON.stringify(boundThen) === JSON.stringify(gate.then)) return action;
+
+  const rebuilt: EffectAction[] = [
+    ...steps.slice(0, costIdx),
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+    ...steps.slice(costIdx, gateIdx),
+    { ...gate, then: boundThen },
+    ...steps.slice(gateIdx + 1),
+  ];
+  return { ...action, steps: rebuilt } as EffectAction;
 }
 
 function applyTargetLevelScaling(text: string, action: EffectAction): EffectAction {
@@ -4397,10 +4479,11 @@ function applyTargetLevelScaling(text: string, action: EffectAction): EffectActi
 let _resolvingSeparatedPick = false;
 
 function parseActionText(text: string): EffectAction {
-  return applyTargetLevelScaling(text,
-    applyLeadingSelfComparison(text,
-      applyLeadingTrashHandAnaphora(text,
-        applyLeadingOpponentDesignation(text, parseActionTextInner(text)))));
+  return applyDroppedTargetDesignation(text,
+    applyTargetLevelScaling(text,
+      applyLeadingSelfComparison(text,
+        applyLeadingTrashHandAnaphora(text,
+          applyLeadingOpponentDesignation(text, parseActionTextInner(text))))));
 }
 
 function parseActionTextInner(text: string): EffectAction {

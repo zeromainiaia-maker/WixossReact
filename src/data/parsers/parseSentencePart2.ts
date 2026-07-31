@@ -403,7 +403,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
       return {
         type: 'CONDITIONAL',
         condition: { type: 'HAND_COUNT', owner: 'opponent', operator: 'gte', value: threshold },
-        then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: threshold - target } },
+        // untilHandCount＝「手札がN枚になるように」＝実行時の手札枚数との差。count は旧表現の保険（engine は untilHandCount を優先）
+        then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: threshold - target }, untilHandCount: target },
       };
     }
   }

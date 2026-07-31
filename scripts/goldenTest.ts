@@ -18136,6 +18136,42 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   eq(banished.otherState.energy.filter(n => n === atom).length, 1, 'バニッシュはそのまま1回だけ処理される');
 });
 
+test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の本体まで届く（SELECT_TARGET_ONLY→targetsStored）', () => {
+  // 代表＝WXK11-031-E1（パワー5000以下・条件つき任意ディスカード）と WXDi-P02-043-E1（2体まで）
+  const eff = effectsMap.get('WXK11-031')!.find(e => e.effectId === 'WXK11-031-E1')!;
+  const seq = eff.action as SequenceAction;
+  eq((seq.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言が先頭');
+  ok(JSON.stringify(seq.steps[0]).includes('"powerRange":{"max":5000}'), '宣言のパワー5000以下が載る');
+  ok(JSON.stringify(seq.steps.at(-1)).includes('"targetsStored":true'), '本体は固定対象を撃つ');
+  // 実経路：パワー5000以下だけが候補になり、6000のシグニは撃たれない
+  const weak = findCard(c => isSigni(c) && c.Power === '3000');
+  const strong = findCard(c => isSigni(c) && c.Power === '12000');
+  const r = run(eff.action, mkCtx({ life: 2, hand: 3 }, { life: 5, signi: [strong, weak, null] }));
+  ok(!r.otherState.field.signi.some(s => s?.at(-1) === weak), 'パワー3000は撃たれる');
+  ok(r.otherState.field.signi.some(s => s?.at(-1) === strong), 'パワー12000は候補外（従来はどのシグニでも撃てた）');
+  // 「N体まで」宣言は本体の体数も宣言に揃う
+  const two = effectsMap.get('WXDi-P02-043')!.find(e => e.effectId === 'WXDi-P02-043-E1')!;
+  const twoSeq = two.action as SequenceAction;
+  ok(JSON.stringify(twoSeq.steps.at(-1)).includes('"count":2'), '「２体まで」は本体も2体（従来は1体固定＝過小）');
+  ok(JSON.stringify(twoSeq.steps.at(-1)).includes('"owner":"opponent"'), 'owner も宣言に揃う（従来は self へ反転）');
+  // 束縛が効かない型・lastProcessed 依存の形は触らない（honest defer）
+  const keep = effectsMap.get('WXDi-P01-059')!.find(e => e.effectId === 'WXDi-P01-059-E1')!;
+  ok(!JSON.stringify(keep.action).includes('SELECT_TARGET_ONLY'),
+    'LAST_PROCESSED_MATCHES を挟む形は据置（対象宣言で公開カードの参照が壊れるため）');
+});
+
+test('task12(lxiv)② 「手札がN枚になるように捨てる」は実行時の手札枚数との差だけ捨てる', () => {
+  const eff = effectsMap.get('WX18-032')!.find(e => e.effectId === 'WX18-032-E2')!;
+  ok(JSON.stringify(eff.action).includes('"untilHandCount":3'), 'untilHandCount で表現');
+  const check = (oppHand: number, expect: number) => {
+    const r = run(eff.action, mkCtx({}, { hand: oppHand }));
+    eq(r.otherState.hand.length, oppHand - expect, `手札${oppHand}枚→${expect}枚捨てる`);
+  };
+  check(6, 3);   // ちょうど閾値＝旧実装（閾値−N の固定3枚）と一致
+  check(8, 5);   // 閾値超え＝旧実装は3枚しか捨てさせず過小だった
+  check(5, 0);   // 閾値未満＝条件不成立で捨てない
+});
+
 test('task12(lxiii) 「対戦相手の〈ゾーン〉があなたより多い場合」＝両者比較ゲートが4枚すべてに載る', () => {
   const json = (id: string) => JSON.stringify(effectsMap.get(id) ?? []);
   // ① 条件が落ちて無条件発火していた4枚（全CSVでこの文型はこの4枚だけ）

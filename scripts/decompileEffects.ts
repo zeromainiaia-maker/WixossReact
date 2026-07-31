@@ -617,6 +617,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
+      // untilHandCount:「手札がN枚になるように捨てる」＝固定枚数ではなく実行時の差（タスク12(lxiv)②）
+      if (t?.type === 'HAND_CARD' && a.untilHandCount !== undefined) {
+        return `${ownerJa(t.owner)}手札が${a.untilHandCount}枚になるようにカードを捨てる`;
+      }
       if (t?.type === 'HAND_CARD' && t.owner === 'self' && t.count === 'ALL') {
         if (t.upToCount) return 'あなたは手札を好きな枚数捨てる';
         return `あなたの手札をすべて捨てる${a.optional ? '（してもよい）' : ''}`;
