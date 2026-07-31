@@ -14,7 +14,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | JSON で使用中の STUB id 種類 | 576 |
 | 　└ ハンドラ実装あり | 547 |
 | 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2608 |
+| 総 STUB ノード件数 | 2624 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -67,11 +67,11 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 413 | 405 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
+| `OPTIONAL_COST` | 408 | 400 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
+| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 115 | 114 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 113 | 111 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み） |
-| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 110 | 109 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
-| `STORE_LAST_PROCESSED_TARGETS` | 81 | 81 | WD12-009, WDK08-Y01, SPK01-05 |  |
-| `SELECT_TARGET_ONLY` | 76 | 76 | WD12-009, SPK01-05, SPDi43-29 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
+| `STORE_LAST_PROCESSED_TARGETS` | 89 | 88 | WD12-009, WDK08-Y01, SPK01-05 |  |
+| `SELECT_TARGET_ONLY` | 84 | 83 | WD12-009, SPK01-05, SPDi43-29 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `POWER_MOD_PER_COUNT` | 61 | 61 | WD19-001, WDK06-C17, WDK10-009 | 動的パワー修正（COUNT依存） |
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
 | `OPPONENT_PAY_OPTIONAL` | 55 | 51 | WDK10-001, SPDi43-01, SPDi43-06 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |

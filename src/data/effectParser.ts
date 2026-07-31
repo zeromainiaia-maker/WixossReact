@@ -1575,8 +1575,17 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
     g => ({ type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: parseNum(g[0]) })],
-  [/あなたのエナゾーンに＜(美巧)＞のシグニが(５)枚以上ある場合/,
-    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, operator: 'gte', value: parseNum(g[1]) })],
+  // 「あなたのエナゾーンに＜X＞の〈シグニ|カード〉がN枚以上ある場合」（タスク12(lxv) で ＜美巧＞５枚 固定から一般化）。
+  // ＜ブルアカ＞＜プリオケ＞＜植物＞＜天使＞＜龍獣＞ 等が同型で、条件節ごと落ちて無条件発火していた
+  // （`WXDi-CP02-090`＝任意コストのゲートが丸ごと消えていた）。「カード」形は cardType を課さない。
+  [/あなたのエナゾーンに＜([^＞]+)＞の(シグニ|カード)が([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self',
+      filter: { ...(g[1] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), story: g[0] },
+      operator: 'gte', value: parseNum(g[2]) })],
+  // 「〜がN種類以上ある場合」＝カード名の異なり数（distinctName）。枚数形とは別物。
+  [/あなたのエナゾーンに＜([^＞]+)＞の(?:シグニ|カード)が([０-９\d]+)種類以上ある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: g[0] },
+      distinctName: true, operator: 'gte', value: parseNum(g[1]) })],
   [/対戦相手のすべてのシグニが凍結状態である場合/,
     () => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } })],
   [/このシグニの下にカードが無い場合/,
@@ -2513,11 +2522,16 @@ function parseSingleSentenceInner(text: string): EffectAction {
         // （CONDITIONAL_POWER_BONUS 等の実装済みハンドラ）に委ねる＝STUB→UNKNOWN退化の防止
         const thenS = JSON.stringify(then);
         if (thenS.includes('"UNKNOWN"')) continue;
-        // ガードD: OPTIONAL_COST 系 STUB（支払う/スキップ選択）は effectExecutor が SEQUENCE の**直接ステップ**
-        // としてインターセプトし、後続の CONDITIONAL(IS_MY_TURN/PAID_ADDITIONAL_COST) と組で支払フローを
-        // 生成する（Pattern ④/⑤・effectExecutor.ts:2353）＝CONDITIONAL に包むと選択フローが丸ごと壊れる
-        // （WX24-P1-011/012・続き110）。条件付与は効果レベル hoist の領分＝持ち上げない。
-        if (/"id":"(?:OPTIONAL_COST|TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST|OPTIONAL_TRASH_ENERGY_CLASS)"/.test(thenS)) continue;
+        // ガードD（**タスク12(lxv) で退役**）: かつては OPTIONAL_COST 系 STUB を CONDITIONAL に包むと
+        // effectExecutor の Pattern ④/⑤（STUB が SEQUENCE の**直接ステップ**であることを前提に支払フローを
+        // 生成する）が外れて選択フローが壊れたため、条件節ごと落として素の STUB を返していた（続き110）。
+        // その後タスク12(xi) で engine に**包み形の解体**（effectExecutor.ts の
+        // 「条件付き任意コストの『包み形』」＝`CONDITIONAL{gate, then: STUB OPTIONAL_COST系}` をゲート評価して
+        // Pattern ④/⑤ へ委譲する経路。46効果）が入り、包んでも壊れなくなった。ガードが残っていたため
+        // **条件節だけが黙って消える過剰実行**（`WX24-P1-011`「あなたの場に＜アーム＞のシグニがある場合」等
+        // 実測51効果）になっていたのでガードを外す。⚠engine が解体できるのは `then` が**素の STUB 単体**の形
+        // だけ＝ここで生成されるのもその形（全51効果で実測確認済み）。SEQUENCE 等を包む形が現れたら
+        // engine 側（OPT_IDS_WRAP のブロック）を先に拡張すること。
         // ガードE: COUNTER_SPELL はスペルカットイン UI が findCounterSpellMaxCost（SEQUENCE/CHOOSE のみ再帰・
         // CONDITIONAL 非対応）で maxCost を読み、打ち消し自体も UI 側で無条件実行＝CONDITIONAL に包むと
         // maxCost ゲートが失われ条件も効かない（WX17-031・続き110）。条件は effect.condition
@@ -3774,7 +3788,6 @@ function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void
   const field = (story: string, excludeSelf = false): Condition => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story }, ...(excludeSelf ? { excludeSelf: true } : {}) });
   const trash = (story: string, minCount: number, distinctName = false): Condition => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story }, minCount, ...(distinctName ? { distinctName: true } : {}) });
   const colors = (minCount: number, filter: TargetFilter = { cardType: 'シグニ' }, excludeSelf = false): Condition => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter, minCount, distinctColors: true, ...(excludeSelf ? { excludeSelf: true } : {}) });
-  const energy = (story: string, value: number): Condition => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story }, operator: 'gte', value });
   if (cardNum === 'WDK11-001') gate('WDK11-001-E2', field('英知'));
   if (cardNum === 'WX17-031') gate('WX17-031-E3', field('凶蟲'));
   if (cardNum === 'WX25-P3-023') gate('WX25-P3-023-E1', field('微菌'));
@@ -3794,8 +3807,10 @@ function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void
   const frais = (n: number): Condition => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: 'フレイスロ' }, minCount: n });
   if (cardNum === 'WX14-025') gateTail('WX14-025-BURST', frais(10));
   if (cardNum === 'WX14-057') gate('WX14-057-E1', frais(5));
-  if (cardNum === 'WX26-CP1-090') gate('WX26-CP1-090-E1', energy('プリオケ', 4));
-  if (cardNum === 'WXDi-CP02-087') gate('WXDi-CP02-087-E1', energy('ブルアカ', 5));
+  // `WX26-CP1-090`/`WXDi-CP02-087` のエナゾーン枚数ゲートは、タスク12(lxv) で
+  // STATE_CONDITION_CLAUSES_V2 の「あなたのエナゾーンに＜X＞の〈シグニ|カード〉がN枚以上ある場合」を
+  // 一般化したことで規則側が拾うようになったため個別ハードコードを退役。原文が「カード」なので
+  // 一般規則は cardType を課さない＝この2枚のハードコード（cardType:シグニ 固定）より忠実。
   if (cardNum === 'WXDi-CP02-056') { const e = find('WXDi-CP02-056-E2'); if (e?.action.type === 'SEQUENCE') { e.action = e.action.steps[0]; gate(e.effectId, { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: 'ブルアカ' } }); } }
   if (cardNum === 'WX25-CP1-048') { const e = find('WX25-CP1-048-E1'); if (e?.action.type === 'POWER_MODIFY') { e.action.target.count = 1; e.action.target.filter = { cardType: 'シグニ' }; gate(e.effectId, { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: 'ブルアカ' } }); } }
   const colorSpecs: Array<[string,string,Condition]> = [
@@ -4435,13 +4450,24 @@ function applyTargetLevelScaling(text: string, action: EffectAction): EffectActi
     const gateIdx = steps.findIndex(isDidItGate);
     if (gateIdx < 0) return action;
     const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
-    // ゲート直前の「落ちたコストステップ」は組み替えで置き換わるので取り除く
-    const prefixEnd = isDroppedCostStep(steps[gateIdx - 1]) ? gateIdx - 1 : gateIdx;
+    // ゲート直前の「落ちたコストステップ」は組み替えで置き換わるので取り除く。
+    // ⚠タスク12(lxv) でガードDを外した結果、コストステップが `CONDITIONAL{<ゲート>, then: STUB}` に
+    //   包まれた形でも来る（`SPDi43-29`＝「あなたの場に《338　レイ》がいる場合、…それのレベル１につき
+    //   手札から青のカードを１枚捨ててもよい」）。素の STUB しか見ないと**包みを残したまま**新しい
+    //   OPTIONAL_COST を足してしまい、コスト指定の無い空の任意コストが二重に並ぶ。包みは維持し
+    //   中身だけ差し替える。
+    const prevStep = steps[gateIdx - 1];
+    const prevCore = coreOfCondWrap(prevStep);
+    const prefixEnd = isDroppedCostStep(prevCore) ? gateIdx - 1 : gateIdx;
+    const costStep = { type: 'STUB', id: 'OPTIONAL_COST', ...costFields } as StubAction;
+    const costStepWrapped: EffectAction = (prefixEnd < gateIdx && prevCore !== prevStep)
+      ? { ...(prevStep as import('../types/effects').ConditionalAction), then: costStep }
+      : costStep;
     const rebuilt: EffectAction[] = [
       ...steps.slice(0, prefixEnd),
       selectStep as EffectAction,
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
-      { type: 'STUB', id: 'OPTIONAL_COST', ...costFields } as StubAction,
+      costStepWrapped,
       { ...gate, condition: { type: 'PAID_ADDITIONAL_COST' }, then: bindToStoredTarget(gate.then, target) },
       ...steps.slice(gateIdx + 1),
     ];

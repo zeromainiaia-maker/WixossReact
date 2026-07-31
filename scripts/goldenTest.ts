@@ -18160,6 +18160,66 @@ test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の�
     'LAST_PROCESSED_MATCHES を挟む形は据置（対象宣言で公開カードの参照が壊れるため）');
 });
 
+test('task12(lxv)① 条件つき任意コストの条件節が落ちない（parser ガードD 退役）', () => {
+  // parser は「〈ゲート〉の場合、〈コスト〉を支払ってもよい。そうした場合、〈本体〉」を
+  // CONDITIONAL{gate, then: STUB OPTIONAL_COST系} で表す。engine はタスク12(xi) でこの包み形を
+  // 解体できるのに parser 側のガードが残っており、**条件節だけが黙って消える**過剰実行だった。
+  const wrapOf = (cardNum: string, effectId: string, idx = 0) => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    return (eff.action as SequenceAction).steps[idx] as { type: string; condition?: { type: string }; then?: { id?: string } };
+  };
+  const armed = wrapOf('WX24-P1-011', 'WX24-P1-011-E1');
+  eq(armed.type, 'CONDITIONAL', '任意コストが条件で包まれる（従来は素の STUB＝ゲート無し）');
+  eq(armed.condition!.type, 'HAS_CARD_IN_FIELD', '「あなたの場に＜アーム＞のシグニがある場合」が載る');
+  eq(armed.then!.id, 'OPTIONAL_COST', '包みの中身は素の STUB＝engine が解体できる形');
+  eq(wrapOf('WXDi-P02-077', 'WXDi-P02-077-E1').condition!.type, 'HAND_COUNT', '手札枚数ゲート');
+  eq(wrapOf('WXDi-P09-038', 'WXDi-P09-038-E1').condition!.type, 'THIS_CARD_IS_AWAKENED', '覚醒ゲート');
+  eq(wrapOf('WXK07-035', 'WXK07-035-E1', 2).condition!.type, 'FIELD_COUNT', '相手の場のシグニ数ゲート');
+  eq(wrapOf('WX14-044', 'WX14-044-E2').then!.id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST',
+    '対象宣言込みの任意コスト STUB も同じく包める');
+
+  // 実経路：ゲート不成立なら任意コストの提示も本体も起きない（従来は無条件で本体が撃てた）
+  const eff = effectsMap.get('WXDi-D09-H21')!.find(e => e.effectId === 'WXDi-D09-H21-E1')!;  // 相手エナ4枚以上
+  eq(((eff.action as SequenceAction).steps[0] as { condition?: { type: string } }).condition!.type, 'ENERGY_COUNT', 'ゲートはエナ枚数');
+  const low = run(eff.action, mkCtx({ energy: 5 }, { energy: 2 }));
+  eq(low.otherState.energy.length, 2, 'エナ2枚（条件未達）＝相手エナは減らない');
+  const highCtx = mkCtx({ energy: 5 }, { energy: 6 });
+  const high = executeEffect(eff, highCtx);
+  ok(!high.done && high.pending.type === 'CHOOSE', 'エナ6枚（条件成立）＝支払う/払わないの選択が出る');
+});
+
+test('task12(lxv)② 「あなたのエナゾーンに＜X＞の〈シグニ|カード〉がN枚以上ある場合」を一般化', () => {
+  // ＜美巧＞５枚 固定だった規則を一般化。＜龍獣＞＜植物＞＜ブルアカ＞＜プリオケ＞等が
+  // 条件節ごと落ちて無条件発火していた。「カード」形は cardType を課さない（シグニ以外も数える）。
+  const j = (id: string) => JSON.stringify(effectsMap.get(id) ?? []);
+  ok(j('WX25-P3-065').includes('"ENERGY_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"龍獣"},"operator":"gte","value":4'),
+    '＜龍獣＞のシグニ4枚以上（シグニ形は cardType を課す）');
+  ok(j('WXDi-CP02-090').includes('"ENERGY_COUNT_FILTER","owner":"self","filter":{"story":"ブルアカ"},"operator":"gte","value":3'),
+    '＜ブルアカ＞の「カード」3枚以上＝cardType を課さない');
+  ok(j('WXK04-026').includes('"distinctName":true'), '「N種類以上」は distinctName（枚数ではなくカード名の異なり数）');
+  ok(j('WXDi-CP02-087').includes('"ENERGY_COUNT_FILTER","owner":"self","filter":{"story":"ブルアカ"},"operator":"gte","value":5')
+    && j('WX26-CP1-090').includes('"ENERGY_COUNT_FILTER","owner":"self","filter":{"story":"プリオケ"},"operator":"gte","value":4'),
+    '個別ハードコード（cardType:シグニ 固定）を退役した2枚も原文どおり「カード」になる');
+
+  // 実経路：条件を満たさなければ発火しない（WXK04-040-E2＝＜植物＞5種類以上でドロー）
+  const draw = effectsMap.get('WXK04-040')!.find(e => e.effectId === 'WXK04-040-E2')!;
+  const before = mkCtx({ energy: 5, hand: 4 }, {});
+  eq(run(draw.action, before).ownerState.hand.length, 4, '汎用エナ5枚（＜植物＞0種類）ではドローしない');
+});
+
+test('task12(lxv)③ レベル倍率コストの組み替えが条件包みを二重にしない（SPDi43-29）', () => {
+  // (liii) の SELECT→STORE→OPTIONAL_COST→gate 組み替えは「ゲート直前の素の STUB」だけを見ていたため、
+  // ガードD 退役でコストが CONDITIONAL に包まれた途端、包みを残したまま**空の任意コストを二重に**足していた。
+  const eff = effectsMap.get('SPDi43-29')!.find(e => e.effectId === 'SPDi43-29-E1')!;
+  const steps = (eff.action as SequenceAction).steps;
+  const costSteps = JSON.stringify(steps).match(/"id":"OPTIONAL_COST"/g) ?? [];
+  eq(costSteps.length, 1, '任意コストはひとつだけ');
+  eq((steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '対象宣言が先頭（支払い額が対象レベル依存のため）');
+  const wrap = steps[2] as { type: string; condition?: { type: string }; then?: { handDiscardCountFromTargetLevel?: boolean } };
+  eq(wrap.type, 'CONDITIONAL', 'コストは《338　レイ》ゲートに包まれたまま');
+  ok(wrap.then!.handDiscardCountFromTargetLevel, '包みの中身がレベル倍率つきの任意コストに差し替わる');
+});
+
 test('task12(lxiv)② 「手札がN枚になるように捨てる」は実行時の手札枚数との差だけ捨てる', () => {
   const eff = effectsMap.get('WX18-032')!.find(e => e.effectId === 'WX18-032-E2')!;
   ok(JSON.stringify(eff.action).includes('"untilHandCount":3'), 'untilHandCount で表現');

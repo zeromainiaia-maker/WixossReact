@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxv) 条件つき任意コストの**条件節だけが黙って消える** 51効果（parser ガードD の退役）＝**(lxv) 残0クローズ**（PLAN §3 タスク12(lxv)・Opus 5）
+
+### ① 根因＝parser ガードD が stale だった（新機構0・engine 無改修）
+
+(lxiv) が積み残した held 15枚は「`IF(<gate>)[STUB:OPTIONAL_COST]` の条件節を fresh が落とす」既存ドリフトが同居していて一括採用できない、というのが登録時の見立てだった。**そのドリフトの出所を追ったら parser の1行**だった：
+
+- `effectParser.ts` の `tryWrapLeadingStateCond`（「〈状態条件〉の場合、〈X〉」を `CONDITIONAL{cond, then:X}` に持ち上げる規則）に**ガードD**があり、`X` が `OPTIONAL_COST` 系 STUB（`OPTIONAL_COST` / `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` / `OPTIONAL_TRASH_ENERGY_CLASS`）のときは `continue` していた。
+- 理由（続き110）＝当時の effectExecutor は Pattern ④/⑤ が「STUB が SEQUENCE の**直接ステップ**」であることを前提に支払フローを組んでいたので、`CONDITIONAL` に包むと選択フローが丸ごと壊れたため。
+- **しかしタスク12(xi) で engine に「包み形の解体」が入っている**（`CONDITIONAL{gate, then: STUB OPTIONAL_COST系}` を見つけたらゲートを評価し、成立なら包みを解いて Pattern ④/⑤ へ委譲・不成立なら対になる「そうした場合」の本体ごと読み飛ばす。46効果）。**ガードだけが残り、条件節を落とす副作用だけが生きていた**。
+- 結果＝`WX24-P1-011`「あなたの場に＜アーム＞のシグニがある場合」等、**ゲートが消えて誰でも撃てる過剰実行**。実測 **51効果**（`HAS_CARD_IN_FIELD` / `TRASH_HAS_CARD` / `ENERGY_COUNT` / `HAND_COUNT` / `LIFE_COUNT` / `ALL_FIELD_SIGNI_MATCH` / `LRIG_COLOR` / `THIS_CARD_IS_AWAKENED` / `FIELD_COUNT` / `CARDS_DRAWN_BY_EFFECT` / `TURN_HAND_DISCARD_GTE` / `AND` ほか）。ガードを外すだけで直る＝**engine 改修も新語彙も0**。
+- ⚠engine が解体できるのは `then` が**素の STUB 単体**の形だけ。**全51効果で `then` が素の STUB であることを実測してから**外した（SEQUENCE を包む形が現れたら engine 側 `OPT_IDS_WRAP` の拡張が先）。
+
+### ② 巻き添えで踏んだ回帰を1つ潰した（投入前の実測で発見）
+
+`applyTargetLevelScaling`（(liii) の「それのレベル１につき」正準形化）は**ゲート直前の素の STUB** だけを「置き換え対象の落ちたコストステップ」として見ていた。ガードD 退役でコストが `CONDITIONAL` に包まれた途端に同定が外れ、**包みを残したまま空の `OPTIONAL_COST` を足して二重**にしていた（`SPDi43-29`＝「あなたの場に《338　レイ》がいる場合、…それのレベル１につき手札から青のカードを１枚捨ててもよい」）。`coreOfCondWrap` で中を覗き、**包みは維持して中身だけ差し替える**ように修正。
+
+### ③ 「あなたのエナゾーンに＜X＞の〈シグニ|カード〉がN枚以上ある場合」を一般化
+
+`STATE_CONDITION_CLAUSES_V2` の規則が **＜美巧＞５枚 固定**で、＜龍獣＞＜植物＞＜ブルアカ＞＜プリオケ＞＜天使＞は同じ文型なのに条件節ごと落ちていた（`WXDi-CP02-090` は任意コストのゲートが丸ごと消えた状態）。`ENERGY_COUNT_FILTER`（engine・decompiler 実装済み）へ一般化：
+
+- 「〈シグニ〉がN枚以上」＝`cardType:シグニ` を課す／「〈カード〉がN枚以上」＝**課さない**（原文どおり）。
+- 「N**種類**以上」＝`distinctName:true`（枚数ではなくカード名の異なり数。`WXK04-026`）。
+- あわせて `applyBoardZoneStateBatch3` の個別ハードコード2枚（`WX26-CP1-090`／`WXDi-CP02-087`）を退役＝どちらも原文は「カード」なのに `cardType:シグニ` 固定で**過剰に狭い**条件だった。一般規則の方が忠実。
+
+### 採用と honest defer
+
+**36枚採用**（(lxiv) 積み残しの7枚＝`WX24-P4-066`／`WX25-P2-095`／`WX25-P3-069`／`WXK03-045`／`WXDi-P12-066`／`WXDi-CP02-090`／`WXDi-P16-049` を含む。全数 per-effect 照合）。副次で `WXK02-060`／`WXK09-042`／`WXK09-044` の「パワー減が**自分の**シグニに向いていた」（`targetsTriggerSource` 誤り）も是正された。**据置2枚**＝
+
+- `WX24-P3-057`＝E1「あなたか対戦相手のデッキの上から３枚トラッシュ」の `CHOOSE` を fresh が持っておらず（本バッチと無関係な既存ドリフト）、採用すると選択肢が消える。
+- `WX26-CP1-101`＝条件節に居た ＜プリオケ＞ が `GRANT_KEYWORD` の対象フィルタから落ちる（条件節を切り出す構造上の副作用）。ゲートは得るがフィルタを失う両損なので据置。
+
+**ゲート**：typecheck ✅／golden **1134→1137**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1370→1369**（`BASELINE_HIGH=1369`）／lint 0 errors・230 warnings 据置／manual field loss 0／同型★0（265群）／held **277→251枚**（署名グループ 109→97）。live per-effect 差分 **changed 40 / added 0 / removed 0**、`build:effects` 冪等。
+
 ## 2026-07-31 — タスク12(lxiv) 対象宣言のフィルタが「そうした場合」の本体まで届かない 61枚＋「手札がN枚になるように捨てる」＝**(lxiv) 残0クローズ**（PLAN §3 タスク12(lxiv)・Opus 5）
 
 ### ① 「〈対象宣言〉を対象とし、〈任意コスト〉てもよい。そうした場合、それを〈除去〉」（61枚）
