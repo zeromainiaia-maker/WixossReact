@@ -4288,8 +4288,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // REVEAL_UNTIL_TO_FIELD の自身【出】も上の opt-in 中央 diff に統合済み。
 
         // ON_OPP_ARTS_USE: 相手がアーツを使用した場合、自分側の ON_OPP_ARTS_USE トリガーを収集
+        // ⚠遅延トリガー（INSTALL_DELAYED_TRIGGER の発火）は除く＝アーツを「使用した」のは設置した時点であって
+        //   発火時点ではない。タスク12(lxi) 第6波で entry.cardNum に設置元カード番号を復元した副作用で、
+        //   アーツ由来の遅延トリガー6枚（WX11-024／WX24-P1-007／WX25-P3-003／WX26-CP1-003／-005／-009）が
+        //   発火のたびに「アーツ使用」を再発火させる二重発火になるため、effectId で弁別して抑止する。
         const entryCardType = battleCardMap.get(entry.cardNum)?.Type;
-        if (entryCardType === 'アーツ' && entry.playerId !== user.id) {
+        const entryIsDelayedTrigger = entry.effectId === 'DELAYED_TRIGGER';
+        if (entryCardType === 'アーツ' && !entryIsDelayedTrigger && entry.playerId !== user.id) {
           // 自分（user.id）の myState を決定
           const myStateForTrigger = ownerIsHost ? (isHost ? hostState : guestState) : (isHost ? guestState : hostState);
           const opStateForTrigger = ownerIsHost ? (isHost ? guestState : hostState) : (isHost ? hostState : guestState);
@@ -4306,7 +4311,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // ON_ARTS_USE: 自分がアーツを使用した場合、使用者自身の ON_ARTS_USE トリガーを収集（ON_SPELL_USE のアーツ版）。
         // caster の client のみが収集する（entry.playerId === user.id）＝ON_OPP_ARTS_USE と裏表で二重押しを防ぐ。
-        if (entryCardType === 'アーツ' && entry.playerId === user.id) {
+        if (entryCardType === 'アーツ' && !entryIsDelayedTrigger && entry.playerId === user.id) {
           const casterState = isHost ? hostState : guestState;
           const casterOpState = isHost ? guestState : hostState;
           const casterIsActive = bs.active_user_id === user.id;

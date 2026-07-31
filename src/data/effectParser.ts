@@ -2084,13 +2084,13 @@ const OPP_PAY_DEDICATED_STUB_RE =
 //  ・**トリガー句そのものが残っている形**（`WXEX2-25-E1`「対戦相手のシグニ１体が…場に出たとき、
 //    対戦相手が手札を１枚捨てないかぎり、そのシグニを場からトラッシュに置く」）＝トリガー句は
 //    タイミング判定側で消費されアクションを生まないので、X＝本文まるごと。
-// ⚠「このターン終了時、」＝**遅延トリガーの設置**はここに入れない（アクションを生む＝丸ごと包むと
-//   設置自体がゲートされる別物になる。`WXDi-P06-023-E2` は据置のまま）。
+// ⚠遅延トリガーの設置はここに入れない（アクションを生む＝丸ごと包むと設置自体がゲートされる別物）。
+// 「このターン終了時、」は matchOpponentUnlessGate が限定的に遅延設置へ変換する。
 // ⚠タイミングの近似はここでは変えない（本規則が足すのはゲートだけ）。
 function isNoActionPrefix(prefix: string): boolean {
   if (/^(?:その)?アタック終了時[、,]$/.test(prefix)) return true;
   // 「このターン、〜したとき、」「次の〜」＝**遅延トリガーの設置**は除く（設置というアクションを生む形＝
-  // 丸ごと包むと設置自体がゲートされる別物になる。WX24-P4-011-E3／WXDi-P06-023-E2）。
+  // 丸ごと包むと設置自体がゲートされる別物になる。WX24-P4-011-E3 は engine の収集経路待ち）。
   if (/^(?:このターン|次の|次に)/.test(prefix)) return false;
   return /^[^。]{2,60}たとき[、,]$/.test(prefix);
 }
@@ -2123,6 +2123,19 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
     { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
     { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as EffectAction,
   ] } as SequenceAction);
+
+  // 遅延設置が前置きの限定形。設置は無条件、回避判断と帰結はターン終了時に実行する。
+  // 帰結を単独で同定できない場合は、ゲートだけを足さず従来どおり据え置く。
+  if (prefix === 'このターン終了時、' || prefix === 'このターン終了時,') {
+    const delayedThen = parseSingleSentence(thenText);
+    if (JSON.stringify(delayedThen).includes('"UNKNOWN"')) return undefined;
+    return {
+      type: 'INSTALL_DELAYED_TRIGGER',
+      duration: 'THIS_TURN',
+      trigger: { timing: 'ON_TURN_END' },
+      effect: seq(delayedThen),
+    } as EffectAction;
+  }
 
   // 基準読み＝本規則を止めた1回パス（＝回避クローズを無言消費した従来の出力）
   _unlessGateBaselinePass = true;

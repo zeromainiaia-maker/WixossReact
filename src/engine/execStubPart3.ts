@@ -4075,9 +4075,8 @@ export function execStubPart3(
   if (stub.id === 'FROZEN_LOSES_ABILITIES') {
     return done(addLog(ctx, '凍結シグニは能力を失う（effectEngine側処理）'));
   }
-  // RETURN_SELF_ARTS_TO_LRIG_DECK: このアーツ（使用後＝ルリグトラッシュに置かれた自身）をルリグデッキに戻す
-  // （WXK11-003①/WDK17-008①。BattleScreen はアーツを lrig_trash へ移してから効果を発火するため、
-  //   効果実行時点で sourceCardNum は lrig_trash にある）
+  // RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後の自身をルリグデッキに戻す。
+  // アーツは lrig_trash、アシストルリグは左右いずれかのアシストルリグスタックにある。
   if (stub.id === 'RETURN_SELF_ARTS_TO_LRIG_DECK') {
     const srcRSA = ctx.sourceCardNum;
     if (srcRSA && ctx.ownerState.lrig_trash.includes(srcRSA)) {
@@ -4087,6 +4086,30 @@ export function execStubPart3(
         lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcRSA],
       };
       return done(addLog({ ...ctx, ownerState: newOwnerRSA }, `${ctx.cardMap.get(srcRSA)?.CardName ?? srcRSA}をルリグデッキに戻す`));
+    }
+    if (srcRSA) {
+      const leftRSA = ctx.ownerState.field.assist_lrig_l ?? [];
+      const rightRSA = ctx.ownerState.field.assist_lrig_r ?? [];
+      const inLeftRSA = leftRSA.includes(srcRSA);
+      const inRightRSA = rightRSA.includes(srcRSA);
+      if (inLeftRSA || inRightRSA) {
+        const nextLeftRSA = inLeftRSA ? leftRSA.filter(n => n !== srcRSA) : leftRSA;
+        const nextRightRSA = inRightRSA ? rightRSA.filter(n => n !== srcRSA) : rightRSA;
+        const newOwnerRSA = {
+          ...ctx.ownerState,
+          field: {
+            ...ctx.ownerState.field,
+            assist_lrig_l: nextLeftRSA,
+            assist_lrig_r: nextRightRSA,
+            // ダウン状態はスタック最上段の状態。自身を抜いた後に下のカードが残るなら維持し、
+            // ゾーンが空になったときだけ初期化する。
+            assist_lrig_l_down: nextLeftRSA.length > 0 ? ctx.ownerState.field.assist_lrig_l_down : false,
+            assist_lrig_r_down: nextRightRSA.length > 0 ? ctx.ownerState.field.assist_lrig_r_down : false,
+          },
+          lrig_deck: [...(ctx.ownerState.lrig_deck ?? []), srcRSA],
+        };
+        return done(addLog({ ...ctx, ownerState: newOwnerRSA }, `${ctx.cardMap.get(srcRSA)?.CardName ?? srcRSA}をルリグデッキに戻す`));
+      }
     }
     return done(addLog(ctx, 'ルリグデッキに戻す対象なし（RETURN_SELF_ARTS_TO_LRIG_DECK）'));
   }

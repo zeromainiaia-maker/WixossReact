@@ -1305,7 +1305,8 @@ function execInstallDelayedTrigger(
     return done(addLog(ctx, '条件未達成 → 遅延トリガー設置スキップ'));
   }
   const state = ctx.ownerState;
-  const newS: PlayerState = { ...state, delayed_triggers: [...(state.delayed_triggers ?? []), a] };
+  const installed = { ...a, sourceCardNum: ctx.sourceCardNum };
+  const newS: PlayerState = { ...state, delayed_triggers: [...(state.delayed_triggers ?? []), installed] };
   const label = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン';
   return done(addLog(setOwnerState('self', newS, ctx), `${label}の遅延トリガーを設置`));
 }

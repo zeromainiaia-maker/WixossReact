@@ -1120,6 +1120,7 @@ export interface GrantEffectAction {
 export interface InstallDelayedTriggerAction {
   type: 'INSTALL_DELAYED_TRIGGER';
   duration: 'THIS_TURN' | 'THIS_ATTACK_PHASE';
+  sourceCardNum?: string;         // 設置元カード番号。executor が設置時の ExecCtx から焼き込み、発火時の sourceCardNum を復元する
   trigger: {
     timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED' / 'ON_REFRESH'）
     crasherFilter?: TargetFilter; // 発火源シグニの条件（例: 青の＜ブルアカ＞）。⚠engine は「場に該当シグニがいるか」で近似判定（実際のクラッシュ源シグニは未追跡）

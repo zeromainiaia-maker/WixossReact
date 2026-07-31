@@ -1259,7 +1259,7 @@ export function collectLeaveFieldTriggers(
         action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
       };
       entries.push({
-        id: ctx.genId(), playerId: controllerId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+        id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
         label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（場を離れたとき）`,
         effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, delayedEffect, leftCard, leftUnder),
         leftFieldUnderCards: [...leftUnder],
@@ -1624,7 +1624,7 @@ export function collectRefreshTriggers(
       : refreshedByController + refreshedByOpp;
     if (relevant <= 0) continue;
     entries.push({
-      id: ctx.genId(), playerId: controllerId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      id: ctx.genId(), playerId: controllerId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: 'このターンの遅延トリガー（リフレッシュ時）',
       effect: {
         effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_REFRESH'],
@@ -3064,7 +3064,7 @@ export function collectTurnTriggers(
   for (const dt of myState.delayed_triggers ?? []) {
     if (dt.trigger?.timing !== timing) continue;
     entries.push({
-      id: ctx.genId(), playerId: meId, cardNum: 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      id: ctx.genId(), playerId: meId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
       label: `このターンの遅延トリガー（${labelSuffix}）`,
       effect: {
         effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: [timing],

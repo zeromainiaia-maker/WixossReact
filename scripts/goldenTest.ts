@@ -17204,6 +17204,95 @@ test('task12 exceed本体C: 任意クラッシュの両枝でbanish数が1/2', (
   if (!crash.done) ok(!!crash.ownerState.field.check, 'LB check中断状態でも枚数文脈を維持');
 });
 
+// ── task12(lxi) wave6: 遅延設置の中に回避ゲートを保持する ──
+const wave6Effect = (): CardEffect => {
+  const card = cardMap.get('WXDi-P06-023');
+  if (!card) throw new Error('WXDi-P06-023 not found');
+  const effect = parseCardEffects(card).find(e => e.effectId === 'WXDi-P06-023-E2');
+  if (!effect) throw new Error('WXDi-P06-023-E2 not parsed');
+  return effect;
+};
+
+test('task12(lxi) wave6 WXDi-P06-023-E2: ON_PLAYは遅延トリガーを設置するだけで盤面を動かさない', () => {
+  const savedCursor = cursor;
+  try {
+  const source = 'WXDi-P06-023#W6';
+  const lower = 'WXDi-P06-022#W6';
+  const ctx = mkCtx({ assistL: [lower, source] }, { energy: 1, hand: 1 }, source);
+  const before = JSON.stringify(ctx.ownerState.field);
+  const installed = executeEffect(wave6Effect(), ctx);
+  ok(installed.done, '設置は即時完了');
+  eq(JSON.stringify(installed.ownerState.field), before, '設置時点では場を動かさない');
+  eq(installed.ownerState.lrig_deck.length, 0, '設置時点ではルリグデッキへ戻らない');
+  const delayed = installed.ownerState.delayed_triggers ?? [];
+  eq(delayed.length, 1, '遅延トリガー1件');
+  eq(delayed[0].trigger.timing, 'ON_TURN_END', 'ターン終了時トリガー');
+  eq(delayed[0].sourceCardNum, source, '設置元インスタンスを保持');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(lxi) wave6 WXDi-P06-023-E2: collectTurnTriggers経由で相手が手札を捨てると場に残る', () => {
+  const savedCursor = cursor;
+  try {
+  const source = 'WXDi-P06-023#W6-pay';
+  const lower = 'WXDi-P06-022#W6-pay';
+  const installCtx = mkCtx({ assistL: [lower, source] }, { energy: 0, hand: 1 }, source);
+  const installed = executeEffect(wave6Effect(), installCtx);
+  if (!installed.done) throw new Error('install unexpectedly pending');
+  const entries = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_END', installed.ownerState, installed.otherState).entries;
+  eq(entries.length, 1, '収集された遅延トリガー1件');
+  eq(entries[0].cardNum, source, '収集時に設置元インスタンスを復元');
+  const fireCtx = {
+    ...installCtx,
+    ownerState: installed.ownerState,
+    otherState: installed.otherState,
+    sourceCardNum: entries[0].cardNum,
+    triggeringCardNum: entries[0].cardNum,
+    currentPhase: 'END',
+  } as ExecCtx;
+  let fired = executeEffect(entries[0].effect, fireCtx);
+  ok(!fired.done && fired.pending.type === 'CHOOSE' && fired.pending.opponentResponds, 'ターン終了時に相手へ回避選択');
+  if (fired.done || fired.pending.type !== 'CHOOSE') return;
+  fired = finish(resumeOpponentPayOptional('discard', [], fired.pending, {
+    ...fireCtx, ownerState: fired.ownerState, otherState: fired.otherState, logs: fired.logs,
+  }), fireCtx);
+  ok(fired.ownerState.field.assist_lrig_l?.includes(source), '手札を捨てた場合は自身が場に残る');
+  eq(fired.ownerState.lrig_deck.includes(source), false, '手札を捨てた場合はルリグデッキへ戻らない');
+  eq(fired.otherState.hand.length, 0, '相手手札を1枚捨てる');
+  } finally { cursor = savedCursor; }
+});
+
+test('task12(lxi) wave6 WXDi-P06-023-E2: collectTurnTriggers経由で不払いなら自身だけルリグデッキへ戻る', () => {
+  const savedCursor = cursor;
+  try {
+  const source = 'WXDi-P06-023#W6-skip';
+  const lower = 'WXDi-P06-022#W6-skip';
+  const installCtx = mkCtx({ assistL: [lower, source] }, { energy: 1, hand: 1 }, source);
+  installCtx.ownerState.field.assist_lrig_l_down = true;
+  const installed = executeEffect(wave6Effect(), installCtx);
+  if (!installed.done) throw new Error('install unexpectedly pending');
+  const entries = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_TURN_END', installed.ownerState, installed.otherState).entries;
+  eq(entries.length, 1, '収集された遅延トリガー1件');
+  const fireCtx = {
+    ...installCtx,
+    ownerState: installed.ownerState,
+    otherState: installed.otherState,
+    sourceCardNum: entries[0].cardNum,
+    triggeringCardNum: entries[0].cardNum,
+    currentPhase: 'END',
+  } as ExecCtx;
+  let fired = executeEffect(entries[0].effect, fireCtx);
+  ok(!fired.done && fired.pending.type === 'CHOOSE', 'ターン終了時に回避選択');
+  if (fired.done || fired.pending.type !== 'CHOOSE') return;
+  fired = finish(resumeOpponentPayOptional('skip', [], fired.pending, {
+    ...fireCtx, ownerState: fired.ownerState, otherState: fired.otherState, logs: fired.logs,
+  }), fireCtx);
+  eq((fired.ownerState.field.assist_lrig_l ?? []).join('|'), lower, 'スタック下の別カードを残して自身だけ抜く');
+  eq(fired.ownerState.field.assist_lrig_l_down, true, '下のカードが残るためゾーンのダウン状態を維持');
+  ok(fired.ownerState.lrig_deck.includes(source), '自身がルリグデッキに入る');
+  } finally { cursor = savedCursor; }
+});
+
 test('task12 exceed本体D/E: 次回ルリグAUTOは消費印付き、回収はスペル+青シグニ各1枚まで', () => {
   const d = effectsMap.get('WX24-P4-011')!.find(e => e.effectId === 'WX24-P4-011-E2')!;
   const granted = finish(executeEffect(d, mkCtx({}, {})), mkCtx({}, {})).ownerState.lrig_granted_auto_effects ?? [];
