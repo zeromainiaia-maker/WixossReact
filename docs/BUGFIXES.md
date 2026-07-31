@@ -1,5 +1,52 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16 第1波：timing 台帳の再トリアージ ＋ `WX20-067-E1` の原文忠実化（続き297）
+
+Opusタスク16（timing 語彙センサス）の残テールを「少しずつ codex-work へ投げる」分担で開いた第1波。**codex-work 実装／Claude 検証**。
+
+### ① 台帳 `[B]` 群29件の停止理由を機械再検証（`docs/_timing_census_triage.txt`）
+
+2026-07-27/28 節の `[B]` 判定は**当時の実装状況**に基づくもので、その後の機構追加で停止理由が陳腐化している疑いがあった（PLAN §3 タスク16 が 🔴 で警告していた）。29件について①停止理由に挙がった軸が型に現存するか②**engine 側でその軸が実際に読まれているか**③collector が実行経路から呼ばれているか、を grep で実地確認し、`ファイル:行` 根拠つきで再判定した。
+
+**再集計＝`[A昇格候補]` 1／`[B維持]` 15／`[C]` 13。**
+
+- 🔴**判明した構図＝軸は「グローバルに実在する」のではなく collector ごとに違う**。PLAN は「`handOwner`／`minCount`／`fromZones`／`byOwnEffect`／`byOpponentEffect` は `triggerCollect.ts` に実在するのだから群で開くはず」と見ていたが、**5軸すべてを honor するのは `collectHandAddedTriggers` だけ**（`triggerCollect.ts:1867-1925`）。**`collectHandDiscardTriggers` は `minCount` しか持たず、そもそも原因オーナーを受け取る引数が無い**（`triggerCollect.ts:2438-2449`＝`discarderId` は「誰が捨てたか」であって「誰の効果が原因か」ではない）。このため `byOwnEffect` 系は型が存在しても閉じられない。**実際に開いたのは1件だけ**だった。次に群を切るときも collector 単位で軸を数えること。
+- `[C]` 13件（イベント検出 collector 自体が無い）は **PLAN §6.3 J へ正式送り**し、タスク16 の worklist から外した。5家族に束ねてある（J-1 他能力の発動監視2／J-2 付与・離脱イベント4／J-3 life 汎用移動・閾値遷移2／J-4 フェイズ・アタック終了 timing 2／J-5 単発3）。
+
+### ② `WX20-067-E1`「文脈の攻防　モダーン」＝timing だけでなく効果1枚を丸ごと忠実化
+
+**真因＝`timing:[]` は「未実装」ではなく「暴発を止めている状態」であり、本体がズレたまま timing だけ戻すと退化する。** 投入前に live JSON を実測したところ、この効果は timing 以外に**4つズレていた**：
+
+| 原文 | 修正前の live JSON |
+|---|---|
+| アップ状態の**このシグニ**をダウン（＝自分が払うコスト） | `DOWN` の対象が `owner:'opponent'` のシグニ |
+| **《白》を支払い** | コストが丸ごと欠落 |
+| **そうした場合**（＝任意コストを払ったなら） | `CONDITIONAL{IS_MY_TURN}`（原文に無い誤変換） |
+| **アタックフェイズの間** | 位相ゲートが欠落 |
+
+このまま timing を戻すと「**手札が増えるたびに、コスト無しで相手シグニをダウンして手札に戻す**」という強力な誤動作になる。指示書の冒頭にこの実測を罠として書き、「timing の忠実化ではなく効果1枚を原文どおりに直すのがスコープ／1つでも忠実化できないなら `timing:[]` のまま honest defer」と発注した。着地：
+
+- 「カードN枚がいずれかのプレイヤーの手札に加えられたとき」→ `ON_HAND_ADDED` ＋ `triggerCondition.handOwner:'any'`（型に `'any'` を追加）＋ `minCount:1`。**engine は `ho==='self'` と `ho==='opponent'` の2分岐でしか skip しないので `'any'` は素通りする**＝engine 無改修。既定 `?? 'self'` と既存2値の挙動は不変。
+- 「アタックフェイズの間」→ `condition:{DURING_PHASE, phases:['ATTACK_ARTS','ATTACK_ARTS_OP','ATTACK_SIGNI','ATTACK_LRIG']}`（`TurnPhase` union と完全一致）。原文が無修飾なので**どちらのプレイヤーのアタックフェイズでも**発火する読みを採り、`IS_MY_TURN` は足していない。
+- 「《白》を支払い、アップ状態のこのシグニをダウンしてもよい」→ `STUB{OPTIONAL_COST, costColors:['白'], down_self:true}`。**「アップ状態の」限定は既存機構でそのまま成立する**＝`canAffordOptionalCostSpec` が `signi_down` を見て既にダウンなら支払い不可にし（`execUtils.ts:274-278`）、`optionalCostPaySteps` が `DOWN{thisCardOnly:true}` を出す（同 353）。
+- 「そうした場合、それを手札に戻す」→ SEQUENCE の後続 `BOUNCE`。**Pattern⑤（`effectExecutor.ts:3386`）が pay のときだけ残ステップを継続に載せる**ため、スキップすればバウンスは起きない。
+
+### ③ Claude 検証時の確認・追記（4点）
+
+- **`down_self` が宣言だけの no-op でないことを実コードで確認した**（memory の「新フィールドは engine 実行経路で本当に評価されるか実測する」ガードレール）。`resolveOptionalCostSpec`→`canAffordOptionalCostSpec`→`optionalCostPaySteps` の3段すべてで読まれている。
+- **`DURING_PHASE` が実戦の呼び出し元に届くことを確認した**。`collectHandAddedTriggers` は `evalUseCondition(..., ctx.turnPhase, ...)` を通し、実戦の `mkTrigCtx()` が `turnPhase: bs.turn_phase` を渡す（`BattleScreen.tsx:2329`）。golden も MAIN で0件・ATTACK_SIGNI で1件を実測して固定済み。
+- **golden の発生源が実戦と同じゾーンにあることを確認した**（memory の最頻の見落とし）。`WX20-067` は CSV 上シグニなので `mkState({ signi: [...] })` で正しい。共有 `cursor` も try/finally で復元されている。
+- **変更スコープを effectId 単位で全数照合**＝**11000効果中 changed 1 / added 0 / removed 0**。
+
+### ④ ⚠計器の偽陽性2件（発見・未修正）
+
+`npm run census:timing` は31効果を報告するが、うち **`WXDi-P09-079-E1` と `WXK10-052-E1` は live JSON で既に正しい `ON_CARD_MILLED_FROM_DECK` を持つ**（2026-07-27 に消化済み）。外科パッチが `clearTimingFallback()` を呼んでいないため、`parseBlock` 時点のフォールバック記録が残っているだけ＝**実質残は29効果**。本波の `WX20-067` パッチは同関数を呼んでいるので正しく抜けている。較正するなら該当2パッチにも同じ呼び出しを足す（**機能実装ではなく計器の較正**なので簿記にそう明記すること）。
+
+### ⑤ ゲート
+
+typecheck PASS／golden **1150→1151**／smoke **10679/10679** 全0・SKIP0／fuzz 全0（seed 12648430）／census **1366 据置**／lint 0 errors・230 warnings／manual field loss 0。`census:timing` **32→31**（実質29）。`_vocab_census` の「IS_MY_TURN誤変換疑い」が **1115→1114**（偽 `IS_MY_TURN` 除去分）。
+
+
 ## 2026-07-31 — タスク12(lxi) 第6波：遅延トリガー設置が前置きの回避クローズ1効果（`WXDi-P06-023-E2`）
 
 `WXDi-P06-023-E2`「このターン終了時、対戦相手が《無》を支払うか手札を1枚捨てないかぎり、このカードをルリグデッキに戻す」が `UNKNOWN` の完全 no-op だったのを、`INSTALL_DELAYED_TRIGGER{ON_TURN_END}` の内側へ標準の `OPPONENT_PAY_OPTIONAL`＋`CONDITIONAL(IS_MY_TURN)` を入れる形で実働化した。
