@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — §6.3 I `WX25-P3-028-E2`：エクシード本体の3機構を一体実装
+
+原文「このターンと次のターンの間、あなたはリフレッシュできない。以下を3回行う。『あなたか対戦相手のデッキ上6枚をトラッシュ』」を単独バッチで実装。修正前は `LRIG_GROW_RESTRICT` が no-op、`REPEAT_N_TIMES` が相手を18枚固定ミルし、後続の自分6枚ミルも重なって**相手18＋自分6＝24枚**を強制していた。
+
+- **リフレッシュ禁止**：`PlayerState.prevent_refresh_until_opp_turn` を追加し、単純化した `PREVENT_REFRESH` が発生源プレイヤー自身へ設定する。共通チョークポイント `applyRefreshState` はフラグ中を true no-op（デッキ・トラッシュ・ライフ・refresh count を一切変えない）にする。寿命は既存 `*_until_opp_turn` family と同じで、発動ターン終了では保持し、次の相手ターン終了時（＝発生源プレイヤーの次ターン開始時）にクリアするため、原文どおり T / T+1 の2ターンだけ有効。通常の人間ターン終了2経路を共通純関数 `clearUntilOppTurnEffects` へまとめて同居させた。FORCE_END_TURN / CPU END は既存 family 自体が未配線の共通穴であり、今回だけ異なる配線にはしていない。
+- **反復**：新しい汎用 `REPEAT{count,action}` は対話停止時に残回数を continuation へ積み、各反復を順番に解決する。旧 `REPEAT_N_TIMES` の生テキスト regex ハンドラは他3効果のため残した。
+- **各回の選択**：新 pending は作らず既存 `CHOOSE` を使用。各回に `mill_self`／`mill_opponent` を提示し、既存 `EffectInteractionModal` の汎用 option 描画と `resumeChoose` で解決する。CPU の決め打ちや自動適用はない。
+- **parser/live**：対象全文だけを `SEQUENCE[PREVENT_REFRESH,REPEAT{CHOOSE…}]` へ正準化し、二ターン効果の総称キャッチオールは不変。`heldReview --adopt WX25-P3-028` で採用し、effectId 全数比較は added 0 / removed 0 / changed **1（E2のみ）**。E1/E3 は不変。
+- **共有語彙の非回帰**：旧 `LRIG_GROW_RESTRICT` 使用38効果のうち、意図して離脱したE2以外の**37/37が完全不変**。`REPEAT_N_TIMES` の他3効果（`WXDi-P07-007-E3`／`WXDi-CP01-024-E1`／`WXDi-CP02-047-E1`）も JSON 完全不変。PLAN の5件表記は stale で実在4件だった。
+- **golden**：共有 `cursor` を try/finally で復元。CSV上ルリグであることを assert し、発生源をルリグゾーンへ配置。`self → opponent → self` を UI と同じ option ID で3回 resume して12＋6＝18枚、3回の個別 pending、発動ターンの refresh no-op、相手ターン終了遷移でのフラグ消去、発生源プレイヤーの次ターンでは通常 refresh が戻ること、フラグ省略時の従来 refresh を固定。
+- **検証**：`npm run gates` 全緑。golden **1151→1153**、smoke **10679/10679** 全0・SKIP0、fuzz 全0（seed 12648430）、census **1366据置**、manual field loss 0、lint 0 errors / 230 warnings。`npm run regen` 後、同型★0（5986枚・265群）。逆翻訳は対象原文の3要素を保持。
+
 ## 2026-07-31 — タスク16 第1波：timing 台帳の再トリアージ ＋ `WX20-067-E1` の原文忠実化（続き297）
 
 Opusタスク16（timing 語彙センサス）の残テールを「少しずつ codex-work へ投げる」分担で開いた第1波。**codex-work 実装／Claude 検証**。
