@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16：`WX24-P2-051-E1`「《ガードアイコン》を持たないカードを捨てたとき」（1効果・Claude 実装）
+
+原文「【自】《ターン１回》：コストか効果によってあなたが《ガードアイコン》を持たないカードを１枚捨てたとき、**そのカード**をトラッシュからエナゾーンに置く。」。live は `timing:[]` の**安全停止**。
+
+**必要な語彙は全部そろっていた**＝本体 STUB `NON_GUARD_DISCARD_TO_ENERGY` は実装済み、捨て札の限定も既存 **`TargetFilter.noGuard`**（`effects.ts:451`／判定は `execUtils.ts:631`）で表せる。「コストか効果によって」は `collectHandDiscardTriggers` の既定挙動（コスト捨て・効果捨ての双方で発火／【ガード】宣言の手札捨ては `hand_discarded_just`・`asCost` のどちらも立たないので元から来ない）と一致するため**原因軸の追加は不要**。⇒ **新語彙0本**。
+
+**🔴 ただし timing を足すだけでは「発火するが何も起きない」no-op になるところだった。**
+STUB の実装（`execStubPart1.ts:4282`）は対象を **`ctx.lastProcessedCards`** から取るが、**AUTO トリガー経由の ExecCtx にはこのフィールドが入らない**（`BattleScreen.tsx:4142` の entry→ExecCtx 構築に含まれない）。そのまま採用すると空配列を回して**何も起きないまま《ターン1回》だけ消費**する。⇒ 2点で解消した：
+
+- `collectHandDiscardTriggers` が ON_HAND_DISCARDED の entry に **`triggeringCardNum`＝捨てられたカード**を載せる。`triggerFilter` があるときは**一致した1枚**を選ぶ（巻き添えのガード札を「そのカード」にしない）。
+- STUB は `lastProcessedCards` が空なら `ctx.triggeringCardNum` を使う（コスト/効果の即時経路は従来どおり `lastProcessedCards` 優先）。
+
+**波及範囲は実測でゼロ**＝`triggeringCardNum` を消費する語彙（`targetsTriggerSource`／`isTriggerSource`／`powerLteTrigger`／`levelEq|Gt|LtTrigger`）を ON_HAND_DISCARDED の32効果で全数走査して **0件**。唯一 trigger 系に見えた `WX24-P1-059-E1` の `thisCardOnly` は **`ctx.sourceCardNum` 経由**（`effectExecutor.ts:610`）で `triggeringCardNum` を読まないため無関係。
+
+**⚠ 同 STUB id の実装が2つあり、`execStubPart2.ts:1509` 側は到達不能**（`execStub.ts` の dispatch は part1→part2→part3 で、part1 の分岐が必ず値を返す）。実装の正は part1 側であることをコメントで固定した（両方直すと片方が永久に死んだまま divergent になる）。
+
+**逆翻訳**＝当初は捨て札の限定が落ちていた（timing の既定文言のみ）ので `noGuard` を反映（`isDisona` と同型）。⇒「コストか効果によってあなたが《ガードアイコン》を持たないカードを１枚捨てたとき」。
+
+golden **1184→1187**（parser 出力／ガード有無で発火が分かれる＋「そのカード」に非ガード札が載る／**STUB が実際にトラッシュ→エナへ動かす** E2E）、census **1361 据置**、`census:timing` **20→19**、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/234 warnings 据置、同型★0、held 251枚/98署名 据置、manual field loss 0。live per-effect 差分 **changed 1 / added 0 / removed 0**。⚠**実機UI 未検証**。
+
 ## 2026-07-31 — タスク16：`WXDi-D09-P16-E2`「あなたが自分の効果によって捨てたとき」の原因軸（1効果・Claude 実装）
 
 原文「【自】《ターン１回》：あなたが**自分の効果によって**カードを１枚以上捨てたとき、対戦相手の手札を１枚見ないで選び、捨てさせる。」。live は `timing:[]` の**安全停止**で、本体（`TRASH{HAND_CARD, owner:opponent, count:1, blind:true}`）は既に原文どおりだった＝**足りないのは timing と原因軸だけ**。

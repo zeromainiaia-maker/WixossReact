@@ -1506,6 +1506,8 @@ export function execStubPart2(
       countMSTE > 0 ? `${countMSTE}体のシグニをエナゾーンへ` : 'シグニをエナへ（対象なし）'));
   }
   // 非ガードの手札捨てをエナゾーンへ
+  // ⚠到達不能（execStub.ts の dispatch は part1 → part2 → part3 の順で、part1:4282 の同 id 分岐が
+  //   必ず値を返すため）。実装の正は part1 側＝そちらだけを直すこと（2026-07-31 に実測確認）。
   if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
     const lastDiscardedNGDE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1) ?? '';
     if (!lastDiscardedNGDE) return done(addLog(ctx, 'カードなし（NON_GUARD_DISCARD_TO_ENERGY）'));

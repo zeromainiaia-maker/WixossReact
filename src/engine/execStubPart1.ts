@@ -4280,7 +4280,14 @@ export function execStubPart1(
   }
   // ガードアイコンなしカードを捨てたとき、そのカードをエナへ
   if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
-    const selected = ctx.lastProcessedCards ?? [];
+    // ⚠AUTO トリガー（ON_HAND_DISCARDED）から解決するとき、stack entry 由来の ExecCtx には
+    //   lastProcessedCards が入らない（BattleScreen.tsx の entry→ExecCtx 構築に含まれない）。
+    //   そのままだと空配列を回して**完全 no-op**（しかも《ターン1回》だけ消費する）になるため、
+    //   collectHandDiscardTriggers が entry に載せた triggeringCardNum＝捨てられたカードを使う。
+    //   コスト/効果の即時経路（lastProcessedCards が入る）は従来どおり優先する。
+    const selected = ctx.lastProcessedCards?.length
+      ? ctx.lastProcessedCards
+      : (ctx.triggeringCardNum ? [ctx.triggeringCardNum] : []);
     let newOwnerNGD = { ...ctx.ownerState };
     for (const cn of selected) {
       const c = ctx.cardMap.get(cn);

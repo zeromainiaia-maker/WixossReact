@@ -2711,6 +2711,11 @@ function effJa(e: Eff): string {
     if (t === 'ON_HAND_DISCARDED' && e.triggerFilter?.isDisona) {
       s = 'あなたが《ディソナアイコン》のカードを１枚捨てたとき';
     }
+    // ON_HAND_DISCARDED の triggerFilter.noGuard（「《ガードアイコン》を持たないカードを1枚捨てたとき」
+    // WX24-P2-051-E1）。捨て札の限定を落とすと原文照合できない（isDisona と同型）。
+    if (t === 'ON_HAND_DISCARDED' && e.triggerFilter?.noGuard) {
+      s = 'コストか効果によってあなたが《ガードアイコン》を持たないカードを１枚捨てたとき';
+    }
     // ON_HAND_DISCARDED の triggerScope:'any'（「いずれかのプレイヤーが」WXK09-038）を主語に反映
     if (t === 'ON_HAND_DISCARDED' && e.triggerScope === 'any') {
       s = s.replace('あなたが手札を捨てたとき', 'いずれかのプレイヤーが手札を捨てたとき');

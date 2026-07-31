@@ -2614,6 +2614,13 @@ export function collectHandDiscardTriggers(
   const limitOk = mkLimitOk(myState.actions_done, usedLimitIds);
   const matchesTrigFilter = (eff: CardEffect): boolean =>
     !eff.triggerFilter || discardedNums.some(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter));
+  // 「**その**カードをトラッシュからエナゾーンに置く」（WX24-P2-051-E1）等の「そのカード」参照用に、
+  // トリガー元＝捨てられたカードを entry へ載せる。triggerFilter があるときは**一致した1枚**を選ぶ
+  // （filter 不一致の巻き添えカードを「そのカード」にしない）。
+  const trigSourceOf = (eff: CardEffect): string | undefined =>
+    eff.triggerFilter
+      ? discardedNums.find(cn => matchesFilter(ctx.cardMap.get(cn), eff.triggerFilter))
+      : discardedNums[0];
   const meetsMinCount = (eff: CardEffect): boolean =>
     discardedNums.length >= (eff.triggerCondition?.minCount ?? 1);
   // byOwnEffect（「あなたが**自分の効果によって**カードをN枚以上捨てたとき」WXDi-D09-P16-E2）＝
@@ -2663,6 +2670,7 @@ export function collectHandDiscardTriggers(
       entries.push({
         id: ctx.genId(), playerId: discarderId, cardNum: topNum, effectId: eff.effectId,
         label: `${ctx.cardMap.get(topNum)?.CardName ?? topNum}【自】手札捨て時`, effect: eff,
+        triggeringCardNum: trigSourceOf(eff),
       });
     }
   }
@@ -2684,6 +2692,7 @@ export function collectHandDiscardTriggers(
       entries.push({
         id: ctx.genId(), playerId: discarderId, cardNum: myLrigHD, effectId: eff.effectId,
         label: `${ctx.cardMap.get(myLrigHD)?.CardName ?? myLrigHD}【自】手札捨て時`, effect: eff,
+        triggeringCardNum: trigSourceOf(eff),
       });
     }
   }

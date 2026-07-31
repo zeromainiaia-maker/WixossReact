@@ -19201,6 +19201,38 @@ test('タスク16: byOwnEffect を持たない既存 ON_HAND_DISCARDED は原因
   eq(hit(true), true, '相手の効果でも従来どおり発火（byOwnEffect 未宣言なので絞らない）');
 });
 
+// タスク16: WX24-P2-051-E1「コストか効果によって《ガードアイコン》を持たないカードを1枚捨てたとき、
+// そのカードをトラッシュからエナゾーンに置く」。従来は timing:[] の安全停止。
+test('WX24-P2-051-E1: parser は ON_HAND_DISCARDED＋noGuard を生成', () => {
+  const e = parseCardEffects(cardMap.get('WX24-P2-051')!).find(x => x.effectId === 'WX24-P2-051-E1')!;
+  eq(e.timing?.join(','), 'ON_HAND_DISCARDED');
+  eq(e.triggerFilter?.noGuard, true);
+});
+test('WX24-P2-051-E1: 《ガードアイコン》の有無で発火が分かれ、trigger 元に非ガード札が載る', () => {
+  const guardCard = findCard(c => c.Guard === '1');
+  const plainCard = findCard(c => c.Guard !== '1' && c.Type === 'シグニ');
+  const watcher = mkState({ signi: ['WX24-P2-051', null, null] });
+  const collect = (discarded: string[]) =>
+    collectHandDiscardTriggers(trigCtx(HOST), discarded, watcher, HOST, false, mkState({}), GUEST).entries
+      .filter(x => x.effectId === 'WX24-P2-051-E1');
+  eq(collect([plainCard]).length, 1, '非ガード札の捨てで発火');
+  eq(collect([guardCard]).length, 0, '《ガードアイコン》持ちの捨てでは非発火（ターン1回を消費しない）');
+  // 「そのカード」＝filter に一致した札が entry に載る（巻き添えのガード札を掴まない）
+  eq(collect([guardCard, plainCard])[0]?.triggeringCardNum, plainCard, 'trigger 元は非ガード札');
+});
+test('WX24-P2-051-E1: STUB がトリガー元のカードをトラッシュ→エナへ実際に動かす', () => {
+  // ⚠AUTO 経由の ExecCtx には lastProcessedCards が入らない＝triggeringCardNum を使えないと
+  //   「発火するが何も起きない」no-op になる（ターン1回だけ消費）。実挙動として固定する。
+  const plainCard = findCard(c => c.Guard !== '1' && c.Type === 'シグニ');
+  const ctx = mkCtx({}, {});
+  ctx.ownerState = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, plainCard] };
+  (ctx as { triggeringCardNum?: string }).triggeringCardNum = plainCard;
+  (ctx as { lastProcessedCards?: string[] }).lastProcessedCards = undefined;
+  const r = run({ type: 'STUB', id: 'NON_GUARD_DISCARD_TO_ENERGY' } as EffectAction, ctx);
+  ok(r.ownerState.energy.includes(plainCard), 'エナゾーンへ移動した');
+  ok(!r.ownerState.trash.includes(plainCard), 'トラッシュから抜けた');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

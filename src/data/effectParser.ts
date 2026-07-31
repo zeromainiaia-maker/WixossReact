@@ -6705,7 +6705,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : (/(?:あなた|いずれかのプレイヤー)が手札を[^。]{0,8}捨てたとき/.test(trigText)
                 || /対戦相手が(?:[^。]{0,14}効果によって)?手札を[^。]{0,8}捨てたとき/.test(trigText)
                 || /あなたが(?:自分の効果によって)?(?:手札から)?(?:＜[^＞]+＞の|《ディソナアイコン》の)?(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(trigText)
-                || /(?:あなたの)?手札からカード[０-９\d]*枚がトラッシュに置かれたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
+                || /(?:あなたの)?手札からカード[０-９\d]*枚がトラッシュに置かれたとき/.test(trigText)
+                // 「コストか効果によってあなたが《ガードアイコン》を持たないカードをN枚捨てたとき」（WX24-P2-051-E1）。
+                // 「コストか効果によって」＝コスト捨て・効果捨ての双方＝collectHandDiscardTriggers の既定挙動と一致
+                // （【ガード】宣言による手札捨ては hand_discarded_just / asCost のどちらも立たないので元から来ない）。
+                || /コストか効果によってあなたが《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/.test(trigText)) ? ['ON_HAND_DISCARDED']
              // 「（この／あなたの）シグニ[N体]に【アクセ】が付いたとき」（8件・§3 Opusタスク16）。engine 配線済み
              // ＝ATTACH_ACCE 完了後の checkAndFireOnAcceTriggersForOwner。**受け皿がカード種別で分かれる**＝
              //   シグニ＝ON_ACCE（場のシグニを走査。scope self＝アクセが付いた当のシグニ／any_ally＝あなたのシグニ全体）、
@@ -6885,6 +6889,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // （engine 側は collectHandDiscardTriggers の byOwnEffect＋byOppEffect で判定）。
         if (/あなたが自分の効果によって(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
+        }
+        // 「《ガードアイコン》を持たないカードを」＝捨てられたカード側の限定（既存 TargetFilter.noGuard）。
+        if (/《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/.test(actionText)) {
+          extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), noGuard: true };
         }
       }
       // ON_ACCE: 主語で scope を決める（「このシグニに」＝self 既定＝アクセが付いた当のシグニのみ／
