@@ -2095,7 +2095,7 @@ const OPP_PAY_DEDICATED_STUB_RE =
 function isNoActionPrefix(prefix: string): boolean {
   if (/^(?:その)?アタック終了時[、,]$/.test(prefix)) return true;
   // 「このターン、〜したとき、」「次の〜」＝**遅延トリガーの設置**は除く（設置というアクションを生む形＝
-  // 丸ごと包むと設置自体がゲートされる別物になる。WX24-P4-011-E3 は engine の収集経路待ち）。
+  // 丸ごと包むと設置自体がゲートされる別物になる）。設置として解ける形は DELAYED_INSTALL_PREFIXES へ。
   if (/^(?:このターン|次の|次に)/.test(prefix)) return false;
   return /^[^。]{2,60}たとき[、,]$/.test(prefix);
 }
@@ -2104,6 +2104,20 @@ function isNoActionPrefix(prefix: string): boolean {
 // （`WX22-025-E3`「対戦相手が、Aするか、Bするか、Cしないかぎり」）だけが読点許容形に落ちる。
 // 最初から読点を許すと、同一文に別の「対戦相手が」が先行する場合に左側の誤マッチを拾って
 // 既存カードが据置に落ちるため、段階的に緩める。
+// 回避クローズの**前置きが遅延トリガーの設置**である形（タスク12(lxi) 第6波〜第7波）。
+// 「〈設置句〉、対戦相手が〈回避コスト〉ないかぎり、〈帰結〉」＝設置は無条件で、回避判断と帰結は
+// その timing が発火したときに走る。丸ごと包む（＝設置自体をゲートする）のは別物なので不可。
+// ⚠**engine に遅延トリガー（`delayed_triggers`）の収集経路がある timing だけ**を載せる：
+//   ・`ON_TURN_END`＝`collectTurnTriggers`（triggerCollect.ts のフェイズ/ターン境界収集）
+//   ・`ON_SIGNI_BANISH_BATTLE`＝BattleScreen のバトルバニッシュ収集（第7波で配線）
+//   収集経路の無い timing を足すと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけ。
+// ⚠正規表現は厳格形（原文の丸ごと一致）にする。緩めると別カードの前置きを設置と誤読する。
+const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string }> = [
+  { re: /^このターン終了時[、,]$/, timing: 'ON_TURN_END' },
+  // `WX24-P4-011-E3`「このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、」
+  { re: /^このターン[、,]あなたのシグニがバトルによってシグニ[１1]体をバニッシュしたとき[、,]$/, timing: 'ON_SIGNI_BANISH_BATTLE' },
+];
+
 function findOpponentUnlessGate(t: string):
   { index: number; length: number; cost: NonNullable<ReturnType<typeof parseOpponentUnlessCost>> } | undefined {
   for (const re of [/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/, /対戦相手が([^。「」]{2,70}?)ないかぎり[、,]?/]) {
@@ -2129,15 +2143,18 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
     { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as EffectAction,
   ] } as SequenceAction);
 
-  // 遅延設置が前置きの限定形。設置は無条件、回避判断と帰結はターン終了時に実行する。
+  // 遅延設置が前置きの限定形。設置は無条件、回避判断と帰結は**その timing が発火したとき**に実行する。
   // 帰結を単独で同定できない場合は、ゲートだけを足さず従来どおり据え置く。
-  if (prefix === 'このターン終了時、' || prefix === 'このターン終了時,') {
+  // ⚠ここに足してよいのは **engine に遅延トリガーの収集経路がある timing だけ**（無い timing を足すと
+  //   「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけの別の退化になる）。
+  const delayedPrefix = DELAYED_INSTALL_PREFIXES.find(d => d.re.test(prefix));
+  if (delayedPrefix) {
     const delayedThen = parseSingleSentence(thenText);
     if (JSON.stringify(delayedThen).includes('"UNKNOWN"')) return undefined;
     return {
       type: 'INSTALL_DELAYED_TRIGGER',
       duration: 'THIS_TURN',
-      trigger: { timing: 'ON_TURN_END' },
+      trigger: { timing: delayedPrefix.timing },
       effect: seq(delayedThen),
     } as EffectAction;
   }

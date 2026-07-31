@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxi) 第7波：バトルバニッシュの遅延トリガー収集経路を engine に配線し `WX24-P4-011-E3` を実働化（残5→4・Claude 実装）
+
+`WX24-P4-011-E3`「《リコレクトアイコン》［４枚以上］このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。」は、**遅延トリガーの設置が丸ごと落ちて `SEQUENCE[RECOLLECT_GATE, LIFE_CRASH]`＝起動した瞬間に無条件でダメージ**という過剰実行だった（バトルバニッシュを待たず、相手に回避の機会も与えない）。第3〜4波はこれを「engine に収集経路が無い」として据え置いていた。
+
+### ① 据置の理由は engine 側にあった＝`delayed_triggers` の収集は3経路しか無かった
+
+`INSTALL_DELAYED_TRIGGER`（B3）で設置された遅延トリガーを見ていたのは **ON_LEAVE_FIELD（`triggerCollect.ts`）／ON_REFRESH（同）／フェイズ・ターン境界系（`collectTurnTriggers`）の3経路だけ**で、バトルバニッシュ経路（`BattleScreen.tsx` のバトル解決内 `battleBanishEntries`）は**場のシグニ効果しか走査していなかった**。
+
+- 収集器 `collectBattleBanishDelayedTriggers` を `triggerCollect.ts` へ新設（**pure ＝ golden から直接叩ける**）。BattleScreen 側は `battleBanishEntries` へ push する1行だけ。
+- **バニッシュした側の state だけを見る**＝原文「**あなたの**シグニがバトルによって」の主語限定。呼び出し側（バトル解決）はアタッカー側でのみ被バニッシュを確定させるため、既存の場シグニ収集（`battleBanisherMatchesTrigger` 側）と射程が一致する。
+- `sourceCardNum` は第6波で焼き込み済みなので、発生源カード種別を読むゲート（アーツ使用判定等）とも整合する。
+
+### ② parser＝設置前置きを**テーブル駆動**にし、収集経路のある timing だけを載せる
+
+第6波が入れた「`このターン終了時、` だけ遅延設置へ変換する」ハードコードを `DELAYED_INSTALL_PREFIXES`（前置き regex → timing）へ一般化し、`ON_SIGNI_BANISH_BATTLE` を1行追加した。読みは `SEQUENCE[RECOLLECT_GATE, INSTALL_DELAYED_TRIGGER{THIS_TURN, ON_SIGNI_BANISH_BATTLE, effect: SEQUENCE[OPPONENT_PAY_OPTIONAL{《無》×2}, CONDITIONAL{IS_MY_TURN, LIFE_CRASH}]}]`＝**リコレクト条件は設置をゲートし、回避クローズは発火後の帰結だけをゲートする**（設置自体はゲートしない＝第3波の教訓どおり）。
+
+- ⚠**このテーブルに足してよいのは engine に遅延収集経路がある timing だけ**。無い timing を足すと「設置されるが永久に発火しない」＝過剰実行を no-op に替えるだけの別の退化になる（コメントで明記）。
+- **regex は厳格形**（原文丸ごと一致）。全CSV機械走査で該当は `WX24-P4-011` の**1枚のみ**（live per-effect changed 1 と整合）。
+- 逆翻訳は `timingJa` の「**この**シグニがバトルで…」（シグニ自身の【自】用）では主語が合わないので、遅延設置には専用の「あなたのシグニが…」を出す分岐を追加。結果＝「そしてこのターン、あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、対戦相手は《無》《無》を支払ってもよい。そうしなかった場合、対戦相手のライフクロスを1枚クラッシュする」で原文と一致。
+
+### ③ 据置 golden を陽性 assert へ転換した（第5波 `TEST-WA-DEFER` と同じ）
+
+第3波の据置 golden（`parse 第3波ガード：遅延トリガーの設置が前置きの形は据置`）は**据置理由そのものが本波で消えた**ため陽性 assert へ転換。第4波の tail-splice 据置 golden も同文面を使っていたので、**engine に収集経路が無い timing**（`このターン、あなたのシグニがアタックしたとき、`）へ差し替えて「経路の無い設置は据置」という**生きている不変条件**を固定し直した。⚠**据置 golden を残すと将来の採用を誤って禁止する**。
+
+### 🆕 同じ形の未消化を2効果みつけた（本波の対象外・PLAN §3 タスク12(lxxi) へ登録）
+
+収集経路の機械走査で、**回避クローズを持たない同族**が2件見つかった＝`WX26-CP1-040-E2`（live は `SEQUENCE[POWER_MODIFY, LIFE_CRASH]`＝**無条件ダメージ**）と `WX24-P1-011-E1`（live は即時 UP＋能力消去）。いずれも「このターン、**次に**あなたのシグニがバトルによって…バニッシュしたとき、」＝**設置が落ちて即時実行**の過剰実行。⚠**「次に」＝1回だけ**の消費セマンティクスが `delayed_triggers` に無い（`consumeOnTrigger` は `GRANT_*` 付与能力側の語彙）ので、そのまま載せると「そのターン中バニッシュのたびに発火」という別の過剰実行になる＝**先に消費機構を決めるのが筋**。
+
+**ゲート**：typecheck ✅／golden **1203→1205**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1357→1356**（`BASELINE_HIGH=1356`）／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **251→250枚・98署名**。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WX24-P4-011-E3`）、`build:effects`・`regen` とも冪等。
+
+**⚠要実機検証（Sonnet §7 へ登録）**＝リコレクト条件を満たして起動 → 同ターンに自分のシグニがバトルでシグニをバニッシュ → **相手に《無》×2 の支払い CHOOSE が出る**こと、支払えばダメージ0・支払わなければライフクロス1枚クラッシュになること、および**そのターン中に複数回バニッシュしたら都度発火する**こと（原文に「次に」が無い＝1回限定ではない）。**BattleScreen 経路は golden から叩けない＝計器に映らない。**
+
 ## 2026-07-31 — タスク16 `[B維持]` 残3件を全消化（`WXDi-P06-038-E1`／`WX05-020-E1`／`WXDi-P13-051-E3`・Claude 実装）
 
 3件とも live は `timing:[]` の**安全停止**（過剰実行ではない）。タスク16 はこれで**残0**。

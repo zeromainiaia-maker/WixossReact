@@ -57,6 +57,36 @@ export function battleBanisherMatchesTrigger(
     || (!actionsDone.includes(effect.effectId) && !pendingUsedIds.includes(effect.effectId));
 }
 
+/**
+ * INSTALL_DELAYED_TRIGGER（B3）: バニッシュした側のプレイヤーに設置された ON_SIGNI_BANISH_BATTLE watcher
+ * （タスク12(lxi) 第7波・`WX24-P4-011-E3`「このターン、あなたのシグニがバトルによってシグニ１体を
+ * バニッシュしたとき、…」）。従来 `delayed_triggers` を見ていたのは ON_LEAVE_FIELD／ON_REFRESH／
+ * フェイズ系の3経路だけで、バトルバニッシュ経路は場のシグニ効果しか収集していなかった。
+ *
+ * ⚠**バニッシュした側の state だけを見る**＝「**あなたの**シグニがバトルによって」の主語限定。
+ *   呼び出し側（BattleScreen のバトル解決）はアタッカー側でのみ被バニッシュを確定させるため、
+ *   既存の場シグニ収集（battleBanisherMatchesTrigger 側）と同じ射程になる。
+ */
+export function collectBattleBanishDelayedTriggers(
+  ctx: TrigCtx,
+  banisherId: string,
+  banisherState: PlayerState,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const dt of banisherState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_SIGNI_BANISH_BATTLE') continue;
+    entries.push({
+      id: ctx.genId(), playerId: banisherId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（バトルバニッシュ時）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_SIGNI_BANISH_BATTLE'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+    });
+  }
+  return entries;
+}
+
 /** Collect the new face's own AUTO ability after a permanent LRIG identity flip. */
 export function collectLrigFlipTriggers(
   ctx: TrigCtx,

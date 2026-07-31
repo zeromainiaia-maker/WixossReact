@@ -881,6 +881,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const durationIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
         return `${durationIDT}、${whoIDT}${triggerFilterJa}シグニ1体が場を離れたとき、${actionJa(a.effect)}`;
       }
+      // ON_SIGNI_BANISH_BATTLE（タスク12(lxi) 第7波・WX24-P4-011-E3）：遅延トリガーは**プレイヤー**に
+      // 設置されるので主語は「あなたのシグニ」＝timingJa の「このシグニが…」（シグニ自身の【自】用）は使えない。
+      if (a.trigger?.timing === 'ON_SIGNI_BANISH_BATTLE') {
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        return `${durIDT}、あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
+      }
       const cf = a.trigger?.crasherFilter;
       const subjIDT = cf
         ? `あなたの${cf.color ? [].concat(cf.color).join('・') + 'の' : ''}${cf.story ? '＜' + [].concat(cf.story).join('・') + '＞の' : ''}${cf.cardClass ? '＜' + [].concat(cf.cardClass).join('・') + '＞の' : ''}シグニが`

@@ -28,7 +28,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
-import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -9563,9 +9563,13 @@ test('parse 第4波 tail-splice：前置きの「カードを１枚引き、」�
   eq(seq.steps[2]?.then?.type, 'LIFE_CRASH', 'ゲートされるのは末尾のダメージだけ');
 });
 test('parse 第4波ガード：基準読みの最終ステップと帰結の読みが一致しなければ据置', () => {
-  // 「どこからが X か」を同定できない形＝前置きが読めず基準読みが SEQUENCE にならない
-  const e = parseCardEffects({ CardNum: 'TEST-LXI-TAILDEFER', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
-  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '遅延トリガーの設置が前置きの形は tail-splice にも乗せない（WX24-P4-011-E3）');
+  // 「どこからが X か」を同定できない形＝前置きが読めず基準読みが SEQUENCE にならない。
+  // ⚠第7波で `ON_SIGNI_BANISH_BATTLE` の遅延収集経路を配線したため、本テストの旧文面
+  // （「このターン、あなたのシグニがバトルによって…」）は**設置として解けるようになった**＝
+  //   陽性側は `parse 第7波` の test が固定する。ここは **engine に収集経路が無い timing** を残して
+  //   「経路の無い設置は据置（＝設置しても永久に発火しないものを作らない）」を固定する。
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-TAILDEFER', Type: 'ルリグ', EffectText: '【自】：このルリグがアタックしたとき、このターン、あなたのシグニがアタックしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'), '遅延トリガーの設置が前置きの形は tail-splice にも乗せない（収集経路の無い timing）');
 });
 test('第4波 triage 訂正：WXDi-P13-075-E1 は専用 STUB で既に回避まで実装済み＝包まない', () => {
   // (lxi) 第3波の簿記で「前置きにアクションがある」側へ入れていたが誤り。原文
@@ -9677,10 +9681,52 @@ test('parse/engine 第3波：回避手段「自分のシグニN体を場から�
   ok(!optIds(mkCtx({}, { signi: [null, null, null] })).includes('signiTrash'), '場にシグニが無ければ選べない（0体回避の抜け道を作らない）');
   cursor = savedCursor;
 });
-test('parse 第3波ガード：遅延トリガーの設置が前置きの形は据置（WX24-P4-011 / WXDi-P06-023）', () => {
+// ── タスク12(lxi) 第7波（2026-07-31）：遅延トリガーの設置が前置きの形（`WX24-P4-011-E3`）──
+// 第3波では「据置」を golden で固定していた（＝engine にバトルバニッシュの遅延収集経路が無かった）。
+// 第7波で収集経路を配線したので**据置 golden を陽性 assert へ転換する**（据置 golden を残すと
+// 将来の採用を誤って禁止する＝第5波 TEST-WA-DEFER と同じ転換）。
+test('parse 第7波：「このターン、あなたのシグニがバトルによって…バニッシュしたとき、」→ 遅延設置の内側に標準ペア（WX24-P4-011-E3）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-DELAY', Type: 'ルリグ', EffectText: '【起】《白》：このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
-  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'),
-    '「このターン、〜したとき、」＝遅延トリガーの設置はアクションを生む＝丸ごと包むと設置自体がゲートされる別物になるので据置');
+  const inst = e.action as unknown as { type: string; duration?: string; trigger?: { timing?: string }; effect?: { type: string; steps: { type?: string; id?: string; costColors?: string[]; then?: { type?: string; owner?: string } }[] } };
+  eq(inst.type, 'INSTALL_DELAYED_TRIGGER', '設置は無条件＝丸ごと包む（設置自体をゲートする）別物にしない');
+  eq(inst.trigger?.timing, 'ON_SIGNI_BANISH_BATTLE', 'バトルバニッシュ時に発火');
+  eq(inst.duration, 'THIS_TURN', '「このターン」＝ターン境界で消滅');
+  eq(inst.effect?.type, 'SEQUENCE', '遅延本体は標準ペア');
+  eq(inst.effect?.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', '回避クローズ（従来は無条件ダメージ＝過剰実行）');
+  eq(inst.effect?.steps[0]?.costColors?.length, 2, '《無》×2');
+  eq(inst.effect?.steps[1]?.then?.type, 'LIFE_CRASH', '不払い時のみダメージ');
+  eq(inst.effect?.steps[1]?.then?.owner, 'opponent', '対戦相手にダメージ');
+});
+test('第7波 collect：ON_SIGNI_BANISH_BATTLE の遅延トリガーをバニッシュした側から収集（WX24-P4-011-E3）', () => {
+  const dtBB = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_SIGNI_BANISH_BATTLE' },
+    sourceCardNum: 'WX24-P4-011', effect: { type: 'LIFE_CRASH', owner: 'opponent', count: 1 } } as unknown as import('../src/types/effects').InstallDelayedTriggerAction;
+  const banisher = { ...mkState({}), delayed_triggers: [dtBB] } as PlayerState;
+  const fired = collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, banisher);
+  eq(fired.length, 1, 'バトルバニッシュで発火');
+  eq(fired[0].effectId, 'DELAYED_TRIGGER', '遅延トリガーとして積まれる');
+  eq(fired[0].cardNum, 'WX24-P4-011', '発生源カードを復元（アーツ使用ゲート等が種別を読むため）');
+  eq(collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, mkState({})).length, 0, '未設置は非発火');
+  const other = { ...mkState({}), delayed_triggers: [{ ...dtBB, trigger: { timing: 'ON_TURN_END' } }] } as PlayerState;
+  eq(collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, other).length, 0, '別 timing の遅延は非発火');
+});
+test('第7波 engine 実走：遅延本体の標準ペア＝支払えば無傷／支払わなければダメージ（WX24-P4-011-E3）', () => {
+  const body: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無', '無'] } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  const ctx = mkCtx({}, { energy: 5, life: 7 });
+  const first = executeEffect({ effectId: 't', effectType: 'AUTO', action: body, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!first.done && first.pending.type === 'CHOOSE' && first.pending.opponentResponds === true, '相手に支払いの選択が出る');
+  const pick = (id: string) => {
+    const c: ExecCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs };
+    return finish(resumeOpponentPayOptional(id, c.otherState.energy.slice(0, id === 'pay' ? 2 : 0), first.pending as never, c), c);
+  };
+  const paid = pick('pay');
+  eq(paid.otherState.energy.length, 3, '支払うとエナ-2');
+  eq(paid.otherState.life_cloth.length, 7, '支払えばダメージなし');
+  const skipped = pick('skip');
+  eq(skipped.otherState.energy.length, 5, '支払わなければエナは減らない');
+  eq(skipped.otherState.life_cloth.length, 6, '不払いならライフクロス-1');
 });
 // ── タスク12(lxi) 第2波：「対戦相手**は**」＝主語分配形（2026-07-30）──
 // 帰結の実行主体も対戦相手なので、帰結は原文どおり明示構築する（従来出力の流用は post-pass の
