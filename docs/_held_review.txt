@@ -1483,6 +1483,16 @@ WXK08-066
   + [0].action.steps[2].then.owner = "self"
   + [0].action.steps[2].then.count = 1
 
+## +STUB -ENERGY_CARD -TRANSFER_TO_HAND ［1枚］
+WXK09-031
+--- WXK09-031
+  原文: 【自】：このシグニがアタックしたとき、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ２枚以上ある場合、対象の対戦相手のシグニ１体をエナゾーンに置く。それぞれ３枚以上ある場合、代わりに対戦相手のすべてのシグニをトラッシュに置く。【自】：このカードがトラッシュからエナゾーンに置かれたとき、このカードをエナゾーンから手札に加えてもよい。,：あなたのト
+  - [1].action.source.type = "ENERGY_CARD"
+  - [1].action.source.owner = "self"
+  - [1].action.source.count = 1
+  ~ [1].action.type : "TRANSFER_TO_HAND" → "STUB"
+  + [1].action.id = "ENERGY_TO_HAND_ON_DECK"
+
 ## +CONDITIONAL×2 +ENERGY_EACH_LEVEL_FILTER_GTE×2 +GRANT_EFFECT×2 +SIGNI×2 ［1枚］
 WXK09-055
 --- WXK09-055

@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16第3波：エナへ移動したカード自身の `ON_ENERGY_CHARGE`（3効果）
+
+中央 board diff に移動元付き `detectEnergyAddedWithSource` と `collectEnergyAddedSelfTriggers` を追加し、`triggerCondition.movedSelf:true` のカード自身だけをエナゾーンから収集するようにした。既存 React watcher は `movedSelf` を除外し、新 collector は `movedSelf` 必須なので二重発火しない。中央 diff は通常完了／対話 resume 共通で、人間・CPU両ターンを通る。
+
+- `WX14-066-E1`：attack phase、hand/deck 起点、原因カードがルリグまたはシグニの効果である場合だけ発火。原因不明・スペル・アーツ・通常チャージでは非発火。
+- `WXDi-P03-073-E1`：field 起点かつ移動後の自エナが2枚以下の場合だけ発火。
+- `WXDi-P12-079-E2`：deck 起点だけ発火し、`mandatory:false` で「手札に加えてもよい」を保持。
+- `WXK10-047-E2` は原因メタを持たない旧 React watcher の場 watcher なので、`byOwnEffect` を足しても評価不能。死にフラグ／完全不発化を避け defer。
+- live per-effect 差分は上記3 effectId のみ、outlier 0。既存 `ON_ENERGY_CHARGE` 8効果は `movedSelf` を持たず新経路の収集0件。golden 1170、census 1363、`census:timing` 22、smoke/fuzz/manual-fields/同型★は全緑。
+
+**Claude 検証で是正した3件**：
+- **🔴 `byLrigOrSigniEffect` が `'ルリグ'`／`'シグニ'` の2値しか受理せず過小実行だった**。`CardData.Type` は **`'アシストルリグ'`（340枚）と `'レゾナ'`（46枚）を別値で持つ**ため、この2つを落とすと「アシストルリグの効果でエナに置かれた」「レゾナの効果で〜」が丸ごと不発になる。ルール上アシストルリグはルリグ・レゾナはシグニで、既存判定も `'ルリグ' || 'アシストルリグ'` を並記している（`execStubPart1.ts:3594`／`execStubPart3.ts:1137`）。4値を受理するよう是正し、**アシストルリグ／レゾナで発火・アーツで非発火**の golden を追加。
+- **goldenTest.ts の末尾に、集計行より後ろで走る重複テスト58行が残っていた**（`console.log(PASS…)` と `process.exit(1)` の**後**に `test()` が並ぶ形）。**そこで落ちても PASS/FAIL 件数に乗らず exit code も変わらない＝ゲートとして機能しない**。codex は同じ内容を集計対象領域にも二重に置いていたので、末尾側の58行を削除（集計対象の2テストは残す＝golden 1170 は不変）。
+- **held +1（250→251・`WXK09-031`）の帰属を訂正**。codex は「対象3効果の未採用残りではない」とだけ報告したが、**原因は本バッチの parser 変更のスコープ外への波及**＝`parseSentencePart3.ts` の「エナゾーンから手札に加えてもよい」枝を広げた結果、`WXK09-031-E2`（「このカードが**トラッシュ**から…」＝`ON_ENERGY_FROM_TRASH`・スコープ外）の fresh も `STUB{ENERGY_TO_HAND_ON_DECK}` に変わった。⚠**先頭アンカーでは弁別できないことを実測確認済み**（両者ともこの関数へ渡る時点でトリガー句が落ちて同一文字列になる）。**live は held 未採用のまま＝挙動不変**なので据置し、弁別が要るなら `parseSentencePart3` に trigger 文脈を渡す設計変更が必要、と関数コメントに残した。なお `WXK09-031-E2` の curated は `TRANSFER_TO_HAND{ENERGY_CARD,count:1}`＝原文「**この**カードを」に対して**エナの任意1枚**を選ばせる既存の不一致があり、将来 held を捌くときの検討対象。
+- lint 232→234 は **`useHost`/`useGuest` の `react-hooks/rules-of-hooks` 偽陽性**が新経路で1回ずつ増えたもの（stash 比較で 100→102 と実測）＝退化ではない。
+
 ## 2026-07-31 — タスク16第2波：`ON_TARGETED` origin 種別軸（4効果）
 
 既存 `collectTargetedTriggers` に、対象を取った能力・効果の origin を OR-of-AND 条件で限定する `triggerCondition.targetedOrigins` を追加した。origin 不明時は限定効果を保守的に非発火とし、手動 `SELECT_TARGET` と `autoTargetedCards` の両経路から発生源カード・解決中効果・対象宣言前盤面を渡す。

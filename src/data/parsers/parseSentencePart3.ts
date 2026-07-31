@@ -515,7 +515,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- デッキからエナゾーンに置かれたとき手札に加えてもよい ----
-  if (t.match(/デッキから.*エナゾーンに置かれたとき.*手札に加えてもよい/)) {
+  // 第2の枝＝ON_ENERGY_CHARGE(movedSelf) でトリガー句を除去した残り（WXDi-P12-079-E2）を受ける。
+  // ⚠ この枝は WXK09-031-E2（「このカードが**トラッシュ**から…」＝ON_ENERGY_FROM_TRASH）にも当たる。
+  //   両者はここへ渡る時点でトリガー句が落ちて同一文字列になるため、**この関数だけでは弁別できない**
+  //   （先頭アンカーを足しても効かないことを 2026-07-31 に実測確認済み）。WXK09-031-E2 は held に載って
+  //   live 未採用のまま＝挙動不変。弁別が要るなら parseSentencePart3 に trigger 文脈を渡す設計変更が要る。
+  if (t.match(/(?:デッキから.*エナゾーンに置かれたとき.*|このカードをエナゾーンから)手札に加えてもよい/)) {
     return { type: 'STUB', id: 'ENERGY_TO_HAND_ON_DECK' } as StubAction;
   }
 

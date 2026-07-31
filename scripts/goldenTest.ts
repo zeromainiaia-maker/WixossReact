@@ -28,9 +28,9 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
-import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
+import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
@@ -11976,6 +11976,59 @@ test('batch9: きゅるきゅる～んはchoice②のみ実装しchoice①を明
   ok(JSON.stringify(eff.action.choices[0].action).includes('COUNTER_TEAM_PIECE_CUTIN_DEFERRED'), 'choice①は基盤待ちSTUB');
   const c2 = JSON.stringify(eff.action.choices[1].action);
   ok(c2.includes('"type":"DRAW"') && c2.includes('ENERGY_CHARGE_FROM_DECK'), 'choice② draw+energy charge');
+});
+
+test('task16 wave3: detectEnergyAddedWithSource は既存APIを壊さずカードごとの移動元を返す（集計対象）', () => {
+  const savedCursor = cursor;
+  const handCard = fresh(), deckCard = fresh(), fieldCard = fresh();
+  const before = mkState({ signi: [fieldCard, null, null] });
+  before.hand = [handCard]; before.deck = [deckCard]; before.energy = [];
+  const after = { ...before, hand: [], deck: [], energy: [handCard, deckCard, fieldCard],
+    field: { ...before.field, signi: [null, null, null] } };
+  eq(JSON.stringify(detectEnergyAdded(before, after)), JSON.stringify([handCard, deckCard, fieldCard]), '既存detectEnergyAddedのstring[]');
+  eq(JSON.stringify(detectEnergyAddedWithSource(before, after)), JSON.stringify([
+    { cardNum: handCard, from: 'hand' }, { cardNum: deckCard, from: 'deck' }, { cardNum: fieldCard, from: 'field' },
+  ]), '移動元付き差分');
+  cursor = savedCursor;
+});
+
+test('task16 wave3: movedSelf 3効果の成立/不成立と既存8効果の非収集（集計対象）', () => {
+  const savedCursor = cursor;
+  const lrigCause = findCard(c => c.Type === 'ルリグ');
+  const spellCause = findCard(c => c.Type === 'スペル');
+  const collect = (cardNum: string, from: string, phase: string, causeOwner: string | undefined,
+    causeCard: string | undefined, energyCount = 1) => {
+    const host = mkState({ energy: 0 });
+    host.energy = [cardNum, ...fill(Math.max(0, energyCount - 1))];
+    return collectEnergyAddedSelfTriggers({ ...trigCtx(HOST), turnPhase: phase },
+      [{ ownerId: HOST, moved: [{ cardNum, from }] }], causeOwner, causeCard, host, mkState()).entries;
+  };
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', HOST, lrigCause).some(e => e.effectId === 'WX14-066-E1'), true, 'ゴムボート成立');
+  eq(collect('WX14-066', 'deck', 'ATTACK_LRIG', HOST, SIGNI).some(e => e.effectId === 'WX14-066-E1'), true, 'ゴムボートdeck成立');
+  eq(collect('WX14-066', 'field', 'ATTACK_SIGNI', HOST, SIGNI).some(e => e.effectId === 'WX14-066-E1'), false, 'ゴムボート移動元不成立');
+  eq(collect('WX14-066', 'hand', 'MAIN', HOST, SIGNI).some(e => e.effectId === 'WX14-066-E1'), false, 'ゴムボートphase不成立');
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', undefined, undefined).some(e => e.effectId === 'WX14-066-E1'), false, 'ゴムボート原因不明');
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', HOST, spellCause).some(e => e.effectId === 'WX14-066-E1'), false, 'ゴムボート原因種別不成立');
+  // 「ルリグかシグニの効果」はルール上のルリグ／シグニ全種＝CardData.Type が別値で持つ
+  // 'アシストルリグ'（340枚）と 'レゾナ'（46枚）も受理する（落とすと過小実行。2026-07-31 Claude 検証で是正）。
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', HOST, findCard(c => c.Type === 'アシストルリグ')).some(e => e.effectId === 'WX14-066-E1'), true, 'ゴムボート: アシストルリグも「ルリグの効果」');
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', HOST, findCard(c => c.Type === 'レゾナ')).some(e => e.effectId === 'WX14-066-E1'), true, 'ゴムボート: レゾナも「シグニの効果」');
+  eq(collect('WX14-066', 'hand', 'ATTACK_SIGNI', HOST, findCard(c => c.Type === 'アーツ')).some(e => e.effectId === 'WX14-066-E1'), false, 'ゴムボート: アーツは非発火');
+  eq(collect('WXDi-P03-073', 'field', 'MAIN', HOST, SIGNI, 2).some(e => e.effectId === 'WXDi-P03-073-E1'), true, 'ゴツトツコツ成立');
+  eq(collect('WXDi-P03-073', 'hand', 'MAIN', HOST, SIGNI, 2).some(e => e.effectId === 'WXDi-P03-073-E1'), false, 'ゴツトツコツ移動元不成立');
+  eq(collect('WXDi-P03-073', 'field', 'MAIN', HOST, SIGNI, 3).some(e => e.effectId === 'WXDi-P03-073-E1'), false, 'ゴツトツコツ枚数不成立');
+  eq(collect('WXDi-P12-079', 'deck', 'MAIN', HOST, SIGNI).some(e => e.effectId === 'WXDi-P12-079-E2'), true, 'アト成立');
+  eq(collect('WXDi-P12-079', 'hand', 'MAIN', HOST, SIGNI).some(e => e.effectId === 'WXDi-P12-079-E2'), false, 'アト移動元不成立');
+  eq(effectsMap.get('WXDi-P12-079')!.find(e => e.effectId === 'WXDi-P12-079-E2')!.mandatory, false, 'アト任意AUTO');
+  const existingIds = ['WX03-032-E1', 'WX25-CP1-046-E1', 'WXDi-P11-073-E1', 'WXDi-CP02-085-E1',
+    'WXK04-028-E2', 'WXK04-037-E2', 'WXK10-047-E2', 'WXK11-039-E2'];
+  for (const id of existingIds) {
+    const [cardNum, es] = [...effectsMap.entries()].find(([, xs]) => xs.some(e => e.effectId === id))!;
+    eq(es.find(e => e.effectId === id)!.triggerCondition?.movedSelf, undefined, `${id}: movedSelfなし`);
+    eq(collect(cardNum, 'deck', 'MAIN', HOST, SIGNI).some(e => e.effectId === id), false, `${id}: 新経路0件`);
+  }
+  eq(effectsMap.get('WXK10-047')!.find(e => e.effectId === 'WXK10-047-E2')!.triggerCondition?.byOwnEffect, undefined, '群B defer固定');
+  cursor = savedCursor;
 });
 
 console.log('\n===== goldenTest 結果 =====');

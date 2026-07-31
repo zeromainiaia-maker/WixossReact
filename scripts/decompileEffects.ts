@@ -1370,6 +1370,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
       if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
+      if (a.id === 'ENERGY_TO_HAND_ON_DECK') return 'このカードをエナゾーンから手札に加えてもよい';
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
       if (a.id === 'CONDITIONAL_CARD_COST_BY_OPP_LRIG') {
         return '相手センタールリグ色が条件を満たす場合は基本コストを軽減（支払い時に自動適用）';
@@ -2423,6 +2424,14 @@ function effJa(e: Eff): string {
           : `あなたの${e.triggerFilter?.excludeSelf ? '他の' : ''}${e.triggerFilter?.story ? `＜${e.triggerFilter.story}＞の` : ''}${duTc?.upIncludesLrig ? 'センタールリグか' : ''}シグニ１体`;
         s = `${phaseJa}${subjJa}が${byEffJa}${stateJa}状態になったとき`;
       }
+    }
+    if (t === 'ON_ENERGY_CHARGE' && e.triggerCondition?.movedSelf) {
+      const tc = e.triggerCondition;
+      const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', field: '場' };
+      const zones = (tc.fromZones ?? []).map((z: string) => zoneJa[z] ?? z).join('か');
+      const phase = tc.duringAttackPhase ? 'アタックフェイズの間、' : '';
+      const cause = tc.byLrigOrSigniEffect ? 'ルリグかシグニの効果によって' : '';
+      s = `${phase}このカードが${cause}${zones}からエナゾーンに置かれたとき`;
     }
     // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・fromZones:['hand']＋原因限定）。
     // ⚠byOwnEffect は「場から」トラッシュ（fromZones:['field']・WX18-081 等6枚）でも使うため、

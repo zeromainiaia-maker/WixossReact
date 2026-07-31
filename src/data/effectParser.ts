@@ -6391,7 +6391,6 @@ let _parsingBaseType = '';
 function isKnownUnwiredAutoTrigger(text: string): boolean {
   return [
     /[１1]ターンにライフクロスを合計[０-９\d]+枚以上クラッシュしたとき/,
-    /ルリグかシグニの効果によって手札かデッキからエナゾーンに置かれたとき/,
     /【自】の【英知】能力が発動したとき/,
     /カード[０-９\d]+枚がいずれかのプレイヤーの手札に加えられたとき/,
     /【トラップ】[０-９\d]+つが設置されたとき/,
@@ -6404,13 +6403,11 @@ function isKnownUnwiredAutoTrigger(text: string): boolean {
     /このシグニに【ソウル】が付いたとき/,
     /アシストルリグかライフバーストの能力か効果の対象になったとき/,
     /自分の効果によってカードを[０-９\d]+枚以上捨てたとき/,
-    /このシグニが場からエナゾーンに置かれたとき/,
     /エナゾーンから効果によってカード[０-９\d]+枚が他の領域に移動したとき/,
     /パワー[０-９\d]+以上のシグニが対戦相手のシグニ[０-９\d]+体をバニッシュしたとき/,
     /ライフクロス[０-９\d]+枚がクラッシュされるかトラッシュに置かれたとき/,
     /【出】能力か【出】能力の効果の対象になったとき/,
     /このカードがシグニの下に置かれたとき/,
-    /このカードがデッキからエナゾーンに置かれたとき/,
     /対戦相手の効果[０-９\d]+つによって[^。]*(?:手札|エナゾーン)[^。]*(?:捨てられるか|トラッシュに置かれたとき)/,
     /あなたの効果によって対戦相手のシグニ[０-９\d]+体が手札に戻るかトラッシュに置かれたとき/,
     /コストか効果によってあなたが《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/,
@@ -6641,6 +6638,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ライフクロス／相手エナの増加は、減少側 timing や自分エナ監視とは別の中央 set-diff で収集する。
              : trigText.match(/あなたのライフクロスにカード[０-９\d]+枚が加えられたとき/) ? ['ON_LIFE_CLOTH_ADDED']
              : trigText.match(/対戦相手のエナゾーンにカード[０-９\d]+枚が置かれたとき/) ? ['ON_OPP_ENERGY_ADDED']
+             : trigText.match(/(?:このカード|このシグニ)が(?:ルリグかシグニの効果によって)?(?:手札かデッキ|デッキ|場)からエナゾーンに置かれたとき/) ? ['ON_ENERGY_CHARGE']
              // 「あなたが【エナチャージ】をしたとき」（2件・続き76）も同じ受け皿（engine はエナゾーンが1枚増えたことを
              //   スナップショット差分で検知＝所有者自身の場のシグニが反応する）。
              //   ⚠「**対戦相手の**エナゾーンにカードN枚が置かれたとき」は engine の受け皿が無い（watcher は
@@ -7669,6 +7667,31 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           actionText = zmM[2];
         }
       }
+      if (timing[0] === 'ON_ENERGY_CHARGE') {
+        const movedSelfM = actionText.match(/^(アタックフェイズの間、)?(?:このカード|このシグニ)が(ルリグかシグニの効果によって)?(手札かデッキ|デッキ|場)からエナゾーンに置かれたとき[、,]\s*(.+)/s);
+        if (movedSelfM) {
+          const zoneText = movedSelfM[3];
+          const fromZones: Array<'hand' | 'deck' | 'field'> = [];
+          if (zoneText.includes('手札')) fromZones.push('hand');
+          if (zoneText.includes('デッキ')) fromZones.push('deck');
+          if (zoneText === '場') fromZones.push('field');
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            movedSelf: true,
+            fromZones,
+            ...(movedSelfM[1] ? { duringAttackPhase: true } : {}),
+            ...(movedSelfM[2] ? { byLrigOrSigniEffect: true } : {}),
+          };
+          actionText = movedSelfM[4];
+          const energyCountM = actionText.match(/^あなたのエナゾーンにあるカードが([０-９\d]+)枚以下の場合[、,]\s*(.+)/s);
+          if (energyCountM) {
+            extractedTriggerCondition = {
+              type: 'ENERGY_COUNT', owner: 'self', operator: 'lte', value: parseNum(energyCountM[1]),
+            };
+            actionText = energyCountM[2];
+          }
+        }
+      }
       if (timing[0] === 'ON_TRASH') {
         // 「レゾナの出現条件のために、〜トラッシュに置かれたとき」: レゾナ出現条件の支払い時のみ発火
         if (/レゾナの出現条件のために/.test(actionText)) {
@@ -7795,7 +7818,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LEAVE_FIELD / ON_REVEALED_FROM_HAND / ON_LIFE_CRASHED / ON_TRASH の「〜してもよい」等は任意トリガー（発動しない選択可）
       if ((timing[0] === 'ON_LEAVE_FIELD' || timing[0] === 'ON_REVEALED_FROM_HAND'
            || timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED'
-           || timing[0] === 'ON_TRASH' || timing[0] === 'ON_LIFE_CLOTH_MOVED')
+           || timing[0] === 'ON_TRASH' || timing[0] === 'ON_LIFE_CLOTH_MOVED'
+           || timing[0] === 'ON_ENERGY_CHARGE')
           && /もよい/.test(actionText)) mandatory = false;
       break;
     default: return null;

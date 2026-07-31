@@ -156,6 +156,26 @@ export function detectEnergyAdded(before: PlayerState, after: PlayerState): stri
   return after.energy.filter(n => !beforeEnergy.has(n));
 }
 
+/** エナゾーンに新たに加わったカードと、その移動元ゾーンを検出する。 */
+export function detectEnergyAddedWithSource(before: PlayerState, after: PlayerState): { cardNum: string; from: 'hand' | 'field' | 'deck' | 'trash' | 'other' }[] {
+  const beforeEnergy = new Set(before.energy);
+  const beforeHand = new Set(before.hand);
+  const beforeDeck = new Set(before.deck);
+  const beforeTrash = new Set(before.trash);
+  const beforeField = new Set<string>();
+  for (const stack of before.field.signi) for (const cn of (stack ?? [])) beforeField.add(cn);
+  const out: { cardNum: string; from: 'hand' | 'field' | 'deck' | 'trash' | 'other' }[] = [];
+  for (const n of after.energy) {
+    if (beforeEnergy.has(n)) continue;
+    out.push({
+      cardNum: n,
+      from: beforeHand.has(n) ? 'hand' : beforeField.has(n) ? 'field'
+        : beforeDeck.has(n) ? 'deck' : beforeTrash.has(n) ? 'trash' : 'other',
+    });
+  }
+  return out;
+}
+
 /** トラッシュ→エナゾーンに移動したカードを検出（ON_ENERGY_FROM_TRASHトリガー用）。 */
 export function detectEnergyFromTrash(before: PlayerState, after: PlayerState): string[] {
   const newInEnergy = after.energy.filter(n => !before.energy.includes(n));

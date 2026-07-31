@@ -1993,6 +1993,66 @@ export function collectHandAddedTriggers(
 }
 
 /**
+ * ON_ENERGY_CHARGE のうち、エナへ移動したカード自身が持つ movedSelf:true の AUTO だけを収集する。
+ * 場の watcher は従来の React watcher が担当し、ここでは扱わない。
+ */
+export function collectEnergyAddedSelfTriggers(
+  ctx: TrigCtx,
+  addedByOwner: { ownerId: string; moved: { cardNum: string; from: string }[] }[],
+  causeOwnerId: string | undefined,
+  causeSourceCardNum: string | undefined,
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const sourceType = causeSourceCardNum
+    ? ctx.cardMap.get(getCardNum(causeSourceCardNum))?.Type
+    : undefined;
+  for (const grp of addedByOwner) {
+    const ownerIsHost = grp.ownerId === ctx.hostId;
+    const ownerState = ownerIsHost ? hostState : guestState;
+    const otherState = ownerIsHost ? guestState : hostState;
+    const usedIds = ownerIsHost ? usedHostIds : usedGuestIds;
+    for (const moved of grp.moved) {
+      for (const eff of effsOf(ctx, moved.cardNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_CHARGE')) continue;
+        if (!eff.triggerCondition?.movedSelf) continue;
+        const fromZones = eff.triggerCondition.fromZones;
+        if (fromZones?.length && !(fromZones as string[]).includes(moved.from)) continue;
+        if (eff.triggerCondition.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+        if (eff.triggerCondition.byOwnEffect && causeOwnerId !== grp.ownerId) continue;
+        if (eff.triggerCondition.byOpponentEffect && causeOwnerId === grp.ownerId) continue;
+        // 「ルリグかシグニの効果によって」＝ルール上のルリグ／シグニ全種。CardData.Type は
+        // 'アシストルリグ'（340枚）と 'レゾナ'（46枚）を別値で持つため、この2つを落とすと過小実行になる
+        // （アシストルリグはルリグ、レゾナはシグニ。既存の判定も 'ルリグ' || 'アシストルリグ' を並記している
+        //  ＝execStubPart1.ts:3594 / execStubPart3.ts:1137）。原因不明・スペル・アーツ・ルール処理では発火しない。
+        if (eff.triggerCondition.byLrigOrSigniEffect
+            && sourceType !== 'ルリグ' && sourceType !== 'アシストルリグ'
+            && sourceType !== 'シグニ' && sourceType !== 'レゾナ') continue;
+        const ownerIsTurn = grp.ownerId === ctx.activeUserId;
+        if (eff.triggerCondition.turnOwner === 'self' && !ownerIsTurn) continue;
+        if (eff.triggerCondition.turnOwner === 'opponent' && ownerIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, ownerIsTurn, ctx.cardMap, moved.cardNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, ownerState, otherState, ctx.cardMap, moved.cardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+        const used = (ownerState.actions_done ?? []).filter(id => id === eff.effectId).length
+          + usedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) continue;
+        if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+        const cardName = ctx.cardMap.get(getCardNum(moved.cardNum))?.CardName ?? moved.cardNum;
+        entries.push({
+          id: ctx.genId(), playerId: grp.ownerId, cardNum: moved.cardNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（エナゾーン移動時）`, effect: eff, triggeringCardNum: moved.cardNum,
+        });
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * ON_ENERGY_TO_FIELD トリガーを収集する（続き207・WXDi-P11-007-E1「エナゾーンからシグニ1枚が…場に出たとき」枝）。
  * placedByOwner＝エナから場に出たシグニの各所有者。timing 併記（ON_HAND_ADDED とのOR）を想定し評価軸は同じ
  * triggerCondition（turnOwner）／triggerFilter（出たシグニの filter）を使う。手札枝と同一 usageLimit を
