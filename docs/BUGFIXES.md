@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — §6.3 J-3 差し戻し修正：クラッシュの check 経路を忠実化（4効果）
+
+安全停止中だった `WXK08-028-E1`／`PR-K038-E2`／`WD23-023-E-E1`／`WXDi-P07-052-E1` を1家族として実装した。初版はクラッシュを誤って `life→trash` とみなしていたため、実戦の `life→field.check→energy`（置換時のみ `check→trash`）に合わせて訂正した。
+
+- `detectLifeClothMoved` は同名カードを考慮した multiset 差分で life 離脱を検出し、trash / hand / energy / deck / other の宛先を返す。`collectLifeClothMovedTriggers` は既存 life 増加 collector と同じ場・評価順・`BLOCK_OWN_SIGNI_AUTO`・usageLimit 規約を使い、owner／宛先／到達枚数を optional 条件で絞る。
+- クラッシュ直後の中央差分は `life→field.check` なので `to:'other'`。`WXK08-028-E1`（スルト）は「他の領域」条件によりこの枝で発火する。後続 `check→energy/trash` は life 差分ゼロ。
+- `WXDi-P07-052-E1`（ハイティ）は `timing:['ON_LIFE_CRASHED','ON_LIFE_CLOTH_MOVED']`＋`lifeMovedTo:['trash']`。通常クラッシュも `CRASH_TO_TRASH_INSTEAD` も前者だけが1件を積み、直接 `life→trash` は後者だけが1件を積む。両 collector は同じ effectId を `actions_done` で制限するため《ターン1回》は timing をまたいで有効。
+- `PR-K038-E2` は原文どおり0枚。`before !== 0 && after === 0` の到達遷移だけを収集し、0枚継続中の別イベントでは再発火しない。
+- `WD23-023-E-E1` の「トラッシュに置かれたとき」は、ルール上は `CRASH_TO_TRASH_INSTEAD` による最終配置も含むべきと判断する。ただし現 collector は life 離脱時点しか見ず、check 解決イベントも原因情報も無いため、この置換クラッシュ枝は honest defer。直接 `life→trash` の自他イベントは実働し、通常クラッシュ（energy行き）は非発火。
+- golden は実戦どおり watcher をシグニゾーンへ置き、`life→check` の `to:'other'`、通常 `check→energy`、置換 `check→trash`、直接 `life→trash` を別遷移で固定した。census 1366→1365 は計器の分類移動ではなく、ハイティの停止中だったクラッシュ枝を実働化した機能改善。
+
 ## 2026-07-31 — §6.3 I `WX25-P3-028-E2`：エクシード本体の3機構を一体実装
 
 原文「このターンと次のターンの間、あなたはリフレッシュできない。以下を3回行う。『あなたか対戦相手のデッキ上6枚をトラッシュ』」を単独バッチで実装。修正前は `LRIG_GROW_RESTRICT` が no-op、`REPEAT_N_TIMES` が相手を18枚固定ミルし、後続の自分6枚ミルも重なって**相手18＋自分6＝24枚**を強制していた。
