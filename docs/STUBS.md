@@ -14,7 +14,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | JSON で使用中の STUB id 種類 | 576 |
 | 　└ ハンドラ実装あり | 547 |
 | 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2624 |
+| 総 STUB ノード件数 | 2632 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -72,9 +72,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 113 | 111 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み） |
 | `STORE_LAST_PROCESSED_TARGETS` | 89 | 88 | WD12-009, WDK08-Y01, SPK01-05 |  |
 | `SELECT_TARGET_ONLY` | 84 | 83 | WD12-009, SPK01-05, SPDi43-29 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
+| `OPPONENT_PAY_OPTIONAL` | 63 | 57 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `POWER_MOD_PER_COUNT` | 61 | 61 | WD19-001, WDK06-C17, WDK10-009 | 動的パワー修正（COUNT依存） |
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
-| `OPPONENT_PAY_OPTIONAL` | 55 | 51 | WDK10-001, SPDi43-01, SPDi43-06 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `RULE_REMINDER_TEXT` | 41 | 40 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 40 | 40 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `LRIG_GROW_RESTRICT` | 38 | 38 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |

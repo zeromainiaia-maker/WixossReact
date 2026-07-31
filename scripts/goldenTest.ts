@@ -9465,10 +9465,79 @@ test('parse ガード②＝対象節以外の前置き（「カードを１枚�
   const s = JSON.stringify(e.action);
   ok(!s.includes('OPPONENT_PAY_OPTIONAL'), 'ドローまでゲートに巻き込む過少実行を作らない＝据置');
 });
-test('parse ガード⑦＝クローズを外すと読みが変わる文（owner 反転）は据置（WXDi-P05-TK01A）', () => {
+// ── タスク12(lxi) 第3波（2026-07-31）＝クローズが本文先頭にある形は「基準読み」を供給源に使う ──
+// 分割再パースをやめたので、第1波で据え置いた「複文／owner 反転／そのシグニ照応」が同時に開く。
+test('parse 第3波：クローズが先頭なら分割せず基準読みを使う＝owner が反転しない（WXDi-P05-TK01A）', () => {
   const e = parseCardEffects({ CardNum: 'TEST-LXI-ZONE', Type: 'シグニ', EffectText: '【自】：あなたのアタックフェイズ開始時、対戦相手が手札を１枚捨てるか《無》を支払わないかぎり、このシグニゾーンにあるシグニをバニッシュする。' } as unknown as CardData)[0];
-  const s = JSON.stringify(e.action);
-  ok(!s.includes('"owner":"self"'), '「このシグニゾーンにあるシグニ」が self へ反転したら据置する（純加算チェック）');
+  const seq = e.action as unknown as { type: string; steps: { id?: string; opponentHandDiscard?: number; costColors?: string[]; then?: { type: string; target?: { owner: string } } }[] };
+  eq(seq.type, 'SEQUENCE', '第1波では純加算チェック不一致で据置だった＝いまはゲート化する');
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件バニッシュ）');
+  eq(seq.steps[0]?.opponentHandDiscard, 1, '手札1枚で回避');
+  eq(seq.steps[0]?.costColors?.length, 1, '《無》でも回避');
+  eq(seq.steps[1]?.then?.target?.owner, 'opponent', '「このシグニゾーンにあるシグニ」の owner は opponent のまま（分割時は self へ反転していた）');
+});
+test('parse 第3波：帰結が複文「以下の２つから１つを選ぶ。①…②…」でもゲート化する（SPDi43-02 / SPDi43-07）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-CHOOSE', Type: 'ルリグ', EffectText: '【自】：あなたのアタックフェイズ開始時、対戦相手が手札を２枚捨てないかぎり、あなたは以下の２つから１つを選ぶ。①対戦相手のデッキの上からカードを８枚トラッシュに置く。②対戦相手のライフクロスが０枚の場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。' } as unknown as CardData)[0];
+  const seq = e.action as unknown as { type: string; steps: { id?: string; opponentHandDiscard?: number; then?: { type: string; from_count?: number; choices?: unknown[] } }[] };
+  eq(seq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は CHOOSE だけが組まれクローズが無言消費されていた）');
+  eq(seq.steps[0]?.opponentHandDiscard, 2, '手札2枚で回避');
+  eq(seq.steps[1]?.then?.type, 'CHOOSE', '選択構造を平坦化しない');
+  eq(seq.steps[1]?.then?.from_count, 2, '選択肢2つを保つ');
+  // 状態条件が更に前置される形＝条件は効果レベルへ、クローズはゲートへ（両方落とさない）
+  const e2 = parseCardEffects({ CardNum: 'TEST-LXI-CHOOSE2', Type: 'ルリグ', EffectText: '【自】：あなたのアタックフェイズ開始時、あなたの場に《まほまほ☆さんさんちくちく》がいる場合、対戦相手が手札を２枚捨てないかぎり、あなたは以下の２つから１つを選ぶ。①対戦相手のデッキの上からカードを８枚トラッシュに置く。②カードを１枚引く。' } as unknown as CardData)[0];
+  eq((e2 as unknown as { condition?: { type: string } }).condition?.type, 'HAS_CARD_IN_FIELD', '状態条件は効果レベルへ持ち上がる');
+  ok(JSON.stringify(e2.action).includes('OPPONENT_PAY_OPTIONAL'), 'クローズもゲート化される');
+});
+test('parse 第3波：帰結「そのシグニ」＝トリガー元シグニへ束縛する（WXDi-P08-007 / WXEX2-25）', () => {
+  const ra = parseCardEffects({ CardNum: 'TEST-LXI-ANA1', Type: 'ルリグ', EffectText: '【自】：対戦相手のシグニ１体がアタックしたとき、対戦相手が《無》を支払わないかぎり、ターン終了時まで、そのシグニは能力を失う。' } as unknown as CardData)[0];
+  const raSeq = ra.action as unknown as { steps: { id?: string; then?: { type: string; targetsTriggerSource?: boolean } }[] };
+  eq(raSeq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件で能力喪失）');
+  eq(raSeq.steps[1]?.then?.type, 'REMOVE_ABILITIES', '帰結は能力喪失');
+  eq(raSeq.steps[1]?.then?.targetsTriggerSource, true, '「そのシグニ」＝アタックしたそのシグニ（従来はどの相手シグニでも選べた）');
+  const tr = parseCardEffects({ CardNum: 'TEST-LXI-ANA2', Type: 'シグニ', EffectText: '【自】：対戦相手のシグニ１体が対戦相手の効果によって場に出たとき、対戦相手が手札を１枚捨てないかぎり、そのシグニを場からトラッシュに置く。' } as unknown as CardData)[0];
+  const trSeq = tr.action as unknown as { steps: { id?: string; then?: { type: string; targetsTriggerSource?: boolean } }[] };
+  eq(trSeq.steps[0]?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化');
+  eq(trSeq.steps[1]?.then?.targetsTriggerSource, true, '「そのシグニ」＝場に出たそのシグニ');
+});
+test('engine 第3波：TRASH の targetsTriggerSource はトリガー元シグニだけを候補にする', () => {
+  const savedCursor = cursor;
+  const other = findCard(c => isSigni(c) && c.Level === '2');
+  const trigger = findCard(c => isSigni(c) && c.Level === '3');
+  const ctx = mkCtx({}, { signi: [other, trigger, null] });
+  const bound: EffectAction = { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsTriggerSource: true } as unknown as EffectAction;
+  const r = run(bound, { ...ctx, triggeringCardNum: ctx.otherState.field.signi[1]?.at(-1) } as ExecCtx);
+  const tops = r.otherState.field.signi.map(s => s?.at(-1) ?? null);
+  eq(tops[1], null, 'トリガー元シグニがトラッシュされる');
+  eq(tops[0], other, '別のシグニは触られない（従来はどれでも選べた）');
+  cursor = savedCursor;
+});
+test('parse/engine 第3波：回避手段「自分のシグニN体を場からトラッシュに置く」＝opponentSigniTrash（WX22-025 / WXDi-P16-088）', () => {
+  const savedCursor = cursor;
+  // 3手段併記（読点区切り）＝「場**から**」の「か」で節が割れないこと込みで確認する
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-SGT', Type: 'シグニ', EffectText: '【自】：このシグニがアタックしたとき、対戦相手が、対象の自分のシグニ１体を場からトラッシュに置くか、自分の手札を２枚捨てるか、対象の自分のエナゾーンからカード３枚をトラッシュに置かないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  const gate = (e.action as unknown as { steps: { id?: string; opponentSigniTrash?: number; opponentHandDiscard?: number; opponentEnergyTrash?: number }[] }).steps[0];
+  eq(gate?.id, 'OPPONENT_PAY_OPTIONAL', 'ゲート化（従来は無条件ダメージ）');
+  eq(gate?.opponentSigniTrash, 1, 'シグニ1体トラッシュで回避');
+  eq(gate?.opponentHandDiscard, 2, '手札2枚でも回避');
+  eq(gate?.opponentEnergyTrash, 3, 'エナ3枚でも回避');
+  // engine：シグニ回避枝が提示され、場にシグニが無ければ選べない
+  const gateAct: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentSigniTrash: 1 } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: false } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  const optIds = (ctx: ExecCtx): string[] => {
+    const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: gateAct, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    const p = (r as { pending?: { options?: { id: string; available: boolean }[] } }).pending;
+    return (p?.options ?? []).filter(o => o.available).map(o => o.id);
+  };
+  ok(optIds(mkCtx({}, { signi: ['WX01-001'] })).includes('signiTrash'), '場にシグニがあれば回避枝が出る');
+  ok(!optIds(mkCtx({}, { signi: [null, null, null] })).includes('signiTrash'), '場にシグニが無ければ選べない（0体回避の抜け道を作らない）');
+  cursor = savedCursor;
+});
+test('parse 第3波ガード：遅延トリガーの設置が前置きの形は据置（WX24-P4-011 / WXDi-P06-023）', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-LXI-DELAY', Type: 'ルリグ', EffectText: '【起】《白》：このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手が《無》《無》を支払わないかぎり、対戦相手にダメージを与える。' } as unknown as CardData)[0];
+  ok(!JSON.stringify(e.action).includes('OPPONENT_PAY_OPTIONAL'),
+    '「このターン、〜したとき、」＝遅延トリガーの設置はアクションを生む＝丸ごと包むと設置自体がゲートされる別物になるので据置');
 });
 // ── タスク12(lxi) 第2波：「対戦相手**は**」＝主語分配形（2026-07-30）──
 // 帰結の実行主体も対戦相手なので、帰結は原文どおり明示構築する（従来出力の流用は post-pass の

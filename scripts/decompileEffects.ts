@@ -615,6 +615,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'TRASH': {
       const t = a.target;
       const u = t?.type === 'HAND_CARD' ? '手札' : t?.type === 'ENERGY_CARD' ? 'エナ' : t?.type === 'DECK_CARD' ? 'デッキの上からカード' : '';
+      // targetsTriggerSource:「そのシグニ」= トリガー元シグニ（タスク12(lxi) 第3波）
+      if (t?.type === 'SIGNI' && a.targetsTriggerSource) return 'それ（トリガー元シグニ）をトラッシュに置く';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
       // untilHandCount:「手札がN枚になるように捨てる」＝固定枚数ではなく実行時の差（タスク12(lxiv)②）
@@ -897,7 +899,8 @@ function actionJa(a?: Action, effectType?: string): string {
           ? `このシグニの正面のシグニの${kinds.map((k: string) => `【${k}】`).join('')}能力は発動しない`
           : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
       }
-      return `${a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target)}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
+      const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      return `${subjRA}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
     }
     case 'GRANT_PROTECTION': {
       // CONTINUOUS の self/any count≠ALL（filter/subjectFilterなし）は engine 上「このシグニのみ」に解決される
@@ -1566,6 +1569,10 @@ function actionJa(a?: Action, effectType?: string): string {
           const bodyOPO = a.opponentEnergyTrash === 'ALL'
             ? 'エナゾーンのすべてのカードを' : `エナゾーンからカードを${a.opponentEnergyTrash}枚`;
           optsOPO.push({ dict: `${bodyOPO}トラッシュに置く`, te: `${bodyOPO}トラッシュに置いて` });
+        }
+        if (a.opponentSigniTrash !== undefined) {
+          const bodyOPO = `自分のシグニを${a.opponentSigniTrash}体`;
+          optsOPO.push({ dict: `${bodyOPO}場からトラッシュに置く`, te: `${bodyOPO}場からトラッシュに置いて` });
         }
         if (optsOPO.length === 0) return '対戦相手はコストを支払ってもよい';
         const headOPO = optsOPO.slice(0, -1).map(o => o.dict + 'か、').join('');

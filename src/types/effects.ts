@@ -873,6 +873,9 @@ export interface TrashAction {
   bestEffort?: boolean; // true = 対象がなくても後続SEQUENCEをスキップしない（「手札を1枚捨て、カードをN枚引く（捨てられなくても引く）」の捨て。WDK06-R20/WDK14-022）
   optional?: boolean; // true =「捨ててもよい」（スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない。WXDi-D08-013/P14-084）
   targetsStored?: boolean;
+  // 「そのシグニ」= トリガー元シグニ（場に出た／アタックした相手シグニ）を無選択で対象（ctx.triggeringCardNum → ctx.sourceCardNum）。
+  // REMOVE_ABILITIES 等と同形。タスク12(lxi) 第3波で追加（WXEX2-25-E1「そのシグニを場からトラッシュに置く」）。
+  targetsTriggerSource?: boolean;
   fixedCardNums?: string[];
   // 「手札がN枚になるようにカードを捨てる」＝**現在の手札枚数との差**だけ捨てる（DrawAction.untilHandCount の対）。
   // 従来は「閾値−N」を固定枚数で焼き込んでおり、閾値ちょうどのときしか正しくなかった（WX18-032-E2・タスク12(lxiv)②）。
@@ -1902,6 +1905,8 @@ export interface StubAction {
   opponentHandDiscardFilter?: TargetFilter;
   /** OPPONENT_PAY_OPTIONAL: avoidance by trashing this many of the opponent's own energy cards ('ALL' = whole energy zone). */
   opponentEnergyTrash?: number | 'ALL';
+  /** OPPONENT_PAY_OPTIONAL: avoidance by trashing this many of the opponent's own field SIGNI（「自分のシグニ１体を場からトラッシュに置かないかぎり」＝WX22-025-E3／WXDi-P16-088-E1。タスク12(lxi) 第3波）。 */
+  opponentSigniTrash?: number;
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

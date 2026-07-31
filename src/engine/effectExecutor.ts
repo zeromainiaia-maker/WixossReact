@@ -926,6 +926,13 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const trashFieldProtected = tgt.owner === 'opponent' ? new Set(ctx.otherTrashFieldProtectedNums ?? []) : new Set<string>();
     let cands = trashFieldProtected.size > 0 ? allSigCands.filter(n => !trashFieldProtected.has(n)) : allSigCands;
     if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
+    // targetsTriggerSource:「そのシグニ」＝トリガー元シグニを無選択で対象（targetsStored と同じく候補を絞る形）。
+    // タスク12(lxi) 第3波＝`WXEX2-25-E1`「対戦相手のシグニ１体が場に出たとき…そのシグニを場からトラッシュに置く」は
+    // 従来どのシグニでも選べる過剰対象化だった。
+    if (a.targetsTriggerSource) {
+      const trigTS = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+      cands = trigTS ? cands.filter(n => n === trigTS) : [];
+    }
     if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
     // SELF_TRASH_PREVENT（WX07-033・§6.1）: 自分（owner:self）の効果で自シグニをトラッシュに置く場合、
     // 「自分でトラッシュに置けない」シグニを候補から除外する（相手効果によるトラッシュは対象外）。
@@ -3202,6 +3209,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
                 target: { type: 'ENERGY_CARD', owner: 'opponent', count: enSpec === 'ALL' ? 'ALL' : enCount },
               } as EffectAction,
               available: cur.otherState.energy.length >= enCount,
+            }] : []),
+            // 「自分のシグニ１体を場からトラッシュに置く」枝（タスク12(lxi) 第3波）。相手が自分の場から選ぶので
+            // opponentSelects＝相手側の選択UIに載せる。場のシグニが足りなければ選べない。
+            ...(stub.opponentSigniTrash !== undefined && stub.opponentSigniTrash > 0 ? [{
+              id: 'signiTrash',
+              label: `自分のシグニを${stub.opponentSigniTrash}体トラッシュに置く`,
+              action: {
+                type: 'TRASH',
+                target: { type: 'SIGNI', owner: 'opponent', count: stub.opponentSigniTrash, filter: { cardType: 'シグニ' } },
+                opponentSelects: true,
+              } as EffectAction,
+              available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniTrash,
             }] : []),
             { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];

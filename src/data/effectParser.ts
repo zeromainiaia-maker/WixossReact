@@ -2021,17 +2021,34 @@ function wrapHandOrField(action: EffectAction, text: string): EffectAction {
 //     それは owner 等の解決が分割で狂った合図（WXDi-P05-TK01A＝「このシグニゾーンにあるシグニ」の
 //     owner が opponent→self へ反転した）。
 let _unlessGateBaselinePass = false;
-function parseOpponentUnlessCost(phrase: string): { costColors?: string[]; opponentHandDiscard?: number } | undefined {
+// 回避クローズの句を engine の回避手段語彙へ写す。⚠**engine の CHOOSE 枝に存在する手段だけ**を返す
+// （存在しない手段を落として他の手段だけ返すと「本当は回避できるのに回避できない」過剰実行になる）。
+// 語彙＝`costColors`／`opponentHandDiscard`(+`opponentHandDiscardFilter`)／`opponentEnergyTrash`／
+//       `opponentSigniTrash`（タスク12(lxi) 第3波で追加）。
+function parseOpponentUnlessCost(phrase: string):
+  { costColors?: string[]; opponentHandDiscard?: number; opponentEnergyTrash?: number; opponentSigniTrash?: number } | undefined {
   const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
-  let m = phrase.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
-  if (m) return { costColors: colorsOf(m[1]) };
-  m = phrase.match(/^手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
-  if (m) return { opponentHandDiscard: parseNum(m[1]) };
-  m = phrase.match(/^手札を([０-９\d一二三四五六七八九十]+)枚捨てるか((?:《[白赤青緑黒無]》)+)を支払わ$/);
-  if (m) return { costColors: colorsOf(m[2]), opponentHandDiscard: parseNum(m[1]) };
-  m = phrase.match(/^((?:《[白赤青緑黒無]》)+)を支払うか手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
-  if (m) return { costColors: colorsOf(m[1]), opponentHandDiscard: parseNum(m[2]) };
-  return undefined;
+  // 「AするかBするかC」の併記を語順非依存で読む。**1つでも読めない節があれば undefined**（＝据置）。
+  // 従来は2手段までの固定4パターンだった。
+  // ⚠区切りの「か」で split してはいけない＝「場**か**ら」「エナゾーン**か**ら」の「か」まで割れる。
+  //   左から選択肢を1つずつ食い、残りの先頭の区切り「か」「、」だけを剥がす。
+  //   語尾は辞書形（中間節）と未然形（最終節が「ないかぎり」に接続）の両方を許す。
+  const N = '([０-９\\d一二三四五六七八九十]+)';
+  const out: { costColors?: string[]; opponentHandDiscard?: number; opponentEnergyTrash?: number; opponentSigniTrash?: number } = {};
+  const ALTS: Array<[RegExp, (m: RegExpMatchArray) => void]> = [
+    [new RegExp('^((?:《[白赤青緑黒無]》)+)を支払(?:う|わ)'), m => { out.costColors = colorsOf(m[1]); }],
+    [new RegExp(`^(?:自分の)?手札を${N}枚捨て(?:る)?`), m => { out.opponentHandDiscard = parseNum(m[1]); }],
+    [new RegExp(`^(?:対象の)?(?:自分の)?エナゾーンから(?:対象の)?カード(?:を)?${N}枚を?トラッシュに置(?:く|か)`), m => { out.opponentEnergyTrash = parseNum(m[1]); }],
+    [new RegExp(`^(?:対象の)?自分のシグニ${N}体を場からトラッシュに置(?:く|か)`), m => { out.opponentSigniTrash = parseNum(m[1]); }],
+  ];
+  let rest = phrase.replace(/^[、,]/, '');
+  while (rest !== '') {
+    const hit = ALTS.map(([re, apply]) => ({ m: rest.match(re), apply })).find(x => x.m);
+    if (!hit) return undefined;
+    hit.apply(hit.m!);
+    rest = rest.slice(hit.m![0].length).replace(/^か?[、,]?/, '');
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 // 位置 idx が引用（「」/『』）の内側かどうか。
@@ -2045,29 +2062,103 @@ function isInsideQuote(text: string, idx: number): boolean {
   return depth > 0;
 }
 
+// ── タスク12(lxi) 第3波（2026-07-31）＝「基準読みを検査ではなく供給源に使う」──
+// 回避クローズが**本文の先頭**にある形では、ゲートされる X は「本文まるごと」＝基準読み（本規則を
+// 止めた1回パスの出力）そのものになる。分割再パースは要らないどころか、分割した瞬間に
+//  ・複文（「あなたは以下の２つから１つを選ぶ。①…②…」）が1文目しか読めない（`SPDi43-02-E1`）
+//  ・owner が反転する（`WXDi-P05-TK01A-E1` の「このシグニゾーンにあるシグニ」＝opponent→self）
+//  ・「そのシグニ」照応が指し先を失う（`WXDi-P08-007-E1`／`WXEX2-25-E1`）
+// といった退化を起こす。これらは第1波で「除外①複文／⑦純加算チェック不一致／③そのシグニ」として
+// 据え置いた 5効果だが、**原因は分割そのもの**だった。第2波（「は」形）が既に採った
+// 「基準読みを then に使う」形へ寄せると新語彙0で全部開く。
+//
+// ⚠基準読みを使ってよいのは「クローズより前にアクションが無い」ときだけ。前にアクションがあると
+//   （`WX24-P2-022-E1`「カードを１枚引き、対戦相手が…」）基準読みにはその引きも入っており、
+//   丸ごと包むと**回避されたら引きも消える過少実行**になる＝従来どおり据置（除外②）。
+// ⚠基準読みが**この family の専用 STUB を既に吐いている**場合も据置。専用機構が対話まで持っている
+//   ものを二重に包むと相手に CHOOSE が2回出る（`WXDi-P13-075-E1` の `UPKEEP_OR_NO_UP` 等）。
+const OPP_PAY_DEDICATED_STUB_RE =
+  /"id":"(?:OPPONENT_PAY_OPTIONAL|OPP_ENERGY_OR_DISCARD_CONDITION|OPP_DISCARD_OR_PAY_ENERGY|TARGET_OPP_SIGNI_ONLY|UPKEEP_OR_NO_UP|DO_THREE_THINGS|GUARD_EXTRA_COST_BY_OPP|LRIG_GROW_RESTRICT)"/;
+// クローズの前に置けても**アクションを生まない**前置き。基準読みに寄与しないので丸ごと包んでよい：
+//  ・時点の限定句（`WX25-CP1-012-E1`「…クラッシュしたとき、そのアタック終了時、対戦相手が…」）
+//  ・**トリガー句そのものが残っている形**（`WXEX2-25-E1`「対戦相手のシグニ１体が…場に出たとき、
+//    対戦相手が手札を１枚捨てないかぎり、そのシグニを場からトラッシュに置く」）＝トリガー句は
+//    タイミング判定側で消費されアクションを生まないので、X＝本文まるごと。
+// ⚠「このターン終了時、」＝**遅延トリガーの設置**はここに入れない（アクションを生む＝丸ごと包むと
+//   設置自体がゲートされる別物になる。`WXDi-P06-023-E2` は据置のまま）。
+// ⚠タイミングの近似はここでは変えない（本規則が足すのはゲートだけ）。
+function isNoActionPrefix(prefix: string): boolean {
+  if (/^(?:その)?アタック終了時[、,]$/.test(prefix)) return true;
+  // 「このターン、〜したとき、」「次の〜」＝**遅延トリガーの設置**は除く（設置というアクションを生む形＝
+  // 丸ごと包むと設置自体がゲートされる別物になる。WX24-P4-011-E3／WXDi-P06-023-E2）。
+  if (/^(?:このターン|次の|次に)/.test(prefix)) return false;
+  return /^[^。]{2,60}たとき[、,]$/.test(prefix);
+}
+
+// 回避クローズの位置と手段を取る。⚠読点を含まない厳格形を**先に**試す＝3手段併記
+// （`WX22-025-E3`「対戦相手が、Aするか、Bするか、Cしないかぎり」）だけが読点許容形に落ちる。
+// 最初から読点を許すと、同一文に別の「対戦相手が」が先行する場合に左側の誤マッチを拾って
+// 既存カードが据置に落ちるため、段階的に緩める。
+function findOpponentUnlessGate(t: string):
+  { index: number; length: number; cost: NonNullable<ReturnType<typeof parseOpponentUnlessCost>> } | undefined {
+  for (const re of [/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/, /対戦相手が([^。「」]{2,70}?)ないかぎり[、,]?/]) {
+    const m = t.match(re);
+    if (!m || m.index === undefined) continue;
+    const cost = parseOpponentUnlessCost(m[1]);
+    if (cost) return { index: m.index, length: m[0].length, cost };
+  }
+  return undefined;
+}
+
 function matchOpponentUnlessGate(t: string): EffectAction | undefined {
-  if (_unlessGateBaselinePass) return undefined;   // 除外⑦の基準読み計算中は自分を無効化
-  const gateM = t.match(/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/);
-  if (!gateM || gateM.index === undefined) return undefined;
-  const cost = parseOpponentUnlessCost(gateM[1]);
-  if (!cost) return undefined;                                     // 除外⑤
+  if (_unlessGateBaselinePass) return undefined;   // 基準読み計算中は自分を無効化
+  const gateM = findOpponentUnlessGate(t);
+  if (!gateM) return undefined;                                    // 除外⑤（engine に無い回避手段を含む）
+  const cost = gateM.cost;
   if (isInsideQuote(t, gateM.index)) return undefined;             // 除外⑥
   const prefix = t.slice(0, gateM.index);
-  const thenText = t.slice(gateM.index + gateM[0].length);
-  if (prefix !== '' && !/を?対象とし[、,]$/.test(prefix)) return undefined;   // 除外②
-  if (/^(?:ターン終了時まで[、,])?そのシグニ/.test(thenText)) return undefined; // 除外③
+  const thenText = t.slice(gateM.index + gateM.length);
   if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined; // 除外④
-  const unlessThen = parseSingleSentence(prefix + thenText);
-  if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
-  // 除外⑦：クローズを外す前の読み（本規則を止めた1回パス）と一致しなければ据置。
+  const seq = (then: EffectAction): SequenceAction => ({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as EffectAction,
+  ] } as SequenceAction);
+
+  // 基準読み＝本規則を止めた1回パス（＝回避クローズを無言消費した従来の出力）
   _unlessGateBaselinePass = true;
   let baseline: EffectAction;
   try { baseline = parseSingleSentence(t); } finally { _unlessGateBaselinePass = false; }
-  if (JSON.stringify(baseline) !== JSON.stringify(unlessThen)) return undefined;
-  return { type: 'SEQUENCE', steps: [
-    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
-    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: unlessThen } as EffectAction,
-  ] } as SequenceAction;
+  const baselineS = JSON.stringify(baseline);
+
+  // ── A) クローズが本文の先頭（＝前にアクションが無い）⇒ X は本文まるごと＝基準読みを供給源に使う
+  if (prefix === '' || isNoActionPrefix(prefix)) {
+    if (baselineS.includes('"UNKNOWN"')) return undefined;
+    if (OPP_PAY_DEDICATED_STUB_RE.test(baselineS)) return undefined;
+    return seq(bindUnlessGateAnaphora(thenText, baseline));
+  }
+
+  // ── B) 対象節が前置きされた文中形 ⇒ 対象節を帰結の前へ戻して再パース（第1波の形）
+  if (!/を?対象とし[、,]$/.test(prefix)) return undefined;   // 除外②
+  const unlessThen = parseSingleSentence(prefix + thenText);
+  if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
+  // 純加算チェック＝分割で読みが変わったら分割が解決を狂わせた合図なので据置
+  if (baselineS !== JSON.stringify(unlessThen)) return undefined;
+  return seq(unlessThen);
+}
+
+// 帰結が「（ターン終了時まで、）そのシグニ〜」＝**トリガー元シグニ**への照応なら、対象選択ではなく
+// 無選択でトリガー元へ当てる（`targetsTriggerSource`）。基準読みは「相手のシグニ1体を選ぶ」形に
+// 落ちており、ゲートを足しても**別のシグニを撃てる**過剰対象化が残るため（`WXDi-P08-007-E1`＝
+// アタックしたそのシグニ／`WXEX2-25-E1`＝場に出たそのシグニ）。
+// ⚠executor が `targetsTriggerSource` を honor する型だけに刻む（honor しない型に付けると黙って
+//   無視され「対象を選び直させるだけ」の退化になる＝タスク12(lxiv) で踏んだ罠と同じ）。
+const TRIGGER_SOURCE_BINDABLE = ['REMOVE_ABILITIES', 'TRASH', 'POWER_MODIFY', 'UP', 'GRANT_KEYWORD', 'GRANT_PROTECTION'];
+function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectAction {
+  if (!/^(?:ターン終了時まで[、,])?そのシグニ/.test(thenText)) return action;
+  if (!TRIGGER_SOURCE_BINDABLE.includes(action.type)) return action;
+  const withTgt = action as EffectAction & { target?: EffectTarget; targetsTriggerSource?: boolean };
+  if (withTgt.target?.type !== 'SIGNI') return action;
+  return { ...action, targetsTriggerSource: true } as EffectAction;
 }
 
 // ── タスク12(lxi) 第2波「対戦相手は〜しないかぎり、X」＝主語分配形（2026-07-30）──
@@ -5066,6 +5157,28 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 「〈回避クローズ〉、（あなたは）以下のNつから1つを選ぶ。①…②…」＝タスク12(lxi) 第3波。
+  // 帰結が複文（選択肢が別文）なので matchOpponentUnlessGate（単文パス）には届かず、
+  // CHOOSE だけが組まれて**回避クローズが無言消費**されていた＝相手が払っても選択が走る過剰実行
+  // （`SPDi43-02-E1`／`SPDi43-07-E1`）。ここで CHOOSE を組んでからゲートで包む。
+  if (!_unlessGateBaselinePass) {
+    const t0 = text.trim();
+    const g = findOpponentUnlessGate(t0);
+    if (g && g.index === 0) {
+      const rest = t0.slice(g.length);
+      const headM2 = rest.match(/^(?:あなたは)?以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
+      if (headM2 && /[①②③④⑤]/.test(rest) && !/代わりに[^。①②③④⑤]*選ぶ/.test(rest) && !/選んだ能力を得る/.test(rest)) {
+        const chosenG = buildChoose(rest, parseNum(headM2[1]));
+        if (chosenG) {
+          return { type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...g.cost } as StubAction,
+            { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: chosenG } as EffectAction,
+          ] } as SequenceAction;
+        }
+      }
+    }
+  }
+
   // 使用条件文が CHOOSE ヘッダに前置される型（「このアーツは対戦相手のターンにしか使用できない。以下の…選ぶ。①…」
   // ＝WXK11-003）。従来はヘッダが text 先頭でないため CHOOSE が組まれず、①②行が文フィルタで落ちて
   // 選択構造ごと消え、①内の後続文が単独 mis-parse する幻覚が出ていた。前置文はこの1文型に限定（過剰マッチ防止）。
@@ -7625,9 +7738,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // CardEffect.condition へ持ち上げる（上の fieldLevelSetM の一般化）。WX24-P2-048「あなたの場に《満月の使徒
   // 小湊るう子》がいる場合、以下の２つから１つを選ぶ」は従来この条件が脱落し、毎アタックフェイズ開始時に無条件で
   // CHOOSE が発火する過剰効果だった（タスク12(xxxix)）。engine 対応済みの STATE_CONDITION_CLAUSES 型に限定。
+  // ⚠状態条件と CHOOSE ヘッダの間に**回避クローズ**が挟まる形もある（`SPDi43-07-E1`＝「あなたの場に
+  //   《…》がいる場合、対戦相手が手札を２枚捨てないかぎり、あなたは以下の２つから１つを選ぶ。」）。
+  //   クローズを読み飛ばしてヘッダ判定する＝条件は効果レベルへ、クローズは下流の CHOOSE ゲート規則が拾う。
+  const skipUnlessClause = (s: string): string => {
+    const g = findOpponentUnlessGate(s);
+    return g && g.index === 0 ? s.slice(g.length) : s;
+  };
   if (actionText && !/^以下の/.test(actionText)) {
     const cm = matchLeadingStateCondition(actionText);
-    if (cm && /^以下の[０-９\d一二三四五六七八九]/.test(cm.rest)) {
+    if (cm && /^(?:あなたは)?以下の[０-９\d一二三四五六七八九]/.test(skipUnlessClause(cm.rest))) {
       extractedTriggerCondition = extractedTriggerCondition
         ? { type: 'AND', conditions: [extractedTriggerCondition, cm.condition] }
         : cm.condition;
