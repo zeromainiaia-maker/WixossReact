@@ -6407,7 +6407,6 @@ function isKnownUnwiredAutoTrigger(text: string): boolean {
     /パワー[０-９\d]+以上のシグニが対戦相手のシグニ[０-９\d]+体をバニッシュしたとき/,
     /ライフクロス[０-９\d]+枚がクラッシュされるかトラッシュに置かれたとき/,
     /【出】能力か【出】能力の効果の対象になったとき/,
-    /このカードがシグニの下に置かれたとき/,
     /対戦相手の効果[０-９\d]+つによって[^。]*(?:手札|エナゾーン)[^。]*(?:捨てられるか|トラッシュに置かれたとき)/,
     /あなたの効果によって対戦相手のシグニ[０-９\d]+体が手札に戻るかトラッシュに置かれたとき/,
     /コストか効果によってあなたが《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/,
@@ -6846,6 +6845,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 実トリガーの「ターン終了時、/に」のみ ON_TURN_END とする。
              : /ターン終了時(?!まで)/.test(trigText) ? ['ON_TURN_END']
              : trigText.includes('ターン開始時') ? ['ON_TURN_START']
+             // 「このカードがシグニの下に置かれたとき」（WXDi-P11-063-E2＝1件）。engine 配線済み＝
+             // INTERNAL_PLACE_SELF_UNDER_SIGNI（execStubPart2）が配置直後に、この timing を持つ AUTO を
+             // 直接実行する（汎用 collector は無く、下に置く経路がここ1本しかないため）。timing が無いと
+             // その find が外れて丸ごと no-op になっていた。
+             : /この(?:カード|シグニ)がシグニの下に置かれたとき/.test(trigText) ? ['ON_PLACED_UNDER_SIGNI']
              // ⚠ここに落ちる＝【自】なのに timing 判定が全て外れて ON_PLAY（「場に出たとき」）になった。原文に
              //   「…とき/…時」があるならそれは別トリガーの取りこぼし＝timing 語彙の欠落。計器に刻む（parseStatus は不変）。
              : isKnownUnwiredAutoTrigger(trigText)

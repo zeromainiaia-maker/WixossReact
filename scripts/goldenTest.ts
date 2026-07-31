@@ -19275,6 +19275,71 @@ test('WXK11-049-E1: 既存の素の leftToZone:"hand" は従来どおり手札�
   eq(run('trash'), 0, 'トラッシュでは発火しない（互換表記が配列化で緩まないこと）');
 });
 
+// タスク16: WXDi-P11-063-E2「このカードがシグニの下に置かれたとき、ターン終了時まで、このカードの上に
+//   あるシグニのパワーを＋2000する」＝timing（ON_PLACED_UNDER_SIGNI）と対象（aboveSelf）の両方が落ちて
+//   「timing なしの no-op ＋ 場のシグニ1体を任意選択」になっていた。
+test('WXDi-P11-063-E2: parser は ON_PLACED_UNDER_SIGNI＋POWER_MODIFY{aboveSelf} を生成', () => {
+  const e = parseCardEffects(cardMap.get('WXDi-P11-063')!).find(x => x.effectId === 'WXDi-P11-063-E2')!;
+  eq(e.timing?.join(','), 'ON_PLACED_UNDER_SIGNI');
+  eq(e.duration, 'UNTIL_END_OF_TURN');
+  const a = e.action as { type: string; delta: number; target: { owner: string; count: number; filter?: Record<string, unknown> } };
+  eq(a.type, 'POWER_MODIFY');
+  eq(a.delta, 2000);
+  eq(a.target.owner, 'self', '任意選択（owner:any）ではなくホスト宛');
+  eq(a.target.filter?.aboveSelf, true);
+});
+test('aboveSelf 兄弟3枚: ＜クラス＞/色/《名前》の限定が対象フィルタへ乗る', () => {
+  const cls = parseCardEffects(cardMap.get('WXK08-086')!)[0].action as { target: { filter?: Record<string, unknown> } };
+  eq(cls.target.filter?.aboveSelf, true); eq(cls.target.filter?.cardClass, 'ウェポン');
+  const col = parseCardEffects(cardMap.get('WXDi-P03-057')!).find(x => x.effectId === 'WXDi-P03-057-E2')!
+    .action as { target: { filter?: Record<string, unknown> } };
+  eq(col.target.filter?.aboveSelf, true); eq(col.target.filter?.color, '赤');
+  const nameSteps = (parseCardEffects(cardMap.get('WXDi-P05-060')!)[0].action as SequenceAction).steps;
+  const pm = nameSteps.find(s => s.type === 'POWER_MODIFY') as unknown as { target: { filter?: Record<string, unknown> } };
+  eq(pm.target.filter?.aboveSelf, true); eq(pm.target.filter?.cardName, 'コードアクセル　ヒャッハー');
+});
+test('execPowerModify aboveSelf: スタック最前面（ホスト）へ選択UIなしで加算／自分が最前面なら不発', () => {
+  const host = 'WXK08-030', under = 'WXDi-P11-063';
+  const act = { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { aboveSelf: true } }, delta: 2000 } as unknown as EffectAction;
+  // 下に置かれている場合＝ホストへ +2000
+  const ctx = mkCtx({}, {}, under);
+  ctx.ownerState.field.signi[0] = [under, host];
+  const r = run(act, ctx);
+  const mods = (r.ownerState.temp_power_mods ?? []) as { cardNum: string; delta: number }[];
+  eq(mods.length, 1, '1件だけ積む');
+  eq(mods[0].cardNum, host, '加算先はスタック最前面のシグニ');
+  eq(mods[0].delta, 2000);
+  // 自分が最前面＝「上にあるシグニ」が存在しない → 自己バフに化けない
+  const ctx2 = mkCtx({ signi: [under, null, null] }, {}, under);
+  eq(((run(act, ctx2).ownerState.temp_power_mods ?? []) as unknown[]).length, 0, '自己適用しない');
+});
+test('calcFieldPowers aboveSelf: 下カードの【常】がホストに乗る／最前面にいる間は自己バフしない（WXK08-086）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const host = 'WXK08-030', under = 'WXK08-086'; // host は＜ウェポン＞
+  const base = parseInt(cm.get(host)?.Power || '0');
+  const st = mkState({}); st.field.signi[0] = [under, host];
+  eq(calcFieldPowers(st, mkState({}), true, effectsMap, cm).get(host), base + 2000, 'ホストへ+2000');
+  // 自分が場の最前面にいるとき（＝下に置かれていない）は自分に乗らない
+  const selfTop = mkState({ signi: [under, null, null] });
+  eq(calcFieldPowers(selfTop, mkState({}), true, effectsMap, cm).get(under),
+    parseInt(cm.get(under)?.Power || '0'), '自己バフしない');
+  // ホストが＜ウェポン＞でなければ加算しない
+  const other = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('ウェポン'));
+  const st2 = mkState({}); st2.field.signi[0] = [under, other];
+  eq(calcFieldPowers(st2, mkState({}), true, effectsMap, cm).get(other),
+    parseInt(cm.get(other)?.Power || '0'), '＜クラス＞限定はホスト側で判定');
+});
+test('INTERNAL_PLACE_SELF_UNDER_SIGNI: 配置後に ON_PLACED_UNDER_SIGNI が発火しホストが＋2000（WXDi-P11-063）', () => {
+  const host = 'WXDi-P11-051', spell = 'WXDi-P11-063';
+  const ctx = mkCtx({ signi: [host, null, null] }, {}, spell);
+  ctx.ownerState.trash = [...ctx.ownerState.trash, spell];
+  const r = run({ type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI', value: host } as unknown as EffectAction, ctx);
+  eq(JSON.stringify(r.ownerState.field.signi[0]), JSON.stringify([spell, host]), 'スペルがホストの下へ');
+  const mods = (r.ownerState.temp_power_mods ?? []) as { cardNum: string; delta: number }[];
+  eq(mods.length, 1, '【自】が1回だけ発火');
+  eq(mods[0].cardNum, host); eq(mods[0].delta, 2000);
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

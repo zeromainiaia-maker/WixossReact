@@ -1547,6 +1547,32 @@ export function calcFieldPowers(
       }
     }
 
+    // スタック下カードの CONTINUOUS「このカードの上にあるシグニのパワーを＋N」をホストへ適用（aboveSelf）。
+    // 上の candidates は各ゾーンの**最前面だけ**を効果元として走査するため、下に置かれたカードの能力は
+    // 一切拾われない。ここは aboveSelf を持つ POWER_MODIFY に限って下カードを見に行く（signi_acce ループの
+    // スタック版。＜クラス＞/《名前》/色 限定はホスト側を matchesFilter で判定）。
+    // ⚠activeCondition 付きは評価器を通していないので適用しない（過剰実行を作らない側へ倒す）。
+    for (const stack of ownerState.field.signi) {
+      if (!stack || stack.length < 2) continue;
+      const hostNumAS = stack[stack.length - 1];
+      if (!powers.has(hostNumAS)) continue;
+      for (const underNum of stack.slice(0, -1)) {
+        for (const eff of (effectsMap.get(underNum) ?? [])) {
+          if (eff.effectType !== 'CONTINUOUS' || eff.activeCondition) continue;
+          const actAS = eff.action;
+          if (actAS.type !== 'POWER_MODIFY') continue;
+          const pmAS = actAS as import('../types/effects').PowerModifyAction;
+          if (!pmAS.target?.filter?.aboveSelf || typeof pmAS.delta !== 'number') continue;
+          const restAS = { ...pmAS.target.filter }; delete restAS.aboveSelf;
+          if (Object.keys(restAS).length > 0) {
+            const hostBaseAS = hostNumAS.includes('#') ? hostNumAS.slice(0, hostNumAS.indexOf('#')) : hostNumAS;
+            if (!matchesFilter(cardMap.get(hostBaseAS), restAS)) continue;
+          }
+          applyDeltaToCard(hostNumAS, pmAS.delta, powers, ownerPowerProtection);
+        }
+      }
+    }
+
     // FROZEN_LOSES_ABILITIES: otherState の LRIG にこの CONT があれば ownerState の凍結シグニをスキップ
     const frozenLosesAbilities = otherState.field.lrig.some(lrigNum => {
       return (effectsMap.get(lrigNum) ?? []).some(eff =>
@@ -1663,6 +1689,10 @@ export function calcFieldPowers(
             // 効果元（このカード）が場のシグニのときは自己適用しない。実際のホスト加算は
             // 下の signi_acce ループ（このカードがアクセとして付いている場合）が行う。
             if (target.filter?.acceHost) continue;
+            // aboveSelf:「このカードの上にあるシグニ」＝このカードがスタック下に置かれているときのホスト宛。
+            // 効果元（このカード）が最前面にいる間は「上にあるシグニ」が存在しない＝自己適用しない。
+            // 実際のホスト加算は下のスタック下カードループが行う。
+            if (target.filter?.aboveSelf) continue;
             const card = cardMap.get(topNum);
             if ((target.owner === 'self' || target.owner === 'any') &&
                 matchesFilter(card, target.filter) &&

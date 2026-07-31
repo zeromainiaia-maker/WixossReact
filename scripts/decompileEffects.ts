@@ -645,7 +645,9 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': {
-      const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : (a.targetsLastProcessed || a.targetsStored) ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
+      // aboveSelf は「このカードの上にある[＜X＞の/《名》/色の]シグニ」＝ホスト宛（owner 接頭辞は出さない）。
+      const aboveRest = a.target?.filter?.aboveSelf ? { ...a.target.filter, aboveSelf: undefined } : undefined;
+      const pmSubj = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : (a.targetsLastProcessed || a.targetsStored) ? 'それ' : a.target?.filter?.acceHost ? 'これにアクセされているシグニ' : a.target?.filter?.aboveSelf ? `このカードの上にある${filterJa(aboveRest)}${a.target.filter.cardName ? '' : 'シグニ'}` : a.target?.filter?.thisCardOnly ? 'このシグニ' : targetJa(a.target, 'シグニ', a.excludeSelf);
       if (a.deltaFromOppPowerDecrease) return `${pmSubj}のパワーを減った値と同じだけ＋する`;
       // deltaPerLastProcessedCount: 倍率は「この方法で（直前ステップで）処理した枚数」（タスク12(lx)②）
       if (a.deltaPerLastProcessedCount) {
@@ -2266,6 +2268,7 @@ const timingJa: Record<string, string> = {
   ON_HAND_DISCARDED: 'ガードステップ以外であなたが手札を捨てたとき',
   ON_DISCARDED_AS_COST: 'このカードがシグニ能力のコストとして手札から捨てられたとき',
   ON_EXCEED_COST: 'このカードがエクシードのコストとしてルリグトラッシュに置かれたとき',
+  ON_PLACED_UNDER_SIGNI: 'このカードがシグニの下に置かれたとき',
   ON_OPP_VIRUS_PLACED: '対戦相手の場に【ウィルス】が置かれたとき',
   ON_OPP_VIRUS_REMOVED: '対戦相手の場から【ウィルス】が取り除かれたとき',
   ON_OPP_VIRUS_CHANGED: '対戦相手の場に【ウィルス】が置かれるか取り除かれたとき',

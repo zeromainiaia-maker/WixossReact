@@ -1407,7 +1407,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     let isTriggerSource = false;
     let excludeSelf = false;
     const iconM = t.match(/(あなた|対戦相手)の《(クロス|ライズ|トラップ|アクセ)アイコン》を持つシグニのパワーを/);
-    if (iconM) {
+    // 「このカードの上にある[＜クラス＞の|《名前》|色の]シグニのパワーを±N」＝このカードが**下に置かれている**
+    // スタックの最前面シグニ（＝ホスト）宛。acceHost の兄弟で、装着経路がスタック下である点だけが違う。
+    // ⚠これが無いと下の else へ落ちて owner:'any'/count:1＝「場のシグニ1体を任意選択」という別物になっていた
+    //   （CONTINUOUS 側は effectEngine が count≠ALL を「効果元自身」に解決するため**自分に**バフする過剰実行）。
+    const aboveSelfM = t.match(/このカードの上にある(＜[^＞]+＞の|《[^》]+》|[白赤青緑黒]の)?(?:シグニ)?のパワーを/);
+    if (aboveSelfM) {
+      const mod = aboveSelfM[1] ?? '';
+      const aboveFilter: TargetFilter = { aboveSelf: true };
+      const clsM = mod.match(/^＜([^＞]+)＞の$/);
+      if (clsM) aboveFilter.cardClass = clsM[1];
+      const nameM = mod.match(/^《([^》]+)》$/);
+      if (nameM) aboveFilter.cardName = nameM[1];
+      const colM = mod.match(/^([白赤青緑黒])の$/);
+      if (colM) aboveFilter.color = colM[1];
+      target = { type: 'SIGNI', owner: 'self', count: 1, filter: aboveFilter };
+    } else if (iconM) {
       // 「あなたの《クロスアイコン》を持つシグニのパワーを＋Nする」等。対象は該当アイコン持ち全シグニ
       const owner: Owner = iconM[1] === 'あなた' ? 'self' : 'opponent';
       target = { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', hasIcon: iconM[2] as 'クロス' | 'ライズ' | 'トラップ' | 'アクセ' } };

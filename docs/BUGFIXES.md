@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク16：`WXDi-P11-063-E2`「このカードがシグニの下に置かれたとき」＋「このカードの上にあるシグニ」（5効果・Claude 実装）
+
+原文「【自】：このカードがシグニの下に置かれたとき、ターン終了時まで、**このカードの上にあるシグニ**のパワーを＋2000する。」（スペル《無心の豪圧》＝本体で自分自身をメモリア3種のいずれかの下に置ける）。live は `timing:[]` の**安全停止**で、本体も `POWER_MODIFY{target:{owner:'any',count:1}}`＝**場のシグニ1体を任意選択**という別物になっていた。
+
+**穴は3層あり、どれか1つでも残ると no-op か別物になる**：
+
+1. **parser：timing 語彙が無い**（`isKnownUnwiredAutoTrigger` に登録された停止形）。⇒ `ON_PLACED_UNDER_SIGNI` を生成する規則を追加し、停止リストから外した。
+2. **parser：対象語彙が無い**。「このカードの上にあるシグニ」は `parseSentencePart1` のパワー修整チェーンの**最後の else** に落ちて `owner:'any'/count:1` に潰れていた。⇒ **`TargetFilter.aboveSelf`**（既存 `acceHost` の兄弟＝装着経路が【アクセ】ではなく**スタック下**）を新設。＜クラス＞/《名前》/色の限定も名詞句から拾う。
+3. **🔴 engine：唯一の発火地点が到達不能だった**。`INTERNAL_PLACE_SELF_UNDER_SIGNI` は **execStubPart1 と execStubPart2 に同名で2つあり**、`execStub` は part1→part2 の順に引く。part1 側（`lastProcessedCards` から対象を取る選択UI変種）は**必ず値を返す**ため、part2 側（`stub.value` のホスト＋配置後に `ON_PLACED_UNDER_SIGNI` を実行する変種）は**丸ごと死にコード**だった。⇒ part1 を `stub.value == null` に限定して素通りさせた（生成元は part1:610 が value なし・part2:3285 が value 付きで**排他**）。
+
+**engine の honor は2経路**：
+- AUTO/ACTIVATED＝`execPowerModify` が `resolveAboveSelfCardNum`（効果元カードを**含むが最前面ではない**スタックの頂点）で1体に確定し、**選択UIを出さずに**適用する（原文に「を対象とし」が無い＝対象化もしないので `autoTargetedCards` には積まない）。
+- CONTINUOUS＝`calcFieldPowers` に「スタック下カード→ホスト」ループを新設（`signi_acce` ループのスタック版）。効果元が最前面にいる間は**自己適用しない**（`acceHost` と同じ `continue`）。
+
+**同文型の兄弟4効果も同時に是正**（`WXK08-086-E1`／`WXDi-P03-057-E2`／`WXDi-P05-050-E2`／`WXDi-P05-060-E1`）。これらは【常】で、`calcFieldPowers` が `count≠ALL` を「効果元自身」に解決する既存規則により **自分に +N していた過剰実行**（例：《弩書》の下に潜る前から自分が +2000）。`aboveSelf` を付けたことで自己バフが止まり、下に置かれたときだけホストに乗る。`WXDi-P05-050` はカード単位 PRESERVE（E1 が MANUAL）なので E2 だけ外科パッチ＝parser 出力と一致（`parseStatus` のみ差）。
+
+⚠**新 collector・新 timing 収集経路はゼロ**。`ON_PLACED_UNDER_SIGNI` は汎用 collector を持たず、配置スタブが直接 `find(timing.includes(...))` して実行する形のまま（下に置く経路がこの1本しかないため）。型定義の「※配置機構が未実装のため現状発火しない」というコメントは実態と食い違っていたので更新した。
+
+golden **1190→1195**（parser 出力5効果／`aboveSelf` の解決と自己バフしないこと／`calcFieldPowers` の下カード→ホスト＋＜クラス＞限定／**配置スタブ経由で実際にホストが+2000される E2E**）、census **1361→1358**（`BASELINE_HIGH=1358`。⚠**是正は5効果だが減少は3**＝高シグナル総数は重複除外なので、5件とも指摘集合から抜けたうち3件分しか総数に効かない。5件全数が `_vocab_census.txt` の指摘から消えていることは diff で確認済み）、`census:timing` **18→17**（実質15）、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/234 warnings 据置、同型★0（5986枚・265群）、held 251枚/98署名 据置、manual field loss 0。live per-effect 差分 **changed 5 / added 0 / removed 0**。⚠**実機UI 未検証**。
+
 ## 2026-07-31 — タスク16：`WXDi-CP02-068-E1` 離脱先の OR（手札かトラッシュ）（1効果・Claude 実装）
 
 原文「【自】《ターン１回》：あなたのターンの間、あなたの効果によって対戦相手のシグニ１体が**手札に戻るかトラッシュに置かれた**とき、あなたのデッキの一番上を公開する。そのカードが＜ブルアカ＞の場合、【エナチャージ１】をする。」。live は `timing:[]` の**安全停止**で、本体（`REVEAL_AND_PICK{filter:＜ブルアカ＞, then:エナチャージ}`）は既に原文どおり。

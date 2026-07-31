@@ -76,7 +76,7 @@ export type EffectTiming =
   | 'ON_SPELL_USE'              // あなたがスペルを使用したとき
   | 'ON_DISCARDED_AS_COST'      // このカードがシグニ能力のコストとして手札から捨てられたとき
   | 'ON_EXCEED_COST'            // このカードがエクシードのコストとしてルリグトラッシュに置かれたとき
-  | 'ON_PLACED_UNDER_SIGNI'     // このカードがシグニの下に置かれたとき（※配置機構が未実装のため現状発火しない）
+  | 'ON_PLACED_UNDER_SIGNI'     // このカードがシグニの下に置かれたとき（INTERNAL_PLACE_SELF_UNDER_SIGNI が配置直後に直接発火させる＝汎用 collector は無い）
   | 'ON_OPP_VIRUS_PLACED'       // 対戦相手の場に【ウィルス】が置かれたとき（WX19-079。opp_virus_placed_justフラグで発火）
   | 'ON_OPP_VIRUS_REMOVED'      // 対戦相手の場の【ウィルス】が取り除かれたとき（WD19-009。opp_virus_removed_justフラグで発火）
   | 'ON_OPP_VIRUS_CHANGED'      // 対戦相手の場に【ウィルス】が置かれるか取り除かれたとき（WX21-030。opp_virus_placed/removed_justフラグで発火）
@@ -523,6 +523,11 @@ export interface TargetFilter {
   colorExclude?: string | string[]; // この色を含むカードを除外（resolveDynamicFilterが解決後にセット）
   hasAcce?:   boolean; // アクセが付いている
   acceHost?:  boolean; // 「これにアクセされているシグニ」＝このカードがアクセとして装着されているホストシグニ。CONTINUOUS POWER_MODIFY のホスト宛バフ（calcFieldPowers の signi_acce ループが適用）。主体が場のシグニのときは自己適用しない
+  // 「このカードの上にあるシグニ」＝このカードが**下に置かれている**スタックの最前面シグニ（＝ホスト）。
+  // acceHost の兄弟で、装着経路が【アクセ】ではなくスタック下（下に置く）である点だけが違う。
+  // AUTO/ACTIVATED は execPowerModify が sourceCardNum を含むスタックの頂点へ解決し、CONTINUOUS は
+  // calcFieldPowers の「下カード→ホスト」ループが加算する（主体が場の最前面シグニのときは自己適用しない）。
+  aboveSelf?: boolean;
   hasIcon?:   'クロス' | 'ライズ' | 'トラップ' | 'アクセ'; // 《Xアイコン》を持つカード（カードテキストのキーワード有無で判定する近似）
   hasLifeBurst?: boolean; // 《ライフバースト》を持つカード
   infected?:  boolean; // 感染状態（ウィルスのあるゾーンのシグニ）

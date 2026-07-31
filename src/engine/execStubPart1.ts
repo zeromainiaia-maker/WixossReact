@@ -627,8 +627,12 @@ export function execStubPart1(
     }
     return done(addLog(ctx, 'カードをシグニの下に置く（スキップ）'));
   }
-  // INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動
-  if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI') {
+  // INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動。
+  // ⚠同名スタブが execStubPart2 にもあり、そちらは「スペル自身を stub.value のシグニの下に置き
+  //   ON_PLACED_UNDER_SIGNI を発火する」別変種（生成元は TRAP_OPERATION の選択肢）。execStub は part1→part2 の
+  //   順に引くため、value 付きはここで引き取らずに素通りさせる（従来はここが必ず done を返し、
+  //   part2 のハンドラが丸ごと到達不能だった）。value なし＝選択UI経由（上の PLACE_CARD_UNDER_SIGNI）だけを見る。
+  if (stub.id === 'INTERNAL_PLACE_SELF_UNDER_SIGNI' && stub.value == null) {
     const targetCnIPSUS = ctx.lastProcessedCards?.[0];
     const srcCnIPSUS = ctx.sourceCardNum;
     if (!targetCnIPSUS || !srcCnIPSUS) return done(addLog(ctx, '対象なし'));

@@ -273,6 +273,23 @@ export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'oth
   return ctx.otherState.field.signi[2 - zi]?.at(-1) ?? null;
 }
 
+/**
+ * filter.aboveSelf:「このカードの上にあるシグニ」＝効果元カード（sourceCardNum）が**下に置かれている**
+ * スタックの最前面シグニ。効果元が最前面（＝自分自身がホスト）の場合は該当なし＝null を返す
+ * （自己バフに化けさせない）。WXDi-P11-063-E2（ON_PLACED_UNDER_SIGNI）で使用。
+ */
+export function resolveAboveSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'sourceCardNum'>): string | null {
+  const self = ctx.sourceCardNum;
+  if (!self) return null;
+  for (const stack of ctx.ownerState.field.signi) {
+    if (!stack || stack.length < 2) continue;
+    if (stack.at(-1) === self) continue; // 自分が最前面＝「上にあるシグニ」は存在しない
+    if (!stack.includes(self)) continue;
+    return stack[stack.length - 1];
+  }
+  return null;
+}
+
 function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   // conditional: true = 前ステップ（STUB等）がlastProcessedCardsを設定した場合のみ実行
   if (a.conditional && (!ctx.lastProcessedCards || ctx.lastProcessedCards.length === 0)) {
@@ -765,6 +782,12 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     const frontNum = tgtOwner === 'opponent' ? resolveFrontOfSelfCardNum(ctx) : undefined;
     cands = frontNum ? cands.filter(n => n === frontNum) : [];
   }
+  // aboveSelf:「このカードの上にあるシグニ」＝効果元カードが下に置かれているスタックの最前面シグニ。
+  // 選択UIを出さず1体に固定する（＜クラス＞/《名前》/色 の限定は fieldCandidates が既に適用済み）。
+  if (a.target.filter?.aboveSelf) {
+    const hostNum = resolveAboveSelfCardNum(ctx);
+    cands = hostNum ? cands.filter(n => n === hostNum) : [];
+  }
   if (a.targetsStored) {
     cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   }
@@ -803,6 +826,10 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     }
     return cur;
   }
+
+  // aboveSelf:「このカードの上にあるシグニ」は原文に「を対象とし」が無い＝選択もなければ対象化もしない。
+  // 候補は上で1体（ホスト）に確定済みなので、選択UIを出さず直接適用する（autoTargetedCards には積まない）。
+  if (a.target.filter?.aboveSelf) return done(applyPowerMod(cands, ctx));
 
   // targetsLastProcessed: 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ選択UIなしで適用
   // （WXDi-P07-079「それが＜毒牙＞のシグニの場合、代わりに＋10000」＝直前 POWER_MODIFY の選択対象と同一）
