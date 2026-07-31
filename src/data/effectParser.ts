@@ -2031,8 +2031,15 @@ let _unlessGateBaselinePass = false;
 // 語彙＝`costColors`／`opponentHandDiscard`(+`opponentHandDiscardFilter`)／`opponentEnergyTrash`／
 //       `opponentSigniTrash`（タスク12(lxi) 第3波で追加）。
 function parseOpponentUnlessCost(phrase: string):
-  { costColors?: string[]; opponentHandDiscard?: number; opponentEnergyTrash?: number; opponentSigniTrash?: number } | undefined {
+  { costColors?: string[]; opponentHandDiscard?: number; opponentEnergyTrash?: number; opponentSigniTrash?: number;
+    opponentPayColorlessPerSigniAttack?: boolean } | undefined {
   const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
+  // 可変《無》コスト（タスク12(lxi) 第8波・`WXK05-009-E2`）。枚数が固定でなく実行時の盤面から決まるため
+  // `costColors` では表せない＝専用フラグにする。⚠併記の食い進めループに入れると「1回につき」が
+  // 他の手段と混ざりうるので、**単独形として先に全一致で判定**する。
+  if (/^[、,]?このターンにシグニがアタックした回数[１1]回につき《無》を支払(?:う|わ)$/.test(phrase)) {
+    return { opponentPayColorlessPerSigniAttack: true };
+  }
   // 「AするかBするかC」の併記を語順非依存で読む。**1つでも読めない節があれば undefined**（＝据置）。
   // 従来は2手段までの固定4パターンだった。
   // ⚠区切りの「か」で split してはいけない＝「場**か**ら」「エナゾーン**か**ら」の「か」まで割れる。
@@ -2112,10 +2119,13 @@ function isNoActionPrefix(prefix: string): boolean {
 //   ・`ON_SIGNI_BANISH_BATTLE`＝BattleScreen のバトルバニッシュ収集（第7波で配線）
 //   収集経路の無い timing を足すと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけ。
 // ⚠正規表現は厳格形（原文の丸ごと一致）にする。緩めると別カードの前置きを設置と誤読する。
-const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string }> = [
+const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; trigger?: Record<string, unknown> }> = [
   { re: /^このターン終了時[、,]$/, timing: 'ON_TURN_END' },
   // `WX24-P4-011-E3`「このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、」
   { re: /^このターン[、,]あなたのシグニがバトルによってシグニ[１1]体をバニッシュしたとき[、,]$/, timing: 'ON_SIGNI_BANISH_BATTLE' },
+  // `WXK05-009-E2`「このターン、対戦相手のシグニがアタックしたとき、」＝**設置者は防御側**。
+  // `attackerOwner:'opponent'` は設置者から見た所有者（collector が防御側の設置分だけ拾うための弁別子）。
+  { re: /^このターン[、,]対戦相手のシグニがアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'opponent' } },
 ];
 
 function findOpponentUnlessGate(t: string):
@@ -2149,13 +2159,23 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
   //   「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけの別の退化になる）。
   const delayedPrefix = DELAYED_INSTALL_PREFIXES.find(d => d.re.test(prefix));
   if (delayedPrefix) {
-    const delayedThen = parseSingleSentence(thenText);
-    if (JSON.stringify(delayedThen).includes('"UNKNOWN"')) return undefined;
+    // 帰結は**単独文として**読む（基準読みは「設置」を含まないので供給源に使えない）。⚠その代償として
+    // 文脈依存の照応が解けない＝「そのシグニをトラッシュに置く」は単独文の規則で
+    // `STUB{RULE_REMINDER_TEXT}`（＝括弧内のルール注釈扱い＝**完全 no-op**）に落ちる。
+    // 設置の内側では「そのシグニ」＝**遅延トリガーの発火元**と確定しているので、「それ」へ書き換えて
+    // 読み、下の `bindUnlessGateAnaphora` で発火元へ束縛する（＝対象選択に落とさない）。
+    const anaphoraText = thenText.replace(/^そのシグニを/, 'それを');
+    const delayedThen = parseSingleSentence(anaphoraText);
+    const delayedS = JSON.stringify(delayedThen);
+    // UNKNOWN も**no-op STUB** も「読めていない」＝設置してしまうと過剰実行を no-op へ替えるだけ。
+    if (delayedS.includes('"UNKNOWN"') || delayedS.includes('"RULE_REMINDER_TEXT"')) return undefined;
     return {
       type: 'INSTALL_DELAYED_TRIGGER',
       duration: 'THIS_TURN',
-      trigger: { timing: delayedPrefix.timing },
-      effect: seq(delayedThen),
+      trigger: { timing: delayedPrefix.timing, ...(delayedPrefix.trigger ?? {}) },
+      // 帰結の「そのシグニ」は**遅延トリガーの発火元**（アタックしたシグニ等）への照応＝
+      // 対象選択に落とすと「どの相手シグニでも選べる」過剰対象化になる（第3波と同じ罠）。
+      effect: seq(bindUnlessGateAnaphora(thenText, delayedThen)),
     } as EffectAction;
   }
 

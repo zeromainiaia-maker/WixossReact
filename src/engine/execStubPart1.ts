@@ -428,7 +428,12 @@ export function execStubPart1(
   }
   // 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる）
   if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
-    const costLen = stub.costColors?.length ?? 0;
+    // 可変《無》コスト（タスク12(lxi) 第8波・`WXK05-009-E2`）は支払う側のアタック回数で決まる。
+    // ⚠ここは SEQUENCE 標準ペア外へ落ちたときのフォールバック。同じ解決を入れないと costColors が
+    //   空＝costLen 0 で「支払不可」扱いになり、**必ず帰結が撃たれる**過剰実行になる。
+    const costLen = stub.opponentPayColorlessPerSigniAttack === true
+      ? (ctx.otherState.attacked_signi_ids?.length ?? 0)
+      : (stub.costColors?.length ?? 0);
     if (costLen === 0 || ctx.otherState.energy.length < costLen) {
       const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
       return done(addLog({ ...ctx, ownerState: newOwner }, `対戦相手任意コスト：支払不可（${costLen}無色不足）`));

@@ -87,6 +87,37 @@ export function collectBattleBanishDelayedTriggers(
   return entries;
 }
 
+/**
+ * INSTALL_DELAYED_TRIGGER（B3）: **防御側**プレイヤーに設置された ON_ATTACK_SIGNI watcher
+ * （タスク12(lxi) 第8波・`WXK05-009-E2`「このターン、対戦相手のシグニがアタックしたとき、…」）。
+ * 設置者から見た `attackerOwner` で弁別する（本収集地点はアタッカー＝設置者の対戦相手なので
+ * `'self'` 指定の watcher はここでは発火しない）。`triggeringCardNum` にアタッカーを載せて
+ * 帰結の「そのシグニ」（`targetsTriggerSource`）が解けるようにする。
+ */
+export function collectSigniAttackDelayedTriggers(
+  ctx: TrigCtx,
+  defenderId: string,
+  defenderState: PlayerState,
+  attackerCardNum: string,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const dt of defenderState.delayed_triggers ?? []) {
+    if (dt.trigger?.timing !== 'ON_ATTACK_SIGNI') continue;
+    if ((dt.trigger.attackerOwner ?? 'any') === 'self') continue;
+    if (dt.duration === 'THIS_ATTACK_PHASE' && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
+    entries.push({
+      id: ctx.genId(), playerId: defenderId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+      label: `${dt.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズ' : 'このターン'}の遅延トリガー（相手シグニアタック時）`,
+      effect: {
+        effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+        action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+      },
+      triggeringCardNum: attackerCardNum,
+    });
+  }
+  return entries;
+}
+
 /** Collect the new face's own AUTO ability after a permanent LRIG identity flip. */
 export function collectLrigFlipTriggers(
   ctx: TrigCtx,

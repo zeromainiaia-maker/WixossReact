@@ -3227,9 +3227,18 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // OPPONENT_PAY_OPTIONAL: 対戦相手がコストを支払う/支払わない
         // pay → 何も起きない（対戦相手のエナ消費）、skip → 効果発動（conditional.then）
       if (stub.id === 'OPPONENT_PAY_OPTIONAL') {
-          const canOppAfford = costColors.length === 0 || canPayOptionalCost(costColors, cur.otherState, cur.cardMap);
-          const payLabel = costColors.length > 0
-            ? `支払う（コスト: ${costColors.map(c => `《${c}》`).join('')}）`
+          // 可変《無》コスト（タスク12(lxi) 第8波・`WXK05-009-E2`）＝「このターンにシグニがアタックした
+          // 回数１回につき《無》」。枚数は**支払う側**（otherState）の attacked_signi_ids から実行時に決まる。
+          // ⚠回数0は「アタックが発火させたトリガー」からは到達しない（発火元のアタックは既に数えられている）が、
+          //   0 のまま素通りさせると《無》×0＝**タダで回避できる穴**になるため支払い枝を出さない。
+          const perAttackOPO = stub.opponentPayColorlessPerSigniAttack === true;
+          const attackCountOPO = cur.otherState.attacked_signi_ids?.length ?? 0;
+          const costColorsOPO = perAttackOPO ? Array<string>(attackCountOPO).fill('無') : costColors;
+          const canOppAfford = perAttackOPO
+            ? attackCountOPO > 0 && canPayOptionalCost(costColorsOPO, cur.otherState, cur.cardMap)
+            : costColorsOPO.length === 0 || canPayOptionalCost(costColorsOPO, cur.otherState, cur.cardMap);
+          const payLabel = costColorsOPO.length > 0
+            ? `支払う（コスト: ${costColorsOPO.map(c => `《${c}》`).join('')}）`
             : '支払う';
           // 回避手段は「エナ支払い」以外に**手札捨て**と**自分のエナをトラッシュ**を取りうる（タスク12(lxi) 第2波）。
           // いずれも相手が自分の資源を払って効果を回避する枝＝選んだ時点で conditional.then は実行しない。
@@ -3244,7 +3253,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const enSpec = stub.opponentEnergyTrash;
           const enCount = enSpec === 'ALL' ? cur.otherState.energy.length : (enSpec ?? 0);
           const options = [
-            { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColors.length ? { costColors } : {}) },
+            { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColorsOPO.length ? { costColors: costColorsOPO } : {}) },
             ...(handSpec !== undefined && handCount > 0 ? [{
               id: 'discard',
               label: handSpec === 'ALL' ? '手札をすべて捨てる' : `${handLabelNoun}を${handCount}枚捨てる`,

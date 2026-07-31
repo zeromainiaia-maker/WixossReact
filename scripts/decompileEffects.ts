@@ -881,6 +881,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const durationIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
         return `${durationIDT}、${whoIDT}${triggerFilterJa}シグニ1体が場を離れたとき、${actionJa(a.effect)}`;
       }
+      // ON_ATTACK_SIGNI（タスク12(lxi) 第8波・WXK05-009-E2）：設置者は防御側＝主語は「対戦相手のシグニ」。
+      if (a.trigger?.timing === 'ON_ATTACK_SIGNI') {
+        const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
+        const whoIDT = a.trigger.attackerOwner === 'self' ? 'あなたの' : '対戦相手の';
+        return `${durIDT}、${whoIDT}シグニがアタックしたとき、${actionJa(a.effect)}`;
+      }
       // ON_SIGNI_BANISH_BATTLE（タスク12(lxi) 第7波・WX24-P4-011-E3）：遅延トリガーは**プレイヤー**に
       // 設置されるので主語は「あなたのシグニ」＝timingJa の「このシグニが…」（シグニ自身の【自】用）は使えない。
       if (a.trigger?.timing === 'ON_SIGNI_BANISH_BATTLE') {
@@ -1590,6 +1596,11 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.opponentSigniToDeckTop !== undefined) {
           const bodyOPO = `自分のシグニを${a.opponentSigniToDeckTop}体`;
           optsOPO.push({ dict: `${bodyOPO}デッキの一番上に置く`, te: `${bodyOPO}デッキの一番上に置いて` });
+        }
+        // 可変《無》コスト（タスク12(lxi) 第8波）＝枚数が実行時の盤面で決まる
+        if (a.opponentPayColorlessPerSigniAttack) {
+          const bodyOPO = 'このターンにシグニがアタックした回数1回につき《無》を';
+          optsOPO.push({ dict: `${bodyOPO}支払う`, te: `${bodyOPO}支払って` });
         }
         if (optsOPO.length === 0) return '対戦相手はコストを支払ってもよい';
         const headOPO = optsOPO.slice(0, -1).map(o => o.dict + 'か、').join('');

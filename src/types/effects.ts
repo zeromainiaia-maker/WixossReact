@@ -1152,6 +1152,7 @@ export interface InstallDelayedTriggerAction {
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（設置者から見て）。省略=any。WX11-024=opponent
     leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
     triggerFilter?: TargetFilter;                  // ON_LEAVE_FIELD の離脱カード条件
+    attackerOwner?: 'self' | 'opponent' | 'any';   // ON_ATTACK_SIGNI のアタッカー所有者（設置者から見て）。省略=any。WXK05-009-E2=opponent（タスク12(lxi) 第8波）
   };
   effect: EffectAction;           // 発火時に実行するアクション
   conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置
@@ -1935,6 +1936,13 @@ export interface StubAction {
   opponentSigniTrash?: number;
   /** OPPONENT_PAY_OPTIONAL: avoidance by putting this many of the opponent's own field SIGNI on top of their deck（タスク12(lxi) 第5波）。 */
   opponentSigniToDeckTop?: number;
+  /**
+   * OPPONENT_PAY_OPTIONAL: 《無》の枚数が固定ではなく「**このターンにシグニがアタックした回数**」に比例する
+   * 可変コスト（`WXK05-009-E2`「このターンにシグニがアタックした回数１回につき《無》を支払わないかぎり」。
+   * タスク12(lxi) 第8波）。true のとき `costColors` は無視し、**支払う側**（＝`otherState`）の
+   * `attacked_signi_ids.length` を実行時に《無》の枚数として解決する。アタックのたびにコストが上がる。
+   */
+  opponentPayColorlessPerSigniAttack?: boolean;
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;
