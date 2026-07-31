@@ -6614,6 +6614,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.match(/《改造素材》[^。]{0,12}(?:使用された|使用した)とき/) ? ['ON_MATERIAL_USED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
              : trigText.includes('開花したとき') ? ['ON_BLOOM']
+             // ライフの汎用離脱・0枚到達・crash OR trash は同じ宛先付き diff で収集する。
+             // ON_LIFE_CRASHED と併記しないため、クラッシュ時も1イベントにつき1回だけ発火する。
+             : /ライフクロス[^、。]*クラッシュされるかトラッシュに置かれたとき/.test(trigText) ? ['ON_LIFE_CRASHED', 'ON_LIFE_CLOTH_MOVED']
+             : /ライフクロス[^、。]*(?:他の領域に移動したとき|[0０]枚になったとき|トラッシュに置かれたとき)/.test(trigText) ? ['ON_LIFE_CLOTH_MOVED']
              : trigText.match(/対戦相手のライフ(?:クロス)?[^、。]*クラッシュ(?:した|された)とき/) ? ['ON_OPP_LIFE_CRASHED']
              : trigText.match(/(?:あなたの)?ライフ(?:クロス)?[^、。]*クラッシュされたとき/) ? ['ON_LIFE_CRASHED']
              : /場(?:を|から)離れたとき/.test(trigText) ? ['ON_LEAVE_FIELD']
@@ -7152,6 +7156,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         else if (/^対戦相手のターンの間[、,]/.test(trigText)) lcCond.turnOwner = 'opponent';
         if (Object.keys(lcCond).length > 0) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...lcCond };
         actionText = actionText.replace(/^.*?あなたのライフクロスにカード[０-９\d]+枚が加えられたとき[、,]\s*/, '');
+      }
+      if (timing.includes('ON_LIFE_CLOTH_MOVED')) {
+        const lmCond: NonNullable<typeof extractedTriggerCondObj> = {};
+        if (/あなたか対戦相手のライフクロス/.test(trigText)) lmCond.lifeMovedOwner = 'any';
+        if (/トラッシュに置かれたとき|クラッシュされるかトラッシュに置かれたとき/.test(trigText)) lmCond.lifeMovedTo = ['trash'];
+        if (/ライフクロスが[0０]枚になったとき/.test(trigText)) lmCond.lifeCountReached = 0;
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...lmCond };
+        actionText = actionText
+          .replace(/^.*?ライフクロスが他の領域に移動したとき[、,]\s*/, '')
+          .replace(/^.*?ライフクロスが[0０]枚になったとき[、,]\s*/, '')
+          .replace(/^.*?ライフクロス[１1]枚がクラッシュされるかトラッシュに置かれたとき[、,]\s*/, '')
+          .replace(/^.*?ライフクロス[１1]枚がトラッシュに置かれたとき[、,]\s*/, '');
       }
       if (timing[0] === 'ON_OPP_ENERGY_ADDED') {
         if (/アタックフェイズの間/.test(trigText)) extractedTriggerCondition = { type: 'DURING_PHASE', phases: ['ATTACK'] };
@@ -7759,7 +7775,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LEAVE_FIELD / ON_REVEALED_FROM_HAND / ON_LIFE_CRASHED / ON_TRASH の「〜してもよい」等は任意トリガー（発動しない選択可）
       if ((timing[0] === 'ON_LEAVE_FIELD' || timing[0] === 'ON_REVEALED_FROM_HAND'
            || timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED'
-           || timing[0] === 'ON_TRASH')
+           || timing[0] === 'ON_TRASH' || timing[0] === 'ON_LIFE_CLOTH_MOVED')
           && /もよい/.test(actionText)) mandatory = false;
       break;
     default: return null;

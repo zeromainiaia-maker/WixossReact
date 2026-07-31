@@ -2067,6 +2067,60 @@ export function collectLifeClothAddedTriggers(
   return { entries, usedHostIds, usedGuestIds };
 }
 
+/** ON_LIFE_CLOTH_MOVED を宛先・owner・到達枚数で収集する。 */
+export function collectLifeClothMovedTriggers(
+  ctx: TrigCtx,
+  movedByOwner: { ownerId: string; moved: { cardNum: string; to: 'trash' | 'hand' | 'energy' | 'deck' | 'other' }[]; beforeCount: number; afterCount: number }[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const limitOk = mkLimitOk(watcherState.actions_done, usedIds);
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    const sources = [
+      ...ownFieldSources(watcherState),
+      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
+      ...(watcherState.field.key_piece_extra ?? []),
+    ];
+    for (const topNum of sources) {
+      const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
+      if (isSigni && watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) continue;
+      for (const eff of effsOf(ctx, topNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LIFE_CLOTH_MOVED')) continue;
+        const to = eff.triggerCondition?.turnOwner;
+        if (to === 'self' && !watcherIsTurn) continue;
+        if (to === 'opponent' && watcherIsTurn) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        for (const event of movedByOwner) {
+          const owner = event.ownerId === watcherId ? 'self' : 'opponent';
+          const wantedOwner = eff.triggerCondition?.lifeMovedOwner ?? 'self';
+          if (wantedOwner !== 'any' && wantedOwner !== owner) continue;
+          const reached = eff.triggerCondition?.lifeCountReached;
+          if (reached !== undefined && !(event.beforeCount !== reached && event.afterCount === reached)) continue;
+          const destinations = eff.triggerCondition?.lifeMovedTo;
+          const matching = destinations ? event.moved.filter(m => destinations.includes(m.to)) : event.moved;
+          if (matching.length === 0 || !limitOk(eff)) continue;
+          const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+          entries.push({
+            id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+            label: `${cardName} の【自】効果（ライフクロス移動時）`, effect: eff,
+            triggeringCardNum: matching[0].cardNum,
+          });
+        }
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
 /**
  * ON_OPP_ENERGY_ADDED を収集する。watcher から見た対戦相手のエナが1枚ちょうど増えたイベントだけを扱い、
  * 置かれたカードを triggeringCardNum に保持する（WX24-P2-050「そのカード」）。

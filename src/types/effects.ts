@@ -90,6 +90,7 @@ export type EffectTiming =
   | 'ON_HAND_ADDED'            // 効果によってカードが手札に移動したとき（続き207・WX25-P2-063「対戦相手の効果によって…対戦相手の手札に」／WXDi-P11-007・WX14-029「あなたのエナゾーンから手札に」／WD12-009/010＝移動カード自身 triggerScope:self）。detectHandAdded の set-diff で検出（handOwner/fromZones/byOpponentEffect/excludeGrowPhase/triggerFilter で限定）
   | 'ON_ENERGY_TO_FIELD'       // あなたのエナゾーンからシグニが場に出たとき（続き207・WXDi-P11-007-E1「手札に加わるか場に出たとき」の場側枝＝ON_HAND_ADDED と併記して OR）。detectPlacedFromEnergy で検出
   | 'ON_LIFE_CLOTH_ADDED'      // あなたのライフクロスにカード1枚が加えられたとき（WD06-001/WD20-001）。detectLifeClothAdded の増加 set-diff のみで検出し、クラッシュ等の減少とは混線しない
+  | 'ON_LIFE_CLOTH_MOVED'      // ライフクロスが他領域へ移動したとき。クラッシュ直後の life→field.check は to:'other'、後続 check→energy/trash は life 差分なし
   | 'ON_OPP_ENERGY_ADDED';     // 対戦相手のエナゾーンにカード1枚が置かれたとき（WDA-F03-13/WX24-P2-050）。detectEnergyAdded の増加 set-diff で置かれたカード自身を triggeringCardNum に保持
 
 export type UsageLimit =
@@ -2171,6 +2172,9 @@ export interface CardEffect {
     accedHostStory?: string;    // ON_ACCE_ATTACH（アクセカード自身）の「＜X＞のシグニに付いたとき」host クラス条件（WX17-033-E4=調理）。host シグニの CardClass に含まれなければ発火しない
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（トリガー所有者から見た self/opponent/any）。省略=any。WXDi-P04-043=any（いずれかのプレイヤー）
     handOwner?: 'self' | 'opponent' | 'any'; // ON_HAND_ADDED の手札が増えた側（watcher 所有者から見て）。省略=self。any=いずれかのプレイヤー（WX20-067）。fromZones で移動元も限定可（['energy']＝「エナゾーンから」）
+    lifeMovedOwner?: 'self' | 'opponent' | 'any'; // ON_LIFE_CLOTH_MOVED の離脱元（watcher 所有者から見て）。省略=self
+    lifeMovedTo?: Array<'trash' | 'hand' | 'energy' | 'deck' | 'other'>; // ON_LIFE_CLOTH_MOVED の宛先限定。省略=全領域
+    lifeCountReached?: number; // ON_LIFE_CLOTH_MOVED の到達枚数。before!==value && after===value の遷移だけを発火
     excludeGrowPhase?: boolean; // 「グロウフェイズ以外で」＝ctx.turnPhase が GROW のときは発火しない（WX25-P2-063。ON_HAND_ADDED と併用）
     movedSelf?: boolean; // ON_HAND_ADDED の変種弁別：true＝「このシグニが（あなたのエナゾーンから）手札に移動したとき」＝移動したカード自身が手札から発火（WD12-009-E2/WD12-010-E1）。省略＝場の watcher（自身が手札に移動しても発火しない）
     leftToZone?: 'hand'; // ON_LEAVE_FIELD の行き先限定（「場から手札に戻ったとき」WXK02-041）。離れたカードが所有者の手札に在中する場合のみ発火。省略=行き先不問

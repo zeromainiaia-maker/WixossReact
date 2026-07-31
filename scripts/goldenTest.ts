@@ -27,10 +27,10 @@ import {
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { collectTrapActivateTriggers, collectLrigAttackGuardedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
@@ -5370,6 +5370,96 @@ test('ON_LIFE_CLOTH_ADDED: 増加 set-diff だけで LRIG watcher が発火し�
   eq(hasEff(collectLifeClothAddedTriggers(trigCtx(GUEST), event, host, mkState({})).entries, 'WD20-001-E2'), false, '相手ターンは非発火');
   eq(collectLifeClothAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, nums: [addedNum, fresh()] }, { ownerId: GUEST, nums: [] }], host, mkState({})).entries.length, 0, '2枚同時追加では非発火');
 });
+
+{
+  // mkState/fill の共有 cursor を、この4効果の盤面生成から隔離する（並列 gates の決定性を守る）。
+  const savedCursor = cursor;
+  try {
+    test('J-3 parser: 対象4効果のtimingとowner/宛先/0到達を保持', () => {
+      const parsed = (card: string, eid: string) => parseCardEffects(cardMap.get(card)!).find(e => e.effectId === eid)!;
+      const surt = parsed('WXK08-028', 'WXK08-028-E1');
+      const zero = parsed('PR-K038', 'PR-K038-E2');
+      const kiss = parsed('WD23-023-E', 'WD23-023-E-E1');
+      const highty = parsed('WXDi-P07-052', 'WXDi-P07-052-E1');
+      for (const [id, eff] of [['WXK08-028-E1', surt], ['PR-K038-E2', zero], ['WD23-023-E-E1', kiss]] as const) {
+        eq(eff?.timing?.join(','), 'ON_LIFE_CLOTH_MOVED', `${id} timing`);
+      }
+      eq(highty.timing?.join(','), 'ON_LIFE_CRASHED,ON_LIFE_CLOTH_MOVED', 'ハイティはクラッシュと直接trashのOR');
+      eq(zero.triggerCondition?.lifeCountReached, 0, '0枚到達');
+      eq(kiss.triggerCondition?.lifeMovedOwner, 'any', '自他owner');
+      eq(kiss.triggerCondition?.lifeMovedTo?.join(','), 'trash', 'キスtrash限定');
+      eq(highty.triggerCondition?.lifeMovedTo?.join(','), 'trash', 'ハイティtrash限定');
+    });
+
+    const lifeEvent = (ownerId: string, before: PlayerState, after: PlayerState) => [{
+      ownerId,
+      moved: detectLifeClothMoved(before, after),
+      beforeCount: before.life_cloth.length,
+      afterCount: after.life_cloth.length,
+    }];
+
+    test('WXK08-028-E1: life→handと実戦クラッシュlife→check(to:other)で発火し、増加では非発火', () => {
+      const watcher = mkState({ signi: ['WXK08-028', null, null], life: 1 });
+      const card = watcher.life_cloth[0];
+      const toHand = { ...watcher, life_cloth: [], hand: [...watcher.hand, card] };
+      const crashedToCheck = { ...watcher, life_cloth: [], field: { ...watcher.field, check: card } };
+      const added = { ...watcher, life_cloth: [...watcher.life_cloth, fresh()] };
+      eq(detectLifeClothMoved(watcher, toHand)[0]?.to, 'hand', 'life→hand の宛先');
+      eq(detectLifeClothMoved(watcher, crashedToCheck)[0]?.to, 'other', '実戦クラッシュ life→check の宛先');
+      eq(hasEff(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, watcher, toHand), watcher, mkState({})).entries, 'WXK08-028-E1'), true, '非クラッシュ離脱で発火');
+      eq(hasEff(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, watcher, crashedToCheck), crashedToCheck, mkState({})).entries, 'WXK08-028-E1'), true, 'クラッシュのto:otherで発火');
+      eq(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, watcher, added), watcher, mkState({})).entries.length, 0, 'life増加では非発火');
+    });
+
+    test('PR-K038-E2: シグニゾーンから1→0到達時だけ発火し、0継続では再発火しない', () => {
+      const watcher = mkState({ signi: ['PR-K038', null, null], life: 1 });
+      const card = watcher.life_cloth[0];
+      const zero = { ...watcher, life_cloth: [], trash: [...watcher.trash, card] };
+      const event = lifeEvent(HOST, watcher, zero);
+      eq(hasEff(collectLifeClothMovedTriggers(trigCtx(HOST), event, watcher, mkState({})).entries, 'PR-K038-E2'), true, '1→0で発火');
+      const zeroStill = { ...zero, hand: [...zero.hand, fresh()] };
+      eq(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, zero, zeroStill), zero, mkState({})).entries.length, 0, '0→0の別イベントでは非発火');
+    });
+
+    test('WD23-023-E-E1: シグニゾーンから自分・相手どちらのlife→trashでも発火', () => {
+      const watcher = mkState({ signi: ['WD23-023-E', null, null] });
+      const ownBefore = { ...watcher, life_cloth: [fresh()] };
+      const ownAfter = { ...ownBefore, trash: [ownBefore.life_cloth[0]], life_cloth: [] };
+      const oppBefore = mkState({ life: 1 });
+      const oppAfter = { ...oppBefore, trash: [...oppBefore.trash, oppBefore.life_cloth[0]], life_cloth: [] };
+      eq(hasEff(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, ownBefore, ownAfter), watcher, oppBefore).entries, 'WD23-023-E-E1'), true, '自lifeで発火');
+      eq(hasEff(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(GUEST, oppBefore, oppAfter), watcher, oppAfter).entries, 'WD23-023-E-E1'), true, '相手lifeで発火');
+    });
+
+    test('WXDi-P07-052-E1: 実戦クラッシュと直接life→trashの両枝、置換trashを含む二重発火防止', () => {
+      const watcher = mkState({ signi: ['WXDi-P07-052', null, null], life: 1 });
+      const card = watcher.life_cloth[0];
+      const crashedToCheck = { ...watcher, life_cloth: [], field: { ...watcher.field, check: card } };
+      eq(detectLifeClothMoved(watcher, crashedToCheck)[0]?.to, 'other', 'クラッシュ直後はto:other');
+      const crashEntries = collectSelfEventTriggers(trigCtx(HOST), 'ON_LIFE_CRASHED', crashedToCheck, mkState({}), 'クラッシュ時', HOST).entries
+        .filter(e => e.effectId === 'WXDi-P07-052-E1');
+      const movedAtCrash = collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, watcher, crashedToCheck), crashedToCheck, mkState({})).entries
+        .filter(e => e.effectId === 'WXDi-P07-052-E1');
+      eq(crashEntries.length, 1, 'ON_LIFE_CRASHED側で発火');
+      eq(movedAtCrash.length, 0, 'lifeMovedTo:trash側はto:otherに不一致');
+      eq(crashEntries.length + movedAtCrash.length, 1, '通常クラッシュ1回の合計は1件');
+
+      const resolvedToEnergy = { ...crashedToCheck, energy: [...crashedToCheck.energy, card], field: { ...crashedToCheck.field, check: null } };
+      const resolvedToTrash = { ...crashedToCheck, trash: [...crashedToCheck.trash, card], field: { ...crashedToCheck.field, check: null } };
+      eq(detectLifeClothMoved(crashedToCheck, resolvedToEnergy).length, 0, '通常check→energyではlife差分なし');
+      eq(detectLifeClothMoved(crashedToCheck, resolvedToTrash).length, 0, 'CRASH_TO_TRASH_INSTEADのcheck→trashでもlife差分なし');
+      eq(collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, crashedToCheck, resolvedToTrash), resolvedToTrash, mkState({})).entries.length, 0, '置換trash解決で再発火しない');
+
+      const directTrash = { ...watcher, life_cloth: [], trash: [...watcher.trash, card] };
+      const direct = collectLifeClothMovedTriggers(trigCtx(HOST), lifeEvent(HOST, watcher, directTrash), directTrash, mkState({}));
+      eq(direct.entries.filter(e => e.effectId === 'WXDi-P07-052-E1').length, 1, '直接life→trash側で発火');
+      const usedState = { ...directTrash, actions_done: direct.usedHostIds };
+      eq(collectSelfEventTriggers(trigCtx(HOST), 'ON_LIFE_CRASHED', usedState, mkState({}), 'クラッシュ時', HOST).entries.filter(e => e.effectId === 'WXDi-P07-052-E1').length, 0, 'usageLimitは両timingをまたいで有効');
+    });
+  } finally {
+    cursor = savedCursor;
+  }
+}
 
 test('ON_OPP_ENERGY_ADDED: 相手エナ1枚増加・閾値・アタックフェイズ・usageLimit を評価', () => {
   const host = mkState({ signi: ['WX24-P2-050', null, null] });
@@ -10986,7 +11076,7 @@ test('バッチ①第1波 parser: 採用25効果に TURN_OWNER/LIFE_COUNT 条件
   }
 });
 
-test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達イベントを偽の状態条件へ変換しない', () => {
+test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条件へ変換せず、life0は到達timingへ変換する', () => {
   const prevTurn = parseCardEffects(cardMap.get('WXDi-P11-001')!).find(e => e.effectId === 'WXDi-P11-001-E1')!;
   const zeroEvent = parseCardEffects(cardMap.get('PR-K038')!).find(e => e.effectId === 'PR-K038-E2')!;
   const treeHas = (x: unknown, type: string): boolean => {
@@ -10996,8 +11086,10 @@ test('バッチ①第1波 見送り固定: 前ターン履歴とライフ0到達
     return Object.values(o).some(v => Array.isArray(v) ? v.some(y => treeHas(y, type)) : treeHas(v, type));
   };
   ok(!treeHas(prevTurn, 'LIFE_CRASHED_THIS_TURN'), '直前ターンを当ターンカウンタへ誤変換しない');
-  ok(zeroEvent.timing?.length === 0 && !treeHas(zeroEvent, 'LIFE_COUNT'),
-    '未収集イベントは偽の状態条件にもON_PLAYにも変換しない');
+  ok(zeroEvent.timing?.join(',') === 'ON_LIFE_CLOTH_MOVED'
+      && zeroEvent.triggerCondition?.lifeCountReached === 0
+      && !treeHas(zeroEvent, 'LIFE_COUNT'),
+    'life0は状態条件でなく0到達遷移として表現する');
 });
 
 // Stage3 骨組み：純粋バトルコントローラ reduceBattle（現在盤面＋action → DB パッチ）の遷移を固定。

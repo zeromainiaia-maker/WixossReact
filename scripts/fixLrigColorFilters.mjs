@@ -15,6 +15,13 @@ import fs from 'fs';
 //   'notMatchesLrig' → colorNotMatchesLrig: true を追加
 
 const FIXES = [
+  // WXDi-P07-052-E1: timing 配列の OR 拡張は harvest の純改善判定で温存されるため外科採用。
+  { file: 'effects_WXDi', card: 'WXDi-P07-052', eid: 'WXDi-P07-052-E1', type: 'lifeCrashOrTrash',
+    locate: e => e },
+  // WD23-023-E-E1: カード全体に既存手修正があり harvest merge が fresh timing を温存するため、
+  // 対象effectIdの timing/条件だけを durable に採用する。
+  { file: 'effects_misc', card: 'WD23-023-E', eid: 'WD23-023-E-E1', type: 'lifeMovedAnyTrash',
+    locate: e => e },
   // ── effects_WX.json ──────────────────────────────────────────────────────
   // WX04-026-E1: TRANSFER_TO_HAND > TRASH_CARD.filter
   { file: 'effects_WX', card: 'WX04-026', eid: 'WX04-026-E1', type: 'matchesLrig',
@@ -130,6 +137,16 @@ const sourceText = JSON.parse(fs.readFileSync('docs/_effect_srctext.json', 'utf8
 const REAL_COST_SYNTAX = /(?:支払|捨て|トラッシュに置|手札に加え|場から|下に置|ダウンする|取り除|ゲームから除外|デッキ(?:の一番下)?に置|クラッシュ|【ビート】にする|エナゾーンに置)/;
 
 function applyFix(obj, type) {
+  if (type === 'lifeCrashOrTrash') {
+    obj.timing = ['ON_LIFE_CRASHED', 'ON_LIFE_CLOTH_MOVED'];
+    obj.triggerCondition = { ...(obj.triggerCondition ?? {}), lifeMovedTo: ['trash'] };
+    return true;
+  }
+  if (type === 'lifeMovedAnyTrash') {
+    obj.timing = ['ON_LIFE_CLOTH_MOVED'];
+    obj.triggerCondition = { ...(obj.triggerCondition ?? {}), lifeMovedOwner: 'any', lifeMovedTo: ['trash'] };
+    return true;
+  }
   if (!obj) return false;
   if (type === 'discardAnyOne') {
     obj.cost = { discard: 1 };

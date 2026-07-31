@@ -101,6 +101,55 @@ export function detectLifeClothAdded(before: PlayerState, after: PlayerState): s
   return after.life_cloth.filter(n => !beforeLife.has(n));
 }
 
+export type LifeClothMove = {
+  cardNum: string;
+  to: 'trash' | 'hand' | 'energy' | 'deck' | 'other';
+};
+
+/**
+ * ライフクロスから他領域へ移動したカードを宛先付きで検出する。
+ * カード番号は同名カードで重複し得るため Set ではなく multiset 差分を使う。
+ */
+export function detectLifeClothMoved(before: PlayerState, after: PlayerState): LifeClothMove[] {
+  const counts = (xs: string[]) => {
+    const m = new Map<string, number>();
+    for (const n of xs) m.set(n, (m.get(n) ?? 0) + 1);
+    return m;
+  };
+  const lifeAfter = counts(after.life_cloth);
+  const removed: string[] = [];
+  for (const n of before.life_cloth) {
+    const left = lifeAfter.get(n) ?? 0;
+    if (left > 0) lifeAfter.set(n, left - 1);
+    else removed.push(n);
+  }
+  const addedCounts = (beforeZone: string[], afterZone: string[]) => {
+    const b = counts(beforeZone);
+    const out = counts(afterZone);
+    for (const [n, count] of b) out.set(n, Math.max(0, (out.get(n) ?? 0) - count));
+    return out;
+  };
+  const destinations = [
+    ['trash', addedCounts(before.trash, after.trash)],
+    ['hand', addedCounts(before.hand, after.hand)],
+    ['energy', addedCounts(before.energy, after.energy)],
+    ['deck', addedCounts(before.deck, after.deck)],
+  ] as const;
+  return removed.map(cardNum => {
+    for (const [to, added] of destinations) {
+      const count = added.get(cardNum) ?? 0;
+      if (count > 0) {
+        added.set(cardNum, count - 1);
+        return { cardNum, to };
+      }
+    }
+    // 実戦のクラッシュは life→field.check なのでここでは other。
+    // これにより「他の領域に移動」の WXK08-028-E1 はクラッシュでも発火する。
+    // 後続の check→energy/trash では life が動かないため、この detector は空を返す。
+    return { cardNum, to: 'other' };
+  });
+}
+
 /** エナゾーンに新たに加わったカードだけを検出（ON_OPP_ENERGY_ADDED）。 */
 export function detectEnergyAdded(before: PlayerState, after: PlayerState): string[] {
   const beforeEnergy = new Set(before.energy);
