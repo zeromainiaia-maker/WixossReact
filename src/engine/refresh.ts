@@ -7,6 +7,7 @@ import { shuffle } from './execUtils';
  * ルリグデッキ先頭1枚をルリグトラッシュへ置いて一度だけ消費する。
  */
 export function applyRefreshState(state: PlayerState, preventLifeToTrash = false): PlayerState {
+  if (state.prevent_refresh_until_opp_turn) return state;
   if (state.trash.length === 0) return state;
   if (state.next_refresh_replaced) {
     const [lrigCard, ...remainingLrigDeck] = state.lrig_deck;

@@ -96,6 +96,7 @@ import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppea
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
+import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -3408,7 +3409,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
         update[opKey] = activateNextTurnDeployCountLimit({
-          ...clearAllZoneBurstGrantUntilOppTurn(opState),
+          ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
           field_keyword_grants_active: opState.field_keyword_grants_next_turn,
@@ -3419,12 +3420,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
-          keyword_grants_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 次の相手ターン終了時（=自分のターン再開時）にクリア
-          granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END: 付与効果を次の相手ターン終了時にクリア
-          power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END: 長期パワー修正を次の相手ターン終了時にクリア
-          lrig_granted_auto_effects_until_opp_turn: undefined,
-          guard_alt_hand_until_opp_turn: undefined,
-          opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN): 相手コスト増加を次の相手ターン終了時にクリア
           life_crashed_last_turn: opState.life_crashed_this_turn ?? 0,
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
           energy_colorless_ability_loss_this_turn: undefined,
@@ -3745,7 +3740,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
       update[opKey] = activateNextTurnDeployCountLimit({
-        ...clearAllZoneBurstGrantUntilOppTurn(opState),
+        ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
         field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
@@ -3755,12 +3750,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         free_grow_next_turn: undefined,
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
         negate_coin_abilities: undefined,
-        keyword_grants_until_opp_turn: undefined,
-        granted_effects_until_opp_turn: undefined, // UNTIL_OPP_TURN_END
-        power_mods_until_opp_turn: undefined,      // UNTIL_OPP_TURN_END
-        lrig_granted_auto_effects_until_opp_turn: undefined,
-        guard_alt_hand_until_opp_turn: undefined,
-        opp_cost_up_until_opp_turn: undefined,     // COST_INCREASE(NEXT_OPP_TURN)
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
         self_deck_to_energy_this_turn: 0,
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット

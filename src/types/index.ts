@@ -210,6 +210,8 @@ export interface PlayerState {
   game_granted_auto_effects?: import('./effects').CardEffect[];
   // 次にこのプレイヤーが行うリフレッシュを置換する一発フラグ。実行時までターンを跨いで保持する。
   next_refresh_replaced?: boolean;
+  // このターンと次のターンの間のリフレッシュ禁止。自分の次ターン開始時にクリア。
+  prevent_refresh_until_opp_turn?: boolean;
   // このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなくトラッシュへ（BANISH_REDIRECT）
   banish_redirect?: boolean;
   // このターン、選択した相手シグニだけのバニッシュ先をトラッシュへ変更する。

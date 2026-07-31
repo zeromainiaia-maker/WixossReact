@@ -27,6 +27,8 @@ import type {
   GrantKeywordAction,
   SearchAction,
   SequenceAction,
+  RepeatAction,
+  PreventRefreshAction,
   ChooseAction,
   ConditionalAction,
   LookAndReorderAction,
@@ -3652,6 +3654,45 @@ function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
   return done(ctx);
 }
 
+function execRepeat(a: RepeatAction, ctx: ExecCtx): ExecResult {
+  if (a.count <= 0) return done(ctx);
+  const continuation: EffectAction | undefined = a.count > 1
+    ? { type: 'REPEAT', count: a.count - 1, action: a.action }
+    : undefined;
+  const result = executeAction(a.action, ctx);
+  if (!result.done) {
+    if (continuation) {
+      const existing = result.pending.continuation;
+      result.pending = {
+        ...result.pending,
+        continuation: existing
+          ? { type: 'SEQUENCE', steps: [existing, continuation] }
+          : continuation,
+      };
+    }
+    return result;
+  }
+  return continuation
+    ? executeAction(continuation, {
+        ...ctx,
+        ownerState: result.ownerState,
+        otherState: result.otherState,
+        logs: result.logs,
+        lastProcessedCards: result.lastProcessedCards,
+      })
+    : result;
+}
+
+function execPreventRefresh(_a: PreventRefreshAction, ctx: ExecCtx): ExecResult {
+  return done(addLog({
+    ...ctx,
+    ownerState: {
+      ...ctx.ownerState,
+      prevent_refresh_until_opp_turn: true,
+    },
+  }, 'このターンと次のターンの間、リフレッシュできない'));
+}
+
 function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   if (a.source.location === 'deck'
       && a.source.owner === 'self'
@@ -5422,6 +5463,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_EFFECT':            return execGrantEffect(action as GrantEffectAction, ctx);
     case 'SEARCH':                  return execSearch(action as SearchAction, ctx);
     case 'SEQUENCE':                return execSequence(action as SequenceAction, ctx);
+    case 'REPEAT':                  return execRepeat(action as RepeatAction, ctx);
+    case 'PREVENT_REFRESH':         return execPreventRefresh(action as PreventRefreshAction, ctx);
     case 'RECOLLECT_GATE':         return done(addLog(ctx, 'レコレクトゲート'));
     case 'CHOOSE':                  return execChoose(action as ChooseAction, ctx);
     case 'CONDITIONAL':             return execConditional(action as ConditionalAction, ctx);

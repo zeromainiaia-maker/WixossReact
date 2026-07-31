@@ -616,6 +616,8 @@ export type EffectAction =
   | SearchAction
   | PlaceSigniOnFieldAction
   | SequenceAction
+  | RepeatAction
+  | PreventRefreshAction
   | ChooseAction
   | ConditionalAction
   | LookAndReorderAction
@@ -1034,6 +1036,21 @@ export interface SequenceAction {
   steps: EffectAction[];
   /** Resolve all direct conditional gates from one incoming result snapshot. */
   snapshotLastProcessedForConditionals?: boolean;
+}
+
+/** 同じ action を count 回、インタラクションを含めて順番に解決する。 */
+export interface RepeatAction {
+  type: 'REPEAT';
+  count: number;
+  action: EffectAction;
+}
+
+/**
+ * 発生源プレイヤーのリフレッシュを「このターンと次のターンの間」禁止する。
+ * 寿命は既存の *_until_opp_turn family と同じ＝次の相手ターン終了時（＝自分の次ターン開始時）に解除。
+ */
+export interface PreventRefreshAction {
+  type: 'PREVENT_REFRESH';
 }
 
 export interface ChooseAction {

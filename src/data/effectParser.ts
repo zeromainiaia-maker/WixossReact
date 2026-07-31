@@ -4663,6 +4663,45 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // WX25-P3-028 型：「このターン＋次のターン」のリフレッシュ禁止と、
+  // 各回ごとに owner を選ぶ反復。引用内の句点を分割する前に全文を正準形へ落とす。
+  {
+    const m = text.trim().match(
+      /^このターンと次のターンの間、あなたはリフレッシュできない。以下を([０-９\d]+)回行う。「あなたか対戦相手のデッキの上からカードを([０-９\d]+)枚トラッシュに置く。」$/,
+    );
+    if (m) {
+      const count = parseNum(m[1]);
+      const millCount = parseNum(m[2]);
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'PREVENT_REFRESH' },
+          {
+            type: 'REPEAT',
+            count,
+            action: {
+              type: 'CHOOSE',
+              choose_count: 1,
+              from_count: 2,
+              choices: [
+                {
+                  choiceId: 'mill_self',
+                  label: `あなたのデッキを${millCount}枚トラッシュ`,
+                  action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: millCount } },
+                },
+                {
+                  choiceId: 'mill_opponent',
+                  label: `対戦相手のデッキを${millCount}枚トラッシュ`,
+                  action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: millCount } },
+                },
+              ],
+            },
+          },
+        ],
+      } as SequenceAction;
+    }
+  }
+
   // 「7－自分のライフクロス枚数」枚を見る（WXK02-032）。
   // 固定 N の入口と同じ REVEAL_AND_PICK へ載せ、枚数だけ既存 NumberOrRef で実行時解決する。
   {

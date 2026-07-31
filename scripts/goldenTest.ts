@@ -41,6 +41,8 @@ import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement'
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
+import { applyRefreshState } from '../src/engine/refresh';
+import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
@@ -18852,6 +18854,65 @@ test('WXDi-P13-003A-E1: actual moves gate the same-instance B-face center grow',
 
     const missing = mkState({ lrig: ['center-lrig'], signi: [null, null, null] });
     ok(prepareMayuEncounter(missing) === null, 'missing physical key_piece makes the whole preparation a no-op');
+  } finally { cursor = savedCursor; }
+});
+
+test('WX25-P3-028-E2: refresh prevention expires before source player next own turn', () => {
+  const savedCursor = cursor;
+  try {
+    const base = mkState({ trash: 4, life: 3 });
+    const armed = { ...base, prevent_refresh_until_opp_turn: true };
+    const blockedNow = applyRefreshState(armed);
+    ok(blockedNow === armed, 'current turn refresh is a true no-op');
+    const sourceAtOppTurnEnd = clearUntilOppTurnEffects(armed);
+    eq(sourceAtOppTurnEnd.prevent_refresh_until_opp_turn, undefined, 'opponent turn end clears incoming source player flag');
+    const refreshed = applyRefreshState(sourceAtOppTurnEnd);
+    eq(refreshed.trash.length, 1, 'source next own turn refresh works and trashes one life');
+    eq(refreshed.life_cloth.length, 2, 'source next own turn pays normal refresh life');
+
+    const ordinary = mkState({ trash: 4, life: 3 });
+    const ordinaryRefreshed = applyRefreshState(ordinary);
+    eq(ordinaryRefreshed.life_cloth.length, 2, 'undefined flag preserves legacy refresh');
+    eq(ordinaryRefreshed.refresh_count_this_turn, 1, 'undefined flag preserves refresh counter');
+  } finally { cursor = savedCursor; }
+});
+
+test('WX25-P3-028-E2: three independent CHOOSE decisions mill exactly 18 cards total', () => {
+  const savedCursor = cursor;
+  try {
+    const card = cardMap.get('WX25-P3-028')!;
+    eq(card.Type, 'ルリグ', 'source is a LRIG card');
+    const effect = parseCardEffects(card).find(e => e.effectId === 'WX25-P3-028-E2')!;
+    const ctx = mkCtx({ lrig: ['WX25-P3-028'] }, {}, 'WX25-P3-028');
+    const ownerDeck0 = ctx.ownerState.deck.length;
+    const otherDeck0 = ctx.otherState.deck.length;
+    const ownerTrash0 = ctx.ownerState.trash.length;
+    const otherTrash0 = ctx.otherState.trash.length;
+
+    let result = executeEffect(effect, ctx);
+    ok(!result.done && result.pending.type === 'CHOOSE', 'round 1 opens existing CHOOSE pending');
+    result = resumeChoose('mill_self', result.pending as never, {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+    });
+    ok(!result.done && result.pending.type === 'CHOOSE', 'round 2 opens a fresh CHOOSE pending');
+    result = resumeChoose('mill_opponent', result.pending as never, {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+    });
+    ok(!result.done && result.pending.type === 'CHOOSE', 'round 3 opens a fresh CHOOSE pending');
+    result = resumeChoose('mill_self', result.pending as never, {
+      ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+    });
+    ok(result.done, 'third decision completes repeat');
+    eq(ownerDeck0 - result.ownerState.deck.length, 12, 'self selected twice: 12 cards milled');
+    eq(otherDeck0 - result.otherState.deck.length, 6, 'opponent selected once: 6 cards milled');
+    eq(result.ownerState.trash.length - ownerTrash0, 12, 'self trash receives exactly 12');
+    eq(result.otherState.trash.length - otherTrash0, 6, 'opponent trash receives exactly 6');
+    eq(
+      (ownerDeck0 - result.ownerState.deck.length) + (otherDeck0 - result.otherState.deck.length),
+      18,
+      'total mill is 18, never the old 24',
+    );
+    eq(result.ownerState.prevent_refresh_until_opp_turn, true, 'same effect atomically arms refresh prevention');
   } finally { cursor = savedCursor; }
 });
 

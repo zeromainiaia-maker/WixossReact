@@ -984,6 +984,10 @@ function actionJa(a?: Action, effectType?: string): string {
         return acc + '。そして' + part;
       }, '');
     }
+    case 'REPEAT':
+      return `以下を${numJa(a.count)}回行う。「${actionJa(a.action)}。」`;
+    case 'PREVENT_REFRESH':
+      return 'このターンと次のターンの間、あなたはリフレッシュできない';
     case 'CHOOSE': {
       // 原文「以下の[N]つから[M]つ（まで）を選ぶ。①…②…」に合わせる（N=from_count）。区切りは規約の「 / 」。
       // choice.condition＝「あなたの場に〜がある場合、」等の選択肢自体の選択可否ゲート（続き105・execChoose の available 判定に対応）。
