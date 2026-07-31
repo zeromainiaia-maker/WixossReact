@@ -19135,6 +19135,45 @@ test('WXDi-P06-072-E1: 表記3000でも実効8000なら発火し、ターン内2
   ok(!battleBanisherMatchesTrigger(ponyBanishEffect, 'WXDi-P06-072', 'banisher', cardMap.get('WXDi-P06-072'), 8000, [ponyBanishEffect.effectId]));
 });
 
+// タスク12(lxix): 「あなたのパワーN以上のシグニ1体がアタックしたとき」＝any_ally＋実効パワー閾値。
+// 従来は scope:'self'／filter なしで、①能力保持シグニ自身のアタックならパワー不問で発火（過剰）
+// ②他の適格シグニのアタックでは発火しない（過小）の両方向に誤っていた。
+for (const [cardNum, effectId] of [['WXDi-P02-079', 'WXDi-P02-079-E2'], ['WXK07-030', 'WXK07-030-E2']] as const) {
+  test(`${effectId}: parser は any_ally＋powerRange.min=15000 を生成`, () => {
+    const e = parseCardEffects(cardMap.get(cardNum)!).find(x => x.effectId === effectId)!;
+    eq(e.timing?.join(','), 'ON_ATTACK_SIGNI');
+    eq(e.triggerScope, 'any_ally');
+    eq(e.triggerFilter?.powerRange?.min, 15000);
+  });
+  test(`${effectId}: 他の味方シグニのアタックを実効パワーで判定する`, () => {
+    // 攻撃者は表記パワー3000のシグニ＝実効パワーを見なければ絶対に15000以上にならない組み合わせ。
+    const attacker = 'WXDi-P06-072';
+    eq(cardMap.get(attacker)?.Power, '3000', '前提: 攻撃者の表記パワーは3000');
+    const mk = (power?: number) => collectFieldTriggers(
+      { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI',
+        ...(power === undefined ? {} : { effectivePowers: new Map([[attacker, power]]) }) },
+      'ON_ATTACK_SIGNI', attacker,
+      mkState({ signi: [cardNum, attacker, null] }), mkState(), HOST,
+    ).entries.filter(x => x.effectId === effectId).length;
+    eq(mk(15000), 1, '実効15000で発火');
+    eq(mk(14999), 0, '実効14999では非発火');
+    eq(mk(undefined), 0, '実効パワー不明なら表記3000へフォールバックし非発火');
+  });
+  test(`${effectId}: 能力保持シグニ自身のアタックもパワー条件で弾かれる（過剰実行の停止）`, () => {
+    // 自身のアタックは BattleScreen の直収集経路（triggerScope を見ない）が拾うため、
+    // そこに置いた triggerFilter 判定と同じ述語をここで固定する。
+    const e = effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!;
+    const card = cardMap.get(cardNum)!;
+    ok(!matchesFilter(card, e.triggerFilter, 14999), '実効14999の自己アタックでは発火しない');
+    ok(matchesFilter(card, e.triggerFilter, 15000), '実効15000の自己アタックでは発火する');
+  });
+}
+test('タスク12(lxix) 巻き添え確認: WX01-029-E1（赤・any_ally）は自己アタックでも通る', () => {
+  const e = effectsMap.get('WX01-029')!.find(x => x.effectId === 'WX01-029-E1')!;
+  eq(e.triggerFilter?.color, '赤');
+  ok(matchesFilter(cardMap.get('WX01-029'), e.triggerFilter, undefined), 'WX01-029 自身は赤なので filter を通る');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

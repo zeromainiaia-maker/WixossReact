@@ -2870,7 +2870,11 @@ export function collectFieldTriggers(
       if (eff.triggerCondition?.placedFromTrash && event === 'ON_PLAY' && !opts?.placedFromTrash) continue;
       // placedPuppet（WDK17-001）: トリガー元が傀儡状態でなければ発火しない。
       if (eff.triggerCondition?.placedPuppet && event === 'ON_PLAY' && !(myState.field.puppet_signi ?? []).includes(triggeringCardNum)) continue;
-      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+      // triggerFilter はイベント発生源（triggeringCardNum）に適用する。⚠実効パワーを渡すこと＝
+      // 「あなたのパワーN以上のシグニがアタックしたとき」（WXDi-P02-079-E2/WXK07-030-E2）は表記値ではなく
+      // CONTINUOUS/temp_power_mods 適用後のパワーで判定する。effectivePowers のキーは場のスタック頂点の
+      // 生値なので getCardNum() で丸めない（丸めるとトークン/複製で lookup が外れ黙って表記値に落ちる）。
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
       if (!limitOkAlly(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
@@ -2910,7 +2914,8 @@ export function collectFieldTriggers(
       const oeStub = eff.action as StubAction;
       if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'
         && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
-      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter)) continue;
+      // triggerFilter は発生源に適用（any_ally 側と対称。実効パワーを渡す理由は上のコメント参照）。
+      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
       // frontLowerLevelThanSource（WX17-075）: このシグニの正面に、これよりレベルの低いシグニが出たときのみ。
       if (eff.triggerCondition?.frontLowerLevelThanSource) {
         if (event !== 'ON_PLAY') continue;

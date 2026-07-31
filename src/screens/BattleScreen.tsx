@@ -7141,6 +7141,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
         .filter(e => !e.crossOnly || attackerCrossOk) // 【クロス自】はアタッカーがクロス状態のときのみ
         .filter(e => !e.kizunaIcon || isKizunaActive(newMyState, myTopNum, battleCardMap)) // 【絆自】は絆獲得時のみ
+        // triggerFilter は「アタックしたシグニ」＝ここではアタッカー自身に適用する。この経路は triggerScope を
+        // 見ずアタッカーの ON_ATTACK_SIGNI を全部拾うため、any_ally（「あなたの〜シグニがアタックしたとき」）の
+        // 効果も**自身がアタックした場合はここで**収集される（他の味方が攻めた分は collectFieldTriggers 側）。
+        // よって filter をここに置かないと、主語の限定（色・パワー等）が自分のアタック時だけ素通りする
+        // ＝WXDi-P02-079-E2/WXK07-030-E2 の「パワー15000以上」がパワー不問で発火していた（タスク12(lxix)）。
+        // ⚠ atkSelfPowers（calcFieldPowers）のキーは場のスタック頂点の生値なので getCardNum() で丸めない。
+        .filter(e => !e.triggerFilter || matchesFilter(battleCardMap.get(getCardNum(myTopNum)), e.triggerFilter, atkSelfPowers.get(myTopNum)))
         .filter(e => !e.condition || evalUseCondition(e.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, atkSelfPowers))
         .map(e => ({
           id: generateUUID(),

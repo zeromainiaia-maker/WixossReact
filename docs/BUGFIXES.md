@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-07-31 — タスク12(lxix)：「あなたのパワーN以上のシグニがアタックしたとき」の主語＋閾値が丸ごと落ちていた2効果（Claude 実装）
+
+**codex のトークン枯渇によりユーザー指示で Claude が実装した回。** 対象は `WXDi-P02-079-E2`（パワー15000以上→【エナチャージ１】）と `WXK07-030-E2`（同→1枚引き＋【エナチャージ１】）。live はどちらも `timing:['ON_ATTACK_SIGNI']`／**`triggerScope:'self'`／`triggerFilter:null`** で、**両方向に誤っていた**＝①能力保持シグニ自身がアタックすれば**パワー不問で発火**（過剰実行）②**他の適格シグニがアタックしても発火しない**（過小実行）。⚠ timing は付いているので **`census:timing` には出ない＝計器の外にあった**（タスク16 第4波の実測中に発見）。
+
+**`ON_ATTACK_SIGNI` は収集経路が2本ある**のが要点：
+
+| 経路 | 対象 | 従来の `triggerFilter` 評価 |
+|---|---|---|
+| `BattleScreen.tsx:7141`（アタッカー自身の直収集） | アタックしたシグニ自身が持つ `ON_ATTACK_SIGNI` 全部 | **`triggerScope` も `triggerFilter` も一切見ない** |
+| `collectFieldTriggers`（`triggerCollect.ts:2798`） | `any_ally`／`any_opp`／`any` の watcher（**自身は除外**＝`topNum === triggeringCardNum` で continue） | 発生源へ適用するが**実効パワーを渡していなかった** |
+
+⇒ **`any_ally` に直すだけでは不十分**（自身のアタック時は直収集経路が拾い、そこにパワー条件が無いので過剰実行が残る）。3点を一体で直した：
+
+- **parser**（`effectParser.ts:7253`）＝「あなたのパワーN以上のシグニ（N体）がアタックしたとき」を `triggerScope:'any_ally'`＋`triggerFilter:{powerRange:{min:N}}` として抽出。既存の色分岐（`^あなたの[白赤青緑黒]のシグニが…`）の手前に置き、具体文型に限定。
+- **`collectFieldTriggers`**＝`matchesFilter` の第3引数に `ctx.effectivePowers?.get(triggeringCardNum)` を渡す（any_ally／any_opp の両分岐を対称に）。
+- **`BattleScreen.tsx:7141`（直収集経路）**＝`triggerFilter` の評価を新設し、`atkSelfPowers.get(myTopNum)` を実効パワーとして渡す。
+
+**波及範囲は投入前に全数実測してゼロと確認**＝①場イベント系（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）で `triggerFilter` を持つのは87効果だが **`powerRange` を持つのは `WX14-025-E1` の1件だけ**（原文「そのシグニのパワーが8000以下の場合」＝現在パワーなので実効値を渡すのは**是正方向**。未登録なら従来どおり表記値へフォールバックするので回帰しない）②`ON_ATTACK_SIGNI` で `triggerFilter` を持つ既存効果は **`WX01-029-E1`（色:赤）の1件だけ**で、WX01-029 自身が赤なので直収集経路に filter を足しても通る（golden で固定）。
+
+**⚠ 実効パワー Map のキーは生値**（第4波と同じ罠）＝`calcFieldPowers` は場のスタック頂点をそのままキーにするので `getCardNum()` で丸めない。一方 `cardMap`／`battleCardMap` は `InstanceMap`（`battleUtils.ts:50`）で `#N` を自動フォールバックするため丸めても安全＝**2つの Map で正規化の要否が逆**。両方の呼び出し行にコメントで固定した。
+
+golden **1174→1181**（parser 出力／他の味方の実効15000・14999・実効不明の3分岐／自己アタックの述語／WX01-029 巻き添え無し）、census **1363→1361**（`BASELINE_HIGH` を本体で更新）、`census:timing` 21 据置（元から timing 有り）、smoke 10679 全0・SKIP0、fuzz 全0（seed 12648430）、lint 0 errors/234 warnings 据置、同型★0、held 251枚/98署名 据置、manual field loss 0。live per-effect 差分 **changed 2 / added 0 / removed 0**。⚠**実機UI 未検証**（`BattleScreen` の直収集経路は golden から叩けないため、述語だけを固定している）。
+
 ## 2026-07-31 — タスク16第4波：`WXDi-P06-072-E1` バニッシュ主体の実効パワー条件（1効果）
 
 「あなたのパワー8000以上のシグニが対戦相手のシグニ1体をバニッシュしたとき」を `ON_SIGNI_BANISH_OPPONENT`／`triggerScope:any_ally`／`triggerFilter.powerRange.min:8000` として生成する parser 規則を追加した。台帳の「15000」「triggerFilter は被バニッシュ側」という記述はどちらも誤りで、原文は8000、当該 timing の filter はバニッシュした側へ適用される。

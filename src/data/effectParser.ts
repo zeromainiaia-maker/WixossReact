@@ -7255,7 +7255,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 続き218j で**ルリグ単独主語も対象化**した（engine に防御側収集経路 collectLrigAttackDefenderTriggers を
           // 新設し、timing 側も ON_ATTACK_LRIG を出すようにしたため、もう ON_ATTACK_SIGNI へ誤って載る心配がない）。
           const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグ(?:かシグニ)?)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
-          if (allyColorM) {
+          // 「あなたのパワーN以上のシグニ（1体）がアタックしたとき」（WXDi-P02-079-E2／WXK07-030-E2）。
+          // 主語は「あなたの」＝味方全体なので any_ally。閾値は triggerFilter.powerRange へ載せ、
+          // 収集側（collectFieldTriggers／BattleScreen のアタッカー自身経路）が**実効パワー**で判定する。
+          const allyPowerM = actionText.match(/^あなたのパワー([０-９\d]+)以上のシグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+          if (allyPowerM) {
+            extractedTriggerScope = 'any_ally';
+            extractedTriggerFilter = { powerRange: { min: parseNum(allyPowerM[1]) } };
+          } else if (allyColorM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { color: allyColorM[1] };
           } else if (/^あなたのシグニがアタックしたとき、/.test(actionText)) {
