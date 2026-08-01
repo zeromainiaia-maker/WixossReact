@@ -1,66 +1,9 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { applyRefreshState } from './refresh';
 import type {
-  CardEffect,
-  EffectAction,
-  Owner,
-  DrawAction,
-  BanishAction,
-  BanishRedirectAction,
-  BounceAction,
-  SendToEnergyAction,
-  PowerModifyAction,
-  PowerSetAction,
-  TrashAction,
-  EnergyChargeAction,
-  EnergyChargeFromDeckAction,
-  LifeCrashAction,
-  ShuffleDeckAction,
-  TransferToHandAction,
-  AddToFieldAction,
-  AddToLifeAction,
-  FreezeAction,
-  DownAction,
-  UpAction,
-  BlockActionAction,
-  StoryChangeAction,
-  GrantKeywordAction,
-  SearchAction,
-  SequenceAction,
-  RepeatAction,
-  PreventRefreshAction,
-  ChooseAction,
-  ConditionalAction,
-  LookAndReorderAction,
-  TransferToDeckAction,
-  GrantProtectionAction,
-  AttachCharmAction,
-  RevealAndPickAction,
-  PlayFreeAction,
-  PlayFreeFromTrashAction,
-  CostIncreaseAction,
-  PowerModifyPerFieldAction,
-  PowerModifyPerLrigLevelAction,
-  CharmProtectionAction,
-  MutualDiscardAndDrawAction,
-  VariableDiscardAndDrawAction,
-  RemoveAbilitiesAction,
-  GainCoinAction,
-  DiscardBothAction,
-  RemoveCharmAction,
-  ForceSigniAttackAction,
-  PowerModifyPerTrashCountAction,
-  PowerModifyPerLifeCountAction,
-  PowerModifyByTargetLevelAction,
-  PlaceVirusAction,
-  AttachAcceAction,
-  BloodCrystalArmorAction,
-  GrantLrigAbilityAction,
-  GrantEffectAction,
-  StubAction,
-  MILLAction,
-} from '../types/effects';
-import type { ExecCtx, ExecResult } from './execUtils';
+  CardEffect, EffectAction, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
+import type { ExecCtx, ExecResult
+} from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState, shuffle, resolveNum, resolveCountRef,
   matchesFilter, getCardNum, removeFromField, fieldCandidates, handCandidates,
@@ -69,6 +12,7 @@ import {
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
+  movableTrashCandidates, isOwnTrashMoveLocked,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -650,7 +594,7 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
   }
   if (tgt.type !== 'TRASH_CARD') return done(ctx);
   const state = ownerState(tgt.owner, ctx);
-  const cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+  const cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
   if (cands.length === 0) return done({ ...addLog(ctx, '除外できるカードがない'), lastProcessedCards: [] });
   const scope: TargetScope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   const count = tgt.count === 'ALL' ? cands.length : Math.min(resolveNum(tgt.count), cands.length);
@@ -1221,7 +1165,7 @@ function execEnergyCharge(a: EnergyChargeAction, ctx: ExecCtx): ExecResult {
     cands = handCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
     scope = tgt.owner === 'opponent' ? 'opp_hand' : 'self_hand';
   } else if (tgt.type === 'TRASH_CARD') {
-    cands = trashCandidates(state, tgt.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    cands = movableTrashCandidates(tgt.owner, state, tgt.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     scope = tgt.owner === 'opponent' ? 'opp_trash' : 'self_trash';
   } else {
     cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
@@ -1757,7 +1701,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
     } else {
       const resolvedFilter = resolveDynamicFilter(resolveDiscardLevelFilter(src.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-      cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+      cands = movableTrashCandidates(src.owner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     }
     if (src.fromLeftFieldUnder) {
       const allowed = new Set(ctx.leftFieldUnderCards ?? []);
@@ -1946,7 +1890,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const addToFieldOtherSt = tgtOwner === 'self' ? ctx.otherState : ctx.ownerState;
   if (src.type === 'TRASH_CARD') {
     const resolvedFilter = resolveDynamicFilter(src.filter, addToFieldOwnerSt, ctx.cardMap, addToFieldOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-    cands = trashCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    cands = movableTrashCandidates(tgtOwner, state, resolvedFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     // thisCardOnly: 「このシグニをトラッシュから場に出す」＝効果元カード自身のみ（トラッシュ自己起動）
     if (src.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && state.trash.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
@@ -2071,7 +2015,7 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
       target.owner === 'opponent' ? 'opp_field' : 'self_field', a, undefined, ctx, !!a.opponentSelects);
   }
   if (a.fromTrash) {
-    const cands = trashCandidates(state, undefined, ctx.cardMap, ctx.treatAsClassAllZones);
+    const cands = movableTrashCandidates(a.owner ?? 'self', state, undefined, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     if (cands.length === 0) return done(addLog(ctx, 'トラッシュがないためライフクロスに加えられない'));
     const scope: TargetScope = a.owner === 'self' ? 'self_trash' : 'opp_trash';
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx, !!a.opponentSelects);
@@ -3861,7 +3805,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   }
 
   if (src.type === 'TRASH_CARD') {
-    const cands = trashCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const cands = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
     // 「トラッシュからすべてのカードをデッキに加えてもよい」は、枚数選択ではなく
     // 全件実行／全件スキップの二択。execReveal の optional×ALL と同じ形に揃える。
     if (src.count === 'ALL' && a.optional) {
@@ -4110,7 +4054,10 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
         || (ctx.sourcePlacementPending && charmOwner === 'self')
       ) ? [ctx.sourceCardNum] : [];
     } else {
-      charmCands = charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
+      // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 【チャーム】化もトラッシュからの領域移動。
+      charmCands = isOwnTrashMoveLocked(charmOwner, ctx)
+        ? []
+        : charmSrc.trash.filter(n => matchesFilter(ctx.cardMap.get(n), a.charm.filter));
     }
     charmFromLocation = 'trash';
   } else {
@@ -4664,6 +4611,10 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
 
   // trash/hand/energy: SELECT_TARGET インタラクション
   const state = ctx.ownerState;
+  // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 自分のトラッシュがロック中は「下に置く」も領域移動なので不可。
+  if (a.source === 'trash' && isOwnTrashMoveLocked('self', ctx)) {
+    return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
+  }
   const srcList = a.source === 'trash' ? state.trash :
                   a.source === 'hand'  ? state.hand  :
                                           state.energy;

@@ -2,17 +2,7 @@ import type { PlayerState, TargetScope, SigniZoneBlock } from '../types';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction,
-  StubAction,
-  TrashAction,
-  AddToFieldAction,
-  SequenceAction,
-  PlaceUnderSourceSigniAction,
-  AddToEnergyAction,
-  TransferToHandAction,
-  EnergyChargeAction,
-  ChooseAction,
-} from '../types/effects';
+  EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, ChooseAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -20,6 +10,7 @@ import {
   getCardNum,
   createTokenInstanceId,
   resolveTokenBase,
+  isOwnTrashMoveLocked,
 } from './execUtils';
 
 export function execStubPart2(
@@ -1293,6 +1284,7 @@ export function execStubPart2(
   // トラッシュから3ゾーンへ分配（lastProcessedCards→各ゾーンへ）
   // TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH: トラッシュから3枚選んでエナ/手札/デッキ下に分配
   if (stub.id === 'TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH') {
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     if ((ctx.lastProcessedCards?.length ?? 0) >= 3) {
       const [toEna, toHand, toDeck] = ctx.lastProcessedCards!;
       let sTZDFT = ctx.ownerState;
@@ -2456,6 +2448,7 @@ export function execStubPart2(
   }
   // PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ
   if (stub.id === 'PICK_FROM_TRASHED_CARDS') {
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     const trashPFTC = ctx.ownerState.trash;
     if (trashPFTC.length === 0) return done(addLog(ctx, 'トラッシュなし'));
     const thenPFTC: TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
@@ -4101,6 +4094,15 @@ export function execStubPart2(
     const overridesISLR = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}), [tgtISLR]: lvISLR };
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: overridesISLR } },
       `${ctx.cardMap.get(tgtISLR)?.CardName ?? tgtISLR}の基本レベルを${lvISLR}に変更`));
+  }
+  // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 「**次の**対戦相手のメインフェイズとアタックフェイズの間、
+  // 対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` の③／
+  // `WXDi-P14-005-E1` の c2＝全CSVでこの2枚だけ）。
+  // 「次の」＝相手の次のターン用の予約として置き、ターン開始時に this_turn へ昇格する
+  // （`signi_zone_blocks_next_turn` と同じ作法）。フェイズ限定は実行時に `isOwnTrashMoveLocked` が見る。
+  if (stub.id === 'LOCK_OPP_TRASH_MOVE') {
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, lock_trash_move_next_turn: true } },
+      '次の対戦相手のメイン／アタックフェイズの間、対戦相手は自分のトラッシュのカードを動かせない'));
   }
   // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置
   if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {

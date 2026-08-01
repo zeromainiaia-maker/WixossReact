@@ -9728,7 +9728,7 @@ test('parse 第9波：「以下の３つを行う。①②③」→ SEQUENCE（�
   eq(p1.steps[0]?.opponentHandDiscard, 3, '②回避＝手札3枚');
   eq(p1.steps[1]?.then?.target?.type, 'SIGNI', '②不払い＝自分のシグニをトラッシュ');
   eq(p1.steps[1]?.then?.opponentSelects, true, '②は「選び」＝相手が選ぶ');
-  eq((seq.steps[2] as unknown as { id?: string }).id, 'LOCK_OPP_TRASH_MOVE', '③は engine 未実装の宣言 STUB（no-op のまま計器に残す）');
+  eq((seq.steps[2] as unknown as { id?: string }).id, 'LOCK_OPP_TRASH_MOVE', '③＝トラッシュ領域移動ロック（第9波では宣言 STUB・タスク12(lxxiii) で実働化）');
 });
 test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提示され、両方の不払い帰結が走る（WX24-P4-007-E1）', () => {
   const savedCursor = cursor;
@@ -9754,6 +9754,77 @@ test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提�
   ok(seen[1].includes('discard'), '②の回避枝＝手札を捨てる');
   eq(r.otherState.hand.length, 3, '①不払い＝手札6→3');
   eq(r.otherState.field.signi.filter(s => s && s.length > 0).length, 1, '②不払い＝シグニ2体→1体');
+  cursor = savedCursor;
+});
+
+// ── タスク12(lxxiii)（2026-08-01）：トラッシュ領域移動ロック（`LOCK_OPP_TRASH_MOVE`）──
+// 「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは
+//   対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` ③／`WXDi-P14-005-E1` c2）。
+// 第9波では宣言 STUB（no-op）だった。⚠止めるのは**所有者自身の効果**だけ＝相手の効果による
+// トラッシュ回収は通す。射程の完全性は `scripts/` の全効果走査で「自分のトラッシュから出る 330件→0件」を実測。
+test('(lxxiii) LOCK_OPP_TRASH_MOVE: 相手側へ「次のターン」の予約を置く（このターンには効かない）', () => {
+  const savedCursor = cursor;
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'STUB', id: 'LOCK_OPP_TRASH_MOVE' } as EffectAction, ctx);
+  ok(r.done, '解決が完了する');
+  eq(r.otherState.lock_trash_move_next_turn, true, '相手側に次ターン予約');
+  eq(r.otherState.lock_trash_move_this_turn, undefined, 'このターンには効かない（「次の」）');
+  eq(r.ownerState.lock_trash_move_next_turn, undefined, '自分側には掛からない');
+  const promoted = activateNextTurnSigniZoneBlocks(r.otherState);
+  eq(promoted.lock_trash_move_this_turn, true, 'ターン開始時に昇格する');
+  eq(promoted.lock_trash_move_next_turn, undefined, '予約はクリアされる');
+  eq(activateNextTurnSigniZoneBlocks(promoted).lock_trash_move_this_turn, undefined, '次の自分ターンには失効する');
+  cursor = savedCursor;
+});
+test('(lxxiii) ロック中は自分の効果で自分のトラッシュからカードを動かせない（汎用アクション）', () => {
+  const savedCursor = cursor;
+  const locked = (phase: string) => ({
+    ...mkCtx({ trash: 3 }, {}),
+    ownerState: { ...mkState({ trash: 3, hand: 0 }), lock_trash_move_this_turn: true },
+    currentPhase: phase,
+  } as ExecCtx);
+  const toHand: EffectAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as EffectAction;
+  const rMain = run(toHand, locked('MAIN'));
+  eq(rMain.ownerState.hand.length, 0, 'メインフェイズ：手札に加わらない');
+  eq(rMain.ownerState.trash.length, 3, 'トラッシュは減らない');
+  const rAtk = run(toHand, locked('ATTACK_SIGNI'));
+  eq(rAtk.ownerState.hand.length, 0, 'アタックフェイズ：同じく不可');
+  // フェイズ外（エナフェイズ等）と非ロック時は従来どおり動く＝機構導入で既存挙動を変えない。
+  const rEnergy = run(toHand, locked('ENERGY'));
+  eq(rEnergy.ownerState.hand.length, 1, 'メイン／アタック以外のフェイズでは動く');
+  const free = { ...mkCtx({ trash: 3 }, {}), ownerState: mkState({ trash: 3, hand: 0 }), currentPhase: 'MAIN' } as ExecCtx;
+  eq(run(toHand, free).ownerState.hand.length, 1, 'ロックが無ければ従来どおり動く');
+  cursor = savedCursor;
+});
+test('(lxxiii) 止めるのは所有者自身の効果だけ＝相手の効果による相手トラッシュ回収は通す', () => {
+  const savedCursor = cursor;
+  // ロックされた側（otherState）のトラッシュを、**こちらの**効果で動かす＝原文が禁じていない側。
+  const ctx = {
+    ...mkCtx({}, { trash: 3 }),
+    otherState: { ...mkState({ trash: 3 }), lock_trash_move_this_turn: true },
+    currentPhase: 'MAIN',
+  } as ExecCtx;
+  const oppToHand: EffectAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'opponent', count: 1 } } as EffectAction;
+  const r = run(oppToHand, ctx);
+  eq(r.otherState.trash.length, 2, '相手トラッシュは減る（＝こちらの効果なので止めない）');
+  cursor = savedCursor;
+});
+test('(lxxiii) トラッシュ直操作の STUB 経路もロックする（下に置く／チャーム／ビート）', () => {
+  const savedCursor = cursor;
+  const mk = () => ({
+    ...mkCtx({ trash: 3, signi: [SIGNI_P3000, null, null] }, {}),
+    ownerState: { ...mkState({ trash: 3, signi: [SIGNI_P3000, null, null] }), lock_trash_move_this_turn: true },
+    currentPhase: 'MAIN',
+  } as ExecCtx);
+  // PLACE_UNDER_SIGNI（「あなたのトラッシュから…をこのシグニの下に置く」＝母集団6効果）
+  const under = run({ type: 'PLACE_UNDER_SIGNI', source: 'trash', count: 1 } as unknown as EffectAction, mk());
+  eq(under.ownerState.trash.length, 3, '「下に置く」でもトラッシュは減らない');
+  // TRASH_SIGNI_TO_BEAT（「トラッシュのシグニを【ビート】にする」）
+  const beat = run({ type: 'STUB', id: 'TRASH_SIGNI_TO_BEAT' } as EffectAction, mk());
+  eq(beat.ownerState.trash.length, 3, '【ビート】化でもトラッシュは減らない');
+  // PICK_FROM_TRASHED_CARDS（「この方法でトラッシュに置かれたカードの中から」）
+  const pick = run({ type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS' } as EffectAction, mk());
+  eq(pick.ownerState.trash.length, 3, '直前にトラッシュへ置いた札の回収も止まる');
   cursor = savedCursor;
 });
 

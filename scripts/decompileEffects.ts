@@ -1916,10 +1916,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/以下の[０-９\d一二三四]+つを行う[\s\S]*/);
         if (m) return m[0].replace(/\s*-\s*$/, '').trim();
       }
-      // LOCK_OPP_TRASH_MOVE（タスク12(lxi) 第9波）＝**engine 未実装の宣言 STUB**。逆翻訳では
-      // 「（未実装）」を明示して原文照合で見落とされないようにする（no-op が原文どおりに見えると危険）。
+      // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii) で実働化）＝相手の次ターンのメイン／アタックフェイズの間、
+      // 相手は自分のトラッシュのカードを自分の効果で動かせない。第9波では宣言 STUB（no-op）だったので
+      // 「（未実装）」を前置していたが、engine 実装済みになったので外した。
       if (a.id === 'LOCK_OPP_TRASH_MOVE') {
-        return '（未実装）次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない';
+        return '次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない';
       }
       // 手札上限増加（HAND_SIZE_INCREASE・engine実装済み）＝「あなたの手札の枚数の上限はN増える。（X枚からY枚になる）」。
       if (a.id === 'HAND_SIZE_INCREASE') {

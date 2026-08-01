@@ -324,6 +324,13 @@ export interface PlayerState {
   colorless_card_overrides?: string[];
   // 対戦相手の効果でトラッシュに移動できないゾーン（PREVENT_ZONE_MOVE_BY_OPP等）
   prevent_opp_trash_from?: ('hand' | 'energy')[];
+  // このターンのメインフェイズ／アタックフェイズの間、**自分の効果では**自分のトラッシュにある
+  // カードを他の領域へ移動できない（LOCK_OPP_TRASH_MOVE＝タスク12(lxxiii)）。
+  // ⚠止めるのは所有者**自身**の効果だけ＝相手の効果によるトラッシュ回収（STEAL_OPP_TRASH_PUPPET 等）は通す。
+  lock_trash_move_this_turn?: boolean;
+  // 次の自分のターン用の予約。ターン開始時に lock_trash_move_this_turn へ昇格する
+  // （signi_zone_blocks_next_turn / free_grow_next_turn と同じ作法）。
+  lock_trash_move_next_turn?: boolean;
   // ターン終了時まで有効なシグニ色オーバーライド（CardNum → 新色名）
   signi_color_overrides?: Record<string, string>;
   // エナの色代替（キーピース等：from色のエナをto色として扱う）

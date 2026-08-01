@@ -1,5 +1,41 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxiii)：トラッシュ領域移動ロック `LOCK_OPP_TRASH_MOVE` を実働化（**タスク12(lxi) も残0クローズ**・Claude 実装）
+
+「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` の③／`WXDi-P14-005-E1` の c2＝**全CSVでこの2枚だけ**）。第9波では名前付きの**宣言 STUB（no-op）**として可視化しただけだった。
+
+**これで `WX24-P4-007-E1` が 2/3 → 3/3 になり、タスク12(lxi) は残0クローズ**（第1〜11波＋本件）。
+
+### ① まず PLAN の指示どおり「トラッシュ発生源の全経路」を機械で列挙した
+
+grep では 104 箇所ヒットして当てにならないので、**smoke ハーネスを流用した全効果走査**（10679効果を実行し、コントローラー自身のトラッシュからカードが消えた効果を数える）で母集団を測った：
+
+| 状態 | 自分のトラッシュから出る効果 |
+|---|---:|
+| 対策前 | **330** |
+| `trashCandidates` の6地点を塞いだだけ | **17**（＝バイパス経路） |
+| 本実装（全経路） | **0** |
+
+残る17件の内訳＝**7経路だけ**だった：`PLACE_UNDER_SIGNI`（「トラッシュから…このシグニの下に置く」6効果）／`ATTACH_CHARM`（【チャーム】化1）／`STUB{TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH}`／`STUB{PICK_FROM_TRASHED_CARDS}`（「この方法でトラッシュに置かれたカードの中から」2）／`STUB{TRASHED_CARD_TO_HAND_OR_ENERGY}`（2）／`STUB{TRASH_SIGNI_TO_BEAT}`（【ビート】化2）／`STUB{PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON}`（1）。
+
+⚠**PLAN が名指しで心配していた `STEAL_OPP_TRASH_PUPPET` は走査に出てこない**＝あれは**相手の**トラッシュから取る効果で、原文が禁じているのは「所有者**自身**の効果」だけ。**射程外だった**（旧行の懸念は空振り）。
+
+### ② 述語を1本に集約し、候補生成の段階で止める
+
+`isOwnTrashMoveLocked(owner, ctx)`（`execUtils.ts`）＝①`owner === 'self'`（＝コントローラー自身のトラッシュ。`ctx.ownerState` がコントローラーという engine 共通規約）② ロックが立っていて `currentPhase` がメイン／アタック系。**`currentPhase` 不明時はロックしない**（permissive＝機構導入で既存挙動を動かさない側へ倒す）。
+
+汎用アクション側は `movableTrashCandidates()`（`trashCandidates` に述語を被せたもの）へ6地点を差し替え、STUB 7経路は同じ述語で早期 return。**ロック中は候補0＝「対象がない」で自然に no-op する**ので、盤面を巻き戻す必要がない（後付けで戻す設計は途中ログが嘘になる）。
+
+⚠`execPlayFree` の `opp_trash` 1地点は**相手のトラッシュ＝射程外**なので据え置いた（7地点のうち塞いだのは6）。
+
+### ③ 期間は wave10 の予約→昇格をそのまま再利用
+
+「**次の**対戦相手の…間」なので `lock_trash_move_next_turn` を相手に置き、ターン開始時に `lock_trash_move_this_turn` へ昇格→そのターン終了で失効。期間の形が `signi_zone_blocks_next_turn`（第10波）と完全に同型なので **`activateNextTurnSigniZoneBlocks` に相乗り**させ、呼び出しサイト4箇所を二重に持たないようにした。フェイズ限定（メイン＋アタック）は昇格ではなく**実行時に述語が見る**＝`ctx.currentPhase` があるので近似せず正確に書ける。
+
+**ゲート**：typecheck ✅／golden **1218→1222**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1354 据置**（parser 不変＝**engine 実装のみ**）／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **250枚・98署名 据置**。live per-effect 差分 **changed 0**（parser は第9波のまま）、`build:effects`・`regen` とも冪等。**STUBS.md 実装 547→548・フォールバック 30→29**（`LOCK_OPP_TRASH_MOVE` が未処理から実装済みへ）。
+
+⚠**未検証UI**＝ロック中に「トラッシュから回収」系の効果を撃つと候補0で素通りする挙動は BattleScreen 経路では未確認（§7 へ登録）。
+
 ## 2026-08-01 — タスク12(lxi) 第11波：手札とエナを跨ぐ単一プール `HAND_OR_ENERGY_CARD` を新設し `WXK06-067-E1` の回避クローズを実働化（Claude 実装）
 
 `WXK06-067-E1`「【起】《青》このシグニを場からトラッシュに置く：対戦相手は、自分のシグニ１体と、自分のエナゾーンからカードを２枚まで対象とし、**対象としたエナゾーンのカードと手札を合計２枚デッキの一番上に置かないかぎり**、対象としたそのシグニをデッキの一番上に置く。」は live が `TRANSFER_TO_DECK{SIGNI opponent 1}` **単体**＝回避クローズが丸ごと落ちて「**無条件で**相手シグニ1体をデッキトップへ」の過剰実行だった（しかも選ぶのが効果側になっていた）。

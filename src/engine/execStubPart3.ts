@@ -1,26 +1,14 @@
 import type { PlayerState, TargetScope, Owner } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction,
-  StubAction,
-  DrawAction,
-  BanishAction,
-  BounceAction,
-  TrashAction,
-  AddToFieldAction,
-  SequenceAction,
-  AddToHandAction,
-  TransferToDeckAction,
-  TransferToHandAction,
-  PowerModifyAction,
-  AttachAcceAction,
-} from '../types/effects';
+  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, AddToFieldAction, SequenceAction, AddToHandAction, TransferToDeckAction, TransferToHandAction, PowerModifyAction, AttachAcceAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, canPayOptionalCost, banishDestination, banishRedirectOpts,
   getCardNum, shuffle, addToBeatZone,
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
+  isOwnTrashMoveLocked,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -543,6 +531,7 @@ export function execStubPart3(
       `${ctx.cardMap.get(cardIMTB)?.CardName ?? cardIMTB}をビートゾーンへ`));
   }
   if (stub.id === 'TRASH_SIGNI_TO_BEAT') {
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     const selectedTSTB = ctx.lastProcessedCards ?? [];
     if (selectedTSTB.length > 0) {
       const newTrashTSTB = ctx.ownerState.trash.filter(cn => !selectedTSTB.includes(cn));
@@ -630,6 +619,7 @@ export function execStubPart3(
   }
   // PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 全ウェポンシグニの下にトラッシュからシグニを1枚ずつ置く
   if (stub.id === 'PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON') {
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     const weaponZonesPTSUAW: number[] = [];
     for (let zi = 0; zi < 3; zi++) {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);

@@ -12,8 +12,8 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 577 |
-| 　└ ハンドラ実装あり | 547 |
-| 　└ フォールバック（execStub 未処理） | 30 |
+| 　└ ハンドラ実装あり | 548 |
+| 　└ フォールバック（execStub 未処理） | 29 |
 | 総 STUB ノード件数 | 2641 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
 
@@ -36,7 +36,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_TRASH_SELF` | 3 | 3 | WX06-CB03, WX21-056, WX21-061 |  |
 | `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` | 2 | 2 | SPDi44-08, WX25-P1-018 |  |
 | `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` | 2 | 2 | WDK16-01T, WXK10-015 |  |
-| `LOCK_OPP_TRASH_MOVE` | 2 | 2 | WX24-P4-007, WXDi-P14-005 |  |
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` | 1 | 1 | WX16-021 |  |
 | `ATTACK_NEGATE_IMMUNITY_SELF` | 1 | 1 | WX24-P4-016 |  |
@@ -181,7 +180,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TOP_TO_BOTTOM_OPTIONAL` | 1 | 1 | WXDi-P03-050 | デッキトップを見て下に置いてもよい |
 | `VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE` | 1 | 1 | WX25-CP1-040 |  |
 
-### execStubPart2.ts（210 種）
+### execStubPart2.ts（211 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -235,6 +234,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `GROW_COST_ZERO` | 2 | 2 | WX21-017, WX21-018 | グロウコスト変更（engine: グロウコスト処理未実装） |
 | `GUARD_ALTERNATIVE_COST` | 2 | 2 | WX24-P2-026, WX25-P2-007 | ガード系（engine: ガードコスト処理未実装） |
 | `LAYER_ABILITY_COPY` | 2 | 2 | WX20-023, WXEX2-59 | LAYER_ABILITY_COPY: ＜怪異＞シグニのレイヤー能力を自シグニにコピー |
+| `LOCK_OPP_TRASH_MOVE` | 2 | 2 | WX24-P4-007, WXDi-P14-005 | LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）: 「**次の**対戦相手のメインフェイズとアタックフェイズの間、 対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-00… |
 | `LOOK_OPP_HAND_DISCARD_SIGNI` | 2 | 2 | WX08-067, WX16-066 | 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ） |
 | `OPP_SIGNI_ATTACK_POWER_RESTRICT` | 2 | 2 | WXDi-P05-031, WXDi-CP01-017 | OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手シグニアタック時パワー制限 |
 | `PICK_FROM_TRASHED_CARDS` | 2 | 2 | WXEX2-49, WX24-P4-034 | PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ |

@@ -1,17 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction,
-  StubAction,
-  DrawAction,
-  BanishAction,
-  BounceAction,
-  TrashAction,
-  ShuffleDeckAction,
-  AddToFieldAction,
-  SequenceAction,
-  AddToHandAction,
-} from '../types/effects';
+  EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
@@ -19,6 +9,7 @@ import {
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   payBeatSigniCost, payBeatSigniFromTrashCost,
+  isOwnTrashMoveLocked,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
@@ -4314,6 +4305,7 @@ export function execStubPart1(
   }
   // トラッシュに置かれたカードを手札かエナに
   if (stub.id === 'TRASHED_CARD_TO_HAND_OR_ENERGY') {
+    if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
     // lastProcessedCards優先、なければtrash末尾を使用
     const targetTCTE = (ctx.lastProcessedCards ?? [])[0] ?? ctx.ownerState.trash.at(-1);
     if (!targetTCTE || !ctx.ownerState.trash.includes(targetTCTE)) {

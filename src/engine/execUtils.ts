@@ -1088,8 +1088,42 @@ export function handCandidates(state: PlayerState, filter: TargetFilter | undefi
   return state.hand.filter(n => matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
 }
 
+/**
+ * LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）＝「（次の）対戦相手のメインフェイズとアタックフェイズの間、
+ * 対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」。
+ *
+ * 判定は2条件の AND：
+ *  ① 動かそうとしているのが**効果のコントローラー自身**のトラッシュであること（`owner === 'self'`。
+ *     ctx.ownerState がコントローラーという engine 共通規約。相手の効果でそのトラッシュを動かすのは
+ *     原文が禁じていないので通す＝`STEAL_OPP_TRASH_PUPPET` 等は素通り）。
+ *  ② そのコントローラーにロックが立っていて、いまがメイン／アタックフェイズであること。
+ *     `currentPhase` 不明時は**ロックしない**（permissive＝機構導入で既存挙動を変えない側に倒す）。
+ *
+ * ⚠**この述語がロックの唯一の真実**。トラッシュを発生源にする経路（`trashCandidates` の7地点＋
+ *   `PLACE_UNDER_SIGNI`／`ATTACH_CHARM`／トラッシュ直操作 STUB 5種）はすべてここを通すこと。
+ *   母集団は `scripts/` の走査で「自分のトラッシュからカードが出る効果 330件」→ 本述語適用で 0件を実測。
+ */
+const TRASH_LOCK_PHASES = ['MAIN', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
+export function isOwnTrashMoveLocked(owner: Owner, ctx: ExecCtx): boolean {
+  if (owner !== 'self') return false;
+  if (!ctx.ownerState?.lock_trash_move_this_turn) return false;
+  return TRASH_LOCK_PHASES.includes(ctx.currentPhase ?? '');
+}
+
 export function trashCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {
   return state.trash.filter(n => matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
+}
+
+/**
+ * トラッシュを発生源にする候補列。`trashCandidates` にロック判定（`isOwnTrashMoveLocked`）を被せたもの。
+ * ロック中は候補0＝アクションは「対象がない」で自然に no-op する（盤面を巻き戻す必要がない）。
+ */
+export function movableTrashCandidates(
+  owner: Owner, state: PlayerState, filter: TargetFilter | undefined,
+  cardMap: Map<string, CardData>, ctx: ExecCtx, allZoneClassOverrides?: Record<string, string>,
+): string[] {
+  if (isOwnTrashMoveLocked(owner, ctx)) return [];
+  return trashCandidates(state, filter, cardMap, allZoneClassOverrides);
 }
 
 export function energyCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {

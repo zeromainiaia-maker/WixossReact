@@ -86,5 +86,10 @@ export function activateNextTurnSigniZoneBlocks(
     ...state,
     signi_zone_blocks: state.signi_zone_blocks_next_turn,
     signi_zone_blocks_next_turn: undefined,
+    // LOCK_OPP_TRASH_MOVE（タスク12(lxxiii)）も「次の自分ターンへの予約→昇格→そのターン終了で失効」で
+    // 期間が完全に同型なので同じ関数で運ぶ（呼び出しサイト4箇所を二重に持たない）。
+    // 実際に効くフェイズ（メイン／アタック）の絞り込みは engine 側の `isOwnTrashMoveLocked` が見る。
+    lock_trash_move_this_turn: state.lock_trash_move_next_turn,
+    lock_trash_move_next_turn: undefined,
   };
 }

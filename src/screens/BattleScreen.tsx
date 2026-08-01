@@ -3432,7 +3432,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
           card_class_overrides: undefined,         // クラスオーバーライドリセット
           signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
-          signi_zone_blocks: undefined,            // ゾーン配置禁止（このターン分）リセット。予約(_next_turn)は残す
+          signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）リセット。予約(_next_turn)は残す
           attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
           signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
           signi_attack_cost: undefined,             // シグニアタックコストリセット
@@ -3798,7 +3798,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
         opp_guard_extra_colorless_this_turn: undefined,
         draw_limit: undefined, card_class_overrides: undefined,
-        signi_color_overrides: undefined, signi_zone_blocks: undefined,
+        signi_color_overrides: undefined, signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined,
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
         signi_attack_cost: undefined, lrig_riding_signi: undefined,
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
@@ -9592,7 +9592,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
-        signi_zone_blocks: undefined, // ゾーン配置禁止（このターン分）をクリア。予約(_next_turn)は残す
+        signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
