@@ -9811,15 +9811,125 @@ test('parse (lxxv)：「あなたのデッキ」側と、トリガー句に相�
 });
 test('parse (lxxv)：連用中止で分割しても主語が持ち越される（WXDi-P10-003-E1）', () => {
   const eff = effectsMap.get('WXDi-P10-003')!.find(e => e.effectId === 'WXDi-P10-003-E1')!;
-  const steps = (eff.action as SequenceAction).steps as unknown as { type?: string; target?: { type?: string; owner?: string } }[];
+  const steps = (eff.action as SequenceAction).steps as unknown as { type?: string; target?: { type?: string; owner?: string }; steps?: unknown[] }[];
   eq(steps[0]?.target?.owner, 'opponent', '「対戦相手は手札を1枚捨て」＝左半分');
-  eq(steps[1]?.target?.type, 'DECK_CARD', '右半分はデッキミル');
-  eq(steps[1]?.target?.owner, 'opponent', '⚠右半分にも主語が持ち越される（従来は self＝自傷）');
+  const deckTrash = JSON.stringify(steps[1]).includes('"type":"DECK_CARD"');
+  const opponentDeckTrash = JSON.stringify(steps[1]).includes('"type":"DECK_CARD","owner":"opponent"');
+  ok(deckTrash, '右側の再帰 SEQUENCE にデッキミルを保持');
+  ok(opponentDeckTrash, '⚠右側の再帰 SEQUENCE にも主語が持ち越される（従来は self＝自傷）');
   // 主語が切り替わる文は持ち越さない＝右半分に「あなた」があれば据置。
   const a = parseCardEffects({ CardNum: 'TEST-LXXV2', Type: 'アーツ',
     EffectText: '対戦相手は手札を１枚捨て、あなたのデッキの上からカードを２枚トラッシュに置く。' } as unknown as CardData)[0].action as SequenceAction;
   const sw = a.steps as unknown as { target?: { owner?: string } }[];
   eq(sw[1]?.target?.owner, 'self', '右半分が「あなた」なら持ち越さない');
+});
+
+// ── タスク12(lxxvii)（2026-08-01）：連用中止の列挙外語尾／3項以上で無言脱落した6効果 ──
+test('parse (lxxvii)：6効果の全動作を SEQUENCE に保持し、相手選択の owner も維持する', () => {
+  const action = (card: string, id: string) => effectsMap.get(card)!.find(e => e.effectId === id)!.action;
+  const nodes = (root: EffectAction): Record<string, unknown>[] => {
+    const out: Record<string, unknown>[] = [];
+    const walk = (v: unknown): void => {
+      if (!v || typeof v !== 'object') return;
+      if (Array.isArray(v)) { v.forEach(walk); return; }
+      const o = v as Record<string, unknown>;
+      if (typeof o.type === 'string') out.push(o);
+      if (o.type === 'SEQUENCE') walk(o.steps);
+    };
+    walk(root);
+    return out;
+  };
+  const types = (card: string, id: string) => nodes(action(card, id)).map(n => n.type).filter(t => t !== 'SEQUENCE').join(',');
+  eq(types('WX18-025', 'WX18-025-E1'), 'TRASH,DRAW', 'ミル3＋ドロー1');
+  eq(types('WXDi-P04-028', 'WXDi-P04-028-E3'), 'SEND_TO_ENERGY,ENERGY_CHARGE_FROM_DECK', '相手全シグニのエナ送り＋EC2');
+  eq(types('WXK03-051', 'WXK03-051-E1'), 'ENERGY_CHARGE_FROM_DECK,STUB', 'EC1＋実装済み SELF_TO_DECK_TOP');
+  eq(types('WXEX2-48', 'WXEX2-48-BURST'), 'ADD_TO_LIFE,TRASH', 'デッキトップをライフ＋手札2捨て');
+  eq(types('WDK14-007', 'WDK14-007-E1'), 'DRAW,ENERGY_CHARGE_FROM_DECK,LIFE_CRASH', 'ドロー2＋EC2＋自ライフ1クラッシュ');
+  const p10 = nodes(action('WXDi-P10-003', 'WXDi-P10-003-E1'));
+  eq(p10.filter(n => n.type === 'TRASH').length, 4, '4動作をすべて保持');
+  for (const n of p10.filter(n => n.type === 'TRASH')) {
+    const target = n.target as { owner?: string; type?: string };
+    eq(target.owner, 'opponent', `${target.type}: owner は opponent`);
+    if (target.type === 'SIGNI' || target.type === 'ENERGY_CARD') eq(n.opponentSelects, true, `${target.type}: 相手が選ぶ`);
+  }
+});
+
+test('engine (lxxvii)：復元した6効果の各アクションが盤面を実際に変更する', () => {
+  const cursorBefore = cursor;
+  try {
+  const effect = (card: string, id: string) => effectsMap.get(card)!.find(e => e.effectId === id)!;
+  {
+    const c = mkCtx({ hand: 0, trash: 0 }, {}); const deck0 = c.ownerState.deck.length;
+    const r = finish(executeEffect(effect('WX18-025', 'WX18-025-E1'), c), c);
+    eq(r.ownerState.deck.length, deck0 - 4, 'WX18-025: ミル3＋ドロー1'); eq(r.ownerState.trash.length, 3); eq(r.ownerState.hand.length, 1);
+  }
+  {
+    const c = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null], energy: 0 });
+    const ownEnergy0 = c.ownerState.energy.length;
+    const r = finish(executeEffect(effect('WXDi-P04-028', 'WXDi-P04-028-E3'), c), c);
+    eq(tops(r.otherState).filter(Boolean).length, 0, 'WXDi-P04-028: 相手全シグニを場から除く'); eq(r.otherState.energy.length, 2);
+    eq(r.ownerState.energy.length, ownEnergy0 + 2, 'EC2も実行');
+  }
+  {
+    const c = mkCtx({ signi: ['WXK03-051', null, null], energy: 0 }, {}, 'WXK03-051');
+    const r = finish(executeEffect(effect('WXK03-051', 'WXK03-051-E1'), c), c);
+    eq(r.ownerState.energy.length, 1, 'WXK03-051: EC1'); eq(r.ownerState.deck[0], 'WXK03-051', 'このシグニをデッキトップへ');
+  }
+  {
+    const c = mkCtx({ hand: 3, life: 0, trash: 0 }, {}); const deck0 = c.ownerState.deck.length;
+    const r = finish(executeEffect(effect('WXEX2-48', 'WXEX2-48-BURST'), c), c);
+    eq(r.ownerState.deck.length, deck0 - 1, 'WXEX2-48: デッキトップをライフへ'); eq(r.ownerState.life_cloth.length, 1); eq(r.ownerState.hand.length, 1, '手札2枚捨て');
+  }
+  {
+    const c = mkCtx({ hand: 0, energy: 0, life: 2, trash: 0 }, {}); const deck0 = c.ownerState.deck.length;
+    const r = finish(executeEffect(effect('WDK14-007', 'WDK14-007-E1'), c), c);
+    eq(r.ownerState.deck.length, deck0 - 4, 'WDK14-007: draw2＋EC2'); eq(r.ownerState.hand.length, 2); eq(r.ownerState.energy.length, 2); eq(r.ownerState.life_cloth.length, 1);
+  }
+  {
+    const c = mkCtx({}, { hand: 2, signi: [SIGNI, null, null], energy: 2, trash: 0 }); const deck0 = c.otherState.deck.length;
+    const r = finish(executeEffect(effect('WXDi-P10-003', 'WXDi-P10-003-E1'), c), c);
+    eq(r.otherState.hand.length, 1); eq(tops(r.otherState)[0], null); eq(r.otherState.energy.length, 1); eq(r.otherState.deck.length, deck0 - 2);
+    eq(r.otherState.trash.length, 5, '手札1＋シグニ1＋エナ1＋デッキ2が相手トラッシュへ');
+  }
+  } finally {
+    cursor = cursorBefore;
+  }
+});
+
+test('parse (lxxvii) 見送り固定：文全体を実装する専用 STUB 2件は SEQUENCE 化しない', () => {
+  const ex1 = effectsMap.get('WXEX1-19')!.find(e => e.effectId === 'WXEX1-19-E2')!.action as { type: string; id?: string };
+  const ex2 = effectsMap.get('WXEX2-21')!.find(e => e.effectId === 'WXEX2-21-E3')!.action as { type: string; id?: string };
+  eq(`${ex1.type}:${ex1.id}`, 'STUB:TRIPLE_ZONE_DISTRIBUTE_FROM_TRASH');
+  eq(`${ex2.type}:${ex2.id}`, 'STUB:TRASH_ALL_SIGNI_AND_KEY');
+});
+// ⚠語尾を**枚数まで含めて決め打ち**すると、同じ文型の別カードが黙って落ちる。実際 codex の初版は
+//   `カードを２枚引き(?=、【エナチャージ２】)` / `【エナチャージN】をし(?!、カードを１枚引く)` という
+//   **特定カードの本文を埋め込んだ先読み**を持っており、下の2件が取りこぼされていた（Claude の検証で一般化）。
+//   ここは「決め打ちへ戻すと落ちる」ことを固定する回帰ガード。
+test('parse (lxxvii) 一般化の回帰ガード：枚数決め打ちに戻すと落ちる2効果', () => {
+  // WXK04-006：「…バニッシュし、【エナチャージ１】をし、カードを１枚引く」＝末尾の DRAW が落ちていた
+  const gr = effectsMap.get('WXK04-006')!.find(e => e.effectId === 'WXK04-006-E1')!.action as unknown as
+    { abilities: { action: SequenceAction }[] };
+  const leaf: string[] = [];
+  const walk = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return;
+    const r = o as Record<string, unknown>;
+    if (r.type === 'SEQUENCE') { (r.steps as unknown[]).forEach(walk); return; }
+    if (typeof r.type === 'string') leaf.push(r.type);
+  };
+  walk(gr.abilities[0].action);
+  eq(leaf.join(','), 'BANISH,ENERGY_CHARGE_FROM_DECK,DRAW', 'WXK04-006-E1: 3動作すべて（従来は DRAW 脱落）');
+  // WX24-P3-022：「カードを１枚引き、対戦相手のデッキの一番上を公開する」が丸ごと UNKNOWN だった
+  const wx = effectsMap.get('WX24-P3-022')!.find(e => e.effectId === 'WX24-P3-022-E1')!.action as SequenceAction;
+  const cond = wx.steps[0] as unknown as { then?: { type?: string; steps?: { type?: string }[] } };
+  eq(cond.then?.type, 'SEQUENCE', 'WX24-P3-022-E1: UNKNOWN が解けている');
+  eq((cond.then?.steps ?? []).map(s => s.type).join(','), 'DRAW,LOOK_AND_REORDER', 'ドロー＋相手デッキトップ公開');
+});
+test('parse (lxxvii) honest defer：WXK03-069 は curated を据え置く（fresh は別表現で改善ではない）', () => {
+  // 「カードを１枚引き、手札からカード１枚をデッキの一番下に置く」＝ live の TRANSFER_TO_DECK が素直。
+  // 一般化した splitter の fresh は LOOK_AND_REORDER になるため **held に残したまま**にした（退化ではないが改善でもない）。
+  const st = (effectsMap.get('WXK03-069')!.find(e => e.effectId === 'WXK03-069-E1')!.action as SequenceAction).steps as unknown as { type?: string }[];
+  eq(st.map(s => s.type).join(','), 'DRAW,TRANSFER_TO_DECK', 'curated 据置＝採用していないこと');
 });
 
 // ── タスク12(lxxvi)（2026-08-01）：「新たに配置できない」ゾーンの供給源が designated 以外の2枚 ──

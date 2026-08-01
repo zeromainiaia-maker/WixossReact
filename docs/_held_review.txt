@@ -1337,6 +1337,23 @@ WXK03-039
   - [0].action.steps[1].then.target.owner = "opponent"
   …（他 6 行）
 
+## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
+WXK03-069
+--- WXK03-069
+  原文: 【自】：このシグニがアタックしたとき、カードを１枚引き、手札からカード１枚をデッキの一番下に置く。,：カードを１枚引く。
+  - [0].action.steps[1].source.type = "HAND_CARD"
+  - [0].action.steps[1].source.count = 1
+  - [0].action.steps[1].position = "bottom"
+  - [0].action.steps[1].shuffle = false
+  ~ [0].action.steps[1].type : "TRANSFER_TO_DECK" → "LOOK_AND_REORDER"
+  + [0].action.steps[1].source.location = "hand"
+  + [0].action.steps[1].count = 1
+  + [0].action.steps[1].private = true
+  + [0].action.steps[1].reorder = false
+  + [0].action.steps[1].destination.location = "deck"
+  + [0].action.steps[1].destination.owner = "self"
+  + [0].action.steps[1].destination.position = "bottom"
+
 ## +CONDITIONAL +LAST_PROCESSED_MATCHES +POWER_MODIFY +SIGNI -STUB ［1枚］
 WXK03-080
 --- WXK03-080
