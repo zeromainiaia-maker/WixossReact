@@ -71,9 +71,11 @@ export function collectBattleBanishDelayedTriggers(
   ctx: TrigCtx,
   banisherId: string,
   banisherState: PlayerState,
+  banisherCardNum?: string,
+  delayedTriggers = banisherState.delayed_triggers ?? [],
 ): StackEntry[] {
   const entries: StackEntry[] = [];
-  for (const dt of banisherState.delayed_triggers ?? []) {
+  for (const dt of delayedTriggers) {
     if (dt.trigger?.timing !== 'ON_SIGNI_BANISH_BATTLE') continue;
     entries.push({
       id: ctx.genId(), playerId: banisherId, cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
@@ -82,6 +84,7 @@ export function collectBattleBanishDelayedTriggers(
         effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_SIGNI_BANISH_BATTLE'],
         action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
       },
+      triggeringCardNum: banisherCardNum,
     });
   }
   return entries;

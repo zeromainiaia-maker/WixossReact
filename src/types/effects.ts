@@ -1153,6 +1153,7 @@ export interface GrantEffectAction {
 export interface InstallDelayedTriggerAction {
   type: 'INSTALL_DELAYED_TRIGGER';
   duration: 'THIS_TURN' | 'THIS_ATTACK_PHASE';
+  once?: boolean;                 // 「次に」＝最初の発火時だけ収集し、設置を消費する。省略時は期間中毎回発火
   sourceCardNum?: string;         // 設置元カード番号。executor が設置時の ExecCtx から焼き込み、発火時の sourceCardNum を復元する
   trigger: {
     timing: string;               // 発火タイミング（例: 'ON_OPP_LIFE_CRASHED' / 'ON_REFRESH'）

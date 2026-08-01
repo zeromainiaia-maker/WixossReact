@@ -891,7 +891,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 設置されるので主語は「あなたのシグニ」＝timingJa の「このシグニが…」（シグニ自身の【自】用）は使えない。
       if (a.trigger?.timing === 'ON_SIGNI_BANISH_BATTLE') {
         const durIDT = a.duration === 'THIS_ATTACK_PHASE' ? 'このアタックフェイズの間' : 'このターン';
-        return `${durIDT}、あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
+        const nextIDT = a.once ? '次に' : '';
+        return `${durIDT}、${nextIDT}あなたのシグニがバトルによってシグニ1体をバニッシュしたとき、${actionJa(a.effect)}`;
       }
       const cf = a.trigger?.crasherFilter;
       const subjIDT = cf

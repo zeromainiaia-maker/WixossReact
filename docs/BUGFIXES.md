@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxi)：「このターン、次に…バトルバニッシュしたとき」の遅延設置2効果
+
+`WX26-CP1-040-E2`／`WX24-P1-011-E2` は「このターン、次に」の設置句が parser から落ち、帰結が起動時に即時実行されていた。`InstallDelayedTriggerAction.once`（省略時 false）を追加し、厳格なバトルバニッシュ文型だけを `INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN', once:true}` に変換した。`WX26-CP1-040-E2` の先行 `POWER_MODIFY{+3000, UNTIL_OPP_TURN_END}` は不変。`WX24-P1-011-E2` は帰結を `SEQUENCE[UP, REMOVE_ABILITIES]` とし、両方を `targetsTriggerSource:true` でバニッシュした自分のシグニへ束縛した。
+
+消費は React 外の純関数 `consumeBattleBanishDelayedTriggers` に置いた。`ON_SIGNI_BANISH_BATTLE` の発火対象を返しつつ `once:true` だけを state から除去し、once 省略の watcher は保持する。BattleScreen は戻り state を採用してから `collectBattleBanishDelayedTriggers` へ発火対象と `myTopNum` を渡す。collector は `triggeringCardNum` を entry に載せるため、`UP`／`REMOVE_ABILITIES` の executor が同じ発火元を自動対象化できる。
+
+実行 golden は、①設置直後に相手ライフを減らさない ②最初のバトルバニッシュで1回発火 ③同一ターン2回目は不発 ④ `WX24-P1-011-E2` のアップと能力消去が同じ発火元に当たる ⑤「次に」が無い対照 `WX24-P4-011-E3` は同一ターン2回とも発火し watcher を保持、を固定。golden 1244→1247、census 1351→1349（`BASELINE_HIGH` 更新）、smoke 10679/10679 全0・SKIP0、fuzz 全0、lint 0 errors / 240 warnings、held 251枚／99署名据置、同型★0（265群・5986枚）、manual field loss 0。live per-effect diff は changed 2 / added 0 / removed 0、スコープ外 outlier 0（`WX24-P4-011-E3` は不変）。
+
+### Claude 検証で足した1点＝**対照群をデータ側でも固定**
+
+codex の対照 golden（`WX24-P4-011-E3` は2回発火する）は**合成 dt で純関数の挙動を固定するだけ**で、
+**実カードの JSON に `once` が付いていないこと**は検査していなかった。parser 規則が緩んで
+原文に「次に」が**無い** `WX24-P4-011-E3` へ `once` が付くと「毎回発火」が「1回だけ」に化ける退化になるが、
+合成 dt のテストは**緑のまま素通りする**。⇒ 3効果の `once` の有無（＝原文の「次に」の有無との対応）を
+データ側で assert する golden を1本追加した（golden **1247→1248**）。
+
+**engine 配線は独立検証済み**＝`consumeBattleBanishDelayedTriggers` の戻り state は
+`newMyState`（`const`→`let` へ変更済み）へ採用され、`sweepPuppets` → `finalMyState` →
+`persist.commit(WRITE_STATE)` まで到達する＝**書いたが配線されていない（§5-20）ではない**ことを
+呼び出し鎖で確認した。`once` の読み手も `consumeBattleBanishDelayedTriggers` 1箇所に実在＝**死フラグではない**。
+
+⚠**残る近似1点**＝`WX26-CP1-040-E2` の原文は「あなたのシグニがバトルによって**対戦相手の**シグニ１体を
+バニッシュしたとき」だが、逆翻訳・JSON とも「対戦相手の」限定を持たない。**バトルでバニッシュされるのは
+必ず相手のシグニ**なので実害は無いが、忠実表現ではない。
+
 ## 2026-08-01 — タスク12(lxx)：「カードをN枚引くか<B>」の2択脱落（3/17効果を確実採用・14件 honest defer）
 
 原文ブロックを含む live 母集団60効果（正しい `CHOOSE` 42／脱落18。うち `WX24-P4-017-E3` は選択ではなくトリガー条件OR）を再照合した。アンカー前の句を無条件に捨てると timing・条件・遅延・引用付与を失うため、前置句除去は **AUTO／`ON_REFRESH`／`triggerCondition.refreshedOwner:'opponent'` が既に構造化済み**という木の形に限定した。規則の全命中は `WXDi-P11-008-E1` 1効果だけで、スコープ外命中0。`parseDrawOrChoice` の「とき」ガードは維持した。

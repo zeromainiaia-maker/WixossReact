@@ -2129,6 +2129,37 @@ const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; trigger?: Re
   { re: /^このターン[、,]対戦相手のシグニがアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'opponent' } },
 ];
 
+/**
+ * 「このターン、次に…バトルによって…バニッシュしたとき」の厳格形。
+ * 回避クローズを持たない設置文だけを扱い、「次に」を once へ保存する。
+ */
+function matchNextBattleBanishDelayedInstall(t: string): EffectAction | undefined {
+  const m = t.match(/^(?:(.+?[。.]\s*))?このターン[、,]次にあなたのシグニ(?:[１1]体)?がバトルによって(?:対戦相手の)?シグニ[１1]体をバニッシュしたとき[、,]\s*(.+)$/s);
+  if (!m) return undefined;
+
+  let effect: EffectAction | undefined;
+  if (/^対戦相手にダメージを与える[。.]?$/.test(m[2])) {
+    effect = { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true };
+  } else if (/^そのあなたのシグニをアップし[、,]ターン終了時まで[、,]そのシグニは能力を失う[。.]?$/.test(m[2])) {
+    effect = {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsTriggerSource: true },
+        { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsTriggerSource: true, until: 'UNTIL_END_OF_TURN' },
+      ],
+    } as EffectAction;
+  }
+  if (!effect) return undefined;
+  const install = {
+    type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', once: true,
+    trigger: { timing: 'ON_SIGNI_BANISH_BATTLE' }, effect,
+  } as EffectAction;
+  if (!m[1]) return install;
+  const prefix = parseActionText(m[1].trim());
+  if (prefix.type === 'UNKNOWN') return undefined;
+  return { type: 'SEQUENCE', steps: [prefix, install] } as SequenceAction;
+}
+
 function findOpponentUnlessGate(t: string):
   { index: number; length: number; cost: NonNullable<ReturnType<typeof parseOpponentUnlessCost>> } | undefined {
   for (const re of [/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/, /対戦相手が([^。「」]{2,70}?)ないかぎり[、,]?/]) {
@@ -2883,6 +2914,10 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // 「<対象節>、対戦相手が…ないかぎり、X」の文中形が下流の非アンカー規則に X だけ拾われて
   // 節全体が無言消費されていた（＝X が無条件実行される過剰実行が 50件規模で残存）。
   // ここで「対象節（任意）＋回避クローズ＋帰結」の3分割へ一般化する。
+  {
+    const delayed = matchNextBattleBanishDelayedInstall(t);
+    if (delayed) return delayed;
+  }
   {
     const gate = matchOpponentUnlessGate(t);
     if (gate) return gate;
@@ -4874,6 +4909,10 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const doAll = tryParseDoAllItems(text);
     if (doAll) return doAll;
+  }
+  {
+    const delayed = matchNextBattleBanishDelayedInstall(text.trim());
+    if (delayed) return delayed;
   }
   // WX25-P3-028 型：「このターン＋次のターン」のリフレッシュ禁止と、
   // 各回ごとに owner を選ぶ反復。引用内の句点を分割する前に全文を正準形へ落とす。

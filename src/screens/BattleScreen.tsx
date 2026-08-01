@@ -39,6 +39,7 @@ import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToL
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
+import { consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
@@ -7472,7 +7473,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // pending_signi_battle をクリアしたmyStateを基点とする
-      const newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
+      let newMyState: PlayerState = { ...myS, pending_signi_battle: undefined };
       let newOpState: PlayerState = opS;
       // ON_SIGNI_DAMAGE: このアタックで実際に相手ライフをクラッシュ（ダメージを与えた）か
       let dealtSigniDamage = false;
@@ -8249,8 +8250,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_SIGNI_BANISH_BATTLE watcher（`WX24-P4-011-E3`）。場のシグニ効果だけを見ていた従来の収集では
         // 「このターン、あなたのシグニがバトルによって…したとき」の遅延分が拾えず、parser 側は設置を
         // 落として**その場で無条件にダメージ**を与える過剰実行になっていた。
+        const delayedBattleBanish = consumeBattleBanishDelayedTriggers(newMyState);
+        newMyState = delayedBattleBanish.state;
         battleBanishEntries.push(...pureCollectBattleBanishDelayedTriggers(
-          mkTrigCtx(), attackerId, newMyState,
+          mkTrigCtx(), attackerId, newMyState, myTopNum, delayedBattleBanish.fired,
         ));
       }
 

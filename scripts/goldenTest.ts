@@ -37,6 +37,7 @@ import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/ma
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
+import { consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -9711,6 +9712,65 @@ test('第7波 collect：ON_SIGNI_BANISH_BATTLE の遅延トリガーをバニッ
   const other = { ...mkState({}), delayed_triggers: [{ ...dtBB, trigger: { timing: 'ON_TURN_END' } }] } as PlayerState;
   eq(collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, other).length, 0, '別 timing の遅延は非発火');
   cursor = savedCursor;
+});
+test('タスク12(lxxi) E2E：次のバトルバニッシュ設置は即時実行せず、1回発火後に消費される', () => {
+  const savedCursor = cursor;
+  const source = 'WX26-CP1-040';
+  const banisher = SIGNI_P12000;
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WX26-CP1-040-E2')!;
+  const initial = mkCtx({ signi: [banisher, null, null] }, { life: 7 }, source);
+  const installed = run(effect.action, initial);
+  eq(installed.otherState.life_cloth.length, 7, '設置直後は相手ライフをクラッシュしない');
+
+  const first = consumeBattleBanishDelayedTriggers(installed.ownerState);
+  eq(first.fired.length, 1, '最初のバトルバニッシュで発火対象になる');
+  eq(first.state.delayed_triggers?.length ?? 0, 0, 'once watcher は最初の発火で消費');
+  const entries = collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, first.state, banisher, first.fired);
+  eq(entries[0]?.triggeringCardNum, banisher, 'バニッシュした自分のシグニを発火元として保持');
+  const resolved = run(entries[0].effect.action, { ...initial, ownerState: first.state, otherState: installed.otherState, triggeringCardNum: entries[0].triggeringCardNum });
+  eq(resolved.otherState.life_cloth.length, 6, '最初のバトルバニッシュで1回だけダメージ');
+  const second = consumeBattleBanishDelayedTriggers(resolved.ownerState);
+  eq(second.fired.length, 0, '同一ターンの2回目は発火しない');
+  cursor = savedCursor;
+});
+test('タスク12(lxxi) E2E：WX24-P1-011-E2 は発火元をアップし、同じシグニの能力を失わせる', () => {
+  const savedCursor = cursor;
+  const source = 'WX24-P1-011';
+  const banisher = SIGNI_P12000;
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WX24-P1-011-E2')!;
+  const initial = mkCtx({ signi: [banisher, null, null], down: [true, false, false] }, {}, source);
+  const installed = run(effect.action, initial);
+  eq(installed.ownerState.field.signi_down[0], true, '設置直後はアップしない');
+  eq((installed.ownerState.abilities_removed ?? []).length, 0, '設置直後は能力を失わない');
+  const consumed = consumeBattleBanishDelayedTriggers(installed.ownerState);
+  const entries = collectBattleBanishDelayedTriggers(trigCtx(HOST, HOST), HOST, consumed.state, banisher, consumed.fired);
+  const resolved = run(entries[0].effect.action, { ...initial, ownerState: consumed.state, triggeringCardNum: entries[0].triggeringCardNum });
+  eq(resolved.ownerState.field.signi_down[0], false, 'バニッシュした自分のシグニをアップ');
+  ok((resolved.ownerState.abilities_removed ?? []).includes(banisher), '同じ発火元シグニの能力を失わせる');
+  cursor = savedCursor;
+});
+test('タスク12(lxxi) 対照：WX24-P4-011-E3 は once でなく同一ターンに2回発火する', () => {
+  const savedCursor = cursor;
+  const dt = { type: 'INSTALL_DELAYED_TRIGGER', duration: 'THIS_TURN', trigger: { timing: 'ON_SIGNI_BANISH_BATTLE' },
+    sourceCardNum: 'WX24-P4-011', effect: { type: 'LIFE_CRASH', owner: 'opponent', count: 1 } } as import('../src/types/effects').InstallDelayedTriggerAction;
+  const state = { ...mkState({}), delayed_triggers: [dt] } as PlayerState;
+  const first = consumeBattleBanishDelayedTriggers(state);
+  const second = consumeBattleBanishDelayedTriggers(first.state);
+  eq(first.fired.length, 1, '1回目に発火');
+  eq(second.fired.length, 1, '「次に」が無いので2回目にも発火');
+  eq(second.state.delayed_triggers?.length, 1, '期間中 watcher を保持');
+  cursor = savedCursor;
+});
+// 上のテストは合成 dt で**純関数の挙動**を固定するだけ＝「実カードの JSON に once が付いていないこと」は
+// 検査しない。parser 規則が緩んで `WX24-P4-011-E3`（原文に「次に」が**無い**）へ once が付くと、
+// 「そのターン中は毎回発火」が「1回だけ」に化ける退化になるが、上のテストは緑のまま素通りする。
+// ⇒ 3効果の once の有無をデータ側でも固定する（「次に」の有無＝原文との対応）。
+test('タスク12(lxxi) データ固定：once は原文に「次に」がある2効果だけに付く', () => {
+  const onceOf = (cardNum: string, effectId: string): boolean =>
+    /"once":\s*true/.test(JSON.stringify(effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!.action));
+  eq(onceOf('WX26-CP1-040', 'WX26-CP1-040-E2'), true, '原文「このターン、次に…」＝1回消費');
+  eq(onceOf('WX24-P1-011', 'WX24-P1-011-E2'), true, '原文「このターン、次に…」＝1回消費');
+  eq(onceOf('WX24-P4-011', 'WX24-P4-011-E3'), false, '原文に「次に」が無い＝毎回発火（once を付けたら退化）');
 });
 // ── タスク12(lxi) 第9波（2026-07-31）：「以下のNつを行う。①②③」＝選択ではなく逐次実行（WX24-P4-007-E1）──
 test('parse 第9波：「以下の３つを行う。①②③」→ SEQUENCE（従来は DO_THREE_THINGS 1本＝完全 no-op）', () => {
