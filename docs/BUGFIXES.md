@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxiv)：「以下のNつを行う。①②③」の項目脱落を是正（**Codex 実装＋Claude 検証**・8/9枚採用・残1は honest defer）
+
+原文が「以下のNつを行う。①…②…③…」の形のカードは①②③を**全部**実行する（選択ではない）。ところが parser はこの族をまともに組めておらず、母集団10枚が3通りに壊れていた。
+
+1. **`STUB{DO_THREE_THINGS}` 1本に丸めて engine の text パターン照合へ丸投げ**（6枚）。`execStubPart3.ts` の**カード別 regex 10本**に当たった項目だけが動き、当たらない項目は**黙って消える**。対象選択も無く「相手シグニは常にゾーン先頭」「エナは常に `energy[0]`」の決め打ち。
+2. **「以下の２つを行う」だけ `STUB{CHOOSE_N_FROM_LIST}` に化ける**（2枚）＝`parseSentencePart4.ts:421` の `^以下のNつを行う$` が拾う。`DO_THREE_THINGS` 側の regex は `^以下の[３-９]つを行う$` で **2 を含まない**ため2項目のカードだけがここへ落ちていた。**「全部行う」が「選ぶ」に化けている**。
+3. 第9波で `WX24-P4-007` 1枚だけ SEQUENCE 化済み（ゲートが (lxi) の族に絞ってあり他へ届かない）。
+
+**逆翻訳では気付けない偽陰性**＝`DO_THREE_THINGS` はシート上「3つの処理を行う」としか出ず、どの項目が消えているかがシートに現れない。
+
+### ① 投入前の全数実測で在庫 (lxxiv) の記述を3点訂正した
+
+| 在庫の記述 | 実測 |
+|---|---|
+| 「残り9枚は DTT の text パターン依存」 | **誤り**。live で `DO_THREE_THINGS` を持つのは**6枚だけ**。残り3枚は別の壊れ方 |
+| 「②「ライフクロス1枚をトラッシュに置く」→ `LIFE_CRASH`＝**バーストが誘発する**別物」 | **誤り**。単独パースは `LIFE_CRASH{triggerBurst:false}` を出し、engine は `effectExecutor.ts:1251` の `if (a.triggerBurst)` で守る＝**誘発しない**＝原文どおり |
+| 「無差別に SEQUENCE 化すると held +9」 | 方向は正しいが、**実際に退化するのは2項目だけ**（`WXK11-002`④・`WX24-P4-002`①）。残りは単独パースのほうが情報が多い |
+
+**在庫が書いていなかった実害3件**も出た＝`WXDi-P05-052` は**①のサーチが live から丸ごと欠落**／`WXDi-P06-050` ②は**無条件 `DRAW{2}`**（原文は1枚、特定カードがある場合だけ2枚）／`WXK11-007/008/009/010` の②③は**「《色》を支払ってもよい」の任意コストが落ちて本体だけ無償実行**（4枚×2＝**8項目が無償化**。live に残る `CONDITIONAL{IS_MY_TURN}` はアーツ使用時に常に真で素通りする）。
+
+### ② 採用した8効果
+
+- `WXK11-002-E1`（4項目）＝①相手シグニ→トラッシュ／②ライフ→トラッシュ（`triggerBurst:false`）／③相手エナ→トラッシュ／④相手ルリグ下→ルリグトラッシュ。①③は**対象選択が復活**（DTT は決め打ちだった）。
+- `WXK11-007-E1`／`WXK11-008-E1`／`WXK11-009-E1`／`WXK11-010-E1`＝**②③の任意コストゲートを復元**（無償化の是正）。併せて対象句の脱落4件を是正＝`WXK11-007`②③（相手センタールリグ／自分のトラッシュ）・`WXK11-009`③（相手センタールリグ。従来は `FREEZE{SIGNI owner:'self'}`＝**自分のシグニを凍結**）・`WXK11-010`②（相手シグニ2体まで。従来は `DOWN{SIGNI owner:'self' count:1}`）。
+- `WXDi-P05-052-E1`＝**欠落していた①のサーチ**（`REVEAL_AND_PICK` 5枚→白シグニ1枚）を復元。
+- `WXDi-P06-050-E1`＝②の無条件2ドローを `CONDITIONAL` へ是正。①も `CHOOSE_N_FROM_LIST`+`LOOK_TOP_SORT` から正しい `LOOK_AND_REORDER{split_top_bottom}` へ。
+- `WX24-P4-002-E1`＝①全ルリグ＋全シグニのダウン凍結／②全シグニ能力消去／**③（置換効果）は従来 live に丸ごと存在しなかった**ものを実働化。
+
+**機構**＝対象句つき任意色コストは既存 `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` に `optionalCostTarget` を足して共通化（**並行 STUB を新設しない**）。新設 STUB は `OPP_LRIG_UNDER_TO_LRIG_TRASH` の**1本だけ**で、実装は engine の旧 DTT パターン P4 からの**移設**（新機構ではない）。
+
+### ③ ⚠`CENTER_LRIG_OR_SIGNI` は使えない（投入前に罠として先出しした）
+
+「対戦相手の**すべてのルリグとシグニ**をダウンし凍結する」に `CENTER_LRIG_OR_SIGNI` を使うと、**`execFreeze` にその分岐が無く**（`LRIG` 分岐はある）シグニ限定の `fieldCandidatesByOwner` へ落ち、**型もゲートも通ったままルリグだけが黙って外れる**。engine 実装済みの2経路 `SEQUENCE[FREEZE{SIGNI ALL}, FREEZE{LRIG}]` へ分けて表現し、engine 無改修で着地した。**この退化を検出する E2E golden を1本置いた**。
+
+### ④ Claude 検証で是正した3点
+
+1. **カード固有の先読みガードを構造化**＝codex 初版は `parseActionTextInner` 冒頭に `①…デッキの上からカードをN枚見る` かつ `②…センタールリグは「【自】` という **`WXDi-P05-052` の本文を埋め込んだ分岐**を置いていた（後段の引用能力抽出が全文を `GRANT_LRIG_ABILITY` として奪うため先回りが必要という判断自体は正しい）。本族の判定を `tryParseDoAllItems()` へ切り出して**先頭で1回だけ呼ぶ**形に直した＝カード固有の本文が消え、同型の新カードにも効く。**live diff・held とも変化0**で等価を確認。
+2. **`parseSpellEffect` の分岐条件を原文 regex から木の形へ**＝codex は `action.type === 'GRANT_LRIG_ABILITY' || /^以下のNつを行う。/.test(stripped)` としていたが、この分岐は中で `parseStatus` を再代入するため、**付与能力を持たないカードまで入ると `spellFb` 由来の PARTIAL を握り潰す**。`SEQUENCE` の中に `GRANT_LRIG_ABILITY` を含むかで判定する形へ変更（`_partial_report.txt` 43件は不変）。
+3. **E2E 挙動 golden を3本追加**＝codex の golden 2本は JSON 構造 assert のみで、**任意コストゲートが実際に本体を止めるか**（本バッチの実害是正そのもの）を検査しない。`WXK11-008` をエナ0で実行して②③が走らないことを実挙動で固定した（旧形はここで**無償実行**されていた）ほか、`WXK11-002`④のルリグ下移動と `WX24-P4-002`①のルリグ凍結を実行で固定。
+
+### ⑤ 残る近似（honest defer と併せて記録）
+
+- **`WXK11-001-E1` は据置**＝①「対戦相手がアーツかスペルを使用していた場合」の条件語彙（`ARTS_USED_THIS_TURN`／`SPELL_USED_THIS_TURN`／`OR`）は**すべて既存で相手 owner でも評価できる**ことを確認したが、②「ルリグデッキのアーツをゲームから除外してもよい」が任意コストとして後続をゲートするか未確定で、かつ**①と②でスキップ対象の owner が食い違っている**（①`opponent`／②`self`）ため原文からの確定ができない。旧形（`CHOOSE_N_FROM_LIST`）を golden で固定して defer。
+- **`WXK11-002`④は対象選択が無い**＝原文は「カード1枚を**対象とし**」だが `OPP_LRIG_UNDER_TO_LRIG_TRASH` は直下1枚を自動で取る（DTT P4 の挙動をそのまま移設＝**従来同等**であって退化ではない）。
+- **`REMOVE_ABILITIES.until` は engine が読んでいない死フィールド**＝`execRemoveAbilities` はフラットな `abilities_removed` に積むだけで duration 別ストアを持たない。実効の寿命は `BattleScreen.tsx:3767`／`3835` のターン境界クリア＝原文「次の対戦相手のターン終了時まで」より**短い**。⚠従来（DTT パターン P6）も恒久フラグを積むだけだったので**退化ではない**が、「DTT には duration が無く恒久化していた＝改善」という codex 報告の記述は**不正確**（`until` を書いても engine は見ない）。
+- **`WX24-P4-002`③の置換効果は近似**＝`OPP_SIGNI_LEAVE_TO_TRASH` は `banish_redirect: true` を立てるだけで（`execStubPart2.ts:1249`。なお `execStubPart3.ts:3301` にある**即時トラッシュ版は到達不能**＝part2 が先に当たる）、原文の「**能力を持たない**シグニに限る」限定と「このターンと**次の**ターンの間」の2ターン持続を表現していない（`banish_redirect` はターン境界でクリアされる＝1ターン）。**従来は③が丸ごと欠落していたので純改善**だが完全ではない。
+
+### ⑥ ゲート（ベースライン `07e79bd6` 比）
+
+golden **1234→1239**（codex +2 構造／Claude +3 E2E）・census **1352→1351**（`BASELINE_HIGH` 本体を履歴先頭追記で更新・並行定数なし）・smoke **10679 OK 10679**（CRASH/HANG/INVARIANT/SKIP 全0）・fuzz 全0・lint **0 errors / 240 warnings 据置**・同型★**0（265群）**・held **251枚/99署名 据置**・manual field loss 0・`npm run gates` 全緑・`build:effects`／`regen` 冪等。
+
+**live per-effect diff＝changed 8 / added 0 / removed 0 / スコープ外 outlier 0**（宣言と一致）。エンコーディング検査＝全変更ファイルで BOM(`efbbbf`) 0・U+FFFD 0・`???` 7→7（既存のまま）。
+
+### ⑦ 到達不能になった分岐（削除はしていない）
+
+`DO_THREE_THINGS` の10パターンは本母集団では全て到達不能になった。`parseSentencePart3.ts` の `^以下の[３-９]つを行う$`・`parseSentencePart4.ts:421` の `CHOOSE_N_FROM_LIST`（**defer した `WXK11-001` では引き続き到達**）・`effectParser.ts` の `OPP_PAY_DEDICATED_STUB_RE` 内の `DO_THREE_THINGS` 参照も同様。**母集団外からの参照可能性を残すため残置**した。
+
 ## 2026-08-01 — タスク12(lxxvii)：連用中止「Aし、Bし、Cする」の先頭／中間動作脱落を是正（**Codex 実装＋Claude 検証で 6→8効果**・残0クローズ）
 
 連用中止 splitter は「列挙式の語尾リスト」で、しかもカンマ1つ（2分割）でしか割らない。⇒ ①語尾がリストに無いと split が起きず**片方の動作だけが残る** ②3項以上では右半分の再帰パースで**中間の動作が飲まれる**。**全ゲート緑のまま実機で動作が欠ける**（落ちた側は「効果が起きないだけ」なので census・golden・smoke のどれにも映らない）。

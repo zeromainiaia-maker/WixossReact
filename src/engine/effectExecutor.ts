@@ -2988,10 +2988,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // パーサーが conditional.then の target.owner を 'self' と誤生成するため修正する
         if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
           const toHWTOSOC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-          const oppCandsTOSOC = fieldCandidates(cur.otherState, { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors);
-          if (oppCandsTOSOC.length === 0) {
+          const declaredTargetTOSOC = stub.optionalCostTarget;
+          const targetAvailableTOSOC = declaredTargetTOSOC?.type === 'LRIG'
+            ? cur.otherState.field.lrig.length > 0
+            : declaredTargetTOSOC?.type === 'TRASH_CARD'
+              ? cur.ownerState.trash.some(cn => matchesFilter(cur.cardMap.get(getCardNum(cn)), declaredTargetTOSOC.filter ?? {}))
+              : fieldCandidates(cur.otherState, declaredTargetTOSOC?.filter ?? { cardType: 'シグニ' }, cur.cardMap, cur.effectivePowers, cur.allColorSigniNums, cur.fieldSigniExtraColors).length > 0;
+          if (!targetAvailableTOSOC) {
             if (cont) return executeAction(cont, cur);
-            return done(addLog(cur, '対象シグニなし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）'));
+            return done(addLog(cur, '任意コストの対象なし（TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST）'));
           }
           const canAffordTOSOC = costColors.length === 0 || canPayOptionalCost(costColors, cur.ownerState, cur.cardMap);
           // パーサーバグ修正: conditional.then の target.owner='self'/'any' → 'opponent'
@@ -3005,7 +3010,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             }
             return a;
           };
-          void toHWTOSOC; // count解析は利用しない（execBanish/execBounce が自律的に候補を提示）
+          void toHWTOSOC; // 対象の枚数・種別は optionalCostTarget と各 executor が解決する
           const fixedThenTOSOC = fixOwnerTOSOC(conditional.then);
           const payLabelTOSOC = costColors.length > 0
             ? `対象選択して発動（${costColors.map(c => c.split('|').map(x => `《${x}》`).join('か')).join('')}）`

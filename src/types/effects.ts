@@ -1873,6 +1873,8 @@ export interface AltCostOppTurnAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
+  optionalCostTarget?: EffectTarget;
   /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
   leaveVictimFilter?: TargetFilter;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */

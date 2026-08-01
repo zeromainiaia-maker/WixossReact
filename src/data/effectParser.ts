@@ -2,6 +2,7 @@ import type { CardData } from '../types';
 import { mergeManualEffects } from './manualEffects';
 import type {
   EffectAction,
+  ConditionalAction,
   CardEffect,
   EffectType,
   EffectTiming,
@@ -4735,6 +4736,81 @@ function applyTargetLevelScaling(text: string, action: EffectAction): EffectActi
 
 let _resolvingSeparatedPick = false;
 
+// ── タスク12(lxi) 第9波（2026-07-31）／タスク12(lxxiv)（2026-08-01）：
+//    「以下のNつを行う。①…②…③…」＝**選択ではなく全部やる**（CHOOSE でも DO_THREE_THINGS でもない） ──
+// 従来は `STUB{DO_THREE_THINGS}` 1本に丸めて engine の**カード別 text パターン照合**
+// （`execStubPart3`）へ丸投げしており、当たらない項目は黙って消えていた。2項目のカードは更に
+// `parseSentencePart4` の `^以下のNつを行う$` → `CHOOSE_N_FROM_LIST`（＝「選ぶ」）へ化けていた。
+//
+// (lxxiv) で母集団10枚を全項目監査し、**単独パースが原文より情報を失う2文型だけ**をここで
+// 正規化してから「全部実行」へ開いた（無条件に開くと下の2つが退化する。詳細は各分岐のコメント）。
+// `WXK11-001` 型のみ明示 defer＝①の条件付きスキップと②の任意ルリグデッキ除外が未確定。
+function tryParseDoAllItems(text: string): EffectAction | null {
+  if (!/^以下の[０-９\d２-９]+つを行う。/.test(text.trim()) || !/[①②③④⑤]/.test(text)) return null;
+  const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+  if (items.length < 2) return null;
+  const itemTexts = items.map(m => m[1].replace(/[。）\s]+$/, '').trim());
+  // defer（`WXK11-001`）：①「対戦相手がアーツかスペルを使用していた場合」の条件が単独パースで落ちて
+  // 無条件スキップになる／②「ルリグデッキのアーツを除外してもよい」が任意コストとして機能しない。
+  if (itemTexts.some(s => /対戦相手がアーツかスペルを使用していた場合|ルリグデッキにあるコストの合計が[０-９\d]+以上のアーツ/.test(s))) return null;
+
+  const steps = itemTexts.map(item => {
+    // 退化① `WXK11-002`④：単独パースは「ルリグの下」を読めず `TRASH{SIGNI opponent}`＝
+    // **盤面のシグニを消す全くの別動作**になる。engine の旧 DTT パターン P4 を宣言 STUB へ移設した。
+    if (/対戦相手のセンタールリグの下にあるカード[０-９\d]+枚を対象とし、それをルリグトラッシュに置く/.test(item)) {
+      return { type: 'STUB', id: 'OPP_LRIG_UNDER_TO_LRIG_TRASH', value: 1 } as StubAction;
+    }
+    // 退化② `WX24-P4-002`①：単独パースは `FREEZE{SIGNI opponent count:1}`＝**ルリグが消えて1体になる**。
+    // ⚠`CENTER_LRIG_OR_SIGNI` は使えない＝`execFreeze` にその分岐が無くシグニ限定へ落ち、
+    //   型もゲートも通ったままルリグが黙って外れる。engine 実装済みの2経路へ分けて表す。
+    if (/対戦相手のすべてのルリグとシグニをダウンし凍結する/.test(item)) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } }, down: true },
+        { type: 'FREEZE', target: { type: 'LRIG', owner: 'opponent', count: 1 }, down: true },
+      ] } as SequenceAction;
+    }
+
+    const parsed = parseActionText(item);
+    // 「〈対象句〉、《色》を支払ってもよい。そうした場合、それ（ら）を〜」＝任意コストに前置される対象句。
+    // `parseSentencePart3` の `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` は「対戦相手のシグニN体を対象とし」
+    // の1文型しか見ないため、それ以外は素の `OPTIONAL_COST` へ落ちて**対象句が捨てられ**、
+    // 続く本体が既定 `owner:'self'` で組まれていた（自分のシグニをダウン/凍結する誤り）。
+    const targetPhrase = item.match(/^(対戦相手のセンタールリグ[０-９\d]*体|あなたのトラッシュからシグニ[０-９\d]*枚|対戦相手のシグニを[０-９\d]+体まで)を?対象とし、/);
+    if (targetPhrase && parsed.type === 'SEQUENCE') {
+      const phrase = targetPhrase[1];
+      const countM = phrase.match(/([０-９\d]+)(?:体|枚)/);
+      const count = countM ? parseNum(countM[1]) : 1;
+      const target: EffectTarget = phrase.includes('センタールリグ')
+        ? { type: 'LRIG', owner: 'opponent', count: 1 }
+        : phrase.includes('トラッシュから')
+          ? { type: 'TRASH_CARD', owner: 'self', count, filter: { cardType: 'シグニ' } }
+          : { type: 'SIGNI', owner: 'opponent', count, upToCount: true, filter: { cardType: 'シグニ' } };
+      const stub = (parsed as SequenceAction).steps[0] as StubAction;
+      stub.id = 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST';
+      stub.optionalCostTarget = target;
+    }
+    // 対象句つき任意コストの「それ（ら）」を、STUB が保持した対象へ揃える。
+    if (parsed.type === 'SEQUENCE') {
+      const pair = parsed as SequenceAction;
+      const stub = pair.steps[0] as StubAction;
+      const body = pair.steps[1] as ConditionalAction;
+      const target = stub?.optionalCostTarget;
+      if (stub?.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' && target && body?.type === 'CONDITIONAL') {
+        const then = body.then;
+        if (then.type === 'ADD_TO_FIELD' && target.type === 'TRASH_CARD') {
+          body.then = { ...then, owner: 'self', source: target };
+        } else if ('target' in then && (target.type === 'SIGNI' || target.type === 'LRIG')) {
+          body.then = { ...then, target } as EffectAction;
+        }
+      }
+    }
+    return parsed;
+  });
+  // 1項目でも読めなければ SEQUENCE を組まない（部分的に消えた列を作らない）。
+  if (!steps.every(s => !JSON.stringify(s).includes('"UNKNOWN"'))) return null;
+  return { type: 'SEQUENCE', steps } as SequenceAction;
+}
+
 function parseActionText(text: string): EffectAction {
   return applyDroppedTargetDesignation(text,
     applyTargetLevelScaling(text,
@@ -4744,6 +4820,15 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // 「以下のNつを行う。①…②…③…」＝選択ではなく全部やる（タスク12(lxxiv)）。
+  // ⚠**必ずここ＝先頭で判定する**。②以降に引用能力（「…は「【自】：…」を得る」）を含む形
+  //   （`WXDi-P05-052`）は、後段の引用能力抽出が全文を GRANT_LRIG_ABILITY として奪ってしまい
+  //   ①のサーチが丸ごと消えるため。判定は原文先頭の `以下のNつを行う。` にアンカーしており、
+  //   全CSVでこの文型は10枚だけ＝先頭に置いても他文型へは波及しない（実測）。
+  {
+    const doAll = tryParseDoAllItems(text);
+    if (doAll) return doAll;
+  }
   // WX25-P3-028 型：「このターン＋次のターン」のリフレッシュ禁止と、
   // 各回ごとに owner を選ぶ反復。引用内の句点を分割する前に全文を正準形へ落とす。
   {
@@ -5336,34 +5421,6 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
-  // ── タスク12(lxi) 第9波（2026-07-31）：「以下のNつを行う。①…②…③…」＝**選択ではなく全部やる** ──
-  // 従来は `STUB{DO_THREE_THINGS}` 1本に丸めており、engine 側は**別カード用の text パターン照合**で
-  // 動くだけ（`execStubPart3`）。`WX24-P4-007-E1` はどのパターンにも当たらず**完全 no-op** だった。
-  //
-  // ⚠**素朴に「全項目が UNKNOWN でなければ SEQUENCE 化」すると退化する**（実測）。母集団10枚のうち
-  //   9枚は DO_THREE_THINGS の text パターンが**実際に動いており**、単独パースのほうが情報が少ない：
-  //   `WX24-P4-002`「①対戦相手の**すべての**ルリグとシグニをダウンし凍結する」は単独パースだと
-  //   `FREEZE{SIGNI opponent count:1}`＝**ルリグが消えて1体になる**。held が 250→260 に膨らむのも同じ理由。
-  // ⇒ **本規則の射程は (lxi) の族＝支払い回避クローズの項目だけ**に絞る。全項目が
-  //   「標準ペア（`SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL]`）」か
-  //   「本波が出す宣言 STUB」で、かつ標準ペアを1つ以上含むときだけ SEQUENCE にする。
-  //   残り9枚の per-card 監査は PLAN §3 タスク12 の該当行へ登録した。
-  {
-    const doAllM = text.trim().match(/^以下の[０-９\d２-９]+つを行う。/);
-    if (doAllM && /[①②③④⑤]/.test(text)) {
-      const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
-      if (items.length >= 2) {
-        const steps = items.map(m => parseActionText(m[1].replace(/[。）\s]+$/, '').trim()));
-        const isPayPair = (s: EffectAction): boolean => s.type === 'SEQUENCE'
-          && (s as SequenceAction).steps.length === 2
-          && ((s as SequenceAction).steps[0] as StubAction).id === 'OPPONENT_PAY_OPTIONAL';
-        const isWaveDecl = (s: EffectAction): boolean => s.type === 'STUB' && (s as StubAction).id === 'LOCK_OPP_TRASH_MOVE';
-        if (steps.some(isPayPair) && steps.every(s => isPayPair(s) || isWaveDecl(s))) {
-          return { type: 'SEQUENCE', steps } as SequenceAction;
-        }
-      }
-    }
-  }
 
   // 「〈回避クローズ〉、（あなたは）以下のNつから1つを選ぶ。①…②…」＝タスク12(lxi) 第3波。
   // 帰結が複文（選択肢が別文）なので matchOpponentUnlessGate（単文パス）には届かず、
@@ -8728,7 +8785,12 @@ function parseSpellEffect(card: CardData): CardEffect | null {
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';
   // GRANT_LRIG_ABILITY: rawText から付与能力（サブブロック）をパース（parseBlock と同じ処理）
-  if (action.type === 'GRANT_LRIG_ABILITY') {
+  // タスク12(lxxiv)：「以下のNつを行う」を SEQUENCE 化した結果、付与能力が SEQUENCE の**中**に入る形
+  // （`WXDi-P05-052`②）が出た。トップレベル型だけを見ると rawText が展開されず sub 能力が消える。
+  // ⚠原文 regex ではなく**木の形**で判定する（原文パターン判定だと、付与能力を持たないカードまで
+  //   この分岐に入って下の parseStatus 再代入が spellFb 由来の PARTIAL を握り潰す）。
+  if (action.type === 'GRANT_LRIG_ABILITY'
+      || (action.type === 'SEQUENCE' && JSON.stringify(action).includes('"GRANT_LRIG_ABILITY"'))) {
     const hasUnknownSub = expandGrantLrigAbilities(action, card.CardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
   }

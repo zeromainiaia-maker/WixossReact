@@ -12652,6 +12652,65 @@ test('task16 wave3: movedSelf 3効果の成立/不成立と既存8効果の非�
   cursor = savedCursor;
 });
 
+test('task12 lxxiv: 「以下のNつを行う」は8枚で全項目SEQUENCE、WXK11-001はdefer', () => {
+  const action = (id: string) => effectsMap.get(id)!.find(e => e.effectId === `${id}-E1`)!.action;
+  for (const [id, count] of [['WXK11-002', 4], ['WXK11-007', 3], ['WXK11-008', 3], ['WXK11-009', 3],
+    ['WXK11-010', 3], ['WXDi-P05-052', 2], ['WXDi-P06-050', 2], ['WX24-P4-002', 3]] as const) {
+    const a = action(id) as SequenceAction;
+    eq(a.type, 'SEQUENCE', `${id}: 全項目を順次実行`);
+    eq(a.steps.length, count, `${id}: 項目数`);
+  }
+  eq(action('WXK11-001').type, 'SEQUENCE', 'WXK11-001: 既存curated据置');
+  ok(JSON.stringify(action('WXK11-001')).includes('CHOOSE_N_FROM_LIST'), 'WXK11-001: 未確定のため旧形を固定');
+  ok(!JSON.stringify(action('WX24-P4-007')).includes('DO_THREE_THINGS'), '消化済みWX24-P4-007は非退化');
+});
+
+test('task12 lxxiv: 群B/Cの対象・全体凍結・相手ルリグ下移動を固定', () => {
+  const get = (id: string) => effectsMap.get(id)!.find(e => e.effectId === `${id}-E1`)!.action as SequenceAction;
+  const k7 = JSON.stringify(get('WXK11-007'));
+  ok(k7.includes('"type":"LRIG","owner":"opponent"'), 'WXK11-007②: 相手センタールリグ');
+  ok(k7.includes('"type":"TRASH_CARD","owner":"self"'), 'WXK11-007③: 自分トラッシュ由来');
+  const k10 = JSON.stringify(get('WXK11-010'));
+  ok(k10.includes('"count":2,"upToCount":true'), 'WXK11-010②: 相手シグニ2体まで');
+  const p4 = JSON.stringify(get('WX24-P4-002'));
+  ok(p4.includes('"count":"ALL"') && p4.includes('"type":"LRIG"'), 'WX24-P4-002①: 全シグニ＋ルリグ');
+  ok(JSON.stringify(get('WXK11-002')).includes('OPP_LRIG_UNDER_TO_LRIG_TRASH'), 'WXK11-002④: 専用宣言STUB');
+});
+
+// 上の2本は JSON 構造の assert＝「エンコードが正しい」ことしか見ない。
+// 本バッチの実害是正（任意コストの無償化・engine 経路の生死）は実行して初めて検査できるので E2E を3本置く。
+test('task12 lxxiv E2E: WX24-P4-002① は相手の全シグニ「と」ルリグをダウン＋凍結する', () => {
+  const act = effectsMap.get('WX24-P4-002')!.find(e => e.effectId === 'WX24-P4-002-E1')!.action;
+  const r = run(act, mkCtx({}, { signi: [fresh(), fresh(), fresh()], lrig: [fresh()] }));
+  ok(r.otherState.field.signi_frozen?.every(Boolean), 'WX24-P4-002①: 相手全シグニが凍結');
+  ok(r.otherState.field.signi_down?.every(Boolean), 'WX24-P4-002①: 相手全シグニがダウン');
+  // ⚠ここが `CENTER_LRIG_OR_SIGNI` だと execFreeze にその分岐が無くシグニ限定へ落ち、
+  //   型もゲートも通ったままルリグだけ黙って外れる。その退化を検出するための assert。
+  ok(r.otherState.field.lrig_frozen === true, 'WX24-P4-002①: 相手ルリグも凍結（シグニ限定へ落ちていない）');
+  ok(r.otherState.field.lrig_down === true, 'WX24-P4-002①: 相手ルリグもダウン');
+});
+
+test('task12 lxxiv E2E: WXK11-002④ は相手ルリグ下のカードをルリグトラッシュへ実際に動かす', () => {
+  const act = effectsMap.get('WXK11-002')!.find(e => e.effectId === 'WXK11-002-E1')!.action;
+  const ctx = mkCtx({}, { signi: [fresh(), null, null], lrig: [fresh(), fresh()], energy: 3, life: 5 });
+  const before = ctx.otherState.field.lrig.length;
+  const r = run(act, ctx);
+  eq(r.otherState.field.lrig.length, before - 1, 'WXK11-002④: 相手ルリグスタックが1枚減る');
+  eq(r.otherState.lrig_trash.length, 1, 'WXK11-002④: 相手ルリグトラッシュへ1枚');
+  eq(r.otherState.life_cloth.length, 4, 'WXK11-002②: ライフ1枚がトラッシュへ（クラッシュではない）');
+});
+
+test('task12 lxxiv E2E: WXK11-008 は任意コストを払えないとき②③の本体を実行しない', () => {
+  const act = effectsMap.get('WXK11-008')!.find(e => e.effectId === 'WXK11-008-E1')!.action;
+  // エナ0＝《赤》も《緑》×3 も払えない＝②③はスキップされるはず。
+  // 従来（DO_THREE_THINGS 形）は任意コストが JSON から落ちており、②③が**無償で走っていた**。
+  const r = run(act, mkCtx({ energy: 0, life: 7 }, { signi: [fresh(), null, null], energy: 10, life: 5 }));
+  // ①のバニッシュで相手シグニが相手エナへ行くため 10 のままではない。②が走れば必ず 7 になるので、
+  // 「7 でないこと」が未実行の証明になる。
+  ok(r.otherState.energy.length > 7, 'WXK11-008②: 未払いなら相手エナを7枚へ減らさない');
+  eq(r.ownerState.life_cloth.length, 7, 'WXK11-008③: 未払いならライフは増えない');
+});
+
 console.log('\n===== goldenTest 結果 =====');
 test('§6.3 GRANT_LRIG_ABILITY batch: manual structures', () => {
   for (const [num, id] of [['PR-204','PR-204-E1'], ['WD21-009','WD21-009-E1'], ['PR-238','PR-238-E1'], ['WX17-041','WX17-041-BURST'], ['PR-470A','PR-470A-E2']]) {

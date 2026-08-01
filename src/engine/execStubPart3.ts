@@ -2384,6 +2384,17 @@ export function execStubPart3(
     return done(addLog(ctx, `相手選択（解析不可: ${stub.id}）`));
   }
   // DO_THREE_THINGS: 3〜4つの処理を動的解析して実行
+  if (stub.id === 'OPP_LRIG_UNDER_TO_LRIG_TRASH') {
+    const stack = ctx.otherState.field.lrig;
+    const count = typeof stub.value === 'number' ? stub.value : 1;
+    if (stack.length <= count) return done(addLog(ctx, '対戦相手のセンタールリグの下に対象なし'));
+    const under = stack.slice(-1 - count, -1);
+    return done(addLog({ ...ctx, otherState: {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field, lrig: [...stack.slice(0, -1 - count), stack.at(-1)!] },
+      lrig_trash: [...ctx.otherState.lrig_trash, ...under],
+    } }, `対戦相手のセンタールリグの下から${count}枚をルリグトラッシュへ`));
+  }
   if (stub.id === 'DO_THREE_THINGS') {
     const srcDTT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtDTT = srcDTT ? (srcDTT.EffectText ?? '') + ' ' + (srcDTT.BurstText ?? '') : '';
