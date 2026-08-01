@@ -7290,9 +7290,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       // ON_LEAVE_FIELD + leftToZone:'hand'（「シグニN体が場から手札に戻ったとき」）: 主語で scope を決める
       //   （「あなたのシグニ」＝any_ally／主語なしの「シグニ1体が」＝any＝どちらの場のシグニでも反応）。
-      if (timing[0] === 'ON_LEAVE_FIELD' && /シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText)) {
-        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), leftToZone: 'hand' };
-        extractedTriggerScope = /あなたのシグニ(?:[０-９\d]+体)?が場から手札に戻ったとき/.test(actionText) ? 'any_ally' : 'any';
+      if (timing[0] === 'ON_LEAVE_FIELD') {
+        const handLeaveM = actionText.match(/^((?:(あなた|対戦相手)の|この)?アタックフェイズの間[、,])?(あなたの)?シグニ(?:[０-９\d]+体)?が場から手札に戻ったとき[、,]\s*/);
+        if (handLeaveM) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            leftToZone: 'hand',
+            ...(handLeaveM[1] ? {
+              duringAttackPhase: true,
+              ...(handLeaveM[2] ? { turnOwner: handLeaveM[2] === '対戦相手' ? 'opponent' as const : 'self' as const } : {}),
+            } : {}),
+          };
+          extractedTriggerScope = handLeaveM[3] ? 'any_ally' : 'any';
+          actionText = actionText.slice(handLeaveM[0].length);
+        }
       }
       // ON_LEAVE_FIELD 跨サイド any_opp（タスク16[C]機構③）:「あなたの効果によって対戦相手のシグニが場から手札に
       //   移動した/手札に戻ったとき」＝効果を与えた側（watcher）の any_opp＋byOwnEffect＋leftToZone:'hand'。

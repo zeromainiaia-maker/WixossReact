@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxxix)：手札戻りトリガーの自アタックフェイズ限定脱落 2効果
+
+- `SPK01-04-E1` / `WXK02-001-E1` の `ON_LEAVE_FIELD` に、原文どおり `triggerCondition:{leftToZone:'hand',duringAttackPhase:true,turnOwner:'self'}` を生成するよう是正。前者の `triggerScope:'any'` と `UP{thisCardOnly}`、後者の `triggerScope:'any_ally'` と `ENERGY_CHARGE_FROM_DECK{count:1}` は不変。
+- 実装は `effectParser.ts` の既存 `leftToZone:'hand'` 経路（7291付近）。一般 leave-field 経路と同じ APS 前置き形を水平拡張し、capture から scope を決めてトリガー句を `actionText` から除去した。これにより `SPK01-04-E1` の正しい `any` が旧非アンカー regex の偶然に依存しない。7704 guard は緩めていない（既処理済み leftToZone の scope を一般経路が上書きし得るため）。
+- 実行 golden を効果ごとに追加し、メインフェイズ不発／相手 APS 不発／自 APS 発火に加え、発火 entry を解決して `UP` と `ENERGY_CHARGE_FROM_DECK` の盤面差分を固定。無前置き対照 `WXK02-041-E2` がメインでも発火することも固定した（1255→1258 PASS）。
+- engine は無改修。両効果は `collectLeaveFieldTriggers` の any/any_ally watcher ループを通り、同ループが `duringAttackPhase`、`turnOwner`、`leftToZone` を順に評価することを確認。既知の `triggerScope:'any'` が実質 any_ally になる跨サイド過小実行は確認のみで、スコープ外のため未修正。
+- decompiler の既存 `ON_LEAVE_FIELD` APS 分岐は両効果に「あなたのアタックフェイズの間」を描画した。ただし `WXK02-001-E1` の `any_ally` 主語を「あなたのシグニ」でなく「シグニ」と描く既存の表示穴を確認し、指示どおり未修正。
+- live per-effect diff（`bf3d6b43` 比）は changed 2 / added 0 / removed 0 / outlier 0。変更禁止14効果は全て不変。held は build 後 251枚/99署名で基準比±0。
+- ゲート：golden 1258/1258、census 1347（基準据置）、smoke 10679/10679（全異常0・SKIP0）、fuzz 全異常0、lint 0 errors/240 warnings、manual field loss 0、同型265/逆翻訳割れ0。commit/push/regen/PLAN簿記は未実施。
+
+### 投入前の Claude 実測＝真因は「担当が居ない」こと
+
+`effectParser.ts` の ON_LEAVE_FIELD トリガー句処理は**2ブロック**あり、本文型はその**隙間に落ちて**いた。
+
+| 行 | ブロック | 前置きの扱い |
+|---|---|---|
+| **7291** | `leftToZone:'hand'` の scope 判定 | `actionText` を regex で**テストするだけで消費しない**。前置きを**一切見ない** |
+| **7686** | 一般 ON_LEAVE_FIELD 前置きブロック（(lxx) 第2波で拡張した所） | `duringAttackPhase`/`turnOwner`/scope/filter を抽出して除去。⚠**7704 の guard `!/…場から手札に(?:戻った|移動した)とき/` で本文型を除外** |
+
+⇒ **「場から手札に戻ったとき」形はフェイズ前置きを解釈する担当がどこにも居ない**のが真因。母集団は全効果走査で**5件**、うち APS 前置きを持つのは**対象2件だけ**（残る `WDK05-T11-E1`／`WXK02-041-E2`／`WXK11-049-E1` は原文に前置きが無く現況が正しい＝変更禁止に指定）。
+
+⚠**在庫 (lxxix) 行の「`turnOwner` も要る」は半分だけ正しかった**＝7695 の `.replace(/^(対戦相手|あなた)のターンの間、/, …)` は `leaveScan` を作る過程で**副作用として `turnOwner` を立てており guard の外側で走る**ため、「〜の**ターン**の間、」形は guarded なカードでも既に拾えていた（実例 `WXK11-049-E1`）。**足りなかったのは「アタックフェイズの間」だけ**。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- per-effect 機械 diff（`bf3d6b43` 比）＝`changed 2 / added 0 / removed 0`・outlier 0。**両効果とも `triggerScope` が保存され `action` は1バイトも変わっていない**（codex が「除去する」を選んだので本体パース入力が変わったが、結果が同一であることを機械確認）。変更禁止12件は全て UNCHANGED。
+- 新 regex は `^` アンカー＋末尾読点必須へ**narrowing** している（旧は非アンカーの `test` のみ）。母集団5件では退化0を機械確認済み＝`SPK01-04-E1` の `any` が「たまたま」に依存しなくなった副産物のほうが大きい。
+- ゲート独立実行＝golden **1258**／census **1347 据置**／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held 251枚99署名 据置。
+
+### 🆕 Claude 追加修正：decompiler が `leftToZone:'hand'` の主語を決め打ちしていた
+
+codex が§5で正直申告した表示穴を修正した。`scripts/decompileEffects.ts:2386` は
+
+```ts
+if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
+```
+
+と主語を**ハードコード**しており、直前の `scopeSubj` 置換結果ごと上書きしていた。⇒ **`any_ally`（原文「あなたの」）でも「シグニ１体が」と描いて限定を落としていた**。`triggerScope` を見る形に直し、本バッチの `WXK02-001-E1` に加え**従来からの `WDK05-T11-E1` も正しく描かれるようになった**（`any` の `SPK01-04-E1`／`WXK02-041-E2` は原文どおり主語なしのまま・`any_opp` は下流ブロックが上書きするので不変）。`npm run regen` 後の decompile シート差分は**当該3行のみ**・同型★0（265群）維持。
+
+⚠**教訓＝計器の穴は「軸を描かない」だけでなく「主語を決め打ちする」形でも出る**。(lxx) 第2波で見つけた `duringAttackPhase` 未描画と**同じ系統で2連続**＝`triggerCondition` を足したら、その timing の decompiler 分岐が **scope / filter / 他の軸を上書きで潰していないか**まで読むこと。
+
+### 新規在庫（本バッチのスコープ外・登録のみ）
+
+**`triggerScope:'any'` は engine 上まったく `any_ally` と同義**＝`collectLeaveFieldTriggers` の当該ループは watcher を `ownerStateAfter`（＝**離脱カードと同じ側**）からしか取らず、跨サイドを見る `any_opp` 限定ループは `triggerScope !== 'any_opp'` で `any` を弾く。⇒ 原文が「シグニ１体が」＝**どちらの場でも**を意図する `SPK01-04-E1`／`WXK02-041-E2` は、**相手の場のシグニが手札に戻ったときに発火しない過小実行**。Opusタスク12 (lxxx) として登録。
+
 ## 2026-08-01 — タスク12(lxx) 第2波：前置き条件つき draw-or-choice 2効果＋同一APS文型2効果
 
 - `WXDi-CP01-027-E2`：`あなたの場に＜バーチャル＞のシグニが３体ある間`を action の `CONDITIONAL` ではなく effect-level `condition:HAS_CARD_IN_FIELD{owner:self,cardType:シグニ,story:バーチャル,minCount:3}` へ、後続を原文順 `CHOOSE[DRAW,ENERGY_CHARGE_FROM_DECK]` へ復元。`collectLeaveFieldTriggers` any_opp 経路は condition を usageLimit より先に評価するため、2体時は発火せず《ターン1回》も消費しないことをE2E固定した。既存 `byOwnEffect` / `leftToZone:hand` は保持。

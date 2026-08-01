@@ -2383,7 +2383,12 @@ function effJa(e: Eff): string {
     // 「自分のアタックで発火する」と誤読させる（実際は相手のルリグアタックで発火）。
     else if (scopeSubj !== null && s.startsWith('このルリグ')) s = `${scopeSubj}ルリグ${s.slice('このルリグ'.length)}`;
     // ON_LEAVE_FIELD の leftToZone:'hand'（「シグニ１体が場から手札に戻ったとき」WXK02-041）
-    if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') s = 'シグニ１体が場から手札に戻ったとき';
+    // ⚠従来は主語を決め打ちしており、**`any_ally`（原文「あなたの」）でも「シグニ１体が」と描いて
+    //   限定を落としていた**（`WXK02-001-E1`／`WDK05-T11-E1`）＝原文照合でスコープが広く見える計器の穴。
+    //   `any_opp` は下の跨サイドブロックが上書きするのでここでは扱わない。
+    if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.leftToZone === 'hand') {
+      s = `${e.triggerScope === 'any_ally' ? 'あなたの' : ''}シグニ１体が場から手札に戻ったとき`;
+    }
     // leftToZone が配列（「手札に戻るかトラッシュに置かれたとき」WXDi-CP02-068-E1）＝行き先 OR を落とさない
     if (t === 'ON_LEAVE_FIELD' && Array.isArray(e.triggerCondition?.leftToZone)) {
       const zonesJa = (e.triggerCondition!.leftToZone as string[])

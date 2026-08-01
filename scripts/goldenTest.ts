@@ -20290,6 +20290,49 @@ test('WX24-P2-077-E1: あなたのアタックフェイズ限定をcollectorが�
   eq(fire('ATTACK_SIGNI', GUEST), 0, '相手アタックフェイズでは発火しない');
   eq(fire('ATTACK_SIGNI', HOST), 1, '自分のアタックフェイズなら発火');
 });
+test('SPK01-04-E1: 手札戻りは自分のアタックフェイズだけ発火し、このシグニをアップする', () => {
+  const parsed = parseCardEffects(cardMap.get('SPK01-04')!).find(e => e.effectId === 'SPK01-04-E1')!;
+  const localEffects = new Map(effectsMap); localEffects.set('SPK01-04', [parsed]);
+  const leaver = SIGNI;
+  const host = mkState({ signi: ['SPK01-04', null, null], down: [true, false, false] }); host.hand.push(leaver);
+  const guest = mkState({});
+  const entries = (turnPhase: TrigCtx['turnPhase'], activeUserId: string) => collectLeaveFieldTriggers(
+    { ...trigCtx(activeUserId), effectsMap: localEffects, turnPhase }, leaver, [], HOST, host, guest,
+  ).entries;
+  eq(entries('MAIN', HOST).length, 0, '自分のメインフェイズでは発火しない');
+  eq(entries('ATTACK_SIGNI', GUEST).length, 0, '相手のアタックフェイズでは発火しない');
+  const ownAttack = entries('ATTACK_SIGNI', HOST);
+  eq(ownAttack.length, 1, '自分のアタックフェイズなら発火');
+  const ctx = { ...mkCtx({ signi: ['SPK01-04', null, null], down: [true, false, false] }, {}, 'SPK01-04') };
+  const result = finish(executeEffect(ownAttack[0].effect, ctx), ctx);
+  eq(result.ownerState.field.signi_down[0], false, '発火した効果でこのシグニがアップする');
+});
+test('WXK02-001-E1: 味方の手札戻りは自分のアタックフェイズだけ発火し、エナチャージ1する', () => {
+  const parsed = parseCardEffects(cardMap.get('WXK02-001')!).find(e => e.effectId === 'WXK02-001-E1')!;
+  const localEffects = new Map(effectsMap); localEffects.set('WXK02-001', [parsed]);
+  const leaver = SIGNI;
+  const host = mkState({ lrig: ['WXK02-001'] }); host.hand.push(leaver);
+  const guest = mkState({});
+  const entries = (turnPhase: TrigCtx['turnPhase'], activeUserId: string) => collectLeaveFieldTriggers(
+    { ...trigCtx(activeUserId), effectsMap: localEffects, turnPhase }, leaver, [], HOST, host, guest,
+  ).entries;
+  eq(entries('MAIN', HOST).length, 0, '自分のメインフェイズでは発火しない');
+  eq(entries('ATTACK_SIGNI', GUEST).length, 0, '相手のアタックフェイズでは発火しない');
+  const ownAttack = entries('ATTACK_SIGNI', HOST);
+  eq(ownAttack.length, 1, '自分のアタックフェイズなら発火');
+  const ctx = mkCtx({ energy: 0 }, {}, 'WXK02-001');
+  const beforeDeck = ctx.ownerState.deck.length;
+  const result = finish(executeEffect(ownAttack[0].effect, ctx), ctx);
+  eq(result.ownerState.energy.length, 1, '発火した効果でエナが1枚増える');
+  eq(result.ownerState.deck.length, beforeDeck - 1, 'エナチャージ元としてデッキが1枚減る');
+});
+test('WXK02-041-E2: APS前置きなしの手札戻りはメインフェイズでも発火する', () => {
+  const host = mkState({ signi: ['WXK02-041', null, null] }); host.hand.push(SIGNI);
+  const entries = collectLeaveFieldTriggers(
+    { ...trigCtx(HOST), turnPhase: 'MAIN' }, SIGNI, [], HOST, host, mkState({}),
+  ).entries;
+  eq(has(entries, 'WXK02-041-E2'), true, '前置きなし対照はメインフェイズでも発火');
+});
 test('WX24-P4-017-E3 defer: trigger条件ORをプレイヤーのCHOOSEへ変換しない', () => {
   const effect = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E3')!;
   const hasChoose = (a: EffectAction): boolean => a.type === 'CHOOSE'
