@@ -3000,7 +3000,7 @@ export function execStubPart2(
       trash: trashPT,
       field: { ...ctx.ownerState.field, signi_traps: trapsPT },
     };
-    return done(addLog({ ...ctx, ownerState: newOwnerPT, lastProcessedCards: [cardPT] },
+    return done(addLog({ ...ctx, ownerState: newOwnerPT, lastProcessedCards: [cardPT], trapSetOwners: [...(ctx.trapSetOwners ?? []), 'self'] },
       `${ctx.cardMap.get(getCardNum(cardPT))?.CardName ?? cardPT}を【トラップ】としてゾーン${zonePT + 1}に設置`));
   }
   // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
@@ -3014,7 +3014,7 @@ export function execStubPart2(
     currentTrapsIST[zoneIdxIST] = trapCardIST;
     const newHandIST = ctx.ownerState.hand.filter(c => c !== trapCardIST);
     const newOwnerIST = { ...ctx.ownerState, hand: newHandIST, trash: newTrashIST, field: { ...ctx.ownerState.field, signi_traps: currentTrapsIST } };
-    return done(addLog({ ...ctx, ownerState: newOwnerIST }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
+    return done(addLog({ ...ctx, ownerState: newOwnerIST, trapSetOwners: [...(ctx.trapSetOwners ?? []), 'self'] }, `トラップ設置: ゾーン${zoneIdxIST + 1}`));
   }
   // TRAP_TO_HAND: signi_trapsのカードを手札へ（全枚または選択）
   if (stub.id === 'RETURN_TRAP_TO_HAND_ONE') {
@@ -3119,7 +3119,7 @@ export function execStubPart2(
     if (newOppTrapsIOSTT[zoneIdxIOSTT]) newOppTrashIOSTT.push(newOppTrapsIOSTT[zoneIdxIOSTT]!);
     newOppTrapsIOSTT[zoneIdxIOSTT] = targetIOSTT;
     const newOtherIOSTT = { ...ctx.otherState, trash: newOppTrashIOSTT, field: { ...ctx.otherState.field, signi: newOppSigniIOSTT, signi_traps: newOppTrapsIOSTT } };
-    return done(addLog({ ...ctx, otherState: newOtherIOSTT }, `相手シグニ→トラップ: ゾーン${zoneIdxIOSTT + 1}`));
+    return done(addLog({ ...ctx, otherState: newOtherIOSTT, trapSetOwners: [...(ctx.trapSetOwners ?? []), 'opponent'] }, `相手シグニ→トラップ: ゾーン${zoneIdxIOSTT + 1}`));
   }
   // TRAP_TO_SIGNI_IF_ZONE_EMPTY: このカードのゾーンにシグニがない場合、signi_traps[zone]→signi[zone]
   if (stub.id === 'TRAP_TO_SIGNI_IF_ZONE_EMPTY') {

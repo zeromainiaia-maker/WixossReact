@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch D：`ON_TRAP_SET` 新設＋2択脱落1効果
+
+`WXEX1-41-E1` の「あなたの【トラップ】1つが設置されたとき」を新 timing `ON_TRAP_SET` として復元し、残余を既存 `parseDrawOrChoice` へ渡して `CHOOSE[DRAW 1 / ENERGY_CHARGE 1]` を原文順に復元した。従来は timing 空で完全 no-op、かつ action はエナチャージ固定だった。《ターン1回》は維持した。
+
+設置イベントは `ExecCtx.trapSetOwners` に設置1回ごとの owner（効果主から見た `self` / `opponent`）を記録し、対話 pause/resume と SEQUENCE を越えて効果解決完了まで保持する。純関数 `collectTrapSetTriggers` は**設置された側の場だけ**を走査するため、「あなたの」は triggerScope の推測ではなくイベント所有者で厳密に限定される。同一解決で複数設置されても《ターン1回》を次イベントへ引き継ぐ。
+
+`signi_traps` の全書き込みを再走査した結果、設置は `INTERNAL_PICK_TO_TRAP`（デッキ公開／LOOK_PICK_CHAIN）、`INTERNAL_SET_TRAP`（手札／公開札の共通最終設置）、`INTERNAL_OPP_SIGNI_TO_TRAP`（相手シグニを相手側トラップ化）の3ハンドラ。手札戻し3系統、発動・破棄、トラップ→シグニ、相手場離れに伴う破棄、盤面並べ替えは設置でないためイベントを発行しない。`ON_TRAP_ACTIVATE` の collector・意味は変更していない。
+
+実行 golden は3設置ハンドラの owner event、手札設置と LOOK_PICK_CHAIN の2経路以上、自己設置だけの収集、相手設置の非発火、《ターン1回》、`ON_TRAP_ACTIVATE` 対照非発火、CHOOSE提示と両枝の盤面差分を固定した。逆翻訳は `【自】あなたの【トラップ】が設置されたとき：《once_per_turn》以下の2つから1つを選ぶ【あなたのカードを1枚引く / あなたのデッキの上から1枚をエナゾーンに置く】` となり、枚数・枝順・所有者は原文と一致する。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- per-effect 機械 diff（`a44ce070` 比）＝**`changed 1 / added 0 / removed 0`**・outlier 0・兄弟効果変更0。`ON_TRAP_ACTIVATE` 側の既存効果（`WXEX2-66-E2` ほか）とトラップ関連4件は**UNCHANGED**。
+- **§5-15 の面配線が成立**＝`signi_traps` への全書き込みを「設置3／除去6／非設置2」に分類し、**設置3ハンドラすべて**（`INTERNAL_SET_TRAP`＝手札・公開札の共通経路／`INTERNAL_PICK_TO_TRAP`＝`LOOK_PICK_CHAIN` 経路／`INTERNAL_OPP_SIGNI_TO_TRAP`＝相手シグニのトラップ化）から owner 付きイベントを発行。**「collector を作ったが呼び出しを1箇所しか足さない」失敗モードは非再発**。
+- **「あなたの」を `triggerScope` ではなく設置イベントの owner（`trapSetOwners`）で表した**のは設計として妥当＝設置は「誰の場に置かれたか」で決まり、watcher のスコープ軸とは別物。相手シグニをトラップ化する経路が `opponent` を発行し、collector が設置された側の場だけを走査することを golden が固定している。
+- **golden が要求5項目を全て実行で固定**＝①3設置ハンドラそれぞれが owner 付きイベントを出す（**`LOOK_PICK_CHAIN` は対話 resume を跨ぐ**経路まで）②自分の設置で収集・両枝の盤面差分 ③**相手の設置では発火しない** ④《ターン1回》で2回目は非発火 ⑤**対照＝`ON_TRAP_ACTIVATE` の `WXEX2-66-E2` が設置では誤発火しない**（G1 の lock-in）。
+- **G7（計器）も満たした**＝`decompileEffects.ts` に描画を足し、逆翻訳が `【自】あなたの【トラップ】が設置されたとき：《once_per_turn》以下の2つから1つを選ぶ【…】` になった。**新 timing を足したら decompiler も見る**という (lxx) 第2波・(lxxix) の教訓が1回で定着。
+- ゲート独立実行＝golden **1272**／census **1341 据置**／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **252枚100署名 据置**。全 effects JSON に `"???"` **0件**・エンコーディング新規増0（Batch A の事故は3回連続で非再発）。
+
 ## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch B：手札以外から場に出たターン履歴条件＋2択脱落1効果
 
 `WXDi-P07-075-E1` の「このターンにこのシグニが手札以外の領域から場に出ていた場合」を effect-level `THIS_CARD_FROM_NON_HAND_THIS_TURN` として復元し、残余を既存 `parseDrawOrChoice` へ渡して `CHOOSE[DRAW 1 / opponent HAND TRASH 1]` を原文順に復元した。従来は条件が消えて毎アタックフェイズ開始時に無条件発火し、ドローへ固定されていた。

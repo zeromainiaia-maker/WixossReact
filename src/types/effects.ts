@@ -17,6 +17,7 @@ export type EffectTiming =
   | 'ON_BLOOM'        // このシグニが開花したとき／あなたの他のシグニが開花したとき（【シード】の開花。場に出た扱いではないため ON_PLAY とは別）
   | 'ON_LIFE_BURST'   // ライフバースト発動時
   | 'ON_TRAP_ACTIVATE' // トラップアイコン発動時
+  | 'ON_TRAP_SET'      // あなたの【トラップ】が設置されたとき
   | 'ON_SONG_ACTIVATE' // 歌のカケラ発動時
   | 'ON_BANISH'       // このカードがバニッシュされたとき
   | 'ON_TRASH'        // このカードがトラッシュに置かれたとき

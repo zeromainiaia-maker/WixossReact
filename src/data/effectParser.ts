@@ -7100,6 +7100,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   先に拾う。コスト捨て・ガードによる捨ては中央diffを通らない既知の近似（効果起因の捨てのみ検出）。
              : (/このカードが(?:コストか効果によって)?捨てられたとき/.test(trigText) || /あなたがこのカードを捨てたとき/.test(trigText)) ? ['ON_TRASH']
              // 「あなたの《トラップアイコン》が発動したとき」＝実際のトラップ発動完了地点から収集。
+             : /あなたの【トラップ】(?:[０-９\d]+つ)?が設置されたとき/.test(trigText) ? ['ON_TRAP_SET']
              : /あなたの《トラップアイコン》が発動したとき/.test(trigText) ? ['ON_TRAP_ACTIVATE']
              // 「【ガード】するか、対戦相手のシグニのアタックを効果によって無効にしたとき」＝OR timing。
              // 無効化 event は BattleScreen の効果無効化確定3地点だけが発行し、ルリグアタック／escapeDiscard回避は除外。
@@ -7965,6 +7966,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       }
       if (timing[0] === 'ON_HEAVEN') {
         const m = actionText.match(/このシグニが《ヘブン》したとき[、,]\s*(.+)/s);
+        if (m) actionText = m[1];
+      }
+      if (timing[0] === 'ON_TRAP_SET') {
+        const m = actionText.match(/^あなたの【トラップ】(?:[０-９\d]+つ)?が設置されたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {

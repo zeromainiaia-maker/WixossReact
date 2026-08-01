@@ -1777,7 +1777,7 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     return result;
   }
   // 即時配置完了（空きゾーン1つ/空きなし）→ 残りを継続
-  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
+  return executeAction(cont, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
 }
 
 // 効果によって場に出したシグニの発生源（sourceCardNum）を記録する（出自条件 THIS_CARD_PLACED_BY_CLASS 用・WX26-CP1-048）。
@@ -3584,7 +3584,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         : result.pending;
       return { ...result, pending };
     }
-      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+      cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, lastLookTrashedCards: result.lastLookTrashedCards ?? cur.lastLookTrashedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
     // did-it ゲートは「条件で包まれた前段」も対象にする（タスク12(lxiii)＝`WXK11-031-E1`
     // 「〈ライフ比較〉の場合、手札を1枚捨ててもよい。そうした場合、それをバニッシュする」）。
     // 包む前は TRASH が直下ステップだったので下のゲートが効いていたが、条件を付与した途端に外れて
@@ -5933,7 +5933,7 @@ export function applyRefreshOnDone(
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
     if (!result.done) return result;
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
   }
   cur = { ...cur, lastProcessedCards: selected };
   // selfTrashCost: 「このシグニを場からトラッシュに置いてもよい。そうした場合、それらをバニッシュする」
@@ -6145,7 +6145,7 @@ export function resumeSearch(
   for (const id of picked) {
     const result = applyDirectAction(pending.thenAction, id, cur);
     if (!result.done) return result;
-    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated };
+    cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
   }
   // EVEAL_PICK_HAND_SHUFFLE_BOTTOM
    if (pending.restDest) {
@@ -6215,7 +6215,7 @@ export function resumeSearch(
   }
   if (pending.continuation) {
     // 選択したアクションが処理したシグニ（公開/場出し等）を continuation の「その後、そのシグニより…」が参照できるよう lastProcessedCards を継承
-    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
+    return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? ctx.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
   }
   return result;
 }
@@ -6237,7 +6237,7 @@ export function resumeOptionalCost(
     const result = executeAction(skipOpt?.action ?? noopAction, ctx);
     if (!result.done) return result;
     if (pending.continuation) {
-      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
     }
     return result;
   }
@@ -6279,7 +6279,7 @@ export function resumeOptionalCost(
   }
   if (pending.continuation) {
     // lastProcessedCards を継承（支払い後の効果が公開/場出し等したシグニを「その後、そのシグニより…」で参照する。WXK10-031）
-    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated });
+    return executeAction(pending.continuation, { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, lastProcessedCards: result.lastProcessedCards, storedTargetCards: result.storedTargetCards ?? cur.storedTargetCards, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners });
   }
   return result;
 }
@@ -6309,7 +6309,7 @@ export function resumeOptionalCost(
       return result;
     }
     if (pending.continuation) {
-      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated });
+      return executeAction(pending.continuation, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? ctx.fieldTrashCostCards, trapActivated: result.trapActivated ?? ctx.trapActivated, trapSetOwners: result.trapSetOwners ?? ctx.trapSetOwners });
     }
     return result;
   }

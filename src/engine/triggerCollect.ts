@@ -9,7 +9,7 @@
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
 import type { PlayerState, CardData, StackEntry } from '../types';
-import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction } from '../types/effects';
+import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isKizunaActive, matchesStateFilter } from './effectEngine';
 
@@ -2602,6 +2602,53 @@ export function collectTrapActivateTriggers(
         id: ctx.genId(), playerId: ownerId, cardNum: sourceNum, effectId: eff.effectId,
         label: `${cardName} の【自】効果（トラップアイコン発動時）`, effect: eff,
       });
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
+ * 効果解決中に発行された【トラップ】設置イベントを収集する。
+ * event owner は効果主から見た設置先で、watcher は設置された側の場だけを走査する。
+ * これにより「あなたの【トラップ】」は相手側の設置では発火しない。
+ */
+export function collectTrapSetTriggers(
+  ctx: TrigCtx,
+  effectOwnerId: string,
+  setOwners: readonly Owner[],
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  let currentHost = hostState;
+  let currentGuest = guestState;
+  for (const setOwner of setOwners) {
+    const setterId = setOwner === 'self'
+      ? effectOwnerId
+      : effectOwnerId === ctx.hostId ? ctx.guestId : ctx.hostId;
+    const setterState = setterId === ctx.hostId ? currentHost : currentGuest;
+    const otherState = setterId === ctx.hostId ? currentGuest : currentHost;
+    const used = setterId === ctx.hostId ? usedHostIds : usedGuestIds;
+    const limitOk = mkLimitOk(setterState.actions_done, used);
+    for (const sourceNum of ownFieldSources(setterState)) {
+      for (const eff of effsOf(ctx, sourceNum)) {
+        if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRAP_SET')) continue;
+        if (eff.condition && !evalUseCondition(eff.condition, setterState, otherState, ctx.cardMap, sourceNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        if (!limitOk(eff)) continue;
+        const cardName = ctx.cardMap.get(getCardNum(sourceNum))?.CardName ?? sourceNum;
+        entries.push({
+          id: ctx.genId(), playerId: setterId, cardNum: sourceNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（トラップ設置時）`, effect: eff,
+        });
+      }
+    }
+    // 同じ効果解決中に複数設置された場合も《ターン1回》を次イベントへ反映する。
+    if (used.length > 0) {
+      const next = { ...setterState, actions_done: [...(setterState.actions_done ?? []), ...used] };
+      if (setterId === ctx.hostId) currentHost = next;
+      else currentGuest = next;
     }
   }
   return { entries, usedHostIds, usedGuestIds };

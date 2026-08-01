@@ -12,7 +12,7 @@ import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, re
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
-import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers } from '../engine/triggerCollect';
+import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
@@ -4257,6 +4257,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...(entry.leftFieldUnderCards ? { leftFieldUnderCards: entry.leftFieldUnderCards } : {}),
           ...(entry.triggeringKeyword ? { triggeringKeyword: entry.triggeringKeyword } : {}),
           ...(result.trapActivated ? { trapActivated: true } : {}),
+          ...(result.trapSetOwners ? { trapSetOwners: result.trapSetOwners } : {}),
           ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
@@ -4301,6 +4302,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (ta.usedGuestIds.length > 0) {
             const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
             update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
+          }
+        }
+
+        if ((result.trapSetOwners?.length ?? 0) > 0) {
+          const ts = pureCollectTrapSetTriggers(mkTrigCtx(), entry.playerId, result.trapSetOwners!, hostState, guestState);
+          if (ts.entries.length > 0) {
+            const baseStackTS = (update.effect_stack as typeof stackAfter) ?? null;
+            update.effect_stack = baseStackTS
+              ? pushToStack(baseStackTS, ts.entries)
+              : initStack(stack.turnPlayerId, ts.entries);
+          }
+          if (ts.usedHostIds.length > 0) {
+            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ts.usedHostIds] };
+          }
+          if (ts.usedGuestIds.length > 0) {
+            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ts.usedGuestIds] };
           }
         }
 
@@ -4520,7 +4539,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -4604,6 +4623,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...peBase,
           ...(nextRespondPlayerId ? { respondPlayerId: nextRespondPlayerId } : {}),
           interaction: result.pending,
+          ...(result.trapSetOwners ? { trapSetOwners: result.trapSetOwners } : {}),
           ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
         } satisfies PendingEffect;
         // === 途中ラウンドの盤面差分トリガー（続き75・Opus）===
@@ -4716,6 +4736,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
           }
         }
+        if ((result.trapSetOwners?.length ?? 0) > 0) {
+          const ts = pureCollectTrapSetTriggers(mkTrigCtx(), pe.sourcePlayerId, result.trapSetOwners!, hostState, guestState);
+          if (ts.entries.length > 0) {
+            const turnPlayerId = bs.active_user_id ?? user.id;
+            const baseStackTS = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
+            update.effect_stack = baseStackTS
+              ? pushToStack(baseStackTS, ts.entries)
+              : initStack(turnPlayerId, ts.entries);
+          }
+          if (ts.usedHostIds.length > 0) {
+            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
+            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ts.usedHostIds] };
+          }
+          if (ts.usedGuestIds.length > 0) {
+            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ts.usedGuestIds] };
+          }
+        }
       }
 
       // ON_TARGETED トリガーを（done/not-done どちらの分岐で確定したスタックにも）後乗せで積む。
@@ -4764,7 +4802,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap3 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectZone(zoneIndex, inter, ctx);
@@ -4824,7 +4862,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap5 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
@@ -4880,7 +4918,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // rearrange の skip は恒等配置、swap の skip は候補なし（空配列）として解決する。
       const arrangement = buildRearrangeSigniArrangement(newArrangement, inter.mode, targetState.field.signi);
@@ -4926,7 +4964,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap4 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);

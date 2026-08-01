@@ -28,7 +28,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
-import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -20463,6 +20463,61 @@ test('task12 lxxiv: WXK11-001①は相手のアーツ/スペル使用で相手�
   const spellCtx = { ...spellBase, otherState: { ...spellBase.otherState, actions_done: ['USE_SPELL'] } } as ExecCtx;
   const spellUsed = finish(executeEffect(executable, spellCtx), spellCtx);
   eq(spellUsed.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '相手がスペル使用済みでもOR条件成立');
+});
+
+test('(lxx) Batch D ON_TRAP_SET: 全設置ハンドラが設置先 owner のイベントを発行する', () => {
+  const handTrap = fresh();
+  const handCtx = mkCtx({ hand: [handTrap] }, {});
+  handCtx.lastProcessedCards = [handTrap];
+  const handSet = run({ type: 'STUB', id: 'INTERNAL_SET_TRAP', value: 0 } as EffectAction, handCtx);
+  eq(JSON.stringify(handSet.trapSetOwners), '["self"]', '手札設置＝self event');
+
+  const deckTrap = fresh();
+  const deckCtx = mkCtx({ deckTop: [deckTrap] }, {});
+  const deckSet = run({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 1,
+    stages: [{ pickCount: 1, then: 'trap', pickNoun: 'カード' }],
+    remainder: { location: 'deck', position: 'bottom' },
+  } as unknown as EffectAction, deckCtx);
+  eq(JSON.stringify(deckSet.trapSetOwners), '["self"]', 'LOOK_PICK_CHAIN 設置＝self event（対話resume越し）');
+
+  const oppSigni = fresh();
+  const oppCtx = mkCtx({}, { signi: [oppSigni, null, null] });
+  oppCtx.lastProcessedCards = [oppSigni];
+  const oppSet = run({ type: 'STUB', id: 'INTERNAL_OPP_SIGNI_TO_TRAP' } as EffectAction, oppCtx);
+  eq(JSON.stringify(oppSet.trapSetOwners), '["opponent"]', '相手シグニのトラップ化＝opponent event');
+  eq(oppSet.otherState.field.signi_traps[0], oppSigni, '相手側トラップゾーンへ設置');
+});
+
+test('(lxx) Batch D WXEX1-41-E1: 自分の設置だけ収集・ターン1回・CHOOSE両枝を実行', () => {
+  const effect = (effectsMap.get('WXEX1-41') ?? []).find(e => e.effectId === 'WXEX1-41-E1');
+  if (!effect) throw new Error('WXEX1-41-E1 not found');
+  eq(JSON.stringify(effect.timing), '["ON_TRAP_SET"]', '新 timing');
+  eq(effect.action.type, 'CHOOSE', '2択を復元');
+  const host = mkState({ signi: ['WXEX1-41', 'WXEX2-66', null] });
+  const guest = mkState({});
+  const ctx = trigCtx(HOST, HOST);
+
+  const own = collectTrapSetTriggers(ctx, HOST, ['self'], host, guest);
+  eq(own.entries.filter(e => e.effectId === 'WXEX1-41-E1').length, 1, '自分の設置で収集');
+  ok(!own.entries.some(e => e.effectId === 'WXEX2-66-E2'), 'ON_TRAP_ACTIVATE は設置で誤発火しない');
+  ok(own.usedHostIds.includes('WXEX1-41-E1'), 'ターン1回を host 側へ返す');
+
+  const opp = collectTrapSetTriggers(ctx, GUEST, ['self'], host, guest);
+  eq(opp.entries.filter(e => e.effectId === 'WXEX1-41-E1').length, 0, '相手の設置では発火しない');
+  const hostUsed = { ...host, actions_done: own.usedHostIds };
+  const second = collectTrapSetTriggers(ctx, HOST, ['self'], hostUsed, guest);
+  eq(second.entries.filter(e => e.effectId === 'WXEX1-41-E1').length, 0, '同一ターン2回目は非発火');
+
+  const entry = own.entries.find(e => e.effectId === 'WXEX1-41-E1')!;
+  for (const [choice, handDelta, energyDelta] of [['c0', 1, 0], ['c1', 0, 1]] as const) {
+    const execCtx = mkCtx({ hand: 0, energy: 0 }, {});
+    const opened = executeEffect(entry.effect, execCtx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', `${choice}: CHOOSEが開く`);
+    const resolved = chooseReal(opened as Extract<ExecResult, { done: false }>, execCtx, choice);
+    eq(resolved.ownerState.hand.length, handDelta, `${choice}: 手札差分`);
+    eq(resolved.ownerState.energy.length, energyDelta, `${choice}: エナ差分`);
+  }
 });
 
 test('task12 lxxiv残: WX09-Re02は選んだ相手アタックステップを実行時に飛ばし、主語なし対照はselfを維持する', () => {

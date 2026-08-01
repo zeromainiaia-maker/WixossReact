@@ -2348,6 +2348,7 @@ const timingJa: Record<string, string> = {
   ON_BLOOD_CRYSTAL_ARMOR: 'あなたのシグニが血晶武装状態になったとき',
   // TRAP_ICON は effectType 側で表示される。AUTO の ON_TRAP_ACTIVATE は通常のトリガー文を描画する。
   ON_TRAP_ACTIVATE: 'あなたの《トラップアイコン》が発動したとき',
+  ON_TRAP_SET: 'あなたの【トラップ】が設置されたとき',
   ON_SONG_ACTIVATE: '',
 };
 
