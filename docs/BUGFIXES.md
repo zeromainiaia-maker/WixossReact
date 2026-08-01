@@ -1,8 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxx)：「カードをN枚引くか<B>」の2択脱落（3/17効果を確実採用・14件 honest defer）
+
+原文ブロックを含む live 母集団60効果（正しい `CHOOSE` 42／脱落18。うち `WX24-P4-017-E3` は選択ではなくトリガー条件OR）を再照合した。アンカー前の句を無条件に捨てると timing・条件・遅延・引用付与を失うため、前置句除去は **AUTO／`ON_REFRESH`／`triggerCondition.refreshedOwner:'opponent'` が既に構造化済み**という木の形に限定した。規則の全命中は `WXDi-P11-008-E1` 1効果だけで、スコープ外命中0。`parseDrawOrChoice` の「とき」ガードは維持した。
+
+- `WXDi-P11-008-E1`：前置トリガーを安全に外し、`CHOOSE[DRAW{self,1} / ENERGY_CHARGE_FROM_DECK{self,1}]` を採用。
+- `SPDi43-32-E1`：主語「対戦相手は」と任意「してもよい」を `opponentResponds:true`／`upTo:true` にし、両枝を opponent owner に修正。
+- `WXDi-P15-011-E2`：fresh は既に正しいため parser は変更せず、同カード E3 の `MANUAL` によるカード単位 PRESERVE を避けて `effects_WXDi.json` の E2 だけを外科パッチ。兄弟 E1/E3 は機械比較で不変。
+- defer：`WXEX1-41-E1`（timing 空）、`WXEX2-66-E2`（後続 FREEZE の tail-splice）、`WXDi-P02-030-E1`（byOwnEffect 未保持）、`WXDi-CP01-027-E2`（＜バーチャル＞3体条件未保持）、`WX21-027-E2`（アタックフェイズ条件未保持）、`WX24-P4-018-E3`（引用付与未構造化）、群B 2件（既存 `FIELD_CLASS_COUNT`／`THIS_CARD_FROM_*` では印刷条件を正確に評価できない）、群C 3件（付与／遅延を安全に保持できない）、群D 3件（付与構造未形成）。`WX24-P4-017-E3` は非選択を golden で固定。
+
+golden は採用3効果それぞれについて CHOOSE の提示と両枝の盤面（SPDi43 は辞退も）を実行固定。`execChoose` → `resumeChoose`、各枝は `execDraw`／`execEnergyChargeFromDeck`／`execTrash` で解決する。結果：golden 1239→1243、census 1351維持、smoke 10679全0、fuzz全0、lint 0 errors / 240 warnings、同型★0（265群・5986枚）、held 251枚／99署名（カード集合・内容とも before と完全一致）、manual field loss 0。live per-effect diff は changed 3／added 0／removed 0、outlier 0。
+
+### Claude 検証：差し戻しを試みて**撤回**した1件（`WXDi-P02-030-E1`）
+
+見送り14件のうち **`WXDi-P02-030-E1` の defer 理由「`byOwnEffect` が未保持」は過剰保守に見えた**ので差し戻しを試みた。根拠は ①同じ文型の `WXDi-CP01-027-E2` が live で `triggerCondition:{byOwnEffect:true}` を持っている ②`triggerCollect.ts` が `byOwnEffect` を honor している ③PLAN の恒久指標（続き303）に「`byOwnEffect` は ON_HAND_DISCARDED でも honor」と書いてある——の3点。parser に1行足すと期待どおり `CHOOSE` + `byOwnEffect` が出て、同文型の3効果（`WXDi-P04-009-E2`／`WXDi-P04-063-E1`／`WXDi-P10-060-E1`）にも原因限定が付いた。
+
+**しかし既存 golden 2本が落ちて誤りが露見した。** engine の `byOwnEffect` は「**捨てた本人**の効果が原因」という軸で実装されており、`collectHandDiscardTriggers` の**相手フィールド watcher ループ（any_opp path）は `byOwnEffect` を持つ効果を問答無用で非発火にする**（コードのコメントに「watcher の持ち主が discarder でないこのループでは意味が確定しない（**実データ0件**）。過剰発火を避けて保守的に非発火にする」と明記）。原文「**あなたの**効果によって**対戦相手が**捨てたとき」の「あなた」は **watcher 所有者**であって discarder ではない＝**別軸**。付けた瞬間に4効果が**恒久 no-op** に化ける（過小実行）。⇒ **全面撤回し、codex の defer 判断が正しかったことを確認した。**
+
+- **同じ誤りの再発防止に golden を1本追加**（4効果が `triggerScope:'any_opp'` を持ち、かつ `byOwnEffect` を**持たない**ことを固定）＝golden **1243→1244**。
+- ⚠**教訓＝「engine がそのフィールドを honor している」は「そのフィールドが自分の意味を表せる」を意味しない。** 同名フィールドが収集経路ごとに違う軸を指していることがある。**新しく条件を書くときは、その効果が通る collector の該当ループを読んで「この軸で自分の意味が表せるか」まで確認する**（`grep` で honor 箇所を数えるだけでは足りない）。「実データ0件」と書かれた保守的スキップは、**まさにその 0 を破る変更**への警告として読む。
+- **残作業として登録**＝原文「あなたの効果によって対戦相手が手札を捨てたとき」の原因限定は**engine に軸が無い**（現状は cause 限定なしで発火＝過剰発火のまま）。表すには「watcher 所有者の効果が原因」の新軸が要る。対象は上記4効果。
+
+### Claude 検証：次の1手が安くなった defer 1件（`WXDi-CP01-027-E2`）
+
+defer 理由「＜バーチャル＞3体条件が未保持」は正しいが、**条件語彙自体は既にある**＝`FIELD_CLASS_COUNT{owner, story, operator, value}`（`types/effects.ts:267`・`execUtils.ts:1519` で評価済み）が「場のシグニのうち CardClass が story を含むものの数」＝**「あなたの場に＜バーチャル＞のシグニが３体ある」そのもの**。欠けているのは **「〜がN体ある**間**、」という前置き条件節を AUTO の `condition` へ持ち上げる parser 規則**だけ（既存の抽出は `SELF_PLAY_RESTRICT` 内の「ある場合にしか」形に限定されている）。⚠ただし「あなたの場に＜X＞のシグニがN体ある」は他文型にも多く出るので、**着手前に母集団を機械抽出してから regex を切ること**。
+
+なお codex が群B の `WXK10-006-E1` を「`FIELD_CLASS_COUNT` は単一クラスの枚数なので評価できない」と見送ったのは**正しい**（あちらは「＜精元＞を**除いて**合計２**種類**以上」＝異なるクラス数＝別語彙）。同じ語彙名で片方は使えて片方は使えない。
+
 ## 2026-08-01 — タスク12(lxxiv)：「以下のNつを行う。①②③」の項目脱落を是正（**Codex 実装＋Claude 検証**・8/9枚採用・残1は honest defer）
 
-原文が「以下のNつを行う。①…②…③…」の形のカードは①②③を**全部**実行する（選択ではない）。ところが parser はこの族をまともに組めておらず、母集団10枚が3通りに壊れていた。
+原文が「以下のNつを行う。①…②…③…」の形のカードは、①②③を**順に処理する**（＝**選択肢から選ぶのではない**）。各項目が自前の条件や任意コストを持つ場合はそれぞれ判定する（例＝`WXK11-007`②③は「《白》を支払ってもよい。そうした場合、〜」＝任意コストつき／`WXK11-001`①は「…していた場合」＝条件つき）ので、「無条件に全部が解決する」という意味ではない。
+「選択ではない」の根拠＝カードデータは2つの言い回しを**書き分けている**（「以下のNつを**行う**」**10箇所** vs「以下のNつ**から**Mつを**選ぶ**」**368箇所**）。parser も両者を別規則で扱う。
+ところが parser はこの族をまともに組めておらず、母集団10枚が3通りに壊れていた。
 
 1. **`STUB{DO_THREE_THINGS}` 1本に丸めて engine の text パターン照合へ丸投げ**（6枚）。`execStubPart3.ts` の**カード別 regex 10本**に当たった項目だけが動き、当たらない項目は**黙って消える**。対象選択も無く「相手シグニは常にゾーン先頭」「エナは常に `energy[0]`」の決め打ち。
 2. **「以下の２つを行う」だけ `STUB{CHOOSE_N_FROM_LIST}` に化ける**（2枚）＝`parseSentencePart4.ts:421` の `^以下のNつを行う$` が拾う。`DO_THREE_THINGS` 側の regex は `^以下の[３-９]つを行う$` で **2 を含まない**ため2項目のカードだけがここへ落ちていた。**「全部行う」が「選ぶ」に化けている**。

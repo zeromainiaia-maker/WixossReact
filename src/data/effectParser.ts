@@ -3276,7 +3276,15 @@ function liftChoiceOptionCondition(action: EffectAction, rawText?: string): { ac
 }
 
 function parseDrawOrChoice(text: string): ChooseAction | null {
-  const t = text.replace(/。$/, '').trim();
+  let t = text.replace(/。$/, '').trim();
+  let opponentResponds = false;
+  let optional = false;
+  const opponentOptionalM = t.match(/^対戦相手は(.+?)(?:を)?してもよい$/s);
+  if (opponentOptionalM) {
+    t = opponentOptionalM[1].replace(/をする$/, '').trim();
+    opponentResponds = true;
+    optional = true;
+  }
   if (/とき|そうした場合/.test(t)) return null;
   let aText: string | null = null;
   let bText: string | null = null;
@@ -3287,8 +3295,14 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
     if (mB) { aText = mB[1]; bText = `カードを${mB[2]}枚引く`; }
   }
   if (!aText || !bText) return null;
-  const aAction = parseActionText(aText);
-  const bAction = parseActionText(bText);
+  const ownerPrefix = opponentResponds ? '対戦相手は' : '';
+  const forceOpponentOwner = (action: EffectAction): EffectAction => {
+    if (!opponentResponds) return action;
+    if (action.type === 'DRAW' || action.type === 'ENERGY_CHARGE_FROM_DECK') return { ...action, owner: 'opponent' };
+    return action;
+  };
+  const aAction = forceOpponentOwner(parseActionText(`${ownerPrefix}${aText}`));
+  const bAction = forceOpponentOwner(parseActionText(`${ownerPrefix}${bText}`));
   if (aAction.type === 'UNKNOWN' || bAction.type === 'UNKNOWN') return null;
   const aLift = liftChoiceOptionCondition(aAction, aText);
   const bLift = liftChoiceOptionCondition(bAction, bText);
@@ -3296,11 +3310,40 @@ function parseDrawOrChoice(text: string): ChooseAction | null {
     type: 'CHOOSE',
     choose_count: 1,
     from_count: 2,
+    ...(optional ? { upTo: true } : {}),
+    ...(opponentResponds ? { opponentResponds: true } : {}),
     choices: [
       { choiceId: 'c0', label: '選択肢1', action: aLift.action, ...(aLift.condition ? { condition: aLift.condition } : {}) },
       { choiceId: 'c1', label: '選択肢2', action: bLift.action, ...(bLift.condition ? { condition: bLift.condition } : {}) },
     ],
   };
+}
+
+/**
+ * timing/trigger metadata が本体から分離済みの AUTO に限り、draw-or-choice の前置トリガー句を外す。
+ * 「AするかBしたとき」は body 側に「とき」が残るため対象外（WX24-P4-017-E3 の OR trigger を保護）。
+ *
+ * ⚠**トリガー句を落としてよいのは、その句の意味が timing / triggerScope / triggerCondition に
+ * 余さず移し終わっているときだけ**。移せていない句を落とすと、2択は開くが**トリガー条件が消える**
+ * （＝過剰発火に化ける）。判定できたものだけを下の allowlist に足していく方式にしてある
+ * （タスク12(lxx)。母集団18効果のうち `WXEX1-41-E1` は `timing` が**空**＝そもそも落とせない実例）。
+ */
+function stripParsedTriggerBeforeDrawChoice(
+  text: string,
+  effectType: EffectType,
+  timing: EffectTiming[] | undefined,
+  triggerCondition: import('../types/effects').CardEffect['triggerCondition'] | undefined,
+): string {
+  if (effectType !== 'AUTO' || !timing?.length) return text;
+  const m = text.match(/^(.+?たとき)[、,]\s*((?:カードを[０-９\d]+枚引くか[^。]+|[^。]+か、?カードを[０-９\d]+枚引く))(。.*)?$/s);
+  if (!m || /とき|そうした場合/.test(m[2])) return text;
+  // 「対戦相手がリフレッシュしたとき」＝ timing + refreshedOwner で言い尽くせている。
+  // ⚠`ON_HAND_DISCARDED` の「**あなたの効果によって**対戦相手が捨てたとき」は**ここへ足してはいけない**＝
+  //   原因限定を表す軸が engine に無く（既存 `byOwnEffect` は「捨てた本人の効果」＝別の意味）、
+  //   落とすと2択は開くが**原因限定が消えて過剰発火が固定化される**（タスク12(lxx) で実測して撤回した）。
+  const triggerIsStructured = timing[0] === 'ON_REFRESH'
+    && triggerCondition?.refreshedOwner === 'opponent';
+  return triggerIsStructured ? `${m[2]}${m[3] ?? ''}` : text;
 }
 
 // 「対戦相手の〔レベル/パワー/色/状態…〕シグニN体を対象とし、…そうした場合、それを〈除去/移動〉」形（続き111）。
@@ -4737,7 +4780,10 @@ function applyTargetLevelScaling(text: string, action: EffectAction): EffectActi
 let _resolvingSeparatedPick = false;
 
 // ── タスク12(lxi) 第9波（2026-07-31）／タスク12(lxxiv)（2026-08-01）：
-//    「以下のNつを行う。①…②…③…」＝**選択ではなく全部やる**（CHOOSE でも DO_THREE_THINGS でもない） ──
+//    「以下のNつを行う。①…②…③…」＝**選択肢から選ぶのではなく①②③を順に処理する**
+//    （CHOOSE でも DO_THREE_THINGS でもない）。⚠「無条件に全部解決する」の意味ではない＝
+//    各項目は自前の条件・任意コストを持ちうる（`WXK11-007`②③＝任意コスト／`WXK11-001`①＝条件つき）。
+//    データ上も書き分けがある（「以下のNつを**行う**」10箇所 vs「以下のNつ**から**Mつを**選ぶ**」368箇所） ──
 // 従来は `STUB{DO_THREE_THINGS}` 1本に丸めて engine の**カード別 text パターン照合**
 // （`execStubPart3`）へ丸投げしており、当たらない項目は黙って消えていた。2項目のカードは更に
 // `parseSentencePart4` の `^以下のNつを行う$` → `CHOOSE_N_FROM_LIST`（＝「選ぶ」）へ化けていた。
@@ -4820,7 +4866,7 @@ function parseActionText(text: string): EffectAction {
 }
 
 function parseActionTextInner(text: string): EffectAction {
-  // 「以下のNつを行う。①…②…③…」＝選択ではなく全部やる（タスク12(lxxiv)）。
+  // 「以下のNつを行う。①…②…③…」＝選択肢から選ぶのではなく①②③を順に処理する（タスク12(lxxiv)）。
   // ⚠**必ずここ＝先頭で判定する**。②以降に引用能力（「…は「【自】：…」を得る」）を含む形
   //   （`WXDi-P05-052`）は、後段の引用能力抽出が全文を GRANT_LRIG_ABILITY として奪ってしまい
   //   ①のサーチが丸ごと消えるため。判定は原文先頭の `以下のNつを行う。` にアンカーしており、
@@ -7075,6 +7121,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたが自分の効果によって(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
         }
+        // ⚠「**あなたの効果によって**対戦相手が手札をN枚捨てたとき」（`WXDi-P02-030-E1`／`WXDi-P04-009-E2`／
+        //   `WXDi-P04-063-E1`／`WXDi-P10-060-E1`）の**原因限定はここでは表現できない**（タスク12(lxx) で実測）。
+        //   既存の `byOwnEffect` は engine 側で「**捨てた本人**の効果が原因」軸として実装されており
+        //   （`triggerCollect.ts` の any_opp watcher ループは `byOwnEffect` を**問答無用で非発火**にする）、
+        //   ここで流用すると4効果が**恒久 no-op** になる。⇒ 別軸（watcher 所有者の効果が原因）の新設が要る。
+        //   PLAN §3 Opusタスク12 の在庫へ登録済み。現状は cause 限定なし＝過剰発火のまま据置。
         // 「《ガードアイコン》を持たないカードを」＝捨てられたカード側の限定（既存 TargetFilter.noGuard）。
         if (/《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/.test(actionText)) {
           extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), noGuard: true };
@@ -8157,6 +8209,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       : { type: 'THIS_CARD_FROM_TRASH' };
     actionText = actionText.replace(/、?このシグニがトラッシュから場に出た場合(?:、)?/, '、').replace(/^、/, '');
   }
+
+  actionText = stripParsedTriggerBeforeDrawChoice(
+    actionText,
+    effectType,
+    timing,
+    extractedTriggerCondObj,
+  );
 
   const cost = parseCost(costStr);
   // ⚠「コスト句はあるのに parseCost が1つも解釈できなかった」印（タスク12(xxix)(2)）。

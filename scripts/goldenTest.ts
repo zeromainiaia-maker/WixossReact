@@ -20117,6 +20117,79 @@ test('collectOppResourceLossTriggers: 手札／エナのどちらでも発火・
   eq(n(1, 1, false), 0, '自分の効果（byOppEffect=false）では非発火');
 });
 
+// タスク12(lxx): draw-or-choice の実害（選択UIと両枝の盤面）を効果ごとに固定する。
+function openRealEffectChoice(effectId: string, ctx: ExecCtx): { open: Extract<ExecResult, { done: false }>; ctx: ExecCtx } {
+  const cardNum = effectId.replace(/-E\d+$/, '');
+  const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+  const result = executeEffect(effect, ctx);
+  ok(!result.done && result.pending.type === 'CHOOSE', `${effectId}: 2択を提示する`);
+  return { open: result as Extract<ExecResult, { done: false }>, ctx };
+}
+function chooseReal(open: Extract<ExecResult, { done: false }>, base: ExecCtx, choiceId: string | string[]): ExecResult {
+  const nextCtx = { ...base, ownerState: open.ownerState, otherState: open.otherState, logs: open.logs } as ExecCtx;
+  return finish(resumeChoose(choiceId, open.pending, nextCtx), nextCtx);
+}
+test('WXDi-P11-008-E1: CHOOSEでドロー／エナチャージのどちらも実行できる', () => {
+  const drawCtx = mkCtx({ hand: 0, energy: 0 }, {});
+  const drawOpen = openRealEffectChoice('WXDi-P11-008-E1', drawCtx);
+  eq(drawOpen.open.pending.options.length, 2);
+  const draw = chooseReal(drawOpen.open, drawCtx, 'c0');
+  eq(draw.ownerState.hand.length, 1, 'ドロー枝');
+  eq(draw.ownerState.energy.length, 0, 'ドロー枝ではエナ不変');
+  const energyCtx = mkCtx({ hand: 0, energy: 0 }, {});
+  const energyOpen = openRealEffectChoice('WXDi-P11-008-E1', energyCtx);
+  const energy = chooseReal(energyOpen.open, energyCtx, 'c1');
+  eq(energy.ownerState.hand.length, 0, 'エナ枝では手札不変');
+  eq(energy.ownerState.energy.length, 1, 'エナチャージ枝');
+});
+test('SPDi43-32-E1: 相手に任意CHOOSEを提示し、両枝と辞退が相手盤面へ反映される', () => {
+  const runChoice = (choice: string | string[]) => {
+    const ctx = mkCtx({}, { hand: 0, energy: 0 });
+    const opened = openRealEffectChoice('SPDi43-32-E1', ctx);
+    eq(opened.open.pending.opponentResponds, true, '選ぶのは対戦相手');
+    eq(opened.open.pending.upTo, true, '任意なので0個選択可');
+    return chooseReal(opened.open, ctx, choice);
+  };
+  const draw = runChoice('c0'); eq(draw.otherState.hand.length, 1); eq(draw.otherState.energy.length, 0);
+  const energy = runChoice('c1'); eq(energy.otherState.hand.length, 0); eq(energy.otherState.energy.length, 1);
+  const skip = runChoice([]); eq(skip.otherState.hand.length, 0); eq(skip.otherState.energy.length, 0);
+});
+test('WXDi-P15-011-E2: CHOOSEで自分のドロー／相手の手札捨ての両枝が実働する', () => {
+  const drawCtx = mkCtx({ hand: 0 }, { hand: 2 });
+  const drawOpen = openRealEffectChoice('WXDi-P15-011-E2', drawCtx);
+  const draw = chooseReal(drawOpen.open, drawCtx, 'c0');
+  eq(draw.ownerState.hand.length, 1); eq(draw.otherState.hand.length, 2);
+  const trashCtx = mkCtx({ hand: 0 }, { hand: 2 });
+  const trashOpen = openRealEffectChoice('WXDi-P15-011-E2', trashCtx);
+  const trash = chooseReal(trashOpen.open, trashCtx, 'c1');
+  eq(trash.ownerState.hand.length, 0); eq(trash.otherState.hand.length, 1);
+});
+test('WX24-P4-017-E3 defer: trigger条件ORをプレイヤーのCHOOSEへ変換しない', () => {
+  const effect = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E3')!;
+  const hasChoose = (a: EffectAction): boolean => a.type === 'CHOOSE'
+    || (a.type === 'SEQUENCE' && a.steps.some(hasChoose))
+    || (a.type === 'CONDITIONAL' && (hasChoose(a.then) || (!!a.else && hasChoose(a.else))));
+  eq(hasChoose(effect.action), false, '「AするかBしたとき」は選択ではない');
+});
+
+// タスク12(lxx) 検証で一度踏んで撤回した罠を固定する。
+// 「**あなたの効果によって**対戦相手が手札をN枚捨てたとき」（any_opp）の**原因限定**を、既存の
+// `triggerCondition.byOwnEffect` で表そうとしてはいけない。engine 側の `byOwnEffect` は
+// 「**捨てた本人**の効果が原因」という別軸で、`collectHandDiscardTriggers` の相手フィールド watcher
+// ループ（`triggerCollect.ts` の any_opp path）は `byOwnEffect` を持つ効果を**問答無用で非発火**にする。
+// ⇒ 付けた瞬間に下記4効果が**恒久 no-op** に化ける（ゲートは全緑のまま＝計器に映らない過小実行）。
+// 正しく表すには「watcher 所有者の効果が原因」を指す新しい軸が要る＝PLAN §3 タスク12 の在庫。
+test('task12 lxx: any_opp「あなたの効果によって相手が捨てたとき」に byOwnEffect を付けない（付けると恒久no-op）', () => {
+  for (const [cardNum, effectId] of [
+    ['WXDi-P02-030', 'WXDi-P02-030-E1'], ['WXDi-P04-009', 'WXDi-P04-009-E2'],
+    ['WXDi-P04-063', 'WXDi-P04-063-E1'], ['WXDi-P10-060', 'WXDi-P10-060-E1'],
+  ] as const) {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    eq(eff.triggerScope, 'any_opp', `${effectId}: 相手の手札捨てに反応する watcher`);
+    eq(eff.triggerCondition?.byOwnEffect, undefined, `${effectId}: byOwnEffect は流用禁止（別軸）`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
