@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxi) 第11波：手札とエナを跨ぐ単一プール `HAND_OR_ENERGY_CARD` を新設し `WXK06-067-E1` の回避クローズを実働化（Claude 実装）
+
+`WXK06-067-E1`「【起】《青》このシグニを場からトラッシュに置く：対戦相手は、自分のシグニ１体と、自分のエナゾーンからカードを２枚まで対象とし、**対象としたエナゾーンのカードと手札を合計２枚デッキの一番上に置かないかぎり**、対象としたそのシグニをデッキの一番上に置く。」は live が `TRANSFER_TO_DECK{SIGNI opponent 1}` **単体**＝回避クローズが丸ごと落ちて「**無条件で**相手シグニ1体をデッキトップへ」の過剰実行だった（しかも選ぶのが効果側になっていた）。
+
+**(lxi) 残2→残1**（残る1件＝`WX24-P4-007-E1` の③で、機構は別在庫 **(lxxiii)** 側）。
+
+### ① 🔴 PLAN の旧診断「選択UIも作れない」は外れていた
+
+旧行は「`TargetScope` が単一ゾーン前提なので選択UIも作れない」としていたが、実際は **`EffectInteractionModal` は候補配列をそのまま描くだけでスコープ非依存**（`opp_hand` の伏せ札ビューだけが特殊）。必要だったのは `scopeDesc` に1行足すことだけ。
+
+さらに**適用側も既にあった**＝`resumeSelectTarget` の `TRANSFER_TO_DECK` は選ばれた1枚について `hand.includes` / `energy.includes` を順に見て所属ゾーンを弁別する実装で、候補にさえ両ゾーンが入れば移動はそのまま通る。instanceId はデッキ配布時に1プレイヤー内で一意採番（`assignInstanceIds`）なので取り違えない。
+
+⇒ 実際に足したのは **`execTransferToDeck` の `HAND_OR_ENERGY_CARD` 分岐1本**（候補＝手札∪エナ／`selectOrInteract` へ渡すだけ）。
+
+### ② 「合計N枚」は2枝に割ってはいけない
+
+既存の回避語彙で近いのは `opponentHandDiscard` と `opponentEnergyTrash` だが、**両方置くと「手札からN枚」「エナからN枚」の2枝**になり、原文の「合計2枚（内訳は自由＝手札2／手札1+エナ1／エナ2）」を失う。⇒ 単一プールの枝 `opponentHandOrEnergyToDeckTop` を1本だけ出す。golden で「非 pay/skip の枝がちょうど1本」を assert して2枝化への逆戻りを止めた。
+
+### ③ 原文の「対象としたエナゾーンのカード」を「エナゾーン全体」へ広げてよい根拠
+
+原文はエナ側の候補を「（相手が）対象としたカード最大2枚」に限る。engine は対象宣言を別ステップに持たないが、**対象宣言も支払いも同じ相手が行い、対象上限2＝支払い枚数2** なので到達しうる結果集合は「手札∪エナから合計2枚」と一致する（相手は払うつもりのエナだけを対象に取る）。エナカードへの `ON_TARGETED` 語彙も engine に無いので副作用の差も出ない。この判断は `effectParser.ts` の規則直上にコメントで残した。
+
+### ④ parser＝対象宣言の切り出しが「N枚**まで**対象とし」を弾いていた
+
+`matchOpponentWaUnlessGate` の前置き分離は `^([^。]*?を対象とし[、,])(.*)$` で、「カードを２枚**まで**対象とし、」は `を対象とし` に当たらず前置きを剥がせずコスト節の照合に失敗していた。`(?:を|まで)対象とし` へ広げた。⚠射程は「対戦相手は…ないかぎり」文の内側だけなので、CSV 全体で 522 件ある「まで対象とし」のうちこの分岐に届くのは本件1件（実測。live 差分 changed 1 で確認）。
+
+不払い帰結「対象としたそのシグニをデッキの一番上に置く」も `parseOpponentWaExplicitConsequent` に明示構築で追加（`opponentSelects: true`＝「対戦相手は…対象とし」の主語どおり相手が選ぶ。既存 `opponentSigniToDeckTop` と同じ扱い）。
+
+**ゲート**：typecheck ✅／golden **1215→1218**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1355→1354**（`BASELINE_HIGH=1354`＝**機能是正**）／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **250枚・98署名 据置**。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WXK06-067-E1`）、`build:effects`・`regen` とも冪等。STUB 種類/実装 据置（`OPPONENT_PAY_OPTIONAL` 70→71 ノード）。
+
+⚠**未検証UI**＝跨ぎプールの選択モーダル（相手側 SELECT_TARGET・`opp_hand_energy`）は BattleScreen 経路＝計器に映らない（§7 へ登録）。
+
 ## 2026-08-01 — タスク12(lxi) 第10波：指定シグニゾーンへの「新たに配置できない」を実働化（死にフィールド `disabled_signi_zones` を退役し3効果＋REMOVE_SIGNI_ZONE 4枚を開通・Claude 実装）
 
 `PlayerState.disabled_signi_zones` は**書き手2つ・読み手0**の死にフィールドだった（`INTERNAL_REMOVE_SIGNI_ZONE`＝「シグニゾーン１つを消す」と `BLOCK_OPP_ZONE_PLACEMENT`＝「新たに配置できない」が書き込むが、**配置フローがどこからも読まない**）。⇒ 配置禁止を謳う効果は**全部 no-op**。

@@ -2266,7 +2266,7 @@ function bindUnlessGateAnaphora(thenText: string, action: EffectAction): EffectA
 //   ③「…かぎり、自分のすべてのシグニをトラッシュに置く」＝従来は `TRASH{HAND_CARD owner:self ALL}`＝
 //     **自分の手札を全部捨てる**という別物（WX24-P4-023）。
 function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
-  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL'; opponentSigniToDeckTop?: number; opponentSigniTrash?: number } | undefined {
+  { costColors?: string[]; opponentHandDiscard?: number | 'ALL'; opponentHandDiscardFilter?: TargetFilter; opponentEnergyTrash?: number | 'ALL'; opponentSigniToDeckTop?: number; opponentSigniTrash?: number; opponentHandOrEnergyToDeckTop?: number } | undefined {
   const colorsOf = (s: string): string[] => [...s.matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]);
   const p = phrase.replace(/^[、,]/, '');
   let m = p.match(/^((?:《[白赤青緑黒無]》)+)を支払わ$/);
@@ -2291,6 +2291,14 @@ function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
   // `opponentSigniTrash` の「は」形への水平展開（タスク12(lxi) 第9波・`WX24-P4-007-E1` の①）。
   m = p.match(/^(?:対象の)?自分のシグニ([０-９\d一二三四五六七八九十]+)体を場からトラッシュに置か$/);
   if (m) return { opponentSigniTrash: parseNum(m[1]) };
+  // 「対象としたエナゾーンのカードと手札を合計N枚デッキの一番上に置か」（`WXK06-067-E1`・タスク12(lxi) 第11波）。
+  // ⚠**手札とエナを跨ぐ単一プール**＝内訳（手札2／手札1+エナ1／エナ2）は相手が自由に決める。
+  //   `opponentHandDiscard` + `opponentEnergyTrash` の2枝に割ると「どちらか一方からN枚」に化けるので使えない。
+  // ⚠エナ側の候補は原文上「対象としたエナゾーンのカード（最大N枚）」に限られるが、対象宣言も支払いも
+  //   **同じ相手**が行い、対象上限N＝支払い枚数N なので到達しうる結果集合は「手札∪エナから合計N枚」と一致する
+  //   （相手は払うつもりのエナだけを対象に取る）。エナカードへの ON_TARGETED 語彙も engine に無い。
+  m = p.match(/^対象としたエナゾーンのカードと手札を合計([０-９\d一二三四五六七八九十]+)枚デッキの一番上に置か$/);
+  if (m) return { opponentHandOrEnergyToDeckTop: parseNum(m[1]) };
   return undefined;
 }
 
@@ -2322,6 +2330,16 @@ function parseOpponentWaExplicitConsequent(targetPrefix: string, thenText: strin
   if (hM) {
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hM[1]) } } as EffectAction;
   }
+  // 相手が「対象としたそのシグニ」をデッキの一番上に置く（`WXK06-067-E1`・タスク12(lxi) 第11波）。
+  // 対象宣言（「自分のシグニN体と、…を対象とし、」）の主語が対戦相手なので `opponentSelects`＝相手が選ぶ。
+  // ⚠従来 live は `TRANSFER_TO_DECK{SIGNI opponent 1}` **単体**＝回避クローズが丸ごと落ちて
+  //   「無条件で相手シグニ1体をデッキトップへ」の過剰実行だった（しかも選ぶのは効果側になっていた）。
+  const sgTopM = targetPrefix.match(/^自分のシグニ([０-９\d一二三四五六七八九十]+)体と[、,]/);
+  if (sgTopM && /^対象としたそのシグニをデッキの一番上に置く$/.test(th)) {
+    return { type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner: 'opponent', count: parseNum(sgTopM[1]), filter: { cardType: 'シグニ' } },
+      shuffle: false, position: 'top', opponentSelects: true } as EffectAction;
+  }
   // 相手が自分の手札を N 枚デッキの一番下に置く（WXK06-047-E1）。
   const hbM = th.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚デッキの(?:一番)?下に置く$/);
   if (hbM) {
@@ -2341,9 +2359,12 @@ function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
   if (!waM) return undefined;
   let costPart = waM[1];
   const thenText = waM[2];
-  // 回避クローズの前に対象宣言（「…を対象とし、」）が挟まる形を切り出す
+  // 回避クローズの前に対象宣言（「…を対象とし、」）が挟まる形を切り出す。
+  // 「〜をN枚**まで**対象とし、」（`WXK06-067-E1`）も同じ対象宣言なので `まで` も受ける（タスク12(lxi) 第11波）。
+  // ⚠射程は「対戦相手は…ないかぎり」文の内側だけなので、CSV 全体で 522 件ある「まで対象とし」のうち
+  //   この分岐に届くのは `WXK06-067-E1` 1件（実測）。
   let targetPrefix = '';
-  const tp = costPart.match(/^([^。]*?を対象とし[、,])(.*)$/s);
+  const tp = costPart.match(/^([^。]*?(?:を|まで)対象とし[、,])(.*)$/s);
   if (tp) { targetPrefix = tp[1].replace(/^[、,]/, ''); costPart = tp[2]; }
   const cost = parseOpponentWaUnlessCost(costPart, targetPrefix);
   if (!cost) return undefined;

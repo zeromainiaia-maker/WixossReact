@@ -3296,6 +3296,21 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               } as EffectAction,
               available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniToDeckTop,
             }] : []),
+            // 「エナゾーンのカードと手札を合計N枚デッキの一番上に置く」枝（タスク12(lxi) 第11波・`WXK06-067-E1`）。
+            // ⚠**ゾーンを跨ぐ単一プール**＝「手札からN枚」「エナからN枚」の2枝に割ると内訳の自由度を失う
+            //   （原文は合計N枚で、手札2／手札1+エナ1／エナ2 のどれでもよい）。
+            ...(stub.opponentHandOrEnergyToDeckTop !== undefined && stub.opponentHandOrEnergyToDeckTop > 0 ? [{
+              id: 'handOrEnergyToDeckTop',
+              label: `手札とエナゾーンから合計${stub.opponentHandOrEnergyToDeckTop}枚をデッキの一番上に置く`,
+              action: {
+                type: 'TRANSFER_TO_DECK',
+                source: { type: 'HAND_OR_ENERGY_CARD', owner: 'opponent', count: stub.opponentHandOrEnergyToDeckTop },
+                shuffle: false,
+                position: 'top',
+                opponentSelects: true,
+              } as EffectAction,
+              available: cur.otherState.hand.length + cur.otherState.energy.length >= stub.opponentHandOrEnergyToDeckTop,
+            }] : []),
             { id: 'skip', label: '支払わない', action: conditional.then, available: true },
           ];
           const pending: PendingInteractionDef = {
@@ -3901,6 +3916,37 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
     if (src.count === 'ALL') return done({ ...applyHandToDeck(cands, ctx), lastProcessedCards: cands });
     return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx);
+  }
+
+  // HAND_OR_ENERGY_CARD: 手札とエナゾーンを跨いだ**単一プール**から合計N枚をデッキへ（タスク12(lxi) 第11波）。
+  // 原文「対象としたエナゾーンのカードと手札を合計２枚デッキの一番上に置く」（`WXK06-067-E1`）＝
+  // 内訳（手札2／手札1+エナ1／エナ2）は選ぶ側が自由に決める＝2つの単一ゾーン枝には割れない。
+  // ⚠1枚ずつの適用は resumeSelectTarget の TRANSFER_TO_DECK が hand/energy 双方を見て弁別するので追加不要。
+  //   instanceId はデッキ配布時に1プレイヤー内で一意（assignInstanceIds）なので取り違えない。
+  if (src.type === 'HAND_OR_ENERGY_CARD') {
+    const handCandsHE = handCandidates(state, src.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+    const enCandsHE = state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
+    const candsHE = [...handCandsHE, ...enCandsHE];
+    const scopeHE: TargetScope = src.owner === 'self' ? 'self_hand_energy' : 'opp_hand_energy';
+    const applyHandOrEnergyToDeck = (selected: string[], c: ExecCtx): ExecCtx => {
+      const s = ownerState(src.owner, c);
+      const moved = selected.filter(n => s.hand.includes(n) || s.energy.includes(n));
+      if (moved.length === 0) return c;
+      const newS = insertToDeck({
+        ...s,
+        hand: s.hand.filter(n => !moved.includes(n)),
+        energy: s.energy.filter(n => !moved.includes(n)),
+      }, moved);
+      return addLog(setOwnerState(src.owner, newS, c),
+        `手札／エナゾーンから合計${moved.length}枚をデッキ${toBottom ? '下' : '上'}に置く`);
+    };
+    if (src.count === 'ALL') return done({ ...applyHandOrEnergyToDeck(candsHE, ctx), lastProcessedCards: candsHE });
+    const countHE = resolveNum(src.count);
+    // 候補が必要枚数に満たないときは「置けない」＝回避が成立しない。呼び出し側（OPPONENT_PAY_OPTIONAL）が
+    // available:false で枝を出さないので通常ここへは来ないが、直接実行された場合の安全弁として no-op で返す。
+    if (candsHE.length < countHE) return done(addLog(ctx, '手札とエナゾーンの合計が足りない'));
+    const oppRespondsHE = !!a.opponentSelects && src.owner === 'opponent';
+    return selectOrInteract(candsHE, countHE, src.upToCount ?? false, scopeHE, a, undefined, ctx, oppRespondsHE);
   }
 
   if (src.type === 'SIGNI') {

@@ -9757,6 +9757,73 @@ test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提�
   cursor = savedCursor;
 });
 
+// ── タスク12(lxi) 第11波（2026-08-01）：手札とエナを跨ぐ単一プール（`WXK06-067-E1`）──
+// 「対戦相手は、自分のシグニ１体と、自分のエナゾーンからカードを２枚まで対象とし、対象としたエナゾーンの
+//   カードと手札を合計２枚デッキの一番上に置かないかぎり、対象としたそのシグニをデッキの一番上に置く。」
+// 従来 live は `TRANSFER_TO_DECK{SIGNI opponent 1}` 単体＝回避クローズが丸ごと落ちた過剰実行だった。
+test('parse 第11波：「エナゾーンのカードと手札を合計N枚」＝ゾーンを跨ぐ回避（WXK06-067-E1）', () => {
+  const eff = effectsMap.get('WXK06-067')!.find(e => e.effectId === 'WXK06-067-E1')!;
+  const seq = eff.action as SequenceAction;
+  eq(seq.type, 'SEQUENCE', '標準ペア');
+  const pay = seq.steps[0] as unknown as { id?: string; opponentHandOrEnergyToDeckTop?: number };
+  eq(pay.id, 'OPPONENT_PAY_OPTIONAL', '回避ゲートが立つ（従来は丸ごと落ちていた）');
+  eq(pay.opponentHandOrEnergyToDeckTop, 2, '回避＝手札とエナから合計2枚をデッキトップへ');
+  const cond = seq.steps[1] as unknown as { type?: string; then?: { type?: string; position?: string; opponentSelects?: boolean; source?: { type?: string; owner?: string; count?: number } } };
+  eq(cond.type, 'CONDITIONAL', '不払い帰結はゲートの下');
+  eq(cond.then?.type, 'TRANSFER_TO_DECK', '不払い＝シグニをデッキへ');
+  eq(cond.then?.position, 'top', '一番上');
+  eq(cond.then?.source?.owner, 'opponent', '相手のシグニ');
+  eq(cond.then?.source?.count, 1, '1体');
+  eq(cond.then?.opponentSelects, true, '「対戦相手は…対象とし」＝相手が選ぶ');
+});
+test('第11波 engine 実走：回避枝は手札とエナを1つのプールとして提示し、跨いで2枚選べる（WXK06-067-E1）', () => {
+  const savedCursor = cursor;
+  const eff = effectsMap.get('WXK06-067')!.find(e => e.effectId === 'WXK06-067-E1')!;
+  const ctx = mkCtx({}, { hand: 3, energy: 4, signi: [SIGNI_P3000, null, null], trash: 0 });
+  const oppHand = [...ctx.otherState.hand];
+  const oppEnergy = [...ctx.otherState.energy];
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done && r0.pending.type === 'CHOOSE' && r0.pending.opponentResponds === true, '相手に回避の選択が出る');
+  const opts = (r0.pending as { options: { id: string; available: boolean }[] }).options;
+  ok(opts.some(o => o.id === 'handOrEnergyToDeckTop' && o.available), '跨ぎ枝が提示される');
+  eq(opts.filter(o => o.id !== 'skip' && o.id !== 'pay').length, 1, '「手札からN枚」「エナからN枚」の2枝には割らない');
+  const c0: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+  // ① 回避する＝手札1枚＋エナ1枚を選ぶ（ゾーンを跨いだ選択）
+  const rPay = resumeOpponentPayOptional('handOrEnergyToDeckTop', [], r0.pending as never, c0);
+  ok(!rPay.done && rPay.pending.type === 'SELECT_TARGET', '跨ぎプールの選択UIが出る');
+  const sel = rPay.pending as { candidates: string[]; count: number; targetScope?: string };
+  eq(sel.targetScope, 'opp_hand_energy', '新スコープ＝相手の手札とエナ');
+  eq(sel.count, 2, '合計2枚');
+  eq(sel.candidates.length, oppHand.length + oppEnergy.length, '候補は手札3枚＋エナ4枚＝7枚');
+  const cPay: ExecCtx = { ...c0, ownerState: rPay.ownerState, otherState: rPay.otherState, logs: rPay.logs };
+  const picked = [oppHand[0], oppEnergy[0]];
+  const rDone = finish(resumeSelectTarget(picked, rPay.pending as never, cPay), cPay);
+  ok(rDone.done, '解決が完了する');
+  eq(rDone.otherState.hand.length, 2, '手札3→2');
+  eq(rDone.otherState.energy.length, 3, 'エナ4→3');
+  ok(picked.every(n => rDone.otherState.deck.slice(0, 2).includes(n)), '2枚ともデッキの一番上へ');
+  eq(rDone.otherState.field.signi.filter(s => s && s.length > 0).length, 1, '回避したのでシグニは場に残る');
+  // ② 支払わない＝対象としたシグニがデッキの一番上へ
+  const rSkip = finish(resumeOpponentPayOptional('skip', [], r0.pending as never, c0), c0);
+  ok(rSkip.done, '不払い側も解決する');
+  eq(rSkip.otherState.field.signi.filter(s => s && s.length > 0).length, 0, '不払い＝シグニが場から消える');
+  eq(rSkip.otherState.deck[0], SIGNI_P3000, 'デッキの一番上に置かれる');
+  cursor = savedCursor;
+});
+test('第11波 手札＋エナの合計が足りなければ回避枝を出さない（枝ごと消す＝タダ回避を作らない）', () => {
+  const savedCursor = cursor;
+  const eff = effectsMap.get('WXK06-067')!.find(e => e.effectId === 'WXK06-067-E1')!;
+  const poor = mkCtx({}, { hand: 1, energy: 0, signi: [SIGNI_P3000, null, null] });
+  const rPoor = executeEffect(eff, poor);
+  const optsPoor = (rPoor.pending as { options: { id: string; available: boolean }[] }).options;
+  eq(optsPoor.find(o => o.id === 'handOrEnergyToDeckTop')?.available, false, '合計1枚では回避できない');
+  const exact = mkCtx({}, { hand: 0, energy: 2, signi: [SIGNI_P3000, null, null] });
+  const rExact = executeEffect(eff, exact);
+  const optsExact = (rExact.pending as { options: { id: string; available: boolean }[] }).options;
+  eq(optsExact.find(o => o.id === 'handOrEnergyToDeckTop')?.available, true, '手札0でもエナ2枚だけで払える（内訳は自由）');
+  cursor = savedCursor;
+});
+
 // ── タスク12(lxi) 第10波（2026-08-01）：指定シグニゾーンへの新規配置禁止（WXDi-P11-009-E3 ほか）──
 // 従来 `disabled_signi_zones` は書き手2つ（REMOVE_SIGNI_ZONE / BLOCK_OPP_ZONE_PLACEMENT）に対し
 // 読み手が1つも無い死にフィールドで、原文3枚とも実質 no-op だった。第10波で `signi_zone_blocks`

@@ -1597,6 +1597,11 @@ function actionJa(a?: Action, effectType?: string): string {
           const bodyOPO = `自分のシグニを${a.opponentSigniToDeckTop}体`;
           optsOPO.push({ dict: `${bodyOPO}デッキの一番上に置く`, te: `${bodyOPO}デッキの一番上に置いて` });
         }
+        // 手札＋エナを跨ぐ合計N枚（タスク12(lxi) 第11波・`WXK06-067-E1`）
+        if (a.opponentHandOrEnergyToDeckTop !== undefined) {
+          const bodyOPO = `エナゾーンのカードと手札を合計${a.opponentHandOrEnergyToDeckTop}枚`;
+          optsOPO.push({ dict: `${bodyOPO}デッキの一番上に置く`, te: `${bodyOPO}デッキの一番上に置いて` });
+        }
         // 可変《無》コスト（タスク12(lxi) 第8波）＝枚数が実行時の盤面で決まる
         if (a.opponentPayColorlessPerSigniAttack) {
           const bodyOPO = 'このターンにシグニがアタックした回数1回につき《無》を';

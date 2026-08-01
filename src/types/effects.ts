@@ -569,6 +569,14 @@ export interface EffectTarget {
     | 'LRIG_TRASH_CARD'
     | 'LRIG_DECK_CARD'
     | 'ENERGY_CARD'
+    /**
+     * 手札とエナゾーンを**跨いだ単一の候補プール**から合計N枚を選ぶ（タスク12(lxi) 第11波）。
+     * 原文「対象としたエナゾーンのカードと手札を**合計２枚**デッキの一番上に置く」（`WXK06-067-E1`）。
+     * instanceId はデッキ配布時に1プレイヤー内で一意に採番されるため、選ばれた1枚がどちらのゾーンの
+     * ものかは `hand.includes` / `energy.includes` で弁別できる（`resumeSelectTarget` の TRANSFER_TO_DECK
+     * が既に両ゾーンを見ているのでそのまま動く）。
+     */
+    | 'HAND_OR_ENERGY_CARD'
     | 'LIFE_CLOTH_CARD'
     | 'PLAYER';
   owner: Owner;
@@ -1936,6 +1944,13 @@ export interface StubAction {
   opponentSigniTrash?: number;
   /** OPPONENT_PAY_OPTIONAL: avoidance by putting this many of the opponent's own field SIGNI on top of their deck（タスク12(lxi) 第5波）。 */
   opponentSigniToDeckTop?: number;
+  /**
+   * OPPONENT_PAY_OPTIONAL: 回避＝**手札とエナゾーンから合計N枚**を自分のデッキの一番上に置く
+   * （`WXK06-067-E1`「対象としたエナゾーンのカードと手札を合計２枚デッキの一番上に置かないかぎり」。
+   * タスク12(lxi) 第11波）。**ゾーンを跨ぐ単一プール**なので `HAND_OR_ENERGY_CARD` を使う＝
+   * 「手札からN枚」「エナからN枚」の2枝には割れない（内訳を相手が自由に決められるのが原文）。
+   */
+  opponentHandOrEnergyToDeckTop?: number;
   /**
    * OPPONENT_PAY_OPTIONAL: 《無》の枚数が固定ではなく「**このターンにシグニがアタックした回数**」に比例する
    * 可変コスト（`WXK05-009-E2`「このターンにシグニがアタックした回数１回につき《無》を支払わないかぎり」。

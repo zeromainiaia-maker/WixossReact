@@ -622,6 +622,8 @@ export type TargetScope =
   | 'self_hand'  | 'opp_hand'
   | 'self_trash' | 'opp_trash'
   | 'self_energy'| 'opp_energy'
+  // 手札＋エナゾーンを跨いだ単一プール（「エナゾーンのカードと手札を合計N枚」＝タスク12(lxi) 第11波）
+  | 'self_hand_energy' | 'opp_hand_energy'
   | 'self_lrig_deck' | 'opp_lrig_deck'
   | 'self_lrig_under';
 
