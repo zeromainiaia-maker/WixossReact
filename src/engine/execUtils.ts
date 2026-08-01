@@ -1548,6 +1548,8 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'THIS_CARD_FROM_TRASH':
       // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
+    case 'THIS_CARD_FROM_NON_HAND_THIS_TURN':
+      return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_non_hand_this_turn?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_FROM_DECK':
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_deck?.includes(ctx.sourceCardNum) ?? false);
     case 'THIS_CARD_PLACED_BY_CLASS': {

@@ -446,6 +446,9 @@ export interface PlayerState {
   // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
   signi_played_from_trash?: string[];
   signi_played_from_deck?: string[];
+  // THIS_CARD_FROM_NON_HAND_THIS_TURN: このターンに手札以外から場に出たシグニのインスタンスID。
+  // 効果配置・レゾナ等の非手札配置で記録し、手札からの配置で同一IDの古い記録を除去する。ターン開始時にクリア。
+  signi_played_from_non_hand_this_turn?: string[];
   // 効果によって場に出したシグニの instanceId → 場出し効果の発生源カード instanceId。
   // 「このシグニが＜X＞のシグニの効果によって場に出ていた場合」（出自条件・WX26-CP1-048）を
   // 直後の【出】が THIS_CARD_PLACED_BY_CLASS で判定するために記録。通常召喚では記録されない。
@@ -706,6 +709,8 @@ export type PendingInteractionDef =
       cardNum: string;          // 場に出すカード（ソースから除去済み）
       owner: 'self' | 'opponent';
       asDown?: boolean;
+      // 手札以外からの配置。ソース除去後に中断する特殊配置経路が resume 側へ出自を渡す。
+      fromNonHand?: boolean;
       continuation?: EffectAction;
       // REVEAL_UNTIL_TO_FIELD（WX04-093 等）でゾーン選択を跨いで「これまで場に出したシグニ」を維持するための蓄積。
       // 指定時、resumeSelectSigniZone は配置後に lastProcessedCards=[...placedSoFar, cardNum] を設定する（【出】発火の追跡用）。

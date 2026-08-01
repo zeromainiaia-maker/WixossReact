@@ -20512,6 +20512,58 @@ test('task12(lxx) Batch A WXK10-006-E1: クラス種類数・精元除外を収�
   }
 });
 
+test('task12(lxx) Batch B WXDi-P07-075-E1: 非手札出自だけ収集し、CHOOSE両枝を実行する', () => {
+  const parsed = parseCardEffects(cardMap.get('WXDi-P07-075')!);
+  const effect = parsed.find(e => e.effectId === 'WXDi-P07-075-E1')!;
+  const priorEffects = effectsMap.get('WXDi-P07-075');
+  effectsMap.set('WXDi-P07-075', parsed);
+  eq(effect.condition?.type, 'THIS_CARD_FROM_NON_HAND_THIS_TURN', 'effect-levelの非手札出自条件を生成');
+  eq(effect.action.type, 'CHOOSE', 'ドロー固定ではなくCHOOSEを生成');
+
+  const collect = (state: PlayerState) => collectTurnTriggers(
+    trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', state, mkState({}),
+  ).entries.filter(e => e.effectId === 'WXDi-P07-075-E1');
+
+  const handPlaced = mkState({ signi: ['WXDi-P07-075', null, null] });
+  eq(collect(handPlaced).length, 0, '手札から出したシグニでは発火しない');
+
+  for (const source of ['trash', 'energy'] as const) {
+    const placementCtx = mkCtx({}, {}, SIGNI);
+    placementCtx.ownerState = {
+      ...placementCtx.ownerState,
+      field: { ...placementCtx.ownerState.field, signi: [null, null, null] },
+      trash: source === 'trash' ? ['WXDi-P07-075'] : [],
+      energy: source === 'energy' ? ['WXDi-P07-075'] : [],
+    };
+    const placement: CardEffect = {
+      effectId: `BATCH-B-${source}`, effectType: 'AUTO',
+      action: { type: 'ADD_TO_FIELD', owner: 'self', source: {
+        type: source === 'trash' ? 'TRASH_CARD' : 'ENERGY_CARD', owner: 'self', count: 1,
+      } },
+      duration: 'INSTANT', mandatory: true,
+    };
+    const placed = finish(executeEffect(placement, placementCtx), placementCtx);
+    const sourceState = placed.ownerState;
+    eq(sourceState.signi_played_from_non_hand_this_turn?.includes('WXDi-P07-075') ?? false, true, `${source}配置経路が非手札マーカーを書く`);
+    const entries = collect(sourceState);
+    eq(entries.length, 1, `${source}から出したシグニでは発火する`);
+    for (const [choice, selfHandDelta, oppHandDelta] of [['c0', 1, 0], ['c1', 0, -1]] as const) {
+      const ctx = mkCtx({ hand: 2 }, { hand: 2 }, 'WXDi-P07-075');
+      ctx.ownerState = { ...ctx.ownerState, signi_played_from_non_hand_this_turn: ['WXDi-P07-075'] };
+      const opened = executeEffect(entries[0].effect, ctx);
+      ok(!opened.done && opened.pending.type === 'CHOOSE', `${source}/${choice}: CHOOSEが開く`);
+      const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+      eq(result.ownerState.hand.length, 2 + selfHandDelta, `${source}/${choice}: 自分の手札差分`);
+      eq(result.otherState.hand.length, 2 + oppHandDelta, `${source}/${choice}: 相手の手札差分`);
+    }
+  }
+
+  const nextTurn = mkState({ signi: ['WXDi-P07-075', null, null] });
+  nextTurn.signi_played_from_non_hand_this_turn = undefined;
+  eq(collect(nextTurn).length, 0, 'ターン開始時クリア後は発火しない');
+  if (priorEffects) effectsMap.set('WXDi-P07-075', priorEffects);
+});
+
 for (const [effectId, zone, count] of [
   ['WX25-P1-094-E1', 'energy', 3],
   ['WXDi-D01-012-E1', 'energy', 3],

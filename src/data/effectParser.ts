@@ -8388,6 +8388,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.replace(/、?このシグニがトラッシュから場に出た場合(?:、)?/, '、').replace(/^、/, '');
   }
 
+  // 「このターンにこのシグニが手札以外の領域から場に出ていた場合」= ターン履歴の非手札出自条件。
+  // トラッシュ限定の THIS_CARD_FROM_TRASH へ縮めず、残余を通常の action parser（draw-or-choice 等）へ渡す。
+  if (actionText) {
+    const nonHandM = actionText.match(/このターンにこのシグニが手札以外の領域から場に出ていた場合[、,]?/);
+    if (nonHandM) {
+      const nonHandCond: Condition = { type: 'THIS_CARD_FROM_NON_HAND_THIS_TURN' };
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, nonHandCond] }
+        : nonHandCond;
+      actionText = actionText.replace(nonHandM[0], '').replace(/^、/, '');
+    }
+  }
+
   actionText = stripParsedTriggerBeforeDrawChoice(
     actionText,
     effectType,

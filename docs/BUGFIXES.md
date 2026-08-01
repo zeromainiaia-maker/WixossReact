@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch B：手札以外から場に出たターン履歴条件＋2択脱落1効果
+
+`WXDi-P07-075-E1` の「このターンにこのシグニが手札以外の領域から場に出ていた場合」を effect-level `THIS_CARD_FROM_NON_HAND_THIS_TURN` として復元し、残余を既存 `parseDrawOrChoice` へ渡して `CHOOSE[DRAW 1 / opponent HAND TRASH 1]` を原文順に復元した。従来は条件が消えて毎アタックフェイズ開始時に無条件発火し、ドローへ固定されていた。
+
+出自はゾーン別 OR ではなく `signi_played_from_non_hand_this_turn` に直接記録する。効果配置のトラッシュ／デッキ／エナ、デッキ公開配置、ゲーム外トークン、ルリグデッキからのレゾナ、デッキとの入れ替え、通常レゾナを writer へ配線し、手札からの効果配置・人間通常召喚・CPU通常召喚は同一インスタンスの古い記録を除去する。既存 `signi_played_from_trash`／`signi_played_from_deck` の意味は変更していない。ターン開始3経路で新フィールドも既存出自マーカーと同時にクリアする。
+
+`collectTurnTriggers` は自フィールドの `AUTO` を走査する際に `eff.condition` を `evalUseCondition` で評価してから entry を積み、CPU専用アタックフェイズ開始経路も同じ評価を行う。実行 golden は手札配置で非発火、トラッシュ／エナ配置 writer、成立時の CHOOSE 提示と両枝の手札差分、ターン境界後の非発火を固定した。
+
+結果：golden **1269→1270**、census **1342→1341**（既存 `BASELINE_HIGH` の履歴先頭を更新）、smoke **10679/10679** 全異常0・SKIP0、fuzz 全異常0、lint 0 errors/**240 warnings**、manual field loss 0、同型 **265群／★0**、held は build 後 **253枚／101署名**（本件1枚増）→採用・再build後 **252枚／100署名**。live per-effect diff は `WXDi-P07-075-E1` の changed 1だけ（added/removed 0、outlier 0）、同カードの兄弟効果0件で巻き添えなし。変更全ファイルの UTF-8 検査は U+FFFD 0・3連続以上の `?` 0・先頭BOM 0（HEAD比増分0）。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- per-effect 機械 diff（`fdcfef6d` 比）＝**`changed 1 / added 0 / removed 0`**・outlier 0・兄弟効果変更0。別軸2件（`WX14-024-E2`／`WXDi-P07-044-E2`＝「出た**とき**」＝トリガー条件）は**UNCHANGED**。
+- **§5-20 の面配線が実際に成立している**＝新フィールド `signi_played_from_non_hand_this_turn` の**書き込み6地点**（`effectExecutor.ts:1793`〔効果配置の共通ヘルパ〕／`:6556`〔デッキ札との入れ替え〕／`execStubPart1.ts:170`〔ルリグデッキからのフェッチ〕／`execStubPart3.ts:2800`／`BattleScreen.tsx:5238`〔レゾナ出現〕）・**除去3地点**（同ヘルパの HAND 分岐／`BattleScreen.tsx:5247`〔人間の通常召喚〕／`:9396`〔CPU の通常召喚〕）・**クリア3地点**（`BattleScreen.tsx:3508 / 3841 / 4454`＝**既存の出自マーカー3箇所とすべて同じ行**）を確認。**通常召喚が「古いマーカーを除去する」側に配線されている**のが重要＝同じカード番号がこのターン中にトラッシュ→場→離脱→手札から再召喚された場合の誤成立を防ぐ。
+- **golden が要求4項目を全て実行で固定**＝①手札から出したら不発 ②**トラッシュから**出したら発火＋両枝 ③**エナから**出しても発火（＝G2 の罠「`THIS_CARD_FROM_TRASH` を流用するとエナ経由が落ちる」の検査）④**ターン開始時クリア後は不発**。
+- ゲート独立実行＝golden **1270**／census **1341**（`BASELINE_HIGH` は既存定数の履歴先頭追記で更新）／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **252枚100署名 据置**。全 effects JSON に `"???"` **0件**・エンコーディング新規増0（Batch A の事故は2回連続で非再発）。
+
 ## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch C：素の遅延設置＋2択脱落2効果
 
 回避クローズを持たない厳格な「〈遅延設置句〉、〈2択本体〉」も既存 `DELAYED_INSTALL_PREFIXES` から `INSTALL_DELAYED_TRIGGER` へ変換する経路を追加した。木の形のガードとして内側が `CHOOSE` の場合だけ受理し、カード番号・固有本文は使っていない。`ON_LEAVE_FIELD` には厳格な全文一致句を1行追加し、`duration:'THIS_ATTACK_PHASE'`／`leftOwner:'self'` を保持する。

@@ -3505,7 +3505,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
           free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
           free_grow_next_turn: undefined,
-          signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+          signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
           life_crashed_last_turn: opState.life_crashed_this_turn ?? 0,
@@ -3838,7 +3838,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
         free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
         free_grow_next_turn: undefined,
-        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
         negate_coin_abilities: undefined,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
         self_deck_to_energy_this_turn: 0,
@@ -4451,7 +4451,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
             free_grow_this_turn: nextState.free_grow_next_turn ? true : nextState.free_grow_this_turn,
             free_grow_next_turn: undefined,
-            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
             signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
             self_deck_to_energy_this_turn: 0,
             field: {
@@ -5233,10 +5233,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         );
         if (!paidAndPlaced) return;
         placed = paidAndPlaced.state;
+        placed = {
+          ...placed,
+          signi_played_from_non_hand_this_turn: [
+            ...(placed.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== cardNum),
+            cardNum,
+          ],
+        };
         resonaPaymentMeta = paidAndPlaced;
       } else {
         placed = {
           ...my,
+          signi_played_from_non_hand_this_turn: (my.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== cardNum),
           hand: my.hand.filter((_, i) => i !== handIndex),
           field: {
             ...my.field,
@@ -9385,6 +9393,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newSigni[zone] = [candidate.id];
         newCpuSt = {
           ...newCpuSt,
+          signi_played_from_non_hand_this_turn: (newCpuSt.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== candidate.id),
           hand: newCpuSt.hand.filter(id => id !== candidate.id),
           field: { ...newCpuSt.field, signi: newSigni },
         };

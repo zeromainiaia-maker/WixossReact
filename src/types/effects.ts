@@ -270,6 +270,7 @@ export type Condition =
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
+  | { type: 'THIS_CARD_FROM_NON_HAND_THIS_TURN' } // このターンにこのシグニが手札以外の領域から場に出ていた場合
   | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string } // class省略時は効果起因の配置全般
   | { type: 'THIS_CARD_FROM_DECK' } // このシグニがデッキから場に出た場合
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）

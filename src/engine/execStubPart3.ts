@@ -2791,10 +2791,16 @@ export function execStubPart3(
     const pickSRLD = candsSRLD[0];
     const ctxAfterSRLD = { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD) } };
     if (emptyZonesSRLD.length >= 2) {
-      return needsInteraction(ctxAfterSRLD, { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self' });
+      return needsInteraction(ctxAfterSRLD, { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self', fromNonHand: true });
     }
     const newSigniSRLD = ctxAfterSRLD.ownerState.field.signi.map((z, i) => (i === emptyZonesSRLD[0].i ? [...(z ?? []), pickSRLD] : z));
-    const newOwnerSRLD: PlayerState = { ...ctxAfterSRLD.ownerState, field: { ...ctxAfterSRLD.ownerState.field, signi: newSigniSRLD } };
+    const newOwnerSRLD: PlayerState = {
+      ...ctxAfterSRLD.ownerState,
+      field: { ...ctxAfterSRLD.ownerState.field, signi: newSigniSRLD },
+      signi_played_from_non_hand_this_turn: [
+        ...(ctxAfterSRLD.ownerState.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pickSRLD), pickSRLD,
+      ],
+    };
     return done(addLog({ ...ctxAfterSRLD, ownerState: newOwnerSRLD },
       `${ctx.cardMap.get(pickSRLD)?.CardName ?? pickSRLD}を出現条件を無視して場に出す`));
   }

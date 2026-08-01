@@ -163,7 +163,14 @@ export function execStubPart1(
       if (idx >= 0) nextLrigDeck.splice(idx, 1);
       signi[zone] = [fetched];
     }
-    const next = { ...ctx.ownerState, lrig_deck: nextLrigDeck, field: { ...ctx.ownerState.field, signi } };
+    const next = {
+      ...ctx.ownerState,
+      lrig_deck: nextLrigDeck,
+      field: { ...ctx.ownerState.field, signi },
+      ...(fetched ? { signi_played_from_non_hand_this_turn: [
+        ...(ctx.ownerState.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== fetched), fetched,
+      ] } : {}),
+    };
     return done(addLog({ ...ctx, ownerState: next, lastProcessedCards: fetched ? [fetched] : [] }, fetched ? `《${fetchName}》をルリグデッキから場に出した` : `《${fetchName}》がルリグデッキにない`));
   }
   if (stub.id === 'PREVENT_NEXT_DAMAGE' || stub.id === 'PREVENT_NEXT_DAMAGE_THIS_TURN') {

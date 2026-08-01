@@ -1787,6 +1787,23 @@ function recordPlacedBySource(state: PlayerState, placedInstanceId: string, sour
   return { ...state, signi_placed_by_source: { ...(state.signi_placed_by_source ?? {}), [placedInstanceId]: sourceCardNum } };
 }
 
+function recordNonHandPlacement(state: PlayerState, placedInstanceId: string): PlayerState {
+  return {
+    ...state,
+    signi_played_from_non_hand_this_turn: [
+      ...(state.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== placedInstanceId),
+      placedInstanceId,
+    ],
+  };
+}
+
+function clearNonHandPlacement(state: PlayerState, placedInstanceId: string): PlayerState {
+  return {
+    ...state,
+    signi_played_from_non_hand_this_turn: (state.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== placedInstanceId),
+  };
+}
+
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
@@ -1845,10 +1862,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         type: 'SELECT_SIGNI_ZONE',
         cardNum: instanceId,
         owner: tgtOwner === 'opponent' ? 'opponent' : 'self',
+        fromNonHand: true,
       });
     }
     signi[emptyZones[0].i] = [instanceId];
-    const newS: PlayerState = { ...state, field: { ...state.field, signi } };
+    const newS: PlayerState = recordNonHandPlacement({ ...state, field: { ...state.field, signi } }, instanceId);
     const cardLabel = ctx.cardMap.get(instanceId)?.CardName ?? a.cardName;
     return done(addLog(setOwnerState(tgtOwner, newS, ctx),
       `${cardLabel}をゾーン${emptyZones[0].i + 1}に場に出す（ゲーム外から）`));
@@ -1940,16 +1958,20 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         // THIS_CARD_FROM_TRASH 用に「トラッシュから出た」インスタンスを記録（直後の【出】効果が参照）
         newS = { ...newS, trash: newS.trash.filter(x => x !== n),
           signi_played_from_trash: [...(newS.signi_played_from_trash ?? []), n] };
+        newS = recordNonHandPlacement(newS, n);
       } else if (srcDefined.type === 'DECK_CARD') {
         newS = { ...newS, deck: newS.deck.filter(x => x !== n),
           signi_played_from_deck: [...(newS.signi_played_from_deck ?? []), n],
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
+        newS = recordNonHandPlacement(newS, n);
       } else if (srcDefined.type === 'ENERGY_CARD') {
         newS = { ...newS, energy: newS.energy.filter(x => x !== n),
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
+        newS = recordNonHandPlacement(newS, n);
       } else if (srcDefined.type === 'HAND_CARD') {
         newS = { ...newS, hand: newS.hand.filter(x => x !== n),
           signi_played_from_trash: (newS.signi_played_from_trash ?? []).filter(x => x !== n) };
+        newS = clearNonHandPlacement(newS, n);
       }
       // 空きゾーンに配置
       const signi = [...newS.field.signi] as (string[] | null)[];
@@ -4429,7 +4451,7 @@ function execRevealUntilToField(a: import('../types/effects').RevealUntilToField
   if (emptyZones.length === 1 || (a.owner !== 'self' && a.owner !== 'opponent')) {
     // 空きゾーンが1つ（または非プレイヤー owner）なら選択不要 → 自動配置して継続
     signi[emptyZones[0].i] = [hit];
-    cur = addLog(setOwnerState(a.owner, { ...fieldState, field: { ...fieldState.field, signi } }, cur),
+    cur = addLog(setOwnerState(a.owner, recordNonHandPlacement({ ...fieldState, field: { ...fieldState.field, signi } }, hit), cur),
       `${ctx.cardMap.get(hit)?.CardName ?? hit}を場に出す`);
     cur = { ...cur, lastProcessedCards: [...(cur.lastProcessedCards ?? []), hit] };
     return executeAction(next, cur);
@@ -4442,6 +4464,7 @@ function execRevealUntilToField(a: import('../types/effects').RevealUntilToField
     owner: a.owner,
     continuation: next,
     placedSoFar: cur.lastProcessedCards ?? [],
+    fromNonHand: true,
   });
 }
 
@@ -6402,8 +6425,8 @@ export function resumeSelectZone(
       `ゾーンが埋まっているため${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}をデッキに戻す`));
   }
   signi[zoneIndex] = [pending.cardNum];
-  const newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi },
-    signi_played_from_deck: [...(state.signi_played_from_deck ?? []), pending.cardNum] }, pending.cardNum, ctx.sourceCardNum);
+  const newS: PlayerState = recordPlacedBySource(recordNonHandPlacement({ ...state, field: { ...state.field, signi },
+    signi_played_from_deck: [...(state.signi_played_from_deck ?? []), pending.cardNum] }, pending.cardNum), pending.cardNum, ctx.sourceCardNum);
   const cur = addLog(setOwnerState(pending.owner, newS, ctx),
     `${ctx.cardMap.get(pending.cardNum)?.CardName ?? pending.cardNum}を場に出す`);
   if (pending.continuation) return executeAction(pending.continuation, cur);
@@ -6424,6 +6447,7 @@ export function resumeSelectSigniZone(
   }
   signi[zoneIndex] = [pending.cardNum];
   let newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
+  if (pending.fromNonHand) newS = recordNonHandPlacement(newS, pending.cardNum);
   if (pending.asDown) {
     const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
     newDown[zoneIndex] = true;
@@ -6529,6 +6553,9 @@ export function resumeRearrangeSigni(
         ...removed.field, signi,
       };
       const newState: PlayerState = { ...removed, deck, field: newField,
+        signi_played_from_non_hand_this_turn: [
+          ...(removed.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pending.swapSourceNum), pending.swapSourceNum,
+        ],
         zone_moved_just: [...(removed.zone_moved_just ?? []), pending.swapSourceNum, selected] };
       return done({ ...addLog(setOwnerState(pending.owner, newState, ctx), '公開したシグニと場のシグニを入れ替えた'),
         lastProcessedCards: [pending.swapSourceNum] });
@@ -6932,6 +6959,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
       let newS = { ...state };
+      const placedFromHand = state.hand.includes(cardNum);
+      const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
       // 場に出すカードを現在の領域（デッキ/手札/トラッシュ/エナ）から除去する。
       // src 指定の有無に依らず、cardNum が存在する領域から取り除く（デッキ探索→場出しでデッキに残る不具合の修正）。
       const di = newS.deck.indexOf(cardNum);
@@ -6948,6 +6977,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           }
         }
       }
+      if (placedFromHand) newS = clearNonHandPlacement(newS, cardNum);
+      else if (placedFromNonHand) newS = recordNonHandPlacement(newS, cardNum);
       const signi = [...newS.field.signi] as (string[] | null)[];
       const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
       if (emptyZones.length === 0) {
