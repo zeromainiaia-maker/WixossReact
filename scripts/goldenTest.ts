@@ -20465,6 +20465,31 @@ test('task12 lxxiv: WXK11-001①は相手のアーツ/スペル使用で相手�
   eq(spellUsed.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '相手がスペル使用済みでもOR条件成立');
 });
 
+test('task12 lxxiv残: WX09-Re02は選んだ相手アタックステップを実行時に飛ばし、主語なし対照はselfを維持する', () => {
+  const runIdolDefense = (choiceId: 'c0' | 'c1') => {
+    const ctx = mkCtx({}, {}, 'WX09-Re02');
+    const opened = openRealEffectChoice('WX09-Re02-E1', ctx);
+    eq(opened.open.pending.options.length, 2, `${choiceId}: 2択が開く`);
+    return chooseReal(opened.open, ctx, choiceId);
+  };
+
+  const signi = runIdolDefense('c0');
+  eq(signi.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '①は相手stateへシグニステップ封じを積む');
+  eq(signi.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '①は使用者stateへ積まない');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', signi.otherState), 'ATTACK_LRIG', '①の実stateでシグニステップを飛ばす');
+
+  const lrig = runIdolDefense('c1');
+  eq(lrig.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '②は相手stateへルリグステップ封じを積む');
+  eq(lrig.ownerState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, false, '②は使用者stateへ積まない');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', lrig.otherState), 'END', '②の実stateでルリグステップを飛ばす');
+
+  const control = effectsMap.get('WXDi-P09-031')!.find(e => e.effectId === 'WXDi-P09-031-E1')!;
+  const controlCtx = mkCtx({}, {}, 'WXDi-P09-031');
+  const controlled = finish(executeEffect(control, controlCtx), controlCtx);
+  eq(controlled.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '主語なし対照はselfへ積み続ける');
+  eq(controlled.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '主語なし対照を一律opponentへ変えない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

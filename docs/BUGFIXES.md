@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxxiv)残：`WX09-Re02-E1` の前置コスト文後で脱落した2択を復元
+
+`WX09-Re02`《アイドル・ディフェンス》は、2本の条件付き使用コスト置換文の後にある「以下の2つから1つを選ぶ」が文分割時にヘッダ・①・②ごと除外され、live が `SEQUENCE[STUB{ARTS_COST_REDUCTION_BY_EFFECT}, STUB{ARTS_COST_REDUCTION_BY_EFFECT}]` だけになっていた。`parseActionTextInner` の入口計装では、全文は汎用入口へ届く一方、フィルタ後の文列がコスト2文だけになることを確認した。
+
+前置部を通常解析した action tree が「2本以上の `ARTS_COST_REDUCTION_BY_EFFECT` だけ」である場合に限り、後続の一般 CHOOSE を連結する構造ルールを追加した。カード番号・カード名・固有本文は判定に使っていない。既存のコスト STUB 2本と白1無7の印刷コストは維持し、①を `BLOCK_ACTION{owner:'opponent', actionId:'SIGNI_ATTACK_STEP', until:'END_OF_TURN'}`、②を同 `LRIG_ATTACK_STEP` として原文順に復元した。コスト置換そのものは engine 未実装のためスコープ外で据え置いた。
+
+実行 golden は、効果実行で CHOOSE が開くこと、両枝が使用者でなく相手 state に各 block key を積むこと、その実 state を `resolveNextPhaseWithAttackStepBlocks` に渡して各ステップが実際に飛ぶこと、対照 `WXDi-P09-031-E1`（主語なし）が self 側へ積まれ続けることを固定した。なお、比較対象として提示された `WX20-006-E1` の live CHOOSE は parser 成功ではなく `parseStatus:'MANUAL'` の curated 温存であり、HEAD の fresh parser は CHOOSE を生成していないことも実測した。
+
+**実害**＝白1無7 を払って**何も起きない**防御アーツだった。相手のアタックを止めたつもりが素通りする＝アーツとしては最悪の壊れ方。engine 側は (lxxiv) で実装済みだったので、parser が本体を出すだけで即動いた（**engine 無改修・新語彙0本**）。
+
+### 🔴 Claude の指示書が1点誤っており、codex が実測で訂正した
+
+指示書は「✅`WX20-006-E1` と ❌`WXK08-002-E1` はほぼ同型なのに分かれる＝**判別の鍵がそこにある**」と書いたが、**`WX20-006-E1` は `parseStatus:'MANUAL'`** で、live の CHOOSE は curated 温存だった（fresh parser は落としている）。⇒ **提示した比較ペアは成立していなかった**。Claude が独立に再実測して確認：
+
+| 「以下のNつからMつを選ぶ」が**前に別文がある**位置に来る46効果の内訳 | 件数 |
+|---|---|
+| CHOOSE有 / `AUTO`（＝parser が本当に解けている） | **29** |
+| CHOOSE有 / `MANUAL`（＝curated 温存。parser は解けていない） | **7**（`WX20-006-E1` ほか） |
+| CHOOSE無 / `AUTO` | 7 |
+| CHOOSE無 / `MANUAL` | 2 |
+| CHOOSE無 / `PARTIAL` | 1 |
+
+⚠**教訓＝「live に正しい JSON がある」は「parser が解けている」を意味しない**（§5-5b の「held/curated を見ずに live diff だけで判断するな」の別の顔）。**成功例/失敗例を対比して真因を推定するときは、成功側の `parseStatus` を必ず確認する**。MANUAL を成功例として引くと、存在しない「判別の鍵」を探すことになる。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- per-effect 機械 diff（`882ec8f2` 比）＝**`changed 1 / added 0 / removed 0`**・outlier 0。先例3枚（`WX21-022-E2`／`WXDi-P09-031-E1`／`WXK11-001-E1`）と (lxxiv) 既修正族8枚、および見送った `WX20-006-E1`／`WXK08-002-E1`／`WXK09-004-E1` は**全て UNCHANGED**。
+- **parser の分岐ガードは木の形で書かれている**（§5-5c 遵守）＝前置部を通常パースし、その tree が「`ARTS_COST_REDUCTION_BY_EFFECT` の STUB のみ×2本以上」かで判定。カード番号・カード名・固有本文は使っていない。
+- golden は要求5項目（CHOOSE 提示／両枝が相手 state へ／使用者 state へ積まない／純関数で実際にステップが飛ぶ／`owner:'self'` 対照の非変更）を**すべて実行で**固定。位置も集計行より前。
+- ゲート独立実行＝golden **1262**／census **1347 据置**／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held 251枚99署名 据置。`npm run regen` 後の decompile シート差分は **`WX09-Re02-E1` の1行のみ**。
+- 逆翻訳の**コスト文が2回出る重複はベースラインにも存在**（`ARTS_COST_REDUCTION_BY_EFFECT` STUB が各々カード全文を描くため）＝**本バッチの新規劣化ではない**。`SIGNI_ATTACK_STEP`→「シグニでアタックできない」の表記も `decompileEffects.ts:742` の共有ラベル表由来で、`WX21-022-E2`／`WXDi-P09-031-E1` と一貫している。
+
+### 新規在庫（本バッチのスコープ外・登録のみ）
+
+1. **コスト置換が engine 未実装**＝「このアーツの使用コストは《白×1》《無×4》に**なる**」は**置換**だが、実行時のコスト変更は `effectEngine.ts:3389`（`《カード名》の使用コストは《無×N》減る`）と `:3998`（`コストの合計がN以上のアーツ…減る`）の**2パターンのみ**。`ARTS_COST_REDUCTION_BY_EFFECT` は `execStub` で no-op のマーカー。⇒ 本カードは常に白1無7 でしか使えない。⇒ タスク12 (lxxxi)。
+2. **同症状の残り10効果**＝上表の「CHOOSE無」10件（`PR-Di013-E1`／`SP26-005-E1`／`SP38-004-E1`／`WD21-008-E1`／`WD23-044-EA-E1`／`WX26-CP1-024-E1`／`WXDi-P05-006-E1`／`WXK08-002-E1`／`WXK09-004-E1`／`WXK10-008-E1`）。⇒ タスク12 (lxxxii)。
+
 ## 2026-08-01 — Opusタスク12(lxxx)：`ON_LEAVE_FIELD` の `triggerScope:'any'` 跨サイド収集
 
 `SPK01-04-E1` と `WXK02-041-E2` は原文の「シグニ1体が場から手札に戻ったとき」を正しく `triggerScope:'any'` で保持していたが、`collectLeaveFieldTriggers` の跨サイド watcher ループが `any_opp` だけを許可していたため、相手側のシグニが戻った場合は発火しなかった。跨サイド条件へ既存の `any` を OR 追加し、同側ループ（`any_ally|any`）は変更していない。
