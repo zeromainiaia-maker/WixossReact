@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch C：素の遅延設置＋2択脱落2効果
+
+回避クローズを持たない厳格な「〈遅延設置句〉、〈2択本体〉」も既存 `DELAYED_INSTALL_PREFIXES` から `INSTALL_DELAYED_TRIGGER` へ変換する経路を追加した。木の形のガードとして内側が `CHOOSE` の場合だけ受理し、カード番号・固有本文は使っていない。`ON_LEAVE_FIELD` には厳格な全文一致句を1行追加し、`duration:'THIS_ATTACK_PHASE'`／`leftOwner:'self'` を保持する。
+
+- `WX24-P4-018-E3`：`RECOLLECT_GATE`＋即時3ドローを維持し、その後を `INSTALL_DELAYED_TRIGGER{THIS_ATTACK_PHASE, ON_LEAVE_FIELD(self), CHOOSE[DRAW 1 / opponent HAND TRASH 1]}` に是正。従来は設置が落ち、起動直後に計4枚引いていた。
+- `WXDi-P16-051-E1`：手札2枚コスト／ターン1回を維持し、`INSTALL_DELAYED_TRIGGER{THIS_TURN, ON_TURN_END, CHOOSE[DRAW 2 / ENERGY_CHARGE 2]}` に是正。従来は起動直後にエナチャージ2を固定実行していた。
+
+engine 読み合わせ：`collectLeaveFieldTriggers` の `delayed_triggers` 走査は `triggerCollect.ts:1381` に実在し、`ON_LEAVE_FIELD`／`THIS_ATTACK_PHASE`／`leftOwner` を評価する。人間のターン終了経路は `BattleScreen.tsx:3221` で収集し、entry があればスタックへ積んで return、解決後の再入で `__TURN_END__` により再収集を避け、`:3371` で初めてクリアするため、実順序は **収集→実行→クリア**。CPU 経路が `ON_TURN_END` を収集しない既知の (lxvii) はスコープ外で据置。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- per-effect 機械 diff（`a925f9d8` 比）＝**`changed 2 / added 0 / removed 0`**・outlier 0・**両カードの兄弟効果変更0**。変更禁止7件（`WX24-P4-016-E3`／`WXEX1-18-E3`＝「このターンのアタックフェイズの間」の別文型2件／`WX22-001-E3`＝既存の設置形／`WX24-P4-011-E3`＝「次に」の `once` 付き／`WXK05-009-E2`／前バッチで是正した `WXDi-D01-014-E2`・`WXDi-P00-040-E2`）は**全て UNCHANGED**。
+- **原文照合（Claude 独立）**＝`WX24-P4-018-E3` は「あなたのシグニ1体が」→`leftOwner:'self'`／「対戦相手は手札を1枚捨てる」→`TRASH{HAND_CARD owner:'opponent'}`／《ゲーム１回》→`once_per_game` まで一致。`WXDi-P16-051-E1` は `cost{discard:2}`・`once_per_turn` 維持で一致。
+- **Batch A の事故2件は非再発**＝全 effects JSON に `"???"` **0件**（G5 の読み返し確認が機能）、兄弟効果の巻き添え**0件**（G6）。
+- ゲート独立実行＝golden **1269**／census **1342**（`BASELINE_HIGH` は既存定数の履歴先頭追記で更新・並行定数なし）／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **252枚100署名 据置**。`regen` 後の decompile シート差分は当該2行のみ。
+- ⚠**先出しした2つの罠がどちらも的中して機能した**＝(a)表のコメントが警告する「収集経路の無い timing を足すと**過剰実行を no-op へ替えるだけ**」→ codex は `ON_LEAVE_FIELD` の遅延ループを実コードで確認してから足した (b)「**行番号の前後は実行順序の証明にならない**」（(lxxii) の教訓）→ codex は呼び出し鎖を追って「収集→実行→クリア」を確認し、`__TURN_END__` による再収集回避まで報告した。
+
+実行 golden を効果ごとに追加し、前倒し非実行、collector の収集、フェイズ外非発火、両枝の盤面差分を固定。結果：golden **1267→1269**、census **1344→1342**（既存 `BASELINE_HIGH` の履歴先頭を更新）、smoke **10679/10679** 全0・SKIP0、fuzz 全0、lint 0 errors/**240 warnings**、manual field loss 0、同型 **265群／★0**、held **252枚／100署名 据置**。live per-effect diff は **changed 2 / added 0 / removed 0**（対象2件のみ）・outlier 0、両カードの兄弟効果は全て不変。JSON は UTF-8・ミニファイ1行で、書き戻し直後に日本語を読み返した。
+
 ## 2026-08-01 — Opusタスク12(lxx) 残消化 **Batch A**：「シグニが持つクラスが合計N種類以上」条件の脱落5効果（**codex 実装＋Claude 検証・是正2件**）
 
 (lxx) 残 defer 12件のうち②を消化。**条件が丸ごと落ちて無条件発火していた5効果**を是正した。

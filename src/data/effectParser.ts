@@ -2120,14 +2120,49 @@ function isNoActionPrefix(prefix: string): boolean {
 //   ・`ON_SIGNI_BANISH_BATTLE`＝BattleScreen のバトルバニッシュ収集（第7波で配線）
 //   収集経路の無い timing を足すと「設置されるが永久に発火しない」＝過剰実行を no-op へ替えるだけ。
 // ⚠正規表現は厳格形（原文の丸ごと一致）にする。緩めると別カードの前置きを設置と誤読する。
-const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; trigger?: Record<string, unknown> }> = [
+const DELAYED_INSTALL_PREFIXES: Array<{ re: RegExp; timing: string; duration?: 'THIS_TURN' | 'THIS_ATTACK_PHASE'; trigger?: Record<string, unknown> }> = [
   { re: /^このターン終了時[、,]$/, timing: 'ON_TURN_END' },
+  { re: /^このターンのアタックフェイズの間[、,]あなたのシグニ[１1]体が場を離れたとき[、,]$/, timing: 'ON_LEAVE_FIELD', duration: 'THIS_ATTACK_PHASE', trigger: { leftOwner: 'self' } },
   // `WX24-P4-011-E3`「このターン、あなたのシグニがバトルによってシグニ１体をバニッシュしたとき、」
   { re: /^このターン[、,]あなたのシグニがバトルによってシグニ[１1]体をバニッシュしたとき[、,]$/, timing: 'ON_SIGNI_BANISH_BATTLE' },
   // `WXK05-009-E2`「このターン、対戦相手のシグニがアタックしたとき、」＝**設置者は防御側**。
   // `attackerOwner:'opponent'` は設置者から見た所有者（collector が防御側の設置分だけ拾うための弁別子）。
   { re: /^このターン[、,]対戦相手のシグニがアタックしたとき[、,]$/, timing: 'ON_ATTACK_SIGNI', trigger: { attackerOwner: 'opponent' } },
 ];
+
+/** 回避クローズを持たない「〈設置句〉、〈帰結〉」の厳格形も同じ表から遅延設置へ変換する。 */
+function matchPlainDelayedInstall(t: string): EffectAction | undefined {
+  for (let start = 0; start < t.length; start++) {
+    if (start > 0 && !/[。.]/.test(t[start - 1])) continue;
+    for (let end = start + 1; end <= t.length; end++) {
+      if (!/[、,]/.test(t[end - 1])) continue;
+      const prefix = t.slice(start, end).trim();
+      const delayedPrefix = DELAYED_INSTALL_PREFIXES.find(d => d.re.test(prefix));
+      if (!delayedPrefix) continue;
+      const tail = t.slice(end).trim();
+      if (!tail) return undefined;
+      const effect = parseSingleSentence(tail);
+      const effectS = JSON.stringify(effect);
+      if (effectS.includes('"UNKNOWN"') || effectS.includes('"RULE_REMINDER_TEXT"')) return undefined;
+      // Batch C は「遅延句の後ろにある選択本体」が裸で即時実行へ漏れた形だけを扱う。
+      // 既存表の timing だけを根拠に、別構造の素の設置文まで一括採用しない。
+      if (effect.type !== 'CHOOSE') return undefined;
+      const install = {
+        type: 'INSTALL_DELAYED_TRIGGER',
+        duration: delayedPrefix.duration ?? 'THIS_TURN',
+        trigger: { timing: delayedPrefix.timing, ...(delayedPrefix.trigger ?? {}) },
+        effect,
+      } as EffectAction;
+      const before = t.slice(0, start).trim();
+      if (!before) return install;
+      const leading = parseActionText(before);
+      if (leading.type === 'UNKNOWN') return undefined;
+      const leadingSteps = leading.type === 'SEQUENCE' ? leading.steps : [leading];
+      return { type: 'SEQUENCE', steps: [...leadingSteps, install] } as SequenceAction;
+    }
+  }
+  return undefined;
+}
 
 /**
  * 「このターン、次に…バトルによって…バニッシュしたとき」の厳格形。
@@ -2917,6 +2952,8 @@ function parseSingleSentenceInner(text: string): EffectAction {
   {
     const delayed = matchNextBattleBanishDelayedInstall(t);
     if (delayed) return delayed;
+    const plainDelayed = matchPlainDelayedInstall(t);
+    if (plainDelayed) return plainDelayed;
   }
   {
     const gate = matchOpponentUnlessGate(t);
@@ -4942,6 +4979,8 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const delayed = matchNextBattleBanishDelayedInstall(text.trim());
     if (delayed) return delayed;
+    const plainDelayed = matchPlainDelayedInstall(text.trim());
+    if (plainDelayed) return plainDelayed;
   }
   // WX25-P3-028 型：「このターン＋次のターン」のリフレッシュ禁止と、
   // 各回ごとに owner を選ぶ反復。引用内の句点を分割する前に全文を正準形へ落とす。

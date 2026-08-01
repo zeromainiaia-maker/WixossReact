@@ -20530,6 +20530,52 @@ for (const [effectId, zone, count] of [
   });
 }
 
+// タスク12(lxx) Batch C: 遅延設置が落ちて本体が即時実行されていた2効果。
+test('WX24-P4-018-E3: 即時は3ドローだけ、APS中の自シグニ離場後に両枝が実働する', () => {
+  const effect = parseCardEffects(cardMap.get('WX24-P4-018')!).find(e => e.effectId === 'WX24-P4-018-E3')!;
+  const arts = [...cardMap.values()].filter(c => c.Type === 'アーツ').slice(0, 4).map(c => c.CardNum);
+  const base = mkCtx({ hand: 0 }, {});
+  base.ownerState = { ...base.ownerState, lrig_trash: arts };
+  const installed = finish(executeEffect(effect, base), base);
+  eq(installed.ownerState.hand.length, 3, '実行直後は前段の3枚だけ（旧4枚をlock-out）');
+  eq(installed.ownerState.delayed_triggers?.length, 1, '離場 watcher を設置');
+
+  const collect = (turnPhase: TrigCtx['turnPhase']) => collectLeaveFieldTriggers(
+    { ...trigCtx(HOST), turnPhase }, SIGNI, [], HOST, installed.ownerState, installed.otherState,
+  ).entries.filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(collect('MAIN').length, 0, 'メインフェイズでは THIS_ATTACK_PHASE が非発火');
+  const fired = collect('ATTACK_SIGNI');
+  eq(fired.length, 1, 'アタックフェイズ中の自シグニ離場で収集');
+  for (const [choice, selfHand, oppHand] of [['c0', 4, 5], ['c1', 3, 4]] as const) {
+    const ctx = { ...base, ownerState: installed.ownerState, otherState: installed.otherState } as ExecCtx;
+    const opened = executeEffect(fired[0].effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', '遅延発火後にCHOOSEが開く');
+    const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+    eq(result.ownerState.hand.length, selfHand, `${choice}: 自分の手札差分`);
+    eq(result.otherState.hand.length, oppHand, `${choice}: 相手の手札差分`);
+  }
+});
+
+test('WXDi-P16-051-E1: 即時は無変化、ターン終了収集後にドロー／エナチャージ両枝が実働する', () => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P16-051')!).find(e => e.effectId === 'WXDi-P16-051-E1')!;
+  const base = mkCtx({ hand: 0, energy: 0 }, {});
+  const installed = finish(executeEffect(effect, base), base);
+  eq(installed.ownerState.hand.length, 0, '実行直後はドローしない');
+  eq(installed.ownerState.energy.length, 0, '実行直後は旧エナチャージ2をしない');
+  const fired = collectTurnTriggers(
+    trigCtx(HOST, HOST), 'ON_TURN_END', installed.ownerState, installed.otherState,
+  ).entries.filter(e => e.effectId === 'DELAYED_TRIGGER');
+  eq(fired.length, 1, 'ON_TURN_END collector が遅延分を収集');
+  for (const [choice, hand, energy] of [['c0', 2, 0], ['c1', 0, 2]] as const) {
+    const ctx = { ...base, ownerState: installed.ownerState, otherState: installed.otherState } as ExecCtx;
+    const opened = executeEffect(fired[0].effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', 'ターン終了時にCHOOSEが開く');
+    const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+    eq(result.ownerState.hand.length, hand, `${choice}: 手札差分`);
+    eq(result.ownerState.energy.length, energy, `${choice}: エナ差分`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
