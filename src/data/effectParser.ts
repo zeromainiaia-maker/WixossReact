@@ -3028,7 +3028,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
       let leftText = conjM[1];
       for (const [re, fin] of CONJ_FIN) { if (re.test(leftText)) { leftText = leftText.replace(re, fin); break; } }
       const left = parseSingleSentence(leftText);
-      const right = parseSingleSentence(conjM[2]);
+      // 🆕**主語の持ち越し**（タスク12(lxxv)）＝「対戦相手は A し、B する」の B は主語が引き継がれる。
+      // 分割すると右半分から主語が消えて **B が自分の資源を動かす**（`WXDi-P10-003-E1`＝「対戦相手は…
+      // 自分のデッキの上からカードを２枚トラッシュに置く」が**あなたのデッキ**を削る自傷になっていた）。
+      // ⚠右半分が自分側を明示している（「あなた」を含む）場合は持ち越さない＝主語が切り替わる文を壊さない。
+      const carryOppSubject = /^対戦相手[はが]/.test(t) && !/あなた/.test(conjM[2]);
+      const right = parseSingleSentence(carryOppSubject ? `対戦相手は${conjM[2]}` : conjM[2]);
       // ⚠右半分が STUB に解ける場合は **その STUB が文全体（左の動作を含む）を実装している**ことが多く、
       //   分割すると二重実行になる（WXDi-P00-018＝`DRAW_DISCARD_COUNT_PLUS_N` は「手札をすべて捨て」を内包）。
       if (left.type !== 'UNKNOWN' && right.type !== 'UNKNOWN' && right.type !== 'STUB') {

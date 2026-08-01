@@ -9757,6 +9757,71 @@ test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提�
   cursor = savedCursor;
 });
 
+// ── タスク12(lxxv)（2026-08-01）：「対戦相手は（自分の）デッキの上から…トラッシュに置く」＝主語形の相手ミル ──
+// 従来は所有格「対戦相手**の**デッキ」しか見ておらず、**主語形7効果が全部 owner:'self'**＝
+// 自分のデッキを削る自傷（符号が逆）だった。⚠在庫の旧診断「buildChoose が item を単独パースする際に
+// 主語が落ちている」は**外れ**＝単文でも同じ結果になる parser の一般欠落だった（CHOOSE は無関係）。
+test('parse (lxxv)：主語形「対戦相手は…デッキの上から…トラッシュに置く」は相手ミル（母集団7効果）', () => {
+  const millOwners = (id: string): string[] => {
+    const card = id.replace(/-(E\d+|BURST)$/, '');
+    const eff = effectsMap.get(card)!.find(e => e.effectId === id)!;
+    const out: string[] = [];
+    const walk = (o: unknown): void => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(walk); return; }
+      const r = o as Record<string, unknown>;
+      const tgt = r.target as { type?: string; owner?: string } | undefined;
+      if (r.type === 'TRASH' && tgt?.type === 'DECK_CARD') out.push(tgt.owner ?? '(none)');
+      for (const k of Object.keys(r)) walk(r[k]);
+    };
+    walk(eff.action);
+    return out;
+  };
+  for (const id of ['WX08-020-E1', 'WX18-037-E1', 'WX25-CP1-024-E1', 'WXDi-P07-007-E3', 'WXDi-P10-003-E1', 'WXEX2-27-E3']) {
+    eq(millOwners(id).join(','), 'opponent', `${id}: 相手のデッキを削る（従来は自分のデッキ＝自傷）`);
+  }
+  // 選択肢の中に入っている形（③）も同じ
+  const p14 = effectsMap.get('WXDi-P14-005')!.find(e => e.effectId === 'WXDi-P14-005-E1')!;
+  const c2 = (p14.action as unknown as { choices: { action: SequenceAction }[] }).choices[2].action;
+  const mill = c2.steps[0] as unknown as { type?: string; target?: { type?: string; owner?: string; count?: number } };
+  eq(mill.target?.owner, 'opponent', 'WXDi-P14-005-E1 ③: 相手のデッキ');
+  eq(mill.target?.count, 10, '10枚');
+});
+test('parse (lxxv)：「あなたのデッキ」側と、トリガー句に相手が出るだけの文は反転させない', () => {
+  const mk = (text: string) => {
+    const a = parseCardEffects({ CardNum: 'TEST-LXXV', Type: 'アーツ', EffectText: text } as unknown as CardData)[0].action;
+    const out: string[] = [];
+    const walk = (o: unknown): void => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(walk); return; }
+      const r = o as Record<string, unknown>;
+      const tgt = r.target as { type?: string; owner?: string } | undefined;
+      if (r.type === 'TRASH' && tgt?.type === 'DECK_CARD') out.push(tgt.owner ?? '(none)');
+      for (const k of Object.keys(r)) walk(r[k]);
+    };
+    walk(a);
+    return out.join(',');
+  };
+  eq(mk('あなたのデッキの上からカードを５枚トラッシュに置く。'), 'self', '明示の自分側は据置');
+  eq(mk('デッキの上からカードを５枚トラッシュに置く。'), 'self', '主語なしの既定は自分側（従来動作）');
+  eq(mk('対戦相手がスペルを使用したとき、あなたのデッキの上からカードを５枚トラッシュに置く。'), 'self',
+    '⚠トリガー句に「対戦相手が」が出るだけの文を反転させない（間に「あなた」があれば主語形と見ない）');
+  eq(mk('対戦相手はデッキの上からカードを５枚トラッシュに置く。'), 'opponent', '主語形は相手側');
+  eq(mk('対戦相手は自分のデッキの上からカードを５枚トラッシュに置く。'), 'opponent', '「自分の」つきも相手側');
+});
+test('parse (lxxv)：連用中止で分割しても主語が持ち越される（WXDi-P10-003-E1）', () => {
+  const eff = effectsMap.get('WXDi-P10-003')!.find(e => e.effectId === 'WXDi-P10-003-E1')!;
+  const steps = (eff.action as SequenceAction).steps as unknown as { type?: string; target?: { type?: string; owner?: string } }[];
+  eq(steps[0]?.target?.owner, 'opponent', '「対戦相手は手札を1枚捨て」＝左半分');
+  eq(steps[1]?.target?.type, 'DECK_CARD', '右半分はデッキミル');
+  eq(steps[1]?.target?.owner, 'opponent', '⚠右半分にも主語が持ち越される（従来は self＝自傷）');
+  // 主語が切り替わる文は持ち越さない＝右半分に「あなた」があれば据置。
+  const a = parseCardEffects({ CardNum: 'TEST-LXXV2', Type: 'アーツ',
+    EffectText: '対戦相手は手札を１枚捨て、あなたのデッキの上からカードを２枚トラッシュに置く。' } as unknown as CardData)[0].action as SequenceAction;
+  const sw = a.steps as unknown as { target?: { owner?: string } }[];
+  eq(sw[1]?.target?.owner, 'self', '右半分が「あなた」なら持ち越さない');
+});
+
 // ── タスク12(lxxvi)（2026-08-01）：「新たに配置できない」ゾーンの供給源が designated 以外の2枚 ──
 // 第10波は `(?:指定された|その)シグニゾーン` に限定して逃がしていた（供給源が違うカードを巻き込むと
 // `designated_zone ?? 0`＝ゾーン1 を問答無用で禁止する過剰実行になるため）。受け皿は第10波で完成済みで、
