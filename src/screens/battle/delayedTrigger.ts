@@ -20,3 +20,9 @@ export function consumeBattleBanishDelayedTriggers(
     state: { ...state, delayed_triggers: remaining.length ? remaining : undefined },
   };
 }
+
+/** ターン終了時に、設置者を問わずそのターン限りの遅延 watcher を破棄する。 */
+export function clearEndOfTurnDelayedTriggers(state: PlayerState): PlayerState {
+  if (state.delayed_triggers === undefined) return state;
+  return { ...state, delayed_triggers: undefined };
+}

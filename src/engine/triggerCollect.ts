@@ -1372,7 +1372,8 @@ export function collectLeaveFieldTriggers(
 
   // INSTALL_DELAYED_TRIGGER: プレイヤーに設置された ON_LEAVE_FIELD watcher。
   // 設置者視点の leftOwner/triggerFilter を評価し、離脱カード基準の動的フィルタを収集時に確定する。
-  // THIS_ATTACK_PHASE はフェイズ外では発火させない（BattleScreen の ATTACK_LRIG→END でも物理削除）。
+  // THIS_ATTACK_PHASE はフェイズ外では発火させない（BattleScreen の ATTACK_LRIG→END で
+  // clearEndOfAttackPhaseDelayedTriggers を両プレイヤーへ適用して物理削除も行う）。
   for (const [controllerId, controllerState] of [
     [ctx.hostId, afterHostState],
     [ctx.guestId, afterGuestState],

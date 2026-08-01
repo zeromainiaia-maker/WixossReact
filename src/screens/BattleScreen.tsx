@@ -39,7 +39,7 @@ import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToL
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
-import { consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
+import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
@@ -3367,7 +3367,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-        newMyState = {
+        newMyState = clearEndOfTurnDelayedTriggers({
           ...my,
           hand: myHandEND,
           deck: myDeckPreLimit,
@@ -3396,7 +3396,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
           life_crashed_by_signi_this_turn: undefined,  // 主体別の累計もリセット（ON_SIGNI_CRASHED_LIFE_TOTAL）
           energy_colorless_ability_loss_this_turn: undefined,
-          delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           must_attack_infected_only: undefined,
@@ -3477,7 +3476,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
-        };
+        });
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
         const opKey = isHost ? 'guest_state' : 'host_state';
@@ -3496,7 +3495,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-        update[opKey] = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+        update[opKey] = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
@@ -3525,7 +3524,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l_down: false,
             assist_lrig_r_down: false,
           },
-        }, !my.extra_turn).state, !my.extra_turn);
+        }, !my.extra_turn).state, !my.extra_turn));
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
         if (my.extra_turn) {
           newMyState = activateNextTurnSigniZoneBlocks(
@@ -3757,7 +3756,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
-      let newMyState: typeof my = {
+      let newMyState: typeof my = clearEndOfTurnDelayedTriggers({
         ...my,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
@@ -3779,7 +3778,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_this_turn: undefined,
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
-        delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
@@ -3815,7 +3813,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
-      };
+      });
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
       // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
@@ -3830,7 +3828,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-      update[opKey] = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+      update[opKey] = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
@@ -3855,7 +3853,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           assist_lrig_l_down: false,
           assist_lrig_r_down: false,
         },
-      }, !my.extra_turn).state, !my.extra_turn);
+      }, !my.extra_turn).state, !my.extra_turn));
       // 追加ターン / ターンプレイヤー交代
       if (my.extra_turn) {
         newMyState = activateNextTurnSigniZoneBlocks(
@@ -9558,7 +9556,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
-      const nextHuSt = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
+      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
@@ -9576,7 +9574,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_frozen:  false,
         assist_lrig_l_down: false,
         assist_lrig_r_down: false,
-      }}).state);
+      }}).state));
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuSt.hand;
       let cpuDeckEND = cpuSt.deck;
@@ -9586,7 +9584,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = resolvePendingExiles({
+      const cleanCpuSt: PlayerState = resolvePendingExiles(clearEndOfTurnDelayedTriggers({
         ...cpuSt,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
@@ -9594,7 +9592,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_this_turn: undefined,
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
-        delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
         signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
@@ -9613,7 +9610,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
-      }, true);
+      }), true);
       await persist.commit({
         guest_state: cleanCpuSt,
         // 遅延自己除外は非ターンプレイヤー（人間）側にも適用（WX16-040 等はCPUターン中に蘇生→そのターン終了時に除外）

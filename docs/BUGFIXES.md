@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxii)：`delayed_triggers` のターン終了クリアが**ターンプレイヤー側だけ**だったのを両側へ（**Codex 実装＋Claude 検証**・残0クローズ）
+
+`INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN'}` は**設置したプレイヤー**の `delayed_triggers` に積まれる。
+ところがターン終了時のクリアは3経路（PvP通常終了／PvP手札上限確認後／CPU）とも**ターンを終えた側の state にしか**
+`delayed_triggers: undefined` を書いておらず、同じブロックで作る**相手側（＝次のターンプレイヤー）**は素通りだった。
+⇒ **防御側が自分のターン外に設置した `THIS_TURN` 遅延トリガーが1ターン持ち越される**。
+収集側は両プレイヤーを走査する（`collectLeaveFieldTriggers` は host/guest 両方をループ、`collectRefreshTriggers` も
+controller ループ内で走査）ため、持ち越し中に条件が揃えば発火する。
+
+### ① 在庫の「誤発火する実カードは確認できていない」を全数走査で詰めた
+
+live の `INSTALL_DELAYED_TRIGGER` は**全18効果**。設置者になりうるのが誰かで分類すると、
+**17件はターンプレイヤーのみ**（`ACTIVATED timing:['MAIN']` 14件／`ATTACK_ARTS` の【起】2件＝【起】は自分のターン／`AUTO` 2件）。
+🔴**唯一の実カードが `WX11-024-E1`《リフレッシュ・エンド》**（アーツ・**スペルカットイン**＝相手ターン中に防御側が使える・`parseStatus:"MANUAL"`）。
+
+```
+原文: このターン、対戦相手が次にリフレッシュをした場合、その後でこのターンを終了する。
+live: INSTALL_DELAYED_TRIGGER{THIS_TURN, trigger:{ON_REFRESH, refreshedOwner:'opponent'}, effect: FORCE_END_TURN}
+```
+
+相手ターン中に使い、相手がそのターンにリフレッシュしなければ dt が残り、**次の自分のターン**に相手がリフレッシュすると
+**発火して自分のターンが強制終了する**。原文は「このターン」なので明確な過剰実行で、ペイロードが `FORCE_END_TURN` ＝影響が大きい。
+
+### ② 実装＝純関数1本を6箇所から呼ぶ
+
+`clearEndOfTurnDelayedTriggers`（`src/screens/battle/delayedTrigger.ts`＝(lxxi) で新設したファイルに追加）。
+**3経路 × 2プレイヤー＝6箇所**すべてから呼ぶ（`BattleScreen.tsx` の 3370／3498／3759／3831／9559／9587）。
+⇒ 「同型の配線が複数箇所あるとき1箇所で満足する」という**このリポジトリで4回再発している失敗モード**を構造的に回避した。
+**BattleScreen は golden から叩けない**ので、判定を純関数へ出したことで**状態遷移を golden で固定できる**ようになっている。
+
+### ③ 🔴 Claude の指示書が1点間違っていた（codex の指摘が正しい）
+
+指示書に「`triggerCollect.ts:1375` のコメント『BattleScreen の ATTACK_LRIG→END でも物理削除』は**嘘**＝
+`BattleScreen.tsx` を `THIS_ATTACK_PHASE` で grep するとヒット0件」と書いたが、**これは誤り**。
+物理削除は実在する＝`clearEndOfAttackPhaseDelayedTriggers`（`src/screens/battle/attackDuration.ts`）が
+`BattleScreen.tsx:3545/3547` で**両プレイヤーへ適用**されており、ベースラインから存在していた。
+**grep のトークン選択が誤っていた**（ロジックは import 先のヘルパにあるので、`THIS_ATTACK_PHASE` という
+**duration リテラルは BattleScreen 本体に現れない**）。codex は指示を鵜呑みにせず HEAD と突き合わせて訂正し、
+コメントに実関数名を明記する形で着地させた。
+⚠**教訓＝「grep して0件だからコードが無い」は、探した文字列がその層に現れる保証があるときしか成り立たない。**
+**機構の有無は「機構名」ではなく「機構を呼ぶ側の変数・関数名」で探す。**
+
+### ④ ゲート（ベースライン `eff74f50` 比）
+
+golden **1248→1250**（実カードの状態遷移＋(lxxi) の `once` 消費との互換）・census **1349 据置**・
+smoke **10679/10679** 全0・SKIP0・fuzz 全0・lint 0 errors/**240 warnings 据置**・同型★0（265群・5986枚）・
+held **251枚／99署名 据置**・manual field loss 0。**live per-effect diff は `changed 0 / added 0 / removed 0`**
+（engine のみの変更＝**期待値どおり**。指示書に「0でなければスコープ漏れ」と書いて検出可能にしてあった）。
+
+## 2026-08-01 — タスク12(lxxii)：ターン終了時の `delayed_triggers` を両プレイヤーからクリア
+
+`INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN'}` は設置者の state に積まれるが、PvP通常終了・手札上限確認後・CPU終了の3経路はいずれもターンプレイヤー側だけをクリアしていた。防御側が相手ターン中に `WX11-024-E1`（リフレッシュ・エンド）を使い、そのターン中に相手がリフレッシュしなかった場合、`FORCE_END_TURN` watcher が次の自分ターンまで残り、相手をリフレッシュさせると自分のターンを誤って終了しうる過剰実行だった。
+
+React 外の純関数 `clearEndOfTurnDelayedTriggers` を `src/screens/battle/delayedTrigger.ts` に追加し、3経路すべてでターンプレイヤー／非ターンプレイヤー双方の state に適用した。既存の `consumeBattleBanishDelayedTriggers`（タスク12(lxxi) の `once` 消費）は変更していない。`THIS_ATTACK_PHASE` は従来どおりターン終了時にも消え、さらに `ATTACK_LRIG→END` では既存の `clearEndOfAttackPhaseDelayedTriggers` が両者から物理削除するため、collector の stale コメントを実関数名に合わせた。
+
+golden は、①防御側が相手ターン中に実カード `WX11-024-E1` を設置 ②ターン終了で両者の watcher が消える ③`THIS_ATTACK_PHASE` もターン終了で残らない ④(lxxi) の once だけを消費し反復 watcher を維持する中間状態が不変で、その残りもターン終了時には消える、という before/after を実行固定した。
+
 ## 2026-08-01 — タスク12(lxxi)：「このターン、次に…バトルバニッシュしたとき」の遅延設置2効果
 
 `WX26-CP1-040-E2`／`WX24-P1-011-E2` は「このターン、次に」の設置句が parser から落ち、帰結が起動時に即時実行されていた。`InstallDelayedTriggerAction.once`（省略時 false）を追加し、厳格なバトルバニッシュ文型だけを `INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN', once:true}` に変換した。`WX26-CP1-040-E2` の先行 `POWER_MODIFY{+3000, UNTIL_OPP_TURN_END}` は不変。`WX24-P1-011-E2` は帰結を `SEQUENCE[UP, REMOVE_ABILITIES]` とし、両方を `targetsTriggerSource:true` でバニッシュした自分のシグニへ束縛した。

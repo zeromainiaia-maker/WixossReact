@@ -37,7 +37,7 @@ import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/ma
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
-import { consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
+import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -20248,6 +20248,40 @@ test('task12 lxx: any_opp「あなたの効果によって相手が捨てたと�
     eq(eff.triggerScope, 'any_opp', `${effectId}: 相手の手札捨てに反応する watcher`);
     eq(eff.triggerCondition?.byOwnEffect, undefined, `${effectId}: byOwnEffect は流用禁止（別軸）`);
   }
+});
+
+test('task12 lxxii: 相手ターン中に設置した遅延トリガーもターン終了時に両プレイヤーから消える', () => {
+  const refreshEnd = effectsMap.get('WX11-024')!.find(e => e.effectId === 'WX11-024-E1')!;
+  const defendingCtx = mkCtx({}, {}, 'WX11-024');
+  const installed = finish(executeEffect(refreshEnd, defendingCtx), defendingCtx);
+  eq(installed.ownerState.delayed_triggers?.length, 1, '防御側が相手ターン中に THIS_TURN watcher を設置');
+
+  const attackPhaseWatcher = {
+    ...installed.ownerState.delayed_triggers![0],
+    duration: 'THIS_ATTACK_PHASE' as const,
+  };
+  const turnPlayer = { ...installed.otherState, delayed_triggers: [attackPhaseWatcher] };
+  const afterTurnPlayer = clearEndOfTurnDelayedTriggers(turnPlayer);
+  const afterDefender = clearEndOfTurnDelayedTriggers(installed.ownerState);
+  eq(afterTurnPlayer.delayed_triggers, undefined, 'ターンプレイヤー側の THIS_ATTACK_PHASE もターン終了で消える');
+  eq(afterDefender.delayed_triggers, undefined, '非ターンプレイヤー側の THIS_TURN も同じターン終了で消える');
+});
+
+test('task12 lxxii: ターン終了クリアは lxxi の once 消費結果を壊さない', () => {
+  const once = {
+    type: 'INSTALL_DELAYED_TRIGGER' as const,
+    duration: 'THIS_TURN' as const,
+    once: true,
+    trigger: { timing: 'ON_SIGNI_BANISH_BATTLE' as const },
+    effect: { type: 'DRAW' as const, owner: 'self' as const, count: 1 },
+  };
+  const repeat = { ...once, once: undefined };
+  const state = { ...mkState(), delayed_triggers: [once, repeat] };
+  const consumed = consumeBattleBanishDelayedTriggers(state);
+  eq(consumed.fired.length, 2, '発火時は once と反復 watcher の両方を収集');
+  eq(consumed.state.delayed_triggers?.length, 1, 'lxxi: once だけ消費し反復 watcher は維持');
+  eq(consumed.state.delayed_triggers?.[0].once, undefined, '残るのは反復 watcher');
+  eq(clearEndOfTurnDelayedTriggers(consumed.state).delayed_triggers, undefined, 'ターン終了時には残った watcher も期限切れ');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
