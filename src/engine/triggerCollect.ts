@@ -1344,7 +1344,7 @@ export function collectLeaveFieldTriggers(
   for (const topNum of oppWatcherNums) {
     for (const eff of (ctx.effectsMap.get(getCardNum(topNum)) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
-      if (eff.triggerScope !== 'any_opp') continue;
+      if (eff.triggerScope !== 'any_opp' && eff.triggerScope !== 'any') continue;
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
       if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
       const to = eff.triggerCondition?.turnOwner;

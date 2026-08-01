@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — Opusタスク12(lxxx)：`ON_LEAVE_FIELD` の `triggerScope:'any'` 跨サイド収集
+
+`SPK01-04-E1` と `WXK02-041-E2` は原文の「シグニ1体が場から手札に戻ったとき」を正しく `triggerScope:'any'` で保持していたが、`collectLeaveFieldTriggers` の跨サイド watcher ループが `any_opp` だけを許可していたため、相手側のシグニが戻った場合は発火しなかった。跨サイド条件へ既存の `any` を OR 追加し、同側ループ（`any_ally|any`）は変更していない。
+
+実行 golden を3本追加し、両効果について自分側・相手側の離脱が各ちょうど1件になること、`SPK01-04-E1` がメインフェイズでは発火しないこと、対照 `WXK02-001-E1`（`any_ally`）が相手側離脱では発火しないことを固定した。既存 `any_opp` の原因限定 golden も維持。結果は golden 1258→1261、census 1347据置、smoke 10679/10679 全0、fuzz 全0、lint 0 errors / 240 warnings据置、manual field loss 0、同型265群・逆翻訳割れ0、held 251枚／99署名据置。engine のみのため live per-effect diff は changed 0 / added 0 / removed 0。
+
+**実害の具体例**＝`SPK01-04-E1` は「自分のアタックフェイズ中に**相手の**シグニを手札に戻して自分をアップする」という、このカードの主要な使い方が丸ごと死んでいた。
+
+### 投入前の Claude 実測が在庫の見立てを覆した（在庫 (lxxx) 行は「面で欠けている」と警告していた）
+
+在庫行には「**`ON_LEAVE_FIELD` 以外の timing でも同じ『`any` を跨サイドで拾わない』構造になっている可能性が高い（collector ごとに個別実装のため）**」と書いてあったが、**全数実測すると穴は1本だけ**だった。
+
+**① `triggerScope:'any'` の母集団＝44効果／9 timing。うち30件は別軸**＝`ON_ATTACK_PHASE_START` の30件は原文が全て「**各**アタックフェイズ開始時」＝**ターン所有者の軸**（両プレイヤーのアタックフェイズで発火）であって、「どちらの場の主語でも」という本件の軸とは無関係。**触ってはいけない群**として指示書で除外した。
+
+**② 残る14効果を collector ごとに実コードで確認した結果**：
+
+| timing | 件数 | collector | `'any'` の跨サイド |
+|---|---|---|---|
+| **`ON_LEAVE_FIELD`** | **2** | **`collectLeaveFieldTriggers`** | **🔴 ✗ 自分側ループのみ**（`:1304` が `any_ally\|any`／`:1347` の跨サイドループが `any` を弾く）＝**今回直した唯一の穴** |
+| `ON_ZONE_MOVED` | 4 | `collectZoneMovedTriggers` | ✅ `scan(moverState, self\|any_ally\|any)` ＋ `scan(otherState, any_opp\|any)`（`:2671-2672`） |
+| `ON_PLAY` | 3 | `collectFieldTriggers` | ✅ ally 側 `any_ally\|any`（`:3047`）／opp 側 `any\|any_opp`（`:3096`） |
+| `ON_CHARM_TO_TRASH` | 1 | `collectCharmToTrashTriggers` | ✅ `'any'` は自陣＋敵陣の**合算**で判定（`:1638`） |
+| `ON_SPELL_USE` | 1 | BattleScreen `:6459`／`:6497` | ✅ 使用者側は scope 無フィルタ／相手側は `any_opp\|any` |
+| `ON_HAND_DISCARDED` | 1 | `collectHandDiscardTriggers` | ✅ discarder 自陣（`:2828/2851`）と相手陣（`:2879`）の両方 |
+| `ON_SIGNI_DOWN` | 1 | `collectSigniDownUpTriggers` | ✅ 両側走査＋`'any'` は `any_ally`/`any_opp` 両フィルタをすり抜ける |
+| `ON_BANISH` | 1 | `collectBanishTriggers` | ✅ 両方向（`:1066-1067`／`:1114-1115`） |
+
+⇒ **8つの collector のうち7つは既に正しく、engine 変更は1行**（`if (eff.triggerScope !== 'any_opp')` → `&& !== 'any'` の OR 追加）で足りた。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0）
+
+- live per-effect diff（`0398db38` 比）＝**`changed 0 / added 0 / removed 0`**＝engine のみの変更で**期待値どおり**（指示書に「0でなければスコープ漏れ」と明記して検出可能にしてあった）。
+- **挙動が変わる母集団を機械抽出＝`ON_LEAVE_FIELD` × `triggerScope:'any'` はこの2効果のみ**＝意図しない効果が新たに発火することはない。
+- 変更は**既存条件の書き換えではなく OR 追加1行**＝`any_opp` 効果への影響なし。跨サイドループの既存ゲート6項目（`duringAttackPhase`／`turnOwner`＝`oppIsTurn`＝watcher 視点／`leftToZoneOk` の第2引数は `ownerStateAfter` のまま／`byOwnEffect` 等／`oppLimitOk`／`playerId: oppId`）が `'any'` に対しても正しいことをコードで確認。
+- **二重発火しない根拠**＝同側ループの watcher は `ownerStateAfter`（離脱カードと同じ側）、跨サイドループは `oppStateAfter`（反対側）から列挙するため、同一 watcher が両集合に入ることはない。golden でも両方向とも entries ちょうど1件を固定済み。
+- ゲート独立実行＝golden **1261**／census **1347 据置**／smoke 10679 全0・SKIP0／fuzz 全0／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held 251枚99署名 据置。
+
+### 🆕 Claude が golden を1点補強＝`playerId` を固定した
+
+codex の golden は**収集件数だけ**を見ており、**entry の `playerId`（＝効果がどちら側に適用されるか）を検査していなかった**。`WXK02-041-E2` の本体は「**あなたの**＜遊具＞のシグニ1体」＝`owner:'self'` を entry の playerId 基準で解決するため、**ここが離脱側になると相手の＜遊具＞にパワーを与える真逆の効果**になる（件数だけ見ると気付けない）。跨サイド／同側の両方で `playerId === HOST`（watcher 側）を assert に追加した。
+
+⚠**教訓＝「発火するか」を固定しても「誰に適用されるか」は固定されない。** 跨サイド収集を足したときは `entry.playerId` と、本体の `owner:'self'` がそれを基準に解決されることまで golden に入れる。
+
 ## 2026-08-01 — Opusタスク12(lxxix)：手札戻りトリガーの自アタックフェイズ限定脱落 2効果
 
 - `SPK01-04-E1` / `WXK02-001-E1` の `ON_LEAVE_FIELD` に、原文どおり `triggerCondition:{leftToZone:'hand',duringAttackPhase:true,turnOwner:'self'}` を生成するよう是正。前者の `triggerScope:'any'` と `UP{thisCardOnly}`、後者の `triggerScope:'any_ally'` と `ENERGY_CHARGE_FROM_DECK{count:1}` は不変。

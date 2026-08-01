@@ -20333,6 +20333,48 @@ test('WXK02-041-E2: APS前置きなしの手札戻りはメインフェイズで
   ).entries;
   eq(has(entries, 'WXK02-041-E2'), true, '前置きなし対照はメインフェイズでも発火');
 });
+test('task12 lxxx SPK01-04-E1: triggerScope any は両側の手札戻りを各1件だけ収集する', () => {
+  const parsed = parseCardEffects(cardMap.get('SPK01-04')!).find(e => e.effectId === 'SPK01-04-E1')!;
+  const localEffects = new Map(effectsMap); localEffects.set('SPK01-04', [parsed]);
+  const collect = (leftOwnerId: string, turnPhase: TrigCtx['turnPhase']) => {
+    const host = mkState({ signi: ['SPK01-04', null, null] });
+    const guest = mkState({});
+    (leftOwnerId === HOST ? host : guest).hand.push(SIGNI);
+    return collectLeaveFieldTriggers(
+      { ...trigCtx(HOST), effectsMap: localEffects, turnPhase }, SIGNI, [], leftOwnerId, host, guest,
+    ).entries.filter(e => e.effectId === 'SPK01-04-E1');
+  };
+  eq(collect(HOST, 'ATTACK_SIGNI').length, 1, '自分側の離脱は従来どおり1件だけ発火');
+  eq(collect(GUEST, 'ATTACK_SIGNI').length, 1, '相手側の離脱も1件だけ発火');
+  eq(collect(GUEST, 'MAIN').length, 0, '相手側の離脱でもメインフェイズには発火しない');
+});
+test('task12 lxxx WXK02-041-E2: triggerScope any は両側の手札戻りを各1件だけ収集する', () => {
+  const collect = (leftOwnerId: string) => {
+    const host = mkState({ signi: ['WXK02-041', null, null] });
+    const guest = mkState({});
+    (leftOwnerId === HOST ? host : guest).hand.push(SIGNI);
+    return collectLeaveFieldTriggers(
+      { ...trigCtx(HOST), turnPhase: 'MAIN' }, SIGNI, [], leftOwnerId, host, guest,
+    ).entries.filter(e => e.effectId === 'WXK02-041-E2');
+  };
+  eq(collect(HOST).length, 1, '自分側の離脱は従来どおり1件だけ発火');
+  eq(collect(GUEST).length, 1, '相手側の離脱も1件だけ発火');
+  // ⚠ 跨サイド経路の entry.playerId は **watcher（効果の持ち主）側**でなければならない。
+  //   本体は「**あなたの**＜遊具＞のシグニ1体」＝owner:'self' を entry の playerId 基準で解決するため、
+  //   ここが離脱側になると **相手の＜遊具＞にパワーを与える真逆の効果**になる（収集件数だけ見ると気付けない）。
+  eq(collect(GUEST)[0].playerId, HOST, '跨サイド発火の playerId は watcher 側');
+  eq(collect(HOST)[0].playerId, HOST, '同側発火の playerId も watcher 側');
+});
+test('task12 lxxx 対照: triggerScope any_ally は相手側の離脱を収集しない', () => {
+  const parsed = parseCardEffects(cardMap.get('WXK02-001')!).find(e => e.effectId === 'WXK02-001-E1')!;
+  const localEffects = new Map(effectsMap); localEffects.set('WXK02-001', [parsed]);
+  const host = mkState({ lrig: ['WXK02-001'] });
+  const guest = mkState({}); guest.hand.push(SIGNI);
+  const entries = collectLeaveFieldTriggers(
+    { ...trigCtx(HOST), effectsMap: localEffects, turnPhase: 'ATTACK_SIGNI' }, SIGNI, [], GUEST, host, guest,
+  ).entries.filter(e => e.effectId === 'WXK02-001-E1');
+  eq(entries.length, 0, 'any_ally は跨サイドへ拡張しない');
+});
 test('WX24-P4-017-E3 defer: trigger条件ORをプレイヤーのCHOOSEへ変換しない', () => {
   const effect = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E3')!;
   const hasChoose = (a: EffectAction): boolean => a.type === 'CHOOSE'
