@@ -1950,7 +1950,10 @@ function actionJa(a?: Action, effectType?: string): string {
         const spanBZP = a.zoneBlockThisTurn && a.zoneBlockNextTurn ? 'このターンと次のターンの間'
           : a.zoneBlockNextTurn ? '次のターンの間' : 'このターン';
         const payBZP = a.zoneBlockColorless ? `《無》×${a.zoneBlockColorless}を支払わないかぎり` : '';
-        return `${spanBZP}、対戦相手は${payBZP}指定されたシグニゾーンにシグニを新たに配置できない`;
+        // ゾーンの供給源（タスク12(lxxvi)）＝取り違えると別ゾーンを禁止するので逆翻訳でも書き分ける。
+        const zoneBZP = a.zoneBlockSource === 'vacated' ? 'それがあった'
+          : a.zoneBlockSource === 'virus' ? '【ウィルス】がある' : '指定された';
+        return `${spanBZP}、対戦相手は${payBZP}${zoneBZP}シグニゾーンにシグニを新たに配置できない`;
       }
       // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）＝「（ターン終了時まで、）対戦相手のシグニゾーンN つを消す」。
       if (a.id === 'REMOVE_SIGNI_ZONE') {

@@ -3779,28 +3779,40 @@ export function execStubPart2(
     const newOtherIDZ = { ...ctx.otherState, designated_zone: zoneIdxIDZ };
     return done(addLog({ ...ctx, otherState: newOtherIDZ }, `相手ゾーン${zoneIdxIDZ + 1}を指定`));
   }
-  // BLOCK_OPP_ZONE_PLACEMENT: 直前の DESIGNATE_SIGNI_ZONE で指定したゾーンへの新規配置を禁止する。
+  // BLOCK_OPP_ZONE_PLACEMENT: 対戦相手のシグニゾーンへの新規配置を禁止する。禁止するゾーンの供給源は
+  // parser が `zoneBlockSource` で渡す3種類＝指定ゾーン（DESIGNATE_SIGNI_ZONE）／直前に空いたゾーン／
+  // 【ウィルス】のあるゾーン（複数）。
   // 期間は parser が渡す（zoneBlockThisTurn/zoneBlockNextTurn）＝原文3枚とも「次のターンの間」を含み、
   // WXDi-P11-009-E3 だけが「このターンと次のターンの間」＋《無》×5 の支払い回避を持つ。
   // ⚠従来は disabled_signi_zones を書くだけで読み手がおらず完全 no-op だった（タスク12(lxi) 第10波で実働化）。
+  // ⚠ゾーンの供給源は3種類（`zoneBlockSource`・タスク12(lxxvi)）＝指定ゾーン／直前に空いたゾーン／
+  //   【ウィルス】のあるゾーン（複数）。供給源が0ゾーンなら何も禁止しない（空振り）。
   if (stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
-    const zoneIdxBOZP = ctx.otherState.designated_zone ?? 0;
-    const blockBOZP: SigniZoneBlock = stub.zoneBlockColorless !== undefined
-      ? { zone: zoneIdxBOZP, colorless: stub.zoneBlockColorless }
-      : { zone: zoneIdxBOZP };
+    const zonesBOZP: number[] =
+      stub.zoneBlockSource === 'vacated'
+        ? (ctx.otherState.signi_zone_vacated_just ?? [])
+        : stub.zoneBlockSource === 'virus'
+          ? [0, 1, 2].filter(zi => (ctx.otherState.field.signi_virus?.[zi] ?? 0) > 0)
+          : [ctx.otherState.designated_zone ?? 0];
+    if (zonesBOZP.length === 0) return done(addLog(ctx, '配置を禁止するシグニゾーンがない'));
     // 期間指定が一切ない（旧データ互換）ときは従来どおり「次のターンの間」として扱う。
     const nextTurnBOZP = stub.zoneBlockNextTurn ?? !stub.zoneBlockThisTurn;
     let newOtherBOZP = ctx.otherState;
-    if (stub.zoneBlockThisTurn) {
-      newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks, blockBOZP) };
-    }
-    if (nextTurnBOZP) {
-      newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks_next_turn: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks_next_turn, blockBOZP) };
+    for (const zBOZP of zonesBOZP) {
+      const blockBOZP: SigniZoneBlock = stub.zoneBlockColorless !== undefined
+        ? { zone: zBOZP, colorless: stub.zoneBlockColorless }
+        : { zone: zBOZP };
+      if (stub.zoneBlockThisTurn) {
+        newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks, blockBOZP) };
+      }
+      if (nextTurnBOZP) {
+        newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks_next_turn: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks_next_turn, blockBOZP) };
+      }
     }
     const spanBOZP = stub.zoneBlockThisTurn && nextTurnBOZP ? 'このターンと次のターン' : nextTurnBOZP ? '次のターン' : 'このターン';
     const costBOZP = stub.zoneBlockColorless ? `（《無》×${stub.zoneBlockColorless}を支払えば配置可）` : '';
     return done(addLog({ ...ctx, otherState: newOtherBOZP },
-      `${spanBOZP}の間、相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止${costBOZP}`));
+      `${spanBOZP}の間、相手ゾーン${zonesBOZP.map(z => z + 1).join('・')}へのシグニ配置を禁止${costBOZP}`));
   }
   // ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
   if (stub.id === 'ARTS_EXTRA_COST_CONDITION') {

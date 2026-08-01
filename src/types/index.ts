@@ -320,6 +320,9 @@ export interface PlayerState {
   declared_colors?: string[];
   // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
   designated_zone?: number;
+  // 直前に removeFromField でシグニが離れたシグニゾーン番号（タスク12(lxxvi)）。
+  // 「それがあったシグニゾーン」の解決にだけ使う使い捨てマーカー＝**直後の1ステップでのみ有効**。
+  signi_zone_vacated_just?: number[];
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
   colorless_card_overrides?: string[];
   // 対戦相手の効果でトラッシュに移動できないゾーン（PREVENT_ZONE_MOVE_BY_OPP等）

@@ -1891,6 +1891,10 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     ...state,
     card_identity_overrides: newIdentityOverrides,
     lrig_riding_signi: newLrigRiding,
+    // 「**それがあった**シグニゾーン」の解決用マーカー（タスク12(lxxvi)・`WX08-032-E1`）。
+    // 場を離れた直後にしか読まれない使い捨て（`hand_discarded_just` 等と同種）。⚠**上書き**なので
+    // 複数体を続けて場から離すと最後の1ゾーンだけが残る（原文側の母集団は単体対象のみ）。
+    signi_zone_vacated_just: zoneIdx >= 0 ? [zoneIdx] : state.signi_zone_vacated_just,
     trash: extraTrash.length > 0 ? [...state.trash, ...extraTrash] : state.trash,
     lrig_trash: extraLrigTrash.length > 0 ? [...state.lrig_trash, ...extraLrigTrash] : state.lrig_trash,
     field: {

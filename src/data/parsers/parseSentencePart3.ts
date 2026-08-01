@@ -1356,25 +1356,28 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
-  // ---- 指定シグニゾーンへの新規配置禁止（タスク12(lxi) 第10波）----
-  // 「（このターンと）次のターンの間、対戦相手は（《無》×N を支払わないかぎり）指定された／その
-  //   シグニゾーンにシグニを新たに配置（することが）できない」＝ WX10-051-E1／WX24-P4-024-E3／WXDi-P11-009-E3。
-  // ⚠この3枚のうち BLOCK_OPP_ZONE_PLACEMENT に届いていたのは「配置することができない」形の WX10-051 だけで、
-  //   「配置できない」形の2枚は下の汎用 no-op バケツ（このターンと次のターンの間／専用 regex）に落ちていた。
-  //   BLOCK_OPP_ZONE_PLACEMENT 自体も engine では死にフィールドを書くだけの no-op だったため、3枚とも実質 no-op。
-  //   ⚠この分岐は下の「このターンと次のターンの間」バケツより**前**に置くこと（後ろだと WXDi-P11-009 が奪われる）。
-  // ⚠ゾーンの決まり方が「直前の DESIGNATE_SIGNI_ZONE で**指定された／その**ゾーン」である形に限定する。
-  //   同じ「新たに配置することができない」でもゾーンの供給源が違う2枚
-  //   （`WX08-032-E1`＝バニッシュした「それがあったシグニゾーン」／`WXEX1-24-E1` ③＝「【ウィルス】がある
-  //   シグニゾーン」＝複数ゾーン）は engine 側が designated_zone しか読めないため**別ゾーンを禁止する
-  //   過剰実行**になる。ここでは拾わず在庫 (lxxvi) へ送る（従来どおり no-op のまま）。
-  if (t.match(/(?:指定された|その)シグニゾーンにシグニを新たに配置(?:することが)?できない/)) {
-    const zoneBlock: StubAction = { type: 'STUB', id: 'BLOCK_OPP_ZONE_PLACEMENT' } as StubAction;
-    zoneBlock.zoneBlockThisTurn = /このターンと次のターンの間/.test(t) || /^このターン[、,]/.test(t);
-    zoneBlock.zoneBlockNextTurn = /次のターンの間/.test(t);
-    const payZB = t.match(/((?:《無》)+)を支払わないかぎり/);
-    if (payZB) zoneBlock.zoneBlockColorless = (payZB[1].match(/《無》/g) ?? []).length;
-    return zoneBlock;
+  // ---- シグニゾーンへの新規配置禁止（タスク12(lxi) 第10波＋(lxxvi)）----
+  // 「（このターンと）次のターンの間、対戦相手は（《無》×N を支払わないかぎり）〈ゾーン〉に
+  //   シグニを新たに配置（することが）できない」。母集団は全CSVで5枚。
+  // ⚠**ゾーンの供給源が3種類ある**（`zoneBlockSource`）＝ここを取り違えると別ゾーンを禁止する過剰実行になる：
+  //   ①`指定された`／`その`  → 直前の DESIGNATE_SIGNI_ZONE（WX10-051-E1／WX24-P4-024-E3／WXDi-P11-009-E3）
+  //   ②`それがあった`        → 直前に場を離れたシグニのゾーン（WX08-032-E1。engine は signi_zone_vacated_just を読む）
+  //   ③`【ウィルス】がある`  → 該当ゾーンすべて＝**複数**（WXEX1-24-E1 ③）
+  // ⚠この分岐は下の「このターンと次のターンの間」バケツより**前**に置くこと（後ろだと WXDi-P11-009 が奪われる）。
+  // ⚠**供給源を判別できない書き方が来たら拾わない**＝`designated` にフォールバックするとゾーン1を
+  //   問答無用で禁止する。新しい書き方は必ず zoneBlockSource を足してから regex を広げること。
+  {
+    const zbM = t.match(/(指定された|その|それがあった|【ウィルス】がある)シグニゾーンにシグニを新たに配置(?:することが)?できない/);
+    if (zbM) {
+      const zoneBlock: StubAction = { type: 'STUB', id: 'BLOCK_OPP_ZONE_PLACEMENT' } as StubAction;
+      zoneBlock.zoneBlockSource = zbM[1] === 'それがあった' ? 'vacated'
+        : zbM[1] === '【ウィルス】がある' ? 'virus' : 'designated';
+      zoneBlock.zoneBlockThisTurn = /このターンと次のターンの間/.test(t) || /^このターン[、,]/.test(t);
+      zoneBlock.zoneBlockNextTurn = /次のターンの間/.test(t);
+      const payZB = t.match(/((?:《無》)+)を支払わないかぎり/);
+      if (payZB) zoneBlock.zoneBlockColorless = (payZB[1].match(/《無》/g) ?? []).length;
+      return zoneBlock;
+    }
   }
 
   // ---- このターンと次のターンの間〜（二ターン効果）----

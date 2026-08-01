@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxvi)：「新たに配置できない」ゾーンの供給源を3種類に判別して残2枚を実働化（残0クローズ・Claude 実装）
+
+第10波（(lxi)）は parser 規則を `(?:指定された|その)シグニゾーンに…` に**意図的に絞って**2枚を逃がしていた。ゾーンの供給源が `designated_zone` でないカードを巻き込むと **`designated_zone ?? 0`（＝ゾーン1）を問答無用で禁止する過剰実行**になるためで、「engine 側のゾーン決定を先に入れてから regex を緩める」と在庫に書いた手順どおりに実施した。
+
+| 効果 | 原文のゾーン指定 | 従来 live |
+|---|---|---|
+| `WX08-032-E1` | 「対戦相手のシグニ１体を…バニッシュする。…対戦相手は**それがあった**シグニゾーンに…」 | 汎用 no-op `STUB{LRIG_GROW_RESTRICT}` |
+| `WXEX1-24-E1` ③ | 「このターン、対戦相手は**【ウィルス】がある**シグニゾーンに…」 | 同上 |
+
+### ① 供給源を `zoneBlockSource` で明示する（3種類）
+
+`'designated'`（既存3枚・省略時の既定）／`'vacated'`（直前に場を離れたシグニのゾーン）／`'virus'`（【ウィルス】のあるゾーン**すべて＝複数**）。engine の `BLOCK_OPP_ZONE_PLACEMENT` はゾーン配列を作ってから既存の `addSigniZoneBlock` を回すだけになり、**受け皿（`signi_zone_blocks`／`_next_turn`＋配置フロー3読み手）は第10波のまま無改修**。
+
+⚠**供給源が0ゾーンなら何も禁止しない**（`designated` へフォールバックしない）＝ウィルスが1つも無いときに空振りすることを golden で固定した。
+
+### ② 「それがあったシグニゾーン」＝ `removeFromField` に使い捨てマーカーを1つ足した
+
+`BanishAction` はゾーンを返さないので、**場から離れた瞬間にゾーン番号が分かる唯一の地点**である `removeFromField`（既に `zoneIdx` を計算済み）で `signi_zone_vacated_just: [zoneIdx]` を書く。`hand_discarded_just` 等と同種の使い捨てで、**直後の1ステップでのみ有効**。バニッシュは即時経路と `resumeSelectTarget` 経路の両方が `removeFromField` を通るので、どちらでも同じように解決する（engine 実走 golden で確認）。
+
+⚠**上書き方式**なので複数体を続けて場から離すと最後の1ゾーンだけが残る。原文側の母集団は単体対象のみなので実害なし（コメントに明記）。⚠`zoneIdx < 0`（場に無いカードの指定）では既存の記録を壊さない。
+
+### ③ 巻き込み検査
+
+`build:effects` の held は **250→252→（採用後）250 据置**。live per-effect 差分 **changed 5**＝新規2枚＋既存3枚（既存3枚は `zoneBlockSource:'designated'` が**足されただけ**で他は完全同一であることを機械 diff で確認）。
+
+**ゲート**：typecheck ✅／golden **1222→1226**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1354 据置**（⚠この2効果は census の高シグナル語彙に載っていない＝**計器の外にあった no-op**）／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **250枚・98署名 据置**。`build:effects`・`regen` とも冪等。STUBS.md `BLOCK_OPP_ZONE_PLACEMENT` 3→5・`LRIG_GROW_RESTRICT` 35→33（種類/実装数は据置）。
+
+⚠**未検証UI**＝第10波と同じ配置モーダル経路（§7 の該当項目に2ケース追記）。
+
 ## 2026-08-01 — タスク12(lxxiii)：トラッシュ領域移動ロック `LOCK_OPP_TRASH_MOVE` を実働化（**タスク12(lxi) も残0クローズ**・Claude 実装）
 
 「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` の③／`WXDi-P14-005-E1` の c2＝**全CSVでこの2枚だけ**）。第9波では名前付きの**宣言 STUB（no-op）**として可視化しただけだった。

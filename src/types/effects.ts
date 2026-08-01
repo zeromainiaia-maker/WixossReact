@@ -1965,6 +1965,13 @@ export interface StubAction {
   zoneBlockNextTurn?: boolean;
   /** 支払えば配置できる《無》の枚数（「《無》×5 を支払わないかぎり…配置できない」）。省略＝無条件禁止。 */
   zoneBlockColorless?: number;
+  /**
+   * 禁止するゾーンの**供給源**（タスク12(lxxvi)）。省略＝`'designated'`（直前の `DESIGNATE_SIGNI_ZONE`）。
+   * - `'vacated'`＝「**それがあった**シグニゾーン」＝直前に場を離れたシグニのゾーン（`WX08-032-E1`）。
+   *   `signi_zone_vacated_just` を読む＝**直前ステップが場からの除去であること**が前提。
+   * - `'virus'`＝「**【ウィルス】がある**シグニゾーン」＝該当ゾーンすべて（`WXEX1-24-E1` ③）。**複数ゾーン**。
+   */
+  zoneBlockSource?: 'designated' | 'vacated' | 'virus';
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

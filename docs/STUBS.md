@@ -78,8 +78,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `RULE_REMINDER_TEXT` | 41 | 40 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 40 | 40 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `CONDITIONAL_POWER_BONUS` | 36 | 32 | WD06-006, WDK08-Y08, WDK10-009 | 条件付きパワーボーナス |
-| `LRIG_GROW_RESTRICT` | 35 | 35 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `DECLARE_NUMBER` | 33 | 32 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
+| `LRIG_GROW_RESTRICT` | 33 | 33 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `LOOK_OPP_LIFE_TOP` | 31 | 30 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
 | `SOUL_OP` | 31 | 31 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
 | `TRADE_BANISH_SELF_SIGNI` | 29 | 29 | WD22-029-G, WDK11-011, WX07-031 | トレード：自シグニ1体をトラッシュに置き、相手シグニ1体をバニッシュ |
@@ -195,6 +195,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CRAFT_TO_LRIG_DECK` | 6 | 6 | WX25-P1-034, WXDi-P14-006, WXDi-P14-007 | CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。 （旧実装は sourceCardNu… |
 | `ADD_CARD_TO_LRIG_DECK_HIDDEN` | 5 | 5 | WX25-P2-017, WX25-P2-021, WXDi-P11-013 | ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える |
 | `ARTS_IMMOVABLE` | 5 | 5 | WX25-P1-TK1, WX25-P1-TK2, WX25-P1-TK3 | アーツ条件系（engine: アーツ使用条件未実装） |
+| `BLOCK_OPP_ZONE_PLACEMENT` | 5 | 5 | WX08-032, WX10-051, WXEX1-24 | BLOCK_OPP_ZONE_PLACEMENT: 対戦相手のシグニゾーンへの新規配置を禁止する。禁止するゾーンの供給源は parser が `zoneBlockSource` で渡す3種類＝指定ゾーン（DESIGNATE_SIGNI_Z… |
 | `CONDITIONAL_CARD_COST_BY_OPP_LRIG` | 5 | 5 | WX03-002, WX03-003, WX03-004 | CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト軽減（実コスト軽減は支払い時に computeArtsEffectiveCost が適用済み。ここでは結果ログのみ） |
 | `DECK_TOP_CHECK_LEVEL_HAND` | 5 | 5 | WX20-Re05, WX20-Re06, WXEX1-58 | デッキトップを公開してレベル一致なら手札に加える |
 | `DOUBLE_OWN_POWER_MINUS` | 5 | 5 | WX24-P1-049, WX25-P2-103, WX25-CP1-070 | 自シグニパワーの2倍を全相手シグニにマイナス DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置） |
@@ -208,7 +209,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `POWER_MOD_PER_REVEALED_LEVEL` | 4 | 4 | WDK13-012, SPK01-09, WXK07-091 | 公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用） |
 | `REMOVE_SIGNI_ZONE` | 4 | 4 | WX25-P3-015, WXDi-P00-015, WXK03-005 | 裏向き系（face_down_signi + abilities_removed で近似実装済み） REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除 |
 | `ADD_CRAFT_TO_LRIG_DECK` | 3 | 3 | WXDi-P16-009, WXDi-P16-010, WXDi-P16-011 | CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。 （旧実装は sourceCardNu… |
-| `BLOCK_OPP_ZONE_PLACEMENT` | 3 | 3 | WX10-051, WX24-P4-024, WXDi-P11-009 | BLOCK_OPP_ZONE_PLACEMENT: 直前の DESIGNATE_SIGNI_ZONE で指定したゾーンへの新規配置を禁止する。 期間は parser が渡す（zoneBlockThisTurn/zoneBlockNextT… |
 | `CHARM_CONDITIONAL_POWER` | 3 | 3 | WX07-031, WX08-032, WX25-P2-103 | CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正 |
 | `CONDITIONAL_COST_REDUCTION_BY_FIELD` | 3 | 3 | WX10-031, WX12-049, WX15-034 | コスト軽減系（engine: コスト計算システム未実装） CONDITIONAL_COST_REDUCTION_BY_FIELD: フィールド条件（クラス/枚数）でコスト軽減チェック |
 | `DECK_TOP_CHECK_LEVEL_ENERGY` | 3 | 2 | WXK04-062, WXK10-031 | デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ |

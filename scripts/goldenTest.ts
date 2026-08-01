@@ -9757,6 +9757,70 @@ test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提�
   cursor = savedCursor;
 });
 
+// ── タスク12(lxxvi)（2026-08-01）：「新たに配置できない」ゾーンの供給源が designated 以外の2枚 ──
+// 第10波は `(?:指定された|その)シグニゾーン` に限定して逃がしていた（供給源が違うカードを巻き込むと
+// `designated_zone ?? 0`＝ゾーン1 を問答無用で禁止する過剰実行になるため）。受け皿は第10波で完成済みで、
+// 足りなかったのは**ゾーンの決め方**だけ。
+test('parse (lxxvi)：ゾーン供給源を3種類に判別する（designated / vacated / virus）', () => {
+  const wx08 = effectsMap.get('WX08-032')!.find(e => e.effectId === 'WX08-032-E1')!;
+  const s08 = (wx08.action as SequenceAction).steps as unknown as { type?: string; id?: string; zoneBlockSource?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean }[];
+  eq(s08[1]?.type, 'BANISH', 'WX08-032-E1: 先にバニッシュ');
+  eq(s08[2]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', '従来は汎用 no-op STUB に落ちていた');
+  eq(s08[2]?.zoneBlockSource, 'vacated', '「それがあったシグニゾーン」＝直前に空いたゾーン');
+  eq(s08[2]?.zoneBlockThisTurn, true, 'このターンと…');
+  eq(s08[2]?.zoneBlockNextTurn, true, '…次のターンの間');
+  const wxex1 = effectsMap.get('WXEX1-24')!.find(e => e.effectId === 'WXEX1-24-E1')!;
+  const c2 = (wxex1.action as unknown as { choices: { action: { id?: string; zoneBlockSource?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean } }[] }).choices[2].action;
+  eq(c2.id, 'BLOCK_OPP_ZONE_PLACEMENT', 'WXEX1-24-E1 ③も届く');
+  eq(c2.zoneBlockSource, 'virus', '「【ウィルス】があるシグニゾーン」');
+  eq(c2.zoneBlockThisTurn, true, 'このターンのみ');
+  eq(c2.zoneBlockNextTurn, false, '次のターンには及ばない');
+  // 既存3枚は designated のまま（巻き込み・取り違えが起きていないことの回帰ガード）
+  for (const [card, id, idx] of [['WX10-051', 'WX10-051-E1', 1], ['WXDi-P11-009', 'WXDi-P11-009-E3', 1], ['WX24-P4-024', 'WX24-P4-024-E3', 3]] as const) {
+    const st = ((effectsMap.get(card)!.find(e => e.effectId === id)!.action as SequenceAction).steps[idx]) as unknown as { zoneBlockSource?: string };
+    eq(st.zoneBlockSource, 'designated', `${id}: 既存3枚は指定ゾーンのまま`);
+  }
+});
+test('(lxxvi) vacated：バニッシュで空いたゾーンだけを禁止する（WX08-032-E1）', () => {
+  const savedCursor = cursor;
+  const eff = effectsMap.get('WX08-032')!.find(e => e.effectId === 'WX08-032-E1')!;
+  // 相手のゾーン2（index=1）だけにシグニを置く＝バニッシュで空くのは必ずゾーン2。
+  const ctx = mkCtx({}, { signi: [null, SIGNI_P3000, null] });
+  const r = run(eff.action, ctx);
+  ok(r.done, '解決が完了する');
+  eq(r.otherState.field.signi.filter(s => s && s.length > 0).length, 0, 'シグニはバニッシュされた');
+  eq(JSON.stringify(r.otherState.signi_zone_blocks), JSON.stringify([{ zone: 1 }]), 'このターン＝空いたゾーン2だけ');
+  eq(JSON.stringify(r.otherState.signi_zone_blocks_next_turn), JSON.stringify([{ zone: 1 }]), '次のターンも同じゾーン');
+  // ⚠designated_zone にフォールバックしていないこと＝ゾーン1(index 0) を禁止していない。
+  ok(!(r.otherState.signi_zone_blocks ?? []).some(b => b.zone === 0), 'ゾーン1を巻き込まない（旧実装の過剰実行）');
+  cursor = savedCursor;
+});
+test('(lxxvi) virus：【ウィルス】のあるゾーンを全部禁止し、無ければ空振りする（WXEX1-24-E1 ③）', () => {
+  const savedCursor = cursor;
+  const eff = effectsMap.get('WXEX1-24')!.find(e => e.effectId === 'WXEX1-24-E1')!;
+  const block = (eff.action as unknown as { choices: { action: EffectAction }[] }).choices[2].action;
+  const withVirus = mkCtx({}, {});
+  withVirus.otherState.field.signi_virus = [1, 0, 1];
+  const r = run(block, withVirus);
+  eq(JSON.stringify(r.otherState.signi_zone_blocks), JSON.stringify([{ zone: 0 }, { zone: 2 }]), 'ウィルスのある2ゾーンをまとめて禁止（複数ゾーン）');
+  eq(r.otherState.signi_zone_blocks_next_turn, undefined, '「このターン」だけ＝次ターン予約はしない');
+  const noVirus = mkCtx({}, {});
+  const rNone = run(block, noVirus);
+  eq(rNone.otherState.signi_zone_blocks, undefined, 'ウィルスが無ければ何も禁止しない（ゾーン1へフォールバックしない）');
+  cursor = savedCursor;
+});
+test('(lxxvi) signi_zone_vacated_just：場を離れた瞬間にそのゾーン番号が残る', () => {
+  const savedCursor = cursor;
+  const st = mkState({ signi: [null, null, SIGNI_P3000] });
+  const after = removeFromField(SIGNI_P3000, st);
+  eq(JSON.stringify(after.signi_zone_vacated_just), JSON.stringify([2]), '離れたゾーンを記録する');
+  eq(after.field.signi.filter(s => s && s.length > 0).length, 0, '場からは消えている');
+  // 場に無いカードを指定しても既存の記録を壊さない（zoneIdx<0 は据置）。
+  const untouched = removeFromField('NOT-ON-FIELD', after);
+  eq(JSON.stringify(untouched.signi_zone_vacated_just), JSON.stringify([2]), '不一致の呼び出しでは上書きしない');
+  cursor = savedCursor;
+});
+
 // ── タスク12(lxxiii)（2026-08-01）：トラッシュ領域移動ロック（`LOCK_OPP_TRASH_MOVE`）──
 // 「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは
 //   対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` ③／`WXDi-P14-005-E1` c2）。
