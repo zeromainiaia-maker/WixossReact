@@ -4825,17 +4825,34 @@ let _resolvingSeparatedPick = false;
 //
 // (lxxiv) で母集団10枚を全項目監査し、**単独パースが原文より情報を失う2文型だけ**をここで
 // 正規化してから「全部実行」へ開いた（無条件に開くと下の2つが退化する。詳細は各分岐のコメント）。
-// `WXK11-001` 型のみ明示 defer＝①の条件付きスキップと②の任意ルリグデッキ除外が未確定。
+// `WXK11-001` 型の①は既存条件語彙で復元する。②の任意ルリグデッキ除外は、
+// 既存 OPTIONAL_COST が「ルリグトラッシュへ置く」専用で行先が異なるため STUB のまま honest defer。
 function tryParseDoAllItems(text: string): EffectAction | null {
   if (!/^以下の[０-９\d２-９]+つを行う。/.test(text.trim()) || !/[①②③④⑤]/.test(text)) return null;
   const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
   if (items.length < 2) return null;
   const itemTexts = items.map(m => m[1].replace(/[。）\s]+$/, '').trim());
-  // defer（`WXK11-001`）：①「対戦相手がアーツかスペルを使用していた場合」の条件が単独パースで落ちて
-  // 無条件スキップになる／②「ルリグデッキのアーツを除外してもよい」が任意コストとして機能しない。
-  if (itemTexts.some(s => /対戦相手がアーツかスペルを使用していた場合|ルリグデッキにあるコストの合計が[０-９\d]+以上のアーツ/.test(s))) return null;
-
   const steps = itemTexts.map(item => {
+    if (/^このターンに対戦相手がアーツかスペルを使用していた場合、このターン、ルリグアタックステップをスキップする$/.test(item)) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'OR', conditions: [
+          { type: 'ARTS_USED_THIS_TURN', owner: 'opponent' },
+          { type: 'SPELL_USED_THIS_TURN', owner: 'opponent' },
+        ] },
+        then: { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'LRIG_ATTACK_STEP', until: 'END_OF_TURN' },
+      } as ConditionalAction;
+    }
+    // 行先が異なる既存コスト語彙を流用すると、使用したこのアーツ自身を除外する別動作になる。
+    // 選択・コスト支払い・後続ゲートを一体で表せるまで、項目全体を明示 defer する。
+    // ⚠**汎用の `UNKNOWN_NESTED` を defer マーカーに使ってはいけない**＝engine 実装が
+    //   「**このシグニを任意でトラッシュに置く**」（`execStubPart1` の CHOOSE）であって no-op ではない。
+    //   `self_optional_effect_taken` も書くため後続の「そうした場合」を巻き込む。
+    //   ⇒ engine 分岐を持たない**専用の宣言 STUB** にする（`execStub` の既定は `[STUB: id]` ログのみ＝真の no-op）。
+    //   未実装であることは `docs/STUBS.md` に載る＝計器を甘くしない（先例 `LOCK_OPP_TRASH_MOVE`）。
+    if (/^あなたのルリグデッキにあるコストの合計が[０-９\d]+以上のアーツ[０-９\d]+枚をゲームから除外してもよい。そうした場合、このターン、シグニアタックステップをスキップする$/.test(item)) {
+      return { type: 'STUB', id: 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP', text: item } as StubAction;
+    }
     // 退化① `WXK11-002`④：単独パースは「ルリグの下」を読めず `TRASH{SIGNI opponent}`＝
     // **盤面のシグニを消す全くの別動作**になる。engine の旧 DTT パターン P4 を宣言 STUB へ移設した。
     if (/対戦相手のセンタールリグの下にあるカード[０-９\d]+枚を対象とし、それをルリグトラッシュに置く/.test(item)) {

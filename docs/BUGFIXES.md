@@ -1,5 +1,82 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxxiv) 残1＝アタックステップのスキップを **engine に実装**し `WXK11-001-E1`① を復元（**Codex 実装＋Claude 検証**・残0クローズ）
+
+### ① 在庫の残作業定義が小さすぎた（投入前の全数 grep で判明）
+
+在庫の残は「`WXK11-001-E1` 1枚の parse」だったが、**この族は engine に実装が1行も無かった**。
+`BLOCK_ACTION{actionId:'LRIG_ATTACK_STEP' | 'SIGNI_ATTACK_STEP'}` の全参照＝
+**parser が生成する2箇所**（`parseSentencePart2.ts:368/374`）と**ログ用の日本語ラベル定義**（`effectExecutor.ts:2284`）**だけ**。
+フェイズ進行は `uiConstants.ts` の `PHASE_NEXT`（静的な対応表）を引くのみでスキップ分岐が無い。
+同族の `SIGNI_ATTACK_PHASE` も同じくラベルだけ。⇒ **parse だけ直しても engine が無視する**（§5-2 そのもの）。
+**この文型は全CSVで5カードあり、5枚とも no-op だった。**
+
+### ② 在庫の「①と②で owner が食い違う」の真因
+
+`parseSentencePart2.ts` は owner を `t.includes('対戦相手') ? 'opponent' : 'self'` で決めていた。
+`WXK11-001`①は「このターンに**対戦相手が**アーツかスペルを使用していた場合、…」で
+**「対戦相手」が条件節の中にある**ため `opponent`、②には無いので `self` になっていた。
+⇒ **意味の差ではなく素朴な部分文字列判定の副作用**。在庫はこれを意味の差と誤読していた。
+
+### ③ 実装
+
+- **engine**＝純関数 `resolveNextPhaseWithAttackStepBlocks`（`src/screens/battle/attackStepPhase.ts`）。
+  ターンプレイヤーの `blocked_actions` を見て該当ステップを飛ばす（両方封じなら両方飛ばす）。
+  **`PHASE_NEXT` の直接参照は BattleScreen から消え、フェイズ進行の全5経路が純関数を通る**
+  （`BattleScreen.tsx` 3542／9020／9501／9533／9551＝PvP・CPUターン・非ターンCPUのアーツパスを網羅）。
+  **BattleScreen は golden から叩けない**ので、判定を純関数へ出して**遷移を golden で直接固定**した。
+- **owner 規約**＝「スキップされる**ターンプレイヤー**の state に封じを積む」。`execBlockAction` は
+  `target.owner` の側の `blocked_actions` へ書くので、防御側が `owner:'opponent'` で使えばアタッカーに積まれ、
+  フェイズ進行はターンプレイヤーの state を読む＝**経路が閉じている**（Claude が呼び出し鎖で確認）。
+  既存4枚（`WX21-022`=opponent／`WXK01-007`・`WXDi-P09-031`=self）はこの規約で正しく、**JSON 不変**。
+- **parser**＝`WXK11-001-E1`① を `CONDITIONAL{OR[ARTS_USED_THIS_TURN, SPELL_USED_THIS_TURN]{owner:'opponent'}}` →
+  `BLOCK_ACTION{LRIG_ATTACK_STEP, owner:'opponent'}` で復元。②は honest defer。
+
+### ④ 🔴 Claude 検証で差し替えた1点＝**defer マーカーに実装済み STUB を流用していた**
+
+codex は②の defer マーカーに `STUB{UNKNOWN_NESTED}` を使っていたが、**これは no-op ではない**＝
+`execStubPart1.ts:2223` に「**このシグニを任意でトラッシュに置く**」実装があり、CHOOSE を出して
+`self_optional_effect_taken` まで書く。`WXK11-001` はアーツで場のシグニではないため**この個体では偶然 no-op**
+だが、①意味が正反対の encoding ②`STUBS.md` 上「実装済み」に数えられ計器が甘くなる ③シグニカードへ同じ形が
+コピーされた瞬間に**自分のシグニを失う**、の3点で危険。
+⇒ **engine 分岐を持たない専用の宣言 STUB `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` へ差し替えた**
+（`execStub` の既定は `[STUB: id]` ログのみ＝真の no-op。未実装として `docs/STUBS.md` に載る＝先例 `LOCK_OPP_TRASH_MOVE`）。
+**この流用を禁止する向きで golden も固定**（`UNKNOWN_NESTED` を含まないことを assert）。
+
+⚠**この種の事故は本セッションで3件目**＝(lxx) の `byOwnEffect`（Claude が踏んだ）／(lxxii) の grep トークン誤り（Claude）／
+本件（codex）。**「名前が近い既存語彙を借りる」前に、その語彙の engine 実装を読む**。
+
+### ⑤ 残る defer と既知の欠落
+
+- **`WXK11-001-E1`②**＝「ルリグデッキのコスト合計2以上のアーツ1枚を**ゲームから除外**してもよい」。
+  既存の任意コスト語彙は**ルリグトラッシュ行き専用**で行き先が違い、`BANISH_FROM_GAME` は
+  **使用したアーツ自身**を除外する別動作。選択・支払い・後続ゲートを一体で表せる語彙が無いため defer。
+- **`WX09-Re02`**（アイドル・ディフェンス）は「①②とも**対戦相手の**アタックステップをスキップ」と原文が明示なのに、
+  live は `SEQUENCE[STUB{ARTS_COST_REDUCTION_BY_EFFECT}, …]` で **`BLOCK_ACTION` すら生成していない**＝別の壊れ方。
+  **本バッチではスコープ外として未変更**だが、engine が実装された今は**直せば即動く**＝次の在庫。
+- ⚠**parser 側の2分岐はカード固有の全文リテラル**（§5-5c）。本来は「〜した場合、」の条件節持ち上げと
+  owner 判定の是正で一般化すべきだが、波及範囲が大きいので本バッチでは据置＝**次の在庫**。
+
+### ⑥ ゲート（ベースライン `0ebde454` 比）
+
+golden **1250→1252**（フェイズ遷移4ケースの実行固定＋実カード実行＋defer マーカーの向き）・census **1349 据置**・
+smoke **10679/10679** 全0・SKIP0・fuzz 全0・lint 0 errors/**240 warnings 据置**・同型★0（265群・5986枚）・
+held **251枚／99署名 据置**・manual field loss 0・STUBS.md **使用中577種/実装547/フォールバック30**。
+live per-effect 差分 **changed 1 / added 0 / removed 0**（`WXK11-001-E1`）・スコープ外 outlier 0。
+
+## 2026-08-01 — タスク12(lxxiv) 残1前提修正：アタックステップ封じをフェイズ進行へ配線＋`WXK11-001-E1`①採用（Codex）
+
+`BLOCK_ACTION{LRIG_ATTACK_STEP|SIGNI_ATTACK_STEP}` は従来 `blocked_actions` へ記録されるだけで、PvP/CPU のフェイズ進行が読まず全件 no-op だった。
+純関数 `resolveNextPhaseWithAttackStepBlocks` を新設し、**封じは必ずターンプレイヤーの state に積む**規約で、PvP の共通進行と CPU の
+`ATTACK_ARTS→ATTACK_ARTS_OP`／`ATTACK_ARTS_OP→ATTACK_SIGNI`／`ATTACK_SIGNI→ATTACK_LRIG`／`ATTACK_LRIG→END` を全配線した。
+飛ばした `ATTACK_LRIG` では `ON_LRIG_ATTACK_STEP_START` も発火させない。golden は封じなし・各単独・両方の実遷移を直接実行する。
+
+`WXK11-001-E1` は `tryParseDoAllItems` の defer を解除し、①を
+`CONDITIONAL{OR[ARTS_USED_THIS_TURN(opponent),SPELL_USED_THIS_TURN(opponent)]→BLOCK_ACTION(opponent,LRIG_ATTACK_STEP)}` として採用。
+条件節中の「対戦相手」をスキップ対象の主語と誤認していた owner 事故も解消した。②の「ルリグデッキからコスト合計2以上のアーツを
+ゲームから除外してもよい」は、既存 `trashArtsFromLrigDeck` が**ルリグトラッシュ行き**専用で同義でないため `UNKNOWN_NESTED` no-op の honest defer。
+`WX09-Re02` は別 parser 崩壊で `BLOCK_ACTION` 自体が無く、本バッチでは未変更。
+
 ## 2026-08-01 — タスク12(lxxii)：`delayed_triggers` のターン終了クリアが**ターンプレイヤー側だけ**だったのを両側へ（**Codex 実装＋Claude 検証**・残0クローズ）
 
 `INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN'}` は**設置したプレイヤー**の `delayed_triggers` に積まれる。

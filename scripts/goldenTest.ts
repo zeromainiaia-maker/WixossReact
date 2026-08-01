@@ -38,6 +38,7 @@ import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, is
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
+import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
@@ -12712,7 +12713,7 @@ test('task16 wave3: movedSelf 3効果の成立/不成立と既存8効果の非�
   cursor = savedCursor;
 });
 
-test('task12 lxxiv: 「以下のNつを行う」は8枚で全項目SEQUENCE、WXK11-001はdefer', () => {
+test('task12 lxxiv: 「以下のNつを行う」は9枚で全項目SEQUENCE、WXK11-001②だけdefer', () => {
   const action = (id: string) => effectsMap.get(id)!.find(e => e.effectId === `${id}-E1`)!.action;
   for (const [id, count] of [['WXK11-002', 4], ['WXK11-007', 3], ['WXK11-008', 3], ['WXK11-009', 3],
     ['WXK11-010', 3], ['WXDi-P05-052', 2], ['WXDi-P06-050', 2], ['WX24-P4-002', 3]] as const) {
@@ -12720,8 +12721,14 @@ test('task12 lxxiv: 「以下のNつを行う」は8枚で全項目SEQUENCE、WX
     eq(a.type, 'SEQUENCE', `${id}: 全項目を順次実行`);
     eq(a.steps.length, count, `${id}: 項目数`);
   }
-  eq(action('WXK11-001').type, 'SEQUENCE', 'WXK11-001: 既存curated据置');
-  ok(JSON.stringify(action('WXK11-001')).includes('CHOOSE_N_FROM_LIST'), 'WXK11-001: 未確定のため旧形を固定');
+  eq(action('WXK11-001').type, 'SEQUENCE', 'WXK11-001: 2項目を順次処理');
+  ok(JSON.stringify(action('WXK11-001')).includes('ARTS_USED_THIS_TURN'), 'WXK11-001①: 使用履歴条件を復元');
+  // ②の defer マーカーは **engine 分岐を持たない専用の宣言 STUB** であること。
+  // ⚠汎用の `UNKNOWN_NESTED` は no-op ではなく「このシグニを任意でトラッシュに置く」実装を持つ
+  //   （`execStubPart1`）＝defer マーカーに流用すると別動作になる。その流用を禁止する向きで固定する。
+  const k1 = JSON.stringify(action('WXK11-001'));
+  ok(k1.includes('EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP'), 'WXK11-001②: 専用の宣言STUBで明示defer');
+  eq(k1.includes('UNKNOWN_NESTED'), false, 'WXK11-001②: 実装を持つ UNKNOWN_NESTED を流用しない');
   ok(!JSON.stringify(action('WX24-P4-007')).includes('DO_THREE_THINGS'), '消化済みWX24-P4-007は非退化');
 });
 
@@ -20282,6 +20289,36 @@ test('task12 lxxii: ターン終了クリアは lxxi の once 消費結果を壊
   eq(consumed.state.delayed_triggers?.length, 1, 'lxxi: once だけ消費し反復 watcher は維持');
   eq(consumed.state.delayed_triggers?.[0].once, undefined, '残るのは反復 watcher');
   eq(clearEndOfTurnDelayedTriggers(consumed.state).delayed_triggers, undefined, 'ターン終了時には残った watcher も期限切れ');
+});
+
+test('task12 lxxiv: アタックステップ封じを実行時のフェイズ遷移で解決する', () => {
+  const none = { blocked_actions: [] };
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', none), 'ATTACK_SIGNI', '封じなし: シグニへ');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', none), 'ATTACK_LRIG', '封じなし: ルリグへ');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', none), 'END', '封じなし: ENDへ');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP'] }), 'ATTACK_LRIG', 'シグニを飛ばす');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', { blocked_actions: ['LRIG_ATTACK_STEP'] }), 'END', 'ルリグを飛ばす');
+  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP', 'LRIG_ATTACK_STEP'] }), 'END', '両方を飛ばす');
+});
+
+test('task12 lxxiv: WXK11-001①は相手のアーツ/スペル使用で相手ルリグステップだけを封じる', () => {
+  const effect = effectsMap.get('WXK11-001')!.find(e => e.effectId === 'WXK11-001-E1')!;
+  const noUseCtx = mkCtx({}, {}, 'WXK11-001');
+  const executable = { ...effect, mandatory: true };
+  const noUse = finish(executeEffect(executable, noUseCtx), noUseCtx);
+  eq(noUse.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, false, '相手が未使用なら①は不発');
+
+  const artsBase = mkCtx({}, {}, 'WXK11-001');
+  const artsCtx = { ...artsBase, otherState: { ...artsBase.otherState, turn_arts_used: true } } as ExecCtx;
+  const artsUsed = finish(executeEffect(executable, artsCtx), artsCtx);
+  eq(artsUsed.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '相手がアーツ使用済みなら相手stateへ封じる');
+  eq(artsUsed.ownerState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, false, '防御側stateには積まない');
+  eq(artsUsed.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '②は任意除外を表せず honest defer');
+
+  const spellBase = mkCtx({}, {}, 'WXK11-001');
+  const spellCtx = { ...spellBase, otherState: { ...spellBase.otherState, actions_done: ['USE_SPELL'] } } as ExecCtx;
+  const spellUsed = finish(executeEffect(executable, spellCtx), spellCtx);
+  eq(spellUsed.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '相手がスペル使用済みでもOR条件成立');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

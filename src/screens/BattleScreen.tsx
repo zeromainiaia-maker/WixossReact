@@ -40,7 +40,8 @@ import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './batt
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
-import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
+import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
+import { resolveNextPhaseWithAttackStepBlocks } from './battle/attackStepPhase';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
@@ -3538,7 +3539,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           update.turn_count = bs.turn_count + 1;
         }
       } else {
-        update.turn_phase = PHASE_NEXT[phase];
+        update.turn_phase = resolveNextPhaseWithAttackStepBlocks(phase, newMyState);
         // 「このアタックフェイズの間」の遅延 watcher は ATTACK_LRIG→END で両者から消滅。
         // collector 側にもフェイズ判定を持たせ、stale state が残ってもフェイズ外発火しない。
         if (phase === 'ATTACK_LRIG') {
@@ -3631,7 +3632,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
         // ターンプレイヤー（newMyState）の self【自】を発火（WX25-CP1-042-E2 等）。
-        if (phase === 'ATTACK_SIGNI') {
+        if (phase === 'ATTACK_SIGNI' && update.turn_phase === 'ATTACK_LRIG') {
           const lasRes = collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', newMyState, op);
           foldTurnUsed(lasRes);
           const lasEntries = lasRes.entries;
@@ -9016,7 +9017,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_SIGNI' }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', huSt) }));
       return;
     }
 
@@ -9497,7 +9498,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
     if (phase === 'ATTACK_ARTS') {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_ARTS_OP' }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS', cpuSt) }));
       return;
     }
 
@@ -9529,7 +9530,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 全シグニアタック完了 → ATTACK_LRIGへ
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_LRIG' }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', cpuSt) }));
       return;
     }
 
@@ -9547,7 +9548,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
       if (huSt.field.lrig_attacked || huSt.field.check) return;
       // ルリグアタック済み → ENDへ
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'END' }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', cpuSt) }));
       return;
     }
 

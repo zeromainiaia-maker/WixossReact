@@ -415,7 +415,7 @@ function condJa(c?: any): string {
         return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
       return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
-    case 'ARTS_USED_THIS_TURN': { const artsColor = (c as { color?: string }).color; return `このターンにあなたが${artsColor ? `${artsColor}の` : ''}アーツを使用していた`; }
+    case 'ARTS_USED_THIS_TURN': { const artsColor = (c as { color?: string }).color; return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsColor ? `${artsColor}の` : ''}アーツを使用していた`; }
     case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
@@ -1384,6 +1384,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
       if (a.id === 'ENERGY_TO_HAND_ON_DECK') return 'このカードをエナゾーンから手札に加えてもよい';
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
