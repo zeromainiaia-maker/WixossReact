@@ -16274,8 +16274,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // （タスク12(xxix)(2)）。さらに WXDi-P15-034-E1 は【出】自体の2択が強制で、
     // 任意なのはchoice②内の支払いだけなので mandatory へ戻す。段階3在庫は 39→38。
     eq(eligible.length, 1454, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
-    eq(conditional.length, 50, '段階2 condition/activeConditionあり（英知14件が加わった）');
+    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    eq(conditional.length, 51, '段階2 condition/activeConditionあり（クラス種類数ゲートを含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
     eq(optionalNoCost.length, 16, '任意costなし（第15波で可変枚数2効果を構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
@@ -20489,6 +20489,46 @@ test('task12 lxxiv残: WX09-Re02は選んだ相手アタックステップを実
   eq(controlled.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '主語なし対照はselfへ積み続ける');
   eq(controlled.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '主語なし対照を一律opponentへ変えない');
 });
+
+test('task12(lxx) Batch A WXK10-006-E1: クラス種類数・精元除外を収集時に評価し、CHOOSE両枝を実行する', () => {
+  const arm = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精武：アーム');
+  const servant = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精元');
+  const collect = (signi: Array<string | null>) => {
+    const host = mkState({ signi });
+    return collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', host, mkState({})).entries
+      .filter(e => e.effectId === 'WXK10-006-E1');
+  };
+  eq(collect(['WXK10-006', servant, servant]).length, 0, '精元だけでは除外後0種類なので発火しない');
+  eq(collect(['WXK10-006', servant, null]).length, 0, '1種類以下では発火しない');
+  const entries = collect(['WXK10-006', arm, null]);
+  eq(entries.length, 1, '規則解釈: 精武：アーム1体を上位・下位の2種類として発火する');
+  for (const [choice, hand, energy] of [['c0', 1, 0], ['c1', 0, 1]] as const) {
+    const ctx = mkCtx({ hand: 0, energy: 0 }, {});
+    const opened = executeEffect(entries[0].effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', `${choice}: CHOOSEが開く`);
+    const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+    eq(result.ownerState.hand.length, hand, `${choice}: 手札差分`);
+    eq(result.ownerState.energy.length, energy, `${choice}: エナ差分`);
+  }
+});
+
+for (const [effectId, zone, count] of [
+  ['WX25-P1-094-E1', 'energy', 3],
+  ['WXDi-D01-012-E1', 'energy', 3],
+  ['WXDi-D01-014-E1', 'energy', 3],
+  ['WXDi-P00-040-E2', 'trash', 7],
+] as const) {
+  test(`task12(lxx) Batch A ${effectId}: ${zone}のクラス種類数未達では条件不成立`, () => {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    ok(!!effect.condition, 'effect-level conditionを持つ');
+    const ctx = mkCtx({}, {}, cardNum);
+    const low = mkState({ energy: 0, trash: 0 });
+    const same = findCard(c => isSigni(c) && (c.CardClass ?? '') === '精武：アーム');
+    low[zone].push(...Array(Math.max(1, count - 1)).fill(same));
+    eq(evalUseCondition(effect.condition!, low, ctx.otherState, cardMap, cardNum, 'MAIN'), false, '同一クラスだけでは不成立');
+  });
+}
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

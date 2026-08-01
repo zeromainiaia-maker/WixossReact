@@ -925,6 +925,16 @@ WXDi-P00-004
   ~ [0].action.target.owner : "self" → "any"
   ~ [0].action.keyword : "使用条件" → "ランサー"
 
+## -TRASH_HAS_CARD ［1枚］
+WXDi-P00-040
+--- WXDi-P00-040
+  原文: 【チーム】＜アンシエント・サプライズ＞【チーム自】：あなたのアタックフェイズ開始時、このシグニのパワーが１５０００以上の場合、対戦相手のパワー１００００以上のシグニ１体を対象とし、《緑》《緑》を支払ってもよい。そうした場合、それをバニッシュする。【自】：このシグニがアタックしたとき、あなたのトラッシュにあるシグニが持つクラスが合計７種類以上の場合、【エナチャ
+  - [1].condition.type = "TRASH_HAS_CARD"
+  - [1].condition.owner = "self"
+  - [1].condition.filter.cardType = "シグニ"
+  - [1].condition.minCount = 7
+  - [1].condition.distinctClasses = true
+
 ## +FIELD_LRIGS_HAVE_COLORS +TRASH -GRANT_KEYWORD ［1枚］
 WXDi-P01-003
 --- WXDi-P01-003

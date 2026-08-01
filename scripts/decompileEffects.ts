@@ -400,7 +400,9 @@ function condJa(c?: any): string {
     case 'LIFE_COUNT': return `${ownerJa(c.owner)}ライフが${numJa(c.value)}${opJa(c.operator)}`;
     case 'LIFE_CRASHED_THIS_TURN': return `このターンに${ownerJa(c.owner)}ライフが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた場合`;
     case 'ENERGY_COUNT': return `${ownerJa(c.owner)}エナが${numJa(c.value)}${opJa(c.operator)}`;
-    case 'ENERGY_COUNT_FILTER': return c.distinctColor
+    case 'ENERGY_COUNT_FILTER': return c.distinctClasses
+      ? `${ownerJa(c.owner)}エナゾーンにあるシグニが持つクラスが合計${numJa(c.value)}種類${opJa(c.operator)}`
+      : c.distinctColor
       ? `${ownerJa(c.owner)}エナゾーンにあるカードの色が${numJa(c.value)}種類${opJa(c.operator)}`
       : `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
@@ -410,6 +412,8 @@ function condJa(c?: any): string {
     case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'TRASH_HAS_CARD':
+      if (c.distinctClasses)
+        return `${ownerJa(c.owner)}トラッシュにあるシグニが持つクラスが合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「トラッシュにカード名に《X》を含むカードがある」（WX20-065）
       if (c.filter?.cardName)
         return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
@@ -434,6 +438,8 @@ function condJa(c?: any): string {
         return `${ownerJa(c.owner)}場にキーがある`;
       if (c.distinctColors)
         return `${ownerJa(c.owner)}場にある${c.excludeSelf ? '他の' : ''}${filterJa(c.filter)}シグニが持つ色が合計${numJa(c.minCount ?? 1)}種類以上ある`;
+      if (c.distinctClasses)
+        return `${ownerJa(c.owner)}場にあるシグニが持つクラスが${c.excludeClasses?.length ? c.excludeClasses.map((x: string) => `＜${x}＞`).join('と') + 'を除いて' : ''}合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
       if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
         return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;

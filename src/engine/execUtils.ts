@@ -483,6 +483,13 @@ export function splitColors(col: string | undefined): string[] {
   return [...col].filter(c => '白赤青緑黒'.includes(c));
 }
 
+// 規則解釈：「精武：アーム」は上位・下位の両クラスを持つものとして2 tokenに数える。
+// 公式解釈が異なると判明した場合は、この1箇所を直せば全ゾーンのクラス種類数判定が変わる。
+export function splitClasses(col: string | undefined): string[] {
+  if (!col) return [];
+  return col.split('：').map(s => s.trim()).filter(Boolean);
+}
+
 // センタールリグ＋左右アシストルリグの各グロウスタック頂点（現在のルリグ）を返す。
 // HAS_CARD_IN_FIELD の「場に《X》がいる」でルリグ名を照合するために使う。
 export function lrigZoneTops(field: PlayerState['field']): (string | undefined)[] {
@@ -1212,7 +1219,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT_FILTER': {
       const matched = energyCandidates(st(cond.owner), cond.filter, ctx.cardMap, ctx.treatAsClassAllZones);
-      const n = cond.distinctColor
+      const n = cond.distinctClasses
+        ? new Set(matched.flatMap(cn => splitClasses(ctx.cardMap.get(cn)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
+        : cond.distinctColor
         ? new Set(matched.flatMap(cn => splitColors(ctx.cardMap.get(cn)?.Color))).size
         : cond.distinctName
         ? new Set(matched.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn)).size
@@ -1302,7 +1311,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (key && !(cond.excludeSelf && srcNum && key === srcNum)
             && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
       }
-      const matched = cond.distinctColors
+      const matched = cond.distinctClasses
+        ? new Set(matchedNums.flatMap(n => splitClasses(ctx.cardMap.get(n)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
+        : cond.distinctColors
         ? new Set(matchedNums.flatMap(n => splitColors(ctx.cardMap.get(n)?.Color))).size
         : cond.distinctLevels ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.Level ?? '')).size
         : cond.distinctNames ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size : matchedNums.length;
@@ -1341,7 +1352,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (!c) return false;
         return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
       });
-      const matched = cond.distinctName
+      const matched = cond.distinctClasses
+        ? new Set(matchedCards.flatMap(n => splitClasses(ctx.cardMap.get(n)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
+        : cond.distinctName
         ? new Set(matchedCards.map(n => ctx.cardMap.get(n)?.CardName ?? getCardNum(n))).size
         : matchedCards.length;
       return matched >= (cond.minCount ?? 1);

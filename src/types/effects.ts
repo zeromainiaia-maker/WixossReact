@@ -159,7 +159,7 @@ export type ActiveCondition =
   // compareToSelf は正面シグニの level/power を効果元自身と比較（power は effectivePowers があればそれを使う）。
   | { type: 'FRONT_SIGNI'; filter?: TargetFilter; compareToSelf?: { key: 'level' | 'power'; operator: CompareOp } }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' }
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
@@ -188,7 +188,7 @@ export type ActiveCondition =
   | { type: 'SAME_ZONE_HAS_GATE' }                              // このシグニと同じシグニゾーンにTHE DOOR【ゲート】があるかぎり（own_gate_zones）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
-  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
+  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
@@ -214,7 +214,7 @@ export type Condition =
   | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
   | { type: 'LIFE_CRASHED_LAST_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'ENERGY_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
-  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
+  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // フィルタ一致するエナゾーンのカード枚数（distinctColor=持つ色の種類数。「エナゾーンに＜美巧＞のシグニが５枚以上ある場合」。WX04-035-BURST）
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number }
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
@@ -239,10 +239,10 @@ export type Condition =
   // カード（last_cost_trashed_cards＝手札/エナ/場すべてを含む）に filter 一致が1枚以上あるか。§3タスク6 C（2026-07-25）。
   // WX24-P1-060「スペルを捨てた→代わりにパワー5000以下」／WX25-P3-076「緑の＜龍獣＞をトラッシュ→代わりに5000以下」
   | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash' }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
-  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
+  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
   | { type: 'ALL_SELF_SIGNI_DOWN' }
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }

@@ -8320,6 +8320,26 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText = actionText.slice(drawChoiceFieldCountM[0].length);
   }
 
+  // 「シグニが持つクラスが合計N種類以上」は後続アクション全体の発動条件。
+  // action の CONDITIONAL ではなく effect-level condition に持ち上げ、収集時に不成立なら発火させない。
+  if (actionText) {
+    const classCountM = actionText.match(/あなたの(場|エナゾーン|トラッシュ)にあるシグニが持つクラスが(?:＜([^＞]+)＞を除いて)?合計([０-９\d]+)種類以上ある(?:場合|かぎり)[、,]/);
+    if (classCountM) {
+      const zone = classCountM[1];
+      const threshold = parseNum(classCountM[3]);
+      const classCountCond: Condition = zone === '場'
+        ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: threshold,
+          distinctClasses: true, ...(classCountM[2] ? { excludeClasses: [classCountM[2]] } : {}) }
+        : zone === 'エナゾーン'
+        ? { type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ' }, operator: 'gte', value: threshold, distinctClasses: true }
+        : { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: threshold, distinctClasses: true };
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, classCountCond] }
+        : classCountCond;
+      actionText = actionText.replace(classCountM[0], '');
+    }
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
