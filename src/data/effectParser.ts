@@ -2663,7 +2663,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
-      [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある場合/,
+      [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
       // 従来は語彙が無くルリグアタック時に無条件発火の過剰効果（WX14-010/WX14-013/WX20-009/WX20-015/WX20-019・census 条件節クラスタ）。
@@ -3367,7 +3367,9 @@ function stripParsedTriggerBeforeDrawChoice(
   text: string,
   effectType: EffectType,
   timing: EffectTiming[] | undefined,
+  triggerScope: import('../types/effects').CardEffect['triggerScope'] | undefined,
   triggerCondition: import('../types/effects').CardEffect['triggerCondition'] | undefined,
+  condition: Condition | undefined,
 ): string {
   if (effectType !== 'AUTO' || !timing?.length) return text;
   const m = text.match(/^(.+?たとき)[、,]\s*((?:カードを[０-９\d]+枚引くか[^。]+|[^。]+か、?カードを[０-９\d]+枚引く))(。.*)?$/s);
@@ -3376,8 +3378,18 @@ function stripParsedTriggerBeforeDrawChoice(
   // ⚠`ON_HAND_DISCARDED` の「**あなたの効果によって**対戦相手が捨てたとき」は**ここへ足してはいけない**＝
   //   原因限定を表す軸が engine に無く（既存 `byOwnEffect` は「捨てた本人の効果」＝別の意味）、
   //   落とすと2択は開くが**原因限定が消えて過剰発火が固定化される**（タスク12(lxx) で実測して撤回した）。
-  const triggerIsStructured = timing[0] === 'ON_REFRESH'
-    && triggerCondition?.refreshedOwner === 'opponent';
+  const conditionIsFieldStoryCount = condition?.type === 'HAS_CARD_IN_FIELD'
+    && condition.owner === 'self'
+    && condition.filter?.cardType === 'シグニ'
+    && typeof condition.filter.story === 'string'
+    && condition.minCount !== undefined;
+  const triggerIsStructured = (timing[0] === 'ON_REFRESH'
+    && triggerCondition?.refreshedOwner === 'opponent')
+    || (timing[0] === 'ON_LEAVE_FIELD'
+      && triggerScope === 'any_opp'
+      && triggerCondition?.leftToZone === 'hand'
+      && triggerCondition.byOwnEffect === true
+      && conditionIsFieldStoryCount);
   return triggerIsStructured ? `${m[2]}${m[3] ?? ''}` : text;
 }
 
@@ -7688,15 +7700,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // （除去しないと後続 parser が末尾の「…それを場に出す」を GRANT_LEAVE_PLACE_PENDING STUB へ丸める＝WXEX2-51-E1 が no-op）。
         // ⚠「対戦相手の効果によって場を離れたとき」(WX19-026・下記4068)・「場から手札に戻った/移動したとき」(4049/4055) は
         //   別スコープ（byOpponentEffect/any_opp/leftToZone）で既処理＝ここでは除去しない（guard 参照）。
-        const lm = leaveScan.match(/^((?:この)?アタックフェイズの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
+        const lm = leaveScan.match(/^((?:(あなた|対戦相手)の|この)?アタックフェイズの間[、,])?(このシグニ|あなたの(他の)?(?:カード名に《([^》]+)》を含む|(?:＜([^＞]+)＞の)?)シグニ)(?:[０-９\d]+体)?が場を離れたとき[、,]\s*/);
         if (lm && !/対戦相手の効果によって|場から手札に(?:戻った|移動した)とき/.test(leaveScan)) {
-          if (lm[1]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), duringAttackPhase: true };
-          if (lm[2] !== 'このシグニ') {
+          if (lm[1]) extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            duringAttackPhase: true,
+            ...(lm[2] ? { turnOwner: lm[2] === '対戦相手' ? 'opponent' : 'self' } : {}),
+          };
+          if (lm[3] !== 'このシグニ') {
             extractedTriggerScope = 'any_ally';
             const lf: NonNullable<typeof extractedTriggerFilter> = {};
-            if (lm[3]) lf.excludeSelf = true;   // 「他の」＝自身を除く
-            if (lm[4]) lf.cardName = lm[4];      // 「カード名に《X》を含む」＝部分一致（WXEX2-51 ユラギ）
-            else if (lm[5]) lf.story = lm[5];    // 「＜Y＞の」
+            if (lm[4]) lf.excludeSelf = true;   // 「他の」＝自身を除く
+            if (lm[5]) lf.cardName = lm[5];      // 「カード名に《X》を含む」＝部分一致（WXEX2-51 ユラギ）
+            else if (lm[6]) lf.story = lm[6];    // 「＜Y＞の」
             if (Object.keys(lf).length) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...lf };
           }
           actionText = leaveScan.slice(lm[0].length);
@@ -8257,6 +8273,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
 
+  // draw-or-choice より前にある「場に＜X＞のシグニがN体ある間」は、AUTO の発動条件。
+  // action の CONDITIONAL にすると、トリガー収集後に usageLimit が先に消費されるため、
+  // 前置き除去より先に CardEffect.condition へ持ち上げる。
+  const drawChoiceFieldCountM = actionText?.match(/^あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある間[、,]\s*(?=.+?たとき[、,]\s*(?:カードを[０-９\d]+枚引くか|[^。]+か、?カードを[０-９\d]+枚引く))/s);
+  if (effectType === 'AUTO' && drawChoiceFieldCountM) {
+    const fieldCountCond: Condition = {
+      type: 'HAS_CARD_IN_FIELD', owner: 'self',
+      filter: { cardType: 'シグニ', story: drawChoiceFieldCountM[1] },
+      minCount: parseNum(drawChoiceFieldCountM[2]),
+    };
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, fieldCountCond] }
+      : fieldCountCond;
+    actionText = actionText.slice(drawChoiceFieldCountM[0].length);
+  }
+
   // 「このシグニがトラッシュから場に出た場合」= 効果元がトラッシュ出自であることを条件化（WX03-034-E1）。
   // アクション文中から条件節を除去し、THIS_CARD_FROM_TRASH を発動条件に昇格する。
   if (actionText && /このシグニがトラッシュから場に出た場合/.test(actionText)) {
@@ -8270,7 +8302,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     actionText,
     effectType,
     timing,
+    extractedTriggerScope,
     extractedTriggerCondObj,
+    extractedTriggerCondition,
   );
 
   const cost = parseCost(costStr);

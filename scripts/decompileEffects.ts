@@ -2413,6 +2413,15 @@ function effJa(e: Eff): string {
         : lsf.isFrozen ? '、このシグニが凍結状態だった場合' : '';
       if (condJa) s = `${s}${condJa}`;
     }
+    // ON_LEAVE_FIELD の「（あなた/対戦相手の）アタックフェイズの間、」前置き（WX21-004/WX21-027/WX24-P2-077/WX24-P4-070）。
+    //   ⚠従来 ON_LEAVE_FIELD だけこの軸を描いておらず、engine は duringAttackPhase/turnOwner を3ループ全部で
+    //     評価しているのに**逆翻訳シート上は無制限に発火するように見えていた**（原文照合で限定が欠けて見える）。
+    //   turnOwner はこの前置きが「あなたの/対戦相手の」で言い尽くすので《自分ターン》マーカーは下で抑止する。
+    if (t === 'ON_LEAVE_FIELD' && e.triggerCondition?.duringAttackPhase) {
+      const whoJa = e.triggerCondition.turnOwner === 'self' ? 'あなたの'
+        : e.triggerCondition.turnOwner === 'opponent' ? '対戦相手の' : '';
+      s = `${whoJa}アタックフェイズの間、${s}`;
+    }
     // ON_BANISH の「（対戦相手の）アタックフェイズの間、」前置き（WX18-002/WXEX1-18）。
     // scopeSubj 置換済みの主語（「あなたの遊具シグニがバニッシュされたとき」）に前置きを冠す。
     if (t === 'ON_BANISH' && e.triggerCondition?.duringAttackPhase) {
@@ -2812,7 +2821,7 @@ function effJa(e: Eff): string {
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
   // 《自分ターン》/《相手ターン》: AUTO のターン限定発火マーカー（triggerCondition.turnOwner）。
   // ON_BANISH の duringAttackPhase 併用時は「（対戦相手の）アタックフェイズの間、」前置きが同義のため二重表記を抑止。
-  const suppressTurnMark = (e.timing || []).includes('ON_BANISH')
+  const suppressTurnMark = ((e.timing || []).includes('ON_BANISH') || (e.timing || []).includes('ON_LEAVE_FIELD'))
     && (e.triggerCondition?.duringAttackPhase || e.triggerCondition?.duringMainPhase);
   const turnMark = (e.triggerCondition?.turnOwner && !suppressTurnMark && !(e.timing || []).includes('ON_LIFE_CLOTH_ADDED'))
     ? (e.triggerCondition.turnOwner === 'self' ? '《自分ターン》' : '《相手ターン》') : '';

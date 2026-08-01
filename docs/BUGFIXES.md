@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxx) 第2波：前置き条件つき draw-or-choice 2効果＋同一APS文型2効果
+
+- `WXDi-CP01-027-E2`：`あなたの場に＜バーチャル＞のシグニが３体ある間`を action の `CONDITIONAL` ではなく effect-level `condition:HAS_CARD_IN_FIELD{owner:self,cardType:シグニ,story:バーチャル,minCount:3}` へ、後続を原文順 `CHOOSE[DRAW,ENERGY_CHARGE_FROM_DECK]` へ復元。`collectLeaveFieldTriggers` any_opp 経路は condition を usageLimit より先に評価するため、2体時は発火せず《ターン1回》も消費しないことをE2E固定した。既存 `byOwnEffect` / `leftToZone:hand` は保持。
+- `WX21-027-E2`：ON_LEAVE_FIELD 前置きが `あなたのアタックフェイズの間`も受理し、`triggerCondition:{duringAttackPhase:true,turnOwner:self}` と原文順 `CHOOSE[ENERGY_CHARGE_FROM_DECK,DRAW]` を生成するよう是正。engine の self collector が両条件を既に評価するため engine 無改修。
+- 同じ一般文型で `WX24-P2-077-E1` / `WX24-P4-070-E1` も `duringAttackPhase:true,turnOwner:self` を獲得。既存 `ADD_TO_FIELD` の `optional:true` / `suppressOnPlay:true` / filter は不変。
+- parser は「ある場合」の既存 `HAS_CARD_IN_FIELD` 規則を「ある間」に水平拡張し、draw-or-choice 用経路では前置き除去より先に effect-level condition へ持ち上げる。strip allowlist はカード番号/本文でなく `effectType/timing/triggerScope/triggerCondition/condition` の木の形で限定。
+- 実行 golden：A-1 は2体時の不発＋usageLimit未消費、3体時のCHOOSE両枝。A-2 はメイン/相手APS不発、自APS発火＋両枝。群Bはメイン/相手APS不発、自APS発火を固定。`WX24-P4-017-E3` 非CHOOSE、手札捨て any_opp 4効果の `byOwnEffect` 非付与、`WX21-004-E2` 対照群は既存回帰を維持。
+- 採用は `heldReview --adopt WXDi-CP01-027,WX21-027`。最終 held 251枚/99署名（基準比±0）。live per-effect diff は changed 4 / added 0 / removed 0 / outlier 0。census は1349→1347のため既存 `BASELINE_HIGH` を1347へ更新。
+- ゲート：golden 1255/1255、smoke 10679/10679（全異常0）、fuzz 全異常0、census 1347、lint 0 errors/240 warnings、manual field loss 0、同型265/逆翻訳割れ0。U+FFFD・3連続`?`・BOMの新規増はいずれも0。commit/push/regen/PLAN簿記は未実施。
+
+### 投入前の Claude 実測が在庫記述を4点訂正した
+
+| 在庫 (lxx) 行の記述 | 実測（全 10,740 効果走査） |
+|---|---|
+| 母集団は「引くか」形 | **2つの語順**で 57効果（順方向49／逆方向 `<B>するかカードをN枚引く` が8）。42件が正しく15件欠落＝実バグ14件。`parseDrawOrChoice` は既に両語順を持つ（`mA`/`mB`）＝**逆方向のための新 regex は不要**だった |
+| 「条件語彙 `FIELD_CLASS_COUNT` がそのまま使える」 | **使うべきではない**。`tryWrapLeadingStateCond` の `CLAUSES` 表に**同義の既存行**（`あなたの場に＜X＞のシグニがN体(以上)?ある場合` → `HAS_CARD_IN_FIELD{minCount}`）が既にあり、`FIELD_CLASS_COUNT` を使うと§8 既知の**並行語彙新設**事故になる。既存行の `(?:場合|間)` 化で着地 |
+| 「他文型に多い語なので母集団を機械抽出してから regex を切れ」 | 「がN体ある**間**、」の母集団は**全効果中1件だけ**＝波及リスクは構造的にゼロ |
+| ⑦`WX21-027-E2`「アタックフェイズ限定が未保持」 | 真因を特定＝`effectParser.ts:7692` の前置き受理形が `(?:この)?アタックフェイズの間` **のみ**で「**あなたの**〜」が外れていた。**engine は `duringAttackPhase` を `collectLeaveFieldTriggers` の3ループ全部（self / any_ally / any_opp）で honor 済み＝engine 無改修**。対照群 `WX21-004-E2` が同文型で正しく持っていた |
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0・是正0）
+
+- **per-effect 機械 diff（ベースライン `30644f00` 比）**＝`changed 4 / added 0 / removed 0`・`outlier 0`・同カードの兄弟効果変更0。申告と完全一致。
+- **変更禁止リスト10件が全て UNCHANGED**＝`WX24-P4-017-E3`（トリガーOR）／`WXDi-P02-030-E1`＋同文型3件（(lxxviii) の `byOwnEffect` 罠）／`WX22-001-E3`（「**この**アタックフェイズ」＝【起】設置形）／`WX21-004-E2`・`WXEX2-51-E1`（対照群）／`SPK01-04-E1`・`WXK02-001-E1`。
+- **census −2 の帰属を確認**＝`WXDi-CP01-027-E2` が「クラス指定(＜X＞のシグニ)」高シグナルから、`WX21-027-E2` が「ゾーン:エナゾーンに置く」高シグナルから抜けた**それだけ**（1349→1347）。`BASELINE_HIGH` の更新も既存定数の履歴先頭追記で、並行定数の新設なし。
+- **採用4効果を Claude が独立に原文照合**＝一致。`minCount:3` は `execUtils.ts` の `matched >= (cond.minCount ?? 1)` で honor され、`HAS_CARD_IN_FIELD` のルリグ/キーゾーン走査は `filter.cardType:'シグニ'` で弾かれる＝ルリグを数えない。
+- **golden の置き場所も適正**（`scripts/goldenTest.ts:20234-20282`＝集計行 20383・`process.exit(1)` 20384 より**前**）＝§8 タスク16第3波の「死んだ golden」は非再発。
+- `scripts/goldenTest.ts` に作業ツリー上の CRLF 化が出るが、`core.autocrlf=true` で正規化され `git diff --numstat` は `59 / 0`＝**コミット内容には入らない**（実害なし）。
+
+### 🆕 Claude 追加修正：decompiler が `ON_LEAVE_FIELD` の `duringAttackPhase` を描いていなかった
+
+codex が報告の§5で正直申告した表示欠落を追いかけたところ、**`scripts/decompileEffects.ts` は `duringAttackPhase` を `ON_BANISH` / `ON_SIGNI_DOWN` / `ON_ENERGY_CHARGE` / `ON_DRAW` にしか描いておらず、`ON_LEAVE_FIELD` には分岐が無かった**。engine は3ループ全部で評価しているのに、**逆翻訳シート上は無制限に発火するように見えていた**＝原文照合の主軸（BEHAVIOR_AUDIT・同型★）で限定が欠けて見える計器の穴。
+
+前置き分岐を1本追加し、`turnOwner` を前置きが言い尽くすので《自分ターン》マーカーを `ON_BANISH` と同様に抑止した。結果、本バッチの3効果に加え、**従来から `duringAttackPhase` を持っていた7効果が新たに正しく描かれるようになった**（`WX21-004-E2`／`WXEX2-51-E1`／`WXK02-031-E1`／`WXDi-D05-015-E2`／`WX24-P2-052-E1`／`WX24-P2-078-E1`／`WX24-P3-053-E1`＝7件とも原文に「アタックフェイズの間、」があることを確認済み）。`npm run regen` 後も**同型★0（265群）維持**・decompile シート差分は当該11行のみ。
+
+⚠**教訓＝「engine が評価している」と「計器が描いている」は別**。逆翻訳シートに出ない限定は、後続の監査で「条件が落ちている」と誤判定されるか、逆に「もう直っている」と見逃される。**新しい triggerCondition 軸を parser に足したら、decompiler の当該 timing 分岐も見ること**（軸は timing ごとに個別実装で、横断的な描画関数が無い）。
+
+### 新規在庫（本バッチのスコープ外・登録のみ）
+
+`SPK01-04-E1`／`WXK02-001-E1` は「あなたのアタックフェイズの間、…が場**から手札に戻った**とき」で、既存 guard `場から手札に(?:戻った|移動した)とき` により**意図的に別経路**（`leftToZone`）へ流れるため、今回の regex 拡張が届かず `duringAttackPhase` を持たないまま＝**メインフェイズでも相手ターンでも発火する過剰発火が残存**。⇒ Opusタスク12 (lxxix) として登録。
+
 ## 2026-08-01 — タスク12(lxxiv) 残1＝アタックステップのスキップを **engine に実装**し `WXK11-001-E1`① を復元（**Codex 実装＋Claude 検証**・残0クローズ）
 
 ### ① 在庫の残作業定義が小さすぎた（投入前の全数 grep で判明）

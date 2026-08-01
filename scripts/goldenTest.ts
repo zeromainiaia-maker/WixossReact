@@ -20231,6 +20231,65 @@ test('WXDi-P15-011-E2: CHOOSEで自分のドロー／相手の手札捨ての両
   const trash = chooseReal(trashOpen.open, trashCtx, 'c1');
   eq(trash.ownerState.hand.length, 0); eq(trash.otherState.hand.length, 1);
 });
+test('WXDi-CP01-027-E2: バーチャル3体条件を収集前に評価し、未達ではターン1回を消費しない', () => {
+  const parsed = parseCardEffects(cardMap.get('WXDi-CP01-027')!).find(e => e.effectId === 'WXDi-CP01-027-E2')!;
+  const localEffects = new Map(effectsMap); localEffects.set('WXDi-CP01-027', [parsed]);
+  const virtual = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('バーチャル'));
+  const guest = mkState({}); guest.hand.push('LEFT#1');
+  const collect = (count: number) => {
+    const signi = count === 2 ? ['WXDi-CP01-027', virtual, null] : ['WXDi-CP01-027', virtual, virtual];
+    const host = mkState({ signi });
+    return collectLeaveFieldTriggers(
+      { ...trigCtx(HOST), effectsMap: localEffects }, 'LEFT#1', [], GUEST, host, guest, HOST,
+    );
+  };
+  const low = collect(2);
+  eq(low.entries.length, 0, 'バーチャル2体では発火しない');
+  eq(low.usedHostIds.length, 0, '条件未達ではonce_per_turnを消費しない');
+  const high = collect(3);
+  eq(high.entries.length, 1, 'バーチャル3体なら発火');
+  eq(high.usedHostIds.includes('WXDi-CP01-027-E2'), true, '条件成立後にのみonce_per_turnを消費');
+
+  for (const [choice, hand, energy] of [['c0', 1, 0], ['c1', 0, 1]] as const) {
+    const ctx = mkCtx({ hand: 0, energy: 0 }, {});
+    const opened = executeEffect(high.entries[0].effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', '発火後にCHOOSEが開く');
+    const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+    eq(result.ownerState.hand.length, hand, `${choice}: ドロー差分`);
+    eq(result.ownerState.energy.length, energy, `${choice}: エナ差分`);
+  }
+});
+test('WX21-027-E2: 自分のアタックフェイズだけ発火し、原文順の両枝を解決する', () => {
+  const parsed = parseCardEffects(cardMap.get('WX21-027')!).find(e => e.effectId === 'WX21-027-E2')!;
+  const localEffects = new Map(effectsMap); localEffects.set('WX21-027', [parsed]);
+  const host = mkState({}); const guest = mkState({});
+  const entries = (turnPhase: TrigCtx['turnPhase'], activeUserId: string) => collectLeaveFieldTriggers(
+    { ...trigCtx(activeUserId), effectsMap: localEffects, turnPhase }, 'WX21-027', [], HOST, host, guest,
+  ).entries;
+  eq(entries('MAIN', HOST).length, 0, '自分のメインフェイズでは発火しない');
+  eq(entries('ATTACK_SIGNI', GUEST).length, 0, '相手のアタックフェイズでは発火しない');
+  const ownAttack = entries('ATTACK_SIGNI', HOST);
+  eq(ownAttack.length, 1, '自分のアタックフェイズなら発火');
+  for (const [choice, hand, energy] of [['c0', 0, 1], ['c1', 1, 0]] as const) {
+    const ctx = mkCtx({ hand: 0, energy: 0 }, {});
+    const opened = executeEffect(ownAttack[0].effect, ctx);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', '発火後にCHOOSEが開く');
+    const result = chooseReal(opened as Extract<ExecResult, { done: false }>, ctx, choice);
+    eq(result.ownerState.hand.length, hand, `${choice}: 手札差分`);
+    eq(result.ownerState.energy.length, energy, `${choice}: エナ差分`);
+  }
+});
+test('WX24-P2-077-E1: あなたのアタックフェイズ限定をcollectorが評価する', () => {
+  const parsed = parseCardEffects(cardMap.get('WX24-P2-077')!).find(e => e.effectId === 'WX24-P2-077-E1')!;
+  const localEffects = new Map(effectsMap); localEffects.set('WX24-P2-077', [parsed]);
+  const state = mkState({});
+  const fire = (turnPhase: TrigCtx['turnPhase'], activeUserId: string) => collectLeaveFieldTriggers(
+    { ...trigCtx(activeUserId), effectsMap: localEffects, turnPhase }, 'WX24-P2-077', [], HOST, state, mkState({}),
+  ).entries.length;
+  eq(fire('MAIN', HOST), 0, 'メインフェイズでは発火しない');
+  eq(fire('ATTACK_SIGNI', GUEST), 0, '相手アタックフェイズでは発火しない');
+  eq(fire('ATTACK_SIGNI', HOST), 1, '自分のアタックフェイズなら発火');
+});
 test('WX24-P4-017-E3 defer: trigger条件ORをプレイヤーのCHOOSEへ変換しない', () => {
   const effect = parseCardEffects(cardMap.get('WX24-P4-017')!).find(e => e.effectId === 'WX24-P4-017-E3')!;
   const hasChoose = (a: EffectAction): boolean => a.type === 'CHOOSE'

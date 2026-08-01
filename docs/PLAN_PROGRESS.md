@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-01・続き321・Opus 5〔**codex 実装／Claude 指示・検証・簿記**〕）＝タスク12(lxxiv) 残1。**在庫は「1枚の parse」だったが、実測すると「アタックステップのスキップ」が engine に1行も無く**この文型5カード全部が no-op** だったので、**engine 実装を主・parse 修正を従**にスコープを組み替えて**残0クローズ**（golden **1250→1252**・census **1349 据置**・smoke **10679** 全0・SKIP0・fuzz 全0・lint 0 errors/**240 warnings 据置**・manual field loss 0・同型★0（265群）・held **251枚/99署名 据置**。live per-effect 差分 **changed 1 / added 0 / removed 0**・outlier 0（ベースライン `0ebde454` 比）。**新語彙0本**＝純関数1本＋宣言 STUB 1本）
+  - **① 投入前 grep で在庫の残作業定義が小さすぎると判明**＝`BLOCK_ACTION{LRIG_ATTACK_STEP/SIGNI_ATTACK_STEP}` の全参照は **parser 2箇所とログ用ラベル1箇所だけ**。フェイズ進行は `PHASE_NEXT` の静的表を引くのみでスキップ分岐が無い＝**parse だけ直しても engine が無視する**（§5-2）。⇒ 指示書に「**engine を入れられないなら parse も入れずに defer**」と書いた。
+  - **② 在庫の「①と②で owner が食い違う」の真因は parser の部分文字列判定**＝`t.includes('対戦相手') ? 'opponent' : 'self'` が**条件節の中の「対戦相手」**を拾っていただけ。意味の差ではなかった。
+  - **③ engine 実装は純関数へ**＝`resolveNextPhaseWithAttackStepBlocks`（`src/screens/battle/attackStepPhase.ts`）。**`PHASE_NEXT` の直接参照が BattleScreen から消え、全5経路が純関数を通る**（PvP／CPUターン／非ターンCPUのアーツパス）＝§5-15 の「1箇所で満足する」を構造的に回避。
+  - **④ 🔴 Claude 検証で差し替えた1点＝defer マーカーに実装済み STUB を流用していた**。codex は②の defer に `STUB{UNKNOWN_NESTED}` を使ったが、これは**「このシグニを任意でトラッシュに置く」実装を持つ**（`execStubPart1.ts:2223`）＝no-op ではない。⇒ **engine 分岐を持たない専用の宣言 STUB へ差し替え**（先例 `LOCK_OPP_TRASH_MOVE`）、**流用禁止の向きで golden も固定**。
+  - **⑤ ⚠この種の事故は当時3件目**＝(lxx) の `byOwnEffect`〔Claude〕／(lxxii) の grep トークン誤り〔Claude〕／本件〔codex〕。**「名前が近い既存語彙を借りる」前に、その語彙の engine 実装を読む**。
+
 - **🆕 セッション（2026-08-01・続き320・Opus 5〔**codex 実装／Claude 指示・検証・簿記**〕）＝タスク12(lxxii)＝`delayed_triggers` のターン終了クリアが**ターンプレイヤー側だけ**だったのを両側へ。**残0クローズ**（golden **1248→1250**・census **1349 据置**・smoke **10679** 全0・SKIP0・fuzz 全0・lint 0 errors/**240 warnings 据置**・manual field loss 0・同型★0（265群）・held **251枚/99署名 据置**。**live per-effect 差分 `changed 0 / added 0 / removed 0`**＝engine のみの変更で**期待値どおり**／`build:effects`・`regen` 冪等。**新語彙0本・新型0**）
   - **① 在庫の「誤発火する実カードは確認できていない」を全数走査で1件に確定**＝live の `INSTALL_DELAYED_TRIGGER` 全18効果のうち**17件はターンプレイヤーのみが設置**（`ACTIVATED MAIN` 14／`ATTACK_ARTS` の【起】2＝【起】は自分のターン／`AUTO` 2）。🔴**`WX11-024-E1`《リフレッシュ・エンド》だけがアーツ・スペルカットイン＝防御側が設置できる**＝相手ターン中に使い相手がリフレッシュしなければ持ち越し、**次の自分のターンに `FORCE_END_TURN` が誤発火**していた（ペイロードが「ターン強制終了」＝影響大）。
   - **② 「1箇所で満足する」失敗モードを構造で潰した**＝クリアを純関数 `clearEndOfTurnDelayedTriggers` へ切り出し、**3経路 × 2プレイヤー＝6箇所**すべてから呼ぶ形にした（`BattleScreen.tsx` 3370／3498／3759／3831／9559／9587）。**BattleScreen は golden から叩けない**ので、純関数化によって**状態遷移を golden で固定できる**ようにした（この設計は (lxxi) で作った同ファイルの踏襲）。
