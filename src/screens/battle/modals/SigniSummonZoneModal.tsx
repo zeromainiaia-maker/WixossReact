@@ -6,6 +6,7 @@ import { getRiseFilter, matchesRiseFilter } from '../../../engine/execUtils';
 import { collectForcePlaceFrontZones, collectDeployCountLimit } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { parsePowerVal } from '../battleUtils';
+import { findSigniZoneBlock, resolveSigniZonePlacement } from '../signiZoneBlock';
 import type { BattleModalCtx } from './types';
 
 interface SigniSummonZoneModalProps {
@@ -76,7 +77,12 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                   : contCountCap;
                 const overCountLimit = !pendingRiseFilter && countCap !== undefined
                   && my.field.signi.filter(s => s && s.length > 0).length >= countCap;
-                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked ||
+                // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）:
+                // 「新たに配置できない」ゾーン。《無》×N の支払い回避つきはエナが足りれば選べる（払って配置）。
+                const zoneBlock = pendingRiseFilter ? undefined : findSigniZoneBlock(my, zi);
+                const zoneBlockCost = zoneBlock?.colorless ?? 0;
+                const zoneBlocked = !!zoneBlock && !resolveSigniZonePlacement(my, zi).allowed;
+                const isDisabled = loading || overLimit || overPowerLimit || overCountLimit || forcedBlocked || zoneBlocked ||
                   (pendingRiseFilter ? !riseConditionMet : isOccupied);
                 return (
                   <button key={zi} data-testid={`summon-zone-${zi}`}
@@ -84,15 +90,15 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                     disabled={isDisabled}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 8,
-                      border: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit || overCountLimit) ? `1px solid ${C.danger}` : C.borderUI,
+                      border: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? `1px solid ${C.textFaint}` : (overLimit || overPowerLimit || overCountLimit || zoneBlocked) ? `1px solid ${C.danger}` : C.borderUI,
                       backgroundColor: isDisabled ? C.disabled : C.bgButton,
                       color: isDisabled ? C.textFaint : C.text,
                       fontSize: 13, cursor: isDisabled ? 'default' : 'pointer',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
                     }}>
-                    <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (forcedBlocked ? ' (正面強制)' : isOccupied ? ' (使用中)' : '')}</span>
-                    <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit || overCountLimit) ? C.danger : C.textDim }}>
-                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (forcedBlocked ? '正面のみ' : isOccupied ? '—' : overCountLimit ? '配置数制限' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
+                    <span>ゾーン{zi + 1}{pendingRiseFilter ? (riseConditionMet ? ' (ライズ可)' : ' (条件不一致)') : (zoneBlocked ? ' (配置禁止)' : forcedBlocked ? ' (正面強制)' : isOccupied ? ' (使用中)' : '')}</span>
+                    <span style={{ fontSize: 11, color: (pendingRiseFilter ? !riseConditionMet : isOccupied) ? C.textFaint : (overLimit || overPowerLimit || overCountLimit || zoneBlocked) ? C.danger : C.textDim }}>
+                      {pendingRiseFilter ? (riseConditionMet ? 'ライズ' : '—') : (zoneBlocked ? (zoneBlockCost > 0 ? `《無》×${zoneBlockCost}不足` : '配置禁止') : forcedBlocked ? '正面のみ' : isOccupied ? '—' : overCountLimit ? '配置数制限' : overPowerLimit ? 'パワー制限' : overLimit ? 'リミット超過' : zoneBlockCost > 0 ? `《無》×${zoneBlockCost}を支払う` : `${afterTotal}/${lrigLimit === Infinity ? '∞' : lrigLimit}`)}
                     </span>
                   </button>
                 );

@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-01 — タスク12(lxi) 第10波：指定シグニゾーンへの「新たに配置できない」を実働化（死にフィールド `disabled_signi_zones` を退役し3効果＋REMOVE_SIGNI_ZONE 4枚を開通・Claude 実装）
+
+`PlayerState.disabled_signi_zones` は**書き手2つ・読み手0**の死にフィールドだった（`INTERNAL_REMOVE_SIGNI_ZONE`＝「シグニゾーン１つを消す」と `BLOCK_OPP_ZONE_PLACEMENT`＝「新たに配置できない」が書き込むが、**配置フローがどこからも読まない**）。⇒ 配置禁止を謳う効果は**全部 no-op**。
+
+**本波で (lxi) 残3の③ `WXDi-P11-009-E3` をクローズ**＝(lxi) 残3→**残2**。
+
+### ① 原文3枚のうち engine に届いていたのは1枚だけ、しかもその1枚も no-op
+
+| 効果 | 原文の要点 | 従来 live |
+|---|---|---|
+| `WX10-051-E1` | 次のターンの間、指定ゾーンに**配置することができない** | `BLOCK_OPP_ZONE_PLACEMENT`（＝死にフィールドを書くだけ） |
+| `WX24-P4-024-E3` | 次のターンの間、そのゾーンに**配置できない** | 汎用 no-op `STUB{LRIG_GROW_RESTRICT}`（専用 regex での退避） |
+| `WXDi-P11-009-E3` | **このターンと次のターンの間**、**《無》×5 を支払わないかぎり**配置できない | 同上（「このターンと次のターンの間」バケツに吸われていた） |
+
+「配置**することが**できない」と「配置できない」で別の規則に落ちていたので、**期間（このターン／次のターン）と《無》の支払い回避を同時に読む1本**へ統合し（`parseSentencePart3`）、part4 の2規則を退役した。⚠統合規則は**「このターンと次のターンの間」バケツより前**に置く必要がある（後ろだと `WXDi-P11-009` を奪われる）。
+
+### ② 新語彙は state 2本だけ。回避の《無》は「配置しようとした時点」で徴収する
+
+`disabled_signi_zones?: number[]` を退役し `signi_zone_blocks?: {zone; colorless?}[]`＋`signi_zone_blocks_next_turn`（次の自分ターンへの予約）に置き換えた。純関数は `src/screens/battle/signiZoneBlock.ts`（`resolveSigniZonePlacement`／`canPlaceInSigniZone`／`addSigniZoneBlock`／`activateNextTurnSigniZoneBlocks`）＝**golden から叩ける**。
+
+PLAN が「標準ペア（`OPPONENT_PAY_OPTIONAL`）では表せない」としていた回避の支払いは、**ガード追加《無》（`collectOppGuardExtraColorlessCost`）の既存作法**でそのまま書けた＝プロンプトは出さず、そのゾーンを選んだらエナ末尾から徴収／足りなければ配置自体を成立させない。「置くかどうか」の任意性が支払いの任意性を兼ねるので意味も合う。
+
+### ③ 読み手は配置フロー3経路。効果による場出しは**射程外**（既存規約に合わせた）
+
+`handleSummonSigni`（人間召喚）／CPU 召喚ループ／`SigniSummonZoneModal`（ゾーンの活殺表示・`《無》×5を支払う` / `《無》×5不足` を出す）。**効果による場出し（`ADD_TO_FIELD` 等）は見ない**＝兄弟の配置制限（`signi_deploy_power_limit`／`signi_deploy_count_limit`／`collectForcePlaceFrontZones`）がいずれも同じ射程である既存規約に合わせた。部分実装であることは `signiZoneBlock.ts` の冒頭コメントに明記。
+
+⚠エナの取りこぼしを作らないため、**シグニコスト支払い後の残エナで再検証してから**ゾーン回避コストを徴収する（CPU 経路は「片方だけ払って置けない」を避けるため一括コミットへ組み替えた）。
+
+期間は `signi_deploy_count_limit_next_turn` と同じ**ターン開始時の昇格**（`activateNextTurnSigniZoneBlocks` を PvP2経路＋FORCE_END_TURN＋CPU の計4サイトへ配線）。「ターン終了時まで」の `REMOVE_SIGNI_ZONE` は予約を書かないので、昇格時に自動失効する。
+
+### ④ 🔴 同じ文型でも**ゾーンの供給源が違う2枚**は拾わない（在庫 (lxxvi) へ）
+
+素朴に `/シグニゾーンにシグニを新たに配置(?:することが)?できない/` で切ったら held が 250→252 に増えた。中身は `WX08-032-E1`（「**それがあった**シグニゾーン」＝バニッシュ跡）と `WXEX1-24-E1` ③（「**【ウィルス】がある**シグニゾーン」＝複数ゾーン）で、engine は `designated_zone` しか読めないため**別ゾーンを禁止する過剰実行**になる。⇒ 規則を `(?:指定された|その)シグニゾーンに…` へ絞り、2枚は従来どおり no-op のまま在庫へ送った。**「読めた」は「正しい」ではない**（第9波と同じ罠）。
+
+### ⑤ 逆翻訳はフィールドから組み立てる
+
+`BLOCK_OPP_ZONE_PLACEMENT` の逆翻訳を原文抽出ではなく**パース結果のフィールドから再構成**した（`このターンと次のターンの間、対戦相手は《無》×5を支払わないかぎり指定されたシグニゾーンにシグニを新たに配置できない`）＝期間とコストを取れているかが原文照合で見える。
+
+**ゲート**：typecheck ✅／golden **1210→1215**／smoke 10679 全0・SKIP0 ✅／fuzz 全0（seed 12648430）✅／census **1355 据置**（`BASELINE_HIGH=1355`）／lint 0 errors・240 warnings 据置／manual field loss 0／同型★0（265群）／held **250枚・98署名 据置**。live per-effect 差分 **changed 3 / added 0 / removed 0**（`WX10-051-E1`／`WX24-P4-024-E3`／`WXDi-P11-009-E3`）、`build:effects`・`regen` とも冪等。STUB 種類 577／実装 547 据置（`LRIG_GROW_RESTRICT` 37→35・`BLOCK_OPP_ZONE_PLACEMENT` 1→3）。`census:timing` 14 据置。
+
+⚠**未検証UI**＝配置禁止ゾーンのグレーアウトと《無》×5 の徴収は **BattleScreen 経路＝計器に映らない**（§7 へ登録）。
+
 ## 2026-08-01 — タスク12(lxi) 第9波：「以下のNつを行う。①②③」の①②を実働化（`WX24-P4-007-E1` が完全 no-op → 2/3。③は宣言 STUB・Claude 実装）
 
 `WX24-P4-007-E1`「以下の３つを行う。①対戦相手は自分のシグニ１体を場からトラッシュに置かないかぎり、手札を３枚捨てる。②対戦相手は手札を３枚捨てないかぎり、自分のシグニ１体を選びトラッシュに置く。③次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは対戦相手の効果によって他の領域に移動しない。」は `STUB{DO_THREE_THINGS}` 1本で、**engine 側は別カード用の text パターン照合でしか動かない**ため**完全 no-op** だった（青黒2エナを払って何も起きない）。

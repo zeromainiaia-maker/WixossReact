@@ -62,6 +62,16 @@ export type BanishSubstituteOptionState =
   | { kind: 'sacrifice'; sourceNum: string; sacrificeNum: string }
   | { kind: 'pay_cost'; sourceNum: string; costType: 'discardSpell' | 'trashStackSpell' | 'lifeCrash'; amount: number };
 
+/**
+ * シグニを新たに配置できないシグニゾーン1件（タスク12(lxi) 第10波）。
+ * colorless 未指定＝無条件で配置不可（「シグニゾーン１つを消す」「新たに配置することができない」）。
+ * colorless=N＝「《無》×N を支払わないかぎり配置できない」＝支払えば配置できる（WXDi-P11-009-E3）。
+ */
+export interface SigniZoneBlock {
+  zone: number;
+  colorless?: number;
+}
+
 export interface PlayerState {
   deck: string[];
   lrig_deck: string[];
@@ -286,8 +296,14 @@ export interface PlayerState {
   draw_limit?: number;
   // ターン終了時まで有効なカードクラスオーバーライド（CardNum → 新クラス名）
   card_class_overrides?: Record<string, string>;
-  // このターン無効化された自フィールドのシグニゾーン番号（REMOVE_SIGNI_ZONE効果）
-  disabled_signi_zones?: number[];
+  // このターン、シグニを新たに配置できない自フィールドのシグニゾーン（タスク12(lxi) 第10波）。
+  // colorless があるときは「《無》×N を支払わないかぎり配置できない」＝支払えば配置できる。
+  // 書き手＝REMOVE_SIGNI_ZONE（ゾーンを消す＝ターン終了時まで）／BLOCK_OPP_ZONE_PLACEMENT（配置禁止）。
+  // 読み手＝handleSummonSigni・CPU召喚・SigniSummonZoneModal（すべて signiZoneBlock.ts の純関数経由）。
+  signi_zone_blocks?: SigniZoneBlock[];
+  // 次の自分のターン用の予約。ターン開始時に signi_zone_blocks へ昇格する
+  // （free_grow_next_turn / signi_deploy_count_limit_next_turn と同じ作法）。
+  signi_zone_blocks_next_turn?: SigniZoneBlock[];
   // ゲート設置済みゾーン番号（GATE効果：条件付きアタック不可。相手ゾーンへ設置するアタック妨害ゲート）
   signi_gate_zones?: number[];
   // THE DOOR【ゲート】が置かれている自分のシグニゾーン番号。signi_gate_zones とは別概念で、

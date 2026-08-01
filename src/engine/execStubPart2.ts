@@ -1,4 +1,5 @@
-import type { PlayerState, TargetScope } from '../types';
+import type { PlayerState, TargetScope, SigniZoneBlock } from '../types';
+import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction,
@@ -3759,10 +3760,11 @@ export function execStubPart2(
       const removed = removeFromField(cn, newOtherIRSZ);
       newOtherIRSZ = { ...removed, trash: [...removed.trash, cn] };
     }
-    // ゾーンを無効化
-    const newDisabledIRSZ = [...(newOtherIRSZ.disabled_signi_zones ?? [])];
-    if (!newDisabledIRSZ.includes(zoneIdxIRSZ)) newDisabledIRSZ.push(zoneIdxIRSZ);
-    newOtherIRSZ = { ...newOtherIRSZ, disabled_signi_zones: newDisabledIRSZ };
+    // ゾーンを無効化＝そのターン中は新たに配置できない（タスク12(lxi) 第10波で死にフィールドから実働化）
+    newOtherIRSZ = {
+      ...newOtherIRSZ,
+      signi_zone_blocks: addSigniZoneBlock(newOtherIRSZ.signi_zone_blocks, { zone: zoneIdxIRSZ }),
+    };
     return done(addLog({ ...ctx, otherState: newOtherIRSZ },
       `相手ゾーン${zoneIdxIRSZ + 1}を削除（${oppStackIRSZ.length}体トラッシュ）`));
   }
@@ -3784,13 +3786,28 @@ export function execStubPart2(
     const newOtherIDZ = { ...ctx.otherState, designated_zone: zoneIdxIDZ };
     return done(addLog({ ...ctx, otherState: newOtherIDZ }, `相手ゾーン${zoneIdxIDZ + 1}を指定`));
   }
-  // BLOCK_OPP_ZONE_PLACEMENT: 指定ゾーンへの配置を禁止（disabled_signi_zones に追加）
+  // BLOCK_OPP_ZONE_PLACEMENT: 直前の DESIGNATE_SIGNI_ZONE で指定したゾーンへの新規配置を禁止する。
+  // 期間は parser が渡す（zoneBlockThisTurn/zoneBlockNextTurn）＝原文3枚とも「次のターンの間」を含み、
+  // WXDi-P11-009-E3 だけが「このターンと次のターンの間」＋《無》×5 の支払い回避を持つ。
+  // ⚠従来は disabled_signi_zones を書くだけで読み手がおらず完全 no-op だった（タスク12(lxi) 第10波で実働化）。
   if (stub.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
     const zoneIdxBOZP = ctx.otherState.designated_zone ?? 0;
-    const currentDisabledBOZP = [...(ctx.otherState.disabled_signi_zones ?? [])];
-    if (!currentDisabledBOZP.includes(zoneIdxBOZP)) currentDisabledBOZP.push(zoneIdxBOZP);
-    const newOtherBOZP = { ...ctx.otherState, disabled_signi_zones: currentDisabledBOZP };
-    return done(addLog({ ...ctx, otherState: newOtherBOZP }, `相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止`));
+    const blockBOZP: SigniZoneBlock = stub.zoneBlockColorless !== undefined
+      ? { zone: zoneIdxBOZP, colorless: stub.zoneBlockColorless }
+      : { zone: zoneIdxBOZP };
+    // 期間指定が一切ない（旧データ互換）ときは従来どおり「次のターンの間」として扱う。
+    const nextTurnBOZP = stub.zoneBlockNextTurn ?? !stub.zoneBlockThisTurn;
+    let newOtherBOZP = ctx.otherState;
+    if (stub.zoneBlockThisTurn) {
+      newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks, blockBOZP) };
+    }
+    if (nextTurnBOZP) {
+      newOtherBOZP = { ...newOtherBOZP, signi_zone_blocks_next_turn: addSigniZoneBlock(newOtherBOZP.signi_zone_blocks_next_turn, blockBOZP) };
+    }
+    const spanBOZP = stub.zoneBlockThisTurn && nextTurnBOZP ? 'このターンと次のターン' : nextTurnBOZP ? '次のターン' : 'このターン';
+    const costBOZP = stub.zoneBlockColorless ? `（《無》×${stub.zoneBlockColorless}を支払えば配置可）` : '';
+    return done(addLog({ ...ctx, otherState: newOtherBOZP },
+      `${spanBOZP}の間、相手ゾーン${zoneIdxBOZP + 1}へのシグニ配置を禁止${costBOZP}`));
   }
   // ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
   if (stub.id === 'ARTS_EXTRA_COST_CONDITION') {

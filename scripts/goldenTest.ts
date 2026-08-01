@@ -41,6 +41,7 @@ import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement'
 import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
+import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
 import { applyRefreshState } from '../src/engine/refresh';
 import { clearUntilOppTurnEffects } from '../src/screens/battle/untilOppTurn';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../src/screens/battle/damagePrevention';
@@ -9753,6 +9754,89 @@ test('第9波 engine 実走：入れ子の標準ペア2本が順に相手へ提�
   ok(seen[1].includes('discard'), '②の回避枝＝手札を捨てる');
   eq(r.otherState.hand.length, 3, '①不払い＝手札6→3');
   eq(r.otherState.field.signi.filter(s => s && s.length > 0).length, 1, '②不払い＝シグニ2体→1体');
+  cursor = savedCursor;
+});
+
+// ── タスク12(lxi) 第10波（2026-08-01）：指定シグニゾーンへの新規配置禁止（WXDi-P11-009-E3 ほか）──
+// 従来 `disabled_signi_zones` は書き手2つ（REMOVE_SIGNI_ZONE / BLOCK_OPP_ZONE_PLACEMENT）に対し
+// 読み手が1つも無い死にフィールドで、原文3枚とも実質 no-op だった。第10波で `signi_zone_blocks`
+// （＋次ターン予約）へ移し、配置フロー3経路（人間召喚・CPU召喚・ゾーン選択モーダル）が読む。
+test('parse 第10波：「（このターンと）次のターンの間、…シグニを新たに配置（することが）できない」→ 期間＋《無》回避を読む', () => {
+  const wx10 = effectsMap.get('WX10-051')!.find(e => e.effectId === 'WX10-051-E1')!;
+  const s10 = (wx10.action as SequenceAction).steps as unknown as { id?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean; zoneBlockColorless?: number }[];
+  eq(s10[0]?.id, 'DESIGNATE_SIGNI_ZONE', 'WX10-051-E1: ゾーン指定が先');
+  eq(s10[1]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', 'WX10-051-E1: 「配置することができない」形');
+  eq(s10[1]?.zoneBlockNextTurn, true, 'WX10-051-E1: 次のターンの間');
+  eq(s10[1]?.zoneBlockThisTurn, false, 'WX10-051-E1: このターンは含まない');
+  eq(s10[1]?.zoneBlockColorless, undefined, 'WX10-051-E1: 支払い回避なし＝無条件禁止');
+  // 「配置できない」形（すること無し）＝従来は汎用 no-op STUB(LRIG_GROW_RESTRICT) に落ちていた2枚。
+  const p11 = effectsMap.get('WXDi-P11-009')!.find(e => e.effectId === 'WXDi-P11-009-E3')!;
+  const s11 = (p11.action as SequenceAction).steps as unknown as { id?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean; zoneBlockColorless?: number }[];
+  eq(s11[1]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', 'WXDi-P11-009-E3: 「配置できない」形も届く');
+  eq(s11[1]?.zoneBlockThisTurn, true, 'WXDi-P11-009-E3: このターンと…');
+  eq(s11[1]?.zoneBlockNextTurn, true, 'WXDi-P11-009-E3: …次のターンの間');
+  eq(s11[1]?.zoneBlockColorless, 5, 'WXDi-P11-009-E3: 《無》×5 を支払わないかぎり');
+  const p4024 = effectsMap.get('WX24-P4-024')!.find(e => e.effectId === 'WX24-P4-024-E3')!;
+  const s4024 = (p4024.action as SequenceAction).steps as unknown as { id?: string; zoneBlockThisTurn?: boolean; zoneBlockNextTurn?: boolean; zoneBlockColorless?: number }[];
+  eq(s4024[3]?.id, 'BLOCK_OPP_ZONE_PLACEMENT', 'WX24-P4-024-E3: 末尾の配置禁止');
+  eq(s4024[3]?.zoneBlockNextTurn, true, 'WX24-P4-024-E3: 次のターンの間');
+  eq(s4024[3]?.zoneBlockColorless, undefined, 'WX24-P4-024-E3: 支払い回避なし');
+});
+test('第10波 engine 実走：DESIGNATE→BLOCK が相手 state のこのターン／次ターン予約を書く（WXDi-P11-009-E3）', () => {
+  const savedCursor = cursor;
+  const p11 = effectsMap.get('WXDi-P11-009')!.find(e => e.effectId === 'WXDi-P11-009-E3')!;
+  const ctx = mkCtx({}, { signi: [null, SIGNI_P3000, null] });
+  const r = run(p11.action, ctx);
+  ok(r.done, '解決が完了する');
+  eq(r.otherState.designated_zone, 0, 'CHOOSE の先頭＝ゾーン1を指定');
+  eq(JSON.stringify(r.otherState.signi_zone_blocks), JSON.stringify([{ zone: 0, colorless: 5 }]), 'このターン分＝《無》×5 の回避つき');
+  eq(JSON.stringify(r.otherState.signi_zone_blocks_next_turn), JSON.stringify([{ zone: 0, colorless: 5 }]), '次のターン分も予約する');
+  eq(r.ownerState.signi_zone_blocks, undefined, '自分側には掛からない');
+  // 「次のターンの間」だけの WX10-051-E1 はこのターン分を書かない（＝自ターン中は相手も普通に置ける）。
+  const wx10 = effectsMap.get('WX10-051')!.find(e => e.effectId === 'WX10-051-E1')!;
+  const r10 = run(wx10.action, mkCtx({}, {}));
+  eq(r10.otherState.signi_zone_blocks, undefined, 'WX10-051-E1: このターンは禁止しない');
+  eq(JSON.stringify(r10.otherState.signi_zone_blocks_next_turn), JSON.stringify([{ zone: 0 }]), 'WX10-051-E1: 次のターンのみ・回避なし');
+  cursor = savedCursor;
+});
+test('第10波 配置フロー：無条件禁止は不可／《無》回避は徴収して可／エナ不足は不可', () => {
+  const savedCursor = cursor;
+  const hardBlocked = { ...mkState({ energy: 5 }), signi_zone_blocks: [{ zone: 1 }] };
+  eq(resolveSigniZonePlacement(hardBlocked, 1).allowed, false, '回避なしのゾーンには置けない');
+  eq(resolveSigniZonePlacement(hardBlocked, 0).allowed, true, '別ゾーンは影響を受けない');
+  eq(canPlaceInSigniZone(hardBlocked, 1), false, 'UI 用の判定も同じ');
+  const payBlocked = { ...mkState({ energy: 5, trash: 0 }), signi_zone_blocks: [{ zone: 2, colorless: 5 }] };
+  const paid = resolveSigniZonePlacement(payBlocked, 2);
+  eq(paid.allowed, true, '《無》×5 を払えるなら置ける');
+  eq(paid.paidColorless, 5, '5枚徴収する');
+  eq(paid.state.energy.length, 0, 'エナ5→0');
+  eq(paid.state.trash.length, 5, '払ったカードはトラッシュへ');
+  const poor = { ...mkState({ energy: 4 }), signi_zone_blocks: [{ zone: 2, colorless: 5 }] };
+  const poorRes = resolveSigniZonePlacement(poor, 2);
+  eq(poorRes.allowed, false, 'エナ不足なら置けない');
+  eq(poorRes.state, poor, 'エナ不足のときは state を変えない（取りこぼしを作らない）');
+  eq(resolveSigniZonePlacement(mkState({}), 0).allowed, true, 'ブロックが無ければ常に可');
+  cursor = savedCursor;
+});
+test('第10波 予約の昇格：次ターン分をこのターン分へ移す／予約なしはこのターン分も失効', () => {
+  const savedCursor = cursor;
+  const reserved = { ...mkState({}), signi_zone_blocks: undefined, signi_zone_blocks_next_turn: [{ zone: 1, colorless: 5 }] };
+  const activated = activateNextTurnSigniZoneBlocks(reserved);
+  eq(JSON.stringify(activated.signi_zone_blocks), JSON.stringify([{ zone: 1, colorless: 5 }]), '予約→このターン分');
+  eq(activated.signi_zone_blocks_next_turn, undefined, '予約はクリアする');
+  const expiring = { ...mkState({}), signi_zone_blocks: [{ zone: 0 }], signi_zone_blocks_next_turn: undefined };
+  eq(activateNextTurnSigniZoneBlocks(expiring).signi_zone_blocks, undefined, '予約が無ければ前ターン分は失効する');
+  eq(activateNextTurnSigniZoneBlocks(reserved, false), reserved, '別プレイヤーの追加ターンなら予約を保持');
+  cursor = savedCursor;
+});
+test('第10波 REMOVE_SIGNI_ZONE：消したゾーンはそのターン配置不可になる（WXDi-P00-015-E2 系）', () => {
+  const savedCursor = cursor;
+  const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] });
+  const r = run({ type: 'STUB', id: 'REMOVE_SIGNI_ZONE' } as EffectAction, ctx);
+  ok(r.done, '解決が完了する');
+  eq(JSON.stringify(r.otherState.signi_zone_blocks), JSON.stringify([{ zone: 0 }]), '消したゾーンは無条件で配置不可');
+  eq(r.otherState.signi_zone_blocks_next_turn, undefined, '「ターン終了時まで」なので次ターン予約はしない');
+  eq(canPlaceInSigniZone(r.otherState, 0), false, '配置フローからも不可に見える');
   cursor = savedCursor;
 });
 

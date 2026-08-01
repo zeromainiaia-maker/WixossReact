@@ -7,7 +7,7 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-07-31）
+## サマリー（最終生成: 2026-08-01）
 
 | 区分 | 値 |
 |---|---:|
@@ -78,8 +78,8 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
 | `RULE_REMINDER_TEXT` | 41 | 40 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 40 | 40 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
-| `LRIG_GROW_RESTRICT` | 37 | 37 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `CONDITIONAL_POWER_BONUS` | 36 | 32 | WD06-006, WDK08-Y08, WDK10-009 | 条件付きパワーボーナス |
+| `LRIG_GROW_RESTRICT` | 35 | 35 | WD20-006, WDK06-R09, WDK07-Y07 | グロウ制限：対戦相手の no_grow フラグをセット |
 | `DECLARE_NUMBER` | 33 | 32 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
 | `LOOK_OPP_LIFE_TOP` | 31 | 30 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
 | `SOUL_OP` | 31 | 31 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
@@ -209,6 +209,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `POWER_MOD_PER_REVEALED_LEVEL` | 4 | 4 | WDK13-012, SPK01-09, WXK07-091 | 公開したシグニのレベルに基づくパワー修正（lastProcessedCards使用） |
 | `REMOVE_SIGNI_ZONE` | 4 | 4 | WX25-P3-015, WXDi-P00-015, WXK03-005 | 裏向き系（face_down_signi + abilities_removed で近似実装済み） REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除 |
 | `ADD_CRAFT_TO_LRIG_DECK` | 3 | 3 | WXDi-P16-009, WXDi-P16-010, WXDi-P16-011 | CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。 （旧実装は sourceCardNu… |
+| `BLOCK_OPP_ZONE_PLACEMENT` | 3 | 3 | WX10-051, WX24-P4-024, WXDi-P11-009 | BLOCK_OPP_ZONE_PLACEMENT: 直前の DESIGNATE_SIGNI_ZONE で指定したゾーンへの新規配置を禁止する。 期間は parser が渡す（zoneBlockThisTurn/zoneBlockNextT… |
 | `CHARM_CONDITIONAL_POWER` | 3 | 3 | WX07-031, WX08-032, WX25-P2-103 | CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正 |
 | `CONDITIONAL_COST_REDUCTION_BY_FIELD` | 3 | 3 | WX10-031, WX12-049, WX15-034 | コスト軽減系（engine: コスト計算システム未実装） CONDITIONAL_COST_REDUCTION_BY_FIELD: フィールド条件（クラス/枚数）でコスト軽減チェック |
 | `DECK_TOP_CHECK_LEVEL_ENERGY` | 3 | 2 | WXK04-062, WXK10-031 | デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ |
@@ -265,7 +266,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ARTS_EXTRA_COST_CONDITION` | 1 | 1 | WX26-CP1-024 | ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす |
 | `BANISH_MULTI_COLOR_SIGNI` | 1 | 1 | WXK05-030 | 複数色（2色以上）の相手シグニをバニッシュ |
 | `BLOCK_OPP_ENCORE_AND_BET` | 1 | 1 | WXK08-025 | BLOCK_OPP_ENCORE_AND_BET: 相手のアンコール/ベット封じ |
-| `BLOCK_OPP_ZONE_PLACEMENT` | 1 | 1 | WX10-051 | BLOCK_OPP_ZONE_PLACEMENT: 指定ゾーンへの配置を禁止（disabled_signi_zones に追加） |
 | `BOTH_DISCARD_BY_CENTER_LEVEL` | 1 | 1 | WX16-016 | BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て |
 | `CHOSEN_TO_ENERGY_OR_HAND` | 1 | 1 | WX22-050 | CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加 |
 | `CONDITIONAL_FREE_GROW` | 1 | 1 | WX19-007 | グロウコスト変更（engine: グロウコスト処理未実装） |

@@ -1356,6 +1356,27 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
+  // ---- 指定シグニゾーンへの新規配置禁止（タスク12(lxi) 第10波）----
+  // 「（このターンと）次のターンの間、対戦相手は（《無》×N を支払わないかぎり）指定された／その
+  //   シグニゾーンにシグニを新たに配置（することが）できない」＝ WX10-051-E1／WX24-P4-024-E3／WXDi-P11-009-E3。
+  // ⚠この3枚のうち BLOCK_OPP_ZONE_PLACEMENT に届いていたのは「配置することができない」形の WX10-051 だけで、
+  //   「配置できない」形の2枚は下の汎用 no-op バケツ（このターンと次のターンの間／専用 regex）に落ちていた。
+  //   BLOCK_OPP_ZONE_PLACEMENT 自体も engine では死にフィールドを書くだけの no-op だったため、3枚とも実質 no-op。
+  //   ⚠この分岐は下の「このターンと次のターンの間」バケツより**前**に置くこと（後ろだと WXDi-P11-009 が奪われる）。
+  // ⚠ゾーンの決まり方が「直前の DESIGNATE_SIGNI_ZONE で**指定された／その**ゾーン」である形に限定する。
+  //   同じ「新たに配置することができない」でもゾーンの供給源が違う2枚
+  //   （`WX08-032-E1`＝バニッシュした「それがあったシグニゾーン」／`WXEX1-24-E1` ③＝「【ウィルス】がある
+  //   シグニゾーン」＝複数ゾーン）は engine 側が designated_zone しか読めないため**別ゾーンを禁止する
+  //   過剰実行**になる。ここでは拾わず在庫 (lxxvi) へ送る（従来どおり no-op のまま）。
+  if (t.match(/(?:指定された|その)シグニゾーンにシグニを新たに配置(?:することが)?できない/)) {
+    const zoneBlock: StubAction = { type: 'STUB', id: 'BLOCK_OPP_ZONE_PLACEMENT' } as StubAction;
+    zoneBlock.zoneBlockThisTurn = /このターンと次のターンの間/.test(t) || /^このターン[、,]/.test(t);
+    zoneBlock.zoneBlockNextTurn = /次のターンの間/.test(t);
+    const payZB = t.match(/((?:《無》)+)を支払わないかぎり/);
+    if (payZB) zoneBlock.zoneBlockColorless = (payZB[1].match(/《無》/g) ?? []).length;
+    return zoneBlock;
+  }
+
   // ---- このターンと次のターンの間〜（二ターン効果）----
   if (t.match(/このターンと次のターンの間/)) {
     return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;

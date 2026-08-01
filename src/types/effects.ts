@@ -1943,6 +1943,13 @@ export interface StubAction {
    * `attacked_signi_ids.length` を実行時に《無》の枚数として解決する。アタックのたびにコストが上がる。
    */
   opponentPayColorlessPerSigniAttack?: boolean;
+  // ---- BLOCK_OPP_ZONE_PLACEMENT: 指定シグニゾーンへの新規配置禁止（タスク12(lxi) 第10波）----
+  /** 禁止がこのターンにも及ぶ（「**このターンと**次のターンの間」＝WXDi-P11-009-E3）。 */
+  zoneBlockThisTurn?: boolean;
+  /** 禁止が次のターンにも及ぶ（「次のターンの間」＝3枚とも該当）。 */
+  zoneBlockNextTurn?: boolean;
+  /** 支払えば配置できる《無》の枚数（「《無》×5 を支払わないかぎり…配置できない」）。省略＝無条件禁止。 */
+  zoneBlockColorless?: number;
   /** OPTIONAL_COST: mutually-exclusive payment tiers, each with its own result action. */
   additionalCostChoices?: Array<{
     id: string;

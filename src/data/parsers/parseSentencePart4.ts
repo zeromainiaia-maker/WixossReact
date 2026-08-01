@@ -684,9 +684,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/赤、青、緑、黒についても同様に行う/))
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
-  // ---- 次のターンの間、そのシグニゾーンにシグニを配置できない ----
-  if (t.match(/次のターンの間、対戦相手はそのシグニゾーンにシグニを新たに配置できない/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+  // （「次のターンの間、対戦相手はそのシグニゾーンにシグニを新たに配置できない」は
+  //   parseSentencePart3 の BLOCK_OPP_ZONE_PLACEMENT へ統合＝タスク12(lxi) 第10波。
+  //   ここにあった no-op STUB(LRIG_GROW_RESTRICT) への退避は退役した）
 
   // ---- あなたの能力として発動する） ----
   if (t.match(/あなたの能力として発動する[）)）]/))
@@ -1749,9 +1749,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/《クロスアイコン》を持つシグニの場合.*手札に加える/))
     return { type: 'STUB', id: 'REVEAL_TOP_CONDITIONAL_ROUTE' } as StubAction;
 
-  // ---- 次のターン間、対戦相手のシグニゾーン配置禁止 ----
-  if (t.match(/対戦相手は.*シグニゾーン.*シグニを新たに配置することができない/))
-    return { type: 'STUB', id: 'BLOCK_OPP_ZONE_PLACEMENT' } as StubAction;
+  // （「対戦相手は…シグニゾーンに…シグニを新たに配置することができない」は
+  //   parseSentencePart3 の BLOCK_OPP_ZONE_PLACEMENT へ統合＝タスク12(lxi) 第10波。
+  //   期間（このターン／次のターン）と《無》の支払い回避を同時に読むため1本にまとめた）
 
   // ---- センタールリグの【出】能力を発動しない ----
   if (t.match(/センタールリグの【出】能力は発動しない/))

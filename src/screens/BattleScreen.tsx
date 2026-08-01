@@ -97,6 +97,7 @@ import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppea
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
+import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
@@ -3431,7 +3432,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
           card_class_overrides: undefined,         // クラスオーバーライドリセット
           signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
-          disabled_signi_zones: undefined,         // ゾーン無効化リセット
+          signi_zone_blocks: undefined,            // ゾーン配置禁止（このターン分）リセット。予約(_next_turn)は残す
           attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
           signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
           signi_attack_cost: undefined,             // シグニアタックコストリセット
@@ -3494,7 +3495,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-        update[opKey] = activateNextTurnDeployCountLimit({
+        update[opKey] = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
@@ -3523,10 +3524,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l_down: false,
             assist_lrig_r_down: false,
           },
-        }, !my.extra_turn).state;
+        }, !my.extra_turn).state, !my.extra_turn);
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
         if (my.extra_turn) {
-          newMyState = activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state;
+          newMyState = activateNextTurnSigniZoneBlocks(
+            activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state);
           update.turn_phase = 'UP';
           update.turn_count = bs.turn_count + 1;
           appendBattleLogs(['追加ターン取得！']);
@@ -3796,7 +3798,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
         opp_guard_extra_colorless_this_turn: undefined,
         draw_limit: undefined, card_class_overrides: undefined,
-        signi_color_overrides: undefined, disabled_signi_zones: undefined,
+        signi_color_overrides: undefined, signi_zone_blocks: undefined,
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
         signi_attack_cost: undefined, lrig_riding_signi: undefined,
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
@@ -3827,7 +3829,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-      update[opKey] = activateNextTurnDeployCountLimit({
+      update[opKey] = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
@@ -3852,10 +3854,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           assist_lrig_l_down: false,
           assist_lrig_r_down: false,
         },
-      }, !my.extra_turn).state;
+      }, !my.extra_turn).state, !my.extra_turn);
       // 追加ターン / ターンプレイヤー交代
       if (my.extra_turn) {
-        newMyState = activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state;
+        newMyState = activateNextTurnSigniZoneBlocks(
+          activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state);
         update.turn_phase = 'UP';
         update.turn_count = bs.turn_count + 1;
         appendBattleLogs(['追加ターン取得！']);
@@ -4440,7 +4443,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const convertedBlocked = (nextState.blocked_actions ?? [])
             .filter((a: string) => a.endsWith(':NEXT_TURN'))
             .map((a: string) => a.replace(':NEXT_TURN', ''));
-          const nextStateUpd = activateNextTurnDeployCountLimit({
+          const nextStateUpd = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
             ...nextState,
             blocked_actions: convertedBlocked,
             field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
@@ -4460,7 +4463,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               assist_lrig_l_down: false,
               assist_lrig_r_down: false,
             },
-          }).state;
+          }).state);
 
           Object.assign(update, {
             [activeKey]:     clearedActive,
@@ -5168,6 +5171,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const forcedFront = collectForcePlaceFrontZones(op, my, battleCardMap, effectsMap, !isMyTurn);
       if (forcedFront.size > 0 && !forcedFront.has(zoneIndex)) return;
     }
+    // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）: 「新たに配置できない」ゾーン。
+    // 《無》×N の支払い回避つきならエナから徴収して通す（不足なら不成立＝ガード追加《無》と同じ作法）。
+    // ライズは既存シグニへの上乗せ＝「新たに配置」ではないので対象外。
+    const zoneBlockPay = riseFilter ? null : resolveSigniZonePlacement(my, zoneIndex);
+    if (zoneBlockPay && !zoneBlockPay.allowed) return;
     // SELF_PLAY_RESTRICT（自身出撃制限・Opusタスク12(xlix)）: このカード自身の【常】出撃条件を満たさなければ通常召喚不可。
     // never（効果でのみ配置可）＝常に不可。condition あり＝盤面で評価（未満たしなら不可）。未対応語彙は permissive（従来同値）。
     // この時点で summonCardNum はまだ手札にあり my.field に含まれないため「あなたの場に…」は当該カードを除いて評価される（正）。
@@ -5242,6 +5250,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           trash: [...my.trash, ...zoneExtraTrash],
           lrig_trash: zoneExtraLrigTrash.length > 0 ? [...my.lrig_trash, ...zoneExtraLrigTrash] : my.lrig_trash,
         };
+      }
+      // ゾーン配置禁止の《無》回避コストを徴収する（WXDi-P11-009-E3）。可否は上で確定済みなので
+      // ここでは支払いだけを placed へ適用する（レゾナ出現条件の支払い後のエナから取る）。
+      if ((zoneBlockPay?.paidColorless ?? 0) > 0) {
+        const zbCost = zoneBlockPay!.paidColorless;
+        // レゾナ出現条件でエナを使った後は my 時点の残量より減りうるため、支払い直前に再検証する。
+        if (placed.energy.length < zbCost) return;
+        const zbPaid = placed.energy.slice(-zbCost);
+        placed = { ...placed, energy: placed.energy.slice(0, -zbCost), trash: [...placed.trash, ...zbPaid] };
+        appendBattleLogs([`シグニゾーン${zoneIndex + 1}への配置コスト《無》×${zbCost}を支払う`]);
       }
 
       // フィールド上の他のシグニの「他のシグニが出たとき」トリガーを収集
@@ -9315,6 +9333,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // FORCE_PLACE_FRONT: 人間（host）の該当シグニの正面ゾーンが空いている場合、そのゾーンにしか配置できない
         const cpuForcedFront = collectForcePlaceFrontZones(bs.host_state, newCpuSt, battleCardMap, effectsMap, false);
         if (cpuForcedFront.size > 0 && !cpuForcedFront.has(zone)) continue;
+        // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）: 配置禁止ゾーンは飛ばす。
+        // 《無》回避つきは支払えるときだけ配置可（CPU は常に支払う方針）。徴収はシグニコスト確定後。
+        if (!resolveSigniZonePlacement(newCpuSt, zone).allowed) continue;
 
         // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv）
         const candidate = handSignis.find(({ card }) => {
@@ -9323,8 +9344,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
         if (!candidate) break;
 
-        // エナ支払い（シグニのコスト）
+        // エナ支払い（シグニのコスト）。ゾーン配置禁止の《無》回避コストと合わせて成立を確かめてから
+        // 一括で newCpuSt へ反映する（片方だけ払って置けない＝エナの取りこぼしを作らない）。
         const signiCosts = parseGrowCost(candidate.card!.Cost);
+        let cpuStAfterCost = newCpuSt;
         if (signiCosts.length > 0) {
           let canPay = true;
           let newEnergy = [...newCpuSt.energy];
@@ -9344,8 +9367,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             handSignis.splice(handSignis.indexOf(candidate), 1);
             continue;
           }
-          newCpuSt = { ...newCpuSt, energy: newEnergy };
+          cpuStAfterCost = { ...cpuStAfterCost, energy: newEnergy };
         }
+        // ゾーン配置禁止の《無》回避コストを徴収する。シグニコスト支払い後のエナで再検証し、
+        // 足りなくなっていたらこのゾーンには置かない（エナは減らさない）。
+        const cpuZonePay = resolveSigniZonePlacement(cpuStAfterCost, zone);
+        if (!cpuZonePay.allowed) continue;
+        if (cpuZonePay.paidColorless > 0) {
+          appendBattleLogs([`[CPU] シグニゾーン${zone + 1}への配置コスト《無》×${cpuZonePay.paidColorless}を支払う`]);
+        }
+        newCpuSt = cpuZonePay.state;
 
         appendBattleLogs([`[CPU] シグニ配置: ${candidate.card!.CardName}（ゾーン${zone + 1}）`]);
         const newSigni = [...newCpuSt.field.signi] as (string[] | null)[];
@@ -9524,7 +9555,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
-      const nextHuSt = activateNextTurnDeployCountLimit({ ...huSt,
+      const nextHuSt = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
@@ -9542,7 +9573,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_frozen:  false,
         assist_lrig_l_down: false,
         assist_lrig_r_down: false,
-      }}).state;
+      }}).state);
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuSt.hand;
       let cpuDeckEND = cpuSt.deck;
@@ -9561,6 +9592,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         delayed_triggers: undefined,  // INSTALL_DELAYED_TRIGGER（B3）「このターン」設置の遅延トリガーをクリア
+        signi_zone_blocks: undefined, // ゾーン配置禁止（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット

@@ -1937,6 +1937,15 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/[０-９\d]+～[０-９\d]+の数字１つを宣言する。[^。]*?宣言した数字に等しい枚数[^。]*?トラッシュに置く/);
         if (m) return m[0];
       }
+      // 指定ゾーンへの新規配置禁止（BLOCK_OPP_ZONE_PLACEMENT・engine実装済み・タスク12(lxi) 第10波）。
+      // 期間と《無》の支払い回避は parser がフィールドへ読み取るので、原文抽出ではなく**フィールドから
+      // 組み立てて**逆翻訳する（＝parse が期間とコストを取れているかが原文照合で見える）。
+      if (a.id === 'BLOCK_OPP_ZONE_PLACEMENT') {
+        const spanBZP = a.zoneBlockThisTurn && a.zoneBlockNextTurn ? 'このターンと次のターンの間'
+          : a.zoneBlockNextTurn ? '次のターンの間' : 'このターン';
+        const payBZP = a.zoneBlockColorless ? `《無》×${a.zoneBlockColorless}を支払わないかぎり` : '';
+        return `${spanBZP}、対戦相手は${payBZP}指定されたシグニゾーンにシグニを新たに配置できない`;
+      }
       // シグニゾーンを消す（REMOVE_SIGNI_ZONE・engine実装済み）＝「（ターン終了時まで、）対戦相手のシグニゾーンN つを消す」。
       if (a.id === 'REMOVE_SIGNI_ZONE') {
         const m = currentCardText.match(/(?:ターン終了時まで、)?対戦相手のシグニゾーン[０-９\d]*つを消す/);
