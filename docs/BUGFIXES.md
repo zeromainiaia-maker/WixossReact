@@ -1,5 +1,151 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-03 — §3 タスク14 第5バッチ：**(b) 完全消化**＋セットアップ系の取りこぼし回収（reducer 経由 95→102／未移行 22→15・action 16→17・golden 1325→1326・全ゲート緑）（Opus 5）
+
+**⚠ 移行前に `RESOLVE_EFFECT_STEP` の適用順バグを是正した（退化を未然に防いだ）。**
+第4バッチで作った reducer は `effectStack` 明示 → `settle` の順で適用していたが、
+**旧ハンドラは逆順**（`done` で settle→null した後に「盤面差分トリガーがあれば新スタックを書く」で上書き）だった。
+そのまま `resolveStackNext` 系を移していたら、**「完了×スタック解決済み×盤面差分で新トリガー発火」のとき
+新スタックが settle の null に潰され、発火した効果が消える**退化になっていた。
+reducer を「settle → `effectStack` 明示が上書き」の順に直し、golden で
+`新スタックが settle に勝つ` / `新トリガー無しは settle の null が残る` の2分岐を固定した。
+※既に移行済みの4箇所は settle のみ／`effectStack` のみで両立しないため無影響。
+
+**① (b) の残り2箇所＝`resolveStackNext` 系**（`resumeSelectZone` ほか）を `RESOLVE_EFFECT_STEP` へ。
+`update.host_state = bd.hostState` の**後付け差し替え**は、`collectBoardDiffTriggers` を commit 前に済ませて
+`hostState: bd.hostState` を payload に渡す形へ（定形2「状態を確定してから1回書く」）。**これで (b) は残0**。
+
+**② セットアップ系5箇所＝reducer に既に action があるのに手書きのまま残っていた取りこぼし**：
+ルリグ選択3経路（通常／アシスト無し／アシスト左右あり）→ `SELECT_LRIG`、マリガン完了 → `COMPLETE_MULLIGAN`、
+両者完了後の対戦開始 → `START_PLAYING`。**`isHost ? {host_…} : {guest_…}` の三項がハンドラから消えた**。
+
+**③ 新 action `RESOLVE_JANKEN`**（じゃんけん判定）＝勝者ありなら先攻確定＋`setup_phase:'LRIG_SELECT'`＋両者の手をリセット、
+**あいこ（winnerId=null）は手だけリセットして `setup_phase` を進めない**（再戦）。この非対称を reducer 側に固定した。
+
+**残＝15 commit**（うち1件は `reduceBattle` の結果を変数経由で `commit` しているだけの実質移行済み＝じゃんけんの
+`setTimeout` 経路。grep ベースの数字なので実質は 103/117）。
+
+ゲート＝typecheck/golden(1326 PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0) 全緑。
+
+## 2026-08-03 — §3 タスク14 第4バッチ：**(b) 効果解決本体を `RESOLVE_EFFECT_STEP` で開通**（reducer 経由 91→95／未移行 26→22・action 15→16・golden 1321→1324・全ゲート緑）（Opus 5）
+
+残テール (b)（`result.done` で `pending_effect` が null/非null に分岐する効果解決本体）に着手。
+**engine の `ExecResult` を受ける各 `resume*` ハンドラは全て同じ形**をしていることが分かったので、
+1つの action に集約した。
+
+**新 action `RESOLVE_EFFECT_STEP`**＝両者の盤面＋`pending_effect` の継続／完了。
+`pending` 非null＝次の interaction を提示して待つ／null＝解決完了。付随して3つの optional：
+
+| payload | 意味 | 使う経路 |
+|---|---|---|
+| `clearPendingSpell` | `pending_spell` も同時に null | スペル解決・カットイン解決 |
+| `effectStack` | 解決中に積まれたトリガーでスタックを書き換え（省略＝触らない） | スペル使用時トリガー |
+| `settleStackOnDone` | **完了時かつスタック解決済みなら** `effect_stack` も null | REARRANGE_SIGNI・SELECT_VIRUS_ZONE |
+
+**移行4箇所**＝`handleRearrangeSigniConfirm`／`handleSelectVirusZoneForEffect`（settle 型）、
+スペル解決／スペルカットイン解決（`pending_spell` クリア型）。いずれも
+`if (!result.done) { update.pending_effect = {...} } else { update.pending_effect = null; … }` という
+**命令的分岐が `pending: result.done ? null : {...}` の三項1つ**に畳まれた。
+
+`settleStackOnDone` は **`bs.effect_stack` を読む**ので、`BEGIN_NEXT_TURN` に続く**2つ目の盤面依存ケース**。
+「完了時のみ・解決済みのみ」という二重条件を reducer 側に固定できたのが実利で、golden で
+（完了×解決済み→null／完了×未解決→触らない／継続中は解決済みでも触らない）の3分岐を押さえた。
+
+**残＝22 commit**。(b) の残りは `resolveStackNext` 系2箇所＝`update.host_state = bd.hostState`（boardDiff で
+**両状態を後から差し替える**）と `update.effect_stack = canReuse ? … : …`（スタック再利用判定）が乗るため、
+`RESOLVE_EFFECT_STEP` にもう1段（boardDiff 適用後の状態・スタック再利用）を足すか、別 action に割るかの判断が要る。
+
+ゲート＝typecheck/golden(1324 PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0) 全緑。
+
+## 2026-08-03 — §3 タスク14 第3バッチ：**(a) 命令的 `update` の1つ（`confirmEndDiscard`）を撃破**＋4箇所（reducer 経由 86→91／未移行 31→26・golden 1320→1321・全ゲート緑）（Opus 5）
+
+第2バッチで用意した `BEGIN_NEXT_TURN` の足場を使い、**残テール (a)（名前付き `const update` の命令的インクリメンタル構築）
+2箇所のうち1つ＝`confirmEndDiscard` を落とした**。`update` 変数そのものが消え、ハンドラは「状態を組む→1回 commit」になった。
+
+**① `confirmEndDiscard`（ENDフェイズ 手札上限超過の確定）**
+`update[opKey] = …`／`update.turn_phase`／`update.turn_count`／`update.active_user_id` の4系統を
+`BEGIN_NEXT_TURN` の payload（`myState`／`opp`／`activeUserId`）へ寄せ、**`const update: Partial<BattleStateRow> = {}` を削除**。
+
+⚠**意味論の要点＝追加ターン（`my.extra_turn`）は `active_user_id` を書かない**（ターンプレイヤー据え置き）。
+旧コードは「else 節でだけ代入する」ことでこれを表していたので、**`activeUserId` を optional にして
+「省略＝キーを書かない」で同値化**した（`activeUserId: bs.active_user_id` と“同じ値を書く”に丸めるのは
+パッチのキー集合が変わるので採らない）。golden に追加ターン経路を1件追加。
+
+**② ガード代替コスト 2箇所**（エナ＜クラス＞トラッシュ／手札N枚捨て）＝両状態＋条件付きスタック。
+**③ ルリグアタック宣言**＝自状態＋防御側 usage（条件付き）＋条件付きスタック。
+**④ LIFE_BURST 不発時のライフクラッシュ**＝自状態＋`pending_effect` クリア＋相手 usage（条件付き）＋条件付きスタック。
+
+②〜④はいずれも `Record<string, unknown>` / `Partial<BattleStateRow>` の命令的組み立てを `WRITE_STATE` の
+`opp?` / `effectStack?` へ畳んだもの。**条件付きスタックは三項で `undefined` に落とす**のが定形。
+
+**残＝26 commit。(a) の残りは `doPhaseAdvance` 1箇所のみだが、これが最難関**＝`update[opKey]` を
+**読み戻して積み増す**（`(update[opKey] as PlayerState) ?? op`）・`update.effect_stack` を**ベースにして push**・
+`update.turn_phase` を**読んで分岐**（`if (phase==='ATTACK_SIGNI' && update.turn_phase==='ATTACK_LRIG')`）の3点で、
+**パッチが「途中経過を持つ可変アキュムレータ」になっている**。payload 化ではなくハンドラのフェイズ別分割が要る。
+
+ゲート＝typecheck/golden(1321 PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0) 全緑。
+
+## 2026-08-03 — §3 タスク14 第2バッチ：さらに7箇所（reducer 経由 79→86／未移行 38→31・action 14→15・**reducer が盤面を読む初のケース**・golden 1318→1320・全ゲート緑）（Opus 5）
+
+同日の第1バッチに続き7箇所。今回は**payload 完結の4件**に加え、**reducer 側を拡張する3件**へ踏み込んだ。
+
+**① コスト支払い→効果スタック積み の同型3箇所**（`{ [stateKey]: paid, effect_stack, pending_effect: null, ...(虚無ウィルス除去なら相手状態) }`）
+＝アシスト【起】／ルリグ【起】／もう1経路。いずれも `WRITE_STATE` の `clearPending:true`＋`opp?` で素直に落ちる。
+
+**② 同型の4件目＝`updatePayload[stateKey]` を後から差し替えていた箇所**は、
+`if (newOpVirusState) paid = { ...paid, opp_virus_removed_just: true }` を**commit 前に済ませる**形へ直した
+（旧：payload に一度書いてから同じキーを上書き）。**「payload を組んでから書き換える」を「状態を確定してから1回書く」に反転**させるのが
+命令的 update 系を潰す基本手。
+
+**③ ガード応答の後始末**（`guardUpdate`）＝両状態＋条件付きスタック。`Record<string, unknown>` の命令的組み立てを廃し、
+スタックは「トリガー無しなら `undefined`＝キーを書かない」で表現。
+
+**④ `ADVANCE_TURN_WITH_STATE` に `opp?` / `effectStack?` を追加**（CPU の GROW フェイズ開始）。
+ON_GROW_PHASE_START の usage 更新が相手側にも及ぶため、`turn_phase`＋自状態だけでは足りなかった。
+既存の唯一の利用箇所（CPU UP完了）は任意フィールドなので無影響。
+
+**⑤ 新 action `BEGIN_NEXT_TURN`**（CPUターン終了）＝`turn_phase:'UP'`＋ターンプレイヤー交代＋`turn_count` 加算＋両者の最終盤面。
+**`turn_count: bs.turn_count + 1` を reducer 内で計算する＝これまで全ケース payload 完結で未使用だった第1引数
+（`_bs`）を初めて読むケース**。契約通り「現在盤面から次パッチを求める純粋関数」になったので `_bs`→`bs` にリネームした。
+これは残テール (d)（CPUターン終了の複数カラム同時更新）の本体であり、**(a) の `confirmEndDiscard`
+（追加ターン／ターン交代の分岐）も同じ action へ寄せられる見込み**＝次バッチの足場。
+
+**残＝31 commit**。ゲート＝typecheck/golden(1320 PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0) 全緑。
+
+## 2026-08-03 — §3 タスク14（Stage3 純粋バトルコントローラ）7箇所を `reduceBattle` 経由へ（reducer 経由 72→79／未移行 45→38・golden 1317→1318・全ゲート緑）（Opus 5）
+
+PLAN §3 Opusタスク14 の残テールを **Claude 自身が少しずつ進める**方針で1バッチ。今回は
+**「既存 `WRITE_STATE` の payload だけで挙動同値と確信できるもの」に絞って7箇所**を移行した
+（BATTLE_CONTROLLER.md §4 のレシピ通り、golden を1件足してから置換）。
+
+**移行した7箇所**（いずれも `{ [stateKey]: st, ...cond ? {…} : {} }` 型の spread を payload 化）：
+
+| 箇所 | 遷移 | payload |
+|---|---|---|
+| `doPhaseAdvance` END（ON_TURN_END 収集） | 自状態＋スタック＋相手 usage（条件付き） | `myState`/`effectStack`/`opp?` |
+| END フェイズ 手札上限超過（捨て札選択へ） | 解決済み状態の先行永続化 | `myState` のみ |
+| `handleRemove`（除去→ON_TRASH あり） | 自状態＋相手 usage（条件付き）＋スタック | `myState`/`opp?`/`effectStack` |
+| `handleRemove`（ON_TRASH なし） | 同上・スタック不干渉 | `myState`/`opp?` |
+| フリップアタック 正面空き→ライフクラッシュ | 自状態＋相手ライフ減 | `myState`/`opp` |
+| 常在効果 再計算 ×2（`EffectStack` 判定 2ハンドラ） | host/guest 両状態＋スタック（変化時のみ） | `myKey:'host_state'`/`opp:'guest_state'`/`effectStack?` |
+
+**キモ＝旧 spread の「条件不成立ならキー自体を書かない」を `opp: undefined` / `effectStack: undefined` で表す**こと。
+reducer 側は `action.effectStack !== undefined` で判定しているので **undefined＝不干渉・null＝明示クリア**が保たれ、
+旧パッチとキー集合まで一致する。この同値性を golden `Stage3 reduceBattle WRITE_STATE: opp/effectStack を条件式で
+undefined にした形は該当キーを書かない` で固定した（**reducer 本体は無改造**＝action 追加なし）。
+
+**型が拾った潜在的緩さ1件**＝`handleRemove` の `const opStateKey = isHost ? 'guest_state' : 'host_state'` は
+computed key（`{ [opStateKey]: … }`）経由でのみ使われていたため **`string` に widening** していた。`PlayerStateKey`
+を要求する payload へ移した時点で TS2322 が出て発覚（`as const` で是正・変数は不要になり削除）。
+**旧 computed-key 形は書き込み先カラムの型検査が効いていなかった**＝reducer 経由化の副次的な収穫。
+
+**残＝38 commit**（`persist.commit` 呼び出し行の実測。内訳は BATTLE_CONTROLLER.md §3 の (a)〜(d) のまま）。
+次は (a) 命令的 `update` インクリメンタル構築＝`doPhaseAdvance` / `confirmEndDiscard` の
+`{ [stateKey]: newMyState, ...update }` 2箇所が本丸で、`update` の中身（turn_phase / turn_count /
+active_user_id / effect_stack を条件分岐で積む）を宣言的 action へ再設計する必要がある。
+
+ゲート＝**typecheck/golden(1318 PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0)** 全緑。
+
 ## 2026-08-02 — Opusタスク12(lxxxii) 第6波：**「Mつ“まで”選ぶ」の `upTo` 系統脱落**と、文中CHOOSE救済の前置拡張＝**在庫再オープン→計44効果 是正**
 
 **⚠(lxxxii) は第5波で「残0クローズ」と記録されていたが、母集団を全数再スキャンしたら残っていた。**

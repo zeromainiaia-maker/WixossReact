@@ -12,7 +12,7 @@
 // boardDiff / effectStack）なので、計算済みの断片を action payload に載せ、パッチ組み立て（どの
 // キーへ書くか・opp/スタック/pending を併せるか）を本 reducer に集約する。レシピは
 // docs/BATTLE_CONTROLLER.md。
-import type { BattleStateRow, PlayerState, EffectStack, PendingSpell } from '../../../types';
+import type { BattleStateRow, PlayerState, EffectStack, PendingSpell, PendingEffect } from '../../../types';
 import { isStackDone } from '../../../engine/effectStack';
 
 /** プレイヤー状態を書き込む先のカラム。 */
@@ -30,6 +30,11 @@ export type BattleAction =
   | { type: 'ACK_END'; isHost: boolean }
   /** じゃんけんの手を提出する。 */
   | { type: 'SUBMIT_JANKEN'; isHost: boolean; pick: string }
+  /**
+   * じゃんけんを判定する。勝者が決まれば先攻を確定してルリグ選択へ進み、**あいこ（winnerId=null）は
+   * 両者の手だけリセットして再戦**する（`setup_phase` を進めない）。
+   */
+  | { type: 'RESOLVE_JANKEN'; winnerId: string | null }
   /** センタールリグを選択し、初期プレイヤー状態を同時に書く。 */
   | {
       type: 'SELECT_LRIG';
@@ -82,18 +87,55 @@ export type BattleAction =
       playerState: PlayerState;
       caster?: { key: PlayerStateKey; state: PlayerState };
     }
-  /** プレイヤー状態を書き、指定したターンフェイズへ進める。 */
+  /**
+   * プレイヤー状態を書き、指定したターンフェイズへ進める。
+   * フェイズ開始時トリガー（ON_GROW_PHASE_START 等）を伴う場合は相手状態の usage 更新と
+   * effect_stack も併せられる（`WRITE_STATE` と同じく undefined＝不干渉・null＝明示クリア）。
+   */
   | {
       type: 'ADVANCE_TURN_WITH_STATE';
       playerKey: PlayerStateKey;
       playerState: PlayerState;
       phase: BattleStateRow['turn_phase'];
+      opp?: { key: PlayerStateKey; state: PlayerState };
+      effectStack?: EffectStack | null;
+    }
+  /**
+   * ターンを終了し次ターンを開始する（`turn_phase:'UP'`＋ターンプレイヤー交代＋`turn_count` 加算）。
+   * ターン終了処理を適用した最終盤面（自／任意で相手）も併せて書く。
+   * `turn_count` は現在盤面から +1 する＝**盤面を読む初のケース**。
+   */
+  | {
+      type: 'BEGIN_NEXT_TURN';
+      /** 次ターンのターンプレイヤー。**省略＝据え置き**（追加ターン＝`active_user_id` を書かない）。 */
+      activeUserId?: string;
+      myKey: PlayerStateKey;
+      myState: PlayerState;
+      opp?: { key: PlayerStateKey; state: PlayerState };
     }
   /**
    * effect_stack のみを書き換える。`settle:true` なら「解決済みなら null にする」
    * （`isStackDone(stack) ? null : stack`）settle イディオムを reducer 側で適用する。
    */
   | { type: 'SET_STACK'; stack: EffectStack | null; settle?: boolean }
+  /**
+   * 効果解決の1ステップ結果を書き込む（対話の継続 or 完了）。
+   * engine の `ExecResult` を受けた各 `resume*` ハンドラの共通形＝**両者の盤面＋ `pending_effect` の
+   * 継続／完了**。`pending` 非null＝次の interaction を提示して待つ／null＝解決完了。
+   */
+  | {
+      type: 'RESOLVE_EFFECT_STEP';
+      hostState: PlayerState;
+      guestState: PlayerState;
+      /** 次の対話（非null）／解決完了（null）。 */
+      pending: PendingEffect | null;
+      /** スペル・カットイン解決経路は `pending_spell` も同時にクリアする。 */
+      clearPendingSpell?: boolean;
+      /** 解決中に積まれたトリガーでスタックを書き換える場合（省略＝触らない）。 */
+      effectStack?: EffectStack | null;
+      /** 完了時、**現在のスタックが解決済みなら** `effect_stack` も null にする（settle）。 */
+      settleStackOnDone?: boolean;
+    }
   /**
    * 決着：勝者を確定しゲームを終了する（global_phase='FINISHED'＋winner_id）。
    * 最終盤面の書き込み（my／任意で opp）も併せる。
@@ -110,9 +152,9 @@ export type BattleAction =
  * 純粋遷移：現在の盤面とアクションから、DB へ書き込むパッチ（Partial<BattleStateRow>）を返す。
  * 副作用なし・同入力同出力。永続化は呼び出し側（useBattlePersist）が担う。
  */
-export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
-  // _bs は「純粋遷移は現在盤面から次パッチを計算する」契約を表す引数。現状の各ケースは payload
-  // 完結で盤面参照が不要なため未使用（`_` 接頭辞）。盤面依存の遷移を移すときに参照する。
+export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<BattleStateRow> {
+  // bs は「純粋遷移は現在盤面から次パッチを計算する」契約を表す引数。多くのケースは payload 完結で
+  // 盤面参照が不要だが、盤面依存の遷移（BEGIN_NEXT_TURN の turn_count 加算など）はここから読む。
   switch (action.type) {
     case 'SET_SETUP_PHASE':
       return { setup_phase: action.phase };
@@ -122,6 +164,10 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };
     case 'SUBMIT_JANKEN':
       return action.isHost ? { host_janken: action.pick } : { guest_janken: action.pick };
+    case 'RESOLVE_JANKEN':
+      return action.winnerId
+        ? { first_player_id: action.winnerId, setup_phase: 'LRIG_SELECT', host_janken: null, guest_janken: null }
+        : { host_janken: null, guest_janken: null };
     case 'SELECT_LRIG':
       return action.isHost
         ? { host_lrig_selected: action.selectedCardNum, host_state: action.state }
@@ -162,10 +208,40 @@ export function reduceBattle(_bs: BattleStateRow, action: BattleAction): Partial
       if (action.caster) patch[action.caster.key] = action.caster.state;
       return patch;
     }
-    case 'ADVANCE_TURN_WITH_STATE':
-      return { [action.playerKey]: action.playerState, turn_phase: action.phase };
+    case 'ADVANCE_TURN_WITH_STATE': {
+      const patch: Partial<BattleStateRow> = { [action.playerKey]: action.playerState, turn_phase: action.phase };
+      if (action.opp) patch[action.opp.key] = action.opp.state;
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
+      return patch;
+    }
+    case 'BEGIN_NEXT_TURN': {
+      const patch: Partial<BattleStateRow> = { [action.myKey]: action.myState };
+      if (action.opp) patch[action.opp.key] = action.opp.state;
+      patch.turn_phase = 'UP';
+      // 追加ターン（activeUserId 省略）は active_user_id キー自体を書かず据え置く。
+      if (action.activeUserId !== undefined) patch.active_user_id = action.activeUserId;
+      patch.turn_count = bs.turn_count + 1;
+      return patch;
+    }
     case 'SET_STACK':
       return { effect_stack: action.settle && action.stack ? (isStackDone(action.stack) ? null : action.stack) : action.stack };
+    case 'RESOLVE_EFFECT_STEP': {
+      const patch: Partial<BattleStateRow> = {
+        host_state: action.hostState,
+        guest_state: action.guestState,
+      };
+      if (action.clearPendingSpell) patch.pending_spell = null;
+      patch.pending_effect = action.pending;
+      // 完了時のみ settle：スタックが解決済みなら併せてクリアする（未解決なら次エントリ処理へ残す）。
+      if (action.pending === null && action.settleStackOnDone) {
+        const stack = bs.effect_stack ?? null;
+        if (stack && isStackDone(stack)) patch.effect_stack = null;
+      }
+      // ⚠ settle より後に適用する＝解決中に積まれたトリガーがあれば「解決済みなのでクリア」に勝つ
+      //   （盤面差分で新しく発火した効果は、直前のスタックが解決済みでも新スタックとして残す）。
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
+      return patch;
+    }
     case 'END_GAME': {
       const patch: Partial<BattleStateRow> = {
         [action.myKey]: action.myState,

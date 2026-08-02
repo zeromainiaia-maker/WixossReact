@@ -12137,7 +12137,8 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
 {
   // mkState / fill が共有するグローバル cursor を、この Stage3 ブロックの増分から隔離する。
   const savedCursor = cursor;
-  const stub = {} as BattleStateRow; // 代表3ケースは盤面非依存のため最小スタブで足りる
+  // 多くのケースは盤面非依存のため最小スタブで足りる（盤面依存の BEGIN_NEXT_TURN は turn_count を持つ盤面を別途組む）
+  const stub = {} as BattleStateRow;
   test('Stage3 reduceBattle SET_SETUP_PHASE: setup_phase パッチのみ', () => {
     const patch = reduceBattle(stub, { type: 'SET_SETUP_PHASE', phase: 'MULLIGAN' });
     eq(patch.setup_phase, 'MULLIGAN', 'setup_phase');
@@ -12203,6 +12204,16 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     eq(patch.winner_id, 'u1', 'winner');
     eq(patch.host_state, my, 'my');
     eq(patch.guest_state, op, 'opp');
+  });
+  test('Stage3 reduceBattle RESOLVE_JANKEN: 勝敗は先攻確定＋LRIG_SELECT／あいこは手のリセットのみ', () => {
+    const win = reduceBattle(stub, { type: 'RESOLVE_JANKEN', winnerId: 'u1' });
+    eq(JSON.stringify(Object.keys(win)), JSON.stringify(['first_player_id', 'setup_phase', 'host_janken', 'guest_janken']), '勝敗ありのキー集合');
+    eq(win.first_player_id, 'u1', '先攻');
+    eq(win.setup_phase, 'LRIG_SELECT', 'ルリグ選択へ');
+    const draw = reduceBattle(stub, { type: 'RESOLVE_JANKEN', winnerId: null });
+    eq(JSON.stringify(Object.keys(draw)), JSON.stringify(['host_janken', 'guest_janken']), 'あいこのキー集合');
+    ok(!('setup_phase' in draw), 'あいこは setup_phase を進めない');
+    eq(draw.host_janken, null, '手をリセットして再戦');
   });
   test('Stage3 reduceBattle SELECT_LRIG: CPUルリグ選択は guest 2キーのみ', () => {
     const state = { hand: ['cpu'] } as unknown as PlayerState;
@@ -12306,6 +12317,124 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_effect']), 'キー集合');
     eq(patch.pending_effect, null, 'effectクリア');
     ok(!('pending_spell' in patch), 'pending_spellは不干渉');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: opp/effectStack を条件式で undefined にした形は該当キーを書かない', () => {
+    // ON_TURN_END 収集・除去トラッシュ等の `...(cond ? {k:v} : {})` spread を payload 化した形。
+    // 「相手 usage 更新なし」「トリガー無しでスタック据置」を undefined で表すと旧 spread と同一パッチになる。
+    const my = { a: 1 } as unknown as PlayerState;
+    const stk = { entries: [] } as unknown as EffectStack;
+    const bare = reduceBattle(stub, {
+      type: 'WRITE_STATE', myKey: 'host_state', myState: my, opp: undefined, effectStack: undefined,
+    });
+    eq(JSON.stringify(Object.keys(bare)), JSON.stringify(['host_state']), '両方 undefined は自状態1キーのみ');
+    const withBoth = reduceBattle(stub, {
+      type: 'WRITE_STATE', myKey: 'host_state', myState: my,
+      opp: { key: 'guest_state', state: { b: 2 } as unknown as PlayerState }, effectStack: stk,
+    });
+    eq(JSON.stringify(Object.keys(withBoth)), JSON.stringify(['host_state', 'guest_state', 'effect_stack']), '両方ありのキー集合');
+    ok(!('pending_effect' in withBoth), 'clearPending 省略時は pending_effect 不干渉');
+  });
+  test('Stage3 reduceBattle ADVANCE_TURN_WITH_STATE: opp/effectStack は任意（CPU GROW開始トリガー）', () => {
+    const cpu = { a: 1 } as unknown as PlayerState;
+    const hu = { b: 2 } as unknown as PlayerState;
+    const stk = { entries: [] } as unknown as EffectStack;
+    const bare = reduceBattle(stub, {
+      type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: cpu, phase: 'GROW',
+      opp: undefined, effectStack: undefined,
+    });
+    eq(JSON.stringify(Object.keys(bare)), JSON.stringify(['guest_state', 'turn_phase']), 'トリガー無しは2キーのみ');
+    const full = reduceBattle(stub, {
+      type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: cpu, phase: 'GROW',
+      opp: { key: 'host_state', state: hu }, effectStack: stk,
+    });
+    eq(full.host_state, hu, '相手 usage 更新');
+    eq(full.effect_stack, stk, 'スタック');
+    eq(full.turn_phase, 'GROW', 'phase');
+  });
+  test('Stage3 reduceBattle BEGIN_NEXT_TURN: turn_count は現盤面から +1（盤面依存ケース）', () => {
+    const cpu = { a: 1 } as unknown as PlayerState;
+    const hu = { b: 2 } as unknown as PlayerState;
+    const bsAt3 = { ...stub, turn_count: 3 } as BattleStateRow;
+    const patch = reduceBattle(bsAt3, {
+      type: 'BEGIN_NEXT_TURN', activeUserId: 'u1', myKey: 'guest_state', myState: cpu,
+      opp: { key: 'host_state', state: hu },
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'host_state', 'turn_phase', 'active_user_id', 'turn_count']), 'キー集合');
+    eq(patch.turn_count, 4, 'turn_count +1');
+    eq(patch.turn_phase, 'UP', 'UP へ');
+    eq(patch.active_user_id, 'u1', 'ターンプレイヤー交代');
+    // opp 省略（追加ターン等で自状態だけ書く形）でも turn_count 加算は同じ
+    const solo = reduceBattle(bsAt3, { type: 'BEGIN_NEXT_TURN', activeUserId: 'u1', myKey: 'host_state', myState: hu });
+    eq(JSON.stringify(Object.keys(solo)), JSON.stringify(['host_state', 'turn_phase', 'active_user_id', 'turn_count']), 'opp 省略時のキー集合');
+    eq(solo.turn_count, 4, 'opp 省略でも +1');
+  });
+  test('Stage3 reduceBattle BEGIN_NEXT_TURN: 追加ターンは activeUserId 省略＝ active_user_id を書かない', () => {
+    // extra_turn 取得時はターンプレイヤーが交代しない。旧ハンドラは update.active_user_id を
+    // 代入しないことで表していたので、payload 側も「省略＝キーを書かない」で同値になる。
+    const bsAt3 = { ...stub, turn_count: 3 } as BattleStateRow;
+    const patch = reduceBattle(bsAt3, {
+      type: 'BEGIN_NEXT_TURN', myKey: 'host_state', myState: {} as PlayerState,
+      opp: { key: 'guest_state', state: {} as PlayerState },
+    });
+    ok(!('active_user_id' in patch), '据え置き＝キー無し');
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'guest_state', 'turn_phase', 'turn_count']), 'キー集合');
+    eq(patch.turn_count, 4, '追加ターンでも turn_count は +1');
+  });
+  test('Stage3 reduceBattle RESOLVE_EFFECT_STEP: 継続は pending 非null・完了は null', () => {
+    const hs = { a: 1 } as unknown as PlayerState;
+    const gs = { b: 2 } as unknown as PlayerState;
+    const pe = { sourcePlayerId: 'u1', interaction: { type: 'REARRANGE_SIGNI' } } as unknown as import('../src/types').PendingEffect;
+    const cont = reduceBattle(stub, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: gs, pending: pe });
+    eq(JSON.stringify(Object.keys(cont)), JSON.stringify(['host_state', 'guest_state', 'pending_effect']), '継続のキー集合');
+    eq(cont.pending_effect, pe, '次の interaction');
+    ok(!('effect_stack' in cont), '継続中はスタック不干渉');
+    const done = reduceBattle(stub, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: gs, pending: null });
+    eq(done.pending_effect, null, '完了は null クリア');
+    ok(!('effect_stack' in done), 'settle 指定なしはスタック不干渉');
+  });
+  test('Stage3 reduceBattle RESOLVE_EFFECT_STEP: settleStackOnDone は完了時かつ解決済みのみ null 化', () => {
+    const hs = {} as PlayerState;
+    const doneStk = { orderTurnDone: true, orderOppDone: true, queue: [] } as unknown as EffectStack;
+    const liveStk = { orderTurnDone: true, orderOppDone: true, queue: [{}] } as unknown as EffectStack;
+    const pe = { sourcePlayerId: 'u1' } as unknown as import('../src/types').PendingEffect;
+    const bsDone = { ...stub, effect_stack: doneStk } as BattleStateRow;
+    const bsLive = { ...stub, effect_stack: liveStk } as BattleStateRow;
+    eq(reduceBattle(bsDone, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null, settleStackOnDone: true }).effect_stack,
+      null, '完了×解決済み→null');
+    ok(!('effect_stack' in reduceBattle(bsLive, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null, settleStackOnDone: true })),
+      '完了×未解決→触らない');
+    ok(!('effect_stack' in reduceBattle(bsDone, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: pe, settleStackOnDone: true })),
+      '継続中は解決済みでも触らない');
+  });
+  test('Stage3 reduceBattle RESOLVE_EFFECT_STEP: スペル解決は pending_spell クリア＋積んだスタックを併記', () => {
+    const hs = {} as PlayerState;
+    const stk = { entries: [] } as unknown as EffectStack;
+    const patch = reduceBattle(stub, {
+      type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null,
+      clearPendingSpell: true, effectStack: stk,
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'guest_state', 'pending_spell', 'pending_effect', 'effect_stack']), 'キー集合');
+    eq(patch.pending_spell, null, 'pending_spell クリア');
+    eq(patch.effect_stack, stk, '積んだスタック');
+    // トリガー無し（effectStack 省略）ならスタックキーは書かない
+    const noStack = reduceBattle(stub, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null, clearPendingSpell: true });
+    eq(JSON.stringify(Object.keys(noStack)), JSON.stringify(['host_state', 'guest_state', 'pending_spell', 'pending_effect']), 'スタック無しのキー集合');
+  });
+  test('Stage3 reduceBattle RESOLVE_EFFECT_STEP: 盤面差分の新トリガーは settle の null クリアに勝つ', () => {
+    // resolveStackNext 系の順序＝旧コードは「done で settle→null」した後に
+    // 「bd.entries があれば新スタックを書く」で上書きしていた。reducer もこの順を守る。
+    const hs = {} as PlayerState;
+    const doneStk = { orderTurnDone: true, orderOppDone: true, queue: [] } as unknown as EffectStack;
+    const fresh = { orderTurnDone: false, orderOppDone: false, queue: [{}] } as unknown as EffectStack;
+    const bsDone = { ...stub, effect_stack: doneStk } as BattleStateRow;
+    const patch = reduceBattle(bsDone, {
+      type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null,
+      settleStackOnDone: true, effectStack: fresh,
+    });
+    eq(patch.effect_stack, fresh, '新スタックが settle に勝つ');
+    // 新トリガー無しなら settle が効いたまま
+    eq(reduceBattle(bsDone, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null, settleStackOnDone: true }).effect_stack,
+      null, '新トリガー無しは settle の null が残る');
   });
   cursor = savedCursor;
 }
