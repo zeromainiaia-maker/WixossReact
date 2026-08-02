@@ -21435,6 +21435,23 @@ test('task12(lxxxiii) 第14波 WXDi-P14-087-E1: ライフクラッシュ元を4�
     .entries.some(e => e.effectId === live.effectId), '相手側イベントで発火した');
 }));
 
+test('task12(lxxxii) WXK09-004-E1: 単一コスト改変marker後の文中CHOOSEを保持', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXK09-004')!).find(e => e.effectId === 'WXK09-004-E1')!;
+  eq(effect.action.type, 'SEQUENCE', '前置markerとCHOOSEのSEQUENCE');
+  if (effect.action.type !== 'SEQUENCE') return;
+  eq(effect.action.steps.length, 2, '前置marker以外が選択肢外へ漏れていない');
+  const [prefix, choose] = effect.action.steps;
+  ok(prefix.type === 'STUB' && prefix.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG', 'センタールリグ条件のコスト改変marker');
+  eq(choose.type, 'CHOOSE', '文中CHOOSE');
+  if (choose.type !== 'CHOOSE') return;
+  eq(choose.choose_count, 1, '3つから1つ');
+  eq(choose.from_count, 3, '選択肢数');
+  eq(choose.choices.length, 3, 'choices配列');
+  ok(!!choose.choices[0].condition && choose.choices[0].action.type === 'BANISH', '①トラッシュ30枚条件つき全バニッシュ');
+  ok(!!choose.choices[1].condition && choose.choices[1].action.type === 'ADD_TO_FIELD', '②ライフ0条件つき場出し');
+  eq(choose.choices[2].action.type, 'CONDITIONAL', '③手札0条件つき6枚回収');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

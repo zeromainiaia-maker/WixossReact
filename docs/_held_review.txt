@@ -1533,6 +1533,42 @@ WXK04-034
   + [0].action.steps[1].condition.filter.cardType = "シグニ"
   + [0].action.steps[1].condition.minCount = 3
 
+## +ADD_TO_HAND +BOUNCE +CHOOSE +REVEAL +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 +TRASH -STUB ［1枚］
+WXK05-002
+--- WXK05-002
+  原文: あなたのセンタールリグが＜イオナ＞の場合、このアーツの使用コストは《白×2》減る。以下の３つから３つまで選ぶ。選んだ数が２つ以上の場合、このアーツの使用コストは、選んだ数から１を引いた数だけ《白×2》《無×1》増える。①対戦相手のシグニ１体を対象とし、それを手札に戻す。②対戦相手のシグニ１体を対象とし、それをトラッシュに置く。手札を２枚捨てる。③あなたのデッ
+  - [0].action.steps[1].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+  - [0].action.steps[2].type = "TRASH"
+  - [0].action.steps[2].target.type = "HAND_CARD"
+  - [0].action.steps[2].target.owner = "self"
+  - [0].action.steps[2].target.count = 2
+  ~ [0].action.steps[1].type : "STUB" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 3
+  + [0].action.steps[1].from_count = 3
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "BOUNCE"
+  + [0].action.steps[1].choices[0].action.target.type = "SIGNI"
+  …（他 32 行）
+
+## +CHOOSE +COUNTER_SPELL +FREEZE +HAND_CARD +SEQUENCE×2 +SIGNI×2 +TRANSFER_TO_DECK +TRASH ［1枚］
+WXK05-004
+--- WXK05-004
+  原文: あなたのセンタールリグが＜エルドラ＞の場合、このアーツの使用コストは《青×2》減る。以下の４つから２つまで選ぶ。①対戦相手は手札を２枚捨てる。②対戦相手のセンタールリグ１体を対象とし、それをダウンし凍結する。③対戦相手のシグニ１体を対象とし、それをデッキの一番上に置く。手札を１枚捨てる。④スペル１つを対象とし、それの効果を打ち消す。そうした場合、【エナチャー
+  - [0].action.steps[1].target.type = "HAND_CARD"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "ENERGY_CHARGE_FROM_DECK"
+  - [0].action.steps[2].then.owner = "self"
+  - [0].action.steps[2].then.count = 4
+  ~ [0].action.steps[1].type : "TRASH" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 2
+  + [0].action.steps[1].from_count = 4
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  …（他 37 行）
+
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
 --- WXK06-028
@@ -1597,6 +1633,78 @@ WXK07-001
   + [0].condition.owner = "self"
   + [0].condition.operator = "gte"
   + [0].condition.value = 4
+
+## +ADD_TO_HAND +BANISH×2 +CHOOSE +PREVENT_NEXT_DAMAGE +REVEAL_AND_PICK +SIGNI×2 -STUB ［1枚］
+WXK07-002
+--- WXK07-002
+  原文: あなたのセンタールリグが＜メル＞の場合、このアーツの使用コストは《緑×2》減る。以下の４つから２つまで選ぶ。①対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。②【アサシン】か【ダブルクラッシュ】を持つシグニ１体を対象とし、それをバニッシュする。③あなたのデッキの上からカードを３枚公開する。その中からすべての緑のカードを手札に加え、
+  - [0].action.steps[1].id = "REVEAL_PICK_HAND_SHUFFLE_BOTTOM"
+  - [0].action.steps[1].revealPickParams.pickCount = "ALL"
+  - [0].action.steps[1].revealPickParams.restDest = "deck_bottom"
+  - [0].action.steps[1].revealPickParams.then = "hand"
+  ~ [0].action.steps[1].type : "STUB" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 2
+  + [0].action.steps[1].from_count = 4
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "BANISH"
+  + [0].action.steps[1].choices[0].action.target.type = "SIGNI"
+  + [0].action.steps[1].choices[0].action.target.owner = "opponent"
+  …（他 26 行）
+
+## +CHOOSE +SEQUENCE×3 +STUB×3 ［1枚］
+WXK08-001
+--- WXK08-001
+  原文: あなたのセンタールリグが＜にじさんじ＞の場合、このアーツの使用コストは《白×2》減る。以下の３つから２つまで選ぶ。①対戦相手のシグニを２体まで対象とし、《白》を支払ってもよい。そうした場合、ターン終了時まで、それらは能力を失う。②シグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする。③シグニ１体を対象とし、《青》を支払ってもよい。
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "REMOVE_ABILITIES"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.until = "UNTIL_END_OF_TURN"
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "BANISH"
+  - [0].action.steps[2].then.target.type = "SIGNI"
+  - [0].action.steps[2].then.target.owner = "opponent"
+  - [0].action.steps[2].then.target.count = 1
+  …（他 62 行）
+
+## +BANISH +BLOCK_ACTION +CHOOSE +REMOVE_ABILITIES +SEQUENCE +SIGNI×3 ［1枚］
+WXK08-002
+--- WXK08-002
+  原文: あなたのセンタールリグが＜タウィル＞の場合、このアーツの使用コストは《赤×2》減る。以下の３つから１つを選ぶ。①あなたのトラッシュから赤のシグニ１枚を対象とし、ターン終了時まで、それの基本レベルを１にする。それをレベル１のシグニとして場に出す。ターン終了時、それを場から手札に戻す。②シグニをパワーの合計が10000以下になるように２体まで対象とし、それらをバ
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[2].type = "BOUNCE"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "self"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.upToCount = false
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  - [0].action.steps[2].optional = false
+  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 1
+  + [0].action.steps[1].from_count = 3
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  …（他 32 行）
+
+## +ADD_TO_FIELD +BANISH +CHOOSE +SEQUENCE +SIGNI +TRASH +TRASH_CARD -BLOCK_ACTION ［1枚］
+WXK08-003
+--- WXK08-003
+  原文: あなたのセンタールリグが＜ナナシ＞の場合、このアーツの使用コストは《黒×2》減る。以下の３つから２つまで選ぶ。①あなたのトラッシュからシグニ１枚を対象とし、それを【ライズ】を無視して場に出す。それの【出】能力は発動しない。②対戦相手のレベル３以下のシグニ１体を対象とし、それをバニッシュする。③対戦相手のシグニ１体を対象とし、このターンに対戦相手がアーツかスペ
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].actionId = "ON_PLAY_ABILITY"
+  - [0].action.steps[1].until = "END_OF_TURN"
+  ~ [0].action.steps[1].type : "BLOCK_ACTION" → "CHOOSE"
+  + [0].action.steps[1].choose_count = 2
+  + [0].action.steps[1].from_count = 3
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "SEQUENCE"
+  + [0].action.steps[1].choices[0].action.steps[0].type = "ADD_TO_FIELD"
+  …（他 24 行）
 
 ## +CONDITIONAL×3 +LAST_PROCESSED_COUNT_GTE×3 +SEQUENCE +STUB -SIGNI -TRASH ［1枚］
 WXK08-055
@@ -1916,6 +2024,24 @@ SP36-001
   ~ [0].action.steps[3].type : "TRASH" → "STUB"
   + [0].action.steps[3].id = "EXILE_SELF_AFTER_USE"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
+
+## +BANISH +CHOOSE +DRAW +SEQUENCE×2 +SIGNI ［1枚］
+SPK01-14
+--- SPK01-14
+  原文: このスペルの使用コストは対戦相手のコイン１枚につき《赤×1》減る。以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをバニッシュする。そうした場合、カードを１枚引くか【エナチャージ１】をする。②カードを５枚引く。対戦相手はあなたの手札を２枚見ないで選び、あなたはそれらを捨てる。,-
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "CHOOSE"
+  - [0].action.steps[1].then.choose_count = 1
+  - [0].action.steps[1].then.from_count = 2
+  - [0].action.steps[1].then.choices[0].choiceId = "c0"
+  - [0].action.steps[1].then.choices[0].label = "選択肢1"
+  - [0].action.steps[1].then.choices[0].action.type = "DRAW"
+  - [0].action.steps[1].then.choices[0].action.owner = "self"
+  - [0].action.steps[1].then.choices[0].action.count = 1
+  - [0].action.steps[1].then.choices[1].choiceId = "c1"
+  - [0].action.steps[1].then.choices[1].label = "選択肢2"
+  - [0].action.steps[1].then.choices[1].action.type = "ENERGY_CHARGE_FROM_DECK"
+  …（他 39 行）
 
 ## -CONDITIONAL×2 -IS_MY_TURN×2 ［1枚］
 SPK06-01

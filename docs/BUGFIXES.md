@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxii) 第1波：文中 CHOOSE 救済の閾値緩和（`WXK09-004-E1`／残10→9）
+
+`WXK09-004-E1` を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer 9件）。**codex-work 実装／Claude 指示・検証・簿記**。差し戻し0。
+
+**真因**＝`以下のNつからMつを選ぶ。①…②…` が**文中（前に別の文がある位置）**に来ると、文分割フィルタ（`effectParser.ts:5702-5706`）が「①②…で始まる行」と「CHOOSE ヘッダ文」を**両方スキップする**ため、先行文だけが残り **CHOOSE 構造が丸ごと無言で消える**。2026-08-01 の `WX09-Re02` 対応で `effectParser.ts:5730-5743` に文中形の救済規則を入れてあったが、発動条件が「前置部の tree が `ARTS_COST_REDUCTION_BY_EFFECT` の STUB のみ×**2本以上**」に限定されており、本件は**3点**で外していた＝①前置が **1本だけ**（`>= 2` 要求）②前置 STUB の id が `ARTS_COST_REDUCTION_BY_EFFECT` ではなく **`ARTS_COST_REDUCTION_BY_CENTER_LRIG`**（⚠PLAN の在庫メモは前者と書いていたが**実測は後者**＝投入前実測で判明）③前置が単一 STUB のとき `parseActionText` の戻りが `SEQUENCE` にならず `prefixSteps` が `[]` になり、本数判定の前にそもそも中身が取れていない。
+
+**修正**＝同規則を3点だけ緩めた。(1) `prefixAction` が SEQUENCE でないときは `[prefixAction]` を prefixSteps とする (2) 本数閾値 `>= 2` → `>= 1` (3) 許可 marker を `costMarkerIds` Set 化し `ARTS_COST_REDUCTION_BY_CENTER_LRIG` を追加。カード番号・カード名では分岐せず**既存 action tree の形で絞る**現行方針（同 `5725-5729` のコメント）を維持。「代わりにNつ選ぶ」型（選択数変更）の除外ガードは従来どおり。
+
+**結果**＝`WXK09-004-E1` は `STUB` 単体 → `SEQUENCE[ARTS_COST_REDUCTION_BY_CENTER_LRIG, CHOOSE{choose_count:1, from_count:3}]`。原文照合は①「トラッシュ30枚以上→相手の全シグニをバニッシュ」＝`condition:TRASH_COUNT gte 30` + `BANISH{owner:opponent,count:ALL}` ✅／②`condition:LIFE_COUNT eq 0` + `ADD_TO_FIELD` ✅（**ただし原文「対象のシグニ1枚を手札に加え**、対象のシグニ1枚を場に出す」の**前半＝手札回収が欠落**）／③`CONDITIONAL{HAND_COUNT eq 0}` + `TRANSFER_TO_HAND{TRASH_CARD×6}` ✅。②の欠落は**複数対象・複数行先の別 parser バグ**で本件とは別系統＝今回未修正だが、**変更前は CHOOSE ごと消滅していたため純増**（過小実行が一部残る）。
+
+**⚠held が +7カード増えた（採用禁止）**＝`WXK05-002`／`WXK05-004`／`WXK07-002`／`WXK08-001`／`WXK08-002`／`WXK08-003`／`SPK01-14`。parser 緩和が MANUAL/PARTIAL 温存中のカードの fresh にも波及して CHOOSE を組んだためで、**live は非影響**。ただし `WXK08-002` は fresh に退化が多数ある（①手札回収欠落・場出しの source 欠落・遅延 BOUNCE が選択対象を追跡しない／②本来「相手の合計パワー10000以下・2体まで」が `owner:self/count:1`／③能力喪失だけで引用能力の付与が欠落）＝**この7件を再収穫サイクルで無検証採用すると退化が入る**。採用するなら1カードずつ原文照合すること。
+
+**honest defer 9件**＝**B-1** `WD21-008-E1`（前置が `TRASH + CONDITIONAL(STUB)`＝実アクションを保持したまま CHOOSE へ連結する専用判定が要る。前置 `optional` 脱落も確認したが別在庫）／**A-2** `WXK08-002-E1`（上記の退化4点＝対象保持・合計パワー制約・遅延帰還・引用能力付与の配線が先）／**C群5件** `SP26-005-E1`・`SP38-004-E1`・`WD23-044-EA-E1`・`WX26-CP1-024-E1`・`PR-Di013-E1`（「追加コストを払っていた場合、代わりに2つ選ぶ」＝**支払い結果に応じて `choose_count` が変わる条件つき CHOOSE 語彙**と engine/UI 実行配線の新設が要る。`effectParser.ts:5752` が意図的に据置している型＝**素の CHOOSE に落とすのは退化**なので落としていない）／**D群2件** `WXDi-P05-006-E1`（【使用条件】【チーム】が `GRANT_KEYWORD` に化ける幻覚＋ピース効果打ち消し／除外語彙が同居＝§6.3 F の保留案件）・`WXK10-008-E1`（MANUAL 温存。アンコール前置と選択肢内の任意支払いを忠実に扱う機構が要る）。
+
+**ゲート（Claude が独立再現）**＝golden **1305→1306**（+1＝`withSavedCursor` で共有 `cursor` を save/restore 済み・parseCardEffects 直呼びで CHOOSE 構造と3選択肢の condition を assert）、smoke **10679/10679** 全0・SKIP0、fuzz 200ゲーム 7999手 全0、census **1289 据置**（⚠この効果は高シグナル語彙に載っていないため実働化しても数字は動かない＝`BASELINE_HIGH` 変更なし）、manual field loss 0、lint 0 errors／**240 warnings 据置**、同型★0（5986枚・265群）。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WXK09-004-E1` のみ・兄弟効果変更0・outlier 0）。held **258枚/109署名 → 266枚/116署名**（増分は上記の +7カード）。commit/push は Claude が実施（要実機検証）。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第15波：場離れ置換共通フック＋英知能力再発動（残0クローズ）
 
 `WX06-019-E1` と `PR-366-E3` の2件を **(a) 機能是正**した。(b) 宣言の明示化は0件、(c) honest defer は0件。`WX20-036-CB-E1`／`WX24-P2-010-E1` は外側の「他の」欠落ではなく、引用付与された【常】能力の内側で付与先自身を基準に「他のシグニ」を評価する機構が必要なため、(lxxxiii) の残から外し §6.3「引用付与の忠実化」の在庫へ移した。外側 `excludeSelf` を刻んでも reader が読まず、カード固有化すると同型引用能力へ展開できないためである。これにより (lxxxiii) は実装課題 **4→0** でクローズ。

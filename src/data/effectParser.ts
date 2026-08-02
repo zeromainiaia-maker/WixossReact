@@ -5722,9 +5722,9 @@ function parseActionTextInner(text: string): EffectAction {
     };
   }
 
-  // 複数の使用コスト修飾文に続く CHOOSE。文分割フィルタはヘッダと①②…を除くため、
+  // 使用コスト修飾文に続く CHOOSE。文分割フィルタはヘッダと①②…を除くため、
   // 従来は先行 STUB だけが残り本体が無言脱落していた。先行部を先に通常パースし、
-  // その木が「2本以上のコスト修飾マーカーだけ」の場合に限って CHOOSE を連結する。
+  // その木が「1本以上のコスト修飾マーカーだけ」の場合に限って CHOOSE を連結する。
   // カード本文やカード番号ではなく既存 action tree の形で絞り、単一の条件付きコストや
   // 追加コストを伴う別文型は各々の専用機構へ残す。
   {
@@ -5732,9 +5732,15 @@ function parseActionTextInner(text: string): EffectAction {
     if (embeddedHead?.index && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const prefixText = text.slice(0, embeddedHead.index).trim();
       const prefixAction = parseActionText(prefixText);
-      const prefixSteps = prefixAction.type === 'SEQUENCE' ? (prefixAction as SequenceAction).steps : [];
-      const onlyCostMarkers = prefixSteps.length >= 2 && prefixSteps.every(step =>
-        step.type === 'STUB' && step.id === 'ARTS_COST_REDUCTION_BY_EFFECT');
+      const prefixSteps = prefixAction.type === 'SEQUENCE'
+        ? (prefixAction as SequenceAction).steps
+        : [prefixAction];
+      const costMarkerIds = new Set([
+        'ARTS_COST_REDUCTION_BY_EFFECT',
+        'ARTS_COST_REDUCTION_BY_CENTER_LRIG',
+      ]);
+      const onlyCostMarkers = prefixSteps.length >= 1 && prefixSteps.every(step =>
+        step.type === 'STUB' && costMarkerIds.has(step.id));
       if (onlyCostMarkers) {
         const chosen = buildChoose(text.slice(embeddedHead.index), parseNum(embeddedHead[1]));
         if (chosen) return { type: 'SEQUENCE', steps: [...prefixSteps, chosen] } as SequenceAction;
