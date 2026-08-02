@@ -30,7 +30,7 @@ import {
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
-import { collectLrigFlipTriggers } from '../src/engine/triggerCollect';
+import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
@@ -21327,6 +21327,25 @@ test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理host�
   ok(resolved.ownerState.trash.includes(oldAcce), '元シグニに付いていた既存アクセが共通離場処理でトラッシュされない');
   eq(resolved.ownerState.hand.length, hand0 + 1, 'そうした場合の1ドローが実行されない');
   eq(resolved.ownerState.acce_just_done, cookingHost, 'ON_ACCE用host markerがない');
+}));
+
+test('task12(lxxxiii) 第14波 WXDi-P14-087-E1: ライフクラッシュ元を4方向で限定', () => withSavedCursor(() => {
+  const watcher = 'WXDi-P14-087';
+  const live = effectsMap.get(watcher)!.find(e => e.effectId === 'WXDi-P14-087-E1')!;
+  eq(live.triggerScope, 'any_ally', 'live triggerScope');
+  ok(live.triggerFilter?.story === '電音部' && live.triggerFilter.excludeSelf === true, 'live triggerFilter');
+  const otherDenon = findCard(c => isSigni(c) && c.CardNum !== watcher && c.CardClass?.includes('電音部'));
+  const nonDenon = findCard(c => isSigni(c) && c.CardNum !== watcher && !c.CardClass?.includes('電音部'));
+  const state = mkState({ signi: [watcher, otherDenon, nonDenon] });
+  const collect = (source: string) => collectOppLifeCrashedTriggers(
+    { ...trigCtx(HOST), effectsMap }, state, HOST, source,
+  ).entries.some(e => e.effectId === live.effectId);
+  ok(collect(otherDenon), '他の＜電音部＞のクラッシュで発火しない');
+  ok(!collect(watcher), '発生源自身のクラッシュで発火した');
+  ok(!collect(nonDenon), '＜電音部＞以外のクラッシュで発火した');
+  const opponentState = mkState({ signi: [otherDenon, null, null] });
+  ok(!collectOppLifeCrashedTriggers({ ...trigCtx(GUEST), effectsMap }, opponentState, GUEST, watcher)
+    .entries.some(e => e.effectId === live.effectId), '相手側イベントで発火した');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

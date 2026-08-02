@@ -8051,6 +8051,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LIFE_CRASHED / ON_OPP_LIFE_CRASHED: 自分ライフ＝triggerScope:self。トリガー文を除去
       if (timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED') {
         if (timing[0] === 'ON_LIFE_CRASHED') extractedTriggerScope = 'self';
+        if (timing[0] === 'ON_OPP_LIFE_CRASHED') {
+          const allyCrashM = actionText.match(/あなたの(他の)(?:＜([^＞]+)＞の)シグニが対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュしたとき/);
+          if (allyCrashM) {
+            extractedTriggerScope = 'any_ally';
+            extractedTriggerFilter = {
+              ...(allyCrashM[2] ? { story: allyCrashM[2] } : {}),
+              ...(allyCrashM[1] ? { excludeSelf: true } : {}),
+            };
+          }
+        }
         // 「あなたのシグニが対戦相手のライフクロスをクラッシュしたとき」（能動態）もカバー
         const m = actionText.match(/^.*?クラッシュ(?:した|された)とき[、,]\s*(.+)/s);
         if (m) actionText = m[1];

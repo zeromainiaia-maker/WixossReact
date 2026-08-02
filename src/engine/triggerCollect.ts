@@ -2830,6 +2830,33 @@ export function collectBeatBecameTriggers(
  * 'any'（いずれかが捨てた）はターン問わず＋相手フィールドの 'any' も収集。turnOwner:'opponent' は相手ターンのみ。
  * usedLimitIds（discarder側）を呼び出し側で actions_done に追加して保存すること。
  */
+/** ON_OPP_LIFE_CRASHED をクラッシュ側の場から収集する。source 省略時は既存効果と同じく無条件。 */
+export function collectOppLifeCrashedTriggers(
+  ctx: TrigCtx, crasherState: PlayerState, crasherId: string, crashSourceCardNum?: string,
+): { entries: StackEntry[]; usedLimitIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedLimitIds: string[] = [];
+  const limitOk = mkLimitOk(crasherState.actions_done, usedLimitIds);
+  const sources = [...crasherState.field.signi.map(s => s?.at(-1)), crasherState.field.lrig.at(-1),
+    crasherState.field.assist_lrig_l?.at(-1), crasherState.field.assist_lrig_r?.at(-1),
+    crasherState.field.key_piece, ...(crasherState.field.key_piece_extra ?? [])]
+    .filter((n): n is string => !!n);
+  for (const watcher of sources) {
+    for (const eff of ctx.effectsMap.get(watcher) ?? []) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
+      if (eff.triggerScope === 'any_ally' && crashSourceCardNum) {
+        if (eff.triggerFilter?.excludeSelf && crashSourceCardNum === watcher) continue;
+        if (!matchesFilter(ctx.cardMap.get(crashSourceCardNum), eff.triggerFilter)) continue;
+      }
+      if (!limitOk(eff)) continue;
+      entries.push({ id: ctx.genId(), playerId: crasherId, cardNum: watcher, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(watcher)?.CardName ?? watcher}【自】相手ライフクラッシュ時`, effect: eff,
+        triggeringCardNum: crashSourceCardNum });
+    }
+  }
+  return { entries, usedLimitIds };
+}
+
 export function collectHandDiscardTriggers(
   ctx: TrigCtx, discardedNums: string[], myState: PlayerState, discarderId: string, asCost: boolean,
   opState?: PlayerState, opId?: string, costSourceNum?: string,

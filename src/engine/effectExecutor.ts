@@ -1258,6 +1258,10 @@ function execLifeCrash(a: LifeCrashAction, ctx: ExecCtx): ExecResult {
       life_crashed_this_turn: crashedCountAcc,
       field: { ...state.field, check: checkCard },
       pending_crashed_cards: pending.length > 0 ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
+      crash_source_card_num: checkCard ? ctx.sourceCardNum : state.crash_source_card_num,
+      pending_crash_source_card_nums: pending.length > 0
+        ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => ctx.sourceCardNum ?? null)]
+        : state.pending_crash_source_card_nums,
     };
   } else {
     // バースト発動なし: クラッシュしたカードはそのままトラッシュへ

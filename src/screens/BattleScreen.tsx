@@ -3409,6 +3409,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_crashed_by_signi_this_turn: undefined,  // 主体別の累計もリセット（ON_SIGNI_CRASHED_LIFE_TOTAL）
           energy_colorless_ability_loss_this_turn: undefined,
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
+          pending_crash_source_card_nums: [], crash_source_card_num: undefined,
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
           must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
@@ -3791,7 +3792,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
@@ -7072,6 +7073,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const crashOneLife = (
     state: PlayerState,
     damageSource?: DamageSourceContext,
+    crashSourceCardNum?: string,
   ): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
@@ -7125,6 +7127,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_cloth: state.life_cloth.slice(0, -1),
         life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + 1, // LIFE_CRASHED_THIS_TURN 用
         field: { ...state.field, check: crashed },
+        crash_source_card_num: crashSourceCardNum,
       },
       crashed,
     };
@@ -7161,7 +7164,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (op.life_cloth.length > 0) {
           const crashed = op.life_cloth[op.life_cloth.length - 1];
           const opKey = isHost ? 'guest_state' : 'host_state';
-          await persist.commit({ [stateKey]: newMyState, [opKey]: { ...op, life_cloth: op.life_cloth.slice(0, -1), field: { ...op.field, check: crashed } } });
+          await persist.commit({ [stateKey]: newMyState, [opKey]: { ...op, life_cloth: op.life_cloth.slice(0, -1),
+            crash_source_card_num: my.field.signi[attackZone]?.at(-1), field: { ...op.field, check: crashed } } });
           appendBattleLogs([`シグニアタック：ライフクロスをクラッシュ`]);
         } else {
           const opKey = isHost ? 'guest_state' : 'host_state';
@@ -8030,7 +8034,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           if (isLancer || isSLancer) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined });
+            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
             if (prevented) {
               appendBattleLogs([`${label}：ダメージ無効`]);
               newOpState = afterCrash;
@@ -8067,7 +8071,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined });
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
         if (firstPrevented) {
           appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
           newOpState = afterFirst;
@@ -8094,6 +8098,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...newOpState,
             life_cloth: newOpState.life_cloth.slice(0, -1),
             pending_crashed_cards: [...(newOpState.pending_crashed_cards ?? []), secondCard],
+            pending_crash_source_card_nums: [...(newOpState.pending_crash_source_card_nums ?? []), myTopNum],
           };
           appendBattleLogs([`ダブルクラッシュ：2枚目（${battleCardMap.get(secondCard)?.CardName ?? secondCard}）を同時クラッシュ予約`]);
         }
@@ -8728,9 +8733,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const [nextCard, ...remaining] = pendingCards;
+      const [nextSource, ...remainingSources] = my.pending_crash_source_card_nums ?? [];
       const newMyState: PlayerState = {
         ...my,
         pending_crashed_cards: remaining,
+        pending_crash_source_card_nums: remainingSources,
+        crash_source_card_num: nextSource ?? undefined,
         field: { ...my.field, check: nextCard },
       };
       const crashedName = battleCardMap.get(nextCard)?.CardName ?? nextCard;
@@ -9025,10 +9033,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ダブルクラッシュ等の同時クラッシュ予約を順次checkへ（人間側のtriggerPendingCrash相当）───
     if ((cpuSt.pending_crashed_cards?.length ?? 0) > 0 && !bs.effect_stack && !bs.pending_effect) {
       const [nextCard, ...remaining] = cpuSt.pending_crashed_cards!;
+      const [nextSource, ...remainingSources] = cpuSt.pending_crash_source_card_nums ?? [];
       appendBattleLogs([`[CPU] 同時クラッシュ：ライフクロスをクラッシュ（${battleCardMap.get(nextCard)?.CardName ?? nextCard}）`]);
       await persist.commit(reduceBattle(bs, {
         type: 'WRITE_STATE', myKey: 'guest_state',
-        myState: { ...cpuSt, pending_crashed_cards: remaining, field: { ...cpuSt.field, check: nextCard } },
+        myState: { ...cpuSt, pending_crashed_cards: remaining, pending_crash_source_card_nums: remainingSources,
+          crash_source_card_num: nextSource ?? undefined, field: { ...cpuSt.field, check: nextCard } },
       }));
       return;
     }
@@ -9655,7 +9665,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy_colorless_ability_loss_this_turn: undefined,
         signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         prevent_damage_windows: advancePreventDamageWindows(cpuSt.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
@@ -9920,6 +9930,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...my,
             life_cloth: lifeAfterCrash,
             pending_crashed_cards: pendingAfterCrash,
+            crash_source_card_num: op.field.lrig.at(-1),
+            pending_crash_source_card_nums: pendingAfterCrash.map(() => op.field.lrig.at(-1) ?? null),
             field: { ...my.field, lrig_attacked: false, check: crashed },
           };
         } else if (my.prevent_defeat) {
@@ -10022,17 +10034,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const cardNum = targetCardNum ?? my.field.check;
       let remainingPending: string[];
+      let crashSourceCardNum = my.crash_source_card_num;
+      let remainingCrashSources: Array<string | null>;
       if (!targetCardNum || targetCardNum === my.field.check) {
         // check のカードを処理: pending はそのまま残す
         remainingPending = my.pending_crashed_cards ?? [];
+        remainingCrashSources = my.pending_crash_source_card_nums ?? [];
       } else {
         // pending のカードを先に処理: indexOf で最初の一致のみ除き、check を pending 先頭に回す
         const pendingList = my.pending_crashed_cards ?? [];
         const targetIdx = pendingList.indexOf(targetCardNum);
+        const pendingSources = my.pending_crash_source_card_nums ?? [];
+        crashSourceCardNum = targetIdx >= 0 ? pendingSources[targetIdx] ?? undefined : undefined;
         const afterRemoval = targetIdx >= 0
           ? [...pendingList.slice(0, targetIdx), ...pendingList.slice(targetIdx + 1)]
           : pendingList;
         remainingPending = [my.field.check!, ...afterRemoval];
+        remainingCrashSources = [my.crash_source_card_num ?? null,
+          ...pendingSources.filter((_, i) => i !== targetIdx)];
       }
       // CRASH_TO_TRASH_INSTEAD: 相手（攻撃側）がフラグを持つ場合エナではなくトラッシュへ
       const crashToTrash = op.crash_to_trash_instead === true;
@@ -10076,6 +10095,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const topNum of oppCrashSources) {
         for (const eff of effectsMap.get(topNum) ?? []) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
+          if (eff.triggerScope === 'any_ally' && crashSourceCardNum) {
+            if (eff.triggerFilter?.excludeSelf && crashSourceCardNum === topNum) continue;
+            if (!matchesFilter(battleCardMap.get(crashSourceCardNum), eff.triggerFilter)) continue;
+          }
           if (eff.kizunaIcon && !isKizunaActive(op, topNum, battleCardMap)) continue; // 【絆自】は絆獲得時のみ
           if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
           if (!oppLimitOk(eff)) continue;
@@ -10105,15 +10128,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // INSTALL_DELAYED_TRIGGER（B3）: op（クラッシュした側＝ターンプレイヤー）に設置された
       // 「このターン、…がクラッシュしたとき、…」遅延トリガーを収集する。crasherFilter があれば
-      // op の場に該当シグニがいるかで近似判定（実際のクラッシュ源シグニは未追跡＝要実機検証）。
+      // 実際のクラッシュ源で判定する。旧状態など発生源不明時だけ従来の場走査へfallbackする。
       for (const dt of op.delayed_triggers ?? []) {
         if (dt.trigger?.timing !== 'ON_OPP_LIFE_CRASHED') continue;
         if (dt.trigger.crasherFilter) {
-          const ok = op.field.signi.some(stack => {
-            const num = stack?.at(-1);
-            const card = num ? battleCardMap.get(num) : undefined;
-            return card ? matchesFilter(card, dt.trigger.crasherFilter!) : false;
-          });
+          const ok = crashSourceCardNum
+            ? matchesFilter(battleCardMap.get(crashSourceCardNum), dt.trigger.crasherFilter)
+            : op.field.signi.some(stack => {
+                const num = stack?.at(-1);
+                const card = num ? battleCardMap.get(num) : undefined;
+                return card ? matchesFilter(card, dt.trigger.crasherFilter!) : false;
+              });
           if (!ok) continue;
         }
         oppCrashTriggers.push({
@@ -10163,6 +10188,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         trash: crashToTrash ? [...my.trash, cardNum] : my.trash,
         field: { ...my.field, check: null },
         pending_crashed_cards: remainingPending,
+        pending_crash_source_card_nums: remainingCrashSources,
+        crash_source_card_num: undefined,
         life_crash_counter: myCounterAfter,
         actions_done: crashTriggerUsedIds.length > 0
           ? [...(my.actions_done ?? []), ...crashTriggerUsedIds]

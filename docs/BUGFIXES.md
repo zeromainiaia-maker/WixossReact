@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第14波：ライフクラッシュ元の check/pending 永続化
+
+`WXDi-P14-087-E1` を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer は残4件）。`PlayerState` に現在の check 用 `crash_source_card_num` と `pending_crashed_cards` 同添字の `pending_crash_source_card_nums` を追加し、任意順のライフバースト確認、通常/CPUの pending resume、ターン境界clearへ配線した。省略時は従来どおり発生源限定を行わない。parser共有文型「あなたの他の＜X＞のシグニが対戦相手のライフクロス…をクラッシュしたとき」は `triggerScope:any_ally`＋`triggerFilter:{story:X,excludeSelf:true}` を生成し、live は対象1効果だけ changed。
+
+クラッシュ入口の全棚卸し：①通常シグニアタック（正面空/アサシン）・ランサー/Sランサー・ダブル/トリプルクラッシュ＝攻撃シグニinstanceを配線、②フリップアタック直結クラッシュ＝攻撃シグニinstanceを配線、③ルリグアタック（ダブル/トリプル含む）＝攻撃ルリグinstanceを配線、④ `LIFE_CRASH{triggerBurst:true}` 効果＝`ExecCtx.sourceCardNum` をcheck/pendingへ配線、⑤出現コスト `life_crash`（`payLifeOnPlayCost`）＝`undefined/null` を明示し従来挙動、⑥ `LIFE_CRASH{triggerBurst:false}`＝check/collectorを通らず即trashの既存経路のため発生源イベント未配線（従来挙動）、⑦ダメージ予約/置換系から `crashOneLife` を呼ぶ非カード原因＝`undefined` のまま。場に残る該当シグニでの近似は行わず、既存 delayed trigger の crasherFilter も発生源あり時は実カードを照合し、発生源不明時だけ後方互換の場走査へfallbackする。
+
+live `effectsMap`＋`withSavedCursor`＋実戦signi配置の golden で、他の＜電音部＞＝発火、自身＝非発火、＜電音部＞以外＝非発火、相手側クラッシュ＝非発火を実測。`build:effects`／`regen` は各2巡冪等、HEAD比 live per-effect changed 1 / added 0 / removed 0（`WXDi-P14-087-E1`のみ）、既存 `excludeSelf` 減少0、`"???"` 0。gates全緑＝golden **1302→1303**、smoke **10679/10679** 全0、fuzz 200ゲーム全0（7983手／2698効果）、census **1290→1289**、manual field loss 0、lint 0 errors / 240 warnings、同型★0。残る `PR-366-E3`／`WX20-036-CB-E1`／`WX24-P2-010-E1`／`WX06-019-E1` はそれぞれ英知AUTO指定再発動、引用能力の範囲/耐性、引用攻撃コスト、全効果離場共通置換フックが必要なため **(c) honest defer**を継続し、実装課題残 **5→4**。(lxxxiii) は未クローズ。commit/pushなし。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第13波：SP27-015-E1 既存アクセ任意移設
 
 着手前4点照合では、`SP27-015-E1` の原文は「場にあるこのシグニ→他の自シグニのアクセ。そうした場合、元に付いていたアクセ1枚を自シグニへ任意移設」、旧liveは `STUB(ACCE_FROM_HAND)→STUB(ACCE_OP)`、readerは STUB no-op で前後半とも未実行、実測では `removeFromField` が元アクセを即トラッシュへ送ったため **(a) 機能是正**と分類した。`WXDi-P14-087-E1` の原文は「他の＜電音部＞シグニが相手ライフをクラッシュ時」、liveは無条件 `ON_OPP_LIFE_CRASHED`、readerは `performLifeBurstResponse` の inline collector がクラッシュ側の場を総走査するだけでクラッシュ元を読まず、実際は任意の場の同効果が発火するため **(c) honest defer**。(b) 宣言明示化は0件。

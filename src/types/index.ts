@@ -135,6 +135,10 @@ export interface PlayerState {
   // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）
   declared_class_zones?: Array<{ sourceCardNum: string; zone: 'deck' | 'hand' | 'signi' | 'trash' }>;
   pending_crashed_cards?: string[]; // ダブルクラッシュ等で同時クラッシュしたが未処理のカード番号（バースト処理待ち）
+  /** 現在 check にあるクラッシュ札の発生源 instance id。未設定は従来どおり発生源不明。 */
+  crash_source_card_num?: string;
+  /** pending_crashed_cards と同じ添字で保持する発生源。null は発生源不明。 */
+  pending_crash_source_card_nums?: Array<string | null>;
   // 効果エンジン用：ターン終了時にクリア
   // srcType: この修正の発生元カードの Type（'シグニ'/'スペル'/'アーツ'/'ルリグ'/'アシストルリグ'/'レゾナ' 等）。
   //   「あなたのシグニの効果で」（WX04-038-E1）等、発生元の種別を参照する効果のために保持する。

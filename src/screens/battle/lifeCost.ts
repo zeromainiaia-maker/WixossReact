@@ -32,9 +32,13 @@ export function payLifeOnPlayCost(
     hand: [...state.hand, ...toHand],
     life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
     field: { ...state.field, check: crashed[0] ?? state.field.check },
+    crash_source_card_num: crashed.length > 0 ? undefined : state.crash_source_card_num,
     pending_crashed_cards: pending.length > 0
       ? [...(state.pending_crashed_cards ?? []), ...pending]
       : state.pending_crashed_cards,
+    pending_crash_source_card_nums: pending.length > 0
+      ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => null)]
+      : state.pending_crash_source_card_nums,
   };
   return {
     state: next,
