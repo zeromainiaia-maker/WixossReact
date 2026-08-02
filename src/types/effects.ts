@@ -695,6 +695,7 @@ export type EffectAction =
   | GrantLrigAbilityAction
   | PlaceVirusAction
   | AttachAcceAction
+  | FieldSigniToAcceAction
   | BloodCrystalArmorAction
   | PowerModifyPerVirusCountAction
   | LrigLimitModifyAction
@@ -1837,6 +1838,18 @@ export interface AttachAcceAction {
   targetFilter?: TargetFilter;  // 対象シグニのフィルター（ホスト側のフィルター）
   _selectingAcceFromHand?: boolean; // 内部: fromHand step1（手札からアクセカード選択中）のthenActionマーカー
   _pickedAcceCard?: string;         // 内部: fromHand step1で選んだアクセカード（step2ホスト選択のthenActionへ引き渡す）
+}
+
+// 場のシグニを別のシグニの【アクセ】にする。
+// ATTACH_ACCE（エナ／手札）とは移動元が異なるため、既存経路を変えず独立actionで表す。
+export interface FieldSigniToAcceAction {
+  type: 'FIELD_SIGNI_TO_ACCE';
+  sourceOwner: Owner;
+  targetSigniOwner: Owner;
+  sourceFilter?: TargetFilter;
+  targetFilter?: TargetFilter;
+  sourceThisCard?: boolean;
+  _pickedFieldSigni?: string;
 }
 
 // 血晶武装：手札・トラッシュ・デッキから同名カードをシグニの下に重ねる

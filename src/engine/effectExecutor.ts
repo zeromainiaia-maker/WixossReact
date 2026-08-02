@@ -5469,6 +5469,36 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   });
 }
 
+function execFieldSigniToAcce(a: import('../types/effects').FieldSigniToAcceAction, ctx: ExecCtx): ExecResult {
+  const srcState = ownerState(a.sourceOwner, ctx);
+  const tgtState = ownerState(a.targetSigniOwner, ctx);
+  const picked = a.sourceThisCard ? ctx.sourceCardNum : a._pickedFieldSigni;
+
+  if (!picked) {
+    const sourceCands = fieldCandidates(srcState, a.sourceFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    if (sourceCands.length === 0) return done(addLog(ctx, 'アクセ元になる場のシグニなし'));
+    const scope: TargetScope = a.sourceOwner === 'opponent' ? 'opp_field' : 'self_field';
+    return needsInteraction(addLog(ctx, 'アクセにする場のシグニを選択'), {
+      type: 'SELECT_TARGET', candidates: sourceCands, count: 1, optional: false, targetScope: scope,
+      thenAction: { ...a, _pickedFieldSigni: '__SELECTED__' } as import('../types/effects').EffectAction,
+    });
+  }
+
+  const acce = tgtState.field.signi_acce ?? [null, null, null];
+  const hostCands = fieldCandidates(tgtState, a.targetFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors).filter(cn => {
+    if (cn === picked) return false;
+    const zi = tgtState.field.signi.findIndex(s => s?.at(-1) === cn);
+    if (zi < 0 || acce[zi] !== null) return false;
+    return true;
+  });
+  if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
+  const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
+  return needsInteraction(addLog(ctx, 'どのシグニにアクセしますか？'), {
+    type: 'SELECT_TARGET', candidates: hostCands, count: 1, optional: false, targetScope: scope,
+    thenAction: a as import('../types/effects').EffectAction,
+  });
+}
+
 function execBloodCrystalArmor(a: BloodCrystalArmorAction, ctx: ExecCtx): ExecResult {
   // 自分のフィールドにいる対象シグニのうち、同名カードが指定領域にあるものを選択候補とする
   const candidates = (ctx.ownerState.field.signi ?? []).flatMap((stack, zoneIdx) => {
@@ -5653,6 +5683,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     }
     case 'PLACE_VIRUS':                  return execPlaceVirus(action as PlaceVirusAction, ctx);
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
+    case 'FIELD_SIGNI_TO_ACCE':          return execFieldSigniToAcce(action as import('../types/effects').FieldSigniToAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
     case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, 'ウィルス数比例パワー（effectEngine処理）'));
     case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `リミット${(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}（UI処理）`));
@@ -5950,7 +5981,23 @@ export function applyRefreshOnDone(
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
     const result = applyDirectAction(pending.thenAction, cardNum, cur);
-    if (!result.done) return result;
+    if (!result.done) {
+      // FIELD_SIGNI_TO_ACCE は「アクセ元→host」の2段選択。外側SEQUENCEの後続
+      // （そうした場合のDRAW等）を2段目へ運ぶ。既存actionのresume挙動は変更しない。
+      if (pending.thenAction.type === 'FIELD_SIGNI_TO_ACCE' && pending.continuation) {
+        const existing = result.pending.continuation;
+        return {
+          ...result,
+          pending: {
+            ...result.pending,
+            continuation: existing
+              ? ({ type: 'SEQUENCE', steps: [existing, pending.continuation] } as SequenceAction)
+              : pending.continuation,
+          },
+        };
+      }
+      return result;
+    }
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
   }
   cur = { ...cur, lastProcessedCards: selected };
@@ -7076,6 +7123,37 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         acce_just_done: cardNum, // ホストシグニのcardNum
       };
       return done(setOwnerState(acceAction.targetSigniOwner, withFlag, ctx3));
+    }
+    case 'FIELD_SIGNI_TO_ACCE': {
+      const fieldAcce = action as import('../types/effects').FieldSigniToAcceAction;
+      // step1: 選ばれた場のシグニを内部フィールドに保持し、host選択へ進む。
+      if (fieldAcce._pickedFieldSigni === '__SELECTED__') {
+        return executeAction({ ...fieldAcce, _pickedFieldSigni: cardNum }, ctx);
+      }
+      const acceCardNum = fieldAcce.sourceThisCard ? ctx.sourceCardNum : fieldAcce._pickedFieldSigni;
+      if (!acceCardNum) return done(ctx);
+      const tgtBefore = ownerState(fieldAcce.targetSigniOwner, ctx);
+      const hostZone = tgtBefore.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      if (hostZone < 0 || (tgtBefore.field.signi_acce?.[hostZone] ?? null) !== null) return done(ctx);
+      const srcBefore = ownerState(fieldAcce.sourceOwner, ctx);
+      if (!srcBefore.field.signi.some(s => s?.at(-1) === acceCardNum)) {
+        return done(addLog(ctx, 'FIELD_SIGNI_TO_ACCE: アクセ元が場にない'));
+      }
+      // 場離れの共通経路を通す。下敷き・チャーム・既存アクセ・ソウルのルール処理、
+      // identity/status cleanup、中央board diffによる離場trigger収集を全て既存通り効かせる。
+      let ctx2 = setOwnerState(fieldAcce.sourceOwner, removeFromField(acceCardNum, srcBefore), ctx);
+      const tgtAfter = ownerState(fieldAcce.targetSigniOwner, ctx2);
+      const hostZoneAfter = tgtAfter.field.signi.findIndex(s => s?.at(-1) === cardNum);
+      if (hostZoneAfter < 0) return done(ctx2);
+      const newAcce = [...(tgtAfter.field.signi_acce ?? [null, null, null])];
+      newAcce[hostZoneAfter] = acceCardNum;
+      const withAcce: import('../types').PlayerState = {
+        ...tgtAfter,
+        field: { ...tgtAfter.field, signi_acce: newAcce },
+        acce_just_done: cardNum,
+      };
+      ctx2 = setOwnerState(fieldAcce.targetSigniOwner, withAcce, ctx2);
+      return done(addLog(ctx2, `${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}を${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}にアクセ`));
     }
     case 'SEQUENCE': {
       // SEARCH の thenAction が SEQUENCE[REVEAL, ADD_TO_HAND] 等の場合、

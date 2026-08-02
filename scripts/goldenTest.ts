@@ -21279,6 +21279,33 @@ test('task12(lxxxiii) 第11波 WX25-CP1-089-E1: 選択した他ブルアカを�
   eq(powers.get(victim), (baseline.get(victim) ?? 0) - 3000, '選択源-1000だけ2倍＋非選択源-1000にならない');
 }));
 
+test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理hostへアクセし、離場付帯処理後に1枚引く', () => withSavedCursor(() => {
+  const abilitySource = 'WXEX2-19';
+  const acceSource = findCard(c => isSigni(c) && c.CardNum !== abilitySource && matchesFilter(c, { hasIcon: 'アクセ' }));
+  const cookingHost = findCard(c => isSigni(c) && ![abilitySource, acceSource].includes(c.CardNum) && c.CardClass?.includes('調理'));
+  const oldAcce = findCard(c => isSigni(c) && ![abilitySource, acceSource, cookingHost].includes(c.CardNum));
+  const effect = effectsMap.get(abilitySource)!.find(e => e.effectId === 'WXEX2-19-E2')!;
+  eq(effect.action.type, 'SEQUENCE', 'live JSONがSEQUENCEでない');
+  const ctx = mkCtx({ signi: [abilitySource, acceSource, cookingHost] }, {}, abilitySource);
+  ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_acce: [null, oldAcce, null] } };
+  const hand0 = ctx.ownerState.hand.length;
+  const sourceOffer = executeEffect(effect, ctx);
+  ok(!sourceOffer.done && sourceOffer.pending.type === 'SELECT_TARGET', 'アクセ元選択が出ない');
+  if (sourceOffer.done || sourceOffer.pending.type !== 'SELECT_TARGET') return;
+  ok(sourceOffer.pending.candidates.includes(acceSource), 'アクセアイコン持ちが元候補にない');
+  const hostOffer = resumeSelectTarget([acceSource], sourceOffer.pending, { ...ctx, ownerState: sourceOffer.ownerState, otherState: sourceOffer.otherState, logs: sourceOffer.logs });
+  ok(!hostOffer.done && hostOffer.pending.type === 'SELECT_TARGET', 'host選択が出ない');
+  if (hostOffer.done || hostOffer.pending.type !== 'SELECT_TARGET') return;
+  ok(hostOffer.pending.candidates.includes(cookingHost), '他の＜調理＞がhost候補にない');
+  ok(!hostOffer.pending.candidates.includes(acceSource), 'アクセ元自身がhost候補に混入');
+  const resolved = finish(resumeSelectTarget([cookingHost], hostOffer.pending, { ...ctx, ownerState: hostOffer.ownerState, otherState: hostOffer.otherState, logs: hostOffer.logs }), ctx);
+  eq(resolved.ownerState.field.signi[1], null, 'アクセ元がシグニゾーンに残った');
+  eq(resolved.ownerState.field.signi_acce?.[2], acceSource, '選択hostへアクセされていない');
+  ok(resolved.ownerState.trash.includes(oldAcce), '元シグニに付いていた既存アクセが共通離場処理でトラッシュされない');
+  eq(resolved.ownerState.hand.length, hand0 + 1, 'そうした場合の1ドローが実行されない');
+  eq(resolved.ownerState.acce_just_done, cookingHost, 'ON_ACCE用host markerがない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

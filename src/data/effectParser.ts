@@ -3129,6 +3129,17 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
+  // 場のシグニを別シグニの【アクセ】にする文は、汎用の「Xを得る」系が先に
+  // GRANT_KEYWORD(アクセ)へ潰すため、個別parserの優先順より前で移動構造を確定する。
+  const fieldSigniAcceM = t.match(/《アクセアイコン》を持つあなたのシグニ[１1]体を(?:対象とし、)?あなたの他の＜([^＞]+)＞のシグニ[１1]体の【アクセ】にする/);
+  if (fieldSigniAcceM) {
+    return {
+      type: 'FIELD_SIGNI_TO_ACCE', sourceOwner: 'self', targetSigniOwner: 'self',
+      sourceFilter: { cardType: 'シグニ', hasIcon: 'アクセ' },
+      targetFilter: { cardType: 'シグニ', story: fieldSigniAcceM[1] },
+    } as EffectAction;
+  }
+
   const result =
     parseSentencePart1(t, _parsingCardNum) ??
     parseSentencePart2(t) ??

@@ -872,6 +872,23 @@ WXEX1-72
   ~ [0].parseStatus : "AUTO" → "MANUAL"
   + [0].triggerCondition.resonaClass = "遊具"
 
+## +FIELD_SIGNI_TO_ACCE -GRANT_KEYWORD -SIGNI ［1枚］
+WXEX2-19
+--- WXEX2-19
+  原文: 【自】《ターン１回》：あなたの【アクセ】１枚がトラッシュに置かれたとき、あなたのトラッシュから《アクセアイコン》を持つレベル２以下のシグニ１枚を対象とし、それをエナゾーンに置く。【起】《ターン１回》《緑×0》：《アクセアイコン》を持つあなたのシグニ１体をあなたの他の＜調理＞のシグニ１体の【アクセ】にする。そうした場合、カードを１枚引く。【起】《ゲーム１回》ベ
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].keyword = "アクセ"
+  - [1].action.steps[0].duration = "PERMANENT"
+  ~ [1].action.steps[0].type : "GRANT_KEYWORD" → "FIELD_SIGNI_TO_ACCE"
+  + [1].action.steps[0].sourceOwner = "self"
+  + [1].action.steps[0].targetSigniOwner = "self"
+  + [1].action.steps[0].sourceFilter.cardType = "シグニ"
+  + [1].action.steps[0].sourceFilter.hasIcon = "アクセ"
+  + [1].action.steps[0].targetFilter.cardType = "シグニ"
+  + [1].action.steps[0].targetFilter.story = "調理"
+
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
 --- WXEX2-30
@@ -1414,24 +1431,6 @@ WX25-P2-084
   ~ [0].action.choices[1].action.steps[1].then.keyword : "アサシン" → "アサシン:{\"isFrozen\":true,\"powerLte\":3000}"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
-## +SEQUENCE +SIGNI +STUB×2 ［1枚］
-WX25-CP1-089
---- WX25-CP1-089
-  原文: 【出】手札から＜ブルアカ＞のカードを２枚捨てる：あなたの他の＜ブルアカ＞のシグニ１体を対象とし、このターン、それの効果によって対戦相手のシグニのパワーが－される場合、代わりに２倍－される。【絆常】：このシグニのパワーは＋4000される。,：あなたのトラッシュから＜ブルアカ＞のシグニ１枚を対象とし、それを手札に加えるか場に出す。
-  - [0].action.id = "DOUBLE_POWER_MINUS"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].selectTarget.owner = "self"
-  + [0].action.steps[0].selectTarget.count = 1
-  + [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.steps[0].selectTarget.filter.story = "ブルアカ"
-  + [0].action.steps[0].selectTarget.filter.excludeSelf = true
-  + [0].action.steps[0].selectTarget.upToCount = false
-  + [0].action.steps[1].type = "STUB"
-  …（他 4 行）
-
 ## +CONDITIONAL +ENERGY_COUNT_FILTER ［1枚］
 WX26-CP1-101
 --- WX26-CP1-101
@@ -1874,24 +1873,6 @@ WDK06-C06
   - [0].condition.value = 20
   ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
   + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
-
-## +SIGNI +STUB×2 ［1枚］
-WDK06-C17
---- WDK06-C17
-  原文: 【出】：あなたの他の＜武勇＞のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのトラッシュにある＜武勇＞のシグニ２枚につき＋1000する。この効果は２０枚までしか適用されない。,：カードを１枚引く。
-  ~ [0].action.steps[0].id : "POWER_MOD_PER_COUNT" → "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].selectTarget.owner = "self"
-  + [0].action.steps[0].selectTarget.count = 1
-  + [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.steps[0].selectTarget.filter.story = "武勇"
-  + [0].action.steps[0].selectTarget.filter.excludeSelf = true
-  + [0].action.steps[0].selectTarget.upToCount = false
-  ~ [0].action.steps[1].id : "EFFECT_LIMIT" → "STORE_LAST_PROCESSED_TARGETS"
-  + [0].action.steps[2].type = "STUB"
-  + [0].action.steps[2].id = "POWER_MOD_PER_COUNT"
-  + [0].action.steps[2].targetsStored = true
-  …（他 8 行）
 
 ## +CONDITIONAL +HAND_COUNT +UNKNOWN -STUB ［1枚］
 WDK08-Y08

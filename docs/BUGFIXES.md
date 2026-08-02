@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第12波：FIELD_SIGNI_TO_ACCE 新設・WXEX2-19-E2 実働化
+
+着手前4点照合では、実装課題7件のうち `WXEX2-19-E2` を **(a) 機能是正**、残る `SP27-015-E1`／`PR-366-E3`／`WX20-036-CB-E1`／`WX24-P2-010-E1`／`WX06-019-E1`／`WXDi-P14-087-E1` を **(c) honest defer**、(b) 宣言の明示化は0件と分類した。原文／live／reader／実挙動は、WXEX2が「アクセアイコン持ち自シグニ→他の＜調理＞host＋draw」に対し旧live `GRANT_KEYWORD(アクセ)`、readerはキーワード付与だけで場移動なし。SP27は旧live `ACCE_FROM_HAND/ACCE_OP`、readerはいずれも要求する「場の自身→他host＋付随アクセ任意移設」を行わない。PR-366は `TRIGGER_OTHER_SIGNI_EICHI_ABILITY` STUB、WX20-036は引用内が他シグニ耐性を失い自身への単体POWER、WX24-P2-010は引用内攻撃コストが単体BLOCK_ACTION、WX06-019はBANISH限定置換で全場離れを覆わず、WXDi-P14-087はON_OPP_LIFE_CRASHED collectorがクラッシュ元を読まず全てのクラッシュで発火する状態だった。
+
+`FIELD_SIGNI_TO_ACCE` を `ATTACH_ACCE` と独立した additive action として新設した。writeはparserの共有文型（アクセアイコン持ち→他の＜class＞host）、readはexecutorの2段選択（元→host）とresume continuation、型は `FieldSigniToAcceAction`、decompilerも追加。永続状態フィールドは新設していないためターン境界clearは不要。場の元シグニは必ず `removeFromField` を通し、スタック下・チャーム・既存アクセはトラッシュ、ソウルはルリグトラッシュ、状態／identity cleanupと中央board diffの離場検出を既存経路へ委ねる。本実装では「シグニゾーンからアクセ領域への移動」を場離れとして扱う。既存 `ATTACH_ACCE` のエナ／手札分岐・省略時既定・型は変更していない。
+
+live goldenは `effectsMap`＋`withSavedCursor` で、アクセアイコン元候補、＜調理＞host限定、選択元自身のhost除外、2段resume、元シグニ消失、付随アクセのトラッシュ、host装着、`acce_just_done`、後続1drawを実測。`SP27-015-E1` は `OPTIONAL_REATTACH_EXISTING_ACCE`（`removeFromField` 前の付随アクセinstance保持＋別hostへの任意移設）が未実装、life-crashは `life-crash source event metadata persistence`（check/pendingカード対応＋攻撃／効果クラッシュ全入口）が未実装のため偽近似せず据置。ほか4件も第11波までの機構待ちを維持する。
+
+差分はHEAD比 live per-effect **changed 1 / added 0 / removed 0**（`WXEX2-19-E2` のみ）、既存 `excludeSelf` 減少0、`"???"` 0。golden **1301→1302**、smoke **10679/10679** 全0、fuzz全0（seed 12648430）、census **1291→1290**、manual field loss 0、lint 0 errors / 240 warnings。`build:effects`／`regen` は各2連続実行で冪等、gates全緑。実装課題残は **7→6**（`SP27-015-E1`／`PR-366-E3`／`WX20-036-CB-E1`／`WX24-P2-010-E1`／`WX06-019-E1`／`WXDi-P14-087-E1`）で、(lxxxiii) は未クローズ。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第11波：対象を読むSTUB 2件を実働化／field-sourceアクセ2件 honest defer
 
 着手前4点照合で `WDK06-C17-E1`／`WX25-CP1-089-E1` は **(a) 機能是正**、`SP27-015-E1`／`WXEX2-19-E2` は **(c) honest defer**、(b) 宣言の明示化は0件と分類した。`WDK06-C17-E1` の原文は「他の＜武勇＞1体」を対象に「トラッシュの＜武勇＞2枚につき+1000・20枚上限」。旧liveは `POWER_MOD_PER_COUNT`＋`EFFECT_LIMIT` のみで、executor は `lastProcessedCards` の個数を数え、正デルタを発生源自身へ固定していたため、対象・トラッシュ属性・倍率・上限の全てが実働していなかった。共有parser後処理で `SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS` の正準形と、明示的な `countLocation/countFilter/divisor/deltaPerUnit/maxCount/targetsStored` を生成。executor はこの明示形だけ additive 分岐で読み、省略時の従来挙動を維持した。live golden で候補が「他の＜武勇＞」だけ、武勇2枚＋非武勇1枚で選択体だけ+1000、22枚でも+10000、発生源・非選択体は不変を実測した。

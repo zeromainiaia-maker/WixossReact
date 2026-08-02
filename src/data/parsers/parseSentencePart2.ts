@@ -21,6 +21,7 @@ import type {
   CostSubstituteAction,
   PlaceVirusAction,
   AttachAcceAction,
+  FieldSigniToAcceAction,
   BloodCrystalArmorAction,
   LrigLimitModifyAction,
   FreezeAction,
@@ -258,6 +259,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- アクセ ----
+  {
+    // 「アクセアイコンを持つ自シグニ1体」を、選んだカードとは別の指定クラスの
+    // 自シグニへアクセする文型。GRANT_KEYWORD（「アクセを得る」）より先に構造化する。
+    const fieldAcceM = t.match(/《アクセアイコン》を持つあなたのシグニ[１1]体を(?:対象とし、)?あなたの他の＜([^＞]+)＞のシグニ[１1]体の【アクセ】にする/);
+    if (fieldAcceM) {
+      return {
+        type: 'FIELD_SIGNI_TO_ACCE',
+        sourceOwner: 'self',
+        targetSigniOwner: 'self',
+        sourceFilter: { cardType: 'シグニ', hasIcon: 'アクセ' },
+        targetFilter: { cardType: 'シグニ', story: fieldAcceM[1] },
+      } as FieldSigniToAcceAction;
+    }
+  }
   if (t.match(/このカードをエナゾーンからそれの【アクセ】にする/)) {
     return { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' } as AttachAcceAction;
   }

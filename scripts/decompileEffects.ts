@@ -611,6 +611,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const hostFilJaAA = a.targetFilter ? filterJa(a.targetFilter) : '';
       return `${srcJaAA}から${acceFilJaAA}シグニ1枚を、あなたの場の${hostFilJaAA}シグニ1体の【アクセ】にする`;
     }
+    case 'FIELD_SIGNI_TO_ACCE': {
+      const srcFilJaFSA = a.sourceFilter ? filterJa(a.sourceFilter) : '';
+      const hostFilJaFSA = a.targetFilter ? filterJa(a.targetFilter) : '';
+      return `場の${srcFilJaFSA}シグニ1体を、他の${hostFilJaFSA}シグニ1体の【アクセ】にする`;
+    }
     // BLOOD_CRYSTAL_ARMOR: シグニ1体を血晶武装する（指定領域から同名カードをそのシグニの下に置き血晶武装状態にする）
     case 'BLOOD_CRYSTAL_ARMOR': {
       const zoneJaBCA: Record<string, string> = { hand: '手札', trash: 'トラッシュ', deck: 'デッキ', energy: 'エナゾーン' };
