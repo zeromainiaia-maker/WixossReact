@@ -7,6 +7,25 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // タスク12(lxxxii) 第5波: 3択は即時実行ではなく、選んだON_ATTACK_LRIG能力をターン終了時まで付与する。
+  "PR-Di013": [
+    { effectId: 'PR-Di013-E1', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { energy: [{ color: '無', count: 0 }] }, action: {
+      type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPTIONAL_COST', costText: '使用コストとして追加でエクシード４を支払ってもよい', exceed: 4 },
+        { type: 'CHOOSE', choose_count: 1, from_count: 3, additionalCostChoose: { thenChooseCount: 2 }, choices: [
+          { choiceId: 'draw', label: 'アタック時にカードを1枚引く', action: { type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', rawText: '【自】《ターン１回》：このルリグがアタックしたとき、カードを１枚引く。', abilities: [
+            { effectId: 'PR-Di013-E1-G-DRAW', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'self', usageLimit: 'once_per_turn', action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL' },
+          ] } },
+          { choiceId: 'energy', label: 'アタック時に【エナチャージ1】をする', action: { type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', rawText: '【自】《ターン１回》：このルリグがアタックしたとき、【エナチャージ１】をする。', abilities: [
+            { effectId: 'PR-Di013-E1-G-ENERGY', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'self', usageLimit: 'once_per_turn', action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL' },
+          ] } },
+          { choiceId: 'trash', label: 'アタック時に対戦相手のシグニ1体をトラッシュに置く', action: { type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', rawText: '【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。', abilities: [
+            { effectId: 'PR-Di013-E1-G-TRASH', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'self', usageLimit: 'once_per_turn', action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } }, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL' },
+          ] } },
+        ] },
+      ],
+    }, duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL' },
+  ],
   // タスク12(lxxxii) 第3波: 文中CHOOSEをliveへ載せる。①③は誤対象への過剰実行を避けて明示defer。
   "WXK08-002": [
     {"effectId":"WXK08-002-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":3},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_CENTER_LRIG"},{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":2,"upToCount":true,"totalPowerMax":10000,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"STUB","id":"DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN"}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}

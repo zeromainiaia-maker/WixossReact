@@ -311,6 +311,56 @@ test('task12(lxxxii) wave4 guard: existing conditional multi-choose cards remain
   }
 }));
 
+test('task12(lxxxii) wave5: PR-Di013 manual and live JSON grant 3 attack abilities, paid multi-choice grants both, once/turn and EOT apply', () => withSavedCursor(() => {
+  const SOURCE = 'PR-Di013';
+  const liveEffect = effectsMap.get(SOURCE)?.find(e => e.effectId === 'PR-Di013-E1');
+  ok(!!liveEffect, '実機JSONにPR-Di013-E1が存在する');
+  const verify = (effect: CardEffect) => {
+  const open = (pay: boolean) => {
+    const base = mkCtx({ deckTop: fill(4), hand: 0, lrig: fill(5) }, { signi: [SIGNI, null, null] }, SOURCE);
+    // スペルの実戦発生源ゾーン（使用中カード）は check。
+    base.ownerState = { ...base.ownerState, field: { ...base.ownerState.field, check: SOURCE } };
+    const offered = executeEffect(effect, base);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', 'エクシード4のpay/skip提示');
+    if (offered.done || offered.pending.type !== 'CHOOSE') throw new Error('optional exceed missing');
+    const afterCost = resumeChoose(pay ? 'pay' : 'skip', offered.pending, execCtxFrom(offered, base));
+    ok(!afterCost.done && afterCost.pending.type === 'CHOOSE', '能力3択を提示');
+    if (afterCost.done || afterCost.pending.type !== 'CHOOSE') throw new Error('ability choice missing');
+    eq(afterCost.pending.options.length, 3, '①②③の3候補');
+    eq(afterCost.pending.count, pay ? 2 : 1, pay ? '支払い時は2つ' : '未払い時は1つ');
+    eq(afterCost.pending.multiSelect, pay ? true : undefined, '支払い時だけ複数選択');
+    return { base, afterCost };
+  };
+
+  const unpaid = open(false);
+  const handBefore = unpaid.afterCost.ownerState.hand.length;
+  const grantedDraw = resumeChoose('draw', unpaid.afterCost.pending as never, execCtxFrom(unpaid.afterCost, unpaid.base));
+  ok(grantedDraw.done, '①付与は即時解決');
+  eq(grantedDraw.ownerState.hand.length, handBefore, '選択直後はドローしない');
+  const drawAbility = grantedDraw.ownerState.lrig_granted_auto_effects?.find(e => e.effectId === 'PR-Di013-E1-G-DRAW');
+  ok(!!drawAbility, 'センタールリグへ①AUTOを付与');
+  eq(drawAbility!.usageLimit, 'once_per_turn', '《ターン1回》');
+  const attackCtx = { ...unpaid.base, ownerState: grantedDraw.ownerState, otherState: grantedDraw.otherState };
+  const firstAttack = finish(executeEffect(drawAbility!, attackCtx), attackCtx);
+  eq(firstAttack.ownerState.hand.length, handBefore + 1, 'ルリグアタック時に1枚引く');
+  const used = { ...firstAttack.ownerState, actions_done: [...(firstAttack.ownerState.actions_done ?? []), drawAbility!.effectId] };
+  const secondAttackCandidates = (used.lrig_granted_auto_effects ?? []).filter(e =>
+    e.timing?.includes('ON_ATTACK_LRIG') && !used.actions_done.includes(e.effectId));
+  eq(secondAttackCandidates.length, 0, '同一ターン2回目は発火しない');
+  const nextTurn = { ...used, actions_done: [], lrig_granted_auto_effects: used.lrig_granted_auto_effects?.filter(e => e.permanentGrant) };
+  eq(nextTurn.lrig_granted_auto_effects?.length ?? 0, 0, 'ターン終了時に付与能力が消える');
+
+  const paid = open(true);
+  const both = resumeChoose(['energy', 'trash'], paid.afterCost.pending as never, execCtxFrom(paid.afterCost, paid.base));
+  ok(both.done, '複数選択した2枝を両方実行');
+  const ids = (both.ownerState.lrig_granted_auto_effects ?? []).map(e => e.effectId);
+  ok(ids.includes('PR-Di013-E1-G-ENERGY') && ids.includes('PR-Di013-E1-G-TRASH'), '②③を両方付与');
+  eq(both.ownerState.self_optional_effect_taken, false, '支払い結果フラグを選択数反映後に消費');
+  };
+  verify(manualEffect(SOURCE, 'PR-Di013-E1'));
+  verify(liveEffect!);
+}));
+
 test('frontOfSelf WXK11-029-E2: only the opposing front SIGNI loses abilities; empty front is no-op', () => {
   const host = 'WXK11-029';
   const front = SIGNI_L2;

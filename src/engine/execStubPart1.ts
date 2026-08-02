@@ -253,6 +253,12 @@ export function execStubPart1(
     };
     return done(addLog({ ...ctx, ownerState: newOwner }, `エクシード${count}を支払った`));
   }
+  if (stub.id === 'INTERNAL_SET_OPTIONAL_EFFECT_TAKEN') {
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: true } });
+  }
+  if (stub.id === 'INTERNAL_CLEAR_OPTIONAL_EFFECT_TAKEN') {
+    return done({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } });
+  }
   if (stub.id === 'INTERNAL_PAY_LRIG_DOWN') {
     const cost = stub.lrigDown;
     if (!cost) return done(addLog(ctx, 'ルリグダウンコストを支払えない'));

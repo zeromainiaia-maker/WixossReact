@@ -1,5 +1,60 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxii) 第5波：`PR-Di013-E1` の「選んだ能力を得る」を実働化＝**(lxxxii) 残0クローズ**
+
+**codex-work 実装／Claude 指示・投入前実測・検証・簿記。🔴差し戻し1件（下記）。**
+
+### 直した内容
+
+`PR-Di013`《飛躍する蓄積》の原文は「**ターン終了時まで、あなたのセンタールリグは選んだ能力を得る**」＋①②③の【自】能力3つ。
+現状は2つ壊れていた：**(a) 選択肢②③が生成されず永久に選べない**（engine の選択肢生成に対応分岐が無い）／
+**(b) ①が `DRAW` として即時実行**＝**「アタックしたとき引く」が「今すぐ引く」**になっていた。
+
+⇒ 3枝すべてを `GRANT_LRIG_ABILITY`（`timing:['ON_ATTACK_LRIG']`／`triggerScope:'self'`／`usageLimit:'once_per_turn'`／外側 `duration:'UNTIL_END_OF_TURN'`）へ是正。
+**先例 `WXDi-P05-032-E1`（ほぼ同文の実装済みカード）に形を揃えた**ので新語彙は最小。
+「追加コスト（エクシード4）を払うと2つ選べる」は **`CHOOSE.additionalCostChoose` を1本追加**＝既存兄弟4本（`recollect`／`recollectArts`／`betChoose`／`preUseVirusChoose`＝`effectExecutor.ts:3694-3723`）と同形。
+
+### 🔴 Claude が差し戻した1件＝**実装は正しいが実機に一切届いていなかった**
+
+codex は `manualEffects.ts` にのみ定義を書き、**ゲートは全緑（golden 1312）**だった。しかし**実機では完全な no-op**：
+
+1. **実機は effects JSON を直接読む**＝`src/App.tsx:126` の `effects: effectsJson[r.CardNum] ?? []`。
+   **`mergeManualEffects` の呼び出し元は `effectParser.ts:9925`（build 経路）と `src/verify/main.ts` だけで、実機のデータロード経路に無い。**
+2. **`build:effects` では JSON に反映されない**＝`buildEffectsJson.ts:158` の PRESERVE 機構
+   （`PRESERVE_STATUSES = {'MANUAL','PARTIAL'}`）が**既存 JSON に MANUAL を持つカードをカード単位で丸ごと温存**する。
+   `PR-Di013` は既存 JSON が `parseStatus:'MANUAL'` なのでハード保護され、**build を回しても md5 不変・中身は古いまま**だった（Claude が実測）。
+3. **ゲートが緑だったのは golden/smoke が `mergeManualEffects` を通す＝実機と違う経路を見ていたから。**
+
+⚠**第3波（`WXK08-002`）で同じ手順が通用したのは、あちらが既存 JSON に MANUAL を持っていなかったから**＝
+**「manualEffects.ts に書く」は、既存 MANUAL の有無で結果が正反対になる。**
+
+⚠**気付けた決め手＝codex 自身が報告した「全5 JSON の per-effect diff：changed 0」**。
+engine-only の第4波では changed 0 が正しかったが、**JSON を変えるべき修正で changed 0 は「届いていない」ことの証拠**。
+⇒ `public/data/effects_misc.json` への**外科パッチ**（PRESERVE 保護カードの正規手順）＋
+**「JSON に入っていなければ落ちる」golden** を要求して差し戻し、codex が正しく是正した。
+
+### Claude 検証：差し戻し後の独立実測はすべて申告と一致
+
+- **JSON 直読みで内容確認**＝3枝の `GRANT_LRIG_ABILITY` が入り、**日本語健全**（`???` 0件・UTF-8ミニファイ1行）。
+- **`build:effects` 後もパッチ生存**＝md5 `3e15dd71…` 不変（PRESERVE が効いて温存される側になった）。
+- **live per-effect diff（全5ファイル・`77c14cd1` 比）＝`changed 1`（`PR-Di013-E1`）／added 0／removed 0／outlier 0**（差し戻し前の changed 0 から是正）。
+- **golden は両経路で同一検証**＝`verify(manualEffect(...))` と `verify(liveEffect!)`（`effectsMap` は JSON 生読みのまま＝`goldenTest.ts:81-83` は merged を `card.effects` にしか入れない）。
+  スペルの発生源を `field.check` に置く実戦配置で、**①選択直後は手札が増えず／ルリグアタック時に初めて1枚引く**という**即時実行と能力付与を区別する assert** を含む。`once_per_turn`・2回目不発火・ターン終了時消滅・支払い時 count=2/未払い時 count=1・2枝同時選択で両方付与・フラグ消費まで固定。
+- **既存への波及なし（構造的に担保）**＝`additionalCostChoose` 保持効果は **live 全数で `PR-Di013-E1` の1件のみ**。engine 変更は
+  すべて `a.additionalCostChoose` / `additionalCostChoose5` ガード内にあり、**未設定の既存 CHOOSE・既存 `OPTIONAL_COST` は分岐に入らない**
+  （skip 側が「後続を実行する」に変わるのもガード内のみ）。⛔`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` は**一切触っていない**＝
+  `SP26-005-E1`／`SP38-004-E1` は構造的に非影響（codex 実測でも前後とも count=2／選択肢2個で不変）。
+- ゲート独立実行＝**全緑**。golden **1311→1312**、smoke **10679/10679** 全0・SKIP0、fuzz 全0、census **1289 据置**、
+  lint 0 errors/**240 warnings 据置**、manual field loss 0、同型★0、held **264枚／115署名 据置**。
+
+### ⚠ 残る注意（§7 実機検証へ送る）
+
+golden の「ターン終了時に付与能力が消える」assert は、**BattleScreen のターン終了処理と同じ式**
+（`lrig_granted_auto_effects?.filter(e => e.permanentGrant)`＝`BattleScreen.tsx:3422/3799/9673`）を
+**テスト内に書いて確認している**もので、engine のターン境界処理を通してはいない。
+`GRANT_LRIG_ABILITY` は `permanent` 未指定なら `permanentGrant` が付かない（`effectExecutor.ts:5760-5761`）ので設計上は正しいが、
+**UI 経路は計器に映らない**＝実機検証の対象。
+
 ## 2026-08-02 — Opusタスク12(lxxxii) 第4波：「追加コストを払うと選択数が増える」5効果を実測で仕分け→**壊れていた2件を実働化**（残7→3）
 
 **codex-work 実装／Claude 指示・投入前実測・検証・簿記。差し戻し0・Claude 是正0。engine-only（生成JSON は完全不変）。**

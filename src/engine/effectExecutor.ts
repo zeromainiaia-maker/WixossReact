@@ -3495,6 +3495,8 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const cont5: EffectAction = remaining5.length > 0
             ? (remaining5.length === 1 ? remaining5[0] : { type: 'SEQUENCE', steps: remaining5 } as SequenceAction)
             : noopAction5;
+          const additionalCostChoose5 = cont5.type === 'CHOOSE'
+            && !!(cont5 as ChooseAction).additionalCostChoose;
           // この文型では任意支払いの成否にかかわらず後続の選択効果を実行し、
           // 支払った場合だけ ARTS_EXTRA_COST_CONDITION の選択数を増やす。
           if (stub5.id === 'OPTIONAL_TRASH_ENERGY_CLASS'
@@ -3570,13 +3572,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...optionalCostPaySteps(spec5),
             ...handDiscardGroups5.map(g => ({ type: 'TRASH', asCost: true,
               target: { type: 'HAND_CARD', owner: 'self', count: g.count, filter: g.filter } } as EffectAction)),
+            ...(additionalCostChoose5 ? [{ type: 'STUB', id: 'INTERNAL_SET_OPTIONAL_EFFECT_TAKEN' } as EffectAction] : []),
           ];
           const payAction5: EffectAction = paySteps5.length > 0
             ? { type: 'SEQUENCE', steps: [...paySteps5, freezeStoredTargets(cont5, cur)] }
             : cont5;
           const options5 = [
             { id: 'pay', label: payLabel5, action: payAction5, available: canAfford5, ...(costColors5.length ? { costColors: costColors5 } : {}), ...(coinCost5 > 0 ? { coinCost: coinCost5 } : {}) },
-            { id: 'skip', label: activateOnly5 ? '発動しない' : 'スキップ', action: noopAction5 as EffectAction, available: true },
+            { id: 'skip', label: activateOnly5 ? '発動しない' : 'スキップ', action: additionalCostChoose5
+              ? ({ type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_CLEAR_OPTIONAL_EFFECT_TAKEN' }, freezeStoredTargets(cont5, cur)] } as SequenceAction)
+              : noopAction5 as EffectAction, available: true },
           ];
           const pending5: PendingInteractionDef = { type: 'CHOOSE', options: options5, count: 1 };
           return needsInteraction(addLog(cur, activateOnly5 ? '任意効果：発動しますか？' : '任意コスト：支払いますか？'), pending5);
@@ -3754,7 +3759,14 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     effectiveCount = a.preUseVirusChoose.thenChooseCount;
     effectiveUpTo = a.preUseVirusChoose.thenUpTo ?? false;
   }
-  return needsInteraction(ctx, {
+  if (a.additionalCostChoose && ctx.ownerState.self_optional_effect_taken) {
+    effectiveCount = a.additionalCostChoose.thenChooseCount;
+    effectiveUpTo = a.additionalCostChoose.thenUpTo ?? false;
+  }
+  const chooseCtx = a.additionalCostChoose
+    ? { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } }
+    : ctx;
+  return needsInteraction(chooseCtx, {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),
     ...(effectiveUpTo ? { upTo: true } as Record<string, unknown> : {}),

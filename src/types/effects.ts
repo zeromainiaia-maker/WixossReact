@@ -1094,6 +1094,8 @@ export interface ChooseAction {
   };
   /** 使用前に相手ウィルスをminRemoved個以上取り除いた場合の選択数上書き。 */
   preUseVirusChoose?: { minRemoved: number; thenChooseCount: number; thenUpTo?: boolean };
+  /** 直前の任意追加コストを支払った場合の選択数上書き。支払い結果は選択提示時に消費する。 */
+  additionalCostChoose?: { thenChooseCount: number; thenUpTo?: boolean };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
