@@ -396,6 +396,26 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    // 「対戦相手のセンタールリグは能力を失う」（WX20-003②）。汎用枝は能力喪失を
+    // SIGNI 固定で組むため、対象種別を明示してからそちらへ渡さない。
+    if (/対戦相手のセンタールリグは能力を失/.test(t)) {
+      const remove: RemoveAbilitiesAction = {
+        type: 'REMOVE_ABILITIES',
+        target: { type: 'LRIG', owner: 'opponent', count: 1 },
+        until: dur,
+      };
+      // この枝は汎用の先頭状態条件ラッパーより先に return するため、WX20-003②の
+      // availability 条件をここで保持する。上流の liftChoiceOptionCondition が
+      // TURN_OWNER を choice.condition へ持ち上げる。
+      if (/対戦相手のターンの場合/.test(t)) {
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'TURN_OWNER', owner: 'opponent' },
+          then: remove,
+        } as EffectAction;
+      }
+      return remove;
+    }
     // 「このシグニは【常】能力を失う」＝自己参照（thisCardOnly）。同一文にトリガー句（「このシグニが対戦相手の、
     // 能力か効果の対象になったとき」WX25-P2-055）が残っていると下の owner 判定が「対戦相手」を拾って
     // 相手シグニの能力を消す真逆の効果になる（続き72の実機観測・続き75で修正）ため、先に自己参照を確定させる。

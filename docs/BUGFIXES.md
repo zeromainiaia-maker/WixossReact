@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxii) 第2波：前置に実アクションを含む文中 CHOOSE の救済（同型3件／残9→8）
+
+`WD21-008-E1`・`WX20-003-E1`・`SPK01-07-E1` の3件を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer 1件＝`WX20-007-E1`）。**codex-work 実装／Claude 指示・検証・簿記**。**差し戻し1件**（下記）。
+
+**⚠投入前実測で在庫メモの母集団が誤っていたことが判明**＝在庫は「先頭形258件＋文中形46件・脱落10」と記していたが、実測は **先頭形157／文中形210／文中形で live に CHOOSE が無い35**。しかも**その35件の大半は壊れていない**＝約17件は `BET_MECHANIC`（「ベット―《コインアイコン》」前置・9件）／`GRANT_CHOSEN_ABILITY`／`GRANT_CHOSEN_ABILITY_SELF`／`SIGNI_GRANT_CHOSEN_ABILITY`／`INTERNAL_KIYOHIME_CHOOSE` など、**engine の STUB が実行時に原文を解析する設計**（`effectParser.ts:5753-5768` のコメントが明記）＝JSON に CHOOSE が無いのが正常で、素の CHOOSE に置き換えると退化する。この分類表を件数つきで指示書に載せ「⛔触らない群」として固定した。
+
+**⚠在庫は1件だったが実測すると同型3件**＝`WD21-008-E1`（手札から＜宇宙＞のシグニ1枚を捨ててもよい→《赤×2》減る）／`WX20-003-E1`（＜精械＞版・《白×2》）／`SPK01-07-E1`（キー1枚をルリグトラッシュへ→《緑×3》）。前置の action tree はいずれも **`TRASH`（または `STUB{TRASH_OWN_KEY_OPTIONAL}`）＋ `CONDITIONAL{IS_MY_TURN}{then: STUB{ARTS_COST_REDUCTION_BY_EFFECT}}`**。第1波で緩めた条件は「前置の全 step が `costMarkerIds` の**素の** STUB」だったため、(a) 実アクションを含む (b) marker が CONDITIONAL に包まれている、の2点で外していた。**1件だけ直すと同型★が割れる**ため3件そろえて着地させた。
+
+**修正**＝`effectParser.ts:5741-5765` に、許可する前置の木を**狭く固定**した経路を追加＝支払い側は `TRASH{HAND_CARD,self,count:1}` ＋原文「捨ててもよい」／`STUB{TRASH_OWN_KEY_OPTIONAL}` のみ、後続は `CONDITIONAL{IS_MY_TURN → STUB{ARTS_COST_REDUCTION_BY_EFFECT}}`（`else` 無し）のみ。`SEQUENCE[payment, conditional, CHOOSE]` として前置を保持する。`BET_MECHANIC`・`GRANT_CHOSEN_ABILITY*` は許可リストに入れていない。`WD21-008-E1` の前置 `TRASH` に欠けていた `optional:true`（原文「捨てて**もよい**」）も補完した。
+
+**⚠`CONDITIONAL{IS_MY_TURN}` は幻覚ではない**＝「そうした場合、」の**意図的な慣例エンコード**（常時 true ＋ engine 特別処理）で、`effectParser.ts:1250` のコメントが「刻印しない」と明記している。指示書にこの文言ごと引用して「形を変えず前段へ保持せよ」と固定した結果、包みは維持された（golden でも assert）。
+
+**副次の是正1件**＝`parseSentencePart1.ts:396` 付近の「能力を失う」汎用枝は対象を **SIGNI 固定**で組むため、`WX20-003-E1` ②「対戦相手のセンタールリグは能力を失う」が**誤った対象**になっていた。専用枝を足して `REMOVE_ABILITIES{target:{type:'LRIG',owner:'opponent'}}` を返すようにした。
+
+**🔴 Claude が差し戻した1件＝新規に作られた過剰実行**。上の専用枝が `REMOVE_ABILITIES` を**裸で return** したため、原文②の先頭にある「**対戦相手のターンの場合**、」が丸ごと捨てられ、`choices[1]` に `condition` が付かなかった。**元からのバグではなく今回作った過剰実行**＝変更前は CHOOSE 自体が組まれず選択肢が live に存在しなかったので、対象を正しく LRIG へ直したことで**初めて実効性を持ったぶん**、条件欠落がそのまま「自分のターンでも相手センタールリグの能力を消せる」になる。⚠**`TURN_OWNER` は `IS_MY_TURN`（実行時プレースホルダ常時真）と違い engine で実評価される**（`execUtils.ts:1229` の `case 'TURN_OWNER'` ＋ `:39` の `isOwnerTurn`、`effectEngine.ts:69`）＝no-op では済まない。材料はすべて既存だった（条件語彙 `effectParser.ts:2657`、持ち上げ経路 `liftChoiceOptionCondition`〔`:3353-3368`。除外は `IS_MY_TURN`/`IS_OPPONENT_TURN` のみで `TURN_OWNER` は通る〕）ので、**仮説・engine 実評価の根拠・安全側の直し方(a)・golden への assert・「既存 `TURN_OWNER` 23効果が減っていないこと」の検証**まで書いて差し戻したところ、codex は仮説を実測で確認し**この枝だけを `CONDITIONAL{TURN_OWNER:opponent → REMOVE_ABILITIES}` で包む**最小修正で是正した。`TURN_OWNER` 保持効果は **23→24**（Claude が HEAD 比較スクリプトで独立実測）。
+
+**honest defer 1件**＝`WX20-007-E1`（「捨てたシグニ1枚につき《黒×1》《無×1》減る」＝枚数比例）。`OPTIONAL_DISCARD_CLASS_SIGNI` と `ARTS_COST_REDUCTION_BY_EFFECT` では「捨てた枚数×減額」を表現できず、可変枚数の支払い結果をコスト減へ渡す語彙が要る。
+
+**残った過小実行（別在庫）**＝`WD21-008-E1` の選択肢③「あなたのトラッシュからシグニを2枚まで対象とし、それらを手札に加え、手札を1枚捨てる」は `UNKNOWN{raw}` のまま＝**選べるが何も起きない**。CHOOSE 自体は復活したので純増だが、複合回収語彙の実装が別途要る。
+
+**ゲート（Claude が独立再現）**＝golden **1306→1307**、smoke **10679/10679** 全0・SKIP0、fuzz 200ゲーム 7983手 全0、census **1289 据置**、manual field loss 0、lint 0 errors／**240 warnings 据置**、同型★0（5986枚・265群）。live per-effect 差分 **changed 3 / added 0 / removed 0**（`WD21-008-E1`／`WX20-003-E1`／`SPK01-07-E1` のみ・`BET_MECHANIC` 系と `GRANT_CHOSEN_ABILITY*` 系の changed **0**・兄弟効果変更0）。held **265枚/116署名 据置**（増減なし＝第1波の採用禁止6件も未採用のまま）。commit/push は Claude が実施（要実機検証）。
+
 ## 2026-08-02 — Opusタスク12(lxxxii) 第1波：文中 CHOOSE 救済の閾値緩和（`WXK09-004-E1`／残10→9）
 
 `WXK09-004-E1` を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer 9件）。**codex-work 実装／Claude 指示・検証・簿記**。差し戻し0。
@@ -14,7 +36,7 @@
 
 **honest defer 9件**＝**B-1** `WD21-008-E1`（前置が `TRASH + CONDITIONAL(STUB)`＝実アクションを保持したまま CHOOSE へ連結する専用判定が要る。前置 `optional` 脱落も確認したが別在庫）／**A-2** `WXK08-002-E1`（上記の退化4点＝対象保持・合計パワー制約・遅延帰還・引用能力付与の配線が先）／**C群5件** `SP26-005-E1`・`SP38-004-E1`・`WD23-044-EA-E1`・`WX26-CP1-024-E1`・`PR-Di013-E1`（「追加コストを払っていた場合、代わりに2つ選ぶ」＝**支払い結果に応じて `choose_count` が変わる条件つき CHOOSE 語彙**と engine/UI 実行配線の新設が要る。`effectParser.ts:5752` が意図的に据置している型＝**素の CHOOSE に落とすのは退化**なので落としていない）／**D群2件** `WXDi-P05-006-E1`（【使用条件】【チーム】が `GRANT_KEYWORD` に化ける幻覚＋ピース効果打ち消し／除外語彙が同居＝§6.3 F の保留案件）・`WXK10-008-E1`（MANUAL 温存。アンコール前置と選択肢内の任意支払いを忠実に扱う機構が要る）。
 
-**ゲート（Claude が独立再現）**＝golden **1305→1306**（+1＝`withSavedCursor` で共有 `cursor` を save/restore 済み・parseCardEffects 直呼びで CHOOSE 構造と3選択肢の condition を assert）、smoke **10679/10679** 全0・SKIP0、fuzz 200ゲーム 7999手 全0、census **1289 据置**（⚠この効果は高シグナル語彙に載っていないため実働化しても数字は動かない＝`BASELINE_HIGH` 変更なし）、manual field loss 0、lint 0 errors／**240 warnings 据置**、同型★0（5986枚・265群）。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WXK09-004-E1` のみ・兄弟効果変更0・outlier 0）。held **258枚/109署名 → 266枚/116署名**（増分は上記の +7カード）。commit/push は Claude が実施（要実機検証）。
+**ゲート（Claude が独立再現）**＝golden **1305→1306**（+1＝`withSavedCursor` で共有 `cursor` を save/restore 済み・parseCardEffects 直呼びで CHOOSE 構造と3選択肢の condition を assert）、smoke **10679/10679** 全0・SKIP0、fuzz 200ゲーム 7999手 全0、census **1289 据置**（⚠この効果は高シグナル語彙に載っていないため実働化しても数字は動かない＝`BASELINE_HIGH` 変更なし）、manual field loss 0、lint 0 errors／**240 warnings 据置**、同型★0（5986枚・265群）。live per-effect 差分 **changed 1 / added 0 / removed 0**（`WXK09-004-E1` のみ・兄弟効果変更0・outlier 0）。held **258枚/109署名 → 265枚/116署名**（増分は上記の +7カード）。⚠**当初 codex の報告どおり「266枚」と記録したが、第2波で `node scripts/heldReview.mjs` を再実測したところ 265 が正**（258+7=265 で内訳とも整合）＝2026-08-02 第2波で訂正。commit/push は Claude が実施（要実機検証）。
 
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第15波：場離れ置換共通フック＋英知能力再発動（残0クローズ）
 

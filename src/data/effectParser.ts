@@ -5741,7 +5741,25 @@ function parseActionTextInner(text: string): EffectAction {
       ]);
       const onlyCostMarkers = prefixSteps.length >= 1 && prefixSteps.every(step =>
         step.type === 'STUB' && costMarkerIds.has(step.id));
-      if (onlyCostMarkers) {
+      // 任意支払い→「そうした場合」コスト減の同型3件。支払いと慣例エンコードの包みを
+      // そのまま残し、許可する支払い action と marker の木を狭く固定する。
+      const optionalPayment = prefixSteps[0];
+      const wrappedCostMarker = prefixSteps[1];
+      const allowedOptionalPayment = optionalPayment?.type === 'TRASH'
+        ? optionalPayment.target.type === 'HAND_CARD' && optionalPayment.target.owner === 'self'
+          && optionalPayment.target.count === 1 && /捨ててもよい/.test(prefixText)
+        : optionalPayment?.type === 'STUB' && optionalPayment.id === 'TRASH_OWN_KEY_OPTIONAL';
+      const hasWrappedEffectCostMarker = prefixSteps.length === 2
+        && allowedOptionalPayment
+        && wrappedCostMarker?.type === 'CONDITIONAL'
+        && wrappedCostMarker.condition.type === 'IS_MY_TURN'
+        && wrappedCostMarker.then.type === 'STUB'
+        && wrappedCostMarker.then.id === 'ARTS_COST_REDUCTION_BY_EFFECT'
+        && !wrappedCostMarker.else;
+      if (hasWrappedEffectCostMarker && optionalPayment.type === 'TRASH') {
+        optionalPayment.optional = true;
+      }
+      if (onlyCostMarkers || hasWrappedEffectCostMarker) {
         const chosen = buildChoose(text.slice(embeddedHead.index), parseNum(embeddedHead[1]));
         if (chosen) return { type: 'SEQUENCE', steps: [...prefixSteps, chosen] } as SequenceAction;
       }

@@ -21452,6 +21452,44 @@ test('task12(lxxxii) WXK09-004-E1: 単一コスト改変marker後の文中CHOOSE
   eq(choose.choices[2].action.type, 'CONDITIONAL', '③手札0条件つき6枚回収');
 }));
 
+test('task12(lxxxii) 第2波: 任意支払いと条件付きコスト減の後の文中CHOOSEを3件とも保持', () => withSavedCursor(() => {
+  for (const [cardNum, chooseCount, fromCount] of [
+    ['WD21-008', 1, 3], ['WX20-003', 2, 2], ['SPK01-07', 2, 3],
+  ] as const) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`)!;
+    eq(effect.action.type, 'SEQUENCE', `${cardNum}: 支払い・コスト減・CHOOSEのSEQUENCE`);
+    if (effect.action.type !== 'SEQUENCE') continue;
+    eq(effect.action.steps.length, 3, `${cardNum}: 前置2 stepとCHOOSEだけを保持`);
+    const [payment, reduction, choose] = effect.action.steps;
+    if (cardNum === 'SPK01-07') {
+      ok(payment.type === 'STUB' && payment.id === 'TRASH_OWN_KEY_OPTIONAL', `${cardNum}: 任意キー支払いを保持`);
+    } else {
+      ok(payment.type === 'TRASH' && payment.target.type === 'HAND_CARD' && payment.optional === true,
+        `${cardNum}: 任意手札支払いを保持`);
+    }
+    ok(reduction.type === 'CONDITIONAL'
+      && reduction.condition.type === 'IS_MY_TURN'
+      && reduction.then.type === 'STUB'
+      && reduction.then.id === 'ARTS_COST_REDUCTION_BY_EFFECT', `${cardNum}: そうした場合の慣例包みを保持`);
+    eq(choose.type, 'CHOOSE', `${cardNum}: 文中CHOOSE`);
+    if (choose.type !== 'CHOOSE') continue;
+    eq(choose.choose_count, chooseCount, `${cardNum}: 選択数`);
+    eq(choose.from_count, fromCount, `${cardNum}: 選択肢数`);
+    if (cardNum === 'WX20-003') {
+      const summon = choose.choices[0].action;
+      ok(summon.type === 'SEQUENCE' && summon.steps[0]?.type === 'SEARCH'
+        && summon.steps[0].then?.type === 'ADD_TO_FIELD' && summon.steps[0].then.suppressOnPlay === true,
+        `${cardNum}: ①精械を場出しし【出】を発動させない`);
+      const remove = choose.choices[1].action;
+      ok(remove.type === 'REMOVE_ABILITIES' && remove.target.type === 'LRIG'
+        && remove.target.owner === 'opponent', `${cardNum}: ②相手センタールリグの能力を失わせる`);
+      const removeCondition = choose.choices[1].condition;
+      ok(removeCondition?.type === 'TURN_OWNER' && removeCondition.owner === 'opponent',
+        `${cardNum}: ②は相手ターンの場合だけ選べる`);
+    }
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
