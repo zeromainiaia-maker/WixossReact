@@ -9,6 +9,7 @@ import {
   getCardNum, shuffle, addToBeatZone,
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
   isOwnTrashMoveLocked,
+  matchesFilter,
 } from './execUtils';
 import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -1057,10 +1058,11 @@ export function execStubPart3(
   // SELECT_OTHER_SIGNI: ソース以外のシグニを選択
   if (stub.id === 'SELECT_OTHER_SIGNI') {
     const srcSOS = ctx.sourceCardNum;
+    const targetFilterSOS = stub.selectTarget?.filter;
     const candsSOS = (ctx.ownerState.field.signi ?? []).flatMap(s => {
       if (!s || s.length === 0) return [];
       const top = s[s.length - 1];
-      return top !== srcSOS ? [top] : [];
+      return top !== srcSOS && (!targetFilterSOS || matchesFilter(ctx.cardMap.get(top), targetFilterSOS)) ? [top] : [];
     });
     if (candsSOS.length === 0) return done(addLog(ctx, '選択可能な他シグニなし'));
     const noopSOS: StubAction = { type: 'STUB', id: 'RULE_REMINDER_TEXT' };

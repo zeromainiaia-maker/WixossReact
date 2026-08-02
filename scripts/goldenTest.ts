@@ -20995,6 +20995,95 @@ test('task12(lxxxiii) 第5波 E2E: トラッシュ/デッキ下の犠牲候補�
   }
 }));
 
+test('task12(lxxxiii) 第6波: action/host 対象の fresh 構文に excludeSelf を保持', () => {
+  for (const [cardNum, effectId] of [
+    ['WX26-CP1-084', 'WX26-CP1-084-E1'], ['WXDi-P03-042', 'WXDi-P03-042-E1'],
+    ['WXEX2-59', 'WXEX2-59-E2'], ['WXDi-P03-057', 'WXDi-P03-057-E1'],
+    ['WXDi-P10-052', 'WXDi-P10-052-E1'],
+  ] as const) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    ok(JSON.stringify(effect.action).includes('"excludeSelf":true'), `${effectId}: excludeSelf が無い`);
+  }
+  for (const [cardNum, effectId] of [
+    ['WXDi-P02-039', 'WXDi-P02-039-E1'], ['WXDi-P03-086', 'WXDi-P03-086-E1'],
+  ] as const) {
+    // live JSON の生値を固定する。MANUAL merge で live 欠落を隠さない。
+    const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live effect が無い`);
+    if (!effect) continue;
+    eq(effect.triggerScope, 'any_ally', `${effectId}: 他の味方が trigger 主語`);
+    eq(effect.triggerFilter?.excludeSelf, true, `${effectId}: triggerFilter.excludeSelf が無い`);
+  }
+});
+
+test('task12(lxxxiii) 第6波 live E2E: 他の該当クラスは収集し、発生源自身は非収集', () => {
+  for (const [watcher, effectId, story] of [
+    ['WXDi-P02-039', 'WXDi-P02-039-E1', '地獣'],
+    ['WXDi-P03-086', 'WXDi-P03-086-E1', 'アーム'],
+  ] as const) {
+    const other = findCard(c => isSigni(c) && c.CardNum !== watcher && c.CardClass?.includes(story));
+    const ctx = trigCtx(HOST);
+    // effectsMap は public/data/effects_*.json から読んだ生値のまま渡す。
+    ctx.effectsMap = effectsMap;
+    const otherPlay = collectFieldTriggers(
+      ctx, 'ON_PLAY', other, mkState({ signi: [watcher, other, null] }), mkState(), HOST,
+    );
+    ok(otherPlay.entries.some(e => e.effectId === effectId), `${effectId}: 他の＜${story}＞で収集されない`);
+    const selfPlay = collectFieldTriggers(
+      ctx, 'ON_PLAY', watcher, mkState({ signi: [watcher, null, null] }), mkState(), HOST,
+    );
+    ok(!selfPlay.entries.some(e => e.effectId === effectId), `${effectId}: 発生源自身で収集された`);
+  }
+});
+
+test('task12(lxxxiii) 第6波 E2E: 対象宣言→任意コスト→同一他シグニへランサー付与', () => withSavedCursor(() => {
+  const source = 'WXDi-P03-042';
+  const other = findCard(c => isSigni(c) && c.CardNum !== source);
+  const green = findCard(c => c.Color?.includes('緑') && c.CardNum !== source && c.CardNum !== other);
+  const colorless = findCard(c => c.Color?.includes('無') && c.CardNum !== source && c.CardNum !== other && c.CardNum !== green);
+  const effect = parseCardEffects(cardMap.get(source)!).find(e => e.effectId === 'WXDi-P03-042-E1')!;
+  const ctx = mkCtx({ signi: [source, other, null] }, {}, source);
+  ctx.ownerState = { ...ctx.ownerState, energy: [green, colorless] };
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象宣言の選択が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(!offered.pending.candidates.includes(source), '効果元自身が対象候補に残る');
+  ok(offered.pending.candidates.includes(other), '他のシグニが対象候補に無い');
+  const selected = resumeSelectTarget([other], offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  const done = finishPayingCosts(selected, ctx);
+  ok(done.done, 'resumeOptionalCost 後に完了しない');
+  ok(done.ownerState.keyword_grants?.[other]?.includes('ランサー'), '選んだ他シグニにランサーが無い');
+  ok(!done.ownerState.keyword_grants?.[source], '効果元自身にランサーが付いた');
+}));
+
+test('task12(lxxxiii) 第6波 E2E: レイヤー/下敷き/選択のみの host 候補から自身を除外', () => withSavedCursor(() => {
+  const kaiSource = 'WXEX2-59';
+  const kaiOther = findCard(c => isSigni(c) && c.CardClass?.includes('怪異') && c.CardNum !== kaiSource);
+  const kaiCtx = mkCtx({ signi: [kaiSource, kaiOther, null] }, {}, kaiSource);
+  const kai = executeEffect(parseCardEffects(cardMap.get(kaiSource)!).find(e => e.effectId === 'WXEX2-59-E2')!, kaiCtx);
+  ok(!kai.done && kai.pending.type === 'SELECT_TARGET', 'レイヤーコピー候補選択が出ない');
+  if (!kai.done && kai.pending.type === 'SELECT_TARGET') {
+    ok(!kai.pending.candidates.includes(kaiSource), 'レイヤーコピーに自身が残る');
+    ok(kai.pending.candidates.includes(kaiOther), '他の＜怪異＞が候補に無い');
+    ok(resumeSelectTarget([kaiOther], kai.pending, { ...kaiCtx, ownerState: kai.ownerState, otherState: kai.otherState, logs: kai.logs }).done, 'レイヤー resume が完了しない');
+  }
+
+  const underSource = 'WXDi-P03-057';
+  const redOther = findCard(c => isSigni(c) && c.Color?.includes('赤') && c.CardNum !== underSource);
+  const nonRed = findCard(c => isSigni(c) && !c.Color?.includes('赤') && c.CardNum !== underSource && c.CardNum !== redOther);
+  const underCtx = mkCtx({ signi: [underSource, redOther, nonRed], down: [true, false, false] }, {}, underSource);
+  const under = executeEffect(parseCardEffects(cardMap.get(underSource)!).find(e => e.effectId === 'WXDi-P03-057-E1')!, underCtx);
+  ok(!under.done && under.pending.type === 'SELECT_TARGET', '下敷き host 選択が出ない');
+  if (!under.done && under.pending.type === 'SELECT_TARGET') {
+    ok(!under.pending.candidates.includes(underSource), '下敷き host に自身が残る');
+    ok(under.pending.candidates.includes(redOther), '他の赤シグニが host 候補に無い');
+    ok(!under.pending.candidates.includes(nonRed), '赤でないシグニが host 候補に残る');
+    const placed = resumeSelectTarget([redOther], under.pending, { ...underCtx, ownerState: under.ownerState, otherState: under.otherState, logs: under.logs });
+    ok(placed.done, '下敷き resume が完了しない');
+    ok(placed.ownerState.field.signi.some(s => s?.at(-1) === redOther && s.includes(underSource)), '選んだ host の下に移動しない');
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

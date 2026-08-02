@@ -605,9 +605,11 @@ export function execStubPart1(
     if (txtPCUS.match(/このシグニを.+の下に置く/) && srcPCUS) {
       const srcZonePCUS = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcPCUS);
       if (srcZonePCUS < 0) return done(addLog(ctx, 'このシグニが場にいない'));
+      const hostFilterPCUS = stub.selectTarget?.filter;
       const candidatesPCUS = [0, 1, 2]
         .filter(zi => zi !== srcZonePCUS && ctx.ownerState.field.signi[zi]?.length)
         .map(zi => ctx.ownerState.field.signi[zi]!.at(-1)!)
+        .filter(cn => !hostFilterPCUS || matchesFilter(ctx.cardMap.get(cn), hostFilterPCUS))
         .filter(Boolean);
       if (candidatesPCUS.length === 0) return done(addLog(ctx, '配置先シグニなし'));
       const placeUnderStub: StubAction = { type: 'STUB', id: 'INTERNAL_PLACE_SELF_UNDER_SIGNI' };

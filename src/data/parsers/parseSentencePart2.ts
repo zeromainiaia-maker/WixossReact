@@ -586,7 +586,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 《レイヤーアイコン》能力コピー ----
   if (t.match(/《レイヤーアイコン》能力.*を得る/)) {
-    return { type: 'STUB', id: 'LAYER_ABILITY_COPY' } as StubAction;
+    return {
+      type: 'STUB', id: 'LAYER_ABILITY_COPY',
+      ...(/対象とし/.test(t) ? { selectTarget: parseSigniTarget(t, 'self') } : {}),
+    } as StubAction;
   }
 
   // ---- あなたにダメージを与える ----

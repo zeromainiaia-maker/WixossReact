@@ -11,6 +11,7 @@ import {
   createTokenInstanceId,
   resolveTokenBase,
   isOwnTrashMoveLocked,
+  matchesFilter,
 } from './execUtils';
 
 export function execStubPart2(
@@ -4562,9 +4563,12 @@ export function execStubPart2(
       });
       scopeLAC = 'self_trash';
     } else {
+      const targetFilterLAC = stub.selectTarget?.filter ?? { cardType: 'シグニ', story: kaiClass, excludeSelf: true };
       candsLAC = [0, 1, 2]
         .map(zi => ctx.ownerState.field.signi[zi]?.at(-1))
-        .filter((cn): cn is string => !!cn && cn !== srcLAC && (ctx.cardMap.get(cn)?.CardClass ?? '').includes(kaiClass));
+        .filter((cn): cn is string => !!cn
+          && (!targetFilterLAC.excludeSelf || cn !== srcLAC)
+          && matchesFilter(ctx.cardMap.get(cn), targetFilterLAC));
       scopeLAC = 'self_field';
     }
     if (candsLAC.length === 0) return done(addLog(ctx, `＜${kaiClass}＞シグニなし（${fromTrash ? 'トラッシュ' : 'フィールド'}）`));

@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第6波：STUB同居action対象＋下敷きhost＋トリガー主語7効果
+
+第5波後の実装課題残30件を再測し、action/host 対象5効果と trigger 主語2効果を **live JSON 基準で**是正した。`WX26-CP1-084-E1`／`WXDi-P03-042-E1` は「対象宣言→`STORE_LAST_PROCESSED_TARGETS`→任意コスト→同一対象へ `GRANT_KEYWORD`」へ接続し、`execGrantKeyword` が明示時だけ `targetsStored` と `target.filter.excludeSelf` を読む additive 実装にした。golden で `SELECT_TARGET` 候補から発生源が外れ、他シグニを選択後 `resumeOptionalCost` まで通して、その1体だけが【ランサー】を得ることを確認した。
+
+`WXEX2-59-E2` は `LAYER_ABILITY_COPY.selectTarget`、`WXDi-P03-057-E1` は `PLACE_CARD_UNDER_SIGNI.selectTarget`、`WXDi-P10-052-E1` は `SELECT_OTHER_SIGNI.selectTarget` に文型由来の filter を刻んだ。各 executor は省略時の従来候補を変えず、指定時だけ filter を読む。実測ではレイヤー候補から発生源を除外して他の＜怪異＞を残し、下敷き host は発生源と非赤を除外して他の赤だけを残し、`resumeSelectTarget` 後にその host の下へ移動した。trigger 主語の `WXDi-P02-039-E1`／`WXDi-P03-086-E1` は、対象 action と trigger 主語が別層のため manual と live の双方へ `triggerFilter.excludeSelf` を追加した。初回報告時は manual のみで、`buildEffectsJson.ts` のカード単位 `PRESERVE_STATUSES` 判定（既存効果に `MANUAL/PARTIAL` があれば `preserved_manual` として held 登録前に既存 live へ戻す）が遮断していたため、live は未是正だった。`effects_WXDi.json` を効果IDアンカーで外科パッチし、以後 `build:effects` 連続2巡でも保持されることを確認した。golden は manual merge を通さず `effectsMap` の live 生値を `collectFieldTriggers` へ渡し、他の該当クラスの場出しでは収集・watcher 自身の場出しでは非収集を2効果とも固定した。カード番号分岐は追加していない。
+
+必達5件中の honest defer は2件。`WDK06-C17-E1` は `execStubPart1` の `POWER_MOD_PER_COUNT` が `selectTarget/filter` を読まず、正デルタを `sourceCardNum` へ固定するうえ、＜武勇＞トラッシュ枚数ではなく `lastProcessedCards` を数えるため、外側 filter を足しても no-op／誤対象になる。`WX25-CP1-089-E1` は `effectEngine.ts` の `DOUBLE_POWER_MINUS` 走査が能力を持つ field top 自身を置換元として扱い、選択した別＜ブルアカ＞を保持する状態を持たない。いずれも STUB 本体の機構実装と同時に直す。第2優先の `SP27-015-E1`／`WXEX2-19-E2` は `ATTACH_ACCE` に到達せず前者が `ACCE_FROM_HAND/ACCE_OP`、後者が誤った `GRANT_KEYWORD` で、`effectExecutor.ts` の `ATTACH_ACCE` host 候補生成（`targetFilter`）を通らないため defer。常時系 STUB 群は指示どおり第7波へ据置。
+
+計器は母集団167、public JSON の `excludeSelf` あり132→139／なし35→28。なし28から既知誤検出5を除いた**実装課題残23**。live HEAD 比較は changed 7／added 0／removed 0（`WX26-CP1-084-E1`、`WXDi-P03-042-E1`、`WXEX2-59-E2`、`WXDi-P03-057-E1`、`WXDi-P10-052-E1`、`WXDi-P02-039-E1`、`WXDi-P03-086-E1`）、兄弟効果変更0。全 public effect の `excludeSelf` 保持効果は274→281（減少0）、生成 JSON の `"???"` 0。golden 1287→1291、census 1294→1294、smoke 10679/10679 全0・SKIP0、fuzz 200ゲーム全0（7982手／2708効果）、lint 0 errors/240 warnings、manual field loss 0、held 260枚／109署名群、同型★0。`build:effects`／`regen` は連続2巡で追加差分なし。commit/push 未実施。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第5波：任意コストの犠牲対象6効果
 
 着手前に6件すべてを live／fresh（`parseCardEffects(row)` 直呼び）／manual（`mergeManualEffects` 差分）の3値で比較し、全件 **live=fresh・manualなし**を確認した。従来はいずれも犠牲句が `TRADE_BANISH_SELF_SIGNI` または色だけの `OPTIONAL_COST` に潰れ、「他の」が支払い対象へ届いていなかった。

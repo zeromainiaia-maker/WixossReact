@@ -4477,7 +4477,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // and supplies triggeringCardNum, so both power modifications are exact.
   // E2: frontOfSelf is wired for BANISH, allowing the quoted attack ability to remain exact.
   "WXDi-P02-039": [
-    {"effectId":"WXDi-P02-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"地獣"},"action":{"type":"SEQUENCE","steps":[
+    {"effectId":"WXDi-P02-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"地獣","excludeSelf":true},"action":{"type":"SEQUENCE","steps":[
       {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"}},"targetsTriggerSource":true,"delta":4000,"duration":"UNTIL_END_OF_TURN"},
       {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"delta":4000,"duration":"UNTIL_END_OF_TURN"}
     ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
@@ -4804,6 +4804,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX16-004 THREE OUT：2コインベット時、ターン終了時までホログラフのトップ公開を3枚並べ替え後の公開へ置換。
   "WX16-004": [
     {"effectId":"WX16-004-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING","minCoins":2},"then":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WX16-004-E1-GRANT","effectType":"CONTINUOUS","action":{"type":"STUB","id":"HOLOGRAPH_REVEAL_REPLACE"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"【常】：ホログラフの効果によってあなたのデッキの一番上を公開する場合、代わりにあなたはデッキの上からカードを３枚見て、それらを好きな順番でデッキの上に戻してからデッキの一番上を公開する。"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
+  // WXDi-P03-086-E1: 対象 action とトリガー主語が別層で、curated の action を保ったまま
+  // 「他の＜アーム＞」だけを collectFieldTriggers の triggerFilter.excludeSelf へ届けるため MANUAL 化。
+  "WXDi-P03-086": [
+    {"effectId":"WXDi-P03-086-E1","effectType":"AUTO","timing":["ON_PLAY"],"triggerScope":"any_ally","triggerFilter":{"cardType":"シグニ","story":"アーム","excludeSelf":true},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","usageLimit":"once_per_turn"}
   ],
   // task12(lxxxiii) 第4波：対象宣言を既存 lastProcessed/storedTarget 機構へ接続。
   "WX26-CP1-092": [

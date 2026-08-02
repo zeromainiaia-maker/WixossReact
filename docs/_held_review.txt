@@ -262,39 +262,6 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
 
-## +STUB -GRANT_PROTECTION -SIGNI ［2枚］
-WX12-033 WX20-023
---- WX12-033
-  原文: 【常】：あなたの場にカード名に《セイリュ》を含むシグニがあるかぎり、あなたのシグニの基本パワーを15000にする。【常】：あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る。【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。,-
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = "ALL"
-  - [2].action.from[0] = "POWER_MODIFY"
-  - [2].action.sourceOwner = "opponent"
-  - [2].action.duration = "PERMANENT"
-  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
-  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [2].action.powerModifyProtection.directions[0] = "plus"
-  + [2].action.powerModifyProtection.directions[1] = "minus"
-  + [2].action.powerModifyProtection.subjectOwner = "self"
-  + [2].action.powerModifyProtection.subjectFilter.cardType = "シグニ"
-  …（他 3 行）
---- WX20-023
-  原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：対戦相手の効果によって、このシグニのパワーは増減しない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》：あなたのトラッシュから＜怪異＞のシグニ１枚を対象とし、ターン終了時まで、このシグニはそれの《レイヤーアイコン》能力１つを得る。,：あなたの
-  - [0].action.filter.story = "怪異"
-  - [0].action.abilities[0].action.target.type = "SIGNI"
-  - [0].action.abilities[0].action.target.owner = "self"
-  - [0].action.abilities[0].action.target.count = "ALL"
-  - [0].action.abilities[0].action.from[0] = "POWER_MODIFY"
-  - [0].action.abilities[0].action.sourceOwner = "opponent"
-  - [0].action.abilities[0].action.duration = "PERMANENT"
-  + [0].action.filter.cardClass = "怪異"
-  ~ [0].action.abilities[0].action.type : "GRANT_PROTECTION" → "STUB"
-  + [0].action.abilities[0].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [0].action.abilities[0].action.powerModifyProtection.directions[0] = "plus"
-  + [0].action.abilities[0].action.powerModifyProtection.directions[1] = "minus"
-  …（他 5 行）
-
 ## +LAST_PROCESSED_COUNT_GTE +POWER_MODIFY +SIGNI +STUB -IS_MY_TURN ［2枚］
 WX16-033 WX24-P2-087
 --- WX16-033
@@ -635,6 +602,24 @@ WX08-026
   + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
   …（他 3 行）
 
+## +STUB -GRANT_PROTECTION -SIGNI ［1枚］
+WX12-033
+--- WX12-033
+  原文: 【常】：あなたの場にカード名に《セイリュ》を含むシグニがあるかぎり、あなたのシグニの基本パワーを15000にする。【常】：あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る。【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。,-
+  - [2].action.target.type = "SIGNI"
+  - [2].action.target.owner = "self"
+  - [2].action.target.count = "ALL"
+  - [2].action.from[0] = "POWER_MODIFY"
+  - [2].action.sourceOwner = "opponent"
+  - [2].action.duration = "PERMANENT"
+  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
+  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
+  + [2].action.powerModifyProtection.directions[0] = "plus"
+  + [2].action.powerModifyProtection.directions[1] = "minus"
+  + [2].action.powerModifyProtection.subjectOwner = "self"
+  + [2].action.powerModifyProtection.subjectFilter.cardType = "シグニ"
+  …（他 3 行）
+
 ## +NO_COMMON_COLOR_AMONG_FIELD_SIGNI×2 +POWER_SET ［1枚］
 WX12-Re09
 --- WX12-Re09
@@ -839,6 +824,24 @@ WX19-Re10
   ~ [1].action.steps[1].then.fromTop : true → false
   + [1].action.steps[1].then.fromHand = true
   ~ [1].parseStatus : "AUTO" → "MANUAL"
+
+## +STUB -GRANT_PROTECTION ［1枚］
+WX20-023
+--- WX20-023
+  原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：対戦相手の効果によって、このシグニのパワーは増減しない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》：あなたのトラッシュから＜怪異＞のシグニ１枚を対象とし、ターン終了時まで、このシグニはそれの《レイヤーアイコン》能力１つを得る。,：あなたの
+  - [0].action.filter.story = "怪異"
+  - [0].action.abilities[0].action.target.type = "SIGNI"
+  - [0].action.abilities[0].action.target.owner = "self"
+  - [0].action.abilities[0].action.target.count = "ALL"
+  - [0].action.abilities[0].action.from[0] = "POWER_MODIFY"
+  - [0].action.abilities[0].action.sourceOwner = "opponent"
+  - [0].action.abilities[0].action.duration = "PERMANENT"
+  + [0].action.filter.cardClass = "怪異"
+  ~ [0].action.abilities[0].action.type : "GRANT_PROTECTION" → "STUB"
+  + [0].action.abilities[0].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
+  + [0].action.abilities[0].action.powerModifyProtection.directions[0] = "plus"
+  + [0].action.abilities[0].action.powerModifyProtection.directions[1] = "minus"
+  …（他 11 行）
 
 ## +STUB -CONDITIONAL -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
 WX21-Re06

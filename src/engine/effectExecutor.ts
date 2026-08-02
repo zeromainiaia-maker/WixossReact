@@ -2486,6 +2486,9 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
     }
+    // 対象宣言の後に任意コストを挟む形は lastProcessedCards が支払いカードで上書きされるため、
+    // STORE_LAST_PROCESSED_TARGETS が保持した同一対象だけへ付与する。
+    if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   }
 
   function applyGrant(selected: string[], c: ExecCtx): ExecCtx {
@@ -2518,7 +2521,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
 
   // LRIGは選択UIを出さず自動付与
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
-  if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
+  if (a.targetsStored || tgt.count === 'ALL') return done(applyGrant(cands, ctx));
   const count = resolveNum(tgt.count);
   // 「このシグニ」: フィルターなし or thisCardOnly・sourceCardNum が候補に含まれていれば自動適用（選択UIを出さない）
   if ((!tgt.filter || tgt.filter.thisCardOnly) && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {

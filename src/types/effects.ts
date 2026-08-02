@@ -1136,6 +1136,7 @@ export interface GrantKeywordAction {
   keyword: string;
   duration: EffectDuration;
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」等。選択UIを出さず同一対象に付与）
+  targetsStored?: boolean;        // 対象宣言→任意コストを跨いで storedTargetCards の同一対象へ付与
   targetsTriggerSource?: boolean;  // 「このシグニ/それ」= トリガー元シグニ（ctx.triggeringCardNum → ctx.sourceCardNum）へ無選択付与（ON_ZONE_MOVED self 等）
 }
 

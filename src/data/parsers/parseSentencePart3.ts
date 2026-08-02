@@ -93,7 +93,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- シグニの下にカードを置く（手札・エナ・デッキから、汎用） ----
   if (t.match(/(?:このシグニ|シグニ１体)の下に置く/)) {
-    return { type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI' } as StubAction;
+    return {
+      type: 'STUB', id: 'PLACE_CARD_UNDER_SIGNI',
+      ...(hasOtherSelfSigniNoun(t) ? { selectTarget: parseSigniTarget(t, 'self') } : {}),
+    } as StubAction;
   }
 
   // ---- クラフト ----
@@ -759,7 +762,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 他のシグニ1体を選ぶ（選択のみ） ----
   if (t.match(/^あなたの他のシグニ[０-９\d]*体を選ぶ$/)) {
-    return { type: 'STUB', id: 'SELECT_OTHER_SIGNI' } as StubAction;
+    return { type: 'STUB', id: 'SELECT_OTHER_SIGNI', selectTarget: parseSigniTarget(t, 'self') } as StubAction;
   }
 
   // ---- シグニの下にあるシグニをエナゾーンに置く（条件付き） ----

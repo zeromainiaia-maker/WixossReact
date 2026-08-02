@@ -4697,7 +4697,7 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
   // ⚠この表は **executor が targetsStored を honor する型**と一致させること（honor しない型に付けると
   //   フィールドが黙って無視され「対象を選び直させるだけ」の退化になる）。UP/DOWN/FREEZE は
   //   タスク12(lxiv) で executor 側を配線して追加した。
-  const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE', 'UP'];
+  const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE', 'UP', 'GRANT_KEYWORD'];
   if (a.type === 'SEQUENCE') return { ...a, steps: (a as SequenceAction).steps.map(s => bindToStoredTarget(s, desig)) };
   if (!BINDABLE.includes(a.type)) return a;
   const withTgt = a as EffectAction & { target?: EffectTarget; source?: EffectTarget };
@@ -4784,6 +4784,33 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
     ...steps.slice(gateIdx + 1),
   ];
   return { ...action, steps: rebuilt } as EffectAction;
+}
+
+// 「あなたの他の…を対象とし、任意コスト。そうした場合、それは【X】を得る」。
+// GRANT_KEYWORD は対象宣言とコストが別枝になるため、対象を先に固定して支払い後も同じ1体へ届ける。
+function applyOtherTargetOptionalKeyword(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE' || !hasOtherSelfSigniNoun(text)) return action;
+  if (!/てもよい。そうした場合、[^。]*【[^】]+】を得る/.test(text)) return action;
+  if (JSON.stringify(action).includes('SELECT_TARGET_ONLY')) return action;
+  const dm = text.match(/(あなたの他の[^、。]*シグニ[０-９\d]*体(?:まで)?)を対象とし/);
+  if (!dm) return action;
+  const target = parseSigniTarget(dm[1], 'self');
+  const steps = [...action.steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 1) return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  if (gate.then.type !== 'GRANT_KEYWORD' || !isDroppedCostStep(coreOfCondWrap(steps[gateIdx - 1]))) return action;
+  return {
+    ...action,
+    steps: [
+      ...steps.slice(0, gateIdx - 1),
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      steps[gateIdx - 1],
+      { ...gate, then: { ...gate.then, target, targetsStored: true } },
+      ...steps.slice(gateIdx + 1),
+    ],
+  } as SequenceAction;
 }
 
 function applyTargetLevelScaling(text: string, action: EffectAction): EffectAction {
@@ -4962,11 +4989,11 @@ function tryParseDoAllItems(text: string): EffectAction | null {
 }
 
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => applyDroppedTargetDesignation(source,
+  const parse = (source: string): EffectAction => applyOtherTargetOptionalKeyword(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
-          applyLeadingOpponentDesignation(source, parseActionTextInner(source))))));
+          applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
