@@ -20683,6 +20683,54 @@ test('WXDi-P16-051-E1: 即時は無変化、ターン終了収集後にドロー
   }
 });
 
+test('task12(lxx) Batch E: 引用付与の内側を裸で即時実行せず、TRAP本体をE2へ継ぎ足さない', () => {
+  const savedCursor = cursor;
+  try {
+    const cases = [
+      ['WX24-P3-003', 'lrig_trash'], // アーツ
+      ['WXDi-D07-002', 'lrig'],      // ルリグ
+      ['WXDi-P13-061', 'trash'],     // スペル
+      ['WXEX2-66', 'signi'],         // シグニ
+      ['WXDi-P15-004', 'lrig_trash'],// ピース
+    ] as const;
+    for (const [cardNum, zone] of cases) {
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!;
+      const ctx = mkCtx({ hand: 0, energy: 0 }, { signi: [SIGNI_L1, null, null] }, cardNum);
+      if (zone === 'signi') ctx.ownerState.field.signi[0] = [cardNum];
+      else if (zone === 'lrig') ctx.ownerState.field.lrig = [cardNum];
+      else if (zone === 'trash') ctx.ownerState.trash = [cardNum];
+      else ctx.ownerState.lrig_trash = [cardNum];
+      const beforeOpp = tops(ctx.otherState);
+      const result = finish(executeEffect(effect, ctx), ctx);
+      eq(result.ownerState.hand.length, 0, `${cardNum}: 引用内DRAWを即時実行しない`);
+      eq(result.ownerState.energy.length, 0, `${cardNum}: 引用内ENERGY_CHARGEを即時実行しない`);
+      eq(JSON.stringify(tops(result.otherState)), JSON.stringify(beforeOpp), `${cardNum}: 引用内BANISHを即時実行しない`);
+    }
+
+    const spamE2 = effectsMap.get('WXEX2-66')!.find(e => e.effectId === 'WXEX2-66-E2')!;
+    eq(spamE2.action.type, 'ENERGY_CHARGE_FROM_DECK', 'E2からTRAPのFREEZE tailを除去');
+    const trap = effectsMap.get('WXEX2-66')!.find(e => e.effectId === 'WXEX2-66-TRAP')!;
+    eq(trap.action.type, 'FREEZE', '独立TRAP側のFREEZEは維持');
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(lxx) Batch E regression: 構造化済み GRANT_EFFECT の内側を漏出扱いしない', () => {
+  const savedCursor = cursor;
+  try {
+    for (const cardNum of ['WX24-P4-029', 'WX25-CP1-067']) {
+      const fresh = parseCardEffects(cardMap.get(cardNum)!);
+      const live = effectsMap.get(cardNum)!;
+      eq(JSON.stringify(fresh), JSON.stringify(live), `${cardNum}: fresh は curated と一致`);
+      ok(JSON.stringify(fresh).includes('"type":"GRANT_EFFECT"'), `${cardNum}: GRANT_EFFECT を維持`);
+      ok(!JSON.stringify(fresh).includes('GRANT_ABILITY_INNER_TEXT'), `${cardNum}: 内側を STUB へ退化させない`);
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

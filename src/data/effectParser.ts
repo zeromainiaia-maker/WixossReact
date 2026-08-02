@@ -3160,13 +3160,14 @@ function parseSingleSentenceInner(text: string): EffectAction {
 // ===== 文分割 =====
 
 function splitSentences(text: string): string[] {
-  // 引用符「...」内の句点では分割しない
+  // 引用符「...」/『...』内の句点では分割しない。
+  // 『』を数えないと、付与能力の内側（【起】等）が通常の後続文として裸で実行される。
   const result: string[] = [];
   let depth = 0;
   let start = 0;
   for (let i = 0; i < text.length; i++) {
-    if (text[i] === '「') depth++;
-    else if (text[i] === '」') depth--;
+    if (text[i] === '「' || text[i] === '『') depth++;
+    else if (text[i] === '」' || text[i] === '』') depth--;
     else if (text[i] === '。' && depth === 0) {
       result.push(text.slice(start, i + 1));
       start = i + 1;
@@ -4959,11 +4960,59 @@ function tryParseDoAllItems(text: string): EffectAction | null {
 }
 
 function parseActionText(text: string): EffectAction {
-  return applyDroppedTargetDesignation(text,
-    applyTargetLevelScaling(text,
-      applyLeadingSelfComparison(text,
-        applyLeadingTrashHandAnaphora(text,
-          applyLeadingOpponentDesignation(text, parseActionTextInner(text))))));
+  const parse = (source: string): EffectAction => applyDroppedTargetDesignation(source,
+    applyTargetLevelScaling(source,
+      applyLeadingSelfComparison(source,
+        applyLeadingTrashHandAnaphora(source,
+          applyLeadingOpponentDesignation(source, parseActionTextInner(source))))));
+  const parsed = parse(text);
+
+  // 引用能力を「得る」文で、通常アクション規則が引用の内側だけを拾った場合の安全網。
+  // 既存の GRANT_* / GRANT_QUOTED_ABILITY が構造化できた文はそのまま保ち、構造化できず
+  // 即時系アクションだけが裸で残った文だけ、引用本体を伏せて外側を再解析する。
+  // 表現不能な付与先は UNKNOWN/STUB のまま保持する方が、引用内を無条件実行するより正しい。
+  const quotedGrant = /(?:「[\s\S]*?」を得る|能力を得る。?『[\s\S]*?』|(?:ライフバースト|トラップアイコン)[^。]*「[\s\S]*?」を得る)/.test(text);
+  if (!quotedGrant) return parsed;
+  const quotedBodies = [...text.matchAll(/[「『]([\s\S]*?)[」』]/g)].map(m => m[1]).join(' ');
+  const leakedTypes = new Set<string>();
+  if (/カードを[０-９\d]+枚引く/.test(quotedBodies)) leakedTypes.add('DRAW');
+  if (/エナチャージ|エナゾーンに置く/.test(quotedBodies)) leakedTypes.add('ENERGY_CHARGE_FROM_DECK');
+  if (/手札に戻す/.test(quotedBodies)) leakedTypes.add('BOUNCE');
+  if (/バニッシュ/.test(quotedBodies)) leakedTypes.add('BANISH');
+  if (/トラッシュに置く|捨てる/.test(quotedBodies)) leakedTypes.add('TRASH');
+  if (/凍結/.test(quotedBodies)) leakedTypes.add('FREEZE');
+  const hasNakedImmediate = (node: unknown): boolean => {
+    if (!node || typeof node !== 'object') return false;
+    const obj = node as { type?: string; [k: string]: unknown };
+    // GRANT_* は内側の能力・アクションを付与ノード自身が保持する正規表現。
+    // GRANT_EFFECT.effect まで潜ると、その内側の BANISH 等を裸の即時実行と誤認する。
+    // GRANT_KEYWORD のように能力本体を持たない付与も、付与ノード以下を一律に境界扱いする。
+    if (obj.type?.startsWith('GRANT_')) return false;
+    if (leakedTypes.has(obj.type ?? '')) return true;
+    return Object.values(obj).some(value => Array.isArray(value)
+      ? value.some(hasNakedImmediate)
+      : hasNakedImmediate(value));
+  };
+  const hasStructuredGrant = (node: unknown): boolean => {
+    if (!node || typeof node !== 'object') return false;
+    const obj = node as { type?: string; [k: string]: unknown };
+    if (obj.type?.startsWith('GRANT_')) return true;
+    return Object.values(obj).some(value => Array.isArray(value)
+      ? value.some(hasStructuredGrant)
+      : hasStructuredGrant(value));
+  };
+  // 付与が構造化済みなら、その兄弟（CHOOSE の別枝等）に同型の正当な即時アクションが
+  // あっても引用漏出とはみなさない。安全網は付与ノード自体を作れなかった文だけに限定する。
+  if (hasStructuredGrant(parsed)) return parsed;
+  if (!hasNakedImmediate(parsed)) return parsed;
+  const masked = text
+    .replace(/「[\s\S]*?」(?=を得る)/g, '「__QUOTED_ABILITY__」')
+    .replace(/『[\s\S]*?』/g, '『__QUOTED_ABILITY__』');
+  const safe = parse(masked);
+  if (safe.type === 'GRANT_KEYWORD' || JSON.stringify(safe).includes('__QUOTED_ABILITY__')) {
+    return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  }
+  return safe;
 }
 
 function parseActionTextInner(text: string): EffectAction {
@@ -9291,6 +9340,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       // 【歌のカケラ】は下段で独立した SONG effect として解析する。通常能力ブロックへ残すと、
       // 直前の【自】等へ歌本文が連結され、E1 に UNKNOWN/STUB が漏れる（WX26-CP1-061）。
       effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
+      // 【トラップアイコン】も下段で独立した TRAP effect として解析する。
+      // 通常能力へ残すと直前の【自】へトラップ本体が tail-splice され、発動のたび二重実行される。
+      effectText = effectText.replace(/【トラップアイコン】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
       // クロスアイコン prefix の検出と除去
       if (effectText.startsWith('《クロスアイコン》')) {
         card.hasCrossIcon = true;

@@ -211,7 +211,8 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   }
   const lines: string[] = [];
   lines.push('# 無言フォールバック刻印レポート（parseStatus PARTIAL 降格の理由明細）', '');
-  lines.push(`生成: ${new Date().toISOString()} / 刻印効果 ${log.length}件`, '');
+  // コミット対象レポートは同じ入力から同じ bytes を生成する（実行時刻で毎回 dirty にしない）。
+  lines.push(`刻印効果 ${log.length}件`, '');
   lines.push('## カテゴリ別件数', '');
   for (const [cat, n] of [...byCat.entries()].sort((a, b) => b[1] - a[1])) lines.push(`- ${cat}: ${n}`);
   lines.push('', '## 明細（effectId → 理由）', '');

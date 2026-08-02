@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxx) 残消化 Batch E：引用付与の内側からの裸アクション漏出を停止
+
+`splitSentences` が `「」` しか深度管理していなかった点を `『』` にも拡張し、通常解析後に「引用能力を得る文なのに、引用本文と同型の即時アクションが GRANT_* の外へ残った」場合だけ引用本体をマスクして安全側へ再解析するガードを追加した。差し戻し是正では「これ以上潜らない付与ノード」を3種のハードコードから `type.startsWith('GRANT_')` 全般へ広げ、構造化済み付与が1つでもある action tree は安全網の対象外とした。これにより `GRANT_EFFECT.effect` 内や CHOOSE の正当な別枝を漏出と誤認しない。`WX24-P4-029-E1` / `WX25-CP1-067-E1` は fresh=live に戻り held から消え、golden で固定した。
+
+必達対象は `WX24-P3-003-E1` / `WXDi-D07-002-E1` / `WXDi-P13-061-E1` / `WXEX2-66-E1` / `WXDi-P15-004-E1` の引用内 DRAW / ENERGY_CHARGE / BANISH の即時実行を `GRANT_ABILITY_INNER_TEXT` STUB へ退避して停止。`WXEX2-66-E2` は通常能力抽出前に独立 `【トラップアイコン】` 節を除外し、E2へ継ぎ足されていた FREEZE を除去した。独立 `WXEX2-66-TRAP` の FREEZE は維持した。同規則で原文照合できた `WXDi-P08-008-E1` / `WXEX1-11-E1` / `WX11-053-E1` / `WXEX1-31-E1` も安全化した。9件計器の残り `WX10-029-E2` / `WX17-002-E1` / `WXDi-P15-065-E2` は別原因のため据置。
+
+honest defer：上記9効果の付与としての実働化、および `WXDi-P13-061-E1` の対象選択・POWER+3000、`WX24-P3-003-E1` のLIMIT+1、`WXDi-P15-004-E1` の全自ルリグ付与は、付与先（ソウルhost／全領域カードへのLB・trap icon／対象シグニ／全ルリグ）と期間を engine が保持・収集する受け皿が揃っていないため未実装。宣言だけのno-opフィールドや原文にない無条件発火は追加していない。`WXEX2-66-E2` の DRAW/ENERGY_CHARGE 二択忠実化も本バッチでは漏出停止とtail除去を優先し、既存エナチャージ固定のままdeferした。
+
+Batch E で直しきれなかった引用内漏出は4効果：`WX24-P3-001-E1` の `UP{LRIG}`、`WX24-P3-005-E1` / `WX24-P3-009-E1` の `REMOVE_ABILITIES{SIGNI}`、`WX25-P2-001-E1` の `GUARD_EXTRA_COST_BY_OPP`。安全網は現状6タイプ決め打ちのまま据え置き、タイプ非依存化による広範な巻き込みをこの差し戻しでは導入しない honest defer とした。
+
+簿記・生成経路も是正：census は派生関数を撤去して `BASELINE_HIGH=1335` へ直接更新（減少は付与実働化ではなく安全側 STUB 退避）。`buildEffectsJson.ts` の `FORCE_ADOPT_FRESH` 例外を撤去し、`WXDi-P15-004-E1` は curated の action だけを `GRANT_ABILITY_INNER_TEXT` STUB へ外科パッチ、`parseStatus:PARTIAL` を維持したため build 後も held に落ちない。
+
 ## 2026-08-01 — Opusタスク12(lxx) 残消化 Batch D：`ON_TRAP_SET` 新設＋2択脱落1効果
 
 `WXEX1-41-E1` の「あなたの【トラップ】1つが設置されたとき」を新 timing `ON_TRAP_SET` として復元し、残余を既存 `parseDrawOrChoice` へ渡して `CHOOSE[DRAW 1 / ENERGY_CHARGE 1]` を原文順に復元した。従来は timing 空で完全 no-op、かつ action はエナチャージ固定だった。《ターン1回》は維持した。
