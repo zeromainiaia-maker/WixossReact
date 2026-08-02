@@ -26,7 +26,7 @@ import type {
   ConditionalAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
@@ -148,7 +148,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 場所（ゾーン）を入れ替える → REARRANGE_SIGNI (swap) ----
   if (t.includes('場所を入れ替える') || t.includes('場所を入れ替えてもよい')) {
-    return { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'any', count: 1 }, swap: true } as RearrangeSigniAction;
+    return { type: 'REARRANGE_SIGNI', target: hasOtherSelfSigniNoun(t)
+      ? parseSigniTarget(t, 'self')
+      : { type: 'SIGNI', owner: 'any', count: 1 }, swap: true } as RearrangeSigniAction;
   }
 
   // ---- すべての領域で色を失う ----

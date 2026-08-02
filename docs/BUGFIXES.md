@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii)：「あなたの他の…シグニ」対象拡大の部分消化
+
+効果原文を effectId 単位で再計測し、母集団170効果（`excludeSelf` あり79／なし91）、なし91＝A action target 48／B trigger 20／C STUB 16／D 誤検出7、`owner:any` 混入27へ在庫を訂正した。parser に `hasOtherSelfSigniNoun` を追加し、「あなたの（効果によって）他の〔修飾〕シグニ」だけを認識する一方、「他のシグニゾーン」「他のルリグ」「他のカード名」は除外。POWER_MODIFY／UP／GRANT_KEYWORD／REARRANGE_SIGNI／ATTACH_CHARM／BOUNCE／BANISH／TRASH／TRANSFER_TO_DECK の既存 target filter へ接続した。`buildEffectsJson.ts` のカード固有パッチ・例外は追加していない。
+
+A の live 是正34効果：`WX22-024-E2`／`WXEX2-43-E1`／`WXEX2-60-E2`／`WXDi-D01-015-E1`／`WXDi-P00-063-E1`／`WXDi-P02-047-E1`／`WXDi-P03-075-E1`／`WXDi-P12-045-E3`／`WXDi-P14-076-E1`／`WXDi-P16-079-E1`／`WXDi-CP02-053-E2`／`WXDi-CP02-083-E1`／`WXDi-P11-TK02-E1`／`WX24-P2-062-E1`／`WX24-P3-048-E2`／`WX24-P4-056-E1`／`WX25-P1-065-E1`／`WX25-P3-068-E1`／`WX25-P3-075-E1`／`WX25-P3-079-E1`／`WX25-CP1-049-E2`／`WX25-CP1-073-E1`／`WX25-CP1-078-E1`／`WX26-CP1-056-E1`／`WXK03-043-E1`／`WXK03-072-E2`／`WXK07-046-E2`／`WXK09-087-E1`／`WXK10-027-E3`／`WXK10-078-E3`／`WXK11-028-E1`／`WDK12-017-E1`／`SPDi43-20-E1`／`WX22-Re04-E2`。加えて原文に同じ「あなたの他の」がある有効 outlier 11効果（`WX03-037-E1`／`WX03-039-E1`／`WX03-041-E1`／`WX03-044-E1`／`WX10-061-E1`／`WX24-P4-048-E1`／`WXDi-P00-039-E2`／`WXDi-CP02-070-E1`／`WXDi-P12-044-E1`／`WXDi-P13-047-E1`／`WXDi-P13-070-E1`）を是正。全45効果を原文照合し、D 7件と原文に「他の」が無い効果への巻き込み0、既存 `excludeSelf` の減少0を機械確認した。対象の `owner:any→self` は19効果で同時是正。
+
+honest defer：A残14（`WX20-036-CB-E1`／`WXEX2-54-E2`／`WX24-P2-010-E1`／`WX24-P2-052-E2`／`WX24-P2-074-E1`／`WXDi-P04-041-E1`／`WXDi-P08-065-E1`／`WXDi-CP01-038-E1`／`WXDi-CP02-066-E1`／`WXK05-022-E1`／`WXK10-067-E1`／`WXK11-065-E1`／`WD14-011-E2`／`WDK11-011-E1`）は STUB 内の犠牲対象、引用能力付与の平坦化、OR対象、同一対象照応が同居し、単に filter を足しても collector/executor が読まないか別対象へ誤適用するため。B20とC16は全件 defer。owner残8も target と trigger/引用構造が同居するため defer。フェイクフィールドは追加していない。
+
+`build:effects`／`regen` は連続2回で追加差分なし。gates 全緑＝golden 1278、smoke 10679/10679 全0、fuzz 全0、census 1313→1300（機能是正として baseline 更新）、manual field loss 0、no-cache lint 0 errors/240 warnings、同型★0。held 255→260。version 0.478。commit は Claude 確認後に行う。
+
 ## 2026-08-02 — Opusタスク12(lxx) Batch F：(lxxviii) watcher所有者の効果による相手手札捨て
 
 `ON_HAND_DISCARDED any_opp` の4効果（`WXDi-P02-030-E1`／`WXDi-P04-009-E2`／`WXDi-P04-063-E1`／`WXDi-P10-060-E1`）は、「あなたの効果によって」という原因限定を持たず、相手自身のコスト支払い・相手自身の効果・原因不明の手札捨てでも過剰発火していた。新条件 `triggerCondition.byWatcherEffect` を追加し、「その【自】を持つ watcher 所有者の効果が原因」のときだけ発火するよう `collectHandDiscardTriggers` の跨サイド any_opp ループで判定した。既存 `byOwnEffect` は「捨てた本人の効果が原因」という別軸のため流用せず、`WXDi-D09-P16-E2` の既存挙動も維持した。

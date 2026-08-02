@@ -60,7 +60,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -4967,7 +4967,28 @@ function parseActionText(text: string): EffectAction {
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingOpponentDesignation(source, parseActionTextInner(source))))));
-  const parsed = parse(text);
+  let parsed = parse(text);
+  // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
+  // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
+  if (hasOtherSelfSigniNoun(text)) {
+    const fixNestedOtherTarget = (node: EffectAction): EffectAction => {
+      if (node.type === 'REARRANGE_SIGNI' && node.target.type === 'SIGNI' && node.target.owner === 'any') {
+        return { ...node, target: parseSigniTarget(text, 'self') };
+      }
+      if (node.type === 'GRANT_FIELD_SIGNI_ABILITY' && /あなたの他のシグニは[^。]*それらのパワーを/.test(text)) {
+        return {
+          ...node,
+          abilities: node.abilities.map((ability) => ability.action.type === 'POWER_MODIFY'
+            ? { ...ability, action: { ...ability.action, target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', excludeSelf: true } } } }
+            : ability),
+        };
+      }
+      if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(fixNestedOtherTarget) };
+      if (node.type === 'CONDITIONAL') return { ...node, then: fixNestedOtherTarget(node.then), ...(node.else ? { else: fixNestedOtherTarget(node.else) } : {}) };
+      return node;
+    };
+    parsed = fixNestedOtherTarget(parsed);
+  }
 
   // 引用能力を「得る」文で、通常アクション規則が引用の内側だけを拾った場合の安全網。
   // 既存の GRANT_* / GRANT_QUOTED_ABILITY が構造化できた文はそのまま保ち、構造化できず

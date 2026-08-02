@@ -20400,6 +20400,16 @@ test('task12 lxx: any_opp「あなたの効果によって相手が捨てたと�
     eq(eff.triggerCondition?.byOwnEffect, undefined, `${effectId}: byOwnEffect は流用禁止（別軸）`);
   }
 });
+test('task12(lxxxiii): 修飾つき「あなたの他のシグニ」対象は self/excludeSelf、他のシグニゾーンは非該当', () => {
+  const e = parseCardEffects({ CardNum: 'TEST-OTHER-SIGNI', Type: 'シグニ', EffectText: '【出】：あなたの他の＜天使＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。' } as unknown as CardData)[0];
+  const a = e.action as unknown as { target: { owner: string; filter?: { excludeSelf?: boolean; story?: string } } };
+  eq(a.target.owner, 'self', '「あなたの」＝owner:self');
+  eq(a.target.filter?.excludeSelf, true, '「他の」＝excludeSelf');
+  eq(a.target.filter?.story, '天使', '修飾クラスを維持');
+
+  const zone = parseCardEffects({ CardNum: 'TEST-OTHER-ZONE', Type: 'シグニ', EffectText: '【自】：場にあるシグニ１体があなたの効果によって他のシグニゾーンに移動したとき、カードを１枚引く。' } as unknown as CardData)[0];
+  eq(JSON.stringify(zone).includes('"excludeSelf":true'), false, '「他のシグニゾーン」はシグニ自身の除外ではない');
+});
 
 test('task12(lxx) Batch F: any_opp watcher は watcher 所有者の効果による手札捨てだけで発火', () => {
   const savedCursor = cursor;

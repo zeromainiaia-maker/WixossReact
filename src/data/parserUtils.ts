@@ -351,6 +351,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseColorFilter(text),
     ...parseStoryFilter(text),
   };
+  if (hasOtherSelfSigniNoun(text) && /《ディソナアイコン》のシグニ/.test(text)) filter.isDisona = true;
   // 「この方法でダウンしたルリグと共通する色を持つ〜シグニ」＝直前に実処理したルリグの色基準。
   // 名詞句修飾形に限定し、一般の「共通する色」全文スキャンには広げない。
   if (/この方法でダウンしたルリグと共通する色を持つ(?:対戦相手の)?(?:パワー[０-９\d]+以下の)?シグニ/.test(text)) {
@@ -368,8 +369,9 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (text.includes('アップ状態')) filter.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) filter.isDown = true;
   if (text.includes('凍結状態')) filter.isFrozen = true;
-  // 「あなたの他の（＜X＞の）シグニ」= 効果元シグニ自身を対象から除外（execTrash等が filter.excludeSelf を尊重）
-  if (/他の[^。、]*シグニ/.test(text)) filter.excludeSelf = true;
+  // 「あなたの他の（修飾）シグニ」= 効果元シグニ自身を対象から除外。
+  // 「他のシグニゾーン」「他のルリグ」「他のカード名」のように「他の」がシグニへ掛からない形は除外する。
+  if (hasOtherSelfSigniNoun(text)) filter.excludeSelf = true;
   // 「（〜の）シグニのうち、最も[大きい/小さい/高い/低い]パワー/レベルを持つ」= superlative（集合単位の極値フィルタ）
   const sup = parseSuperlative(text);
   if (sup) filter.superlative = sup;
@@ -384,6 +386,10 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   // 「表記されているパワーよりパワーの低い/高い」= 各候補の実効パワー vs 自身の表記パワー（WX25-CP1-093/WXK10-027）
   Object.assign(filter, parsePrintedComparison(text));
   return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
+}
+
+export function hasOtherSelfSigniNoun(text: string): boolean {
+  return /あなたの(?:効果によって)?他の(?!(?:シグニゾーン|ルリグ|カード名))[^。、]*シグニ/.test(text);
 }
 
 // 「最も[大きい/高い/小さい/低い](パワー|レベル)」or「最も(パワー|レベル)の[高い/低い]」→ superlative {key,dir}。

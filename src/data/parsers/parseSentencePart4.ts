@@ -1026,7 +1026,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたの他のすべてのシグニをトラッシュに置く ----
   if (t.match(/^あなたの他のすべてのシグニをトラッシュに置く$/))
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { excludeSelf: true } } };
 
   // ---- この方法で手札を1枚捨てなかった場合、このシグニをトラッシュ ----
   if (t.match(/この方法で手札を[１-９\d０-９]+枚捨てなかった場合、このシグニを場からトラッシュに置く/))

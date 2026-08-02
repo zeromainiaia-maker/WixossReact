@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun,
 } from '../parserUtils';
 
 /**
@@ -1170,8 +1170,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' }, filter: { cardType: 'シグニ' }, upToCount: true } };
     }
     if (t.match(/すべてのシグニをバニッシュ/)) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'any';
-      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseStateFilter(t) } } };
+      const owner: Owner = t.includes('対戦相手') ? 'opponent' : hasOtherSelfSigniNoun(t) ? 'self' : 'any';
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) } } };
     }
     // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
     if (/このシグニと(?:それ|それら)を[^。]*バニッシュ/.test(t) && t.includes('対戦相手')) {
@@ -1287,7 +1287,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
@@ -1416,12 +1416,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     let isTriggerSource = false;
     let excludeSelf = false;
     const iconM = t.match(/(あなた|対戦相手)の《(クロス|ライズ|トラップ|アクセ)アイコン》を持つシグニのパワーを/);
+    const otherSelfDesignated = /あなたの(?:効果によって)?他の(?!(?:シグニゾーン|ルリグ|カード名))[^。、]*シグニ[^。、]*を対象とし[^。]*それ(?:の|とこのシグニの)パワー/.test(t);
     // 「このカードの上にある[＜クラス＞の|《名前》|色の]シグニのパワーを±N」＝このカードが**下に置かれている**
     // スタックの最前面シグニ（＝ホスト）宛。acceHost の兄弟で、装着経路がスタック下である点だけが違う。
     // ⚠これが無いと下の else へ落ちて owner:'any'/count:1＝「場のシグニ1体を任意選択」という別物になっていた
     //   （CONTINUOUS 側は effectEngine が count≠ALL を「効果元自身」に解決するため**自分に**バフする過剰実行）。
     const aboveSelfM = t.match(/このカードの上にある(＜[^＞]+＞の|《[^》]+》|[白赤青緑黒]の)?(?:シグニ)?のパワーを/);
-    if (aboveSelfM) {
+    if (otherSelfDesignated) {
+      target = parseSigniTarget(t, 'self');
+      excludeSelf = true;
+    } else if (aboveSelfM) {
       const mod = aboveSelfM[1] ?? '';
       const aboveFilter: TargetFilter = { aboveSelf: true };
       const clsM = mod.match(/^＜([^＞]+)＞の$/);
@@ -1448,6 +1452,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const czFilter: TargetFilter = { cardType: 'シグニ', centerZoneOnly: true, ...parseColorFilter(czMods), ...parseStoryFilter(czMods) };
       if (czMods.includes('《ディソナアイコン》')) czFilter.isDisona = true;
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: czFilter };
+    } else if (hasOtherSelfSigniNoun(t) && /シグニのパワーを/.test(t)) {
+      target = parseSigniTarget(t, 'self');
+      excludeSelf = true;
     } else if (t.match(/あなたのすべてのシグニ/) || t.match(/あなたの(?:他の)?(?:レベル[０-９\d]+の|[白赤青緑黒]の|《ディソナアイコン》の|覚醒状態の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)?(?:すべての)?シグニのパワーを/)) {
       // 「あなたの[他の][レベルN|色|＜種族＞|《ディソナアイコン》|覚醒状態]の[すべての]シグニのパワーを±N」＝
       // 該当する自分シグニ全体への持続バフ。「他の」併用時（例:「他の＜天使＞のシグニ」）も拾えるよう独立オプションにする。
@@ -1627,7 +1634,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.match(/(この|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
     }
-    return { type: 'UP', target: { type: 'SIGNI', owner: signiClauseOwner(t), count: 1 } };
+    return { type: 'UP', target: hasOtherSelfSigniNoun(t)
+      ? parseSigniTarget(t, 'self')
+      : { type: 'SIGNI', owner: signiClauseOwner(t), count: 1 } };
   }
 
   // ---- デッキ上 → エナゾーン ----
@@ -2141,7 +2150,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   WXEX2-76/WX08-006/WXK10-048。engine execAttachCharm が triggeringCardNum に解決）。CSV上この語句を持つ効果は
     //   すべて「（対戦相手の/あなたの）シグニが場に出たとき」トリガー＝「その」は場に出たシグニを指す（別の対象化文脈は無い）。
     const toTriggerSource = !toThisCard && /そのシグニの【チャーム】/.test(t);
-    const toFilter = toThisCard ? { thisCardOnly: true } : toTriggerSource ? { isTriggerSource: true } : undefined;
+    const toFilter = toThisCard ? { thisCardOnly: true }
+      : toTriggerSource ? { isTriggerSource: true }
+        : hasOtherSelfSigniNoun(t) ? { excludeSelf: true }
+          : undefined;
     const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1, ...(toFilter ? { filter: toFilter } : {}) };
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
@@ -2187,7 +2199,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
         : 'PERMANENT';
       // ターゲット解決（エナゾーン → 全シグニ → 個別）
-      const kwAllSelf = t.match(/あなたのシグニ(?:すべて|は|が)/) || t.includes('すべてのあなたのシグニ');
+      const kwAllSelf = t.match(/あなたのシグニ(?:すべて|は|が)/) || t.includes('すべてのあなたのシグニ')
+        || (hasOtherSelfSigniNoun(t) && /シグニ(?:は|が)[^。]*を得る/.test(t));
       const kwCountSelfM = t.match(/あなたのシグニ([０-９\d]+)体/);
       // 「あなたの＜鉱石＞か＜宝石＞のシグニ」「あなたの赤のシグニ」のようにクラス句/色句が
       // 「あなたの」と「シグニ」の間に挟まると t.includes('あなたのシグニ') が外れて owner:any 既定に
@@ -2213,7 +2226,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 未表現だと他に味方シグニが居ないとき自分自身に付与される（続き72の実機観測・続き75で engine の
       // excludeSelf 実装とセットで修正）。対象節に隣接する「他の」だけを見る（他 action の「他のシグニ」に反応しない）。
       // 「のうち最も…シグニ」等の超上級句が「シグニ」と「を対象とし」の間に挟まる形（WX25-CP1-051）も narrow に拾う。
-      const kwExcludeSelf = /(?:あなた|対戦相手)の他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t)
+      const kwExcludeSelf = hasOtherSelfSigniNoun(t) && (/シグニ[^。、]*を対象とし/.test(t) || !!kwAllSelf)
         || /(?:あなた|対戦相手)の他の[^。、]*シグニのうち最も[^。、]*を対象とし/.test(t);
       const kwTarget: EffectTarget = kwExcludeSelf && target.type === 'SIGNI'
         ? { ...target, filter: { ...(target.filter ?? {}), excludeSelf: true } }
@@ -2526,7 +2539,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   helper に委ねると自己保護が相手シグニへの付与に反転する（WX06-022/WX13-049/WXK01-039 等26枚）。
       //   「＜空獣＞のシグニ1体を対象とし、それは「【常】：バニッシュされない」を得る」形（WX21-015/
       //   WXK07-028）は引用能力付与の別系統＝タスク12(lii) の対象外として据置。
-      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      target: { type: 'SIGNI', owner: 'self', count: 1, ...(hasOtherSelfSigniNoun(t) ? { filter: { excludeSelf: true } } : {}) },
       from,
       sourceOwner: 'opponent',
       duration: 'PERMANENT',
@@ -2649,7 +2662,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const count = cM ? parseNum(cM[1]) : 1;
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
@@ -2978,7 +2991,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.match(/あなたの他のシグニ[０-９\d]*体を対象とし、それとこのシグニの場所を入れ替える/)) {
     return {
       type: 'REARRANGE_SIGNI',
-      target: { type: 'SIGNI', owner: 'self', count: 1 },
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { excludeSelf: true } },
       swap: true,
     } as RearrangeSigniAction;
   }
