@@ -21280,6 +21280,29 @@ test('task12(lxxxiii) 第11波 WX25-CP1-089-E1: 選択した他ブルアカを�
 }));
 
 test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理hostへアクセし、離場付帯処理後に1枚引く', () => withSavedCursor(() => {
+  const spSource = 'SP27-015';
+  const spHost1 = findCard(c => isSigni(c) && c.CardNum !== spSource);
+  const spHost2 = findCard(c => isSigni(c) && ![spSource, spHost1].includes(c.CardNum));
+  const spOldAcce = findCard(c => isSigni(c) && ![spSource, spHost1, spHost2].includes(c.CardNum));
+  const spEffect = effectsMap.get(spSource)!.find(e => e.effectId === 'SP27-015-E1')!;
+  eq(spEffect.action.type, 'FIELD_SIGNI_TO_ACCE', 'SP27-015-E1 live action');
+  const spCtx = mkCtx({ signi: [spSource, spHost1, spHost2] }, {}, spSource);
+  spCtx.ownerState = { ...spCtx.ownerState, field: { ...spCtx.ownerState.field, signi_acce: [spOldAcce, null, null] } };
+  const spFirst = executeEffect(spEffect, spCtx);
+  ok(!spFirst.done && spFirst.pending.type === 'SELECT_TARGET', 'SP27 host selection offered');
+  if (!spFirst.done && spFirst.pending.type === 'SELECT_TARGET') {
+    ok(!spFirst.pending.candidates.includes(spSource) && spFirst.pending.candidates.includes(spHost1), 'SP27 source excluded');
+    const spSecond = resumeSelectTarget([spHost1], spFirst.pending, { ...spCtx, ownerState: spFirst.ownerState, otherState: spFirst.otherState, logs: spFirst.logs });
+    ok(!spSecond.done && spSecond.pending.type === 'SELECT_TARGET' && spSecond.pending.optional, 'SP27 optional reattach offered');
+    if (!spSecond.done && spSecond.pending.type === 'SELECT_TARGET') {
+      const spResolved = finish(resumeSelectTarget([spHost2], spSecond.pending, { ...spCtx, ownerState: spSecond.ownerState, otherState: spSecond.otherState, logs: spSecond.logs }), spCtx);
+      eq(spResolved.ownerState.field.signi[0], null, 'SP27 source left field');
+      eq(spResolved.ownerState.field.signi_acce?.[1], spSource, 'SP27 source attached');
+      eq(spResolved.ownerState.field.signi_acce?.[2], spOldAcce, 'SP27 previous acce reattached');
+      ok(!spResolved.ownerState.trash.includes(spOldAcce), 'SP27 previous acce removed from trash');
+    }
+  }
+
   const abilitySource = 'WXEX2-19';
   const acceSource = findCard(c => isSigni(c) && c.CardNum !== abilitySource && matchesFilter(c, { hasIcon: 'アクセ' }));
   const cookingHost = findCard(c => isSigni(c) && ![abilitySource, acceSource].includes(c.CardNum) && c.CardClass?.includes('調理'));

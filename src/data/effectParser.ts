@@ -3140,6 +3140,14 @@ function parseSingleSentenceInner(text: string): EffectAction {
     } as EffectAction;
   }
 
+  if (/場にあるこのシグニを対象のあなたの他のシグニ[１1]体の【アクセ】にする。そうした場合、このシグニに付いていた【アクセ】[１1]枚を対象のあなたのシグニ[１1]体に付けてもよい/.test(t)) {
+    return {
+      type: 'FIELD_SIGNI_TO_ACCE', sourceOwner: 'self', targetSigniOwner: 'self',
+      sourceThisCard: true, targetFilter: { cardType: 'シグニ', excludeSelf: true },
+      reattachPreviousAcceOptional: true,
+    } as EffectAction;
+  }
+
   const result =
     parseSentencePart1(t, _parsingCardNum) ??
     parseSentencePart2(t) ??

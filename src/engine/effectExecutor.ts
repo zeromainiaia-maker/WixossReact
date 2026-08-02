@@ -5474,6 +5474,20 @@ function execFieldSigniToAcce(a: import('../types/effects').FieldSigniToAcceActi
   const tgtState = ownerState(a.targetSigniOwner, ctx);
   const picked = a.sourceThisCard ? ctx.sourceCardNum : a._pickedFieldSigni;
 
+  if (a._reattachSelectingHost && a._reattachAcceCard) {
+    const hostCands = fieldCandidates(tgtState, a.targetFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
+      .filter(n => {
+        const zi = tgtState.field.signi.findIndex(s => s?.at(-1) === n);
+        return zi >= 0 && (tgtState.field.signi_acce?.[zi] ?? null) === null;
+      });
+    if (hostCands.length === 0) return done(ctx);
+    const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
+    return needsInteraction(addLog(ctx, '移設するアクセの付け先を選択（任意）'), {
+      type: 'SELECT_TARGET', candidates: hostCands, count: 1, optional: true, targetScope: scope,
+      thenAction: a as import('../types/effects').EffectAction,
+    });
+  }
+
   if (!picked) {
     const sourceCands = fieldCandidates(srcState, a.sourceFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
     if (sourceCands.length === 0) return done(addLog(ctx, 'アクセ元になる場のシグニなし'));
@@ -7126,6 +7140,17 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'FIELD_SIGNI_TO_ACCE': {
       const fieldAcce = action as import('../types/effects').FieldSigniToAcceAction;
+      if (fieldAcce._reattachSelectingHost && fieldAcce._reattachAcceCard) {
+        const state = ownerState(fieldAcce.targetSigniOwner, ctx);
+        const hostZone = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
+        const trashIdx = state.trash.indexOf(fieldAcce._reattachAcceCard);
+        if (hostZone < 0 || trashIdx < 0 || (state.field.signi_acce?.[hostZone] ?? null) !== null) return done(ctx);
+        const trash = [...state.trash]; trash.splice(trashIdx, 1);
+        const acce = [...(state.field.signi_acce ?? [null, null, null])]; acce[hostZone] = fieldAcce._reattachAcceCard;
+        return done(addLog(setOwnerState(fieldAcce.targetSigniOwner, {
+          ...state, trash, field: { ...state.field, signi_acce: acce }, acce_just_done: cardNum,
+        }, ctx), `${ctx.cardMap.get(fieldAcce._reattachAcceCard)?.CardName ?? fieldAcce._reattachAcceCard}を移設`));
+      }
       // step1: 選ばれた場のシグニを内部フィールドに保持し、host選択へ進む。
       if (fieldAcce._pickedFieldSigni === '__SELECTED__') {
         return executeAction({ ...fieldAcce, _pickedFieldSigni: cardNum }, ctx);
@@ -7136,6 +7161,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const hostZone = tgtBefore.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (hostZone < 0 || (tgtBefore.field.signi_acce?.[hostZone] ?? null) !== null) return done(ctx);
       const srcBefore = ownerState(fieldAcce.sourceOwner, ctx);
+      const srcZone = srcBefore.field.signi.findIndex(s => s?.at(-1) === acceCardNum);
+      const previousAcce = srcZone >= 0 ? (srcBefore.field.signi_acce?.[srcZone] ?? null) : null;
       if (!srcBefore.field.signi.some(s => s?.at(-1) === acceCardNum)) {
         return done(addLog(ctx, 'FIELD_SIGNI_TO_ACCE: アクセ元が場にない'));
       }
@@ -7153,7 +7180,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         acce_just_done: cardNum,
       };
       ctx2 = setOwnerState(fieldAcce.targetSigniOwner, withAcce, ctx2);
-      return done(addLog(ctx2, `${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}を${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}にアクセ`));
+      ctx2 = addLog(ctx2, `${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}を${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}にアクセ`);
+      if (fieldAcce.reattachPreviousAcceOptional && previousAcce) {
+        return executeAction({ ...fieldAcce, _reattachAcceCard: previousAcce, _reattachSelectingHost: true }, ctx2);
+      }
+      return done(ctx2);
     }
     case 'SEQUENCE': {
       // SEARCH の thenAction が SEQUENCE[REVEAL, ADD_TO_HAND] 等の場合、

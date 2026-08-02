@@ -1849,7 +1849,10 @@ export interface FieldSigniToAcceAction {
   sourceFilter?: TargetFilter;
   targetFilter?: TargetFilter;
   sourceThisCard?: boolean;
+  reattachPreviousAcceOptional?: boolean;
   _pickedFieldSigni?: string;
+  _reattachAcceCard?: string;
+  _reattachSelectingHost?: boolean;
 }
 
 // 血晶武装：手札・トラッシュ・デッキから同名カードをシグニの下に重ねる

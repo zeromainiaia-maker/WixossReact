@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第13波：SP27-015-E1 既存アクセ任意移設
+
+着手前4点照合では、`SP27-015-E1` の原文は「場にあるこのシグニ→他の自シグニのアクセ。そうした場合、元に付いていたアクセ1枚を自シグニへ任意移設」、旧liveは `STUB(ACCE_FROM_HAND)→STUB(ACCE_OP)`、readerは STUB no-op で前後半とも未実行、実測では `removeFromField` が元アクセを即トラッシュへ送ったため **(a) 機能是正**と分類した。`WXDi-P14-087-E1` の原文は「他の＜電音部＞シグニが相手ライフをクラッシュ時」、liveは無条件 `ON_OPP_LIFE_CRASHED`、readerは `performLifeBurstResponse` の inline collector がクラッシュ側の場を総走査するだけでクラッシュ元を読まず、実際は任意の場の同効果が発火するため **(c) honest defer**。(b) 宣言明示化は0件。
+
+`FIELD_SIGNI_TO_ACCE` に additive な `reattachPreviousAcceOptional` を追加。writeは共有parser文型と live MANUAL、readは executor の初回host選択完了時、保持は除去直前の `signi_acce[srcZone]`、任意resumeは既存 `SELECT_TARGET`、移設時は `removeFromField` が置いた同一instanceをtrashから1枚だけ除いて選択hostの `signi_acce` へ置く。既存経路は新フラグ省略時に従来分岐へ直行し、`removeFromField`・離場diff・identity/status cleanup・ON_ACCE marker を変更していない。永続stateフィールドは増やしていないためターン境界clear追加なし。
+
+live golden（`effectsMap`／`withSavedCursor`／signi実配置）で、元自身がhost候補から除外、前半後に元シグニ離場・新hostへアクセ、3段目がoptional、選択時に元アクセがtrashから消えて別hostへ付くことを両方向assert。`WXDi-P14-087-E1` は必要機構 `life-crash source event metadata persistence` が未実装＝クラッシュ元instanceIdとクラッシュカードの対応を攻撃／効果／コスト全入口からcheck/pending待機・並べ替えまで保持する必要があり、場に残る＜電音部＞で近似しなかった。
+
+差分は HEAD 比 live per-effect changed 1 / added 0 / removed 0（`SP27-015-E1`のみ）、既存 `excludeSelf` 減少0、`"???"` 0。golden **1302→1302**（同じ第12波ケースへ実行assert追加）、smoke **10679/10679** 全0、fuzz全0（seed 12648430、7999手／2700効果）、census **1290→1290**、manual field loss 0、lint 0 errors / 240 warnings、同型★0。`build:effects`／`regen` は各2巡で追加差分なし。実装課題残 **6→5**、(lxxxiii) は未クローズ。commit/pushなし。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第12波：FIELD_SIGNI_TO_ACCE 新設・WXEX2-19-E2 実働化
 
 着手前4点照合では、実装課題7件のうち `WXEX2-19-E2` を **(a) 機能是正**、残る `SP27-015-E1`／`PR-366-E3`／`WX20-036-CB-E1`／`WX24-P2-010-E1`／`WX06-019-E1`／`WXDi-P14-087-E1` を **(c) honest defer**、(b) 宣言の明示化は0件と分類した。原文／live／reader／実挙動は、WXEX2が「アクセアイコン持ち自シグニ→他の＜調理＞host＋draw」に対し旧live `GRANT_KEYWORD(アクセ)`、readerはキーワード付与だけで場移動なし。SP27は旧live `ACCE_FROM_HAND/ACCE_OP`、readerはいずれも要求する「場の自身→他host＋付随アクセ任意移設」を行わない。PR-366は `TRIGGER_OTHER_SIGNI_EICHI_ABILITY` STUB、WX20-036は引用内が他シグニ耐性を失い自身への単体POWER、WX24-P2-010は引用内攻撃コストが単体BLOCK_ACTION、WX06-019はBANISH限定置換で全場離れを覆わず、WXDi-P14-087はON_OPP_LIFE_CRASHED collectorがクラッシュ元を読まず全てのクラッシュで発火する状態だった。
