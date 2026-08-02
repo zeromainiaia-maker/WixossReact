@@ -6491,6 +6491,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (discardNums.length > 0) {
         appendBattleLogs([`使用時の任意支払い：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨てて使用コストを置換`]);
       }
+      // ON_COIN_PAID（C1 配線・**スペル本体のベット**＝タスク12(lxxxvi)）。
+      // 他のコイン支払いサイト（グロウ人間/CPU・シグニ【起】【出】・キープレイ・アーツ ベット/アンコール・
+      // カットインのベット）は収集済みで、ここだけが「コインは払うのに反応【自】を積まない」穴だった。
+      // 対象＝ベット持ちスペル7枚（`WXDi-P07-059` ほか）。
+      const spellCoin = betCost > 0
+        ? collectCoinPaidTriggers(user.id, newMyState, newOpState)
+        : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      newMyState = applyCoinPaidUsed(newMyState, spellCoin); // 《ターン1回/2回》消化を永続化
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const spell: PendingSpell = {
         caster_id: user.id,
@@ -6499,12 +6507,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(removedVirusCount > 0 ? { pre_use_virus_removed: removedVirusCount } : {}),
         ...(fromLrigDeck ? { from_lrig_deck: true } : {}),
       };
-      // ON_LEAVE_FIELD / ON_TRASH（タスク12(lxxxix)）＝使用時の支払いで自分のシグニが場を離れた場合。
-      // 中央 diff へ **fieldTrashCostCards** として渡す＝コストによる支払いなので byEffectCause=false
+      // 使用時の支払いで積んだトリガーを1本のスタックにまとめる＝
+      //   ①ベットのコイン支払い（`ON_COIN_PAID`・タスク12(lxxxvi)）
+      //   ②場のシグニ払いの離場/トラッシュ（`ON_LEAVE_FIELD`/`ON_TRASH`・タスク12(lxxxix)）。
+      // ②は中央 diff へ **fieldTrashCostCards** として渡す＝コストによる支払いなので byEffectCause=false
       // （＝「効果によってトラッシュに置かれたとき」には該当しない）。
       // ⚠pending_spell 待ちの間にスタックが載るが、カットイン応答の継続もCPU行動も
-      //   `if (bs.effect_stack …) return;` で待つので「支払い→離場トリガー→カットイン→スペル解決」の順になる。
-      let spellUseCostStack: EffectStack | undefined;
+      //   `if (bs.effect_stack …) return;` で待つので「支払い→トリガー解決→カットイン→スペル解決」の順になる。
+      const spellUseCostEntries: StackEntry[] = [...spellCoin.entries];
       if (useCostTrashedSigni.length > 0) {
         const afterHostSp = isHost ? newMyState : newOpState;
         const afterGuestSp = isHost ? newOpState : newMyState;
@@ -6513,12 +6523,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           fieldTrashCostCards: useCostTrashedSigni,
         });
         newMyState = isHost ? bdSp.hostState : bdSp.guestState;
-        if (bdSp.entries.length > 0) {
-          spellUseCostStack = bs.effect_stack
-            ? pushToStack(bs.effect_stack, bdSp.entries)
-            : initStack(bs.active_user_id ?? user.id, bdSp.entries);
-        }
+        spellUseCostEntries.push(...bdSp.entries);
       }
+      const spellUseCostStack: EffectStack | undefined = spellUseCostEntries.length > 0
+        ? (bs.effect_stack
+          ? pushToStack(bs.effect_stack, spellUseCostEntries)
+          : initStack(bs.active_user_id ?? user.id, spellUseCostEntries))
+        : undefined;
       await persist.commit(reduceBattle(bs, {
         type: 'QUEUE_SPELL',
         casterKey: stateKey,

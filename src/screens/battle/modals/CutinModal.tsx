@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement } from '../costs';
+import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases } from '../costs';
+import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 
@@ -42,12 +43,32 @@ interface CutinModalProps {
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
   const betReplacedCostOf = (card: { CardName?: string; Cost: string; EffectText?: string }): string | null =>
     computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true });
   const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
+  // ルリグデッキ由来（＝アーツ本体）の実効コスト（タスク12(lxxxvii)）。
+  // 従来はここだけ **CSV の `Cost` 列＋`specificCardCostReductions`** で出しており、
+  // `computeArtsEffectiveCost`（EffectText 由来の条件つき軽減）・`applyContinuousCostDecreases`
+  // （場の CONTINUOUS 軽減）・`card_cost_replacements`（カード名指定の置換）を素通りしていた＝
+  // **同じアーツがメインフェイズ経由とカットイン経由でコストが食い違っていた**
+  // （実測で条件つきにズレる札は `WXK05-004`／`WXK06-016`／`SP36-001`／`SP38-002` の4枚。
+  //  うち `SP36-001` は「対戦相手がスペルを使用していた場合」＝**カットイン窓こそ効くべき場面**）。
+  // ⚠`specificCardCostReductions` はこの経路だけが持っている軽減なので、最後に重ねて失わない。
+  const myLrigCardCM = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+  const oppLrigColorCM = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
+  const artsBaseCost = (card: CardData): string => {
+    const eff = applyContinuousCostDecreases(
+      computeArtsEffectiveCost(card, my, myLrigCardCM?.CardName, oppLrigColorCM,
+        myLrigCardCM ? parseInt(myLrigCardCM.Level ?? '0') : 0, battleCardMap,
+        myLrigNameAliases, myArtsThresholdReductions,
+        { oppState: op, cardCostReplacements: my.card_cost_replacements }),
+      'アーツ', card.Color, activeCostMods.forMy);
+    const r = specificCardCostReductions.find(rr => rr.targetCardName === card.CardName);
+    return r ? removeNColorFromCost(eff, '無', r.colorlessReduction) : eff;
+  };
   return (
     <>
       {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
@@ -117,7 +138,7 @@ export function CutinModal(p: CutinModalProps) {
                             const canAffordExceedCand = exceedCostCand === 0 || totalExceedAvailCand >= exceedCostCand;
                             const isHandDiscard = candidate.source === 'hand' && candidate.effect.cost?.discardSelfFromHand;
                             const baseCostStr = candidate.source === 'lrig_deck'
-                              ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === candidate.card.CardName); return r ? removeNColorFromCost(candidate.card.Cost, '無', r.colorlessReduction) : candidate.card.Cost; })()
+                              ? artsBaseCost(candidate.card)
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
                             const addColorless = candidate.additionalColorlessCost ? `《無》×${candidate.additionalColorlessCost}` : '';
                             const costStr = `${baseCostStr}${addColorless}`;
@@ -191,7 +212,7 @@ export function CutinModal(p: CutinModalProps) {
               // ベット宣言中はコスト置換を反映する（宣言を切り替えたら選択済みエナは白紙に戻す）。
               const betReplacedCostModal = cutinBetAmount > 0 ? betReplacedCostOf(pendingCutinCard.card) : null;
               const cutinBaseCostStrModal = betReplacedCostModal ?? (pendingCutinCard.source === 'lrig_deck'
-                ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === pendingCutinCard.card.CardName); return r ? removeNColorFromCost(pendingCutinCard.card.Cost, '無', r.colorlessReduction) : pendingCutinCard.card.Cost; })()
+                ? artsBaseCost(pendingCutinCard.card)
                 : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy));
               const cutinCostStrModal = `${cutinBaseCostStrModal}${pendingCutinCard.additionalColorlessCost ? `《無》×${pendingCutinCard.additionalColorlessCost}` : ''}`;
               const exceedPartModal = exceedCostModal > 0 ? `エクシード${exceedCostModal}` : '';

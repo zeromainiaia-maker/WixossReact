@@ -43,6 +43,7 @@ import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/atta
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
+import { applyContinuousCostDecreases } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -20394,6 +20395,46 @@ test('use-time cost reduction: 支払いが各ゾーンを正しく動かす（�
   const r5 = payUseTimeCost(myKey, specKey, new Set(['k:0']), cardMap);
   eq(r5.state.field.key_piece, null, '本体キーが場から外れる');
   eq(JSON.stringify(r5.state.lrig_trash), JSON.stringify(['K1']), 'ルリグトラッシュへ');
+});
+
+// タスク12(lxxxvi): スペル本体のベットが `ON_COIN_PAID` を積んでいなかった（コインは払うのに反応【自】が不発）。
+// 収集そのものは BattleScreen 層＝golden から叩けないので、**対象母集団**を固定する
+// （ここが空になる＝ベット持ちスペルの抽出が壊れた合図）。
+test('task12(lxxxvi): ベット持ちスペル7枚＝スペル本体のベットで ON_COIN_PAID を積む母集団', () => {
+  const bets = [...cardMap.values()]
+    .filter(c => c.Type === 'スペル' && /ベット[―─]/.test(c.EffectText ?? ''))
+    .map(c => c.CardNum).sort();
+  eq(JSON.stringify(bets), JSON.stringify([
+    'WXDi-D09-P26', 'WXDi-P07-059', 'WXDi-P07-068', 'WXDi-P09-076',
+    'WXDi-P09-083', 'WXDi-P15-071', 'WXDi-P15-075',
+  ]), 'ベット持ちスペルは7枚');
+  for (const num of bets) {
+    const spec = parseBetOptions(cardMap.get(num)!.EffectText ?? '');
+    ok(spec.variable || spec.options.length > 0, `${num}: ベット段階が読める（＝UIで宣言できる）`);
+  }
+});
+
+// タスク12(lxxxvii): カットイン窓のコスト算出が ArtsModal と同じ機構を通っていなかった。
+// 実測すると `computeArtsEffectiveCost` の条件つき軽減規則にヒットするカットインアーツは現状0枚で、
+// **実害は場の CONTINUOUS 軽減**（live 上の唯一の発生源＝`WX03-028`「あなたが使用する青のアーツの
+// コストは《無×1》減る」）＝カットイン可能アーツのうち3枚が印刷コストのまま請求されていた。
+test('task12(lxxxvii): 場の CONTINUOUS アーツコスト軽減が効くカットインアーツ3枚', () => {
+  const cutinArts = [...cardMap.values()]
+    .filter(c => (c.Timing ?? '').includes('スペルカットイン') && (c.Type === 'アーツ' || c.Type === 'ピース'));
+  ok(cutinArts.length >= 50, `カットイン可能アーツの母数（実測53）: ${cutinArts.length}`);
+  // `WX03-028` 由来の mod＝青のアーツのみ《無×1》減る
+  const mods = [{ direction: 'decrease' as const, targetCardType: 'アーツ' as const, cardColor: '青', amount: [{ color: '無', count: 1 }] }];
+  const affected = cutinArts
+    .filter(c => applyContinuousCostDecreases(c.Cost, 'アーツ', c.Color, mods as never) !== c.Cost)
+    .map(c => c.CardNum).sort();
+  eq(JSON.stringify(affected), JSON.stringify(['WD23-012-A', 'WX01-018', 'WXK05-004']),
+    '青＋《無》を持つカットインアーツ＝軽減が効くべき3枚');
+  // 色が違えば効かない（cardColor フィルタが素通りしていないこと）
+  const black = cutinArts.find(c => !(c.Color ?? '').includes('青') && /《無》/.test(c.Cost));
+  if (black) {
+    eq(applyContinuousCostDecreases(black.Cost, 'アーツ', black.Color, mods as never), black.Cost,
+      `${black.CardNum}: 青以外は軽減されない`);
+  }
 });
 
 test('cost replacement: 「使用コストは《X》になる」 replaces the printed cost under its condition', () => {
