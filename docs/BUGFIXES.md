@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-03 — 🏁§3 タスク12(lxxxiv) **残0クローズ**：スペルカットイン経路に**ベット宣言UI**を実装＝ベット持ちアーツ8枚がカットイン窓でベットできなかったのを解消（うち `WX17-019` は**一生宣言できなかった**）（golden 1333→1334・全ゲート緑）（Opus 5・続き336）
+
+### 真因
+`ArtsModal` / `executeArts` にはベット枝（`parseBetOptions`→枚数選択→コイン消費→`is_betting_this_effect`→`ON_COIN_PAID` 収集）が揃っているのに、
+**スペルカットイン窓は同じアーツを別経路で使う**（`CutinModal` / `handleCutinUse`）＝ここにベットの概念が丸ごと無かった。
+`handleCutinUse` には `betCoins` 引数も `is_betting_this_effect` の書き込みも無く、コインを1枚も払えない。
+
+**影響＝カットイン可能かつベット持ちのアーツ8枚**（CSV `Timing` に「スペルカットイン」を含み原文に「ベット―」を持つ札を全数機械抽出＝
+`WX17-019`／`WX17-023`／`WX19-006`／`WD18-008`／`WD20-007`／`WD21-007`／`WDK10-008`／`WDK12-007`）。
+うち **`WX17-019`（リフューズ・スペル）は `Timing` がカットイン専用**＝`ArtsModal` から到達不能なので、
+**ベットを宣言する手段がゲーム内に一つも無かった**（(lxxxi) で実装した「ベット宣言で《青×0》になる」コスト置換も当然届かない）。
+残り7枚はメイン/アタックフェイズ経由なら宣言できる＝**カットイン窓でだけ**宣言できない。
+
+### 直した内容
+- **`handleCutinUse` に `betCoins` を追加**（4引数目）。コイン消費・`actions_done += 'COIN_SPENT'`・`bet_coins_paid`・
+  `is_betting_this_effect` を書く。**非宣言時も明示クリア**する＝`executeArts`／`castSpell` と同じ「前回ベットの持ち越し防止」規約。
+- **`ON_COIN_PAID` の収集を配線**（支払い後の盤面で `collectCoinPaidTriggers`＋`applyCoinPaidUsed` で《ターン1回/2回》を消化）。
+  ⚠カットイン効果は `executeEffect` で **inline 解決**＝スタックを経由しないので、アーツ経路の `queueCardEffects(extraEntries)` は使えない。
+  ⇒ 収集したエントリを `pushToStack`／`initStack` で自前でスタックへ積み、commit の `effectStack` として渡す。
+  そのため `FINISH_CUTIN` action にも `effectStack?`（**省略＝不干渉**）を足した＝従来経路のキー集合は変わらない。
+- **`CutinModal` にベット枝**（`ArtsModal` の枝を流用）＝OFF/枚数ボタン・段階/可変ベット・`isActionBlocked('BET')`／`negate_coin_abilities` のガード・
+  宣言に追従したコスト置換表示（（ベット）マーク）・**宣言を切り替えたら選択済みエナを白紙に戻す**（枚数要件が変わるため）。
+  ベット state は `useCutin` の `cutinBetAmount` に置き、`closeCutin` で他の選択と一緒にリセットする。
+- 🔴**候補一覧の支払い可否も置換後コストで見る**（これが無いと直らない）＝`WX17-019` は印刷《青》×2 なので、
+  青エナが2枚無いと**候補ボタンが「エナ不足」で無効化され、ベットを宣言する画面へ辿り着けない**。
+  ⇒ 「印刷コストで払える **or** ベット置換後コストで払える」に緩めた。
+
+### 検証
+- golden **1333→1334**＝①`FINISH_CUTIN` の `effectStack` 指定時のみ `effect_stack` を書く（省略＝不干渉は既存2件が保証）
+  ②対象8枚の `parseBetOptions` 段階と `Timing` にカットインを含むこと＋`WX17-019` がベット宣言でのみ《青×0》になること
+  （＝**ベットUIの枚数ボタンがここから出る**＝空になれば golden が落ちる）。
+- ゲート＝typecheck/golden(**1334**)/smoke(全0)/fuzz(全0)/census(1288 据置)/manual-fields 0/lint(0 errors)。**live JSON の変更なし**（UI・engine 配線のみ）。
+- ⚠**要実機検証**（BattleScreen 層＝golden から叩けない）＝相手のスペルにカットインする窓で
+  ①`WX17-019` が青エナ0でも候補に出てベット1枚で撃てる ②`WD20-007` のベットで《緑×2》《無×2》→《緑×0》になる
+  ③`WX17-023`/`WD18-008`/`WDK10-008` の「ベットしていた場合」枝が解決時に効く ④非ベットで使ったとき前回のベットが持ち越されない。
+
+### 積んだ隣接在庫（今回の対象外・PLAN §3 タスク12 へ登録）
+- **(lxxxvi) スペル本体のベットが `ON_COIN_PAID` を積まない**＝`castSpell` は `betCoins` を受けてコインを払うのに反応【自】を収集しない。ベット持ちスペルは**7枚**（`WXDi-D09-P26`／`WXDi-P07-059`／`WXDi-P07-068`／`WXDi-P09-076`／`WXDi-P09-083`／`WXDi-P15-071`／`WXDi-P15-075`）。⚠`pending_spell` 待ち（カットイン応答中）にスタックへ積むことになる＝**解決順序の設計判断が要る**ので同梱しなかった。
+- **(lxxxvii) カットイン窓のコスト算出がコスト機構を通っていない**＝`specificCardCostReductions` しか見ず、`computeArtsEffectiveCost`／`applyContinuousCostDecreases`／`card_cost_replacements`（(lxxxi) ①のゲーム間置換）を通さない。同じアーツでもメイン経由とカットイン経由でコストが食い違う。着手前に**どのアーツが影響するかの機械抽出が先**。
+- **(lxxxviii) 対象8枚のうち3枚は本体が STUB のまま**＝`WX19-006`／`WDK12-007` は `BET_MECHANIC`、`WD21-007` は `GRANT_QUOTED_AUTO_ABILITY`。ベットを宣言できても**変わる先の枝が JSON に無い**。またベット分岐を `betChoose`（「代わりに2つまで選ぶ」）で持つべき札が `betChoose` を持っていない。⚠これは**アーツ経路でも同じ**＝カットイン固有ではないデータ/parser 側の穴。
+
 ## 2026-08-03 — 🏁§3 タスク12(lxxxi) **残0クローズ**：残していた2枚（＋同型1枚）を別機構2本で実装し、ついでに**本体丸ごと不発の過剰ゲート**を1件是正（golden 1331→1333・census 1289→1288・全ゲート緑）（Opus 5・続き335）
 
 前セッション（続き334）で honest defer した2枚は、それぞれ**別の機構**が要るという見立てどおりだった。両方を実装して (lxxxi) を残0にした。

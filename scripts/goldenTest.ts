@@ -41,7 +41,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost } from '../src/screens/battle/costs';
+import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -12282,6 +12282,15 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     eq(patch.host_state, caster, 'caster');
     ok(!('pending_effect' in patch), 'pending_effectは不干渉');
   });
+  // タスク12(lxxxiv): カットインのベットで積んだ ON_COIN_PAID をこの action で書けること。
+  // effect_stack は「省略＝不干渉」＝ベットしていない従来経路のキー集合を変えない（上の2件が保証）。
+  test('Stage3 reduceBattle FINISH_CUTIN: effectStack 指定時のみ effect_stack を書く', () => {
+    const state = { lrig_trash: ['A3'] } as unknown as PlayerState;
+    const stack = { turnPlayerId: 'h', queue: [{ id: 'e1' }], orderTurnDone: true, orderOppDone: true } as unknown as EffectStack;
+    const patch = reduceBattle(stub, { type: 'FINISH_CUTIN', playerKey: 'host_state', playerState: state, effectStack: stack });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'pending_spell', 'effect_stack']), 'キー集合');
+    eq(patch.effect_stack, stack, 'コイン反応スタック');
+  });
   test('Stage3 reduceBattle WRITE_STATE: 攻撃元消失時は該当状態1キーのみ', () => {
     const state = { pending_signi_battle: undefined } as unknown as PlayerState;
     const patch = reduceBattle(stub, { type: 'WRITE_STATE', myKey: 'host_state', myState: state });
@@ -20193,6 +20202,21 @@ test('cost replacement: 「使用コストは《X》になる」 replaces the pr
     eq(computeCostReplacement(cardOf(num), my, cardMap, {}), null, `${num}: ベット宣言前は印刷コスト`);
     eq(computeCostReplacement(cardOf(num), my, cardMap, { isBetting: true }), betCost, `${num}: ベット宣言で置換`);
   }
+
+  // ── タスク12(lxxxiv)：カットイン窓でベット宣言できるべき8枚（CSV Timing にスペルカットインを含む
+  //    ベット持ちアーツ）。CutinModal のベット枝はこの options をそのまま枚数ボタンに出す＝
+  //    ここが空になるとベットUI自体が消える。WX17-019 は Timing がカットイン専用＝
+  //    ArtsModal から到達不能なので、この経路が唯一のベット宣言口。
+  for (const [num, opts] of [
+    ['WX17-019', [1]], ['WX17-023', [2]], ['WX19-006', [2]], ['WD18-008', [1]],
+    ['WD20-007', [2]], ['WD21-007', [2]], ['WDK10-008', [2]], ['WDK12-007', [2]],
+  ] as [string, number[]][]) {
+    const spec = parseBetOptions(cardOf(num).EffectText ?? '');
+    eq(JSON.stringify(spec.options), JSON.stringify(opts), `${num}: ベット段階`);
+    ok(cardOf(num).Timing.includes('スペルカットイン'), `${num}: カットイン窓に出る`);
+  }
+  eq(computeCostReplacement(cardOf('WX17-019'), my, cardMap, { isBetting: true }), 'なし',
+    'WX17-019: カットイン専用＝ベット宣言でのみ《青×0》になる');
 
   // ── WX09-Re02（原票）＝相手のこのターンのアーツ/スペル使用で2段階。両方成立なら《白×0》が勝つ ──
   const re02 = cardOf('WX09-Re02');

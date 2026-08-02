@@ -3,9 +3,23 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr } from '../costs';
-import type { BattleModalCtx, CutinCandidate } from './types';
+import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement } from '../costs';
+import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
+
+// ベット宣言（タスク12(lxxxiv)）＝カットイン窓でもアーツ経路（ArtsModal）と同じベット枝を出す。
+// 対象は lrig_deck 由来＝アーツ本体のみ（場のルリグ/シグニの【起】は原文にベットを持たない）。
+function cutinBetSpec(candidate: EffectCutinCandidate): { options: number[]; variable: boolean } {
+  if (candidate.source !== 'lrig_deck') return { options: [], variable: false };
+  return parseBetOptions(candidate.card.EffectText ?? '');
+}
+
+// 実際に選べるコイン枚数（可変ベットは 1..min(5,所持)、固定/段階は原文の段階そのまま）。
+function cutinBetOptions(spec: { options: number[]; variable: boolean }, coins: number): number[] {
+  return spec.variable
+    ? Array.from({ length: Math.max(0, Math.min(5, coins)) }, (_, i) => i + 1)
+    : spec.options;
+}
 
 interface CutinModalProps {
   ctx: BattleModalCtx;
@@ -17,17 +31,23 @@ interface CutinModalProps {
   setSelectedCutinExceed: Dispatch<SetStateAction<Set<number>>>;
   selectedCutinUnderTrash: Set<string>;
   setSelectedCutinUnderTrash: Dispatch<SetStateAction<Set<string>>>;
+  cutinBetAmount: number;
+  setCutinBetAmount: Dispatch<SetStateAction<number>>;
   setCutinSpellZoomed: Dispatch<SetStateAction<boolean>>;
   cutinCandidates: CutinCandidate[];
   handleCutinPass: () => void;
-  handleCutinUse: (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys?: Set<string>) => void;
+  handleCutinUse: (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys?: Set<string>, betCoins?: number) => void;
   handleResonaCutinSelect: (candidate: CutinCandidate) => void;
   toggleCutinCostCard: (idx: number) => void;
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
+  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
+  // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
+  const betReplacedCostOf = (card: { CardName?: string; Cost: string; EffectText?: string }): string | null =>
+    computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true });
+  const betBlocked = isActionBlocked('BET') || !!my.negate_coin_abilities;
   return (
     <>
       {bs.pending_spell && bs.pending_spell.caster_id !== user.id && createPortal(
@@ -99,17 +119,26 @@ export function CutinModal(p: CutinModalProps) {
                             const baseCostStr = candidate.source === 'lrig_deck'
                               ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === candidate.card.CardName); return r ? removeNColorFromCost(candidate.card.Cost, '無', r.colorlessReduction) : candidate.card.Cost; })()
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
-                            const costStr = `${baseCostStr}${candidate.additionalColorlessCost ? `《無》×${candidate.additionalColorlessCost}` : ''}`;
+                            const addColorless = candidate.additionalColorlessCost ? `《無》×${candidate.additionalColorlessCost}` : '';
+                            const costStr = `${baseCostStr}${addColorless}`;
+                            // ベット宣言（タスク12(lxxxiv)）: 宣言できる札は、置換後コストでも支払い可否を見る。
+                            // 印刷コストだけで判定すると WX17-019（《青》×2 → ベットで《青×0》）が
+                            // エナ不足で候補から消え、ベットを宣言する画面へ辿り着けない。
+                            const betSpecCand = cutinBetSpec(candidate);
+                            const betOptionsCand = cutinBetOptions(betSpecCand, my.coins);
+                            const canBetCand = !betBlocked && betOptionsCand.some(n => n > 0 && n <= my.coins);
+                            const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
+                                || (betCostCand !== null && canAffordWithExtraCost(my.energy, battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
                             const costLabel = [exceedPart, energyPart].filter(Boolean).join('・') || 'なし';
                             return (
                               <button key={candidate.instanceId}
-                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); setSelectedCutinUnderTrash(new Set()); } }}
+                                onClick={() => { if (canAfford) { setPendingCutinCard(candidate); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); setSelectedCutinUnderTrash(new Set()); setCutinBetAmount(0); } }}
                                 disabled={loading || !canAfford}
                                 style={{ display: 'flex', alignItems: 'center', gap: 10,
                                   padding: '8px 12px', borderRadius: 8, border: C.borderUI,
@@ -122,6 +151,12 @@ export function CutinModal(p: CutinModalProps) {
                                 <div>
                                   <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>{candidate.card.CardName}</p>
                                   <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>コスト: {costLabel}</p>
+                                  {(betSpecCand.variable || betSpecCand.options.length > 0) && (
+                                    <p style={{ color: C.coin, fontSize: 10, margin: '0 0 2px' }}>
+                                      ベット{betSpecCand.variable ? '（好きな枚数）' : `（コイン${betSpecCand.options.join('or')}枚）`}
+                                      {betCostCand !== null && ` → コスト ${betCostCand}`}
+                                    </p>
+                                  )}
                                   {!canAfford && <p style={{ color: C.danger, fontSize: 10, margin: 0 }}>エナ不足</p>}
                                 </div>
                               </button>
@@ -150,9 +185,14 @@ export function CutinModal(p: CutinModalProps) {
                 ...(my.field.assist_lrig_l?.slice(0, -1) ?? []),
                 ...(my.field.assist_lrig_r?.slice(0, -1) ?? []),
               ];
-              const cutinBaseCostStrModal = pendingCutinCard.source === 'lrig_deck'
+              const betSpecModal = cutinBetSpec(pendingCutinCard);
+              const betOptionsModal = cutinBetOptions(betSpecModal, my.coins);
+              const canBetModal = !betBlocked && betOptionsModal.some(n => n > 0 && n <= my.coins);
+              // ベット宣言中はコスト置換を反映する（宣言を切り替えたら選択済みエナは白紙に戻す）。
+              const betReplacedCostModal = cutinBetAmount > 0 ? betReplacedCostOf(pendingCutinCard.card) : null;
+              const cutinBaseCostStrModal = betReplacedCostModal ?? (pendingCutinCard.source === 'lrig_deck'
                 ? (() => { const r = specificCardCostReductions.find(rr => rr.targetCardName === pendingCutinCard.card.CardName); return r ? removeNColorFromCost(pendingCutinCard.card.Cost, '無', r.colorlessReduction) : pendingCutinCard.card.Cost; })()
-                : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy);
+                : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy));
               const cutinCostStrModal = `${cutinBaseCostStrModal}${pendingCutinCard.additionalColorlessCost ? `《無》×${pendingCutinCard.additionalColorlessCost}` : ''}`;
               const exceedPartModal = exceedCostModal > 0 ? `エクシード${exceedCostModal}` : '';
               const energyPartModal = isHandDiscardModal ? '手札から自分を捨てる' : cutinCostStrModal || '';
@@ -178,7 +218,7 @@ export function CutinModal(p: CutinModalProps) {
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingCutinCard(null); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); }}
+                    <button onClick={() => { setPendingCutinCard(null); setSelectedCutinCost(new Set()); setSelectedCutinExceed(new Set()); setCutinBetAmount(0); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
@@ -213,9 +253,52 @@ export function CutinModal(p: CutinModalProps) {
                       onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{pendingCutinCard.card.CardName}</p>
-                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {cutinCostLabelModal}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
+                        コスト: {cutinCostLabelModal}{betReplacedCostModal !== null && <span style={{ color: C.coin }}>（ベット）</span>}
+                      </p>
                     </div>
                   </div>
+                  {(betSpecModal.variable || betSpecModal.options.length > 0) && (() => {
+                    // ベット宣言でコストが変わる札は、宣言を切り替えたら選択済みエナを白紙に戻す（枚数要件が変わるため）
+                    const betReplacesCost = betReplacedCostOf(pendingCutinCard.card) !== null;
+                    return (
+                      <div style={{ padding: '8px 12px', borderRadius: 8, border: cutinBetAmount > 0 ? `2px solid ${C.coin}` : C.borderUI,
+                        backgroundColor: cutinBetAmount > 0 ? 'rgba(204,136,0,0.15)' : C.bgButton, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span style={{ fontSize: 13, color: cutinBetAmount > 0 ? C.coin : C.text }}>
+                            ベット{betSpecModal.variable ? '（好きな枚数）' : betSpecModal.options.length > 1 ? '（段階）' : `（コイン${betSpecModal.options[0]}枚）`}
+                          </span>
+                          <span style={{ fontSize: 11, color: canBetModal || cutinBetAmount > 0 ? C.coin : C.danger }}>
+                            選択: {cutinBetAmount}枚 / 所持: {my.coins}枚
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          <button onClick={() => { setCutinBetAmount(0); if (betReplacesCost) setSelectedCutinCost(new Set()); }} disabled={betBlocked}
+                            style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12, cursor: betBlocked ? 'default' : 'pointer',
+                              border: cutinBetAmount === 0 ? `2px solid ${C.coin}` : C.borderUI,
+                              backgroundColor: cutinBetAmount === 0 ? 'rgba(204,136,0,0.2)' : 'transparent',
+                              color: cutinBetAmount === 0 ? C.coin : C.textDim }}>
+                            OFF
+                          </button>
+                          {betOptionsModal.map(n => {
+                            const affordable = !betBlocked && n <= my.coins;
+                            const sel = cutinBetAmount === n;
+                            return (
+                              <button key={n} onClick={() => { if (affordable || sel) { setCutinBetAmount(sel ? 0 : n); if (betReplacesCost) setSelectedCutinCost(new Set()); } }}
+                                disabled={!affordable && !sel}
+                                style={{ padding: '4px 10px', borderRadius: 6, fontSize: 12,
+                                  cursor: (affordable || sel) ? 'pointer' : 'default',
+                                  border: sel ? `2px solid ${C.coin}` : C.borderUI,
+                                  backgroundColor: sel ? 'rgba(204,136,0,0.2)' : 'transparent',
+                                  color: sel ? C.coin : (affordable ? C.text : C.textFaint) }}>
+                                {n}枚
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {totalReq > 0 && (
                     <>
                       <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
@@ -306,7 +389,7 @@ export function CutinModal(p: CutinModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost, selectedCutinUnderTrash)}
+                  <button onClick={() => handleCutinUse(pendingCutinCard, selectedCutinCost, selectedCutinUnderTrash, cutinBetAmount)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.danger : C.disabled,

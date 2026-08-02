@@ -118,6 +118,8 @@ export type BattleAction =
       playerKey: PlayerStateKey;
       playerState: PlayerState;
       caster?: { key: PlayerStateKey; state: PlayerState };
+      /** 使用時の支払い（ベットのコイン）で積んだトリガー（省略＝触らない）。 */
+      effectStack?: EffectStack | null;
     }
   /**
    * プレイヤー状態を書き、指定したターンフェイズへ進める。
@@ -259,6 +261,7 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
         pending_spell: null,
       };
       if (action.caster) patch[action.caster.key] = action.caster.state;
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       return patch;
     }
     case 'ADVANCE_TURN_WITH_STATE': {

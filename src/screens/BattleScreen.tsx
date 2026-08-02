@@ -174,6 +174,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
     selectedCutinExceed, setSelectedCutinExceed, closeCutin, toggleCutinCost,
     selectedCutinUnderTrash, setSelectedCutinUnderTrash,
+    cutinBetAmount, setCutinBetAmount,
   } = useCutin();
   // シグニ起動効果
   const {
@@ -6672,7 +6673,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   handleCutinPassRef.current = handleCutinPass;
 
   // カットイン使用 → カットイン効果発火・スペルをトラッシュ（打ち消し）
-  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys: Set<string> = new Set()) => {
+  const handleCutinUse = async (candidate: CutinCandidate, costIndices: Set<number>, underTrashKeys: Set<string> = new Set(), betCoins = 0) => {
     if (!bs.pending_spell || loading) return;
     if (candidate.kind !== 'effect') return;
     if (!canUseArtsCondition(
@@ -6759,6 +6760,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           };
         }
       }
+      // ベット宣言（タスク12(lxxxiv)）: カットイン窓でもアーツ経路と同じくコインを支払える。
+      // UI 側でガード済みだが所持枚数を超えないよう丸め、is_betting_this_effect は
+      // 非宣言時に明示クリアする（前回ベットの持ち越し防止＝executeArts / castSpell と同型）。
+      const betCost = Math.min(Math.max(0, betCoins), my.coins);
+      cutinPaid = {
+        ...cutinPaid,
+        coins: Math.max(0, cutinPaid.coins - betCost),
+        ...(betCost > 0 ? { actions_done: [...(cutinPaid.actions_done ?? []), 'COIN_SPENT'] } : {}),
+        is_betting_this_effect: betCost > 0 ? true : undefined,
+        bet_coins_paid: betCost > 0 ? betCost : undefined,
+      };
+      if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
+      // ON_COIN_PAID（C1 配線・カットインのベット）: 支払い後の盤面で反応【自】を収集しスタックへ積む。
+      const cutinCoin = betCost > 0
+        ? collectCoinPaidTriggers(user.id, cutinPaid, newCasterState)
+        : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      cutinPaid = applyCoinPaidUsed(cutinPaid, cutinCoin); // 《ターン1回/2回》消化を永続化
+      // カットイン効果は inline 解決＝スタックを経由しないため、コイン反応は別途スタックへ積む
+      // （アーツ経路は queueCardEffects の extraEntries が同じ役割を担う）。
+      const cutinCoinStack = cutinCoin.entries.length > 0
+        ? (bs.effect_stack ? pushToStack(bs.effect_stack, cutinCoin.entries)
+          : initStack(bs.active_user_id ?? user.id, cutinCoin.entries))
+        : undefined;
       // カットイン使用・スペル打ち消しログ（カットインは常にスペルを打ち消す）
       const counterSpellName = battleCardMap.get(card_num)?.CardName ?? card_num;
       appendBattleLogs([`[自分] ${cutinCard.CardName}を使用（カットイン）`]);
@@ -6774,11 +6798,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (myKey === casterKey) {
           await persist.commit(reduceBattle(bs, {
             type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
+            ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
           }));
         } else {
           await persist.commit(reduceBattle(bs, {
             type: 'FINISH_CUTIN', playerKey: myKey, playerState: cutinPaid,
             caster: { key: casterKey, state: newCasterState },
+            ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
           }));
         }
         return;
@@ -6801,6 +6827,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState, guestState, clearPendingSpell: true,
         pending: result.done ? null : ({ sourcePlayerId: user.id, sourceCardNum: cutinInstanceId, effectId: cutinEff.effectId, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
+        ...(cutinCoinStack ? { effectStack: cutinCoinStack } : {}),
       }));
     } finally {
       setLoading(false);
@@ -11949,7 +11976,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <SpellCutinOverlays ctx={modalCtx} cutinSpellZoomed={cutinSpellZoomed} setCutinSpellZoomed={setCutinSpellZoomed} />
 
       {/* スペルカットインポップアップ（相手のスペル発動中に表示） */}
-      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} selectedCutinUnderTrash={selectedCutinUnderTrash} setSelectedCutinUnderTrash={setSelectedCutinUnderTrash} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} handleResonaCutinSelect={candidate => {
+      <CutinModal ctx={modalCtx} pendingCutinCard={pendingCutinCard} setPendingCutinCard={setPendingCutinCard} selectedCutinCost={selectedCutinCost} setSelectedCutinCost={setSelectedCutinCost} selectedCutinExceed={selectedCutinExceed} setSelectedCutinExceed={setSelectedCutinExceed} selectedCutinUnderTrash={selectedCutinUnderTrash} setSelectedCutinUnderTrash={setSelectedCutinUnderTrash} cutinBetAmount={cutinBetAmount} setCutinBetAmount={setCutinBetAmount} setCutinSpellZoomed={setCutinSpellZoomed} cutinCandidates={cutinCandidates} handleCutinPass={handleCutinPass} handleCutinUse={handleCutinUse} handleResonaCutinSelect={candidate => {
         if (candidate.kind !== 'resona') return;
         setPendingCutinCard(null);
         setSelectedResonaPayment([]);

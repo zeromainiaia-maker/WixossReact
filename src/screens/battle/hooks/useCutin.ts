@@ -7,6 +7,8 @@ export interface CutinState {
   selectedCutinCost: Set<number>;
   selectedCutinExceed: Set<number>;
   selectedCutinUnderTrash: Set<string>;
+  /** ベット宣言で支払うコイン枚数（0＝宣言しない）。アーツ経路の betAmount と同じ役割。 */
+  cutinBetAmount: number;
 }
 
 const initialState: CutinState = {
@@ -14,6 +16,7 @@ const initialState: CutinState = {
   selectedCutinCost: new Set(),
   selectedCutinExceed: new Set(),
   selectedCutinUnderTrash: new Set(),
+  cutinBetAmount: 0,
 };
 
 export function useCutin() {
@@ -24,9 +27,10 @@ export function useCutin() {
     setSelectedCutinCost: set.selectedCutinCost,
     setSelectedCutinExceed: set.selectedCutinExceed,
     setSelectedCutinUnderTrash: set.selectedCutinUnderTrash,
+    setCutinBetAmount: set.cutinBetAmount,
     /** カットイン UI を畳んで選択を全リセット（パス/使用の双方で使う） */
     closeCutin: () =>
-      patch({ pendingCutinCard: null, selectedCutinCost: new Set(), selectedCutinExceed: new Set(), selectedCutinUnderTrash: new Set() }),
+      patch({ pendingCutinCard: null, selectedCutinCost: new Set(), selectedCutinExceed: new Set(), selectedCutinUnderTrash: new Set(), cutinBetAmount: 0 }),
     /** コスト支払いエナの選択トグル */
     toggleCutinCost: (idx: number) =>
       set.selectedCutinCost((prev) => {
