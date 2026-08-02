@@ -4820,6 +4820,28 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXDi-CP02-066": [
     {"effectId":"WXDi-CP02-066-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"ブルアカ","excludeSelf":true},"upToCount":false}},{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"self","count":1},"targetsLastProcessed":true,"redirectTo":"trash","until":"END_OF_TURN","bySource":"battle_with_this"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // task12(lxxxiii) 第9波：対象を1度だけ選び、同じ他の緑＜ブルアカ＞へ+5000と引用【常】を付与。
+  "WX25-CP1-044": [
+    {"effectId":"WX25-CP1-044-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"緑","story":"ブルアカ","excludeSelf":true}},"delta":5000,"duration":"UNTIL_END_OF_TURN"},
+      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-CP1-044-E2-G","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_ABILITY_GAIN_BY_OPP"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}}
+    ]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // 対象数は storedTargetCards に固定する。MILL の既存 countPerStoredTargets が CHOOSE pause 後も同数を使う。
+  "WX25-CP1-087": [
+    {"effectId":"WX25-CP1-087-E1","effectType":"AUTO","timing":["ON_TURN_END"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
+      {"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ","story":"ブルアカ","excludeSelf":true}}},
+      {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
+      {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+        {"choiceId":"trash","label":"対象にした体数ぶんデッキの上からトラッシュに置く","action":{"type":"SEQUENCE","steps":[{"type":"MILL","owner":"self","count":0,"countPerStoredTargets":1},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":2},"targetsStored":true,"delta":3000,"duration":"UNTIL_OPP_TURN_END"}]}},
+        {"choiceId":"skip","label":"置かない","action":{"type":"STUB","id":"INTERNAL_NOOP"}}
+      ]}
+    ]},"duration":"UNTIL_OPP_TURN_END","mandatory":true,"parseStatus":"MANUAL"}
+  ],
+  // 赤 OR ＜宝石＞の和集合。単一 ALL action なので両方に該当しても+2000は一度だけ。
+  "WXDi-P08-065": [
+    {"effectId":"WXDi-P08-065-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","excludeSelf":true,"anyOf":[{"color":"赤"},{"story":"宝石"}]}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   "WXK10-067": [
     {"effectId":"WXK10-067-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"赤","count":1}]},"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"古代兵器","excludeSelf":true},"upToCount":false}},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","nameEqLastProcessed":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],

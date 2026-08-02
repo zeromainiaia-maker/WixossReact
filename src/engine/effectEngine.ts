@@ -544,6 +544,9 @@ function getLocationCards(state: PlayerState, location: string): string[] {
 
 function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | undefined): boolean {
   if (!filter || !cardData) return true;
+  // OR filter: 下位フィルタのいずれかに一致し、同階層の他条件とはAND。
+  // execUtils.matchesFilter と同じ意味に揃え、CONTINUOUS 計算でも和集合を扱う。
+  if (filter.anyOf && !filter.anyOf.some(sub => matchesFilter(cardData, sub))) return false;
   if (filter.cardName && !cardData.CardName?.includes(filter.cardName)) return false;
   if (filter.cardNames && !filter.cardNames.includes(cardData.CardName ?? '')) return false;
   if (filter.cardNum  && cardData.CardNum  !== filter.cardNum)  return false;
@@ -1721,7 +1724,7 @@ export function calcFieldPowers(
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
               applyDeltaToState(ownerState, ownerDelta, contFilter, cardMap, powers,
-                ownerPowerProtection, undefined, mod.excludeSelf ? topNum : undefined);
+                ownerPowerProtection, undefined, (mod.excludeSelf || target.filter?.excludeSelf) ? topNum : undefined);
             }
             if (targetIsOther) {
               applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtection, dblOtherMult);
@@ -4928,7 +4931,8 @@ export function collectAbilityGainProtectedSigni(
   for (const stack of otherState.field.signi) { if (stack?.length) otherCands.push(stack[stack.length - 1]); }
   if (otherState.field.lrig.length) otherCands.push(otherState.field.lrig[otherState.field.lrig.length - 1]);
   for (const cn of otherCands) {
-    for (const eff of (effectsMap.get(cn) ?? [])) {
+    const effects = [...(effectsMap.get(cn) ?? []), ...(otherState.granted_effects?.[cn] ?? []), ...(otherState.granted_effects_until_opp_turn?.[cn] ?? [])];
+    for (const eff of effects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;
@@ -4944,7 +4948,8 @@ export function collectAbilityGainProtectedSigni(
   const selfCands: string[] = [];
   for (const stack of ownerState.field.signi) { if (stack?.length) selfCands.push(stack[stack.length - 1]); }
   for (const cn of selfCands) {
-    for (const eff of (effectsMap.get(cn) ?? [])) {
+    const effects = [...(effectsMap.get(cn) ?? []), ...(ownerState.granted_effects?.[cn] ?? []), ...(ownerState.granted_effects_until_opp_turn?.[cn] ?? [])];
+    for (const eff of effects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, cn)) continue;
       const act = eff.action as import('../types/effects').StubAction;

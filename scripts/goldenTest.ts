@@ -15,7 +15,7 @@ import type { CardData, PlayerState, StackEntry } from '../src/types';
 import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost } from '../src/engine/execUtils';
@@ -21157,6 +21157,63 @@ test('task12(lxxxiii) wave 7 WXK06-024-E1: opponent power minus protects only ot
   const powers = calcFieldPowers(decreasingSide, protectedSide, true, effectsMap, cardMap as Map<string, CardData>);
   eq(powers.get(other), baseline.get(other), '他シグニは live WX13-006A-E1 の相手－5000を受けない');
   eq(powers.get(source), (baseline.get(source) ?? 0) - 5000, '能力保持者自身は相手－5000を受ける');
+}));
+
+test('task12(lxxxiii) 第9波 WX25-CP1-044-E2: live対象へ+5000と引用常を付与し、自身/非該当を除外', () => withSavedCursor(() => {
+  const source = 'WX25-CP1-044';
+  const target = findCard(c => isSigni(c) && c.CardNum !== source && c.Color?.includes('緑') && c.CardClass?.includes('ブルアカ'));
+  const miss = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== target && (!c.Color?.includes('緑') || !c.CardClass?.includes('ブルアカ')));
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WX25-CP1-044-E2')!;
+  const ctx = mkCtx({ signi: [source, target, miss] }, {}, source);
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象選択が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(offered.pending.candidates.includes(target), '緑＜ブルアカ＞が候補に無い');
+  ok(!offered.pending.candidates.includes(source), '効果元自身が候補に残る');
+  ok(!offered.pending.candidates.includes(miss), '非該当シグニが候補に残る');
+  const done = finish(resumeSelectTarget([target], offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs }), ctx);
+  eq(done.ownerState.temp_power_mods?.find(m => m.cardNum === target)?.delta, 5000, '選択対象に+5000が無い');
+  eq(done.ownerState.granted_effects?.[target]?.[0]?.action.type, 'STUB', '引用【常】が選択対象に無い');
+  const protectedNums = collectAbilityGainProtectedSigni(done.ownerState, done.otherState, cardMap as Map<string, CardData>, effectsMap, true);
+  ok(protectedNums.includes(target), '引用【常】をcollectorが能力取得禁止として読まない');
+  ok(!protectedNums.includes(source) && !protectedNums.includes(miss), '自身/非該当まで能力取得禁止になった');
+}));
+
+test('task12(lxxxiii) 第9波 WX25-CP1-087-E1: 選択2体をpause越しに保持し、2枚mill後も同じ2体だけ+3000', () => withSavedCursor(() => {
+  const source = 'WX25-CP1-087';
+  const targets = [...cardMap.values()].filter(c => isSigni(c) && c.CardNum !== source && c.CardClass?.includes('ブルアカ')).slice(0, 2).map(c => c.CardNum);
+  ok(targets.length === 2, 'ブルアカfixture不足');
+  const deckTop = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WX25-CP1-087-E1')!;
+  const ctx = mkCtx({ signi: [source, targets[0], targets[1]], deckTop }, {}, source);
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '0～2体の対象選択が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(!offered.pending.candidates.includes(source), '効果元自身が候補に残る');
+  const selected = resumeSelectTarget(targets, offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  ok(!selected.done && selected.pending.type === 'CHOOSE', '置く/置かないCHOOSEまで進まない');
+  if (selected.done || selected.pending.type !== 'CHOOSE') return;
+  eq(selected.storedTargetCards?.length, 2, 'CHOOSE pause時に選択2体を保持していない');
+  const beforeDeck = selected.ownerState.deck.length;
+  const done = finish(resumeChoose('trash', selected.pending, { ...ctx, ownerState: selected.ownerState, otherState: selected.otherState, logs: selected.logs, storedTargetCards: selected.storedTargetCards }), ctx);
+  eq(done.ownerState.deck.length, beforeDeck - 2, '選択体数ぶんmillしていない');
+  for (const target of targets) eq(done.ownerState.power_mods_until_opp_turn?.find(m => m.cardNum === target)?.delta, 3000, `${target}に+3000が無い`);
+  ok(!done.ownerState.power_mods_until_opp_turn?.some(m => m.cardNum === source), '効果元自身に+3000が付いた');
+}));
+
+test('task12(lxxxiii) 第9波 WXDi-P08-065-E1: 赤OR宝石の和集合を重複加算せず、他だけ+2000', () => withSavedCursor(() => {
+  const source = 'WXDi-P08-065';
+  const both = findCard(c => isSigni(c) && c.CardNum !== source && c.Color?.includes('赤') && c.CardClass?.includes('宝石'));
+  const miss = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== both && !c.Color?.includes('赤') && !c.CardClass?.includes('宝石'));
+  const state = mkState({ signi: [source, both, miss] });
+  const isolatedMap = new Map([[source, effectsMap.get(source)!]]);
+  const unionFilter = (effectsMap.get(source)![0].action as { target: { filter?: import('../src/types/effects').TargetFilter } }).target.filter;
+  ok(!matchesFilter(cardMap.get(miss), unionFilter), `OR filterが非該当(${miss})を直接matchした`);
+  const baseline = calcFieldPowers(state, mkState(), true, new Map(), cardMap as Map<string, CardData>);
+  const powers = calcFieldPowers(state, mkState(), true, isolatedMap, cardMap as Map<string, CardData>);
+  eq(powers.get(both), (baseline.get(both) ?? 0) + 2000, '赤かつ宝石へ二重加算または不加算');
+  eq(powers.get(miss), baseline.get(miss), `赤でも宝石でもないシグニへ加算した (${miss})`);
+  eq(powers.get(source), baseline.get(source), '「他の」なのに効果元自身へ加算した');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

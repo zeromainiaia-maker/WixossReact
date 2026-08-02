@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第9波：対象保持・引用付与・OR和集合3効果を実働化／残10 defer
+
+原文・live JSON・読取 engine・実除外を先に照合し、13件を **(a) 機能是正3／(b) 宣言の明示化0／(c) honest defer10** に分類した。`WX25-CP1-044-E2` は live の `GRANT_ABILITY_INNER_TEXT` no-op を、他の緑＜ブルアカ＞1体への `POWER_MODIFY(+5000)`→同じ `lastProcessedCards` への `GRANT_EFFECT` に置換した。引用内【常】は `PREVENT_ABILITY_GAIN_BY_OPP` とし、`collectAbilityGainProtectedSigni` が動的 `granted_effects`／`granted_effects_until_opp_turn` も読むようにした。`WX25-CP1-087-E1` は `SELECT_TARGET_ONLY(count:2, upTo)`→`STORE_LAST_PROCESSED_TARGETS`→置く/置かない `CHOOSE` とし、既存 `MILL.countPerStoredTargets` で選択体数ぶんを削り、pause と mill による `lastProcessedCards` 上書き後も `targetsStored` の同じ2体だけへ+3000を付与する。`WXDi-P08-065-E1` は単一 `POWER_MODIFY(count:ALL)` の `anyOf:[赤,＜宝石＞]` とし、重複該当を一度だけ加算する。継続計算のローカル `matchesFilter` が既存 `anyOf` を読んでいなかったため再帰ORを追加し、`target.filter.excludeSelf` も明示時だけ読むよう補正した（省略時の既定は不変）。
+
+live `effectsMap` を使う golden 3本を追加。`044` は候補が他の緑＜ブルアカ＞だけで、選択体へ+5000＋引用常、collector がその1体だけを能力取得禁止と判定することを両方向確認。`087` は2体選択後の CHOOSE pending に `storedTargetCards=2` が残り、デッキ−2、同じ2体だけ+3000、発生源0を確認。`065` は赤∩宝石が基礎値+2000（+4000でない）、赤でも宝石でもない対象0、発生源0を確認した。
+
+honest defer は10件。`WDK06-C17-E1`＝対象別 `POWER_MOD_PER_COUNT`（トラッシュ2枚単位・上限20）、`WX25-CP1-089-E1`＝選択した他シグニの効果だけに限定する `DOUBLE_POWER_MINUS`、`SP27-015-E1`／`WXEX2-19-E2`＝`ATTACH_ACCE` がアクセ元をエナ/手札からしか除去できず field-source 選択・離場を持たない、`PR-366-E3`＝他シグニの英知AUTOを指定再発動する collector、`WX20-036-CB-E1`＝引用内の効果耐性＋他シグニ範囲、`WX24-P2-010-E1`＝引用内「他2体を場からトラッシュ」攻撃コスト、`WX06-019-E1`＝全場離れ経路共通 `EFFECT_LEAVE_POWER_REDUCTION_SUBSTITUTE`、`WXDi-P14-087-E1`＝life-crash source tracking、`WXK10-056-E1`＝cost-only trash cause。いずれも live の STUB/過小近似と実行 reader を確認し、宣言だけの偽実装は入れていない。したがって (lxxxiii) の実装課題は **13→10** で未クローズ。
+
+ゲートは typecheck、golden **1295→1298**、smoke **10679/10679** 全0・SKIP0、fuzz 全0（seed 12648430）、census **1293→1291**、manual field loss 0、lint 0 errors／240 warningsで全緑。`BASELINE_HIGH=1291` へ更新。commit/push は未実施。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第8波：バニッシュ犠牲置換3効果の宣言明示化＋場離れ置換1効果 defer
 
 `WX12-024-E1`／`WXEX2-60-E1` は `banishSubstitute.sacrificeFilter.excludeSelf` を**身代わりに差し出す側**へ、`WXDi-CP01-032-E1` は `banishSubstitute.victimTarget.filter.excludeSelf` を**守られる側**へ載せた。ただし HEAD の `collectBanishSubstitutes` は前2件で `victimNum`（＝発生源）、後者で発生源を既に無条件除外しており、3件とも変更前から実行時挙動は正しかった。したがって機能是正には数えず、JSON へ宣言を明示化して在庫から外した。両フィールドは additive で、明示的な `excludeSelf: false` の場合だけ除外を外し、省略時は両パターンとも従来どおり自己除外する。
