@@ -4027,7 +4027,14 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     return done(lrigTop ? applyProtection([lrigTop], ctx) : ctx);
   }
 
-  const { cands, scope: gpScope } = fieldCandidatesByOwner(tgt.owner, tgt.filter, ctx);
+  const protectionCandidates = fieldCandidatesByOwner(tgt.owner, tgt.filter, ctx);
+  let cands = protectionCandidates.cands;
+  const gpScope = protectionCandidates.scope;
+  // excludeSelf:「あなたの他のシグニ」への一時耐性付与では、効果元自身を候補から除く。
+  // フィールド省略時の従来候補集合は変えず、明示された場合だけ additive に絞る。
+  if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
+    cands = cands.filter(n => n !== ctx.sourceCardNum);
+  }
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
   const count = resolveNum(tgt.count);
   return selectOrInteract(cands, count, false, gpScope, a, undefined, ctx);

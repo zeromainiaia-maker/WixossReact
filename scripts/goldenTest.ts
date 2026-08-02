@@ -20460,6 +20460,35 @@ test('task12 lxx: any_opp「あなたの効果によって相手が捨てたと�
     eq(eff.triggerCondition?.byOwnEffect, undefined, `${effectId}: byOwnEffect は流用禁止（別軸）`);
   }
 });
+
+test('lxxxiii wave 3: live action targets exclude their own source', () => withSavedCursor(() => {
+  const live = (card: string, effectId: string) => {
+    const effect = effectsMap.get(card)?.find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live effect exists`);
+    return effect!;
+  };
+
+  const wdSource = 'WD14-011';
+  const wdOther = findCard(c => isSigni(c) && c.CardNum !== wdSource);
+  const wd = run(live(wdSource, 'WD14-011-E2').action, mkCtx({ signi: [wdSource, wdOther, null] }, {}, wdSource));
+  ok(wd.done, 'WD14-011-E2 resolves');
+  ok(wd.ownerState.field.signi.some(s => s?.at(-1) === wdSource), 'WD14-011-E2: source remains');
+  ok(!wd.ownerState.field.signi.some(s => s?.at(-1) === wdOther), 'WD14-011-E2: other SIGNI is trashed');
+
+  const ba = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('ブルアカ')).slice(0, 2).map(c => c.CardNum);
+  ok(ba.length === 2, 'WX25-CP1-074 fixtures');
+  const cp1 = run(live('WX25-CP1-074', 'WX25-CP1-074-E1').action, mkCtx({ signi: [ba[0], ba[1], null] }, {}, ba[0]));
+  eq(cp1.ownerState.temp_power_mods?.find(m => m.cardNum === ba[1])?.delta, 3000, 'WX25-CP1-074: other gets +3000');
+  ok(!cp1.ownerState.temp_power_mods?.some(m => m.cardNum === ba[0]), 'WX25-CP1-074: source gets no power');
+  eq(cp1.ownerState.granted_effects?.[ba[1]]?.length, 2, 'WX25-CP1-074: other gets both abilities');
+  ok(!cp1.ownerState.granted_effects?.[ba[0]], 'WX25-CP1-074: source gets no abilities');
+
+  const virtual = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('バーチャル')).slice(0, 2).map(c => c.CardNum);
+  ok(virtual.length === 2, 'WXDi-CP01-038 fixtures');
+  const cp01 = run(live('WXDi-CP01-038', 'WXDi-CP01-038-E1').action, mkCtx({ signi: [virtual[0], virtual[1], null] }, {}, virtual[0]));
+  ok(!!cp01.ownerState.keyword_grants_until_opp_turn?.[virtual[1]]?.some(k => k.startsWith('PROTECTION:')), 'WXDi-CP01-038: other gets protection');
+  ok(!cp01.ownerState.keyword_grants_until_opp_turn?.[virtual[0]], 'WXDi-CP01-038: source gets no protection');
+}));
 test('task12(lxxxiii): 修飾つき「あなたの他のシグニ」対象は self/excludeSelf、他のシグニゾーンは非該当', () => {
   const e = parseCardEffects({ CardNum: 'TEST-OTHER-SIGNI', Type: 'シグニ', EffectText: '【出】：あなたの他の＜天使＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。' } as unknown as CardData)[0];
   const a = e.action as unknown as { target: { owner: string; filter?: { excludeSelf?: boolean; story?: string } } };

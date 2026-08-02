@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第3波：action対象 live 3効果
+
+残48効果を原文・live action・executor 経路で再監査し、実際に target filter が評価される3効果を live 是正した。`WD14-011-E2` は「あなたの**他のすべてのシグニ**」を `TRASH{SIGNI self ALL, filter.excludeSelf}` とし、発生源を残して他シグニだけをトラッシュする。`WX25-CP1-074-E1` は「あなたの**他の＜ブルアカ＞のシグニ**」について、既に manual/fresh に存在した正しい `POWER_MODIFY` 対象（self／ブルアカ／excludeSelf）と同一対象への引用能力2本を live へ採用した。`WXDi-CP01-038-E1` は「あなたの**他の＜バーチャル＞のシグニ**」への `GRANT_PROTECTION` target に self／バーチャル／excludeSelf を復元した。
+
+engine 実測で `GRANT_PROTECTION` が通常 filter は読む一方 `excludeSelf` を読まず発生源へ付与することを検出したため、`execGrantProtection` に「フィールドが明示された場合だけ sourceCardNum を候補から除く」additive 分岐を追加した。フィールド無しの既定候補集合・他 executor/collector の既定挙動は不変。`scripts/goldenTest.ts` の live JSON 直読テスト（`withSavedCursor` で cursor 復元、3枚とも実戦どおり signi 配置）で、各効果について他シグニには TRASH／+3000＋付与2本／耐性が適用され、自分自身には適用されないことを盤面 state で両方向 assert した。
+
+honest defer 45効果（今回の残在庫全件）：
+
+- 誤検出・対象がシグニ主語でない5件＝`WX11-002-E1`／`WXEX1-55-E1`（他のシグニ**ゾーン**）、`WXDi-P00-068-E1`／`WXK03-042-E1`（同）、`WDK14-014-E1`（【ビート】にする他の**カード**）。excludeSelf を足すと別名詞へ制約を誤適用する。
+- トリガー主語5件＝`WXDi-P14-087-E1`（life crash collector がクラッシュ元シグニを保持せず評価不能）、`WXDi-P03-086-E1`／`WXDi-D02-25-E1`／`WX24-P4-055-E1`／`WDK14-014-E1`（第2波の curated/MANUAL保持・カード全体 held・後方互換理由を維持）。action filter へ足してもトリガー発生源には効かず no-op。
+- STUB 本体または STUB 内の犠牲・配置・付着対象29件＝`WDK06-C17-E1`／`WDK11-011-E1`／`WDK14-014-E1`／`SP27-015-E1`／`PR-366-E3`／`WX12-024-E1`／`WX20-025-E1`／`WXEX2-54-E2`／`WXEX2-59-E2`／`WXEX2-60-E1`／`WX24-P2-010-E1`／`WX24-P2-052-E2`／`WX24-P2-074-E1`／`WX25-P2-053-E1`／`WX25-CP1-044-E2`／`WX25-CP1-089-E1`／`WX26-CP1-084-E1`／`WXDi-P00-068-E1`／`WXDi-P02-039-E1`／`WXDi-P03-042-E1`／`WXDi-P03-057-E1`／`WXDi-P04-041-E1`／`WXDi-P10-052-E1`／`WXDi-CP01-032-E1`／`WXK03-042-E1`／`WXK05-022-E1`／`WXK06-024-E1`／`WXK10-024-E1`／`WXK10-056-E1`。対象選択が STUB の内側または別枝なので、外側 action に filter を置いても executor が読まない。
+- 実装済み action だが部分是正が意味退化する残16件＝`WX06-019-E1`（置換 trigger の専用対象）、`WX20-036-CB-E1`（引用内 field ability）、`WXEX2-19-E2`（アクセ host/素材の二対象）、`WX25-P3-062-E1`（既存 `powerDecreaseExcludeSelf` で正しい）、`WX25-CP1-087-E1`／`WX26-CP1-092-E1`（前段で対象を保持せず後段 POWER_MODIFY が別選択）、`WXDi-P08-065-E1`（赤 OR ＜宝石＞の和集合。単一 filter は AND、2 action 化は重複+4000）、`WXDi-CP02-066-E1`（付与対象と BANISH_REDIRECT の相手対象が別）、`WXK10-067-E1`（先に選んだシグニと同名を検索する動的同名参照が未保持）、`WXK11-065-E1`（後段ランサーが前段対象を参照せず別選択）、および上記分類と重なる `WX24-P4-055-E1`／`WXDi-D02-25-E1`／`WXDi-P03-086-E1`／`WXDi-P14-087-E1`／`WX11-002-E1`／`WXEX1-55-E1`。単に owner:self/excludeSelf を刻むと no-op 宣言、別対象、OR→AND の過小実行になる。
+
+計器は母集団167、excludeSelf あり119→122／なし48→45（STUB混在29、owner:any混在9）。census 1298→1297 は3件の機能是正に伴う減少で `BASELINE_HIGH=1297` へ更新し、第2波の暫定 `BASELINE_HIGH - 2` 補正を解消した。golden 1283→1284、held 261→260枚／108署名。基準 `c38e770a` との live per-effect 全数比較は changed 3（上記3 effectId）／added 0／removed 0／スコープ外 outlier 0、既存 `excludeSelf` 減少0。`build:effects` と `regen` は連続2巡の SHA-256 で追加差分0、同型★0。gates 全緑＝typecheck 0、golden 1284/1284、smoke 10679/10679 全0・SKIP0、fuzz 200ゲーム全0（最終7983手／2709効果）、census 1297、manual field loss 0、lint 0 errors/240 warnings。全生成 effects JSON の `???` 混入0。commit/push は行っていない。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第2波：B collector監査
 
 差し戻しで、`collectBeatBecameTriggers` の従来の無条件自己除外を外したまま `WDK14-014-E1` に `excludeSelf` を刻んでおらず自己発火する後方互換破壊を検出し、従来ガードへ戻した。同型事故を防ぐため `collectKeywordGainedTriggers` も従来ガードを維持し、collector 分岐は実戦ゾーン＋cursor復元つき golden で固定する。

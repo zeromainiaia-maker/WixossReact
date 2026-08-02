@@ -1411,24 +1411,6 @@ WX25-P2-084
   ~ [0].action.choices[1].action.steps[1].then.keyword : "アサシン" → "アサシン:{\"isFrozen\":true,\"powerLte\":3000}"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
-## +GRANT_EFFECT×2 +POWER_MODIFY +SEQUENCE +SIGNI×3 +STUB ［1枚］
-WX25-CP1-074
---- WX25-CP1-074
-  原文: 【出】：あなたの他の＜ブルアカ＞のシグニを１体まで対象とし、ターン終了時まで、それのパワーを＋3000し、それは「【常】：このシグニは対戦相手にダメージを与えない。」と「【自】：このシグニがアタックしたとき、【エナチャージ１】をする。」を得る。【絆常】：【シャドウ】,-
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "SEQUENCE"
-  + [0].action.steps[0].type = "POWER_MODIFY"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "self"
-  + [0].action.steps[0].target.count = 1
-  + [0].action.steps[0].target.upToCount = true
-  + [0].action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[0].target.filter.story = "ブルアカ"
-  + [0].action.steps[0].target.filter.excludeSelf = true
-  + [0].action.steps[0].delta = 3000
-  …（他 31 行）
-
 ## +CONDITIONAL +ENERGY_COUNT_FILTER ［1枚］
 WX26-CP1-101
 --- WX26-CP1-101
@@ -1760,7 +1742,6 @@ WD14-011
   - [2].action.count = 1
   - [2].action.fromTop = true
   ~ [0].parseStatus : "AUTO" → "MANUAL"
-  + [1].action.steps[0].target.filter.excludeSelf = true
   ~ [2].action.type : "ADD_TO_LIFE" → "CHOOSE"
   + [2].action.choose_count = 1
   + [2].action.from_count = 2
@@ -1768,7 +1749,8 @@ WD14-011
   + [2].action.choices[0].label = "手札を2枚捨て、この方法で2枚捨てた場合デッキの一番上をライフクロスに加える"
   + [2].action.choices[0].action.type = "SEQUENCE"
   + [2].action.choices[0].action.steps[0].type = "TRASH"
-  …（他 20 行）
+  + [2].action.choices[0].action.steps[0].target.type = "HAND_CARD"
+  …（他 19 行）
 
 ## +STUB -DRAW ［1枚］
 WD16-014
