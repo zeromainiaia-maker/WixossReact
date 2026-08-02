@@ -6031,13 +6031,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (useCostHandIdx.length > 0) {
         appendBattleLogs([`使用時の任意支払い：手札${useCostHandIdx.length}枚を捨てて使用コストを軽減`]);
       }
-      // 手札以外の支払い元（場のシグニをダウン／ルリグデッキのアーツ／ライフクロス／キー）は
+      // 手札以外の支払い元（場のシグニをダウン/トラッシュ／ルリグデッキのアーツ／ライフクロス／キー）は
       // 手札 index と衝突しないので支払い済み状態へ重ねる。
       let paidWithUseCost = paid;
+      let useCostTrashedSigni: string[] = [];
       if (useCostSpec && useCostSpec.source !== 'hand' && useCostPayKeys.size > 0) {
+        if (useCostSpec.source === 'signi_trash') {
+          useCostTrashedSigni = [...useCostPayKeys].filter(k => k.startsWith('z:'))
+            .map(k => paid.field.signi[parseInt(k.slice(2))]?.at(-1))
+            .filter((v): v is string => !!v);
+        }
         const up = payUseTimeCost(paid, useCostSpec, useCostPayKeys, battleCardMap);
         paidWithUseCost = up.state;
         if (up.label) appendBattleLogs([up.label]);
+      }
+      // ON_LEAVE_FIELD / ON_TRASH（タスク12(lxxxix)）＝支払いで自分のシグニが場を離れた場合。
+      // `fieldTrashCostCards` に載せる＝コスト支払いなので byEffectCause=false。
+      // 収集したエントリはアーツ効果と同じスタックへ（queueCardEffects の extraEntries）。
+      let useCostLeaveEntries: StackEntry[] = [];
+      if (useCostTrashedSigni.length > 0) {
+        const afterHostAr = isHost ? paidWithUseCost : op;
+        const afterGuestAr = isHost ? op : paidWithUseCost;
+        const bdAr = collectBoardDiffTriggers(afterHostAr, afterGuestAr, {
+          causeOwnerId: user.id, causeSourceCardNum: instanceId,
+          fieldTrashCostCards: useCostTrashedSigni,
+        });
+        paidWithUseCost = isHost ? bdAr.hostState : bdAr.guestState;
+        useCostLeaveEntries = bdAr.entries;
       }
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
@@ -6055,7 +6075,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // アーツ効果を発火
-      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, undefined, 1, [...artsCoinPaidEntries, ...materialUsedEntries]);
+      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, undefined, 1, [...artsCoinPaidEntries, ...materialUsedEntries, ...useCostLeaveEntries]);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidAfterMaterial }));
@@ -6453,10 +6473,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 立てないと WD19-009 / WX21-045 / WX21-068 / WX21-030 のトリガーが落ちる）。
       if (removedVirusCount > 0) newMyState = { ...newMyState, opp_virus_removed_just: true };
       // 使用時の任意支払い（軽減）＝手札以外の支払い元は手札 index と衝突しないので最終状態へ重ねる。
+      let useCostTrashedSigni: string[] = [];
       if (useCostSpec && useCostSpec.source !== 'hand' && useCostPayKeys.size > 0) {
-        const paid = payUseTimeCost(newMyState, useCostSpec, useCostPayKeys, battleCardMap);
-        newMyState = paid.state;
-        if (paid.label) appendBattleLogs([paid.label]);
+        // 場のシグニ払い（タスク12(lxxxix)）は、離場トリガーの照合用に**支払い前**の在席カードを控える。
+        if (useCostSpec.source === 'signi_trash') {
+          useCostTrashedSigni = [...useCostPayKeys].filter(k => k.startsWith('z:'))
+            .map(k => newMyState.field.signi[parseInt(k.slice(2))]?.at(-1))
+            .filter((v): v is string => !!v);
+        }
+        const paidUse = payUseTimeCost(newMyState, useCostSpec, useCostPayKeys, battleCardMap);
+        newMyState = paidUse.state;
+        if (paidUse.label) appendBattleLogs([paidUse.label]);
       } else if (useCostSpec && useCostHandIdx.length > 0) {
         appendBattleLogs([`使用時の任意支払い：手札${useCostHandIdx.length}枚を捨てて使用コストを軽減`]);
       }
@@ -6472,12 +6499,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(removedVirusCount > 0 ? { pre_use_virus_removed: removedVirusCount } : {}),
         ...(fromLrigDeck ? { from_lrig_deck: true } : {}),
       };
+      // ON_LEAVE_FIELD / ON_TRASH（タスク12(lxxxix)）＝使用時の支払いで自分のシグニが場を離れた場合。
+      // 中央 diff へ **fieldTrashCostCards** として渡す＝コストによる支払いなので byEffectCause=false
+      // （＝「効果によってトラッシュに置かれたとき」には該当しない）。
+      // ⚠pending_spell 待ちの間にスタックが載るが、カットイン応答の継続もCPU行動も
+      //   `if (bs.effect_stack …) return;` で待つので「支払い→離場トリガー→カットイン→スペル解決」の順になる。
+      let spellUseCostStack: EffectStack | undefined;
+      if (useCostTrashedSigni.length > 0) {
+        const afterHostSp = isHost ? newMyState : newOpState;
+        const afterGuestSp = isHost ? newOpState : newMyState;
+        const bdSp = collectBoardDiffTriggers(afterHostSp, afterGuestSp, {
+          causeOwnerId: user.id, causeSourceCardNum: spellInstanceId,
+          fieldTrashCostCards: useCostTrashedSigni,
+        });
+        newMyState = isHost ? bdSp.hostState : bdSp.guestState;
+        if (bdSp.entries.length > 0) {
+          spellUseCostStack = bs.effect_stack
+            ? pushToStack(bs.effect_stack, bdSp.entries)
+            : initStack(bs.active_user_id ?? user.id, bdSp.entries);
+        }
+      }
       await persist.commit(reduceBattle(bs, {
         type: 'QUEUE_SPELL',
         casterKey: stateKey,
         casterState: newMyState,
         spell,
         ...(removedVirusCount > 0 ? { other: { key: isHost ? 'guest_state' : 'host_state', state: newOpState } } : {}),
+        ...(spellUseCostStack ? { effectStack: spellUseCostStack } : {}),
       }));
     } finally {
       setLoading(false);

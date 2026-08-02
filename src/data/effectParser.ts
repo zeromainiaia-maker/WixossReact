@@ -9338,8 +9338,8 @@ function stripUseTimeOptionalCostStep(action: EffectAction, text: string): Effec
  * さらに `OPTIONAL_COST` 頭は Pattern⑤ の「skip→残りステップをスキップ」に当たり、
  * 支払いを断ると**本体が丸ごと不発**になる（(lxxxi) 残テールで是正したのと同じ罠）。
  *
- * ⚠**支払い元が場のシグニの形（`WX24-P3-010`／`WX25-P1-110`）は対象外**＝使用時支払いUIを持たないので、
- *   落とすと支払いの機会ごと消える。下の先頭句リストが「使用時UIを実装した4種のみ」であることが唯一のゲート。
+ * ⚠下の先頭句リストが「**使用時UIを実装した支払い元のみ**」であることが唯一のゲート＝
+ *   UI の無い支払い元をここに足すと、支払いの機会ごと消える。
  */
 const USE_TIME_COST_PAY_STUBS = new Set([
   'OPTIONAL_COST',                  // WX11-044 / WX12-032 / WX24-P3-002 / WX24-P3-008 / WX24-P3-004
@@ -9351,9 +9351,9 @@ const USE_TIME_COST_PAY_STUBS = new Set([
 ]);
 
 function stripUseTimeCostReductionStep(action: EffectAction, text: string): EffectAction {
-  // 使用時UIを持つ支払い元の先頭句だけを許す（場のシグニ由来は含めない）。
+  // 使用時UIを持つ支払い元の先頭句だけを許す。
   const isUseTimeReduction =
-    /この(?:スペル|アーツ|カード)を使用する際[、,](?:手札から|あなたのアップ状態の|あなたのルリグデッキから|あなたのライフクロス[１1]枚|あなたのキー[１1]枚)/.test(text)
+    /この(?:スペル|アーツ|カード)を使用する際[、,](?:手札から|あなたのアップ状態の|あなたのルリグデッキから|あなたのライフクロス[１1]枚|あなたのキー[１1]枚|あなた[^。]*場からトラッシュに置)/.test(text)
     && /使用コストは[^。]*減る/.test(text);
   if (!isUseTimeReduction || action.type !== 'SEQUENCE') return action;
   const seq = action as SequenceAction;
@@ -9361,10 +9361,11 @@ function stripUseTimeCostReductionStep(action: EffectAction, text: string): Effe
   if (!first) return action;
   const isPayStub = first.type === 'STUB'
     && USE_TIME_COST_PAY_STUBS.has((first as import('../types/effects').StubAction).id);
-  // 手札捨ては素の TRASH{HAND_CARD} に落ちる形もある（WX20-003 / WD12-006 / WD21-008）。
-  const isHandTrash = first.type === 'TRASH'
-    && (first as import('../types/effects').TrashAction).target?.type === 'HAND_CARD';
-  if (!isPayStub && !isHandTrash) return action;
+  // 手札捨て（WX20-003 / WD12-006 / WD21-008）と場のシグニ払い（WX24-P3-010）は
+  // 素の TRASH に落ちる形もある。
+  const isPayTrash = first.type === 'TRASH'
+    && ['HAND_CARD', 'SIGNI'].includes((first as import('../types/effects').TrashAction).target?.type ?? '');
+  if (!isPayStub && !isPayTrash) return action;
   return { ...seq, steps: seq.steps.slice(1) };
 }
 

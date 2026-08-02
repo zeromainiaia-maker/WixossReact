@@ -12246,6 +12246,16 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     eq(patch.host_state, state, 'caster状態');
     eq(patch.pending_spell, spell, 'pending spell');
   });
+  // タスク12(lxxxix): 使用時の支払いで自分のシグニが場を離れた場合の離場/トラッシュのトリガーを
+  // pending_spell と同時に載せる。省略＝不干渉なので従来経路のキー集合は上のテストが保証する。
+  test('Stage3 reduceBattle QUEUE_SPELL: effectStack 指定時のみ effect_stack を書く', () => {
+    const state = { hand: [] } as unknown as PlayerState;
+    const spell = { caster_id: 'u1', card_num: 'SP2', paid_energy_colors: [] };
+    const stack = { turnPlayerId: 'h', queue: [{ id: 'lf1' }], orderTurnDone: true, orderOppDone: true } as unknown as EffectStack;
+    const patch = reduceBattle(stub, { type: 'QUEUE_SPELL', casterKey: 'guest_state', casterState: state, spell, effectStack: stack });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell', 'effect_stack']), 'キー集合');
+    eq(patch.effect_stack, stack, '離場トリガーのスタック');
+  });
   test('Stage3 reduceBattle FINISH_SPELL: 打ち消し時は両状態＋pending 2種クリア', () => {
     const caster = { trash: ['SP1'] } as unknown as PlayerState;
     const other = { hand: ['O1'] } as unknown as PlayerState;
@@ -20191,12 +20201,12 @@ test('WX15-067-E1: pre-use virus count is scoped to cost and CHOOSE 0/1/2+', () 
 // 「減る」（removeNColorFromCost 系）と違い印刷コストを丸ごと差し替える＝既存の減算機構は流用できない。
 // 従来は ARTS_COST_REDUCTION_BY_EFFECT が no-op マーカーで、常に印刷コストでしか使えなかった。
 // タスク12(lxxxv): 「使用する際…してもよい。そうした場合、使用コストは《X》**減る**」＝
-// 使用時の任意支払いによるコスト**軽減**（31枚）。(lxxxi) の「になる」＝置換とは別機構。
+// 使用時の任意支払いによるコスト**軽減**（33枚＝(lxxxv) 31枚＋(lxxxix) 場のシグニ払い2枚）。
 // 従来は engine の先頭ステップが解決中に**実際に払わせる**のに軽減マーカーは no-op で、
 // 「払わされるのに一度も安くならない」＋ OPTIONAL_COST 頭は断ると本体が丸ごと不発だった。
-test('use-time cost reduction: 対象31枚の spec と軽減後コストが原文どおり', () => {
+test('use-time cost reduction: 対象33枚の spec と軽減後コストが原文どおり', () => {
   // 母集団＝CSV 原文に「使用する際」＋「使用コストは…減る」を持つ36枚のうち、
-  // 使用時UIを実装した5種の支払い元だけ（残5枚は下の除外テストで固定）。
+  // 使用時UIを実装した6種の支払い元（残3枚は下の除外テストで固定）。
   const expected: [string, string, number, boolean, string, string][] = [
     // [CardNum, source, max, perUnit, 1枚払った後のコスト, 上限まで払った後のコスト]
     ['WX06-024', 'signi_down', Infinity, true, '《白》×1《無》×2', '《白》×1'],
@@ -20231,8 +20241,12 @@ test('use-time cost reduction: 対象31枚の spec と軽減後コストが原�
     ['WX25-P2-006', 'lrig_deck_arts', 1, false, '《青》×1《無》×1', '《青》×1《無》×1'],
     ['WX25-P2-008', 'lrig_deck_arts', 1, false, '《緑》×1', '《緑》×1'],
     ['WX25-P2-010', 'lrig_deck_arts', 1, false, '《黒》×1', '《黒》×1'],
+    // タスク12(lxxxix) で追加＝支払い元が「場のシグニをトラッシュ」の2枚。⚠原文の**語順が2通り**
+    // （「シグニ**を好きな数**場から」／「シグニ**１体を場から**」）＝別々の regex で読む。
+    ['WX24-P3-010', 'signi_trash', Infinity, true, '《黒》×3', '《黒》×1'],
+    ['WX25-P1-110', 'signi_trash', 1, false, 'なし', 'なし'],
   ];
-  eq(expected.length, 31, '母集団は31枚');
+  eq(expected.length, 33, '母集団は33枚');
   for (const [num, source, max, perUnit, afterOne, afterMax] of expected) {
     const card = cardMap.get(num)!;
     const spec = parseUseTimeCostReduction(card.EffectText ?? '');
@@ -20247,7 +20261,51 @@ test('use-time cost reduction: 対象31枚の spec と軽減後コストが原�
   }
 });
 
-test('use-time cost reduction: 31枚の解決中の支払いステップが live JSON から落ちている', () => {
+// タスク12(lxxxix): 支払い元が「場のシグニをトラッシュ」＝(lxxxv) で honest defer した2枚。
+// 他の支払い元と違い**場スタックを崩す**＝下のカード/チャーム/アクセ→トラッシュ、ソウル→ルリグトラッシュ、
+// ダウン/凍結/血晶武装フラグのリセットが要る。engine の `removeFromField` に委譲していることを固定する。
+test('use-time cost reduction: 場のシグニ払いは removeFromField 相当の後始末をする', () => {
+  const spec = parseUseTimeCostReduction(cardMap.get('WX24-P3-010')!.EffectText ?? '')!;
+  eq(spec.source, 'signi_trash', '支払い元');
+  const signi = cardMap.get(SIGNI)!;
+  // ⚠場の要素は assignInstanceIds の `CardNum#n` で**一意**。同じ文字列を2ゾーンに置くと
+  //   removeFromField がカード名でゾーンを引くため先頭しか外れない（この不変条件に依存している）。
+  const my = {
+    field: {
+      signi: [[`${signi.CardNum}#1`], ['UNDER', `${signi.CardNum}#2`], []],
+      lrig: [],
+      signi_down: [true, false, false],
+      signi_frozen: [false, true, false],
+      signi_charms: ['CH', null, null],
+      signi_soul: [null, 'SOUL', null],
+    },
+    trash: ['T'], lrig_trash: [] as string[],
+  } as unknown as PlayerState;
+  const cands = useTimeCostCandidates(spec, my, cardMap);
+  eq(cands.length, 2, 'ダウン中でも候補（原文は「アップ状態の」と言っていない）');
+  const r = payUseTimeCost(my, spec, new Set(['z:0', 'z:1']), cardMap);
+  eq(JSON.stringify(r.state.field.signi), JSON.stringify([null, null, []]), '2ゾーンとも空く（下のカードも残さない）');
+  eq(JSON.stringify(r.state.trash), JSON.stringify(['T', 'CH', `${signi.CardNum}#1`, 'UNDER', `${signi.CardNum}#2`]),
+    'シグニ本体・下のカード・チャームがトラッシュへ');
+  eq(JSON.stringify(r.state.lrig_trash), JSON.stringify(['SOUL']), 'ソウルはルリグトラッシュへ');
+  eq(JSON.stringify(r.state.field.signi_charms), JSON.stringify([null, null, null]), 'チャーム欄が空く');
+  eq(JSON.stringify(r.state.field.signi_down), JSON.stringify([false, false, false]), 'ダウンフラグがリセットされる');
+  eq(JSON.stringify(r.state.field.signi_frozen), JSON.stringify([false, false, false]), '凍結フラグがリセットされる');
+  eq(r.paidCount, 2, '支払い体数');
+  // 1体だけ払う＝比例なので《黒》×4→《黒》×3
+  const r1 = payUseTimeCost(my, spec, new Set(['z:1']), cardMap);
+  eq(JSON.stringify(r1.state.field.signi), JSON.stringify([[`${signi.CardNum}#1`], null, []]), '選んだゾーンだけ空く');
+  eq(applyUseTimeCostReduction('《黒》×4', spec, 1), '《黒》×3', '1体につき《黒×1》');
+  // WX25-P1-110＝レベル2以下の＜古代兵器＞1体だけ＝フィルタが効く
+  const spec110 = parseUseTimeCostReduction(cardMap.get('WX25-P1-110')!.EffectText ?? '')!;
+  eq(spec110.max, 1, '1体固定');
+  eq(spec110.perUnit, false, '固定形');
+  eq(JSON.stringify(spec110.filter.story), JSON.stringify(['古代兵器']), 'クラス指定');
+  eq(spec110.filter.maxLevel, 2, 'レベル2以下');
+  eq(useTimeCostCandidates(spec110, my, cardMap).length, 0, '＜古代兵器＞でなければ候補ゼロ');
+});
+
+test('use-time cost reduction: 33枚の解決中の支払いステップが live JSON から落ちている', () => {
   // ⚠これが本体の是正＝engine の先頭ステップは**実装済みで実際に払わせる**ので、
   //   従来は「使用時に払える機会が無いまま解決中に払わされ、しかも軽減マーカーは no-op で一度も安くならない」。
   //   さらに OPTIONAL_COST 頭は Pattern⑤ の「skip→残りステップをスキップ」に当たり、断ると本体が丸ごと不発。
@@ -20256,8 +20314,9 @@ test('use-time cost reduction: 31枚の解決中の支払いステップが live
     'WX11-044', 'WX12-032', 'WX13-025', 'WX20-003', 'WX20-004', 'WX20-007', 'WD10-006', 'WD12-006',
     'WD21-008', 'SP38-003', 'SPK01-07', 'WX24-P2-002', 'WX24-P2-004', 'WX24-P2-006', 'WX24-P2-008',
     'WX24-P2-010', 'WX24-P3-002', 'WX24-P3-004', 'WX24-P3-006', 'WX24-P3-008',
-    'WX25-P2-002', 'WX25-P2-004', 'WX25-P2-006', 'WX25-P2-008', 'WX25-P2-010'];
-  eq(NUMS.length, 31, '対象は31枚');
+    'WX25-P2-002', 'WX25-P2-004', 'WX25-P2-006', 'WX25-P2-008', 'WX25-P2-010',
+    'WX24-P3-010', 'WX25-P1-110'];
+  eq(NUMS.length, 33, '対象は33枚');
   for (const num of NUMS) {
     const e = (effectsMap.get(num) ?? []).find(x => x.effectType === 'ACTIVATED');
     ok(!!e, `${num}: live に ACTIVATED がある`);
@@ -20266,22 +20325,13 @@ test('use-time cost reduction: 31枚の解決中の支払いステップが live
     ok(!PAY_STEP.test(JSON.stringify(steps[0])), `${num}: 先頭に解決中の支払いステップを残さない`);
     ok(steps.length >= 2, `${num}: 支払いの後ろの本体ステップが残っている（Pattern⑤ で丸ごと飛ばない）`);
   }
-  // ⚠場のシグニ払いの2枚は**据え置き**＝使用時UIが無いので落とすと支払いの機会ごと消える。
-  for (const num of ['WX24-P3-010', 'WX25-P1-110']) {
-    const e = (effectsMap.get(num) ?? []).find(x => x.effectType === 'ACTIVATED')!;
-    const steps = e.action.type === 'SEQUENCE' ? e.action.steps : [e.action];
-    const head = JSON.stringify(steps[0]);
-    ok(/OPTIONAL_COST|"TRASH"/.test(head), `${num}: 先頭の支払いステップは据え置き（未実装につき触らない）`);
-  }
 });
 
-test('use-time cost reduction: 隣接する5枚は読まない（別機構・別意味）', () => {
+test('use-time cost reduction: 隣接する3枚は読まない（別機構・別意味）', () => {
   for (const [num, why] of [
     ['WX15-067', 'ウィルス除去＝applyMeltFactPreUseCost が既に担当'],
     ['WDK15-007', 'ベット由来の「減る」＝支払い元はコインでベット枝が担当'],
     ['SPK06-01', '「追加で支払ってもよい」＝増額。末尾の「減る」は別カードのコイン技の話'],
-    ['WX24-P3-010', '支払い元が場のシグニ（トラッシュ）＝場スタック/離場トリガーが要る（未実装）'],
-    ['WX25-P1-110', '同上（場のシグニをトラッシュ）'],
   ] as [string, string][]) {
     ok(parseUseTimeCostReduction(cardMap.get(num)!.EffectText ?? '') === null, `${num}: 読まない（${why}）`);
   }

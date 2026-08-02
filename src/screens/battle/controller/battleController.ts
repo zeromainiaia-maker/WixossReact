@@ -101,6 +101,8 @@ export type BattleAction =
       casterState: PlayerState;
       spell: PendingSpell;
       other?: { key: PlayerStateKey; state: PlayerState };
+      /** 使用時の支払い（場のシグニをトラッシュ）で積んだ離場/トラッシュのトリガー（省略＝触らない）。 */
+      effectStack?: EffectStack | null;
     }
   /**
    * スペル解決を完了し pending_spell / pending_effect をともにクリアする。
@@ -240,12 +242,15 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       return patch;
     }
-    case 'QUEUE_SPELL':
-      return {
+    case 'QUEUE_SPELL': {
+      const patch: Partial<BattleStateRow> = {
         [action.casterKey]: action.casterState,
         ...(action.other ? { [action.other.key]: action.other.state } : {}),
         pending_spell: action.spell,
       };
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
+      return patch;
+    }
     case 'FINISH_SPELL': {
       const patch: Partial<BattleStateRow> = {
         [action.casterKey]: action.casterState,

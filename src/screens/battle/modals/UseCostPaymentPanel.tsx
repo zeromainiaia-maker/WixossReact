@@ -9,6 +9,7 @@ import type { UseCostCandidate, UseTimeCostSpec } from '../useTimeCost';
 const SOURCE_LABEL: Record<UseTimeCostSpec['source'], string> = {
   hand: '手札から捨てる',
   signi_down: '場のシグニをダウンする',
+  signi_trash: '場のシグニをトラッシュに置く',
   lrig_deck_arts: 'ルリグデッキのアーツをルリグトラッシュに置く',
   life_cloth: 'ライフクロスをトラッシュに置く',
   key: '場のキーをルリグトラッシュに置く',

@@ -1,4 +1,4 @@
-// タスク12(lxxxv)：MANUAL（PRESERVE 保護）で build:effects / heldReview が届かない3効果の外科パッチ。
+// タスク12(lxxxv)/(lxxxix)：MANUAL（PRESERVE 保護）で build:effects / heldReview が届かない4効果の外科パッチ。
 // 先頭の STUB OPTIONAL_COST（＝使用時の任意支払いを解決中にもう一度聞く形）だけを落とす。
 //
 // 支払いとコスト軽減は使用時（`src/screens/battle/useTimeCost.ts` ＋ SpellCastModal / ArtsModal）が担当する。
@@ -9,7 +9,8 @@ import { readFileSync, writeFileSync } from 'fs';
 
 const TARGETS = [
   ['public/data/effects_WX.json', ['WX11-044', 'WX12-032']],
-  ['public/data/effects_WX24_26.json', ['WX24-P3-004']],
+  // WX25-P1-110 は (lxxxix)＝支払い元が「場のシグニをトラッシュ」の追加分。
+  ['public/data/effects_WX24_26.json', ['WX24-P3-004', 'WX25-P1-110']],
 ];
 
 let total = 0;

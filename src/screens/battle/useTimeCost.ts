@@ -10,11 +10,16 @@
 //   落とさないと「使用時に払い、解決中にもう一度払わされ、しかも軽減は一度も効かない」ことになる。
 import type { CardData, PlayerState } from '../../types';
 import { getCardNum } from '../../engine/effectExecutor';
+import { removeFromField } from '../../engine/execUtils';
 import { normalizeCostText, parseGrowCost, removeNColorFromCost } from './costs';
 import { toHalfWidth } from './battleUtils';
 
-/** 支払い元ゾーン。いずれも**平坦なリスト**か `signi_down` フラグだけを触る＝場スタックを崩さない。 */
-export type UseCostSource = 'hand' | 'signi_down' | 'lrig_deck_arts' | 'life_cloth' | 'key';
+/**
+ * 支払い元ゾーン。`signi_trash` 以外は**平坦なリスト**か `signi_down` フラグだけを触る。
+ * `signi_trash` だけは場からシグニを外す＝下のカード/チャーム/アクセ/ソウルの後始末（`removeFromField`）と
+ * **離場トリガーの発火**（呼び出し側が中央 diff で拾う）が要る＝タスク12(lxxxix)。
+ */
+export type UseCostSource = 'hand' | 'signi_down' | 'signi_trash' | 'lrig_deck_arts' | 'life_cloth' | 'key';
 
 /** 支払い候補の絞り込み（指定されたものだけを AND で見る）。 */
 export interface UseCostFilter {
@@ -119,6 +124,21 @@ export function parseUseTimeCostReduction(effectText: string): UseTimeCostSpec |
     return { source: 'signi_down', filter: parseDescriptor(down[1]), max, ...red };
   }
 
+  // ②' 場のシグニをトラッシュへ（タスク12(lxxxix)）。⚠**語順が2通りある**＝
+  //    「あなたのシグニ**を好きな数**場からトラッシュに置く」／「あなたの…シグニ**１体を場から**トラッシュに置いてもよい」。
+  const trashAny = effectText.match(
+    new RegExp(`${HEAD}あなたの(.+?)を(好きな数|[０-９\\d]+体(?:まで)?)場からトラッシュに置(?:いてもよい|く)。`),
+  );
+  if (trashAny) {
+    return { source: 'signi_trash', filter: parseDescriptor(trashAny[1]), max: parseAmount(trashAny[2]).max, ...red };
+  }
+  const trashN = effectText.match(
+    new RegExp(`${HEAD}あなたの(.+?)([０-９\\d]+体(?:まで)?)を場からトラッシュに置(?:いてもよい|く)。`),
+  );
+  if (trashN) {
+    return { source: 'signi_trash', filter: parseDescriptor(trashN[1]), max: parseAmount(trashN[2]).max, ...red };
+  }
+
   // ③ ルリグデッキのアーツをルリグトラッシュへ
   const lrigArts = effectText.match(
     new RegExp(`${HEAD}あなたのルリグデッキから(?:([白赤青緑黒])の)?アーツ[１1]枚をルリグトラッシュに置いてもよい。`),
@@ -184,6 +204,14 @@ export function useTimeCostCandidates(
         const top = my.field.signi[zi]?.at(-1);
         if (!top) return [];
         if (my.field.signi_down?.[zi]) return [];   // 既にダウン＝ダウンできない
+        if (!matchesUseCostFilter(top, spec.filter, cardMap)) return [];
+        return [{ key: `z:${zi}`, cardNum: top }];
+      });
+    case 'signi_trash':
+      // ダウンと違い**アップ/ダウンを問わない**（原文が「アップ状態の」と言っていない）。
+      return [0, 1, 2].flatMap(zi => {
+        const top = my.field.signi[zi]?.at(-1);
+        if (!top) return [];
         if (!matchesUseCostFilter(top, spec.filter, cardMap)) return [];
         return [{ key: `z:${zi}`, cardNum: top }];
       });
@@ -267,6 +295,29 @@ export function payUseTimeCost(
         },
         paidCount: zones.size,
         label: `${downed.map(nameOf).join('・')}をダウンして使用コストを軽減`,
+      };
+    }
+    case 'signi_trash': {
+      // ⚠場から外すのは `removeFromField` に任せる＝下のカード/チャーム/アクセ（→トラッシュ）と
+      //   ソウル（→ルリグトラッシュ）、ダウン/凍結/血晶武装フラグの後始末が全部そこにある。
+      //   離場・トラッシュのトリガーは呼び出し側（BattleScreen の中央 diff）が拾う。
+      // ⚠`removeFromField` は**カード名（インスタンスID）でゾーンを引く**＝同じ文字列が2ゾーンに
+      //   居ると先頭ゾーンしか外れない。場の要素は `assignInstanceIds` の `CardNum#n` で一意なので
+      //   成り立つ前提（この不変条件が崩れると2体払いが壊れる）。
+      const zones = idxOf('z:');
+      let st = my;
+      const moved: string[] = [];
+      for (const zi of zones) {
+        const top = my.field.signi[zi]?.at(-1);
+        if (!top) continue;
+        moved.push(top);
+        st = removeFromField(top, st);
+        st = { ...st, trash: [...st.trash, top] };
+      }
+      return {
+        state: st,
+        paidCount: moved.length,
+        label: `${moved.map(nameOf).join('・')}を場からトラッシュに置いて使用コストを軽減`,
       };
     }
     case 'lrig_deck_arts': {
