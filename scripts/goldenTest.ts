@@ -214,6 +214,103 @@ function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m}
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
+test('task12(lxxxii) wave4: FISHING optional discard changes 1/2 choices and both life-burst branches resolve', () => withSavedCursor(() => {
+  const SOURCE = 'WD23-044-EA';
+  const effect = manualEffect(SOURCE, 'WD23-044-EA-E1');
+  const burstTrash = findCard(c => !!c.BurstText && c.BurstText !== '-' && c.CardNum !== SOURCE);
+  const burstDeck = burstTrash;
+  const costCard = SIGNI;
+
+  const open = (pay: boolean) => {
+    const base = mkCtx({}, {}, SOURCE);
+    base.ownerState = { ...base.ownerState, hand: [costCard], trash: [SOURCE, burstTrash], deck: [burstDeck] };
+    const first = executeEffect(effect, base);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'スペルの任意手札捨てが最初に提示される');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') throw new Error('discard pending missing');
+    const discarded = resumeSelectTarget(pay ? [costCard] : [], first.pending, execCtxFrom(first, base));
+    ok(!discarded.done && discarded.pending.type === 'CHOOSE', '①②の選択肢が提示される');
+    if (discarded.done || discarded.pending.type !== 'CHOOSE') throw new Error('choice pending missing');
+    return { base, result: discarded, pending: discarded.pending };
+  };
+
+  const unpaidTrash = open(false);
+  eq(unpaidTrash.pending.count, 1, '追加コスト未払いは1つ選ぶ');
+  eq(unpaidTrash.pending.options.length, 2, '未払いでも①②の2候補を提示');
+  const trashPick = resumeChoose('cae_life_burst_from_trash', unpaidTrash.pending, execCtxFrom(unpaidTrash.result, unpaidTrash.base));
+  const trashDone = trashPick.done
+    ? trashPick
+    : trashPick.pending.type === 'SELECT_TARGET'
+      ? resumeSelectTarget([burstTrash], trashPick.pending, execCtxFrom(trashPick, unpaidTrash.base))
+      : (() => { throw new Error('trash target missing'); })();
+  ok(trashDone.done && trashDone.ownerState.hand.includes(burstTrash), '①トラッシュのLB持ちが手札へ移る');
+  ok(!trashDone.ownerState.trash.includes(burstTrash), '①回収元から除かれる');
+
+  const unpaidDeck = open(false);
+  const deckPick = resumeChoose('cae_life_burst_from_deck', unpaidDeck.pending, execCtxFrom(unpaidDeck.result, unpaidDeck.base));
+  ok(!deckPick.done && deckPick.pending.type === 'SEARCH', '②はデッキ探索を提示');
+  if (deckPick.done || deckPick.pending.type !== 'SEARCH') throw new Error('deck search missing');
+  const deckDone = resumeSearch([burstDeck], deckPick.pending, execCtxFrom(deckPick, unpaidDeck.base));
+  ok(deckDone.done && deckDone.ownerState.hand.includes(burstDeck), '②デッキのLB持ちが手札へ移る');
+  ok(!deckDone.ownerState.deck.includes(burstDeck), '②探索元から除かれる');
+
+  const paid = open(true);
+  eq(paid.pending.count, 2, '追加コスト支払いは2つ選ぶ');
+  eq(paid.pending.multiSelect, true, '支払い時は複数選択');
+  eq(paid.pending.options.length, 2, '支払い時も①②の2候補');
+  ok(paid.result.ownerState.trash.includes(costCard), '追加コストの手札1枚が実際にトラッシュへ移る');
+}));
+
+test('task12(lxxxii) wave4: ARTS class-energy optional cost records payment for 1/2 choice count', () => withSavedCursor(() => {
+  const SOURCE = 'WX26-CP1-024';
+  const effect = manualEffect(SOURCE, 'WX26-CP1-024-E1');
+  const prioke = [...cardMap.values()].filter(c => (c.CardClass ?? '').includes('プリオケ')).slice(0, 3).map(c => c.CardNum);
+  ok(prioke.length === 3, '＜プリオケ＞を3枚用意');
+  const open = (pay: boolean) => {
+    const base = mkCtx({}, {}, SOURCE);
+    base.ownerState = { ...base.ownerState, energy: [...prioke], trash: [], field: { ...base.ownerState.field, check: SOURCE } };
+    const first = executeEffect(effect, base);
+    ok(!first.done && first.pending.type === 'CHOOSE', '任意支払いを提示');
+    if (first.done || first.pending.type !== 'CHOOSE') throw new Error('arts pay pending missing');
+    const selected = resumeChoose(pay ? 'pay' : 'skip', first.pending, execCtxFrom(first, base));
+    if (!pay) return { base, result: selected };
+    ok(!selected.done && selected.pending.type === 'SELECT_TARGET', '支払う3枚を選択');
+    if (selected.done || selected.pending.type !== 'SELECT_TARGET') throw new Error('arts energy target missing');
+    return { base, result: resumeSelectTarget(prioke, selected.pending, execCtxFrom(selected, base)) };
+  };
+  const unpaid = open(false).result;
+  ok(!unpaid.done && unpaid.pending.type === 'CHOOSE', '未払い後に効果選択');
+  if (unpaid.done || unpaid.pending.type !== 'CHOOSE') throw new Error('unpaid arts choice missing');
+  eq(unpaid.pending.count, 1, '未払いは1つ選ぶ');
+  const paid = open(true).result;
+  ok(!paid.done && paid.pending.type === 'CHOOSE', '支払い後に効果選択');
+  if (paid.done || paid.pending.type !== 'CHOOSE') throw new Error('paid arts choice missing');
+  eq(paid.pending.count, 2, '支払いは2つ選ぶ');
+  eq(paid.pending.multiSelect, true, '支払い時は複数選択');
+  eq(paid.ownerState.energy.length, 0, '＜プリオケ＞3枚を実際にエナから支払う');
+  eq(paid.ownerState.trash.length, 3, '支払った3枚がトラッシュへ移る');
+  eq(paid.ownerState.self_optional_effect_taken, false, '支払いフラグは選択数へ反映後に消費する');
+}));
+
+test('task12(lxxxii) wave4 guard: existing conditional multi-choose cards remain 2 choices after payment', () => withSavedCursor(() => {
+  for (const [SOURCE, effectId] of [['SP26-005', 'SP26-005-E1'], ['SP38-004', 'SP38-004-E1']] as const) {
+    const effect = manualEffect(SOURCE, effectId);
+    const base = mkCtx({}, {}, SOURCE);
+    base.ownerState = { ...base.ownerState, energy: fill(8), field: { ...base.ownerState.field, check: SOURCE } };
+    const pay = executeEffect(effect, base);
+    ok(!pay.done && pay.pending.type === 'CHOOSE', `${effectId}: 追加コスト選択`);
+    if (pay.done || pay.pending.type !== 'CHOOSE') throw new Error(`${effectId}: pay pending missing`);
+    const actualCost = resumeChoose('pay', pay.pending, execCtxFrom(pay, base));
+    ok(!actualCost.done && actualCost.pending.type === 'CHOOSE', `${effectId}: 実コスト選択`);
+    if (actualCost.done || actualCost.pending.type !== 'CHOOSE') throw new Error(`${effectId}: actual cost pending missing`);
+    const choices = resumeChoose('pay', actualCost.pending, execCtxFrom(actualCost, base));
+    ok(!choices.done && choices.pending.type === 'CHOOSE', `${effectId}: 支払い後の効果選択`);
+    if (choices.done || choices.pending.type !== 'CHOOSE') throw new Error(`${effectId}: effect choices missing`);
+    eq(choices.pending.count, 2, `${effectId}: count=2`);
+    eq(choices.pending.options.length, 2, `${effectId}: 選択肢2個`);
+    eq(choices.pending.multiSelect, true, `${effectId}: multiSelect=true`);
+  }
+}));
+
 test('frontOfSelf WXK11-029-E2: only the opposing front SIGNI loses abilities; empty front is no-op', () => {
   const host = 'WXK11-029';
   const front = SIGNI_L2;
@@ -20942,6 +21039,17 @@ for (const [effectId, zone, count] of [
     low[zone].push(...Array(Math.max(1, count - 1)).fill(same));
     eq(evalUseCondition(effect.condition!, low, ctx.otherState, cardMap, cardNum, 'MAIN'), false, '同一クラスだけでは不成立');
   });
+}
+
+function execCtxFrom(result: ExecResult, base: ExecCtx): ExecCtx {
+  return {
+    ...base,
+    ownerState: result.ownerState,
+    otherState: result.otherState,
+    logs: result.logs,
+    lastProcessedCards: result.lastProcessedCards,
+    storedTargetCards: result.storedTargetCards ?? base.storedTargetCards,
+  };
 }
 
 // タスク12(lxx) Batch C: 遅延設置が落ちて本体が即時実行されていた2効果。

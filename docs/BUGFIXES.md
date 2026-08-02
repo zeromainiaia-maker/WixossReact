@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxii) 第4波：「追加コストを払うと選択数が増える」5効果を実測で仕分け→**壊れていた2件を実働化**（残7→3）
+
+**codex-work 実装／Claude 指示・投入前実測・検証・簿記。差し戻し0・Claude 是正0。engine-only（生成JSON は完全不変）。**
+
+### 🔴 在庫メモの見立てが投入前実測で覆った（本バッチ最大の成果）
+
+PLAN には「**C群5件は新語彙が要る**（支払い結果で `choose_count` が変わる条件つき CHOOSE ＋ engine/UI 配線）＝**1バッチ丸ごと必要**」と書いてあったが、
+Claude が engine を直接叩いて**5件すべてを実行トレース**した結果、**新語彙は1本も要らなかった**：
+
+- `execStubPart1.ts:2444+` の `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` が**実行時に原文を正規表現で解析**し、ベース選択数・強化選択数・追加コストの支払い CHOOSE まで動的に組む設計で**既に実装済み**だった。
+- `effectExecutor.ts:3694-3723` には `choose_count` を実行時に上書きする**兄弟が4本**（`recollect`／`recollectArts`／`betChoose`／`preUseVirusChoose`）。
+- ⇒ **素の `CHOOSE` に置き換えていたら、動いているものを壊していた**（第2波で「⛔触らない群」を作ったのと同じ罠。§5-5b の別の顔）。
+
+実測による5件の仕分け：
+
+| 判定 | effectId | 実測挙動 |
+|---|---|---|
+| ⛔**完動＝在庫の誤登録** | `SP26-005-E1`／`SP38-004-E1` | 追加コストを払うと **count=2 / multiSelect=true / 選択肢2個**＝**原文どおり動いていた** |
+| 🔴恒久 no-op | `WD23-044-EA-E1` | 手札を捨てた後 `代替条件未達（条件解析不可）`で終了＝**青1を払って何も起きないスペル** |
+| 🔴支払いが伝わらない | `WX26-CP1-024-E1` | 「支払う」を選んでも `追加コスト未払（1つ選択）`のまま＝**代わりに2つ選べない** |
+| 🔴選択肢欠落＋意味論 | `PR-Di013-E1` | 3択のはずが**候補1個**。しかも原文「センタールリグは選んだ能力を得る」なのに **`DRAW` を即時実行**（「アタックしたとき引く」が「今引く」） |
+
+### 直した2件
+
+**① `WD23-044-EA-E1`（ＦＩＳＨＩＮＧ・青1）＝恒久 no-op を解消【必達】**
+原因＝`execStubPart3.ts:2062+` の `CONDITIONAL_ALTERNATE_EFFECT` が
+`/あなたの場に＜CLASS＞のシグニがある場合[、,]代わりに/` という**全く別の文型専用**の実装で、
+本カードの「**追加で手札を１枚捨てていた場合、代わりに２つを選ぶ**」にマッチせず必ず no-op で終わっていた。
+⇒ 一般文型「追加で手札をN枚捨てていた場合、代わりにKつを選ぶ」を追加し、**実際の手札破棄結果**から選択数を決定。
+①トラッシュの《ライフバースト》持ちを手札へ／②デッキから探して公開・手札へ・シャッフル、まで実働化。
+⚠ **同 STUB を持つ効果は live 全数で本件1件のみ**（実測）＝波及先なし。
+
+**② `WX26-CP1-024-E1`（赤の女王＆白の女王）＝支払いが選択数に伝わらない**
+原因＝`ARTS_EXTRA_COST_CONDITION`（`execStubPart2.ts:3818+`）が `ownerState.self_optional_effect_taken` を見ているのに、
+支払い側の `OPTIONAL_TRASH_ENERGY_CLASS` が**このフラグを立てていなかった**（＝常に未払扱い）。しかも**支払いを選んでもエナのトラッシュ自体が走っていなかった**。
+⇒ ＜クラス＞のエナN枚を選択・トラッシュする処理を接続し、支払い成立時のみフラグを立て、**選択数へ反映した直後に消費（false へ戻す）**。
+
+⚠ **波及範囲は「後続が `ARTS_EXTRA_COST_CONDITION` の場合」に狭く固定**されている（`effectExecutor.ts:3495+` の分岐）。
+`OPTIONAL_TRASH_ENERGY_CLASS` 自体は **40効果**が共有するが、`ARTS_EXTRA_COST_CONDITION` を持つ効果は
+**live 全数で `WX26-CP1-024-E1` の1件のみ**（実測）＝**残り39効果は経路に入らない**。
+
+### honest defer 1件＝`PR-Di013-E1`（段階3）
+
+3枝すべてを**即時実行ではなく一時的な `GRANT_LRIG_ABILITY`**（ターン終了時まで）として組む必要があり、
+**②③だけ即時実行を足すフェイク実装は入れなかった**（足すと「今すぐエナチャージ」「今すぐ相手シグニをトラッシュ」という過剰実行が2つ増える）。
+⇒ 指示書で「(a) だけやるなら (b) とセットにするか両方 defer せよ」と明示した判断に codex が正しく従った形。
+
+### Claude 検証：独立実測はすべて申告と一致（差し戻し0）
+
+- **⛔触らない群の非回帰を engine 直叩きで前後比較**＝`SP26-005-E1`／`SP38-004-E1` とも「支払う→**count=2 / multiSelect=true / 選択肢2個**」で**変化なし**。`PR-Di013-E1` も defer 通り現状維持（候補1個・`DRAW` 即時のまま）。
+- **修正2件の両分岐を実測**＝`WD23-044-EA-E1` は手札を捨てると **count=2**・捨てない（空選択）と **count=1**、①を選ぶと実際に手札に加わる。`WX26-CP1-024-E1` は支払うと**プリオケ3枚が実際にエナから落ち** count=2、支払わないとエナ不変で count=1。
+- 共有 STUB の波及先を live 全数で計数（上記）。`self_optional_effect_taken` の全参照（`execStubPart1` の OPTIONAL_COST 系・`execUtils.ts:1648` の `SELF_OPTIONAL_EFFECT_TAKEN` 条件）も確認し、フラグを**消費**する実装なので後続へ漏れない。
+- ゲート独立実行＝**全緑**。golden **1308→1311**（+3）、smoke **10679/10679** 全0・SKIP0、fuzz 全0、census **1289 据置**、lint 0 errors/**240 warnings 据置**、manual field loss 0、同型★0（265群）、held **264枚／115署名 据置**。
+- **生成 JSON は完全不変**＝`git status` で `public/data/` に差分なし、live per-effect も changed 0 / added 0 / removed 0（engine-only 修正なので正しい）。
+
+### 在庫の締め直し＝**(lxxxii) は残10→残3**
+
+`SP26-005-E1`／`SP38-004-E1` は**元から壊れていなかった**（在庫への誤登録）ので在庫から外す。
+残るのは **`PR-Di013-E1`**（能力付与への意味論修正が要る）／**`WXDi-P05-006-E1`**（`GRANT_KEYWORD{SIGNI,'使用条件'}` の別バグ同居・`PARTIAL`）／**`WXK10-008-E1`**（live は MANUAL 温存。fresh の①が「対戦相手の**エナゾーンにあるカード**は色と能力を失う」を `REMOVE_ABILITIES{SIGNI,opponent,PERMANENT}` と誤読）の3件。
+
+⚠**教訓＝「壊れている」と登録された在庫は、投入前に engine 直叩きで実行トレースするまで信用しない。**
+今回は10件中2件が「元から動いていた」＝**在庫の2割が誤登録**だった。トレースは使い捨てスクリプト1本（`executeEffect`→`resumeChoose` を手で回す）で数分。
+
 ## 2026-08-02 — Opusタスク12(lxxxii) 第3波：WXK08-002-E1 文中CHOOSE実働化（残8→7）
 
 `WXK08-002-E1` を **段階1まで着地**。live の無条件 `ADD_TO_FIELD`＋即時自シグニ `BOUNCE` を、前置 `STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` を保持した `CHOOSE{choose_count:1,from_count:3}` へ置換した。②は既存語彙 `BANISH{target:{type:'SIGNI',owner:'any',count:2,upToCount:true,totalPowerMax:10000}}` で忠実化。①は `DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN`、③は `DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN` に明示 defer し、誤対象へのバウンス／能力除去を no-op 化した。段階2/3を defer した理由は、③が引用AUTOのターン2回制限・ガード時発火を含む複合付与、①が場出し対象の同一性をターン終了時まで追跡する遅延帰還と未実装 `SET_LEVEL_1` を必要とし、既存の裸アクションを組むだけでは過剰実行になるため。

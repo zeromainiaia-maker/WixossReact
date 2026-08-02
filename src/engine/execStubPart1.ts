@@ -2433,13 +2433,19 @@ export function execStubPart1(
     if (!selectedCardOTEC) return done(addLog(ctx, 'INTERNAL_OTEC_MOVE_SELECTED: 対象なし'));
     const newEnergyOTEC = ctx.ownerState.energy.filter(cn => cn !== selectedCardOTEC);
     const cardNameOTEC = ctx.cardMap.get(selectedCardOTEC)?.CardName ?? selectedCardOTEC;
-    let newOwnerOTEC = { ...ctx.ownerState, energy: newEnergyOTEC };
+    // 選択後にここへ来た時点で任意支払いは実際に成立している。
+    // 後続の ARTS_EXTRA_COST_CONDITION 等が支払い結果を参照できるよう記録する。
+    let newOwnerOTEC = { ...ctx.ownerState, energy: newEnergyOTEC, self_optional_effect_taken: true };
     if (destMOTEC === 'hand') {
       newOwnerOTEC = { ...newOwnerOTEC, hand: [...newOwnerOTEC.hand, selectedCardOTEC] };
       return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナから手札へ`));
     }
     newOwnerOTEC = { ...newOwnerOTEC, trash: [...newOwnerOTEC.trash, selectedCardOTEC] };
     return done(addLog({ ...ctx, ownerState: newOwnerOTEC }, `${cardNameOTEC}をエナからトラッシュへ`));
+  }
+  if (stub.id === 'INTERNAL_OTEC_SKIP') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } },
+      '任意エナ支払いをスキップ'));
   }
   // CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE
   // 「以下のN つからM つ選ぶ。[条件]の場合、代わりにK つまで選ぶ。①...②...」

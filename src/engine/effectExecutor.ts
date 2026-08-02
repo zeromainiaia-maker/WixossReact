@@ -3129,7 +3129,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const payLabelOTEC = reqClassOTEC ? `エナ＜${reqClassOTEC}＞を選択して発動` : 'エナから選択して発動';
           const optsOTEC = [
             { id: 'pay', label: payLabelOTEC, action: payActionOTEC, available: true },
-            { id: 'skip', label: 'スキップ', action: (conditional.else ?? noopAction) as EffectAction, available: true },
+            { id: 'skip', label: 'スキップ', action: thenOTEC.type === 'STUB' && thenOTEC.id === 'ARTS_EXTRA_COST_CONDITION'
+              ? ({ type: 'SEQUENCE', steps: [
+                  { type: 'STUB', id: 'INTERNAL_OTEC_SKIP' } as StubAction,
+                  thenOTEC,
+                ] } as EffectAction)
+              : (conditional.else ?? noopAction) as EffectAction, available: true },
           ];
           return needsInteraction(addLog(cur, `エナゾーンのカードを選択しますか？`), {
             type: 'CHOOSE', options: optsOTEC, count: 1, ...(cont ? { continuation: cont } : {}),
@@ -3490,6 +3495,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const cont5: EffectAction = remaining5.length > 0
             ? (remaining5.length === 1 ? remaining5[0] : { type: 'SEQUENCE', steps: remaining5 } as SequenceAction)
             : noopAction5;
+          // この文型では任意支払いの成否にかかわらず後続の選択効果を実行し、
+          // 支払った場合だけ ARTS_EXTRA_COST_CONDITION の選択数を増やす。
+          if (stub5.id === 'OPTIONAL_TRASH_ENERGY_CLASS'
+              && cont5.type === 'STUB' && cont5.id === 'ARTS_EXTRA_COST_CONDITION') {
+            const src5 = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
+            const txt5 = src5?.EffectText ?? '';
+            const toHW5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+            const clause5 = txt5.match(/エナゾーンから(?:あなたの)?(?:＜([^＞]+)＞の)?(?:シグニ|カード)([０-９\d]+)枚を?トラッシュ/);
+            const cls5 = clause5?.[1] ?? '';
+            const count5 = clause5?.[2] ? parseInt(toHW5(clause5[2])) : 1;
+            const candidates5 = cur.ownerState.energy.filter(cn => !cls5 || (cur.cardMap.get(getCardNum(cn))?.CardClass ?? '').includes(cls5));
+            const pay5: EffectAction = { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'INTERNAL_OTEC_SELECT', value: `trash:${cls5}:${count5}` } as StubAction,
+              cont5,
+            ] } as SequenceAction;
+            const skip5: EffectAction = { type: 'SEQUENCE', steps: [
+              { type: 'STUB', id: 'INTERNAL_OTEC_SKIP' } as StubAction,
+              cont5,
+            ] } as SequenceAction;
+            return needsInteraction(addLog(cur, '任意エナコスト：支払いますか？'), {
+              type: 'CHOOSE', count: 1, options: [
+                { id: 'pay', label: cls5 ? `エナ＜${cls5}＞${count5}枚をトラッシュ` : `エナ${count5}枚をトラッシュ`, action: pay5, available: candidates5.length >= count5 },
+                { id: 'skip', label: '支払わない', action: skip5, available: true },
+              ],
+            });
+          }
           // 可変枚数コストは Pattern ⑦ と同じく 0..N の CHOOSE で解決する。
           if (stub5.charmTrashVariable || stub5.lrigDownVariable) {
             const max5 = stub5.charmTrashVariable

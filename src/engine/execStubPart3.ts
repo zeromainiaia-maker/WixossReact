@@ -2063,6 +2063,38 @@ export function execStubPart3(
   if (stub.id === 'CONDITIONAL_ALTERNATE_EFFECT') {
     const srcCAE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtCAE = srcCAE ? (srcCAE.EffectText ?? '') + ' ' + (srcCAE.BurstText ?? '') : '';
+    // 「追加で手札をN枚捨てていた場合、代わりにKつを選ぶ」パターン。
+    // 直前の任意 TRASH は、実際に捨てたカードだけを lastProcessedCards に残すため、
+    // カード固有情報ではなく支払い結果と一般文型から選択数を決める。
+    const handDiscardAltCAE = txtCAE.match(/追加で手札を([１-９\d]+)枚捨てていた場合[、,]代わりに([２-９\d]+)つを?選ぶ/);
+    if (handDiscardAltCAE) {
+      const toHWCAE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const paidCountCAE = ctx.lastProcessedCards?.length ?? 0;
+      const requiredCAE = parseInt(toHWCAE(handDiscardAltCAE[1]));
+      const enhancedCAE = parseInt(toHWCAE(handDiscardAltCAE[2]));
+      const chooseCountCAE = paidCountCAE >= requiredCAE ? enhancedCAE : 1;
+      const lifeBurstFilterCAE = { hasLifeBurst: true };
+      const optsCAE = [
+        {
+          id: 'cae_life_burst_from_trash', label: '①トラッシュのライフバーストを手札へ', available: true,
+          action: {
+            type: 'TRANSFER_TO_HAND',
+            source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: lifeBurstFilterCAE },
+          } as EffectAction,
+        },
+        {
+          id: 'cae_life_burst_from_deck', label: '②デッキのライフバーストを探して手札へ', available: true,
+          action: {
+            type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: lifeBurstFilterCAE, maxCount: 1,
+            then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
+            afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+          } as EffectAction,
+        },
+      ];
+      return needsInteraction(addLog(ctx, `追加手札コスト${chooseCountCAE > 1 ? '支払済' : '未払'}（${chooseCountCAE}つ選択）`), {
+        type: 'CHOOSE', options: optsCAE, count: chooseCountCAE, multiSelect: chooseCountCAE > 1,
+      });
+    }
     // 「あなたの場に＜CLASS＞のシグニがある場合、代わりに」パターン
     const classMatchCAE = txtCAE.match(/あなたの場に＜([^＞]+)＞のシグニがある場合[、,]代わりに/);
     const reqClassCAE = classMatchCAE ? classMatchCAE[1] : '';

@@ -3847,8 +3847,9 @@ export function execStubPart2(
     }
     if (optsAECC.length === 0) return done(addLog(ctx, '[ARTS_EXTRA_COST_CONDITION: 選択肢解析不可]'));
     const countAECC = extraPaidAECC ? Math.min(2, optsAECC.length) : 1;
-    return needsInteraction(addLog(ctx, `追加コスト${extraPaidAECC ? '支払済（2つ選択）' : '未払（1つ選択）'}`), {
-      type: 'CHOOSE', options: optsAECC, count: countAECC,
+    const consumedAECC = { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } };
+    return needsInteraction(addLog(consumedAECC, `追加コスト${extraPaidAECC ? '支払済（2つ選択）' : '未払（1つ選択）'}`), {
+      type: 'CHOOSE', options: optsAECC, count: countAECC, multiSelect: countAECC > 1,
     });
   }
   // アーツ条件系（engine: アーツ使用条件未実装）
