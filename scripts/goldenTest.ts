@@ -20498,7 +20498,40 @@ test('task12(lxxxiii): 修飾つき「あなたの他のシグニ」対象は se
 
   const zone = parseCardEffects({ CardNum: 'TEST-OTHER-ZONE', Type: 'シグニ', EffectText: '【自】：場にあるシグニ１体があなたの効果によって他のシグニゾーンに移動したとき、カードを１枚引く。' } as unknown as CardData)[0];
   eq(JSON.stringify(zone).includes('"excludeSelf":true'), false, '「他のシグニゾーン」はシグニ自身の除外ではない');
+
+  const comma = parseCardEffects({ CardNum: 'TEST-OTHER-COMMA', Type: 'シグニ', EffectText: '【常】：あなたの他の、赤のシグニのパワーを＋2000する。' } as unknown as CardData)[0];
+  eq(JSON.stringify(comma).includes('"excludeSelf":true'), true, '「他の、赤のシグニ」の読点を越えて自己除外する');
 });
+
+test('lxxxiii wave 4: live target handoff keeps the chosen other SIGNI and excludes source', () => withSavedCursor(() => {
+  const live = (card: string, effectId: string) => effectsMap.get(card)!.find(e => e.effectId === effectId)!;
+
+  const ba = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('ブルアカ')).slice(0, 2).map(c => c.CardNum);
+  ok(ba.length === 2, 'Blue Archive fixtures');
+  const prio = [...cardMap.values()].find(c => isSigni(c) && c.CardClass?.includes('プリオケ'))!.CardNum;
+  const w26 = run(live('WX26-CP1-092', 'WX26-CP1-092-E1').action,
+    mkCtx({ signi: ['WX26-CP1-092', prio, null], deckTop: [prio, SIGNI_L1] }, {}, 'WX26-CP1-092'));
+  eq(w26.ownerState.power_mods_until_opp_turn?.find(m => m.cardNum === prio)?.delta, 5000, 'WX26-CP1-092: stored other gets +5000 after deck trash overwrites lastProcessed');
+  ok(!w26.ownerState.power_mods_until_opp_turn?.some(m => m.cardNum === 'WX26-CP1-092'), 'WX26-CP1-092: source gets no power');
+
+  const green = [...cardMap.values()].find(c => isSigni(c) && c.Color?.includes('緑') && parseInt(c.Power || '0', 10) >= 6000 && c.CardNum !== 'WXK11-065')!.CardNum;
+  const k11 = run(live('WXK11-065', 'WXK11-065-E1').action, mkCtx({ signi: ['WXK11-065', green, null] }, {}, 'WXK11-065'));
+  eq(k11.ownerState.temp_power_mods?.find(m => m.cardNum === green)?.delta, 4000, 'WXK11-065: other green gets +4000');
+  ok(k11.ownerState.keyword_grants?.[green]?.includes('ランサー'), 'WXK11-065: same other gets lancer');
+  ok(!k11.ownerState.temp_power_mods?.some(m => m.cardNum === 'WXK11-065'), 'WXK11-065: source gets no power');
+  ok(!k11.ownerState.keyword_grants?.['WXK11-065'], 'WXK11-065: source gets no lancer');
+
+  const cp02 = run(live('WXDi-CP02-066', 'WXDi-CP02-066-E1').action,
+    mkCtx({ signi: ['WXDi-CP02-066', ba[1], null] }, {}, 'WXDi-CP02-066'));
+  ok(cp02.ownerState.banish_redirect_by_source_nums?.includes(ba[1]), 'WXDi-CP02-066: other is redirect source');
+  ok(!cp02.ownerState.banish_redirect_by_source_nums?.includes('WXDi-CP02-066'), 'WXDi-CP02-066: source is not redirect source');
+
+  const ancient = [...cardMap.values()].find(c => isSigni(c) && c.CardClass?.includes('古代兵器') && c.CardNum !== 'WXK10-067')!.CardNum;
+  const k10 = run(live('WXK10-067', 'WXK10-067-E1').action,
+    mkCtx({ signi: ['WXK10-067', ancient, null], deckTop: [ancient] }, {}, 'WXK10-067'));
+  ok(k10.ownerState.hand.includes(ancient), 'WXK10-067: searches the same name as selected other');
+  ok(!k10.lastProcessedCards?.includes('WXK10-067'), 'WXK10-067: source was not selected/searched');
+}));
 
 test('task12(lxx) Batch F: any_opp watcher は watcher 所有者の効果による手札捨てだけで発火', () => {
   const savedCursor = cursor;

@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第4波：対象引き継ぎ4効果＋誤検出分離
+
+残45効果を着手前に live／fresh（`parseCardEffects(row)` 直呼び）／manual（`mergeManualEffects` 差分）の3値で全数比較した。結果は次の4群（合計45）だった。
+
+- **live=fresh 34件**＝`PR-366-E3`／`SP27-015-E1`／`WDK06-C17-E1`／`WDK11-011-E1`／`WX11-002-E1`／`WX12-024-E1`／`WX20-025-E1`／`WX20-036-CB-E1`／`WX24-P2-010-E1`／`WX24-P2-052-E2`／`WX24-P2-074-E1`／`WX25-CP1-044-E2`／`WX25-CP1-087-E1`／`WX25-CP1-089-E1`／`WX25-P2-053-E1`／`WX26-CP1-084-E1`／`WXDi-CP01-032-E1`／`WXDi-D02-25-E1`／`WXDi-P00-068-E1`／`WXDi-P03-042-E1`／`WXDi-P03-057-E1`／`WXDi-P04-041-E1`／`WXDi-P10-052-E1`／`WXDi-P14-087-E1`／`WXEX1-55-E1`／`WXEX2-19-E2`／`WXEX2-54-E2`／`WXEX2-59-E2`／`WXEX2-60-E1`／`WXK03-042-E1`／`WXK05-022-E1`／`WXK06-024-E1`／`WXK10-024-E1`／`WXK10-056-E1`。
+- **live≠fresh・manualなし 5件**＝`WDK14-014-E1`／`WX24-P4-055-E1`／`WX25-P3-062-E1`／`WXDi-P03-086-E1`／`WXDi-P08-065-E1`。前4件は第2～3波記載の collector／curated／専用 `powerDecreaseExcludeSelf` 理由で live 温存、`WXDi-P08-065-E1` は fresh も OR 対象を表せず正解ではない。したがって機械的な「liveだけ古い」表示をそのまま採用していない。
+- **live=manual≠fresh 5件（本波採用後）**＝`WX06-019-E1`（既存置換 manual）と、本波の `WX26-CP1-092-E1`／`WXDi-CP02-066-E1`／`WXK10-067-E1`／`WXK11-065-E1`。`WX25-CP1-087-E1` は下記理由で defer へ戻した。
+- **live≠fresh≠manual 1件**＝`WXDi-P02-039-E1`。既存 manual は STUB を実装化している一方 `triggerFilter.excludeSelf` が未反映で、部分採用すると trigger と action の二層が再び食い違うため defer。
+
+是正4件はいずれも新語彙0。`WX26-CP1-092-E1` は `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CHOOSE[TRASH{2} → story gate → POWER_MODIFY{targetsStored}, skip]` で固定対象を任意デッキ破棄後へ渡す。`TRASH{DECK_CARD}.optional` は executor が読まないため使わない。`WXK11-065-E1` は +4000 の対象を `GRANT_KEYWORD{targetsLastProcessed}` へ、`WXDi-CP02-066-E1` は選択対象を `BANISH_REDIRECT{targetsLastProcessed,bySource:'battle_with_this'}` へ渡す。`WXK10-067-E1` は `nameEqLastProcessed` を SEARCH が動的カード名へ解決する。
+
+engine 経路を確認し、各フラグが実際に読まれることを確認した。live JSON 実行（`withSavedCursor`、実戦の signi zone）で4効果すべて「他のシグニには適用／発生源には非適用」を両方向 assert。`WX26-CP1-092-E1` はデッキ破棄後も stored target へ付くこと、同名検索は選択した他シグニ名だけを拾うことも state で確認した。宣言だけの no-op はない。
+
+`WX25-CP1-087-E1` は honest defer。対象2体**まで**の実選択数を任意デッキ破棄枚数へ渡す必要があるが、CHOOSE pause 後の `{$ref:'last_processed_count'}` は対象数を保持せず0になる。`TRASH{DECK_CARD}.optional` も executor が読まず強制実行になる。固定1/2枚や死んだ optional は過小／強制実行なので live を復元した。誤検出5件は共有判定で正式分離：`WX11-002-E1`／`WXEX1-55-E1`／`WXDi-P00-068-E1`／`WXK03-042-E1` は「他のシグニゾーン」、`WDK14-014-E1` は「他のカード」。読点形だけ parser 判定を補正した。再測は語彙167／実装対象160／非該当7、あり124／**残36**、非該当かつなし5。
+
+残36は第3波分類を維持する。STUB／引用内は `WDK06-C17-E1`／`WDK11-011-E1`／`SP27-015-E1`／`PR-366-E3`／`WX12-024-E1`／`WX20-025-E1`／`WXEX2-54-E2`／`WXEX2-59-E2`／`WXEX2-60-E1`／`WX24-P2-010-E1`／`WX24-P2-052-E2`／`WX24-P2-074-E1`／`WX25-P2-053-E1`／`WX25-CP1-044-E2`／`WX25-CP1-089-E1`／`WX26-CP1-084-E1`／`WXDi-P02-039-E1`／`WXDi-P03-042-E1`／`WXDi-P03-057-E1`／`WXDi-P04-041-E1`／`WXDi-P10-052-E1`／`WXDi-CP01-032-E1`／`WXK05-022-E1`／`WXK06-024-E1`／`WXK10-024-E1`／`WXK10-056-E1`（外側 filter は no-op）。トリガー主語は `WX24-P4-055-E1`／`WXDi-D02-25-E1`／`WXDi-P03-086-E1`／`WXDi-P14-087-E1`。部分是正が別対象／過小実行になる残りは `WX06-019-E1`／`WX20-036-CB-E1`／`WXEX2-19-E2`／`WX25-P3-062-E1`／`WXDi-P08-065-E1`／`WX25-CP1-087-E1`。
+
+ゲートは golden **1284→1285**、census **1297→1294**、smoke 10679/10679全0・SKIP0、fuzz 200ゲーム全0（7980手／2691効果）、manual field loss 0、lint 0 errors/240 warnings、held 260枚・108署名。live HEAD 比は changed 4／added 0／removed 0、`excludeSelf` 264→268（減少0）、`"???"` 0。同型★0。`build:effects` と `regen` は連続2巡で追加差分なし。commit/push 未実施。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第3波：action対象 live 3効果
 
 残48効果を原文・live action・executor 経路で再監査し、実際に target filter が評価される3効果を live 是正した。`WD14-011-E2` は「あなたの**他のすべてのシグニ**」を `TRASH{SIGNI self ALL, filter.excludeSelf}` とし、発生源を残して他シグニだけをトラッシュする。`WX25-CP1-074-E1` は「あなたの**他の＜ブルアカ＞のシグニ**」について、既に manual/fresh に存在した正しい `POWER_MODIFY` 対象（self／ブルアカ／excludeSelf）と同一対象への引用能力2本を live へ採用した。`WXDi-CP01-038-E1` は「あなたの**他の＜バーチャル＞のシグニ**」への `GRANT_PROTECTION` target に self／バーチャル／excludeSelf を復元した。

@@ -389,7 +389,8 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
 }
 
 export function hasOtherSelfSigniNoun(text: string): boolean {
-  return /あなたの(?:効果によって)?他の(?!(?:シグニゾーン|ルリグ|カード名))[^。、]*シグニ/.test(text);
+  // 「他の、赤のシグニ」の読点は修飾語の区切りであり、名詞境界ではない。
+  return /あなたの(?:効果によって)?他の(?:、)?(?!(?:シグニゾーン|ルリグ|カード名))[^。、]*シグニ/.test(text);
 }
 
 // 「最も[大きい/高い/小さい/低い](パワー|レベル)」or「最も(パワー|レベル)の[高い/低い]」→ superlative {key,dir}。
