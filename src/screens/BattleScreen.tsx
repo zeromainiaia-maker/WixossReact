@@ -47,6 +47,7 @@ import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
 import { ArtsModal } from './battle/modals/ArtsModal';
 import { CutinModal } from './battle/modals/CutinModal';
+import { parseUseTimeCostReduction, payUseTimeCost } from './battle/useTimeCost';
 import { SigniActivatedModal } from './battle/modals/SigniActivatedModal';
 import { SigniOnPlayCostModal } from './battle/modals/SigniOnPlayCostModal';
 import { LrigGrantedModal } from './battle/modals/LrigGrantedModal';
@@ -144,12 +145,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard,
     pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost,
-    selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isEncore, setIsEncore,
+    selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isEncore, setIsEncore,
     isBoosting, setIsBoosting, openArtsModal, closeArtsModal, toggleArtsCost,
   } = useArtsModal();
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones, openRemoveZone } = useRemoveZone();
   const {
-    pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard,
+    pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay,
     openSpellCast, closeSpellCast, toggleSpellCost,
   } = useSpellCast();
   // 手札【起】／トラッシュ自己起動／エナACTIVATED／ルリグ付与【起】
@@ -5971,7 +5972,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false) => {
+  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
     if (!canUseArtsCondition(
@@ -5987,8 +5988,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const paidNums = [...costIndices].map(i => my.energy[i]);
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const discardNums = [...discardIndices].map(i => my.hand[i]);
-      const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
+      // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払い元が手札なら
+      // 既存の discard と**同じ index 空間**でまとめて消す（別々に消すと index がずれる）。
+      const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
+      const useCostHandIdx = useCostSpec?.source === 'hand'
+        ? [...useCostPayKeys].filter(k => k.startsWith('h:')).map(k => parseInt(k.slice(2))) : [];
+      const discardIdxAll = new Set([...discardIndices, ...useCostHandIdx]);
+      const discardNums = [...discardIdxAll].map(i => my.hand[i]).filter(Boolean);
+      const newHand = my.hand.filter((_, i) => !discardIdxAll.has(i));
       // ベット消費コインは UI で選んだ枚数（betCoins）。アンコールとの合算可否は UI でガード済み
       const betCost = Math.max(0, betCoins);
       const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
@@ -6021,14 +6028,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (boosting) appendBattleLogs([`ブースト：追加エナコストを支払い`]);
+      if (useCostHandIdx.length > 0) {
+        appendBattleLogs([`使用時の任意支払い：手札${useCostHandIdx.length}枚を捨てて使用コストを軽減`]);
+      }
+      // 手札以外の支払い元（場のシグニをダウン／ルリグデッキのアーツ／ライフクロス／キー）は
+      // 手札 index と衝突しないので支払い済み状態へ重ねる。
+      let paidWithUseCost = paid;
+      if (useCostSpec && useCostSpec.source !== 'hand' && useCostPayKeys.size > 0) {
+        const up = payUseTimeCost(paid, useCostSpec, useCostPayKeys, battleCardMap);
+        paidWithUseCost = up.state;
+        if (up.label) appendBattleLogs([up.label]);
+      }
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
-      const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(user.id, paidWithUseCost, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const artsCoinPaidEntries = artsCoin.entries;
       // ON_MATERIAL_USED（改造素材機構 Step3a）: 《改造素材》使用時に「あなたが使用したとき」(materialUsedByPlayer)変種を発火。
       // ⚠「このシグニに/他の味方に使用されたとき」(self/any_ally・対象シグニ依存)は Step2（トークン3択の対象捕捉）が前提＝別途。
       let materialUsedEntries: StackEntry[] = [];
-      let paidAfterMaterial = applyCoinPaidUsed(paid, artsCoin); // ON_COIN_PAID の《ターン1回/2回》消化を永続化（続き106）
+      let paidAfterMaterial = applyCoinPaidUsed(paidWithUseCost, artsCoin); // ON_COIN_PAID の《ターン1回/2回》消化を永続化（続き106）
       if (card.CardName === '改造素材') {
         const mu = collectMaterialUsedByPlayerTriggers(user.id, paidAfterMaterial);
         materialUsedEntries = mu.entries;
@@ -6335,7 +6353,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
   // discardIndices＝使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）で
   // 選んだ手札 index。支払うと使用コストが置換される（検証は SpellCastModal 側＝executeArts と同じ規約）。
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set()) => {
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set(), useCostPayKeys: Set<string> = new Set()) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
@@ -6367,8 +6385,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
-      const discardNums = [...discardIndices].filter(i => i !== handIdx).map(i => my.hand[i]).filter(Boolean);
-      const discardSet = new Set([...discardIndices].filter(i => i !== handIdx));
+      // タスク12(lxxxv) の「軽減」も支払い元が手札なら**同じ index 空間**で消す（別々に消すと index がずれる）。
+      const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
+      const useCostHandIdx = useCostSpec?.source === 'hand'
+        ? [...useCostPayKeys].filter(k => k.startsWith('h:')).map(k => parseInt(k.slice(2))) : [];
+      const discardIdxAll = [...new Set([...discardIndices, ...useCostHandIdx])].filter(i => i !== handIdx);
+      const discardNums = discardIdxAll.map(i => my.hand[i]).filter(Boolean);
+      const discardSet = new Set(discardIdxAll);
       // ベット：UIで選んだコイン枚数を支払う（所持を超えない）。is_betting_this_effect は handleCutinPass の効果解決まで持続
       const betCost = Math.min(Math.max(0, betCoins), my.coins);
       const isMeltFact = card.CardNum === 'WX15-067';
@@ -6429,6 +6452,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 監視フラグを立てる（既存のウィルス除去サイト＝execStubPart1 の6箇所と同じ規約。
       // 立てないと WD19-009 / WX21-045 / WX21-068 / WX21-030 のトリガーが落ちる）。
       if (removedVirusCount > 0) newMyState = { ...newMyState, opp_virus_removed_just: true };
+      // 使用時の任意支払い（軽減）＝手札以外の支払い元は手札 index と衝突しないので最終状態へ重ねる。
+      if (useCostSpec && useCostSpec.source !== 'hand' && useCostPayKeys.size > 0) {
+        const paid = payUseTimeCost(newMyState, useCostSpec, useCostPayKeys, battleCardMap);
+        newMyState = paid.state;
+        if (paid.label) appendBattleLogs([paid.label]);
+      } else if (useCostSpec && useCostHandIdx.length > 0) {
+        appendBattleLogs([`使用時の任意支払い：手札${useCostHandIdx.length}枚を捨てて使用コストを軽減`]);
+      }
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (discardNums.length > 0) {
         appendBattleLogs([`使用時の任意支払い：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨てて使用コストを置換`]);
@@ -11955,10 +11986,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} />
 
       {/* アーツ使用モーダル */}
-      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
+      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
 
       {/* スペル発動コスト選択 */}
-      <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} selectedSpellDiscard={selectedSpellDiscard} setSelectedSpellDiscard={setSelectedSpellDiscard} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />
+      <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} selectedSpellDiscard={selectedSpellDiscard} setSelectedSpellDiscard={setSelectedSpellDiscard} selectedSpellUseCostPay={selectedSpellUseCostPay} setSelectedSpellUseCostPay={setSelectedSpellUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />
 
       {/* v0.277: 手札から発動する【起】コスト選択 */}
       <HandActivatedModal ctx={modalCtx} pendingHandActivated={pendingHandActivated} setPendingHandActivated={setPendingHandActivated} selectedHandActivatedCost={selectedHandActivatedCost} setSelectedHandActivatedCost={setSelectedHandActivatedCost} executeHandActivated={executeHandActivated} />

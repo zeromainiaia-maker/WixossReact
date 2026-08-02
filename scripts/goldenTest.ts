@@ -42,6 +42,7 @@ import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } fro
 import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
+import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -251,14 +252,15 @@ const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
   test('task12(lxxxii) wave6: WX20-007-E1 は前置の任意支払いSTUB＋コストmarkerを残して文中CHOOSEを復元する', () => {
     const action = freshEff('WX20-007', 'WX20-007-E1').action as unknown as { type: string; steps: Record<string, unknown>[] };
     eq(action.type, 'SEQUENCE', 'トップは SEQUENCE');
-    eq(action.steps.length, 3, '前置2本＋CHOOSE');
-    // ①「＜精像＞のシグニを２枚まで捨ててもよい」＝engine 実装済みの任意支払い STUB（消してはいけない）
+    // ⚠タスク12(lxxxv) で前置は1本になった＝「＜精像＞のシグニを２枚まで捨ててもよい」は**使用時**の
+    //   支払い（`useTimeCost.ts` ＋ ArtsModal）へ移したので、解決中の `OPTIONAL_DISCARD_CLASS_SIGNI` は落とす。
+    //   残さないと使用時に払った上で解決中にもう一度払わされる（engine 側は実装済みで実際に払わせる）。
+    eq(action.steps.length, 2, 'コスト減marker＋CHOOSE');
     eq(action.steps[0].type, 'STUB', 'step0 は STUB');
-    eq(action.steps[0].id, 'OPTIONAL_DISCARD_CLASS_SIGNI', '任意支払い STUB を前段に保持');
-    // ②「捨てたシグニ１枚につきコストが減る」＝実行時マーカー
-    eq(action.steps[1].type, 'STUB', 'step1 は STUB');
-    eq(action.steps[1].id, 'ARTS_COST_REDUCTION_BY_EFFECT', 'コスト減 marker を前段に保持');
-    const choose = action.steps[2] as Record<string, unknown>;
+    eq(action.steps[0].id, 'ARTS_COST_REDUCTION_BY_EFFECT', 'コスト減 marker は前段に残す');
+    ok(!JSON.stringify(action.steps).includes('OPTIONAL_DISCARD_CLASS_SIGNI'),
+      '解決中の任意支払いSTUBは残さない（使用時に支払い済み）');
+    const choose = action.steps[1] as Record<string, unknown>;
     eq(choose.type, 'CHOOSE', 'step2 は CHOOSE');
     eq(choose.choose_count, 2, '「３つから２つまで」の選択数');
     eq(choose.from_count, 3, '選択肢は3本');
@@ -20188,6 +20190,162 @@ test('WX15-067-E1: pre-use virus count is scoped to cost and CHOOSE 0/1/2+', () 
 // タスク12(lxxxi): アーツ/スペルの「使用コストは《X》に**なる**」＝条件つきコスト置換。
 // 「減る」（removeNColorFromCost 系）と違い印刷コストを丸ごと差し替える＝既存の減算機構は流用できない。
 // 従来は ARTS_COST_REDUCTION_BY_EFFECT が no-op マーカーで、常に印刷コストでしか使えなかった。
+// タスク12(lxxxv): 「使用する際…してもよい。そうした場合、使用コストは《X》**減る**」＝
+// 使用時の任意支払いによるコスト**軽減**（31枚）。(lxxxi) の「になる」＝置換とは別機構。
+// 従来は engine の先頭ステップが解決中に**実際に払わせる**のに軽減マーカーは no-op で、
+// 「払わされるのに一度も安くならない」＋ OPTIONAL_COST 頭は断ると本体が丸ごと不発だった。
+test('use-time cost reduction: 対象31枚の spec と軽減後コストが原文どおり', () => {
+  // 母集団＝CSV 原文に「使用する際」＋「使用コストは…減る」を持つ36枚のうち、
+  // 使用時UIを実装した5種の支払い元だけ（残5枚は下の除外テストで固定）。
+  const expected: [string, string, number, boolean, string, string][] = [
+    // [CardNum, source, max, perUnit, 1枚払った後のコスト, 上限まで払った後のコスト]
+    ['WX06-024', 'signi_down', Infinity, true, '《白》×1《無》×2', '《白》×1'],
+    ['WX07-024', 'signi_down', Infinity, true, '《白》×6', '《白》×2'],
+    ['WX07-026', 'signi_down', Infinity, true, '《赤》×7', '《赤》×3'],
+    ['WX07-028', 'signi_down', Infinity, true, '《青》×5', '《青》×1'],
+    ['WX07-030', 'signi_down', Infinity, true, '《緑》×2', 'なし'],
+    ['WX07-032', 'signi_down', Infinity, true, '《黒》×9', '《黒》×5'],
+    // ⚠3枚形＝1枚では軽減されないので**印刷コストのまま**返る（CSV は全角数字＝正規化しない）
+    ['WX11-044', 'hand', 3, false, '《青》×３', 'なし'],
+    ['WX12-032', 'hand', 1, false, 'なし', 'なし'],
+    ['WX13-025', 'hand', 2, true, '《黒》×2《無》×1', 'なし'],
+    ['WX20-003', 'hand', 1, false, '《無》×1', '《無》×1'],
+    ['WX20-004', 'hand', 2, true, '《赤》×1《無》×3', '《無》×2'],
+    ['WX20-007', 'hand', 2, true, '《黒》×1《無》×2', '《無》×1'],
+    ['WD10-006', 'hand', 2, true, '《赤》×2《無》×1', 'なし'],
+    ['WD12-006', 'hand', 1, false, 'なし', 'なし'],
+    ['WD21-008', 'hand', 1, false, 'なし', 'なし'],
+    ['SP38-003', 'hand', 3, true, '《青》×2', 'なし'],
+    ['SPK01-07', 'key', 1, false, '《無》×2', '《無》×2'],
+    ['WX24-P2-002', 'lrig_deck_arts', 1, false, 'なし', 'なし'],
+    ['WX24-P2-004', 'lrig_deck_arts', 1, false, 'なし', 'なし'],
+    ['WX24-P2-006', 'lrig_deck_arts', 1, false, 'なし', 'なし'],
+    ['WX24-P2-008', 'lrig_deck_arts', 1, false, 'なし', 'なし'],
+    ['WX24-P2-010', 'lrig_deck_arts', 1, false, 'なし', 'なし'],
+    ['WX24-P3-002', 'hand', Infinity, true, '《白》×3', 'なし'],
+    ['WX24-P3-004', 'life_cloth', 1, false, '《赤》×4', '《赤》×4'],
+    ['WX24-P3-006', 'hand', 3, true, '《青》×4', '《青》×2'],
+    ['WX24-P3-008', 'hand', 3, true, '《緑》×3', '《緑》×1'],
+    ['WX25-P2-002', 'lrig_deck_arts', 1, false, '《白》×1《無》×1', '《白》×1《無》×1'],
+    ['WX25-P2-004', 'lrig_deck_arts', 1, false, '《赤》×1《無》×2', '《赤》×1《無》×2'],
+    ['WX25-P2-006', 'lrig_deck_arts', 1, false, '《青》×1《無》×1', '《青》×1《無》×1'],
+    ['WX25-P2-008', 'lrig_deck_arts', 1, false, '《緑》×1', '《緑》×1'],
+    ['WX25-P2-010', 'lrig_deck_arts', 1, false, '《黒》×1', '《黒》×1'],
+  ];
+  eq(expected.length, 31, '母集団は31枚');
+  for (const [num, source, max, perUnit, afterOne, afterMax] of expected) {
+    const card = cardMap.get(num)!;
+    const spec = parseUseTimeCostReduction(card.EffectText ?? '');
+    ok(!!spec, `${num}: 読める`);
+    if (!spec) continue;
+    eq(spec.source, source, `${num}: 支払い元`);
+    eq(spec.max, max, `${num}: 上限枚数`);
+    eq(spec.perUnit, perUnit, `${num}: 枚数比例か`);
+    eq(applyUseTimeCostReduction(card.Cost, spec, 1), afterOne, `${num}: 1枚払った後`);
+    eq(applyUseTimeCostReduction(card.Cost, spec, max === Infinity ? 3 : max), afterMax, `${num}: 上限まで払った後`);
+    eq(applyUseTimeCostReduction(card.Cost, spec, 0), card.Cost, `${num}: 0枚なら印刷コスト据え置き`);
+  }
+});
+
+test('use-time cost reduction: 31枚の解決中の支払いステップが live JSON から落ちている', () => {
+  // ⚠これが本体の是正＝engine の先頭ステップは**実装済みで実際に払わせる**ので、
+  //   従来は「使用時に払える機会が無いまま解決中に払わされ、しかも軽減マーカーは no-op で一度も安くならない」。
+  //   さらに OPTIONAL_COST 頭は Pattern⑤ の「skip→残りステップをスキップ」に当たり、断ると本体が丸ごと不発。
+  const PAY_STEP = /"(OPTIONAL_COST|DOWN_UP_SIGNI_AND_CHOOSE|OPTIONAL_DISCARD_CLASS_SIGNI|ARTS_USE_DISCARD_COLOR_HAND|ARTS_USE_DISCARD_LRIG_DECK|TRASH_OWN_KEY_OPTIONAL)"/;
+  const NUMS = ['WX06-024', 'WX07-024', 'WX07-026', 'WX07-028', 'WX07-030', 'WX07-032',
+    'WX11-044', 'WX12-032', 'WX13-025', 'WX20-003', 'WX20-004', 'WX20-007', 'WD10-006', 'WD12-006',
+    'WD21-008', 'SP38-003', 'SPK01-07', 'WX24-P2-002', 'WX24-P2-004', 'WX24-P2-006', 'WX24-P2-008',
+    'WX24-P2-010', 'WX24-P3-002', 'WX24-P3-004', 'WX24-P3-006', 'WX24-P3-008',
+    'WX25-P2-002', 'WX25-P2-004', 'WX25-P2-006', 'WX25-P2-008', 'WX25-P2-010'];
+  eq(NUMS.length, 31, '対象は31枚');
+  for (const num of NUMS) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectType === 'ACTIVATED');
+    ok(!!e, `${num}: live に ACTIVATED がある`);
+    if (!e) continue;
+    const steps = e.action.type === 'SEQUENCE' ? e.action.steps : [e.action];
+    ok(!PAY_STEP.test(JSON.stringify(steps[0])), `${num}: 先頭に解決中の支払いステップを残さない`);
+    ok(steps.length >= 2, `${num}: 支払いの後ろの本体ステップが残っている（Pattern⑤ で丸ごと飛ばない）`);
+  }
+  // ⚠場のシグニ払いの2枚は**据え置き**＝使用時UIが無いので落とすと支払いの機会ごと消える。
+  for (const num of ['WX24-P3-010', 'WX25-P1-110']) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectType === 'ACTIVATED')!;
+    const steps = e.action.type === 'SEQUENCE' ? e.action.steps : [e.action];
+    const head = JSON.stringify(steps[0]);
+    ok(/OPTIONAL_COST|"TRASH"/.test(head), `${num}: 先頭の支払いステップは据え置き（未実装につき触らない）`);
+  }
+});
+
+test('use-time cost reduction: 隣接する5枚は読まない（別機構・別意味）', () => {
+  for (const [num, why] of [
+    ['WX15-067', 'ウィルス除去＝applyMeltFactPreUseCost が既に担当'],
+    ['WDK15-007', 'ベット由来の「減る」＝支払い元はコインでベット枝が担当'],
+    ['SPK06-01', '「追加で支払ってもよい」＝増額。末尾の「減る」は別カードのコイン技の話'],
+    ['WX24-P3-010', '支払い元が場のシグニ（トラッシュ）＝場スタック/離場トリガーが要る（未実装）'],
+    ['WX25-P1-110', '同上（場のシグニをトラッシュ）'],
+  ] as [string, string][]) {
+    ok(parseUseTimeCostReduction(cardMap.get(num)!.EffectText ?? '') === null, `${num}: 読まない（${why}）`);
+  }
+});
+
+test('use-time cost reduction: 固定形はちょうどN枚でだけ効く／候補は原文フィルタで絞る', () => {
+  const field = { signi: [[], [], []], lrig: [], signi_down: [false, false, false] } as unknown as PlayerState['field'];
+  const dokuga = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('毒牙')).slice(0, 2);
+  eq(dokuga.length, 2, '＜毒牙＞のシグニが2枚見つかる');
+  const other = [...cardMap.values()].find(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('毒牙'))!;
+  const my13 = { field, hand: [dokuga[0].CardNum, other.CardNum, dokuga[1].CardNum], trash: [] as string[] } as unknown as PlayerState;
+  const spec13 = parseUseTimeCostReduction(cardMap.get('WX13-025')!.EffectText ?? '')!;
+  const cands13 = useTimeCostCandidates(spec13, my13, cardMap);
+  eq(cands13.length, 2, '＜毒牙＞以外は候補に出さない');
+  eq(JSON.stringify(cands13.map(c => c.key)), JSON.stringify(['h:0', 'h:2']), '候補は手札 index キー');
+  ok(useTimeCostSelectionValid(spec13, new Set(['h:0']), 2), '比例形は1枚でも成立');
+  const spec03 = parseUseTimeCostReduction(cardMap.get('WX20-003')!.EffectText ?? '')!;
+  ok(useTimeCostSelectionValid(spec03, new Set(), 3), '固定形も「支払わない」は成立');
+  ok(useTimeCostSelectionValid(spec03, new Set(['h:0']), 3), '固定形はちょうど1枚で成立');
+  ok(!useTimeCostSelectionValid(spec03, new Set(['h:0', 'h:1']), 3), '固定形は上限超えを認めない');
+  const spec44 = parseUseTimeCostReduction(cardMap.get('WX11-044')!.EffectText ?? '')!;
+  ok(!useTimeCostSelectionValid(spec44, new Set(['h:0', 'h:1']), 5), '3枚形は2枚では成立しない');
+  ok(useTimeCostSelectionValid(spec44, new Set(['h:0', 'h:1', 'h:2']), 5), '3枚そろえば成立');
+  eq(applyUseTimeCostReduction('《青》×3', spec44, 2), '《青》×3', '半端な支払いでは軽減しない');
+});
+
+test('use-time cost reduction: 支払いが各ゾーンを正しく動かす（手札/ダウン/ルリグデッキ/ライフ/キー）', () => {
+  const emptyField = { signi: [[], [], []], lrig: [], signi_down: [false, false, false] } as unknown as PlayerState['field'];
+  const spec13 = parseUseTimeCostReduction(cardMap.get('WX13-025')!.EffectText ?? '')!;
+  const myHand = { field: emptyField, hand: ['A', 'B', 'C'], trash: ['T'] } as unknown as PlayerState;
+  const r1 = payUseTimeCost(myHand, spec13, new Set(['h:0', 'h:2']), cardMap);
+  eq(JSON.stringify(r1.state.hand), JSON.stringify(['B']), '選んだ手札だけ抜ける');
+  eq(JSON.stringify(r1.state.trash), JSON.stringify(['T', 'A', 'C']), '捨てた分がトラッシュへ');
+  eq(r1.state.turn_hand_discarded_count, 2, '手札を捨てた枚数を加算');
+  eq(r1.paidCount, 2, '支払い枚数');
+  const spec24 = parseUseTimeCostReduction(cardMap.get('WX07-024')!.EffectText ?? '')!;
+  const uchu = [...cardMap.values()].find(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙'))!;
+  const myField = { field: { signi: [[uchu.CardNum], [uchu.CardNum], []], lrig: [], signi_down: [false, false, true] } } as unknown as PlayerState;
+  const cands24 = useTimeCostCandidates(spec24, myField, cardMap);
+  eq(cands24.length, 2, 'アップ状態の＜宇宙＞2体だけが候補（空ゾーンは出ない）');
+  const r2 = payUseTimeCost(myField, spec24, new Set(['z:0']), cardMap);
+  eq(JSON.stringify(r2.state.field.signi_down), JSON.stringify([true, false, true]), '選んだゾーンだけダウン');
+  const spec02 = parseUseTimeCostReduction(cardMap.get('WX24-P2-002')!.EffectText ?? '')!;
+  const whiteArts = [...cardMap.values()].find(c => c.Type === 'アーツ' && (c.Color ?? '').includes('白'))!;
+  const blackArts = [...cardMap.values()].find(c => c.Type === 'アーツ' && !(c.Color ?? '').includes('白'))!;
+  const myLrig = { field: emptyField, lrig_deck: [whiteArts.CardNum, blackArts.CardNum], lrig_trash: [] as string[] } as unknown as PlayerState;
+  const candsL = useTimeCostCandidates(spec02, myLrig, cardMap);
+  eq(candsL.length, 1, '白のアーツだけが候補（色指定を効かせる）');
+  const r3 = payUseTimeCost(myLrig, spec02, new Set([candsL[0].key]), cardMap);
+  eq(JSON.stringify(r3.state.lrig_deck), JSON.stringify([blackArts.CardNum]), 'ルリグデッキから抜ける');
+  eq(JSON.stringify(r3.state.lrig_trash), JSON.stringify([whiteArts.CardNum]), 'ルリグトラッシュへ');
+  const spec04 = parseUseTimeCostReduction(cardMap.get('WX24-P3-004')!.EffectText ?? '')!;
+  const myLife = { field: emptyField, life_cloth: ['L1', 'L2'], trash: [] as string[] } as unknown as PlayerState;
+  const r4 = payUseTimeCost(myLife, spec04, new Set(['c:0']), cardMap);
+  eq(JSON.stringify(r4.state.life_cloth), JSON.stringify(['L2']), 'ライフクロスが1枚減る');
+  eq(JSON.stringify(r4.state.trash), JSON.stringify(['L1']), 'トラッシュへ');
+  const specKey = parseUseTimeCostReduction(cardMap.get('SPK01-07')!.EffectText ?? '')!;
+  const myKey = { field: { ...emptyField, key_piece: 'K1', key_piece_extra: ['K2'] }, lrig_trash: [] as string[] } as unknown as PlayerState;
+  eq(useTimeCostCandidates(specKey, myKey, cardMap).length, 2, '本体キーと追加キーの両方が候補');
+  const r5 = payUseTimeCost(myKey, specKey, new Set(['k:0']), cardMap);
+  eq(r5.state.field.key_piece, null, '本体キーが場から外れる');
+  eq(JSON.stringify(r5.state.lrig_trash), JSON.stringify(['K1']), 'ルリグトラッシュへ');
+});
+
 test('cost replacement: 「使用コストは《X》になる」 replaces the printed cost under its condition', () => {
   const emptyField = { signi: [[], [], []], lrig: [] } as unknown as PlayerState['field'];
   const my = { field: emptyField, trash: [] as string[] };
@@ -22074,14 +22232,14 @@ test('task12(lxxxii) 第2波: 任意支払いと条件付きコスト減の後�
     const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === `${cardNum}-E1`)!;
     eq(effect.action.type, 'SEQUENCE', `${cardNum}: 支払い・コスト減・CHOOSEのSEQUENCE`);
     if (effect.action.type !== 'SEQUENCE') continue;
-    eq(effect.action.steps.length, 3, `${cardNum}: 前置2 stepとCHOOSEだけを保持`);
-    const [payment, reduction, choose] = effect.action.steps;
-    if (cardNum === 'SPK01-07') {
-      ok(payment.type === 'STUB' && payment.id === 'TRASH_OWN_KEY_OPTIONAL', `${cardNum}: 任意キー支払いを保持`);
-    } else {
-      ok(payment.type === 'TRASH' && payment.target.type === 'HAND_CARD' && payment.optional === true,
-        `${cardNum}: 任意手札支払いを保持`);
-    }
+    // ⚠タスク12(lxxxv)：任意支払いステップは**使用時**（`useTimeCost.ts` ＋ ArtsModal）へ移したので
+    //   解決中の前置は「そうした場合の慣例包み（コスト減 marker）」1本だけになる。
+    eq(effect.action.steps.length, 2, `${cardNum}: コスト減marketとCHOOSEだけを保持`);
+    const [reduction, choose] = effect.action.steps;
+    ok(!JSON.stringify(effect.action.steps).includes('TRASH_OWN_KEY_OPTIONAL'),
+      `${cardNum}: 解決中の任意キー支払いは残さない`);
+    ok(!(reduction.type === 'TRASH' && reduction.target?.type === 'HAND_CARD'),
+      `${cardNum}: 解決中の任意手札支払いは残さない`);
     ok(reduction.type === 'CONDITIONAL'
       && reduction.condition.type === 'IS_MY_TURN'
       && reduction.then.type === 'STUB'

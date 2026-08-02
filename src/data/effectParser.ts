@@ -9248,6 +9248,8 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   } else {
     action = parseActionText(condition ? cleaned : stripped);
   }
+  // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払いは使用時UIが行うので解決中の重複ステップを落とす。
+  action = stripUseTimeCostReductionStep(action, stripped);
   // ブースト後半の「それ」は直前に対象とした同じシグニを指す。文分割後の既定 owner:self を
   // 直前対象へ戻す（WX25-P1-002）。選択UI上は同一対象の再選択になるが owner/filter は保持する。
   if (/^ブースト[―─]/.test(card.EffectText) && action.type === 'SEQUENCE') {
@@ -9326,11 +9328,52 @@ function stripUseTimeOptionalCostStep(action: EffectAction, text: string): Effec
   return { ...seq, steps: seq.steps.slice(1) };
 }
 
+/**
+ * 「この{スペル|アーツ}を使用する際、…してもよい。そうした場合、使用コストは《X》**減る**」（タスク12(lxxxv)）の
+ * **支払いステップ**を action の先頭から落とす。支払いとコスト軽減は**使用時**に
+ * `src/screens/battle/useTimeCost.ts` ＋ `SpellCastModal` / `ArtsModal` が担当する。
+ *
+ * 落とさないと二重取りになる＝これらの先頭ステップは engine に**実装済みで実際に払わせる**のに、
+ * 軽減側（`ARTS_COST_REDUCTION_BY_EFFECT`）は no-op マーカーなので**一度も安くならない**。
+ * さらに `OPTIONAL_COST` 頭は Pattern⑤ の「skip→残りステップをスキップ」に当たり、
+ * 支払いを断ると**本体が丸ごと不発**になる（(lxxxi) 残テールで是正したのと同じ罠）。
+ *
+ * ⚠**支払い元が場のシグニの形（`WX24-P3-010`／`WX25-P1-110`）は対象外**＝使用時支払いUIを持たないので、
+ *   落とすと支払いの機会ごと消える。下の先頭句リストが「使用時UIを実装した4種のみ」であることが唯一のゲート。
+ */
+const USE_TIME_COST_PAY_STUBS = new Set([
+  'OPTIONAL_COST',                  // WX11-044 / WX12-032 / WX24-P3-002 / WX24-P3-008 / WX24-P3-004
+  'DOWN_UP_SIGNI_AND_CHOOSE',       // WX06-024 / WX07-024 / WX07-026 / WX07-028 / WX07-030 / WX07-032
+  'OPTIONAL_DISCARD_CLASS_SIGNI',   // WX13-025 / WX20-004 / WX20-007 / WD10-006
+  'ARTS_USE_DISCARD_COLOR_HAND',    // SP38-003 / WX24-P3-006
+  'ARTS_USE_DISCARD_LRIG_DECK',     // WX24-P2-* / WX25-P2-*（各5枚）
+  'TRASH_OWN_KEY_OPTIONAL',         // SPK01-07
+]);
+
+function stripUseTimeCostReductionStep(action: EffectAction, text: string): EffectAction {
+  // 使用時UIを持つ支払い元の先頭句だけを許す（場のシグニ由来は含めない）。
+  const isUseTimeReduction =
+    /この(?:スペル|アーツ|カード)を使用する際[、,](?:手札から|あなたのアップ状態の|あなたのルリグデッキから|あなたのライフクロス[１1]枚|あなたのキー[１1]枚)/.test(text)
+    && /使用コストは[^。]*減る/.test(text);
+  if (!isUseTimeReduction || action.type !== 'SEQUENCE') return action;
+  const seq = action as SequenceAction;
+  const first = seq.steps[0];
+  if (!first) return action;
+  const isPayStub = first.type === 'STUB'
+    && USE_TIME_COST_PAY_STUBS.has((first as import('../types/effects').StubAction).id);
+  // 手札捨ては素の TRASH{HAND_CARD} に落ちる形もある（WX20-003 / WD12-006 / WD21-008）。
+  const isHandTrash = first.type === 'TRASH'
+    && (first as import('../types/effects').TrashAction).target?.type === 'HAND_CARD';
+  if (!isPayStub && !isHandTrash) return action;
+  return { ...seq, steps: seq.steps.slice(1) };
+}
+
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   const stripped = stripRuleParens(card.EffectText);
   const { cleaned, condition } = extractUseCondition(stripped);
-  const action = stripUseTimeOptionalCostStep(parseActionText(condition ? cleaned : stripped), stripped);
+  const action = stripUseTimeCostReductionStep(
+    stripUseTimeOptionalCostStep(parseActionText(condition ? cleaned : stripped), stripped), stripped);
   const spellFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';

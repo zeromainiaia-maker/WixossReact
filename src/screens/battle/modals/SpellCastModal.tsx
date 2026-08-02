@@ -5,6 +5,8 @@ import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
+import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import type { BattleModalCtx } from './types';
 import type { PendingSpellCast } from '../hooks/useSpellCast';
 
@@ -16,19 +18,21 @@ interface SpellCastModalProps {
   setSelectedSpellCost: Dispatch<SetStateAction<Set<number>>>;
   selectedSpellDiscard: Set<number>;
   setSelectedSpellDiscard: Dispatch<SetStateAction<Set<number>>>;
+  selectedSpellUseCostPay: Set<string>;
+  setSelectedSpellUseCostPay: Dispatch<SetStateAction<Set<string>>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
   toggleSpellCostCard: (idx: number) => void;
-  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number, virusRemovalByZone?: number[], discardIndices?: Set<number>) => void;
+  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number, virusRemovalByZone?: number[], discardIndices?: Set<number>, useCostPayKeys?: Set<string>) => void;
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
   const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
+  const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
       {pendingSpellCast && createPortal(
-        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setSelectedSpellDiscard(new Set()); setBetAmount(0); }}
+        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setSelectedSpellDiscard(new Set()); setSelectedSpellUseCostPay(new Set()); setBetAmount(0); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -58,6 +62,16 @@ export function SpellCastModal(p: SpellCastModalProps) {
                 ? (pendingSpellCast.virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0)
                 : 0;
               effSpellCost = applyMeltFactPreUseCost(spellCard.CardNum, effSpellCost, pendingSpellCast.virusRemovalByZone);
+              // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
+              const useCostSpec = parseUseTimeCostReduction(spellCard.EffectText ?? '');
+              const useCostCands = useCostSpec
+                ? useTimeCostCandidates(useCostSpec, my, battleCardMap, pendingSpellCast.handIndex) : [];
+              const useCostBefore = effSpellCost;
+              const useCostIncomplete = !!useCostSpec && selectedSpellUseCostPay.size > 0
+                && !useTimeCostSelectionValid(useCostSpec, selectedSpellUseCostPay, useCostCands.length);
+              if (useCostSpec) {
+                effSpellCost = applyUseTimeCostReduction(effSpellCost, useCostSpec, selectedSpellUseCostPay.size);
+              }
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
@@ -78,7 +92,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setBetAmount(0); }}
+                    <button onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setSelectedSpellUseCostPay(new Set()); setBetAmount(0); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← キャンセル
@@ -184,6 +198,13 @@ export function SpellCastModal(p: SpellCastModalProps) {
                       )}
                     </div>
                   )}
+                  {useCostSpec && (
+                    <UseCostPaymentPanel spec={useCostSpec} candidates={useCostCands}
+                      selected={selectedSpellUseCostPay} setSelected={setSelectedSpellUseCostPay}
+                      onChange={() => setSelectedSpellCost(new Set())}
+                      cardMap={battleCardMap} costBefore={useCostBefore} costAfter={effSpellCost}
+                      incomplete={useCostIncomplete} />
+                  )}
                   {totalReq > 0 && (
                     <>
                       <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
@@ -276,7 +297,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                     );
                   })()}
                   {/* ⚠支払いが揃っていない選択は**捨てない**（コストも置換されていない）＝半端な支払いで手札を失わせない */}
-                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount, pendingSpellCast.virusRemovalByZone, optDiscardPaid ? selectedSpellDiscard : new Set())}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount, pendingSpellCast.virusRemovalByZone, optDiscardPaid ? selectedSpellDiscard : new Set(), useCostIncomplete ? new Set() : selectedSpellUseCostPay)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.accent : C.disabled,

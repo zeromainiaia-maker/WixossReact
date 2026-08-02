@@ -5,6 +5,8 @@ import type { CardData } from '../../../types';
 import { splitColors } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna } from '../costs';
+import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
+import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import type { BattleModalCtx } from './types';
 
 interface ArtsModalProps {
@@ -19,6 +21,8 @@ interface ArtsModalProps {
   setSelectedArtsCost: Dispatch<SetStateAction<Set<number>>>;
   selectedArtsDiscard: Set<number>;
   setSelectedArtsDiscard: Dispatch<SetStateAction<Set<number>>>;
+  selectedArtsUseCostPay: Set<string>;
+  setSelectedArtsUseCostPay: Dispatch<SetStateAction<Set<string>>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
   isBoosting: boolean;
@@ -28,17 +32,17 @@ interface ArtsModalProps {
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
   artsCandidates: CardData[];
-  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean) => void;
+  executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean, useCostPayKeys?: Set<string>) => void;
   toggleArtsCostCard: (idx: number) => void;
 }
 
 export function ArtsModal(p: ArtsModalProps) {
   const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
+  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
   return (
     <>
       {showArtsModal && createPortal(
-        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
+        <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setSelectedArtsUseCostPay(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -78,9 +82,17 @@ export function ArtsModal(p: ArtsModalProps) {
                     const betCost = betPossibleHere
                       ? computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
                       : null;
+                    // 使用時の任意支払いによる軽減（タスク12(lxxxv)）も同じ理由で使用可否に加える＝
+                    // 支払いは Phase2 なので、一覧で印刷コストだけを見ると《白》×3→なしの札に到達できない。
+                    const useCostSpecHere = parseUseTimeCostReduction(card.EffectText ?? '');
+                    const useCostMaxHere = useCostSpecHere
+                      ? Math.min(useCostSpecHere.max, useTimeCostCandidates(useCostSpecHere, my, battleCardMap).length) : 0;
+                    const useCostMinCost = useCostSpecHere && useCostMaxHere > 0
+                      ? applyUseTimeCostReduction(effCost, useCostSpecHere, useCostMaxHere) : null;
                     const canAfford =
                       canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
-                      (betCost !== null && canAffordWithExtraCost(my.energy, battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                      (betCost !== null && canAffordWithExtraCost(my.energy, battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)) ||
+                      (useCostMinCost !== null && canAffordWithExtraCost(my.energy, battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
                       : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
@@ -140,6 +152,9 @@ export function ArtsModal(p: ArtsModalProps) {
                           {canAfford && betCost !== null && (
                             <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>ベット宣言でコスト → {betCost}</p>
                           )}
+                          {canAfford && useCostMinCost !== null && useCostMinCost !== effCost && (
+                            <p style={{ color: '#88ffaa', fontSize: 10, margin: '2px 0 0' }}>使用時の任意支払いでコスト → {useCostMinCost}</p>
+                          )}
                         </div>
                       </button>
                     );
@@ -170,7 +185,15 @@ export function ArtsModal(p: ArtsModalProps) {
               const effectiveCost = hasColorlessRestriction && centerColorForRestr
                 ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
                 : rawEffectiveCost;
-              const costItems = parseGrowCost(effectiveCost);
+              // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
+              const useCostSpec = parseUseTimeCostReduction(pendingArtsCard.EffectText ?? '');
+              const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
+              const useCostBefore = effectiveCost;
+              const useCostIncomplete = !!useCostSpec && selectedArtsUseCostPay.size > 0
+                && !useTimeCostSelectionValid(useCostSpec, selectedArtsUseCostPay, useCostCands.length);
+              const effectiveCostAfterPay = useCostSpec
+                ? applyUseTimeCostReduction(effectiveCost, useCostSpec, selectedArtsUseCostPay.size) : effectiveCost;
+              const costItems = parseGrowCost(effectiveCostAfterPay);
               const encoreCostForCard = parseEncoreCost(pendingArtsCard.EffectText ?? '');
               const encoreExtraEna: { color: string; count: number }[] = encoreCostForCard?.energy ?? [];
               const boostCostForCard = parseBoostCost(pendingArtsCard.EffectText ?? '');
@@ -188,7 +211,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCost, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);
@@ -211,7 +234,7 @@ export function ArtsModal(p: ArtsModalProps) {
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
+                    <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setSelectedArtsUseCostPay(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← 戻る
@@ -229,7 +252,7 @@ export function ArtsModal(p: ArtsModalProps) {
                         {pendingArtsCard.CardName}
                       </p>
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
-                        コスト: {effectiveCost}{betReplacedCost !== null && <span style={{ color: C.coin }}>（ベット）</span>}
+                        コスト: {effectiveCostAfterPay}{betReplacedCost !== null && <span style={{ color: C.coin }}>（ベット）</span>}
                       </p>
                     </div>
                   </div>
@@ -310,6 +333,13 @@ export function ArtsModal(p: ArtsModalProps) {
                         color: C.text, fontSize: 11, cursor: 'pointer', textAlign: 'left' }}>
                       {keySubstituteEnabled ? '✓ ' : ''}キー代替: {battleCardMap.get(myEnergyTrashSubInfo.keySubInstId)?.CardName ?? 'キー'} をルリグTへ (エナ2任意色分)
                     </button>
+                  )}
+                  {useCostSpec && (
+                    <UseCostPaymentPanel spec={useCostSpec} candidates={useCostCands}
+                      selected={selectedArtsUseCostPay} setSelected={setSelectedArtsUseCostPay}
+                      onChange={() => setSelectedArtsCost(new Set())}
+                      cardMap={battleCardMap} costBefore={useCostBefore} costAfter={effectiveCostAfterPay}
+                      incomplete={useCostIncomplete} />
                   )}
                   <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
                     エナから選択: {selectedArtsCost.size} / {totalReq}枚
@@ -413,7 +443,7 @@ export function ArtsModal(p: ArtsModalProps) {
                       </div>
                     </>
                   )}
-                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting)}
+                  <button onClick={() => executeArts(pendingArtsCard, selectedArtsCost, betAmount, isEncore, selectedArtsDiscard, keySubstituteEnabled, isBoosting, useCostIncomplete ? new Set() : selectedArtsUseCostPay)}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? (isEncore ? '#3377bb' : C.coin) : C.disabled,
