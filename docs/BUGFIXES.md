@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-03 — §3 タスク14 第2弾（第6・7バッチ）：**(c) spread 系 完全消化**＋直前フラグ watcher 5本の純粋化（reducer 経由 102→114／未移行 15→3・action 17→18・golden 1326→1329・全ゲート緑）（Opus 5）
+
+**第6バッチ（6箇所）＝PLAN が「次の一手」に挙げていたアーツ/レゾナ召喚の spread 系 + 取りこぼし2件**：
+
+- **`apsUpdate`（CPU の MAIN→ATTACK_ARTS 移行）** → `SET_TURN_PHASE` に**任意の1プレイヤー状態＋`effectStack`** を持たせて移行。
+  旧 `{ turn_phase:'ATTACK_ARTS', ...huUpdate }` の `huUpdate` は「ハスターリク発動時のみ人間側の予約ゾーンをクリア」＝
+  **条件付きキー**なので、`state: huWrite`（undefined＝書かない）でキー集合ごと再現した。
+  `ADVANCE_TURN_WITH_STATE` との違いは**状態書き込みが任意**な点（フェイズだけ進める場合がある）。
+- **レゾナのスペルカットイン応答 2箇所** → `WRITE_STATE` に `markCutinResponseComplete` を追加。
+  旧 `resonaSpellCutin ? { ...update, pending_spell:{ ...bs.pending_spell!, cutin_response_complete:true } } : update` の
+  三項＝**reduceBattle の戻り値を後乗せで書き換える**形だった。`pending_spell` を土台にするので**盤面依存 action**
+  （`bs` を読む3つ目）として reducer 内へ。golden で「既存フィールド温存」「盤面側を書き換えない（純粋）」も固定。
+- **`queueCardEffects` の `extraUpdate: Record<string, unknown>`** → 実引数を数えたら `{}` 2件と `{[opKey]: opState}` 1件
+  （【ライフバースト】の usage 消費）だけ＝`opp?: {key,state}` に狭めて `WRITE_STATE` へ合流。**型検査の効かない
+  何でも入るパッチ引数が1つ消えた**。
+- **対人じゃんけんの取りこぼし2件**（提出／解決）＝CPU 経路だけ移行済みで手書きが残っていた
+  → `SUBMIT_JANKEN` / `RESOLVE_JANKEN`（定形6）。
+
+**第7バッチ（5箇所）＝直前フラグ watcher の `const update: Record<string, unknown> = {}` 命令的構築**
+（`hand_revealed_just`/`hand_discarded_just`・`opp_virus_*_just`・`zone_moved_just`・`drive_became_just`・`beat_became_just`）を
+**新 action `WRITE_STATES`**（プレイヤー状態を**0〜2件**＋任意 `effectStack`）で純粋化。
+
+> **一見 (a) の可変アキュムレータに見えるが、読み戻しが死んでいた**＝`applyState` の
+> `...(update[key] as PlayerState ?? base)` は**各キーにつき1回しか呼ばれない**ため常に `base` に落ちる。
+> 「そのキーは何度書かれうるか」を数えて (a) ではないと確定してから移した（定形5の系＝定形7として追記）。
+> CPU 戦で人間(host)＋CPU(guest) 両方のフラグを1パッチでクリアする経路も、キー集合・上書き順ごと維持している。
+
+副次収穫＝`Record<string, unknown>` を `Partial<Record<PlayerStateKey, PlayerState>>` に置き換えたことで、
+ヘルパー引数（`stateKey: string` → `PlayerStateKey`）まで型が伝播した（定形4・8）。
+
+**残＝3 commit のみ（117箇所中）＝全部 (a) の可変アキュムレータ**＝`doPhaseAdvance` ／ `resolveStackNext` の
+CPUターン強制終了（`Object.assign`）／効果解決結果の後乗せ（`'host_state' in update` の読み戻し）。
+**フェイズ別ハンドラ分割という別作業**なので着手時に scope を切り直す。
+
+ゲート＝typecheck/golden(**1329** PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(error 0・warning 240 据置) 全緑。
+**parser/effects JSON は完全不変**（BattleScreen 構造のみ）。⚠**ハンドラ側 payload 構築は golden 非カバー＝要実機検証**。
+
 ## 2026-08-03 — §3 タスク14 第5バッチ：**(b) 完全消化**＋セットアップ系の取りこぼし回収（reducer 経由 95→102／未移行 22→15・action 16→17・golden 1325→1326・全ゲート緑）（Opus 5）
 
 **⚠ 移行前に `RESOLVE_EFFECT_STEP` の適用順バグを是正した（退化を未然に防いだ）。**

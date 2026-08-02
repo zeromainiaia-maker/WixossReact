@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-03・続き332・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝§3 タスク14（Stage3 純粋バトルコントローラ）を5バッチ・31箇所前進**（ユーザー指示「Claude が少しずつ行って」→「続ける」×4）。**reducer 経由 72/117 → 102/117（未移行 45→15）／action 14→17／golden 1317→1326。差し戻し0・全バッチ全ゲート緑。**
+  - **消化の内訳**＝**第1〜2バッチ（14箇所）** 条件付きキーの payload 化＋`ADVANCE_TURN_WITH_STATE` 拡張＋新 `BEGIN_NEXT_TURN`／**第3バッチ（5箇所）** **(a) の `confirmEndDiscard` を撃破**（`const update` 変数ごと消滅）／**第4〜5バッチ（12箇所）** 新 `RESOLVE_EFFECT_STEP` で **(b) を残0消化**＋セットアップ系5箇所の取りこぼし回収＋新 `RESOLVE_JANKEN`。
+  - **🔴 第5バッチで退化を1件、投入前に未然阻止**＝第4バッチで作った `RESOLVE_EFFECT_STEP` は `effectStack`→`settle` の順で適用していたが、**旧ハンドラは逆順**（`done` で settle→null した後に「盤面差分トリガーがあれば新スタックを書く」で上書き）。そのまま `resolveStackNext` 系を移すと**「完了×スタック解決済み×盤面差分で新トリガー発火」のとき新スタックが settle の null に潰され、発火した効果が消える**。⇒ reducer を「settle → `effectStack` が上書き」へ是正し golden で2分岐を固定。**既に移行済みの4箇所は settle のみ／effectStack のみで両立しないため無影響だった**＝**移す前に「このキーは何回書かれるか」を数えるべし**（定形5として BATTLE_CONTROLLER.md に登録）。
+  - **⚠ reducer が盤面を読む初のケースが2つ出た**＝`BEGIN_NEXT_TURN`（`turn_count: bs.turn_count + 1`）と `RESOLVE_EFFECT_STEP`（`settleStackOnDone` が `bs.effect_stack` の解決判定を読む）。それまで全 action は payload 完結で第1引数 `_bs` が未使用だった＝**「現在盤面から次パッチを求める」契約が実体を持った**ので `_bs`→`bs` にリネーム。
+  - **⚠ 型検査の穴を1件検出**＝computed key `{ [opStateKey]: … }` は**書き込み先カラムの型検査が効かない**（`string` に widening）。`PlayerStateKey` を要求する payload へ移した瞬間に TS2322 で発覚＝**reducer 経由化そのものの実利**。
+  - **確立した定形6つ**（BATTLE_CONTROLLER.md §3 に登録）＝①条件付きキーは `opp: undefined`/`effectStack: undefined` で表す（**undefined＝不干渉・null＝明示クリア**）②**「payload を組んでから書き換える」を「状態を確定してから1回書く」へ反転**③**「代入しないことで表していた据え置き」は optional payload**（追加ターンは `active_user_id` を書かない）④computed key は型検査が効かない⑤同じキーに2度書く旧コードは後勝ち＝順序を再現⑥**reducer に既に action があるのに手書きで残っている取りこぼしを探す**（`isHost ? {host_…} : {guest_…}` の三項が目印＝第5バッチのセットアップ系5箇所）。
+
 - **セッション（2026-08-02・続き331・Opus 5〔**Claude 単独：再スキャン・実装・検証・簿記**〕）＝タスク12**(lxxxii) **第6波＝在庫を再オープンして再クローズ**。⚠**第5波の「残0クローズ」は誤りだった**（判定が「別在庫へ移した分」と「held の採用禁止在庫」を数えていなかった）＝**母集団を全数再スキャンして残件を確定**し、**計44効果を是正**。**最大の収穫＝系統バグ**：`buildChoose` が全呼び出し元で「Mつ**まで**選ぶ」の「まで」を捨て、**live 38効果が `upTo` 欠落＝丁度M個必須に潰れていた**（`ChooseAction.upTo` は型・engine・UI とも完備＝**parser が生成していなかっただけ**。**新語彙0本**）。ほかに **文中CHOOSE救済の前置拡張1件**（`WX20-007-E1`）・**held「採用禁止」5枚が誤判定と判明して採用**（live 側が「選択肢1本に平坦化＝強制実行」で壊れていた）・**採用に伴う過剰実行を1件先に潰した**（`WXK08-003-E1` ③の条件脱落）。golden **1312→1317**、live changed **44**／added 0／removed 0、held **264→259枚**。**差し戻し0**。⚠**golden の否定例1件を差し替え**＝壊れた状態を fixture にしていた（`WX20-007-E1` → `WXK05-005-E1`）。詳細は BUGFIXES 2026-08-02 節。
 
 - **セッション（2026-08-02・続き330・Opus 5〔**codex-work 実装／Claude 指示・検証・簿記**〕）＝タスク12**(lxxxii) 第1〜5波で🏁**残0クローズ**（ユーザー指示「codex-work に(lxxxii)を投げる」→「`WD21-008-E1` も」→「`WXK08-002-E1` も」→「続けて投げる」×2）。**計8効果 是正＋4件が誤登録と判明**＝残10→**0件**。**差し戻し2件**（第2波・第5波）。

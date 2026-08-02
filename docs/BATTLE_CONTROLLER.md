@@ -35,7 +35,7 @@ handler(React) → BattleAction を組む
 | ファイル | 役割 |
 |---|---|
 | `src/screens/battle/controller/persist.ts` | 永続化チョークポイント `useBattlePersist(roomId)`＝`commit(patch)` / `fetchState()` / `remove()`。battle_states への I/O を1点集約。error は `.message` を保持。 |
-| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在17 action（下記）。 |
+| `src/screens/battle/controller/battleController.ts` | 純粋 reducer `reduceBattle(bs, action): Partial<BattleStateRow>`＋`BattleAction` union。網羅性は `never` guard で強制。現在18 action（下記）。 |
 | `scripts/goldenTest.ts` | `Stage3 reduceBattle *` で各遷移を固定。 |
 
 ### ✅ 永続化チョークポイント移行＝完了
@@ -44,18 +44,23 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 
 移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-### reducer 純粋化＝進行中（102/117 commit が reduceBattle 経由）
+### reducer 純粋化＝進行中（114/117 commit が reduceBattle 経由）
 
-現在の `BattleAction`（17種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `RESOLVE_JANKEN` / `SELECT_LRIG` / `COMPLETE_MULLIGAN` / `START_PLAYING` / `WRITE_STATE` / `QUEUE_SPELL` / `FINISH_SPELL` / `FINISH_CUTIN` / `ADVANCE_TURN_WITH_STATE` / `SET_STACK` / `END_GAME` / `BEGIN_NEXT_TURN` / `RESOLVE_EFFECT_STEP`。
+現在の `BattleAction`（18種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `RESOLVE_JANKEN` / `SELECT_LRIG` / `COMPLETE_MULLIGAN` / `START_PLAYING` / `WRITE_STATE` / `WRITE_STATES` / `QUEUE_SPELL` / `FINISH_SPELL` / `FINISH_CUTIN` / `ADVANCE_TURN_WITH_STATE` / `SET_STACK` / `END_GAME` / `BEGIN_NEXT_TURN` / `RESOLVE_EFFECT_STEP`。
 
-> **⚠ 盤面依存ケース（第1引数 `bs` を読む action）は現在2つ**＝`BEGIN_NEXT_TURN`（`turn_count: bs.turn_count + 1`）と
-> `RESOLVE_EFFECT_STEP`（`settleStackOnDone` が `bs.effect_stack` の解決判定を読む）。他は payload 完結。
+> **⚠ 盤面依存ケース（第1引数 `bs` を読む action）は現在3つ**＝`BEGIN_NEXT_TURN`（`turn_count: bs.turn_count + 1`）・
+> `RESOLVE_EFFECT_STEP`（`settleStackOnDone` が `bs.effect_stack` の解決判定を読む）・
+> `WRITE_STATE` の `markCutinResponseComplete`（`bs.pending_spell` を土台に完了印を立てる）。他は payload 完結。
 > **「現在盤面から次パッチを求める」契約の実例**なので、同種（カウンタ加算・現在値からの相対更新・現在値の条件判定）を
 > 移すときはハンドラ側で計算せず reducer に寄せる。
 
-- **単一フィールド遷移**（11箇所）＝setup_phase 1・turn_phase 7・ACK_END 2（CPU自動＋手動 handleEndAck）・じゃんけん1。
+- **単一フィールド遷移**（13箇所）＝setup_phase 1・turn_phase 7・ACK_END 2（CPU自動＋手動 handleEndAck）・じゃんけん2（提出`SUBMIT_JANKEN`／解決`RESOLVE_JANKEN`＝対人経路も移行済み）。
+  `SET_TURN_PHASE` は**任意で1プレイヤー状態＋effect_stack を併記**できる（CPU の MAIN→ATTACK_ARTS＝ハスターリク予約クリア＋
+  ON_ATTACK_PHASE_START スタック。`ADVANCE_TURN_WITH_STATE` との違いは**状態書き込みが任意**な点）。
 - **セットアップ遷移**（3箇所）＝`SELECT_LRIG`（選択ルリグ＋初期状態）・`COMPLETE_MULLIGAN`（確定状態＋完了フラグ）・`START_PLAYING`（`PLAYING`＋setupクリア＋先攻ID）。
-- **`WRITE_STATE`**（51箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`・`effectStack`（null 明示でクリア／省略で不干渉）・`clearPending`。条件付き opp（旧 `...(cond?{[opK]:x}:{})`）は `opp: cond ? {...} : undefined` として payload 側で表現。
+- **`WRITE_STATE`**（54箇所）＝プレイヤー状態書き込みを集約。payload＝`myKey`/`myState`＋任意で `opp:{key,state}`・`effectStack`（null 明示でクリア／省略で不干渉）・`clearPending`・`markCutinResponseComplete`。条件付き opp（旧 `...(cond?{[opK]:x}:{})`）は `opp: cond ? {...} : undefined` として payload 側で表現。
+  `markCutinResponseComplete`＝レゾナのスペルカットイン応答（旧 `resonaSpellCutin ? {...update, pending_spell:{...bs.pending_spell!, cutin_response_complete:true}} : update` の三項）＝**盤面の `pending_spell` を土台に完了印だけ立てる**ので reducer 側で読む。
+- **`WRITE_STATES`**（5箇所）＝**プレイヤー状態を0〜2件**書く（＋任意 `effectStack`）。直前フラグ watcher（`hand_revealed_just`/`hand_discarded_just`・`opp_virus_*_just`・`zone_moved_just`・`drive_became_just`・`beat_became_just`）＝「どちら側を書くかが実行時に決まる」形で、旧 `const update: Record<string, unknown> = {}` へ条件付きにキーを足す命令的構築だった。`WRITE_STATE` と違い**両方の状態が任意**。
 - **スペル／カットイン遷移**（5箇所）＝`QUEUE_SPELL` 1（非null `pending_spell` をセット）・`FINISH_SPELL` 2（caster／任意の相手状態＋`pending_spell`/`pending_effect` を両方クリア）・`FINISH_CUTIN` 2（使用者／任意のcaster状態＋`pending_spell` のみクリア）。null と省略の差を action ごとに固定。
 - **`ADVANCE_TURN_WITH_STATE`**（2箇所）＝CPUのUP処理済み状態と `turn_phase:'DRAW'` を原子的に書く／CPU GROW 開始（`opp?`＋`effectStack?` で ON_GROW_PHASE_START の相手 usage とスタックを併記）。
 - **`RESOLVE_EFFECT_STEP`**（6箇所）＝engine の `ExecResult` を受ける `resume*` ハンドラの共通形＝両者の盤面＋`pending_effect` の継続（非null）／完了（null）。optional で `clearPendingSpell`（スペル・カットイン解決）・`effectStack`（解決中に積まれたトリガー）・`settleStackOnDone`（**完了時かつ解決済みのみ** スタックを null）。
@@ -65,21 +70,22 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 - **`SET_STACK`**（5箇所）＝effect_stack のみ書き換え。`settle:true` で `isStackDone(stack)?null:stack` の settle イディオムを reducer が適用（＝スタック解決判定を1箇所に集約・テスト可能化）。
 - **`END_GAME`**（3箇所）＝決着（`global_phase:'FINISHED'`＋`winner_id`＋最終盤面）。
 
-#### 残＝15 commit（grep ベース。うち1件は `reduceBattle` の結果を変数経由で `commit` する実質移行済み＝じゃんけんの `setTimeout` 経路）
+#### 残＝3 commit（grep ベース。`persist.commit(` 117箇所のうち、`reduceBattle` を経ないのは下記3つだけ）
 
-単純なセットアップ、非null `pending_spell` の開始、スペル／効果なしカットインの固定クリア、CPUの小さな状態＋phase 遷移は移行済み。残テールの分類：
+単純なセットアップ、非null `pending_spell` の開始、スペル／効果なしカットインの固定クリア、CPUの小さな状態＋phase 遷移、直前フラグ watcher の条件付き2状態書き込みは移行済み。残テールの分類：
 
 | | 残テール | 状況 |
 |---|---|---|
-| (a) | 名前付き `const update` の**命令的インクリメンタル構築** | **残り `doPhaseAdvance` 1箇所のみ**＝最難関（下記⚠） |
+| (a) | 名前付き `const update` の**命令的インクリメンタル構築** | **残り3箇所＝`doPhaseAdvance` / `resolveStackNext`（CPUターン強制終了の `Object.assign`）／効果解決結果の後乗せ（`'host_state' in update` の読み戻し）**＝最難関（下記⚠） |
 | (b) | `pending_effect` 非null生成／効果実行結果の `done` で null↔非null が分岐する遷移 | ✅**残0**（`RESOLVE_EFFECT_STEP` で6箇所） |
-| (c) | `...opUsageUpdate` / `...extraUpdate` 等の spread で**前後の上書き順も意味を持つ**遷移 | 一部消化（条件付きキーは `undefined` payload で表現できると判明） |
+| (c) | `...opUsageUpdate` / `...extraUpdate` 等の spread で**前後の上書き順も意味を持つ**遷移 | ✅**残0**（条件付きキーは `undefined` payload・0〜2状態は `WRITE_STATES` で表現できると判明） |
 | (d) | ENDフェイズ／CPUターン終了など複数カラム同時更新 | ✅`BEGIN_NEXT_TURN` で消化 |
 
-> **⚠(a) の残り＝`doPhaseAdvance`** は payload 化では落ちない。`update[opKey]` を**読み戻して積み増す**
-> （`(update[opKey] as PlayerState) ?? op`）・`update.effect_stack` を**ベースにして push**・`update.turn_phase` を
+> **⚠(a) の残り3箇所**は payload 化では落ちない。`update[opKey]` を**読み戻して積み増す**
+> （`(update[opKey] as PlayerState) ?? op` / `'host_state' in update ? update.host_state : hostState`）・
+> `update.effect_stack` を**ベースにして push**・`update.turn_phase` を
 > **読んで分岐**（`if (phase==='ATTACK_SIGNI' && update.turn_phase==='ATTACK_LRIG')`）の3点で、
-> **パッチが「途中経過を持つ可変アキュムレータ」**になっている。フェイズ別のハンドラ分割が先。
+> **パッチが「途中経過を持つ可変アキュムレータ」**になっている。フェイズ別のハンドラ分割が先＝**着手時に scope を切り直す別作業**。
 
 **2026-08-03 の3バッチ（計19箇所）で分かった定形**：
 
@@ -94,8 +100,21 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 5. **⚠ 同じキーに2度書く旧コードは「後から書いた方が勝つ」＝その順序を reducer で再現する**。
    `RESOLVE_EFFECT_STEP` の settle と `effectStack` がこれ（第5バッチで是正）。**移す前に「このキーは何回書かれるか」を必ず数える**。
 6. **reducer に既に action があるのに手書きのまま残っている取りこぼしを定期的に探す**
-   （第5バッチのセットアップ系5箇所＝`SELECT_LRIG`/`COMPLETE_MULLIGAN`/`START_PLAYING`）。
+   （第5バッチのセットアップ系5箇所＝`SELECT_LRIG`/`COMPLETE_MULLIGAN`/`START_PLAYING`、
+   2026-08-03 第2弾の対人じゃんけん2箇所＝`SUBMIT_JANKEN`/`RESOLVE_JANKEN`＝CPU経路だけ移行済みだった）。
    `isHost ? {host_…} : {guest_…}` の三項がハンドラに残っていたら候補。
+
+**2026-08-03 第2弾の2バッチ（計11箇所・102→114）で分かった定形**：
+
+7. **`update[key]` の読み戻しが「常に undefined」＝死んだアキュムレータなら (a) ではない**。
+   直前フラグ watcher の `applyState` は各キーにつき1回しか呼ばれないため `(update[key] as PlayerState) ?? base` は
+   常に `base` に落ちる＝**キー集合を保ったまま `Partial<Record<PlayerStateKey, PlayerState>>` へ置換できる**。
+   **移す前に「そのキーは何度書かれうるか」を数える**（定形5の系）。真に途中経過を読むのは残る3箇所だけ。
+8. **`Record<string, unknown>` のパッチ変数は移行の匂い**＝computed key で型検査が効いていない印（定形4）。
+   `PlayerStateKey` で受け直すと、ヘルパー引数（`stateKey: string` → `PlayerStateKey`）まで型が伝播する。
+9. **ヘルパー関数の「何でも入る追加パッチ」引数は用途を1つに絞れることが多い**
+   （`queueCardEffects(… extraUpdate: Record<string, unknown> …)` は実引数が
+   `{}` 2件と `{[opKey]: opState}` 1件だけ＝`opp?:{key,state}` に狭めて `WRITE_STATE` へ合流）。
 
 ⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的な一括変換は「サイレントな挙動変化」を検出できない。1件ずつ手動レビュー、または先にハンドラの挙動テストを用意してから進める（機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならないため行わない）。
 

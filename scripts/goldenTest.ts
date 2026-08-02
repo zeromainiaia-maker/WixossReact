@@ -54,7 +54,7 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
-import type { BattleStateRow, EffectStack } from '../src/types';
+import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
@@ -12435,6 +12435,47 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     // 新トリガー無しなら settle が効いたまま
     eq(reduceBattle(bsDone, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: hs, pending: null, settleStackOnDone: true }).effect_stack,
       null, '新トリガー無しは settle の null が残る');
+  });
+  test('Stage3 reduceBattle SET_TURN_PHASE: 状態・effect_stack は任意（CPUアタックフェイズ開始）', () => {
+    const st = { c: 3 } as unknown as PlayerState;
+    const stk = { queue: [{}] } as unknown as EffectStack;
+    const full = reduceBattle(stub, { type: 'SET_TURN_PHASE', phase: 'ATTACK_ARTS', state: { key: 'host_state', state: st }, effectStack: stk });
+    eq(JSON.stringify(Object.keys(full)), JSON.stringify(['turn_phase', 'host_state', 'effect_stack']), 'キー集合');
+    eq(full.host_state, st, '併記した状態');
+    eq(full.effect_stack, stk, '併記したスタック');
+    // トリガー無し・フラグクリア無しなら turn_phase だけ（旧 `{turn_phase, ...huUpdate}` と同じキー集合）
+    const bare = reduceBattle(stub, { type: 'SET_TURN_PHASE', phase: 'ATTACK_ARTS' });
+    eq(JSON.stringify(Object.keys(bare)), JSON.stringify(['turn_phase']), '省略時は turn_phase のみ');
+    eq(reduceBattle(stub, { type: 'SET_TURN_PHASE', phase: 'MAIN', effectStack: null }).effect_stack, null, 'null 明示はクリア');
+  });
+  test('Stage3 reduceBattle WRITE_STATE: markCutinResponseComplete は現盤面の pending_spell に完了印を立てる', () => {
+    // レゾナのスペルカットイン応答＝旧コードは `{...bs.pending_spell!, cutin_response_complete:true}` を
+    // WRITE_STATE パッチへ後乗せしていた。盤面依存なので reducer 側で読む。
+    const spell = { caster_id: 'X', card_num: 'WX-1' } as unknown as PendingSpell;
+    const bsSpell = { ...stub, pending_spell: spell } as BattleStateRow;
+    const st = { d: 4 } as unknown as PlayerState;
+    const patch = reduceBattle(bsSpell, { type: 'WRITE_STATE', myKey: 'guest_state', myState: st, markCutinResponseComplete: true });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['guest_state', 'pending_spell']), 'キー集合');
+    eq((patch.pending_spell as unknown as Record<string, unknown>).caster_id, 'X', '既存フィールドは温存');
+    eq(patch.pending_spell?.cutin_response_complete, true, '完了印');
+    eq((spell as unknown as Record<string, unknown>).cutin_response_complete, undefined, '盤面側は書き換えない（純粋）');
+    // 通常召喚（カットインでない）は pending_spell を触らない
+    ok(!('pending_spell' in reduceBattle(bsSpell, { type: 'WRITE_STATE', myKey: 'guest_state', myState: st })), '省略時は pending_spell キー無し');
+  });
+  test('Stage3 reduceBattle WRITE_STATES: 片側だけ・両側・スタック併記でキー集合が変わる', () => {
+    const hs = { h: 1 } as unknown as PlayerState;
+    const gs = { g: 2 } as unknown as PlayerState;
+    const stk = { queue: [{}] } as unknown as EffectStack;
+    // 直前フラグ watcher＝自分側だけ書く（CPU 分が無い）ケース
+    const one = reduceBattle(stub, { type: 'WRITE_STATES', states: { host_state: hs } });
+    eq(JSON.stringify(Object.keys(one)), JSON.stringify(['host_state']), '片側のみ');
+    // CPU 戦＝人間(host)＋CPU(guest) 両方のフラグを1パッチでクリアし、積んだスタックを併記
+    const both = reduceBattle(stub, { type: 'WRITE_STATES', states: { host_state: hs, guest_state: gs }, effectStack: stk });
+    eq(JSON.stringify(Object.keys(both)), JSON.stringify(['host_state', 'guest_state', 'effect_stack']), '両側＋スタック');
+    eq(both.guest_state, gs, 'guest 状態');
+    // トリガー0件（effectStack 省略）＝ effect_stack キーを書かない（旧 `if (entries.length>0)` と同じ）
+    ok(!('effect_stack' in one), 'スタック省略時は書かない');
+    eq(Object.keys(reduceBattle(stub, { type: 'WRITE_STATES', states: {} })).length, 0, '空 states は空パッチ');
   });
   cursor = savedCursor;
 }

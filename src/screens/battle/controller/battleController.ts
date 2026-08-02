@@ -24,8 +24,20 @@ export type PlayerStateKey = 'host_state' | 'guest_state';
 export type BattleAction =
   /** セットアップフェイズを進める（例：じゃんけん確定後 → MULLIGAN）。 */
   | { type: 'SET_SETUP_PHASE'; phase: BattleStateRow['setup_phase'] }
-  /** ターンフェイズを進める（ENERGY / MAIN / ATTACK_* / END 等）。 */
-  | { type: 'SET_TURN_PHASE'; phase: BattleStateRow['turn_phase'] }
+  /**
+   * ターンフェイズを進める（ENERGY / MAIN / ATTACK_* / END 等）。
+   * フェイズ移行と同時に発火するトリガー（ON_ATTACK_PHASE_START 等）を伴う場合は、任意で
+   * 1プレイヤー状態（フラグクリア等）と effect_stack を併記できる（undefined＝不干渉・null＝明示クリア）。
+   * `ADVANCE_TURN_WITH_STATE` との違い＝**プレイヤー状態の書き込みが任意**（フェイズだけ進める場合がある）。
+   */
+  | {
+      type: 'SET_TURN_PHASE';
+      phase: BattleStateRow['turn_phase'];
+      /** 併せて書くプレイヤー状態（省略＝書かない）。 */
+      state?: { key: PlayerStateKey; state: PlayerState };
+      /** effect_stack を併せて書く場合（null 明示でクリア）。省略時は触らない。 */
+      effectStack?: EffectStack | null;
+    }
   /** 決着確認（終了ダイアログ）を了承する。 */
   | { type: 'ACK_END'; isHost: boolean }
   /** じゃんけんの手を提出する。 */
@@ -61,6 +73,26 @@ export type BattleAction =
       effectStack?: EffectStack | null;
       /** pending_effect を null クリアする場合。 */
       clearPending?: boolean;
+      /**
+       * スペルへのカットイン応答（レゾナ出現）を完了として記録する場合。
+       * **現盤面の `pending_spell` に `cutin_response_complete:true` を立てて書き戻す**（盤面依存ケース）。
+       * 省略時は `pending_spell` を触らない。
+       */
+      markCutinResponseComplete?: boolean;
+    }
+  /**
+   * プレイヤー状態を**0〜2件**書き込む（＋任意で effect_stack）。
+   * `WRITE_STATE` との違い＝**どちらの状態も任意**。直前フラグ（`hand_discarded_just` /
+   * `zone_moved_just` 等）の watcher が「どちら側を書くかが実行時に決まる」形＝
+   * 旧コードの `const update: Record<string, unknown> = {}` へ条件付きでキーを足す命令的構築を、
+   * キー集合を保ったまま純粋化するための形。
+   */
+  | {
+      type: 'WRITE_STATES';
+      /** 書き込む状態（省略キーは書かない）。 */
+      states: Partial<Record<PlayerStateKey, PlayerState>>;
+      /** effect_stack を併せて書く場合（null 明示でクリア）。省略時は触らない。 */
+      effectStack?: EffectStack | null;
     }
   /** スペルのコスト支払い済み状態を書き、カットイン待ちへ進める。 */
   | {
@@ -158,8 +190,12 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
   switch (action.type) {
     case 'SET_SETUP_PHASE':
       return { setup_phase: action.phase };
-    case 'SET_TURN_PHASE':
-      return { turn_phase: action.phase };
+    case 'SET_TURN_PHASE': {
+      const patch: Partial<BattleStateRow> = { turn_phase: action.phase };
+      if (action.state) patch[action.state.key] = action.state.state;
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
+      return patch;
+    }
     case 'ACK_END':
       return action.isHost ? { host_end_ack: true } : { guest_end_ack: true };
     case 'SUBMIT_JANKEN':
@@ -183,6 +219,17 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       if (action.opp) patch[action.opp.key] = action.opp.state;
       if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       if (action.clearPending) patch.pending_effect = null;
+      // カットイン応答の完了フラグは現盤面の pending_spell を土台に立てる（他キーは据え置き）。
+      if (action.markCutinResponseComplete) {
+        patch.pending_spell = { ...bs.pending_spell!, cutin_response_complete: true };
+      }
+      return patch;
+    }
+    case 'WRITE_STATES': {
+      const patch: Partial<BattleStateRow> = {};
+      if (action.states.host_state) patch.host_state = action.states.host_state;
+      if (action.states.guest_state) patch.guest_state = action.states.guest_state;
+      if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
       return patch;
     }
     case 'QUEUE_SPELL':
