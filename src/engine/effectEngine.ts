@@ -5129,13 +5129,15 @@ export function collectBanishSubstitutes(
         if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
         if (bs.pattern === 'self_sacrifice_other') {
           if (sourceNum !== victimNum) continue;
+          const excludeSourceFromSacrifice = bs.sacrificeFilter?.excludeSelf ?? true;
           for (const n of tops) {
-            if (n === victimNum) continue; // 「他の」シグニ
+            if (excludeSourceFromSacrifice && n === sourceNum) continue;
             if (bs.sacrificeClass && !(cardMap.get(baseNum(n))?.CardClass ?? '').includes(bs.sacrificeClass)) continue;
             result.push({ kind: 'sacrifice', sourceNum, sacrificeNum: n });
           }
         } else if (bs.pattern === 'protect_other_sacrifice_self') {
-          if (sourceNum === victimNum) continue;
+          const excludeSourceFromVictims = bs.victimTarget?.filter?.excludeSelf ?? true;
+          if (excludeSourceFromVictims && sourceNum === victimNum) continue;
           if (bs.victimFilter === 'riseIcon' && !hasRiseIcon(victimNum)) continue;
           if (!victimCard) continue;
           result.push({ kind: 'sacrifice', sourceNum, sacrificeNum: sourceNum });

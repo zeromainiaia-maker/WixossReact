@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第8波：バニッシュ犠牲置換3効果の宣言明示化＋場離れ置換1効果 defer
+
+`WX12-024-E1`／`WXEX2-60-E1` は `banishSubstitute.sacrificeFilter.excludeSelf` を**身代わりに差し出す側**へ、`WXDi-CP01-032-E1` は `banishSubstitute.victimTarget.filter.excludeSelf` を**守られる側**へ載せた。ただし HEAD の `collectBanishSubstitutes` は前2件で `victimNum`（＝発生源）、後者で発生源を既に無条件除外しており、3件とも変更前から実行時挙動は正しかった。したがって機能是正には数えず、JSON へ宣言を明示化して在庫から外した。両フィールドは additive で、明示的な `excludeSelf: false` の場合だけ除外を外し、省略時は両パターンとも従来どおり自己除外する。
+
+golden は live `effectsMap` から3効果を読み、`WX12-024`／`WXEX2-60` は「他シグニあり＝身代わり option 収集／発生源だけ＝0件」、`WXDi-CP01-032` は「他シグニ被害＝自己犠牲 option 収集／発生源自身の被害＝0件」を両方向固定した。さらに `victimTarget` 省略の既存 `WX20-055-E1` について、発生源自身をライズ保持としてフィルタ通過させても自己置換が0件であることを固定し、HEAD と同じ既定挙動を確認した。golden 1294→1295、census は1293据置。再測は母集団167／live `excludeSelf` あり141→144／なし26→23、正式非該当10件を除く**実装課題残13**。
+
+`WX06-019-E1` は honest defer。live/manual は `BANISH_SUBSTITUTE{substituteCost.powerReduction}` を持ち、`findEffectLeavePowerReductionSubstitute` 自体も発生源と被害シグニを比較して「他の」を除外するが、実測でこの helper が `execBanish` の対話なし直結分岐にしか接続されていないことを確認した。通常の単体選択は `resumeSelectTarget→applyDirectAction(BANISH)` へ進んで置換を素通りし、さらに原文が要求する BOUNCE／TRASH／SEND_TO_ENERGY 等の「相手効果による場離れ」全般にも一貫した横取りフックがない。機構名 `EFFECT_LEAVE_POWER_REDUCTION_SUBSTITUTE` として場離れ全経路の共通フック化が必要で、`excludeSelf` だけ live に刻むフェイク是正は撤回した。第2優先の `WX25-CP1-044-E2`／`WX25-CP1-087-E1` は本波では未着手で残件に含む。commit/push は行っていない。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第7波：残 collector 2効果＋専用耐性4効果の非該当分離＋1効果是正
 
 第6波後の実装課題残23件を live JSON と engine 読取経路で再監査した。`WXDi-D02-25-E1` は parser が「あなたの他のシグニが場を離れたとき」を `triggerScope:any_ally`／`triggerFilter.excludeSelf` に落とす規則を追加し、`collectLeaveFieldTriggers` の watcher 経路（`triggerCollect.ts`）が離脱カード番号と watcher 番号を比較して実評価する。`WX24-P4-055-E1` は既存 parser が fresh では `any_ally`／白／`excludeSelf` を生成する一方、カード単位 held により live が温存されたため live JSON へ外科反映した。バトル経路は `BattleScreen.tsx` の `battleBanishEntries` から `battleBanisherMatchesTrigger` が実アタッカーに filter を評価する。golden はいずれも live `effectsMap` を読み、他シグニで収集・watcher 自身で非収集を両方向固定した。

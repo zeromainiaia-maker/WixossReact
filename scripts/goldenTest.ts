@@ -12,7 +12,7 @@ import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, StackEntry } from '../src/types';
-import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition } from '../src/types/effects';
+import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni } from '../src/engine/effectEngine';
@@ -1477,6 +1477,41 @@ test('collectBanishSubstitutes: F-3保護型 protect_other_sacrifice_self（WXDi
   const opts = collectBanishSubstitutes(st, mkState({}), false, cardMap as Map<string, CardData>, effectsMap, 'WD03-009');
   ok(opts.some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'), `自己犠牲(CP01-032)を提示 (${JSON.stringify(opts)})`);
 });
+test('task12(lxxxiii) 第8波: live バニッシュ置換4件は「他の」を正しい役割へ掛ける', () => withSavedCursor(() => {
+  const liveAction = (cardNum: string, effectId: string) => {
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId} が live effectsMap に存在`);
+    return effect!.action as StubAction;
+  };
+  for (const [cardNum, effectId, sacrifice] of [
+    ['WX12-024', 'WX12-024-E1', 'WD03-009'],
+    ['WXEX2-60', 'WXEX2-60-E1', findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('ウェポン'))],
+  ] as const) {
+    const action = liveAction(cardNum, effectId);
+    ok(action.banishSubstitute.sacrificeFilter?.excludeSelf === true, `${effectId}: excludeSelf は身代わり側`);
+    const alone = collectBanishSubstitutes(mkState({ signi: [cardNum, null, null] }), mkState({}), false,
+      cardMap as Map<string, CardData>, effectsMap, cardNum);
+    eq(alone.length, 0, `${effectId}: 発生源自身を身代わりにできない`);
+    const withOther = collectBanishSubstitutes(mkState({ signi: [cardNum, sacrifice, null] }), mkState({}), false,
+      cardMap as Map<string, CardData>, effectsMap, cardNum);
+    ok(withOther.some(o => o.kind === 'sacrifice' && o.sacrificeNum === sacrifice), `${effectId}: 他シグニは身代わり候補`);
+  }
+  const cp = liveAction('WXDi-CP01-032', 'WXDi-CP01-032-E1');
+  ok(cp.banishSubstitute.victimTarget?.filter?.excludeSelf === true, 'WXDi-CP01-032-E1: excludeSelf は守られる側');
+  eq(collectBanishSubstitutes(mkState({ signi: ['WXDi-CP01-032', null, null] }), mkState({}), false,
+    cardMap as Map<string, CardData>, effectsMap, 'WXDi-CP01-032').length, 0, 'WXDi-CP01-032-E1: 発生源自身は守られない');
+  ok(collectBanishSubstitutes(mkState({ signi: ['WXDi-CP01-032', 'WD03-009', null] }), mkState({}), false,
+    cardMap as Map<string, CardData>, effectsMap, 'WD03-009').some(o => o.kind === 'sacrifice' && o.sacrificeNum === 'WXDi-CP01-032'),
+    'WXDi-CP01-032-E1: 他シグニは守られる');
+
+  const wx20 = liveAction('WX20-055', 'WX20-055-E1');
+  ok(wx20.banishSubstitute.victimTarget === undefined, 'WX20-055-E1: victimTarget 省略の既存 live JSON');
+  const riseSourceMap = new Map(cardMap as Map<string, CardData>);
+  riseSourceMap.set('WX20-055', { ...riseSourceMap.get('WX20-055')!, EffectText: '【ライズ】' });
+  eq(collectBanishSubstitutes(mkState({ signi: ['WX20-055', null, null] }), mkState({}), false,
+    riseSourceMap, effectsMap, 'WX20-055').length, 0,
+    'WX20-055-E1: 省略時も発生源自身を victim にする縮退自己置換は成立しない');
+}));
 test('SELF_TRASH_PREVENT: 自分の効果で自シグニをトラッシュに置けない（WX07-033・§6.1・タスク7）', () => {
   // collector が場の WX07-033（CONTINUOUS SELF_TRASH_PREVENT）を検出。
   const st = mkState({ signi: ['WX07-033', null, null] });

@@ -2061,7 +2061,9 @@ export interface StubAction {
     // protect_other_sacrifice_self: 別のシグニ(victim)がバニッシュされる代わりに、このシグニ自身(sacrifice=自身)を犠牲にする（WX20-055/CP01-032/P10-052）
     pattern: 'self_sacrifice_other' | 'protect_other_sacrifice_self';
     sacrificeClass?: string;                  // self_sacrifice_other: 犠牲にする他シグニのクラス（例: '電機'）。省略時=任意の他シグニ
+    sacrificeFilter?: TargetFilter;           // self_sacrifice_other: 身代わりに差し出す側の対象条件
     victimFilter?: 'riseIcon' | 'otherAny';   // protect_other_sacrifice_self: 守る対象（'riseIcon'=《ライズアイコン》持ち / 'otherAny'=このシグニ以外の任意の自シグニ）
+    victimTarget?: EffectTarget;              // protect_other_sacrifice_self: 守られる側の対象条件
     oppTurnOnly?: boolean;                     // 対戦相手のターンの間のみ有効（CP01-032/P10-052）
   };
   // BATTLE_BANISH_PREVENT_LOSE_ABILITY（§3タスク6 D・置換ルール）: 「（このシグニ/あなたの＜C＞のシグニ1体）が

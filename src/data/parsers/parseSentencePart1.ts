@@ -1121,6 +1121,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         banishSubstitute: {
           pattern: 'self_sacrifice_other',
           ...(selfSacM[1] ? { sacrificeClass: selfSacM[1] } : {}),
+          sacrificeFilter: { cardType: 'シグニ', excludeSelf: true },
           ...(oppTurnOnly ? { oppTurnOnly: true } : {}),
         },
       } as StubAction;
@@ -1135,6 +1136,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         banishSubstitute: {
           pattern: 'protect_other_sacrifice_self',
           victimFilter,
+          ...(/あなたの他のシグニ/.test(t) ? {
+            victimTarget: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', excludeSelf: true } },
+          } : {}),
           ...(oppTurnOnly ? { oppTurnOnly: true } : {}),
         },
       } as StubAction;
