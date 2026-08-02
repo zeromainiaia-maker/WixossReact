@@ -41,7 +41,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyMeltFactPreUseCost, parseGrowCost } from '../src/screens/battle/costs';
+import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -20174,6 +20174,51 @@ test('WX15-067-E1: pre-use virus count is scoped to cost and CHOOSE 0/1/2+', () 
     const r2 = choose(2);
     ok(!r2.done && r2.pending.type === 'CHOOSE' && r2.pending.count === 2 && r2.pending.upTo === true, '2 viruses: choose up to 2');
   } finally { cursor = savedCursor; }
+});
+
+// タスク12(lxxxi): アーツ/スペルの「使用コストは《X》に**なる**」＝条件つきコスト置換。
+// 「減る」（removeNColorFromCost 系）と違い印刷コストを丸ごと差し替える＝既存の減算機構は流用できない。
+// 従来は ARTS_COST_REDUCTION_BY_EFFECT が no-op マーカーで、常に印刷コストでしか使えなかった。
+test('cost replacement: 「使用コストは《X》になる」 replaces the printed cost under its condition', () => {
+  const emptyField = { signi: [[], [], []], lrig: [] } as unknown as PlayerState['field'];
+  const my = { field: emptyField, trash: [] as string[] };
+  const cardOf = (num: string) => cardMap.get(num)!;
+
+  // ── ベット形（9枚）＝宣言していないうちは置換されない ──
+  for (const [num, betCost] of [
+    ['WD17-006', 'なし'], ['WDK01-007', 'なし'], ['WDK03-009', 'なし'], ['WDK07-Y07', 'なし'],
+    ['WX17-019', 'なし'], ['WD20-007', 'なし'],
+    ['WDK06-R07', '《赤》×1《無》×1'], ['WDK08-Y06', '《緑》×1'], ['WXK01-034', '《黒》×1'],
+  ] as [string, string][]) {
+    eq(computeCostReplacement(cardOf(num), my, cardMap, {}), null, `${num}: ベット宣言前は印刷コスト`);
+    eq(computeCostReplacement(cardOf(num), my, cardMap, { isBetting: true }), betCost, `${num}: ベット宣言で置換`);
+  }
+
+  // ── WX09-Re02（原票）＝相手のこのターンのアーツ/スペル使用で2段階。両方成立なら《白×0》が勝つ ──
+  const re02 = cardOf('WX09-Re02');
+  eq(computeCostReplacement(re02, my, cardMap, { oppState: { actions_done: [] } }), null, 'WX09-Re02: 相手未使用なら印刷コスト（白1無7）');
+  eq(computeCostReplacement(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: [] } }), '《白》×1《無》×4', 'WX09-Re02: アーツのみ');
+  eq(computeCostReplacement(re02, my, cardMap, { oppState: { actions_done: ['USE_SPELL'] } }), '《白》×1《無》×4', 'WX09-Re02: スペルのみ');
+  eq(computeCostReplacement(re02, my, cardMap, { oppState: { turn_arts_used: true, actions_done: ['USE_SPELL'] } }), 'なし', 'WX09-Re02: 両方＝《白×0》');
+
+  // ── 場のカード名条件（WX05-038）／トラッシュ枚数条件（WD22-041-UG） ──
+  eq(computeCostReplacement(cardOf('WX05-038'), my, cardMap, {}), null, 'WX05-038: カーミラ不在なら印刷コスト');
+  eq(computeCostReplacement(cardOf('WX05-038'),
+    { field: { signi: [['WX02-023'], [], []], lrig: [] } as unknown as PlayerState['field'], trash: [] }, cardMap, {}),
+    '《青》×1', 'WX05-038: 場に《幻水姫　スパイラル・カーミラ》');
+  eq(computeCostReplacement(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(24).fill('x') }, cardMap, {}), null, 'WD22-041-UG: トラッシュ24枚では不成立');
+  eq(computeCostReplacement(cardOf('WD22-041-UG'), { field: emptyField, trash: Array(25).fill('x') }, cardMap, {}), 'なし', 'WD22-041-UG: トラッシュ25枚で《黒×0》');
+
+  // ── computeArtsEffectiveCost 経由（UI が実際に呼ぶ入口）＝条件未成立なら印刷コストのまま ──
+  const eff = (num: string, ctx: Parameters<typeof computeCostReplacement>[3]) =>
+    computeArtsEffectiveCost(cardOf(num), { life_cloth: [], hand: [], field: emptyField, trash: [] }, undefined, '', 0, cardMap, undefined, undefined, ctx);
+  eq(eff('WX09-Re02', { oppState: { actions_done: [] } }), cardOf('WX09-Re02').Cost, 'computeArtsEffectiveCost: 条件未成立は印刷コスト');
+  eq(eff('WX09-Re02', { oppState: { turn_arts_used: true, actions_done: ['USE_SPELL'] } }), 'なし', 'computeArtsEffectiveCost: 置換が効く');
+
+  // ── 回帰＝既存の「対戦相手のセンタールリグが〜の場合、基本コストは〜になる」経路を奪わない ──
+  eq(eff('WX03-002', { oppState: { actions_done: [] } }),
+    computeArtsEffectiveCost(cardOf('WX03-002'), { life_cloth: [], hand: [], field: emptyField, trash: [] }, undefined, '', 0, cardMap),
+    'WX03-002: 対戦相手ルリグ色形は従来どおり');
 });
 
 test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () => {

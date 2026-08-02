@@ -153,6 +153,72 @@ export function normalizeCostText(s: string): string {
   return result.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
 }
 
+// 条件つき使用コスト**置換**（タスク12(lxxxi)）の評価コンテキスト。
+// - isBetting: ベット宣言中か（ベット形の置換はこれが真のときだけ成立する）
+// - oppState : 対戦相手の「このターンにアーツ／スペルを使用したか」の判定源（engine の
+//              ARTS_USED_THIS_TURN / SPELL_USED_THIS_TURN と同じフィールドを見る）
+export interface CostReplaceCtx {
+  isBetting?: boolean;
+  oppState?: { turn_arts_used?: boolean; actions_done?: string[] };
+}
+
+/**
+ * 「〜の場合、この{アーツ|スペル|カード}の使用コストは《X》に**なる**」＝条件つきコスト置換を解決する。
+ * 既存の軽減系（`removeNColorFromCost` / `applyContinuousCostDecreases`）は「印刷コストから引く」ので
+ * 流用できない＝置換は色構成ごと差し替わる（《赤》×4 → 《赤×0》＝ゼロコスト）。
+ * 戻り値 `null` ＝置換なし（呼び出し側は印刷コスト／既存の軽減結果をそのまま使う）。
+ *
+ * ⚠ベット形は**宣言がモーダル内**なので、一覧表示（宣言前）では `isBetting` を渡さず null を受け取り、
+ *   「ベットすれば払えるか」の使用可否判定だけ `isBetting:true` で別途問い合わせる。
+ */
+export function computeCostReplacement(
+  card: { Cost: string; EffectText?: string },
+  myState: { field?: PlayerState['field']; trash?: string[] },
+  cardMap?: Map<string, CardData>,
+  ctx?: CostReplaceCtx,
+): string | null {
+  const text = card.EffectText ?? '';
+  if (!/使用コストは[^。]*になる/.test(text)) return null;
+  // 《白×1》《無×4》のような連結表記をまとめて拾う
+  const COST = '((?:《[^》]+》)+)';
+  // 《X×0》は「コストなし」＝count 0 を落として 'なし' に畳む
+  const toCostStr = (raw: string): string => {
+    const parts = parseGrowCost(normalizeCostText(raw));
+    return parts.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
+  };
+  let m: RegExpMatchArray | null;
+
+  // ① ベット形（WD17-006 / WDK01-007 ほか計9枚）
+  m = text.match(new RegExp(`あなたがベットする場合[、,][^。]*?使用コストは${COST}になる`));
+  if (m) return ctx?.isBetting ? toCostStr(m[1]) : null;
+
+  // ② 対戦相手のこのターンのアーツ／スペル使用（WX09-Re02）。
+  //    「両方」のほうが強い条件＝先に見る（両方成立時は後段の《白×0》が正）。
+  const oppArts = ctx?.oppState?.turn_arts_used === true;
+  const oppSpell = (ctx?.oppState?.actions_done ?? []).includes('USE_SPELL');
+  m = text.match(new RegExp(`両方を使用していた場合[、,][^。]*?使用コストは${COST}になる`));
+  if (m && oppArts && oppSpell) return toCostStr(m[1]);
+  m = text.match(new RegExp(`このターンに対戦相手がアーツかスペルを使用していた場合[、,][^。]*?使用コストは${COST}になる`));
+  if (m && (oppArts || oppSpell)) return toCostStr(m[1]);
+
+  // ③ 場に特定カード名がある場合（WX05-038）
+  m = text.match(new RegExp(`あなたの場に《([^》]+)》がある場合[、,][^。]*?使用コストは${COST}になる`));
+  if (m && myState.field && cardMap) {
+    const name = m[1];
+    const onField = [
+      ...(myState.field.signi ?? []).map(stack => stack?.at(-1)),
+      myState.field.lrig?.at(-1),
+    ].some(n => !!n && cardMap.get(n)?.CardName === name);
+    if (onField) return toCostStr(m[2]);
+  }
+
+  // ④ トラッシュ枚数条件（WD22-041-UG）
+  m = text.match(new RegExp(`あなたのトラッシュにカードが([０-９\\d]+)枚以上ある場合[、,][^。]*?使用コストは${COST}になる`));
+  if (m && (myState.trash?.length ?? 0) >= parseInt(toHalfWidth(m[1]))) return toCostStr(m[2]);
+
+  return null;
+}
+
 // EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
 export function computeArtsEffectiveCost(
   card: { Cost: string; EffectText?: string },
@@ -163,6 +229,7 @@ export function computeArtsEffectiveCost(
   cardMap?: Map<string, CardData>,
   lrigNameAliases?: string[],
   artsThresholdReductions?: { minTotalCost: number; color: string; reduction: number }[],
+  replaceCtx?: CostReplaceCtx,
 ): string {
   const text = card.EffectText ?? '';
   const base = card.Cost;
@@ -173,6 +240,10 @@ export function computeArtsEffectiveCost(
   const lrigNameMatches = (keyword: string) =>
     lrigNameAliases?.includes(LRIG_ALL_NAMES_SENTINEL) ||
     lrigName?.includes(keyword) || lrigNameAliases?.some(a => a.includes(keyword));
+
+  // 条件つきコスト置換（「〜の場合、使用コストは《X》になる」）＝軽減より先に見る＝印刷コストを丸ごと差し替える
+  const replaced = computeCostReplacement(card, myState, cardMap, replaceCtx);
+  if (replaced !== null) return replaced;
 
   // 対戦相手のルリグ色条件：コスト上書き
   m = text.match(/対戦相手のセンタールリグが(.+?)の場合[、,](?:このアーツの|このカードの)?(?:使用|基本)コストは(.+?)になる/s);

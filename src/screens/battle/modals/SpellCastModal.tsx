@@ -41,7 +41,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               // フィールド条件によるコスト軽減をスペルにも適用
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
               let effSpellCost = applyContinuousCostDecreases(
-                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases),
+                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined, { oppState: op }),
                 'スペル', spellCard.Color, activeCostMods.forMy);
               // 次スペルコスト軽減（WX04-008《白×2》減）を適用
               for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);

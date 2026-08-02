@@ -463,7 +463,9 @@ export function execStubPart1(
     const newOwner = { ...ctx.ownerState, opponent_paid_optional_cost: false };
     return done(addLog({ ...ctx, ownerState: newOwner }, '対戦相手が支払わない→結果効果発動'));
   }
-  // アーツコスト軽減マーカー（コストはBattleScreen使用時に算出済み）
+  // アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。
+  // 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は
+  // 同ファイルの `computeCostReplacement`（タスク12(lxxxi)）が支払い時点で解決する。
   if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
     return done(ctx); // コストは支払い時点で計算済み、ここでは何もしない
   }

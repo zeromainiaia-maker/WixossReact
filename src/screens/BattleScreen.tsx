@@ -33,7 +33,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
-import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, removeNColorFromCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
@@ -6996,15 +6996,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .flatMap(m => m.amount);
       // SPECIFIC_CARD_COST_REDUCE: 特定カード名の無色コスト軽減を適用
       const specificReduction = specificCardCostReductions.find(r => r.targetCardName === cardData.CardName);
-      const reducedArtsCost = specificReduction
+      // 条件つき使用コスト置換（「〜の場合、このアーツの使用コストは《X》になる」＝タスク12(lxxxi)）。
+      // 「減る」ではなく置換なので軽減より優先し、印刷コストごと差し替える。
+      const artsCostReplacement = computeCostReplacement(cardData, my, battleCardMap, { oppState: op });
+      const reducedArtsCost = artsCostReplacement ?? (specificReduction
         ? removeNColorFromCost(cardData.Cost, '無', specificReduction.colorlessReduction)
-        : cardData.Cost;
+        : cardData.Cost);
+      // ベット宣言でのみ成立する置換は宣言が ArtsModal 内なので、ここでは「ベットすれば払えるか」だけ見る
+      const artsBetSpec = parseBetOptions(cardData.EffectText ?? '');
+      const artsBetCoinMin = artsBetSpec.variable ? 1 : Math.min(...artsBetSpec.options, Infinity);
+      const artsBetCost = !isActionBlocked('BET') && !my.negate_coin_abilities
+        && Number.isFinite(artsBetCoinMin) && my.coins >= artsBetCoinMin
+        ? computeCostReplacement(cardData, my, battleCardMap, { oppState: op, isBetting: true })
+        : null;
       // 対戦相手ターン中の代替コストがあればそちらを使う
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
         ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-        : canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+        : (canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
+           (artsBetCost !== null && canAffordWithExtraCost(my.energy, battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       if (canUse && condOk && costOk) {
@@ -7012,7 +7023,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           label: '使用',
           color: C.coin,
           onClick: () => {
-            openArtsModal(cardData, effectiveCostStr ?? (specificReduction ? reducedArtsCost : null));
+            openArtsModal(cardData, effectiveCostStr ?? ((artsCostReplacement || specificReduction) ? reducedArtsCost : null));
           },
         });
       }
