@@ -975,7 +975,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
 
   // WX21-035 縛恋の煉獄（スペル）以下の4つから2つまで選ぶ
-  // ・任意コスト軽減（手札から赤緑の＜龍獣＞1枚ずつ捨てて《赤×0》）は OPTIONAL_COST STUB のまま（未実装）。
+  // ・任意コスト置換（手札から赤緑の＜龍獣＞1枚ずつ捨てて《赤×0》）は**使用時の支払い**＝
+  //   `SpellCastModal` が `parseOptionalDiscardForCost` で解決する（タスク12(lxxxi) 残テール）。
+  //   ⚠**先頭の OPTIONAL_COST STUB は置かない**＝置くと effectExecutor の Pattern⑤ が解決中に
+  //   もう一度「支払いますか？」を出し、「スキップ」で**後続の CHOOSE（本体）が丸ごと飛ぶ**。
+  //   原文では支払わなくても本体は動く（支払いはコストが変わるだけ）。
   // ・①colorNotMatchesLrig は ENERGY_CARD 対象では対象オーナー（＝相手）のルリグ基準で解決される（execTrash）。
   'WX21-035': [
     {
@@ -984,7 +988,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['MAIN'],
       cost: { energy: [{ color: '赤', count: 1 }, { color: '緑', count: 1 }, { color: '無', count: 1 }] },
       action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['赤', '緑'] },
         { type: 'CHOOSE', choose_count: 2, from_count: 4, upTo: true, choices: [
           { choiceId: 'c0', label: '相手エナから相手ルリグと共通色を持たないカード1枚をトラッシュ',
             action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1, upToCount: false, filter: { colorNotMatchesLrig: true } } } },

@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions } from '../costs';
+import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
 import type { BattleModalCtx } from './types';
 import type { PendingSpellCast } from '../hooks/useSpellCast';
 
@@ -14,19 +14,21 @@ interface SpellCastModalProps {
   setPendingSpellCast: Dispatch<SetStateAction<PendingSpellCast | null>>;
   selectedSpellCost: Set<number>;
   setSelectedSpellCost: Dispatch<SetStateAction<Set<number>>>;
+  selectedSpellDiscard: Set<number>;
+  setSelectedSpellDiscard: Dispatch<SetStateAction<Set<number>>>;
   betAmount: number;
   setBetAmount: Dispatch<SetStateAction<number>>;
   toggleSpellCostCard: (idx: number) => void;
-  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number, virusRemovalByZone?: number[]) => void;
+  castSpell: (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins?: number, virusRemovalByZone?: number[], discardIndices?: Set<number>) => void;
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
   const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
-  const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
+  const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
       {pendingSpellCast && createPortal(
-        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setBetAmount(0); }}
+        <div onClick={() => { setPendingSpellCast(null); setSelectedSpellCost(new Set()); setSelectedSpellDiscard(new Set()); setBetAmount(0); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -40,8 +42,15 @@ export function SpellCastModal(p: SpellCastModalProps) {
               if (!spellCard) return null;
               // フィールド条件によるコスト軽減をスペルにも適用
               const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+              // 使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）。
+              // 支払いが揃ってはじめてコスト置換が成立する＝選択に追従して再計算する（タスク12(lxxxi)）。
+              const optDiscardSpec = parseOptionalDiscardForCost(spellCard.EffectText ?? '');
+              const optDiscardNums = [...selectedSpellDiscard].map(i => my.hand[i]).filter(Boolean);
+              const optDiscardPaid = !!optDiscardSpec
+                && optionalDiscardSatisfied(optDiscardSpec.groups, optDiscardNums, battleCardMap);
               let effSpellCost = applyContinuousCostDecreases(
-                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined, { oppState: op }),
+                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
+                  { oppState: op, cardCostReplacements: my.card_cost_replacements, paidOptionalDiscard: optDiscardPaid }),
                 'スペル', spellCard.Color, activeCostMods.forMy);
               // 次スペルコスト軽減（WX04-008《白×2》減）を適用
               for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);
@@ -116,9 +125,65 @@ export function SpellCastModal(p: SpellCastModalProps) {
                       onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
                     <div>
                       <p style={{ color: C.text, fontSize: 12, fontWeight: 'bold', margin: '0 0 2px' }}>{spellCard.CardName}</p>
-                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>コスト: {spellCard.Cost || 'なし'}</p>
+                      <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
+                        コスト: {optDiscardPaid
+                          ? <><s style={{ color: C.textFaint }}>{spellCard.Cost || 'なし'}</s> → {effSpellCost}</>
+                          : (spellCard.Cost || 'なし')}
+                      </p>
                     </div>
                   </div>
+                  {optDiscardSpec && (
+                    <div style={{ padding: '8px 10px', borderRadius: 8,
+                      border: optDiscardPaid ? '2px solid #66dd88' : C.borderUI,
+                      backgroundColor: optDiscardPaid ? 'rgba(40,150,80,0.15)' : C.bgButton,
+                      display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <p style={{ color: optDiscardPaid ? '#88ffaa' : C.text, fontSize: 12, margin: 0 }}>
+                        使用時の任意支払い（捨てると使用コストが {optDiscardSpec.replacement} になる）:
+                        {' '}{optDiscardSpec.groups.map(g => `${g.color}の＜${g.story}＞×${g.count}`).join('・')}
+                      </p>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 160 }}>
+                        {my.hand.map((num, i) => {
+                          if (i === pendingSpellCast.handIndex) return null; // 使用するスペル自身は捨てられない
+                          const cand = optDiscardSpec.groups.some(g => matchesOptionalDiscardGroup(num, g, battleCardMap));
+                          if (!cand) return null;
+                          const c = battleCardMap.get(num);
+                          const isSel = selectedSpellDiscard.has(i);
+                          return (
+                            <div key={i} data-testid={`spelldiscard-hand-${i}`}
+                              onClick={() => { setSelectedSpellDiscard(prev => {
+                                const next = new Set(prev);
+                                if (next.has(i)) next.delete(i); else next.add(i);
+                                return next;
+                              }); setSelectedSpellCost(new Set()); }}
+                              onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
+                              onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
+                              onContextMenu={e => e.preventDefault()}
+                              style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
+                                border: isSel ? '2px solid #66dd88' : C.borderCard, cursor: 'pointer', overflow: 'hidden' }}>
+                              {c
+                                ? <img src={c.ImgURL} alt={c.CardName} draggable={false}
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                : <div style={{ width: '100%', height: '100%', backgroundColor: C.bgButton,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <span style={{ fontSize: 7, color: C.textFaint }}>{num}</span>
+                                  </div>
+                              }
+                              {isSel && (
+                                <div style={{ position: 'absolute', inset: 0, backgroundColor: 'rgba(40,150,80,0.4)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <span style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>✓</span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {!optDiscardPaid && selectedSpellDiscard.size > 0 && (
+                        <p style={{ color: C.warn, fontSize: 10, margin: 0 }}>組が揃っていません（支払わずに発動もできます）</p>
+                      )}
+                    </div>
+                  )}
                   {totalReq > 0 && (
                     <>
                       <p style={{ color: isValid ? C.success : C.textMuted, fontSize: 12, margin: 0, textAlign: 'center' }}>
@@ -210,7 +275,8 @@ export function SpellCastModal(p: SpellCastModalProps) {
                       </div>
                     );
                   })()}
-                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount, pendingSpellCast.virusRemovalByZone)}
+                  {/* ⚠支払いが揃っていない選択は**捨てない**（コストも置換されていない）＝半端な支払いで手札を失わせない */}
+                  <button onClick={() => castSpell(spellCard, selectedSpellCost, pendingSpellCast.handIndex, pendingSpellCast.fromLrigDeck, betAmount, pendingSpellCast.virusRemovalByZone, optDiscardPaid ? selectedSpellDiscard : new Set())}
                     disabled={loading || !isValid}
                     style={{ padding: '11px 0', borderRadius: 8, border: 'none',
                       backgroundColor: isValid ? C.accent : C.disabled,

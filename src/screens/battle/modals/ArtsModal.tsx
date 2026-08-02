@@ -62,7 +62,7 @@ export function ArtsModal(p: ArtsModalProps) {
                     const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
                     const effCost = applyContinuousCostDecreases(
-                      computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions, { oppState: op }),
+                      computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions, { oppState: op, cardCostReplacements: my.card_cost_replacements }),
                       'アーツ', card.Color, activeCostMods.forMy);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
@@ -76,7 +76,7 @@ export function ArtsModal(p: ArtsModalProps) {
                     const betPossibleHere = !isActionBlocked('BET') && !my.negate_coin_abilities
                       && Number.isFinite(betCoinMin) && my.coins >= betCoinMin;
                     const betCost = betPossibleHere
-                      ? computeCostReplacement(card, my, battleCardMap, { oppState: op, isBetting: true })
+                      ? computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
                       : null;
                     const canAfford =
                       canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
@@ -157,7 +157,7 @@ export function ArtsModal(p: ArtsModalProps) {
               // ベット宣言でコストが置換される札（タスク12(lxxxi)）は betAmount に追従して再計算する
               // （Phase1 で確定させた pendingArtsEffectiveCost は宣言前の値なので使えない）。
               const betReplacedCost = betAmount > 0
-                ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, isBetting: true })
+                ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
                 : null;
               const rawEffectiveCost = betReplacedCost ?? pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
               // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
@@ -198,7 +198,7 @@ export function ArtsModal(p: ArtsModalProps) {
               const isValid = energyValid && selectedArtsDiscard.size >= artsDiscardCost;
               const betSpec = parseBetOptions(pendingArtsCard.EffectText ?? '');
               // ベット宣言でコストが変わる札は、宣言を切り替えたら選択済みエナを白紙に戻す（枚数要件が変わるため）
-              const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, isBetting: true }) !== null;
+              const betReplacesCost = computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true }) !== null;
               const encoreCoins = encoreCostForCard?.coins ?? 0;
               const betReservedForEncore = isEncore ? encoreCoins : 0;
               // ベットで選べるコイン枚数（固定/段階/可変）。アンコール併用時はその分を残す

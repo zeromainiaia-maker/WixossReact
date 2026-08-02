@@ -149,7 +149,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   } = useArtsModal();
   const { showRemoveModal, setShowRemoveModal, selectedRemoveZones, setSelectedRemoveZones, openRemoveZone } = useRemoveZone();
   const {
-    pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost,
+    pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard,
     openSpellCast, closeSpellCast, toggleSpellCost,
   } = useSpellCast();
   // 手札【起】／トラッシュ自己起動／エナACTIVATED／ルリグ付与【起】
@@ -6332,7 +6332,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // スペル発動: 手札から除いてコスト支払い → pending_spell をセット（カットイン待ち）
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[]) => {
+  // discardIndices＝使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）で
+  // 選んだ手札 index。支払うと使用コストが置換される（検証は SpellCastModal 側＝executeArts と同じ規約）。
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set()) => {
     if (!isMyTurn || loading) return;
     if (isActionBlocked('USE_SPELL')) return;
     if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
@@ -6363,6 +6365,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? ['白', '赤', '青', '緑', '黒']
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
+      const discardNums = [...discardIndices].filter(i => i !== handIdx).map(i => my.hand[i]).filter(Boolean);
+      const discardSet = new Set([...discardIndices].filter(i => i !== handIdx));
       // ベット：UIで選んだコイン枚数を支払う（所持を超えない）。is_betting_this_effect は handleCutinPass の効果解決まで持続
       const betCost = Math.min(Math.max(0, betCoins), my.coins);
       const isMeltFact = card.CardNum === 'WX15-067';
@@ -6390,8 +6395,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newMyState = {
           ...my,
           lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
+          hand: my.hand.filter((_, i) => !discardSet.has(i)),
           energy: newEnergy,
-          trash: [...my.trash, ...paidNums],
+          trash: [...my.trash, ...paidNums, ...discardNums],
+          turn_hand_discarded_count: discardNums.length > 0
+            ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
@@ -6403,9 +6411,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         spellInstanceId = my.hand[handIdx] ?? card.CardNum;
         newMyState = {
           ...my,
-          hand: my.hand.filter((_, i) => i !== handIdx),
+          hand: my.hand.filter((_, i) => i !== handIdx && !discardSet.has(i)),
           energy: newEnergy,
-          trash: [...my.trash, ...paidNums],
+          trash: [...my.trash, ...paidNums, ...discardNums],
+          turn_hand_discarded_count: discardNums.length > 0
+            ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
           actions_done: [...(my.actions_done ?? []), 'USE_SPELL', ...(betCost > 0 ? ['COIN_SPENT'] : [])],
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
@@ -6419,6 +6429,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 立てないと WD19-009 / WX21-045 / WX21-068 / WX21-030 のトリガーが落ちる）。
       if (removedVirusCount > 0) newMyState = { ...newMyState, opp_virus_removed_just: true };
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
+      if (discardNums.length > 0) {
+        appendBattleLogs([`使用時の任意支払い：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨てて使用コストを置換`]);
+      }
       const stateKey = isHost ? 'host_state' : 'guest_state';
       const spell: PendingSpell = {
         caster_id: user.id,
@@ -6998,7 +7011,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const specificReduction = specificCardCostReductions.find(r => r.targetCardName === cardData.CardName);
       // 条件つき使用コスト置換（「〜の場合、このアーツの使用コストは《X》になる」＝タスク12(lxxxi)）。
       // 「減る」ではなく置換なので軽減より優先し、印刷コストごと差し替える。
-      const artsCostReplacement = computeCostReplacement(cardData, my, battleCardMap, { oppState: op });
+      const artsCostReplacement = computeCostReplacement(cardData, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements });
       const reducedArtsCost = artsCostReplacement ?? (specificReduction
         ? removeNColorFromCost(cardData.Cost, '無', specificReduction.colorlessReduction)
         : cardData.Cost);
@@ -7007,7 +7020,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsBetCoinMin = artsBetSpec.variable ? 1 : Math.min(...artsBetSpec.options, Infinity);
       const artsBetCost = !isActionBlocked('BET') && !my.negate_coin_abilities
         && Number.isFinite(artsBetCoinMin) && my.coins >= artsBetCoinMin
-        ? computeCostReplacement(cardData, my, battleCardMap, { oppState: op, isBetting: true })
+        ? computeCostReplacement(cardData, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
         : null;
       // 対戦相手ターン中の代替コストがあればそちらを使う
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
@@ -11918,7 +11931,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
 
       {/* スペル発動コスト選択 */}
-      <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />
+      <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} selectedSpellDiscard={selectedSpellDiscard} setSelectedSpellDiscard={setSelectedSpellDiscard} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />
 
       {/* v0.277: 手札から発動する【起】コスト選択 */}
       <HandActivatedModal ctx={modalCtx} pendingHandActivated={pendingHandActivated} setPendingHandActivated={setPendingHandActivated} selectedHandActivatedCost={selectedHandActivatedCost} setSelectedHandActivatedCost={setSelectedHandActivatedCost} executeHandActivated={executeHandActivated} />

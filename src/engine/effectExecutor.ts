@@ -5657,6 +5657,23 @@ function execAddCraftToLrigDeck(a: import('../types/effects').AddCraftToLrigDeck
   ));
 }
 
+// SET_CARD_COST_REPLACEMENT: カード名指定の使用コスト置換をゲーム間の PlayerState へ書く（WXK03-002-E3）。
+// 実際の適用は支払い時＝`src/screens/battle/costs.ts` の `computeCostReplacement` が
+// `card_cost_replacements` を最優先で参照する（軽減系より前）。同名カードの再設定は後勝ちで上書き。
+function execSetCardCostReplacement(a: import('../types/effects').SetCardCostReplacementAction, ctx: ExecCtx): ExecResult {
+  const s = ownerState(a.owner, ctx);
+  const rest = (s.card_cost_replacements ?? []).filter(r => r.cardName !== a.cardName);
+  const newState: PlayerState = {
+    ...s,
+    card_cost_replacements: [...rest, { cardName: a.cardName, cost: a.cost }],
+  };
+  const costStr = a.cost.map(c => `《${c.color}×${c.count}》`).join('');
+  return done(addLog(
+    setOwnerState(a.owner, newState, ctx),
+    `このゲームの間、《${a.cardName}》の使用コストは${costStr}になる`,
+  ));
+}
+
 // ===== メイン実行関数 =====
 
 export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
@@ -5786,6 +5803,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, 'ウィルス数比例パワー（effectEngine処理）'));
     case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `リミット${(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}（UI処理）`));
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
+    case 'SET_CARD_COST_REPLACEMENT':    return execSetCardCostReplacement(action as import('../types/effects').SetCardCostReplacementAction, ctx);
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
     case 'BANISH_REDIRECT': {
       const brAction = action as BanishRedirectAction;

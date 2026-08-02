@@ -5,6 +5,8 @@ import { useDomainState } from './useDomainState';
 export interface SpellCastState {
   pendingSpellCast: PendingSpellCast | null;
   selectedSpellCost: Set<number>;
+  /** 使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」）で選んだ手札 index。タスク12(lxxxi) */
+  selectedSpellDiscard: Set<number>;
 }
 
 export interface PendingSpellCast {
@@ -18,6 +20,7 @@ export interface PendingSpellCast {
 const initialState: SpellCastState = {
   pendingSpellCast: null,
   selectedSpellCost: new Set(),
+  selectedSpellDiscard: new Set(),
 };
 
 export function useSpellCast() {
@@ -26,12 +29,13 @@ export function useSpellCast() {
     ...state,
     setPendingSpellCast: set.pendingSpellCast,
     setSelectedSpellCost: set.selectedSpellCost,
+    setSelectedSpellDiscard: set.selectedSpellDiscard,
     /** スペル発動フローを開始（コスト選択は白紙化）。ベット枚数のリセットは useArtsModal.setBetAmount(0) を併用 */
     openSpellCast: (pending: NonNullable<SpellCastState['pendingSpellCast']>) =>
-      patch({ pendingSpellCast: pending, selectedSpellCost: new Set() }),
+      patch({ pendingSpellCast: pending, selectedSpellCost: new Set(), selectedSpellDiscard: new Set() }),
     /** スペル発動フローを終了（コスト選択も白紙化） */
     closeSpellCast: () =>
-      patch({ pendingSpellCast: null, selectedSpellCost: new Set() }),
+      patch({ pendingSpellCast: null, selectedSpellCost: new Set(), selectedSpellDiscard: new Set() }),
     /** コスト支払いエナの選択トグル */
     toggleSpellCost: (idx: number) =>
       set.selectedSpellCost((prev) => {

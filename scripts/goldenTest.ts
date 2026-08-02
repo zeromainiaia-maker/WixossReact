@@ -41,7 +41,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, parseGrowCost } from '../src/screens/battle/costs';
+import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -20219,6 +20219,91 @@ test('cost replacement: 「使用コストは《X》になる」 replaces the pr
   eq(eff('WX03-002', { oppState: { actions_done: [] } }),
     computeArtsEffectiveCost(cardOf('WX03-002'), { life_cloth: [], hand: [], field: emptyField, trash: [] }, undefined, '', 0, cardMap),
     'WX03-002: 対戦相手ルリグ色形は従来どおり');
+});
+
+// タスク12(lxxxi) 残テール①: `WXK03-002-E3`＝カード名を指定して**ゲーム間**コストを置換する。
+// 使用側（クラフト《落華流粋》）の原文には何も書かれていない＝状態経由でしか伝わらないので、
+// engine の書き込み（SET_CARD_COST_REPLACEMENT）と UI の読み取りを両端で固定する。
+test('SET_CARD_COST_REPLACEMENT: named-card cost replacement persists for the game', () => {
+  const effect = (effectsMap.get('WXK03-002') ?? []).find(e => e.effectId === 'WXK03-002-E3')!;
+  ok(!!effect, 'WXK03-002-E3 が live JSON に居る');
+  const steps = (effect.action as { steps: { type: string }[] }).steps;
+  eq(steps[0].type, 'ADD_CRAFT_TO_LRIG_DECK', 'クラフト追加が先');
+  eq(steps[1].type, 'SET_CARD_COST_REPLACEMENT', 'no-op マーカーではなく置換アクション');
+
+  const r = run(effect.action, mkCtx({}, {}, 'WXK03-002#lrig'));
+  ok(r.done, '解決が完了する');
+  const reps = r.ownerState.card_cost_replacements ?? [];
+  eq(reps.length, 1, '置換が1件書かれる');
+  eq(reps[0].cardName, '落華流粋', '対象はカード名');
+  eq(JSON.stringify(reps[0].cost), JSON.stringify([{ color: '黒', count: 2 }, { color: '無', count: 1 }]), '置換後コスト');
+  ok(r.ownerState.lrig_deck.some(n => (cardMap.get(n)?.CardName) === '落華流粋'), 'クラフト自体もルリグデッキへ入る');
+
+  // UI 側＝カード名一致で印刷コスト（《赤×1》《緑×1》《無×1》）を丸ごと差し替える
+  const craft = cardMap.get('WXK03-TK-01B')!;
+  const my = { field: { signi: [[], [], []], lrig: [] } as unknown as PlayerState['field'], trash: [] as string[] };
+  eq(computeCostReplacement(craft, my, cardMap, {}), null, '未セットなら印刷コスト');
+  eq(computeCostReplacement(craft, my, cardMap, { cardCostReplacements: reps }), '《黒》×2《無》×1', 'セット後は置換');
+  eq(computeCostReplacement(cardMap.get('WD17-006')!, my, cardMap, { cardCostReplacements: reps }), null, '別カード名には効かない');
+  // 再設定は後勝ち（同名を二重に積まない）
+  const ctx2: ExecCtx = { ...mkCtx({}, {}, 'WXK03-002#lrig'), ownerState: r.ownerState };
+  eq((run(effect.action, ctx2).ownerState.card_cost_replacements ?? []).length, 1, '同名の再設定は上書き（重複しない）');
+});
+
+// タスク12(lxxxi) 残テール②: `WX21-035`／`WX21-071`＝使用時の**任意支払い**でコストを置換する。
+// ベット形と同じく「宣言してはじめて成立する」＝支払い前は印刷コストのままでなければならない。
+test('optional discard for cost: paying the declared hand groups replaces the printed cost', () => {
+  const my = { field: { signi: [[], [], []], lrig: [] } as unknown as PlayerState['field'], trash: [] as string[] };
+  for (const [num, colA, colB, cls] of [
+    ['WX21-071', '青', '黒', '電機'], ['WX21-035', '赤', '緑', '龍獣'],
+  ] as [string, string, string, string][]) {
+    const card = cardMap.get(num)!;
+    const spec = parseOptionalDiscardForCost(card.EffectText ?? '')!;
+    ok(!!spec, `${num}: 任意支払い仕様を読める`);
+    eq(JSON.stringify(spec.groups), JSON.stringify([
+      { color: colA, story: cls, count: 1 }, { color: colB, story: cls, count: 1 },
+    ]), `${num}: 2グループ（色違い・同クラス・各1枚）`);
+    eq(spec.replacement, 'なし', `${num}: 《色×0》はゼロコストへ畳む`);
+    eq(computeCostReplacement(card, my, cardMap, {}), null, `${num}: 未払いなら印刷コスト`);
+    eq(computeCostReplacement(card, my, cardMap, { paidOptionalDiscard: true }), 'なし', `${num}: 支払い済みで置換`);
+  }
+
+  // 支払い判定＝**貪欲では足りない**（多色シグニは両グループに当たる）ので割り当てを総当たりする
+  const spec = parseOptionalDiscardForCost(cardMap.get('WX21-071')!.EffectText ?? '')!;
+  const pick = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(pred)!.CardNum;
+  const blue = pick(c => c.Type === 'シグニ' && c.Color === '青' && (c.CardClass ?? '').includes('電機'));
+  const black = pick(c => c.Type === 'シグニ' && c.Color === '黒' && (c.CardClass ?? '').includes('電機'));
+  const offClass = pick(c => c.Type === 'シグニ' && c.Color === '青' && !(c.CardClass ?? '').includes('電機'));
+  ok(optionalDiscardSatisfied(spec.groups, [blue, black], cardMap), '青+黒 で成立');
+  ok(!optionalDiscardSatisfied(spec.groups, [blue, blue], cardMap), '同色2枚は不成立');
+  ok(!optionalDiscardSatisfied(spec.groups, [blue], cardMap), '1枚では不成立');
+  ok(!optionalDiscardSatisfied(spec.groups, [blue, black, blue], cardMap), 'ちょうど2枚（多い分も不成立）');
+  ok(!optionalDiscardSatisfied(spec.groups, [offClass, black], cardMap), 'クラス違いは不成立');
+  ok(matchesOptionalDiscardGroup(blue, spec.groups[0], cardMap), '候補判定：青の＜電機＞');
+  ok(!matchesOptionalDiscardGroup(black, spec.groups[0], cardMap), '候補判定：黒は青グループに当たらない');
+  const dual = [...cardMap.values()].find(c => c.Type === 'シグニ' && /青/.test(c.Color ?? '') && /黒/.test(c.Color ?? '') && (c.CardClass ?? '').includes('電機'));
+  if (dual) ok(!optionalDiscardSatisfied(spec.groups, [dual.CardNum], cardMap), '多色1枚で2グループは満たせない');
+
+  // 母集団＝この規則が発火するのは実測2枚だけ（「減る」形22枚を巻き込まない）
+  const fired = [...cardMap.values()].filter(c => parseOptionalDiscardForCost(c.EffectText ?? '') !== null).map(c => c.CardNum).sort();
+  eq(JSON.stringify(fired), JSON.stringify(['WX21-035', 'WX21-071']), '発火は WX21-035 / WX21-071 のみ');
+
+  // ⚠**過剰ゲートの是正**＝先頭に STUB OPTIONAL_COST が残っていると effectExecutor の Pattern⑤ が
+  //   解決中にもう一度「支払いますか？」を出し、「スキップ」で後続ステップ（＝本体）が丸ごと飛ぶ。
+  //   原文では支払わなくても本体は動く（支払いは使用コストが変わるだけ）＝live から落ちていること。
+  for (const num of ['WX21-035', 'WX21-071']) {
+    const live = (effectsMap.get(num) ?? [])[0];
+    const st = (live.action as { type: string; steps?: { type: string; id?: string }[] }).steps ?? [];
+    ok(!st.some(s => s.type === 'STUB' && s.id === 'OPTIONAL_COST'),
+      `${num}: 使用時の任意支払いは解決ステップに残さない`);
+    ok(st.length > 0, `${num}: 本体ステップは残っている`);
+  }
+  // 本体が実際に走る（支払い有無に関わらず）＝WX21-071 は相手シグニのパワーを－8000する
+  const eff71 = (effectsMap.get('WX21-071') ?? [])[0];
+  const st71 = (eff71.action as { steps: { type: string }[] }).steps;
+  eq(st71.map(s => s.type).join(','), 'CONDITIONAL,POWER_MODIFY,TRASH', 'WX21-071: コスト marker＋本体2ステップ');
+  const st35 = ((effectsMap.get('WX21-035') ?? [])[0].action as { steps: { type: string }[] }).steps;
+  eq(st35.map(s => s.type).join(','), 'CHOOSE', 'WX21-035: 4択2つまでの本体だけが残る');
 });
 
 test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () => {

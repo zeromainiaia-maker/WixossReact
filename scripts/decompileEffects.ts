@@ -817,6 +817,8 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
+    case 'SET_CARD_COST_REPLACEMENT':
+      return `このゲームの間、${ownerJa(a.owner)}《${a.cardName}》の使用コストは${a.cost.map(c => `《${c.color}×${c.count}》`).join('')}になる`;
     case 'PLACE_LRIGS_UNDER_CENTER':
       return `${ownerJa(a.owner)}ルリグトラッシュからすべてのルリグをこのカードの下に置く`;
     case 'ADD_TO_HAND': return `${targetJa(a.target)}を手札に加える`;

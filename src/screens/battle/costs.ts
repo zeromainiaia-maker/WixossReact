@@ -160,6 +160,82 @@ export function normalizeCostText(s: string): string {
 export interface CostReplaceCtx {
   isBetting?: boolean;
   oppState?: { turn_arts_used?: boolean; actions_done?: string[] };
+  // 他カードの `SET_CARD_COST_REPLACEMENT` でゲーム間セットされたカード名指定の置換（`WXK03-002-E3`）。
+  // 使用側カードの原文には何も書かれていないので、**EffectText 由来の規則より先**に見る。
+  cardCostReplacements?: { cardName: string; cost: { color: string; count: number }[] }[];
+  // 「使用する際、…捨ててもよい。そうした場合、使用コストは《X》になる」の任意支払いを済ませたか
+  // （`WX21-035`／`WX21-071`＝支払いUIは `SpellCastModal`）。
+  paidOptionalDiscard?: boolean;
+}
+
+/** 使用時の任意支払いで要求される手札の組（色×クラス×枚数）。全グループを満たしてはじめて置換が成立する。 */
+export interface OptionalDiscardGroup {
+  color: string;
+  story: string;
+  count: number;
+}
+
+/**
+ * 「この{スペル|アーツ}を使用する際、手札から(色A)と(色B)の＜C＞のシグニを１枚ずつ捨ててもよい。
+ *  そうした場合、この{スペル|アーツ}の使用コストは《X》に**なる**」＝**任意支払いでコストを置換**する形を読む
+ * （`WX21-035`／`WX21-071` の2枚。タスク12(lxxxi) 残テール）。
+ * 戻り値 `null`＝この形ではない。
+ *
+ * ⚠**隣接する「減る」形（22枚）は対象外**＝あちらは「捨てたシグニ1枚につき《黒×2》減る」のような
+ *   枚数比例や「2枚まで」の可変枚数があり、支払いの粒度が違う（PLAN §3 タスク12 (lxxxv)）。
+ */
+export function parseOptionalDiscardForCost(
+  effectText: string,
+): { groups: OptionalDiscardGroup[]; replacement: string } | null {
+  const m = effectText.match(
+    /この(?:スペル|アーツ|カード)を使用する際[、,]手札から([白赤青緑黒])と([白赤青緑黒])の＜([^＞]+)＞のシグニを[１1]枚ずつ捨ててもよい。そうした場合[、,][^。]*?使用コストは((?:《[^》]+》)+)になる/,
+  );
+  if (!m) return null;
+  const parts = parseGrowCost(normalizeCostText(m[4]));
+  return {
+    groups: [
+      { color: m[1], story: m[3], count: 1 },
+      { color: m[2], story: m[3], count: 1 },
+    ],
+    replacement: parts.map(p => `《${p.color}》×${p.count}`).join('') || 'なし',
+  };
+}
+
+/** カード1枚が任意支払いグループの1つを満たしうるか（UI の候補ハイライト用）。 */
+export function matchesOptionalDiscardGroup(
+  cardNum: string,
+  group: OptionalDiscardGroup,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const c = cardMap.get(cardNum) ?? cardMap.get(getCardNum(cardNum));
+  if (!c || c.Type !== 'シグニ') return false;
+  return (c.Color ?? '').includes(group.color) && (c.CardClass ?? '').includes(group.story);
+}
+
+/**
+ * 選んだ手札が全グループをちょうど満たすか。
+ * ⚠**貪欲では足りない**＝多色シグニ（例「青黒」）はどちらのグループにも当たるので、
+ *   割り当て次第で成立/不成立が変わる。グループ数が高々2なので**全割り当てを試す**（バックトラック）。
+ */
+export function optionalDiscardSatisfied(
+  groups: OptionalDiscardGroup[],
+  selectedNums: string[],
+  cardMap: Map<string, CardData>,
+): boolean {
+  const need = groups.flatMap(g => Array(g.count).fill(g) as OptionalDiscardGroup[]);
+  if (selectedNums.length !== need.length) return false;
+  const used = new Set<number>();
+  const assign = (i: number): boolean => {
+    if (i >= need.length) return true;
+    for (let j = 0; j < selectedNums.length; j++) {
+      if (used.has(j) || !matchesOptionalDiscardGroup(selectedNums[j], need[i], cardMap)) continue;
+      used.add(j);
+      if (assign(i + 1)) return true;
+      used.delete(j);
+    }
+    return false;
+  };
+  return assign(0);
 }
 
 /**
@@ -172,25 +248,37 @@ export interface CostReplaceCtx {
  *   「ベットすれば払えるか」の使用可否判定だけ `isBetting:true` で別途問い合わせる。
  */
 export function computeCostReplacement(
-  card: { Cost: string; EffectText?: string },
+  card: { CardName?: string; Cost: string; EffectText?: string },
   myState: { field?: PlayerState['field']; trash?: string[] },
   cardMap?: Map<string, CardData>,
   ctx?: CostReplaceCtx,
 ): string | null {
-  const text = card.EffectText ?? '';
-  if (!/使用コストは[^。]*になる/.test(text)) return null;
-  // 《白×1》《無×4》のような連結表記をまとめて拾う
-  const COST = '((?:《[^》]+》)+)';
   // 《X×0》は「コストなし」＝count 0 を落として 'なし' に畳む
   const toCostStr = (raw: string): string => {
     const parts = parseGrowCost(normalizeCostText(raw));
     return parts.map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
   };
+
+  // ⓪ 状態由来＝他カードの効果でカード名を指定して置換された分（`WXK03-002-E3`）。
+  //    使用側の原文には手掛かりが無いので、EffectText 規則の前（＝ガードの前）に見る。
+  const byName = card.CardName
+    ? ctx?.cardCostReplacements?.find(r => r.cardName === card.CardName)
+    : undefined;
+  if (byName) return toCostStr(byName.cost.map(c => `《${c.color}×${c.count}》`).join(''));
+
+  const text = card.EffectText ?? '';
+  if (!/使用コストは[^。]*になる/.test(text)) return null;
+  // 《白×1》《無×4》のような連結表記をまとめて拾う
+  const COST = '((?:《[^》]+》)+)';
   let m: RegExpMatchArray | null;
 
   // ① ベット形（WD17-006 / WDK01-007 ほか計9枚）
   m = text.match(new RegExp(`あなたがベットする場合[、,][^。]*?使用コストは${COST}になる`));
   if (m) return ctx?.isBetting ? toCostStr(m[1]) : null;
+
+  // ①' 使用時の任意支払い形（WX21-035 / WX21-071）＝ベット形と同じく**宣言してはじめて成立する**。
+  const optDiscard = parseOptionalDiscardForCost(text);
+  if (optDiscard) return ctx?.paidOptionalDiscard ? optDiscard.replacement : null;
 
   // ② 対戦相手のこのターンのアーツ／スペル使用（WX09-Re02）。
   //    「両方」のほうが強い条件＝先に見る（両方成立時は後段の《白×0》が正）。
@@ -221,7 +309,8 @@ export function computeCostReplacement(
 
 // EffectText を参照してアーツの実効コストを算出（条件付きコスト軽減の近似）
 export function computeArtsEffectiveCost(
-  card: { Cost: string; EffectText?: string },
+  // CardName は `card_cost_replacements`（カード名指定の置換）の照合に要る＝落とすと静かに効かなくなる
+  card: { CardName?: string; Cost: string; EffectText?: string },
   myState: { life_cloth: string[]; hand: string[]; field?: PlayerState['field']; trash?: string[] },
   lrigName?: string,
   oppLrigColor?: string,

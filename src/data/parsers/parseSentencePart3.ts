@@ -1808,6 +1808,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
+  // ---- （このゲームの間、）あなたの《カード名》の使用コストは《…》になる ----
+  // `WXK03-002-E3`＝クラフトをルリグデッキへ加えたうえで、そのカードの使用コストを**置換**する（タスク12(lxxxi)）。
+  // ⚠「減る」形（`《カード名》の使用コストは《無×N》減る`＝effectEngine の SPECIFIC_CARD_COST_REDUCE）とは別物。
+  {
+    const m = t.match(/^(?:この(?:ゲーム|ターン)の間[、,])?(あなた|対戦相手)の《([^》]+)》の使用コストは((?:《[^》]+》)+)になる/);
+    if (m) {
+      const cost = parseEnergyCosts(m[3]);
+      if (cost.length > 0) {
+        return {
+          type: 'SET_CARD_COST_REPLACEMENT',
+          owner: m[1] === 'あなた' ? 'self' : 'opponent',
+          cardName: m[2],
+          cost,
+        } as import('../../types/effects').SetCardCostReplacementAction;
+      }
+    }
+  }
+
   // ---- このシグニの下からカードを移動 ----
   {
     // 「手札に加えるかエナゾーンに置く」CHOOSE パターン

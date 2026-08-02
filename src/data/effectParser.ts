@@ -9306,11 +9306,31 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   };
 }
 
+/**
+ * 「この{スペル|アーツ}を使用する際、手札から…捨ててもよい。そうした場合、…使用コストは《X》になる」
+ * ＝**使用時（支払い時）の任意コスト**であって、効果解決中のステップではない（`WX21-035`／`WX21-071`）。
+ *
+ * この形の先頭 `STUB OPTIONAL_COST` を落とす。落とさないと `effectExecutor` の Pattern⑤ が解決中に
+ * もう一度「任意コスト：支払いますか？」を出し、**「スキップ」を選ぶと後続ステップ（＝スペル本体）が
+ * 丸ごと飛ぶ**＝使用時に支払い済みのプレイヤーが本体を失う（支払わない選択でも本体は動くのが原文）。
+ * 実際の支払いUIとコスト置換は `src/screens/battle/costs.ts` の `parseOptionalDiscardForCost` ＋
+ * `SpellCastModal` が担当する（タスク12(lxxxi) 残テール）。
+ */
+function stripUseTimeOptionalCostStep(action: EffectAction, text: string): EffectAction {
+  const isUseTimeOptional =
+    /この(?:スペル|アーツ|カード)を使用する際[、,]手札から[白赤青緑黒]と[白赤青緑黒]の＜[^＞]+＞のシグニを[１1]枚ずつ捨ててもよい。そうした場合[、,][^。]*?使用コストは(?:《[^》]+》)+になる/.test(text);
+  if (!isUseTimeOptional || action.type !== 'SEQUENCE') return action;
+  const seq = action as SequenceAction;
+  const first = seq.steps[0] as import('../types/effects').StubAction | undefined;
+  if (first?.type !== 'STUB' || first.id !== 'OPTIONAL_COST') return action;
+  return { ...seq, steps: seq.steps.slice(1) };
+}
+
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   const stripped = stripRuleParens(card.EffectText);
   const { cleaned, condition } = extractUseCondition(stripped);
-  const action = parseActionText(condition ? cleaned : stripped);
+  const action = stripUseTimeOptionalCostStep(parseActionText(condition ? cleaned : stripped), stripped);
   const spellFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-E1`, spellFb);
   let parseStatus: CardEffect['parseStatus'] = action.type === 'UNKNOWN' ? 'UNKNOWN' : spellFb.length > 0 ? 'PARTIAL' : 'AUTO';

@@ -702,6 +702,7 @@ export type EffectAction =
   | AddCraftToLrigDeckAction
   | RecollectGateAction
   | AltCostOppTurnAction
+  | SetCardCostReplacementAction
   | BlockCardUseAction
   | DrawPerFieldCountAction
   | DrawPerLrigLevelAction
@@ -1889,6 +1890,20 @@ export interface RecollectGateAction {
 // 対戦相手ターン中の代替コスト（「対戦相手のターンの間、使用コストは〜になる」）
 export interface AltCostOppTurnAction {
   type: 'ALT_COST_OPP_TURN';
+  cost: EnergyCost[];
+}
+
+/**
+ * カード名を指定して**そのカードの使用コストを置換**する（「このゲームの間、あなたの《X》の使用コストは
+ * 《黒×2》《無×1》に**なる**」＝`WXK03-002-E3`）。タスク12(lxxxi) 残テール。
+ * ⚠既存の `SPECIFIC_CARD_COST_REDUCE`（CONTINUOUS 収集・**《無×N》減らす**）とは別物＝
+ *   こちらは印刷コストを丸ごと差し替える**状態書き込み**で、発動した【起】が解決した時点で確定する。
+ * `duration:'GAME'` のみ（現状の原文はすべて「このゲームの間」）。
+ */
+export interface SetCardCostReplacementAction {
+  type: 'SET_CARD_COST_REPLACEMENT';
+  owner: Owner;
+  cardName: string;
   cost: EnergyCost[];
 }
 
