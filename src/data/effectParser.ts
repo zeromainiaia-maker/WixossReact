@@ -3413,9 +3413,8 @@ function stripParsedTriggerBeforeDrawChoice(
   const m = text.match(/^(.+?たとき)[、,]\s*((?:カードを[０-９\d]+枚引くか[^。]+|[^。]+か、?カードを[０-９\d]+枚引く))(。.*)?$/s);
   if (!m || /とき|そうした場合/.test(m[2])) return text;
   // 「対戦相手がリフレッシュしたとき」＝ timing + refreshedOwner で言い尽くせている。
-  // ⚠`ON_HAND_DISCARDED` の「**あなたの効果によって**対戦相手が捨てたとき」は**ここへ足してはいけない**＝
-  //   原因限定を表す軸が engine に無く（既存 `byOwnEffect` は「捨てた本人の効果」＝別の意味）、
-  //   落とすと2択は開くが**原因限定が消えて過剰発火が固定化される**（タスク12(lxx) で実測して撤回した）。
+  // `ON_HAND_DISCARDED` の「**あなたの効果によって**対戦相手が捨てたとき」は、
+  // watcher 所有者を基準にする triggerCondition.byWatcherEffect まで構造化された場合だけ前置きを落とせる。
   const conditionIsFieldStoryCount = condition?.type === 'HAS_CARD_IN_FIELD'
     && condition.owner === 'self'
     && condition.filter?.cardType === 'シグニ'
@@ -3427,7 +3426,10 @@ function stripParsedTriggerBeforeDrawChoice(
       && triggerScope === 'any_opp'
       && triggerCondition?.leftToZone === 'hand'
       && triggerCondition.byOwnEffect === true
-      && conditionIsFieldStoryCount);
+      && conditionIsFieldStoryCount)
+    || (timing[0] === 'ON_HAND_DISCARDED'
+      && triggerScope === 'any_opp'
+      && triggerCondition?.byWatcherEffect === true);
   return triggerIsStructured ? `${m[2]}${m[3] ?? ''}` : text;
 }
 
@@ -7324,12 +7326,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたが自分の効果によって(?:シグニ|カード)を[０-９\d]+枚(?:以上)?捨てたとき/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOwnEffect: true };
         }
-        // ⚠「**あなたの効果によって**対戦相手が手札をN枚捨てたとき」（`WXDi-P02-030-E1`／`WXDi-P04-009-E2`／
-        //   `WXDi-P04-063-E1`／`WXDi-P10-060-E1`）の**原因限定はここでは表現できない**（タスク12(lxx) で実測）。
-        //   既存の `byOwnEffect` は engine 側で「**捨てた本人**の効果が原因」軸として実装されており
-        //   （`triggerCollect.ts` の any_opp watcher ループは `byOwnEffect` を**問答無用で非発火**にする）、
-        //   ここで流用すると4効果が**恒久 no-op** になる。⇒ 別軸（watcher 所有者の効果が原因）の新設が要る。
-        //   PLAN §3 Opusタスク12 の在庫へ登録済み。現状は cause 限定なし＝過剰発火のまま据置。
+        // 「**あなたの効果によって**対戦相手が手札をN枚捨てたとき」＝watcher 所有者の効果が原因。
+        // ⚠既存 byOwnEffect（捨てた本人が基準）とは別軸なので流用しない。
+        if (/あなたの効果によって対戦相手が手札を[０-９\d]+枚(?:以上)?捨てたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byWatcherEffect: true };
+        }
         // 「《ガードアイコン》を持たないカードを」＝捨てられたカード側の限定（既存 TargetFilter.noGuard）。
         if (/《ガードアイコン》を持たないカードを[０-９\d]+枚捨てたとき/.test(actionText)) {
           extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), noGuard: true };

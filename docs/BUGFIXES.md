@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxx) Batch F：(lxxviii) watcher所有者の効果による相手手札捨て
+
+`ON_HAND_DISCARDED any_opp` の4効果（`WXDi-P02-030-E1`／`WXDi-P04-009-E2`／`WXDi-P04-063-E1`／`WXDi-P10-060-E1`）は、「あなたの効果によって」という原因限定を持たず、相手自身のコスト支払い・相手自身の効果・原因不明の手札捨てでも過剰発火していた。新条件 `triggerCondition.byWatcherEffect` を追加し、「その【自】を持つ watcher 所有者の効果が原因」のときだけ発火するよう `collectHandDiscardTriggers` の跨サイド any_opp ループで判定した。既存 `byOwnEffect` は「捨てた本人の効果が原因」という別軸のため流用せず、`WXDi-D09-P16-E2` の既存挙動も維持した。
+
+原因 owner は collector の `causeOwnerId?: string`（`undefined`＝コスト／ルール処理）として新設。効果 executor 自体は userId を持たないため、entry/pending の owner を知る `collectBoardDiffTriggers` で `hand_discarded_just_cause_owner_id` に刻み、React watcher（人間・CPU）まで運ぶ。BattleScreen の呼び出し7地点すべて（人間 watcher、CPU watcher、レゾナ出現支払い、キー起動準備、【起】コスト、手札起動コスト、【出】コスト）へ明示配線した。効果起因のキー準備だけ `user.id`、効果解決 watcher は一時状態の owner、各コスト／ルール経路は `undefined` を渡す。
+
+parser は原文「あなたの効果によって対戦相手が手札をN枚捨てたとき」にだけ `byWatcherEffect:true` を刻む。4効果のうち `WXDi-P02-030-E1` は curated が旧 ENA_CHARGE 固定を温存していたため、fresh の `CHOOSE[DRAW 1 / ENERGY_CHARGE 1]` と新条件を JSON へ直接採用し `parseStatus:PARTIAL`、他3効果は fresh を採用した。`buildEffectsJson.ts` にカード固有パッチ・例外は追加していない。live per-effect 差分は changed 4 / added 0 / removed 0、対象4効果だけでスコープ外 outlier 0。
+
+使い捨て `tmp_batch_f_engine_probe.ts` で4効果を collector へ直接投入し、全件 `watcher_effect=true / opp_cost=false / opp_effect=false / no_cause=false` を実測。golden はルリグ2枚を lrig、シグニ2枚を signi に置き、同4ケースと旧 `byOwnEffect` 非回帰を固定（1275→1277）。census 1313→1313、smoke 10679/10679 全0・SKIP0、fuzz 全0、manual field loss 0、lint 0 errors/240 warnings、held 256→255。`build:effects` と `regen` は連続2回の hash 一致で冪等、gates 全緑。(lxxviii) と (lxx) は残0クローズ。
+
 ## 2026-08-02 — Opusタスク12(lxx) Batch E'：held の引用内裸アクションを live へ反映
 
 Batch E で fresh のみ安全化され held に残った38カードを原文・live・fresh・全兄弟 effectId で照合し、31カードはカード単位採用、7カード（`WXDi-D04-011`／`WXDi-P11-004`／`WX24-P3-007`／`WX24-P4-036`／`WX25-P2-003`／`WX25-P2-005`／`WX25-P2-007`）は引用外の正当な STUB／設置処理を維持する外科パッチで採用した。7効果は curated JSON を直接編集して `parseStatus: PARTIAL` とし、既存の PRESERVE 温存機構へ載せた。`buildEffectsJson.ts` にカード固有ロジックや PRESERVE 例外は追加していない。

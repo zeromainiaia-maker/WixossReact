@@ -2818,6 +2818,7 @@ export function collectHandDiscardTriggers(
   ctx: TrigCtx, discardedNums: string[], myState: PlayerState, discarderId: string, asCost: boolean,
   opState?: PlayerState, opId?: string, costSourceNum?: string,
   byOppEffect = false,
+  causeOwnerId?: string,
 ): { entries: StackEntry[]; usedLimitIds: string[] } {
   const entries: StackEntry[] = [];
   const usedLimitIds: string[] = [];
@@ -2927,6 +2928,9 @@ export function collectHandDiscardTriggers(
         // byOwnEffect は「捨てた本人の効果が原因」を指す軸なので、watcher の持ち主が discarder でない
         // このループでは意味が確定しない（実データ0件）。過剰発火を避けて保守的に非発火にする。
         if (eff.triggerCondition?.byOwnEffect) continue;
+        // byWatcherEffect（「あなたの効果によって対戦相手が手札を捨てたとき」）＝
+        // watcher 所有者（opId）の効果が原因の場合だけ。コスト／ルール処理（undefined）も非発火。
+        if (eff.triggerCondition?.byWatcherEffect && causeOwnerId !== opId) continue;
         if (!matchesTrigFilter(eff)) continue;
         if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') {
           const max = eff.usageLimit === 'once_per_turn' ? 1 : 2;

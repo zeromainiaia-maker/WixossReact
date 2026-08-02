@@ -5301,7 +5301,7 @@ test('LRIG走査漏れ collectHandDiscardTriggers: 自LRIG watcher（WXEX2-12 ON
 // 相手（discarder）の手札捨てで発火し、自分の手札捨てでは発火しない（自分の捨てで発火する 'any' との差）。
 test('collectHandDiscardTriggers any_opp: 相手(discarder)の手札捨てで反応側シグニが発火（WXDi-P04-063）', () => {
   const discarder = mkState({}); const reactor = mkState({ signi: ['WXDi-P04-063', null, null] });
-  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST).entries;
+  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST, undefined, true, HOST).entries;
   eq(fired(e, 'WXDi-P04-063-E1'), true, '相手捨てで発火');
   eq(e.find(x => x.effectId === 'WXDi-P04-063-E1')?.playerId, HOST, 'playerId=反応側(HOST)');
 });
@@ -5312,7 +5312,7 @@ test('collectHandDiscardTriggers any_opp: 自分の手札捨てでは発火し�
 });
 test('collectHandDiscardTriggers any_opp: 反応側センタールリグ watcher も発火（WXDi-P04-009 LRIG）', () => {
   const discarder = mkState({}); const reactor = mkState({}); reactor.field.lrig = ['WXDi-P04-009'];
-  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST).entries;
+  const e = collectHandDiscardTriggers(trigCtx(GUEST), [SIGNI], discarder, GUEST, false, reactor, HOST, undefined, true, HOST).entries;
   eq(fired(e, 'WXDi-P04-009-E2'), true, '相手捨てで LRIG watcher 発火');
 });
 
@@ -20398,6 +20398,58 @@ test('task12 lxx: any_opp「あなたの効果によって相手が捨てたと�
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
     eq(eff.triggerScope, 'any_opp', `${effectId}: 相手の手札捨てに反応する watcher`);
     eq(eff.triggerCondition?.byOwnEffect, undefined, `${effectId}: byOwnEffect は流用禁止（別軸）`);
+  }
+});
+
+test('task12(lxx) Batch F: any_opp watcher は watcher 所有者の効果による手札捨てだけで発火', () => {
+  const savedCursor = cursor;
+  try {
+    for (const [cardNum, effectId, zone] of [
+      ['WXDi-P02-030', 'WXDi-P02-030-E1', 'lrig'], ['WXDi-P04-009', 'WXDi-P04-009-E2', 'lrig'],
+      ['WXDi-P04-063', 'WXDi-P04-063-E1', 'signi'], ['WXDi-P10-060', 'WXDi-P10-060-E1', 'signi'],
+    ] as const) {
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      eq(effect.triggerCondition?.byWatcherEffect, true, `${effectId}: parser/live は新軸を保持`);
+      eq(effect.triggerCondition?.byOwnEffect, undefined, `${effectId}: 捨てた本人基準の旧軸は流用しない`);
+      if (effectId === 'WXDi-P02-030-E1') {
+        eq(effect.action.type, 'CHOOSE', 'lxx 最終残：DRAW/ENERGY_CHARGE の二択も live へ採用');
+      }
+      const watcher = zone === 'lrig'
+        ? mkState({ lrig: [cardNum] })
+        : mkState({ signi: [cardNum, null, null] });
+      const hit = (asCost: boolean, causeOwnerId?: string) => fired(
+        collectHandDiscardTriggers(
+          trigCtx(HOST), [SIGNI], mkState({}), GUEST, asCost, watcher, HOST,
+          undefined, causeOwnerId === HOST, causeOwnerId,
+        ).entries,
+        effectId,
+      );
+      eq(hit(false, HOST), true, `${effectId}: watcher(HOST) の効果なら発火`);
+      eq(hit(true, undefined), false, `${effectId}: 相手自身のコスト支払いなら非発火`);
+      eq(hit(false, GUEST), false, `${effectId}: 相手自身の効果なら非発火`);
+      eq(hit(false, undefined), false, `${effectId}: ルール処理／原因不明なら非発火`);
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
+test('task12(lxx) Batch F: WXDi-D09-P16-E2 の既存 byOwnEffect 軸は非回帰', () => {
+  const savedCursor = cursor;
+  try {
+    const watcher = mkState({ signi: ['WXDi-D09-P16', null, null] });
+    const hit = (asCost: boolean, byOppEffect: boolean, causeOwnerId?: string) => fired(
+      collectHandDiscardTriggers(
+        trigCtx(HOST), [SIGNI], watcher, HOST, asCost, mkState({}), GUEST,
+        undefined, byOppEffect, causeOwnerId,
+      ).entries,
+      'WXDi-D09-P16-E2',
+    );
+    eq(hit(false, false, HOST), true, '自分の効果なら従来どおり発火');
+    eq(hit(true, false, undefined), false, 'コスト支払いでは従来どおり非発火');
+    eq(hit(false, true, GUEST), false, '相手効果では従来どおり非発火');
+  } finally {
+    cursor = savedCursor;
   }
 });
 

@@ -389,6 +389,9 @@ export interface PlayerState {
   // triggerCondition.byOwnEffect（「あなたが自分の効果によって捨てたとき」WXDi-D09-P16-E2）の判定に使う。
   // hand_discarded_just と同じ地点で BattleScreen がクリアする。
   hand_discarded_just_by_opp?: boolean | null;
+  // hand_discarded_just を起こした効果の owner userId。undefined＝コスト／ルール処理など効果起因でない。
+  // triggerCondition.byWatcherEffect（watcher 所有者の効果による相手手札捨て）の判定に使い、同時にクリアする。
+  hand_discarded_just_cause_owner_id?: string | null;
   // このプレイヤーから見て対戦相手の場に【ウィルス】が置かれた/取り除かれた直後にセット
   // （BattleScreenでON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGEDトリガー検出用。複数個の同時増減でも1回扱い）
   opp_virus_placed_just?: boolean | null;

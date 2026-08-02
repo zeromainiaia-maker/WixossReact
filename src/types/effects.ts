@@ -2263,6 +2263,7 @@ export interface CardEffect {
     duringMainPhase?: boolean;                        // 「メインフェイズの間」だけ発火（WX18-052）
     upIncludesLrig?: boolean;                         // ON_SIGNI_BECOMES_UP の「あなたのセンタールリグかシグニ1体がアップ状態になったとき」（WX20-051）＝センタールリグのアップ（lrig_down true→false）でも発火。省略＝シグニのみ
     byOwnEffect?: boolean;                            // ON_HAND_DISCARDED（「あなたが**自分の効果によって**カードをN枚以上捨てたとき」WXDi-D09-P16-E2）＝コスト支払いの手札捨て・対戦相手の効果で捨てさせられた場合では発火しない（collectHandDiscardTriggers の asCost と、discarder 側 state の hand_discarded_just_by_opp で判定）。ON_TRASH（自己discard反応「あなたの効果によって/あなたがこのカードを捨てたとき」WXDi-P08-075/P11-069）＝対戦相手の効果起因では発火しない。ON_LEAVE_FIELD any_opp（「あなたの効果によって対戦相手のシグニが…」WXK11-049/WXDi-CP01-027）＝watcher 自身の効果が原因のときのみ発火（バトル/ルール処理でも発火しない）
+    byWatcherEffect?: boolean;                        // ON_HAND_DISCARDED any_opp（「あなたの効果によって対戦相手が手札を捨てたとき」）＝その【自】の watcher 所有者の効果が原因のときのみ。捨てた本人を基準にする byOwnEffect とは別軸
     placedOnTrapZone?: boolean;                       // 「対戦相手のシグニN体が【トラップ】のあるシグニゾーンに出たとき」（WX21-025）＝トリガー元シグニの持ち主の signi_traps が当該ゾーンに在る場合のみ発火（ON_PLAY any_opp と併用・タスク16[C]機構⑤）
     placedOnGateZone?: boolean;                       // 「対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき」（WXK10-044）＝トリガー元シグニの持ち主の own_gate_zones に当該ゾーンが含まれる場合のみ発火（同上。⚠WXK迷宮のゲート設置が未配線の間は発火しない＝旧 ON_PLAY self 幻覚よりは正直な no-op）
     lrigAttackGuarded?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集

@@ -1303,13 +1303,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           localIsHost ? bs.guest_state : bs.host_state, localIsHost ? bs.guest_id : bs.host_id,
           // byOppEffect＝この手札捨てが「対戦相手の効果によるもの」か（triggerCondition.byOwnEffect の判定材料）。
           // executor が捨てた側の state に立てる（自分の効果なら立たない）。
-          undefined, !!localMy.hand_discarded_just_by_opp);
+          undefined, !!localMy.hand_discarded_just_by_opp, localMy.hand_discarded_just_cause_owner_id ?? undefined);
         entries.push(...hdEntries);
         const cleared: PlayerState = {
           ...localMy,
           hand_revealed_just: null,
           hand_discarded_just: null,
           hand_discarded_just_by_opp: null,
+          hand_discarded_just_cause_owner_id: null,
           actions_done: usedLimitIds.length > 0 ? [...(localMy.actions_done ?? []), ...usedLimitIds] : localMy.actions_done,
         };
         const update: Record<string, unknown> = { [stateKey]: cleared };
@@ -1317,12 +1318,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (cpuDiscardedHJ.length > 0) {
           const { entries: cpuHd, usedLimitIds: cpuUsed } = collectHandDiscardTriggers(
             cpuDiscardedHJ, bs.guest_state, CPU_PLAYER_ID, false, bs.host_state, bs.host_id,
-            undefined, !!bs.guest_state.hand_discarded_just_by_opp);
+            undefined, !!bs.guest_state.hand_discarded_just_by_opp, bs.guest_state.hand_discarded_just_cause_owner_id ?? undefined);
           entries.push(...cpuHd);
           update.guest_state = {
             ...bs.guest_state,
             hand_discarded_just: null,
             hand_discarded_just_by_opp: null,
+            hand_discarded_just_cause_owner_id: null,
             actions_done: cpuUsed.length > 0 ? [...(bs.guest_state.actions_done ?? []), ...cpuUsed] : bs.guest_state.actions_done,
           };
         }
@@ -2734,6 +2736,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const entries: StackEntry[] = [];
     const useHost  = (used: string[]) => { if (used.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...used] }; };
     const useGuest = (used: string[]) => { if (used.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...used] }; };
+
+    // 効果解決で生じた手札捨ての原因 owner を React watcher まで運ぶ。
+    // executor は userId を持たないため、entry/pending 由来の causeOwnerId を知る中央 diff で刻む。
+    if (detectHandTrashed(beforeHost, h).length > 0 && h.hand_discarded_just?.length) {
+      h = { ...h, hand_discarded_just_cause_owner_id: causeOwnerId };
+    }
+    if (detectHandTrashed(beforeGuest, g).length > 0 && g.hand_discarded_just?.length) {
+      g = { ...g, hand_discarded_just_cause_owner_id: causeOwnerId };
+    }
 
     entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeHost, h, bs.host_id));
     entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeGuest, g, bs.guest_id));
@@ -5116,8 +5127,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     opId?: string,
     costSourceNum?: string,
     byOppEffect?: boolean,
+    causeOwnerId?: string,
   ): { entries: StackEntry[]; usedLimitIds: string[] } =>
-    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect);
+    pureCollectHandDiscardTriggers(mkTrigCtx(), discardedNums, myState, discarderId, asCost, opState, opId, costSourceNum, byOppEffect, causeOwnerId);
 
   /**
    * 相手がアーツを使用したとき、ON_OPP_ARTS_USE トリガーを持つ自分のシグニを収集する。
@@ -5331,7 +5343,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 手札支払いは中央差分の ON_TRASH に加え、既存の「手札を捨てたとき」経路にも載せる。
       // 出現条件は【出】【起】能力の使用コストではないため asCost=false（ON_DISCARDED_AS_COST は発火させない）。
       const discardRes = resonaPaymentMeta?.discardedCostCards.length
-        ? collectHandDiscardTriggers(resonaPaymentMeta.discardedCostCards.map(getCardNum), placed, user.id, false, summonOpp, isHost ? bs.guest_id : bs.host_id)
+        ? collectHandDiscardTriggers(resonaPaymentMeta.discardedCostCards.map(getCardNum), placed, user.id, false, summonOpp, isHost ? bs.guest_id : bs.host_id, undefined, undefined, undefined)
         : null;
       if (discardRes?.usedLimitIds.length) placed = { ...placed, actions_done: [...(placed.actions_done ?? []), ...discardRes.usedLimitIds] };
       paymentEntries.push(...(discardRes?.entries ?? []));
@@ -6081,6 +6093,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? collectHandDiscardTriggers(
             prep.movedFromHand.map(getCardNum), preparedMine, user.id, false,
             preparedOpp, isHost ? bs.guest_id : bs.host_id,
+            undefined, undefined, user.id,
           )
         : { entries: [] as StackEntry[], usedLimitIds: [] as string[] };
       if (handDiscard.usedLimitIds.length > 0) {
@@ -10515,7 +10528,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (allDiscardedForTrigger.length > 0) {
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
           allDiscardedForTrigger, paid, user.id, true,
-          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum);
+          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum, undefined, undefined);
         stackEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -10632,7 +10645,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 自身をコストとして捨てた場合のトリガー
       const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
         [cardNum], paid, user.id, true,
-        isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum);
+        isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum, undefined, undefined);
       stackEntries.push(...hdEntries);
       if (usedLimitIds.length > 0) {
         paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -11122,7 +11135,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (discardNums.length > 0) {
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
           discardNums, paid, user.id, true,
-          user.id === bs.host_id ? bs.guest_state : bs.host_state, user.id === bs.host_id ? bs.guest_id : bs.host_id, cardNum);
+          user.id === bs.host_id ? bs.guest_state : bs.host_state, user.id === bs.host_id ? bs.guest_id : bs.host_id, cardNum, undefined, undefined);
         allEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
