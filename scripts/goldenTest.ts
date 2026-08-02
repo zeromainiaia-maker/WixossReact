@@ -214,6 +214,117 @@ function eq(a: unknown, b: unknown, m = '') { if (a !== b) throw new Error(`${m}
 function ok(c: boolean, m = '') { if (!c) throw new Error(m || 'assert false'); }
 const tops = (st: PlayerState) => st.field.signi.map(s => s?.at(-1) ?? null);
 
+// ── task12(lxxxii) 第6波：CHOOSE ヘッダの「まで」＝upTo と、文中 CHOOSE 救済の前置拡張 ──
+// buildChoose の全呼び出し元が「Mつ**まで**選ぶ」の「まで」を捨てて丁度M個必須に潰していた
+// （ベット/リコレクト経路だけが upTo を立てていた）。live 32効果が upTo 欠落だった。
+{
+  const findChooses = (a: unknown, out: Record<string, unknown>[] = []): Record<string, unknown>[] => {
+    if (!a || typeof a !== 'object') return out;
+    const o = a as Record<string, unknown>;
+    if (o.type === 'CHOOSE') out.push(o);
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) v.forEach(x => findChooses(x, out));
+      else if (v && typeof v === 'object') findChooses(v, out);
+    }
+    return out;
+  };
+  const freshEff = (card: string, effId: string) => {
+    const e = parseCardEffects(cardMap.get(card)!).find(x => x.effectId === effId);
+    if (!e) throw new Error(`${effId} not found in fresh`);
+    return e;
+  };
+
+  test('task12(lxxxii) wave6: 「Mつまで選ぶ」は upTo=true、「Mつ選ぶ」は upTo を立てない', () => {
+    // 先頭形「以下の４つから２つまで選ぶ」（live JSON へ採用済み）
+    const burst = findChooses(manualEffect('WX21-058', 'WX21-058-BURST').action);
+    eq(burst.length, 1, 'WX21-058-BURST の CHOOSE 本数');
+    eq(burst[0].choose_count, 2, 'choose_count');
+    eq(burst[0].from_count, 4, 'from_count');
+    eq(burst[0].upTo, true, '「２つまで」は upTo=true');
+    // 「まで」が無い形は upTo を立てない（過剰な緩和の防止）
+    const strict = findChooses(manualEffect('WD21-008', 'WD21-008-E1').action);
+    eq(strict.length, 1, 'WD21-008-E1 の CHOOSE 本数');
+    eq(strict[0].choose_count, 1, 'choose_count');
+    ok(strict[0].upTo === undefined, '「１つを選ぶ」に upTo を付けてはいけない');
+  });
+
+  test('task12(lxxxii) wave6: WX20-007-E1 は前置の任意支払いSTUB＋コストmarkerを残して文中CHOOSEを復元する', () => {
+    const action = freshEff('WX20-007', 'WX20-007-E1').action as unknown as { type: string; steps: Record<string, unknown>[] };
+    eq(action.type, 'SEQUENCE', 'トップは SEQUENCE');
+    eq(action.steps.length, 3, '前置2本＋CHOOSE');
+    // ①「＜精像＞のシグニを２枚まで捨ててもよい」＝engine 実装済みの任意支払い STUB（消してはいけない）
+    eq(action.steps[0].type, 'STUB', 'step0 は STUB');
+    eq(action.steps[0].id, 'OPTIONAL_DISCARD_CLASS_SIGNI', '任意支払い STUB を前段に保持');
+    // ②「捨てたシグニ１枚につきコストが減る」＝実行時マーカー
+    eq(action.steps[1].type, 'STUB', 'step1 は STUB');
+    eq(action.steps[1].id, 'ARTS_COST_REDUCTION_BY_EFFECT', 'コスト減 marker を前段に保持');
+    const choose = action.steps[2] as Record<string, unknown>;
+    eq(choose.type, 'CHOOSE', 'step2 は CHOOSE');
+    eq(choose.choose_count, 2, '「３つから２つまで」の選択数');
+    eq(choose.from_count, 3, '選択肢は3本');
+    eq(choose.upTo, true, '「２つまで」は upTo=true');
+    const choices = choose.choices as { action: Record<string, unknown> }[];
+    eq(choices[0].action.type, 'BANISH', '①レベル３以下バニッシュ');
+    eq(choices[1].action.type, 'POWER_MODIFY', '②パワー修正');
+    eq((choices[1].action as { delta: number }).delta, -12000, '②は－12000');
+    // ③「それを場に出す。それの【出】能力は発動しない」＝配置アンカーへ畳まれる（宙に浮く BLOCK を残さない）
+    const third = JSON.stringify(choices[2].action);
+    ok(third.includes('"suppressOnPlay":true'), '③は suppressOnPlay へ畳む');
+    ok(!third.includes('ON_PLAY_ABILITY'), '③に宙ぶらりんの BLOCK_ACTION を残さない');
+  });
+
+  test('task12(lxxxii) wave6: 採用した文中CHOOSE 5効果は選択肢が復元され平坦化した強制実行に戻らない', () => {
+    // live は「選択肢が1本だけ残って平坦化＝強制実行」だった（幻覚混線を含む）。
+    const expected: [string, string, number, number][] = [
+      ['WXK05-002', 'WXK05-002-E1', 3, 3],
+      ['WXK05-004', 'WXK05-004-E1', 2, 4],
+      ['WXK07-002', 'WXK07-002-E1', 2, 4],
+      ['WXK08-001', 'WXK08-001-E1', 2, 3],
+      ['WXK08-003', 'WXK08-003-E1', 2, 3],
+    ];
+    for (const [card, effId, chooseCount, fromCount] of expected) {
+      const chooses = findChooses(manualEffect(card, effId).action);
+      eq(chooses.length, 1, `${effId}: CHOOSE 本数`);
+      eq(chooses[0].choose_count, chooseCount, `${effId}: choose_count`);
+      eq(chooses[0].from_count, fromCount, `${effId}: from_count`);
+      eq(chooses[0].upTo, true, `${effId}: 「まで」＝upTo`);
+      // 使用コスト修飾 marker は CHOOSE の前段に残す（消すと減額が読めなくなる）
+      const steps = (manualEffect(card, effId).action as unknown as { steps?: { type: string; id?: string }[] }).steps ?? [];
+      ok(steps.some(s => s.type === 'STUB' && s.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG'),
+        `${effId}: センタールリグ条件のコスト減 marker を前段に保持`);
+    }
+  });
+
+  test('task12(lxxxii) wave6: WXK08-003-E1 ③ は「対戦相手がアーツかスペル使用」ORゲートを保つ（無条件トラッシュにしない）', () => {
+    const choose = findChooses(manualEffect('WXK08-003', 'WXK08-003-E1').action)[0];
+    const third = (choose.choices as { action: Record<string, unknown> }[])[2].action;
+    eq(third.type, 'CONDITIONAL', '③は条件つき');
+    const cond = third.condition as { type: string; conditions: { type: string; owner: string }[] };
+    eq(cond.type, 'OR', 'アーツ「か」スペル＝OR');
+    eq(cond.conditions.length, 2, 'OR の枝は2本');
+    eq(cond.conditions[0].type, 'ARTS_USED_THIS_TURN', '枝1＝アーツ使用');
+    eq(cond.conditions[0].owner, 'opponent', '主語は対戦相手');
+    eq(cond.conditions[1].type, 'SPELL_USED_THIS_TURN', '枝2＝スペル使用');
+    eq(cond.conditions[1].owner, 'opponent', '主語は対戦相手');
+    eq((third.then as { type: string }).type, 'TRASH', '成立時のみトラッシュ');
+  });
+
+  test('task12(lxxxii) wave6: curated 直書き上書き（WX05系）と MANUAL 温存分にも upTo が乗る', () => {
+    // effectParser の STATE_COND_BATCH4_ACTIONS 直書き＝upTo 対応前の記述だった
+    for (const card of ['WX05-052', 'WX05-059', 'WX05-066', 'WX05-073']) {
+      const chooses = findChooses(manualEffect(card, `${card}-E1`).action);
+      eq(chooses.length, 1, `${card}: CHOOSE 本数`);
+      eq(chooses[0].upTo, true, `${card}: 「２つまで」＝upTo`);
+    }
+    // MANUAL（PRESERVE 保護）は build:effects で fresh が届かないため外科パッチ済み
+    for (const [card, effId] of [['WXDi-P10-004', 'WXDi-P10-004-E1'], ['WXDi-P16-048', 'WXDi-P16-048-E1']]) {
+      const chooses = findChooses(manualEffect(card, effId).action);
+      eq(chooses.length, 1, `${effId}: CHOOSE 本数`);
+      eq(chooses[0].upTo, true, `${effId}: 「２つまで」＝upTo`);
+    }
+  });
+}
+
 test('task12(lxxxii) wave4: FISHING optional discard changes 1/2 choices and both life-burst branches resolve', () => withSavedCursor(() => {
   const SOURCE = 'WD23-044-EA';
   const effect = manualEffect(SOURCE, 'WD23-044-EA-E1');
@@ -11939,8 +12050,12 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       }
     }
   });
-  test('(xxix) 非該当は不変: 配置アンカーの無い BLOCK は誤って畳まない（WX20-007-E1・STUB配置）', () => {
-    const a = effOfX('WX20-007', 'WX20-007-E1').action;
+  // ⚠元は WX20-007-E1 を「アンカー無し」の否定例に使っていたが、それは文中 CHOOSE が丸ごと
+  //   脱落して③の ADD_TO_FIELD が消えていたせいで BLOCK が宙に浮いていただけだった
+  //   （タスク12(lxxxii) 第6波で CHOOSE を復元＝③にアンカーが戻り、畳むのが正しい状態になった）。
+  //   否定例は「配置を STUB／公開ピック連鎖が行い ADD_TO_FIELD アンカーが本当に無い」WXK05-005-E1 へ移す。
+  test('(xxix) 非該当は不変: 配置アンカーの無い BLOCK は誤って畳まない（WXK05-005-E1・公開ピック配置）', () => {
+    const a = effOfX('WXK05-005', 'WXK05-005-E1').action;
     ok(hasOnPlayBlock(a), 'アンカー無し＝ブロック据置のはず');
     ok(!hasSuppress(a), 'アンカー無しに suppressOnPlay を付けてはいけない');
   });

@@ -1648,6 +1648,14 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // 「代わりに」置換（WX25-P2-108＝matchLeadingStateCondition 経由の per-target 値すり替え）用。
   [/このターンにあなたがスペルを使用していた場合/,
     () => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self' })],
+  // 「このターンに対戦相手がアーツかスペルを使用していた場合」＝OR ゲート（両語彙・engine 実装済み）。
+  // 従来この文型は tryParseDoAllItems 内の1文だけが専用ハンドラで拾っており、選択肢内に置かれた
+  // `WXK08-003-E1` ③ では条件が丸ごと落ちて**無条件トラッシュ＝過剰実行**になっていた（タスク12(lxxxii) 第6波）。
+  [/このターンに対戦相手がアーツかスペルを使用していた場合/,
+    () => ({ type: 'OR', conditions: [
+      { type: 'ARTS_USED_THIS_TURN', owner: 'opponent' },
+      { type: 'SPELL_USED_THIS_TURN', owner: 'opponent' },
+    ] })],
   // 「あなたの場に(色)の＜C＞のシグニがある場合」（WX25-P2-086/105 の①）／「あなたの場に＜C＞のシグニがある場合」
   // （census 条件節クラスタ6効果）＝枚数指定なしの存在ゲート。N体/他の付き変種は先行エントリが先にマッチする。
   // 「のシグニ」省略形（「あなたの場に赤の＜天使＞がある場合」）も許容する
@@ -3662,10 +3670,10 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
 // （SPELL_USED_THIS_TURN・THIS_CARD_FROM_TRASH then/else・THIS_CARD_PLACED_BY_CLASS(cardClass省略)・
 // THIS_CARD_FROM_DECK）。WD23-017-EA-E1 は PARTIAL＝PRESERVE のため対象外（直パッチのみ）。
 const STATE_COND_BATCH4_ACTIONS: Record<string, string> = {
-  'WX05-052-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2},"color":"白"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"白"}]}}]}',
-  'WX05-059-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"赤"}]},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}}}]}',
-  'WX05-066-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":3},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"青"}]}}]}',
-  'WX05-073-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000}},{"choiceId":"c1","label":"選択肢2","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"緑"}]}}]}',
+  'WX05-052-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2},"color":"白"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"白"}]}}],"upTo":true}',
+  'WX05-059-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"赤"}]},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}}}],"upTo":true}',
+  'WX05-066-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":3},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"青"}]}}],"upTo":true}',
+  'WX05-073-E1': '{"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000}},{"choiceId":"c1","label":"選択肢2","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":5000},"condition":{"type":"AND","conditions":[{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":4},{"type":"LRIG_COLOR","owner":"self","color":"緑"}]}}],"upTo":true}',
   'WX09-018-E2': '{"type":"CONDITIONAL","condition":{"type":"SPELL_USED_THIS_TURN","owner":"self","minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}',
   'WX11-011-E1': '{"type":"CONDITIONAL","condition":{"type":"LRIG_STORY","owner":"self","story":"イオナ"},"then":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":4},"color":"白"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"else":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2},"color":"白"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}}',
   'WX11-012-E1': '{"type":"CONDITIONAL","condition":{"type":"LRIG_STORY","owner":"self","story":"タマ"},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"あなたが《無》《無》《無》《無》を支払わないかぎりアタックできない","duration":"UNTIL_END_OF_TURN"},"else":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"keyword":"あなたが《無》《無》《無》を支払わないかぎりアタックできない","duration":"UNTIL_END_OF_TURN"}}',
@@ -5706,7 +5714,10 @@ function parseActionTextInner(text: string): EffectAction {
     return true;
   });
   // CHOOSEパターン共通ヘルパー
-  function buildChoose(rawText: string, chooseCount: number): ChooseAction | null {
+  // ⚠ヘッダの「Mつ**まで**選ぶ」は upTo=true（1〜M個選択可）。従来は全呼び出し元が「まで」を
+  //   捨てて choose_count=M の**丁度M個必須**に潰しており、選べる数が原文より狭まっていた
+  //   （ベット/リコレクト経路〔:5260/:5293〕だけが upTo を立てていた＝タスク12(lxxxii) 第6波）。
+  function buildChoose(rawText: string, chooseCount: number, upTo: boolean): ChooseAction | null {
     const items = [...rawText.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
     if (items.length < 2) return null;
     return {
@@ -5719,6 +5730,7 @@ function parseActionTextInner(text: string): EffectAction {
         const { action, condition } = liftChoiceOptionCondition(parsed, optRaw);
         return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
       }),
+      ...(upTo ? { upTo: true } : {}),
     };
   }
 
@@ -5728,7 +5740,7 @@ function parseActionTextInner(text: string): EffectAction {
   // カード本文やカード番号ではなく既存 action tree の形で絞り、単一の条件付きコストや
   // 追加コストを伴う別文型は各々の専用機構へ残す。
   {
-    const embeddedHead = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
+    const embeddedHead = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
     if (embeddedHead?.index && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const prefixText = text.slice(0, embeddedHead.index).trim();
       const prefixAction = parseActionText(prefixText);
@@ -5759,8 +5771,18 @@ function parseActionTextInner(text: string): EffectAction {
       if (hasWrappedEffectCostMarker && optionalPayment.type === 'TRASH') {
         optionalPayment.optional = true;
       }
-      if (onlyCostMarkers || hasWrappedEffectCostMarker) {
-        const chosen = buildChoose(text.slice(embeddedHead.index), parseNum(embeddedHead[1]));
+      // 「任意支払い STUB（engine 実装済み）＋ 素の marker」型（`WX20-007-E1` の
+      // 「＜精像＞のシグニを２枚まで捨ててもよい」＋「捨てた枚数につきコストが減る」）。
+      // 支払い STUB は原文からクラス・枚数を読んで実際に捨てるので前段に残し、marker だけ従える。
+      const paymentStubIds = new Set([
+        'OPTIONAL_DISCARD_CLASS_SIGNI',
+        'TRASH_OWN_KEY_OPTIONAL',
+      ]);
+      const hasPaymentStubThenCostMarker = prefixSteps.length === 2
+        && optionalPayment?.type === 'STUB' && paymentStubIds.has(optionalPayment.id)
+        && wrappedCostMarker?.type === 'STUB' && costMarkerIds.has(wrappedCostMarker.id);
+      if (onlyCostMarkers || hasWrappedEffectCostMarker || hasPaymentStubThenCostMarker) {
+        const chosen = buildChoose(text.slice(embeddedHead.index), parseNum(embeddedHead[1]), !!embeddedHead[2]);
         if (chosen) return { type: 'SEQUENCE', steps: [...prefixSteps, chosen] } as SequenceAction;
       }
     }
@@ -5772,7 +5794,7 @@ function parseActionTextInner(text: string): EffectAction {
   // ⚠選択数変更型「〜の場合、代わりにNつまで選ぶ」（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済み
   // STUB・リコレクトの選択数変更を含む）は選択数の条件分岐が要る＝素の CHOOSE に退化させない（据置）。
   {
-    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
+    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
     if (headM && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       // ⚠「…それは**選んだ能力を得る**。①【アサシン】②【ランサー】」型（WXK10-018）は、選択肢が
       //   **付与される能力名**であって実行するアクションではない＝素の CHOOSE に組むと「②【ランサー】」が
@@ -5791,7 +5813,7 @@ function parseActionTextInner(text: string): EffectAction {
           : selfGrant ? 'GRANT_CHOSEN_ABILITY_SELF' : 'GRANT_CHOSEN_ABILITY';
         return { type: 'STUB', id: gcaId } as unknown as EffectAction;
       }
-      const chosen = buildChoose(text, parseNum(headM[1]));
+      const chosen = buildChoose(text, parseNum(headM[1]), !!headM[2]);
       if (chosen) return chosen;
     }
   }
@@ -5806,9 +5828,9 @@ function parseActionTextInner(text: string): EffectAction {
     const g = findOpponentUnlessGate(t0);
     if (g && g.index === 0) {
       const rest = t0.slice(g.length);
-      const headM2 = rest.match(/^(?:あなたは)?以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。/);
+      const headM2 = rest.match(/^(?:あなたは)?以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
       if (headM2 && /[①②③④⑤]/.test(rest) && !/代わりに[^。①②③④⑤]*選ぶ/.test(rest) && !/選んだ能力を得る/.test(rest)) {
-        const chosenG = buildChoose(rest, parseNum(headM2[1]));
+        const chosenG = buildChoose(rest, parseNum(headM2[1]), !!headM2[2]);
         if (chosenG) {
           return { type: 'SEQUENCE', steps: [
             { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...g.cost } as StubAction,
@@ -5823,10 +5845,10 @@ function parseActionTextInner(text: string): EffectAction {
   // ＝WXK11-003）。従来はヘッダが text 先頭でないため CHOOSE が組まれず、①②行が文フィルタで落ちて
   // 選択構造ごと消え、①内の後続文が単独 mis-parse する幻覚が出ていた。前置文はこの1文型に限定（過剰マッチ防止）。
   {
-    const preHeadM = text.trim().match(/^(このアーツは対戦相手のターンにしか使用できない。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(?:まで)?を?選ぶ。[\s\S]+)$/);
+    const preHeadM = text.trim().match(/^(このアーツは対戦相手のターンにしか使用できない。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
     if (preHeadM && /[①②③④⑤]/.test(preHeadM[2]) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const preAct = parseSingleSentence(preHeadM[1].replace(/。$/, ''));
-      const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]));
+      const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]), !!preHeadM[4]);
       if (chosenPre && preAct.type !== 'UNKNOWN') {
         return { type: 'SEQUENCE', steps: [preAct, chosenPre] } as SequenceAction;
       }
@@ -5835,9 +5857,11 @@ function parseActionTextInner(text: string): EffectAction {
 
   if (sentences.length === 0) {
     // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
-    const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+    // ⚠旧 `つまで?を?選ぶ` は「ま」が必須で「２つ選ぶ」（まで無し）にマッチせず、
+    //   choose_count が既定値 1 に落ちていた（タスク12(lxxxii) 第6波で是正）。
+    const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
-    const chosen = buildChoose(text, chooseCount);
+    const chosen = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
     if (chosen) return chosen;
     return { type: 'UNKNOWN', raw: text };
   }
@@ -5845,9 +5869,9 @@ function parseActionTextInner(text: string): EffectAction {
     const s = sentences[0];
     // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③④を解析 ----
     if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つ(?:まで)?を?選ぶ/)) {
-      const chooseCountM = s.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+      const chooseCountM = s.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
       const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
-      const chosen = buildChoose(text, chooseCount);
+      const chosen = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
       if (chosen) return chosen;
     }
     // ---- 「どちらか/いずれか選ぶ。①...②...」パターン：フィルタで選択肢行が消えたが元textにある場合 ----
@@ -5858,7 +5882,7 @@ function parseActionTextInner(text: string): EffectAction {
       // 残存 sentence が「その中から」「残りを」等、選択肢後続テキストの典型パターンで始まる場合
       /^(?:その中から|残りを|以下の)/.test(s.trim())
     ) {
-      const chosen = buildChoose(text, 1);
+      const chosen = buildChoose(text, 1, false);
       if (chosen) return chosen;
     }
     // ---- 「カードをN枚引き、X」複合文 ----
@@ -5880,9 +5904,9 @@ function parseActionTextInner(text: string): EffectAction {
     const chooseIdx = sentences.findIndex(s => s.match(/以下の[０-９\d２-９]+つから.*選ぶ/));
     if (chooseIdx >= 0) {
       const chooseSentence = sentences[chooseIdx];
-      const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つまで?を?選ぶ/);
+      const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
       const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
-      const chooseAction = buildChoose(text, chooseCount);
+      const chooseAction = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
       if (chooseAction) {
         const priorActions = sentences.slice(0, chooseIdx).map(s => parseSingleSentence(s.trim()));
         return priorActions.length === 0
