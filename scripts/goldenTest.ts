@@ -20731,6 +20731,40 @@ test('task12(lxx) Batch E regression: 構造化済み GRANT_EFFECT の内側を�
   }
 });
 
+test("task12(lxx) Batch E': UP/REMOVE_ABILITIES/GUARD の引用内漏出を live で停止", () => {
+  const savedCursor = cursor;
+  try {
+    const cases = [
+      ['WX24-P3-001', ['"type":"UP"', 'REVEAL_AND_PICK']],
+      ['WX24-P3-005', ['REMOVE_ABILITIES', '"type":"DRAW"', '"type":"TRASH"']],
+      ['WX24-P3-009', ['REMOVE_ABILITIES', '"type":"TRASH"', 'TRANSFER_TO_HAND']],
+      ['WX25-P2-001', ['GUARD_EXTRA_COST_BY_OPP', 'OPTIONAL_COST']],
+    ] as const;
+    for (const [cardNum, forbidden] of cases) {
+      const effect = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!;
+      const encoded = JSON.stringify(effect.action);
+      for (const token of forbidden) ok(!encoded.includes(token), `${cardNum}: 引用内 ${token} を live に残さない`);
+      const ctx = mkCtx({ hand: 5, energy: 5, deckTop: fill(6), lrig: [cardNum] }, { signi: [SIGNI_L1, null, null] }, cardNum);
+      const noLeakSnapshot = (owner: PlayerState, other: PlayerState) => JSON.stringify({
+        owner: { deck: owner.deck.length, hand: owner.hand.length, trash: owner.trash.length, energy: owner.energy.length,
+          lrig: owner.field.lrig, signiDown: owner.field.signi_down },
+        other: { hand: other.hand.length, trash: other.trash.length, energy: other.energy.length, signi: other.field.signi },
+      });
+      const before = noLeakSnapshot(ctx.ownerState, ctx.otherState);
+      const result = finish(executeEffect(effect, ctx), ctx);
+      eq(noLeakSnapshot(result.ownerState, result.otherState), before, `${cardNum}: 引用内アクションで盤面を動かさない`);
+    }
+
+    for (const cardNum of ['WD17-001', 'WXDi-P09-038', 'WX25-P1-014', 'WX25-CP1-081', 'WXK08-017', 'SPDi44-12']) {
+      const live = effectsMap.get(cardNum)!;
+      const fresh = parseCardEffects(cardMap.get(cardNum)!);
+      eq(JSON.stringify(fresh), JSON.stringify(live), `${cardNum}: 追加タイプの安全化を live へ採用`);
+    }
+  } finally {
+    cursor = savedCursor;
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

@@ -5004,15 +5004,41 @@ function parseActionText(text: string): EffectAction {
   // 付与が構造化済みなら、その兄弟（CHOOSE の別枝等）に同型の正当な即時アクションが
   // あっても引用漏出とはみなさない。安全網は付与ノード自体を作れなかった文だけに限定する。
   if (hasStructuredGrant(parsed)) return parsed;
-  if (!hasNakedImmediate(parsed)) return parsed;
-  const masked = text
-    .replace(/「[\s\S]*?」(?=を得る)/g, '「__QUOTED_ABILITY__」')
-    .replace(/『[\s\S]*?』/g, '『__QUOTED_ABILITY__』');
-  const safe = parse(masked);
-  if (safe.type === 'GRANT_KEYWORD' || JSON.stringify(safe).includes('__QUOTED_ABILITY__')) {
-    return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  let safeResult = parsed;
+  if (hasNakedImmediate(parsed)) {
+    const masked = text
+      .replace(/「[\s\S]*?」(?=を得る)/g, '「__QUOTED_ABILITY__」')
+      .replace(/『[\s\S]*?』/g, '『__QUOTED_ABILITY__』');
+    const safe = parse(masked);
+    safeResult = safe.type === 'GRANT_KEYWORD' || JSON.stringify(safe).includes('__QUOTED_ABILITY__')
+      ? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction
+      : safe;
   }
-  return safe;
+
+  // Batch E'：既存6タイプで先に安全化した結果へ、追加タイプを1段ずつ適用する。
+  // 同じ集合へ混ぜると、既に安全化できていた正当な引用外アクションまで丸ごと STUB 化するため、
+  // ここでは action tree の該当枝だけを落とす（空になった付与は honest STUB にする）。
+  const extraTypes = new Set<string>();
+  if (/アップ(?:する|し)/.test(quotedBodies)) extraTypes.add('UP');
+  if (/能力を失う/.test(quotedBodies)) extraTypes.add('REMOVE_ABILITIES');
+  const extraStubIds = new Set<string>();
+  if (/【ガード】/.test(quotedBodies)) extraStubIds.add('GUARD_EXTRA_COST_BY_OPP');
+  const pruneExtraLeak = (node: EffectAction): EffectAction | null => {
+    if (extraTypes.has(node.type)) return null;
+    if (node.type === 'STUB' && extraStubIds.has(node.id)) return null;
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(pruneExtraLeak).filter((step): step is EffectAction => step !== null);
+      if (steps.length === 0) return null;
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') {
+      const then = pruneExtraLeak(node.then);
+      if (!then) return null;
+      return { ...node, then };
+    }
+    return node;
+  };
+  return pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
 }
 
 function parseActionTextInner(text: string): EffectAction {

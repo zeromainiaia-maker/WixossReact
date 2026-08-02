@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxx) Batch E'：held の引用内裸アクションを live へ反映
+
+Batch E で fresh のみ安全化され held に残った38カードを原文・live・fresh・全兄弟 effectId で照合し、31カードはカード単位採用、7カード（`WXDi-D04-011`／`WXDi-P11-004`／`WX24-P3-007`／`WX24-P4-036`／`WX25-P2-003`／`WX25-P2-005`／`WX25-P2-007`）は引用外の正当な STUB／設置処理を維持する外科パッチで採用した。7効果は curated JSON を直接編集して `parseStatus: PARTIAL` とし、既存の PRESERVE 温存機構へ載せた。`buildEffectsJson.ts` にカード固有ロジックや PRESERVE 例外は追加していない。
+
+安全網は既存6タイプの安全化結果へ `UP`／`REMOVE_ABILITIES`／`GUARD_EXTRA_COST_BY_OPP` を枝単位で後段適用する形に拡張。型を同一集合へ混ぜると `WX24-P3-001` の正当な LIMIT 変更まで丸ごと STUB 化したため、順序を明示して `SEQUENCE` 形も維持した。巻き込み実測は held 290→291（UP、`WD17-001`）→296（REMOVE_ABILITIES、`WXDi-P09-038`／`WX25-P1-014`／`WX25-CP1-081`／`WXK08-017`／`SPDi44-12`）→296（ガード、増減0）。追加6枚も原文照合後に live 採用した。
+
+最終 live 差分は changed 44 / added 0 / removed 0、スコープ外 outlier 0、対象カードの兄弟効果変更0。使い捨て engine 直叩きで44効果すべて `engine=done` と旧 live から消えた action type/id を実測。Batch E 直前の held は252枚、最終値は256枚（正味+4）。`WX24-P3-001`／`WX24-P3-005`／`WX24-P3-009`／`WX25-P2-001` の4枚は live 是正済みだが fresh と curated が一致しないため held に残留し、Batch E 前から消えた held は0枚。census 1335→1313 は付与実働化ではなく安全側 STUB 退避。引用能力を正しく保持・収集する機構と `WXEX2-66-E2` の DRAW/ENERGY_CHARGE `CHOOSE` は honest defer。
+
 ## 2026-08-02 — Opusタスク12(lxx) 残消化 Batch E：引用付与の内側からの裸アクション漏出を停止
 
 `splitSentences` が `「」` しか深度管理していなかった点を `『』` にも拡張し、通常解析後に「引用能力を得る文なのに、引用本文と同型の即時アクションが GRANT_* の外へ残った」場合だけ引用本体をマスクして安全側へ再解析するガードを追加した。差し戻し是正では「これ以上潜らない付与ノード」を3種のハードコードから `type.startsWith('GRANT_')` 全般へ広げ、構造化済み付与が1つでもある action tree は安全網の対象外とした。これにより `GRANT_EFFECT.effect` 内や CHOOSE の正当な別枝を漏出と誤認しない。`WX24-P4-029-E1` / `WX25-CP1-067-E1` は fresh=live に戻り held から消え、golden で固定した。
