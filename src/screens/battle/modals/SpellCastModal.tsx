@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
+import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied, applySpecificCardCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import type { BattleModalCtx } from './types';
@@ -27,7 +27,7 @@ interface SpellCastModalProps {
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
@@ -58,6 +58,10 @@ export function SpellCastModal(p: SpellCastModalProps) {
                 'スペル', spellCard.Color, activeCostMods.forMy);
               // 次スペルコスト軽減（WX04-008《白×2》減）を適用
               for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);
+              // SPECIFIC_CARD_COST_REDUCE（タスク12(xci)）＝「《カード名》の使用コストは《無×N》減る」。
+              // 実測した対象2枚（《フレン・スラッシュ》/《ダークネス・イーター》）は**どちらもスペル**なのに、
+              // 従来この軽減を通していたのは CutinModal とアーツのボタン表示だけ＝ここが本来の効き先だった。
+              effSpellCost = applySpecificCardCostReduction(effSpellCost, spellCard.CardName, specificCardCostReductions);
               const meltFactVirusCount = pendingSpellCast.cardNum.startsWith('WX15-067')
                 ? (pendingSpellCast.virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0)
                 : 0;

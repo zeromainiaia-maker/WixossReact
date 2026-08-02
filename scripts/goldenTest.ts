@@ -43,7 +43,7 @@ import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/atta
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
-import { applyContinuousCostDecreases } from '../src/screens/battle/costs';
+import { applyContinuousCostDecreases, applySpecificCardCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -20435,6 +20435,105 @@ test('task12(lxxxvii): 場の CONTINUOUS アーツコスト軽減が効くカッ
     eq(applyContinuousCostDecreases(black.Cost, 'アーツ', black.Color, mods as never), black.Cost,
       `${black.CardNum}: 青以外は軽減されない`);
   }
+});
+
+// タスク12(xc): `computeArtsEffectiveCost` の規則集に無かった条件つきコスト軽減。
+// 原文に「使用コストは…減る」を持つアーツ/スペル111枚を全数分類し、(lxxxv) の使用時支払い33枚と
+// ベット/置換1枚を除いた**77枚のうち5枚しか規則が無かった**。文型クラスタ単位で規則を足す。
+test('task12(xc): 新規のコスト軽減規則が条件成立時だけ効く', () => {
+  const pick = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(pred)!;
+  const arts = pick(c => c.Type === 'アーツ');
+  const servant = pick(c => c.Type === 'シグニ' && c.CardName.includes('サーバント'));
+  const white = pick(c => c.Type === 'シグニ' && (c.Color ?? '') === '白');
+  const arm = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('アーム'));
+  const weapon = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('ウェポン'));
+  const p15000 = pick(c => c.Type === 'シグニ' && parseInt(c.Power || '0') >= 15000);
+  const seisei = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('精生'));
+  const meikyu = pick(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('迷宮'));
+  const mk = (signi: string[], extra: Record<string, unknown> = {}) => ({
+    field: { signi: [...signi.map(x => [x]), [], [], []].slice(0, 3), lrig: [] },
+    life_cloth: [], hand: [], trash: [], lrig_trash: [], ...extra,
+  } as unknown as PlayerState);
+  const eff = (num: string, my: PlayerState, lrigName?: string, lv = 0,
+    opp?: { turn_arts_used?: boolean; actions_done?: string[] }) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, '', lv, cardMap, undefined, undefined, opp ? { oppState: opp } : {});
+
+  // A. 「あなたのセンタールリグが＜X＞の場合、…減る」（14枚）
+  eq(eff('WX11-015', mk([]), '花代・肆', 4), '《赤》×1', 'WX11-015: ＜花代＞で《赤×1》減る');
+  eq(eff('WX11-015', mk([]), 'ピルルク', 4), cardMap.get('WX11-015')!.Cost, 'WX11-015: 別ルリグでは減らない');
+  eq(eff('WXK05-004', mk([]), 'エルドラ', 4), '《青》×1《無》×1', 'WXK05-004: ＜エルドラ＞で《青×2》減る');
+  eq(eff('WXK09-004', mk([]), 'アルフォウ', 4), '《黒》×1《無》×1', 'WXK09-004: ＜アルフォウ＞で《黒×2》減る');
+  // D. 「センタールリグのレベル１につき」（5枚）＝レベル比例
+  eq(eff('WXK05-048', mk([]), undefined, 4), '《無》×2', 'WXK05-048: Lv4で《無×4》減る');
+  eq(eff('WXK05-048', mk([]), undefined, 0), cardMap.get('WXK05-048')!.Cost, 'Lv0なら減らない');
+  eq(eff('WD15-006', mk([]), undefined, 3), '《赤》×3《無》×2', 'WD15-006: Lv3で《赤×3》減る');
+  // C. 「ルリグトラッシュにあるアーツ１枚につき」（2枚）＝枚数比例
+  eq(eff('WX12-Re04', mk([], { lrig_trash: [arts.CardNum, arts.CardNum] })), '《黒》×1《無》×2', 'WX12-Re04: アーツ2枚で《無×4》減る');
+  eq(eff('WX22-004', mk([], { lrig_trash: [arts.CardNum, arts.CardNum, arts.CardNum] })), '《赤》×4《無》×4', 'WX22-004: アーツ3枚で各色×3減る');
+  eq(eff('WX22-004', mk([])), cardMap.get('WX22-004')!.Cost, 'ルリグトラッシュが空なら減らない');
+  // E. 「場に＜X＞と＜Y＞のシグニがある場合」（1枚）＝両方要る
+  eq(eff('WX10-031', mk([arm.CardNum, weapon.CardNum])), '《赤》×1《白》×1《無》×1', 'WX10-031: 両クラス揃えば減る');
+  eq(eff('WX10-031', mk([arm.CardNum])), cardMap.get('WX10-031')!.Cost, '片方だけでは減らない');
+  // H. 「場にある〔色/カード名〕シグニ１体につき」（11枚）
+  eq(eff('WXK06-016', mk([white.CardNum, white.CardNum])), '《青》×1', 'WXK06-016: クラス無指定・2体で《青×2》減る');
+  eq(eff('WX25-P3-039', mk([white.CardNum])), '《白》×2《無》×2', 'WX25-P3-039: 白のシグニ1体で《白×1》減る');
+  eq(eff('WX10-053', mk([servant.CardNum])), '《無》×5', 'WX10-053: カード名《サーバント》1体で《無×2》減る');
+  eq(eff('WXK06-016', mk([])), cardMap.get('WXK06-016')!.Cost, '場が空なら減らない');
+  // 既存規則の**取りこぼし是正**＝「がある場合、この{アーツ|スペル}の…」の読点と《赤×2》括弧内表記の両方
+  eq(eff('WX15-034', mk([p15000.CardNum])), 'なし', 'WX15-034: パワー15000以上がいれば《赤×2》減る（読点＋括弧内表記）');
+  eq(eff('WX20-005', mk([seisei.CardNum])), '《無》×2', 'WX20-005: ＜精生＞がいれば《青×1》減る');
+  eq(eff('WX20-005', mk([])), cardMap.get('WX20-005')!.Cost, '＜精生＞不在なら減らない');
+  // 既存の ＜クラス＞1体につき規則の回帰
+  eq(eff('WX04-030', mk([meikyu.CardNum, meikyu.CardNum])), '《白》×1《無》×2', 'WX04-030: 既存規則は据え置き');
+  // SP36-001＝相手のこのターンの使用実績で**2文が累積**する唯一の形
+  eq(eff('SP36-001', mk([]), undefined, 0, { turn_arts_used: false, actions_done: [] }),
+    cardMap.get('SP36-001')!.Cost, 'SP36-001: 相手未行動なら減らない');
+  eq(eff('SP36-001', mk([]), undefined, 0, { turn_arts_used: false, actions_done: ['USE_SPELL', 'USE_SPELL'] }),
+    '《赤》×1《無》×1', 'SP36-001: 相手スペル2枚で《赤×2》《無×2》減る');
+  eq(eff('SP36-001', mk([]), undefined, 0, { turn_arts_used: true, actions_done: [] }),
+    'なし', 'SP36-001: 相手アーツ使用で《赤×3》《無×3》減る');
+});
+
+test('task12(xc): 条件が成立しない盤面では1枚も動かない（過剰適用ゼロ）', () => {
+  // 空盤面・ルリグなし・レベル0・相手未行動＝**どの条件も成立しない**。ここで動く札は
+  // 「条件を読まずに無条件で軽減している」＝規則を緩めすぎたときに必ずここへ出る。
+  const empty = { field: { signi: [[], [], []], lrig: [] }, life_cloth: [], hand: [], trash: [], lrig_trash: [] } as unknown as PlayerState;
+  const moved: string[] = [];
+  let scanned = 0;
+  for (const c of cardMap.values()) {
+    if (!['アーツ', 'スペル', 'ピース', 'アーツ/クラフト'].includes(c.Type) || !c.Cost) continue;
+    scanned++;
+    const got = computeArtsEffectiveCost(c, empty, undefined, '', 0, cardMap, undefined, undefined,
+      { oppState: { turn_arts_used: false, actions_done: [] } });
+    if (got !== c.Cost) moved.push(`${c.CardNum}(${c.Cost}→${got})`);
+  }
+  ok(scanned > 1000, `走査枚数（実測1236）: ${scanned}`);
+  eq(JSON.stringify(moved), '[]', '空盤面で印刷コストから動く札は無い');
+});
+
+// タスク12(xci): SPECIFIC_CARD_COST_REDUCE（「《カード名》の使用コストは《無×N》減る」）。
+// 発生源は2枚（`WXDi-CP01-027`／`WXDi-CP01-048`）で、**対象はどちらもスペル**なのに
+// スペル使用モーダルがこの軽減を通していなかった＝印刷コストで請求されていた。
+test('task12(xci): カード名指定の《無》軽減は対象カードにだけ効く', () => {
+  const reductions = [
+    { targetCardName: 'フレン・スラッシュ', colorlessReduction: 3 },
+    { targetCardName: 'ダークネス・イーター', colorlessReduction: 2 },
+  ];
+  // 発生源と対象の実在を固定（原文が変わればここで気づく）
+  eq(cardMap.get('WXDi-P00-048')?.Type, 'スペル', '《フレン・スラッシュ》はスペル');
+  eq(cardMap.get('WXDi-P00-048')?.Cost, '《白》×２《無》×３', '印刷コスト');
+  eq(cardMap.get('WXDi-P00-080')?.Type, 'スペル', '《ダークネス・イーター》はスペル');
+  eq(cardMap.get('WXDi-P00-080')?.Cost, '《黒》×２《無》×２', '印刷コスト');
+  eq(applySpecificCardCostReduction('《白》×２《無》×３', 'フレン・スラッシュ', reductions), '《白》×2',
+    '《無×3》がまるごと落ちる');
+  eq(applySpecificCardCostReduction('《黒》×２《無》×２', 'ダークネス・イーター', reductions), '《黒》×2',
+    '《無×2》がまるごと落ちる');
+  eq(applySpecificCardCostReduction('《白》×２《無》×３', '別のカード', reductions), '《白》×２《無》×３',
+    '対象名でなければ何もしない');
+  eq(applySpecificCardCostReduction('《白》×２《無》×３', undefined, reductions), '《白》×２《無》×３',
+    'カード名不明なら何もしない');
+  eq(applySpecificCardCostReduction('《白》×２《無》×３', 'フレン・スラッシュ', []), '《白》×２《無》×３',
+    '発生源が場に無ければ何もしない');
 });
 
 test('cost replacement: 「使用コストは《X》になる」 replaces the printed cost under its condition', () => {

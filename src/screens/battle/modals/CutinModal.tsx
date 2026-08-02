@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { C } from '../../../components/BoardComponents';
-import { removeNColorFromCost, canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases } from '../costs';
+import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction } from '../costs';
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
@@ -66,8 +66,7 @@ export function CutinModal(p: CutinModalProps) {
         myLrigNameAliases, myArtsThresholdReductions,
         { oppState: op, cardCostReplacements: my.card_cost_replacements }),
       'アーツ', card.Color, activeCostMods.forMy);
-    const r = specificCardCostReductions.find(rr => rr.targetCardName === card.CardName);
-    return r ? removeNColorFromCost(eff, '無', r.colorlessReduction) : eff;
+    return applySpecificCardCostReduction(eff, card.CardName, specificCardCostReductions);
   };
   return (
     <>

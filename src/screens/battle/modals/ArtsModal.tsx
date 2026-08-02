@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna } from '../costs';
+import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import type { BattleModalCtx } from './types';
@@ -37,7 +37,7 @@ interface ArtsModalProps {
 }
 
 export function ArtsModal(p: ArtsModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
   return (
     <>
@@ -65,9 +65,11 @@ export function ArtsModal(p: ArtsModalProps) {
                     const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
                     const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
                     return artsCandidates.map(card => {
-                    const effCost = applyContinuousCostDecreases(
+                    // SPECIFIC_CARD_COST_REDUCE（タスク12(xci)）も通す＝発生源はカード名で対象を指すので、
+                    // 将来アーツが対象になっても静かに落ちない（実測の現対象2枚はスペル）。
+                    const effCost = applySpecificCardCostReduction(applyContinuousCostDecreases(
                       computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions, { oppState: op, cardCostReplacements: my.card_cost_replacements }),
-                      'アーツ', card.Color, activeCostMods.forMy);
+                      'アーツ', card.Color, activeCostMods.forMy), card.CardName, specificCardCostReductions);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
@@ -182,9 +184,11 @@ export function ArtsModal(p: ArtsModalProps) {
               const centerColorForRestr = hasColorlessRestriction
                 ? splitColors(battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color)[0] ?? ''
                 : '';
-              const effectiveCost = hasColorlessRestriction && centerColorForRestr
-                ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
-                : rawEffectiveCost;
+              const effectiveCost = applySpecificCardCostReduction(
+                hasColorlessRestriction && centerColorForRestr
+                  ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
+                  : rawEffectiveCost,
+                pendingArtsCard.CardName, specificCardCostReductions);
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
               const useCostSpec = parseUseTimeCostReduction(pendingArtsCard.EffectText ?? '');
               const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
