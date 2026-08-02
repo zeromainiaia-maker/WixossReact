@@ -21216,6 +21216,22 @@ test('task12(lxxxiii) 第9波 WXDi-P08-065-E1: 赤OR宝石の和集合を重複�
   eq(powers.get(source), baseline.get(source), '「他の」なのに効果元自身へ加算した');
 }));
 
+test('task12(lxxxiii) 第10波 WXK10-056-E1: live collector は他シグニのcost-onlyだけ発火', () => withSavedCursor(() => {
+  const source = 'WXK10-056';
+  const effectId = 'WXK10-056-E1';
+  const effect = effectsMap.get(source)!.find(e => e.effectId === effectId)!;
+  eq(effect.triggerScope, 'any_ally', '「あなたの他のシグニ」が any_ally でない');
+  eq(effect.triggerFilter?.excludeSelf, true, '「他の」の excludeSelf がない');
+  eq(effect.triggerCondition?.fromFieldByCostOnly, true, '「コストとして」の原因限定がない');
+  const host = mkState({ signi: [source, SIGNI, null] });
+  const guest = mkState({});
+  const ctx = trigCtx(HOST);
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, true, false).entries, effectId), true, 'fieldTrashコストで発火しない');
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, true, true).entries, effectId), false, '効果トラッシュで過剰発火');
+  eq(has(collectTrashTriggers(ctx, SIGNI, HOST, host, guest, false, false, false).entries, effectId), false, 'バトル/ルール処理で過剰発火');
+  eq(has(collectTrashTriggers(ctx, source, HOST, host, guest, false, true, false).entries, effectId), false, '能力保持者自身のコストで過剰発火');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

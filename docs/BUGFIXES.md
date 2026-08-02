@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第10波：cost-only場トラッシュ原因限定1件／life-crash source honest defer
+
+着手前4点照合で `WXK10-056-E1` は **(a) 機能是正**、`WXDi-P14-087-E1` は **(c) honest defer** と分類した。前者の原文は「あなたの**他のシグニ**1体が**コストとして**場からトラッシュ」、旧liveは `ON_TRASH` のみで scope/filter/原因限定がなく、collector は既存引数 `byCostOrEffect` / `byEffectCause` を読む一方で cost-only 条件を持たなかった。`triggerCondition.fromFieldByCostOnly` を additive に新設し、`byCostOrEffect && !byEffectCause` のときだけ self / any_ally / any_opp の全走査で通すようにした（省略時は従来不変）。parser はカードID分岐なしで「あなたの他の…シグニ1体がコストとして場から…」から `triggerScope:any_ally`、`triggerFilter.excludeSelf`、`fromFieldByCostOnly` を生成。live `WXK10-056-E1` だけが変わり、コストでは発火、効果・バトル/ルール処理・能力保持者自身のコストでは非発火することを live `effectsMap` golden で固定した。
+
+到達可能性は live 全数で `cost.fieldTrash` **46効果**、`fieldTrashGroups` **2効果**（重複除去カード46枚）。executor は支払ったinstanceIdを `fieldTrashCostCards` に記録し、中央diffが該当カードだけ `byEffectCause=false` として collector へ渡す既存経路を実測した。呼び出し全洗い出しは runtime 4地点＋BattleScreen薄ラッパ1地点（pure定義1）：中央diff host/guest の2地点は `fieldTrashCostCards.has(cardNum)` を反転して明示配線、任意コスト直収集とバトル収集の2地点は `false,false`（ルール/バトル）を明示、ラッパは全引数を透過する。
+
+`WXDi-P14-087-E1` はチェックゾーン/LB待機を跨ぐ `ON_OPP_LIFE_CRASHED` で、攻撃・効果クラッシュの発生源instanceIdを `PlayerState` の check/pending に保持する機構が無い。collectorは BattleScreen 内にインラインで、遅延triggerも「場に該当源がいる」近似。発生源を偽造せず **life-crash source event metadata persistence（check/pending各カードとの対応＋攻撃/効果全クラッシュ入口配線）待ち**として deferした。
+
+差分は HEAD 比 live per-effect **changed 1 / added 0 / removed 0**（`WXK10-056-E1` のみ）、`excludeSelf` **329→330**（減少0）、`"???"` 0。golden **1298→1299**、smoke **10679/10679** 全0・SKIP0、fuzz 全0（seed 12648430）、census **1291→1291**、manual field loss 0、lint 0 errors / 240 warnings、同型★0（265群）。`build:effects` / `regen` は各2連続実行で冪等、全gates緑。実装課題残は **10→9**。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第9波：対象保持・引用付与・OR和集合3効果を実働化／残10 defer
 
 原文・live JSON・読取 engine・実除外を先に照合し、13件を **(a) 機能是正3／(b) 宣言の明示化0／(c) honest defer10** に分類した。`WX25-CP1-044-E2` は live の `GRANT_ABILITY_INNER_TEXT` no-op を、他の緑＜ブルアカ＞1体への `POWER_MODIFY(+5000)`→同じ `lastProcessedCards` への `GRANT_EFFECT` に置換した。引用内【常】は `PREVENT_ABILITY_GAIN_BY_OPP` とし、`collectAbilityGainProtectedSigni` が動的 `granted_effects`／`granted_effects_until_opp_turn` も読むようにした。`WX25-CP1-087-E1` は `SELECT_TARGET_ONLY(count:2, upTo)`→`STORE_LAST_PROCESSED_TARGETS`→置く/置かない `CHOOSE` とし、既存 `MILL.countPerStoredTargets` で選択体数ぶんを削り、pause と mill による `lastProcessedCards` 上書き後も `targetsStored` の同じ2体だけへ+3000を付与する。`WXDi-P08-065-E1` は単一 `POWER_MODIFY(count:ALL)` の `anyOf:[赤,＜宝石＞]` とし、重複該当を一度だけ加算する。継続計算のローカル `matchesFilter` が既存 `anyOf` を読んでいなかったため再帰ORを追加し、`target.filter.excludeSelf` も明示時だけ読むよう補正した（省略時の既定は不変）。

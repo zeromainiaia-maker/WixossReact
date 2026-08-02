@@ -8285,6 +8285,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/コストか効果によって場からトラッシュに置かれたとき/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromFieldByCostOrEffect: true };
         }
+        // 「コストとして」限定は効果起因を含まない。fieldTrashCostCards から collector へ渡る
+        // byEffectCause=false と組み合わせ、効果・バトル・ルール処理を除外する。
+        if (/他の[^、。]*シグニ１体がコストとして場からトラッシュに置かれたとき/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), fromFieldByCostOnly: true };
+        }
         // 「あなたの効果によって場から」＝自分の効果起因のみ（相手効果・コスト・バトル・ルール処理を除外）。
         // 「コストかあなたの効果によって」（下の別軸）を substring で誤捕捉しないよう negative 判定し、
         // 語順違い「あなたの効果によってこのシグニが場から」も拾う（WX19-073）。6枚。
@@ -8312,18 +8317,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         //   （turn_phase は所有者を持たない単一値＝'MAIN'。ATTACK_SIGNI_OP のような OP 接尾辞が無い）ため
         //   IS_MY_TURN と AND し、ターン所有者は収集側の condHas ゲートに判定させる（G150 系と同じ慣例）。
         // 被作用側の状態限定（「【チャーム】が付いている〜」等）は、限定を無言で落とさないよう非マッチ＝据置。
-        const allyTrashM = actionText.match(/^(あなたのメインフェイズの間、)?あなたの(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]+体が(?=(?:(?:コストか)?(?:あなたの)?効果によって)?(?:場|いずれかの領域)からトラッシュに置かれたとき)(.+)/s);
+        const allyTrashM = actionText.match(/^(あなたのメインフェイズの間、)?あなたの(他の)?(?:レベル([０-９\d]+)以下の)?(?:＜([^＞]+)＞の)?シグニ[０-９\d]+体が(?=(?:(?:コストか)?(?:あなたの)?効果によって|コストとして)?(?:場|いずれかの領域)からトラッシュに置かれたとき)(.+)/s);
         if (allyTrashM) {
           extractedTriggerScope = 'any_ally';
           const allyFilter: TargetFilter = {};
-          if (allyTrashM[2]) allyFilter.levelRange = { max: parseNum(allyTrashM[2]) };
-          if (allyTrashM[3]) allyFilter.story = allyTrashM[3];
+          if (allyTrashM[2]) allyFilter.excludeSelf = true;
+          if (allyTrashM[3]) allyFilter.levelRange = { max: parseNum(allyTrashM[3]) };
+          if (allyTrashM[4]) allyFilter.story = allyTrashM[4];
           if (Object.keys(allyFilter).length > 0) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), ...allyFilter };
           if (allyTrashM[1]) extractedTriggerCondition = {
             type: 'AND',
             conditions: [{ type: 'DURING_PHASE', phases: ['MAIN'] }, { type: 'IS_MY_TURN' }],
           };
-          actionText = allyTrashM[4];
+          actionText = allyTrashM[5];
         }
         const m = actionText.match(/(手札(?:かデッキ)?|デッキ|場|いずれかの領域|シグニの下)からトラッシュに置かれたとき[、,]\s*(.+)/s);
         if (m) {

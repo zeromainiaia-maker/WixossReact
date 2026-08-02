@@ -873,6 +873,7 @@ export function collectTrashTriggers(
     if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // 「コストか効果によって場から」限定トリガーはコスト/効果起因のときのみ発火（バトル・ルール処理では発火しない。G204）
     if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+    if (eff.triggerCondition?.fromFieldByCostOnly && !(byCostOrEffect && !byEffectCause)) continue;
     // 「コストかあなたの効果によって場から」＝コスト、または trashed owner 自身の効果だけを許可。
     if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
         && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
@@ -900,6 +901,7 @@ export function collectTrashTriggers(
       if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
       if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+      if (eff.triggerCondition?.fromFieldByCostOnly && !(byCostOrEffect && !byEffectCause)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
           && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
       const scope = eff.triggerScope ?? 'self';
@@ -937,6 +939,7 @@ export function collectTrashTriggers(
       if (eff.triggerCondition?.byEffect && !byEffectCause) continue;
       if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrEffect && !byCostOrEffect) continue;
+      if (eff.triggerCondition?.fromFieldByCostOnly && !(byCostOrEffect && !byEffectCause)) continue;
       if (eff.triggerCondition?.fromFieldByCostOrOwnEffect
           && !(byCostOrEffect && (!byEffectCause || !causeByOpponent))) continue;
       const scope = eff.triggerScope ?? 'self';
