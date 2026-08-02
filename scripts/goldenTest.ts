@@ -20949,6 +20949,52 @@ test("task12(lxx) Batch E': UP/REMOVE_ABILITIES/GUARD の引用内漏出を live
   }
 });
 
+test('task12(lxxxiii) 第5波: 6効果の任意犠牲コストに excludeSelf とクラス条件を構文化', () => {
+  for (const [cardNum, effectId, field, story, colors] of [
+    ['WDK11-011', 'WDK11-011-E1', 'fieldTrash', undefined, undefined],
+    ['WXK05-022', 'WXK05-022-E1', 'fieldTrash', '乗機', undefined],
+    ['WXEX2-54', 'WXEX2-54-E2', 'fieldTrash', '遊具', undefined],
+    ['WX24-P2-074', 'WX24-P2-074-E1', 'fieldToDeckBottom', '遊具', undefined],
+    ['WX24-P2-052', 'WX24-P2-052-E2', 'fieldToDeckBottom', '遊具', undefined],
+    ['WXDi-P04-041', 'WXDi-P04-041-E1', 'fieldTrash', undefined, ['黒']],
+  ] as const) {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const json = JSON.stringify(effect.action);
+    ok(json.includes(`"${field}":{"count":1`), `${effectId}: 犠牲コスト語彙が無い`);
+    ok(json.includes('"excludeSelf":true'), `${effectId}: excludeSelf が無い`);
+    if (story) ok(json.includes(`"story":"${story}"`), `${effectId}: story=${story} が無い`);
+    if (colors) ok(json.includes('"costColors":["黒"]'), `${effectId}: 黒コストが脱落`);
+  }
+});
+
+test('task12(lxxxiii) 第5波 E2E: トラッシュ/デッキ下の犠牲候補から自身を除外し、resumeSelectTargetで他シグニを支払う', () => withSavedCursor(() => {
+  for (const destination of ['trash', 'deck_bottom'] as const) {
+    const source = SIGNI_L1;
+    const other = SIGNI_L2;
+    const base = mkCtx({ signi: [source, other, null], energy: 1 }, {}, source);
+    const action: EffectAction = { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPTIONAL_COST', ...(destination === 'trash'
+        ? { fieldTrash: { count: 1, filter: { cardType: 'シグニ' }, excludeSelf: true } }
+        : { fieldToDeckBottom: { count: 1, filter: { cardType: 'シグニ' }, excludeSelf: true } }) },
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+    ] };
+    const offered = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, base);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', `${destination}: 任意コスト選択が出ない`);
+    if (offered.done || offered.pending.type !== 'CHOOSE') continue;
+    const paying = resumeOptionalCost('pay', [], offered.pending, { ...base, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+    ok(!paying.done && paying.pending.type === 'SELECT_TARGET', `${destination}: 犠牲対象選択が出ない`);
+    if (paying.done || paying.pending.type !== 'SELECT_TARGET') continue;
+    ok(!paying.pending.candidates.includes(source), `${destination}: 効果元自身が候補に残る`);
+    ok(paying.pending.candidates.includes(other), `${destination}: 他のシグニが候補に無い`);
+    const done = resumeSelectTarget([other], paying.pending, { ...base, ownerState: paying.ownerState, otherState: paying.otherState, logs: paying.logs });
+    ok(done.done, `${destination}: resumeSelectTarget 後に完了しない`);
+    ok(done.ownerState.field.signi.some(stack => stack?.at(-1) === source), `${destination}: 効果元自身が場を離れた`);
+    ok(!done.ownerState.field.signi.some(stack => stack?.at(-1) === other), `${destination}: 選んだ他シグニが場に残る`);
+    if (destination === 'trash') ok(done.ownerState.trash.includes(other), '他シグニがトラッシュに無い');
+    else eq(done.ownerState.deck.at(-1), other, '他シグニがデッキ最下部に無い');
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

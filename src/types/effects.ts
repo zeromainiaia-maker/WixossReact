@@ -1893,6 +1893,8 @@ export interface StubAction {
   underAnySigniTrash?: { count: number };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
+  fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 異なる条件の場シグニを組でトラッシュへ置く任意コスト。 */
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: 自分の場のカードをルリグトラッシュへ置く任意コスト。 */

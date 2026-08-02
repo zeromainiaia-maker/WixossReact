@@ -17,6 +17,21 @@ export function extractCostColors(text: string): string[] {
   return result;
 }
 
+// 「対戦相手のシグニ1体を対象とし、あなたの**他の**シグニ1体を場からトラッシュ／デッキの一番下に置いてもよい」＝
+// トレード形の任意コスト。犠牲対象は原文どおり効果元自身を除く（excludeSelf）。
+// 「他の」が無い在来形は従来どおり TRADE_BANISH_SELF_SIGNI のまま（後方互換）。
+export function tradeOptionalCost(t: string): StubAction {
+  const story = t.match(/他の[＜〈<]([^＞〉>]+)[＞〉>]のシグニ/)?.[1];
+  const filter: TargetFilter = { cardType: 'シグニ', ...(story ? { story } : {}) };
+  if (/あなたの他の(?:[＜〈<][^＞〉>]+[＞〉>]の)?シグニ[１1]体を場からデッキの一番下に置いてもよい/.test(t)) {
+    return { type: 'STUB', id: 'OPTIONAL_COST', fieldToDeckBottom: { count: 1, filter, excludeSelf: true } };
+  }
+  if (/(?:対象の)?あなたの他の(?:[＜〈<][^＞〉>]+[＞〉>]の)?シグニ[１1]体を場からトラッシュに置(?:き|いてもよい)/.test(t)) {
+    return { type: 'STUB', id: 'OPTIONAL_COST', fieldTrash: { count: 1, filter, excludeSelf: true } };
+  }
+  return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' };
+}
+
 // REVEAL_PICK_HAND_SHUFFLE_BOTTOM STUBのメタデータを抽出して返す
 export function makeRevealPickStub(t: string): StubAction {
   // タスク12(xlvi)(h)：pick 記述子（filter・枚数・上限・行き先）を先に解く。忠実表現できた場合だけ

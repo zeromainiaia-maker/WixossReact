@@ -3926,6 +3926,13 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     let selfFrontRestrict: string[] | null = null;
     // levelLteDiscardSigni:「この方法で捨てたシグニのレベル以下」をキャスター側の値で解決（WXK10-044）
     let srcFilter = resolveDiscardLevelFilter(src.filter, ctx.ownerState);
+    // 任意コスト「他のシグニをデッキの一番下に置く」。fieldCandidates 自体は効果元を知らないため、
+    // フィルターから制御フラグを外し、通常の場候補を作った後で sourceCardNum を除く。
+    const deckExcludeSelf = srcFilter?.excludeSelf === true;
+    if (deckExcludeSelf && srcFilter) {
+      const { excludeSelf: _e, ...rest } = srcFilter;
+      srcFilter = rest;
+    }
     // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）だけをデッキへ移す。
     // filter を宣言しただけでは fieldCandidates が盤面幾何を評価しないため、ここで候補を固定する（WXEX1-65）。
     // ⚠正面の解決は execBanish/execDown と同じ共通ヘルパーに揃える（発生源がスタックのトップでない＝
@@ -3949,6 +3956,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       }
     }
     let cands = fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
+    if (deckExcludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
     if (gateFrontRestrict !== null) cands = cands.filter(n => gateFrontRestrict!.includes(n));
     if (selfFrontRestrict !== null) cands = cands.filter(n => selfFrontRestrict!.includes(n));
     // 任意コスト前に固定した対象だけをデッキへ（タスク12(liii)＝「それのレベル１につき…そうした場合、

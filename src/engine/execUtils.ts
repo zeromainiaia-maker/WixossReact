@@ -160,6 +160,7 @@ export interface OptionalCostSpec {
   underAnySigniTrash?: { count: number };
   energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
+  fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
@@ -197,7 +198,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   return {
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
-    energyTrash, fieldTrash: a.fieldTrash, fieldTrashGroups: a.fieldTrashGroups,
+    energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
@@ -262,6 +263,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = fieldCandidates(ctx.ownerState, filter, ctx.cardMap)
       .filter(n => !spec.fieldTrash!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
     if (matching.length < spec.fieldTrash.count) return false;
+  }
+  if (spec.fieldToDeckBottom) {
+    const matching = fieldCandidates(ctx.ownerState, spec.fieldToDeckBottom.filter, ctx.cardMap)
+      .filter(n => !spec.fieldToDeckBottom!.excludeSelf || !ctx.sourceCardNum || n !== ctx.sourceCardNum);
+    if (matching.length < spec.fieldToDeckBottom.count) return false;
   }
   if (spec.fieldTrashGroups
     && !fieldTrashGroupsAffordable(spec.fieldTrashGroups, ctx.ownerState.field.signi, ctx.cardMap)) return false;
@@ -337,6 +343,16 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
         filter: {
           ...(spec.fieldTrash.filter ?? {}),
           ...(spec.fieldTrash.excludeSelf ? { excludeSelf: true } : {}),
+        },
+      },
+    } as EffectAction] : []),
+    ...(spec.fieldToDeckBottom ? [{
+      type: 'TRANSFER_TO_DECK', shuffle: false, position: 'bottom',
+      source: {
+        type: 'SIGNI', owner: 'self', count: spec.fieldToDeckBottom.count,
+        filter: {
+          ...(spec.fieldToDeckBottom.filter ?? {}),
+          ...(spec.fieldToDeckBottom.excludeSelf ? { excludeSelf: true } : {}),
         },
       },
     } as EffectAction] : []),

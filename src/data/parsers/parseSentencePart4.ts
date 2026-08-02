@@ -10,10 +10,11 @@ import type {
   PlaceVirusAction,
 } from '../../types/effects';
 import {
-  parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence,
+  parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
+
 
 export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 手札からカードを【トラップ】として設置する ----
@@ -249,7 +250,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
 
   // ---- あなたの他の＜クラス＞のシグニ１体を場からトラッシュに置いてもよい ----
   if (t.match(/対象のあなたの他の[＜〈<].+[＞〉>]のシグニ[１-９\d０-９]*体?を場からトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+    return tradeOptionalCost(t);
 
   // ---- 手札から《特定カード》をN枚捨ててもよい（ターゲット指定後） ----
   if (t.match(/手札から《.+》を[１-９\d０-９]*枚?捨ててもよい$/))

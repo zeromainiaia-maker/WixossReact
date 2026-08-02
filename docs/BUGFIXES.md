@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第5波：任意コストの犠牲対象6効果
+
+着手前に6件すべてを live／fresh（`parseCardEffects(row)` 直呼び）／manual（`mergeManualEffects` 差分）の3値で比較し、全件 **live=fresh・manualなし**を確認した。従来はいずれも犠牲句が `TRADE_BANISH_SELF_SIGNI` または色だけの `OPTIONAL_COST` に潰れ、「他の」が支払い対象へ届いていなかった。
+
+トラッシュ形4件は既存の `OPTIONAL_COST.fieldTrash → resolveOptionalCostSpec → canAffordOptionalCostSpec → optionalCostPaySteps → TRASH(asCost) → execTrash` に接続した。候補は `execTrash` が `filter.excludeSelf` を外して `fieldCandidates` を呼んだ後、`sourceCardNum` を除外する。選択後は既存 `fieldTrashCostCards`／`last_cost_trashed_cards` を更新するため、場→トラッシュのコスト起因トリガー弁別も失わない。デッキ下形2件は同じ任意コスト仕様へ additive な `fieldToDeckBottom` を追加し、支払いを通常の `TRANSFER_TO_DECK{SIGNI,bottom}` として実行する。`execTransferToDeck` にフィールド指定時だけ `excludeSelf` を読む分岐を足し、既存の候補生成・`resumeSelectTarget`・場離れ置換・デッキ移動トリガー経路を再利用した。両フィールド省略時の既定挙動は不変。
+
+是正したのは `WDK11-011-E1`（他のシグニ→トラッシュ）、`WXK05-022-E1`（他の＜乗機＞→トラッシュ）、`WXEX2-54-E2`（対象の他の＜遊具＞→トラッシュ）、`WX24-P2-074-E1`／`WX24-P2-052-E2`（他の＜遊具＞→デッキ最下部）、`WXDi-P04-041-E1`（他のシグニ→トラッシュ＋《黒》）の6効果。文型で解けたため `manualEffects.ts` へのカード固有追加は0件。golden の live parser 構造6件と、実戦同様の signi zone を使うトラッシュ／デッキ下 E2E を追加した。任意コスト選択後に `resumeOptionalCost`、さらに `resumeSelectTarget` まで通し、発生源自身が候補に無い／他シグニが候補にある／支払い後も発生源が場に残り他シグニだけが指定先へ移ることを両方向 assert した。
+
+本波の defer は第2優先5件（`WX26-CP1-084-E1`／`WXDi-P03-042-E1`／`WX25-CP1-089-E1`／`WDK06-C17-E1`／`WXEX2-59-E2`）と、第6波以降指定の【常】系 STUB 群。必達6件の機構上の defer は0。再測は母集団167／`excludeSelf` あり132／なし35、正式分離済み誤検出5件を除く**実装残30**（36→30）。
+
+ゲートは golden **1285→1287**、census **1294→1294**（機能実装だが高シグナル総数は据置のため `BASELINE_HIGH` 変更なし）、smoke 10679/10679全0・SKIP0、fuzz 200ゲーム全0（7982手／2700効果）、manual field loss 0、lint 0 errors/240 warnings。held は **260枚／108署名据置**。live HEAD 比は changed 6／added 0／removed 0で対象6 IDのみ、兄弟効果2件は HEAD に復元して不変を確認。`excludeSelf` 268→274（減少0）、生成JSONの `"???"` 0、同型★0。`build:effects`／`regen` は連続2巡で追加差分なし。commit/push 未実施。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第4波：対象引き継ぎ4効果＋誤検出分離
 
 残45効果を着手前に live／fresh（`parseCardEffects(row)` 直呼び）／manual（`mergeManualEffects` 差分）の3値で全数比較した。結果は次の4群（合計45）だった。

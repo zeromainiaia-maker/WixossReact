@@ -26,10 +26,11 @@ import type {
   ConditionalAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
+
 
 export function parseSentencePart3(t: string): EffectAction | null {
   // ---- エナゾーンからN枚このシグニの下に置く ----
@@ -1003,7 +1004,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニとあなたのシグニ各1体（トレード）----
   if (t.match(/対戦相手のシグニ[０-９\d]*体?を対象とし、(?:あなたの|この)?シグニ[０-９\d]*体?を場からトラッシュに置いてもよい/)) {
-    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+    return tradeOptionalCost(t);
   }
 
   // ---- 対戦相手はあなたの手札を見ないで選び捨てさせる ----
@@ -1157,7 +1158,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
   if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
     const costColors = extractCostColors(t);
-    return { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}) } as StubAction;
+    const tradeCost = tradeOptionalCost(t);
+    return tradeCost.id === 'OPTIONAL_COST'
+      ? { ...tradeCost, ...(costColors.length ? { costColors } : {}) }
+      : { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}) } as StubAction;
   }
 
   // ---- 括弧で始まるルール説明（汎用スキップ）----
@@ -1314,7 +1318,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニN体を対象とし、あなたの〜をトラッシュ/デッキに置いてもよい ----
   if (t.match(/対戦相手のシグニ[０-９\d]*体?(?:まで)?を対象とし、あなたの.+(?:トラッシュに置いてもよい|デッキの一番.+に置いてもよい)/)) {
-    return { type: 'STUB', id: 'TRADE_BANISH_SELF_SIGNI' } as StubAction;
+    return tradeOptionalCost(t);
   }
 
   // ---- 対戦相手のシグニN体を対象とし、あなたの手札から〜公開する ----
