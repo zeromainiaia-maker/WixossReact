@@ -7,6 +7,10 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // タスク12(lxxxii) 第3波: 文中CHOOSEをliveへ載せる。①③は誤対象への過剰実行を避けて明示defer。
+  "WXK08-002": [
+    {"effectId":"WXK08-002-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"赤","count":3},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_CENTER_LRIG"},{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"STUB","id":"DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"any","count":2,"upToCount":true,"totalPowerMax":10000,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"STUB","id":"DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN"}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   "WDK04-006": [
     {"effectId":"WDK04-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WDK04-006-E1-G","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"DECLARE_PARITY_OPPONENT"},{"type":"STUB","id":"DECK_REVEAL_UNTIL"},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED"},"then":{"type":"NEGATE_ATTACK","target":{"type":"LRIG","owner":"opponent","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_opp"}],"rawText":"【自】：対戦相手のセンタールリグがアタックしたとき、対戦相手は偶数か奇数かを宣言する。あなたのデッキの上からシグニがめくれるまで公開する。この方法で公開されたシグニのレベルが宣言と異なる場合、そのアタックを無効にする。公開されたカードをシャッフルしてデッキの一番下に置く。"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],

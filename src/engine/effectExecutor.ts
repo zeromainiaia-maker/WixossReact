@@ -397,7 +397,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     for (const n of cands) {
       candidatePowers[n] = ctx.effectivePowers?.get(n) ?? parseInt(ctx.cardMap.get(n)?.Power ?? '0', 10);
     }
-    return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false, {
+    const maxPick = typeof tgt.count === 'number' ? Math.min(tgt.count, cands.length) : cands.length;
+    return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
       totalPowerMax: tgt.totalPowerMax,
       candidatePowers,
     });
@@ -5961,6 +5962,8 @@ export function applyRefreshOnDone(
   pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
   ctx: ExecCtx,
 ): ExecResult {
+  // UI外から過剰な件数が渡っても、宣言された最大選択数を超えて処理しない。
+  selected = selected.slice(0, pending.count);
   // totalPowerMax: 選択カードの実効パワー合計が上限を超えないよう保証（超過分は順に切り捨て）
   if (pending.totalPowerMax !== undefined) {
     const powers = pending.candidatePowers ?? {};

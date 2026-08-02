@@ -264,9 +264,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     u = (ct ? ([] as string[]).concat(ct).join('か') : 'カード') + loc;
   } else if (t.filter?.isResona || t.filter?.cardType === 'レゾナ') u = 'レゾナ';
   else u = unit; // SIGNI 等
-  // パワー合計上限つき「好きな数」（「パワーの合計がN以下になるように好きな数」）
+  // パワー合計上限つき「M体まで」または「好きな数」
   if (t.totalPowerMax !== undefined) {
-    return `${own}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように好きな数`.trim();
+    const mPick = typeof t.count === 'number' ? `${t.count}体まで` : '好きな数';
+    return `${own}${filterJa(t.filter)}${u}をパワーの合計が${t.totalPowerMax}以下になるように${mPick}`.trim();
   }
   // レベル合計上限つき「M体まで」（「レベルの合計がN以下になるようにM体まで」）
   if (t.totalLevelMax !== undefined) {

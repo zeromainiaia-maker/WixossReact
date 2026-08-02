@@ -1670,24 +1670,6 @@ WXK08-001
   - [0].action.steps[2].then.target.count = 1
   …（他 62 行）
 
-## +BANISH +BLOCK_ACTION +CHOOSE +REMOVE_ABILITIES +SEQUENCE +SIGNI×3 ［1枚］
-WXK08-002
---- WXK08-002
-  原文: あなたのセンタールリグが＜タウィル＞の場合、このアーツの使用コストは《赤×2》減る。以下の３つから１つを選ぶ。①あなたのトラッシュから赤のシグニ１枚を対象とし、ターン終了時まで、それの基本レベルを１にする。それをレベル１のシグニとして場に出す。ターン終了時、それを場から手札に戻す。②シグニをパワーの合計が10000以下になるように２体まで対象とし、それらをバ
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[2].type = "BOUNCE"
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "self"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].target.upToCount = false
-  - [0].action.steps[2].target.filter.cardType = "シグニ"
-  - [0].action.steps[2].optional = false
-  ~ [0].action.steps[1].type : "ADD_TO_FIELD" → "CHOOSE"
-  + [0].action.steps[1].choose_count = 1
-  + [0].action.steps[1].from_count = 3
-  + [0].action.steps[1].choices[0].choiceId = "c0"
-  …（他 32 行）
-
 ## +ADD_TO_FIELD +BANISH +CHOOSE +SEQUENCE +SIGNI +TRASH +TRASH_CARD -BLOCK_ACTION ［1枚］
 WXK08-003
 --- WXK08-003

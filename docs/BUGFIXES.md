@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxii) 第3波：WXK08-002-E1 文中CHOOSE実働化（残8→7）
+
+`WXK08-002-E1` を **段階1まで着地**。live の無条件 `ADD_TO_FIELD`＋即時自シグニ `BOUNCE` を、前置 `STUB{ARTS_COST_REDUCTION_BY_CENTER_LRIG}` を保持した `CHOOSE{choose_count:1,from_count:3}` へ置換した。②は既存語彙 `BANISH{target:{type:'SIGNI',owner:'any',count:2,upToCount:true,totalPowerMax:10000}}` で忠実化。①は `DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN`、③は `DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN` に明示 defer し、誤対象へのバウンス／能力除去を no-op 化した。段階2/3を defer した理由は、③が引用AUTOのターン2回制限・ガード時発火を含む複合付与、①が場出し対象の同一性をターン終了時まで追跡する遅延帰還と未実装 `SET_LEVEL_1` を必要とし、既存の裸アクションを組むだけでは過剰実行になるため。
+
+実測で `totalPowerMax` 経路が `target.count` を無視して候補全数を選択可能にし、`resumeSelectTarget` もUI外からの過剰件数を拒否しない共通穴を確認。前者は `count` を最大選択数へ反映、後者は `pending.count` で選択列を上限化した。decompiler も合計パワー制約と数値 count の併用を「N体まで」と描画する一般則へ更新。カード番号・カード名・固有本文による parser/engine 分岐は追加していない。
+
+### ⚠ Claude 検証で補った2点（codex の申告に無かった事実）
+
+**① `totalPowerMax` の `count` 無視は既存効果には実害が無かった**＝live の `totalPowerMax` 保持ノードは本件を含め **5件**で、**既存4件は全て `count:"ALL"`**（`WX02-022-BURST`／`WX05-002-E3`／`WX07-026-BURST`／`WXEX2-38-BURST`＝原文はいずれも「好きな数」）。修正は `typeof tgt.count === 'number'` ガード付きなので **"ALL" 側は `cands.length` にフォールバックして従来どおり**＝**後方互換は保たれ、`WXK08-002-E1` が number `count` の最初の事例**。decompiler 側も同じガードで既存4件は「好きな数」の描画のまま（実測で確認）。なお直下の `totalLevelMax` は**元から同じ `typeof tgt.count === 'number'` 形**を持っており、本修正はその兄弟に形を揃えたもの。`resumeSelectTarget` の `slice` は型上 `count: number` 確定（`src/types/index.ts:659`）なので `slice(0, NaN)` 事故は起きないが、**UI（`EffectInteractionModal`）は上限を守るため実 UI 経路では発火しない防御**であり、golden の「3体指定されても最大2体」は engine 直叩き経路の固定である点に注意。
+
+**② 本件は `parseStatus:'MANUAL'` によるカード単位の温存**（`manualEffects.ts` へ追加）＝**今後 parser が改善しても live には反映されなくなる**。`WXK08-002` は held から抜けた（265→264枚）が、これは「解決済み」ではなく「curated で固定した」の意味。⇒ **段階2/3（①③）を実装するときは MANUAL 定義を外して parser 側へ戻すこと。** 採用はカード単位なので、①③が過剰実行のままでは fresh を採れず、②だけを parser で直しても採用できない（＝今回 MANUAL を選んだ理由）。⚠ ②の文型「パワーの合計がN以下になるように**M体まで**」を持つカードは **CSV 全数で本カード1件のみ**（他4件は全て「好きな数」）＝**parser を一般化しても波及先は0**なので、MANUAL 温存による同型の取り逃しは無い（実測で確認）。
+
+実行 golden はアーツを `field.check` に置き、CHOOSE 1/3、前置marker、①③の両盤面no-op、②の両陣営候補・0/1/2体・3体拒否・合計10000超拒否を固定。HEAD `84fb15a2` 比 live per-effect は **changed 1 (`WXK08-002-E1`) / added 0 / removed 0 / outlier 0**。regen差分は sheet4 当該行のみ、同型★0（265群）。gates全緑＝golden **1307→1308**、smoke **10679/10679** 全0・SKIP0、fuzz全0（7982手／2708効果）、census **1289据置**、manual field loss 0、lint 0 errors/**240 warnings**。held は実測 **265→264枚／116→115署名**。`build:effects` は連続2巡で effects_WXK SHA-256 不変、UTF-8 の `"cardType":"シグニ"` を再読確認。commit/pushなし。
+
 ## 2026-08-02 — Opusタスク12(lxxxii) 第2波：前置に実アクションを含む文中 CHOOSE の救済（同型3件／残9→8）
 
 `WD21-008-E1`・`WX20-003-E1`・`SPK01-07-E1` の3件を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer 1件＝`WX20-007-E1`）。**codex-work 実装／Claude 指示・検証・簿記**。**差し戻し1件**（下記）。

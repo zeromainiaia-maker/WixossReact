@@ -21490,6 +21490,73 @@ test('task12(lxxxii) 第2波: 任意支払いと条件付きコスト減の後�
   }
 }));
 
+test('task12(lxxxii) 第3波 WXK08-002-E1: アーツの3択・②のany/2体まで/合計10000・defer枝no-op', () => withSavedCursor(() => {
+  const effect = manualEffect('WXK08-002', 'WXK08-002-E1');
+  eq(cardMap.get('WXK08-002')?.Type, 'アーツ', '発生源はアーツ');
+  eq(effect.action.type, 'SEQUENCE', 'コスト減markerとCHOOSEのSEQUENCE');
+  if (effect.action.type !== 'SEQUENCE') return;
+  const [prefix, choose] = effect.action.steps;
+  ok(prefix.type === 'STUB' && prefix.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG', '前置のコスト減markerを保持');
+  ok(choose.type === 'CHOOSE' && choose.choose_count === 1 && choose.from_count === 3 && choose.choices.length === 3,
+    'CHOOSE 1/3をliveへ保持');
+  if (choose.type !== 'CHOOSE') return;
+  ok(choose.choices[0].action.type === 'STUB'
+    && choose.choices[0].action.id === 'DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN', '①は明示defer');
+  ok(choose.choices[2].action.type === 'STUB'
+    && choose.choices[2].action.id === 'DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN', '③は明示defer');
+
+  const low = [...cardMap.values()].filter(c => isSigni(c) && Number(c.Power) > 0 && Number(c.Power) <= 5000)
+    .slice(0, 3).map(c => c.CardNum);
+  const high = findCard(c => isSigni(c) && Number(c.Power) > 10000);
+  eq(low.length, 3, '低パワーのdistinctシグニを3体用意');
+  const base = mkCtx({ signi: [low[0], null, null] }, { signi: [low[1], low[2], high] }, 'WXK08-002');
+  base.ownerState.field.check = 'WXK08-002';
+  const open = () => executeEffect(effect, {
+    ...base,
+    ownerState: { ...base.ownerState, field: { ...base.ownerState.field, signi: base.ownerState.field.signi.map(s => s ? [...s] : null) } },
+    otherState: { ...base.otherState, field: { ...base.otherState.field, signi: base.otherState.field.signi.map(s => s ? [...s] : null) } },
+    logs: [],
+  });
+  const selectBranch = (choiceId: string) => {
+    const opened = open();
+    ok(!opened.done && opened.pending.type === 'CHOOSE', `${choiceId}: CHOOSEを提示`);
+    if (opened.done || opened.pending.type !== 'CHOOSE') throw new Error('CHOOSE not opened');
+    return resumeChoose(choiceId, opened.pending, { ...base, ownerState: opened.ownerState, otherState: opened.otherState, logs: opened.logs });
+  };
+
+  for (const choiceId of ['c0', 'c2']) {
+    const beforeOwner = JSON.stringify(base.ownerState);
+    const beforeOther = JSON.stringify(base.otherState);
+    const result = selectBranch(choiceId);
+    ok(result.done, `${choiceId}: STUB枝は追加interactionなしで完了`);
+    eq(JSON.stringify(result.ownerState), beforeOwner, `${choiceId}: 自盤面no-op`);
+    eq(JSON.stringify(result.otherState), beforeOther, `${choiceId}: 相手盤面no-op`);
+  }
+
+  const branch = selectBranch('c1');
+  ok(!branch.done && branch.pending.type === 'SELECT_TARGET', '②は対象選択を提示');
+  if (branch.done || branch.pending.type !== 'SELECT_TARGET') return;
+  eq(branch.pending.count, 2, '②は最大2体');
+  ok(branch.pending.optional === true, '②は0体を含む2体まで');
+  eq(branch.pending.totalPowerMax, 10000, '②は合計パワー10000以下');
+  ok(branch.pending.candidates.includes(low[0]) && branch.pending.candidates.includes(low[1]), '自分・相手のシグニが候補');
+
+  const resume = (selected: string[]) => resumeSelectTarget(selected, branch.pending, {
+    ...base, ownerState: branch.ownerState, otherState: branch.otherState, logs: branch.logs,
+  });
+  const zero = resume([]);
+  ok(zero.done && zero.ownerState.field.signi[0]?.at(-1) === low[0] && zero.otherState.field.signi[0]?.at(-1) === low[1], '0体選択が通る');
+  const one = resume([low[1]]);
+  ok(one.done && one.otherState.field.signi[0] === null, '相手シグニ1体をバニッシュできる');
+  const two = resume([low[0], low[1]]);
+  ok(two.done && two.ownerState.field.signi[0] === null && two.otherState.field.signi[0] === null, '自分・相手を跨ぐ2体選択が通る');
+  const three = resume([low[0], low[1], low[2]]);
+  eq([three.ownerState.field.signi[0], three.otherState.field.signi[0], three.otherState.field.signi[1]]
+    .filter(s => s === null).length, 2, '3体指定されても最大2体だけ処理');
+  const over = resume([low[0], high]);
+  ok(over.ownerState.field.signi[0] === null && over.otherState.field.signi[2]?.at(-1) === high, '合計10000超の後続対象を拒否');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
