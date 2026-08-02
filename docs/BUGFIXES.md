@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第7波：残 collector 2効果＋専用耐性4効果の非該当分離＋1効果是正
+
+第6波後の実装課題残23件を live JSON と engine 読取経路で再監査した。`WXDi-D02-25-E1` は parser が「あなたの他のシグニが場を離れたとき」を `triggerScope:any_ally`／`triggerFilter.excludeSelf` に落とす規則を追加し、`collectLeaveFieldTriggers` の watcher 経路（`triggerCollect.ts`）が離脱カード番号と watcher 番号を比較して実評価する。`WX24-P4-055-E1` は既存 parser が fresh では `any_ally`／白／`excludeSelf` を生成する一方、カード単位 held により live が温存されたため live JSON へ外科反映した。バトル経路は `BattleScreen.tsx` の `battleBanishEntries` から `battleBanisherMatchesTrigger` が実アタッカーに filter を評価する。golden はいずれも live `effectsMap` を読み、他シグニで収集・watcher 自身で非収集を両方向固定した。
+
+`WXDi-P14-087-E1` は honest defer。`performLifeBurstResponse` 内の inline `ON_OPP_LIFE_CRASHED` collector がクラッシュ元シグニをイベントへ保持しておらず、`triggerFilter` を正しく評価できない。`WXK10-056-E1` も honest defer。`collectTrashTriggers` の入力は `byCostOrEffect` までで「コストとして」を効果起因から区別する専用シグナルがなく、現状で `any_ally/excludeSelf` だけを刻むと他シグニが効果でトラッシュされた場合にも誤発火する。前者は life-crash source tracking、後者は cost-only trash cause の additive 機構が必要。
+
+耐性3件は STUB 名だが no-op ではなく、既存 engine 専用語彙へ正しく配線済みだったため正式に非該当へ分離した。`WX20-025-E1` は `collectDownProtectedSigni` の `PREVENT_SIGNI_DOWN_BY_OPP_ALL` 分岐が発生源以外を保護する。`WXK10-024-E1`／`WX25-P2-053-E1` は `collectAbilityProtectedSigni` が原文の赤／白を抽出し、発生源を除外して `REMOVE_ABILITIES` 実行ctxへ渡す。ルール処理・自分の効果には効かない既存の原因限定を維持している。live 実カードで down と能力喪失の対象集合を両方向 assert した。`WX25-P3-062-E1` も実測どおり `collectPowerDecreaseTriggers` が `powerDecreaseExcludeSelf` を発生源番号へ評価済みのため、同じく非該当へ正式分離した。
+
+`WXK06-024-E1` は再監査で非該当判定を撤回し、是正側へ移した。`calcFieldPowers` の `PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP` は従来 boolean で全自シグニを保護しており、原文の「他の」を失って能力保持者自身まで保護する過剰実装だった。保持者 cardNum の集合を保持し、兄弟実装と同じく保護対象追加時に発生源を除外する形へ修正した。golden は `withSavedCursor` と live `effectsMap` を使い、保持者＋他シグニに対して live `WX13-006A-E1` の相手全体－5000を適用し、他シグニは不変／保持者は－5000の両方向を固定した。
+
+再測は母集団167、public JSON の `excludeSelf` あり139→141／なし28→26。なし26の内訳を数え直すと、既知誤検出5件、正式な非該当4件、本波で専用機構を是正した `WXK06-024-E1` 1件、**実装課題残16**。したがって残数16自体は据置だが、従来の「専用機構で正しい5件」という分類を「非該当4件＋是正1件」へ訂正した。golden 1291→1294。census は leave-field 主語1件の機能忠実化で 1294→1293（battle banish は同カテゴリ重複のため総数影響0）となり、`BASELINE_HIGH` と PLAN 恒久指標を更新した。smoke 10679/10679 全0・SKIP0、fuzz 200ゲーム全0（7983手／2710効果）、lint 0 errors/240 warnings、manual field loss 0、held 259枚。live HEAD 比は changed 2／added 0／removed 0（`WXDi-D02-25-E1`／`WX24-P4-055-E1`）で対象ID以外0、全 public JSON の `excludeSelf` は281→283（減少0）、`"???"` 0。`build:effects`／`regen` は連続2巡で追加差分なし。commit/push 未実施。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第6波：STUB同居action対象＋下敷きhost＋トリガー主語7効果
 
 第5波後の実装課題残30件を再測し、action/host 対象5効果と trigger 主語2効果を **live JSON 基準で**是正した。`WX26-CP1-084-E1`／`WXDi-P03-042-E1` は「対象宣言→`STORE_LAST_PROCESSED_TARGETS`→任意コスト→同一対象へ `GRANT_KEYWORD`」へ接続し、`execGrantKeyword` が明示時だけ `targetsStored` と `target.filter.excludeSelf` を読む additive 実装にした。golden で `SELECT_TARGET` 候補から発生源が外れ、他シグニを選択後 `resumeOptionalCost` まで通して、その1体だけが【ランサー】を得ることを確認した。

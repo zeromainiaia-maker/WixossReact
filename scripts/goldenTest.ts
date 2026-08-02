@@ -15,6 +15,7 @@ import type { CardData, PlayerState, StackEntry } from '../src/types';
 import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
 import { evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost } from '../src/engine/execUtils';
@@ -21082,6 +21083,45 @@ test('task12(lxxxiii) 第6波 E2E: レイヤー/下敷き/選択のみの host �
     ok(placed.done, '下敷き resume が完了しない');
     ok(placed.ownerState.field.signi.some(s => s?.at(-1) === redOther && s.includes(underSource)), '選んだ host の下に移動しない');
   }
+}));
+
+test('task12(lxxxiii) wave 7 live collector filters', () => {
+  const leave = effectsMap.get('WXDi-D02-25')!.find(e => e.effectId === 'WXDi-D02-25-E1')!;
+  eq(leave.triggerScope, 'any_ally', 'leave scope'); eq(leave.triggerFilter?.excludeSelf, true, 'leave excludeSelf');
+  const lc = { ...trigCtx(HOST), effectsMap, turnPhase: 'MAIN' as const };
+  ok(collectLeaveFieldTriggers(lc, SIGNI_L1, [], HOST, mkState({ signi: ['WXDi-D02-25', SIGNI_L1, null] }), mkState()).entries.some(e => e.effectId === leave.effectId), 'leave other fires');
+  ok(!collectLeaveFieldTriggers(lc, 'WXDi-D02-25', [], HOST, mkState({ signi: [SIGNI_L1, null, null] }), mkState()).entries.some(e => e.effectId === leave.effectId), 'leave self excluded');
+  const battle = effectsMap.get('WX24-P4-055')!.find(e => e.effectId === 'WX24-P4-055-E1')!;
+  eq(battle.triggerScope, 'any_ally', 'battle scope'); eq(battle.triggerFilter?.excludeSelf, true, 'battle excludeSelf'); eq(battle.triggerFilter?.color, '白', 'battle color');
+  const white = findCard(c => isSigni(c) && c.Color?.includes('白') && c.CardNum !== 'WX24-P4-055');
+  ok(battleBanisherMatchesTrigger(battle, 'WX24-P4-055', white, cardMap.get(white)), 'battle other white fires');
+  ok(!battleBanisherMatchesTrigger(battle, 'WX24-P4-055', 'WX24-P4-055', cardMap.get('WX24-P4-055')), 'battle self excluded');
+});
+
+test('task12(lxxxiii) wave 7 existing other-SIGNI protections', () => {
+  const other = findCard(c => isSigni(c) && c.CardNum !== 'WX20-025');
+  const down = collectDownProtectedSigni(mkState({ signi: ['WX20-025', other, null] }), cardMap, effectsMap, mkState(), true);
+  ok(down.includes(other) && !down.includes('WX20-025'), 'down protects only other SIGNI');
+  for (const source of ['WXK10-024', 'WX25-P2-053'] as const) {
+    const color = source === 'WXK10-024' ? '赤' : '白';
+    const same = findCard(c => isSigni(c) && c.CardNum !== source && c.Color?.includes(color));
+    const diff = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== same && !c.Color?.includes(color));
+    const got = collectAbilityProtectedSigni(mkState({ signi: [source, same, diff] }), mkState(), cardMap, effectsMap, true);
+    ok(got.includes(same) && !got.includes(source) && !got.includes(diff), `${source}: color/excludeSelf`);
+  }
+  const power = effectsMap.get('WXK06-024')!.find(e => e.effectId === 'WXK06-024-E1')!;
+  ok(power.action.type === 'STUB' && power.action.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP', 'power minus opponent-only collector');
+});
+
+test('task12(lxxxiii) wave 7 WXK06-024-E1: opponent power minus protects only other SIGNI', () => withSavedCursor(() => {
+  const source = 'WXK06-024';
+  const other = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== 'WX13-006A');
+  const protectedSide = mkState({ signi: [source, other, null] });
+  const decreasingSide = mkState({ signi: ['WX13-006A', null, null] });
+  const baseline = calcFieldPowers(mkState(), protectedSide, true, effectsMap, cardMap as Map<string, CardData>);
+  const powers = calcFieldPowers(decreasingSide, protectedSide, true, effectsMap, cardMap as Map<string, CardData>);
+  eq(powers.get(other), baseline.get(other), '他シグニは live WX13-006A-E1 の相手－5000を受けない');
+  eq(powers.get(source), (baseline.get(source) ?? 0) - 5000, '能力保持者自身は相手－5000を受ける');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

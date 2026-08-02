@@ -7524,6 +7524,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LEAVE_FIELD「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026）＝
       //   any_ally＋byOpponentEffect＋triggerFilter（story/他の）。
       if (timing[0] === 'ON_LEAVE_FIELD') {
+        // 「あなたの他のシグニが場を離れたとき」＝味方 watcher。既存 collector は
+        // triggerFilter.excludeSelf を離脱カードと watcher の instance ID で評価する。
+        const otherAllyLeave = trigText.match(/あなたの(他の)(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき/);
+        if (otherAllyLeave) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerFilter = {
+            ...(extractedTriggerFilter ?? {}),
+            excludeSelf: true,
+            ...(otherAllyLeave[2] ? { story: otherAllyLeave[2] } : {}),
+          };
+        }
         const lvOpp = trigText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/);
         if (lvOpp) {
           extractedTriggerScope = 'any_ally';

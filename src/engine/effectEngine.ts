@@ -1360,7 +1360,7 @@ export function calcFieldPowers(
     const ownerPowerProtection: PowerDeltaProtection = { minus: new Set(), plus: new Set() };
     const otherPowerProtection: PowerDeltaProtection = { minus: new Set(), plus: new Set() };
     const otherPowerProtected = otherPowerProtection.minus!; // 既存 minus STUB 用の別名
-    let allOtherSigniProtected = false;
+    const allOtherSigniProtectionSources = new Set<string>();
     const protectionHosts = otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
     const lrig = otherState.field.lrig.at(-1); if (lrig) protectionHosts.push(lrig);
     const assistL = otherState.field.assist_lrig_l?.at(-1); if (assistL) protectionHosts.push(assistL);
@@ -1381,7 +1381,7 @@ export function calcFieldPowers(
         if (!checkActiveCondition(eff.activeCondition, otherState, ownerState, !isOwnerTurn, cardMap, topNum)) continue;
         const act = eff.action as import('../types/effects').StubAction;
         if (act.type === 'STUB' && act.id === 'PREVENT_POWER_MINUS_BY_OPP') otherPowerProtected.add(topNum);
-        if (act.type === 'STUB' && act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtected = true;
+        if (act.type === 'STUB' && act.id === 'PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP') allOtherSigniProtectionSources.add(topNum);
         const p = act.type === 'STUB' ? act.powerModifyProtection : undefined;
         if (p) {
           const targets: Array<[PlayerState, PowerDeltaProtection]> = [];
@@ -1396,9 +1396,12 @@ export function calcFieldPowers(
       }
     }
     // PREVENT_ALL_SIGNI_POWER_MINUS_BY_OPP: フィールド全シグニをprotectedセットに追加
-    if (allOtherSigniProtected) {
+    // ⚠発生源ごとに「自分以外」を足す（兄弟実装 PREVENT_SIGNI_DOWN_BY_OPP_ALL と同じ形）。
+    // 発生源をまとめて除外すると、同じ能力を持つシグニが2体並んだとき互いに保護し合えなくなる。
+    for (const protectionSource of allOtherSigniProtectionSources) {
       for (const stack of otherState.field.signi) {
-        const top = stack?.at(-1); if (top) otherPowerProtected.add(top);
+        const top = stack?.at(-1);
+        if (top && top !== protectionSource) otherPowerProtected.add(top);
       }
     }
 
