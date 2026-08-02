@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第2波：B collector監査
+
+差し戻しで、`collectBeatBecameTriggers` の従来の無条件自己除外を外したまま `WDK14-014-E1` に `excludeSelf` を刻んでおらず自己発火する後方互換破壊を検出し、従来ガードへ戻した。同型事故を防ぐため `collectKeywordGainedTriggers` も従来ガードを維持し、collector 分岐は実戦ゾーン＋cursor復元つき golden で固定する。
+
+B候補20件を原文と実呼出経路で再監査した。分類誤り `WX06-019-E1`（置換）／`WXEX2-19-E2`（起動能力）を除く18件のうち、真にトリガー主語へ「他の」が掛かるのは12件、効果対象側は6件だった。`collectFieldTriggers`／`collectLeaveFieldTriggers`／`collectBeatBecameTriggers`／`collectKeywordGainedTriggers` が `triggerFilter.excludeSelf` を明示的に読み、残りの filter のみ発生源へ評価する形へ統一。parser は「他の…シグニがアタックしたとき」／開花／能力獲得／バトルバニッシュ主語だけを抽出し、「他のシグニゾーン」「他のルリグ」「他のカード名」を拾わない。
+
+live 実装6効果：`WX22-022-E4`／`WXDi-CP02-102-E1`／`WX25-CP1-047-E1`／`WXK05-021-E1`／`WXK10-059-E2`／`WXDi-P04-035-E1`。各効果を実カード live JSON＋pure collector の `tmp_lxxxiii_b_collectors.ts` で直叩きし、他シグニでは発火、自身では非発火を確認した。`WX25-P3-062-E1` は既存の専用 `powerDecreaseExcludeSelf` で既に正しいため不変。
+
+honest defer 11効果：`WXDi-P14-087-E1` は inline `ON_OPP_LIFE_CRASHED` collector がクラッシュ元シグニを保持せず filter 評価不能。`WXDi-P03-086-E1`／`WXDi-D02-25-E1`／`WX24-P4-055-E1`／`WDK14-014-E1` は collector 側の読取経路を確認したが、curated/MANUAL保持またはカード全体 held と同居し、parser 宣言だけの no-op／別効果退化を避けて据置。`WXDi-P03-042-E1`／`WX26-CP1-084-E1`／`WX25-CP1-074-E1`／`WX25-CP1-087-E1`／`WX26-CP1-092-E1`／`SP27-015-E1` は「他の」がトリガーでなく action 対象に掛かるためBから除外（残Aとして据置）。
+
+live per-effect 差分は changed 6 / added 0 / removed 0、全件上記IDのみでスコープ外 outlier 0、既存 `triggerFilter.excludeSelf` 減少0。census 1300→1298（トリガー主語復元による機能是正）、golden 1278→1283/1283（6効果の自己/他者、`WDK14-014-E1`、leave/field後方互換）、smoke 10679/10679全0、fuzz全0、manual field loss 0、no-cache lint 0 errors/240 warnings、held 260→261枚（署名109群）。`build:effects`／`regen` は連続実行で追加差分なし。commit は Claude 確認後に行う。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii)：「あなたの他の…シグニ」対象拡大の部分消化
 
 効果原文を effectId 単位で再計測し、母集団170効果（`excludeSelf` あり79／なし91）、なし91＝A action target 48／B trigger 20／C STUB 16／D 誤検出7、`owner:any` 混入27へ在庫を訂正した。parser に `hasOtherSelfSigniNoun` を追加し、「あなたの（効果によって）他の〔修飾〕シグニ」だけを認識する一方、「他のシグニゾーン」「他のルリグ」「他のカード名」は除外。POWER_MODIFY／UP／GRANT_KEYWORD／REARRANGE_SIGNI／ATTACH_CHARM／BOUNCE／BANISH／TRASH／TRANSFER_TO_DECK の既存 target filter へ接続した。`buildEffectsJson.ts` のカード固有パッチ・例外は追加していない。

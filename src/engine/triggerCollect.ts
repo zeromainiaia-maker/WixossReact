@@ -1304,7 +1304,11 @@ export function collectLeaveFieldTriggers(
       if (scope !== 'any_ally' && scope !== 'any') continue;
       // duringAttackPhase（「アタックフェイズの間、あなたの＜X＞のシグニが場を離れたとき」WX24-P2-052/WX21-004/WXEX2-51）。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
-      if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+      if (eff.triggerFilter?.excludeSelf && leftCardNum === topNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0 && !matchesFilter(leftCard, restFilter)) continue;
+      }
       // turnOwner（「あなた/対戦相手のターンの間」）: watcher 視点のターンで絞る（WX19-003/WX25-P1-034 等）
       const to = eff.triggerCondition?.turnOwner;
       if (to === 'self' && !watcherIsTurn) continue;
@@ -1346,7 +1350,11 @@ export function collectLeaveFieldTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
       if (eff.triggerScope !== 'any_opp' && eff.triggerScope !== 'any') continue;
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
-      if (eff.triggerFilter && !matchesFilter(leftCard, eff.triggerFilter)) continue;
+      if (eff.triggerFilter?.excludeSelf && leftCardNum === topNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0 && !matchesFilter(leftCard, restFilter)) continue;
+      }
       const to = eff.triggerCondition?.turnOwner;
       if (to === 'self' && !oppIsTurn) continue;
       if (to === 'opponent' && oppIsTurn) continue;
@@ -2802,6 +2810,11 @@ export function collectBeatBecameTriggers(
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BECOME_BEAT')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0
+          && !matchesFilter(ctx.cardMap.get(getCardNum(becameNum)), restFilter)) continue;
+      }
       if (!consumeLimit(eff)) continue;
       pushEntry(topNum, eff);
     }
@@ -3089,7 +3102,9 @@ export function collectFieldTriggers(
     }
   }
   for (const { topNum, isLrig, fromTrash } of allyWatchers) {
-    if (topNum === triggeringCardNum) continue; // 自身は除く
+    // any_ally watcher は従来どおり自身のイベントを別の self collector に委ねる。
+    // excludeSelf も下で明示的に読み、残りの filter だけを発生源へ適用する。
+    if (topNum === triggeringCardNum) continue;
     if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
     if (!fromTrash && myAbilitiesRemoved.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
@@ -3112,7 +3127,11 @@ export function collectFieldTriggers(
       // 「あなたのパワーN以上のシグニがアタックしたとき」（WXDi-P02-079-E2/WXK07-030-E2）は表記値ではなく
       // CONTINUOUS/temp_power_mods 適用後のパワーで判定する。effectivePowers のキーは場のスタック頂点の
       // 生値なので getCardNum() で丸めない（丸めるとトークン/複製で lookup が外れ黙って表記値に落ちる）。
-      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0
+          && !matchesFilter(ctx.cardMap.get(triggeringCardNum), restFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+      }
       if (!limitOkAlly(eff)) continue; // 《ターン1回/2回》＝全ゲート通過後に消費する（最後に置く）
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
       entries.push({
@@ -3153,7 +3172,12 @@ export function collectFieldTriggers(
       if (event === 'ON_ATTACK_SIGNI' && oeStub.type === 'STUB'
         && (oeStub.id === 'MOVE_TO_ATTACKER_FRONT' || oeStub.id === 'MOVE_TO_OTHER_SIGNI_ZONE')) continue;
       // triggerFilter は発生源に適用（any_ally 側と対称。実効パワーを渡す理由は上のコメント参照）。
-      if (eff.triggerFilter && !matchesFilter(ctx.cardMap.get(triggeringCardNum), eff.triggerFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+      if (eff.triggerFilter?.excludeSelf && topNum === triggeringCardNum) continue;
+      if (eff.triggerFilter) {
+        const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+        if (Object.keys(restFilter).length > 0
+          && !matchesFilter(ctx.cardMap.get(triggeringCardNum), restFilter, ctx.effectivePowers?.get(triggeringCardNum))) continue;
+      }
       // frontLowerLevelThanSource（WX17-075）: このシグニの正面に、これよりレベルの低いシグニが出たときのみ。
       if (eff.triggerCondition?.frontLowerLevelThanSource) {
         if (event !== 'ON_PLAY') continue;
@@ -3702,7 +3726,12 @@ export function collectKeywordGainedTriggers(
     for (const eff of effsOf(ctx, topNum)) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_KEYWORD_GAINED')) continue;
       for (const gain of gains) {
-        if (gain.cardNum === topNum) continue; // 「他のシグニ」＝自身が得た場合は除外
+        if (gain.cardNum === topNum) continue; // 従来どおり「他のシグニ」だけを収集する
+        if (eff.triggerFilter) {
+          const { excludeSelf: _x, ...restFilter } = eff.triggerFilter;
+          if (Object.keys(restFilter).length > 0
+            && !matchesFilter(ctx.cardMap.get(getCardNum(gain.cardNum)), restFilter)) continue;
+        }
         if (!limitOk(eff)) continue;
         const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
         entries.push({

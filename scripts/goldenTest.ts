@@ -101,6 +101,10 @@ const POOL = [...cardMap.values()].filter(isSigni).map(c => c.CardNum);
 let cursor = 0;
 const fresh = () => { const v = POOL[cursor % POOL.length]; cursor++; return v; };
 const fill = (n: number) => Array.from({ length: n }, () => fresh());
+const withSavedCursor = (fn: () => void) => {
+  const savedCursor = cursor;
+  try { fn(); } finally { cursor = savedCursor; }
+};
 
 // ── 盤面ビルダー ──
 interface StateOpts { signi?: (string | null)[]; deckTop?: string[]; hand?: number; trash?: number; energy?: number; life?: number; coins?: number; down?: boolean[]; lrig?: string[]; assistL?: string[]; assistR?: string[]; }
@@ -4904,6 +4908,62 @@ const cblEntries = (...a: Parameters<typeof collectBloomTriggers>) => collectBlo
 const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBanishTriggers(...a).entries;
 const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
 const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
+const hasEffect = (entries: StackEntry[], effectId: string) => entries.some(entry => entry.effectId === effectId);
+
+test('第2波 excludeSelf: ON_ATTACK_SIGNI の3効果は他シグニで発火・watcher自身では非発火', () => withSavedCursor(() => {
+  const cases = [
+    { watcher: 'WX22-022', effectId: 'WX22-022-E4', other: SIGNI },
+    { watcher: 'WXDi-CP02-102', effectId: 'WXDi-CP02-102-E1', other: 'WX25-CP1-047' },
+    { watcher: 'WX25-CP1-047', effectId: 'WX25-CP1-047-E1', other: 'WXDi-CP02-102' },
+  ];
+  for (const { watcher, effectId, other } of cases) {
+    eq(cardMap.get(watcher)?.Type, 'シグニ', `${watcher} はシグニ`);
+    const host = mkState({ signi: [watcher, other, null] });
+    eq(hasEffect(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', other, host, mkState({}), HOST), effectId), true, `${effectId}: 他シグニなら発火`);
+    eq(hasEffect(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', watcher, host, mkState({}), HOST), effectId), false, `${effectId}: watcher自身なら非発火`);
+  }
+}));
+
+test('第2波 excludeSelf: ON_BLOOM の2効果は他シグニで発火・watcher自身では非発火', () => withSavedCursor(() => {
+  for (const { watcher, effectId } of [
+    { watcher: 'WXK05-021', effectId: 'WXK05-021-E1' },
+    { watcher: 'WXK10-059', effectId: 'WXK10-059-E2' },
+  ]) {
+    eq(cardMap.get(watcher)?.Type, 'シグニ', `${watcher} はシグニ`);
+    const host = mkState({ signi: [watcher, SIGNI, null] });
+    eq(hasEffect(cblEntries(trigCtx(HOST), SIGNI, host, mkState({}), HOST), effectId), true, `${effectId}: 他シグニなら発火`);
+    eq(hasEffect(cblEntries(trigCtx(HOST), watcher, host, mkState({}), HOST), effectId), false, `${effectId}: watcher自身なら非発火`);
+  }
+}));
+
+test('第2波 excludeSelf: WXDi-P04-035-E1 は他シグニのkeyword獲得で発火・自身では非発火', () => withSavedCursor(() => {
+  const watcher = 'WXDi-P04-035';
+  eq(cardMap.get(watcher)?.Type, 'シグニ', `${watcher} はシグニ`);
+  const host = mkState({ signi: [watcher, SIGNI, null] });
+  const otherGain = [{ cardNum: SIGNI, keyword: 'ダブルクラッシュ' }];
+  const selfGain = [{ cardNum: watcher, keyword: 'ダブルクラッシュ' }];
+  eq(hasEffect(collectKeywordGainedTriggers(trigCtx(HOST), otherGain, HOST, host).entries, 'WXDi-P04-035-E1'), true, '他シグニなら発火');
+  eq(hasEffect(collectKeywordGainedTriggers(trigCtx(HOST), selfGain, HOST, host).entries, 'WXDi-P04-035-E1'), false, 'watcher自身なら非発火');
+}));
+
+test('後方互換: WDK14-014-E1 は excludeSelf が無くても自身のビート化では発火しない', () => withSavedCursor(() => {
+  const watcher = 'WDK14-014';
+  eq(cardMap.get(watcher)?.Type, 'シグニ', `${watcher} はシグニ`);
+  const host = mkState({ signi: [watcher, SIGNI, null] });
+  eq(hasEffect(collectBeatBecameTriggers(trigCtx(HOST), SIGNI, host, HOST).entries, 'WDK14-014-E1'), true, '他カードのビート化なら発火');
+  eq(hasEffect(collectBeatBecameTriggers(trigCtx(HOST), watcher, host, HOST).entries, 'WDK14-014-E1'), false, '自身のビート化では非発火');
+}));
+
+test('後方互換: excludeSelf の無い leave/field 既存効果は従来どおり発火する', () => withSavedCursor(() => {
+  const waterBeast = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('水獣'));
+  const leaveAfter = mkState({ signi: ['WX19-003', null, null] });
+  const leaveEntries = collectLeaveFieldTriggers(trigCtx(GUEST), waterBeast, [], HOST, leaveAfter, mkState({})).entries;
+  eq(hasEffect(leaveEntries, 'WX19-003-E2'), true, 'excludeSelf無し ON_LEAVE_FIELD any_ally は発火');
+
+  const guest = mkState({ signi: ['WXK10-022', null, null] });
+  const fieldEntries = cftEntries(trigCtx(GUEST), 'ON_PLAY', SIGNI, mkState({}), guest, HOST);
+  eq(hasEffect(fieldEntries, 'WXK10-022-E1'), true, 'excludeSelf無し ON_PLAY any_opp は発火');
+}));
 
 // ── 続き218j: 相手ルリグのアタックで**防御側**の付与AUTO を拾う経路（タスク12(xlvii)）。
 // 従来 ON_ATTACK_LRIG の収集は BattleScreen がアタック側の `my.lrig_granted_auto_effects` しか見ておらず、

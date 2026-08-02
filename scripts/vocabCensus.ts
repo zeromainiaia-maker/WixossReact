@@ -855,7 +855,9 @@ function main(): void {
     pushSection('アーツ:JSON過剰タイミング(使えすぎ側)', hits, over, []);
   }
 
-  detail.push(`# 高シグナル欠落 効果総数（重複除外・effectId単位）: ${highAll.size}（ベースライン ${BASELINE_HIGH}）`);
+  // 2026-08-02 task12(lxxxiii) 第2波: トリガー主語「他の」の excludeSelf 復元による機能是正（1300→1298）。
+  const currentBaselineHigh = BASELINE_HIGH - 2;
+  detail.push(`# 高シグナル欠落 効果総数（重複除外・effectId単位）: ${highAll.size}（ベースライン ${currentBaselineHigh}）`);
   fs.writeFileSync(OUT_PATH, detail.join('\n') + '\n', 'utf8');
 
   if (CLUSTERS_MODE) writeClusters(units, missByPattern);
@@ -864,16 +866,16 @@ function main(): void {
   console.log('パターン | 原文該当 | 高シグナル欠落 | STUB・MANUAL格納(要確認)');
   for (const row of summary) console.log(row);
   console.log(`\n効果単位判定: ${units.length}効果（うち原文ブロック対応なし＝カード全文fallback ${fbCount}件）`);
-  console.log(`高シグナル欠落 効果総数(重複除外): ${highAll.size} ／ ベースライン: ${BASELINE_HIGH}`);
+  console.log(`高シグナル欠落 効果総数(重複除外): ${highAll.size} ／ ベースライン: ${currentBaselineHigh}`);
   console.log(`明細: docs/_vocab_census.txt`);
 
-  if (highAll.size > BASELINE_HIGH) {
-    console.error(`\n⚠回帰: 高シグナルがベースライン ${BASELINE_HIGH} を超過（${highAll.size}）。`
+  if (highAll.size > currentBaselineHigh) {
+    console.error(`\n⚠回帰: 高シグナルがベースライン ${currentBaselineHigh} を超過（${highAll.size}）。`
       + ' JSON手パッチ時はフィルタ語彙もセットで入れる（or 本ファイルのキー表・ベースラインを実数更新）。');
     process.exit(1);
   }
-  if (highAll.size < BASELINE_HIGH) {
-    console.log(`\n改善: ${BASELINE_HIGH} → ${highAll.size}。本ファイルの BASELINE_HIGH と PLAN.md §恒久指標を実数更新してよい。`);
+  if (highAll.size < currentBaselineHigh) {
+    console.log(`\n改善: ${currentBaselineHigh} → ${highAll.size}。本ファイルの BASELINE_HIGH と PLAN.md §恒久指標を実数更新してよい。`);
   }
 }
 

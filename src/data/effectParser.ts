@@ -7336,6 +7336,23 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (beatM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
       }
+      // ON_ATTACK_SIGNI: 「あなたの他の…シグニ」が攻撃した場合は watcher 自身を除外する。
+      // 「他のシグニゾーン」等は「シグニがアタックしたとき」まで要求するため一致しない。
+      if (timing[0] === 'ON_ATTACK_SIGNI') {
+        const attackM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき/);
+        if (attackM?.[1]) {
+          extractedTriggerScope = 'any_ally';
+          const tf: NonNullable<typeof extractedTriggerFilter> = {};
+          tf.excludeSelf = true;
+          if (attackM[2]) tf.story = attackM[2];
+          if (Object.keys(tf).length) extractedTriggerFilter = tf;
+        }
+      }
+      if (timing[0] === 'ON_KEYWORD_GAINED'
+        && /あなたの他のシグニ(?:[０-９\d]+体)?が(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)/.test(actionText)) {
+        extractedTriggerScope = 'any_ally';
+        extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+      }
       // ON_HAND_DISCARDED: 主語で scope を決める（「あなたが」＝self 既定／「いずれかのプレイヤーが」＝any／
       //   「（あなたの効果によって）対戦相手が」＝any_opp＝相手が捨てたときのみ・自分の捨てでは発火しない）。
       if (timing[0] === 'ON_HAND_DISCARDED') {
@@ -7847,6 +7864,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'any_ally';
           const storyBloomM = actionText.match(/あなたの(?:他の)?＜([^＞]+)＞のシグニ(?:[０-９\d]+体)?が開花したとき/);
           if (storyBloomM) extractedTriggerFilter = { story: storyBloomM[1] };
+          if (/あなたの他の(?:＜[^＞]+＞の)?シグニ(?:[０-９\d]+体)?が開花したとき/.test(actionText)) {
+            extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
+          }
         } else {
           extractedTriggerScope = 'self';
         }
@@ -7972,13 +7992,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   「このシグニが」＝self（既定・バニッシュしたアタッカー自身のみ）／「あなたの[他の][＜X＞の]シグニが」＝any_ally（＋triggerFilter）。
       if (timing[0] === 'ON_SIGNI_BANISH_OPPONENT') {
         // 「あなたの[他の][＜X＞の]シグニが（バトルによって／対戦相手の）…」＝any_ally。「このシグニが」＝self。
-        const subjM = actionText.match(/あなたの(他の)?(?:(?:パワー([０-９\d]+)以上の)|(?:＜([^＞]+)＞の))?シグニ(?:[０-９\d]+体)?が(?:バトルによって|対戦相手の)/);
+        const subjM = actionText.match(/あなたの(他の)?(?:(?:パワー([０-９\d]+)以上の)|(?:＜([^＞]+)＞の)|(?:([白赤青緑黒])の))?シグニ(?:[０-９\d]+体)?が(?:バトルによって|対戦相手の)/);
         if (subjM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
           if (subjM[1]) tf.excludeSelf = true;
           if (subjM[2]) tf.powerRange = { min: parseNum(subjM[2]) };
           if (subjM[3]) tf.story = subjM[3];
+          if (subjM[4]) tf.color = subjM[4];
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
         } else {
           extractedTriggerScope = 'self';
