@@ -12462,6 +12462,24 @@ test('バッチ①第1波 見送り固定: 前ターン履歴は当ターン条�
     // 通常召喚（カットインでない）は pending_spell を触らない
     ok(!('pending_spell' in reduceBattle(bsSpell, { type: 'WRITE_STATE', myKey: 'guest_state', myState: st })), '省略時は pending_spell キー無し');
   });
+  test('Stage3 reduceBattle RESOLVE_EFFECT_STEP: beginNextTurn は解決結果の上にターン終了を重ねる', () => {
+    // FORCE_END_TURN（2回目のリフレッシュ）＝旧 `Object.assign(update, {…turn_phase:'UP', active_user_id, turn_count+1, effect_stack:null})`。
+    const hs = { h: 1 } as unknown as PlayerState;
+    const gs = { g: 2 } as unknown as PlayerState;
+    const bs7 = { ...stub, turn_count: 7 } as BattleStateRow;
+    const patch = reduceBattle(bs7, {
+      type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: gs, pending: null,
+      effectStack: null, beginNextTurn: { activeUserId: 'G' },
+    });
+    eq(JSON.stringify(Object.keys(patch)), JSON.stringify(['host_state', 'guest_state', 'pending_effect', 'effect_stack', 'turn_phase', 'active_user_id', 'turn_count']), 'キー集合');
+    eq(patch.turn_phase, 'UP', 'UPフェイズから次ターン');
+    eq(patch.active_user_id, 'G', 'ターンプレイヤー交代');
+    eq(patch.turn_count, 8, 'turn_count は現盤面から +1');
+    eq(patch.effect_stack, null, 'スタックはクリアされたまま');
+    // 通常の解決（beginNextTurn 省略）はターン関連キーを一切書かない
+    const normal = reduceBattle(bs7, { type: 'RESOLVE_EFFECT_STEP', hostState: hs, guestState: gs, pending: null, effectStack: null });
+    ok(!('turn_phase' in normal) && !('active_user_id' in normal) && !('turn_count' in normal), '省略時はターン関連キー無し');
+  });
   test('Stage3 reduceBattle WRITE_STATES: 片側だけ・両側・スタック併記でキー集合が変わる', () => {
     const hs = { h: 1 } as unknown as PlayerState;
     const gs = { g: 2 } as unknown as PlayerState;

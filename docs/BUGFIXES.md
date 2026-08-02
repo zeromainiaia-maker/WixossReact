@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-03 — 🏁§3 タスク14 **完了**（第8〜10バッチ）：残 (a) 可変アキュムレータ3箇所を消化し **`persist.commit` 118/118 が reduceBattle 経由**（golden 1329→1330・全ゲート緑）（Opus 5）
+
+PLAN は残り3箇所を「payload 化では落ちない＝**ハンドラのフェイズ別分割という別作業**」と見積もっていたが、
+**アキュムレータが持つキー集合はどれも固定**だったため、**分割せずに落ちた**。
+
+**落とし方＝「パッチを可変アキュムレータにするのをやめ、*型付きローカル*を可変アキュムレータにする」**。
+キーごとに1ローカルへ割り、読み戻しを読み替えるだけで挙動同値：
+
+| 旧（パッチを読み戻す） | 新（ローカル） |
+|---|---|
+| `(update[opKey] as PlayerState) ?? op` | `oppWrite?.state ?? op` |
+| `'host_state' in update ? update.host_state : hostState` | `hostAcc`（**`host_state` は初期化済み＝`in` は常に true**） |
+| `('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null` | `(stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null`（**`effect_stack` だけ未初期化**＝未書き込みなら土台は現盤面） |
+| `if (phase==='ATTACK_SIGNI' && update.turn_phase==='ATTACK_LRIG')` | `nextPhase === 'ATTACK_LRIG'` |
+| `Object.assign(update, {…})`（後勝ち上書き） | ローカル再代入＋`beginNextTurn` payload |
+
+- **第8バッチ＝`handleEffectInteraction`**（対話再開）→ `RESOLVE_EFFECT_STEP`。新 action 不要
+  （`effectStack` の **undefined＝不干渉**が、旧 `'effect_stack' in update` の意味とそのまま一致した）。
+- **第9バッチ＝`resolveStackNext`**（スタック解決本体）→ `RESOLVE_EFFECT_STEP` に
+  **`beginNextTurn?: {activeUserId}`** を追加（FORCE_END_TURN＝2回目のリフレッシュでその場でターン終了＝
+  `BEGIN_NEXT_TURN` と同じ3キーを解決結果の上に重ねる。盤面と `pending_effect`/`effect_stack` は同 action で確定済みなので分けられない）。
+  ⚠ターン強制終了の上書きは**土台が累積側ではなく解決直後の `hostState`/`guestState`**＝そこまで含めて写した。
+- **第10バッチ＝`doPhaseAdvance`**（最難関）→ **END 分岐だけ `BEGIN_NEXT_TURN` で早期 commit＋`return`**、
+  残りは `ADVANCE_TURN_WITH_STATE` 1本。END 分岐は `confirmEndDiscard`（続き332 で移行済み）と**同一形**だった＝
+  追加ターン（`extra_turn`）は `activeUserId` を渡さない＝`active_user_id` キー自体を書かない、も既存仕様のまま。
+
+golden +1＝`RESOLVE_EFFECT_STEP.beginNextTurn` のキー集合・`turn_count` 現盤面 +1・省略時はターン関連キー無し。
+
+ゲート＝typecheck/golden(**1330** PASS・FAIL 0)/smoke(10679・全0)/fuzz(全0)/census(1289 据置)/lint(0 errors・warning 240 据置) 全緑。
+**parser/effects JSON は完全不変**（BattleScreen 構造のみ）。⚠**要実機検証**（ハンドラ側 payload は golden 非カバー。
+今回は**フェイズ送り全経路・スタック解決・効果の対話再開**という中枢を触ったので、通し確認の優先度が高い）。
+
 ## 2026-08-03 — §3 タスク14 第2弾（第6・7バッチ）：**(c) spread 系 完全消化**＋直前フラグ watcher 5本の純粋化（reducer 経由 102→114／未移行 15→3・action 17→18・golden 1326→1329・全ゲート緑）（Opus 5）
 
 **第6バッチ（6箇所）＝PLAN が「次の一手」に挙げていたアーツ/レゾナ召喚の spread 系 + 取りこぼし2件**：

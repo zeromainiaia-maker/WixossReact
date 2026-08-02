@@ -44,7 +44,7 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 
 移行で `persist.commit` の厳格型（`Partial<BattleStateRow>`）が潜在的緩さ2件を検出＝じゃんけん解決 update の `setup_phase` widening（`Partial<BattleStateRow>` 注釈で是正）。
 
-### reducer 純粋化＝進行中（114/117 commit が reduceBattle 経由）
+### ✅ reducer 純粋化＝完了（**118/118 commit が reduceBattle 経由**）
 
 現在の `BattleAction`（18種）＝`SET_SETUP_PHASE` / `SET_TURN_PHASE` / `ACK_END` / `SUBMIT_JANKEN` / `RESOLVE_JANKEN` / `SELECT_LRIG` / `COMPLETE_MULLIGAN` / `START_PLAYING` / `WRITE_STATE` / `WRITE_STATES` / `QUEUE_SPELL` / `FINISH_SPELL` / `FINISH_CUTIN` / `ADVANCE_TURN_WITH_STATE` / `SET_STACK` / `END_GAME` / `BEGIN_NEXT_TURN` / `RESOLVE_EFFECT_STEP`。
 
@@ -63,29 +63,37 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 - **`WRITE_STATES`**（5箇所）＝**プレイヤー状態を0〜2件**書く（＋任意 `effectStack`）。直前フラグ watcher（`hand_revealed_just`/`hand_discarded_just`・`opp_virus_*_just`・`zone_moved_just`・`drive_became_just`・`beat_became_just`）＝「どちら側を書くかが実行時に決まる」形で、旧 `const update: Record<string, unknown> = {}` へ条件付きにキーを足す命令的構築だった。`WRITE_STATE` と違い**両方の状態が任意**。
 - **スペル／カットイン遷移**（5箇所）＝`QUEUE_SPELL` 1（非null `pending_spell` をセット）・`FINISH_SPELL` 2（caster／任意の相手状態＋`pending_spell`/`pending_effect` を両方クリア）・`FINISH_CUTIN` 2（使用者／任意のcaster状態＋`pending_spell` のみクリア）。null と省略の差を action ごとに固定。
 - **`ADVANCE_TURN_WITH_STATE`**（2箇所）＝CPUのUP処理済み状態と `turn_phase:'DRAW'` を原子的に書く／CPU GROW 開始（`opp?`＋`effectStack?` で ON_GROW_PHASE_START の相手 usage とスタックを併記）。
-- **`RESOLVE_EFFECT_STEP`**（6箇所）＝engine の `ExecResult` を受ける `resume*` ハンドラの共通形＝両者の盤面＋`pending_effect` の継続（非null）／完了（null）。optional で `clearPendingSpell`（スペル・カットイン解決）・`effectStack`（解決中に積まれたトリガー）・`settleStackOnDone`（**完了時かつ解決済みのみ** スタックを null）。
+- **`RESOLVE_EFFECT_STEP`**（8箇所）＝engine の `ExecResult` を受ける `resume*` ハンドラの共通形＝両者の盤面＋`pending_effect` の継続（非null）／完了（null）。optional で `clearPendingSpell`（スペル・カットイン解決）・`effectStack`（解決中に積まれたトリガー）・`settleStackOnDone`（**完了時かつ解決済みのみ** スタックを null）・`beginNextTurn`（FORCE_END_TURN＝解決結果の上に `BEGIN_NEXT_TURN` と同じ3キーを重ねる）。
   **⚠ 適用順＝settle が先・`effectStack` 明示が後（上書き）**。盤面差分で新しく発火した効果は、直前のスタックが解決済みでも新スタックとして残す（旧ハンドラの順序。逆にすると発火した効果が消える）。
+  8箇所のうち2つは**スタック解決本体（`resolveStackNext`）と対話再開（`handleEffectInteraction`）**＝旧 (a) の可変アキュムレータ2件（下記）。
 - **`RESOLVE_JANKEN`**（1箇所）＝じゃんけん判定。勝者ありは先攻確定＋`setup_phase:'LRIG_SELECT'`＋両者の手をリセット／**あいこは手だけリセットして `setup_phase` を進めない**（再戦）。
-- **`BEGIN_NEXT_TURN`**（2箇所）＝CPUターン終了／`confirmEndDiscard`（手札上限超過）＝`turn_phase:'UP'`＋ターンプレイヤー交代＋`turn_count` 加算＋両者の最終盤面。**`activeUserId` 省略＝据え置き**（追加ターン `extra_turn` はターンプレイヤーが交代しないので `active_user_id` キー自体を書かない）。
+- **`BEGIN_NEXT_TURN`**（3箇所）＝CPUターン終了／`confirmEndDiscard`（手札上限超過）／`doPhaseAdvance` の END フェイズ＝`turn_phase:'UP'`＋ターンプレイヤー交代＋`turn_count` 加算＋両者の最終盤面。**`activeUserId` 省略＝据え置き**（追加ターン `extra_turn` はターンプレイヤーが交代しないので `active_user_id` キー自体を書かない）。
 - **`SET_STACK`**（5箇所）＝effect_stack のみ書き換え。`settle:true` で `isStackDone(stack)?null:stack` の settle イディオムを reducer が適用（＝スタック解決判定を1箇所に集約・テスト可能化）。
 - **`END_GAME`**（3箇所）＝決着（`global_phase:'FINISHED'`＋`winner_id`＋最終盤面）。
 
-#### 残＝3 commit（grep ベース。`persist.commit(` 117箇所のうち、`reduceBattle` を経ないのは下記3つだけ）
-
-単純なセットアップ、非null `pending_spell` の開始、スペル／効果なしカットインの固定クリア、CPUの小さな状態＋phase 遷移、直前フラグ watcher の条件付き2状態書き込みは移行済み。残テールの分類：
+#### ✅ 残テール＝残0（`persist.commit(` 118箇所すべてが `reduceBattle` の結果）
 
 | | 残テール | 状況 |
 |---|---|---|
-| (a) | 名前付き `const update` の**命令的インクリメンタル構築** | **残り3箇所＝`doPhaseAdvance` / `resolveStackNext`（CPUターン強制終了の `Object.assign`）／効果解決結果の後乗せ（`'host_state' in update` の読み戻し）**＝最難関（下記⚠） |
-| (b) | `pending_effect` 非null生成／効果実行結果の `done` で null↔非null が分岐する遷移 | ✅**残0**（`RESOLVE_EFFECT_STEP` で6箇所） |
-| (c) | `...opUsageUpdate` / `...extraUpdate` 等の spread で**前後の上書き順も意味を持つ**遷移 | ✅**残0**（条件付きキーは `undefined` payload・0〜2状態は `WRITE_STATES` で表現できると判明） |
+| (a) | 名前付き `const update` の**命令的インクリメンタル構築** | ✅**残0**（`doPhaseAdvance` → `ADVANCE_TURN_WITH_STATE`＋`BEGIN_NEXT_TURN`／`resolveStackNext`・`handleEffectInteraction` → `RESOLVE_EFFECT_STEP`） |
+| (b) | `pending_effect` 非null生成／効果実行結果の `done` で null↔非null が分岐する遷移 | ✅**残0**（`RESOLVE_EFFECT_STEP`） |
+| (c) | `...opUsageUpdate` / `...extraUpdate` 等の spread で**前後の上書き順も意味を持つ**遷移 | ✅**残0**（条件付きキーは `undefined` payload・0〜2状態は `WRITE_STATES`） |
 | (d) | ENDフェイズ／CPUターン終了など複数カラム同時更新 | ✅`BEGIN_NEXT_TURN` で消化 |
 
-> **⚠(a) の残り3箇所**は payload 化では落ちない。`update[opKey]` を**読み戻して積み増す**
-> （`(update[opKey] as PlayerState) ?? op` / `'host_state' in update ? update.host_state : hostState`）・
-> `update.effect_stack` を**ベースにして push**・`update.turn_phase` を
-> **読んで分岐**（`if (phase==='ATTACK_SIGNI' && update.turn_phase==='ATTACK_LRIG')`）の3点で、
-> **パッチが「途中経過を持つ可変アキュムレータ」**になっている。フェイズ別のハンドラ分割が先＝**着手時に scope を切り直す別作業**。
+> **(a) の落とし方＝「パッチを可変アキュムレータにするのをやめ、*型付きローカル*を可変アキュムレータにする」**。
+> 3ハンドラとも**アキュムレータが持つキー集合は固定**（`doPhaseAdvance`＝自状態／相手状態／turn_phase／effect_stack〔＋END は
+> active_user_id／turn_count〕、解決系＝host_state／guest_state／pending_effect／effect_stack）だったので、
+> **キーごとに1つのローカル変数**（`nextPhase` / `oppWrite` / `phaseStack`、`hostAcc` / `guestAcc` / `stackAcc` / `pendingAcc`）へ
+> 割り、読み戻しをそのまま読み替えれば挙動同値で落ちる：
+> - `(update[opKey] as PlayerState) ?? op` → `oppWrite?.state ?? op`
+> - `'host_state' in update ? update.host_state : hostState` → `hostAcc`（**`host_state` は初期化済み＝`in` は常に true**）
+> - `('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null` → `(stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null`
+>   （**`effect_stack` だけは初期化されない**＝未書き込みなら土台は現盤面。`undefined` を「未書き込み」に使う）
+> - `if (phase==='ATTACK_SIGNI' && update.turn_phase==='ATTACK_LRIG')` → `nextPhase === 'ATTACK_LRIG'`
+> - `Object.assign(update, {…})`（ターン強制終了の後勝ち上書き）→ ローカルへの再代入＋`beginNextTurn` payload
+>
+> **フェイズ別ハンドラ分割は不要だった**（PLAN は「別作業が先」と見積もっていたが、`in` 判定が常に true か・
+> 読み戻しが常に土台に落ちるかを**1つずつ数える**と、分割せずに payload 化できると判明した）。
 
 **2026-08-03 の3バッチ（計19箇所）で分かった定形**：
 
@@ -109,18 +117,33 @@ BattleScreen.tsx の battle_states への**全行(whole-row) I/O 120箇所を `p
 7. **`update[key]` の読み戻しが「常に undefined」＝死んだアキュムレータなら (a) ではない**。
    直前フラグ watcher の `applyState` は各キーにつき1回しか呼ばれないため `(update[key] as PlayerState) ?? base` は
    常に `base` に落ちる＝**キー集合を保ったまま `Partial<Record<PlayerStateKey, PlayerState>>` へ置換できる**。
-   **移す前に「そのキーは何度書かれうるか」を数える**（定形5の系）。真に途中経過を読むのは残る3箇所だけ。
+   **移す前に「そのキーは何度書かれうるか」を数える**（定形5の系）。
 8. **`Record<string, unknown>` のパッチ変数は移行の匂い**＝computed key で型検査が効いていない印（定形4）。
    `PlayerStateKey` で受け直すと、ヘルパー引数（`stateKey: string` → `PlayerStateKey`）まで型が伝播する。
 9. **ヘルパー関数の「何でも入る追加パッチ」引数は用途を1つに絞れることが多い**
    （`queueCardEffects(… extraUpdate: Record<string, unknown> …)` は実引数が
    `{}` 2件と `{[opKey]: opState}` 1件だけ＝`opp?:{key,state}` に狭めて `WRITE_STATE` へ合流）。
 
+**2026-08-03 第3弾（残 (a) 3箇所・114→118/118）で分かった定形**：
+
+10. **(a) は「パッチを可変にするのをやめ、*型付きローカル*を可変にする」で落ちる**＝アキュムレータが持つ
+    **キー集合が固定**なら、キーごとに1ローカルへ割り、読み戻しをそのまま読み替えるだけで挙動同値。
+    フェイズ別ハンドラ分割のような**大手術は要らなかった**（上の (a) 行の読み替え表がそのままレシピ）。
+11. **`'key' in update` 判定は「そのキーが初期化済みか」で意味が変わる**＝初期化済みなら**常に true**（＝ただの累積値読み）、
+    未初期化なら**「未書き込みなら現盤面を土台にする」**という別の意味。**初期化リテラルを見て1つずつ判定する**
+    （`host_state`/`guest_state` は前者・`effect_stack` は後者だった）。`undefined` を「未書き込み」に使うと後者を素直に表せる。
+12. **後勝ちの `Object.assign(update, {…})` は「それまでの累積を捨てる」上書き**＝ローカルへの再代入で表す。
+    上書き値の**土台が累積側でなく解決直後の値**（`hostState`/`guestState`）である点まで含めて写す（定形5の系）。
+13. **1ハンドラ＝1 action とは限らない**＝`doPhaseAdvance` は END 分岐だけ別 action（`BEGIN_NEXT_TURN`）で
+    早期 commit＋`return` にすると、残りが素直に `ADVANCE_TURN_WITH_STATE` 1本になる。
+    **既存 action にちょうど一致する分岐がないか先に確かめる**（END 分岐は `confirmEndDiscard` と同一形だった）。
+
 ⚠**ハンドラ側の payload 構築は golden（純粋関数のみ）でカバーされない**ため、機械的な一括変換は「サイレントな挙動変化」を検出できない。1件ずつ手動レビュー、または先にハンドラの挙動テストを用意してから進める（機械変換で `WRITE_RAW(patch)` に丸めるのは純粋化にならないため行わない）。
 
-## 4. 段階移行レシピ（残テール＝reducer 純粋化）
+## 4. 段階移行レシピ（✅ 移行は完了。**新規ハンドラを書くときの手順**として使う）
 
-永続化移行は完了。以後は「パッチ組み立ての純粋化」を1ハンドラずつ、挙動同値を保って進める（一括変換しない）：
+永続化移行・reducer 純粋化とも完了（118/118）。**新しく盤面を書くハンドラを足すときも同じ手順で書く**
+（生の `Partial<BattleStateRow>` をハンドラで組み立てて `commit` しない）：
 
 1. **golden を1件足してから移す**＝移す遷移の入出力（`bs`＋action → patch）を `Stage3 reduceBattle *` に固定してから置換（回帰防止）。
 2. **パッチ組み立ての純粋化**＝ハンドラ内の `const update = {...}` 計算を `BattleAction` を1種足して `reduceBattle` の case へ移す。engine 純粋関数（triggerCollect / boardDiff / effectStack 等）はそのまま reducer 内から呼べる。ローカル closure 依存（user.id / isHost / 各種 ref）は action の payload に載せる。

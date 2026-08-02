@@ -167,6 +167,12 @@ export type BattleAction =
       effectStack?: EffectStack | null;
       /** 完了時、**現在のスタックが解決済みなら** `effect_stack` も null にする（settle）。 */
       settleStackOnDone?: boolean;
+      /**
+       * FORCE_END_TURN（2回目のリフレッシュ等）＝解決結果を書くのと同時にターンを終了する場合。
+       * `BEGIN_NEXT_TURN` と同じ「`turn_phase:'UP'`＋ターンプレイヤー交代＋`turn_count` 加算」を重ねる
+       * （盤面と `pending_effect`/`effect_stack` は本 action 側で確定済みなので action を分けられない）。
+       */
+      beginNextTurn?: { activeUserId: string };
     }
   /**
    * 決着：勝者を確定しゲームを終了する（global_phase='FINISHED'＋winner_id）。
@@ -287,6 +293,12 @@ export function reduceBattle(bs: BattleStateRow, action: BattleAction): Partial<
       // ⚠ settle より後に適用する＝解決中に積まれたトリガーがあれば「解決済みなのでクリア」に勝つ
       //   （盤面差分で新しく発火した効果は、直前のスタックが解決済みでも新スタックとして残す）。
       if (action.effectStack !== undefined) patch.effect_stack = action.effectStack;
+      // FORCE_END_TURN：解決結果の上にターン終了を重ねる（`BEGIN_NEXT_TURN` と同じ3キー）。
+      if (action.beginNextTurn) {
+        patch.turn_phase = 'UP';
+        patch.active_user_id = action.beginNextTurn.activeUserId;
+        patch.turn_count = bs.turn_count + 1;
+      }
       return patch;
     }
     case 'END_GAME': {

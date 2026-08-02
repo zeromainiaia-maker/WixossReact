@@ -3134,7 +3134,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const phase = bs.turn_phase;
       const stateKey = isHost ? 'host_state' : 'guest_state';
       let newMyState = my;
-      const update: Partial<BattleStateRow> = {};
+      // パッチは型付きローカルへ積み、最後に `ADVANCE_TURN_WITH_STATE`（END フェイズ＝次ターン開始は
+      // `BEGIN_NEXT_TURN`）の payload として渡す。旧実装は `update: Partial<BattleStateRow>` を
+      // 直接積み増し、`update[opKey]` を読み戻し・`update.effect_stack` を土台に push・
+      // `update.turn_phase` を読んで分岐していた（＝パッチが可変アキュムレータだった）。
+      /** 遷移先フェイズ。END 分岐以外は必ず設定される（END 分岐は自前で commit して return する）。 */
+      let nextPhase: BattleStateRow['turn_phase'] | undefined;
+      /** 併記する相手状態（未書き込み＝undefined）。書き込み先キーは常に `isHost ? 'guest_state' : 'host_state'`。 */
+      let oppWrite: { key: PlayerStateKey; state: PlayerState } | undefined;
+      /** 併記する effect_stack（未書き込み＝undefined＝触らない）。 */
+      let phaseStack: EffectStack | undefined;
 
       if (phase === 'UP') {
         // アップフェイズ開始時にすでにアップ済み（ENDフェイズで処理）。ドローして次へ。
@@ -3179,7 +3188,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs(['センタールリグのアップ条件（未払い）→ルリグはダウン状態でターン開始']);
           }
         }
-        update.turn_phase = 'DRAW';
+        nextPhase = 'DRAW';
 
         // ON_TURN_START トリガー収集（ドローと同時にスタック積み）。
         // ドローした場合は ON_DRAW（G089「カードを引いたとき」）も併せて収集する。
@@ -3190,7 +3199,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         if (startRes.usedOpIds.length > 0) {
           const opKey = isHost ? 'guest_state' : 'host_state';
-          update[opKey] = { ...(update[opKey] as PlayerState ?? op), actions_done: [...(((update[opKey] as PlayerState) ?? op).actions_done ?? []), ...startRes.usedOpIds] };
+          const opBase = oppWrite?.state ?? op;
+          oppWrite = { key: opKey, state: { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...startRes.usedOpIds] } };
         }
         if (!drawBlocked) {
           const dt = collectDrawTriggers(bs.active_user_id ?? user.id, newMyState, op, true);
@@ -3202,12 +3212,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (startEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
-          update.effect_stack = existingStack
+          phaseStack = existingStack
             ? pushToStack(existingStack, startEntries)
             : initStack(turnPlayerId, startEntries);
         }
       } else if (phase === 'MAIN' && bs.turn_count === 1) {
-        update.turn_phase = 'END';
+        nextPhase = 'END';
       } else if (phase === 'END') {
         // ON_TURN_END トリガーをまだ収集していなければ先に解決する
         const turnEndMarked = my.actions_done?.includes('__TURN_END__');
@@ -3499,7 +3509,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-        update[opKey] = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+        const opNextTurnState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
@@ -3530,25 +3540,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           },
         }, !my.extra_turn).state, !my.extra_turn));
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
-        if (my.extra_turn) {
+        //（＝ターンプレイヤーを交代しない＝`activeUserId` を渡さず `active_user_id` キー自体を書かない）
+        const isExtraTurn = !!my.extra_turn;
+        if (isExtraTurn) {
           newMyState = activateNextTurnSigniZoneBlocks(
             activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state);
-          update.turn_phase = 'UP';
-          update.turn_count = bs.turn_count + 1;
           appendBattleLogs(['追加ターン取得！']);
-        } else {
-          update.turn_phase = 'UP';
-          update.active_user_id = (isHost ? bs.guest_id : bs.host_id) as string;
-          update.turn_count = bs.turn_count + 1;
         }
+        await persist.commit(reduceBattle(bs, {
+          type: 'BEGIN_NEXT_TURN',
+          activeUserId: isExtraTurn ? undefined : ((isHost ? bs.guest_id : bs.host_id) as string),
+          myKey: stateKey, myState: newMyState,
+          opp: { key: opKey, state: opNextTurnState },
+        }));
+        return;
       } else {
-        update.turn_phase = resolveNextPhaseWithAttackStepBlocks(phase, newMyState);
+        nextPhase = resolveNextPhaseWithAttackStepBlocks(phase, newMyState);
         // 「このアタックフェイズの間」の遅延 watcher は ATTACK_LRIG→END で両者から消滅。
         // collector 側にもフェイズ判定を持たせ、stale state が残ってもフェイズ外発火しない。
         if (phase === 'ATTACK_LRIG') {
           newMyState = clearEndOfAttackPhaseDelayedTriggers(newMyState);
           const opKey = isHost ? 'guest_state' : 'host_state';
-          update[opKey] = clearEndOfAttackPhaseDelayedTriggers(op);
+          oppWrite = { key: opKey, state: clearEndOfAttackPhaseDelayedTriggers(op) };
         }
         // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
         if (phase === 'ENERGY' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
@@ -3595,9 +3608,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               parseStatus: 'AUTO' as const,
             },
           }));
-          update[opKey] = { ...op, hastarliq_zones: undefined };
+          oppWrite = { key: opKey, state: { ...op, hastarliq_zones: undefined } };
           const existingStackHL = bs.effect_stack ?? null;
-          update.effect_stack = existingStackHL
+          phaseStack = existingStackHL
             ? pushToStack(existingStackHL, hlEntries)
             : initStack(turnPlayerId, hlEntries);
         }
@@ -3606,8 +3619,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (res.usedMyIds.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...res.usedMyIds] };
           if (res.usedOpIds.length > 0) {
             const opKeyT = isHost ? 'guest_state' : 'host_state';
-            const opBase = (update[opKeyT] as PlayerState) ?? op;
-            update[opKeyT] = { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] };
+            const opBase = oppWrite?.state ?? op;
+            oppWrite = { key: opKeyT, state: { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] } };
           }
         };
         // ON_GROW_PHASE_START: ENERGY→GROW移行時（グロウフェイズ開始時）トリガー。
@@ -3615,8 +3628,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op);
           foldTurnUsed(gpsRes);
           if (gpsRes.entries.length > 0) {
-            const baseStackGPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
-            update.effect_stack = baseStackGPS
+            const baseStackGPS = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackGPS
               ? pushToStack(baseStackGPS, gpsRes.entries)
               : initStack(bs.active_user_id ?? user.id, gpsRes.entries);
           }
@@ -3627,21 +3640,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           foldTurnUsed(apsRes);
           const apsEntries = apsRes.entries;
           if (apsEntries.length > 0) {
-            const baseStackAPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
-            update.effect_stack = baseStackAPS
+            const baseStackAPS = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackAPS
               ? pushToStack(baseStackAPS, apsEntries)
               : initStack(bs.active_user_id ?? user.id, apsEntries);
           }
         }
         // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
         // ターンプレイヤー（newMyState）の self【自】を発火（WX25-CP1-042-E2 等）。
-        if (phase === 'ATTACK_SIGNI' && update.turn_phase === 'ATTACK_LRIG') {
+        if (phase === 'ATTACK_SIGNI' && nextPhase === 'ATTACK_LRIG') {
           const lasRes = collectTurnTriggers('ON_LRIG_ATTACK_STEP_START', newMyState, op);
           foldTurnUsed(lasRes);
           const lasEntries = lasRes.entries;
           if (lasEntries.length > 0) {
-            const baseStackLAS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
-            update.effect_stack = baseStackLAS
+            const baseStackLAS = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackLAS
               ? pushToStack(baseStackLAS, lasEntries)
               : initStack(bs.active_user_id ?? user.id, lasEntries);
           }
@@ -3654,15 +3667,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           foldTurnUsed(mpsRes);
           const mpsEntries = mpsRes.entries;
           if (mpsEntries.length > 0) {
-            const baseStackMPS = (update.effect_stack as typeof bs.effect_stack) ?? bs.effect_stack ?? null;
-            update.effect_stack = baseStackMPS
+            const baseStackMPS = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackMPS
               ? pushToStack(baseStackMPS, mpsEntries)
               : initStack(bs.active_user_id ?? user.id, mpsEntries);
           }
         }
       }
 
-      await persist.commit({ [stateKey]: newMyState, ...update });
+      // END 分岐（次ターン開始）は上で BEGIN_NEXT_TURN を commit して return 済み＝ここに来る全分岐が
+      // nextPhase を必ず設定している。
+      await persist.commit(reduceBattle(bs, {
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: stateKey, playerState: newMyState,
+        phase: nextPhase!, opp: oppWrite, effectStack: phaseStack,
+      }));
     } finally {
       setLoading(false);
     }
@@ -4237,11 +4255,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const guestState = resolvePendingExiles(ownerIsHost ? result.otherState : result.ownerState);
 
       const stackAfter = isStackDone(newStack) ? null : newStack;
-      const update: Record<string, unknown> = {
-        host_state: hostState,
-        guest_state: guestState,
-        effect_stack: stackAfter,
-      };
+      // パッチは型付きローカルへ積み、commit 直前に `RESOLVE_EFFECT_STEP` の payload として1回だけ渡す
+      // （旧実装は `Record<string, unknown>` の `update` を積み増し、`'host_state' in update ? … : hostState`
+      //  で読み戻していた＝3キーとも初期化済みなので **読み戻し先は常に累積値**）。
+      let hostAcc = hostState;
+      let guestAcc = guestState;
+      let stackAcc: EffectStack | null = stackAfter;
+      let pendingAcc: PendingEffect | null;
+      /** FORCE_END_TURN で重ねるターン終了（未発生＝undefined）。 */
+      let forceEndNextTurn: { activeUserId: string } | undefined;
       if (!result.done) {
         // opponentResponds=true の場合、相手プレイヤーがUIを操作する
         const oppId = ownerIsHost ? bs.guest_id : bs.host_id;
@@ -4249,7 +4271,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (result.pending?.type === 'SELECT_TARGET' && result.pending.opponentResponds) ||
           (result.pending?.type === 'CHOOSE' && result.pending.opponentResponds)
         ) ? oppId : undefined;
-        update.pending_effect = {
+        pendingAcc = {
           sourcePlayerId: entry.playerId,
           ...(respondPlayerId ? { respondPlayerId } : {}),
           sourceCardNum: entry.cardNum,
@@ -4263,9 +4285,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}),
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
-        update.effect_stack = newStack;
+        stackAcc = newStack;
       } else {
-        update.pending_effect = null;
+        pendingAcc = null;
 
         // === 盤面差分トリガーの統合収集（続き61・Opus）===
         // 従来ここに全 collector が並んでいたが、resume 経路（handleEffectInteraction）と共通化するため
@@ -4277,11 +4299,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             fieldTrashCostCards: result.fieldTrashCostCards,
             ...fieldPlacementOnPlayOpts(entry.effect),
           });
-          update.host_state = bd.hostState;
-          update.guest_state = bd.guestState;
+          hostAcc = bd.hostState;
+          guestAcc = bd.guestState;
           if (bd.entries.length > 0) {
-            const baseStackBD = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackBD
+            const baseStackBD = stackAcc ?? null;
+            stackAcc = baseStackBD
               ? pushToStack(baseStackBD, bd.entries)
               : initStack(stack.turnPlayerId, bd.entries);
           }
@@ -4292,36 +4314,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (result.trapActivated) {
           const ta = collectTrapActivateTriggers(entry.playerId, hostState, guestState);
           if (ta.entries.length > 0) {
-            const baseStackTA = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackTA
+            const baseStackTA = stackAcc ?? null;
+            stackAcc = baseStackTA
               ? pushToStack(baseStackTA, ta.entries)
               : initStack(stack.turnPlayerId, ta.entries);
           }
           if (ta.usedHostIds.length > 0) {
-            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ta.usedHostIds] };
+            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ta.usedHostIds] };
           }
           if (ta.usedGuestIds.length > 0) {
-            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
+            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ta.usedGuestIds] };
           }
         }
 
         if ((result.trapSetOwners?.length ?? 0) > 0) {
           const ts = pureCollectTrapSetTriggers(mkTrigCtx(), entry.playerId, result.trapSetOwners!, hostState, guestState);
           if (ts.entries.length > 0) {
-            const baseStackTS = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackTS
+            const baseStackTS = stackAcc ?? null;
+            stackAcc = baseStackTS
               ? pushToStack(baseStackTS, ts.entries)
               : initStack(stack.turnPlayerId, ts.entries);
           }
           if (ts.usedHostIds.length > 0) {
-            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ts.usedHostIds] };
+            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ts.usedHostIds] };
           }
           if (ts.usedGuestIds.length > 0) {
-            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ts.usedGuestIds] };
+            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ts.usedGuestIds] };
           }
         }
 
@@ -4340,18 +4358,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               bs.host_state, bs.guest_state,
             );
             if (tt.entries.length > 0) {
-              const baseStackT = (update.effect_stack as typeof stackAfter) ?? null;
-              update.effect_stack = baseStackT
+              const baseStackT = stackAcc ?? null;
+              stackAcc = baseStackT
                 ? pushToStack(baseStackT, tt.entries)
                 : initStack(stack.turnPlayerId, tt.entries);
             }
             if (tt.usedHostIds.length > 0) {
-              const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-              update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...tt.usedHostIds] };
+              hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...tt.usedHostIds] };
             }
             if (tt.usedGuestIds.length > 0) {
-              const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-              update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...tt.usedGuestIds] };
+              guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...tt.usedGuestIds] };
             }
           }
         }
@@ -4371,17 +4387,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             );
             collabOnPlayEntries.push(...collected.entries);
             if (collected.usedHostIds.length > 0) {
-              const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-              update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...collected.usedHostIds] };
+              hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...collected.usedHostIds] };
             }
             if (collected.usedGuestIds.length > 0) {
-              const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-              update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...collected.usedGuestIds] };
+              guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...collected.usedGuestIds] };
             }
           }
           if (collabOnPlayEntries.length > 0) {
-            const baseStackC = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackC
+            const baseStackC = stackAcc ?? null;
+            stackAcc = baseStackC
               ? pushToStack(baseStackC, collabOnPlayEntries)
               : initStack(stack.turnPlayerId, collabOnPlayEntries);
           }
@@ -4407,8 +4421,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const myIsActive = bs.active_user_id === user.id;
           const artsTriggers = collectOppArtsUseTriggers(myStateForTrigger, opStateForTrigger, myIsActive);
           if (artsTriggers.length > 0) {
-            const baseStack2 = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStack2
+            const baseStack2 = stackAcc ?? null;
+            stackAcc = baseStack2
               ? pushToStack(baseStack2, artsTriggers)
               : initStack(iAmHost ? bs.host_id : bs.guest_id, artsTriggers);
           }
@@ -4422,15 +4436,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const casterIsActive = bs.active_user_id === user.id;
           const au = collectArtsUseTriggers(user.id, casterState, casterOpState, casterIsActive, entry.cardNum);
           if (au.entries.length > 0) {
-            const baseStackAU = (update.effect_stack as typeof stackAfter) ?? null;
-            update.effect_stack = baseStackAU
+            const baseStackAU = stackAcc ?? null;
+            stackAcc = baseStackAU
               ? pushToStack(baseStackAU, au.entries)
               : initStack(user.id, au.entries);
             // usageLimit（《ターン1回/2回》）を caster の actions_done に永続化
             if (au.usedIds.length > 0) {
-              const keyAU = isHost ? 'host_state' : 'guest_state';
-              const baseStAU = (update[keyAU] as PlayerState) ?? (isHost ? hostState : guestState);
-              update[keyAU] = { ...baseStAU, actions_done: [...(baseStAU.actions_done ?? []), ...au.usedIds] };
+              const baseStAU = isHost ? hostAcc : guestAcc;
+              const withUsed = { ...baseStAU, actions_done: [...(baseStAU.actions_done ?? []), ...au.usedIds] };
+              if (isHost) hostAcc = withUsed; else guestAcc = withUsed;
             }
           }
         }
@@ -4438,8 +4452,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する
         if (result.forceEndTurn) {
           const activeIsHost = bs.active_user_id === bs.host_id;
-          const activeKey  = activeIsHost ? 'host_state'  : 'guest_state';
-          const nextKey    = activeIsHost ? 'guest_state' : 'host_state';
           const activeState = activeIsHost ? hostState  : guestState;
           const nextState   = activeIsHost ? guestState : hostState;
 
@@ -4486,18 +4498,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             },
           }).state);
 
-          Object.assign(update, {
-            [activeKey]:     clearedActive,
-            [nextKey]:       nextStateUpd,
-            turn_phase:      'UP',
-            active_user_id:  activeIsHost ? bs.guest_id : bs.host_id,
-            turn_count:      bs.turn_count + 1,
-            effect_stack:    null,
-          });
+          // ⚠ ターン強制終了は**それまでの累積を上書きする**（旧 `Object.assign` の後勝ち）。
+          //   clearedActive / nextStateUpd は解決直後の hostState/guestState 由来＝累積側ではない。
+          if (activeIsHost) { hostAcc = clearedActive; guestAcc = nextStateUpd; }
+          else { guestAcc = clearedActive; hostAcc = nextStateUpd; }
+          stackAcc = null;
+          forceEndNextTurn = { activeUserId: (activeIsHost ? bs.guest_id : bs.host_id) as string };
           appendBattleLogs(['ターンが強制終了されました'], { defer: true });
         }
       }
-      await persist.commit(update);
+      await persist.commit(reduceBattle(bs, {
+        type: 'RESOLVE_EFFECT_STEP', hostState: hostAcc, guestState: guestAcc,
+        pending: pendingAcc, effectStack: stackAcc, beginNextTurn: forceEndNextTurn,
+      }));
       // main update が確定してから flush（先に RPC が届いて stale な effect_stack で再実行されるのを防ぐ）
       await flushBattleLogs();
     } finally {
@@ -4588,7 +4601,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       const hostState  = resolvePendingExiles(ownerIsHost ? result.ownerState : result.otherState);
       const guestState = resolvePendingExiles(ownerIsHost ? result.otherState : result.ownerState);
-      const update: Record<string, unknown> = { host_state: hostState, guest_state: guestState };
+      // パッチ（両者の盤面／pending_effect／effect_stack）は**型付きローカルへ**積み、commit 直前に
+      // `RESOLVE_EFFECT_STEP` の payload として1回だけ渡す。旧実装は `Record<string, unknown>` の
+      // `update` を直接積み増し、`'host_state' in update ? … : hostState` で読み戻していた
+      // （`host_state`/`guest_state` は初期化済みなので **`in` は常に true**＝読み戻し先は常に累積値）。
+      // ⚠ `effect_stack` だけは初期化されない＝**未書き込み（undefined）なら土台は `bs.effect_stack`**。
+      let hostAcc = hostState;
+      let guestAcc = guestState;
+      let stackAcc: EffectStack | null | undefined;
+      let pendingAcc: PendingEffect | null;
 
       // ON_TARGETED（C1 配線）: SELECT_TARGET で「対戦相手のシグニ」を対象に取った瞬間に発火する。
       // 対象＝効果発生源の対戦相手側に置かれていたシグニ（対象選択前の盤面で所有者を判定）。
@@ -4621,7 +4642,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const nextOpponentResponds = (result.pending?.type === 'SELECT_TARGET' || result.pending?.type === 'CHOOSE') && result.pending.opponentResponds;
         const nextRespondPlayerId = nextOpponentResponds ? pe.respondPlayerId : undefined;
         const { respondPlayerId: _drop, ...peBase } = pe;
-        update.pending_effect = {
+        pendingAcc = {
           ...peBase,
           ...(nextRespondPlayerId ? { respondPlayerId: nextRespondPlayerId } : {}),
           interaction: result.pending,
@@ -4646,16 +4667,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               .find(e => e.effectId === pe.effectId),
           ),
         });
-        update.host_state = midBd.hostState;
-        update.guest_state = midBd.guestState;
+        hostAcc = midBd.hostState;
+        guestAcc = midBd.guestState;
         if (midBd.entries.length > 0) {
           const existingMidStack = bs.effect_stack ?? null;
-          update.effect_stack = existingMidStack
+          stackAcc = existingMidStack
             ? pushToStack(existingMidStack, midBd.entries)
             : initStack(bs.active_user_id ?? user.id, midBd.entries);
         }
       } else {
-        update.pending_effect = null;
+        pendingAcc = null;
 
         // === 盤面差分トリガーの統合収集（続き61・Opus）===
         // resolveStackNext の中央 diff と同一の collectBoardDiffTriggers を呼び、resume 経路（対象選択/CHOOSE を挟んで
@@ -4670,20 +4691,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               .find(e => e.effectId === pe.effectId),
           ),
         });
-        update.host_state = bd.hostState;
-        update.guest_state = bd.guestState;
+        hostAcc = bd.hostState;
+        guestAcc = bd.guestState;
         const pendingEntries = bd.entries;
         if (pendingEntries.length > 0) {
           const turnPlayerId = bs.active_user_id ?? user.id;
           const existingStack = bs.effect_stack ?? null;
-          update.effect_stack = existingStack
+          stackAcc = existingStack
             ? pushToStack(existingStack, pendingEntries)
             : initStack(turnPlayerId, pendingEntries);
         } else {
           // インタラクション解決後にキューが空になったスタックをクリア
           const existingStack = bs.effect_stack ?? null;
           if (existingStack && isStackDone(existingStack)) {
-            update.effect_stack = null;
+            stackAcc = null;
           }
         }
 
@@ -4695,8 +4716,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             && (sourceEffect?.action as import('../types/effects').StubAction).id === 'COLLAB') {
           const collabOnPlayEntries: StackEntry[] = [];
           for (const instanceId of result.lastProcessedCards ?? []) {
-            const latestHost = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-            const latestGuest = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
+            const latestHost = hostAcc;
+            const latestGuest = guestAcc;
             const controllerState = pe.sourcePlayerId === bs.host_id ? latestHost : latestGuest;
             const otherState = pe.sourcePlayerId === bs.host_id ? latestGuest : latestHost;
             const collected = pureCollectPlacedSelfOnPlayTriggers(
@@ -4705,16 +4726,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             );
             collabOnPlayEntries.push(...collected.entries);
             if (collected.usedHostIds.length > 0) {
-              update.host_state = { ...latestHost, actions_done: [...(latestHost.actions_done ?? []), ...collected.usedHostIds] };
+              hostAcc = { ...latestHost, actions_done: [...(latestHost.actions_done ?? []), ...collected.usedHostIds] };
             }
             if (collected.usedGuestIds.length > 0) {
-              update.guest_state = { ...latestGuest, actions_done: [...(latestGuest.actions_done ?? []), ...collected.usedGuestIds] };
+              guestAcc = { ...latestGuest, actions_done: [...(latestGuest.actions_done ?? []), ...collected.usedGuestIds] };
             }
           }
           if (collabOnPlayEntries.length > 0) {
             const turnPlayerId = bs.active_user_id ?? user.id;
-            const baseStackC = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
-            update.effect_stack = baseStackC
+            const baseStackC = (stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null;
+            stackAcc = baseStackC
               ? pushToStack(baseStackC, collabOnPlayEntries)
               : initStack(turnPlayerId, collabOnPlayEntries);
           }
@@ -4724,36 +4745,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const ta = collectTrapActivateTriggers(pe.sourcePlayerId, hostState, guestState);
           if (ta.entries.length > 0) {
             const turnPlayerId = bs.active_user_id ?? user.id;
-            const baseStackTA = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
-            update.effect_stack = baseStackTA
+            const baseStackTA = (stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null;
+            stackAcc = baseStackTA
               ? pushToStack(baseStackTA, ta.entries)
               : initStack(turnPlayerId, ta.entries);
           }
           if (ta.usedHostIds.length > 0) {
-            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ta.usedHostIds] };
+            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ta.usedHostIds] };
           }
           if (ta.usedGuestIds.length > 0) {
-            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ta.usedGuestIds] };
+            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ta.usedGuestIds] };
           }
         }
         if ((result.trapSetOwners?.length ?? 0) > 0) {
           const ts = pureCollectTrapSetTriggers(mkTrigCtx(), pe.sourcePlayerId, result.trapSetOwners!, hostState, guestState);
           if (ts.entries.length > 0) {
             const turnPlayerId = bs.active_user_id ?? user.id;
-            const baseStackTS = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
-            update.effect_stack = baseStackTS
+            const baseStackTS = (stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null;
+            stackAcc = baseStackTS
               ? pushToStack(baseStackTS, ts.entries)
               : initStack(turnPlayerId, ts.entries);
           }
           if (ts.usedHostIds.length > 0) {
-            const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-            update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...ts.usedHostIds] };
+            hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...ts.usedHostIds] };
           }
           if (ts.usedGuestIds.length > 0) {
-            const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-            update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...ts.usedGuestIds] };
+            guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...ts.usedGuestIds] };
           }
         }
       }
@@ -4761,24 +4778,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_TARGETED トリガーを（done/not-done どちらの分岐で確定したスタックにも）後乗せで積む。
       if (targetedEntries.length > 0) {
         const turnPlayerId = bs.active_user_id ?? user.id;
-        const baseStack = (('effect_stack' in update ? update.effect_stack : bs.effect_stack) ?? null) as EffectStack | null;
-        update.effect_stack = baseStack
+        const baseStack = (stackAcc !== undefined ? stackAcc : bs.effect_stack) ?? null;
+        stackAcc = baseStack
           ? pushToStack(baseStack, targetedEntries)
           : initStack(turnPlayerId, targetedEntries);
       }
       // 《ターン1回》の消費を watcher 側の actions_done へ書き戻す（他コレクターと同型・続き75）。
-      // done 分岐では collectBoardDiffTriggers が update.host_state/guest_state を差し替えているため、
-      // update 側の最新 state（無ければ collect 時の state）に対して後乗せする。
+      // done 分岐では collectBoardDiffTriggers が両盤面を差し替えているため、累積側の最新 state に後乗せする。
       if (targetedUsedHostIds.length > 0) {
-        const hs = (('host_state' in update ? update.host_state : hostState)) as PlayerState;
-        update.host_state = { ...hs, actions_done: [...(hs.actions_done ?? []), ...targetedUsedHostIds] };
+        hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...targetedUsedHostIds] };
       }
       if (targetedUsedGuestIds.length > 0) {
-        const gs = (('guest_state' in update ? update.guest_state : guestState)) as PlayerState;
-        update.guest_state = { ...gs, actions_done: [...(gs.actions_done ?? []), ...targetedUsedGuestIds] };
+        guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...targetedUsedGuestIds] };
       }
 
-      await persist.commit(update);
+      await persist.commit(reduceBattle(bs, {
+        type: 'RESOLVE_EFFECT_STEP', hostState: hostAcc, guestState: guestAcc,
+        pending: pendingAcc, effectStack: stackAcc,
+      }));
       await flushBattleLogs();
       setEffectSelectedNums([]);
     } finally {
