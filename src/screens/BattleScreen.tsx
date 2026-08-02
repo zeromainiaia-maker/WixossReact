@@ -3429,7 +3429,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
           power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
           power0_banish_to_trash_opp_only: undefined, // 同・対戦相手限定版（whenPowerZero）をクリア
-          double_power_minus_this_turn: undefined, // パワーマイナス2倍（このターン）フラグをクリア
+          double_power_minus_this_turn: undefined, double_power_minus_sources: undefined, // パワーマイナス2倍（このターン）をクリア
           no_grow: undefined,                   // グロウ禁止フラグをリセット
           suppress_life_burst: undefined,       // ライフバースト抑制フラグをリセット
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
@@ -3801,7 +3801,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
-        double_power_minus_this_turn: undefined, no_grow: undefined,
+        double_power_minus_this_turn: undefined, double_power_minus_sources: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
         prevent_defeat: undefined, declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined,
         declared_number: undefined,
@@ -9666,7 +9666,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
-        power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_this_turn: undefined,
+        power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_this_turn: undefined, double_power_minus_sources: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット

@@ -21232,6 +21232,53 @@ test('task12(lxxxiii) 第10波 WXK10-056-E1: live collector は他シグニのco
   eq(has(collectTrashTriggers(ctx, source, HOST, host, guest, false, true, false).entries, effectId), false, '能力保持者自身のコストで過剰発火');
 }));
 
+test('task12(lxxxiii) 第11波 WDK06-C17-E1: 他の武勇を選び、武勇トラッシュ2枚単位・20枚上限で加算', () => withSavedCursor(() => {
+  const source = 'WDK06-C17';
+  const target = findCard(c => isSigni(c) && c.CardNum !== source && c.CardClass?.includes('武勇'));
+  const miss = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== target && !c.CardClass?.includes('武勇'));
+  const warriors = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('武勇')).slice(0, 2).map(c => c.CardNum);
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WDK06-C17-E1')!;
+  const ctx = mkCtx({ signi: [source, target, miss] }, {}, source);
+  ctx.ownerState = { ...ctx.ownerState, trash: [...warriors, miss] };
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象選択が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(offered.pending.candidates.includes(target), '他の＜武勇＞が候補にない');
+  ok(!offered.pending.candidates.includes(source) && !offered.pending.candidates.includes(miss), '自身/非武勇が候補に混入');
+  const done = finish(resumeSelectTarget([target], offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs }), ctx);
+  eq(done.ownerState.temp_power_mods?.find(m => m.cardNum === target)?.delta, 1000, '武勇2枚につき+1000でない');
+  ok(!done.ownerState.temp_power_mods?.some(m => m.cardNum === source || m.cardNum === miss), '選択外へ加算した');
+  const cappedCtx = mkCtx({ signi: [source, target, miss] }, {}, source);
+  cappedCtx.ownerState = { ...cappedCtx.ownerState, trash: Array(22).fill(warriors[0]) };
+  const capOffer = executeEffect(effect, cappedCtx);
+  if (capOffer.done || capOffer.pending.type !== 'SELECT_TARGET') return;
+  const capped = finish(resumeSelectTarget([target], capOffer.pending, { ...cappedCtx, ownerState: capOffer.ownerState, otherState: capOffer.otherState, logs: capOffer.logs }), cappedCtx);
+  eq(capped.ownerState.temp_power_mods?.find(m => m.cardNum === target)?.delta, 10000, '20枚上限が効かない');
+}));
+
+test('task12(lxxxiii) 第11波 WX25-CP1-089-E1: 選択した他ブルアカを発生源とするマイナスだけ2倍', () => withSavedCursor(() => {
+  const source = 'WX25-CP1-089';
+  const target = findCard(c => isSigni(c) && c.CardNum !== source && c.CardClass?.includes('ブルアカ'));
+  const miss = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== target && !c.CardClass?.includes('ブルアカ'));
+  const victim = findCard(c => isSigni(c) && ![source, target, miss].includes(c.CardNum));
+  const effect = effectsMap.get(source)!.find(e => e.effectId === 'WX25-CP1-089-E1')!;
+  const ctx = mkCtx({ signi: [source, target, miss] }, { signi: [victim, null, null] }, source);
+  const offered = executeEffect(effect, ctx);
+  ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象選択が出ない');
+  if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
+  ok(offered.pending.candidates.includes(target), '他の＜ブルアカ＞が候補にない');
+  ok(!offered.pending.candidates.includes(source) && !offered.pending.candidates.includes(miss), '自身/非ブルアカが候補に混入');
+  const done = finish(resumeSelectTarget([target], offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs }), ctx);
+  eq(done.ownerState.double_power_minus_sources?.[0], target, '選択した発生源を保持していない');
+  const baseOther = { ...done.otherState, temp_power_mods: [
+    { cardNum: victim, delta: -1000, srcCardNum: target },
+    { cardNum: victim, delta: -1000, srcCardNum: miss },
+  ] };
+  const baseline = calcFieldPowers(done.ownerState, { ...baseOther, temp_power_mods: [] }, true, new Map(), cardMap as Map<string, CardData>);
+  const powers = calcFieldPowers(done.ownerState, baseOther, true, new Map(), cardMap as Map<string, CardData>);
+  eq(powers.get(victim), (baseline.get(victim) ?? 0) - 3000, '選択源-1000だけ2倍＋非選択源-1000にならない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

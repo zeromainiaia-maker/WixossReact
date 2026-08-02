@@ -1213,6 +1213,28 @@ export function execStubPart1(
   }
   // 動的パワー修正（COUNT依存）
   if (stub.id === 'POWER_MOD_PER_COUNT') {
+    const structured = stub as StubAction & {
+      targetsStored?: boolean;
+      countLocation?: 'trash';
+      countFilter?: import('../types/effects').TargetFilter;
+      divisor?: number;
+      deltaPerUnit?: number;
+      maxCount?: number;
+    };
+    if (structured.targetsStored && structured.countLocation === 'trash') {
+      const matches = ctx.ownerState.trash.filter(cn => {
+        const card = ctx.cardMap.get(cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn);
+        return !structured.countFilter || matchesFilter(card, structured.countFilter);
+      }).length;
+      const counted = Math.min(matches, structured.maxCount ?? matches);
+      const total = Math.floor(counted / Math.max(1, structured.divisor ?? 1)) * (structured.deltaPerUnit ?? 0);
+      const targets = ctx.storedTargetCards ?? [];
+      if (total === 0 || targets.length === 0) return done(addLog(ctx, `対象パワー修正+${total}（トラッシュ${matches}枚）`));
+      const mods = [...(ctx.ownerState.temp_power_mods ?? [])];
+      for (const cardNum of targets) mods.push({ cardNum, delta: total, srcCardNum: ctx.sourceCardNum });
+      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: mods } },
+        `選択シグニのパワー+${total}（トラッシュ${matches}枚・適用${counted}枚）`));
+    }
     const src = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const effText = src ? (src.EffectText ?? '') + ' ' + (src.BurstText ?? '') : '';
     const toHW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -1355,6 +1377,12 @@ export function execStubPart1(
       }
     }
     return done(addLog(ctx, 'パワー修正（手札枚数）'));
+  }
+  if (stub.id === 'DOUBLE_POWER_MINUS' && (stub as StubAction & { targetsStored?: boolean }).targetsStored) {
+    const sources = ctx.storedTargetCards ?? [];
+    const current = ctx.ownerState.double_power_minus_sources ?? [];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, double_power_minus_sources: [...new Set([...current, ...sources])] } },
+      `選択したシグニ${sources.length}体の効果によるパワーマイナスを2倍`));
   }
   if (stub.id === 'DOUBLE_POWER_MINUS' || stub.id === 'POWER_MOD_PER_OPPONENT_FIELD') {
     const srcPMO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

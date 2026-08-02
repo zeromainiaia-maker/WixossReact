@@ -2075,14 +2075,14 @@ export function calcFieldPowers(
   // temp_power_mods（起動・自動効果によるターン内一時パワー修正）を適用
   // negatePositiveFor: このセットにあるシグニへの正デルタを負に置換（REPLACE_PLUS_N）
   // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
-  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false) => {
+  const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = []) => {
     const doublers = state.double_power_minus_targets ?? [];
-    for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])]) {
+    for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])] as Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ。シグニ発生元のみ）: 負デルタを2倍に
         // srcType 未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数）。レゾナもシグニ。
         const fromSigni = mod.srcType === undefined || mod.srcType.includes('シグニ') || mod.srcType.includes('レゾナ');
-        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (doubleNeg && fromSigni)) ? mod.delta * 2 : mod.delta;
+        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (mod.srcCardNum != null && sourceDoublers.includes(mod.srcCardNum)) || (doubleNeg && fromSigni)) ? mod.delta * 2 : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
@@ -2094,8 +2094,8 @@ export function calcFieldPowers(
   for (const stack of opState.field.signi) { const top = stack?.at(-1); if (top) opSigniNums.add(top); }
   const negateForOp = myState.replace_opp_power_plus ? opSigniNums : undefined;
   // 各プレイヤーのシグニへの負デルタは、その対戦相手が「このターン2倍－」を持つ場合に倍化する
-  applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true);
-  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true);
+  applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true, opState.double_power_minus_sources);
+  applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true, myState.double_power_minus_sources);
 
   // field_power_mods（「そのシグニが場にあるかぎり＋N」の永続パワー修正・WXDi-P10-034 表向き +5000）。
   //   temp_power_mods と異なりターン境界でクリアしない。場に居る cardNum にのみ適用（powers.has で守る＝場を離れれば失効）。

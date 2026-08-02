@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第11波：対象を読むSTUB 2件を実働化／field-sourceアクセ2件 honest defer
+
+着手前4点照合で `WDK06-C17-E1`／`WX25-CP1-089-E1` は **(a) 機能是正**、`SP27-015-E1`／`WXEX2-19-E2` は **(c) honest defer**、(b) 宣言の明示化は0件と分類した。`WDK06-C17-E1` の原文は「他の＜武勇＞1体」を対象に「トラッシュの＜武勇＞2枚につき+1000・20枚上限」。旧liveは `POWER_MOD_PER_COUNT`＋`EFFECT_LIMIT` のみで、executor は `lastProcessedCards` の個数を数え、正デルタを発生源自身へ固定していたため、対象・トラッシュ属性・倍率・上限の全てが実働していなかった。共有parser後処理で `SELECT_TARGET_ONLY`→`STORE_LAST_PROCESSED_TARGETS` の正準形と、明示的な `countLocation/countFilter/divisor/deltaPerUnit/maxCount/targetsStored` を生成。executor はこの明示形だけ additive 分岐で読み、省略時の従来挙動を維持した。live golden で候補が「他の＜武勇＞」だけ、武勇2枚＋非武勇1枚で選択体だけ+1000、22枚でも+10000、発生源・非選択体は不変を実測した。
+
+`WX25-CP1-089-E1` の原文は手札コスト後に「他の＜ブルアカ＞1体」を選び、**それの効果による**相手パワー－だけを2倍化。旧liveは裸の `DOUBLE_POWER_MINUS` で、executor/effectEngine は選択体を保持せず能力保持者自身または全シグニ効果として扱った。共有parser後処理で同じ SELECT→STORE 正準形へ載せ、`double_power_minus_sources` に選択した発生源を保存。`temp_power_mods.srcCardNum` がその集合に入る負デルタだけを相手側の計算時に2倍化し、ターン境界3経路でクリアする additive 分岐を追加した。live golden で候補が他の＜ブルアカ＞だけ、選択源の－1000は－2000、同じ被対象へ混在する非選択源の－1000は等倍（合計－3000）を実測した。
+
+アクセ2件は4点照合の結果、旧live `SP27-015-E1` が `ACCE_FROM_HAND`／`ACCE_OP`、`WXEX2-19-E2` が `GRANT_KEYWORD(アクセ)` への誤解析。実行reader `ATTACH_ACCE` はアクセ元をエナ／手札からしか除去せず、場のシグニをアクセ元として選択・離場させる経路が無い。さらに `SP27-015` は「場の自身を他シグニのアクセにする」後、**自身に付いていたアクセ1枚を別の自シグニへ任意移設**する連鎖まで要求する。parserだけ `ATTACH_ACCE` に替えると場の元カードが残る／後半移設が消えるため、**FIELD_SIGNI_TO_ACCE（スタック・付随アクセを含む場離れ）＋OPTIONAL_REATTACH_EXISTING_ACCE（元ホストから別ホストへの任意移設）**待ちとして偽実装せず deferした。`WXEX2-19` も前者の共有機構待ち。
+
+差分は HEAD 比 live per-effect **changed 2 / added 0 / removed 0**（上記2件のみ）、`excludeSelf` **330→332**（減少0）、`"???"` 0。golden **1299→1301**、smoke **10679/10679** 全0・SKIP0、fuzz 全0（seed 12648430）、census **1291→1291**、manual field loss 0、lint 0 errors / 240 warnings、同型★0（265群）。`build:effects`／`regen` は各2連続実行で冪等、全gates緑。実装課題残は **9→7**。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第10波：cost-only場トラッシュ原因限定1件／life-crash source honest defer
 
 着手前4点照合で `WXK10-056-E1` は **(a) 機能是正**、`WXDi-P14-087-E1` は **(c) honest defer** と分類した。前者の原文は「あなたの**他のシグニ**1体が**コストとして**場からトラッシュ」、旧liveは `ON_TRASH` のみで scope/filter/原因限定がなく、collector は既存引数 `byCostOrEffect` / `byEffectCause` を読む一方で cost-only 条件を持たなかった。`triggerCondition.fromFieldByCostOnly` を additive に新設し、`byCostOrEffect && !byEffectCause` のときだけ self / any_ally / any_opp の全走査で通すようにした（省略時は従来不変）。parser はカードID分岐なしで「あなたの他の…シグニ1体がコストとして場から…」から `triggerScope:any_ally`、`triggerFilter.excludeSelf`、`fromFieldByCostOnly` を生成。live `WXK10-056-E1` だけが変わり、コストでは発火、効果・バトル/ルール処理・能力保持者自身のコストでは非発火することを live `effectsMap` golden で固定した。

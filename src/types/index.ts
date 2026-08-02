@@ -352,6 +352,9 @@ export interface PlayerState {
   face_down_signi?: string[];
   // このターン、自分の効果による特定シグニへのパワー-を2倍にする（DOUBLE_OWN_POWER_MINUS）
   double_power_minus_targets?: string[];
+  // このターン、指定した自シグニの効果による相手シグニへのパワー-を2倍にする。
+  // double_power_minus_targets は「修正を受ける側」の指定なので、発生源指定は別軸で保持する。
+  double_power_minus_sources?: string[];
   // 基本レベルの一時変更（CardNum → 扱うレベル。SET_BASE_LEVEL/CHANGE_BASE_LEVEL 等が単一値で書く）
   attack_phase_level_overrides?: Record<string, number>;
   // 【英知】条件の判定でだけ「このシグニのレベルは１であり２であり３である」のように**同時に複数値**として

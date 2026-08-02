@@ -4989,11 +4989,11 @@ function tryParseDoAllItems(text: string): EffectAction | null {
 }
 
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => applyOtherTargetOptionalKeyword(source, applyDroppedTargetDesignation(source,
+  const parse = (source: string): EffectAction => bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
-          applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))));
+          applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
@@ -5089,6 +5089,40 @@ function parseActionText(text: string): EffectAction {
     return node;
   };
   return pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+}
+
+// 「他の自シグニ1体を対象」とした後に、STUB が対象を読まず発生源自身／全体へ作用する2文型。
+// 選択対象を先に固定する正準形に揃え、executor が明示フィールドを読む場合だけ挙動を変える。
+function bindTargetedCountAndDoubleMinus(text: string, action: EffectAction): EffectAction {
+  const dm = text.match(/(あなたの他の[^、。]*シグニ[０-９\d]*体(?:まで)?)を対象とし/);
+  if (!dm) return action;
+  const target = parseSigniTarget(dm[1], 'self');
+  if (action.type === 'SEQUENCE'
+    && action.steps.some(s => s.type === 'STUB' && s.id === 'POWER_MOD_PER_COUNT')
+    && /トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき[＋+]([０-９\d]+)/.test(text)) {
+    const m = text.match(/トラッシュにある＜([^＞]+)＞のシグニ([０-９\d]+)枚につき[＋+]([０-９\d]+)/)!;
+    const cap = text.match(/この効果は([０-９\d]+)枚までしか適用されない/);
+    const toN = (s: string) => parseInt(s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+    return {
+      ...action,
+      steps: [
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as StubAction,
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+        ...action.steps.map(s => s.type === 'STUB' && s.id === 'POWER_MOD_PER_COUNT'
+          ? { ...s, targetsStored: true, countLocation: 'trash', countFilter: { cardType: 'シグニ', story: m[1] }, divisor: toN(m[2]), deltaPerUnit: toN(m[3]), ...(cap ? { maxCount: toN(cap[1]) } : {}) } as StubAction
+          : s),
+      ],
+    } as SequenceAction;
+  }
+  if (action.type === 'STUB' && action.id === 'DOUBLE_POWER_MINUS'
+    && /それの効果によって[^。]*パワーが[－-]される場合、代わりに[０-９\d]+倍[－-]される/.test(text)) {
+    return { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      { ...action, targetsStored: true } as StubAction,
+    ] } as SequenceAction;
+  }
+  return action;
 }
 
 function parseActionTextInner(text: string): EffectAction {
