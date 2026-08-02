@@ -20497,6 +20497,93 @@ test('task12 lxx: any_opp「あなたの効果によって相手が捨てたと�
   }
 });
 
+test('task12(lxxxiii) 第15波 WX06-019-E1: live場離れ置換を単体選択と全非バニッシュ経路で共通適用', () => withSavedCursor(() => {
+  const protector = 'WX06-019';
+  const victim = findCard(c => isSigni(c) && c.CardNum !== protector && (c.CardClass ?? '').includes('水獣'));
+  const live = effectsMap.get(protector)?.find(e => e.effectId === 'WX06-019-E1');
+  ok(!!live, 'WX06-019-E1 が live effectsMap にない');
+  ok(JSON.stringify(live?.action).includes('"powerReduction":6000'), 'live 宣言が powerReduction 6000 でない');
+
+  const actions: EffectAction[] = [
+    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    { type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim], position: 'bottom' } as unknown as EffectAction,
+  ];
+  for (const action of actions) {
+    const ctx = mkCtx({}, { signi: [protector, victim, null] });
+    let result = executeEffect({ effectId: 'leave-test', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, ctx);
+    if (!result.done && result.pending.type === 'SELECT_TARGET') {
+      result = resumeSelectTarget([victim], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+    }
+    ok(result.done, `${action.type}: 解決が完了しない`);
+    ok(result.otherState.field.signi.some(s => s?.at(-1) === victim), `${action.type}: 他の＜水獣＞が場を離れた`);
+    eq(result.otherState.temp_power_mods?.find(m => m.cardNum === protector)?.delta, -6000,
+      `${action.type}: 発生源のパワー-6000が付かない`);
+  }
+
+  const selfCtx = mkCtx({}, { signi: [protector, victim, null] });
+  const selfResult = run({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [protector] } as EffectAction, selfCtx);
+  ok(selfResult.otherState.hand.includes(protector), '発生源自身の場離れを誤って置換した');
+  ok(!(selfResult.otherState.temp_power_mods ?? []).some(m => m.cardNum === protector), '発生源自身に誤って-6000した');
+
+  const ownEffect = run({ type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1 }, fixedCardNums: [victim] } as EffectAction,
+    mkCtx({ signi: [protector, victim, null] }, {}));
+  ok(ownEffect.ownerState.hand.includes(victim), '自分の効果による場離れを誤って置換した');
+}));
+
+test('task12(lxxxiii) 第15波 PR-366-E3: 他シグニの英知AUTO能力を列挙・選択して即時解決', () => withSavedCursor(() => {
+  const source = 'PR-366';
+  const live = effectsMap.get(source)?.find(e => e.effectId === 'PR-366-E3');
+  ok(!!live, 'PR-366-E3 が live effectsMap にない');
+  ok(JSON.stringify(live?.action).includes('TRIGGER_OTHER_SIGNI_EICHI_ABILITY'), 'live が英知再発動STUBでない');
+  const targetCard = [...cardMap.values()].find(card =>
+    card.CardNum !== source && parseCardEffects(card).some(effect =>
+      effect.effectType === 'AUTO'
+      && effect.activeCondition?.type === 'EICHI_LEVEL_SUM'
+      && effect.action.type === 'DRAW'));
+  ok(!!targetCard, 'DRAWを持つ英知AUTOシグニが見つからない');
+  if (!targetCard || !live) return;
+  const drawEffect = parseCardEffects(targetCard).find(effect =>
+    effect.effectType === 'AUTO' && effect.activeCondition?.type === 'EICHI_LEVEL_SUM' && effect.action.type === 'DRAW');
+  ok(!!drawEffect, '選択対象のDRAW英知能力が消えた');
+  if (!drawEffect) return;
+
+  const ctx = mkCtx({ signi: [source, targetCard.CardNum, null] }, {}, source);
+  ctx.ownerState = { ...ctx.ownerState, hand: [], deck: [SIGNI_L1, SIGNI_L2, SIGNI_L3] };
+  const initial = executeEffect(live, ctx);
+  ok(!initial.done && initial.pending.type === 'SELECT_TARGET', '他シグニ選択を要求しない');
+  if (initial.done) return;
+  eq(initial.pending.candidates.join(','), targetCard.CardNum, '英知AUTOを持たないシグニが候補に混入した');
+  let selected = resumeSelectTarget([targetCard.CardNum], initial.pending, {
+    ...ctx, ownerState: initial.ownerState, otherState: initial.otherState, logs: initial.logs,
+  });
+  if (!selected.done && selected.pending.type === 'CHOOSE') {
+    const effects = parseCardEffects(targetCard);
+    const eichi = effects.filter(effect => effect.effectType === 'AUTO' && effect.activeCondition?.type === 'EICHI_LEVEL_SUM');
+    const drawIndex = eichi.findIndex(effect => effect.effectId === drawEffect.effectId);
+    ok(drawIndex >= 0, 'DRAW英知能力の選択肢がない');
+    selected = resumeChoose(`eichi_${drawIndex}`, selected.pending, {
+      ...ctx, ownerState: selected.ownerState, otherState: selected.otherState, logs: selected.logs,
+      lastProcessedCards: selected.lastProcessedCards,
+    });
+  }
+  ok(selected.done, '選んだ英知能力が完了しない');
+  eq(selected.ownerState.hand.length, (drawEffect.action as { count: number }).count,
+    '選んだ英知DRAW能力がその場で解決されない');
+  ok(selected.logs.some(log => log.includes(drawEffect.effectId)), '実行した英知能力IDがログに残らない');
+
+  const noAbility = findCard(card => isSigni(card)
+    && card.CardNum !== source && card.CardNum !== targetCard.CardNum
+    && !parseCardEffects(card).some(effect => effect.effectType === 'AUTO' && effect.activeCondition?.type === 'EICHI_LEVEL_SUM'));
+  const filteredCtx = mkCtx({ signi: [source, targetCard.CardNum, noAbility] }, {}, source);
+  const filtered = executeEffect(live, filteredCtx);
+  ok(!filtered.done && filtered.pending.type === 'SELECT_TARGET', '候補フィルタ確認の選択が出ない');
+  if (!filtered.done) eq(filtered.pending.candidates.join(','), targetCard.CardNum, '英知AUTOなしの他シグニを候補に出した');
+}));
+
 test('lxxxiii wave 3: live action targets exclude their own source', () => withSavedCursor(() => {
   const live = (card: string, effectId: string) => {
     const effect = effectsMap.get(card)?.find(e => e.effectId === effectId);

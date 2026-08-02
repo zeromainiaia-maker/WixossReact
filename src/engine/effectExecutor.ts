@@ -119,6 +119,28 @@ function findEffectLeavePowerReductionSubstitute(
 }
 
 /**
+ * 相手効果による場離れを、場のシグニが宣言する powerReduction で置換する。
+ * owner 省略時の挙動を変えないため、ctx から見た opponent の場離れだけを対象にする。
+ */
+export function applyEffectLeavePowerReductionSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  const sub = findEffectLeavePowerReductionSubstitute(victimNum, state, ctx.cardMap);
+  if (!sub) return { ctx, replaced: false };
+  const mods = [...(state.temp_power_mods ?? []), { cardNum: sub.protectorNum, delta: -sub.reduction }];
+  return {
+    ctx: addLog(setOwnerState(victimOwner, { ...state, temp_power_mods: mods }, ctx),
+      `${ctx.cardMap.get(getCardNum(sub.protectorNum))?.CardName ?? sub.protectorNum}のパワー-${sub.reduction}で${ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum}の場離れを身代わり`),
+    replaced: true,
+  };
+}
+
+/**
  * 相手効果による場離れを、被害側ルリグに付与された「代わりにこの能力を失う」で1回だけ置換する。
  * 該当する付与 CardEffect そのものだけを長期ストアから除き、他の付与能力と同時付与の POWER_SET は残す。
  */
@@ -353,16 +375,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
         cur = lrigSub.ctx;
         continue;
       }
-      // 効果離場の powerReduction 身代わり（WX06-019）: tgt.owner==='opponent'＝相手効果で victim 側が場を離れる。
-      // protector があれば victim を残し protector のパワーを下げてバニッシュを回避（自動適用）。
-      if (own === 'opponent') {
-        const sub = findEffectLeavePowerReductionSubstitute(num, s, cur.cardMap);
-        if (sub) {
-          const mods = [...(s.temp_power_mods ?? []), { cardNum: sub.protectorNum, delta: -sub.reduction }];
-          cur = addLog(setOwnerState(own, { ...s, temp_power_mods: mods }, cur),
-            `${cur.cardMap.get(sub.protectorNum)?.CardName ?? sub.protectorNum}のパワー-${sub.reduction}で${cur.cardMap.get(num)?.CardName ?? num}の場離れを身代わり`);
-          continue;
-        }
+      const powerSub = applyEffectLeavePowerReductionSubstitute(num, own, cur);
+      if (powerSub.replaced) {
+        cur = powerSub.ctx;
+        continue;
       }
       const removed = removeFromField(num, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
@@ -441,6 +457,11 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, own, cur);
       if (lrigSub.replaced) {
         cur = lrigSub.ctx;
+        continue;
+      }
+      const powerSub = applyEffectLeavePowerReductionSubstitute(num, own, cur);
+      if (powerSub.replaced) {
+        cur = powerSub.ctx;
         continue;
       }
       const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, own, cur);
@@ -617,6 +638,11 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
+      const powerSub = applyEffectLeavePowerReductionSubstitute(num, tgt.owner, cur);
+      if (powerSub.replaced) {
+        cur = powerSub.ctx;
+        continue;
+      }
       const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
       if (banishSub.replaced) {
         cur = banishSub.ctx;
@@ -925,6 +951,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, tgt.owner, cur);
         if (lrigSub.replaced) {
           cur = lrigSub.ctx;
+          continue;
+        }
+        const powerSub = applyEffectLeavePowerReductionSubstitute(num, tgt.owner, cur);
+        if (powerSub.replaced) {
+          cur = powerSub.ctx;
           continue;
         }
         const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
@@ -3981,6 +4012,11 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
           cur = lrigSub.ctx;
           continue;
         }
+        const powerSub = applyEffectLeavePowerReductionSubstitute(num, src.owner, cur);
+        if (powerSub.replaced) {
+          cur = powerSub.ctx;
+          continue;
+        }
         const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, src.owner, cur);
         if (banishSub.replaced) {
           cur = banishSub.ctx;
@@ -6728,6 +6764,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
       if (lrigSub.replaced) return done(lrigSub.ctx);
+      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
+      if (powerSub.replaced) return done(powerSub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
@@ -6743,6 +6781,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
       if (lrigSub.replaced) return done(lrigSub.ctx);
+      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
+      if (powerSub.replaced) return done(powerSub.ctx);
       const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
       if (banishSub.replaced) return done(banishSub.ctx);
       const s = ownerState(found, ctx);
@@ -6760,6 +6800,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
       if (lrigSub.replaced) return done(lrigSub.ctx);
+      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
+      if (powerSub.replaced) return done(powerSub.ctx);
       const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
       if (banishSub.replaced) return done(banishSub.ctx);
       const s = ownerState(found, ctx);
@@ -6778,6 +6820,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
           const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, owner, ctx);
           if (lrigSub.replaced) return done(lrigSub.ctx);
+          const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, owner, ctx);
+          if (powerSub.replaced) return done(powerSub.ctx);
           const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, owner, ctx);
           if (banishSub.replaced) return done(banishSub.ctx);
           const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
@@ -6886,6 +6930,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(st => st?.includes(cardNum))) {
           const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, o, ctx);
           if (lrigSub.replaced) return done(lrigSub.ctx);
+          const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, o, ctx);
+          if (powerSub.replaced) return done(powerSub.ctx);
           const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, o, ctx);
           if (banishSub.replaced) return done(banishSub.ctx);
           const removed = removeFromField(cardNum, s);
@@ -7483,6 +7529,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
         const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, tdOwner, ctx);
         if (lrigSub.replaced) return done(lrigSub.ctx);
+        const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, tdOwner, ctx);
+        if (powerSub.replaced) return done(powerSub.ctx);
         const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, tdOwner, ctx);
         if (banishSub.replaced) return done(banishSub.ctx);
         tdNew = removeFromField(cardNum, tdNew);

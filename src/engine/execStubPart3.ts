@@ -1808,23 +1808,46 @@ export function execStubPart3(
   }
   // TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 他の自シグニを選択し、その英知AUTO能力を発動させる
   if (stub.id === 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY') {
-    if (ctx.lastProcessedCards?.length) {
-      const targetTOSEA = ctx.lastProcessedCards[0];
+    const selectedSourceTOSEA = stub.eichiAbilitySourceCardNum ?? ctx.lastProcessedCards?.[0];
+    if (selectedSourceTOSEA) {
+      const targetTOSEA = selectedSourceTOSEA;
       const cardTOSEA = ctx.cardMap.get(targetTOSEA);
       if (!cardTOSEA) return done(addLog(ctx, 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY: カードなし'));
       const effectsTOSEA = parseCardEffects(cardTOSEA);
-      // 英知AUTO能力を検索（activeCondition: EICHI_LEVEL_SUM）
-      const eichiEffTOSEA = effectsTOSEA.find(e =>
+      // 英知AUTO能力を列挙する。「能力1つ」なので複数なら能力を選ばせる。
+      const eichiEffsTOSEA = effectsTOSEA.filter(e =>
         e.effectType === 'AUTO' && e.activeCondition?.type === 'EICHI_LEVEL_SUM');
-      if (!eichiEffTOSEA) return done(addLog(ctx, `${cardTOSEA.CardName}に英知AUTO能力なし`));
-      return exec(eichiEffTOSEA.action,
-        addLog({ ...ctx, sourceCardNum: targetTOSEA, lastProcessedCards: [] },
-          `${cardTOSEA.CardName}の英知AUTO能力を発動`));
+      if (eichiEffsTOSEA.length === 0) return done(addLog(ctx, `${cardTOSEA.CardName}に英知AUTO能力なし`));
+      if (typeof stub.value === 'number') {
+        const chosenTOSEA = eichiEffsTOSEA[stub.value];
+        if (!chosenTOSEA) return done(addLog(ctx, `${cardTOSEA.CardName}の英知AUTO能力選択が不正`));
+        return exec(chosenTOSEA.action,
+          addLog({ ...ctx, sourceCardNum: targetTOSEA, lastProcessedCards: [] },
+            `${cardTOSEA.CardName}の${chosenTOSEA.effectId}を発動`));
+      }
+      if (eichiEffsTOSEA.length === 1) {
+        return exec(eichiEffsTOSEA[0].action,
+          addLog({ ...ctx, sourceCardNum: targetTOSEA, lastProcessedCards: [] },
+            `${cardTOSEA.CardName}の${eichiEffsTOSEA[0].effectId}を発動`));
+      }
+      return needsInteraction(addLog(ctx, `${cardTOSEA.CardName}の英知AUTO能力を選択`), {
+        type: 'CHOOSE', count: 1,
+        options: eichiEffsTOSEA.map((effect, index) => ({
+          id: `eichi_${index}`,
+          label: `${effect.effectId}（英知=${effect.activeCondition?.type === 'EICHI_LEVEL_SUM' ? effect.activeCondition.value : '?'}）`,
+          action: { type: 'STUB', id: 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY', value: index, eichiAbilitySourceCardNum: targetTOSEA } as StubAction,
+          available: true,
+        })),
+      });
     }
-    // 他の自シグニを選択
+    // 実行可能な「他の自シグニ」だけを選択候補にする。
     const otherSigniTOSEA = ctx.ownerState.field.signi.flatMap(s => {
       const top = s?.at(-1);
-      return (top && top !== ctx.sourceCardNum) ? [top] : [];
+      if (!top || top === ctx.sourceCardNum) return [];
+      const card = ctx.cardMap.get(top);
+      if (!card) return [];
+      return parseCardEffects(card).some(e =>
+        e.effectType === 'AUTO' && e.activeCondition?.type === 'EICHI_LEVEL_SUM') ? [top] : [];
     });
     if (otherSigniTOSEA.length === 0) return done(addLog(ctx, '他のシグニなし（TRIGGER_OTHER_SIGNI_EICHI_ABILITY）'));
     const contTOSEA: StubAction = { type: 'STUB', id: 'TRIGGER_OTHER_SIGNI_EICHI_ABILITY' };

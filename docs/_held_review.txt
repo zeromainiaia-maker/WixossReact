@@ -872,23 +872,6 @@ WXEX1-72
   ~ [0].parseStatus : "AUTO" → "MANUAL"
   + [0].triggerCondition.resonaClass = "遊具"
 
-## +FIELD_SIGNI_TO_ACCE -GRANT_KEYWORD -SIGNI ［1枚］
-WXEX2-19
---- WXEX2-19
-  原文: 【自】《ターン１回》：あなたの【アクセ】１枚がトラッシュに置かれたとき、あなたのトラッシュから《アクセアイコン》を持つレベル２以下のシグニ１枚を対象とし、それをエナゾーンに置く。【起】《ターン１回》《緑×0》：《アクセアイコン》を持つあなたのシグニ１体をあなたの他の＜調理＞のシグニ１体の【アクセ】にする。そうした場合、カードを１枚引く。【起】《ゲーム１回》ベ
-  - [1].action.steps[0].target.type = "SIGNI"
-  - [1].action.steps[0].target.owner = "self"
-  - [1].action.steps[0].target.count = 1
-  - [1].action.steps[0].keyword = "アクセ"
-  - [1].action.steps[0].duration = "PERMANENT"
-  ~ [1].action.steps[0].type : "GRANT_KEYWORD" → "FIELD_SIGNI_TO_ACCE"
-  + [1].action.steps[0].sourceOwner = "self"
-  + [1].action.steps[0].targetSigniOwner = "self"
-  + [1].action.steps[0].sourceFilter.cardType = "シグニ"
-  + [1].action.steps[0].sourceFilter.hasIcon = "アクセ"
-  + [1].action.steps[0].targetFilter.cardType = "シグニ"
-  + [1].action.steps[0].targetFilter.story = "調理"
-
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
 --- WXEX2-30

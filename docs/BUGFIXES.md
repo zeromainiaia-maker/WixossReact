@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-02 — Opusタスク12(lxxxiii) 第15波：場離れ置換共通フック＋英知能力再発動（残0クローズ）
+
+`WX06-019-E1` と `PR-366-E3` の2件を **(a) 機能是正**した。(b) 宣言の明示化は0件、(c) honest defer は0件。`WX20-036-CB-E1`／`WX24-P2-010-E1` は外側の「他の」欠落ではなく、引用付与された【常】能力の内側で付与先自身を基準に「他のシグニ」を評価する機構が必要なため、(lxxxiii) の残から外し §6.3「引用付与の忠実化」の在庫へ移した。外側 `excludeSelf` を刻んでも reader が読まず、カード固有化すると同型引用能力へ展開できないためである。これにより (lxxxiii) は実装課題 **4→0** でクローズ。
+
+`WX06-019-E1` は既存 `findEffectLeavePowerReductionSubstitute` を `applyEffectLeavePowerReductionSubstitute` へ包み、`victimOwner==='opponent'`、被害シグニが場のトップ、宣言者自身ではない、live `BANISH_SUBSTITUTE{substituteCost.powerReduction:6000}` の filter 一致、を共通判定にした。「してもよい」は既存どおり同期的な自動適用近似。置換順は既存のルリグ能力喪失置換の後、非バニッシュ→バニッシュ置換の前とし、既存置換同士の優先を変えていない。場離れ経路の棚卸しと配線結果は次のとおり。
+
+- BANISH：`execBanish` の一括直結（既存を共通helperへ置換）／`resumeSelectTarget → applyDirectAction(BANISH)` の単体選択（新規配線）。
+- BOUNCE（場→手札）：`execBounce.applyBounce` の一括・固定対象／`applyDirectAction(BOUNCE)` の単体選択を配線。
+- SEND_TO_ENERGY（場→エナ）：`execSendToEnergy.applySend` の一括・固定対象／`applyDirectAction(SEND_TO_ENERGY)` の単体選択を配線。
+- TRASH（場→通常トラッシュ／ルリグトラッシュ）：`execTrash.applyTrashField` の一括・固定対象／`applyDirectAction(TRASH{SIGNI})` の単体選択を配線。
+- TRANSFER_TO_DECK（デッキ上／下／シャッフル戻し）：`execTransferToDeck.applyToBottom` の一括・固定対象／`applyDirectAction(TRANSFER_TO_DECK)` の単体選択を配線。
+- EXILE（ゲームから除外）：選択解決が `applyDirectAction(EXILE)` に集約されているため同 site を配線。
+- 配線を残した効果による通常場離れ経路は0。`removeFromField` のその他の呼出しはコスト、ルール処理、配置入替、アクセ処理、バトル等であり「対戦相手の効果による通常場離れ」ではないため本フック対象外。
+
+live `effectsMap` の `WX06-019-E1` と実戦 signi zone を使う golden で、上記6 action typeすべてについて「他の＜水獣＞は場に残る／発生源だけ-6000」を実測した。BANISH を含む count:1 は実際に `SELECT_TARGET → resumeSelectTarget → applyDirectAction` を通した。対照として、発生源自身を BOUNCE すると置換されず手札へ戻ること、自分の効果で自分の他の＜水獣＞を BOUNCE しても置換されないことを固定した。powerReduction 宣言の live 保持効果は1件（`WX06-019-E1`）で、live JSON 自体は不変。
+
+`PR-366-E3` は引用発動の新規機構が無いのではなく、既存 STUB `TRIGGER_OTHER_SIGNI_EICHI_ABILITY` の reader が存在した。ただし従来は「英知AUTOを持たない他シグニも候補」「対象カードの最初の英知AUTOを選択なしで実行」という過小／誤選択実装だった。reader を、他の場シグニが持つ `AUTO && activeCondition:EICHI_LEVEL_SUM` を列挙して候補化し、対象が複数の英知AUTOを持つ場合は能力ID／英知値を表示して1つ選択、CHOOSE resume を跨いで対象instanceを保持し、そのカードを `sourceCardNum` として action を即時解決する形へ補完した。live `PR-366-E3` から対象選択し、DRAW型英知AUTOを選択して実際に手札が増えること、英知AUTOなしの他シグニが候補から除かれることを golden で確認した。
+
+ゲートは golden **1303→1305**、smoke **10679/10679** 全0・SKIP0、fuzz 200ゲーム全0（7983手／2703効果）、census **1289→1289**、manual field loss 0、lint 0 errors／240 warnings、同型★0、`"???"` 0。held は再生成実測 **258枚／109署名群**。live per-effect は engine-only 是正のため HEAD 比 changed 0／added 0／removed 0、既存 `excludeSelf` 減少0。`build:effects`／`regen` は2巡目追加差分0。commit/pushなし。
+
 ## 2026-08-02 — Opusタスク12(lxxxiii) 第14波：ライフクラッシュ元の check/pending 永続化
 
 `WXDi-P14-087-E1` を **(a) 機能是正**した（(b) 宣言の明示化0、(c) honest defer は残4件）。`PlayerState` に現在の check 用 `crash_source_card_num` と `pending_crashed_cards` 同添字の `pending_crash_source_card_nums` を追加し、任意順のライフバースト確認、通常/CPUの pending resume、ターン境界clearへ配線した。省略時は従来どおり発生源限定を行わない。parser共有文型「あなたの他の＜X＞のシグニが対戦相手のライフクロス…をクラッシュしたとき」は `triggerScope:any_ally`＋`triggerFilter:{story:X,excludeSelf:true}` を生成し、live は対象1効果だけ changed。
