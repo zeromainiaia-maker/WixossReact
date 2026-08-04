@@ -6343,6 +6343,11 @@ try {
         coins: s.coins ?? 0,
         life: (s.life_cloth ?? []).length,
         deck: (s.deck ?? []).length,
+        lrigAttacked: s.field?.lrig_attacked ?? false,
+        fieldCheck: s.field?.check ?? null,
+        keyPiece: s.field?.key_piece ?? null,
+        identityOverrides: s.card_identity_overrides ?? {},
+        energyCards: s.energy ?? [],
       });
       return {
         host: sideOf(hs),
