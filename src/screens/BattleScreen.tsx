@@ -2362,6 +2362,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return { entries: r.entries, usedMyIds: isHost ? r.usedHostIds : r.usedGuestIds, usedOpIds: isHost ? r.usedGuestIds : r.usedHostIds };
   };
 
+  /**
+   * CPU ターンのフェイズ/ターン境界トリガー収集（タスク12(lxvii)）＝上の `collectTurnTriggers` の CPU 版。
+   *
+   * ⚠🔴**人間ターンは `doPhaseAdvance` が6 timing すべてを収集するのに対し、CPU 経路は
+   *   `ON_GROW_PHASE_START` だけが配線されていた**。`ON_ATTACK_PHASE_START` は
+   *   **self scope しか見ない手書きの部分再実装**、残り4 timing は**収集そのものが存在しなかった**。
+   *   実測＝CPU のターンで一切発火しなかった効果は **計282件**（`ON_TURN_END` 190／
+   *   `ON_ATTACK_PHASE_START` の非 self スコープ 57／`ON_MAIN_PHASE_START` 31／`ON_TURN_START` 3／
+   *   `ON_LRIG_ATTACK_STEP_START` 1）。**BattleScreen は golden から叩けない＝計器に一切映らない**穴だった。
+   * ⚠CPU は常に guest（`cpuTurnAction` 全体が `guest_state` 前提）。
+   * ⚠戻り値の `humanState` は **once_per_turn を消費したときだけ** 値が入る（＝不要な書き込みをしない）。
+   */
+  const collectCpuTurnTriggers = (
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+    cpuState: PlayerState,
+    humanState: PlayerState,
+  ): { entries: StackEntry[]; cpuState: PlayerState; humanState?: PlayerState } => {
+    const r = pureCollectTurnTriggers({ ...mkTrigCtx(), meId: CPU_PLAYER_ID }, timing, cpuState, humanState);
+    return {
+      entries: r.entries,
+      cpuState: r.usedGuestIds.length > 0
+        ? { ...cpuState, actions_done: [...(cpuState.actions_done ?? []), ...r.usedGuestIds] }
+        : cpuState,
+      humanState: r.usedHostIds.length > 0
+        ? { ...humanState, actions_done: [...(humanState.actions_done ?? []), ...r.usedHostIds] }
+        : undefined,
+    };
+  };
+
   // ON_ALLY_PLAY_OR_OPP_HAND_DISCARD 収集（C1・triggerCollect.ts。ここは薄いラッパ）。
   const collectAllyPlayOrOppDiscardTriggers = (
     controllerId: string,
