@@ -7158,7 +7158,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           label: '使用',
           color: C.coin,
           onClick: () => {
-            openArtsModal(cardData, effectiveCostStr ?? ((artsCostReplacement || specificReduction) ? reducedArtsCost : null));
+            // 印刷コストから動いたときだけ実効コストを持ち込む（null＝Phase2 が印刷コストを使う）。
+            // `ArtsModal` Phase1 のボタンと同じ約束＝どちらの入口から開いても請求額が一致する。
+            openArtsModal(cardData, effectiveCostStr ?? (reducedArtsCost !== cardData.Cost ? reducedArtsCost : null));
           },
         });
       }
