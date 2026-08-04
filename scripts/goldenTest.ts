@@ -5507,6 +5507,64 @@ test('C1 ON_TARGETED: turnOwner:opponent ゲート（自ターンは非発火）
   // guest 自身のターンでは turnOwner:opponent を満たさず非発火
   eq(collectTargetedTriggers(trigCtx(GUEST), ['WXDi-P11-040'], GUEST, host, guest).entries.length, 0, '自ターン非発火');
 });
+// タスク12(lxviii): 散文形「対戦相手のターンの間、」が ON_TARGETED で turnOwner を生んでいなかった
+// ＝**自分のターンにも発火する過剰実行**（アイコン形《相手ターン》は生むのに散文形は生まない非対称）。
+test('task12(lxviii): 散文形「対戦相手のターンの間、」の ON_TARGETED 2枚が相手ターン限定になる', () => {
+  for (const [card, effId] of [['WXDi-P12-074', 'WXDi-P12-074-E1'], ['WXDi-P13-089', 'WXDi-P13-089-E2']] as const) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effId);
+    eq(eff?.triggerCondition?.turnOwner, 'opponent', `${effId}: turnOwner:opponent が付く`);
+    const host = mkState({}); const guest = mkState({ signi: [card, null, null] });
+    // 相手（host）のターンに guest のシグニが対象になった＝発火する
+    ok(collectTargetedTriggers(trigCtx(HOST), [card], GUEST, host, guest).entries.some(e => e.effectId === effId),
+      `${effId}: 相手ターンでは発火`);
+    // guest 自身のターンでは非発火（＝修正前はここで過剰実行していた）
+    eq(collectTargetedTriggers(trigCtx(GUEST), [card], GUEST, host, guest).entries.some(e => e.effectId === effId),
+      false, `${effId}: 自ターンでは発火しない`);
+  }
+});
+
+test('task12(lxviii): 「次の対戦相手のターンの間、」＝本文側には turnOwner を付けない', () => {
+  // 🔴同じ句でも**トリガー前置きではなく効果の本文**（【出】等）である群が実測12件ある。
+  //   ここに turnOwner:'opponent' を付けると**自分のターンに発動する効果が永久に不発**になる＝逆方向の退化。
+  for (const [card, effId] of [
+    ['WX25-P1-050', 'WX25-P1-050-E1'], ['WXDi-P15-039', 'WXDi-P15-039-E1'],
+    ['WXDi-P03-018', 'WXDi-P03-018-E1'], ['WXDi-P09-053', 'WXDi-P09-053-E1'],
+  ] as const) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effId);
+    ok(!!eff, `${effId} が live に存在する`);
+    eq(eff?.triggerCondition?.turnOwner, undefined, `${effId}: 本文側なので turnOwner を付けない`);
+  }
+});
+
+test('task12(lxviii): 母集団＝前置きを持つ AUTO のうちターン限定が無いものを固定', () => {
+  // ⚠**「原文に句を含む効果」を母数にしてはいけない**＝145件のうち大半は CONTINUOUS/ACTIVATED か本文側。
+  //   `activeCondition:TURN_OWNER` と `condition:IS_OPPONENT_TURN`（AND 入れ子も）を数え漏らすと母数を誤る。
+  const hasCond = (c: unknown, pred: (n: Record<string, unknown>) => boolean): boolean => {
+    if (!c || typeof c !== 'object') return false;
+    const n = c as Record<string, unknown>;
+    if (pred(n)) return true;
+    return Array.isArray(n.conditions) && (n.conditions as unknown[]).some(cc => hasCond(cc, pred));
+  };
+  const HEAD = /^【[^】]*】(?:《[^》]*》)*[：:]\s*対戦相手のターンの間[、,]/;
+  let withPrefix = 0; const ungated: string[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      if (e.effectType !== 'AUTO') continue;
+      const text = srcTextMap.get(e.effectId);
+      if (!text || !HEAD.test(text)) continue;
+      withPrefix++;
+      const gated = e.triggerCondition?.turnOwner === 'opponent'
+        || hasCond(e.activeCondition, n => n.type === 'TURN_OWNER' && n.owner === 'opponent')
+        || hasCond(e.condition, n => n.type === 'IS_OPPONENT_TURN');
+      if (!gated) ungated.push(e.effectId);
+    }
+  }
+  eq(withPrefix, 30, 'トリガー前置きとして句を持つ AUTO の総数');
+  // 残1件＝`WXDi-CP02-053-E1`（ON_ATTACK_SIGNI）。原文の主語が「シグニ1体が」＝**自分以外の**アタックなので
+  // turnOwner を足すだけでは self 収集経路に乗らず**過剰実行を永久 no-op に替えるだけ**＝別在庫 (xcix) へ。
+  eq(ungated.join(','), 'WXDi-CP02-053-E1', 'ターン限定が無いのは honest defer の1件だけ');
+});
+
 test('C1 ON_TARGETED: 対象でないシグニは非発火', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
   eq(collectTargetedTriggers(trigCtx(HOST), [SIGNI], GUEST, host, guest).entries.length, 0, '別カード対象');
