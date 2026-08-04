@@ -5551,7 +5551,7 @@ test('task12(lxviii): 母集団＝前置きを持つ AUTO のうちターン限�
   for (const effs of effectsMap.values()) {
     for (const e of effs) {
       if (e.effectType !== 'AUTO') continue;
-      const text = srcTextMap.get(e.effectId);
+      const text = srcTextMap[e.effectId];
       if (!text || !HEAD.test(text)) continue;
       withPrefix++;
       const gated = e.triggerCondition?.turnOwner === 'opponent'
