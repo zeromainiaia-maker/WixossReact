@@ -762,10 +762,11 @@ export function getCardNum(id: string): string {
  * ⚠CONTINUOUS の `REMOVE_ABILITIES`（「凍結状態のシグニは能力を失う」等）は `effectsMap` と両プレイヤー状態が
  *   要る（`collectRemovedAbilities`）ため**ここでは見ない**＝数え漏らす側＝「能力あり」に倒れる（安全側）。
  *
- * ⚠**「JSON の effects が0件なら能力なし」で代用してはいけない**（旧 `LAST_PROCESSED_HAS_NO_ABILITIES` の実装）。
+ * ⚠**「JSON の effects が0件＝能力なし」と読んではいけない**（旧 `LAST_PROCESSED_HAS_NO_ABILITIES` の実装）。
  *   実測すると原文判定159枚に対し effects 判定は211枚で、差の**52枚はすべてマルチエナ持ち**
  *   （原文が「（エナコストを支払う際、このカードは青か緑１つとして支払える）」だけ＝parser が効果を作らない）。
- *   マルチエナは常時能力なので**能力あり**が正＝effects 判定は過剰発火する。
+ *   マルチエナは常時能力なので**能力あり**が正＝0件を根拠にすると過剰発火する。
+ *   **1件以上あれば能力あり**（＝片側だけが根拠になる非対称な判定）という向きでだけ使う。
  */
 export function hasNoAbility(
   cardNum: string,
