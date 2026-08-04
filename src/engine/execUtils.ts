@@ -1276,10 +1276,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'LAST_PROCESSED_HAS_NO_ABILITIES': {
       const last = ctx.lastProcessedCards?.[0];
       if (!last) return false;
-      const mapped = ctx.effectsMap?.get(getCardNum(last));
-      if (mapped) return mapped.length === 0;
-      const text = ctx.cardMap.get(getCardNum(last))?.EffectText ?? '';
-      return !/(?:【|\[)(?:常|自|起|出)(?:】|])/.test(text);
+      // ⚠🔴**旧実装は「JSON の effects が0件なら能力なし」**としており、**マルチエナ持ちシグニ52枚**
+      //   （原文が「（エナコストを支払う際、このカードは青か緑１つとして支払える）」だけのカード）を
+      //   「能力を持たない」と誤判定していた＝マルチエナは常時能力なので**能力あり**が正。
+      //   判定は `hasNoAbility` 1本に統一する（タスク12(xcv)）。
+      return hasNoAbility(last, ctx.cardMap, ownerState('self', ctx));
     }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;
