@@ -6755,6 +6755,51 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
   eq(count('ON_GROW_PHASE_START').eff, 2, 'ON_GROW_PHASE_START（唯一 CPU にも配線されていた）');
 });
 
+// タスク12(xcviii): CPU のターン開始ドローで `ON_DRAW` が収集されていなかった（人間経路のみ配線）。
+// ⚠**効果ドローは中央 diff ブロックが両プレイヤー分を拾う**ので、穴は「ターンドローだけ」。
+test('task12(xcviii): CPU（guest）のターンドローでも ON_DRAW が drawer 側に収集される', () => {
+  const owner = [...effectsMap.entries()].find(([num, effs]) =>
+    cardMap.get(num)?.Type === 'シグニ'
+    && effs.some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_DRAW')
+      && (e.triggerScope ?? 'self') === 'self'
+      && !e.condition && !e.usageLimit && !e.activeCondition
+      && !e.triggerCondition?.outsideDrawPhase && !e.triggerCondition?.drawBySourceStory
+      && !e.triggerCondition?.drawByDrawerOwnEffect && !e.triggerCondition?.duringAttackPhase))?.[0];
+  ok(!!owner, 'ターンドローで発火しうる ON_DRAW シグニが live に存在する');
+  const guest = mkState({ signi: [owner!, null, null] }); const host = mkState({});
+  const r = collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST, guest, host, true);
+  ok(r.entries.length > 0, 'CPU のターンドローで entries が出る');
+  ok(r.entries.every(e => e.playerId === GUEST), 'entries の playerId は引いた側（CPU）');
+});
+
+test('task12(xcviii): ターンドローは「効果ドロー」ではない＝drawBySourceStory を前ターンの残値で誤発火させない', () => {
+  // 人間経路が `last_effect_draw_source: undefined` を明示クリアしている理由。CPU 側も同じ前処理に揃えた。
+  const src = 'WX20-026';
+  const eff = (effectsMap.get(src) ?? []).find(e => e.triggerCondition?.drawBySourceStory);
+  ok(!!eff, 'WX20-026 が drawBySourceStory を持つ（母集団の実在確認）');
+  const story = eff!.triggerCondition!.drawBySourceStory!;
+  const stale = findCard(c => isSigni(c) && (c.CardClass ?? '').includes(story));
+  const base = mkState({ signi: [src, null, null] }); const host = mkState({});
+  // 残値あり＝前ターンの効果ドロー元が残っていると発火してしまう
+  const withStale: PlayerState = { ...base, last_effect_draw_source: stale };
+  ok(collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST, withStale, host, true).entries
+    .some(e => e.effectId === eff!.effectId), '残値があると発火する（＝クリアが必要な理由）');
+  // ターン開始処理でクリアした後＝発火しない
+  const cleared: PlayerState = { ...base, last_effect_draw_source: undefined };
+  ok(!collectDrawTriggers(trigCtx(GUEST, GUEST), GUEST, cleared, host, true).entries
+    .some(e => e.effectId === eff!.effectId), 'クリア後は発火しない');
+});
+
+test('task12(xcviii): CPU ターンドローで不発だった live 母数を固定', () => {
+  let onDraw = 0;
+  for (const card of cardMap.values()) {
+    for (const e of (card.effects ?? [])) {
+      if (e.effectType === 'AUTO' && e.timing?.includes('ON_DRAW')) onDraw++;
+    }
+  }
+  eq(onDraw, 13, 'ON_DRAW の live 効果数（CPU のターンドローで発火しなかった母数）');
+});
+
 test('collectTurnTriggers usageLimit: WX25-CP1-042-E2《ターン1回》は同一ターン2回目を発火しない（タスク12(xvii)）', () => {
   // ON_LRIG_ATTACK_STEP_START once_per_turn の LRIG 効果。1回目は発火＋usedHostIdsに消費記録、
   // actions_done 記録済みの2回目は非発火（フェイズ境界を跨いだ再発火を防ぐ）。
