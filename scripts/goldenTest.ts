@@ -19982,10 +19982,11 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
     ok(!withAb.otherState.trash.includes(abledX), '能力を持つならトラッシュへは行かない');
 
     // 直前に何もバウンスしていなければ何もしない（`lastProcessedCards` 空＝盤面不変）
-    const bare = run({ type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' } as unknown as EffectAction, mkB());
-    eq(JSON.stringify([bare.ownerState.field.signi, bare.otherState.field.signi, bare.otherState.trash]),
-      JSON.stringify([mkB().ownerState.field.signi, mkB().otherState.field.signi, mkB().otherState.trash]),
-      '対象なしでは盤面を触らない');
+    // ⚠`mkB()` は呼ぶたびに別のダミー札を積むので、**同じ ctx** の前後で比べる。
+    const bareCtx = mkB();
+    const before = JSON.stringify([bareCtx.ownerState, bareCtx.otherState]);
+    const bare = run({ type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' } as unknown as EffectAction, bareCtx);
+    eq(JSON.stringify([bare.ownerState, bare.otherState]), before, '対象なしでは盤面を触らない');
   });
 
   test('task12(xcv) 母集団＝「能力を持たない」を読む live カードの内訳を固定', () => {
