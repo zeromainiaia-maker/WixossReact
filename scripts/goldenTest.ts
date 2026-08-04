@@ -6732,10 +6732,12 @@ test('task12(lxvii): CPU ターンでも非 self スコープ（any_opp）が人
 });
 
 test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () => {
+  // ⚠**merge 後（`manualEffects` 適用後＝実行時と同じ）**で数える。生 JSON で数えると
+  //   MANUAL 上書きで消えた分だけ多く出る（`ON_TURN_END` は生 188 / merge 後 187）。
   const count = (timing: string) => {
     let eff = 0; const scopes = new Map<string, number>();
-    for (const effs of effectsMap.values()) {
-      for (const e of effs) {
+    for (const card of cardMap.values()) {
+      for (const e of (card.effects ?? [])) {
         if (e.effectType !== 'AUTO' || !e.timing?.includes(timing as never)) continue;
         eff++;
         const s = e.triggerScope ?? 'self';
