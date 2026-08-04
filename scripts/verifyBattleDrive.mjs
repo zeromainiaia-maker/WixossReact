@@ -5998,6 +5998,7 @@ const scenarios = {
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
+        'field.lrig_down': false, // ルーム再利用で前シナリオのルリグアタック済み(down)状態が残っているとCPUが今回アタックしない対策
         'lrig_granted_auto_effects': [
           { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
             action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
@@ -6041,6 +6042,7 @@ const scenarios = {
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
+        'field.lrig_down': false, // ルーム再利用で前シナリオのルリグアタック済み(down)状態が残っているとCPUが今回アタックしない対策
         'lrig_granted_auto_effects': [
           { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
             action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
