@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-04・続き345・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝🏁**§3 タスク12(lxviii) 残0クローズ**＝散文形「対戦相手のターンの間、」の過剰実行を是正（ユーザー指示「タスク12を続ける」）。golden **1360→1363**・**live は2効果のみ変更**・census 1288 据置・同型★0・全ゲート緑。
+  - **🔴 母集団は3段階で数え直して 145→30→3**＝①原文に句を含む効果 **145**（CONTINUOUS 68／AUTO 42／ACTIVATED 33 ほか）②**AUTO かつ「能力マーカー直後の前置き」＝トリガー句の修飾 30**（残り12件は「**次の**対戦相手のターンの間、」＝**効果の本文**＝【出】等。ここに付けると**自分のターンに発動する効果が永久に不発**になる逆方向の退化）③そのうち**ターン限定がどの機構にも無い 3件**（27件は `activeCondition:TURN_OWNER`／`condition:IS_OPPONENT_TURN` で既に正しくゲートされ、各 collector が評価済みであることも確認）。
+  - **🔴 分類は1回目に間違えた**＝`activeCondition` の **`AND` 入れ子**（`AND[TURN_OWNER, LRIG_COLOR]`）を数え漏らして「5件」と出た。`condHas` と同じ**再帰判定**に直して3件が正。**件数は必ず実体を1枚ダンプして裏を取る**（`WX14-074` をダンプして気づいた）。
+  - **実装＝ON_TARGETED 分岐に閉じて追加**（`collectTargetedTriggers` は `triggerCondition.turnOwner` を読み `activeCondition` は見ない＝落とし先はこのフィールド）。**live per-effect 差分＝changed 2／added 0／removed 0**（差分は `turnOwner` 追加のみで他は完全一致）。逆翻訳も原文どおり《相手ターン》表記になった（sheet8 の2行のみ）。held **258→257枚／109群**。
+  - **golden +3**＝①対象2枚が相手ターンで発火・自ターンで非発火（⚠`WXDi-P13-089-E2` は `targetedOrigins` も持つので origin を渡さないと「turnOwner のせいで落ちた」と読み違える）②**本文側4枚に turnOwner が付いていないこと**③母集団の固定（前置き AUTO 30件／未ゲートは honest defer の1件だけ）。
+  - **新規在庫2件**＝**(xcix)** `WXDi-CP02-053-E1` は主語が「シグニ1体が」なのに `triggerScope:self`＝**turnOwner を足すだけでは永久 no-op**（scope＋collector とセットで別バッチ）／**(c)** `ON_TARGETED` の同居問題（`WXDi-P13-089-E2` の本体が「ゲームから除外」でなく `TRASH{TRASH_CARD}`・「その対戦相手のシグニ」origin 同一性未配線）。
+  - **次の一手**＝**Opus**＝タスク12 の生き残り在庫〔(lv) 残2経路／(lxvi)／(lxxxviii)／(xciii)／(xciv)／(xcvi)／(xcvii)／**🆕(xcix)**／**🆕(c)**〕・(lxxxii) 由来の別在庫4件（PLAN_PROGRESS の続き331 行）・§6.3 機構台帳。**Sonnet**＝§7 実機検証＝**続き298〜345 の全件が実機UI未検証**。本件の実機確認は**①`WXDi-P12-074` を場に出し、**自分のターンに**自分の効果で対象にしても手札を捨てさせないこと**②相手ターンに相手の効果で対象になったときだけ発火すること。
 - **セッション（2026-08-04・続き344・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝🏁**§3 タスク12(xcviii) 残0クローズ**＝CPU のターン開始ドロー処理を人間経路と揃える（ユーザー指示「続ける」）。golden **1357→1360**・**live JSON 変更なし**・census 1288 据置・全ゲート緑。触った層は `BattleScreen.tsx` の CPU UP 分岐のみ。
   - **`ON_DRAW` の穴は「ターン開始ドローだけ」**＝効果ドローは中央 diff ブロック（`resolveStackNext`）が両プレイヤー分を拾うので既に発火していた。人間経路が UP→DRAW で `collectDrawTriggers(..., isDrawPhaseDraw=true)` を呼ぶ位置に同じ形で追加（live **13効果／13カード**）。
   - **🔴 併せて発見＝CPU の `refresh_count_this_turn` が一度もリセットされていなかった**（全文検索で人間側2箇所のみ）。`resolveStackNext` は「ターンプレイヤーの2回目のリフレッシュならターン終了」を `>= 2` で判定するため、**ゲーム中に CPU が累計2回リフレッシュした以降、CPU ターンでリフレッシュが起きるたび毎回ターンが強制終了する**（累積カウンタが減らない）。ターン開始でリセットするよう是正。
