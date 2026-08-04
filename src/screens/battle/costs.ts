@@ -543,11 +543,16 @@ export function computeArtsEffectiveCost(
         const top = stack?.at(-1);
         if (!top) return false;
         if (term === '凍結状態のシグニ') return (f.signi_frozen ?? [])[i] === true;
-        // 「能力を持たないシグニ」＝engine の `ABILITY_CHECK_ELSE_TRASH` と同じ判定（EffectText/BurstText が空）。
+        // 「能力を持たないシグニ」＝①原文が空＝**素のシグニ158枚**（⚠CSV は空文字ではなく `-` で持つので、
+        //   `!!EffectText` 判定だと1枚も当たらない）②`abilities_removed` でこのターン能力を消された分。
+        // ⚠CONTINUOUS の `REMOVE_ABILITIES`（「凍結状態のシグニは能力を失う」等）は effectsMap が要るので
+        //   ここでは見られない＝その分だけ**安く見積もらない**側に倒れる（PLAN §3 タスク12 へ登録）。
         // cardMap が無いと「全員が能力なし」に化けて**過剰に安くなる**ので、引けないときは数えない。
         if (!cardMap) return false;
+        if (oppSt?.abilities_removed?.includes(top)) return true;
         const c = cardMap.get(getCardNum(top));
-        return !!c && !(c.EffectText?.trim() || c.BurstText?.trim());
+        const blank = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+        return !!c && blank(c.EffectText) && blank(c.BurstText);
       }).length;
     };
     const countMyClassSigni = (cls: string): number =>
