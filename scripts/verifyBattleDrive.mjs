@@ -6452,7 +6452,7 @@ const scenarios = {
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
-        'field.signi': [['WD03-009#1'], ['WD03-009#2'], null], // P12000×2（≥10000の対象候補）
+        'field.signi': [['WX01-053#1'], ['WX01-053#2'], null], // P15000×2（≥10000の対象候補・Restriction無し）
         'field.signi_down': [false, false, false],
         'blocked_actions': [],
       },
@@ -6524,7 +6524,7 @@ const scenarios = {
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
-        'field.signi': [['WD03-009#1'], ['WD03-009#2'], null],
+        'field.signi': [['WX01-053#1'], ['WX01-053#2'], null],
         'field.signi_down': [false, false, false],
         'blocked_actions': [],
       },
