@@ -5566,9 +5566,13 @@ const scenarios = {
   },
 
   // §7 タスク12(lxi)本消化(a) 対照実験＝上記の反転（guestのエナを《無》×3以上に増やし、payがavailable:true
-  // になったときCPU自動応答（options.find(o=>o.available)）が先頭のpayを選び、banishを回避することを確認する。
+  // になったときCPU自動応答（options.find(o=>o.available)）が先頭のpayを選ぶはず、の確認のつもりだったが、
+  // ⚠実機実行の結果 別の実バグを発見（Opusタスク12(cii)へ登録済み）＝CPU自動応答（BattleScreen.tsx:522-530）は
+  // CHOOSEの選択肢IDしか積まずエナのinstanceIdを一切渡さないため、`resumeOpponentPayOptional`が
+  // energyNums=[]で「コスト支払いエラー: エナ不足」を返して即終了する＝エナが足りていてもpayは常に空振り
+  // （banishもcost消費も起きない）。本シナリオはこの実際の挙動を実機で確認する（意図的FAILとして記録）。
   oppPayEnergySufficient: {
-    title: 'WX25-P1-038-E1（本丸火出＝相手エナ十分でCPUがpayを選択→banish回避・対照実験）',
+    title: 'WX25-P1-038-E1（本丸火出＝相手エナ十分でもCPU自動応答はpayのエナIDを渡さず常に空振り＝Opusタスク12(cii)実機確認）',
     spec: {
       hostSet: {
         'field.lrig': ['WD03-003#1'],
