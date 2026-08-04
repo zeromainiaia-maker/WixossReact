@@ -6111,8 +6111,10 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/mugenQFlip-${s}.png`, fullPage: true });
         let did = null;
-        if (!did) did = await H.clickTextOrBtn(['グロウフェイズへ']);
+        // 確認ダイアログ「このまま進む」を先に試す（フェイズ進行ボタンがダイアログ背後にDOM上残存し
+        // clickTextOrBtnが誤って再ヒットし続けるレースの回避＝先にダイアログを閉じ切ってから）。
         if (!did) did = await H.clickTextOrBtn(['このまま進む']);
+        if (!did) did = await H.clickTextOrBtn(['グロウフェイズへ']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P11-010B';
