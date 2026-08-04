@@ -243,6 +243,10 @@ export function applyEffectLeaveReplaceBanishSubstitute(
  * - **チェーンの最後に置く**＝被害側の自衛置換（3本）が先に成立したらそちらを優先する。
  * - アタックフェイズ限定（`currentPhase` が `ATTACK_*`）。フェイズ不明なら成立させない。
  * ⚠**バトルによるバニッシュは BattleScreen 側の経路**なのでここには乗らない（効果による場離れのみ）。
+ *
+ * ⚠**離場経路すべてから呼ぶこと**＝原文が「場を離れる場合」なので、1経路でも呼び忘れるとそこだけ素通りする。
+ *   現在の呼び出し元＝`execBanish`／`execBounce`／`execSendToEnergy`／`execTrash` 系の各 `apply*` と、
+ *   単体カード移動の `BANISH`／`TRANSFER_TO_HAND`／`SEND_TO_ENERGY`／`TRASH`／`EXILE`／`TRANSFER_TO_DECK` の各 case。
  */
 export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   victimNum: string,
