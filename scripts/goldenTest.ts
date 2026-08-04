@@ -5563,9 +5563,8 @@ test('task12(lxviii): 母集団＝前置きを持つ AUTO のうちターン限�
     }
   }
   eq(withPrefix, 30, 'トリガー前置きとして句を持つ AUTO の総数');
-  // 残1件＝`WXDi-CP02-053-E1`（ON_ATTACK_SIGNI）。原文の主語が「シグニ1体が」＝**自分以外の**アタックなので
-  // turnOwner を足すだけでは self 収集経路に乗らず**過剰実行を永久 no-op に替えるだけ**＝別在庫 (xcix) へ。
-  eq(ungated.join(','), 'WXDi-CP02-053-E1', 'ターン限定が無いのは honest defer の1件だけ');
+  // 🏁全件ゲート済み（残っていた `WXDi-CP02-053-E1` は (xcix) で scope:any＋turnOwner を入れて解消）。
+  eq(ungated.join(','), '', 'ターン限定が無いものは残っていない');
 }));
 
 // タスク12(xcix): 「シグニ1体がアタックしたとき」＝主語なし＝**どちらの陣営のアタックでも**反応する形が
