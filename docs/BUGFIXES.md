@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-04 — 🏁§3 タスク12(xcviii) 残0クローズ：CPU のターン開始ドロー処理を人間経路と揃える（`ON_DRAW` 未収集＋リフレッシュ回数の未リセット）（golden 1357→1360・**live JSON 変更なし**・全ゲート緑）（Opus 5・続き344）
+
+(lxvii) の対応表作成で観測した残り1件。**穴は「ターン開始ドローだけ」**＝効果ドローは中央 diff ブロック（`resolveStackNext`）が両プレイヤー分を拾うので既に発火していた。
+
+### ① `ON_DRAW` が CPU のターンドローで収集されない（live **13効果／13カード**）
+人間経路は UP→DRAW で `collectDrawTriggers(..., isDrawPhaseDraw = true)` を `ON_TURN_START` と同じスタックへ積むが、`cpuTurnAction` は呼んでいなかった。(lxvii) で `ON_TURN_START` を足した位置に同じ形で追加。
+
+### 🔴② CPU の `refresh_count_this_turn` が**一度もリセットされていなかった**
+人間経路はターン開始（UP→DRAW）で `refresh_count_this_turn: 0` を書くが、CPU 経路にはその記述が**どこにも無い**（全文検索で人間側2箇所のみ）。
+`resolveStackNext` は「**ターンプレイヤーの2回目のリフレッシュならターン終了**」を `refresh_count_this_turn >= 2` で判定するため、
+**ゲーム中に CPU が累計2回リフレッシュした以降、CPU ターンでリフレッシュが起きるたびに毎回ターンが強制終了する**（累積カウンタが減らない）。
+
+### ③ `last_effect_draw_source` のクリアも揃えた
+ターンドローは「効果ドロー」ではないので、人間経路は明示的に `undefined` を書いて `drawBySourceStory` トリガー（`WX20-026-E3`）が**前ターンの残値で誤発火**するのを防いでいる。
+①を入れる以上 CPU 側にも必須（入れないと同じ誤発火を CPU ターンで再現する）。
+
+### 検証
+- golden **+3**＝①CPU（guest）のターンドローで `ON_DRAW` が drawer 側に収集され `playerId` が guest であること ②`drawBySourceStory` が**残値ありで発火／クリア後は非発火**（＝③のクリアが必要な理由そのものを固定）③`ON_DRAW` の live 母数 13。
+- ⚠**配線・リフレッシュ回数リセットは golden 非カバー**（BattleScreen 層）＝実機通し確認と対で締める。
+- **live JSON・parser は完全不変**。触った層は `BattleScreen.tsx` の CPU UP 分岐のみ。
+
 ## 2026-08-04 — 🏁§3 タスク12(lxvii) 残0クローズ：**CPU ターンのフェイズ/ターン境界トリガーが面で欠けていた**のを人間経路と同じ pure collector 1本へ統一（golden 1354→1357・**live JSON 変更なし**・全ゲート緑）（Opus 5・続き343）
 
 PLAN の指示どおり、着手前に**「全 timing について人間経路と CPU 経路のどちらから収集されるか」の対応表**を作ってから直した（1 timing ずつ潰すと同じ穴を何度も踏むため）。
