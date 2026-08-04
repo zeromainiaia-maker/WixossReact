@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-04 — 🏁§3 タスク12(xcix) 残0クローズ：主語なし「シグニ１体がアタックしたとき」が `self` に潰れて**相手のアタックに反応できなかった**のを是正（golden 1363→1366・live **3効果のみ**変更・全ゲート緑）（Opus 5・続き346）
+
+(lxviii) で honest defer した1件。着手して測ると**同型がもう2枚**あり、母集団は3効果だった。
+
+### 母集団＝主語なしのアタック watcher **3効果**
+| 効果 | 原文の前置き | 修正前 | 症状 |
+|---|---|---|---|
+| `WXDi-P06-033-E2` | 《相手ターン》（アイコン形） | `self`＋`turnOwner:opponent` | `turnOwner` は正しいのに **scope が self** ＝相手のアタックでは収集されず、自分のアタックでは `turnGateOk` に落とされる＝**実質どちらでも発火しない** |
+| `WXDi-CP02-053-E1` | 「対戦相手のターンの間、」（散文形） | `self`（ターン限定なし） | 自分のアタックで**過剰実行**／相手のアタックでは不発 |
+| `WXEX2-04-E1` | なし | `self` | 「シグニ1体がアタックしたとき」なのに**自分がアタックしたときしか**発火しない |
+
+⇒ parser に「主語なし＝どちらの陣営のアタックでも反応」を追加（`triggerScope:'any'`）＋ ON_ATTACK_SIGNI にも散文前置き→`turnOwner` を追加。
+**live per-effect 差分＝changed 3／added 0／removed 0**。逆翻訳も「いずれかのシグニがアタックしたとき」＋《相手ターン》になった。
+
+### 🔴 ターン限定を collector に足そうとして既存設計を壊しかけた（golden が捕まえた）
+着手時の見立ては「`collectFieldTriggers` と BattleScreen の self 経路が `triggerCondition.turnOwner` を一切見ていない＝そこが穴」だった。
+実際に両方へゲートを足したところ、**既存の golden 2件**（`Stage2 ON_PLAY field: any_opp …` と `WXK10-022-E1 の turnOwner:self は収集後段の turnGateOk で正しくゲートされる（PLAN §7 R30②検証）`）が落ちた。
+
+**正しい設計＝ターン限定は `effectStack.turnGateOk` が `initStack`／`pushToStack` の時点で全コレクタ共通に評価する**（`entry.playerId`＝watcher の持ち主基準）。
+collector 側で足すと**二重ゲート**になり、しかも `collectFieldTriggers` の `isOwnerTurnForTrigger` は**トリガー元**視点なので watcher 基準とズレて正しい効果まで落ちる。
+⇒ 足したゲートは**全て差し戻し**、代わりに3箇所へ「ここで見ない・理由・担当は turnGateOk」のコメントを残した。
+**残った本当のバグは `triggerScope` だけ**だった＝**parser のみの修正**で閉じた。
+
+### 検証
+- golden **+3**＝①3効果が `triggerScope:'any'` になり、ターン限定は2枚だけ付く（前置きの無い `WXEX2-04-E1` に付けない）②scope:any で**相手のアタックが watcher に収集され**、`initStack` に通すと相手ターンでは残り自ターンでは `turnGateOk` が落とすこと ③母集団3効果の固定。
+- 同型★0（265群）、held **257枚／109群 据置**、census 1288 据置。
+
 ## 2026-08-04 — 🏁§3 タスク12(lxviii) 残0クローズ：散文形「対戦相手のターンの間、」が `turnOwner` を生まず**自分のターンにも発火していた**過剰実行を是正（golden 1360→1363・live **2効果のみ**変更・全ゲート緑）（Opus 5・続き345）
 
 《相手ターン》**アイコン**形は `triggerCondition.turnOwner:'opponent'` を生むのに、**同義の散文前置き**は ON_TARGETED では何も生んでいなかった＝**相手ターン限定のはずの【自】が自分のターンにも発火**していた（no-op ではなく**過剰実行**）。
