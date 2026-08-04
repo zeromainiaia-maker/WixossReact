@@ -525,6 +525,80 @@ export function computeArtsEffectiveCost(
     if (out !== base) return out;
   }
 
+  // ===== タスク12(xcii)：**相手の盤面**を参照する条件つきコスト軽減（8枚） =====
+  // ⚠**必ず「この{スペル|アーツ}の使用コストは…」の文だけを見る**＝カード全文に regex を当てると、
+  //   他カードのコストを下げる文（`WXDi-CP01-027`「《フレン・スラッシュ》の使用コストは…」）や
+  //   無関係の「1体につき」文まで巻き込む。文単位で切ってから当てる。
+  const oppSt = replaceCtx?.oppState;
+  const costSentence = text.split('。').find(s => /この(?:スペル|アーツ|カード)の使用コストは/.test(s)) ?? '';
+  if (costSentence) {
+    // 「対戦相手の場にある〜」で数える語＝実測4種。コインだけは場ではないので別規則（I-4）。
+    const OPP_TERM = '(凍結状態のシグニ|能力を持たないシグニ|【チャーム】|【ウィルス】)';
+    const countOppTerm = (term: string): number => {
+      const f = oppSt?.field;
+      if (!f) return 0;
+      if (term === '【チャーム】') return (f.signi_charms ?? []).filter(Boolean).length;
+      if (term === '【ウィルス】') return (f.signi_virus ?? []).reduce((s, n) => s + (n || 0), 0);
+      return (f.signi ?? []).filter((stack, i) => {
+        const top = stack?.at(-1);
+        if (!top) return false;
+        if (term === '凍結状態のシグニ') return (f.signi_frozen ?? [])[i] === true;
+        // 「能力を持たないシグニ」＝engine の `ABILITY_CHECK_ELSE_TRASH` と同じ判定（EffectText/BurstText が空）。
+        // cardMap が無いと「全員が能力なし」に化けて**過剰に安くなる**ので、引けないときは数えない。
+        if (!cardMap) return false;
+        const c = cardMap.get(getCardNum(top));
+        return !!c && !(c.EffectText?.trim() || c.BurstText?.trim());
+      }).length;
+    };
+    const countMyClassSigni = (cls: string): number =>
+      (myState.field?.signi ?? []).filter(stack => {
+        const top = stack?.at(-1);
+        return !!top && (cardMap?.get(getCardNum(top))?.CardClass ?? '').includes(cls);
+      }).length;
+
+    // I-1. 合算形「あなたの場にある＜X＞のシグニ1体**か**対戦相手の場にある〔語〕1つにつき《色×N》減る」
+    //      （`WX08-028`／`WX08-032`）＝「か」は択一ではなく**両方の合計**に比例する。
+    //      ⚠I-3 より先に見る（この原文は I-3 の regex も部分一致するため）。
+    m = costSentence.match(new RegExp(
+      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体か対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
+    if (m) {
+      const times = countMyClassSigni(m[1]) + countOppTerm(m[2]);
+      if (times > 0) return applyReduce(base, parseReduceList(m[3]), times);
+    }
+
+    // I-2. 累積形「…＜X＞のシグニ1体につき《色×N》減**り**、対戦相手の場にある〔語〕1つにつき《色×M》減る」
+    //      （`WX16-033`）＝2つの軽減が**重なる**ので早期 return できない。
+    m = costSentence.match(new RegExp(
+      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体につき${RED}減り[、,]対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
+    if (m) {
+      let out = base;
+      const myCnt = countMyClassSigni(m[1]);
+      if (myCnt > 0) out = applyReduce(out, parseReduceList(m[2]), myCnt);
+      const oppCnt = countOppTerm(m[3]);
+      if (oppCnt > 0) out = applyReduce(out, parseReduceList(m[4]), oppCnt);
+      if (out !== base) return out;
+    }
+
+    // I-3. 相手のみ「対戦相手の場にある〔語〕1つにつき《色×N》減る」
+    //      （`WX07-065` 凍結／`WX21-Re01` 能力なし／`SP26-003` ウィルス）。
+    m = costSentence.match(new RegExp(`対戦相手の場にある${OPP_TERM}[１1](?:体|枚|つ)につき${RED}減る`));
+    if (m) {
+      const cnt = countOppTerm(m[1]);
+      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
+    }
+
+    // I-4. 「対戦相手のコイン1枚につき《赤×1》減る」（`SPK01-14`）＝場ではなくコイン枚数。
+    m = costSentence.match(new RegExp(`対戦相手のコイン[１1]枚につき${RED}減る`));
+    if (m && (oppSt?.coins ?? 0) > 0) return applyReduce(base, parseReduceList(m[1]), oppSt!.coins!);
+
+    // I-5. 「あなたのライフクロスが対戦相手より多い場合、…《無×3》減る」（`SP38-002`）＝枚数比較。
+    //      ⚠相手ライフが未知（`life_cloth` 未指定）のときは**成立させない**＝安いほうへ倒さない。
+    m = costSentence.match(new RegExp(`あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは${RED}減る`));
+    if (m && oppSt?.life_cloth && myState.life_cloth.length > oppSt.life_cloth.length) {
+      return applyReduce(base, parseReduceList(m[1]));
+    }
+  }
+
   // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減
   if (artsThresholdReductions && artsThresholdReductions.length > 0) {
     const totalCost = parseGrowCost(base).reduce((s, c) => s + c.count, 0);
