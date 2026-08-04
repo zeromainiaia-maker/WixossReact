@@ -9319,11 +9319,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // ON_TURN_START（タスク12(lxvii)）＝人間ターンの UP→DRAW と同じ位置で収集する。
       const tsCpu = collectCpuTurnTriggers('ON_TURN_START', newCpuSt, huSt);
+      const upEntries = [...tsCpu.entries];
+      let cpuAfterUp = tsCpu.cpuState;
+      // ON_DRAW（タスク12(xcviii)）＝人間経路は同じ位置で `collectDrawTriggers(..., isDrawPhaseDraw=true)` を
+      // 呼ぶが、**CPU 経路には無かった**＝live 13効果／13カードが CPU のターン開始ドローで発火しない。
+      // ⚠効果ドローは中央 diff ブロック（`resolveStackNext`）が両プレイヤー分を拾うので、**穴はターンドローだけ**。
+      if (drawCount > 0) {
+        const dtCpu = collectDrawTriggers(bs.active_user_id ?? CPU_PLAYER_ID, cpuAfterUp, huSt, true);
+        upEntries.push(...dtCpu.entries);
+        if (dtCpu.usedOncePerTurnIds.length > 0) {
+          cpuAfterUp = { ...cpuAfterUp, actions_done: [...(cpuAfterUp.actions_done ?? []), ...dtCpu.usedOncePerTurnIds] };
+        }
+      }
       await persist.commit(reduceBattle(bs, {
-        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: tsCpu.cpuState, phase: 'DRAW',
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: cpuAfterUp, phase: 'DRAW',
         opp: tsCpu.humanState ? { key: 'host_state', state: tsCpu.humanState } : undefined,
-        effectStack: tsCpu.entries.length > 0
-          ? (bs.effect_stack ? pushToStack(bs.effect_stack, tsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, tsCpu.entries))
+        effectStack: upEntries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, upEntries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, upEntries))
           : undefined,
       }));
       return;
