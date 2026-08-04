@@ -6155,8 +6155,10 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/mayuEncounterFreeGrow-${s}.png`, fullPage: true });
         let did = null;
-        if (!did) did = await H.clickTextOrBtn(['キーにセット']);
+        // 「セット」確定ボタンを先に試す（KeyUseModal 開後は見出し文言「キーにセット」がテキストとして残留し、
+        // clickTextOrBtn の getByText フォールバックがそれを誤って再クリックし続けるレースを回避するため）。
         if (!did) did = await H.clickBtn('セット', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['キーにセット']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P13-003B';
