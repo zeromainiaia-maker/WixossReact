@@ -751,6 +751,29 @@ export function getCardNum(id: string): string {
   return h > 0 ? id.slice(0, h) : id;
 }
 
+/**
+ * 原文語彙「能力を持たない（シグニ）」の**唯一の判定**（タスク12(xcv)）。
+ *
+ * ⚠🔴**CSV は素のシグニ（能力なし）を空文字ではなく `-` で持つ**（実測158枚・空文字は0枚）。
+ *   したがって `!!card.EffectText` / `!!card.EffectText?.trim()` 系の判定は**1枚も「能力なし」に当たらない**＝
+ *   その分岐は永久に不発になる。判定を増やすときは必ずこの関数を使うこと（`costs.ts` も同じ関数を参照している）。
+ *
+ * `holder` を渡すと `abilities_removed`（効果でこのターン能力を消されたシグニ）も「能力を持たない」に数える。
+ * ⚠CONTINUOUS の `REMOVE_ABILITIES`（「凍結状態のシグニは能力を失う」等）は `effectsMap` と両プレイヤー状態が
+ *   要る（`collectRemovedAbilities`）ため**ここでは見ない**＝数え漏らす側＝「能力あり」に倒れる（安全側）。
+ */
+export function hasNoAbility(
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+  holder?: { abilities_removed?: string[] },
+): boolean {
+  if (holder?.abilities_removed?.includes(cardNum)) return true;
+  const card = cardMap.get(getCardNum(cardNum));
+  if (!card) return false;
+  const blank = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+  return blank(card.EffectText) && blank(card.BurstText);
+}
+
 // カード（instanceId/cardNum）を両プレイヤーの場から探し、所属 state とゾーン index を返す。
 // LAST_PROCESSED_MATCHES のゾーン状態フィルタ（hasCharm 等）が直前対象のゾーンを引くのに使う。
 function findFieldZoneState(cn: string, ctx: ExecCtx): { state: PlayerState; zoneIdx: number } | null {
