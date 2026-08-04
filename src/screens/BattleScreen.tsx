@@ -9721,7 +9721,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             parseStatus: 'AUTO' as const,
           },
         } satisfies StackEntry)));
-        huWrite = { key: huKeyForHL, state: { ...huStForHL, hastarliq_zones: undefined } };
+        // ⚠ハスターリクの人間側書き込みと `ON_ATTACK_PHASE_START` の once_per_turn 記録は
+        //   **同じ human state に重ねる**（どちらか一方だけを書くと他方が消える）。
+        huWrite = { key: huKeyForHL, state: { ...(huStAfterAps ?? huStForHL), hastarliq_zones: undefined } };
+        huStAfterAps = undefined;
       }
 
       let apsStack: EffectStack | undefined;
@@ -9731,7 +9734,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? pushToStack(existingStackAPS, apsStackEntries)
           : initStack(cpuTurnPlayerId, apsStackEntries);
       }
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'ATTACK_ARTS', state: huWrite, effectStack: apsStack }));
+      // ⚠従来は `SET_TURN_PHASE`（人間側1件しか書けない）だったが、`ON_ATTACK_PHASE_START` の
+      //   once_per_turn 記録で **CPU 側の state も書く必要がある**ため両側書ける action へ移す。
+      const huWriteAps = huWrite ?? (huStAfterAps ? { key: huKeyForHL, state: huStAfterAps } : undefined);
+      await persist.commit(reduceBattle(bs, {
+        type: 'ADVANCE_TURN_WITH_STATE', phase: 'ATTACK_ARTS',
+        playerKey: 'guest_state', playerState: newCpuSt,
+        opp: huWriteAps, effectStack: apsStack,
+      }));
       return;
     }
 
