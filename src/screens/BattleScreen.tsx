@@ -9689,27 +9689,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
       const apsStackEntries: StackEntry[] = [];
 
-      // ON_ATTACK_PHASE_START: CPU自身のアタックフェイズ開始時トリガー（self scope）。
-      // 人間ターンは doPhaseAdvance の collectTurnTriggers が担うが、CPUターンはここで収集しないと発火しない。
-      // 付与能力（WXDi-P10-072 が相手＝CPUシグニへ与える自己ミル等）も effectsMap が付与合成済みのためここで拾う。
-      for (const stack of newCpuSt.field.signi) {
-        if (!stack?.length) continue;
-        const topNum = stack[stack.length - 1];
-        for (const eff of (effectsMap.get(topNum) ?? [])) {
-          if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_PHASE_START')) continue;
-          if ((eff.triggerScope ?? 'self') !== 'self') continue;
-          if (eff.condition && !evalUseCondition(eff.condition, newCpuSt, huSt, battleCardMap, topNum, bs.turn_phase, effectivePowers)) continue;
-          const cardName = battleCardMap.get(topNum)?.CardName ?? topNum;
-          apsStackEntries.push({
-            id: generateUUID(),
-            playerId: CPU_PLAYER_ID,
-            cardNum: topNum,
-            effectId: eff.effectId,
-            label: `${cardName} の【自】効果（アタックフェイズ開始時）`,
-            effect: eff,
-          });
-        }
-      }
+      // ON_ATTACK_PHASE_START（タスク12(lxvii)）＝人間ターンと**同じ pure collector** に統一する。
+      // ⚠🔴従来ここは**手書きの部分再実装**で、CPU 自身の場の `triggerScope:'self'` しか拾っていなかった＝
+      //   ①`any`／`any_opp`（「相手のアタックフェイズ開始時」等＝実測 **57効果**）が CPU ターンだけ不発
+      //   ②`usageLimit`（《ターン1回》）を `actions_done` に記録しないので同一ターンに再発火しうる
+      //   ③人間側の場のシグニを一切見ない、という3点で人間ターンと挙動が食い違っていた。
+      const apsCpu = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt);
+      apsStackEntries.push(...apsCpu.entries);
+      newCpuSt = apsCpu.cpuState;
+      let huStAfterAps: PlayerState | undefined = apsCpu.humanState;
 
       // HASTARLIQ: CPUのMAIN→ATTACK_ARTS移行時、相手(人間)の hastarliq_zones があれば発動
       const huStForHL = isHost ? bs.guest_state : bs.host_state;
