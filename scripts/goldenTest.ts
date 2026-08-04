@@ -20511,6 +20511,114 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
   eq(JSON.stringify(moved), '[]', '空盤面で印刷コストから動く札は無い');
 });
 
+// タスク12(xcii): **相手の盤面**を参照するコスト軽減（8枚）。
+// `computeArtsEffectiveCost` は相手の場・ライフ・コインを受け取っておらず（`CostReplaceCtx.oppState` が
+// `turn_arts_used`／`actions_done` だけだった）、この8枚は常に印刷コストで請求されていた。
+// 受け口の型を広げて、凍結シグニ/【チャーム】/【ウィルス】/能力なしシグニ/コイン/ライフ差を数える。
+{
+  const pickX = (pred: (c: CardData) => boolean) => [...cardMap.values()].find(pred)!;
+  // 素のシグニ＝CSV は能力なしを**空文字ではなく `-`** で持つ（実測158枚）。`!!EffectText` 判定では1枚も当たらない。
+  const isBlank = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+  const vanilla = pickX(c => c.Type === 'シグニ' && isBlank(c.EffectText) && isBlank(c.BurstText));
+  const abled = pickX(c => c.Type === 'シグニ' && !isBlank(c.EffectText));
+  const denki = pickX(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('電機'));
+  const kyochu = pickX(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('凶蟲'));
+  const bikin = pickX(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('微菌'));
+  /** 相手盤面。signi は3ゾーン分、フラグは指定ぶんだけ立てる。 */
+  const mkOpp = (o: {
+    signi?: (string | null)[]; frozen?: boolean[]; charms?: number; virus?: number;
+    coins?: number; life?: number; abilitiesRemoved?: string[];
+  }) => ({
+    field: {
+      signi: (o.signi ?? [null, null, null]).map(x => (x ? [x] : [])), lrig: [],
+      signi_frozen: o.frozen ?? [false, false, false],
+      signi_charms: Array.from({ length: 3 }, (_, i) => (i < (o.charms ?? 0) ? `CHARM${i}` : null)),
+      signi_virus: Array.from({ length: 3 }, (_, i) => (i < (o.virus ?? 0) ? 1 : 0)),
+    },
+    life_cloth: Array.from({ length: o.life ?? 0 }, () => 'L'),
+    coins: o.coins ?? 0, abilities_removed: o.abilitiesRemoved,
+  }) as unknown as PlayerState;
+  const mkSelf = (signi: string[], life = 0) => ({
+    field: { signi: [...signi.map(x => [x]), [], [], []].slice(0, 3), lrig: [] },
+    life_cloth: Array.from({ length: life }, () => 'L'), hand: [], trash: [], lrig_trash: [],
+  }) as unknown as PlayerState;
+  const effO = (num: string, my: PlayerState, opp: PlayerState) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, '', 0, cardMap, undefined, undefined, { oppState: opp });
+  const printed = (num: string) => cardMap.get(num)!.Cost;
+  const noOpp = mkOpp({});
+
+  test('task12(xcii): 相手の場を数える軽減（凍結/【チャーム】/【ウィルス】/能力なし）', () => {
+    // I-3 相手のみ＝凍結状態のシグニ1体につき《青×1》
+    const frozen2 = mkOpp({ signi: [abled.CardNum, abled.CardNum, abled.CardNum], frozen: [true, true, false] });
+    eq(effO('WX07-065', mkSelf([]), frozen2), '《青》×3', 'WX07-065: 凍結2体で《青×2》減る');
+    eq(effO('WX07-065', mkSelf([]), noOpp), printed('WX07-065'), 'WX07-065: 相手の場が空なら減らない');
+    // ⚠**凍結フラグだけ立っていてシグニが居ないゾーンは数えない**（盤面が壊れたときに安くなりすぎない）
+    eq(effO('WX07-065', mkSelf([]), mkOpp({ frozen: [true, true, true] })), printed('WX07-065'),
+      'WX07-065: シグニ不在ゾーンの凍結フラグは数えない');
+    // I-3 相手のみ＝【ウィルス】1つにつき《黒×2》
+    eq(effO('SP26-003', mkSelf([]), mkOpp({ virus: 2 })), '《黒》×3', 'SP26-003: ウィルス2つで《黒×4》減る');
+    eq(effO('SP26-003', mkSelf([]), noOpp), printed('SP26-003'), 'SP26-003: ウィルス0なら減らない');
+    // I-3 相手のみ＝能力を持たないシグニ1体につき《白×1》
+    eq(effO('WX21-Re01', mkSelf([]), mkOpp({ signi: [vanilla.CardNum, abled.CardNum, null] })), '《白》×1',
+      'WX21-Re01: 素のシグニ1体で《白×1》減る（能力持ちは数えない）');
+    eq(effO('WX21-Re01', mkSelf([]), mkOpp({ signi: [abled.CardNum, abled.CardNum, abled.CardNum] })),
+      printed('WX21-Re01'), 'WX21-Re01: 全員能力持ちなら減らない');
+    // 能力消去（`abilities_removed`）されたシグニも「能力を持たない」に数える
+    eq(effO('WX21-Re01', mkSelf([]), mkOpp({ signi: [abled.CardNum, abled.CardNum, null], abilitiesRemoved: [abled.CardNum] })),
+      'なし', 'WX21-Re01: 能力消去されたシグニも数える');
+  });
+
+  test('task12(xcii): 合算形「AかB1体につき」と累積形「〜減り、〜減る」', () => {
+    // I-1 合算形＝「か」は択一ではなく**両方の合計**に比例する
+    eq(effO('WX08-028', mkSelf([denki.CardNum]), mkOpp({ signi: [abled.CardNum, null, null], frozen: [true, false, false] })),
+      '《青》×5', 'WX08-028: 自＜電機＞1＋相手凍結1で《青×2》減る');
+    eq(effO('WX08-028', mkSelf([denki.CardNum]), noOpp), '《青》×6', 'WX08-028: 自分側だけでも減る');
+    eq(effO('WX08-028', mkSelf([]), noOpp), printed('WX08-028'), 'WX08-028: 両方0なら減らない');
+    eq(effO('WX08-032', mkSelf([kyochu.CardNum]), mkOpp({ charms: 2 })), '《黒》×6',
+      'WX08-032: 自＜凶蟲＞1＋相手チャーム2で《黒×3》減る');
+    // I-2 累積形＝2つの軽減が重なる（早期 return してはいけない形）
+    eq(effO('WX16-033', mkSelf([bikin.CardNum]), mkOpp({ virus: 3 })), '《黒》×5',
+      'WX16-033: 自＜微菌＞1＋相手ウィルス3で《黒×4》減る');
+    eq(effO('WX16-033', mkSelf([]), mkOpp({ virus: 3 })), '《黒》×6', 'WX16-033: 相手側だけでも減る');
+    eq(effO('WX16-033', mkSelf([bikin.CardNum]), noOpp), '《黒》×8', 'WX16-033: 自分側だけでも減る');
+    eq(effO('WX16-033', mkSelf([]), noOpp), printed('WX16-033'), 'WX16-033: 両方0なら減らない');
+  });
+
+  test('task12(xcii): 相手のコイン枚数・ライフ枚数比較', () => {
+    // I-4 コイン比例
+    eq(effO('SPK01-14', mkSelf([]), mkOpp({ coins: 2 })), '《無》×1', 'SPK01-14: 相手コイン2枚で《赤×2》減る');
+    eq(effO('SPK01-14', mkSelf([]), mkOpp({ coins: 0 })), printed('SPK01-14'), 'SPK01-14: コイン0なら減らない');
+    // I-5 ライフ枚数比較（多い場合のみ）
+    eq(effO('SP38-002', mkSelf([], 3), mkOpp({ life: 2 })), '《赤》×2', 'SP38-002: 自ライフが多ければ《無×3》減る');
+    eq(effO('SP38-002', mkSelf([], 2), mkOpp({ life: 2 })), printed('SP38-002'), 'SP38-002: 同数では減らない');
+    eq(effO('SP38-002', mkSelf([], 1), mkOpp({ life: 2 })), printed('SP38-002'), 'SP38-002: 少なければ減らない');
+    // ⚠相手ライフが未知（oppState 無し）なら**安いほうへ倒さない**
+    eq(computeArtsEffectiveCost(cardMap.get('SP38-002')!, mkSelf([], 7), undefined, '', 0, cardMap),
+      printed('SP38-002'), 'SP38-002: 相手状態が無ければ減らない');
+  });
+
+  test('task12(xcii): 相手盤面を振って動くのは対象8枚だけ（過剰適用ゼロ）', () => {
+    // 自分の場・ルリグは空＝**相手側の条件だけ**が成立する盤面。ここで動く札が8枚を超えたら、
+    // 新規則が「相手の場を見ているだけの無関係な文」まで拾っている＝緩めすぎ。
+    const oppAll = mkOpp({
+      signi: [vanilla.CardNum, vanilla.CardNum, vanilla.CardNum], frozen: [true, true, true],
+      charms: 3, virus: 3, coins: 3, life: 0,
+    });
+    const me = mkSelf([], 7);
+    const moved: string[] = [];
+    for (const c of cardMap.values()) {
+      if (!['アーツ', 'スペル', 'ピース', 'アーツ/クラフト'].includes(c.Type) || !c.Cost) continue;
+      const got = computeArtsEffectiveCost(c, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll });
+      if (got !== c.Cost) moved.push(`${c.CardNum}(${c.Cost}→${got})`);
+    }
+    eq(moved.join(' / '),
+      'WX07-065(《青》×５→《青》×2) / WX08-028(《青》×７→《青》×4) / WX08-032(《黒》×９→《黒》×6) / '
+      + 'WX16-033(《黒》×９→《黒》×6) / WX21-Re01(《白》×２→なし) / SP26-003(《黒》×７→《黒》×1) / '
+      + 'SP38-002(《赤》×２《無》×３→《赤》×2) / SPK01-14(《赤》×２《無》×１→《無》×1)',
+      '相手盤面フルで動くのは (xcii) の8枚だけ');
+  });
+}
+
 // タスク12(xci): SPECIFIC_CARD_COST_REDUCE（「《カード名》の使用コストは《無×N》減る」）。
 // 発生源は2枚（`WXDi-CP01-027`／`WXDi-CP01-048`）で、**対象はどちらもスペル**なのに
 // スペル使用モーダルがこの軽減を通していなかった＝印刷コストで請求されていた。
