@@ -5617,14 +5617,23 @@ const scenarios = {
         if (paid && stillThere && !st?.pendingEffect) {
           stablePolls++;
           if (stablePolls >= 2) {
-            return { pass: true, detail: `《無》×3が足りるため OPPONENT_PAY_OPTIONAL の pay を CPU が選択（gEnergy ${before.guest.energy}→${st.guest.energy}）→banish回避（guest zone0 は健在）` };
+            return { pass: true, detail: `《無》×3が足りるため OPPONENT_PAY_OPTIONAL の pay を CPU が選択（gEnergy ${before.guest.energy}→${st.guest.energy}）→banish回避（guest zone0 は健在）＝バグ非再現・要再確認` };
+          }
+        } else if (!paid && stillThere && !st?.pendingEffect) {
+          // 想定バグ状態＝pay選択でエナ未消費・banishも不発のまま黙って解消
+          stablePolls++;
+          if (stablePolls >= 2) {
+            return {
+              pass: false,
+              detail: `【Opusタスク12(cii)実機確認】guestエナ3枚（無×3を払えるはず）でも、CPU自動応答（BattleScreen.tsx:522-530）がpay選択肢のIDのみを渡しエナinstanceIdを渡さないため、resumeOpponentPayOptionalがenergyNums=[]で「コスト支払いエラー: エナ不足」を返して即終了（gEnergy=${st.guest.energy}=開始時と不変・banishも不発でguest zone0残存）。原文は「対戦相手が《無×3》を支払わないかぎりバニッシュ」＝支払えるはずのCPUが支払いもバニッシュ回避もできず効果が黙って空振りする＝実バグ`,
+            };
           }
         } else {
           stablePolls = 0;
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `pay選択の確認未達（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${fin?.guest?.energy}（開始${before?.guest?.energy}） pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `未確認の挙動（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${fin?.guest?.energy}（開始${before?.guest?.energy}） pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
