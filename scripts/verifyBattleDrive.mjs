@@ -5930,7 +5930,7 @@ const scenarios = {
       // シグニゾーンN（M個）ラベルの直後の兄弟div内「＋」ボタン（testid無し・3ゾーン同一ラベルのため
       // ラベルテキストからXPathで辿る＝positionalロケータ）。
       const clickVirusPlus = async (zoneNum) => {
-        const btn = page.locator(`xpath=//span[starts-with(normalize-space(text()),"シグニゾーン${zoneNum}（")]/following-sibling::div[1]//button[text()="＋"]`).first();
+        const btn = page.locator(`xpath=//span[contains(.,"シグニゾーン${zoneNum}（")]/following-sibling::div[1]//button[text()="＋"]`).first();
         if (await btn.count() && await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
           await btn.click().catch(() => {}); return `virus+zone${zoneNum}`;
         }
