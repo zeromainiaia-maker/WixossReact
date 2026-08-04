@@ -6436,6 +6436,244 @@ const scenarios = {
       return { pass: false, detail: `バニッシュ未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} energySelected=${energySelected} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク12(lxiv)（2026-08-05・Sonnet）＝WXDi-P02-043-E1：「対象ピッカー前置」＝SELECT_TARGET_ONLYが
+  // 先に発火し（対象は最大2体・upToCount）、対象確定後にOPTIONAL_COST（緑×3+無×3）のCHOOSE（支払う/支払わない）
+  // が続く。支払うと確定した2体がBANISH{targetsStored}されることを確認する。
+  lxivMultiTargetPayBanishesBoth: {
+    title: 'WXDi-P02-043-E1（対象ピッカー前置＝アタック時に相手2体まで対象選択→支払う→両方バニッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P02-043#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-010#1', 'WD04-010#2', 'WD04-010#3', 'WD04-010#4', 'WD04-010#5', 'WD04-010#6'], // 緑×6（緑3+無3を満たす）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD03-009#1'], ['WD03-009#2'], null], // P12000×2（≥10000の対象候補）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      let modalOpened = false;
+      let pickedCount = 0;
+      let confirmedTargets = false;
+      let energySelected = 0;
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxivMultiTargetPayBanishesBoth-${s}.png`, fullPage: true });
+        let did = null;
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; }
+        if (!did && !modalOpened) {
+          const st0 = await H.queryState();
+          if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        if (!did && !confirmedTargets) {
+          const pN = page.getByTestId(`pick-${pickedCount}`).first();
+          if (pickedCount < 2 && await pN.count() && await pN.isVisible().catch(() => false)) {
+            await pN.click().catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
+          } else {
+            const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+              await confirmBtn.click().catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
+            }
+          }
+        }
+        if (!did && confirmedTargets && energySelected < 6) {
+          const e = page.getByTestId(`optcost-energy-${energySelected}`).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); energySelected++; did = `optcost-energy-${energySelected - 1}`; }
+        }
+        if (!did && confirmedTargets) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banishedBoth = (before?.guest?.fieldSigni?.[0] != null) && (before?.guest?.fieldSigni?.[1] != null) && (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.fieldSigni?.[1] == null);
+        H.log(`  lmpb[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} energySelected=${energySelected} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banishedBoth) {
+          return { pass: true, detail: `対象ピッカー前置（最大2体）で両方選択→確定→OPTIONAL_COSTを支払う→BANISH{targetsStored}で両方バニッシュ（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxiv) 対照実験＝対象を2体確定した後に支払いを"支払わない"を選ぶと、確定していたはずの
+  // 対象2体ともバニッシュされないこと（対象選択とコスト支払いが独立した2段階であることの確認）。
+  lxivMultiTargetSkipBanishesNone: {
+    title: 'WXDi-P02-043-E1（対象ピッカー前置＝対象2体確定後に支払わない→どちらもバニッシュされない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P02-043#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD03-009#1'], ['WD03-009#2'], null],
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      let modalOpened = false;
+      let pickedCount = 0;
+      let confirmedTargets = false;
+      let stablePolls = 0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxivMultiTargetSkipBanishesNone-${s}.png`, fullPage: true });
+        let did = null;
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; }
+        if (!did && !modalOpened) {
+          const st0 = await H.queryState();
+          if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        if (!did && !confirmedTargets) {
+          const pN = page.getByTestId(`pick-${pickedCount}`).first();
+          if (pickedCount < 2 && await pN.count() && await pN.isVisible().catch(() => false)) {
+            await pN.click().catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
+          } else {
+            const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+              await confirmBtn.click().catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
+            }
+          }
+        }
+        if (!did && confirmedTargets) {
+          const skipBtn = page.getByTestId('optcost-skip').first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'optcost-skip'; }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const bothStillThere = st?.guest?.fieldSigni?.[0] != null && st?.guest?.fieldSigni?.[1] != null;
+        H.log(`  lmsn[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (confirmedTargets && !st?.pendingEffect && bothStillThere) {
+          stablePolls++;
+          if (stablePolls >= 2) {
+            return { pass: true, detail: `対象2体確定後に「支払わない」を選択→BANISHは実行されず両方とも場に残存（gField=${JSON.stringify(st.guest.fieldSigni)}）＝対象選択とコスト支払いの分離を確認` };
+          }
+        } else {
+          stablePolls = 0;
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxv)（2026-08-05・Sonnet）＝WXDi-P02-077-E1：CONDITIONAL{HAND_COUNT self>=6}→STUB OPTIONAL_COST
+  // という「包み形」＝条件成立時（手札6枚以上）は従来どおり支払う/支払わないのCHOOSEが出て、支払うと
+  // このシグニに【ランサー】が付与されることを確認する。
+  lxvGateTruePromptsChoose: {
+    title: 'WXDi-P02-077-E1（条件つき任意コスト＝手札6枚以上でCHOOSE出現→支払う→ランサー付与）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P02-077#1'], null, null], // 自場シグニ1体のみ（自己参照ターゲットの曖昧さ回避）
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-010#1'], // 緑×1
+        'hand': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5', 'WD01-013#6'], // 6枚≥6
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand);
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxvGateTruePromptsChoose-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+            const e0 = page.getByTestId('optcost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false) && !(await payBtn.isEnabled().catch(() => false))) {
+              await e0.click().catch(() => {}); did = 'optcost-energy-0';
+            } else if (await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const lancerGranted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WXDi-P02-077#1:') && g.includes('ランサー'));
+        H.log(`  lgtc[${s}] -> ${did ?? 'なし'} | hKwGrants=${JSON.stringify(st?.host?.keywordGrants)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (lancerGranted) {
+          return { pass: true, detail: `手札6枚以上で条件成立→CHOOSE出現→支払う→WXDi-P02-077#1に【ランサー】付与を確認（hKwGrants=${JSON.stringify(st.host.keywordGrants)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ランサー付与未確認（hKwGrants=${JSON.stringify(fin?.host?.keywordGrants)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxv) 対照実験＝手札5枚以下（条件不成立）だと支払いプロンプト自体が出ず、
+  // 本体（ランサー付与）も起きないこと（`任意コストの条件を満たさない（スキップ）`ログで確認）。
+  lxvGateFalseSilentSkip: {
+    title: 'WXDi-P02-077-E1（条件つき任意コスト＝手札5枚以下で条件不成立→プロンプト出現せず本体も不発）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P02-077#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-010#1'],
+        'hand': ['WD01-013#1', 'WD01-013#2'], // 2枚<6
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let stablePolls = 0;
+      let sawChoose = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxvGateFalseSilentSkip-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        if (st?.pendingEffect === 'CHOOSE') sawChoose = true;
+        const lancerGranted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WXDi-P02-077#1:') && g.includes('ランサー'));
+        const skipLog = await H.findLog(/任意コストの条件を満たさない（スキップ）/);
+        H.log(`  lgfs[${s}] -> ${did ?? 'なし'} | sawChoose=${sawChoose} lancerGranted=${lancerGranted} skipLog=${!!skipLog} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+        if (sawChoose) {
+          return { pass: false, detail: `【回帰疑い】手札2枚(<6)でも支払いCHOOSEが出現した（gate評価が働いていない）` };
+        }
+        if (skipLog && !lancerGranted) {
+          stablePolls++;
+          if (stablePolls >= 2) {
+            return { pass: true, detail: `手札2枚(<6)で条件不成立→CHOOSEは一度も出現せず「${skipLog}」ログで静かにスキップ→ランサーも付与されない（sawChoose=false・lancerGranted=false）` };
+          }
+        } else {
+          stablePolls = 0;
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（sawChoose=${sawChoose} skipLog=${!!(await H.findLog(/任意コストの条件を満たさない（スキップ）/))} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
