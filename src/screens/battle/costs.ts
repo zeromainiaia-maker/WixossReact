@@ -2,6 +2,7 @@
 import type { PlayerState, CardData } from '../../types';
 import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
+import { hasNoAbility } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
