@@ -19988,15 +19988,41 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
       '対象なしでは盤面を触らない');
   });
 
-  test('task12(xcv) 母集団＝この STUB を持つ live 5カードの構造を固定', () => {
-    const acet = ['WX25-P3-038', 'WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073'];
-    for (const num of acet) {
+  test('task12(xcv) 母集団＝「能力を持たない」を読む live カードの内訳を固定', () => {
+    // ⚠**merge 後（manualEffects 適用後）の実測**＝生 JSON では4枚が STUB を持つが、`WX25-P3-038` だけは
+    //   MANUAL 上書きで `LAST_PROCESSED_HAS_NO_ABILITIES` の CONDITIONAL 形に置き換わっている。
+    for (const num of ['WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073']) {
       const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
       ok(j.includes('ABILITY_CHECK_ELSE_TRASH'), `${num} が ABILITY_CHECK_ELSE_TRASH を持つ`);
       ok(j.includes('"BOUNCE"'), `${num} は BOUNCE の直後に判定する形（「それ」＝戻したシグニ）`);
     }
+    for (const num of ['WX25-P3-038', 'WX25-CP1-002']) {
+      const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
+      ok(j.includes('LAST_PROCESSED_HAS_NO_ABILITIES') && !j.includes('ABILITY_CHECK_ELSE_TRASH'),
+        `${num} は条件形（MANUAL）で読む`);
+    }
     ok(JSON.stringify(cardMap.get('WXEX2-30')?.effects ?? []).includes('NO_ABILITY_SIGNI_TO_DECK_BOTTOM'),
       'WXEX2-30 が NO_ABILITY_SIGNI_TO_DECK_BOTTOM を持つ');
+  });
+
+  test('task12(xcv) 「能力を持たない」判定は engine 全体で1本（マルチエナ持ちは能力ありに倒す）', () => {
+    // 🔴旧 `LAST_PROCESSED_HAS_NO_ABILITIES` は「JSON effects が0件なら能力なし」で、
+    //    原文がマルチエナのリマインダだけのシグニ（実測52枚）を誤って「能力なし」と読んでいた。
+    const multiEna = findCard(c => isSigni(c)
+      && /エナコストを支払う際、このカードは/.test(c.EffectText ?? '')
+      && (cardMap.get(c.CardNum)?.effects ?? []).length === 0);
+    const cN = mkCtx({}, {});
+    cN.lastProcessedCards = [multiEna];
+    eq(evalCondition({ type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }, cN), false,
+      'マルチエナ持ち（effects 0件）は「能力を持たない」ではない');
+    cN.lastProcessedCards = [vanillaX];
+    eq(evalCondition({ type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }, cN), true, '素のシグニは「能力を持たない」');
+    cN.lastProcessedCards = [abledX];
+    eq(evalCondition({ type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }, cN), false, '能力持ちは対象外');
+    // 場離れ置換側も同じ判定＝マルチエナ持ちはデッキ下へ落とされない
+    const atkM = { ...mkCtx({ signi: ['WXEX2-30', null, null] }, { signi: [multiEna, null, null] }), currentPhase: 'ATTACK_SIGNI' } as ExecCtx;
+    eq(applyEffectLeaveNoAbilityDeckBottomSubstitute(multiEna, 'opponent', atkM).replaced, false,
+      'マルチエナ持ちは場離れ置換の対象外');
   });
 }
 
