@@ -256,7 +256,7 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   if (!(ctx.currentPhase ?? '').startsWith('ATTACK')) return { ctx, replaced: false };
   const state = ownerState(victimOwner, ctx);
   if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
-  if (!hasNoAbility(victimNum, ctx.cardMap, state)) return { ctx, replaced: false };
+  if (!hasNoAbility(victimNum, ctx.cardMap, state, ctx.effectsMap?.get(getCardNum(victimNum)))) return { ctx, replaced: false };
   const declarerState = ownerState(victimOwner === 'self' ? 'opponent' : 'self', ctx);
   const declared = declarerState.field.signi.some(stack => {
     const top = stack?.at(-1);
