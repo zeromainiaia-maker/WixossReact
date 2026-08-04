@@ -270,31 +270,6 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   };
 }
 
-/**
- * 効果による場離れの**置換チェーンをまとめて1回**適用する（成立した時点で打ち切り）。
- * 各離場経路が同じ順序で同じ置換を見るための単一の入口＝**新しい置換手段はここへ足す**
- * （PLAN §3 の教訓「engine の回避手段語彙は7系統＝新しい回避手段はそこへ足す」）。
- *
- * `skipReplaceBanish`＝バニッシュ経路から呼ぶとき用。`EFFECT_LEAVE_REPLACE_BANISH` は
- * 「その移動がバニッシュによるものでないなら」が条件なので、バニッシュ経路では飛ばす。
- */
-export function applyEffectLeaveSubstitutes(
-  victimNum: string,
-  victimOwner: Owner,
-  ctx: ExecCtx,
-  opts?: { skipReplaceBanish?: boolean },
-): { ctx: ExecCtx; replaced: boolean } {
-  const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
-  if (lrigSub.replaced) return lrigSub;
-  const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
-  if (powerSub.replaced) return powerSub;
-  if (!opts?.skipReplaceBanish) {
-    const banishSub = applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx);
-    if (banishSub.replaced) return banishSub;
-  }
-  return applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx);
-}
-
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
