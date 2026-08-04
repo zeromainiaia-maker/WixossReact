@@ -9289,7 +9289,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
         );
       });
-      let newCpuSt: PlayerState = { ...drawCards(cpuSt, drawCount, cpuPreventRefresh), actions_done: ['DRAW'] };
+      // ⚠人間経路（UP→DRAW）と**同じ前処理**に揃える（タスク12(xcviii)）：
+      //   ①`refresh_count_this_turn: 0`＝🔴**CPU 側はこの値を一度もリセットしていなかった**ので、
+      //     ゲーム中に累計2回リフレッシュした以降は「ターンプレイヤーの2回目リフレッシュならターン終了」
+      //     （`resolveStackNext` の判定）が**CPU ターンで毎回成立**してしまう。
+      //   ②`last_effect_draw_source: undefined`＝ターンドローは「効果ドロー」ではないので、直後の ON_DRAW 収集で
+      //     `drawBySourceStory` トリガー（`WX20-026-E3`）が前ターンの残値で誤発火しないようにする。
+      let newCpuSt: PlayerState = {
+        ...drawCards({ ...cpuSt, refresh_count_this_turn: 0 }, drawCount, cpuPreventRefresh),
+        actions_done: ['DRAW'], last_effect_draw_source: undefined,
+      };
       // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
       if (newCpuSt.lrig_upkeep_condition) {
         const payCountCpu = newCpuSt.lrig_upkeep_condition === 'pay_colorless3' ? 3 : 1;
