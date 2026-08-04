@@ -5670,6 +5670,7 @@ const scenarios = {
       await page.waitForTimeout(700);
       H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
       let stablePolls = 0;
+      let sawChoose = false;
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/oppDiscardGateBareBug-${s}.png`, fullPage: true });
@@ -5685,13 +5686,14 @@ const scenarios = {
         if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
+        if (st?.pendingEffect === 'CHOOSE' || st?.pendingEffect === 'SELECT_TARGET') sawChoose = true;
         const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
         const handUnchanged = st?.guest?.hand === before?.guest?.hand;
-        H.log(`  odgb[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  odgb[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
         if (banished) {
           return { pass: true, detail: `想定通りbanish発生＝discard枝unavailableでもskipへ正しく落ちた（今回はバグ非再現・要再確認）` };
         }
-        if (!st?.pendingEffect && handUnchanged) {
+        if (sawChoose && !st?.pendingEffect && handUnchanged) {
           stablePolls++;
           if (stablePolls >= 3) {
             return {
