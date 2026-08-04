@@ -232,6 +232,69 @@ export function applyEffectLeaveReplaceBanishSubstitute(
   };
 }
 
+/**
+ * 場離れを、**相手側の場が宣言する**「アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、
+ * 代わりにデッキの一番下に置かれる」で置換する（`WXEX2-30` の CONTINUOUS STUB
+ * `NO_ABILITY_SIGNI_TO_DECK_BOTTOM`＝タスク12(xcv)）。
+ *
+ * 既存3本（`…LrigAbility` / `…PowerReduction` / `…ReplaceBanish`）が**被害側の場**が自衛のために宣言する
+ * 置換なのに対し、これは**被害側の対面**が宣言する妨害＝宣言者は victim の反対側の場を見る。
+ * - `victimOwner` の**反対側**を宣言者として引くので、victim が ctx のどちら側でも成立する（ゲート不要）。
+ * - **チェーンの最後に置く**＝被害側の自衛置換（3本）が先に成立したらそちらを優先する。
+ * - アタックフェイズ限定（`currentPhase` が `ATTACK_*`）。フェイズ不明なら成立させない。
+ * ⚠**バトルによるバニッシュは BattleScreen 側の経路**なのでここには乗らない（効果による場離れのみ）。
+ */
+export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (!(ctx.currentPhase ?? '').startsWith('ATTACK')) return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!hasNoAbility(victimNum, ctx.cardMap, state)) return { ctx, replaced: false };
+  const declarerState = ownerState(victimOwner === 'self' ? 'opponent' : 'self', ctx);
+  const declared = declarerState.field.signi.some(stack => {
+    const top = stack?.at(-1);
+    if (!top) return false;
+    return (ctx.cardMap.get(getCardNum(top))?.effects ?? []).some(eff =>
+      eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
+      && (eff.action as import('../types/effects').StubAction).id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM');
+  });
+  if (!declared) return { ctx, replaced: false };
+  const removed = removeFromField(victimNum, state);
+  return {
+    ctx: addLog(setOwnerState(victimOwner, { ...removed, deck: [...removed.deck, victimNum] }, ctx),
+      `${ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum}は能力を持たないため代わりにデッキの一番下へ`),
+    replaced: true,
+  };
+}
+
+/**
+ * 効果による場離れの**置換チェーンをまとめて1回**適用する（成立した時点で打ち切り）。
+ * 各離場経路が同じ順序で同じ置換を見るための単一の入口＝**新しい置換手段はここへ足す**
+ * （PLAN §3 の教訓「engine の回避手段語彙は7系統＝新しい回避手段はそこへ足す」）。
+ *
+ * `skipReplaceBanish`＝バニッシュ経路から呼ぶとき用。`EFFECT_LEAVE_REPLACE_BANISH` は
+ * 「その移動がバニッシュによるものでないなら」が条件なので、バニッシュ経路では飛ばす。
+ */
+export function applyEffectLeaveSubstitutes(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  opts?: { skipReplaceBanish?: boolean },
+): { ctx: ExecCtx; replaced: boolean } {
+  const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
+  if (lrigSub.replaced) return lrigSub;
+  const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
+  if (powerSub.replaced) return powerSub;
+  if (!opts?.skipReplaceBanish) {
+    const banishSub = applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx);
+    if (banishSub.replaced) return banishSub;
+  }
+  return applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx);
+}
+
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
