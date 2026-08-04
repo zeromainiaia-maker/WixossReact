@@ -3200,13 +3200,7 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
       if (!byEffectTriggerOk(eff)) continue;
-      // turnOwner＝watcher の持ち主視点。この分岐の watcher は opState 側＝ターンプレイヤー判定は反転する。
-      {
-        const watcherIsTurnOpp = !isOwnerTurnForTrigger;
-        const toOpp = eff.triggerCondition?.turnOwner;
-        if (toOpp === 'self' && !watcherIsTurnOpp) continue;
-        if (toOpp === 'opponent' && watcherIsTurnOpp) continue;
-      }
+      // ⚠ally 側と同じ理由で `turnOwner` はここで見ない（`effectStack.turnGateOk` が担当）。
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
       const oeStub = eff.action as StubAction;
