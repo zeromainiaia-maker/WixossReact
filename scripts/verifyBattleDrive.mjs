@@ -5837,6 +5837,60 @@ const scenarios = {
       return { pass: false, detail: `REVEAL_AND_PICKの続行 未確認（hHand=${JSON.stringify(fin?.host?.handCards)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §6.3(b)（2026-08-04・Sonnet）＝WDK14-013-E1（炎魔の聖墓 ナーキル）：【出】コストとしてトラッシュから
+  // ＜悪魔＞のシグニ1枚をビートにする。SigniOnPlayCostModalの`beat_signi_from_trash`候補ピッカーは
+  // 候補数が必要数(1)を超えるときだけ出る（`SigniOnPlayCostModal.tsx:98-102` beatTrashNeedSelect =
+  // candidates.length > count）。トラッシュに廃悪の象徴 ベルゼ（＜悪魔＞・バニラ）を2枚用意し候補2>必要1で
+  // ピッカーが出ることを確認する。
+  wdk14013TrashPicker: {
+    title: 'WDK14-013-E1（炎魔の聖墓 ナーキル＝トラッシュ＜悪魔＞候補2>必要1でSigniOnPlayCostModalのピッカーが出る）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX06-007#1'], // 永らえし者 タウィル＝トレ（Lv3・タウィル限定を満たす）
+        'field.signi': [null, null, null],
+        'trash': ['WD05-010#1', 'WD05-010#2'], // 廃悪の象徴 ベルゼ×2（＜悪魔＞・バニラ）＝候補2>必要1
+        'hand': ['WDK14-013#1'],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.trash:', before?.host?.trashCards, 'host.hand:', before?.host?.hand);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let pickedCandidate = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wdk14013TrashPicker-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did && !pickedCandidate) {
+          const cand = page.locator('img[alt="廃悪の象徴　ベルゼ"]').last();
+          if (await cand.count() && await cand.isVisible().catch(() => false)) {
+            await cand.click().catch(() => {}); did = 'img:廃悪の象徴　ベルゼ'; pickedCandidate = true;
+          }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickZone();
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const trashDropped = (st?.host?.trash ?? 99) < (before?.host?.trash ?? 0);
+        H.log(`  wtp[${s}] -> ${did ?? 'なし'} | hTrash=${st?.host?.trash}(開始${before?.host?.trash}) hHand=${st?.host?.hand} pickedCandidate=${pickedCandidate} pEff=${st?.pendingEffect ?? '-'}`);
+        if (trashDropped) {
+          return { pass: true, detail: `候補2>必要1でピッカーが出現→img候補クリック→発動でトラッシュから1枚ビート化（hTrash ${before.host.trash}→${st.host.trash}）＝SigniOnPlayCostModalのbeatTrashNeedSelectゲートを実機確認` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ビート化未確認（hTrash=${fin?.host?.trash}（開始${before?.host?.trash}） pickedCandidate=${pickedCandidate} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
