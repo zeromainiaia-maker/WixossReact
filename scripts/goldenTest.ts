@@ -26,6 +26,7 @@ import {
   resumeOptionalCost, resumeOpponentPayOptional,
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
+  applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
@@ -19905,6 +19906,99 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   const banished = run({ type: 'BANISH', target: tgt('opponent'), fixedCardNums: [atom] } as EffectAction, mk());
   eq(banished.otherState.energy.filter(n => n === atom).length, 1, 'バニッシュはそのまま1回だけ処理される');
 });
+
+// タスク12(xcv): 「能力を持たない」判定の2箇所が**指す先を取り違えていた**（＋CSV の `-` を読めていなかった）。
+// ⚠この2つは直すまで**常に no-op** だったので、退化ではなく「初めて動く」＝期待値は原文から立てる。
+{
+  const isBlankX = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+  // 素のシグニ＝CSV は能力なしを空文字ではなく `-` で持つ（実測158枚）。ここが `!!EffectText` だと1枚も当たらない。
+  const vanillaX = findCard(c => isSigni(c) && isBlankX(c.EffectText) && isBlankX(c.BurstText));
+  const abledX = findCard(c => isSigni(c) && !isBlankX(c.EffectText) && c.CardNum !== vanillaX);
+
+  test('task12(xcv) WXEX2-30: アタックフェイズ中、能力なし相手シグニの場離れをデッキ下へ置換', () => {
+    const DECLARER = 'WXEX2-30';
+    ok(JSON.stringify(cardMap.get(DECLARER)?.effects ?? []).includes('NO_ABILITY_SIGNI_TO_DECK_BOTTOM'),
+      '宣言者の【常】が NO_ABILITY_SIGNI_TO_DECK_BOTTOM で載っている');
+    // 宣言者は**被害側の対面**＝ownerState（効果主）側に置く。被害側 otherState に素のシグニと能力持ちを並べる。
+    const atk = (owner: StateOpts, other: StateOpts): ExecCtx =>
+      ({ ...mkCtx(owner, other), currentPhase: 'ATTACK_SIGNI' }) as ExecCtx;
+    const mkA = () => atk({ signi: [DECLARER, null, null] }, { signi: [vanillaX, abledX, null] });
+    const tgtX = { type: 'SIGNI' as const, owner: 'opponent' as const, count: 1, filter: { cardType: 'シグニ' } };
+
+    // ① 手札戻し → 素のシグニはデッキの一番下へ（手札には入らない）
+    const bouncedX = run({ type: 'BOUNCE', target: tgtX, fixedCardNums: [vanillaX] } as EffectAction, mkA());
+    ok(!bouncedX.otherState.hand.includes(vanillaX), '能力なしシグニは手札に戻らない');
+    eq(bouncedX.otherState.deck.at(-1), vanillaX, '移動先はデッキの一番下（末尾）');
+    ok(!bouncedX.otherState.field.signi.some(s => s?.at(-1) === vanillaX), '場からは離れる（置換は防御ではない）');
+    // ② 能力持ちは素通り
+    const bouncedAbled = run({ type: 'BOUNCE', target: tgtX, fixedCardNums: [abledX] } as EffectAction, mkA());
+    ok(bouncedAbled.otherState.hand.includes(abledX), '能力を持つシグニは従来どおり手札に戻る');
+    // ③ 他の離場経路（バニッシュ／トラッシュ／エナ送り／除外／デッキ戻し）でも置換される＝「場を離れる場合」
+    for (const [type, label] of [['BANISH', 'バニッシュ'], ['TRASH', 'トラッシュ'], ['SEND_TO_ENERGY', 'エナ送り'], ['EXILE', '除外']] as const) {
+      const r = run({ type, target: tgtX, fixedCardNums: [vanillaX] } as unknown as EffectAction, mkA());
+      eq(r.otherState.deck.at(-1), vanillaX, `${label}経路もデッキ下へ置換`);
+    }
+    const toDeckX = run({ type: 'TRANSFER_TO_DECK', source: tgtX, fixedCardNums: [vanillaX], position: 'bottom' } as unknown as EffectAction, mkA());
+    eq(toDeckX.otherState.deck.at(-1), vanillaX, 'デッキ戻し経路も置換（結果は同じ末尾）');
+    // ④ アタックフェイズ限定＝メインフェイズでは置換しない
+    const mainX = run({ type: 'BOUNCE', target: tgtX, fixedCardNums: [vanillaX] } as EffectAction,
+      mkCtx({ signi: [DECLARER, null, null] }, { signi: [vanillaX, abledX, null] }));
+    ok(mainX.otherState.hand.includes(vanillaX), 'メインフェイズでは置換しない');
+    // ⑤ 宣言者が場にいなければ置換しない
+    eq(applyEffectLeaveNoAbilityDeckBottomSubstitute(vanillaX, 'opponent',
+      atk({}, { signi: [vanillaX, abledX, null] })).replaced, false, '宣言者不在なら置換しない');
+    // ⑥ 宣言者は**victim の反対側**を見る＝victim が ctx 自分側でも成立する（どちらの効果でも「場を離れる場合」）
+    eq(applyEffectLeaveNoAbilityDeckBottomSubstitute(vanillaX, 'self',
+      atk({ signi: [vanillaX, null, null] }, { signi: [DECLARER, null, null] })).replaced, true,
+      'victim が ctx 自分側でも、対面に宣言者がいれば置換する');
+    // ⑦ 能力を消されたシグニ（abilities_removed）も「能力を持たない」に数える
+    const removedCtx = atk({ signi: [DECLARER, null, null] }, { signi: [abledX, null, null] });
+    (removedCtx.otherState as { abilities_removed?: string[] }).abilities_removed = [abledX];
+    eq(applyEffectLeaveNoAbilityDeckBottomSubstitute(abledX, 'opponent', removedCtx).replaced, true,
+      '能力消去されたシグニも置換対象');
+  });
+
+  test('task12(xcv) ABILITY_CHECK_ELSE_TRASH: 「それ」＝直前にバウンスした相手シグニ（効果元ではない）', () => {
+    const SRC = 'WX25-P3-073';
+    const seq = (victim: string): EffectAction => ({
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, fixedCardNums: [victim] },
+        { type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' },
+      ],
+    }) as unknown as EffectAction;
+    // 効果元は自分の場のシグニ（＝旧実装が誤って落としていた側）
+    const mkB = () => mkCtx({ signi: [SRC, null, null] }, { signi: [vanillaX, abledX, null] }, SRC);
+
+    const noAb = run(seq(vanillaX), mkB());
+    ok(noAb.otherState.trash.includes(vanillaX), '能力なしなら相手のトラッシュへ置かれる');
+    ok(!noAb.otherState.hand.includes(vanillaX), '手札には残らない（「代わりに」）');
+    // 🔴旧実装の誤り＝効果元（自分の場のシグニ）を落としてしまう。これが再発したらここで落ちる。
+    ok(noAb.ownerState.field.signi.some(s => s?.at(-1) === SRC), '効果元シグニは場に残る');
+    ok(!noAb.ownerState.trash.includes(SRC), '効果元シグニは自分のトラッシュに落ちない');
+
+    const withAb = run(seq(abledX), mkB());
+    ok(withAb.otherState.hand.includes(abledX), '能力を持つなら手札のまま');
+    ok(!withAb.otherState.trash.includes(abledX), '能力を持つならトラッシュへは行かない');
+
+    // 直前に何もバウンスしていなければ何もしない（`lastProcessedCards` 空＝盤面不変）
+    const bare = run({ type: 'STUB', id: 'ABILITY_CHECK_ELSE_TRASH' } as unknown as EffectAction, mkB());
+    eq(JSON.stringify([bare.ownerState.field.signi, bare.otherState.field.signi, bare.otherState.trash]),
+      JSON.stringify([mkB().ownerState.field.signi, mkB().otherState.field.signi, mkB().otherState.trash]),
+      '対象なしでは盤面を触らない');
+  });
+
+  test('task12(xcv) 母集団＝この STUB を持つ live 5カードの構造を固定', () => {
+    const acet = ['WX25-P3-038', 'WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073'];
+    for (const num of acet) {
+      const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
+      ok(j.includes('ABILITY_CHECK_ELSE_TRASH'), `${num} が ABILITY_CHECK_ELSE_TRASH を持つ`);
+      ok(j.includes('"BOUNCE"'), `${num} は BOUNCE の直後に判定する形（「それ」＝戻したシグニ）`);
+    }
+    ok(JSON.stringify(cardMap.get('WXEX2-30')?.effects ?? []).includes('NO_ABILITY_SIGNI_TO_DECK_BOTTOM'),
+      'WXEX2-30 が NO_ABILITY_SIGNI_TO_DECK_BOTTOM を持つ');
+  });
+}
 
 test('task12(lxiv)① 対象宣言のフィルタが「そうした場合」の本体まで届く（SELECT_TARGET_ONLY→targetsStored）', () => {
   // 代表＝WXK11-031-E1（パワー5000以下・条件つき任意ディスカード）と WXDi-P02-043-E1（2体まで）
