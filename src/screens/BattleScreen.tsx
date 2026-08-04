@@ -9519,7 +9519,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
         }
       }
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'MAIN' }));
+      // ON_MAIN_PHASE_START（タスク12(lxvii)）＝人間ターンの GROW→MAIN と同じ位置で収集する。
+      // `triggerScope:any_opp`（「対戦相手のメインフェイズ開始時」）は人間側の場から拾われる＝
+      // **CPU ターンだけ人間の【自】が不発**という非対称もここで解消する。
+      const mpsCpu = collectCpuTurnTriggers('ON_MAIN_PHASE_START', cpuSt, huSt);
+      await persist.commit(reduceBattle(bs, {
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: mpsCpu.cpuState, phase: 'MAIN',
+        opp: mpsCpu.humanState ? { key: 'host_state', state: mpsCpu.humanState } : undefined,
+        effectStack: mpsCpu.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, mpsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, mpsCpu.entries))
+          : undefined,
+      }));
       return;
     }
 
