@@ -6694,6 +6694,65 @@ test('Stage2 ON_TURN_START: ルリグの自イベントが発火（WX20-001-E1�
   const host = mkState({}); host.field.lrig = ['WX20-001']; const guest = mkState({});
   eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX20-001-E1'), true, 'ルリグ発火');
 });
+// タスク12(lxvii): CPU ターンのフェイズ/ターン境界トリガー収集。
+// 🔴CPU 経路は `ON_GROW_PHASE_START` だけが配線され、`ON_ATTACK_PHASE_START` は **self scope だけを拾う
+//   手書きの部分再実装**、残り4 timing は**収集そのものが無かった**＝BattleScreen 層なので計器に一切映らない。
+// ⚠**配線そのものは golden から叩けない**（BattleScreen）。ここで固定できるのは
+//   ①CPU を「ターンプレイヤー＝guest」として呼んだときの pure collector の戻り（＝薄いラッパが依存する対応関係）
+//   ②手書き実装が落としていた **非 self スコープ**が確かに拾われること ③影響母数。
+test('task12(lxvii): CPU（guest）をターンプレイヤーとして 6 timing すべてが CPU 側 entries を返す', () => {
+  const TIMINGS = ['ON_TURN_START', 'ON_TURN_END', 'ON_GROW_PHASE_START',
+    'ON_MAIN_PHASE_START', 'ON_ATTACK_PHASE_START', 'ON_LRIG_ATTACK_STEP_START'] as const;
+  for (const timing of TIMINGS) {
+    // その timing の self【自】を持つシグニを1枚見つけ、guest（＝CPU）の場に置く
+    const owner = [...effectsMap.entries()].find(([num, effs]) =>
+      cardMap.get(num)?.Type === 'シグニ'
+      && effs.some(e => e.effectType === 'AUTO' && e.timing?.includes(timing)
+        && (e.triggerScope ?? 'self') === 'self' && !e.condition && !e.usageLimit))?.[0];
+    if (!owner) continue; // 母数0の timing は飛ばす（下の母数テストが件数を固定する）
+    const guest = mkState({ signi: [owner, null, null] });
+    const host = mkState({});
+    const r = collectTurnTriggers(trigCtx(GUEST, GUEST), timing, guest, host);
+    ok(r.entries.length > 0, `${timing}: CPU の場のシグニから entries が出る`);
+    ok(r.entries.every(e => e.playerId === GUEST), `${timing}: entries の playerId が CPU（guest）`);
+    // ⚠ラッパは usedGuestIds を CPU の actions_done へ書き戻す＝host/guest を取り違えると
+    //   《ターン1回》が相手側に記録されて同一ターンに再発火する。
+    eq(r.usedHostIds.length, 0, `${timing}: 人間側の usageLimit は消費しない`);
+  }
+});
+
+test('task12(lxvii): CPU ターンでも非 self スコープ（any_opp）が人間側の場から発火する', () => {
+  // 手書き実装は `triggerScope !== 'self'` を捨てていた＝実測 **57効果**（any 30 + any_opp 27）が
+  // CPU ターンだけ不発だった。CPU=guest がターンプレイヤーのとき、人間（host）の場の watcher が発火する。
+  const guest = mkState({}); const host = mkState({}); host.field.lrig = ['WX12-002'];
+  const r = collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_ATTACK_PHASE_START', guest, host);
+  ok(r.entries.some(e => e.effectId === 'WX12-002-E1'), 'CPU ターンでも人間 LRIG の any_opp watcher が発火');
+  ok(r.entries.some(e => e.effectId === 'WX12-002-E1' && e.playerId === HOST),
+    'その entry の playerId は人間（host）＝解決主体を取り違えない');
+});
+
+test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () => {
+  const count = (timing: string) => {
+    let eff = 0; const scopes = new Map<string, number>();
+    for (const effs of effectsMap.values()) {
+      for (const e of effs) {
+        if (e.effectType !== 'AUTO' || !e.timing?.includes(timing as never)) continue;
+        eff++;
+        const s = e.triggerScope ?? 'self';
+        scopes.set(s, (scopes.get(s) ?? 0) + 1);
+      }
+    }
+    return { eff, nonSelf: eff - (scopes.get('self') ?? 0) };
+  };
+  // ⚠数字が動いたら「母数が変わった」＝parser 側の変化。**意図した変化かを確かめてから**更新する。
+  eq(count('ON_TURN_END').eff, 187, 'ON_TURN_END（CPU 経路に収集が無かった）');
+  eq(count('ON_MAIN_PHASE_START').eff, 31, 'ON_MAIN_PHASE_START（同上）');
+  eq(count('ON_TURN_START').eff, 3, 'ON_TURN_START（同上）');
+  eq(count('ON_LRIG_ATTACK_STEP_START').eff, 1, 'ON_LRIG_ATTACK_STEP_START（同上）');
+  eq(count('ON_ATTACK_PHASE_START').nonSelf, 57, 'ON_ATTACK_PHASE_START の非 self（手書き実装が落としていた分）');
+  eq(count('ON_GROW_PHASE_START').eff, 2, 'ON_GROW_PHASE_START（唯一 CPU にも配線されていた）');
+});
+
 test('collectTurnTriggers usageLimit: WX25-CP1-042-E2《ターン1回》は同一ターン2回目を発火しない（タスク12(xvii)）', () => {
   // ON_LRIG_ATTACK_STEP_START once_per_turn の LRIG 効果。1回目は発火＋usedHostIdsに消費記録、
   // actions_done 記録済みの2回目は非発火（フェイズ境界を跨いだ再発火を防ぐ）。
