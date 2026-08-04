@@ -12,6 +12,7 @@ import {
   resolveTokenBase,
   isOwnTrashMoveLocked,
   matchesFilter,
+  hasNoAbility,
 } from './execUtils';
 
 export function execStubPart2(
