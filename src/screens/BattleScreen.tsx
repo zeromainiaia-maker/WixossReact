@@ -7455,6 +7455,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ＝WXDi-P02-079-E2/WXK07-030-E2 の「パワー15000以上」がパワー不問で発火していた（タスク12(lxix)）。
         // ⚠ atkSelfPowers（calcFieldPowers）のキーは場のスタック頂点の生値なので getCardNum() で丸めない。
         .filter(e => !e.triggerFilter || matchesFilter(battleCardMap.get(getCardNum(myTopNum)), e.triggerFilter, atkSelfPowers.get(myTopNum)))
+        // turnOwner（《相手ターン》／散文「対戦相手のターンの間、」）＝この経路の watcher は**アタッカー自身**なので
+        // 「watcher の持ち主のターンか」＝アタッカーがターンプレイヤーか、で判定する（タスク12(xcix)）。
+        // ⚠この経路は turnOwner を一切見ておらず、《相手ターン》付きの札が**自分のアタックで誤発火**していた。
+        .filter(e => {
+          const to = e.triggerCondition?.turnOwner;
+          if (!to) return true;
+          const attackerIsTurnPlayer = attackerId === bs.active_user_id;
+          return to === 'self' ? attackerIsTurnPlayer : !attackerIsTurnPlayer;
+        })
         .filter(e => !e.condition || evalUseCondition(e.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, atkSelfPowers))
         .map(e => ({
           id: generateUUID(),
