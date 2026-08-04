@@ -4,6 +4,12 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-04・続き344・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝🏁**§3 タスク12(xcviii) 残0クローズ**＝CPU のターン開始ドロー処理を人間経路と揃える（ユーザー指示「続ける」）。golden **1357→1360**・**live JSON 変更なし**・census 1288 据置・全ゲート緑。触った層は `BattleScreen.tsx` の CPU UP 分岐のみ。
+  - **`ON_DRAW` の穴は「ターン開始ドローだけ」**＝効果ドローは中央 diff ブロック（`resolveStackNext`）が両プレイヤー分を拾うので既に発火していた。人間経路が UP→DRAW で `collectDrawTriggers(..., isDrawPhaseDraw=true)` を呼ぶ位置に同じ形で追加（live **13効果／13カード**）。
+  - **🔴 併せて発見＝CPU の `refresh_count_this_turn` が一度もリセットされていなかった**（全文検索で人間側2箇所のみ）。`resolveStackNext` は「ターンプレイヤーの2回目のリフレッシュならターン終了」を `>= 2` で判定するため、**ゲーム中に CPU が累計2回リフレッシュした以降、CPU ターンでリフレッシュが起きるたび毎回ターンが強制終了する**（累積カウンタが減らない）。ターン開始でリセットするよう是正。
+  - **`last_effect_draw_source` のクリアも揃えた**＝ターンドローは効果ドローではないので、入れないと `drawBySourceStory`（`WX20-026-E3`）が前ターンの残値で誤発火する（人間経路が明示クリアしている理由そのもの）。
+  - **golden +3**＝①CPU のターンドローで `ON_DRAW` が drawer 側に収集され `playerId` が guest ②`drawBySourceStory` が**残値ありで発火／クリア後は非発火**（クリアが必要な理由を固定）③`ON_DRAW` の live 母数13。⚠**配線とリフレッシュ回数リセットは golden 非カバー**。
+  - **次の一手**＝**Opus**＝タスク12 の生き残り在庫〔(lv) 残2経路／(lxvi)／(lxviii)／(lxxxviii)／(xciii)／(xciv)／(xcvi)／(xcvii)〕・(lxxxii) 由来の別在庫4件（PLAN_PROGRESS の続き331 行）・§6.3 機構台帳。**Sonnet**＝§7 実機検証＝**続き298〜344 の全件が実機UI未検証**。本件の実機確認は**①CPU のターン開始ドローで「カードを引いたとき」【自】が解決されること**②CPU が2回目のリフレッシュをしてもターンが不当に終わらないこと。
 - **セッション（2026-08-04・続き343・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝🏁**§3 タスク12(lxvii) 残0クローズ**＝CPU ターンのフェイズ/ターン境界トリガーを人間経路と同じ pure collector へ統一（ユーザー指示「タスク12を続ける」＝在庫から影響最大のものを選択）。golden **1354→1357**・**live JSON 変更なし**・census 1288 据置・全ゲート緑。触った層は `BattleScreen.tsx` のみ。
   - **🔴 PLAN の指示「1 timing ずつ潰すと同じ穴を何度も踏むので、まず全 timing の対応表を作れ」が効いた**＝実際に作ったら**穴は登録時の見立て（`ON_TURN_END` 1件）ではなく 5 timing**だった。**CPU のターンで一度も発火しなかった効果は計279**＝`ON_TURN_END` **187**／`ON_ATTACK_PHASE_START` の非 self **57**／`ON_MAIN_PHASE_START` **31**／`ON_TURN_START` **3**／`ON_LRIG_ATTACK_STEP_START` **1**。CPU 側に配線があったのは `ON_GROW_PHASE_START`（2件）だけ。
   - **`ON_ATTACK_PHASE_START` は「配線あり」ではなく手書きの部分再実装**で3つズレていた＝①`triggerScope` が self のものしか拾わない ②`usageLimit` を `actions_done` に記録しない（同一ターン再発火しうる） ③人間側の場を走査しない。⇒ 薄いラッパ `collectCpuTurnTriggers` で人間経路と同じ collector に統一し5箇所へ配線。
