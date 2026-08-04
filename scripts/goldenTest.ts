@@ -5586,23 +5586,30 @@ test('task12(xcix): 主語なし「シグニN体がアタックしたとき」�
     undefined, '前置きが無い札にターン限定を付けない');
 }));
 
-test('task12(xcix): collectFieldTriggers が turnOwner を評価する（相手ターンのアタックにだけ反応）', () => withSavedCursor(() => {
-  // watcher（`WXDi-P06-033`）は host の場。攻撃側 = guest の場のシグニ。
+test('task12(xcix): any スコープで「相手のアタック」を watcher が拾い、ターン限定は turnGateOk が落とす', () => withSavedCursor(() => {
+  // ⚠**ターン限定は collector では見ない**＝収集後段の `effectStack.turnGateOk` が entry.playerId 基準で
+  //   全コレクタ共通に落とす（ここで二重に足すと ON_PLAY の「相手ターン中の特殊召喚」等が壊れる。
+  //   実際に一度 collectFieldTriggers へ足して既存2テストを落としたので差し戻した）。
   // collectFieldTriggers(ctx, event, triggeringCardNum, myState=攻撃側, opState=watcher側, ownerId=攻撃側)
   const attacker = mkState({ signi: [SIGNI, null, null] });
   const watcher = mkState({ signi: ['WXDi-P06-033', null, null] });
-  // ① guest（攻撃側）のターン＝watcher から見て「対戦相手のターン」→ 発火する
-  ok(cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher, GUEST)
-    .some(e => e.effectId === 'WXDi-P06-033-E2'), '相手ターンの相手アタックで発火');
-  // ② host（watcher 側）のターンなら turnOwner:opponent を満たさない → 非発火
-  eq(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher, GUEST)
-    .some(e => e.effectId === 'WXDi-P06-033-E2'), false, '自分のターンでは発火しない（過剰実行の是正）');
-  // ③ ターン限定を持たない `WXEX2-04-E1` は turnOwner ゲートに影響されない
-  const watcher2 = mkState({ signi: ['WXEX2-04', null, null] });
-  ok(cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher2, GUEST)
-    .some(e => e.effectId === 'WXEX2-04-E1'), 'ターン限定なしはどちらのターンでも発火（相手ターン）');
-  ok(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher2, GUEST)
-    .some(e => e.effectId === 'WXEX2-04-E1'), 'ターン限定なしはどちらのターンでも発火（自ターン）');
+  // ① scope:any になったので **watcher 側（＝相手のアタック）でも収集される**（従来 self で collector に載らなかった）
+  const collected = cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher, GUEST)
+    .filter(e => e.effectId === 'WXDi-P06-033-E2');
+  eq(collected.length, 1, '相手のアタックで watcher が収集される（scope:any の効き目）');
+  eq(collected[0].playerId, HOST, 'entry の主体は watcher の持ち主');
+  // ② そのままスタックへ積むと、guest ターンでは turnOwner:opponent を満たすので残る
+  eq(initStack(GUEST, collected).pendingOpp.length, 1, '相手ターンなら turnGateOk を通る');
+  // ③ host（watcher 側）のターンだと turnGateOk が落とす＝自分のターンには発火しない
+  eq(initStack(HOST, collected).pendingTurn.length + initStack(HOST, collected).pendingOpp.length, 0,
+    '自分のターンでは turnGateOk が落とす');
+  // ④ ターン限定を持たない `WXEX2-04-E1` はどちらのターンでも残る
+  const w2 = mkState({ signi: ['WXEX2-04', null, null] });
+  const c2 = cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, w2, GUEST)
+    .filter(e => e.effectId === 'WXEX2-04-E1');
+  eq(c2.length, 1, 'ターン限定なしも相手のアタックで収集される');
+  eq(initStack(HOST, c2).pendingTurn.length + initStack(HOST, c2).pendingOpp.length, 1,
+    'ターン限定が無ければ自ターンでも落とされない');
 }));
 
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
