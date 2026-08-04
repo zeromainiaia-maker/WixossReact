@@ -5981,6 +5981,108 @@ const scenarios = {
       return { pass: false, detail: `未確認（hEnergy=${fin?.host?.energy}（開始${before?.host?.energy}） virusClicks=${virusClicks} debuffed=${(fin?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:-7000'))} gotBlackSigni=${(fin?.host?.handCards ?? []).some(c => c.startsWith('WD05-013#3'))} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §6.3(a)（2026-08-04・Sonnet）＝WX24-P3-069-E1が付与するガード追加《無》N枚徴収（`GRANT_LRIG_ABILITY`で
+  // `WX24-P3-069-E1-G`＝`STUB{OPP_GUARD_COST_COLORLESS, count:3}`をguestへ直接注入し、親トリガーを介さず
+  // `collectOppGuardExtraColorlessCost`／`GuardResponseDialog`／`performGuardResponse`を直接運転する）。
+  // エナ十分（3枚）でガード成立→ちょうど3枚徴収されることを確認する（CPUは常にガードしないため、host＝
+  // CPUの直接アタック対象にしてhost自身にガード応答させる）。
+  guardExtraColorlessSufficient: {
+    title: 'WX24-P3-069-E1-G（ガード追加《無》×3＝エナ十分でガード成立→ちょうど3枚徴収）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'hand': ['WD01-016#1'], // サーバント Ｄ（Guard=1・バニラ）
+        'energy': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'], // 《無》×3をちょうど払える
+        'trash': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'lrig_granted_auto_effects': [
+          { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
+            duration: 'UNTIL_END_OF_TURN', mandatory: true, parseStatus: 'MANUAL' },
+        ],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.energy:', before?.host?.energy, 'host.hand:', before?.host?.hand, 'host.trash:', before?.host?.trash);
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/guardExtraColorlessSufficient-${s}.png`, fullPage: true });
+        let did = null;
+        const guardBtn = page.getByRole('button', { name: /ガードに使う/ }).first();
+        if (await guardBtn.count() && await guardBtn.isVisible().catch(() => false)) { await guardBtn.click().catch(() => {}); did = 'btn:ガードに使う'; }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const guarded = (st?.host?.trash ?? 0) > (before?.host?.trash ?? 0);
+        H.log(`  gecs[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) hTrash=${st?.host?.trash} lrigAttacked=${st?.host?.lrigAttacked} pEff=${st?.pendingEffect ?? '-'}`);
+        if (guarded) {
+          const consumed = (before.host.energy) - (st.host.energy);
+          return { pass: consumed === 3, detail: `ガード成立（hTrash ${before.host.trash}→${st.host.trash}）＝追加コスト《無》×3消費でhEnergy ${before.host.energy}→${st.host.energy}（消費${consumed}枚）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ガード未確認（hEnergy=${fin?.host?.energy}（開始${before?.host?.energy}） hTrash=${fin?.host?.trash} lrigAttacked=${fin?.host?.lrigAttacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §6.3(a) 対照実験＝エナ不足（2枚<3）でガード候補が空になり「ガードしない」しか選べないことを確認する。
+  guardExtraColorlessInsufficient: {
+    title: 'WX24-P3-069-E1-G（ガード追加《無》×3＝エナ不足でガード候補が消え「ガードしない」のみ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'hand': ['WD01-016#1'],
+        'energy': ['WD01-013#1', 'WD01-013#2'], // 2枚<3＝ガードブロック
+        'trash': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'lrig_granted_auto_effects': [
+          { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
+            duration: 'UNTIL_END_OF_TURN', mandatory: true, parseStatus: 'MANUAL' },
+        ],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.energy:', before?.host?.energy);
+      let stablePolls = 0;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/guardExtraColorlessInsufficient-${s}.png`, fullPage: true });
+        let did = null;
+        const noGuardTxt = page.getByText('使用できるガードカードが手札にありません').first();
+        const seenBlocked = await noGuardTxt.count() && await noGuardTxt.isVisible().catch(() => false);
+        const guardBtn = page.getByRole('button', { name: /ガードに使う/ }).first();
+        const guardBtnVisible = await guardBtn.count() && await guardBtn.isVisible().catch(() => false);
+        if (seenBlocked && !did) {
+          stablePolls++;
+          if (stablePolls >= 2) {
+            const noGuardBtn = page.getByRole('button', { name: 'ガードしない（ライフクロスクラッシュ）', exact: true }).first();
+            await noGuardBtn.click().catch(() => {});
+            const st = await H.queryState();
+            return { pass: true, detail: `エナ不足（2枚<3）でガード候補ゼロ→「使用できるガードカードが手札にありません」表示を確認→「ガードしない」で解決（hEnergy=${st?.host?.energy}不変・保護不成立）` };
+          }
+        } else {
+          stablePolls = 0;
+        }
+        if (guardBtnVisible) {
+          return { pass: false, detail: `【回帰】エナ不足でもガード候補が表示された（guardBlockedByExtraCostのenergy比較が働いていない疑い）` };
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  geci[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy} lrigAttacked=${st?.host?.lrigAttacked} seenBlocked=${seenBlocked} pEff=${st?.pendingEffect ?? '-'}`);
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ガードブロック表示 未確認（hEnergy=${fin?.host?.energy} lrigAttacked=${fin?.host?.lrigAttacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
