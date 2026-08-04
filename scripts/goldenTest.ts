@@ -5568,6 +5568,51 @@ test('task12(lxviii): 母集団＝前置きを持つ AUTO のうちターン限�
   eq(ungated.join(','), 'WXDi-CP02-053-E1', 'ターン限定が無いのは honest defer の1件だけ');
 }));
 
+// タスク12(xcix): 「シグニ1体がアタックしたとき」＝主語なし＝**どちらの陣営のアタックでも**反応する形が
+// 既定 self に潰れており、さらに `collectFieldTriggers` が `triggerCondition.turnOwner` を一切見ていなかった。
+test('task12(xcix): 主語なし「シグニN体がアタックしたとき」は triggerScope:any になる', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WXDi-P06-033', 'WXDi-P06-033-E2'], ['WXDi-CP02-053', 'WXDi-CP02-053-E1'], ['WXEX2-04', 'WXEX2-04-E1'],
+  ] as const) {
+    const eff = (effectsMap.get(card) ?? []).find(e => e.effectId === effId);
+    eq(eff?.triggerScope, 'any', `${effId}: 主語なしは any（self に潰さない）`);
+  }
+  // 相手ターン限定は2枚だけ（`WXEX2-04-E1` は原文に前置きが無いので付けない＝過剰に絞らない）
+  eq((effectsMap.get('WXDi-P06-033') ?? []).find(e => e.effectId === 'WXDi-P06-033-E2')?.triggerCondition?.turnOwner,
+    'opponent', 'アイコン形《相手ターン》');
+  eq((effectsMap.get('WXDi-CP02-053') ?? []).find(e => e.effectId === 'WXDi-CP02-053-E1')?.triggerCondition?.turnOwner,
+    'opponent', '散文形「対戦相手のターンの間、」');
+  eq((effectsMap.get('WXEX2-04') ?? []).find(e => e.effectId === 'WXEX2-04-E1')?.triggerCondition?.turnOwner,
+    undefined, '前置きが無い札にターン限定を付けない');
+}));
+
+test('task12(xcix): collectFieldTriggers が turnOwner を評価する（相手ターンのアタックにだけ反応）', () => withSavedCursor(() => {
+  // watcher（`WXDi-P06-033`）は host の場。攻撃側 = guest の場のシグニ。
+  // collectFieldTriggers(ctx, event, triggeringCardNum, myState=攻撃側, opState=watcher側, ownerId=攻撃側)
+  const attacker = mkState({ signi: [SIGNI, null, null] });
+  const watcher = mkState({ signi: ['WXDi-P06-033', null, null] });
+  // ① guest（攻撃側）のターン＝watcher から見て「対戦相手のターン」→ 発火する
+  ok(cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher, GUEST)
+    .some(e => e.effectId === 'WXDi-P06-033-E2'), '相手ターンの相手アタックで発火');
+  // ② host（watcher 側）のターンなら turnOwner:opponent を満たさない → 非発火
+  eq(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher, GUEST)
+    .some(e => e.effectId === 'WXDi-P06-033-E2'), false, '自分のターンでは発火しない（過剰実行の是正）');
+  // ③ ターン限定を持たない `WXEX2-04-E1` は turnOwner ゲートに影響されない
+  const watcher2 = mkState({ signi: ['WXEX2-04', null, null] });
+  ok(cftEntries(trigCtx(GUEST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher2, GUEST)
+    .some(e => e.effectId === 'WXEX2-04-E1'), 'ターン限定なしはどちらのターンでも発火（相手ターン）');
+  ok(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', SIGNI, attacker, watcher2, GUEST)
+    .some(e => e.effectId === 'WXEX2-04-E1'), 'ターン限定なしはどちらのターンでも発火（自ターン）');
+}));
+
+test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
+  const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const ids = Object.entries(srcT)
+    .filter(([, t]) => /(?:^|[：:、,])シグニ[０-９\d一]*体がアタックしたとき/.test(t))
+    .map(([id]) => id).sort();
+  eq(ids.join(','), 'WXDi-CP02-053-E1,WXDi-P06-033-E2,WXEX2-04-E1', '主語なしアタック watcher の母集団');
+}));
+
 test('C1 ON_TARGETED: 対象でないシグニは非発火', () => {
   const host = mkState({}); const guest = mkState({ signi: ['WXDi-P11-040', null, null] });
   eq(collectTargetedTriggers(trigCtx(HOST), [SIGNI], GUEST, host, guest).entries.length, 0, '別カード対象');
