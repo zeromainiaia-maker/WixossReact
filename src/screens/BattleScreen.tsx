@@ -9823,6 +9823,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ENDフェイズ：ターン終了処理 ───
     if (phase === 'END') {
+      // ON_TURN_END（タスク12(lxvii) 本体）＝**CPU ターンでは一度も収集していなかった**
+      // （live 190効果／185カードが CPU のターンだけ全て不発）。人間経路（`doPhaseAdvance` の END 分岐）と
+      // 同じ「`__TURN_END__` マーカーで1回だけ収集し、スタックを積んで return → 解決後の再入でこの先へ進む」型に揃える。
+      // ⚠**エンドフェイズの順序**は ①ターン終了時効果 → ②手札上限 → ③終了 なので、
+      //   下のクリーンアップ（＝③相当）より**必ず前**で解決しきる。
+      if (!cpuSt.actions_done?.includes('__TURN_END__')) {
+        const endCpu = collectCpuTurnTriggers('ON_TURN_END', cpuSt, huSt);
+        if (endCpu.entries.length > 0) {
+          const markedCpuSt: PlayerState = {
+            ...endCpu.cpuState,
+            actions_done: [...(endCpu.cpuState.actions_done ?? []), '__TURN_END__'],
+          };
+          await persist.commit(reduceBattle(bs, {
+            type: 'WRITE_STATE', myKey: 'guest_state', myState: markedCpuSt,
+            opp: endCpu.humanState ? { key: 'host_state', state: endCpu.humanState } : undefined,
+            effectStack: bs.effect_stack
+              ? pushToStack(bs.effect_stack, endCpu.entries)
+              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, endCpu.entries),
+          }));
+          return; // 解決後に再度この END 分岐へ入り、マーカー済みなので素通りして後始末へ進む
+        }
+      }
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
