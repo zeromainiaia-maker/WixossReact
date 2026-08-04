@@ -5545,6 +5545,7 @@ test('task12(lxviii): 母集団＝前置きを持つ AUTO のうちターン限�
     if (pred(n)) return true;
     return Array.isArray(n.conditions) && (n.conditions as unknown[]).some(cc => hasCond(cc, pred));
   };
+  const srcTextMap: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const HEAD = /^【[^】]*】(?:《[^》]*》)*[：:]\s*対戦相手のターンの間[、,]/;
   let withPrefix = 0; const ungated: string[] = [];
   for (const effs of effectsMap.values()) {
