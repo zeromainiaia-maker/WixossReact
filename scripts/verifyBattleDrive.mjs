@@ -6125,6 +6125,49 @@ const scenarios = {
       return { pass: false, detail: `反転未確認（hLrigTop=${fin?.host?.lrigTop} identity=${JSON.stringify(fin?.host?.identityOverrides)} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §6.3(e)（2026-08-04・Sonnet）＝未知の邂逅 WXDi-P13-003A-E1：ルリグデッキの＜ピース＞をキーにセットする際、
+  // `prepareMayuEncounter`（`mayuEncounter.ts:17-41`）が手札+エナの実移動枚数を数え、5枚以上なら
+  // `card_identity_overrides[instanceId]='WXDi-P13-003B'`へ反転＋`executeGrow(...,{freeCost:true,
+  // consumeGrowAction:true})`で無料グロウ（`actions_done`に`GROW`を書き込み同ターンの通常グロウを封じる）。
+  // 4枚以下は代償（移動）だけで反転しない。手札3枚+エナ2枚=5枚移動の5+ケースを検証する。
+  mayuEncounterFreeGrow: {
+    title: 'WXDi-P13-003A-E1（未知の邂逅＝手札+エナ計5枚移動でB面WXDi-P13-003Bへ反転＋無料グロウ・actions_doneにGROW）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-003#1'], // 半月の巫女 タマヨリヒメ（Lv2・まだこのターングロウしていない）
+        'lrig_deck': ['WXDi-P13-003A#1'],
+        'hand': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'], // 手札3枚
+        'energy': ['WD01-013#4', 'WD01-013#5'],              // エナ2枚（計5枚移動＝canGrow条件）
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'energy:', before?.host?.energy, 'lrigTop:', before?.host?.lrigTop);
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('ピース(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/mayuEncounterFreeGrow-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['キーにセット']);
+        if (!did) did = await H.clickBtn('セット', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P13-003B';
+        const grewFlag = (st?.host?.actionsDone ?? []).includes('GROW');
+        H.log(`  mefg[${s}] -> ${did ?? 'なし'} | hLrigTop=${st?.host?.lrigTop} identity=${JSON.stringify(st?.host?.identityOverrides)} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} keyPiece=${st?.host?.keyPiece} actionsDone=${JSON.stringify(st?.host?.actionsDone)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (flipped && grewFlag) {
+          return { pass: true, detail: `手札3+エナ2=5枚移動でcanGrow成立→card_identity_overrides[${st.host.lrigTop}]=WXDi-P13-003Bへ反転＋executeGrow(freeCost)で無料グロウ→actions_doneにGROW記録（同ターン通常グロウ封じ）を確認（hHand=${st.host.hand}・hEnergy=${st.host.energy}・keyPiece=${st.host.keyPiece}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `反転/無料グロウ未確認（hLrigTop=${fin?.host?.lrigTop} identity=${JSON.stringify(fin?.host?.identityOverrides)} actionsDone=${JSON.stringify(fin?.host?.actionsDone)} keyPiece=${fin?.host?.keyPiece} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
