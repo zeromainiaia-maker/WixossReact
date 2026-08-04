@@ -8197,6 +8197,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   （トリガー句は parseSentence 側で前置きとして消費される）。timing のみ ON_TARGETED に確定する。
       //   ただし主語が「あなたの[＜X＞/色]のシグニ」の場合は triggerScope:any_ally＋triggerFilter を抽出（actionText は非改変）。
       if (timing[0] === 'ON_TARGETED') {
+        // 散文形の前置き「(対戦相手|あなた)のターンの間、」をターン限定へ落とす（タスク12(lxviii)）。
+        // ⚠🔴**《相手ターン》アイコン形は `turnOwner` を生むのに、同義の散文前置きは ON_TARGETED では
+        //   何も生んでいなかった**＝自分のターンにも発火する**過剰実行**（`WXDi-P12-074-E1`／`WXDi-P13-089-E2`）。
+        // ⚠**母集団は「原文に句を含む効果」ではない**＝実測すると 145件中この句を**トリガー前置き**として持つ
+        //   AUTO は30件で、うち27件は既に `activeCondition:TURN_OWNER` か `condition:IS_OPPONENT_TURN` で
+        //   正しくゲートされている（各 collector が評価済み）。**本当に素通りしていたのは ON_TARGETED の2件だけ**
+        //   なので、ここ（ON_TARGETED 分岐）に閉じて足す＝他 timing へ波及させない。
+        // ⚠`collectTargetedTriggers` は `triggerCondition.turnOwner` を読む（`activeCondition` は見ない）ので
+        //   落とし先はこのフィールドでなければならない。
+        if (/^対戦相手のターンの間[、,]/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: 'opponent' };
+        } else if (/^あなたのターンの間[、,]/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: 'self' };
+        }
         const subjM = actionText.match(/^あなたの(他の)?(?:(アップ状態の)|＜([^＞]+)＞の|([赤青白緑黒])の)?シグニ(?:[０-９\d]+体)?が対戦相手の(?:[、,]?\s*能力か効果|、?アシストルリグかライフバーストの能力か効果|シグニの、?【出】能力か【出】能力の効果)の対象になったとき/);
         if (subjM) {
           extractedTriggerScope = 'any_ally';
