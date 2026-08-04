@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-04 — 🏁§3 タスク12(lxvii) 残0クローズ：**CPU ターンのフェイズ/ターン境界トリガーが面で欠けていた**のを人間経路と同じ pure collector 1本へ統一（golden 1354→1357・**live JSON 変更なし**・全ゲート緑）（Opus 5・続き343）
+
+PLAN の指示どおり、着手前に**「全 timing について人間経路と CPU 経路のどちらから収集されるか」の対応表**を作ってから直した（1 timing ずつ潰すと同じ穴を何度も踏むため）。
+
+### 対応表（修正前）
+| timing | 人間経路 `doPhaseAdvance` | CPU 経路 `cpuTurnAction` | live 効果数 |
+|---|---|---|---:|
+| `ON_TURN_START` | ✅ | ❌ **収集なし** | 3 |
+| `ON_GROW_PHASE_START` | ✅ | ✅ | 2 |
+| `ON_MAIN_PHASE_START` | ✅ | ❌ **収集なし** | 31 |
+| `ON_ATTACK_PHASE_START` | ✅ | ⚠**手書きの部分再実装** | 511（うち非 self **57**） |
+| `ON_LRIG_ATTACK_STEP_START` | ✅ | ❌ **収集なし** | 1 |
+| `ON_TURN_END` | ✅ | ❌ **収集なし**（本在庫の登録理由） | **187** |
+
+⚠**登録時の見立て（`ON_TURN_END` 188件）はほぼ合っていたが、穴は1 timing ではなく5 timing だった**＝
+**CPU のターンで一度も発火しなかった効果は計 279**（187＋57＋31＋3＋1）。merge 後（`manualEffects` 適用後＝実行時と同じ）で数えた値。
+
+### 手書き再実装が抱えていた3つのズレ（`ON_ATTACK_PHASE_START`）
+① `triggerScope` が `self` のものしか拾わない＝`any`／`any_opp`（「対戦相手のアタックフェイズ開始時」等）**57効果**が CPU ターンだけ不発
+② `usageLimit`（《ターン1回》）を `actions_done` に記録しない＝同一ターンにフェイズ境界を跨いで**再発火しうる**
+③ 人間側の場のシグニを一切走査しない
+
+⇒ 人間経路と**同じ pure collector**（`triggerCollect.collectTurnTriggers`）を呼ぶ薄いラッパ `collectCpuTurnTriggers` に統一し、5箇所へ配線した。
+
+### 🔴 併せて発見：CPU 経路の【ハスターリク】が**人間側ではなく CPU 側を指していた**
+`huStForHL` / `huKeyForHL` が人間経路の式 `isHost ? 'guest_state' : 'host_state'` をそのまま流用していた。
+人間経路の `isHost` は「ローカルユーザー＝ターンプレイヤー」前提で**相手**を選ぶ式だが、**CPU ターンではローカルユーザーが非ターンプレイヤー**なので反転する。
+結果、**人間の【ハスターリク】は CPU ターンに発動せず、代わりに CPU 側の予約を消していた**。`cpuTurnAction` の他の全箇所と同じ**人間＝host 固定**へ揃えた。
+⚠これは「触らないと私の変更が CPU 状態を壊す」箇所だったので**同バッチで直すのが必須**だった（`ON_ATTACK_PHASE_START` の once_per_turn 記録で人間側 state を書くため）。
+併せて当該遷移を `SET_TURN_PHASE`（片側しか書けない）から `ADVANCE_TURN_WITH_STATE`（両側＋スタック）へ移した。
+
+### `ON_TURN_END` の解決順序
+人間経路と同じ「`__TURN_END__` マーカーで**1回だけ**収集 → スタックを積んで return → 解決後の再入で素通りして後始末へ」型にした。
+⚠エンドフェイズは公式ルールで ①ターン終了時効果 → ②手札上限 → ③終了 なので、**CPU 側の状態クリーンアップより必ず前**に解決しきる位置に置いた。
+
+### 検証
+- golden **+3**＝①CPU（guest）をターンプレイヤーとして6 timing すべてが CPU 側 entries を返し、`playerId` が guest で、**人間側の usageLimit を消費しない**こと ②CPU ターンでも `any_opp` watcher が人間の場から発火し、その `playerId` が host であること ③**影響母数の固定**（187/57/31/3/1/2）。
+- ⚠**配線そのものは golden から叩けない**（BattleScreen 層）＝固定できるのは pure collector の戻りと母数まで。**実機通し確認と対で締める**。
+- **live JSON・parser は完全不変**。触った層は `BattleScreen.tsx` のみ。
+
+### 新規在庫
+- **(xcviii)** `ON_DRAW`（live **13効果／13カード**）も同じ非対称＝人間経路は UP→DRAW で `collectDrawTriggers` を呼ぶが**CPU 経路は呼ばない**。本バッチは「ターン/フェイズ境界 timing」に限定したため未着手。
+
 ## 2026-08-04 — 🏁§3 タスク12(xcv) 残0クローズ：「能力を持たない」を読む engine 3箇所が**すべて違うものを見ていた**のを是正し判定を1本に統一（golden 1350→1354・**live JSON 変更なし**・全ゲート緑）（Opus 5・続き342）
 
 (xcii) の実装中に「CSV は素のシグニを空文字ではなく `-` で持つ」ことに気づいて登録した在庫。**着手して原文と突き合わせたら、登録時に自分で書いた修正方針（`trim()==='-'` 判定に寄せる）そのものが誤りだった**。
