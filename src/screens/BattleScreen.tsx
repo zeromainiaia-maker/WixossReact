@@ -9308,8 +9308,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs(['[CPU] センタールリグのアップ条件（未払い）→ダウン状態でターン開始']);
         }
       }
+      // ON_TURN_START（タスク12(lxvii)）＝人間ターンの UP→DRAW と同じ位置で収集する。
+      const tsCpu = collectCpuTurnTriggers('ON_TURN_START', newCpuSt, huSt);
       await persist.commit(reduceBattle(bs, {
-        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: newCpuSt, phase: 'DRAW',
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: tsCpu.cpuState, phase: 'DRAW',
+        opp: tsCpu.humanState ? { key: 'host_state', state: tsCpu.humanState } : undefined,
+        effectStack: tsCpu.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, tsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, tsCpu.entries))
+          : undefined,
       }));
       return;
     }
