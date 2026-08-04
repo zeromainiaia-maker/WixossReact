@@ -3143,6 +3143,13 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
       if (!byEffectTriggerOk(eff)) continue;
+      // turnOwner＝**watcher の持ち主**視点のターン限定（他コレクタと同じ規約。タスク12(xcix)）。
+      // ⚠この関数はこれまで turnOwner を一切見ておらず、《相手ターン》を持つ watcher が自分のターンにも発火していた。
+      {
+        const toAlly = eff.triggerCondition?.turnOwner;
+        if (toAlly === 'self' && !isOwnerTurnForTrigger) continue;
+        if (toAlly === 'opponent' && isOwnerTurnForTrigger) continue;
+      }
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // placedDown（G144）: トリガー元シグニがダウン状態で出ていなければ発火しない。
       if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
