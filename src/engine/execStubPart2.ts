@@ -2420,14 +2420,39 @@ export function execStubPart2(
     sOppTAOC = { ...sOppTAOC, field: { ...sOppTAOC.field, signi: newSigniTAOC }, hand: [], trash: [...sOppTAOC.trash, ...toTrashFbTAOC] };
     return done(addLog({ ...ctx, otherState: sOppTAOC }, `相手の${toTrashFbTAOC.length}枚をトラッシュへ`));
   }
-  // ABILITY_CHECK_ELSE_TRASH: 能力なしなら自トラッシュ
+  // ABILITY_CHECK_ELSE_TRASH: 「それを手札に戻す。**それ**が能力を持たない場合、代わりにそれをトラッシュに置く」
+  // （`WX25-P3-038`／`WX25-P3-069`／`WX25-P3-072`／`WX25-P3-073` の4カード＝いずれも直前ステップが BOUNCE）。
+  //
+  // ⚠🔴**旧実装は「それ」を効果元シグニだと取り違えていた**＝`ctx.sourceCardNum` の原文を見て、
+  //   あまつさえ**自分の場のシグニを自分のトラッシュへ落として**いた（原文は相手シグニの行き先の話）。
+  //   さらに `!!EffectText.trim()` 判定は CSV の `-`（素のシグニ158枚）を「能力あり」と読むため、
+  //   実際には**常に no-op**で表に出ていなかった＝直したときに初めて誤動作が現れる形だった。
+  // ⚠「代わりに」＝手札に戻さずトラッシュへ置く、だが JSON の構造は [BOUNCE, このSTUB] なので
+  //   **戻したあとに手札→トラッシュへ移し替える事後補正**で等価な最終盤面を作る。
+  //   ⚠その副作用として、BOUNCE 側が立てる `turn_signi_returned_to_hand`（G087 参照）は立ったままになる
+  //   ＝「実際には手札を経由していない」ぶんだけ過剰に成立しうる近似（対象4カードは常に1体なので影響は限定的）。
   if (stub.id === 'ABILITY_CHECK_ELSE_TRASH') {
-    if (!ctx.sourceCardNum) return done(ctx);
-    const srcDataACET = ctx.cardMap.get(ctx.sourceCardNum);
-    const hasAbilityACET = !!(srcDataACET?.EffectText?.trim() || srcDataACET?.BurstText?.trim());
-    if (hasAbilityACET) return done(addLog(ctx, '能力ありのためトラッシュなし'));
-    const removedACET = removeFromField(ctx.sourceCardNum, ctx.ownerState);
-    return done(addLog({ ...ctx, ownerState: { ...removedACET, trash: [...removedACET.trash, ctx.sourceCardNum] } }, '能力なし→トラッシュ'));
+    const bouncedACET = ctx.lastProcessedCards ?? [];
+    if (bouncedACET.length === 0) return done(ctx);
+    let curACET = ctx;
+    for (const numACET of bouncedACET) {
+      // 戻した先は「そのシグニの持ち主の手札」＝相手側を先に見る（自分の場のシグニを戻す札もあるため両方見る）
+      for (const ownACET of ['opponent', 'self'] as Owner[]) {
+        const sACET = ownerState(ownACET, curACET);
+        const idxACET = sACET.hand.lastIndexOf(numACET);
+        if (idxACET < 0) continue;
+        if (!hasNoAbility(numACET, curACET.cardMap, sACET)) {
+          curACET = addLog(curACET, `${curACET.cardMap.get(getCardNum(numACET))?.CardName ?? numACET}は能力を持つため手札のまま`);
+          break;
+        }
+        const handACET = [...sACET.hand];
+        handACET.splice(idxACET, 1);
+        curACET = addLog(setOwnerState(ownACET, { ...sACET, hand: handACET, trash: [...sACET.trash, numACET] }, curACET),
+          `${curACET.cardMap.get(getCardNum(numACET))?.CardName ?? numACET}は能力を持たないため代わりにトラッシュへ`);
+        break;
+      }
+    }
+    return done(curACET);
   }
   // OPTIONAL_DISCARD_CLASS_SIGNI: クラスシグニを任意で捨てる
   if (stub.id === 'OPTIONAL_DISCARD_CLASS_SIGNI') {
