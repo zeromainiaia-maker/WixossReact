@@ -6085,6 +6085,46 @@ const scenarios = {
       return { pass: false, detail: `ガードブロック表示 未確認（hEnergy=${fin?.host?.energy} lrigAttacked=${fin?.host?.lrigAttacked} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §6.3(d)（2026-08-04・Sonnet）＝夢限-Q- WXDi-P11-010A-E1：`ON_GROW_PHASE_START`で`EFFECTIVE_LRIG_LIMIT_GTE(9)`
+  // が成立すると`MUGEN_Q_RESET_AND_FLIP`（`execStubPart1.ts:25-78`）が発火し、手札/エナ/トラッシュをデッキへ
+  // 戻してシャッフル＋除外、`card_identity_overrides[instanceId]='WXDi-P11-010B'`へ1手で反転する。
+  // `game_lrig_limit_bonus`を直接注入して印刷Limit5+4=9を満たし、ENERGY→GROWの実フェイズ遷移
+  // （`H.openGrow`のDB直PATCHは`ON_GROW_PHASE_START`収集を素通りするため使わない）をUIクリックで踏む。
+  mugenQFlip: {
+    title: '夢限-Q- WXDi-P11-010A-E1（ON_GROW_PHASE_START＋MUGEN_Q_RESET_AND_FLIP＝Limit9到達でB面WXDi-P11-010Bへ反転）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXDi-P11-010A#1'],
+        'game_lrig_limit_bonus': 4, // 印刷Limit5+4=9でEFFECTIVE_LRIG_LIMIT_GTE(9)成立
+        'hand': ['WD01-013#1', 'WD01-013#2'],
+        'energy': ['WD01-013#3'],
+        'trash': ['WD01-013#4'],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'ENERGY', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'hand:', before?.host?.hand, 'energy:', before?.host?.energy, 'trash:', before?.host?.trash);
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/mugenQFlip-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['グロウフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['このまま進む']);
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P11-010B';
+        H.log(`  mqf[${s}] -> ${did ?? 'なし'} | hLrigTop=${st?.host?.lrigTop} identity=${JSON.stringify(st?.host?.identityOverrides)} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} hTrash=${st?.host?.trash} phase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+        if (flipped) {
+          return { pass: true, detail: `ON_GROW_PHASE_START→EFFECTIVE_LRIG_LIMIT_GTE(9)成立→MUGEN_Q_RESET_AND_FLIPでcard_identity_overrides[${st.host.lrigTop}]=WXDi-P11-010Bへ反転＋手札/エナ/トラッシュがリセット後B面E1で再構築（hHand=${st.host.hand}・hEnergy=${st.host.energy}・hTrash=${st.host.trash}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `反転未確認（hLrigTop=${fin?.host?.lrigTop} identity=${JSON.stringify(fin?.host?.identityOverrides)} phase=${fin?.turnPhase} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
