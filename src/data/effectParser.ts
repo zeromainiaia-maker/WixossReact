@@ -7903,6 +7903,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // 「対戦相手のシグニかルリグが〜」は timing が ['ON_ATTACK_SIGNI','ON_ATTACK_LRIG'] の2要素になるため
       // timing[0] 決め打ちではなく includes で判定する（続き218j・タスク12(xlvii)）。
       if (timing.includes('ON_ATTACK_SIGNI') || timing.includes('ON_ATTACK_LRIG')) {
+        // 散文形の前置き「(対戦相手|あなた)のターンの間、」をターン限定へ落として本文から外す（タスク12(xcix)）。
+        // ⚠**先頭限定**＝「…そうした場合、次の対戦相手のターンの間、対戦相手は〜できない」のような**本文側**の
+        //   同句（実測3件）は触らない。付けると自分のターンに撃つ効果が永久不発になる。
+        const atkTurnM = actionText.match(/^(対戦相手|あなた)のターンの間[、,](.+)/s);
+        if (atkTurnM) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            turnOwner: atkTurnM[1] === '対戦相手' ? 'opponent' as const : 'self' as const,
+          };
+          actionText = atkTurnM[2];
+        }
         const selfAttM = actionText.match(/^このシグニがアタックしたとき、/);
         if (selfAttM) {
           extractedTriggerScope = 'self';
