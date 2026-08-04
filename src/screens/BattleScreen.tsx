@@ -9784,7 +9784,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // 全シグニアタック完了 → ATTACK_LRIGへ
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', cpuSt) }));
+      // ON_LRIG_ATTACK_STEP_START（タスク12(lxvii)）＝人間ターンの ATTACK_SIGNI→ATTACK_LRIG と同じ位置。
+      // ⚠**移行先が ATTACK_LRIG のときだけ**収集する（ステップ封じで飛ばされる場合は開始しない）。
+      const nextAfterSigni = resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', cpuSt);
+      if (nextAfterSigni !== 'ATTACK_LRIG') {
+        await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: nextAfterSigni }));
+        return;
+      }
+      const lasCpu = collectCpuTurnTriggers('ON_LRIG_ATTACK_STEP_START', cpuSt, huSt);
+      await persist.commit(reduceBattle(bs, {
+        type: 'ADVANCE_TURN_WITH_STATE', phase: nextAfterSigni,
+        playerKey: 'guest_state', playerState: lasCpu.cpuState,
+        opp: lasCpu.humanState ? { key: 'host_state', state: lasCpu.humanState } : undefined,
+        effectStack: lasCpu.entries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, lasCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, lasCpu.entries))
+          : undefined,
+      }));
       return;
     }
 
