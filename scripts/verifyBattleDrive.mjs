@@ -5551,6 +5551,7 @@ const scenarios = {
             if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
           }
         }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
@@ -5603,6 +5604,7 @@ const scenarios = {
             if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
           }
         }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const paid = (st?.guest?.energy ?? 99) < (before?.guest?.energy ?? 0);
@@ -5665,6 +5667,7 @@ const scenarios = {
             if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
           }
         }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
@@ -5803,6 +5806,7 @@ const scenarios = {
             if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
           }
         }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const picked = (st?.host?.handCards ?? []).some(c => c.startsWith('WD01-018'));
