@@ -171,6 +171,7 @@ export interface CostReplaceCtx {
     field?: PlayerState['field'];
     life_cloth?: string[];
     coins?: number;
+    abilities_removed?: string[];
   };
   // 他カードの `SET_CARD_COST_REPLACEMENT` でゲーム間セットされたカード名指定の置換（`WXK03-002-E3`）。
   // 使用側カードの原文には何も書かれていないので、**EffectText 由来の規則より先**に見る。
