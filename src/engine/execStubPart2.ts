@@ -2232,16 +2232,14 @@ export function execStubPart2(
     const newSSTINOC: PlayerState = { ...removedSTINOC, trash: [...removedSTINOC.trash, ctx.sourceCardNum] };
     return done(addLog({ ...ctx, ownerState: newSSTINOC }, '相手チャームなし→自トラッシュ'));
   }
-  // NO_ABILITY_SIGNI_TO_DECK_BOTTOM: 能力なしシグニをデッキ下に
-  if (stub.id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM') {
-    if (!ctx.sourceCardNum) return done(ctx);
-    const srcDataNASDB = ctx.cardMap.get(ctx.sourceCardNum);
-    const hasAbility = !!(srcDataNASDB?.EffectText ?? srcDataNASDB?.BurstText);
-    if (hasAbility) return done(addLog(ctx, '能力ありのためデッキ下移動なし'));
-    const removedNASDB = removeFromField(ctx.sourceCardNum, ctx.ownerState);
-    const newSNASDB: PlayerState = { ...removedNASDB, deck: [...removedNASDB.deck, ctx.sourceCardNum] };
-    return done(addLog({ ...ctx, ownerState: newSNASDB }, '能力なし→デッキ下'));
-  }
+  // NO_ABILITY_SIGNI_TO_DECK_BOTTOM（`WXEX2-30`）＝【常】「アタックフェイズの間、能力を持たない対戦相手の
+  // シグニが場を離れる場合、代わりにデッキの一番下に置かれる」＝**宣言だけ**。
+  // 実体は場離れ置換チェーンの `applyEffectLeaveNoAbilityDeckBottomSubstitute`（`effectExecutor.ts`）が担う
+  // （`EFFECT_LEAVE_REPLACE_BANISH` と同じ「CONTINUOUS は宣言・置換は離場側で読む」構造）。
+  //
+  // ⚠🔴**旧実装は「対戦相手のシグニ」を効果元シグニと取り違えて、自分の場のこのカード自身を自分のデッキ下へ
+  //   送っていた**（しかも `!!EffectText` 判定は CSV の `-` を「能力あり」と読むので常に no-op ＝表に出なかった）。
+  if (stub.id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM') return done(ctx);
   // FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 凍結状態のシグニが退場するとトラッシュへ
   if (stub.id === 'FROZEN_SIGNI_TO_TRASH_ON_LEAVE') {
     // 凍結シグニをフィールドからトラッシュへ移動
