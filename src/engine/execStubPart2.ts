@@ -2,7 +2,7 @@ import type { PlayerState, TargetScope, SigniZoneBlock } from '../types';
 import { addSigniZoneBlock } from '../screens/battle/signiZoneBlock';
 import { parseCardEffects } from '../data/effectParser';
 import type {
-  EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, ChooseAction, } from '../types/effects';
+  EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, ChooseAction, Owner, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
