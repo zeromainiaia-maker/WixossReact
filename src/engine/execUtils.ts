@@ -771,10 +771,15 @@ export function hasNoAbility(
   cardNum: string,
   cardMap: Map<string, CardData>,
   holder?: { abilities_removed?: string[] },
+  effects?: CardEffect[],
 ): boolean {
   if (holder?.abilities_removed?.includes(cardNum)) return true;
   const card = cardMap.get(getCardNum(cardNum));
   if (!card) return false;
+  // ① 解析済み効果が1件でもあれば**明確に能力あり**（呼び出し側が effectsMap を持つならそれを優先）
+  const effs = effects ?? card.effects;
+  if (effs && effs.length > 0) return false;
+  // ② 効果0件は「能力なし」の**根拠にならない**（下のコメント参照）＝原文で判定する
   const blank = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
   return blank(card.EffectText) && blank(card.BurstText);
 }
