@@ -2440,7 +2440,7 @@ export function execStubPart2(
         const sACET = ownerState(ownACET, curACET);
         const idxACET = sACET.hand.lastIndexOf(numACET);
         if (idxACET < 0) continue;
-        if (!hasNoAbility(numACET, curACET.cardMap, sACET)) {
+        if (!hasNoAbility(numACET, curACET.cardMap, sACET, curACET.effectsMap?.get(getCardNum(numACET)))) {
           curACET = addLog(curACET, `${curACET.cardMap.get(getCardNum(numACET))?.CardName ?? numACET}は能力を持つため手札のまま`);
           break;
         }
