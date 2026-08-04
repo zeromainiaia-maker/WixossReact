@@ -7927,7 +7927,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 主語は「あなたの」＝味方全体なので any_ally。閾値は triggerFilter.powerRange へ載せ、
           // 収集側（collectFieldTriggers／BattleScreen のアタッカー自身経路）が**実効パワー**で判定する。
           const allyPowerM = actionText.match(/^あなたのパワー([０-９\d]+)以上のシグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
-          if (allyPowerM) {
+          // 🆕主語なし「シグニN体がアタックしたとき」＝**どちらの陣営のアタックでも**反応する（実測3効果＝
+          // `WXDi-P06-033-E2`／`WXDi-CP02-053-E1`／`WXEX2-04-E1`。タスク12(xcix)）。
+          // ⚠既定 self へ潰れると「このシグニがアタックしたとき」と**同義**になり、
+          //   ①相手のアタックに反応すべき札が自分のアタックで誤発火し ②本来の場面（相手ターン）では発火しない
+          //   という二重のズレになる。前置き《相手ターン》/「対戦相手のターンの間、」との組み合わせが本来の形。
+          const anyAttM = actionText.match(/^シグニ(?:[０-９\d一]+体)?がアタックしたとき[、,]/);
+          if (anyAttM) {
+            extractedTriggerScope = 'any';
+          } else if (allyPowerM) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = { powerRange: { min: parseNum(allyPowerM[1]) } };
           } else if (allyColorM) {
