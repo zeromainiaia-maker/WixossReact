@@ -1291,7 +1291,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       //   （原文が「（エナコストを支払う際、このカードは青か緑１つとして支払える）」だけのカード）を
       //   「能力を持たない」と誤判定していた＝マルチエナは常時能力なので**能力あり**が正。
       //   判定は `hasNoAbility` 1本に統一する（タスク12(xcv)）。
-      return hasNoAbility(last, ctx.cardMap, ownerState('self', ctx));
+      return hasNoAbility(last, ctx.cardMap, ownerState('self', ctx), ctx.effectsMap?.get(getCardNum(last)));
     }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;
