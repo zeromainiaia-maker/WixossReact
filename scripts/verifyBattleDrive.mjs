@@ -5596,6 +5596,7 @@ const scenarios = {
       await page.waitForTimeout(700);
       H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
       let stablePolls = 0;
+      let sawChoose = false;
       for (let s = 0; s < 18; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/oppPayEnergySufficient-${s}.png`, fullPage: true });
@@ -5611,16 +5612,17 @@ const scenarios = {
         if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
+        if (st?.pendingEffect === 'CHOOSE') sawChoose = true; // OPPONENT_PAY_OPTIONALのCHOOSEが実際に生成された証拠
         const paid = (st?.guest?.energy ?? 99) < (before?.guest?.energy ?? 0);
         const stillThere = st?.guest?.fieldSigni?.[0] != null;
-        H.log(`  opes[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy}(開始${before?.guest?.energy}) pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  opes[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy}(開始${before?.guest?.energy}) sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
         if (paid && stillThere && !st?.pendingEffect) {
           stablePolls++;
           if (stablePolls >= 2) {
             return { pass: true, detail: `《無》×3が足りるため OPPONENT_PAY_OPTIONAL の pay を CPU が選択（gEnergy ${before.guest.energy}→${st.guest.energy}）→banish回避（guest zone0 は健在）＝バグ非再現・要再確認` };
           }
-        } else if (!paid && stillThere && !st?.pendingEffect) {
-          // 想定バグ状態＝pay選択でエナ未消費・banishも不発のまま黙って解消
+        } else if (sawChoose && !paid && stillThere && !st?.pendingEffect) {
+          // 想定バグ状態＝CHOOSE生成を確認済みの上で、pay選択でエナ未消費・banishも不発のまま黙って解消
           stablePolls++;
           if (stablePolls >= 2) {
             return {
