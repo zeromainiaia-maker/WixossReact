@@ -5510,6 +5510,312 @@ const scenarios = {
       return { pass: false, detail: `効果配置【出】DRAW未確認（hHand=${before?.host?.hand}→${fin?.host?.hand}, drawLog=${drawLog ?? '-'}, hField=${JSON.stringify(fin?.host?.fieldSigni)}, pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク12(lxi)本消化(a)（2026-08-04・Sonnet）＝WX25-P1-038-E1（本丸火出）：対戦相手のパワー12000以下の
+  // シグニ１体を対象とし、対戦相手が《無》《無》《無》を支払わないかぎり、それをバニッシュする。
+  // costColors搭載の標準形＝相手（CPU＝guest）のエナ不足で OPPONENT_PAY_OPTIONAL の「支払う」が
+  // available:false となり、CPU自動応答が skip（バニッシュ本体）へ落ちることを確認する。
+  oppPayEnergyInsufficient: {
+    title: 'WX25-P1-038-E1（本丸火出＝相手エナ不足でOPPONENT_PAY_OPTIONALのpayがunavailable→banish実行）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX25-P1-038#1'],
+        'energy': ['WX04-068#1'], // 赤×1（アーツコスト）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null], // バニッシュ候補（小剣ククリ・P3000≤12000）
+        'field.signi_down': [false, false, false],
+        'energy': [], // 《無》×3が払えない状態
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 }, // CardData.Timing=アタックフェイズのみ
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'guest.energy:', before?.guest?.energy);
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppPayEnergyInsufficient-${s}.png`, fullPage: true });
+        let did = null;
+        const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+        if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+          if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+          else {
+            const e0 = page.getByTestId('artscost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
+        H.log(`  opei[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banished) {
+          return { pass: true, detail: `《無》×3不足でOPPONENT_PAY_OPTIONALのpayがavailable:false→CPUがskipを選択→BANISH実行（guest zone0消滅・gEnergy=${st.guest.energy}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `BANISH未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${fin?.guest?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxi)本消化(a) 対照実験＝上記の反転（guestのエナを《無》×3以上に増やし、payがavailable:true
+  // になったときCPU自動応答（options.find(o=>o.available)）が先頭のpayを選び、banishを回避することを確認する。
+  oppPayEnergySufficient: {
+    title: 'WX25-P1-038-E1（本丸火出＝相手エナ十分でCPUがpayを選択→banish回避・対照実験）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX25-P1-038#1'],
+        'energy': ['WX04-068#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD01-013#10', 'WD01-013#11', 'WD01-013#12'], // 《無》×3を払える（色は無関係＝無スロットなので何色でも可）
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'guest.energy:', before?.guest?.energy);
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let stablePolls = 0;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppPayEnergySufficient-${s}.png`, fullPage: true });
+        let did = null;
+        const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+        if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+          if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+          else {
+            const e0 = page.getByTestId('artscost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const paid = (st?.guest?.energy ?? 99) < (before?.guest?.energy ?? 0);
+        const stillThere = st?.guest?.fieldSigni?.[0] != null;
+        H.log(`  opes[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${st?.guest?.energy}(開始${before?.guest?.energy}) pEff=${st?.pendingEffect ?? '-'}`);
+        if (paid && stillThere && !st?.pendingEffect) {
+          stablePolls++;
+          if (stablePolls >= 2) {
+            return { pass: true, detail: `《無》×3が足りるため OPPONENT_PAY_OPTIONAL の pay を CPU が選択（gEnergy ${before.guest.energy}→${st.guest.energy}）→banish回避（guest zone0 は健在）` };
+          }
+        } else {
+          stablePolls = 0;
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `pay選択の確認未達（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${fin?.guest?.energy}（開始${before?.guest?.energy}） pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxi)本消化(b)（2026-08-04・Sonnet）＝WX25-P1-040-E1（アッパー・アロー）：対戦相手のパワー
+  // 12000以下のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、それをバニッシュする。
+  // ⚠実機検証中に発見した実バグ（Opusタスク12(ci)へ登録済み）＝costColors非搭載のOPPONENT_PAY_OPTIONALは
+  // `effectExecutor.ts:3333` で無条件に「支払う」（コスト0・常時available）を選択肢へ積むため、CPU自動応答
+  // （options.find(o=>o.available)）はこれを最優先で選び、手札不足のはずのdiscard枝のavailable:false判定にも
+  // skip（banish本体）にも到達しない。本シナリオはこの実際の挙動を実機で確認する（意図的FAILとして記録）。
+  oppDiscardGateBareBug: {
+    title: 'WX25-P1-040-E1（アッパー・アロー＝手札不足でもcostColors非搭載のOPPONENT_PAY_OPTIONALは無料payが常時available＝Opusタスク12(ci)実機確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX25-P1-040#1'],
+        'energy': ['WD03-009#1'], // 青×1（アーツコスト）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null], // バニッシュ候補（P3000≤12000）
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#20', 'WD01-013#21'], // 2枚＜3＝discard（手札を3枚捨てる）は本来available:falseのはず
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      let stablePolls = 0;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppDiscardGateBareBug-${s}.png`, fullPage: true });
+        let did = null;
+        const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+        if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+          if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+          else {
+            const e0 = page.getByTestId('artscost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
+        const handUnchanged = st?.guest?.hand === before?.guest?.hand;
+        H.log(`  odgb[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banished) {
+          return { pass: true, detail: `想定通りbanish発生＝discard枝unavailableでもskipへ正しく落ちた（今回はバグ非再現・要再確認）` };
+        }
+        if (!st?.pendingEffect && handUnchanged) {
+          stablePolls++;
+          if (stablePolls >= 3) {
+            return {
+              pass: false,
+              detail: `【Opusタスク12(ci)実機確認】手札2枚(<3)でdiscard枝は本来available:falseのはずが、costColors非搭載のOPPONENT_PAY_OPTIONALは無条件で無料「支払う」を先頭に積む（effectExecutor.ts:3333）＝CPUがこれを最優先選択しbanishを回避した（gField zone0残存・gHand=${st.guest.hand}不変=開始時と同じ）。原文「対戦相手が手札を３枚捨てないかぎり、バニッシュする」に反し無料回避が成立＝実バグ`,
+            };
+          }
+        } else {
+          stablePolls = 0;
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認の挙動（gField=${JSON.stringify(fin?.guest?.fieldSigni)} gHand=${fin?.guest?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxi)本消化(d)（2026-08-04・Sonnet）＝WX24-P2-071-BURST（幻闘竜　グリアナ）：ライフバースト
+  // 「対戦相手のパワー10000以下のシグニ１体を対象とし、対戦相手が《無》×3を支払わないかぎり、バニッシュする」。
+  // LB解決はqueueCardEffects(...,{id:ownerId})でLB所有者(guest)をownerStateに固定するため、OPPONENT_PAY_OPTIONAL
+  // のotherState（＝支払い側）はターン所有者ではなく常に「LB所有者の対戦相手」になるはず（BattleScreen.tsx:10490
+  // 付近）。本シナリオはguestのライフをクラッシュさせるアタッカー側＝hostが実際にCHOOSE（optcost-skip等）を
+  // 受け取り、支払わなかった場合にhost自身のシグニがバニッシュされることを実機で確認する＝ownerの反転が
+  // ターンの持ち回りに関わらず正しく機能していることの直接証拠。
+  lbOwnerReversal: {
+    title: 'WX24-P2-071-BURST（LB＝OPPONENT_PAY_OPTIONALの支払い側がLB所有者の対戦相手＝アタッカーに正しく反転すること）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WD01-013#1'], null, null], // アタッカー兼バニッシュ対象候補（P3000≤10000）
+        'field.signi_down': [false, false, false],
+        'energy': [], // 《無》×3が払えない状態＝skip強制
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null], // ブロッカー無し＝ライフクロスクラッシュ直行
+        'life_cloth': ['WD01-013#30', 'WX24-P2-071#1'], // 配列末尾が先にクラッシュ＝バースト即発火（life_cloth.slice(0,-1)）
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'guest.life:', before?.guest?.life);
+      let modalOpened = false;
+      let attacked = false;
+      let sawChoose = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lbOwnerReversal-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !modalOpened && !attacked) {
+          const phaseChk = await H.queryState();
+          if (phaseChk?.turnPhase === 'ATTACK_SIGNI' && !phaseChk?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        // OPPONENT_PAY_OPTIONAL（costColors搭載＝任意コストUI）：host側にoptcost-skipが見える＝CHOOSEが
+        // 正しくhost（LB所有者guestの対戦相手）へ回っている直接証拠。
+        if (!did) {
+          const skipBtn = page.getByTestId('optcost-skip').first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
+            sawChoose = true;
+            await skipBtn.click().catch(() => {}); did = 'optcost-skip';
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい', 'エナに送る', 'ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+        const st = await H.queryState();
+        const banished = (before?.host?.fieldSigni?.[0] != null) && (st?.host?.fieldSigni?.[0] == null);
+        H.log(`  lbor[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energy} sawChoose=${sawChoose} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banished && sawChoose) {
+          return { pass: true, detail: `LB所有者(guest)の対戦相手(host=アタッカー)がOPPONENT_PAY_OPTIONALのCHOOSEを正しく受領（optcost-skip表示を確認）→host無エナでpay不能→skip→host自身のシグニがBANISH＝owner反転が正しく機能` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `owner反転 未確認（sawChoose=${sawChoose} hField=${JSON.stringify(fin?.host?.fieldSigni)} gLife=${fin?.guest?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxi)本消化(e)（2026-08-04・Sonnet）＝WX24-P1-023-E1（ドンドン・バキューム）：外側SEQUENCEの
+  // step0＝内側SEQUENCE[STUB(OPPONENT_PAY_OPTIONAL), CONDITIONAL→BANISH]、step1＝無条件のREVEAL_AND_PICK
+  // （デッキ上5枚からスペル/＜電機＞を合計2枚まで手札へ・残りはデッキ下）。ゲート（相手CHOOSE）の解決結果に
+  // 関わらずREVEAL_AND_PICKが必ず続行することを確認する（回避されるのはBANISHだけ）。
+  // ⚠この内側ゲートもcostColors非搭載＝Opusタスク12(ci)によりCPUは無料payを選びbanishは不発になる想定だが、
+  // 本シナリオの検証対象はcontinuationの続行そのもの（バグの有無に依存しない）。
+  sequenceContinuationAcrossGate: {
+    title: 'WX24-P1-023-E1（ドンドン・バキューム＝内側ゲート解決後もREVEAL_AND_PICKが必ず続行すること）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX24-P1-023#1'],
+        'energy': ['WD03-009#1', 'WD03-009#2'], // 青×0だがコスト選択UIの保険（negateAttackLrigと同型）
+        'deck': ['WD01-018#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5'], // 先頭がスペル（噴流する知識）＝上5枚公開でpick対象1件を保証
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null], // バニッシュ候補（P3000≤10000）
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#20'], // 1枚＜2＝discard枝が本来unavailableでも無料pay分岐で回避される想定（(ci)と同型）
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/sequenceContinuationAcrossGate-${s}.png`, fullPage: true });
+        let did = null;
+        const submitBtn = page.getByRole('button', { name: 'アーツ使用', exact: false }).first();
+        if (await submitBtn.count() && await submitBtn.isVisible().catch(() => false)) {
+          if (await submitBtn.isEnabled().catch(() => false)) { await submitBtn.click().catch(() => {}); did = 'アーツ使用(submit)'; }
+          else {
+            const e0 = page.getByTestId('artscost-energy-0').first();
+            if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'artscost-energy-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const picked = (st?.host?.handCards ?? []).some(c => c.startsWith('WD01-018'));
+        const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
+        H.log(`  scag[${s}] -> ${did ?? 'なし'} | hHand=${JSON.stringify(st?.host?.handCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} banished=${banished} pEff=${st?.pendingEffect ?? '-'}`);
+        if (picked) {
+          return { pass: true, detail: `内側ゲート（相手CHOOSE）解決後もREVEAL_AND_PICKが続行＝噴流する知識をpick済み（hHand=${JSON.stringify(st.host.handCards)}）。banished=${banished}（今回はCPUが無料pay枝＝Opusタスク12(ci)を選択したためbanishは不発だが、continuation自体は中断を跨いで正しく走った）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `REVEAL_AND_PICKの続行 未確認（hHand=${JSON.stringify(fin?.host?.handCards)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
