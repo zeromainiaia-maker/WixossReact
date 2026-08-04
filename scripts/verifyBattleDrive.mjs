@@ -6172,6 +6172,270 @@ const scenarios = {
       return { pass: false, detail: `反転/無料グロウ未確認（hLrigTop=${fin?.host?.lrigTop} identity=${JSON.stringify(fin?.host?.identityOverrides)} actionsDone=${JSON.stringify(fin?.host?.actionsDone)} keyPiece=${fin?.host?.keyPiece} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク12(lxi)第10波(a)（2026-08-05・Sonnet）＝「シグニを新たに配置できないゾーン」の無条件版。
+  // `signi_zone_blocks:[{zone}]`（colorlessなし）を直接注入し、`SigniSummonZoneModal`（`signiZoneBlock.tsx`
+  // 純関数経由）がブロック済みゾーンを`(配置禁止)`ラベル＋disabledで表示し、選べないこと／他の空きゾーンには
+  // 通常どおり配置できることを確認する。
+  zoneBlockUnconditional: {
+    title: 'BLOCK_OPP_ZONE_PLACEMENT（無条件版＝zone1が(配置禁止)で選べず、zone0には通常配置できる）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'signi_zone_blocks': [{ zone: 1 }], // ゾーン2（0-index=1）を配置禁止
+        'hand': ['WD01-013#1'],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let checkedBlockedLabel = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/zoneBlockUnconditional-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned && !checkedBlockedLabel) {
+          const z1 = page.getByTestId('summon-zone-1').first();
+          if (await z1.count() && await z1.isVisible().catch(() => false)) {
+            const txt = await z1.innerText().catch(() => '');
+            const disabled = !(await z1.isEnabled().catch(() => true));
+            checkedBlockedLabel = true;
+            H.log(`  zone1ボタン: text="${txt.replace(/\n/g, ' ')}" disabled=${disabled}`);
+            if (!disabled || !txt.includes('配置禁止')) {
+              return { pass: false, detail: `【回帰疑い】zone1が(配置禁止)表示/disabledになっていない（text="${txt}" disabled=${disabled}）` };
+            }
+            did = 'checked:zone1blocked';
+          }
+        }
+        if (!did) did = await H.clickTestId('summon-zone-0');
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni?.[0] ?? []).some(n => n?.startsWith('WD01-013'));
+        H.log(`  zbu[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed && checkedBlockedLabel) {
+          return { pass: true, detail: `zone1は"(配置禁止)"表示＋disabledで選択不可を確認→zone0（非ブロック）には通常どおり配置成功（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（checkedBlockedLabel=${checkedBlockedLabel} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxi)第10波(b)前半（2026-08-05・Sonnet）＝《無》×5支払い回避＝エナ不足（3枚<5）だと
+  // `《無》×5不足`表示でdisabled＝選べないことを確認する（`WXDi-P11-009-E3`のzoneBlockColorless:5と同型）。
+  zoneBlockColorlessInsufficient: {
+    title: 'BLOCK_OPP_ZONE_PLACEMENT（《無》×5版＝エナ3枚<5で"《無》×5不足"表示・disabled）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'signi_zone_blocks': [{ zone: 1, colorless: 5 }],
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4'], // 3枚<5
+        'hand': ['WD01-013#1'],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/zoneBlockColorlessInsufficient-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned) {
+          const z1 = page.getByTestId('summon-zone-1').first();
+          if (await z1.count() && await z1.isVisible().catch(() => false)) {
+            const txt = await z1.innerText().catch(() => '');
+            const disabled = !(await z1.isEnabled().catch(() => true));
+            H.log(`  zone1ボタン: text="${txt.replace(/\n/g, ' ')}" disabled=${disabled}`);
+            if (disabled && txt.includes('《無》×5不足')) {
+              return { pass: true, detail: `エナ3枚<5で"《無》×5不足"表示＋disabled確認（zone1選択不可・text="${txt.replace(/\n/g, ' ')}"）` };
+            }
+            return { pass: false, detail: `【回帰疑い】エナ不足でも"《無》×5不足"表示/disabledになっていない（text="${txt}" disabled=${disabled}）` };
+          }
+        }
+        if (!did) did = await H.stdStep();
+      }
+      return { pass: false, detail: `summon-zone-1 未検出のままタイムアウト` };
+    },
+  },
+
+  // §7 タスク12(lxi)第10波(b)後半＝エナ十分（5枚）だとzone1が選べて、配置時に《無》×5がちょうど
+  // トラッシュへ支払われることを確認する（対照実験）。
+  zoneBlockColorlessSufficient: {
+    title: 'BLOCK_OPP_ZONE_PLACEMENT（《無》×5版＝エナ5枚で選択可→配置時にちょうど5枚支払う）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'signi_zone_blocks': [{ zone: 1, colorless: 5 }],
+        'energy': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5', 'WD01-013#6'], // ちょうど5枚
+        'hand': ['WD01-013#1'],
+        'trash': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.energy:', before?.host?.energy, 'trash:', before?.host?.trash);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/zoneBlockColorlessSufficient-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did) did = await H.clickTestId('summon-zone-1');
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni?.[1] ?? []).some(n => n?.startsWith('WD01-013#1'));
+        const paidLog = await H.findLog(/シグニゾーン2への配置コスト《無》×5を支払う/);
+        H.log(`  zbcs[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) hTrash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed) {
+          const consumed = before.host.energy - st.host.energy;
+          return {
+            pass: consumed === 5 && !!paidLog,
+            detail: `zone1（《無》×5版）へ配置成功→エナ${before.host.energy}→${st.host.energy}（消費${consumed}枚）・ログ「${paidLog ?? '(未検出)'}」`,
+          };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `配置未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${fin?.host?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxxvi)②（2026-08-05・Sonnet）＝WXEX1-24-E1③のvirus発生源＝【ウィルス】があるゾーン**すべて**
+  // が配置禁止になることをDOM側で確認する（`zoneBlockSource:'virus'`の解決自体はengine/goldenで固定済み・
+  // ここではSigniSummonZoneModalが複数ブロックを正しく描画するかを見る）。ゾーン0とゾーン2の2箇所に
+  // signi_zone_blocksを注入し、両方が(配置禁止)・ゾーン1だけ通常どおり選べることを確認する。
+  zoneBlockMultiZones: {
+    title: 'BLOCK_OPP_ZONE_PLACEMENT（複数ゾーン版＝ゾーン0・2が(配置禁止)、ゾーン1のみ通常配置可）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'signi_zone_blocks': [{ zone: 0 }, { zone: 2 }],
+        'hand': ['WD01-013#1'],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;
+      let checked = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/zoneBlockMultiZones-${s}.png`, fullPage: true });
+        let did = null;
+        if (!summoned) {
+          const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+          if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        }
+        if (!did && summoned && !checked) {
+          const z0 = page.getByTestId('summon-zone-0').first();
+          const z2 = page.getByTestId('summon-zone-2').first();
+          if (await z0.count() && await z2.count() && await z0.isVisible().catch(() => false) && await z2.isVisible().catch(() => false)) {
+            const t0 = await z0.innerText().catch(() => ''); const d0 = !(await z0.isEnabled().catch(() => true));
+            const t2 = await z2.innerText().catch(() => ''); const d2 = !(await z2.isEnabled().catch(() => true));
+            checked = true;
+            H.log(`  zone0: text="${t0.replace(/\n/g, ' ')}" disabled=${d0} / zone2: text="${t2.replace(/\n/g, ' ')}" disabled=${d2}`);
+            if (!(d0 && t0.includes('配置禁止') && d2 && t2.includes('配置禁止'))) {
+              return { pass: false, detail: `【回帰疑い】複数ゾーンブロックの一部がDOMに反映されていない（zone0: disabled=${d0} text="${t0}" / zone2: disabled=${d2} text="${t2}"）` };
+            }
+            did = 'checked:zone0+2blocked';
+          }
+        }
+        if (!did) did = await H.clickTestId('summon-zone-1');
+        const st = await H.queryState();
+        const placed = (st?.host?.fieldSigni?.[1] ?? []).some(n => n?.startsWith('WD01-013'));
+        H.log(`  zbmz[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (placed && checked) {
+          return { pass: true, detail: `zone0・zone2ともに"(配置禁止)"＋disabledを確認→非ブロックのzone1には通常配置できた（hField=${JSON.stringify(st.host.fieldSigni)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（checked=${checked} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lxxvi)①（2026-08-05・Sonnet）＝WX08-032-E1（バニッシュ→そのシグニがいたゾーンだけを配置禁止）。
+  // ⚠state注入だけでは「ゾーン1へのフォールバックが起きていないこと」を検証できない
+  // （`signi_zone_vacated_just`は直前のBANISH実行が書く一発マーカー）＝実際にguestのシグニをゾーン2
+  // （0-index）に置いてBANISHさせ、結果のsigni_zone_blocksがzone2（zone0にフォールバックしていない）を
+  // 指すことを実機で確認する。
+  vacatedZoneBlockFollowsActualZone: {
+    title: 'WX08-032-E1（バニッシュ元がゾーン2の場合、配置禁止がゾーン2に付く＝ゾーン1へのフォールバックが無いこと）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'energy': ['WD05-013#1', 'WD05-013#2', 'WD05-013#3', 'WD05-013#4', 'WD05-013#5', 'WD05-013#6', 'WD05-013#7', 'WD05-013#8', 'WD05-013#9'], // 黒×9
+        'hand': ['WX08-032#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, ['WD01-013#1']], // guestのシグニをゾーン2（0-index）に配置＝唯一のバニッシュ候補
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.energy:', before?.host?.energy);
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; }
+        return null;
+      };
+      let energySelected = 0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/vacatedZoneBlockFollowsActualZone-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動');
+        if (!did && energySelected < 9) {
+          const e = page.getByTestId(`spellcost-energy-${energySelected}`).first();
+          if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); energySelected++; did = `spellcost-energy-${energySelected - 1}`; }
+        }
+        if (!did) did = await clickExact('発動する');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banished = (before?.guest?.fieldSigni?.[2] != null) && (st?.guest?.fieldSigni?.[2] == null);
+        H.log(`  vzbf[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} gZoneBlocks=${JSON.stringify(st?.guest?.zoneBlocks)} energySelected=${energySelected} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banished) {
+          const blocksZone2 = (st.guest.zoneBlocks ?? []).some(b => b.zone === 2);
+          const blocksZone0 = (st.guest.zoneBlocks ?? []).some(b => b.zone === 0);
+          return {
+            pass: blocksZone2 && !blocksZone0,
+            detail: `guest zone2のシグニをバニッシュ→signi_zone_vacated_justを読んだBLOCK_OPP_ZONE_PLACEMENTがzone2を禁止（zoneBlocks=${JSON.stringify(st.guest.zoneBlocks)}）。zone0へのフォールバック${blocksZone0 ? '**あり＝退化**' : 'なし'}`,
+          };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `バニッシュ未確認（gField=${JSON.stringify(fin?.guest?.fieldSigni)} energySelected=${energySelected} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
