@@ -5891,6 +5891,96 @@ const scenarios = {
       return { pass: false, detail: `ビート化未確認（hTrash=${fin?.host?.trash}（開始${before?.host?.trash}） pickedCandidate=${pickedCandidate} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §6.3(c)（2026-08-04・Sonnet）＝WX15-067-E1（メルト・ファクト）：`SpellCastModal`に挿さる支払い前ウィルス
+  // 除去UI＝相手の場から0/1/2個を選べる／除去1個以上でこのカードだけ《黒×2》軽減
+  // （`applyMeltFactPreUseCost`）／除去2個以上（`preUseVirusChoose.minRemoved`）で本体CHOOSEの上限が1→2
+  // （`effectiveCount`/`effectiveUpTo`・`effectExecutor.ts:3820-3823`）／選択を変えると支払いエナ選択がクリア
+  // される（`setSelectedSpellCost(new Set())`・`SpellCastModal.tsx:119-133`）。ウィルス2個を除去してコスト0化
+  // →CHOOSEが2択同時選択可能になることを実機で確認する。
+  meltFactVirusRemoval: {
+    title: 'WX15-067-E1（メルト・ファクト＝支払い前ウィルス除去2個でコスト軽減＋CHOOSE上限1→2）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'energy': ['WD05-013#1', 'WD05-013#2'], // 黒×2（スペルコスト。ウィルス2個除去で0まで軽減される想定）
+        'trash': ['WD05-013#3'],                // c0（トラッシュの黒シグニ1枚を手札に）の候補（候補1件）
+        'hand': ['WX15-067#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WD01-013#1'], null, null], // c1（対戦相手シグニ-7000）の対象
+        'field.signi_down': [false, false, false],
+        'field.signi_virus': [2, 0, 0],               // シグニゾーン1に【ウィルス】2個
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.energy:', before?.host?.energy, 'host.trash:', before?.host?.trashCards, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; }
+        return null;
+      };
+      // シグニゾーンN（M個）ラベルの直後の兄弟div内「＋」ボタン（testid無し・3ゾーン同一ラベルのため
+      // ラベルテキストからXPathで辿る＝positionalロケータ）。
+      const clickVirusPlus = async (zoneNum) => {
+        const btn = page.locator(`xpath=//span[starts-with(normalize-space(text()),"シグニゾーン${zoneNum}（")]/following-sibling::div[1]//button[text()="＋"]`).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false) && await btn.isEnabled().catch(() => false)) {
+          await btn.click().catch(() => {}); return `virus+zone${zoneNum}`;
+        }
+        return null;
+      };
+      let virusClicks = 0;
+      let chosenC0 = false;
+      let chosenC1 = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/meltFactVirusRemoval-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動'); // CardModal「発動」（exact）→SpellCastModalへ
+        if (!did && virusClicks < 2) {
+          const r = await clickVirusPlus(1);
+          if (r) { virusClicks++; did = r; }
+        }
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          } else {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast;
+          }
+        }
+        // 本体CHOOSE（multiSelect＝ウィルス2個除去でeffectiveCount:2, upTo:true）：c0/c1両方をトグルしてから決定
+        if (!did && !chosenC0) {
+          const c0 = page.getByRole('button', { name: /トラッシュから黒のシグニ1枚を手札に加える/ }).first();
+          if (await c0.count() && await c0.isVisible().catch(() => false)) { await c0.click().catch(() => {}); did = 'choose:c0'; chosenC0 = true; }
+        }
+        if (!did && chosenC0 && !chosenC1) {
+          const c1 = page.getByRole('button', { name: /対戦相手のシグニ1体をターン終了時まで－7000/ }).first();
+          if (await c1.count() && await c1.isVisible().catch(() => false)) { await c1.click().catch(() => {}); did = 'choose:c1'; chosenC1 = true; }
+        }
+        if (!did && chosenC0 && chosenC1) did = await clickExact('決定');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:-7000'));
+        const gotBlackSigni = (st?.host?.handCards ?? []).some(c => c.startsWith('WD05-013#3'));
+        H.log(`  mfvr[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy} virusClicks=${virusClicks} chosenC0=${chosenC0} chosenC1=${chosenC1} debuffed=${debuffed} gotBlackSigni=${gotBlackSigni} pEff=${st?.pendingEffect ?? '-'}`);
+        if (debuffed && gotBlackSigni) {
+          return { pass: true, detail: `ウィルス2個除去→コスト《黒×2》が0まで軽減（hEnergy=${st.host.energy}=開始時と不変）→CHOOSE上限1→2でc0/c1を同時選択→両方実行（トラッシュの黒シグニを手札に・guest zone0へ-7000）＝支払い前ウィルス除去UIとCHOOSE拡張を実機確認` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（hEnergy=${fin?.host?.energy}（開始${before?.host?.energy}） virusClicks=${virusClicks} debuffed=${(fin?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:-7000'))} gotBlackSigni=${(fin?.host?.handCards ?? []).some(c => c.startsWith('WD05-013#3'))} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
