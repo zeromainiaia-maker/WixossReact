@@ -155,11 +155,23 @@ export function normalizeCostText(s: string): string {
 
 // 条件つき使用コスト**置換**（タスク12(lxxxi)）の評価コンテキスト。
 // - isBetting: ベット宣言中か（ベット形の置換はこれが真のときだけ成立する）
-// - oppState : 対戦相手の「このターンにアーツ／スペルを使用したか」の判定源（engine の
-//              ARTS_USED_THIS_TURN / SPELL_USED_THIS_TURN と同じフィールドを見る）
+// - oppState : 対戦相手の状態。
+//     ①「このターンにアーツ／スペルを使用したか」の判定源（engine の
+//        ARTS_USED_THIS_TURN / SPELL_USED_THIS_TURN と同じフィールドを見る）
+//     ②🆕**相手の盤面を数える軽減**（タスク12(xcii)＝凍結シグニ/【チャーム】/【ウィルス】/能力なしシグニ/
+//        コイン/ライフ枚数）の参照元。⚠従来ここが `turn_arts_used`／`actions_done` だけだったため、
+//        `computeArtsEffectiveCost` は相手の場・ライフ・コインを**一切見られなかった**（8枚が印刷コスト請求）。
+//        呼び出し4経路（`ArtsModal`／`SpellCastModal`／`CutinModal`／`BattleScreen.getCardActions`）は
+//        いずれも既に `op`（相手 `PlayerState`）を丸ごと渡していたので、**受け口の型を広げるだけ**で届く。
 export interface CostReplaceCtx {
   isBetting?: boolean;
-  oppState?: { turn_arts_used?: boolean; actions_done?: string[] };
+  oppState?: {
+    turn_arts_used?: boolean;
+    actions_done?: string[];
+    field?: PlayerState['field'];
+    life_cloth?: string[];
+    coins?: number;
+  };
   // 他カードの `SET_CARD_COST_REPLACEMENT` でゲーム間セットされたカード名指定の置換（`WXK03-002-E3`）。
   // 使用側カードの原文には何も書かれていないので、**EffectText 由来の規則より先**に見る。
   cardCostReplacements?: { cardName: string; cost: { color: string; count: number }[] }[];
