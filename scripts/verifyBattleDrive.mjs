@@ -6683,6 +6683,9 @@ try {
         keyPiece: s.field?.key_piece ?? null,
         identityOverrides: s.card_identity_overrides ?? {},
         energyCards: s.energy ?? [],
+        zoneBlocks: s.signi_zone_blocks ?? [],
+        zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],
+        signiVirus: s.field?.signi_virus ?? [0, 0, 0],
       });
       return {
         host: sideOf(hs),
