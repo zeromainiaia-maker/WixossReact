@@ -7124,14 +7124,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const extraArtsCosts = activeCostMods.forMy
         .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
         .flatMap(m => m.amount);
-      // SPECIFIC_CARD_COST_REDUCE: 特定カード名の無色コスト軽減を適用
-      const specificReduction = specificCardCostReductions.find(r => r.targetCardName === cardData.CardName);
-      // 条件つき使用コスト置換（「〜の場合、このアーツの使用コストは《X》になる」＝タスク12(lxxxi)）。
-      // 「減る」ではなく置換なので軽減より優先し、印刷コストごと差し替える。
-      const artsCostReplacement = computeCostReplacement(cardData, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements });
-      const reducedArtsCost = artsCostReplacement ?? (specificReduction
-        ? removeNColorFromCost(cardData.Cost, '無', specificReduction.colorlessReduction)
-        : cardData.Cost);
+      // 実効コスト＝**アーツ一覧（`ArtsModal` Phase1）と完全に同じ式**で出す（タスク12(xcii)）。
+      // ⚠従来ここだけ `computeCostReplacement`（＝「《X》に**なる**」置換）＋カード名指定軽減しか通しておらず、
+      //   `computeArtsEffectiveCost` の EffectText 由来の**条件つき軽減**（(xc) の37枚＋(xcii) の相手盤面参照8枚）と
+      //   場の CONTINUOUS 軽減を素通りしていた＝**同じアーツが「一覧から」は使えて「ルリグデッキのカードを
+      //   タップして」は使えない**（印刷コストで可否判定していたため）。(lxxxvii) のカットイン窓と同じ食い違い。
+      const myLrigCardLD = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+      const reducedArtsCost = applySpecificCardCostReduction(applyContinuousCostDecreases(
+        computeArtsEffectiveCost(cardData, my, myLrigCardLD?.CardName,
+          battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
+          myLrigCardLD ? parseInt(myLrigCardLD.Level ?? '0') : 0,
+          battleCardMap, myLrigNameAliases, myArtsThresholdReductions,
+          { oppState: op, cardCostReplacements: my.card_cost_replacements }),
+        'アーツ', cardData.Color, activeCostMods.forMy), cardData.CardName, specificCardCostReductions);
       // ベット宣言でのみ成立する置換は宣言が ArtsModal 内なので、ここでは「ベットすれば払えるか」だけ見る
       const artsBetSpec = parseBetOptions(cardData.EffectText ?? '');
       const artsBetCoinMin = artsBetSpec.variable ? 1 : Math.min(...artsBetSpec.options, Infinity);
