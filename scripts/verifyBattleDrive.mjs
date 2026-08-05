@@ -6998,7 +6998,10 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未確認（sawPicker=${sawPicker} hHand=${fin?.host?.hand}（開始${before?.host?.hand}） pEff=${fin?.pendingEffect ?? '-'}）＝opp_hand+opponentResponds描画不一致でソフトロックしている可能性` };
+      return {
+        pass: false,
+        detail: `【Opusタスク12(cv)実機確認】SELECT_TARGET(opp_hand)は正しく生成される（pEff=${fin?.pendingEffect}）が、モーダルは「対戦相手の手札（全${fin?.guest?.hand}枚）」としてguest（LB所有者）の手札を表示（スクリーンショットで確認＝真の対象はhost自身の手札3枚のはずが5枚=guest手札が並ぶ）。表示カードは真の候補（host自身の手札）と一致しないためどれも選択できず「決定 (0/1)」のまま進まない＝実質ソフトロック。host手札は最後まで${before?.host?.hand}のまま不変（未確認・進行不可）。原因はEffectInteractionModal.tsxのopp_hand候補描画が"viewer視点のop"（画面を見ている側から見た相手）を使うため、対象=viewer自身（アタッカー）のケースで実際の候補と食い違う疑い＝実バグ`,
+      };
     },
   },
 };
