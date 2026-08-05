@@ -7939,6 +7939,66 @@ const scenarios = {
       return { pass: false, detail: `未完了（hostTrash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「🆕 タスク12(lxi) 第3波＝相手側CHOOSEの4つ目の枝『自分のシグニをNトラッシュに置く』」＝`WX22-025-E3`。
+  // ⚠OPPONENT_PAY_OPTIONALはcostColors非搭載＝(ci)と同型で無料'pay'が常時available だが、このシナリオは
+  // **guest（CPU）をアタッカー＝効果オーナーにする**ことで「対戦相手」＝host（driver操作アカウント）が
+  // 応答者になる＝`respondPlayerId`がCPU_PLAYER_ID以外になりCPU自動応答がbailoutし、host自身の画面に
+  // CHOOSEモーダルが実際に描画される＝driverが手動で(ci)の無料pay以外の枝を明示クリックできる新パターン
+  // （既存のLB所有者反転トリックが使えない非LIFE_BURST効果向けの代替手段）。
+  wx22025SigniTrashBranch: {
+    title: 'WX22-025-E3（相手側CHOOSE4択のうち「自分のシグニを1体トラッシュに置く」枝を明示選択）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#1'], null, null], // signiTrash枝の対象候補（host自身の場）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WX22-025#1'], null, null], // CPUアタッカー＝効果オーナー
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.fieldSigni/life:', JSON.stringify(before?.host?.fieldSigni), before?.host?.life);
+      let chosen = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/wx22025SigniTrashBranch-${s}.png`, fullPage: true });
+        let did = null;
+        if (!chosen) {
+          const signiTrashBtn = page.getByRole('button', { name: /自分のシグニを1体トラッシュに置く/ }).first();
+          if (await signiTrashBtn.count() && await signiTrashBtn.isVisible().catch(() => false)) {
+            await signiTrashBtn.click().catch(() => {}); did = 'btn:自分のシグニを1体トラッシュに置く'; chosen = true;
+          }
+        }
+        if (!did) { // 上記選択後のSELECT_TARGET（host自身の場から選ぶ＝opponentSelects）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'エナに送る', 'ガードしない', 'しない', '使用しない']);
+        const st = await H.queryState();
+        H.log(`  x025[${s}] -> ${did ?? 'なし'} | chosen=${chosen} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} hLife=${st?.host?.life} pEff=${st?.pendingEffect ?? '-'}`);
+        const trashedSelf = (st?.host?.trashCards ?? []).includes('WD01-013#1');
+        if (trashedSelf && !st?.pendingEffect) {
+          const lifeCrashed = (st?.host?.life ?? 0) < (before?.host?.life ?? 0);
+          if (!lifeCrashed) return { pass: true, detail: `4択のうち「自分のシグニを1体トラッシュに置く」を明示選択→host自身の場から選んで解決（ライフクロスは無傷 ${before.host.life}→${st.host.life}）` };
+          return { pass: false, detail: `signiTrash枝を選んだのにライフクラッシュも発生した（回避が機能していない）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（chosen=${chosen} hTrash=${JSON.stringify(fin?.host?.trashCards)} hLife=${fin?.host?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
