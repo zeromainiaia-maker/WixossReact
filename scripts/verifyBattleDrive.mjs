@@ -7219,12 +7219,18 @@ const scenarios = {
         // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
         // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
         //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
+        if (!did && !exceedActivated && !grown) {
+          // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れ、
+          // GrowModalがphase依存で閉じてしまう）＝グロウが済むまで毎周GROWを再注入してから状態を見る。
+          await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(300);
+        }
         if (!did && !exceedActivated) {
           const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
           const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
           if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
             if (await execBtn.isEnabled().catch(() => false)) {
-              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行';
+              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
             } else {
               const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
               if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
@@ -7232,14 +7238,11 @@ const scenarios = {
               }
             }
           } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
-            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック'; grown = true;
           } else if (!grown) {
-            // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れる）＝
-            // 候補が見えない＝ドリフトの疑いとしてGROWを再注入してから「グロウ」を押す。
-            await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
             const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
             if (await gb.count() && await gb.isVisible().catch(() => false)) {
-              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ(+repatch)';
+              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
             }
           }
         }
