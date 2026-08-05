@@ -8308,6 +8308,14 @@ const scenarios = {
           const discardBtn = page.getByRole('button', { name: /手札を1枚捨てる/ }).first();
           if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) { await discardBtn.click().catch(() => {}); did = 'btn:手札を1枚捨てる'; discardClicked = true; }
         }
+        if (!did && discardClicked) { // 「手札を1枚捨てる」自体がどのカードを捨てるかのSELECT_TARGETを要求する
+          const pick0b = page.getByTestId('pick-0').first();
+          if (await pick0b.count() && await pick0b.isVisible().catch(() => false)) {
+            const confirmReadyB = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReadyB) { await pick0b.click().catch(() => {}); did = 'pick:pick-0(discard)'; }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定']);
+        }
         const st = await H.queryState();
         H.log(`  x225d[${s}] -> ${did ?? 'なし'} | opened=${opened} discardClicked=${discardClicked} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
         if (discardClicked && !st?.pendingEffect) {
