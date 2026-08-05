@@ -8001,10 +8001,10 @@ const scenarios = {
   },
 
   // 上記の境界確認＝host（対象）の場にシグニが1体も無ければ「自分のシグニを1体トラッシュに置く」枝は
-  // 選べない（disabled）こと。CPUは他の利用可能な枝（無料'pay'＝(ci)）を自動選択するため、driverは
-  // 手動介入せずボタンのdisabled状態だけを確認する。
+  // 選べない（disabled）こと。⚠効果オーナー=guest（CPU）・応答者=host（driver）のためCPU自動応答は
+  // 発火しない＝driverがdisabled状態を確認した後、自分で「支払う」を押してモーダルを閉じる。
   wx22025SigniTrashUnavailable: {
-    title: 'WX22-025-E3 境界（hostの場が空＝signiTrash枝はdisabled→CPUは無料payへ自動フォールバック）',
+    title: 'WX22-025-E3 境界（hostの場が空＝signiTrash枝はdisabled）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#1'],
