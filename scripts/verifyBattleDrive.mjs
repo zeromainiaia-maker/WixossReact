@@ -7097,6 +7097,211 @@ const scenarios = {
       return { pass: false, detail: `エナ枝選択の完了 未確認（sawChoose=${sawChoose} discardDisabled=${discardWasDisabled} hEnergy=${fin?.host?.energy} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「エクシード本体5件」群B（2026-08-05・Sonnet）＝WX24-P4-018-E2（あきら☆らぶりー）：【出】エクシード４＝
+  // 対戦相手のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、それをバニッシュする。
+  // このプロジェクト初のLRIG「【出】エクシードN」コストUI（SigniOnPlayCostModal・ルリグの下からN枚選択→発動/
+  // スキップ）を実機で駆動する。⚠OPPONENT_PAY_OPTIONALはcostColors非搭載＝Opusタスク12(ci)と同型の穴（「支払う」
+  // が常時available・CPU自動応答が最優先で選ぶ）を踏む想定＝本シナリオはエクシードコストUI自体の機能を主眼とする。
+  exceedBanishGateA: {
+    title: 'WX24-P4-018-E2（あきら☆らぶりー＝エクシード4コストUI→OPPONENT_PAY_OPTIONAL手札3枚捨てゲート）',
+    spec: {
+      hostSet: {
+        // 末尾＝グロウ元(Lv3あきら)。手前3枚はエクシード支払い用フィラー（プールに4枚を確保）。
+        'field.lrig': ['WD01-001#901', 'WD01-001#902', 'WD01-001#903', 'WX24-P2-022#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX24-P4-018#1'],
+        'energy': [],
+        'free_grow_this_turn': true,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], null, null], // バニッシュ対象候補
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#20', 'WD01-013#21'], // 2枚＜3＝「手札を3枚捨てる」枝は本来unavailableのはず
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'host.lrigUnder:', before?.host?.lrigUnder, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      let grown = false;
+      let exceedPicked = 0;
+      let activated = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exceedBanishGateA-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !grown) {
+          const opened = await H.openGrow(/あきら☆らぶりー/);
+          if (opened) { did = 'grow:あきら☆らぶりー'; grown = true; }
+        }
+        if (!did && grown && !activated) {
+          const exBtn = page.getByTestId(`onplaycost-exceed-${exceedPicked}`).first();
+          if (exceedPicked < 4 && await exBtn.count() && await exBtn.isVisible().catch(() => false)) {
+            await exBtn.click().catch(() => {}); exceedPicked++; did = `onplaycost-exceed-${exceedPicked - 1}`;
+          } else if (exceedPicked >= 4) {
+            const actBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) {
+              await actBtn.click().catch(() => {}); did = 'btn:発動'; activated = true;
+            }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banished = (before?.guest?.fieldSigni?.[0] != null) && (st?.guest?.fieldSigni?.[0] == null);
+        const exceedSpent = (st?.host?.lrigUnder ?? -1) === 0 && st?.host?.lrigTop?.startsWith('WX24-P4-018');
+        H.log(`  exgA[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} lrigUnder=${st?.host?.lrigUnder} exceedSpent=${exceedSpent} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (exceedSpent && !st?.pendingEffect) {
+          return {
+            pass: banished,
+            detail: banished
+              ? `エクシード4を支払いWX24-P4-018へグロウ（lrigUnder ${before?.host?.lrigUnder}→0）→OPPONENT_PAY_OPTIONALでguestが不払いを選択→BANISH実行（gField zone0消滅）`
+              : `【Opusタスク12(ci)と同型】エクシード4コストUI自体は機能（lrigUnder 0まで消費・発動ボタンで進行）したが、OPPONENT_PAY_OPTIONALはcostColors非搭載のため無料「支払う」が常時available→CPUが最優先で選択しbanishが不発（gField zone0残存・gHand=${st.guest.hand}=開始時${before.guest.hand}と不変）`,
+          };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（lrigTop=${fin?.host?.lrigTop} lrigUnder=${fin?.host?.lrigUnder} exceedPicked=${exceedPicked} activated=${activated} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7「エクシード本体5件」群C（2026-08-05・Sonnet）＝WX24-P4-015-E2（熾炎舞　遊月・肆）：【出】エクシード４＝
+  // あなたのライフクロス１枚をクラッシュしてもよい。その後、対戦相手のシグニをこの方法でクラッシュしたライフ
+  // クロスの枚数に１を加えた数対象とし、それらをバニッシュする＝クラッシュしない→1体・する→2体の動的対象数。
+  // ライフバースト解決（チェックゾーン確認）を跨いでも対象数が2のまま連続することが最重要ポイント。
+  exceedDynamicTargetCountB: {
+    title: 'WX24-P4-015-E2（熾炎舞　遊月・肆＝任意ライフクラッシュ→動的対象数2体。LBチェックゾーンを跨いでも対象数維持）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#901', 'WD01-001#902', 'WD01-001#903', 'WX04-009#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX24-P4-015#1'],
+        'energy': [],
+        'life_cloth': ['WD01-013#930'], // 1枚だけ＝クラッシュ後LBチェックが必ず起きる・バーストなし固定
+        'free_grow_this_turn': true,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD01-013#1'], ['WD01-013#2'], null], // バニッシュ対象候補2体
+        'field.signi_down': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.life:', before?.host?.life);
+      let grown = false;
+      let crashChosen = false;
+      let pickedCount = 0;
+      let confirmedTargets = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exceedDynamicTargetCountB-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !grown) {
+          const opened = await H.openGrow(/熾炎舞　遊月・肆/);
+          if (opened) { did = 'grow:熾炎舞遊月肆'; grown = true; }
+        }
+        if (!did && grown && !crashChosen) {
+          const crashBtn = page.getByRole('button', { name: 'クラッシュする', exact: true }).first();
+          if (await crashBtn.count() && await crashBtn.isVisible().catch(() => false)) {
+            await crashBtn.click().catch(() => {}); did = 'btn:クラッシュする'; crashChosen = true;
+          }
+        }
+        // ライフバースト・チェックゾーン確認（バーストなし想定）の通過
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', '確認', 'OK']);
+        // 2体対象選択（pick-0/pick-1→決定(N/2)）
+        if (!did && crashChosen && !confirmedTargets) {
+          const pN = page.getByTestId(`pick-${pickedCount}`).first();
+          if (pickedCount < 2 && await pN.count() && await pN.isVisible().catch(() => false)) {
+            await pN.click().catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
+          } else {
+            const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+              await confirmBtn.click().catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
+            }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const banishedCount = [before?.guest?.fieldSigni?.[0], before?.guest?.fieldSigni?.[1]]
+          .filter(Boolean).length - [st?.guest?.fieldSigni?.[0], st?.guest?.fieldSigni?.[1]].filter(Boolean).length;
+        H.log(`  exgB[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} hLife=${st?.host?.life}(開始${before?.host?.life}) gField=${JSON.stringify(st?.guest?.fieldSigni)} banishedCount=${banishedCount} pEff=${st?.pendingEffect ?? '-'}`);
+        if (banishedCount >= 2 && !st?.pendingEffect) {
+          return { pass: true, detail: `クラッシュする→hLife ${before.host.life}→${st.host.life}（LBチェックゾーン通過）→動的対象数=クラッシュ枚数1+1=2体を選択→guestの2体とも正しくBANISH（zone0/zone1消滅）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `2体BANISH 未確認（lrigTop=${fin?.host?.lrigTop} hLife=${fin?.host?.life} gField=${JSON.stringify(fin?.guest?.fieldSigni)} crashChosen=${crashChosen} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7「エクシード本体5件」群E（2026-08-05・Sonnet）＝WX24-P4-017-E2（ロストコード・ピルルク　X）：【出】エクシード
+  // ４＝あなたのトラッシュからスペルと青のシグニをそれぞれ１枚まで対象とし、それらを手札に加える＝2群独立ピッカー
+  // （スペル枠1枚まで・青シグニ枠1枚まで）。片方0枚でも成立し、該当0枚のときに空振りしないことを確認する。
+  exceedTwoGroupPickerC: {
+    title: 'WX24-P4-017-E2（ロストコード・ピルルク X＝トラッシュからスペル1枚まで＋青シグニ1枚までの2群独立ピッカー）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#901', 'WD01-001#902', 'WD01-001#903', 'WD03-002#1'],
+        'field.signi': [null, null, null],
+        'lrig_deck': ['WX24-P4-017#1'],
+        'energy': [],
+        'trash': ['WD01-013#940', 'WX01-015#1'], // WD01-013=非スペル非青シグニのフィラー／WX01-015=青のシグニ（候補）。スペル候補は意図的に0枚
+        'free_grow_this_turn': true,
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#2'],
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'host.hand:', before?.host?.hand, 'host.trashCards:', JSON.stringify(before?.host?.trashCards));
+      let grown = false;
+      let pickedSpellSkip = false;
+      let pickedBlueSigni = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/exceedTwoGroupPickerC-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !grown) {
+          const opened = await H.openGrow(/ロストコード・ピルルク　X/);
+          if (opened) { did = 'grow:ロストコードピルルクX'; grown = true; }
+        }
+        // 群1（スペル・候補0枚）＝候補が無いので「スキップ」（upToCount自動解決の可能性もあるため両対応）
+        if (!did && grown) {
+          const skipBtn = page.getByRole('button', { name: 'スキップ', exact: true }).first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
+            await skipBtn.click().catch(() => {}); did = 'btn:スキップ(群1空振り)'; pickedSpellSkip = true;
+          }
+        }
+        // 群2（青シグニ・候補1枚＝WX01-015）＝pick-0→決定
+        if (!did && grown) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0(群2青シグニ)'; }
+            else { await page.getByRole('button', { name: /決定 \(1\// }).first().click().catch(() => {}); did = 'btn:決定(1/N)'; pickedBlueSigni = true; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gotBlueSigni = (st?.host?.handCards ?? []).some(c => c.startsWith('WX01-015'));
+        H.log(`  exgC[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} hHand=${JSON.stringify(st?.host?.handCards)} gotBlueSigni=${gotBlueSigni} pEff=${st?.pendingEffect ?? '-'}`);
+        if (gotBlueSigni && !st?.pendingEffect) {
+          return { pass: true, detail: `2群独立ピッカー＝スペル枠は候補0枚で自動/明示スキップ（空振りせず進行）→青シグニ枠1枚まででWX01-015を手札に加えた（hHand=${JSON.stringify(st.host.handCards)}）＝片方0枚でも成立することを確認` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `青シグニ取得 未確認（lrigTop=${fin?.host?.lrigTop} hHand=${JSON.stringify(fin?.host?.handCards)} grown=${grown} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
