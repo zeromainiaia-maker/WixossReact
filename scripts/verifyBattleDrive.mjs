@@ -7269,7 +7269,7 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `2体BANISH 未確認（lrigTop=${fin?.host?.lrigTop} hLife=${fin?.host?.life} gField=${JSON.stringify(fin?.guest?.fieldSigni)} crashChosen=${crashChosen} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `2体BANISH 未確認（lrigTop=${fin?.host?.lrigTop} grown=${grown} exceedActivated=${exceedActivated} hLife=${fin?.host?.life} gField=${JSON.stringify(fin?.guest?.fieldSigni)} crashChosen=${crashChosen} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
