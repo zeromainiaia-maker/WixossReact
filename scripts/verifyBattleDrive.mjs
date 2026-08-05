@@ -8303,7 +8303,7 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did && !discardClicked) did = await H.clickTextOrBtn(['発動', '確定']);
+        if (!did && !discardClicked) did = await H.clickTextOrBtn(['発動', '決定', '確定']);
         if (!did && !discardClicked) {
           const discardBtn = page.getByRole('button', { name: /手札を1枚捨てる/ }).first();
           if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) { await discardBtn.click().catch(() => {}); did = 'btn:手札を1枚捨てる'; discardClicked = true; }
