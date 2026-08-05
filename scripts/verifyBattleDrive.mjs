@@ -8027,12 +8027,17 @@ const scenarios = {
         await page.waitForTimeout(1000);
         await page.screenshot({ path: `${SHOT}/wx22025SigniTrashUnavailable-${s}.png`, fullPage: true });
         const signiTrashBtn = page.getByRole('button', { name: /自分のシグニを1体トラッシュに置く/ }).first();
+        let did = null;
         if (await signiTrashBtn.count() && await signiTrashBtn.isVisible().catch(() => false)) {
           const enabled = await signiTrashBtn.isEnabled().catch(() => false);
           if (!enabled) sawDisabled = true;
           H.log(`  x025u[${s}] -> signiTrashBtn見えている・enabled=${enabled}`);
+          if (sawDisabled) { // 確認できたので支払う枝でモーダルを閉じる（host自身が応答者＝CPU自動応答なし）
+            const payBtn = page.getByRole('button', { name: /^支払う/ }).first();
+            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'btn:支払う'; }
+          }
         }
-        await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない']);
+        if (!did) await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない']);
         const st = await H.queryState();
         const lifeCrashed = (st?.host?.life ?? 0) < (before?.host?.life ?? 0);
         H.log(`  x025u[${s}] hLife=${st?.host?.life} sawDisabled=${sawDisabled} pEff=${st?.pendingEffect ?? '-'}`);
