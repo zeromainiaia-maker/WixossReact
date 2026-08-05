@@ -6465,6 +6465,11 @@ const scenarios = {
       let pickedCount = 0;
       let confirmedTargets = false;
       let energySelected = 0;
+      let paid = false;
+      let pickedCount2 = 0;
+      // ⚠実機で判明＝支払い後、freezeStoredTargetsでfixedCardNumsに絞られた「2件だけの」SELECT_TARGETが
+      // もう一度発火する（BANISH自体は常にselectOrInteract経由＝候補が2件に絞られていても確認クリックが要る）。
+      // 対象確定は1回で終わらず、支払い前後で計2回のpick UIを踏む＝この関数はその両方を同じ手順で処理する。
       for (let s = 0; s < 30; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lxivMultiTargetPayBanishesBoth-${s}.png`, fullPage: true });
@@ -6489,24 +6494,34 @@ const scenarios = {
             }
           }
         }
-        if (!did && confirmedTargets && energySelected < 6) {
+        if (!did && confirmedTargets && !paid && energySelected < 6) {
           const e = page.getByTestId(`optcost-energy-${energySelected}`).first();
           if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); energySelected++; did = `optcost-energy-${energySelected - 1}`; }
         }
-        if (!did && confirmedTargets) {
+        if (!did && confirmedTargets && !paid) {
           const payBtn = page.getByTestId('optcost-pay').first();
-          if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; }
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) { await payBtn.click().catch(() => {}); did = 'optcost-pay'; paid = true; }
+        }
+        // 支払い後の再確認SELECT_TARGET（候補はfixedCardNumsで2件に絞られている）＝同じ多選択パターンで処理
+        if (!did && paid) {
+          const pN2 = page.getByTestId(`pick-${pickedCount2}`).first();
+          if (pickedCount2 < 2 && await pN2.count() && await pN2.isVisible().catch(() => false)) {
+            await pN2.click().catch(() => {}); pickedCount2++; did = `pick2:pick-${pickedCount2 - 1}`;
+          } else {
+            const confirmBtn2 = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn2.count() && await confirmBtn2.isVisible().catch(() => false)) { await confirmBtn2.click().catch(() => {}); did = 'btn:決定(N/2)#2'; }
+          }
         }
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const banishedBoth = (before?.guest?.fieldSigni?.[0] != null) && (before?.guest?.fieldSigni?.[1] != null) && (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.fieldSigni?.[1] == null);
-        H.log(`  lmpb[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} energySelected=${energySelected} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  lmpb[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} paid=${paid} pickedCount2=${pickedCount2} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
         if (banishedBoth) {
-          return { pass: true, detail: `対象ピッカー前置（最大2体）で両方選択→確定→OPTIONAL_COSTを支払う→BANISH{targetsStored}で両方バニッシュ（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
+          return { pass: true, detail: `対象ピッカー前置（最大2体）で両方選択→確定→OPTIONAL_COSTを支払う→支払い後の再確認SELECT_TARGET（fixedCardNumsで2件に絞られている）でも両方選択→BANISHで両方バニッシュ（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未確認（pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `未確認（pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} paid=${paid} pickedCount2=${pickedCount2} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
