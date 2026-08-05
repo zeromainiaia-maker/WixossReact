@@ -8533,8 +8533,6 @@ const scenarios = {
         if (confirmed && !st?.pendingEffect) {
           const drewCard = (st?.host?.hand ?? -1) >= (before?.host?.hand ?? 0); // castで-1のはずがdrawで+1すると相殺
           const energyCharged = (st?.host?.energy ?? -1) > (before?.host?.energy ?? 0);
-          const banished = (st?.guest?.fieldSigni ?? []).every(z => !(z ?? []).includes('WD01-013#88')) === false
-            ? false : !(st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#88'));
           const guestUntouched = (st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#88'));
           if (drewCard) return { pass: false, detail: `選択肢1不成立のはずがドローが実行された（hHand ${before.host.hand}→${st.host.hand}）` };
           if (energyCharged) return { pass: false, detail: `選択肢2不成立のはずがエナチャージが実行された（hEnergy ${before.host.energy}→${st.host.energy}）` };
