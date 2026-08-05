@@ -7228,7 +7228,6 @@ const scenarios = {
         if (!did && !exceedActivated) {
           const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
           const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
-          H.log(`  [debug] execBtn.count=${await execBtn.count()} cand.count=${await cand.count()} cand.visible=${await cand.isVisible().catch(() => 'err')}`);
           if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
             if (await execBtn.isEnabled().catch(() => false)) {
               await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
