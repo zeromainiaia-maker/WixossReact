@@ -7871,12 +7871,14 @@ const scenarios = {
         }
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
-        const handUp = (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0);
-        H.log(`  tmu[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand}(開始${before?.host?.hand}) trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
-        if (handUp) return { pass: true, detail: `ロックなし→WD01-013が正常にトラッシュから手札へ（hHand ${before.host.hand}→${st.host.hand}）` };
+        // ⚠手札には最初スペル自身しか無く「発動」で一旦0へ落ちてから対象カードが戻るため、
+        // 単純な hand 枚数比較（開始1→0→1）では判定できない＝handCards の中身で見る。
+        const moved = (st?.host?.handCards ?? []).includes('WD01-013#1');
+        H.log(`  tmu[${s}] -> ${did ?? 'なし'} | hHand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (moved) return { pass: true, detail: `ロックなし→WD01-013が正常にトラッシュから手札へ（hand=${JSON.stringify(st.host.handCards)}）` };
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hand=${fin?.host?.hand}）` };
+      return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hand=${JSON.stringify(fin?.host?.handCards)}）` };
     },
   },
 };
