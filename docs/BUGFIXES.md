@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝先頭2項目（`WXDi-P11-063`メモリア下配置選択／【常】版4枚自己バフ停止）を消化（golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き349）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ4件（`spellUnderMemoriaPlace`／`spellUnderMemoriaSkip`／`aboveSelfSelfBuffStopped`／`wxdip03057DownUnderRed`）を新規追加し、PLAN §7の次の一手の先頭2項目を消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。
+
+### ✅クローズした検証項目
+- **`WXDi-P11-063-E2`のメモリア下配置選択**＝スペル《無心の豪圧》をバニッシュ解決後にメモリア（幻怪姫エクス//メモリア＝`WXDi-P11-042`）の下に置いてもよい選択（STUB `TRAP_OPERATION`の「の下に置いてもよい」分岐）。`spellUnderMemoriaPlace`＝置く→ホストのスタック最下部にスペルが入り（`hostZone0=["WXDi-P11-063#1","WXDi-P11-042#1"]`）ホストが+2000されることを確認。`spellUnderMemoriaSkip`＝スキップ→トラッシュのままで+2000も乗らずスタック不変を確認。各2回連続PASS。⚠この配置経路は`execStubPart2.ts`の`INTERNAL_PLACE_SELF_UNDER_SIGNI`（value付き）が、part1側の同名STUB（value無し版）の後で判定される実装のため長期間到達不能だった箇所＝UIで初実走（機能自体は既に修正済みで新規バグは無し）。「ターン終了時に戻る」（duration:UNTIL_END_OF_TURN）のターンまたぎ検証は未個別実機（低優先）。
+- **【常】版4枚の自己バフ停止**＝`WXK08-086`／`WXDi-P03-057`／`WXDi-P05-050`の「このカードの上にあるシグニのパワーを＋N」（aboveSelf）が単独配置（スタック長1）では適用されないことの実機確認。`aboveSelfSelfBuffStopped`＝3枚を各ゾーンに単独配置し`host.powerMods`が空であることを確認（`effectEngine.ts:1562`の`stack.length < 2`ガードで構造的に保証）。`wxdip03057DownUnderRed`＝`WXDi-P03-057`の【起】《ダウン》で他の赤シグニ（`WD02-009`・P12000）の下に潜らせると、ホストの表示パワーが**12,000→14,000**へ上がることを確認。各2回連続PASS。新規実バグは0件（両方とも既存修正済みの反転検証）。
+
+### 🔎 検証手法の知見（今後の新規シナリオに適用）
+CONTINUOUS/PERMANENTのaboveSelf POWER_MODIFYは`temp_power_mods`に一切書かれない純計算値（`effectEngine.ts`のスタック走査で都度算出されUI描画時にのみ反映）＝`queryState()`の`powerMods`フィールドでは検出できない。判定には対象ゾーンのDOM表示パワー（`page.getByTestId('my-signi-zone-N').innerText()`）を読む必要がある。INSTANT/UNTIL_END_OF_TURN系のPOWER_MODIFY（`temp_power_mods`に実際に書かれる）と挙動が異なる点に注意。
+
 ## 2026-08-05 — §7実機検証worklist 7件を全消化（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）＋新規実バグ(cvi)を発見（golden/census/held/smoke/fuzz 全据置・全ゲート緑）（Sonnet 5・続き348）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ7件（`secondWaveEnergyBranch`／`exceedBanishGateA`／`exceedDynamicTargetCountB`／`exceedTwoGroupPickerC`／`energyLeftAnyZoneTrigger`／`doubleCrashUpTrigger`／`oppResourceLossChoose`）を新規追加し、PLAN §7の残る実機検証worklistを全消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。`SigniOnPlayCostModal`に`onplaycost-exceed-{i}`testidを新設（LRIG「【出】エクシードN」コストUIの初の実機駆動＝副産物）。
