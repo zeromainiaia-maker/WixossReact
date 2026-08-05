@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証worklist 7件を全消化（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）＋新規実バグ(cvi)を発見（golden/census/held/smoke/fuzz 全据置・全ゲート緑）（Sonnet 5・続き348）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ7件（`secondWaveEnergyBranch`／`exceedBanishGateA`／`exceedDynamicTargetCountB`／`exceedTwoGroupPickerC`／`energyLeftAnyZoneTrigger`／`doubleCrashUpTrigger`／`oppResourceLossChoose`）を新規追加し、PLAN §7の残る実機検証worklistを全消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。`SigniOnPlayCostModal`に`onplaycost-exceed-{i}`testidを新設（LRIG「【出】エクシードN」コストUIの初の実機駆動＝副産物）。
+
+### ✅クローズした検証項目
+- **第2波(a)**＝`WX15-033-BURST`（LB経由・所有者反転でdriver自身がCHOOSEを受ける）でOPPONENT_PAY_OPTIONALの手札枝＋エナ枝3択を実機確認。手札1枚(<2)でdiscard枝disabled、エナ枝を明示選択して機能確認（2回連続PASS）。
+- **エクシード本体(a)**＝`WX24-P4-018-E2`でエクシード4コストUI自体は機能を確認したが、OPPONENT_PAY_OPTIONALがOpusタスク12(ci)と同型の穴で不発（既知バグの新カード再現）。
+- **エクシード本体(c)**＝`WX24-P4-017-E2`同様にエクシード4コストUIは機能したが後述の(cvi)で不発。
+- **タスク16 3件**＝`WXDi-P06-038-E1`（energyLeftToAnyZone・エナが手札行きでも【エナチャージ1】誘発）／`WX05-020-E1`（【ダブルクラッシュ】1アタック2枚クラッシュでアップ）／`WXDi-P13-051-E3`（相手効果でエナがトラッシュに置かれたとき「引く/エナチャージ」2択CHOOSE）を各2回連続PASSで確認・既定`order`へ追加（101件）。
+
+### 🆕 発見した実バグ1件（Opusタスク12(cvi)へ登録・詳細はPLAN.md §3）
+- **(cvi)** `executeSigniOnPlayCost`（エクシードNコスト等）経由でスタックに積んだSEQUENCEは、途中に対話ステップ（CHOOSE解決やチェックゾーン確認）または0候補のauto-skipを挟むと続きが失われる。①`WX24-P4-015-E2`＝`SEQUENCE[LIFE_CRASH{optional,triggerBurst}, BANISH{addLastProcessedCount}]`で、任意ライフクラッシュのCHOOSE解決→チェックゾーン確認（バーストなし「エナに送る」）という2段の中断を経由した後、続くBANISHが一度も発火しない（`exceedDynamicTargetCountB`で2回連続再現）。②`WX24-P4-017-E2`＝`TRANSFER_TO_HAND{transferGroups}`で、候補0枚の群が無音でauto-skipされた後、続く候補1件の群のSELECT_TARGETも一度も現れない（`exceedTwoGroupPickerC`で2回連続再現）。exceedコストを介さない同型SEQUENCEでは対話を挟んでも継続する例（`sequenceContinuationAcrossGate`）があるため、`executeSigniOnPlayCost`固有の配線漏れの疑いが濃厚。
+
+### driver側の教訓（今後の新規シナリオに適用すること）
+- グロウ候補選択モーダルは、900ms間隔の外側ループで「グロウ」ボタンを押して次の周に候補を探すという組み方だと、フェイズドリフト（`turn_phase`がGROW→MAINへ流れる）で開いてもすぐ閉じるレースに毎回負ける。`repatch→グロウ→候補クリック`を短い待ち（300〜500ms）で連続実行する**タイトループ**（`H.openGrow`と同型）でないと候補モーダルへ到達できない。
+- カード名に全角スペース（U+3000）を含む場合、`page.getByRole('button', {name: /カード名/})`の正規表現に全角スペースをそのまま書くと**アクセシブルネーム計算での半角化（Zs系空白の正規化）でマッチしない**疑いがある＝空白を含まない部分文字列（例：`/遊月・肆/`）で狙うこと。
+- 画面上部の常設フェイズナビ（「グロウ」ボタン等）はモーダルが開いた後も隠れず残るため、候補/コスト選択ボタンの可視性チェックを**先に**行わないと毎回ナビボタンだけを再クリックし続けて進まない。
+- フルバッチ実行（`node scripts/verifyBattleDrive.mjs`引数なし）はユーザーからのフィードバックにより禁止＝必ず個別シナリオIDを指定して実行する。
+
 ## 2026-08-05 — §7実機検証まとめて消化＋新規実バグ4件(ci)(cii)(civ)(cv)を発見（golden/census/held/smoke/fuzz 全据置・全ゲート緑）（Sonnet 5・続き347）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ約20件を新規追加し、PLAN §7の未検証UI worklistを大幅消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。
