@@ -7203,7 +7203,7 @@ const scenarios = {
         await page.waitForTimeout(400);
         const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
         if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click({ timeout: 2000 }).catch(() => {}); }
-        const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
+        const cand = page.getByRole('button', { name: /遊月・肆/ }).first(); // 全角スペースはアクセシブルネーム計算で半角化される疑いがあるため空白なしの部分一致で狙う
         let candVisible = false;
         for (let w = 0; w < 5 && !candVisible; w++) {
           await page.waitForTimeout(300);
