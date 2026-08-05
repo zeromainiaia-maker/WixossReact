@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の残り一式を消化＋新規バグ1件発見（Opusタスク12(cviii)へ登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き355）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ4件（`lxvGateTrueSkipNoBody`／`lrigDownGrowColorSubstituteFires`／`opponentPayOptionalBothBranchesCoexist`／`lrigDownCenterOnlyUnwired`）を新規追加し、PLAN §7に長らく残っていた古いbullet一式（併記型(c)・ON_LRIG_GROW④・(xi)・(xxxvi)・クラフトトークン・lrigDownコスト限定）をまとめて消化した。
+
+### (xi) `WXDi-P02-077-E1`＝「ゲート成立→CHOOSE出現→あえてスキップ」を初めて検証
+続き352/353の`lxvGateTruePromptsChoose`/`lxvGateFalseSilentSkip`は「ゲート成立→支払う」「ゲート不成立→プロンプト自体が出ない」の2branchしか検証しておらず、(xi)本来の主題（続き206修正前は「ゲート成立でCHOOSEが出たのにスキップを選んでもコスト踏み倒しで本体がそのまま実行される」という二重バグだった）は未検証のまま残っていた。同じ`WXDi-P02-077-E1`で手札6枚以上（ゲート成立）にした上で`optcost-skip`テストIDを選び、エナが無傷（`hEnergy`変化なし＝支払っていない）かつ【ランサー】キーワードも付与されないことを2回連続PASSで確認した。
+
+### (xxxvi) グロウ支払いUIのエナ代替＝印刷色が食い違うカードで初めて実証
+`WX16-Re06`（【常】：このシグニがエナゾーンにあるかぎり、センタールリグの持つ色のエナを支払う際、代わりにこのシグニをトラッシュに置いてもよい）は印刷色が「白」。もし代替配線（続き206で`GrowModal`/`AssistGrowModal`/`BattleScreen`のグロウ可否判定5箇所へ`wildcardInstIds`/`colorOverrideMap`を配線した修正）が本当に機能していれば、**印刷色と無関係にセンタールリグの実際の色として代替できる**はず。そこで**緑の**センタールリグ（`WD04-004`→`WD04-003`・GrowCost《緑×1》）のエナゾーンにWX16-Re06（白）だけを置いた＝素の色一致では絶対に払えない組み合わせにして検証した。Phase1のグロウ候補ボタンがenabled→Phase2でWX16-Re06のimgをクリックして選択→「グロウ実行」→lrigTopがWD04-003#1へ変化しWX16-Re06はエナからトラッシュへ移動、を2回連続PASSで確認。もし配線が機能していなければPhase1の候補ボタン自体が終始disabledのままだったはず（コード読解での事前予測どおり動作した）。
+
+### 併記型(c) `WXDi-P08-007-E3`＝pending_effect.interaction.optionsを直読みして確認
+当時（記録時点）「liveで併記型（pay と discard が同時に並ぶ）が載っているのは現状0」で保留されていたが、`WXDi-P08-007-E3`（【起】《ゲーム1回》「対戦相手が手札を1枚捨てるか《無》を支払わないかぎり…」を3回行う）が現在`costColors:['無']`と`opponentHandDiscard:1`を同時に持つ実例として存在することが分かった。この効果はhost自身が【起】を起動しguest(CPU)が応答者になる構成のため、CHOOSEの中身自体はhostの画面には描画されない。そこで`pending_effect.interaction`をSupabase REST経由で直接照会し、`options`配列に`{id:'pay',costColors:['無'],...}`と`{id:'discard',label:'手札を1枚捨てる',...}`が同時に存在することを実機ランタイムのデータで確認した（`options ids=["pay","discard","skip"]`）。人間が実クリックで両方を選び分けられること自体は同型の`OPPONENT_PAY_OPTIONAL`コードパス（`wx22025SigniTrashBranch`等）で既に確認済みのため新規機構ではない。
+
+### ON_LRIG_GROW④＝PLANの記載がstaleだったと判明（新規検証不要）
+PLANには「ゲット・グロウ（GROW_FREE横グロウ）経路のE2EがdriverでできなかったUnable」と残っていたが、実際には続き141（`lrigGrowUsageLimit`・既定order内）で既にこのE2E（WX03-024経由の2回目グロウ完走＋usageLimit《ターン1回》がON_LRIG_GROWの2回目発火を正しくブロック）を2回連続PASSで確認済みだった。PLAN側の古い記載を訂正するのみで新規シナリオは不要。
+
+### 🆕 新規実バグ発見＝【起】ACTIVATED効果の`cost.lrigDown`がUI/実行経路のどちらにも配線されていない
+lrigDownコストの限定（(a)センター限定／(b)レベル限定）を検証するため`WXK10-037-E2`（effectType:ACTIVATED・`cost:{lrigDown:{count:1,centerOnly:true}}`）を調査したところ、そもそも`cost.lrigDown`を実行する経路自体が存在しないことが判明した。
+
+- `executeSigniActivated`（`BattleScreen.tsx:10530-11138`＝【起】ACTIVATED効果の実行本体）を全文grepしても`lrigDown`への参照が一切無い。
+- `SigniActivatedModal.tsx`のコスト表示ロジック（energy/discard/charmTrash等を列挙する62-176行）にも`lrigDown`は登場しない。
+- `payLrigDownCost`（`src/screens/battle/lrigDownCost.ts`）を実際に呼んでいるのは`executeSigniOnPlayCost`（`BattleScreen.tsx:11139-`＝【出】ON_PLAYコスト専用経路）だけ。
+
+つまり**ON_PLAYのlrigDownコスト（`PR-K064`等）は機能するが、ACTIVATED（【起】）のlrigDownコストは完全に素通り**。実機で`lrigDownCenterOnlyUnwired`シナリオを実行し、host center lrigを事前に`field.lrig_down:true`（本来なら支払い不能）にしても【起】ボタンが`enabled`のまま押せ、コストを一切支払わずSEARCH本体が実行される（`hHand`0→1・`field.lrig_down`は変化なし＝支払われていない証拠）ことを2回連続再現した。
+
+**影響範囲＝`cost.lrigDown`を持つACTIVATED効果全件**（`WXK10-023`／`WXK10-037`／`WXDi-P03-009`／`WXDi-P04-042`／`WXDi-P02-009`の5枚・centerOnly/level問わず）。**Opusタスク12(cviii)へ新規登録**（修正方針＝`executeSigniActivated`に`payLrigDownCost`呼び出しを追加＋`SigniActivatedModal.tsx`側のavailable判定に`cost.lrigDown`を組み込む）。
+
+### 対応不可のまま据置（今回は着手せず）
+- **クラフトトークン残＝`WX22-001-E3`**＝`GRANT_LEAVE_PLACE_PENDING`は`src/data/parsers/parseSentencePart1.ts:1946`でparserがSTUBを生成するのみで、`effectExecutor.ts`・`execStubPart*.ts`のいずれにも実行側の実装が無いことを再確認＝引き続き機構待ち（Sonnet側で実機検証できる状態ではない）。
+- **driver側低頻度フレーク**＝再現には30件超の連続実行が要るが、ユーザーからの既存フィードバック（`verifyBattleDrive.mjs`をシナリオID無しのフルバッチで実行しない＝過去にフリーズ報告あり）に従い、今回は着手対象から外した。
+
 ## 2026-08-05 — §7実機検証の続き＝タスク12(lxiii)(a)(b)を消化（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き354）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ3件（`wx17040ConditionsFalseNoop`／`wx17040ConditionsTrueExecuteAll`／`centerZoneOnlyPicker`）を新規追加し、PLAN §7タスク12(lxiii)「(a) 選択肢の可否表示」「(b) 中央ゾーン限定のピッカー」を検証した。
