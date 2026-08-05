@@ -7206,7 +7206,10 @@ const scenarios = {
         await page.waitForTimeout(400);
         const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
         if (await cand.count() && await cand.isVisible().catch(() => false)) {
-          await cand.click({ timeout: 2000 }).catch(() => {});
+          const box = await cand.boundingBox().catch(() => null);
+          H.log(`  [debug] cand box=${JSON.stringify(box)} enabled=${await cand.isEnabled().catch(() => 'err')}`);
+          try { await cand.click({ timeout: 2000 }); }
+          catch (e) { H.log(`  [debug] cand click失敗: ${String(e.message).split('\n')[0]}`); await cand.click({ timeout: 2000, force: true }).catch(e2 => H.log(`  [debug] force click失敗: ${String(e2.message).split('\n')[0]}`)); }
           await page.waitForTimeout(400);
           const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
           if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
