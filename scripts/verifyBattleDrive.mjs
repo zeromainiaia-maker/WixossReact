@@ -7602,6 +7602,7 @@ try {
         delayedTriggers: s.delayed_triggers ?? [],
         coins: s.coins ?? 0,
         life: (s.life_cloth ?? []).length,
+        lifeCards: s.life_cloth ?? [],
         deck: (s.deck ?? []).length,
         lrigAttacked: s.field?.lrig_attacked ?? false,
         fieldCheck: s.field?.check ?? null,
