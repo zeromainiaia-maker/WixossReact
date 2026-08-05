@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-05・続き347・Sonnet 5〔§7実機検証まとめて消化〕）＝§7実機検証worklistを大幅消化＋実バグ4件を新規発見**（ユーザー指示「実機検証の続きを行う」を複数ラウンド）。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ約20件＋`H.queryState()`の`sideOf()`拡張）と`docs/PLAN.md`のみ。
+  - **✅実機検証クローズ＝タスク12(lxi)本消化(a)(d)(e)／§6.3 H・I′ 5件全部／タスク12(lxi)第10波(a)(b)＋(lxxvi)の1種／タスク12(lxiv)／タスク12(lxv)／タスク12(lx)(a)(b)／タスク12(lxii)**。既定`order`バッチへ`oppPayEnergyInsufficient`〜`wd16016BurstOpponentDiscard`系まで多数追加（既定order 79→94件）。個別の確認内容はPLAN §6.3・§7の各チェックリスト行（`[x]`）を参照。
+  - **新規実バグ5件を発見・Opusタスク12(ci)〜(cvi)へ登録**（詳細はPLAN §3の各行）：
+    - **(ci)** `costColors`非搭載の`OPPONENT_PAY_OPTIONAL`は無条件で無料「支払う」を選択肢に積む＝CPUが最優先で選び discard/energyTrash 等の回避コストが実質死んでいる（68効果中33効果が該当）。
+    - **(cii)** CPU自動応答のCHOOSEは`costColors`付き選択肢を選ぶ際にエナinstanceIdを渡さないため`resumeOpponentPayOptional`/`resumeOptionalCost`が常に「コスト支払いエラー: エナ不足」で空振りする（エナが足りていても）。
+    - **(civ)** 対象宣言（`SELECT_TARGET`）の直後に別インタラクション（CHOOSE等）へ続きその場で`result.done`にならない場合、`ON_TARGETED`watcherが期待の1回ではなく**0回**しか発火しない（`WXDi-P03-089`で実機再現）。
+    - **(cv)** `targetScope:'opp_hand'`＋`opponentResponds:true`のSELECT_TARGETは、対象が「画面を見ている側（viewer）自身」の場合に候補描画がLB所有者側の手札を誤表示し、どれも選択できずソフトロックする（`WD16-016-BURST`で実機再現・スクリーンショットで確認）。
+    - **(cvi)** `executeSigniOnPlayCost`（エクシードNコスト等）経由でスタックに積んだSEQUENCEは、途中に対話ステップ（CHOOSE解決やチェックゾーン確認）または0候補のauto-skipを挟むと続きが失われる（詳細は続き348行・`WX24-P4-015-E2`／`WX24-P4-017-E2`で発見）。
+  - **driver側の教訓（今後の新規シナリオに適用）**＝①`upToCount:true`のSELECT_TARGET/CHOOSEピッカーは独自の「スキップ」ボタンを持つため、`H.stdStep()`の汎用フォールバック（デフォルトlabelsに'スキップ'含む）に委譲すると`pick-N`がまだ描画されていない一瞬に誤ってそちらをクリックし0件確定で終わるレースがある＝明示的なラベルのみで進行すること。②`BANISH`等`FREEZABLE`リストの対象は`freezeStoredTargets`で`fixedCardNums`に絞られても`selectOrInteract`経由の再確認`SELECT_TARGET`をもう一度要求する（候補が1件でも）＝`POWER_MODIFY{targetsStored}`は早期returnで再選択なしという対比を要注意。③フルバッチ実行（`node scripts/verifyBattleDrive.mjs`引数なし）は**ユーザー指示で禁止**＝必ず個別シナリオIDを指定して実行する（[[feedback-no-full-batch-verify]]メモリ参照）。
+
 - **🆕 セッション（2026-08-04・続き346・Opus 5〔**Claude 単独：実装・検証・簿記**〕）＝🏁**§3 タスク12(xcix) 残0クローズ**＝主語なし「シグニ１体がアタックしたとき」が `self` に潰れて相手のアタックに反応できなかったのを是正（ユーザー指示「タスク12を続ける」）。golden **1363→1366**・**live は3効果のみ変更**・census 1288 据置・同型★0・held 257枚 据置・全ゲート緑。
   - **母集団は登録時の1件ではなく3効果**＝`WXDi-P06-033-E2`（アイコン形《相手ターン》）／`WXDi-CP02-053-E1`（散文形）／`WXEX2-04-E1`（前置きなし）。いずれも原文の主語が「シグニ1体が」なのに `triggerScope` 既定 `self` へ潰れており、**「このシグニがアタックしたとき」と同義**になっていた。⚠`WXDi-P06-033-E2` は `turnOwner` が正しく付いているぶん**自分のアタックでは `turnGateOk` に落とされ、相手のアタックでは収集されない＝実質どちらでも発火しない**状態だった。
   - **🔴 着手時の見立て「collector が turnOwner を見ていない」は誤りで、golden が捕まえた**＝`collectFieldTriggers`（ally/opp 両分岐）と BattleScreen のアタッカー自身経路にゲートを足したところ、**既存 golden 2件**（`Stage2 ON_PLAY field: any_opp …`／`WXK10-022-E1 の turnOwner:self は収集後段の turnGateOk で正しくゲートされる（PLAN §7 R30②検証）`）が落ちた。**正しい設計＝ターン限定は `effectStack.turnGateOk` が `initStack`／`pushToStack` で全コレクタ共通に評価する**（`entry.playerId`＝watcher の持ち主基準）。collector 側は**トリガー元**視点なので watcher 基準とズレて二重ゲートになる。⇒ 追加ゲートは全て差し戻し、3箇所に「ここで見ない・担当は turnGateOk」のコメントを残した。**残った本当のバグは `triggerScope` だけ＝parser のみの修正**で閉じた。
