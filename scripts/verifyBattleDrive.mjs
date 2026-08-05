@@ -7486,6 +7486,65 @@ const scenarios = {
       return { pass: false, detail: `未完了（gLife=${fin?.guest?.life} hSigniDown=${JSON.stringify(fin?.host?.signiDown)} attacked=${attacked} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク16 WXDi-P13-051-E3（2026-08-05・Sonnet）＝翠美姫　アン//ディソナ：【自】《ターン２回》対戦相手の
+  // 効果１つによって、あなたの手札が１枚以上捨てられるかあなたのエナゾーンからカードが１枚以上トラッシュに
+  // 置かれたとき、カードを１枚引くか【エナチャージ１】をする＝エナ喪失経路を実機で駆動する（誘発時の2択UI）。
+  // watcherをguest側に置き、hostがWXDi-D07-013（【出】mandatory・対戦相手のエナ1枚をトラッシュ・no cost）を
+  // 召喚してguestのエナを奪う＝「対戦相手（guestから見てhost）の効果によって」を満たす。
+  oppResourceLossChoose: {
+    title: 'WXDi-P13-051-E3（翠美姫アン//ディソナ＝相手効果でエナがトラッシュに置かれたとき「引く/エナチャージ」2択誘発）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WXDi-D07-013#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXDi-P13-051#1'], null, null], // watcher
+        'field.signi_down': [false, false, false],
+        'energy': ['WD01-013#970'], // トラッシュ対象（1枚）
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 guest.energyCards:', JSON.stringify(before?.guest?.energyCards), 'guest.hand:', before?.guest?.hand);
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('手札クリック:', opened ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/oppResourceLossChoose-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const energyTrashed = (st?.guest?.energyCards ?? []).length < (before?.guest?.energyCards ?? []).length
+          || !(st?.guest?.energyCards ?? []).includes('WD01-013#970');
+        const drewOrCharged = (st?.guest?.hand ?? 0) > (before?.guest?.hand ?? 0)
+          || (st?.guest?.energyCards ?? []).some(c => !(before?.guest?.energyCards ?? []).includes(c) && c !== undefined && energyTrashed);
+        H.log(`  orlc[${s}] -> ${did ?? 'なし'} | gEnergy=${JSON.stringify(st?.guest?.energyCards)} gHand=${st?.guest?.hand}(開始${before?.guest?.hand}) gTrash=${st?.guest?.trash} energyTrashed=${energyTrashed} pEff=${st?.pendingEffect ?? '-'}`);
+        if (energyTrashed && !st?.pendingEffect && s >= 3) {
+          const handUp = (st?.guest?.hand ?? 0) > (before?.guest?.hand ?? 0);
+          const energyRestored = (st?.guest?.energyCards ?? []).length >= (before?.guest?.energyCards ?? []).length;
+          if (handUp || energyRestored) {
+            return { pass: true, detail: `WXDi-D07-013召喚→対戦相手(host)の効果でguestのエナ1枚(WD01-013#970)がトラッシュへ→WXDi-P13-051のwatcherが発火し「引く/エナチャージ」を自動選択（gHand ${before.guest.hand}→${st.guest.hand}／gEnergy ${JSON.stringify(before?.guest?.energyCards)}→${JSON.stringify(st.guest.energyCards)}）` };
+          }
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gEnergy=${JSON.stringify(fin?.guest?.energyCards)} gHand=${fin?.guest?.hand} summoned=${summoned} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
