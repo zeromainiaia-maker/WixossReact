@@ -6906,8 +6906,11 @@ const scenarios = {
         }
         const st = await H.queryState();
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-5000'));
-        H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
-        if (debuffed) {
+        H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        // ⚠ON_TARGETEDはstackAcc（効果スタック）へ後乗せされるため、CHOOSE解決直後の同一pollではまだ
+        // ドローが反映されていないことがある（スタック解決は次のtickで自動処理される）。debuffed確認後も
+        // stackLenが0に落ち着くかguest.handが動くまで数ポーリング待つ。
+        if (debuffed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
           return {
             pass: (st.guest.hand === 1) && !sawSecondSelectTarget,
             detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが${st.guest.hand}回発火（gHand=${before.guest.hand}→${st.guest.hand}）・再選択UI出現=${sawSecondSelectTarget}`,
@@ -6915,7 +6918,7 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} gHand=${fin?.guest?.hand} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} gHand=${fin?.guest?.hand} stack=${fin?.stackLen ?? '-'} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 };
