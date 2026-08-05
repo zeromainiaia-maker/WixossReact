@@ -8049,6 +8049,395 @@ const scenarios = {
       return { pass: false, detail: `未完了（sawDisabled=${sawDisabled}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝SPDi43-02-E1「回避された場合に『以下の２つから１つを選ぶ』の選択UIが出ない
+  // こと（従来は無条件で選択が走った）」（2026-08-05）。SEQUENCE[STUB OPPONENT_PAY_OPTIONAL
+  // {opponentHandDiscard:2}, CONDITIONAL{IS_MY_TURN, then:CHOOSE(選択肢1/選択肢2)}]＝SPDi43-02はルリグ
+  // カード（【自】あなたのアタックフェイズ開始時）＝owner=guest（CPU）にすると「対戦相手」=host が
+  // OPPONENT_PAY_OPTIONALの応答者になる（wx22025SigniTrashBranchと同型パターン＝opponentResponds:true
+  // でrespondPlayerIdがCPU以外になりCPU自動応答がbailoutする）。続くCHOOSE(選択肢1/2)自体はowner=guestの
+  // 自己選択なのでCPUの通常自己CHOOSE自動応答（BattleScreen.tsx:522「options.find(o=>o.available)」）が
+  // 内部で解決する（host操作は不要＝host.life_clothを2枚にしてc1「対戦相手のライフクロスが0枚の場合」を
+  // available:falseに固定しc0（対戦相手＝hostのデッキ上8枚トラッシュ）だけが選ばれるようにして結果を決定的
+  // にする）。CPUの自然ターン進行との競合に備え cpugrow と同型の再注入リトライで包む。
+  spdi4302AvoidedNoChoose: {
+    title: 'SPDi43-02-E1（対戦相手＝hostが手札を2枚捨てて回避→「選択肢1/2」のCHOOSEが一切出ないこと）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD01-013#90', 'WD01-013#91'],
+        'deck': ['WD01-013#92', 'WD01-013#93', 'WD01-013#94', 'WD01-013#95', 'WD01-012#92', 'WD01-012#93', 'WD01-012#94', 'WD01-012#95'],
+        'trash': [],
+        'life_cloth': ['WD01-013#930', 'WD01-013#931'], // 2枚（0枚ではないのでCHOOSE選択肢2はavailable:false固定）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['SPDi43-02#1'],
+        'field.signi': [null, null, null],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2000);
+        await injectScenario(page, scenarios.spdi4302AvoidedNoChoose.spec);
+        await page.waitForTimeout(1200);
+        const before = await H.queryState();
+        let picked = false;
+        let overwritten = false;
+        for (let s = 0; s < 24; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/spdi4302AvoidedNoChoose-a${attempt}-${s}.png`, fullPage: true });
+          let did = null;
+          if (!picked) {
+            const discardBtn = page.getByRole('button', { name: /手札を2枚捨てる/ }).first();
+            if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) {
+              await discardBtn.click().catch(() => {}); did = 'btn:手札を2枚捨てる'; picked = true;
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['決定', 'エナに送る', 'ガードしない', 'しない', '使用しない']);
+          const st = await H.queryState();
+          const bodyTxt = await H.body();
+          const sawChoose = /選択肢1|選択肢2/.test(bodyTxt);
+          H.log(`  s4302a[a${attempt}.${s}] -> ${did ?? 'なし'} | picked=${picked} hHand=${st?.host?.hand} hDeck=${st?.host?.deck} sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
+          if (sawChoose) {
+            return { pass: false, detail: `回避（手札2枚捨て）後に「選択肢1/2」のCHOOSEが出現＝実バグ（従来の無条件実行が再発）` };
+          }
+          if (st?.guest?.lrigTop && /#g/.test(st.guest.lrigTop) && !picked) { overwritten = true; break; }
+          if (picked && (st?.host?.hand ?? 99) <= (before?.host?.hand ?? 0) - 2 && !st?.pendingEffect) {
+            const deckUntouched = (st?.host?.deck ?? -1) === (before?.host?.deck ?? -1);
+            if (deckUntouched) return { pass: true, detail: `対戦相手（host）が手札を2枚捨てて回避→「選択肢1/2」のCHOOSEは一度も出現せず、hostデッキも無傷（hDeck=${st.host.deck}）` };
+            return { pass: false, detail: `回避したのにhostデッキが変化した（hDeck ${before.host.deck}→${st.host.deck}）＝回避が機能していない` };
+          }
+        }
+        if (!overwritten) {
+          const fin = await H.queryState();
+          return { pass: false, detail: `未完了（picked=${picked} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+        }
+        H.log(`  s4302a[a${attempt}] CPU自然ターンで上書き（guest.lrigTop=#g…）→再注入`);
+      }
+      return { pass: false, detail: 'CPU自然ターンの上書きが続き再注入リトライを使い切った' };
+    },
+  },
+
+  // 対照実験＝host が「支払わない」を選ぶと、CHOOSE(選択肢1/2)がCPU(guest=owner)の自己選択として
+  // 内部解決され、host.life_cloth≠0でc1がavailable:falseのためc0（対戦相手＝hostのデッキ上8枚トラッシュ）
+  // が決定的に選ばれる。host操作は「支払わない」の1クリックのみ＝続くCHOOSEにhostの追加操作は不要。
+  spdi4302SkipPromptsChoose: {
+    title: 'SPDi43-02-E1（対戦相手＝hostが支払わない→CHOOSE(選択肢1/2)がCPU自己選択で解決しhostデッキが8枚トラッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD01-013#96', 'WD01-013#97'],
+        'deck': ['WD01-013#98', 'WD01-013#99', 'WD01-013#9a', 'WD01-013#9b', 'WD01-012#98', 'WD01-012#99', 'WD01-012#9a', 'WD01-012#9b'],
+        'trash': [],
+        'life_cloth': ['WD01-013#932', 'WD01-013#933'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['SPDi43-02#1'],
+        'field.signi': [null, null, null],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(2000);
+        await injectScenario(page, scenarios.spdi4302SkipPromptsChoose.spec);
+        await page.waitForTimeout(1200);
+        const before = await H.queryState();
+        let picked = false;
+        let overwritten = false;
+        for (let s = 0; s < 24; s++) {
+          await page.waitForTimeout(900);
+          await page.screenshot({ path: `${SHOT}/spdi4302SkipPromptsChoose-a${attempt}-${s}.png`, fullPage: true });
+          let did = null;
+          if (!picked) {
+            const skipBtn = page.getByRole('button', { name: /^支払わない/ }).first();
+            if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
+              await skipBtn.click().catch(() => {}); did = 'btn:支払わない'; picked = true;
+            }
+          }
+          if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない']);
+          const st = await H.queryState();
+          H.log(`  s4302s[a${attempt}.${s}] -> ${did ?? 'なし'} | picked=${picked} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'}`);
+          if (st?.guest?.lrigTop && /#g/.test(st.guest.lrigTop) && !picked) { overwritten = true; break; }
+          if (picked && (st?.host?.deck ?? 99) < (before?.host?.deck ?? 0) && !st?.pendingEffect) {
+            return { pass: true, detail: `「支払わない」選択→CHOOSE(選択肢1/2)がCPU自己選択で解決＝host デッキ8枚トラッシュ（hDeck ${before.host.deck}→${st.host.deck}・hTrash ${st.host.trash}）。host操作は「支払わない」1回のみ` };
+          }
+        }
+        if (!overwritten) {
+          const fin = await H.queryState();
+          return { pass: false, detail: `未完了（picked=${picked} hDeck=${fin?.host?.deck} pEff=${fin?.pendingEffect ?? '-'}）` };
+        }
+        H.log(`  s4302s[a${attempt}] CPU自然ターンで上書き（guest.lrigTop=#g…）→再注入`);
+      }
+      return { pass: false, detail: 'CPU自然ターンの上書きが続き再注入リトライを使い切った' };
+    },
+  },
+
+  // §7「残る実機検証項目」＝WXEX2-25-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」
+  // （2026-08-05）。SEQUENCE[STUB OPPONENT_PAY_OPTIONAL{opponentHandDiscard:1}, CONDITIONAL{IS_MY_TURN,
+  // then:TRASH{targetsTriggerSource:true}}]＝「対戦相手のシグニ１体が対戦相手の効果によって場に出たとき、
+  // 対戦相手が手札を１枚捨てないかぎり、そのシグニを場からトラッシュに置く」。WXEX2-25はルリグ＝
+  // owner=host にして「対戦相手」=guest 側の byEffect ON_PLAY を待つ設計だと guest=CPU が応答者になり
+  // (ci)と同型の無料pay常時available問題でCPUが必ず回避してしまい skip 分岐を検証できない。そこで
+  // **owner=guest（CPU・受動的watcherとして置くだけ）**にし、「対戦相手」=host自身が
+  // WD08-001（installByEffectFreezeと同じ【起】《ダウン》「自分のトラッシュのシグニ1枚を対象とし、
+  // それを場に出す」）でhost自身の信号を byEffect で場に出す＝host が対象所有者兼応答者を兼ねる。
+  // host の場は「ちょうど1ゾーンだけ空ける」（installByEffectFreezeと同じ罠回避＝SELECT_SIGNI_ZONE不要）。
+  wxex225SkipAutoTrashesTrigger: {
+    title: 'WD08-001→WXEX2-25-E1（skip→targetsTriggerSourceで新規配置シグニが選択UIなしに自動トラッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD08-001#1'],
+        'field.signi': [null, ['WD01-012#96'], ['WD01-012#97']], // zone0だけ空ける＝ADD_TO_FIELDの配置先
+        'field.signi_down': [false, false, false],
+        'field.lrig_down': false,
+        'trash': ['WD01-013#96'], // 場に出す対象（トリガー元になる）
+        'hand': ['WD01-013#97'], // 回避コスト用（本シナリオでは使わない）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WXEX2-25#1'], // watcher（受動的・CPUは何もしなくてよい）
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.fieldSigni/trash:', JSON.stringify(before?.host?.fieldSigni), before?.host?.trashCards);
+      let opened = false;
+      let skipClicked = false;
+      let sawExtraPick = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxex225SkipAutoTrashesTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !opened) {
+          const lrigImg = page.locator('img[alt="混沌の鍵主　ウムル＝フィーラ"]').first();
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
+        }
+        if (!did && opened && !skipClicked) {
+          const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).nth(1);
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】コストなし(2番目=E3)'; }
+        }
+        if (!did && !skipClicked) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did && !skipClicked) did = await H.clickTextOrBtn(['発動', '確定']);
+        if (!did && !skipClicked) {
+          const skipBtn = page.getByRole('button', { name: /^支払わない/ }).first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'btn:支払わない'; skipClicked = true; }
+        }
+        if (skipClicked) {
+          const pickAfter = page.getByTestId('pick-0').first();
+          if (await pickAfter.count() && await pickAfter.isVisible().catch(() => false)) { sawExtraPick = true; }
+          if (!did) did = await H.clickTextOrBtn(['決定']);
+        }
+        const st = await H.queryState();
+        H.log(`  x225s[${s}] -> ${did ?? 'なし'} | opened=${opened} skipClicked=${skipClicked} sawExtraPick=${sawExtraPick} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        const trashedBack = (st?.host?.trashCards ?? []).includes('WD01-013#96') && skipClicked;
+        if (trashedBack && !st?.pendingEffect) {
+          if (sawExtraPick) {
+            return { pass: false, detail: `targetsTriggerSourceのはずが「支払わない」後に追加のpick-0（SELECT_TARGET）が出現＝対象自動固定が機能していない実バグ` };
+          }
+          return { pass: true, detail: `「支払わない」1クリックのみ→追加の対象選択UIなしにWD01-013#96が自動でhostトラッシュへ戻った（targetsTriggerSource正常）hTrash=${JSON.stringify(st.host.trashCards)}` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（opened=${opened} skipClicked=${skipClicked} hField=${JSON.stringify(fin?.host?.fieldSigni)} hTrash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 対照実験＝host が「手札を1枚捨てる」（回避コスト）を選ぶと、対象シグニは場に残ったまま
+  // （targetsTriggerSourceのTRASHが実行されない）ことを確認する。
+  wxex225DiscardAvoids: {
+    title: 'WD08-001→WXEX2-25-E1（対戦相手＝hostが手札を1枚捨てて回避→新規配置シグニは場に残存）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD08-001#1'],
+        'field.signi': [null, ['WD01-012#98'], ['WD01-012#99']],
+        'field.signi_down': [false, false, false],
+        'field.lrig_down': false,
+        'trash': ['WD01-013#98'],
+        'hand': ['WD01-013#99'], // 回避コスト（手札1枚捨てる）用
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WXEX2-25#1'],
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      let opened = false;
+      let discardClicked = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxex225DiscardAvoids-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !opened) {
+          const lrigImg = page.locator('img[alt="混沌の鍵主　ウムル＝フィーラ"]').first();
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
+        }
+        if (!did && opened && !discardClicked) {
+          const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).nth(1);
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】コストなし(2番目=E3)'; }
+        }
+        if (!did && !discardClicked) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did && !discardClicked) did = await H.clickTextOrBtn(['発動', '確定']);
+        if (!did && !discardClicked) {
+          const discardBtn = page.getByRole('button', { name: /手札を1枚捨てる/ }).first();
+          if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) { await discardBtn.click().catch(() => {}); did = 'btn:手札を1枚捨てる'; discardClicked = true; }
+        }
+        const st = await H.queryState();
+        H.log(`  x225d[${s}] -> ${did ?? 'なし'} | opened=${opened} discardClicked=${discardClicked} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (discardClicked && !st?.pendingEffect) {
+          const stillOnField = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#98'));
+          const handDropped = (st?.host?.hand ?? 99) < (before?.host?.hand ?? 0);
+          if (stillOnField && handDropped) return { pass: true, detail: `「手札を1枚捨てる」で回避→対象シグニ（WD01-013#98）はトラッシュされず場に残存（hHand ${before.host.hand}→${st.host.hand}）` };
+          return { pass: false, detail: `回避したのにシグニが場から消えた、または手札が減っていない（hField=${JSON.stringify(st.host.fieldSigni)} hHand=${st.host.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（opened=${opened} discardClicked=${discardClicked} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7「残る実機検証項目」＝WXDi-P08-007-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」
+  // （2026-08-05）。SEQUENCE[STUB OPPONENT_PAY_OPTIONAL{costColors:['無']}, CONDITIONAL{IS_MY_TURN,
+  // then:REMOVE_ABILITIES{targetsTriggerSource:true}}]＝「対戦相手のシグニ１体がアタックしたとき、
+  // 対戦相手が《無》を支払わないかぎり、ターン終了時まで、そのシグニは能力を失う」。owner=guest（CPU・
+  // 受動的watcherとして置くだけ）にし、「対戦相手」=host が自分のシグニでアタックする＝host が
+  // アタッカー本人兼応答者を兼ねる（自分の攻撃を自分で咎められるかどうかを自分で選ぶ形＝原文どおり）。
+  wxdip08007SkipRemovesAbilities: {
+    title: 'WXDi-P08-007-E1（hostが自分のシグニでアタック→支払わない→targetsTriggerSourceでアタッカー自身が選択UIなしに能力喪失）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WXDi-P08-007#1'], // watcher（受動的・CPUは何もしなくてよい）
+        'field.signi': [null, null, null],
+        'life_cloth': ['WD01-013#930'], // 1枚＝バーストなし固定でクラッシュ確認モーダルの分岐を単純化
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      let attacked = false;
+      let skipClicked = false;
+      let sawExtraPick = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxdip08007SkipRemovesAbilities-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !attacked) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && attacked && !skipClicked) {
+          const skipBtn = page.getByRole('button', { name: /^支払わない/ }).first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'btn:支払わない'; skipClicked = true; }
+        }
+        if (skipClicked) {
+          const pickAfter = page.getByTestId('pick-0').first();
+          if (await pickAfter.count() && await pickAfter.isVisible().catch(() => false)) { sawExtraPick = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '発動順序を確定']);
+        const st = await H.queryState();
+        H.log(`  p08007s[${s}] -> ${did ?? 'なし'} | attacked=${attacked} skipClicked=${skipClicked} sawExtraPick=${sawExtraPick} hAbilRem=${JSON.stringify(st?.host?.abilitiesRemoved)} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+        const removed = (st?.host?.abilitiesRemoved ?? []).includes('WD01-013#1');
+        if (removed && !st?.pendingEffect) {
+          if (sawExtraPick) {
+            return { pass: false, detail: `targetsTriggerSourceのはずが「支払わない」後に追加のpick-0（SELECT_TARGET）が出現＝対象自動固定が機能していない実バグ` };
+          }
+          return { pass: true, detail: `アタック→「支払わない」1クリックのみ→追加の対象選択UIなしにアタッカー自身（WD01-013#1）が能力喪失（hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（attacked=${attacked} skipClicked=${skipClicked} hAbilRem=${JSON.stringify(fin?.host?.abilitiesRemoved)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 対照実験＝host が《無》×1を支払うと、アタッカーの能力は失われないまま（REMOVE_ABILITIESが
+  // 実行されない）ことを確認する。
+  wxdip08007PaySpares: {
+    title: 'WXDi-P08-007-E1（hostが《無》×1を支払う→アタッカーは能力を失わない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#2'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD01-013#3'],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WXDi-P08-007#1'],
+        'field.signi': [null, null, null],
+        'life_cloth': ['WD01-013#931'],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let attacked = false;
+      let energySelected = false;
+      let payClicked = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxdip08007PaySpares-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !attacked) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && attacked && !energySelected) {
+          const en0 = page.getByTestId('optcost-energy-0').first();
+          if (await en0.count() && await en0.isVisible().catch(() => false)) { await en0.click().catch(() => {}); did = 'tid:optcost-energy-0'; energySelected = true; }
+        }
+        if (!did && energySelected && !payClicked) {
+          const payBtn = page.getByTestId('optcost-pay').first();
+          if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+            await payBtn.click().catch(() => {}); did = 'tid:optcost-pay'; payClicked = true;
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない', '発動順序を確定']);
+        const st = await H.queryState();
+        H.log(`  p08007p[${s}] -> ${did ?? 'なし'} | attacked=${attacked} energySelected=${energySelected} payClicked=${payClicked} hEnergy=${st?.host?.energy} hAbilRem=${JSON.stringify(st?.host?.abilitiesRemoved)} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+        if (payClicked && !st?.pendingEffect && (st?.host?.energy ?? 1) === 0) {
+          const removed = (st?.host?.abilitiesRemoved ?? []).includes('WD01-013#2');
+          if (!removed) return { pass: true, detail: `《無》×1を支払う→アタッカー（WD01-013#2）は能力を失わないまま（hEnergy=${st.host.energy}・hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)}）` };
+          return { pass: false, detail: `支払ったのに能力喪失が実行された（回避が機能していない・hAbilRem=${JSON.stringify(st.host.abilitiesRemoved)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（attacked=${attacked} energySelected=${energySelected} payClicked=${payClicked} hEnergy=${fin?.host?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
