@@ -4,6 +4,9 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-05・続き352・Sonnet 5〔§7実機検証の続き＝opponentResponds系の新検証パターンを確立〕）＝ユーザー指示「実機検証の続きを行う」で§7次の一手の5番目の項目（相手側CHOOSE4つ目の枝＝`WX22-025-E3`）を検証。**「guest（CPU）を効果オーナーにしてhostを応答者にする」新パターンを確立**し、直前セッションで「構造的に到達不能」と判断した`WXK06-067`型の限界を回避できることを実証。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ2件追加＝既定order 107→109件）・`docs/PLAN.md`のみ。
+  - **✅実機検証クローズ1件＋新パターン確立**＝`WX22-025-E3`の相手側CHOOSE4択のうち未検証だった「自分のシグニを1体トラッシュに置く」枝を`wx22025SigniTrashBranch`/`wx22025SigniTrashUnavailable`で実機確認（各2回連続PASS）。**guest（CPU）をアタッカー＝効果オーナーにすると「対戦相手」＝host（driver操作アカウント）が応答者になり、`respondPlayerId`がCPU_PLAYER_ID以外になってCPU自動応答がbailoutし、host自身の画面にCHOOSEモーダルが実際に描画される**＝LB所有者反転（LIFE_BURST限定）に加えて、非LIFE_BURSTの`ON_ATTACK_SIGNI`系opponentResponds効果でもdriverが手動で任意の枝を選べる新パターン。今後同種の未検証opponentResponds効果（`WXK06-067`等）に応用できる可能性がある。
+
 - **セッション（2026-08-05・続き351・Sonnet 5〔§7実機検証の続き＝WXK06-067クロスゾーンpickerの構造的限界を確認〕）＝ユーザー指示「実機検証の続きを行う」で§7次の一手の4番目の項目（`WXK06-067-E1`のゾーンを跨いだ選択モーダル）を検証→STUB発火は確認できたがpicker本体は(ci)により実戦で到達不能と判明**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ1件追加＝既定order 106→107件）・`docs/PLAN.md`のみ。
   - **✅実機検証クローズ1件（構造的限界の確認込み）**＝`WXK06-067-E1`の【起】起動＋STUB発火は`wxk06067CrossZoneStubFires`で2回連続PASS確認。ただし本カードはcostColors非搭載＝Opusタスク12(ci)と同型の穴に該当し、CPU自動応答が必ず無料'pay'枝を選ぶため**跨ぎプールpicker本体（handOrEnergyToDeckTop枝）は実戦で到達しない**ことを確認（(ci)の影響範囲がさらに1枚拡大＝新規バグ登録は不要・既存(ci)の追加証跡）。picker自体のUI描画ロジック（`self_hand_energy`/`opp_hand_energy`スコープが`inter.candidates`経由で正しく候補を出す＝(cv)のop.hand直接参照バグの対象外）はコード読解で確認済みだが、本カードが非LIFE_BURSTのため`secondWaveEnergyBranch`等のLB所有者反転トリックが使えず、実クリックでの検証は単一アカウントdriverでは構造的に到達不能と判断し保留。
 
