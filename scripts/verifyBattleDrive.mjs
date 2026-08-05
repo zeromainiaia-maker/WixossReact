@@ -6512,7 +6512,11 @@ const scenarios = {
             if (await confirmBtn2.count() && await confirmBtn2.isVisible().catch(() => false)) { await confirmBtn2.click().catch(() => {}); did = 'btn:決定(N/2)#2'; }
           }
         }
-        if (!did) did = await H.stdStep();
+        // ⚠H.stdStep()は使わない＝この対象ピッカー（upToCount:true）自身が独自の「スキップ」ボタンを持つため
+        // （デフォルトlabelsに'スキップ'を含むstdStepへ委譲すると、pick-Nがまだ描画されていない一瞬に
+        // ピッカー自身のスキップを誤クリックし0件確定で終わってしまうレースが実機で再現した）。
+        // 想定外のUIが出た場合は何もクリックせず次のポーリングへ回す。
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         const banishedBoth = (before?.guest?.fieldSigni?.[0] != null) && (before?.guest?.fieldSigni?.[1] != null) && (st?.guest?.fieldSigni?.[0] == null) && (st?.guest?.fieldSigni?.[1] == null);
         H.log(`  lmpb[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} paid=${paid} pickedCount2=${pickedCount2} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
