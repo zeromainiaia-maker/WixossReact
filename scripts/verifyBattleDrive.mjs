@@ -7172,13 +7172,13 @@ const scenarios = {
   // クロスの枚数に１を加えた数対象とし、それらをバニッシュする＝クラッシュしない→1体・する→2体の動的対象数。
   // ライフバースト解決（チェックゾーン確認）を跨いでも対象数が2のまま連続することが最重要ポイント。
   exceedDynamicTargetCountB: {
-    title: 'WX24-P4-015-E2（熾炎舞　遊月・肆＝任意ライフクラッシュ→動的対象数2体。LBチェックゾーンを跨いでも対象数維持）',
+    title: 'WX24-P4-015-E2（熾炎舞　遊月・肆＝エクシード4→任意ライフクラッシュ→動的対象数2体。LBチェックゾーンを跨いでも対象数維持）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#901', 'WD01-001#902', 'WD01-001#903', 'WX04-009#1'],
         'field.signi': [null, null, null],
         'lrig_deck': ['WX24-P4-015#1'],
-        'energy': [],
+        'energy': ['WX04-068#1'], // 赤×1＝グロウコスト《赤》×1のフォールバック（free_grow_this_turnが効かない場合の保険）
         'life_cloth': ['WD01-013#930'], // 1枚だけ＝クラッシュ後LBチェックが必ず起きる・バーストなし固定
         'free_grow_this_turn': true,
         'actions_done': [],
@@ -7194,21 +7194,55 @@ const scenarios = {
       const before = await H.queryState();
       H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.life:', before?.host?.life);
       let grown = false;
+      let exceedPicked = 0;
+      let exceedActivated = false;
       let crashChosen = false;
       let pickedCount = 0;
       let confirmedTargets = false;
-      for (let s = 0; s < 26; s++) {
+      for (let s = 0; s < 34; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exceedDynamicTargetCountB-${s}.png`, fullPage: true });
         let did = null;
+        // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
         if (!did && !grown) {
-          const opened = await H.openGrow(/熾炎舞　遊月・肆/);
-          if (opened) { did = 'grow:熾炎舞遊月肆'; grown = true; }
+          const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+          if (await gb.count() && await gb.isVisible().catch(() => false)) {
+            await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
+          } else {
+            const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
+            if (await cand.count() && await cand.isVisible().catch(() => false)) {
+              await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+            } else {
+              const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+              if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
+                if (await execBtn.isEnabled().catch(() => false)) {
+                  await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
+                } else {
+                  const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
+                  if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
+                    await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
+                  }
+                }
+              }
+            }
+          }
         }
-        if (!did && grown && !crashChosen) {
+        // エクシード4支払い（onplaycost-exceed-0..3→発動）
+        if (!did && grown && !exceedActivated) {
+          const exBtn = page.getByTestId(`onplaycost-exceed-${exceedPicked}`).first();
+          if (exceedPicked < 4 && await exBtn.count() && await exBtn.isVisible().catch(() => false)) {
+            await exBtn.click({ timeout: 3000 }).catch(() => {}); exceedPicked++; did = `onplaycost-exceed-${exceedPicked - 1}`;
+          } else if (exceedPicked >= 4) {
+            const actBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) {
+              await actBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:発動'; exceedActivated = true;
+            }
+          }
+        }
+        if (!did && grown && exceedActivated && !crashChosen) {
           const crashBtn = page.getByRole('button', { name: 'クラッシュする', exact: true }).first();
           if (await crashBtn.count() && await crashBtn.isVisible().catch(() => false)) {
-            await crashBtn.click().catch(() => {}); did = 'btn:クラッシュする'; crashChosen = true;
+            await crashBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:クラッシュする'; crashChosen = true;
           }
         }
         // ライフバースト・チェックゾーン確認（バーストなし想定）の通過
@@ -7217,11 +7251,11 @@ const scenarios = {
         if (!did && crashChosen && !confirmedTargets) {
           const pN = page.getByTestId(`pick-${pickedCount}`).first();
           if (pickedCount < 2 && await pN.count() && await pN.isVisible().catch(() => false)) {
-            await pN.click().catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
+            await pN.click({ timeout: 3000 }).catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
           } else {
             const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
             if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
-              await confirmBtn.click().catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
+              await confirmBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
             }
           }
         }
@@ -7229,9 +7263,9 @@ const scenarios = {
         const st = await H.queryState();
         const banishedCount = [before?.guest?.fieldSigni?.[0], before?.guest?.fieldSigni?.[1]]
           .filter(Boolean).length - [st?.guest?.fieldSigni?.[0], st?.guest?.fieldSigni?.[1]].filter(Boolean).length;
-        H.log(`  exgB[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} hLife=${st?.host?.life}(開始${before?.host?.life}) gField=${JSON.stringify(st?.guest?.fieldSigni)} banishedCount=${banishedCount} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  exgB[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} exceedPicked=${exceedPicked} exceedActivated=${exceedActivated} hLife=${st?.host?.life}(開始${before?.host?.life}) gField=${JSON.stringify(st?.guest?.fieldSigni)} banishedCount=${banishedCount} pEff=${st?.pendingEffect ?? '-'}`);
         if (banishedCount >= 2 && !st?.pendingEffect) {
-          return { pass: true, detail: `クラッシュする→hLife ${before.host.life}→${st.host.life}（LBチェックゾーン通過）→動的対象数=クラッシュ枚数1+1=2体を選択→guestの2体とも正しくBANISH（zone0/zone1消滅）` };
+          return { pass: true, detail: `エクシード4支払い→クラッシュする→hLife ${before.host.life}→${st.host.life}（LBチェックゾーン通過）→動的対象数=クラッシュ枚数1+1=2体を選択→guestの2体とも正しくBANISH（zone0/zone1消滅）` };
         }
       }
       const fin = await H.queryState();
