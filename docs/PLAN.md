@@ -137,7 +137,7 @@
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
 - **🆕 セッション（2026-08-05・続き347・Sonnet 5〔§7実機検証まとめて消化〕）＝§7実機検証worklistを大幅消化＋実バグ4件を新規発見**（ユーザー指示「実機検証の続きを行う」を複数ラウンド）。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ約20件＋`H.queryState()`の`sideOf()`拡張）と`docs/PLAN.md`のみ。
   - **✅実機検証クローズ＝タスク12(lxi)本消化(a)(d)(e)／§6.3 H・I′ 5件全部／タスク12(lxi)第10波(a)(b)＋(lxxvi)の1種／タスク12(lxiv)／タスク12(lxv)／タスク12(lx)(a)(b)／タスク12(lxii)**。既定`order`バッチへ`oppPayEnergyInsufficient`〜`wd16016BurstOpponentDiscard`系まで多数追加（既定order 79→94件）。個別の確認内容はPLAN §6.3・§7の各チェックリスト行（`[x]`）を参照。
-  - **🆕 新規実バグ4件を発見・Opusタスク12(ci)〜(cv)へ登録**（詳細はPLAN §3の各行）：
+  - **🆕 新規実バグ5件を発見・Opusタスク12(ci)〜(cvi)へ登録**（詳細はPLAN §3の各行）：
     - **(ci)** `costColors`非搭載の`OPPONENT_PAY_OPTIONAL`は無条件で無料「支払う」を選択肢に積む＝CPUが最優先で選び discard/energyTrash 等の回避コストが実質死んでいる（68効果中33効果が該当）。
     - **(cii)** CPU自動応答のCHOOSEは`costColors`付き選択肢を選ぶ際にエナinstanceIdを渡さないため`resumeOpponentPayOptional`/`resumeOptionalCost`が常に「コスト支払いエラー: エナ不足」で空振りする（エナが足りていても）。
     - **(civ)** 対象宣言（`SELECT_TARGET`）の直後に別インタラクション（CHOOSE等）へ続きその場で`result.done`にならない場合、`ON_TARGETED`watcherが期待の1回ではなく**0回**しか発火しない（`WXDi-P03-089`で実機再現）。
