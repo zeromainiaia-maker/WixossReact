@@ -8421,13 +8421,26 @@ const scenarios = {
       let attacked = false;
       let energySelected = false;
       let payClicked = false;
+      let modalOpened = false;
       for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxdip08007PaySpares-${s}.png`, fullPage: true });
         let did = null;
+        const phaseChk = await H.queryState();
+        if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
         if (!did && !attacked) {
           const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
           if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !attacked && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
         }
         if (!did && attacked && !energySelected) {
           const en0 = page.getByTestId('optcost-energy-0').first();
