@@ -6696,6 +6696,228 @@ const scenarios = {
       return { pass: false, detail: `未確認（sawChoose=${sawChoose} skipLog=${!!(await H.findLog(/任意コストの条件を満たさない（スキップ）/))} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク12(lx)(a)（2026-08-05・Sonnet）＝WX12-020-E3：アタック時にまず相手1体を対象選択（SELECT_TARGET_ONLY）
+  // →STORE_LAST_PROCESSED_TARGETS→自分の手札を好きな枚数（upToCount）捨てる→POWER_MODIFY{targetsStored,
+  // deltaPerLastProcessedCount}で「捨てた枚数×-6000」がその1体だけに乗ることを確認する。
+  lxWX12020ScaledDiscardDelta: {
+    title: 'WX12-020-E3（アタック時に相手1体を対象化→手札を好きな枚数捨てる→捨てた枚数×-6000がその1体だけに乗る）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX12-020#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#1', 'WD01-013#2'], // 2枚とも捨てる想定＝-6000×2=-12000
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX01-053#1'], null, null], // 対象候補（唯一）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      let modalOpened = false;
+      let pickedTarget = false;
+      let discardPicked = 0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxWX12020ScaledDiscardDelta-${s}.png`, fullPage: true });
+        let did = null;
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; }
+        if (!did && !modalOpened) {
+          const st0 = await H.queryState();
+          if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        // 第1段＝相手1体の強制対象選択（optional:false・スキップ枝は無い＝決定(1/1)固定パターン）
+        if (!did && !pickedTarget) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\/1\)/ }).count();
+          if (confirmReady) {
+            await page.getByRole('button', { name: /決定 \(1\/1\)/ }).first().click().catch(() => {});
+            did = 'btn:決定(1/1)target'; pickedTarget = true;
+          } else {
+            const p0 = page.getByTestId('pick-0').first();
+            if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click().catch(() => {}); did = 'pick:pick-0(target)'; }
+          }
+        }
+        // 第2段＝自分の手札を好きな枚数（upToCount）捨てる。このピッカーは独自の「スキップ」ボタンを持つため
+        // H.stdStep()には委譲しない（lxiv/lxvで実機確認済みのレース対策と同型）。
+        if (!did && pickedTarget) {
+          const pD = page.getByTestId(`pick-${discardPicked}`).first();
+          if (discardPicked < 2 && await pD.count() && await pD.isVisible().catch(() => false)) {
+            await pD.click().catch(() => {}); discardPicked++; did = `pick:discard-${discardPicked - 1}`;
+          } else {
+            const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) { await confirmBtn.click().catch(() => {}); did = 'btn:決定(discard)'; }
+          }
+        }
+        const st = await H.queryState();
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:-12000'));
+        H.log(`  lxwd[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} discardPicked=${discardPicked} hHand=${st?.host?.hand} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (debuffed) {
+          return { pass: true, detail: `対象1体を先に確定→手札2枚とも捨てる→POWER_MODIFY(targetsStored,deltaPerLastProcessedCount)で-6000×2=-12000がその1体だけに適用（gPowerMods=${JSON.stringify(st.guest.powerMods)}・hHand=${st.host.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} discardPicked=${discardPicked} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lx)(a) 対照実験＝手札0枚のときは捨てるピッカー自体が出ず（execTrashのcands.length===0で
+  // selectOrInteractに到達せず素通り）、POWER_MODIFYはdelta=-6000×0=0で静かに適用される（クラッシュしない）
+  // ことを確認する。
+  lxWX12020EmptyHandSkipsPicker: {
+    title: 'WX12-020-E3（対照実験＝手札0枚だと捨てるピッカーが出ずdelta=0で素通り・クラッシュしない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WX12-020#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'hand': [], // 0枚
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WX01-053#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let modalOpened = false;
+      let pickedTarget = false;
+      let stablePolls = 0;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxWX12020EmptyHandSkipsPicker-${s}.png`, fullPage: true });
+        let did = null;
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; }
+        if (!did && !modalOpened) {
+          const st0 = await H.queryState();
+          if (st0?.turnPhase === 'ATTACK_SIGNI' && !st0?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        if (!did && !pickedTarget) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\/1\)/ }).count();
+          if (confirmReady) {
+            await page.getByRole('button', { name: /決定 \(1\/1\)/ }).first().click().catch(() => {});
+            did = 'btn:決定(1/1)target'; pickedTarget = true;
+          } else {
+            const p0 = page.getByTestId('pick-0').first();
+            if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click().catch(() => {}); did = 'pick:pick-0(target)'; }
+          }
+        }
+        const st = await H.queryState();
+        H.log(`  lxeh[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} hHand=${st?.host?.hand} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (pickedTarget && !st?.pendingEffect) {
+          stablePolls++;
+          if (stablePolls >= 2) {
+            const zeroOrNoDelta = !(st?.guest?.powerMods ?? []).some(m => m.startsWith('WX01-053#1:') && !m.endsWith(':0') && !m.endsWith('-0'));
+            return {
+              pass: zeroOrNoDelta,
+              detail: `手札0枚→捨てるピッカーは一度も出ず（pickedTarget後すぐpEff解消）→POWER_MODIFYはdelta=0で静かに適用・クラッシュなし（gPowerMods=${JSON.stringify(st.guest.powerMods)}）`,
+            };
+          }
+        } else {
+          stablePolls = 0;
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // §7 タスク12(lx)(b)（2026-08-05・Sonnet）＝WXDi-P03-089：POWER_MODIFY{targetsStored}は`freezeStoredTargets`の
+  // FREEZABLEリスト（BANISH/BOUNCE/TRASH/EXILE/SEND_TO_ENERGY/TRANSFER_TO_DECK）に含まれないため、エクシード
+  // 支払い判定後に**再選択UIを一切出さず自動適用**される（`execPowerModify`の`if(a.targetsStored) return
+  // done(applyPowerMod(...))`が`selectOrInteract`より先に早期return）。対象選択は最初の1回だけになり、
+  // ON_TARGETED watcher（WXDi-P03-067・自分が対象になったとき1枚ドロー）が1回しか発火しないことを確認する。
+  // エクシード（ルリグ下4枚）が無い状態＝支払い不可→スキップ→-5000枝を検証。
+  lxWXDiP03089SingleTargetedFire: {
+    title: 'WXDi-P03-089（POWER_MODIFY{targetsStored}は再選択なし＝ON_TARGETEDが1回しか発火しない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [null, null, null],
+        'energy': ['WD05-013#1'], // 黒×1（スペルコスト）
+        'hand': ['WXDi-P03-089#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WXDi-P03-067#1'], null, null], // 羅石 アパタイト（ON_TARGETED self＝1枚ドロー・唯一の対象候補）
+        'field.signi_down': [false, false, false],
+        'hand': [], // 0枚→発火回数をhand絶対値で判定
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.hand:', before?.guest?.hand, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+      const clickExact = async (name) => {
+        const b = page.getByRole('button', { name, exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; }
+        return null;
+      };
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let pickedTarget = false;
+      let sawSecondSelectTarget = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxWXDiP03089SingleTargetedFire-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動'); // CardModal「発動」→SpellCastModalへ
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          }
+        }
+        // 第1段＝相手1体の強制対象選択（決定(1/1)固定パターン・唯一の候補）
+        if (!did && !pickedTarget) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\/1\)/ }).count();
+          if (confirmReady) {
+            await page.getByRole('button', { name: /決定 \(1\/1\)/ }).first().click().catch(() => {});
+            did = 'btn:決定(1/1)target'; pickedTarget = true;
+          } else {
+            const p0 = page.getByTestId('pick-0').first();
+            if (await p0.count() && await p0.isVisible().catch(() => false)) { await p0.click().catch(() => {}); did = 'pick:pick-0(target)'; }
+          }
+        }
+        // エクシード4のCHOOSE（costColors無し＝プレーンラベル。エクシードプール0で支払い不能→スキップ固定）
+        if (!did && pickedTarget) did = await clickExact('スキップ');
+        if (!did && pickedTarget) {
+          // 万一もう一度SELECT_TARGETが出た場合の検出（本来は起きないはず）
+          const p0b = page.getByTestId('pick-0').first();
+          if (await p0b.count() && await p0b.isVisible().catch(() => false)) { sawSecondSelectTarget = true; }
+        }
+        const st = await H.queryState();
+        const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-5000'));
+        H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (debuffed) {
+          return {
+            pass: (st.guest.hand === 1) && !sawSecondSelectTarget,
+            detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが${st.guest.hand}回発火（gHand=${before.guest.hand}→${st.guest.hand}）・再選択UI出現=${sawSecondSelectTarget}`,
+          };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} gHand=${fin?.guest?.hand} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
