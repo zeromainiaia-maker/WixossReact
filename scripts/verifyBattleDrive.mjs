@@ -7234,9 +7234,12 @@ const scenarios = {
           } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
             await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
           } else if (!grown) {
+            // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れる）＝
+            // 候補が見えない＝ドリフトの疑いとしてGROWを再注入してから「グロウ」を押す。
+            await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
             const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
             if (await gb.count() && await gb.isVisible().catch(() => false)) {
-              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
+              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ(+repatch)';
             }
           }
         }
@@ -7338,9 +7341,12 @@ const scenarios = {
           } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
             await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
           } else if (!grown) {
+            // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れる）＝
+            // 候補が見えない＝ドリフトの疑いとしてGROWを再注入してから「グロウ」を押す。
+            await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
             const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
             if (await gb.count() && await gb.isVisible().catch(() => false)) {
-              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
+              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ(+repatch)';
             }
           }
         }
