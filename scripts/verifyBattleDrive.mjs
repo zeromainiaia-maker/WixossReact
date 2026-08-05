@@ -8831,6 +8831,78 @@ const scenarios = {
       return { pass: false, detail: `未完了（abilityBtnSeen=${abilityBtnSeen} abilityBtnEnabled=${abilityBtnEnabled} activated=${activated} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝「(c) 併記型で両方の選択肢が同時に出る」（2026-08-05）。当時（続き～）は
+  // 「liveで併記型が載っているのは現状0」で保留だったが、`WXDi-P08-007-E3`（【起】《ゲーム１回》「対戦相手が
+  // 手札を１枚捨てるか《無》を支払わないかぎり…」を3回行う）が現在 costColors:['無'] と
+  // opponentHandDiscard:1 を同時に持つ実例として存在する。host自身が【起】を起動しguest(CPU)が応答者に
+  // なる構成のため、CHOOSEの中身（両方の選択肢が本当に同時に候補として並んでいるか）はhostの画面には
+  // 描画されない＝raw pending_effect.interaction.optionsをDB直読みして「pay」と「discard」が同時に
+  // 存在することを実機ランタイムのデータで確認する（人間が実クリックで両方を選び分けられることは
+  // wx22025SigniTrashBranch等の同型OPPONENT_PAY_OPTIONALコードパスで既に確認済み＝新規機構ではない）。
+  opponentPayOptionalBothBranchesCoexist: {
+    title: 'WXDi-P08-007-E3（併記型＝costColorsとopponentHandDiscardが同一CHOOSEに同時に並ぶことを確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXDi-P08-007#1'],
+        'field.lrig_down': false,
+        'field.signi': [null, null, null],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'energy': ['WD01-013#1'], // 無×1払える状態
+        'hand': ['WD01-013#2', 'WD01-013#3'], // 手札1枚捨てるも払える状態
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const queryRawInteraction = () => page.evaluate(async ({ SUPA_URL, ANON }) => {
+        const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+        const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+        const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+        const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+        const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
+        const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=pending_effect`, { headers: h });
+        const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
+        return row.pending_effect?.interaction ?? null;
+      }, { SUPA_URL, ANON });
+      H.log('シグニ/ルリグ起動クリック:', await H.clickTestId('my-signi-zone-0') ?? '（signi無し・center lrigクリックへ）');
+      let opened = false;
+      let optionsChecked = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/opponentPayOptionalBothBranchesCoexist-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !opened) {
+          const lrigImg = page.locator('img[alt="ゆかゆか☆さ～ん"]').first();
+          if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) { await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {}); did = 'click:centerLrig'; opened = true; }
+        }
+        if (!did && opened) {
+          const btn = page.getByRole('button', { name: '【起】', exact: false }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】'; }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        const st = await H.queryState();
+        if (!optionsChecked && st?.pendingEffect === 'CHOOSE') {
+          const inter = await queryRawInteraction();
+          const ids = (inter?.options ?? []).map(o => o.id);
+          const payOpt = (inter?.options ?? []).find(o => o.id === 'pay');
+          const discardOpt = (inter?.options ?? []).find(o => o.id === 'discard');
+          H.log(`  併記チェック＝options ids=${JSON.stringify(ids)} pay=${JSON.stringify(payOpt)} discard=${JSON.stringify(discardOpt)}`);
+          optionsChecked = true;
+          if (payOpt && payOpt.costColors?.length && discardOpt) {
+            return { pass: true, detail: `併記型を確認＝同一CHOOSEにid='pay'（costColors=${JSON.stringify(payOpt.costColors)}）とid='discard'（label="${discardOpt.label}"）が同時に存在する（options ids=${JSON.stringify(ids)}）` };
+          }
+          return { pass: false, detail: `併記型が期待どおりでない＝options ids=${JSON.stringify(ids)}（pay/discardの一方または両方が欠落）` };
+        }
+        H.log(`  opbc[${s}] -> ${did ?? 'なし'} | opened=${opened} pEff=${st?.pendingEffect ?? '-'}`);
+      }
+      return { pass: false, detail: `CHOOSE未出現のまま未完了（opened=${opened}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
