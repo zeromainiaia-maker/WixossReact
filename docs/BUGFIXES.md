@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝`WX22-025-E3`相手側CHOOSE4択検証＋opponentResponds系の新検証パターン確立（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き352）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ2件（`wx22025SigniTrashBranch`／`wx22025SigniTrashUnavailable`）を新規追加し、PLAN §7タスク12(lxi)第3波「相手側CHOOSEの4つ目の枝＝自分のシグニをNトラッシュに置く」を検証した。
+
+### 新しい検証パターン＝guestを効果オーナーにしてhostを応答者にする
+直前セッション（続き351）の`WXK06-067-E1`検証で、opponentResponds系のCHOOSEはCPU自動応答（`BattleScreen.tsx:522-530`の`options.find(o=>o.available)??options[0]`）が常に先頭の無料'pay'を選んでしまい、非LIFE_BURST効果では既存のLB所有者反転トリック（`queueCardEffects`のownerId固定を利用してdriverアカウント自身に応答させる）が使えないため「構造的に到達不能」と結論していた。
+
+本セッションでは別の回避策を発見した：**GUEST（CPU）がその効果の所有者になるようにする**（＝GUESTの場に置いたシグニがGUEST自身のターンでアタックする）と、STUB内の「対戦相手」は`ctx.otherState`＝HOST側になる。この場合`respondPlayerId`はHOSTのuidになり、CPU自動応答の判定（`(pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID`）でbailoutする＝CHOOSEモーダルがHOSTの実ブラウザ画面に本当に描画され、driverが手動で任意の枝をクリックできる。既存の「CPUの攻撃でhost側のwatcherを観測する」パターン（`oppDraw`等）は一方通行の観測用途だったが、今回は「CPUの攻撃でhost自身が能動的にCHOOSEへ応答する」新しい使い方。
+
+### 確認できたこと
+- `WX22-025-E3`（天空の主神　ゼウシアス・【自】《ターン1回》アタック時に対戦相手が回避しないかぎりダメージ）でGUESTにこのシグニを配置しCPU自動攻撃させ、HOST自身が「自分のシグニを1体トラッシュに置く」を明示クリック→SELECT_TARGETでHOST自身の場から選んでTRASH解決→ライフクロスは無傷（`wx22025SigniTrashBranch`・2回連続PASS）。OPPONENT_PAY_OPTIONALのcontinuation設計（`STUB`直後の`CONDITIONAL{IS_MY_TURN}`は`remaining`に含まれず`cont`は空＝'skip'以外の選択肢では`conditional.then`＝LIFE_CRASHが実行されない）をコード読解でも確認。
+- HOSTの場が空のときは「自分のシグニを1体トラッシュに置く」ボタンがdisabledになることを確認（`wx22025SigniTrashUnavailable`・2回連続PASS）。この場合の通常戦闘ダメージ（場が空＝直接攻撃）は本効果のLIFE_CRASHとは別物で無関係。
+
 ## 2026-08-05 — §7実機検証の続き＝`WXK06-067-E1`クロスゾーンpickerの構造的限界を確認（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き351）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ1件（`wxk06067CrossZoneStubFires`）を新規追加し、PLAN §7タスク12(lxi)第11波「ゾーンを跨いだ選択モーダル」（本プロジェクト初のhand+energy横断プール）を検証した。
