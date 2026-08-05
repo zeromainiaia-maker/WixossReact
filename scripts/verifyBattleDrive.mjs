@@ -6933,9 +6933,10 @@ const scenarios = {
   // §7 タスク12(lxii)（2026-08-05・Sonnet）＝WD16-016-BURST：LB解決時に対戦相手（LB所有者の対戦相手＝アタッカー）
   // 側に「捨てる札を選ぶ」画面が出ること（自分側に出ない＝旧実装は自分の手札を1枚捨てさせていた）。
   // `TRASH{HAND_CARD, owner:'opponent', count:1}`＝`opponentResponds:true`・`targetScope:'opp_hand'`。
-  // ⚠事前調査で「opp_hand+opponentResponds は viewer 視点の op/my が実際の対象と食い違い候補0件で
-  // ソフトロックしうる」懸念が指摘されたため、host（アタッカー＝実UIを操作する側）で実際に選択できるかを
-  // 直接確認する（新規/未検証territory）。手札3枚（≤5→1枚捨て）で検証。
+  // ⚠実機検証で実バグを発見（Opusタスク12(cv)へ登録）＝`EffectInteractionModal.tsx`の`opp_hand`候補描画が
+  // 「viewer視点のop」（=画面を見ている側から見た相手）を使うため、host（アタッカー＝真の対象）が見ると
+  // 「対戦相手の手札」としてguest（LB所有者）の手札が表示される＝真の候補（host自身の手札）とは無関係の
+  // カードが並び、どれも選択不可（決定(0/1)のまま進まない＝実質ソフトロック）。手札3枚（≤5→1枚捨て想定）で検証。
   wd16016BurstOpponentDiscard: {
     title: 'WD16-016-BURST（LB＝対戦相手(アタッカー)側に捨てる札を選ぶ画面が出る・手札3枚→1枚捨て）',
     spec: {
