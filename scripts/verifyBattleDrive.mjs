@@ -7210,10 +7210,7 @@ const scenarios = {
           candVisible = (await cand.count()) > 0 && await cand.isVisible().catch(() => false);
         }
         if (candVisible) {
-          const box = await cand.boundingBox().catch(() => null);
-          H.log(`  [debug] cand box=${JSON.stringify(box)} enabled=${await cand.isEnabled().catch(() => 'err')}`);
-          try { await cand.click({ timeout: 2000 }); }
-          catch (e) { H.log(`  [debug] cand click失敗: ${String(e.message).split('\n')[0]}`); await cand.click({ timeout: 2000, force: true }).catch(e2 => H.log(`  [debug] force click失敗: ${String(e2.message).split('\n')[0]}`)); }
+          await cand.click({ timeout: 2000 }).catch(() => {});
           await page.waitForTimeout(400);
           const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
           if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
