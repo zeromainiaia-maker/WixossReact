@@ -8903,6 +8903,60 @@ const scenarios = {
       return { pass: false, detail: `CHOOSE未出現のまま未完了（opened=${opened}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝「(xxxvi) のグロウ支払いUI」（2026-08-05）。続き206でGrowModal/AssistGrowModal/
+  // BattleScreenのグロウ可否判定5箇所へ`wildcardInstIds`/`colorOverrideMap`が配線されたが「グロウ支払いUIでの
+  // 実選択」は未検証のまま残っていた。`WX16-Re06`（【常】：このシグニがエナゾーンにあるかぎり、センター
+  // ルリグの持つ色のエナ1つを支払う際、代わりにエナゾーンからこのシグニをトラッシュに置いてもよい）を
+  // **緑の**センタールリグ（WD04-004→WD04-003・GrowCost《緑×1》）のエナゾーンに置く＝WX16-Re06自身の
+  // 印刷色は「白」なので、素の色一致では緑コストを絶対に払えない＝グロウが成立すれば代替配線が
+  // 本当に機能している証拠になる（印刷色がたまたま一致するカードでは代替の有無を判別できないため、
+  // あえて印刷色とセンタールリグ色が食い違う組み合わせを選んだ）。
+  lrigDownGrowColorSubstituteFires: {
+    title: 'WX16-Re06→WD04-004(緑)グロウ（印刷色「白」のエナ代替カードで《緑×1》グロウコストを支払えることを確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD04-004#1'], // Lv1 一ノ娘　緑姫（緑）
+        'field.lrig_down': false,
+        'lrig_deck': ['WD04-003#1'], // Lv2 二ノ娘　緑姫（GrowCost《緑》×1）
+        'energy': ['WX16-Re06#1'], // 印刷色は白＝これ1枚だけ（素の色一致では絶対に払えない）
+        'field.signi': [null, null, null],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigTop/energy:', before?.host?.lrigTop, before?.host?.energyCards);
+      const grew = await H.openGrow(/二ノ娘/);
+      H.log('グロウ候補クリック（二ノ娘　緑姫）:', grew ? 'OK' : '失敗（候補disabledの可能性＝代替配線が効いていない疑い）');
+      if (!grew) {
+        return { pass: false, detail: `グロウ候補ボタンをクリックできなかった＝Phase1のcanAfford判定でWX16-Re06（印刷色「白」）が緑コスト候補として認識されていない可能性（代替配線の疑い）` };
+      }
+      let energySelected = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigDownGrowColorSubstituteFires-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !energySelected) {
+          const img = page.locator('img[alt="小剣　ミカムネ"]').last();
+          if (await img.count() && await img.isVisible().catch(() => false)) { await img.click().catch(() => {}); did = 'img:小剣　ミカムネ(WX16-Re06)'; energySelected = true; }
+        }
+        if (!did && energySelected) did = await H.clickBtn('グロウ実行', { exact: true });
+        const st = await H.queryState();
+        H.log(`  ldgs[${s}] -> ${did ?? 'なし'} | energySelected=${energySelected} lrigTop=${st?.host?.lrigTop} energy=${st?.host?.energyCards} trash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
+        if (st?.host?.lrigTop === 'WD04-003#1') {
+          const substituteConsumed = !(st?.host?.energyCards ?? []).includes('WX16-Re06#1') && (st?.host?.trashCards ?? []).includes('WX16-Re06#1');
+          if (substituteConsumed) {
+            return { pass: true, detail: `印刷色「白」のWX16-Re06をエナゾーンで選択→《緑×1》のグロウコストとして支払い成立＝Lv1→Lv2グロウ完了（lrigTop=${st.host.lrigTop}・WX16-Re06はエナ→トラッシュへ移動）＝グロウ支払いUIの代替配線（続き206）が実選択でも機能している` };
+          }
+          return { pass: false, detail: `グロウは完了したがWX16-Re06の移動が確認できない（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（energySelected=${energySelected} lrigTop=${fin?.host?.lrigTop} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
