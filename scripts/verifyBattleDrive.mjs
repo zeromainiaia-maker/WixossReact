@@ -7281,6 +7281,12 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
+      if (crashChosen && (fin?.host?.life ?? 99) < (before?.host?.life ?? 0) && !fin?.pendingEffect) {
+        return {
+          pass: false,
+          detail: `【要Opus登録】エクシード4支払い→「クラッシュする」選択→自分のライフクロス1→0枚クラッシュ成功→チェックゾーン確認（バーストなし「エナに送る」）まで正しく進行したが、続くBANISH（対象=クラッシュ枚数1+1=2体）が一度も発火しない＝SEQUENCE[LIFE_CRASH{optional,triggerBurst}, BANISH{addLastProcessedCount}]のcontinuationがCHOOSE解決→チェックゾーン確認という2段の中断を跨いだ先で失われている疑い（gField=${JSON.stringify(fin?.guest?.fieldSigni)}=開始時と不変・banishedCount=0）`,
+        };
+      }
       return { pass: false, detail: `2体BANISH 未確認（lrigTop=${fin?.host?.lrigTop} grown=${grown} exceedActivated=${exceedActivated} hLife=${fin?.host?.life} gField=${JSON.stringify(fin?.guest?.fieldSigni)} crashChosen=${crashChosen} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
