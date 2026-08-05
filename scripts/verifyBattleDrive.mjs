@@ -6842,11 +6842,16 @@ const scenarios = {
   // §7 タスク12(lx)(b)（2026-08-05・Sonnet）＝WXDi-P03-089：POWER_MODIFY{targetsStored}は`freezeStoredTargets`の
   // FREEZABLEリスト（BANISH/BOUNCE/TRASH/EXILE/SEND_TO_ENERGY/TRANSFER_TO_DECK）に含まれないため、エクシード
   // 支払い判定後に**再選択UIを一切出さず自動適用**される（`execPowerModify`の`if(a.targetsStored) return
-  // done(applyPowerMod(...))`が`selectOrInteract`より先に早期return）。対象選択は最初の1回だけになり、
-  // ON_TARGETED watcher（WXDi-P03-067・自分が対象になったとき1枚ドロー）が1回しか発火しないことを確認する。
-  // エクシード（ルリグ下4枚）が無い状態＝支払い不可→スキップ→-5000枝を検証。
+  // done(applyPowerMod(...))`が`selectOrInteract`より先に早期return）＝この「対象選択は最初の1回だけ」は実機で
+  // 確認できた（sawSecondSelectTarget=false）。
+  // ⚠一方で実機検証中に別の実バグを発見（Opusタスク12(civ)へ登録）＝ON_TARGETED watcher（WXDi-P03-067）は
+  // 期待どおり「1回だけ」ではなく**0回**しか発火しない＝最初のSELECT_TARGET（対象宣言そのもの）自体がスタックへ
+  // 積んだON_TARGETEDエントリを、後続のCHOOSE（エクシード支払い可否）を挟んだ2回目のhandleEffectInteraction
+  // 解決が握りつぶす疑い（stackAcc計算がresult.done分岐ごとに独立でstackAcc=undefinedのまま次のcommitへ渡ると
+  // reduceBattleが`effectStack`キー自体を書かない＝理論上はDBの既存値を温存するはずだが実機では発火が確認
+  // できなかった）。
   lxWXDiP03089SingleTargetedFire: {
-    title: 'WXDi-P03-089（POWER_MODIFY{targetsStored}は再選択なし＝ON_TARGETEDが1回しか発火しない）',
+    title: 'WXDi-P03-089（POWER_MODIFY{targetsStored}は再選択なし＝確認できたがON_TARGETED自体が発火しない実バグを発見）',
     spec: {
       hostSet: {
         'field.lrig': ['WD03-003#1'],
