@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証まとめて消化＋新規実バグ4件(ci)(cii)(civ)(cv)を発見（golden/census/held/smoke/fuzz 全据置・全ゲート緑）（Sonnet 5・続き347）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ約20件を新規追加し、PLAN §7の未検証UI worklistを大幅消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。
+
+### ✅クローズした検証項目（各2回連続PASSで既定`order`へ追加）
+- タスク12(lxi)本消化(a)(d)(e)＝`WX25-P1-038-E1`のOPPONENT_PAY_OPTIONAL availableゲート／`WX24-P2-071-BURST`のLB所有者反転／`WX24-P1-023-E1`のSEQUENCE continuation。
+- §6.3 H/I′ 5件全部＝ガード追加《無》N枚徴収（`WX24-P3-069-E1-G`）／`WDK14-013-E1`トラッシュ候補ピッカー／メルト・ファクト`WX15-067-E1`のウィルス除去UI／夢限-Q-`WXDi-P11-010A-E1`の反転／未知の邂逅`WXDi-P13-003A-E1`の無料グロウ。
+- タスク12(lxi)第10波(a)(b)＋(lxxvi)の1種＝「シグニを新たに配置できないゾーン」（`BLOCK_OPP_ZONE_PLACEMENT`/`signi_zone_blocks`）のDOM描画・配置阻止・コスト徴収・vacatedゾーン追従（`WX08-032-E1`の実キャストでzone1フォールバック無しを確認）。
+- タスク12(lxiv)＝「対象ピッカー前置」＝`WXDi-P02-043-E1`で先にSELECT_TARGET→支払い可否の順序、支払い後の再確認SELECT_TARGET（fixedCardNumsで絞られていても確認クリックが要る）。
+- タスク12(lxv)＝「条件つき任意コストのゲート」＝`WXDi-P02-077-E1`で条件不成立時はCHOOSEすら出ず「任意コストの条件を満たさない（スキップ）」ログで静かに不発。
+- タスク12(lx)(a)＝`WX12-020-E3`のスケール型手札ピッカー（捨てた枚数×-6000）。手札0枚だとピッカー自体が出ない。
+
+### 🆕 発見した実バグ4件（Opusタスク12(ci)(cii)(civ)(cv)へ登録・詳細はPLAN.md §3）
+1. **(ci)** `costColors`非搭載の`OPPONENT_PAY_OPTIONAL`（`effectExecutor.ts:3333`）は無条件で無料「支払う」を選択肢に積む。`WX25-P1-040-E1`（手札3枚捨てないかぎりバニッシュ）で実機再現＝CPUが最優先で無料payを選びdiscard枝のavailable:false判定に到達しない。効果JSON全体で`OPPONENT_PAY_OPTIONAL` 68効果中33効果が該当。
+2. **(cii)** CPU自動応答（`BattleScreen.tsx:522-530`）はCHOOSEの選択肢IDのみを渡しエナinstanceIdを渡さないため、`costColors`付き選択肢を選んでも`resumeOpponentPayOptional`/`resumeOptionalCost`が`energyNums=[]`で「コスト支払いエラー: エナ不足」を返し常に空振りする（エナが足りていても）。`WX25-P1-038-E1`の対照実験（`oppPayEnergySufficient`）で発見。
+3. **(civ)** `WXDi-P03-089`（対象1体宣言→エクシード4任意コスト→パワー-5000/-12000）で実機検証したところ、対象宣言（`POWER_MODIFY{delta:0}`）を解決するSELECT_TARGETの直後にCHOOSEが続く場合（その場で`result.done`にならない場合）、`collectTargetedTriggers`は計算されるがON_TARGETED watcher（`WXDi-P03-067`）が期待の1回ではなく**0回**しか発火しない。「対象選択は最初の1回だけになり再選択されない」側面（`execPowerModify`の`targetsStored`早期return）自体は正常動作を確認。根本原因は未確定（`handleEffectInteraction`の2回連続呼び出し間で`stackAcc`計算が独立している影響を疑うが実機/ログでの追跡は未完了）。
+4. **(cv)** `WD16-016-BURST`（LB＝対戦相手自身に手札を選ばせて捨てさせる）を実機駆動したところ、`SELECT_TARGET{targetScope:'opp_hand', opponentResponds:true}`自体は正しく生成されるが、`EffectInteractionModal.tsx`の候補描画が「viewer視点のop」を使うため、対象=viewer自身（アタッカー）のケースではLB所有者側の手札が誤表示される。スクリーンショットで確認＝host手札3枚のはずが「対戦相手の手札（全5枚）」としてguestの5枚が表示され、どれも選択できず「決定 (0/1)」のまま進行不能＝ソフトロック。
+
+### driver側の教訓（今後の新規シナリオに適用すること）
+- `upToCount:true`のSELECT_TARGET/CHOOSEピッカーは独自の「スキップ」ボタンを持つ。`H.stdStep()`の汎用フォールバック（デフォルトlabelsに'スキップ'含む）に委譲すると、`pick-N`がまだ描画されていない一瞬に誤ってそちらをクリックし0件確定で終わるレースが実機で複数回再現した（`lxivMultiTargetPayBanishesBoth`・`lxWX12020ScaledDiscardDelta`ほか）。対策＝そのようなピッカーが関与するシナリオでは`H.stdStep()`を使わず明示的なラベル/testidのみで進行する。
+- `BANISH`等`FREEZABLE`リスト（`freezeStoredTargets`の対象＝BANISH/BOUNCE/TRASH/EXILE/SEND_TO_ENERGY/TRANSFER_TO_DECK）は`fixedCardNums`に絞られても`selectOrInteract`経由の再確認SELECT_TARGETをもう一度要求する（候補が1件でも確認クリックが要る）。一方`POWER_MODIFY{targetsStored}`は`execPowerModify`の早期returnで再選択なし＝この非対称性を新規シナリオ設計時に踏まえること。
+- フルバッチ実行（`node scripts/verifyBattleDrive.mjs`引数なし）はユーザーからのフィードバックにより禁止＝必ず個別シナリオIDを指定して実行する。
+
 ## 2026-08-04 — 🏁§3 タスク12(xcix) 残0クローズ：主語なし「シグニ１体がアタックしたとき」が `self` に潰れて**相手のアタックに反応できなかった**のを是正（golden 1363→1366・live **3効果のみ**変更・全ゲート緑）（Opus 5・続き346）
 
 (lxviii) で honest defer した1件。着手して測ると**同型がもう2枚**あり、母集団は3効果だった。
