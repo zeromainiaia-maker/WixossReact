@@ -7762,13 +7762,19 @@ const scenarios = {
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const fs = st?.host?.fieldSigni ?? [];
-        const movedUnder = fs.some(stack => Array.isArray(stack) && stack.length === 2 && stack[0] === 'WXDi-P03-057#1');
-        const buffed = (st?.host?.powerMods ?? []).some(m => m === 'WD02-009#1:2000');
-        H.log(`  d057[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(fs)} powerMods=${JSON.stringify(st?.host?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
-        if (movedUnder && buffed) return { pass: true, detail: `WXDi-P03-057がWD02-009の下へ移動→ホストに+2000確認（hField=${JSON.stringify(fs)}）` };
+        const zoneIdx = fs.findIndex(stack => Array.isArray(stack) && stack.length === 2 && stack[0] === 'WXDi-P03-057#1' && stack[1] === 'WD02-009#1');
+        const movedUnder = zoneIdx >= 0;
+        // CONTINUOUS(aboveSelf)はtemp_power_modsに書かれない純計算値＝表示DOM（effectivePowers）で確認する。
+        let displayedPower = null;
+        if (movedUnder) {
+          const zoneText = await page.getByTestId(`my-signi-zone-${zoneIdx}`).innerText().catch(() => '');
+          displayedPower = /14[,，]000/.test(zoneText) ? '14,000' : (zoneText.match(/[\d,，]{4,}/)?.[0] ?? zoneText.slice(0, 40));
+        }
+        H.log(`  d057[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(fs)} zoneIdx=${zoneIdx} displayedPower=${displayedPower} pEff=${st?.pendingEffect ?? '-'}`);
+        if (movedUnder && displayedPower === '14,000') return { pass: true, detail: `WXDi-P03-057がWD02-009の下へ移動→表示パワー12,000→14,000（aboveSelf+2000）を確認（hField=${JSON.stringify(fs)}）` };
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)} powerMods=${JSON.stringify(fin?.host?.powerMods)}）` };
+      return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)}）` };
     },
   },
 };
