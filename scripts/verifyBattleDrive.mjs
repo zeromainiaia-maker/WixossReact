@@ -7004,6 +7004,99 @@ const scenarios = {
       };
     },
   },
+
+  // §7 タスク12(lxi)第2波(a)（2026-08-05・Sonnet）＝WX15-033-BURST（羅星姫≡ガーネットスター≡）：LB「対戦相手は、
+  // 手札を２枚捨てるかエナゾーンから対象のカード２枚をトラッシュに置かないかぎり、対象の自分のシグニ１体を場から
+  // トラッシュに置く」。OPPONENT_PAY_OPTIONALに手札枝＋エナ枝の2つが並ぶケース＝LB所有者(guest)の対戦相手=host
+  // （アタッカー）にCHOOSEが飛ぶので、CPU自動応答を介さずdriver自身の選択でエナ枝を明示的に選べる。
+  // 手札1枚（<2）で「手札を2枚捨てる」枝がdisabledなこと／エナ3枚（≥2）で「エナゾーンから...2枚...」枝が
+  // available→選択すると自分のエナがちょうど2枚トラッシュされ対象シグニ（アタッカー自身）は場に残ることを確認する。
+  // ⚠costColors非搭載のため「支払う」枝も常時available（Opusタスク12(ci)と同型の穴）だが、本シナリオは
+  // それを踏まずエナ枝を明示クリックする＝ci とは独立に「エナ枝自体が機能すること」を検証する。
+  secondWaveEnergyBranch: {
+    title: 'WX15-033-BURST（羅星姫≡ガーネットスター≡＝OPPONENT_PAY_OPTIONALの手札枝＋エナ枝の3択・エナ枝を明示選択して機能確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WD01-013#1'], null, null], // アタッカー兼、不払い時のバニッシュ対象候補
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#20'], // 1枚＜2＝「手札を2枚捨てる」枝は本来unavailable
+        'energy': ['WD01-013#21', 'WD01-013#22', 'WD01-013#23'], // 3枚≥2＝「エナゾーンから2枚」枝はavailable
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null], // ブロッカー無し＝ライフクロスクラッシュ直行
+        'life_cloth': ['WD01-013#30', 'WX15-033#1'], // 配列末尾が先にクラッシュ＝バースト即発火
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'host.energy:', before?.host?.energy, 'guest.life:', before?.guest?.life);
+      let modalOpened = false;
+      let attacked = false;
+      let sawChoose = false;
+      let discardWasDisabled = null;
+      let energyClicked = false;
+      let pickedCount = 0;
+      let confirmedTargets = false;
+      for (let s = 0; s < 30; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/secondWaveEnergyBranch-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !modalOpened && !attacked) {
+          const phaseChk = await H.queryState();
+          if (phaseChk?.turnPhase === 'ATTACK_SIGNI' && !phaseChk?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        // CHOOSEモーダル出現の検出＝手札枝(disabled想定)とエナ枝(available想定)を直接判定
+        if (!did && !energyClicked) {
+          const discardBtn = page.getByRole('button', { name: '手札を2枚捨てる', exact: true }).first();
+          const energyBtn = page.getByRole('button', { name: 'エナゾーンからカードを2枚トラッシュに置く', exact: true }).first();
+          if (await energyBtn.count() && await energyBtn.isVisible().catch(() => false)) {
+            sawChoose = true;
+            if (discardWasDisabled === null) {
+              discardWasDisabled = (await discardBtn.count()) > 0 ? !(await discardBtn.isEnabled().catch(() => true)) : null;
+            }
+            const enabled = await energyBtn.isEnabled().catch(() => false);
+            if (enabled) { await energyBtn.click().catch(() => {}); did = 'btn:エナゾーンから2枚'; energyClicked = true; }
+          }
+        }
+        // エナ2枚選択のSELECT_TARGET（pick-0/pick-1→決定(2/2)）
+        if (!did && energyClicked && !confirmedTargets) {
+          const pN = page.getByTestId(`pick-${pickedCount}`).first();
+          if (pickedCount < 2 && await pN.count() && await pN.isVisible().catch(() => false)) {
+            await pN.click().catch(() => {}); pickedCount++; did = `pick:pick-${pickedCount - 1}`;
+          } else {
+            const confirmBtn = page.getByRole('button', { name: /決定 \(\d\/2\)/ }).first();
+            if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false)) {
+              await confirmBtn.click().catch(() => {}); did = 'btn:決定(N/2)'; confirmedTargets = true;
+            }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const energyDelta = (before?.host?.energy ?? 0) - (st?.host?.energy ?? 0);
+        const signiSurvived = st?.host?.fieldSigni?.[0] != null;
+        H.log(`  swEB[${s}] -> ${did ?? 'なし'} | hEnergy=${st?.host?.energy}(開始${before?.host?.energy},差分${energyDelta}) hField=${JSON.stringify(st?.host?.fieldSigni)} sawChoose=${sawChoose} discardDisabled=${discardWasDisabled} pEff=${st?.pendingEffect ?? '-'}`);
+        if (energyClicked && energyDelta === 2 && signiSurvived && !st?.pendingEffect) {
+          return { pass: true, detail: `3択CHOOSE（支払う/手札を2枚捨てる(disabled=${discardWasDisabled})/エナゾーンから2枚/支払わない）が並び、エナ枝を選択→自分のエナがちょうど2枚トラッシュ（${before.host.energy}→${st.host.energy}）→対象シグニ(WD01-013#1)は場に残存` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `エナ枝選択の完了 未確認（sawChoose=${sawChoose} discardDisabled=${discardWasDisabled} hEnergy=${fin?.host?.energy} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
