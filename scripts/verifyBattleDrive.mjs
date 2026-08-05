@@ -7315,16 +7315,49 @@ const scenarios = {
     async drive(page, H) {
       const before = await H.queryState();
       H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'host.hand:', before?.host?.hand, 'host.trashCards:', JSON.stringify(before?.host?.trashCards));
-      let grown = false;
+      // グロウ候補選択モーダルはフェイズドリフト（注入直後にturn_phaseがGROW→MAINへ流れる）で開いてもすぐ
+      // 閉じるレースがある＝タイトループでrepatch→グロウ→候補クリックを連続実行する（H.openGrow類型）。
+      let exceedShown = false;
+      for (let k = 0; k < 10 && !exceedShown; k++) {
+        await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(400);
+        const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+        if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click({ timeout: 2000 }).catch(() => {}); }
+        const cand = page.getByRole('button', { name: /ロストコード・ピルルク/ }).first(); // 全角スペースはアクセシブルネーム計算で半角化される疑いがあるため空白なしの部分一致で狙う
+        let candVisible = false;
+        for (let w = 0; w < 5 && !candVisible; w++) {
+          await page.waitForTimeout(300);
+          candVisible = (await cand.count()) > 0 && await cand.isVisible().catch(() => false);
+        }
+        if (candVisible) {
+          await cand.click({ timeout: 2000 }).catch(() => {});
+          await page.waitForTimeout(400);
+          const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+          if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
+            if (!(await execBtn.isEnabled().catch(() => false))) {
+              const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
+              if (await eDiv.count()) { await eDiv.click({ timeout: 2000 }).catch(() => {}); await page.waitForTimeout(300); }
+            }
+            const execBtn2 = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+            if (await execBtn2.isEnabled().catch(() => false)) await execBtn2.click({ timeout: 2000 }).catch(() => {});
+            await page.waitForTimeout(500);
+          }
+        }
+        const ex0 = page.getByTestId('onplaycost-exceed-0').first();
+        if (await ex0.count() && await ex0.isVisible().catch(() => false)) exceedShown = true;
+        await page.screenshot({ path: `${SHOT}/exceedTwoGroupPickerC-grow${k}.png`, fullPage: true });
+        H.log(`  grow試行[${k}] exceedShown=${exceedShown}`);
+      }
+      let grown = exceedShown;
       let exceedPicked = 0;
       let exceedActivated = false;
       let pickedSpellSkip = false;
       let pickedBlueSigni = false;
-      for (let s = 0; s < 34; s++) {
+      for (let s = 0; s < 26; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exceedTwoGroupPickerC-${s}.png`, fullPage: true });
         let did = null;
-        // エクシード4支払い（onplaycost-exceed-0..3→発動）＝グロウ完了の直接証拠でもあるので最優先チェック
+        // エクシード4支払い（onplaycost-exceed-0..3→発動）
         if (!did && !exceedActivated) {
           const exBtn = page.getByTestId(`onplaycost-exceed-${exceedPicked}`).first();
           if (exceedPicked < 4 && await exBtn.count() && await exBtn.isVisible().catch(() => false)) {
@@ -7334,34 +7367,6 @@ const scenarios = {
             const actBtn = page.getByRole('button', { name: '発動', exact: true }).first();
             if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) {
               await actBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:発動'; exceedActivated = true;
-            }
-          }
-        }
-        // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
-        // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
-        //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
-        if (!did && !exceedActivated) {
-          // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れ、
-          // GrowModalがphase依存で閉じてしまう）＝エクシード発動まで毎周GROWを再注入してから状態を見る。
-          await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
-          await page.waitForTimeout(300);
-          const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
-          const cand = page.getByRole('button', { name: /ロストコード・ピルルク/ }).first(); // 全角スペースはアクセシブルネーム計算で半角化される疑いがあるため空白なしの部分一致で狙う
-          if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
-            if (await execBtn.isEnabled().catch(() => false)) {
-              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
-            } else {
-              const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
-              if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
-                await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
-              }
-            }
-          } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
-            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック'; grown = true;
-          } else if (!grown) {
-            const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-            if (await gb.count() && await gb.isVisible().catch(() => false)) {
-              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
             }
           }
         }
