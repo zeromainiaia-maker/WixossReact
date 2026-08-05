@@ -7203,9 +7203,13 @@ const scenarios = {
         await page.waitForTimeout(400);
         const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
         if (await gb.count() && await gb.isVisible().catch(() => false)) { await gb.click({ timeout: 2000 }).catch(() => {}); }
-        await page.waitForTimeout(400);
         const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
-        if (await cand.count() && await cand.isVisible().catch(() => false)) {
+        let candVisible = false;
+        for (let w = 0; w < 5 && !candVisible; w++) {
+          await page.waitForTimeout(300);
+          candVisible = (await cand.count()) > 0 && await cand.isVisible().catch(() => false);
+        }
+        if (candVisible) {
           const box = await cand.boundingBox().catch(() => null);
           H.log(`  [debug] cand box=${JSON.stringify(box)} enabled=${await cand.isEnabled().catch(() => 'err')}`);
           try { await cand.click({ timeout: 2000 }); }
