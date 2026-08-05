@@ -6929,6 +6929,77 @@ const scenarios = {
       return { pass: false, detail: `未確認（pickedTarget=${pickedTarget} gHand=${fin?.guest?.hand} stack=${fin?.stackLen ?? '-'} gPowerMods=${JSON.stringify(fin?.guest?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク12(lxii)（2026-08-05・Sonnet）＝WD16-016-BURST：LB解決時に対戦相手（LB所有者の対戦相手＝アタッカー）
+  // 側に「捨てる札を選ぶ」画面が出ること（自分側に出ない＝旧実装は自分の手札を1枚捨てさせていた）。
+  // `TRASH{HAND_CARD, owner:'opponent', count:1}`＝`opponentResponds:true`・`targetScope:'opp_hand'`。
+  // ⚠事前調査で「opp_hand+opponentResponds は viewer 視点の op/my が実際の対象と食い違い候補0件で
+  // ソフトロックしうる」懸念が指摘されたため、host（アタッカー＝実UIを操作する側）で実際に選択できるかを
+  // 直接確認する（新規/未検証territory）。手札3枚（≤5→1枚捨て）で検証。
+  wd16016BurstOpponentDiscard: {
+    title: 'WD16-016-BURST（LB＝対戦相手(アタッカー)側に捨てる札を選ぶ画面が出る・手札3枚→1枚捨て）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WD01-013#1'], null, null], // アタッカー
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#2', 'WD01-013#3', 'WD01-013#4'], // 3枚≤5＝1枚捨て
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null], // ブロッカー無し＝ライフクロスクラッシュ直行
+        'life_cloth': ['WD01-013#30', 'WD16-016#1'], // 配列末尾が先にクラッシュ＝バースト即発火
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'host.handCards:', JSON.stringify(before?.host?.handCards));
+      let modalOpened = false;
+      let attacked = false;
+      let sawPicker = false;
+      let discardPicked = 0;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wd16016BurstOpponentDiscard-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !modalOpened && !attacked) {
+          const phaseChk = await H.queryState();
+          if (phaseChk?.turnPhase === 'ATTACK_SIGNI' && !phaseChk?.pendingEffect) {
+            const opened = await H.clickTestId('my-signi-zone-0');
+            if (opened) { did = opened; modalOpened = true; }
+          }
+        }
+        // 相手側ディスカードUI（pick-N＋決定(1/1)。optional:falseなのでスキップ枝は無い）
+        if (!did) {
+          const pN = page.getByTestId(`pick-${discardPicked}`).first();
+          if (await pN.count() && await pN.isVisible().catch(() => false)) {
+            sawPicker = true;
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\/1\)/ }).count();
+            if (!confirmReady) { await pN.click().catch(() => {}); did = `pick:discard-${discardPicked}`; discardPicked++; }
+            else { await page.getByRole('button', { name: /決定 \(1\/1\)/ }).first().click().catch(() => {}); did = 'btn:決定(1/1)discard'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい', 'エナに送る']);
+        const st = await H.queryState();
+        const discarded = (st?.host?.hand ?? 99) < (before?.host?.hand ?? 0);
+        H.log(`  wd16[${s}] -> ${did ?? 'なし'} | sawPicker=${sawPicker} hHand=${st?.host?.hand}(開始${before?.host?.hand}) gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        if (discarded) {
+          return { pass: sawPicker && (before.host.hand - st.host.hand === 1), detail: `LB解決時に対戦相手（アタッカー=host）側の手札から捨てる画面が出現（sawPicker=${sawPicker}）→host自身の手札が${before.host.hand}→${st.host.hand}（1枚捨て・guest側は不変=${st.guest.hand}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未確認（sawPicker=${sawPicker} hHand=${fin?.host?.hand}（開始${before?.host?.hand}） pEff=${fin?.pendingEffect ?? '-'}）＝opp_hand+opponentResponds描画不一致でソフトロックしている可能性` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
