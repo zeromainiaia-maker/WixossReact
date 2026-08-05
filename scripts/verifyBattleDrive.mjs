@@ -7277,13 +7277,13 @@ const scenarios = {
   // ４＝あなたのトラッシュからスペルと青のシグニをそれぞれ１枚まで対象とし、それらを手札に加える＝2群独立ピッカー
   // （スペル枠1枚まで・青シグニ枠1枚まで）。片方0枚でも成立し、該当0枚のときに空振りしないことを確認する。
   exceedTwoGroupPickerC: {
-    title: 'WX24-P4-017-E2（ロストコード・ピルルク X＝トラッシュからスペル1枚まで＋青シグニ1枚までの2群独立ピッカー）',
+    title: 'WX24-P4-017-E2（ロストコード・ピルルク X＝エクシード4→トラッシュからスペル1枚まで＋青シグニ1枚までの2群独立ピッカー）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#901', 'WD01-001#902', 'WD01-001#903', 'WD03-002#1'],
         'field.signi': [null, null, null],
         'lrig_deck': ['WX24-P4-017#1'],
-        'energy': [],
+        'energy': ['WD03-013#1', 'WD03-013#2'], // 青×2＝グロウコスト《青》×2のフォールバック（free_grow_this_turnが効かない場合の保険）
         'trash': ['WD01-013#940', 'WX01-015#1'], // WD01-013=非スペル非青シグニのフィラー／WX01-015=青のシグニ（候補）。スペル候補は意図的に0枚
         'free_grow_this_turn': true,
         'actions_done': [],
@@ -7298,42 +7298,76 @@ const scenarios = {
       const before = await H.queryState();
       H.log('開始時 host.lrigTop:', before?.host?.lrigTop, 'host.hand:', before?.host?.hand, 'host.trashCards:', JSON.stringify(before?.host?.trashCards));
       let grown = false;
+      let exceedPicked = 0;
+      let exceedActivated = false;
       let pickedSpellSkip = false;
       let pickedBlueSigni = false;
-      for (let s = 0; s < 26; s++) {
+      for (let s = 0; s < 34; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exceedTwoGroupPickerC-${s}.png`, fullPage: true });
         let did = null;
+        // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
         if (!did && !grown) {
-          const opened = await H.openGrow(/ロストコード・ピルルク　X/);
-          if (opened) { did = 'grow:ロストコードピルルクX'; grown = true; }
+          const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+          if (await gb.count() && await gb.isVisible().catch(() => false)) {
+            await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
+          } else {
+            const cand = page.getByRole('button', { name: /ロストコード・ピルルク　X/ }).first();
+            if (await cand.count() && await cand.isVisible().catch(() => false)) {
+              await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+            } else {
+              const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+              if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
+                if (await execBtn.isEnabled().catch(() => false)) {
+                  await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
+                } else {
+                  const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
+                  if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
+                    await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
+                  }
+                }
+              }
+            }
+          }
+        }
+        // エクシード4支払い（onplaycost-exceed-0..3→発動）
+        if (!did && grown && !exceedActivated) {
+          const exBtn = page.getByTestId(`onplaycost-exceed-${exceedPicked}`).first();
+          if (exceedPicked < 4 && await exBtn.count() && await exBtn.isVisible().catch(() => false)) {
+            await exBtn.click({ timeout: 3000 }).catch(() => {}); exceedPicked++; did = `onplaycost-exceed-${exceedPicked - 1}`;
+          } else if (exceedPicked >= 4) {
+            const actBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await actBtn.count() && await actBtn.isVisible().catch(() => false) && await actBtn.isEnabled().catch(() => false)) {
+              await actBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:発動'; exceedActivated = true;
+            }
+          }
         }
         // 群1（スペル・候補0枚）＝候補が無いので「スキップ」（upToCount自動解決の可能性もあるため両対応）
-        if (!did && grown) {
+        if (!did && grown && exceedActivated) {
           const skipBtn = page.getByRole('button', { name: 'スキップ', exact: true }).first();
           if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
-            await skipBtn.click().catch(() => {}); did = 'btn:スキップ(群1空振り)'; pickedSpellSkip = true;
+            await skipBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:スキップ(群1空振り)'; pickedSpellSkip = true;
           }
         }
         // 群2（青シグニ・候補1枚＝WX01-015）＝pick-0→決定
-        if (!did && grown) {
+        if (!did && grown && exceedActivated) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
             const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0(群2青シグニ)'; }
-            else { await page.getByRole('button', { name: /決定 \(1\// }).first().click().catch(() => {}); did = 'btn:決定(1/N)'; pickedBlueSigni = true; }
+            if (!confirmReady) { await pick0.click({ timeout: 3000 }).catch(() => {}); did = 'pick:pick-0(群2青シグニ)'; }
+            else { await page.getByRole('button', { name: /決定 \(1\// }).first().click({ timeout: 3000 }).catch(() => {}); did = 'btn:決定(1/N)'; pickedBlueSigni = true; }
           }
         }
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const gotBlueSigni = (st?.host?.handCards ?? []).some(c => c.startsWith('WX01-015'));
-        H.log(`  exgC[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} hHand=${JSON.stringify(st?.host?.handCards)} gotBlueSigni=${gotBlueSigni} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  exgC[${s}] -> ${did ?? 'なし'} | lrigTop=${st?.host?.lrigTop} exceedPicked=${exceedPicked} exceedActivated=${exceedActivated} hHand=${JSON.stringify(st?.host?.handCards)} gotBlueSigni=${gotBlueSigni} pEff=${st?.pendingEffect ?? '-'}`);
         if (gotBlueSigni && !st?.pendingEffect) {
-          return { pass: true, detail: `2群独立ピッカー＝スペル枠は候補0枚で自動/明示スキップ（空振りせず進行）→青シグニ枠1枚まででWX01-015を手札に加えた（hHand=${JSON.stringify(st.host.handCards)}）＝片方0枚でも成立することを確認` };
+          return { pass: true, detail: `エクシード4支払い→2群独立ピッカー＝スペル枠は候補0枚で自動/明示スキップ（空振りせず進行）→青シグニ枠1枚まででWX01-015を手札に加えた（hHand=${JSON.stringify(st.host.handCards)}）＝片方0枚でも成立することを確認` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `青シグニ取得 未確認（lrigTop=${fin?.host?.lrigTop} hHand=${JSON.stringify(fin?.host?.handCards)} grown=${grown} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `青シグニ取得 未確認（lrigTop=${fin?.host?.lrigTop} grown=${grown} exceedActivated=${exceedActivated} hHand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
