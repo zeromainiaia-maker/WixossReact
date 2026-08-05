@@ -6584,7 +6584,10 @@ const scenarios = {
           const skipBtn = page.getByTestId('optcost-skip').first();
           if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'optcost-skip'; }
         }
-        if (!did) did = await H.stdStep();
+        // ⚠H.stdStep()は使わない＝対象ピッカー自身が「スキップ」ボタンを持つため、pick-Nがまだ描画されて
+        // いない一瞬にstdStepの汎用フォールバックが誤ってそちらをクリックしうる（lxivMultiTargetPayBanishesBoth
+        // で実機再現したレースと同型）。
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         const bothStillThere = st?.guest?.fieldSigni?.[0] != null && st?.guest?.fieldSigni?.[1] != null;
         H.log(`  lmsn[${s}] -> ${did ?? 'なし'} | pickedCount=${pickedCount} confirmedTargets=${confirmedTargets} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
