@@ -4,6 +4,11 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-05・続き348・Sonnet 5〔§7実機検証worklist 7件を全消化〕）＝ユーザー指示「§7の実機検証を行う」で残っていた7項目（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）を全消化＋新規実バグ(cvi)を発見**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ7件＋`onplaycost-exceed-{i}`testid新設＋`H.queryState()`の`sideOf()`に`lifeCards`/`signiDown`追加）・`src/screens/battle/modals/SigniOnPlayCostModal.tsx`（testid追加のみ）・`docs/PLAN.md`／`BUGFIXES.md`のみ。
+  - **✅実機検証クローズ＝ユーザーが選んだ7項目（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）を全消化**（`secondWaveEnergyBranch`／`exceedBanishGateA`／`exceedDynamicTargetCountB`／`exceedTwoGroupPickerC`／`energyLeftAnyZoneTrigger`／`doubleCrashUpTrigger`／`oppResourceLossChoose`、各2回連続PASSまたは意図的FAIL・既定`order`94→101件）。**このプロジェクト初のLRIG「【出】エクシードN」コストUI**（`SigniOnPlayCostModal`のルリグの下からN枚選択→発動/スキップ）を実機で新規に駆動。**§7にはまだ多数の未検証項目が残る**（次の一手参照）。
+  - **🆕 新規実バグ1件を発見・Opusタスク12(cvi)へ登録**（詳細はPLAN §3・過去セッション要約続き348行）＝`executeSigniOnPlayCost`（エクシードNコスト等）経由でスタックに積んだSEQUENCEは、途中に対話ステップ（CHOOSE解決やチェックゾーン確認）または0候補のauto-skipを挟むと続きが失われる（`WX24-P4-015-E2`のBANISH・`WX24-P4-017-E2`のTRANSFER_TO_HAND第2群で発見）。
+  - **driver側の教訓（今後の新規シナリオに適用）**＝①グロウ候補選択モーダルは900ms間隔の外側ループだとフェイズドリフトのレースに毎回負ける＝`repatch→グロウ→候補クリック`を300〜500ms間隔で連続実行する**タイトループ**（`H.openGrow`と同型）が必須。②カード名に全角スペースを含む場合`getByRole('button',{name:/正規表現/})`の全角スペースがアクセシブルネーム計算で半角化されマッチしない疑い＝空白を含まない部分文字列で狙うこと。③画面上部の常設フェイズナビ（「グロウ」ボタン等）はモーダルが開いた後も隠れず残るため、候補/コスト選択ボタンの可視性チェックを**先に**行うこと。
+
 - **セッション（2026-08-05・続き347・Sonnet 5〔§7実機検証まとめて消化〕）＝§7実機検証worklistを大幅消化＋実バグ4件を新規発見**（ユーザー指示「実機検証の続きを行う」を複数ラウンド）。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ約20件＋`H.queryState()`の`sideOf()`拡張）と`docs/PLAN.md`のみ。
   - **✅実機検証クローズ＝タスク12(lxi)本消化(a)(d)(e)／§6.3 H・I′ 5件全部／タスク12(lxi)第10波(a)(b)＋(lxxvi)の1種／タスク12(lxiv)／タスク12(lxv)／タスク12(lx)(a)(b)／タスク12(lxii)**。既定`order`バッチへ`oppPayEnergyInsufficient`〜`wd16016BurstOpponentDiscard`系まで多数追加（既定order 79→94件）。個別の確認内容はPLAN §6.3・§7の各チェックリスト行（`[x]`）を参照。
   - **新規実バグ5件を発見・Opusタスク12(ci)〜(cvi)へ登録**（詳細はPLAN §3の各行）：
