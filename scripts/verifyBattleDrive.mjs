@@ -7696,6 +7696,81 @@ const scenarios = {
       return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hostZone0=${JSON.stringify(fin?.host?.fieldSigni?.[0])}）` };
     },
   },
+
+  // §7「🆕 タスク16 WXK08-086等【常】版4枚の自己バフ停止」＝aboveSelf を持つ CONTINUOUS POWER_MODIFY は
+  // スタック長2未満（単独配置＝下にカードが無い）では一切適用されない（effectEngine.ts:1562 の
+  // `stack.length < 2` ガード）ことの実機確認。従来は普通に場に出しただけで自分自身に＋Nしていた退行の反転確認。
+  aboveSelfSelfBuffStopped: {
+    title: 'WXK08-086/WXDi-P03-057/WXDi-P05-050（単独配置では【常】aboveSelfが自己バフしないこと）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WXK08-086#1'], ['WXDi-P03-057#1'], ['WXDi-P05-050#1']],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await page.waitForTimeout(1200);
+      await page.screenshot({ path: `${SHOT}/aboveSelfSelfBuffStopped-0.png`, fullPage: true });
+      const st = await H.queryState();
+      const targets = ['WXK08-086#1', 'WXDi-P03-057#1', 'WXDi-P05-050#1'];
+      const selfBuffs = (st?.host?.powerMods ?? []).filter(m => targets.some(t => m.startsWith(t + ':')));
+      H.log(`  asbs -> powerMods=${JSON.stringify(st?.host?.powerMods)} hField=${JSON.stringify(st?.host?.fieldSigni)}`);
+      if (selfBuffs.length === 0) return { pass: true, detail: `3枚とも単独配置では自己バフなし（powerMods=${JSON.stringify(st?.host?.powerMods)}）` };
+      return { pass: false, detail: `単独配置なのに自己バフが発生: ${JSON.stringify(selfBuffs)}` };
+    },
+  },
+
+  // 上記の対照実験（正の側）＝WXDi-P03-057 の【起】《ダウン》で他の赤シグニの下に潜ったときだけ、
+  // そのホストが実際に+2000されること（aboveSelf が本来機能すべきケース）。
+  wxdip03057DownUnderRed: {
+    title: 'WXDi-P03-057（【起】《ダウン》で赤シグニの下へ→ホストに+2000）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WXDi-P03-057#1'], ['WD02-009#1'], null],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 hField:', JSON.stringify(before?.host?.fieldSigni));
+      H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let modalOpened = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxdip03057DownUnderRed-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened) {
+          const btn = page.getByRole('button', { name: /【起】/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】'; modalOpened = true; }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const fs = st?.host?.fieldSigni ?? [];
+        const movedUnder = fs.some(stack => Array.isArray(stack) && stack.length === 2 && stack[0] === 'WXDi-P03-057#1');
+        const buffed = (st?.host?.powerMods ?? []).some(m => m === 'WD02-009#1:2000');
+        H.log(`  d057[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(fs)} powerMods=${JSON.stringify(st?.host?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (movedUnder && buffed) return { pass: true, detail: `WXDi-P03-057がWD02-009の下へ移動→ホストに+2000確認（hField=${JSON.stringify(fs)}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)} powerMods=${JSON.stringify(fin?.host?.powerMods)}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
