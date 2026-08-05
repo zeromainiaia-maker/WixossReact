@@ -7999,6 +7999,51 @@ const scenarios = {
       return { pass: false, detail: `未完了（chosen=${chosen} hTrash=${JSON.stringify(fin?.host?.trashCards)} hLife=${fin?.host?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // 上記の境界確認＝host（対象）の場にシグニが1体も無ければ「自分のシグニを1体トラッシュに置く」枝は
+  // 選べない（disabled）こと。CPUは他の利用可能な枝（無料'pay'＝(ci)）を自動選択するため、driverは
+  // 手動介入せずボタンのdisabled状態だけを確認する。
+  wx22025SigniTrashUnavailable: {
+    title: 'WX22-025-E3 境界（hostの場が空＝signiTrash枝はdisabled→CPUは無料payへ自動フォールバック）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WX22-025#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      let sawDisabled = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/wx22025SigniTrashUnavailable-${s}.png`, fullPage: true });
+        const signiTrashBtn = page.getByRole('button', { name: /自分のシグニを1体トラッシュに置く/ }).first();
+        if (await signiTrashBtn.count() && await signiTrashBtn.isVisible().catch(() => false)) {
+          const enabled = await signiTrashBtn.isEnabled().catch(() => false);
+          if (!enabled) sawDisabled = true;
+          H.log(`  x025u[${s}] -> signiTrashBtn見えている・enabled=${enabled}`);
+        }
+        await H.clickTextOrBtn(['エナに送る', 'ガードしない', 'しない', '使用しない']);
+        const st = await H.queryState();
+        const lifeCrashed = (st?.host?.life ?? 0) < (before?.host?.life ?? 0);
+        H.log(`  x025u[${s}] hLife=${st?.host?.life} sawDisabled=${sawDisabled} pEff=${st?.pendingEffect ?? '-'}`);
+        if (!st?.pendingEffect && s >= 3) {
+          if (sawDisabled) return { pass: true, detail: `hostの場が空のとき「自分のシグニを1体トラッシュに置く」ボタンがdisabledであることを確認（CPUは無料pay枝へ自動フォールバック・hLife ${before.host.life}→${st?.host?.life}）` };
+          return { pass: false, detail: `signiTrashボタンのdisabled状態を観測できなかった（見えなかった可能性・CHOOSEがCPU自動応答で一瞬で解決した可能性あり）` };
+        }
+      }
+      return { pass: false, detail: `未完了（sawDisabled=${sawDisabled}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
