@@ -7920,6 +7920,7 @@ try {
         lrigDeck: (s.lrig_deck ?? []).length,
         lrigDeckCards: s.lrig_deck ?? [],
         signiFrozen: s.field?.signi_frozen ?? null,
+        signiDown: s.field?.signi_down ?? null,
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
