@@ -8627,7 +8627,7 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
         const st = await H.queryState();
         H.log(`  x040t[${s}] -> ${did ?? 'なし'} | gateChecked=${gateChecked} picked=${picked} confirmed=${confirmed} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} hDeck=${st?.host?.deck} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
         const banished = !(st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#97'));
