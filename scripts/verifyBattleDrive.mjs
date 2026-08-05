@@ -8042,7 +8042,7 @@ const scenarios = {
         const lifeCrashed = (st?.host?.life ?? 0) < (before?.host?.life ?? 0);
         H.log(`  x025u[${s}] hLife=${st?.host?.life} sawDisabled=${sawDisabled} pEff=${st?.pendingEffect ?? '-'}`);
         if (!st?.pendingEffect && s >= 3) {
-          if (sawDisabled) return { pass: true, detail: `hostの場が空のとき「自分のシグニを1体トラッシュに置く」ボタンがdisabledであることを確認（CPUは無料pay枝へ自動フォールバック・hLife ${before.host.life}→${st?.host?.life}）` };
+          if (sawDisabled) return { pass: true, detail: `hostの場が空のとき「自分のシグニを1体トラッシュに置く」ボタンがdisabledであることを確認（driver操作で「支払う」を選択しE3のLIFE_CRASHは不発・hLife ${before.host.life}→${st?.host?.life}は場が空＝直接攻撃になった通常戦闘ダメージで無関係）` };
           return { pass: false, detail: `signiTrashボタンのdisabled状態を観測できなかった（見えなかった可能性・CHOOSEがCPU自動応答で一瞬で解決した可能性あり）` };
         }
       }
