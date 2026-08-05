@@ -7427,6 +7427,63 @@ const scenarios = {
       return { pass: false, detail: `未完了（hHand=${JSON.stringify(fin?.host?.handCards)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} summoned=${summoned} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク16 WX05-020-E1（2026-08-05・Sonnet）＝羅輝石　ダイヤブライド：【自】《ターン１回》このシグニが
+  // １ターンにライフクロスを合計２枚以上クラッシュしたとき、このシグニをアップする＝1回のアタックで【ダブル
+  // クラッシュ】により2枚を一気にクラッシュする経路（原文の①の足し方）を実機で駆動する。
+  // 【ダブルクラッシュ】は`keyword_grants`直接注入（本体の別キーワード付与機構とは独立に、このシグニ自身が
+  // 対戦相手ライフを2枚クラッシュする状況だけを再現する最小構成）。ガード不在の直接クラッシュ。
+  doubleCrashUpTrigger: {
+    title: 'WX05-020-E1（羅輝石ダイヤブライド＝【ダブルクラッシュ】で1アタック2枚クラッシュ→《ターン1回》アップ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD02-001#1'], // 花代・肆＝WX05-020「花代限定」を満たす
+        'field.signi': [null, ['WX05-020#1'], null],
+        'field.signi_down': [false, false, false],
+        'keyword_grants': { 'WX05-020#1': ['ダブルクラッシュ'] },
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null], // ブロッカー無し＝直接クラッシュ
+        'life_cloth': ['WD01-013#960', 'WD01-013#961'], // 2枚＝ダブルクラッシュで両方消費
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'host.signiDown:', JSON.stringify(before?.host?.signiDown), 'guest.life:', before?.guest?.life);
+      let modalOpened = false;
+      let attacked = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/doubleCrashUpTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened && !attacked) {
+          const opened = await H.clickTestId('my-signi-zone-1');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+          if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', '確認', 'OK', 'はい']);
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const crashedBoth = (st?.guest?.life ?? 99) === 0;
+        const wentUp = attacked && st?.host?.signiDown?.[1] === false;
+        H.log(`  dcut[${s}] -> ${did ?? 'なし'} | gLife=${st?.guest?.life}(開始${before?.guest?.life}) hSigniDown=${JSON.stringify(st?.host?.signiDown)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (crashedBoth && wentUp) {
+          return { pass: true, detail: `【ダブルクラッシュ】で1アタックにguestライフ${before.guest.life}→0枚（2枚同時クラッシュ）→WX05-020のE1（1ターン合計2枚クラッシュでアップ）が発火し signi_down[1]=false（アップ状態）へ復帰` };
+        }
+        if (crashedBoth && !wentUp && s >= 20) {
+          return { pass: false, detail: `2枚クラッシュ自体は確認（gLife=0）だが、アップ未確認（hSigniDown=${JSON.stringify(st?.host?.signiDown)}）＝E1未発火の疑い` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gLife=${fin?.guest?.life} hSigniDown=${JSON.stringify(fin?.host?.signiDown)} attacked=${attacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
