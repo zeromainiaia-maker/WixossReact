@@ -8644,6 +8644,74 @@ const scenarios = {
       return { pass: false, detail: `未完了（gateChecked=${gateChecked} picked=${picked} confirmed=${confirmed} hHand=${fin?.host?.hand} hEnergy=${fin?.host?.energy} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝タスク12(lxiii)(b)「中央ゾーン限定のピッカー」（2026-08-05）。
+  // `WXDi-P02-065-E2`＝【出】「対戦相手の中央のシグニゾーンにあるシグニ1体を対象とし、それを凍結する」＝
+  // `filter.centerZoneOnly:true`（`zoneIdx===1`のみ許可＝`execUtils.ts:1086`/`effectEngine.ts:690`）。
+  // 対戦相手の場を左右中央すべて埋めた状態で召喚し、SELECT_TARGETの候補が**中央（zone1）1体だけ**に
+  // 絞られる（従来は左右も選べた、の逆＝正しく絞られていること）ことを確認する。
+  centerZoneOnlyPicker: {
+    title: 'WXDi-P02-065-E2（【出】対象＝対戦相手の中央シグニゾーン限定ピッカー）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WXDi-P02-065#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#1'], ['WD01-013#2'], ['WD01-013#3']], // 左/中央/右すべて埋める
+        'field.signi_down': [false, false, false],
+        'field.signi_frozen': [false, false, false],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('手札クリック:', opened ?? '見つからず');
+      let summoned = false;
+      let candidateCountChecked = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/centerZoneOnlyPicker-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did && summoned) {
+          const pickButtons = page.locator('[data-testid^="pick-"]');
+          const pickCount = await pickButtons.count();
+          if (pickCount > 0 && !candidateCountChecked) {
+            candidateCountChecked = true;
+            H.log(`  候補ピッカー出現＝候補数=${pickCount}`);
+            if (pickCount !== 1) {
+              return { pass: false, detail: `centerZoneOnlyのはずが候補が${pickCount}件表示された（左右も選べてしまっている＝フィルタが機能していない）` };
+            }
+          }
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '選ぶ']);
+        const st = await H.queryState();
+        H.log(`  czo[${s}] -> ${did ?? 'なし'} | summoned=${summoned} candidateCountChecked=${candidateCountChecked} gFrozen=${JSON.stringify(st?.guest?.signiFrozen)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (candidateCountChecked && !st?.pendingEffect) {
+          const frozen = st?.guest?.signiFrozen ?? [];
+          const onlyCenterFrozen = frozen[1] === true && frozen[0] !== true && frozen[2] !== true;
+          if (onlyCenterFrozen) return { pass: true, detail: `候補は中央（zone1）の1体だけに絞られ、確定後は中央のシグニだけが凍結（gFrozen=${JSON.stringify(frozen)}）＝左右は対象外のまま` };
+          return { pass: false, detail: `候補数は1件だったが凍結結果が中央限定になっていない（gFrozen=${JSON.stringify(frozen)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（summoned=${summoned} candidateCountChecked=${candidateCountChecked} gFrozen=${JSON.stringify(fin?.guest?.signiFrozen)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
