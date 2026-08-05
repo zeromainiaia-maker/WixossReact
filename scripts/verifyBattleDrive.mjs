@@ -7777,6 +7777,108 @@ const scenarios = {
       return { pass: false, detail: `未完了（hField=${JSON.stringify(fin?.host?.fieldSigni)}）` };
     },
   },
+
+  // §7「🆕 タスク12(lxxiii) トラッシュ領域移動ロック」＝`WX24-P4-007-E1`③／`WXDi-P14-005-E1`c2の
+  // STUB LOCK_OPP_TRASH_MOVE（`lock_trash_move_this_turn`＝`isOwnTrashMoveLocked`がMAIN/ATTACK*フェイズで
+  // owner:'self'のトラッシュ発生源を空候補化）を実機確認。WD05-018（想起する祝福＝トラッシュのシグニ1枚を
+  // 対象とし手札に加える・《無》×2）でフラグの有無を対照。
+  trashMoveLockBlocksSelfEffect: {
+    title: 'WD05-018（lock_trash_move_this_turn＝MAINフェイズで自分のトラッシュを自分の効果で動かせない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD05-018#1'],
+        'trash': ['WD01-013#1'],
+        'energy': ['WD02-009#1', 'WD02-009#2'],
+        'lock_trash_move_this_turn': true,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.hand/trash:', before?.host?.hand, JSON.stringify(before?.host?.trashCards));
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/trashMoveLockBlocksSelfEffect-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            for (const i of [0, 1]) { const e = page.getByTestId(`spellcost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) await e.click().catch(() => {}); }
+            await page.waitForTimeout(200);
+            const cast = await clickExact('発動する');
+            did = cast ?? 'spellcost-select';
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const spellTrashed = (st?.host?.trashCards ?? []).includes('WD05-018#1');
+        H.log(`  tml[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand} trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} pSpell=${st?.pendingSpell ?? '-'}`);
+        if (spellTrashed && !st?.pendingEffect && !st?.pendingSpell && s >= 2) {
+          const moved = !(st?.host?.trashCards ?? []).includes('WD01-013#1');
+          const handUp = (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0);
+          if (!moved && !handUp) return { pass: true, detail: `ロック中はトラッシュのWD01-013が動かず候補0で静かに不発（スペル自体はトラッシュへ・trash=${JSON.stringify(st.host.trashCards)}）` };
+          return { pass: false, detail: `ロック中なのにトラッシュが動いた（moved=${moved} handUp=${handUp}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hand=${fin?.host?.hand}）` };
+    },
+  },
+
+  // 対照実験（ベースライン）＝ロックフラグが無ければ同じ操作で通常どおりトラッシュから手札に加わる。
+  trashMoveLockAllowsWhenUnlocked: {
+    title: 'WD05-018 対照（ロックなし＝通常どおりトラッシュのシグニが手札に加わる）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WD05-018#1'],
+        'trash': ['WD01-013#1'],
+        'energy': ['WD02-009#1', 'WD02-009#2'],
+        'lock_trash_move_this_turn': false,
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/trashMoveLockAllowsWhenUnlocked-${s}.png`, fullPage: true });
+        let did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            for (const i of [0, 1]) { const e = page.getByTestId(`spellcost-energy-${i}`).first(); if (await e.count() && await e.isVisible().catch(() => false)) await e.click().catch(() => {}); }
+            await page.waitForTimeout(200);
+            const cast = await clickExact('発動する');
+            did = cast ?? 'spellcost-select';
+          }
+        }
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const handUp = (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0);
+        H.log(`  tmu[${s}] -> ${did ?? 'なし'} | hHand=${st?.host?.hand}(開始${before?.host?.hand}) trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (handUp) return { pass: true, detail: `ロックなし→WD01-013が正常にトラッシュから手札へ（hHand ${before.host.hand}→${st.host.hand}）` };
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hand=${fin?.host?.hand}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
