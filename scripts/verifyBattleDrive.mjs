@@ -7395,7 +7395,10 @@ const scenarios = {
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `青シグニ取得 未確認（lrigTop=${fin?.host?.lrigTop} grown=${grown} exceedActivated=${exceedActivated} hHand=${JSON.stringify(fin?.host?.handCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return {
+        pass: false,
+        detail: `【要Opus登録・Opusタスク12(cvi)と同根の疑い】エクシード4支払い→「発動」まで正しく進行したが、続くTRANSFER_TO_HAND（transferGroups＝スペル1枚まで→青シグニ1枚まで）が一度も発火しない＝スペル群（候補0枚）は無音でauto-skipされたと見られる（upToCount:trueで候補0件のためUI自体が出ない）が、続く青シグニ群（候補1件＝WX01-015）のSELECT_TARGETも一度も現れない＝executeSigniOnPlayCost経由でスタックに積んだSEQUENCEの続きが、間に非対話ステップ（0候補の自動完了）を挟むと失われている疑い（hHand=${JSON.stringify(fin?.host?.handCards)}＝WX01-015を含まず開始時と不変）`,
+      };
     },
   },
 
