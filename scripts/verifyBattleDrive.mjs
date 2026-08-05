@@ -8235,7 +8235,7 @@ const scenarios = {
             if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
           }
         }
-        if (!did && !skipClicked) did = await H.clickTextOrBtn(['発動', '確定']);
+        if (!did && !skipClicked) did = await H.clickTextOrBtn(['発動', '決定', '確定']);
         if (!did && !skipClicked) {
           const skipBtn = page.getByRole('button', { name: /^支払わない/ }).first();
           if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) { await skipBtn.click().catch(() => {}); did = 'btn:支払わない'; skipClicked = true; }
