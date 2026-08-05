@@ -8261,9 +8261,21 @@ const scenarios = {
   },
 
   // 対照実験＝host が「手札を1枚捨てる」（回避コスト）を選ぶと、対象シグニは場に残ったまま
-  // （targetsTriggerSourceのTRASHが実行されない）ことを確認する。
+  // （targetsTriggerSourceのTRASHが実行されない）ことを確認する……はずだったが、実機で新規バグを発見
+  // （2026-08-05・Sonnet・意図的FAIL）＝Opusタスク12(cv)と同型の「opp_hand スコープの候補描画が
+  // ctx.op（=**viewer相対**の対戦相手）を使うため、真の対象＝ownerState相対の'opponent'（ここでは
+  // WXEX2-25の効果オーナーguestから見た'opponent'=host自身）と food一致しない」ケースを、(cv)とは別の
+  // 発生源（OPPONENT_PAY_OPTIONALの「手札を1枚捨てる」回避コスト自体のTRASH{HAND_CARD,owner:'opponent'}）
+  // で再現＝TRASH解決がSELECT_TARGET{targetScope:'opp_hand'}になり、EffectInteractionModal.tsx:234の
+  // `(inter.targetScope==='opp_hand' ? op.hand : sortedCandidates)`がviewer=host基準の`op`（=guest）の
+  // 手札5枚を表示するが、真の候補（inter.candidates）はhost自身の手札1枚（WD01-013#99）＝候補との
+  // indexOf一致が一つも無くcandIdx=-1で全滝selectable:false→「決定 (0/1)」が永久disabled＝ソフトロック。
+  // (cv)はLB「相手に選ばせる」型だったが、本件は「自分の回避コストとして自分の手札を捨てる」型でも
+  // 同じviewer相対バグを踏むことを示す＝影響範囲がOPPONENT_PAY_OPTIONALのopponentHandDiscard系広範に
+  // 及ぶ疑い（handSpec持ち33効果中、応答者=viewerかつ真の対象=viewer自身の手札という組み合わせが起きうる
+  // 経路すべて）。再現手順はdrive内コメント参照。
   wxex225DiscardAvoids: {
-    title: 'WD08-001→WXEX2-25-E1（対戦相手＝hostが手札を1枚捨てて回避→新規配置シグニは場に残存）',
+    title: 'WD08-001→WXEX2-25-E1（対戦相手＝hostが「手札を1枚捨てる」を選ぶ→opp_hand候補描画がviewer相対でソフトロック＝実バグ発見）',
     spec: {
       hostSet: {
         'field.lrig': ['WD08-001#1'],
@@ -8271,7 +8283,7 @@ const scenarios = {
         'field.signi_down': [false, false, false],
         'field.lrig_down': false,
         'trash': ['WD01-013#98'],
-        'hand': ['WD01-013#99'], // 回避コスト（手札1枚捨てる）用
+        'hand': ['WD01-013#99'], // 回避コスト（手札1枚捨てる）用＝真の候補はこの1枚だけ
         'actions_done': [],
       },
       guestSet: {
@@ -8284,7 +8296,7 @@ const scenarios = {
       const before = await H.queryState();
       let opened = false;
       let discardClicked = false;
-      for (let s = 0; s < 22; s++) {
+      for (let s = 0; s < 14; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxex225DiscardAvoids-${s}.png`, fullPage: true });
         let did = null;
@@ -8308,21 +8320,28 @@ const scenarios = {
           const discardBtn = page.getByRole('button', { name: /手札を1枚捨てる/ }).first();
           if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) { await discardBtn.click().catch(() => {}); did = 'btn:手札を1枚捨てる'; discardClicked = true; }
         }
-        if (!did && discardClicked) { // 「手札を1枚捨てる」自体がどのカードを捨てるかのSELECT_TARGETを要求する
+        // 「手札を1枚捨てる」自体がSELECT_TARGET{targetScope:'opp_hand'}を要求する。真の候補（host自身の
+        // 手札1枚）にはpick-Nが立つはずだが、viewer相対opバグが出ればop.hand（guestの5枚）が表示され
+        // どのpick-Nも立たない＝ここではpick-0を"待つだけ"（disabledボタンを叩いてタイムアウトを踏まない）。
+        if (!did && discardClicked) {
           const pick0b = page.getByTestId('pick-0').first();
           if (await pick0b.count() && await pick0b.isVisible().catch(() => false)) {
             const confirmReadyB = await page.getByRole('button', { name: /決定 \(1\// }).count();
             if (!confirmReadyB) { await pick0b.click().catch(() => {}); did = 'pick:pick-0(discard)'; }
           }
-          if (!did) did = await H.clickTextOrBtn(['決定']);
         }
         const st = await H.queryState();
-        H.log(`  x225d[${s}] -> ${did ?? 'なし'} | opened=${opened} discardClicked=${discardClicked} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+        const bodyTxt = await H.body();
+        const sawOppHandLabel = /対戦相手の手札（全\d+枚を確認/.test(bodyTxt);
+        H.log(`  x225d[${s}] -> ${did ?? 'なし'} | opened=${opened} discardClicked=${discardClicked} sawOppHandLabel=${sawOppHandLabel} hField=${JSON.stringify(st?.host?.fieldSigni)} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'}`);
         if (discardClicked && !st?.pendingEffect) {
           const stillOnField = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#98'));
           const handDropped = (st?.host?.hand ?? 99) < (before?.host?.hand ?? 0);
-          if (stillOnField && handDropped) return { pass: true, detail: `「手札を1枚捨てる」で回避→対象シグニ（WD01-013#98）はトラッシュされず場に残存（hHand ${before.host.hand}→${st.host.hand}）` };
+          if (stillOnField && handDropped) return { pass: true, detail: `「手札を1枚捨てる」で回避→対象シグニ（WD01-013#98）はトラッシュされず場に残存（hHand ${before.host.hand}→${st.host.hand}）＝バグ再現せず正常` };
           return { pass: false, detail: `回避したのにシグニが場から消えた、または手札が減っていない（hField=${JSON.stringify(st.host.fieldSigni)} hHand=${st.host.hand}）` };
+        }
+        if (discardClicked && sawOppHandLabel && s >= 6) {
+          return { pass: false, detail: `【実バグ発見】「手札を1枚捨てる」選択後のSELECT_TARGET{targetScope:'opp_hand'}が、真の候補（host自身の手札 WD01-013#99・1枚）ではなくviewer(host)相対のop.hand（guestの手札・別の5枚）を表示＝候補との一致が無くpick-Nが一つも立たず「決定 (0/1)」が永久disabled＝ソフトロック。Opusタスク12(cv)（EffectInteractionModal.tsx:234のop.hand直接参照）と同根で、opponentHandDiscard系OPPONENT_PAY_OPTIONALの回避コストという新しい発生源で再現（hHand=${st?.host?.hand}・pEff=${st?.pendingEffect}）` };
         }
       }
       const fin = await H.queryState();
