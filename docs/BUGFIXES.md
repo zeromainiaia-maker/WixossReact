@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝`SPDi43-02-E1`／`WXEX2-25-E1`／`WXDi-P08-007-E1`を検証＋新規バグ1件発見（Opusタスク12(cv)へ追記登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き353）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ5件（`spdi4302AvoidedNoChoose`／`wxex225SkipAutoTrashesTrigger`／`wxex225DiscardAvoids`／`wxdip08007SkipRemovesAbilities`／`wxdip08007PaySpares`）を新規追加し、PLAN §7「残る実機検証項目」の`SPDi43-02-E1`「回避された場合に選択UIが出ないこと」と`WXEX2-25-E1`／`WXDi-P08-007-E1`「対象がトリガー元シグニに固定され選択UIが出ないこと」を検証した。
+
+### 検証パターン＝続き352の「guestを効果オーナーにしてhostを応答者にする」を非LIFE_BURSTのルリグ効果へ適用
+3枚ともルリグカードの【自】効果（SPDi43-02＝自分のアタックフェイズ開始時、WXEX2-25＝対戦相手のシグニがbyEffectで場に出たとき、WXDi-P08-007＝対戦相手のシグニがアタックしたとき）。**owner=guest（CPU）を「受動的watcherとして置くだけ」にする**と、STUB内の「対戦相手」がhost側になり、`respondPlayerId`がCPU以外になってCPU自動応答がbailoutする＝hostが手動でCHOOSEに応答できる。SPDi43-02は"あなたのアタックフェイズ開始時"（自ターン起点）が要件だが、CPU自身の自然なターン進行（`cpugrow`と同型の再注入リトライで実現）に任せれば、host側の召喚/【起】等の能動アクションなしで発火させられる。
+
+### 確認できたこと
+- **`SPDi43-02-E1`**＝hostが「支払う」（costColors非搭載のためcanOppAfford常時true＝Opusタスク12(ci)と同型の無料pay枝）で回避すると、続く`CHOOSE(選択肢1/選択肢2)`が一度も出現しないこと（＝原文どおり「回避されたら選択自体が発生しない」）を`spdi4302AvoidedNoChoose`で2回連続PASS確認。旧仕様（PLAN記載の「従来は無条件で選択が走った」）の再発がないことを確認した。
+- **`WXEX2-25-E1`**＝WD08-001（混沌の鍵主 ウムル＝フィーラ）の【起】《ダウン》「自分のトラッシュのシグニ1枚を対象とし、それを場に出す」でhost自身の信号をbyEffectで場に出す→guestのWXEX2-25が誘発→hostが「支払わない」を選ぶと、追加のSELECT_TARGETなしにその信号が自動でhostトラッシュへ戻る（`targetsTriggerSource`が選択UIなしで正しく自己解決する）ことを`wxex225SkipAutoTrashesTrigger`で2回連続PASS確認。
+- **`WXDi-P08-007-E1`**＝hostが自分のシグニでアタック→guestのWXDi-P08-007が誘発→「支払わない」で追加の選択UIなしにアタッカー自身が能力喪失（`wxdip08007SkipRemovesAbilities`・2回連続PASS）、《無》×1を支払うと能力喪失を回避する（`wxdip08007PaySpares`・2回連続PASS）ことを確認。
+
+### 🆕新規実バグを発見＝Opusタスク12(cv)へ追記登録（既定order外・意図的FAIL）
+`wxex225DiscardAvoids`＝原文どおりの回避コスト「手札を1枚捨てる」（`opponentHandDiscard`）をhostが選ぶと、続く`TRASH{HAND_CARD,owner:'opponent'}`の解決が`SELECT_TARGET{targetScope:'opp_hand'}`になり、`EffectInteractionModal.tsx:234`の候補描画`(inter.targetScope==='opp_hand' ? op.hand : sortedCandidates)`が**真の対象（host自身の手札・1枚）ではなくviewer(host)相対の`op.hand`（guestの手札・別の5枚）を表示**する。表示された5枚はどれも`inter.candidates`（true target）と一致せず`candIdx=-1`＝全滝`selectable:false`＝`pick-N`が一つも立たず「決定 (0/1)」が永久disabledでソフトロックする。2回連続再現（各12秒・スクリーンショット確認済み）。
+
+- **既存のOpusタスク12(cv)**（`WD16-016-BURST`のLB「相手に選ばせる」型で発見済み）と**根本原因は同一**（viewer相対の`op`参照）だが、**発生源が異なる**＝(cv)はLB効果の対象がviewer自身になるケース、今回は`OPPONENT_PAY_OPTIONAL`の回避コストとして自分の手札を捨てる（応答者=viewer自身の手札が真の対象になる）ケース。
+- `spdi4302AvoidedNoChoose`の設計初期段階（原文どおり「手札を2枚捨てる」で検証しようとした試行）でも同型のソフトロックを一度観測＝影響が特定の1カードに留まらないことを示唆。**「支払う」（costColors非搭載の無料pay枝）に迂回して本題（CHOOSEが出ないこと）は検証完了**。
+- **影響範囲の推定＝`opponentHandDiscard`を持つ`OPPONENT_PAY_OPTIONAL`効果のうち、応答者が自分自身の手札を対象に回避する経路すべて**（Opusタスク12(ci)の「costColors非搭載33効果」と重複する可能性が高い）。修正方針は(cv)の行に記載済み（`inter.candidates`から直接解決する、または`respondPlayerId`と自分のuidを比較して出し分ける）。
+
+### メモ＝ハマりどころ
+- `clickTextOrBtn`はボタンの`isEnabled`を見ずに`.click()`するため、disabledボタン（Playwrightのデフォルト30秒actionabilityタイムアウト）を繰り返し叩くと1回の試行が最大30秒×リトライ回数まで伸びる（実際に449秒かかった試行が1回発生）。ソフトロックを検出するシナリオでは、確定ボタンへの汎用フォールバック文字列（`'決定'`）をむやみに広く含めず、対象の兆候（本件では「対戦相手の手札（全N枚を確認」という`opp_hand`専用ラベル）を明示的に検出して早期にFAILを返すほうが安全＝ `wxex225DiscardAvoids`は最終的にこの方式に書き換えて12秒でFAIL判定できるようにした。
+- `SPDi43-02-E1`の対照実験（hostが「支払わない」を選びCHOOSE(選択肢1/2)がCPU自己選択で解決することの確認）は2回ともブラウザクラッシュ（CPU自身のターンを人間側が操作せず見ているだけの状態で他のCPU自動処理と競合）＝当初の想定より不安定と判明したため、このシナリオ自体は削除した。PLAN §7のask（回避時にCHOOSEが出ないこと）は`spdi4302AvoidedNoChoose`の2回連続PASSで充分に確認済み。
+
 ## 2026-08-05 — §7実機検証の続き＝`WX22-025-E3`相手側CHOOSE4択検証＋opponentResponds系の新検証パターン確立（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き352）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ2件（`wx22025SigniTrashBranch`／`wx22025SigniTrashUnavailable`）を新規追加し、PLAN §7タスク12(lxi)第3波「相手側CHOOSEの4つ目の枝＝自分のシグニをNトラッシュに置く」を検証した。
