@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝トラッシュ領域移動ロックで実バグ発見（Opusタスク12(cvii)登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き350）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ2件（`trashMoveLockBlocksSelfEffect`／`trashMoveLockAllowsWhenUnlocked`）を新規追加し、PLAN §7タスク12(lxxiii)「トラッシュ領域移動ロック」を検証したところ実バグを発見した。
+
+### 🐛 発見したバグ＝`ctx.currentPhase`が実UI経路で常に`undefined`＝フェイズ限定ロック機構が丸ごと不発
+`isOwnTrashMoveLocked`（`src/engine/execUtils.ts:1165`）は`ctx.currentPhase`が不明なときは**ロックしない**（permissive）設計。しかし`BattleScreen.tsx`が`resumeSelectTarget`／`castSpell`／`resolveCutin`等で組み立てる`ExecCtx`リテラル（4855/4909/4958/4999/6636/6938行の計6箇所）はどれも`currentPhase`フィールドを持たない＝実ゲームでは常に`undefined`。結果、`LOCK_OPP_TRASH_MOVE`（`WX24-P4-007-E1`③／`WXDi-P14-005-E1`c2の2枚専用の機構）が**実機では常に無効**＝`lock_trash_move_this_turn:true`を注入してもMAINフェイズで普通にトラッシュのカードを手札に加えられてしまう。
+
+- **再現**：`WD05-018`（想起する祝福・トラッシュのシグニ1枚を対象とし手札に加える・《無》×2）をホスト手札に、`WD01-013`をホストトラッシュに置き`lock_trash_move_this_turn:true`を注入してMAINフェイズで発動→SELECT_TARGETで正常にWD01-013が選べて手札へ移動してしまう（`verifyBattleDrive.mjs trashMoveLockBlocksSelfEffect`で2回連続再現・意図的FAILとして既定order外に保持）。同一操作でフラグを外すと同じ結果（`trashMoveLockAllowsWhenUnlocked`＝これは正常挙動なので既定orderに追加）＝フラグの有無で結果が変わらないことがバグの証拠。
+- **golden側は緑のまま**：`src/verify/main.ts:58`のようなテストハーネスは`currentPhase:'MAIN'`を手動で埋めて`exec()`を呼ぶため、機構自体（`TRASH_LOCK_PHASES`判定・`movableTrashCandidates`への統合）は正しく動作しているように見える。壊れているのは実UIの`ExecCtx`構築側の配線漏れ。
+- **同型リスクの横断監査が必要**：`ctx.currentPhase`を参照する他の箇所（`effectExecutor.ts:256`のATTACK限定リダイレクト・`execUtils.ts:1651`のDURING_PHASE条件）も同じ理由で実UI上は機能していない疑いがある。
+- **修正方針・登録先**：Opusタスク12(cvii)（詳細はPLAN.md §3）＝`BattleScreen.tsx`の6箇所のExecCtx構築に`currentPhase: bs.turn_phase`相当を追加するだけ（新規機構ではなく既存フィールドの配線漏れ）。
+
 ## 2026-08-05 — §7実機検証の続き＝先頭2項目（`WXDi-P11-063`メモリア下配置選択／【常】版4枚自己バフ停止）を消化（golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き349）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ4件（`spellUnderMemoriaPlace`／`spellUnderMemoriaSkip`／`aboveSelfSelfBuffStopped`／`wxdip03057DownUnderRed`）を新規追加し、PLAN §7の次の一手の先頭2項目を消化した。engine/parser/JSONは無変更（純粋な実機UI検証セッション）。
