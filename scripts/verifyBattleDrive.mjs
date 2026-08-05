@@ -8764,6 +8764,73 @@ const scenarios = {
       return { pass: false, detail: `未完了（summoned=${summoned} candidateCountChecked=${candidateCountChecked} gFrozen=${JSON.stringify(fin?.guest?.signiFrozen)} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝「lrigDown コストの限定（続き218）」(a)センター限定の実機検証（2026-08-05）。
+  // `WXK10-037-E2`＝effectType:ACTIVATED・cost:{lrigDown:{count:1,centerOnly:true}}。コード読解で
+  // `executeSigniActivated`（BattleScreen.tsx:10530-11138）にも`SigniActivatedModal.tsx`にも`lrigDown`への
+  // 参照が一切無いことを確認済み（`payLrigDownCost`はexecuteSigniOnPlayCost＝【出】コスト専用経路からしか
+  // 呼ばれない）＝**【起】ACTIVATEDのlrigDownコストがUI/実行経路のどちらにも配線されていない疑い**。
+  // センターがダウン済み（本来なら支払い不能）でもボタンが押せて効果が無償発動するか、発動後もセンターの
+  // down状態が変化しないままか（＝コストが一切支払われていないか）を実機で確認する。
+  lrigDownCenterOnlyUnwired: {
+    title: 'WXK10-037-E2（lrigDown centerOnly コスト＝【起】ACTIVATEDの配線有無を実機確認）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-013#1'],
+        'field.lrig_down': true, // センタールリグは既にダウン済み＝本来なら支払い不能のはず
+        'field.signi': [['WXK10-037#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'deck': ['WD02-013#1', 'WD01-013#2'], // サーチ対象（赤のシグニ）
+        'hand': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.lrigDown/hand/deck:', before?.host, undefined);
+      H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let modalOpened = false;
+      let abilityBtnSeen = false;
+      let abilityBtnEnabled = null;
+      let activated = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigDownCenterOnlyUnwired-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened) {
+          const btn = page.getByRole('button', { name: /【起】/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) {
+            abilityBtnSeen = true;
+            abilityBtnEnabled = await btn.isEnabled().catch(() => false);
+            H.log(`  【起】ボタン発見＝enabled=${abilityBtnEnabled}（センターはダウン済み＝lrigDownコストが正しく配線されていれば disabled のはず）`);
+            if (abilityBtnEnabled) { await btn.click().catch(() => {}); did = 'btn:【起】'; activated = true; }
+            else { did = null; }
+            modalOpened = true;
+          }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  ldcu[${s}] -> ${did ?? 'なし'} | abilityBtnSeen=${abilityBtnSeen} abilityBtnEnabled=${abilityBtnEnabled} activated=${activated} hHand=${st?.host?.hand} hLrigDown=${JSON.stringify(st)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (abilityBtnSeen && abilityBtnEnabled === false && !activated) {
+          return { pass: true, detail: `センターダウン済みの状態で【起】ボタンがdisabled＝lrigDownコストのavailable判定が正しく機能している（想定外の配線ではなかった）` };
+        }
+        if (activated && (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0) && !st?.pendingEffect) {
+          return { pass: false, detail: `【実バグ発見】センタールリグが既にダウン済み（field.lrig_down:true）＝本来支払い不能のはずなのに【起】ボタンがenabledのまま押せ、SEARCHが実行されてしまった（hHand ${before.host.hand}→${st.host.hand}）＝lrigDownコストが【起】ACTIVATEDの実行経路に一切配線されていない（executeSigniActivatedがcost.lrigDownを読んでいない）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（abilityBtnSeen=${abilityBtnSeen} abilityBtnEnabled=${abilityBtnEnabled} activated=${activated} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
