@@ -7204,26 +7204,26 @@ const scenarios = {
         await page.screenshot({ path: `${SHOT}/exceedDynamicTargetCountB-${s}.png`, fullPage: true });
         let did = null;
         // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
+        // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
+        //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
         if (!did && !grown) {
-          const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-          if (await gb.count() && await gb.isVisible().catch(() => false)) {
-            await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
-          } else {
-            const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
-            if (await cand.count() && await cand.isVisible().catch(() => false)) {
-              await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+          const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+          const cand = page.getByRole('button', { name: /熾炎舞　遊月・肆/ }).first();
+          if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
+            if (await execBtn.isEnabled().catch(() => false)) {
+              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
             } else {
-              const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
-              if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
-                if (await execBtn.isEnabled().catch(() => false)) {
-                  await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
-                } else {
-                  const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
-                  if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
-                    await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
-                  }
-                }
+              const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
+              if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
+                await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
               }
+            }
+          } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
+            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+          } else {
+            const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+            if (await gb.count() && await gb.isVisible().catch(() => false)) {
+              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
             }
           }
         }
