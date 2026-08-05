@@ -4,6 +4,10 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-05・続き349・Sonnet 5〔§7実機検証の続き＝先頭2項目を消化〕）＝ユーザー指示「実機検証の続きを行う」で§7次の一手の先頭2項目（`WXDi-P11-063`メモリア下配置選択／【常】版4枚自己バフ停止）を消化**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ4件追加＝既定order 101→105件）・`docs/PLAN.md`／`BUGFIXES.md`のみ。
+  - **✅実機検証クローズ2件**：①`WXDi-P11-063-E2`のメモリア下配置選択＝`spellUnderMemoriaPlace`/`spellUnderMemoriaSkip`で置く/スキップの両方を各2回連続PASS確認（part1の同名STUBに食われて長期間到達不能だった経路をUIで初実走）。②`WXK08-086`等【常】版4枚の自己バフ停止＝`aboveSelfSelfBuffStopped`（単独配置で自己バフなし）/`wxdip03057DownUnderRed`（【起】《ダウン》で他の赤シグニの下に潜るとホストが12,000→14,000）を各2回連続PASS確認。新規実バグは0件（両方とも既存修正済みの反転検証）。
+  - **🔎 検証手法の知見**＝CONTINUOUS/PERMANENTのaboveSelf POWER_MODIFY（`effectEngine.ts:1556`のスタック走査）は`temp_power_mods`に一切書かれない純計算値（UI描画時に都度算出）＝`queryState()`の`powerMods`では検出できない。判定には対象ゾーンのDOM表示パワー（`page.getByTestId('my-signi-zone-N').innerText()`）を読む必要がある＝INSTANT/UNTIL_END_OF_TURN系のPOWER_MODIFY（`temp_power_mods`に書かれる）との違いに注意。
+
 - **セッション（2026-08-05・続き348・Sonnet 5〔§7実機検証worklist 7件を全消化〕）＝ユーザー指示「§7の実機検証を行う」で残っていた7項目（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）を全消化＋新規実バグ(cvi)を発見**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ7件＋`onplaycost-exceed-{i}`testid新設＋`H.queryState()`の`sideOf()`に`lifeCards`/`signiDown`追加）・`src/screens/battle/modals/SigniOnPlayCostModal.tsx`（testid追加のみ）・`docs/PLAN.md`／`BUGFIXES.md`のみ。
   - **✅実機検証クローズ＝ユーザーが選んだ7項目（第2波(a)／エクシード本体5件(a)(b)(c)／タスク16残0クローズ3件）を全消化**（`secondWaveEnergyBranch`／`exceedBanishGateA`／`exceedDynamicTargetCountB`／`exceedTwoGroupPickerC`／`energyLeftAnyZoneTrigger`／`doubleCrashUpTrigger`／`oppResourceLossChoose`、各2回連続PASSまたは意図的FAIL・既定`order`94→101件）。**このプロジェクト初のLRIG「【出】エクシードN」コストUI**（`SigniOnPlayCostModal`のルリグの下からN枚選択→発動/スキップ）を実機で新規に駆動。**§7にはまだ多数の未検証項目が残る**（次の一手参照）。
   - **🆕 新規実バグ1件を発見・Opusタスク12(cvi)へ登録**（詳細はPLAN §3・過去セッション要約続き348行）＝`executeSigniOnPlayCost`（エクシードNコスト等）経由でスタックに積んだSEQUENCEは、途中に対話ステップ（CHOOSE解決やチェックゾーン確認）または0候補のauto-skipを挟むと続きが失われる（`WX24-P4-015-E2`のBANISH・`WX24-P4-017-E2`のTRANSFER_TO_HAND第2群で発見）。
