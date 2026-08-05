@@ -7921,6 +7921,8 @@ const scenarios = {
           const btn = page.getByRole('button', { name: /【起】/ }).first();
           if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】'; modalOpened = true; }
         }
+        // コスト《青》×1＝エナゾーンのカード（WD03-009・コードアート　Ｒ・Ｍ・Ｎ）をクリックして選択。
+        if (!did) did = await H.clickModalImage('コードアート　Ｒ・Ｍ・Ｎ');
         if (!did) did = await H.clickBtn('発動', { exact: true });
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
