@@ -6916,9 +6916,12 @@ const scenarios = {
         // ドローが反映されていないことがある（スタック解決は次のtickで自動処理される）。debuffed確認後も
         // stackLenが0に落ち着くかguest.handが動くまで数ポーリング待つ。
         if (debuffed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+          if (st.guest.hand === 1 && !sawSecondSelectTarget) {
+            return { pass: true, detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが1回発火（gHand=${before.guest.hand}→${st.guest.hand}）＝想定どおり（バグ非再現・要再確認）` };
+          }
           return {
-            pass: (st.guest.hand === 1) && !sawSecondSelectTarget,
-            detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが${st.guest.hand}回発火（gHand=${before.guest.hand}→${st.guest.hand}）・再選択UI出現=${sawSecondSelectTarget}`,
+            pass: false,
+            detail: `【Opusタスク12(civ)実機確認】対象選択は最初の1回だけ（sawSecondSelectTarget=${sawSecondSelectTarget}）は確認できたが、ON_TARGETED watcher（WXDi-P03-067）が${st.guest.hand - before.guest.hand}回しか発火しない（期待=1回・gHand=${before.guest.hand}→${st.guest.hand}）＝「対象宣言そのものへのON_TARGETED」が、SEQUENCEが即done()せず後続CHOOSEへ続く場合に取りこぼされている疑い（stackAcc計算がhandleEffectInteraction呼び出しごとに独立している影響）＝実バグ`,
           };
         }
       }
