@@ -7343,7 +7343,7 @@ const scenarios = {
           await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
           await page.waitForTimeout(300);
           const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
-          const cand = page.getByRole('button', { name: /ロストコード・ピルルク　X/ }).first();
+          const cand = page.getByRole('button', { name: /ロストコード・ピルルク/ }).first(); // 全角スペースはアクセシブルネーム計算で半角化される疑いがあるため空白なしの部分一致で狙う
           if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
             if (await execBtn.isEnabled().catch(() => false)) {
               await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
