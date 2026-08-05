@@ -279,6 +279,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                           const isSel = selectedSigniOnPlayExceed.has(i);
                           return (
                             <div key={`${num}-${i}`}
+                              data-testid={`onplaycost-exceed-${i}`}
                               onClick={() => setSelectedSigniOnPlayExceed(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) next.delete(i);
