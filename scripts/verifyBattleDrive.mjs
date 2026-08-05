@@ -8351,13 +8351,27 @@ const scenarios = {
       let attacked = false;
       let skipClicked = false;
       let sawExtraPick = false;
+      let modalOpened = false;
       for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/wxdip08007SkipRemovesAbilities-${s}.png`, fullPage: true });
         let did = null;
+        // 注入直後、CPU側の自ターン処理が非同期で残っていて phase を巻き戻す競合がある（wxk10068banishと同型）。
+        const phaseChk = await H.queryState();
+        if (!attacked && phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+          await H.closeModals();
+          await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+          await page.waitForTimeout(600);
+          modalOpened = false;
+          did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+        }
         if (!did && !attacked) {
           const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
           if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+        }
+        if (!did && !attacked && !modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
         }
         if (!did && attacked && !skipClicked) {
           const skipBtn = page.getByRole('button', { name: /^支払わない/ }).first();
