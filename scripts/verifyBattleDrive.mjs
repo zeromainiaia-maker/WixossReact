@@ -7034,7 +7034,7 @@ const scenarios = {
     },
     async drive(page, H) {
       const before = await H.queryState();
-      H.log('開始時 host.hand:', before?.host?.hand, 'host.energy:', before?.host?.energy, 'guest.life:', before?.guest?.life);
+      H.log('開始時 host.hand:', before?.host?.hand, 'host.energy:', before?.host?.energy, 'guest.life:', before?.guest?.life, 'guest.lifeCards:', JSON.stringify(before?.guest?.lifeCards));
       let modalOpened = false;
       let attacked = false;
       let sawChoose = false;
