@@ -7296,7 +7296,6 @@ async function injectScenario(page, spec) {
     gs.deck = mkFiller(2200, 40); gs.life_cloth = mkFiller(2300, 7); gs.trash = []; gs.lrig_trash = []; // guest（host と別レンジ＝owner跨ぎの重複も回避）
     for (const [p, v] of Object.entries(spec.hostSet ?? {})) setPath(hs, p, v);
     for (const [p, v] of Object.entries(spec.guestSet ?? {})) setPath(gs, p, v);
-    console.log('[DEBUG_INJECT] gs.life_cloth=', JSON.stringify(gs.life_cloth), 'gs.field.signi=', JSON.stringify(gs.field?.signi));
     if (spec.handPrepend) hs.hand = [...spec.handPrepend, ...(hs.hand ?? []).slice(0, 4)];
     const top = spec.top ?? {};
     const upd = {
