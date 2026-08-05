@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝`WXK06-067-E1`クロスゾーンpickerの構造的限界を確認（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き351）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ1件（`wxk06067CrossZoneStubFires`）を新規追加し、PLAN §7タスク12(lxi)第11波「ゾーンを跨いだ選択モーダル」（本プロジェクト初のhand+energy横断プール）を検証した。
+
+### 確認できたこと
+- `WXK06-067-E1`（【起】《青》＋自身トラッシュ）を実機で起動すると、`OPPONENT_PAY_OPTIONAL{opponentHandOrEnergyToDeckTop:2}`のSTUBが正しく発火する。
+- ただし本カードのOPPONENT_PAY_OPTIONALはcostColors非搭載＝既存のOpusタスク12(ci)（無料'pay'が`options`配列の先頭かつ常時available）と同型の穴に該当。CPU自動応答（`options.find(o=>o.available)??options[0]`）は必ずこの無料'pay'枝を選ぶため、guestの場/手札/エナは一切変化せず＝**跨ぎプールpicker本体（`handOrEnergyToDeckTop`枝）は実戦のCPU戦では到達しない**ことを実機で確認（2回連続PASS）。新規バグではなく(ci)の影響範囲がこのカードにも及ぶことの追加証跡。
+
+### 構造的に確認できなかったこと（低優先で保留）
+跨ぎプールpicker自体のUI（候補一覧に手札とエナが混在して並ぶ・「手札とエナから合計」表示・ちょうど2枚まで確定不可）は、`EffectInteractionModal.tsx`の`self_hand_energy`/`opp_hand_energy`スコープが`inter.candidates`経由で正しく候補を出す（(cv)の`op.hand`直接参照バグの対象外）ことをコード読解で確認済みだが、実クリックでの検証には「相手側が実際にこのCHOOSEに応答する」場面を作る必要がある。本カードは非LIFE_BURSTのため、`secondWaveEnergyBranch`等が使う「LB所有者反転」（`queueCardEffects`のownerId固定を利用してdriverアカウント自身に応答させるトリック）が使えず、単一アカウントdriverでは構造的に到達不能。
+
 ## 2026-08-05 — §7実機検証の続き＝トラッシュ領域移動ロックで実バグ発見（Opusタスク12(cvii)登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き350）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ2件（`trashMoveLockBlocksSelfEffect`／`trashMoveLockAllowsWhenUnlocked`）を新規追加し、PLAN §7タスク12(lxxiii)「トラッシュ領域移動ロック」を検証したところ実バグを発見した。
