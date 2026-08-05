@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-05 — §7実機検証の続き＝タスク12(lxiii)(a)(b)を消化（新規バグなし・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き354）
+
+`scripts/verifyBattleDrive.mjs`にシナリオ3件（`wx17040ConditionsFalseNoop`／`wx17040ConditionsTrueExecuteAll`／`centerZoneOnlyPicker`）を新規追加し、PLAN §7タスク12(lxiii)「(a) 選択肢の可否表示」「(b) 中央ゾーン限定のピッカー」を検証した。
+
+### (a) `WX17-040-E1`（スペル「連滅の凱歌」・カーニバル限定・《赤×0》）＝選択肢の可否表示
+「以下の3つから3つまで選ぶ」＝①対戦相手の手札が自分より多いならドロー ②対戦相手のエナが自分より多いならエナチャージ ③対戦相手のシグニ1体を対象とし対戦相手のライフクロスが自分より多いならバニッシュ。JSON構造上、①②は`choice.condition`（`HAND_COMPARE_OPP`／`ENERGY_COMPARE_OPP`）を持つがcondition評価結果は`execChoose`（`effectExecutor.ts:3790`）が`available`へそのまま反映する。③は選択肢自体に`condition`が無く、代わりにaction側が`CONDITIONAL{LIFE_COMPARE_OPP, then:BANISH}`で包まれている。
+
+- **`wx17040ConditionsFalseNoop`**＝host（自分）の手札2枚・エナ2枚・ライフ3枚に対し、guest（相手）を手札1枚・エナ1枚・ライフ1枚に設定＝3条件すべて不成立。実機で選択肢1・選択肢2ボタンが`disabled`であることを直接確認（`isEnabled()`）。選択肢3は`enabled`のまま選べたが、選んで確定しても`SELECT_TARGET`（バニッシュ対象選択）にすら進まず、host手札・エナ・guest場のいずれも変化しなかった＝`CONDITIONAL`のcondition不成立時は`execConditional`が`done(ctx)`を即返す設計どおりに動作している。
+- **`wx17040ConditionsTrueExecuteAll`**＝逆にhostを手札2枚・エナ1枚・ライフ1枚、guestを手札3枚・エナ2枚・ライフ2枚に設定＝3条件すべて成立。選択肢1・選択肢2が`enabled`であることを確認したうえで3つとも選択→確定すると、`SELECT_TARGET`（guestの場のシグニ1体・候補1件）が現れ、確定後にドロー（hHand 1→2）・エナチャージ（hEnergy 1→2・hDeck -2＝ドローとエナチャージの両方がデッキ上から引く）・バニッシュ（gField=[null,null,null]）がすべて実行されたことを確認。
+
+### (b) `WXDi-P02-065-E2`（【出】：対戦相手の中央のシグニゾーンにあるシグニ1体を対象とし、それを凍結する）＝`filter.centerZoneOnly:true`
+`execUtils.ts:1086`／`effectEngine.ts:690`の`filter.centerZoneOnly !== (zoneIdx === 1)`判定＝zone index 1（配列の中央）だけを候補として残す。guestの場を左（zone0）・中央（zone1）・右（zone2）すべて埋めた状態でこのカードを召喚したところ、実機で`SELECT_TARGET`の候補ボタン（`[data-testid^="pick-"]`）が**ちょうど1件**だけ描画され、確定後は`guest.field.signi_frozen`が`[false, true, false]`（中央だけtrue）になることを確認。左右のシグニは一度も候補に上がらなかった（PLANが警告していた「従来は左右も選べた」という退行は再発していない）。
+
+### 母数・据置事項
+`WX15-033-E2`（ON_PLAY・条件付きBANISH）と`WX24-P2-091-E1`（ON_ZONE_MOVED・OPTIONAL_TRASH_ENERGY_CLASS包み＋POWER_MODIFY）は`WXDi-P02-065-E2`と同一の`filter.centerZoneOnly`フィルタ機構（`execUtils.ts:1086`）を共有するコード経路のため個別実機は任意（低優先）。中央ゾーンが空のケースでの空振り確認も未個別実機（低優先＝候補0件でSELECT_TARGETが`upToCount:false`のまま強制されるかの確認）。
+
+いずれも新規実バグは見つからなかった＝engine/parser/JSONは完全無変更（`public/data/`に差分なし）。
+
 ## 2026-08-05 — §7実機検証の続き＝`SPDi43-02-E1`／`WXEX2-25-E1`／`WXDi-P08-007-E1`を検証＋新規バグ1件発見（Opusタスク12(cv)へ追記登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き353）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ5件（`spdi4302AvoidedNoChoose`／`wxex225SkipAutoTrashesTrigger`／`wxex225DiscardAvoids`／`wxdip08007SkipRemovesAbilities`／`wxdip08007PaySpares`）を新規追加し、PLAN §7「残る実機検証項目」の`SPDi43-02-E1`「回避された場合に選択UIが出ないこと」と`WXEX2-25-E1`／`WXDi-P08-007-E1`「対象がトリガー元シグニに固定され選択UIが出ないこと」を検証した。
