@@ -7307,34 +7307,11 @@ const scenarios = {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/exceedTwoGroupPickerC-${s}.png`, fullPage: true });
         let did = null;
-        // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
-        // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
-        //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
-        if (!did && !grown) {
-          const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
-          const cand = page.getByRole('button', { name: /ロストコード・ピルルク　X/ }).first();
-          if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
-            if (await execBtn.isEnabled().catch(() => false)) {
-              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行'; grown = true;
-            } else {
-              const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
-              if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
-                await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
-              }
-            }
-          } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
-            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
-          } else {
-            const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
-            if (await gb.count() && await gb.isVisible().catch(() => false)) {
-              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
-            }
-          }
-        }
-        // エクシード4支払い（onplaycost-exceed-0..3→発動）
-        if (!did && grown && !exceedActivated) {
+        // エクシード4支払い（onplaycost-exceed-0..3→発動）＝グロウ完了の直接証拠でもあるので最優先チェック
+        if (!did && !exceedActivated) {
           const exBtn = page.getByTestId(`onplaycost-exceed-${exceedPicked}`).first();
           if (exceedPicked < 4 && await exBtn.count() && await exBtn.isVisible().catch(() => false)) {
+            grown = true;
             await exBtn.click({ timeout: 3000 }).catch(() => {}); exceedPicked++; did = `onplaycost-exceed-${exceedPicked - 1}`;
           } else if (exceedPicked >= 4) {
             const actBtn = page.getByRole('button', { name: '発動', exact: true }).first();
@@ -7343,8 +7320,32 @@ const scenarios = {
             }
           }
         }
+        // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
+        // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
+        //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
+        if (!did && !exceedActivated) {
+          const execBtn = page.getByRole('button', { name: 'グロウ実行', exact: true }).first();
+          const cand = page.getByRole('button', { name: /ロストコード・ピルルク　X/ }).first();
+          if (await execBtn.count() && await execBtn.isVisible().catch(() => false)) {
+            if (await execBtn.isEnabled().catch(() => false)) {
+              await execBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ実行';
+            } else {
+              const eDiv = page.getByText('エナから選択').locator('..').locator('div[style*="cursor: pointer"]').first();
+              if (await eDiv.count() && await eDiv.isVisible().catch(() => false)) {
+                await eDiv.click({ timeout: 3000 }).catch(() => {}); did = 'div:エナ選択0';
+              }
+            }
+          } else if (await cand.count() && await cand.isVisible().catch(() => false)) {
+            await cand.click({ timeout: 3000 }).catch(() => {}); did = 'btn:候補クリック';
+          } else if (!grown) {
+            const gb = page.getByRole('button', { name: 'グロウ', exact: true }).first();
+            if (await gb.count() && await gb.isVisible().catch(() => false)) {
+              await gb.click({ timeout: 3000 }).catch(() => {}); did = 'btn:グロウ';
+            }
+          }
+        }
         // 群1（スペル・候補0枚）＝候補が無いので「スキップ」（upToCount自動解決の可能性もあるため両対応）
-        if (!did && grown && exceedActivated) {
+        if (!did && exceedActivated) {
           const skipBtn = page.getByRole('button', { name: 'スキップ', exact: true }).first();
           if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
             await skipBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:スキップ(群1空振り)'; pickedSpellSkip = true;
