@@ -8060,8 +8060,13 @@ const scenarios = {
   // 内部で解決する（host操作は不要＝host.life_clothを2枚にしてc1「対戦相手のライフクロスが0枚の場合」を
   // available:falseに固定しc0（対戦相手＝hostのデッキ上8枚トラッシュ）だけが選ばれるようにして結果を決定的
   // にする）。CPUの自然ターン進行との競合に備え cpugrow と同型の再注入リトライで包む。
+  // ⚠当初は「手札を2枚捨てる」（discard・原文どおりの回避手段）で検証する設計だったが、実機で
+  // wxex225DiscardAvoidsと同根の新規バグ（opp_hand候補描画のviewer相対ミスマッチ＝ソフトロック）を
+  // ここでも踏んだ（2026-08-05・Sonnet・再現済・Opusタスク12(cv)へ追記登録）。本シナリオの主目的は
+  // 「回避されたらCHOOSE(選択肢1/2)が出ないこと」の検証であり、回避手段の選び方は本質ではないため、
+  // costColors非搭載のこのSTUBが常時available（(ci)と同型）な無料「支払う」枝を使って迂回し検証する。
   spdi4302AvoidedNoChoose: {
-    title: 'SPDi43-02-E1（対戦相手＝hostが手札を2枚捨てて回避→「選択肢1/2」のCHOOSEが一切出ないこと）',
+    title: 'SPDi43-02-E1（対戦相手＝hostが「支払う」で回避→「選択肢1/2」のCHOOSEが一切出ないこと）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-001#1'],
@@ -8088,28 +8093,27 @@ const scenarios = {
         const before = await H.queryState();
         let picked = false;
         let overwritten = false;
-        for (let s = 0; s < 24; s++) {
+        for (let s = 0; s < 16; s++) {
           await page.waitForTimeout(900);
           await page.screenshot({ path: `${SHOT}/spdi4302AvoidedNoChoose-a${attempt}-${s}.png`, fullPage: true });
           let did = null;
           if (!picked) {
-            const discardBtn = page.getByRole('button', { name: /手札を2枚捨てる/ }).first();
-            if (await discardBtn.count() && await discardBtn.isVisible().catch(() => false)) {
-              await discardBtn.click().catch(() => {}); did = 'btn:手札を2枚捨てる'; picked = true;
+            const payBtn = page.getByRole('button', { name: /^支払う/ }).first();
+            if (await payBtn.count() && await payBtn.isVisible().catch(() => false)) {
+              await payBtn.click().catch(() => {}); did = 'btn:支払う'; picked = true;
             }
           }
-          if (!did) did = await H.clickTextOrBtn(['決定', 'エナに送る', 'ガードしない', 'しない', '使用しない']);
           const st = await H.queryState();
           const bodyTxt = await H.body();
           const sawChoose = /選択肢1|選択肢2/.test(bodyTxt);
           H.log(`  s4302a[a${attempt}.${s}] -> ${did ?? 'なし'} | picked=${picked} hHand=${st?.host?.hand} hDeck=${st?.host?.deck} sawChoose=${sawChoose} pEff=${st?.pendingEffect ?? '-'}`);
           if (sawChoose) {
-            return { pass: false, detail: `回避（手札2枚捨て）後に「選択肢1/2」のCHOOSEが出現＝実バグ（従来の無条件実行が再発）` };
+            return { pass: false, detail: `回避（支払う）後に「選択肢1/2」のCHOOSEが出現＝実バグ（従来の無条件実行が再発）` };
           }
           if (st?.guest?.lrigTop && /#g/.test(st.guest.lrigTop) && !picked) { overwritten = true; break; }
-          if (picked && (st?.host?.hand ?? 99) <= (before?.host?.hand ?? 0) - 2 && !st?.pendingEffect) {
+          if (picked && !st?.pendingEffect) {
             const deckUntouched = (st?.host?.deck ?? -1) === (before?.host?.deck ?? -1);
-            if (deckUntouched) return { pass: true, detail: `対戦相手（host）が手札を2枚捨てて回避→「選択肢1/2」のCHOOSEは一度も出現せず、hostデッキも無傷（hDeck=${st.host.deck}）` };
+            if (deckUntouched) return { pass: true, detail: `対戦相手（host）が「支払う」で回避→「選択肢1/2」のCHOOSEは一度も出現せず、hostデッキも無傷（hDeck=${st.host.deck}）` };
             return { pass: false, detail: `回避したのにhostデッキが変化した（hDeck ${before.host.deck}→${st.host.deck}）＝回避が機能していない` };
           }
         }
