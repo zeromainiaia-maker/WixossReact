@@ -8443,6 +8443,209 @@ const scenarios = {
       return { pass: false, detail: `未完了（attacked=${attacked} energySelected=${energySelected} payClicked=${payClicked} hEnergy=${fin?.host?.energy} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7「残る実機検証項目」＝タスク12(lxiii)(a)「選択肢の可否表示」（2026-08-05）。`WX17-040-E1`
+  // （スペル「連滅の凱歌」・カーニバル限定・《赤×0》）＝「以下の3つから3つまで選ぶ」＝①対戦相手の手札が
+  // 自分より多い場合ドロー ②対戦相手のエナが自分より多い場合エナチャージ ③対戦相手のシグニ1体を対象とし
+  // 対戦相手のライフクロスが自分より多い場合バニッシュ。①②は`choice.condition`（HAND_COMPARE_OPP／
+  // ENERGY_COMPARE_OPP）でCHOOSEの`available`自体が決まる＝条件不成立ならボタンがdisabled。③は
+  // `ch.condition`が無く常にavailable:true（条件はaction内側のCONDITIONALに包まれているだけ）＝選べるが
+  // 条件不成立なら対象選択にすら進まず静かに何も起きない（execConditionalがdone(ctx)を即返す）。
+  // 本シナリオ＝①②③すべての条件を不成立にして「①②がdisabled」「③は選べるが無効果」を確認する。
+  wx17040ConditionsFalseNoop: {
+    title: 'WX17-040-E1（3条件すべて不成立→①②disabled・③は選べるが無効果）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX17-013#1'], // カーニバル限定を満たす最安ルリグ
+        'field.signi': [null, null, null],
+        'hand': ['WX17-040#1', 'WD01-013#80'], // 2枚（guestの1枚より多い＝①不成立）
+        'energy': ['WD01-013#81', 'WD01-013#82'], // 2枚（guestの1枚より多い＝②不成立）
+        'life_cloth': ['WD01-013#83', 'WD01-013#84', 'WD01-013#85'], // 3枚（guestの1枚より多い＝③不成立）
+        'deck': ['WD01-013#86', 'WD01-013#87'],
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#88'], null, null], // ③の対象候補（不成立なので実際には対象化されない）
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#89'],
+        'energy': ['WD01-013#90'],
+        'life_cloth': ['WD01-013#91'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 hHand/hEnergy/hDeck/gField:', before?.host?.hand, before?.host?.energy, before?.host?.deck, JSON.stringify(before?.guest?.fieldSigni));
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      let choose3Clicked = false;
+      let confirmed = false;
+      let gateChecked = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wx17040ConditionsFalseNoop-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          } else {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast;
+          }
+        }
+        // 多選択CHOOSE（3つまで選ぶ）＝ここで①②のdisabled状態を1回だけ確認してから③だけ選ぶ。
+        if (!did) {
+          const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
+          const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
+          const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
+          if (!gateChecked && await c1.count() && await c2.count() && await c3.count()) {
+            const c1Enabled = await c1.isEnabled().catch(() => true);
+            const c2Enabled = await c2.isEnabled().catch(() => true);
+            const c3Enabled = await c3.isEnabled().catch(() => false);
+            H.log(`  gate確認: 選択肢1 enabled=${c1Enabled}／選択肢2 enabled=${c2Enabled}／選択肢3 enabled=${c3Enabled}`);
+            gateChecked = true;
+            if (c1Enabled || c2Enabled) {
+              return { pass: false, detail: `条件不成立のはずの選択肢1/選択肢2がenabled（①enabled=${c1Enabled}／②enabled=${c2Enabled}）＝choice.conditionによるavailable制御が機能していない` };
+            }
+            if (!c3Enabled) {
+              return { pass: false, detail: `選択肢3（ch.condition無し＝常にavailable）がdisabled＝想定外` };
+            }
+          }
+          if (!choose3Clicked && await c3.count() && await c3.isVisible().catch(() => false) && await c3.isEnabled().catch(() => false)) {
+            await c3.click().catch(() => {}); did = 'btn:選択肢3'; choose3Clicked = true;
+          }
+        }
+        if (!did && choose3Clicked && !confirmed) {
+          const confirmBtn = page.getByRole('button', { name: '決定', exact: true }).first();
+          if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false) && await confirmBtn.isEnabled().catch(() => false)) {
+            await confirmBtn.click().catch(() => {}); did = 'btn:決定'; confirmed = true;
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+        const st = await H.queryState();
+        H.log(`  x040f[${s}] -> ${did ?? 'なし'} | gateChecked=${gateChecked} choose3=${choose3Clicked} confirmed=${confirmed} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} hDeck=${st?.host?.deck} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (confirmed && !st?.pendingEffect) {
+          const drewCard = (st?.host?.hand ?? -1) >= (before?.host?.hand ?? 0); // castで-1のはずがdrawで+1すると相殺
+          const energyCharged = (st?.host?.energy ?? -1) > (before?.host?.energy ?? 0);
+          const banished = (st?.guest?.fieldSigni ?? []).every(z => !(z ?? []).includes('WD01-013#88')) === false
+            ? false : !(st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#88'));
+          const guestUntouched = (st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#88'));
+          if (drewCard) return { pass: false, detail: `選択肢1不成立のはずがドローが実行された（hHand ${before.host.hand}→${st.host.hand}）` };
+          if (energyCharged) return { pass: false, detail: `選択肢2不成立のはずがエナチャージが実行された（hEnergy ${before.host.energy}→${st.host.energy}）` };
+          if (!guestUntouched) return { pass: false, detail: `選択肢3不成立のはずが対象がバニッシュされた（gField=${JSON.stringify(st.guest.fieldSigni)}）` };
+          return { pass: true, detail: `3条件すべて不成立を確認＝①②のCHOOSEボタンはdisabled（choice.conditionでavailable制御）、③は選べたが対象選択にすら進まず静かに無効果（hHand ${before.host.hand}→${st.host.hand}・hEnergy ${before.host.energy}→${st.host.energy}・gField変化なし）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gateChecked=${gateChecked} choose3=${choose3Clicked} confirmed=${confirmed} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 対照実験＝①②③すべての条件を成立させ、①②がenabledになること・3つ全部選んで確定するとドロー＋
+  // エナチャージ＋（対象選択を経て）バニッシュがすべて実行されることを確認する。
+  wx17040ConditionsTrueExecuteAll: {
+    title: 'WX17-040-E1（3条件すべて成立→①②enabled・3つ選択でドロー＋エナチャージ＋バニッシュ全実行）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX17-013#1'],
+        'field.signi': [null, null, null],
+        'hand': ['WX17-040#1', 'WD01-013#92'], // 2枚（guestの3枚より少ない＝①成立）
+        'energy': ['WD01-013#93'], // 1枚（guestの2枚より少ない＝②成立）
+        'life_cloth': ['WD01-013#94'], // 1枚（guestの2枚より少ない＝③成立）
+        'deck': ['WD01-013#95', 'WD01-013#96'],
+        'trash': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#97'], null, null], // ③の対象（成立するので実際にバニッシュされるはず）
+        'field.signi_down': [false, false, false],
+        'hand': ['WD01-013#98', 'WD01-013#99', 'WD01-013#100'],
+        'energy': ['WD01-013#101', 'WD01-013#102'],
+        'life_cloth': ['WD01-013#103', 'WD01-013#104'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 hHand/hEnergy/hDeck/gField:', before?.host?.hand, before?.host?.energy, before?.host?.deck, JSON.stringify(before?.guest?.fieldSigni));
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      const clickExact = async (name) => { const b = page.getByRole('button', { name, exact: true }).first(); if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + name; } return null; };
+      let picked = false;
+      let confirmed = false;
+      let gateChecked = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wx17040ConditionsTrueExecuteAll-${s}.png`, fullPage: true });
+        let did = null;
+        did = await clickExact('発動');
+        if (!did) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast; else { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+          } else {
+            const cast = await clickExact('発動する');
+            if (cast) did = cast;
+          }
+        }
+        if (!did && !picked) {
+          const c1 = page.getByRole('button', { name: '選択肢1', exact: true }).first();
+          const c2 = page.getByRole('button', { name: '選択肢2', exact: true }).first();
+          const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
+          if (await c1.count() && await c2.count() && await c3.count()) {
+            if (!gateChecked) {
+              const c1Enabled = await c1.isEnabled().catch(() => false);
+              const c2Enabled = await c2.isEnabled().catch(() => false);
+              H.log(`  gate確認: 選択肢1 enabled=${c1Enabled}／選択肢2 enabled=${c2Enabled}`);
+              gateChecked = true;
+              if (!c1Enabled || !c2Enabled) {
+                return { pass: false, detail: `条件成立のはずの選択肢1/選択肢2がdisabled（①enabled=${c1Enabled}／②enabled=${c2Enabled}）＝choice.conditionによるavailable制御が想定と逆` };
+              }
+            }
+            await c1.click().catch(() => {});
+            await c2.click().catch(() => {});
+            await c3.click().catch(() => {});
+            did = 'click:選択肢1+2+3'; picked = true;
+          }
+        }
+        if (!did && picked && !confirmed) {
+          const confirmBtn = page.getByRole('button', { name: '決定', exact: true }).first();
+          if (await confirmBtn.count() && await confirmBtn.isVisible().catch(() => false) && await confirmBtn.isEnabled().catch(() => false)) {
+            await confirmBtn.click().catch(() => {}); did = 'btn:決定'; confirmed = true;
+          }
+        }
+        if (!did) { // ③のBANISHが要求するSELECT_TARGET（対象1体・候補1件）
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+        const st = await H.queryState();
+        H.log(`  x040t[${s}] -> ${did ?? 'なし'} | gateChecked=${gateChecked} picked=${picked} confirmed=${confirmed} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} hDeck=${st?.host?.deck} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+        const banished = !(st?.guest?.fieldSigni ?? []).some(z => (z ?? []).includes('WD01-013#97'));
+        const energyCharged = (st?.host?.energy ?? -1) > (before?.host?.energy ?? 0);
+        const handBackToBefore = (st?.host?.hand ?? -1) >= (before?.host?.hand ?? 0);
+        if (confirmed && !st?.pendingEffect && banished && energyCharged) {
+          if (!handBackToBefore) {
+            return { pass: false, detail: `エナチャージ・バニッシュは実行されたがドローが未実行（hHand ${before.host.hand}→${st.host.hand}）` };
+          }
+          return { pass: true, detail: `3条件すべて成立を確認＝①②のCHOOSEボタンはenabled、3つとも選択して確定するとドロー（hHand ${before.host.hand}→${st.host.hand}）＋エナチャージ（hEnergy ${before.host.energy}→${st.host.energy}）＋対象選択を経てバニッシュ（gField=${JSON.stringify(st.guest.fieldSigni)}）がすべて実行された` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gateChecked=${gateChecked} picked=${picked} confirmed=${confirmed} hHand=${fin?.host?.hand} hEnergy=${fin?.host?.energy} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
