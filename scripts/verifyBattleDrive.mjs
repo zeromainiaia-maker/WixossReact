@@ -8134,8 +8134,6 @@ const scenarios = {
   // 充分に確認済み（このシナリオは念のための対照実験だった＝本質的な検証漏れではない）。
 
   // §7「残る実機検証項目」＝WXEX2-25-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」
-
-  // §7「残る実機検証項目」＝WXEX2-25-E1「対象がトリガー元シグニに固定され選択UIが出ないこと」
   // （2026-08-05）。SEQUENCE[STUB OPPONENT_PAY_OPTIONAL{opponentHandDiscard:1}, CONDITIONAL{IS_MY_TURN,
   // then:TRASH{targetsTriggerSource:true}}]＝「対戦相手のシグニ１体が対戦相手の効果によって場に出たとき、
   // 対戦相手が手札を１枚捨てないかぎり、そのシグニを場からトラッシュに置く」。WXEX2-25はルリグ＝
