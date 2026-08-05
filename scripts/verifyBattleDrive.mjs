@@ -7881,6 +7881,62 @@ const scenarios = {
       return { pass: false, detail: `未完了（trash=${JSON.stringify(fin?.host?.trashCards)} hand=${JSON.stringify(fin?.host?.handCards)}）` };
     },
   },
+
+  // §7「🆕 タスク12(lxi) 第11波 WXK06-067-E1（ゾーンを跨いだ選択モーダル）」＝【起】《青》＋自身トラッシュで
+  // OPPONENT_PAY_OPTIONAL{opponentHandOrEnergyToDeckTop:2}を起動。costColors非搭載＝Opusタスク12(ci)と
+  // 同型の穴（無料payが常時available）のため、CPU自動応答（`options.find(o=>o.available)??options[0]`）は
+  // 必ずindex0の無料'pay'を選び、クロスゾーンpicker本体（handOrEnergyToDeckTop枝）へは到達しない。
+  // ⚠この「相手側に実際にpicker UIを描画させる」検証は、このカードが非LIFE_BURSTのため
+  // （`secondWaveEnergyBranch`等が使うLB所有者反転トリックが使えない）単一アカウントdriverでは構造的に
+  // 到達不能＝ホスト側の起動自体が正しくSTUB発火しCPUが無料pay枝を選ぶこと（ci の影響範囲拡大の実機確認）
+  // までに留める。
+  wxk06067CrossZoneStubFires: {
+    title: 'WXK06-067-E1（【起】起動→OPPONENT_PAY_OPTIONALが発火しCPUが無料payを選ぶ＝(ci)と同型）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WXK06-067#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD03-009#1'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WD01-013#1'], null, null],
+        'hand': ['WD01-013#2', 'WD01-013#3'],
+        'energy': ['WD01-013#4', 'WD01-013#5'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.hand/energy/field:', before?.guest?.hand, before?.guest?.energy, JSON.stringify(before?.guest?.fieldSigni));
+      H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let modalOpened = false;
+      for (let s = 0; s < 18; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxk06067CrossZoneStubFires-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened) {
+          const btn = page.getByRole('button', { name: /【起】/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】'; modalOpened = true; }
+        }
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const selfTrashed = (st?.host?.trashCards ?? []).includes('WXK06-067#1');
+        H.log(`  x067[${s}] -> ${did ?? 'なし'} | hostTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        if (selfTrashed && !st?.pendingEffect && s >= 3) {
+          const guestUntouched = JSON.stringify(st?.guest?.fieldSigni) === JSON.stringify(before?.guest?.fieldSigni)
+            && st?.guest?.hand === before?.guest?.hand && st?.guest?.energy === before?.guest?.energy;
+          if (guestUntouched) return { pass: true, detail: `【起】起動→STUB発火→CPU(guest)が無料payを選択し場/手札/エナ無変化（Opusタスク12(ci)と同型・handOrEnergyToDeckTop枝は未到達）` };
+          return { pass: false, detail: `guest側に変化あり（想定外＝pay以外が選ばれた可能性）：gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy}` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（hostTrash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
