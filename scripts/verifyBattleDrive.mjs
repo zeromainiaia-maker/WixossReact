@@ -7302,6 +7302,63 @@ const scenarios = {
       return { pass: false, detail: `青シグニ取得 未確認（lrigTop=${fin?.host?.lrigTop} hHand=${JSON.stringify(fin?.host?.handCards)} grown=${grown} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 タスク16 WXDi-P06-038-E1（2026-08-05・Sonnet）＝翠美姫　アン//メモリア：【自】《ターン１回》あなたの
+  // エナゾーンから効果によってカード１枚が他の領域に移動したとき、【エナチャージ１】をする＝`energyLeftToAnyZone`
+  // （トラッシュ以外＝手札/場/デッキ行きでも発火する近似）を実機で駆動する。移動元＝WXEX1-42（羅植姫
+  // ドラゴンツリー・【出】mandatory・自分のエナゾーンから＜植物＞のシグニ１枚まで対象とし手札に加える・no cost）。
+  // ⚠story:'植物'フィルタはCardClass文字列一致（`精羅：植物`）＝WXEX1-42自身の別インスタンスをエナに置けば
+  // 候補になる（対象探しの手間を省く）。
+  energyLeftAnyZoneTrigger: {
+    title: 'WXDi-P06-038-E1（翠美姫アン//メモリア＝エナから効果でトラッシュ以外(手札)へ移動しても【エナチャージ1】誘発）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WX11-005#1'], // 緑子クラス＝WXEX1-42「緑子限定」を満たす
+        'field.signi': [['WXDi-P06-038#1'], null, null], // watcher（ターン1回）
+        'field.signi_down': [false, false, false],
+        'hand': ['WXEX1-42#1'], // 召喚してE2＝自分のエナから＜植物＞シグニ1枚まで手札へ（mandatory・no cost）
+        'energy': ['WXEX1-42#2'], // TRANSFER_TO_HAND候補（CardClass「精羅：植物」で story:'植物' に一致）
+        'deck': ['WD01-013#950', 'WD01-013#951', 'WD01-013#952', 'WD01-013#953', 'WD01-013#954'], // 先頭#950＝ENERGY_CHARGE_FROM_DECKの識別用マーカー
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.hand:', before?.host?.hand, 'host.energyCards:', JSON.stringify(before?.host?.energyCards), 'host.deck先頭想定#950');
+      const opened = await H.clickTestId('my-hand-card-0');
+      H.log('手札クリック:', opened ?? '見つからず');
+      let summoned = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/energyLeftAnyZoneTrigger-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+        }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gotSigniToHand = (st?.host?.handCards ?? []).some(c => c.startsWith('WXEX1-42#2'));
+        const chargedMarker = (st?.host?.energyCards ?? []).some(c => c.startsWith('WD01-013#950'));
+        H.log(`  elaz[${s}] -> ${did ?? 'なし'} | hHand=${JSON.stringify(st?.host?.handCards)} hEnergy=${JSON.stringify(st?.host?.energyCards)} gotSigniToHand=${gotSigniToHand} chargedMarker=${chargedMarker} pEff=${st?.pendingEffect ?? '-'}`);
+        if (gotSigniToHand && chargedMarker && !st?.pendingEffect) {
+          return { pass: true, detail: `WXEX1-42召喚→自身のE2でエナのWXEX1-42#2を手札へ（トラッシュ以外＝手札行き）→WXDi-P06-038のON_ENERGY_TO_TRASH(energyLeftToAnyZone)watcherが発火→デッキ先頭WD01-013#950をエナチャージ（hHand=${JSON.stringify(st.host.handCards)} hEnergy=${JSON.stringify(st.host.energyCards)}）` };
+        }
+        if (gotSigniToHand && !chargedMarker && s >= 18) {
+          return { pass: false, detail: `【要確認】エナがトラッシュ以外（手札）へ移動したこと自体は確認（hHand=${JSON.stringify(st.host.handCards)}）が、watcherのエナチャージが未発火（hEnergy=${JSON.stringify(st.host.energyCards)}）＝energyLeftToAnyZone経路にresume取りこぼしの疑い` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（hHand=${JSON.stringify(fin?.host?.handCards)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} summoned=${summoned} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
