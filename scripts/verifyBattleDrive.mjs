@@ -7352,7 +7352,7 @@ const scenarios = {
           }
         }
         // 群2（青シグニ・候補1枚＝WX01-015）＝pick-0→決定
-        if (!did && grown && exceedActivated) {
+        if (!did && exceedActivated) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
             const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
