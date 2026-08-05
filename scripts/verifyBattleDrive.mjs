@@ -6697,6 +6697,58 @@ const scenarios = {
     },
   },
 
+  // §7「残る実機検証項目」＝(xi)「skip選択時に本体が発動しないこと」（2026-08-05）。lxvGateTruePromptsChoose
+  // /lxvGateFalseSilentSkipは「ゲート成立→支払う」「ゲート不成立→プロンプト自体が出ない」の2branchのみ検証
+  // 済みで、**「ゲート成立→CHOOSE出現→あえて『スキップ』を選ぶ」**という(xi)本来の主題（続き206修正前は
+  // コスト踏み倒しで本体がそのまま実行されていた）はまだ未検証だった。同じWXDi-P02-077-E1で、手札6枚以上
+  // （ゲート成立）にしたうえで支払わず`optcost-skip`を選び、【ランサー】が付与されないことを確認する。
+  lxvGateTrueSkipNoBody: {
+    title: 'WXDi-P02-077-E1（タスク12(xi)＝ゲート成立でCHOOSE出現→あえてスキップ→本体〔ランサー付与〕は発動しない）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P02-077#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': ['WD04-010#1'], // 緑×1（支払えるはずだが今回はあえて払わない）
+        'hand': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5', 'WD01-013#6'], // 6枚≥6
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      let sawChoose = false;
+      let skipClicked = false;
+      for (let s = 0; s < 20; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lxvGateTrueSkipNoBody-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did && !skipClicked) {
+          const skipBtn = page.getByTestId('optcost-skip').first();
+          if (await skipBtn.count() && await skipBtn.isVisible().catch(() => false)) {
+            await skipBtn.click().catch(() => {}); did = 'tid:optcost-skip'; skipClicked = true;
+          }
+        }
+        const st = await H.queryState();
+        if (st?.pendingEffect === 'CHOOSE') sawChoose = true;
+        const lancerGranted = (st?.host?.keywordGrants ?? []).some(g => g.startsWith('WXDi-P02-077#1:') && g.includes('ランサー'));
+        H.log(`  lgts[${s}] -> ${did ?? 'なし'} | sawChoose=${sawChoose} skipClicked=${skipClicked} lancerGranted=${lancerGranted} hEnergy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+        if (skipClicked && !st?.pendingEffect) {
+          const energyUntouched = (st?.host?.energy ?? -1) === 1;
+          if (lancerGranted) {
+            return { pass: false, detail: `【実バグ再発】ゲート成立→スキップを選んだのに【ランサー】が付与された（コスト踏み倒しの旧バグが復活・hKwGrants=${JSON.stringify(st.host.keywordGrants)}）` };
+          }
+          if (!energyUntouched) {
+            return { pass: false, detail: `スキップしたのにエナが消費された（hEnergy=${st.host.energy}）` };
+          }
+          return { pass: true, detail: `ゲート成立（手札6枚以上）でCHOOSEが出現→「スキップ」を選択→エナは無傷（hEnergy=${st.host.energy}）かつ【ランサー】も付与されない（sawChoose=${sawChoose} lancerGranted=false）＝コスト踏み倒しバグは再発していない` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（sawChoose=${sawChoose} skipClicked=${skipClicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // §7 タスク12(lx)(a)（2026-08-05・Sonnet）＝WX12-020-E3：アタック時にまず相手1体を対象選択（SELECT_TARGET_ONLY）
   // →STORE_LAST_PROCESSED_TARGETS→自分の手札を好きな枚数（upToCount）捨てる→POWER_MODIFY{targetsStored,
   // deltaPerLastProcessedCount}で「捨てた枚数×-6000」がその1体だけに乗ることを確認する。
