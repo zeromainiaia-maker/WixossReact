@@ -4,6 +4,9 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-05・続き350・Sonnet 5〔§7実機検証の続き＝トラッシュ領域移動ロックで実バグ発見〕）＝ユーザー指示「実機検証の続きを行う」で§7次の一手の3番目の項目（トラッシュ領域移動ロック）を検証→実バグを発見しOpusタスク12(cvii)へ登録**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ2件追加＝既定order 105→106件）・`docs/PLAN.md`／`BUGFIXES.md`のみ。
+  - **🆕 新規実バグ1件を発見・Opusタスク12(cvii)へ登録**＝`isOwnTrashMoveLocked`が見る`ctx.currentPhase`を`BattleScreen.tsx`のExecCtx構築6箇所（4855/4909/4958/4999/6636/6938行）がどこも設定しておらず、実UI経路では常に`undefined`＝`LOCK_OPP_TRASH_MOVE`機構（`WX24-P4-007-E1`③／`WXDi-P14-005-E1`c2の2枚専用）が**実ゲームで丸ごと不発**。`lock_trash_move_this_turn:true`を注入してもMAINフェイズで普通にトラッシュのカードを手札に加えられてしまうことを`trashMoveLockBlocksSelfEffect`で2回連続再現（対照`trashMoveLockAllowsWhenUnlocked`＝フラグ無しの正常系は既定orderに追加）。golden側は`src/verify/main.ts`が`currentPhase`を手動で埋めるため緑のまま＝(ci)(cii)(cv)(civ)(cvi)と同型の「engineは正しいがUI配線が経路を通していない」系。
+
 - **セッション（2026-08-05・続き349・Sonnet 5〔§7実機検証の続き＝先頭2項目を消化〕）＝ユーザー指示「実機検証の続きを行う」で§7次の一手の先頭2項目（`WXDi-P11-063`メモリア下配置選択／【常】版4枚自己バフ停止）を消化**。**engine/parser/JSON は無変更**（golden/census/held/smoke/fuzzは前回値からすべて据置＝1366/1288/257枚/10679/0）。触った層は`scripts/verifyBattleDrive.mjs`（新規シナリオ4件追加＝既定order 101→105件）・`docs/PLAN.md`／`BUGFIXES.md`のみ。
   - **✅実機検証クローズ2件**：①`WXDi-P11-063-E2`のメモリア下配置選択＝`spellUnderMemoriaPlace`/`spellUnderMemoriaSkip`で置く/スキップの両方を各2回連続PASS確認（part1の同名STUBに食われて長期間到達不能だった経路をUIで初実走）。②`WXK08-086`等【常】版4枚の自己バフ停止＝`aboveSelfSelfBuffStopped`（単独配置で自己バフなし）/`wxdip03057DownUnderRed`（【起】《ダウン》で他の赤シグニの下に潜るとホストが12,000→14,000）を各2回連続PASS確認。新規実バグは0件（両方とも既存修正済みの反転検証）。
   - **🔎 検証手法の知見**＝CONTINUOUS/PERMANENTのaboveSelf POWER_MODIFY（`effectEngine.ts:1556`のスタック走査）は`temp_power_mods`に一切書かれない純計算値（UI描画時に都度算出）＝`queryState()`の`powerMods`では検出できない。判定には対象ゾーンのDOM表示パワー（`page.getByTestId('my-signi-zone-N').innerText()`）を読む必要がある＝INSTANT/UNTIL_END_OF_TURN系のPOWER_MODIFY（`temp_power_mods`に書かれる）との違いに注意。
