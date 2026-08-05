@@ -7219,9 +7219,9 @@ const scenarios = {
         // グロウ（直接実行/コスト選択サブ画面の両対応・各クリックは短いタイムアウトでハング防止）
         // ⚠「グロウ」は画面上部の常設フェイズナビにも同名ボタンが存在し候補モーダルを開いた後も隠れず残る＝
         //   候補/コスト選択ボタンを先にチェックしないと毎回このナビボタンを再クリックし続けて進まない。
-        if (!did && !exceedActivated && !grown) {
+        if (!did && !exceedActivated) {
           // フェイズドリフト対策（VERIFY_BROWSER.md既知の罠＝注入直後にturn_phaseがGROW→MAINへ流れ、
-          // GrowModalがphase依存で閉じてしまう）＝グロウが済むまで毎周GROWを再注入してから状態を見る。
+          // GrowModalがphase依存で閉じてしまう）＝エクシード発動まで毎周GROWを再注入してから状態を見る。
           await H.repatchTop({ active: 'host', turn_phase: 'GROW', effect_stack: null, pending_effect: null });
           await page.waitForTimeout(300);
         }
