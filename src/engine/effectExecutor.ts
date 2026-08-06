@@ -7459,6 +7459,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const na = action as import('../types/effects').NegateAttackAction;
       const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
+      // 対象が**いま宣言中のアタッカー**なら、事前登録（negated_attacks＝アタック宣言時に見る）では止まらない。
+      // 進行中のアタックは Phase2（resolvePendingSigniBattleFor）が見る cancel_current_signi_attack で落とす（Opusタスク12(cx)）。
+      if (cardNum === attackingSigniOf(s)) {
+        const cancelled: PlayerState = { ...s, cancel_current_signi_attack: true };
+        return done(addLog(setOwnerState(tgtOwner, cancelled, ctx),
+          `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}のアタックを無効にした`));
+      }
       const negated = [...(s.negated_attacks ?? []), cardNum];
       // escapeDiscard: アタック側が手札N枚捨てで回避可（G154 BURST）
       const escape = na.escapeDiscard ? { ...(s.negated_attacks_escape ?? {}), [cardNum]: na.escapeDiscard } : s.negated_attacks_escape;
