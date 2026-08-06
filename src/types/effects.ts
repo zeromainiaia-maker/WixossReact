@@ -824,6 +824,11 @@ export interface NegateAttackAction {
   target: EffectTarget;
   // escapeDiscard: アタック側が手札をN枚捨てれば無効化を回避できる（「対戦相手が手札をN枚捨てないかぎり無効」。G154 BURST）
   escapeDiscard?: number;
+  // attackingOnly: 原文「対戦相手の**アタックしている**シグニ1体を対象とし」＝候補を**いま宣言中のアタッカー**に限定する
+  //（`pending_signi_battle` のゾーン頂点）。無指定の NEGATE_ATTACK は「次にアタックしたとき無効」＝場の全シグニが候補。
+  // 進行中のアタックは `negated_attacks`（宣言時に見る事前登録）では止まらないため、実行側は
+  // アタッカー state の `cancel_current_signi_attack` を立てる（Opusタスク12(cx)）。
+  attackingOnly?: boolean;
 }
 
 // 自身出撃制限（【常】：このシグニ/カード/キーは〜場合にしか（新たに）場に出すことができない）。
