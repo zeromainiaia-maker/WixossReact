@@ -1624,11 +1624,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   刻む**とコスト支払いと同じ payLrigDownCost 経路（センター→アシストL→R・level 条件つき）へ乗り、
     //   「この方法でダウンしたルリグ」の記録も入る。「アシストルリグ」限定形（WX24-P3-043）は受け皿が無く据置。
     {
-      const upLrigM = t.match(/アップ状態の(?:レベル([０-９\d]+)の)?ルリグ([０-９\d]+)体をダウン/);
+      const upLrigM = t.match(/(?:(あなた|対戦相手)の)?アップ状態の(?:レベル([０-９\d]+)の)?ルリグ([０-９\d]+)体をダウン/);
       if (upLrigM && !t.includes('シグニ')) {
-        const lvl = upLrigM[1] ? parseNum(upLrigM[1]) : undefined;
+        // ⚠ owner は**名詞句直前の所有者表記**から取る。文中の他の句（「対戦相手にダメージが与えられていなかった
+        //   場合」＝WXDi-D04-004）を signiClauseOwner が拾って owner:'opponent' に化ける。
+        const lrigOwner: Owner = upLrigM[1] === '対戦相手' ? 'opponent' : 'self';
+        const lvl = upLrigM[2] ? parseNum(upLrigM[2]) : undefined;
         return { type: 'DOWN', target: {
-          type: 'LRIG', owner, count: parseNum(upLrigM[2]),
+          type: 'LRIG', owner: lrigOwner, count: parseNum(upLrigM[3]),
           filter: { isUp: true, ...(lvl !== undefined ? { level: lvl } : {}) },
         }, ...(downOptional ? { optional: true } : {}) };
       }

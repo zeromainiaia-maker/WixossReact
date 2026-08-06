@@ -333,6 +333,20 @@ WXEX2-18 WXEX2-70
   + [0].action.steps[1].then.target.filter.level.max = 3
   + [0].action.steps[1].then.target.upToCount = false
 
+## +LRIG -SIGNI ［2枚］
+WXDi-D03-004 WXDi-D04-004
+--- WXDi-D03-004
+  原文: 【チーム】＜NoLimit＞【チーム常】：アタックしているあなたのシグニのパワーを＋2000する。【出】：カードを１枚引き、【エナチャージ１】をする。【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つ
+  - [2].action.abilities[0].action.steps[0].target.filter.cardType = "シグニ"
+  - [2].action.abilities[0].action.steps[0].target.upToCount = false
+  ~ [2].action.abilities[0].action.steps[0].target.type : "SIGNI" → "LRIG"
+  ~ [2].action.abilities[0].action.steps[0].target.count : 1 → 2
+--- WXDi-D04-004
+  原文: 【チーム】＜CardJockey＞【チーム出】：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りをトラッシュに置く。【起】《ゲーム１回》《白×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、あなたのアップ状態のレ
+  - [1].action.abilities[0].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.abilities[0].action.steps[0].target.upToCount = false
+  ~ [1].action.abilities[0].action.steps[0].target.type : "SIGNI" → "LRIG"
+
 ## +EXILE +LAST_PROCESSED_COUNT_GTE +LRIG_DECK_CARD -DECK_CARD -IS_MY_TURN -TRASH ［2枚］
 WXDi-P04-013 WXDi-P04-016
 --- WXDi-P04-013
@@ -1242,6 +1256,17 @@ WXDi-CP01-042
   + [0].action.steps[1].then.id = "OPTIONAL_COST"
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
+
+## +LRIG×2 -SIGNI×2 ［1枚］
+WX24-P1-040
+--- WX24-P1-040
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態のルリグ１体をダウンしてもよい。その後、この方法でダウンしたルリグと同じレベルの対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それを手札に戻す。【自】：あなたのアタックフェイズ開始時、あなたのアップ状態のルリグ１体をダウンしてもよい。次の対戦相手のターン終了時まで、このシグニは
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.upToCount = false
+  - [1].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.steps[0].target.upToCount = false
+  ~ [0].action.steps[0].target.type : "SIGNI" → "LRIG"
+  ~ [1].action.steps[0].target.type : "SIGNI" → "LRIG"
 
 ## +CENTER_LRIG_OR_SIGNI -SIGNI ［1枚］
 WX24-P1-041
