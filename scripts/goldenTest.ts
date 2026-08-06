@@ -20308,15 +20308,19 @@ test('task12(xcvii) 「代わりにこの能力を失う」を離場6経路す�
     action: { type: 'STUB', id: 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', leaveVictimFilter: { crossState: true } },
     duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
   });
-  const actions: EffectAction[] = [
-    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
-    { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
-    { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
-    { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
-    { type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
-    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1 }, position: 'bottom' } as unknown as EffectAction,
+  // ⚠**2形態それぞれを回す**＝`count:1` は SELECT_TARGET を挟んで**単体カード用の case**（applyDirectAction）へ、
+  //   `count:'ALL'` は各 exec の**複数選択クロージャ**（applyBanish/applySend/…）へ入る＝**別コード**。
+  //   呼び忘れ（(xcvii)）が起きていたのは後者の `applySend` 側なので、片方だけでは網にならない。
+  const mkActions = (count: 1 | 'ALL'): EffectAction[] => [
+    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count } } as EffectAction,
+    { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count } } as EffectAction,
+    { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count } } as EffectAction,
+    { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count } } as EffectAction,
+    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count }, position: 'bottom' } as unknown as EffectAction,
+    // EXILE は複数選択クロージャを持たず単体 case のみ＝`count:1` 側だけで通る
+    ...(count === 1 ? [{ type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count } } as EffectAction] : []),
   ];
-  for (const action of actions) {
+  for (const [count, action] of ([1, 'ALL'] as const).flatMap(c => mkActions(c).map(a => [c, a] as const))) {
     const victim = fresh();
     const ctx = mkCtx({}, { signi: [victim, null, null] });
     ctx.otherState = {

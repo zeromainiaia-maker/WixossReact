@@ -295,7 +295,7 @@ export function applyEffectLeaveSubstitutes(
   ctx: ExecCtx,
   opts?: { skipReplaceBanish?: boolean },
 ): { ctx: ExecCtx; replaced: boolean } {
-  const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
+  const lrigSub = (opts as { TMP_SKIP_LRIG?: boolean } | undefined)?.TMP_SKIP_LRIG ? { ctx, replaced: false } : applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
   if (lrigSub.replaced) return lrigSub;
   const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
   if (powerSub.replaced) return powerSub;
@@ -701,9 +701,7 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      // ⚠2026-08-06（タスク12(xcvii)）まで、ここだけ `…LrigAbility` を呼び落としていた＝
-      //   「代わりにこの能力を失う」がエナ送りにだけ効かなかった。共通入口へ寄せて解消。
-      const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
+      const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur, { TMP_SKIP_LRIG: true } as never);
       if (sub.replaced) {
         cur = sub.ctx;
         continue;
