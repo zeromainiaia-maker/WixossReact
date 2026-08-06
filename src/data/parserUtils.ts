@@ -369,9 +369,15 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   if (hasOtherSelfSigniNoun(text) && /《ディソナアイコン》のシグニ/.test(text)) filter.isDisona = true;
   // 「この方法でダウンしたルリグと共通する色を持つ〜シグニ」＝直前に実処理したルリグの色基準。
   // 名詞句修飾形に限定し、一般の「共通する色」全文スキャンには広げない。
+  // ⚠ 参照先は「効果内の DOWN（lastProcessedCards）」と「コストのルリグダウン（PlayerState）」の両方がありうる。
+  //   colorMatchesLastDownedLrig は前者を優先し後者へフォールバックする（コスト経路は実UIでは支払いと効果解決が
+  //   別 ExecCtx なので lastProcessedCards が届かず、旧 colorMatchesLastProcessed は丸ごと空ヒットだった
+  //   ＝WX24-P2-069。タスク12(cix)）。
   if (/この方法でダウンしたルリグと共通する色を持つ(?:対戦相手の)?(?:パワー[０-９\d]+以下の)?シグニ/.test(text)) {
-    filter.colorMatchesLastProcessed = true;
+    filter.colorMatchesLastDownedLrig = true;
   }
+  // 「この方法でダウンしたルリグと同じレベルの〜シグニ」＝ダウンしたルリグのレベル一致（WX25-P1-112／WX24-P1-040）。
+  if (/この方法でダウンしたルリグと同じレベルの/.test(text)) filter.levelEqLastDownedLrig = true;
   // 「（対戦相手|あなた）の中央のシグニゾーンにある〈filter〉シグニN体」＝ゾーン限定（centerZoneOnly・engine の
   //   matchesStateFilter が zoneIdx===1 で判定）。従来は落ちて**どのゾーンのシグニでも選べる過剰実行**だった
   //   （WX15-033-E2／WX20-025-E3／WXDi-P02-065／WX24-P2-091＝タスク12(lxiii)）。
