@@ -9037,6 +9037,33 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     resolvedAction = markSelfPM(resolvedAction);
   }
 
+  // 「その（対戦相手の）シグニ」＝**トリガー元の相手シグニ**に限定する（タスク12(c)②）。
+  // ON_TARGETED（このシグニを対象にしてきたシグニ）と ON_SIGNI_BATTLE（バトルした相手シグニ）は、
+  // 原文が選択させず「その〜」と一意に指すのに、従来は filter 無しの BANISH/EXILE ＝**相手シグニなら
+  // 誰でも選べる過剰対象化**だった（WXDi-P03-056-E1／WX05-047-E1／WXDi-P13-089-E2）。
+  // engine は `filter.isTriggerSource` を execBanish/execExile で `ctx.triggeringCardNum` に絞って解決する。
+  // ⚠「〜１体を対象とし」を含むブロックは除外＝「その対戦相手のシグニ」が**選んだ対象への照応**になる
+  //   （WX20-039-CB）。トリガー元ではないので刻むと別のシグニを指してしまう。
+  if ((timing?.includes('ON_TARGETED') || timing?.includes('ON_SIGNI_BATTLE'))
+      && /そ(?:の対戦相手)?のシグニを(?:バニッシュする|ゲームから除外する)/.test(block)
+      && !/対象とし/.test(block)) {
+    const pinTriggerSource = (a: EffectAction): EffectAction => {
+      if (a.type === 'BANISH' || a.type === 'EXILE') {
+        const wt = a as EffectAction & { target?: EffectTarget };
+        if (wt.target?.type === 'SIGNI' && wt.target.owner === 'opponent' && wt.target.count === 1
+            && !wt.target.filter?.isTriggerSource) {
+          return { ...a, target: { ...wt.target, filter: { ...(wt.target.filter ?? {}), isTriggerSource: true } } } as EffectAction;
+        }
+      }
+      if (a.type === 'SEQUENCE') {
+        const seq = a as import('../types/effects').SequenceAction;
+        return { ...seq, steps: seq.steps.map(pinTriggerSource) };
+      }
+      return a;
+    };
+    resolvedAction = pinTriggerSource(resolvedAction);
+  }
+
   // 「N枚まで／好きな枚数捨てる」は支払いコストではなく、選んだ枚数を後段で参照する
   // action の一部。COUNT_BASED_DRAW_OR_POWER が SELECT_TARGET → continuation で実際に
   // 手札からトラッシュへ移すため、この具体文型では cost/costUnparsed を出力しない。
