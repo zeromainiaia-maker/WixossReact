@@ -274,16 +274,13 @@ export function execStubPart1(
     const count = stub.lrigDownVariableCount ?? 0;
     const paid = payLrigDownCost(ctx.ownerState, { count }, ctx.cardMap);
     if (!paid) return done(addLog(ctx, `ルリグ${count}体をコストでダウンできない`));
-    const levelSum = paid.paidCards.reduce((sum, id) => {
-      const lv = Number(ctx.cardMap.get(getCardNum(id))?.Level);
-      return sum + (Number.isFinite(lv) ? lv : 0);
-    }, 0);
+    // レベル合計・ダウンしたルリグの記録は payLrigDownCost が state へ書く（単一入口・タスク12(cix)）。
     return done(addLog({
       ...ctx,
-      ownerState: { ...paid.state, last_lrig_down_level_sum: levelSum },
+      ownerState: paid.state,
       lastProcessedCards: paid.paidCards,
-      seqVars: { ...ctx.seqVars, lastDownedLrigLevelSum: levelSum },
-    }, `ルリグ${count}体（レベル合計${levelSum}）をコストでダウンした`));
+      seqVars: { ...ctx.seqVars, lastDownedLrigLevelSum: paid.levelSum },
+    }, `ルリグ${count}体（レベル合計${paid.levelSum}）をコストでダウンした`));
   }
   if (stub.id === 'INTERNAL_PAY_BEAT_SIGNI') {
     let paidState = ctx.ownerState;
