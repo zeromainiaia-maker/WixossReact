@@ -837,9 +837,18 @@ test('§6.3 runtime GRANT_EFFECT: instanceId付与CONT/AUTOと強制正面アタ
     const p13Inner = (p13.action as { effect?: CardEffect }).effect!;
     const p13Map = new InstanceMap<CardEffect[]>(effectsMap);
     p13Map.set(host, [...(p13Map.get(host) ?? []), p13Inner]);
+    // ⚠パワー比較は**実効パワー**で行う（タスク12(cxii) で powers 未指定時も自前計算するようになった）。
+    //   `SIGNI_P12000` = WD01-009 は「対戦相手のターンの間、あなたのシグニのパワーを＋1000」を自分で持つため、
+    //   相手側に置くと 13000 になり「同パワー」が成立しない＝盤面を素直に読むと**そのほうが正しい**。
+    //   ここで固定したいのは「同パワーならランサー／異なれば不発」なので、実効パワーを明示して意図どおりに組む。
+    const eqPowers = new Map<string, number>([[host, 12000], [front, 12000]]);
     const equal = collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
-      mkState({ signi: [null, null, front] }), true, p13Map, cm);
+      mkState({ signi: [null, null, front] }), true, p13Map, cm, eqPowers);
     ok(equal[host]?.includes('ランサー'), '正面と同パワーならランサー');
+    // powers 未指定＝自前計算では相手の WD01-009 が自分のターン中に＋1000 されるので同パワーにならない（不発が正）
+    ok(!collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
+      mkState({ signi: [null, null, front] }), true, p13Map, cm)[host]?.includes('ランサー'),
+      '相手の常在バフで正面が13000になれば同パワーではない（実効パワーで判定される）');
     const different = `${SIGNI_P3000}#different-power`;
     ok(!collectContinuousGrantedKeywords(mkState({ signi: [host, null, null] }),
       mkState({ signi: [null, null, different] }), true, p13Map, cm)[host]?.includes('ランサー'),
