@@ -23377,6 +23377,145 @@ test('task12(lxxxii) 第3波 WXK08-002-E1: アーツの3択・②のany/2体ま�
   ok(over.ownerState.field.signi[0] === null && over.otherState.field.signi[2]?.at(-1) === high, '合計10000超の後続対象を拒否');
 }));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// タスク12(cix)：「この方法でダウンしたルリグ」参照（レベル一致／共通色）と、
+//   対象指定を伴わない「アップ状態のルリグN体をダウン」＝ルリグ（アシスト含む）ダウン
+// ─────────────────────────────────────────────────────────────────────────────
+test('task12(cix) payLrigDownCost records the downed LRIGs on PlayerState (cost path carrier)', withSavedCursor(() => {
+  const lv2 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 2);
+  const lv1 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 1);
+  const st = mkState({ lrig: [`${lv2}#center`], assistL: [`${lv1}#left`] });
+  st.field.lrig_down = false; st.field.assist_lrig_l_down = false;
+  const paid = payLrigDownCost(st, { count: 2 }, cardMap)!;
+  eq(paid.paidCards.join(','), `${lv2}#center,${lv1}#left`, '支払い順（センター→アシストL）');
+  eq(paid.state.last_lrig_down_cards?.join(','), `${lv2}#center,${lv1}#left`,
+     '支払い関数が「この方法でダウンしたルリグ」を PlayerState へ記録（実UIは支払いと解決が別 ExecCtx）');
+  eq(paid.state.last_lrig_down_level_sum, 3, 'レベル合計も同じ入口で記録');
+  eq(paid.levelSum, 3, '呼び出し側が再計算せずに済むよう levelSum を返す');
+  eq(st.last_lrig_down_cards, undefined, '入力 state は破壊しない');
+}));
+
+test('task12(cix) WX25-P1-112-E1: REMOVE_ABILITIES is limited to the downed LRIG level', withSavedCursor(() => {
+  const effect = effectsMap.get('WX25-P1-112')!.find(e => e.effectId === 'WX25-P1-112-E1')!;
+  eq(effect.cost?.lrigDown?.count, 1, 'コストはアップ状態のルリグ1体ダウン');
+  const lrigLv2 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 2);
+  const sameLv = findCard(c => isSigni(c) && c.Level === '2');
+  const otherLv = findCard(c => isSigni(c) && c.Level === '4');
+  const ctx = mkCtx({}, { signi: [sameLv, otherLv, null] }, 'WX25-P1-112');
+  ctx.ownerState.field.lrig = [`${lrigLv2}#center`];
+  ctx.ownerState.field.lrig_down = false;
+  // 実UI と同じ順序＝コストを払ってから効果を解決する（支払いは BattleScreen 側・記録は PlayerState 経由）。
+  const paid = payLrigDownCost(ctx.ownerState, effect.cost!.lrigDown!, cardMap)!;
+  const after = finish(executeEffect(effect, { ...ctx, ownerState: paid.state }), { ...ctx, ownerState: paid.state });
+  eq((after.otherState.abilities_removed ?? []).join(','), sameLv, 'ダウンしたルリグと同レベルのシグニだけが能力を失う');
+  // 参照不能（コスト未払い＝記録なし）なら空ヒット＝相手シグニ全体を巻き込まない。
+  const noPay = finish(executeEffect(effect, ctx), ctx);
+  eq((noPay.otherState.abilities_removed ?? []).length, 0, '参照不能なら誰の能力も失われない（過剰実行しない側へ倒す）');
+}));
+
+test('task12(cix) WX24-P1-040: optional LRIG down pays center→assist and gates the level filter', withSavedCursor(() => {
+  const e1 = effectsMap.get('WX24-P1-040')!.find(e => e.effectId === 'WX24-P1-040-E1')!;
+  const down = (e1.action as SequenceAction).steps[0] as { type: string; target: { type: string; owner: string; filter?: { isUp?: boolean } } };
+  eq(down.target.type, 'LRIG', '「あなたのアップ状態のルリグ1体をダウン」はシグニではなくルリグ');
+  eq(down.target.filter?.isUp, true, 'filter.isUp＝センター固定ではない（アシストも「ルリグ」）の判別子');
+  const lrigLv3 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 3);
+  const sameLv = findCard(c => isSigni(c) && c.Level === '3');
+  const otherLv = findCard(c => isSigni(c) && c.Level === '1');
+  const mk = () => {
+    const ctx = mkCtx({}, { signi: [sameLv, otherLv, null] }, 'WX24-P1-040');
+    ctx.ownerState.field.lrig = [`${lrigLv3}#center`];
+    ctx.ownerState.field.assist_lrig_l = [`${lrigLv3}#left`];
+    ctx.ownerState.field.lrig_down = true;   // センターは既にダウン＝アシストで払う
+    ctx.ownerState.field.assist_lrig_l_down = false;
+    return ctx;
+  };
+  const ctx = mk();
+  const offered = executeEffect(e1, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'ダウンする/スキップの二択');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const downed = resumeChoose('down', offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs });
+  eq(downed.ownerState.field.assist_lrig_l_down, true, 'センターがダウン済みならアシストLをダウンする');
+  eq(downed.ownerState.last_lrig_down_cards?.join(','), `${lrigLv3}#left`, '効果内ダウンも同じ入口で記録される');
+  ok(!downed.done && downed.pending.type === 'CHOOSE', '続けて《無》任意コストの pay/skip');
+  if (downed.done || downed.pending.type !== 'CHOOSE') return;
+  const target = resumeChoose('pay', downed.pending, { ...ctx, ownerState: downed.ownerState, otherState: downed.otherState, logs: downed.logs, lastProcessedCards: downed.lastProcessedCards });
+  ok(!target.done && target.pending.type === 'SELECT_TARGET', '支払い後に対象選択へ');
+  if (target.done || target.pending.type !== 'SELECT_TARGET') return;
+  eq(target.pending.candidates.join(','), sameLv, 'ダウンしたルリグと同レベルの相手シグニだけが候補');
+
+  // スキップ枝＝「この方法でダウンした」記録を落とし、後続フィルタを空ヒットにする（did-it ゲート）。
+  const ctx2 = mk();
+  ctx2.ownerState.last_lrig_down_cards = [`${lrigLv3}#center`]; // 別効果の支払い記録が残っている状況
+  const offered2 = executeEffect(e1, ctx2);
+  if (offered2.done || offered2.pending.type !== 'CHOOSE') { ok(false, 'CHOOSE を提示'); return; }
+  const skipped = resumeChoose('skip', offered2.pending, { ...ctx2, ownerState: offered2.ownerState, otherState: offered2.otherState, logs: offered2.logs });
+  eq(skipped.ownerState.last_lrig_down_cards, undefined, 'スキップ時は古い記録を持ち越さない');
+  const done2 = finish(skipped, ctx2);
+  ok(done2.otherState.field.signi.every((s, i) => s?.at(-1) === [sameLv, otherLv, null][i]), 'スキップなら誰も手札に戻らない');
+}));
+
+test('task12(cix) WX24-P1-040-E2: shadow scope resolves to the downed LRIG level and stays on this signi', withSavedCursor(() => {
+  const e2 = effectsMap.get('WX24-P1-040')!.find(e => e.effectId === 'WX24-P1-040-E2')!;
+  const steps = (e2.action as SequenceAction).steps as { type: string; target: { type: string; count: number | string; filter?: { thisCardOnly?: boolean } }; keyword?: string }[];
+  eq(steps[0].target.type, 'LRIG', 'ダウン対象はルリグ');
+  eq(steps[1].keyword, 'シャドウ:{"downerLrigLevel":true}', 'シャドウのスコープは「この方法でダウンしたルリグと同じレベル」');
+  eq(steps[1].target.filter?.thisCardOnly, true, '「このシグニは〜を得る」＝効果元自身（他のシグニを選べない）');
+  const lrigLv4 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 4);
+  const self = findCard(c => isSigni(c) && c.Level === '3');
+  const ctx = mkCtx({ signi: [self, null, null] }, {}, self);
+  ctx.ownerState.field.lrig = [`${lrigLv4}#center`];
+  ctx.ownerState.field.lrig_down = false;
+  const offered = executeEffect(e2, ctx);
+  if (offered.done || offered.pending.type !== 'CHOOSE') { ok(false, 'ダウンする/スキップの二択'); return; }
+  const after = finish(resumeChoose('down', offered.pending, { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs }), ctx);
+  const granted = after.ownerState.keyword_grants_until_opp_turn?.[self] ?? after.ownerState.keyword_grants?.[self] ?? [];
+  eq(granted.join(','), 'シャドウ:{"levelEq":4}', 'ダウンしたルリグのレベル4で解決したシャドウを効果元自身が得る');
+}));
+
+test('task12(cix) LRIG down without a target designation keeps count and level (WXDi-D03-004 / D04-004)', withSavedCursor(() => {
+  const shape = (cardNum: string, effectId: string) => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const granted = (eff.action as { abilities: CardEffect[] }).abilities[0];
+    return (granted.action as SequenceAction).steps[0] as { type: string; target: { type: string; owner: string; count: number; filter?: { isUp?: boolean; level?: number } } };
+  };
+  const d03 = shape('WXDi-D03-004', 'WXDi-D03-004-E3');
+  eq(d03.target.type, 'LRIG', 'D03: シグニではなくルリグ');
+  eq(d03.target.count, 2, 'D03: 「レベル2のルリグ2体」の枚数');
+  eq(d03.target.filter?.level, 2, 'D03: レベル条件');
+  const d04 = shape('WXDi-D04-004', 'WXDi-D04-004-E2');
+  eq(d04.target.type, 'LRIG', 'D04: シグニではなくルリグ');
+  eq(d04.target.owner, 'self', 'D04: 「対戦相手にダメージが〜」の別句に引かれて opponent へ化けない');
+  eq(d04.target.filter?.level, 2, 'D04: レベル条件');
+}));
+
+test('task12(cix) WX24-P2-069: paid LRIG color filter uses the cost-path carrier only', withSavedCursor(() => {
+  const eff = effectsMap.get('WX24-P2-069')!.find(e => e.effectId === 'WX24-P2-069-E1')!;
+  const filter = (eff.action as { target: { filter: Record<string, unknown> } }).target.filter;
+  eq(filter.colorMatchesLastDownedLrig, true, 'コスト経路でも届く新キーへ移行');
+  eq(filter.colorMatchesLastProcessed, undefined, '実UIで空ヒットしかしない旧キーは残さない（二重条件で常に0候補になる）');
+}));
+
+test('task12(cix) "このシグニは【X】を得る" grants stay on the source signi', withSavedCursor(() => {
+  // 従来は filter が無く engine が「自分のシグニ1体」を選ばせていた＝別のシグニへ付与できる過剰対象化。
+  for (const [cardNum, effectId] of [['WX09-013', 'WX09-013-E1'], ['WD04-010', 'WD04-010-E1']] as const) {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId);
+    if (!eff) continue;
+    const find = (node: unknown): { filter?: { thisCardOnly?: boolean } } | undefined => {
+      if (!node || typeof node !== 'object') return undefined;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'GRANT_KEYWORD') return o.target as { filter?: { thisCardOnly?: boolean } };
+      for (const v of Object.values(o)) {
+        const hit = Array.isArray(v) ? v.map(find).find(Boolean) : find(v);
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    const tgt = find(eff.action);
+    ok(!!tgt, `${effectId}: GRANT_KEYWORD がある`);
+    eq(tgt?.filter?.thisCardOnly, true, `${effectId}: 付与先は効果元自身`);
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
