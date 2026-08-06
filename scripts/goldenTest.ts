@@ -21363,8 +21363,12 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
     eq(moved.join(' / '),
       'WX07-065(《青》×５→《青》×2) / WX08-028(《青》×７→《青》×4) / WX08-032(《黒》×９→《黒》×6) / '
       + 'WX16-033(《黒》×９→《黒》×6) / WX21-Re01(《白》×２→なし) / SP26-003(《黒》×７→《黒》×1) / '
-      + 'SP38-002(《赤》×２《無》×３→《赤》×2) / SPK01-14(《赤》×２《無》×１→《無》×1)',
-      '相手盤面フルで動くのは (xcii) の8枚だけ');
+      + 'SP38-002(《赤》×２《無》×３→《赤》×2) / SPK01-14(《赤》×２《無》×１→《無》×1) / '
+      // 🆕 (xciv) β：この盤面は**自分ライフ7・相手ライフ0**なので「ライフクロスの枚数が対戦相手より
+      //    多いかぎり」も真＝正しく動く（緩めすぎではない）。他の β 4枚は相手の該当ゾーンが
+      //    未指定＝安全側で成立しないため動かない。
+      + 'WX25-P3-002(《白》×４→《白》×2)',
+      '相手盤面フルで動くのは (xcii) の8枚＋(xciv) β のライフ比較1枚だけ');
   });
 }
 
@@ -23716,6 +23720,56 @@ test('task12(lv) OPTIONAL_ACTIVATE offers 発動する first so the CPU auto-res
   eq(r.pending.options[0].label, '発動する', '先頭が「発動する」＝CPU 自動応答は発動を選ぶ');
   eq(r.pending.options[0].available, true, '無コストなので常に available');
   eq(r.pending.options[1].label, '発動しない', '2番目がスキップ');
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// タスク12(xciv)：コスト軽減の残テール（未カバー23枚を全数分類→クラスタごとに実装）
+// ─────────────────────────────────────────────────────────────────────────────
+test('task12(xciv) cost reduction tail: each new cluster actually fires on a satisfying board', () => withSavedCursor(() => {
+  const findSigni = (pred: (c: CardData) => boolean) => findCard(c => c.Type === 'シグニ' && pred(c));
+  const findLrigC = (pred: (c: CardData) => boolean) => findCard(c => c.Type === 'ルリグ' && pred(c));
+  const findArtsC = (pred: (c: CardData) => boolean) => findCard(c => c.Type === 'アーツ' && pred(c));
+  const mkMy = (o: { life?: string[]; hand?: string[]; energy?: string[]; trash?: string[]; lrigTrash?: string[]; field?: PlayerState['field'] }) => ({
+    life_cloth: o.life ?? [], hand: o.hand ?? [], energy: o.energy ?? [], trash: o.trash ?? [],
+    lrig_trash: o.lrigTrash ?? [],
+    field: o.field ?? ({ lrig: [], signi: [null, null, null] } as unknown as PlayerState['field']),
+  });
+  const run = (num: string, my: ReturnType<typeof mkMy>, opp?: object, lrigName?: string, lrigLevel?: number) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, lrigName, undefined, lrigLevel, cardMap as Map<string, CardData>, undefined, undefined, { oppState: opp as never });
+
+  // α：ピース5枚＝場の〔色〕ルリグ（センター＋アシスト）1体につき軽減。2体以上のゲートつき。
+  const whiteLrig = findLrigC(c => (c.Color ?? '').includes('白'));
+  const twoWhite = { lrig: [whiteLrig], assist_lrig_l: [whiteLrig], assist_lrig_r: [], signi: [null, null, null] } as unknown as PlayerState['field'];
+  eq(run('WXDi-P16-003', mkMy({ field: twoWhite })), '《白》×1《無》×1', 'α: 白ルリグ2体で《白×2》ぶん減る');
+  const oneWhite = { lrig: [whiteLrig], assist_lrig_l: [], assist_lrig_r: [], signi: [null, null, null] } as unknown as PlayerState['field'];
+  eq(run('WXDi-P16-003', mkMy({ field: oneWhite })), cardMap.get('WXDi-P16-003')!.Cost, 'α: 1体だけなら「2体以上」ゲートで不成立');
+
+  // β：相手比較5枚＝ゾーン枚数差。相手側が未知なら成立させない（安いほうへ倒さない）。
+  eq(run('WX25-P3-002', mkMy({ life: ['a', 'b', 'c'] }), { life_cloth: ['x'] }), '《白》×2', 'β: ライフが多い');
+  eq(run('WX25-P3-006', mkMy({ hand: ['a', 'b', 'c'] }), { hand: ['x'] }), '《青》×2', 'β: 手札が2枚以上多い');
+  eq(run('WX25-P3-006', mkMy({ hand: ['a', 'b'] }), { hand: ['x'] }), cardMap.get('WX25-P3-006')!.Cost, 'β: 差1では足りない');
+  eq(run('WX25-P3-006', mkMy({ hand: ['a', 'b', 'c'] }), undefined), cardMap.get('WX25-P3-006')!.Cost, 'β: 相手未知なら成立させない');
+
+  // γ：2条件の重ね（早期 return できない形）。
+  const blueArts = findArtsC(c => (c.Color ?? '') === '青');
+  const blackArts = findArtsC(c => (c.Color ?? '') === '黒');
+  eq(run('WX12-013', mkMy({ lrigTrash: [blueArts, blackArts] })), '《青》×2《黒》×2', 'γ-1: 青と黒の両方で《無×2》落ちる');
+  eq(run('WX12-013', mkMy({ lrigTrash: [blueArts] })), '《青》×2《黒》×2《無》×1', 'γ-1: 片方だけなら半分');
+  eq(run('PR-460', mkMy({}), undefined, 'タウィル'), '《白》×1《無》×2', 'γ-3: センタールリグのクラス別');
+  const bikou = findSigni(c => (c.CardClass ?? '').includes('美巧'));
+  const bikouField = { lrig: [], signi: [[bikou], null, null] } as unknown as PlayerState['field'];
+  eq(run('WX08-030', mkMy({ field: bikouField, energy: [bikou] })), '《緑》×5《白》×5', 'γ-4: 場とエナの2ゾーンが累積');
+
+  // δ：個別形。
+  eq(run('WX09-037', mkMy({}), undefined, undefined, 5), '《白》×1《黒》×1', 'δ-1: センタールリグ Lv5以上');
+  eq(run('WX09-037', mkMy({}), undefined, undefined, 4), cardMap.get('WX09-037')!.Cost, 'δ-1: Lv4 では成立しない');
+  const chori = findSigni(c => (c.CardClass ?? '').includes('調理'));
+  const acceField = { lrig: [], signi: [[chori], null, null], signi_acce: [chori, null, null] } as unknown as PlayerState['field'];
+  eq(run('WX15-060', mkMy({ field: acceField })), '《緑》×2', 'δ-3: アクセされている＜調理＞1体');
+  const noAcceField = { lrig: [], signi: [[chori], null, null], signi_acce: [null, null, null] } as unknown as PlayerState['field'];
+  eq(run('WX15-060', mkMy({ field: noAcceField })), cardMap.get('WX15-060')!.Cost, 'δ-3: アクセが無ければ減らない');
+  eq(run('WD16-006', mkMy({ hand: ['a', 'b', 'c', 'd'] }), { hand: ['x'] }), '《青》×3', 'δ-4: 手札差3');
+  eq(run('WD16-006', mkMy({ hand: ['a'] }), { hand: ['x', 'y'] }), cardMap.get('WD16-006')!.Cost, 'δ-4: 差が0以下なら減らない');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

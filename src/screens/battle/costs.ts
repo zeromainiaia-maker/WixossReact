@@ -173,6 +173,12 @@ export interface CostReplaceCtx {
     life_cloth?: string[];
     coins?: number;
     abilities_removed?: string[];
+    // 「〔ゾーン〕の枚数が対戦相手より多いかぎり」「手札の枚数の差1につき」の相手側（タスク12(xciv)）。
+    // ⚠未指定なら軽減を**成立させない**（安いほうへ倒さない）＝I-5 と同じ安全側の扱い。
+    hand?: string[];
+    energy?: string[];
+    trash?: string[];
+    lrig_trash?: string[];
   };
   // 他カードの `SET_CARD_COST_REPLACEMENT` でゲーム間セットされたカード名指定の置換（`WXK03-002-E3`）。
   // 使用側カードの原文には何も書かれていないので、**EffectText 由来の規則より先**に見る。
@@ -342,7 +348,7 @@ export function computeCostReplacement(
 export function computeArtsEffectiveCost(
   // CardName は `card_cost_replacements`（カード名指定の置換）の照合に要る＝落とすと静かに効かなくなる
   card: { CardName?: string; Cost: string; EffectText?: string },
-  myState: { life_cloth: string[]; hand: string[]; field?: PlayerState['field']; trash?: string[]; lrig_trash?: string[] },
+  myState: { life_cloth: string[]; hand: string[]; field?: PlayerState['field']; trash?: string[]; lrig_trash?: string[]; energy?: string[] },
   lrigName?: string,
   oppLrigColor?: string,
   myLrigLevel?: number,
@@ -615,6 +621,130 @@ export function computeArtsEffectiveCost(
     m = costSentence.match(new RegExp(`あなたのライフクロスが対戦相手より多い場合[、,][^。]*?使用コストは${RED}減る`));
     if (m && oppSt?.life_cloth && myState.life_cloth.length > oppSt.life_cloth.length) {
       return applyReduce(base, parseReduceList(m[1]));
+    }
+  }
+
+  // ===== タスク12(xciv)：コスト軽減の残テール（未カバー23枚を全数分類して実装）=====
+  // ⚠在庫の見立ては「1枚ずつ形が違う＝クラスタ化できない」だったが、**規則 regex に原文が当たるか**で
+  //   数え直すと **α ピース5枚／β 相手比較5枚／γ 2条件の重ね4枚** の明確なクラスタがあった。
+  {
+    const oppSt2 = replaceCtx?.oppState;
+    const colorOf = (cn?: string) => (cn && cardMap?.get(getCardNum(cn))?.Color) ?? '';
+    // α. ピース5枚（`WXDi-P16-003`〜`007`）＝「あなたの場に〔色〕のルリグが２体以上いるかぎり、
+    //    このピースの使用コストはあなたの場にいる〔色〕のルリグ１体につき《色×1》減る」。
+    //    ⚠**場のルリグ＝センター＋アシスト左右**（シグニではない）。2体以上のゲートも原文どおり課す。
+    m = text.match(new RegExp(
+      `あなたの場に([白赤青緑黒])のルリグが([０-９\\d]+)体以上いるかぎり[、,]?[^。]*?使用コストはあなたの場にいる[白赤青緑黒]のルリグ[１1]体につき${RED}減る`));
+    if (m && myState.field && cardMap) {
+      const col = m[1];
+      const need = parseInt(toHalfWidth(m[2])) || 2;
+      const lrigs = [myState.field.lrig?.at(-1), myState.field.assist_lrig_l?.at(-1), myState.field.assist_lrig_r?.at(-1)];
+      const cnt = lrigs.filter(cn => !!cn && colorOf(cn).includes(col)).length;
+      if (cnt >= need) return applyReduce(base, parseReduceList(m[3]), cnt);
+    }
+    // β. アーツ5枚（`WX25-P3-002`/`004`/`006`/`008`/`010`）＝「〔ゾーン〕の枚数が対戦相手より〔N枚以上〕
+    //    多いかぎり、このアーツの使用コストは《色×2》減る」。⚠相手側が未知なら**成立させない**（I-5 と同じ安全側）。
+    m = text.match(new RegExp(
+      `あなたの(ライフクロス|ルリグトラッシュにあるアーツ|手札|エナゾーンにあるカード|トラッシュにあるカード)の枚数が対戦相手より(?:([０-９\\d]+)枚以上)?多いかぎり[、,][^。]*?使用コストは${RED}減る`));
+    if (m && oppSt2) {
+      const need = m[2] ? (parseInt(toHalfWidth(m[2])) || 1) : 1;
+      const zone = m[1];
+      const countZone = (st: { life_cloth?: string[]; hand?: string[]; energy?: string[]; trash?: string[]; lrig_trash?: string[] } | undefined): number | null => {
+        if (!st) return null;
+        if (zone === 'ライフクロス') return st.life_cloth?.length ?? null;
+        if (zone === '手札') return st.hand?.length ?? null;
+        if (zone === 'エナゾーンにあるカード') return st.energy?.length ?? null;
+        if (zone === 'トラッシュにあるカード') return st.trash?.length ?? null;
+        // ルリグトラッシュは**アーツだけ**を数える（原文「あるアーツの枚数」）
+        if (!cardMap) return null;
+        return (st.lrig_trash ?? []).filter(cn => cardMap.get(getCardNum(cn))?.Type === 'アーツ').length;
+      };
+      const mine = countZone(myState);
+      const theirs = countZone(oppSt2);
+      if (mine !== null && theirs !== null && mine - theirs >= need) return applyReduce(base, parseReduceList(m[3]), 1);
+    }
+    // γ-1. `WX12-013`＝「ルリグトラッシュに〔色〕のアーツがある場合《無×1》減り、〔色〕のアーツがある場合《無×1》減る」
+    //       ＝2条件が**重なる**（早期 return できない）。
+    m = text.match(new RegExp(
+      `ルリグトラッシュに([白赤青緑黒])のアーツがある場合${RED}減り[、,]?([白赤青緑黒])のアーツがある場合${RED}減る`));
+    if (m && myState.lrig_trash && cardMap) {
+      const hasArts = (col: string) => myState.lrig_trash!.some(cn => {
+        const c = cardMap.get(getCardNum(cn));
+        return c?.Type === 'アーツ' && (c.Color ?? '').includes(col);
+      });
+      let out = base;
+      if (hasArts(m[1])) out = applyReduce(out, parseReduceList(m[2]));
+      if (hasArts(m[3])) out = applyReduce(out, parseReduceList(m[4]));
+      if (out !== base) return out;
+    }
+    // γ-2. `WX12-049`＝「場に〔色〕の＜X＞のシグニがある場合、…《色×1》減り、〔色〕の＜X＞のシグニがある場合、《色×1》減る」
+    m = text.match(new RegExp(
+      `あなたの場に([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合[、,][^。]*?使用コストは${RED}減り[、,]([白赤青緑黒])の＜?([^＞]*)＞?のシグニがある場合[、,]${RED}減る`));
+    if (m && myState.field && cardMap) {
+      const hasSigni = (col: string, cls: string) => (myState.field!.signi ?? []).some(stack => {
+        const top = stack?.at(-1);
+        if (!top) return false;
+        const c = cardMap.get(getCardNum(top));
+        return !!c && (c.Color ?? '').includes(col) && (!cls || (c.CardClass ?? '').includes(cls));
+      });
+      let out = base;
+      if (hasSigni(m[1], m[2])) out = applyReduce(out, parseReduceList(m[3]));
+      if (hasSigni(m[4], m[5] || m[2])) out = applyReduce(out, parseReduceList(m[6]));
+      if (out !== base) return out;
+    }
+    // γ-3. `PR-460`＝「センタールリグが＜X＞の場合、《色×1》減り、センタールリグが＜Y＞の場合、《色×1》減る」
+    //       ＝実際はどちらか片方しか成立しないが、**式としては累積**で書く（原文どおり）。
+    m = text.match(new RegExp(
+      `使用コストはあなたのセンタールリグが＜([^＞]+)＞の場合[、,]${RED}減り[、,]あなたのセンタールリグが＜([^＞]+)＞の場合[、,]${RED}減る`));
+    if (m) {
+      let out = base;
+      if (lrigNameMatches(m[1])) out = applyReduce(out, parseReduceList(m[2]));
+      if (lrigNameMatches(m[3])) out = applyReduce(out, parseReduceList(m[4]));
+      if (out !== base) return out;
+    }
+    // γ-4. `WX08-030`＝「場にある＜X＞のシグニ1体につき《緑×1》減り、エナゾーンにある＜X＞のシグニ1枚につき《白×1》減る」
+    m = text.match(new RegExp(
+      `あなたの場にある＜([^＞]+)＞のシグニ[１1]体につき${RED}減り[、,]あなたのエナゾーンにある＜([^＞]+)＞のシグニ[１1]枚につき${RED}減る`));
+    if (m && cardMap) {
+      const cntField = (myState.field?.signi ?? []).filter(stack => {
+        const top = stack?.at(-1);
+        return !!top && (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(m![1]);
+      }).length;
+      const cntEnergy = (myState.energy ?? []).filter(cn => (cardMap.get(getCardNum(cn))?.CardClass ?? '').includes(m![3])).length;
+      let out = base;
+      if (cntField > 0) out = applyReduce(out, parseReduceList(m[2]), cntField);
+      if (cntEnergy > 0) out = applyReduce(out, parseReduceList(m[4]), cntEnergy);
+      if (out !== base) return out;
+    }
+    // δ-1. `WX09-037`＝「あなたのセンタールリグがレベルN以上の場合、…《無×2》減る」
+    //       ⚠既存の D（レベル比例）／「レベルN以上…《色》1つ少なく」形とは別文型。
+    m = text.match(new RegExp(`あなたのセンタールリグがレベル([０-９\\d]+)以上の場合[、,][^。]*?使用コストは${RED}減る`));
+    if (m && myLrigLevel !== undefined && myLrigLevel >= (parseInt(toHalfWidth(m[1])) || 99)) {
+      return applyReduce(base, parseReduceList(m[2]));
+    }
+    // δ-2. `WX12-056`＝「あなたのトラッシュにある《カード名》1枚につき《無×1》減る」＝カード名指定の枚数比例。
+    m = text.match(new RegExp(`あなたのトラッシュにある《([^》]+)》[１1]枚につき${RED}減る`));
+    if (m && myState.trash && cardMap) {
+      const cnt = myState.trash.filter(cn => cardMap.get(getCardNum(cn))?.CardName === m![1]).length;
+      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
+    }
+    // δ-3. `WX15-060`＝「あなたの場にあるアクセされている＜X＞のシグニ1体につき《緑×1》減る」
+    m = text.match(new RegExp(`あなたの場にあるアクセされている＜([^＞]+)＞のシグニ[１1]体につき${RED}減る`));
+    if (m && myState.field && cardMap) {
+      const cnt = (myState.field.signi ?? []).filter((stack, i) => {
+        const top = stack?.at(-1);
+        if (!top) return false;
+        if (!(myState.field!.signi_acce ?? [])[i]) return false;   // アクセが付いているゾーンだけ
+        return (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(m![1]);
+      }).length;
+      if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
+    }
+    // δ-4. `WD16-006`＝「あなたの手札の枚数から対戦相手の手札の枚数を引いた数1につき《青×1》減る」
+    //       ⚠差が0以下なら軽減なし（負の差でコストが増えたりしない）。相手が未知なら成立させない。
+    m = text.match(new RegExp(`あなたの手札の枚数から対戦相手の手札の枚数を引いた数[１1]につき${RED}減る`));
+    if (m && oppSt2?.hand) {
+      const diff = myState.hand.length - oppSt2.hand.length;
+      if (diff > 0) return applyReduce(base, parseReduceList(m[1]), diff);
     }
   }
 

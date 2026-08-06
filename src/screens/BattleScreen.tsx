@@ -7256,7 +7256,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
         (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
       const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, cardData.Cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+      // ⚠ピースにも EffectText 由来の条件つきコスト軽減がある（`WXDi-P16-003`〜`007`＝「場に〔色〕のルリグが
+      //   2体以上いるかぎり、1体につき《色×1》減る」＝タスク12(xciv) α）。ここと `KeyUseModal` の両方で
+      //   同じ式を通さないと「一覧では使えるのに払えない／印刷コストで請求される」食い違いになる。
+      const myLrigCardPC = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+      const pieceEffCostGate = computeArtsEffectiveCost(
+        cardData, my, myLrigCardPC?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
+        myLrigCardPC ? parseInt(myLrigCardPC.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
+        { oppState: op, cardCostReplacements: my.card_cost_replacements },
+      );
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );

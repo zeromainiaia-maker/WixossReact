@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { C } from '../../../components/BoardComponents';
-import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna } from '../costs';
+import { parseCoinCost, parseGrowCost, canAffordGrowCost, isMultiEna, computeArtsEffectiveCost } from '../costs';
 import type { BattleModalCtx } from './types';
 
 interface KeyUseModalProps {
@@ -18,7 +18,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -33,9 +33,18 @@ export function KeyUseModal(p: KeyUseModalProps) {
             {(() => {
               const card = pendingKeyCard;
               const coinNeeded = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
-              const energyTotal = parseGrowCost(card.Cost).reduce((s, c) => s + c.count, 0);
+              // ⚠ピースの EffectText 由来の条件つき軽減（`WXDi-P16-003`〜`007`＝タスク12(xciv) α）を通す。
+              //   `BattleScreen` の「キーにセット」ゲートと**同じ式**でなければ、出せるのに払えない／
+              //   印刷コストで請求される食い違いになる。
+              const myLrigCardKU = battleCardMap.get(my.field.lrig.at(-1) ?? '');
+              const effKeyCost = computeArtsEffectiveCost(
+                card, my, myLrigCardKU?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
+                myLrigCardKU ? parseInt(myLrigCardKU.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
+                { oppState: op, cardCostReplacements: my.card_cost_replacements },
+              );
+              const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
-              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, card.Cost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
+              const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
                 <>
