@@ -267,10 +267,27 @@ const PATTERNS: Pattern[] = [
       }
       if (!js.includes('REVEAL_AND_PICK')) return false;
       let allCovered = true;
-      const t2 = t.replace(/それが＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニの場合、それを[^。]*。?/g,
-        (whole, s1: string, s2: string | undefined) => {
-          const okCov = js.includes(`"story":"${s1}"`) && (!s2 || js.includes(`"${s2}"`));
-          if (!okCov) { allCovered = false; return whole; }
+      // 「（デッキの一番上を公開する。）〈それ|そのカード|この方法で公開したカード〉が <desc> (ではない)場合、…」は
+      // REVEAL_AND_PICK{filter}（と否定側の elseAction）が条件を担う**正表現**。
+      // 続き24 は「それが＜X＞（か＜Y＞）のシグニの場合、それを…」の story 形だけを較正していたが、
+      // 実データには レベル指定／レベル以上＋クラス／裸の「シグニ」／主語「そのカード」形もあり、
+      // いずれも filter に忠実に載っているのに欠落判定されていた（§5c 文型バッチで一般化・22効果）。
+      // ⚠ 較正の厳しさは維持＝desc から取れる識別子（クラス/レベル/カード種）が**すべて** JSON に
+      //   居るときだけ節を消す。識別子が1つも取れない節は消さない（＝covered にしない）。
+      const zh = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      const t2 = t.replace(/(?:それ|そのカード|この方法で公開したカード)が([^。]*?)(ではない)?場合[、,][^。]*。?/g,
+        (whole, desc: string, neg: string | undefined) => {
+          const need: string[] = [];
+          for (const m of desc.matchAll(/＜([^＞]+)＞/g)) need.push(`"${m[1]}"`);
+          const lvMin = desc.match(/レベル([０-９\d]+)以上/);
+          const lvMax = desc.match(/レベル([０-９\d]+)以下/);
+          const lvEq = desc.match(/レベル([０-９\d]+)(?!以)/);
+          if (lvMin) need.push(`"min":${zh(lvMin[1])}`);
+          else if (lvMax) need.push(`"max":${zh(lvMax[1])}`);
+          else if (lvEq) need.push(`"level":${zh(lvEq[1])}`);
+          if (/シグニ/.test(desc)) need.push('"cardType":"シグニ"');
+          if (neg) need.push('elseAction');
+          if (need.length === 0 || !need.every(k => js.includes(k))) { allCovered = false; return whole; }
           return '';
         });
       const t3 = t2.replace(/そう(しなかった|した|でない|である)場合/g, '');
