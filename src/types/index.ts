@@ -473,6 +473,11 @@ export interface PlayerState {
   // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
   // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
   cards_drawn_by_effect_this_turn?: number;
+  // このターンにこのプレイヤーが支払った《コイン》の累計枚数（グロウ/アーツ/キー/スペル/ベット/【出】/【起】の全経路）。
+  // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」条件（COINS_PAID_THIS_TURN）用＝
+  // WXDi-P09-039/WXDi-P15-053/068/072/073。ターン境界で0へリセット（turn_arts_used と同じ境界）。
+  // ⚠支払い（cost）だけを数える＝獲得（coinGain）や《コイン》を得る効果では増えない。
+  coins_paid_this_turn?: number;
   // このターンに**対戦相手の効果によって**このプレイヤーの手札／エナゾーンからトラッシュへ移動した累計枚数。
   // 「このターンに対戦相手の効果によってあなたの手札からカードが1枚以上トラッシュに移動していた場合」条件
   // （HAND_TRASHED_BY_OPP / ENERGY_TRASHED_BY_OPP）用＝WXDi-P02-005/WXDi-P07-023/SPK16-13E。ターン境界で0へリセット。
