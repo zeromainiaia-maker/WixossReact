@@ -4,6 +4,8 @@ import type { EffectCost } from '../../types/effects';
 export interface LrigDownCostPayment {
   state: PlayerState;
   paidCards: string[];
+  /** ダウンしたルリグの表記レベル合計（可変枚数コストの「レベルの合計１につき」用。非数値は0扱い）。 */
+  levelSum: number;
 }
 
 /**
