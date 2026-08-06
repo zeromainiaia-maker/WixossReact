@@ -271,8 +271,11 @@ function parseUseCondition(text: string): Condition {
   if (m) return { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: m[1] } };
 
   // 対戦相手のシグニ１体がアタックした（タイミング制限）
+  // ⚠旧実装は `DURING_PHASE:['ATTACK_SIGNI_OP']` だったが **`ATTACK_SIGNI_OP` は TurnPhase に存在しない値**＝
+  //   条件が常に false で【起】が一度もボタンに出なかった（Opusタスク12(cx)）。状態条件へ置き換え、
+  //   ACTIVATED 単独ならこの後 timing:'ON_OPP_SIGNI_ATTACK'（守備側の応答窓）へ載せ替える。
   if (text.match(/対戦相手のシグニ.*がアタックした/))
-    return { type: 'DURING_PHASE', phases: ['ATTACK_SIGNI_OP'] };
+    return { type: 'OPP_SIGNI_ATTACKING' };
 
   // AND条件（〜にあり〜）
   m = text.match(/^この(?:カード|シグニ)がトラッシュにあり(.+)$/);
