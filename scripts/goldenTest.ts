@@ -23497,7 +23497,7 @@ test('task12(cix) WX24-P2-069: paid LRIG color filter uses the cost-path carrier
 
 test('task12(cix) "このシグニは【X】を得る" grants stay on the source signi', () => withSavedCursor(() => {
   // 従来は filter が無く engine が「自分のシグニ1体」を選ばせていた＝別のシグニへ付与できる過剰対象化。
-  for (const [cardNum, effectId] of [['WX09-013', 'WX09-013-E1'], ['WD04-010', 'WD04-010-E1']] as const) {
+  for (const [cardNum, effectId] of [['WX09-013', 'WX09-013-E3'], ['WD04-010', 'WD04-010-E1']] as const) {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId);
     if (!eff) continue;
     const find = (node: unknown): { filter?: { thisCardOnly?: boolean } } | undefined => {

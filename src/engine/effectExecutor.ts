@@ -2538,7 +2538,18 @@ function resolveDynamicShadowKeyword(kw: string, ctx: ExecCtx): string {
   const scope = decodeShadowKeyword(kw);
   if (!scope) return kw;
   if (scope.downerLrigLevel) {
-    const level = ctx.seqVars?.lastDownedLrigLevel;
+    // ⚠ `seqVars` は**インタラクションを跨げない**（実UIの resume は ExecCtx を作り直し seqVars を渡さない）。
+    //   「ダウンしてもよい」→ CHOOSE を挟む札（WX24-P1-040-E2）は seqVars が必ず消えるため、
+    //   lastProcessedCards（同一 SEQUENCE 内の DOWN）→ PlayerState.last_lrig_down_cards（＝支払い/ダウンの
+    //   単一入口が記録）の順にフォールバックする（タスク12(cix)）。取れなければ素の「シャドウ」＝全シグニ対象。
+    const fromCards = (): number | undefined => {
+      const top = ctx.lastProcessedCards?.[0];
+      const ref = (top && ctx.cardMap.get(getCardNum(top))?.Type === 'ルリグ' ? top : undefined)
+        ?? ctx.ownerState.last_lrig_down_cards?.[0];
+      const lv = ref ? parseInt(ctx.cardMap.get(getCardNum(ref))?.Level ?? '', 10) : NaN;
+      return isNaN(lv) ? undefined : lv;
+    };
+    const level = ctx.seqVars?.lastDownedLrigLevel ?? fromCards();
     return level !== undefined && !isNaN(level) ? encodeShadowKeyword({ levelEq: level }) : 'シャドウ';
   }
   if (scope.declaredNumberPowerEq) {
