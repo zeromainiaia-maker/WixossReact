@@ -21,7 +21,7 @@ import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
-import { payLrigDownCost } from './battle/lrigDownCost';
+import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 
 interface Props {
