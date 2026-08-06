@@ -1198,6 +1198,29 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6a: 主語先行形「このシグニは(自身の)?パワーがN{以上|以下}(である|ある)かぎり、」（§5c 文型バッチ）
+  //   パターン6（「このシグニ**の**パワーが…」）と同義だが助詞が「は」で条件節が主語の後に来る形。
+  //   従来は下の genericKagiri（isTimingMarker）が条件節を無言で食い、残りの「【X】を得る」だけが
+  //   parse されて **無条件付与の過剰効果**になっていた（WX12-CB01「パワーが12000以上であるかぎり
+  //   【ダブルクラッシュ】」が常時ダブルクラッシュ等・13効果）。engine は checkActiveCondition の
+  //   SELF_POWER_THRESHOLD を実装済み（effectivePowers を見る）＝既存 DSL で表現できる。
+  //   ⚠ rest は主語ごと落とす（genericKagiri と同じ残余）＝action 側の parse 結果を変えず
+  //     activeCondition だけを増やす純粋上位集合にするため。
+  //   ⚠ 読点「、」必須＝「…かぎり対戦相手の…、18000以上であるかぎり…」のような多段閾値の複文
+  //     （WX09-019）は残余の parse が変わるため対象外にする（多段は §6.3 機構待ち）。
+  const selfPowerSubjM = text.match(/^このシグニは(?:自身の)?パワーが([０-９\d,]+)(以上|以下)(?:である|ある)?かぎり、/);
+  if (selfPowerSubjM) {
+    return {
+      condition: {
+        type: 'SELF_POWER_THRESHOLD',
+        operator: selfPowerSubjM[2] === '以上' ? 'gte' : 'lte',
+        value: parseNum(selfPowerSubjM[1].replace(/,/g, '')),
+      },
+      rest: text.slice(selfPowerSubjM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン6b: 「このシグニ{は/が}血晶武装状態であるかぎり、」
   const armorKagiriM = text.match(/^このシグニ[はが]血晶武装状態であるかぎり、/);
   if (armorKagiriM) {
