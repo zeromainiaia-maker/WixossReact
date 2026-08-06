@@ -7828,7 +7828,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           .replace(/^.*?ライフクロス[１1]枚がトラッシュに置かれたとき[、,]\s*/, '');
       }
       if (timing[0] === 'ON_OPP_ENERGY_ADDED') {
-        if (/アタックフェイズの間/.test(trigText)) extractedTriggerCondition = { type: 'DURING_PHASE', phases: ['ATTACK'] };
+        // ⚠ `phases` は `TurnPhase` の実値でなければ engine 側の `includes` に一生当たらない。
+        //   'ATTACK' という値は存在しない＝`WX24-P2-050-E1` は条件が常に false で丸ごと不発だった（タスク12(cvii)）。
+        //   アタックフェイズの4フェイズを列挙する（`WX20-067-E1` の手書き定義と同じ集合）。
+        if (/アタックフェイズの間/.test(trigText)) extractedTriggerCondition = { type: 'DURING_PHASE', phases: [...ATTACK_PHASES] };
         actionText = actionText.replace(/^.*?対戦相手のエナゾーンにカード[０-９\d]+枚が置かれたとき[、,]\s*/, '');
       }
       // ON_TRASH 自己discard反応（「このカードが捨てられたとき」系・タスク16[C]機構②）: fromZones:['hand'] を軸に
