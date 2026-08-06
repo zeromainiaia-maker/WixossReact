@@ -2586,6 +2586,63 @@ test('lrigDown コストの限定語を落とさない（センター／レベ�
   ok(ld('WXDi-CP02-056') === '"lrigDown":{"count":2}', `WXDi-CP02-056: count のみのはず（実際 ${ld('WXDi-CP02-056')}）`);
 });
 
+// ── タスク12(cviii): 【起】ACTIVATED の cost.lrigDown が UI/実行経路のどちらにも配線されていなかった
+//    （payLrigDownCost を呼んでいたのは【出】専用の executeSigniOnPlayCost だけ＝【起】はコスト素通り）。
+//    支払いの配線そのものは BattleScreen/モーダル層＝golden 非カバーなので、ここでは
+//    ①影響母集団（ACTIVATED の cost.lrigDown 全件と、その効果がどちらの実行経路へ行くか）
+//    ②母集団に実在する3形（count のみ／centerOnly／level）が共有支払い関数で忠実に払えること
+//    を固定する。母集団が増減したらこのテストが落ちるので、新しい札の配線漏れに気づける。
+test('【起】lrigDown コストの母集団と支払い可否（タスク12(cviii)）', withSavedCursor(() => {
+  const found = [...effectsMap.entries()].flatMap(([cardNum, effs]) => effs
+    .filter(e => e.effectType === 'ACTIVATED' && e.cost?.lrigDown)
+    .map(e => ({ cardNum, effectId: e.effectId, ld: e.cost!.lrigDown! })));
+  // 実測母集団（2026-08-06）。シグニ11 + ルリグ2＝executeSigniActivated と executeLrigGranted の両経路に跨る。
+  const expected: Record<string, string> = {
+    'WX25-P1-112-E1': '{"count":1}',
+    'WX25-P3-113-E1': '{"count":1}',
+    'WXDi-P02-009-E3': '{"count":2,"level":2}',
+    'WXDi-P03-009-E3': '{"count":2,"level":2}',
+    'WXDi-P04-042-E2': '{"count":2,"level":2}',
+    'WXDi-P12-049-E2': '{"count":2}',
+    'WXDi-P13-053-E2': '{"count":2}',
+    'WXDi-CP02-053-E3': '{"count":2}',
+    'WXDi-CP02-056-E3': '{"count":2}',
+    'WXDi-CP02-059-E2': '{"count":2}',
+    'WXDi-CP02-061-E3': '{"count":2}',
+    'WXK10-023-E2': '{"count":1,"centerOnly":true}',
+    'WXK10-037-E2': '{"count":1,"centerOnly":true}',
+  };
+  eq(found.length, Object.keys(expected).length, '【起】lrigDown の母集団件数');
+  for (const f of found) {
+    eq(JSON.stringify(f.ld), expected[f.effectId], `${f.effectId}: lrigDown payload（母集団外なら配線を確認すること）`);
+  }
+  // 経路の内訳＝ルリグ2枚は executeLrigGranted、残りはシグニの executeSigniActivated を通る。
+  const lrigOwned = found.filter(f => cardMap.get(f.cardNum)?.Type === 'ルリグ').map(f => f.effectId).sort();
+  eq(lrigOwned.join(','), 'WXDi-P02-009-E3,WXDi-P03-009-E3', 'ルリグ本体の【起】＝LrigGranted 経路');
+  eq(found.length - lrigOwned.length, 11, '残りはシグニ【起】＝SigniActivated 経路');
+
+  // 母集団に実在する3形が共有支払い関数で払えること／払えないときは null（＝UI が発動を止める）。
+  const lv2 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 2);
+  const lv1 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 1);
+  const board = (o: { lrig: string; assistL?: string; assistR?: string; centerDown?: boolean }) => {
+    const st = mkState({ lrig: [o.lrig], assistL: o.assistL ? [o.assistL] : [], assistR: o.assistR ? [o.assistR] : [] });
+    st.field.lrig_down = o.centerDown ?? false;
+    st.field.assist_lrig_l_down = false;
+    st.field.assist_lrig_r_down = false;
+    return st;
+  };
+  // count のみ（WXDi-CP02-056-E3 等）＝センター/アシストのどちらでも払える。
+  ok(payLrigDownCost(board({ lrig: lv1, assistL: lv2 }), { count: 2 }, cardMap) !== null, 'count のみ：レベル混在でも2体払える');
+  ok(payLrigDownCost(board({ lrig: lv1 }), { count: 2 }, cardMap) === null, 'count のみ：1体しか居なければ不能');
+  // centerOnly（WXK10-023-E2 / WXK10-037-E2）＝センターが下がっていればアシストで代用できない。
+  ok(payLrigDownCost(board({ lrig: lv2, assistL: lv2 }), { count: 1, centerOnly: true }, cardMap) !== null, 'centerOnly：センターがアップなら払える');
+  ok(payLrigDownCost(board({ lrig: lv2, assistL: lv2, centerDown: true }), { count: 1, centerOnly: true }, cardMap) === null,
+     'centerOnly：センターがダウン済みならアシストがアップでも不能');
+  // level（WXDi-P02-009-E3 等）＝レベル不一致のルリグでは払えない。
+  ok(payLrigDownCost(board({ lrig: lv2, assistL: lv2 }), { count: 2, level: 2 }, cardMap) !== null, 'level：レベル2が2体なら払える');
+  ok(payLrigDownCost(board({ lrig: lv2, assistL: lv1 }), { count: 2, level: 2 }, cardMap) === null, 'level：レベル1は数に入らない');
+}));
+
 test('結果カウント閾値の parser 構造固定（Cluster B・続き143）', () => {
   // WDK06-C07: 黒5枚トラッシュ→{color:黒}minCount5
   const s1 = JSON.stringify(effectsMap.get('WDK06-C07') ?? []);
