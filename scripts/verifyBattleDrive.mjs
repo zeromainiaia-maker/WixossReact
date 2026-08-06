@@ -9593,6 +9593,7 @@ try {
         signiVirus: s.field?.signi_virus ?? [0, 0, 0],
         lrigDown: s.field?.lrig_down ?? false,
         assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
+        deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
       });
       return {
         host: sideOf(hs),
