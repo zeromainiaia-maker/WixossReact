@@ -6966,14 +6966,15 @@ const scenarios = {
   // 支払い判定後に**再選択UIを一切出さず自動適用**される（`execPowerModify`の`if(a.targetsStored) return
   // done(applyPowerMod(...))`が`selectOrInteract`より先に早期return）＝この「対象選択は最初の1回だけ」は実機で
   // 確認できた（sawSecondSelectTarget=false）。
-  // ⚠一方で実機検証中に別の実バグを発見（Opusタスク12(civ)へ登録）＝ON_TARGETED watcher（WXDi-P03-067）は
-  // 期待どおり「1回だけ」ではなく**0回**しか発火しない＝最初のSELECT_TARGET（対象宣言そのもの）自体がスタックへ
-  // 積んだON_TARGETEDエントリを、後続のCHOOSE（エクシード支払い可否）を挟んだ2回目のhandleEffectInteraction
-  // 解決が握りつぶす疑い（stackAcc計算がresult.done分岐ごとに独立でstackAcc=undefinedのまま次のcommitへ渡ると
-  // reduceBattleが`effectStack`キー自体を書かない＝理論上はDBの既存値を温存するはずだが実機では発火が確認
-  // できなかった）。
+  // ⚠登録時（2026-08-05）は「ON_TARGETED watcher（WXDi-P03-067）が0回しか発火しない実バグ」として
+  // Opusタスク12(civ)へ登録されたが、**2026-08-06（Opus）に engine 非バグ＝計器の嘘と確定**：
+  // `queryState` の `stackLen` が `stack.entries?.length`（**`EffectStack` に存在しないキー**）を読んでいて
+  // 常に 0 を返していたため、下の「スタックが空になるまで待つ」ガードが最初から無効化されており、
+  // CHOOSE を解決した直後（＝ON_TARGETED エントリがまだスタック上にある tick）で判定を確定させていた。
+  // stackLen を実体（整列済みなら queue 長／未整列なら pending 総数）に直すと、次tickでスタックが解決されて
+  // guest.hand 0→1＝**期待どおり1回だけ発火**する（詳細は BUGFIXES 2026-08-06 (civ) 節）。
   lxWXDiP03089SingleTargetedFire: {
-    title: 'WXDi-P03-089（POWER_MODIFY{targetsStored}は再選択なし＝確認できたがON_TARGETED自体が発火しない実バグを発見）',
+    title: 'WXDi-P03-089（POWER_MODIFY{targetsStored}は再選択なし＋対象宣言のON_TARGETEDが1回だけ発火）',
     spec: {
       hostSet: {
         'field.lrig': ['WD03-003#1'],
