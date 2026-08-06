@@ -7036,15 +7036,15 @@ const scenarios = {
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-5000'));
         H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'}${JSON.stringify(st?.stackQueue ?? [])}/${JSON.stringify(st?.stackPending ?? [])} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} gDone=${JSON.stringify(st?.guest?.actionsDone)}`);
         // ⚠ON_TARGETEDはstackAcc（効果スタック）へ後乗せされるため、CHOOSE解決直後の同一pollではまだ
-        // ドローが反映されていないことがある（スタック解決は次のtickで自動処理される）。debuffed確認後も
-        // stackLenが0に落ち着くかguest.handが動くまで数ポーリング待つ。
+        // ドローが反映されていない（スタック解決は次のtickで自動処理される）。**このガードが機能するのは
+        // stackLen が実体を返すようになった 2026-08-06 以降**（それ以前は常に0＝素通り＝(civ)の誤検知）。
         if (debuffed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
           if (st.guest.hand === 1 && !sawSecondSelectTarget) {
-            return { pass: true, detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが1回発火（gHand=${before.guest.hand}→${st.guest.hand}）＝想定どおり（バグ非再現・要再確認）` };
+            return { pass: true, detail: `対象選択は最初の1回だけ→エクシード不払いで-5000適用→ON_TARGETED watcherが1回だけ発火（gHand=${before.guest.hand}→${st.guest.hand}）` };
           }
           return {
             pass: false,
-            detail: `【Opusタスク12(civ)実機確認】対象選択は最初の1回だけ（sawSecondSelectTarget=${sawSecondSelectTarget}）は確認できたが、ON_TARGETED watcher（WXDi-P03-067）が${st.guest.hand - before.guest.hand}回しか発火しない（期待=1回・gHand=${before.guest.hand}→${st.guest.hand}）＝「対象宣言そのものへのON_TARGETED」が、SEQUENCEが即done()せず後続CHOOSEへ続く場合に取りこぼされている疑い（stackAcc計算がhandleEffectInteraction呼び出しごとに独立している影響）＝実バグ`,
+            detail: `ON_TARGETED watcher（WXDi-P03-067）の発火回数が期待と違う（期待=1回・実測=${st.guest.hand - before.guest.hand}回・gHand=${before.guest.hand}→${st.guest.hand}・sawSecondSelectTarget=${sawSecondSelectTarget}）`,
           };
         }
       }
