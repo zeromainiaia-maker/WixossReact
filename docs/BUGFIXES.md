@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(cviii) 残0クローズ＝【起】ACTIVATED の `cost.lrigDown` を2つの実行経路へ配線（golden 1366→1367・他ゲート全据置）（Opus 5・続き356）
+
+### 何が壊れていたか（真因）
+`payLrigDownCost`（`src/screens/battle/lrigDownCost.ts`）を呼んでいるのは **【出】専用の `executeSigniOnPlayCost`（`BattleScreen.tsx:11298-11305`）だけ**で、**【起】ACTIVATED の実行経路には1本も配線されていなかった**。結果、`cost.lrigDown` を持つ【起】は
+
+- **コストを一切支払わずに本体だけが走る**（ルリグは下がらない＝タダ撃ち）
+- 支払い不能な盤面（センターが既にダウン等）でも**発動できてしまう**
+
+という二重の過剰効果になっていた。⚠**計器には一切映っていない**（parser も JSON も正しく `lrigDown` を持っており、engine 側にも欠落は無い＝smoke/golden/census はずっと緑のまま）。**「engine は正しいが UI 配線が経路を通していない」系**＝(ci)(cii)(cv)(civ)(cvi)(cvii) と同型。
+
+### 影響母集団＝**13効果**（登録時の記録「5枚」は実測不足）
+`cost.lrigDown` を持つ ACTIVATED は live 全数で13効果。**実行経路は2つに分かれる**（ここが登録時に見落とされていた点）：
+
+| 経路 | 件数 | 効果 |
+|---|---|---|
+| `executeSigniActivated`（シグニ【起】） | 11 | `WXK10-023-E2`／`WXK10-037-E2`（centerOnly）／`WXDi-P04-042-E2`（level:2）／`WXDi-P12-049-E2`／`WXDi-P13-053-E2`／`WXDi-CP02-053-E3`／`WXDi-CP02-056-E3`／`WXDi-CP02-059-E2`／`WXDi-CP02-061-E3`／`WX25-P1-112-E1`／`WX25-P3-113-E1` |
+| `executeLrigGranted`（ルリグ本体の【起】） | 2 | `WXDi-P02-009-E3`／`WXDi-P03-009-E3`（いずれも level:2・《ゲーム1回》） |
+
+（`cost.lrigDown` は他に AUTO/ON_PLAY が7効果あるが、そちらは元から機能している。）
+
+### どう直したか（**新規機構ではなく既存パターンへの配線のみ**）
+1. **`BattleScreen.executeSigniActivated`** — beat_signi 支払いの直後に `payLrigDownCost` を追加（【出】経路と同型。null なら early return＝盤面を一切動かさない）。
+2. **`BattleScreen.executeLrigGranted`** — removeOppVirus の直後に同じ支払いを追加（ルリグ本体の【起】はこちらを通る）。
+3. **available 判定＝2モーダル**（`SigniActivatedModal` / `LrigGrantedModal`）の `canAfford` に `payLrigDownCost(...) !== null` を合成し、不足時は「ダウンできるルリグが不足しています」を出す。⚠**centerOnly / level の条件を UI 側で写経しない**＝支払い関数そのものに判定させる（写経すると支払いと表示がずれる）。
+4. **アクション一覧のゲート**＝`getMySigniFieldActions` の `activatable` フィルタと `getMyLrigFieldActions` のセンタールリグ【起】ループに同じ判定を追加。**支払えない【起】はボタン自体が出ない**（`fieldDown`／`fieldTrash`／`underSelfTrash`／`acceTrash` と同じ既存規約に揃えた）。
+5. コスト表示ラベルは `fmtLrigDownCostLabel`（`lrigDownCost.ts` に新設）を4箇所で共有＝「アップ状態のセンタールリグ1体をダウン」「アップ状態のレベル2のルリグ2体をダウン」。
+
+### 検証（実機3シナリオ・各2回連続PASS）
+`node scripts/verifyBattleDrive.mjs <id>`（**フルバッチは実行しない**）：
+
+- **`lrigDownCenterOnlyPays`（新規・対照＝支払える側）** — `WXK10-037-E2`。センターがアップ→【起】が提示され発動→**`field.lrig_down` false→true**（＝支払われた証拠）＋SEARCH本体も実行（hand 0→1）。**修正前は ① が起きず hand だけ増えていた**。
+- **`lrigDownCenterOnlyUnwired`（既存・意図的FAILだったものを回帰シナリオへ転換）** — センターがダウン済み。**シグニのアクションモーダルは開く（カード名を確認）が【起】が提示されない**＝合格。⚠「モーダルが開いたこと」を確認しないと偽PASSになるので、カード名 `古代乗機` の描画を対照に入れてある。
+- **`lrigDownLevelLrigActivated`（新規・もう一方の実行経路）** — `WXDi-P03-009-E3`。センター（Lv3）＋Lv2アシスト2体の盤面で発動→**`assistDown=[true,true]`／`lrig_down=false`**＝level 条件が実UIでも効いて Lv3 センターが温存され、Lv2 アシスト2体で払われた。本体（手札全捨て）も実行（hand 2→0）。
+
+3件とも既定 order へ追加（既定 order 118→121件）。
+
+### ゲート
+golden **1366→1367**（+1＝①ACTIVATED の `cost.lrigDown` 母集団13効果を effectId＋payload 単位で固定し、**シグニ11／ルリグ2 の経路内訳**も固定＝新しい札が増えたら落ちて配線漏れに気づける ②母集団に実在する3形〔count のみ／centerOnly／level〕の支払い可否を共有関数で両方向 assert）。census **1288 据置**、smoke **10679/10679** 全0・SKIP0、fuzz 全0、lint **0 errors / 245 warnings 据置**（ローカル248は未追跡の残置 `scripts/_dbgFresh.ts` の3件ぶん）、manual field loss 0。**live JSON は完全不変**（`public/data/` に差分なし・**新語彙0本**）＝触った層は `BattleScreen.tsx`／`SigniActivatedModal.tsx`／`LrigGrantedModal.tsx`／`lrigDownCost.ts`（表示ラベル関数の新設のみ）と検証スクリプト2本。
+
+### ⚠この作業で見つけたが直していないもの（Opusタスク12(cix) へ登録）
+`WX25-P1-112-E1` の原文は「**この方法でダウンしたルリグと同じレベルの**対戦相手のすべてのシグニは能力を失う」だが、JSON は `REMOVE_ABILITIES{target:{SIGNI,opponent,count:'ALL'}}` で**レベル条件が丸ごと落ちている**（＝相手シグニ全体から能力を奪う過剰効果）。支払い側で「どのルリグを下げたか」を記録する状態（`last_lrig_down_level` 相当）と、それを読む filter が要る＝**本バッチとは別機構**なので honest defer。
+
 ## 2026-08-05 — §7実機検証の残り一式を消化＋新規バグ1件発見（Opusタスク12(cviii)へ登録・golden/census/held/smoke/fuzz 全据置・typecheck緑）（Sonnet 5・続き355）
 
 `scripts/verifyBattleDrive.mjs`にシナリオ4件（`lxvGateTrueSkipNoBody`／`lrigDownGrowColorSubstituteFires`／`opponentPayOptionalBothBranchesCoexist`／`lrigDownCenterOnlyUnwired`）を新規追加し、PLAN §7に長らく残っていた古いbullet一式（併記型(c)・ON_LRIG_GROW④・(xi)・(xxxvi)・クラフトトークン・lrigDownコスト限定）をまとめて消化した。
