@@ -493,6 +493,10 @@ export function collectTargetedTriggers(
           effectId: eff.effectId,
           label: `${cardName} の【自】効果（対象になったとき）`,
           effect: eff,
+          // 「その（対戦相手の）シグニ」＝**対象にしてきたカード**（タスク12(c)②）。origin は
+          // targetedOrigins の照合にだけ使われ entry に載っていなかったため、engine 実装済みの
+          // `filter.isTriggerSource` が ON_TARGETED では常に候補0＝no-op に落ちていた。
+          ...(origin ? { triggeringCardNum: origin.cardNum } : {}),
         });
       }
     }
