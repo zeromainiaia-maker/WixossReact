@@ -10225,6 +10225,12 @@ try {
         // ⚠CPU の SELECT_TARGET 自動応答は候補を**シャッフルして選ぶ**ので、結果（どれが消えたか）だけでは
         //   絞り込みの成否を判定できない（候補2件でも当たりを引けば PASS に見える）。候補列を直接見る。
         pendingCandidates: row.pending_effect?.interaction?.candidates ?? null,
+        // 「モーダルが出ない」の切り分け用＝UI の描画ゲートは
+        // `(respondPlayerId ?? sourcePlayerId) === user.id`（EffectInteractionModal.tsx）。
+        // この値と viewerUserId が食い違っていれば pending は立っているのに誰の画面にも出ない（タスク12(cx) で実際に踏んだ）。
+        pendingRespondPlayer: row.pending_effect?.respondPlayerId ?? row.pending_effect?.sourcePlayerId ?? null,
+        pendingOptions: (row.pending_effect?.interaction?.options ?? []).map(o => `${o.id}:${o.label}${o.available === false ? '(disabled)' : ''}`),
+        viewerUserId: uid,
         logTail,
       };
     }, { SUPA_URL, ANON }),
