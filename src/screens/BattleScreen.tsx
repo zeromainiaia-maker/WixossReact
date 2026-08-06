@@ -4354,11 +4354,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
         hostAcc = midBd.hostState;
         guestAcc = midBd.guestState;
-        if (midBd.entries.length > 0) {
-          stackAcc = stackAcc
-            ? pushToStack(stackAcc, midBd.entries)
-            : initStack(stack.turnPlayerId, midBd.entries);
-        }
+        if (midBd.entries.length > 0) stackAcc = pushToStack(newStack, midBd.entries);
       } else {
         pendingAcc = null;
 
