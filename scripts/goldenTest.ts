@@ -6043,7 +6043,7 @@ test('ON_OPP_ENERGY_ADDED「そのカード」: 置かれた相手エナ自身�
   const ctx = mkCtx({ signi: ['WX24-P2-050', null, null] }, { energy: 3 }, 'WX24-P2-050');
   const placed = ctx.otherState.energy[1];
   const untouched = ctx.otherState.energy.filter(n => n !== placed);
-  const r = executeEffect(eff, { ...ctx, triggeringCardNum: placed, currentPhase: 'ATTACK' });
+  const r = executeEffect(eff, { ...ctx, triggeringCardNum: placed, currentPhase: 'ATTACK_SIGNI' });
   eq(r.done, true, '対象選択を出さず完了');
   eq(r.otherState.energy.includes(placed), false, '置かれたカードをエナから除去');
   eq(r.otherState.trash.includes(placed), true, '置かれたカードをトラッシュへ');
