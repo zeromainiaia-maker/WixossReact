@@ -9435,7 +9435,7 @@ scenarios.oppSigniAttackActivated = {
       if (!did) did = await H.stdStep(); // 対象は1体だけ＝pick-0→決定
       const st = await H.queryState();
       const negated = await H.findLog(/アタックが無効になった|アタックを無効にした/);
-      H.log(`  osaa[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hLrigTrash=${st?.host?.lrigTrash} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      H.log(`  osaa[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hLrigTrash=${st?.host?.lrigTrash} pEff=${st?.pendingEffect ?? '-'} respond=${st?.pendingRespondPlayer ?? '-'} viewer=${st?.viewerUserId ?? '-'} opts=${JSON.stringify(st?.pendingOptions ?? [])} stack=${st?.stackLen ?? '-'}`);
       if (negated && (st?.host?.lrigTrash ?? 0) >= 2) {
         const lifeKept = (st?.host?.life ?? 0) === (before?.host?.life ?? 0);
         return {
