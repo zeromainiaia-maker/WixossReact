@@ -8215,7 +8215,7 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
-test('§5c 自己パワー閾値(主語先行形): 閾値未満ではキーワードが付かない（WX24-P1-056 シュート）', () => {
+test('§5c 自己パワー閾値(主語先行形): 閾値未満ではキーワードが付かない（WX24-P1-056 シュート）', () => withSavedCursor(() => {
   const host = mkState({ signi: ['WX24-P1-056', null, null] });
   const base = collectContinuousGrantedKeywords(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   ok(!base['WX24-P1-056']?.includes('シュート'), '基本パワー8000（<10000）ではシュートを得ない');
