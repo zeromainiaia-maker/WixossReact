@@ -87,6 +87,12 @@ export type EffectTiming =
   | 'ON_POWER_THRESHOLD'        // このシグニのパワーが閾値以上になったとき（WX03-032-E2。condition: SELF_POWER_GTE で閾値を保持）
   | 'ON_OPP_SIGNI_ATTACK_DIRECT' // 対戦相手のシグニが正面が空の状態でアタックしたとき（=守備側ルリグへの直接アタック時）に守備側で発火（WX04-004-E2）
   | 'ON_FRONT_SIGNI_ATTACK'    // このシグニの正面のシグニ（=このシグニにアタックしてくる相手シグニ）がアタックしたとき、守備側の正面シグニで発火（WX04-082-E1）。triggeringCardNum=アタッカー
+  // 対戦相手のシグニ1体がアタックしたとき（アタック宣言→バトル解決の間）に守備側で開く**【起】の使用窓**（WX05-013-E2＝実データ1枚）。
+  // 原文「この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない」＝使用条件ではなく**使用タイミング**なので、
+  // parser は condition ではなくこの timing へ載せ替える（旧実装は `DURING_PHASE:['ATTACK_SIGNI_OP']`＝TurnPhase に無い値で常に false ＝一度も撃てなかった。Opusタスク12(cx)）。
+  // engine 配線＝`performSigniAttack` が守備側のセンタールリグ/アシスト/場シグニから収集し、`wrapOptionalOnPlay` で
+  // 「エクシード等のコストを支払って発動するか」の CHOOSE に包んで守備側プレイヤーのスタックへ積む（ON_OPP_SIGNI_ATTACK_DIRECT と同じ作法）。
+  | 'ON_OPP_SIGNI_ATTACK'      // 対戦相手のシグニ1体がアタックしたとき（守備側の応答窓）
   | 'ON_ZONE_MOVED'            // 場にあるこのシグニが効果によって他のシグニゾーンに移動したとき（WX14-050/052/053）。パワー＋N は MOVE_TO_OTHER_SIGNI_ZONE ハンドラが原文を読んで適用済みのため現状 engine 未配線
   | 'ON_CARD_MILLED_FROM_DECK' // あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき（WX25-P2-009-E2）。collectMillTriggers で配線済み
   | 'ON_CARD_MOVED_TO_DECK'    // あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき（WX09-020/WX22-014/WXK10-076/WDK09-013）。collectMoveToDeckTriggers が解決前後の set-diff で検出（movedToDeckOwner/MinCount/FromTrash で限定）
