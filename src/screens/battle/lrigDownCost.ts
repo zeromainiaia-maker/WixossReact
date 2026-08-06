@@ -42,7 +42,18 @@ export function payLrigDownCost(
     pay(field.assist_lrig_r, field.assist_lrig_r_down, () => { field.assist_lrig_r_down = true; });
   }
   if (remaining > 0) return null;
-  return { state: { ...state, field }, paidCards };
+  // 「この方法でダウンしたルリグ」の参照先を**支払いの単一入口**で記録する（タスク12(cix)）。
+  // ⚠ 呼び出し側（engine の INTERNAL_PAY_LRIG_DOWN* / BattleScreen の各コスト支払い）で個別に書くと必ず
+  //   書き忘れが出る＝実UIだけ参照不能になり、フィルタが空ヒット（＝完全 no-op）へ倒れる。
+  const levelSum = paidCards.reduce((sum, id) => {
+    const lv = Number(cardMap.get(getCardNum(id))?.Level);
+    return sum + (Number.isFinite(lv) ? lv : 0);
+  }, 0);
+  return {
+    state: { ...state, field, last_lrig_down_cards: paidCards, last_lrig_down_level_sum: levelSum },
+    paidCards,
+    levelSum,
+  };
 }
 
 /** コスト表示用ラベル（「アップ状態のレベル2のルリグ2体をダウン」）。モーダル間で共有する。 */
