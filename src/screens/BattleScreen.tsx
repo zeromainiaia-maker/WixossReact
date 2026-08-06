@@ -33,7 +33,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
-import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
@@ -3523,6 +3523,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
+          next_arts_cost_reduction: undefined,        // タスク12(xciii): 【チェイン】の次アーツコスト軽減をリセット
           non_dissona_spell_played_this_turn: undefined, // DISONA_RESTRICTION: 非ディソナスペル使用フラグをリセット
           dissona_only_spells_this_turn: undefined,   // DISONA_RESTRICTION: ディソナ制限フラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
@@ -6083,6 +6084,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_hand_discarded_count: discardNums.length > 0
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
         actions_done: [...(my.actions_done ?? []), 'USE_ARTS', ...((betCost > 0 || encoreCoinCost > 0) ? ['COIN_SPENT'] : [])],
+        // 【チェイン】の「次に使用するアーツ」軽減を消費（タスク12(xciii)。スペル版と同型）。
+        // ⚠このアーツ自身が新しい【チェイン】を宣言する場合は効果解決（COST_REDUCTION）が
+        //   このあと走って積み直すので、ここで消しても次の1枚ぶんは残る。
+        next_arts_cost_reduction: undefined,
         // このターンにアーツを使用したフラグ（ARTS_USED_THIS_TURN 条件。WX25-P1-106。ターン境界でリセット）
         turn_arts_used: true,
         turn_arts_used_names: [...(my.turn_arts_used_names ?? []), card.CardName],
@@ -7197,13 +7202,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   場の CONTINUOUS 軽減を素通りしていた＝**同じアーツが「一覧から」は使えて「ルリグデッキのカードを
       //   タップして」は使えない**（印刷コストで可否判定していたため）。(lxxxvii) のカットイン窓と同じ食い違い。
       const myLrigCardLD = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-      const reducedArtsCost = applySpecificCardCostReduction(applyContinuousCostDecreases(
+      // ⚠【チェイン】の「次に使用するアーツ」軽減（タスク12(xciii)）もここへ通す。落とすと
+      //   **一覧（ArtsModal Phase1）からは使えるのにルリグデッキのカードをタップすると「使用」が出ない**
+      //   ＝(xcii) と同じ食い違いになる（実機で実際にこの形の FAIL を観測した）。
+      const reducedArtsCost = applyNextArtsCostReduction(applySpecificCardCostReduction(applyContinuousCostDecreases(
         computeArtsEffectiveCost(cardData, my, myLrigCardLD?.CardName,
           battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
           myLrigCardLD ? parseInt(myLrigCardLD.Level ?? '0') : 0,
           battleCardMap, myLrigNameAliases, myArtsThresholdReductions,
           { oppState: op, cardCostReplacements: my.card_cost_replacements }),
-        'アーツ', cardData.Color, activeCostMods.forMy), cardData.CardName, specificCardCostReductions);
+        'アーツ', cardData.Color, activeCostMods.forMy), cardData.CardName, specificCardCostReductions), my.next_arts_cost_reduction);
       // ベット宣言でのみ成立する置換は宣言が ArtsModal 内なので、ここでは「ベットすれば払えるか」だけ見る
       const artsBetSpec = parseBetOptions(cardData.EffectText ?? '');
       const artsBetCoinMin = artsBetSpec.variable ? 1 : Math.min(...artsBetSpec.options, Infinity);

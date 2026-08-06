@@ -1187,6 +1187,11 @@ function actionJa(a?: Action, effectType?: string): string {
         : 'コスト';
       const costKind = a.isGrowCost ? 'グロウコスト' : 'コスト';
       const tgt = `${a.color ? a.color + 'の' : ''}${a.targetCardType ?? 'カード'}`;
+      // 「次に使用する1枚だけ」の一時軽減（スペル＝WX10-073／アーツ＝【チェイン】）は、場の常在軽減と
+      // 意味が違う（engine も next_*_cost_reduction に積む1回きりの状態）。逆翻訳でも区別する。
+      if (!a.isGrowCost && a.duration === 'UNTIL_END_OF_TURN' && (a.targetCardType === 'アーツ' || a.targetCardType === 'スペル')) {
+        return `このターン、あなたが次に${tgt}を使用する場合、それの使用コストは${red}減る`;
+      }
       return `あなたが使用する${tgt}の${costKind}は${red}減る`;
     }
     case 'GROW_FREE': return a.levelFilter === 'same'

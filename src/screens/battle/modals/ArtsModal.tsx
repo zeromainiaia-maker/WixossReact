@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction } from '../costs';
+import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import type { BattleModalCtx } from './types';
@@ -67,9 +67,11 @@ export function ArtsModal(p: ArtsModalProps) {
                     return artsCandidates.map(card => {
                     // SPECIFIC_CARD_COST_REDUCE（タスク12(xci)）も通す＝発生源はカード名で対象を指すので、
                     // 将来アーツが対象になっても静かに落ちない（実測の現対象2枚はスペル）。
-                    const effCost = applySpecificCardCostReduction(applyContinuousCostDecreases(
+                    // 【チェイン】が積んだ「次に使用するアーツ」の軽減（タスク12(xciii)）＝
+                    // カード個別ではなくプレイヤー状態なので、全候補に等しく効く。
+                    const effCost = applyNextArtsCostReduction(applySpecificCardCostReduction(applyContinuousCostDecreases(
                       computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions, { oppState: op, cardCostReplacements: my.card_cost_replacements }),
-                      'アーツ', card.Color, activeCostMods.forMy), card.CardName, specificCardCostReductions);
+                      'アーツ', card.Color, activeCostMods.forMy), card.CardName, specificCardCostReductions), my.next_arts_cost_reduction);
                     const extraArtsCosts = activeCostMods.forMy
                       .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                       .flatMap(m => m.amount);
@@ -183,9 +185,13 @@ export function ArtsModal(p: ArtsModalProps) {
               // （ベット宣言の置換値）と印刷コスト（`pendingArtsCard.Cost`）は未適用なので、その2つのときだけ適用する。
               // ⚠適用順は Phase1 と同じ「軽減 → 《無》→センター色 の読み替え」に揃える（読み替え後だと《無》を見失う）。
               const specificAlreadyApplied = betReplacedCost === null && pendingArtsEffectiveCost !== null;
+              // ⚠【チェイン】軽減（タスク12(xciii)）も同じ二重適用の罠にかかる＝Phase1 で適用済みの
+              //   `pendingArtsEffectiveCost` にはもう乗っているので、未適用の2経路のときだけ適用する。
               const reducedEffectiveCost = specificAlreadyApplied
                 ? rawEffectiveCost
-                : applySpecificCardCostReduction(rawEffectiveCost, pendingArtsCard.CardName, specificCardCostReductions);
+                : applyNextArtsCostReduction(
+                    applySpecificCardCostReduction(rawEffectiveCost, pendingArtsCard.CardName, specificCardCostReductions),
+                    my.next_arts_cost_reduction);
               // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
               const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
                 .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));

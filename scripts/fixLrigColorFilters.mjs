@@ -132,6 +132,13 @@ const FIXES = [
   { file: 'effects_WX24_26', card: 'WX25-P2-112', eid: 'WX25-P2-112-E1', type: 'lrigDownIsUp',
     locate: e => e.action?.then?.steps?.[0]?.target },
 
+  // タスク12(xciii): WX11-021 は MANUAL 温存カードなので harvest merge が【チェイン】の
+  //   COST_REDUCTION ステップを取り込めない。effectId アンカーで先頭ステップとして外科反映する
+  //   （原文＝【チェイン】《緑》《白》）。
+  { file: 'effects_WX', card: 'WX11-021', eid: 'WX11-021-E1', type: 'chainArtsCostReduction',
+    params: { reduction: [{ color: '緑', count: 1 }, { color: '白', count: 1 }] },
+    locate: e => e },
+
   // 1シグニ複数アクセを保持できない現行 state では「アクセ3枚以上」を判定不能。
   // 誤った「相手のアクセ持ちシグニ1体をトラッシュ」を、明示的な未実装 no-op へ戻す。
   { file: 'effects_WX', card: 'WX20-028', eid: 'WX20-028-E2', type: 'deferMultiAcceMassTrash',
@@ -142,7 +149,17 @@ const DIR = 'public/data';
 const sourceText = JSON.parse(fs.readFileSync('docs/_effect_srctext.json', 'utf8'));
 const REAL_COST_SYNTAX = /(?:支払|捨て|トラッシュに置|手札に加え|場から|下に置|ダウンする|取り除|ゲームから除外|デッキ(?:の一番下)?に置|クラッシュ|【ビート】にする|エナゾーンに置)/;
 
-function applyFix(obj, type) {
+function applyFix(obj, type, params) {
+  if (type === 'chainArtsCostReduction') {
+    // 効果の action 先頭へ「次に使うアーツのコストを軽減」を差し込む（既に入っていれば何もしない＝冪等）。
+    const step = { type: 'COST_REDUCTION', targetCardType: 'アーツ', reduction: params.reduction, duration: 'UNTIL_END_OF_TURN' };
+    const already = JSON.stringify(obj.action ?? {}).includes('"targetCardType":"アーツ"');
+    if (already) return false;
+    obj.action = obj.action?.type === 'SEQUENCE'
+      ? { ...obj.action, steps: [step, ...obj.action.steps] }
+      : { type: 'SEQUENCE', steps: [step, obj.action] };
+    return true;
+  }
   if (type === 'lifeCrashOrTrash') {
     obj.timing = ['ON_LIFE_CRASHED', 'ON_LIFE_CLOTH_MOVED'];
     delete obj.triggerScope; // self は既定値。fresh の冗長出力を除き curated の安定差分を保つ。
@@ -254,7 +271,7 @@ for (const fix of FIXES) {
   if (!effect) { console.warn(`[SKIP] ${fix.eid} not found in ${fix.card}`); continue; }
   const target = fix.locate(effect);
   if (!target) { console.warn(`[SKIP] locate() returned null for ${fix.eid}`); continue; }
-  const ok = applyFix(target, fix.type);
+  const ok = applyFix(target, fix.type, fix.params);
   if (ok) {
     console.log(`[FIX] ${fix.eid} → ${fix.type}`);
     totalFixed++;

@@ -624,6 +624,20 @@ export function computeArtsEffectiveCost(
  *   **本来効くはずのスペル使用モーダルに無かった**（印刷コストで請求されていた）。
  *   アーツ側にも同じ形で通しておく（発生源はカード名で対象を指すので、将来アーツが対象になっても静かに落ちない）。
  */
+/**
+ * 【チェイン】が積んだ「このターン、次に使用するアーツのコストは《色×N》減る」
+ * （`PlayerState.next_arts_cost_reduction`）をアーツの使用コスト文字列へ適用する。
+ * スペル版（`SpellCastModal` の `next_spell_cost_reduction`）と同じ形＝色ごとに `removeNColorFromCost`。
+ */
+export function applyNextArtsCostReduction(
+  cost: string,
+  reductions: { color: string; count: number }[] | undefined,
+): string {
+  let result = cost;
+  for (const r of reductions ?? []) result = removeNColorFromCost(result, r.color, r.count);
+  return result;
+}
+
 export function applySpecificCardCostReduction(
   cost: string,
   cardName: string | undefined,

@@ -2,17 +2,18 @@
 
 > [PLAN.md](./PLAN.md)（現在地・生きている worklist）から 2026-07-07 に追い出した歴史記録。**cold start で読む必要はない**（PLAN §4 → DESIGN.md の順でよい）。過去セッションの要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)、個別修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-> **最新の退避＝「2026-08-06 整理③」節（冒頭）＝PLAN §3 のクローズ済み行12件〔(cix) を続き362 で追加〕＋タスク14／Sonnetタスク4 の一括退避。次が「2026-08-06 整理」節**＝PLAN §3 在庫表の残0クローズ行 (cviii)／(cvii)／(ci)＋(cii)／(cv)／**(cxi)／(c)**。次が「2026-08-04 整理」節。
+> **最新の退避＝「2026-08-06 整理③」節（冒頭）＝PLAN §3 のクローズ済み行13件〔(cix)＝続き362／(xciii)＝続き362b で追加〕＋タスク14／Sonnetタスク4 の一括退避。次が「2026-08-06 整理」節**＝PLAN §3 在庫表の残0クローズ行 (cviii)／(cvii)／(ci)＋(cii)／(cv)／**(cxi)／(c)**。次が「2026-08-04 整理」節。
 
 ## 2026-08-06 整理③：PLAN §3 からクローズ済み行を一括退避（続き361）
 
 > PLAN §3 を「生きている worklist だけ」に戻すため、**✅／🏁 が付いた行をここへ丸ごと移した**（PLAN 側には残ID と本節へのポインタだけを残す）。
 > 登録時（＝バグとして積まれた時点）の原文は下の「2026-08-06 整理」節および各過去整理節にある＝**本節はクローズ行（何をどう直したか）の側**。一次記録は `BUGFIXES.md` の各節。
 
-### Opusタスク12 在庫の残0クローズ行（2026-08-06・続き356〜361）
+### Opusタスク12 在庫の残0クローズ行（2026-08-06・続き356〜362b）
 
 | ID | 内容 |
 |---|---|
+| (xciii) | ✅**2026-08-06（続き362b）に残0クローズ**＝【チェイン】の**キーワード字面が parser から丸ごと落ちて**いて、宣言しても次のアーツが一切安くならなかった。⚠**母集団は登録時の「4枚＋スペル1枚」ではなくアーツ7枚**＝注釈テキストを持たない札が3枚ある（`WX11-021`／`WX14-005`／`WX19-004`。とくに `WX19-004` は**先頭ではない**うえ**同色2つ**《白》《白》《黒》《黒》）。`WX10-073`（スペル）は既存の `next_spell_cost_reduction` 経路で**既に動いていた**。実装は登録時の見立てどおり「スペル版と同型の状態を1本足す」＝`PlayerState.next_arts_cost_reduction` を engine の `COST_REDUCTION{targetCardType:'アーツ'}` が積み、`executeArts` で消費・ターン境界でリセット。⚠**発生源側の配線とセット**という懸念も登録時どおり＝parser で【チェイン】→ `COST_REDUCTION` ステップを action 先頭へ差し込んだ。⚠**実機で「もう1つの入口」を発見**＝コスト計算は `ArtsModal` Phase1／Phase2 に加え**ルリグデッキのカード詳細「使用」ゲート**の3箇所にあり、そこを落とすと「一覧からは使えるのにタップすると『使用』が出ない」（(xcii) と同型）。実機シナリオ `chainArtsCostReduction`（エナ0枚で2枚目のアーツが使える盤面）を2回連続PASS。一次記録は BUGFIXES 2026-08-06 節 |
 | (cix) | ✅**2026-08-06（続き362）に残0クローズ**＝登録時は「`WX25-P1-112` のレベル条件欠落」1点だったが、**真因は参照の運び方が実UIで切れていたこと**。実UIは支払い（`BattleScreen.payLrigDownCost`）と効果解決が**別 ExecCtx** なので `lastProcessedCards` が届かず、`colorMatchesLastProcessed` 系は **golden 緑・実機 完全no-op**だった。**支払い/ダウンの単一入口 `payLrigDownCost` が `PlayerState.last_lrig_down_cards`／`last_lrig_down_level_sum` を書く**設計にし、新フィルタ `levelEqLastDownedLrig`／`colorMatchesLastDownedLrig` を「lastProcessedCards→PlayerState」の2段で解決。母集団6枚（`WX25-P1-112`／`WX24-P1-040`×2／`WX24-P2-069`／`WX25-P2-114`／`WXDi-D03-004`／`WXDi-D04-004`／MANUAL の `WX25-P2-112`）を全部直した＝**登録時に懸念した「レベルを選ぶUI」は不要**（母集団はすべて count 固定か「好きな数」で、支払い順＝センター→アシストL→R の既定で原文を満たす）。⚠**併走で見つけた3つの穴**＝(a) `execRemoveAbilities` だけ `resolveDynamicFilter` 未通過＝動的キーが黙って無視され「制限なし」に倒れる (b) `ExecCtx.seqVars` は**インタラクションを跨げない**（実UIの resume が渡していない）＝CHOOSE を挟む札のシャドウが素の【シャドウ】に化けていた (c)「このシグニは【X】を得る」の GRANT_KEYWORD が `thisCardOnly` を持たず**別のシグニに付与できる**過剰対象化＝127枚。実機シナリオ `lrigDownLevelRemoveAbilities` 新設（**この経路は golden では原理的に守れない**）・2回連続PASS。一次記録は BUGFIXES 2026-08-06 節 |
 | (cxi) | ✅**2026-08-06（続き361）に残0クローズ**＝真因は engine ではなく **`BattleScreen.resolveStackNext` の `!result.done` 分岐に盤面差分収集が無かったこと**（続き75 が resume 側の2巡目以降に入れた手当ての**1巡目版が欠けていた**）。`WX20-026-E1` は現在 `SEQUENCE[DRAW, TRASH(手札1枚選択)]`＝**ドロー直後に中断**する形で、中断時点の状態（ドロー済み）がそのままコミットされるため、resume 完了時の diff は before に既にドローを含む＝**ON_DRAW が永久に失われて**いた。⚠**規模の実測＝1巡目で中断する効果 5418／うち中断時点で既に盤面が動いている 484**（失われていたのはドローに限らない）。実機 PASS（合格条件も「watcher ログ」から「実際に -4000 が乗る」へ厳格化）。一次記録は BUGFIXES 2026-08-06 節 |
 | (cviii) | ✅**2026-08-06（続き356）に残0クローズ**＝【起】ACTIVATED の `cost.lrigDown` を実行経路2本（`executeSigniActivated`＝シグニ11効果／`executeLrigGranted`＝ルリグ本体の【起】2効果）へ配線＋2モーダルの `canAfford` とアクション一覧のゲート2箇所にも判定を追加。⚠**母集団は登録時の「5枚」ではなく13効果**（経路が2つに割れるのが見落とし）。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |

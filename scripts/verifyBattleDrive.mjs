@@ -9334,6 +9334,98 @@ const scenarios = {
   },
 };
 
+// タスク12(xciii)：【チェイン】＝「このターン、あなたが次にアーツを使用する場合、それの使用コストは減る」。
+//   engine（COST_REDUCTION → PlayerState.next_arts_cost_reduction）と **ArtsModal のコスト計算**の両方が
+//   噛み合って初めて効く＝golden ではコスト計算UIまで通せないので実機で確認する。
+//   合格条件は「エナ0枚で2枚目のアーツ（《緑》×1）が使えて解決する」＝軽減が実際に効いた証拠。
+scenarios.chainArtsCostReduction = {
+  title: 'WX10-005【チェイン】《赤》《緑》→ 次のアーツ（WX09-005・《緑》×1）がエナ0枚で使える（タスク12(xciii)）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'pending_crashed_cards': [],
+      // 1枚目＝【チェイン】《赤》《緑》のアーツ（コスト《赤》×2《緑》×1《無》×2）、2枚目＝《緑》×1 のアーツ。
+      'lrig_deck': ['WX10-005#1', 'WX09-005#1'],
+      // 1枚目のコストちょうど5枚。使い切るので2枚目は**軽減が無ければ絶対に払えない**。
+      'energy': ['WD02-009#1', 'WD02-009#2', 'WD04-009#1', 'WD01-009#1', 'WD01-009#2'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [null, null, null], // 空＝両アーツの banish 系は候補なしで no-op 解決
+      'field.check': null,
+      'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log(`開始時 energy=${before?.host?.energy} lrigDeck=${JSON.stringify(before?.host?.lrigDeckCards)} nextArts=${JSON.stringify(before?.host?.nextArtsCostReduction)}`);
+    let chainUsed = false;
+    let choicePicked = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/chainArtsCostReduction-${s}.png`, fullPage: true });
+      let did = null;
+      const st0 = await H.queryState();
+      // アーツ Phase2：候補エナを上から順に選んでから「アーツ使用」（未選択だと disabled）。
+      // 2枚目は軽減で 0 コストになるはずなので、エナ選択なしで有効になる。
+      const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+      if (await use.count() && await use.isVisible().catch(() => false)) {
+        if (await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; }
+        else {
+          // ⚠エナ選択はトグル＝**1手で1枚ずつ**押すと毎回同じ枚を on/off して永久に足りない。
+          //   この1イテレーションで候補を上から全部（＝ちょうど必要枚数）押し切る。
+          const picked = [];
+          for (let i = 0; i < 8; i++) {
+            const e = page.getByTestId(`artscost-energy-${i}`).first();
+            if (await e.count() && await e.isVisible().catch(() => false)) { await e.click().catch(() => {}); picked.push(i); await page.waitForTimeout(120); }
+          }
+          if (picked.length) did = `pick:energy-${picked.join('/')}`;
+        }
+      }
+      // 「以下のNつからMつ**まで**選ぶ」＝トグル選択＋確定。⚠1手で1つずつ押すと同じ選択肢を on/off し続けるので、
+      //   CHOOSE が開いている間に**別々の選択肢を1回ずつ**押してから確定へ回す。
+      if (!did && st0?.pendingEffect === 'CHOOSE' && !choicePicked) {
+        for (const label of ['選択肢1', '選択肢2']) {
+          const b = page.getByRole('button', { name: label, exact: true }).first();
+          if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); await page.waitForTimeout(150); did = `btn:${label}`; }
+        }
+        if (did) choicePicked = true;
+      }
+      if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい', 'スキップ', '選ばない']);
+      // ⚠「使用」は**ボタン限定**で拾う＝直前に出るバトルログ「次に**使用**するアーツのコストを…軽減」に
+      //   部分一致クリックが吸われて永久に空振りする（この罠で初回 FAIL した）。
+      if (!did) {
+        const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+        if (await useBtn.count() && await useBtn.isVisible().catch(() => false)) { await useBtn.click().catch(() => {}); did = 'btn:使用'; }
+      }
+      if (!did) did = await H.clickTestId('zone-card-0', 'zone-card-1'); // ルリグDK内のアーツを開く
+      if (!did) did = await H.clickTestId('my-lrig-dk');
+      const st = await H.queryState();
+      const trashed = (st?.host?.lrigTrash ?? 0);
+      H.log(`  chain[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy} lrigTrash=${trashed} lrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)} nextArts=${JSON.stringify(st?.host?.nextArtsCostReduction)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (!chainUsed && (st?.host?.nextArtsCostReduction ?? []).length > 0) {
+        chainUsed = true;
+        H.log(`  → 【チェイン】成立：${JSON.stringify(st.host.nextArtsCostReduction)}（energy=${st?.host?.energy}）`);
+        if ((st?.host?.energy ?? 0) > 0) {
+          return { pass: false, detail: `1枚目のコストが払い切られていない（energy=${st.host.energy}）＝2枚目が「軽減のおかげ」で使えたと言えない盤面` };
+        }
+      }
+      // 2枚目が解決＝ルリグデッキが空になり、ルリグトラッシュに2枚
+      if (chainUsed && (st?.host?.lrigDeckCards ?? []).length === 0 && trashed >= 2) {
+        return { pass: true, detail: `【チェイン】《赤》《緑》宣言後、エナ0枚のまま《緑》×1 のアーツを使用できた（lrigTrash=${trashed}・nextArts=${JSON.stringify(st?.host?.nextArtsCostReduction)}＝使用で消費）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（chainUsed=${chainUsed} energy=${fin?.host?.energy} lrigTrash=${fin?.host?.lrigTrash} lrigDeck=${JSON.stringify(fin?.host?.lrigDeckCards)} nextArts=${JSON.stringify(fin?.host?.nextArtsCostReduction)}）` };
+  },
+};
+
 // タスク12(cix)：「この方法でダウンしたルリグと同じレベル」＝**コスト経路**の参照。
 //   engine ハーネス（golden）はコスト支払いも同じ ExecCtx で行うため lastProcessedCards が届くが、
 //   実UIは「BattleScreen が payLrigDownCost で支払う」→「別 ExecCtx で効果を解決」なので**参照が切れる**。
@@ -9697,6 +9789,9 @@ const order = ['wxk09050', 'wxk02029', 'lriggrow', 'coinpaid', 'deckshuffle', 'd
 // タスク12(cix)＝コスト経路の「この方法でダウンしたルリグ」参照。golden では原理的に守れない（engine ハーネスは
 // 支払いも同じ ExecCtx で行うため lastProcessedCards が届いてしまう）ので、実機シナリオを既定 order に入れる。
 order.push('lrigDownLevelRemoveAbilities');
+// タスク12(xciii)＝【チェイン】は engine の状態と ArtsModal のコスト計算が噛み合って初めて効く（golden では
+// コスト計算UIまで通せない）ので実機シナリオを既定 order に入れる。
+order.push('chainArtsCostReduction');
 order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で実行
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -9926,6 +10021,9 @@ try {
         zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],
         signiVirus: s.field?.signi_virus ?? [0, 0, 0],
         lrigDown: s.field?.lrig_down ?? false,
+        // 【チェイン】が積んだ「次に使用するアーツ」のコスト軽減（タスク12(xciii)）＝状態が立ったか／
+        // 使用時に消費されたかを決定論的に見る計器。
+        nextArtsCostReduction: (s.next_arts_cost_reduction ?? []).map(r => `${r.color}x${r.count}`),
         assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
       });

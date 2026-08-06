@@ -44,7 +44,7 @@ import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/atta
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
-import { applyContinuousCostDecreases, applySpecificCardCostReduction } from '../src/screens/battle/costs';
+import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from '../src/screens/battle/deployCountLimit';
 import { activateNextTurnSigniZoneBlocks, canPlaceInSigniZone, resolveSigniZonePlacement } from '../src/screens/battle/signiZoneBlock';
@@ -23550,6 +23550,56 @@ test('task12(cix) WX25-P2-114: "好きな数" LRIG down mills level-sum + 1 from
   const zero = finish(resumeChoose('lrig_down_0', offered.pending, c), ctx);
   eq(zero.ownerState.field.lrig_down, false, '0体ならダウンしない');
   eq(deckBefore - zero.otherState.deck.length, 1, '0体でも「＋1」の1枚は削る');
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// タスク12(xciii)：【チェイン】＝「このターン、あなたが次にアーツを使用する場合、それの使用コストは減る」
+// ─────────────────────────────────────────────────────────────────────────────
+test('task12(xciii) チェイン: all seven arts carry a COST_REDUCTION step for the next arts', () => withSavedCursor(() => {
+  const expected: Record<string, { color: string; count: number }[]> = {
+    'WX10-004-E1': [{ color: '白', count: 1 }, { color: '赤', count: 1 }],
+    'WX10-005-E1': [{ color: '赤', count: 1 }, { color: '緑', count: 1 }],
+    'WX10-022-E1': [{ color: '黒', count: 1 }, { color: '白', count: 1 }],
+    'WX11-018-E1': [{ color: '青', count: 1 }, { color: '黒', count: 1 }],
+    'WX11-021-E1': [{ color: '緑', count: 1 }, { color: '白', count: 1 }],
+    'WX14-005-E1': [{ color: '緑', count: 1 }, { color: '青', count: 1 }],
+    // 注釈が無く、しかも先頭ではない（《無》支払い制限の1文が前に付く）形＋同色2つ
+    'WX19-004-E1': [{ color: '白', count: 2 }, { color: '黒', count: 2 }],
+  };
+  for (const [effectId, want] of Object.entries(expected)) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    ok(eff.action.type === 'SEQUENCE', `${effectId}: 先頭に軽減ステップを持つ SEQUENCE`);
+    if (eff.action.type !== 'SEQUENCE') continue;
+    const step = eff.action.steps[0] as { type: string; targetCardType?: string; reduction?: { color: string; count: number }[]; duration?: string };
+    eq(step.type, 'COST_REDUCTION', `${effectId}: 先頭が COST_REDUCTION`);
+    eq(step.targetCardType, 'アーツ', `${effectId}: 対象はアーツ`);
+    eq(step.duration, 'UNTIL_END_OF_TURN', `${effectId}: このターン限り`);
+    eq(JSON.stringify(step.reduction), JSON.stringify(want), `${effectId}: 【チェイン】の色`);
+  }
+}));
+
+test('task12(xciii) チェイン: engine stacks the reduction on PlayerState and the UI helper spends it', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX10-004')!.find(e => e.effectId === 'WX10-004-E1')!;
+  const step = (eff.action as SequenceAction).steps[0];
+  const ctx = mkCtx({}, {}, 'WX10-004');
+  const after = run(step, ctx);
+  eq(JSON.stringify(after.ownerState.next_arts_cost_reduction), '[{"color":"白","count":1},{"color":"赤","count":1}]',
+     'engine は次アーツ用の状態に積む（スペル版と同型）');
+  eq(after.ownerState.next_spell_cost_reduction, undefined, 'スペル側の状態は触らない');
+  // 実UI（ArtsModal）が使うのと同じヘルパーで、印刷コストから色ぶんだけ引けること。
+  eq(applyNextArtsCostReduction('《白》×２《赤》×１', after.ownerState.next_arts_cost_reduction), '《白》×1',
+     '白1・赤1を引くと《白》×1 だけが残る（0枚になった色は消える）');
+  eq(applyNextArtsCostReduction('《青》×２', after.ownerState.next_arts_cost_reduction), '《青》×２',
+     '一致しない色は減らない（文字列も素通し）');
+  eq(applyNextArtsCostReduction('《白》×２《赤》×１', undefined), '《白》×２《赤》×１',
+     '軽減が無ければ印刷コストのまま（未宣言時に安くならない）');
+  // 同ターンに2枚宣言したら加算される（engine の実装が push であること）。
+  const twice = run((effectsMap.get('WX11-018')!.find(e => e.effectId === 'WX11-018-E1')!.action as SequenceAction).steps[0],
+    { ...ctx, ownerState: after.ownerState });
+  eq(JSON.stringify(twice.ownerState.next_arts_cost_reduction),
+     '[{"color":"白","count":1},{"color":"赤","count":1},{"color":"青","count":1},{"color":"黒","count":1}]',
+     '2枚目の【チェイン】は積み増しになる');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
