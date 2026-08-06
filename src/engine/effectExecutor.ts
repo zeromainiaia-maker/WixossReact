@@ -6874,12 +6874,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
-      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
-      if (lrigSub.replaced) return done(lrigSub.ctx);
-      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
-      if (powerSub.replaced) return done(powerSub.ctx);
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, found, ctx);
-      if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+      // バニッシュ経路＝`ReplaceBanish` は対象外
+      const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { skipReplaceBanish: true });
+      if (sub.replaced) return done(sub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
