@@ -1710,6 +1710,25 @@ function resolveDynamicFilter(
     const cols = ref ? (cardMap.get(getCardNum(ref))?.Color?.match(/[白赤青緑黒無]/g) ?? []) : [];
     result = cols.length ? { ...rest, color: cols } : { ...rest, color: ['__NONE__'] };
   }
+  // 「この方法でダウンしたルリグと同じレベル／共通する色」（タスク12(cix)）。
+  // 参照先は ①lastProcessedCards[0] がルリグならそれ（同一 SEQUENCE 内の DOWN。任意ダウンのスキップで空＝did-it
+  // ゲート）②なければ ownerSt.last_lrig_down_cards（コスト経路。実UIは支払いと解決が別 ExecCtx なので
+  // PlayerState 経由でしか届かない）。参照不能なら空ヒット＝原文どおりに絞れないなら過剰実行しない側へ倒す。
+  if (result.levelEqLastDownedLrig || result.colorMatchesLastDownedLrig) {
+    const { levelEqLastDownedLrig: _ld, colorMatchesLastDownedLrig: _lc, ...rest } = result;
+    const processedTop = lastProcessedCards?.[0];
+    const fromProcessed = processedTop && cardMap.get(getCardNum(processedTop))?.Type === 'ルリグ'
+      ? processedTop : undefined;
+    const ref = fromProcessed ?? ownerSt.last_lrig_down_cards?.[0];
+    const card = ref ? cardMap.get(getCardNum(ref)) : undefined;
+    if (result.levelEqLastDownedLrig) {
+      const level = card ? parseInt(card.Level ?? '', 10) : NaN;
+      result = !isNaN(level) ? { ...rest, level } : noMatch(rest);
+    } else {
+      const cols = card?.Color?.match(/[白赤青緑黒無]/g) ?? [];
+      result = cols.length ? { ...rest, color: cols } : noMatch(rest);
+    }
+  }
   if (result.colorMatchesUnderCards) {
     const { colorMatchesUnderCards: _cu, ...rest } = result;
     const stack = ownerSt.field.signi.find(s => s?.includes(sourceCardNum ?? ''));
