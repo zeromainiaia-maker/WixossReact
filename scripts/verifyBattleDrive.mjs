@@ -8888,6 +8888,68 @@ const scenarios = {
     },
   },
 
+  // タスク12(cviii) のもう一方の実行経路＝**ルリグ本体の【起】**（executeLrigGranted）。シグニ【起】
+  // （executeSigniActivated）とは別関数なので配線も別に要る。`WXDi-P03-009-E3`＝【起】《ゲーム１回》
+  // アップ状態の**レベル２**のルリグ２体をダウンする：手札をすべて捨てる…。センター（WXDi-P03-009 自身）は
+  // Lv3 なので **level 条件で数に入らず**、Lv2 のアシスト2体で払うことになる＝level 限定が実UIでも
+  // 効いていることを同時に確認できる。観測点＝assistDown が [true,true] になり（＝支払い）、手札が0になる（＝本体）。
+  lrigDownLevelLrigActivated: {
+    title: 'WXDi-P03-009-E3（ルリグ【起】のlrigDown level限定＝Lv2アシスト2体で支払われる・タスク12(cviii)）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WXDi-P03-009#1'],          // Lv3＝level:2 条件に合わず支払い要員にならない
+        'field.lrig_down': false,
+        'field.assist_lrig_l': ['WD01-003#1'],     // Lv2（半月の巫女 タマヨリヒメ）
+        'field.assist_lrig_r': ['WD01-003#2'],     // Lv2
+        'field.assist_lrig_l_down': false,
+        'field.assist_lrig_r_down': false,
+        'field.signi': [null, null, null],
+        'hand': ['WD01-013#1', 'WD01-013#2'],      // すべて捨てられる＝本体が走った証拠
+        'actions_done': [],
+        'game_actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始時 hand=${before?.host?.hand} lrigDown=${before?.host?.lrigDown} assistDown=${JSON.stringify(before?.host?.assistDown)}`);
+      await H.ensureMain();
+      const lrigImg = page.getByAltText('至高へ飛翔　レイ', { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+      else H.log('LRIGクリック: 見つからず');
+      let abilityBtnSeen = false;
+      let fired = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigDownLevelLrigActivated-${s}.png`, fullPage: true });
+        let did = null;
+        if (!fired) {
+          const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) {
+            abilityBtnSeen = true;
+            if (await actBtn.isEnabled().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+          }
+        }
+        if (!did) {
+          const fire = await H.clickBtn('発動', { exact: true });
+          if (fire) { did = fire; fired = true; }
+        }
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  ldla[${s}] -> ${did ?? 'なし'} | abilityBtnSeen=${abilityBtnSeen} fired=${fired} hHand=${st?.host?.hand} hLrigDown=${st?.host?.lrigDown} assistDown=${JSON.stringify(st?.host?.assistDown)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (fired && (st?.host?.hand ?? 9) === 0 && !st?.pendingEffect) {
+          const ad = st?.host?.assistDown ?? [];
+          if (ad[0] === true && ad[1] === true && st?.host?.lrigDown === false) {
+            return { pass: true, detail: `ルリグ【起】でも lrigDown が支払われた＝Lv2アシスト2体がダウン（assistDown=[true,true]）／Lv3センターは level 条件で温存（lrig_down=false）／本体も実行（hand ${before.host.hand}→0）` };
+          }
+          return { pass: false, detail: `【退行】本体（手札全捨て）は実行された（hand ${before.host.hand}→${st.host.hand}）のに支払いが不正＝assistDown=${JSON.stringify(ad)} lrig_down=${st?.host?.lrigDown}（期待＝[true,true] と false）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（abilityBtnSeen=${abilityBtnSeen} fired=${fired} hHand=${fin?.host?.hand} assistDown=${JSON.stringify(fin?.host?.assistDown)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // §7「残る実機検証項目」＝「(c) 併記型で両方の選択肢が同時に出る」（2026-08-05）。当時（続き～）は
   // 「liveで併記型が載っているのは現状0」で保留だったが、`WXDi-P08-007-E3`（【起】《ゲーム１回》「対戦相手が
   // 手札を１枚捨てるか《無》を支払わないかぎり…」を3回行う）が現在 costColors:['無'] と
