@@ -2404,7 +2404,9 @@ const scenarios = {
         const watcherLog = await H.findLog(/アノマリス.*ドロー時|の【自】効果（ドロー時）/);
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WD01-013#1:') && parseInt(m.split(':')[1], 10) < 0);
         H.log(`  ds[${s}] -> ${did ?? 'なし'} | modalOpened=${modalOpened} hHand=${st?.host?.hand ?? '-'}(開始${before?.host?.hand}) gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'} watcher=${!!watcherLog}`);
-        if (debuffed || watcherLog) {
+        // ⚠ watcher ログだけで PASS にしない（タスク12(cxi)）＝収集されても対象選択を経て
+        //    実際に -4000 が乗るところまで見る。ログは detail に併記する。
+        if (debuffed) {
           return { pass: true, detail: `drawBySourceStory 発火→対戦相手 WD01-013 に-4000（gPowerMods=${(st.guest.powerMods).join(',')}）・watcher「${watcherLog}」` };
         }
       }
