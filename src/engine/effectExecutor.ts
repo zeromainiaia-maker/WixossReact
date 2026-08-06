@@ -4934,6 +4934,11 @@ function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx:
   } else {
     cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   }
+  // attackingOnly（「対戦相手の**アタックしている**シグニ1体」）＝候補はいま宣言中のアタッカーだけ。
+  // 宣言中のアタッカーが居なければ空振り（この効果は ON_OPP_SIGNI_ATTACK 窓でしか撃てないので通常は必ず1体）。
+  if (a.attackingOnly) {
+    cands = cands.filter(n => n === attackingSigniOf(state));
+  }
   if (cands.length === 0) return done(ctx);
 
   if (a.target.count === 'ALL') {
