@@ -5582,6 +5582,46 @@ test('task12(lxviii): 散文形「対戦相手のターンの間、」の ON_TAR
   }
 }));
 
+// タスク12(c)②＝ON_TARGETED の「その（対戦相手の）シグニ」＝**対象にしてきたシグニ**。engine には
+// `filter.isTriggerSource`（execBanish/execExile が ctx.triggeringCardNum に絞る）が実装済みだったが、
+// `collectTargetedTriggers` が受け取った origin を entry に載せていなかったため常に候補0＝no-op だった。
+test('task12(c): collectTargetedTriggers が origin を entry.triggeringCardNum に載せる', () => withSavedCursor(() => {
+  const watcher = 'WXDi-P03-056';
+  const originSigni = { cardNum: SIGNI_P12000, effect: { effectId: 'x' } };
+  const host = mkState({}); const guest = mkState({ signi: [watcher, null, null] });
+  const r = collectTargetedTriggers(trigCtx(HOST), [watcher], GUEST, host, guest, originSigni as never);
+  const e = r.entries.find(x => x.effectId === `${watcher}-E1`);
+  ok(!!e, `${watcher}-E1 が収集される`);
+  eq(e!.triggeringCardNum, SIGNI_P12000, '対象にしてきたカードが triggeringCardNum に載る');
+  // origin なしの収集（targetedOrigins を持たない効果向け経路）では従来どおり undefined
+  const noOrigin = collectTargetedTriggers(trigCtx(HOST), ['WXDi-P11-040'], GUEST, host,
+    mkState({ signi: ['WXDi-P11-040', null, null] }));
+  eq(noOrigin.entries[0]?.triggeringCardNum, undefined, 'origin が無ければ載せない');
+}));
+
+test('task12(c): 「その対戦相手のシグニ」3効果が isTriggerSource でトリガー元に限定される', () => withSavedCursor(() => {
+  // live 母集団（ON_TARGETED / ON_SIGNI_BATTLE で「その〜シグニを バニッシュ/除外」＝選択させない形）。
+  // ⚠「〜１体を対象とし」を含むブロック（WX20-039-CB）は**選んだ対象への照応**なので刻まない。
+  for (const [effId, type] of [
+    ['WXDi-P03-056-E1', 'BANISH'], ['WX05-047-E1', 'BANISH'], ['WXDi-P13-089-E2', 'EXILE'],
+  ] as const) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === effId);
+    ok(!!eff, `${effId} が live に存在する`);
+    eq(eff!.action.type, type, `${effId}: action 型`);
+    eq((eff!.action as { target?: { filter?: { isTriggerSource?: boolean } } }).target?.filter?.isTriggerSource,
+      true, `${effId}: トリガー元に限定される`);
+  }
+  // 実行して「トリガー元だけが消える／トリガー元が場に居なければ no-op」ことまで見る（＝過剰対象化の再発検知）。
+  const eff = [...effectsMap.values()].flat().find(e => e.effectId === 'WXDi-P03-056-E1')!;
+  const trigNum = SIGNI_P12000, otherNum = SIGNI_P3000;
+  const base = mkCtx({ signi: ['WXDi-P03-056', null, null] }, { signi: [trigNum, otherNum, null] }, 'WXDi-P03-056');
+  const hit = finish(executeEffect(eff, { ...base, triggeringCardNum: trigNum } as ExecCtx), base);
+  eq(hit.otherState.field.signi.map(s => s?.at(-1) ?? null).join(','), `,${otherNum},`, 'トリガー元だけがバニッシュされる');
+  const miss = finish(executeEffect(eff, { ...base, triggeringCardNum: undefined } as ExecCtx), base);
+  eq(miss.otherState.field.signi.map(s => s?.at(-1) ?? null).join(','), `${trigNum},${otherNum},`,
+    'トリガー元が不明なら no-op（＝どれか1体を巻き添えにしない）');
+}));
+
 test('task12(lxviii): 「次の対戦相手のターンの間、」＝本文側には turnOwner を付けない', () => withSavedCursor(() => {
   // 🔴同じ句でも**トリガー前置きではなく効果の本文**（【出】等）である群が実測12件ある。
   //   ここに turnOwner:'opponent' を付けると**自分のターンに発動する効果が永久に不発**になる＝逆方向の退化。
