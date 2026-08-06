@@ -20332,10 +20332,11 @@ test('task12(xcvii) 「代わりにこの能力を失う」を離場6経路す�
     if (!result.done && result.pending.type === 'SELECT_TARGET') {
       result = resumeSelectTarget([victim], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
     }
-    ok(result.done, `${action.type}: 解決が完了しない`);
-    ok(result.otherState.field.signi.some(s => s?.at(-1) === victim), `${action.type}: 置換されず場を離れた`);
-    eq(result.otherState.lrig_granted_auto_effects_until_opp_turn, undefined, `${action.type}: 身代わりに付与能力を失っていない`);
-    ok(!result.otherState.energy.includes(victim), `${action.type}: エナゾーンへ移動してしまった`);
+    const tag = `${action.type}(count=${count})`;
+    ok(result.done, `${tag}: 解決が完了しない`);
+    ok(result.otherState.field.signi.some(s => s?.at(-1) === victim), `${tag}: 置換されず場を離れた`);
+    eq(result.otherState.lrig_granted_auto_effects_until_opp_turn, undefined, `${tag}: 身代わりに付与能力を失っていない`);
+    ok(!result.otherState.energy.includes(victim), `${tag}: エナゾーンへ移動してしまった`);
   }
   // 能力を失った後（＝置換ストックなし）は素通りしてエナへ行く＝「1回だけ」を固定する
   const victim2 = fresh();
