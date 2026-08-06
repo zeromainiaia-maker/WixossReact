@@ -424,7 +424,15 @@ export function execStubPart1(
   // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
   // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
   if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {
-    return done({ ...addLog(ctx, '任意アクションをスキップ'), lastProcessedCards: [] });
+    // ⚠「この方法でダウンしたルリグ」の記録もここで落とす（タスク12(cix)）。lastProcessedCards だけ空にしても、
+    //   フォールバック先の PlayerState.last_lrig_down_cards が**前の効果の支払い**を指したままだと、任意ダウンを
+    //   スキップしたのに後続フィルタが当たる＝did-it ゲートが抜ける。
+    const { last_lrig_down_cards: _c, last_lrig_down_level_sum: _s, ...ownerRest } = ctx.ownerState;
+    return done({
+      ...addLog({ ...ctx, ownerState: ownerRest }, '任意アクションをスキップ'),
+      lastProcessedCards: [],
+      seqVars: { ...ctx.seqVars, lastDownedLrigLevel: undefined, lastDownedLrigLevelSum: undefined },
+    });
   }
   // 他の任意コスト系（SEQUENCEパターン外のフォールバック）
   if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
