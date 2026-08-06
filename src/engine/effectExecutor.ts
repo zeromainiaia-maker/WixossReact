@@ -20,6 +20,7 @@ import { matchesStateFilter } from './effectEngine';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
+import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 
 const exceedPoolCountOf = (state: PlayerState): number =>
   state.field.lrig.slice(0, -1).length
