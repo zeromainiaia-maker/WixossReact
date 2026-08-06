@@ -2302,6 +2302,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
+        // 「このシグニは【X】を得る」＝**効果元自身**。thisCardOnly を落とすと engine は「自分のシグニ1体」の
+        // 選択UIを出し、**別のシグニに付与できる**過剰対象化になる（WX24-P1-040-E2 のシャドウ付与＝タスク12(cix)）。
+        // 「このシグニ」を含むが付与先が別体を指す文（「このシグニがアタックしたとき、あなたのシグニ1体は〜を得る」）
+        // まで巻き込まないよう、**「このシグニは〜を得る/持つ」の隣接形**に限る。
+        : /このシグニは[^。]*を(?:得る|持つ)/.test(t)
+          ? { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
