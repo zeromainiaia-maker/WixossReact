@@ -7033,7 +7033,7 @@ const scenarios = {
         }
         const st = await H.queryState();
         const debuffed = (st?.guest?.powerMods ?? []).some(m => m.startsWith('WXDi-P03-067#1:-5000'));
-        H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'}`);
+        H.log(`  lx89[${s}] -> ${did ?? 'なし'} | pickedTarget=${pickedTarget} sawSecondSelectTarget=${sawSecondSelectTarget} gHand=${st?.guest?.hand} stack=${st?.stackLen ?? '-'}${JSON.stringify(st?.stackQueue ?? [])}/${JSON.stringify(st?.stackPending ?? [])} gPowerMods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} gDone=${JSON.stringify(st?.guest?.actionsDone)}`);
         // ⚠ON_TARGETEDはstackAcc（効果スタック）へ後乗せされるため、CHOOSE解決直後の同一pollではまだ
         // ドローが反映されていないことがある（スタック解決は次のtickで自動処理される）。debuffed確認後も
         // stackLenが0に落ち着くかguest.handが動くまで数ポーリング待つ。
