@@ -9334,6 +9334,63 @@ const scenarios = {
   },
 };
 
+// タスク12(lv)③：CPU が召喚したシグニの**任意・無コスト【出】**が一度も発火しなかった（過小実行）。
+//   人間の通常召喚は `OPTIONAL_ACTIVATE`（発動する/発動しない）で包んで積むのに、CPU 経路は
+//   `mandatory !== false` だけを積んでいたため、CPU の場では**選択肢にすら上がらなかった**。
+//   合格条件＝CPU が `WX04-052`（【出】デッキの一番上をこのシグニの【チャーム】にしてもよい）を召喚したら
+//   実際に【チャーム】が付く（＝CPU 自動応答が「発動する」を選ぶ方針どおり動く）。
+scenarios.cpuOptionalOnPlayCharm = {
+  title: 'CPU召喚の任意【出】配線（WX04-052＝デッキトップを【チャーム】に「してもよい」・タスク12(lv)③）',
+  spec: {
+    guestSet: {
+      'field.lrig': ['WD05-001#1'],            // CPU center＝獄卒の閻魔 ウリス（Lv4・Limit11）＝Lv4/ウリス限定シグニの要件を満たす
+      'field.signi': [null, null, null],
+      'field.signi_charms': [null, null, null],
+      'field.check': null,
+      'pending_crashed_cards': [],
+      'energy': [],
+      'actions_done': [],
+      'coins': 0,
+    },
+    hostSet: { 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    // CPU の手札に対象シグニを積む（guest.hand を直接注入）＋デッキトップを既知カードにする。
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(2500);
+      await injectScenario(page, {
+        ...scenarios.cpuOptionalOnPlayCharm.spec,
+        guestSet: {
+          ...scenarios.cpuOptionalOnPlayCharm.spec.guestSet,
+          hand: ['WX04-052#1'],
+          deck: ['WD05-009#1', 'WD05-010#1', 'WD05-009#2'],
+        },
+      });
+      await page.waitForTimeout(1200);
+      let overwritten = false;
+      for (let s = 0; s < 14; s++) {
+        await page.waitForTimeout(1000);
+        await page.screenshot({ path: `${SHOT}/cpuOptionalOnPlayCharm-a${attempt}-${s}.png`, fullPage: true });
+        const st = await H.queryState();
+        if (st.error) continue;
+        const g = st.guest ?? {};
+        const charms = (g.fieldCharms ?? []).filter(Boolean);
+        const placed = (g.fieldSigni ?? []).some(z => (z ?? []).some(n => /WX04-052/.test(n)));
+        if (s % 4 === 0) H.log(`  cpuOpt[a${attempt}.${s}] placed=${placed} charms=${JSON.stringify(g.fieldCharms)} deck=${g.deck} hand=${g.hand} pEff=${st.pendingEffect ?? '-'}`);
+        if (placed && charms.length > 0) {
+          return { pass: true, detail: `CPU が任意【出】を発動＝WX04-052 召喚後に【チャーム】が付いた（charms=${JSON.stringify(g.fieldCharms)}・deck=${g.deck}）` };
+        }
+        if ((g.hand ?? 0) === 0 && !placed) { H.log(`  cpuOpt[a${attempt}] 手札が消えたが場に出ていない→再注入`); overwritten = true; break; }
+      }
+      if (!overwritten) break;
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `CPU の任意【出】未確認（fieldSigni=${JSON.stringify(fin?.guest?.fieldSigni)} charms=${JSON.stringify(fin?.guest?.fieldCharms)}）` };
+  },
+};
+
 // タスク12(xciii)：【チェイン】＝「このターン、あなたが次にアーツを使用する場合、それの使用コストは減る」。
 //   engine（COST_REDUCTION → PlayerState.next_arts_cost_reduction）と **ArtsModal のコスト計算**の両方が
 //   噛み合って初めて効く＝golden ではコスト計算UIまで通せないので実機で確認する。
@@ -9792,6 +9849,8 @@ order.push('lrigDownLevelRemoveAbilities');
 // タスク12(xciii)＝【チェイン】は engine の状態と ArtsModal のコスト計算が噛み合って初めて効く（golden では
 // コスト計算UIまで通せない）ので実機シナリオを既定 order に入れる。
 order.push('chainArtsCostReduction');
+// タスク12(lv)③＝CPU 経路の任意【出】は golden では踏めない（BattleScreen の収集コード）ので実機で守る。
+order.push('cpuOptionalOnPlayCharm');
 order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で実行
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -10001,6 +10060,7 @@ try {
         fieldSigni: s.field?.signi ?? null,
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
+        fieldCharms: s.field?.signi_charms ?? null,   // 任意【出】の【チャーム】付与を見る（タスク12(lv)③）
         abilitiesRemoved: s.abilities_removed ?? [],
         lrigFrozen: s.field?.lrig_frozen ?? false,
         negatedAttacks: s.negated_attacks ?? [],

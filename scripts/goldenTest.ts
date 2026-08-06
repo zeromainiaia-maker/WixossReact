@@ -29,7 +29,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -23672,6 +23672,50 @@ test('task12(lxxxviii) WDK15-007: declaring bet actually reduces the printed cos
   eq(card.Cost, '《黒》×３', '印刷コスト');
   eq(computeCostReplacement(card, my, cardMap, {}), null, '宣言前は印刷コストのまま');
   eq(computeCostReplacement(card, my, cardMap, { isBetting: true }), '《黒》×1', 'ベット宣言で《黒×2》ぶん減る');
+}));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// タスク12(lv)③④：CPU の任意・無コスト【出】が一度も発火しなかった2経路
+// ─────────────────────────────────────────────────────────────────────────────
+test('task12(lv) CPU optional ON_PLAY: population and the "no-cost only" policy', () => withSavedCursor(() => {
+  // CPU 経路が新たに拾う母集団＝「自身 ON_PLAY・mandatory:false・cost なし」＝人間の通常召喚と同じ集合。
+  const pick: CardEffect[] = [];
+  for (const effs of effectsMap.values()) {
+    for (const e of effs) {
+      if (!isOptionalOwnOnPlayForNormalSummon(e) || e.cost) continue;
+      pick.push(e);
+    }
+  }
+  ok(pick.length >= 10, `任意・無コストの自身【出】が実在する（実測 ${pick.length}件）`);
+  // 全数が `wrapOptionalOnPlay` で包める（＝包めないものは発火させない安全弁が効く）か、包めないなら null。
+  let wrapped = 0, deferred = 0;
+  for (const e of pick) { if (wrapOptionalOnPlay(e)) wrapped++; else deferred++; }
+  eq(wrapped + deferred, pick.length, '包める/包めないの二分で全数を説明できる');
+  ok(wrapped > 0, '少なくとも一部は発動確認つきに包める');
+  // ⚠方針の固定：**コスト付き**の任意【出】は CPU 経路の母集団に入らない（踏み倒しも過剰支払いも作らない）。
+  const withCost = [...effectsMap.values()].flat()
+    .filter(e => isOptionalOwnOnPlayForNormalSummon(e) && !!e.cost);
+  ok(withCost.length > 0, 'コスト付きの任意【出】は実在する（＝除外が効いていることに意味がある）');
+  ok(withCost.every(e => !pick.includes(e)), 'コスト付きは CPU 収集の母集団に入らない');
+}));
+
+test('task12(lv) OPTIONAL_ACTIVATE offers 発動する first so the CPU auto-response activates', () => withSavedCursor(() => {
+  // CPU の CHOOSE 自動応答は「最初の available」を選ぶ（BattleScreen）。したがって
+  // OPTIONAL_ACTIVATE の選択肢順が「発動する→発動しない」であることが CPU 方針そのものになる。
+  const target = [...effectsMap.values()].flat()
+    .find(e => isOptionalOwnOnPlayForNormalSummon(e) && !e.cost
+      && wrapOptionalOnPlay(e)?.action.type === 'SEQUENCE'
+      && ((wrapOptionalOnPlay(e)!.action as SequenceAction).steps[0] as StubAction)?.id === 'OPTIONAL_ACTIVATE');
+  ok(!!target, 'OPTIONAL_ACTIVATE で包まれる効果が live に実在する');
+  if (!target) return;
+  const wrappedEff = wrapOptionalOnPlay(target)!;
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, { signi: [SIGNI_L2, null, null] }, target.effectId.replace(/-E\d+$/, ''));
+  const r = executeEffect(wrappedEff, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE', '発動可否の CHOOSE を出す');
+  if (r.done || r.pending.type !== 'CHOOSE') return;
+  eq(r.pending.options[0].label, '発動する', '先頭が「発動する」＝CPU 自動応答は発動を選ぶ');
+  eq(r.pending.options[0].available, true, '無コストなので常に available');
+  eq(r.pending.options[1].label, '発動しない', '2番目がスキップ');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

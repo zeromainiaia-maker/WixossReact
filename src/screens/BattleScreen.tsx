@@ -9559,6 +9559,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               effect: eff,
             });
           }
+          // 任意・無コストの【出】＝人間の `executeGrow` と同じ collector へ揃える（タスク12(lv)④）。
+          // ⚠live 該当は現状 **0件**（ルリグの mandatory:false かつ無コストの ON_PLAY は存在しない）だが、
+          //   経路を塞いでおかないと将来そういうルリグが増えたとき**黙って落ちる**（①〜③と同じ壊れ方）。
+          const cpuGrowOptional = collectOptionalNoCostOnPlayForGrow(
+            effectsMap.get(growTargetId) ?? [], newCpuSt, bs.host_state, true, battleCardMap, growTargetId, bs.turn_phase,
+          );
+          for (const effOptG of cpuGrowOptional.effects) {
+            cpuGrowEntries.push({
+              id: generateUUID(),
+              playerId: CPU_PLAYER_ID,
+              cardNum: growTargetId,
+              effectId: effOptG.effectId,
+              label: `${growCard.CardName} の任意【出】効果`,
+              effect: effOptG,
+            });
+          }
+          if (cpuGrowOptional.deferred.length > 0) {
+            console.warn(`[CPU grow] 表現不能コストの任意ON_PLAY効果は発火しません: ${cpuGrowOptional.deferred.map(e => e.effectId).join(', ')}`);
+          }
           // ON_LRIG_GROW（C1 配線・CPUセンターグロウ）: CPU=guest のグロウに反応する【自】を収集。
           const cpuGrowReact = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
           const cpuGrowReactEntries = cpuGrowReact.entries;
@@ -9731,6 +9750,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           label: `${candidate.card!.CardName} の【出】/【自】効果`,
           effect: eff,
         } satisfies StackEntry)));
+        // 任意・無コストの自身【出】（「〜してもよい」）＝**人間の通常召喚（`handleSummonSigni`）と同じ収集**へ揃える
+        // （タスク12(lv)③）。従来は mandatory だけを積んでいたため、**CPU の場では一度も発火しなかった**（過小実行）。
+        // ⚠方針＝**無コストに限る**。コスト付き任意【出】は従来どおり発動しない＝踏み倒しも過剰支払いも作らない
+        //   （COLLAB で起きた「mandatory 判定なしで全 ON_PLAY を無条件に積む」過剰実行の再発を避ける）。
+        //   engine の `OPTIONAL_ACTIVATE` は「発動する／発動しない」の CHOOSE を出し、CPU 自動応答は先頭
+        //   （＝発動する）を選ぶ＝「**CPU は無コストの任意【出】を必ず発動する**」という明示方針になる。
+        const optionalNoCostCpu = (effectsMap.get(candidate.id) ?? []).filter(e =>
+          isOptionalOwnOnPlayForNormalSummon(e) && !e.cost &&
+          (!e.activeCondition || checkActiveCondition(e.activeCondition, newCpuSt, huSt, true, battleCardMap, candidate.id)) &&
+          (!e.condition || evalUseCondition(e.condition, newCpuSt, huSt, battleCardMap, candidate.id, bs.turn_phase)),
+        );
+        for (const effOpt of optionalNoCostCpu) {
+          // `costUnparsed` 等で包めないものは従来どおり発火させない（踏み倒し防止の安全弁をそのまま使う）。
+          const wrappedCpu = wrapOptionalOnPlay(effOpt);
+          if (!wrappedCpu) continue;
+          cpuOnPlayEntries.push({
+            id: generateUUID(),
+            playerId: CPU_PLAYER_ID,
+            cardNum: candidate.id,
+            effectId: effOpt.effectId,
+            label: `${candidate.card!.CardName} の任意【出】効果`,
+            effect: wrappedCpu,
+          } satisfies StackEntry);
+        }
         const cpuFt = collectFieldTriggers('ON_PLAY', candidate.id, newCpuSt, cpuHuSt, CPU_PLAYER_ID);
         cpuOnPlayEntries.push(...cpuFt.entries);
         // usageLimit（《ターン1回/2回》）消費を actions_done へ永続化（CPU=guest／人間=host）。
