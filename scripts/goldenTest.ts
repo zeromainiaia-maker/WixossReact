@@ -10898,7 +10898,7 @@ test('(cvii) ctx.currentPhase を見る機構の母集団固定と DURING_PHASE 
   };
   for (const [, effs] of effectsMap) for (const e of effs) collectDP(e, e.effectId);
   const dpMap = Object.fromEntries(duringPhase.map(d => [d.id, d.phases.join(',')]));
-  eq(duringPhase.length, 8, 'DURING_PHASE を持つ効果は8件');
+  eq(duringPhase.length, 7, 'DURING_PHASE を持つ効果は7件（🔧(cx) で WX05-013-E2 を timing へ移し8→7）');
   eq(dpMap['SPDi44-08-E1'], 'MAIN', 'SPDi44-08-E1＝あなたのメインフェイズの間');
   eq(dpMap['WX24-P1-015-E1'], 'MAIN', 'WX24-P1-015-E1＝あなたのメインフェイズの間');
   eq(dpMap['WX25-P1-018-E1'], 'MAIN', 'WX25-P1-018-E1＝あなたのメインフェイズの間');
