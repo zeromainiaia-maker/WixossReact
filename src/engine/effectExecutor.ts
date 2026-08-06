@@ -5124,8 +5124,14 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     }
     return done(ctx);
   }
+  // ⚠ 動的フィルタ（「この方法でダウンしたルリグと同じレベル」等）を先に解決する。ここだけ
+  //   `resolveDynamicFilter` を通していなかったため、動的キーは matchesFilter が黙って無視し**制限なし**に
+  //   倒れていた（WX25-P1-112＝相手シグニ全体から能力を奪う過剰効果。タスク12(cix)）。
+  //   参照元は**発動側**の状態（ctx.ownerState）＝コスト支払いの記録はそこにある。
   // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）のシグニに限定（WX17-035「このシグニの正面のシグニ」）
-  let resolvedFilter = a.target.filter;
+  let resolvedFilter = resolveDynamicFilter(
+    a.target.filter, ctx.ownerState, ctx.cardMap, ctx.otherState,
+    ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   let frontRestrict: string[] | null = null;
   if (resolvedFilter?.frontOfSelf) {
     const { frontOfSelf: _f, ...rest } = resolvedFilter;
