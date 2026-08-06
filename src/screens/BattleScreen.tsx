@@ -11542,6 +11542,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newOpVirusStateLrig = { ...op, field: { ...op.field, signi_virus: newOppVirusLrig } };
         paid = { ...paid, opp_virus_removed_just: true };
       }
+      // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）。
+      // ルリグ本来の【起】もこの経路を通る（WXDi-P02-009-E3／WXDi-P03-009-E3＝レベル2のルリグ2体）。タスク12(cviii)
+      const lrigDownCostLg = effect.cost?.lrigDown;
+      if (lrigDownCostLg) {
+        const lrigPaidLg = payLrigDownCost(paid, lrigDownCostLg, battleCardMap);
+        if (!lrigPaidLg) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
+        paid = lrigPaidLg.state;
+      }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
       // ルリグ自身の【起】効果か、付与/継承された【起】効果かでラベルを分ける
