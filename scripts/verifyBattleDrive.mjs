@@ -8790,28 +8790,82 @@ const scenarios = {
     },
     async drive(page, H) {
       const before = await H.queryState();
-      H.log('開始時 host.lrigDown/hand/deck:', before?.host, undefined);
+      H.log(`開始時 hand=${before?.host?.hand} lrigDown=${before?.host?.lrigDown}（センターはダウン済み＝支払い不能）`);
       H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
-      let modalOpened = false;
+      let stackModalSeen = false;
       let abilityBtnSeen = false;
-      let abilityBtnEnabled = null;
       let activated = false;
-      for (let s = 0; s < 18; s++) {
+      for (let s = 0; s < 12; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/lrigDownCenterOnlyUnwired-${s}.png`, fullPage: true });
+        // シグニのアクションモーダルが開いたことをカード名で確認する（開いていないのに
+        // 「【起】が無い」と判定すると偽PASSになる＝この対照が本シナリオの肝）。
+        const body = await H.fullBody();
+        if (body.includes('古代乗機')) stackModalSeen = true;
         let did = null;
-        if (!did && !modalOpened) {
-          const btn = page.getByRole('button', { name: /【起】/ }).first();
-          if (await btn.count() && await btn.isVisible().catch(() => false)) {
-            abilityBtnSeen = true;
-            abilityBtnEnabled = await btn.isEnabled().catch(() => false);
-            H.log(`  【起】ボタン発見＝enabled=${abilityBtnEnabled}（センターはダウン済み＝lrigDownコストが正しく配線されていれば disabled のはず）`);
-            if (abilityBtnEnabled) { await btn.click().catch(() => {}); did = 'btn:【起】'; activated = true; }
-            else { did = null; }
-            modalOpened = true;
-          }
+        const btn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          abilityBtnSeen = true;
+          const enabled = await btn.isEnabled().catch(() => false);
+          H.log(`  【起】ボタン発見＝enabled=${enabled}（センターダウン済み＝本来は提示されないはず）`);
+          if (enabled) { await btn.click().catch(() => {}); did = 'btn:【起】'; activated = true; }
         }
         if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        H.log(`  ldcu[${s}] -> ${did ?? 'なし'} | stackModalSeen=${stackModalSeen} abilityBtnSeen=${abilityBtnSeen} activated=${activated} hHand=${st?.host?.hand} hLrigDown=${st?.host?.lrigDown} pEff=${st?.pendingEffect ?? '-'}`);
+        if (activated && (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0) && !st?.pendingEffect) {
+          return { pass: false, detail: `【退行】センタールリグがダウン済み（field.lrig_down:true）＝支払い不能のはずなのに【起】が提示・発動でき、SEARCHが実行された（hHand ${before.host.hand}→${st.host.hand}）＝タスク12(cviii)の配線が外れている` };
+        }
+        // モーダルが開いていて【起】が一度も提示されないまま数手経過＝正しい挙動。
+        if (stackModalSeen && !abilityBtnSeen && s >= 3) {
+          return { pass: true, detail: `センターダウン済みでは【起】がアクション一覧に提示されない（他の自動支払いコストと同じ扱い）＝lrigDownコストの available 判定が機能している。hand=${st?.host?.hand}（不変）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（stackModalSeen=${stackModalSeen} abilityBtnSeen=${abilityBtnSeen} activated=${activated} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // タスク12(cviii) の対照＝**支払える側**。センタールリグがアップなら【起】が提示され、発動すると
+  // ①センターが実際にダウンする（＝コストが支払われた証拠）②SEARCH本体が走って手札が増える。
+  // 修正前はコストが素通りしていたため ① が起きなかった（hand だけ増えて lrig_down は false のまま）。
+  lrigDownCenterOnlyPays: {
+    title: 'WXK10-037-E2（lrigDown centerOnly＝アップなら提示され、センターがダウンして支払われる・タスク12(cviii)）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-013#1'],
+        'field.lrig_down': false, // センタールリグはアップ＝支払える
+        'field.signi': [['WXK10-037#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'deck': ['WD02-013#1', 'WD01-013#2'], // サーチ対象（赤のシグニ）
+        'hand': [],
+        'actions_done': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始時 hand=${before?.host?.hand} lrigDown=${before?.host?.lrigDown}（センターはアップ＝支払える）`);
+      H.log('シグニゾーン0クリック:', await H.clickTestId('my-signi-zone-0') ?? '見つからず');
+      let abilityBtnSeen = false;
+      let activated = false;
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/lrigDownCenterOnlyPays-${s}.png`, fullPage: true });
+        let did = null;
+        if (!activated) {
+          const btn = page.getByRole('button', { name: /^【起】/ }).first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) {
+            abilityBtnSeen = true;
+            if (await btn.isEnabled().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:【起】'; }
+          }
+        }
+        if (!did) {
+          // SigniActivatedModal の「発動」＝ここが disabled のままなら available 判定が誤って厳しい。
+          const fire = await H.clickBtn('発動', { exact: true });
+          if (fire) { did = fire; activated = true; }
+        }
         if (!did) {
           const pick0 = page.getByTestId('pick-0').first();
           if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
@@ -8821,16 +8875,16 @@ const scenarios = {
         }
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
-        H.log(`  ldcu[${s}] -> ${did ?? 'なし'} | abilityBtnSeen=${abilityBtnSeen} abilityBtnEnabled=${abilityBtnEnabled} activated=${activated} hHand=${st?.host?.hand} hLrigDown=${JSON.stringify(st)} pEff=${st?.pendingEffect ?? '-'}`);
-        if (abilityBtnSeen && abilityBtnEnabled === false && !activated) {
-          return { pass: true, detail: `センターダウン済みの状態で【起】ボタンがdisabled＝lrigDownコストのavailable判定が正しく機能している（想定外の配線ではなかった）` };
-        }
+        H.log(`  ldcp[${s}] -> ${did ?? 'なし'} | abilityBtnSeen=${abilityBtnSeen} activated=${activated} hHand=${st?.host?.hand} hLrigDown=${st?.host?.lrigDown} pEff=${st?.pendingEffect ?? '-'}`);
         if (activated && (st?.host?.hand ?? 0) > (before?.host?.hand ?? 0) && !st?.pendingEffect) {
-          return { pass: false, detail: `【実バグ発見】センタールリグが既にダウン済み（field.lrig_down:true）＝本来支払い不能のはずなのに【起】ボタンがenabledのまま押せ、SEARCHが実行されてしまった（hHand ${before.host.hand}→${st.host.hand}）＝lrigDownコストが【起】ACTIVATEDの実行経路に一切配線されていない（executeSigniActivatedがcost.lrigDownを読んでいない）` };
+          if (st?.host?.lrigDown === true) {
+            return { pass: true, detail: `【起】が提示され発動＝センターが実際にダウン（lrig_down false→true）し、SEARCH本体も実行（hand ${before.host.hand}→${st.host.hand}）＝コストが支払われている` };
+          }
+          return { pass: false, detail: `【退行】本体（SEARCH）は実行された（hand ${before.host.hand}→${st.host.hand}）のに、センタールリグが下がっていない（lrig_down=${st?.host?.lrigDown}）＝lrigDownコストが素通り` };
         }
       }
       const fin = await H.queryState();
-      return { pass: false, detail: `未完了（abilityBtnSeen=${abilityBtnSeen} abilityBtnEnabled=${abilityBtnEnabled} activated=${activated} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+      return { pass: false, detail: `未完了（abilityBtnSeen=${abilityBtnSeen} activated=${activated} hHand=${fin?.host?.hand} hLrigDown=${fin?.host?.lrigDown} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
 
