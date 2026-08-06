@@ -23516,6 +23516,42 @@ test('task12(cix) "このシグニは【X】を得る" grants stay on the source
   }
 }));
 
+test('task12(cix) WX25-P2-114: "好きな数" LRIG down mills level-sum + 1 from the opponent deck', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX25-P2-114')!.find(e => e.effectId === 'WX25-P2-114-E1')!;
+  const steps = (eff.action as SequenceAction).steps as [{ type: string; target: { type: string; count: number | string } }, { type: string; owner: string; count: number; countPlusLastDownedLrigLevelSum?: boolean }];
+  eq(steps[0].target.type, 'LRIG', 'ダウン対象はルリグ（従来はシグニ1体に化けていた）');
+  eq(steps[0].target.count, 'ALL', '「好きな数」＝枚数選択');
+  eq(steps[1].type, 'MILL', '第2文は相手デッキのミル（従来は原文に無いパワー修整 STUB）');
+  eq(steps[1].owner, 'opponent', '削るのは対戦相手のデッキ');
+  eq(steps[1].count, 1, '「合計に１を加えた」の＋1');
+  eq(steps[1].countPlusLastDownedLrigLevelSum, true, '合計はダウンしたルリグのレベル');
+
+  const lrigLv3 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 3);
+  const lrigLv1 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 1);
+  const mk = () => {
+    const ctx = mkCtx({}, {}, 'WX25-P2-114');
+    ctx.ownerState.field.lrig = [`${lrigLv3}#center`];
+    ctx.ownerState.field.assist_lrig_l = [`${lrigLv1}#left`];
+    ctx.ownerState.field.lrig_down = false;
+    ctx.ownerState.field.assist_lrig_l_down = false;
+    return ctx;
+  };
+  const ctx = mk();
+  const deckBefore = ctx.otherState.deck.length;
+  const offered = executeEffect(eff, ctx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '0..N の枚数選択を提示');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  eq(offered.pending.options.map(o => o.id).join(','), 'lrig_down_0,lrig_down_1,lrig_down_2', 'アップ2体なら0..2体');
+  const c = { ...ctx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs };
+  const two = finish(resumeChoose('lrig_down_2', offered.pending, c), ctx);
+  eq(two.ownerState.field.lrig_down, true, 'センターをダウン');
+  eq(two.ownerState.field.assist_lrig_l_down, true, 'アシストLもダウン');
+  eq(deckBefore - two.otherState.deck.length, 5, 'レベル合計4＋1＝5枚を相手デッキから削る');
+  const zero = finish(resumeChoose('lrig_down_0', offered.pending, c), ctx);
+  eq(zero.ownerState.field.lrig_down, false, '0体ならダウンしない');
+  eq(deckBefore - zero.otherState.deck.length, 1, '0体でも「＋1」の1枚は削る');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
