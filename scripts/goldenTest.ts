@@ -8231,9 +8231,19 @@ test('task12(cxii) パワー参照ゲート: powers 未指定でも state から
   // 明示的に実効パワーを渡せば保護される
   ok(collectBanishEffectProtectedSigni(bare, opp, true, effectsMap, cardMap as Map<string, CardData>,
     new Map([['WDK08-Y11', 20000]])).has('WDK08-Y11'), '実効パワー20000なら保護される');
-  // powers 省略時も「盤面の CONTINUOUS 由来のバフ」を自前計算で拾う＝+8000 する常在シグニを並べる
-  const buffer = findCard(c => c.Type === 'シグニ' && /このシグニのパワーを/.test(c.EffectText ?? '') === false && false) as string | undefined;
-  ok(buffer === undefined, 'ダミー（バフ源はカード依存のため明示 powers 版で担保する）');
+  // ★本丸＝powers を**渡さなくても**盤面の CONTINUOUS バフを自前計算で拾う（旧＝表記パワー固定で一生 false）
+  const buffer = fresh();
+  const buffMap = new Map(effectsMap);
+  buffMap.set(buffer, [{
+    effectId: 'buff', effectType: 'CONTINUOUS',
+    action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' }, delta: 10000 },
+    duration: 'PERMANENT', mandatory: true,
+  } as unknown as CardEffect]);
+  const buffed = mkState({ signi: ['WDK08-Y11', buffer, null] });
+  ok(collectBanishEffectProtectedSigni(buffed, opp, true, buffMap, cardMap as Map<string, CardData>).has('WDK08-Y11'),
+    '常在バフ+10000（12000→22000）なら powers 未指定でも保護される');
+  ok(!collectBanishEffectProtectedSigni(mkState({ signi: ['WDK08-Y11', null, null] }), opp, true, buffMap, cardMap as Map<string, CardData>).has('WDK08-Y11'),
+    'バフ源が居なければ保護されない（過剰側にも倒れていない）');
 }));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
