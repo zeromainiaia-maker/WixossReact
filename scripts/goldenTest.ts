@@ -23805,6 +23805,108 @@ test('task12(xciv) tail: increase+decrease in one sentence, and the banish-histo
   eq(run2('WX13-026', mkMy2({}), undefined), '《黒》×３', '相手 state が未知なら成立させない（安いほうへ倒さない）');
 }));
 
+// ── タスク12(cx)：対戦相手のシグニのアタックに応答する【起】（WX05-013-E2）──
+// 旧実装は `condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}` だったが `ATTACK_SIGNI_OP` は
+// `TurnPhase` に存在しない値＝条件が常に false で**一度もボタンに出なかった**。使用条件ではなく
+// 使用タイミングなので timing:'ON_OPP_SIGNI_ATTACK'（守備側の応答窓）へ載せ替え、
+// 進行中のアタックは `negated_attacks`（宣言時に見る事前登録）ではなく `cancel_current_signi_attack` で落とす。
+test('task12(cx) データ側: ON_OPP_SIGNI_ATTACK へ載せ替わり、死語 ATTACK_SIGNI_OP は全滅', () => {
+  const e2 = (effectsMap.get('WX05-013') ?? []).find(e => e.effectId === 'WX05-013-E2');
+  if (!e2) throw new Error('WX05-013-E2 が無い');
+  eq(JSON.stringify(e2.timing), JSON.stringify(['ON_OPP_SIGNI_ATTACK']), '【起】は相手シグニアタックの応答窓');
+  eq(e2.condition, undefined, '常に false だった使用条件は残さない');
+  eq((e2.action as { attackingOnly?: boolean }).attackingOnly, true, '対象は「アタックしているシグニ」＝宣言中のアタッカー限定');
+  eq(e2.cost?.exceed, 2, 'エクシード2 のコストは保持');
+  const withDeadPhase = [...effectsMap.entries()].filter(([, effs]) => JSON.stringify(effs).includes('ATTACK_SIGNI_OP'));
+  eq(withDeadPhase.length, 0, `ATTACK_SIGNI_OP は全カードから消えている（残: ${withDeadPhase.map(([id]) => id).join(',')}）`);
+});
+
+test('task12(cx) OPP_SIGNI_ATTACKING は相手のアタック宣言中だけ真', () => withSavedCursor(() => {
+  const cond = { type: 'OPP_SIGNI_ATTACKING' } as never;
+  const me = mkState({});
+  const attacking = { ...mkState({ signi: [fresh(), null, null] }), pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
+  const idle = mkState({ signi: [fresh(), null, null] });
+  ok(evalUseCondition(cond, me, attacking, cardMap as Map<string, CardData>, '', 'MAIN'), '宣言中は真');
+  ok(!evalUseCondition(cond, me, idle, cardMap as Map<string, CardData>, '', 'MAIN'), '宣言していなければ偽');
+}));
+
+test('task12(cx) attackingOnly: 候補は宣言中のアタッカーだけ・進行中アタックは cancel フラグで落とす', () => withSavedCursor(() => {
+  const [a0, a1, a2] = [fresh(), fresh(), fresh()];
+  const attacker = { ...mkState({ signi: [a0, a1, a2] }), pending_signi_battle: { zoneIndex: 1 } } as PlayerState;
+  const ctx = { ...mkCtx({}, {}), otherState: attacker } as ExecCtx;
+  const action = { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as EffectAction;
+
+  const start = executeEffect({ effectId: 'cx', effectType: 'ACTIVATED', timing: ['ON_OPP_SIGNI_ATTACK'], action, duration: 'INSTANT', mandatory: false }, ctx);
+  if (start.done || start.pending.type !== 'SELECT_TARGET') throw new Error('SELECT_TARGET expected');
+  eq(JSON.stringify(start.pending.candidates), JSON.stringify([a1]), '3体並んでいてもアタック中の1体だけが候補');
+
+  const r = finish(start, ctx);
+  ok(!!r.otherState.cancel_current_signi_attack, '進行中のアタックはキャンセルフラグで落とす');
+  eq((r.otherState.negated_attacks ?? []).length, 0, '事前登録（negated_attacks）には積まない＝将来のアタックまで封じない');
+
+  // 宣言中のアタッカーが居なければ空振り（応答窓の外で撃たれても何も起きない）
+  const idleCtx = { ...mkCtx({}, {}), otherState: mkState({ signi: [a0, a1, a2] }) } as ExecCtx;
+  const idle = executeEffect({ effectId: 'cx2', effectType: 'ACTIVATED', timing: ['ON_OPP_SIGNI_ATTACK'], action, duration: 'INSTANT', mandatory: false }, idleCtx);
+  ok(idle.done && !idle.otherState.cancel_current_signi_attack, 'アタック中でなければ何も起きない');
+
+  // 回帰：attackingOnly なし（「このターン次にアタックしたとき無効」型）は従来どおり事前登録
+  const plainCtx = { ...mkCtx({}, {}), otherState: { ...attacker } } as ExecCtx;
+  const plain = finish(executeEffect({
+    effectId: 'cx3', effectType: 'AUTO', timing: ['ON_PLAY'],
+    action: { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    duration: 'INSTANT', mandatory: true,
+  }, plainCtx), plainCtx);
+  eq((plain.otherState.negated_attacks ?? []).length, 1, '従来型は negated_attacks へ（回帰）');
+  ok(!plain.otherState.cancel_current_signi_attack, '従来型は進行中アタックを落とさない');
+}));
+
+test('task12(cx) 収集: 守備側の応答窓に【起】が上がり、コストは踏み倒さない', () => withSavedCursor(() => {
+  const lrigPool = [fresh(), fresh()]; // エクシード原資（グロウで下に敷かれたルリグ）
+  const defender = mkState({ lrig: [...lrigPool, 'WX05-013'] });
+  const attackerNum = fresh();
+  const attacker = { ...mkState({ signi: [attackerNum, null, null] }), pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
+
+  const got = collectOppSigniAttackResponses(defender, attacker, effectsMap, cardMap as Map<string, CardData>, 'ATTACK_SIGNI');
+  eq(got.length, 1, '応答窓に上がるのは対象の【起】1件だけ（同カードの MAIN 専用【起】は上がらない）');
+  eq(got[0].effect.effectId, 'WX05-013-E2', 'エクシード2 の【起】');
+  eq(got[0].effect.cost, undefined, 'cost は包みへ移す＝二重徴収しない');
+  const wrapped = got[0].effect.action as SequenceAction;
+  eq(wrapped.type, 'SEQUENCE', '「支払って発動するか」の包みになる');
+  eq((wrapped.steps[0] as StubAction).id, 'OPTIONAL_COST', '先頭は任意コスト＝踏み倒しなし');
+  eq((wrapped.steps[0] as StubAction & { exceed?: number }).exceed, 2, 'エクシード2 が包みに載る');
+  eq((wrapped.steps[1] as { type: string }).type, 'NEGATE_ATTACK', '本体はアタック無効');
+
+  // エクシード原資が無ければ選択肢に出さない（払えない CHOOSE を毎アタック出さない）
+  eq(collectOppSigniAttackResponses(mkState({ lrig: ['WX05-013'] }), attacker, effectsMap, cardMap as Map<string, CardData>, 'ATTACK_SIGNI').length,
+    0, 'エクシードを払えない盤面では上がらない');
+  // 同カードでも timing:['MAIN'] の【起】（E3）は応答窓に出ない
+  ok(!got.some(g => g.effect.effectId === 'WX05-013-E3'), 'MAIN 専用【起】は応答窓に出さない');
+}));
+
+test('task12(cx) 実行: 支払えばアタックが消え、支払わなければ通る', () => withSavedCursor(() => {
+  const lrigPool = [fresh(), fresh()];
+  const attackerNum = fresh();
+  const mkPair = () => {
+    const defender = mkState({ lrig: [...lrigPool, 'WX05-013'] });
+    const attacker = { ...mkState({ signi: [attackerNum, null, null] }), pending_signi_battle: { zoneIndex: 0 } } as PlayerState;
+    return { ...mkCtx({}, {}), ownerState: defender, otherState: attacker, sourceCardNum: 'WX05-013' } as ExecCtx;
+  };
+  const eff = collectOppSigniAttackResponses(mkPair().ownerState, mkPair().otherState, effectsMap, cardMap as Map<string, CardData>, 'ATTACK_SIGNI')[0].effect;
+
+  const payCtx = mkPair();
+  const paid = finish(executeEffect(eff, payCtx), payCtx); // オートパイロットは available な pay を選ぶ
+  ok(!!paid.otherState.cancel_current_signi_attack, '支払えばアタッカーのアタックが無効になる');
+  eq(paid.ownerState.lrig_trash.length, 2, 'エクシード2 がルリグトラッシュへ');
+  eq(paid.ownerState.field.lrig.at(-1), 'WX05-013', 'センタールリグは残る（下から払う）');
+
+  const skipCtx = mkPair();
+  const start = executeEffect(eff, skipCtx);
+  if (start.done || start.pending.type !== 'CHOOSE') throw new Error('CHOOSE expected');
+  const skipped = resumeChoose('skip', start.pending as never, { ...skipCtx, ownerState: start.ownerState, otherState: start.otherState, logs: start.logs });
+  ok(!skipped.otherState.cancel_current_signi_attack, '支払わなければアタックはそのまま通る');
+  eq(skipped.ownerState.lrig_trash.length, 0, '支払わなければエクシードも減らない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
