@@ -287,7 +287,14 @@ const PATTERNS: Pattern[] = [
           else if (lvEq) need.push(`"level":${zh(lvEq[1])}`);
           if (/シグニ/.test(desc)) need.push('"cardType":"シグニ"');
           if (neg) need.push('elseAction');
-          if (need.length === 0 || !need.every(k => js.includes(k))) { allCovered = false; return whole; }
+          // ⚠**残渣チェック**（較正が過剰にならないための要）＝desc からモデル化できた識別子を取り除いて
+          //   何か残るなら covered にしない。これが無いと「センタールリグと共通する色を持つシグニ」
+          //   （WDA-F04-10）・「《X》以外のシグニ」（WXDi-P08-062）・「このシグニよりパワーの低いシグニ」
+          //   （WXK11-048）のように **filter に載っていない条件を落としている実バグ**まで合格にしてしまう。
+          const residue = desc
+            .replace(/＜[^＞]+＞/g, '').replace(/レベル[０-９\d]+(?:以上|以下)?/g, '')
+            .replace(/シグニ|カード/g, '').replace(/[のかそれ、\s]/g, '').trim();
+          if (residue !== '' || need.length === 0 || !need.every(k => js.includes(k))) { allCovered = false; return whole; }
           return '';
         });
       const t3 = t2.replace(/そう(しなかった|した|でない|である)場合/g, '');
