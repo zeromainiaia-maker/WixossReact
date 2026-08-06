@@ -358,6 +358,12 @@ function costJa(c?: any): string {
   return parts.join('＋');
 }
 
+/** `DURING_PHASE.phases` がアタックフェイズ4実値をすべて含むか（＝原文「アタックフェイズの間」）。 */
+function isAllAttackPhases(phases?: string[]): boolean {
+  const need = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
+  return !!phases && need.every(p => phases.includes(p));
+}
+
 function condJa(c?: any): string {
   if (!c) return '';
   switch (c.type) {
