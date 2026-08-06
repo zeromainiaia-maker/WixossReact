@@ -9970,6 +9970,8 @@ order.push('chainArtsCostReduction');
 order.push('cpuOptionalOnPlayCharm');
 // タスク12(xciv) δ-6＝ターン履歴の記録側（BattleScreen の盤面差分 funnel）は golden で踏めない。
 order.push('banishHistoryForCost');
+// タスク12(cx)＝守備側の応答窓（`performSigniAttack` の収集）は BattleScreen 側＝golden では踏めない。
+order.push('oppSigniAttackActivated');
 order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で実行
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
