@@ -5999,9 +5999,19 @@ test('ON_OPP_ENERGY_ADDED: 相手エナ1枚増加・閾値・アタックフェ�
   eq(detectEnergyAdded(beforeGuest, guest).join(','), placed, '相手エナの増加カードを set-diff 検出');
   eq(detectEnergyAdded(guest, beforeGuest).length, 0, 'エナ減少は検出しない');
   const event = [{ ownerId: HOST, nums: [] }, { ownerId: GUEST, nums: [placed] }];
-  const attackCtx = { ...trigCtx(HOST), turnPhase: 'ATTACK' };
+  // ⚠`turnPhase` は `TurnPhase` の実値でなければ engine の `phases.includes` に当たらない。
+  //   旧テストは 'ATTACK'（存在しない値）を使い、JSON 側も同じ不正値を持っていたため
+  //   「両方が同じ間違いをしていて緑」だった＝タスク12(cvii) で4実値へ是正。
+  const attackCtx = { ...trigCtx(HOST), turnPhase: 'ATTACK_SIGNI' };
   const fired1 = collectOppEnergyAddedTriggers(attackCtx, event, host, guest);
   eq(hasEff(fired1.entries, 'WX24-P2-050-E1'), true, '条件成立で発火');
+  // アタックフェイズの4実値すべてで発火する（`ATTACK_ARTS_OP`＝相手のアーツ応答窓も含む）
+  for (const ph of ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG']) {
+    eq(hasEff(collectOppEnergyAddedTriggers({ ...trigCtx(HOST), turnPhase: ph }, event, host, guest).entries,
+      'WX24-P2-050-E1'), true, `${ph}: アタックフェイズなので発火`);
+  }
+  eq(hasEff(collectOppEnergyAddedTriggers({ ...trigCtx(HOST), turnPhase: 'ATTACK' }, event, host, guest).entries,
+    'WX24-P2-050-E1'), false, "'ATTACK' は TurnPhase に無い値＝発火しない（不正値の再混入検知）");
   eq(fired1.entries[0]?.triggeringCardNum, placed, '置かれたカード自身を保持');
   eq(fired1.usedHostIds.join(','), 'WX24-P2-050-E1', 'once_per_turn 消費IDを返す');
   const usedHost = { ...host, actions_done: ['WX24-P2-050-E1'] };
