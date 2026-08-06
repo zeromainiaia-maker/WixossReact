@@ -1,5 +1,45 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(cvii) 残0クローズ＝`ctx.currentPhase` が実UI経路で常に undefined だった配線漏れ（golden 1367→1368・live 2カード）（Opus 5・続き357）
+
+### 何が壊れていたか（真因）
+`BattleScreen.tsx` が組み立てる `ExecCtx` リテラル **8箇所すべて**に `currentPhase` フィールドが無く、実ゲームでは常に `undefined` だった。engine 側にはフェイズを見る機構が4本あるが、**いずれもフェイズ不明なら成立させない側へ倒す**設計（permissive／保守的スキップ）なので、渡し忘れると **engine は正しいのに実UIでは丸ごと不発**になる。しかも計器には一切映らない＝golden ハーネス（`src/verify/main.ts:58`・`goldenTest.ts` の `mkCtx`）は `currentPhase:'MAIN'` を**手で埋める**ため engine 単体テストはずっと緑だった。
+
+不発だった4機構と、その live 母集団：
+
+| 機構 | 挙動（修正前） | 母集団 |
+|---|---|---|
+| `isOwnTrashMoveLocked`（`execUtils.ts:1166`） | phase 不明＝**ロックしない**ので `LOCK_OPP_TRASH_MOVE` が常に無効 | 宣言元2効果（`WX24-P4-007-E1`③／`WXDi-P14-005-E1`c2）。射程は自分のトラッシュ発生源330件 |
+| `DURING_PHASE` 条件（`execUtils.ts:1651`） | `phases.includes(undefined ?? '')` ＝**常に false** | action 木の中で評価される1件（`WX13-035-E2`）。effect.condition 側は収集層が別途フェイズを渡すので無事 |
+| `applyEffectLeaveNoAbilityDeckBottomSubstitute`（`effectExecutor.ts:256`） | `startsWith('ATTACK')` が false＝**一度も成立しない** | 宣言元1効果（`WXEX2-30-E1`） |
+| `banishRedirectOpts.turnPhase`（`execUtils.ts:458`） | `DURING_ATTACK_PHASE` 付き置換を**保守的にスキップ**（`effectEngine.ts:1225`） | バニッシュ先置換3効果（`WXEX2-75-E1`／`WXDi-D09-P14-E1`／`WXDi-P10-044-E2`） |
+
+### どう直したか
+1. **`BattleScreen.tsx` の `ExecCtx` 8箇所に `currentPhase: bs.turn_phase ?? undefined` を追加**（4254／4588／4855／4909／4958／4999／6636／6938。登録時の記録は6箇所だったが実測8箇所）。同じ関数内の `collectAttackPhaseLevelOverrides` が既に `bs.turn_phase` を受け取っており、値の出所はこれで確定している。先頭の1箇所に**渡し忘れが何を壊すか**の注記を置いた。
+2. **`DURING_PHASE.phases` の不正値2件を是正**（＝engine の `includes` に一生当たらず条件が常に false だった）。
+   - `WX24-P2-050-E1`＝`['ATTACK']`（`TurnPhase` に存在しない総称値）→ アタックフェイズ4実値へ。原文「アタックフェイズの間、対戦相手のエナゾーンにカード1枚が置かれたとき」。
+   - `WX13-035-E2`＝`ATTACK_ARTS_OP` 欠落 → 4実値へ。原文「このシグニがアタックフェイズの間に場に出た場合」＝相手のアーツ応答窓も含む。
+   - `effectParser.ts` に **`ATTACK_PHASES` 定数**を新設して両方をここから引く（`WX20-067-E1` の手書き定義と同じ集合）。
+3. **逆翻訳**＝4実値そろっていれば「アタックフェイズの間」1語に畳む（`isAllAttackPhases`）。旧表示は `ATTACK_ARTS/ATTACK_ARTS_OP/…フェイズの間` の生列挙だった。
+
+⚠**旧 golden が「両方が同じ間違いをしていて緑」だった**＝`ON_OPP_ENERGY_ADDED` のテストが `turnPhase:'ATTACK'`（存在しない値）を渡し、JSON 側も同じ不正値を持っていたため一致していた。4実値すべてで発火することと、**`'ATTACK'` では発火しないこと**（不正値の再混入検知）を assert し直した。
+
+### 検証（実機4シナリオ・各2回連続PASS）
+`node scripts/verifyBattleDrive.mjs <id>`（**フルバッチは実行しない**）：
+
+- **`trashMoveLockBlocksSelfEffect`（既存・登録時は意図的FAIL→PASSへ反転）** — `lock_trash_move_this_turn:true` の MAIN で `WD05-018`（トラッシュのシグニ1枚を手札へ）を使用→**候補0で静かに不発**（トラッシュのカードは動かず手札も増えない。スペル自体はトラッシュへ）。
+- **`trashMoveLockAllowsWhenUnlocked`（既存・対照）** — ロック無しなら同じ操作で正常に手札へ＝**過剰ロックしていない**。
+- **`noAbilityDeckBottomAttackPhase`（新規）** — ATTACK_ARTS で `WX15-011`（炎芒一閃《赤》×0）を撃ち、能力を失った相手シグニがエナではなく**デッキの一番下**へ（`deckBottom=WD01-014#1`・deck 2→3・エナ空）。
+- **`noAbilityDeckBottomMainPhaseNoop`（新規・対照）** — 同じ盤面を MAIN で撃つと置換されず通常どおり**エナゾーンへ**＝フェイズ限定が効いている。
+
+新規2件を既定 order へ追加（121→123件）。併せて driver の `queryState` に `deckBottom` を追加（「代わりにデッキの一番下」系の観測点）。
+
+### ゲート
+golden **1367→1368**（+1＝①`DURING_PHASE` を持つ8効果を effectId 単位で phases ごと固定 ②**`TurnPhase` に無い phase 値は既知の1件だけ**（`WX05-013-E2:ATTACK_SIGNI_OP`）と全数 assert＝不正値が増えたら落ちる ③他3機構の宣言元母集団〔2／1／3効果〕を固定。加えて既存の `ON_OPP_ENERGY_ADDED` テストを4実値＋不正値の両方向へ拡充）。census **1288 据置**、smoke **10679/10679** 全0・SKIP0、fuzz 全0、lint 0 errors/**245 warnings 据置**、manual field loss 0、**同型★0（265群）**、held **257枚／109群 据置**（増えた2枚は採用して元に戻した）。**live per-effect 差分＝changed 2／added 0／removed 0**（`WX13-035`／`WX24-P2-050` の phases のみ。機械 diff で「phases 以外の変化 0」を確認）。**新語彙0本**。逆翻訳差分は `decompile_sheet2` の2行のみ（列挙→「アタックフェイズの間」）。
+
+### ⚠この作業で見つけたが直していないもの（Opusタスク12(cx) へ登録）
+`WX05-013-E2` の `DURING_PHASE.phases` が `['ATTACK_SIGNI_OP']`＝**`TurnPhase` に存在しない値**なので、この【起】（エクシード2・対戦相手のアタックを一度無効）は**条件が常に false で一度も使えない**。原文は「この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない」＝そもそもフェイズ条件ではなく「相手のアタック宣言後」というイベント条件であり、かつ `timing:['MAIN']` のままでは相手ターンに撃てない。**フェイズ名の付け替えだけでは直らない**（相手ターンに撃てる ACTIVATED の窓が要る）ので別機構として分離した。
+
 ## 2026-08-06 — 🏁Opusタスク12(cviii) 残0クローズ＝【起】ACTIVATED の `cost.lrigDown` を2つの実行経路へ配線（golden 1366→1367・他ゲート全据置）（Opus 5・続き356）
 
 ### 何が壊れていたか（真因）
