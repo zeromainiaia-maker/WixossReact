@@ -9394,6 +9394,63 @@ scenarios.banishHistoryForCost = {
   },
 };
 
+// タスク12(cx)：「この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない」【起】（WX05-013-E2）。
+//   旧実装は使用条件を `DURING_PHASE:['ATTACK_SIGNI_OP']` にしていたが `ATTACK_SIGNI_OP` は `TurnPhase` に
+//   存在しない値＝条件が常に false で**一度も撃てなかった**。使用条件ではなく使用タイミングなので
+//   timing:'ON_OPP_SIGNI_ATTACK' へ移し、`performSigniAttack` が守備側のスタックへ「エクシード2を支払って
+//   発動するか」の CHOOSE を積む（`ON_OPP_SIGNI_ATTACK_DIRECT`＝oppDirectAttackNegate と同じ作法）。
+//   ⚠**収集は BattleScreen 側＝golden では原理的に踏めない**ので実機で守る（PLAN の教訓 (f) と同型）。
+//   合格条件＝CPU の直接アタックに対し支払いを選ぶと ①ライフが減らない ②エクシード2がルリグトラッシュへ。
+scenarios.oppSigniAttackActivated = {
+  title: 'WX05-013-E2（相手シグニのアタックに応答する【起】＝エクシード2でそのアタックを無効・タスク12(cx)）',
+  spec: {
+    hostSet: {
+      // センター＝WX05-013、その下に2枚＝エクシード2の原資（下から払われる）
+      'field.lrig': ['WD01-003#1', 'WD01-002#1', 'WX05-013#1'],
+      'field.signi': [null, null, null], // 正面（guest zone0 のミラー＝zone2）を空にして直接アタックさせる
+      'field.signi_down': [false, false, false],
+      'lrig_trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-013#1'], null, null], // 小剣　ククリ（CPUアタッカー・zone0）
+      'field.signi_down': [false, false, false],
+      'blocked_actions': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 host.life:', before?.host?.life, 'host.lrigTrash:', before?.host?.lrigTrash);
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/oppSigniAttackActivated-${s}.png`, fullPage: true });
+      // 任意コスト CHOOSE（エクシードのみ＝エナ選択は不要なので pay は最初から enabled）
+      let did = null;
+      const payBtn = page.getByTestId('optcost-pay').first();
+      if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+        await payBtn.click().catch(() => {}); did = 'tid:optcost-pay';
+      }
+      if (!did) did = await H.clickTextOrBtn([/支払う（エクシード2）/, '支払う']);
+      if (!did) did = await H.stdStep(); // 対象は1体だけ＝pick-0→決定
+      const st = await H.queryState();
+      const negated = await H.findLog(/アタックが無効になった|アタックを無効にした/);
+      H.log(`  osaa[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hLrigTrash=${st?.host?.lrigTrash} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (negated && (st?.host?.lrigTrash ?? 0) >= 2) {
+        const lifeKept = (st?.host?.life ?? 0) === (before?.host?.life ?? 0);
+        return {
+          pass: lifeKept,
+          detail: lifeKept
+            ? `【起】が応答窓に上がり支払いで無効化「${negated}」（hLife ${before?.host?.life}→${st.host.life} 無傷・hLrigTrash ${before?.host?.lrigTrash}→${st.host.lrigTrash}＝エクシード2を支払い）`
+            : `無効化ログは出たがライフが減っている（hLife ${before?.host?.life}→${st.host.life}）＝キャンセルがバトル解決に届いていない`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `応答窓に【起】が上がらない（hLife=${fin?.host?.life}（開始${before?.host?.life}）hLrigTrash=${fin?.host?.lrigTrash} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
 // タスク12(lv)③：CPU が召喚したシグニの**任意・無コスト【出】**が一度も発火しなかった（過小実行）。
 //   人間の通常召喚は `OPTIONAL_ACTIVATE`（発動する/発動しない）で包んで積むのに、CPU 経路は
 //   `mandatory !== false` だけを積んでいたため、CPU の場では**選択肢にすら上がらなかった**。
