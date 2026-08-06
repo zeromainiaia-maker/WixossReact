@@ -20298,6 +20298,51 @@ test('task12(l) C群: 相手効果の全離場置換は1体だけ守り、自分
   ok(bounced.otherState.hand.includes(victim2), '2体目の移動先は手札');
 });
 
+test('task12(xcvii) 「代わりにこの能力を失う」を離場6経路すべてで適用（エナ送りの呼び忘れ回帰）', () => withSavedCursor(() => {
+  // 原文（SPDi44-08／WX25-P1-018 が付与する【常】）＝「あなたのクロス状態のシグニ１体が対戦相手の効果によって
+  // **場を離れる場合**、代わりにこのルリグはこの能力を失う。」＝離場の種類を問わない。
+  // 2026-08-06 まで `execSendToEnergy` の複数選択経路だけ `applyEffectLeaveLrigAbilitySubstitute` を
+  // 呼んでおらず、**エナ送りにだけ効かなかった**。全経路を1本の入口（applyEffectLeaveSubstitutes）へ寄せた回帰網。
+  const mkAbility = (): CardEffect => ({
+    effectId: 'shield', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', leaveVictimFilter: { crossState: true } },
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
+  });
+  const actions: EffectAction[] = [
+    { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    { type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as EffectAction,
+    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1 }, position: 'bottom' } as unknown as EffectAction,
+  ];
+  for (const action of actions) {
+    const victim = fresh();
+    const ctx = mkCtx({}, { signi: [victim, null, null] });
+    ctx.otherState = {
+      ...ctx.otherState,
+      field: { ...ctx.otherState.field, cross_state: [true, false, false] },
+      lrig_granted_auto_effects_until_opp_turn: [mkAbility()],
+    };
+    let result = executeEffect({ effectId: 'leave-lrig-test', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, ctx);
+    if (!result.done && result.pending.type === 'SELECT_TARGET') {
+      result = resumeSelectTarget([victim], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+    }
+    ok(result.done, `${action.type}: 解決が完了しない`);
+    ok(result.otherState.field.signi.some(s => s?.at(-1) === victim), `${action.type}: 置換されず場を離れた`);
+    eq(result.otherState.lrig_granted_auto_effects_until_opp_turn, undefined, `${action.type}: 身代わりに付与能力を失っていない`);
+    ok(!result.otherState.energy.includes(victim), `${action.type}: エナゾーンへ移動してしまった`);
+  }
+  // 能力を失った後（＝置換ストックなし）は素通りしてエナへ行く＝「1回だけ」を固定する
+  const victim2 = fresh();
+  const spent = mkCtx({}, { signi: [victim2, null, null] });
+  spent.otherState = { ...spent.otherState, field: { ...spent.otherState.field, cross_state: [true, false, false] } };
+  const sent = executeEffect(
+    { effectId: 'leave-lrig-spent', effectType: 'AUTO', action: { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, duration: 'INSTANT', mandatory: true },
+    spent);
+  ok(sent.done && sent.otherState.energy.includes(victim2), '付与能力が無ければエナ送りは通常どおり成立する');
+}));
+
 test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を＜原子＞だけバニッシュへ置換', () => {
   const DECLARER = 'WX25-P1-056';
   const atom = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('原子') && c.CardNum !== DECLARER);
