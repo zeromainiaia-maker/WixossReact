@@ -80,7 +80,11 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const lgTrashExileOk = !lgTrashExileCost || lgTrashExileCost.self
                 ? true
                 : selectedLrigGrantedTrashExile.size >= (lgTrashExileCost?.count ?? 0);
-              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk;
+              // lrigDown: アップ状態のルリグN体をダウンするコスト（自動支払い）。ルリグ本来の【起】も
+              // この経路を通る（WXDi-P02-009-E3／WXDi-P03-009-E3）。判定は支払い関数に委ねる。タスク12(cviii)
+              const lgLrigDownCost = eff.cost?.lrigDown;
+              const lgLrigDownOk = !lgLrigDownCost || payLrigDownCost(my, lgLrigDownCost, battleCardMap) !== null;
+              const canAfford = canAffordEnergy && canAffordExceed && canAffordHandDiscard && charmOkLrig && virusOkLrig && lgEnergyTrashOk && lgTrashExileOk && lgLrigDownOk;
               const lrigTop = my.field.lrig.at(-1);
               const lrigCard = battleCardMap.get(lrigTop ?? '');
 
