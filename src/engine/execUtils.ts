@@ -535,21 +535,34 @@ export const energyMatchesCostSlot = (color: string, slot: string): boolean =>
 /** コストスロットを表示用に整形（"青|黒" → "《青》か《黒》"） */
 export const formatCostSlot = (slot: string): string => slot.split('|').map(c => `《${c}》`).join('か');
 
-export function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
+/**
+ * 任意コストを満たすエナカード（instanceId）を実際に選び出す。支払えなければ null。
+ * ⚠**「支払えるか」と「何で払うか」は必ずこの1本から出すこと**（タスク12(cii)）。
+ *   判定と選出を別々に書くと「available なのに払えない／払えるのに available でない」がすれ違う。
+ *   CPU 自動応答はこの戻り値をそのまま `resumeOpponentPayOptional`／`resumeOptionalCost` へ渡す。
+ */
+export function selectOptionalCostEnergy(
+  costColors: string[], state: PlayerState, cardMap: Map<string, CardData>,
+): string[] | null {
   const pool = [...state.energy];
+  const picked: string[] = [];
   // 無色（任意エナ可）スロットは色指定スロットを先に消費してから割り当てる
   const ordered = [...costColors].sort((a, b) => (costSlotIsAny(a) ? 1 : 0) - (costSlotIsAny(b) ? 1 : 0));
   for (const slot of ordered) {
     if (costSlotIsAny(slot)) {
-      if (pool.length === 0) return false;
-      pool.splice(0, 1);
+      if (pool.length === 0) return null;
+      picked.push(...pool.splice(0, 1));
     } else {
       const idx = pool.findIndex(n => energyMatchesCostSlot(cardMap.get(n)?.Color ?? '', slot));
-      if (idx === -1) return false;
-      pool.splice(idx, 1);
+      if (idx === -1) return null;
+      picked.push(...pool.splice(idx, 1));
     }
   }
-  return true;
+  return picked;
+}
+
+export function canPayOptionalCost(costColors: string[], state: PlayerState, cardMap: Map<string, CardData>): boolean {
+  return selectOptionalCostEnergy(costColors, state, cardMap) !== null;
 }
 
 export function done(ctx: ExecCtx): ExecResult {
