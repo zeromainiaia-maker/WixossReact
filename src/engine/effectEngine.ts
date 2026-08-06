@@ -5280,7 +5280,7 @@ export function collectGrantedFromLayer(
         : [eff.action];
       for (const act of actions) {
         if (act.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
-        if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top, powersOf())) continue;
         const g = act as GrantAction;
         (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
       }
