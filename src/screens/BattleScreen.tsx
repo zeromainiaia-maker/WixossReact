@@ -3519,7 +3519,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
@@ -3581,7 +3581,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
           life_crashed_by_signi_this_turn: undefined,
           energy_colorless_ability_loss_this_turn: undefined,
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
           banish_redirect_battle_target_nums: undefined,
@@ -3886,7 +3886,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
-        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
@@ -3916,7 +3916,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         free_grow_next_turn: undefined,
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
         negate_coin_abilities: undefined,
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
         self_deck_to_energy_this_turn: 0,
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
@@ -10003,7 +10003,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
       const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
@@ -10055,7 +10055,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
       }), true);
       await persist.commit(reduceBattle(bs, {
         type: 'BEGIN_NEXT_TURN',

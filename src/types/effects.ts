@@ -225,6 +225,9 @@ export type Condition =
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number }
   | { type: 'ENERGY_HAS_COLOR'; owner: Owner; colors: string[] } // エナゾーンに指定色すべてのカードがある場合（「エナゾーンに赤のカードと緑のカードがある場合」）
   | { type: 'CARDS_DRAWN_BY_EFFECT'; owner: Owner; operator: CompareOp; value: number } // このターンに効果で引いた累計枚数（cards_drawn_by_effect_this_turn）
+  // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝coins_paid_this_turn（支払いのみ・獲得は数えない）。
+  // WXDi-P09-039/WXDi-P15-053/068/072/073（従来は条件節ごと落ちて**無条件発火**していた＝Opusタスク12(cxvi)）。
+  | { type: 'COINS_PAID_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
