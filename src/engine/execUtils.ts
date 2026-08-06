@@ -1662,6 +1662,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       ) >= cond.value;
     case 'DURING_PHASE':
       return cond.phases.includes(ctx.currentPhase ?? '');
+    // 対戦相手のシグニがアタックしている最中か（アタック宣言済み・バトル未解決＝pending_signi_battle）。
+    // turn_phase は所有者を持たない単一値なので「相手のアタックステップ」はフェイズ名では表せない（Opusタスク12(cx)）。
+    case 'OPP_SIGNI_ATTACKING':
+      return !!ctx.otherState.pending_signi_battle;
     case 'AND':
       return cond.conditions.every(c => evalCondition(c, ctx));
     case 'OR':
