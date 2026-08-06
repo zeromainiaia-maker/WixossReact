@@ -58,6 +58,34 @@ Phase2 は `rawEffectiveCost = betReplacedCost ?? pendingArtsEffectiveCost ?? �
 - ⚠**現時点の live 対象アーツは0枚**（`SPECIFIC_CARD_COST_REDUCE` の実測対象2枚はどちらもスペル）＝**挙動は変わらない予防修正**
   であり、**実機で差分を見せることはできない**（正直に記録する。将来アーツが対象になった瞬間に静かに安くなりすぎるのを止める）。
 
+### 検証＝**計器を直したので「計器に依存していたシナリオ」を全数 A/B した**
+
+`stackLen` を settle 判定／repatch ゲートに使っているシナリオを機械抽出（**20件**）し、**単体で全数実行**：
+
+- **16件 PASS**（`ontargetedUsageLimit` / `freezetriggerUsageLimit` / `wxk10068banish` / `charmToTrashBattle` /
+  `lrigattackstepstart` / `placedFrontNegative` / `lrigGrowUsageLimit` / `f3PayCostWX10033` / `onPlayUsageLimit` /
+  `powerModifyPerEnergy` / `artsUsedThisTurnGate` / `battleLevel4Filter` / `lxWX12020EmptyHandSkipsPicker` /
+  `lxWXDiP03089SingleTargetedFire` / `wxdip08007SkipRemovesAbilities` / `wxdip08007PaySpares`）。
+- **残4件は「旧driver（修正前の stackLen）」と「新driver」を FRESH=1 で A/B し、4件とも新旧まったく同一の結果**
+  ＝**本修正起因ではない**ことを確定：
+
+| シナリオ | 旧driver | 新driver | 解釈 |
+|---|---|---|---|
+| `outsideDrawPhase` | PASS | PASS | 20件連続実行時のみ FAIL＝**手札枯渇の状態汚染**（既知・driver 側の課題） |
+| `lrigAttackStepStartUsageLimit` | PASS | PASS | 同上（`guest.hand` 0 で前提が崩れる） |
+| `coinPaidTwice` | FAIL | FAIL | 既定 order 外の既知FAIL（本件と無関係） |
+| `drawBySourceStory` | FAIL | FAIL | **新規観測の既存FAIL**（手札5枚・FRESH ルームでも -4000 が乗らない）→**Opusタスク12(cxi) へ登録** |
+
+⚠フルバッチ（126件通し）は**途中で状態汚染由来の FAIL が積み上がる**既知の性質があるため、判定には使わず単体実行で締めた
+（driver 冒頭のコメントが指示している運用どおり）。
+
+### ゲート
+`npm run gates` **全緑**＝typecheck／**golden 1372**（1371→+1＝(xcvii) の離場6経路×2形態 回帰）／smoke **10679/10679** 全0・SKIP0／
+fuzz 全0（distinct効果 2711種）／census **1288 据置**／manual field loss 0／lint **0 errors・248 warnings**。
+⚠**warnings の 245→248 は本セッションの追加ではない**＝触った4ファイルの警告数は前後で不変（`ArtsModal` 3→3・`goldenTest` 2→2・
+`effectExecutor` 0・`verifyBattleDrive` 0）で、差分は**未追跡の置き忘れ `scripts/_dbgFresh.ts`（6月27日付）が lint 対象に入っている**分。
+**live JSON は完全不変**（`public/data/` に差分なし・新語彙0本）。
+
 ## 2026-08-06 — 🏁Opusタスク12(cv) 残0クローズ＝`opp_hand` ピッカーが viewer 相対で別人の手札を描きソフトロックしていた（golden 据置・live JSON 完全不変）（Opus 5・続き359）
 
 ### 何が壊れていたか（真因）
