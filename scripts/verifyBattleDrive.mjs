@@ -8766,14 +8766,16 @@ const scenarios = {
   },
 
   // §7「残る実機検証項目」＝「lrigDown コストの限定（続き218）」(a)センター限定の実機検証（2026-08-05）。
-  // `WXK10-037-E2`＝effectType:ACTIVATED・cost:{lrigDown:{count:1,centerOnly:true}}。コード読解で
-  // `executeSigniActivated`（BattleScreen.tsx:10530-11138）にも`SigniActivatedModal.tsx`にも`lrigDown`への
-  // 参照が一切無いことを確認済み（`payLrigDownCost`はexecuteSigniOnPlayCost＝【出】コスト専用経路からしか
-  // 呼ばれない）＝**【起】ACTIVATEDのlrigDownコストがUI/実行経路のどちらにも配線されていない疑い**。
-  // センターがダウン済み（本来なら支払い不能）でもボタンが押せて効果が無償発動するか、発動後もセンターの
-  // down状態が変化しないままか（＝コストが一切支払われていないか）を実機で確認する。
+  // `WXK10-037-E2`＝effectType:ACTIVATED・cost:{lrigDown:{count:1,centerOnly:true}}。当初この経路は
+  // `executeSigniActivated` にも `SigniActivatedModal.tsx` にも `lrigDown` への参照が一切無く
+  // （`payLrigDownCost` は executeSigniOnPlayCost＝【出】コスト専用経路からしか呼ばれなかった）、
+  // センターがダウン済みでも【起】が押せて効果が無償発動した＝タスク12(cviii)。
+  // 🔧2026-08-06に配線済み。**支払えないコストを持つ【起】は他の自動支払いコスト（fieldDown/fieldTrash/
+  // underSelfTrash 等）と同じくアクション一覧から消える**規約なので、本シナリオの合格条件は
+  // 「シグニのアクションモーダルは開くが【起】が提示されない」。逆に提示されて発動できたら退行＝FAIL。
+  // 対照＝`lrigDownCenterOnlyPays`（センターがアップなら提示され、支払われる）。
   lrigDownCenterOnlyUnwired: {
-    title: 'WXK10-037-E2（lrigDown centerOnly コスト＝【起】ACTIVATEDの配線有無を実機確認）',
+    title: 'WXK10-037-E2（lrigDown centerOnly＝センターダウン済みでは【起】が提示されない・タスク12(cviii)回帰）',
     spec: {
       hostSet: {
         'field.lrig': ['WD01-013#1'],
