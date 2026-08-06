@@ -2754,7 +2754,8 @@ function effJa(e: Eff): string {
     if (t === 'ON_LIFE_CLOTH_ADDED' && e.triggerCondition?.turnOwner === 'self') {
       s = `あなたのターンの間、${s}`;
     }
-    if (t === 'ON_OPP_ENERGY_ADDED' && e.condition?.type === 'DURING_PHASE' && e.condition.phases?.includes('ATTACK')) {
+    if (t === 'ON_OPP_ENERGY_ADDED' && e.condition?.type === 'DURING_PHASE'
+        && (isAllAttackPhases(e.condition.phases) || e.condition.phases?.includes('ATTACK'))) {
       s = `アタックフェイズの間、${s}`;
     }
     if (t === 'ON_ENERGY_TO_FIELD' && (e.timing ?? []).includes('ON_HAND_ADDED')) s = '';
