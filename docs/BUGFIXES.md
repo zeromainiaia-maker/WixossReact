@@ -1,5 +1,61 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(cix) 残0クローズ＝「この方法でダウンしたルリグ」参照が**実UIでは丸ごと届いていなかった**（golden 1378→1386・census 1286→1285・live 133カード）（Opus 5・続き362）
+
+対象は在庫 (cix) の母集団6枚（「この方法でダウンした**ルリグ**」を参照する札）。**バグは1枚の filter 欠落ではなく、参照の運び方そのものが実UIで切れていた**ことだった。
+
+### 根本原因＝コスト支払いと効果解決が**別の ExecCtx**（実UI）
+
+engine ハーネス（golden）は `INTERNAL_PAY_LRIG_DOWN` が同じ ExecCtx 内で払うので `lastProcessedCards` に支払ったルリグが載る。
+一方 **実UIは BattleScreen が `payLrigDownCost` で払って PlayerState を DB へ書き、効果は後から別 ExecCtx で解決する**ため、
+`lastProcessedCards` は空のまま届く。つまり「この方法でダウンしたルリグと共通する色」（`colorMatchesLastProcessed`）は
+**golden では緑・実機では常に空ヒット＝完全 no-op** という、計器に映らない乖離になっていた（`WX24-P2-069`）。
+
+**修正の骨格**＝支払い/ダウンの**単一入口 `payLrigDownCost` が PlayerState に記録する**：
+- `PlayerState.last_lrig_down_cards`（新設）と `last_lrig_down_level_sum` を `payLrigDownCost` の戻り state に書き、`levelSum` も返す。
+  呼び出し側（engine の `INTERNAL_PAY_LRIG_DOWN*` / BattleScreen の各支払い）での**再計算・書き忘れを構造的に無くす**。
+- 新フィルタ `levelEqLastDownedLrig` / `colorMatchesLastDownedLrig` は **①lastProcessedCards[0] がルリグならそれ →
+  ②PlayerState の記録** の2段で解決（`resolveDynamicFilter`）。参照不能なら空ヒット＝過剰実行しない側へ倒す。
+- 任意ダウンの非実行枝（`INTERNAL_SKIP_OPTIONAL_ACTION` に `value:'lrig_down'` の目印）で**記録も落とす**＝did-it ゲートが抜けない。
+- シャドウの `downerLrigLevel` も同じ2段フォールバックへ。⚠**`ExecCtx.seqVars` はインタラクションを跨げない**
+  （実UIの resume は ExecCtx を作り直し `seqVars` を渡していない＝BattleScreen に `seqVars` の文字列が1つも無い）。
+  「ダウンしてもよい」で CHOOSE を挟む `WX24-P1-040-E2` は seqVars が必ず消えるため、従来は素の【シャドウ】＝全シグニ対象に化けていた。
+
+### 直した実バグ（6枚）
+
+| カード | 直前の状態 | 是正 |
+|---|---|---|
+| `WX25-P1-112-E1` | レベル条件が丸ごと無く**相手シグニ全体**から能力を奪う過剰効果 | `levelEqLastDownedLrig` を付与。⚠**`execRemoveAbilities` だけ `resolveDynamicFilter` を通していなかった**＝動的キーは `matchesFilter` が黙って無視し「制限なし」に倒れる（filter を足しても効かない二重の穴）ので engine 側も是正 |
+| `WX24-P1-040-E1/E2` | 「あなたのアップ状態の**ルリグ**1体をダウン」が **DOWN{SIGNI}**（自分のシグニを1体ダウン）に化け、レベル条件も落ちていた | parser に「対象指定を伴わない `アップ状態の（レベルNの）ルリグN体をダウン`」規則を追加＝`DOWN{LRIG, filter.isUp}`。E1 は対象句の文（別文）にあるレベル条件を実行本体（BOUNCE）と STUB の候補判定の両方へ刻む |
+| `WX24-P2-069-E1` | `colorMatchesLastProcessed`＝**実機では常に空ヒット** | `colorMatchesLastDownedLrig` へ（旧キーは併存させず除去＝両方あると常に0候補になる） |
+| `WX25-P2-114-E1` | `DOWN{SIGNI}` ＋ **原文に無いパワー修整 STUB**（`POWER_MOD_PER_COUNT`）＝別物 | 「アップ状態のルリグを**好きな数**ダウン」＝`DOWN{LRIG, count:'ALL'}`（engine が 0..N の枚数 CHOOSE で解決）＋ `MILL{opponent, count:1, countPlusLastDownedLrigLevelSum}` |
+| `WXDi-D03-004`／`WXDi-D04-004` | 同じく `DOWN{SIGNI}` 化（枚数2・レベル2条件も落ちる）。D04 は文中の「対戦相手にダメージが〜」に引かれ **owner が opponent へ反転** | `DOWN{LRIG, count, filter.level}`。owner は**名詞句直前の所有者表記**から取る（`signiClauseOwner` の全文スキャンに任せない） |
+| `WX25-P2-112-E1`（MANUAL） | センター固定のダウン | `filter.isUp` を付けて `payLrigDownCost` 経路（センター→アシストL→R）へ。harvest merge は MANUAL をカード単位で温存するので `fixLrigColorFilters.mjs` に外科採用を登録 |
+
+### 巻き込みで直した過剰対象化＝127枚
+
+「**このシグニは【X】を得る**」の GRANT_KEYWORD が `filter.thisCardOnly` を持たず、engine が「自分のシグニ1体」の選択UIを出していた
+（＝**別のシグニに付与できる**）。`WX24-P1-040-E2` のシャドウ付与を追う過程で発見。隣接形
+（`このシグニは〜を得る/持つ`）に限定した1行で 127枚が純改善（＝追加リーフは `thisCardOnly` **だけ**）として自動採用された。
+全数の差分署名を機械分類し、`+thisCardOnly` 以外の変化が1件も無いことを確認済み（引用付与の内側「このシグニ」も、付与先が
+効果元として解決されるので同義）。
+
+### 検証
+
+- **ゲート**＝全緑。golden **1378→1386**（+8）、census **1286→1285**（`BASELINE_HIGH` も更新）、smoke 10679 全0・SKIP0、
+  fuzz 全0、同型★**0 据置**（265群）、lint 0 errors/248 warnings（本セッション追加0）、manual field loss 0、held **250→246枚**。
+- **逆翻訳（decompiler）も同時に更新**＝新語彙3つ（`levelEqLastDownedLrig`／`colorMatchesLastDownedLrig`／
+  `countPlusLastDownedLrigLevelSum`）の描画を追加。入れ忘れると「JSONは直ったのに逆翻訳は条件を落としたまま」＝
+  原文照合で偽陰性を作る（`WX24-P2-069` は旧キーの描画があったので、キー移行だけでは表現が退化していた）。
+- **実機**＝新規シナリオ `lrigDownLevelRemoveAbilities`（`WX25-P1-112` の【起】を実UIで発動し、ダウンした Lv2 ルリグと
+  **同じレベルの相手シグニだけ**が能力を失う＝Lv4 は無傷）を2回連続 PASS。**この経路は golden では原理的に守れない**
+  （engine ハーネスは支払いも同じ ExecCtx で行うため参照が切れない）ので既定 order に追加（127→128件）。
+  回帰は `lrigDownCenterOnlyPays`／`lrigDownCenterOnlyUnwired`／`ontargeted5`／`keywordgained`／`wx24p2018GrantFire`／
+  `banishbyeffect`／`g144DownTrigger`／`freezeLrig`／`lriggrow` の9件 PASS。
+- ⚠**実機シナリオの罠**＝ルーム再利用時、前シナリオの**ライフクロスクラッシュ確認モーダル**（`field.check`）が残っていると
+  全クリックがそれに吸われて「【起】が出ない」に見える。新規シナリオでは `field.check: null` / `pending_crashed_cards: []` を
+  必ず注入する（初回 FAIL の真因はこれで、engine ではなかった）。
+
 ## 2026-08-06 — 🏁Opusタスク12(cxi)＋(c) 残0クローズ＝①中断エントリの盤面差分トリガーが**1巡目だけ**取りこぼされていた ②ON_TARGETED の「そのシグニ」が誰でも選べる過剰対象化だった（golden 1374→1378・census 1287→1286・live 3効果）（Opus 5・続き361）
 
 ### (cxi) 実機 FAIL の真因＝`resolveStackNext` の `!result.done` 分岐に盤面差分収集が無かった

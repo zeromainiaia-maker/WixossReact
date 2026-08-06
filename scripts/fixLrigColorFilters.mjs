@@ -126,6 +126,12 @@ const FIXES = [
     locate: e => e },
   { file: 'effects_WX', card: 'WX14-028', eid: 'WX14-028-BURST', type: 'searchDistinctColors',
     locate: e => e },
+  // タスク12(cix): MANUAL カードは harvest merge がカード単位で温存するため、manualEffects.ts に足した
+  //   DOWN(LRIG) の `filter.isUp`（＝センター固定ではなくアシストも含む＝payLrigDownCost 経路へ乗せる判別子）を
+  //   effectId アンカーで外科反映する。
+  { file: 'effects_WX24_26', card: 'WX25-P2-112', eid: 'WX25-P2-112-E1', type: 'lrigDownIsUp',
+    locate: e => e.action?.then?.steps?.[0]?.target },
+
   // 1シグニ複数アクセを保持できない現行 state では「アクセ3枚以上」を判定不能。
   // 誤った「相手のアクセ持ちシグニ1体をトラッシュ」を、明示的な未実装 no-op へ戻す。
   { file: 'effects_WX', card: 'WX20-028', eid: 'WX20-028-E2', type: 'deferMultiAcceMassTrash',
@@ -162,6 +168,10 @@ function applyFix(obj, type) {
   if (type === 'discardAcceSigniOne') {
     obj.cost = { discard: 1, discardFilter: { cardType: 'シグニ', hasIcon: 'アクセ' } };
     delete obj.costUnparsed;
+    return true;
+  }
+  if (type === 'lrigDownIsUp') {
+    obj.filter = { ...(obj.filter ?? {}), isUp: true };
     return true;
   }
   if (type === 'mandatoryOnPlay') {

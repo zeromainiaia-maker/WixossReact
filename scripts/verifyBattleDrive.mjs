@@ -9344,11 +9344,17 @@ scenarios.lrigDownLevelRemoveAbilities = {
   spec: {
     hostSet: {
       'field.lrig': ['WD01-003#1'],                    // Lv2 ルリグ（ダウンコストで払う＝参照レベルは2）
+      'field.lrig_down': false,                        // アップ＝ダウンコストを支払える
       'field.signi': [['WX25-P1-112#1'], null, null],  // 【起】アップ状態のルリグ1体をダウンする
+      'field.signi_down': [false, false, false],
+      'field.check': null,            // ⚠ ルーム再利用時に前シナリオのライフクロスクラッシュ確認モーダルが
+      'pending_crashed_cards': [],    //    残っていると全クリックがそれに吸われる（本シナリオの初回FAIL原因）
       'actions_done': [],
     },
     guestSet: {
       'field.signi': [['WD01-012#1'], ['WD01-009#1'], null], // Lv2（一致）／Lv4（不一致＝残るべき）
+      'field.check': null,
+      'pending_crashed_cards': [],
       'actions_done': [],
     },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
@@ -9376,7 +9382,9 @@ scenarios.lrigDownLevelRemoveAbilities = {
       }
       if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
       const st = await H.queryState();
-      H.log(`  [${s}] -> ${did ?? 'なし'} | gAbilRem=${JSON.stringify(st?.guest?.abilitiesRemoved)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      const body = await H.fullBody();
+      if (s < 3) H.log(`   body: ${body.replace(/\s+/g, ' ').slice(0, 400)}`);
+      H.log(`  [${s}] -> ${did ?? 'なし'} | gAbilRem=${JSON.stringify(st?.guest?.abilitiesRemoved)} lrigDown=${st?.host?.lrigDown} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
       const removed = st?.guest?.abilitiesRemoved ?? [];
       if (removed.length > 0) {
         const hitSame = removed.includes('WD01-012#1');
