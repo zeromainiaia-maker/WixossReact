@@ -22,6 +22,13 @@ import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 
+// いま**アタックを宣言していてバトル未解決**のシグニ（`pending_signi_battle` のゾーン頂点）。無ければ undefined。
+// 「対戦相手のアタックしているシグニ」の解決と、進行中アタックの無効化先の判定に使う（Opusタスク12(cx)）。
+export const attackingSigniOf = (state: PlayerState): string | undefined =>
+  state.pending_signi_battle
+    ? state.field.signi[state.pending_signi_battle.zoneIndex]?.at(-1)
+    : undefined;
+
 const exceedPoolCountOf = (state: PlayerState): number =>
   state.field.lrig.slice(0, -1).length
   + (state.field.assist_lrig_l?.slice(0, -1).length ?? 0)
