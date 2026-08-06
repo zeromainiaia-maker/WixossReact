@@ -11317,6 +11317,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: isHandToEnergy ? [...newEnergy, ...handPickedNums] : newEnergy,
         hand: newHand,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
+        coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
         trash: [...placedState.trash, ...paidNums, ...discardNums],
         // handDiscardSigni コストで捨てたシグニのレベルを記録（COST_DISCARDED_SIGNI_LEVEL。WX25-P2-101「レベル１→代わりに－5000」）
         last_discarded_signi_level: discardNums.length > 0
