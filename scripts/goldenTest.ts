@@ -2592,7 +2592,7 @@ test('lrigDown コストの限定語を落とさない（センター／レベ�
 //    ①影響母集団（ACTIVATED の cost.lrigDown 全件と、その効果がどちらの実行経路へ行くか）
 //    ②母集団に実在する3形（count のみ／centerOnly／level）が共有支払い関数で忠実に払えること
 //    を固定する。母集団が増減したらこのテストが落ちるので、新しい札の配線漏れに気づける。
-test('【起】lrigDown コストの母集団と支払い可否（タスク12(cviii)）', withSavedCursor(() => {
+test('【起】lrigDown コストの母集団と支払い可否（タスク12(cviii)）', () => withSavedCursor(() => {
   const found = [...effectsMap.entries()].flatMap(([cardNum, effs]) => effs
     .filter(e => e.effectType === 'ACTIVATED' && e.cost?.lrigDown)
     .map(e => ({ cardNum, effectId: e.effectId, ld: e.cost!.lrigDown! })));
