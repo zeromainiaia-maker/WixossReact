@@ -11357,12 +11357,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (count < lrigDownVariable.min) return;
         const lrigPaid = payLrigDownCost(paid, { count }, battleCardMap);
         if (!lrigPaid) return;
-        const levelSum = lrigPaid.paidCards.reduce((sum, id) => {
-          const lv = Number(battleCardMap.get(getCardNum(id))?.Level);
-          return sum + (Number.isFinite(lv) ? lv : 0);
-        }, 0);
-        paid = { ...lrigPaid.state, last_lrig_down_level_sum: levelSum };
-        payLogs.push(`ルリグ${count}体（レベル合計${levelSum}）をコストでダウン`);
+        // レベル合計・ダウンしたルリグの記録は payLrigDownCost が state に書く（呼び出し側で再計算しない
+        // ＝支払い経路ごとに式がずれる事故を無くす。タスク12(cix)）。
+        paid = lrigPaid.state;
+        payLogs.push(`ルリグ${count}体（レベル合計${lrigPaid.levelSum}）をコストでダウン`);
       }
       // ライフコスト: クラッシュだけは check/pending に載せ、既存ライフバースト処理へ接続する。
       if ((cost?.lifeTrash ?? 0) + (cost?.life_crash ?? 0) + (cost?.lifeToHand ?? 0) > 0) {
