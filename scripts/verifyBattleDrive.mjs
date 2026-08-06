@@ -5174,11 +5174,17 @@ const scenarios = {
         const onField = flat.includes('WXDi-P00-074#1');
         if (onField) sawOnField = true;
         const survivor = flat.includes('WD05-009#1');
-        H.log(`  ots[${s}] -> ${did ?? 'なし'} | hField=${flat} sawOnField=${sawOnField} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // host のシグニが候補に並ぶ pending＝watcher（guest）側の対象選択（【出】側の候補は guest シグニ）
+        const cands = st?.pendingCandidates ?? null;
+        if (cands && cands.includes('WXDi-P00-074#1')) watcherCands = cands;
+        H.log(`  ots[${s}] -> ${did ?? 'なし'} | hField=${flat} sawOnField=${sawOnField} watcherCands=${JSON.stringify(watcherCands)} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
         if (sawOnField && !onField) {
-          return survivor
-            ? { pass: true, detail: `ON_TARGETED が**対象にしてきた** WXDi-P00-074 だけをバニッシュ（巻き添え検知用 WD05-009 は場に残存・hField=${flat}）` }
-            : { pass: false, detail: `対象化したシグニは消えたが巻き添え検知用 WD05-009 も消えている（hField=${flat}）` };
+          if (!survivor) return { pass: false, detail: `対象化したシグニは消えたが巻き添え検知用 WD05-009 も消えている（hField=${flat}）` };
+          if (!watcherCands) return { pass: false, detail: `WXDi-P00-074 は消えたが watcher の対象候補を観測できなかった（判定不能・hField=${flat}）` };
+          if (watcherCands.length !== 1) {
+            return { pass: false, detail: `結果は正しいが候補が絞られていない＝CPU のランダム選択で当たっただけ（watcherCands=${JSON.stringify(watcherCands)}）` };
+          }
+          return { pass: true, detail: `ON_TARGETED の候補が**対象にしてきた** WXDi-P00-074 の1件に絞られ、それだけがバニッシュされた（巻き添え検知用 WD05-009 は残存・hField=${flat}）` };
         }
       }
       const fin = await H.queryState();
