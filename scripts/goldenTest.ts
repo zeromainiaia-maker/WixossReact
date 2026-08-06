@@ -10236,6 +10236,100 @@ test('第4波 triage 訂正：WXDi-P13-075-E1 は専用 STUB で既に回避ま�
     '回避手段（手札1枚 or 《無》1枚）が相手側の状態として立つ＝ゲートは実装済み');
   cursor = savedCursorU;
 });
+// ── タスク12(ci)(cii)（2026-08-06）：OPPONENT_PAY_OPTIONAL の「支払う」枝と CPU のエナ選出 ──
+// (ci) costColors 非搭載の STUB でも 'pay' を無条件に積んでいたため `canOppAfford` が
+//      `costColors.length===0` で常に true になり、**コスト0でタダで回避できる枝**が生まれていた。
+//      CPU 自動応答は available な先頭を採るので、原文どおりの discard/energyTrash 枝にも
+//      skip（本体発動）にも到達しなくなる＝効果が黙って空振りする。
+// (cii) costColors 付き 'pay' を選ぶには**支払うエナの instanceId**まで渡す必要がある
+//      （渡さないと `resumeOpponentPayOptional` が「エナ不足」で即終了＝cost 未消費・then も未実行）。
+test('(ci) OPPONENT_PAY_OPTIONAL: エナコストが無ければ「支払う」枝を出さない／あれば出す', () => {
+  const savedCursor = cursor;
+  const open = (stub: Record<string, unknown>, owner: StateOpts, other: StateOpts) => {
+    const ctx = mkCtx(owner, other);
+    const act: EffectAction = { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+      then: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as EffectAction;
+    const gated: EffectAction = { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...stub } as unknown as EffectAction, act,
+    ] } as unknown as EffectAction;
+    const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: gated, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+    if (r.done || r.pending.type !== 'CHOOSE') throw new Error('CHOOSE not opened');
+    return r.pending.options.map(o => `${o.id}:${o.available}`);
+  };
+  // costColors 無し＋手札捨て回避＝'pay' は出ない（旧: pay:true が先頭に生えてタダで回避できた）
+  eq(open({ opponentHandDiscard: 3 }, {}, { hand: 5 }).join(','), 'discard:true,skip:true',
+     'エナコスト非搭載＝支払う枝を出さない');
+  // 手札が足りなくても枝自体は出る（available:false）＝プレイヤーに「払えない」ことが見える
+  eq(open({ opponentHandDiscard: 3 }, {}, { hand: 1 }).join(','), 'discard:false,skip:true',
+     '回避手段が足りなければ available:false（枝は残す）');
+  // costColors 付きは従来どおり 'pay' が先頭
+  eq(open({ costColors: ['無', '無'], opponentHandDiscard: 3 }, {}, { hand: 5, energy: 3 }).join(','),
+     'pay:true,discard:true,skip:true', 'エナコスト搭載＝支払う枝が出る');
+  eq(open({ costColors: ['無', '無'], opponentHandDiscard: 3 }, {}, { hand: 5, energy: 1 }).join(','),
+     'pay:false,discard:true,skip:true', 'エナ不足なら pay は available:false');
+  cursor = savedCursor;
+});
+
+test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を持つ（＝過剰実行にならない）', () => {
+  const SPECS = ['opponentHandDiscard', 'opponentEnergyTrash', 'opponentSigniTrash',
+    'opponentSigniToDeckTop', 'opponentHandOrEnergyToDeckTop'];
+  const stubs: Record<string, unknown>[] = [];
+  const walk = (n: unknown) => {
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'OPPONENT_PAY_OPTIONAL') stubs.push(o);
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') walk(v);
+    }
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) walk(e);
+  const withCost = stubs.filter(s => ((s.costColors as string[]) ?? []).length > 0
+    || s.opponentPayColorlessPerSigniAttack === true);
+  const noCost = stubs.filter(s => !withCost.includes(s));
+  eq(stubs.length, 71, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 38, 'エナコストを持つ（＝pay 枝が出る）STUB');
+  eq(noCost.length, 33, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
+  eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
+     'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');
+  // `resumeOpponentPayOptional` の色照合は "青|黒" 記法を解さない＝live に無いことを固定する
+  eq(stubs.filter(s => ((s.costColors as string[]) ?? []).some(c => String(c).includes('|'))).length, 0,
+     'costColors にパイプ記法（青|黒）を持つ OPPONENT_PAY_OPTIONAL は live に無い');
+});
+
+test('(cii) selectOptionalCostEnergy: 選出したエナが resumeOpponentPayOptional にそのまま通る', () => {
+  const savedCursor = cursor;
+  // 判定（canPayOptionalCost）と選出（selectOptionalCostEnergy）が同じ1本から出ていること
+  const st = mkState({ energy: 3 });
+  eq(selectOptionalCostEnergy(['無', '無'], st, cardMap)?.length, 2, '《無》×2は2枚選出');
+  eq(selectOptionalCostEnergy([], st, cardMap)?.length, 0, 'コスト0は空配列（null ではない）');
+  eq(selectOptionalCostEnergy(['無', '無', '無', '無'], st, cardMap), null, 'エナ不足なら null');
+  for (const cc of [['無'], ['無', '無'], ['無', '無', '無', '無']]) {
+    eq(canPayOptionalCost(cc, st, cardMap), selectOptionalCostEnergy(cc, st, cardMap) !== null,
+       `${cc.length}枚: 可否判定と選出が一致する`);
+  }
+  // 選出結果を resumeOpponentPayOptional に渡すと「エナ不足」にならず実際にエナが減る
+  const ctx = mkCtx({}, { energy: 3, hand: 5 });
+  const gated: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無', '無'] } as unknown as EffectAction,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 2 } } as unknown as EffectAction,
+  ] } as unknown as EffectAction;
+  const first = executeEffect({ effectId: 't', effectType: 'AUTO', action: gated, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  if (first.done || first.pending.type !== 'CHOOSE') throw new Error('CHOOSE not opened');
+  const payOpt = first.pending.options.find(o => o.id === 'pay')!;
+  const picked = selectOptionalCostEnergy(payOpt.costColors ?? [], first.otherState, cardMap)!;
+  const c: ExecCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs };
+  const paid = finish(resumeOpponentPayOptional('pay', picked, first.pending as never, c), c);
+  eq(paid.otherState.energy.length, 1, '選出した2枚が実際にエナから減る');
+  eq(paid.ownerState.hand.length, 5, '支払われたので本体（ドロー2）は実行されない');
+  ok(!paid.logs.some(l => l.includes('エナ不足')), '「コスト支払いエラー: エナ不足」で空振りしない');
+  // 旧CPU応答（instanceId を渡さない）と同じ呼び方だと空振りすることを回帰として固定する
+  const empty = finish(resumeOpponentPayOptional('pay', [], first.pending as never, c), c);
+  ok(empty.logs.some(l => l.includes('エナ不足')), 'instanceId を渡さないと従来どおり空振りする（(cii) の再発検知）');
+  eq(empty.otherState.energy.length, 3, '空振り時はエナも減らない');
+  cursor = savedCursor;
+});
+
 test('engine 第4波：tail-splice 形は「回避されても前置きは起きる／帰結だけ止まる」', () => {
   const savedCursor = cursor;
   const gated: EffectAction = { type: 'SEQUENCE', steps: [
