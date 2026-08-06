@@ -4405,7 +4405,7 @@ export function collectBanishEffectProtectedSigni(
     const sn = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sn) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sn, powersOf())) continue;
       const a = eff.action as import('../types/effects').StubAction;
       if (a.type === 'STUB' && a.id === 'PREVENT_SELF_MOVE_BY_OPP') protected_.add(sn);
     }
