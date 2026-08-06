@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き367・Opus 5〔🏁**Opusタスク12(cxii) 残0クローズ**＝パワー参照ゲートが表記パワーで判定されていた〕）＝ユーザー指示「続ける」。触った層は `engine/effectEngine.ts`（3コレクタ）／`goldenTest.ts` のみ。**JSON・逆翻訳は不変**。
+  - **真因＝`checkActiveCondition` に `effectivePowers` を渡さないと表記パワーへフォールバックする**。`collectBanishEffectProtectedSigni`／`collectGrantedFromLayer`／`collectContinuousGrantedKeywords` の一部呼び出しが渡しておらず、`WDK08-Y11`（表記12000／閾値20000「バニッシュされない」）は**どれだけバフしても保護が働かない**過小実行だった。⚠**この穴は続き364 の §5c バッチで `SELF_POWER_THRESHOLD` を新たに載せて初めて顕在化した**（それ以前は「無条件で常に真」だったので見えなかった）＝**表現を正すと実行の穴が露出する**の典型。
+  - **直し方＝optional 引数＋「渡されなければその場で計算」**。呼び出し元から渡さないのは、コレクタが**解決途中のローカル state** で呼ばれるのに対し `BattleScreen` の memo は**1手前の盤面**だから（渡すとむしろ古くなる）。`calcFieldPowers` は3コレクタのどれも呼ばないので循環しない。`collectGrantedFromLayer` は「レイヤー付与を足す**前**の effectsMap」を受け取るため、そこから計算するのが同時適用の1段近似として妥当。
+  - **⚠母集団を測ってから絞った**＝「powers を渡していない `checkActiveCondition` 呼び出し」は**約50箇所**あるが、**パワー参照 activeCondition を持つ live 効果は18件だけ**（GRANT_KEYWORD 13／GRANT_FIELD_SIGNI_ABILITY 3／GRANT_PROTECTION 1／STUB 1）。実データが通る**3コレクタだけ**に配線した＝闇雲な全箇所配線をしない。
+  - **意図した挙動変化**＝`FRONT_SIGNI{compareToSelf:power}`（`WXDi-P13-082`「正面と同じパワーならランサー」）も実効パワー判定になった。golden の既存ケースは `SIGNI_P12000` = `WD01-009`（**自分で**「対戦相手のターンの間、あなたのシグニのパワー＋1000」を持つ）を両側に置いていたため相手側が13000になり FAIL したが、**盤面を素直に読めばそちらが正しい**ので、①実効パワーを明示して「同パワーならランサー」を固定②未指定なら相手の常在バフで不発、の2本に組み直した。
+  - **ゲート**＝全緑。**golden 1406→1407**（+1＝`WDK08-Y11` の4方向＝表記12000では保護されない／実効20000なら保護される／**常在バフ+10000 を powers 未指定でも拾う**／バフ源が居なければ保護されない）、census **1233 据置**（実行の是正なので動かないのが正）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**、lint 0 errors。
+  - **次の一手**＝**Opusタスク12 の在庫は3件**〔(cxiii) 多段閾値「N以上…、M以上であるかぎり代わりに…」／(cxiv)「正面のシグニのパワーがN以下であるかぎり」8カード（引用付与STUBの内側）／(cxv) `WX05-021-E1` のキーワード付与欠落〕＝**いずれも §6.3 の引用付与・置換機構と地続き**なので、まとめて取るか §5c の別テンプレへ移るか。§5c は「テンプレ2効果以上」91本のうち**4本消化**。**Sonnet**＝§7 実機検証（タスク1）＝**続き366 の (cxvi) 分**が最優先。
 - **セッション（2026-08-07・続き366・Opus 5〔🏁**Opusタスク12(cxvi) 残0クローズ**＝コイン支払い累計を機構ごと実装〕）＝ユーザー指示「(cxvi)を行う」。触った層は `types/index.ts`（PlayerState）／`types/effects.ts`＋`execUtils.ts`（Condition）／`BattleScreen.tsx`（加算10箇所＋リセット6箇所）／`effectParser.ts`（規則1本）／`decompileEffects.ts`／`goldenTest.ts`。**live JSON の変更は10カード**。
   - **真因＝「このターンに支払ったコインの累計」という状態が engine に無かった**。`bet_coins_paid`（そのベット1回ぶん）と `ON_COIN_PAID`（支払った瞬間のトリガー）はあったが**ターンをまたいで積む累計**が無く、parser も条件を作れなかった。結果、`WXDi-P09-039-E1` ほか10効果は条件節が丸ごと落ちて **コインを1枚も払っていなくてもアタックフェイズ開始時に必ずバニッシュ**する過剰効果だった。
   - **直し方＝状態1つ・条件1つ・支払い経路10箇所**。`PlayerState.coins_paid_this_turn`（**支払いのみ**加算＝獲得 `coinGain` では増えない）／Condition `COINS_PAID_THIS_TURN`／parser は `STATE_CONDITION_CLAUSES_V2` に regex 1本。リセットは `turn_arts_used` と**同じ6箇所**（片方だけ増やすと相手ターン中に払ったコインが自分のターンへ持ち越す）。
