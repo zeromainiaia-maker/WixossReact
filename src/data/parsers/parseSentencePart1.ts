@@ -96,7 +96,6 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
-  if (process.env.DBG_T === '1') console.error('[t]', JSON.stringify(t));
   // 同じ相手シグニを2回対象化する二段除去。先にエナへ移すため、後段の手札戻しでは
   // 1体目が候補から外れ、必ず別のシグニを選ぶ（WXK03-070）。
   if (/対象の対戦相手のシグニ[１1]体をエナゾーンに置き、対象の対戦相手のシグニ[１1]体を手札に戻す/.test(t)) {
