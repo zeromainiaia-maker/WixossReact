@@ -23602,6 +23602,78 @@ test('task12(xciii) チェイン: engine stacks the reduction on PlayerState and
      '2枚目の【チェイン】は積み増しになる');
 }));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// タスク12(lxxxviii)：ベット分岐の「変わる先の枝」— **STUB は未実装ではない**
+// ─────────────────────────────────────────────────────────────────────────────
+test('task12(lxxxviii) BET_MECHANIC: the bet branch changes the choice count at runtime', () => withSavedCursor(() => {
+  // 登録時の見立て「ベット宣言できても変わる先の枝が無い」は**JSON だけを見た誤り**。
+  // `STUB BET_MECHANIC` は原文から①②③を組み立て、`is_betting_this_effect` で選択数を切り替える実装済みハンドラ。
+  for (const [cardNum, base, bet] of [['WX19-006', 1, 2], ['WDK12-007', 1, 2], ['WX16-005', 1, 3]] as const) {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!;
+    ok(eff.action.type === 'STUB' && (eff.action as StubAction).id === 'BET_MECHANIC', `${cardNum}: BET_MECHANIC`);
+    const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, cardNum);
+    const plain = executeEffect(eff, ctx);
+    ok(!plain.done && plain.pending.type === 'CHOOSE', `${cardNum}: 非ベットでも選択肢が出る（no-op ではない）`);
+    if (plain.done || plain.pending.type !== 'CHOOSE') continue;
+    eq(plain.pending.count, base, `${cardNum}: 非ベット時の選択数`);
+    ok(plain.pending.options.length >= 2, `${cardNum}: 原文の①②…が実際に組み立てられている`);
+    const betCtx = { ...ctx, ownerState: { ...ctx.ownerState, is_betting_this_effect: true } };
+    const betted = executeEffect(eff, betCtx);
+    ok(!betted.done && betted.pending.type === 'CHOOSE', `${cardNum}: ベット時も CHOOSE`);
+    if (betted.done || betted.pending.type !== 'CHOOSE') continue;
+    eq(betted.pending.count, bet, `${cardNum}: ベット宣言で選択数が「代わりにNつ」へ変わる`);
+  }
+}));
+
+test('task12(lxxxviii) WD21-007: the bet branch repeats the grant once', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WD21-007')!.find(e => e.effectId === 'WD21-007-E1')!;
+  const findStub = (n: unknown): string | null => {
+    if (!n || typeof n !== 'object') return null;
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB') return o.id as string;
+    for (const v of Object.values(o)) {
+      const hit = Array.isArray(v) ? v.map(findStub).find(Boolean) ?? null : findStub(v);
+      if (hit) return hit;
+    }
+    return null;
+  };
+  eq(findStub(eff.action), 'GRANT_QUOTED_AUTO_ABILITY', 'WD21-007 は専用ハンドラ経由');
+  const self = SIGNI_L2;
+  const mk2 = (betting: boolean) => {
+    const c = mkCtx({ signi: [self, null, null] }, { signi: [SIGNI_L3, null, null] }, 'WD21-007');
+    return betting ? { ...c, ownerState: { ...c.ownerState, is_betting_this_effect: true } } : c;
+  };
+  // 非ベット＝1回で終わる／ベット＝付与後にもう一度「５つから１つ」を提示する（＝繰り返しの枝が実在する）。
+  const drive = (betting: boolean) => {
+    const ctx = mk2(betting);
+    let r = executeEffect(eff, ctx);
+    let chooseCount = 0;
+    for (let i = 0; i < 8 && !r.done; i++) {
+      const c: ExecCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs, lastProcessedCards: r.lastProcessedCards };
+      const p = r.pending as { type: string; options?: { id: string }[]; candidates?: string[]; count?: number };
+      if (p.type === 'CHOOSE') { chooseCount++; r = resumeChoose(p.options![0].id, r.pending as never, c); }
+      else if (p.type === 'SELECT_TARGET') { r = resumeSelectTarget((p.candidates ?? []).slice(0, 1), r.pending as never, c); }
+      else break;
+    }
+    return { chooseCount, grants: r.ownerState.keyword_grants ?? {} };
+  };
+  const plain = drive(false);
+  const betted = drive(true);
+  eq(plain.chooseCount, 1, '非ベット＝能力選択は1回');
+  eq(betted.chooseCount, 2, 'ベット宣言＝「この効果を1回繰り返す」で能力選択がもう一度出る');
+  ok(Object.keys(plain.grants).length > 0, '非ベットでも実際に能力が付与される（no-op ではない）');
+}));
+
+test('task12(lxxxviii) WDK15-007: declaring bet actually reduces the printed cost', () => withSavedCursor(() => {
+  // 「あなたがベットする場合、このアーツの使用コストは《黒×2》**減る**」＝置換（〜になる）ではないので
+  // computeCostReplacement が拾わず、**ベットしても一度も安くならなかった**（実バグ）。
+  const card = cardMap.get('WDK15-007')!;
+  const my = mkState({});
+  eq(card.Cost, '《黒》×３', '印刷コスト');
+  eq(computeCostReplacement(card, my, cardMap, {}), null, '宣言前は印刷コストのまま');
+  eq(computeCostReplacement(card, my, cardMap, { isBetting: true }), '《黒》×1', 'ベット宣言で《黒×2》ぶん減る');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

@@ -281,6 +281,23 @@ export function computeCostReplacement(
   if (byName) return toCostStr(byName.cost.map(c => `《${c.color}×${c.count}》`).join(''));
 
   const text = card.EffectText ?? '';
+  // ⓪ ベット形の**軽減**（「あなたがベットする場合、このアーツの使用コストは《黒×2》**減る**」＝`WDK15-007`）。
+  //    従来この関数は「…に**なる**」（置換）しか見ておらず、**ベットを宣言しても一度も安くならなかった**
+  //    （タスク12(lxxxviii)）。置換と同じ契約＝「宣言したときの実効コスト」を返す。
+  {
+    const betReduceM = text.match(/あなたがベットする場合[、,][^。]*?使用コストは((?:《[^》]+》)+)減る/);
+    if (betReduceM) {
+      if (!ctx?.isBetting) return null;
+      let reduced = card.Cost;
+      for (const one of betReduceM[1].match(/《([^》]+)》/g) ?? []) {
+        const mm = one.match(/《([白赤青緑黒無])[×x]?([０-９\d]*)》/);
+        if (!mm) continue;
+        const n = mm[2] ? parseInt(toHalfWidth(mm[2]), 10) : 1;
+        reduced = removeNColorFromCost(reduced, mm[1], n);
+      }
+      return reduced;
+    }
+  }
   if (!/使用コストは[^。]*になる/.test(text)) return null;
   // 《白×1》《無×4》のような連結表記をまとめて拾う
   const COST = '((?:《[^》]+》)+)';
