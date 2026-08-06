@@ -2254,8 +2254,31 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     // ⚠ 判別子は **filter.isUp**＝原文が「アップ状態の…ルリグ」と言っている形だけ。素の
     //   `{type:'LRIG',count:1}`（「対戦相手のセンタールリグ1体をダウン」等）は従来どおりセンター限定で扱う。
     if (a.target.owner === 'self' && a.target.filter?.isUp) {
+      const lvlAll = typeof a.target.filter.level === 'number' ? a.target.filter.level : undefined;
+      // 「アップ状態のルリグを**好きな数**ダウンする」（count:'ALL'）＝0..N の枚数選択。可変コスト
+      // （INTERNAL_PAY_LRIG_DOWN_VARIABLE）と同じ形の CHOOSE を出し、選んだ枚数の固定ダウンへ落とす。
+      if (a.target.count === 'ALL') {
+        const maxAll = [
+          state.field.lrig.length > 0 && !state.field.lrig_down,
+          (state.field.assist_lrig_l?.length ?? 0) > 0 && !state.field.assist_lrig_l_down,
+          (state.field.assist_lrig_r?.length ?? 0) > 0 && !state.field.assist_lrig_r_down,
+        ].filter(Boolean).length;
+        if (maxAll === 0) return done({ ...addLog(ctx, 'ダウンできるアップ状態のルリグがない'), lastProcessedCards: [] });
+        return needsInteraction(addLog(ctx, 'ダウンするルリグの数を選択'), {
+          type: 'CHOOSE', count: 1,
+          options: Array.from({ length: maxAll + 1 }, (_, n) => ({
+            id: `lrig_down_${n}`,
+            label: `ルリグ${n}体をダウン`,
+            // 0体＝ダウンしない。記録も落として後続の「この方法でダウンしたルリグ」を空にする。
+            action: (n === 0
+              ? { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION', value: 'lrig_down' }
+              : { ...a, target: { ...a.target, count: n }, optional: false }) as EffectAction,
+            available: true,
+          })),
+        });
+      }
       const wantCount = typeof a.target.count === 'number' ? a.target.count : 1;
-      const lvl = typeof a.target.filter.level === 'number' ? a.target.filter.level : undefined;
+      const lvl = lvlAll;
       const paidLD = payLrigDownCost(state, { count: wantCount, ...(lvl !== undefined ? { level: lvl } : {}) }, ctx.cardMap);
       // 払えない＝ダウンするものがない no-op。lastProcessedCards を空にして後続の「この方法で〜」を不成立にする。
       if (!paidLD) return done({ ...addLog(ctx, 'ダウンできるアップ状態のルリグがない'), lastProcessedCards: [] });
