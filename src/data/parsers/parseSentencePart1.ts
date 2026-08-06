@@ -1612,6 +1612,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   従来 fallback で **シグニダウン** に化けていた。engine の 'LRIG' はセンタールリグ固定＝同じ受け皿へ寄せる
     //   （すぐ下の FREEZE 規則と同型・§3 タスク1(d)）。「ルリグ1体を対象」を必須にしてカウント句「ルリグ1体につき」
     //   等の誤検出を避け、「センタールリグではない」＝アシスト対象は受け皿が無く据置（§6.3）。
+    // 「（あなたの）アップ状態の（レベルNの）ルリグN体をダウン（してもよい）」＝**対象指定を伴わない**ルリグダウン。
+    // 従来は上の規則が「ルリグ1体を**対象**」を必須にしていたため下の parseSigniTarget へ落ち、**シグニをダウン**
+    // する効果に化けていた（WX24-P1-040 の2効果／WXDi-D03-004／WXDi-D04-004＝タスク12(cix)）。
+    // ⚠ engine の 'LRIG' はセンター固定だが、原文の「アップ状態のルリグ」はアシストルリグも含む。**filter.isUp を
+    //   刻む**とコスト支払いと同じ payLrigDownCost 経路（センター→アシストL→R・level 条件つき）へ乗り、
+    //   「この方法でダウンしたルリグ」の記録も入る。「アシストルリグ」限定形（WX24-P3-043）は受け皿が無く据置。
+    {
+      const upLrigM = t.match(/アップ状態の(?:レベル([０-９\d]+)の)?ルリグ([０-９\d]+)体をダウン/);
+      if (upLrigM && !t.includes('シグニ')) {
+        const lvl = upLrigM[1] ? parseNum(upLrigM[1]) : undefined;
+        return { type: 'DOWN', target: {
+          type: 'LRIG', owner, count: parseNum(upLrigM[2]),
+          filter: { isUp: true, ...(lvl !== undefined ? { level: lvl } : {}) },
+        }, ...(downOptional ? { optional: true } : {}) };
+      }
+    }
     if ((t.includes('センタールリグ') || /ルリグ[１1]体を対象/.test(t)) && !t.includes('センタールリグではない')) {
       return { type: 'DOWN', target: { type: 'LRIG', owner, count: 1 }, ...(downOptional ? { optional: true } : {}) };
     }
