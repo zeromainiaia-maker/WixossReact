@@ -20311,9 +20311,21 @@ test('task12(lxvi)① 「あなたか対戦相手のデッキの上からカー�
   for (const [cardNum, effectId, n] of MILL_CARDS) {
     const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
     ok(!!fresh, `${effectId}: fresh parse が無い`);
-    const act = fresh!.action as import('../src/types/effects').ChooseAction;
-    eq(act.type, 'CHOOSE', `${effectId}: CHOOSE になっていない`);
-    eq(act.choices.length, 2, `${effectId}: 選択肢が2つでない`);
+    // 後続文がある札（WXDi-P13-002）は SEQUENCE の一部になるので、木を降りて該当 CHOOSE を探す
+    const findMillChoose = (node: unknown): import('../src/types/effects').ChooseAction | null => {
+      if (!node || typeof node !== 'object') return null;
+      const o = node as Record<string, unknown>;
+      if (o.type === 'CHOOSE' && Array.isArray(o.choices)
+        && JSON.stringify(o.choices).includes('DECK_CARD')) return o as unknown as import('../src/types/effects').ChooseAction;
+      for (const v of Object.values(o)) {
+        if (Array.isArray(v)) { for (const x of v) { const r = findMillChoose(x); if (r) return r; } }
+        else { const r = findMillChoose(v); if (r) return r; }
+      }
+      return null;
+    };
+    const act = findMillChoose(fresh!.action);
+    ok(!!act, `${effectId}: デッキ削りの CHOOSE が見つからない`);
+    eq(act!.choices.length, 2, `${effectId}: 選択肢が2つでない`);
     const owners = act.choices.map(c => ((c.action as import('../src/types/effects').TrashAction).target as { owner?: string }).owner);
     eq(owners.join(','), 'self,opponent', `${effectId}: 自分/相手の2択になっていない`);
     for (const c of act.choices) {
