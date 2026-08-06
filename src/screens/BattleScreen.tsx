@@ -4336,6 +4336,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } satisfies PendingEffect;
         // インタラクション中はスタック（残キュー）を保持
         stackAcc = newStack;
+        // === 中断前ラウンドの盤面差分トリガー（タスク12(cxi)・Opus）===
+        // エントリの解決が**最初の対話で中断する**場合、そこまでに確定した盤面変化（例 SEQUENCE の
+        // step1 の DRAW）は下の RESOLVE_EFFECT_STEP で bs.host_state/bs.guest_state へ取り込まれる。
+        // 従来この分岐には収集が一切なく、resume 側（handleEffectInteraction）が完了時に行う
+        // collectBoardDiffTriggers は **before に既にその変化を含む**ため差分ゼロ＝永久に見逃していた
+        // （続き75 が resume 側の2巡目以降に入れた同じ手当ての、1巡目版が欠けていた）。
+        // 実例＝WX20-026-E1 `SEQUENCE[DRAW, TRASH(手札1枚選択)]` はドロー直後に中断するため、
+        // 同カード E3 の ON_DRAW（drawBySourceStory）が実機で一度も発火しなかった。
+        // ⚠ pending_effect を残したままスタックに積むが、これは resume 側の中途収集と同じ扱い
+        //   （pending 解決後にスタックが処理される）＝新しい実行順序を持ち込むものではない。
+        const midBd = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: entry.playerId,
+          causeSourceCardNum: entry.cardNum,
+          fieldTrashCostCards: result.fieldTrashCostCards,
+          ...fieldPlacementOnPlayOpts(entry.effect),
+        });
+        hostAcc = midBd.hostState;
+        guestAcc = midBd.guestState;
+        if (midBd.entries.length > 0) {
+          stackAcc = stackAcc
+            ? pushToStack(stackAcc, midBd.entries)
+            : initStack(stack.turnPlayerId, midBd.entries);
+        }
       } else {
         pendingAcc = null;
 
