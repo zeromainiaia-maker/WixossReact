@@ -2261,7 +2261,8 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       if (!paidLD) return done({ ...addLog(ctx, 'ダウンできるアップ状態のルリグがない'), lastProcessedCards: [] });
       if (a.optional) {
         const downNowLD = { ...a, optional: false } as DownAction;
-        const skipLD = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        // value:'lrig_down'＝スキップ時に「この方法でダウンしたルリグ」の記録も落とす目印（execStubPart1）。
+        const skipLD = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION', value: 'lrig_down' } as import('../types/effects').StubAction;
         return needsInteraction(addLog(ctx, 'ルリグをダウンしますか？'), {
           type: 'CHOOSE', count: 1,
           options: [
