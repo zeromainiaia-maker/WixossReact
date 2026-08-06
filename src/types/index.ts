@@ -548,6 +548,10 @@ export interface PlayerState {
   next_spell_uncounterable?: boolean;
   // COST_REDUCTION(スペル/UNTIL_END_OF_TURN): 次に使用するスペルの使用コストを軽減（WX04-008《白×2》減）。スペル使用時に消費
   next_spell_cost_reduction?: { color: string; count: number }[];
+  // COST_REDUCTION(アーツ/UNTIL_END_OF_TURN): 【チェイン】《色》《色》＝「このターン、あなたが**次に**アーツを
+  // 使用する場合、それの使用コストは《色×1》《色×1》減る」（WX10-004/005/022・WX11-018/021・WX14-005・WX19-004）。
+  // スペル版（next_spell_cost_reduction）と同型＝アーツ使用時に消費し、ターン終了時にリセットする。
+  next_arts_cost_reduction?: { color: string; count: number }[];
   // SET_CARD_COST_REPLACEMENT: カード名を指定した使用コストの**置換**（「このゲームの間、あなたの《落華流粋》の
   // 使用コストは《黒×2》《無×1》になる」WXK03-002-E3）。ゲーム間持続＝ターン境界でリセットしない。
   // ⚠軽減（`SPECIFIC_CARD_COST_REDUCE`＝場のCONT収集）とは別軸で、印刷コストを丸ごと差し替える。
