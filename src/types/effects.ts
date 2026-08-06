@@ -289,6 +289,11 @@ export type Condition =
   | { type: 'ENERGY_COMPARE_OPP'; operator: CompareOp }
   | { type: 'EFFECTIVE_LRIG_LIMIT_GTE'; value: number }
   | { type: 'DURING_PHASE'; phases: string[] }
+  // 対戦相手のシグニがアタックしている最中（アタック宣言済み・バトル未解決）か。
+  // 「対戦相手のシグニ１体がアタックしたとき」の状態版＝`otherState.pending_signi_battle` の有無で判定する。
+  // ⚠ ACTIVATED 単独の使用条件としては parser が timing:'ON_OPP_SIGNI_ATTACK' へ載せ替えるので、
+  //    ここに残るのは AND 合成された場合など。（Opusタスク12(cx)）
+  | { type: 'OPP_SIGNI_ATTACKING' }
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
