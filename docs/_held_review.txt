@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［115枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX10-062 WX13-002 WX13-031 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-Re02 WX18-077 WX19-014 WX21-032 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-079 WX25-CP1-001 WX25-CP1-005 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P2-TK06 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-063 WXDi-CP02-085 WXDi-CP02-086 WXDi-CP02-100 WXDi-D02-04L WXDi-D02-13A WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P00-049 WXDi-P02-018 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P05-005 WXDi-P05-045 WXDi-P06-013 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-061 WXDi-P08-070 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P10-036 WXDi-P11-005 WXDi-P11-010B WXDi-P11-064 WXDi-P11-TK01 WXDi-P12-041 WXDi-P14-057 WXDi-P14-071 WXDi-P15-053 WXDi-P15-084 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-022 WXK05-040 WXK06-048 WXK08-023 WXK08-056 WXK09-040 WXK09-080 WXK09-084 WXK10-051 WXK11-019 WXK11-057 WXK11-066 WXK11-076
+## （type増減なし＝値/構造変更） ［114枚］
+PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WDK08-L12 WDK11-011 WX05-025 WX06-023 WX07-029 WX07-035 WX10-062 WX13-002 WX13-031 WX13-041 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-035 WX16-048 WX16-Re03 WX17-009 WX17-Re02 WX18-077 WX19-014 WX21-032 WX24-D1-11 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX24-P3-063 WX24-P3-081 WX24-P4-079 WX25-CP1-001 WX25-CP1-005 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P2-TK06 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-063 WXDi-CP02-085 WXDi-CP02-086 WXDi-CP02-100 WXDi-D02-04L WXDi-D02-13A WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P00-049 WXDi-P02-018 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P05-005 WXDi-P05-045 WXDi-P06-013 WXDi-P07-045 WXDi-P07-073 WXDi-P08-037 WXDi-P08-061 WXDi-P08-070 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P10-036 WXDi-P11-005 WXDi-P11-010B WXDi-P11-064 WXDi-P11-TK01 WXDi-P12-041 WXDi-P14-057 WXDi-P14-071 WXDi-P15-084 WXEX1-58 WXK01-020 WXK01-036 WXK01-044 WXK02-047 WXK04-037 WXK05-022 WXK05-040 WXK06-048 WXK08-023 WXK08-056 WXK09-040 WXK09-080 WXK09-084 WXK10-051 WXK11-019 WXK11-057 WXK11-066 WXK11-076
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -14,6 +14,50 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WDK08-L12 W
 --- SPDi43-12
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
+
+## +COINS_PAID_THIS_TURN +CONDITIONAL ［9枚］
+WXDi-P09-039 WXDi-P15-053 WXDi-P15-068 WXDi-P15-070 WXDi-P15-072 WXDi-P15-073 WXDi-P16-057 WXDi-P16-076 WXDi-P16-081
+--- WXDi-P09-039
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたが《コインアイコン》を合計１枚以上支払っていた場合、対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。【出】《赤》《無》：あなたのトラッシュから《ライズアイコン》を持つシグニ１枚を対象とし、それを場に出す。【起】《コインアイコン》：対戦相手は自分のルリグデッキからカードを１枚公
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.powerRange.max = 8000
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "BANISH" → "CONDITIONAL"
+  + [0].action.condition.type = "COINS_PAID_THIS_TURN"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.operator = "gte"
+  + [0].action.condition.value = 1
+  + [0].action.then.type = "BANISH"
+  …（他 6 行）
+--- WXDi-P15-053
+  原文: 【自】：あなたのアタックフェイズ開始時、【エナチャージ１】をする。このターンにあなたが《コインアイコン》を合計１枚以上支払っていた場合、追加で【エナチャージ１】をする。【起】《コインアイコン》：次の対戦相手のターン終了時まで、このシグニは【シャドウ】を得る。【起】《ターン１回》《緑》《コインアイコン》《コインアイコン》：あなたのトラッシュにあるすべてのカード
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 1
+  ~ [0].action.steps[1].type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "COINS_PAID_THIS_TURN"
+  + [0].action.steps[1].condition.owner = "self"
+  + [0].action.steps[1].condition.operator = "gte"
+  + [0].action.steps[1].condition.value = 1
+  + [0].action.steps[1].then.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.steps[1].then.owner = "self"
+  + [0].action.steps[1].then.count = 1
+  + [1].action.target.filter.thisCardOnly = true
+  ~ [1].action.duration : "UNTIL_END_OF_TURN" → "UNTIL_OPP_TURN_END"
+--- WXDi-P15-068
+  原文: 【自】：このシグニがアタックしたとき、このターンにあなたが《コインアイコン》を合計２枚以上支払っていた場合、【エナチャージ１】をする。【起】《ターン１回》《コインアイコン》《コインアイコン》：【エナチャージ１】,-
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
+  + [0].action.condition.type = "COINS_PAID_THIS_TURN"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.operator = "gte"
+  + [0].action.condition.value = 2
+  + [0].action.then.type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.then.owner = "self"
+  + [0].action.then.count = 1
 
 ## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［5枚］
 WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
@@ -74,54 +118,6 @@ WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-
-## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE ［4枚］
-WXK09-052 WXK09-077 WXK09-081 WXK09-083
---- WXK09-052
-  原文: 【自】：このシグニがアタックしたとき、このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、それをエナゾーンに置く。【出】エナゾーンからレベル１～４の＜電機＞のシグニを１枚ずつトラッシュに置く：カードを２枚引く。ターン終了時まで、このシグニのパワーを＋8000する。,：カードを
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.filter.powerLtSelf = true
-  ~ [0].action.type : "SEND_TO_ENERGY" → "CONDITIONAL"
-  + [0].action.condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.story = "電機"
-  + [0].action.condition.levels[0] = 1
-  + [0].action.condition.levels[1] = 2
-  …（他 9 行）
---- WXK09-077
-  原文: 【自】：このシグニに《改造素材》が使用されたとき、【エナチャージ２】をする。【自】：このシグニがアタックしたとき、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、カードを１枚引く。,-
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "DRAW" → "CONDITIONAL"
-  + [1].action.condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  + [1].action.condition.owner = "self"
-  + [1].action.condition.filter.cardType = "シグニ"
-  + [1].action.condition.filter.story = "電機"
-  + [1].action.condition.levels[0] = 1
-  + [1].action.condition.levels[1] = 2
-  + [1].action.condition.levels[2] = 3
-  + [1].action.condition.levels[3] = 4
-  + [1].action.condition.minEach = 1
-  …（他 3 行）
---- WXK09-081
-  原文: 【出】：対戦相手のレベル１以下のシグニ１体を対象とし、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、それをエナゾーンに置く。それぞれ２枚以上ある場合、代わりに対戦相手のレベル３以下のシグニ１体を対象とし、それをエナゾーンに置く。【自】：このカードがトラッシュからエナゾーンに置かれたとき、あなたの＜電機＞のシグニ１体を対象とし、
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.level.max = 1
-  ~ [0].action.steps[0].type : "SEND_TO_ENERGY" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "電機"
-  + [0].action.steps[0].condition.levels[0] = 1
-  + [0].action.steps[0].condition.levels[1] = 2
-  …（他 13 行）
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -1237,6 +1233,42 @@ WXDi-P14-070
   + [0].action.steps[1].then.target.type = "SIGNI"
   …（他 6 行）
 
+## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
+WXDi-P15-052
+--- WXDi-P15-052
+  原文: 【起】《緑》：あなたの場に《闘争者カーニバル　#T#》がいる場合、以下の２つから１つを選ぶ。①ターン終了時まで、このシグニは【ランサー】を得る。②このターンにあなたが《コインアイコン》を合計３枚以上支払っていた場合、ターン終了時まで、このシグニは【Ｓランサー】を得る。【起】《コインアイコン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋3000する
+  - [0].action.choices[1].action.owner = "self"
+  - [0].action.choices[1].action.count = 1
+  ~ [0].action.choices[1].action.type : "GAIN_COIN" → "GRANT_KEYWORD"
+  + [0].action.choices[1].action.target.type = "SIGNI"
+  + [0].action.choices[1].action.target.owner = "self"
+  + [0].action.choices[1].action.target.count = 1
+  + [0].action.choices[1].action.target.filter.thisCardOnly = true
+  + [0].action.choices[1].action.keyword = "Ｓランサー"
+  + [0].action.choices[1].action.duration = "UNTIL_END_OF_TURN"
+  + [0].action.choices[1].condition.type = "COINS_PAID_THIS_TURN"
+  + [0].action.choices[1].condition.owner = "self"
+  + [0].action.choices[1].condition.operator = "gte"
+  …（他 1 行）
+
+## +COINS_PAID_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
+WXDi-P15-074
+--- WXDi-P15-074
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたが《コインアイコン》を合計１枚以上支払っていた場合、対戦相手のシグニ１体を対象とし、《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーを－5000する。このターンにあなたが《コインアイコン》を合計５枚以上支払っていた場合、代わりにターン終了時まで、それのパワーを－8000する。【起】
+  - [0].action.steps[0].id = "TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST"
+  - [0].action.steps[0].costColors[0] = "黒"
+  - [0].action.steps[2].type = "POWER_MODIFY"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "any"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].delta = -8000
+  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[0].condition.type = "COINS_PAID_THIS_TURN"
+  + [0].action.steps[0].condition.owner = "self"
+  + [0].action.steps[0].condition.operator = "gte"
+  + [0].action.steps[0].condition.value = 1
+  …（他 16 行）
+
 ## +HAND_COUNT -CONDITIONAL×2 -IS_MY_TURN ［1枚］
 WXDi-P15-092
 --- WXDi-P15-092
@@ -1569,24 +1601,6 @@ WXK09-031
   + [0].action.steps[0].condition.levels[1] = 2
   + [0].action.steps[0].condition.levels[2] = 3
   …（他 8 行）
-
-## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE -SEQUENCE ［1枚］
-WXK09-051
---- WXK09-051
-  原文: 【自】：このシグニがアタックしたとき、対戦相手のパワー1000以下のシグニ１体を対象とし、それをエナゾーンに置く。あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、代わりに対戦相手のパワー5000以下のシグニ１体を対象とし、それをエナゾーンに置く。,-
-  - [0].action.steps[0].type = "SEND_TO_ENERGY"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.powerRange.max = 1000
-  - [0].action.steps[1].type = "SEND_TO_ENERGY"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.powerRange.max = 5000
-  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
-  + [0].action.condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  …（他 18 行）
 
 ## +CONDITIONAL×2 +ENERGY_EACH_LEVEL_FILTER_GTE×2 +GRANT_EFFECT×2 +SIGNI×2 ［1枚］
 WXK09-055

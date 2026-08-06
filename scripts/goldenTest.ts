@@ -8215,6 +8215,49 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
+// タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
+// 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
+test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => {
+  const want: Array<[string, number]> = [
+    ['WXDi-P09-039', 1], ['WXDi-P15-053', 1], ['WXDi-P15-054', 1], ['WXDi-P15-068', 2], ['WXDi-P15-070', 2],
+    ['WXDi-P15-072', 3], ['WXDi-P15-073', 1], ['WXDi-P16-057', 3], ['WXDi-P16-076', 3], ['WXDi-P16-081', 2],
+  ];
+  for (const [num, value] of want) {
+    const js = JSON.stringify(effectsMap.get(num) ?? []);
+    ok(js.includes('"COINS_PAID_THIS_TURN"'), `${num}: コイン累計条件が載っている（無条件発火に戻っていない）`);
+    ok(js.includes(`"COINS_PAID_THIS_TURN","owner":"self","operator":"gte","value":${value}`),
+      `${num}: 合計${value}枚以上`);
+  }
+  // engine 評価＝支払い累計と閾値の比較（未払い=0 では成立しない）
+  const c = { type: 'COINS_PAID_THIS_TURN', owner: 'self', operator: 'gte', value: 2 } as const;
+  const zero = mkCtx({}, {});
+  ok(!evalCondition(c as never, zero as never), '未払い（0枚）では不成立');
+  const one = mkCtx({}, {}); one.ownerState.coins_paid_this_turn = 1;
+  ok(!evalCondition(c as never, one as never), '1枚では不成立（閾値2）');
+  const two = mkCtx({}, {}); two.ownerState.coins_paid_this_turn = 2;
+  ok(evalCondition(c as never, two as never), '2枚で成立');
+  // 相手の支払いは数えない（owner:'self'）
+  const oppOnly = mkCtx({}, {}); oppOnly.otherState.coins_paid_this_turn = 5;
+  ok(!evalCondition(c as never, oppOnly as never), '対戦相手の支払いでは成立しない');
+});
+test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所は coins_paid_this_turn も加算する', () => {
+  // ⚠BattleScreen のコスト支払いは golden のハーネスから踏めない（PLAN §4 の教訓(f)）。
+  //   「支払ったのに累計へ加算し忘れた経路」は全ゲート緑のまま素通りするので、ソースを静的に走査する。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const lines = src.split('\n');
+  const missing: string[] = [];
+  lines.forEach((ln, i) => {
+    // 「coins: … - <何か>」＝支払い（`+ coinGain` だけの獲得行や初期化行は対象外）
+    if (!/^\s*coins:.*-\s/.test(ln) && !/coins:\s*\(\w+\.coins \?\? 0\)\s*-\s/.test(ln)) return;
+    const around = lines.slice(i, i + 3).join('\n');
+    if (!around.includes('coins_paid_this_turn')) missing.push(`L${i + 1}: ${ln.trim().slice(0, 90)}`);
+  });
+  eq(missing.length, 0, `coins_paid_this_turn の加算漏れ:\n${missing.join('\n')}`);
+  // ターン境界のリセットが turn_arts_used と同じ箇所に入っている（片方だけ増えると累計が持ち越す）
+  const resets = (src.match(/turn_arts_used: undefined/g) ?? []).length;
+  const paidResets = (src.match(/coins_paid_this_turn: 0,/g) ?? []).length;
+  eq(paidResets, resets, 'ターン境界リセットの箇所数が turn_arts_used と一致する');
+});
 // §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
 // 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
 test('§5c エナ帯条件: ENERGY_EACH_LEVEL_FILTER_GTE へ持ち上げ（WXK09 電機5枚）', () => {
