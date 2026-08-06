@@ -9473,6 +9473,8 @@ try {
         zoneBlocks: s.signi_zone_blocks ?? [],
         zoneBlocksNextTurn: s.signi_zone_blocks_next_turn ?? [],
         signiVirus: s.field?.signi_virus ?? [0, 0, 0],
+        lrigDown: s.field?.lrig_down ?? false,
+        assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
       });
       return {
         host: sideOf(hs),
