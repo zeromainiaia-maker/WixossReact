@@ -6944,6 +6944,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       cutinPaid = {
         ...cutinPaid,
         coins: Math.max(0, cutinPaid.coins - betCost),
+        coins_paid_this_turn: (cutinPaid.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
         ...(betCost > 0 ? { actions_done: [...(cutinPaid.actions_done ?? []), 'COIN_SPENT'] } : {}),
         is_betting_this_effect: betCost > 0 ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
