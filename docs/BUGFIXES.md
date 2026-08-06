@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(ci)＋(cii) 残0クローズ＝`OPPONENT_PAY_OPTIONAL` の「タダで回避できる枝」と CPU のエナ未選出（golden 1368→1371・live JSON 完全不変）（Opus 5・続き358）
+
+**同じ CHOOSE の表と裏なので1バッチで消化**＝(ci) は「本来無いはずの選択肢が生える」側、(cii) は「正しい選択肢を選んでも支払えない」側。どちらも**結果が「本体も回避も起きない第3の結末」になる**という同じ壊れ方をする。
+
+### (ci) 何が壊れていたか
+`effectExecutor.ts` の `OPPONENT_PAY_OPTIONAL` は `options` 配列の先頭へ `{id:'pay', available: canOppAfford}` を**無条件**に積んでいた。しかし `canOppAfford` は `costColorsOPO.length === 0 || canPayOptionalCost(...)` なので、**エナコストを持たない STUB では常に true**＝**コスト0でタダで選べる「支払う」**が生まれていた。CPU 自動応答は `options.find(o => o.available)` で先頭を採るため、原文が指定する discard/energyTrash 枝にも skip（本体発動）にも**一度も到達しない**。
+
+- **修正＝'pay' を `costColorsOPO.length > 0` のときだけ積む**（handSpec/enSpec 等の既存3枝と同じ条件付き spread に揃えただけ＝新規機構ではない）。
+- ⚠**`perAttackOPO`（アタック回数×《無》）で回数0のときも枝ごと消えるのが正しい**＝既存コメントの「0のまま素通りさせるとタダで回避できる穴になる」という意図と一致する。
+
+### (ci) 過剰実行にならないことの確認（このバッチの肝）
+'pay' を消すと、**回避手段が1つも無い STUB は「必ず本体が発動する」過剰実行**になる。そこで live 全数を機械走査して確認した：
+
+| 区分 | 件数 |
+|---|---|
+| `OPPONENT_PAY_OPTIONAL` の live 出現 | **71** |
+| エナコストあり（＝'pay' 枝が出る） | 38 |
+| エナコスト非搭載（＝'pay' 枝を出さない） | 33 |
+| **そのうち回避手段も持たないもの** | **0** ✅ |
+
+33件すべてが `opponentHandDiscard`／`opponentEnergyTrash`／`opponentSigniTrash`／`opponentSigniToDeckTop`／`opponentHandOrEnergyToDeckTop` のいずれかを持つ＝**原文が指定した回避手段は必ず残る**。この0件を golden に固定した（増えたら落ちる）。
+
+### (cii) 何が壊れていたか
+CPU 自動応答（`BattleScreen.tsx` の CHOOSE 分岐）は `selected = [firstAvail.id]` と**選択肢IDだけ**を積み、支払いに使うエナの instanceId を一切付けていなかった。`handleEffectInteraction` は costColors 付き選択肢のとき `selectedOrChoiceId.slice(1)` を支払いエナとして読むため CPU 応答は常に `energyNums=[]`＝`resumeOpponentPayOptional`／`resumeOptionalCost` が `costColors.length > 0` で **`コスト支払いエラー: エナ不足` を出して即終了**（cost 未消費・`then` も未実行＝黙って空振り）。CPU がエナを十分持っていても「支払う」を選んだ瞬間に何も起こらなかった。
+
+- **修正＝`execUtils` に `selectOptionalCostEnergy(costColors, state, cardMap): string[] | null` を新設**し、CPU 応答が実在エナを選出して `selected` に追加する。⚠**`canPayOptionalCost` はこの関数への委譲に置き換えた**＝「支払えるか」と「何で払うか」を必ず1本から出す（別々に書くと available と実支払いがすれ違う。タスク12(cviii) で `payLrigDownCost` に判定を委ねたのと同じ方針）。
+- **選出できないのに available だった場合は支払い枝を選ばず別の available 枝へ倒す**（黙って空振りさせない）。
+
+### 検証（実機4シナリオ・各2回連続PASS）
+`node scripts/verifyBattleDrive.mjs <id>`（**フルバッチは実行しない**）：
+
+- **`oppDiscardGateBareBug`（登録時は意図的FAIL→PASSへ反転）** — `WX25-P1-040-E1`。guest 手札2枚（<3）で discard が使えず、無料 pay も出ないので skip へ落ち**原文どおり banish が実行**される。
+- **🆕`oppDiscardGateReachesDiscard`（(ci) の本命）** — 同カードで guest 手札3枚。CPU が**原文どおり discard を選び手札 3→0**、banish は回避。**修正前はここが無料 pay に吸われて「手札も減らず banish も起きない」第3の結末になっていた**。
+- **`oppPayEnergySufficient`（登録時は意図的FAIL→PASSへ反転）** — `WX25-P1-038-E1`。guest エナ3枚で CPU が pay を選び**実際にエナ 3→0 を支払って**banish を回避。
+- **`oppPayEnergyInsufficient`（既存・対照）** — エナ0なら pay が available:false → skip → banish 実行＝**過剰に払わせていない**。
+
+`oppDiscardGateReachesDiscard` を既定 order へ追加（123→124件）。既存2シナリオは「意図的FAILの記録」から**回帰シナリオ**へ文言を書き換えた。
+
+### ゲート
+golden **1368→1371**（+3＝①エナコストの有無で 'pay' 枝が出る／出ないことと、回避手段不足時に `available:false` で**枝は残る**こと ②live 母集団 71/38/33 と**「エナコスト非搭載でも回避枝ゼロの STUB は0件」**＋`costColors` にパイプ記法（`青|黒`）を持つ OPO が live に無いこと〔`resumeOpponentPayOptional` の色照合が解さないため〕 ③`selectOptionalCostEnergy` の戻りが `resumeOpponentPayOptional` にそのまま通り実際にエナが減ること／`canPayOptionalCost` と可否が一致すること／**instanceId を渡さないと従来どおり空振りする**ことを回帰として固定）。census **1288 据置**、smoke **10679/10679** 全0・SKIP0、fuzz 全0、lint 0 errors/**245 warnings 据置**、manual field loss 0、同型★0、held **257枚／109群 据置**。**live JSON は完全不変**（`public/data/` に差分なし・**新語彙0本**）＝触った層は `effectExecutor.ts`（枝の条件付き spread 化）・`execUtils.ts`（関数1本の新設と委譲）・`BattleScreen.tsx`（CPU 応答のエナ選出）と検証スクリプト。
+
+### ⚠残した既知の制約（新規在庫にはしない）
+`resumeOpponentPayOptional` の色照合は `color.includes(c)` なので**パイプ記法スロット（`青|黒`）を解さない**。live には0件なので実害は無く、golden で0件を固定した＝将来 parser が生成したらテストが落ちて気づける。
+
 ## 2026-08-06 — 🏁Opusタスク12(cvii) 残0クローズ＝`ctx.currentPhase` が実UI経路で常に undefined だった配線漏れ（golden 1367→1368・live 2カード）（Opus 5・続き357）
 
 ### 何が壊れていたか（真因）
