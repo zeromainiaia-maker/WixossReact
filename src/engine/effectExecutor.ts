@@ -1008,24 +1008,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       const trashedPuppet = selected.some(n => (before.field.puppet_signi ?? []).includes(n));
       let cur = c;
       for (const num of selected) {
-        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, tgt.owner, cur);
-        if (lrigSub.replaced) {
-          cur = lrigSub.ctx;
-          continue;
-        }
-        const powerSub = applyEffectLeavePowerReductionSubstitute(num, tgt.owner, cur);
-        if (powerSub.replaced) {
-          cur = powerSub.ctx;
-          continue;
-        }
-        const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
-        if (banishSub.replaced) {
-          cur = banishSub.ctx;
-          continue;
-        }
-        const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(num, tgt.owner, cur);
-        if (noAbilitySub.replaced) {
-          cur = noAbilitySub.ctx;
+        const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
+        if (sub.replaced) {
+          cur = sub.ctx;
           continue;
         }
         const s = ownerState(tgt.owner, cur);
