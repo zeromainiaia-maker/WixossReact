@@ -110,8 +110,14 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                             virusNeededLrig > 0 ? `相手の【ウィルス】${virusNeededLrig}個除去（現在${(op.field.signi_virus ?? []).reduce((s, v) => s + v, 0)}個）` : null,
                             lgEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(lgEnergyTrashCost.filter) || 'シグニ'}${lgEnergyTrashCost.count}枚トラッシュ` : null,
                             lgTrashExileCost?.self ? 'このカードをゲームから除外' : lgTrashExileCost ? `トラッシュから${lgTrashExileCost.count ?? 1}枚ゲーム除外` : null,
+                            lgLrigDownCost ? fmtLrigDownCostLabel(lgLrigDownCost) : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
+                        {lgLrigDownCost && !lgLrigDownOk && (
+                          <p style={{ color: C.danger, fontSize: 11, margin: '4px 0 0' }}>
+                            ダウンできるルリグが不足しています
+                          </p>
+                        )}
                         {exceedCost > 0 && !canAffordExceed && (
                           <p style={{ color: C.danger, fontSize: 11, margin: '4px 0 0' }}>
                             ルリグスタックが不足しています
