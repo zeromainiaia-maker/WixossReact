@@ -9787,6 +9787,8 @@ try {
         host: sideOf(hs),
         guest: sideOf(gs),
         stackLen,
+        stackQueue: (stack?.queue ?? []).map(e => e.effectId),
+        stackPending: [...(stack?.pendingTurn ?? []), ...(stack?.pendingOpp ?? [])].map(e => e.effectId),
         turnPhase: row.turn_phase,
         activeUser: row.active_user_id,
         pr470aBuffed: !!buff,
