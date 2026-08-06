@@ -2246,6 +2246,40 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
       return done(addLog(ctx, 'センタールリグは効果を受けない（ダウン無効）'));
     }
+    // 「あなたのアップ状態の（レベルNの）ルリグN体をダウン（してもよい）」＝**センター固定ではない**（アシスト
+    // ルリグも「ルリグ」）。コスト経路と同じ `payLrigDownCost` を単一入口に使い、センター→アシストL→R の
+    // 正規順で count 体を払う。ここを通ると「この方法でダウンしたルリグ」の記録（lastProcessedCards／
+    // PlayerState.last_lrig_down_cards／seqVars）も同時に入る（タスク12(cix)）。
+    // ⚠ 判別子は **filter.isUp**＝原文が「アップ状態の…ルリグ」と言っている形だけ。素の
+    //   `{type:'LRIG',count:1}`（「対戦相手のセンタールリグ1体をダウン」等）は従来どおりセンター限定で扱う。
+    if (a.target.owner === 'self' && a.target.filter?.isUp) {
+      const wantCount = typeof a.target.count === 'number' ? a.target.count : 1;
+      const lvl = typeof a.target.filter.level === 'number' ? a.target.filter.level : undefined;
+      const paidLD = payLrigDownCost(state, { count: wantCount, ...(lvl !== undefined ? { level: lvl } : {}) }, ctx.cardMap);
+      // 払えない＝ダウンするものがない no-op。lastProcessedCards を空にして後続の「この方法で〜」を不成立にする。
+      if (!paidLD) return done({ ...addLog(ctx, 'ダウンできるアップ状態のルリグがない'), lastProcessedCards: [] });
+      if (a.optional) {
+        const downNowLD = { ...a, optional: false } as DownAction;
+        const skipLD = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+        return needsInteraction(addLog(ctx, 'ルリグをダウンしますか？'), {
+          type: 'CHOOSE', count: 1,
+          options: [
+            { id: 'down', label: `ルリグ${wantCount}体をダウンする`, action: downNowLD, available: true },
+            { id: 'skip', label: 'スキップ', action: skipLD, available: true },
+          ],
+        });
+      }
+      const namesLD = paidLD.paidCards.map(id => ctx.cardMap.get(getCardNum(id))?.CardName ?? id).join('・');
+      const ctxLD = { ...addLog(setOwnerState(a.target.owner, paidLD.state, ctx), `${namesLD}をダウン`),
+        lastProcessedCards: paidLD.paidCards };
+      const singleLevelLD = paidLD.paidCards.length === 1
+        ? parseInt(ctx.cardMap.get(getCardNum(paidLD.paidCards[0]))?.Level ?? '', 10) : NaN;
+      return done({ ...ctxLD, seqVars: {
+        ...ctxLD.seqVars,
+        ...(isNaN(singleLevelLD) ? {} : { lastDownedLrigLevel: singleLevelLD }),
+        lastDownedLrigLevelSum: paidLD.levelSum,
+      } });
+    }
     // 「アップ状態のルリグをダウン」＝既にダウン済み（アップでない）ならダウンするものがない＝no-op。
     // lastProcessedCards を空にして後続の「この方法でダウンしたルリグと共通する色」等の did-it を不成立にする。
     if (state.field.lrig_down) {
