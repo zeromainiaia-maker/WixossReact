@@ -2273,7 +2273,7 @@ WXEX2-13  エルドラ×マークＶ　ＵＬＴＲＡ  [ルリグ エルドラ]
   
 
 【JSON 逆翻訳】
-  WXEX2-13-E1: 【自】このシグニがアタックしたとき：《once_per_turn》自分または対戦相手のシグニ1体に【ライフバースト】を与える。そして[STUB:TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）]
+  WXEX2-13-E1: 【自】このシグニがアタックしたとき：《once_per_turn》あなたのデッキをシャッフルする。そして[STUB:TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）]
   WXEX2-13-E2: 【自】このシグニが場に出たとき：あなたのデッキをシャッフルする。そしてあなたのライフクロスを1枚クラッシュする
   WXEX2-13-E3: 【起】（メイン起動）：《once_per_turn》〈エクシード1〉あなたのカードを2枚引く
   WXEX2-13-E4: 【起】（メイン起動）：〈エクシード3〉あなたのデッキの一番上から1枚をライフクロスに加える

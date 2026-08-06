@@ -20326,9 +20326,9 @@ test('task12(lxvi)① 「あなたか対戦相手のデッキの上からカー�
     const act = findMillChoose(fresh!.action);
     ok(!!act, `${effectId}: デッキ削りの CHOOSE が見つからない`);
     eq(act!.choices.length, 2, `${effectId}: 選択肢が2つでない`);
-    const owners = act.choices.map(c => ((c.action as import('../src/types/effects').TrashAction).target as { owner?: string }).owner);
+    const owners = act!.choices.map(c => ((c.action as import('../src/types/effects').TrashAction).target as { owner?: string }).owner);
     eq(owners.join(','), 'self,opponent', `${effectId}: 自分/相手の2択になっていない`);
-    for (const c of act.choices) {
+    for (const c of act!.choices) {
       const tgt = (c.action as import('../src/types/effects').TrashAction).target as { type?: string; count?: number };
       eq(tgt.type, 'DECK_CARD', `${effectId}: デッキ削りでない`);
       eq(tgt.count, n, `${effectId}: 枚数が原文と違う`);
