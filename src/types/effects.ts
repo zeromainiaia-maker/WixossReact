@@ -2134,6 +2134,10 @@ export interface MILLAction {
   fromBottom?: boolean;
   useDeclaredCount?: boolean;
   countIsLastProcessedLevelSum?: boolean; // count を「直前に処理したシグニ(lastProcessedCards)のレベル合計」にする（「この方法で場に出たシグニのレベル１につき…1枚トラッシュ」WX24-P3-039）
+  // count に「この方法でダウンしたルリグのレベルの合計」を**加算**する（「レベルの合計に１を加えた枚数」＝
+  // count:1 と併用。WX25-P2-114。タスク12(cix)）。参照は PlayerState.last_lrig_down_level_sum＝ダウンの
+  // 単一入口 payLrigDownCost が記録するため、枚数選択の CHOOSE を跨いでも失われない。
+  countPlusLastDownedLrigLevelSum?: boolean;
   countPerSourceLevel?: number; // 誘発元シグニのレベル1につきN枚（付与AUTOの「このシグニのレベル1につき」。WXDi-P02-034）
   countPerLastProcessed?: number;
   countPerStoredTargets?: number;
