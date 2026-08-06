@@ -10907,11 +10907,13 @@ test('(cvii) ctx.currentPhase を見る機構の母集団固定と DURING_PHASE 
   // 🔧2026-08-06 に是正した2件＝どちらも「アタックフェイズの間」なのに phase 実値が不正で常に false だった
   eq(dpMap['WX13-035-E2'], ATTACK4.join(','), 'WX13-035-E2＝ATTACK_ARTS_OP を含むアタックフェイズ全体');
   eq(dpMap['WX24-P2-050-E1'], ATTACK4.join(','), "WX24-P2-050-E1＝'ATTACK'（存在しない値）を4実値へ是正");
-  // ② 残る不正値は WX05-013-E2 の 'ATTACK_SIGNI_OP' 1件だけ（タスク12(cx) へ登録済み）。増えたら落とす。
+  // ② 🏁不正値は残0（2026-08-07・タスク12(cx)）。最後まで残っていた WX05-013-E2 の 'ATTACK_SIGNI_OP' は
+  //    **フェイズ条件ではなく使用タイミング**だったので timing:'ON_OPP_SIGNI_ATTACK' へ移した。
+  //    ⚠ここが 0 でなくなったら「TurnPhase に無い値＝engine の includes に一生当たらない条件」が再発した合図。
   const invalid = duringPhase
     .flatMap(d => d.phases.filter(p => !VALID_PHASES.includes(p)).map(p => `${d.id}:${p}`))
     .sort();
-  eq(invalid.join(' / '), 'WX05-013-E2:ATTACK_SIGNI_OP', 'TurnPhase に無い phase 値は既知の1件だけ');
+  eq(invalid.join(' / '), '', 'TurnPhase に無い phase 値は0件');
 
   // ③ 他3機構の母集団（配線が効く対象。増えたら「この札も通るか」を確認する合図）
   const stubIds = (id: string) => [...effectsMap.values()].flat()
