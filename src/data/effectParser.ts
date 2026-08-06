@@ -6814,6 +6814,26 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // SONG_FRAGMENT の二重化を畳む（タスク12(lxvi)②）。
+  // 原文「エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置いてもよい。〈主語〉はそのカードの
+  // 【歌のカケラ】を使用する。」は**2文で1つの動作**（＝engine の `SONG_FRAGMENT` が「トラッシュへ置く」と
+  // 「その【歌のカケラ】を使用する」の両方をまとめて行う）。文ごとに独立して解析すると同じ STUB が2つ並び、
+  // **歌のカケラが2回発動する**過剰実行になるので、直前ステップ（CONDITIONAL でゲートされている場合も貫通して）
+  // が同じ `SONG_FRAGMENT` なら後続の裸の1つを落とす。⚠**ゲート付きの側を残す**（条件は前文に付いている）。
+  {
+    const dedup: EffectAction[] = [];
+    for (const st of steps) {
+      const prevTail = unwrapWrappedRecorder(dedup[dedup.length - 1]) as { type?: string; id?: string } | undefined;
+      const curIsSong = st?.type === 'STUB' && (st as StubAction).id === 'SONG_FRAGMENT';
+      if (curIsSong && prevTail?.type === 'STUB' && prevTail.id === 'SONG_FRAGMENT') continue;
+      dedup.push(st);
+    }
+    if (dedup.length !== steps.length) {
+      steps.length = 0;
+      steps.push(...dedup);
+    }
+  }
+
   // LOOK_AND_REORDER(reveal) + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK
   {
     const merged: EffectAction[] = [];
