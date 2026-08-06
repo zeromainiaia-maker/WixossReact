@@ -498,7 +498,9 @@ function condJa(c?: any): string {
     case 'DURING_PHASE': {
       // アタックフェイズの4実値がそろっていれば「アタック」1語に畳む（列挙のまま出すと読めない）
       if (isAllAttackPhases(c.phases)) return 'アタックフェイズの間';
-      const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK_SIGNI_OP: '対戦相手のアタック', ATTACK: 'アタック' };
+      // ⚠`ATTACK_SIGNI_OP` は `TurnPhase` に存在しない値＝条件が常に false になる死語だった（唯一の産出元 WX05-013-E2 は
+      //   timing:'ON_OPP_SIGNI_ATTACK' へ移した。Opusタスク12(cx)）。復活させないようマップからも外す。
+      const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK: 'アタック' };
       return `${(c.phases || []).map((p: string) => phaseJaMap[p] ?? p).join('/')}フェイズの間`;
     }
     case 'THIS_CARD_IN_LOCATION': return `このカードが${c.location}にある`;
