@@ -1786,8 +1786,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のアタックしているシグニのアタックを一度無効にする ----
+  // 「**アタックしている**シグニ」＝候補は場の全シグニではなく**いま宣言中のアタッカー1体**（attackingOnly）。
+  // 進行中のアタックなので実行側は事前登録（negated_attacks）ではなく cancel_current_signi_attack を立てる（Opusタスク12(cx)）。
   if (t.match(/対戦相手の.*アタックしている.*シグニ.*アタックを.*無効にする/)) {
-    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
+    return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true } as NegateAttackAction;
   }
 
   // ---- 使用条件：特定タイミングにしか使えない ----
