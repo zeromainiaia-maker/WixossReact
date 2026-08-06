@@ -7882,6 +7882,109 @@ const scenarios = {
     },
   },
 
+  // タスク12(cvii) の第2機構＝`WXEX2-30-E1`（【常】アタックフェイズの間、能力を持たない対戦相手のシグニが
+  // 場を離れる場合、代わりにデッキの一番下に置かれる）。engine 側 `applyEffectLeaveNoAbilityDeckBottom
+  // Substitute` は `ctx.currentPhase` が ATTACK* でなければ**必ず素通り**する設計なので、UI が
+  // `currentPhase` を渡していなかった間はこの札が**一度も成立しなかった**。アタックフェイズでアーツ
+  // （`WX15-011` 炎芒一閃《赤》×0＝対象選択不要でパワー1000以下の相手シグニを全バニッシュ）を撃ち、
+  // 被害シグニがエナではなく**デッキの一番下**へ行くことを確認する。
+  // ⚠victim を「能力を持たない」状態にするのは `abilities_removed`（`hasNoAbility` の第1分岐＝golden 済）。
+  noAbilityDeckBottomAttackPhase: {
+    title: 'WXEX2-30-E1（アタックフェイズ＝能力なしシグニの場離れがデッキ一番下へ置換される・タスク12(cvii)）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WXEX2-30#1'], null, null], // 宣言者（victim の対面に居る必要がある）
+        'lrig_deck': ['WX15-011#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        'field.signi': [['WD01-014#1'], null, null], // P1000＝炎芒一閃の対象
+        'abilities_removed': ['WD01-014#1'],         // ＝能力を持たない
+        'deck': ['WD01-013#20', 'WD01-013#21'],
+        'energy': [],
+        'trash': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始時 guest field=${JSON.stringify(before?.guest?.fieldSigni)} deck=${before?.guest?.deck} deckBottom=${before?.guest?.deckBottom} energy=${JSON.stringify(before?.guest?.energyCards)}`);
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/noAbilityDeckBottomAttackPhase-${s}.png`, fullPage: true });
+        let did = await H.clickBtn('使用', { exact: true });
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gone = (st?.guest?.fieldSigni?.[0] ?? null) === null;
+        H.log(`  nadb[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} deck=${st?.guest?.deck} deckBottom=${st?.guest?.deckBottom} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (gone && !st?.pendingEffect) {
+          if (st?.guest?.deckBottom === 'WD01-014#1') {
+            return { pass: true, detail: `能力なしシグニがバニッシュ→エナではなく**デッキの一番下**へ（deckBottom=${st.guest.deckBottom}・deck ${before.guest.deck}→${st.guest.deck}・gEnergy=${JSON.stringify(st.guest.energyCards)}）` };
+          }
+          return { pass: false, detail: `【退行】置換が起きていない＝deckBottom=${st?.guest?.deckBottom} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)}（ctx.currentPhase が届いていない疑い）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gField=${JSON.stringify(fin?.guest?.fieldSigni)} deckBottom=${fin?.guest?.deckBottom} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 対照＝同じ盤面をメインフェイズで撃つと置換は成立しない（原文「アタックフェイズの間」）。
+  // ⚠この対照が無いと「常に置換している（フェイズを見ていない）」バグを見逃す。
+  noAbilityDeckBottomMainPhaseNoop: {
+    title: 'WXEX2-30-E1 対照（メインフェイズでは置換されず通常どおりエナゾーンへ・タスク12(cvii)）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'],
+        'field.signi': [['WXEX2-30#1'], null, null],
+        'lrig_deck': ['WX15-011#1'],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'],
+        'field.signi': [['WD01-014#1'], null, null],
+        'abilities_removed': ['WD01-014#1'],
+        'deck': ['WD01-013#20', 'WD01-013#21'],
+        'energy': [],
+        'trash': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log(`開始時 guest field=${JSON.stringify(before?.guest?.fieldSigni)} deckBottom=${before?.guest?.deckBottom}`);
+      H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+      await page.waitForTimeout(700);
+      H.log('アーツ(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+      for (let s = 0; s < 16; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/noAbilityDeckBottomMainPhaseNoop-${s}.png`, fullPage: true });
+        let did = await H.clickBtn('使用', { exact: true });
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.stdStep();
+        const st = await H.queryState();
+        const gone = (st?.guest?.fieldSigni?.[0] ?? null) === null;
+        H.log(`  nadm[${s}] -> ${did ?? 'なし'} | gField=${JSON.stringify(st?.guest?.fieldSigni)} deckBottom=${st?.guest?.deckBottom} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (gone && !st?.pendingEffect) {
+          if (st?.guest?.deckBottom !== 'WD01-014#1' && (st?.guest?.energyCards ?? []).includes('WD01-014#1')) {
+            return { pass: true, detail: `メインフェイズでは置換されず通常どおりエナゾーンへ（gEnergy=${JSON.stringify(st.guest.energyCards)}・deckBottom=${st?.guest?.deckBottom}）＝フェイズ限定が効いている` };
+          }
+          return { pass: false, detail: `【過剰】メインフェイズなのに置換された/行き先が想定外＝deckBottom=${st?.guest?.deckBottom} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)}` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `未完了（gField=${JSON.stringify(fin?.guest?.fieldSigni)} deckBottom=${fin?.guest?.deckBottom} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // 対照実験（ベースライン）＝ロックフラグが無ければ同じ操作で通常どおりトラッシュから手札に加わる。
   trashMoveLockAllowsWhenUnlocked: {
     title: 'WD05-018 対照（ロックなし＝通常どおりトラッシュのシグニが手札に加わる）',
