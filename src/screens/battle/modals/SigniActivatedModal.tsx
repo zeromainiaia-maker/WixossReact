@@ -149,7 +149,11 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actBeatCost = analyzeBeatSigniCost(my, pendingSigniActivated.cardNum, battleCardMap, eff.cost?.beat_signi ?? 0);
               const actBeatNeedSelect = (eff.cost?.beat_signi ?? 0) > 0 && actBeatCost.otherPart > 0 && actBeatCost.eligibleOtherZones.length > actBeatCost.otherPart;
               const actBeatSelectOk = !actBeatNeedSelect || selectedSigniActivatedBeat.size === actBeatCost.otherPart;
-              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actBeatSelectOk;
+              // lrigDown: アップ状態のルリグN体をダウンするコスト（自動支払い）。支払い可否は実際の
+              // 支払い関数に判定させる（centerOnly / level の条件を UI 側で写経しない）。タスク12(cviii)
+              const actLrigDownCost = eff.cost?.lrigDown;
+              const actLrigDownOk = !actLrigDownCost || payLrigDownCost(my, actLrigDownCost, battleCardMap) !== null;
+              const canAfford = energyOk && discardOk && coinOkAct && virusOkAct && charmOkAct && charmVarActOk && actEnergyTrashOk && actTrashExileOk && actFieldTrashOk && actUnderTrashOk && actBeatSelectOk && actLrigDownOk;
 
               return (
                 <>
