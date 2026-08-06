@@ -8239,7 +8239,7 @@ test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondit
   // 相手の支払いは数えない（owner:'self'）
   const oppOnly = mkCtx({}, {}); oppOnly.otherState.coins_paid_this_turn = 5;
   ok(!evalCondition(c as never, oppOnly as never), '対戦相手の支払いでは成立しない');
-});
+}));
 test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所は coins_paid_this_turn も加算する', () => {
   // ⚠BattleScreen のコスト支払いは golden のハーネスから踏めない（PLAN §4 の教訓(f)）。
   //   「支払ったのに累計へ加算し忘れた経路」は全ゲート緑のまま素通りするので、ソースを静的に走査する。
