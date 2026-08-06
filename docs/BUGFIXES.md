@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — 🏁🏁**Opusタスク12 在庫 残0クローズ**＝最後の1件 (cx)「対戦相手のシグニがアタックしたときにしか使用できない【起】が一度も使えない」を機構ごと実装（golden 1395→1400・live 1カード・実機 3回連続PASS）（Opus 5・続き363）
+
+### 何が壊れていたか（真因）
+
+`WX05-013-E2`（侵犯されし神判　アン・フィフス／**【起】エクシード２：対戦相手のアタックしているシグニ１体を
+対象とし、それのアタックを一度無効にする。この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない。**）は、
+parser が末尾の使用制限を **`condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}`** に落としていた。
+しかし **`ATTACK_SIGNI_OP` は `TurnPhase` に存在しない値**＝`cond.phases.includes(currentPhase)` に一生当たらず
+**条件が常に false**。加えて `timing:['MAIN']` のままなので、仮に条件が通っても**【起】のUIは全経路が自ターン限定**で
+相手ターンには構造的に到達できなかった。＝**この能力は一度も選択肢に上がらない**（過小実行）。
+
+### 直し方＝「使用条件」ではなく「使用タイミング」だった
+
+原文の「〜したときにしか使用できない」は**使用条件文ではなく使用の窓そのもの**。フェイズを増やす（`TurnPhase` に
+`ATTACK_SIGNI_OP` を足す）のではなく、**`ON_OPP_SIGNI_ATTACK`（守備側の応答窓）という timing** を新設し、
+既存の `ON_OPP_SIGNI_ATTACK_DIRECT`（`WX04-004-E2`／実機シナリオ `oppDirectAttackNegate`）と**同じ作法**に揃えた。
+
+1. **parser**（`effectParser.ts`）＝`対戦相手のシグニ.*がアタックした` の使用条件を新 Condition `OPP_SIGNI_ATTACKING`
+   （＝`otherState.pending_signi_battle` の有無）にし、**ACTIVATED 単独なら `timing:['ON_OPP_SIGNI_ATTACK']` へ載せ替えて
+   condition を落とす**（AND 合成で残るケースのために Condition 自体は engine に実装してある）。
+2. **収集**（`screens/battle/attackResponse.ts` 新設＋`performSigniAttack` から呼ぶ）＝アタック宣言〜バトル解決の間に、
+   守備側のセンタールリグ/アシスト/場シグニから当該【起】を集め、**`wrapOptionalOnPlay` で
+   `SEQUENCE[OPTIONAL_COST(exceed:2), 本体]` に包んで**守備側プレイヤーのスタックへ積む（＝**コストの踏み倒しなし**。
+   包めないコスト・`costUnparsed` は収集しない側に倒す）。払えないコストの CHOOSE を毎アタック出さないよう
+   エクシード原資/コイン/手札/エナの在庫だけ事前チェックする。
+3. **対象**（`NegateAttackAction.attackingOnly`）＝「**アタックしている**シグニ1体」は場の全シグニではなく
+   **いま宣言中のアタッカー**。`attackingSigniOf(state)`（`pending_signi_battle` のゾーン頂点）で候補を1体に絞る。
+4. **無効化の効かせ方**＝進行中のアタックは `negated_attacks`（**アタック宣言時**に見る事前登録）では止まらない。
+   対象が宣言中のアタッカーなら**アタッカー state の `cancel_current_signi_attack`** を立てる
+   （Phase2 の `resolvePendingSigniBattleFor` が見る既存フラグ）。`attackingOnly` 無しの従来型
+   （「このターン次にアタックしたとき無効」）は従来どおり `negated_attacks` へ＝**回帰は golden で固定**。
+5. **逆翻訳**＝timing の日本語と `attackingOnly` の書き分けを追加。死語になった `ATTACK_SIGNI_OP` は
+   `phaseJaMap` からも削除（復活防止）。
+
+### 影響枚数
+
+**全12CSV を実測して1枚**（`がアタックしたとき(に)しか` は全コーパスで `WX05-013` のみ／`attackingOnly` を
+生む文型も同カードのみ／`ATTACK_SIGNI_OP` は effects_*.json から全滅）。live JSON の変更は
+**`WX05-013` 1カードのみ**（同カードは E3 が MANUAL のため `build:effects` の温存対象＝手パッチ。parser も同修正済み）。
+
+### 検証
+
+- **ゲート**＝全緑。golden **1395→1400**（+5）、census 1283 据置、smoke 10679 全0・SKIP0、fuzz 全0、
+  同型★**0 据置**、lint 0 errors/248 warnings（追加0）、manual field loss 0。
+- **golden の既存ケースを1件更新**＝`(cvii)` の「`DURING_PHASE` を持つ効果は8件／TurnPhase に無い phase 値は既知の1件」を
+  **7件／0件**へ。**`ATTACK_SIGNI_OP` の除去でこの計器は残0になった**（再発したら落ちる）。
+- **実機**＝新規シナリオ **`oppSigniAttackActivated`** を **3回連続 PASS**（CPU の直接アタックに対し
+  「支払う（エクシード2）」→対象1体→`host.lrigTrash` 0→2・`host.life` 7→7 無傷・ログ「小剣　ククリのアタックを無効にした」）。
+  回帰 `wd07012`／`oppDirectAttackNegate` も PASS。既定 order 131→**132件**。
+- ⚠**収集は `BattleScreen`（`performSigniAttack`）＝golden では原理的に踏めない**ので実機シナリオを既定 order に入れた
+  （PLAN の教訓 (f) と同型）。
+
+### 残す教訓
+
+- **`TurnPhase` に無い phase 値を条件に入れると「全ゲート緑のまま一生 false」**＝no-op 網にも census にも映らない。
+  golden の `(cvii)` ケース（phase 実値の健全性）を**残0で維持する**のが再発検知の唯一の計器。
+- **「〜したときにしか使用できない」は条件ではなく窓**。条件へ落とすと、たとえ真になっても
+  **UI の到達経路が無い**（【起】は全経路が自ターン限定）。窓が要るなら timing を足して収集側を書く。
+- **`verifyBattleDrive` の初回 FAIL は dist の再ビルドと同時実行のレースを疑う**（今回、初回だけ
+  `pending_effect=CHOOSE` が立っているのにモーダルが描画されなかった。再実行で 3/3 PASS）。
+  切り分け用に `queryState` へ **`pendingRespondPlayer` / `pendingOptions` / `viewerUserId`** を追加した
+  （UI の描画ゲートは `(respondPlayerId ?? sourcePlayerId) === user.id`＝この値と viewer の食い違いを直接見る）。
+
 ## 2026-08-06 — 🏁Opusタスク12(xciv) 残0クローズ＝残テール5枚のうち3枚は実装・1枚は既に実装済み・残2枚は別軸と確定（golden 1394→1395・live JSON 不変）（Opus 5・続き362f）
 
 続き362e で 23→5枚まで削った残りを全数処理した。
