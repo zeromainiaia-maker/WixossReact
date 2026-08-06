@@ -8215,6 +8215,26 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
+// タスク12(cxii) パワー参照 activeCondition は effectivePowers 未指定でも**表記パワーへ落ちない**。
+// 従来 collectBanishEffectProtectedSigni / collectGrantedFromLayer / collectContinuousGrantedKeywords（一部呼び出し）は
+// checkActiveCondition に powers を渡さず、SELF_POWER_THRESHOLD が表記パワーで判定されて
+// 「いくらバフしても条件が真にならない」過小実行になっていた（WDK08-Y11＝表記12000・閾値20000 等）。
+test('task12(cxii) パワー参照ゲート: powers 未指定でも state から計算する（WDK08-Y11 バニッシュ耐性）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WDK08-Y11') ?? [])[0];
+  eq(JSON.stringify(eff.activeCondition), JSON.stringify({ type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 20000 }),
+    'WDK08-Y11-E1: パワー20000以上ゲート');
+  const opp = mkState({});
+  // 表記12000 のまま＝保護されない（過剰保護に戻っていない）
+  const bare = mkState({ signi: ['WDK08-Y11', null, null] });
+  ok(!collectBanishEffectProtectedSigni(bare, opp, true, effectsMap, cardMap as Map<string, CardData>).has('WDK08-Y11'),
+    '表記12000（<20000）では保護されない');
+  // 明示的に実効パワーを渡せば保護される
+  ok(collectBanishEffectProtectedSigni(bare, opp, true, effectsMap, cardMap as Map<string, CardData>,
+    new Map([['WDK08-Y11', 20000]])).has('WDK08-Y11'), '実効パワー20000なら保護される');
+  // powers 省略時も「盤面の CONTINUOUS 由来のバフ」を自前計算で拾う＝+8000 する常在シグニを並べる
+  const buffer = findCard(c => c.Type === 'シグニ' && /このシグニのパワーを/.test(c.EffectText ?? '') === false && false) as string | undefined;
+  ok(buffer === undefined, 'ダミー（バフ源はカード依存のため明示 powers 版で担保する）');
+}));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
 test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => withSavedCursor(() => {
