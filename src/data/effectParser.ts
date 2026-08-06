@@ -1616,6 +1616,14 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
     g => ({ type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: parseNum(g[0]) })],
+  // 「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」＝
+  //   opp_cards_moved_to_deck_this_turn ゲート（OPP_CARDS_MOVED_TO_DECK_THIS_TURN・engine 実装済＝
+  //   BattleScreen 中央 countMovedToDeck 差分で accumulate）。WXK06-071 の base（1枚以上→－5000）の gate。
+  //   ⚠2026-08-07（§5c）に parseSingleSentence の局所 CLAUSES から**この共通表へ移した**＝
+  //     STATE_CONDITION_CLAUSES 経由の hoist（【自】トリガー文の条件節）にも効かせるため。
+  //     移す前は `WDK09-014` `WXK06-068` `WXK06-070` が条件節ごと落ちて無条件発火していた。
+  [/このターンに対戦相手のカードがあなたの効果によって([０-９\d]+)枚以上デッキに移動していた場合/,
+    g => ({ type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', operator: 'gte', value: parseNum(g[0]) })],
   // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」（Opusタスク12(cxvi)・WXDi-P09-039/P15-053/068/072/073）。
   //   従来は条件節ごと落ちて**無条件発火**していた（アタック時に必ずバニッシュ/エナチャージ等＝過剰効果）。
   //   engine は `coins_paid_this_turn`（支払いのみ加算・ターン境界で0）を見る COINS_PAID_THIS_TURN で判定する。
@@ -2811,11 +2819,6 @@ function parseSingleSentenceInner(text: string): EffectAction {
       //   過剰効果（WX24-P1-062/WX25-P3-090/WXK02-049 等・census 条件節クラスタ6枚）。
       [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
         g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
-      // 「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」＝
-      //   opp_cards_moved_to_deck_this_turn ゲート（OPP_CARDS_MOVED_TO_DECK_THIS_TURN・engine 実装済＝
-      //   BattleScreen 中央 countMovedToDeck 差分で accumulate）。WXK06-071 の base（1枚以上→－5000）の gate。
-      [/このターンに対戦相手のカードがあなたの効果によって([０-９\d]+)枚以上デッキに移動していた場合/,
-        g => ({ type: 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', operator: 'gte', value: parseNum(g[0]) })],
       // 「(あなた|対戦相手)の場にシグニがN体(以上)ある場合」＝場のシグニ数ゲート（engine FIELD_COUNT 実装済）。
       //   ＜C＞/色/状態付きは先行の HAS_CARD_IN_FIELD が先にマッチ＝ここは無フィルタの総数のみ。旧3ゾーン札の
       //   「3体ある」＝満場＝gte で正しい（PR-464/WX10-065/WXK06-085）。
