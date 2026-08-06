@@ -1312,6 +1312,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'CARDS_DRAWN_BY_EFFECT':
       return cmp(st(cond.owner).cards_drawn_by_effect_this_turn ?? 0, cond.operator, cond.value);
+    // このターンに支払った《コイン》の累計（支払いのみ・獲得は数えない）。Opusタスク12(cxvi)
+    case 'COINS_PAID_THIS_TURN':
+      return cmp(st(cond.owner).coins_paid_this_turn ?? 0, cond.operator, cond.value);
     case 'HAND_TRASHED_BY_OPP':
       return cmp(st(cond.owner).hand_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ENERGY_TRASHED_BY_OPP':
