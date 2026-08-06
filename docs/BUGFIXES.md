@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(cv) 残0クローズ＝`opp_hand` ピッカーが viewer 相対で別人の手札を描きソフトロックしていた（golden 据置・live JSON 完全不変）（Opus 5・続き359）
+
+### 何が壊れていたか（真因）
+`EffectInteractionModal` の `opp_hand`「見て選び」は候補一覧を **`op.hand`（＝画面を見ている側から見た対戦相手の手札）** から描いていた。`targetScope:'opp_hand'` は「**効果のコントローラーから見た**対戦相手の手札」という意味なので、`opponentResponds:true`（＝相手自身に選ばせる型）では**応答者＝この画面の viewer 自身**が対象の手札の持ち主になり、両者が食い違う。
+
+結果、**候補（`inter.candidates`）と一致しない別人の手札**が並び、`sortedCandidates.indexOf(rawId)` が全て `-1` になって `data-testid="pick-N"` が1つも立たない＝**「決定 (0/1)」から進めないソフトロック**。⚠**エラーも出ず盤面も動かない**ので計器にはまったく映らない。
+
+発生源は2系統で実測：
+- **LB「相手に選ばせる」型**＝`WD16-016-BURST`（対戦相手の手札を対戦相手自身に選ばせて捨てさせる）。
+- **`OPPONENT_PAY_OPTIONAL` の `opponentHandDiscard` 回避コスト**＝応答者が自分の手札を対象にする経路（`WXEX2-25-E1` ほか）。登録時に「影響は LB 型に限らない」と追記されていたとおり。
+
+### どう直したか
+**viewer からの相対ではなく、候補の実在位置で手札の持ち主を決める**（`inter.candidates` が真実）：
+
+```
+oppHandOwnerIsViewer = 全候補が my.hand にある
+oppHandCards = 持ち主が viewer なら my.hand / 相手なら op.hand / どちらとも一致しなければ候補だけ
+```
+
+⚠**全体表示（非候補もグレーで見せる）は残した**＝原文「手札を見て選ぶ」の情報量として必要なので、**変えたのは持ち主だけ**。通常方向（viewer＝コントローラー）では `op.hand` が選ばれ**従来と完全に同じ**になる＝挙動が変わるのは「従来はどうせ壊れていたケース」だけ。併せてラベルも `あなたの手札 / 対戦相手の手札` と説明文「〜から」を持ち主に応じて出し分けるようにした。
+
+### 検証（実機5シナリオ）
+`node scripts/verifyBattleDrive.mjs <id>`（**フルバッチは実行しない**）：
+
+- **`wd16016BurstOpponentDiscard`（LB 型・登録時は意図的FAIL→PASSへ反転）** — 各2回連続PASS。アタッカー（host）側に自分の手札のピッカーが出て 3→2 枚（guest 側は不変）。既定 order へ追加。
+- **`wxex225DiscardAvoids`（回避コスト型・登録時は意図的FAIL→PASSへ反転）** — 各2回連続PASS。「手札を1枚捨てる」の候補に**自分の手札が正しく並び選択・決定できて**回避が成立し、対象シグニが場に残る（hand 1→0）。⚠このシナリオは**修正前は pick が1つも立たないことが前提で「選択後に決定を押す」手が書かれていなかった**ので、その一手を追加した（ドライバ側の対応）。
+- **通常方向の回帰3件**＝`trashCounterOpp` / `handDiscard` / `exileHandBlind` すべて PASS＝手札ピッカー周辺に退行なし。
+
+### ゲート
+golden **1371 据置**、census **1288 据置**、smoke **10679/10679** 全0・SKIP0、fuzz 全0、lint 0 errors/**245 warnings 据置**、manual field loss 0、同型★0、held **257枚／109群 据置**。**live JSON は完全不変**（`public/data/` に差分なし・**新語彙0本**）＝触った層は `EffectInteractionModal.tsx` のみ（＋ドライバ）。⚠**モーダルの描画は golden 非カバー**（純関数が無い UI 分岐）＝**実機シナリオが唯一の検証手段**なので、意図的FAIL 2件の PASS 反転と通常方向3件の回帰で締めた。既定 order 124→125件。
+
 ## 2026-08-06 — 🏁Opusタスク12(ci)＋(cii) 残0クローズ＝`OPPONENT_PAY_OPTIONAL` の「タダで回避できる枝」と CPU のエナ未選出（golden 1368→1371・live JSON 完全不変）（Opus 5・続き358）
 
 **同じ CHOOSE の表と裏なので1バッチで消化**＝(ci) は「本来無いはずの選択肢が生える」側、(cii) は「正しい選択肢を選んでも支払えない」側。どちらも**結果が「本体も回避も起きない第3の結末」になる**という同じ壊れ方をする。
