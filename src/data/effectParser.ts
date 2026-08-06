@@ -9404,6 +9404,27 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       action = { ...seq, steps: seq.steps.filter(s => s.type !== 'ALT_COST_OPP_TURN') };
     }
   }
+  // 【チェイン】《色》《色》＝「このターン、あなたが**次に**アーツを使用する場合、それの使用コストは
+  // 《色×1》《色×1》減る」（注釈は stripRuleParens で除去済み。注釈を持たない札もある＝WX11-021/WX14-005/
+  // WX19-004）。従来はキーワード字面ごと落ちて**軽減が一度も起きなかった**（タスク12(xciii)）。
+  // ⚠先頭固定ではない（WX19-004 は《無》支払い制限の1文が前に付く）ので文頭アンカーを使わない。
+  // 表現は既存のスペル版と同型の `COST_REDUCTION{targetCardType:'アーツ'}`＝engine が
+  // `PlayerState.next_arts_cost_reduction` に積み、ArtsModal のコスト計算が消費する。
+  {
+    const chainM = stripped.match(/【チェイン】((?:《[白赤青緑黒無]》)+)/);
+    if (chainM) {
+      const byColor = new Map<string, number>();
+      for (const c of chainM[1].match(/[白赤青緑黒無]/g) ?? []) byColor.set(c, (byColor.get(c) ?? 0) + 1);
+      const chainStep: EffectAction = {
+        type: 'COST_REDUCTION', targetCardType: 'アーツ',
+        reduction: [...byColor].map(([color, count]) => ({ color, count })),
+        duration: 'UNTIL_END_OF_TURN',
+      } as CostReductionAction;
+      action = action.type === 'SEQUENCE'
+        ? { ...(action as SequenceAction), steps: [chainStep, ...(action as SequenceAction).steps] }
+        : ({ type: 'SEQUENCE', steps: [chainStep, action] } as SequenceAction);
+    }
+  }
   logSilentFallbacks(`${card.CardNum}-E1`, artsFb);
   return {
     effectId: `${card.CardNum}-E1`,
