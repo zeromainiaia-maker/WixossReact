@@ -1616,6 +1616,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
     g => ({ type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: parseNum(g[0]) })],
+  // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」（Opusタスク12(cxvi)・WXDi-P09-039/P15-053/068/072/073）。
+  //   従来は条件節ごと落ちて**無条件発火**していた（アタック時に必ずバニッシュ/エナチャージ等＝過剰効果）。
+  //   engine は `coins_paid_this_turn`（支払いのみ加算・ターン境界で0）を見る COINS_PAID_THIS_TURN で判定する。
+  [/このターンにあなたが《コイン(?:アイコン)?》を合計([０-９\d]+)枚以上支払っていた場合/,
+    g => ({ type: 'COINS_PAID_THIS_TURN', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
   // 「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（§5c 文型バッチ・WXK09 ＜電機＞系6効果）。
   //   レベル帯の**各レベルごとに**N枚以上を要求する条件＝`ENERGY_EACH_LEVEL_FILTER_GTE`（engine 実装済み・
   //   従来は `WXK09-083-E1` だけ wrap() でカード名指定していた）。条件節ごと落ちて無条件発火＝過剰効果だった。
