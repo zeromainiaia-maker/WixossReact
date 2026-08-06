@@ -595,6 +595,21 @@ function condJa(c?: any): string {
       if (c.value === 0 && c.operator === 'gt') return 'あなたの手札が対戦相手より多い';
       return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
+    // ── §5b「逆翻訳の英語ID漏れ0」の残テール（2026-08-07 §5c 消化のついでに一括意味文化）──
+    case 'ALL_SELF_SIGNI_DOWN': return 'あなたのすべてのシグニがダウン状態';
+    case 'ANY_PLAYER_REFRESHED_THIS_TURN': return 'このターンにいずれかのプレイヤーがリフレッシュしていた';
+    case 'CENTER_LRIG_NOT_GROWN_THIS_TURN': return `このターンに${ownerJa(c.owner)}センタールリグがグロウしていない`;
+    case 'FIELD_LRIG_COLOR_COUNT': return `${ownerJa(c.owner)}場のルリグが持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
+    case 'FIELD_LRIGS_HAVE_COLORS': return `${ownerJa(c.owner)}場に${(c.colors || []).join('と')}のルリグがいる`;
+    case 'IS_BOOSTING': return 'このアーツでブースト（追加エナ）を支払っていた';
+    case 'IS_SELF_DOWN': return 'このシグニがダウン状態';
+    case 'LAST_LOOK_TRASHED_MATCHES': return `この方法でトラッシュに置いたカードに${filterJa(c.filter)}カードが${numJa(c.minCount ?? 1)}枚以上ある`;
+    case 'LAST_PROCESSED_HAS_NO_ABILITIES': return 'この方法で処理したカードが能力を持たない';
+    case 'LIFE_CRASHED_LAST_TURN': return `前のターンに${ownerJa(c.owner)}ライフクロスが${numJa(c.value)}枚${opJa(c.operator)}クラッシュされていた`;
+    case 'LRIG_DECK_COUNT': return `${ownerJa(c.owner)}ルリグデッキが${numJa(c.value)}枚${opJa(c.operator)}`;
+    case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': return `${ownerJa(c.owner ?? 'self')}場にそれぞれ共通する色を持たないシグニが${numJa(c.count)}体ある`;
+    case 'NO_OTHER_ARTS_USED_THIS_TURN': return `このターンに《${c.exceptCardName}》以外のアーツを使用していない`;
+    case 'THIS_CARD_FROM_NON_HAND_THIS_TURN': return 'このターンにこのシグニが手札以外の領域から場に出ていた';
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
     case 'SELF_HAS_KEYWORD': return `このシグニが【${c.keyword}】を持っている`;
