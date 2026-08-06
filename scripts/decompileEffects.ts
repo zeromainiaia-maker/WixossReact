@@ -179,6 +179,7 @@ function filterJa(f?: any): string {
   if (f.levelLtLastProcessed) parts.push('（その後）そのシグニより低いレベルを持つ');
   if (f.levelGtLastProcessed) parts.push('（その後）それよりレベルの高い');
   if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
+  if (f.levelEqLastDownedLrig) parts.push('この方法でダウンしたルリグと同じレベルの');
   if (f.nameEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じ名前の');
   if (f.levelEqLastProcessedCount) parts.push('この方法で処理したカードの枚数と同じレベルの');
   if (f.levelEqLastProcessedLevelSum) parts.push('この方法で処理したカードのレベル合計と同じレベルの');
@@ -220,6 +221,7 @@ function filterJa(f?: any): string {
   if (f.classEqDeclaredClass) parts.push('宣言したクラスを持つ');
   if (f.nameEqDeclaredName) parts.push('宣言したカード名の');
   if (f.colorMatchesLastProcessed) parts.push('この方法で処理したカードと共通する色を持つ');
+  if (f.colorMatchesLastDownedLrig) parts.push('この方法でダウンしたルリグと共通する色を持つ');
   if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
   if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
   if (f.keyword) parts.push(`${[].concat(f.keyword).map((k: string) => `【${k}】`).join('か')}を持つ`);
@@ -803,6 +805,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'MILL':
       if (a.countIsLastProcessedLevelSum) return `この方法で場に出たシグニのレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
+      if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
       return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`

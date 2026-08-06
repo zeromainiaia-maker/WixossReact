@@ -9334,6 +9334,66 @@ const scenarios = {
   },
 };
 
+// タスク12(cix)：「この方法でダウンしたルリグと同じレベル」＝**コスト経路**の参照。
+//   engine ハーネス（golden）はコスト支払いも同じ ExecCtx で行うため lastProcessedCards が届くが、
+//   実UIは「BattleScreen が payLrigDownCost で支払う」→「別 ExecCtx で効果を解決」なので**参照が切れる**。
+//   その切れ目を跨げるのは PlayerState の記録だけ＝ここでしか検証できない核心部分。
+//   合格条件は「相手シグニ**全体**ではなく、ダウンしたルリグ（Lv2）と同じレベルのシグニ**だけ**が能力を失う」。
+scenarios.lrigDownLevelRemoveAbilities = {
+  title: 'WX25-P1-112【起】ルリグ1体ダウン→同じレベルの相手シグニだけが能力を失う（cost経路の参照・タスク12(cix)）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#1'],                    // Lv2 ルリグ（ダウンコストで払う＝参照レベルは2）
+      'field.signi': [['WX25-P1-112#1'], null, null],  // 【起】アップ状態のルリグ1体をダウンする
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-012#1'], ['WD01-009#1'], null], // Lv2（一致）／Lv4（不一致＝残るべき）
+      'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('初期 guest.abilitiesRemoved:', JSON.stringify(before?.guest?.abilitiesRemoved), 'lrigDown:', before?.host?.lrigDown);
+    let modalOpened = false;
+    for (let s = 0; s < 16; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/lrigDownLevelRemoveAbilities-${s}.png`, fullPage: true });
+      let did = null;
+      if (!modalOpened) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      if (!did) {
+        const actBtn = page.getByRole('button', { name: /^【起】/ }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+      }
+      if (!did) {
+        const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fire.count() && await fire.isVisible().catch(() => false) && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); did = 'btn:発動'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  [${s}] -> ${did ?? 'なし'} | gAbilRem=${JSON.stringify(st?.guest?.abilitiesRemoved)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      const removed = st?.guest?.abilitiesRemoved ?? [];
+      if (removed.length > 0) {
+        const hitSame = removed.includes('WD01-012#1');
+        const hitOther = removed.includes('WD01-009#1');
+        if (hitOther) {
+          return { pass: false, detail: `レベル条件が効いていない＝Lv4のWD01-009#1まで能力喪失（gAbilRem=${JSON.stringify(removed)}）＝(cix)の過剰効果が再発` };
+        }
+        return hitSame
+          ? { pass: true, detail: `コスト経路の参照が成立＝ダウンしたLv2ルリグと同レベルのWD01-012#1だけが能力喪失（gAbilRem=${JSON.stringify(removed)}・Lv4のWD01-009#1は無傷）` }
+          : { pass: false, detail: `想定外の対象が能力喪失（gAbilRem=${JSON.stringify(removed)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `【起】が発火しない／能力喪失を観測できず（gAbilRem=${JSON.stringify(fin?.guest?.abilitiesRemoved)} lrigDown=${fin?.host?.lrigDown} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
 // 既存の空き1ゾーン自動配置経路も独立シナリオとして残し、ゾーン選択経路との両方を回帰対象にする。
 scenarios.effectPlacedOnPlay = {
   ...scenarios.effectPlacedOnPlayZoneSelect,
