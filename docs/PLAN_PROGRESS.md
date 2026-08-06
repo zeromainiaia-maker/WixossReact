@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-06・続き357・Opus 5〔🏁タスク12(cvii) 残0クローズ＝`ctx.currentPhase` の配線漏れで4機構が実UIで丸ごと不発だったのを是正〕）＝ユーザー指示「タスク12を続ける」で在庫の (cvii) を消化**。触った層は `BattleScreen.tsx`（ExecCtx 8箇所）・`effectParser.ts`（phase 実値2件の是正＋`ATTACK_PHASES` 定数）・`decompileEffects.ts`（表示畳み）・検証スクリプト2本。**live per-effect 差分＝changed 2／added 0／removed 0**（`WX13-035`／`WX24-P2-050` の `phases` のみ。**機械 diff で「phases 以外の変化 0」を確認済み**）・**新語彙0本**。
+  - **真因＝`BattleScreen` が組み立てる `ExecCtx` リテラル8箇所すべてに `currentPhase` が無く実ゲームでは常に undefined**。engine のフェイズ機構は**4本ともフェイズ不明なら成立させない側へ倒す**設計なので、渡し忘れると engine が正しくても実UIで丸ごと不発になり、**計器には一切映らない**（golden ハーネスは `currentPhase:'MAIN'` を手で埋めるため緑のまま）。
+  - **⚠不発だった母集団は4機構**＝①トラッシュ移動ロック（宣言元2効果・射程は自分のトラッシュ発生源330件）②`DURING_PHASE`（action 木の中で評価される1件）③能力なし→デッキ下置換（1効果）④アタックフェイズ限定のバニッシュ先置換（3効果）。登録時の記録は「ExecCtx 6箇所」だったが**実測8箇所**。
+  - **併せて `DURING_PHASE.phases` の不正値2件を是正**＝`TurnPhase` に無い値は engine の `includes` に一生当たらない。`WX24-P2-050-E1`＝`['ATTACK']`／`WX13-035-E2`＝`ATTACK_ARTS_OP` 欠落 → どちらもアタック4実値へ。⚠**旧 golden は `turnPhase:'ATTACK'` を渡しており JSON 側も同じ不正値だったため「両方が同じ間違いをしていて緑」だった**＝4実値での発火と `'ATTACK'` では発火しないことを両方向で assert し直した。
+  - **実機検証4シナリオ・各2回連続PASS**（既定order 121→123件）＝`trashMoveLockBlocksSelfEffect`（登録時は意図的FAIL→PASSへ反転）／`trashMoveLockAllowsWhenUnlocked`（過剰ロックなし）／🆕`noAbilityDeckBottomAttackPhase`（能力なしシグニがエナでなく**デッキ一番下**へ）／🆕`noAbilityDeckBottomMainPhaseNoop`（MAIN では置換されずエナへ＝フェイズ限定が効いている）。
+  - **ゲート**＝golden **1367→1368**（+1＝`DURING_PHASE` 8効果の phases 固定＋**不正 phase 値は既知1件だけ**の全数 assert＋他3機構の宣言元母集団固定）、census **1288 据置**、smoke 10679 全0、fuzz 全0、lint 0 errors/**245 warnings 据置**、**同型★0（265群）**、held **257枚／109群 据置**（増えた2枚は採用して元に戻した）。逆翻訳差分は `decompile_sheet2` の2行のみ。
+  - **🆕 直さずに登録した発見1件＝タスク12(cx)**＝`WX05-013-E2` の `phases:['ATTACK_SIGNI_OP']` も不正値だが、原文は「対戦相手のシグニ１体がアタックしたときにしか使用できない」＝そもそもフェイズ条件でなく、`timing:['MAIN']` のままでは相手ターンに撃てない＝**名前の付け替えでは直らない**ため別機構として分離。
+  - **次の一手**＝**Opus**＝タスク12の生き残り在庫〔(lv)残2経路／(lxvi)／(lxxxviii)／(xciii)／(xciv)／(xcvi)／(xcvii)／(c)〕＋(ci)(cii)(civ)(cv)＋🆕(cix)(cx)。**次に取るなら (ci)**（`OPPONENT_PAY_OPTIONAL` の costColors 無し STUB に無料の「支払う」枝が生える＝68効果中33効果に効く既存パターンへの揃えだけ）か、続けて (cii)（CPU 自動応答がエナ instanceId を渡さない＝(ci) と同じ札で踏むので対で消化すると効率がよい）。**Sonnet**＝§7 実機検証の在庫は枯渇＝`/census-batch` や他タスクの棚卸しへ。
+
 - **セッション（2026-08-06・続き356・Opus 5〔🏁タスク12(cviii) 残0クローズ＝【起】ACTIVATED の `cost.lrigDown` を実行経路2本へ配線〕）＝ユーザー指示「opusタスク12を行う」で在庫の最新（cviii）を消化**。**parser/JSON は無変更**（`public/data/` に差分なし・**新語彙0本**）＝触った層は `BattleScreen.tsx`／`SigniActivatedModal.tsx`／`LrigGrantedModal.tsx`／`lrigDownCost.ts`（表示ラベル関数の新設のみ）と検証スクリプト2本。
   - **真因＝`payLrigDownCost` を呼んでいたのは【出】専用の `executeSigniOnPlayCost` だけ**で、【起】側には1本も配線されていなかった＝`cost.lrigDown` 持ちの【起】は**タダ撃ち**（ルリグが下がらない）かつ**支払い不能な盤面でも発動できる**という二重の過剰効果。⚠**計器には映らない**（parser も engine も正しい＝smoke/golden/census はずっと緑）＝(ci)(cii)(cv)(civ)(cvi)(cvii) と同型の「UI 配線が経路を通していない」系。
   - **⚠影響母集団は登録時の記録「5枚」ではなく13効果**＝実行経路が**2つに割れる**（`executeSigniActivated`＝シグニ11／`executeLrigGranted`＝ルリグ本体の【起】2〔`WXDi-P02-009-E3`／`WXDi-P03-009-E3`〕）。**別関数なので配線も別に要る**のが登録時の見落とし。
