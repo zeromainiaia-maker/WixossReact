@@ -4299,6 +4299,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   TRASH の filter.colorMatchesLastProcessed（owner非依存＝相手エナを自ルリグ色で絞る／参照不能なら空ヒット＝
   //   「ダウンしなかった／既にダウン」の did-it ゲートを兼ねる）で共通色1枚に限定する。DOWN の optional は
   //   execDown(LRIG) の「ダウン/スキップ」二択で実装（続き220）。
+  //   ⚠target.filter.isUp は「原文が**アップ状態のルリグ**と言っている＝センター固定ではなくアシストも含む」印。
+  //     execDown が payLrigDownCost 経路（センター→アシストL→R）へ切り替える判別子（タスク12(cix)）。
   "WX25-P2-112": [
     {"effectId":"WX25-P2-112-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"triggerScope":"self","action":{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT","owner":"opponent","operator":"gte","value":2},"then":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":1,"filter":{"isUp":true}},"optional":true},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1,"filter":{"colorMatchesLastProcessed":true}}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
