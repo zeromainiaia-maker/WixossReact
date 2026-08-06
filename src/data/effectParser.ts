@@ -3774,8 +3774,12 @@ function applyLrigColorBatch5(effects: CardEffect[]): void {
         e.action.target.filter = { ...(e.action.target.filter ?? {}), colorNotMatchesLrig: true };
       }
     }
+    // ⚠ `colorMatchesLastProcessed`（＝効果内 DOWN 由来）ではなく `colorMatchesLastDownedLrig` を使う。
+    //   この札の「この方法でダウンしたルリグ」は**コストの支払い**であり、実UIでは支払いと効果解決が別 ExecCtx
+    //   なので lastProcessedCards が届かず、旧キーは engine ハーネスでだけ通って実機では丸ごと空ヒット（＝完全
+    //   no-op）だった。新キーは lastProcessedCards → PlayerState.last_lrig_down_cards の2段で解決する（(cix)）。
     if (e.effectId === 'WX24-P2-069-E1' && e.action.type === 'BANISH') {
-      e.action.target.filter = { ...(e.action.target.filter ?? {}), colorMatchesLastProcessed: true };
+      e.action.target.filter = { ...(e.action.target.filter ?? {}), colorMatchesLastDownedLrig: true };
     }
   }
 }
