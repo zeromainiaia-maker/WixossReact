@@ -20298,6 +20298,61 @@ test('task12(l) C群: 相手効果の全離場置換は1体だけ守り、自分
   ok(bounced.otherState.hand.includes(victim2), '2体目の移動先は手札');
 });
 
+test('task12(lxvi)① 「あなたか対戦相手のデッキの上からカードをN枚トラッシュ」は CHOOSE（parser 規則）', () => {
+  // 原文が与える「どちらのデッキを削るか」の選択肢。curated 17ノードは手当て済みだったが **parser に規則が無く**、
+  // 再収穫のたびに「curated が持ち fresh が失う」差分として残っていた（(lxvi) の据置理由）。
+  // ⚠規則が消えると `owner:'self'` 固定＝**常に自分のデッキを削る**へ静かに戻るので、fresh 側で固定する。
+  const MILL_CARDS: [string, string, number][] = [
+    ['WX24-P3-057', 'WX24-P3-057-E1', 3],
+    ['WXDi-P13-002', 'WXDi-P13-002-E1', 8],
+    ['WX26-CP1-098', 'WX26-CP1-098-E1', 2],
+    ['WXK09-034', 'WXK09-034-E1', 3],
+  ];
+  for (const [cardNum, effectId, n] of MILL_CARDS) {
+    const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    ok(!!fresh, `${effectId}: fresh parse が無い`);
+    const act = fresh!.action as import('../src/types/effects').ChooseAction;
+    eq(act.type, 'CHOOSE', `${effectId}: CHOOSE になっていない`);
+    eq(act.choices.length, 2, `${effectId}: 選択肢が2つでない`);
+    const owners = act.choices.map(c => ((c.action as import('../src/types/effects').TrashAction).target as { owner?: string }).owner);
+    eq(owners.join(','), 'self,opponent', `${effectId}: 自分/相手の2択になっていない`);
+    for (const c of act.choices) {
+      const tgt = (c.action as import('../src/types/effects').TrashAction).target as { type?: string; count?: number };
+      eq(tgt.type, 'DECK_CARD', `${effectId}: デッキ削りでない`);
+      eq(tgt.count, n, `${effectId}: 枚数が原文と違う`);
+    }
+    // live にも同じ形が載っている（curated と fresh が一致＝再収穫で失われない）
+    const liveEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    eq(JSON.stringify(liveEff?.action), JSON.stringify(fresh!.action), `${effectId}: live と fresh が食い違う`);
+  }
+  // 「各プレイヤー」（＝両方削る）は CHOOSE ではなく SEQUENCE のまま＝取り違えない
+  const bothText = 'このターン、各プレイヤーはデッキの上からカードを２枚トラッシュに置く。';
+  ok(!/あなたか対戦相手/.test(bothText), '前提: 各プレイヤー文は「あなたか対戦相手」を含まない');
+});
+
+test('task12(lxvi)② 「【X】を持つカード」は保有条件であって付与ではない（parser 規則）', () => {
+  // ①WX26-CP1-101＝「エナゾーンに＜プリオケ＞が3枚以上ある場合、【歌のカケラ】を持つカード1枚をトラッシュに置いてもよい。
+  //   （センタールリグが）そのカードの【歌のカケラ】を使用する。」＝**付与は一度も起きない**。
+  const sf = parseCardEffects(cardMap.get('WX26-CP1-101')!).find(e => e.effectId === 'WX26-CP1-101-E1')!;
+  const sfJson = JSON.stringify(sf.action);
+  ok(!sfJson.includes('GRANT_KEYWORD'), '原文に無いキーワード付与が生えている');
+  ok(sfJson.includes('ENERGY_COUNT_FILTER'), '＜プリオケ＞3枚以上のゲートが落ちている');
+  // 2文で1動作＝SONG_FRAGMENT は**1つだけ**（2つ並ぶと歌のカケラが2回発動する）
+  eq((sfJson.match(/SONG_FRAGMENT/g) ?? []).length, 1, 'SONG_FRAGMENT が二重化している');
+  const steps = (sf.action as SequenceAction).steps;
+  const gate = steps[0] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(gate.type, 'CONDITIONAL', 'ゲートが先頭に来ていない');
+  eq((gate.then as StubAction).id, 'SONG_FRAGMENT', 'ゲートの中身が歌のカケラでない');
+
+  // ②同居形＝「【ダブルクラッシュ】を持つシグニ1体を対象とし、それは【アサシン】を得る」は
+  //   **保有条件の側（ダブルクラッシュ）を飛ばして、付与の側（アサシン）を採る**。
+  const dual = parseCardEffects(cardMap.get('WX08-061')!).find(e => e.effectId === 'WX08-061-E1')!;
+  eq((dual.action as import('../src/types/effects').GrantKeywordAction).keyword, 'アサシン',
+    '保有条件の keyword を付与してしまっている（本来は付与される側を採る）');
+  eq(JSON.stringify((effectsMap.get('WX08-061') ?? []).find(e => e.effectId === 'WX08-061-E1')?.action),
+    JSON.stringify(dual.action), 'WX08-061: live と fresh が食い違う');
+});
+
 test('task12(xcvii) 「代わりにこの能力を失う」を離場6経路すべてで適用（エナ送りの呼び忘れ回帰）', () => withSavedCursor(() => {
   // 原文（SPDi44-08／WX25-P1-018 が付与する【常】）＝「あなたのクロス状態のシグニ１体が対戦相手の効果によって
   // **場を離れる場合**、代わりにこのルリグはこの能力を失う。」＝離場の種類を問わない。
