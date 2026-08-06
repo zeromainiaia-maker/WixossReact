@@ -4109,24 +4109,9 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     function applyToBottom(selected: string[], c: ExecCtx): ExecCtx {
       let cur = c;
       for (const num of selected) {
-        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, src.owner, cur);
-        if (lrigSub.replaced) {
-          cur = lrigSub.ctx;
-          continue;
-        }
-        const powerSub = applyEffectLeavePowerReductionSubstitute(num, src.owner, cur);
-        if (powerSub.replaced) {
-          cur = powerSub.ctx;
-          continue;
-        }
-        const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, src.owner, cur);
-        if (banishSub.replaced) {
-          cur = banishSub.ctx;
-          continue;
-        }
-        const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(num, src.owner, cur);
-        if (noAbilitySub.replaced) {
-          cur = noAbilitySub.ctx;
+        const sub = applyEffectLeaveSubstitutes(num, src.owner, cur);
+        if (sub.replaced) {
+          cur = sub.ctx;
           continue;
         }
         const s = ownerState(src.owner, cur);
