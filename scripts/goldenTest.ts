@@ -6983,7 +6983,7 @@ test('task12(xcviii): CPU ターンドローで不発だった live 母数を固
 // 収集されず永久に失われていた穴（BattleScreen.resolveStackNext の !result.done 分岐に収集が無かった。
 // resume 側の2巡目以降には続き75 で入っていた）。engine 側は正しくドローを確定させていることと、
 // その中断状態から ON_DRAW が収集できることをここで固定する＝**UI が中断時点で収集しさえすれば拾える**。
-test('task12(cxi): 最初の対話で中断する SEQUENCE でも、中断時点でドローは確定し ON_DRAW を収集できる', () => {
+test('task12(cxi): 最初の対話で中断する SEQUENCE でも、中断時点でドローは確定し ON_DRAW を収集できる', () => withSavedCursor(() => {
   const src = 'WX20-026'; // 【自】アタック時：1枚引き手札1枚捨てる（E1）＋【自】＜凶蟲＞効果ドロー時：-4000（E3）
   const e1 = (effectsMap.get(src) ?? []).find(e => e.effectId === `${src}-E1`);
   ok(!!e1, 'WX20-026-E1 が live に存在する');
