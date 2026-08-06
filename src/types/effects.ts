@@ -549,6 +549,14 @@ export interface TargetFilter {
   levelLtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル未満 → level.max:N-1 に解決（「その後、そのシグニより低いレベルを持つ」＝公開シグニ基準。参照不能なら空ヒット。WXK10-031）
   levelGtLastProcessed?: boolean;  // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベルより高い → level.min:N+1 に解決（「その後、…それよりレベルの高い」＝直前配置シグニ基準。参照不能なら空ヒット。WXEX2-28）
   levelEqLastProcessed?: boolean;  // レベルが直前に処理したシグニと同じ → level.min/max に解決（「この方法で【ビート】にしたシグニと同じレベル」WDK14-008）
+  // レベルが「この方法でダウンしたルリグ」と同じ → level に解決（WX25-P1-112／WX24-P1-040。タスク12(cix)）。
+  // 参照先は ①lastProcessedCards[0] がルリグならそれ（＝同一 SEQUENCE 内の DOWN。任意ダウンをスキップすると
+  // 空になり did-it ゲートになる）②なければ ownerSt.last_lrig_down_cards（＝コスト経路。実UIでは支払いと効果
+  // 解決が別 ExecCtx なので PlayerState 経由でしか届かない）。どちらも取れなければ空ヒット（過剰実行しない側）。
+  levelEqLastDownedLrig?: boolean;
+  // 色が「この方法でダウンしたルリグ」と共通する → color 配列に解決。参照元は levelEqLastDownedLrig と同じ2段。
+  // ⚠ 効果内 DOWN 由来（lastProcessedCards）は既存の colorMatchesLastProcessed が担当＝こちらはコスト経路用。
+  colorMatchesLastDownedLrig?: boolean;
   levelLteDiscardSigni?: boolean; // レベルが handDiscardSigni コストで捨てたシグニ（caster.last_discarded_signi_level）のレベル以下 → level.max に解決（「この方法で捨てたシグニのレベル以下」WX22-046/WXK10-044 等）
   levelLtDiscardSigni?: boolean;  // 捨てたシグニより低いレベル → level.max = 捨てレベル-1（「この方法で捨てたシグニより低いレベルを持つ」WXEX2-37）
   levelEqDiscardSigniOffset?: number; // 捨てたシグニのレベル+offset に一致 → level = 捨てレベル+offset（「レベルがNつ高い」WDK13-013=+1/WXK10-033=+2）
