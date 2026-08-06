@@ -5877,6 +5877,14 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           { ...ctx, ownerState: { ...ctx.ownerState, next_spell_cost_reduction: [...existing, ...cr.reduction] } },
           `次に使用するスペルのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
       }
+      // 【チェイン】＝「このターン、あなたが次にアーツを使用する場合、それの使用コストは《色×1》…減る」
+      // （タスク12(xciii)）。スペル版と同型の状態に積み、ArtsModal のコスト計算で消費する。
+      if (cr.targetCardType === 'アーツ' && !cr.isGrowCost && cr.reduction?.length) {
+        const existingArts = ctx.ownerState.next_arts_cost_reduction ?? [];
+        return done(addLog(
+          { ...ctx, ownerState: { ...ctx.ownerState, next_arts_cost_reduction: [...existingArts, ...cr.reduction] } },
+          `次に使用するアーツのコストを${cr.reduction.map(r => `《${r.color}×${r.count}》`).join('')}軽減`));
+      }
       return done(addLog(ctx, 'コスト軽減'));
     }
     case 'GRANT_PROTECTION':        return execGrantProtection(action as GrantProtectionAction, ctx);
