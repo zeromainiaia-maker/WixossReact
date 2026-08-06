@@ -1260,6 +1260,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   const oppSubjectDeckMill = /対戦相手[はが](?:(?!あなた)[^。])*?(?:自分の)?デッキの上から/.test(t)
     && !/あなたのデッキの上から/.test(t);
   const oppDeckMill = (/対戦相手のデッキの上から/.test(t) || oppSubjectDeckMill) && !/あなたか対戦相手/.test(t);
+  // 「〈相手/あなた〉のデッキの上から**この方法でダウンしたルリグのレベルの合計に１を加えた**枚数のカードを
+  // トラッシュに置く」（WX25-P2-114）＝可変ミル。従来は枚数句を読めず POWER_MOD_PER_COUNT の STUB へ落ちて
+  // **原文に無いパワー修整**に化けていた（タスク12(cix)）。合計は PlayerState 側の記録から読む（枚数選択の
+  // CHOOSE を跨ぐため lastProcessedCards では消える）。
+  {
+    const lrigSumMillM = t.match(/デッキの上からこの方法でダウンしたルリグのレベルの合計に([０-９\d]+)を加えた枚数のカードをトラッシュに置く/);
+    if (lrigSumMillM) {
+      return {
+        type: 'MILL', owner: oppDeckMill ? 'opponent' : 'self',
+        count: parseNum(lrigSumMillM[1]), countPlusLastDownedLrigLevelSum: true,
+      } as EffectAction;
+    }
+  }
   {
     const deckOptM = t.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい/);
     if (deckOptM) {
