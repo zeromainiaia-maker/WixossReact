@@ -5363,6 +5363,9 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     ? (ctx.storedTargetCards ?? []).length * a.countPerStoredTargets
     : a.useDeclaredCount
     ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
+    : a.countPlusLastDownedLrigLevelSum
+    // 「この方法でダウンしたルリグのレベルの合計に１を加えた枚数」＝記録が無ければ 0体ダウン＝count のみ。
+    ? a.count + (ctx.seqVars?.lastDownedLrigLevelSum ?? ctx.ownerState.last_lrig_down_level_sum ?? 0)
     : a.count;
   const state = ownerState(a.owner, ctx);
   let actual = Math.min(count, state.deck.length);
