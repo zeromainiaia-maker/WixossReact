@@ -415,6 +415,13 @@ function condJa(c?: any): string {
       : c.distinctColor
       ? `${ownerJa(c.owner)}エナゾーンにあるカードの色が${numJa(c.value)}種類${opJa(c.operator)}`
       : `${ownerJa(c.owner)}エナゾーンに${c.distinctName ? '名前の異なる' : ''}${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}ある`;
+    // 「エナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（§5c・従来は英語ID漏れ）
+    case 'ENERGY_EACH_LEVEL_FILTER_GTE': {
+      const lv = (c.levels ?? []) as number[];
+      const band = lv.length > 1 && lv[lv.length - 1] - lv[0] === lv.length - 1
+        ? `レベル${numJa(lv[0])}～${numJa(lv[lv.length - 1])}` : `レベル${lv.map(numJa).join('と')}`;
+      return `${ownerJa(c.owner)}エナゾーンに${band}の${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}がそれぞれ${numJa(c.minEach)}枚以上ある`;
+    }
     case 'ENERGY_HAS_COLOR': return `${ownerJa(c.owner)}エナゾーンに${(c.colors || []).map((col: string) => `《${col}》のカード`).join('と')}がある`;
     case 'LRIG_NAME_CONTAINS': return `${ownerJa(c.owner)}センタールリグ名が「${c.name}」を含む`;
     case 'LRIG_COLOR': return `${ownerJa(c.owner)}センタールリグが${c.color}`;
