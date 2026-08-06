@@ -1637,6 +1637,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   刻む**とコスト支払いと同じ payLrigDownCost 経路（センター→アシストL→R・level 条件つき）へ乗り、
     //   「この方法でダウンしたルリグ」の記録も入る。「アシストルリグ」限定形（WX24-P3-043）は受け皿が無く据置。
     {
+      // 「アップ状態のルリグを**好きな数**ダウンする」（WX25-P2-114）＝0..N の枚数選択。engine は count:'ALL'
+      // を枚数 CHOOSE として解決する（可変コストと同じ形）。
+      {
+        const anyCountM = t.match(/(?:(あなた|対戦相手)の)?アップ状態の(?:レベル([０-９\d]+)の)?ルリグを好きな数ダウン/);
+        if (anyCountM && !t.includes('シグニ')) {
+          const lvlAny = anyCountM[2] ? parseNum(anyCountM[2]) : undefined;
+          return { type: 'DOWN', target: {
+            type: 'LRIG', owner: anyCountM[1] === '対戦相手' ? 'opponent' : 'self', count: 'ALL', upToCount: true,
+            filter: { isUp: true, ...(lvlAny !== undefined ? { level: lvlAny } : {}) },
+          }, ...(downOptional ? { optional: true } : {}) };
+        }
+      }
       const upLrigM = t.match(/(?:(あなた|対戦相手)の)?アップ状態の(?:レベル([０-９\d]+)の)?ルリグ([０-９\d]+)体をダウン/);
       if (upLrigM && !t.includes('シグニ')) {
         // ⚠ owner は**名詞句直前の所有者表記**から取る。文中の他の句（「対戦相手にダメージが与えられていなかった
