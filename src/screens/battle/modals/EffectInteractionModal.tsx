@@ -248,9 +248,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 )}
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
                   {/* opp_hand「見て選び」では相手の手札全体を表示（候補のみ選択可・非候補はグレー） */}
-                  {(inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand' ? op.hand : sortedCandidates).map((rawId, dispIdx) => {
-                    const isOppHandView = inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand';
-                    const candIdx = isOppHandView ? sortedCandidates.indexOf(rawId) : dispIdx;
+                  {(oppHandView ? oppHandCards : sortedCandidates).map((rawId, dispIdx) => {
+                    const candIdx = oppHandView ? sortedCandidates.indexOf(rawId) : dispIdx;
                     const selectable = candIdx >= 0;
                     // インスタンスID（CardNum#N）からCardNumを取り出して表示用データを取得
                     const cardNum = getCardNum(rawId);
