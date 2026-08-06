@@ -3592,6 +3592,11 @@ export function collectContinuousGrantedKeywords(
   effectivePowers?: Map<string, number>,
 ): Record<string, string[]> {
   const result: Record<string, string[]> = {};
+  // effectivePowers 未指定なら**渡された state から計算**する（タスク12(cxii)）。
+  // 省略すると SELF_POWER_THRESHOLD 等が表記パワーへフォールバックし「バフしてもキーワードが付かない」過小実行になる。
+  let _powers = effectivePowers;
+  const powersOf = (): Map<string, number> =>
+    (_powers ??= calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, cardMap));
   const add = (num: string, kw: string) => {
     (result[num] ??= []);
     if (!result[num].includes(kw)) result[num].push(kw);
