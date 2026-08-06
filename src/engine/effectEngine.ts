@@ -4376,7 +4376,7 @@ export function collectBanishEffectProtectedSigni(
     const sourceNum = stack[stack.length - 1];
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf())) continue;
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
       if (gp.sourceOwner !== 'opponent') continue;
