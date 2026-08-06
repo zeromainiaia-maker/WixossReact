@@ -274,6 +274,40 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   };
 }
 
+/**
+ * 相手効果による場離れの**置換チェーンの唯一の入口**（タスク12(xcvii)）。
+ *
+ * 適用順は固定＝①ルリグ付与能力の喪失（`…LrigAbility`）→②パワー減の身代わり（`…PowerReduction`）→
+ * ③バニッシュへの差し替え（`…ReplaceBanish`）→④能力なし→デッキ下（`…NoAbilityDeckBottom`）。
+ * 先に成立したものを1つだけ適用して打ち切る（従来の手書きチェーンと同じ早期 return）。
+ *
+ * - **バニッシュ経路からは `skipReplaceBanish: true`** で呼ぶ＝原文「その移動がバニッシュによるものでないなら」。
+ * - 呼び出し側は `if (sub.replaced) { …置換済みなので本来の移動はしない… }` だけ書けばよい。
+ *
+ * 【背景】従来は離場11経路が3〜4本の置換を**手書きで並べて**いて、`execSendToEnergy` の複数選択経路だけ
+ * ①の呼び出しが抜けていた＝「代わりにこの能力を失う」（`SPDi44-08`／`WX25-P1-018` の【常】）が
+ * **エナ送りに対してだけ効かない**（原文は「場を離れる場合」＝エナ送りも当然含む）。
+ * 置換手段が増えるたびに11箇所へ追記する形だと同じ漏れが再発するので、入口を1本に畳んで構造的に潰す。
+ */
+export function applyEffectLeaveSubstitutes(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  opts?: { skipReplaceBanish?: boolean },
+): { ctx: ExecCtx; replaced: boolean } {
+  const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
+  if (lrigSub.replaced) return lrigSub;
+  const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
+  if (powerSub.replaced) return powerSub;
+  if (!opts?.skipReplaceBanish) {
+    const banishSub = applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx);
+    if (banishSub.replaced) return banishSub;
+  }
+  const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx);
+  if (noAbilitySub.replaced) return noAbilitySub;
+  return { ctx, replaced: false };
+}
+
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
