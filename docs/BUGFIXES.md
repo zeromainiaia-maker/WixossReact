@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(cxi)＋(c) 残0クローズ＝①中断エントリの盤面差分トリガーが**1巡目だけ**取りこぼされていた ②ON_TARGETED の「そのシグニ」が誰でも選べる過剰対象化だった（golden 1374→1378・census 1287→1286・live 3効果）（Opus 5・続き361）
+
+### (cxi) 実機 FAIL の真因＝`resolveStackNext` の `!result.done` 分岐に盤面差分収集が無かった
+
+`drawBySourceStory`（`WX20-026`）が実機で FAIL していた件。**engine は正しく、UI 側の収集漏れ**だった。
+
+- **JSON の形が変わっていたのが引き金**＝`WX20-026-E1` は現在 `SEQUENCE[DRAW, TRASH(手札1枚選択)]`。
+  シナリオ作成当時の「対象選択を挟まない DRAW」（当時の E2）ではなく、**ドロー直後に対話で中断する**形になっていた
+  （E2 の方は「他の＜凶蟲＞がいる場合」の条件が正しく載り、単騎の盤面では発火しない）。
+- **穴の位置**＝`BattleScreen.resolveStackNext` の `!result.done`（＝最初の対話で中断）分岐には収集が**一切なく**、
+  中断時点の状態（ドロー済み）はそのまま `RESOLVE_EFFECT_STEP` で `bs.host_state` へコミットされる。
+  resume 側（`handleEffectInteraction`）が完了時に呼ぶ `collectBoardDiffTriggers` は **before に既にそのドローを含む**ため
+  差分ゼロ＝**ON_DRAW は永久に失われる**。続き75 が resume 側の**2巡目以降**に入れた同じ手当ての、**1巡目版が欠けていた**。
+- **修正**＝`!result.done` 分岐でも `collectBoardDiffTriggers` を呼び、`newStack` へ push する（resume 側 midBd と同型・同引数）。
+- **規模の実測**＝live 全効果を中立盤面で1巡実行すると **1巡目で中断する効果 5418／うち中断時点で既に盤面が動いている 484**。
+  ON_DRAW に限れば母集団は `WX20-026` の2効果だけ（golden で固定）だが、**失われていたのはドローに限らない**。
+- **検証**＝`node scripts/verifyBattleDrive.mjs drawBySourceStory`（`FRESH=1`）で PASS。
+  ⚠併せてシナリオの合格条件を厳しくした＝**watcher ログだけで PASS にせず**、対象選択を経て実際に
+  `gPowerMods=WD01-013#1:-4000` が乗るところまで見る。回帰＝`outsideDrawPhase`／`placedFront`／`banishbyeffect`／`ontargeted` 各 PASS。
+- **golden**＝中断時点でドローが確定していること・その状態から `collectDrawTriggers` が `WX20-026-E3` を返すことを固定（＋母集団1件）。
+
+### (c) ON_TARGETED の「その（対戦相手の）シグニ」＝**対象にしてきたシグニ**に限定されていなかった
+
+- **①`WXDi-P13-089-E2`**：原文「そのシグニをゲームから除外する」なのに JSON は `TRASH{TRASH_CARD}`
+  ＝**トラッシュ→トラッシュの完全 no-op**。既存の除外規則は「シグニN体を**対象とし**、それを…」形しか見ておらず、
+  「（対象になったとき）そのシグニを…」形が汎用フォールバックへ落ちていた。逆翻訳も「対戦相手のを1枚トラッシュに置く」と壊れていた。
+- **②origin 同一性が未配線**：`collectTargetedTriggers` は `origin`（対象にしてきたカード）を `targetedOrigins` の照合にだけ使い、
+  **entry に載せていなかった**。そのため engine 実装済みの `filter.isTriggerSource`（`ctx.triggeringCardNum` に絞る）は
+  ON_TARGETED では常に候補0＝使っても no-op になる状態で、JSON 側も filter を持たず**相手シグニなら誰でも選べる過剰対象化**だった。
+- **修正**＝(a) `parseSentencePart1` の除外節に「対象になったとき…そのシグニをゲームから除外する」規則を追加（型を `EXILE{SIGNI}` へ）
+  (b) `effectParser` の後段で timing が `ON_TARGETED`／`ON_SIGNI_BATTLE` かつ「その〜シグニをバニッシュ/除外」かつ
+  **「〜1体を対象とし」を含まない**ブロックにだけ `filter.isTriggerSource` を刻む
+  (c) `collectTargetedTriggers` が `triggeringCardNum: origin.cardNum` を entry に載せる。
+- **live 変更は3効果**＝`WXDi-P03-056-E1`（BANISH に isTriggerSource）／`WX05-047-E1`（同・バトル相手限定）／
+  `WXDi-P13-089-E2`（`TRASH{TRASH_CARD}` → `EXILE{SIGNI}`＋isTriggerSource）。per-effect 差分で **changed=3 / added=0 / removed=0**。
+  ⚠除外した形＝`WX20-039-CB`（「対戦相手のシグニ1体を**対象とし**…その対戦相手のシグニをバニッシュする」＝**選んだ対象への照応**。
+  timing も ON_PLAY なので二重に外れる）。
+- **実機検証**＝新設シナリオ `onTargetedSourceSigniBanish`（host が `WXDi-P00-074`【出】-1000 で guest の watcher `WXDi-P03-056` を
+  対象化→watcher が**対象にしてきたシグニだけ**をバニッシュ／host zone0 の巻き添え検知用シグニは残存）。2回連続 PASS。
+  回帰＝`battleLevel4Filter`（`WX05-047`）・`ontargeted`・`onTargetedForcedBypass` 各 PASS。
+- ⚠**「結果が正しい」だけでは合格にできない**＝CPU の `SELECT_TARGET` 自動応答は**候補をシャッフルして選ぶ**ので、
+  候補が2件のままでも当たりを引けば PASS に見える（実際、修正を外した A/B の1回目は PASS してしまった）。
+  そこで `queryState` に **`pendingCandidates`（候補列そのもの）** を足し、**候補が1件に絞られていること**を判定に使った。
+  修正を外した A/B では `watcherCands=["WD05-009#1","WXDi-P00-074#1"]` で**FAIL する**ことを確認済み＝網に歯がある。
+- ⚠**A/B の落とし穴**＝driver は `dist` の mtime が `src`/`public` より新しければ build をスキップする。
+  `.bak` を `mv` で戻すと**mtime が古いまま**なので dist が更新されず、**直したのに直っていない結果**を観測する。`SKIP_BUILD=0` で強制する。
+
+# バグ修正記録 (BUGFIXES)
+
 ## 2026-08-06 — 🏁Opusタスク12(lxvi) 残0クローズ＝据置2枚の「両損」を**parser 規則2本**で解消（census 1288→1287・golden 1372→1374）（Opus 5・続き360b）
 
 (lxvi) は「採用すると別の損失が出る」ため honest defer されていた2枚。**どちらも据置の原因は JSON ではなく parser 側の欠落**だったので、

@@ -1171,15 +1171,6 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
 
-## +EXILE +SIGNI -TRASH -TRASH_CARD ［1枚］
-WXDi-P13-089
---- WXDi-P13-089
-  原文: 【常】：【マルチエナ】【自】《ターン１回》：対戦相手のターンの間、このシグニが対戦相手のシグニの、能力か効果の対象になったとき、そのシグニが場にある場合、そのシグニをゲームから除外する。【起】手札とエナゾーンとトラッシュにある《夢限//ディソナ》を１枚ずつゲームから除外する：対戦相手のシグニ１体を対象とし、それをゲームから除外する。,-
-  ~ [1].action.type : "TRASH" → "EXILE"
-  ~ [1].action.target.type : "TRASH_CARD" → "SIGNI"
-  + [1].action.target.filter.cardType = "シグニ"
-  + [1].action.target.filter.isTriggerSource = true
-
 ## -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CARD -HAND_CARD×2 -IS_MY_TURN -LRIG_LEVEL -SEQUENCE×2 -SIGNI -TRASH×3 ［1枚］
 WXDi-P14-002
 --- WXDi-P14-002
