@@ -469,7 +469,7 @@ function condJa(c?: any): string {
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;
-    case 'COINS_PAID_THIS_TURN': return `このターンに${ownerJa(c.owner)}《コイン》を合計${numJa(c.value)}枚${opJa(c.operator)}支払っていた`;
+    case 'COINS_PAID_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が《コイン》を合計${numJa(c.value)}枚${opJa(c.operator)}支払っていた`;
     case 'HAND_TRASHED_BY_OPP':   return `このターンに対戦相手の効果によってあなたの手札からカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
     case 'ENERGY_TRASHED_BY_OPP': return `このターンに対戦相手の効果によってあなたのエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
     case 'IS_MY_TURN': return '自分のターンの間';
