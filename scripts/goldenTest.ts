@@ -8215,6 +8215,34 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
+// §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
+// 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
+test('§5c エナ帯条件: ENERGY_EACH_LEVEL_FILTER_GTE へ持ち上げ（WXK09 電機5枚）', () => {
+  const cond = (json: string) => JSON.parse(json) as { type: string; levels: number[]; minEach: number };
+  for (const [num, idx, minEach] of [['WXK09-051', 0, 1], ['WXK09-052', 0, 1], ['WXK09-077', 1, 1], ['WXK09-083', 0, 1]] as const) {
+    const a = (effectsMap.get(num) ?? [])[idx]?.action as { type: string; condition?: unknown };
+    eq(a?.type, 'CONDITIONAL', `${num}[${idx}]: 条件節が CONDITIONAL へ持ち上がる`);
+    const c = cond(JSON.stringify(a.condition));
+    eq(c.type, 'ENERGY_EACH_LEVEL_FILTER_GTE', `${num}: エナ帯条件`);
+    eq(JSON.stringify(c.levels), '[1,2,3,4]', `${num}: レベル1〜4`);
+    eq(c.minEach, minEach, `${num}: それぞれ${minEach}枚以上`);
+    ok(!JSON.stringify(a.condition).includes('CONDITIONAL'), `${num}: 二重 CONDITIONAL になっていない`);
+  }
+  // 「代わりに」＝then/else の択一（旧＝SEQUENCE で両方実行する二重発動だった）
+  const w51 = (effectsMap.get('WXK09-051') ?? [])[0]?.action as { then?: { target?: { filter?: { powerRange?: { max?: number } } } }; else?: { target?: { filter?: { powerRange?: { max?: number } } } } };
+  eq(w51.then?.target?.filter?.powerRange?.max, 5000, 'WXK09-051: 条件成立ならパワー5000以下');
+  eq(w51.else?.target?.filter?.powerRange?.max, 1000, 'WXK09-051: 不成立なら1000以下（代わりに＝択一）');
+});
+test('§5c エナ帯条件: engine 評価＝各レベルにN枚必要（1つでも欠けると不成立）', () => withSavedCursor(() => {
+  const c = { type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self', filter: { cardType: 'シグニ', story: '電機' }, levels: [1, 2, 3], minEach: 1 } as const;
+  const denki = (lv: string) => findCard(x => x.Type === 'シグニ' && x.Level === lv && (x.CardClass ?? '').includes('電機'));
+  const all3 = mkCtx({ energy: 0 }, {});
+  all3.ownerState.energy = [denki('1'), denki('2'), denki('3')];
+  ok(evalCondition(c as never, all3 as never), '各レベル1枚ずつ揃えば成立');
+  const miss = mkCtx({ energy: 0 }, {});
+  miss.ownerState.energy = [denki('1'), denki('2')];
+  ok(!evalCondition(c as never, miss as never), 'レベル3が欠けると不成立');
+}));
 test('§5c 自己パワー閾値(主語先行形): 閾値未満ではキーワードが付かない（WX24-P1-056 シュート）', () => withSavedCursor(() => {
   const host = mkState({ signi: ['WX24-P1-056', null, null] });
   const base = collectContinuousGrantedKeywords(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
