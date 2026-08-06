@@ -9431,7 +9431,7 @@ scenarios.oppSigniAttackActivated = {
       if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
         await payBtn.click().catch(() => {}); did = 'tid:optcost-pay';
       }
-      if (!did) did = await H.clickTextOrBtn([/支払う（エクシード2）/, '支払う']);
+      if (!did) did = await H.clickTextOrBtn(['支払う（エクシード2）', '支払う']);
       if (!did) did = await H.stdStep(); // 対象は1体だけ＝pick-0→決定
       const st = await H.queryState();
       const negated = await H.findLog(/アタックが無効になった|アタックを無効にした/);
