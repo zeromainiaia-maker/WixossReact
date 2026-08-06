@@ -5151,6 +5151,9 @@ const scenarios = {
       H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
       let summoned = false;      // 場に出たことを一度でも観測したか（出る前の「居ない」を PASS にしない）
       let sawOnField = false;
+      // watcher（guest）の SELECT_TARGET 候補列。CPU の自動応答は候補をシャッフルして選ぶため、
+      // 「どれが消えたか」だけでは絞り込みの成否を判定できない＝候補が1件に絞られていることを直接見る。
+      let watcherCands = null;
       for (let s = 0; s < 22; s++) {
         await page.waitForTimeout(900);
         await page.screenshot({ path: `${SHOT}/onTargetedSourceSigniBanish-${s}.png`, fullPage: true });
