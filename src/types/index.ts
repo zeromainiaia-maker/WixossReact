@@ -544,6 +544,11 @@ export interface PlayerState {
   end_turn_effects_resolved?: boolean;
   // NEGATE_SPELL: このターン、このプレイヤーのスペル（コスト合計5以下）が打ち消される
   spell_negated_this_turn?: boolean;
+  // このターンにこのプレイヤーのシグニがバニッシュされた数（タスク12(xciv) の `WX13-026`
+  // 「このターンに対戦相手のシグニがバニッシュされている場合、このアーツの使用コストは《黒×3》減る」）。
+  // ⚠**バニッシュされた側**に積む（使用者は相手 state を読む）。盤面差分の funnel（collectBoardDiffTriggers）
+  // で記録し、条件は `>= 1` でしか使わない＝同じ差分が複数回評価されても無害。ターン境界でリセット。
+  signi_banished_this_turn?: number;
   // GRANT_NEXT_SPELL_UNCOUNTERABLE: 次にこのプレイヤーが使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
   next_spell_uncounterable?: boolean;
   // COST_REDUCTION(スペル/UNTIL_END_OF_TURN): 次に使用するスペルの使用コストを軽減（WX04-008《白×2》減）。スペル使用時に消費

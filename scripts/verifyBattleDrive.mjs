@@ -9334,6 +9334,66 @@ const scenarios = {
   },
 };
 
+// タスク12(xciv) δ-6：`WX13-026`「このターンに対戦相手のシグニがバニッシュされている場合、使用コストは
+//   《黒×3》減る」が読む**ターン履歴**（`signi_banished_this_turn`）が、実UIの盤面差分 funnel で実際に
+//   積まれるかを確認する。golden は `costs.ts` の規則しか踏めない（記録側は BattleScreen）。
+//   ⚠既存の `banishbyeffect` と同じ盤面を使い、**バニッシュされた側（guest）に積まれる**ことを見る。
+scenarios.banishHistoryForCost = {
+  title: 'バニッシュ履歴の記録（WX19-023 の【出】で相手シグニをバニッシュ→guest.signi_banished_this_turn≥1・タスク12(xciv)）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WX07-036#1'], null, null],
+      'field.check': null,
+      'pending_crashed_cards': [],
+      'energy': ['WD01-013#1', 'WD01-013#2'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD05-009#1'], null, null],
+      'field.check': null,
+      'pending_crashed_cards': [],
+      'signi_banished_this_turn': 0,
+    },
+    handPrepend: ['WX19-023#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/banishHistoryForCost-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+      if (!did) {
+        // ⚠【出】コストモーダルは**エナを選んでから**「発動」が有効になる（先に押すと disabled で空振りし続ける）。
+        const e0 = page.getByTestId('onplaycost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          await e0.click().catch(() => {}); await page.waitForTimeout(250);
+          const fire = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fire.count() && await fire.isEnabled().catch(() => false)) { await fire.click().catch(() => {}); did = 'pick:ena→btn:発動'; }
+          else did = 'pick:onplaycost-energy-0';
+        }
+      }
+      if (!did) did = await H.stdStep(['決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const banished = st?.guest?.signiBanishedThisTurn ?? 0;
+      H.log(`  bh[${s}] -> ${did ?? 'なし'} | guestSigni=${JSON.stringify(st?.guest?.fieldSigni)} banishedThisTurn=${banished} pEff=${st?.pendingEffect ?? '-'}`);
+      if (banished >= 1) {
+        return { pass: true, detail: `バニッシュ履歴が記録された（guest.signi_banished_this_turn=${banished}）＝WX13-026 のコスト軽減条件が実UIで読める` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `履歴が記録されない（guest.signi_banished_this_turn=${fin?.guest?.signiBanishedThisTurn ?? 0} guestSigni=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+  },
+};
+
 // タスク12(lv)③：CPU が召喚したシグニの**任意・無コスト【出】**が一度も発火しなかった（過小実行）。
 //   人間の通常召喚は `OPTIONAL_ACTIVATE`（発動する/発動しない）で包んで積むのに、CPU 経路は
 //   `mandatory !== false` だけを積んでいたため、CPU の場では**選択肢にすら上がらなかった**。
@@ -9851,6 +9911,8 @@ order.push('lrigDownLevelRemoveAbilities');
 order.push('chainArtsCostReduction');
 // タスク12(lv)③＝CPU 経路の任意【出】は golden では踏めない（BattleScreen の収集コード）ので実機で守る。
 order.push('cpuOptionalOnPlayCharm');
+// タスク12(xciv) δ-6＝ターン履歴の記録側（BattleScreen の盤面差分 funnel）は golden で踏めない。
+order.push('banishHistoryForCost');
 order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で実行
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
@@ -10061,6 +10123,8 @@ try {
         pendingBanishSubstitute: s.pending_banish_substitute ? (s.pending_banish_substitute.victimNum ?? true) : null,
         fieldAcce: s.field?.signi_acce ?? null,
         fieldCharms: s.field?.signi_charms ?? null,   // 任意【出】の【チャーム】付与を見る（タスク12(lv)③）
+        // 「このターンにシグニがバニッシュされている」履歴（タスク12(xciv) の `WX13-026` コスト軽減が読む）
+        signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
         abilitiesRemoved: s.abilities_removed ?? [],
         lrigFrozen: s.field?.lrig_frozen ?? false,
         negatedAttacks: s.negated_attacks ?? [],

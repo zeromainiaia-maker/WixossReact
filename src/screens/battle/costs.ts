@@ -103,6 +103,22 @@ export function removeNColorFromCost(cost: string, color: string, n: number): st
   return result || 'なし';
 }
 
+/**
+ * コスト文字列に指定色を N 個**足す**（`removeNColorFromCost` の逆。タスク12(xciv)）。
+ * 「使用コストは…《赤×1》**増え**、…《赤×1》減る」（`WX08-026`）のように**増と減が同一文**にある形で要る。
+ * 既存の増加機構（`ActiveCostMod{direction:'increase'}` → `extraArtsCosts`）は**場の CONTINUOUS 由来**で、
+ * カード自身の原文に書かれた増加は表せなかった。
+ */
+export function addNColorToCost(cost: string, color: string, n: number): string {
+  if (n <= 0) return cost;
+  const parts = parseGrowCost(cost);
+  const idx = parts.findIndex(p => p.color === color);
+  const newParts = idx >= 0
+    ? parts.map((p, i) => (i === idx ? { color: p.color, count: p.count + n } : p))
+    : [...parts, { color, count: n }];
+  return newParts.filter(p => p.count > 0).map(p => `《${p.color}》×${p.count}`).join('') || 'なし';
+}
+
 // 場のCONTINUOUS COST_REDUCTION（コードハートVAC「青のスペルのコストは《無×1》減る」等）をコスト文字列に適用する。
 // 《無》軽減はコストの無色部分のみ減る（無色部分がなければ軽減なし＝removeNColorFromCostの挙動）
 export function applyContinuousCostDecreases(
@@ -179,6 +195,8 @@ export interface CostReplaceCtx {
     energy?: string[];
     trash?: string[];
     lrig_trash?: string[];
+    // 「このターンに対戦相手のシグニがバニッシュされている場合」（`WX13-026`・タスク12(xciv)）。
+    signi_banished_this_turn?: number;
   };
   // 他カードの `SET_CARD_COST_REPLACEMENT` でゲーム間セットされたカード名指定の置換（`WXK03-002-E3`）。
   // 使用側カードの原文には何も書かれていないので、**EffectText 由来の規則より先**に見る。
@@ -738,6 +756,30 @@ export function computeArtsEffectiveCost(
         return (cardMap.get(getCardNum(top))?.CardClass ?? '').includes(m![1]);
       }).length;
       if (cnt > 0) return applyReduce(base, parseReduceList(m[2]), cnt);
+    }
+    // δ-6. `WX13-026`＝「このターンに対戦相手のシグニがバニッシュされている場合、《黒×3》減る」。
+    //       ⚠ターン履歴なので盤面からは判定できない＝`collectBoardDiffTriggers`（バニッシュ認識の
+    //       唯一の funnel）が積む `signi_banished_this_turn` を読む。相手側が未知なら成立させない。
+    m = text.match(new RegExp(`このターンに対戦相手のシグニがバニッシュされている場合[、,][^。]*?使用コストは${RED}減る`));
+    if (m && (oppSt2?.signi_banished_this_turn ?? 0) >= 1) return applyReduce(base, parseReduceList(m[1]));
+    // δ-5. `WX08-026`＝「ライフクロス１枚につき《赤×1》**増え**、＜X＞か＜Y＞のシグニ１体につき《赤×1》減る」
+    //       ＝**増と減が同一文**にある唯一の形。増加は `addNColorToCost` で表す（既存の増加機構は
+    //       場の CONTINUOUS 由来なので、カード自身の原文に書かれた増加は表せなかった）。
+    //       ⚠増を先に適用してから減を引く（順序を逆にすると 0 でクランプされて増分が消える）。
+    m = text.match(new RegExp(
+      `あなたのライフクロス[１1]枚につき${RED}増え[、,]あなたの場にある＜([^＞]+)＞(?:か＜([^＞]+)＞)?のシグニ[１1]体につき${RED}減る`));
+    if (m && cardMap) {
+      const classes = [m[2], m[3]].filter(Boolean) as string[];
+      const cnt = (myState.field?.signi ?? []).filter(stack => {
+        const top = stack?.at(-1);
+        if (!top) return false;
+        const cls = cardMap.get(getCardNum(top))?.CardClass ?? '';
+        return classes.some(c => cls.includes(c));
+      }).length;
+      let out = base;
+      for (const inc of parseReduceList(m[1])) out = addNColorToCost(out, inc.color, inc.count * myState.life_cloth.length);
+      if (cnt > 0) out = applyReduce(out, parseReduceList(m[4]), cnt);
+      if (out !== base) return out;
     }
     // δ-4. `WD16-006`＝「あなたの手札の枚数から対戦相手の手札の枚数を引いた数1につき《青×1》減る」
     //       ⚠差が0以下なら軽減なし（負の差でコストが増えたりしない）。相手が未知なら成立させない。

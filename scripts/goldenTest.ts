@@ -21357,6 +21357,7 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
     const moved: string[] = [];
     for (const c of cardMap.values()) {
       if (!['アーツ', 'スペル', 'ピース', 'アーツ/クラフト'].includes(c.Type) || !c.Cost) continue;
+      if (c.CardNum === 'WX08-026') continue;   // 増加方向は下で別に固定する（このリストは軽減の緩めすぎ検出用）
       const got = computeArtsEffectiveCost(c, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll });
       if (got !== c.Cost) moved.push(`${c.CardNum}(${c.Cost}→${got})`);
     }
@@ -21369,6 +21370,12 @@ test('task12(xc): 条件が成立しない盤面では1枚も動かない（過�
       //    未指定＝安全側で成立しないため動かない。
       + 'WX25-P3-002(《白》×４→《白》×2)',
       '相手盤面フルで動くのは (xcii) の8枚＋(xciv) β のライフ比較1枚だけ');
+    // 🆕 (xciv) δ-5：`WX08-026` は**ライフ1枚につきコストが増える**唯一の札＝「動いた＝緩めすぎ」の
+    //    判定に混ぜられない（この盤面は自ライフ7なので +7 されるのが正しい）。上のリストから除外して
+    //    **増加方向であること**を別に固定する。
+    const wx08026 = cardMap.get('WX08-026')!;
+    eq(computeArtsEffectiveCost(wx08026, me, undefined, '', 0, cardMap, undefined, undefined, { oppState: oppAll }),
+      '《赤》×12', 'WX08-026: ライフ7で《赤×5》→《赤×12》（増加は減少ではない）');
   });
 }
 
@@ -23770,6 +23777,32 @@ test('task12(xciv) cost reduction tail: each new cluster actually fires on a sat
   eq(run('WX15-060', mkMy({ field: noAcceField })), cardMap.get('WX15-060')!.Cost, 'δ-3: アクセが無ければ減らない');
   eq(run('WD16-006', mkMy({ hand: ['a', 'b', 'c', 'd'] }), { hand: ['x'] }), '《青》×3', 'δ-4: 手札差3');
   eq(run('WD16-006', mkMy({ hand: ['a'] }), { hand: ['x', 'y'] }), cardMap.get('WD16-006')!.Cost, 'δ-4: 差が0以下なら減らない');
+}));
+
+test('task12(xciv) tail: increase+decrease in one sentence, and the banish-history condition', () => withSavedCursor(() => {
+  const mkMy2 = (o: { life?: number; signi?: (string | null)[] }) => ({
+    life_cloth: Array.from({ length: o.life ?? 0 }, (_, i) => `L${i}`), hand: [] as string[],
+    energy: [] as string[], trash: [] as string[], lrig_trash: [] as string[],
+    field: { lrig: [], signi: (o.signi ?? [null, null, null]).map(x => (x ? [x] : null)) } as unknown as PlayerState['field'],
+  });
+  const run2 = (num: string, my: ReturnType<typeof mkMy2>, opp?: object) =>
+    computeArtsEffectiveCost(cardMap.get(num)!, my, undefined, undefined, 0, cardMap as Map<string, CardData>, undefined, undefined, { oppState: opp as never });
+
+  // δ-5 `WX08-026`：ライフ1枚につき《赤×1》**増え**、＜鉱石＞か＜宝石＞1体につき《赤×1》減る。
+  const kouseki = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('鉱石'));
+  const houseki = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宝石'));
+  eq(cardMap.get('WX08-026')!.Cost, '《赤》×５', 'WX08-026 の印刷コスト');
+  eq(run2('WX08-026', mkMy2({ life: 0 })), '《赤》×５', '条件ゼロなら印刷どおり（増も減も0）');
+  eq(run2('WX08-026', mkMy2({ life: 3 })), '《赤》×8', 'ライフ3で+3＝**増加**する（軽減だけの機構では表せない）');
+  eq(run2('WX08-026', mkMy2({ life: 0, signi: [kouseki, houseki, null] })), '《赤》×3', '鉱石+宝石で-2');
+  eq(run2('WX08-026', mkMy2({ life: 2, signi: [kouseki, houseki, null] })), '《赤》×5', '+2-2＝印刷と同額');
+  eq(run2('WX08-026', mkMy2({ life: 7, signi: [kouseki, null, null] })), '《赤》×11', '+7-1');
+
+  // δ-6 `WX13-026`：「このターンに対戦相手のシグニがバニッシュされている場合」＝ターン履歴。
+  eq(cardMap.get('WX13-026')!.Cost, '《黒》×３', 'WX13-026 の印刷コスト');
+  eq(run2('WX13-026', mkMy2({}), { signi_banished_this_turn: 1 }), 'なし', 'バニッシュ実績ありで《黒×3》まるごと減る');
+  eq(run2('WX13-026', mkMy2({}), { signi_banished_this_turn: 0 }), '《黒》×３', '実績なしなら印刷どおり');
+  eq(run2('WX13-026', mkMy2({}), undefined), '《黒》×３', '相手 state が未知なら成立させない（安いほうへ倒さない）');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

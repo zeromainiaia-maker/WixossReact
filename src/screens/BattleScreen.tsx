@@ -2778,14 +2778,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     entries.push(...pureCollectLrigFlipTriggers(mkTrigCtx(), beforeGuest, g, bs.guest_id));
 
     // ON_BANISH: バニッシュされたシグニ（usageLimit 消費は useHost/useGuest で actions_done へ永続化）
-    for (const cardNum of detectBanishedSigni(beforeHost, h)) {
+    // ⚠ここは**盤面差分でバニッシュを認識する唯一の funnel**なので、「このターンにシグニがバニッシュ
+    //   されている」の履歴（タスク12(xciv) の `WX13-026`＝コスト軽減の条件）も同じ場所で記録する。
+    //   ⚠**バニッシュされた側**の state に積む（アーツ使用側から見た「対戦相手のシグニが…」は
+    //   相手 state を読む）。同じ差分が複数回評価されても条件は `>= 1` でしか使わないので二重計上は無害。
+    const hostBanished = detectBanishedSigni(beforeHost, h);
+    for (const cardNum of hostBanished) {
       const bt = collectBanishTriggers(cardNum, bs.host_id, h, g, beforeHost, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
-    for (const cardNum of detectBanishedSigni(beforeGuest, g)) {
+    if (hostBanished.length > 0) h = { ...h, signi_banished_this_turn: (h.signi_banished_this_turn ?? 0) + hostBanished.length };
+    const guestBanished = detectBanishedSigni(beforeGuest, g);
+    for (const cardNum of guestBanished) {
       const bt = collectBanishTriggers(cardNum, bs.guest_id, h, g, beforeGuest, { ownerId: causeOwnerId, sourceCardNum: causeSourceCardNum });
       entries.push(...bt.entries); useHost(bt.usedHostIds); useGuest(bt.usedGuestIds);
     }
+    if (guestBanished.length > 0) g = { ...g, signi_banished_this_turn: (g.signi_banished_this_turn ?? 0) + guestBanished.length };
 
     // ON_TRASH: スタック/pending 解決内でも fieldTrashCostCards に記録された支払いは byEffectCause=false、
     // それ以外の場→トラッシュは effect 起因。原因owner と所有者が異なれば「対戦相手の効果によって」。
@@ -3521,6 +3529,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
           spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
+          signi_banished_this_turn: undefined,        // タスク12(xciv): 「このターンにシグニがバニッシュされている」履歴をリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
           next_arts_cost_reduction: undefined,        // タスク12(xciii): 【チェイン】の次アーツコスト軽減をリセット
