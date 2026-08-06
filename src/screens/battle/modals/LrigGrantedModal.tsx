@@ -7,6 +7,7 @@ import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, canAffordGrowCost } from '../costs';
+import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import type { BattleModalCtx } from './types';
 
 interface LrigGrantedModalProps {
