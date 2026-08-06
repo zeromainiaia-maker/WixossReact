@@ -4251,7 +4251,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...collectCharmShieldSigni(ownerStateForCtx, otherState, isOwnerTurn, effectsMap, battleCardMap),
         ...collectCharmShieldSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap),
       ]);
-      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, sourceEffectId: entry.effectId, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
+      // ⚠ `currentPhase` は**この8箇所すべてに渡すこと**（タスク12(cvii)）。engine 側にはフェイズを見る
+      //   機構が4本あるが（`isOwnTrashMoveLocked`／`DURING_PHASE` 条件／`applyEffectLeaveNoAbilityDeck
+      //   BottomSubstitute`／`banishRedirectOpts.turnPhase`）、いずれも**フェイズ不明なら成立させない側へ
+      //   倒す**設計なので、渡し忘れると「engine は正しいのに実UIでは丸ごと不発」になり計器にも映らない。
+      //   golden ハーネス（`src/verify/main.ts`）は `currentPhase:'MAIN'` を手で埋めるため緑のまま通る。
+      const ctx: ExecCtx = { ownerState: ownerStateForCtx, otherState, cardMap: declaredCardMap1, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: entry.cardNum, sourceEffectId: entry.effectId, triggeringCardNum: entry.triggeringCardNum, leftFieldUnderCards: entry.leftFieldUnderCards, triggeringKeyword: entry.triggeringKeyword, battleAttackerCardNum: entry.battleAttackerCardNum, banishedSigniPower: entry.banishedSigniPower, otherProtectedZones, otherProtectedSigniNums: otherProtectedSigniNumsM, otherDownProtectedNums: otherDownProtectedNumsM, otherBounceProtectedNums: otherBounceProtectedNumsM, otherBanishProtectedNums: otherBanishProtectedNumsM, otherTrashFieldProtectedNums: otherTrashFieldProtectedNumsM, ownSelfTrashPreventNums, otherAbilityGainProtectedNums, otherEffectImmuneNums: otherEffectImmuneNums, charmShieldNums, deckToEnergyBlocked: contBlockedCtx.forSelf.has('DECK_TO_ENERGY'), signiFieldPlaceByEffectBlocked: contBlockedCtx.forSelf.has('SIGNI_FIELD_PLACE_BY_EFFECT'), allColorSigniNums, fieldSigniExtraColors, oppTrashColorLoss, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = isOwnerTurn;
       // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
       // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
@@ -4585,7 +4590,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -4852,7 +4857,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap3 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectZone(zoneIndex, inter, ctx);
@@ -4906,7 +4911,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap5 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
@@ -4955,7 +4960,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownerState  = ownerIsHost ? bs.host_state : bs.guest_state;
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], currentPhase: bs.turn_phase ?? undefined, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners };
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // rearrange の skip は恒等配置、swap の skip は候補なし（空配列）として解決する。
       const arrangement = buildRearrangeSigniArrangement(newArrangement, inter.mode, targetState.field.signi);
@@ -4996,7 +5001,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const treatAsClassAllZones = collectTreatAsClassAllZones(ownerState, otherState, effectsMap, battleCardMap);
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap4 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
-      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
@@ -6633,7 +6638,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellExtraColors = new Map([...collectFieldSigniExtraColors(resolved, battleCardMap, effectsMap, nonCasterState, spellIsOwnerTurn), ...collectFieldSigniExtraColors(nonCasterState, battleCardMap, effectsMap, resolved, !spellIsOwnerTurn)]);
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState), resolved, nonCasterState, effectsMap, spellIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors, preUseVirusRemoved: bs.pending_spell.pre_use_virus_removed };
+      const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors, preUseVirusRemoved: bs.pending_spell.pre_use_virus_removed };
       ctx.isOwnerTurn = spellIsOwnerTurn;
       let result = executeEffect(spellEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
@@ -6935,7 +6940,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cutinExtraColors = new Map([...collectFieldSigniExtraColors(cutinPaid, battleCardMap, effectsMap, newCasterState, cutinIsOwnerTurn), ...collectFieldSigniExtraColors(newCasterState, battleCardMap, effectsMap, cutinPaid, !cutinIsOwnerTurn)]);
       const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap);
       const cutinDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState), cutinPaid, newCasterState, effectsMap, cutinIsOwnerTurn);
-      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
+      const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
       ctx.isOwnerTurn = cutinIsOwnerTurn;
       let result = executeEffect(cutinEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
