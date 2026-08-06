@@ -8192,6 +8192,37 @@ test('引用付与: 複合条件 AND[LRIG_COLOR, IS_SELF_IN_CENTER_ZONE]（WX06-
       `${num}: センタールリグ${color} AND 中央ゾーン条件つき付与のはず（無条件平坦化に戻っていない）`);
   }
 });
+// §5c 文型バッチ「このシグニはパワーがN以上であるかぎり、〜」（主語先行形の自己パワー閾値）
+// 従来は genericKagiri が条件節を無言消費し、**無条件付与の過剰効果**（常時ランサー/ダブルクラッシュ等）に
+// なっていた。parser パターン6a で activeCondition:SELF_POWER_THRESHOLD へ持ち上げた11効果の構造固定。
+test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワーがN以上であるかぎり」を activeCondition へ', () => {
+  const cases: Array<[string, number, number]> = [   // [CardNum, 効果index, 閾値]
+    ['WX12-CB01', 1, 12000], ['WXK03-026', 1, 20000], ['WX24-P1-056', 0, 10000],
+    ['WXDi-P13-052', 0, 30000], ['WXEX1-33', 0, 10000], ['WXK04-054', 0, 10000],
+    ['WXK10-081', 0, 7000], ['WDK08-Y11', 0, 20000], ['WXDi-P03-060', 0, 12000],
+    ['WXK06-049', 1, 12000],
+  ];
+  for (const [num, idx, value] of cases) {
+    const e = (effectsMap.get(num) ?? [])[idx];
+    ok(!!e, `${num}[${idx}] がある`);
+    eq(JSON.stringify(e.activeCondition), JSON.stringify({ type: 'SELF_POWER_THRESHOLD', operator: 'gte', value }),
+      `${num}[${idx}]: パワー${value}以上ゲート（無条件付与に戻っていない）`);
+  }
+  // 【レイヤー】引用付与の内側能力にも同じゲートが載る（付与先シグニ自身のパワーで判定される）
+  for (const [num, value] of [['WX16-051', 8000], ['WXEX2-59', 12000]] as const) {
+    const inner = ((effectsMap.get(num) ?? [])[0]?.action as { abilities?: CardEffect[] })?.abilities?.[0];
+    eq(JSON.stringify(inner?.activeCondition), JSON.stringify({ type: 'SELF_POWER_THRESHOLD', operator: 'gte', value }),
+      `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
+  }
+});
+test('§5c 自己パワー閾値(主語先行形): 閾値未満ではキーワードが付かない（WX24-P1-056 シュート）', () => {
+  const host = mkState({ signi: ['WX24-P1-056', null, null] });
+  const base = collectContinuousGrantedKeywords(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok(!base['WX24-P1-056']?.includes('シュート'), '基本パワー8000（<10000）ではシュートを得ない');
+  const buffed = collectContinuousGrantedKeywords(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>,
+    new Map([['WX24-P1-056', 10000]]));
+  ok(buffed['WX24-P1-056']?.includes('シュート'), '実効パワー10000ならシュートを得る');
+});
 // OPTIONAL_TRASH_SELF（自己犠牲コスト）の構造固定＋pay挙動（続き36・OPTIONAL_TRASH_ENERGY_CLASS 誤マップからの是正）
 test('OPTIONAL_TRASH_SELF: 構造固定（WX06-CB03/WX21-056/061 が誤エナSTUBに戻っていない）', () => {
   for (const num of ['WX06-CB03', 'WX21-056', 'WX21-061']) {
