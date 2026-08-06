@@ -6979,6 +6979,45 @@ test('task12(xcviii): CPU ターンドローで不発だった live 母数を固
   eq(onDraw, 13, 'ON_DRAW の live 効果数（CPU のターンドローで発火しなかった母数）');
 });
 
+// タスク12(cxi)＝「最初の対話で中断するエントリの、中断前に確定した盤面変化」から diff トリガーが
+// 収集されず永久に失われていた穴（BattleScreen.resolveStackNext の !result.done 分岐に収集が無かった。
+// resume 側の2巡目以降には続き75 で入っていた）。engine 側は正しくドローを確定させていることと、
+// その中断状態から ON_DRAW が収集できることをここで固定する＝**UI が中断時点で収集しさえすれば拾える**。
+test('task12(cxi): 最初の対話で中断する SEQUENCE でも、中断時点でドローは確定し ON_DRAW を収集できる', () => {
+  const src = 'WX20-026'; // 【自】アタック時：1枚引き手札1枚捨てる（E1）＋【自】＜凶蟲＞効果ドロー時：-4000（E3）
+  const e1 = (effectsMap.get(src) ?? []).find(e => e.effectId === `${src}-E1`);
+  ok(!!e1, 'WX20-026-E1 が live に存在する');
+  ok((e1!.action as SequenceAction).type === 'SEQUENCE'
+    && (e1!.action as SequenceAction).steps.slice(0, -1).some(s => s.type === 'DRAW'),
+    'E1 は DRAW が最終ステップではない SEQUENCE（＝ドロー後に対話で中断する形）');
+  const ctx = mkCtx({ signi: [src, null, null] }, { signi: [null, SIGNI, null] }, src);
+  const handBefore = ctx.ownerState.hand.length;
+  const r = executeEffect(e1!, ctx);
+  eq(r.done, false, '第1ラウンドは手札トラッシュの SELECT_TARGET で中断する');
+  eq(r.ownerState.hand.length, handBefore + 1, '中断時点でドローは既に確定している（＝この状態が DB へコミットされる）');
+  eq(r.ownerState.last_effect_draw_source, src, 'ドローの原因カードも記録済み');
+  // この中断状態から ON_DRAW を収集すると同カード E3 が出る＝中断時に収集しないと、
+  // resume 完了時の diff は before に既にドローを含むため差分ゼロで永久に失われる。
+  const dt = collectDrawTriggers(trigCtx(HOST, HOST), HOST, r.ownerState, r.otherState);
+  ok(dt.entries.some(e => e.effectId === `${src}-E3`), '中断状態から E3（drawBySourceStory）が収集できる');
+});
+
+test('task12(cxi): ON_DRAW と「DRAW が最終でない SEQUENCE」が同居する live 母集団を固定', () => {
+  const hasNonFinalDraw = (a: unknown): boolean => {
+    if (!a || typeof a !== 'object') return false;
+    const o = a as Record<string, unknown>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps)
+      && (o.steps as { type?: string }[]).slice(0, -1).some(s => s?.type === 'DRAW')) return true;
+    return Object.values(o).some(v => Array.isArray(v) ? v.some(hasNonFinalDraw) : hasNonFinalDraw(v));
+  };
+  const hits: string[] = [];
+  for (const [, effs] of effectsMap) {
+    if (!effs.some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_DRAW') && (e.triggerScope ?? 'self') === 'self')) continue;
+    for (const e of effs) if (hasNonFinalDraw(e.action)) hits.push(e.effectId);
+  }
+  eq(hits.join(','), 'WX20-026-E1,WX20-026-BURST', '同居母集団は WX20-026 の2効果のみ（増えたら同じ穴の再発を疑う）');
+});
+
 test('collectTurnTriggers usageLimit: WX25-CP1-042-E2《ターン1回》は同一ターン2回目を発火しない（タスク12(xvii)）', () => {
   // ON_LRIG_ATTACK_STEP_START once_per_turn の LRIG 効果。1回目は発火＋usedHostIdsに消費記録、
   // actions_done 記録済みの2回目は非発火（フェイズ境界を跨いだ再発火を防ぐ）。
