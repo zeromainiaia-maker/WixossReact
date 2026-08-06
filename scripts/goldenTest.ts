@@ -8224,6 +8224,21 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
+// §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
+// 規則自体は `parseSingleSentence` の局所 CLAUSES にあったが**共通表（STATE_CONDITION_CLAUSES_V2）に無かった**ため、
+// 【自】トリガー文の条件節 hoist 経路では拾えず、3カードが条件節ごと落ちて無条件発火していた。
+test('§5c デッキ移動累計ゲート: OPP_CARDS_MOVED_TO_DECK_THIS_TURN が【自】文でも載る', () => {
+  for (const [num, idx, value] of [['WDK09-014', 0, 4], ['WDK09-014', 1, 1], ['WXK06-068', 0, 3], ['WXK06-070', 0, 2]] as const) {
+    const a = (effectsMap.get(num) ?? [])[idx]?.action as { type: string; condition?: { type?: string; value?: number } };
+    eq(a?.type, 'CONDITIONAL', `${num}[${idx}]: 条件節が CONDITIONAL へ持ち上がる`);
+    eq(a.condition?.type, 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', `${num}[${idx}]: デッキ移動累計ゲート`);
+    eq(a.condition?.value, value, `${num}[${idx}]: ${value}枚以上`);
+  }
+  // 多段閾値（WXK06-071「1枚以上→−5000／4枚以上→代わりに−12000」）は共通表へ移しても壊れない
+  const w71 = JSON.stringify((effectsMap.get('WXK06-071') ?? [])[0]?.action ?? {});
+  ok(w71.includes('"value":4') && w71.includes('"value":1') && w71.includes('"else"'),
+    'WXK06-071: 4枚以上 then / 1枚以上 else の入れ子が保たれている');
+});
 // タスク12(cxii) パワー参照 activeCondition は effectivePowers 未指定でも**表記パワーへ落ちない**。
 // 従来 collectBanishEffectProtectedSigni / collectGrantedFromLayer / collectContinuousGrantedKeywords（一部呼び出し）は
 // checkActiveCondition に powers を渡さず、SELF_POWER_THRESHOLD が表記パワーで判定されて
