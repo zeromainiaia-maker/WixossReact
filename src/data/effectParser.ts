@@ -4161,6 +4161,22 @@ function applySharedColorBatch5c2(effects: CardEffect[]): void {
   addFilter('WX14-047-E1', { colorMatchesCostTrashed: true, excludeCardName: '未来の噴陰　†アークホールド†' });
   addFilter('WX25-P3-111-E2', { colorMatchesCostTrashed: true });
   addFilter('PR-380-E1', { colorMatchesCostTrashed: true });
+  // WX24-P1-040-E1「…あなたのアップ状態のルリグ１体をダウンしてもよい。その後、**この方法でダウンしたルリグと
+  // 同じレベルの**対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それを手札に戻す。」＝
+  // レベル条件は**対象句の文**にあり、実行本体（BOUNCE）は「そうした場合〜」の別文なので汎用パーサでは filter が
+  // 付かず、**相手シグニ全体**から選べる過剰対象化だった（タスク12(cix)）。実行本体と、STUB の候補判定
+  // （optionalCostTarget＝「対象なし」でスキップする側）の両方へ刻む。
+  addFilter('WX24-P1-040-E1', { levelEqLastDownedLrig: true });
+  const wx24p1040 = find('WX24-P1-040-E1');
+  if (wx24p1040?.action.type === 'SEQUENCE') {
+    const tosoc = wx24p1040.action.steps[1];
+    if (tosoc?.type === 'STUB' && tosoc.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST') {
+      tosoc.optionalCostTarget = {
+        type: 'SIGNI', owner: 'opponent', count: 1,
+        filter: { cardType: 'シグニ', levelEqLastDownedLrig: true },
+      };
+    }
+  }
   const wx14047 = find('WX14-047-E1');
   if (wx14047?.action.type === 'SEARCH') delete wx14047.action.filter.cardName;
   const wx251113 = find('WX25-P1-113-E1');
