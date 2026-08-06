@@ -9,7 +9,7 @@ import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMultiEna } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
-import { payLrigDownCost } from '../lrigDownCost';
+import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import type { BattleModalCtx } from './types';
 
 interface SigniActivatedModalProps {
