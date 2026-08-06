@@ -527,24 +527,9 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const num of selected) {
       const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(num, cur) : tgt.owner;
-      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, own, cur);
-      if (lrigSub.replaced) {
-        cur = lrigSub.ctx;
-        continue;
-      }
-      const powerSub = applyEffectLeavePowerReductionSubstitute(num, own, cur);
-      if (powerSub.replaced) {
-        cur = powerSub.ctx;
-        continue;
-      }
-      const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, own, cur);
-      if (banishSub.replaced) {
-        cur = banishSub.ctx;
-        continue;
-      }
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(num, own, cur);
-      if (noAbilitySub.replaced) {
-        cur = noAbilitySub.ctx;
+      const sub = applyEffectLeaveSubstitutes(num, own, cur);
+      if (sub.replaced) {
+        cur = sub.ctx;
         continue;
       }
       const s = ownerState(own, cur);
