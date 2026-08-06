@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き363・Opus 5〔🏁🏁**Opusタスク12 在庫 残0クローズ**＝最後の1件 (cx) を機構ごと実装〕）＝ユーザー指示「opusタスク12を行う」。触った層は `types/effects.ts`／`effectParser.ts`＋`parseSentencePart3.ts`／`execUtils.ts`＋`effectExecutor.ts`／`BattleScreen.tsx`＋`battle/attackResponse.ts`（新設）／`decompileEffects.ts`／`goldenTest.ts`／`verifyBattleDrive.mjs`。**live JSON の変更は `WX05-013` 1カードのみ**。**これで Opusタスク12 の在庫は 0 件**。
+  - **前回「据置が妥当」と結論した (cx) を実装した**＝`WX05-013-E2`（【起】エクシード２：対戦相手の**アタックしている**シグニ1体のアタックを一度無効）は `condition:{DURING_PHASE, phases:['ATTACK_SIGNI_OP']}` だったが **`ATTACK_SIGNI_OP` は `TurnPhase` に無い値＝条件が常に false**、しかも `timing:['MAIN']` のままで**【起】のUIは全経路が自ターン限定**＝一度も選択肢に上がらなかった。
+  - **鍵は「使用条件ではなく使用タイミング」**＝新フェイズを足すのではなく **timing `ON_OPP_SIGNI_ATTACK`（守備側の応答窓）** を新設し、`performSigniAttack` が宣言〜バトル解決の間に守備側の【起】を集めて **`wrapOptionalOnPlay` で `SEQUENCE[OPTIONAL_COST(exceed:2), 本体]` に包んで**スタックへ積む（＝`ON_OPP_SIGNI_ATTACK_DIRECT`／`WX04-004-E2` と同じ作法＝**新しいUI部品は一切不要**・コスト踏み倒しなし）。**「新しい窓の設計が要る」という登録時の見立ては、既存の応答窓の作法を使えば不要だった**。
+  - **進行中のアタックは `negated_attacks` では止まらない**（あれは**アタック宣言時**に見る事前登録）＝対象が宣言中のアタッカーなら**アタッカー state の `cancel_current_signi_attack`**（Phase2 が見る既存フラグ）を立てる。対象は `attackingOnly` で**宣言中の1体**に絞る（従来型の「次にアタックしたとき無効」は据置＝golden で回帰固定）。
+  - **母集団は全12CSV 実測で1枚**（前回 Sheet1 だけで数えていたのを是正）。**`ATTACK_SIGNI_OP` は effects_*.json から全滅**＝golden の `(cvii)`「TurnPhase に無い phase 値」は**既知1件→残0**へ更新した（再発検知の唯一の計器）。
+  - **ゲート**＝全緑。**golden 1395→1400**（+5）、census 1283 据置、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**、lint 0 errors/248 warnings（追加0）。**実機＝新規 `oppSigniAttackActivated` を3回連続 PASS**（CPU の直接アタック→「支払う（エクシード2）」→`host.lrigTrash` 0→2・ライフ 7→7 無傷）＋回帰 `wd07012`／`oppDirectAttackNegate`。既定order 131→**132件**。
+  - ⚠**実機の注意**＝初回だけ `pending_effect=CHOOSE` が立っているのにモーダルが出ず FAIL した（dist 再ビルドとの同時実行レース）。切り分け用に `queryState` へ **`pendingRespondPlayer`／`pendingOptions`／`viewerUserId`** を追加（UI の描画ゲートは `(respondPlayerId ?? sourcePlayerId) === user.id`）。
+  - **次の一手**＝**Opusタスク12（常設受け口）は在庫0**＝新規登録が来るまで空。**§5c `/census-batch`（高シグナル 1283 の系統消化）か §6.3 の大型機構へ軸足を移す**。タスク13（§5b 混線テール823カード）も逓減テールとして残っている。**Sonnet**＝§7 実機検証の横展開（タスク1）が主力のまま。
 - **セッション（2026-08-06・続き362f・Opus 5〔🏁**タスク12(xciv) 残0クローズ**＝残テール5枚を全数処理〕）＝ユーザー指示「タスク12を続ける」。触った層は `costs.ts`／`types/index.ts`＋`BattleScreen.tsx`／`goldenTest.ts`／`verifyBattleDrive.mjs`。**live JSON は不変**。**これで Opusタスク12 の在庫は (cx) 1件だけ**（据置が妥当と結論済み）。
   - **`WX15-067` は既に実装済みだった**＝`applyMeltFactPreUseCost`（**カード番号キーの専用ヘルパー**）＋`SpellCastModal` 配線済み。⚠**未カバー検出を「規則 regex に当たるか」だけで測るとカード番号キーのヘルパーが見えない**＝検出器の穴（以後は除外リストに入れる）。
   - **実装2枚**＝**`WX08-026`**「ライフ1枚につき《赤×1》**増え**、＜鉱石＞か＜宝石＞1体につき《赤×1》減る」＝**増と減が同一文**にある唯一の形。`addNColorToCost()` を新設（既存の増加機構は**場の CONTINUOUS 由来**でカード自身の原文の増加を表せなかった）。⚠**増を先に適用してから減を引く**（逆順だと 0 クランプで増分が消える）。／**`WX13-026`**「このターンに対戦相手のシグニがバニッシュされている場合」＝**ターン履歴**。`PlayerState.signi_banished_this_turn` を新設し、**盤面差分でバニッシュを認識する唯一の funnel** で**バニッシュされた側**に積む（条件は `>= 1` でしか使わないので二重計上は無害）。
