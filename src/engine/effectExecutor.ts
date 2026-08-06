@@ -245,8 +245,8 @@ export function applyEffectLeaveReplaceBanishSubstitute(
  * ⚠**バトルによるバニッシュは BattleScreen 側の経路**なのでここには乗らない（効果による場離れのみ）。
  *
  * ⚠**離場経路すべてから呼ぶこと**＝原文が「場を離れる場合」なので、1経路でも呼び忘れるとそこだけ素通りする。
- *   現在の呼び出し元＝`execBanish`／`execBounce`／`execSendToEnergy`／`execTrash` 系の各 `apply*` と、
- *   単体カード移動の `BANISH`／`TRANSFER_TO_HAND`／`SEND_TO_ENERGY`／`TRASH`／`EXILE`／`TRANSFER_TO_DECK` の各 case。
+ *   **2026-08-06（タスク12(xcvii)）以降、直接呼ばずに `applyEffectLeaveSubstitutes` 経由で呼ぶ**＝
+ *   置換4本の適用順と呼び忘れを1箇所に閉じ込めた（この関数を直接呼ぶ新規経路を足さないこと）。
  */
 export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   victimNum: string,
@@ -6890,14 +6890,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
-      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
-      if (lrigSub.replaced) return done(lrigSub.ctx);
-      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
-      if (powerSub.replaced) return done(powerSub.ctx);
-      const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
-      if (banishSub.replaced) return done(banishSub.ctx);
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, found, ctx);
-      if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+      const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
+      if (sub.replaced) return done(sub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
@@ -6911,14 +6905,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
-      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, found, ctx);
-      if (lrigSub.replaced) return done(lrigSub.ctx);
-      const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, found, ctx);
-      if (powerSub.replaced) return done(powerSub.ctx);
-      const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, found, ctx);
-      if (banishSub.replaced) return done(banishSub.ctx);
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, found, ctx);
-      if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+      const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
+      if (sub.replaced) return done(sub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
@@ -6933,14 +6921,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const owner = tgt.owner as Owner;
         const s = ownerState(owner, ctx);
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
-          const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, owner, ctx);
-          if (lrigSub.replaced) return done(lrigSub.ctx);
-          const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, owner, ctx);
-          if (powerSub.replaced) return done(powerSub.ctx);
-          const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, owner, ctx);
-          if (banishSub.replaced) return done(banishSub.ctx);
-          const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, owner, ctx);
-          if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+          const sub = applyEffectLeaveSubstitutes(cardNum, owner, ctx);
+          if (sub.replaced) return done(sub.ctx);
           const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
           const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
           const removed = removeFromField(cardNum, s);
@@ -7045,14 +7027,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       for (const o of ['self', 'opponent'] as Owner[]) {
         const s = ownerState(o, ctx);
         if (s.field.signi.some(st => st?.includes(cardNum))) {
-          const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, o, ctx);
-          if (lrigSub.replaced) return done(lrigSub.ctx);
-          const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, o, ctx);
-          if (powerSub.replaced) return done(powerSub.ctx);
-          const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, o, ctx);
-          if (banishSub.replaced) return done(banishSub.ctx);
-          const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, o, ctx);
-          if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+          const sub = applyEffectLeaveSubstitutes(cardNum, o, ctx);
+          if (sub.replaced) return done(sub.ctx);
           const removed = removeFromField(cardNum, s);
           return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, ctx),
             `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
@@ -7646,14 +7622,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const tdS = ownerState(tdOwner, ctx);
       let tdNew = { ...tdS };
       if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
-        const lrigSub = applyEffectLeaveLrigAbilitySubstitute(cardNum, tdOwner, ctx);
-        if (lrigSub.replaced) return done(lrigSub.ctx);
-        const powerSub = applyEffectLeavePowerReductionSubstitute(cardNum, tdOwner, ctx);
-        if (powerSub.replaced) return done(powerSub.ctx);
-        const banishSub = applyEffectLeaveReplaceBanishSubstitute(cardNum, tdOwner, ctx);
-        if (banishSub.replaced) return done(banishSub.ctx);
-        const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(cardNum, tdOwner, ctx);
-        if (noAbilitySub.replaced) return done(noAbilitySub.ctx);
+        const sub = applyEffectLeaveSubstitutes(cardNum, tdOwner, ctx);
+        if (sub.replaced) return done(sub.ctx);
         tdNew = removeFromField(cardNum, tdNew);
       }
       else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };
