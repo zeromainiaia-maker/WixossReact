@@ -10690,6 +10690,59 @@ test('(lxxvi) signi_zone_vacated_just：場を離れた瞬間にそのゾーン�
   cursor = savedCursor;
 });
 
+// ── タスク12(cvii)（2026-08-06）：`ctx.currentPhase` を見る機構の母集団と phase 実値の健全性 ──
+// engine には ExecCtx のフェイズを見る機構が4本あるが、いずれも**フェイズ不明なら成立させない側へ倒す**
+// 設計（permissive／保守的スキップ）なので、UI 側（BattleScreen の ExecCtx 構築）が `currentPhase` を
+// 渡し忘れると**丸ごと不発になるのに計器には一切映らない**（golden ハーネスは手で 'MAIN' を埋めるため緑）。
+// ⚠**配線そのもの（BattleScreen）は golden 非カバー**＝ここで固定できるのは「効く対象の母集団」と
+//   「phase 実値が `TurnPhase` として妥当か」まで。実機シナリオと対で締めること。
+test('(cvii) ctx.currentPhase を見る機構の母集団固定と DURING_PHASE の phase 実値健全性', () => {
+  // TurnPhase（src/types/index.ts）の実値。ここに無い文字列は engine の includes に一生当たらない。
+  const VALID_PHASES = ['UP', 'DRAW', 'ENERGY', 'GROW', 'MAIN', 'ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG', 'END'];
+  const ATTACK4 = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
+
+  // ① DURING_PHASE を持つ効果の母集団と phases（値の妥当性つき）
+  const duringPhase: { id: string; phases: string[] }[] = [];
+  const collectDP = (node: unknown, id: string) => {
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (o.type === 'DURING_PHASE') duringPhase.push({ id, phases: (o.phases as string[]) ?? [] });
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) v.forEach(x => collectDP(x, id));
+      else if (v && typeof v === 'object') collectDP(v, id);
+    }
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) collectDP(e, e.effectId);
+  const dpMap = Object.fromEntries(duringPhase.map(d => [d.id, d.phases.join(',')]));
+  eq(duringPhase.length, 8, 'DURING_PHASE を持つ効果は8件');
+  eq(dpMap['SPDi44-08-E1'], 'MAIN', 'SPDi44-08-E1＝あなたのメインフェイズの間');
+  eq(dpMap['WX24-P1-015-E1'], 'MAIN', 'WX24-P1-015-E1＝あなたのメインフェイズの間');
+  eq(dpMap['WX25-P1-018-E1'], 'MAIN', 'WX25-P1-018-E1＝あなたのメインフェイズの間');
+  eq(dpMap['WXDi-P07-044-E1'], 'MAIN', 'WXDi-P07-044-E1＝あなたのメインフェイズの間');
+  eq(dpMap['WX20-067-E1'], ATTACK4.join(','), 'WX20-067-E1＝アタックフェイズ全体（手書き定義の基準形）');
+  // 🔧2026-08-06 に是正した2件＝どちらも「アタックフェイズの間」なのに phase 実値が不正で常に false だった
+  eq(dpMap['WX13-035-E2'], ATTACK4.join(','), 'WX13-035-E2＝ATTACK_ARTS_OP を含むアタックフェイズ全体');
+  eq(dpMap['WX24-P2-050-E1'], ATTACK4.join(','), "WX24-P2-050-E1＝'ATTACK'（存在しない値）を4実値へ是正");
+  // ② 残る不正値は WX05-013-E2 の 'ATTACK_SIGNI_OP' 1件だけ（タスク12(cx) へ登録済み）。増えたら落とす。
+  const invalid = duringPhase
+    .flatMap(d => d.phases.filter(p => !VALID_PHASES.includes(p)).map(p => `${d.id}:${p}`))
+    .sort();
+  eq(invalid.join(' / '), 'WX05-013-E2:ATTACK_SIGNI_OP', 'TurnPhase に無い phase 値は既知の1件だけ');
+
+  // ③ 他3機構の母集団（配線が効く対象。増えたら「この札も通るか」を確認する合図）
+  const stubIds = (id: string) => [...effectsMap.values()].flat()
+    .filter(e => JSON.stringify(e.action ?? {}).includes(`"${id}"`)).map(e => e.effectId).sort();
+  eq(stubIds('LOCK_OPP_TRASH_MOVE').join(','), 'WX24-P4-007-E1,WXDi-P14-005-E1', 'トラッシュ移動ロックの宣言元は2効果');
+  eq(stubIds('NO_ABILITY_SIGNI_TO_DECK_BOTTOM').join(','), 'WXEX2-30-E1', '能力なし→デッキ下置換の宣言元は1効果');
+  const attackPhaseRedirect = [...effectsMap.values()].flat()
+    .filter(e => e.effectType === 'CONTINUOUS'
+      && (e.activeCondition as { type?: string } | undefined)?.type === 'DURING_ATTACK_PHASE'
+      && (e.action as { type?: string }).type === 'BANISH_REDIRECT')
+    .map(e => e.effectId).sort();
+  eq(attackPhaseRedirect.join(','), 'WXDi-D09-P14-E1,WXDi-P10-044-E2,WXEX2-75-E1',
+     'アタックフェイズ限定のバニッシュ先置換は3効果（phase 不明なら保守的にスキップされる側）');
+});
+
 // ── タスク12(lxxiii)（2026-08-01）：トラッシュ領域移動ロック（`LOCK_OPP_TRASH_MOVE`）──
 // 「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは
 //   対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` ③／`WXDi-P14-005-E1` c2）。
