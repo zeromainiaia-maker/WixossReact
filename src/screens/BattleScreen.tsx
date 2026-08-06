@@ -9585,7 +9585,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             let fire = eff.mandatory !== false;
             if (!fire && eff.cost?.coin && !eff.cost.energy && !eff.cost.discard) {
               if ((newCpuSt.coins ?? 0) >= eff.cost.coin) {
-                newCpuSt = { ...newCpuSt, coins: (newCpuSt.coins ?? 0) - eff.cost.coin };
+                newCpuSt = { ...newCpuSt, coins: (newCpuSt.coins ?? 0) - eff.cost.coin,
+                  coins_paid_this_turn: (newCpuSt.coins_paid_this_turn ?? 0) + eff.cost.coin }; // COINS_PAID_THIS_TURN
                 appendBattleLogs([`[CPU] 《コイン》×${eff.cost.coin}を支払って【出】効果を発動`]);
                 fire = true;
               }
