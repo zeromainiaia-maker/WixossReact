@@ -2244,7 +2244,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   const isPerFieldCount = t.includes('体につき') && (t.includes('引く') || t.includes('エナゾーンに置'));
   if (!isPerFieldCount && (t.includes('を得る') || t.includes('を持つ'))) {
     const kwM = t.match(/【([^】]+)】/);
-    if (kwM && !['常','出','起','自','ガード'].includes(kwM[1])) {
+    // 「【X】を持つ**〈カード/シグニ/…〉**」＝**保有条件（対象を絞るフィルタ）**であって付与ではない（タスク12(lxvi)②）。
+    // 例：「あなたのエナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置いてもよい」＝
+    //     「その keyword を持つカードを選ぶ」であり、**原文はどこにもキーワードを与えていない**。
+    // ここを素通りさせると `GRANT_KEYWORD{歌のカケラ}` という**原文に無い付与**が生えて、
+    // しかも条件節の ＜プリオケ＞ が対象フィルタへ紛れ込む（条件節を切り出すと今度はそれが消える＝(lxvi) の「両損」）。
+    // ⚠**同じ文に本物の付与が同居する形**（「【ライフバースト】を持つシグニ…は【ランサー】を得る」）を殺さないため、
+    //   保有条件として使われている keyword だけを飛ばし、残りに付与形があればそちらを採る。
+    const isPossessionFilterKw = (k: string) =>
+      new RegExp(`【${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}】を持つ(?:カード|シグニ|スペル|アーツ|ルリグ|ピース)`).test(t);
+    const kwGrantName = kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
+      ? [...t.matchAll(/【([^】]+)】/g)].map(m => m[1])
+          .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k))
+      : kwM?.[1];
+    if (kwM && kwGrantName && !['常','出','起','自','ガード'].includes(kwGrantName)) {
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
         : (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
         : 'PERMANENT';
