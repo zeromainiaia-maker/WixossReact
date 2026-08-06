@@ -9860,6 +9860,10 @@ try {
         pr470aBuffed: !!buff,
         pendingSpell: row.pending_spell ? (row.pending_spell.card_num ?? 'y') : null,
         pendingEffect: row.pending_effect ? (row.pending_effect.interaction?.type ?? 'y') : null,
+        // 対象候補そのもの（タスク12(c)）＝「候補が正しく絞られているか」を決定論的に見るための計器。
+        // ⚠CPU の SELECT_TARGET 自動応答は候補を**シャッフルして選ぶ**ので、結果（どれが消えたか）だけでは
+        //   絞り込みの成否を判定できない（候補2件でも当たりを引けば PASS に見える）。候補列を直接見る。
+        pendingCandidates: row.pending_effect?.interaction?.candidates ?? null,
         logTail,
       };
     }, { SUPA_URL, ANON }),
