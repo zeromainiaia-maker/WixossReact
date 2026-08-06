@@ -503,6 +503,7 @@ function condJa(c?: any): string {
       const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK: 'アタック' };
       return `${(c.phases || []).map((p: string) => phaseJaMap[p] ?? p).join('/')}フェイズの間`;
     }
+    case 'OPP_SIGNI_ATTACKING': return '対戦相手のシグニ１体がアタックしている';
     case 'THIS_CARD_IN_LOCATION': return `このカードが${c.location}にある`;
     case 'THIS_CARD_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
     case 'THIS_CARD_IS_DOWN': return 'このシグニがダウンしている';
