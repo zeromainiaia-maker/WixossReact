@@ -1616,6 +1616,19 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
     g => ({ type: 'DECK_COUNT', owner: 'opponent', operator: 'eq', value: parseNum(g[0]) })],
+  // 「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（§5c 文型バッチ・WXK09 ＜電機＞系6効果）。
+  //   レベル帯の**各レベルごとに**N枚以上を要求する条件＝`ENERGY_EACH_LEVEL_FILTER_GTE`（engine 実装済み・
+  //   従来は `WXK09-083-E1` だけ wrap() でカード名指定していた）。条件節ごと落ちて無条件発火＝過剰効果だった。
+  //   ⚠「～」は全角チルダ(U+FF5E)と波ダッシュ(U+301C)の両方が実データに出るので両方受ける。
+  //   ⚠ 下の汎用「エナゾーンに＜X＞の…」より**前**に置く（レベル帯つきを汎用に食わせない）。
+  [/あなたのエナゾーンにレベル([０-９\d]+)[～〜]([０-９\d]+)の＜([^＞]+)＞のシグニがそれぞれ([０-９\d]+)枚以上ある場合/,
+    g => {
+      const lo = parseNum(g[0]), hi = parseNum(g[1]);
+      const levels: number[] = [];
+      for (let lv = lo; lv <= hi; lv++) levels.push(lv);
+      return { type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self',
+        filter: { cardType: 'シグニ', story: g[2] }, levels, minEach: parseNum(g[3]) };
+    }],
   // 「あなたのエナゾーンに＜X＞の〈シグニ|カード〉がN枚以上ある場合」（タスク12(lxv) で ＜美巧＞５枚 固定から一般化）。
   // ＜ブルアカ＞＜プリオケ＞＜植物＞＜天使＞＜龍獣＞ 等が同型で、条件節ごと落ちて無条件発火していた
   // （`WXDi-CP02-090`＝任意コストのゲートが丸ごと消えていた）。「カード」形は cardType を課さない。
