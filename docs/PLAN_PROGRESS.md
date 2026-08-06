@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-06・続き358・Opus 5〔🏁タスク12(ci)＋(cii) 残0クローズ＝`OPPONENT_PAY_OPTIONAL` の「タダで回避できる枝」と CPU のエナ未選出〕）＝ユーザー指示「続ける」で在庫の (ci)(cii) を消化**。**同じ CHOOSE の表と裏なので1バッチで処理**（(ci)＝本来無いはずの選択肢が生える／(cii)＝正しい選択肢を選んでも支払えない。どちらも結果は「本体も回避も起きない第3の結末」という同じ壊れ方）。**live JSON は完全不変**（`public/data/` に差分なし・**新語彙0本**）＝触った層は `effectExecutor.ts`／`execUtils.ts`／`BattleScreen.tsx` と検証スクリプト。
+  - **(ci) 真因**＝`options` 先頭の `{id:'pay'}` を**無条件**に積んでいたため `canOppAfford` が `costColors.length===0` で常に true になり、**コスト0でタダで選べる「支払う」**が生まれていた。CPU 自動応答は available な先頭を採るので、原文が指定する discard/energyTrash 枝にも skip（本体発動）にも一度も到達しない。**修正＝`costColorsOPO.length > 0` のときだけ積む**（既存3枝と同じ条件付き spread へ揃えただけ）。
+  - **⚠過剰実行にならないことを全数確認したのがこのバッチの肝**＝'pay' を消すと「回避手段が1つも無い STUB は必ず本体が発動する」過剰実行になりうる。live 全数走査で **OPO 出現71／エナコストあり38／非搭載33／そのうち回避手段も持たないもの 0件** を実測し、**0件を golden に固定**した（増えたら落ちる）。
+  - **(cii) 真因**＝CPU 応答が選択肢IDだけを積み**支払いエナの instanceId を渡していなかった**ため、`resumeOpponentPayOptional` が `energyNums=[]` で「コスト支払いエラー: エナ不足」を出して即終了（cost 未消費・`then` も未実行＝黙って空振り）。**修正＝`execUtils.selectOptionalCostEnergy` を新設**し CPU が実在エナを選出。⚠**`canPayOptionalCost` はこれへの委譲に置き換えた**＝「支払えるか」と「何で払うか」を1本から出す（(cviii) で `payLrigDownCost` に判定を委ねたのと同じ方針）。
+  - **実機検証4シナリオ・各2回連続PASS**（既定order 123→124件）＝`oppDiscardGateBareBug`／`oppPayEnergySufficient`（**どちらも登録時は意図的FAIL→PASSへ反転**。文言も回帰シナリオへ書き換え）／🆕`oppDiscardGateReachesDiscard`（**(ci) の本命**＝手札3枚なら CPU が原文どおり discard を選び手札3→0。修正前はここが無料 pay に吸われていた）／`oppPayEnergyInsufficient`（対照＝過剰に払わせていない）。
+  - **ゲート**＝golden **1368→1371**（+3＝枝の出し分け／母集団と「回避枝ゼロ 0件」＋パイプ記法 0件／`selectOptionalCostEnergy` の往復と**instanceId を渡さないと空振りする**回帰）、census **1288 据置**、smoke 10679 全0、fuzz 全0、lint 0 errors/**245 warnings 据置**、同型★0・held **257枚／109群 据置**。
+  - **次の一手**＝**Opus**＝タスク12の生き残り在庫〔(lv)残2経路／(lxvi)／(lxxxviii)／(xciii)／(xciv)／(xcvi)／(xcvii)／(c)〕＋(civ)(cv)＋(cix)(cx)。**次に取るなら (cv)**（`opp_hand`＋`opponentResponds` のviewer視点描画バグ＝**ソフトロック**なので実害が最大。`EffectInteractionModal` の候補描画を `inter.candidates` から直接解決するだけ）。その次は (civ)（ON_TARGETED が0回発火＝根本原因未確定なので調査から）。**Sonnet**＝§7 実機検証の在庫は枯渇＝`/census-batch` や他タスクの棚卸しへ。
+
 - **セッション（2026-08-06・続き357・Opus 5〔🏁タスク12(cvii) 残0クローズ＝`ctx.currentPhase` の配線漏れで4機構が実UIで丸ごと不発だったのを是正〕）＝ユーザー指示「タスク12を続ける」で在庫の (cvii) を消化**。触った層は `BattleScreen.tsx`（ExecCtx 8箇所）・`effectParser.ts`（phase 実値2件の是正＋`ATTACK_PHASES` 定数）・`decompileEffects.ts`（表示畳み）・検証スクリプト2本。**live per-effect 差分＝changed 2／added 0／removed 0**（`WX13-035`／`WX24-P2-050` の `phases` のみ。**機械 diff で「phases 以外の変化 0」を確認済み**）・**新語彙0本**。
   - **真因＝`BattleScreen` が組み立てる `ExecCtx` リテラル8箇所すべてに `currentPhase` が無く実ゲームでは常に undefined**。engine のフェイズ機構は**4本ともフェイズ不明なら成立させない側へ倒す**設計なので、渡し忘れると engine が正しくても実UIで丸ごと不発になり、**計器には一切映らない**（golden ハーネスは `currentPhase:'MAIN'` を手で埋めるため緑のまま）。
   - **⚠不発だった母集団は4機構**＝①トラッシュ移動ロック（宣言元2効果・射程は自分のトラッシュ発生源330件）②`DURING_PHASE`（action 木の中で評価される1件）③能力なし→デッキ下置換（1効果）④アタックフェイズ限定のバニッシュ先置換（3効果）。登録時の記録は「ExecCtx 6箇所」だったが**実測8箇所**。
