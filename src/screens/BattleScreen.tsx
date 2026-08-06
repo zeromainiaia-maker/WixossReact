@@ -7619,6 +7619,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // ON_OPP_SIGNI_ATTACK（タスク12(cx)）: 守備側の「対戦相手のシグニ1体がアタックしたときにしか使用できない」【起】。
+      // 使用条件ではなく**使用タイミング**なので、宣言→バトル解決の間にここで守備側のスタックへ積む
+      // （`wrapOptionalOnPlay` が「エクシード等を支払って発動するか」の CHOOSE に包む＝踏み倒しなし）。
+      // ⚠ここで積まないと相手ターン中にアクセスする経路が構造的に無い（【起】のUIは全て自ターン限定）。
+      opAtkedEntries.push(...collectOppSigniAttackResponses(newOpState, newMyState, effectsMap, battleCardMap, bs.turn_phase)
+        .map(({ cardNum, effect }) => ({
+          id: generateUUID(),
+          playerId: defenderId,
+          cardNum,
+          effectId: effect.effectId,
+          label: `${battleCardMap.get(getCardNum(cardNum))?.CardName ?? cardNum} の【起】効果（相手シグニのアタックに応答）`,
+          effect,
+          triggeringCardNum: myTopNum, // 「アタックしているシグニ」＝アタッカー
+        } satisfies StackEntry)));
+
       // ON_SIGNI_DOWN（アタックダウン・タスク16[C]機構①）: アタック宣言でアタッカーがダウンした（byEffect:false＝
       // 「効果によってダウン」限定の watcher は発火しない）。中央 diff はスタック解決のみを通るためここで収集する。
       const downHostSt  = attackerIsHost ? newMyState : newOpStateAtk;
