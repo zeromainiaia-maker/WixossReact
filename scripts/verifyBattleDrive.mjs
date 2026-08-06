@@ -9732,7 +9732,13 @@ try {
       const hs = row.host_state ?? {}, gs = row.guest_state ?? {};
       const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
       const stack = row.effect_stack;
-      const stackLen = stack?.entries?.length ?? (Array.isArray(stack) ? stack.length : 0);
+      // ⚠ `EffectStack` は `{turnPlayerId,pendingTurn,pendingOpp,orderTurnDone,orderOppDone,queue}`＝
+      //   `entries` キーは存在しない（旧実装はここを読んでいたので **常に 0** を報告していた＝計器の嘘）。
+      //   整列済みなら残キュー長、未整列なら未整列の総数を残数として返す。
+      const stackLen = !stack ? 0
+        : (stack.orderTurnDone && stack.orderOppDone)
+          ? (stack.queue?.length ?? 0)
+          : ((stack.pendingTurn?.length ?? 0) + (stack.pendingOpp?.length ?? 0));
       const logTail = (row.game_logs ?? []).slice(-25).map(l => [l.action, l.detail].filter(Boolean).join(' '));
       const sideOf = (s) => ({
         hand: (s.hand ?? []).length,
