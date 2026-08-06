@@ -488,6 +488,8 @@ function condJa(c?: any): string {
     case 'ENERGY_COMPARE_OPP': return `自分のエナが対戦相手${opJa(c.operator)}`;
     case 'EFFECTIVE_LRIG_LIMIT_GTE': return `このルリグのリミットが${numJa(c.value)}以上`;
     case 'DURING_PHASE': {
+      // アタックフェイズの4実値がそろっていれば「アタック」1語に畳む（列挙のまま出すと読めない）
+      if (isAllAttackPhases(c.phases)) return 'アタックフェイズの間';
       const phaseJaMap: Record<string, string> = { MAIN: 'メイン', ATTACK_SIGNI_OP: '対戦相手のアタック', ATTACK: 'アタック' };
       return `${(c.phases || []).map((p: string) => phaseJaMap[p] ?? p).join('/')}フェイズの間`;
     }
