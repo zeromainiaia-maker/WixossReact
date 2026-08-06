@@ -446,19 +446,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
           continue;
         }
       }
-      const lrigSub = applyEffectLeaveLrigAbilitySubstitute(num, own, cur);
-      if (lrigSub.replaced) {
-        cur = lrigSub.ctx;
-        continue;
-      }
-      const powerSub = applyEffectLeavePowerReductionSubstitute(num, own, cur);
-      if (powerSub.replaced) {
-        cur = powerSub.ctx;
-        continue;
-      }
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(num, own, cur);
-      if (noAbilitySub.replaced) {
-        cur = noAbilitySub.ctx;
+      // バニッシュ経路＝`ReplaceBanish`（「バニッシュでないなら代わりにバニッシュ」）は対象外
+      const sub = applyEffectLeaveSubstitutes(num, own, cur, { skipReplaceBanish: true });
+      if (sub.replaced) {
+        cur = sub.ctx;
         continue;
       }
       const removed = removeFromField(num, s);
