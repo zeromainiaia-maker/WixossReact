@@ -6091,6 +6091,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_trash: keySub ? [...lrigTrashBase, myEnergyTrashSubInfo.keySubInstId!] : lrigTrashBase,
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
+        coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost + encoreCoinCost, // COINS_PAID_THIS_TURN
         field: keySub ? { ...my.field, key_piece: null } : my.field,
         turn_hand_discarded_count: discardNums.length > 0
           ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
