@@ -1272,6 +1272,32 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // デッキからトラッシュ
     const deckM = t.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
     if (deckM) {
+      // 「**あなたか対戦相手の**デッキの上からカードをN枚トラッシュに置く」＝**どちらのデッキを削るかを選ぶ**
+      // （タスク12(lxvi)①）。⚠上の `oppDeckMill` がこの文型を明示除外しているため、規則が無いと `owner:'self'` に落ちて
+      //   **常に自分のデッキを削る**（原文が与える選択肢が消える）。live 17ノードは同じ形の CHOOSE へ手当て済みだったが
+      //   **parser 側に規則が無かった**ので、再収穫のたびに「curated が持ち fresh が失う」差分として残り、
+      //   同じカードの無関係な改善まで採用できなくしていた（(lxvi) の据置理由そのもの）。
+      // ⚠`各プレイヤー`（＝両方削る）とは別物なので、そちらの分岐より**先**に判定する。
+      if (/あなたか対戦相手の[^。]*?デッキの上から/.test(t)) {
+        const millN = parseNum(deckM[1]);
+        return {
+          type: 'CHOOSE',
+          choose_count: 1,
+          from_count: 2,
+          choices: [
+            {
+              choiceId: 'self_deck',
+              label: `あなたのデッキの上から${millN}枚をトラッシュ`,
+              action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: millN } },
+            },
+            {
+              choiceId: 'opp_deck',
+              label: `対戦相手のデッキの上から${millN}枚をトラッシュ`,
+              action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: millN } },
+            },
+          ],
+        };
+      }
       const both = t.includes('各プレイヤー');
       if (both) {
         return {
