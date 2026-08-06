@@ -1,5 +1,63 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-06 — 🏁Opusタスク12(civ)＝**計器の嘘**と確定（engine 非バグ）／(xcvii)＝場離れ置換を1本の入口へ（エナ送りの呼び忘れ）／(xcvi)＝アーツ Phase2 の二重軽減（Opus 5・続き360）
+
+### (civ) 「ON_TARGETED が0回しか発火しない」＝**engine のバグではなく driver の計器バグだった**
+
+登録時（2026-08-05）の見立ては「対象宣言のあと即 `done()` せず後続 CHOOSE へ続く場合、ON_TARGETED が取りこぼされる」。
+実測すると **engine は期待どおり1回だけ発火していた**。壊れていたのは `verifyBattleDrive.mjs` の `queryState`：
+
+```js
+// 旧＝`EffectStack` に `entries` というキーは存在しない ⇒ stackLen は**常に 0**
+const stackLen = stack?.entries?.length ?? (Array.isArray(stack) ? stack.length : 0);
+```
+
+`EffectStack` の実体は `{turnPlayerId, pendingTurn, pendingOpp, orderTurnDone, orderOppDone, queue}`。
+シナリオ側は「ON_TARGETED はスタックへ**後乗せ**されるので、スタックが空になるまで待つ」というガードを
+`(st?.stackLen ?? 0) === 0` で書いていたが、**この値が常に 0 なので待ちが一切効かず**、CHOOSE を解決した直後
+（＝エントリがまだキューに載っている tick）で判定が確定＝ドロー未反映のまま FAIL していた。
+
+- **修正**＝`stackLen` を実体で出す（**整列済みなら `queue.length`／未整列なら `pendingTurn+pendingOpp`**）。
+  併せて `stackQueue` / `stackPending`（effectId 配列）も返し、以後スタックの中身を目視できるようにした。
+- **結果**＝`lxWXDiP03089SingleTargetedFire` が **2回連続 PASS**。ログでも `決定(1/1)` の直後に
+  `stack=1["WXDi-P03-067-E1"]`（＝対象宣言で正しく積まれている）→ CHOOSE スキップ → **次tickで** `stack=0` かつ
+  `gHand=0→1`＝**1回だけ発火**が読める。**engine/JSON は無修正**。シナリオは意図的FAIL枠から既定 order へ追加（125→126件）。
+- ⚠**教訓＝「実機 FAIL ＝ engine バグ」ではない**。判定に使う計器の値は、一度は「変化するはずの局面で実際に変化するか」を
+  見てから信用すること。**この値を settle 判定に使っていた既存シナリオ（20件）は、これまで実質「スタックを待っていなかった」**
+  ＝今回から本当に待つようになる（下の再検証を参照）。
+
+### (xcvii) 場離れ置換チェーンの呼び出しが経路ごとに不揃い＝**エナ送りにだけ「代わりにこの能力を失う」が効かない**
+
+原文（`SPDi44-08`／`WX25-P1-018` の【起】イノセンスが付与する【常】）＝
+「あなたのクロス状態のシグニ１体が対戦相手の効果によって**場を離れる場合**、代わりにこのルリグはこの能力を失う。」
+＝**離場の種類を問わない**（エナ送りも当然含む）＝(xcvii) 登録時の「まず原文で確認」への答えは **YES**。
+
+`effectExecutor.ts` の離場は11経路あり、それぞれが置換4本（①ルリグ付与能力の喪失②パワー減の身代わり
+③バニッシュへの差し替え④能力なし→デッキ下）を**手書きで並べて**いた。このうち `execSendToEnergy` の
+**複数選択クロージャ（`applySend`）だけ①を呼んでいなかった**。⚠**単体（`count:1`）のエナ送りは別コード**
+（`applyDirectAction` の `SEND_TO_ENERGY` case）で①を呼んでいたため、**同じアクションでも枝によって挙動が違う**状態だった。
+
+- **修正＝`applyEffectLeaveSubstitutes(victimNum, victimOwner, ctx, {skipReplaceBanish})` を新設し11経路すべてを寄せた**。
+  適用順（①→②→③→④・先に成立した1つで打ち切り）は従来の手書きチェーンと同一＝**挙動不変のリファクタ＋抜け1本の補填**。
+  バニッシュ経路2本だけ `skipReplaceBanish:true`（原文「その移動がバニッシュによるものでないなら」）＝従来③を
+  呼んでいなかった2箇所と一致する。**今後、置換手段を足すときはこの1関数に足す**（11箇所に追記する形だと同じ漏れが再発する）。
+- **golden 回帰を新設**＝離場6アクション × `count:1`（単体case）/ `count:'ALL'`（複数選択クロージャ）の**両形態**で
+  「場に残る＋付与能力を失う＋エナへ行かない」を assert し、能力を使い切った後は通常どおりエナへ行くことも固定。
+  ⚠**網に歯があることを確認済み**＝修正を一時的に戻すと `SEND_TO_ENERGY(count=ALL)` **だけ**が落ちる（他は緑）。
+
+### (xcvi) `ArtsModal` Phase2 の `applySpecificCardCostReduction` 二重適用（**休眠中の時限バグ**）
+
+Phase2 は `rawEffectiveCost = betReplacedCost ?? pendingArtsEffectiveCost ?? 印刷コスト` に `applySpecificCardCostReduction`
+を掛けていたが、`pendingArtsEffectiveCost` は Phase1 で**すでに適用済み**の値＝`removeNColorFromCost(cost,'無',N)` が
+2回走り**《無》を 2N 枚ぶん引く**。
+
+- **修正＝「値が同じか」ではなく「どこから来たか」で分岐**＝ベット置換値と印刷コストは未適用なので適用し、
+  `pendingArtsEffectiveCost` 由来のときだけ飛ばす（値比較にするとベット置換値がたまたま一致したときに飛ばしてしまう）。
+- 併せて**適用順を Phase1 と揃えた**＝`ARTS_COLORLESS_MUST_PAY_CENTER_COLOR` の《無》→センター色 読み替えは**軽減のあと**
+  （読み替え後に軽減を掛けると《無》を見失う）。
+- ⚠**現時点の live 対象アーツは0枚**（`SPECIFIC_CARD_COST_REDUCE` の実測対象2枚はどちらもスペル）＝**挙動は変わらない予防修正**
+  であり、**実機で差分を見せることはできない**（正直に記録する。将来アーツが対象になった瞬間に静かに安くなりすぎるのを止める）。
+
 ## 2026-08-06 — 🏁Opusタスク12(cv) 残0クローズ＝`opp_hand` ピッカーが viewer 相対で別人の手札を描きソフトロックしていた（golden 据置・live JSON 完全不変）（Opus 5・続き359）
 
 ### 何が壊れていたか（真因）
