@@ -170,12 +170,16 @@ const PATTERNS: Pattern[] = [
   {
     name: 'パワー閾値(NN以上/以下)',
     re: /パワー(が)?[０-９\d]+以[上下]/,
-    keys: ['powerRange', 'SELF_POWER', 'FRONT_SIGNI_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax'],
+    // `minPower` = FIELD_SIGNI_POWER_COUNT（「あなたの場にパワーN以上のシグニがある場合」）の閾値フィールド。
+    // `powerLtSelf`/`powerGtSelf` = 「このシグニより低い/高いパワー」の動的比較（値ではなく関係で表す正表現）。§5c で較正。
+    keys: ['powerRange', 'SELF_POWER', 'FRONT_SIGNI_POWER', 'POWER_GTE', 'POWER_LTE', 'powerGte', 'powerLte', 'powerMin', 'powerMax', 'minPower'],
   },
   {
     name: 'レベル閾値(N以上/以下)',
     re: /レベル[０-９\d]以[上下]/,
-    keys: ['"level"', 'levelRange', 'levelFilter', 'LEVEL_GTE', 'LEVEL_LTE', 'levelMax', 'levelMin', 'requiredLevel'],
+    // `LRIG_LEVEL` = 「あなたの/対戦相手のセンタールリグがレベルN以上」条件（値は value）。
+    // `LRIG_LEVEL_CMP_OPP` = 両者のレベル比較。いずれもレベル閾値の正表現なのに対応表から漏れていた（§5c で較正）。
+    keys: ['"level"', 'levelRange', 'levelFilter', 'LEVEL_GTE', 'LEVEL_LTE', 'levelMax', 'levelMin', 'requiredLevel', 'LRIG_LEVEL'],
   },
   {
     name: '同一性(〜と同じ色/レベル/名前)',
