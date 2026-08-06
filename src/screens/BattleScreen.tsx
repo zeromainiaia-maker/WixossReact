@@ -527,6 +527,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
           selected = firstAvail ? [firstAvail.id] : [];
+          // ⚠costColors 付きの選択肢は**選択肢IDだけでは支払えない**（タスク12(cii)）。
+          //   `handleEffectInteraction` は `selectedOrChoiceId.slice(1)` を支払いエナの instanceId として
+          //   読み、`resumeOpponentPayOptional`／`resumeOptionalCost` はそれが空なら
+          //   「コスト支払いエラー: エナ不足」で**即終了**する（cost 未消費・then も未実行＝黙って空振り）。
+          //   人間側UI（optcost-energy-N）が人力でやっているエナ選出を CPU 版として行う。
+          //   支払い主体は CPU 自身＝`opponentResponds`（応答者＝CPU）でも通常の任意コスト（効果オーナー＝CPU）でも同じ。
+          if (firstAvail?.costColors?.length) {
+            const cpuState = bs.host_id === CPU_PLAYER_ID ? bs.host_state : bs.guest_state;
+            const cpuCardMap = new InstanceMap(cards.map(c => [c.CardNum, c] as [string, CardData]));
+            const paidEnergy = selectOptionalCostEnergy(firstAvail.costColors, cpuState, cpuCardMap);
+            // 選出できないのに available だったら支払い枝は選ばず「支払わない」へ倒す（黙って空振りさせない）。
+            if (paidEnergy) selected = [firstAvail.id, ...paidEnergy];
+            else selected = [(inter.options.find(o => o.id !== firstAvail.id && o.available) ?? firstAvail).id];
+          }
         }
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
