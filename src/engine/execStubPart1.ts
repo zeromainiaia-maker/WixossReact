@@ -424,15 +424,20 @@ export function execStubPart1(
   // 任意の全件処理（手札全公開／手札・エナ全トラッシュ）の非実行枝。
   // 直前効果の記録を持ち越さず、後続 LAST_PROCESSED_* 条件を確実に不成立にする。
   if (stub.id === 'INTERNAL_SKIP_OPTIONAL_ACTION') {
-    // ⚠「この方法でダウンしたルリグ」の記録もここで落とす（タスク12(cix)）。lastProcessedCards だけ空にしても、
-    //   フォールバック先の PlayerState.last_lrig_down_cards が**前の効果の支払い**を指したままだと、任意ダウンを
-    //   スキップしたのに後続フィルタが当たる＝did-it ゲートが抜ける。
-    const { last_lrig_down_cards: _c, last_lrig_down_level_sum: _s, ...ownerRest } = ctx.ownerState;
-    return done({
-      ...addLog({ ...ctx, ownerState: ownerRest }, '任意アクションをスキップ'),
-      lastProcessedCards: [],
-      seqVars: { ...ctx.seqVars, lastDownedLrigLevel: undefined, lastDownedLrigLevelSum: undefined },
-    });
+    // ⚠ ルリグ任意ダウンの非実行枝（value:'lrig_down'）だけは「この方法でダウンしたルリグ」の記録も落とす
+    //   （タスク12(cix)）。lastProcessedCards を空にするだけでは、フォールバック先の
+    //   PlayerState.last_lrig_down_cards が**別の効果の支払い**を指したままになり、ダウンをスキップしたのに
+    //   後続フィルタが当たる＝did-it ゲートが抜ける。他用途の skip では記録を触らない（無関係な効果の
+    //   コスト支払い記録まで消さないため）。
+    if (stub.value === 'lrig_down') {
+      const { last_lrig_down_cards: _c, last_lrig_down_level_sum: _s, ...ownerRest } = ctx.ownerState;
+      return done({
+        ...addLog({ ...ctx, ownerState: ownerRest }, '任意アクションをスキップ'),
+        lastProcessedCards: [],
+        seqVars: { ...ctx.seqVars, lastDownedLrigLevel: undefined, lastDownedLrigLevelSum: undefined },
+      });
+    }
+    return done({ ...addLog(ctx, '任意アクションをスキップ'), lastProcessedCards: [] });
   }
   // 他の任意コスト系（SEQUENCEパターン外のフォールバック）
   if (stub.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' || stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
