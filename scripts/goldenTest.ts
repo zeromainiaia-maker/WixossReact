@@ -7000,7 +7000,7 @@ test('task12(cxi): 最初の対話で中断する SEQUENCE でも、中断時点
   // resume 完了時の diff は before に既にドローを含むため差分ゼロで永久に失われる。
   const dt = collectDrawTriggers(trigCtx(HOST, HOST), HOST, r.ownerState, r.otherState);
   ok(dt.entries.some(e => e.effectId === `${src}-E3`), '中断状態から E3（drawBySourceStory）が収集できる');
-});
+}));
 
 test('task12(cxi): ON_DRAW と「DRAW が最終でない SEQUENCE」が同居する live 母集団を固定', () => {
   const hasNonFinalDraw = (a: unknown): boolean => {
