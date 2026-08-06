@@ -3618,7 +3618,7 @@ export function collectContinuousGrantedKeywords(
       // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）。
       // 場全体付与は target.count === 'ALL' で表現されるため owner は self/any のみ対象（Owner型に 'all' は無い）。
       if (gk.target.owner !== 'self' && gk.target.owner !== 'any') continue;
-      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, effectivePowers)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, powersOf())) continue;
       // 「このルリグは【X】を得る」型。発生源自身＝自分のセンタールリグへ動的付与する。
       if (gk.target.type === 'LRIG') {
         if (lrigTop && srcNum === lrigTop) add(lrigTop, gk.keyword);
