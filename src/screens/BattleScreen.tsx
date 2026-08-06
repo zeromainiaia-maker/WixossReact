@@ -11708,6 +11708,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
           return matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter);
         }).length < e.cost.fieldDown.count) &&
+        // lrigDown: アップ状態のルリグ（centerOnly / level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
+        !(e.cost?.lrigDown && payLrigDownCost(my, e.cost.lrigDown, battleCardMap) === null) &&
         (!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, battleCardMap, topNum, effectivePowers)) &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
       );
