@@ -11818,6 +11818,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
           if (my.blocked_actions?.includes(eff.effectId)) continue;
+          // lrigDown: アップ状態のルリグ（level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
+          if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, battleCardMap) === null) continue;
           // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
           const actMA = eff.action as import('../types/effects').StubAction;
           if (actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT') {
