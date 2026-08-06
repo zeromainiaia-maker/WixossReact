@@ -440,6 +440,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       },
       until: dur,
     } as RemoveAbilitiesAction;
+    // 「この方法でダウンしたルリグと同じレベルの対戦相手のすべてのシグニは能力を失う」（WX25-P1-112）＝
+    // レベル条件が丸ごと落ち、相手シグニ**全体**から能力を奪う過剰効果になっていた（タスク12(cix)）。
+    if (/この方法でダウンしたルリグと同じレベルの/.test(t)) {
+      ra.target.filter = { ...(ra.target.filter ?? {}), levelEqLastDownedLrig: true };
+    }
     // §3タスク6 E: 「それは能力を失い、それのパワーを－Nする」＝**同一対象**への能力消去＋パワー修正の複文。
     // 従来はここで能力消去だけを返し **パワー修正が丸ごと脱落**していた（WX26-CP1-009-E1 の－30000）。
     // REMOVE_ABILITIES が対象を lastProcessedCards に記録するので、後段は targetsLastProcessed で同一対象に載る。
