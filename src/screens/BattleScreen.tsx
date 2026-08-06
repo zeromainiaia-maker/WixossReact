@@ -10746,6 +10746,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!beatPayA.ok) { setLoading(false); return; } // 支払い不能（対象不足）
         paid = beatPayA.state;
       }
+      // lrigDown: アップ状態のルリグをダウン（センター→アシストL→Rの順で自動支払い）。
+      // 【出】経路（executeSigniOnPlayCost:11298）と同型。⚠ここが無いと【起】の
+      // 《アップ状態の〜ルリグN体をダウンする》コストが丸ごと素通りする（タスク12(cviii)）。
+      const lrigDownCostAct = effect.cost?.lrigDown;
+      if (lrigDownCostAct) {
+        const lrigPaidAct = payLrigDownCost(paid, lrigDownCostAct, battleCardMap);
+        if (!lrigPaidAct) return; // 支払い不能（UI側でも無効化済み）
+        paid = lrigPaidAct.state;
+      }
       // GRANT_TURN_TRIGGER_3RD_DOWN: 植物シグニがdown_selfコストでダウンした回数を追跡
       let plant3rdDownTriggerEntry: StackEntry | null = null;
       if (effect.cost?.down_self && my.turn_trigger_3rd_plant_down) {
