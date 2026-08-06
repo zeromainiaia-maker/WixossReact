@@ -9541,6 +9541,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growTargetId] },
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
             coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
+            coins_paid_this_turn: (cpuSt.coins_paid_this_turn ?? 0) + growCoinCostCpu, // COINS_PAID_THIS_TURN
           };
           // 【グロウ】条件の追加効果（人間executeGrowと同じ）: ルリグデッキから下に置く・除外する等。
           const cpuGrowCond = extractGrowCondition(growCard.EffectText);
