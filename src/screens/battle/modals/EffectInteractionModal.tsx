@@ -164,6 +164,23 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             ? [...candidates].reverse()
             : candidates;
 
+          // ── opp_hand「見て選び」の**手札の持ち主**（タスク12(cv)）──
+          // `targetScope:'opp_hand'` は「効果のコントローラーから見た対戦相手の手札」だが、
+          // `opponentResponds:true`（＝**相手自身に選ばせる**型）では**応答者＝この画面の viewer 自身**が
+          // 対象の手札の持ち主になる。viewer 相対の `op.hand` を無条件に描くと、
+          // **候補（inter.candidates）と一致しない別人の手札**が並んで `candIdx` が全て -1 になり
+          // 「決定 (0/N)」から進めない＝**ソフトロック**になる（LB「相手に選ばせる」型と、
+          // `OPPONENT_PAY_OPTIONAL` の `opponentHandDiscard` 回避コストの両方で実測）。
+          // ⚠**viewer からの相対ではなく候補の実在位置で持ち主を決める**。全体表示（非候補もグレーで見せる）
+          //   は原文「手札を見て選ぶ」の情報量として必要なので残す＝持ち主だけを正す。
+          const oppHandView = inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand';
+          const oppHandOwnerIsViewer = oppHandView && candidates.length > 0
+            && candidates.every(n => my.hand.includes(n));
+          const oppHandCards = !oppHandView ? []
+            : oppHandOwnerIsViewer ? my.hand
+            : candidates.every(n => op.hand.includes(n)) ? op.hand
+            : sortedCandidates; // どちらの手札とも一致しない（想定外）＝候補だけを描いてロックを避ける
+
           // パワー合計上限つき選択時：現在の選択合計パワー
           const selectedPowerSum = (inter.type === 'SELECT_TARGET' && inter.totalPowerMax !== undefined)
             ? effectSelectedNums.reduce((s, i) => {
