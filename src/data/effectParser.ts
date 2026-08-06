@@ -9172,6 +9172,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       : extractedTriggerCondition;
   }
 
+  // 「この能力は対戦相手のシグニ１体がアタックしたときにしか使用できない」（WX05-013-E2）は
+  // **使用条件ではなく使用タイミングそのもの**＝【起】を守備側の応答窓（ON_OPP_SIGNI_ATTACK）へ載せ替える。
+  // ここで載せ替えないと timing:['MAIN'] のままで、相手ターンには構造上アクセスできない（Opusタスク12(cx)）。
+  if (effectType === 'ACTIVATED' && mergedCondition?.type === 'OPP_SIGNI_ATTACKING') {
+    timing = ['ON_OPP_SIGNI_ATTACK'];
+    mergedCondition = undefined;
+  }
+
   // 使用回数制限（《ターン１回》《ターン２回》《ゲーム１回》）。CONTINUOUS には付けない。
   let usageLimit: import('../types/effects').UsageLimit | undefined;
   if (effectType !== 'CONTINUOUS') {
