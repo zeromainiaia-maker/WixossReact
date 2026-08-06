@@ -4361,7 +4361,15 @@ export function collectBanishEffectProtectedSigni(
   isOwnerTurn: boolean,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
+  effectivePowers?: Map<string, number>,
 ): Set<string> {
+  // activeCondition に実効パワー参照（SELF_POWER_THRESHOLD 等）があると、渡さない限り**表記パワーへ
+  // フォールバック**して「バフしても条件が真にならない」過小実行になる（タスク12(cxii)）。
+  // 呼び出し元は解決途中のローカル state を渡すので、外から貰えないときは**その state から計算**する
+  // （component の memo を使うと1手前の盤面になる）。activeCondition が1つも無ければ計算しない。
+  let _powers = effectivePowers;
+  const powersOf = (): Map<string, number> =>
+    (_powers ??= calcFieldPowers(state, otherState, isOwnerTurn, effectsMap, cardMap));
   const protected_ = new Set<string>();
   for (const stack of state.field.signi) {
     if (!stack?.length) continue;
