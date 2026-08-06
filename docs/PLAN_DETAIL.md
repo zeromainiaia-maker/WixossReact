@@ -2,7 +2,14 @@
 
 > [PLAN.md](./PLAN.md)（現在地・生きている worklist）から 2026-07-07 に追い出した歴史記録。**cold start で読む必要はない**（PLAN §4 → DESIGN.md の順でよい）。過去セッションの要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)、個別修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-> **最新の退避＝「2026-08-04 整理」節（冒頭）**＝PLAN §3 在庫表の残0クローズ行 (xcii)/(xcv)/(lxvii)/(xcviii)/(lxviii)/(xcix)。次が「2026-08-02 整理③」節。
+> **最新の退避＝「2026-08-06 整理」節（冒頭）**＝PLAN §3 在庫表の残0クローズ行 (cviii)。次が「2026-08-04 整理」節。
+
+## 2026-08-06 整理：PLAN §3 在庫表から退避した残0クローズ行（原文）
+
+> 2026-08-06（続き356）に残0クローズした (cviii) の登録時原文。PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2026-08-06 節。
+
+- **(cviii)〔【起】ACTIVATED の `cost.lrigDown` 未配線＝2026-08-06 続き356 で残0クローズ。⚠**登録時の記録「影響5枚」は実測不足で正しくは13効果**、しかも**実行経路が2つに割れる**（`executeSigniActivated`＝シグニ11／`executeLrigGranted`＝ルリグ本体の【起】2）＝別関数なので配線も別に要る、というのが登録時の見落とし。修正方針そのもの（【出】経路と同型の配線＋モーダルの available 判定）は当たっていた。加えて**支払えない【起】はアクション一覧から消す**（`fieldDown`／`fieldTrash`／`underSelfTrash` と同じ既存規約）のが本プロジェクトの慣例なので、登録時に想定されていた「ボタンは出るが disabled」ではなく「ボタンが出ない」が正しい合格条件になり、再現シナリオ `lrigDownCenterOnlyUnwired` の判定を書き換えた。派生の新規在庫＝(cix)。一次記録は BUGFIXES 2026-08-06 節〕**
+  - 〔登録時の原文〕**🆕 【起】ACTIVATED効果の`cost.lrigDown`がUI/実行経路のどちらにも配線されていない（2026-08-05・§7実機検証「lrigDownコストの限定(a)(b)」調査中に発見）**＝`WXK10-023-E2`／`WXK10-037-E2`／`WXDi-P03-009-E3`／`WXDi-P04-042-E2`／`WXDi-P02-009-E3`（effectType:ACTIVATED・`cost:{lrigDown:{count,centerOnly?,level?}}`）を実際に発動する経路（`executeSigniActivated`＝`BattleScreen.tsx:10530-11138`）を全文grepしても`lrigDown`への参照が一切無い。`SigniActivatedModal.tsx`のコスト表示ロジック（energy/discard/charmTrash等の一覧・62-176行）にも`lrigDown`は登場しない。`payLrigDownCost`（`src/screens/battle/lrigDownCost.ts`）を実際に呼んでいるのは`executeSigniOnPlayCost`（`BattleScreen.tsx:11139-`＝【出】コスト専用経路）だけ＝**ON_PLAYのlrigDownコスト（`PR-K064`等）は機能するが、ACTIVATED（【起】）のlrigDownコストは完全に素通り**。実機で`WXK10-037-E2`のセンタールリグを事前に`field.lrig_down:true`にしても【起】ボタンが`enabled`のままクリックでき、コストを一切支払わずSEARCH本体が実行されることを`verifyBattleDrive.mjs lrigDownCenterOnlyUnwired`で2回連続再現（hHand 0→1・field.lrig_downは変化なし＝支払われていない証拠）。**影響範囲＝`cost.lrigDown`を持つACTIVATED効果全件**（centerOnly/level問わず・上記5枚が実測対象）。**修正方針＝`executeSigniActivated`に`payLrigDownCost`呼び出しを追加する**（`executeSigniOnPlayCost`の該当ブロック（`BattleScreen.tsx:11298-11305`）と同型の配線を足すだけ＝新規機構ではない）。加えて`SigniActivatedModal.tsx`側でも`cost.lrigDown`のavailable判定（centerOnly時はアシストが上がっていてもセンターが下がっていれば不可・level時は該当レベルの上がっているルリグ数で判定）をボタンのdisabled条件へ組み込む必要がある。再現＝`node scripts/verifyBattleDrive.mjs lrigDownCenterOnlyUnwired`。
 
 ## 2026-08-04 整理：PLAN §3 在庫表から退避した残0クローズ行（原文）
 
