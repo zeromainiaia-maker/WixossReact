@@ -8217,7 +8217,7 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
 });
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
-test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => {
+test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => withSavedCursor(() => {
   const want: Array<[string, number]> = [
     ['WXDi-P09-039', 1], ['WXDi-P15-053', 1], ['WXDi-P15-054', 1], ['WXDi-P15-068', 2], ['WXDi-P15-070', 2],
     ['WXDi-P15-072', 3], ['WXDi-P15-073', 1], ['WXDi-P16-057', 3], ['WXDi-P16-076', 3], ['WXDi-P16-081', 2],
