@@ -8222,7 +8222,7 @@ test('§5c 自己パワー閾値(主語先行形): 閾値未満ではキーワ�
   const buffed = collectContinuousGrantedKeywords(host, mkState({}), true, effectsMap, cardMap as Map<string, CardData>,
     new Map([['WX24-P1-056', 10000]]));
   ok(buffed['WX24-P1-056']?.includes('シュート'), '実効パワー10000ならシュートを得る');
-});
+}));
 // OPTIONAL_TRASH_SELF（自己犠牲コスト）の構造固定＋pay挙動（続き36・OPTIONAL_TRASH_ENERGY_CLASS 誤マップからの是正）
 test('OPTIONAL_TRASH_SELF: 構造固定（WX06-CB03/WX21-056/061 が誤エナSTUBに戻っていない）', () => {
   for (const num of ['WX06-CB03', 'WX21-056', 'WX21-061']) {
