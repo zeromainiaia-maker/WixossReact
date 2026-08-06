@@ -6281,6 +6281,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         coins: Math.max(0, my.coins - coinCost),
+        coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + coinCost, // COINS_PAID_THIS_TURN
       };
       // ON_COIN_PAID（C1 配線・キープレイのコイン支払）: extraEntries 経由で反応【自】を積む。
       const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
