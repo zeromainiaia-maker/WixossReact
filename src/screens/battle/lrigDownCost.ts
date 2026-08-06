@@ -42,3 +42,9 @@ export function payLrigDownCost(
   if (remaining > 0) return null;
   return { state: { ...state, field }, paidCards };
 }
+
+/** コスト表示用ラベル（「アップ状態のレベル2のルリグ2体をダウン」）。モーダル間で共有する。 */
+export function fmtLrigDownCostLabel(cost: NonNullable<EffectCost['lrigDown']>): string {
+  const scope = cost.centerOnly ? 'センタールリグ' : cost.level !== undefined ? `レベル${cost.level}のルリグ` : 'ルリグ';
+  return `アップ状態の${scope}${cost.count}体をダウン`;
+}
