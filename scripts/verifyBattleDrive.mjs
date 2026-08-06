@@ -5120,6 +5120,69 @@ const scenarios = {
     },
   },
 
+  // タスク12(c)②：ON_TARGETED の「その対戦相手のシグニ」＝**対象にしてきたシグニ**に限定されるか。
+  //   host が WXDi-P00-074（【出】：対戦相手のシグニ1体を対象とし、ターン終了時までパワー-1000）を召喚して
+  //   guest の watcher WXDi-P03-056（【自】《ターン1回》：このシグニが対戦相手の**シグニ**の能力か効果の対象に
+  //   なったとき、その対戦相手のシグニをバニッシュする）を対象に取る。修正前は①collector が origin を
+  //   entry.triggeringCardNum に載せず②JSON も filter.isTriggerSource を持たなかったため、**host のどの
+  //   シグニでも選べる過剰対象化**だった。host zone0 に無関係な生存確認用シグニ（WD05-009・P12000）を置き、
+  //   「対象化した WXDi-P00-074 だけが消えて zone0 は残る」ことで限定を確認する。
+  //   ⚠watcher は P2000＝-1000 では落ちない（ON_TARGETED 発火前に消えると検証にならない）。
+  onTargetedSourceSigniBanish: {
+    title: 'WXDi-P00-074→WXDi-P03-056（ON_TARGETED＝対象にしてきたシグニだけをバニッシュ）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [['WD05-009#1'], null, null], // zone0＝巻き添え検知用（残るのが正）
+        'field.signi_down': [false, false, false],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WXDi-P03-056#1'], null, null], // watcher（羅石　ルベライト・P2000）
+        'field.signi_down': [false, false, false],
+        'blocked_actions': [],
+        'actions_done': [], // 《ターン1回》の持ち越しクリア
+      },
+      handPrepend: ['WXDi-P00-074#1'],                  // コード２４３４　葉加瀬冬雪（【出】-1000）
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+      let summoned = false;      // 場に出たことを一度でも観測したか（出る前の「居ない」を PASS にしない）
+      let sawOnField = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/onTargetedSourceSigniBanish-${s}.png`, fullPage: true });
+        let did = null;
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+        if (!did && summoned) did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+        if (!did) {
+          const pick0 = page.getByTestId('pick-0').first();
+          if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+            const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+            if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const flat = (st?.host?.fieldSigni ?? []).map(z => (z ?? []).join('/')).join(',');
+        const onField = flat.includes('WXDi-P00-074#1');
+        if (onField) sawOnField = true;
+        const survivor = flat.includes('WD05-009#1');
+        H.log(`  ots[${s}] -> ${did ?? 'なし'} | hField=${flat} sawOnField=${sawOnField} gPowerMods=${(st?.guest?.powerMods ?? []).join(',') || '-'} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if (sawOnField && !onField) {
+          return survivor
+            ? { pass: true, detail: `ON_TARGETED が**対象にしてきた** WXDi-P00-074 だけをバニッシュ（巻き添え検知用 WD05-009 は場に残存・hField=${flat}）` }
+            : { pass: false, detail: `対象化したシグニは消えたが巻き添え検知用 WD05-009 も消えている（hField=${flat}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `ON_TARGETED バニッシュ未確認（hField=${JSON.stringify(fin?.host?.fieldSigni)} sawOnField=${sawOnField} gPowerMods=${(fin?.guest?.powerMods ?? []).join(',') || '-'}）` };
+    },
+  },
+
   // タスク12(xliv)(b2)：単体対象 redirect の BattleScreen 実配送を確認する。
   battleOnlySelectedRedirect: {
     title: 'WXDi-P15-078-E2（単体対象＋バトル限定BANISH_REDIRECT＝対象だけトラッシュ）',
