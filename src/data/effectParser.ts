@@ -33,6 +33,14 @@ import type {
   DrawAction,
 } from '../types/effects';
 
+/**
+ * 「アタックフェイズの間」＝`DURING_PHASE.phases` に入れる**アタックフェイズの全実値**（タスク12(cvii)）。
+ * ⚠`TurnPhase`（`src/types/index.ts`）の実値でないと engine の `phases.includes(ctx.currentPhase)` に
+ *   一生当たらない＝条件が常に false になり効果が丸ごと不発になる。'ATTACK' のような総称値を書かないこと。
+ * `ATTACK_ARTS_OP`（対戦相手のアーツ応答窓）も**アタックフェイズの一部**なので必ず含める。
+ */
+const ATTACK_PHASES = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'] as const;
+
 const STATE_HOIST_BATCH1_CARDS = new Set([
   'PR-K054', 'WDK06-C14', 'WDK07-Y13', 'WDK17-013', 'WDK17-017', 'WXEX1-25',
   'WXK04-036', 'WXK08-071', 'WXK09-093', 'WXK11-057', 'WXDi-P11-038', 'WXK03-079',
