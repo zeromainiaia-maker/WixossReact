@@ -122,7 +122,11 @@ export interface PlayerState {
   last_activated_discard_count?: number; // 直前【起】コスト支払いで捨てた合計枚数（手札+エナ）。ACTIVATED_DISCARD_COUNT_GTE条件用
   last_energy_trash_color_count?: number; // 直前コスト(energyTrashColorAll)でエナからトラッシュした指定色カードの枚数。ENERGY_TRASH_COLOR_COUNT_GTE条件用（WX04-002-E2「この方法で赤が3枚以上」）
   last_charm_trash_count?: number; // 直前コスト支払いでトラッシュしたチャーム枚数（BanishFilter: levelEqualsVar用）
-  last_lrig_down_level_sum?: number; // 直前の可変ルリグダウンコストでダウンしたルリグのレベル合計
+  last_lrig_down_level_sum?: number; // 直前のルリグダウン（コスト／効果）でダウンしたルリグのレベル合計。payLrigDownCost が記録
+  // 直前のルリグダウン（コスト／効果）で実際にダウンしたルリグの instance id。「この方法でダウンしたルリグと同じ
+  // レベル／共通する色」がコスト経路（＝実UIでは支払いと効果解決が別の ExecCtx に分かれ lastProcessedCards が
+  // 渡らない）でも参照できるようにするための受け皿（タスク12(cix)）。payLrigDownCost が単一入口で記録する。
+  last_lrig_down_cards?: string[];
   last_field_trash_level?: number; // 直前コスト支払いで場からトラッシュしたシグニのレベル（BanishFilter: levelEqualsVar='field_trash_level'用。WX03-001）
   last_cost_hand_to_energy_level?: number; // 直前の任意【出】コストで手札からエナへ置いたシグニのレベル（WXDi-P16-080）
   last_cost_energy_trash_level_sum?: number; // 直前の任意【出】コストでエナからトラッシュへ置いたシグニのレベル合計（WXK09-032）
