@@ -184,8 +184,14 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                             actEnergyTrashCost ? `エナ${fmtDiscardFilterLabel(actEnergyTrashCost.filter) || 'シグニ'}${actEnergyTrashCost.count}枚トラッシュ` : null,
                             actTrashExileCost?.self ? 'このカードをゲームから除外' : actTrashExileCost ? `トラッシュから${actTrashExileCost.count ?? 1}枚ゲーム除外` : null,
                             actUnderTrashCost ? `このシグニの下から${actUnderTrashCost.count}枚トラッシュ` : null,
+                            actLrigDownCost ? fmtLrigDownCostLabel(actLrigDownCost) : null,
                           ].filter(Boolean).join('・') || 'なし'}
                         </p>
+                        {actLrigDownCost && !actLrigDownOk && (
+                          <p style={{ color: C.warn, fontSize: 11, margin: '4px 0 0' }}>
+                            ダウンできるルリグが不足しています
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
