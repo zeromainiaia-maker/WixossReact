@@ -2641,6 +2641,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           { type: 'EXILE', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
         ] };
       }
+      // 「…対象になったとき、（そのシグニが場にある場合、）そのシグニをゲームから除外する」＝除外先は
+      // **対象にしてきた相手シグニ**（トリガー元）。上の fieldExileM は「シグニN体を対象とし」形しか見ないため
+      // 本形は下の汎用フォールバックで TRASH{TRASH_CARD}（トラッシュ→トラッシュの完全 no-op）に化けていた
+      // （タスク12(c)①＝WXDi-P13-089-E2）。トリガー元への限定（filter.isTriggerSource）は timing を知る
+      // effectParser 側の後段で刻む＝ここでは**場のシグニの除外**という型だけを正す。
+      // ⚠「そのシグニが場にある場合」は候補が場のシグニに限られること自体で満たされる（不在なら候補0＝no-op）。
+      if (/能力か効果の対象になったとき/.test(t) && /そのシグニをゲームから除外する/.test(t) && !/対象とし/.test(t)) {
+        return { type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } };
+      }
       // 「このシグニをゲームから除外する」（単独）＝場の効果元シグニ自身の除外（クラフトトークンの
       // 「対戦相手のターン終了時、〜」等＝WXDi-CP02-TK01A/TK02A/TK03B）。
       // ⚠遅延形「ターン終了時に、または場から離れる場合に」（WX16-040 等＝遅延トリガー機構待ち・§6.3）と
