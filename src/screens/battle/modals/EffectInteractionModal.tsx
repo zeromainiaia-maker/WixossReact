@@ -241,9 +241,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   padding: '6px 8px', backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 6 }}>
                   {label}
                 </p>
-                {inter.type === 'SELECT_TARGET' && inter.targetScope === 'opp_hand' && (
+                {oppHandView && (
                   <p style={{ color: C.textDim, fontSize: 10, margin: 0, textAlign: 'center' }}>
-                    対戦相手の手札（全{op.hand.length}枚を確認・選べるカードのみ枠が明るい）
+                    {oppHandOwnerIsViewer ? 'あなたの手札' : '対戦相手の手札'}（全{oppHandCards.length}枚を確認・選べるカードのみ枠が明るい）
                   </p>
                 )}
                 <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
