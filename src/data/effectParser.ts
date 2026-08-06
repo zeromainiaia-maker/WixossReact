@@ -10128,7 +10128,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   gate('WXK03-040-E1', { type: 'TURN_OWNER', owner: 'self' });
   gate('WXK03-044-E1', { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'eq', value: 15 });
   gate('WXK06-045-E1', { type: 'COUNT_THRESHOLD', location: 'deck', owner: 'self', operator: 'gte', value: 25 });
-  wrap('WXK09-083-E1', { type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self', filter: { cardType: 'シグニ', story: '電機' }, levels: [1, 2, 3, 4], minEach: 1 });
+  // ⚠`WXK09-083-E1` のカード名指定 wrap は撤去済み（§5c 文型バッチ）＝STATE_CONDITION_CLAUSES_V2 に
+  //   「エナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」の汎用規則が入り、残すと二重 CONDITIONAL になる。
   gate('WXDi-P00-044-E2', { type: 'AND', conditions: [
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'コード２４３４　緑仙' } },
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: 'コード２４３４　ドーラ' } },
