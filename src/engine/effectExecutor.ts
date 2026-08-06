@@ -701,19 +701,11 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   function applySend(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
     for (const num of selected) {
-      const powerSub = applyEffectLeavePowerReductionSubstitute(num, tgt.owner, cur);
-      if (powerSub.replaced) {
-        cur = powerSub.ctx;
-        continue;
-      }
-      const banishSub = applyEffectLeaveReplaceBanishSubstitute(num, tgt.owner, cur);
-      if (banishSub.replaced) {
-        cur = banishSub.ctx;
-        continue;
-      }
-      const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(num, tgt.owner, cur);
-      if (noAbilitySub.replaced) {
-        cur = noAbilitySub.ctx;
+      // ⚠2026-08-06（タスク12(xcvii)）まで、ここだけ `…LrigAbility` を呼び落としていた＝
+      //   「代わりにこの能力を失う」がエナ送りにだけ効かなかった。共通入口へ寄せて解消。
+      const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
+      if (sub.replaced) {
+        cur = sub.ctx;
         continue;
       }
       const s = ownerState(tgt.owner, cur);
