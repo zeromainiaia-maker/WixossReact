@@ -21,6 +21,7 @@ import type {
   EnergyChargeAction,
   AddToEnergyAction,
   GrantLrigAbilityAction,
+  CostReductionAction,
   GrantAcceHostAbilityAction,
   GrantFieldSigniAbilityAction,
   LookAndReorderAction,
