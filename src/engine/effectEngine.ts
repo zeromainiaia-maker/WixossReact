@@ -5252,7 +5252,15 @@ export function collectGrantedFromLayer(
   isOwnerTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
   cardMap: Map<string, CardData>,
+  effectivePowers?: Map<string, number>,
 ): Map<string, CardEffect[]> {
+  // 付与宣言のゲート（activeCondition）に実効パワー参照があると、渡さないと**表記パワーへフォールバック**して
+  // 「バフしても付与されない」過小実行になる（タスク12(cxii)）。渡されなければ**受け取った effectsMap から計算**する。
+  // ⚠この effectsMap は「レイヤー付与を足す前」なので循環しない（付与の中身がパワーを変えても、
+  //   ゲート判定に使うのは付与前のパワー＝同時適用の1段近似）。activeCondition が無ければ計算しない。
+  let _powers = effectivePowers;
+  const powersOf = (): Map<string, number> =>
+    (_powers ??= calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, cardMap));
   const result = new Map<string, CardEffect[]>();
   const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   type GrantAction = import('../types/effects').GrantFieldSigniAbilityAction;
