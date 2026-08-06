@@ -2309,7 +2309,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           };
         }
       }
-      return { type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwM[1], duration: dur };
+      return { type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur };
     }
   }
 
