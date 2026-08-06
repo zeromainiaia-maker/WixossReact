@@ -2641,7 +2641,7 @@ test('【起】lrigDown コストの母集団と支払い可否（タスク12(cv
   // level（WXDi-P02-009-E3 等）＝レベル不一致のルリグでは払えない。
   ok(payLrigDownCost(board({ lrig: lv2, assistL: lv2 }), { count: 2, level: 2 }, cardMap) !== null, 'level：レベル2が2体なら払える');
   ok(payLrigDownCost(board({ lrig: lv2, assistL: lv1 }), { count: 2, level: 2 }, cardMap) === null, 'level：レベル1は数に入らない');
-}));
+})); // eslint-disable-line @typescript-eslint/no-confusing-void-expression
 
 test('結果カウント閾値の parser 構造固定（Cluster B・続き143）', () => {
   // WDK06-C07: 黒5枚トラッシュ→{color:黒}minCount5
