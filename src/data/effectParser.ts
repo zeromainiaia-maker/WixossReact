@@ -9978,7 +9978,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'アーム' }, excludeSelf: true },
   ] });
   gate('WX12-Re15-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } });
-  wrap('WX13-035-E2', { type: 'DURING_PHASE', phases: ['ATTACK_ARTS', 'ATTACK_SIGNI', 'ATTACK_LRIG'] });
+  // 原文「このシグニがアタックフェイズの間に場に出た場合」＝アタックフェイズ全体（`ATTACK_ARTS_OP` も含む。
+  // 相手のアーツ応答窓で効果によって出た場合も原文どおり成立させる）。タスク12(cvii)
+  wrap('WX13-035-E2', { type: 'DURING_PHASE', phases: [...ATTACK_PHASES] });
   gate('WX14-039-E1', { type: 'TRASH_HAS_CARD', owner: 'opponent', filter: { cardType: 'スペル' } });
   gate('WX15-046-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', powerRange: { min: 1000, max: 1000 } } });
   gate('WX20-070-E1', { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: '植物' }, minCount: 7 });
