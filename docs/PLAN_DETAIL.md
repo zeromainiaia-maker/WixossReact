@@ -2,7 +2,42 @@
 
 > [PLAN.md](./PLAN.md)（現在地・生きている worklist）から 2026-07-07 に追い出した歴史記録。**cold start で読む必要はない**（PLAN §4 → DESIGN.md の順でよい）。過去セッションの要約は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md)、個別修正は [BUGFIXES.md](./BUGFIXES.md)。
 
-> **最新の退避＝「2026-08-06 整理」節（冒頭）**＝PLAN §3 在庫表の残0クローズ行 (cviii)／(cvii)／(ci)＋(cii)／(cv)／**(cxi)／(c)**。次が「2026-08-04 整理」節。
+> **最新の退避＝「2026-08-06 整理③」節（冒頭）＝PLAN §3 のクローズ済み行11件＋タスク14／Sonnetタスク4 の一括退避（続き361）。次が「2026-08-06 整理」節**＝PLAN §3 在庫表の残0クローズ行 (cviii)／(cvii)／(ci)＋(cii)／(cv)／**(cxi)／(c)**。次が「2026-08-04 整理」節。
+
+## 2026-08-06 整理③：PLAN §3 からクローズ済み行を一括退避（続き361）
+
+> PLAN §3 を「生きている worklist だけ」に戻すため、**✅／🏁 が付いた行をここへ丸ごと移した**（PLAN 側には残ID と本節へのポインタだけを残す）。
+> 登録時（＝バグとして積まれた時点）の原文は下の「2026-08-06 整理」節および各過去整理節にある＝**本節はクローズ行（何をどう直したか）の側**。一次記録は `BUGFIXES.md` の各節。
+
+### Opusタスク12 在庫の残0クローズ行（2026-08-06・続き356〜361）
+
+| ID | 内容 |
+|---|---|
+| (cxi) | ✅**2026-08-06（続き361）に残0クローズ**＝真因は engine ではなく **`BattleScreen.resolveStackNext` の `!result.done` 分岐に盤面差分収集が無かったこと**（続き75 が resume 側の2巡目以降に入れた手当ての**1巡目版が欠けていた**）。`WX20-026-E1` は現在 `SEQUENCE[DRAW, TRASH(手札1枚選択)]`＝**ドロー直後に中断**する形で、中断時点の状態（ドロー済み）がそのままコミットされるため、resume 完了時の diff は before に既にドローを含む＝**ON_DRAW が永久に失われて**いた。⚠**規模の実測＝1巡目で中断する効果 5418／うち中断時点で既に盤面が動いている 484**（失われていたのはドローに限らない）。実機 PASS（合格条件も「watcher ログ」から「実際に -4000 が乗る」へ厳格化）。一次記録は BUGFIXES 2026-08-06 節 |
+| (cviii) | ✅**2026-08-06（続き356）に残0クローズ**＝【起】ACTIVATED の `cost.lrigDown` を実行経路2本（`executeSigniActivated`＝シグニ11効果／`executeLrigGranted`＝ルリグ本体の【起】2効果）へ配線＋2モーダルの `canAfford` とアクション一覧のゲート2箇所にも判定を追加。⚠**母集団は登録時の「5枚」ではなく13効果**（経路が2つに割れるのが見落とし）。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (cvii) | ✅**2026-08-06（続き357）に残0クローズ**＝`BattleScreen` の `ExecCtx` **8箇所**（登録時の記録は6箇所）に`currentPhase: bs.turn_phase` を配線。⚠**不発だったのは本カード2枚ではなく4機構**（トラッシュ移動ロック2／`DURING_PHASE` 1／能力なし→デッキ下置換1／アタックフェイズ限定バニッシュ先置換3）。併せて `DURING_PHASE.phases` の不正値2件も是正。実機4シナリオ各2回連続PASS。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (cii) | ✅**2026-08-06（続き358）に残0クローズ**＝`execUtils.selectOptionalCostEnergy` を新設し CPU 自動応答が実在エナの instanceId を選出して渡すよう是正。⚠**`canPayOptionalCost` はこれへの委譲に置き換え**＝「支払えるか」と「何で払うか」を1本から出す。(ci) と同時消化（同じ CHOOSE の表と裏）。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (cv) | ✅**2026-08-06（続き359）に残0クローズ**＝`opp_hand` ピッカーの候補一覧を **viewer 相対の `op.hand` ではなく候補（`inter.candidates`）の実在位置**から解決するよう是正（全体表示は残し**持ち主だけ**を正す＝通常方向は従来と完全に同じ）。⚠登録時の追記どおり**LB 型に限らず `opponentHandDiscard` 回避コスト経路でも同根**だったことを実機で確認。意図的FAIL 2件が PASS へ反転＋通常方向の回帰3件。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (civ) | ✅**2026-08-06（続き360）に「engine 非バグ」と確定してクローズ**＝真因は engine ではなく **driver の計器バグ**（`verifyBattleDrive.mjs` の `queryState` が `EffectStack` に存在しない `entries` キーを読み **stackLen を常に0**にしていた）。シナリオの「スタックが空になるまで待つ」ガードが最初から無効化されていて、CHOOSE 解決直後（エントリがまだキューに載っている tick）で判定を確定させていた＝**ドロー未反映のまま FAIL**。`stackLen` を実体（整列済み＝`queue.length`／未整列＝`pendingTurn+pendingOpp`）に直すと**期待どおり1回だけ発火**し 2回連続 PASS。engine/JSON は無修正。シナリオは既定 order へ追加。一次記録は BUGFIXES 2026-08-06 節 |
+| (ci) | ✅**2026-08-06（続き358）に残0クローズ**＝`OPPONENT_PAY_OPTIONAL` の 'pay' 枝を `costColors.length > 0` のときだけ積むよう是正（既存3枝と同じ条件付き spread へ揃えただけ）。⚠**過剰実行にならないことを全数確認済み**＝live 出現71／エナコストあり38／非搭載33で**回避枝ゼロの STUB は0件**（golden に固定）。(cii) と同時消化。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (xcvii) | ✅**2026-08-06（続き360）に残0クローズ**＝原文「場を離れる場合」はエナ送りも含む（登録時の「まず原文で確認」への答えは YES）。**`applyEffectLeaveSubstitutes` を新設して離場11経路すべてを1本の入口へ寄せ**、`execSendToEnergy` の複数選択クロージャだけ抜けていた「代わりにこの能力を失う」を補填。適用順は従来と同一＝**挙動不変のリファクタ＋抜け1本**。golden 回帰を新設（単体case/複数選択クロージャの両形態）。一次記録は BUGFIXES 2026-08-06 節 |
+| (xcvi) | ✅**2026-08-06（続き360）にクローズ**＝`ArtsModal` Phase2 の `applySpecificCardCostReduction` 二重適用を「値が同じか」ではなく**「どこから来たか」（ベット置換値／印刷コスト＝未適用・`pendingArtsEffectiveCost`＝適用済み）で分岐**して解消。併せて《無》→センター色 読み替えを**軽減のあと**に回して Phase1 と順序を揃えた。⚠**live 対象アーツは0枚＝挙動不変の予防修正**（実機で差分は見せられない）。一次記録は BUGFIXES 2026-08-06 節 |
+| (c) | ✅**2026-08-06（続き361）に残0クローズ**＝①`WXDi-P13-089-E2` の `TRASH{TRASH_CARD}`（トラッシュ→トラッシュの完全 no-op）を原文どおり `EXILE{SIGNI}` へ是正②「その（対戦相手の）シグニ」＝トリガー元への限定を `filter.isTriggerSource` で表現し、**`collectTargetedTriggers` が `origin` を `entry.triggeringCardNum` に載せていなかった**配線を追加（下見どおり1行）。live 変更は3効果（`WXDi-P03-056-E1`／`WX05-047-E1`／`WXDi-P13-089-E2`）＝**巻き込みで `WX05-047`（バトル相手限定）も是正**。⚠**CPU の対象選択はランダム**なので「結果が正しい」では検証にならず、`queryState` に `pendingCandidates` を足して**候補が1件に絞られている**ことで判定した（修正を外した A/B で FAIL 再現済み）。実機シナリオ `onTargetedSourceSigniBanish` 新設・2回連続PASS。登録時原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-06 整理」節、一次記録は BUGFIXES 2026-08-06 節 |
+| (lxvi) | ✅**2026-08-06（続き360b）に残0クローズ**＝据置2枚の原因は JSON ではなく **parser 側の欠落**だったので、規則2本（①「あなたか対戦相手のデッキの上からカードをN枚トラッシュ」＝CHOOSE ②「【X】を**持つ**カード」＝付与ではなく**保有条件**＋`SONG_FRAGMENT` 二重化の畳み込み）を足して fresh を curated 以上にしてから採用した。⚠**巻き込み2枚はどちらも実バグ是正**（`WX08-061`＝付与する keyword が**ダブルクラッシュ→アサシン**／`WXEX2-13`＝原文に無いライフバースト付与の除去）。fresh 全数6712枚の A/B で**変化20枚**を確認。golden 1372→1374・census 1288→1287。一次記録は BUGFIXES 2026-08-06 節 |
+
+### Opus タスク14（リファクタ Stage2→Stage3 純粋バトルコントローラ・🏁完了）
+
+| # | タスク | 種別 | 規模 | 残っている内容 |
+|---|---|---|---|---|
+| 14 | 🏁**完了**（2026-08-03・続き333）リファクタ Stage2→Stage3 純粋バトルコントローラ | BattleScreen構造 | — | ✅Stage2＋永続化移行（全行 I/O 120箇所を `persist` へ）＋**reducer 純粋化＝`persist.commit` 118/118 が `reduceBattle` 経由**（18 action）。残テール (a)(b)(c)(d) すべて残0。設計・**定形13** ・新規ハンドラを書くときの手順は `docs/BATTLE_CONTROLLER.md`。⚠**残タスクは §7 実機通し確認のみ**（ハンドラ側 payload 構築は golden 非カバー＝純粋関数しか見ない）。ここから派生しうる次段（任意・未着手）＝①`BattleScreen.tsx` 本体のフェイズ別ハンドラ分割（今回の純粋化では不要と判明＝**やるなら可読性目的**）②reducer の action 単位テストをさらに厚くする |
+
+> ⚠**残っている作業は §7 の実機通し確認だけ**（ハンドラ側 payload 構築は golden 非カバー）。設計・定形13・新規ハンドラの手順は [BATTLE_CONTROLLER.md](./BATTLE_CONTROLLER.md)。
+
+### Sonnet タスク4（BEHAVIOR_AUDIT キュー再生成＋一次トリアージ・⛔枯渇＝休眠）
+
+| # | タスク | 種別 | 規模 | 残っている内容 |
+|---|---|---|---|---|
+| 4 | ~~BEHAVIOR_AUDIT キュー再生成＋一次トリアージ~~ **⛔枯渇（休眠）** | 計器実行＋分析 | S | 続き133 で高シグナル22件精査＝真no-opバグ0件。残る母数は監査ツールの構造的盲点（COUNTER_SPELL/SPELL_CUTIN・トリガー文脈依存）に該当＝再開なら盲点フィルタ実装が先（低収量見込み） |
 
 ## 2026-08-06 整理：PLAN §3 在庫表から退避した残0クローズ行（原文）
 
