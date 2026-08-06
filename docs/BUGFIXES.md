@@ -1,5 +1,55 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — 🏁**Opusタスク12(cxii) 残0クローズ**＝パワー参照 activeCondition が「表記パワー」で判定され、**バフしても一生 false** だった3コレクタを是正（golden 1406→1407・engine のみ・JSON不変）（Opus 5・続き367）
+
+### 何が壊れていたか（真因）
+
+`checkActiveCondition` の `SELF_POWER_THRESHOLD` / `FRONT_SIGNI_POWER` / `FRONT_SIGNI{compareToSelf:power}` /
+`FIELD_SIGNI_POWER_COUNT` は **`effectivePowers` を渡されなければ `cardMap` の表記パワーへフォールバック**する。
+ところが以下のコレクタは `checkActiveCondition` に powers を渡していなかった：
+
+- `collectBanishEffectProtectedSigni`（バニッシュ耐性）
+- `collectGrantedFromLayer`（【レイヤー】等のフィールド付与）
+- `collectContinuousGrantedKeywords` の**一部呼び出し**（`BattleScreen` のルリグアタック経路）
+
+結果 `WDK08-Y11`（**表記12000**／「パワーが**20000以上**であるかぎり、バニッシュされない」）は
+**どれだけパワーを上げても保護が働かない**（過小実行）。`WXDi-P03-060`（8000/閾値12000）・
+`WXDi-P13-052`（閾値30000）も同型。⚠**この穴は 2026-08-07 続き364 の §5c バッチで
+`SELF_POWER_THRESHOLD` を新たに載せたことで顕在化した**（それ以前は「無条件で常に真」だったので目立たなかった）。
+
+### 直し方＝渡されなければ「その場で計算する」
+
+3コレクタに **optional な `effectivePowers` 引数**を足し、未指定なら**受け取った state と effectsMap から
+`calcFieldPowers` を遅延計算**する（`activeCondition` を持つ効果が1つも無ければ計算しない）。
+
+- **なぜ呼び出し元から渡さないのか**＝コレクタは**解決途中のローカル state** で呼ばれるのに対し、
+  `BattleScreen` の `effectivePowers` memo は `bs`（1手前の盤面）から作られる。渡すとむしろ古い値になる。
+- **循環しないのか**＝`calcFieldPowers` は3コレクタのどれも呼ばない。特に `collectGrantedFromLayer` は
+  **「レイヤー付与を足す前の effectsMap」**を受け取るので、そこから計算したパワーでゲートを判定するのは
+  同時適用の1段近似として妥当（付与の中身がパワーを変えても循環しない）。
+
+### 母集団の実測
+
+パワー参照 activeCondition を持つ効果は **live 全体で18件**だけ＝`GRANT_KEYWORD` 13（`collectContinuousGrantedKeywords`＝
+主経路は元から powers 済み）／`GRANT_FIELD_SIGNI_ABILITY` 3／`GRANT_PROTECTION` 1（`WDK08-Y11`）／
+`STUB:BANISH_BY_SELF_GOES_TO_TRASH` 1。**「powers を渡していない `checkActiveCondition` 呼び出し」は約50箇所あるが、
+実データが通るのは上記だけ**なので、闇雲に全箇所へ配線せず母集団から必要な3つに絞った。
+
+### 副作用（意図した挙動変化）
+
+`FRONT_SIGNI{compareToSelf:power}`（`WXDi-P13-082`「正面と同じパワーならランサー」）も**実効パワー**で判定されるようになった。
+golden の既存ケースは `SIGNI_P12000` = `WD01-009`（**自分で**「対戦相手のターンの間、あなたのシグニのパワーを＋1000」を持つ）
+を両側に置いていたため、相手側が 13000 になって「同パワー」が崩れて FAIL した。**盤面を素直に読めばそちらが正しい**ので、
+テストは①実効パワーを明示して「同パワーならランサー」を固定 ②powers 未指定なら相手の常在バフで不発になることも固定、の2本にした。
+
+### 検証
+
+`npm run gates` 全緑＝golden **1406→1407**（+1＝`WDK08-Y11` が「表記12000では保護されない／実効20000なら保護される／
+**常在バフ+10000 を powers 未指定でも拾う**／バフ源が居なければ保護されない」の4方向）、census **1233 据置**（表現ではなく
+実行の是正なので動かないのが正）、smoke 10679 全0、fuzz 全0、lint 0 errors。**JSON・逆翻訳は不変**。
+
+---
+
 ## 2026-08-07 — 🏁**Opusタスク12(cxvi) 残0クローズ**＝「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」を機構ごと実装（census 1241→1233・golden 1404→1406・live 10カード・**要実機検証**）（Opus 5・続き366）
 
 ### 何が壊れていたか（真因）
