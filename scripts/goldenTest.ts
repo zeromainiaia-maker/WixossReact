@@ -39,6 +39,7 @@ import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/ma
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
+import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
