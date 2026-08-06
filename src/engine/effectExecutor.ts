@@ -3330,7 +3330,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           const enSpec = stub.opponentEnergyTrash;
           const enCount = enSpec === 'ALL' ? cur.otherState.energy.length : (enSpec ?? 0);
           const options = [
-            { id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, ...(costColorsOPO.length ? { costColors: costColorsOPO } : {}) },
+            // ⚠**エナコストを持つときだけ「支払う」枝を出す**（タスク12(ci)）。costColors 非搭載の
+            //   STUB（＝原文の回避手段が手札捨て/エナトラッシュ等**のみ**の札。live 68効果中 33効果）で
+            //   無条件に積んでいた結果、`canOppAfford` が `length===0` で常に true になり
+            //   **コスト0でタダで回避できる枝**が生まれていた。CPU 自動応答は available な先頭を採るので
+            //   意図した discard/energyTrash 枝にも skip（本体発動）にも到達しなくなる。
+            //   ⚠`perAttackOPO` で回数0のときも costColorsOPO は空＝ここで枝ごと消えるのが正しい
+            //   （既存コメントの「タダで回避できる穴を作らない」意図と一致）。
+            ...(costColorsOPO.length > 0 ? [{
+              id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, costColors: costColorsOPO,
+            }] : []),
             ...(handSpec !== undefined && handCount > 0 ? [{
               id: 'discard',
               label: handSpec === 'ALL' ? '手札をすべて捨てる' : `${handLabelNoun}を${handCount}枚捨てる`,
