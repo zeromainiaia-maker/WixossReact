@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5c 文型バッチ「このシグニはパワーがN以上であるかぎり、〜」**＝主語先行形の自己パワー閾値が丸ごと落ちて**無条件付与の過剰効果**になっていた11効果を是正（census 1283→1274・golden 1400→1402・live 11カード）（Opus 5・続き364）
+
+### 何が壊れていたか（真因）
+
+原文「**【常】：このシグニはパワーが12000以上であるかぎり、【ダブルクラッシュ】を得る。**」（`WX12-CB01`）等は、
+parser の `parseActiveCondition` に**主語先行形の規則が無かった**（既存のパターン6は助詞「の」の
+「このシグニ**の**パワーがN以上であるかぎり、」しか見ていない）。その結果、末尾の**汎用フォールバック
+`genericKagiri`（`/^[^。「」]+かぎり、/`）が条件節を丸ごと無言で食い**、残った「【ダブルクラッシュ】を得る」だけが
+parse されて `CONTINUOUS + GRANT_KEYWORD`（**activeCondition なし**）になっていた。
+
+＝**パワーに関係なく常時ダブルクラッシュ／常時ランサー／常時Ｓランサー／常時アサシン／常時シュート／
+常時「対戦相手の効果でバニッシュされない」** という、盤面を壊す側の**過剰効果**。しかも `genericKagiri` は
+`isTimingMarker:true` を返すので `anyFailed` に数えられず、**parseStatus は AUTO のまま**＝
+PARTIAL 刻印にも `_partial_report.txt` にも載らない完全な死角だった（census の
+「パワー閾値(NN以上/以下)」だけが検出していた）。
+
+### 直し方＝parser にパターン6a を1本足すだけ（engine/型/decompiler は無改造）
+
+`effectParser.ts` の `parseActiveCondition` に、`genericKagiri` より**前**でマッチする規則を追加：
+
+```
+/^このシグニは(?:自身の)?パワーが([０-９\d,]+)(以上|以下)(?:である|ある)?かぎり、/
+  → activeCondition: { type:'SELF_POWER_THRESHOLD', operator:'gte'|'lte', value }
+```
+
+- **`rest` は主語ごと落とす**（`genericKagiri` と同じ残余にする）＝action 側の parse 結果を1文字も変えず
+  **activeCondition だけが増える純粋上位集合**になり、`build:effects` の `isPureSuperset` で自動採用される。
+- **読点「、」を必須にした**＝「…かぎり対戦相手の…、18000以上であるかぎり…」のような**多段閾値の複文**
+  （`WX09-019`）は残余の parse 結果が変わってしまうため対象外（多段は §6.3 機構待ちへ）。
+- engine は `checkActiveCondition` の `SELF_POWER_THRESHOLD` を実装済み（`effectivePowers` を見る）＝
+  **既存 DSL で表現できる**ことを確認してからバッチを開いた。decompiler も表示規則を持っていた。
+
+### 着地（11効果／11カード）
+
+`build:effects` の純改善自動採用が6カード（`WX12-CB01` `WX16-051` `WXEX2-59` `WXDi-P13-052` `WX24-P1-056`
+`WXK03-026`）。残り5カード（`WXEX1-33` `WXK04-054` `WXK10-081` `WDK08-Y11` `WXDi-P03-060`）は
+**同カード内の無関係なドリフト**（MANUAL/PARTIAL 温存・held 温存）に巻き込まれて自動採用されなかったため、
+**parser が出力するのと同一の `activeCondition` だけをフィールド粒度で curated へ入れた**（parser と JSON が
+一致するので parserWorklist の held は増えない）。`WXK06-049` は既に手修正で正しく入っていた（parser が
+追いついた形）。**【レイヤー】引用付与の内側能力（`WX16-051` / `WXEX2-59`）にも同じゲートが載る**＝
+`collectGrantedFromLayer` で付与先へ渡り、`collectContinuousGrantedKeywords` が**付与先シグニ自身のパワー**で
+評価するので意味的に正しい。
+
+### 採用しなかったもの（held 据置）
+
+`WXK06-049`（STUB→`BANISH_REDIRECT`）と `WXK10-081`（STUB→`REVEAL`）は、今回の gain と**同じカード内に
+未検証の別ドリフト**が同居していた。特に `WXK10-081` の fresh は原文「**それぞれ名前の異なる**＜水獣＞」の
+相違制約を落とす（STUB 側が持っている）ため、カード単位で採用すると退化する。**署名グループごと据置**。
+
+### 検証
+
+- `npm run gates` 全緑＝typecheck / golden **1400→1402**（+2＝11効果の構造固定＋「閾値未満では
+  キーワードが付かない」の engine 挙動）／smoke 10679 全0／fuzz 全0／census **1283→1274**（−9・`BASELINE_HIGH` 更新）／
+  lint 0 errors。
+- `npm run regen` → 逆翻訳の変更は**ちょうど11行**、すべて `《このシグニのパワーがN以上であるかぎり》` の
+  付加のみ（原文と照合済み）。同型★**0 据置**（265群）。
+
+### 残した follow-up（Opusタスク12 へ登録）
+
+(cxii) `collectBanishEffectProtectedSigni` / `collectGrantedFromLayer` が `effectivePowers` を受け取らないため、
+`SELF_POWER_THRESHOLD` が**基本パワーにフォールバック**する（`WDK08-Y11` は基本12000＜閾値20000＝
+バフしても保護が効かない）。(cxiii) 多段閾値「N以上であるかぎり…、M以上であるかぎり代わりに…」。
+(cxiv)「このシグニは**正面のシグニの**パワーがN以下であるかぎり」8カード（引用付与STUBの内側）。
+(cxv) `WX05-021-E1` は原文の【ダブルクラッシュ】付与が JSON に無い（欠落）。
+
+---
+
 ## 2026-08-07 — 🏁🏁**Opusタスク12 在庫 残0クローズ**＝最後の1件 (cx)「対戦相手のシグニがアタックしたときにしか使用できない【起】が一度も使えない」を機構ごと実装（golden 1395→1400・live 1カード・実機 3回連続PASS）（Opus 5・続き363）
 
 ### 何が壊れていたか（真因）
